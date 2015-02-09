@@ -7129,3 +7129,7 @@ ER_CANNOT_CONVERT_CHARACTER
         eng "Cannot convert '%s' character 0x%-.64s to '%s'"
 ER_INVALID_DEFAULT_VALUE_FOR_FIELD  22007
         eng "Incorrect default value '%-.128s' for column '%.192s'"
+ER_KILL_QUERY_DENIED_ERROR
+        eng "You are not owner of query %lu"
+        ger "Sie sind nicht Eigentümer von Abfrage %lu"
+        rus "Вы не являетесь владельцем запроса %lu"

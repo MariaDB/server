@@ -8038,7 +8038,8 @@ kill_one_thread(THD *thd, longlong id, killed_state kill_signal, killed_type typ
       error=0;
     }
     else
-      error=ER_KILL_DENIED_ERROR;
+      error= (type == KILL_TYPE_QUERY ? ER_KILL_QUERY_DENIED_ERROR :
+                                        ER_KILL_DENIED_ERROR);
     mysql_mutex_unlock(&tmp->LOCK_thd_data);
   }
   DBUG_PRINT("exit", ("%d", error));
