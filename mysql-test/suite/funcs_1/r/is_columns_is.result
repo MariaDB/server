@@ -17,6 +17,7 @@ def	information_schema	ALL_PLUGINS	PLUGIN_TYPE	4		NO	varchar	80	240	NULL	NULL	NU
 def	information_schema	ALL_PLUGINS	PLUGIN_TYPE_VERSION	5		NO	varchar	20	60	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(20)			select	
 def	information_schema	ALL_PLUGINS	PLUGIN_VERSION	2		NO	varchar	20	60	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(20)			select	
 def	information_schema	APPLICABLE_ROLES	GRANTEE	1		NO	varchar	190	570	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(190)			select	
+def	information_schema	APPLICABLE_ROLES	IS_DEFAULT	4	NULL	YES	varchar	3	9	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(3)			select	
 def	information_schema	APPLICABLE_ROLES	IS_GRANTABLE	3		NO	varchar	3	9	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(3)			select	
 def	information_schema	APPLICABLE_ROLES	ROLE_NAME	2		NO	varchar	128	384	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(128)			select	
 def	information_schema	CHARACTER_SETS	CHARACTER_SET_NAME	1		NO	varchar	32	96	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(32)			select	
@@ -543,6 +544,7 @@ COL_CML	TABLE_SCHEMA	TABLE_NAME	COLUMN_NAME	DATA_TYPE	CHARACTER_MAXIMUM_LENGTH	C
 3.0000	information_schema	APPLICABLE_ROLES	GRANTEE	varchar	190	570	utf8	utf8_general_ci	varchar(190)
 3.0000	information_schema	APPLICABLE_ROLES	ROLE_NAME	varchar	128	384	utf8	utf8_general_ci	varchar(128)
 3.0000	information_schema	APPLICABLE_ROLES	IS_GRANTABLE	varchar	3	9	utf8	utf8_general_ci	varchar(3)
+3.0000	information_schema	APPLICABLE_ROLES	IS_DEFAULT	varchar	3	9	utf8	utf8_general_ci	varchar(3)
 3.0000	information_schema	CHARACTER_SETS	CHARACTER_SET_NAME	varchar	32	96	utf8	utf8_general_ci	varchar(32)
 3.0000	information_schema	CHARACTER_SETS	DEFAULT_COLLATE_NAME	varchar	32	96	utf8	utf8_general_ci	varchar(32)
 3.0000	information_schema	CHARACTER_SETS	DESCRIPTION	varchar	60	180	utf8	utf8_general_ci	varchar(60)

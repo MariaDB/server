@@ -28,18 +28,18 @@ Grants for foo@localhost
 GRANT USAGE ON *.* TO 'foo'@'localhost'
 GRANT role10 TO 'foo'@'localhost'
 select * from information_schema.applicable_roles;
-GRANTEE	ROLE_NAME	IS_GRANTABLE
-foo@localhost	role10	NO
-role10	role9	NO
-role2	role1	NO
-role4	role2	NO
-role5	role2	NO
-role5	role3	NO
-role6	role4	NO
-role6	role5	NO
-role7	role5	NO
-role9	role6	NO
-role9	role7	NO
+GRANTEE	ROLE_NAME	IS_GRANTABLE	IS_DEFAULT
+foo@localhost	role10	NO	NO
+role10	role9	NO	NULL
+role2	role1	NO	NULL
+role4	role2	NO	NULL
+role5	role2	NO	NULL
+role5	role3	NO	NULL
+role6	role4	NO	NULL
+role6	role5	NO	NULL
+role7	role5	NO	NULL
+role9	role6	NO	NULL
+role9	role7	NO	NULL
 show status like 'debug%';
 Variable_name	Value
 grant select on *.* to role1;

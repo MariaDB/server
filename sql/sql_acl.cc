@@ -10322,7 +10322,7 @@ struct APPLICABLE_ROLES_DATA
   TABLE *table;
   const LEX_STRING host;
   const LEX_STRING user_and_host;
-  ACL_USER_BASE *user;
+  ACL_USER *user;
 };
 
 static int
@@ -10348,6 +10348,17 @@ applicable_roles_insert(ACL_USER_BASE *grantee, ACL_ROLE *role, void *ptr)
     table->field[2]->store(STRING_WITH_LEN("YES"), cs);
   else
     table->field[2]->store(STRING_WITH_LEN("NO"), cs);
+
+  /* Default role is only valid when looking at a role granted to a user. */
+  if (!is_role)
+  {
+    if (data->user->default_rolename.length &&
+        !strcmp(data->user->default_rolename.str, role->user.str))
+      table->field[3]->store(STRING_WITH_LEN("YES"), cs);
+    else
+      table->field[3]->store(STRING_WITH_LEN("NO"), cs);
+    table->field[3]->set_notnull();
+  }
 
   if (schema_table_store_record(table->in_use, table))
     return -1;
