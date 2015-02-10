@@ -1050,8 +1050,6 @@ int ReplSemiSyncMaster::readSlaveReply(NET *net, uint32 server_id,
   ulong trc_level = trace_level_;
   LINT_INIT_STRUCT(start_ts);
 
-  LINT_INIT_STRUCT(start_ts);
-
   function_enter(kWho);
 
   assert((unsigned char)event_buf[1] == kPacketMagicNum);

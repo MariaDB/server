@@ -977,7 +977,7 @@ int _ma_split_page(MARIA_HA *info, MARIA_KEY *key, MARIA_PAGE *split_page,
   uint keynr;
   uint length,a_length,key_ref_length,t_length,nod_flag,key_length;
   uint page_length, split_length, page_flag;
-  uchar *key_pos,*pos, *after_key;
+  uchar *key_pos, *pos, *UNINIT_VAR(after_key);
   MARIA_KEY_PARAM s_temp;
   MARIA_PINNED_PAGE tmp_page_link, *page_link= &tmp_page_link;
   MARIA_SHARE *share= info->s;
@@ -987,7 +987,6 @@ int _ma_split_page(MARIA_HA *info, MARIA_KEY *key, MARIA_PAGE *split_page,
   int res;
   DBUG_ENTER("_ma_split_page");
 
-  LINT_INIT(after_key);
   DBUG_DUMP("buff", split_page->buff, split_page->size);
 
   info->page_changed=1;			/* Info->buff is used */

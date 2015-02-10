@@ -3288,8 +3288,7 @@ void fix_semijoin_strategies_for_picked_join_order(JOIN *join)
   {
     POSITION *pos= join->best_positions + tablenr;
     JOIN_TAB *s= pos->table;
-    uint first;
-    LINT_INIT(first); // Set by every branch except SJ_OPT_NONE which doesn't use it
+    uint UNINIT_VAR(first); // Set by every branch except SJ_OPT_NONE which doesn't use it
 
     if ((handled_tabs & s->table->map) || pos->sj_strategy == SJ_OPT_NONE)
     {

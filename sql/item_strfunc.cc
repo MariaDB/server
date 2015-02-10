@@ -1948,8 +1948,7 @@ String *Item_func_ltrim::val_str(String *str)
   char buff[MAX_FIELD_WIDTH], *ptr, *end;
   String tmp(buff,sizeof(buff),system_charset_info);
   String *res, *remove_str;
-  uint remove_length;
-  LINT_INIT(remove_length);
+  uint UNINIT_VAR(remove_length);
 
   res= args[0]->val_str(str);
   if ((null_value=args[0]->null_value))
@@ -1994,8 +1993,7 @@ String *Item_func_rtrim::val_str(String *str)
   char buff[MAX_FIELD_WIDTH], *ptr, *end;
   String tmp(buff, sizeof(buff), system_charset_info);
   String *res, *remove_str;
-  uint remove_length;
-  LINT_INIT(remove_length);
+  uint UNINIT_VAR(remove_length);
 
   res= args[0]->val_str(str);
   if ((null_value=args[0]->null_value))
@@ -2075,8 +2073,7 @@ String *Item_func_trim::val_str(String *str)
   const char *r_ptr;
   String tmp(buff, sizeof(buff), system_charset_info);
   String *res, *remove_str;
-  uint remove_length;
-  LINT_INIT(remove_length);
+  uint UNINIT_VAR(remove_length);
 
   res= args[0]->val_str(str);
   if ((null_value=args[0]->null_value))

@@ -656,9 +656,8 @@ int key_tuple_cmp(KEY_PART_INFO *part, uchar *key1, uchar *key2,
                   uint tuple_length)
 {
   uchar *key1_end= key1 + tuple_length;
-  int len;
+  int UNINIT_VAR(len);
   int res;
-  LINT_INIT(len);
   for (;key1 < key1_end; key1 += len, key2 += len, part++)
   {
     len= part->store_length;
@@ -709,12 +708,9 @@ ulong key_hashnr(KEY *key_info, uint used_key_parts, const uchar *key)
   for (; key_part < end_key_part; key_part++)
   {
     uchar *pos= (uchar*)key;
-    CHARSET_INFO *cs;
-    uint length, pack_length;
+    CHARSET_INFO *UNINIT_VAR(cs);
+    uint UNINIT_VAR(length), UNINIT_VAR(pack_length);
     bool is_string= TRUE;
-    LINT_INIT(cs);
-    LINT_INIT(length);
-    LINT_INIT(pack_length);
 
     key+= key_part->length;
     if (key_part->null_bit)
@@ -816,13 +812,9 @@ bool key_buf_cmp(KEY *key_info, uint used_key_parts,
   {
     uchar *pos1= (uchar*)key1;
     uchar *pos2= (uchar*)key2;
-    CHARSET_INFO *cs;
-    uint length1, length2, pack_length;
+    CHARSET_INFO *UNINIT_VAR(cs);
+    uint UNINIT_VAR(length1), UNINIT_VAR(length2), UNINIT_VAR(pack_length);
     bool is_string= TRUE;
-    LINT_INIT(cs);
-    LINT_INIT(length1);
-    LINT_INIT(length2);
-    LINT_INIT(pack_length);
 
     key1+= key_part->length;
     key2+= key_part->length;

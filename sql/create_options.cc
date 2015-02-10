@@ -762,9 +762,8 @@ engine_option_value *merge_engine_table_options(engine_option_value *first,
                                                 engine_option_value *second,
                                                 MEM_ROOT *root)
 {
-  engine_option_value *end, *opt;
+  engine_option_value *UNINIT_VAR(end), *opt;
   DBUG_ENTER("merge_engine_table_options");
-  LINT_INIT(end);
 
   /* Create copy of first list */
   for (opt= first, first= 0; opt; opt= opt->next)

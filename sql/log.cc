@@ -1502,8 +1502,7 @@ bool LOGGER::activate_log_handler(THD* thd, uint log_type)
 void LOGGER::deactivate_log_handler(THD *thd, uint log_type)
 {
   my_bool *tmp_opt= 0;
-  MYSQL_LOG *file_log;
-  LINT_INIT(file_log);
+  MYSQL_LOG *UNINIT_VAR(file_log);
 
   switch (log_type) {
   case QUERY_LOG_SLOW:
@@ -4878,8 +4877,7 @@ int MYSQL_BIN_LOG::new_file_impl(bool need_lock)
   char new_name[FN_REFLEN], *new_name_ptr, *old_name, *file_to_open;
   uint close_flag;
   bool delay_close= false;
-  File old_file;
-  LINT_INIT(old_file);
+  File UNINIT_VAR(old_file);
 
   DBUG_ENTER("MYSQL_BIN_LOG::new_file_impl");
   if (!is_open())
@@ -5873,9 +5871,8 @@ bool MYSQL_BIN_LOG::write(Log_event *event_info, my_bool *with_annotate)
   bool is_trans_cache= FALSE;
   bool using_trans= event_info->use_trans_cache();
   bool direct= event_info->use_direct_logging();
-  ulong prev_binlog_id;
+  ulong UNINIT_VAR(prev_binlog_id);
   DBUG_ENTER("MYSQL_BIN_LOG::write(Log_event *)");
-  LINT_INIT(prev_binlog_id);
 
   if (thd->variables.option_bits & OPTION_GTID_BEGIN)
   {
@@ -7316,10 +7313,9 @@ MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader)
   group_commit_entry *current, *last_in_queue;
   group_commit_entry *queue= NULL;
   bool check_purge= false;
-  ulong binlog_id;
+  ulong UNINIT_VAR(binlog_id);
   uint64 commit_id;
   DBUG_ENTER("MYSQL_BIN_LOG::trx_group_commit_leader");
-  LINT_INIT(binlog_id);
 
   {
     DBUG_EXECUTE_IF("inject_binlog_commit_before_get_LOCK_log",
@@ -8297,8 +8293,7 @@ int TC_LOG_MMAP::log_and_order(THD *thd, my_xid xid, bool all,
 {
   int cookie;
   struct commit_entry entry;
-  bool is_group_commit_leader;
-  LINT_INIT(is_group_commit_leader);
+  bool UNINIT_VAR(is_group_commit_leader);
 
   if (need_prepare_ordered)
   {
@@ -9794,8 +9789,7 @@ binlog_checksum_update(MYSQL_THD thd, struct st_mysql_sys_var *var,
 {
   ulong value=  *((ulong *)save);
   bool check_purge= false;
-  ulong prev_binlog_id;
-  LINT_INIT(prev_binlog_id);
+  ulong UNINIT_VAR(prev_binlog_id);
 
   mysql_mutex_lock(mysql_bin_log.get_log_lock());
   if(mysql_bin_log.is_open())

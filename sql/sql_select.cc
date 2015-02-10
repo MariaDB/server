@@ -3397,7 +3397,7 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
                      DYNAMIC_ARRAY *keyuse_array)
 {
   int error= 0;
-  TABLE *table;
+  TABLE *UNINIT_VAR(table); /* inited in all loops */
   uint i,table_count,const_count,key;
   table_map found_const_table_map, all_table_map, found_ref, refs;
   key_map const_ref, eq_part;
@@ -3412,7 +3412,6 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
   TABLE_LIST *tables;
   DBUG_ENTER("make_join_statistics");
 
-  LINT_INIT(table); /* inited in all loops */
   table_count=join->table_count;
 
   /*
@@ -12036,13 +12035,12 @@ remove_const(JOIN *join,ORDER *first_order, COND *cond,
     return change_list ? 0 : first_order;		// No need to sort
 
   ORDER *order,**prev_ptr, *tmp_order;
-  table_map first_table;
+  table_map UNINIT_VAR(first_table); /* protected by first_is_base_table */
   table_map not_const_tables= ~join->const_table_map;
   table_map ref;
   bool first_is_base_table= FALSE;
   DBUG_ENTER("remove_const");
   
-  LINT_INIT(first_table); /* protected by first_is_base_table */
   if (join->join_tab[join->const_tables].table)
   {
     first_table= join->join_tab[join->const_tables].table->map;
@@ -15468,8 +15466,7 @@ static Field *create_tmp_field_from_item(THD *thd, Item *item, TABLE *table,
                                          uint convert_blob_length)
 {
   bool maybe_null= item->maybe_null;
-  Field *new_field;
-  LINT_INIT(new_field);
+  Field *UNINIT_VAR(new_field);
 
   switch (item->result_type()) {
   case REAL_RESULT:
@@ -17462,9 +17459,8 @@ do_select(JOIN *join,List<Item> *fields,TABLE *table,Procedure *procedure)
 {
   int rc= 0;
   enum_nested_loop_state error= NESTED_LOOP_OK;
-  JOIN_TAB *join_tab;
+  JOIN_TAB *UNINIT_VAR(join_tab);
   DBUG_ENTER("do_select");
-  LINT_INIT(join_tab);
   
   join->procedure=procedure;
   join->tmp_table= table;			/* Save for easy recursion */

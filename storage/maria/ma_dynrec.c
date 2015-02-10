@@ -1593,9 +1593,8 @@ my_bool _ma_cmp_dynamic_record(register MARIA_HA *info,
   uchar *buffer;
   MARIA_BLOCK_INFO block_info;
   my_bool error= 1;
-  size_t buffer_length;
+  size_t UNINIT_VAR(buffer_length);
   DBUG_ENTER("_ma_cmp_dynamic_record");
-  LINT_INIT(buffer_length);
 
   if (info->opt_flag & WRITE_CACHE_USED)
   {

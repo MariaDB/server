@@ -187,11 +187,10 @@ int _mi_bin_search(MI_INFO *info, register MI_KEYDEF *keyinfo, uchar *page,
                    uchar *buff __attribute__((unused)), my_bool *last_key)
 {
   reg4 int start,mid,end,save_end;
-  int flag;
+  int UNINIT_VAR(flag);
   uint totlength,nod_flag,not_used[2];
   DBUG_ENTER("_mi_bin_search");
 
-  LINT_INIT(flag);
   totlength=keyinfo->keylength+(nod_flag=mi_test_if_nod(page));
   start=0; mid=1;
   save_end=end=(int) ((mi_getint(page)-2-nod_flag)/totlength-1);

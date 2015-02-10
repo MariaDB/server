@@ -414,9 +414,7 @@ Event_db_repository::index_read_for_db_for_i_s(THD *thd, TABLE *schema_table,
   CHARSET_INFO *scs= system_charset_info;
   KEY *key_info;
   uint key_len;
-  uchar *key_buf= NULL;
-  LINT_INIT(key_buf);
-
+  uchar *key_buf;
   DBUG_ENTER("Event_db_repository::index_read_for_db_for_i_s");
 
   DBUG_PRINT("info", ("Using prefix scanning on PK"));

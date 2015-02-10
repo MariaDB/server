@@ -5418,8 +5418,7 @@ int handler::index_read_idx_map(uchar * buf, uint index, const uchar * key,
                                 key_part_map keypart_map,
                                 enum ha_rkey_function find_flag)
 {
-  int error, error1;
-  LINT_INIT(error1);
+  int error, UNINIT_VAR(error1);
 
   error= ha_index_init(index, 0);
   if (!error)
