@@ -72,6 +72,11 @@ IF(UNIX)
     message(STATUS "CONNECT: GCC: Some warnings disabled")
   endif(WITH_WARNINGS)
 
+  # Avoid compilation failure in maintainer mode
+  IF(CMAKE_COMPILER_IS_GNUCXX)
+    SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-overloaded-virtual -Wno-error=type-limits")
+  ENDIF(CMAKE_COMPILER_IS_GNUCXX)
+
   add_definitions( -DUNIX -DLINUX -DUBUNTU )
 
   SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fpermissive -fexceptions -fPIC ")
