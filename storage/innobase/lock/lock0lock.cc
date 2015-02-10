@@ -5163,7 +5163,14 @@ lock_rec_print(
 	fprintf(file, "RECORD LOCKS space id %lu page no %lu n bits %lu ",
 		(ulong) space, (ulong) page_no,
 		(ulong) lock_rec_get_n_bits(lock));
+
 	dict_index_name_print(file, lock->trx, lock->index);
+
+	/* Print number of table locks */
+	fprintf(file, " trx table locks %lu total table locks %lu ",
+		ib_vector_size(lock->trx->lock.table_locks),
+		UT_LIST_GET_LEN(lock->index->table->locks));
+
 	fprintf(file, " trx id " TRX_ID_FMT, lock->trx->id);
 
 	if (lock_get_mode(lock) == LOCK_S) {
