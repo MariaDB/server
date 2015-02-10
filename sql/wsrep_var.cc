@@ -570,7 +570,9 @@ static void export_wsrep_status_to_mysql(THD* thd)
 
   for (wsrep_status_len = 0;
        thd->wsrep_status_vars[wsrep_status_len].name != NULL;
-       wsrep_status_len++);
+       wsrep_status_len++) {
+      /* */
+  }
 
 #if DYNAMIC
   if (wsrep_status_len != mysql_status_len) {
