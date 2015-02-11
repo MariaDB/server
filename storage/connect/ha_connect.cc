@@ -2866,7 +2866,7 @@ const COND *ha_connect::cond_push(const COND *cond)
       } else if (x && cond)
         tdbp->SetCondFil(filp);   // Wrong filter
 
-    } else
+    } else if (tty != TYPE_AM_JSN && tty != TYPE_AM_JSON)
       tdbp->SetFilter(CondFilter(g, (Item *)cond));
 
    fin:
@@ -5370,9 +5370,10 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
         for (crp= qrp->Colresp; crp; crp= crp->Next)
           switch (crp->Fld) {
             case FLD_NAME:
-              if (ttp == TAB_CSV && topt->data_charset &&
+              if (ttp == TAB_PRX || 
+                 (ttp == TAB_CSV && topt->data_charset &&
                  (!stricmp(topt->data_charset, "UTF8") ||
-                  !stricmp(topt->data_charset, "UTF-8")))
+                  !stricmp(topt->data_charset, "UTF-8"))))
                 cnm= crp->Kdata->GetCharValue(i);
               else
                 cnm= encode(g, crp->Kdata->GetCharValue(i));

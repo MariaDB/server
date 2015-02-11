@@ -157,6 +157,9 @@ class JSON : public BLOCK {
   virtual void   SetValue(PGLOBAL g, PJVAL jvp, PSZ key) {X}
   virtual void   SetValue(PVAL valp) {X}
   virtual void   SetValue(PJSON jsp) {X}
+  virtual void   SetString(PGLOBAL g, PSZ s) {X}
+  virtual void   SetInteger(PGLOBAL g, int n) {X}
+  virtual void   SetFloat(PGLOBAL g, double f) {X}
   virtual bool   DeleteValue(int i) {X return true;}
 
  protected:
@@ -243,6 +246,9 @@ class JVALUE : public JSON {
   virtual PSZ    GetString(void);
   virtual void   SetValue(PVAL valp) {Value = valp;}
   virtual void   SetValue(PJSON jsp) {Jsp = jsp;}
+  virtual void   SetString(PGLOBAL g, PSZ s);
+  virtual void   SetInteger(PGLOBAL g, int n);
+  virtual void   SetFloat(PGLOBAL g, double f);
 
  protected:
   PJSON Jsp;      // To the json value

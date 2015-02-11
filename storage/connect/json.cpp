@@ -505,8 +505,11 @@ PSZ Serialize(PGLOBAL g, PJSON jsp, FILE *fs, int pretty)
       err = (b && jp->WriteChr('\t'));
       err |= SerializeObject(jp, (PJOB)jsp);
       break;
+    case TYPE_JVAL:
+      err = SerializeValue(jp, (PJVAL)jsp);
+      break;
     default:
-      strcpy(g->Message, "json tree is not an Array or an Object");
+      strcpy(g->Message, "Invalid json tree");
     } // endswitch Type
 
   if (fs) {
@@ -1055,4 +1058,28 @@ PSZ JVALUE::GetString(void)
   char buf[32];
   return (Value) ? Value->GetCharString(buf) : NULL;
 } // end of GetString
+
+/***********************************************************************/
+/* Set the Value's value as the given integer.                         */
+/***********************************************************************/
+void JVALUE::SetInteger(PGLOBAL g, int n)
+{
+  Value = AllocateValue(g, &n, TYPE_INT);
+} // end of AddInteger
+
+/***********************************************************************/
+/* Set the Value's value as the given DOUBLE.                          */
+/***********************************************************************/
+void JVALUE::SetFloat(PGLOBAL g, double f)
+{
+  Value = AllocateValue(g, &f, TYPE_DOUBLE, 6);
+} // end of AddFloat
+
+/***********************************************************************/
+/* Set the Value's value as the given string.                          */
+/***********************************************************************/
+void JVALUE::SetString(PGLOBAL g, PSZ s)
+{
+  Value = AllocateValue(g, s, TYPE_STRING);
+} // end of AddFloat
 

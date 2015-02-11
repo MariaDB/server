@@ -15,9 +15,6 @@ enum JMODE {MODE_OBJECT, MODE_ARRAY, MODE_VALUE};
 typedef class JSONDEF *PJDEF;
 typedef class TDBJSON *PJTDB;
 typedef class JSONCOL *PJCOL;
-typedef class JARLST  *PJARS;
-
-class TDBJSN;
 
 /***********************************************************************/
 /*  The JSON tree node. Can be an Object or an Array.           	  	 */
@@ -136,6 +133,7 @@ class JSONCOL : public DOSCOL {
   PVAL    GetColumnValue(PGLOBAL g, PJSON row, int i);
   PVAL    ExpandArray(PGLOBAL g, PJAR arp, int n);
   PVAL    CalculateArray(PGLOBAL g, PJAR arp, int n);
+  PVAL    MakeJson(PGLOBAL g, PJSON jsp);
   void    SetJsonValue(PGLOBAL g, PVAL vp, PJVAL val, int n);
   PJSON   GetRow(PGLOBAL g);
 

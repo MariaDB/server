@@ -387,7 +387,7 @@ bool JSONCOL::CheckExpand(PGLOBAL g, int i, PSZ nm, bool b)
   if ((Tjp->Xcol && nm && !strcmp(nm, Tjp->Xcol) &&
       (Tjp->Xval < 0 || Tjp->Xval == i)) || Xpd) {
     Xpd = true;              // Expandable object
-    Nodes[i].Op = OP_XX;
+    Nodes[i].Op = OP_EXP;
   } else if (b) {
     strcpy(g->Message, "Cannot expand more than one branch");
     return true;
@@ -426,7 +426,7 @@ bool JSONCOL::SetArrayOptions(PGLOBAL g, char *p, int i, PSZ nm)
     // Default specifications
     if (CheckExpand(g, i, nm, false))
       return true;
-    else if (jnp->Op != OP_XX)
+    else if (jnp->Op != OP_EXP)
       if (!Value->IsTypeNum()) {
         jnp->CncVal = AllocateValue(g, (void*)", ", TYPE_STRING);
         jnp->Op = OP_CNC;
@@ -448,13 +448,13 @@ bool JSONCOL::SetArrayOptions(PGLOBAL g, char *p, int i, PSZ nm)
       case '*': jnp->Op = OP_MULT; break;
       case '>': jnp->Op = OP_MAX;  break;
       case '<': jnp->Op = OP_MIN;  break;
-      case '#': jnp->Op = OP_NUM;  break;
       case '!': jnp->Op = OP_SEP;  break; // Average
+      case '#': jnp->Op = OP_NUM;  break;
       case 'x':
       case 'X': // Expand this array
         if (!Tjp->Xcol && nm) {  
           Xpd = true;
-          jnp->Op = OP_XX;
+          jnp->Op = OP_EXP;
           Tjp->Xval = i;
           Tjp->Xcol = nm;
         } else if (CheckExpand(g, i, nm, true))
@@ -557,6 +557,9 @@ bool JSONCOL::ParseJpath(PGLOBAL g)
       if (SetArrayOptions(g, p, i, Nodes[i-1].Key))
         return true;
 
+    } else if (*p == '*') {
+      // Return JSON
+      Nodes[i].Op = OP_XX;
     } else {
       Nodes[i].Key = p;
       Nodes[i].Op = OP_EXIST;
@@ -568,6 +571,20 @@ bool JSONCOL::ParseJpath(PGLOBAL g)
   Parsed = true;
   return false;
   } // end of ParseJpath
+
+/***********************************************************************/
+/*  MakeJson: Serialize the json item and set value to it.             */
+/***********************************************************************/
+PVAL JSONCOL::MakeJson(PGLOBAL g, PJSON jsp)
+  {
+  if (Value->IsTypeNum()) {
+    strcpy(g->Message, "Cannot make Json for a numeric column");
+    Value->Reset();
+  } else
+    Value->SetValue_psz(Serialize(g, jsp, NULL, 0));
+
+  return Value;
+  } // end of MakeJson
 
 /***********************************************************************/
 /*  SetValue: Set a value from a JVALUE contains.                      */
@@ -622,16 +639,16 @@ void JSONCOL::ReadColumn(PGLOBAL g)
 PVAL JSONCOL::GetColumnValue(PGLOBAL g, PJSON row, int i)
   {
   int   n = Nod - 1;
-  int   nextsame = 0;
   bool  expd = false;
   PJAR  arp;
   PJVAL val = NULL;
 
-//for (; i < Nod-1 && row; i++) {
   for (; i < Nod && row; i++) {
     if (Nodes[i].Op == OP_NUM) {
       Value->SetValue(row->GetType() == TYPE_JAR ? row->size() : 1);
       return(Value);
+    } else if (Nodes[i].Op == OP_XX) {
+      return MakeJson(g, row);
     } else switch (row->GetType()) {
       case TYPE_JOB:
         if (!Nodes[i].Key) {
@@ -652,7 +669,7 @@ PVAL JSONCOL::GetColumnValue(PGLOBAL g, PJSON row, int i)
           if (Nodes[i].Op != OP_NULL) {
             if (Nodes[i].Rank) {
               val = arp->GetValue(Nodes[i].Rank - 1);
-            } else if (Nodes[i].Op == OP_XX) {
+            } else if (Nodes[i].Op == OP_EXP) {
               return ExpandArray(g, arp, i);
             } else
               return CalculateArray(g, arp, i);
@@ -694,7 +711,11 @@ PVAL JSONCOL::ExpandArray(PGLOBAL g, PJAR arp, int n)
   JVALUE jval;
 
   ars = MY_MIN(Tjp->Limit, arp->size());
-  jvp = arp->GetValue(Nodes[n].Nx);
+
+  if (!(jvp = arp->GetValue(Nodes[n].Nx))) {
+    strcpy(g->Message, "Logical error expanding array");
+    longjmp(g->jumper[g->jump_level], 666);
+    } // endif jvp
 
   if (n < Nod - 1 && jvp->GetJson()) {
     jval.SetValue(GetColumnValue(g, jvp->GetJson(), n + 1));
@@ -720,63 +741,68 @@ PVAL JSONCOL::ExpandArray(PGLOBAL g, PJAR arp, int n)
 /***********************************************************************/
 PVAL JSONCOL::CalculateArray(PGLOBAL g, PJAR arp, int n)
   {
-  int    i, ars;
+  int    i, ars, nv = 0, nextsame = Tjp->NextSame;
   bool   err;
   OPVAL  op = Nodes[n].Op;
   PVAL   val[2], vp = Nodes[n].Valp;
-  PJVAL  jvp;
+  PJVAL  jvrp, jvp;
   JVALUE jval;
 
   vp->Reset();
   ars = MY_MIN(Tjp->Limit, arp->size());
 
   for (i = 0; i < ars; i++) {
-    jvp = arp->GetValue(i);
+    jvrp = arp->GetValue(i);
 
-    if (n < Nod - 1 && jvp->GetJson()) {
-      jval.SetValue(GetColumnValue(g, jvp->GetJson(), n + 1));
-      jvp = &jval;
-      } // endif n
-
-    if (!i) {
-      SetJsonValue(g, vp, jvp, n);
-      continue;
-    } else
-      SetJsonValue(g, MulVal, jvp, n);
-
-    if (!MulVal->IsZero()) {
-      switch (op) {
-        case OP_CNC:
-          if (Nodes[n].CncVal) {
-            val[0] = Nodes[n].CncVal;
+    do {
+      if (n < Nod - 1 && jvrp->GetJson()) {
+        Tjp->NextSame = nextsame;
+        jval.SetValue(GetColumnValue(g, jvrp->GetJson(), n + 1));
+        jvp = &jval;
+      } else
+        jvp = jvrp;
+  
+      if (!nv++) {
+        SetJsonValue(g, vp, jvp, n);
+        continue;
+      } else
+        SetJsonValue(g, MulVal, jvp, n);
+  
+      if (!MulVal->IsZero()) {
+        switch (op) {
+          case OP_CNC:
+            if (Nodes[n].CncVal) {
+              val[0] = Nodes[n].CncVal;
+              err = vp->Compute(g, val, 1, op);
+              } // endif CncVal
+  
+            val[0] = MulVal;
             err = vp->Compute(g, val, 1, op);
-            } // endif CncVal
+            break;
+//        case OP_NUM:
+          case OP_SEP:
+            val[0] = Nodes[n].Valp;
+            val[1] = MulVal;
+            err = vp->Compute(g, val, 2, OP_ADD);
+            break;
+          default:
+            val[0] = Nodes[n].Valp;
+            val[1] = MulVal;
+            err = vp->Compute(g, val, 2, op);
+          } // endswitch Op
 
-          val[0] = MulVal;
-          err = vp->Compute(g, val, 1, op);
-          break;
-        case OP_NUM:
-        case OP_SEP:
-          val[0] = Nodes[n].Valp;
-          val[1] = MulVal;
-          err = vp->Compute(g, val, 2, OP_ADD);
-          break;
-        default:
-          val[0] = Nodes[n].Valp;
-          val[1] = MulVal;
-          err = vp->Compute(g, val, 2, op);
-        } // endswitch Op
+        if (err)
+          vp->Reset();
+    
+        } // endif Zero
 
-      if (err)
-        vp->Reset();
-
-      } // endif Zero
+      } while (Tjp->NextSame > nextsame);
 
     } // endfor i
 
   if (op == OP_SEP) {
     // Calculate average
-    MulVal->SetValue(ars);
+    MulVal->SetValue(nv);
     val[0] = vp;
     val[1] = MulVal;
 
@@ -785,6 +811,7 @@ PVAL JSONCOL::CalculateArray(PGLOBAL g, PJAR arp, int n)
 
     } // endif Op
 
+  Tjp->NextSame = nextsame;
   return vp;
   } // end of CalculateArray
 
@@ -838,12 +865,13 @@ PJSON JSONCOL::GetRow(PGLOBAL g)
     } else {
       // Construct missing objects
       for (i++; row && i < Nod; i++) {
-        if (!Nodes[i].Key) {
+        if (Nodes[i].Op == OP_XX)
+          break;
+        else if (!Nodes[i].Key)
           // Construct intermediate array
           nwr = new(g) JARRAY;
-        } else {
+        else
           nwr = new(g) JOBJECT;
-        } // endif Nodes
 
         if (row->GetType() == TYPE_JOB) {
           ((PJOB)row)->SetValue(g, new(g) JVALUE(nwr), Nodes[i-1].Key);
@@ -883,10 +911,11 @@ void JSONCOL::WriteColumn(PGLOBAL g)
   if (Value->IsNull() && Tjp->Mode == MODE_INSERT)
     return;
 
+  char *s;
   PJOB  objp = NULL;
   PJAR  arp = NULL;
   PJVAL jvp = NULL;
-  PJSON row = GetRow(g);
+  PJSON jsp, row = GetRow(g);
   JTYP  type = row->GetType();
 
   switch (row->GetType()) {
@@ -898,6 +927,24 @@ void JSONCOL::WriteColumn(PGLOBAL g)
 
   if (row) switch (Buf_Type) {
     case TYPE_STRING:
+      if (Nodes[Nod-1].Op == OP_XX) {
+        s = Value->GetCharValue();
+        jsp = ParseJson(g, s, (int)strlen(s), 0);
+
+        if (arp) {
+          arp->AddValue(g, new(g) JVALUE(jsp));
+          arp->InitArray(g);
+        } else if (objp) {
+          if (Nod > 1 && Nodes[Nod-2].Key)
+            objp->SetValue(g, new(g) JVALUE(jsp), Nodes[Nod-2].Key);
+
+        } else if (jvp)
+          jvp->SetValue(jsp);
+
+        break;
+        } // endif Op
+
+      // Passthru
     case TYPE_DATE:
     case TYPE_INT:
     case TYPE_DOUBLE:
@@ -1319,9 +1366,10 @@ int TDBJSON::WriteDB(PGLOBAL g)
       return RC_FX;
 
   } else { // if (Jmode == MODE_VALUE)
-    if (Mode == MODE_INSERT)
+    if (Mode == MODE_INSERT) {
       Doc->AddValue(g, (PJVAL)Row);
-    else if (Doc->SetValue(g, (PJVAL)Row, Fpos))
+      Row = new(g) JVALUE;
+    } else if (Doc->SetValue(g, (PJVAL)Row, Fpos))
       return RC_FX;
 
   } // endif Jmode

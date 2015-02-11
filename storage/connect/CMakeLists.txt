@@ -21,9 +21,9 @@ ha_connect.cc connect.cc user_connect.cc mycat.cc
 fmdlex.c osutil.c plugutil.c rcmsg.c rcmsg.h
 array.cpp blkfil.cpp colblk.cpp csort.cpp
 filamap.cpp filamdbf.cpp filamfix.cpp filamtxt.cpp filamvct.cpp filamzip.cpp
-filter.cpp json.cpp maputil.cpp myutil.cpp plgdbutl.cpp reldef.cpp tabcol.cpp
-tabdos.cpp tabfix.cpp tabfmt.cpp tabjson.cpp table.cpp tabmul.cpp taboccur.cpp
-tabpivot.cpp tabsys.cpp tabtbl.cpp tabutil.cpp tabvct.cpp tabvir.cpp
+filter.cpp json.cpp jasonudf.cpp maputil.cpp myutil.cpp plgdbutl.cpp reldef.cpp
+tabcol.cpp tabdos.cpp tabfix.cpp tabfmt.cpp tabjson.cpp table.cpp tabmul.cpp
+taboccur.cpp tabpivot.cpp tabsys.cpp tabtbl.cpp tabutil.cpp tabvct.cpp tabvir.cpp
 tabxcl.cpp valblk.cpp value.cpp xindex.cpp xobject.cpp
 
 array.h blkfil.h block.h catalog.h checklvl.h colblk.h connect.h csort.h

@@ -118,6 +118,8 @@ class DllExport PRXCOL : public COLBLK {
   virtual bool Init(PGLOBAL g, PTDBASE tp);
 
  protected:
+  char *PRXCOL::Decode(PGLOBAL g, const char *cnm);
+
   // Default constructor not to be used
   PRXCOL(void) {}
 
@@ -144,5 +146,9 @@ class TDBTBC : public TDBCAT {
   PSZ     Db;                    // Database of the table  
   PSZ     Tab;                   // Table name            
   }; // end of class TDBMCL
+
+class XCOLBLK : public COLBLK {
+  friend class PRXCOL;
+}; // end of class XCOLBLK
 
 #endif // TABUTIL
