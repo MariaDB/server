@@ -562,7 +562,7 @@ ha_create_table_option innodb_table_option_list[]=
   HA_TOPTION_BOOL("PAGE_COMPRESSED", page_compressed, 0),
   /* With this option user can set zip compression level for page
   compression for this table*/
-  HA_TOPTION_NUMBER("PAGE_COMPRESSION_LEVEL", page_compression_level, ULINT_UNDEFINED, 0, 9, 1),
+  HA_TOPTION_NUMBER("PAGE_COMPRESSION_LEVEL", page_compression_level, 0, 1, 9, 1),
   /* With this option user can enable atomic writes feature for this table */
   HA_TOPTION_ENUM("ATOMIC_WRITES", atomic_writes, "DEFAULT,ON,OFF", 0),
   /* With this option the user can enable page encryption for the table */
@@ -11222,7 +11222,7 @@ index_bad:
 		    zip_ssize,
 		    use_data_dir,
 		    options->page_compressed,
-		    (ulint)options->page_compression_level == ULINT_UNDEFINED ?
+		    (ulint)options->page_compression_level == 0 ?
 		        default_compression_level : options->page_compression_level,
 		    options->atomic_writes,
 		    options->page_encryption,
@@ -11342,7 +11342,7 @@ ha_innobase::check_table_options(
 
 	/* Check page compression level requirements, some of them are
 	already checked above */
-	if ((ulint)options->page_compression_level != ULINT_UNDEFINED) {
+	if (options->page_compression_level != 0) {
 		if (options->page_compressed == false) {
 			push_warning(
 				thd, Sql_condition::WARN_LEVEL_WARN,
@@ -11352,12 +11352,12 @@ ha_innobase::check_table_options(
 			return "PAGE_COMPRESSION_LEVEL";
 		}
 
-		if (options->page_compression_level < 0 || options->page_compression_level > 9) {
+		if (options->page_compression_level < 1 || options->page_compression_level > 9) {
 			push_warning_printf(
 				thd, Sql_condition::WARN_LEVEL_WARN,
 				HA_WRONG_CREATE_OPTION,
 				"InnoDB: invalid PAGE_COMPRESSION_LEVEL = %lu."
-				" Valid values are [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]",
+				" Valid values are [1, 2, 3, 4, 5, 6, 7, 8, 9]",
 				options->page_compression_level);
 			return "PAGE_COMPRESSION_LEVEL";
 		}
