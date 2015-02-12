@@ -77,7 +77,7 @@ typedef int (*my_aes_encrypt_dynamic_type)(const uchar* source, uint32 source_le
                                            const uchar* iv, uint8 iv_length,
                                            uint noPadding);
 
-extern my_aes_encrypt_dynamic_type my_aes_encrypt_dynamic;
+extern MYSQL_PLUGIN_IMPORT my_aes_encrypt_dynamic_type my_aes_encrypt_dynamic;
 
 /**
   AES decryption AES dynamic (defined at startup) encryption algorithm.
@@ -107,7 +107,7 @@ typedef int (*my_aes_decrypt_dynamic_type)(const uchar *source,
                                            const uchar *key, uint8 key_length,
                                            const uchar *iv, uint8 iv_length,
                                            uint noPadding);
-extern my_aes_decrypt_dynamic_type my_aes_decrypt_dynamic;
+extern MYSQL_PLUGIN_IMPORT my_aes_decrypt_dynamic_type my_aes_decrypt_dynamic;
 
 /**
    Initialize dynamic crypt functions
