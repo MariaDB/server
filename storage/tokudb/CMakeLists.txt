@@ -10,7 +10,6 @@ int main() { return 0; }
 ENDIF()
 
 IF(NOT TOKUDB_OK OR PLUGIN_TOKUDB STREQUAL "NO")
-  MYSQL_ADD_PLUGIN(tokudb DISABLED)
   RETURN()
 ENDIF()
 
