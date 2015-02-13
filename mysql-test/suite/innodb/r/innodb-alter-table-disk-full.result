@@ -1,4 +1,5 @@
-create table t1(a int not null primary key, b int) engine=innodb;
+call mtr.add_suppression("InnoDB: Error: row_merge_drop_indexes_dict failed with error code*");
+create table t1(a int, b int) engine=innodb;
 create procedure innodb_insert_proc (repeat_count int)
 begin
 declare current_num int;
@@ -10,41 +11,49 @@ end while;
 end//
 commit;
 set autocommit=0;
-call innodb_insert_proc(10000);
+call innodb_insert_proc(20000);
 commit;
 set autocommit=1;
+create table t2(a int) engine=innodb;
+show create table t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
 set DEBUG_DBUG='+d,ib_os_aio_func_io_failure_28';
 alter table t1 add testcol int;
 ERROR HY000: The table 't1' is full
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` int(11) NOT NULL,
-  `b` int(11) DEFAULT NULL,
-  PRIMARY KEY (`a`)
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
-set DEBUG_DBUG='+d,ib_os_aio_func_io_failure_28_2';
+alter table t2 add testcol int;
+ERROR HY000: The table 't2' is full
+alter table t1 add testcol int;
+ERROR HY000: The table 't1' is full
+alter table t1 add testcol int;
+ERROR HY000: The table 't1' is full
+alter table t1 add testcol2 int;
+ERROR HY000: The table 't1' is full
+alter table t1 add testcol3 int;
+ERROR HY000: The table 't1' is full
 alter table t1 add testcol int;
 ERROR HY000: The table 't1' is full
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` int(11) NOT NULL,
-  `b` int(11) DEFAULT NULL,
-  PRIMARY KEY (`a`)
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
-set DEBUG_DBUG=NULL;
+drop table t2;
 alter table t1 add testcol2 int;
-show create table t1;
-Table	Create Table
-t1	CREATE TABLE `t1` (
-  `a` int(11) NOT NULL,
-  `b` int(11) DEFAULT NULL,
-  `testcol2` int(11) DEFAULT NULL,
-  PRIMARY KEY (`a`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
-select count(1) from t1;
-count(1)
-10000
+ERROR HY000: The table 't1' is full
+alter table t1 add testcol3 int;
+ERROR HY000: The table 't1' is full
+call innodb_insert_proc(20000);
+set DEBUG_DBUG='';
 drop procedure innodb_insert_proc;
 drop table t1;
+drop table if exists t2;

@@ -4387,6 +4387,7 @@ row_drop_table_for_mysql(
 	case DB_OUT_OF_FILE_SPACE:
 		err = DB_MUST_GET_MORE_FILE_SPACE;
 
+		trx->error_state = err;
 		row_mysql_handle_errors(&err, trx, NULL, NULL);
 
 		/* raise error */
