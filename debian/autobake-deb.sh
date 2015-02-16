@@ -15,7 +15,7 @@ set -e
 # Buildbot, running the test suite from installed .debs on a clean VM.
 export DEB_BUILD_OPTIONS="nocheck"
 
-#export MARIADB_OPTIONAL_DEBS="tokudb-engine"
+export MARIADB_OPTIONAL_DEBS=""
 
 # Find major.minor version.
 #
@@ -38,6 +38,15 @@ case "${CODENAME}" in
   *)  LIBREADLINE_DEV=libreadline-gplv2-dev ;;
 esac
 
+# add libcrack2 (>= 2.9.0) as a build dependency
+# but only where the distribution can possibly satisfy it
+if apt-cache madison cracklib2|grep 'cracklib2 *| *2\.[0-8]\.' >/dev/null 2>&1
+then
+  MAYBE_LIBCRACK=''
+  MARIADB_OPTIONAL_DEBS="${MARIADB_OPTIONAL_DEBS} cracklib-password-check-10.1"
+else
+  MAYBE_LIBCRACK='libcrack2-dev (>= 2.9.0),'
+fi
 
 # Clean up build file symlinks that are distro-specific. First remove all, then set
 # new links.
@@ -56,6 +65,7 @@ DISTROFILES="$(ls ./debian/dist/${DISTRO})"
 for distrofile in ${DISTROFILES}; do
   rm -f "./debian/${distrofile}"
   sed -e "s/\\\${LIBREADLINE_DEV}/${LIBREADLINE_DEV}/g" \
+      -e "s/\\\${MAYBE_LIBCRACK}/${MAYBE_LIBCRACK}/g"             \
     < "./debian/dist/${DISTRO}/${distrofile}" > "./debian/${distrofile}"
   chmod --reference="./debian/dist/${DISTRO}/${distrofile}" "./debian/${distrofile}"
 done;
