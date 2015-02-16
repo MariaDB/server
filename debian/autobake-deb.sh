@@ -33,16 +33,11 @@ LOGSTRING="MariaDB build"
 # is called different things on different versions.
 CODENAME="$(lsb_release -sc)"
 case "${CODENAME}" in
-  etch)  LIBREADLINE_DEV=libreadline-dev ;;
-  lenny|hardy|intrepid|jaunty|karmic|lucid)  LIBREADLINE_DEV='libreadline5-dev | libreadline-dev' ;;
-  squeeze|maverick|natty)  LIBREADLINE_DEV=libreadline5-dev ;;
+  lucid)  LIBREADLINE_DEV='libreadline5-dev | libreadline-dev' ;;
+  squeeze)  LIBREADLINE_DEV=libreadline5-dev ;;
   *)  LIBREADLINE_DEV=libreadline-gplv2-dev ;;
 esac
 
-case "${CODENAME}" in
-  etch|lenny|hardy|intrepid|jaunty|karmic) CMAKE_DEP='' ;;
-  *) CMAKE_DEP='cmake (>= 2.7), ' ;;
-esac
 
 # Clean up build file symlinks that are distro-specific. First remove all, then set
 # new links.
@@ -61,7 +56,6 @@ DISTROFILES="$(ls ./debian/dist/${DISTRO})"
 for distrofile in ${DISTROFILES}; do
   rm -f "./debian/${distrofile}"
   sed -e "s/\\\${LIBREADLINE_DEV}/${LIBREADLINE_DEV}/g" \
-      -e "s/\\\${CMAKE_DEP}/${CMAKE_DEP}/g"             \
     < "./debian/dist/${DISTRO}/${distrofile}" > "./debian/${distrofile}"
   chmod --reference="./debian/dist/${DISTRO}/${distrofile}" "./debian/${distrofile}"
 done;
