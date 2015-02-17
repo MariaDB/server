@@ -2975,6 +2975,7 @@ sp_lex_keeper::reset_lex_and_exec_core(THD *thd, uint *nextp,
 
     cleanup_items() is called in sp_head::execute()
   */
+  thd->lex->restore_set_statement_var();
   DBUG_RETURN(res || thd->is_error());
 }
 

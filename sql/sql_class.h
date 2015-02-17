@@ -920,6 +920,19 @@ public:
 };
 
 
+class Query_arena_memroot: public Query_arena, public Sql_alloc
+{
+public:
+  Query_arena_memroot(MEM_ROOT *mem_root_arg, enum enum_state state_arg) :
+    Query_arena(mem_root_arg, state_arg)
+  {}
+  Query_arena_memroot() : Query_arena()
+  {}
+
+  virtual ~Query_arena_memroot() {}
+};
+
+
 class Server_side_cursor;
 
 /**
@@ -3673,6 +3686,7 @@ public:
     set_n_backup_active_arena(arena_for_cached_items, backup);
     return backup;
   }
+
 
   void clear_wakeup_ready() { wakeup_ready= false; }
   /*

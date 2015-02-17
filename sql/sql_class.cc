@@ -1699,7 +1699,7 @@ THD::~THD()
   if (rgi_slave)
     rgi_slave->cleanup_after_session();
 #endif
-
+  main_lex.free_set_stmt_mem_root();
   free_root(&main_mem_root, MYF(0));
   main_da.free_memory();
   if (tdc_hash_pins)

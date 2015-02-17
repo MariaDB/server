@@ -122,6 +122,7 @@ int mysql_open_cursor(THD *thd, select_result *result,
   /* Mark that we can't use query cache with cursors */
   thd->query_cache_is_applicable= 0;
   rc= mysql_execute_command(thd);
+  thd->lex->restore_set_statement_var();
   thd->m_statement_psi= parent_locker;
   MYSQL_QUERY_EXEC_DONE(rc);
 

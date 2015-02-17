@@ -4284,6 +4284,7 @@ int Query_log_event::do_apply_event(rpl_group_info *rgi,
         /* Finalize server status flags after executing a statement. */
         thd->update_server_status();
         log_slow_statement(thd);
+        thd->lex->restore_set_statement_var();
       }
 
       thd->variables.option_bits&= ~OPTION_MASTER_SQL_ERROR;

@@ -1,0 +1,19 @@
+drop table if exists t1;
+drop view if exists t1;
+#
+# MDEV-6948: SET STATEMENT gtid_domain_id = ... FOR has no effect
+# (same for gtid_seq_no and server_id)
+#
+reset master;
+create table t1 (i int);
+set gtid_domain_id = 10;
+insert into t1 values (1),(2);
+set statement gtid_domain_id = 20 for insert into t1 values (3),(4);
+show binlog events limit 5,5;
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+x	x	x	x	x	BEGIN GTID 10-1-1
+x	x	x	x	x	use `test`; insert into t1 values (1),(2)
+x	x	x	x	x	COMMIT
+x	x	x	x	x	BEGIN GTID 20-1-1
+x	x	x	x	x	use `test`; set statement gtid_domain_id = 20 for insert into t1 values (3),(4)
+drop table t1;

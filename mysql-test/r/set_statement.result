@@ -1034,10 +1034,92 @@ set statement lock_wait_timeout=1 for select @@lock_wait_timeout;
 @@lock_wait_timeout
 1
 set global general_log=@save_general_log;
+# MDEV-7006 MDEV-7007: SET statement and slow log
+set @save_long_query_time= @@long_query_time;
+set @save_slow_query_log= @@slow_query_log;
+set @save_log_output= @@log_output;
+set statement long_query_time=default for select @@long_query_time;
+@@long_query_time
+10.000000
+set statement log_slow_filter=default for select @@log_slow_filter;
+@@log_slow_filter
+admin,filesort,filesort_on_disk,full_join,full_scan,query_cache,query_cache_miss,tmp_table,tmp_table_on_disk
+set statement log_slow_verbosity=default for select @@log_slow_verbosity;
+@@log_slow_verbosity
+
+set statement log_slow_rate_limit=default for select @@log_slow_rate_limit;
+@@log_slow_rate_limit
+1
+set statement slow_query_log=default for select @@slow_query_log;
+@@slow_query_log
+1
+truncate table mysql.slow_log;
+set slow_query_log= 1;
+set global log_output='TABLE';
+select sql_text from mysql.slow_log;
+sql_text
+set @@long_query_time=0.01;
+#should be written
+select sleep(0.1);
+sleep(0.1)
+0
+set @@long_query_time=@save_long_query_time;
+select sql_text from mysql.slow_log;
+sql_text
+select sleep(0.1)
+#---
+#should be written
+set statement long_query_time=0.01 for select sleep(0.1);
+sleep(0.1)
+0
+select sql_text from mysql.slow_log;
+sql_text
+select sleep(0.1)
+set statement long_query_time=0.01 for select sleep(0.1)
+#---
+set @@long_query_time=0.01;
+#should NOT be written
+set statement slow_query_log=0 for select sleep(0.1);
+sleep(0.1)
+0
+set @@long_query_time=@save_long_query_time;
+select sql_text from mysql.slow_log;
+sql_text
+select sleep(0.1)
+set statement long_query_time=0.01 for select sleep(0.1)
+#---
+#should NOT be written
+set statement long_query_time=0.01,log_slow_filter='full_scan' for select sleep(0.1);
+sleep(0.1)
+0
+select sql_text from mysql.slow_log;
+sql_text
+select sleep(0.1)
+set statement long_query_time=0.01 for select sleep(0.1)
+#---
+#should NOT be written
+set statement long_query_time=0.01,log_slow_rate_limit=9999 for select sleep(0.1);
+sleep(0.1)
+0
+select sql_text from mysql.slow_log;
+sql_text
+select sleep(0.1)
+set statement long_query_time=0.01 for select sleep(0.1)
+#---
+#should NOT be written
+set statement long_query_time=0.01,min_examined_row_limit=50 for select sleep(0.1);
+sleep(0.1)
+0
+select sql_text from mysql.slow_log;
+sql_text
+select sleep(0.1)
+set statement long_query_time=0.01 for select sleep(0.1)
+#---
+set global log_output= @save_log_output;
+set @@slow_query_log= @save_slow_query_log;
+set @@long_query_time= @save_long_query_time;
 set statement autocommit=default for select 1;
 ERROR 42000: The system variable autocommit cannot be set in SET STATEMENT.
-set statement gtid_domain_id=default for select 1;
-ERROR 42000: The system variable gtid_domain_id cannot be set in SET STATEMENT.
 set statement tx_isolation=default for select 1;
 ERROR 42000: The system variable tx_isolation cannot be set in SET STATEMENT.
 set statement rand_seed1=default for select 1;
@@ -1050,18 +1132,6 @@ set statement last_insert_id=1 for select 1;
 ERROR 42000: The system variable last_insert_id cannot be set in SET STATEMENT.
 set statement sql_log_off=default for select 1;
 ERROR 42000: The system variable sql_log_off cannot be set in SET STATEMENT.
-set statement long_query_time=default for select 1;
-ERROR 42000: The system variable long_query_time cannot be set in SET STATEMENT.
-set statement log_slow_filter=default for select 1;
-ERROR 42000: The system variable log_slow_filter cannot be set in SET STATEMENT.
-set statement log_slow_verbosity=default for select 1;
-ERROR 42000: The system variable log_slow_verbosity cannot be set in SET STATEMENT.
-set statement log_slow_rate_limit=default for select 1;
-ERROR 42000: The system variable log_slow_rate_limit cannot be set in SET STATEMENT.
-set statement slow_query_log=default for select 1;
-ERROR 42000: The system variable slow_query_log cannot be set in SET STATEMENT.
-set statement min_examined_row_limit=default for select 1;
-ERROR 42000: The system variable min_examined_row_limit cannot be set in SET STATEMENT.
 set statement character_set_client=default for select 1;
 ERROR 42000: The system variable character_set_client cannot be set in SET STATEMENT.
 set statement character_set_connection=default for select 1;

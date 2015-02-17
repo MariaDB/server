@@ -799,6 +799,7 @@ static void handle_bootstrap_impl(THD *thd)
 
     free_root(thd->mem_root,MYF(MY_KEEP_PREALLOC));
     free_root(&thd->transaction.mem_root,MYF(MY_KEEP_PREALLOC));
+    thd->lex->restore_set_statement_var();
   }
 
   DBUG_VOID_RETURN;
@@ -1120,6 +1121,7 @@ bool do_command(THD *thd)
   DBUG_ASSERT(!thd->apc_target.is_enabled());
 
 out:
+  thd->lex->restore_set_statement_var();
   /* The statement instrumentation must be closed in all cases. */
   DBUG_ASSERT(thd->m_statement_psi == NULL);
   DBUG_RETURN(return_value);
@@ -1950,6 +1952,7 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
 
   /* Check that some variables are reset properly */
   DBUG_ASSERT(thd->abort_on_warning == 0);
+  thd->lex->restore_set_statement_var();
   DBUG_RETURN(error);
 }
 
@@ -2637,18 +2640,26 @@ mysql_execute_command(THD *thd)
 
   if (!lex->stmt_var_list.is_empty() && !thd->slave_thread)
   {
+    Query_arena backup;
     DBUG_PRINT("info", ("SET STATEMENT %d vars", lex->stmt_var_list.elements));
 
     lex->old_var_list.empty();
     List_iterator_fast<set_var_base> it(lex->stmt_var_list);
     set_var_base *var;
-    while ((var=it++))
+
+    if (lex->set_arena_for_set_stmt(&backup))
+      goto error;
+
+    while ((var= it++))
     {
       DBUG_ASSERT(var->is_system());
       set_var *o= NULL, *v= (set_var*)var;
       if (!v->var->is_set_stmt_ok())
       {
         my_error(ER_SET_STATEMENT_NOT_SUPPORTED, MYF(0), v->var->name.str);
+        lex->reset_arena_for_set_stmt(&backup);
+        lex->old_var_list.empty();
+        lex->free_arena_for_set_stmt();
         goto error;
       }
       if (v->var->is_default())
@@ -2721,11 +2732,15 @@ mysql_execute_command(THD *thd)
       DBUG_ASSERT(o);
       lex->old_var_list.push_back(o);
     }
+    lex->reset_arena_for_set_stmt(&backup);
+    if (lex->old_var_list.is_empty())
+      lex->free_arena_for_set_stmt();
     if (thd->is_error() ||
         (res= sql_set_variables(thd, &lex->stmt_var_list, false)))
     {
       if (!thd->is_error())
         my_error(ER_WRONG_ARGUMENTS, MYF(0), "SET");
+      lex->restore_set_statement_var();
       goto error;
     }
   }
@@ -5552,7 +5567,6 @@ finish:
                thd->in_multi_stmt_transaction_mode());
 
 
-  lex->restore_set_statement_var();
   lex->unit.cleanup();
 
   if (! thd->in_sub_stmt)

@@ -1,0 +1,22 @@
+--source include/have_log_bin.inc
+--source include/not_embedded.inc
+
+--disable_warnings
+drop table if exists t1;
+drop view if exists t1;
+--enable_warnings
+
+--echo #
+--echo # MDEV-6948: SET STATEMENT gtid_domain_id = ... FOR has no effect
+--echo # (same for gtid_seq_no and server_id)
+--echo #
+reset master;
+create table t1 (i int);
+set gtid_domain_id = 10;
+insert into t1 values (1),(2);
+set statement gtid_domain_id = 20 for insert into t1 values (3),(4);
+
+--replace_column 1 x 2 x 3 x 4 x 5 x
+show binlog events limit 5,5;
+
+drop table t1;

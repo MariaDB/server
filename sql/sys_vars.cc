@@ -1195,7 +1195,7 @@ static Sys_var_double Sys_long_query_time(
        "Log all queries that have taken more than long_query_time seconds "
        "to execute to file. The argument will be treated as a decimal value "
        "with microsecond precision",
-       NO_SET_STMT SESSION_VAR(long_query_time_double),
+       SESSION_VAR(long_query_time_double),
        CMD_LINE(REQUIRED_ARG), VALID_RANGE(0, LONG_TIMEOUT), DEFAULT(10),
        NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
        ON_UPDATE(update_cached_long_query_time));
@@ -1452,7 +1452,7 @@ static Sys_var_uint Sys_gtid_domain_id(
        "parallel paths (for example multiple masters), each independent "
        "source server must use a distinct domain_id. For simple tree-shaped "
        "replication topologies, it can be left at its default, 0.",
-       NO_SET_STMT SESSION_VAR(gtid_domain_id),
+       SESSION_VAR(gtid_domain_id),
        CMD_LINE(REQUIRED_ARG), VALID_RANGE(0, UINT_MAX32), DEFAULT(0),
        BLOCK_SIZE(1), NO_MUTEX_GUARD, NOT_IN_BINLOG,
        ON_CHECK(check_gtid_domain_id));
@@ -2165,7 +2165,7 @@ static Sys_var_ulong Sys_min_examined_row_limit(
        "min_examined_row_limit",
        "Don't write queries to slow log that examine fewer rows "
        "than that",
-       NO_SET_STMT SESSION_VAR(min_examined_row_limit), CMD_LINE(REQUIRED_ARG),
+       SESSION_VAR(min_examined_row_limit), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(0, UINT_MAX), DEFAULT(0), BLOCK_SIZE(1));
 
 #ifdef _WIN32
@@ -4104,7 +4104,7 @@ static Sys_var_mybool Sys_slow_query_log(
        "Log slow queries to a table or log file. Defaults logging to a file "
        "'hostname'-slow.log or a table mysql.slow_log if --log-output=TABLE is "
        "used. Must be enabled to activate other slow log options",
-       NO_SET_STMT SESSION_VAR(sql_log_slow), CMD_LINE(OPT_ARG),
+       SESSION_VAR(sql_log_slow), CMD_LINE(OPT_ARG),
        DEFAULT(FALSE), NO_MUTEX_GUARD, NOT_IN_BINLOG,
        ON_CHECK(0), ON_UPDATE(fix_log_state));
 
@@ -4988,7 +4988,7 @@ static const char *log_slow_filter_names[]=
 static Sys_var_set Sys_log_slow_filter(
        "log_slow_filter",
        "Log only certain types of queries",
-       NO_SET_STMT SESSION_VAR(log_slow_filter), CMD_LINE(REQUIRED_ARG),
+       SESSION_VAR(log_slow_filter), CMD_LINE(REQUIRED_ARG),
        log_slow_filter_names,
        DEFAULT(MAX_SET(array_elements(log_slow_filter_names)-1)));
 
@@ -5035,7 +5035,7 @@ static Sys_var_ulong Sys_log_slow_rate_limit(
        "Write to slow log every #th slow query. Set to 1 to log everything. "
        "Increase it to reduce the size of the slow or the performance impact "
        "of slow logging",
-       NO_SET_STMT SESSION_VAR(log_slow_rate_limit), CMD_LINE(REQUIRED_ARG),
+       SESSION_VAR(log_slow_rate_limit), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(1, UINT_MAX), DEFAULT(1), BLOCK_SIZE(1));
 
 static const char *log_slow_verbosity_names[]= { "innodb", "query_plan", 
@@ -5043,7 +5043,7 @@ static const char *log_slow_verbosity_names[]= { "innodb", "query_plan",
 static Sys_var_set Sys_log_slow_verbosity(
        "log_slow_verbosity",
        "Verbosity level for the slow log",
-       NO_SET_STMT SESSION_VAR(log_slow_verbosity), CMD_LINE(REQUIRED_ARG),
+       SESSION_VAR(log_slow_verbosity), CMD_LINE(REQUIRED_ARG),
        log_slow_verbosity_names, DEFAULT(LOG_SLOW_VERBOSITY_INIT));
 
 static Sys_var_ulong Sys_join_cache_level(

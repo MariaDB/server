@@ -2775,7 +2775,7 @@ void mysql_sql_stmt_execute(THD *thd)
   DBUG_PRINT("info",("stmt: 0x%lx", (long) stmt));
 
   (void) stmt->execute_loop(&expanded_query, FALSE, NULL, NULL);
-
+  stmt->lex->restore_set_statement_var();
   DBUG_VOID_RETURN;
 }
 
@@ -3165,6 +3165,7 @@ Execute_sql_statement::execute_server_code(THD *thd)
                       thd->query(), thd->query_length());
 
 end:
+  thd->lex->restore_set_statement_var();
   lex_end(thd->lex);
 
   return error;
@@ -4085,6 +4086,7 @@ bool Prepared_statement::execute(String *expanded_query, bool open_cursor)
     general_log_write(thd, COM_STMT_EXECUTE, thd->query(), thd->query_length());
 
 error:
+  thd->lex->restore_set_statement_var();
   flags&= ~ (uint) IS_IN_USE;
   return error;
 }

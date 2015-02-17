@@ -987,13 +987,66 @@ set global general_log=0;
 set statement lock_wait_timeout=1 for select @@lock_wait_timeout;
 set global general_log=@save_general_log;
 
+--echo # MDEV-7006 MDEV-7007: SET statement and slow log
+
+set @save_long_query_time= @@long_query_time;
+set @save_slow_query_log= @@slow_query_log;
+set @save_log_output= @@log_output;
+
+set statement long_query_time=default for select @@long_query_time;
+set statement log_slow_filter=default for select @@log_slow_filter;
+set statement log_slow_verbosity=default for select @@log_slow_verbosity;
+set statement log_slow_rate_limit=default for select @@log_slow_rate_limit;
+set statement slow_query_log=default for select @@slow_query_log;
+
+truncate table mysql.slow_log;
+set slow_query_log= 1;
+set global log_output='TABLE';
+
+select sql_text from mysql.slow_log;
+set @@long_query_time=0.01;
+--echo #should be written
+select sleep(0.1);
+set @@long_query_time=@save_long_query_time;
+select sql_text from mysql.slow_log;
+--echo #---
+--echo #should be written
+set statement long_query_time=0.01 for select sleep(0.1);
+select sql_text from mysql.slow_log;
+--echo #---
+set @@long_query_time=0.01;
+--echo #should NOT be written
+set statement slow_query_log=0 for select sleep(0.1);
+set @@long_query_time=@save_long_query_time;
+select sql_text from mysql.slow_log;
+--echo #---
+--echo #should NOT be written
+set statement long_query_time=0.01,log_slow_filter='full_scan' for select sleep(0.1);
+select sql_text from mysql.slow_log;
+--echo #---
+--echo #should NOT be written
+set statement long_query_time=0.01,log_slow_rate_limit=9999 for select sleep(0.1);
+select sql_text from mysql.slow_log;
+--echo #---
+--echo #should NOT be written
+set statement long_query_time=0.01,min_examined_row_limit=50 for select sleep(0.1);
+select sql_text from mysql.slow_log;
+--echo #---
+#
+# log_slow_verbosity is impossible to check because results are not written
+# in TABLE mode
+#
+
+set global log_output= @save_log_output;
+set @@slow_query_log= @save_slow_query_log;
+set @@long_query_time= @save_long_query_time;
+
+
 #
 # Prohibited Variables
 #
 --error ER_SET_STATEMENT_NOT_SUPPORTED
 set statement autocommit=default for select 1;
---error ER_SET_STATEMENT_NOT_SUPPORTED
-set statement gtid_domain_id=default for select 1;
 --error ER_SET_STATEMENT_NOT_SUPPORTED
 set statement tx_isolation=default for select 1;
 --error ER_SET_STATEMENT_NOT_SUPPORTED
@@ -1006,18 +1059,6 @@ set statement skip_replication=default for select 1;
 set statement last_insert_id=1 for select 1;
 --error ER_SET_STATEMENT_NOT_SUPPORTED
 set statement sql_log_off=default for select 1;
---error ER_SET_STATEMENT_NOT_SUPPORTED
-set statement long_query_time=default for select 1;
---error ER_SET_STATEMENT_NOT_SUPPORTED
-set statement log_slow_filter=default for select 1;
---error ER_SET_STATEMENT_NOT_SUPPORTED
-set statement log_slow_verbosity=default for select 1;
---error ER_SET_STATEMENT_NOT_SUPPORTED
-set statement log_slow_rate_limit=default for select 1;
---error ER_SET_STATEMENT_NOT_SUPPORTED
-set statement slow_query_log=default for select 1;
---error ER_SET_STATEMENT_NOT_SUPPORTED
-set statement min_examined_row_limit=default for select 1;
 --error ER_SET_STATEMENT_NOT_SUPPORTED
 set statement character_set_client=default for select 1;
 --error ER_SET_STATEMENT_NOT_SUPPORTED
