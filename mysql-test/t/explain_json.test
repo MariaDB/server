@@ -34,6 +34,9 @@ explain format=json select * from t2 where a1<5;
 explain format=json select * from t2 where a1=1 or b1=2;
 explain format=json select * from t2 where a1=1 or (b1=2 and b2=3);
 
+explain format=json select * from t2 where (a1=1 and a2=1) or 
+                                           (b1=2 and b2=1);
+
 --echo # Try ref access on two key components
 
 explain format=json select * from t0,t2 where t2.b1=t0.a and t2.b2=4;
