@@ -9840,7 +9840,6 @@ bool sp_grant_privileges(THD *thd, const char *sp_db, const char *sp_name,
   List<LEX_USER> user_list;
   bool result;
   ACL_USER *au;
-  char passwd_buff[SCRAMBLED_PASSWORD_CHAR_LENGTH+1];
   Dummy_error_handler error_handler;
   DBUG_ENTER("sp_grant_privileges");
 
@@ -9881,33 +9880,10 @@ bool sp_grant_privileges(THD *thd, const char *sp_db, const char *sp_name,
 
   if(au)
   {
-    if (au->salt_len)
-    {
-      if (au->salt_len == SCRAMBLE_LENGTH)
-      {
-        make_password_from_salt(passwd_buff, au->salt);
-        combo->password.length= SCRAMBLED_PASSWORD_CHAR_LENGTH;
-      }
-      else if (au->salt_len == SCRAMBLE_LENGTH_323)
-      {
-        make_password_from_salt_323(passwd_buff, (ulong *) au->salt);
-        combo->password.length= SCRAMBLED_PASSWORD_CHAR_LENGTH_323;
-      }
-      else
-      {
-        push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN, ER_PASSWD_LENGTH,
-                            ER(ER_PASSWD_LENGTH), SCRAMBLED_PASSWORD_CHAR_LENGTH);
-        return TRUE;
-      }
-      combo->password.str= passwd_buff;
-    }
-
     if (au->plugin.str != native_password_plugin_name.str &&
         au->plugin.str != old_password_plugin_name.str)
-    {
       combo->plugin= au->plugin;
-      combo->auth= au->auth_string;
-    }
+    combo->auth= au->auth_string;
   }
 
   if (user_list.push_back(combo))
