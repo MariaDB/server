@@ -85,4 +85,44 @@ a.oid=b.oid WHERE a.oidGroup=1 GROUP BY a.oid;
 
 DROP TABLE t1, t2;
 
+--echo #
+--echo # MDEV-7193: Incorrect Query Result (MySQL Bug 68897) in MariaDB 10.0.14
+--echo # (fixed by MDEV-5719)
+--echo #
+
+CREATE TABLE  `t1` (
+  `param` int(11) NOT NULL,
+  `idx` int(11) NOT NULL,
+  `text` varchar(255) default NULL,
+  PRIMARY KEY  (`param`,`idx`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+INSERT INTO `t1` (`param`, `idx`, `text`) VALUES
+(1, 0, 'select'),
+(1, 1, 'Kabel mit Stecker 5-polig'),
+(1, 2, 'Kabel ohne Stecker'),
+(2, 0, 'number'),
+(2, 1, '22'),
+(2, 2, '25');
+CREATE TABLE `t2` (
+  `id` int PRIMARY KEY
+);
+
+INSERT INTO t2 VALUES (1),(2),(3),(4);
+SELECT t2.id AS id, T.text AS xtext,GROUP_CONCAT(T3.text) AS optionen
+FROM t2
+LEFT JOIN t1 AS T  ON(T.param=t2.id AND T.idx=0 )
+LEFT JOIN t1 AS T3 ON(T3.param=t2.id AND T3.idx>0 ) 
+GROUP BY t2.id
+ORDER BY id ASC;
+
+SELECT t2.id AS id, T.text AS xtext,GROUP_CONCAT(T3.text) AS optionen
+FROM t2
+LEFT JOIN t1 AS T  ON(T.param=t2.id AND T.idx=0 )
+LEFT JOIN t1 AS T3 ON(T3.param=t2.id AND T3.idx>0 ) 
+GROUP BY t2.id
+ORDER BY id DESC;
+
+DROP TABLE t1, t2;
+
 --echo # End of tests
