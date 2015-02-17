@@ -451,7 +451,7 @@ btr_root_raise_and_insert(
 	const dtuple_t*	tuple,	/*!< in: tuple to insert */
 	ulint		n_ext,	/*!< in: number of externally stored columns */
 	mtr_t*		mtr)	/*!< in: mtr */
-	__attribute__((nonnull, warn_unused_result));
+	__attribute__((nonnull(2,3,4,7), warn_unused_result));
 /*************************************************************//**
 Reorganizes an index page.
 
@@ -546,7 +546,7 @@ btr_page_split_and_insert(
 	const dtuple_t*	tuple,	/*!< in: tuple to insert */
 	ulint		n_ext,	/*!< in: number of externally stored columns */
 	mtr_t*		mtr)	/*!< in: mtr */
-	__attribute__((nonnull, warn_unused_result));
+	__attribute__((nonnull(2,3,4,7), warn_unused_result));
 /*******************************************************//**
 Inserts a data tuple to a tree on a non-leaf level. It is assumed
 that mtr holds an x-latch on the tree. */
