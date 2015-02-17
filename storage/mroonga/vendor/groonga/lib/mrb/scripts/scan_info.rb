@@ -19,6 +19,9 @@ module Groonga
       if data.similarity_threshold
         self.similarity_threshold = data.similarity_threshold
       end
+      if data.scorer
+        self.scorer = data.scorer
+      end
       data.args.each do |arg|
         push_arg(arg)
       end

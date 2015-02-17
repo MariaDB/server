@@ -1,5 +1,5 @@
 /* -*- c-basic-offset: 2 -*- */
-/* Copyright(C) 2009-2014 Brazil
+/* Copyright(C) 2009-2015 Brazil
 
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -14,11 +14,11 @@
   License along with this library; if not, write to the Free Software
   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 */
-#include "groonga_in.h"
-#include "str.h"
-#include "store.h"
-#include "ctx_impl.h"
-#include "output.h"
+#include "grn.h"
+#include "grn_str.h"
+#include "grn_store.h"
+#include "grn_ctx_impl.h"
+#include "grn_output.h"
 #include <string.h>
 
 /* rectangular arrays */
@@ -524,7 +524,7 @@ grn_ja_ref_raw(grn_ctx *ctx, grn_ja *ja, grn_id id, grn_io_win *iw, uint32_t *va
   iw->size = 0;
   iw->addr = NULL;
   iw->pseg = pseg;
-  iw->value = NULL;
+  iw->uncompressed_value = NULL;
   if (pseg != JA_ESEG_VOID) {
     grn_ja_einfo *einfo = NULL;
     GRN_IO_SEG_REF(ja->io, pseg, einfo);
@@ -545,7 +545,7 @@ grn_ja_ref_raw(grn_ctx *ctx, grn_ja *ja, grn_id id, grn_io_win *iw, uint32_t *va
         } else {
           EINFO_DEC(ei, jag, vpos, vsize);
         }
-        grn_io_win_map2(ja->io, ctx, iw, jag, vpos, vsize, grn_io_rdonly);
+        grn_io_win_map(ja->io, ctx, iw, jag, vpos, vsize, grn_io_rdonly);
       }
       if (!iw->addr) { GRN_IO_SEG_UNREF(ja->io, pseg); }
     }
@@ -557,13 +557,13 @@ grn_ja_ref_raw(grn_ctx *ctx, grn_ja *ja, grn_id id, grn_io_win *iw, uint32_t *va
 grn_rc
 grn_ja_unref(grn_ctx *ctx, grn_io_win *iw)
 {
-  if (iw->value) {
-    GRN_FREE(iw->value);
-    iw->value = NULL;
+  if (iw->uncompressed_value) {
+    GRN_FREE(iw->uncompressed_value);
+    iw->uncompressed_value = NULL;
   } else {
     if (!iw->addr) { return GRN_INVALID_ARGUMENT; }
     GRN_IO_SEG_UNREF(iw->io, iw->pseg);
-    if (!iw->tiny_p) { grn_io_win_unmap2(iw); }
+    if (!iw->tiny_p) { grn_io_win_unmap(iw); }
   }
   return GRN_SUCCESS;
 }
@@ -711,7 +711,7 @@ exit :
 
 #define JA_N_GARBAGES_TH 10
 
-// todo : grn_io_win_map2 cause verbose copy when nseg > 1, it should be copied directly.
+// todo : grn_io_win_map cause verbose copy when nseg > 1, it should be copied directly.
 static grn_rc
 grn_ja_alloc(grn_ctx *ctx, grn_ja *ja, grn_id id,
              uint32_t element_size, grn_ja_einfo *einfo, grn_io_win *iw)
@@ -736,7 +736,7 @@ grn_ja_alloc(grn_ctx *ctx, grn_ja *ja, grn_id id,
       } else {
         if (i == j + n) {
           j++;
-          addr = grn_io_win_map2(ja->io, ctx, iw, j, 0, element_size, grn_io_wronly);
+          addr = grn_io_win_map(ja->io, ctx, iw, j, 0, element_size, grn_io_wronly);
           if (!addr) {
             grn_io_unlock(ja->io);
             return GRN_NO_MEMORY_AVAILABLE;
@@ -864,7 +864,7 @@ grn_ja_alloc(grn_ctx *ctx, grn_ja *ja, grn_id id,
       vp->seg = 0;
       vp->pos = 0;
     }
-    iw->value = NULL;
+    iw->uncompressed_value = NULL;
     grn_io_unlock(ja->io);
     return GRN_SUCCESS;
   }
@@ -883,11 +883,11 @@ set_value(grn_ctx *ctx, grn_ja *ja, grn_id id, void *value, uint32_t value_len,
     }
     memcpy(iw.addr, value, value_len);
     memset((byte *)iw.addr + value_len, 0, sizeof(uint32_t));
-    grn_io_win_unmap2(&iw);
+    grn_io_win_unmap(&iw);
   } else {
     if ((rc = grn_ja_alloc(ctx, ja, id, value_len, einfo, &iw))) { return rc; }
     memcpy(iw.addr, value, value_len);
-    grn_io_win_unmap2(&iw);
+    grn_io_win_unmap(&iw);
   }
   return rc;
 }
@@ -953,7 +953,7 @@ grn_ja_put_raw(grn_ctx *ctx, grn_ja *ja, grn_id id,
             memcpy(iw.addr, oldvalue, old_len);
             memcpy((byte *)iw.addr + old_len, value, value_len);
             memset((byte *)iw.addr + old_len + value_len, 0, sizeof(uint32_t));
-            grn_io_win_unmap2(&iw);
+            grn_io_win_unmap(&iw);
           }
         } else {
           if ((rc = grn_ja_alloc(ctx, ja, id, value_len + old_len, &einfo, &iw))) {
@@ -962,7 +962,7 @@ grn_ja_put_raw(grn_ctx *ctx, grn_ja *ja, grn_id id,
           }
           memcpy(iw.addr, oldvalue, old_len);
           memcpy((byte *)iw.addr + old_len, value, value_len);
-          grn_io_win_unmap2(&iw);
+          grn_io_win_unmap(&iw);
         }
         grn_ja_unref(ctx, &jw);
       } else {
@@ -1003,7 +1003,7 @@ grn_ja_put_raw(grn_ctx *ctx, grn_ja *ja, grn_id id,
             memcpy(iw.addr, value, value_len);
             memcpy((byte *)iw.addr + value_len, oldvalue, old_len);
             memset((byte *)iw.addr + value_len + old_len, 0, sizeof(uint32_t));
-            grn_io_win_unmap2(&iw);
+            grn_io_win_unmap(&iw);
           }
         } else {
           if ((rc = grn_ja_alloc(ctx, ja, id, value_len + old_len, &einfo, &iw))) {
@@ -1012,7 +1012,7 @@ grn_ja_put_raw(grn_ctx *ctx, grn_ja *ja, grn_id id,
           }
           memcpy(iw.addr, value, value_len);
           memcpy((byte *)iw.addr + value_len, oldvalue, old_len);
-          grn_io_win_unmap2(&iw);
+          grn_io_win_unmap(&iw);
         }
         grn_ja_unref(ctx, &jw);
       } else {
@@ -1103,7 +1103,7 @@ grn_ja_putv(grn_ctx *ctx, grn_ja *ja, grn_id id, grn_obj *vector, int flags)
     memcpy(iw.addr, GRN_BULK_HEAD(&header), sizeh);
     if (body) { memcpy((char *)iw.addr + sizeh, GRN_BULK_HEAD(body), sizev); }
     if (f) { memcpy((char *)iw.addr + sizeh + sizev, GRN_BULK_HEAD(&footer), sizef); }
-    grn_io_win_unmap2(&iw);
+    grn_io_win_unmap(&iw);
     rc = grn_ja_replace(ctx, ja, id, &einfo, NULL);
   }
 exit :
@@ -1187,7 +1187,7 @@ grn_ja_ref_zlib(grn_ctx *ctx, grn_ja *ja, grn_id id, grn_io_win *iw, uint32_t *v
   void *zvalue;
   uint32_t zvalue_len;
   if (!(zvalue = grn_ja_ref_raw(ctx, ja, id, iw, &zvalue_len))) {
-    iw->value = NULL;
+    iw->uncompressed_value = NULL;
     *value_len = 0;
     return NULL;
   }
@@ -1196,74 +1196,74 @@ grn_ja_ref_zlib(grn_ctx *ctx, grn_ja *ja, grn_id id, grn_io_win *iw, uint32_t *v
   zstream.zalloc = Z_NULL;
   zstream.zfree = Z_NULL;
   if (inflateInit2(&zstream, 15 /* windowBits */) != Z_OK) {
-    iw->value = NULL;
+    iw->uncompressed_value = NULL;
     *value_len = 0;
     return NULL;
   }
-  if (!(iw->value = GRN_MALLOC(*((uint64_t *)zvalue)))) {
+  if (!(iw->uncompressed_value = GRN_MALLOC(*((uint64_t *)zvalue)))) {
     inflateEnd(&zstream);
-    iw->value = NULL;
+    iw->uncompressed_value = NULL;
     *value_len = 0;
     return NULL;
   }
-  zstream.next_out = (Bytef *)iw->value;
+  zstream.next_out = (Bytef *)iw->uncompressed_value;
   zstream.avail_out = *(uint64_t *)zvalue;
   if (inflate(&zstream, Z_FINISH) != Z_STREAM_END) {
     inflateEnd(&zstream);
-    GRN_FREE(iw->value);
-    iw->value = NULL;
+    GRN_FREE(iw->uncompressed_value);
+    iw->uncompressed_value = NULL;
     *value_len = 0;
     return NULL;
   }
   *value_len = zstream.total_out;
   if (inflateEnd(&zstream) != Z_OK) {
-    GRN_FREE(iw->value);
-    iw->value = NULL;
+    GRN_FREE(iw->uncompressed_value);
+    iw->uncompressed_value = NULL;
     *value_len = 0;
     return NULL;
   }
-  return iw->value;
+  return iw->uncompressed_value;
 }
 #endif /* GRN_WITH_ZLIB */
 
-#ifdef GRN_WITH_LZO
-#include <lzo/lzo1x.h>
+#ifdef GRN_WITH_LZ4
+#include <lz4.h>
 
 static void *
-grn_ja_ref_lzo(grn_ctx *ctx, grn_ja *ja, grn_id id, grn_io_win *iw, uint32_t *value_len)
+grn_ja_ref_lz4(grn_ctx *ctx, grn_ja *ja, grn_id id, grn_io_win *iw, uint32_t *value_len)
 {
-  void *lvalue;
-  uint32_t lvalue_len;
-  lzo_uint lout_len;
-  if (!(lvalue = grn_ja_ref_raw(ctx, ja, id, iw, &lvalue_len))) {
-    iw->value = NULL;
+  void *packed_value;
+  int packed_value_len;
+  void *lz4_value;
+  int lz4_value_len;
+  int original_value_len;
+
+  if (!(packed_value = grn_ja_ref_raw(ctx, ja, id, iw, &packed_value_len))) {
+    iw->uncompressed_value = NULL;
     *value_len = 0;
     return NULL;
   }
-  if (!(iw->value = GRN_MALLOC(*((uint64_t *)lvalue)))) {
-    iw->value = NULL;
+  original_value_len = *((uint64_t *)packed_value);
+  if (!(iw->uncompressed_value = GRN_MALLOC(original_value_len))) {
+    iw->uncompressed_value = NULL;
     *value_len = 0;
     return NULL;
   }
-  lout_len = *((uint64_t *)lvalue);
-  switch (lzo1x_decompress((lzo_bytep)(((uint64_t *)lvalue) + 1),
-                           lvalue_len,
-                           (lzo_bytep)(iw->value),
-                           &lout_len,
-                           NULL)) {
-  case LZO_E_OK :
-  case LZO_E_INPUT_NOT_CONSUMED :
-    break;
-  default :
-    GRN_FREE(iw->value);
-    iw->value = NULL;
+  lz4_value = (void *)((uint64_t *)packed_value + 1);
+  lz4_value_len = packed_value_len - sizeof(uint64_t);
+  if (LZ4_decompress_safe((const char *)(lz4_value),
+                          (char *)(iw->uncompressed_value),
+                          lz4_value_len,
+                          original_value_len) < 0) {
+    GRN_FREE(iw->uncompressed_value);
+    iw->uncompressed_value = NULL;
     *value_len = 0;
     return NULL;
   }
-  *value_len = lout_len;
-  return iw->value;
+  *value_len = original_value_len;
+  return iw->uncompressed_value;
 }
-#endif /* GRN_WITH_LZO */
+#endif /* GRN_WITH_LZ4 */
 
 void *
 grn_ja_ref(grn_ctx *ctx, grn_ja *ja, grn_id id, grn_io_win *iw, uint32_t *value_len)
@@ -1273,11 +1273,11 @@ grn_ja_ref(grn_ctx *ctx, grn_ja *ja, grn_id id, grn_io_win *iw, uint32_t *value_
     return grn_ja_ref_zlib(ctx, ja, id, iw, value_len);
   }
 #endif /* GRN_WITH_ZLIB */
-#ifdef GRN_WITH_LZO
-  if (ja->header->flags & GRN_OBJ_COMPRESS_LZO) {
-    return grn_ja_ref_lzo(ctx, ja, id, iw, value_len);
+#ifdef GRN_WITH_LZ4
+  if (ja->header->flags & GRN_OBJ_COMPRESS_LZ4) {
+    return grn_ja_ref_lz4(ctx, ja, id, iw, value_len);
   }
-#endif /* GRN_WITH_LZO */
+#endif /* GRN_WITH_LZ4 */
   return grn_ja_ref_raw(ctx, ja, id, iw, value_len);
 }
 
@@ -1359,34 +1359,48 @@ grn_ja_put_zlib(grn_ctx *ctx, grn_ja *ja, grn_id id,
 }
 #endif /* GRN_WITH_ZLIB */
 
-#ifdef GRN_WITH_LZO
+#ifdef GRN_WITH_LZ4
 inline static grn_rc
-grn_ja_put_lzo(grn_ctx *ctx, grn_ja *ja, grn_id id,
+grn_ja_put_lz4(grn_ctx *ctx, grn_ja *ja, grn_id id,
                void *value, uint32_t value_len, int flags, uint64_t *cas)
 {
   grn_rc rc;
-  void *lvalue, *lwork;
-  lzo_uint lvalue_len = value_len + value_len / 16 + 64 + 3;
+  void *packed_value;
+  int packed_value_len;
+  char *lz4_value;
+  int lz4_value_len;
 
   if (value_len == 0) {
     return grn_ja_put_raw(ctx, ja, id, value, value_len, flags, cas);
   }
 
-  if (!(lvalue = GRN_MALLOC(lvalue_len + sizeof(uint64_t)))) { return GRN_NO_MEMORY_AVAILABLE; }
-  if (!(lwork = GRN_MALLOC(LZO1X_1_MEM_COMPRESS))) { GRN_FREE(lvalue); return GRN_NO_MEMORY_AVAILABLE; }
-  if (lzo1x_1_compress(value, value_len, (lzo_bytep)((uint64_t *)lvalue + 1), &lvalue_len, lwork) != LZO_E_OK) {
-    GRN_FREE(lwork);
-    GRN_FREE(lvalue);
-    ERR(GRN_LZO_ERROR, "lzo1x_1_compress");
+  if (value_len > (uint32_t)LZ4_MAX_INPUT_SIZE) {
+    ERR(GRN_INVALID_ARGUMENT,
+        "[ja][lz4] too large value size: <%u>: max: <%d>",
+        value_len, LZ4_MAX_INPUT_SIZE);
     return ctx->rc;
   }
-  GRN_FREE(lwork);
-  *(uint64_t *)lvalue = value_len;
-  rc = grn_ja_put_raw(ctx, ja, id, lvalue, lvalue_len + sizeof(uint64_t), flags, cas);
-  GRN_FREE(lvalue);
+
+  lz4_value_len = LZ4_compressBound(value_len);
+
+  if (!(packed_value = GRN_MALLOC(lz4_value_len + sizeof(uint64_t)))) {
+    return GRN_NO_MEMORY_AVAILABLE;
+  }
+  lz4_value = (char *)((uint64_t *)packed_value + 1);
+  lz4_value_len = LZ4_compress((const char*)value, lz4_value, value_len);
+
+  if (lz4_value_len <= 0) {
+    GRN_FREE(packed_value);
+    ERR(GRN_LZ4_ERROR, "LZ4_compress");
+    return ctx->rc;
+  }
+  *(uint64_t *)packed_value = value_len;
+  packed_value_len = lz4_value_len + sizeof(uint64_t);
+  rc = grn_ja_put_raw(ctx, ja, id, packed_value, packed_value_len, flags, cas);
+  GRN_FREE(packed_value);
   return rc;
 }
-#endif /* GRN_WITH_LZO */
+#endif /* GRN_WITH_LZ4 */
 
 grn_rc
 grn_ja_put(grn_ctx *ctx, grn_ja *ja, grn_id id, void *value, uint32_t value_len,
@@ -1397,11 +1411,11 @@ grn_ja_put(grn_ctx *ctx, grn_ja *ja, grn_id id, void *value, uint32_t value_len,
     return grn_ja_put_zlib(ctx, ja, id, value, value_len, flags, cas);
   }
 #endif /* GRN_WITH_ZLIB */
-#ifdef GRN_WITH_LZO
-  if (ja->header->flags & GRN_OBJ_COMPRESS_LZO) {
-    return grn_ja_put_lzo(ctx, ja, id, value, value_len, flags, cas);
+#ifdef GRN_WITH_LZ4
+  if (ja->header->flags & GRN_OBJ_COMPRESS_LZ4) {
+    return grn_ja_put_lz4(ctx, ja, id, value, value_len, flags, cas);
   }
-#endif /* GRN_WITH_LZO */
+#endif /* GRN_WITH_LZ4 */
   return grn_ja_put_raw(ctx, ja, id, value, value_len, flags, cas);
 }
 

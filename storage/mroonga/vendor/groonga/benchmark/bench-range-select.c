@@ -53,7 +53,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#include <db.h>
+#include <grn_db.h>
 #include <groonga.h>
 
 #include "lib/benchmark.h"

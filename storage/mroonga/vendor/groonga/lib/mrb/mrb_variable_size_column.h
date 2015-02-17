@@ -19,7 +19,7 @@
 #ifndef GRN_MRB_VARIABLE_SIZE_COLUMN_H
 #define GRN_MRB_VARIABLE_SIZE_COLUMN_H
 
-#include "../ctx.h"
+#include "../grn_ctx.h"
 
 #ifdef __cplusplus
 extern "C" {

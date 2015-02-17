@@ -1,4 +1,4 @@
-# Copyright(C) 2012-2014 Brazil
+# Copyright(C) 2012-2015 Brazil
 #
 # This library is free software; you can redistribute it and/or
 # modify it under the terms of the GNU Lesser General Public
@@ -20,12 +20,19 @@ cmake_minimum_required(VERSION 2.6.2)
 set(GRN_PROJECT_NAME "groonga")
 project("${GRN_PROJECT_NAME}")
 
+if(CMAKE_C_COMPILER_ID STREQUAL "Clang")
+  set(CMAKE_COMPILER_IS_CLANGC ON)
+endif()
+if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+  set(CMAKE_COMPILER_IS_CLANGCXX ON)
+endif()
+
 file(READ "${CMAKE_CURRENT_SOURCE_DIR}/base_version" VERSION)
 if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/version.sh")
   file(READ "${CMAKE_CURRENT_SOURCE_DIR}/version.sh" GRN_VERSION)
 else()
   if(NOT EXISTS "${CMAKE_CURRENT_BINARY_DIR}/version.sh")
-    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/.git")
+    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/.git" AND EXISTS "/bin/sh")
       execute_process(COMMAND "${CMAKE_CURRENT_SOURCE_DIR}/version-gen.sh")
       file(READ "${CMAKE_CURRENT_BINARY_DIR}/version.sh" GRN_VERSION)
     else()
@@ -44,6 +51,15 @@ include(CheckCXXCompilerFlag)
 include(FindPkgConfig)
 include(${CMAKE_CURRENT_SOURCE_DIR}/build/cmake_modules/ReadFileList.cmake)
 
+if(DEFINED GRN_EMBED)
+  set(GRN_EMBED_DEFAULT ${GRN_EMBED})
+else()
+  set(GRN_EMBED_DEFAULT OFF)
+endif()
+option(GRN_EMBED
+  "Build as a static library to embed into an application"
+  ${GRN_EMBED_DEFAULT})
+
 set(BIN_DIR "bin")
 set(SBIN_DIR "sbin")
 set(LIB_DIR "lib")
@@ -53,10 +69,14 @@ set(DATA_DIR "share")
 set(GRN_DATA_DIR "${DATA_DIR}/${GRN_PROJECT_NAME}")
 set(CONFIG_DIR "etc")
 set(GRN_CONFIG_DIR "${CONFIG_DIR}/${GRN_PROJECT_NAME}")
+set(GRN_CONFIG_PATH "${CMAKE_INSTALL_PREFIX}/${GRN_CONFIG_DIR}/groonga.conf")
 
 set(GRN_LOG_PATH
   "${CMAKE_INSTALL_PREFIX}/var/log/${GRN_PROJECT_NAME}/${GRN_PROJECT_NAME}.log"
   CACHE FILEPATH "log file path")
+set(GRN_DEFAULT_ENCODING
+  "utf8"
+  CACHE STRING "Groonga's default encoding")
 set(GRN_DEFAULT_MATCH_ESCALATION_THRESHOLD
   0
   CACHE STRING "groonga default match escalation threshold")
@@ -69,6 +89,9 @@ set(GRN_DEFAULT_RELATIVE_DOCUMENT_ROOT
 set(GRN_DEFAULT_DOCUMENT_ROOT
   "${CMAKE_INSTALL_PREFIX}/${GRN_DATA_DIR}/${GRN_DEFAULT_DOCUMENT_ROOT_BASE}"
   CACHE PATH "groonga default document root")
+set(GRN_DEFAULT_DB_KEY
+  "auto"
+  CACHE STRING "Groonga's default DB key management algorithm")
 set(GRN_STACK_SIZE
   1024
   CACHE STRING
@@ -97,15 +120,21 @@ set(GRN_RUBY_SCRIPTS_DIR
   "${CMAKE_INSTALL_PREFIX}/${GRN_RELATIVE_RUBY_SCRIPTS_DIR}")
 
 macro(check_cflag flag)
-  check_c_compiler_flag(${flag} "HAVE_C_${flag}")
-  if(HAVE_C_${flag})
+  string(REGEX REPLACE "[-=]" "_" temporary_variable_name ${flag})
+  string(TOUPPER "${temporary_variable_name}" temporary_variable_name)
+  set(temporary_variable_name "CFLAG${temporary_variable_name}")
+  check_c_compiler_flag(${flag} ${temporary_variable_name})
+  if(${temporary_variable_name})
     set(GRN_C_COMPILE_FLAGS "${GRN_C_COMPILE_FLAGS} ${flag}")
   endif()
 endmacro()
 
 macro(check_cxxflag flag)
-  check_cxx_compiler_flag(${flag} "HAVE_CXX_${flag}")
-  if(HAVE_CXX_${flag})
+  string(REGEX REPLACE "[-=]" "_" temporary_variable_name ${flag})
+  string(TOUPPER "${temporary_variable_name}" temporary_variable_name)
+  set(temporary_variable_name "CXXFLAG${temporary_variable_name}")
+  check_cxx_compiler_flag(${flag} ${temporary_variable_name})
+  if(${temporary_variable_name})
     set(GRN_CXX_COMPILE_FLAGS "${GRN_CXX_COMPILE_FLAGS} ${flag}")
   endif()
 endmacro()
@@ -137,7 +166,10 @@ if(CMAKE_COMPILER_IS_GNUCXX)
   check_cxxflag("-fexceptions")
   check_cxxflag("-fimplicit-templates")
   check_build_flag("-Wno-clobbered")
-  if(MRN_GROONGA_BUNDLED)
+endif()
+
+if(GRN_EMBED)
+  if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_COMPILER_IS_CLANGCXX)
     check_build_flag("-fPIC")
   endif()
 endif()
@@ -154,17 +186,15 @@ add_definitions(
   -DHAVE_CONFIG_H
   )
 
-if(CMAKE_COMPILER_IS_GNUC OR
-    CMAKE_COMPILER_IS_GNUCXX OR
-    CMAKE_C_COMPILER_ID STREQUAL "Clang")
+if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_COMPILER_IS_CLANGCXX)
   set(_GNU_SOURCE TRUE)
 endif()
 
 include_directories(
   BEFORE
   ${CMAKE_CURRENT_BINARY_DIR}
-  ${CMAKE_CURRENT_SOURCE_DIR}
   ${CMAKE_CURRENT_SOURCE_DIR}/include
+  ${CMAKE_CURRENT_SOURCE_DIR}/lib
   )
 
 macro(ac_check_headers header)
@@ -202,6 +232,7 @@ include(build/ac_macros/check_headers.m4)
 include(build/ac_macros/check_functions.m4)
 
 ac_check_symbols(fpclassify math.h)
+ac_check_lib(m fpclassify)
 
 ac_check_lib(dl dlopen)
 ac_check_lib(execinfo backtrace)
@@ -214,8 +245,7 @@ ac_check_lib(rt clock_gettime)
 if(HAVE_LIBRT)
   set(HAVE_CLOCK_GETTIME TRUE)
 endif()
-if(MRN_GROONGA_BUNDLED)
-  ac_check_lib(m sincos)
+if(GRN_EMBED)
   check_library_exists(stdc++ __cxa_begin_catch "${ARG2}"
     STDCPP)
   if(STDCPP)
@@ -293,19 +323,29 @@ else()
   endif()
 endif()
 
-option(GRN_WITH_ZLIB "use zlib for data compression." OFF)
-if(GRN_WITH_ZLIB)
+set(GRN_WITH_ZLIB "auto"
+  CACHE STRING "Support data compression by zlib.")
+if(NOT ${GRN_WITH_ZLIB} STREQUAL "no")
   ac_check_lib(z compress)
   if(NOT HAVE_LIBZ)
-    message(FATAL_ERROR "No libz found")
+    if(${GRN_WITH_ZLIB} STREQUAL "yes")
+      message(FATAL_ERROR "No libz found")
+    endif()
+    set(GRN_WITH_ZLIB "no")
   endif()
 endif()
 
-option(GRN_WITH_LZO "use LZO for data compression." OFF)
-if(GRN_WITH_LZO)
-  ac_check_lib(lzo2 lzo1_compress)
-  if(NOT HAVE_LIBLZO2)
-    message(FATAL_ERROR "No liblzo2 found")
+set(GRN_WITH_LZ4 "auto"
+  CACHE STRING "Support data compression by LZ4.")
+if(NOT ${GRN_WITH_LZ4} STREQUAL "no")
+  pkg_check_modules(LIBLZ4 liblz4)
+  if(LIBLZ4_FOUND)
+    set(GRN_WITH_LZ4 TRUE)
+  else()
+    if(${GRN_WITH_LZ4} STREQUAL "yes")
+      message(FATAL_ERROR "No LZ4 found")
+    endif()
+    set(GRN_WITH_LZ4 FALSE)
   endif()
 endif()
 
@@ -360,6 +400,38 @@ if(NOT ${GRN_WITH_KYTEA} STREQUAL "no")
   endif()
 else()
   set(GRN_WITH_KYTEA FALSE)
+endif()
+
+set(GRN_WITH_LIBSTEMMER "auto"
+  CACHE STRING "use libstemmer for stemming token filter")
+if(NOT ${GRN_WITH_LIBSTEMMER} STREQUAL "no")
+  if(NOT ("${GRN_WITH_LIBSTEMMER}" STREQUAL "yes" OR
+	"${GRN_WITH_LIBSTEMMER}" STREQUAL "auto"))
+    if("${LIBSTEMMER_INCLUDE_DIRS}" STREQUAL "")
+      set(LIBSTEMMER_INCLUDE_DIRS "${GRN_WITH_LIBSTEMMER}/include")
+    endif()
+    if("${LIBSTEMMER_LIBRARY_DIRS}" STREQUAL "")
+      set(LIBSTEMMER_LIBRARY_DIRS "${GRN_WITH_LIBSTEMMER}/lib")
+    endif()
+  endif()
+  set(CMAKE_REQUIRED_INCLUDES_SAVE ${CMAKE_REQUIRED_INCLUDES})
+  set(CMAKE_REQUIRED_INCLUDES
+    ${CMAKE_REQUIRED_INCLUDES}
+    ${LIBSTEMMER_INCLUDE_DIRS})
+  ac_check_headers(libstemmer.h)
+  ac_check_lib(stemmer sb_stemmer_list "${LIBSTEMMER_LIBRARY_DIRS}")
+  set(CMAKE_REQUIRED_INCLUDES ${CMAKE_REQUIRED_INCLUDES_SAVE})
+  if(HAVE_LIBSTEMMER_H AND HAVE_LIBSTEMMER)
+    set(LIBSTEMMER_LIBRARIES "stemmer")
+    set(GRN_WITH_LIBSTEMMER TRUE)
+  else()
+    if(${GRN_WITH_LIBSTEMMER} STREQUAL "yes")
+      message(FATAL_ERROR "No libstemmer found")
+    endif()
+    set(GRN_WITH_LIBSTEMMER FALSE)
+  endif()
+else()
+  set(GRN_WITH_LIBSTEMMER FALSE)
 endif()
 
 set(GRN_WITH_ZEROMQ "auto"
@@ -447,12 +519,16 @@ else()
   set(MRUBY_LIBS "")
 endif()
 
-#add_subdirectory(vendor)
+if(NOT GRN_EMBED)
+  add_subdirectory(vendor)
+endif()
 add_subdirectory(lib)
-add_subdirectory(src)
-#add_subdirectory(plugins)
-add_subdirectory(include)
-#add_subdirectory(data)
+if(NOT GRN_EMBED)
+  add_subdirectory(src)
+  add_subdirectory(plugins)
+  add_subdirectory(include)
+  add_subdirectory(data)
+endif()
 
 configure_file(config.h.cmake ${CMAKE_CURRENT_BINARY_DIR}/config.h)
 
@@ -476,10 +552,10 @@ set(GRN_EXPANDED_DEFAULT_DOCUMENT_ROOT "${GRN_DEFAULT_DOCUMENT_ROOT}")
 set(EXEEXT "${CMAKE_EXECUTABLE_SUFFIX}")
 configure_file(groonga.pc.in "${CMAKE_CURRENT_BINARY_DIR}/groonga.pc" @ONLY)
 
-if(NOT MRN_GROONGA_BUNDLED)
+if(NOT GRN_EMBED)
   install(
     FILES "${CMAKE_CURRENT_BINARY_DIR}/groonga.pc"
     DESTINATION "${LIB_DIR}/pkgconfig/")
 endif()
 
-#add_subdirectory(vendor/plugins)
+add_subdirectory(vendor/plugins)

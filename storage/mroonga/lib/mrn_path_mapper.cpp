@@ -2,7 +2,7 @@
 /*
   Copyright(C) 2010 Tetsuro IKEDA
   Copyright(C) 2011-2013 Kentoku SHIBA
-  Copyright(C) 2011-2012 Kouhei Sutou <kou@clear-code.com>
+  Copyright(C) 2011-2015 Kouhei Sutou <kou@clear-code.com>
 
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -184,6 +184,9 @@ namespace mrn {
     int i = len, j = 0;
     for (; mysql_path_[--i] != FN_LIBCHAR ;) {}
     for (; i < len ;) {
+      if (len - i - 1 >= 3 && strncmp(mysql_path_ + i + 1, "#P#", 3) == 0) {
+        break;
+      }
       mysql_table_name_[j++] = mysql_path_[++i];
     }
     mysql_table_name_[j] = '\0';

@@ -35,10 +35,10 @@ namespace mrn {
     };
     ~Parameter() {
       if (key_) {
-        my_free(key_, MYF(0));
+        my_free(key_);
       }
       if (value_) {
-        my_free(value_, MYF(0));
+        my_free(value_);
       }
     };
   };

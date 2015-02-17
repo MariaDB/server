@@ -17,10 +17,10 @@
 
 #include <string.h>
 
-#include "ctx.h"
-#include "db.h"
-#include "output.h"
-#include "util.h"
+#include "grn_ctx.h"
+#include "grn_db.h"
+#include "grn_output.h"
+#include "grn_util.h"
 #include <groonga/plugin.h>
 
 #define VAR GRN_PROC_GET_VAR_BY_OFFSET

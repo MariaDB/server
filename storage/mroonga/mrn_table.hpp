@@ -33,7 +33,7 @@ typedef struct st_mroonga_long_term_share
   uint                table_name_length;
 
   // for auto_increment (storage mode only)
-  pthread_mutex_t     auto_inc_mutex;
+  mysql_mutex_t       auto_inc_mutex;
   bool                auto_inc_inited;
   ulonglong           auto_inc_value;
 } MRN_LONG_TERM_SHARE;
@@ -43,7 +43,7 @@ typedef struct st_mroonga_share
   char                *table_name;
   uint                table_name_length;
   uint                use_count;
-  pthread_mutex_t     mutex;
+  mysql_mutex_t       mutex;
   THR_LOCK            lock;
   TABLE_SHARE         *table_share;
   TABLE_SHARE         *wrap_table_share;

@@ -14,13 +14,13 @@
   License along with this library; if not, write to the Free Software
   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 */
-#include "groonga_in.h"
+#include "grn.h"
 #include <string.h>
 #include <limits.h>
-#include "pat.h"
-#include "output.h"
-#include "util.h"
-#include "normalizer_in.h"
+#include "grn_pat.h"
+#include "grn_output.h"
+#include "grn_util.h"
+#include "grn_normalizer.h"
 
 #define GRN_PAT_DELETED (GRN_ID_MAX + 1)
 
@@ -749,16 +749,16 @@ _grn_pat_add(grn_ctx *ctx, grn_pat *pat, const uint8_t *key, uint32_t size, uint
   return r;
 }
 
-inline static int
+inline static grn_bool
 chop(grn_ctx *ctx, grn_pat *pat, const char **key, const char *end, uint32_t *lkey)
 {
   size_t len = grn_charlen(ctx, *key, end);
   if (len) {
     *lkey += len;
     *key += len;
-    return **key;
+    return (end - *key) > 0;
   } else {
-    return 0;
+    return GRN_FALSE;
   }
 }
 

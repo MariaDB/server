@@ -24,6 +24,8 @@ include_directories(
 
 if(GRN_WITH_MRUBY)
   read_file_list("${CMAKE_CURRENT_SOURCE_DIR}/sources.am" MRUBY_SOURCES)
+  string(REGEX REPLACE "\\.\\./" "${CMAKE_CURRENT_SOURCE_DIR}/../"
+    MRUBY_SOURCES "${MRUBY_SOURCES}")
   add_library(mruby OBJECT ${MRUBY_SOURCES})
   set_source_files_properties(${MRUBY_SOURCES}
     PROPERTIES

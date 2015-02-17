@@ -13,3 +13,5 @@ export DH_OPTIONS
 override_dh_auto_test:
 
 override_dh_install:
+	find $(CURDIR) -name '*.la' -delete
+	find $(CURDIR) -name 'lgpl-2.0.txt' -delete

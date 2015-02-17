@@ -1,6 +1,6 @@
 /* -*- c-basic-offset: 2 -*- */
 /*
-  Copyright(C) 2009-2014 Brazil
+  Copyright(C) 2009-2015 Brazil
 
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -16,16 +16,17 @@
   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 */
 
-#include "groonga_in.h"
+#include "grn.h"
 #include <string.h>
-#include "token.h"
-#include "ctx_impl.h"
-#include "pat.h"
-#include "plugin_in.h"
-#include "snip.h"
-#include "output.h"
-#include "normalizer_in.h"
-#include "ctx_impl_mrb.h"
+#include "grn_request_canceler.h"
+#include "grn_tokenizers.h"
+#include "grn_ctx_impl.h"
+#include "grn_pat.h"
+#include "grn_plugin.h"
+#include "grn_snip.h"
+#include "grn_output.h"
+#include "grn_normalizer.h"
+#include "grn_ctx_impl_mrb.h"
 #include <stdio.h>
 #include <stdarg.h>
 #include <time.h>
@@ -132,15 +133,25 @@ grn_rc
 grn_timeval2str(grn_ctx *ctx, grn_timeval *tv, char *buf)
 {
   struct tm *ltm;
-#ifdef HAVE_LOCALTIME_R
+  const char *function_name;
+#ifdef HAVE__LOCALTIME64_S
   struct tm tm;
   time_t t = tv->tv_sec;
+  function_name = "localtime_s";
+  ltm = (localtime_s(&tm, &t) == 0) ? &tm : NULL;
+#else /* HAVE__LOCALTIME64_S */
+# ifdef HAVE_LOCALTIME_R
+  struct tm tm;
+  time_t t = tv->tv_sec;
+  function_name = "localtime_r";
   ltm = localtime_r(&t, &tm);
-#else /* HAVE_LOCALTIME_R */
+# else /* HAVE_LOCALTIME_R */
   time_t tvsec = (time_t) tv->tv_sec;
+  function_name = "localtime";
   ltm = localtime(&tvsec);
-#endif /* HAVE_LOCALTIME_R */
-  if (!ltm) { SERR("localtime"); }
+# endif /* HAVE_LOCALTIME_R */
+#endif /* HAVE__LOCALTIME64_S */
+  if (!ltm) { SERR(function_name); }
   snprintf(buf, GRN_TIMEVAL_STR_SIZE - 1, GRN_TIMEVAL_STR_FORMAT,
            ltm->tm_year + 1900, ltm->tm_mon + 1, ltm->tm_mday,
            ltm->tm_hour, ltm->tm_min, ltm->tm_sec,
@@ -241,7 +252,7 @@ grn_alloc_info_set_backtrace(char *buffer, size_t size)
 }
 
 inline static void
-grn_alloc_info_add(void *address)
+grn_alloc_info_add(void *address, const char *file, int line, const char *func)
 {
   grn_ctx *ctx;
   grn_alloc_info *new_alloc_info;
@@ -254,6 +265,17 @@ grn_alloc_info_add(void *address)
   new_alloc_info->freed = GRN_FALSE;
   grn_alloc_info_set_backtrace(new_alloc_info->alloc_backtrace,
                                sizeof(new_alloc_info->alloc_backtrace));
+  if (file) {
+    new_alloc_info->file = strdup(file);
+  } else {
+    new_alloc_info->file = NULL;
+  }
+  new_alloc_info->line = line;
+  if (func) {
+    new_alloc_info->func = strdup(func);
+  } else {
+    new_alloc_info->func = NULL;
+  }
   new_alloc_info->next = ctx->impl->alloc_info;
   ctx->impl->alloc_info = new_alloc_info;
 }
@@ -291,8 +313,13 @@ grn_alloc_info_dump(grn_ctx *ctx)
     if (alloc_info->freed) {
       printf("address[%d][freed]: %p\n", i, alloc_info->address);
     } else {
-      printf("address[%d][not-freed]: %p:\n%s",
-             i, alloc_info->address, alloc_info->alloc_backtrace);
+      printf("address[%d][not-freed]: %p: %s:%d: %s()\n%s",
+             i,
+             alloc_info->address,
+             alloc_info->file ? alloc_info->file : "(unknown)",
+             alloc_info->line,
+             alloc_info->func ? alloc_info->func : "(unknown)",
+             alloc_info->alloc_backtrace);
     }
     i++;
   }
@@ -340,13 +367,15 @@ grn_alloc_info_free(grn_ctx *ctx)
     grn_alloc_info *current_alloc_info = alloc_info;
     alloc_info = alloc_info->next;
     current_alloc_info->next = NULL;
+    free(current_alloc_info->file);
+    free(current_alloc_info->func);
     free(current_alloc_info);
   }
   ctx->impl->alloc_info = NULL;
 }
 
 #else /* USE_MEMORY_DEBUG */
-#  define grn_alloc_info_add(address)
+#  define grn_alloc_info_add(address, file, line, func)
 #  define grn_alloc_info_change(old_address, new_address)
 #  define grn_alloc_info_check(address)
 #  define grn_alloc_info_dump(ctx)
@@ -372,17 +401,17 @@ int grn_fmalloc_line = 0;
 static void
 grn_ctx_impl_init_malloc(grn_ctx *ctx)
 {
-#  ifdef USE_FAIL_MALLOC
+# ifdef USE_FAIL_MALLOC
   ctx->impl->malloc_func = grn_malloc_fail;
   ctx->impl->calloc_func = grn_calloc_fail;
   ctx->impl->realloc_func = grn_realloc_fail;
   ctx->impl->strdup_func = grn_strdup_fail;
-#  else
+# else
   ctx->impl->malloc_func = grn_malloc_default;
   ctx->impl->calloc_func = grn_calloc_default;
   ctx->impl->realloc_func = grn_realloc_default;
   ctx->impl->strdup_func = grn_strdup_default;
-#  endif
+# endif
 }
 #endif
 
@@ -423,7 +452,7 @@ grn_ctx_loader_clear(grn_ctx *ctx)
 #define IMPL_SIZE ((sizeof(struct _grn_ctx_impl) + (grn_pagesize - 1)) & ~(grn_pagesize - 1))
 
 #ifdef GRN_WITH_MESSAGE_PACK
-static inline int
+static int
 grn_msgpack_buffer_write(void *data, const char *buf, unsigned int len)
 {
   grn_ctx *ctx = (grn_ctx *)data;
@@ -434,7 +463,6 @@ grn_msgpack_buffer_write(void *data, const char *buf, unsigned int len)
 static void
 grn_ctx_impl_init(grn_ctx *ctx)
 {
-
   grn_io_mapinfo mi;
   if (!(ctx->impl = grn_io_anon_map(ctx, &mi, IMPL_SIZE))) {
     ctx->impl = NULL;
@@ -559,8 +587,8 @@ grn_ctx_impl_set_current_error_message(grn_ctx *ctx)
   strcpy(ctx->impl->previous_errbuf, ctx->errbuf);
 }
 
-grn_rc
-grn_ctx_init(grn_ctx *ctx, int flags)
+static grn_rc
+grn_ctx_init_internal(grn_ctx *ctx, int flags)
 {
   if (!ctx) { return GRN_INVALID_ARGUMENT; }
   // if (ctx->stat != GRN_CTX_FIN) { return GRN_INVALID_ARGUMENT; }
@@ -589,6 +617,20 @@ grn_ctx_init(grn_ctx *ctx, int flags)
   ctx->trace[0] = NULL;
   ctx->errbuf[0] = '\0';
   return ctx->rc;
+}
+
+grn_rc
+grn_ctx_init(grn_ctx *ctx, int flags)
+{
+  grn_rc rc;
+
+  rc = grn_ctx_init_internal(ctx, flags);
+  if (rc == GRN_SUCCESS) {
+    grn_ctx_impl_init(ctx);
+    rc = ctx->rc;
+  }
+
+  return rc;
 }
 
 grn_ctx *
@@ -706,7 +748,6 @@ grn_ctx_set_finalizer(grn_ctx *ctx, grn_proc_func *finalizer)
 {
   if (!ctx) { return GRN_INVALID_ARGUMENT; }
   if (!ctx->impl) {
-    grn_ctx_impl_init(ctx);
     if (ERRP(ctx, GRN_ERROR)) { return ctx->rc; }
   }
   ctx->impl->finalizer = finalizer;
@@ -1227,7 +1268,7 @@ grn_init(void)
   grn_gtick = 0;
   ctx->next = ctx;
   ctx->prev = ctx;
-  grn_ctx_init(ctx, 0);
+  grn_ctx_init_internal(ctx, 0);
   ctx->encoding = grn_encoding_parse(GRN_DEFAULT_ENCODING);
   grn_timeval_now(ctx, &grn_starttime);
 #ifdef WIN32
@@ -1282,8 +1323,8 @@ grn_init(void)
     GRN_LOG(ctx, GRN_LOG_ALERT, "grn_normalizer_init failed (%d)", rc);
     return rc;
   }
-  if ((rc = grn_token_init())) {
-    GRN_LOG(ctx, GRN_LOG_ALERT, "grn_token_init failed (%d)", rc);
+  if ((rc = grn_tokenizers_init())) {
+    GRN_LOG(ctx, GRN_LOG_ALERT, "grn_tokenizers_init failed (%d)", rc);
     return rc;
   }
   /*
@@ -1293,6 +1334,13 @@ grn_init(void)
   }
   */
   grn_cache_init();
+  if (!grn_request_canceler_init()) {
+    rc = ctx->rc;
+    grn_cache_fin();
+    GRN_LOG(ctx, GRN_LOG_ALERT,
+            "failed to initialize request canceler (%d)", rc);
+    return rc;
+  }
   GRN_LOG(ctx, GRN_LOG_NOTICE, "grn_init");
   check_overcommit_memory(ctx);
   check_grn_ja_skip_same_value_put(ctx);
@@ -1379,8 +1427,9 @@ grn_fin(void)
     }
   }
   query_logger_fin(ctx);
+  grn_request_canceler_fin();
   grn_cache_fin();
-  grn_token_fin();
+  grn_tokenizers_fin();
   grn_normalizer_fin();
   grn_plugins_fin();
   grn_io_fin();
@@ -1396,7 +1445,6 @@ grn_rc
 grn_ctx_connect(grn_ctx *ctx, const char *host, int port, int flags)
 {
   GRN_API_ENTER;
-  if (!ctx->impl) { grn_ctx_impl_init(ctx); }
   if (!ctx->impl) { goto exit; }
   {
     grn_com *com = grn_com_copen(ctx, NULL, host, port);
@@ -1428,16 +1476,6 @@ grn_ctx_get_command_version(grn_ctx *ctx)
   }
 }
 
-const char *
-grn_ctx_get_mime_type(grn_ctx *ctx)
-{
-  if (ctx->impl) {
-    return ctx->impl->mime_type;
-  } else {
-    return NULL;
-  }
-}
-
 grn_rc
 grn_ctx_set_command_version(grn_ctx *ctx, grn_command_version version)
 {
@@ -1453,6 +1491,40 @@ grn_ctx_set_command_version(grn_ctx *ctx, grn_command_version version)
     } else {
       return GRN_UNSUPPORTED_COMMAND_VERSION;
     }
+  }
+}
+
+grn_content_type
+grn_ctx_get_output_type(grn_ctx *ctx)
+{
+  if (ctx->impl) {
+    return ctx->impl->output_type;
+  } else {
+    return GRN_CONTENT_NONE;
+  }
+}
+
+grn_rc
+grn_ctx_set_output_type(grn_ctx *ctx, grn_content_type type)
+{
+  grn_rc rc = GRN_SUCCESS;
+
+  if (ctx->impl) {
+    ctx->impl->output_type = type;
+  } else {
+    rc = GRN_INVALID_ARGUMENT;
+  }
+
+  return rc;
+}
+
+const char *
+grn_ctx_get_mime_type(grn_ctx *ctx)
+{
+  if (ctx->impl) {
+    return ctx->impl->mime_type;
+  } else {
+    return NULL;
   }
 }
 
@@ -1613,9 +1685,11 @@ get_command_version(grn_ctx *ctx, const char *p, const char *pe)
 #define INDEX_HTML          "index.html"
 #define OUTPUT_TYPE         "output_type"
 #define COMMAND_VERSION     "command_version"
+#define REQUEST_ID          "request_id"
 #define EXPR_MISSING        "expr_missing"
 #define OUTPUT_TYPE_LEN     (sizeof(OUTPUT_TYPE) - 1)
 #define COMMAND_VERSION_LEN (sizeof(COMMAND_VERSION) - 1)
+#define REQUEST_ID_LEN      (sizeof(REQUEST_ID) - 1)
 
 #define HTTP_QUERY_PAIR_DELIMITER   "="
 #define HTTP_QUERY_PAIRS_DELIMITERS "&;"
@@ -1631,8 +1705,10 @@ grn_obj *
 grn_ctx_qe_exec_uri(grn_ctx *ctx, const char *path, uint32_t path_len)
 {
   grn_obj buf, *expr, *val;
+  grn_obj request_id;
   const char *p = path, *e = path + path_len, *v, *key_end, *filename_end;
   GRN_TEXT_INIT(&buf, 0);
+  GRN_TEXT_INIT(&request_id, 0);
   p = grn_text_urldec(ctx, &buf, p, e, '?');
   if (!GRN_TEXT_LEN(&buf)) { GRN_TEXT_SETS(ctx, &buf, INDEX_HTML); }
   v = GRN_TEXT_VALUE(&buf);
@@ -1659,6 +1735,12 @@ grn_ctx_qe_exec_uri(grn_ctx *ctx, const char *path, uint32_t path_len)
           p = grn_text_cgidec(ctx, &buf, p, e, HTTP_QUERY_PAIRS_DELIMITERS);
           get_command_version(ctx, GRN_TEXT_VALUE(&buf), GRN_BULK_CURR(&buf));
           if (ctx->rc) { goto exit; }
+        } else if (l == REQUEST_ID_LEN &&
+                   !memcmp(v, REQUEST_ID, REQUEST_ID_LEN)) {
+          GRN_BULK_REWIND(&request_id);
+          p = grn_text_cgidec(ctx, &request_id, p, e,
+                              HTTP_QUERY_PAIRS_DELIMITERS);
+          if (ctx->rc) { goto exit; }
         } else {
           if (!(val = grn_expr_get_or_add_var(ctx, expr, v, l))) {
             val = &buf;
@@ -1667,8 +1749,18 @@ grn_ctx_qe_exec_uri(grn_ctx *ctx, const char *path, uint32_t path_len)
           p = grn_text_cgidec(ctx, val, p, e, HTTP_QUERY_PAIRS_DELIMITERS);
         }
       }
+      if (GRN_TEXT_LEN(&request_id) > 0) {
+        grn_request_canceler_register(ctx,
+                                      GRN_TEXT_VALUE(&request_id),
+                                      GRN_TEXT_LEN(&request_id));
+      }
       ctx->impl->curr_expr = expr;
       grn_expr_exec(ctx, expr, 0);
+      if (GRN_TEXT_LEN(&request_id) > 0) {
+        grn_request_canceler_unregister(ctx,
+                                        GRN_TEXT_VALUE(&request_id),
+                                        GRN_TEXT_LEN(&request_id));
+      }
     } else {
       ERR(GRN_INVALID_ARGUMENT, "invalid command name: %.*s",
           command_name_size, command_name);
@@ -1693,8 +1785,10 @@ grn_ctx_qe_exec(grn_ctx *ctx, const char *str, uint32_t str_len)
   char tok_type;
   int offset = 0;
   grn_obj buf, *expr = NULL, *val = NULL;
+  grn_obj request_id;
   const char *p = str, *e = str + str_len, *v;
   GRN_TEXT_INIT(&buf, 0);
+  GRN_TEXT_INIT(&request_id, 0);
   p = grn_text_unesc_tok(ctx, &buf, p, e, &tok_type);
   expr = grn_ctx_get(ctx, GRN_TEXT_VALUE(&buf), GRN_TEXT_LEN(&buf));
   while (p < e) {
@@ -1720,6 +1814,11 @@ grn_ctx_qe_exec(grn_ctx *ctx, const char *str, uint32_t str_len)
           p = grn_text_unesc_tok(ctx, &buf, p, e, &tok_type);
           get_command_version(ctx, GRN_TEXT_VALUE(&buf), GRN_BULK_CURR(&buf));
           if (ctx->rc) { goto exit; }
+        } else if (l == REQUEST_ID_LEN &&
+                   !memcmp(v, REQUEST_ID, REQUEST_ID_LEN)) {
+          GRN_BULK_REWIND(&request_id);
+          p = grn_text_unesc_tok(ctx, &request_id, p, e, &tok_type);
+          if (ctx->rc) { goto exit; }
         } else if (expr && (val = grn_expr_get_or_add_var(ctx, expr, v, l))) {
           grn_obj_reinit(ctx, val, GRN_DB_TEXT, 0);
           p = grn_text_unesc_tok(ctx, val, p, e, &tok_type);
@@ -1740,6 +1839,11 @@ grn_ctx_qe_exec(grn_ctx *ctx, const char *str, uint32_t str_len)
       break;
     }
   }
+  if (GRN_TEXT_LEN(&request_id) > 0) {
+    grn_request_canceler_register(ctx,
+                                  GRN_TEXT_VALUE(&request_id),
+                                  GRN_TEXT_LEN(&request_id));
+  }
   ctx->impl->curr_expr = expr;
   if (expr && command_proc_p(expr)) {
     grn_expr_exec(ctx, expr, 0);
@@ -1751,7 +1855,13 @@ grn_ctx_qe_exec(grn_ctx *ctx, const char *str, uint32_t str_len)
           (int)GRN_TEXT_LEN(&buf), GRN_TEXT_VALUE(&buf));
     }
   }
+  if (GRN_TEXT_LEN(&request_id) > 0) {
+    grn_request_canceler_unregister(ctx,
+                                    GRN_TEXT_VALUE(&request_id),
+                                    GRN_TEXT_LEN(&request_id));
+  }
 exit :
+  GRN_OBJ_FIN(ctx, &request_id);
   GRN_OBJ_FIN(ctx, &buf);
   return expr;
 }
@@ -1991,7 +2101,7 @@ grn_cache_open(grn_ctx *ctx)
     goto exit;
   }
 
-  cache->next = (grn_cache_entry*)cache;
+  cache->next = (grn_cache_entry *)cache;
   cache->prev = (grn_cache_entry *)cache;
   cache->hash = grn_hash_create(&grn_gctx, NULL, GRN_TABLE_MAX_KEY_SIZE,
                                 sizeof(grn_cache_entry), GRN_OBJ_KEY_VAR_SIZE);
@@ -2208,7 +2318,6 @@ grn_ctx_alloc(grn_ctx *ctx, size_t size, int flags,
   void *res = NULL;
   if (!ctx) { return res; }
   if (!ctx->impl) {
-    grn_ctx_impl_init(ctx);
     if (ERRP(ctx, GRN_ERROR)) { return res; }
   }
   CRITICAL_SECTION_ENTER(ctx->impl->lock);
@@ -2220,7 +2329,7 @@ grn_ctx_alloc(grn_ctx *ctx, size_t size, int flags,
     if (size > GRN_CTX_SEGMENT_SIZE) {
       uint64_t npages = (size + (grn_pagesize - 1)) / grn_pagesize;
       if (npages >= (1LL<<32)) {
-        MERR("too long request size=%zu", size);
+        MERR("too long request size=%" GRN_FMT_SIZE, size);
         goto exit;
       }
       for (i = 0, mi = ctx->impl->segs;; i++, mi++) {
@@ -2395,7 +2504,6 @@ grn_ctx_use(grn_ctx *ctx, grn_obj *db)
   if (db && !DB_P(db)) {
     ctx->rc = GRN_INVALID_ARGUMENT;
   } else {
-    if (!ctx->impl) { grn_ctx_impl_init(ctx); }
     if (!ctx->rc) {
       ctx->impl->db = db;
       if (db) {
@@ -2416,7 +2524,6 @@ grn_ctx_alloc_lifo(grn_ctx *ctx, size_t size,
 {
   if (!ctx) { return NULL; }
   if (!ctx->impl) {
-    grn_ctx_impl_init(ctx);
     if (ERRP(ctx, GRN_ERROR)) { return NULL; }
   }
   {
@@ -2425,7 +2532,7 @@ grn_ctx_alloc_lifo(grn_ctx *ctx, size_t size,
     if (size > GRN_CTX_SEGMENT_SIZE) {
       uint64_t npages = (size + (grn_pagesize - 1)) / grn_pagesize;
       if (npages >= (1LL<<32)) {
-        MERR("too long request size=%zu", size);
+        MERR("too long request size=%" GRN_FMT_SIZE, size);
         return NULL;
       }
       for (;;) {
@@ -2611,14 +2718,14 @@ grn_malloc_default(grn_ctx *ctx, size_t size, const char* file, int line, const 
     void *res = malloc(size);
     if (res) {
       GRN_ADD_ALLOC_COUNT(1);
-      grn_alloc_info_add(res);
+      grn_alloc_info_add(res, file, line, func);
     } else {
       if (!(res = malloc(size))) {
-        MERR("malloc fail (%zu)=%p (%s:%d) <%d>",
+        MERR("malloc fail (%" GRN_FMT_SIZE ")=%p (%s:%d) <%d>",
              size, res, file, line, alloc_count);
       } else {
         GRN_ADD_ALLOC_COUNT(1);
-        grn_alloc_info_add(res);
+        grn_alloc_info_add(res, file, line, func);
       }
     }
     return res;
@@ -2633,7 +2740,7 @@ grn_calloc_default(grn_ctx *ctx, size_t size, const char* file, int line, const 
     void *res = calloc(size, 1);
     if (res) {
       GRN_ADD_ALLOC_COUNT(1);
-      grn_alloc_info_add(res);
+      grn_alloc_info_add(res, file, line, func);
     } else {
       if (!(res = calloc(size, 1))) {
         MERR("calloc fail (%" GRN_FMT_LLU ")=%p (%s:%d) <%" GRN_FMT_LLU ">",
@@ -2641,7 +2748,7 @@ grn_calloc_default(grn_ctx *ctx, size_t size, const char* file, int line, const 
              (unsigned long long int)alloc_count);
       } else {
         GRN_ADD_ALLOC_COUNT(1);
-        grn_alloc_info_add(res);
+        grn_alloc_info_add(res, file, line, func);
       }
     }
     return res;
@@ -2671,7 +2778,8 @@ grn_realloc_default(grn_ctx *ctx, void *ptr, size_t size, const char* file, int 
   if (size) {
     if (!(res = realloc(ptr, size))) {
       if (!(res = realloc(ptr, size))) {
-        MERR("realloc fail (%p,%zu)=%p (%s:%d) <%d>", ptr, size, res, file, line, alloc_count);
+        MERR("realloc fail (%p,%" GRN_FMT_SIZE ")=%p (%s:%d) <%d>",
+             ptr, size, res, file, line, alloc_count);
         return NULL;
       }
     }
@@ -2679,7 +2787,7 @@ grn_realloc_default(grn_ctx *ctx, void *ptr, size_t size, const char* file, int 
       grn_alloc_info_change(ptr, res);
     } else {
       GRN_ADD_ALLOC_COUNT(1);
-      grn_alloc_info_add(res);
+      grn_alloc_info_add(res, file, line, func);
     }
   } else {
     if (!ptr) { return NULL; }
@@ -2705,9 +2813,13 @@ grn_strdup_default(grn_ctx *ctx, const char *s, const char* file, int line, cons
     char *res = strdup(s);
     if (res) {
       GRN_ADD_ALLOC_COUNT(1);
+      grn_alloc_info_add(res, file, line, func);
     } else {
       if (!(res = strdup(s))) {
         MERR("strdup(%p)=%p (%s:%d) <%d>", s, res, file, line, alloc_count);
+      } else {
+        GRN_ADD_ALLOC_COUNT(1);
+        grn_alloc_info_add(res, file, line, func);
       }
     }
     return res;
@@ -2758,7 +2870,8 @@ grn_realloc_fail(grn_ctx *ctx, void *ptr, size_t size, const char* file, int lin
   if (grn_fail_malloc_check(size, file, line, func)) {
     return grn_realloc_default(ctx, ptr, size, file, line, func);
   } else {
-    MERR("fail_realloc (%p,%zu) (%s:%d@%s) <%d>", ptr, size, file, line, func, alloc_count);
+    MERR("fail_realloc (%p,%" GRN_FMT_SIZE ") (%s:%d@%s) <%d>",
+         ptr, size, file, line, func, alloc_count);
     return NULL;
   }
 }
@@ -2922,6 +3035,18 @@ grn_set_term_handler(void)
 }
 
 void
+grn_ctx_output_flush(grn_ctx *ctx, int flags)
+{
+  if (flags & GRN_CTX_QUIET) {
+    return;
+  }
+  if (!ctx->impl->output) {
+    return;
+  }
+  ctx->impl->output(ctx, 0, ctx->impl->data.ptr);
+}
+
+void
 grn_ctx_output_array_open(grn_ctx *ctx, const char *name, int nelements)
 {
   grn_output_array_open(ctx, ctx->impl->outbuf, ctx->impl->output_type,
@@ -2989,4 +3114,26 @@ grn_ctx_output_obj(grn_ctx *ctx, grn_obj *value, grn_obj_format *format)
 {
   grn_output_obj(ctx, ctx->impl->outbuf, ctx->impl->output_type,
                  value, format);
+}
+
+void
+grn_ctx_output_table_columns(grn_ctx *ctx, grn_obj *table,
+                             grn_obj_format *format)
+{
+  grn_output_table_columns(ctx,
+                           ctx->impl->outbuf,
+                           ctx->impl->output_type,
+                           table,
+                           format);
+}
+
+void
+grn_ctx_output_table_records(grn_ctx *ctx, grn_obj *table,
+                             grn_obj_format *format)
+{
+  grn_output_table_records(ctx,
+                           ctx->impl->outbuf,
+                           ctx->impl->output_type,
+                           table,
+                           format);
 }

@@ -174,6 +174,10 @@ AC_DEFUN([CONFIG_OPTION_MYSQL],[
   MYSQL_INCLUDES="$MYSQL_INCLUDES -I$ac_mysql_build_dir/include"
   MYSQL_INCLUDES="$MYSQL_INCLUDES -I$ac_mysql_source_dir/sql"
   MYSQL_INCLUDES="$MYSQL_INCLUDES -I$ac_mysql_source_dir/include"
+  if test -d "$ac_mysql_source_dir/extra/rapidjson"; then
+    mysql_rapidjson_include_dir="$ac_mysql_source_dir/extra/rapidjson/include"
+    MYSQL_INCLUDES="$MYSQL_INCLUDES -I$mysql_rapidjson_include_dir"
+  fi
   if test -d "$ac_mysql_source_dir/pcre"; then
     mysql_regex_include_dir="$ac_mysql_source_dir/pcre"
   else
@@ -461,7 +465,6 @@ AC_CONFIG_FILES([
   packages/Makefile
   packages/rpm/Makefile
   packages/rpm/centos/Makefile
-  packages/rpm/fedora/Makefile
   packages/yum/Makefile
   packages/apt/Makefile
   packages/source/Makefile
@@ -486,8 +489,6 @@ AC_OUTPUT([
   packages/rpm/centos/mysql55-mroonga.spec
   packages/rpm/centos/mysql56-community-mroonga.spec
   packages/rpm/centos/mariadb-mroonga.spec
-  packages/rpm/fedora/mysql-mroonga.spec
-  packages/rpm/fedora/mariadb-mroonga.spec
   packages/yum/env.sh
   data/install.sql
 ])
