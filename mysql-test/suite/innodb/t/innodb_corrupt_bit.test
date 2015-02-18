@@ -4,11 +4,6 @@
 -- source include/have_innodb.inc
 -- source include/have_innodb_16k.inc
 
-if (`select plugin_auth_version <= "5.5.40-MariaDB-36.1" from information_schema.plugins where plugin_name='innodb'`)
-{
-  --skip Not fixed in XtraDB as of 5.5.40-MariaDB-36.1 or earlier
-}
-
 # Issues with innodb_change_buffering_debug on Windows, so the test scenario
 # cannot be created on windows
 --source include/not_windows.inc
@@ -30,10 +25,10 @@ SET GLOBAL innodb_change_buffering_debug = 1;
 SET UNIQUE_CHECKS=0;
 
 CREATE DATABASE pad;
-let $i=345;
+let $i=338;
 while ($i)
 {
-  --eval CREATE TABLE pad.t$i (a INT PRIMARY KEY) ENGINE=InnoDB;
+--eval CREATE TABLE pad.t$i(a INT PRIMARY KEY)ENGINE=InnoDB;
   dec $i;
 }
 
