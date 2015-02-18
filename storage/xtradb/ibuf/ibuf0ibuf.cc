@@ -2879,6 +2879,12 @@ ibuf_contract_in_background(
 		mutex_exit(&ibuf_mutex);
 	}
 
+#if defined UNIV_DEBUG || defined UNIV_IBUF_DEBUG
+	if (ibuf_debug) {
+		return(0);
+	}
+#endif /* UNIV_DEBUG || UNIV_IBUF_DEBUG */
+
 	while (sum_pages < n_pages) {
 		ulint	n_bytes;
 

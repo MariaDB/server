@@ -465,6 +465,14 @@ IF(WITH_WSREP)
   SET(INNOBASE_SOURCES ${INNOBASE_SOURCES} wsrep/md5.cc)
 ENDIF()
 
+# These files have unused result errors, so we skip Werror
+CHECK_C_COMPILER_FLAG("-Werror" HAVE_WERROR)
+IF(HAVE_WERROR)
+  INCLUDE(${MYSQL_CMAKE_SCRIPT_DIR}/compile_flags.cmake)
+  ADD_COMPILE_FLAGS(page/page0zip.c COMPILE_FLAGS "-Wno-error")
+  ADD_COMPILE_FLAGS(ut/ut0ut.c      COMPILE_FLAGS "-Wno-error")
+ENDIF()
+
 IF(WITH_INNODB)
   # Legacy option
   SET(WITH_INNOBASE_STORAGE_ENGINE TRUE)

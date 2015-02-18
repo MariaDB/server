@@ -1,5 +1,5 @@
-/* Copyright (c) 2000, 2012, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2014, SkySQL Ab.
+/* Copyright (c) 2000, 2014, Oracle and/or its affiliates.
+   Copyright (c) 2008, 2015, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -2930,7 +2930,9 @@ partititon_err:
     outparam->no_replicate= FALSE;
   }
 
-  thd->status_var.opened_tables++;
+  /* Increment the opened_tables counter, only when open flags set. */
+  if (db_stat)
+    thd->status_var.opened_tables++;
 
   thd->lex->context_analysis_only= save_context_analysis_only;
   DBUG_RETURN (OPEN_FRM_OK);
@@ -4731,23 +4733,26 @@ bool TABLE_LIST::check_single_table(TABLE_LIST **table_arg,
 
 bool TABLE_LIST::set_insert_values(MEM_ROOT *mem_root)
 {
+  DBUG_ENTER("set_insert_values");
   if (table)
   {
+    DBUG_PRINT("info", ("setting insert_value for table"));
     if (!table->insert_values &&
         !(table->insert_values= (uchar *)alloc_root(mem_root,
                                                    table->s->rec_buff_length)))
-      return TRUE;
+      DBUG_RETURN(TRUE);
   }
   else
   {
+    DBUG_PRINT("info", ("setting insert_value for view"));
     DBUG_ASSERT(is_view_or_derived() && is_merged_derived());
     for (TABLE_LIST *tbl= (TABLE_LIST*)view->select_lex.table_list.first;
          tbl;
          tbl= tbl->next_local)
       if (tbl->set_insert_values(mem_root))
-        return TRUE;
+        DBUG_RETURN(TRUE);
   }
-  return FALSE;
+  DBUG_RETURN(FALSE);
 }
 
 
@@ -6900,15 +6905,16 @@ void TABLE_LIST::reset_const_table()
 
 bool TABLE_LIST::handle_derived(LEX *lex, uint phases)
 {
-  SELECT_LEX_UNIT *unit= get_unit();
-  if (unit)
+  SELECT_LEX_UNIT *unit;
+  DBUG_ENTER("handle_derived");
+  if ((unit= get_unit()))
   {
     for (SELECT_LEX *sl= unit->first_select(); sl; sl= sl->next_select())
       if (sl->handle_derived(lex, phases))
-        return TRUE;
-    return mysql_handle_single_derived(lex, this, phases);
+        DBUG_RETURN(TRUE);
+    DBUG_RETURN(mysql_handle_single_derived(lex, this, phases));
   }
-  return FALSE;
+  DBUG_RETURN(FALSE);
 }
 
 

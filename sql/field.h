@@ -656,36 +656,32 @@ public:
   inline bool is_null(my_ptrdiff_t row_offset= 0) const
   {
     /*
-      If the field is NULLable, it returns NULLity based
-      on null_ptr[row_offset] value. Otherwise it returns
-      NULL flag depending on TABLE::null_row value.
-
       The table may have been marked as containing only NULL values
       for all fields if it is a NULL-complemented row of an OUTER JOIN
       or if the query is an implicitly grouped query (has aggregate
       functions but no GROUP BY clause) with no qualifying rows. If
-      this is the case (in which TABLE::null_row is true) and the
-      field is not nullable, the field is considered to be NULL.
-
-      Do not change the order of testing. Fields may be associated
-      with a TABLE object without being part of the current row.
-      For NULL value check to work for these fields, they must
-      have a valid null_ptr, and this pointer must be checked before
-      TABLE::null_row.
+      this is the case (in which TABLE::null_row is true), the field
+      is considered to be NULL.
 
       Note that if a table->null_row is set then also all null_bits are
       set for the row.
+
+      In the case of the 'result_field' for GROUP BY, table->null_row might
+      refer to the *next* row in the table (when the algorithm is: read the
+      next row, see if any of group column values have changed, send the
+      result - grouped - row to the client if yes). So, table->null_row might
+      be wrong, but such a result_field is always nullable (that's defined by
+      original_field->maybe_null()) and we trust its null bit.
     */
-    return real_maybe_null() ?
-      MY_TEST(null_ptr[row_offset] & null_bit) : table->null_row;
+    return null_ptr ? null_ptr[row_offset] & null_bit : table->null_row;
   }
   inline bool is_real_null(my_ptrdiff_t row_offset= 0) const
-    { return null_ptr ? (null_ptr[row_offset] & null_bit ? 1 : 0) : 0; }
+    { return null_ptr && (null_ptr[row_offset] & null_bit); }
   inline bool is_null_in_record(const uchar *record) const
   {
     if (!null_ptr)
       return 0;
-    return MY_TEST(record[(uint) (null_ptr - table->record[0])] & null_bit);
+    return record[(uint) (null_ptr - table->record[0])] & null_bit;
   }
   inline void set_null(my_ptrdiff_t row_offset= 0)
     { if (null_ptr) null_ptr[row_offset]|= null_bit; }
