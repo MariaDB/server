@@ -34,7 +34,7 @@
 /***********************************************************************/
 PJSON ParseJson(PGLOBAL g, char *s, int len, int pretty, bool *comma)
 {
-  int   i;
+  int   i, rc;
   bool  b = false;
   PJSON jsp = NULL;
   STRG  src;
@@ -48,22 +48,32 @@ PJSON ParseJson(PGLOBAL g, char *s, int len, int pretty, bool *comma)
   src.str = s;
   src.len = len;
 
+  // Save stack and allocation environment and prepare error return
+  if (g->jump_level == MAX_JUMP) {
+    strcpy(g->Message, MSG(TOO_MANY_JUMPS));
+    return NULL;
+    } // endif jump_level
+
+  if ((rc= setjmp(g->jumper[++g->jump_level])) != 0) {
+    goto err;
+    } // endif rc
+
   for (i = 0; i < len; i++)
     switch (s[i]) {
       case '[':
         if (jsp) {
           strcpy(g->Message, "More than one item in file");
-          return NULL;
+          goto err;
         } else if (!(jsp = ParseArray(g, ++i, src)))
-          return NULL;
+          goto err;
 
         break;
       case '{':
         if (jsp) {
           strcpy(g->Message, "More than one item in file");
-          return NULL;
+          goto err;
         } else if (!(jsp = ParseObject(g, ++i, src)))
-          return NULL;
+          goto err;
         break;
       case ' ':
       case '\t':
@@ -79,7 +89,7 @@ PJSON ParseJson(PGLOBAL g, char *s, int len, int pretty, bool *comma)
           } // endif pretty
 
         sprintf(g->Message, "Unexpected ',' (pretty=%d)", pretty);
-        return NULL;
+        goto err;
       case '(':
         b = true;
         break;
@@ -92,13 +102,18 @@ PJSON ParseJson(PGLOBAL g, char *s, int len, int pretty, bool *comma)
       default:
         sprintf(g->Message, "Bad '%c' character near %.*s",
                 s[i], ARGS);
-        return NULL;
+        goto err;
     }; // endswitch s[i]
 
   if (!jsp)
     sprintf(g->Message, "Invalid Json string '%.*s'", 50, s);
 
+  g->jump_level--;
   return jsp;
+
+ err:
+  g->jump_level--;
+  return NULL;
 } // end of ParseJson
 
 /***********************************************************************/
@@ -315,6 +330,12 @@ char *ParseString(PGLOBAL g, int& i, STRG& src)
   char  *s = src.str;
   uchar *p;
   int    n = 0, len = src.len;
+
+  // Be sure of memory availability
+  if (len + 1 - i > (signed)((PPOOLHEADER)g->Sarea)->FreeBlk) {
+    strcpy(g->Message, "ParseString: Out of memory");
+    return NULL;
+    } // endif len
 
   // The size to allocate is not known yet
   p = (uchar*)PlugSubAlloc(g, NULL, 0);

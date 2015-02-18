@@ -825,7 +825,9 @@ PJSON JSONCOL::GetRow(PGLOBAL g)
   PJSON nwr, row = Tjp->Row;
 
   for (int i = 0; i < Nod-1 && row; i++) {
-    switch (row->GetType()) {
+    if (Nodes[i+1].Op == OP_XX)
+      break;
+    else switch (row->GetType()) {
       case TYPE_JOB:
         if (!Nodes[i].Key)
           // Expected Array was not there
@@ -932,7 +934,11 @@ void JSONCOL::WriteColumn(PGLOBAL g)
         jsp = ParseJson(g, s, (int)strlen(s), 0);
 
         if (arp) {
-          arp->AddValue(g, new(g) JVALUE(jsp));
+          if (Nod > 1 && Nodes[Nod-2].Rank)
+            arp->SetValue(g, new(g) JVALUE(jsp), Nodes[Nod-2].Rank-1);
+          else
+            arp->AddValue(g, new(g) JVALUE(jsp));
+
           arp->InitArray(g);
         } else if (objp) {
           if (Nod > 1 && Nodes[Nod-2].Key)
