@@ -2395,24 +2395,6 @@ row_merge_insert_index_tuples(
 #endif /* UNIV_DEBUG */
 			ulint*	ins_offsets = NULL;
 
-			/* First reserve enough free space for the file segments
-			of the index tree, so that the insert will not fail because
-			of lack of space */
-
-			{
-				ulint	n_extents = cursor.tree_height / 16 + 3;
-				ibool	success;
-				ulint	n_reserved = 0;
-
-				success = fsp_reserve_free_extents(&n_reserved, index->space,
-						   n_extents, FSP_NORMAL, &mtr);
-
-				if (!success) {
-					error = DB_OUT_OF_FILE_SPACE;
-					goto err_exit;
-				}
-			}
-
 			error = btr_cur_optimistic_insert(
 				BTR_NO_UNDO_LOG_FLAG | BTR_NO_LOCKING_FLAG
 				| BTR_KEEP_SYS_FLAG | BTR_CREATE_FLAG,
