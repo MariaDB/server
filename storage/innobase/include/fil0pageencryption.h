@@ -26,6 +26,9 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #define PAGE_ENCRYPTION_OK 0
 #define PAGE_ENCRYPTION_WILL_NOT_ENCRYPT  5
 
+/* This key will be used if nothing else is given */
+#define DEFAULT_ENCRYPTION_KEY 1
+
 #include "fsp0fsp.h"
 #include "fsp0pageencryption.h"
 

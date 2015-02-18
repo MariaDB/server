@@ -3,7 +3,7 @@
 Copyright (c) 1995, 2013, Oracle and/or its affiliates. All rights reserved.
 Copyright (c) 2008, 2009, Google Inc.
 Copyright (c) 2009, Percona Inc.
-Copyright (c) 2013, 2014, SkySQL Ab. All Rights Reserved.
+Copyright (c) 2013, 2015, MariaDB Corporation. All Rights Reserved.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -561,6 +561,9 @@ extern uint srv_simulate_comp_failures;
 that semaphore times out in InnoDB */
 #define DEFAULT_SRV_FATAL_SEMAPHORE_TIMEOUT 600
 extern ulong	srv_fatal_semaphore_wait_threshold;
+
+/** Default encryption key used for page encryption */
+extern uint srv_default_page_encryption_key;
 
 # ifdef UNIV_PFS_THREAD
 /* Keys to register InnoDB threads with performance schema */

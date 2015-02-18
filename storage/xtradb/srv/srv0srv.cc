@@ -3,7 +3,7 @@
 Copyright (c) 1995, 2013, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, 2009 Google Inc.
 Copyright (c) 2009, Percona Inc.
-Copyright (c) 2013, 2014, SkySQL Ab.
+Copyright (c) 2013, 2015, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -668,6 +668,9 @@ time when the last flush of log file has happened. The master
 thread ensures that we flush the log files at least once per
 second. */
 static time_t	srv_last_log_flush_time;
+
+/** Default encryption key used for page encryption */
+UNIV_INTERN uint	srv_default_page_encryption_key;
 
 /* Interval in seconds at which various tasks are performed by the
 master thread when server is active. In order to balance the workload,

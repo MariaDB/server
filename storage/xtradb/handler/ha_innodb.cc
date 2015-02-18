@@ -4,7 +4,7 @@ Copyright (c) 2000, 2014, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, 2009 Google Inc.
 Copyright (c) 2009, Percona Inc.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2014, SkySQL Ab.
+Copyright (c) 2013, 2015, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -106,6 +106,7 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include "fts0priv.h"
 #include "page0zip.h"
 #include "fil0pagecompress.h"
+#include "fil0pageencryption.h"
 
 
 #define thd_get_trx_isolation(X) ((enum_tx_isolation)thd_tx_isolation(X))
@@ -633,9 +634,8 @@ ha_create_table_option innodb_table_option_list[]=
   HA_TOPTION_ENUM("ATOMIC_WRITES", atomic_writes, "DEFAULT,ON,OFF", 0),
   /* With this option the user can enable page encryption for the table */
   HA_TOPTION_BOOL("PAGE_ENCRYPTION", page_encryption, 0),
-
   /* With this option the user defines the key identifier using for the encryption */
-  HA_TOPTION_NUMBER("PAGE_ENCRYPTION_KEY", page_encryption_key, ULINT_UNDEFINED, 1, 255, 1),
+  HA_TOPTION_NUMBER("PAGE_ENCRYPTION_KEY", page_encryption_key, 0, 1, 255, 1),
 
   HA_TOPTION_END
 };
@@ -11541,7 +11541,7 @@ innobase_table_flags(
 	modified by another thread while the table is being created. */
 	const ulint     default_compression_level = page_zip_level;
 
-	const ulint default_encryption_key = 1;
+	const ulint default_encryption_key = srv_default_page_encryption_key;
 
 	*flags = 0;
 	*flags2 = 0;
@@ -11739,12 +11739,12 @@ index_bad:
 		    zip_ssize,
 		    use_data_dir,
 		    options->page_compressed,
-		    (ulint)options->page_compression_level == 0 ?
+		    options->page_compression_level == 0 ?
 		        default_compression_level : options->page_compression_level,
 		    options->atomic_writes,
 		    options->page_encryption,
-		    (ulint)options->page_encryption_key == ULINT_UNDEFINED ?
-                        default_encryption_key : options->page_encryption_key);
+		    options->page_encryption_key == 0 ?
+		        default_encryption_key : options->page_encryption_key);
 
 	if (create_info->options & HA_LEX_CREATE_TMP_TABLE) {
 		*flags2 |= DICT_TF2_TEMPORARY;
@@ -11880,7 +11880,7 @@ ha_innobase::check_table_options(
 		}
 	}
 
-	if ((ulint)options->page_encryption_key != ULINT_UNDEFINED) {
+	if (options->page_encryption_key != 0) {
 		if (options->page_encryption == false) {
 			/* ignore this to allow alter table without changing page_encryption_key ...*/
 		}
@@ -20318,6 +20318,13 @@ static MYSQL_SYSVAR_UINT(encryption_rotation_iops, srv_n_fil_crypt_iops,
 			 innodb_encryption_rotation_iops_update,
 			 srv_n_fil_crypt_iops, 0, UINT_MAX32, 0);
 
+static MYSQL_SYSVAR_UINT(default_page_encryption_key, srv_default_page_encryption_key,
+			 PLUGIN_VAR_RQCMDARG,
+			 "Encryption key used for page encryption.",
+			 NULL,
+			 NULL,
+			 DEFAULT_ENCRYPTION_KEY, 1, 255, 0);
+
 static MYSQL_SYSVAR_BOOL(scrub_log, srv_scrub_log,
   PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_READONLY,
   "Enable redo log scrubbing",
@@ -20617,6 +20624,7 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(scrub_log),
   MYSQL_SYSVAR(scrub_log_interval),
   MYSQL_SYSVAR(encrypt_log),
+  MYSQL_SYSVAR(default_page_encryption_key),
   /* Scrubing feature */
   MYSQL_SYSVAR(immediate_scrub_data_uncompressed),
   MYSQL_SYSVAR(background_scrub_data_uncompressed),

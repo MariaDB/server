@@ -5,6 +5,14 @@ create table innodb_compact(c1 bigint not null, b char(200)) engine=innodb row_f
 create table innodb_compressed(c1 bigint not null, b char(200)) engine=innodb row_format=compressed page_encryption=1 page_encryption_key=2;
 create table innodb_dynamic(c1 bigint not null, b char(200)) engine=innodb row_format=dynamic page_encryption=1  page_encryption_key=3;
 create table innodb_redundant(c1 bigint not null, b char(200))  engine=innodb row_format=redundant page_encryption=1  page_encryption_key=4;
+SET GLOBAL innodb_default_page_encryption_key = 5;
+create table innodb_defkey(c1  bigint not null, b char(200))  engine=innodb page_encryption=1;
+show create table innodb_defkey;
+Table	Create Table
+innodb_defkey	CREATE TABLE `innodb_defkey` (
+  `c1` bigint(20) NOT NULL,
+  `b` char(200) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 `page_encryption`=1
 show create table innodb_compact;
 Table	Create Table
 innodb_compact	CREATE TABLE `innodb_compact` (
@@ -47,11 +55,13 @@ insert into innodb_compact select * from innodb_normal;
 insert into innodb_compressed select * from innodb_normal;
 insert into innodb_dynamic select * from innodb_normal;
 insert into innodb_redundant select * from innodb_normal;
+insert into innodb_defkey select * from innodb_normal;
 update innodb_normal set c1 = c1 +1;
 update innodb_compact set c1 = c1 + 1;
 update innodb_compressed set c1 = c1 + 1;
 update innodb_dynamic set c1 = c1 + 1;
 update innodb_redundant set c1 = c1 + 1;
+update innodb_defkey set c1 = c1 + 1;
 select count(*) from innodb_compact where c1 < 1500000;
 count(*)
 2000
@@ -62,6 +72,9 @@ select count(*) from innodb_dynamic where c1 < 1500000;
 count(*)
 2000
 select count(*) from innodb_redundant where c1 < 1500000;
+count(*)
+2000
+select count(*) from innodb_defkey where c1 < 1500000;
 count(*)
 2000
 select count(*) from innodb_compact t1, innodb_normal t2 where
@@ -77,6 +90,10 @@ t1.c1 = t2.c1 and t1.b = t2.b;
 count(*)
 2000
 select count(*) from innodb_redundant t1, innodb_normal t2 where
+t1.c1 = t2.c1 and t1.b = t2.b;
+count(*)
+2000
+select count(*) from innodb_defkey t1, innodb_normal t2 where
 t1.c1 = t2.c1 and t1.b = t2.b;
 count(*)
 2000
@@ -96,6 +113,7 @@ update innodb_compact set c1 = c1 + 1;
 update innodb_compressed set c1 = c1 + 1;
 update innodb_dynamic set c1 = c1 + 1;
 update innodb_redundant set c1 = c1 + 1;
+update innodb_defkey set c1 = c1 + 1;
 select count(*) from innodb_compact where c1 < 1500000;
 count(*)
 2000
@@ -106,6 +124,9 @@ select count(*) from innodb_dynamic where c1 < 1500000;
 count(*)
 2000
 select count(*) from innodb_redundant where c1 < 1500000;
+count(*)
+2000
+select count(*) from innodb_defkey where c1 < 1500000;
 count(*)
 2000
 select count(*) from innodb_compact t1, innodb_normal t2 where
@@ -121,6 +142,10 @@ t1.c1 = t2.c1 and t1.b = t2.b;
 count(*)
 2000
 select count(*) from innodb_redundant t1, innodb_normal t2 where
+t1.c1 = t2.c1 and t1.b = t2.b;
+count(*)
+2000
+select count(*) from innodb_defkey t1, innodb_normal t2 where
 t1.c1 = t2.c1 and t1.b = t2.b;
 count(*)
 2000
@@ -187,6 +212,12 @@ innodb_redundant	CREATE TABLE `innodb_redundant` (
   `c1` bigint(20) NOT NULL,
   `b` char(200) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=REDUNDANT
+show create table innodb_defkey;
+Table	Create Table
+innodb_defkey	CREATE TABLE `innodb_defkey` (
+  `c1` bigint(20) NOT NULL,
+  `b` char(200) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 `page_encryption`=1
 update innodb_normal set c1 = c1 +1;
 update innodb_compact set c1 = c1 + 1;
 update innodb_compressed set c1 = c1 + 1;
@@ -235,3 +266,4 @@ drop table innodb_compact;
 drop table innodb_compressed;
 drop table innodb_dynamic;
 drop table innodb_redundant;
+drop table innodb_defkey;
