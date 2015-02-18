@@ -269,6 +269,8 @@ public:
   int events_till_abort;
 #endif  
 
+  enum_gtid_skip_type gtid_skip_flag;
+
   /*
     inited changes its value within LOCK_active_mi-guarded critical
     sections  at times of start_slave_threads() (0->1) and end_slave() (1->0).
@@ -344,6 +346,21 @@ public:
   size_t slave_patternload_file_size;  
 
   rpl_parallel parallel;
+  /*
+    The relay_log_state keeps track of the current binlog state of the execution
+    of the relay log. This is used to know where to resume current GTID position
+    if the slave thread is stopped and restarted.
+    It is only accessed from the SQL thread, so it does not need any locking.
+  */
+  rpl_binlog_state relay_log_state;
+  /*
+    The restart_gtid_state is used when the SQL thread restarts on a relay log
+    in GTID mode. In multi-domain parallel replication, each domain may have a
+    separat position, so some events in more progressed domains may need to be
+    skipped. This keeps track of the domains that have not yet reached their
+    starting event.
+  */
+  slave_connection_state restart_gtid_pos;
 
   Relay_log_info(bool is_slave_recovery);
   ~Relay_log_info();
@@ -408,6 +425,9 @@ public:
                  time_t event_creation_time, THD *thd,
                  rpl_group_info *rgi);
   int alloc_inuse_relaylog(const char *name);
+  void free_inuse_relaylog(inuse_relaylog *ir);
+  void reset_inuse_relaylog();
+  int update_relay_log_state(rpl_gtid *gtid_list, uint32 count);
 
   /**
      Is the replication inside a group?
@@ -497,6 +517,12 @@ private:
 struct inuse_relaylog {
   inuse_relaylog *next;
   Relay_log_info *rli;
+  /*
+    relay_log_state holds the binlog state corresponding to the start of this
+    relay log file. It is an array with relay_log_state_count elements.
+  */
+  rpl_gtid *relay_log_state;
+  uint32 relay_log_state_count;
   /* Number of events in this relay log queued for worker threads. */
   int64 queued_count;
   /* Number of events completed by worker threads. */

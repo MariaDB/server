@@ -1089,6 +1089,27 @@ rpl_binlog_state::load(struct rpl_gtid *list, uint32 count)
 }
 
 
+static int rpl_binlog_state_load_cb(rpl_gtid *gtid, void *data)
+{
+  rpl_binlog_state *self= (rpl_binlog_state *)data;
+  return self->update_nolock(gtid, false);
+}
+
+
+bool
+rpl_binlog_state::load(rpl_slave_state *slave_pos)
+{
+  bool res= false;
+
+  mysql_mutex_lock(&LOCK_binlog_state);
+  reset_nolock();
+  if (slave_pos->iterate(rpl_binlog_state_load_cb, this, NULL, 0))
+    res= true;
+  mysql_mutex_unlock(&LOCK_binlog_state);
+  return res;
+}
+
+
 rpl_binlog_state::~rpl_binlog_state()
 {
   free();
