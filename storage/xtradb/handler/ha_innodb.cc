@@ -354,7 +354,6 @@ static PSI_mutex_info all_innodb_mutexes[] = {
 #  ifndef PFS_SKIP_BUFFER_MUTEX_RWLOCK
 	{&buffer_block_mutex_key, "buffer_block_mutex", 0},
 #  endif /* !PFS_SKIP_BUFFER_MUTEX_RWLOCK */
-	{&buf_pool_mutex_key, "buf_pool_mutex", 0},
 	{&buf_pool_zip_mutex_key, "buf_pool_zip_mutex", 0},
 	{&buf_pool_LRU_list_mutex_key, "buf_pool_LRU_list_mutex", 0},
 	{&buf_pool_free_list_mutex_key, "buf_pool_free_list_mutex", 0},

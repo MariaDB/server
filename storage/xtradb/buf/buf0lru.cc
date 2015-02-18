@@ -526,7 +526,7 @@ buf_flush_or_remove_page(
 
 		mutex_exit(block_mutex);
 
-		*must_restart = TRUE;
+		*must_restart = true;
 		processed = false;
 
 	} else if (!flush) {
