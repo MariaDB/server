@@ -205,7 +205,8 @@ void STDCALL mysql_server_end()
   mysql_client_plugin_deinit();
 
   finish_client_errs();
-  vio_end();
+  if (mariadb_deinitialize_ssl)
+    vio_end();
 #ifdef EMBEDDED_LIBRARY
   end_embedded_server();
 #endif
@@ -4894,5 +4895,22 @@ MYSQL_RES * STDCALL mysql_use_result(MYSQL *mysql)
 my_bool STDCALL mysql_read_query_result(MYSQL *mysql)
 {
   return (*mysql->methods->read_query_result)(mysql);
+}
+
+/********************************************************************
+  mysql_net_ functions - low-level API to MySQL protocol
+*********************************************************************/
+#if MYSQL_VERSION_ID > 100100
+#error remove these wrappers in 10.1, rename functions instead
+#endif
+
+ulong STDCALL mysql_net_read_packet(MYSQL *mysql)
+{
+  return cli_safe_read(mysql);
+}
+
+ulong STDCALL mysql_net_field_length(uchar **packet)
+{
+  return net_field_length(packet);
 }
 

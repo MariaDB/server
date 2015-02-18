@@ -1139,7 +1139,7 @@ recalculated
 */
 #define DICT_TABLE_CHANGED_TOO_MUCH(t) \
 	((ib_int64_t) (t)->stat_modified_counter > (srv_stats_modified_counter ? \
-	ut_min(srv_stats_modified_counter, (16 + (t)->stat_n_rows / 16)) : \
+	(ib_int64_t) ut_min(srv_stats_modified_counter, (16 + (t)->stat_n_rows / 16)) : \
 		16 + (t)->stat_n_rows / 16))
 
 /*********************************************************************//**
@@ -1399,6 +1399,14 @@ dict_table_init_referenced_rbt(
 /*===========================*/
 	dict_table_t*	table);	/*!< in: the table object whose
 				table->referenced_rbt will be initialized */
+/********************************************************************//**
+Check if it is a temporary table.
+@return        true if temporary table flag is set. */
+UNIV_INLINE
+ibool
+dict_table_is_temporary(
+/*====================*/
+	const dict_table_t*     table);  /*!< in: table to check */
 
 #ifndef UNIV_NONINL
 #include "dict0dict.ic"

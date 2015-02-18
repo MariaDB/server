@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2014, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2014, Monty Program Ab.
+   Copyright (c) 2009, 2015, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -3671,8 +3671,12 @@ bool udf_handler::get_arguments()
 	{
 	  f_args.args[i]=    (char*) res->ptr();
 	  f_args.lengths[i]= res->length();
-	  break;
 	}
+	else
+	{
+	  f_args.lengths[i]= 0;
+	}
+	break;
       }
     case INT_RESULT:
       *((longlong*) to) = args[i]->val_int();
@@ -4493,6 +4497,11 @@ longlong Item_func_sleep::val_int()
   mysql_mutex_unlock(&thd->mysys_var->mutex);
 
   mysql_cond_destroy(&cond);
+
+  DBUG_EXECUTE_IF("sleep_inject_query_done_debug_sync", {
+      debug_sync_set_action
+        (thd, STRING_WITH_LEN("dispatch_command_end SIGNAL query_done"));
+    };);
 
   return test(!error); 		// Return 1 killed
 }

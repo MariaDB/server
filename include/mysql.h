@@ -75,6 +75,7 @@ typedef int my_socket;
 
 #include "my_list.h" /* for LISTs used in 'MYSQL' and 'MYSQL_STMT' */
 
+extern unsigned int mariadb_deinitialize_ssl;
 extern unsigned int mysql_port;
 extern char *mysql_unix_port;
 
@@ -852,6 +853,12 @@ int STDCALL mysql_close_cont(MYSQL *sock, int status);
 my_socket STDCALL mysql_get_socket(const MYSQL *mysql);
 unsigned int STDCALL mysql_get_timeout_value(const MYSQL *mysql);
 unsigned int STDCALL mysql_get_timeout_value_ms(const MYSQL *mysql);
+
+/********************************************************************
+  mysql_net_ functions - low-level API to MySQL protocol
+*********************************************************************/
+unsigned long STDCALL mysql_net_read_packet(MYSQL *mysql);
+unsigned long STDCALL mysql_net_field_length(unsigned char **packet);
 
 /* status return codes */
 #define MYSQL_NO_DATA        100

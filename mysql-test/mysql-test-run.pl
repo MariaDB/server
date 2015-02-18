@@ -109,6 +109,7 @@ require "lib/mtr_gprof.pl";
 require "lib/mtr_misc.pl";
 
 $SIG{INT}= sub { mtr_error("Got ^C signal"); };
+$SIG{HUP}= sub { mtr_error("Hangup detected on controlling terminal"); };
 
 our $mysql_version_id;
 my $mysql_version_extra;
@@ -912,6 +913,7 @@ sub run_worker ($) {
   my ($server_port, $thread_num)= @_;
 
   $SIG{INT}= sub { exit(1); };
+  $SIG{HUP}= sub { exit(1); };
 
   # Connect to server
   my $server = new IO::Socket::INET
@@ -1496,6 +1498,7 @@ sub command_line_setup {
   {
     $default_vardir= "$glob_mysql_test_dir/var";
   }
+  $default_vardir = realpath $default_vardir unless IS_WINDOWS;
 
   if ( ! $opt_vardir )
   {
@@ -2499,6 +2502,7 @@ sub environment_setup {
   # ----------------------------------------------------
   my $exe_replace= mtr_exe_exists(vs_config_dirs('extra', 'replace'),
                                  "$basedir/extra/replace",
+                                 "$bindir/extra$opt_vs_config/replace",
                                  "$path_client_bindir/replace");
   $ENV{'REPLACE'}= native_path($exe_replace);
 
