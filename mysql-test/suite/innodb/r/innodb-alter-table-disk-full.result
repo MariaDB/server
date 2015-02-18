@@ -53,6 +53,10 @@ ERROR HY000: The table 't1' is full
 alter table t1 add testcol3 int;
 ERROR HY000: The table 't1' is full
 call innodb_insert_proc(20000);
+set autocommit=0;
+call innodb_insert_proc(20000);
+commit;
+set autocommit=1;
 set DEBUG_DBUG='';
 drop procedure innodb_insert_proc;
 drop table t1;
