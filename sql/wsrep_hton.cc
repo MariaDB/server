@@ -561,7 +561,7 @@ struct st_mysql_storage_engine wsrep_storage_engine=
 { MYSQL_HANDLERTON_INTERFACE_VERSION };
 
 
-mysql_declare_plugin(wsrep)
+maria_declare_plugin(wsrep)
 {
   MYSQL_STORAGE_ENGINE_PLUGIN,
   &wsrep_storage_engine,
@@ -575,7 +575,7 @@ mysql_declare_plugin(wsrep)
   0x0100 /* 1.0 */,
   NULL,                       /* status variables                */
   NULL,                       /* system variables                */
-  NULL,                       /* config options                  */
-  0,                          /* flags                           */
+  "1.0",         /* string version */
+  MariaDB_PLUGIN_MATURITY_STABLE /* maturity */
 }
-mysql_declare_plugin_end;
+maria_declare_plugin_end;
