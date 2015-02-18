@@ -128,9 +128,19 @@ UNIV_INTERN enum srv_shutdown_state	srv_shutdown_state = SRV_SHUTDOWN_NONE;
 static os_file_t	files[1000];
 
 /** io_handler_thread parameters for thread identification */
-static ulint		n[SRV_MAX_N_IO_THREADS + 6];
-/** io_handler_thread identifiers, 32 is the maximum number of purge threads  */
-static os_thread_id_t	thread_ids[SRV_MAX_N_IO_THREADS + 6
+static ulint		n[SRV_MAX_N_IO_THREADS];
+/** io_handler_thread identifiers, 32 is the maximum number of purge threads.
+The extra elements at the end are allocated as follows:
+SRV_MAX_N_IO_THREADS + 1: srv_master_thread
+SRV_MAX_N_IO_THREADS + 2: lock_wait_timeout_thread
+SRV_MAX_N_IO_THREADS + 3: srv_error_monitor_thread
+SRV_MAX_N_IO_THREADS + 4: srv_monitor_thread
+SRV_MAX_N_IO_THREADS + 5: srv_redo_log_follow_thread
+SRV_MAX_N_IO_THREADS + 6: srv_purge_coordinator_thread
+SRV_MAX_N_IO_THREADS + 7: srv_worker_thread
+...
+SRV_MAX_N_IO_THREADS + 7 + srv_n_purge_threads - 1: srv_worker_thread */
+static os_thread_id_t	thread_ids[SRV_MAX_N_IO_THREADS + 7
 				   + SRV_MAX_N_PURGE_THREADS];
 
 /** We use this mutex to test the return value of pthread_mutex_trylock
@@ -1842,6 +1852,7 @@ innobase_start_or_create_for_mysql(void)
 			    + 1 /* srv_error_monitor_thread */
 			    + 1 /* srv_monitor_thread */
 			    + 1 /* srv_master_thread */
+			    + 1 /* srv_redo_log_follow_thread */
 			    + 1 /* srv_purge_coordinator_thread */
 			    + 1 /* buf_dump_thread */
 			    + 1 /* dict_stats_thread */
@@ -2729,16 +2740,16 @@ files_checked:
 
 		os_thread_create(
 			srv_purge_coordinator_thread,
-			NULL, thread_ids + 5 + SRV_MAX_N_IO_THREADS);
+			NULL, thread_ids + 6 + SRV_MAX_N_IO_THREADS);
 
 		ut_a(UT_ARR_SIZE(thread_ids)
-		     > 5 + srv_n_purge_threads + SRV_MAX_N_IO_THREADS);
+		     > 6 + srv_n_purge_threads + SRV_MAX_N_IO_THREADS);
 
 		/* We've already created the purge coordinator thread above. */
 		for (i = 1; i < srv_n_purge_threads; ++i) {
 			os_thread_create(
 				srv_worker_thread, NULL,
-				thread_ids + 5 + i + SRV_MAX_N_IO_THREADS);
+				thread_ids + 6 + i + SRV_MAX_N_IO_THREADS);
 		}
 
 		srv_start_wait_for_purge_to_start();

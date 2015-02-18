@@ -294,7 +294,6 @@ UNIV_INTERN mysql_pfs_key_t	buf_block_debug_latch_key;
 
 #ifdef UNIV_PFS_MUTEX
 UNIV_INTERN mysql_pfs_key_t	buffer_block_mutex_key;
-UNIV_INTERN mysql_pfs_key_t	buf_pool_mutex_key;
 UNIV_INTERN mysql_pfs_key_t	buf_pool_zip_mutex_key;
 UNIV_INTERN mysql_pfs_key_t	buf_pool_flush_state_mutex_key;
 UNIV_INTERN mysql_pfs_key_t	buf_pool_LRU_list_mutex_key;
@@ -1735,15 +1734,11 @@ page_found:
 			ut_ad(!bpage->in_page_hash);
 			ut_ad(bpage->buf_fix_count == 0);
 
-			mutex_enter(&buf_pool->zip_mutex);
-
 			bpage->state = BUF_BLOCK_ZIP_PAGE;
 			bpage->space = static_cast<ib_uint32_t>(space);
 			bpage->offset = static_cast<ib_uint32_t>(offset);
 			bpage->buf_fix_count = 1;
 			bpage->buf_pool_index = buf_pool_index(buf_pool);
-
-			mutex_exit(&buf_pool->zip_mutex);
 
 			ut_d(bpage->in_page_hash = TRUE);
 			HASH_INSERT(buf_page_t, hash, buf_pool->page_hash,
@@ -1796,7 +1791,6 @@ buf_pool_watch_remove(
 #endif /* UNIV_SYNC_DEBUG */
 
 	ut_ad(buf_page_get_state(watch) == BUF_BLOCK_ZIP_PAGE);
-	ut_ad(buf_own_zip_mutex_for_page(watch));
 
 	HASH_DELETE(buf_page_t, hash, buf_pool->page_hash, fold, watch);
 	ut_d(watch->in_page_hash = FALSE);
@@ -1839,9 +1833,7 @@ buf_pool_watch_unset(
 #endif /* PAGE_ATOMIC_REF_COUNT */
 
 		if (bpage->buf_fix_count == 0) {
-			mutex_enter(&buf_pool->zip_mutex);
 			buf_pool_watch_remove(buf_pool, fold, bpage);
-			mutex_exit(&buf_pool->zip_mutex);
 		}
 	}
 
@@ -4421,7 +4413,7 @@ corrupt:
 #endif /* UNIV_DEBUG || UNIV_BUF_DEBUG */
 		buf_page_get_flush_type(bpage) == BUF_FLUSH_LRU)) {
 
-		have_LRU_mutex = TRUE; /* optimistic */
+		have_LRU_mutex = true; /* optimistic */
 	}
 retry_mutex:
 	if (have_LRU_mutex) {
@@ -4441,7 +4433,7 @@ retry_mutex:
 			  && !have_LRU_mutex)) {
 
 		mutex_exit(block_mutex);
-		have_LRU_mutex = TRUE;
+		have_LRU_mutex = true;
 		goto retry_mutex;
 	}
 

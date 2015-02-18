@@ -5279,11 +5279,6 @@ i_s_innodb_fill_buffer_pool(
 			info_buffer = (buf_page_info_t*) mem_heap_zalloc(
 				heap, mem_size);
 
-			/* Obtain appropriate mutexes. Since this is diagnostic
-			buffer pool info printout, we are not required to
-			preserve the overall consistency, so we can
-			release mutex periodically */
-
 			/* GO through each block in the chunk */
 			for (n_blocks = num_to_process; n_blocks--; block++) {
 				i_s_innodb_buffer_page_get_info(
