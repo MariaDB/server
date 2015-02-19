@@ -222,7 +222,6 @@ extern PSI_mutex_key key_PAGE_lock, key_LOCK_sync, key_LOCK_active,
 #endif /* HAVE_MMAP */
 #ifdef WITH_WSREP
 extern PSI_mutex_key key_LOCK_wsrep_thd;
-extern PSI_cond_key  key_COND_wsrep_thd;
 #endif /* HAVE_WSREP */
 
 #ifdef HAVE_OPENSSL

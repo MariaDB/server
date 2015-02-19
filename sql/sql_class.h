@@ -2366,7 +2366,6 @@ public:
   enum wsrep_query_state    wsrep_query_state;
   enum wsrep_conflict_state wsrep_conflict_state;
   mysql_mutex_t             LOCK_wsrep_thd;
-  mysql_cond_t              COND_wsrep_thd;
   // changed from wsrep_seqno_t to wsrep_trx_meta_t in wsrep API rev 75
   // wsrep_seqno_t             wsrep_trx_seqno;
   wsrep_trx_meta_t          wsrep_trx_meta;

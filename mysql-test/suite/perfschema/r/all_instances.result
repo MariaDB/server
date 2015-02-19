@@ -152,7 +152,6 @@ wait/synch/cond/sql/Relay_log_info::sleep_cond
 wait/synch/cond/sql/Relay_log_info::start_cond
 wait/synch/cond/sql/Relay_log_info::stop_cond
 wait/synch/cond/sql/THD::COND_wakeup_ready
-wait/synch/cond/sql/THD::COND_wsrep_thd
 select event_name from file_instances group by event_name;
 event_name
 wait/io/file/aria/control
