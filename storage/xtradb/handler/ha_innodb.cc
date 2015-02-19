@@ -777,6 +777,7 @@ static ibool innodb_have_lzo=IF_LZO(1, 0);
 static ibool innodb_have_lz4=IF_LZ4(1, 0);
 static ibool innodb_have_lzma=IF_LZMA(1, 0);
 static ibool innodb_have_bzip2=IF_BZIP2(1, 0);
+static ibool innodb_have_snappy=IF_SNAPPY(1, 0);
 
 static SHOW_VAR innodb_status_variables[]= {
   {"available_undo_logs",
@@ -1027,6 +1028,8 @@ static SHOW_VAR innodb_status_variables[]= {
   (char*) &innodb_have_lzma,		  SHOW_BOOL},
   {"have_bzip2",
   (char*) &innodb_have_bzip2,		  SHOW_BOOL},
+  {"have_snappy",
+  (char*) &innodb_have_snappy,		  SHOW_BOOL},
 
   /* Defragment */
   {"defragment_compression_failures",
@@ -3615,6 +3618,15 @@ innobase_init(
 	if (innodb_compression_algorithm == PAGE_BZIP2_ALGORITHM) {
 		sql_print_error("InnoDB: innodb_compression_algorithm = %lu unsupported.\n"
 				"InnoDB: libbz2 is not installed. \n",
+				innodb_compression_algorithm);
+		goto error;
+	}
+#endif
+
+#ifndef HAVE_SNAPPY
+	if (innodb_compression_algorithm == PAGE_SNAPPY_ALGORITHM) {
+		sql_print_error("InnoDB: innodb_compression_algorithm = %lu unsupported.\n"
+				"InnoDB: libsnappy is not installed. \n",
 				innodb_compression_algorithm);
 		goto error;
 	}
@@ -20252,7 +20264,7 @@ static MYSQL_SYSVAR_BOOL(use_trim, srv_use_trim,
   "Use trim. Default FALSE.",
   NULL, NULL, FALSE);
 
-static const char *page_compression_algorithms[]= { "none", "zlib", "lz4", "lzo", "lzma", "bzip2", 0 };
+static const char *page_compression_algorithms[]= { "none", "zlib", "lz4", "lzo", "lzma", "bzip2", "snappy", 0 };
 static TYPELIB page_compression_algorithms_typelib=
 {
   array_elements(page_compression_algorithms) - 1, 0,
@@ -21260,5 +21272,15 @@ innodb_compression_algorithm_validate(
 	}
 #endif
 
+#ifndef HAVE_SNAPPY
+	if (compression_algorithm == PAGE_SNAPPY_ALGORITHM) {
+		push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+				    HA_ERR_UNSUPPORTED,
+				    "InnoDB: innodb_compression_algorithm = %lu unsupported.\n"
+				    "InnoDB: libsnappy is not installed. \n",
+				    compression_algorithm);
+		DBUG_RETURN(1);
+	}
+#endif
 	DBUG_RETURN(0);
 }

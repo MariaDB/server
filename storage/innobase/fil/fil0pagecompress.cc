@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (C) 2013, 2014, SkySQL Ab. All Rights Reserved.
+Copyright (C) 2013, 2015, MariaDB Corporation. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -20,7 +20,8 @@ this program; if not, write to the Free Software Foundation, Inc.,
 @file fil/fil0pagecompress.cc
 Implementation for page compressed file spaces.
 
-Created 11/12/2013 Jan Lindström jan.lindstrom@skysql.com
+Created 11/12/2013 Jan Lindström jan.lindstrom@mariadb.com
+Updated 14/02/2015
 ***********************************************************************/
 
 #include "fil0fil.h"
@@ -73,6 +74,9 @@ static ulint srv_data_read, srv_data_written;
 #endif
 #ifdef HAVE_BZIP2
 #include "bzlib.h"
+#endif
+#ifdef HAVE_SNAPPY
+#include "snappy-c.h"
 #endif
 
 /* Used for debugging */
@@ -325,9 +329,12 @@ fil_compress_page(
 		if (err == 0) {
 			/* If error we leave the actual page as it was */
 
-			fprintf(stderr,
-				"InnoDB: Warning: Compression failed for space %lu name %s len %lu rt %d write %lu\n",
-				space_id, fil_space_name(space), len, err, write_size);
+			if (space->printed_compression_failure == false) {
+				fprintf(stderr,
+					"InnoDB: Warning: Compression failed for space %lu name %s len %lu rt %d write %lu\n",
+					space_id, fil_space_name(space), len, err, write_size);
+				space->printed_compression_failure = true;
+			}
 
 			srv_stats.pages_page_compression_error.inc();
 			*out_len = len;
@@ -341,9 +348,12 @@ fil_compress_page(
 			buf, len, out_buf+header_len, &write_size, lzo_mem);
 
 		if (err != LZO_E_OK || write_size > UNIV_PAGE_SIZE-header_len) {
-			fprintf(stderr,
-				"InnoDB: Warning: Compression failed for space %lu name %s len %lu err %d write_size %lu\n",
-				space_id, fil_space_name(space), len, err, write_size);
+			if (space->printed_compression_failure == false) {
+				fprintf(stderr,
+					"InnoDB: Warning: Compression failed for space %lu name %s len %lu err %d write_size %lu\n",
+					space_id, fil_space_name(space), len, err, write_size);
+				space->printed_compression_failure = true;
+			}
 			srv_stats.pages_page_compression_error.inc();
 			*out_len = len;
 			return (buf);
@@ -366,9 +376,12 @@ fil_compress_page(
 			(size_t)write_size);
 
 		if (err != LZMA_OK || out_pos > UNIV_PAGE_SIZE-header_len) {
-			fprintf(stderr,
-				"InnoDB: Warning: Compression failed for space %lu name %s len %lu err %d write_size %lu\n",
-				space_id, fil_space_name(space), len, err, out_pos);
+			if (space->printed_compression_failure == false) {
+				fprintf(stderr,
+					"InnoDB: Warning: Compression failed for space %lu name %s len %lu err %d write_size %lu\n",
+					space_id, fil_space_name(space), len, err, out_pos);
+				space->printed_compression_failure = true;
+			}
 
 			srv_stats.pages_page_compression_error.inc();
 			*out_len = len;
@@ -394,9 +407,12 @@ fil_compress_page(
 			0);
 
 		if (err != BZ_OK || write_size > UNIV_PAGE_SIZE-header_len) {
-			fprintf(stderr,
-				"InnoDB: Warning: Compression failed for space %lu name %s len %lu err %d write_size %lu\n",
-				space_id, fil_space_name(space), len, err, write_size);
+			if (space->printed_compression_failure == false) {
+				fprintf(stderr,
+					"InnoDB: Warning: Compression failed for space %lu name %s len %lu err %d write_size %lu\n",
+					space_id, fil_space_name(space), len, err, write_size);
+				space->printed_compression_failure = true;
+			}
 			srv_stats.pages_page_compression_error.inc();
 			*out_len = len;
 			return (buf);
@@ -405,15 +421,40 @@ fil_compress_page(
 	}
 #endif /* HAVE_BZIP2 */
 
+#ifdef HAVE_SNAPPY
+	case PAGE_SNAPPY_ALGORITHM:
+	{
+		snappy_status cstatus;
+
+		cstatus = snappy_compress((const char *)buf, len, (char *)(out_buf+header_len), &write_size);
+
+		if (cstatus != SNAPPY_OK || write_size > UNIV_PAGE_SIZE-header_len) {
+			if (space->printed_compression_failure == false) {
+				fprintf(stderr,
+					"InnoDB: Warning: Compression failed for space %lu name %s len %lu err %d write_size %lu\n",
+					space_id, fil_space_name(space), len, (int)cstatus, write_size);
+				space->printed_compression_failure = true;
+			}
+			srv_stats.pages_page_compression_error.inc();
+			*out_len = len;
+			return (buf);
+		}
+		break;
+	}
+#endif /* HAVE_SNAPPY */
+
 	case PAGE_ZLIB_ALGORITHM:
 		err = compress2(out_buf+header_len, (ulong*)&write_size, buf, len, level);
 
 		if (err != Z_OK) {
 			/* If error we leave the actual page as it was */
 
-			fprintf(stderr,
-				"InnoDB: Warning: Compression failed for space %lu name %s len %lu rt %d write %lu\n",
-				space_id, fil_space_name(space), len, err, write_size);
+			if (space->printed_compression_failure == false) {
+				fprintf(stderr,
+					"InnoDB: Warning: Compression failed for space %lu name %s len %lu rt %d write %lu\n",
+					space_id, fil_space_name(space), len, err, write_size);
+				space->printed_compression_failure = true;
+			}
 
 			srv_stats.pages_page_compression_error.inc();
 			*out_len = len;
@@ -454,8 +495,8 @@ fil_compress_page(
 		byte *comp_page;
 		byte *uncomp_page;
 
-		comp_page = static_cast<byte *>(ut_malloc(UNIV_PAGE_SIZE*2));
-		uncomp_page = static_cast<byte *>(ut_malloc(UNIV_PAGE_SIZE*2));
+		comp_page = static_cast<byte *>(ut_malloc(UNIV_PAGE_SIZE*3));
+		uncomp_page = static_cast<byte *>(ut_malloc(UNIV_PAGE_SIZE*3));
 		memcpy(comp_page, out_buf, UNIV_PAGE_SIZE);
 
 		fil_decompress_page(uncomp_page, comp_page, len, NULL);
@@ -540,7 +581,7 @@ fil_decompress_page(
 		fprintf(stderr,
 			"InnoDB: Note: FIL: Compression buffer not given, allocating...\n");
 #endif /* UNIV_PAGECOMPRESS_DEBUG */
-		in_buf = static_cast<byte *>(ut_malloc(UNIV_PAGE_SIZE*2));
+		in_buf = static_cast<byte *>(ut_malloc(UNIV_PAGE_SIZE*3));
 	} else {
 		in_buf = page_buf;
 	}
@@ -712,7 +753,31 @@ fil_decompress_page(
 		break;
 	}
 #endif /* HAVE_BZIP2 */
+#ifdef HAVE_SNAPPY
+	case PAGE_SNAPPY_ALGORITHM:
+	{
+		snappy_status cstatus;
+		ulint olen = 0;
 
+		cstatus = snappy_uncompress(
+			(const char *)(buf+FIL_PAGE_DATA+FIL_PAGE_COMPRESSED_SIZE),
+			actual_size,
+			(char *)in_buf,
+			&olen);
+
+		if (cstatus != SNAPPY_OK || (olen == 0 || olen > UNIV_PAGE_SIZE)) {
+			fprintf(stderr,
+				"InnoDB: Corruption: Page is marked as compressed\n"
+				"InnoDB: but decompression read only %lu bytes.\n"
+				"InnoDB: size %lu len %lu err %d\n",
+				olen, actual_size, len, (int)cstatus);
+			fflush(stderr);
+
+			ut_error;
+		}
+		break;
+	}
+#endif /* HAVE_SNAPPY */
 	default:
 		fprintf(stderr,
 			"InnoDB: Corruption: Page is marked as compressed\n"

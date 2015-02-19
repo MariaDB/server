@@ -343,6 +343,9 @@ struct fil_space_t {
 	bool		is_in_unflushed_spaces;
 				/*!< true if this space is currently in
 				unflushed_spaces */
+	bool		printed_compression_failure;
+				/*!< true if we have already printed
+				compression failure */
 	UT_LIST_NODE_T(fil_space_t) space_list;
 				/*!< list of all spaces */
         fil_space_crypt_t* crypt_data;

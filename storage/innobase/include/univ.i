@@ -2,7 +2,7 @@
 
 Copyright (c) 1994, 2013, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, Google Inc.
-Copyright (c) 2013, 2014 SkySQL Ab.
+Copyright (c) 2013, 2015, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -354,6 +354,12 @@ typedef enum innodb_file_formats_enum innodb_file_formats_t;
 #define IF_BZIP2(A,B) A
 #else
 #define IF_BZIP2(A,B) B
+#endif
+
+#ifdef HAVE_SNAPPY
+#define IF_SNAPPY(A,B) A
+#else
+#define IF_SNAPPY(A,B) B
 #endif
 
 /** The universal page size of the database */

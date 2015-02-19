@@ -2,7 +2,7 @@
 
 Copyright (c) 1995, 2013, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2009, Percona Inc.
-Copyright (c) 2013, 2014, MariaDB Corporation.
+Copyright (c) 2013, 2015, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted
 by Percona Inc.. Those modifications are
@@ -95,6 +95,10 @@ Created 10/21/1995 Heikki Tuuri
 
 #ifdef HAVE_LZO
 #include "lzo/lzo1x.h"
+#endif
+
+#ifdef HAVE_SNAPPY
+#include "snappy-c.h"
 #endif
 
 /** Insert buffer segment id */
@@ -6667,13 +6671,18 @@ os_slot_alloc_page_buf(
 	if (slot->page_buf == NULL) {
 		byte*           cbuf2;
 		byte*           cbuf;
+		ulint           asize = UNIV_PAGE_SIZE;
+#ifdef HAVE_SNAPPY
+		asize += snappy_max_compressed_length(asize) - UNIV_PAGE_SIZE;
+#endif
+
 		/* We allocate extra to avoid memory overwrite on compression */
-		cbuf2 = static_cast<byte *>(ut_malloc(UNIV_PAGE_SIZE*2));
+		cbuf2 = static_cast<byte *>(ut_malloc(asize*2));
 		cbuf = static_cast<byte *>(ut_align(cbuf2, UNIV_PAGE_SIZE));
 		slot->page_compression_page = static_cast<byte *>(cbuf2);
 		slot->page_buf = static_cast<byte *>(cbuf);
 		ut_a(slot->page_buf != NULL);
-		memset(slot->page_compression_page, 0, UNIV_PAGE_SIZE*2);
+		memset(slot->page_compression_page, 0, asize*2);
 	}
 }
 

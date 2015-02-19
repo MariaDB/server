@@ -1246,6 +1246,7 @@ fil_space_create(
 	space->flags = flags;
 
 	space->magic_n = FIL_SPACE_MAGIC_N;
+	space->printed_compression_failure = false;
 
 	rw_lock_create(fil_space_latch_key, &space->latch, SYNC_FSP);
 
