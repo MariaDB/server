@@ -15,15 +15,19 @@
   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 */
 
-#include "ctx.h"
-#include "db.h"
-#include "ii.h"
-#include "token.h"
-#include "output.h"
-#include <groonga/plugin.h>
 #include <string.h>
 
+#include "grn_ctx.h"
+#include "grn_db.h"
+#include "grn_ii.h"
+#include "grn_token_cursor.h"
+#include "grn_output.h"
+#include <groonga/plugin.h>
+
 #ifdef HAVE__STRNICMP
+# ifdef strncasecmp
+#  undef strncasecmp
+# endif /* strcasecmp */
 # define strncasecmp(s1,s2,n) _strnicmp(s1,s2,n)
 #endif /* HAVE__STRNICMP */
 
@@ -130,12 +134,12 @@ grn_parse_suggest_types(grn_obj *text)
   return types;
 }
 
-static int32_t
+static double
 cooccurrence_search(grn_ctx *ctx, grn_obj *items, grn_obj *items_boost, grn_id id,
                     grn_obj *res, int query_type, int frequency_threshold,
                     double conditional_probability_threshold)
 {
-  int32_t max_score = 0;
+  double max_score = 0.0;
   if (id) {
     grn_ii_cursor *c;
     grn_obj *co = grn_obj_column(ctx, items, CONST_STR_LEN("co"));
@@ -194,7 +198,7 @@ cooccurrence_search(grn_ctx *ctx, grn_obj *items, grn_obj *items_boost, grn_id i
             boost >= 0) {
           grn_rset_recinfo *ri;
           void *value;
-          int32_t score = pfreq;
+          double score = pfreq;
           int added;
           if (max_score < score + boost) { max_score = score + boost; }
           /* put any formula if desired */
@@ -275,7 +279,7 @@ complete_add_item(grn_ctx *ctx, grn_id id, grn_obj *res, int frequency_threshold
   grn_obj_get_value(ctx, items_freq, id, item_freq);
   grn_obj_get_value(ctx, items_boost, id, item_boost);
   if (GRN_INT32_VALUE(item_boost) >= 0) {
-    int32_t score;
+    double score;
     score = 1 +
             GRN_INT32_VALUE(item_freq) +
             GRN_INT32_VALUE(item_boost);
@@ -380,12 +384,12 @@ correct(grn_ctx *ctx, grn_obj *items, grn_obj *items_boost,
   if ((res = grn_table_create(ctx, NULL, 0, NULL,
                               GRN_TABLE_HASH_KEY|GRN_OBJ_WITH_SUBREC, items, NULL))) {
     grn_id tid = grn_table_get(ctx, items, TEXT_VALUE_LEN(query));
-    int32_t max_score;
+    double max_score;
     max_score = cooccurrence_search(ctx, items, items_boost, tid, res, CORRECT,
                                     frequency_threshold,
                                     conditional_probability_threshold);
     GRN_QUERY_LOG(ctx, GRN_QUERY_LOG_SCORE,
-                  ":", "cooccur(%d)", max_score);
+                  ":", "cooccur(%f)", max_score);
     if (GRN_TEXT_LEN(query) &&
         ((similar_search_mode == GRN_SUGGEST_SEARCH_YES) ||
          (similar_search_mode == GRN_SUGGEST_SEARCH_AUTO &&
@@ -419,7 +423,7 @@ correct(grn_ctx *ctx, grn_obj *items, grn_obj *items_boost,
                   grn_obj_get_value(ctx, items_freq2, *rp, &item_freq2);
                   grn_obj_get_value(ctx, items_boost, *rp, &item_boost);
                   if (GRN_INT32_VALUE(&item_boost) >= 0) {
-                    int32_t score;
+                    double score;
                     grn_rset_recinfo *ri;
                     score = 1 +
                             (GRN_INT32_VALUE(&item_freq2) >> 4) +
@@ -467,13 +471,13 @@ correct(grn_ctx *ctx, grn_obj *items, grn_obj *items_boost,
               if ((tc = grn_table_cursor_open(ctx, res, NULL, 0, NULL, 0, 0, -1, 0))) {
                 grn_id id;
                 grn_obj score_value;
-                GRN_INT32_INIT(&score_value, 0);
+                GRN_FLOAT_INIT(&score_value, 0);
                 while ((id = grn_table_cursor_next(ctx, tc)) != GRN_ID_NIL) {
                   GRN_RECORD_SET(ctx, var, id);
                   grn_expr_exec(ctx, expr, 0);
                   GRN_BULK_REWIND(&score_value);
                   grn_obj_get_value(ctx, score, id, &score_value);
-                  if (GRN_INT32_VALUE(&score_value) < frequency_threshold) {
+                  if (GRN_FLOAT_VALUE(&score_value) < frequency_threshold) {
                     grn_table_cursor_delete(ctx, tc);
                   }
                 }
@@ -573,7 +577,18 @@ command_suggest(grn_ctx *ctx, int nargs, grn_obj **args, grn_user_data *user_dat
 
   if ((items = grn_ctx_get(ctx, TEXT_VALUE_LEN(VAR(1))))) {
     if ((items_boost = grn_obj_column(ctx, items, CONST_STR_LEN("boost")))) {
-      GRN_OUTPUT_MAP_OPEN("RESULT_SET", -1);
+      int n_outputs = 0;
+      if (types & COMPLETE) {
+        n_outputs++;
+      }
+      if (types & CORRECT) {
+        n_outputs++;
+      }
+      if (types & SUGGEST) {
+        n_outputs++;
+      }
+      GRN_OUTPUT_MAP_OPEN("RESULT_SET", n_outputs);
+
       if (types & COMPLETE) {
         if ((col = grn_obj_column(ctx, items, TEXT_VALUE_LEN(VAR(2))))) {
           GRN_OUTPUT_CSTR("complete");

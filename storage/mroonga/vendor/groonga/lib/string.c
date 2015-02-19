@@ -16,12 +16,12 @@
   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 */
 
-#include "groonga_in.h"
+#include "grn.h"
 #include <string.h>
-#include "string_in.h"
-#include "normalizer_in.h"
-#include "str.h"
-#include "util.h"
+#include "grn_string.h"
+#include "grn_normalizer.h"
+#include "grn_str.h"
+#include "grn_util.h"
 
 #include <groonga/tokenizer.h>
 

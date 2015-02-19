@@ -1,6 +1,6 @@
 /* -*- c-basic-offset: 2 -*- */
 /*
-  Copyright(C) 2013-2014 Brazil
+  Copyright(C) 2013-2015 Brazil
 
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -16,7 +16,7 @@
   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 */
 
-#include "../ctx_impl.h"
+#include "../grn_ctx_impl.h"
 
 #ifdef GRN_WITH_MRUBY
 #include <mruby.h>
@@ -25,7 +25,7 @@
 #include <mruby/variable.h>
 #include <mruby/string.h>
 
-#include "../mrb.h"
+#include "../grn_mrb.h"
 #include "mrb_ctx.h"
 #include "mrb_converter.h"
 
@@ -53,12 +53,22 @@ static mrb_value
 ctx_array_reference(mrb_state *mrb, mrb_value self)
 {
   grn_ctx *ctx = (grn_ctx *)mrb->ud;
+  mrb_value mrb_id_or_name;
   grn_obj *object;
-  char *name;
-  int name_length;
 
-  mrb_get_args(mrb, "s", &name, &name_length);
-  object = grn_ctx_get(ctx, name, name_length);
+  mrb_get_args(mrb, "o", &mrb_id_or_name);
+
+  if (mrb_fixnum_p(mrb_id_or_name)) {
+    grn_id id = mrb_fixnum(mrb_id_or_name);
+    object = grn_ctx_at(ctx, id);
+  } else {
+    mrb_value mrb_name;
+    mrb_name = mrb_convert_type(mrb, mrb_id_or_name,
+                                MRB_TT_STRING, "String", "to_str");
+    object = grn_ctx_get(ctx,
+                         RSTRING_PTR(mrb_name),
+                         RSTRING_LEN(mrb_name));
+  }
 
   return grn_mrb_value_from_grn_obj(mrb, object);
 }
@@ -185,6 +195,14 @@ ctx_set_error_message(mrb_state *mrb, mrb_value self)
               RSTRING_PTR(error_message));
 
   return error_message;
+}
+
+static mrb_value
+ctx_get_database(mrb_state *mrb, mrb_value self)
+{
+  grn_ctx *ctx = (grn_ctx *)mrb->ud;
+
+  return grn_mrb_value_from_grn_obj(mrb, grn_ctx_db(ctx));
 }
 
 void
@@ -568,10 +586,10 @@ grn_mrb_ctx_check(mrb_state *mrb)
              "zlib error: <%s>(%d)",
              ctx->errbuf, ctx->rc);
     break;
-  case GRN_LZO_ERROR:
-    error_class = mrb_class_get_under(mrb, module, "LzoError");
+  case GRN_LZ4_ERROR:
+    error_class = mrb_class_get_under(mrb, module, "LZ4Error");
     snprintf(message, MESSAGE_SIZE,
-             "LZO error: <%s>(%d)",
+             "LZ4 error: <%s>(%d)",
              ctx->errbuf, ctx->rc);
     break;
   case GRN_STACK_OVER_FLOW:
@@ -690,8 +708,7 @@ grn_mrb_ctx_init(grn_ctx *ctx)
   mrb_define_method(mrb, klass, "error_message=", ctx_set_error_message,
                     MRB_ARGS_REQ(1));
 
-  grn_mrb_load(ctx, "context/error_level.rb");
-  grn_mrb_load(ctx, "context/rc.rb");
-  grn_mrb_load(ctx, "context.rb");
+  mrb_define_method(mrb, klass, "database", ctx_get_database,
+                    MRB_ARGS_NONE());
 }
 #endif

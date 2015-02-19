@@ -19,16 +19,14 @@
 #ifndef GRN_MRB_CTX_H
 #define GRN_MRB_CTX_H
 
-#include "../ctx.h"
+#include "../grn_ctx.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 void grn_mrb_ctx_init(grn_ctx *ctx);
-#ifdef GRN_WITH_MRUBY
 void grn_mrb_ctx_check(mrb_state *mrb);
-#endif
 
 #ifdef __cplusplus
 }

@@ -6,13 +6,15 @@ sysconfdir="@sysconfdir@"
 pkgsysconfdir="@pkgsysconfdir@"
 localstatedir="@localstatedir@"
 
+EXEEXT="@EXEEXT@"
+
 SED="@SED@"
 
 export GROONGA_HTTPD_MODULE_PATH="@abs_top_srcdir@/src/httpd/nginx-module"
 export GROONGA_HTTPD_IN_TREE_INCLUDE_PATH="@abs_top_srcdir@/include"
 export GROONGA_HTTPD_IN_TREE_LINK_PATH="@abs_top_builddir@/lib/.libs"
 export GROONGA_HTTPD_PREFIX="${pkgsysconfdir}/httpd"
-export GROONGA_HTTPD_BIN_PATH="${sbindir}/groonga-httpd"
+export GROONGA_HTTPD_BIN_PATH="${sbindir}/groonga-httpd${EXEEXT}"
 export GROONGA_HTTPD_CONF_PATH="${pkgsysconfdir}/httpd/groonga-httpd.conf"
 export GROONGA_HTTPD_ERROR_LOG_PATH="${localstatedir}/log/groonga/httpd/error.log"
 export GROONGA_HTTPD_HTTP_LOG_PATH="${localstatedir}/log/groonga/httpd/access.log"

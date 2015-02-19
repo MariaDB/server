@@ -18,8 +18,8 @@
 
 #include <string.h>
 
-#include "normalizer_in.h"
-#include "string_in.h"
+#include "grn_normalizer.h"
+#include "grn_string.h"
 #include <groonga/normalizer.h>
 #include <groonga/tokenizer.h>
 

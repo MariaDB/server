@@ -16,7 +16,7 @@
   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 */
 
-#include "../ctx_impl.h"
+#include "../grn_ctx_impl.h"
 
 #ifdef GRN_WITH_MRUBY
 #include <mruby.h>
@@ -24,8 +24,9 @@
 #include <mruby/variable.h>
 #include <mruby/data.h>
 #include <mruby/numeric.h>
+#include <mruby/string.h>
 
-#include "../db.h"
+#include "../grn_db.h"
 #include "mrb_bulk.h"
 
 static struct mrb_data_type mrb_grn_bulk_type = {
@@ -33,33 +34,62 @@ static struct mrb_data_type mrb_grn_bulk_type = {
   NULL
 };
 
-static mrb_value
-mrb_grn_bulk_initialize(mrb_state *mrb, mrb_value self)
+grn_obj *
+grn_mrb_value_to_bulk(mrb_state *mrb, mrb_value mrb_value_, grn_obj *bulk)
 {
-  mrb_value mrb_bulk_ptr;
+  grn_ctx *ctx = (grn_ctx *)mrb->ud;
 
-  mrb_get_args(mrb, "o", &mrb_bulk_ptr);
-  DATA_TYPE(self) = &mrb_grn_bulk_type;
-  DATA_PTR(self) = mrb_cptr(mrb_bulk_ptr);
-  return self;
+  switch (mrb_type(mrb_value_)) {
+  case MRB_TT_FALSE :
+    if (mrb_nil_p(mrb_value_)) {
+      grn_obj_reinit(ctx, bulk, GRN_DB_VOID, 0);
+    } else {
+      grn_obj_reinit(ctx, bulk, GRN_DB_BOOL, 0);
+      GRN_BOOL_SET(ctx, bulk, GRN_FALSE);
+    }
+    break;
+  case MRB_TT_TRUE :
+    grn_obj_reinit(ctx, bulk, GRN_DB_BOOL, 0);
+    GRN_BOOL_SET(ctx, bulk, GRN_TRUE);
+    break;
+  case MRB_TT_FIXNUM :
+    grn_obj_reinit(ctx, bulk, GRN_DB_INT64, 0);
+    GRN_INT64_SET(ctx, bulk, mrb_fixnum(mrb_value_));
+    break;
+  case MRB_TT_SYMBOL :
+    {
+      const char *name;
+      mrb_int name_length;
+
+      grn_obj_reinit(ctx, bulk, GRN_DB_TEXT, 0);
+      name = mrb_sym2name_len(mrb, mrb_symbol(mrb_value_), &name_length);
+      GRN_TEXT_SET(ctx, bulk, name, name_length);
+    }
+    break;
+  case MRB_TT_FLOAT :
+    grn_obj_reinit(ctx, bulk, GRN_DB_FLOAT, 0);
+    GRN_FLOAT_SET(ctx, bulk, mrb_float(mrb_value_));
+    break;
+  case MRB_TT_STRING :
+    grn_obj_reinit(ctx, bulk, GRN_DB_TEXT, 0);
+    GRN_TEXT_SET(ctx, bulk, RSTRING_PTR(mrb_value_), RSTRING_LEN(mrb_value_));
+    break;
+  default :
+    mrb_raisef(mrb, E_ARGUMENT_ERROR,
+               "unsupported object to convert to bulk: %S",
+               mrb_value_);
+    break;
+  }
+
+  return bulk;
 }
 
-static mrb_value
-mrb_grn_bulk_get_domain(mrb_state *mrb, mrb_value self)
+mrb_value
+grn_mrb_value_from_bulk(mrb_state *mrb, grn_obj *bulk)
 {
-  grn_obj *bulk;
-
-  bulk = DATA_PTR(self);
-  return mrb_fixnum_value(bulk->header.domain);
-}
-
-static mrb_value
-mrb_grn_bulk_get_value(mrb_state *mrb, mrb_value self)
-{
-  grn_obj *bulk;
   mrb_value mrb_value_;
+  grn_ctx *ctx = (grn_ctx *)mrb->ud;
 
-  bulk = DATA_PTR(self);
   switch (bulk->header.domain) {
   case GRN_DB_INT32 :
     {
@@ -81,11 +111,26 @@ mrb_grn_bulk_get_value(mrb_state *mrb, mrb_value self)
       mrb_value_ = mrb_fixnum_value(value);
     }
     break;
+  case GRN_DB_TIME :
+    {
+      int64_t value;
+      int32_t sec;
+      int32_t usec;
+
+      value = GRN_TIME_VALUE(bulk);
+      GRN_TIME_UNPACK(value, sec, usec);
+      mrb_value_ = mrb_funcall(mrb,
+                               mrb_obj_value(ctx->impl->mrb.builtin.time_class),
+                               "at",
+                               2,
+                               mrb_fixnum_value(sec),
+                               mrb_fixnum_value(usec));
+    }
+    break;
   default :
     {
 #define MESSAGE_SIZE 4096
       char message[MESSAGE_SIZE];
-      grn_ctx *ctx = (grn_ctx *)mrb->ud;
       grn_obj *domain;
       char domain_name[GRN_TABLE_MAX_KEY_SIZE];
       int domain_name_size;
@@ -111,6 +156,32 @@ mrb_grn_bulk_get_value(mrb_state *mrb, mrb_value self)
   }
 
   return mrb_value_;
+}
+
+static mrb_value
+mrb_grn_bulk_initialize(mrb_state *mrb, mrb_value self)
+{
+  mrb_value mrb_bulk_ptr;
+
+  mrb_get_args(mrb, "o", &mrb_bulk_ptr);
+  DATA_TYPE(self) = &mrb_grn_bulk_type;
+  DATA_PTR(self) = mrb_cptr(mrb_bulk_ptr);
+  return self;
+}
+
+static mrb_value
+mrb_grn_bulk_get_domain(mrb_state *mrb, mrb_value self)
+{
+  grn_obj *bulk;
+
+  bulk = DATA_PTR(self);
+  return mrb_fixnum_value(bulk->header.domain);
+}
+
+static mrb_value
+mrb_grn_bulk_get_value(mrb_state *mrb, mrb_value self)
+{
+  return grn_mrb_value_from_bulk(mrb, DATA_PTR(self));
 }
 
 static mrb_value

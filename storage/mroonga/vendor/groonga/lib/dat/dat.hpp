@@ -175,13 +175,6 @@ class Exception : public std::exception {
         what_(ex.what_) {}
   virtual ~Exception() throw() {}
 
-  virtual Exception &operator=(const Exception &ex) throw() {
-    file_ = ex.file_;
-    line_ = ex.line_;
-    what_ = ex.what_;
-    return *this;
-  }
-
   virtual ErrorCode code() const throw() = 0;
   virtual const char *file() const throw() {
     return file_;
@@ -209,11 +202,6 @@ class Error : public Exception {
   Error(const Error &ex) throw()
       : Exception(ex) {}
   virtual ~Error() throw() {}
-
-  virtual Error &operator=(const Error &ex) throw() {
-      *static_cast<Exception *>(this) = ex;
-      return *this;
-  }
 
   virtual ErrorCode code() const throw() {
     return T;

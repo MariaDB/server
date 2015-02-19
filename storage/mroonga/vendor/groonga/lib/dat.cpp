@@ -14,16 +14,16 @@
   License along with this library; if not, write to the Free Software
   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 */
-#include "groonga_in.h"
+#include "grn.h"
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <cstring>
 #include <new>
-#include "str.h"
-#include "io.h"
-#include "dat.h"
-#include "util.h"
-#include "normalizer_in.h"
+#include "grn_str.h"
+#include "grn_io.h"
+#include "grn_dat.h"
+#include "grn_util.h"
+#include "grn_normalizer.h"
 
 #include "dat/trie.hpp"
 #include "dat/cursor-factory.hpp"
@@ -678,12 +678,18 @@ grn_dat_scan(grn_ctx *ctx, grn_dat *dat, const char *str,
 {
   if (!grn_dat_open_trie_if_needed(ctx, dat) || !str ||
       !(dat->obj.header.flags & GRN_OBJ_KEY_VAR_SIZE) || !scan_hits) {
+    if (str_rest) {
+      *str_rest = str;
+    }
     return -1;
   }
 
   grn::dat::Trie * const trie = static_cast<grn::dat::Trie *>(dat->trie);
   if (!trie) {
-    return -1;
+    if (str_rest) {
+      *str_rest = str + str_size;
+    }
+    return 0;
   }
 
   if (!max_num_scan_hits || !str_size) {
@@ -701,7 +707,9 @@ grn_dat_scan(grn_ctx *ctx, grn_dat *dat, const char *str,
                                                           dat->normalizer,
                                                           flags);
       if (!normalized_string) {
-        *str_rest = str;
+        if (str_rest) {
+          *str_rest = str;
+        }
         return -1;
       }
       grn_string_get_normalized(ctx, normalized_string, &str, &str_size, NULL);
@@ -778,6 +786,9 @@ grn_dat_scan(grn_ctx *ctx, grn_dat *dat, const char *str,
   } catch (const grn::dat::Exception &ex) {
     ERR(grn_dat_translate_error_code(ex.code()),
         "grn::dat::lcp_search failed");
+    if (str_rest) {
+      *str_rest = str;
+    }
     return -1;
   }
   return static_cast<int>(num_scan_hits);

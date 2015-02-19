@@ -1,6 +1,6 @@
 /* -*- c-basic-offset: 2 -*- */
 /*
-  Copyright(C) 2010-2012 Brazil
+  Copyright(C) 2010-2014 Brazil
 
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -17,7 +17,7 @@
 */
 
 #ifdef HAVE_CONFIG_H
-#include "config.h"
+#include <config.h>
 #endif /* HAVE_CONFIG_H */
 
 #include <stdio.h>
@@ -37,9 +37,9 @@
 #include <netinet/in.h>
 #endif /* HAVE_NETINET_IN_H */
 
-#include "lib/str.h"
-#include "lib/com.h"
-#include "lib/db.h"
+#include <grn_str.h>
+#include <grn_com.h>
+#include <grn_db.h>
 
 #ifdef WIN32
 #include <windows.h>
@@ -598,7 +598,7 @@ command_send_http(grn_ctx *ctx, const char *command, int type, int task_id)
     fprintf(stderr, "failed to connect to groonga at %s:%d via HTTP: ",
             grntest_serverhost, grntest_serverport);
 #ifdef WIN32
-    fprintf(stderr, "%d\n", GetLastError());
+    fprintf(stderr, "%lu\n", GetLastError());
 #else
     fprintf(stderr, "%s\n", strerror(errno));
 #endif
@@ -1149,7 +1149,7 @@ typedef struct _grntest_worker {
 } grntest_worker;
 
 #ifdef WIN32
-static int
+static unsigned int
 __stdcall
 worker(void *val)
 {
@@ -1252,7 +1252,6 @@ get_sysinfo(const char *path, char *result, int olen)
   char tmpbuf[256];
 
 #ifdef WIN32
-  int cinfo[4];
   ULARGE_INTEGER dinfo;
   char cpustring[64];
   SYSTEM_INFO sinfo;
@@ -1279,12 +1278,15 @@ get_sysinfo(const char *path, char *result, int olen)
 
   memset(cpustring, 0, 64);
 #ifndef __GNUC__
-  __cpuid(cinfo, 0x80000002);
-  memcpy(cpustring, cinfo, 16);
-  __cpuid(cinfo, 0x80000003);
-  memcpy(cpustring+16, cinfo, 16);
-  __cpuid(cinfo, 0x80000004);
-  memcpy(cpustring+32, cinfo, 16);
+  {
+    int cinfo[4];
+    __cpuid(cinfo, 0x80000002);
+    memcpy(cpustring, cinfo, 16);
+    __cpuid(cinfo, 0x80000003);
+    memcpy(cpustring+16, cinfo, 16);
+    __cpuid(cinfo, 0x80000004);
+    memcpy(cpustring+32, cinfo, 16);
+  }
 #endif
 
   if (grntest_outtype == OUT_TSV) {
@@ -1313,9 +1315,9 @@ get_sysinfo(const char *path, char *result, int olen)
 
   GetSystemInfo(&sinfo);
   if (grntest_outtype == OUT_TSV) {
-    sprintf(tmpbuf, "CORE\t%d\n", sinfo.dwNumberOfProcessors);
+    sprintf(tmpbuf, "CORE\t%lu\n", sinfo.dwNumberOfProcessors);
   } else {
-    sprintf(tmpbuf, "  \"CORE\": %d,\n", sinfo.dwNumberOfProcessors);
+    sprintf(tmpbuf, "  \"CORE\": %lu,\n", sinfo.dwNumberOfProcessors);
   }
   strcat(result, tmpbuf);
 
@@ -1338,9 +1340,10 @@ get_sysinfo(const char *path, char *result, int olen)
 
   osinfo.dwOSVersionInfoSize = sizeof(OSVERSIONINFO); GetVersionEx(&osinfo);
   if (grntest_outtype == OUT_TSV) {
-    sprintf(tmpbuf, "Windows %d.%d\n", osinfo.dwMajorVersion, osinfo.dwMinorVersion);
+    sprintf(tmpbuf, "Windows %ld.%ld\n",
+            osinfo.dwMajorVersion, osinfo.dwMinorVersion);
   } else {
-    sprintf(tmpbuf, "  \"OS\": \"Windows %d.%d\",\n", osinfo.dwMajorVersion,
+    sprintf(tmpbuf, "  \"OS\": \"Windows %lu.%lu\",\n", osinfo.dwMajorVersion,
             osinfo.dwMinorVersion);
   }
   strcat(result, tmpbuf);
@@ -1561,7 +1564,7 @@ start_server(const char *dbpath, int r)
 		      0, NULL, NULL, &si, &grntest_pi);
 
   if (ret == 0) {
-    fprintf(stderr, "Cannot start groonga server: <%s>: error=%d\n",
+    fprintf(stderr, "Cannot start groonga server: <%s>: error=%lu\n",
             groonga_path, GetLastError());
     exit(1);
   }

@@ -1,7 +1,6 @@
 REPOSITORIES_PATH = repositories
 DISTRIBUTIONS = centos
 ARCHITECTURES = i386 x86_64
-HAVE_DEVELOPMENT_BRANCH = no
 
 release: download build sign-packages update-repository upload
 
