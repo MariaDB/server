@@ -220,7 +220,7 @@ TEST_join(JOIN *join)
 }
 
 
-#define FT_KEYPART   (MAX_REF_PARTS+10)
+#define FT_KEYPART   (MAX_FIELDS+10)
 
 void print_keyuse(KEYUSE *keyuse)
 {

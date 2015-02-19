@@ -4958,7 +4958,18 @@ add_key_part(DYNAMIC_ARRAY *keyuse_array, KEY_FIELD *key_field)
 }
 
 
-#define FT_KEYPART   (MAX_REF_PARTS+10)
+/*
+  A key part number that means we're using a fulltext scan.
+  
+  In order not to confuse it with regular equalities, we need to pick
+  a number that's greater than MAX_REF_PARTS.
+
+  Hash Join code stores field->field_index in KEYUSE::keypart, so the 
+  number needs to be bigger than MAX_FIELDS, also.
+
+  CAUTION: sql_test.cc has its own definition of FT_KEYPART.
+*/
+#define FT_KEYPART   (MAX_FIELDS+10)
 
 static bool
 add_ft_keys(DYNAMIC_ARRAY *keyuse_array,
