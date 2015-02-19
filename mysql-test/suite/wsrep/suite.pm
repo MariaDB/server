@@ -29,6 +29,7 @@ push @::global_suppressions,
      qr(WSREP: Could not open saved state file for reading: ),
      qr(WSREP: option --wsrep-casual-reads is deprecated),
      qr(WSREP: --wsrep-casual-reads=ON takes precedence over --wsrep-sync-wait=0),
+     qr|WSREP: access file\(gvwstate.dat\) failed\(No such file or directory\)|,
    );
 
 $ENV{PATH}="$epath:$ENV{PATH}";
