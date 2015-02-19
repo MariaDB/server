@@ -25,4 +25,4 @@ table_create memos TABLE_PAT_KEY Int32
 column_create memos content COLUMN_SCALAR LongText
 column_create memos id COLUMN_SCALAR Int32
 column_create terms content_index COLUMN_INDEX|WITH_POSITION memos content
-DROP TABLE memos;
+DROP TABLE memos, terms;

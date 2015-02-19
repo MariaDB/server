@@ -39,7 +39,7 @@ SELECT mroonga_command("dump");
 ALTER TABLE memos DISABLE KEYS;
 SELECT mroonga_command("dump");
 
-DROP TABLE memos;
+DROP TABLE memos, terms;
 
 --source ../../include/mroonga/unload_mroonga_functions.inc
 --source ../../include/mroonga/have_mroonga_deinit.inc

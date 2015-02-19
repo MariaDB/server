@@ -348,7 +348,7 @@ public:
 
   uint max_supported_record_length()   const;
   uint max_supported_keys()            const;
-  uint max_supported_key_parts();
+  uint max_supported_key_parts()       const;
   uint max_supported_key_length()      const;
   uint max_supported_key_part_length() const;
 
@@ -812,8 +812,8 @@ private:
   uint storage_max_supported_record_length() const;
   uint wrapper_max_supported_keys() const;
   uint storage_max_supported_keys() const;
-  uint wrapper_max_supported_key_parts();
-  uint storage_max_supported_key_parts();
+  uint wrapper_max_supported_key_parts() const;
+  uint storage_max_supported_key_parts() const;
   uint wrapper_max_supported_key_length() const;
   uint storage_max_supported_key_length() const;
   uint wrapper_max_supported_key_part_length() const;

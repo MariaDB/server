@@ -24,4 +24,4 @@ column_create terms term COLUMN_SCALAR ShortText
 table_create memos TABLE_PAT_KEY Int32
 column_create memos content COLUMN_SCALAR LongText
 column_create memos id COLUMN_SCALAR Int32
-DROP TABLE memos;
+DROP TABLE memos, terms;

@@ -6467,24 +6467,34 @@ int ha_mroonga::delete_row(const uchar *buf)
   DBUG_RETURN(error);
 }
 
-uint ha_mroonga::wrapper_max_supported_key_parts()
+uint ha_mroonga::wrapper_max_supported_key_parts() const
 {
   MRN_DBUG_ENTER_METHOD();
   DBUG_RETURN(MAX_REF_PARTS);
 }
 
-uint ha_mroonga::storage_max_supported_key_parts()
+uint ha_mroonga::storage_max_supported_key_parts() const
 {
   MRN_DBUG_ENTER_METHOD();
-  DBUG_RETURN(1);
+  DBUG_RETURN(MAX_REF_PARTS);
 }
 
-uint ha_mroonga::max_supported_key_parts()
+uint ha_mroonga::max_supported_key_parts() const
 {
   MRN_DBUG_ENTER_METHOD();
   uint parts;
-  if (share->wrapper_mode)
-  {
+  if (!share && !analyzed_for_create &&
+    (
+      thd_sql_command(ha_thd()) == SQLCOM_CREATE_TABLE ||
+      thd_sql_command(ha_thd()) == SQLCOM_CREATE_INDEX ||
+      thd_sql_command(ha_thd()) == SQLCOM_ALTER_TABLE
+    )
+  ) {
+    create_share_for_create();
+  }
+  if (analyzed_for_create && share_for_create.wrapper_mode) {
+    parts = wrapper_max_supported_key_parts();
+  } else if (wrap_handler && share && share->wrapper_mode) {
     parts = wrapper_max_supported_key_parts();
   } else {
     parts = storage_max_supported_key_parts();
