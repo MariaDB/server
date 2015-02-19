@@ -14,7 +14,6 @@
   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
 
 #define MYSQL_SERVER 1
-#include <my_global.h>
 #include "mysql_version.h"
 #if MYSQL_VERSION_ID < 50500
 #include "mysql_priv.h"
@@ -7269,11 +7268,16 @@ int spider_mysql_handler::append_update_where(
   Field **field;
   SPIDER_SHARE *share = spider->share;
   DBUG_ENTER("spider_mysql_handler::append_update_where");
+  DBUG_PRINT("info", ("spider table->s->primary_key=%s",
+    table->s->primary_key != MAX_KEY ? "TRUE" : "FALSE"));
   if (str->reserve(SPIDER_SQL_WHERE_LEN))
     DBUG_RETURN(HA_ERR_OUT_OF_MEM);
   str->q_append(SPIDER_SQL_WHERE_STR, SPIDER_SQL_WHERE_LEN);
   for (field = table->field; *field; field++)
   {
+    DBUG_PRINT("info", ("spider bitmap=%s",
+      bitmap_is_set(table->read_set, (*field)->field_index) ?
+      "TRUE" : "FALSE"));
     if (
       table->s->primary_key == MAX_KEY ||
       bitmap_is_set(table->read_set, (*field)->field_index)
@@ -11444,7 +11448,7 @@ void spider_mysql_handler::minimum_select_bitmap_create()
   DBUG_PRINT("info",("spider this=%p", this));
   memset(minimum_select_bitmap, 0, no_bytes_in_map(table->read_set));
   if (
-    spider->has_clone_for_merge ||
+    spider->use_index_merge ||
 #ifdef HA_CAN_BULK_ACCESS
     (spider->is_clone && !spider->is_bulk_access_clone)
 #else

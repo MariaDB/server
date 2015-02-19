@@ -125,7 +125,7 @@ public:
   bool               clone_bitmap_init;
   ha_spider          *pt_clone_source_handler;
   ha_spider          *pt_clone_last_searcher;
-  bool               has_clone_for_merge;
+  bool               use_index_merge;
 
   bool               init_index_handler;
   bool               init_rnd_handler;
@@ -682,7 +682,11 @@ public:
     const char *name
   );
   bool is_crashed() const;
-  bool auto_repair(int) const;
+#ifdef SPIDER_HANDLER_AUTO_REPAIR_HAS_ERROR
+  bool auto_repair(int error) const;
+#else
+  bool auto_repair() const;
+#endif
   int disable_indexes(
     uint mode
   );
@@ -730,6 +734,7 @@ public:
   void return_record_by_parent();
 #endif
   TABLE *get_table();
+  TABLE *get_top_table();
   void set_ft_discard_bitmap();
   void set_searched_bitmap();
   void set_clone_searched_bitmap();
