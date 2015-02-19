@@ -371,6 +371,9 @@ int init_slave()
   if (run_slave_init_thread())
     return 1;
 
+  if (global_rpl_thread_pool.init(opt_slave_parallel_threads))
+    return 1;
+
   /*
     This is called when mysqld starts. Before client connections are
     accepted. However bootstrap may conflict with us if it does START SLAVE.
@@ -403,9 +406,6 @@ int init_slave()
     active_mi= 0;
     goto err;
   }
-
-  if (global_rpl_thread_pool.init(opt_slave_parallel_threads))
-    return 1;
 
   /*
     If --slave-skip-errors=... was not used, the string value for the
