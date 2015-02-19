@@ -44,7 +44,7 @@ DllExport void Json_Object_Grp_deinit(UDF_INIT*);
 /***********************************************************************/
 /*  Allocate and initialise the memory area.                           */
 /***********************************************************************/
-my_bool JsonInit(UDF_INIT *initid, char *message, unsigned long reslen,
+static my_bool JsonInit(UDF_INIT *initid, char *message, unsigned long reslen,
                                                   unsigned long memlen)
 {
   PGLOBAL g = PlugInit(NULL, memlen);

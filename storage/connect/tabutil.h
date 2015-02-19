@@ -118,7 +118,7 @@ class DllExport PRXCOL : public COLBLK {
   virtual bool Init(PGLOBAL g, PTDBASE tp);
 
  protected:
-  char *PRXCOL::Decode(PGLOBAL g, const char *cnm);
+          char *Decode(PGLOBAL g, const char *cnm);
 
   // Default constructor not to be used
   PRXCOL(void) {}
