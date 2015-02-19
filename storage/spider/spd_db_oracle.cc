@@ -14,7 +14,6 @@
   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
 
 #define MYSQL_SERVER 1
-#include <my_global.h>
 #include "mysql_version.h"
 #if MYSQL_VERSION_ID < 50500
 #include "mysql_priv.h"
@@ -11647,7 +11646,7 @@ void spider_oracle_handler::minimum_select_bitmap_create()
   DBUG_ENTER("spider_oracle_handler::minimum_select_bitmap_create");
   memset(minimum_select_bitmap, 0, no_bytes_in_map(table->read_set));
   if (
-    spider->has_clone_for_merge ||
+    spider->use_index_merge ||
 #ifdef HA_CAN_BULK_ACCESS
     (spider->is_clone && !spider->is_bulk_access_clone)
 #else
