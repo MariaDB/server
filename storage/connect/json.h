@@ -18,7 +18,8 @@ enum JTYP {TYPE_STRG = 1,
            TYPE_BOOL = 4,
            TYPE_INTG = 7, 
            TYPE_JSON = 12, 
-           TYPE_JAR, TYPE_JOB, 
+           TYPE_JAR, 
+           TYPE_JOB, 
            TYPE_JVAL};
 
 class JOUT;
@@ -156,6 +157,9 @@ class JSON : public BLOCK {
   virtual void   SetValue(PGLOBAL g, PJVAL jvp, PSZ key) {X}
   virtual void   SetValue(PVAL valp) {X}
   virtual void   SetValue(PJSON jsp) {X}
+  virtual void   SetString(PGLOBAL g, PSZ s) {X}
+  virtual void   SetInteger(PGLOBAL g, int n) {X}
+  virtual void   SetFloat(PGLOBAL g, double f) {X}
   virtual bool   DeleteValue(int i) {X return true;}
 
  protected:
@@ -171,6 +175,8 @@ class JOBJECT : public JSON {
  public:
   JOBJECT(void) : JSON() {First = Last = NULL;}
 
+  using JSON::GetValue;
+  using JSON::SetValue;
   virtual void  Clear(void) {First = Last = NULL; Size = 0;}
   virtual JTYP  GetType(void) {return TYPE_JOB;}
   virtual PJPR  AddPair(PGLOBAL g, PSZ key);
@@ -192,6 +198,8 @@ class JARRAY : public JSON {
  public:
   JARRAY(void) : JSON() {Alloc = 0; First = Last = NULL; Mvals = NULL;}
 
+  using JSON::GetValue;
+  using JSON::SetValue;
   virtual void  Clear(void) {First = Last = NULL; Size = 0;}
   virtual JTYP  GetType(void) {return TYPE_JAR;}
   virtual PJAR  GetArray(void) {return this;}
@@ -223,6 +231,8 @@ class JVALUE : public JSON {
                 {Jsp = jsp; Value = NULL; Next = NULL; Del = false;}
   JVALUE(PGLOBAL g, PVAL valp);
 
+  using JSON::GetValue;
+  using JSON::SetValue;
   virtual void   Clear(void)
           {Jsp = NULL; Value = NULL; Next = NULL; Del = false; Size = 0;}
   virtual JTYP   GetType(void) {return TYPE_JVAL;}
@@ -236,6 +246,9 @@ class JVALUE : public JSON {
   virtual PSZ    GetString(void);
   virtual void   SetValue(PVAL valp) {Value = valp;}
   virtual void   SetValue(PJSON jsp) {Jsp = jsp;}
+  virtual void   SetString(PGLOBAL g, PSZ s);
+  virtual void   SetInteger(PGLOBAL g, int n);
+  virtual void   SetFloat(PGLOBAL g, double f);
 
  protected:
   PJSON Jsp;      // To the json value

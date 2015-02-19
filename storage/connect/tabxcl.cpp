@@ -183,7 +183,7 @@ bool TDBXCL::OpenDB(PGLOBAL g)
   /*********************************************************************/
   for (PCOL cp = Columns; cp; cp = cp->GetNext())
     if (!cp->IsSpecial())
-      if (((PPRXCOL)cp)->Init(g))
+      if (((PPRXCOL)cp)->Init(g, NULL))
         return TRUE;
 
   /*********************************************************************/

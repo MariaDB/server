@@ -170,18 +170,18 @@
 #define SZWMIN 4194304             // Minimum work area size  4M
 
 extern "C" {
-       char  version[]= "Version 1.03.0006 January 13, 2015";
-       char  compver[]= "Version 1.03.0006 " __DATE__ " "  __TIME__;
+       char  version[]= "Version 1.03.0006 February 06, 2015";
 
 #if defined(WIN32)
+       char  compver[]= "Version 1.03.0006 " __DATE__ " "  __TIME__;
        char slash= '\\';
 #else   // !WIN32
        char slash= '/';
 #endif  // !WIN32
 
 //     int   trace= 0;             // The general trace value
-       ulong xconv= 0;             // The type conversion option
-       int   zconv= 0;             // The text conversion size
+//     ulong xconv= 0;             // The type conversion option
+//     int   zconv= 0;             // The text conversion size
 } // extern "C"
 
 #if defined(XMAP)
@@ -215,6 +215,8 @@ bool    CheckSelf(PGLOBAL g, TABLE_SHARE *s, const char *host,
                   const char *db, char *tab, const char *src, int port);
 bool    ExactInfo(void);
 USETEMP UseTemp(void);
+int     GetConvSize(void);
+TYPCONV GetTypeConv(void);
 uint    GetWorkSize(void);
 void    SetWorkSize(uint);
 extern "C" const char *msglang(void);
@@ -289,6 +291,38 @@ static MYSQL_THDVAR_UINT(work_size,
        "Size of the CONNECT work area.",
        NULL, NULL, SZWORK, SZWMIN, UINT_MAX, 1);
 
+// Size used when converting TEXT columns to VARCHAR
+static MYSQL_THDVAR_INT(conv_size,
+       PLUGIN_VAR_RQCMDARG,             // opt
+       "Size used when converting TEXT columns.",
+       NULL, NULL, SZCONV, 0, 65500, 1);
+
+/**
+  Type conversion:
+    no:   Unsupported types -> TYPE_ERROR
+    yes:  TEXT -> VARCHAR
+    skip: skip unsupported type columns in Discovery
+*/
+const char *xconv_names[]=
+{
+  "NO", "YES", "SKIP", NullS
+};
+
+TYPELIB xconv_typelib=
+{
+  array_elements(xconv_names) - 1, "xconv_typelib",
+  xconv_names, NULL
+};
+
+static MYSQL_THDVAR_ENUM(
+  type_conv,                       // name
+  PLUGIN_VAR_RQCMDARG,             // opt
+  "Unsupported types conversion.", // comment
+  NULL,                            // check
+  NULL,                            // update function
+  0,                               // def (no)
+  &xconv_typelib);                 // typelib
+
 #if defined(XMSG) || defined(NEWMSG)
 const char *language_names[]=
 {
@@ -317,6 +351,8 @@ static MYSQL_THDVAR_ENUM(
 extern "C" int GetTraceValue(void) {return THDVAR(current_thd, xtrace);}
 bool ExactInfo(void) {return THDVAR(current_thd, exact_info);}
 USETEMP UseTemp(void) {return (USETEMP)THDVAR(current_thd, use_tempfile);}
+int GetConvSize(void) {return THDVAR(current_thd, conv_size);}
+TYPCONV GetTypeConv(void) {return (TYPCONV)THDVAR(current_thd, type_conv);}
 uint GetWorkSize(void) {return THDVAR(current_thd, work_size);}
 void SetWorkSize(uint n) 
 {
@@ -598,7 +634,11 @@ static int connect_init_func(void *p)
   }
 #endif   // 0 (LINUX)
 
+#if defined(WIN32)
   sql_print_information("CONNECT: %s", compver);
+#else   // !WIN32
+  sql_print_information("CONNECT: %s", version);
+#endif  // !WIN32
 
 #ifdef LIBXML2_SUPPORT
   XmlInitParserLib();
@@ -934,6 +974,9 @@ ulonglong ha_connect::table_flags() const
 char *GetListOption(PGLOBAL g, const char *opname,
                                const char *oplist, const char *def)
 {
+  if (!oplist)
+    return (char*)def;
+
   char  key[16], val[256];
   char *pk, *pv, *pn;
   char *opval= (char*) def;
@@ -997,8 +1040,12 @@ char *ha_connect::GetRealString(const char *s)
   char *sv;
 
   if (IsPartitioned() && s) {
-    sv= (char*)PlugSubAlloc(xp->g, NULL, strlen(s) + strlen(partname));
+//  sv= (char*)PlugSubAlloc(xp->g, NULL, strlen(s) + strlen(partname));
+    // With wrong string pattern, the size of the constructed string
+    // can be more than strlen(s) + strlen(partname)
+    sv= (char*)PlugSubAlloc(xp->g, NULL, 0);
     sprintf(sv, s, partname);
+    PlugSubAlloc(xp->g, NULL, strlen(sv) + 1);
   } else
     sv= (char*)s;
 
@@ -1064,8 +1111,15 @@ char *ha_connect::GetStringOption(char *opname, char *sdef)
 
   } // endif Table_charset
 
-  if (!opval && options && options->oplist)
+  if (!opval && options && options->oplist) {
     opval= GetListOption(xp->g, opname, options->oplist);
+
+    if (opval && (!stricmp(opname, "connect") 
+               || !stricmp(opname, "tabname") 
+               || !stricmp(opname, "filename")))
+      opval = GetRealString(opval);
+
+    } // endif opval
 
   if (!opval) {
     if (sdef && !strcmp(sdef, "*")) {
@@ -2467,6 +2521,8 @@ PCFIL ha_connect::CheckCond(PGLOBAL g, PCFIL filp, AMT tty, Item *cond)
   char *body= filp->Body;
   unsigned int i;
   bool  ismul= false, x= (tty == TYPE_AM_MYX || tty == TYPE_AM_XDBC);
+  bool  nonul= (tty == TYPE_AM_ODBC && (tdbp->GetMode() == MODE_INSERT ||
+                                        tdbp->GetMode() == MODE_DELETE));
   OPVAL vop= OP_XX;
 
   if (!cond)
@@ -2484,7 +2540,7 @@ PCFIL ha_connect::CheckCond(PGLOBAL g, PCFIL filp, AMT tty, Item *cond)
 
     if (trace)
       htrc("Cond: Ftype=%d name=%s\n", cond_item->functype(),
-                                         cond_item->func_name());
+                                       cond_item->func_name());
 
     switch (cond_item->functype()) {
       case Item_func::COND_AND_FUNC: vop= OP_AND; break;
@@ -2503,7 +2559,7 @@ PCFIL ha_connect::CheckCond(PGLOBAL g, PCFIL filp, AMT tty, Item *cond)
     for (i= 0; i < arglist->elements; i++)
       if ((subitem= li++)) {
         if (!CheckCond(g, filp, tty, subitem)) {
-          if (vop == OP_OR)
+          if (vop == OP_OR || nonul)
             return NULL;
           else
             *p2= 0;
@@ -2599,6 +2655,8 @@ PCFIL ha_connect::CheckCond(PGLOBAL g, PCFIL filp, AMT tty, Item *cond)
         if (trace) {
           htrc("Field index=%d\n", pField->field->field_index);
           htrc("Field name=%s\n", pField->field->field_name);
+          htrc("Field type=%d\n", pField->field->type());
+          htrc("Field_type=%d\n", args[i]->field_type());
           } // endif trace
 
         // IN and BETWEEN clauses should be col VOP list
@@ -2618,8 +2676,9 @@ PCFIL ha_connect::CheckCond(PGLOBAL g, PCFIL filp, AMT tty, Item *cond)
         char    buff[256];
         String *res, tmp(buff, sizeof(buff), &my_charset_bin);
         Item_basic_constant *pval= (Item_basic_constant *)args[i];
+        Item::Type type= args[i]->real_type();
 
-        switch (args[i]->real_type()) {
+        switch (type) {
           case COND::STRING_ITEM:
           case COND::INT_ITEM:
           case COND::REAL_ITEM:
@@ -2644,10 +2703,64 @@ PCFIL ha_connect::CheckCond(PGLOBAL g, PCFIL filp, AMT tty, Item *cond)
 
         if (!x) {
           // Append the value to the filter
-          if (args[i]->field_type() == MYSQL_TYPE_VARCHAR)
-            strcat(strncat(strcat(body, "'"), res->ptr(), res->length()), "'");
-          else
-            strncat(body, res->ptr(), res->length());
+          switch (args[i]->field_type()) {
+            case MYSQL_TYPE_TIMESTAMP:
+            case MYSQL_TYPE_DATETIME:
+              if (tty == TYPE_AM_ODBC) {
+                strcat(body, "{ts '");
+                strcat(strncat(body, res->ptr(), res->length()), "'}");
+                break;
+                } // endif ODBC
+
+            case MYSQL_TYPE_DATE:
+              if (tty == TYPE_AM_ODBC) {
+                strcat(body, "{d '");
+                strcat(strncat(body, res->ptr(), res->length()), "'}");
+                break;
+                } // endif ODBC
+
+            case MYSQL_TYPE_TIME:
+              if (tty == TYPE_AM_ODBC) {
+                strcat(body, "{t '");
+                strcat(strncat(body, res->ptr(), res->length()), "'}");
+                break;
+                } // endif ODBC
+
+            case MYSQL_TYPE_VARCHAR:
+              if (tty == TYPE_AM_ODBC && i) {
+                switch (args[0]->field_type()) {
+                  case MYSQL_TYPE_TIMESTAMP:
+                  case MYSQL_TYPE_DATETIME:
+                    strcat(body, "{ts '");
+                    strncat(body, res->ptr(), res->length());
+                    strcat(body, "'}");
+                    break;
+                  case MYSQL_TYPE_DATE:
+                    strcat(body, "{d '");
+                    strncat(body, res->ptr(), res->length());
+                    strcat(body, "'}");
+                    break;
+                  case MYSQL_TYPE_TIME:
+                    strcat(body, "{t '");
+                    strncat(body, res->ptr(), res->length());
+                    strcat(body, "'}");
+                    break;
+                  default:
+                    strcat(body, "'");
+                    strncat(body, res->ptr(), res->length());
+                    strcat(body, "'");
+                  } // endswitch field type
+
+              } else {
+                strcat(body, "'");
+                strncat(body, res->ptr(), res->length());
+                strcat(body, "'");
+              } // endif tty
+
+              break;
+            default:
+              strncat(body, res->ptr(), res->length());
+            } // endswitch field type
 
         } else {
           if (args[i]->field_type() == MYSQL_TYPE_VARCHAR) {
@@ -2753,7 +2866,7 @@ const COND *ha_connect::cond_push(const COND *cond)
       } else if (x && cond)
         tdbp->SetCondFil(filp);   // Wrong filter
 
-    } else
+    } else if (tty != TYPE_AM_JSN && tty != TYPE_AM_JSON)
       tdbp->SetFilter(CondFilter(g, (Item *)cond));
 
    fin:
@@ -4620,7 +4733,7 @@ static bool add_field(String *sql, const char *field_name, int typ,
                       char *dft, char *xtra, int flag, bool dbf, char v)
 {
   char var = (len > 255) ? 'V' : v;
-  bool error= false;
+  bool q, error= false;
   const char *type= PLGtoMYSQLtype(typ, dbf, var);
 
   error|= sql->append('`');
@@ -4661,7 +4774,12 @@ static bool add_field(String *sql, const char *field_name, int typ,
   if (dft && *dft) {
     error|= sql->append(" DEFAULT ");
 
-    if (!IsTypeNum(typ)) {
+    if (typ == TYPE_DATE)
+      q = (strspn(dft, "0123456789 -:/") == strlen(dft));
+    else
+      q = !IsTypeNum(typ);
+
+    if (q) {
       error|= sql->append("'");
       error|= sql->append_for_single_quote(dft, strlen(dft));
       error|= sql->append("'");
@@ -4831,6 +4949,9 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
   int         port= 0, hdr= 0, mxr __attribute__((unused))= 0, mxe= 0, rc= 0;
   int         cop __attribute__((unused)) = 0;
 #if defined(ODBC_SUPPORT)
+  POPARM      sop = NULL;
+  char       *ucnc = NULL;
+  bool        cnc= false;
   int         cto= -1, qto= -1;
 #endif   // ODBC_SUPPORT
   uint        tm, fnc= FNC_NO, supfnc= (FNC_NO | FNC_COL);
@@ -4875,7 +4996,8 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
 
   if (topt->oplist) {
     host= GetListOption(g, "host", topt->oplist, "localhost");
-    user= GetListOption(g, "user", topt->oplist, "root");
+    user= GetListOption(g, "user", topt->oplist, 
+                       (ttp == TAB_ODBC ? NULL : "root"));
     // Default value db can come from the DBNAME=xxx option.
     db= GetListOption(g, "database", topt->oplist, db);
     col= GetListOption(g, "colist", topt->oplist, col);
@@ -4894,6 +5016,9 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
     mxr= atoi(GetListOption(g,"maxres", topt->oplist, "0"));
     cto= atoi(GetListOption(g,"ConnectTimeout", topt->oplist, "-1"));
     qto= atoi(GetListOption(g,"QueryTimeout", topt->oplist, "-1"));
+    
+    if ((ucnc= GetListOption(g, "UseDSN", topt->oplist)))
+      cnc= (!*ucnc || *ucnc == 'y' || *ucnc == 'Y' || atoi(ucnc) != 0);
 #endif
     mxe= atoi(GetListOption(g,"maxerr", topt->oplist, "0"));
 #if defined(PROMPT_OK)
@@ -4901,7 +5026,7 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
 #endif   // PROMPT_OK
   } else {
     host= "localhost";
-    user= "root";
+    user= (ttp == TAB_ODBC ? NULL : "root");
   } // endif option_list
 
   if (!(shm= (char*)db))
@@ -4978,10 +5103,18 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
           } // endif dsn
 #endif   // PROMPT_OK
 
-      } else if (!dsn)
+      } else if (!dsn) {
         sprintf(g->Message, "Missing %s connection string", topt->type);
-      else
+      } else {
+        // Store ODBC additional parameters
+        sop= (POPARM)PlugSubAlloc(g, NULL, sizeof(ODBCPARM));
+        sop->User= (char*)user;
+        sop->Pwd= (char*)pwd;
+        sop->Cto= cto;
+        sop->Qto= qto;
+        sop->UseCnc= cnc;
         ok= true;
+      } // endif's
 
       supfnc |= (FNC_TABLE | FNC_DSN | FNC_DRIVER);
       break;
@@ -5112,15 +5245,15 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
           case FNC_NO:
           case FNC_COL:
             if (src) {
-              qrp= ODBCSrcCols(g, dsn, (char*)src, cto, qto);
+              qrp= ODBCSrcCols(g, dsn, (char*)src, sop); 
               src= NULL;     // for next tests
             } else
-              qrp= ODBCColumns(g, dsn, shm, tab, NULL,
-                               mxr, cto, qto, fnc == FNC_COL);
+              qrp= ODBCColumns(g, dsn, shm, tab, NULL, 
+                               mxr, fnc == FNC_COL, sop);
 
             break;
           case FNC_TABLE:
-            qrp= ODBCTables(g, dsn, shm, tab, mxr, cto, qto, true);
+            qrp= ODBCTables(g, dsn, shm, tab, mxr, true, sop);
             break;
           case FNC_DSN:
             qrp= ODBCDataSources(g, mxr, true);
@@ -5237,9 +5370,10 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
         for (crp= qrp->Colresp; crp; crp= crp->Next)
           switch (crp->Fld) {
             case FLD_NAME:
-              if (ttp == TAB_CSV && topt->data_charset &&
+              if (ttp == TAB_PRX || 
+                 (ttp == TAB_CSV && topt->data_charset &&
                  (!stricmp(topt->data_charset, "UTF8") ||
-                  !stricmp(topt->data_charset, "UTF-8")))
+                  !stricmp(topt->data_charset, "UTF-8"))))
                 cnm= crp->Kdata->GetCharValue(i);
               else
                 cnm= encode(g, crp->Kdata->GetCharValue(i));
@@ -5299,9 +5433,18 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
 
           // typ must be PLG type, not SQL type
           if (!(plgtyp= TranslateSQLType(typ, dec, prec, v))) {
-            sprintf(g->Message, "Unsupported SQL type %d", typ);
-            my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
-            goto err;
+            if (GetTypeConv() == TPC_SKIP) {
+              // Skip this column
+              sprintf(g->Message, "Column %s skipped (unsupported type %d)",
+                      cnm, typ);
+              push_warning(thd, Sql_condition::WARN_LEVEL_WARN, 0, g->Message);
+              continue;
+            } else {
+              sprintf(g->Message, "Unsupported SQL type %d", typ);
+              my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
+              goto err;
+            } // endif type_conv
+
           } else
             typ= plgtyp;
 
@@ -6341,58 +6484,6 @@ struct st_mysql_storage_engine connect_storage_engine=
 /***********************************************************************/
 /*  CONNECT global variables definitions.                              */
 /***********************************************************************/
-// Size used when converting TEXT columns to VARCHAR
-#if defined(_DEBUG)
-static MYSQL_SYSVAR_INT(conv_size, zconv,
-       PLUGIN_VAR_RQCMDARG,             // opt
-       "Size used when converting TEXT columns.",
-       NULL, NULL, SZCONV, 0, 65500, 1);
-#else
-static MYSQL_SYSVAR_INT(conv_size, zconv,
-       PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,  // opt
-       "Size used when converting TEXT columns.",
-       NULL, NULL, SZCONV, 0, 65500, 1);
-#endif
-
-/**
-  Type conversion:
-    no:   Unsupported types -> TYPE_ERROR
-    yes:  TEXT -> VARCHAR
-    skip: skip unsupported type columns in Discovery
-*/
-const char *xconv_names[]=
-{
-  "NO", "YES", "SKIP", NullS
-};
-
-TYPELIB xconv_typelib=
-{
-  array_elements(xconv_names) - 1, "xconv_typelib",
-  xconv_names, NULL
-};
-
-#if defined(_DEBUG)
-static MYSQL_SYSVAR_ENUM(
-  type_conv,                       // name
-  xconv,                           // varname
-  PLUGIN_VAR_RQCMDARG,             // opt
-  "Unsupported types conversion.", // comment
-  NULL,                            // check
-  NULL,                            // update function
-  0,                               // def (no)
-  &xconv_typelib);                 // typelib
-#else
-static MYSQL_SYSVAR_ENUM(
-  type_conv,                       // name
-  xconv,                           // varname
-  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
-  "Unsupported types conversion.", // comment
-  NULL,                            // check
-  NULL,                            // update function
-  0,                               // def (no)
-  &xconv_typelib);                 // typelib
-#endif
-
 #if defined(XMAP)
 // Using file mapping for indexes if true
 static MYSQL_SYSVAR_BOOL(indx_map, xmap, PLUGIN_VAR_RQCMDARG,

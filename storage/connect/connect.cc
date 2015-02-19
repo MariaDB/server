@@ -469,9 +469,12 @@ RCODE CntReadNext(PGLOBAL g, PTDB tdbp)
 
     } while (rc == RC_NF);
 
+  if (rc == RC_OK)
+    rc= EvalColumns(g, tdbp, false);
+
  err:
   g->jump_level--;
-  return (rc != RC_OK) ? rc : EvalColumns(g, tdbp, false);
+  return rc;
   } // end of CntReadNext
 
 /***********************************************************************/

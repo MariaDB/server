@@ -128,7 +128,7 @@ SELECT * FROM t1;
 DROP TABLE t1;
 
 --echo #
---echo # Cannot be fully expanded
+--echo # Now it can be fully expanded
 --echo #
 CREATE TABLE t1 (
 WHO CHAR(12),
@@ -136,7 +136,7 @@ WEEK INT(2) FIELD_FORMAT='WEEK:[X]:NUMBER',
 WHAT CHAR(32) FIELD_FORMAT='WEEK:[X]:EXPENSE:[X]:WHAT',
 AMOUNT DOUBLE(8,2) FIELD_FORMAT='WEEK:[X]:EXPENSE:[X]:AMOUNT')
 ENGINE=CONNECT TABLE_TYPE=JSON FILE_NAME='expense.jsn';
---error ER_GET_ERRMSG
+#--error ER_GET_ERRMSG
 SELECT * FROM t1;
 DROP TABLE t1;
 

@@ -21,9 +21,9 @@ ha_connect.cc connect.cc user_connect.cc mycat.cc
 fmdlex.c osutil.c plugutil.c rcmsg.c rcmsg.h
 array.cpp blkfil.cpp colblk.cpp csort.cpp
 filamap.cpp filamdbf.cpp filamfix.cpp filamtxt.cpp filamvct.cpp filamzip.cpp
-filter.cpp json.cpp maputil.cpp myutil.cpp plgdbutl.cpp reldef.cpp tabcol.cpp
-tabdos.cpp tabfix.cpp tabfmt.cpp tabjson.cpp table.cpp tabmul.cpp taboccur.cpp
-tabpivot.cpp tabsys.cpp tabtbl.cpp tabutil.cpp tabvct.cpp tabvir.cpp
+filter.cpp json.cpp jsonudf.cpp maputil.cpp myutil.cpp plgdbutl.cpp reldef.cpp
+tabcol.cpp tabdos.cpp tabfix.cpp tabfmt.cpp tabjson.cpp table.cpp tabmul.cpp
+taboccur.cpp tabpivot.cpp tabsys.cpp tabtbl.cpp tabutil.cpp tabvct.cpp tabvir.cpp
 tabxcl.cpp valblk.cpp value.cpp xindex.cpp xobject.cpp
 
 array.h blkfil.h block.h catalog.h checklvl.h colblk.h connect.h csort.h
@@ -71,11 +71,6 @@ IF(UNIX)
 
     message(STATUS "CONNECT: GCC: Some warnings disabled")
   endif(WITH_WARNINGS)
-
-  # Avoid compilation failure in maintainer mode
-  IF(CMAKE_COMPILER_IS_GNUCXX)
-    SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-overloaded-virtual -Wno-error=type-limits")
-  ENDIF(CMAKE_COMPILER_IS_GNUCXX)
 
   add_definitions( -DUNIX -DLINUX -DUBUNTU )
 
