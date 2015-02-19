@@ -10967,7 +10967,7 @@ bool ha_spider::is_crashed() const
   DBUG_RETURN(FALSE);
 }
 
-bool ha_spider::auto_repair() const
+bool ha_spider::auto_repair(int) const
 {
   DBUG_ENTER("ha_spider::auto_repair");
   DBUG_PRINT("info",("spider this=%p", this));

@@ -682,7 +682,7 @@ public:
     const char *name
   );
   bool is_crashed() const;
-  bool auto_repair() const;
+  bool auto_repair(int) const;
   int disable_indexes(
     uint mode
   );
