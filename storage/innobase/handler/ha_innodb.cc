@@ -9782,7 +9782,6 @@ ha_innobase::wsrep_append_keys(
 		uint	len;
 		char 	keyval[WSREP_MAX_SUPPORTED_KEY_LENGTH+1] = {'\0'};
 		char 	*key 		= &keyval[0];
-		KEY	*key_info	= table->key_info;
 		ibool    is_null;
 
 		len = wsrep_store_key_val_for_row(
@@ -17251,18 +17250,18 @@ wsrep_innobase_kill_one_trx(void * const bf_thd_ptr,
 
 	if (!thd) {
 		DBUG_PRINT("wsrep", ("no thd for conflicting lock"));
-		WSREP_WARN("no THD for trx: %llu", victim_trx->id);
+		WSREP_WARN("no THD for trx: %lu", victim_trx->id);
 		DBUG_RETURN(1);
 	}
 	if (!bf_thd) {
 		DBUG_PRINT("wsrep", ("no BF thd for conflicting lock"));
-		WSREP_WARN("no BF THD for trx: %llu", (bf_trx) ? bf_trx->id : 0);
+		WSREP_WARN("no BF THD for trx: %lu", (bf_trx) ? bf_trx->id : 0);
 		DBUG_RETURN(1);
 	}
 
 	WSREP_LOG_CONFLICT(bf_thd, thd, TRUE);
 
-	WSREP_DEBUG("BF kill (%lu, seqno: %lld), victim: (%lu) trx: %llu", 
+	WSREP_DEBUG("BF kill (%lu, seqno: %lld), victim: (%lu) trx: %lu", 
  		    signal, (long long)bf_seqno,
  		    wsrep_thd_thread_id(thd),
 		    victim_trx->id);
@@ -17273,12 +17272,12 @@ wsrep_innobase_kill_one_trx(void * const bf_thd_ptr,
 	wsrep_thd_LOCK(thd);
 
 	if (wsrep_thd_query_state(thd) == QUERY_EXITING) {
-		WSREP_DEBUG("kill trx EXITING for %llu", victim_trx->id);
+		WSREP_DEBUG("kill trx EXITING for %lu", victim_trx->id);
 		wsrep_thd_UNLOCK(thd);
 		DBUG_RETURN(0);
 	}
 	if(wsrep_thd_exec_mode(thd) != LOCAL_STATE) {
-		WSREP_DEBUG("withdraw for BF trx: %llu, state: %d",
+		WSREP_DEBUG("withdraw for BF trx: %lu, state: %d",
 			    victim_trx->id,
 		wsrep_thd_conflict_state(thd));
 	}
@@ -17288,7 +17287,7 @@ wsrep_innobase_kill_one_trx(void * const bf_thd_ptr,
 		wsrep_thd_set_conflict_state(thd, MUST_ABORT);
 		break;
         case MUST_ABORT:
-		WSREP_DEBUG("victim %llu in MUST ABORT state",
+		WSREP_DEBUG("victim %lu in MUST ABORT state",
 			    victim_trx->id);
 		wsrep_thd_UNLOCK(thd);
 		wsrep_thd_awake(thd, signal);
@@ -17297,7 +17296,7 @@ wsrep_innobase_kill_one_trx(void * const bf_thd_ptr,
 	case ABORTED:
 	case ABORTING: // fall through
 	default:
-		WSREP_DEBUG("victim %llu in state %d",
+		WSREP_DEBUG("victim %lu in state %d",
 			    victim_trx->id, wsrep_thd_conflict_state(thd));
 		wsrep_thd_UNLOCK(thd);
 		DBUG_RETURN(0);
@@ -17310,7 +17309,7 @@ wsrep_innobase_kill_one_trx(void * const bf_thd_ptr,
 
 		WSREP_DEBUG("kill query for: %ld",
 			    wsrep_thd_thread_id(thd));
-		WSREP_DEBUG("kill trx QUERY_COMMITTING for %llu", 
+		WSREP_DEBUG("kill trx QUERY_COMMITTING for %lu",
 			    victim_trx->id);
 
 		if (wsrep_thd_exec_mode(thd) == REPL_RECV) {
@@ -17324,7 +17323,7 @@ wsrep_innobase_kill_one_trx(void * const bf_thd_ptr,
 
 			switch (rcode) {
 			case WSREP_WARNING:
-				WSREP_DEBUG("cancel commit warning: %llu",
+				WSREP_DEBUG("cancel commit warning: %lu",
 					    victim_trx->id);
 				wsrep_thd_UNLOCK(thd);
 				wsrep_thd_awake(thd, signal);
@@ -17334,8 +17333,8 @@ wsrep_innobase_kill_one_trx(void * const bf_thd_ptr,
 				break;
 			default:
 				WSREP_ERROR(
-					"cancel commit bad exit: %d %llu", 
-					rcode, 
+					"cancel commit bad exit: %d %lu",
+					rcode,
 					victim_trx->id);
 				/* unable to interrupt, must abort */
 				/* note: kill_mysql() will block, if we cannot.
@@ -17352,7 +17351,7 @@ wsrep_innobase_kill_one_trx(void * const bf_thd_ptr,
 		/* it is possible that victim trx is itself waiting for some 
 		 * other lock. We need to cancel this waiting
 		 */
-		WSREP_DEBUG("kill trx QUERY_EXEC for %llu", victim_trx->id);
+		WSREP_DEBUG("kill trx QUERY_EXEC for %lu", victim_trx->id);
 
 		victim_trx->lock.was_chosen_as_deadlock_victim= TRUE;
 		if (victim_trx->lock.wait_lock) {
@@ -17390,7 +17389,7 @@ wsrep_innobase_kill_one_trx(void * const bf_thd_ptr,
 		bool skip_abort= false;
 		wsrep_aborting_thd_t abortees;
                         
-		WSREP_DEBUG("kill IDLE for %llu", victim_trx->id);
+		WSREP_DEBUG("kill IDLE for %lu", victim_trx->id);
 
 		if (wsrep_thd_exec_mode(thd) == REPL_RECV) {
 			WSREP_DEBUG("kill BF IDLE, seqno: %lld",
