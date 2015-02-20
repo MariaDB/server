@@ -734,6 +734,11 @@ public:
   void fix_length_and_dec();
   const char *func_name() const { return "interval"; }
   uint decimal_precision() const { return 2; }
+  void print(String *str, enum_query_type query_type)
+  {
+    str->append(func_name());
+    print_args(str, 0, query_type);
+  }
 };
 
 

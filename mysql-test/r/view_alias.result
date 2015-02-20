@@ -109,3 +109,11 @@ DROP VIEW v1;
 CREATE VIEW v1 AS select `test`.`t1`.`a` AS `a` from `test`.`t1` where exists(select '  a   ' AS `alias` from `test`.`t1` group by '  a   ');
 DROP VIEW v1;
 DROP TABLE t1, t2;
+create view v1 as select interval(55,10) as my_col;
+show create view v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select interval(55,10) AS `my_col`	latin1	latin1_swedish_ci
+select * from v1;
+my_col
+1
+drop view v1;
