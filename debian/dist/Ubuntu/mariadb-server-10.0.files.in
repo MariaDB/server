@@ -1,7 +1,6 @@
 usr/lib/mysql/plugin/auth_pam.so
 usr/lib/mysql/plugin/auth_socket.so
 usr/lib/mysql/plugin/ha_mroonga.so
-usr/lib/mysql/plugin/ha_oqgraph.so
 usr/lib/mysql/plugin/ha_sequence.so
 usr/lib/mysql/plugin/ha_sphinx.so
 usr/lib/mysql/plugin/ha_innodb.so
@@ -14,7 +13,6 @@ usr/lib/mysql/plugin/semisync_master.so
 usr/lib/mysql/plugin/semisync_slave.so
 usr/lib/mysql/plugin/sql_errlog.so
 usr/lib/mysql/plugin/server_audit.so
-usr/lib/mysql/plugin/sphinx.so
 usr/lib/libhsclient.so.*
 etc/apparmor.d/usr.sbin.mysqld
 usr/share/apport/package-hooks/source_mariadb-10.0.py
