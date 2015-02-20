@@ -22,13 +22,12 @@
 WSREP_SST_OPT_CONF=""
 
 . $(dirname $0)/wsrep_sst_common
+PATH=$PATH:/usr/sbin:/usr/bin:/sbin:/bin
 
 EINVAL=22
 
 local_ip()
 {
-    PATH=$PATH:/usr/sbin:/usr/bin:/sbin:/bin
-
     [ "$1" = "127.0.0.1" ]      && return 0
     [ "$1" = "localhost" ]      && return 0
     [ "$1" = "$(hostname -s)" ] && return 0
@@ -97,33 +96,39 @@ DROP PREPARE stmt;"
 
 SET_START_POSITION="SET GLOBAL wsrep_start_position='$WSREP_SST_OPT_GTID';"
 
+# Retrieve the donor's @@global.gtid_binlog_state.
+GTID_BINLOG_STATE=$(echo "SHOW GLOBAL VARIABLES LIKE 'gtid_binlog_state'" |\
+mysql $AUTH -S$WSREP_SST_OPT_SOCKET --disable-reconnect --connect_timeout=10 |\
+tail -1 | awk -F ' ' '{ print $2 }')
+
 MYSQL="mysql $AUTH -h$WSREP_SST_OPT_HOST -P$WSREP_SST_OPT_PORT "\
 "--disable-reconnect --connect_timeout=10"
 
-RESET_MASTER=""
-OPT_GALERA_SST_MODE=""
 # Check if binary logging is enabled on the joiner node.
 # Note: SELECT cannot be used at this point.
-LOG_BIN=$(echo "SHOW VARIABLES LIKE 'log_bin'" | $MYSQL)
-LOG_BIN=$(echo $LOG_BIN | awk -F ' ' '{ print $4 }')
+LOG_BIN=$(echo "SHOW VARIABLES LIKE 'log_bin'" | $MYSQL |\
+tail -1 | awk -F ' ' '{ print $2 }')
 
 # Check the joiner node's server version.
-SERVER_VERSION=$(echo "SHOW VARIABLES LIKE 'version'" | $MYSQL)
-SERVER_VERSION=$(echo $SERVER_VERSION | awk -F ' ' '{ print $4 }')
+SERVER_VERSION=$(echo "SHOW VARIABLES LIKE 'version'" | $MYSQL |\
+tail -1 | awk -F ' ' '{ print $2 }')
+
+RESET_MASTER=""
+SET_GTID_BINLOG_STATE=""
+SQL_LOG_BIN_OFF=""
 
 # Safety check
 if echo $SERVER_VERSION | grep '^10.0' > /dev/null
 then
-  # Check if binary logging is enabled on the Joiner node. If it is enabled,
-  # RESET MASTER needs to be executed on the Joiner node. Also, mysqldump
-  # should be executed with additional 'galera-sst-mode' option so that it
-  # adds a command to set gtid_binlog_state with that of Donor node in the
-  # dump, to be executed on the Joiner.
+  # If binary logging is enabled on the joiner node, we need to copy donor's
+  # gtid_binlog_state to joiner. In order to do that, a RESET MASTER must be
+  # executed to erase binary logs (if any). Binary logging should also be
+  # turned off for the session so that gtid state does not get altered while
+  # the dump gets replayed on joiner.
   if [[ "$LOG_BIN" == 'ON' ]]; then
-    # Reset master for 10.0 to clear gtid state.
     RESET_MASTER="RESET MASTER;"
-    # Set the galera-sst-mode option for mysqldump.
-    OPT_GALERA_SST_MODE="--galera-sst-mode"
+    SET_GTID_BINLOG_STATE="SET @@global.gtid_binlog_state='$GTID_BINLOG_STATE';"
+    SQL_LOG_BIN_OFF="SET @@session.sql_log_bin=OFF;"
   fi
 fi
 
@@ -131,7 +136,7 @@ fi
 MYSQLDUMP="mysqldump $AUTH -S$WSREP_SST_OPT_SOCKET \
 --add-drop-database --add-drop-table --skip-add-locks --create-options \
 --disable-keys --extended-insert --skip-lock-tables --quick --set-charset \
---skip-comments --flush-privileges --all-databases $OPT_GALERA_SST_MODE"
+--skip-comments --flush-privileges --all-databases"
 
 # need to disable logging when loading the dump
 # reason is that dump contains ALTER TABLE for log tables, and
@@ -148,11 +153,11 @@ RESTORE_SLOW_QUERY_LOG="SET GLOBAL SLOW_QUERY_LOG=$SLOW_LOG_OPT;"
 
 if [ $WSREP_SST_OPT_BYPASS -eq 0 ]
 then
-    (echo $STOP_WSREP && echo $RESET_MASTER) | $MYSQL || true
-    (echo $STOP_WSREP && $MYSQLDUMP && echo $CSV_TABLES_FIX \
-    && echo $RESTORE_GENERAL_LOG && echo $RESTORE_SLOW_QUERY_LOG \
-    && echo $SET_START_POSITION \
-    || echo "SST failed to complete;") | $MYSQL
+    (echo $STOP_WSREP && echo $RESET_MASTER && \
+     echo $SET_GTID_BINLOG_STATE && echo $SQL_LOG_BIN_OFF && \
+     echo $STOP_WSREP && $MYSQLDUMP && echo $CSV_TABLES_FIX && \
+     echo $RESTORE_GENERAL_LOG && echo $RESTORE_SLOW_QUERY_LOG && \
+     echo $SET_START_POSITION || echo "SST failed to complete;") | $MYSQL
 else
     wsrep_log_info "Bypassing state dump."
     echo $SET_START_POSITION | $MYSQL
