@@ -24,6 +24,7 @@ INNODB_CMPMEM_RESET
 INNODB_CMP_PER_INDEX
 INNODB_CMP_RESET
 INNODB_LOCK_WAITS
+INNODB_MUTEXES
 INNODB_SYS_COLUMNS
 INNODB_SYS_FIELDS
 INNODB_SYS_FOREIGN
@@ -97,6 +98,7 @@ INNODB_CMPMEM_RESET	page_size
 INNODB_CMP_PER_INDEX	database_name
 INNODB_CMP_RESET	page_size
 INNODB_LOCK_WAITS	requesting_trx_id
+INNODB_MUTEXES	NAME
 INNODB_SYS_COLUMNS	TABLE_ID
 INNODB_SYS_FIELDS	INDEX_ID
 INNODB_SYS_FOREIGN	ID
@@ -170,6 +172,7 @@ INNODB_CMPMEM_RESET	page_size
 INNODB_CMP_PER_INDEX	database_name
 INNODB_CMP_RESET	page_size
 INNODB_LOCK_WAITS	requesting_trx_id
+INNODB_MUTEXES	NAME
 INNODB_SYS_COLUMNS	TABLE_ID
 INNODB_SYS_FIELDS	INDEX_ID
 INNODB_SYS_FOREIGN	ID
@@ -248,6 +251,7 @@ INNODB_CMPMEM_RESET	information_schema.INNODB_CMPMEM_RESET	1
 INNODB_CMP_PER_INDEX	information_schema.INNODB_CMP_PER_INDEX	1
 INNODB_CMP_RESET	information_schema.INNODB_CMP_RESET	1
 INNODB_LOCK_WAITS	information_schema.INNODB_LOCK_WAITS	1
+INNODB_MUTEXES	information_schema.INNODB_MUTEXES	1
 INNODB_SYS_COLUMNS	information_schema.INNODB_SYS_COLUMNS	1
 INNODB_SYS_FIELDS	information_schema.INNODB_SYS_FIELDS	1
 INNODB_SYS_FOREIGN	information_schema.INNODB_SYS_FOREIGN	1
@@ -311,6 +315,7 @@ Database: information_schema
 | INNODB_CMP_PER_INDEX                  |
 | INNODB_CMP_RESET                      |
 | INNODB_LOCK_WAITS                     |
+| INNODB_MUTEXES                        |
 | INNODB_SYS_COLUMNS                    |
 | INNODB_SYS_FIELDS                     |
 | INNODB_SYS_FOREIGN                    |
@@ -374,6 +379,7 @@ Database: INFORMATION_SCHEMA
 | INNODB_CMP_PER_INDEX                  |
 | INNODB_CMP_RESET                      |
 | INNODB_LOCK_WAITS                     |
+| INNODB_MUTEXES                        |
 | INNODB_SYS_COLUMNS                    |
 | INNODB_SYS_FIELDS                     |
 | INNODB_SYS_FOREIGN                    |
@@ -417,5 +423,5 @@ Wildcard: inf_rmation_schema
 | information_schema |
 SELECT table_schema, count(*) FROM information_schema.TABLES WHERE table_schema IN ('mysql', 'INFORMATION_SCHEMA', 'test', 'mysqltest') GROUP BY TABLE_SCHEMA;
 table_schema	count(*)
-information_schema	58
+information_schema	59
 mysql	30

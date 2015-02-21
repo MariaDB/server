@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2007, 2013, Oracle and/or its affiliates. All Rights Reserved.
+Copyrigth (c) 2014, 2015, MariaDB Corporation
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -21,7 +22,10 @@ this program; if not, write to the Free Software Foundation, Inc.,
 InnoDB INFORMATION SCHEMA tables interface to MySQL.
 
 Created July 18, 2007 Vasil Dimov
+Modified Dec 29, 2014 Jan Lindström (Added sys_semaphore_waits)
 *******************************************************/
+
+#include "univ.i"
 
 #include <mysqld_error.h>
 #include <sql_acl.h>
@@ -56,6 +60,7 @@ Created July 18, 2007 Vasil Dimov
 #include "fts0priv.h"
 #include "btr0btr.h"
 #include "page0zip.h"
+#include "sync0arr.h"
 
 /** structure associates a name string with a file page type and/or buffer
 page state. */
@@ -137,45 +142,6 @@ struct buf_page_info_t{
 	index_id_t	index_id;	/*!< Index ID if a index page */
 };
 
-/** maximum number of buffer page info we would cache. */
-#define MAX_BUF_INFO_CACHED		10000
-
-#define OK(expr)		\
-	if ((expr) != 0) {	\
-		DBUG_RETURN(1);	\
-	}
-
-#define RETURN_IF_INNODB_NOT_STARTED(plugin_name)			\
-do {									\
-	if (!srv_was_started) {						\
-		push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,	\
-				    ER_CANT_FIND_SYSTEM_REC,		\
-				    "InnoDB: SELECTing from "		\
-				    "INFORMATION_SCHEMA.%s but "	\
-				    "the InnoDB storage engine "	\
-				    "is not installed", plugin_name);	\
-		DBUG_RETURN(0);						\
-	}								\
-} while (0)
-
-#if !defined __STRICT_ANSI__ && defined __GNUC__ && (__GNUC__) > 2 &&	\
-	!defined __INTEL_COMPILER && !defined __clang__
-#define STRUCT_FLD(name, value)	name: value
-#else
-#define STRUCT_FLD(name, value)	value
-#endif
-
-/* Don't use a static const variable here, as some C++ compilers (notably
-HPUX aCC: HP ANSI C++ B3910B A.03.65) can't handle it. */
-#define END_OF_ST_FIELD_INFO \
-	{STRUCT_FLD(field_name,		NULL), \
-	 STRUCT_FLD(field_length,	0), \
-	 STRUCT_FLD(field_type,		MYSQL_TYPE_NULL), \
-	 STRUCT_FLD(value,		0), \
-	 STRUCT_FLD(field_flags,	0), \
-	 STRUCT_FLD(old_name,		""), \
-	 STRUCT_FLD(open_method,	SKIP_OPEN_TABLE)}
-
 /*
 Use the following types mapping:
 
@@ -203,6 +169,20 @@ time_t			MYSQL_TYPE_DATETIME
 (field_length=0 ignored)
 ---------------------------------
 */
+
+/** Implemented on sync0arr.cc */
+/*******************************************************************//**
+Function to populate INFORMATION_SCHEMA.INNODB_SYS_SEMAPHORE_WAITS table.
+Loop through each item on sync array, and extract the column
+information and fill the INFORMATION_SCHEMA.INNODB_SYS_SEMAPHORE_WAITS table.
+@return 0 on success */
+UNIV_INTERN
+int
+sync_arr_fill_sys_semphore_waits_table(
+/*===================================*/
+	THD*		thd,	/*!< in: thread */
+	TABLE_LIST*	tables,	/*!< in/out: tables to fill */
+	Item*		);	/*!< in: condition (not used) */
 
 /*******************************************************************//**
 Common function to fill any of the dynamic tables:
@@ -261,7 +241,6 @@ field_store_time_t(
 /*******************************************************************//**
 Auxiliary function to store char* value in MYSQL_TYPE_STRING field.
 @return	0 on success */
-static
 int
 field_store_string(
 /*===============*/
@@ -328,7 +307,6 @@ field_store_index_name(
 Auxiliary function to store ulint value in MYSQL_TYPE_LONGLONG field.
 If the value is ULINT_UNDEFINED then the field it set to NULL.
 @return	0 on success */
-static
 int
 field_store_ulint(
 /*==============*/
@@ -8653,4 +8631,495 @@ UNIV_INTERN struct st_maria_plugin	i_s_innodb_tablespaces_scrubbing =
 	/* Maria extension */
 	STRUCT_FLD(version_info, INNODB_VERSION_STR),
 	STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_STABLE)
+};
+
+/**  INNODB_MUTEXES  *********************************************/
+/* Fields of the dynamic table INFORMATION_SCHEMA.INNODB_MUTEXES */
+static ST_FIELD_INFO	innodb_mutexes_fields_info[] =
+{
+#define MUTEXES_NAME			0
+	{STRUCT_FLD(field_name,		"NAME"),
+	 STRUCT_FLD(field_length,	OS_FILE_MAX_PATH),
+	 STRUCT_FLD(field_type,		MYSQL_TYPE_STRING),
+	 STRUCT_FLD(value,		0),
+	 STRUCT_FLD(field_flags,	0),
+	 STRUCT_FLD(old_name,		""),
+	 STRUCT_FLD(open_method,	SKIP_OPEN_TABLE)},
+#define MUTEXES_CREATE_FILE		1
+	{STRUCT_FLD(field_name,		"CREATE_FILE"),
+	 STRUCT_FLD(field_length,	OS_FILE_MAX_PATH),
+	 STRUCT_FLD(field_type,		MYSQL_TYPE_STRING),
+	 STRUCT_FLD(value,		0),
+	 STRUCT_FLD(field_flags,	0),
+	 STRUCT_FLD(old_name,		""),
+	 STRUCT_FLD(open_method,	SKIP_OPEN_TABLE)},
+#define MUTEXES_CREATE_LINE		2
+	{STRUCT_FLD(field_name,		"CREATE_LINE"),
+	 STRUCT_FLD(field_length,	MY_INT32_NUM_DECIMAL_DIGITS),
+	 STRUCT_FLD(field_type,		MYSQL_TYPE_LONG),
+	 STRUCT_FLD(value,		0),
+	 STRUCT_FLD(field_flags,	MY_I_S_UNSIGNED),
+	 STRUCT_FLD(old_name,		""),
+	 STRUCT_FLD(open_method,	SKIP_OPEN_TABLE)},
+#define MUTEXES_OS_WAITS		3
+	{STRUCT_FLD(field_name,		"OS_WAITS"),
+	 STRUCT_FLD(field_length,	MY_INT64_NUM_DECIMAL_DIGITS),
+	 STRUCT_FLD(field_type,		MYSQL_TYPE_LONGLONG),
+	 STRUCT_FLD(value,		0),
+	 STRUCT_FLD(field_flags,	MY_I_S_UNSIGNED),
+	 STRUCT_FLD(old_name,		""),
+	 STRUCT_FLD(open_method,	SKIP_OPEN_TABLE)},
+
+	END_OF_ST_FIELD_INFO
+};
+
+/*******************************************************************//**
+Function to populate INFORMATION_SCHEMA.INNODB_MUTEXES table.
+Loop through each record in mutex and rw_lock lists, and extract the column
+information and fill the INFORMATION_SCHEMA.INNODB_MUTEXES table.
+@return 0 on success */
+static
+int
+i_s_innodb_mutexes_fill_table(
+/*==========================*/
+	THD*		thd,	/*!< in: thread */
+	TABLE_LIST*	tables,	/*!< in/out: tables to fill */
+	Item*		)	/*!< in: condition (not used) */
+{
+	ib_mutex_t*	mutex;
+	rw_lock_t*	lock;
+	ulint		block_mutex_oswait_count = 0;
+	ulint		block_lock_oswait_count = 0;
+	ib_mutex_t*	block_mutex = NULL;
+	rw_lock_t*	block_lock = NULL;
+	Field**		fields = tables->table->field;
+
+	DBUG_ENTER("i_s_innodb_mutexes_fill_table");
+	RETURN_IF_INNODB_NOT_STARTED(tables->schema_table_name);
+
+	/* deny access to user without PROCESS_ACL privilege */
+	if (check_global_access(thd, PROCESS_ACL)) {
+		DBUG_RETURN(0);
+	}
+
+	mutex_enter(&mutex_list_mutex);
+
+	for (mutex = UT_LIST_GET_FIRST(mutex_list); mutex != NULL;
+	     mutex = UT_LIST_GET_NEXT(list, mutex)) {
+		if (mutex->count_os_wait == 0) {
+			continue;
+		}
+
+		if (buf_pool_is_block_mutex(mutex)) {
+			block_mutex = mutex;
+			block_mutex_oswait_count += mutex->count_os_wait;
+			continue;
+		}
+
+		OK(field_store_string(fields[MUTEXES_NAME], mutex->cmutex_name));
+		OK(field_store_string(fields[MUTEXES_CREATE_FILE], innobase_basename(mutex->cfile_name)));
+		OK(field_store_ulint(fields[MUTEXES_CREATE_LINE], mutex->cline));
+		OK(field_store_ulint(fields[MUTEXES_OS_WAITS], (longlong)mutex->count_os_wait));
+		OK(schema_table_store_record(thd, tables->table));
+	}
+
+	if (block_mutex) {
+		char buf1[IO_SIZE];
+
+		my_snprintf(buf1, sizeof buf1, "combined %s",
+			    innobase_basename(block_mutex->cfile_name));
+
+		OK(field_store_string(fields[MUTEXES_NAME], block_mutex->cmutex_name));
+		OK(field_store_string(fields[MUTEXES_CREATE_FILE], buf1));
+		OK(field_store_ulint(fields[MUTEXES_CREATE_LINE], block_mutex->cline));
+		OK(field_store_ulint(fields[MUTEXES_OS_WAITS], (longlong)block_mutex_oswait_count));
+		OK(schema_table_store_record(thd, tables->table));
+	}
+
+	mutex_exit(&mutex_list_mutex);
+
+	mutex_enter(&rw_lock_list_mutex);
+
+	for (lock = UT_LIST_GET_FIRST(rw_lock_list); lock != NULL;
+	     lock = UT_LIST_GET_NEXT(list, lock)) {
+		if (lock->count_os_wait == 0) {
+			continue;
+		}
+
+		if (buf_pool_is_block_lock(lock)) {
+			block_lock = lock;
+			block_lock_oswait_count += lock->count_os_wait;
+			continue;
+		}
+
+		OK(field_store_string(fields[MUTEXES_NAME], lock->lock_name));
+		OK(field_store_string(fields[MUTEXES_CREATE_FILE], innobase_basename(lock->cfile_name)));
+		OK(field_store_ulint(fields[MUTEXES_CREATE_LINE], lock->cline));
+		OK(field_store_ulint(fields[MUTEXES_OS_WAITS], (longlong)lock->count_os_wait));
+		OK(schema_table_store_record(thd, tables->table));
+	}
+
+	if (block_lock) {
+		char buf1[IO_SIZE];
+
+		my_snprintf(buf1, sizeof buf1, "combined %s",
+			    innobase_basename(block_lock->cfile_name));
+
+		OK(field_store_string(fields[MUTEXES_NAME], block_lock->lock_name));
+		OK(field_store_string(fields[MUTEXES_CREATE_FILE], buf1));
+		OK(field_store_ulint(fields[MUTEXES_CREATE_LINE], block_lock->cline));
+		OK(field_store_ulint(fields[MUTEXES_OS_WAITS], (longlong)block_lock_oswait_count));
+		OK(schema_table_store_record(thd, tables->table));
+	}
+
+	mutex_exit(&rw_lock_list_mutex);
+
+	DBUG_RETURN(0);
+}
+
+/*******************************************************************//**
+Bind the dynamic table INFORMATION_SCHEMA.INNODB_MUTEXES
+@return 0 on success */
+static
+int
+innodb_mutexes_init(
+/*================*/
+	void*	p)	/*!< in/out: table schema object */
+{
+	ST_SCHEMA_TABLE*	schema;
+
+	DBUG_ENTER("innodb_mutexes_init");
+
+	schema = (ST_SCHEMA_TABLE*) p;
+
+	schema->fields_info = innodb_mutexes_fields_info;
+	schema->fill_table = i_s_innodb_mutexes_fill_table;
+
+	DBUG_RETURN(0);
+}
+
+UNIV_INTERN struct st_maria_plugin	i_s_innodb_mutexes =
+{
+	/* the plugin type (a MYSQL_XXX_PLUGIN value) */
+	/* int */
+	STRUCT_FLD(type, MYSQL_INFORMATION_SCHEMA_PLUGIN),
+
+	/* pointer to type-specific plugin descriptor */
+	/* void* */
+	STRUCT_FLD(info, &i_s_info),
+
+	/* plugin name */
+	/* const char* */
+	STRUCT_FLD(name, "INNODB_MUTEXES"),
+
+	/* plugin author (for SHOW PLUGINS) */
+	/* const char* */
+	STRUCT_FLD(author, plugin_author),
+
+	/* general descriptive text (for SHOW PLUGINS) */
+	/* const char* */
+	STRUCT_FLD(descr, "InnoDB SYS_DATAFILES"),
+
+	/* the plugin license (PLUGIN_LICENSE_XXX) */
+	/* int */
+	STRUCT_FLD(license, PLUGIN_LICENSE_GPL),
+
+	/* the function to invoke when plugin is loaded */
+	/* int (*)(void*); */
+	STRUCT_FLD(init, innodb_mutexes_init),
+
+	/* the function to invoke when plugin is unloaded */
+	/* int (*)(void*); */
+	STRUCT_FLD(deinit, i_s_common_deinit),
+
+	/* plugin version (for SHOW PLUGINS) */
+	/* unsigned int */
+	STRUCT_FLD(version, INNODB_VERSION_SHORT),
+
+	/* struct st_mysql_show_var* */
+	STRUCT_FLD(status_vars, NULL),
+
+	/* struct st_mysql_sys_var** */
+	STRUCT_FLD(system_vars, NULL),
+
+        /* Maria extension */
+	STRUCT_FLD(version_info, INNODB_VERSION_STR),
+        STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_STABLE),
+};
+
+/**  SYS_SEMAPHORE_WAITS  ************************************************/
+/* Fields of the dynamic table INFORMATION_SCHEMA.INNODB_SYS_SEMAPHORE_WAITS */
+static ST_FIELD_INFO	innodb_sys_semaphore_waits_fields_info[] =
+{
+	// SYS_SEMAPHORE_WAITS_THREAD_ID	0
+	{STRUCT_FLD(field_name,		"THREAD_ID"),
+	 STRUCT_FLD(field_length,	MY_INT64_NUM_DECIMAL_DIGITS),
+	 STRUCT_FLD(field_type,		MYSQL_TYPE_LONGLONG),
+	 STRUCT_FLD(value,		0),
+	 STRUCT_FLD(field_flags,	MY_I_S_UNSIGNED),
+	 STRUCT_FLD(old_name,		""),
+	 STRUCT_FLD(open_method,	SKIP_OPEN_TABLE)},
+
+	// SYS_SEMAPHORE_WAITS_OBJECT_NAME	1
+	{STRUCT_FLD(field_name,		"OBJECT_NAME"),
+	 STRUCT_FLD(field_length,	OS_FILE_MAX_PATH),
+	 STRUCT_FLD(field_type,		MYSQL_TYPE_STRING),
+	 STRUCT_FLD(value,		0),
+	 STRUCT_FLD(field_flags,	MY_I_S_MAYBE_NULL),
+	 STRUCT_FLD(old_name,		""),
+	 STRUCT_FLD(open_method,	SKIP_OPEN_TABLE)},
+
+	// SYS_SEMAPHORE_WAITS_FILE	2
+	{STRUCT_FLD(field_name,		"FILE"),
+	 STRUCT_FLD(field_length,	OS_FILE_MAX_PATH),
+	 STRUCT_FLD(field_type,		MYSQL_TYPE_STRING),
+	 STRUCT_FLD(value,		0),
+	 STRUCT_FLD(field_flags,	MY_I_S_MAYBE_NULL),
+	 STRUCT_FLD(old_name,		""),
+	 STRUCT_FLD(open_method,	SKIP_OPEN_TABLE)},
+
+	// SYS_SEMAPHORE_WAITS_LINE	3
+	{STRUCT_FLD(field_name,		"LINE"),
+	 STRUCT_FLD(field_length,	MY_INT32_NUM_DECIMAL_DIGITS),
+	 STRUCT_FLD(field_type,		MYSQL_TYPE_LONG),
+	 STRUCT_FLD(value,		0),
+	 STRUCT_FLD(field_flags,	MY_I_S_UNSIGNED),
+	 STRUCT_FLD(old_name,		""),
+	 STRUCT_FLD(open_method,	SKIP_OPEN_TABLE)},
+
+	// SYS_SEMAPHORE_WAITS_WAIT_TIME	4
+	{STRUCT_FLD(field_name,		"WAIT_TIME"),
+	 STRUCT_FLD(field_length,	MY_INT64_NUM_DECIMAL_DIGITS),
+	 STRUCT_FLD(field_type,		MYSQL_TYPE_LONGLONG),
+	 STRUCT_FLD(value,		0),
+	 STRUCT_FLD(field_flags,	MY_I_S_UNSIGNED),
+	 STRUCT_FLD(old_name,		""),
+	 STRUCT_FLD(open_method,	SKIP_OPEN_TABLE)},
+
+	// SYS_SEMAPHORE_WAITS_WAIT_OBJECT	5
+	{STRUCT_FLD(field_name,		"WAIT_OBJECT"),
+	 STRUCT_FLD(field_length,	MY_INT64_NUM_DECIMAL_DIGITS),
+	 STRUCT_FLD(field_type,		MYSQL_TYPE_LONGLONG),
+	 STRUCT_FLD(value,		0),
+	 STRUCT_FLD(field_flags,	MY_I_S_UNSIGNED),
+	 STRUCT_FLD(old_name,		""),
+	 STRUCT_FLD(open_method,	SKIP_OPEN_TABLE)},
+
+	// SYS_SEMAPHORE_WAITS_WAIT_TYPE	6
+	{STRUCT_FLD(field_name,		"WAIT_TYPE"),
+	 STRUCT_FLD(field_length,	16),
+	 STRUCT_FLD(field_type,		MYSQL_TYPE_STRING),
+	 STRUCT_FLD(value,		0),
+	 STRUCT_FLD(field_flags,	MY_I_S_MAYBE_NULL),
+	 STRUCT_FLD(old_name,		""),
+	 STRUCT_FLD(open_method,	SKIP_OPEN_TABLE)},
+
+	// SYS_SEMAPHORE_WAITS_HOLDER_THREAD_ID	7
+	{STRUCT_FLD(field_name,		"HOLDER_THREAD_ID"),
+	 STRUCT_FLD(field_length,	MY_INT64_NUM_DECIMAL_DIGITS),
+	 STRUCT_FLD(field_type,		MYSQL_TYPE_LONGLONG),
+	 STRUCT_FLD(value,		0),
+	 STRUCT_FLD(field_flags,	MY_I_S_UNSIGNED),
+	 STRUCT_FLD(old_name,		""),
+	 STRUCT_FLD(open_method,	SKIP_OPEN_TABLE)},
+
+	// SYS_SEMAPHORE_WAITS_HOLDER_FILE 8
+	{STRUCT_FLD(field_name,		"HOLDER_FILE"),
+	 STRUCT_FLD(field_length,	OS_FILE_MAX_PATH),
+	 STRUCT_FLD(field_type,		MYSQL_TYPE_STRING),
+	 STRUCT_FLD(value,		0),
+	 STRUCT_FLD(field_flags,	MY_I_S_MAYBE_NULL),
+	 STRUCT_FLD(old_name,		""),
+	 STRUCT_FLD(open_method,	SKIP_OPEN_TABLE)},
+
+	// SYS_SEMAPHORE_WAITS_HOLDER_LINE 9
+	{STRUCT_FLD(field_name,		"HOLDER_LINE"),
+	 STRUCT_FLD(field_length,	MY_INT32_NUM_DECIMAL_DIGITS),
+	 STRUCT_FLD(field_type,		MYSQL_TYPE_LONG),
+	 STRUCT_FLD(value,		0),
+	 STRUCT_FLD(field_flags,	MY_I_S_UNSIGNED),
+	 STRUCT_FLD(old_name,		""),
+	 STRUCT_FLD(open_method,	SKIP_OPEN_TABLE)},
+
+	// SYS_SEMAPHORE_WAITS_CREATED_FILE 10
+	{STRUCT_FLD(field_name,		"CREATED_FILE"),
+	 STRUCT_FLD(field_length,	OS_FILE_MAX_PATH),
+	 STRUCT_FLD(field_type,		MYSQL_TYPE_STRING),
+	 STRUCT_FLD(value,		0),
+	 STRUCT_FLD(field_flags,	MY_I_S_MAYBE_NULL),
+	 STRUCT_FLD(old_name,		""),
+	 STRUCT_FLD(open_method,	SKIP_OPEN_TABLE)},
+
+	// SYS_SEMAPHORE_WAITS_CREATED_LINE 11
+	{STRUCT_FLD(field_name,		"CREATED_LINE"),
+	 STRUCT_FLD(field_length,	MY_INT32_NUM_DECIMAL_DIGITS),
+	 STRUCT_FLD(field_type,		MYSQL_TYPE_LONG),
+	 STRUCT_FLD(value,		0),
+	 STRUCT_FLD(field_flags,	MY_I_S_UNSIGNED),
+	 STRUCT_FLD(old_name,		""),
+	 STRUCT_FLD(open_method,	SKIP_OPEN_TABLE)},
+
+	// SYS_SEMAPHORE_WAITS_WRITER_THREAD 12
+	{STRUCT_FLD(field_name,		"WRITER_THREAD"),
+	 STRUCT_FLD(field_length,	MY_INT64_NUM_DECIMAL_DIGITS),
+	 STRUCT_FLD(field_type,		MYSQL_TYPE_LONGLONG),
+	 STRUCT_FLD(value,		0),
+	 STRUCT_FLD(field_flags,	MY_I_S_UNSIGNED),
+	 STRUCT_FLD(old_name,		""),
+	 STRUCT_FLD(open_method,	SKIP_OPEN_TABLE)},
+
+	// SYS_SEMAPHORE_WAITS_RESERVATION_MODE 13
+	{STRUCT_FLD(field_name,		"RESERVATION_MODE"),
+	 STRUCT_FLD(field_length,	16),
+	 STRUCT_FLD(field_type,		MYSQL_TYPE_STRING),
+	 STRUCT_FLD(value,		0),
+	 STRUCT_FLD(field_flags,	MY_I_S_MAYBE_NULL),
+	 STRUCT_FLD(old_name,		""),
+	 STRUCT_FLD(open_method,	SKIP_OPEN_TABLE)},
+
+	// SYS_SEMAPHORE_WAITS_READERS	14
+	{STRUCT_FLD(field_name,		"READERS"),
+	 STRUCT_FLD(field_length,	MY_INT32_NUM_DECIMAL_DIGITS),
+	 STRUCT_FLD(field_type,		MYSQL_TYPE_LONG),
+	 STRUCT_FLD(value,		0),
+	 STRUCT_FLD(field_flags,	MY_I_S_UNSIGNED),
+	 STRUCT_FLD(old_name,		""),
+	 STRUCT_FLD(open_method,	SKIP_OPEN_TABLE)},
+
+	// SYS_SEMAPHORE_WAITS_WAITERS_FLAG 15
+	{STRUCT_FLD(field_name,		"WAITERS_FLAG"),
+	 STRUCT_FLD(field_length,	MY_INT64_NUM_DECIMAL_DIGITS),
+	 STRUCT_FLD(field_type,		MYSQL_TYPE_LONGLONG),
+	 STRUCT_FLD(value,		0),
+	 STRUCT_FLD(field_flags,	MY_I_S_UNSIGNED),
+	 STRUCT_FLD(old_name,		""),
+	 STRUCT_FLD(open_method,	SKIP_OPEN_TABLE)},
+
+	// SYS_SEMAPHORE_WAITS_LOCK_WORD	16
+	{STRUCT_FLD(field_name,		"LOCK_WORD"),
+	 STRUCT_FLD(field_length,	MY_INT64_NUM_DECIMAL_DIGITS),
+	 STRUCT_FLD(field_type,		MYSQL_TYPE_LONGLONG),
+	 STRUCT_FLD(value,		0),
+	 STRUCT_FLD(field_flags,	MY_I_S_UNSIGNED),
+	 STRUCT_FLD(old_name,		""),
+	 STRUCT_FLD(open_method,	SKIP_OPEN_TABLE)},
+
+	// SYS_SEMAPHORE_WAITS_LAST_READER_FILE 17
+	{STRUCT_FLD(field_name,		"LAST_READER_FILE"),
+	 STRUCT_FLD(field_length,	OS_FILE_MAX_PATH),
+	 STRUCT_FLD(field_type,		MYSQL_TYPE_STRING),
+	 STRUCT_FLD(value,		0),
+	 STRUCT_FLD(field_flags,	MY_I_S_MAYBE_NULL),
+	 STRUCT_FLD(old_name,		""),
+	 STRUCT_FLD(open_method,	SKIP_OPEN_TABLE)},
+
+	// SYS_SEMAPHORE_WAITS_LAST_READER_LINE 18
+	{STRUCT_FLD(field_name,		"LAST_READER_LINE"),
+	 STRUCT_FLD(field_length,	MY_INT32_NUM_DECIMAL_DIGITS),
+	 STRUCT_FLD(field_type,		MYSQL_TYPE_LONG),
+	 STRUCT_FLD(value,		0),
+	 STRUCT_FLD(field_flags,	MY_I_S_UNSIGNED),
+	 STRUCT_FLD(old_name,		""),
+	 STRUCT_FLD(open_method,	SKIP_OPEN_TABLE)},
+
+	// SYS_SEMAPHORE_WAITS_LAST_WRITER_FILE 19
+	{STRUCT_FLD(field_name,		"LAST_WRITER_FILE"),
+	 STRUCT_FLD(field_length,	OS_FILE_MAX_PATH),
+	 STRUCT_FLD(field_type,		MYSQL_TYPE_STRING),
+	 STRUCT_FLD(value,		0),
+	 STRUCT_FLD(field_flags,	MY_I_S_MAYBE_NULL),
+	 STRUCT_FLD(old_name,		""),
+	 STRUCT_FLD(open_method,	SKIP_OPEN_TABLE)},
+
+	// SYS_SEMAPHORE_WAITS_LAST_WRITER_LINE 20
+	{STRUCT_FLD(field_name,		"LAST_WRITER_LINE"),
+	 STRUCT_FLD(field_length,	MY_INT32_NUM_DECIMAL_DIGITS),
+	 STRUCT_FLD(field_type,		MYSQL_TYPE_LONG),
+	 STRUCT_FLD(value,		0),
+	 STRUCT_FLD(field_flags,	MY_I_S_UNSIGNED),
+	 STRUCT_FLD(old_name,		""),
+	 STRUCT_FLD(open_method,	SKIP_OPEN_TABLE)},
+
+	// SYS_SEMAPHORE_WAITS_OS_WAIT_COUNT 21
+	{STRUCT_FLD(field_name,		"OS_WAIT_COUNT"),
+	 STRUCT_FLD(field_length,	MY_INT32_NUM_DECIMAL_DIGITS),
+	 STRUCT_FLD(field_type,		MYSQL_TYPE_LONG),
+	 STRUCT_FLD(value,		0),
+	 STRUCT_FLD(field_flags,	MY_I_S_UNSIGNED),
+	 STRUCT_FLD(old_name,		""),
+	 STRUCT_FLD(open_method,	SKIP_OPEN_TABLE)},
+
+	END_OF_ST_FIELD_INFO
+};
+
+
+
+/*******************************************************************//**
+Bind the dynamic table INFORMATION_SCHEMA.INNODB_SYS_SEMAPHORE_WAITS
+@return 0 on success */
+static
+int
+innodb_sys_semaphore_waits_init(
+/*============================*/
+	void*	p)	/*!< in/out: table schema object */
+{
+	ST_SCHEMA_TABLE*	schema;
+
+	DBUG_ENTER("innodb_sys_semaphore_waits_init");
+
+	schema = (ST_SCHEMA_TABLE*) p;
+
+	schema->fields_info = innodb_sys_semaphore_waits_fields_info;
+	schema->fill_table = sync_arr_fill_sys_semphore_waits_table;
+
+	DBUG_RETURN(0);
+}
+
+UNIV_INTERN struct st_maria_plugin	i_s_innodb_sys_semaphore_waits =
+{
+	/* the plugin type (a MYSQL_XXX_PLUGIN value) */
+	/* int */
+	STRUCT_FLD(type, MYSQL_INFORMATION_SCHEMA_PLUGIN),
+
+	/* pointer to type-specific plugin descriptor */
+	/* void* */
+	STRUCT_FLD(info, &i_s_info),
+
+	/* plugin name */
+	/* const char* */
+	STRUCT_FLD(name, "INNODB_SYS_SEMAPHORE_WAITS"),
+
+	/* plugin author (for SHOW PLUGINS) */
+	/* const char* */
+	STRUCT_FLD(author, maria_plugin_author),
+
+	/* general descriptive text (for SHOW PLUGINS) */
+	/* const char* */
+	STRUCT_FLD(descr, "InnoDB SYS_SEMAPHORE_WAITS"),
+
+	/* the plugin license (PLUGIN_LICENSE_XXX) */
+	/* int */
+	STRUCT_FLD(license, PLUGIN_LICENSE_GPL),
+
+	/* the function to invoke when plugin is loaded */
+	/* int (*)(void*); */
+	STRUCT_FLD(init, innodb_sys_semaphore_waits_init),
+
+	/* the function to invoke when plugin is unloaded */
+	/* int (*)(void*); */
+	STRUCT_FLD(deinit, i_s_common_deinit),
+
+	/* plugin version (for SHOW PLUGINS) */
+	/* unsigned int */
+	STRUCT_FLD(version, INNODB_VERSION_SHORT),
+
+	/* struct st_mysql_show_var* */
+	STRUCT_FLD(status_vars, NULL),
+
+	/* struct st_mysql_sys_var** */
+	STRUCT_FLD(system_vars, NULL),
+
+        /* Maria extension */
+	STRUCT_FLD(version_info, INNODB_VERSION_STR),
+        STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_STABLE),
 };

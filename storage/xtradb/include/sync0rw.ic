@@ -382,6 +382,12 @@ rw_lock_s_lock_low(
 	lock->last_s_file_name = file_name;
 	lock->last_s_line = line;
 
+	if (srv_instrument_semaphores) {
+		lock->thread_id = os_thread_get_curr_id();
+		lock->file_name = file_name;
+		lock->line = line;
+	}
+
 	return(TRUE);	/* locking succeeded */
 }
 
@@ -550,6 +556,12 @@ rw_lock_x_lock_func_nowait(
 #ifdef UNIV_SYNC_DEBUG
 	rw_lock_add_debug_info(lock, 0, RW_LOCK_EX, file_name, line);
 #endif
+
+	if (srv_instrument_semaphores) {
+		lock->thread_id = os_thread_get_curr_id();
+		lock->file_name = file_name;
+		lock->line = line;
+	}
 
 	lock->last_x_file_name = file_name;
 	lock->last_x_line = line;
@@ -799,10 +811,10 @@ pfs_rw_lock_create_func(
 #  ifdef UNIV_SYNC_DEBUG
 	ulint		level,		/*!< in: level */
 #  endif /* UNIV_SYNC_DEBUG */
-	const char*	cfile_name,	/*!< in: file name where created */
-	ulint		cline,		/*!< in: file line where created */
 # endif /* UNIV_DEBUG */
-	const char*	cmutex_name)	/*!< in: mutex name */
+	const char*	cmutex_name,	/*!< in: mutex name */
+	const char*	cfile_name,	/*!< in: file name where created */
+	ulint		cline)		/*!< in: file line where created */
 {
 	/* Initialize the rwlock for performance schema */
 	lock->pfs_psi = PSI_RWLOCK_CALL(init_rwlock)(key, lock);
@@ -813,10 +825,10 @@ pfs_rw_lock_create_func(
 #  ifdef UNIV_SYNC_DEBUG
 			    level,
 #  endif /* UNIV_SYNC_DEBUG */
-			    cfile_name,
-			    cline,
 # endif /* UNIV_DEBUG */
-			    cmutex_name);
+			    cmutex_name,
+			    cfile_name,
+			    cline);
 }
 
 /******************************************************************//**
@@ -834,10 +846,10 @@ pfs_rw_lock_create_func(
 #  ifdef UNIV_SYNC_DEBUG
 	ulint		level,		/*!< in: level */
 #  endif /* UNIV_SYNC_DEBUG */
-	const char*	cfile_name,	/*!< in: file name where created */
-	ulint		cline,		/*!< in: file line where created */
 # endif /* UNIV_DEBUG */
-	const char*	cmutex_name)	/*!< in: mutex name */
+	const char*	cmutex_name,	/*!< in: mutex name */
+	const char*	cfile_name,	/*!< in: file name where created */
+	ulint		cline)		/*!< in: file line where created */
 {
 	/* Initialize the rwlock for performance schema */
 	lock->base_lock.pfs_psi = PSI_RWLOCK_CALL(init_rwlock)(key, lock);
@@ -848,10 +860,10 @@ pfs_rw_lock_create_func(
 #  ifdef UNIV_SYNC_DEBUG
 			    level,
 #  endif /* UNIV_SYNC_DEBUG */
-			    cfile_name,
-			    cline,
 # endif /* UNIV_DEBUG */
-			    cmutex_name);
+			    cmutex_name,
+			    cfile_name,
+			    cline);
 }
 
 /******************************************************************//**

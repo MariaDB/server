@@ -2,6 +2,7 @@
 
 Copyright (c) 1995, 2013, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, Google Inc.
+Copyright (c) 2013, 2015, MariaDB Corporation. All Rights Reserved.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -30,10 +31,25 @@ The wait array used in synchronization primitives
 Created 9/5/1995 Heikki Tuuri
 *******************************************************/
 
+#include "univ.i"
+
 #include "sync0arr.h"
 #ifdef UNIV_NONINL
 #include "sync0arr.ic"
 #endif
+
+#include <mysqld_error.h>
+#include <mysql/plugin.h>
+#include <hash.h>
+#include <myisampack.h>
+#include <sql_acl.h>
+#include <mysys_err.h>
+#include <my_sys.h>
+#include "srv0srv.h"
+#include "srv0start.h"
+#include "i_s.h"
+#include <sql_plugin.h>
+#include <innodb_priv.h>
 
 #include "sync0sync.h"
 #include "sync0rw.h"
@@ -115,7 +131,6 @@ for an event allocated for the array without owning the
 protecting mutex (depending on the case: OS or database mutex), but
 all changes (set or reset) to the state of the event must be made
 while owning the mutex. */
-
 /** Synchronization array */
 struct sync_array_t {
 	ulint		n_reserved;	/*!< number of currently reserved
@@ -168,7 +183,6 @@ sync_array_detect_deadlock(
 /*****************************************************************//**
 Gets the nth cell in array.
 @return	cell */
-static
 sync_cell_t*
 sync_array_get_nth_cell(
 /*====================*/
@@ -507,7 +521,7 @@ sync_array_cell_print(
 		      : type == RW_LOCK_WAIT_EX ? "X-lock (wait_ex) on"
 		      : "S-lock on", file);
 
-		rwlock = cell->old_wait_rw_lock;
+		rwlock = (rw_lock_t*)cell->old_wait_rw_lock;
 
 		if (rwlock) {
 			fprintf(file,
@@ -1281,4 +1295,154 @@ sync_array_print_innodb(void)
 
 	fputs("InnoDB: Semaphore wait debug output ended:\n", stderr);
 
+}
+
+/**********************************************************************//**
+Get number of items on sync array. */
+UNIV_INTERN
+ulint
+sync_arr_get_n_items(void)
+/*======================*/
+{
+	sync_array_t*	sync_arr = sync_array_get();
+	return (ulint) sync_arr->n_cells;
+}
+
+/******************************************************************//**
+Get specified item from sync array if it is reserved. Set given
+pointer to array item if it is reserved.
+@return true if item is reserved, false othervise */
+UNIV_INTERN
+ibool
+sync_arr_get_item(
+/*==============*/
+	ulint		i,		/*!< in: requested item */
+	sync_cell_t	**cell)		/*!< out: cell contents if item
+					reserved */
+{
+	sync_array_t*	sync_arr;
+	sync_cell_t*	wait_cell;
+	void*		wait_object;
+	ibool		found = FALSE;
+
+	sync_arr = sync_array_get();
+	wait_cell = sync_array_get_nth_cell(sync_arr, i);
+
+	if (wait_cell) {
+		wait_object = wait_cell->wait_object;
+
+		if(wait_object != NULL && wait_cell->waiting) {
+			found = TRUE;
+			*cell = wait_cell;
+		}
+	}
+
+	return found;
+}
+
+/*******************************************************************//**
+Function to populate INFORMATION_SCHEMA.INNODB_SYS_SEMAPHORE_WAITS table.
+Loop through each item on sync array, and extract the column
+information and fill the INFORMATION_SCHEMA.INNODB_SYS_SEMAPHORE_WAITS table.
+@return 0 on success */
+UNIV_INTERN
+int
+sync_arr_fill_sys_semphore_waits_table(
+/*===================================*/
+	THD*		thd,	/*!< in: thread */
+	TABLE_LIST*	tables,	/*!< in/out: tables to fill */
+	Item*		)	/*!< in: condition (not used) */
+{
+	Field**		fields;
+	ulint		n_items;
+
+	DBUG_ENTER("i_s_sys_semaphore_waits_fill_table");
+	RETURN_IF_INNODB_NOT_STARTED(tables->schema_table_name);
+
+	/* deny access to user without PROCESS_ACL privilege */
+	if (check_global_access(thd, PROCESS_ACL)) {
+		DBUG_RETURN(0);
+	}
+
+	fields = tables->table->field;
+	n_items = sync_arr_get_n_items();
+	ulint type;
+
+	for(ulint i=0; i < n_items;i++) {
+		sync_cell_t *cell=NULL;
+		if (sync_arr_get_item(i, &cell)) {
+			ib_mutex_t* mutex;
+			type = cell->request_type;
+			OK(field_store_ulint(fields[SYS_SEMAPHORE_WAITS_THREAD_ID], (longlong)os_thread_pf(cell->thread)));
+			OK(field_store_string(fields[SYS_SEMAPHORE_WAITS_FILE], innobase_basename(cell->file)));
+			OK(field_store_ulint(fields[SYS_SEMAPHORE_WAITS_LINE], cell->line));
+			OK(field_store_ulint(fields[SYS_SEMAPHORE_WAITS_WAIT_TIME], (longlong)difftime(time(NULL), cell->reservation_time)));
+
+			if (type == SYNC_MUTEX) {
+				mutex = static_cast<ib_mutex_t*>(cell->old_wait_mutex);
+
+				if (mutex) {
+					OK(field_store_string(fields[SYS_SEMAPHORE_WAITS_OBJECT_NAME], mutex->cmutex_name));
+					OK(field_store_ulint(fields[SYS_SEMAPHORE_WAITS_WAIT_OBJECT], (longlong)mutex));
+					OK(field_store_string(fields[SYS_SEMAPHORE_WAITS_WAIT_TYPE], "MUTEX"));
+					OK(field_store_ulint(fields[SYS_SEMAPHORE_WAITS_HOLDER_THREAD_ID], (longlong)mutex->thread_id));
+					OK(field_store_string(fields[SYS_SEMAPHORE_WAITS_HOLDER_FILE], innobase_basename(mutex->file_name)));
+					OK(field_store_ulint(fields[SYS_SEMAPHORE_WAITS_HOLDER_LINE], mutex->line));
+					OK(field_store_string(fields[SYS_SEMAPHORE_WAITS_CREATED_FILE], innobase_basename(mutex->cfile_name)));
+					OK(field_store_ulint(fields[SYS_SEMAPHORE_WAITS_CREATED_LINE], mutex->cline));
+					OK(field_store_ulint(fields[SYS_SEMAPHORE_WAITS_WAITERS_FLAG], (longlong)mutex->waiters));
+					OK(field_store_ulint(fields[SYS_SEMAPHORE_WAITS_LOCK_WORD], (longlong)mutex->lock_word));
+					OK(field_store_string(fields[SYS_SEMAPHORE_WAITS_LAST_WRITER_FILE], innobase_basename(mutex->file_name)));
+					OK(field_store_ulint(fields[SYS_SEMAPHORE_WAITS_LAST_WRITER_LINE], mutex->line));
+					OK(field_store_ulint(fields[SYS_SEMAPHORE_WAITS_OS_WAIT_COUNT], mutex->count_os_wait));
+				}
+			} else if (type == RW_LOCK_EX
+				|| type == RW_LOCK_WAIT_EX
+				|| type == RW_LOCK_SHARED) {
+				rw_lock_t* rwlock=NULL;
+
+				rwlock = static_cast<rw_lock_t *> (cell->old_wait_rw_lock);
+
+				if (rwlock) {
+					ulint writer = rw_lock_get_writer(rwlock);
+
+					OK(field_store_ulint(fields[SYS_SEMAPHORE_WAITS_WAIT_OBJECT], (longlong)rwlock));
+					if (type == RW_LOCK_EX) {
+						OK(field_store_string(fields[SYS_SEMAPHORE_WAITS_WAIT_TYPE], "RW_LOCK_EX"));
+					} else if (type == RW_LOCK_WAIT_EX) {
+						OK(field_store_string(fields[SYS_SEMAPHORE_WAITS_WAIT_TYPE], "RW_LOCK_WAIT_EX"));
+					} else if (type == RW_LOCK_SHARED) {
+						OK(field_store_string(fields[SYS_SEMAPHORE_WAITS_WAIT_TYPE], "RW_LOCK_SHARED"));
+					}
+
+					if (writer != RW_LOCK_NOT_LOCKED) {
+						OK(field_store_string(fields[SYS_SEMAPHORE_WAITS_OBJECT_NAME], rwlock->lock_name));
+						OK(field_store_ulint(fields[SYS_SEMAPHORE_WAITS_WRITER_THREAD], (longlong)os_thread_pf(rwlock->writer_thread)));
+
+						if (writer == RW_LOCK_EX) {
+							OK(field_store_string(fields[SYS_SEMAPHORE_WAITS_RESERVATION_MODE], "RW_LOCK_EX"));
+						} else if (writer == RW_LOCK_WAIT_EX) {
+							OK(field_store_string(fields[SYS_SEMAPHORE_WAITS_RESERVATION_MODE], "RW_LOCK_WAIT_EX"));
+						}
+
+						OK(field_store_ulint(fields[SYS_SEMAPHORE_WAITS_HOLDER_THREAD_ID], (longlong)rwlock->thread_id));
+						OK(field_store_string(fields[SYS_SEMAPHORE_WAITS_HOLDER_FILE], innobase_basename(rwlock->file_name)));
+						OK(field_store_ulint(fields[SYS_SEMAPHORE_WAITS_HOLDER_LINE], rwlock->line));
+						OK(field_store_ulint(fields[SYS_SEMAPHORE_WAITS_READERS], rw_lock_get_reader_count(rwlock)));
+						OK(field_store_ulint(fields[SYS_SEMAPHORE_WAITS_WAITERS_FLAG], (longlong)rwlock->waiters));
+						OK(field_store_ulint(fields[SYS_SEMAPHORE_WAITS_LOCK_WORD], (longlong)rwlock->lock_word));
+						OK(field_store_string(fields[SYS_SEMAPHORE_WAITS_LAST_READER_FILE], innobase_basename(rwlock->last_s_file_name)));
+						OK(field_store_ulint(fields[SYS_SEMAPHORE_WAITS_LAST_READER_LINE], rwlock->last_s_line));
+						OK(field_store_string(fields[SYS_SEMAPHORE_WAITS_LAST_WRITER_FILE], innobase_basename(rwlock->last_x_file_name)));
+						OK(field_store_ulint(fields[SYS_SEMAPHORE_WAITS_LAST_WRITER_LINE], rwlock->last_x_line));
+						OK(field_store_ulint(fields[SYS_SEMAPHORE_WAITS_OS_WAIT_COUNT], rwlock->count_os_wait));
+					}
+				}
+			}
+
+			OK(schema_table_store_record(thd, tables->table));
+		}
+	}
+
+	DBUG_RETURN(0);
 }

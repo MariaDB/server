@@ -20412,6 +20412,12 @@ static MYSQL_SYSVAR_BOOL(scrub_force_testing,
 			 NULL, NULL, FALSE);
 #endif /* UNIV_DEBUG */
 
+static MYSQL_SYSVAR_BOOL(instrument_semaphores, srv_instrument_semaphores,
+  PLUGIN_VAR_OPCMDARG,
+  "Enable semaphore request instrumentation. This could have some effect on performance but allows better"
+  " information on long semaphore wait problems. (Default: not enabled)",
+  0, 0, FALSE);
+
 static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(log_block_size),
   MYSQL_SYSVAR(additional_mem_pool_size),
@@ -20646,7 +20652,7 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
 #ifdef UNIV_DEBUG
   MYSQL_SYSVAR(scrub_force_testing),
 #endif
-
+  MYSQL_SYSVAR(instrument_semaphores),
   NULL
 };
 
@@ -20698,6 +20704,8 @@ i_s_innodb_sys_foreign_cols,
 i_s_innodb_sys_tablespaces,
 i_s_innodb_sys_datafiles,
 i_s_innodb_changed_pages,
+i_s_innodb_mutexes,
+i_s_innodb_sys_semaphore_waits,
 i_s_innodb_tablespaces_encryption,
 i_s_innodb_tablespaces_scrubbing
 maria_declare_plugin_end;

@@ -78,6 +78,7 @@ Created 10/8/1995 Heikki Tuuri
 #include "fil0pagecompress.h"
 #include <my_rdtsc.h>
 #include "btr0scrub.h"
+#include "fil0pageencryption.h"
 
 /* prototypes of new functions added to ha_innodb.cc for kill_idle_transaction */
 ibool		innobase_thd_is_idle(const void* thd);
@@ -670,7 +671,10 @@ second. */
 static time_t	srv_last_log_flush_time;
 
 /** Default encryption key used for page encryption */
-UNIV_INTERN uint	srv_default_page_encryption_key;
+UNIV_INTERN uint	srv_default_page_encryption_key = DEFAULT_ENCRYPTION_KEY;
+
+/** Enable semaphore request instrumentation */
+UNIV_INTERN my_bool 	srv_instrument_semaphores = FALSE;
 
 /* Interval in seconds at which various tasks are performed by the
 master thread when server is active. In order to balance the workload,

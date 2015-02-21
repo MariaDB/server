@@ -565,6 +565,9 @@ extern ulong	srv_fatal_semaphore_wait_threshold;
 /** Default encryption key used for page encryption */
 extern uint srv_default_page_encryption_key;
 
+/** Enable semaphore request instrumentation */
+extern my_bool srv_instrument_semaphores;
+
 # ifdef UNIV_PFS_THREAD
 /* Keys to register InnoDB threads with performance schema */
 extern mysql_pfs_key_t	buf_page_cleaner_thread_key;
