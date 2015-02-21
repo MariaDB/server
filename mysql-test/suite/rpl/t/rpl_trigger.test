@@ -533,6 +533,19 @@ drop table t1, log;
 sync_slave_with_master;
 
 #
+# MDEV-6769 DROP TRIGGER IF NOT EXIST binlogged on master but not on slave
+#
+let $slave_pos= query_get_value(SHOW MASTER STATUS, Position, 1);
+connection master;
+let $binlog_start= query_get_value(SHOW MASTER STATUS, Position, 1);
+drop trigger if exists notexistent;
+source include/show_binlog_events.inc;
+sync_slave_with_master;
+let $binlog_start= $slave_pos;
+source include/show_binlog_events.inc;
+connection master;
+
+#
 # End of tests
 #
 --source include/rpl_end.inc
