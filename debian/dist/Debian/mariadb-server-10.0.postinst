@@ -21,7 +21,7 @@ invoke() {
   fi
 }
 
-MYSQL_BOOTSTRAP="/usr/sbin/mysqld --bootstrap --user=mysql --skip-grant-tables --default-storage-engine=myisam"
+MYSQL_BOOTSTRAP="/usr/sbin/mysqld --bootstrap --user=mysql --disable-log-bin --skip-grant-tables --default-storage-engine=myisam"
 
 test_mysql_access() {
        mysql --no-defaults -u root -h localhost </dev/null >/dev/null 2>&1
@@ -40,6 +40,7 @@ set_mysql_rootpw() {
        # this avoids us having to call "test" or "[" on $rootpw
        cat << EOF > $tfile
 USE mysql;
+SET sql_log_bin=0;
 UPDATE user SET password=PASSWORD("$rootpw") WHERE user='root';
 FLUSH PRIVILEGES;
 EOF
@@ -144,7 +145,7 @@ EOF
     # Debian: beware of the bashisms... 
     # Debian: can safely run on upgrades with existing databases 
     set +e
-    /bin/bash /usr/bin/mysql_install_db --rpm --user=mysql 2>&1 | $ERR_LOGGER
+    /bin/bash /usr/bin/mysql_install_db --rpm --user=mysql --disable-log-bin 2>&1 | $ERR_LOGGER
     set -e
     
     ## On every reconfiguration the maintenance user is recreated.
