@@ -27,7 +27,7 @@ begin
   declare current_num int;
   set current_num = 0;
   while current_num < repeat_count do
-    insert into innodb_normal values(current_num, substring(MD5(RAND()), -64));
+    insert into innodb_normal values(current_num, substring(MD5(RAND()), -128));
     set current_num = current_num + 1;
   end while;
 end//
@@ -35,7 +35,7 @@ delimiter ;//
 commit;
 
 set autocommit=0;
-call innodb_insert_proc(2000);
+call innodb_insert_proc(5000);
 commit;
 set autocommit=1;
 

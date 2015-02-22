@@ -29,13 +29,13 @@ begin
 declare current_num int;
 set current_num = 0;
 while current_num < repeat_count do
-insert into innodb_normal values(current_num, substring(MD5(RAND()), -64));
+insert into innodb_normal values(current_num, substring(MD5(RAND()), -128));
 set current_num = current_num + 1;
 end while;
 end//
 commit;
 set autocommit=0;
-call innodb_insert_proc(2000);
+call innodb_insert_proc(5000);
 commit;
 set autocommit=1;
 insert into innodb_compact select * from innodb_normal;
@@ -45,21 +45,21 @@ update innodb_compact set c1 = c1 + 1;
 update innodb_dynamic set c1 = c1 + 1;
 select count(*) from innodb_normal;
 count(*)
-2000
+5000
 select count(*) from innodb_compact where c1 < 1500000;
 count(*)
-2000
+5000
 select count(*) from innodb_dynamic where c1 < 1500000;
 count(*)
-2000
+5000
 select count(*) from innodb_compact t1, innodb_normal t2 where
 t1.c1 = t2.c1 and t1.b = t2.b;
 count(*)
-2000
+5000
 select count(*) from innodb_dynamic t1, innodb_normal t2 where
 t1.c1 = t2.c1 and t1.b = t2.b;
 count(*)
-2000
+5000
 SELECT variable_value >= 0 FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_num_pages_page_encrypted';
 variable_value >= 0
 1
@@ -83,21 +83,21 @@ update innodb_compact set c1 = c1 + 1;
 update innodb_dynamic set c1 = c1 + 1;
 select count(*) from innodb_normal;
 count(*)
-2000
+5000
 select count(*) from innodb_compact where c1 < 1500000;
 count(*)
-2000
+5000
 select count(*) from innodb_dynamic where c1 < 1500000;
 count(*)
-2000
+5000
 select count(*) from innodb_compact t1, innodb_normal t2 where
 t1.c1 = t2.c1 and t1.b = t2.b;
 count(*)
-2000
+5000
 select count(*) from innodb_dynamic t1, innodb_normal t2 where
 t1.c1 = t2.c1 and t1.b = t2.b;
 count(*)
-2000
+5000
 SELECT variable_value >= 0 FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_num_pages_page_encrypted';
 variable_value >= 0
 1
@@ -159,21 +159,21 @@ update innodb_compact set c1 = c1 + 1;
 update innodb_dynamic set c1 = c1 + 1;
 select count(*) from innodb_normal;
 count(*)
-2000
+5000
 select count(*) from innodb_compact where c1 < 1500000;
 count(*)
-2000
+5000
 select count(*) from innodb_dynamic where c1 < 1500000;
 count(*)
-2000
+5000
 select count(*) from innodb_compact t1, innodb_normal t2 where
 t1.c1 = t2.c1 and t1.b = t2.b;
 count(*)
-2000
+5000
 select count(*) from innodb_dynamic t1, innodb_normal t2 where
 t1.c1 = t2.c1 and t1.b = t2.b;
 count(*)
-2000
+5000
 SELECT variable_value = 0 FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_num_pages_page_encrypted';
 variable_value = 0
 1
