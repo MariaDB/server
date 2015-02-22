@@ -144,12 +144,12 @@ PGLOBAL PlugInit(LPCSTR Language, uint worksize)
     return NULL;
   } else {
     g->Sarea_Size = worksize;
-    g->Trace = 0;
     g->Createas = 0;
     g->Alchecked = 0;
     g->Mrr = 0;
     g->Activityp = g->ActivityStart = NULL;
     g->Xchk = NULL;
+    g->N = 0;
     strcpy(g->Message, "");
 
     /*******************************************************************/

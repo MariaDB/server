@@ -787,7 +787,7 @@ bool TDBODBC::OpenDB(PGLOBAL g)
   {
   bool rc = true;
 
-  if (g->Trace)
+  if (trace)
     htrc("ODBC OpenDB: tdbp=%p tdb=R%d use=%dmode=%d\n",
             this, Tdb_No, Use, Mode);
 
@@ -1185,12 +1185,12 @@ void ODBCCOL::ReadColumn(PGLOBAL g)
 
   } // endif Buf_Type
 
-  if (g->Trace) {
+  if (trace) {
     char buf[64];
 
     htrc("ODBC Column %s: rows=%d buf=%p type=%d value=%s\n",
       Name, tdbp->Rows, Bufp, Buf_Type, Value->GetCharString(buf));
-    } // endif Trace
+    } // endif trace
 
  put:
   if (tdbp->Memory != 2)
@@ -1424,7 +1424,7 @@ bool TDBXDBC::OpenDB(PGLOBAL g)
   {
   bool rc = false;
 
-  if (g->Trace)
+  if (trace)
     htrc("ODBC OpenDB: tdbp=%p tdb=R%d use=%dmode=%d\n",
             this, Tdb_No, Use, Mode);
 
