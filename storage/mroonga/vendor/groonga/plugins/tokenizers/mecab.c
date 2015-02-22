@@ -1,5 +1,5 @@
 /* -*- c-basic-offset: 2 -*- */
-/* Copyright(C) 2009-2012 Brazil
+/* Copyright(C) 2009-2015 Brazil
 
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -15,13 +15,14 @@
   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 */
 
-#include <str.h>
+#include <grn_str.h>
 
 #include <groonga.h>
 #include <groonga/tokenizer.h>
 
 #include <mecab.h>
 
+#include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
 
@@ -37,6 +38,21 @@ typedef struct {
   grn_tokenizer_query *query;
   grn_tokenizer_token token;
 } grn_mecab_tokenizer;
+
+static const char *
+mecab_global_error_message(void)
+{
+  double version;
+
+  version = atof(mecab_version());
+  /* MeCab <= 0.993 doesn't support mecab_strerror(NULL). */
+  if (version <= 0.993) {
+    return "Unknown";
+  }
+
+  return mecab_strerror(NULL);
+}
+
 
 static grn_encoding
 translate_mecab_charset_to_grn_encoding(const char *charset)
@@ -96,7 +112,7 @@ mecab_init(grn_ctx *ctx, int nargs, grn_obj **args, grn_user_data *user_data)
         GRN_PLUGIN_ERROR(ctx, GRN_TOKENIZER_ERROR,
                          "[tokenizer][mecab] "
                          "mecab_new2() failed on mecab_init(): %s",
-                         mecab_strerror(NULL));
+                         mecab_global_error_message());
       } else {
         sole_mecab_encoding = get_mecab_encoding(sole_mecab);
       }
@@ -273,7 +289,7 @@ check_mecab_dictionary_encoding(grn_ctx *ctx)
     GRN_PLUGIN_ERROR(ctx, GRN_TOKENIZER_ERROR,
                      "[tokenizer][mecab] "
                      "mecab_new2 failed in check_mecab_dictionary_encoding: %s",
-                     mecab_strerror(NULL));
+                     mecab_global_error_message());
   }
 #endif
 }

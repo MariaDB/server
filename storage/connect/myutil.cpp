@@ -26,14 +26,16 @@
 #include "myutil.h"
 #define  DLL_EXPORT            // Items are exported from this DLL
 
-extern "C" int xconv;
+//extern "C" int xconv;
+TYPCONV GetTypeConv(void);
 
 /************************************************************************/
 /*  Convert from MySQL type name to PlugDB type number                  */
 /************************************************************************/
 int MYSQLtoPLG(char *typname, char *var)
   {
-  int type;
+  int     type;
+  TYPCONV xconv = GetTypeConv();
 
   if (!stricmp(typname, "int") || !stricmp(typname, "mediumint") ||
       !stricmp(typname, "integer"))
@@ -57,13 +59,13 @@ int MYSQLtoPLG(char *typname, char *var)
     type = TYPE_TINY;
   else if (!stricmp(typname, "text") && var) {
     switch (xconv) {
-      case 1:
+      case TPC_YES:
         type = TYPE_STRING;
         *var = 'X';
         break;
-      case 2:
+      case TPC_SKIP:
         *var = 'K';
-      default:
+      default: // TPC_NO
         type = TYPE_ERROR;
       } // endswitch xconv
 
@@ -88,7 +90,7 @@ int MYSQLtoPLG(char *typname, char *var)
     } else if (type == TYPE_STRING && !stricmp(typname, "varchar"))
       // This is to make the difference between CHAR and VARCHAR 
       *var = 'V';
-    else if (type == TYPE_ERROR && xconv == 2)
+    else if (type == TYPE_ERROR && xconv == TPC_SKIP)
       *var = 'K';
     else
       *var = 0;
@@ -174,7 +176,7 @@ const char *PLGtoMYSQLtype(int type, bool dbf, char v)
 /************************************************************************/
 int MYSQLtoPLG(int mytype, char *var)
   {
-  int type;
+  int type, xconv = GetTypeConv();
 
   switch (mytype) {
     case MYSQL_TYPE_SHORT:
@@ -221,7 +223,7 @@ int MYSQLtoPLG(int mytype, char *var)
     case MYSQL_TYPE_LONG_BLOB:
       if (var) {
         switch (xconv) {
-          case 1:
+          case TPC_YES:
             if (*var != 'B') {
               // This is a TEXT column
               type = TYPE_STRING;
@@ -230,9 +232,9 @@ int MYSQLtoPLG(int mytype, char *var)
               type = TYPE_ERROR;
  
             break;
-          case 2:
+          case TPC_SKIP:
             *var = 'K';       // Skip
-          default:
+          default:            // TPC_NO
             type = TYPE_ERROR;
           } // endswitch xconv
 

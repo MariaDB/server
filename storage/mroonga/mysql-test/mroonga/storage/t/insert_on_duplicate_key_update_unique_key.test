@@ -29,11 +29,14 @@ CREATE TABLE diaries (
 SHOW CREATE TABLE diaries;
 
 INSERT INTO diaries (day, title)
-       VALUES ("2012-02-14", "clear day")
-       ON DUPLICATE KEY UPDATE title = "clear day (duplicated)";
+       VALUES ("2012-02-14", "clear day1")
+       ON DUPLICATE KEY UPDATE title = "clear day1 (duplicated)";
 INSERT INTO diaries (day, title)
-       VALUES ("2012-02-14", "rainy day")
-       ON DUPLICATE KEY UPDATE title = "rainy day (duplicated)";
+       VALUES ("2012-02-14", "clear day2")
+       ON DUPLICATE KEY UPDATE title = "clear day2 (duplicated)";
+INSERT INTO diaries (day, title)
+       VALUES ("2012-02-14", "clear day3")
+       ON DUPLICATE KEY UPDATE title = "clear day3 (duplicated)";
 INSERT INTO diaries (day, title)
        VALUES ("2012-02-15", "cloudy day")
        ON DUPLICATE KEY UPDATE title = "cloudy day (duplicated)";

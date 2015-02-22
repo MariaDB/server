@@ -4957,6 +4957,9 @@ retry:
 			success = TRUE;
 		}
 
+		DBUG_EXECUTE_IF("ib_os_aio_func_io_failure_28",
+			success = FALSE; errno = 28; os_has_said_disk_full = TRUE;);
+
 		mutex_enter(&fil_system->mutex);
 		if (success) {
 			node->size += n_pages;
@@ -4998,6 +5001,11 @@ retry:
 				 offset, page_size * n_pages,
 				 NULL, NULL);
 #endif /* UNIV_HOTBACKUP */
+
+
+		DBUG_EXECUTE_IF("ib_os_aio_func_io_failure_28",
+			success = FALSE; errno = 28; os_has_said_disk_full = TRUE;);
+
 		if (success) {
 			os_has_said_disk_full = FALSE;
 		} else {

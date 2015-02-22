@@ -462,6 +462,26 @@ DROP EVENT teste_bug11763507;
 --echo # ------------------------------------------------------------------
 
 #
+# A case of SHOW GRANTS
+# (creating a new procedure changes the password)
+#
+grant create routine on test.* to foo1@localhost identified by 'foo';
+update mysql.user set password = replace(password, '*', '-') where user='foo1';
+--connect (foo,localhost,foo1,foo)
+show grants;
+--connection default
+flush privileges;
+--connection foo
+show grants;
+create procedure spfoo() select 1;
+show grants;
+
+--connection default
+--disconnect foo
+drop procedure spfoo;
+drop user foo1@localhost;
+
+#
 # Restore global concurrent_insert value. Keep in the end of the test file.
 #
 

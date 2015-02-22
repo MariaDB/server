@@ -1,0 +1,16 @@
+SET @mroonga_boolean_mode_syntax_flags_backup =
+@@mroonga_boolean_mode_syntax_flags;
+SET mroonga_boolean_mode_syntax_flags = "SYNTAX_QUERY,ALLOW_LEADING_NOT";
+SET NAMES UTF8;
+CREATE TABLE diaries (
+title TEXT,
+FULLTEXT KEY (title)
+) DEFAULT CHARSET=utf8;
+INSERT INTO diaries VALUES("Groonga");
+INSERT INTO diaries VALUES("Mroonga");
+SELECT * FROM diaries WHERE MATCH(title) AGAINST("-Groonga" IN BOOLEAN MODE);
+title
+Mroonga
+DROP TABLE diaries;
+SET mroonga_boolean_mode_syntax_flags =
+@mroonga_boolean_mode_syntax_flags_backup;

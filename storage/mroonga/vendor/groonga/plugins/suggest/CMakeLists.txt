@@ -24,6 +24,4 @@ set_source_files_properties(${SUGGEST_SOURCES}
   COMPILE_FLAGS "${GRN_C_COMPILE_FLAGS}")
 set_target_properties(suggest PROPERTIES PREFIX "")
 target_link_libraries(suggest libgroonga)
-if(NOT MRN_GROONGA_BUNDLED)
-  install(TARGETS suggest DESTINATION "${GRN_RELATIVE_PLUGINS_DIR}/suggest")
-endif()
+install(TARGETS suggest DESTINATION "${GRN_RELATIVE_PLUGINS_DIR}/suggest")

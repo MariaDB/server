@@ -11,6 +11,7 @@ EXTRA_DIST =					\
 	mruby/CMakeLists.txt
 
 dist-hook:
+	rm -rf $(distdir)/$(NGINX_DIR)/objs/
 	GIT_DIR=$(srcdir)/mruby-source/.git git archive --format=tar HEAD | \
 	  tar xf - -C $(distdir)/mruby-source
 	$(MKDIR_P) $(distdir)/onigmo-source

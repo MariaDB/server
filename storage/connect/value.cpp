@@ -436,6 +436,9 @@ PVAL AllocateValue(PGLOBAL g, PVAL valp, int newtype, int uns)
   bool un = (uns < 0) ? false : (uns > 0) ? true : valp->IsUnsigned();
   PVAL vp;
 
+  if (!valp)
+    return NULL;
+    
   if (newtype == TYPE_VOID)  // Means allocate a value of the same type
     newtype = valp->GetType();
 
@@ -443,8 +446,8 @@ PVAL AllocateValue(PGLOBAL g, PVAL valp, int newtype, int uns)
     case TYPE_STRING:
       p = (PSZ)PlugSubAlloc(g, NULL, 1 + valp->GetValLen());
 
-      if ((sp = valp->GetCharString(p)) != p)
-        strcpy (p, sp);
+      if ((sp = valp->GetCharString(p)) != p && sp)
+        strcpy(p, sp);
 
       vp = new(g) TYPVAL<PSZ>(g, p, valp->GetValLen(), valp->GetValPrec());
       break;
@@ -1216,12 +1219,12 @@ TYPVAL<PSZ>::TYPVAL(PSZ s) : VALUE(TYPE_STRING)
 TYPVAL<PSZ>::TYPVAL(PGLOBAL g, PSZ s, int n, int c)
            : VALUE(TYPE_STRING)
   {
-  Len = (g) ? n : strlen(s);
+  Len = (g) ? n : (s) ? strlen(s) : 0;
 
   if (!s) {
     if (g) {
       if ((Strp = (char *)PlgDBSubAlloc(g, NULL, Len + 1)))
-        Strp[Len] = '\0';
+        memset(Strp, 0, Len + 1);
       else
         Len = 0;
 

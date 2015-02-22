@@ -1,6 +1,6 @@
 /* -*- c-basic-offset: 2 -*- */
 /*
-  Copyright(C) 2009-2014 Brazil
+  Copyright(C) 2009-2015 Brazil
 
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -16,20 +16,22 @@
   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 */
 
-#ifdef WIN32
-# define GROONGA_MAIN
-#endif /* WIN32 */
-#include "lib/groonga_in.h"
-
-#include "lib/com.h"
-#include "lib/ctx_impl.h"
-#include "lib/proc.h"
-#include "lib/db.h"
-#include "lib/util.h"
 #include <string.h>
 #include <stdio.h>
 #include <ctype.h>
 #include <fcntl.h>
+
+#ifdef WIN32
+# define GROONGA_MAIN
+#endif /* WIN32 */
+#include <grn.h>
+
+#include <grn_com.h>
+#include <grn_ctx_impl.h>
+#include <grn_proc.h>
+#include <grn_db.h>
+#include <grn_util.h>
+
 #ifdef HAVE_SYS_WAIT_H
 # include <sys/wait.h>
 #endif /* HAVE_SYS_WAIT_H */
@@ -48,7 +50,14 @@
 # include <sys/sysctl.h>
 #endif /* HAVE_SYS_SYSCTL_H */
 
+#ifdef HAVE_IO_H
+# include <io.h>
+#endif /* HAVE_IO_H */
+
 #ifdef HAVE__STRNICMP
+# ifdef strncasecmp
+#  undef strncasecmp
+# endif /* strcasecmp */
 # define strncasecmp(s1,s2,n) _strnicmp(s1,s2,n)
 #endif /* HAVE__STRNICMP */
 
@@ -210,6 +219,7 @@ read_next_line(grn_ctx *ctx, grn_obj *buf)
     rc = line_editor_fgets(ctx, buf);
 #else
     fprintf(stderr, "> ");
+    fflush(stderr);
     rc = grn_text_fgets(ctx, buf, stdin);
 #endif
   } else {
@@ -271,28 +281,70 @@ output_envelope(grn_ctx *ctx, grn_rc rc, grn_obj *head, grn_obj *body, grn_obj *
 }
 
 static void
-s_output(grn_ctx *ctx, int flags, void *arg)
+s_output_raw(grn_ctx *ctx, int flags, FILE *stream)
+{
+  char *chunk = NULL;
+  unsigned int chunk_size = 0;
+  int recv_flags;
+
+  grn_ctx_recv(ctx, &chunk, &chunk_size, &recv_flags);
+  if (chunk_size > 0) {
+    fwrite(chunk, 1, chunk_size, stream);
+  }
+
+  if (flags & GRN_CTX_TAIL) {
+    grn_obj *command;
+
+    fflush(stream);
+
+    command = GRN_CTX_USER_DATA(ctx)->ptr;
+    GRN_BULK_REWIND(command);
+  }
+}
+
+static void
+s_output_typed(grn_ctx *ctx, int flags, FILE *stream)
 {
   if (ctx && ctx->impl && (flags & GRN_CTX_TAIL)) {
-    grn_obj *buf = ctx->impl->outbuf;
+    char *chunk = NULL;
+    unsigned int chunk_size = 0;
+    int recv_flags;
+    grn_obj body;
     grn_obj *command;
-    if (GRN_TEXT_LEN(buf) || ctx->rc) {
-      FILE * stream = (FILE *) arg;
+
+    GRN_TEXT_INIT(&body, 0);
+    grn_ctx_recv(ctx, &chunk, &chunk_size, &recv_flags);
+    GRN_TEXT_SET(ctx, &body, chunk, chunk_size);
+
+    if (GRN_TEXT_LEN(&body) || ctx->rc) {
       grn_obj head, foot;
       GRN_TEXT_INIT(&head, 0);
       GRN_TEXT_INIT(&foot, 0);
-      output_envelope(ctx, ctx->rc, &head, buf, &foot);
+      output_envelope(ctx, ctx->rc, &head, &body, &foot);
       fwrite(GRN_TEXT_VALUE(&head), 1, GRN_TEXT_LEN(&head), stream);
-      fwrite(GRN_TEXT_VALUE(buf), 1, GRN_TEXT_LEN(buf), stream);
+      fwrite(GRN_TEXT_VALUE(&body), 1, GRN_TEXT_LEN(&body), stream);
       fwrite(GRN_TEXT_VALUE(&foot), 1, GRN_TEXT_LEN(&foot), stream);
       fputc('\n', stream);
       fflush(stream);
-      GRN_BULK_REWIND(buf);
       GRN_OBJ_FIN(ctx, &head);
       GRN_OBJ_FIN(ctx, &foot);
     }
+    GRN_OBJ_FIN(ctx, &body);
+
     command = GRN_CTX_USER_DATA(ctx)->ptr;
     GRN_BULK_REWIND(command);
+  }
+}
+
+static void
+s_output(grn_ctx *ctx, int flags, void *arg)
+{
+  FILE *stream = (FILE *)arg;
+
+  if (grn_ctx_get_output_type(ctx) == GRN_CONTENT_NONE) {
+    s_output_raw(ctx, flags, stream);
+  } else {
+    s_output_typed(ctx, flags, stream);
   }
 }
 
@@ -584,7 +636,7 @@ run_server(grn_ctx *ctx, grn_obj *db, grn_com_event *ev,
   struct hostent *he;
   if (!(he = gethostbyname(hostname))) {
     send_ready_notify();
-    SERR("gethostbyname");
+    SOERR("gethostbyname");
   } else {
     ev->opaque = db;
     grn_edges_init(ctx, dispatcher);
@@ -643,91 +695,252 @@ start_service(grn_ctx *ctx, const char *db_path,
 
 typedef struct {
   grn_msg *msg;
+  grn_bool in_body;
+  grn_bool is_chunked;
 } ht_context;
+
+static void
+h_output_set_header(grn_ctx *ctx, grn_obj *header,
+                    grn_rc rc, long long int content_length)
+{
+  switch (rc) {
+  case GRN_SUCCESS :
+    GRN_TEXT_SETS(ctx, header, "HTTP/1.1 200 OK\r\n");
+    break;
+  case GRN_INVALID_ARGUMENT :
+  case GRN_SYNTAX_ERROR :
+    GRN_TEXT_SETS(ctx, header, "HTTP/1.1 400 Bad Request\r\n");
+    break;
+  case GRN_NO_SUCH_FILE_OR_DIRECTORY :
+    GRN_TEXT_SETS(ctx, header, "HTTP/1.1 404 Not Found\r\n");
+    break;
+  default :
+    GRN_TEXT_SETS(ctx, header, "HTTP/1.1 500 Internal Server Error\r\n");
+    break;
+  }
+  GRN_TEXT_PUTS(ctx, header, "Content-Type: ");
+  GRN_TEXT_PUTS(ctx, header, grn_ctx_get_mime_type(ctx));
+  GRN_TEXT_PUTS(ctx, header, "\r\n");
+  if (content_length >= 0) {
+    GRN_TEXT_PUTS(ctx, header, "Connection: close\r\n");
+    GRN_TEXT_PUTS(ctx, header, "Content-Length: ");
+    grn_text_lltoa(ctx, header, content_length);
+    GRN_TEXT_PUTS(ctx, header, "\r\n");
+  } else {
+    GRN_TEXT_PUTS(ctx, header, "Transfer-Encoding: chunked\r\n");
+  }
+  GRN_TEXT_PUTS(ctx, header, "\r\n");
+}
+
+static void
+h_output_send(grn_ctx *ctx, grn_sock fd,
+              grn_obj *header, grn_obj *head, grn_obj *body, grn_obj *foot)
+{
+  ssize_t ret;
+  ssize_t len = 0;
+#ifdef WIN32
+  int n_buffers = 0;
+  WSABUF wsabufs[4];
+  if (header) {
+    wsabufs[n_buffers].buf = GRN_TEXT_VALUE(header);
+    wsabufs[n_buffers].len = GRN_TEXT_LEN(header);
+    len += GRN_TEXT_LEN(header);
+    n_buffers++;
+  }
+  if (head) {
+    wsabufs[n_buffers].buf = GRN_TEXT_VALUE(head);
+    wsabufs[n_buffers].len = GRN_TEXT_LEN(head);
+    len += GRN_TEXT_LEN(head);
+    n_buffers++;
+  }
+  if (body) {
+    wsabufs[n_buffers].buf = GRN_TEXT_VALUE(body);
+    wsabufs[n_buffers].len = GRN_TEXT_LEN(body);
+    len += GRN_TEXT_LEN(body);
+    n_buffers++;
+  }
+  if (foot) {
+    wsabufs[n_buffers].buf = GRN_TEXT_VALUE(foot);
+    wsabufs[n_buffers].len = GRN_TEXT_LEN(foot);
+    len += GRN_TEXT_LEN(foot);
+    n_buffers++;
+  }
+  {
+    DWORD sent;
+    if (WSASend(fd, wsabufs, n_buffers, &sent, 0, NULL, NULL) == SOCKET_ERROR) {
+      SOERR("WSASend");
+    }
+    ret = sent;
+  }
+#else /* WIN32 */
+  struct iovec msg_iov[4];
+  struct msghdr msg;
+  msg.msg_name = NULL;
+  msg.msg_namelen = 0;
+  msg.msg_iov = msg_iov;
+  msg.msg_iovlen = 0;
+  msg.msg_control = NULL;
+  msg.msg_controllen = 0;
+  msg.msg_flags = 0;
+
+  if (header) {
+    msg_iov[msg.msg_iovlen].iov_base = GRN_TEXT_VALUE(header);
+    msg_iov[msg.msg_iovlen].iov_len = GRN_TEXT_LEN(header);
+    len += GRN_TEXT_LEN(header);
+    msg.msg_iovlen++;
+  }
+  if (head) {
+    msg_iov[msg.msg_iovlen].iov_base = GRN_TEXT_VALUE(head);
+    msg_iov[msg.msg_iovlen].iov_len = GRN_TEXT_LEN(head);
+    len += GRN_TEXT_LEN(head);
+    msg.msg_iovlen++;
+  }
+  if (body) {
+    msg_iov[msg.msg_iovlen].iov_base = GRN_TEXT_VALUE(body);
+    msg_iov[msg.msg_iovlen].iov_len = GRN_TEXT_LEN(body);
+    len += GRN_TEXT_LEN(body);
+    msg.msg_iovlen++;
+  }
+  if (foot) {
+    msg_iov[msg.msg_iovlen].iov_base = GRN_TEXT_VALUE(foot);
+    msg_iov[msg.msg_iovlen].iov_len = GRN_TEXT_LEN(foot);
+    len += GRN_TEXT_LEN(foot);
+    msg.msg_iovlen++;
+  }
+  if ((ret = sendmsg(fd, &msg, MSG_NOSIGNAL)) == -1) {
+    SOERR("sendmsg");
+  }
+#endif /* WIN32 */
+  if (ret != len) {
+    GRN_LOG(&grn_gctx, GRN_LOG_NOTICE,
+            "couldn't send all data (%" GRN_FMT_LLD "/%" GRN_FMT_LLD ")",
+            (long long int)ret, (long long int)len);
+  }
+}
+
+static void
+h_output_raw(grn_ctx *ctx, int flags, ht_context *hc)
+{
+  grn_rc expr_rc = ctx->rc;
+  grn_sock fd = hc->msg->u.fd;
+  grn_obj header_;
+  grn_obj head_;
+  grn_obj body_;
+  grn_obj foot_;
+  grn_obj *header = NULL;
+  grn_obj *head = NULL;
+  grn_obj *body = NULL;
+  grn_obj *foot = NULL;
+  char *chunk = NULL;
+  unsigned int chunk_size = 0;
+  int recv_flags;
+  grn_bool is_last_message = (flags & GRN_CTX_TAIL);
+
+  GRN_TEXT_INIT(&header_, 0);
+  GRN_TEXT_INIT(&head_, 0);
+  GRN_TEXT_INIT(&body_, GRN_OBJ_DO_SHALLOW_COPY);
+  GRN_TEXT_INIT(&foot_, 0);
+
+  grn_ctx_recv(ctx, &chunk, &chunk_size, &recv_flags);
+  GRN_TEXT_SET(ctx, &body_, chunk, chunk_size);
+
+  if (!hc->in_body) {
+    if (is_last_message) {
+      h_output_set_header(ctx, &header_, expr_rc, GRN_TEXT_LEN(&body_));
+      hc->is_chunked = GRN_FALSE;
+    } else {
+      h_output_set_header(ctx, &header_, expr_rc, -1);
+      hc->is_chunked = GRN_TRUE;
+    }
+    header = &header_;
+    hc->in_body = GRN_TRUE;
+  }
+
+  if (GRN_TEXT_LEN(&body_) > 0) {
+    if (hc->is_chunked) {
+      grn_text_printf(ctx, &head_,
+                      "%x\r\n", (unsigned int)GRN_TEXT_LEN(&body_));
+      head = &head_;
+      GRN_TEXT_PUTS(ctx, &foot_, "\r\n");
+      foot = &foot_;
+    }
+    body = &body_;
+  }
+
+  if (is_last_message) {
+    if (hc->is_chunked) {
+      GRN_TEXT_PUTS(ctx, &foot_, "0\r\n");
+      GRN_TEXT_PUTS(ctx, &foot_, "Connection: close\r\n");
+      GRN_TEXT_PUTS(ctx, &foot_, "\r\n");
+      foot = &foot_;
+    }
+  }
+
+  h_output_send(ctx, fd, header, head, body, foot);
+
+  GRN_OBJ_FIN(ctx, &foot_);
+  GRN_OBJ_FIN(ctx, &body_);
+  GRN_OBJ_FIN(ctx, &head_);
+  GRN_OBJ_FIN(ctx, &header_);
+}
+
+static void
+h_output_typed(grn_ctx *ctx, int flags, ht_context *hc)
+{
+  grn_rc expr_rc = ctx->rc;
+  grn_sock fd = hc->msg->u.fd;
+  grn_obj header, head, body, foot;
+  char *chunk = NULL;
+  unsigned int chunk_size = 0;
+  int recv_flags;
+  grn_bool should_return_body;
+
+  if (!(flags & GRN_CTX_TAIL)) { return; }
+
+  switch (hc->msg->header.qtype) {
+  case 'G' :
+  case 'P' :
+    should_return_body = GRN_TRUE;
+    break;
+  default :
+    should_return_body = GRN_FALSE;
+    break;
+  }
+
+  GRN_TEXT_INIT(&header, 0);
+  GRN_TEXT_INIT(&head, 0);
+  GRN_TEXT_INIT(&body, 0);
+  GRN_TEXT_INIT(&foot, 0);
+
+  grn_ctx_recv(ctx, &chunk, &chunk_size, &recv_flags);
+  GRN_TEXT_SET(ctx, &body, chunk, chunk_size);
+
+  output_envelope(ctx, expr_rc, &head, &body, &foot);
+  h_output_set_header(ctx, &header, expr_rc,
+                      GRN_TEXT_LEN(&head) +
+                      GRN_TEXT_LEN(&body) +
+                      GRN_TEXT_LEN(&foot));
+  if (should_return_body) {
+    h_output_send(ctx, fd, &header, &head, &body, &foot);
+  } else {
+    h_output_send(ctx, fd, &header, NULL, NULL, NULL);
+  }
+  GRN_OBJ_FIN(ctx, &foot);
+  GRN_OBJ_FIN(ctx, &body);
+  GRN_OBJ_FIN(ctx, &head);
+  GRN_OBJ_FIN(ctx, &header);
+}
 
 static void
 h_output(grn_ctx *ctx, int flags, void *arg)
 {
-  grn_rc expr_rc = ctx->rc;
   ht_context *hc = (ht_context *)arg;
-  grn_sock fd = hc->msg->u.fd;
-  grn_obj header, head, foot, *outbuf = ctx->impl->outbuf;
-  if (!(flags & GRN_CTX_TAIL)) { return; }
-  GRN_TEXT_INIT(&header, 0);
-  GRN_TEXT_INIT(&head, 0);
-  GRN_TEXT_INIT(&foot, 0);
-  output_envelope(ctx, expr_rc, &head, outbuf, &foot);
-  switch (expr_rc) {
-  case GRN_SUCCESS :
-    GRN_TEXT_SETS(ctx, &header, "HTTP/1.1 200 OK\r\n");
-    break;
-  case GRN_INVALID_ARGUMENT :
-  case GRN_SYNTAX_ERROR :
-    GRN_TEXT_SETS(ctx, &header, "HTTP/1.1 400 Bad Request\r\n");
-    break;
-  case GRN_NO_SUCH_FILE_OR_DIRECTORY :
-    GRN_TEXT_SETS(ctx, &header, "HTTP/1.1 404 Not Found\r\n");
-    break;
-  default :
-    GRN_TEXT_SETS(ctx, &header, "HTTP/1.1 500 Internal Server Error\r\n");
-    break;
+
+  if (grn_ctx_get_output_type(ctx) == GRN_CONTENT_NONE) {
+    h_output_raw(ctx, flags, hc);
+  } else {
+    h_output_typed(ctx, flags, hc);
   }
-  GRN_TEXT_PUTS(ctx, &header, "Connection: close\r\n");
-  GRN_TEXT_PUTS(ctx, &header, "Content-Type: ");
-  GRN_TEXT_PUTS(ctx, &header, grn_ctx_get_mime_type(ctx));
-  GRN_TEXT_PUTS(ctx, &header, "\r\nContent-Length: ");
-  grn_text_lltoa(ctx, &header,
-                 GRN_TEXT_LEN(&head) + GRN_TEXT_LEN(outbuf) + GRN_TEXT_LEN(&foot));
-  GRN_TEXT_PUTS(ctx, &header, "\r\n\r\n");
-  {
-    ssize_t ret, len;
-#ifdef WIN32
-    WSABUF wsabufs[4];
-    wsabufs[0].buf = GRN_TEXT_VALUE(&header);
-    wsabufs[0].len = GRN_TEXT_LEN(&header);
-    wsabufs[1].buf = GRN_TEXT_VALUE(&head);
-    wsabufs[1].len = GRN_TEXT_LEN(&head);
-    wsabufs[2].buf = GRN_TEXT_VALUE(outbuf);
-    wsabufs[2].len = GRN_TEXT_LEN(outbuf);
-    wsabufs[3].buf = GRN_TEXT_VALUE(&foot);
-    wsabufs[3].len = GRN_TEXT_LEN(&foot);
-    if (WSASend(fd, wsabufs, 4, &ret, 0, NULL, NULL) == SOCKET_ERROR) {
-      SERR("WSASend");
-    }
-#else /* WIN32 */
-    struct iovec msg_iov[4];
-    struct msghdr msg;
-    msg.msg_name = NULL;
-    msg.msg_namelen = 0;
-    msg.msg_iov = msg_iov;
-    msg.msg_iovlen = 4;
-    msg.msg_control = NULL;
-    msg.msg_controllen = 0;
-    msg.msg_flags = 0;
-    msg_iov[0].iov_base = GRN_TEXT_VALUE(&header);
-    msg_iov[0].iov_len = GRN_TEXT_LEN(&header);
-    msg_iov[1].iov_base = GRN_TEXT_VALUE(&head);
-    msg_iov[1].iov_len = GRN_TEXT_LEN(&head);
-    msg_iov[2].iov_base = GRN_TEXT_VALUE(outbuf);
-    msg_iov[2].iov_len = GRN_TEXT_LEN(outbuf);
-    msg_iov[3].iov_base = GRN_TEXT_VALUE(&foot);
-    msg_iov[3].iov_len = GRN_TEXT_LEN(&foot);
-    if ((ret = sendmsg(fd, &msg, MSG_NOSIGNAL)) == -1) {
-      SERR("sendmsg");
-    }
-#endif /* WIN32 */
-    len = GRN_TEXT_LEN(&header) + GRN_TEXT_LEN(&head) +
-      GRN_TEXT_LEN(outbuf) + GRN_TEXT_LEN(&foot);
-    if (ret != len) {
-      GRN_LOG(&grn_gctx, GRN_LOG_NOTICE,
-              "couldn't send all data (%" GRN_FMT_LLD "/%" GRN_FMT_LLD ")",
-              (long long int)ret, (long long int)len);
-    }
-  }
-  GRN_BULK_REWIND(outbuf);
-  GRN_OBJ_FIN(ctx, &foot);
-  GRN_OBJ_FIN(ctx, &head);
-  GRN_OBJ_FIN(ctx, &header);
 }
 
 static void
@@ -923,10 +1136,6 @@ do_htreq_post_parse_header(grn_ctx *ctx,
     return GRN_FALSE;
   }
 
-  if (!header->have_100_continue && current == end) {
-    return GRN_FALSE;
-  }
-
   if (current == end) {
     header->body_start = NULL;
   } else {
@@ -961,6 +1170,8 @@ do_htreq_post(grn_ctx *ctx, grn_msg *msg)
   if (ctx->rc != GRN_SUCCESS) {
     ht_context context;
     context.msg = msg;
+    context.in_body = GRN_FALSE;
+    context.is_chunked = GRN_FALSE;
     h_output(ctx, GRN_CTX_TAIL, &context);
     return;
   }
@@ -971,7 +1182,7 @@ do_htreq_post(grn_ctx *ctx, grn_msg *msg)
     int send_flags = MSG_NOSIGNAL;
     send_size = send(fd, continue_message, strlen(continue_message), send_flags);
     if (send_size == -1) {
-      SERR("send");
+      SOERR("send");
       return;
     }
   }
@@ -999,7 +1210,7 @@ do_htreq_post(grn_ctx *ctx, grn_msg *msg)
           break;
         }
         if (recv_length == -1) {
-          SERR("recv");
+          SOERR("recv");
           break;
         }
         buffer_start = buffer;
@@ -1052,15 +1263,13 @@ do_htreq(grn_ctx *ctx, grn_msg *msg)
   grn_com_header *header = &msg->header;
   switch (header->qtype) {
   case 'G' : /* GET */
+  case 'H' : /* HEAD */
     do_htreq_get(ctx, msg);
     break;
   case 'P' : /* POST */
     do_htreq_post(ctx, msg);
     break;
   }
-  /* TODO: support "Connection: keep-alive" */
-  ctx->stat = GRN_CTX_QUIT;
-  /* TODO: support a command in multi requests. e.g.: load command */
   grn_ctx_set_next_expr(ctx, NULL);
   /* if (ctx->rc != GRN_OPERATION_WOULD_BLOCK) {...} */
   grn_msg_close(ctx, (grn_obj *)msg);
@@ -1653,7 +1862,7 @@ check_rlimit_nofile(grn_ctx *ctx)
 #endif /* WIN32 */
 }
 
-static void * CALLBACK
+static grn_thread_func_result CALLBACK
 h_worker(void *arg)
 {
   ht_context hc;
@@ -1676,6 +1885,8 @@ h_worker(void *arg)
     nfthreads--;
     MUTEX_UNLOCK(q_mutex);
     hc.msg = (grn_msg *)msg;
+    hc.in_body = GRN_FALSE;
+    hc.is_chunked = GRN_FALSE;
     do_htreq(ctx, (grn_msg *)msg);
     MUTEX_LOCK(q_mutex);
   } while (nfthreads < max_nfthreads && grn_gctx.stat != GRN_CTX_QUIT);
@@ -1684,7 +1895,7 @@ exit :
   MUTEX_UNLOCK(q_mutex);
   GRN_LOG(&grn_gctx, GRN_LOG_NOTICE, "thread end (%d/%d)", nfthreads, nthreads);
   grn_ctx_fin(ctx);
-  return NULL;
+  return GRN_THREAD_FUNC_RETURN_VALUE;
 }
 
 static void
@@ -1729,7 +1940,7 @@ h_server(char *path)
   return exit_code;
 }
 
-static void * CALLBACK
+static grn_thread_func_result CALLBACK
 g_worker(void *arg)
 {
   GRN_LOG(&grn_gctx, GRN_LOG_NOTICE, "thread start (%d/%d)", nfthreads, nthreads + 1);
@@ -1790,7 +2001,7 @@ exit :
   nthreads--;
   MUTEX_UNLOCK(q_mutex);
   GRN_LOG(&grn_gctx, GRN_LOG_NOTICE, "thread end (%d/%d)", nfthreads, nthreads);
-  return NULL;
+  return GRN_THREAD_FUNC_RETURN_VALUE;
 }
 
 static void
@@ -1891,18 +2102,18 @@ g_server(char *path)
 }
 
 enum {
-  mode_alone = 0,
-  mode_client,
-  mode_daemon,
-  mode_server,
-  mode_usage,
-  mode_version,
-  mode_config,
-  mode_error
+  ACTION_USAGE = 1,
+  ACTION_VERSION,
+  ACTION_SHOW_CONFIG,
+  ACTION_ERROR
 };
 
-#define MODE_MASK   0x007f
-#define MODE_NEW_DB 0x0100
+#define ACTION_MASK       (0x0f)
+#define FLAG_MODE_ALONE      (1 << 4)
+#define FLAG_MODE_CLIENT     (1 << 5)
+#define FLAG_MODE_DAEMON     (1 << 6)
+#define FLAG_MODE_SERVER     (1 << 7)
+#define FLAG_NEW_DB     (1 << 8)
 
 static uint32_t
 get_core_number(void)
@@ -2123,7 +2334,6 @@ static const int default_http_port = DEFAULT_HTTP_PORT;
 static const int default_gqtp_port = DEFAULT_GQTP_PORT;
 static grn_encoding default_encoding = GRN_ENC_DEFAULT;
 static uint32_t default_max_num_threads = DEFAULT_MAX_NFTHREADS;
-static const int default_mode = mode_alone;
 static const int default_log_level = GRN_LOG_DEFAULT_LEVEL;
 static const char * const default_protocol = "gqtp";
 static const char *default_hostname = "localhost";
@@ -2277,8 +2487,8 @@ show_version(void)
 #ifdef GRN_WITH_ZLIB
   printf(",zlib");
 #endif
-#ifdef GRN_WITH_LZO
-  printf(",lzo");
+#ifdef GRN_WITH_LZ4
+  printf(",lz4");
 #endif
 #ifdef USE_KQUEUE
   printf(",kqueue");
@@ -2397,26 +2607,27 @@ main(int argc, char **argv)
     *working_directory_arg = NULL;
   const char *config_path = NULL;
   int exit_code = EXIT_SUCCESS;
-  int i, mode = mode_alone;
+  int i;
+  int flags = 0;
   uint32_t cache_limit = 0;
   static grn_str_getopt_opt opts[] = {
     {'p', "port", NULL, 0, GETOPT_OP_NONE},
     {'e', "encoding", NULL, 0, GETOPT_OP_NONE},
     {'t', "max-threads", NULL, 0, GETOPT_OP_NONE},
-    {'h', "help", NULL, mode_usage, GETOPT_OP_UPDATE},
-    {'c', NULL, NULL, mode_client, GETOPT_OP_UPDATE},
-    {'d', NULL, NULL, mode_daemon, GETOPT_OP_UPDATE},
-    {'s', NULL, NULL, mode_server, GETOPT_OP_UPDATE},
+    {'h', "help", NULL, ACTION_USAGE, GETOPT_OP_UPDATE},
+    {'c', NULL, NULL, FLAG_MODE_CLIENT, GETOPT_OP_ON},
+    {'d', NULL, NULL, FLAG_MODE_DAEMON, GETOPT_OP_ON},
+    {'s', NULL, NULL, FLAG_MODE_SERVER, GETOPT_OP_ON},
     {'l', "log-level", NULL, 0, GETOPT_OP_NONE},
     {'i', "server-id", NULL, 0, GETOPT_OP_NONE},
-    {'n', NULL, NULL, MODE_NEW_DB, GETOPT_OP_ON},
+    {'n', NULL, NULL, FLAG_NEW_DB, GETOPT_OP_ON},
     {'\0', "protocol", NULL, 0, GETOPT_OP_NONE},
-    {'\0', "version", NULL, mode_version, GETOPT_OP_UPDATE},
+    {'\0', "version", NULL, ACTION_VERSION, GETOPT_OP_UPDATE},
     {'\0', "log-path", NULL, 0, GETOPT_OP_NONE},
     {'\0', "query-log-path", NULL, 0, GETOPT_OP_NONE},
     {'\0', "pid-path", NULL, 0, GETOPT_OP_NONE},
     {'\0', "config-path", NULL, 0, GETOPT_OP_NONE},
-    {'\0', "show-config", NULL, mode_config, GETOPT_OP_UPDATE},
+    {'\0', "show-config", NULL, ACTION_SHOW_CONFIG, GETOPT_OP_UPDATE},
     {'\0', "cache-limit", NULL, 0, GETOPT_OP_NONE},
     {'\0', "file", NULL, 0, GETOPT_OP_NONE},
     {'\0', "document-root", NULL, 0, GETOPT_OP_NONE},
@@ -2453,14 +2664,14 @@ main(int argc, char **argv)
   init_default_settings();
 
   /* only for parsing --config-path. */
-  i = grn_str_getopt(argc, argv, opts, &mode);
+  i = grn_str_getopt(argc, argv, opts, &flags);
   if (i < 0) {
     show_usage(stderr);
     return EXIT_FAILURE;
   }
 
   if (config_path) {
-    const config_file_status status = config_file_load(config_path, opts, &mode);
+    const config_file_status status = config_file_load(config_path, opts, &flags);
     if (status == CONFIG_FILE_FOPEN_ERROR) {
       fprintf(stderr, "%s: can't open config file: %s (%s)\n",
               argv[0], config_path, strerror(errno));
@@ -2473,7 +2684,7 @@ main(int argc, char **argv)
     }
   } else if (*default_config_path) {
     const config_file_status status =
-        config_file_load(default_config_path, opts, &mode);
+        config_file_load(default_config_path, opts, &flags);
     if (status != CONFIG_FILE_SUCCESS && status != CONFIG_FILE_FOPEN_ERROR) {
       fprintf(stderr, "%s: failed to parse config file: %s (%s)\n",
               argv[0], default_config_path,
@@ -2491,22 +2702,21 @@ main(int argc, char **argv)
   }
 
   /* ignore mode option in config file */
-  mode = (mode == mode_error) ? default_mode :
-    ((mode & ~MODE_MASK) | default_mode);
+  flags = (flags == ACTION_ERROR) ? 0 : (flags & ~ACTION_MASK);
 
-  i = grn_str_getopt(argc, argv, opts, &mode);
-  if (i < 0) { mode = mode_error; }
-  switch (mode & MODE_MASK) {
-  case mode_version :
+  i = grn_str_getopt(argc, argv, opts, &flags);
+  if (i < 0) { flags = ACTION_ERROR; }
+  switch (flags & ACTION_MASK) {
+  case ACTION_VERSION :
     show_version();
     return EXIT_SUCCESS;
-  case mode_usage :
+  case ACTION_USAGE :
     show_usage(output);
     return EXIT_SUCCESS;
-  case mode_config :
-    show_config(output, opts, mode & ~MODE_MASK);
+  case ACTION_SHOW_CONFIG :
+    show_config(output, opts, flags & ~ACTION_MASK);
     return EXIT_SUCCESS;
-  case mode_error :
+  case ACTION_ERROR :
     show_usage(stderr);
     return EXIT_FAILURE;
   }
@@ -2787,23 +2997,14 @@ main(int argc, char **argv)
     grn_cache_set_max_n_entries(&grn_gctx, cache, cache_limit);
   }
 
-  newdb = (mode & MODE_NEW_DB);
-  switch (mode & MODE_MASK) {
-  case mode_alone :
-    exit_code = do_alone(argc - i, argv + i);
-    break;
-  case mode_client :
+  newdb = (flags & FLAG_NEW_DB);
+  is_daemon_mode = (flags & FLAG_MODE_DAEMON);
+  if (flags & FLAG_MODE_CLIENT) {
     exit_code = do_client(argc - i, argv + i);
-    break;
-  case mode_daemon :
-    is_daemon_mode = GRN_TRUE;
-    /* fallthru */
-  case mode_server :
+  } else if (is_daemon_mode || (flags & FLAG_MODE_SERVER)) {
     exit_code = do_server(argc > i ? argv[i] : NULL);
-    break;
-  default:
-    exit_code = EXIT_FAILURE;
-    break;
+  } else {
+    exit_code = do_alone(argc - i, argv + i);
   }
 
 #ifdef GRN_WITH_LIBEDIT

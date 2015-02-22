@@ -19,8 +19,8 @@
 #ifndef GRN_MRB_ACCESSOR_H
 #define GRN_MRB_ACCESSOR_H
 
-#include "../ctx.h"
-#include "../db.h"
+#include "../grn_ctx.h"
+#include "../grn_db.h"
 
 #ifdef __cplusplus
 extern "C" {

@@ -54,7 +54,8 @@
 #include "tabutil.h"
 #include "ha_connect.h"
 
-extern "C" int zconv;
+//extern "C" int zconv;
+int GetConvSize(void);
 
 /************************************************************************/
 /*  Used by MYSQL tables to get MySQL parameters from the calling proxy */
@@ -132,6 +133,7 @@ PQRYRES TabColumns(PGLOBAL g, THD *thd, const char *db,
   char        *fld, *colname, *chset, *fmt, v;
   int          i, n, ncol = sizeof(buftyp) / sizeof(int);
   int          prec, len, type, scale;
+  int          zconv = GetConvSize();
   bool         mysql;
   TABLE_SHARE *s = NULL;
   Field*      *field;
@@ -669,6 +671,22 @@ PRXCOL::PRXCOL(PRXCOL *col1, PTDB tdbp) : COLBLK(col1, tdbp)
   } // end of PRXCOL copy constructor
 
 /***********************************************************************/
+/*  Convert an UTF-8 name to latin characters.                         */
+/***********************************************************************/
+char *PRXCOL::Decode(PGLOBAL g, const char *cnm)
+  {
+  char  *buf= (char*)PlugSubAlloc(g, NULL, strlen(cnm) + 1);
+  uint   dummy_errors;
+  uint32 len= copy_and_convert(buf, strlen(cnm) + 1,
+                               &my_charset_latin1,
+                               cnm, strlen(cnm),
+                               &my_charset_utf8_general_ci,
+                               &dummy_errors);
+  buf[len]= '\0';
+  return buf;
+  } // end of Decode
+
+/***********************************************************************/
 /*  PRXCOL initialization routine.                                     */
 /*  Look for the matching column in the object table.                  */
 /***********************************************************************/
@@ -682,6 +700,9 @@ bool PRXCOL::Init(PGLOBAL g, PTDBASE tp)
 
   if (Colp) {
     MODE mode = To_Tdb->GetMode();
+
+    // Needed for MYSQL subtables
+    ((XCOLBLK*)Colp)->Name = Decode(g, Colp->GetName());
 
     // May not have been done elsewhere
     Colp->InitValue(g);        

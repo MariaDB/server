@@ -2,8 +2,7 @@ DEFS += -D_REENTRANT $(GRN_DEFS) -DGRN_DAT_EXPORT
 
 DEFAULT_INCLUDES =				\
 	-I$(top_builddir)			\
-	-I$(top_srcdir)/include			\
-	-I$(top_srcdir)/lib
+	-I$(top_srcdir)/include
 
 noinst_LTLIBRARIES = libgrndat.la
 

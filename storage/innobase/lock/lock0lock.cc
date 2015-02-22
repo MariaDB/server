@@ -2066,7 +2066,8 @@ lock_rec_add_to_queue(
 
 	ut_ad(lock_mutex_own());
 	ut_ad(caller_owns_trx_mutex == trx_mutex_own(trx));
-	ut_ad(dict_index_is_clust(index) || !dict_index_is_online_ddl(index));
+	ut_ad(dict_index_is_clust(index)
+	      || dict_index_get_online_status(index) != ONLINE_INDEX_CREATION);
 #ifdef UNIV_DEBUG
 	switch (type_mode & LOCK_MODE_MASK) {
 	case LOCK_X:
@@ -5163,7 +5164,14 @@ lock_rec_print(
 	fprintf(file, "RECORD LOCKS space id %lu page no %lu n bits %lu ",
 		(ulong) space, (ulong) page_no,
 		(ulong) lock_rec_get_n_bits(lock));
+
 	dict_index_name_print(file, lock->trx, lock->index);
+
+	/* Print number of table locks */
+	fprintf(file, " trx table locks %lu total table locks %lu ",
+		ib_vector_size(lock->trx->lock.table_locks),
+		UT_LIST_GET_LEN(lock->index->table->locks));
+
 	fprintf(file, " trx id " TRX_ID_FMT, lock->trx->id);
 
 	if (lock_get_mode(lock) == LOCK_S) {

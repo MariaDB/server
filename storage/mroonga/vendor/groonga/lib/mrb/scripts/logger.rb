@@ -3,7 +3,11 @@ module Groonga
     def log_error(error)
       log_level = Level::ERROR.to_i
 
-      message = "#{error.class}: #{error.message}"
+      if error.is_a?(Error)
+        message = error.message
+      else
+        message = "#{error.class}: #{error.message}"
+      end
       backtrace = error.backtrace
       first_raw_entry = backtrace.first
       if first_raw_entry

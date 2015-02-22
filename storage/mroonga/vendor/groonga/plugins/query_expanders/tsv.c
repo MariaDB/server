@@ -15,17 +15,20 @@
   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 */
 
-#include <groonga/plugin.h>
-
 /* groonga's internal headers */
 /* for grn_text_fgets(): We don't want to require stdio.h for groonga.h.
    What should we do? Should we split header file such as groonga/stdio.h? */
-#include <str.h>
+#include <grn_str.h>
+
+#include <groonga/plugin.h>
 
 #include <stdio.h>
 #include <string.h>
 
 #ifdef HAVE__STRNICMP
+# ifdef strncasecmp
+#  undef strncasecmp
+# endif /* strncasecmp */
 # define strncasecmp(s1,s2,n) _strnicmp(s1,s2,n)
 #endif /* HAVE__STRNICMP */
 
@@ -42,7 +45,6 @@ get_system_synonyms_file(void)
     const char *base_dir;
     const char *relative_path = GRN_QUERY_EXPANDER_TSV_RELATIVE_SYNONYMS_FILE;
     char *synonyms_file;
-    char *path;
     size_t base_dir_length;
 
     base_dir = grn_plugin_win32_base_dir();

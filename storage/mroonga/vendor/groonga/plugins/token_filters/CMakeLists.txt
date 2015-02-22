@@ -29,6 +29,19 @@ set_target_properties(stop_word_token_filter PROPERTIES
   PREFIX ""
   OUTPUT_NAME "stop_word")
 target_link_libraries(stop_word_token_filter libgroonga)
-if(NOT MRN_GROONGA_BUNDLED)
-  install(TARGETS stop_word_token_filter DESTINATION "${TOKEN_FILTERS_DIR}")
+install(TARGETS stop_word_token_filter DESTINATION "${TOKEN_FILTERS_DIR}")
+
+if(GRN_WITH_LIBSTEMMER)
+  read_file_list(${CMAKE_CURRENT_SOURCE_DIR}/stem_sources.am STEM_SOURCES)
+  include_directories(${LIBSTEMMER_INCLUDE_DIRS})
+  link_directories(${LIBSTEMMER_LIBRARY_DIRS})
+  add_library(stem_token_filter MODULE ${STEM_SOURCES})
+  set_source_files_properties(${STEM_SOURCES}
+    PROPERTIES
+    COMPILE_FLAGS "${GRN_C_COMPILE_FLAGS}")
+  set_target_properties(stem_token_filter PROPERTIES
+    PREFIX ""
+    OUTPUT_NAME "stem")
+  target_link_libraries(stem_token_filter libgroonga ${LIBSTEMMER_LIBRARIES})
+  install(TARGETS stem_token_filter DESTINATION "${TOKEN_FILTERS_DIR}")
 endif()

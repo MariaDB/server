@@ -27,7 +27,7 @@
 namespace mrn {
   class DatabaseManager {
   public:
-    DatabaseManager(grn_ctx *ctx);
+    DatabaseManager(grn_ctx *ctx, mysql_mutex_t *mutex);
     ~DatabaseManager(void);
     bool init(void);
     int open(const char *path, grn_obj **db);
@@ -38,8 +38,7 @@ namespace mrn {
   private:
     grn_ctx *ctx_;
     grn_hash *cache_;
-    pthread_mutex_t mutex_;
-    bool mutex_initialized_;
+    mysql_mutex_t *mutex_;
 
     void mkdir_p(const char *directory);
     void ensure_database_directory(void);

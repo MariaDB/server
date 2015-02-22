@@ -36,6 +36,12 @@
 #include <algorithm>
 #include <limits>
 
+#ifdef WIN32
+# define GRN_IO_FILE_CREATE_MODE (GENERIC_READ | GENERIC_WRITE)
+#else /* WIN32 */
+# define GRN_IO_FILE_CREATE_MODE 0644
+#endif /* WIN32 */
+
 namespace grn {
 namespace dat {
 
@@ -119,7 +125,7 @@ void FileImpl::swap(FileImpl *rhs) {
 
 void FileImpl::create_(const char *path, UInt64 size) {
   if ((path != NULL) && (path[0] != '\0')) {
-    file_ = ::CreateFileA(path, GENERIC_READ | GENERIC_WRITE,
+    file_ = ::CreateFileA(path, GRN_IO_FILE_CREATE_MODE,
                           FILE_SHARE_READ | FILE_SHARE_WRITE,
                           NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
     GRN_DAT_THROW_IF(IO_ERROR, file_ == INVALID_HANDLE_VALUE);
@@ -162,7 +168,7 @@ void FileImpl::open_(const char *path) {
   GRN_DAT_THROW_IF(IO_ERROR,
       static_cast<UInt64>(st.st_size) > std::numeric_limits< ::size_t>::max());
 
-  file_ = ::CreateFileA(path, GENERIC_READ | GENERIC_WRITE,
+  file_ = ::CreateFileA(path, GRN_IO_FILE_CREATE_MODE,
                         FILE_SHARE_READ | FILE_SHARE_WRITE,
                         NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
   GRN_DAT_THROW_IF(IO_ERROR, file_ == NULL);
@@ -192,7 +198,7 @@ void FileImpl::create_(const char *path, UInt64 size) {
       size > static_cast<UInt64>(std::numeric_limits< ::off_t>::max()));
 
   if ((path != NULL) && (path[0] != '\0')) {
-    fd_ = ::open(path, O_RDWR | O_CREAT | O_TRUNC, 0666);
+    fd_ = ::open(path, O_RDWR | O_CREAT | O_TRUNC, GRN_IO_FILE_CREATE_MODE);
     GRN_DAT_THROW_IF(IO_ERROR, fd_ == -1);
 
     const ::off_t file_size = static_cast< ::off_t>(size);

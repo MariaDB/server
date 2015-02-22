@@ -1,4 +1,4 @@
-# Copyright (C) 2013  Kouhei Sutou <kou@clear-code.com>
+# Copyright (C) 2013-2015  Kouhei Sutou <kou@clear-code.com>
 #
 # This library is free software; you can redistribute it and/or
 # modify it under the terms of the GNU Library General Public
@@ -24,7 +24,7 @@ AC_CONFIG_MACRO_DIR([m4])
 AC_CONFIG_SRCDIR([normalizers/mysql.c])
 AM_CONFIG_HEADER([config.h])
 
-AM_INIT_AUTOMAKE([1.9 tar-pax])
+AM_INIT_AUTOMAKE([1.9 foreign tar-pax])
 
 AC_PROG_LIBTOOL
 
@@ -49,11 +49,23 @@ AC_SUBST(GROONGA)
 normalizers_pluginsdir="\${GROONGA_PLUGINS_DIR}/normalizers"
 AC_SUBST(normalizers_pluginsdir)
 
+AC_ARG_ENABLE([embed],
+  AS_HELP_STRING([--enable-embed],
+    [Build as a static library to embed into an application (default: no)]),
+  [GROONGA_NORMALIZER_MYSQL_EMBED="$enableval"],
+  [GROONGA_NORMALIZER_MYSQL_EMBED="no"])
+
+if test "x$GROONGA_NORMALIZER_MYSQL_EMBED" = "xyes"; then
+  AC_DEFINE_UNQUOTED(GROONGA_NORMALIZER_MYSQL_EMBED,
+                     [1],
+                     [Define to 1 if groonga-normalizer-mysql is built for embedding.])
+fi
+
 # check Ruby for test
 ac_cv_ruby_available="no"
-AC_ARG_WITH([ruby19],
-            AS_HELP_STRING([--with-ruby19=PATH],
-                           [Ruby 1.9 interpreter path (default: auto)]),
+AC_ARG_WITH([ruby],
+            AS_HELP_STRING([--with-ruby=PATH],
+                           [Ruby interpreter path (default: auto)]),
             [RUBY="$withval"],
             [RUBY="auto"])
 
@@ -61,17 +73,19 @@ if test "x$RUBY" = "xno"; then
   RUBY=
 else
   if test "x$RUBY" = "xauto"; then
-    AC_PATH_PROGS(RUBY, [ruby1.9 ruby19 ruby1.9.1 ruby], ruby19-not-found)
-    if test "$RUBY" != "ruby19-not-found"; then
+    AC_PATH_PROGS(RUBY,
+                  [ruby2.1 ruby21 ruby2.0 ruby20 ruby1.9 ruby19 ruby1.9.1 ruby],
+                  ruby-not-found)
+    if test "$RUBY" != "ruby-not-found"; then
       ruby_version="`$RUBY --version`"
-      if echo "$ruby_version" | grep -q -- 'ruby 1\.9'; then
+      if echo "$ruby_version" | grep -q -- 'ruby \(1\.9\|2\.\)'; then
         ac_cv_ruby_available="yes"
       else
-        AC_MSG_WARN([$RUBY isn't Ruby 1.9 ($ruby_version)])
+        AC_MSG_WARN([$RUBY isn't Ruby 1.9 or later ($ruby_version)])
       fi
     fi
   else
-    ruby_not_found_warning_message="$RUBY is not found. Disable HTTP test."
+    ruby_not_found_warning_message="$RUBY is not found. Disable test."
     case "$RUBY" in
     /*)
       AC_CHECK_FILE([$RUBY],

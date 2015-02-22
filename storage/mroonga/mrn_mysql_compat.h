@@ -1,6 +1,6 @@
 /* -*- c-basic-offset: 2 -*- */
 /*
-  Copyright(C) 2011-2013 Kouhei Sutou <kou@clear-code.com>
+  Copyright(C) 2011-2014 Kouhei Sutou <kou@clear-code.com>
 
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -21,15 +21,6 @@
 #define MRN_MYSQL_COMPAT_H_
 
 #include "mrn_mysql.h"
-
-#if MYSQL_VERSION_ID >= 50500
-#  define my_free(PTR, FLAG) my_free(PTR)
-#endif
-
-#if MYSQL_VERSION_ID < 50500
-#  define mysql_mutex_lock(mutex) pthread_mutex_lock(mutex)
-#  define mysql_mutex_unlock(mutex) pthread_mutex_unlock(mutex)
-#endif
 
 #if MYSQL_VERSION_ID >= 50604
 #  define MRN_HAVE_MYSQL_TYPE_TIMESTAMP2

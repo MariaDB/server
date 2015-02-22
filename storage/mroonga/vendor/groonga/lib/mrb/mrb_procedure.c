@@ -16,7 +16,7 @@
   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 */
 
-#include "../ctx_impl.h"
+#include "../grn_ctx_impl.h"
 
 #ifdef GRN_WITH_MRUBY
 #include <mruby.h>
@@ -41,6 +41,15 @@ mrb_grn_procedure_initialize(mrb_state *mrb, mrb_value self)
   return self;
 }
 
+static mrb_value
+mrb_grn_procedure_scorer_p(mrb_state *mrb, mrb_value self)
+{
+  grn_ctx *ctx = (grn_ctx *)mrb->ud;
+  grn_obj *proc = DATA_PTR(self);
+
+  return mrb_bool_value(grn_obj_is_scorer_proc(ctx, proc));
+}
+
 void
 grn_mrb_procedure_init(grn_ctx *ctx)
 {
@@ -54,5 +63,8 @@ grn_mrb_procedure_init(grn_ctx *ctx)
   MRB_SET_INSTANCE_TT(klass, MRB_TT_DATA);
   mrb_define_method(mrb, klass, "initialize",
                     mrb_grn_procedure_initialize, MRB_ARGS_REQ(1));
+
+  mrb_define_method(mrb, klass, "scorer?",
+                    mrb_grn_procedure_scorer_p, MRB_ARGS_NONE());
 }
 #endif

@@ -1,6 +1,6 @@
 /* -*- c-basic-offset: 2 -*- */
 /*
-  Copyright(C) 2013-2014  Kouhei Sutou <kou@clear-code.com>
+  Copyright(C) 2013-2015  Kouhei Sutou <kou@clear-code.com>
 
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Library General Public
@@ -17,6 +17,14 @@
   Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,
   MA 02110-1301, USA
 */
+
+#ifdef HAVE_CONFIG_H
+#  include <config.h>
+#endif
+
+#ifdef GROONGA_NORMALIZER_MYSQL_EMBED
+#  define GRN_PLUGIN_FUNCTION_TAG normalizers_mysql
+#endif
 
 #include <groonga/normalizer.h>
 #include <groonga/nfkc.h>

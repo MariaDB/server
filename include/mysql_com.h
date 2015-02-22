@@ -618,14 +618,17 @@ void scramble_323(char *to, const char *message, const char *password);
 my_bool check_scramble_323(const unsigned char *reply, const char *message,
                            unsigned long *salt);
 void get_salt_from_password_323(unsigned long *res, const char *password);
+#if MYSQL_VERSION_ID < 100100
 void make_password_from_salt_323(char *to, const unsigned long *salt);
-
+#endif
 void make_scrambled_password(char *to, const char *password);
 void scramble(char *to, const char *message, const char *password);
 my_bool check_scramble(const unsigned char *reply, const char *message,
                        const unsigned char *hash_stage2);
 void get_salt_from_password(unsigned char *res, const char *password);
+#if MYSQL_VERSION_ID < 100100
 void make_password_from_salt(char *to, const unsigned char *hash_stage2);
+#endif
 char *octet2hex(char *to, const char *str, unsigned int len);
 
 /* end of password.c */
