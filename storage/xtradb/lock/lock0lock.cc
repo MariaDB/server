@@ -2055,6 +2055,8 @@ lock_rec_enqueue_waiting(
 
 	MONITOR_INC(MONITOR_LOCKREC_WAIT);
 
+	trx->n_rec_lock_waits++;
+
 	return(DB_LOCK_WAIT);
 }
 
@@ -2472,6 +2474,15 @@ lock_grant(
 		if (thr != NULL) {
 			lock_wait_release_thread_if_suspended(thr);
 		}
+	}
+
+	/* Cumulate total lock wait time for statistics */
+	if (lock_get_type_low(lock) & LOCK_TABLE) {
+		lock->trx->total_table_lock_wait_time +=
+			(ulint)difftime(ut_time(), lock->trx->lock.wait_started);
+	} else {
+		lock->trx->total_rec_lock_wait_time +=
+			(ulint)difftime(ut_time(), lock->trx->lock.wait_started);
 	}
 
 	trx_mutex_exit(lock->trx);
@@ -4484,6 +4495,7 @@ lock_table_enqueue_waiting(
 
 	trx->lock.wait_started = ut_time();
 	trx->lock.was_chosen_as_deadlock_victim = FALSE;
+	trx->n_table_lock_waits++;
 
 	if (UNIV_UNLIKELY(trx->take_stats)) {
 		ut_usectime(&sec, &ms);
@@ -5494,6 +5506,14 @@ loop:
 				trx->read_view->low_limit_id,
 				trx->read_view->up_limit_id);
 		}
+
+		/* Total trx lock waits and times */
+		fprintf(file, "Trx #rec lock waits %lu #table lock waits %lu\n",
+			trx->n_rec_lock_waits, trx->n_table_lock_waits);
+		fprintf(file, "Trx total rec lock wait time %lu SEC\n",
+			trx->total_rec_lock_wait_time);
+		fprintf(file, "Trx total table lock wait time %lu SEC\n",
+			trx->total_table_lock_wait_time);
 
 		if (trx->lock.que_state == TRX_QUE_LOCK_WAIT) {
 
