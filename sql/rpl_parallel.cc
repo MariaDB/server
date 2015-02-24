@@ -640,7 +640,7 @@ handle_rpl_parallel_thread(void *arg)
       }
       DBUG_ASSERT(qev->typ==rpl_parallel_thread::queued_event::QUEUED_EVENT);
 
-      thd->rgi_slave= group_rgi= rgi;
+      thd->rgi_slave= rgi;
       gco= rgi->gco;
       /* Handle a new event group, which will be initiated by a GTID event. */
       if ((event_type= qev->ev->get_type_code()) == GTID_EVENT)
@@ -656,6 +656,21 @@ handle_rpl_parallel_thread(void *arg)
                       STRING_WITH_LEN("now SIGNAL scheduled_gtid_0_x_100"));
             }
           });
+
+        if(unlikely(thd->wait_for_commit_ptr) && group_rgi != NULL)
+        {
+          /*
+            This indicates that we get a new GTID event in the middle of
+            a not completed event group. This is corrupt binlog (the master
+            will never write such binlog), so it does not happen unless
+            someone tries to inject wrong crafted binlog, but let us still
+            try to handle it somewhat nicely.
+          */
+          group_rgi->cleanup_context(thd, true);
+          finish_event_group(rpt, group_rgi->gtid_sub_id,
+                             group_rgi->parallel_entry, group_rgi);
+          rpt->loc_free_rgi(group_rgi);
+        }
 
         in_event_group= true;
         /*
@@ -742,19 +757,6 @@ handle_rpl_parallel_thread(void *arg)
         unlock_or_exit_cond(thd, &entry->LOCK_parallel_entry,
                             &did_enter_cond, &old_stage);
 
-        if(thd->wait_for_commit_ptr)
-        {
-          /*
-            This indicates that we get a new GTID event in the middle of
-            a not completed event group. This is corrupt binlog (the master
-            will never write such binlog), so it does not happen unless
-            someone tries to inject wrong crafted binlog, but let us still
-            try to handle it somewhat nicely.
-          */
-          rgi->cleanup_context(thd, true);
-          thd->wait_for_commit_ptr->unregister_wait_for_prior_commit();
-          thd->wait_for_commit_ptr->wakeup_subsequent_commits(rgi->worker_error);
-        }
         thd->wait_for_commit_ptr= &rgi->commit_orderer;
 
         if (opt_gtid_ignore_duplicates)
@@ -780,6 +782,7 @@ handle_rpl_parallel_thread(void *arg)
         }
       }
 
+      group_rgi= rgi;
       group_ending= is_group_ending(qev->ev, event_type);
       if (group_ending && likely(!rgi->worker_error))
       {
