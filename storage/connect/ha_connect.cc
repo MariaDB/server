@@ -4112,6 +4112,7 @@ MODE ha_connect::CheckMode(PGLOBAL g, THD *thd,
       case SQLCOM_UPDATE_MULTI:
       case SQLCOM_SELECT:
       case SQLCOM_OPTIMIZE:
+      case SQLCOM_SET_OPTION:
         break;
       case SQLCOM_LOCK_TABLES:
         locked= 1;

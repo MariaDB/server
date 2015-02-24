@@ -493,7 +493,7 @@ bool JSONCOL::SetArrayOptions(PGLOBAL g, char *p, int i, PSZ nm)
       if (!IsTypeChar(Buf_Type))
         jnp->Valp = AllocateValue(g, Buf_Type, 0, GetPrecision());
       else
-        jnp->Valp = AllocateValue(g, TYPE_DOUBLE);
+        jnp->Valp = AllocateValue(g, TYPE_DOUBLE, 0, 2);
 
       break;
     case OP_MIN:
@@ -610,7 +610,7 @@ void JSONCOL::SetJsonValue(PGLOBAL g, PVAL vp, PJVAL val, int n)
         break;
       case TYPE_JOB:
 //      if (!vp->IsTypeNum() || !Strict) {
-          vp->SetValue_psz(val->GetObject()->GetText(g));
+          vp->SetValue_psz(val->GetObject()->GetText(g, NULL));
           break;
 //        } // endif Type
      

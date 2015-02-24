@@ -881,27 +881,26 @@ PJVAL JOBJECT::GetValue(const char* key)
 /***********************************************************************/
 /* Return the text corresponding to all keys (XML like).               */
 /***********************************************************************/
-PSZ JOBJECT::GetText(PGLOBAL g)
+PSZ JOBJECT::GetText(PGLOBAL g, PSZ text)
 {
-  char *p, *text = (char*)PlugSubAlloc(g, NULL, 0);
-  bool  b = true;
+  int n;
 
-  if (!First)
+  if (!text) {
+    text = (char*)PlugSubAlloc(g, NULL, 0);
+    text[0] = 0;
+    n = 1;
+  } else
+    n = 0;
+
+  if (!First && n)
     return NULL;
-  else for (PJPR jp = First; jp; jp = jp->Next) {
-    if (!(p = jp->Val->GetString()))
-      p = "???";
+  else for (PJPR jp = First; jp; jp = jp->Next)
+    jp->Val->GetText(g, text);
 
-    if (b) {
-      strcpy(text, p); 
-      b = false;
-    } else
-      strcat(strcat(text, " "), p);
+  if (n)
+    PlugSubAlloc(g, NULL, strlen(text) + 1);
 
-    } // endfor jp
-
-  PlugSubAlloc(g, NULL, strlen(text) + 1);
-  return text;
+  return text + n;
 } // end of GetValue;
 
 /***********************************************************************/
@@ -923,6 +922,18 @@ void JOBJECT::SetValue(PGLOBAL g, PJVAL jvp, PSZ key)
     } // endif jp
 
 } // end of SetValue
+
+/***********************************************************************/
+/* True if void or if all members are nulls.                           */
+/***********************************************************************/
+bool JOBJECT::IsNull(void)
+{
+  for (PJPR jp = First; jp; jp = jp->Next)
+    if (!jp->Val->IsNull())
+      return false;
+
+  return true;
+} // end of IsNull
 
 /* -------------------------- Class JARRAY --------------------------- */
 
@@ -1012,6 +1023,18 @@ bool JARRAY::DeleteValue(int n)
 
 } // end of DeleteValue
 
+/***********************************************************************/
+/* True if void or if all members are nulls.                           */
+/***********************************************************************/
+bool JARRAY::IsNull(void)
+{
+  for (int i = 0; i < Size; i++)
+    if (!Mvals[i]->IsNull())
+      return false;
+
+  return true;
+} // end of IsNull
+
 /* -------------------------- Class JVALUE- -------------------------- */
 
 /***********************************************************************/
@@ -1087,6 +1110,25 @@ PSZ JVALUE::GetString(void)
 } // end of GetString
 
 /***********************************************************************/
+/* Return the Value's String value.                                    */
+/***********************************************************************/
+PSZ JVALUE::GetText(PGLOBAL g, PSZ text)
+{
+  if (Jsp && Jsp->GetType() == TYPE_JOB)
+    return Jsp->GetText(g, text);
+
+  char buf[32];
+  PSZ  s = (Value) ? Value->GetCharString(buf) : NULL;
+
+  if (s)
+    strcat(strcat(text, " "), s);
+  else
+    strcat(text, " ???");
+
+  return text;
+} // end of GetText
+
+/***********************************************************************/
 /* Set the Value's value as the given integer.                         */
 /***********************************************************************/
 void JVALUE::SetInteger(PGLOBAL g, int n)
@@ -1109,4 +1151,12 @@ void JVALUE::SetString(PGLOBAL g, PSZ s)
 {
   Value = AllocateValue(g, s, TYPE_STRING);
 } // end of AddFloat
+
+/***********************************************************************/
+/* True when its JSON or normal value is null.                         */
+/***********************************************************************/
+bool JVALUE::IsNull(void)
+{
+  return (Jsp) ? Jsp->IsNull() : (Value) ? Value->IsNull() : true;
+} // end of IsNull
 
