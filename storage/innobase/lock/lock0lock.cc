@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2014, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2014, 2015, MariaDB Corporation
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1886,6 +1887,9 @@ lock_rec_create(
 	/* Set the bit corresponding to rec */
 	lock_rec_set_nth_bit(lock, heap_no);
 
+	lock->requested_time = ut_time();
+	lock->wait_time = 0;
+
 	index->table->n_rec_locks++;
 
 	ut_ad(index->table->n_ref_count > 0 || !index->table->can_be_evicted);
@@ -2464,6 +2468,8 @@ lock_grant(
 		lock->trx->total_rec_lock_wait_time +=
 			(ulint)difftime(ut_time(), lock->trx->lock.wait_started);
 	}
+
+	lock->wait_time = (ulint)difftime(ut_time(), lock->requested_time);
 
 	trx_mutex_exit(lock->trx);
 }
@@ -4226,6 +4232,8 @@ lock_table_create(
 
 	lock->type_mode = type_mode | LOCK_TABLE;
 	lock->trx = trx;
+	lock->requested_time = ut_time();
+	lock->wait_time = 0;
 
 	lock->un_member.tab_lock.table = table;
 
@@ -5145,6 +5153,10 @@ lock_table_print(
 		fputs(" waiting", file);
 	}
 
+	fprintf(file, " lock hold time %lu wait time before grant %lu ",
+		(ulint)difftime(ut_time(), lock->requested_time),
+		lock->wait_time);
+
 	putc('\n', file);
 }
 
@@ -5211,6 +5223,10 @@ lock_rec_print(
 	}
 
 	mtr_start(&mtr);
+
+	fprintf(file, " lock hold time %lu wait time before grant %lu ",
+		(ulint)difftime(ut_time(), lock->requested_time),
+		lock->wait_time);
 
 	putc('\n', file);
 
