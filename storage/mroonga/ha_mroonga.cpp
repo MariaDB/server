@@ -160,15 +160,6 @@ static mysql_mutex_t *mrn_LOCK_open;
 #  define MRN_ABORT_ON_WARNING(thd) thd->abort_on_warning
 #endif
 
-#ifdef WIN32
-#  ifdef MRN_TABLE_SHARE_HAVE_LOCK_SHARE
-     PSI_mutex_key *mrn_table_share_lock_share;
-#  endif
-#  ifdef MRN_TABLE_SHARE_HAVE_LOCK_HA_DATA
-     PSI_mutex_key *mrn_table_share_lock_ha_data;
-#  endif
-#endif
-
 #if MYSQL_VERSION_ID >= 100007 && defined(MRN_MARIADB_P)
 #  define MRN_THD_GET_AUTOINC(thd, off, inc) thd_get_autoinc(thd, off, inc)
 #  define MRN_GET_ERR_MSG(code) my_get_err_msg(code)
@@ -202,27 +193,27 @@ uint grn_atoui(const char *nptr, const char *end, const char **rest);
 handlerton *mrn_hton_ptr;
 HASH mrn_open_tables;
 mysql_mutex_t mrn_open_tables_mutex;
-static PSI_mutex_key mrn_open_tables_mutex_key;
 HASH mrn_long_term_share;
 mysql_mutex_t mrn_long_term_share_mutex;
-static PSI_mutex_key mrn_long_term_share_mutex_key;
 
 HASH mrn_allocated_thds;
 mysql_mutex_t mrn_allocated_thds_mutex;
-PSI_mutex_key mrn_allocated_thds_mutex_key;
-
-PSI_mutex_key mrn_share_mutex_key;
-PSI_mutex_key mrn_long_term_share_auto_inc_mutex_key;
-
 /* internal variables */
 static grn_ctx mrn_ctx;
 static mysql_mutex_t mrn_log_mutex;
-static PSI_mutex_key mrn_log_mutex_key;
 static grn_obj *mrn_db;
 static grn_ctx mrn_db_manager_ctx;
 static mysql_mutex_t mrn_db_manager_mutex;
-static PSI_mutex_key mrn_db_manager_mutex_key;
 mrn::DatabaseManager *mrn_db_manager = NULL;
+
+#ifdef HAVE_PSI_INTERFACE
+PSI_mutex_key mrn_allocated_thds_mutex_key;
+static PSI_mutex_key mrn_open_tables_mutex_key;
+static PSI_mutex_key mrn_long_term_share_mutex_key;
+PSI_mutex_key mrn_share_mutex_key;
+PSI_mutex_key mrn_long_term_share_auto_inc_mutex_key;
+static PSI_mutex_key mrn_db_manager_mutex_key;
+static PSI_mutex_key mrn_log_mutex_key;
 
 static PSI_mutex_info mrn_mutexes[] =
 {
@@ -235,6 +226,20 @@ static PSI_mutex_info mrn_mutexes[] =
   {&mrn_log_mutex_key,             "log",             PSI_FLAG_GLOBAL},
   {&mrn_db_manager_mutex_key,      "DatabaseManager", PSI_FLAG_GLOBAL}
 };
+
+#ifdef WIN32
+#  ifdef MRN_TABLE_SHARE_HAVE_LOCK_SHARE
+     PSI_mutex_key *mrn_table_share_lock_share;
+#  endif
+#  ifdef MRN_TABLE_SHARE_HAVE_LOCK_HA_DATA
+     PSI_mutex_key *mrn_table_share_lock_ha_data;
+#  endif
+#endif
+
+#else
+#undef MRN_TABLE_SHARE_HAVE_LOCK_SHARE
+#undef MRN_TABLE_SHARE_HAVE_LOCK_HA_DATA
+#endif
 
 
 #ifdef WIN32
@@ -1476,11 +1481,13 @@ static int mrn_init(void *p)
 #  endif
 #endif
 
+#ifdef HAVE_PSI_INTERFACE
   if (PSI_server) {
     const char *category = "mroonga";
     int n_mutexes = array_elements(mrn_mutexes);
     PSI_server->register_mutex(category, mrn_mutexes, n_mutexes);
   }
+#endif
 
   if (grn_init() != GRN_SUCCESS) {
     goto err_grn_init;

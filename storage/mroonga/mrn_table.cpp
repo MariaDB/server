@@ -47,6 +47,7 @@
 extern HASH *mrn_table_def_cache;
 #endif
 
+#ifdef HAVE_PSI_INTERFACE
 #ifdef WIN32
 #  ifdef MRN_TABLE_SHARE_HAVE_LOCK_SHARE
 extern PSI_mutex_key *mrn_table_share_lock_share;
@@ -54,6 +55,9 @@ extern PSI_mutex_key *mrn_table_share_lock_share;
 #  ifdef MRN_TABLE_SHARE_HAVE_LOCK_HA_DATA
 extern PSI_mutex_key *mrn_table_share_lock_ha_data;
 #  endif
+#endif
+extern PSI_mutex_key mrn_share_mutex_key;
+extern PSI_mutex_key mrn_long_term_share_auto_inc_mutex_key;
 #endif
 
 #ifdef __cplusplus
@@ -69,8 +73,6 @@ extern char *mrn_default_wrapper_engine;
 extern handlerton *mrn_hton_ptr;
 extern HASH mrn_allocated_thds;
 extern mysql_mutex_t mrn_allocated_thds_mutex;
-extern PSI_mutex_key mrn_share_mutex_key;
-extern PSI_mutex_key mrn_long_term_share_auto_inc_mutex_key;
 
 static char *mrn_get_string_between_quote(const char *ptr)
 {
