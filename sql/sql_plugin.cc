@@ -206,7 +206,7 @@ static struct
   { "performance_schema", PLUGIN_FORCE }
 
   /* we disable few other plugins by default */
-  //,{ "feedback", PLUGIN_OFF }
+  ,{ "feedback", PLUGIN_OFF }
 };
 
 /* support for Services */
