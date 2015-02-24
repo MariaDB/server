@@ -74,6 +74,7 @@ PJSON ParseJson(PGLOBAL g, char *s, int len, int pretty, bool *comma)
           goto err;
         } else if (!(jsp = ParseObject(g, ++i, src)))
           goto err;
+
         break;
       case ' ':
       case '\t':
@@ -90,6 +91,11 @@ PJSON ParseJson(PGLOBAL g, char *s, int len, int pretty, bool *comma)
 
         sprintf(g->Message, "Unexpected ',' (pretty=%d)", pretty);
         goto err;
+      case '"':
+        if (!(jsp = ParseValue(g, i, src)))
+          goto err;
+
+        break;
       case '(':
         b = true;
         break;

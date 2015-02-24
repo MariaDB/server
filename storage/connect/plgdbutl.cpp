@@ -311,7 +311,7 @@ PQRYRES PlgAllocResult(PGLOBAL g, int ncol, int maxres, int ids,
     else
       crp->Kdata = NULL;
 
-    if (g->Trace)
+    if (trace)
       htrc("Column(%d) %s type=%d len=%d value=%p\n",
               crp->Ncol, crp->Name, crp->Type, crp->Length, crp->Kdata);
 

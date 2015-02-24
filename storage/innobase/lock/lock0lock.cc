@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2014, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2014, 2015, MariaDB Corporation
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1886,6 +1887,9 @@ lock_rec_create(
 	/* Set the bit corresponding to rec */
 	lock_rec_set_nth_bit(lock, heap_no);
 
+	lock->requested_time = ut_time();
+	lock->wait_time = 0;
+
 	index->table->n_rec_locks++;
 
 	ut_ad(index->table->n_ref_count > 0 || !index->table->can_be_evicted);
@@ -2033,6 +2037,8 @@ lock_rec_enqueue_waiting(
 #endif /* UNIV_DEBUG */
 
 	MONITOR_INC(MONITOR_LOCKREC_WAIT);
+
+	trx->n_rec_lock_waits++;
 
 	return(DB_LOCK_WAIT);
 }
@@ -2453,6 +2459,17 @@ lock_grant(
 			lock_wait_release_thread_if_suspended(thr);
 		}
 	}
+
+	/* Cumulate total lock wait time for statistics */
+	if (lock_get_type_low(lock) & LOCK_TABLE) {
+		lock->trx->total_table_lock_wait_time +=
+			(ulint)difftime(ut_time(), lock->trx->lock.wait_started);
+	} else {
+		lock->trx->total_rec_lock_wait_time +=
+			(ulint)difftime(ut_time(), lock->trx->lock.wait_started);
+	}
+
+	lock->wait_time = (ulint)difftime(ut_time(), lock->requested_time);
 
 	trx_mutex_exit(lock->trx);
 }
@@ -4215,6 +4232,8 @@ lock_table_create(
 
 	lock->type_mode = type_mode | LOCK_TABLE;
 	lock->trx = trx;
+	lock->requested_time = ut_time();
+	lock->wait_time = 0;
 
 	lock->un_member.tab_lock.table = table;
 
@@ -4458,6 +4477,7 @@ lock_table_enqueue_waiting(
 
 	trx->lock.wait_started = ut_time();
 	trx->lock.was_chosen_as_deadlock_victim = FALSE;
+	trx->n_table_lock_waits++;
 
 	ut_a(que_thr_stop(thr));
 
@@ -5133,6 +5153,10 @@ lock_table_print(
 		fputs(" waiting", file);
 	}
 
+	fprintf(file, " lock hold time %lu wait time before grant %lu ",
+		(ulint)difftime(ut_time(), lock->requested_time),
+		lock->wait_time);
+
 	putc('\n', file);
 }
 
@@ -5199,6 +5223,10 @@ lock_rec_print(
 	}
 
 	mtr_start(&mtr);
+
+	fprintf(file, " lock hold time %lu wait time before grant %lu ",
+		(ulint)difftime(ut_time(), lock->requested_time),
+		lock->wait_time);
 
 	putc('\n', file);
 
@@ -5457,6 +5485,14 @@ loop:
 				trx->read_view->low_limit_id,
 				trx->read_view->up_limit_id);
 		}
+
+		/* Total trx lock waits and times */
+		fprintf(file, "Trx #rec lock waits %lu #table lock waits %lu\n",
+			trx->n_rec_lock_waits, trx->n_table_lock_waits);
+		fprintf(file, "Trx total rec lock wait time %lu SEC\n",
+			trx->total_rec_lock_wait_time);
+		fprintf(file, "Trx total table lock wait time %lu SEC\n",
+			trx->total_table_lock_wait_time);
 
 		if (trx->lock.que_state == TRX_QUE_LOCK_WAIT) {
 
