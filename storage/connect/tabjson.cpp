@@ -931,7 +931,11 @@ void JSONCOL::WriteColumn(PGLOBAL g)
     case TYPE_STRING:
       if (Nodes[Nod-1].Op == OP_XX) {
         s = Value->GetCharValue();
-        jsp = ParseJson(g, s, (int)strlen(s), 0);
+
+        if (!(jsp = ParseJson(g, s, (int)strlen(s), 0))) {
+          strcpy(g->Message, s);
+          longjmp(g->jumper[g->jump_level], 666);
+          } // endif jsp
 
         if (arp) {
           if (Nod > 1 && Nodes[Nod-2].Rank)

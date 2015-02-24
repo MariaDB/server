@@ -235,7 +235,7 @@ typedef struct _global {            /* Global structure                */
   void     *Xchk;                   /* indexes in create/alter         */
   short     Alchecked;              /* Checked for ALTER               */
   short     Mrr;                    /* True when doing mrr             */
-  short     Trace;
+  int       N;                      /* Utility                         */
   int       jump_level;
   jmp_buf   jumper[MAX_JUMP + 2];
   } GLOBAL;

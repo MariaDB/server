@@ -165,9 +165,10 @@
 /***********************************************************************/
 /*  Initialize the ha_connect static members.                          */
 /***********************************************************************/
-#define SZCONV 8192
-#define SZWORK 67108864            // Default work area size 64M
-#define SZWMIN 4194304             // Minimum work area size  4M
+#define SZCONV     8192
+#define SZWORK 67108864             // Default work area size 64M
+#define SZWMIN  4194304             // Minimum work area size  4M
+#define JSONMAX      10             // JSON Default max grp size
 
 extern "C" {
        char  version[]= "Version 1.03.0006 February 06, 2015";
@@ -217,6 +218,7 @@ bool    ExactInfo(void);
 USETEMP UseTemp(void);
 int     GetConvSize(void);
 TYPCONV GetTypeConv(void);
+uint    GetJsonGrpSize(void);
 uint    GetWorkSize(void);
 void    SetWorkSize(uint);
 extern "C" const char *msglang(void);
@@ -323,6 +325,12 @@ static MYSQL_THDVAR_ENUM(
   0,                               // def (no)
   &xconv_typelib);                 // typelib
 
+// Estimate max number of rows for JSON aggregate functions
+static MYSQL_THDVAR_UINT(json_grp_size,
+       PLUGIN_VAR_RQCMDARG,             // opt
+       "max number of rows for JSON aggregate functions.",
+       NULL, NULL, JSONMAX, 1, INT_MAX, 1);
+
 #if defined(XMSG) || defined(NEWMSG)
 const char *language_names[]=
 {
@@ -353,6 +361,7 @@ bool ExactInfo(void) {return THDVAR(current_thd, exact_info);}
 USETEMP UseTemp(void) {return (USETEMP)THDVAR(current_thd, use_tempfile);}
 int GetConvSize(void) {return THDVAR(current_thd, conv_size);}
 TYPCONV GetTypeConv(void) {return (TYPCONV)THDVAR(current_thd, type_conv);}
+uint GetJsonGrpSize(void) {return THDVAR(current_thd, json_grp_size);}
 uint GetWorkSize(void) {return THDVAR(current_thd, work_size);}
 void SetWorkSize(uint n) 
 {
@@ -6516,6 +6525,7 @@ static struct st_mysql_sys_var* connect_system_variables[]= {
 #if defined(XMSG)
   MYSQL_SYSVAR(errmsg_dir_path),
 #endif   // XMSG
+  MYSQL_SYSVAR(json_grp_size),
   NULL
 };
 
