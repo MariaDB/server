@@ -843,7 +843,7 @@ static int search_default_file_with_ext(Process_option_func opt_handler,
                                 ptr, name, line)))
 	  goto err;
 
-        if (!(search_dir= my_dir(ptr, MYF(MY_WME))))
+        if (!(search_dir= my_dir(ptr, MYF(MY_WME | MY_WANT_SORT))))
           goto err;
 
         for (i= 0; i < (uint) search_dir->number_of_files; i++)
