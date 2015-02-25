@@ -117,7 +117,8 @@ TDBJSN::TDBJSN(PJDEF tdp, PTXF txfp) : TDBDOS(tdp, txfp)
   Jmode = tdp->Jmode;
   Xcol = tdp->Xcol;
   Fpos = -1;
-  Spos = N = 0;
+//Spos = 0;
+  N = 0;
   Limit = tdp->Limit;
   NextSame = 0;
   SameRow = 0;
@@ -134,7 +135,7 @@ TDBJSN::TDBJSN(TDBJSN *tdbp) : TDBDOS(NULL, tdbp)
   Jmode = tdbp->Jmode;
   Xcol = tdbp->Xcol;
   Fpos = tdbp->Fpos;
-  Spos = tdbp->Spos;
+//Spos = tdbp->Spos;
   N = tdbp->N;
   Limit = tdbp->Limit;
   NextSame = tdbp->NextSame;
@@ -222,7 +223,7 @@ bool TDBJSN::OpenDB(PGLOBAL g)
     /*  Table already open replace it at its beginning.                */
     /*******************************************************************/
     Fpos= -1;
-    Spos = 0;
+//  Spos = 0;
     NextSame = 0;
     SameRow = 0;
   } else {
@@ -1299,7 +1300,6 @@ bool TDBJSON::OpenDB(PGLOBAL g)
     /*  Table already open replace it at its beginning.                */
     /*******************************************************************/
     Fpos= -1;
-    Spos = 0;
     NextSame = false;
     SameRow = 0;
     return false;
