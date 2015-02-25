@@ -24,8 +24,6 @@ return "No my_print_defaults" unless $epath;
 
 push @::global_suppressions,
   (
-     qr(WSREP: Failed to guess base node address),
-     qr(WSREP: Guessing address for incoming client connections failed),
      qr(WSREP: wsrep_sst_receive_address is set to '127.0.0.1),
      qr(WSREP: Could not open saved state file for reading: ),
      qr(WSREP: Gap in state sequence. Need state transfer.),

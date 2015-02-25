@@ -24,8 +24,6 @@ return "No my_print_defaults" unless $epath;
 
 push @::global_suppressions,
   (
-     qr(WSREP: Failed to guess base node address),
-     qr(WSREP: Guessing address for incoming client connections failed),
      qr(WSREP: Could not open saved state file for reading: ),
      qr(WSREP: option --wsrep-casual-reads is deprecated),
      qr(WSREP: --wsrep-casual-reads=ON takes precedence over --wsrep-sync-wait=0),
