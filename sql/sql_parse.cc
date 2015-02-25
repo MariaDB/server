@@ -2730,6 +2730,9 @@ mysql_execute_command(THD *thd)
     }
   }
 
+  if (thd->lex->mi.connection_name.str == NULL)
+      thd->lex->mi.connection_name= thd->variables.default_master_connection;
+
   /*
     Force statement logging for DDL commands to allow us to update
     privilege, system or statistic tables directly without the updates

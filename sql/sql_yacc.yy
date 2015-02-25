@@ -2443,7 +2443,7 @@ optional_connection_name:
           /* empty */
           {
             LEX *lex= thd->lex;
-            lex->mi.connection_name= thd->variables.default_master_connection;
+            lex->mi.connection_name= null_lex_str;
           }
         | connection_name;
         ;
@@ -12674,7 +12674,7 @@ show_param:
         | SLAVE STATUS_SYM
           {
             LEX *lex= thd->lex;
-            lex->mi.connection_name= thd->variables.default_master_connection;
+            lex->mi.connection_name= null_lex_str;
             lex->sql_command = SQLCOM_SHOW_SLAVE_STAT;
             lex->verbose= 0;
           }
