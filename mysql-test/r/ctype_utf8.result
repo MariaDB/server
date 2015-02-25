@@ -6259,6 +6259,12 @@ EXECUTE stmt USING @b,@b;
 ERROR HY000: Illegal mix of collations (latin1_swedish_ci,IMPLICIT) and (utf8_general_ci,COERCIBLE) for operation 'concat'
 DEALLOCATE PREPARE stmt;
 DROP TABLE t1;
+#
+# MDEV-7629 Regression: Bit and hex string literals changed column names in 10.0.14
+#
+SELECT _utf8 0x7E, _utf8 X'7E', _utf8 B'01111110';
+_utf8 0x7E	_utf8 X'7E'	_utf8 B'01111110'
+~	~	~
 # Start of ctype_unescape.inc
 SET @query=_binary'SELECT CHARSET(\'test\'),@@character_set_client,@@character_set_connection';
 PREPARE stmt FROM @query;
