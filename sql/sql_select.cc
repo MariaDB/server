@@ -23827,6 +23827,13 @@ int JOIN::save_explain_data_intern(Explain_query *output, bool need_tmp_table,
 		      (ulong)join->select_lex, join->select_lex->type,
 		      message ? message : "NULL"));
   DBUG_ASSERT(have_query_plan == QEP_AVAILABLE);
+  /* fake_select_lex is created/printed by Explain_union */
+  DBUG_ASSERT(join->select_lex != join->unit->fake_select_lex);
+
+  /* There should be no attempts to save query plans for merged selects */
+  DBUG_ASSERT(!join->select_lex->master_unit()->derived ||
+              join->select_lex->master_unit()->derived->is_materialized_derived());
+
   /* Don't log this into the slow query log */
 
   if (message)
@@ -23843,12 +23850,7 @@ int JOIN::save_explain_data_intern(Explain_query *output, bool need_tmp_table,
     /* Setting xpl_sel->message means that all other members are invalid */
     output->add_node(xpl_sel);
   }
-  else if (join->select_lex == join->unit->fake_select_lex)
-  {
-    /* Do nothing, Explain_union will create and print fake_select_lex */
-  }
-  else if (!join->select_lex->master_unit()->derived ||
-           join->select_lex->master_unit()->derived->is_materialized_derived())
+  else
   {
     Explain_select *xpl_sel;
     explain_node= xpl_sel= new (output->mem_root) Explain_select(output->mem_root);
@@ -24013,10 +24015,12 @@ static void select_describe(JOIN *join, bool need_tmp_table, bool need_order,
     }
 
     /* 
-      Display subqueries only if they are not parts of eliminated WHERE/ON
-      clauses.
+      Save plans for child subqueries, when
+      (1) they are not parts of eliminated WHERE/ON clauses.
+      (2) they are not VIEWs that were "merged for INSERT".
     */
-    if (!(unit->item && unit->item->eliminated))
+    if (!(unit->item && unit->item->eliminated) &&             // (1)
+        !(unit->derived && unit->derived->merged_for_insert))  // (2)
     {
       if (mysql_explain_union(thd, unit, result))
         DBUG_VOID_RETURN;
