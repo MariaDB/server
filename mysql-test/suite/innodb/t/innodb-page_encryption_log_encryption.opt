@@ -1,0 +1,2 @@
+--encryption-algorithm=aes_ctr
+--innodb-encrypt-log

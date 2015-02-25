@@ -13,7 +13,7 @@ uint opt_debug_encryption_key_version = 0;
 static plugin_ref encryption_key_manager= 0;
 static struct st_mariadb_encryption_key_management *handle;
 
-uint get_latest_encryption_key_version()
+unsigned int get_latest_encryption_key_version()
 {
 #ifndef DBUG_OFF
   if (debug_use_static_encryption_keys)
@@ -31,7 +31,7 @@ uint get_latest_encryption_key_version()
   return BAD_ENCRYPTION_KEY_VERSION;
 }
 
-uint has_encryption_key(uint version)
+unsigned int has_encryption_key(uint version)
 {
   if (encryption_key_manager)
     return handle->has_key_version(version);
@@ -39,7 +39,7 @@ uint has_encryption_key(uint version)
   return 0;
 }
 
-uint get_encryption_key_size(uint version)
+unsigned int get_encryption_key_size(uint version)
 {
   if (encryption_key_manager)
     return handle->get_key_size(version);

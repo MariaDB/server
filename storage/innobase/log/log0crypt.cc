@@ -7,10 +7,12 @@ Created 11/25/2013 Minli Zhu
 #include "m_string.h"
 #include "log0crypt.h"
 #include <my_crypt.h>
-
+#include <my_aes.h>
 #include "log0log.h"
 #include "srv0start.h" // for srv_start_lsn
 #include "log0recv.h"  // for recv_sys
+
+#include "mysql/plugin_encryption_key_management.h" // for BAD_ENCRYPTION_KEY_VERSION
 
 /* If true, enable redo log encryption. */
 UNIV_INTERN my_bool srv_encrypt_log = FALSE;
@@ -50,7 +52,7 @@ log_init_crypt_msg_and_nonce(void)
 	if (my_random_bytes(redo_log_crypt_msg + 1, PURPOSE_BYTE_LEN) != AES_OK)
 	{
 		fprintf(stderr,
-			"\nInnodb redo log crypto: generate "
+			"\nInnoDB redo log crypto: generate "
 			"%u-byte random number as crypto msg failed.\n",
 			PURPOSE_BYTE_LEN);
 		abort();
@@ -59,7 +61,7 @@ log_init_crypt_msg_and_nonce(void)
 	if (my_random_bytes(aes_ctr_nonce, MY_AES_BLOCK_SIZE) != AES_OK)
 	{
 		fprintf(stderr,
-			"\nInnodb redo log crypto: generate "
+			"\nInnoDB redo log crypto: generate "
 			"%u-byte random number as AES_CTR nonce failed.\n",
 			MY_AES_BLOCK_SIZE);
 		abort();
@@ -78,7 +80,7 @@ log_init_crypt_key(
 {
 	if (crypt_ver == UNENCRYPTED_KEY_VER)
 	{
-		fprintf(stderr, "\nInnodb redo log crypto: unencrypted key ver.\n\n");
+		fprintf(stderr, "\nInnoDB redo log crypto: unencrypted key ver.\n\n");
 		memset(key, 0, MY_AES_BLOCK_SIZE);
 		return;
 	}
@@ -86,7 +88,7 @@ log_init_crypt_key(
 	if (crypt_msg[PURPOSE_BYTE_OFFSET] != redo_log_purpose_byte)
 	{
 		fprintf(stderr,
-			"\nInnodb redo log crypto: msg type mismatched. "
+			"\nInnoDB redo log crypto: msg type mismatched. "
 			"Expected: %x; Actual: %x\n",
 			redo_log_purpose_byte, crypt_msg[PURPOSE_BYTE_OFFSET]);
 		abort();
@@ -96,7 +98,7 @@ log_init_crypt_key(
 	if (get_encryption_key(crypt_ver, mysqld_key, MY_AES_BLOCK_SIZE))
 	{
 		fprintf(stderr,
-			"\nInnodb redo log crypto: getting mysqld crypto key "
+			"\nInnoDB redo log crypto: getting mysqld crypto key "
 			"from key version failed.\n");
 		abort();
 	}
@@ -112,7 +114,7 @@ log_init_crypt_key(
 	if (rc != AES_OK || dst_len != MY_AES_BLOCK_SIZE)
 	{
 		fprintf(stderr,
-			"\nInnodb redo log crypto: getting redo log crypto key "
+			"\nInnoDB redo log crypto: getting redo log crypto key "
 			"failed.\n");
 		abort();
 	}
@@ -233,13 +235,35 @@ log_crypt_set_ver_and_key(
 	uint& key_ver,			/*!< out: latest key version */
 	byte* crypt_key)		/*!< out: crypto key */
 {
-	if (!srv_encrypt_log ||
-	    (key_ver = get_latest_encryption_key_version()) == UNENCRYPTED_KEY_VER)
-	{
+	bool encrypted;
+
+	if (srv_encrypt_log) {
+		unsigned int vkey;
+		vkey = get_latest_encryption_key_version();
+		encrypted = true;
+
+		if (vkey == UNENCRYPTED_KEY_VER ||
+		    vkey == BAD_ENCRYPTION_KEY_VERSION ||
+			vkey == (unsigned int)CRYPT_KEY_UNKNOWN) {
+			encrypted = false;
+
+			fprintf(stderr, "\nInnoDB redo log crypto: Can't initialize to key version %du\n",
+				key_ver);
+			fprintf(stderr, "InnoDB: [Warning] Disabling redo log encryption\n");
+			srv_encrypt_log = FALSE;
+		} else {
+			key_ver = vkey;
+		}
+	} else {
+		encrypted = false;
+	}
+
+	if (!encrypted) {
 		key_ver = UNENCRYPTED_KEY_VER;
 		memset(crypt_key, 0, MY_AES_BLOCK_SIZE);
 		return;
 	}
+
 	log_init_crypt_key(redo_log_crypt_msg, key_ver, crypt_key);
 }
 

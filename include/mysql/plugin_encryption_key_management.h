@@ -29,7 +29,7 @@
 
 #define MariaDB_ENCRYPTION_KEY_MANAGEMENT_INTERFACE_VERSION 0x0100
 
-#define BAD_ENCRYPTION_KEY_VERSION (~0U)
+#define BAD_ENCRYPTION_KEY_VERSION (UINT_MAX32)
 
 /**
   Encryption key management plugin descriptor

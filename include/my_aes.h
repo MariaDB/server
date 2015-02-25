@@ -33,8 +33,8 @@ typedef int Crypt_result;
 #define AES_KEY_CREATION_FAILED -10
 
 #define CRYPT_KEY_OK 0
-#define CRYPT_BUFFER_TO_SMALL -11;
-#define CRYPT_KEY_UNKNOWN -48;
+#define CRYPT_BUFFER_TO_SMALL -11
+#define CRYPT_KEY_UNKNOWN -48
 
 /* The max block sizes of all supported algorithms */
 #define MY_AES_BLOCK_SIZE 16
