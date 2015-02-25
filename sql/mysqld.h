@@ -758,9 +758,6 @@ extern ulong binlog_checksum_options;
 extern bool max_user_connections_checking;
 extern ulong opt_binlog_dbug_fsync_sleep;
 
-extern uint internal_tmp_table_max_key_length;
-extern uint internal_tmp_table_max_key_segments;
-
 extern uint volatile global_disable_checkpoint;
 extern my_bool opt_help;
 
