@@ -319,6 +319,11 @@ static inline uint calc_hash(LF_HASH *hash, const uchar *key, uint keylen)
 
 static int initialize_bucket(LF_HASH *, LF_SLIST * volatile*, uint, LF_PINS *);
 
+static void default_initializer(LF_HASH *hash, void *dst, const void *src)
+{
+  memcpy(dst, src, hash->element_size);
+}
+
 /*
   Initializes lf_hash, the arguments are compatible with hash_init
 
@@ -331,6 +336,9 @@ static int initialize_bucket(LF_HASH *, LF_SLIST * volatile*, uint, LF_PINS *);
   DYNAMIC_ARRAY. In this case they should be initialize in the
   LF_ALLOCATOR::constructor, and lf_hash_insert should not overwrite them.
   See wt_init() for example.
+
+  The above works well with PODS. For more complex cases (e.g. C++ classes
+  with private members) use initializer function.
 */
 void lf_hash_init(LF_HASH *hash, uint element_size, uint flags,
                   uint key_offset, uint key_length, my_hash_get_key get_key,
@@ -347,6 +355,7 @@ void lf_hash_init(LF_HASH *hash, uint element_size, uint flags,
   hash->key_offset= key_offset;
   hash->key_length= key_length;
   hash->get_key= get_key;
+  hash->initializer= default_initializer;
   DBUG_ASSERT(get_key ? !key_offset && !key_length : key_length);
 }
 
@@ -392,7 +401,7 @@ int lf_hash_insert(LF_HASH *hash, LF_PINS *pins, const void *data)
   node= (LF_SLIST *)lf_alloc_new(pins);
   if (unlikely(!node))
     return -1;
-  memcpy(node+1, data, hash->element_size);
+  hash->initializer(hash, node + 1, data);
   node->key= hash_key(hash, (uchar *)(node+1), &node->keylen);
   hashnr= calc_hash(hash, node->key, node->keylen);
   bucket= hashnr % hash->size;
