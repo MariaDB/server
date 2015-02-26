@@ -1403,10 +1403,11 @@ static Sys_var_ulonglong Sys_max_heap_table_size(
        VALID_RANGE(16384, (ulonglong)~(intptr)0), DEFAULT(16*1024*1024),
        BLOCK_SIZE(1024));
 
+static ulong mdl_locks_cache_size;
 static Sys_var_ulong Sys_metadata_locks_cache_size(
-       "metadata_locks_cache_size", "Size of unused metadata locks cache",
+       "metadata_locks_cache_size", "Unused",
        READ_ONLY GLOBAL_VAR(mdl_locks_cache_size), CMD_LINE(REQUIRED_ARG),
-       VALID_RANGE(1, 1024*1024), DEFAULT(MDL_LOCKS_CACHE_SIZE_DEFAULT),
+       VALID_RANGE(1, 1024*1024), DEFAULT(1024),
        BLOCK_SIZE(1));
 
 static Sys_var_ulong Sys_metadata_locks_hash_instances(

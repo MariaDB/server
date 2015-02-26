@@ -111,10 +111,6 @@ void MDL_key::init_psi_keys()
 static bool mdl_initialized= 0;
 
 
-class MDL_object_lock;
-class MDL_object_lock_cache_adapter;
-
-
 /**
   A partition in a collection of all MDL locks.
   MDL_map is partitioned for scalability reasons.
@@ -135,25 +131,6 @@ private:
   HASH m_locks;
   /* Protects access to m_locks hash. */
   mysql_mutex_t m_mutex;
-  /**
-    Cache of (unused) MDL_lock objects available for re-use.
-
-    On some systems (e.g. Windows XP) constructing/destructing
-    MDL_lock objects can be fairly expensive. We use this cache
-    to avoid these costs in scenarios in which they can have
-    significant negative effect on performance. For example, when
-    there is only one thread constantly executing statements in
-    auto-commit mode and thus constantly causing creation/
-    destruction of MDL_lock objects for the tables it uses.
-
-    Note that this cache contains only MDL_object_lock objects.
-
-    Protected by m_mutex mutex.
-  */
-  typedef I_P_List<MDL_object_lock, MDL_object_lock_cache_adapter,
-                   I_P_List_counter>
-          Lock_cache;
-  Lock_cache m_unused_locks_cache;
   friend int mdl_iterate(int (*)(MDL_ticket *, void *), void *);
 };
 
@@ -577,26 +554,6 @@ public:
     : MDL_lock(key_arg, map_part)
   { }
 
-  /**
-    Reset unused MDL_object_lock object to represent the lock context for a
-    different object.
-  */
-  void reset(const MDL_key *new_key)
-  {
-    /* We need to change only object's key. */
-    key.mdl_key_init(new_key);
-    /* m_granted and m_waiting should be already in the empty/initial state. */
-    DBUG_ASSERT(is_empty());
-    /* Object should not be marked as destroyed. */
-    DBUG_ASSERT(! m_is_destroyed);
-    /*
-      Values of the rest of the fields should be preserved between old and
-      new versions of the object. E.g., m_version and m_ref_usage/release
-      should be kept intact to properly handle possible remaining references
-      to the old version of the object.
-    */
-  }
-
   virtual const bitmap_t *incompatible_granted_types_bitmap() const
   {
     return m_granted_incompatible;
@@ -626,28 +583,10 @@ public:
 private:
   static const bitmap_t m_granted_incompatible[MDL_TYPE_END];
   static const bitmap_t m_waiting_incompatible[MDL_TYPE_END];
-
-public:
-  /** Members for linking the object into the list of unused objects. */
-  MDL_object_lock *next_in_cache, **prev_in_cache;
-};
-
-
-/**
-  Helper class for linking MDL_object_lock objects into the unused objects list.
-*/
-class MDL_object_lock_cache_adapter :
-      public I_P_List_adapter<MDL_object_lock, &MDL_object_lock::next_in_cache,
-                              &MDL_object_lock::prev_in_cache>
-{
 };
 
 
 static MDL_map mdl_locks;
-/**
-  Start-up parameter for the maximum size of the unused MDL_lock objects cache.
-*/
-ulong mdl_locks_cache_size;
 
 
 extern "C"
@@ -839,10 +778,6 @@ MDL_map_partition::~MDL_map_partition()
   DBUG_ASSERT(!m_locks.records);
   mysql_mutex_destroy(&m_mutex);
   my_hash_free(&m_locks);
-
-  MDL_object_lock *lock;
-  while ((lock= m_unused_locks_cache.pop_front()))
-    MDL_lock::destroy(lock);
 }
 
 
@@ -908,48 +843,14 @@ retry:
                                                           mdl_key->ptr(),
                                                           mdl_key->length())))
   {
-    MDL_object_lock *unused_lock= NULL;
-
     /*
       No lock object found so we need to create a new one
       or reuse an existing unused object.
     */
-    if (mdl_key->mdl_namespace() != MDL_key::SCHEMA &&
-        m_unused_locks_cache.elements())
-    {
-      /*
-        We need a MDL_object_lock type of object and the unused objects
-        cache has some. Get the first object from the cache and set a new
-        key for it.
-      */
-      DBUG_ASSERT(mdl_key->mdl_namespace() != MDL_key::GLOBAL &&
-                  mdl_key->mdl_namespace() != MDL_key::COMMIT);
-
-      unused_lock= m_unused_locks_cache.pop_front();
-      unused_lock->reset(mdl_key);
-
-      lock= unused_lock;
-    }
-    else
-    {
-      lock= MDL_lock::create(mdl_key, this);
-    }
-
+    lock= MDL_lock::create(mdl_key, this);
     if (!lock || my_hash_insert(&m_locks, (uchar*)lock))
     {
-      if (unused_lock)
-      {
-        /*
-          Note that we can't easily destroy an object from cache here as it
-          still might be referenced by other threads. So we simply put it
-          back into the cache.
-        */
-        m_unused_locks_cache.push_front(unused_lock);
-      }
-      else
-      {
-        MDL_lock::destroy(lock);
-      }
+      MDL_lock::destroy(lock);
       mysql_mutex_unlock(&m_mutex);
       return NULL;
     }
@@ -1126,55 +1027,32 @@ void MDL_map_partition::remove(MDL_lock *lock)
   */
   lock->m_version++;
 
-  if ((lock->key.mdl_namespace() != MDL_key::SCHEMA) &&
-      (m_unused_locks_cache.elements() <
-       mdl_locks_cache_size/mdl_locks_hash_partitions))
-  {
-    /*
-      This is an object of MDL_object_lock type and the cache of unused
-      objects has not reached its maximum size yet. So instead of destroying
-      object we move it to the list of unused objects to allow its later
-      re-use with possibly different key. Any threads holding references to
-      this object (owning MDL_map_partition::m_mutex or MDL_lock::m_rwlock)
-      will notice this thanks to the fact that we have changed the
-      MDL_lock::m_version counter.
-    */
-    DBUG_ASSERT(lock->key.mdl_namespace() != MDL_key::GLOBAL &&
-                lock->key.mdl_namespace() != MDL_key::COMMIT);
+  /*
+    Destroy the MDL_lock object, but ensure that anyone that is
+    holding a reference to the object is not remaining, if so he
+    has the responsibility to release it.
 
-    m_unused_locks_cache.push_front((MDL_object_lock*)lock);
-    mysql_mutex_unlock(&m_mutex);
-    mysql_prlock_unlock(&lock->m_rwlock);
-  }
-  else
-  {
-    /*
-      Destroy the MDL_lock object, but ensure that anyone that is
-      holding a reference to the object is not remaining, if so he
-      has the responsibility to release it.
+    Setting of m_is_destroyed to TRUE while holding _both_
+    MDL_map_partition::m_mutex and MDL_lock::m_rwlock mutexes transfers
+    the protection of m_ref_usage from MDL_map_partition::m_mutex to
+    MDL_lock::m_rwlock while removal of the object from the hash
+    (and cache of unused objects) makes it read-only. Therefore
+    whoever acquires MDL_lock::m_rwlock next will see the most up
+    to date version of m_ref_usage.
 
-      Setting of m_is_destroyed to TRUE while holding _both_
-      MDL_map_partition::m_mutex and MDL_lock::m_rwlock mutexes transfers
-      the protection of m_ref_usage from MDL_map_partition::m_mutex to
-      MDL_lock::m_rwlock while removal of the object from the hash
-      (and cache of unused objects) makes it read-only. Therefore
-      whoever acquires MDL_lock::m_rwlock next will see the most up
-      to date version of m_ref_usage.
+    This means that when m_is_destroyed is TRUE and we hold the
+    MDL_lock::m_rwlock we can safely read the m_ref_usage
+    member.
+  */
+  uint ref_usage, ref_release;
 
-      This means that when m_is_destroyed is TRUE and we hold the
-      MDL_lock::m_rwlock we can safely read the m_ref_usage
-      member.
-    */
-    uint ref_usage, ref_release;
-
-    lock->m_is_destroyed= TRUE;
-    ref_usage= lock->m_ref_usage;
-    ref_release= lock->m_ref_release;
-    mysql_mutex_unlock(&m_mutex);
-    mysql_prlock_unlock(&lock->m_rwlock);
-    if (ref_usage == ref_release)
-      MDL_lock::destroy(lock);
-  }
+  lock->m_is_destroyed= TRUE;
+  ref_usage= lock->m_ref_usage;
+  ref_release= lock->m_ref_release;
+  mysql_mutex_unlock(&m_mutex);
+  mysql_prlock_unlock(&lock->m_rwlock);
+  if (ref_usage == ref_release)
+    MDL_lock::destroy(lock);
 }
 
 

@@ -452,7 +452,7 @@ The following options may be given as the first argument:
  in between
  --memlock           Lock mysqld in memory.
  --metadata-locks-cache-size=# 
- Size of unused metadata locks cache
+ Unused
  --metadata-locks-hash-instances=# 
  Number of metadata locks hash instances
  --min-examined-row-limit=# 
