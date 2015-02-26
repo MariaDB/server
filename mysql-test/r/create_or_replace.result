@@ -264,8 +264,8 @@ select * from information_schema.metadata_lock_info;
 THREAD_ID	LOCK_MODE	LOCK_DURATION	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
 #	MDL_INTENTION_EXCLUSIVE	MDL_EXPLICIT	Global read lock		
 #	MDL_SHARED_NO_READ_WRITE	MDL_EXPLICIT	Table metadata lock	test	t1
-#	MDL_INTENTION_EXCLUSIVE	MDL_EXPLICIT	Schema metadata lock	mysqltest2	
 #	MDL_INTENTION_EXCLUSIVE	MDL_EXPLICIT	Schema metadata lock	test	
+#	MDL_INTENTION_EXCLUSIVE	MDL_EXPLICIT	Schema metadata lock	mysqltest2	
 #	MDL_SHARED_NO_READ_WRITE	MDL_EXPLICIT	Table metadata lock	mysqltest2	t2
 create or replace table test.t1;
 ERROR 42000: A table must have at least 1 column
@@ -291,8 +291,8 @@ select * from information_schema.metadata_lock_info;
 THREAD_ID	LOCK_MODE	LOCK_DURATION	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
 #	MDL_INTENTION_EXCLUSIVE	MDL_EXPLICIT	Global read lock		
 #	MDL_SHARED_NO_READ_WRITE	MDL_EXPLICIT	Table metadata lock	test	t1
-#	MDL_INTENTION_EXCLUSIVE	MDL_EXPLICIT	Schema metadata lock	mysqltest2	
 #	MDL_INTENTION_EXCLUSIVE	MDL_EXPLICIT	Schema metadata lock	test	
+#	MDL_INTENTION_EXCLUSIVE	MDL_EXPLICIT	Schema metadata lock	mysqltest2	
 #	MDL_SHARED_NO_READ_WRITE	MDL_EXPLICIT	Table metadata lock	mysqltest2	t2
 create or replace table test.t1 (a int) select 1 as 'a', 2 as 'a';
 ERROR 42S21: Duplicate column name 'a'

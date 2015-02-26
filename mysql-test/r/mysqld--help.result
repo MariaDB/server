@@ -454,7 +454,7 @@ The following options may be given as the first argument:
  --metadata-locks-cache-size=# 
  Unused
  --metadata-locks-hash-instances=# 
- Number of metadata locks hash instances
+ Unused
  --min-examined-row-limit=# 
  Don't write queries to slow log that examine fewer rows
  than that

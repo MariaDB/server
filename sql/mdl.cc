@@ -112,38 +112,8 @@ static bool mdl_initialized= 0;
 
 
 /**
-  A partition in a collection of all MDL locks.
-  MDL_map is partitioned for scalability reasons.
-  Maps MDL_key to MDL_lock instances.
-*/
-
-class MDL_map_partition
-{
-public:
-  MDL_map_partition();
-  ~MDL_map_partition();
-  inline MDL_lock *find_or_insert(const MDL_key *mdl_key);
-  unsigned long get_lock_owner(const MDL_key *key);
-  inline void remove(MDL_lock *lock);
-private:
-  bool move_from_hash_to_lock_mutex(MDL_lock *lock);
-  /** A partition of all acquired locks in the server. */
-  HASH m_locks;
-  /* Protects access to m_locks hash. */
-  mysql_mutex_t m_mutex;
-  friend int mdl_iterate(int (*)(MDL_ticket *, void *), void *);
-};
-
-
-/**
-  Start-up parameter for the number of partitions of the MDL_lock hash.
-*/
-ulong mdl_locks_hash_partitions;
-
-/**
   A collection of all MDL locks. A singleton,
   there is only one instance of the map in the server.
-  Contains instances of MDL_map_partition
 */
 
 class MDL_map
@@ -155,8 +125,11 @@ public:
   unsigned long get_lock_owner(const MDL_key *key);
   void remove(MDL_lock *lock);
 private:
-  /** Array of partitions where the locks are actually stored. */
-  Dynamic_array<MDL_map_partition *> m_partitions;
+  bool move_from_hash_to_lock_mutex(MDL_lock *lock);
+  /** All acquired locks in the server. */
+  HASH m_locks;
+  /* Protects access to m_locks hash. */
+  mysql_mutex_t m_mutex;
   /** Pre-allocated MDL_lock object for GLOBAL namespace. */
   MDL_lock *m_global_lock;
   /** Pre-allocated MDL_lock object for COMMIT namespace. */
@@ -405,8 +378,7 @@ public:
   bool can_grant_lock(enum_mdl_type type, MDL_context *requstor_ctx,
                       bool ignore_lock_priority) const;
 
-  inline static MDL_lock *create(const MDL_key *key,
-                                 MDL_map_partition *map_part);
+  inline static MDL_lock *create(const MDL_key *key);
 
   inline unsigned long get_lock_owner() const;
 
@@ -435,14 +407,13 @@ public:
 
 public:
 
-  MDL_lock(const MDL_key *key_arg, MDL_map_partition *map_part)
+  MDL_lock(const MDL_key *key_arg)
   : key(key_arg),
     m_hog_lock_count(0),
     m_ref_usage(0),
     m_ref_release(0),
     m_is_destroyed(FALSE),
-    m_version(0),
-    m_map_part(map_part)
+    m_version(0)
   {
     mysql_prlock_init(key_MDL_lock_rwlock, &m_rwlock);
   }
@@ -455,17 +426,17 @@ public:
 public:
   /**
     These three members are used to make it possible to separate
-    the MDL_map_partition::m_mutex mutex and MDL_lock::m_rwlock in
+    the MDL_map::m_mutex mutex and MDL_lock::m_rwlock in
     MDL_map::find_or_insert() for increased scalability.
     The 'm_is_destroyed' member is only set by destroyers that
-    have both the MDL_map_partition::m_mutex and MDL_lock::m_rwlock, thus
+    have both the MDL_map::m_mutex and MDL_lock::m_rwlock, thus
     holding any of the mutexes is sufficient to read it.
     The 'm_ref_usage; is incremented under protection by
-    MDL_map_partition::m_mutex, but when 'm_is_destroyed' is set to TRUE, this
+    MDL_map::m_mutex, but when 'm_is_destroyed' is set to TRUE, this
     member is moved to be protected by the MDL_lock::m_rwlock.
     This means that the MDL_map::find_or_insert() which only
     holds the MDL_lock::m_rwlock can compare it to 'm_ref_release'
-    without acquiring MDL_map_partition::m_mutex again and if equal
+    without acquiring MDL_map::m_mutex again and if equal
     it can also destroy the lock object safely.
     The 'm_ref_release' is incremented under protection by
     MDL_lock::m_rwlock.
@@ -480,23 +451,19 @@ public:
   /**
     We use the same idea and an additional version counter to support
     caching of unused MDL_lock object for further re-use.
-    This counter is incremented while holding both MDL_map_partition::m_mutex
+    This counter is incremented while holding both MDL_map::m_mutex
     and MDL_lock::m_rwlock locks each time when a MDL_lock is moved from
-    the partitioned hash to the paritioned unused objects list (or destroyed).
+    the hash to the unused objects list (or destroyed).
     A thread, which has found a MDL_lock object for the key in the hash
-    and then released the MDL_map_partition::m_mutex before acquiring the
+    and then released the MDL_map::m_mutex before acquiring the
     MDL_lock::m_rwlock, can determine that this object was moved to the
     unused objects list (or destroyed) while it held no locks by comparing
-    the version value which it read while holding the MDL_map_partition::m_mutex
+    the version value which it read while holding the MDL_map::m_mutex
     with the value read after acquiring the MDL_lock::m_rwlock.
     Note that since it takes several years to overflow this counter such
     theoretically possible overflows should not have any practical effects.
   */
   ulonglong m_version;
-  /**
-    Partition of MDL_map where the lock is stored.
-  */
-  MDL_map_partition *m_map_part;
 };
 
 
@@ -509,8 +476,8 @@ public:
 class MDL_scoped_lock : public MDL_lock
 {
 public:
-  MDL_scoped_lock(const MDL_key *key_arg, MDL_map_partition *map_part)
-    : MDL_lock(key_arg, map_part)
+  MDL_scoped_lock(const MDL_key *key_arg)
+    : MDL_lock(key_arg)
   { }
 
   virtual const bitmap_t *incompatible_granted_types_bitmap() const
@@ -550,8 +517,8 @@ private:
 class MDL_object_lock : public MDL_lock
 {
 public:
-  MDL_object_lock(const MDL_key *key_arg, MDL_map_partition *map_part)
-    : MDL_lock(key_arg, map_part)
+  MDL_object_lock(const MDL_key *key_arg)
+    : MDL_lock(key_arg)
   { }
 
   virtual const bitmap_t *incompatible_granted_types_bitmap() const
@@ -660,7 +627,7 @@ static inline int mdl_iterate_lock(MDL_lock *lock,
 int mdl_iterate(int (*callback)(MDL_ticket *ticket, void *arg), void *arg)
 {
   DYNAMIC_ARRAY locks;
-  uint i, j;
+  uint i;
   int res;
   DBUG_ENTER("mdl_iterate");
 
@@ -670,65 +637,43 @@ int mdl_iterate(int (*callback)(MDL_ticket *ticket, void *arg), void *arg)
 
   my_init_dynamic_array(&locks, sizeof(MDL_lock*), 512, 1, MYF(0));
 
-  for (i= 0; i < mdl_locks.m_partitions.elements(); i++)
+  /* Collect all locks first */
+  mysql_mutex_lock(&mdl_locks.m_mutex);
+  if (allocate_dynamic(&locks, mdl_locks.m_locks.records))
   {
-    MDL_map_partition *part= mdl_locks.m_partitions.at(i);
-    /* Collect all locks first */
-    mysql_mutex_lock(&part->m_mutex);
-    if (allocate_dynamic(&locks, part->m_locks.records))
-    {
-      res= 1;
-      mysql_mutex_unlock(&part->m_mutex);
-      break;
-    }
-    reset_dynamic(&locks);
-    for (j= 0; j < part->m_locks.records; j++)
-    {
-      MDL_lock *lock= (MDL_lock*) my_hash_element(&part->m_locks, j);
-      lock->m_ref_usage++;
-      insert_dynamic(&locks, &lock);
-    }
-    mysql_mutex_unlock(&part->m_mutex);
-
-    /* Now show them */
-    for (j= 0; j < locks.elements; j++)
-    {
-      MDL_lock *lock= (MDL_lock*) *dynamic_element(&locks, j, MDL_lock**);
-      res= mdl_iterate_lock(lock, callback, arg);
-
-      mysql_prlock_wrlock(&lock->m_rwlock);
-      uint ref_usage= lock->m_ref_usage;
-      uint ref_release= ++lock->m_ref_release;
-      bool is_destroyed= lock->m_is_destroyed;
-      mysql_prlock_unlock(&lock->m_rwlock);
-
-      if (unlikely(is_destroyed && ref_usage == ref_release))
-        MDL_lock::destroy(lock);
-
-      if (res)
-        break;
-    }
+    res= 1;
+    mysql_mutex_unlock(&mdl_locks.m_mutex);
+    goto end;
   }
+  for (i= 0; i < mdl_locks.m_locks.records; i++)
+  {
+    MDL_lock *lock= (MDL_lock*) my_hash_element(&mdl_locks.m_locks, i);
+    lock->m_ref_usage++;
+    insert_dynamic(&locks, &lock);
+  }
+  mysql_mutex_unlock(&mdl_locks.m_mutex);
+
+  /* Now show them */
+  for (i= 0; i < locks.elements; i++)
+  {
+    MDL_lock *lock= (MDL_lock*) *dynamic_element(&locks, i, MDL_lock**);
+    res= mdl_iterate_lock(lock, callback, arg);
+
+    mysql_prlock_wrlock(&lock->m_rwlock);
+    uint ref_usage= lock->m_ref_usage;
+    uint ref_release= ++lock->m_ref_release;
+    bool is_destroyed= lock->m_is_destroyed;
+    mysql_prlock_unlock(&lock->m_rwlock);
+
+    if (unlikely(is_destroyed && ref_usage == ref_release))
+      MDL_lock::destroy(lock);
+
+    if (res)
+      break;
+  }
+end:
   delete_dynamic(&locks);
   DBUG_RETURN(res);
-}
-
-
-/** Initialize the container for all MDL locks. */
-
-void MDL_map::init()
-{
-  MDL_key global_lock_key(MDL_key::GLOBAL, "", "");
-  MDL_key commit_lock_key(MDL_key::COMMIT, "", "");
-
-  m_global_lock= MDL_lock::create(&global_lock_key, NULL);
-  m_commit_lock= MDL_lock::create(&commit_lock_key, NULL);
-
-  for (uint i= 0; i < mdl_locks_hash_partitions; i++)
-  {
-    MDL_map_partition *part= new (std::nothrow) MDL_map_partition();
-    m_partitions.append(part);
-  }
 }
 
 
@@ -740,14 +685,20 @@ my_hash_value_type mdl_hash_function(CHARSET_INFO *cs,
 }
 
 
-/** Initialize the partition in the container with all MDL locks. */
+/** Initialize the container for all MDL locks. */
 
-MDL_map_partition::MDL_map_partition()
+void MDL_map::init()
 {
+  MDL_key global_lock_key(MDL_key::GLOBAL, "", "");
+  MDL_key commit_lock_key(MDL_key::COMMIT, "", "");
+
+  m_global_lock= MDL_lock::create(&global_lock_key);
+  m_commit_lock= MDL_lock::create(&commit_lock_key);
+
   mysql_mutex_init(key_MDL_map_mutex, &m_mutex, NULL);
   my_hash_init2(&m_locks, 0, &my_charset_bin, 16 /* FIXME */, 0, 0,
                 mdl_locks_key, mdl_hash_function, 0, 0);
-};
+}
 
 
 /**
@@ -760,21 +711,6 @@ void MDL_map::destroy()
   MDL_lock::destroy(m_global_lock);
   MDL_lock::destroy(m_commit_lock);
 
-  while (m_partitions.elements() > 0)
-  {
-    MDL_map_partition *part= m_partitions.pop();
-    delete part;
-  }
-}
-
-
-/**
-  Destroy the partition in container for all MDL locks.
-  @pre It must be empty.
-*/
-
-MDL_map_partition::~MDL_map_partition()
-{
   DBUG_ASSERT(!m_locks.records);
   mysql_mutex_destroy(&m_mutex);
   my_hash_free(&m_locks);
@@ -816,26 +752,6 @@ MDL_lock* MDL_map::find_or_insert(const MDL_key *mdl_key)
     return lock;
   }
 
-  uint part_id= mdl_key->hash_value() % mdl_locks_hash_partitions;
-  MDL_map_partition *part= m_partitions.at(part_id);
-
-  return part->find_or_insert(mdl_key);
-}
-
-
-/**
-  Find MDL_lock object corresponding to the key and hash value in
-  MDL_map partition, create it if it does not exist.
-
-  @retval non-NULL - Success. MDL_lock instance for the key with
-                     locked MDL_lock::m_rwlock.
-  @retval NULL     - Failure (OOM).
-*/
-
-MDL_lock* MDL_map_partition::find_or_insert(const MDL_key *mdl_key)
-{
-  MDL_lock *lock;
-
 retry:
   mysql_mutex_lock(&m_mutex);
   if (!(lock= (MDL_lock*) my_hash_search_using_hash_value(&m_locks,
@@ -847,7 +763,7 @@ retry:
       No lock object found so we need to create a new one
       or reuse an existing unused object.
     */
-    lock= MDL_lock::create(mdl_key, this);
+    lock= MDL_lock::create(mdl_key);
     if (!lock || my_hash_insert(&m_locks, (uchar*)lock))
     {
       MDL_lock::destroy(lock);
@@ -864,7 +780,7 @@ retry:
 
 
 /**
-  Release MDL_map_partition::m_mutex mutex and lock MDL_lock::m_rwlock for lock
+  Release MDL_map::m_mutex mutex and lock MDL_lock::m_rwlock for lock
   object from the hash. Handle situation when object was released
   while we held no locks.
 
@@ -873,7 +789,7 @@ retry:
                   should re-try looking up MDL_lock object in the hash.
 */
 
-bool MDL_map_partition::move_from_hash_to_lock_mutex(MDL_lock *lock)
+bool MDL_map::move_from_hash_to_lock_mutex(MDL_lock *lock)
 {
   ulonglong version;
 
@@ -882,7 +798,7 @@ bool MDL_map_partition::move_from_hash_to_lock_mutex(MDL_lock *lock)
 
   /*
     We increment m_ref_usage which is a reference counter protected by
-    MDL_map_partition::m_mutex under the condition it is present in the hash
+    MDL_map::m_mutex under the condition it is present in the hash
     and m_is_destroyed is FALSE.
   */
   lock->m_ref_usage++;
@@ -957,30 +873,15 @@ MDL_map::get_lock_owner(const MDL_key *mdl_key)
   }
   else
   {
-    uint part_id= mdl_key->hash_value() % mdl_locks_hash_partitions;
-    MDL_map_partition *part= m_partitions.at(part_id);
-    res= part->get_lock_owner(mdl_key);
+    mysql_mutex_lock(&m_mutex);
+    lock= (MDL_lock*) my_hash_search_using_hash_value(&m_locks,
+                                                    mdl_key->hash_value(),
+                                                    mdl_key->ptr(),
+                                                    mdl_key->length());
+    if (lock)
+      res= lock->get_lock_owner();
+    mysql_mutex_unlock(&m_mutex);
   }
-  return res;
-}
-
-
-
-unsigned long
-MDL_map_partition::get_lock_owner(const MDL_key *mdl_key)
-{
-  MDL_lock *lock;
-  unsigned long res= 0;
-
-  mysql_mutex_lock(&m_mutex);
-  lock= (MDL_lock*) my_hash_search_using_hash_value(&m_locks,
-                                                  mdl_key->hash_value(),
-                                                  mdl_key->ptr(),
-                                                  mdl_key->length());
-  if (lock)
-    res= lock->get_lock_owner();
-  mysql_mutex_unlock(&m_mutex);
-
   return res;
 }
 
@@ -1004,24 +905,12 @@ void MDL_map::remove(MDL_lock *lock)
     return;
   }
 
-  lock->m_map_part->remove(lock);
-}
-
-
-/**
-  Destroy MDL_lock object belonging to specific MDL_map
-  partition or delegate this responsibility to whatever
-  thread that holds the last outstanding reference to it.
-*/
-
-void MDL_map_partition::remove(MDL_lock *lock)
-{
   mysql_mutex_lock(&m_mutex);
   my_hash_delete(&m_locks, (uchar*) lock);
   /*
     To let threads holding references to the MDL_lock object know that it was
     moved to the list of unused objects or destroyed, we increment the version
-    counter under protection of both MDL_map_partition::m_mutex and
+    counter under protection of both MDL_map::m_mutex and
     MDL_lock::m_rwlock locks. This allows us to read the version value while
     having either one of those locks.
   */
@@ -1033,8 +922,8 @@ void MDL_map_partition::remove(MDL_lock *lock)
     has the responsibility to release it.
 
     Setting of m_is_destroyed to TRUE while holding _both_
-    MDL_map_partition::m_mutex and MDL_lock::m_rwlock mutexes transfers
-    the protection of m_ref_usage from MDL_map_partition::m_mutex to
+    MDL_map::m_mutex and MDL_lock::m_rwlock mutexes transfers
+    the protection of m_ref_usage from MDL_map::m_mutex to
     MDL_lock::m_rwlock while removal of the object from the hash
     (and cache of unused objects) makes it read-only. Therefore
     whoever acquires MDL_lock::m_rwlock next will see the most up
@@ -1153,17 +1042,16 @@ void MDL_request::init(const MDL_key *key_arg,
   @note Also chooses an MDL_lock descendant appropriate for object namespace.
 */
 
-inline MDL_lock *MDL_lock::create(const MDL_key *mdl_key,
-                                  MDL_map_partition *map_part)
+inline MDL_lock *MDL_lock::create(const MDL_key *mdl_key)
 {
   switch (mdl_key->mdl_namespace())
   {
     case MDL_key::GLOBAL:
     case MDL_key::SCHEMA:
     case MDL_key::COMMIT:
-      return new (std::nothrow) MDL_scoped_lock(mdl_key, map_part);
+      return new (std::nothrow) MDL_scoped_lock(mdl_key);
     default:
-      return new (std::nothrow) MDL_object_lock(mdl_key, map_part);
+      return new (std::nothrow) MDL_object_lock(mdl_key);
   }
 }
 

@@ -1410,10 +1410,11 @@ static Sys_var_ulong Sys_metadata_locks_cache_size(
        VALID_RANGE(1, 1024*1024), DEFAULT(1024),
        BLOCK_SIZE(1));
 
+static ulong mdl_locks_hash_partitions;
 static Sys_var_ulong Sys_metadata_locks_hash_instances(
-       "metadata_locks_hash_instances", "Number of metadata locks hash instances",
+       "metadata_locks_hash_instances", "Unused",
        READ_ONLY GLOBAL_VAR(mdl_locks_hash_partitions), CMD_LINE(REQUIRED_ARG),
-       VALID_RANGE(1, 1024), DEFAULT(MDL_LOCKS_HASH_PARTITIONS_DEFAULT),
+       VALID_RANGE(1, 1024), DEFAULT(8),
        BLOCK_SIZE(1));
 
 /*
