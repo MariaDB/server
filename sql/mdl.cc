@@ -410,10 +410,7 @@ public:
   MDL_lock(const MDL_key *key_arg)
   : key(key_arg),
     m_hog_lock_count(0),
-    m_ref_usage(0),
-    m_ref_release(0),
-    m_is_destroyed(FALSE),
-    m_version(0)
+    m_state(0)
   {
     mysql_prlock_init(key_MDL_lock_rwlock, &m_rwlock);
   }
@@ -423,47 +420,12 @@ public:
     mysql_prlock_destroy(&m_rwlock);
   }
   inline static void destroy(MDL_lock *lock);
-public:
+
   /**
-    These three members are used to make it possible to separate
-    the MDL_map::m_mutex mutex and MDL_lock::m_rwlock in
-    MDL_map::find_or_insert() for increased scalability.
-    The 'm_is_destroyed' member is only set by destroyers that
-    have both the MDL_map::m_mutex and MDL_lock::m_rwlock, thus
-    holding any of the mutexes is sufficient to read it.
-    The 'm_ref_usage; is incremented under protection by
-    MDL_map::m_mutex, but when 'm_is_destroyed' is set to TRUE, this
-    member is moved to be protected by the MDL_lock::m_rwlock.
-    This means that the MDL_map::find_or_insert() which only
-    holds the MDL_lock::m_rwlock can compare it to 'm_ref_release'
-    without acquiring MDL_map::m_mutex again and if equal
-    it can also destroy the lock object safely.
-    The 'm_ref_release' is incremented under protection by
-    MDL_lock::m_rwlock.
-    Note since we are only interested in equality of these two
-    counters we don't have to worry about overflows as long as
-    their size is big enough to hold maximum number of concurrent
-    threads on the system.
+    Lock state: first 31 bits are reference counter, 32-nd bit is deleted flag.
   */
-  uint m_ref_usage;
-  uint m_ref_release;
-  bool m_is_destroyed;
-  /**
-    We use the same idea and an additional version counter to support
-    caching of unused MDL_lock object for further re-use.
-    This counter is incremented while holding both MDL_map::m_mutex
-    and MDL_lock::m_rwlock locks each time when a MDL_lock is moved from
-    the hash to the unused objects list (or destroyed).
-    A thread, which has found a MDL_lock object for the key in the hash
-    and then released the MDL_map::m_mutex before acquiring the
-    MDL_lock::m_rwlock, can determine that this object was moved to the
-    unused objects list (or destroyed) while it held no locks by comparing
-    the version value which it read while holding the MDL_map::m_mutex
-    with the value read after acquiring the MDL_lock::m_rwlock.
-    Note that since it takes several years to overflow this counter such
-    theoretically possible overflows should not have any practical effects.
-  */
-  ulonglong m_version;
+  static const int32 DELETED= 1 << 31;
+  int32 m_state;
 };
 
 
@@ -648,7 +610,7 @@ int mdl_iterate(int (*callback)(MDL_ticket *ticket, void *arg), void *arg)
   for (i= 0; i < mdl_locks.m_locks.records; i++)
   {
     MDL_lock *lock= (MDL_lock*) my_hash_element(&mdl_locks.m_locks, i);
-    lock->m_ref_usage++;
+    my_atomic_add32_explicit(&lock->m_state, 1, MY_MEMORY_ORDER_RELAXED);
     insert_dynamic(&locks, &lock);
   }
   mysql_mutex_unlock(&mdl_locks.m_mutex);
@@ -657,19 +619,15 @@ int mdl_iterate(int (*callback)(MDL_ticket *ticket, void *arg), void *arg)
   for (i= 0; i < locks.elements; i++)
   {
     MDL_lock *lock= (MDL_lock*) *dynamic_element(&locks, i, MDL_lock**);
-    res= mdl_iterate_lock(lock, callback, arg);
+    res|= mdl_iterate_lock(lock, callback, arg);
 
     mysql_prlock_wrlock(&lock->m_rwlock);
-    uint ref_usage= lock->m_ref_usage;
-    uint ref_release= ++lock->m_ref_release;
-    bool is_destroyed= lock->m_is_destroyed;
+    int32 old_state= my_atomic_add32_explicit(&lock->m_state, -1,
+                                              MY_MEMORY_ORDER_RELAXED);
     mysql_prlock_unlock(&lock->m_rwlock);
 
-    if (unlikely(is_destroyed && ref_usage == ref_release))
+    if (unlikely(old_state == MDL_lock::DELETED + 1))
       MDL_lock::destroy(lock);
-
-    if (res)
-      break;
   }
 end:
   delete_dynamic(&locks);
@@ -759,10 +717,7 @@ retry:
                                                           mdl_key->ptr(),
                                                           mdl_key->length())))
   {
-    /*
-      No lock object found so we need to create a new one
-      or reuse an existing unused object.
-    */
+    /* No lock object found so we need to create a new one. */
     lock= MDL_lock::create(mdl_key);
     if (!lock || my_hash_insert(&m_locks, (uchar*)lock))
     {
@@ -791,61 +746,26 @@ retry:
 
 bool MDL_map::move_from_hash_to_lock_mutex(MDL_lock *lock)
 {
-  ulonglong version;
-
-  DBUG_ASSERT(! lock->m_is_destroyed);
+  DBUG_ASSERT(!(my_atomic_load32(&lock->m_state) & MDL_lock::DELETED));
   mysql_mutex_assert_owner(&m_mutex);
 
-  /*
-    We increment m_ref_usage which is a reference counter protected by
-    MDL_map::m_mutex under the condition it is present in the hash
-    and m_is_destroyed is FALSE.
-  */
-  lock->m_ref_usage++;
-  /* Read value of the version counter under protection of m_mutex lock. */
-  version= lock->m_version;
+  my_atomic_add32_explicit(&lock->m_state, 1, MY_MEMORY_ORDER_RELAXED);
   mysql_mutex_unlock(&m_mutex);
 
   mysql_prlock_wrlock(&lock->m_rwlock);
-  lock->m_ref_release++;
-
-  if (unlikely(lock->m_version != version))
+  int32 old_state= my_atomic_add32_explicit(&lock->m_state, -1,
+                                            MY_MEMORY_ORDER_RELAXED);
+  if (unlikely(old_state & MDL_lock::DELETED))
   {
     /*
-      If the current value of version differs from one that was read while
-      we held m_mutex mutex, this MDL_lock object was moved to the unused
-      objects list or destroyed while we held no locks.
-      We should retry our search. But first we should destroy the MDL_lock
-      object if necessary.
+      Object was released while we held no locks, we need to
+      release it if no others hold references to it, while our own
+      reference count ensured that the object as such haven't got
+      its memory released yet.
     */
-    if (unlikely(lock->m_is_destroyed))
-    {
-      /*
-        Object was released while we held no locks, we need to
-        release it if no others hold references to it, while our own
-        reference count ensured that the object as such haven't got
-        its memory released yet. We can also safely compare
-        m_ref_usage and m_ref_release since the object is no longer
-        present in the hash (or unused objects list) so no one will
-        be able to find it and increment m_ref_usage anymore.
-      */
-      uint ref_usage= lock->m_ref_usage;
-      uint ref_release= lock->m_ref_release;
-      mysql_prlock_unlock(&lock->m_rwlock);
-      if (ref_usage == ref_release)
-        MDL_lock::destroy(lock);
-    }
-    else
-    {
-      /*
-        Object was not destroyed but its version has changed.
-        This means that it was moved to the unused objects list
-        (and even might be already re-used). So now it might
-        correspond to a different key, therefore we should simply
-        retry our search.
-      */
-      mysql_prlock_unlock(&lock->m_rwlock);
-    }
+    mysql_prlock_unlock(&lock->m_rwlock);
+    if (old_state == MDL_lock::DELETED + 1)
+      MDL_lock::destroy(lock);
     return TRUE;
   }
   return FALSE;
@@ -907,40 +827,17 @@ void MDL_map::remove(MDL_lock *lock)
 
   mysql_mutex_lock(&m_mutex);
   my_hash_delete(&m_locks, (uchar*) lock);
-  /*
-    To let threads holding references to the MDL_lock object know that it was
-    moved to the list of unused objects or destroyed, we increment the version
-    counter under protection of both MDL_map::m_mutex and
-    MDL_lock::m_rwlock locks. This allows us to read the version value while
-    having either one of those locks.
-  */
-  lock->m_version++;
 
   /*
     Destroy the MDL_lock object, but ensure that anyone that is
     holding a reference to the object is not remaining, if so he
     has the responsibility to release it.
-
-    Setting of m_is_destroyed to TRUE while holding _both_
-    MDL_map::m_mutex and MDL_lock::m_rwlock mutexes transfers
-    the protection of m_ref_usage from MDL_map::m_mutex to
-    MDL_lock::m_rwlock while removal of the object from the hash
-    (and cache of unused objects) makes it read-only. Therefore
-    whoever acquires MDL_lock::m_rwlock next will see the most up
-    to date version of m_ref_usage.
-
-    This means that when m_is_destroyed is TRUE and we hold the
-    MDL_lock::m_rwlock we can safely read the m_ref_usage
-    member.
   */
-  uint ref_usage, ref_release;
-
-  lock->m_is_destroyed= TRUE;
-  ref_usage= lock->m_ref_usage;
-  ref_release= lock->m_ref_release;
+  int32 old_state= my_atomic_add32_explicit(&lock->m_state, MDL_lock::DELETED,
+                                            MY_MEMORY_ORDER_RELAXED);
   mysql_mutex_unlock(&m_mutex);
   mysql_prlock_unlock(&lock->m_rwlock);
-  if (ref_usage == ref_release)
+  if (!old_state)
     MDL_lock::destroy(lock);
 }
 
