@@ -143,6 +143,7 @@ struct st_lf_hash {
   LF_ALLOCATOR alloc;                   /* allocator for elements */
   my_hash_get_key get_key;              /* see HASH */
   lf_hash_initializer initializer;      /* called when an element is inserted */
+  my_hash_function hash_function;       /* see HASH */
   CHARSET_INFO *charset;                /* see HASH */
   uint key_offset, key_length;          /* see HASH */
   uint element_size;                    /* size of memcpy'ed area on insert */

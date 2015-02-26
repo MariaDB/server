@@ -307,12 +307,13 @@ static inline const uchar* hash_key(const LF_HASH *hash,
   @note, that the hash value is limited to 2^31, because we need one
   bit to distinguish between normal and dummy nodes.
 */
-static inline uint calc_hash(LF_HASH *hash, const uchar *key, uint keylen)
+static inline my_hash_value_type calc_hash(const CHARSET_INFO *cs,
+                                           const uchar *key,
+                                           size_t keylen)
 {
   ulong nr1= 1, nr2= 4;
-  hash->charset->coll->hash_sort(hash->charset, (uchar*) key, keylen,
-                                 &nr1, &nr2);
-  return nr1 & INT_MAX32;
+  cs->coll->hash_sort(cs, (uchar*) key, keylen, &nr1, &nr2);
+  return nr1;
 }
 
 #define MAX_LOAD 1.0    /* average number of elements in a bucket */
@@ -356,6 +357,7 @@ void lf_hash_init(LF_HASH *hash, uint element_size, uint flags,
   hash->key_length= key_length;
   hash->get_key= get_key;
   hash->initializer= default_initializer;
+  hash->hash_function= calc_hash;
   DBUG_ASSERT(get_key ? !key_offset && !key_length : key_length);
 }
 
@@ -403,7 +405,7 @@ int lf_hash_insert(LF_HASH *hash, LF_PINS *pins, const void *data)
     return -1;
   hash->initializer(hash, node + 1, data);
   node->key= hash_key(hash, (uchar *)(node+1), &node->keylen);
-  hashnr= calc_hash(hash, node->key, node->keylen);
+  hashnr= hash->hash_function(hash->charset, node->key, node->keylen) & INT_MAX32;
   bucket= hashnr % hash->size;
   el= lf_dynarray_lvalue(&hash->array, bucket);
   if (unlikely(!el))
@@ -436,7 +438,9 @@ int lf_hash_insert(LF_HASH *hash, LF_PINS *pins, const void *data)
 int lf_hash_delete(LF_HASH *hash, LF_PINS *pins, const void *key, uint keylen)
 {
   LF_SLIST * volatile *el;
-  uint bucket, hashnr= calc_hash(hash, (uchar *)key, keylen);
+  uint bucket, hashnr;
+
+  hashnr= hash->hash_function(hash->charset, (uchar *)key, keylen) & INT_MAX32;
 
   /* hide OOM errors - if we cannot initalize a bucket, try the previous one */
   for (bucket= hashnr % hash->size; ;bucket= my_clear_highest_bit(bucket))
@@ -522,7 +526,9 @@ int lf_hash_iterate(LF_HASH *hash, LF_PINS *pins,
 void *lf_hash_search(LF_HASH *hash, LF_PINS *pins, const void *key, uint keylen)
 {
   return lf_hash_search_using_hash_value(hash, pins,
-                                         calc_hash(hash, (uchar*) key, keylen),
+                                         hash->hash_function(hash->charset,
+                                                             (uchar*) key,
+                                                             keylen) & INT_MAX32,
                                          key, keylen);
 }
 
