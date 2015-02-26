@@ -15809,7 +15809,6 @@ create_tmp_table(THD *thd, TMP_TABLE_PARAM *param, List<Item> &fields,
               (int) distinct, (int) save_sum_fields,
               (ulong) rows_limit, MY_TEST(group)));
 
-  thd->inc_status_created_tmp_tables();
   thd->query_plan_flags|= QPLAN_TMP_TABLE;
 
   if (use_temp_pool && !(test_flags & TEST_KEEP_TMP_TABLES))
@@ -16763,14 +16762,19 @@ bool open_tmp_table(TABLE *table)
                                    HA_OPEN_TMP_TABLE |
                                    HA_OPEN_INTERNAL_TABLE)))
   {
-    table->file->print_error(error,MYF(0)); /* purecov: inspected */
-    table->db_stat=0;
-    return(1);
+    table->file->print_error(error, MYF(0)); /* purecov: inspected */
+    table->db_stat= 0;
+    return 1;
   }
   table->db_stat= HA_OPEN_KEYFILE+HA_OPEN_RNDFILE;
-  (void) table->file->extra(HA_EXTRA_QUICK);		/* Faster */
-  table->created= TRUE;
-  return(0);
+  (void) table->file->extra(HA_EXTRA_QUICK); /* Faster */
+  if (!table->created)
+  {
+    table->created= TRUE;
+    table->in_use->inc_status_created_tmp_tables();
+  }
+
+  return 0;
 }
 
 
@@ -16937,8 +16941,10 @@ bool create_internal_tmp_table(TABLE *table, KEY *keyinfo,
     goto err;
   }
   table->in_use->inc_status_created_tmp_disk_tables();
+  table->in_use->inc_status_created_tmp_tables();
   table->in_use->query_plan_flags|= QPLAN_TMP_DISK;
   share->db_record_offset= 1;
+  table->created= TRUE;
   DBUG_RETURN(0);
  err:
   DBUG_RETURN(1);
@@ -17083,6 +17089,7 @@ bool create_internal_tmp_table(TABLE *table, KEY *keyinfo,
     goto err;
   }
   table->in_use->inc_status_created_tmp_disk_tables();
+  table->in_use->inc_status_created_tmp_tables();
   table->in_use->query_plan_flags|= QPLAN_TMP_DISK;
   share->db_record_offset= 1;
   table->created= TRUE;
