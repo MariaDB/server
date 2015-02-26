@@ -327,6 +327,101 @@ public:
 
   typedef Ticket_list::List::Iterator Ticket_iterator;
 
+
+  /**
+    Helper struct which defines how different types of locks are handled
+    for a specific MDL_lock. In practice we use only two strategies: "scoped"
+    lock strategy for locks in GLOBAL, COMMIT and SCHEMA namespaces and
+    "object" lock strategy for all other namespaces.
+  */
+  struct MDL_lock_strategy
+  {
+    virtual const bitmap_t *incompatible_granted_types_bitmap() const = 0;
+    virtual const bitmap_t *incompatible_waiting_types_bitmap() const = 0;
+    virtual bool needs_notification(const MDL_ticket *ticket) const = 0;
+    virtual bool conflicting_locks(const MDL_ticket *ticket) const = 0;
+    virtual bitmap_t hog_lock_types_bitmap() const = 0;
+  };
+
+
+  /**
+    An implementation of the scoped metadata lock. The only locking modes
+    which are supported at the moment are SHARED and INTENTION EXCLUSIVE
+    and EXCLUSIVE
+  */
+  struct MDL_scoped_lock : public MDL_lock_strategy
+  {
+    virtual const bitmap_t *incompatible_granted_types_bitmap() const
+    { return m_granted_incompatible; }
+    virtual const bitmap_t *incompatible_waiting_types_bitmap() const
+    { return m_waiting_incompatible; }
+    virtual bool needs_notification(const MDL_ticket *ticket) const
+    { return (ticket->get_type() == MDL_SHARED); }
+
+    /**
+      Notify threads holding scoped IX locks which conflict with a pending
+      S lock.
+
+      Thread which holds global IX lock can be a handler thread for
+      insert delayed. We need to kill such threads in order to get
+      global shared lock. We do this my calling code outside of MDL.
+    */
+    virtual bool conflicting_locks(const MDL_ticket *ticket) const
+    { return ticket->get_type() == MDL_INTENTION_EXCLUSIVE; }
+
+    /*
+      In scoped locks, only IX lock request would starve because of X/S. But that
+      is practically very rare case. So just return 0 from this function.
+    */
+    virtual bitmap_t hog_lock_types_bitmap() const
+    { return 0; }
+  private:
+    static const bitmap_t m_granted_incompatible[MDL_TYPE_END];
+    static const bitmap_t m_waiting_incompatible[MDL_TYPE_END];
+  };
+
+
+  /**
+    An implementation of a per-object lock. Supports SHARED, SHARED_UPGRADABLE,
+    SHARED HIGH PRIORITY and EXCLUSIVE locks.
+  */
+  struct MDL_object_lock : public MDL_lock_strategy
+  {
+    virtual const bitmap_t *incompatible_granted_types_bitmap() const
+    { return m_granted_incompatible; }
+    virtual const bitmap_t *incompatible_waiting_types_bitmap() const
+    { return m_waiting_incompatible; }
+    virtual bool needs_notification(const MDL_ticket *ticket) const
+    { return (ticket->get_type() >= MDL_SHARED_NO_WRITE); }
+
+    /**
+      Notify threads holding a shared metadata locks on object which
+      conflict with a pending X, SNW or SNRW lock.
+
+      If thread which holds conflicting lock is waiting on table-level
+      lock or some other non-MDL resource we might need to wake it up
+      by calling code outside of MDL.
+    */
+    virtual bool conflicting_locks(const MDL_ticket *ticket) const
+    { return ticket->get_type() < MDL_SHARED_UPGRADABLE; }
+
+    /*
+      To prevent starvation, these lock types that are only granted
+      max_write_lock_count times in a row while other lock types are
+      waiting.
+    */
+    virtual bitmap_t hog_lock_types_bitmap() const
+    {
+      return (MDL_BIT(MDL_SHARED_NO_WRITE) |
+              MDL_BIT(MDL_SHARED_NO_READ_WRITE) |
+              MDL_BIT(MDL_EXCLUSIVE));
+    }
+
+  private:
+    static const bitmap_t m_granted_incompatible[MDL_TYPE_END];
+    static const bitmap_t m_waiting_incompatible[MDL_TYPE_END];
+  };
+
 public:
   /** The key of the object (data) being protected. */
   MDL_key key;
@@ -370,15 +465,15 @@ public:
     return (m_granted.is_empty() && m_waiting.is_empty());
   }
 
-  virtual const bitmap_t *incompatible_granted_types_bitmap() const = 0;
-  virtual const bitmap_t *incompatible_waiting_types_bitmap() const = 0;
+  const bitmap_t *incompatible_granted_types_bitmap() const
+  { return m_strategy->incompatible_granted_types_bitmap(); }
+  const bitmap_t *incompatible_waiting_types_bitmap() const
+  { return m_strategy->incompatible_waiting_types_bitmap(); }
 
   bool has_pending_conflicting_lock(enum_mdl_type type);
 
   bool can_grant_lock(enum_mdl_type type, MDL_context *requstor_ctx,
                       bool ignore_lock_priority) const;
-
-  inline static MDL_lock *create(const MDL_key *key);
 
   inline unsigned long get_lock_owner() const;
 
@@ -389,10 +484,28 @@ public:
   bool visit_subgraph(MDL_ticket *waiting_ticket,
                       MDL_wait_for_graph_visitor *gvisitor);
 
-  virtual bool needs_notification(const MDL_ticket *ticket) const = 0;
-  virtual void notify_conflicting_locks(MDL_context *ctx) = 0;
+  bool needs_notification(const MDL_ticket *ticket) const
+  { return m_strategy->needs_notification(ticket); }
+  void notify_conflicting_locks(MDL_context *ctx)
+  {
+    Ticket_iterator it(m_granted);
+    MDL_ticket *conflicting_ticket;
+    while ((conflicting_ticket= it++))
+    {
+      if (conflicting_ticket->get_ctx() != ctx &&
+          m_strategy->conflicting_locks(conflicting_ticket))
+      {
+        MDL_context *conflicting_ctx= conflicting_ticket->get_ctx();
 
-  virtual bitmap_t hog_lock_types_bitmap() const = 0;
+        ctx->get_owner()->
+          notify_shared_lock(conflicting_ctx->get_owner(),
+                             conflicting_ctx->get_needs_thr_lock_abort());
+      }
+    }
+  }
+
+  bitmap_t hog_lock_types_bitmap() const
+  { return m_strategy->hog_lock_types_bitmap(); }
 
   /** List of granted tickets for this lock. */
   Ticket_list m_granted;
@@ -413,106 +526,37 @@ public:
     m_state(0)
   {
     mysql_prlock_init(key_MDL_lock_rwlock, &m_rwlock);
+    switch (key_arg->mdl_namespace())
+    {
+      case MDL_key::GLOBAL:
+      case MDL_key::SCHEMA:
+      case MDL_key::COMMIT:
+        m_strategy= &m_scoped_lock_strategy;
+        break;
+      default:
+        m_strategy= &m_object_lock_strategy;
+    }
   }
 
   virtual ~MDL_lock()
   {
     mysql_prlock_destroy(&m_rwlock);
   }
-  inline static void destroy(MDL_lock *lock);
 
   /**
     Lock state: first 31 bits are reference counter, 32-nd bit is deleted flag.
   */
   static const int32 DELETED= 1 << 31;
   int32 m_state;
-};
-
-
-/**
-  An implementation of the scoped metadata lock. The only locking modes
-  which are supported at the moment are SHARED and INTENTION EXCLUSIVE
-  and EXCLUSIVE
-*/
-
-class MDL_scoped_lock : public MDL_lock
-{
-public:
-  MDL_scoped_lock(const MDL_key *key_arg)
-    : MDL_lock(key_arg)
-  { }
-
-  virtual const bitmap_t *incompatible_granted_types_bitmap() const
-  {
-    return m_granted_incompatible;
-  }
-  virtual const bitmap_t *incompatible_waiting_types_bitmap() const
-  {
-    return m_waiting_incompatible;
-  }
-  virtual bool needs_notification(const MDL_ticket *ticket) const
-  {
-    return (ticket->get_type() == MDL_SHARED);
-  }
-  virtual void notify_conflicting_locks(MDL_context *ctx);
-
-  /*
-    In scoped locks, only IX lock request would starve because of X/S. But that
-    is practically very rare case. So just return 0 from this function.
-  */
-  virtual bitmap_t hog_lock_types_bitmap() const
-  {
-    return 0;
-  }
-
 private:
-  static const bitmap_t m_granted_incompatible[MDL_TYPE_END];
-  static const bitmap_t m_waiting_incompatible[MDL_TYPE_END];
+  const MDL_lock_strategy *m_strategy;
+  static const MDL_scoped_lock m_scoped_lock_strategy;
+  static const MDL_object_lock m_object_lock_strategy;
 };
 
 
-/**
-  An implementation of a per-object lock. Supports SHARED, SHARED_UPGRADABLE,
-  SHARED HIGH PRIORITY and EXCLUSIVE locks.
-*/
-
-class MDL_object_lock : public MDL_lock
-{
-public:
-  MDL_object_lock(const MDL_key *key_arg)
-    : MDL_lock(key_arg)
-  { }
-
-  virtual const bitmap_t *incompatible_granted_types_bitmap() const
-  {
-    return m_granted_incompatible;
-  }
-  virtual const bitmap_t *incompatible_waiting_types_bitmap() const
-  {
-    return m_waiting_incompatible;
-  }
-  virtual bool needs_notification(const MDL_ticket *ticket) const
-  {
-    return (ticket->get_type() >= MDL_SHARED_NO_WRITE);
-  }
-  virtual void notify_conflicting_locks(MDL_context *ctx);
-
-  /*
-    To prevent starvation, these lock types that are only granted
-    max_write_lock_count times in a row while other lock types are
-    waiting.
-  */
-  virtual bitmap_t hog_lock_types_bitmap() const
-  {
-    return (MDL_BIT(MDL_SHARED_NO_WRITE) |
-            MDL_BIT(MDL_SHARED_NO_READ_WRITE) |
-            MDL_BIT(MDL_EXCLUSIVE));
-  }
-
-private:
-  static const bitmap_t m_granted_incompatible[MDL_TYPE_END];
-  static const bitmap_t m_waiting_incompatible[MDL_TYPE_END];
-};
+const MDL_lock::MDL_scoped_lock MDL_lock::m_scoped_lock_strategy;
+const MDL_lock::MDL_object_lock MDL_lock::m_object_lock_strategy;
 
 
 static MDL_map mdl_locks;
@@ -627,7 +671,7 @@ int mdl_iterate(int (*callback)(MDL_ticket *ticket, void *arg), void *arg)
     mysql_prlock_unlock(&lock->m_rwlock);
 
     if (unlikely(old_state == MDL_lock::DELETED + 1))
-      MDL_lock::destroy(lock);
+      delete lock;
   }
 end:
   delete_dynamic(&locks);
@@ -650,8 +694,8 @@ void MDL_map::init()
   MDL_key global_lock_key(MDL_key::GLOBAL, "", "");
   MDL_key commit_lock_key(MDL_key::COMMIT, "", "");
 
-  m_global_lock= MDL_lock::create(&global_lock_key);
-  m_commit_lock= MDL_lock::create(&commit_lock_key);
+  m_global_lock= new (std::nothrow) MDL_lock(&global_lock_key);
+  m_commit_lock= new (std::nothrow) MDL_lock(&commit_lock_key);
 
   mysql_mutex_init(key_MDL_map_mutex, &m_mutex, NULL);
   my_hash_init2(&m_locks, 0, &my_charset_bin, 16 /* FIXME */, 0, 0,
@@ -666,8 +710,8 @@ void MDL_map::init()
 
 void MDL_map::destroy()
 {
-  MDL_lock::destroy(m_global_lock);
-  MDL_lock::destroy(m_commit_lock);
+  delete m_global_lock;
+  delete m_commit_lock;
 
   DBUG_ASSERT(!m_locks.records);
   mysql_mutex_destroy(&m_mutex);
@@ -718,10 +762,10 @@ retry:
                                                           mdl_key->length())))
   {
     /* No lock object found so we need to create a new one. */
-    lock= MDL_lock::create(mdl_key);
+    lock= new (std::nothrow) MDL_lock(mdl_key);
     if (!lock || my_hash_insert(&m_locks, (uchar*)lock))
     {
-      MDL_lock::destroy(lock);
+      delete lock;
       mysql_mutex_unlock(&m_mutex);
       return NULL;
     }
@@ -765,7 +809,7 @@ bool MDL_map::move_from_hash_to_lock_mutex(MDL_lock *lock)
     */
     mysql_prlock_unlock(&lock->m_rwlock);
     if (old_state == MDL_lock::DELETED + 1)
-      MDL_lock::destroy(lock);
+      delete lock;
     return TRUE;
   }
   return FALSE;
@@ -838,7 +882,7 @@ void MDL_map::remove(MDL_lock *lock)
   mysql_mutex_unlock(&m_mutex);
   mysql_prlock_unlock(&lock->m_rwlock);
   if (!old_state)
-    MDL_lock::destroy(lock);
+    delete lock;
 }
 
 
@@ -930,32 +974,6 @@ void MDL_request::init(const MDL_key *key_arg,
   type= mdl_type_arg;
   duration= mdl_duration_arg;
   ticket= NULL;
-}
-
-
-/**
-  Auxiliary functions needed for creation/destruction of MDL_lock objects.
-
-  @note Also chooses an MDL_lock descendant appropriate for object namespace.
-*/
-
-inline MDL_lock *MDL_lock::create(const MDL_key *mdl_key)
-{
-  switch (mdl_key->mdl_namespace())
-  {
-    case MDL_key::GLOBAL:
-    case MDL_key::SCHEMA:
-    case MDL_key::COMMIT:
-      return new (std::nothrow) MDL_scoped_lock(mdl_key);
-    default:
-      return new (std::nothrow) MDL_object_lock(mdl_key);
-  }
-}
-
-
-void MDL_lock::destroy(MDL_lock *lock)
-{
-  delete lock;
 }
 
 
@@ -1417,14 +1435,16 @@ void MDL_lock::reschedule_waiters()
   on schema objects) and aren't acquired for DML.
 */
 
-const MDL_lock::bitmap_t MDL_scoped_lock::m_granted_incompatible[MDL_TYPE_END] =
+const MDL_lock::bitmap_t
+MDL_lock::MDL_scoped_lock::m_granted_incompatible[MDL_TYPE_END]=
 {
   MDL_BIT(MDL_EXCLUSIVE) | MDL_BIT(MDL_SHARED),
   MDL_BIT(MDL_EXCLUSIVE) | MDL_BIT(MDL_INTENTION_EXCLUSIVE), 0, 0, 0, 0, 0, 0,
   MDL_BIT(MDL_EXCLUSIVE) | MDL_BIT(MDL_SHARED) | MDL_BIT(MDL_INTENTION_EXCLUSIVE)
 };
 
-const MDL_lock::bitmap_t MDL_scoped_lock::m_waiting_incompatible[MDL_TYPE_END] =
+const MDL_lock::bitmap_t
+MDL_lock::MDL_scoped_lock::m_waiting_incompatible[MDL_TYPE_END]=
 {
   MDL_BIT(MDL_EXCLUSIVE) | MDL_BIT(MDL_SHARED),
   MDL_BIT(MDL_EXCLUSIVE), 0, 0, 0, 0, 0, 0, 0
@@ -1486,7 +1506,7 @@ const MDL_lock::bitmap_t MDL_scoped_lock::m_waiting_incompatible[MDL_TYPE_END] =
 */
 
 const MDL_lock::bitmap_t
-MDL_object_lock::m_granted_incompatible[MDL_TYPE_END] =
+MDL_lock::MDL_object_lock::m_granted_incompatible[MDL_TYPE_END]=
 {
   0,
   MDL_BIT(MDL_EXCLUSIVE),
@@ -1510,7 +1530,7 @@ MDL_object_lock::m_granted_incompatible[MDL_TYPE_END] =
 
 
 const MDL_lock::bitmap_t
-MDL_object_lock::m_waiting_incompatible[MDL_TYPE_END] =
+MDL_lock::MDL_object_lock::m_waiting_incompatible[MDL_TYPE_END]=
 {
   0,
   MDL_BIT(MDL_EXCLUSIVE),
@@ -1969,72 +1989,6 @@ MDL_context::clone_ticket(MDL_request *mdl_request)
   m_tickets[mdl_request->duration].push_front(ticket);
 
   return FALSE;
-}
-
-
-/**
-  Notify threads holding a shared metadata locks on object which
-  conflict with a pending X, SNW or SNRW lock.
-
-  @param  ctx  MDL_context for current thread.
-*/
-
-void MDL_object_lock::notify_conflicting_locks(MDL_context *ctx)
-{
-  Ticket_iterator it(m_granted);
-  MDL_ticket *conflicting_ticket;
-
-  while ((conflicting_ticket= it++))
-  {
-    /* Only try to abort locks on which we back off. */
-    if (conflicting_ticket->get_ctx() != ctx &&
-        conflicting_ticket->get_type() < MDL_SHARED_UPGRADABLE)
-
-    {
-      MDL_context *conflicting_ctx= conflicting_ticket->get_ctx();
-
-      /*
-        If thread which holds conflicting lock is waiting on table-level
-        lock or some other non-MDL resource we might need to wake it up
-        by calling code outside of MDL.
-      */
-      ctx->get_owner()->
-        notify_shared_lock(conflicting_ctx->get_owner(),
-                           conflicting_ctx->get_needs_thr_lock_abort());
-    }
-  }
-}
-
-
-/**
-  Notify threads holding scoped IX locks which conflict with a pending S lock.
-
-  @param  ctx  MDL_context for current thread.
-*/
-
-void MDL_scoped_lock::notify_conflicting_locks(MDL_context *ctx)
-{
-  Ticket_iterator it(m_granted);
-  MDL_ticket *conflicting_ticket;
-
-  while ((conflicting_ticket= it++))
-  {
-    if (conflicting_ticket->get_ctx() != ctx &&
-        conflicting_ticket->get_type() == MDL_INTENTION_EXCLUSIVE)
-
-    {
-      MDL_context *conflicting_ctx= conflicting_ticket->get_ctx();
-
-      /*
-        Thread which holds global IX lock can be a handler thread for
-        insert delayed. We need to kill such threads in order to get
-        global shared lock. We do this my calling code outside of MDL.
-      */
-      ctx->get_owner()->
-        notify_shared_lock(conflicting_ctx->get_owner(),
-                           conflicting_ctx->get_needs_thr_lock_abort());
-    }
-  }
 }
 
 
