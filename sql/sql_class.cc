@@ -3837,7 +3837,7 @@ create_result_table(THD *thd_arg, List<Item> *column_types,
   if (! (table= create_tmp_table(thd_arg, &tmp_table_param, *column_types,
                                  (ORDER*) 0, is_union_distinct, 1,
                                  options, HA_POS_ERROR, (char*) table_alias,
-                                 keep_row_order)))
+                                 !create_table, keep_row_order)))
     return TRUE;
 
   col_stat= (Column_statistics*) table->in_use->alloc(table->s->fields *
