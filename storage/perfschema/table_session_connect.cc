@@ -61,8 +61,7 @@ bool parse_length_encoded_string(const char **ptr,
                  uint nchars_max)
 {
   ulong copy_length, data_length;
-  const char *well_formed_error_pos= NULL, *cannot_convert_error_pos= NULL,
-        *from_end_pos= NULL;
+  String_copier copier;
 
   copy_length= data_length= net_field_length((uchar **) ptr);
 
@@ -73,11 +72,8 @@ bool parse_length_encoded_string(const char **ptr,
   if (*ptr - start_ptr + data_length > input_length)
     return true;
 
-  copy_length= well_formed_copy_nchars(&my_charset_utf8_bin, dest, dest_size,
-                                       from_cs, *ptr, data_length, nchars_max,
-                                       &well_formed_error_pos,
-                                       &cannot_convert_error_pos,
-                                       &from_end_pos);
+  copy_length= copier.well_formed_copy(&my_charset_utf8_bin, dest, dest_size,
+                                       from_cs, *ptr, data_length, nchars_max);
   *copied_len= copy_length;
   (*ptr)+= data_length;
 

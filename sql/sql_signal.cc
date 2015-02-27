@@ -195,16 +195,9 @@ static bool assign_fixed_string(MEM_ROOT *mem_root,
     dst_str= (char*) alloc_root(mem_root, dst_len + 1);
     if (dst_str)
     {
-      const char* well_formed_error_pos;
-      const char* cannot_convert_error_pos;
-      const char* from_end_pos;
-
-      dst_copied= well_formed_copy_nchars(dst_cs, dst_str, dst_len,
-                                          src_cs, src_str, src_len,
-                                          numchars,
-                                          & well_formed_error_pos,
-                                          & cannot_convert_error_pos,
-                                          & from_end_pos);
+      dst_copied= String_copier().well_formed_copy(dst_cs, dst_str, dst_len,
+                                                   src_cs, src_str, src_len,
+                                                   numchars);
       DBUG_ASSERT(dst_copied <= dst_len);
       dst_len= dst_copied; /* In case the copy truncated the data */
       dst_str[dst_copied]= '\0';

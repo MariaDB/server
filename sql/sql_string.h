@@ -41,14 +41,70 @@ inline uint32 copy_and_convert(char *to, uint32 to_length,
 {
   return my_convert(to, to_length, to_cs, from, from_length, from_cs, errors);
 }
-uint32 well_formed_copy_nchars(CHARSET_INFO *to_cs,
-                               char *to, uint to_length,
-                               CHARSET_INFO *from_cs,
-                               const char *from, uint from_length,
-                               uint nchars,
-                               const char **well_formed_error_pos,
-                               const char **cannot_convert_error_pos,
-                               const char **from_end_pos);
+
+
+class String_copier
+{
+  const char *m_source_end_pos;
+  const char *m_well_formed_error_pos;
+  const char *m_cannot_convert_error_pos;
+public:
+  const char *source_end_pos() const
+  { return m_source_end_pos; }
+  const char *well_formed_error_pos() const
+  { return m_well_formed_error_pos; }
+  const char *cannot_convert_error_pos() const
+  { return m_cannot_convert_error_pos; }
+  const char *most_important_error_pos() const
+  {
+    return well_formed_error_pos() ? well_formed_error_pos() :
+                                     cannot_convert_error_pos();
+  }
+  /*
+     Copy a string. Fix bad bytes/characters one Unicode conversion,
+     break on bad bytes in case of non-Unicode copying.
+  */
+  uint well_formed_copy(CHARSET_INFO *to_cs, char *to, uint to_length,
+                        CHARSET_INFO *from_cs, const char *from,
+                        uint from_length, uint nchars);
+  // Same as above, but without the "nchars" limit.
+  uint well_formed_copy(CHARSET_INFO *to_cs, char *to, uint to_length,
+                        CHARSET_INFO *from_cs, const char *from,
+                        uint from_length)
+  {
+    return well_formed_copy(to_cs, to, to_length,
+                            from_cs, from, from_length,
+                            from_length /* No limit on "nchars"*/);
+  }
+  /*
+    Copy a string. If a bad byte sequence is found in case of non-Unicode
+    copying, continues processing and replaces bad bytes to '?'.
+  */
+  uint copy_fix(CHARSET_INFO *to_cs, char *to, uint to_length,
+                CHARSET_INFO *from_cs, const char *from, uint from_length)
+  {
+    uint length= well_formed_copy(to_cs, to, to_length,
+                                  from_cs, from, from_length,
+                                  from_length /* No limit on nchars */);
+    if (well_formed_error_pos() && source_end_pos() < from + from_length)
+    {
+      /*
+        There was an error and there are still some bytes in the source string.
+        This is possible if there were no character set conversion and a
+        malformed byte sequence was found. Copy the rest and replace bad
+        bytes to '?'. Note: m_source_end_pos is not updated!!!
+      */
+      uint dummy_errors;
+      length+= copy_and_convert(to + length, to_length - length, to_cs,
+                                source_end_pos(),
+                                from_length - (source_end_pos() - from),
+                                from_cs, &dummy_errors);
+    }
+    return length;
+  }
+};
+
+
 size_t my_copy_with_hex_escaping(CHARSET_INFO *cs,
                                  char *dst, size_t dstlen,
                                  const char *src, size_t srclen);

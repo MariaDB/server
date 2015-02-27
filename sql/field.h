@@ -1132,6 +1132,17 @@ class Field_longstr :public Field_str
 protected:
   int report_if_important_data(const char *ptr, const char *end,
                                bool count_spaces);
+  bool check_string_copy_error(const String_copier *copier,
+                               const char *end, CHARSET_INFO *cs);
+  int check_conversion_status(const String_copier *copier,
+                              const char *end, CHARSET_INFO *cs,
+                              bool count_spaces)
+  {
+    if (check_string_copy_error(copier, end, cs))
+      return 2;
+    return report_if_important_data(copier->source_end_pos(),
+                                    end, count_spaces);
+  }
 public:
   Field_longstr(uchar *ptr_arg, uint32 len_arg, uchar *null_ptr_arg,
                 uchar null_bit_arg, utype unireg_check_arg,

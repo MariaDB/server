@@ -2986,9 +2986,7 @@ int select_export::send_data(List<Item> &items)
     if (res && !my_charset_same(write_cs, res->charset()) &&
         !my_charset_same(write_cs, &my_charset_bin))
     {
-      const char *well_formed_error_pos;
-      const char *cannot_convert_error_pos;
-      const char *from_end_pos;
+      String_copier copier;
       const char *error_pos;
       uint32 bytes;
       uint64 estimated_bytes=
@@ -3001,16 +2999,11 @@ int select_export::send_data(List<Item> &items)
         goto err;
       }
 
-      bytes= well_formed_copy_nchars(write_cs, (char *) cvt_str.ptr(),
+      bytes= copier.well_formed_copy(write_cs, (char *) cvt_str.ptr(),
                                      cvt_str.alloced_length(),
-                                     res->charset(), res->ptr(), res->length(),
-                                     UINT_MAX32, // copy all input chars,
-                                                 // i.e. ignore nchars parameter
-                                     &well_formed_error_pos,
-                                     &cannot_convert_error_pos,
-                                     &from_end_pos);
-      error_pos= well_formed_error_pos ? well_formed_error_pos
-                                       : cannot_convert_error_pos;
+                                     res->charset(),
+                                     res->ptr(), res->length());
+      error_pos= copier.most_important_error_pos();
       if (error_pos)
       {
         char printable_buff[32];
@@ -3023,7 +3016,7 @@ int select_export::send_data(List<Item> &items)
                             "string", printable_buff,
                             item->name, static_cast<long>(row_count));
       }
-      else if (from_end_pos < res->ptr() + res->length())
+      else if (copier.source_end_pos() < res->ptr() + res->length())
       { 
         /*
           result is longer than UINT_MAX32 and doesn't fit into String

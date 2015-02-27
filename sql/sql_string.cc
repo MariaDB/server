@@ -875,41 +875,44 @@ my_copy_with_hex_escaping(CHARSET_INFO *cs,
 
 
 /*
-  copy a string,
+  Copy a string,
   with optional character set conversion,
   with optional left padding (for binary -> UCS2 conversion)
-  
-  SYNOPSIS
-    well_formed_copy_nchars()
-    to			     Store result here
-    to_length                Maxinum length of "to" string
-    to_cs		     Character set of "to" string
-    from		     Copy from here
-    from_length		     Length of from string
-    from_cs		     From character set
-    nchars                   Copy not more that nchars characters
-    well_formed_error_pos    Return position when "from" is not well formed
+
+  In case if there is a Unicode conversion (i.e. to_cs and from_cs are
+  different character sets and both are not &my_charset_bin), bad input bytes
+  as well as characters that cannot be encoded in to_cs are replaced to '?'.
+
+  In case of non-Unicode copying (i.e. to_cs and from_cs are same character set,
+  or from_cs is &my_charset_bin),  the function stops on the first bad
+  byte sequence.
+
+  The string that is written to "to" is always well-formed.
+
+  @param to                  The destination string
+  @param to_length           Space available in "to"
+  @param to_cs               Character set of the "to" string
+  @param from                The source string
+  @param from_length         Length of the "from" string
+  @param from_cs             Character set of the "from" string
+  @param nchars              Copy not more than "nchars" characters
+
+  The members as set as follows:
+  m_well_formed_error_pos    To the position when "from" is not well formed
                              or NULL otherwise.
-    cannot_convert_error_pos Return position where a not convertable
+  m_cannot_convert_error_pos To the position where a not convertable
                              character met, or NULL otherwise.
-    from_end_pos             Return position where scanning of "from"
+  m_source_end_pos           To the position where scanning of the "from"
                              string stopped.
-  NOTES
 
-  RETURN
-    length of bytes copied to 'to'
+  @returns                   number of bytes that were written to 'to'
 */
-
-
-uint32
-well_formed_copy_nchars(CHARSET_INFO *to_cs,
-                        char *to, uint to_length,
-                        CHARSET_INFO *from_cs,
-                        const char *from, uint from_length,
-                        uint nchars,
-                        const char **well_formed_error_pos,
-                        const char **cannot_convert_error_pos,
-                        const char **from_end_pos)
+uint
+String_copier::well_formed_copy(CHARSET_INFO *to_cs,
+                                char *to, uint to_length,
+                                CHARSET_INFO *from_cs,
+                                const char *from, uint from_length,
+                                uint nchars)
 {
   uint res;
 
@@ -920,9 +923,9 @@ well_formed_copy_nchars(CHARSET_INFO *to_cs,
   {
     if (to_length < to_cs->mbminlen || !nchars)
     {
-      *from_end_pos= from;
-      *cannot_convert_error_pos= NULL;
-      *well_formed_error_pos= NULL;
+      m_source_end_pos= from;
+      m_cannot_convert_error_pos= NULL;
+      m_well_formed_error_pos= NULL;
       return 0;
     }
 
@@ -930,9 +933,9 @@ well_formed_copy_nchars(CHARSET_INFO *to_cs,
     {
       res= MY_MIN(MY_MIN(nchars, to_length), from_length);
       memmove(to, from, res);
-      *from_end_pos= from + res;
-      *well_formed_error_pos= NULL;
-      *cannot_convert_error_pos= NULL;
+      m_source_end_pos= from + res;
+      m_well_formed_error_pos= NULL;
+      m_cannot_convert_error_pos= NULL;
     }
     else
     {
@@ -964,8 +967,8 @@ well_formed_copy_nchars(CHARSET_INFO *to_cs,
                                          &well_formed_error) !=
                                          to_cs->mbminlen)
         {
-          *from_end_pos= *well_formed_error_pos= from;
-          *cannot_convert_error_pos= NULL;
+          m_source_end_pos= m_well_formed_error_pos= from;
+          m_cannot_convert_error_pos= NULL;
           return 0;
         }
         nchars--;
@@ -979,9 +982,9 @@ well_formed_copy_nchars(CHARSET_INFO *to_cs,
       res= to_cs->cset->well_formed_len(to_cs, from, from + from_length,
                                         nchars, &well_formed_error);
       memmove(to, from, res);
-      *from_end_pos= from + res;
-      *well_formed_error_pos= well_formed_error ? from + res : NULL;
-      *cannot_convert_error_pos= NULL;
+      m_source_end_pos= from + res;
+      m_well_formed_error_pos= well_formed_error ? from + res : NULL;
+      m_cannot_convert_error_pos= NULL;
       if (from_offset)
         res+= to_cs->mbminlen;
     }
@@ -995,8 +998,8 @@ well_formed_copy_nchars(CHARSET_INFO *to_cs,
     const uchar *from_end= (const uchar*) from + from_length;
     uchar *to_end= (uchar*) to + to_length;
     char *to_start= to;
-    *well_formed_error_pos= NULL;
-    *cannot_convert_error_pos= NULL;
+    m_well_formed_error_pos= NULL;
+    m_cannot_convert_error_pos= NULL;
 
     for ( ; nchars; nchars--)
     {
@@ -1005,8 +1008,8 @@ well_formed_copy_nchars(CHARSET_INFO *to_cs,
         from+= cnvres;
       else if (cnvres == MY_CS_ILSEQ)
       {
-        if (!*well_formed_error_pos)
-          *well_formed_error_pos= from;
+        if (!m_well_formed_error_pos)
+          m_well_formed_error_pos= from;
         from++;
         wc= '?';
       }
@@ -1016,8 +1019,8 @@ well_formed_copy_nchars(CHARSET_INFO *to_cs,
           A correct multibyte sequence detected
           But it doesn't have Unicode mapping.
         */
-        if (!*cannot_convert_error_pos)
-          *cannot_convert_error_pos= from;
+        if (!m_cannot_convert_error_pos)
+          m_cannot_convert_error_pos= from;
         from+= (-cnvres);
         wc= '?';
       }
@@ -1026,8 +1029,8 @@ well_formed_copy_nchars(CHARSET_INFO *to_cs,
         if ((uchar *) from >= from_end)
           break; // End of line
         // Incomplete byte sequence
-        if (!*well_formed_error_pos)
-          *well_formed_error_pos= from;
+        if (!m_well_formed_error_pos)
+          m_well_formed_error_pos= from;
         from++;
         wc= '?';
       }
@@ -1036,8 +1039,8 @@ outp:
         to+= cnvres;
       else if (cnvres == MY_CS_ILUNI && wc != '?')
       {
-        if (!*cannot_convert_error_pos)
-          *cannot_convert_error_pos= from_prev;
+        if (!m_cannot_convert_error_pos)
+          m_cannot_convert_error_pos= from_prev;
         wc= '?';
         goto outp;
       }
@@ -1047,10 +1050,10 @@ outp:
         break;
       }
     }
-    *from_end_pos= from;
+    m_source_end_pos= from;
     res= (uint) (to - to_start);
   }
-  return (uint32) res;
+  return res;
 }
 
 

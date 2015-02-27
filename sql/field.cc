@@ -6262,10 +6262,9 @@ bool Field_datetimef::get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
 
   SYNOPSIS
     check_string_copy_error()
-    field                    - Field
-    well_formed_error_pos    - where not well formed data was first met
-    cannot_convert_error_pos - where a not-convertable character was first met
-    end                      - end of the string
+    copier                   - the conversion status
+    end                      - the very end of the source string
+                               that was just copied
     cs                       - character set of the string
 
   NOTES
@@ -6282,30 +6281,25 @@ bool Field_datetimef::get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
     TRUE  - If an error happened
 */
 
-static bool
-check_string_copy_error(Field_str *field,
-                        const char *well_formed_error_pos,
-                        const char *cannot_convert_error_pos,
-                        const char *end,
-                        CHARSET_INFO *cs)
+bool
+Field_longstr::check_string_copy_error(const String_copier *copier,
+                                       const char *end,
+                                       CHARSET_INFO *cs)
 {
   const char *pos;
   char tmp[32];
-  THD *thd;
 
-  thd= field->get_thd();
-
-  if (!(pos= well_formed_error_pos) &&
-      !(pos= cannot_convert_error_pos))
+  if (!(pos= copier->most_important_error_pos()))
     return FALSE;
 
   convert_to_printable(tmp, sizeof(tmp), pos, (end - pos), cs, 6);
 
+  THD *thd= get_thd();
   push_warning_printf(thd,
                       Sql_condition::WARN_LEVEL_WARN,
                       ER_TRUNCATED_WRONG_VALUE_FOR_FIELD,
                       ER(ER_TRUNCATED_WRONG_VALUE_FOR_FIELD),
-                      "string", tmp, field->field_name,
+                      "string", tmp, field_name,
                       thd->get_stmt_da()->current_row_for_warning());
   return TRUE;
 }
@@ -6362,20 +6356,15 @@ int Field_string::store(const char *from,uint length,CHARSET_INFO *cs)
 {
   ASSERT_COLUMN_MARKED_FOR_WRITE_OR_COMPUTED;
   uint copy_length;
-  const char *well_formed_error_pos;
-  const char *cannot_convert_error_pos;
-  const char *from_end_pos;
+  String_copier copier;
 
   /* See the comment for Field_long::store(long long) */
   DBUG_ASSERT(!table || table->in_use == current_thd);
 
-  copy_length= well_formed_copy_nchars(field_charset,
+  copy_length= copier.well_formed_copy(field_charset,
                                        (char*) ptr, field_length,
                                        cs, from, length,
-                                       field_length / field_charset->mbmaxlen,
-                                       &well_formed_error_pos,
-                                       &cannot_convert_error_pos,
-                                       &from_end_pos);
+                                       field_length / field_charset->mbmaxlen);
 
   /* Append spaces if the string was shorter than the field. */
   if (copy_length < field_length)
@@ -6383,11 +6372,7 @@ int Field_string::store(const char *from,uint length,CHARSET_INFO *cs)
                               field_length-copy_length,
                               field_charset->pad_char);
 
-  if (check_string_copy_error(this, well_formed_error_pos,
-                              cannot_convert_error_pos, from + length, cs))
-    return 2;
-
-  return report_if_important_data(from_end_pos, from + length, FALSE);
+  return check_conversion_status(&copier, from + length, cs, false);
 }
 
 
@@ -6874,29 +6859,19 @@ int Field_varstring::store(const char *from,uint length,CHARSET_INFO *cs)
 {
   ASSERT_COLUMN_MARKED_FOR_WRITE_OR_COMPUTED;
   uint copy_length;
-  const char *well_formed_error_pos;
-  const char *cannot_convert_error_pos;
-  const char *from_end_pos;
+  String_copier copier;
 
-  copy_length= well_formed_copy_nchars(field_charset,
+  copy_length= copier.well_formed_copy(field_charset,
                                        (char*) ptr + length_bytes,
                                        field_length,
                                        cs, from, length,
-                                       field_length / field_charset->mbmaxlen,
-                                       &well_formed_error_pos,
-                                       &cannot_convert_error_pos,
-                                       &from_end_pos);
-
+                                       field_length / field_charset->mbmaxlen);
   if (length_bytes == 1)
     *ptr= (uchar) copy_length;
   else
     int2store(ptr, copy_length);
 
-  if (check_string_copy_error(this, well_formed_error_pos,
-                              cannot_convert_error_pos, from + length, cs))
-    return 2;
-
-  return report_if_important_data(from_end_pos, from + length, TRUE);
+  return check_conversion_status(&copier, from + length, cs, true);
 }
 
 
@@ -7351,9 +7326,8 @@ int Field_blob::store(const char *from,uint length,CHARSET_INFO *cs)
 {
   ASSERT_COLUMN_MARKED_FOR_WRITE_OR_COMPUTED;
   uint copy_length, new_length;
-  const char *well_formed_error_pos;
-  const char *cannot_convert_error_pos;
-  const char *from_end_pos, *tmp;
+  String_copier copier;
+  const char *tmp;
   char buff[STRING_BUFFER_USUAL_SIZE];
   String tmpstr(buff,sizeof(buff), &my_charset_bin);
 
@@ -7401,28 +7375,14 @@ int Field_blob::store(const char *from,uint length,CHARSET_INFO *cs)
     bmove(ptr + packlength, (uchar*) &tmp, sizeof(char*));
     return 0;
   }
-  /*
-    "length" is OK as "nchars" argument to well_formed_copy_nchars as this
-    is never used to limit the length of the data. The cut of long data
-    is done with the new_length value.
-  */
-  copy_length= well_formed_copy_nchars(field_charset,
+  copy_length= copier.well_formed_copy(field_charset,
                                        (char*) value.ptr(), new_length,
-                                       cs, from, length,
-                                       length,
-                                       &well_formed_error_pos,
-                                       &cannot_convert_error_pos,
-                                       &from_end_pos);
-
+                                       cs, from, length);
   Field_blob::store_length(copy_length);
   tmp= value.ptr();
   bmove(ptr+packlength,(uchar*) &tmp,sizeof(char*));
 
-  if (check_string_copy_error(this, well_formed_error_pos,
-                              cannot_convert_error_pos, from + length, cs))
-    return 2;
-
-  return report_if_important_data(from_end_pos, from + length, TRUE);
+  return check_conversion_status(&copier, from + length, cs, true);
 
 oom_error:
   /* Fatal OOM error */
