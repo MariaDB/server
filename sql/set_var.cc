@@ -860,7 +860,11 @@ int set_var_password::check(THD *thd)
 int set_var_password::update(THD *thd)
 {
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
-  return change_password(thd, user);
+  Reprepare_observer *save_reprepare_observer= thd->m_reprepare_observer;
+  thd->m_reprepare_observer= 0;
+  int res= change_password(thd, user);
+  thd->m_reprepare_observer= save_reprepare_observer;
+  return res;
 #else
   return 0;
 #endif
@@ -896,8 +900,8 @@ int set_var_role::update(THD *thd)
 int set_var_default_role::check(THD *thd)
 {
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
-  user= get_current_user(thd, user);
-  int status= acl_check_set_default_role(thd, user->host.str, user->user.str);
+  real_user= get_current_user(thd, user);
+  int status= acl_check_set_default_role(thd, real_user->host.str, real_user->user.str);
   return status;
 #else
   return 0;
@@ -907,7 +911,11 @@ int set_var_default_role::check(THD *thd)
 int set_var_default_role::update(THD *thd)
 {
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
-  return acl_set_default_role(thd, user->host.str, user->user.str, role.str);
+  Reprepare_observer *save_reprepare_observer= thd->m_reprepare_observer;
+  thd->m_reprepare_observer= 0;
+  int res= acl_set_default_role(thd, real_user->host.str, real_user->user.str, role.str);
+  thd->m_reprepare_observer= save_reprepare_observer;
+  return res;
 #else
   return 0;
 #endif

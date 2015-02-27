@@ -344,7 +344,7 @@ public:
 
 class set_var_default_role: public set_var_base
 {
-  LEX_USER *user;
+  LEX_USER *user, *real_user;
   LEX_STRING role;
 public:
   set_var_default_role(LEX_USER *user_arg, LEX_STRING role_arg) :
