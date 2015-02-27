@@ -1,0 +1,218 @@
+%{?scl:%scl_package mroonga}
+%{!?scl:%global pkg_name %{name}}
+%{!?centos_ver:%define centos_ver 5}
+
+%if %{centos_ver} == 6
+%define mysql_version_default 5.5.41
+%define mysql_release_default 2
+%define mysql_dist_default    el6.centos.alt
+%define mysql_download_base_url_default http://vault.centos.org/6.6/SCL/Source/SPackages
+%define mysql_spec_file_default mysql.spec
+%else
+%define mysql_version_default 5.5.40
+%define mysql_release_default 2
+%define mysql_dist_default    el5
+%define mysql_download_base_url_default http://vault.centos.org/5.11/updates/SRPMS
+%define mysql_spec_file_default mysql.spec
+%endif
+
+%{!?mysql_version:%define mysql_version %{mysql_version_default}}
+%{!?mysql_release:%define mysql_release %{mysql_release_default}}
+%{!?mysql_dist:%define mysql_dist %{mysql_dist_default}}
+%{!?mysql_download_base_url:%define mysql_download_base_url %{mysql_download_base_url_default}}
+%{!?mysql_spec_file:%define mysql_spec_file %{mysql_spec_file_default}}
+
+%define groonga_required_version @REQUIRED_GROONGA_VERSION@
+
+Name:		%{?scl_prefix}mroonga
+Version:	@VERSION@
+Release:	1%{?dist}
+Summary:	A fast fulltext searchable storage engine for MySQL
+
+Group:		Applications/Databases
+License:	LGPLv2.1
+URL:		http://mroonga.org/
+Source0:	http://packages.groonga.org/source/mroonga/mroonga-%{version}.tar.gz
+
+BuildRoot:      %{_tmppath}/%{name}-%{version}-%{release}-%(%{__id_u} -n)
+BuildRequires:	groonga-devel >= %{groonga_required_version}
+BuildRequires:	groonga-normalizer-mysql-devel
+BuildRequires:	wget
+BuildRequires:	which
+BuildRequires:	mysql55-mysql-devel
+BuildRequires:	mysql55-build
+Requires:	mysql55-mysql-server = %{mysql_version}-%{mysql_release}.%{mysql_dist}
+Requires:	mysql55-mysql = %{mysql_version}-%{mysql_release}.%{mysql_dist}
+Requires:	groonga-libs >= %{groonga_required_version}
+Requires:	groonga-normalizer-mysql
+%{?scl:Requires: %scl_runtime}
+
+%description
+Mroonga is a fast fulltext searchable storage plugin for MySQL.
+It is based on Groonga that is a fast fulltext search engine and
+column store. Groonga is good at real-time update.
+
+%package doc
+Summary:	Documentation for Mroonga
+Group:		Documentation
+License:	LGPLv2.1
+
+%description doc
+Documentation for Mroonga
+
+
+%prep
+%setup -q -n %{pkg_name}-%{version}
+
+mysql_full_version=%{mysql_version}-%{mysql_release}.%{mysql_dist}
+srpm=mysql55-mysql-${mysql_full_version}.src.rpm
+if [ ! -f ../../SRPMS/$srpm ]; then
+    wget --continue -O ../../SRPMS/$srpm %{mysql_download_base_url}/$srpm
+    rpm -Uvh ../../SRPMS/$srpm
+fi
+
+%build
+mysql_source=../mysql-%{mysql_version}
+if [ ! -d ${mysql_source} ]; then
+    specs_dir=
+    MYSQL_RPMBUILD_TEST=no rpmbuild -bp \
+	--define 'runselftest 0' \
+	--define 'optflags -O0' \
+	../../SPECS/%{mysql_spec_file}
+fi
+%configure --disable-static --with-mysql-source=${mysql_source} \
+    --disable-fast-mutexes \
+    --with-mysql-config=`scl enable mysql55 'which mysql_config'` \
+    %{?mroonga_configure_options}
+make %{?_smp_mflags}
+
+%install
+rm -rf $RPM_BUILD_ROOT
+make install DESTDIR=$RPM_BUILD_ROOT
+rm $RPM_BUILD_ROOT%{_libdir}/mysql/plugin/*.la
+mv $RPM_BUILD_ROOT%{_datadir}/doc/mroonga/ mysql-mroonga-doc/
+
+%clean
+rm -rf $RPM_BUILD_ROOT
+
+%post
+mysql_command=`scl enable mysql55 'which mysql'`
+password_option=""
+$mysql_command -u root -e "quit"
+if [ $? -ne 0 ]; then
+    password_option="-p"
+fi
+current_version=0
+version=`echo %{groonga_required_version} | sed -e 's/\.//g'`
+required_version=`expr $version`
+version=`$mysql_command -e "SHOW VARIABLES LIKE 'mroonga_libgroonga_version'" | \
+    grep mroonga | cut -f 2 | sed -e 's/\.//g'`
+if [ -n "$version" ]; then
+    current_version=`expr $version`
+fi
+install_sql=%{_datadir}/mroonga/install.sql
+uninstall_sql=%{_datadir}/mroonga/uninstall.sql
+
+if [ "$1" = 2 ] ; then
+    if [ $current_version -lt $required_version ]; then
+	command="$mysql_command -u root $password_option"
+	echo "run the following command after restarting MySQL server:";
+	echo "  $command < ${uninstall_sql}"
+	echo "  $command < ${install_sql}"
+	exit 0
+    else
+	command="$mysql_command -u root $password_option < ${uninstall_sql}"
+	echo $command
+	eval $command || \
+	    (echo "run the following command to unregister Mroonga:"; \
+	     echo "  $command")
+    fi
+fi
+command="$mysql_command -u root $password_option < ${install_sql}"
+echo $command
+eval $command || \
+	(echo "run the following command to register Mroonga:"; \
+	 echo "  $command")
+
+%preun
+uninstall_sql=%{_datadir}/mroonga/uninstall.sql
+mysql_command=`scl enable mysql55 'which mysql'`
+if $mysql_command -u root -e "quit"; then
+    password_option=""
+else
+    password_option="-p"
+fi
+if [ "$1" = 0 ]; then
+    command="$mysql_command -u root $password_option < ${uninstall_sql}"
+    echo $command
+    eval $command || \
+	(echo "run the following command to unregister Mroonga:"; \
+	 echo "  $command")
+fi
+
+%files
+%defattr(-,root,root,-)
+%{_libdir}/mysql/plugin/
+%{_datadir}/mroonga/*
+%{_datadir}/man/man1/*
+%{_datadir}/man/*/man1/*
+
+%files doc
+%defattr(-,root,root,-)
+%doc README COPYING
+%doc mysql-mroonga-doc/*
+
+%changelog
+* Mon Feb 09 2015  <hayashi@clear-code.com> - 5.00-1
+- new upstream release.
+
+* Thu Jan 29 2015 HAYASHI Kentaro <hayashi@clear-code.com> - 4.10-1
+- new upstream release.
+
+* Mon Dec 29 2014 Kouhei Sutou <kou@cozmixng.org> - 4.09-1
+- new upstream release.
+
+* Sat Nov 29 2014 HAYASHI Kentaro <hayashi@clear-code.com> - 4.08-1
+- new upstream release.
+
+* Wed Oct 29 2014 Kouhei Sutou <kou@clear-code.com> - 4.07-1
+- new upstream release.
+
+* Mon Sep 29 2014 Kouhei Sutou <kou@clear-code.com> - 4.06-1
+- new upstream release.
+
+* Fri Aug 29 2014 Kouhei Sutou <kou@clear-code.com> - 4.05-1
+- new upstream release.
+
+* Tue Jul 29 2014 HAYASHI Kentaro <hayashi@clear-code.com> - 4.04-1
+- new upstream release.
+
+* Thu May 29 2014 Kouhei Sutou <kou@clear-code.com> - 4.03-2
+- build against MySQL 5.6.37. Reported by YOSHIDA Mitsuo. Thanks!!!
+
+* Thu May 29 2014 Kouhei Sutou <kou@clear-code.com> - 4.03-1
+- new upstream release.
+
+* Tue Apr 29 2014 Kouhei Sutou <kou@clear-code.com> - 4.02-1
+- new upstream release.
+
+* Sat Mar 29 2014 HAYASHI Kentaro <hayashi@clear-code.com> - 4.01-1
+- new upstream release.
+
+* Thu Mar 06 2014 HAYASHI Kentaro <hayashi@clear-code.com> - 4.00-2
+- use MySQL 5.5.36 on CentOS 5.
+
+* Sun Feb 09 2014 HAYASHI Kentaro <hayashi@clear-code.com> - 4.00-1
+- new upstream release.
+
+* Wed Jan 29 2014 HAYASHI Kentaro <hayashi@clear-code.com> - 3.12-1
+- new upstream release.
+
+* Sun Dec 29 2013 HAYASHI Kentaro <hayashi@clear-code.com> - 3.11-1
+- new upstream release.
+
+* Fri Nov 29 2013 HAYASHI Kentaro <hayashi@clear-code.com> - 3.10-1
+- new upstream release.
+
+* Tue Oct 29 2013 HAYASHI Kentaro <hayashi@clear-code.com> - 3.09-1
+- initial packaging for MySQL 5.5 on CentOS 5.

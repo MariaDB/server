@@ -16,7 +16,7 @@
   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 */
 
-#include "../ctx_impl.h"
+#include "../grn_ctx_impl.h"
 
 #ifdef GRN_WITH_MRUBY
 #include <mruby.h>
@@ -31,6 +31,11 @@ grn_mrb_id_init(grn_ctx *ctx)
   struct RClass *id_module;
 
   id_module = mrb_define_module_under(mrb, module, "ID");
+
+  mrb_define_const(mrb, id_module, "NIL",
+                   mrb_fixnum_value(GRN_ID_NIL));
+  mrb_define_const(mrb, id_module, "MAX",
+                   mrb_fixnum_value(GRN_ID_MAX));
 
   mrb_define_const(mrb, id_module, "VOID",
                    mrb_fixnum_value(GRN_DB_VOID));

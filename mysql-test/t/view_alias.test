@@ -90,3 +90,12 @@ eval CREATE VIEW v1 AS $query;
 DROP VIEW v1;
 
 DROP TABLE t1, t2;
+
+#
+# MDEV-7482 VIEW containing INTERVAL(...)
+#
+create view v1 as select interval(55,10) as my_col;
+show create view v1;
+select * from v1;
+drop view v1;
+

@@ -21,8 +21,8 @@ set -e
 
 mariadb_download_base=http://mirror.jmu.edu/pub/mariadb
 
-export GROONGA_MASTER=yes
-export GROONGA_NORMALIZER_MYSQL_MASTER=yes
+# export GROONGA_MASTER=yes
+# export GROONGA_NORMALIZER_MYSQL_MASTER=yes
 
 curl --silent --location https://github.com/groonga/groonga/raw/master/data/travis/setup.sh | sh
 curl --silent --location https://github.com/groonga/groonga-normalizer-mysql/raw/master/data/travis/setup.sh | sh
@@ -43,6 +43,7 @@ if [ "${MROONGA_BUNDLED}" = "yes" ]; then
     curl -O ${download_base}/source/${tar_gz}
     tar xzf $tar_gz
     mv ${MYSQL_VERSION}/* ./
+    rm -rf storage/mroonga
     mv .mroonga storage/mroonga
     rm -rf ${MYSQL_VERSION}
 else
@@ -57,7 +58,8 @@ else
 	    sudo apt-get -qq -y build-dep mysql-server
 	    if [ "$version" = "system" ]; then
 		sudo apt-get -qq -y install \
-		    mysql-server mysql-testsuite libmysqld-dev
+		    mysql-server mysql-server-5.5 mysql-server-core-5.5 \
+		    mysql-testsuite libmysqld-dev
 		apt-get -qq source mysql-server
 		ln -s $(find . -maxdepth 1 -type d | sort | tail -1) mysql
 	    else

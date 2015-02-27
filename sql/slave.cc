@@ -374,6 +374,9 @@ int init_slave()
   if (run_slave_init_thread())
     return 1;
 
+  if (global_rpl_thread_pool.init(opt_slave_parallel_threads))
+    return 1;
+
   /*
     This is called when mysqld starts. Before client connections are
     accepted. However bootstrap may conflict with us if it does START SLAVE.
@@ -406,9 +409,6 @@ int init_slave()
     active_mi= 0;
     goto err;
   }
-
-  if (global_rpl_thread_pool.init(opt_slave_parallel_threads))
-    return 1;
 
   /*
     If --slave-skip-errors=... was not used, the string value for the
@@ -5690,6 +5690,18 @@ static int queue_event(Master_info* mi,const char* buf, ulong event_len)
     inc_pos= event_len;
   }
   break;
+
+#ifndef DBUG_OFF
+  case XID_EVENT:
+    DBUG_EXECUTE_IF("slave_discard_xid_for_gtid_0_x_1000",
+    {
+      /* Inject an event group that is missing its XID commit event. */
+      if (mi->last_queued_gtid.domain_id == 0 &&
+          mi->last_queued_gtid.seq_no == 1000)
+        goto skip_relay_logging;
+    });
+    /* Fall through to default case ... */
+#endif
 
   default:
   default_action:

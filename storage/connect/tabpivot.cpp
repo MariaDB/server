@@ -558,7 +558,7 @@ bool TDBPIVOT::MakePivotColumns(PGLOBAL g)
     //  Check and initialize the subtable columns
     for (PCOL cp = Columns; cp; cp = cp->GetNext())
       if (cp->GetAmType() == TYPE_AM_SRC) {
-        if (((PSRCCOL)cp)->Init(g))
+        if (((PSRCCOL)cp)->Init(g, NULL))
           return TRUE;
 
       } else if (cp->GetAmType() == TYPE_AM_FNC)
@@ -874,9 +874,9 @@ SRCCOL::SRCCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int n)
 /***********************************************************************/
 /*  Initialize the column as pointing to the source column.            */
 /***********************************************************************/
-bool SRCCOL::Init(PGLOBAL g)
+bool SRCCOL::Init(PGLOBAL g, PTDBASE tp)
   {
-  if (PRXCOL::Init(g))
+  if (PRXCOL::Init(g, tp))
     return true;
 
   AddStatus(BUF_READ);     // All is done here

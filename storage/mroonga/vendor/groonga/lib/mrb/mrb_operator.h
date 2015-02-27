@@ -19,7 +19,7 @@
 #ifndef GRN_MRB_OPERATOR_H
 #define GRN_MRB_OPERATOR_H
 
-#include "../ctx.h"
+#include "../grn_ctx.h"
 
 #ifdef __cplusplus
 extern "C" {

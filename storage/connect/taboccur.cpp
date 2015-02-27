@@ -355,7 +355,7 @@ bool TDBOCCUR::MakeColumnList(PGLOBAL g)
 
   for (colp = Columns; colp; colp = colp->GetNext())
     if (colp->GetAmType() == TYPE_AM_PRX)
-		  if (((PPRXCOL)colp)->Init(g))
+		  if (((PPRXCOL)colp)->Init(g, NULL))
   			return true;
 
 	Col = (PCOL*)PlugSubAlloc(g, NULL, Mult * sizeof(PCOL));

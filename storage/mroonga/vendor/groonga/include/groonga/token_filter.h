@@ -15,10 +15,8 @@
   License along with this library; if not, write to the Free Software
   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 */
-#ifndef GRN_PLUGIN_TOKEN_FILTER_H
-#define GRN_PLUGIN_TOKEN_FILTER_H
-
-#include <stddef.h>
+#ifndef GROONGA_TOKEN_FILTER_H
+#define GROONGA_TOKEN_FILTER_H
 
 #include <groonga/tokenizer.h>
 
@@ -28,7 +26,7 @@ extern "C" {
 
 typedef void *grn_token_filter_init_func(grn_ctx *ctx,
                                          grn_obj *table,
-                                         grn_token_mode mode);
+                                         grn_tokenize_mode mode);
 
 typedef void grn_token_filter_filter_func(grn_ctx *ctx,
                                           grn_token *current_token,
@@ -68,4 +66,4 @@ GRN_PLUGIN_EXPORT grn_rc grn_token_filter_register(grn_ctx *ctx,
 }  /* extern "C" */
 #endif  /* __cplusplus */
 
-#endif  /* GRN_PLUGIN_TOKEN_FILTER_H */
+#endif  /* GROONGA_TOKEN_FILTER_H */

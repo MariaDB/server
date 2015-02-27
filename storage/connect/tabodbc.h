@@ -50,6 +50,8 @@ class DllExport ODBCDEF : public TABDEF { /* Logical table description */
   PSZ     Connect;            /* ODBC connection string                */
   PSZ     Tabname;            /* External table name                   */
   PSZ     Tabschema;          /* External table schema                 */
+  PSZ     Username;           /* User connect name                     */
+  PSZ     Password;           /* Password connect info                 */
   PSZ     Tabcat;             /* External table catalog                */
   PSZ     Srcdef;             /* The source table SQL definition       */
   PSZ     Qchar;              /* Identifier quoting character          */
@@ -65,6 +67,7 @@ class DllExport ODBCDEF : public TABDEF { /* Logical table description */
   bool    Scrollable;         /* Use scrollable cursor                 */
   bool    Memory;             /* Put result set in memory              */
   bool    Xsrc;               /* Execution type                        */
+  bool    UseCnc;             /* Use SQLConnect (!SQLDriverConnect)    */
   }; // end of ODBCDEF
 
 #if !defined(NODBC)
@@ -124,9 +127,12 @@ class TDBODBC : public TDBASE {
   // Members
   ODBConn *Ocp;               // Points to an ODBC connection class
   ODBCCOL *Cnp;               // Points to count(*) column
+  ODBCPARM Ops;               // Additional parameters
   char    *Connect;           // Points to connection string
   char    *TableName;         // Points to ODBC table name
   char    *Schema;            // Points to ODBC table Schema
+  char    *User;              // User connect info
+  char    *Pwd;               // Password connect info
   char    *Catalog;           // Points to ODBC table Catalog
   char    *Srcdef;            // The source table SQL definition
   char    *Query;             // Points to SQL statement
@@ -151,6 +157,7 @@ class TDBODBC : public TDBASE {
   int      Nparm;             // The number of statement parameters
   int      Memory;            // 0: No 1: Alloc 2: Put 3: Get
   bool     Scrollable;        // Use scrollable cursor
+  bool     UseCnc;            // Use SQLConnect (!SQLDriverConnect)
   PQRYRES  Qrp;               // Points to storage result
   }; // end of class TDBODBC
 
@@ -316,8 +323,7 @@ class TDBOTB : public TDBDRV {
   char    *Dsn;               // Points to connection string
   char    *Schema;            // Points to schema name or NULL
   char    *Tab;               // Points to ODBC table name or pattern
-  int      Cto;               // Connect timeout
-  int      Qto;               // Query timeout
+  ODBCPARM Ops;               // Additional parameters
   }; // end of class TDBOTB
 
 /***********************************************************************/

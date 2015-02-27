@@ -13,8 +13,6 @@
 # License along with this library; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 
-if(NOT MRN_GROONGA_BUNDLED)
-  install(FILES groonga.h DESTINATION "${GRN_INCLUDE_DIR}")
-  install(DIRECTORY groonga DESTINATION "${GRN_INCLUDE_DIR}"
-    FILES_MATCHING PATTERN "*.h")
-endif()
+install(FILES groonga.h DESTINATION "${GRN_INCLUDE_DIR}")
+install(DIRECTORY groonga DESTINATION "${GRN_INCLUDE_DIR}"
+  FILES_MATCHING PATTERN "*.h")

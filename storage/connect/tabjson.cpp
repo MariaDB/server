@@ -1,5 +1,5 @@
 /************* tabjson C++ Program Source Code File (.CPP) *************/
-/* PROGRAM NAME: tabxjson     Version 1.0                              */
+/* PROGRAM NAME: tabjson     Version 1.0                               */
 /*  (C) Copyright to the author Olivier BERTRAND          2014 - 2015  */
 /*  This program are the JSON class DB execution routines.             */
 /***********************************************************************/
@@ -119,12 +119,12 @@ TDBJSN::TDBJSN(PJDEF tdp, PTXF txfp) : TDBDOS(tdp, txfp)
   Fpos = -1;
   Spos = N = 0;
   Limit = tdp->Limit;
-  Pretty = tdp->Pretty;
-  Strict = tdp->Strict;
-  NextSame = false;
-  Comma = false;
+  NextSame = 0;
   SameRow = 0;
   Xval = -1;
+  Pretty = tdp->Pretty;
+  Strict = tdp->Strict;
+  Comma = false;
   } // end of TDBJSN standard constructor
 
 TDBJSN::TDBJSN(TDBJSN *tdbp) : TDBDOS(NULL, tdbp)
@@ -137,12 +137,12 @@ TDBJSN::TDBJSN(TDBJSN *tdbp) : TDBDOS(NULL, tdbp)
   Spos = tdbp->Spos;
   N = tdbp->N;
   Limit = tdbp->Limit;
-  Pretty = tdbp->Pretty;
-  Strict = tdbp->Strict;
   NextSame = tdbp->NextSame;
-  Comma = tdbp->Comma;
   SameRow = tdbp->SameRow;
   Xval = tdbp->Xval;
+  Pretty = tdbp->Pretty;
+  Strict = tdbp->Strict;
+  Comma = tdbp->Comma;
   } // end of TDBJSN copy constructor
 
 // Used for update
@@ -221,14 +221,9 @@ bool TDBJSN::OpenDB(PGLOBAL g)
     /*******************************************************************/
     /*  Table already open replace it at its beginning.                */
     /*******************************************************************/
-    for (PJCOL cp = (PJCOL)Columns; cp; cp = (PJCOL)cp->GetNext()) {
-      cp->Nx = 0;
-      cp->Arp = NULL;
-      } // endfor cp
-
     Fpos= -1;
     Spos = 0;
-    NextSame = false;
+    NextSame = 0;
     SameRow = 0;
   } else {
     /*******************************************************************/
@@ -292,7 +287,8 @@ int TDBJSN::ReadDB(PGLOBAL g)
   N++;
 
   if (NextSame) {
-    SameRow++;
+    SameRow = NextSame;
+    NextSame = 0;
     return RC_OK;
   } else if ((rc = TDBDOS::ReadDB(g)) == RC_OK)
     if (!IsRead() && ((rc = ReadBuffer(g)) != RC_OK)) {
@@ -333,21 +329,20 @@ int TDBJSN::ReadDB(PGLOBAL g)
 
   } // end of PrepareWriting
 
-/* ----------------------------- JSNCOL ------------------------------- */
+/* ---------------------------- JSONCOL ------------------------------ */
 
 /***********************************************************************/
-/*  JSNCOL public constructor.                                         */
+/*  JSONCOL public constructor.                                        */
 /***********************************************************************/
 JSONCOL::JSONCOL(PGLOBAL g, PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i)
        : DOSCOL(g, cdp, tdbp, cprec, i, "DOS")
   {
   Tjp = (TDBJSN *)(tdbp->GetOrig() ? tdbp->GetOrig() : tdbp);
-  Arp = NULL;
   Jpath = cdp->GetFmt();
   MulVal = NULL;
   Nodes = NULL;
-  Nod = Nx =0;
-  Ival = -1;
+  Nod = 0;
+  Xnod = -1;
   Xpd = false;
   Parsed = false;
   } // end of JSONCOL constructor
@@ -359,13 +354,11 @@ JSONCOL::JSONCOL(PGLOBAL g, PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i)
 JSONCOL::JSONCOL(JSONCOL *col1, PTDB tdbp) : DOSCOL(col1, tdbp)
   {
   Tjp = col1->Tjp;
-  Arp = col1->Arp;
   Jpath = col1->Jpath;
   MulVal = col1->MulVal;
   Nodes = col1->Nodes;
   Nod = col1->Nod;
-  Ival = col1->Ival;
-  Nx = col1->Nx;
+  Xnod = col1->Xnod;
   Xpd = col1->Xpd;
   Parsed = col1->Parsed;
   } // end of JSONCOL copy constructor
@@ -387,17 +380,16 @@ bool JSONCOL::SetBuffer(PGLOBAL g, PVAL value, bool ok, bool check)
   } // end of SetBuffer
 
 /***********************************************************************/
-/*  Analyse array processing options.                                  */
+/*  Check whether this object is expanded.                             */
 /***********************************************************************/
 bool JSONCOL::CheckExpand(PGLOBAL g, int i, PSZ nm, bool b)
   {
-  if (Tjp->Xcol && nm && !strcmp(nm, Tjp->Xcol) &&
-     (Tjp->Xval < 0 || Tjp->Xval == i)) {
+  if ((Tjp->Xcol && nm && !strcmp(nm, Tjp->Xcol) &&
+      (Tjp->Xval < 0 || Tjp->Xval == i)) || Xpd) {
     Xpd = true;              // Expandable object
-    Nodes[i].Op = OP_XX;
-    Tjp->Xval = i;
+    Nodes[i].Op = OP_EXP;
   } else if (b) {
-    strcpy(g->Message, "Cannot expand more than one array");
+    strcpy(g->Message, "Cannot expand more than one branch");
     return true;
   } // endif Xcol
 
@@ -434,7 +426,7 @@ bool JSONCOL::SetArrayOptions(PGLOBAL g, char *p, int i, PSZ nm)
     // Default specifications
     if (CheckExpand(g, i, nm, false))
       return true;
-    else if (jnp->Op != OP_XX)
+    else if (jnp->Op != OP_EXP)
       if (!Value->IsTypeNum()) {
         jnp->CncVal = AllocateValue(g, (void*)", ", TYPE_STRING);
         jnp->Op = OP_CNC;
@@ -456,13 +448,13 @@ bool JSONCOL::SetArrayOptions(PGLOBAL g, char *p, int i, PSZ nm)
       case '*': jnp->Op = OP_MULT; break;
       case '>': jnp->Op = OP_MAX;  break;
       case '<': jnp->Op = OP_MIN;  break;
-      case '#': jnp->Op = OP_NUM;  break;
       case '!': jnp->Op = OP_SEP;  break; // Average
+      case '#': jnp->Op = OP_NUM;  break;
       case 'x':
       case 'X': // Expand this array
         if (!Tjp->Xcol && nm) {  
           Xpd = true;
-          jnp->Op = OP_XX;
+          jnp->Op = OP_EXP;
           Tjp->Xval = i;
           Tjp->Xcol = nm;
         } else if (CheckExpand(g, i, nm, true))
@@ -489,6 +481,38 @@ bool JSONCOL::SetArrayOptions(PGLOBAL g, char *p, int i, PSZ nm)
     sprintf(g->Message, "Wrong array specification for %s", Name);
     return true;
   } // endif's
+
+  // For calculated arrays, a local Value must be used
+  switch (jnp->Op) {
+    case OP_NUM:
+      jnp->Valp = AllocateValue(g, TYPE_INT);
+      break;
+    case OP_ADD:
+    case OP_MULT:
+    case OP_SEP:
+      if (!IsTypeChar(Buf_Type))
+        jnp->Valp = AllocateValue(g, Buf_Type, 0, GetPrecision());
+      else
+        jnp->Valp = AllocateValue(g, TYPE_DOUBLE);
+
+      break;
+    case OP_MIN:
+    case OP_MAX:
+      jnp->Valp = AllocateValue(g, Buf_Type, Long, GetPrecision());
+      break;
+    case OP_CNC:
+      if (IsTypeChar(Buf_Type))
+        jnp->Valp = AllocateValue(g, TYPE_STRING, Long, GetPrecision());
+      else
+        jnp->Valp = AllocateValue(g, TYPE_STRING, 512);
+
+      break;
+    default:
+      break;
+  } // endswitch Op
+
+  if (jnp->Valp)
+    MulVal = AllocateValue(g, jnp->Valp);
 
   return false;
   } // end of SetArrayOptions
@@ -533,6 +557,9 @@ bool JSONCOL::ParseJpath(PGLOBAL g)
       if (SetArrayOptions(g, p, i, Nodes[i-1].Key))
         return true;
 
+    } else if (*p == '*') {
+      // Return JSON
+      Nodes[i].Op = OP_XX;
     } else {
       Nodes[i].Key = p;
       Nodes[i].Op = OP_EXIST;
@@ -546,42 +573,50 @@ bool JSONCOL::ParseJpath(PGLOBAL g)
   } // end of ParseJpath
 
 /***********************************************************************/
+/*  MakeJson: Serialize the json item and set value to it.             */
+/***********************************************************************/
+PVAL JSONCOL::MakeJson(PGLOBAL g, PJSON jsp)
+  {
+  if (Value->IsTypeNum()) {
+    strcpy(g->Message, "Cannot make Json for a numeric column");
+    Value->Reset();
+  } else
+    Value->SetValue_psz(Serialize(g, jsp, NULL, 0));
+
+  return Value;
+  } // end of MakeJson
+
+/***********************************************************************/
 /*  SetValue: Set a value from a JVALUE contains.                      */
 /***********************************************************************/
 void JSONCOL::SetJsonValue(PGLOBAL g, PVAL vp, PJVAL val, int n)
   {
   if (val) {
-    if (Nodes[n].Op == OP_NUM)
-      vp->SetValue(1);
-    else {
- again:
-      switch (val->GetValType()) {
-        case TYPE_STRG:
-        case TYPE_INTG:
-        case TYPE_DBL:
-          vp->SetValue_pval(val->GetValue());
+    switch (val->GetValType()) {
+      case TYPE_STRG:
+      case TYPE_INTG:
+      case TYPE_DBL:
+        vp->SetValue_pval(val->GetValue());
+        break;
+      case TYPE_BOOL:
+        if (vp->IsTypeNum())
+          vp->SetValue(val->GetInteger() ? 1 : 0);
+        else
+          vp->SetValue_psz((PSZ)(val->GetInteger() ? "true" : "false"));
+    
+        break;
+      case TYPE_JAR:
+        SetJsonValue(g, vp, val->GetArray()->GetValue(0), n);
+        break;
+      case TYPE_JOB:
+//      if (!vp->IsTypeNum() || !Strict) {
+          vp->SetValue_psz(val->GetObject()->GetText(g));
           break;
-        case TYPE_BOOL:
-          if (vp->IsTypeNum())
-            vp->SetValue(val->GetInteger() ? 1 : 0);
-          else
-            vp->SetValue_psz((PSZ)(val->GetInteger() ? "true" : "false"));
+//        } // endif Type
      
-          break;
-        case TYPE_JAR:
-          val = val->GetArray()->GetValue(0);
-          goto again;
-        case TYPE_JOB:
-          if (!vp->IsTypeNum()) {
-            vp->SetValue_psz(val->GetObject()->GetText(g));
-            break;
-            } // endif Type
-     
-        default:
-          vp->Reset();
-        } // endswitch Type
-
-      } // endelse
+      default:
+        vp->Reset();
+      } // endswitch Type
 
   } else
     vp->Reset();
@@ -589,16 +624,210 @@ void JSONCOL::SetJsonValue(PGLOBAL g, PVAL vp, PJVAL val, int n)
   } // end of SetJsonValue
 
 /***********************************************************************/
+/*  ReadColumn:                                                        */
+/***********************************************************************/
+void JSONCOL::ReadColumn(PGLOBAL g)
+  {
+  if (!Tjp->SameRow || Xnod >= Tjp->SameRow)
+    Value->SetValue_pval(GetColumnValue(g, Tjp->Row, 0));
+
+  } // end of ReadColumn
+
+/***********************************************************************/
+/*  GetColumnValue:                                                    */
+/***********************************************************************/
+PVAL JSONCOL::GetColumnValue(PGLOBAL g, PJSON row, int i)
+  {
+  int   n = Nod - 1;
+  bool  expd = false;
+  PJAR  arp;
+  PJVAL val = NULL;
+
+  for (; i < Nod && row; i++) {
+    if (Nodes[i].Op == OP_NUM) {
+      Value->SetValue(row->GetType() == TYPE_JAR ? row->size() : 1);
+      return(Value);
+    } else if (Nodes[i].Op == OP_XX) {
+      return MakeJson(g, row);
+    } else switch (row->GetType()) {
+      case TYPE_JOB:
+        if (!Nodes[i].Key) {
+          // Expected Array was not there
+          if (i < Nod-1)
+            continue;
+          else
+            val = new(g) JVALUE(row);
+
+        } else
+          val = ((PJOB)row)->GetValue(Nodes[i].Key);
+
+        break;
+      case TYPE_JAR:
+        arp = (PJAR)row;
+
+        if (!Nodes[i].Key) {
+          if (Nodes[i].Op != OP_NULL) {
+            if (Nodes[i].Rank) {
+              val = arp->GetValue(Nodes[i].Rank - 1);
+            } else if (Nodes[i].Op == OP_EXP) {
+              return ExpandArray(g, arp, i);
+            } else
+              return CalculateArray(g, arp, i);
+
+          } else
+            val = NULL;
+
+        } else if (i < Nod-1) {
+          strcpy(g->Message, "Unexpected array");
+          val = NULL;          // Not an expected array
+        } else
+          val = arp->GetValue(0);
+
+        break;
+      case TYPE_JVAL:
+        val = (PJVAL)row;
+        break;
+      default:
+        sprintf(g->Message, "Invalid row JSON type %d", row->GetType());
+        val = NULL;
+      } // endswitch Type
+
+    if (i < Nod-1)
+      row = (val) ? val->GetJson() : NULL;
+
+    } // endfor i
+
+  SetJsonValue(g, Value, val, n);
+  return Value;
+  } // end of GetColumnValue
+
+/***********************************************************************/
+/*  ExpandArray:                                                       */
+/***********************************************************************/
+PVAL JSONCOL::ExpandArray(PGLOBAL g, PJAR arp, int n)
+  {
+  int    ars;
+  PJVAL  jvp;
+  JVALUE jval;
+
+  ars = MY_MIN(Tjp->Limit, arp->size());
+
+  if (!(jvp = arp->GetValue(Nodes[n].Nx))) {
+    strcpy(g->Message, "Logical error expanding array");
+    longjmp(g->jumper[g->jump_level], 666);
+    } // endif jvp
+
+  if (n < Nod - 1 && jvp->GetJson()) {
+    jval.SetValue(GetColumnValue(g, jvp->GetJson(), n + 1));
+    jvp = &jval;
+    } // endif n
+
+  if (n >= Tjp->NextSame) {
+    if (++Nodes[n].Nx == ars) {
+      Nodes[n].Nx = 0;
+      Xnod = 0;
+    } else
+      Xnod = n;
+
+    Tjp->NextSame = Xnod;
+    } // endif NextSame 
+
+  SetJsonValue(g, Value, jvp, n);
+  return Value;
+  } // end of ExpandArray
+
+/***********************************************************************/
+/*  CalculateArray:                                                    */
+/***********************************************************************/
+PVAL JSONCOL::CalculateArray(PGLOBAL g, PJAR arp, int n)
+  {
+  int    i, ars, nv = 0, nextsame = Tjp->NextSame;
+  bool   err;
+  OPVAL  op = Nodes[n].Op;
+  PVAL   val[2], vp = Nodes[n].Valp;
+  PJVAL  jvrp, jvp;
+  JVALUE jval;
+
+  vp->Reset();
+  ars = MY_MIN(Tjp->Limit, arp->size());
+
+  for (i = 0; i < ars; i++) {
+    jvrp = arp->GetValue(i);
+
+    do {
+      if (n < Nod - 1 && jvrp->GetJson()) {
+        Tjp->NextSame = nextsame;
+        jval.SetValue(GetColumnValue(g, jvrp->GetJson(), n + 1));
+        jvp = &jval;
+      } else
+        jvp = jvrp;
+  
+      if (!nv++) {
+        SetJsonValue(g, vp, jvp, n);
+        continue;
+      } else
+        SetJsonValue(g, MulVal, jvp, n);
+  
+      if (!MulVal->IsZero()) {
+        switch (op) {
+          case OP_CNC:
+            if (Nodes[n].CncVal) {
+              val[0] = Nodes[n].CncVal;
+              err = vp->Compute(g, val, 1, op);
+              } // endif CncVal
+  
+            val[0] = MulVal;
+            err = vp->Compute(g, val, 1, op);
+            break;
+//        case OP_NUM:
+          case OP_SEP:
+            val[0] = Nodes[n].Valp;
+            val[1] = MulVal;
+            err = vp->Compute(g, val, 2, OP_ADD);
+            break;
+          default:
+            val[0] = Nodes[n].Valp;
+            val[1] = MulVal;
+            err = vp->Compute(g, val, 2, op);
+          } // endswitch Op
+
+        if (err)
+          vp->Reset();
+    
+        } // endif Zero
+
+      } while (Tjp->NextSame > nextsame);
+
+    } // endfor i
+
+  if (op == OP_SEP) {
+    // Calculate average
+    MulVal->SetValue(nv);
+    val[0] = vp;
+    val[1] = MulVal;
+
+    if (vp->Compute(g, val, 2, OP_DIV))
+      vp->Reset();
+
+    } // endif Op
+
+  Tjp->NextSame = nextsame;
+  return vp;
+  } // end of CalculateArray
+
+/***********************************************************************/
 /*  GetRow: Get the object containing this column.                     */
 /***********************************************************************/
-PJSON JSONCOL::GetRow(PGLOBAL g, int mode)
+PJSON JSONCOL::GetRow(PGLOBAL g)
   {
   PJVAL val;
   PJAR  arp;
   PJSON nwr, row = Tjp->Row;
 
   for (int i = 0; i < Nod-1 && row; i++) {
-    switch (row->GetType()) {
+    if (Nodes[i+1].Op == OP_XX)
+      break;
+    else switch (row->GetType()) {
       case TYPE_JOB:
         if (!Nodes[i].Key)
           // Expected Array was not there
@@ -609,21 +838,13 @@ PJSON JSONCOL::GetRow(PGLOBAL g, int mode)
       case TYPE_JAR:
         if (!Nodes[i].Key) {
           if (Nodes[i].Op != OP_NULL) {
-            Ival = i;
             arp = (PJAR)row;
 
-            if (mode < 2)     // First pass
-              Arp = arp;
+            if (Nodes[i].Rank)
+              val = arp->GetValue(Nodes[i].Rank - 1);
+            else
+              val = arp->GetValue(Nodes[i].Nx);
 
-            if (Nodes[i].Op != OP_XX) {
-              if (Nodes[i].Rank)
-                val = arp->GetValue(Nodes[i].Rank - 1);
-              else
-                val = arp->GetValue(arp == Arp ? Nx : 0);
-
-            } else
-              val = arp->GetValue(Tjp->SameRow);
-                       
           } else
             val = NULL;
 
@@ -643,15 +864,16 @@ PJSON JSONCOL::GetRow(PGLOBAL g, int mode)
 
     if (val) {
       row = val->GetJson();
-    } else if (mode == 1) {          // mode write
+    } else {
       // Construct missing objects
       for (i++; row && i < Nod; i++) {
-        if (!Nodes[i].Key) {
+        if (Nodes[i].Op == OP_XX)
+          break;
+        else if (!Nodes[i].Key)
           // Construct intermediate array
           nwr = new(g) JARRAY;
-        } else {
+        else
           nwr = new(g) JOBJECT;
-        } // endif Nodes
 
         if (row->GetType() == TYPE_JOB) {
           ((PJOB)row)->SetValue(g, new(g) JVALUE(nwr), Nodes[i-1].Key);
@@ -667,138 +889,12 @@ PJSON JSONCOL::GetRow(PGLOBAL g, int mode)
         } // endfor i
 
       break;
-    } else
-      row = NULL;
+    } // endelse
 
     } // endfor i
 
   return row;
   } // end of GetRow
-
-/***********************************************************************/
-/*  ReadColumn:                                                        */
-/***********************************************************************/
-void JSONCOL::ReadColumn(PGLOBAL g)
-  {
-  int   mode = 0, n = Nod - 1;
-  PJSON row;
-  PJVAL val = NULL;
-
- evenmore:
-  row = GetRow(g, mode);
-
- more:
-  if (row) switch (row->GetType()) {
-    case TYPE_JOB:
-      if (Nodes[n].Key)
-        val = row->GetValue(Nodes[n].Key);
-      else
-        val = new(g) JVALUE(row);
-
-      break;
-    case TYPE_JAR:
-      // Multiple column ?
-      if (Nodes[n].Op != OP_NULL) {
-        Arp = (PJAR)row;
-        val = Arp->GetValue(Nodes[n].Rank > 0 ?
-                            Nodes[n].Rank - 1 : 
-                            Nodes[n].Op == OP_XX ? Tjp->SameRow : Nx);
-        Ival = n;
-      } else
-        val = NULL;
-
-      break;
-    case TYPE_JVAL:
-      val = (PJVAL)row;
-      break;
-    default:
-      sprintf(g->Message, "Wrong return value type %d", row->GetType());
-      Value->Reset();
-      return;
-    } // endswitch Type
-
-  if (!Nx /*|| (Xpd)*/)
-    SetJsonValue(g, Value, val, n);
-
-  if (Arp) {
-    // Multiple column
-    int ars = (Nodes[Ival].Rank > 0) ? 1 : MY_MIN(Tjp->Limit, Arp->size());
-
-    if (Nodes[Ival].Op == OP_XX) {
-      if (ars > Tjp->SameRow + 1)
-        Tjp->NextSame = true;      // More to come
-      else {
-        Tjp->NextSame = false;
-        Arp = NULL;
-      } // endelse
-
-    } else {
-      if (Nx && val) {
-        SetJsonValue(g, MulVal, val, Ival);
-
-        if (!MulVal->IsZero()) {
-          PVAL val[2];
-          bool err;
-
-          switch (Nodes[Ival].Op) {
-            case OP_CNC:
-              if (Nodes[Ival].CncVal) {
-                val[0] = Nodes[Ival].CncVal;
-                err = Value->Compute(g, val, 1, Nodes[Ival].Op);
-                } // endif CncVal
-
-              val[0] = MulVal;
-              err = Value->Compute(g, val, 1, Nodes[Ival].Op);
-              break;
-            case OP_NUM:
-            case OP_SEP:
-              val[0] = Value;
-              val[1] = MulVal;
-              err = Value->Compute(g, val, 2, OP_ADD);
-              break;
-            default:
-              val[0] = Value;
-              val[1] = MulVal;
-              err = Value->Compute(g, val, 2, Nodes[Ival].Op);
-            } // endswitch Op
-
-          if (err)
-            Value->Reset();
-
-          } // endif Zero
-
-        } // endif Nx
-
-      if (ars > ++Nx) {
-        if (Ival != n) {
-          mode = 2;
-          goto evenmore;
-        } else
-          goto more;
-
-      } else {
-        if (Nodes[Ival].Op == OP_SEP) {
-          // Calculate average
-          PVAL val[2];
-
-          MulVal->SetValue(ars);
-          val[0] = Value;
-          val[1] = MulVal;
-
-          if (Value->Compute(g, val, 2, OP_DIV))
-            Value->Reset();
-
-          } // endif Op
-
-        Arp = NULL;
-        Nx = 0;
-      } // endif ars
-
-    } // endif Op
-
-    } // endif Arp
-
-  } // end of ReadColumn
 
 /***********************************************************************/
 /*  WriteColumn:                                                       */
@@ -817,10 +913,11 @@ void JSONCOL::WriteColumn(PGLOBAL g)
   if (Value->IsNull() && Tjp->Mode == MODE_INSERT)
     return;
 
+  char *s;
   PJOB  objp = NULL;
   PJAR  arp = NULL;
   PJVAL jvp = NULL;
-  PJSON row = GetRow(g, 1);
+  PJSON jsp, row = GetRow(g);
   JTYP  type = row->GetType();
 
   switch (row->GetType()) {
@@ -832,6 +929,32 @@ void JSONCOL::WriteColumn(PGLOBAL g)
 
   if (row) switch (Buf_Type) {
     case TYPE_STRING:
+      if (Nodes[Nod-1].Op == OP_XX) {
+        s = Value->GetCharValue();
+
+        if (!(jsp = ParseJson(g, s, (int)strlen(s), 0))) {
+          strcpy(g->Message, s);
+          longjmp(g->jumper[g->jump_level], 666);
+          } // endif jsp
+
+        if (arp) {
+          if (Nod > 1 && Nodes[Nod-2].Rank)
+            arp->SetValue(g, new(g) JVALUE(jsp), Nodes[Nod-2].Rank-1);
+          else
+            arp->AddValue(g, new(g) JVALUE(jsp));
+
+          arp->InitArray(g);
+        } else if (objp) {
+          if (Nod > 1 && Nodes[Nod-2].Key)
+            objp->SetValue(g, new(g) JVALUE(jsp), Nodes[Nod-2].Key);
+
+        } else if (jvp)
+          jvp->SetValue(jsp);
+
+        break;
+        } // endif Op
+
+      // Passthru
     case TYPE_DATE:
     case TYPE_INT:
     case TYPE_DOUBLE:
@@ -1175,11 +1298,6 @@ bool TDBJSON::OpenDB(PGLOBAL g)
     /*******************************************************************/
     /*  Table already open replace it at its beginning.                */
     /*******************************************************************/
-    for (PJCOL cp = (PJCOL)Columns; cp; cp = (PJCOL)cp->GetNext()) {
-      cp->Nx = 0;
-      cp->Arp = NULL;
-      } // endfor cp
-
     Fpos= -1;
     Spos = 0;
     NextSame = false;
@@ -1217,7 +1335,8 @@ int TDBJSON::ReadDB(PGLOBAL g)
   N++;
 
   if (NextSame) {
-    SameRow++;
+    SameRow = NextSame;
+    NextSame = false;
     rc = RC_OK;
   } else if (++Fpos < (signed)Doc->size()) {
     Row = Doc->GetValue(Fpos);
@@ -1257,9 +1376,10 @@ int TDBJSON::WriteDB(PGLOBAL g)
       return RC_FX;
 
   } else { // if (Jmode == MODE_VALUE)
-    if (Mode == MODE_INSERT)
+    if (Mode == MODE_INSERT) {
       Doc->AddValue(g, (PJVAL)Row);
-    else if (Doc->SetValue(g, (PJVAL)Row, Fpos))
+      Row = new(g) JVALUE;
+    } else if (Doc->SetValue(g, (PJVAL)Row, Fpos))
       return RC_FX;
 
   } // endif Jmode

@@ -3008,5 +3008,11 @@ Warnings:
 Note	1003	select `test`.`t1`.`c1` AS `c1` from `test`.`t1` where ('%' = concat(`test`.`t1`.`c1`))
 DROP TABLE t1;
 #
+# MDEV-7629 Regression: Bit and hex string literals changed column names in 10.0.14
+#
+SELECT _binary 0x7E, _binary X'7E', _binary B'01111110';
+_binary 0x7E	_binary X'7E'	_binary B'01111110'
+~	~	~
+#
 # End of 10.0 tests
 #

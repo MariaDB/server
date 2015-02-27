@@ -4958,7 +4958,18 @@ add_key_part(DYNAMIC_ARRAY *keyuse_array, KEY_FIELD *key_field)
 }
 
 
-#define FT_KEYPART   (MAX_REF_PARTS+10)
+/*
+  A key part number that means we're using a fulltext scan.
+  
+  In order not to confuse it with regular equalities, we need to pick
+  a number that's greater than MAX_REF_PARTS.
+
+  Hash Join code stores field->field_index in KEYUSE::keypart, so the 
+  number needs to be bigger than MAX_FIELDS, also.
+
+  CAUTION: sql_test.cc has its own definition of FT_KEYPART.
+*/
+#define FT_KEYPART   (MAX_FIELDS+10)
 
 static bool
 add_ft_keys(DYNAMIC_ARRAY *keyuse_array,
@@ -7451,8 +7462,12 @@ double table_cond_selectivity(JOIN *join, uint idx, JOIN_TAB *s,
             else
               fldno= table->key_info[key].key_part[keyparts-1].fieldnr - 1;
             if (keyuse->val->const_item())
-            {              
-              sel /= table->field[fldno]->cond_selectivity;
+            { 
+              if (table->field[fldno]->cond_selectivity > 0)
+	      {            
+                sel /= table->field[fldno]->cond_selectivity;
+                set_if_smaller(sel, 1.0);
+              }
               /* 
                TODO: we could do better here:
                  1. cond_selectivity might be =1 (the default) because quick 
@@ -7506,7 +7521,10 @@ double table_cond_selectivity(JOIN *join, uint idx, JOIN_TAB *s,
         if (!(next_field->table->map & rem_tables) && next_field->table != table)
         { 
           if (field->cond_selectivity > 0)
+	  {
             sel/= field->cond_selectivity;
+            set_if_smaller(sel, 1.0);
+          }
           break;
         }
       }

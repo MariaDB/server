@@ -80,6 +80,36 @@ select * from t1 where col2 != true;
 drop table t1;
 
 --echo #
+--echo # MDEV-7413: optimizer_use_condition_selectivity > 2 crashes 10.0.15+maria-1~wheezy
+--echo #
+
+CREATE TABLE t1 (
+  parent_id int,
+  child_group_id int,
+  child_user_id int,
+  KEY (parent_id,child_group_id,child_user_id)
+) ENGINE=InnoDB;
+
+CREATE TABLE t2 (
+  id int,
+  lower_group_name varchar(255),
+  directory_id int(20),
+  UNIQUE KEY (directory_id)
+) ENGINE=InnoDB;
+
+CREATE TABLE t3 (id int) ENGINE=InnoDB;
+
+insert into t1 values (1,1,1),(2,2,2);
+insert into t2 values (10,'foo',10),(20,'bar',20);
+insert into t3 values (101),(102);
+set use_stat_tables = PREFERABLY, optimizer_use_condition_selectivity = 3;
+
+select * from t1, t2, t3 
+where t1.child_user_id=t3.id and t1.child_group_id is null and t2.lower_group_name='foo' and t1.parent_id=t2.id and t2.directory_id=10;
+
+drop table t1,t2,t3;
+
+--echo #
 --echo # End of 10.0 tests
 --echo #
 

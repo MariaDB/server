@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2007, 2011, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2015, MariaDB Corporation
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -72,6 +73,12 @@ struct lock_t {
 	hash_node_t	hash;		/*!< hash chain node for a record
 					lock */
 	dict_index_t*	index;		/*!< index for a record lock */
+
+	/* Statistics for how long lock has been held and time
+	how long this lock had to be waited before it was granted */
+	time_t		requested_time; /*!< Lock request time */
+	ulint		wait_time;	/*!< Time waited this lock or 0 */
+
 	union {
 		lock_table_t	tab_lock;/*!< table lock */
 		lock_rec_t	rec_lock;/*!< record lock */

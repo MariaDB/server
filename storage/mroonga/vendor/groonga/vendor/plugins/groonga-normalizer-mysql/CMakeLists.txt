@@ -1,4 +1,4 @@
-# Copyright(C) 2013  Kouhei Sutou <kou@clear-code.com>
+# Copyright(C) 2013-2015  Kouhei Sutou <kou@clear-code.com>
 #
 # This library is free software; you can redistribute it and/or
 # modify it under the terms of the GNU Library General Public
@@ -17,6 +17,16 @@
 
 cmake_minimum_required(VERSION 2.6)
 project(groonga-normalizer-mysql)
+
+if(DEFINED GROONGA_NORMALIZER_MYSQL_EMBED)
+  set(GROONGA_NORMALIZER_MYSQL_EMBED_DEFAULT
+    ${GROONGA_NORMALIZER_MYSQL_EMBED})
+else()
+  set(GROONGA_NORMALIZER_MYSQL_EMBED_DEFAULT OFF)
+endif()
+option(GROONGA_NORMALIZER_MYSQL_EMBED
+  "Build as a static library to embed into an application"
+  ${GROONGA_NORMALIZER_MYSQL_EMBED_DEFAULT})
 
 file(READ "${CMAKE_CURRENT_SOURCE_DIR}/version" VERSION)
 
@@ -53,12 +63,11 @@ link_directories(
 
 add_subdirectory(normalizers)
 
-configure_file(
-  groonga-normalizer-mysql.pc.in
-  "${CMAKE_CURRENT_BINARY_DIR}/groonga-normalizer-mysql.pc"
-  @ONLY)
-
-if(NOT GROONGA_NORMALIZER_MYSQL_FOUND)
+if(NOT GROONGA_NORMALIZER_MYSQL_EMBED)
+  configure_file(
+    groonga-normalizer-mysql.pc.in
+    "${CMAKE_CURRENT_BINARY_DIR}/groonga-normalizer-mysql.pc"
+    @ONLY)
   install(
     FILES "${CMAKE_CURRENT_BINARY_DIR}/groonga-normalizer-mysql.pc"
     DESTINATION "lib/pkgconfig/")

@@ -83,8 +83,7 @@
 #cmakedefine GRN_WITH_BENCHMARK
 #cmakedefine GRN_WITH_CUTTER
 #cmakedefine GRN_WITH_KYTEA
-#cmakedefine GRN_WITH_LIBMEMCACHED
-#cmakedefine GRN_WITH_LZO
+#cmakedefine GRN_WITH_LZ4
 #cmakedefine GRN_WITH_MECAB
 #cmakedefine GRN_WITH_MESSAGE_PACK
 #cmakedefine GRN_WITH_MRUBY
@@ -93,10 +92,12 @@
 #cmakedefine GRN_WITH_ZLIB
 
 /* headers */
+#cmakedefine HAVE_DIRENT_H
 #cmakedefine HAVE_DLFCN_H
 #cmakedefine HAVE_ERRNO_H
 #cmakedefine HAVE_EXECINFO_H
 #cmakedefine HAVE_INTTYPES_H
+#cmakedefine HAVE_IO_H
 #cmakedefine HAVE_LINUX_FUTEX_H
 #cmakedefine HAVE_MEMORY_H
 #cmakedefine HAVE_NETDB_H
@@ -133,6 +134,9 @@
 #cmakedefine HAVE_MECAB_DICTIONARY_INFO_T
 
 /* functions */
+#cmakedefine HAVE__GMTIME64_S
+#cmakedefine HAVE__LOCALTIME64_S
+#cmakedefine HAVE__STRICMP
 #cmakedefine HAVE__STRNICMP
 #cmakedefine HAVE__STRTOUI64
 #cmakedefine HAVE_BACKTRACE
@@ -145,8 +149,10 @@
 #cmakedefine HAVE_MKOSTEMP
 #cmakedefine HAVE_OPEN
 #cmakedefine HAVE_READ
+#cmakedefine HAVE_STRCASECMP
 #cmakedefine HAVE_STRNCASECMP
 #cmakedefine HAVE_STRTOULL
+#cmakedefine HAVE_UNLINK
 #cmakedefine HAVE_WRITE
 #cmakedefine HAVE_PTHREAD_MUTEXATTR_SETPSHARED
 #cmakedefine HAVE_PTHREAD_CONDATTR_SETPSHARED

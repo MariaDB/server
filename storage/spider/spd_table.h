@@ -414,6 +414,11 @@ bool spider_check_direct_order_limit(
   ha_spider *spider
 );
 
+bool spider_check_index_merge(
+  TABLE *table,
+  st_select_lex *select_lex
+);
+
 int spider_compare_for_sort(
   SPIDER_SORT *a,
   SPIDER_SORT *b

@@ -1,0 +1,18 @@
+SET @mroonga_boolean_mode_syntax_flags_backup =
+@@mroonga_boolean_mode_syntax_flags;
+SET mroonga_boolean_mode_syntax_flags = "SYNTAX_QUERY,ALLOW_COLUMN,ALLOW_UPDATE";
+SET NAMES UTF8;
+CREATE TABLE diaries (
+title TEXT,
+content TEXT,
+FULLTEXT KEY (title),
+FULLTEXT KEY (content)
+) DEFAULT CHARSET=utf8;
+INSERT INTO diaries VALUES("Groonga", "Hello Groonga");
+SELECT * FROM diaries
+WHERE MATCH(title) AGAINST('content:="Hello Mroonga"' IN BOOLEAN MODE);
+title	content
+Groonga	Hello Mroonga
+DROP TABLE diaries;
+SET mroonga_boolean_mode_syntax_flags =
+@mroonga_boolean_mode_syntax_flags_backup;

@@ -16,7 +16,7 @@
   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 */
 
-#include <str.h>
+#include <grn_str.h>
 
 #include <groonga.h>
 #include <groonga/token_filter.h>
@@ -102,7 +102,7 @@ stop_word_filter(grn_ctx *ctx,
       if (GRN_BOOL_VALUE(&(token_filter->value))) {
         grn_tokenizer_status status;
         status = grn_token_get_status(ctx, current_token);
-        status |= GRN_TOKENIZER_TOKEN_SKIP;
+        status |= GRN_TOKEN_SKIP;
         grn_token_set_status(ctx, next_token, status);
       }
     }

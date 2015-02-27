@@ -15,18 +15,16 @@
   License along with this library; if not, write to the Free Software
   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 */
-#include "groonga_in.h"
-#include "groonga/tokenizer.h"
+#include "grn.h"
+#include <groonga/tokenizer.h>
 
-#include <stdarg.h>
-#include <stdio.h>
 #include <string.h>
 
-#include "ctx.h"
-#include "db.h"
-#include "str.h"
-#include "string_in.h"
-#include "token.h"
+#include "grn_ctx.h"
+#include "grn_db.h"
+#include "grn_str.h"
+#include "grn_string.h"
+#include "grn_token_cursor.h"
 
 /*
   Just for backward compatibility. See grn_plugin_charlen() instead.
@@ -102,7 +100,7 @@ grn_tokenizer_query_open(grn_ctx *ctx, int num_args, grn_obj **args,
 {
   grn_obj *flags = grn_ctx_pop(ctx);
   grn_obj *query_str = grn_ctx_pop(ctx);
-  grn_obj *token_mode = grn_ctx_pop(ctx);
+  grn_obj *tokenize_mode = grn_ctx_pop(ctx);
 
   if (query_str == NULL) {
     GRN_PLUGIN_ERROR(ctx, GRN_INVALID_ARGUMENT, "missing argument");
@@ -127,11 +125,12 @@ grn_tokenizer_query_open(grn_ctx *ctx, int num_args, grn_obj **args,
     } else {
       query->flags = 0;
     }
-    if (token_mode) {
-      query->token_mode = GRN_UINT32_VALUE(token_mode);
+    if (tokenize_mode) {
+      query->tokenize_mode = GRN_UINT32_VALUE(tokenize_mode);
     } else {
-      query->token_mode = GRN_TOKEN_ADD;
+      query->tokenize_mode = GRN_TOKENIZE_ADD;
     }
+    query->token_mode = query->tokenize_mode;
 
     {
       grn_obj * const table = args[0];
@@ -176,7 +175,7 @@ grn_tokenizer_query_open(grn_ctx *ctx, int num_args, grn_obj **args,
       }
       query->encoding = table_encoding;
 
-      if (query->flags & GRN_TOKEN_ENABLE_TOKENIZED_DELIMITER) {
+      if (query->flags & GRN_TOKEN_CURSOR_ENABLE_TOKENIZED_DELIMITER) {
         const char *normalized_string;
         unsigned int normalized_string_length;
 
@@ -241,7 +240,7 @@ grn_tokenizer_token_fin(grn_ctx *ctx, grn_tokenizer_token *token)
 void
 grn_tokenizer_token_push(grn_ctx *ctx, grn_tokenizer_token *token,
                          const char *str_ptr, unsigned int str_length,
-                         grn_tokenizer_status status)
+                         grn_token_status status)
 {
   GRN_TEXT_SET_REF(&token->str, str_ptr, str_length);
   GRN_UINT32_SET(ctx, &token->status, status);
@@ -262,7 +261,7 @@ grn_tokenizer_tokenized_delimiter_next(grn_ctx *ctx,
   const char *end = str_ptr + str_length;
   const char *next_start = NULL;
   unsigned int token_length;
-  grn_tokenizer_status status;
+  grn_token_status status;
 
   for (current = start; current < end; current += char_length) {
     char_length = grn_charlen_(ctx, current, end, encoding);
@@ -349,13 +348,13 @@ exit:
   GRN_API_RETURN(ctx->rc);
 }
 
-grn_tokenizer_status
+grn_token_status
 grn_token_get_status(grn_ctx *ctx, grn_token *token)
 {
   GRN_API_ENTER;
   if (!token) {
     ERR(GRN_INVALID_ARGUMENT, "token must not be NULL");
-    GRN_API_RETURN(GRN_TOKENIZER_TOKEN_CONTINUE);
+    GRN_API_RETURN(GRN_TOKEN_CONTINUE);
   }
   GRN_API_RETURN(token->status);
 }
@@ -363,7 +362,7 @@ grn_token_get_status(grn_ctx *ctx, grn_token *token)
 grn_rc
 grn_token_set_status(grn_ctx *ctx,
                      grn_token *token,
-                     grn_tokenizer_status status)
+                     grn_token_status status)
 {
   GRN_API_ENTER;
   if (!token) {
