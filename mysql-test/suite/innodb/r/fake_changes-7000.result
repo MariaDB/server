@@ -1,0 +1,6 @@
+create table t1 (i int) engine=InnoDB;
+set innodb_fake_changes = 1;
+insert into t1 values (1);
+ERROR HY000: Got error 131 "Command not supported by database" during COMMIT
+set innodb_fake_changes = 0;
+drop table t1;

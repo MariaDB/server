@@ -1152,9 +1152,8 @@ static int prepare_or_error(handlerton *ht, THD *thd, bool all)
   {
     /* avoid sending error, if we're going to replay the transaction */
 #ifdef WITH_WSREP
-    if (ht == wsrep_hton &&
-        err != EMSGSIZE &&
-        thd->wsrep_conflict_state != MUST_REPLAY)
+    if (ht != wsrep_hton ||
+        err == EMSGSIZE || thd->wsrep_conflict_state != MUST_REPLAY)
 #endif
       my_error(ER_ERROR_DURING_COMMIT, MYF(0), err);
   }
