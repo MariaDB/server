@@ -17,7 +17,7 @@
 #include "sql_class.h"
 #include "debug_sync.h"
 #include "sql_array.h"
-#include <hash.h>
+#include <lf.h>
 #include <mysqld_error.h>
 #include <mysql/plugin.h>
 #include <mysql/service_thd_wait.h>
@@ -26,12 +26,10 @@
 #include "wsrep_thd.h"
 
 #ifdef HAVE_PSI_INTERFACE
-static PSI_mutex_key key_MDL_map_mutex;
 static PSI_mutex_key key_MDL_wait_LOCK_wait_status;
 
 static PSI_mutex_info all_mdl_mutexes[]=
 {
-  { &key_MDL_map_mutex, "MDL_map::mutex", 0},
   { &key_MDL_wait_LOCK_wait_status, "MDL_wait::LOCK_wait_status", 0}
 };
 
@@ -121,15 +119,12 @@ class MDL_map
 public:
   void init();
   void destroy();
-  MDL_lock *find_or_insert(const MDL_key *key);
-  unsigned long get_lock_owner(const MDL_key *key);
-  void remove(MDL_lock *lock);
+  MDL_lock *find_or_insert(LF_PINS *pins, const MDL_key *key);
+  unsigned long get_lock_owner(LF_PINS *pins, const MDL_key *key);
+  void remove(LF_PINS *pins, MDL_lock *lock);
+  LF_PINS *get_pins() { return lf_hash_get_pins(&m_locks); }
 private:
-  bool move_from_hash_to_lock_mutex(MDL_lock *lock);
-  /** All acquired locks in the server. */
-  HASH m_locks;
-  /* Protects access to m_locks hash. */
-  mysql_mutex_t m_mutex;
+  LF_HASH m_locks; /**< All acquired locks in the server. */
   /** Pre-allocated MDL_lock object for GLOBAL namespace. */
   MDL_lock *m_global_lock;
   /** Pre-allocated MDL_lock object for COMMIT namespace. */
@@ -479,7 +474,8 @@ public:
 
   void reschedule_waiters();
 
-  void remove_ticket(Ticket_list MDL_lock::*queue, MDL_ticket *ticket);
+  void remove_ticket(LF_PINS *pins, Ticket_list MDL_lock::*queue,
+                     MDL_ticket *ticket);
 
   bool visit_subgraph(MDL_ticket *waiting_ticket,
                       MDL_wait_for_graph_visitor *gvisitor);
@@ -520,36 +516,44 @@ public:
 
 public:
 
+  MDL_lock()
+    : m_hog_lock_count(0),
+      m_strategy(0)
+  { mysql_prlock_init(key_MDL_lock_rwlock, &m_rwlock); }
+
   MDL_lock(const MDL_key *key_arg)
   : key(key_arg),
     m_hog_lock_count(0),
-    m_state(0)
+    m_strategy(&m_scoped_lock_strategy)
   {
+    DBUG_ASSERT(key_arg->mdl_namespace() == MDL_key::GLOBAL ||
+                key_arg->mdl_namespace() == MDL_key::COMMIT);
     mysql_prlock_init(key_MDL_lock_rwlock, &m_rwlock);
-    switch (key_arg->mdl_namespace())
-    {
-      case MDL_key::GLOBAL:
-      case MDL_key::SCHEMA:
-      case MDL_key::COMMIT:
-        m_strategy= &m_scoped_lock_strategy;
-        break;
-      default:
-        m_strategy= &m_object_lock_strategy;
-    }
   }
 
-  virtual ~MDL_lock()
+  ~MDL_lock()
+  { mysql_prlock_destroy(&m_rwlock); }
+
+  static void lf_alloc_constructor(uchar *arg)
+  { new (arg + LF_HASH_OVERHEAD) MDL_lock(); }
+
+  static void lf_alloc_destructor(uchar *arg)
+  { ((MDL_lock*)(arg + LF_HASH_OVERHEAD))->~MDL_lock(); }
+
+  static void lf_hash_initializer(LF_HASH *hash __attribute__((unused)),
+                                  MDL_lock *lock, MDL_key *key_arg)
   {
-    mysql_prlock_destroy(&m_rwlock);
+    DBUG_ASSERT(key_arg->mdl_namespace() != MDL_key::GLOBAL &&
+                key_arg->mdl_namespace() != MDL_key::COMMIT);
+    new (&lock->key) MDL_key(key_arg);
+    if (key_arg->mdl_namespace() == MDL_key::SCHEMA)
+      lock->m_strategy= &m_scoped_lock_strategy;
+    else
+      lock->m_strategy= &m_object_lock_strategy;
   }
 
-  /**
-    Lock state: first 31 bits are reference counter, 32-nd bit is deleted flag.
-  */
-  static const int32 DELETED= 1 << 31;
-  int32 m_state;
-private:
   const MDL_lock_strategy *m_strategy;
+private:
   static const MDL_scoped_lock m_scoped_lock_strategy;
   static const MDL_object_lock m_object_lock_strategy;
 };
@@ -616,65 +620,45 @@ void mdl_destroy()
 }
 
 
-static inline int mdl_iterate_lock(MDL_lock *lock,
-                                   int (*callback)(MDL_ticket *ticket, void *arg),
-                                   void *arg)
+struct mdl_iterate_arg
 {
+  int (*callback)(MDL_ticket *ticket, void *arg);
+  void *argument;
+};
+
+
+static my_bool mdl_iterate_lock(MDL_lock *lock, mdl_iterate_arg *arg)
+{
+  int res= FALSE;
+  /*
+    We can skip check for m_strategy here, becase m_granted
+    must be empty for such locks anyway.
+  */
+  mysql_prlock_rdlock(&lock->m_rwlock);
   MDL_lock::Ticket_iterator ticket_it(lock->m_granted);
   MDL_ticket *ticket;
-  int res= 0;
-  mysql_prlock_rdlock(&lock->m_rwlock);
-  while ((ticket= ticket_it++) && !(res= callback(ticket, arg))) /* no-op */;
+  while ((ticket= ticket_it++) && !(res= arg->callback(ticket, arg->argument)))
+    /* no-op */;
   mysql_prlock_unlock(&lock->m_rwlock);
-  return res;
+  return MY_TEST(res);
 }
 
 
 int mdl_iterate(int (*callback)(MDL_ticket *ticket, void *arg), void *arg)
 {
-  DYNAMIC_ARRAY locks;
-  uint i;
-  int res;
   DBUG_ENTER("mdl_iterate");
+  mdl_iterate_arg argument= { callback, arg };
+  LF_PINS *pins= mdl_locks.get_pins();
+  int res= 1;
 
-  if ((res= mdl_iterate_lock(mdl_locks.m_global_lock, callback, arg)) ||
-      (res= mdl_iterate_lock(mdl_locks.m_commit_lock, callback, arg)))
-    DBUG_RETURN(res);
-
-  my_init_dynamic_array(&locks, sizeof(MDL_lock*), 512, 1, MYF(0));
-
-  /* Collect all locks first */
-  mysql_mutex_lock(&mdl_locks.m_mutex);
-  if (allocate_dynamic(&locks, mdl_locks.m_locks.records))
+  if (pins)
   {
-    res= 1;
-    mysql_mutex_unlock(&mdl_locks.m_mutex);
-    goto end;
+    res= mdl_iterate_lock(mdl_locks.m_global_lock, &argument) ||
+         mdl_iterate_lock(mdl_locks.m_commit_lock, &argument) ||
+         lf_hash_iterate(&mdl_locks.m_locks, pins,
+                         (my_hash_walk_action) mdl_iterate_lock, &argument);
+    lf_hash_put_pins(pins);
   }
-  for (i= 0; i < mdl_locks.m_locks.records; i++)
-  {
-    MDL_lock *lock= (MDL_lock*) my_hash_element(&mdl_locks.m_locks, i);
-    my_atomic_add32_explicit(&lock->m_state, 1, MY_MEMORY_ORDER_RELAXED);
-    insert_dynamic(&locks, &lock);
-  }
-  mysql_mutex_unlock(&mdl_locks.m_mutex);
-
-  /* Now show them */
-  for (i= 0; i < locks.elements; i++)
-  {
-    MDL_lock *lock= (MDL_lock*) *dynamic_element(&locks, i, MDL_lock**);
-    res|= mdl_iterate_lock(lock, callback, arg);
-
-    mysql_prlock_wrlock(&lock->m_rwlock);
-    int32 old_state= my_atomic_add32_explicit(&lock->m_state, -1,
-                                              MY_MEMORY_ORDER_RELAXED);
-    mysql_prlock_unlock(&lock->m_rwlock);
-
-    if (unlikely(old_state == MDL_lock::DELETED + 1))
-      delete lock;
-  }
-end:
-  delete_dynamic(&locks);
   DBUG_RETURN(res);
 }
 
@@ -697,9 +681,12 @@ void MDL_map::init()
   m_global_lock= new (std::nothrow) MDL_lock(&global_lock_key);
   m_commit_lock= new (std::nothrow) MDL_lock(&commit_lock_key);
 
-  mysql_mutex_init(key_MDL_map_mutex, &m_mutex, NULL);
-  my_hash_init2(&m_locks, 0, &my_charset_bin, 16 /* FIXME */, 0, 0,
-                mdl_locks_key, mdl_hash_function, 0, 0);
+  lf_hash_init(&m_locks, sizeof(MDL_lock), LF_HASH_UNIQUE, 0, 0,
+               mdl_locks_key, &my_charset_bin);
+  m_locks.alloc.constructor= MDL_lock::lf_alloc_constructor;
+  m_locks.alloc.destructor= MDL_lock::lf_alloc_destructor;
+  m_locks.initializer= (lf_hash_initializer) MDL_lock::lf_hash_initializer;
+  m_locks.hash_function= mdl_hash_function;
 }
 
 
@@ -713,9 +700,8 @@ void MDL_map::destroy()
   delete m_global_lock;
   delete m_commit_lock;
 
-  DBUG_ASSERT(!m_locks.records);
-  mysql_mutex_destroy(&m_mutex);
-  my_hash_free(&m_locks);
+  DBUG_ASSERT(!my_atomic_load32(&m_locks.count));
+  lf_hash_destroy(&m_locks);
 }
 
 
@@ -728,7 +714,7 @@ void MDL_map::destroy()
   @retval NULL     - Failure (OOM).
 */
 
-MDL_lock* MDL_map::find_or_insert(const MDL_key *mdl_key)
+MDL_lock* MDL_map::find_or_insert(LF_PINS *pins, const MDL_key *mdl_key)
 {
   MDL_lock *lock;
 
@@ -755,64 +741,21 @@ MDL_lock* MDL_map::find_or_insert(const MDL_key *mdl_key)
   }
 
 retry:
-  mysql_mutex_lock(&m_mutex);
-  if (!(lock= (MDL_lock*) my_hash_search_using_hash_value(&m_locks,
-                                                          mdl_key->hash_value(),
-                                                          mdl_key->ptr(),
-                                                          mdl_key->length())))
-  {
-    /* No lock object found so we need to create a new one. */
-    lock= new (std::nothrow) MDL_lock(mdl_key);
-    if (!lock || my_hash_insert(&m_locks, (uchar*)lock))
-    {
-      delete lock;
-      mysql_mutex_unlock(&m_mutex);
+  while (!(lock= (MDL_lock*) lf_hash_search_using_hash_value(&m_locks, pins,
+                   mdl_key->hash_value(), mdl_key->ptr(), mdl_key->length())))
+    if (lf_hash_insert(&m_locks, pins, (uchar*) mdl_key) == -1)
       return NULL;
-    }
-  }
-
-  if (move_from_hash_to_lock_mutex(lock))
-    goto retry;
-
-  return lock;
-}
-
-
-/**
-  Release MDL_map::m_mutex mutex and lock MDL_lock::m_rwlock for lock
-  object from the hash. Handle situation when object was released
-  while we held no locks.
-
-  @retval FALSE - Success.
-  @retval TRUE  - Object was released while we held no mutex, caller
-                  should re-try looking up MDL_lock object in the hash.
-*/
-
-bool MDL_map::move_from_hash_to_lock_mutex(MDL_lock *lock)
-{
-  DBUG_ASSERT(!(my_atomic_load32(&lock->m_state) & MDL_lock::DELETED));
-  mysql_mutex_assert_owner(&m_mutex);
-
-  my_atomic_add32_explicit(&lock->m_state, 1, MY_MEMORY_ORDER_RELAXED);
-  mysql_mutex_unlock(&m_mutex);
 
   mysql_prlock_wrlock(&lock->m_rwlock);
-  int32 old_state= my_atomic_add32_explicit(&lock->m_state, -1,
-                                            MY_MEMORY_ORDER_RELAXED);
-  if (unlikely(old_state & MDL_lock::DELETED))
+  if (unlikely(!lock->m_strategy))
   {
-    /*
-      Object was released while we held no locks, we need to
-      release it if no others hold references to it, while our own
-      reference count ensured that the object as such haven't got
-      its memory released yet.
-    */
     mysql_prlock_unlock(&lock->m_rwlock);
-    if (old_state == MDL_lock::DELETED + 1)
-      delete lock;
-    return TRUE;
+    lf_hash_search_unpin(pins);
+    goto retry;
   }
-  return FALSE;
+  lf_hash_search_unpin(pins);
+
+  return lock;
 }
 
 
@@ -821,7 +764,7 @@ bool MDL_map::move_from_hash_to_lock_mutex(MDL_lock *lock)
  */
 
 unsigned long
-MDL_map::get_lock_owner(const MDL_key *mdl_key)
+MDL_map::get_lock_owner(LF_PINS *pins, const MDL_key *mdl_key)
 {
   MDL_lock *lock;
   unsigned long res= 0;
@@ -837,14 +780,21 @@ MDL_map::get_lock_owner(const MDL_key *mdl_key)
   }
   else
   {
-    mysql_mutex_lock(&m_mutex);
-    lock= (MDL_lock*) my_hash_search_using_hash_value(&m_locks,
-                                                    mdl_key->hash_value(),
-                                                    mdl_key->ptr(),
-                                                    mdl_key->length());
+    lock= (MDL_lock*) lf_hash_search_using_hash_value(&m_locks, pins,
+                                                      mdl_key->hash_value(),
+                                                      mdl_key->ptr(),
+                                                      mdl_key->length());
     if (lock)
+    {
+      /*
+        We can skip check for m_strategy here, becase m_granted
+        must be empty for such locks anyway.
+      */
+      mysql_prlock_rdlock(&lock->m_rwlock);
       res= lock->get_lock_owner();
-    mysql_mutex_unlock(&m_mutex);
+      mysql_prlock_unlock(&lock->m_rwlock);
+      lf_hash_search_unpin(pins);
+    }
   }
   return res;
 }
@@ -856,7 +806,7 @@ MDL_map::get_lock_owner(const MDL_key *mdl_key)
   it.
 */
 
-void MDL_map::remove(MDL_lock *lock)
+void MDL_map::remove(LF_PINS *pins, MDL_lock *lock)
 {
   if (lock->key.mdl_namespace() == MDL_key::GLOBAL ||
       lock->key.mdl_namespace() == MDL_key::COMMIT)
@@ -869,20 +819,9 @@ void MDL_map::remove(MDL_lock *lock)
     return;
   }
 
-  mysql_mutex_lock(&m_mutex);
-  my_hash_delete(&m_locks, (uchar*) lock);
-
-  /*
-    Destroy the MDL_lock object, but ensure that anyone that is
-    holding a reference to the object is not remaining, if so he
-    has the responsibility to release it.
-  */
-  int32 old_state= my_atomic_add32_explicit(&lock->m_state, MDL_lock::DELETED,
-                                            MY_MEMORY_ORDER_RELAXED);
-  mysql_mutex_unlock(&m_mutex);
+  lock->m_strategy= 0;
   mysql_prlock_unlock(&lock->m_rwlock);
-  if (!old_state)
-    delete lock;
+  lf_hash_delete(&m_locks, pins, lock->key.ptr(), lock->key.length());
 }
 
 
@@ -896,7 +835,8 @@ MDL_context::MDL_context()
   :
   m_owner(NULL),
   m_needs_thr_lock_abort(FALSE),
-  m_waiting_for(NULL)
+  m_waiting_for(NULL),
+  m_pins(NULL)
 {
   mysql_prlock_init(key_MDL_context_LOCK_waiting_for, &m_LOCK_waiting_for);
 }
@@ -921,6 +861,14 @@ void MDL_context::destroy()
   DBUG_ASSERT(m_tickets[MDL_EXPLICIT].is_empty());
 
   mysql_prlock_destroy(&m_LOCK_waiting_for);
+  if (m_pins)
+    lf_hash_put_pins(m_pins);
+}
+
+
+bool MDL_context::fix_pins()
+{
+  return m_pins ? false : (m_pins= mdl_locks.get_pins()) == 0;
 }
 
 
@@ -1660,12 +1608,13 @@ MDL_lock::get_lock_owner() const
 
 /** Remove a ticket from waiting or pending queue and wakeup up waiters. */
 
-void MDL_lock::remove_ticket(Ticket_list MDL_lock::*list, MDL_ticket *ticket)
+void MDL_lock::remove_ticket(LF_PINS *pins, Ticket_list MDL_lock::*list,
+                             MDL_ticket *ticket)
 {
   mysql_prlock_wrlock(&m_rwlock);
   (this->*list).remove_ticket(ticket);
   if (is_empty())
-    mdl_locks.remove(this);
+    mdl_locks.remove(pins, this);
   else
   {
     /*
@@ -1913,6 +1862,9 @@ MDL_context::try_acquire_lock_impl(MDL_request *mdl_request,
     return FALSE;
   }
 
+  if (fix_pins())
+    return TRUE;
+
   if (!(ticket= MDL_ticket::create(this, mdl_request->type
 #ifndef DBUG_OFF
                                    , mdl_request->duration
@@ -1921,7 +1873,7 @@ MDL_context::try_acquire_lock_impl(MDL_request *mdl_request,
     return TRUE;
 
   /* The below call implicitly locks MDL_lock::m_rwlock on success. */
-  if (!(lock= mdl_locks.find_or_insert(key)))
+  if (!(lock= mdl_locks.find_or_insert(m_pins, key)))
   {
     MDL_ticket::destroy(ticket);
     return TRUE;
@@ -1963,6 +1915,17 @@ bool
 MDL_context::clone_ticket(MDL_request *mdl_request)
 {
   MDL_ticket *ticket;
+
+
+  /*
+    Since in theory we can clone ticket belonging to a different context
+    we need to prepare target context for possible attempts to release
+    lock and thus possible removal of MDL_lock from MDL_map container.
+    So we allocate pins to be able to work with this container if they
+    are not allocated already.
+  */
+  if (fix_pins())
+    return TRUE;
 
   /*
     By submitting mdl_request->type to MDL_ticket::create()
@@ -2103,7 +2066,7 @@ MDL_context::acquire_lock(MDL_request *mdl_request, double lock_wait_timeout)
 
   if (wait_status != MDL_wait::GRANTED)
   {
-    lock->remove_ticket(&MDL_lock::m_waiting, ticket);
+    lock->remove_ticket(m_pins, &MDL_lock::m_waiting, ticket);
     MDL_ticket::destroy(ticket);
     switch (wait_status)
     {
@@ -2560,7 +2523,7 @@ void MDL_context::release_lock(enum_mdl_duration duration, MDL_ticket *ticket)
 
   DBUG_ASSERT(this == ticket->get_ctx());
 
-  lock->remove_ticket(&MDL_lock::m_granted, ticket);
+  lock->remove_ticket(m_pins, &MDL_lock::m_granted, ticket);
 
   m_tickets[duration].remove(ticket);
   MDL_ticket::destroy(ticket);
@@ -2721,7 +2684,8 @@ MDL_context::is_lock_owner(MDL_key::enum_mdl_namespace mdl_namespace,
 unsigned long
 MDL_context::get_lock_owner(MDL_key *key)
 {
-  return mdl_locks.get_lock_owner(key);
+  fix_pins();
+  return mdl_locks.get_lock_owner(m_pins, key);
 }
 
 
