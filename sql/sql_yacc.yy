@@ -2563,6 +2563,7 @@ create:
           {
             // TODO: remove this when "MDEV-5359 CREATE OR REPLACE..." is done
             if ($1.or_replace() &&
+                Lex->sql_command != SQLCOM_CREATE_EVENT &&
                 Lex->sql_command != SQLCOM_CREATE_VIEW &&
                 Lex->sql_command != SQLCOM_CREATE_FUNCTION &&
                 Lex->sql_command != SQLCOM_CREATE_SPFUNCTION &&
@@ -2657,7 +2658,8 @@ event_tail:
             LEX *lex=Lex;
 
             lex->stmt_definition_begin= $1;
-            lex->create_info.set($3);
+            if (lex->add_create_options_with_check($3))
+              MYSQL_YYABORT;
             if (!(lex->event_parse_data= Event_parse_data::new_instance(thd)))
               MYSQL_YYABORT;
             lex->event_parse_data->identifier= $4;

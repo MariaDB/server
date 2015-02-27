@@ -4439,8 +4439,7 @@ end_with_restore_list:
     switch (lex->sql_command) {
     case SQLCOM_CREATE_EVENT:
     {
-      bool if_not_exists= lex->create_info.if_not_exists();
-      res= Events::create_event(thd, lex->event_parse_data, if_not_exists);
+      res= Events::create_event(thd, lex->event_parse_data);
       break;
     }
     case SQLCOM_ALTER_EVENT:

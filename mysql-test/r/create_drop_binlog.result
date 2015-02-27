@@ -243,3 +243,27 @@ Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 #	#	Gtid	1	#	GTID #-#-#
 #	#	Query	1	#	use `test`; DROP USER IF EXISTS u1@localhost
 RESET MASTER;
+SET timestamp=UNIX_TIMESTAMP('2014-11-01 10:20:30');
+CREATE OR REPLACE EVENT ev1 ON SCHEDULE EVERY 1 SECOND DO DROP TABLE IF EXISTS t1;
+CREATE OR REPLACE EVENT ev1 ON SCHEDULE EVERY 1 SECOND DO DROP TABLE IF EXISTS t2;
+SELECT EVENT_NAME, EVENT_DEFINITION FROM INFORMATION_SCHEMA.EVENTS;
+EVENT_NAME	EVENT_DEFINITION
+ev1	DROP TABLE IF EXISTS t2
+DROP EVENT ev1;
+DROP EVENT IF EXISTS ev1;
+Warnings:
+Note	1305	Event ev1 does not exist
+SHOW BINLOG EVENTS;
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+#	#	Format_desc	1	#	VER
+#	#	Gtid_list	1	#	[]
+#	#	Binlog_checkpoint	1	#	master-bin.000001
+#	#	Gtid	1	#	GTID #-#-#
+#	#	Query	1	#	use `test`; CREATE OR REPLACE DEFINER=`root`@`localhost` EVENT ev1 ON SCHEDULE EVERY 1 SECOND DO DROP TABLE IF EXISTS t1
+#	#	Gtid	1	#	GTID #-#-#
+#	#	Query	1	#	use `test`; CREATE OR REPLACE DEFINER=`root`@`localhost` EVENT ev1 ON SCHEDULE EVERY 1 SECOND DO DROP TABLE IF EXISTS t2
+#	#	Gtid	1	#	GTID #-#-#
+#	#	Query	1	#	use `test`; DROP EVENT ev1
+#	#	Gtid	1	#	GTID #-#-#
+#	#	Query	1	#	use `test`; DROP EVENT IF EXISTS ev1
+RESET MASTER;
