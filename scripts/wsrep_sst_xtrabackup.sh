@@ -487,13 +487,14 @@ then
         # innobackupex implicitly writes PID to fixed location in ${TMPDIR}
         XTRABACKUP_PID="${TMPDIR}/xtrabackup_pid"
 
-
     else # BYPASS FOR IST
 
         wsrep_log_info "Bypassing the SST for IST"
-        STATE="${WSREP_SST_OPT_GTID}"
         echo "continue" # now server can resume updating data
-        echo "${STATE}" > "${MAGIC_FILE}"
+
+        # Store donor's wsrep GTID (state ID) and wsrep_gtid_domain_id
+        # (separated by a space)
+        echo "${WSREP_SST_OPT_GTID} ${WSREP_SST_OPT_GTID_DOMAIN_ID}" > "${MAGIC_FILE}"
         echo "1" > "${DATA}/${IST_FILE}"
         get_keys
         pushd ${DATA} 1>/dev/null
@@ -708,7 +709,7 @@ then
         exit 2
     fi
 
-    cat "${MAGIC_FILE}" # output UUID:seqno
+    cat "${MAGIC_FILE}" # Output : UUID:seqno wsrep_gtid_domain_id
     wsrep_log_info "Total time on joiner: $totime seconds"
 fi
 

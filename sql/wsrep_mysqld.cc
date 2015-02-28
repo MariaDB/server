@@ -89,6 +89,12 @@ my_bool wsrep_restart_slave_activated  = 0; // node has dropped, and slave
 my_bool wsrep_slave_UK_checks          = 0; // slave thread does UK checks
 my_bool wsrep_slave_FK_checks          = 0; // slave thread does FK checks
 bool wsrep_new_cluster                 = false; // Bootstrap the cluster ?
+
+// Use wsrep_gtid_domain_id for galera transactions?
+bool wsrep_gtid_mode                   = 0;
+// gtid_domain_id for galera transactions.
+uint32 wsrep_gtid_domain_id            = 0;
+
 /*
  * End configuration options
  */
@@ -1710,6 +1716,12 @@ pthread_handler_t start_wsrep_THD(void *arg)
   }
   mysql_mutex_lock(&LOCK_thread_count);
   thd->thread_id=thread_id++;
+
+  if (wsrep_gtid_mode)
+  {
+    /* Adjust domain_id. */
+    thd->variables.gtid_domain_id= wsrep_gtid_domain_id;
+  }
 
   thd->real_id=pthread_self(); // Keep purify happy
   thread_count++;

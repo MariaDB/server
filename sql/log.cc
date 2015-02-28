@@ -5616,13 +5616,26 @@ MYSQL_BIN_LOG::write_gtid_event(THD *thd, bool standalone,
                                 bool is_transactional, uint64 commit_id)
 {
   rpl_gtid gtid;
-  uint32 domain_id= thd->variables.gtid_domain_id;
-  uint32 server_id= thd->variables.server_id;
-  uint64 seq_no= thd->variables.gtid_seq_no;
+  uint32 domain_id;
+  uint32 server_id;
+  uint64 seq_no;
   int err;
   DBUG_ENTER("write_gtid_event");
   DBUG_PRINT("enter", ("standalone: %d", standalone));
-  
+
+#ifdef WITH_WSREP
+  if (WSREP(thd) && thd->wsrep_trx_meta.gtid.seqno != -1 && wsrep_gtid_mode)
+  {
+    domain_id= wsrep_gtid_domain_id;
+  } else {
+#endif /* WITH_WSREP */
+  domain_id= thd->variables.gtid_domain_id;
+#ifdef WITH_WSREP
+  }
+#endif /* WITH_WSREP */
+  server_id= thd->variables.server_id;
+  seq_no= thd->variables.gtid_seq_no;
+
   if (thd->variables.option_bits & OPTION_GTID_BEGIN)
   {
     DBUG_PRINT("error", ("OPTION_GTID_BEGIN is set. "

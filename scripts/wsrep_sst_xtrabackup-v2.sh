@@ -604,7 +604,9 @@ then
 
         wsrep_log_info "Streaming GTID file before SST"
 
-        echo "${WSREP_SST_OPT_GTID}" > "${MAGIC_FILE}"
+        # Store donor's wsrep GTID (state ID) and wsrep_gtid_domain_id
+        # (separated by a space).
+        echo "${WSREP_SST_OPT_GTID} ${WSREP_SST_OPT_GTID_DOMAIN_ID}" > "${MAGIC_FILE}"
 
         ttcmd="$tcmd"
 
@@ -660,7 +662,10 @@ then
 
         wsrep_log_info "Bypassing the SST for IST"
         echo "continue" # now server can resume updating data
-        echo "${WSREP_SST_OPT_GTID}" > "${MAGIC_FILE}"
+
+        # Store donor's wsrep GTID (state ID) and wsrep_gtid_domain_id
+        # (separated by a space).
+        echo "${WSREP_SST_OPT_GTID} ${WSREP_SST_OPT_GTID_DOMAIN_ID}" > "${MAGIC_FILE}"
         echo "1" > "${DATA}/${IST_FILE}"
         get_keys
         if [[ $encrypt -eq 1 ]];then
@@ -923,7 +928,7 @@ then
         wsrep_log_error "SST magic file ${MAGIC_FILE} not found/readable"
         exit 2
     fi
-    cat "${MAGIC_FILE}" # output UUID:seqno
+    cat "${MAGIC_FILE}" # Output : UUID:seqno wsrep_gtid_domain_id
     wsrep_log_info "Total time on joiner: $totime seconds"
 fi
 

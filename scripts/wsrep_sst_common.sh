@@ -91,6 +91,10 @@ case "$1" in
         WSREP_SST_OPT_BINLOG="$2"
         shift
         ;;
+    '--gtid-domain-id')
+        readonly WSREP_SST_OPT_GTID_DOMAIN_ID="$2"
+        shift
+        ;;
     *) # must be command
        # usage
        # exit 1

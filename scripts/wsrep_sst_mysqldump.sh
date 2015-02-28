@@ -96,6 +96,17 @@ DROP PREPARE stmt;"
 
 SET_START_POSITION="SET GLOBAL wsrep_start_position='$WSREP_SST_OPT_GTID';"
 
+SET_WSREP_GTID_DOMAIN_ID=""
+if [ -n WSREP_SST_OPT_GTID_DOMAIN_ID]
+then
+  SET_WSREP_GTID_DOMAIN_ID="
+  SET @val = (SELECT GLOBAL_VALUE FROM INFORMATION_SCHEMA.SYSTEM_VARIABLES WHERE VARIABLE_NAME = 'WSREP_GTID_STRICT_MODE' AND GLOBAL_VALUE > 0);
+  SET @stmt = IF (@val IS NOT NULL, 'SET GLOBAL WSREP_GTID_DOMAIN_ID=$WSREP_SST_OPT_GTID_DOMAIN_ID', 'SET @dummy = 0');
+  PREPARE stmt FROM @stmt;
+  EXECUTE stmt;
+  DROP PREPARE stmt;"
+fi
+
 # Retrieve the donor's @@global.gtid_binlog_state.
 GTID_BINLOG_STATE=$(echo "SHOW GLOBAL VARIABLES LIKE 'gtid_binlog_state'" |\
 mysql $AUTH -S$WSREP_SST_OPT_SOCKET --disable-reconnect --connect_timeout=10 |\
@@ -157,7 +168,8 @@ then
      echo $SET_GTID_BINLOG_STATE && echo $SQL_LOG_BIN_OFF && \
      echo $STOP_WSREP && $MYSQLDUMP && echo $CSV_TABLES_FIX && \
      echo $RESTORE_GENERAL_LOG && echo $RESTORE_SLOW_QUERY_LOG && \
-     echo $SET_START_POSITION || echo "SST failed to complete;") | $MYSQL
+     echo $SET_START_POSITION && echo $SET_WSREP_GTID_DOMAIN_ID \
+     || echo "SST failed to complete;") | $MYSQL
 else
     wsrep_log_info "Bypassing state dump."
     echo $SET_START_POSITION | $MYSQL

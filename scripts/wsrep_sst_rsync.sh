@@ -131,7 +131,9 @@ then
 
         echo "flush tables"
 
-        # wait for tables flushed and state ID written to the file
+        # Wait for :
+        # (a) tables to be flushed, and
+        # (b) state ID & wsrep_gtid_domain_id to be written to the file.
         while [ ! -r "$FLUSHED" ] && ! grep -q ':' "$FLUSHED" >/dev/null 2>&1
         do
             sleep 0.2
@@ -217,7 +219,10 @@ then
 
     else # BYPASS
         wsrep_log_info "Bypassing state dump."
-        STATE="$WSREP_SST_OPT_GTID"
+
+        # Store donor's wsrep GTID (state ID) and wsrep_gtid_domain_id
+        # (separated by a space).
+        STATE="$WSREP_SST_OPT_GTID $WSREP_SST_OPT_GTID_DOMAIN_ID"
     fi
 
     echo "continue" # now server can resume updating data
@@ -323,7 +328,8 @@ EOF
     fi
     if [ -r "$MAGIC_FILE" ]
     then
-        cat "$MAGIC_FILE" # output UUID:seqno
+        # UUID:seqno & wsrep_gtid_domain_id is received here.
+        cat "$MAGIC_FILE" # Output : UUID:seqno wsrep_gtid_domain_id
     else
         # this message should cause joiner to abort
         echo "rsync process ended without creating '$MAGIC_FILE'"
