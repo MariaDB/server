@@ -1,5 +1,5 @@
-/* Copyright (C) 2007-2014 Arjen G Lentz & Antony T Curtis for Open Query
-   Copyright (C) 2013-2014 Andrew McDonnell
+/* Copyright (C) 2007-2015 Arjen G Lentz & Antony T Curtis for Open Query
+   Copyright (C) 2013-2015 Andrew McDonnell
    Portions of this file copyright (C) 2000-2006 MySQL AB
 
    This program is free software; you can redistribute it and/or modify
@@ -29,6 +29,8 @@
    * Removed compatibility hacks for 5.5.32 and 10.0.4.
      I expect no issues building oqgraph into Mariadb 5.5.40 but I think the better approach is maintain a separate fork / patches.
    * Added status variable to report if verbose debug is on
+   * Fixed handling of connection thread changed, the apparent root cause of
+     MDEV-6282, MDEV-6345 and MDEV-6784
 
 */
 
