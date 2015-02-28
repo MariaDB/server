@@ -141,7 +141,7 @@ class ODBConn : public BLOCK {
 //void SetUserPwd(PSZ pwd) {m_Pwd = pwd;}
   int  GetResultSize(char *sql, ODBCCOL *colp);
   int  ExecDirectSQL(char *sql, ODBCCOL *tocols);
-  int  Fetch(void);
+  int  Fetch(int pos = 0);
   int  PrepareSQL(char *sql);
   int  ExecuteSQL(void);
   bool BindParam(ODBCCOL *colp);
@@ -192,10 +192,10 @@ class ODBConn : public BLOCK {
   PSZ      m_Pwd;
   int      m_Catver;
   int      m_Rows;
+  int      m_Fetch;
   bool     m_Updatable;
   bool     m_Transact;
   bool     m_Scrollable;
   bool     m_UseCnc;
-  bool     m_First;
   bool     m_Full;
   }; // end of ODBConn class definition

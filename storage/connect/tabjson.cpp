@@ -1291,6 +1291,51 @@ int TDBJSON::MakeIndex(PGLOBAL g, PIXDEF pxdf, bool add)
   } // end of MakeIndex 
 
 /***********************************************************************/
+/*  Return the position in the table.                                  */
+/***********************************************************************/
+int TDBJSON::GetRecpos(void)
+  {
+#if 0
+  union {
+    uint Rpos;
+    BYTE Spos[4];
+    };
+
+  Rpos = htonl(Fpos);
+  Spos[0] = (BYTE)NextSame;
+  return Rpos;
+#endif // 0
+  return Fpos;
+  } // end of GetRecpos
+
+/***********************************************************************/
+/*  Set the position in the table.                                  */
+/***********************************************************************/
+bool TDBJSON::SetRecpos(PGLOBAL g, int recpos)
+  {
+#if 0
+  union {
+    uint Rpos;
+    BYTE Spos[4];
+    };
+
+  Rpos = recpos;
+  NextSame = Spos[0];
+  Spos[0] = 0;
+  Fpos = (signed)ntohl(Rpos);
+
+//if (Fpos != (signed)ntohl(Rpos)) {
+//  Fpos = ntohl(Rpos);
+//  same = false;
+//} else
+//  same = true;
+#endif // 0
+
+  Fpos = recpos - 1;
+  return false;
+  } // end of SetRecpos
+
+/***********************************************************************/
 /*  JSON Access Method opening routine.                                */
 /***********************************************************************/
 bool TDBJSON::OpenDB(PGLOBAL g)

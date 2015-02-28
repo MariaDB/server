@@ -135,9 +135,16 @@ bool ODBCDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
 //Options = ODBConn::noOdbcDialog | ODBConn::useCursorLib;
   Cto= GetIntCatInfo("ConnectTimeout", DEFAULT_LOGIN_TIMEOUT);
   Qto= GetIntCatInfo("QueryTimeout", DEFAULT_QUERY_TIMEOUT);
-  Scrollable = GetBoolCatInfo("Scrollable", false);
+
+  if ((Scrollable = GetBoolCatInfo("Scrollable", false)) && !Elemt)
+    Elemt = 1;     // Cannot merge SQLFetch and SQLExtendedFetch
+
   UseCnc = GetBoolCatInfo("UseDSN", false);
-  Memory = GetBoolCatInfo("Memory", false);
+
+  // Memory was Boolean, it is now integer
+  if (!(Memory = GetIntCatInfo("Memory", 0)))
+    Memory = GetBoolCatInfo("Memory", false) ? 1 : 0;
+
   Pseudo = 2;    // FILID is Ok but not ROWID
   return false;
   } // end of DefineAM
@@ -206,7 +213,7 @@ TDBODBC::TDBODBC(PODEF tdp) : TDBASE(tdp)
     Quoted = MY_MAX(0, tdp->GetQuoted());
     Rows = tdp->GetElemt();
     Catver = tdp->Catver;
-    Memory = (tdp->Memory) ? 1 : 0;
+    Memory = tdp->Memory;
     Scrollable = tdp->Scrollable;
     Ops.UseCnc = tdp->UseCnc;
   } else {
@@ -238,11 +245,13 @@ TDBODBC::TDBODBC(PODEF tdp) : TDBASE(tdp)
   DBQ = NULL;
   Qrp = NULL;
   Fpos = 0;
+  Curpos = 0;
   AftRows = 0;
   CurNum = 0;
   Rbuf = 0;
   BufSize = 0;
   Nparm = 0;
+  Placed = false;
   } // end of TDBODBC standard constructor
 
 TDBODBC::TDBODBC(PTDBODBC tdbp) : TDBASE(tdbp)
@@ -267,15 +276,15 @@ TDBODBC::TDBODBC(PTDBODBC tdbp) : TDBASE(tdbp)
   Options = tdbp->Options;
   Quoted = tdbp->Quoted;
   Rows = tdbp->Rows;
-  Fpos = tdbp->Fpos;
-  AftRows = tdbp->AftRows;
-//Tpos = tdbp->Tpos;
-//Spos = tdbp->Spos;
-  CurNum = tdbp->CurNum;
-  Rbuf = tdbp->Rbuf;
+  Fpos = 0;
+  Curpos = 0;
+  AftRows = 0;
+  CurNum = 0;
+  Rbuf = 0;
   BufSize = tdbp->BufSize;
   Nparm = tdbp->Nparm;
   Qrp = tdbp->Qrp;
+  Placed = false;
   } // end of TDBODBC copy constructor
 
 // Method
@@ -811,10 +820,12 @@ bool TDBODBC::OpenDB(PGLOBAL g)
         return true;
         } // endif Rewind
 
-      } // endif Memory
+    } else
+      Rbuf = Qrp->Nblin;
 
     CurNum = 0;
     Fpos = 0;
+    Curpos = 1;
     return false;
     } // endif use
 
@@ -841,6 +852,37 @@ bool TDBODBC::OpenDB(PGLOBAL g)
   /*  Make the command and allocate whatever is used for getting results.                   */
   /*********************************************************************/
   if (Mode == MODE_READ || Mode == MODE_READX) {
+    if (Memory > 1 && !Srcdef) {
+      char *Sql;
+      int   n;
+
+      if ((Sql = MakeSQL(g, true))) {
+        // Allocate a Count(*) column
+        Cnp = new(g) ODBCCOL;
+        Cnp->InitValue(g);
+
+        if ((n = Ocp->GetResultSize(Sql, Cnp)) < 0) {
+          strcpy(g->Message, "Cannot get result size");
+          return true;
+          } // endif n
+
+        Ocp->m_Rows = n;
+
+        if ((Qrp = Ocp->AllocateResult(g)))
+          Memory = 2;            // Must be filled
+        else {
+          strcpy(g->Message, "Memory allocation failed");
+          return true;
+          } // endif n
+
+        Ocp->m_Rows = 0;
+      } else {
+        strcpy(g->Message, "MakeSQL failed");
+        return true;
+      } // endif Sql
+
+      } // endif Memory
+
     if ((Query = MakeSQL(g, false))) {
       for (PODBCCOL colp = (PODBCCOL)Columns; colp;
                     colp = (PODBCCOL)colp->GetNext())
@@ -882,8 +924,39 @@ bool TDBODBC::OpenDB(PGLOBAL g)
 /***********************************************************************/
 int TDBODBC::GetRecpos(void)
   {
-  return Fpos;              // To be really implemented
+  return Fpos;
   } // end of GetRecpos
+
+/***********************************************************************/
+/*  SetRecpos: set the position of next read record.                   */
+/***********************************************************************/
+bool TDBODBC::SetRecpos(PGLOBAL g, int recpos)
+  {
+  if (Ocp->m_Full) {
+    Fpos = 0;
+    CurNum = recpos - 1;
+  } else if (Memory == 3) {
+    Fpos = recpos;
+    CurNum = -1;
+  } else if (Scrollable) {
+    // Is new position in the current row set?
+    if (recpos >= Curpos && recpos < Curpos + Rbuf) {
+      CurNum = recpos - Curpos;
+      Fpos = 0;
+    } else {
+      Fpos = recpos;
+      CurNum = 0;
+    } // endif recpos
+
+  } else {
+    strcpy(g->Message, "This action requires a scrollable cursor");
+    return true;
+  } // endif's
+
+  // Indicate the table position was externally set
+  Placed = true;
+  return false;
+  } // end of SetRecpos
 
 /***********************************************************************/
 /*  VRDNDOS: Data Base read routine for odbc access method.            */
@@ -924,22 +997,32 @@ int TDBODBC::ReadDB(PGLOBAL g)
   /*  Now start the reading process.                                   */
   /*  Here is the place to fetch the line(s).                          */
   /*********************************************************************/
-  if (Memory != 3) {
-    if (++CurNum >= Rbuf) {
-      Rbuf = Ocp->Fetch();
-      CurNum = 0;
-      } // endif CurNum
+  if (Placed) {
+    if (Fpos && CurNum >= 0)
+      Rbuf = Ocp->Fetch((Curpos = Fpos));
 
     rc = (Rbuf > 0) ? RC_OK : (Rbuf == 0) ? RC_EF : RC_FX;
-  } else                 // Getting result from memory
-    rc = (Fpos < Qrp->Nblin) ? RC_OK : RC_EF;
+    Placed = false;
+  } else {
+    if (Memory != 3) {
+      if (++CurNum >= Rbuf) {
+        Rbuf = Ocp->Fetch();
+        Curpos = Fpos + 1;
+        CurNum = 0;
+        } // endif CurNum
 
-  if (rc == RC_OK) {
-    if (Memory == 2)
-      Qrp->Nblin++;
+      rc = (Rbuf > 0) ? RC_OK : (Rbuf == 0) ? RC_EF : RC_FX;
+    } else                 // Getting result from memory
+      rc = (Fpos < Qrp->Nblin) ? RC_OK : RC_EF;
 
-    Fpos++;                // Used for memory
-    } // endif rc
+    if (rc == RC_OK) {
+      if (Memory == 2)
+        Qrp->Nblin++;
+
+      Fpos++;                // Used for memory and pos
+      } // endif rc
+
+  } // endif Placed
 
   if (trace > 1)
     htrc(" Read: Rbuf=%d rc=%d\n", Rbuf, rc);

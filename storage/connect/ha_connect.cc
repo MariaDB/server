@@ -5462,7 +5462,9 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
             case TYPE_DOUBLE:
               // Some data sources do not count dec in length (prec)
               prec += (dec + 2);        // To be safe
+              break;
             case TYPE_DECIM:
+              prec= len;
               break;
             default:
               dec= 0;

@@ -174,10 +174,9 @@ class TDBJSON : public TDBJSN {
   virtual int  Cardinality(PGLOBAL g);
   virtual int  GetMaxSize(PGLOBAL g);
   virtual void ResetSize(void);
-	virtual int  GetRecpos(void) {return Fpos;}
   virtual int  GetProgCur(void) {return N;}
-  virtual bool SetRecpos(PGLOBAL g, int recpos)
-                {Fpos = recpos - 1; return false;}
+	virtual int  GetRecpos(void);
+  virtual bool SetRecpos(PGLOBAL g, int recpos);
   virtual bool OpenDB(PGLOBAL g);
   virtual int  ReadDB(PGLOBAL g);
   virtual bool PrepareWriting(PGLOBAL g) {return false;}
