@@ -1,0 +1,86 @@
+DROP TABLE IF EXISTS graph_base;
+DROP TABLE IF EXISTS graph;
+CREATE TABLE graph_base (
+from_id INT UNSIGNED NOT NULL,
+to_id INT UNSIGNED NOT NULL,
+weight DOUBLE NOT NULL,
+PRIMARY KEY (from_id,to_id),
+INDEX (to_id)
+) ENGINE=MyISAM;
+CREATE TABLE graph ENGINE=OQGRAPH DATA_TABLE='graph_base' ORIGID='from_id' DESTID='to_id';
+DESCRIBE graph;
+Field	Type	Null	Key	Default	Extra
+latch	varchar(32)	YES	MUL	NULL	
+origid	bigint(20) unsigned	YES		NULL	
+destid	bigint(20) unsigned	YES		NULL	
+weight	double	YES		NULL	
+seq	bigint(20) unsigned	YES		NULL	
+linkid	bigint(20) unsigned	YES		NULL	
+DROP TABLE IF EXISTS graph;
+CREATE TABLE graph ENGINE=OQGRAPH DATA_TABLE='graph_base' ORIGID='from_id' DESTID='to_id' WEIGHT='weight';
+DESCRIBE graph;
+Field	Type	Null	Key	Default	Extra
+latch	varchar(32)	YES	MUL	NULL	
+origid	bigint(20) unsigned	YES		NULL	
+destid	bigint(20) unsigned	YES		NULL	
+weight	double	YES		NULL	
+seq	bigint(20) unsigned	YES		NULL	
+linkid	bigint(20) unsigned	YES		NULL	
+DROP TABLE IF EXISTS graph;
+CREATE TABLE graph ENGINE=OQGRAPH DATA_TABLE='graph_base_xxx' ORIGID='from_id' DESTID='to_id_xxx' WEIGHT='weight';
+# Expect 'Table 'test.graph_base_xxx' doesn't exist'
+DESCRIBE graph;
+ERROR 42S02: Table 'test.graph_base_xxx' doesn't exist
+DROP TABLE IF EXISTS graph;
+CREATE TABLE graph ENGINE=OQGRAPH DATA_TABLE='graph_base' ORIGID='from_id' DESTID='to_id' WEIGHT='weight_xxx';
+# Expect 'Invalid OQGRAPH backing store description ('graph.weight' attribute not set to a valid column of 'graph_base')'
+DESCRIBE graph;
+ERROR HY000: Got error -1 'Invalid OQGRAPH backing store ('graph.weight' attribute not set to a valid column of 'graph_base')' from OQGRAPH
+DROP TABLE IF EXISTS graph;
+CREATE TABLE graph ENGINE=OQGRAPH DATA_TABLE='graph_base' ORIGID='from_id' DESTID='to_id_xxx' WEIGHT='weight';
+# Expect 'Invalid OQGRAPH backing store description ('graph.destid' attribute not set to a valid column of 'graph_base')'
+DESCRIBE graph;
+ERROR HY000: Got error -1 'Invalid OQGRAPH backing store ('graph.destid' attribute not set to a valid column of 'graph_base')' from OQGRAPH
+DROP TABLE IF EXISTS graph;
+CREATE TABLE graph ENGINE=OQGRAPH DATA_TABLE='graph_base' ORIGID='from_id_xxx' DESTID='to_id' WEIGHT='weight';
+# Expect 'Invalid OQGRAPH backing store description ('graph.origid' attribute not set to a valid column of 'graph_base')'
+DESCRIBE graph;
+ERROR HY000: Got error -1 'Invalid OQGRAPH backing store ('graph.origid' attribute not set to a valid column of 'graph_base')' from OQGRAPH
+DROP TABLE IF EXISTS graph;
+CREATE TABLE graph ENGINE=OQGRAPH;
+# Expect: 'Invalid OQGRAPH backing store description (unspecified or empty data_table attribute)'
+DESCRIBE graph;
+ERROR HY000: Got error -1 'Invalid OQGRAPH backing store description (unspecified or empty data_table attribute)' from OQGRAPH
+DROP TABLE IF EXISTS graph;
+CREATE TABLE graph ENGINE=OQGRAPH DATA_TABLE='graph_base';
+# Expect: 'Invalid OQGRAPH backing store description (unspecified or empty origid attribute)'
+DESCRIBE graph;
+ERROR HY000: Got error -1 'Invalid OQGRAPH backing store description (unspecified or empty origid attribute)' from OQGRAPH
+DROP TABLE IF EXISTS graph;
+CREATE TABLE graph ENGINE=OQGRAPH DATA_TABLE='graph_base' ORIGID='from_id';
+# Expect: 'Invalid OQGRAPH backing store description (unspecified or empty destid attribute)'
+DESCRIBE graph;
+ERROR HY000: Got error -1 'Invalid OQGRAPH backing store description (unspecified or empty destid attribute)' from OQGRAPH
+DROP TABLE IF EXISTS graph;
+CREATE TABLE graph ENGINE=OQGRAPH DATA_TABLE='graph_base' DESTID='to_id';
+# Expect: 'Invalid OQGRAPH backing store description (unspecified or empty origid attribute)'
+DESCRIBE graph;
+ERROR HY000: Got error -1 'Invalid OQGRAPH backing store description (unspecified or empty origid attribute)' from OQGRAPH
+DROP TABLE IF EXISTS graph;
+CREATE TABLE graph ENGINE=OQGRAPH ORIGID='from_id';
+# Expect: 'Invalid OQGRAPH backing store description (unspecified or empty data_table attribute)'
+DESCRIBE graph;
+ERROR HY000: Got error -1 'Invalid OQGRAPH backing store description (unspecified or empty data_table attribute)' from OQGRAPH
+DROP TABLE IF EXISTS graph;
+CREATE TABLE graph ENGINE=OQGRAPH DESTID='to_id';
+# Expect: 'Invalid OQGRAPH backing store description (unspecified or empty data_table attribute)'
+DESCRIBE graph;
+ERROR HY000: Got error -1 'Invalid OQGRAPH backing store description (unspecified or empty data_table attribute)' from OQGRAPH
+DROP TABLE IF EXISTS graph;
+CREATE TABLE graph ENGINE=OQGRAPH ORIGID='from_id', DESTID='to_id';
+# Expect: 'Invalid OQGRAPH backing store description (unspecified or empty data_table attribute)'
+DESCRIBE graph;
+ERROR HY000: Got error -1 'Invalid OQGRAPH backing store description (unspecified or empty data_table attribute)' from OQGRAPH
+DROP TABLE IF EXISTS graph;
+DROP TABLE IF EXISTS graph;
+DROP TABLE IF EXISTS graph_base;
