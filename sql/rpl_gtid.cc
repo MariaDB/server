@@ -247,6 +247,7 @@ rpl_slave_state::rpl_slave_state()
 {
   my_hash_init(&hash, &my_charset_bin, 32, offsetof(element, domain_id),
                sizeof(uint32), NULL, rpl_slave_state_free_element, HASH_UNIQUE);
+  my_init_dynamic_array(&gtid_sort_array, sizeof(rpl_gtid), 8, 8, MYF(0));
 }
 
 
@@ -292,6 +293,7 @@ rpl_slave_state::deinit()
     return;
   truncate_hash();
   my_hash_free(&hash);
+  delete_dynamic(&gtid_sort_array);
   mysql_mutex_destroy(&LOCK_slave_state);
 }
 
@@ -705,7 +707,20 @@ rpl_slave_state::next_sub_id(uint32 domain_id)
   return sub_id;
 }
 
+/* A callback used in sorting of gtid list based on domain_id. */
+static int rpl_gtid_cmp_cb(const void *id1, const void *id2)
+{
+  uint32 d1= ((rpl_gtid *)id1)->domain_id;
+  uint32 d2= ((rpl_gtid *)id2)->domain_id;
 
+  if (d1 < d2)
+    return -1;
+  else if (d1 > d2)
+    return 1;
+  return 0;
+}
+
+/* Format the specified gtid and store it in the given string buffer. */
 bool
 rpl_slave_state_tostring_helper(String *dest, const rpl_gtid *gtid, bool *first)
 {
@@ -722,16 +737,64 @@ rpl_slave_state_tostring_helper(String *dest, const rpl_gtid *gtid, bool *first)
     dest->append_ulonglong(gtid->seq_no);
 }
 
+/*
+  Sort the given gtid list based on domain_id and store them in the specified
+  string.
+*/
+static bool
+rpl_slave_state_tostring_helper(DYNAMIC_ARRAY *gtid_dynarr, String *str)
+{
+  bool first= true, res= true;
+
+  sort_dynamic(gtid_dynarr, rpl_gtid_cmp_cb);
+
+  for (uint i= 0; i < gtid_dynarr->elements; i ++)
+  {
+    rpl_gtid *gtid= dynamic_element(gtid_dynarr, i, rpl_gtid *);
+    if (rpl_slave_state_tostring_helper(str, gtid, &first))
+      goto err;
+  }
+  res= false;
+
+err:
+  return res;
+}
+
+
+/* Sort the given gtid list based on domain_id and call cb for each gtid. */
+static bool
+rpl_slave_state_tostring_helper(DYNAMIC_ARRAY *gtid_dynarr,
+                                int (*cb)(rpl_gtid *, void *),
+                                void *data)
+{
+  rpl_gtid *gtid;
+  bool res= true;
+
+  sort_dynamic(gtid_dynarr, rpl_gtid_cmp_cb);
+
+  for (uint i= 0; i < gtid_dynarr->elements; i ++)
+  {
+    gtid= dynamic_element(gtid_dynarr, i, rpl_gtid *);
+    if ((*cb)(gtid, data))
+      goto err;
+  }
+  res= false;
+
+err:
+  return res;
+}
 
 int
 rpl_slave_state::iterate(int (*cb)(rpl_gtid *, void *), void *data,
-                         rpl_gtid *extra_gtids, uint32 num_extra)
+                         rpl_gtid *extra_gtids, uint32 num_extra,
+                         bool sort)
 {
   uint32 i;
   HASH gtid_hash;
   uchar *rec;
   rpl_gtid *gtid;
   int res= 1;
+  bool locked= false;
 
   my_hash_init(&gtid_hash, &my_charset_bin, 32, offsetof(rpl_gtid, domain_id),
                sizeof(uint32), NULL, NULL, HASH_UNIQUE);
@@ -741,6 +804,8 @@ rpl_slave_state::iterate(int (*cb)(rpl_gtid *, void *), void *data,
       goto err;
 
   mysql_mutex_lock(&LOCK_slave_state);
+  locked= true;
+  reset_dynamic(&gtid_sort_array);
 
   for (i= 0; i < hash.records; ++i)
   {
@@ -775,31 +840,38 @@ rpl_slave_state::iterate(int (*cb)(rpl_gtid *, void *), void *data,
         memcpy(&best_gtid, gtid, sizeof(best_gtid));
       if (my_hash_delete(&gtid_hash, rec))
       {
-        mysql_mutex_unlock(&LOCK_slave_state);
         goto err;
       }
     }
 
-    if ((res= (*cb)(&best_gtid, data)))
+    if ((res= sort ? insert_dynamic(&gtid_sort_array,
+                                    (const void *) &best_gtid) :
+         (*cb)(&best_gtid, data)))
     {
-      mysql_mutex_unlock(&LOCK_slave_state);
       goto err;
     }
   }
-
-  mysql_mutex_unlock(&LOCK_slave_state);
 
   /* Also add any remaining extra domain_ids. */
   for (i= 0; i < gtid_hash.records; ++i)
   {
     gtid= (rpl_gtid *)my_hash_element(&gtid_hash, i);
-    if ((res= (*cb)(gtid, data)))
+    if ((res= sort ? insert_dynamic(&gtid_sort_array, (const void *) gtid) :
+         (*cb)(gtid, data)))
+    {
       goto err;
+    }
+  }
+
+  if (sort && rpl_slave_state_tostring_helper(&gtid_sort_array, cb, data))
+  {
+    goto err;
   }
 
   res= 0;
 
 err:
+  if (locked) mysql_mutex_unlock(&LOCK_slave_state);
   my_hash_free(&gtid_hash);
 
   return res;
@@ -840,7 +912,8 @@ rpl_slave_state::tostring(String *dest, rpl_gtid *extra_gtids, uint32 num_extra)
   data.first= true;
   data.dest= dest;
 
-  return iterate(rpl_slave_state_tostring_cb, &data, extra_gtids, num_extra);
+  return iterate(rpl_slave_state_tostring_cb, &data, extra_gtids,
+                 num_extra, true);
 }
 
 
@@ -1030,6 +1103,7 @@ rpl_binlog_state::rpl_binlog_state()
 {
   my_hash_init(&hash, &my_charset_bin, 32, offsetof(element, domain_id),
                sizeof(uint32), NULL, my_free, HASH_UNIQUE);
+  my_init_dynamic_array(&gtid_sort_array, sizeof(rpl_gtid), 8, 8, MYF(0));
   mysql_mutex_init(key_LOCK_binlog_state, &LOCK_binlog_state,
                    MY_MUTEX_INIT_SLOW);
   initialized= 1;
@@ -1063,6 +1137,7 @@ void rpl_binlog_state::free()
     initialized= 0;
     reset_nolock();
     my_hash_free(&hash);
+    delete_dynamic(&gtid_sort_array);
     mysql_mutex_destroy(&LOCK_binlog_state);
   }
 }
@@ -1547,21 +1622,25 @@ end:
   return res;
 }
 
-
 bool
 rpl_binlog_state::append_pos(String *str)
 {
   uint32 i;
-  bool first= true;
 
   mysql_mutex_lock(&LOCK_binlog_state);
+  reset_dynamic(&gtid_sort_array);
+
   for (i= 0; i < hash.records; ++i)
   {
     element *e= (element *)my_hash_element(&hash, i);
     if (e->last_gtid &&
-        rpl_slave_state_tostring_helper(str, e->last_gtid, &first))
+        insert_dynamic(&gtid_sort_array, (const void *) e->last_gtid))
+    {
+      mysql_mutex_unlock(&LOCK_binlog_state);
       return true;
+    }
   }
+  rpl_slave_state_tostring_helper(&gtid_sort_array, str);
   mysql_mutex_unlock(&LOCK_binlog_state);
 
   return false;
@@ -1572,10 +1651,11 @@ bool
 rpl_binlog_state::append_state(String *str)
 {
   uint32 i, j;
-  bool first= true;
   bool res= false;
 
   mysql_mutex_lock(&LOCK_binlog_state);
+  reset_dynamic(&gtid_sort_array);
+
   for (i= 0; i < hash.records; ++i)
   {
     element *e= (element *)my_hash_element(&hash, i);
@@ -1596,13 +1676,15 @@ rpl_binlog_state::append_state(String *str)
       else
         gtid= e->last_gtid;
 
-      if (rpl_slave_state_tostring_helper(str, gtid, &first))
+      if (insert_dynamic(&gtid_sort_array, (const void *) gtid))
       {
         res= true;
         goto end;
       }
     }
   }
+
+  rpl_slave_state_tostring_helper(&gtid_sort_array, str);
 
 end:
   mysql_mutex_unlock(&LOCK_binlog_state);
@@ -1615,12 +1697,14 @@ slave_connection_state::slave_connection_state()
   my_hash_init(&hash, &my_charset_bin, 32,
                offsetof(entry, gtid) + offsetof(rpl_gtid, domain_id),
                sizeof(uint32), NULL, my_free, HASH_UNIQUE);
+  my_init_dynamic_array(&gtid_sort_array, sizeof(rpl_gtid), 8, 8, MYF(0));
 }
 
 
 slave_connection_state::~slave_connection_state()
 {
   my_hash_free(&hash);
+  delete_dynamic(&gtid_sort_array);
 }
 
 
@@ -1730,7 +1814,7 @@ slave_connection_state::load(rpl_slave_state *state,
 {
   reset();
   return state->iterate(slave_connection_state_load_cb, this,
-                        extra_gtids, num_extra);
+                        extra_gtids, num_extra, false);
 }
 
 
