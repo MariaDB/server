@@ -126,12 +126,20 @@ err:
 */
 #elif defined(MY_ADDR_RESOLVE_FORK)
 /*
-  yet another - just execute addr2line or eu-addr2line, whatever available,
-  pipe the addresses to it, and parse the output
+  yet another - just execute addr2line pipe the addresses to it, and parse the
+  output
 */
 
 #include <m_string.h>
 #include <ctype.h>
+
+#if defined(HAVE_LINK_H) && defined(HAVE_DLOPEN)
+#include <link.h>
+static ElfW(Addr) offset= 0;
+#else
+#define offset 0
+#endif
+
 static int in[2], out[2];
 static int initialized= 0;
 static char output[1024];
@@ -140,7 +148,7 @@ int my_addr_resolve(void *ptr, my_addr_loc *loc)
   char input[32], *s;
   size_t len;
 
-  len= my_snprintf(input, sizeof(input), "%p\n", ptr);
+  len= my_snprintf(input, sizeof(input), "%p\n", ptr - offset);
   if (write(in[1], input, len) <= 0)
     return 1;
   if (read(out[0], output, sizeof(output)) <= 0)
@@ -171,6 +179,12 @@ const char *my_addr_resolve_init()
   if (!initialized)
   {
     pid_t pid;
+
+#if defined(HAVE_LINK_H) && defined(HAVE_DLOPEN)
+    struct link_map *lm = (struct link_map*) dlopen(0, RTLD_NOW);
+    if (lm)
+      offset= lm->l_addr;
+#endif
 
     if (pipe(in) < 0)
       return "pipe(in)";
