@@ -14,7 +14,7 @@ eval CREATE TABLE graph_base (
     INDEX (to_id)
   ) ENGINE= $oqgraph_use_table_type ;
 
-
+# Since late June 2014 OQGraph supports 'assisted discovery' as per https://mariadb.atlassian.net/browse/MDEV-5871
 CREATE TABLE graph ENGINE=OQGRAPH DATA_TABLE='graph_base' ORIGID='from_id', DESTID='to_id';
 
 # Regression for MDEV-5891
