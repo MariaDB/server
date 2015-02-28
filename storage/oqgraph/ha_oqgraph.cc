@@ -1,4 +1,5 @@
 /* Copyright (C) 2007-2013 Arjen G Lentz & Antony T Curtis for Open Query
+   Copyright (C) 2014 Sergei Golubchik
    Portions of this file copyright (C) 2000-2006 MySQL AB
 
    This program is free software; you can redistribute it and/or modify
