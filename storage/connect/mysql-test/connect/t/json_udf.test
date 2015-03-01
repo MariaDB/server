@@ -1,15 +1,9 @@
+--source json_udf.inc
+
 let $MYSQLD_DATADIR= `select @@datadir`;
 
 --copy_file $MTR_SUITE_DIR/std_data/biblio.json $MYSQLD_DATADIR/test/biblio.json
 --copy_file $MTR_SUITE_DIR/std_data/employee.dat $MYSQLD_DATADIR/test/employee.dat
-
-CREATE FUNCTION Json_Array RETURNS STRING SONAME 'ha_connect';
-CREATE FUNCTION Json_Array_Add RETURNS STRING SONAME 'ha_connect';
-CREATE FUNCTION Json_Object RETURNS STRING SONAME 'ha_connect';
-CREATE FUNCTION Json_Object_Nonull RETURNS STRING SONAME 'ha_connect';
-CREATE FUNCTION Json_Value returns STRING SONAME 'ha_connect';
-CREATE AGGREGATE FUNCTION Json_Array_Grp RETURNS STRING SONAME 'ha_connect';
-CREATE AGGREGATE FUNCTION Json_Object_Grp RETURNS STRING SONAME 'ha_connect';
 
 --echo #
 --echo # Test UDF's with constant arguments
