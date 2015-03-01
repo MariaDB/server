@@ -662,7 +662,7 @@ JOUTSTR::JOUTSTR(PGLOBAL g) : JOUT(g)
 
   N = 0;
   Max = pph->FreeBlk;
-  Max = (Max > 512) ? Max - 512 : Max;
+  Max = (Max > 32) ? Max - 32 : Max;
   Strp = (char*)PlugSubAlloc(g, NULL, 0);  // Size not know yet
 } // end of JOUTSTR constructor
 

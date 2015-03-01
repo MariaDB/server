@@ -232,7 +232,7 @@ static PSZ MakeKey(PGLOBAL g, UDF_ARGS *args, int i)
 /***********************************************************************/
 static PJVAL MakeValue(PGLOBAL g, UDF_ARGS *args, int i)
 {
-  char *sap = args->args[i];
+  char *sap = (args->arg_count > i) ? args->args[i] : NULL;
   PJSON jsp;
   PJVAL jvp = new(g) JVALUE;
 
@@ -362,7 +362,7 @@ my_bool Json_Array_Add_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
     strcpy(message, "Json_Value_Add must have at least 2 arguments");
     return true;
   } else if (!IsJson(args, 0)) {
-    strcpy(message, "Json_Value_Add first argument must be a json array");
+    strcpy(message, "Json_Value_Add first argument must be a json item");
     return true;
   } else
     CalcLen(args, false, reslen, memlen);
@@ -561,7 +561,7 @@ my_bool Json_Object_Grp_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
   unsigned long reslen, memlen, n = GetJsonGrpSize();
 
   if (args->arg_count != 2) {
-    strcpy(message, "Json_Array_Grp can only accept 2 argument");
+    strcpy(message, "Json_Array_Grp can only accept 2 arguments");
     return true;
   } else 
     CalcLen(args, true, reslen, memlen);
