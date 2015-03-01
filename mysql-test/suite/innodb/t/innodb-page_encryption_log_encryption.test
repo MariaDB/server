@@ -8,8 +8,6 @@ let $innodb_file_per_table_orig = `SELECT @@innodb_file_per_table`;
 
 call mtr.add_suppression("KeyID 0 not found or with error. Check the key and the log file*");
 call mtr.add_suppression("Disabling redo log encryption");
-call mtr.add_suppression("InnoDB: [Warning] Disabling redo log encryption");
-call mtr.add_suppression("InnoDB:*");
 
 SET GLOBAL innodb_file_format = `Barracuda`;
 SET GLOBAL innodb_file_per_table = ON;
