@@ -232,7 +232,7 @@ static PSZ MakeKey(PGLOBAL g, UDF_ARGS *args, int i)
 /***********************************************************************/
 static PJVAL MakeValue(PGLOBAL g, UDF_ARGS *args, int i)
 {
-  char *sap = (args->arg_count > i) ? args->args[i] : NULL;
+  char *sap = (args->arg_count > (unsigned)i) ? args->args[i] : NULL;
   PJSON jsp;
   PJVAL jvp = new(g) JVALUE;
 
