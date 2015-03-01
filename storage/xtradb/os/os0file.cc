@@ -6622,7 +6622,7 @@ os_file_trim(
 		srv_use_trim = FALSE;
 		ut_print_timestamp(stderr);
 		fprintf(stderr,
-			"  InnoDB: [Warning] fallocate call failed with error code %d.\n"
+			"  InnoDB: Warning: fallocate call failed with error code %d.\n"
 			"  InnoDB: start: %lu len: %lu payload: %lu\n"
 			"  InnoDB: Disabling fallocate for now.\n", errno, off, trim_len, len);
 
@@ -6643,7 +6643,7 @@ os_file_trim(
 #else
 	ut_print_timestamp(stderr);
 	fprintf(stderr,
-		"  InnoDB: [Warning] fallocate not supported on this installation."
+		"  InnoDB: Warning: fallocate not supported on this installation."
 		"  InnoDB: Disabling fallocate for now.");
 	os_fallocate_failed = TRUE;
 	srv_use_trim = FALSE;
@@ -6669,7 +6669,7 @@ os_file_trim(
 		srv_use_trim = FALSE;
 		ut_print_timestamp(stderr);
 		fprintf(stderr,
-			"  InnoDB: [Warning] fallocate call failed with error.\n"
+			"  InnoDB: Warning: fallocate call failed with error.\n"
 			"  InnoDB: start: %lu len: %lu payload: %lu\n"
 			"  InnoDB: Disabling fallocate for now.\n", off, trim_len, len);
 

@@ -250,7 +250,7 @@ log_crypt_set_ver_and_key(
 
 			fprintf(stderr, "\nInnoDB redo log crypto: Can't initialize to key version %du\n",
 				key_ver);
-			fprintf(stderr, "InnoDB: [Warning] Disabling redo log encryption\n");
+			fprintf(stderr, "InnoDB: Warning: Disabling redo log encryption\n");
 			srv_encrypt_log = FALSE;
 		} else {
 			key_ver = vkey;
