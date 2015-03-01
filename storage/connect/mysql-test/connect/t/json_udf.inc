@@ -1,5 +1,14 @@
 --disable_query_log
-if ($WINDOWS)
+#
+# Check if server has support for loading plugins
+#
+if (`SELECT @@have_dynamic_loading != 'YES'`) {
+  --skip UDF requires dynamic loading
+}
+
+let $is_win = `select convert(@@version_compile_os using latin1) IN ("Win32","Win64","Windows")`;
+
+if ($is_win)
 {
 --eval CREATE FUNCTION Json_Array RETURNS STRING SONAME 'ha_connect.dll';
 --eval CREATE FUNCTION Json_Array_Add RETURNS STRING SONAME 'ha_connect.dll';
@@ -10,8 +19,8 @@ if ($WINDOWS)
 --eval CREATE AGGREGATE FUNCTION Json_Object_Grp RETURNS STRING SONAME 'ha_connect.dll';
 }
 
-if (!$WINDOWS)
-{ 
+if (!$is_win)
+{
 --eval CREATE FUNCTION Json_Array RETURNS STRING SONAME 'ha_connect.so';
 --eval CREATE FUNCTION Json_Array_Add RETURNS STRING SONAME 'ha_connect.so';
 --eval CREATE FUNCTION Json_Object RETURNS STRING SONAME 'ha_connect.so';
