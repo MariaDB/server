@@ -102,7 +102,12 @@ static int GetSQLCType(int type)
     case TYPE_BIGINT: tp = SQL_C_SBIGINT;   break;
     case TYPE_DOUBLE: tp = SQL_C_DOUBLE;    break;
     case TYPE_TINY :  tp = SQL_C_TINYINT;   break;
+//#if (ODBCVER >= 0x0300)
+//    case TYPE_DECIM:  tp = SQL_C_NUMERIC;   break;  (CRASH!!!)
+//#else
     case TYPE_DECIM:  tp = SQL_C_CHAR;      break;
+//#endif
+
     } // endswitch type
 
   return tp;
@@ -923,13 +928,13 @@ ODBConn::ODBConn(PGLOBAL g, TDBODBC *tdbp)
   m_RowsetSize = (DWORD)((tdbp) ? tdbp->Rows : 10);
   m_Catver = (tdbp) ? tdbp->Catver : 0;
   m_Rows = 0;
+  m_Fetch = 0;
   m_Connect = NULL;
   m_User = NULL;
   m_Pwd = NULL;
   m_Updatable = true;
   m_Transact = false;
   m_Scrollable = (tdbp) ? tdbp->Scrollable : false;
-  m_First = true;
   m_Full = false;
   m_UseCnc = false;
   m_IDQuoteChar[0] = '"';
@@ -984,7 +989,7 @@ void ODBConn::ThrowDBX(RETCODE rc, PSZ msg, HSTMT hstmt)
 
 void ODBConn::ThrowDBX(PSZ msg)
   {
-  DBX* xp = new(m_G) DBX(0, msg);
+  DBX* xp = new(m_G) DBX(0, "Error");
 
   xp->m_ErrMsg[0] = msg;
   throw xp;
@@ -1099,8 +1104,7 @@ int ODBConn::Open(PSZ ConnectString, POPARM sop, DWORD options)
 //  VerifyConnect();         Deprecated
     GetConnectInfo();
   } catch(DBX *xp) {
-//    strcpy(g->Message, xp->m_ErrMsg[0]);
-    strcpy(g->Message, xp->GetErrorMessage(0));
+    sprintf(g->Message, "%s: %s", xp->m_Msg, xp->GetErrorMessage(0));
     Close();
 //  Free();
     return -1;
@@ -1356,7 +1360,7 @@ int ODBConn::ExecDirectSQL(char *sql, ODBCCOL *tocols)
       rc = SQLFreeStmt(m_hstmt, SQL_CLOSE);
 
       if (!Check(rc))
-        ThrowDBX(rc, "SQLFreeStmt");
+        ThrowDBX(rc, "SQLFreeStmt", m_hstmt);
 
       m_hstmt = NULL;
       } // endif m_hstmt
@@ -1371,7 +1375,7 @@ int ODBConn::ExecDirectSQL(char *sql, ODBCCOL *tocols)
                           (void*)SQL_SCROLLABLE, 0);
 
       if (!Check(rc))
-        ThrowDBX(rc, "SQLSetStmtAttr");
+        ThrowDBX(rc, "Scrollable", hstmt);
 
       } // endif m_Scrollable
 
@@ -1422,7 +1426,7 @@ int ODBConn::ExecDirectSQL(char *sql, ODBCCOL *tocols)
 
     for (n = 0, colp = tocols; colp; colp = (PODBCCOL)colp->GetNext())
       if (!colp->IsSpecial())
-      n++;
+        n++;
 
     // n can be 0 for query such as Select count(*) from table
     if (n && n != (UWORD)ncol)
@@ -1458,7 +1462,7 @@ int ODBConn::ExecDirectSQL(char *sql, ODBCCOL *tocols)
       for (int i = 0; i < MAX_NUM_OF_MSG && x->m_ErrMsg[i]; i++)
         htrc(x->m_ErrMsg[i]);
 
-    strcpy(m_G->Message, x->GetErrorMessage(0));
+    sprintf(m_G->Message, "%s: %s", x->m_Msg, x->GetErrorMessage(0));
 
     if (b)
       SQLCancel(hstmt);
@@ -1521,7 +1525,7 @@ int ODBConn::GetResultSize(char *sql, ODBCCOL *colp)
 /***********************************************************************/
 /*  Fetch next row.                                                    */
 /***********************************************************************/
-int ODBConn::Fetch()
+int ODBConn::Fetch(int pos)
   {
   ASSERT(m_hstmt);
   int      irc;
@@ -1531,7 +1535,9 @@ int ODBConn::Fetch()
 
   try {
 //  do {
-    if (m_RowsetSize) {
+    if (pos) {
+      rc = SQLExtendedFetch(m_hstmt, SQL_FETCH_ABSOLUTE, pos, &crow, NULL);
+    } else if (m_RowsetSize) {
       rc = SQLExtendedFetch(m_hstmt, SQL_FETCH_NEXT, 1, &crow, NULL);
     } else {
       rc = SQLFetch(m_hstmt);
@@ -1544,29 +1550,22 @@ int ODBConn::Fetch()
                      m_hstmt, m_RowsetSize, rc);
 
     if (!Check(rc))
-      ThrowDBX(rc, "Fetch", m_hstmt);
+      ThrowDBX(rc, "Fetching", m_hstmt);
 
-    irc = (rc == SQL_NO_DATA_FOUND) ? 0 : (int)crow;
+    if (rc == SQL_NO_DATA_FOUND) {
+      m_Full = (m_Fetch == 1);
+      irc = 0;
+    } else
+      irc = (int)crow;
 
-    if (m_First) {
-      // First fetch. Check whether the full table was read
-      if ((m_Full = irc < (signed)m_RowsetSize)) {
-        m_Tdb->Memory = 0;     // Not needed anymore
-        m_Rows = irc;          // Table size
-        } // endif m_Full
-
-      m_First = false;
-      } // endif m_First
-
-    if (m_Tdb->Memory == 1)
-      m_Rows += irc;
-
+    m_Fetch++;
+    m_Rows += irc;
   } catch(DBX *x) {
     if (trace)
       for (int i = 0; i < MAX_NUM_OF_MSG && x->m_ErrMsg[i]; i++)
         htrc(x->m_ErrMsg[i]);
 
-    strcpy(g->Message, x->GetErrorMessage(0));
+    sprintf(g->Message, "%s: %s", x->m_Msg, x->GetErrorMessage(0));
     irc = -1;
   } // end try/catch
 
@@ -1602,7 +1601,7 @@ int ODBConn::PrepareSQL(char *sql)
         for (int i = 0; i < MAX_NUM_OF_MSG && x->m_ErrMsg[i]; i++)
           htrc(x->m_ErrMsg[i]);
 
-      strcpy(g->Message, x->GetErrorMessage(0));
+    sprintf(g->Message, "%s: %s", x->m_Msg, x->GetErrorMessage(0));
     } // end try/catch
 
     } // endif Mode
@@ -1648,7 +1647,7 @@ int ODBConn::PrepareSQL(char *sql)
       for (int i = 0; i < MAX_NUM_OF_MSG && x->m_ErrMsg[i]; i++)
         htrc(x->m_ErrMsg[i]);
 
-    strcpy(g->Message, x->GetErrorMessage(0));
+    sprintf(g->Message, "%s: %s", x->m_Msg, x->GetErrorMessage(0));
 
     if (b)
       SQLCancel(hstmt);
@@ -1700,7 +1699,7 @@ int ODBConn::ExecuteSQL(void)
     } // endif ncol
 
   } catch(DBX *x) {
-    strcpy(m_G->Message, x->GetErrorMessage(0));
+    sprintf(m_G->Message, "%s: %s", x->m_Msg, x->GetErrorMessage(0));
     SQLCancel(m_hstmt);
     rc = SQLFreeStmt(m_hstmt, SQL_DROP);
     m_hstmt = NULL;
@@ -1737,7 +1736,7 @@ bool ODBConn::BindParam(ODBCCOL *colp)
       ThrowDBX(rc, "SQLDescribeParam", m_hstmt);
 
   } catch(DBX *x) {
-    strcpy(m_G->Message, x->GetErrorMessage(0));
+    sprintf(m_G->Message, "%s: %s", x->m_Msg, x->GetErrorMessage(0));
     colsize = colp->GetPrecision();
     sqlt = GetSQLType(buftype);
     dec = IsTypeChar(buftype) ? 0 : colp->GetScale();
@@ -1845,7 +1844,7 @@ bool ODBConn::ExecSQLcommand(char *sql)
 			for (int i = 0; i < MAX_NUM_OF_MSG && x->m_ErrMsg[i]; i++)
 				htrc(x->m_ErrMsg[i]);
 
-    sprintf(g->Message, "Remote: %s", x->GetErrorMessage(0));
+    sprintf(g->Message, "Remote %s: %s", x->m_Msg, x->GetErrorMessage(0));
 
     if (b)
       SQLCancel(hstmt);
@@ -1930,7 +1929,7 @@ PQRYRES ODBConn::GetMetaData(PGLOBAL g, char *dsn, char *src)
       } // endfor i
 
   } catch(DBX *x) {
-    strcpy(g->Message, x->GetErrorMessage(0));
+    sprintf(g->Message, "%s: %s", x->m_Msg, x->GetErrorMessage(0));
     goto err;
   } // end try/catch
 
@@ -1981,7 +1980,7 @@ PQRYRES ODBConn::GetMetaData(PGLOBAL g, char *dsn, char *src)
       } // endfor i
 
   } catch(DBX *x) {
-    strcpy(g->Message, x->GetErrorMessage(0));
+    sprintf(g->Message, "%s: %s", x->m_Msg, x->GetErrorMessage(0));
     qrp = NULL;
   } // end try/catch
 
@@ -2033,7 +2032,7 @@ bool ODBConn::GetDataSources(PQRYRES qrp)
       } // endfor i
 
   } catch(DBX *x) {
-    strcpy(m_G->Message, x->GetErrorMessage(0));
+    sprintf(m_G->Message, "%s: %s", x->m_Msg, x->GetErrorMessage(0));
     rv = true;
   } // end try/catch
 
@@ -2084,7 +2083,7 @@ bool ODBConn::GetDrivers(PQRYRES qrp)
       } // endfor n
 
   } catch(DBX *x) {
-    strcpy(m_G->Message, x->GetErrorMessage(0));
+    sprintf(m_G->Message, "%s: %s", x->m_Msg, x->GetErrorMessage(0));
     rv = true;
   } // end try/catch
 
@@ -2402,7 +2401,7 @@ int ODBConn::GetCatInfo(CATPARM *cap)
       for (int i = 0; i < MAX_NUM_OF_MSG && x->m_ErrMsg[i]; i++)
         htrc(x->m_ErrMsg[i]);
 
-    strcpy(g->Message, x->GetErrorMessage(0));
+    sprintf(g->Message, "%s: %s", x->m_Msg, x->GetErrorMessage(0));
     irc = -1;
   } // end try/catch
 
@@ -2506,7 +2505,7 @@ int ODBConn::Rewind(char *sql, ODBCCOL *tocols)
 
       rbuf = (int)crow;
     } catch(DBX *x) {
-      strcpy(m_G->Message, x->GetErrorMessage(0));
+      sprintf(m_G->Message, "%s: %s", x->m_Msg, x->GetErrorMessage(0));
       rbuf = -1;
     } // end try/catch
 

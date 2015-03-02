@@ -1,7 +1,7 @@
 /************* Tabutil cpp Declares Source Code File (.CPP) ************/
-/*  Name: TABUTIL.CPP   Version 1.0                                    */
+/*  Name: TABUTIL.CPP   Version 1.1                                    */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          2013         */
+/*  (C) Copyright to the author Olivier BERTRAND          2013 - 2015  */
 /*                                                                     */
 /*  Utility function used by the PROXY, XCOL, OCCUR, and TBL tables.   */
 /***********************************************************************/
@@ -9,7 +9,8 @@
 /***********************************************************************/
 /*  Include relevant section of system dependant header files.         */
 /***********************************************************************/
-#include "my_global.h"
+#define MYSQL_SERVER 1
+#include <my_global.h>
 #include "sql_class.h"
 #include "table.h"
 #include "field.h"
@@ -108,6 +109,9 @@ TABLE_SHARE *GetTableShare(PGLOBAL g, THD *thd, const char *db,
     } // endif is_view
 
   } else {
+    if (thd->is_error())
+      thd->clear_error();  // Avoid stopping info commands
+
     sprintf(g->Message, "Error %d opening share\n", s->error);
     free_table_share(s);
     return NULL;

@@ -117,7 +117,8 @@ TDBJSN::TDBJSN(PJDEF tdp, PTXF txfp) : TDBDOS(tdp, txfp)
   Jmode = tdp->Jmode;
   Xcol = tdp->Xcol;
   Fpos = -1;
-  Spos = N = 0;
+//Spos = 0;
+  N = 0;
   Limit = tdp->Limit;
   NextSame = 0;
   SameRow = 0;
@@ -134,7 +135,7 @@ TDBJSN::TDBJSN(TDBJSN *tdbp) : TDBDOS(NULL, tdbp)
   Jmode = tdbp->Jmode;
   Xcol = tdbp->Xcol;
   Fpos = tdbp->Fpos;
-  Spos = tdbp->Spos;
+//Spos = tdbp->Spos;
   N = tdbp->N;
   Limit = tdbp->Limit;
   NextSame = tdbp->NextSame;
@@ -222,7 +223,7 @@ bool TDBJSN::OpenDB(PGLOBAL g)
     /*  Table already open replace it at its beginning.                */
     /*******************************************************************/
     Fpos= -1;
-    Spos = 0;
+//  Spos = 0;
     NextSame = 0;
     SameRow = 0;
   } else {
@@ -493,7 +494,7 @@ bool JSONCOL::SetArrayOptions(PGLOBAL g, char *p, int i, PSZ nm)
       if (!IsTypeChar(Buf_Type))
         jnp->Valp = AllocateValue(g, Buf_Type, 0, GetPrecision());
       else
-        jnp->Valp = AllocateValue(g, TYPE_DOUBLE);
+        jnp->Valp = AllocateValue(g, TYPE_DOUBLE, 0, 2);
 
       break;
     case OP_MIN:
@@ -610,7 +611,7 @@ void JSONCOL::SetJsonValue(PGLOBAL g, PVAL vp, PJVAL val, int n)
         break;
       case TYPE_JOB:
 //      if (!vp->IsTypeNum() || !Strict) {
-          vp->SetValue_psz(val->GetObject()->GetText(g));
+          vp->SetValue_psz(val->GetObject()->GetText(g, NULL));
           break;
 //        } // endif Type
      
@@ -1290,6 +1291,51 @@ int TDBJSON::MakeIndex(PGLOBAL g, PIXDEF pxdf, bool add)
   } // end of MakeIndex 
 
 /***********************************************************************/
+/*  Return the position in the table.                                  */
+/***********************************************************************/
+int TDBJSON::GetRecpos(void)
+  {
+#if 0
+  union {
+    uint Rpos;
+    BYTE Spos[4];
+    };
+
+  Rpos = htonl(Fpos);
+  Spos[0] = (BYTE)NextSame;
+  return Rpos;
+#endif // 0
+  return Fpos;
+  } // end of GetRecpos
+
+/***********************************************************************/
+/*  Set the position in the table.                                  */
+/***********************************************************************/
+bool TDBJSON::SetRecpos(PGLOBAL g, int recpos)
+  {
+#if 0
+  union {
+    uint Rpos;
+    BYTE Spos[4];
+    };
+
+  Rpos = recpos;
+  NextSame = Spos[0];
+  Spos[0] = 0;
+  Fpos = (signed)ntohl(Rpos);
+
+//if (Fpos != (signed)ntohl(Rpos)) {
+//  Fpos = ntohl(Rpos);
+//  same = false;
+//} else
+//  same = true;
+#endif // 0
+
+  Fpos = recpos - 1;
+  return false;
+  } // end of SetRecpos
+
+/***********************************************************************/
 /*  JSON Access Method opening routine.                                */
 /***********************************************************************/
 bool TDBJSON::OpenDB(PGLOBAL g)
@@ -1299,7 +1345,6 @@ bool TDBJSON::OpenDB(PGLOBAL g)
     /*  Table already open replace it at its beginning.                */
     /*******************************************************************/
     Fpos= -1;
-    Spos = 0;
     NextSame = false;
     SameRow = 0;
     return false;
