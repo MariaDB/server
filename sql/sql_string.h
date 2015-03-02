@@ -43,10 +43,8 @@ inline uint32 copy_and_convert(char *to, uint32 to_length,
 }
 
 
-class String_copier
+class String_copier: private MY_STRCOPY_STATUS
 {
-  const char *m_source_end_pos;
-  const char *m_well_formed_error_pos;
   const char *m_cannot_convert_error_pos;
 public:
   const char *source_end_pos() const

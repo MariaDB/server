@@ -92,6 +92,65 @@ my_strcasecmp_mb2_or_mb4(CHARSET_INFO *cs __attribute__((unused)),
 }
 
 
+/*
+  Copy an UCS2/UTF16/UTF32 string.
+  Not more that "nchars" characters are copied.
+
+  UCS2/UTF16/UTF32 may need to prepend zero some bytes,
+  e.g. when copying from a BINARY source:
+  INSERT INTO t1 (ucs2_column) VALUES (0x01);
+  0x01 -> 0x0001
+*/
+static size_t
+my_copy_abort_mb2_or_mb4(CHARSET_INFO *cs,
+                         char *dst, size_t dst_length,
+                         const char *src, size_t src_length,
+                         size_t nchars, MY_STRCOPY_STATUS *status)
+{
+  size_t src_offset;
+
+  if ((src_offset= (src_length % cs->mbminlen)))
+  {
+    int well_formed_error;
+    size_t pad_length;
+    if (dst_length < cs->mbminlen || !nchars)
+    {
+      status->m_source_end_pos= status->m_well_formed_error_pos= src;
+      return 0;
+    }
+
+    pad_length= cs->mbminlen - src_offset;
+    bzero(dst, pad_length);
+    memmove(dst + pad_length, src, src_offset);
+    /*
+      In some cases left zero-padding can create an incorrect character.
+      For example:
+        INSERT INTO t1 (utf32_column) VALUES (0x110000);
+      We'll pad the value to 0x00110000, which is a wrong UTF32 sequence!
+      The valid characters range is limited to 0x00000000..0x0010FFFF.
+      
+      Make sure we didn't pad to an incorrect character.
+    */
+    if (cs->cset->well_formed_len(cs,
+                                  dst, dst + cs->mbminlen, 1,
+                                  &well_formed_error) != cs->mbminlen)
+    {
+      status->m_source_end_pos= status->m_well_formed_error_pos= src;
+      return 0;
+    }
+    nchars--;
+    src+= src_offset;
+    src_length-= src_offset;
+    dst+= cs->mbminlen;
+    dst_length-= cs->mbminlen;
+    return
+      cs->mbminlen /* The left-padded character */ +
+      my_copy_abort_mb(cs, dst, dst_length, src, src_length, nchars, status);
+  }
+  return  my_copy_abort_mb(cs, dst, dst_length, src, src_length, nchars, status);
+}
+
+
 static long
 my_strntol_mb2_or_mb4(CHARSET_INFO *cs,
                       const char *nptr, size_t l, int base,
@@ -1682,7 +1741,8 @@ MY_CHARSET_HANDLER my_charset_utf16_handler=
   my_strntod_mb2_or_mb4,
   my_strtoll10_mb2,
   my_strntoull10rnd_mb2_or_mb4,
-  my_scan_mb2
+  my_scan_mb2,
+  my_copy_abort_mb2_or_mb4,
 };
 
 
@@ -1851,7 +1911,8 @@ static MY_CHARSET_HANDLER my_charset_utf16le_handler=
   my_strntod_mb2_or_mb4,
   my_strtoll10_mb2,
   my_strntoull10rnd_mb2_or_mb4,
-  my_scan_mb2
+  my_scan_mb2,
+  my_copy_abort_mb2_or_mb4,
 };
 
 
@@ -2765,7 +2826,8 @@ MY_CHARSET_HANDLER my_charset_utf32_handler=
   my_strntod_mb2_or_mb4,
   my_strtoll10_utf32,
   my_strntoull10rnd_mb2_or_mb4,
-  my_scan_utf32
+  my_scan_utf32,
+  my_copy_abort_mb2_or_mb4,
 };
 
 
@@ -3383,7 +3445,8 @@ MY_CHARSET_HANDLER my_charset_ucs2_handler=
     my_strntod_mb2_or_mb4,
     my_strtoll10_mb2,
     my_strntoull10rnd_mb2_or_mb4,
-    my_scan_mb2
+    my_scan_mb2,
+    my_copy_abort_mb2_or_mb4,
 };
 
 

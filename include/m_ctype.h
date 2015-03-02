@@ -364,6 +364,23 @@ typedef int (*my_charset_conv_wc_mb)(CHARSET_INFO *, my_wc_t,
 typedef size_t (*my_charset_conv_case)(CHARSET_INFO *,
                                        char *, size_t, char *, size_t);
 
+/*
+  A structure to return the statistics of a native string copying,
+  when no Unicode conversion is involved.
+
+  The stucture is OK to be unitialized before calling a copying routine.
+  A copying routine must populate the structure as follows:
+    - m_source_end_pos must be set by to a non-NULL value
+      in the range of the input string.
+    - m_well_formed_error_pos must be set to NULL if the string was
+      well formed, or to the position of the leftmost bad byte sequence.
+*/
+typedef struct
+{
+  const char *m_source_end_pos;        /* Position where reading stopped */
+  const char *m_well_formed_error_pos; /* Position where a bad byte was found*/
+} MY_STRCOPY_STATUS;
+
 
 /* See strings/CHARSET_INFO.txt about information on this structure  */
 struct my_charset_handler_st
@@ -426,6 +443,23 @@ struct my_charset_handler_st
                                 char **endptr, int *error);
   size_t        (*scan)(CHARSET_INFO *, const char *b, const char *e,
                         int sq);
+
+  /* Copying routines */
+  /*
+    copy_abort() - copy a string, abort if a bad byte sequence was found.
+    Not more than "nchars" characters are copied.
+
+    status->m_source_end_pos is set to a position in the range
+    between "src" and "src + src_length".
+
+    status->m_well_formed_error_pos is set to NULL if the string
+    in the range "src" and "status->m_source_end_pos" was well formed,
+    or is set to "src + src_length" otherwise.
+  */
+  size_t  (*copy_abort)(CHARSET_INFO *,
+                        char *dst, size_t dst_length,
+                        const char *src, size_t src_length,
+                        size_t nchars, MY_STRCOPY_STATUS *status);
 };
 
 extern MY_CHARSET_HANDLER my_charset_8bit_handler;
@@ -558,6 +592,14 @@ extern uint my_instr_simple(CHARSET_INFO *,
                             const char *s, size_t s_length,
                             my_match_t *match, uint nmatch);
 
+size_t my_copy_8bit(CHARSET_INFO *,
+                    char *dst, size_t dst_length,
+                    const char *src, size_t src_length,
+                    size_t nchars, MY_STRCOPY_STATUS *);
+size_t my_copy_abort_mb(CHARSET_INFO *cs,
+                        char *dst, size_t dst_length,
+                        const char *src, size_t src_length,
+                        size_t nchars, MY_STRCOPY_STATUS *);
 
 /* Functions for 8bit */
 extern size_t my_caseup_str_8bit(CHARSET_INFO *, char *);

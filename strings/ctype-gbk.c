@@ -10806,7 +10806,8 @@ static MY_CHARSET_HANDLER my_charset_handler=
   my_strntod_8bit,
   my_strtoll10_8bit,
   my_strntoull10rnd_8bit,
-  my_scan_8bit
+  my_scan_8bit,
+  my_copy_abort_mb,
 };
 
 

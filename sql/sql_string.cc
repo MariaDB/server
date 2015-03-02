@@ -921,73 +921,9 @@ String_copier::well_formed_copy(CHARSET_INFO *to_cs,
       (to_cs == from_cs) ||
       my_charset_same(from_cs, to_cs))
   {
-    if (to_length < to_cs->mbminlen || !nchars)
-    {
-      m_source_end_pos= from;
-      m_cannot_convert_error_pos= NULL;
-      m_well_formed_error_pos= NULL;
-      return 0;
-    }
-
-    if (to_cs == &my_charset_bin)
-    {
-      res= MY_MIN(MY_MIN(nchars, to_length), from_length);
-      memmove(to, from, res);
-      m_source_end_pos= from + res;
-      m_well_formed_error_pos= NULL;
-      m_cannot_convert_error_pos= NULL;
-    }
-    else
-    {
-      int well_formed_error;
-      uint from_offset;
-
-      if ((from_offset= (from_length % to_cs->mbminlen)) &&
-          (from_cs == &my_charset_bin))
-      {
-        /*
-          Copying from BINARY to UCS2 needs to prepend zeros sometimes:
-          INSERT INTO t1 (ucs2_column) VALUES (0x01);
-          0x01 -> 0x0001
-        */
-        uint pad_length= to_cs->mbminlen - from_offset;
-        bzero(to, pad_length);
-        memmove(to + pad_length, from, from_offset);
-        /*
-          In some cases left zero-padding can create an incorrect character.
-          For example:
-            INSERT INTO t1 (utf32_column) VALUES (0x110000);
-          We'll pad the value to 0x00110000, which is a wrong UTF32 sequence!
-          The valid characters range is limited to 0x00000000..0x0010FFFF.
-          
-          Make sure we didn't pad to an incorrect character.
-        */
-        if (to_cs->cset->well_formed_len(to_cs,
-                                         to, to + to_cs->mbminlen, 1,
-                                         &well_formed_error) !=
-                                         to_cs->mbminlen)
-        {
-          m_source_end_pos= m_well_formed_error_pos= from;
-          m_cannot_convert_error_pos= NULL;
-          return 0;
-        }
-        nchars--;
-        from+= from_offset;
-        from_length-= from_offset;
-        to+= to_cs->mbminlen;
-        to_length-= to_cs->mbminlen;
-      }
-
-      set_if_smaller(from_length, to_length);
-      res= to_cs->cset->well_formed_len(to_cs, from, from + from_length,
-                                        nchars, &well_formed_error);
-      memmove(to, from, res);
-      m_source_end_pos= from + res;
-      m_well_formed_error_pos= well_formed_error ? from + res : NULL;
-      m_cannot_convert_error_pos= NULL;
-      if (from_offset)
-        res+= to_cs->mbminlen;
-    }
+    m_cannot_convert_error_pos= NULL;
+    return to_cs->cset->copy_abort(to_cs, to, to_length, from, from_length,
+                                   nchars, this);
   }
   else
   {

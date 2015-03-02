@@ -6922,7 +6922,8 @@ static MY_CHARSET_HANDLER my_charset_big5_handler=
   my_strntod_8bit,
   my_strtoll10_8bit,
   my_strntoull10rnd_8bit,
-  my_scan_8bit
+  my_scan_8bit,
+  my_copy_abort_mb,
 };
 
 struct charset_info_st my_charset_big5_chinese_ci=

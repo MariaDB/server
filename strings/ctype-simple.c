@@ -1108,6 +1108,25 @@ size_t my_well_formed_len_8bit(CHARSET_INFO *cs __attribute__((unused)),
 }
 
 
+/*
+  Copy a 8-bit string. Not more than "nchars" character are copied.
+*/
+size_t
+my_copy_8bit(CHARSET_INFO *cs __attribute__((unused)),
+             char *dst, size_t dst_length,
+             const char *src, size_t src_length,
+             size_t nchars, MY_STRCOPY_STATUS *status)
+{
+  set_if_smaller(src_length, dst_length);
+  set_if_smaller(src_length, nchars);
+  if (src_length)
+    memmove(dst, src, src_length);
+  status->m_source_end_pos= src + src_length;
+  status->m_well_formed_error_pos= NULL;   
+  return src_length;
+}
+
+
 size_t my_lengthsp_8bit(CHARSET_INFO *cs __attribute__((unused)),
                         const char *ptr, size_t length)
 {
@@ -1886,7 +1905,8 @@ MY_CHARSET_HANDLER my_charset_8bit_handler=
     my_strntod_8bit,
     my_strtoll10_8bit,
     my_strntoull10rnd_8bit,
-    my_scan_8bit
+    my_scan_8bit,
+    my_copy_8bit,
 };
 
 MY_COLLATION_HANDLER my_collation_8bit_simple_ci_handler =
