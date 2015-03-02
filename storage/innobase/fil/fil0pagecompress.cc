@@ -47,6 +47,7 @@ Updated 14/02/2015
 #include "page0zip.h"
 #include "trx0sys.h"
 #include "row0mysql.h"
+#include "ha_prototypes.h"  // IB_LOG_
 #ifndef UNIV_HOTBACKUP
 # include "buf0lru.h"
 # include "ibuf0ibuf.h"
@@ -117,9 +118,9 @@ fil_decompress_page_2(
 	if (original_len < UNIV_PAGE_SIZE_MIN - (FIL_PAGE_DATA + 8)
 	     || original_len > UNIV_PAGE_SIZE_MAX - FIL_PAGE_DATA
 	     || len < original_len + FIL_PAGE_DATA) {
-		fprintf(stderr,
-			"InnoDB: Corruption: We try to uncompress corrupted page\n"
-			"InnoDB: Original len %lu len %lu.\n",
+		ib_logf(IB_LOG_LEVEL_ERROR,
+			"Corruption: We try to uncompress corrupted page. "
+			"Original len %lu len %lu.",
 			original_len, len);
 
 		fflush(stderr);
@@ -132,16 +133,15 @@ fil_decompress_page_2(
 	switch(algorithm) {
 	case PAGE_ZLIB_ALGORITHM: {
 
-		fprintf(stderr, "InnoDB: [Note]: zlib\n");
-
 		err = uncompress(page_buf, &len, ptr, original_len);
+
 		/* If uncompress fails it means that page is corrupted */
 		if (err != Z_OK) {
 
-			fprintf(stderr,
-				"InnoDB: Corruption: Page is marked as compressed\n"
-				"InnoDB: but uncompress failed with error %d.\n"
-				"InnoDB: size %lu len %lu\n",
+			ib_logf(IB_LOG_LEVEL_ERROR,
+				"Corruption: Page is marked as compressed "
+				"but uncompress failed with error %d "
+				" size %lu len %lu.",
 				err, original_len, len);
 
 			fflush(stderr);
@@ -153,15 +153,15 @@ fil_decompress_page_2(
 	}
 #ifdef HAVE_LZ4
 	case PAGE_LZ4_ALGORITHM: {
-		fprintf(stderr, "InnoDB: [Note]: lz4\n");
+
 		err = LZ4_decompress_fast(
 			(const char*) ptr, (char*) (page_buf), original_len);
 
 		if (err < 0) {
-			fprintf(stderr,
-				"InnoDB: Corruption: Page is marked as compressed\n"
-				"InnoDB: but decompression read only %d bytes.\n"
-				"InnoDB: size %lu len %lu\n",
+			ib_logf(IB_LOG_LEVEL_ERROR,
+				"Corruption: Page is marked as compressed"
+				" but decompression read only %d bytes"
+				" size %lu len %lu.",
 				err, original_len, len);
 			fflush(stderr);
 
@@ -179,7 +179,6 @@ fil_decompress_page_2(
 		size_t		dst_pos = 0;
 		uint64_t 	memlimit = UINT64_MAX;
 
-		fprintf(stderr, "InnoDB: [Note]: lzma\n");
 		ret = lzma_stream_buffer_decode(
 			&memlimit,
 			0,
@@ -193,10 +192,10 @@ fil_decompress_page_2(
 
 
 		if (ret != LZMA_OK || (dst_pos <= 0 || dst_pos > len)) {
-			fprintf(stderr,
-				"InnoDB: Corruption: Page is marked as compressed\n"
-				"InnoDB: but decompression read only %ld bytes.\n"
-				"InnoDB: size %lu len %lu\n",
+			ib_logf(IB_LOG_LEVEL_ERROR,
+				"Corruption: Page is marked as compressed"
+				" but decompression read only %ld bytes"
+				" size %lu len %lu.",
 				dst_pos, original_len, len);
 			fflush(stderr);
 
@@ -210,15 +209,15 @@ fil_decompress_page_2(
 #ifdef HAVE_LZO
 	case PAGE_LZO_ALGORITHM: {
                 ulint olen = 0;
-		fprintf(stderr, "InnoDB: [Note]: lzo \n");
+
 		err = lzo1x_decompress((const unsigned char *)ptr,
 			original_len,(unsigned char *)(page_buf), &olen, NULL);
 
 		if (err != LZO_E_OK || (olen == 0 || olen > UNIV_PAGE_SIZE)) {
-			fprintf(stderr,
-				"InnoDB: Corruption: Page is marked as compressed\n"
-				"InnoDB: but decompression read only %ld bytes.\n"
-				"InnoDB: size %lu len %lu\n",
+			ib_logf(IB_LOG_LEVEL_ERROR,
+				"Corruption: Page is marked as compressed"
+				" but decompression read only %ld bytes"
+				" size %lu len %lu.",
 				olen, original_len, len);
 			fflush(stderr);
 
@@ -229,10 +228,10 @@ fil_decompress_page_2(
 #endif /* HAVE_LZO */
 
 	default:
-		fprintf(stderr,
-			"InnoDB: Corruption: Page is marked as compressed\n"
-			"InnoDB: but compression algorithm %s\n"
-			"InnoDB: is not known.\n"
+		ib_logf(IB_LOG_LEVEL_ERROR,
+			" Corruption: Page is marked as compressed "
+			" but compression algorithm %s"
+			" is not known."
 			,fil_get_compression_alg_name(algorithm));
 
 		fflush(stderr);
@@ -296,8 +295,6 @@ fil_compress_page(
 		return (buf);
 	}
 
-	fprintf(stderr, "JAN: orig_page_type %lu\n", orig_page_type);
-
         level = compression_level;
 	ut_ad(fil_space_is_page_compressed(space_id));
 
@@ -312,8 +309,8 @@ fil_compress_page(
 	}
 
 #ifdef UNIV_PAGECOMPRESS_DEBUG
-	fprintf(stderr,
-		"InnoDB: Note: Preparing for compress for space %lu name %s len %lu\n",
+	ib_logf(IB_LOG_LEVEL_INFO,
+		"Preparing for compress for space %lu name %s len %lu.",
 		space_id, fil_space_name(space), len);
 #endif /* UNIV_PAGECOMPRESS_DEBUG */
 
@@ -330,8 +327,8 @@ fil_compress_page(
 			/* If error we leave the actual page as it was */
 
 			if (space->printed_compression_failure == false) {
-				fprintf(stderr,
-					"InnoDB: Warning: Compression failed for space %lu name %s len %lu rt %d write %lu\n",
+				ib_logf(IB_LOG_LEVEL_WARN,
+					"Compression failed for space %lu name %s len %lu rt %d write %lu.",
 					space_id, fil_space_name(space), len, err, write_size);
 				space->printed_compression_failure = true;
 			}
@@ -349,8 +346,8 @@ fil_compress_page(
 
 		if (err != LZO_E_OK || write_size > UNIV_PAGE_SIZE-header_len) {
 			if (space->printed_compression_failure == false) {
-				fprintf(stderr,
-					"InnoDB: Warning: Compression failed for space %lu name %s len %lu err %d write_size %lu\n",
+				ib_logf(IB_LOG_LEVEL_WARN,
+					"Compression failed for space %lu name %s len %lu err %d write_size %lu.",
 					space_id, fil_space_name(space), len, err, write_size);
 				space->printed_compression_failure = true;
 			}
@@ -377,8 +374,8 @@ fil_compress_page(
 
 		if (err != LZMA_OK || out_pos > UNIV_PAGE_SIZE-header_len) {
 			if (space->printed_compression_failure == false) {
-				fprintf(stderr,
-					"InnoDB: Warning: Compression failed for space %lu name %s len %lu err %d write_size %lu\n",
+				ib_logf(IB_LOG_LEVEL_WARN,
+					"Compression failed for space %lu name %s len %lu err %d write_size %lu",
 					space_id, fil_space_name(space), len, err, out_pos);
 				space->printed_compression_failure = true;
 			}
@@ -408,8 +405,8 @@ fil_compress_page(
 
 		if (err != BZ_OK || write_size > UNIV_PAGE_SIZE-header_len) {
 			if (space->printed_compression_failure == false) {
-				fprintf(stderr,
-					"InnoDB: Warning: Compression failed for space %lu name %s len %lu err %d write_size %lu\n",
+				ib_logf(IB_LOG_LEVEL_WARN,
+					"Compression failed for space %lu name %s len %lu err %d write_size %lu.",
 					space_id, fil_space_name(space), len, err, write_size);
 				space->printed_compression_failure = true;
 			}
@@ -430,8 +427,8 @@ fil_compress_page(
 
 		if (cstatus != SNAPPY_OK || write_size > UNIV_PAGE_SIZE-header_len) {
 			if (space->printed_compression_failure == false) {
-				fprintf(stderr,
-					"InnoDB: Warning: Compression failed for space %lu name %s len %lu err %d write_size %lu\n",
+				ib_logf(IB_LOG_LEVEL_WARN,
+					"Compression failed for space %lu name %s len %lu err %d write_size %lu.",
 					space_id, fil_space_name(space), len, (int)cstatus, write_size);
 				space->printed_compression_failure = true;
 			}
@@ -450,8 +447,8 @@ fil_compress_page(
 			/* If error we leave the actual page as it was */
 
 			if (space->printed_compression_failure == false) {
-				fprintf(stderr,
-					"InnoDB: Warning: Compression failed for space %lu name %s len %lu rt %d write %lu\n",
+				ib_logf(IB_LOG_LEVEL_WARN,
+					"Compression failed for space %lu name %s len %lu rt %d write %lu.",
 					space_id, fil_space_name(space), len, err, write_size);
 				space->printed_compression_failure = true;
 			}
@@ -525,8 +522,8 @@ fil_compress_page(
 	}
 
 #ifdef UNIV_PAGECOMPRESS_DEBUG
-	fprintf(stderr,
-		"InnoDB: Note: Compression succeeded for space %lu name %s len %lu out_len %lu\n",
+	ib_logf(IB_LOG_LEVEL_INFO,
+		"Compression succeeded for space %lu name %s len %lu out_len %lu.",
 		space_id, fil_space_name(space), len, write_size);
 #endif /* UNIV_PAGECOMPRESS_DEBUG */
 
@@ -577,10 +574,6 @@ fil_decompress_page(
 
 	// If no buffer was given, we need to allocate temporal buffer
 	if (page_buf == NULL) {
-#ifdef UNIV_PAGECOMPRESS_DEBUG
-		fprintf(stderr,
-			"InnoDB: Note: FIL: Compression buffer not given, allocating...\n");
-#endif /* UNIV_PAGECOMPRESS_DEBUG */
 		in_buf = static_cast<byte *>(ut_malloc(UNIV_PAGE_SIZE*3));
 	} else {
 		in_buf = page_buf;
@@ -600,10 +593,9 @@ fil_decompress_page(
 
 	if (mach_read_from_4(buf+FIL_PAGE_SPACE_OR_CHKSUM) != BUF_NO_CHECKSUM_MAGIC ||
 		mach_read_from_2(buf+FIL_PAGE_TYPE) != FIL_PAGE_PAGE_COMPRESSED) {
-		fprintf(stderr,
-			"InnoDB: Corruption: We try to uncompress corrupted page\n"
-			"InnoDB: CRC %lu type %lu.\n"
-			"InnoDB: len %lu\n",
+		ib_logf(IB_LOG_LEVEL_ERROR,
+			"Corruption: We try to uncompress corrupted page"
+			" CRC %lu type %lu len %lu.",
 			mach_read_from_4(buf+FIL_PAGE_SPACE_OR_CHKSUM),
 			mach_read_from_2(buf+FIL_PAGE_TYPE), len);
 
@@ -618,9 +610,9 @@ fil_decompress_page(
 	actual_size = mach_read_from_2(buf+FIL_PAGE_DATA);
 	/* Check if payload size is corrupted */
 	if (actual_size == 0 || actual_size > UNIV_PAGE_SIZE) {
-		fprintf(stderr,
-			"InnoDB: Corruption: We try to uncompress corrupted page\n"
-			"InnoDB: actual size %lu compression %s\n",
+		ib_logf(IB_LOG_LEVEL_ERROR,
+			"Corruption: We try to uncompress corrupted page"
+			" actual size %lu compression %s.",
 			actual_size, fil_get_compression_alg_name(compression_alg));
 		fflush(stderr);
 		ut_error;
@@ -633,8 +625,8 @@ fil_decompress_page(
 	}
 
 #ifdef UNIV_PAGECOMPRESS_DEBUG
-	fprintf(stderr,
-		"InnoDB: Note: Preparing for decompress for len %lu\n",
+	ib_logf(IB_LOG_LEVEL_INFO,
+		"Preparing for decompress for len %lu\n",
 		actual_size);
 #endif /* UNIV_PAGECOMPRESS_DEBUG */
 
@@ -646,10 +638,10 @@ fil_decompress_page(
 		/* If uncompress fails it means that page is corrupted */
 		if (err != Z_OK) {
 
-			fprintf(stderr,
-				"InnoDB: Corruption: Page is marked as compressed\n"
-				"InnoDB: but uncompress failed with error %d.\n"
-				"InnoDB: size %lu len %lu\n",
+			ib_logf(IB_LOG_LEVEL_ERROR,
+				"Corruption: Page is marked as compressed"
+				" but uncompress failed with error %d "
+				" size %lu len %lu.",
 				err, actual_size, len);
 
 			fflush(stderr);
@@ -663,10 +655,10 @@ fil_decompress_page(
 		err = LZ4_decompress_fast((const char *)buf+FIL_PAGE_DATA+FIL_PAGE_COMPRESSED_SIZE, (char *)in_buf, len);
 
 		if (err != (int)actual_size) {
-			fprintf(stderr,
-				"InnoDB: Corruption: Page is marked as compressed\n"
-				"InnoDB: but decompression read only %d bytes.\n"
-				"InnoDB: size %lu len %lu\n",
+			ib_logf(IB_LOG_LEVEL_ERROR,
+				"Corruption: Page is marked as compressed"
+				" but decompression read only %d bytes "
+				" size %lu len %lu.",
 				err, actual_size, len);
 			fflush(stderr);
 
@@ -682,10 +674,10 @@ fil_decompress_page(
 			actual_size,(unsigned char *)in_buf, &olen, NULL);
 
 		if (err != LZO_E_OK || (olen == 0 || olen > UNIV_PAGE_SIZE)) {
-			fprintf(stderr,
-				"InnoDB: Corruption: Page is marked as compressed\n"
-				"InnoDB: but decompression read only %ld bytes.\n"
-				"InnoDB: size %lu len %lu\n",
+			ib_logf(IB_LOG_LEVEL_ERROR,
+				"Corruption: Page is marked as compressed"
+				" but decompression read only %ld bytes"
+				" size %lu len %lu.",
 				olen, actual_size, len);
 			fflush(stderr);
 
@@ -715,10 +707,10 @@ fil_decompress_page(
 
 
 		if (ret != LZMA_OK || (dst_pos == 0 || dst_pos > UNIV_PAGE_SIZE)) {
-			fprintf(stderr,
-				"InnoDB: Corruption: Page is marked as compressed\n"
-				"InnoDB: but decompression read only %ld bytes.\n"
-				"InnoDB: size %lu len %lu\n",
+			ib_logf(IB_LOG_LEVEL_ERROR,
+				"Corruption: Page is marked as compressed"
+				" but decompression read only %ld bytes"
+				" size %lu len %lu.",
 				dst_pos, actual_size, len);
 			fflush(stderr);
 
@@ -741,10 +733,10 @@ fil_decompress_page(
 			0);
 
 		if (err != BZ_OK || (dst_pos == 0 || dst_pos > UNIV_PAGE_SIZE)) {
-			fprintf(stderr,
-				"InnoDB: Corruption: Page is marked as compressed\n"
-				"InnoDB: but decompression read only %du bytes.\n"
-				"InnoDB: size %lu len %lu err %d\n",
+			ib_logf(IB_LOG_LEVEL_ERROR,
+				"Corruption: Page is marked as compressed"
+				" but decompression read only %du bytes"
+				" size %lu len %lu err %d.",
 				dst_pos, actual_size, len, err);
 			fflush(stderr);
 
@@ -766,10 +758,10 @@ fil_decompress_page(
 			&olen);
 
 		if (cstatus != SNAPPY_OK || (olen == 0 || olen > UNIV_PAGE_SIZE)) {
-			fprintf(stderr,
-				"InnoDB: Corruption: Page is marked as compressed\n"
-				"InnoDB: but decompression read only %lu bytes.\n"
-				"InnoDB: size %lu len %lu err %d\n",
+			ib_logf(IB_LOG_LEVEL_ERROR,
+				"Corruption: Page is marked as compressed"
+				" but decompression read only %lu bytes"
+				" size %lu len %lu err %d.",
 				olen, actual_size, len, (int)cstatus);
 			fflush(stderr);
 
@@ -779,22 +771,16 @@ fil_decompress_page(
 	}
 #endif /* HAVE_SNAPPY */
 	default:
-		fprintf(stderr,
-			"InnoDB: Corruption: Page is marked as compressed\n"
-			"InnoDB: but compression algorithm %s\n"
-			"InnoDB: is not known.\n"
+		ib_logf(IB_LOG_LEVEL_ERROR,
+			"Corruption: Page is marked as compressed"
+			" but compression algorithm %s"
+			" is not known."
 			,fil_get_compression_alg_name(compression_alg));
 
 		fflush(stderr);
 		ut_error;
 		break;
 	}
-
-#ifdef UNIV_PAGECOMPRESS_DEBUG
-	fprintf(stderr,
-		"InnoDB: Note: Decompression succeeded for len %lu \n",
-		len);
-#endif /* UNIV_PAGECOMPRESS_DEBUG */
 
 	srv_stats.pages_page_decompressed.inc();
 

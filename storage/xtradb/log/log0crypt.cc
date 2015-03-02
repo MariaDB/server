@@ -1,8 +1,27 @@
+/*****************************************************************************
+
+Copyright (C) 2013, 2015, Google Inc. All Rights Reserved.
+Copyright (C) 2014, 2015, MariaDB Corporation. All Rights Reserved.
+
+This program is free software; you can redistribute it and/or modify it under
+the terms of the GNU General Public License as published by the Free Software
+Foundation; version 2 of the License.
+
+This program is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License along with
+this program; if not, write to the Free Software Foundation, Inc.,
+51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
+
+*****************************************************************************/
 /**************************************************//**
 @file log0crypt.cc
 Innodb log encrypt/decrypt
 
-Created 11/25/2013 Minli Zhu
+Created 11/25/2013 Minli Zhu Google
+Modified           Jan Lindström jan.lindstrom@mariadb.com
 *******************************************************/
 #include "m_string.h"
 #include "log0crypt.h"
@@ -14,6 +33,7 @@ Created 11/25/2013 Minli Zhu
 #include "log0recv.h"  // for recv_sys
 
 #include "mysql/plugin_encryption_key_management.h" // for BAD_ENCRYPTION_KEY_VERSION
+#include "ha_prototypes.h" // IB_LOG_
 
 /* If true, enable redo log encryption. */
 UNIV_INTERN my_bool srv_encrypt_log = FALSE;
@@ -52,18 +72,18 @@ log_init_crypt_msg_and_nonce(void)
 	mach_write_to_1(redo_log_crypt_msg, redo_log_purpose_byte);
 	if (my_random_bytes(redo_log_crypt_msg + 1, PURPOSE_BYTE_LEN) != AES_OK)
 	{
-		fprintf(stderr,
-			"\nInnoDB redo log crypto: generate "
-			"%u-byte random number as crypto msg failed.\n",
+		ib_logf(IB_LOG_LEVEL_ERROR,
+			"Redo log crypto: generate "
+			"%u-byte random number as crypto msg failed.",
 			PURPOSE_BYTE_LEN);
 		abort();
 	}
 
 	if (my_random_bytes(aes_ctr_nonce, MY_AES_BLOCK_SIZE) != AES_OK)
 	{
-		fprintf(stderr,
-			"\nInnoDB redo log crypto: generate "
-			"%u-byte random number as AES_CTR nonce failed.\n",
+		ib_logf(IB_LOG_LEVEL_ERROR,
+			"Redo log crypto: generate "
+			"%u-byte random number as AES_CTR nonce failed.",
 			MY_AES_BLOCK_SIZE);
 		abort();
 	}
@@ -81,16 +101,17 @@ log_init_crypt_key(
 {
 	if (crypt_ver == UNENCRYPTED_KEY_VER)
 	{
-		fprintf(stderr, "\nInnoDB redo log crypto: unencrypted key ver.\n\n");
+		ib_logf(IB_LOG_LEVEL_INFO,
+			"Redo log crypto: unencrypted key ver.");
 		memset(key, 0, MY_AES_BLOCK_SIZE);
 		return;
 	}
 
 	if (crypt_msg[PURPOSE_BYTE_OFFSET] != redo_log_purpose_byte)
 	{
-		fprintf(stderr,
-			"\nInnoDB redo log crypto: msg type mismatched. "
-			"Expected: %x; Actual: %x\n",
+		ib_logf(IB_LOG_LEVEL_ERROR,
+			"Redo log crypto: msg type mismatched. "
+			"Expected: %x; Actual: %x.",
 			redo_log_purpose_byte, crypt_msg[PURPOSE_BYTE_OFFSET]);
 		abort();
 	}
@@ -98,9 +119,9 @@ log_init_crypt_key(
 	byte mysqld_key[MY_AES_BLOCK_SIZE] = {0};
 	if (get_encryption_key(crypt_ver, mysqld_key, MY_AES_BLOCK_SIZE))
 	{
-		fprintf(stderr,
-			"\nInnoDB redo log crypto: getting mysqld crypto key "
-			"from key version failed.\n");
+		ib_logf(IB_LOG_LEVEL_ERROR,
+			"Redo log crypto: getting mysqld crypto key "
+			"from key version failed.");
 		abort();
 	}
 
@@ -114,9 +135,9 @@ log_init_crypt_key(
 
 	if (rc != AES_OK || dst_len != MY_AES_BLOCK_SIZE)
 	{
-		fprintf(stderr,
-			"\nInnoDB redo log crypto: getting redo log crypto key "
-			"failed.\n");
+		ib_logf(IB_LOG_LEVEL_ERROR,
+			"Redo log crypto: getting redo log crypto key "
+			"failed.");
 		abort();
 	}
 }
@@ -248,9 +269,11 @@ log_crypt_set_ver_and_key(
 			vkey == (unsigned int)CRYPT_KEY_UNKNOWN) {
 			encrypted = false;
 
-			fprintf(stderr, "\nInnoDB redo log crypto: Can't initialize to key version %du\n",
-				key_ver);
-			fprintf(stderr, "InnoDB: Warning: Disabling redo log encryption\n");
+			ib_logf(IB_LOG_LEVEL_WARN,
+				"Redo log crypto: Can't initialize to key version %du.", vkey);
+			ib_logf(IB_LOG_LEVEL_WARN,
+				"Disabling redo log encryption.");
+
 			srv_encrypt_log = FALSE;
 		} else {
 			key_ver = vkey;

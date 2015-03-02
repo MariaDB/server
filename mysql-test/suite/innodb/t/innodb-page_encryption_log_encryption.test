@@ -6,8 +6,9 @@ let $innodb_file_format_orig = `SELECT @@innodb_file_format`;
 let $innodb_file_per_table_orig = `SELECT @@innodb_file_per_table`;
 --enable_query_log
 
-call mtr.add_suppression("KeyID 0 not found or with error. Check the key and the log file*");
-call mtr.add_suppression("Disabling redo log encryption");
+call mtr.add_suppression("KeyID 0 not found or with error. Check the key and the log*");
+call mtr.add_suppression("Disabling redo log encryp*");
+call mtr.add_suppression("InnoDB: Redo log crypto: Can't initialize to key version*");
 
 SET GLOBAL innodb_file_format = `Barracuda`;
 SET GLOBAL innodb_file_per_table = ON;

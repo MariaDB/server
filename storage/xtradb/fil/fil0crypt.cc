@@ -1,3 +1,29 @@
+/*****************************************************************************
+
+Copyright (C) 2013, 2015, Google Inc. All Rights Reserved.
+Copyright (C) 2014, 2015, MariaDB Corporation. All Rights Reserved.
+
+This program is free software; you can redistribute it and/or modify it under
+the terms of the GNU General Public License as published by the Free Software
+Foundation; version 2 of the License.
+
+This program is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License along with
+this program; if not, write to the Free Software Foundation, Inc.,
+51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
+
+*****************************************************************************/
+/**************************************************//**
+@file fil0crypt.cc
+Innodb file space encrypt/decrypt
+
+Created            Jonas Oreland Google
+Modified           Jan Lindström jan.lindstrom@mariadb.com
+*******************************************************/
+
 #include "fil0fil.h"
 #include "srv0srv.h"
 #include "srv0start.h"
@@ -11,6 +37,7 @@
 #include "fsp0fsp.h"
 #include "fil0pagecompress.h"
 #include "fil0pageencryption.h"
+#include "ha_prototypes.h" // IB_LOG_
 
 #include <my_crypt.h>
 
@@ -368,11 +395,11 @@ fil_space_read_crypt_data(ulint space, const byte* page, ulint offset)
 	}
 
 	if (memcmp(page + offset, CRYPT_MAGIC, MAGIC_SZ) != 0) {
-		fprintf(stderr,
-			"Warning: found potentially bogus bytes on "
+		ib_logf(IB_LOG_LEVEL_WARN,
+			"Found potentially bogus bytes on "
 			"page 0 offset %lu for space %lu : "
 			"[ %.2x %.2x %.2x %.2x %.2x %.2x ]. "
-			"Assuming space is not encrypted!\n",
+			"Assuming space is not encrypted!.",
 			offset, space,
 			page[offset + 0],
 			page[offset + 1],
@@ -387,10 +414,10 @@ fil_space_read_crypt_data(ulint space, const byte* page, ulint offset)
 
 	if (! (type == CRYPT_SCHEME_UNENCRYPTED ||
 	       type == CRYPT_SCHEME_1)) {
-		fprintf(stderr,
+		ib_logf(IB_LOG_LEVEL_ERROR,
 			"Found non sensible crypt scheme: %lu for space %lu "
 			" offset: %lu bytes: "
-			"[ %.2x %.2x %.2x %.2x %.2x %.2x ]\n",
+			"[ %.2x %.2x %.2x %.2x %.2x %.2x ].",
 			type, space, offset,
 			page[offset + 0 + MAGIC_SZ],
 			page[offset + 1 + MAGIC_SZ],
@@ -403,10 +430,10 @@ fil_space_read_crypt_data(ulint space, const byte* page, ulint offset)
 
 	ulint iv_length = mach_read_from_1(page + offset + MAGIC_SZ + 1);
 	if (! (iv_length == CRYPT_SCHEME_1_IV_LEN)) {
-		fprintf(stderr,
+		ib_logf(IB_LOG_LEVEL_ERROR,
 			"Found non sensible iv length: %lu for space %lu "
 			" offset: %lu type: %lu bytes: "
-			"[ %.2x %.2x %.2x %.2x %.2x %.2x ]\n",
+			"[ %.2x %.2x %.2x %.2x %.2x %.2x ].",
 			iv_length, space, offset, type,
 			page[offset + 0 + MAGIC_SZ],
 			page[offset + 1 + MAGIC_SZ],
@@ -1414,8 +1441,8 @@ fil_crypt_realloc_iops(rotate_thread_t *state)
 			state->sum_waited_us / state->cnt_waited;
 
 #if DEBUG_KEYROTATION_THROTTLING
-		fprintf(stderr,
-			"thr_no: %u - update estimated_max_iops from %u to %u\n",
+		ib_logf(IB_LOG_LEVEL_INFO,
+			"thr_no: %u - update estimated_max_iops from %u to %u.",
 			state->thread_no,
 			state->estimated_max_iops,
 			1000000 / avg_wait_time_us);
@@ -1428,8 +1455,8 @@ fil_crypt_realloc_iops(rotate_thread_t *state)
 		state->sum_waited_us = 0;
 	} else {
 #if DEBUG_KEYROTATION_THROTTLING
-		fprintf(stderr,
-			"thr_no: %u only waited %lu%% skip re-estimate\n",
+		ib_logf(IB_LOG_LEVEL_INFO,
+			"thr_no: %u only waited %lu%% skip re-estimate.",
 			state->thread_no,
 			(100 * state->cnt_waited) / state->batch);
 #endif
@@ -1477,8 +1504,8 @@ fil_crypt_realloc_iops(rotate_thread_t *state)
 			n_fil_crypt_iops_allocated += extra;
 			state->allocated_iops += extra;
 #if DEBUG_KEYROTATION_THROTTLING
-			fprintf(stderr,
-				"thr_no: %u increased iops from %u to %u\n",
+			ib_logf(IB_LOG_LEVEL_INFO,
+				"thr_no: %u increased iops from %u to %u.",
 				state->thread_no,
 				state->allocated_iops - extra,
 				state->allocated_iops);
@@ -2325,9 +2352,8 @@ fil_space_crypt_close_tablespace(
 
 		uint now = time(0);
 		if (now >= last + 30) {
-			fprintf(stderr,
-				"WARNING: "
-				"waited %u seconds to drop space: %lu\n",
+			ib_logf(IB_LOG_LEVEL_WARN,
+				"Waited %u seconds to drop space: %lu.",
 				now - start, space);
 			last = now;
 		}

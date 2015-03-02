@@ -1,7 +1,7 @@
 -- source include/have_innodb.inc
 -- source include/have_innodb_snappy.inc
 
-call mtr.add_suppression("InnoDB: Warning: Compression failed for space*");
+call mtr.add_suppression("Compression failed for space*");
 
 --disable_query_log
 let $innodb_compression_algorithm_orig=`select @@innodb_compression_algorithm`;
