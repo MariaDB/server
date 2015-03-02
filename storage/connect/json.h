@@ -152,7 +152,7 @@ class JSON : public BLOCK {
   virtual int    GetInteger(void) {X return 0;}
   virtual double GetFloat() {X return 0.0;}
   virtual PSZ    GetString() {X return NULL;}
-  virtual PSZ    GetText(PGLOBAL g) {X return NULL;}
+  virtual PSZ    GetText(PGLOBAL g, PSZ text) {X return NULL;}
   virtual bool   SetValue(PGLOBAL g, PJVAL jvp, int i) {X return true;}
   virtual void   SetValue(PGLOBAL g, PJVAL jvp, PSZ key) {X}
   virtual void   SetValue(PVAL valp) {X}
@@ -161,6 +161,7 @@ class JSON : public BLOCK {
   virtual void   SetInteger(PGLOBAL g, int n) {X}
   virtual void   SetFloat(PGLOBAL g, double f) {X}
   virtual bool   DeleteValue(int i) {X return true;}
+  virtual bool   IsNull(void) {X return true;}
 
  protected:
   int Size;
@@ -182,8 +183,9 @@ class JOBJECT : public JSON {
   virtual PJPR  AddPair(PGLOBAL g, PSZ key);
   virtual PJOB  GetObject(void) {return this;}
   virtual PJVAL GetValue(const char* key);
-  virtual PSZ   GetText(PGLOBAL g);
+  virtual PSZ   GetText(PGLOBAL g, PSZ text);
   virtual void  SetValue(PGLOBAL g, PJVAL jvp, PSZ key);
+  virtual bool  IsNull(void);
 
  protected:
   PJPR First;
@@ -208,6 +210,7 @@ class JARRAY : public JSON {
   virtual PJVAL GetValue(int i);
   virtual bool  SetValue(PGLOBAL g, PJVAL jvp, int i);
   virtual bool  DeleteValue(int n);
+  virtual bool  IsNull(void);
 
  protected:
   // Members
@@ -244,11 +247,13 @@ class JVALUE : public JSON {
   virtual int    GetInteger(void);
   virtual double GetFloat(void);
   virtual PSZ    GetString(void);
+  virtual PSZ    GetText(PGLOBAL g, PSZ text);
   virtual void   SetValue(PVAL valp) {Value = valp;}
   virtual void   SetValue(PJSON jsp) {Jsp = jsp;}
   virtual void   SetString(PGLOBAL g, PSZ s);
   virtual void   SetInteger(PGLOBAL g, int n);
   virtual void   SetFloat(PGLOBAL g, double f);
+  virtual bool   IsNull(void);
 
  protected:
   PJSON Jsp;      // To the json value

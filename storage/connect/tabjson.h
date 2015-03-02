@@ -94,7 +94,7 @@ class TDBJSN : public TDBDOS {
   JMODE Jmode;                     // MODE_OBJECT by default
   char *Xcol;                      // Name of expandable column
   int   Fpos;                      // The current row index
-  int   Spos;                      // DELETE start index
+//int   Spos;                      // DELETE start index
   int   N;                         // The current Rownum
 	int   Limit;		    				     // Limit of multiple values
   int   Pretty;                    // Depends on file structure
@@ -174,7 +174,9 @@ class TDBJSON : public TDBJSN {
   virtual int  Cardinality(PGLOBAL g);
   virtual int  GetMaxSize(PGLOBAL g);
   virtual void ResetSize(void);
-	virtual int  GetRecpos(void) {return Fpos;}
+  virtual int  GetProgCur(void) {return N;}
+	virtual int  GetRecpos(void);
+  virtual bool SetRecpos(PGLOBAL g, int recpos);
   virtual bool OpenDB(PGLOBAL g);
   virtual int  ReadDB(PGLOBAL g);
   virtual bool PrepareWriting(PGLOBAL g) {return false;}

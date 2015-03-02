@@ -37,6 +37,10 @@ DllExport my_bool Json_Object_init(UDF_INIT*, UDF_ARGS*, char*);
 DllExport char *Json_Object(UDF_INIT*, UDF_ARGS*, char*,
                          unsigned long*, char *, char *);
 DllExport void Json_Object_deinit(UDF_INIT*);
+DllExport my_bool Json_Object_Nonull_init(UDF_INIT*, UDF_ARGS*, char*);
+DllExport char *Json_Object_Nonull(UDF_INIT*, UDF_ARGS*, char*,
+                         unsigned long*, char *, char *);
+DllExport void Json_Object_Nonull_deinit(UDF_INIT*);
 DllExport my_bool Json_Array_Grp_init(UDF_INIT*, UDF_ARGS*, char*);
 DllExport void Json_Array_Grp_add(UDF_INIT *, UDF_ARGS *, char *, char *);
 DllExport char *Json_Array_Grp(UDF_INIT*, UDF_ARGS*, char*,
@@ -228,7 +232,7 @@ static PSZ MakeKey(PGLOBAL g, UDF_ARGS *args, int i)
 /***********************************************************************/
 static PJVAL MakeValue(PGLOBAL g, UDF_ARGS *args, int i)
 {
-  char *sap = args->args[i];
+  char *sap = (args->arg_count > (unsigned)i) ? args->args[i] : NULL;
   PJSON jsp;
   PJVAL jvp = new(g) JVALUE;
 
@@ -358,7 +362,7 @@ my_bool Json_Array_Add_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
     strcpy(message, "Json_Value_Add must have at least 2 arguments");
     return true;
   } else if (!IsJson(args, 0)) {
-    strcpy(message, "Json_Value_Add first argument must be a json array");
+    strcpy(message, "Json_Value_Add first argument must be a json item");
     return true;
   } else
     CalcLen(args, false, reslen, memlen);
@@ -436,6 +440,46 @@ void Json_Object_deinit(UDF_INIT* initid)
 {
   PlugExit((PGLOBAL)initid->ptr);
 } // end of Json_Object_deinit
+
+/***********************************************************************/
+/*  Make a Json Oject containing all not null parameters.              */
+/***********************************************************************/
+my_bool Json_Object_Nonull_init(UDF_INIT *initid, UDF_ARGS *args,
+                                char *message)
+{
+  unsigned long reslen, memlen;
+
+  CalcLen(args, true, reslen, memlen);
+  return JsonInit(initid, message, reslen, memlen);
+} // end of Json_Object_Nonull_init
+
+char *Json_Object_Nonull(UDF_INIT *initid, UDF_ARGS *args, char *result, 
+                  unsigned long *res_length, char *is_null, char *error)
+{
+  char   *str;
+  uint    i;
+  PJOB    objp;
+  PJVAL   jvp;
+  PGLOBAL g = (PGLOBAL)initid->ptr;
+
+  PlugSubSet(g, g->Sarea, g->Sarea_Size);
+  objp = new(g) JOBJECT;
+
+  for (i = 0; i < args->arg_count; i++)
+    if (!(jvp = MakeValue(g, args, i))->IsNull())
+      objp->SetValue(g, jvp, MakeKey(g, args, i));
+
+  if (!(str = Serialize(g, objp, NULL, 0)))
+    str = strcpy(result, g->Message);
+
+  *res_length = strlen(str);
+  return str;
+} // end of Json_Object_Nonull
+
+void Json_Object_Nonull_deinit(UDF_INIT* initid)
+{
+  PlugExit((PGLOBAL)initid->ptr);
+} // end of Json_Object_nonull_deinit
 
 /***********************************************************************/
 /*  Make a Json array from values comming from rows.                   */
@@ -517,7 +561,7 @@ my_bool Json_Object_Grp_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
   unsigned long reslen, memlen, n = GetJsonGrpSize();
 
   if (args->arg_count != 2) {
-    strcpy(message, "Json_Array_Grp can only accept 2 argument");
+    strcpy(message, "Json_Array_Grp can only accept 2 arguments");
     return true;
   } else 
     CalcLen(args, true, reslen, memlen);

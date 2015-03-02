@@ -64,8 +64,8 @@ class DllExport ODBCDEF : public TABDEF { /* Logical table description */
   int     Quoted;             /* Identifier quoting level              */
   int     Maxerr;             /* Maxerr for an Exec table              */
   int     Maxres;             /* Maxres for a catalog table            */
+  int     Memory;             /* Put result set in memory              */
   bool    Scrollable;         /* Use scrollable cursor                 */
-  bool    Memory;             /* Put result set in memory              */
   bool    Xsrc;               /* Execution type                        */
   bool    UseCnc;             /* Use SQLConnect (!SQLDriverConnect)    */
   }; // end of ODBCDEF
@@ -93,6 +93,7 @@ class TDBODBC : public TDBASE {
   // Methods
   virtual PTDB CopyOne(PTABS t);
   virtual int  GetRecpos(void);
+  virtual bool SetRecpos(PGLOBAL g, int recpos);
   virtual PSZ  GetFile(PGLOBAL g);
   virtual void SetFile(PGLOBAL g, PSZ fn);
   virtual void ResetSize(void);
@@ -148,6 +149,7 @@ class TDBODBC : public TDBASE {
   int      Qto;               // Query timeout
   int      Quoted;            // The identifier quoting level
   int      Fpos;              // Position of last read record
+  int      Curpos;            // Cursor position of last fetch
   int      AftRows;           // The number of affected rows
   int      Rows;              // Rowset size
   int      Catver;            // Catalog ODBC version
@@ -157,6 +159,7 @@ class TDBODBC : public TDBASE {
   int      Nparm;             // The number of statement parameters
   int      Memory;            // 0: No 1: Alloc 2: Put 3: Get
   bool     Scrollable;        // Use scrollable cursor
+  bool     Placed;            // True for position reading
   bool     UseCnc;            // Use SQLConnect (!SQLDriverConnect)
   PQRYRES  Qrp;               // Points to storage result
   }; // end of class TDBODBC
