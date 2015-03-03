@@ -29,13 +29,14 @@ Created 12/18/1995 Heikki Tuuri
 
 #include "univ.i"
 
+#include "fsp0types.h"
+
 #ifndef UNIV_INNOCHECKSUM
 
 #include "mtr0mtr.h"
 #include "fut0lst.h"
 #include "ut0byte.h"
 #include "page0types.h"
-#include "fsp0types.h"
 
 #endif /* !UNIV_INNOCHECKSUM */
 
@@ -294,7 +295,6 @@ descriptor page, but used only in the first. */
 					FSP_FREE_LIMIT at a time */
 /* @} */
 
-#ifndef UNIV_INNOCHECKSUM
 
 /* @defgroup File Segment Inode Constants (moved from fsp0fsp.c) @{ */
 
@@ -432,6 +432,7 @@ the extent are free and which contain old tuple version to clean. */
 
 /* @} */
 
+#ifndef UNIV_INNOCHECKSUM
 /**********************************************************************//**
 Initializes the file space system. */
 UNIV_INTERN

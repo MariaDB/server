@@ -53,13 +53,17 @@ shutdown_server 30;
 --source include/wait_until_disconnected.inc
 
 --echo # Run innochecksum on t1
+-- disable_result_log
 --exec $INNOCHECKSUM $t1_IBD
 
 --echo # Run innochecksum on t2
+
 --exec $INNOCHECKSUM $t2_IBD
 
 --echo # Run innochecksum on t3
+
 --exec $INNOCHECKSUM $t3_IBD
+--enable_result_log
 
 --echo # Write file to make mysql-test-run.pl start up the server again
 --exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
