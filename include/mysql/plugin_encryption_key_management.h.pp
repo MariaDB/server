@@ -231,10 +231,10 @@ enum enum_var_type
 };
 struct st_mysql_show_var {
   const char *name;
-  char *value;
+  void *value;
   enum enum_mysql_show_type type;
 };
-typedef int (*mysql_show_var_func)(void*, struct st_mysql_show_var*, char *, enum enum_var_type);
+typedef int (*mysql_show_var_func)(void*, struct st_mysql_show_var*, void *, enum enum_var_type);
 struct st_mysql_sys_var;
 struct st_mysql_value;
 typedef int (*mysql_var_check_func)(void* thd,

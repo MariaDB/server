@@ -3132,15 +3132,15 @@ static bool show_status_array(THD *thd, const char *wild,
                                                  name_buffer, wild))) &&
           (!cond || cond->val_int()))
       {
-        char *value=var->value;
+        void *value=var->value;
         const char *pos, *end;                  // We assign a lot of const's
 
         if (show_type == SHOW_SYS)
         {
-          sys_var *var= ((sys_var *) value);
+          sys_var *var= (sys_var *) value;
           show_type= var->show_type();
           mysql_mutex_lock(&LOCK_global_system_variables);
-          value= (char*) var->value_ptr(thd, scope, &null_lex_str);
+          value= var->value_ptr(thd, scope, &null_lex_str);
           charset= var->charset(thd);
         }
 
@@ -3200,7 +3200,7 @@ static bool show_status_array(THD *thd, const char *wild,
         }
         case SHOW_CHAR:
         {
-          if (!(pos= value))
+          if (!(pos= (char*)value))
             pos= "";
           end= strend(pos);
           break;

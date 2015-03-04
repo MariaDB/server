@@ -190,12 +190,12 @@ enum enum_var_type
 
 struct st_mysql_show_var {
   const char *name;
-  char *value;
+  void *value;
   enum enum_mysql_show_type type;
 };
 
 #define SHOW_VAR_FUNC_BUFF_SIZE (256 * sizeof(void*))
-typedef int (*mysql_show_var_func)(MYSQL_THD, struct st_mysql_show_var*, char *, enum enum_var_type);
+typedef int (*mysql_show_var_func)(MYSQL_THD, struct st_mysql_show_var*, void *, enum enum_var_type);
 
 
 /*
