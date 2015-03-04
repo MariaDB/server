@@ -336,7 +336,6 @@ static void default_initializer(LF_HASH *hash, void *dst, const void *src)
   is expensive to initialize - for example if there is a mutex or
   DYNAMIC_ARRAY. In this case they should be initialize in the
   LF_ALLOCATOR::constructor, and lf_hash_insert should not overwrite them.
-  See wt_init() for example.
 
   The above works well with PODS. For more complex cases (e.g. C++ classes
   with private members) use initializer function.
