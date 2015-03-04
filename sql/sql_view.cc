@@ -1292,11 +1292,12 @@ bool mysql_make_view(THD *thd, File_parser *parser, TABLE_LIST *table,
     Security_context *security_ctx= 0;
 
     /*
-      Check rights to run commands (EXPLAIN SELECT & SHOW CREATE) which show
-      underlying tables.
+      Check rights to run commands (ANALYZE SELECT, EXPLAIN SELECT &
+      SHOW CREATE) which show underlying tables.
       Skip this step if we are opening view for prelocking only.
     */
-    if (!table->prelocking_placeholder && (old_lex->describe))
+    if (!table->prelocking_placeholder && (old_lex->describe ||
+                                           old_lex->analyze_stmt))
     {
       /*
         The user we run EXPLAIN as (either the connected user who issued
