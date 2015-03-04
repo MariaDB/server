@@ -1178,7 +1178,7 @@ rpl_binlog_state::load(rpl_slave_state *slave_pos)
 
   mysql_mutex_lock(&LOCK_binlog_state);
   reset_nolock();
-  if (slave_pos->iterate(rpl_binlog_state_load_cb, this, NULL, 0))
+  if (slave_pos->iterate(rpl_binlog_state_load_cb, this, NULL, 0, false))
     res= true;
   mysql_mutex_unlock(&LOCK_binlog_state);
   return res;

@@ -4722,7 +4722,7 @@ log '%s' at position %s, relay log '%s' position: %s%s", RPL_LOG_NAME,
     ulong domain_count;
 
     flush_relay_log_info(rli);
-    if (opt_slave_parallel_threads > 0)
+    if (mi->using_parallel())
     {
       /*
         In parallel replication GTID mode, we may stop with different domains

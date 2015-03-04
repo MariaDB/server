@@ -1421,7 +1421,6 @@ void
 Relay_log_info::free_inuse_relaylog(inuse_relaylog *ir)
 {
   my_free(ir->relay_log_state);
-  my_atomic_rwlock_destroy(&ir->inuse_relaylog_atomic_lock);
   my_free(ir);
 }
 

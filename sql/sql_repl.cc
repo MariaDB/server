@@ -2335,12 +2335,12 @@ static int send_format_descriptor_event(binlog_send_info *info,
         slave connects at a position past this event, it means that it
         already received and handled it in a previous connect).
       */
-      if (!info.gtid_state.is_pos_reached())
+      if (!info->gtid_state.is_pos_reached())
       {
         int4store((char*) packet->ptr()+LOG_EVENT_MINIMAL_HEADER_LEN+
                   ST_CREATED_OFFSET+ev_offset, (ulong) 0);
-        if (info.current_checksum_alg != BINLOG_CHECKSUM_ALG_OFF &&
-            info.current_checksum_alg != BINLOG_CHECKSUM_ALG_UNDEF)
+        if (info->current_checksum_alg != BINLOG_CHECKSUM_ALG_OFF &&
+            info->current_checksum_alg != BINLOG_CHECKSUM_ALG_UNDEF)
           fix_checksum(packet, ev_offset);
       }
     }
