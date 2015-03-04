@@ -6,8 +6,6 @@ INSERT INTO t2 VALUES(1),(2),(3);
 #
 CREATE OR REPLACE TABLE IF NOT EXISTS t1 (a int);
 ERROR HY000: Incorrect usage of OR REPLACE and IF NOT EXISTS
-create or replace trigger trg before insert on t1 for each row set @a:=1;
-ERROR HY000: Incorrect usage of OR REPLACE and TRIGGERS / SP / EVENT
 create or replace table mysql.general_log (a int);
 ERROR HY000: You cannot 'CREATE OR REPLACE' a log table if logging is enabled
 create or replace table mysql.slow_log (a int);

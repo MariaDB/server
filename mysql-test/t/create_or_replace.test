@@ -21,8 +21,6 @@ INSERT INTO t2 VALUES(1),(2),(3);
 
 --error ER_WRONG_USAGE
 CREATE OR REPLACE TABLE IF NOT EXISTS t1 (a int);
---error ER_WRONG_USAGE
-create or replace trigger trg before insert on t1 for each row set @a:=1;
 
 # check that we don't try to create a log table in use
 --error ER_BAD_LOG_STATEMENT

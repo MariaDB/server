@@ -2560,20 +2560,6 @@ create:
             Lex->create_view_suid= TRUE;
           }
           view_or_trigger_or_sp_or_event
-          {
-            // TODO: remove this when "MDEV-5359 CREATE OR REPLACE..." is done
-            if ($1.or_replace() &&
-                Lex->sql_command != SQLCOM_CREATE_EVENT &&
-                Lex->sql_command != SQLCOM_CREATE_VIEW &&
-                Lex->sql_command != SQLCOM_CREATE_FUNCTION &&
-                Lex->sql_command != SQLCOM_CREATE_SPFUNCTION &&
-                Lex->sql_command != SQLCOM_CREATE_PROCEDURE)
-            {
-               my_error(ER_WRONG_USAGE, MYF(0), "OR REPLACE",
-                       "TRIGGERS / SP / EVENT");
-               MYSQL_YYABORT;
-            }
-          }
         | create_or_replace USER opt_if_not_exists clear_privileges grant_list
           {
             if (Lex->set_command_with_check(SQLCOM_CREATE_USER, $1 | $3))
@@ -16159,23 +16145,28 @@ view_check_option:
 trigger_tail:
           TRIGGER_SYM
           remember_name
+          opt_if_not_exists
+          {
+            if (Lex->add_create_options_with_check($3))
+              MYSQL_YYABORT;
+          }
           sp_name
           trg_action_time
           trg_event
           ON
-          remember_name /* $7 */
-          { /* $8 */
+          remember_name /* $9 */
+          { /* $10 */
             Lex->raw_trg_on_table_name_begin= YYLIP->get_tok_start();
           }
-          table_ident /* $9 */
+          table_ident /* $11 */
           FOR_SYM
-          remember_name /* $11 */
-          { /* $12 */
+          remember_name /* $13 */
+          { /* $14 */
             Lex->raw_trg_on_table_name_end= YYLIP->get_tok_start();
           }
           EACH_SYM
           ROW_SYM
-          { /* $15 */
+          { /* $17 */
             LEX *lex= thd->lex;
             Lex_input_stream *lip= YYLIP;
 
@@ -16186,17 +16177,17 @@ trigger_tail:
             }
 
             lex->stmt_definition_begin= $2;
-            lex->ident.str= $7;
-            lex->ident.length= $11 - $7;
-            lex->spname= $3;
+            lex->ident.str= $9;
+            lex->ident.length= $13 - $9;
+            lex->spname= $5;
 
-            if (!make_sp_head(thd, $3, TYPE_ENUM_TRIGGER))
+            if (!make_sp_head(thd, $5, TYPE_ENUM_TRIGGER))
               MYSQL_YYABORT;
 
             lex->sphead->set_body_start(thd, lip->get_cpp_ptr());
           }
-          sp_proc_stmt /* $16 */
-          { /* $17 */
+          sp_proc_stmt /* $18 */
+          { /* $19 */
             LEX *lex= Lex;
             sp_head *sp= lex->sphead;
 
@@ -16212,7 +16203,7 @@ trigger_tail:
               sp_proc_stmt alternatives are not saving/restoring LEX, so
               lex->query_tables can be wiped out.
             */
-            if (!lex->select_lex.add_table_to_list(thd, $9,
+            if (!lex->select_lex.add_table_to_list(thd, $11,
                                                    (LEX_STRING*) 0,
                                                    TL_OPTION_UPDATING,
                                                    TL_READ_NO_INSERT,
