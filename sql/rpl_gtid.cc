@@ -1870,6 +1870,31 @@ slave_connection_state::get_gtid_list(rpl_gtid *gtid_list, uint32 list_size)
 
 
 /*
+  Check if the GTID position has been reached, for mysql_binlog_send().
+
+  The position has not been reached if we have anything in the state, unless
+  it has either the START_ON_EMPTY_DOMAIN flag set (which means it does not
+  belong to this master at all), or the START_OWN_SLAVE_POS (which means that
+  we start on an old position from when the server was a slave with
+  --log-slave-updates=0).
+*/
+bool
+slave_connection_state::is_pos_reached()
+{
+  uint32 i;
+
+  for (i= 0; i < hash.records; ++i)
+  {
+    entry *e= (entry *)my_hash_element(&hash, i);
+    if (!(e->flags & (START_OWN_SLAVE_POS|START_ON_EMPTY_DOMAIN)))
+      return false;
+  }
+
+  return true;
+}
+
+
+/*
   Execute a MASTER_GTID_WAIT().
   The position to wait for is in gtid_str in string form.
   The timeout in microseconds is in timeout_us, zero means no timeout.

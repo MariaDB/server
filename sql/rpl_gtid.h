@@ -288,6 +288,7 @@ struct slave_connection_state
   int to_string(String *out_str);
   int append_to_string(String *out_str);
   int get_gtid_list(rpl_gtid *gtid_list, uint32 list_size);
+  bool is_pos_reached();
 };
 
 
