@@ -2377,6 +2377,31 @@ impossible position";
         info.fdev= tmp;
 
         (*packet)[FLAGS_OFFSET+ev_offset] &= ~LOG_EVENT_BINLOG_IN_USE_F;
+
+        if (info.using_gtid_state)
+        {
+          /*
+            If this event has the field `created' set, then it will cause the
+            slave to delete all active temporary tables. This must not happen
+            if the slave received any later GTIDs in a previous connect, as
+            those GTIDs might have created new temporary tables that are still
+            needed.
+
+            So here, we check if the starting GTID position was already
+            reached before this format description event. If not, we clear the
+            `created' flag to preserve temporary tables on the slave. (If the
+            slave connects at a position past this event, it means that it
+            already received and handled it in a previous connect).
+          */
+          if (!info.gtid_state.is_pos_reached())
+          {
+            int4store((char*) packet->ptr()+LOG_EVENT_MINIMAL_HEADER_LEN+
+                      ST_CREATED_OFFSET+ev_offset, (ulong) 0);
+            if (info.current_checksum_alg != BINLOG_CHECKSUM_ALG_OFF &&
+                info.current_checksum_alg != BINLOG_CHECKSUM_ALG_UNDEF)
+              fix_checksum(packet, ev_offset);
+          }
+        }
       }
 
 #ifndef DBUG_OFF

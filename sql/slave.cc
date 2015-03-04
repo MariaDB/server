@@ -943,6 +943,8 @@ int start_slave_threads(bool need_slave_mutex, bool wait_for_start,
                                              Master_info::USE_GTID_CURRENT_POS);
     mi->events_queued_since_last_gtid= 0;
     mi->gtid_reconnect_event_skip_count= 0;
+
+    mi->rli.restart_gtid_pos.reset();
   }
 
   if (!error && (thread_mask & SLAVE_IO))
@@ -4504,6 +4506,16 @@ pthread_handler_t handle_slave_sql(void *arg)
 
   serial_rgi->gtid_sub_id= 0;
   serial_rgi->gtid_pending= false;
+  if (mi->using_gtid != Master_info::USE_GTID_NO)
+  {
+    /*
+      We initialize the relay log state from the know starting position.
+      It will then be updated as required by GTID and GTID_LIST events found
+      while applying events read from relay logs.
+    */
+    rli->relay_log_state.load(&rpl_global_gtid_slave_state);
+  }
+  rli->gtid_skip_flag = GTID_SKIP_NOT;
   if (init_relay_log_pos(rli,
                          rli->group_relay_log_name,
                          rli->group_relay_log_pos,
@@ -4514,6 +4526,7 @@ pthread_handler_t handle_slave_sql(void *arg)
                 "Error initializing relay log position: %s", errmsg);
     goto err;
   }
+  rli->reset_inuse_relaylog();
   if (rli->alloc_inuse_relaylog(rli->group_relay_log_name))
     goto err;
 
@@ -4718,7 +4731,49 @@ log '%s' at position %s, relay log '%s' position: %s%s", RPL_LOG_NAME,
   thd->reset_query();
   thd->reset_db(NULL, 0);
   if (rli->mi->using_gtid != Master_info::USE_GTID_NO)
+  {
+    ulong domain_count;
+
     flush_relay_log_info(rli);
+    if (opt_slave_parallel_threads > 0)
+    {
+      /*
+        In parallel replication GTID mode, we may stop with different domains
+        at different positions in the relay log.
+
+        To handle this when we restart the SQL thread, mark the current
+        per-domain position in the Relay_log_info.
+      */
+      mysql_mutex_lock(&rpl_global_gtid_slave_state.LOCK_slave_state);
+      domain_count= rpl_global_gtid_slave_state.count();
+      mysql_mutex_unlock(&rpl_global_gtid_slave_state.LOCK_slave_state);
+      if (domain_count > 1)
+      {
+        inuse_relaylog *ir;
+
+        /*
+          Load the starting GTID position, so that we can skip already applied
+          GTIDs when we restart the SQL thread. And set the start position in
+          the relay log back to a known safe place to start (prior to any not
+          yet applied transaction in any domain).
+        */
+        rli->restart_gtid_pos.load(&rpl_global_gtid_slave_state, NULL, 0);
+        if ((ir= rli->inuse_relaylog_list))
+        {
+          rpl_gtid *gtid= ir->relay_log_state;
+          uint32 count= ir->relay_log_state_count;
+          while (count > 0)
+          {
+            process_gtid_for_restart_pos(rli, gtid);
+            ++gtid;
+            --count;
+          }
+          strmake_buf(rli->group_relay_log_name, ir->name);
+          rli->group_relay_log_pos= BIN_LOG_HEADER_SIZE;
+        }
+      }
+    }
+  }
   THD_STAGE_INFO(thd, stage_waiting_for_slave_mutex_on_exit);
   thd->add_status_to_global();
   mysql_mutex_lock(&rli->run_lock);
@@ -4731,6 +4786,7 @@ err_during_init:
   /* Forget the relay log's format */
   delete rli->relay_log.description_event_for_exec;
   rli->relay_log.description_event_for_exec= 0;
+  rli->reset_inuse_relaylog();
   /* Wake up master_pos_wait() */
   mysql_mutex_unlock(&rli->data_lock);
   DBUG_PRINT("info",("Signaling possibly waiting master_pos_wait() functions"));

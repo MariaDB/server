@@ -1089,6 +1089,27 @@ rpl_binlog_state::load(struct rpl_gtid *list, uint32 count)
 }
 
 
+static int rpl_binlog_state_load_cb(rpl_gtid *gtid, void *data)
+{
+  rpl_binlog_state *self= (rpl_binlog_state *)data;
+  return self->update_nolock(gtid, false);
+}
+
+
+bool
+rpl_binlog_state::load(rpl_slave_state *slave_pos)
+{
+  bool res= false;
+
+  mysql_mutex_lock(&LOCK_binlog_state);
+  reset_nolock();
+  if (slave_pos->iterate(rpl_binlog_state_load_cb, this, NULL, 0))
+    res= true;
+  mysql_mutex_unlock(&LOCK_binlog_state);
+  return res;
+}
+
+
 rpl_binlog_state::~rpl_binlog_state()
 {
   free();
@@ -1845,6 +1866,31 @@ slave_connection_state::get_gtid_list(rpl_gtid *gtid_list, uint32 list_size)
   }
 
   return 0;
+}
+
+
+/*
+  Check if the GTID position has been reached, for mysql_binlog_send().
+
+  The position has not been reached if we have anything in the state, unless
+  it has either the START_ON_EMPTY_DOMAIN flag set (which means it does not
+  belong to this master at all), or the START_OWN_SLAVE_POS (which means that
+  we start on an old position from when the server was a slave with
+  --log-slave-updates=0).
+*/
+bool
+slave_connection_state::is_pos_reached()
+{
+  uint32 i;
+
+  for (i= 0; i < hash.records; ++i)
+  {
+    entry *e= (entry *)my_hash_element(&hash, i);
+    if (!(e->flags & (START_OWN_SLAVE_POS|START_ON_EMPTY_DOMAIN)))
+      return false;
+  }
+
+  return true;
 }
 
 
