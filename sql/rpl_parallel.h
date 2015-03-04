@@ -339,5 +339,6 @@ extern struct rpl_parallel_thread_pool global_rpl_thread_pool;
 extern int rpl_parallel_change_thread_count(rpl_parallel_thread_pool *pool,
                                             uint32 new_count,
                                             bool skip_check= false);
+extern bool process_gtid_for_restart_pos(Relay_log_info *rli, rpl_gtid *gtid);
 
 #endif  /* RPL_PARALLEL_H */

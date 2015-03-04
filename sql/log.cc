@@ -4188,7 +4188,7 @@ int MYSQL_BIN_LOG::purge_first_log(Relay_log_info* rli, bool included)
       included= 1;
       to_purge_if_included= my_strdup(ir->name, MYF(0));
     }
-    my_free(ir);
+    rli->free_inuse_relaylog(ir);
     ir= next;
   }
   rli->inuse_relaylog_list= ir;

@@ -241,6 +241,7 @@ struct rpl_binlog_state
   void reset();
   void free();
   bool load(struct rpl_gtid *list, uint32 count);
+  bool load(rpl_slave_state *slave_pos);
   int update_nolock(const struct rpl_gtid *gtid, bool strict);
   int update(const struct rpl_gtid *gtid, bool strict);
   int update_with_next_gtid(uint32 domain_id, uint32 server_id,
@@ -296,6 +297,7 @@ struct slave_connection_state
   int to_string(String *out_str);
   int append_to_string(String *out_str);
   int get_gtid_list(rpl_gtid *gtid_list, uint32 list_size);
+  bool is_pos_reached();
 };
 
 
