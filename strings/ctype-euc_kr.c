@@ -202,6 +202,12 @@ static const uchar sort_order_euc_kr[]=
                               iseuc_kr_tail3(c))
 
 
+#define MY_FUNCTION_NAME(x)   my_ ## x ## _euckr
+#define IS_MB2_CHAR(x,y)      (iseuc_kr_head(x) && iseuc_kr_tail(y))
+#define WELL_FORMED_LEN
+#include "ctype-mb.ic"
+
+
 static uint ismbchar_euc_kr(CHARSET_INFO *cs __attribute__((unused)),
                             const char* p, const char *e)
 {
@@ -9926,41 +9932,6 @@ my_mb_wc_euc_kr(CHARSET_INFO *cs __attribute__((unused)),
     return -2;
   
   return 2;
-}
-
-
-/*
-  Returns well formed length of a EUC-KR string.
-*/
-static size_t
-my_well_formed_len_euckr(CHARSET_INFO *cs __attribute__((unused)),
-                         const char *b, const char *e,
-                         size_t pos, int *error)
-{
-  const char *b0= b;
-  const char *emb= e - 1; /* Last possible end of an MB character */
-
-  *error= 0;
-  while (pos-- && b < e)
-  {
-    if ((uchar) b[0] < 128)
-    {
-      /* Single byte ascii character */
-      b++;
-    }
-    else  if (b < emb && iseuc_kr_head(*b) && iseuc_kr_tail(b[1]))
-    {
-      /* Double byte character */
-      b+= 2;
-    }
-    else
-    {
-      /* Wrong byte sequence */
-      *error= 1;
-      break;
-    }
-  }
-  return (size_t) (b - b0);
 }
 
 

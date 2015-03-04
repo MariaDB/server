@@ -34,6 +34,7 @@
 
 /* 
   Support for Chinese(BIG5) characters, by jou@nematic.ieo.nctu.edu.tw
+  CP950 and HKSCS additional characters are also accepted.
   modified by Wei He (hewei@mail.ied.ac.cn) 
   modified by Alex Barkov <bar@udm.net>
 */
@@ -46,6 +47,12 @@
 #define big5code(c,d)   (((uchar)(c) <<8) | (uchar)(d))
 #define big5head(e)	((uchar)(e>>8))
 #define big5tail(e)	((uchar)(e&0xff))
+
+#define MY_FUNCTION_NAME(x)   my_ ## x ## _big5
+#define IS_MB2_CHAR(x,y)      (isbig5head(x) && isbig5tail(y))
+#define WELL_FORMED_LEN
+#include "ctype-mb.ic"
+
 
 static const uchar ctype_big5[257] =
 {
@@ -6840,42 +6847,6 @@ my_mb_wc_big5(CHARSET_INFO *cs __attribute__((unused)),
     return -2;
   
   return 2;
-}
-
-
-/*
-  Returns a well formed length of a BIG5 string.
-  CP950 and HKSCS additional characters are also accepted.
-*/
-static
-size_t my_well_formed_len_big5(CHARSET_INFO *cs __attribute__((unused)),
-                               const char *b, const char *e,
-                               size_t pos, int *error)
-{
-  const char *b0= b;
-  const char *emb= e - 1; /* Last possible end of an MB character */
-
-  *error= 0;
-  while (pos-- && b < e)
-  {
-    if ((uchar) b[0] < 128)
-    {
-      /* Single byte ascii character */
-      b++;
-    }
-    else  if ((b < emb) && isbig5code((uchar)*b, (uchar)b[1]))
-    {
-      /* Double byte character */
-      b+= 2;
-    }
-    else
-    {
-      /* Wrong byte sequence */
-      *error= 1;
-      break;
-    }
-  }
-  return (size_t) (b - b0);
 }
 
 
