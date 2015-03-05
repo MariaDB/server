@@ -92,6 +92,7 @@ static wsrep_cb_status_t wsrep_apply_events(THD*        thd,
   char *buf= (char *)events_buf;
   int rcode= 0;
   int event= 1;
+  Log_event_type typ;
 
   DBUG_ENTER("wsrep_apply_events");
 
@@ -126,7 +127,9 @@ static wsrep_cb_status_t wsrep_apply_events(THD*        thd,
       goto error;
     }
 
-    switch (ev->get_type_code()) {
+    typ= ev->get_type_code();
+
+    switch (typ) {
     case FORMAT_DESCRIPTION_EVENT:
       wsrep_set_apply_format(thd, (Format_description_log_event*)ev);
       continue;
@@ -160,7 +163,6 @@ static wsrep_cb_status_t wsrep_apply_events(THD*        thd,
     }
 
     ev->thd = thd;
-    //exec_res = ev->apply_event(thd->wsrep_rli);
     exec_res = ev->apply_event(thd->wsrep_rgi);
     DBUG_PRINT("info", ("exec_event result: %d", exec_res));
 
@@ -192,7 +194,7 @@ static wsrep_cb_status_t wsrep_apply_events(THD*        thd,
       DBUG_RETURN(WSREP_CB_FAILURE);
     }
 
-    delete ev;
+    delete_or_keep_event_post_apply(thd->wsrep_rgi, typ, ev);
   }
 
  error:

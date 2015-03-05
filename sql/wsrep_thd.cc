@@ -121,10 +121,13 @@ static rpl_group_info* wsrep_relay_group_init(const char* log_fname)
   */
   rli->mi = new Master_info(&connection_name, false);
 
-  rli->sql_driver_thd= current_thd;
-
   struct rpl_group_info *rgi= new rpl_group_info(rli);
-  rgi->thd= current_thd;
+  rgi->thd= rli->sql_driver_thd= current_thd;
+
+  if ((rgi->deferred_events_collecting= rli->mi->rpl_filter->is_on()))
+  {
+    rgi->deferred_events= new Deferred_log_events(rli);
+  }
 
   return rgi;
 }
@@ -172,6 +175,8 @@ static void wsrep_return_from_bf_mode(THD *thd, struct wsrep_thd_shadow* shadow)
   delete thd->system_thread_info.rpl_sql_info;
   delete thd->wsrep_rgi->rli->mi;
   delete thd->wsrep_rgi->rli;
+
+  thd->wsrep_rgi->cleanup_after_session();
   delete thd->wsrep_rgi;
   thd->wsrep_rgi = NULL;
 }
