@@ -42,7 +42,7 @@ Pre-Depends: mariadb-common, adduser (>= 3.40), debconf
 Depends: mariadb-client-5.5 (>= ${source:Version}), libdbi-perl,
          perl (>= 5.6), ${shlibs:Depends}, ${misc:Depends}, psmisc,
          passwd, lsb-base (>= 3.0-10), bsdutils,
-         libmariadbclient18 (>= ${binary:Version}), galera (>=25.2),
+         libmariadbclient18 (>= ${binary:Version}), galera-3 (>=25.3),
          rsync, lsof, grep, gawk, iproute, coreutils, findutils
 Provides: mysql-server-core, mysql-server-core-5.1, mysql-server-core-5.5, mysql-server, virtual-mysql-server, mariadb-galera-server
 Conflicts: mariadb-server (<< ${source:Version}), mysql-server (<< ${source:Version}), mariadb-galera-server (<< ${source:Version}),
