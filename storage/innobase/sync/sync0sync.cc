@@ -294,6 +294,7 @@ mutex_create_func(
 	mutex->cfile_name = cfile_name;
 	mutex->cline = cline;
 	mutex->count_os_wait = 0;
+        mutex->cmutex_name = cmutex_name;
 
 	/* Check that lock_word is aligned; this is important on Intel */
 	ut_ad(((ulint)(&(mutex->lock_word))) % 4 == 0);
