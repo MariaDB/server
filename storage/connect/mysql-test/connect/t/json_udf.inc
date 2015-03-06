@@ -5,6 +5,9 @@
 if (`SELECT @@have_dynamic_loading != 'YES'`) {
   --skip UDF requires dynamic loading
 }
+if (!$HA_CONNECT_SO) {
+  --skip Needs a dynamically built ha_connect.so
+}
 
 let $is_win = `select convert(@@version_compile_os using latin1) IN ("Win32","Win64","Windows")`;
 
