@@ -20,4 +20,9 @@ i
 1
 DROP TABLE t1;
 SET @@GLOBAL.wsrep_forced_binlog_format=@wsrep_forced_binlog_format_saved;
+#
+# MDEV-7673: CREATE TABLE SELECT fails on Galera cluster
+#
+CREATE TABLE t1 (i INT) ENGINE=INNODB DEFAULT CHARSET=utf8 SELECT 1 as i;
+DROP TABLE t1;
 # End of tests
