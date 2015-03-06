@@ -149,8 +149,9 @@ static wsrep_cb_status_t wsrep_apply_events(THD*        thd,
       break;
     }
 
-    thd->set_server_id(ev->server_id); // use the original server id for logging
-    thd->set_time();                // time the query
+    /* Use the original server id for logging. */
+    thd->set_server_id(ev->server_id);
+    thd->set_time();                            // time the query
     wsrep_xid_init(&thd->transaction.xid_state.xid,
                    &thd->wsrep_trx_meta.gtid.uuid,
                    thd->wsrep_trx_meta.gtid.seqno);
@@ -161,6 +162,10 @@ static wsrep_cb_status_t wsrep_apply_events(THD*        thd,
       ev->when= hrtime_to_my_time(hrtime);
       ev->when_sec_part= hrtime_sec_part(hrtime);
     }
+
+    thd->variables.option_bits=
+      (thd->variables.option_bits & ~OPTION_SKIP_REPLICATION) |
+      (ev->flags & LOG_EVENT_SKIP_REPLICATION_F ?  OPTION_SKIP_REPLICATION : 0);
 
     ev->thd = thd;
     exec_res = ev->apply_event(thd->wsrep_rgi);
