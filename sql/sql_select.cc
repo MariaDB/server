@@ -8678,7 +8678,8 @@ static bool create_hj_key_for_table(JOIN *join, JOIN_TAB *join_tab,
       {
         Field *field= table->field[keyuse->keypart];
         uint fieldnr= keyuse->keypart+1;
-        table->create_key_part_by_field(keyinfo, key_part_info, field, fieldnr);
+        table->create_key_part_by_field(key_part_info, field, fieldnr);
+        keyinfo->key_length += key_part_info->store_length;
         key_part_info++;
       }
     }
@@ -16831,7 +16832,7 @@ bool create_internal_tmp_table(TABLE *table, KEY *keyinfo,
       goto err;
 
     bzero(seg, sizeof(*seg) * keyinfo->user_defined_key_parts);
-    if (keyinfo->key_length >= table->file->max_key_length() ||
+    if (keyinfo->key_length > table->file->max_key_length() ||
 	keyinfo->user_defined_key_parts > table->file->max_key_parts() ||
 	share->uniques)
     {
@@ -17004,7 +17005,7 @@ bool create_internal_tmp_table(TABLE *table, KEY *keyinfo,
       goto err;
 
     bzero(seg, sizeof(*seg) * keyinfo->user_defined_key_parts);
-    if (keyinfo->key_length >= table->file->max_key_length() ||
+    if (keyinfo->key_length > table->file->max_key_length() ||
 	keyinfo->user_defined_key_parts > table->file->max_key_parts() ||
 	share->uniques)
     {

@@ -7347,6 +7347,8 @@ MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader)
       my_error(ER_ERROR_ON_WRITE, MYF(ME_NOREFRESH), name, errno);
       check_purge= false;
     }
+    /* In case of binlog rotate, update the correct current binlog offset. */
+    commit_offset= my_b_write_tell(&log_file);
   }
 
   DEBUG_SYNC(leader->thd, "commit_before_get_LOCK_commit_ordered");

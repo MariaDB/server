@@ -7338,12 +7338,15 @@ ha_innobase::innobase_lock_autoinc(void)
 		break;
 
 	case AUTOINC_NEW_STYLE_LOCKING:
-		/* For simple (single/multi) row INSERTs, we fallback to the
-		old style only if another transaction has already acquired
-		the AUTOINC lock on behalf of a LOAD FILE or INSERT ... SELECT
-		etc. type of statement. */
+		/* For simple (single/multi) row INSERTs/REPLACEs and RBR
+		events, we fallback to the old style only if another
+		transaction has already acquired the AUTOINC lock on
+		behalf of a LOAD FILE or INSERT ... SELECT etc. type of
+		statement. */
 		if (thd_sql_command(user_thd) == SQLCOM_INSERT
-		    || thd_sql_command(user_thd) == SQLCOM_REPLACE) {
+		    || thd_sql_command(user_thd) == SQLCOM_REPLACE
+		    || thd_sql_command(user_thd) == SQLCOM_END // RBR event
+		) {
 			dict_table_t*	ib_table = prebuilt->table;
 
 			/* Acquire the AUTOINC mutex. */
@@ -7352,9 +7355,11 @@ ha_innobase::innobase_lock_autoinc(void)
 			/* We need to check that another transaction isn't
 			already holding the AUTOINC lock on the table. */
 			if (ib_table->n_waiting_or_granted_auto_inc_locks) {
-				/* Release the mutex to avoid deadlocks. */
+				/* Release the mutex to avoid deadlocks and
+				fall back to old style locking. */
 				dict_table_autoinc_unlock(ib_table);
 			} else {
+				/* Do not fall back to old style locking. */
 				break;
 			}
 		}
@@ -18919,6 +18924,7 @@ bool ha_innobase::is_thd_killed()
 
 /**********************************************************************
 Issue a warning that the row is too big. */
+UNIV_INTERN
 void
 ib_warn_row_too_big(const dict_table_t*	table)
 {
