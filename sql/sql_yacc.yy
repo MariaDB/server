@@ -2559,7 +2559,7 @@ create:
             Lex->create_view_algorithm= DTYPE_ALGORITHM_UNDEFINED;
             Lex->create_view_suid= TRUE;
           }
-          view_or_trigger_or_sp_or_event
+          view_or_trigger_or_sp_or_event { }
         | create_or_replace USER opt_if_not_exists clear_privileges grant_list
           {
             if (Lex->set_command_with_check(SQLCOM_CREATE_USER, $1 | $3))
