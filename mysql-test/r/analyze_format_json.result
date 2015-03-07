@@ -7,12 +7,15 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
+    "r_loops": 1,
+    "r_total_time_ms": "REPLACED",
     "table": {
       "table_name": "t0",
       "access_type": "ALL",
       "r_loops": 1,
       "rows": 10,
       "r_rows": 10,
+      "r_total_time_ms": "REPLACED",
       "filtered": 100,
       "r_filtered": 30,
       "attached_condition": "(t0.a < 3)"
@@ -32,12 +35,15 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
+    "r_loops": 1,
+    "r_total_time_ms": "REPLACED",
     "table": {
       "table_name": "t0",
       "access_type": "ALL",
       "r_loops": 1,
       "rows": 10,
       "r_rows": 10,
+      "r_total_time_ms": "REPLACED",
       "filtered": 100,
       "r_filtered": 0,
       "attached_condition": "((t0.a > 9) and (t0.a is not null))"
@@ -69,12 +75,15 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
+    "r_loops": 1,
+    "r_total_time_ms": "REPLACED",
     "table": {
       "table_name": "t0",
       "access_type": "ALL",
       "r_loops": 1,
       "rows": 10,
       "r_rows": 10,
+      "r_total_time_ms": "REPLACED",
       "filtered": 100,
       "r_filtered": 100,
       "attached_condition": "(t0.a is not null)"
@@ -90,6 +99,7 @@ EXPLAIN
       "r_loops": 10,
       "rows": 1,
       "r_rows": 1,
+      "r_total_time_ms": "REPLACED",
       "filtered": 100,
       "r_filtered": 40,
       "attached_condition": "(t1.b < 4)"
@@ -107,12 +117,15 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
+    "r_loops": 1,
+    "r_total_time_ms": "REPLACED",
     "table": {
       "table_name": "tbl1",
       "access_type": "ALL",
       "r_loops": 1,
       "rows": 100,
       "r_rows": 100,
+      "r_total_time_ms": "REPLACED",
       "filtered": 100,
       "r_filtered": 20,
       "attached_condition": "(tbl1.b < 20)"
@@ -124,6 +137,7 @@ EXPLAIN
         "r_loops": 1,
         "rows": 100,
         "r_rows": 100,
+        "r_total_time_ms": "REPLACED",
         "filtered": 100,
         "r_filtered": 60,
         "attached_condition": "(tbl2.b < 60)"
@@ -140,12 +154,15 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
+    "r_loops": 1,
+    "r_total_time_ms": "REPLACED",
     "table": {
       "table_name": "tbl1",
       "access_type": "ALL",
       "r_loops": 1,
       "rows": 100,
       "r_rows": 100,
+      "r_total_time_ms": "REPLACED",
       "filtered": 100,
       "r_filtered": 20,
       "attached_condition": "(tbl1.b < 20)"
@@ -157,6 +174,7 @@ EXPLAIN
         "r_loops": 1,
         "rows": 100,
         "r_rows": 100,
+        "r_total_time_ms": "REPLACED",
         "filtered": 100,
         "r_filtered": 60,
         "attached_condition": "(tbl2.b < 60)"
@@ -182,12 +200,15 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
+    "r_loops": 1,
+    "r_total_time_ms": "REPLACED",
     "table": {
       "table_name": "t1",
       "access_type": "ALL",
       "r_loops": 1,
       "rows": 10,
       "r_rows": 10,
+      "r_total_time_ms": "REPLACED",
       "filtered": 100,
       "r_filtered": 100,
       "attached_condition": "(t1.a is not null)"
@@ -203,6 +224,7 @@ EXPLAIN
       "r_loops": 10,
       "rows": 2,
       "r_rows": 0.2,
+      "r_total_time_ms": "REPLACED",
       "filtered": 100,
       "r_filtered": 100,
       "using_index": true
@@ -226,12 +248,15 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
+    "r_loops": 1,
+    "r_total_time_ms": "REPLACED",
     "table": {
       "table_name": "t1",
       "access_type": "ALL",
       "r_loops": 1,
       "rows": 10,
       "r_rows": 10,
+      "r_total_time_ms": "REPLACED",
       "filtered": 100,
       "r_filtered": 50,
       "attached_condition": "(test.t1.a < 5)"

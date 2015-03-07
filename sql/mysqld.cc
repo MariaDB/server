@@ -314,6 +314,9 @@ arg_cmp_func Arg_comparator::comparator_matrix[6][2] =
  {&Arg_comparator::compare_decimal,    &Arg_comparator::compare_e_decimal},
  {&Arg_comparator::compare_datetime,   &Arg_comparator::compare_e_datetime}};
 
+/* Timer info to be used by the SQL layer */
+MY_TIMER_INFO sys_timer_info;
+
 /* static variables */
 
 #ifdef HAVE_PSI_INTERFACE
@@ -5458,6 +5461,7 @@ int mysqld_main(int argc, char **argv)
 #ifdef WITH_PERFSCHEMA_STORAGE_ENGINE
   pfs_param.m_pfs_instrument= const_cast<char*>("");
 #endif /* WITH_PERFSCHEMA_STORAGE_ENGINE */
+  my_timer_init(&sys_timer_info);
 
   int ho_error __attribute__((unused))= handle_early_options();
 

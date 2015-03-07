@@ -21,12 +21,16 @@ public:
   bool append_str(MEM_ROOT *mem_root, const char *str);
 };
 
+class Json_writer;
 
 /*
   A class for collecting read statistics.
   
   The idea is that we run several scans. Each scans gets rows, and then filters
   some of them out.  We count scans, rows, and rows left after filtering.
+
+  (note: at the moment, the class is not actually tied to a physical table. 
+   It can be used to track reading from files, buffers, etc).
 */
 
 class Table_access_tracker 
@@ -66,6 +70,72 @@ public:
 };
 
 
+/*
+  A class to track operations (currently, row reads) on a PSI_table.
+*/
+class Table_op_tracker
+{
+  PSI_table *psi_table;
+
+  /* Table counter values at start. Sum is in picoseconds */
+  ulonglong start_sum;
+  ulonglong start_count;
+
+  /* Table counter values at end */
+  ulonglong end_sum;
+  ulonglong end_count;
+public:
+  void start_tracking(TABLE *table);
+  // At the moment, print_json will call end_tracking.
+  void end_tracking();
+
+  // this may print nothing if the table was not tracked.
+  void print_json(Json_writer *writer);
+};
+
+
+#define ANALYZE_START_TRACKING(tracker) \
+  if (tracker) \
+  { tracker->start_tracking(); }
+
+#define ANALYZE_STOP_TRACKING(tracker) \
+  if (tracker) \
+  { tracker->stop_tracking(); }
+
+/*
+  A class for tracking execution time
+*/
+class Exec_time_tracker
+{
+  ulonglong count;
+  ulonglong cycles;
+  ulonglong last_start;
+public:
+  Exec_time_tracker() : count(0), cycles(0) {}
+  
+  // interface for collecting time
+  void start_tracking()
+  {
+    last_start= my_timer_cycles();
+  }
+
+  void stop_tracking()
+  {
+    ulonglong last_end= my_timer_cycles();
+    count++;
+    cycles += last_end - last_start;
+  }
+
+  // interface for getting the time
+  //loops, starts, stops
+  ulonglong get_loops() { return count; }
+  double get_time_ms()
+  {
+    // convert 'cycles' to milliseconds.
+    return 1000 * ((double)cycles) / sys_timer_info.cycles.frequency;
+  }
+};
+
 /**************************************************************************************
  
   Data structures for producing EXPLAIN outputs.
@@ -81,8 +151,6 @@ public:
 const int FAKE_SELECT_LEX_ID= (int)UINT_MAX;
 
 class Explain_query;
-
-class Json_writer;
 
 /* 
   A node can be either a SELECT, or a UNION.
@@ -231,6 +299,9 @@ public:
   /* Global join attributes. In tabular form, they are printed on the first row */
   bool using_temporary;
   bool using_filesort;
+
+  /* ANALYZE members */
+  Exec_time_tracker time_tracker;
   
   int print_explain(Explain_query *query, select_result_sink *output, 
                     uint8 explain_flags, bool is_analyze);
@@ -666,6 +737,7 @@ public:
 
   /* Tracker for reading the table */
   Table_access_tracker tracker;
+  Table_op_tracker op_tracker;
   Table_access_tracker jbuf_tracker;
 
   int print_explain(select_result_sink *output, uint8 explain_flags, 
@@ -735,6 +807,7 @@ public:
 
   /* ANALYZE members and methods */
   Table_access_tracker tracker;
+  //psergey-todo: io-tracker here.
 
   virtual int print_explain(Explain_query *query, select_result_sink *output, 
                             uint8 explain_flags, bool is_analyze);

@@ -1728,6 +1728,34 @@ static void close_table_v1(PSI_table *table)
   destroy_table(pfs);
 }
 
+/**
+  Used in ANALYZE-stmt: get current table statistics.
+*/
+static void get_table_current_stats_v1(PSI_table *table, ulonglong *count, ulonglong *sum)
+{
+  PFS_table *pfs= reinterpret_cast<PFS_table*> (table);
+  if (unlikely(pfs == NULL))
+  {
+    *count= 0;
+    *sum= 0;
+    return;
+  }
+  
+  longlong cur_count= 0;
+  longlong cur_sum= 0;
+
+  time_normalizer *normalizer= time_normalizer::get(wait_timer);
+  for (int i=0; i <= MAX_INDEXES; i++)
+  {
+    ulonglong wait= pfs->m_table_stat.m_index_stat[i].m_fetch.m_sum;
+    cur_sum   += normalizer->wait_to_pico(wait);
+    cur_count += pfs->m_table_stat.m_index_stat[i].m_fetch.m_count;
+  }
+  *count= cur_count;
+  *sum= cur_sum;
+}
+
+
 static PSI_socket*
 init_socket_v1(PSI_socket_key key, const my_socket *fd,
                const struct sockaddr *addr, socklen_t addr_len)
@@ -5245,6 +5273,8 @@ PSI_v1 PFS_v1=
   pfs_digest_start_v1,
   pfs_digest_add_token_v1,
   set_thread_connect_attrs_v1,
+  /* MariaDB's extension: */
+  get_table_current_stats_v1
 };
 
 static void* get_interface(int version)

@@ -512,6 +512,9 @@ typedef struct PSI_digest_locker* (*digest_add_token_v1_t)
   (struct PSI_digest_locker *locker, uint token, struct OPAQUE_LEX_YYSTYPE *yylval);
 typedef int (*set_thread_connect_attrs_v1_t)(const char *buffer, uint length,
                                              const void *from_cs);
+typedef void (*get_table_current_stats_v1_t)(PSI_table *table,
+                                             ulonglong *count,
+                                             ulonglong *sum);
 struct PSI_v1
 {
   register_mutex_v1_t register_mutex;
@@ -612,6 +615,7 @@ struct PSI_v1
   digest_start_v1_t digest_start;
   digest_add_token_v1_t digest_add_token;
   set_thread_connect_attrs_v1_t set_thread_connect_attrs;
+  get_table_current_stats_v1_t get_table_current_stats;
 };
 typedef struct PSI_v1 PSI;
 typedef struct PSI_mutex_info_v1 PSI_mutex_info;
