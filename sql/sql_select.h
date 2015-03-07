@@ -1809,10 +1809,6 @@ Field *create_tmp_field(THD *thd, TABLE *table,Item *item, Item::Type type,
 			bool table_cant_handle_bit_fields,
                         bool make_copy_field,
                         uint convert_blob_length);
-bool create_internal_tmp_table(TABLE *table, KEY *keyinfo, 
-                               TMP_ENGINE_COLUMNDEF *start_recinfo,
-                               TMP_ENGINE_COLUMNDEF **recinfo, 
-                               ulonglong options, my_bool big_tables);
 
 /*
   General routine to change field->ptr of a NULL-terminated array of Field

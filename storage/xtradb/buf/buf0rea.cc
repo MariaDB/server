@@ -644,9 +644,9 @@ buf_read_ahead_linear(
 
 	fail_count = 0;
 
-	for (i = low; i < high; i++) {
+	prio_rw_lock_t*	hash_lock;
 
-		prio_rw_lock_t*	hash_lock;
+	for (i = low; i < high; i++) {
 
 		bpage = buf_page_hash_get_s_locked(buf_pool, space, i,
 						   &hash_lock);
@@ -695,7 +695,7 @@ buf_read_ahead_linear(
 	/* If we got this far, we know that enough pages in the area have
 	been accessed in the right order: linear read-ahead can be sensible */
 
-	bpage = buf_page_hash_get(buf_pool, space, offset);
+	bpage = buf_page_hash_get_s_locked(buf_pool, space, offset, &hash_lock);
 
 	if (bpage == NULL) {
 
@@ -722,6 +722,8 @@ buf_read_ahead_linear(
 
 	pred_offset = fil_page_get_prev(frame);
 	succ_offset = fil_page_get_next(frame);
+
+	rw_lock_s_unlock(hash_lock);
 
 	if ((offset == low) && (succ_offset == offset + 1)) {
 

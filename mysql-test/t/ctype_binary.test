@@ -20,5 +20,10 @@ SET NAMES binary;
 --source include/ctype_like_cond_propagation.inc
 
 --echo #
+--echo # MDEV-7629 Regression: Bit and hex string literals changed column names in 10.0.14
+--echo #
+SELECT _binary 0x7E, _binary X'7E', _binary B'01111110';
+
+--echo #
 --echo # End of 10.0 tests
 --echo #

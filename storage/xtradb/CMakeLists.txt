@@ -460,6 +460,14 @@ SET(INNOBASE_SOURCES
 	ut/ut0wqueue.cc
 	ut/ut0timer.cc)
 
+# These files have unused result errors, so we skip Werror
+CHECK_C_COMPILER_FLAG("-Werror" HAVE_WERROR)
+IF(HAVE_WERROR)
+  INCLUDE(${MYSQL_CMAKE_SCRIPT_DIR}/compile_flags.cmake)
+  ADD_COMPILE_FLAGS(page/page0zip.c COMPILE_FLAGS "-Wno-error")
+  ADD_COMPILE_FLAGS(ut/ut0ut.c      COMPILE_FLAGS "-Wno-error")
+ENDIF()
+
 IF(XTRADB_OK)
   MYSQL_ADD_PLUGIN(xtradb ${INNOBASE_SOURCES} STORAGE_ENGINE
                    DEFAULT RECOMPILE_FOR_EMBEDDED

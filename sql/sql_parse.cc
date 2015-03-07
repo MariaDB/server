@@ -2491,11 +2491,15 @@ mysql_execute_command(THD *thd)
           according to slave filtering rules.
           Returning success without producing any errors in this case.
         */
-        DBUG_RETURN(0);
+        if (!thd->lex->create_info.if_exists())
+          DBUG_RETURN(0);
+        /*
+          DROP TRIGGER IF NOT EXISTS will return without an error later
+          after possibly writing the query to a binlog
+        */
       }
-      
-      // force searching in slave.cc:tables_ok() 
-      all_tables->updating= 1;
+      else // force searching in slave.cc:tables_ok()
+        all_tables->updating= 1;
     }
 
     /*

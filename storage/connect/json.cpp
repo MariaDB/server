@@ -34,7 +34,7 @@
 /***********************************************************************/
 PJSON ParseJson(PGLOBAL g, char *s, int len, int pretty, bool *comma)
 {
-  int   i;
+  int   i, rc;
   bool  b = false;
   PJSON jsp = NULL;
   STRG  src;
@@ -48,22 +48,33 @@ PJSON ParseJson(PGLOBAL g, char *s, int len, int pretty, bool *comma)
   src.str = s;
   src.len = len;
 
+  // Save stack and allocation environment and prepare error return
+  if (g->jump_level == MAX_JUMP) {
+    strcpy(g->Message, MSG(TOO_MANY_JUMPS));
+    return NULL;
+    } // endif jump_level
+
+  if ((rc= setjmp(g->jumper[++g->jump_level])) != 0) {
+    goto err;
+    } // endif rc
+
   for (i = 0; i < len; i++)
     switch (s[i]) {
       case '[':
         if (jsp) {
           strcpy(g->Message, "More than one item in file");
-          return NULL;
+          goto err;
         } else if (!(jsp = ParseArray(g, ++i, src)))
-          return NULL;
+          goto err;
 
         break;
       case '{':
         if (jsp) {
           strcpy(g->Message, "More than one item in file");
-          return NULL;
+          goto err;
         } else if (!(jsp = ParseObject(g, ++i, src)))
-          return NULL;
+          goto err;
+
         break;
       case ' ':
       case '\t':
@@ -79,7 +90,12 @@ PJSON ParseJson(PGLOBAL g, char *s, int len, int pretty, bool *comma)
           } // endif pretty
 
         sprintf(g->Message, "Unexpected ',' (pretty=%d)", pretty);
-        return NULL;
+        goto err;
+      case '"':
+        if (!(jsp = ParseValue(g, i, src)))
+          goto err;
+
+        break;
       case '(':
         b = true;
         break;
@@ -92,13 +108,18 @@ PJSON ParseJson(PGLOBAL g, char *s, int len, int pretty, bool *comma)
       default:
         sprintf(g->Message, "Bad '%c' character near %.*s",
                 s[i], ARGS);
-        return NULL;
+        goto err;
     }; // endswitch s[i]
 
   if (!jsp)
     sprintf(g->Message, "Invalid Json string '%.*s'", 50, s);
 
+  g->jump_level--;
   return jsp;
+
+ err:
+  g->jump_level--;
+  return NULL;
 } // end of ParseJson
 
 /***********************************************************************/
@@ -312,18 +333,25 @@ err:
 /***********************************************************************/
 char *ParseString(PGLOBAL g, int& i, STRG& src)
 {
-  char *p, *s = src.str;
-  int   n = 0, len = src.len;
+  char  *s = src.str;
+  uchar *p;
+  int    n = 0, len = src.len;
+
+  // Be sure of memory availability
+  if (len + 1 - i > (signed)((PPOOLHEADER)g->Sarea)->FreeBlk) {
+    strcpy(g->Message, "ParseString: Out of memory");
+    return NULL;
+    } // endif len
 
   // The size to allocate is not known yet
-  p = (char*)PlugSubAlloc(g, NULL, 0);
+  p = (uchar*)PlugSubAlloc(g, NULL, 0);
 
   for (; i < len; i++)
     switch (s[i]) {
       case '"':
         p[n++] = 0;
         PlugSubAlloc(g, NULL, n);
-        return p;
+        return (char*)p;
       case '\\':
         if (++i < len) {
           if (s[i] == 'u') {
@@ -504,8 +532,11 @@ PSZ Serialize(PGLOBAL g, PJSON jsp, FILE *fs, int pretty)
       err = (b && jp->WriteChr('\t'));
       err |= SerializeObject(jp, (PJOB)jsp);
       break;
+    case TYPE_JVAL:
+      err = SerializeValue(jp, (PJVAL)jsp);
+      break;
     default:
-      strcpy(g->Message, "json tree is not an Array or an Object");
+      strcpy(g->Message, "Invalid json tree");
     } // endswitch Type
 
   if (fs) {
@@ -575,9 +606,9 @@ bool SerializeObject(JOUT *js, PJOB jobp)
     else if (js->WriteChr(','))
       return true;
 
-    if (js->WriteChr('\"') ||
+    if (js->WriteChr('"') ||
         js->WriteStr(pair->Key) ||
-        js->WriteChr('\"') ||
+        js->WriteChr('"') ||
         js->WriteChr(':') ||
         SerializeValue(js, pair->Val))
       return true;
@@ -631,7 +662,7 @@ JOUTSTR::JOUTSTR(PGLOBAL g) : JOUT(g)
 
   N = 0;
   Max = pph->FreeBlk;
-  Max = (Max > 512) ? Max - 512 : Max;
+  Max = (Max > 32) ? Max - 32 : Max;
   Strp = (char*)PlugSubAlloc(g, NULL, 0);  // Size not know yet
 } // end of JOUTSTR constructor
 
@@ -675,12 +706,13 @@ bool JOUTSTR::Escape(const char *s)
 
   for (unsigned int i = 0; i < strlen(s); i++)
     switch (s[i]) {
+      case '"':  
+      case '\\':
       case '\t':
       case '\n':
       case '\r':
       case '\b':
-      case '\f':
-      case '"':  WriteChr('\\');
+      case '\f': WriteChr('\\');
         // passthru
       default:
         WriteChr(s[i]);
@@ -723,12 +755,13 @@ bool JOUTFILE::Escape(const char *s)
 
   for (unsigned int i = 0; i < strlen(s); i++)
     switch (s[i]) {
-      case '\t': fputs("\\t", Stream); break;
-      case '\n': fputs("\\n", Stream); break;
-      case '\r': fputs("\\r", Stream); break;
-      case '\b': fputs("\\b", Stream); break;
-      case '\f': fputs("\\f", Stream); break;
-      case '"': fputs("\\\"", Stream); break;
+      case '"':  fputs("\\\"", Stream); break;
+      case '\\': fputs("\\\\", Stream); break;
+      case '\t': fputs("\\t",  Stream); break;
+      case '\n': fputs("\\n",  Stream); break;
+      case '\r': fputs("\\r",  Stream); break;
+      case '\b': fputs("\\b",  Stream); break;
+      case '\f': fputs("\\f",  Stream); break;
       default:
         fputc(s[i], Stream);
         break;
@@ -848,27 +881,26 @@ PJVAL JOBJECT::GetValue(const char* key)
 /***********************************************************************/
 /* Return the text corresponding to all keys (XML like).               */
 /***********************************************************************/
-PSZ JOBJECT::GetText(PGLOBAL g)
+PSZ JOBJECT::GetText(PGLOBAL g, PSZ text)
 {
-  char *p, *text = (char*)PlugSubAlloc(g, NULL, 0);
-  bool  b = true;
+  int n;
 
-  if (!First)
+  if (!text) {
+    text = (char*)PlugSubAlloc(g, NULL, 0);
+    text[0] = 0;
+    n = 1;
+  } else
+    n = 0;
+
+  if (!First && n)
     return NULL;
-  else for (PJPR jp = First; jp; jp = jp->Next) {
-    if (!(p = jp->Val->GetString()))
-      p = "???";
+  else for (PJPR jp = First; jp; jp = jp->Next)
+    jp->Val->GetText(g, text);
 
-    if (b) {
-      strcpy(text, p); 
-      b = false;
-    } else
-      strcat(strcat(text, " "), p);
+  if (n)
+    PlugSubAlloc(g, NULL, strlen(text) + 1);
 
-    } // endfor jp
-
-  PlugSubAlloc(g, NULL, strlen(text) + 1);
-  return text;
+  return text + n;
 } // end of GetValue;
 
 /***********************************************************************/
@@ -890,6 +922,18 @@ void JOBJECT::SetValue(PGLOBAL g, PJVAL jvp, PSZ key)
     } // endif jp
 
 } // end of SetValue
+
+/***********************************************************************/
+/* True if void or if all members are nulls.                           */
+/***********************************************************************/
+bool JOBJECT::IsNull(void)
+{
+  for (PJPR jp = First; jp; jp = jp->Next)
+    if (!jp->Val->IsNull())
+      return false;
+
+  return true;
+} // end of IsNull
 
 /* -------------------------- Class JARRAY --------------------------- */
 
@@ -979,6 +1023,18 @@ bool JARRAY::DeleteValue(int n)
 
 } // end of DeleteValue
 
+/***********************************************************************/
+/* True if void or if all members are nulls.                           */
+/***********************************************************************/
+bool JARRAY::IsNull(void)
+{
+  for (int i = 0; i < Size; i++)
+    if (!Mvals[i]->IsNull())
+      return false;
+
+  return true;
+} // end of IsNull
+
 /* -------------------------- Class JVALUE- -------------------------- */
 
 /***********************************************************************/
@@ -1052,4 +1108,55 @@ PSZ JVALUE::GetString(void)
   char buf[32];
   return (Value) ? Value->GetCharString(buf) : NULL;
 } // end of GetString
+
+/***********************************************************************/
+/* Return the Value's String value.                                    */
+/***********************************************************************/
+PSZ JVALUE::GetText(PGLOBAL g, PSZ text)
+{
+  if (Jsp && Jsp->GetType() == TYPE_JOB)
+    return Jsp->GetText(g, text);
+
+  char buf[32];
+  PSZ  s = (Value) ? Value->GetCharString(buf) : NULL;
+
+  if (s)
+    strcat(strcat(text, " "), s);
+  else
+    strcat(text, " ???");
+
+  return text;
+} // end of GetText
+
+/***********************************************************************/
+/* Set the Value's value as the given integer.                         */
+/***********************************************************************/
+void JVALUE::SetInteger(PGLOBAL g, int n)
+{
+  Value = AllocateValue(g, &n, TYPE_INT);
+} // end of AddInteger
+
+/***********************************************************************/
+/* Set the Value's value as the given DOUBLE.                          */
+/***********************************************************************/
+void JVALUE::SetFloat(PGLOBAL g, double f)
+{
+  Value = AllocateValue(g, &f, TYPE_DOUBLE, 6);
+} // end of AddFloat
+
+/***********************************************************************/
+/* Set the Value's value as the given string.                          */
+/***********************************************************************/
+void JVALUE::SetString(PGLOBAL g, PSZ s)
+{
+  Value = AllocateValue(g, s, TYPE_STRING);
+} // end of AddFloat
+
+/***********************************************************************/
+/* True when its JSON or normal value is null.                         */
+/***********************************************************************/
+bool JVALUE::IsNull(void)
+{
+  return (Jsp) ? Jsp->IsNull() : (Value) ? Value->IsNull() : true;
+} // end of IsNull
 

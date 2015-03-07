@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2000, 2014, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2000, 2015, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -611,6 +611,7 @@ handle_new_error:
 	case DB_DUPLICATE_KEY:
 	case DB_FOREIGN_DUPLICATE_KEY:
 	case DB_TOO_BIG_RECORD:
+	case DB_TOO_BIG_FOR_REDO:
 	case DB_UNDO_RECORD_TOO_BIG:
 	case DB_ROW_IS_REFERENCED:
 	case DB_NO_REFERENCED_ROW:
@@ -4414,7 +4415,7 @@ row_drop_table_for_mysql(
 
 	case DB_OUT_OF_FILE_SPACE:
 		err = DB_MUST_GET_MORE_FILE_SPACE;
-
+		trx->error_state = err;
 		row_mysql_handle_errors(&err, trx, NULL, NULL);
 
 		/* raise error */

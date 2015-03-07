@@ -1,5 +1,5 @@
 /* -*- c-basic-offset: 2 -*- */
-/* Copyright(C) 2009-2013 Brazil
+/* Copyright(C) 2009-2015 Brazil
 
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -14,13 +14,13 @@
   License along with this library; if not, write to the Free Software
   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 */
-#include "groonga_in.h"
+#include "grn.h"
 #include <limits.h>
 #include <stdio.h>
 #include <stdarg.h>
 #include <string.h>
-#include "db.h"
-#include "str.h"
+#include "grn_db.h"
+#include "grn_str.h"
 
 #ifndef _ISOC99_SOURCE
 #define _ISOC99_SOURCE
@@ -2441,14 +2441,20 @@ grn_text_time2rfc1123(grn_ctx *ctx, grn_obj *bulk, int sec)
 {
   time_t tsec;
   struct tm *t;
-#ifdef HAVE_GMTIME_R
+#ifdef HAVE__GMTIME64_S
+  struct tm tm;
+  tsec = (time_t)sec;
+  t = (gmtime_s(&tm, &tsec) == 0) ? &tm : NULL;
+#else /* HAVE__GMTIME64_S */
+# ifdef HAVE_GMTIME_R
   struct tm tm;
   tsec = (time_t)sec;
   t = gmtime_r(&tsec, &tm);
-#else /* HAVE_GMTIME_R */
+# else /* HAVE_GMTIME_R */
   tsec = (time_t)sec;
   t = gmtime(&tsec);
-#endif /* HAVE_GMTIME_R */
+# endif /* HAVE_GMTIME_R */
+#endif /* HAVE__GMTIME64_S */
   if (t) {
     GRN_TEXT_SET(ctx, bulk, weekdays[t->tm_wday], 3);
     GRN_TEXT_PUTS(ctx, bulk, ", ");
@@ -2576,10 +2582,10 @@ grn_text_atoj(grn_ctx *ctx, grn_obj *bulk, grn_obj *obj, grn_id id)
         buf.header.domain = GRN_DB_INT32; /* fix me */
         break;
       case GRN_ACCESSOR_GET_SCORE :
-        grn_obj_get_value(ctx, a->obj, id, &buf);
         {
           grn_rset_recinfo *ri = (grn_rset_recinfo *)grn_obj_get_value_(ctx, a->obj, id, &vs);
-          GRN_INT32_PUT(ctx, &buf, ri->score);
+          int32_t int32_score = ri->score;
+          GRN_INT32_PUT(ctx, &buf, int32_score);
         }
         buf.header.domain = GRN_DB_INT32;
         break;
@@ -2941,6 +2947,8 @@ grn_text_otoj(grn_ctx *ctx, grn_obj *bulk, grn_obj *obj, grn_obj_format *format)
         }
       }
       GRN_TEXT_PUTC(ctx, bulk, ']');
+      GRN_OBJ_FIN(ctx, &value);
+      GRN_OBJ_FIN(ctx, &weight);
     }
     break;
   case GRN_PVECTOR :

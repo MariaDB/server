@@ -1137,6 +1137,80 @@ SET GLOBAL debug_dbug=@old_dbug;
 SET GLOBAL slave_parallel_threads=0;
 SET GLOBAL slave_parallel_threads=10;
 include/start_slave.inc
+*** MDEV-7335: Potential parallel slave deadlock with specific binlog corruption ***
+include/stop_slave.inc
+SET GLOBAL slave_parallel_threads=1;
+SET @old_dbug= @@GLOBAL.debug_dbug;
+SET GLOBAL debug_dbug="+d,slave_discard_xid_for_gtid_0_x_1000";
+INSERT INTO t2 VALUES (101);
+INSERT INTO t2 VALUES (102);
+INSERT INTO t2 VALUES (103);
+INSERT INTO t2 VALUES (104);
+INSERT INTO t2 VALUES (105);
+SET gtid_seq_no=1000;
+INSERT INTO t2 VALUES (106);
+INSERT INTO t2 VALUES (107);
+INSERT INTO t2 VALUES (108);
+INSERT INTO t2 VALUES (109);
+INSERT INTO t2 VALUES (110);
+INSERT INTO t2 VALUES (111);
+INSERT INTO t2 VALUES (112);
+INSERT INTO t2 VALUES (113);
+INSERT INTO t2 VALUES (114);
+INSERT INTO t2 VALUES (115);
+INSERT INTO t2 VALUES (116);
+INSERT INTO t2 VALUES (117);
+INSERT INTO t2 VALUES (118);
+INSERT INTO t2 VALUES (119);
+INSERT INTO t2 VALUES (120);
+INSERT INTO t2 VALUES (121);
+INSERT INTO t2 VALUES (122);
+INSERT INTO t2 VALUES (123);
+INSERT INTO t2 VALUES (124);
+INSERT INTO t2 VALUES (125);
+INSERT INTO t2 VALUES (126);
+INSERT INTO t2 VALUES (127);
+INSERT INTO t2 VALUES (128);
+INSERT INTO t2 VALUES (129);
+INSERT INTO t2 VALUES (130);
+include/save_master_gtid.inc
+include/start_slave.inc
+include/sync_with_master_gtid.inc
+SELECT * FROM t2 WHERE a >= 100 ORDER BY a;
+a
+101
+102
+103
+104
+105
+107
+108
+109
+110
+111
+112
+113
+114
+115
+116
+117
+118
+119
+120
+121
+122
+123
+124
+125
+126
+127
+128
+129
+130
+include/stop_slave.inc
+SET GLOBAL debug_dbug=@old_dbug;
+SET GLOBAL slave_parallel_threads=10;
+include/start_slave.inc
 *** MDEV-6676 - test syntax of @@slave_parallel_mode ***
 Parallel_Mode = 'conservative'
 include/stop_slave.inc

@@ -5170,7 +5170,7 @@ os_aio_func(
 	mode = mode & (~OS_AIO_SIMULATED_WAKE_LATER);
 
 	DBUG_EXECUTE_IF("ib_os_aio_func_io_failure_28",
-			mode = OS_AIO_SYNC;);
+		mode = OS_AIO_SYNC; os_has_said_disk_full = TRUE;);
 
 	if (mode == OS_AIO_SYNC) {
 		ibool ret;
@@ -5185,13 +5185,9 @@ os_aio_func(
 			ut_a(type == OS_FILE_WRITE);
 
 			ret = os_file_write(name, file, buf, offset, n);
-		}
 
-		if (type == OS_FILE_WRITE) {
 			DBUG_EXECUTE_IF("ib_os_aio_func_io_failure_28",
-				os_has_said_disk_full = FALSE;
-				ret = 0;
-				errno = 28;);
+				os_has_said_disk_full = TRUE; ret = 0; errno = 28;);
 		}
 
 		if (!ret) {
@@ -6138,16 +6134,14 @@ consecutive_loop:
 		ret = os_file_write(
 			aio_slot->name, aio_slot->file, combined_buf,
 			aio_slot->offset, total_len);
+
+		DBUG_EXECUTE_IF("ib_os_aio_func_io_failure_28",
+			os_has_said_disk_full = TRUE; ret = 0; errno = 28;);
 	} else {
 		ret = os_file_read(
 			aio_slot->file, combined_buf,
 			aio_slot->offset, total_len,
 			aio_slot->page_compression);
-	}
-
-	if (aio_slot->type == OS_FILE_WRITE) {
-		DBUG_EXECUTE_IF("ib_os_aio_func_io_failure_28_2",
-			os_has_said_disk_full = FALSE; ret = 0; errno = 28;);
 	}
 
 	srv_set_io_thread_op_info(global_segment, "file i/o done");

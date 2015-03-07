@@ -263,7 +263,6 @@ private:
   grn_obj **grn_column_ranges;
   grn_obj **grn_index_tables;
   grn_obj **grn_index_columns;
-  bool grn_table_is_referenced;
 
   // buffers
   grn_obj  encoded_key_buffer;
@@ -349,7 +348,7 @@ public:
 
   uint max_supported_record_length()   const;
   uint max_supported_keys()            const;
-  uint max_supported_key_parts();
+  uint max_supported_key_parts()       const;
   uint max_supported_key_length()      const;
   uint max_supported_key_part_length() const;
 
@@ -641,7 +640,7 @@ private:
   void storage_store_field_geometry(Field *field,
                                     const char *value, uint value_length);
   void storage_store_field(Field *field, const char *value, uint value_length);
-  void storage_store_field_column(Field *field,
+  void storage_store_field_column(Field *field, bool is_primary_key,
                                   int nth_column, grn_id record_id);
   void storage_store_fields(uchar *buf, grn_id record_id);
   void storage_store_fields_for_prep_update(const uchar *old_data,
@@ -742,7 +741,6 @@ private:
   int wrapper_open(const char *name, int mode, uint test_if_locked);
   int wrapper_open_indexes(const char *name);
   int storage_open(const char *name, int mode, uint test_if_locked);
-  void update_grn_table_is_referenced();
   int open_table(const char *name);
   int storage_open_columns(void);
   int storage_open_indexes(const char *name);
@@ -785,7 +783,9 @@ private:
                                               grn_obj *index_column);
   int storage_write_row_multiple_column_indexes(uchar *buf, grn_id record_id);
   int storage_write_row_unique_index(uchar *buf,
-                                     KEY *key_info, grn_obj *index_table,
+                                     KEY *key_info,
+                                     grn_obj *index_table,
+                                     grn_obj *index_column,
                                      grn_id *key_id);
   int storage_write_row_unique_indexes(uchar *buf);
   int wrapper_get_record_id(uchar *data, grn_id *record_id, const char *context);
@@ -812,8 +812,8 @@ private:
   uint storage_max_supported_record_length() const;
   uint wrapper_max_supported_keys() const;
   uint storage_max_supported_keys() const;
-  uint wrapper_max_supported_key_parts();
-  uint storage_max_supported_key_parts();
+  uint wrapper_max_supported_key_parts() const;
+  uint storage_max_supported_key_parts() const;
   uint wrapper_max_supported_key_length() const;
   uint storage_max_supported_key_length() const;
   uint wrapper_max_supported_key_part_length() const;
@@ -904,6 +904,7 @@ private:
                                           grn_obj *match_columns,
                                           uint *consumed_keyword_length,
                                           grn_obj *tmp_objects);
+  grn_expr_flags expr_flags_in_boolean_mode();
   grn_rc generic_ft_init_ext_prepare_expression_in_boolean_mode(
     struct st_mrn_ft_info *info,
     String *key,
@@ -1029,6 +1030,7 @@ private:
   bool storage_is_crashed() const;
   bool wrapper_auto_repair(int error) const;
   bool storage_auto_repair(int error) const;
+  int generic_disable_index(int i, KEY *key_info);
   int wrapper_disable_indexes(uint mode);
   int storage_disable_indexes(uint mode);
   int wrapper_enable_indexes(uint mode);

@@ -1476,7 +1476,13 @@ done:
   /* Come here if error and we need to rollback. */
 err:
   error= 1;                                  /* Transaction was rolled back */
-  ha_rollback_trans(thd, all);
+  /*
+    In parallel replication, rollback is delayed, as there is extra replication
+    book-keeping to be done before rolling back and allowing a conflicting
+    transaction to continue (MDEV-7458).
+  */
+  if (!(thd->rgi_slave && thd->rgi_slave->is_parallel_exec))
+    ha_rollback_trans(thd, all);
 
 end:
   if (rw_trans && mdl_request.ticket)

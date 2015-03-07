@@ -16,8 +16,6 @@ typedef class JSONDEF *PJDEF;
 typedef class TDBJSON *PJTDB;
 typedef class JSONCOL *PJCOL;
 
-class TDBJSN;
-
 /***********************************************************************/
 /*  The JSON tree node. Can be an Object or an Array.           	  	 */
 /***********************************************************************/
@@ -25,7 +23,9 @@ typedef struct _jnode {
   PSZ   Key;                    // The key used for object
   OPVAL Op;                     // Operator used for this node
   PVAL  CncVal;                 // To cont value used for OP_CNC
+  PVAL  Valp;                   // The internal array VALUE
   int   Rank;                   // The rank in array
+  int   Nx;                     // Same row number
 } JNODE, *PJNODE;
 
 /***********************************************************************/
@@ -77,7 +77,7 @@ class TDBJSN : public TDBDOS {
   virtual PTDB CopyOne(PTABS t);
   virtual PCOL MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n);
   virtual PCOL InsertSpecialColumn(PGLOBAL g, PCOL colp);
-  virtual int  RowNumber(PGLOBAL g, BOOL b = FALSE)
+  virtual int  RowNumber(PGLOBAL g, bool b = FALSE)
                 {return (b) ? N : Fpos + 1;}
 
   // Database routines
@@ -94,15 +94,15 @@ class TDBJSN : public TDBDOS {
   JMODE Jmode;                     // MODE_OBJECT by default
   char *Xcol;                      // Name of expandable column
   int   Fpos;                      // The current row index
-  int   Spos;                      // DELETE start index
+//int   Spos;                      // DELETE start index
   int   N;                         // The current Rownum
 	int   Limit;		    				     // Limit of multiple values
   int   Pretty;                    // Depends on file structure
-  bool  Strict;                    // Strict syntax checking
-  bool  NextSame;                  // Same next row
-  bool  Comma;                     // Row has final comma
+  int   NextSame;                  // Same next row
   int   SameRow;                   // Same row nb
   int   Xval;                      // Index of expandable array
+  bool  Strict;                    // Strict syntax checking
+  bool  Comma;                     // Row has final comma
   }; // end of class TDBJSN
 
 /* -------------------------- JSONCOL class -------------------------- */
@@ -130,8 +130,12 @@ class JSONCOL : public DOSCOL {
  protected:
   bool    CheckExpand(PGLOBAL g, int i, PSZ nm, bool b);
   bool    SetArrayOptions(PGLOBAL g, char *p, int i, PSZ nm);
-  PJSON   GetRow(PGLOBAL g, int mode);
+  PVAL    GetColumnValue(PGLOBAL g, PJSON row, int i);
+  PVAL    ExpandArray(PGLOBAL g, PJAR arp, int n);
+  PVAL    CalculateArray(PGLOBAL g, PJAR arp, int n);
+  PVAL    MakeJson(PGLOBAL g, PJSON jsp);
   void    SetJsonValue(PGLOBAL g, PVAL vp, PJVAL val, int n);
+  PJSON   GetRow(PGLOBAL g);
 
   // Default constructor not to be used
   JSONCOL(void) {}
@@ -139,12 +143,10 @@ class JSONCOL : public DOSCOL {
   // Members
   TDBJSN *Tjp;                  // To the JSN table block
   PVAL    MulVal;               // To value used by multiple column
-  PJAR    Arp;                  // The intermediate array
   char   *Jpath;                // The json path
-  JNODE  *Nodes  ;              // The intermediate objects
+  JNODE  *Nodes;                // The intermediate objects
   int     Nod;                  // The number of intermediate objects
-  int     Ival;                 // Index of multiple values
-  int     Nx;                   // The last read sub-row
+  int     Xnod;                 // Index of multiple values
   bool    Xpd;                  // True for expandable column
   bool    Parsed;               // True when parsed
   }; // end of class JSONCOL
@@ -172,7 +174,9 @@ class TDBJSON : public TDBJSN {
   virtual int  Cardinality(PGLOBAL g);
   virtual int  GetMaxSize(PGLOBAL g);
   virtual void ResetSize(void);
-	virtual int  GetRecpos(void) {return Fpos;}
+  virtual int  GetProgCur(void) {return N;}
+	virtual int  GetRecpos(void);
+  virtual bool SetRecpos(PGLOBAL g, int recpos);
   virtual bool OpenDB(PGLOBAL g);
   virtual int  ReadDB(PGLOBAL g);
   virtual bool PrepareWriting(PGLOBAL g) {return false;}

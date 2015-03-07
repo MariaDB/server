@@ -30,4 +30,7 @@ MRuby::Build.new do |conf|
   conf.gem :core => "mruby-kernel-ext"
 
   conf.gem :github => "mattn/mruby-onig-regexp"
+  conf.gem :github => "iij/mruby-io"
+  conf.gem :github => "kou/mruby-pp"
+  conf.gem :github => "kou/mruby-slop"
 end

@@ -13544,7 +13544,12 @@ literal:
         | UNDERSCORE_CHARSET hex_or_bin_String
           {
             Item_string_with_introducer *item_str;
-            item_str= new (thd->mem_root) Item_string_with_introducer($2, $1);
+            /*
+              Pass NULL as name. Name will be set in the "select_item" rule and
+              will include the introducer and the original hex/bin notation.
+            */
+            item_str= new (thd->mem_root)
+               Item_string_with_introducer(NULL, $2->ptr(), $2->length(), $1);
             if (!item_str || !item_str->check_well_formed_result(true))
               MYSQL_YYABORT;
 

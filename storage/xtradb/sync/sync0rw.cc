@@ -703,6 +703,8 @@ rw_lock_x_lock_low(
 	const char*	file_name,/*!< in: file name where lock requested */
 	ulint		line)	/*!< in: line where requested */
 {
+	ibool local_recursive= lock->recursive;
+
 	if (rw_lock_lock_word_decr(lock, X_LOCK_DECR)) {
 
 		/* lock->recursive also tells us if the writer_thread
@@ -724,12 +726,12 @@ rw_lock_x_lock_low(
 	} else {
 		os_thread_id_t	thread_id = os_thread_get_curr_id();
 
-		if (!pass) {
-			os_rmb;
-		}
-
-		/* Decrement failed: relock or failed lock */
-		if (!pass && lock->recursive
+		/* Decrement failed: relock or failed lock
+		Note: recursive must be loaded before writer_thread see
+		comment for rw_lock_set_writer_id_and_recursion_flag().
+		To achieve this we load it before rw_lock_lock_word_decr(),
+		which implies full memory barrier in current implementation. */
+		if (!pass && local_recursive
 		    && os_thread_eq(lock->writer_thread, thread_id)) {
 			/* Relock */
 			if (lock->lock_word == 0) {

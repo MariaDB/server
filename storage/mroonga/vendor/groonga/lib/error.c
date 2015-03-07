@@ -15,7 +15,7 @@
   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 */
 
-#include "error.h"
+#include "grn_error.h"
 
 #ifdef HAVE_ERRNO_H
 #include <errno.h>
@@ -28,17 +28,28 @@ const char *
 grn_current_error_message(void)
 {
 # define ERROR_MESSAGE_BUFFER_SIZE 4096
-  int error_code = WSAGetLastError();
+  int error_code = GetLastError();
   static char message[ERROR_MESSAGE_BUFFER_SIZE];
+  DWORD written_bytes;
 
-  FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM |
-                FORMAT_MESSAGE_IGNORE_INSERTS,
-                NULL,
-                error_code,
-                MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
-                message,
-                ERROR_MESSAGE_BUFFER_SIZE,
-                NULL);
+  written_bytes = FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM |
+                                FORMAT_MESSAGE_IGNORE_INSERTS,
+                                NULL,
+                                error_code,
+                                MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+                                message,
+                                ERROR_MESSAGE_BUFFER_SIZE,
+                                NULL);
+  if (written_bytes >= 2) {
+    if (message[written_bytes - 1] == '\n') {
+      message[written_bytes - 1] = '\0';
+      written_bytes--;
+    }
+    if (message[written_bytes - 1] == '\r') {
+      message[written_bytes - 1] = '\0';
+      written_bytes--;
+    }
+  }
 
   return message;
 

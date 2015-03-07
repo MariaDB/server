@@ -1,4 +1,4 @@
-# Copyright (C) 2013  Kouhei Sutou <kou@clear-code.com>
+# Copyright (C) 2013-2015  Kouhei Sutou <kou@clear-code.com>
 #
 # This library is free software; you can redistribute it and/or
 # modify it under the terms of the GNU Library General Public
@@ -16,4 +16,5 @@
 
 docdir = $(datadir)/doc/$(PACKAGE)
 dist_doc_DATA =					\
-	lgpl-2.0.txt
+	lgpl-2.0.txt				\
+	news.md

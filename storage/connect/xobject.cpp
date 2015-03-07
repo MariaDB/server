@@ -347,6 +347,31 @@ bool STRING::Append(char c)
 } // end of Append
 
 /***********************************************************************/
+/*  Append a quoted PSZ to a STRING.                                   */
+/***********************************************************************/
+bool STRING::Append_quoted(PSZ s)
+{
+  bool b = Append('\'');
+
+  if (s) for (char *p = s; !b && *p; p++)
+    switch (*p) {
+      case '\'':
+      case '\\':
+      case '\t':
+      case '\n':
+      case '\r':
+      case '\b':
+      case '\f': b |= Append('\\');
+        // passthru
+      default:
+        b |= Append(*p);
+        break;
+      } // endswitch *p
+
+  return (b |= Append('\''));
+} // end of Append_quoted
+
+/***********************************************************************/
 /*  Resize to given length but only when last suballocated.            */
 /*  New size should be greater than string length.                     */
 /***********************************************************************/

@@ -19,8 +19,8 @@
 #ifndef GRN_MRB_EXPR_H
 #define GRN_MRB_EXPR_H
 
-#include "../ctx.h"
-#include "../expr.h"
+#include "../grn_ctx.h"
+#include "../grn_expr.h"
 
 #ifdef __cplusplus
 extern "C" {

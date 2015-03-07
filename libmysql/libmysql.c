@@ -4901,3 +4901,16 @@ my_bool STDCALL mysql_read_query_result(MYSQL *mysql)
   return (*mysql->methods->read_query_result)(mysql);
 }
 
+/********************************************************************
+  mysql_net_ functions - low-level API to MySQL protocol
+*********************************************************************/
+ulong STDCALL mysql_net_read_packet(MYSQL *mysql)
+{
+  return cli_safe_read(mysql);
+}
+
+ulong STDCALL mysql_net_field_length(uchar **packet)
+{
+  return net_field_length(packet);
+}
+

@@ -18,8 +18,8 @@
 
 #include <string.h>
 
-#include "groonga_in.h"
-#include "db.h"
+#include "grn.h"
+#include "grn_db.h"
 #include <groonga/token_filter.h>
 
 grn_rc

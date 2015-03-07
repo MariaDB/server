@@ -149,11 +149,11 @@ UPDATE `t``\""e` SET a = 4 WHERE a = 22;
 # NOTE: replace_regex is very slow on match copy/past '(.*)' regex's
 # on big texts, removing a lot of text before + after makes it much faster.
 #/.*in (.*) trx.*/\1/
---replace_regex /.*RECORD LOCKS space id [0-9]* page no [0-9]* n bits [0-9]* // / trx id .*// /.*index .* in //
+--replace_regex /.*RECORD LOCKS space id [0-9]* page no [0-9]* n bits [0-9]* // / trx id .*// /.*index .* in // /trx table locks [0-9]* // /total table locks [0-9]* //
 SHOW ENGINE InnoDB STATUS;
 set @old_sql_mode = @@sql_mode;
 set sql_mode = 'ANSI_QUOTES';
---replace_regex /.*RECORD LOCKS space id [0-9]* page no [0-9]* n bits [0-9]* // / trx id .*// /.*index .* in //
+--replace_regex /.*RECORD LOCKS space id [0-9]* page no [0-9]* n bits [0-9]* // / trx id .*// /.*index .* in // /trx table locks [0-9]* // /total table locks [0-9]* //
 SHOW ENGINE InnoDB STATUS;
 set @@sql_mode = @old_sql_mode;
 --echo # con1

@@ -5728,6 +5728,14 @@ end:
 }
 
 
+/*
+  Initialize the binlog state from the master-bin.state file, at server startup.
+
+  Returns:
+    0 for success.
+    2 for when .state file did not exist.
+    1 for other error.
+*/
 int
 MYSQL_BIN_LOG::read_state_from_file()
 {
@@ -5755,7 +5763,7 @@ MYSQL_BIN_LOG::read_state_from_file()
         with GTID enabled. So initialize to empty state.
       */
       rpl_global_gtid_binlog_state.reset();
-      err= 0;
+      err= 2;
       goto end;
     }
   }
@@ -7490,6 +7498,8 @@ MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader)
       my_error(ER_ERROR_ON_WRITE, MYF(ME_NOREFRESH), name, errno);
       check_purge= false;
     }
+    /* In case of binlog rotate, update the correct current binlog offset. */
+    commit_offset= my_b_write_tell(&log_file);
   }
 
   DEBUG_SYNC(leader->thd, "commit_before_get_LOCK_after_binlog_sync");
@@ -9649,7 +9659,17 @@ MYSQL_BIN_LOG::do_binlog_recovery(const char *opt_name, bool do_xa_recovery)
     if (error != LOG_INFO_EOF)
       sql_print_error("find_log_pos() failed (error: %d)", error);
     else
+    {
       error= read_state_from_file();
+      if (error == 2)
+      {
+        /*
+          No binlog files and no binlog state is not an error (eg. just initial
+          server start after fresh installation).
+        */
+        error= 0;
+      }
+    }
     return error;
   }
 
@@ -9675,15 +9695,42 @@ MYSQL_BIN_LOG::do_binlog_recovery(const char *opt_name, bool do_xa_recovery)
 
   if ((ev= Log_event::read_log_event(&log, 0, &fdle,
                                      opt_master_verify_checksum)) &&
-      ev->get_type_code() == FORMAT_DESCRIPTION_EVENT &&
-      ev->flags & LOG_EVENT_BINLOG_IN_USE_F)
+      ev->get_type_code() == FORMAT_DESCRIPTION_EVENT)
   {
-    sql_print_information("Recovering after a crash using %s", opt_name);
-    error= recover(&log_info, log_name, &log,
-                   (Format_description_log_event *)ev, do_xa_recovery);
+    if (ev->flags & LOG_EVENT_BINLOG_IN_USE_F)
+    {
+      sql_print_information("Recovering after a crash using %s", opt_name);
+      error= recover(&log_info, log_name, &log,
+                     (Format_description_log_event *)ev, do_xa_recovery);
+    }
+    else
+    {
+      error= read_state_from_file();
+      if (error == 2)
+      {
+        /*
+          The binlog exists, but the .state file is missing. This is normal if
+          this is the first master start after a major upgrade to 10.0 (with
+          GTID support).
+
+          However, it could also be that the .state file was lost somehow, and
+          in this case it could be a serious issue, as we would set the wrong
+          binlog state in the next binlog file to be created, and GTID
+          processing would be corrupted. A common way would be copying files
+          from an old server to a new one and forgetting the .state file.
+
+          So in this case, we want to try to recover the binlog state by
+          scanning the last binlog file (but we do not need any XA recovery).
+
+          ToDo: We could avoid one scan at first start after major upgrade, by
+          detecting that there is no GTID_LIST event at the start of the
+          binlog file, and stopping the scan in that case.
+        */
+        error= recover(&log_info, log_name, &log,
+                       (Format_description_log_event *)ev, false);
+      }
+    }
   }
-  else
-    error= read_state_from_file();
 
   delete ev;
   end_io_cache(&log);

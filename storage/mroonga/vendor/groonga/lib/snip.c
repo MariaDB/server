@@ -14,11 +14,11 @@
   License along with this library; if not, write to the Free Software
   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 */
-#include "groonga_in.h"
+#include "grn.h"
 #include <string.h>
 #include <stddef.h>
-#include "snip.h"
-#include "ctx.h"
+#include "grn_snip.h"
+#include "grn_ctx.h"
 
 #if !defined MAX
 #define MAX(a, b) ((a) > (b) ? (a) : (b))

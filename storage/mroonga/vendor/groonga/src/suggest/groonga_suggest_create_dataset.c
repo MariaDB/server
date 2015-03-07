@@ -21,7 +21,7 @@
 #include <groonga.h>
 
 /* For grn_str_getopt() */
-#include <str.h>
+#include <grn_str.h>
 
 typedef enum {
   MODE_NONE,

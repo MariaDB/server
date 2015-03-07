@@ -1,0 +1,28 @@
+SET NAMES utf8;
+CREATE TABLE terms (
+term varchar(256) NOT NULL PRIMARY KEY
+) COMMENT='default_tokenizer "TokenBigram", normalizer "NormalizerAuto"'
+  DEFAULT CHARSET=utf8;
+CREATE TABLE memos (
+id int PRIMARY KEY,
+content text NOT NULL,
+FULLTEXT INDEX content_index (content) COMMENT 'table "terms"'
+) DEFAULT CHARSET=utf8;
+ALTER TABLE memos DISABLE KEYS;
+SELECT mroonga_command("dump");
+mroonga_command("dump")
+table_create terms TABLE_PAT_KEY ShortText --default_tokenizer TokenBigram --normalizer NormalizerAuto
+column_create terms term COLUMN_SCALAR ShortText
+table_create memos TABLE_PAT_KEY Int32
+column_create memos content COLUMN_SCALAR LongText
+column_create memos id COLUMN_SCALAR Int32
+ALTER TABLE memos ENABLE KEYS;
+SELECT mroonga_command("dump");
+mroonga_command("dump")
+table_create terms TABLE_PAT_KEY ShortText --default_tokenizer TokenBigram --normalizer NormalizerAuto
+column_create terms term COLUMN_SCALAR ShortText
+table_create memos TABLE_PAT_KEY Int32
+column_create memos content COLUMN_SCALAR LongText
+column_create memos id COLUMN_SCALAR Int32
+column_create terms content_index COLUMN_INDEX|WITH_POSITION memos content
+DROP TABLE memos, terms;

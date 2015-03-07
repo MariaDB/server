@@ -54,4 +54,4 @@ run cd -
 package_initial=$(echo "${PACKAGE}" | sed -e 's/\(.\).*/\1/')
 pool_dir="/vagrant/repositories/${distribution}/pool/${code_name}/${component}/${package_initial}/${PACKAGE}"
 run mkdir -p "${pool_dir}/"
-run cp *.tar.gz *.dsc *.deb "${pool_dir}/"
+run cp *.tar.gz *.diff.gz *.dsc *.deb "${pool_dir}/"

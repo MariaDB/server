@@ -2869,8 +2869,9 @@ public:
   {
     set_cs_specified(true);
   }
-  Item_string_with_introducer(const String *str, CHARSET_INFO *tocs)
-    :Item_string(str->ptr(), str->length(), tocs)
+  Item_string_with_introducer(const char *name,
+                              const char *str, uint length, CHARSET_INFO *tocs)
+    :Item_string(name, str, length, tocs)
   {
     set_cs_specified(true);
   }

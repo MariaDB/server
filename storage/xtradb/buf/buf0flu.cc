@@ -1123,8 +1123,8 @@ buf_flush_page(
 # if defined UNIV_DEBUG || defined UNIV_IBUF_DEBUG
 /********************************************************************//**
 Writes a flushable page asynchronously from the buffer pool to a file.
-NOTE: block->mutex must be held upon entering this function, and it will be
-released by this function after flushing.  This is loosely based on
+NOTE: block and LRU list mutexes must be held upon entering this function, and
+they will be released by this function after flushing. This is loosely based on
 buf_flush_batch() and buf_flush_page().
 @return TRUE if the page was flushed and the mutexes released */
 UNIV_INTERN
@@ -1675,6 +1675,8 @@ buf_do_LRU_batch(
 	flush_counters_t*	n)	/*!< out: flushed/evicted page
 					counts */
 {
+	ut_ad(mutex_own(&buf_pool->LRU_list_mutex));
+
 	if (buf_LRU_evict_from_unzip_LRU(buf_pool)) {
 		n->unzip_LRU_evicted
 			= buf_free_from_unzip_LRU_list_batch(buf_pool, max);
