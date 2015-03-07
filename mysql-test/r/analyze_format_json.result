@@ -210,3 +210,32 @@ EXPLAIN
   }
 }
 drop table t1,t2;
+create table t1(a int);
+insert into t1 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+#
+# MDEV-7679: ANALYZE crashes when printing WHERE when no default db
+#
+select database();
+database()
+test
+select database();
+database()
+NULL
+analyze format=json select * from test.t1 where t1.a<5;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t1",
+      "access_type": "ALL",
+      "r_loops": 1,
+      "rows": 10,
+      "r_rows": 10,
+      "filtered": 100,
+      "r_filtered": 50,
+      "attached_condition": "(test.t1.a < 5)"
+    }
+  }
+}
+drop table t1;

@@ -2380,7 +2380,8 @@ void Item_ident::print(String *str, enum_query_type query_type)
       When printing EXPLAIN, don't print database name when it's the same as
       current database.
     */
-    bool skip_db= (query_type & QT_EXPLAIN) && !strcmp(thd->db, db_name);
+    bool skip_db= (query_type & QT_EXPLAIN) && thd->db && 
+                  !strcmp(thd->db, db_name);
     if (!skip_db && 
         !(cached_table && cached_table->belong_to_view &&
           cached_table->belong_to_view->compact_view_format))
