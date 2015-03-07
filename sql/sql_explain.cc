@@ -298,7 +298,7 @@ int print_explain_row(select_result_sink *result,
                       const char *key_len,
                       const char *ref,
                       ha_rows *rows,
-                      ha_rows *r_rows,
+                      double *r_rows,
                       double r_filtered,
                       const char *extra)
 {
@@ -356,10 +356,7 @@ int print_explain_row(select_result_sink *result,
   if (is_analyze)
   {
     if (r_rows)
-    {
-      item_list.push_back(new Item_int(*r_rows, 
-                                       MY_INT64_NUM_DECIMAL_DIGITS));
-    }
+      item_list.push_back(new Item_float(*r_rows, 2));
     else
       item_list.push_back(item_null);
   }
@@ -472,9 +469,8 @@ int Explain_union::print_explain(Explain_query *query,
   /* `r_rows` */
   if (is_analyze)
   {
-    ha_rows avg_rows= fake_select_lex_tracker.get_avg_rows();
-    item_list.push_back(new Item_int((longlong) (ulonglong) avg_rows,
-                                      MY_INT64_NUM_DECIMAL_DIGITS));
+    double avg_rows= fake_select_lex_tracker.get_avg_rows();
+    item_list.push_back(new Item_float(avg_rows, 2));
   }
 
   /* `filtered` */
@@ -1004,9 +1000,8 @@ int Explain_table_access::print_explain(select_result_sink *output, uint8 explai
     }
     else
     {
-      ha_rows avg_rows= tracker.get_avg_rows();
-      item_list.push_back(new Item_int((longlong) (ulonglong) avg_rows,
-                                        MY_INT64_NUM_DECIMAL_DIGITS));
+      double avg_rows= tracker.get_avg_rows();
+      item_list.push_back(new Item_float(avg_rows, 2));
     }
   }
 
@@ -1289,8 +1284,8 @@ void Explain_table_access::print_explain_json(Explain_query *query,
     writer->add_member("r_rows");
     if (tracker.has_scans())
     {
-      ha_rows avg_rows= tracker.get_avg_rows();
-      writer->add_ll(avg_rows);
+      double avg_rows= tracker.get_avg_rows();
+      writer->add_double(avg_rows);
     }
     else
       writer->add_null();
@@ -1756,7 +1751,7 @@ int Explain_update::print_explain(Explain_query *query,
     "Using index condition" is also not possible (which is an unjustified limitation)
   */
   double r_filtered= 100 * tracker.get_filtered_after_where();
-  ha_rows r_rows= tracker.get_avg_rows();
+  double r_rows= tracker.get_avg_rows();
 
   print_explain_row(output, explain_flags, is_analyze,
                     1, /* id */
@@ -1877,8 +1872,8 @@ void Explain_update::print_explain_json(Explain_query *query,
   /* `r_rows` */
   if (is_analyze && tracker.has_scans())
   {
-    ha_rows avg_rows= tracker.get_avg_rows();
-    writer->add_member("r_rows").add_ll(avg_rows);
+    double avg_rows= tracker.get_avg_rows();
+    writer->add_member("r_rows").add_double(avg_rows);
   }
  
   /* UPDATE/DELETE do not produce `filtered` estimate */
