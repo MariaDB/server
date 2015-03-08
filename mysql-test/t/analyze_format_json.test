@@ -36,3 +36,34 @@ select * from t1 tbl1, t1 tbl2 where tbl1.b<20 and tbl2.b<60 and tbl1.c > tbl2.c
 
 drop table t1;
 drop table t0;
+
+--echo #
+--echo # MDEV-7674: ANALYZE shows r_rows=0
+--echo #
+
+create table t1(a int);
+insert into t1 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+
+create table t2 (a int, key(a));
+insert into t2 values (0),(1);
+
+analyze format=json select * from t1 straight_join t2 force index(a) where t2.a=t1.a;
+
+drop table t1,t2;
+
+create table t1(a int);
+insert into t1 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+
+--echo #
+--echo # MDEV-7679: ANALYZE crashes when printing WHERE when no default db
+--echo #
+
+select database();
+connect (con1,localhost,root,,*NO-ONE*);
+connection con1;
+select database();
+analyze format=json select * from test.t1 where t1.a<5;
+disconnect con1;
+connection default;
+drop table t1;
+

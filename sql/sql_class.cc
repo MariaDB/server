@@ -2454,8 +2454,7 @@ void THD::make_explain_field_list(List<Item> &field_list, uint8 explain_flags,
                                                  MYSQL_TYPE_LONGLONG));
   if (is_analyze)
   {
-    field_list.push_back(item= new Item_return_int("r_rows", 10,
-                                                   MYSQL_TYPE_LONGLONG));
+    field_list.push_back(item= new Item_float("r_rows", 0.1234, 10, 4));
     item->maybe_null=1;
   }
 
