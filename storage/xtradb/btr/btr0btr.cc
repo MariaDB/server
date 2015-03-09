@@ -3097,12 +3097,6 @@ func_start:
 	/* 2. Allocate a new page to the index */
 	new_block = btr_page_alloc(cursor->index, hint_page_no, direction,
 				   btr_page_get_level(page, mtr), mtr, mtr);
-
-	/* Play safe, if new page is not allocated */
-	if (!new_block) {
-		return(rec);
-	}
-
 	new_page = buf_block_get_frame(new_block);
 	new_page_zip = buf_block_get_page_zip(new_block);
 	btr_page_create(new_block, new_page_zip, cursor->index,
