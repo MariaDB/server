@@ -67,3 +67,78 @@ Error	1005	Can't create table `test`.`#sql-temporary` (errno: 150 "Foreign key c
 Warning	1215	Cannot add foreign key constraint
 drop table t2;
 drop table t1;
+CREATE TABLE `#departaments` (
+`id_depart` INT(10) UNSIGNED NOT NULL AUTO_INCREMENT,
+PRIMARY KEY (`id_depart`)
+) ENGINE=INNODB DEFAULT CHARSET=utf8;
+CREATE TABLE `#departaments_tree` (
+`id_depart` INT(10) UNSIGNED NOT NULL,
+`id_depart_in` INT(10) UNSIGNED NOT NULL,
+PRIMARY KEY (`id_depart`,`id_depart_in`),
+CONSTRAINT `#departaments_tree_ibfk_1` FOREIGN KEY (`id_depart`) REFERENCES `#departaments` (`id_depart`)
+) ENGINE=INNODB DEFAULT CHARSET=utf8;
+ALTER TABLE `#departaments_tree`
+  ADD FOREIGN KEY (`id_depart_in`) REFERENCES `#departaments`(`id_depart`);
+SHOW CREATE TABLE `#departaments_tree`;
+Table	Create Table
+#departaments_tree	CREATE TABLE `#departaments_tree` (
+  `id_depart` int(10) unsigned NOT NULL,
+  `id_depart_in` int(10) unsigned NOT NULL,
+  PRIMARY KEY (`id_depart`,`id_depart_in`),
+  KEY `id_depart_in` (`id_depart_in`),
+  CONSTRAINT `#departaments_tree_ibfk_1` FOREIGN KEY (`id_depart`) REFERENCES `#departaments` (`id_depart`),
+  CONSTRAINT `#departaments_tree_ibfk_2` FOREIGN KEY (`id_depart_in`) REFERENCES `#departaments` (`id_depart`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8
+DROP TABLE `#departaments_tree`;
+DROP TABLE `#departaments`;
+CREATE TABLE `boroda` (
+`id` INT(10) UNSIGNED NOT NULL AUTO_INCREMENT,
+`a` INT(11) UNSIGNED DEFAULT NULL,
+`b` INT(11) UNSIGNED DEFAULT NULL,
+PRIMARY KEY (`id`),
+KEY `a` (`a`),
+CONSTRAINT `boroda_ibfk_1` FOREIGN KEY (`a`) REFERENCES `boroda` (`id`)
+) ENGINE=INNODB DEFAULT CHARSET=utf8;
+ALTER TABLE `boroda`
+  ADD FOREIGN KEY (`b`) REFERENCES `boroda`(`id`);
+ALTER TABLE `boroda` DROP FOREIGN KEY `boroda_ibfk_2`;
+RENAME TABLE `boroda` TO `#boroda`;
+ALTER TABLE `#boroda`
+ADD FOREIGN KEY (`b`) REFERENCES `#boroda`(`id`);
+SHOW CREATE TABLE `#boroda`;
+Table	Create Table
+#boroda	CREATE TABLE `#boroda` (
+  `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `a` int(11) unsigned DEFAULT NULL,
+  `b` int(11) unsigned DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `a` (`a`),
+  KEY `b` (`b`),
+  CONSTRAINT `#boroda_ibfk_1` FOREIGN KEY (`a`) REFERENCES `#boroda` (`id`),
+  CONSTRAINT `#boroda_ibfk_2` FOREIGN KEY (`b`) REFERENCES `#boroda` (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8
+DROP TABLE `#boroda`;
+CREATE TABLE `boroda` (
+`id` INT(10) UNSIGNED NOT NULL AUTO_INCREMENT,
+`a` INT(11) UNSIGNED DEFAULT NULL,
+`b` INT(11) UNSIGNED DEFAULT NULL,
+PRIMARY KEY (`id`),
+KEY `a` (`a`),
+CONSTRAINT `boroda_ibfk_1` FOREIGN KEY (`a`) REFERENCES `boroda` (`id`)
+) ENGINE=INNODB DEFAULT CHARSET=utf8;
+RENAME TABLE `boroda` TO `bor#oda`;
+ALTER TABLE `bor#oda`
+ADD FOREIGN KEY (`b`) REFERENCES `bor#oda`(`id`);
+SHOW CREATE TABLE `bor#oda`;
+Table	Create Table
+bor#oda	CREATE TABLE `bor#oda` (
+  `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `a` int(11) unsigned DEFAULT NULL,
+  `b` int(11) unsigned DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `a` (`a`),
+  KEY `b` (`b`),
+  CONSTRAINT `bor#oda_ibfk_1` FOREIGN KEY (`a`) REFERENCES `bor#oda` (`id`),
+  CONSTRAINT `bor#oda_ibfk_2` FOREIGN KEY (`b`) REFERENCES `bor#oda` (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8
+DROP TABLE `bor#oda`;
