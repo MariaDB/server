@@ -21,7 +21,6 @@
 
 unsigned int wsrep_check_ip (const char* addr);
 size_t wsrep_guess_ip (char* buf, size_t buf_len);
-size_t wsrep_guess_address(char* buf, size_t buf_len);
 
 namespace wsp {
 

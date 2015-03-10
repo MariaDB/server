@@ -1,4 +1,4 @@
-package My::Suite::WSREP_STATUS;
+package My::Suite::WSREP_INFO;
 use File::Basename;
 use My::Find;
 
@@ -14,7 +14,7 @@ my ($provider) = grep { -f $_ } $ENV{WSREP_PROVIDER},
 
 return "No wsrep provider library" unless -f $provider;
 
-return "No WSREP_STATUS plugin" unless $ENV{WSREP_STATUS_SO};
+return "No WSREP_INFO plugin" unless $ENV{WSREP_INFO_SO};
 
 $ENV{WSREP_PROVIDER} = $provider;
 

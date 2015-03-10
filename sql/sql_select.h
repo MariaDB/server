@@ -1370,7 +1370,6 @@ public:
     emb_sjm_nest= NULL;
     sjm_lookup_tables= 0;
 
-    filesort_found_rows= false;
     /* 
       The following is needed because JOIN::cleanup(true) may be called for 
       joins for which JOIN::optimize was aborted with an error before a proper
@@ -1810,10 +1809,6 @@ Field *create_tmp_field(THD *thd, TABLE *table,Item *item, Item::Type type,
 			bool table_cant_handle_bit_fields,
                         bool make_copy_field,
                         uint convert_blob_length);
-bool create_internal_tmp_table(TABLE *table, KEY *keyinfo, 
-                               TMP_ENGINE_COLUMNDEF *start_recinfo,
-                               TMP_ENGINE_COLUMNDEF **recinfo, 
-                               ulonglong options, my_bool big_tables);
 
 /*
   General routine to change field->ptr of a NULL-terminated array of Field

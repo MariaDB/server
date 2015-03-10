@@ -1,0 +1,67 @@
+SET GLOBAL wsrep_auto_increment_control = OFF;
+SET GLOBAL auto_increment_increment = 1;
+SET GLOBAL auto_increment_offset = 1;
+SET GLOBAL wsrep_auto_increment_control = OFF;
+SET GLOBAL auto_increment_increment = 1;
+SET GLOBAL auto_increment_offset = 1;
+SELECT @@auto_increment_increment = 1;
+@@auto_increment_increment = 1
+1
+SELECT @@auto_increment_offset = 1;
+@@auto_increment_offset = 1
+1
+CREATE TABLE t1 (f1 INTEGER AUTO_INCREMENT PRIMARY KEY, node VARCHAR(10)) ENGINE=InnoDB;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `f1` int(11) NOT NULL AUTO_INCREMENT,
+  `node` varchar(10) DEFAULT NULL,
+  PRIMARY KEY (`f1`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `f1` int(11) NOT NULL AUTO_INCREMENT,
+  `node` varchar(10) DEFAULT NULL,
+  PRIMARY KEY (`f1`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+SELECT @@auto_increment_increment = 1;
+@@auto_increment_increment = 1
+1
+SELECT @@auto_increment_offset = 1;
+@@auto_increment_offset = 1
+1
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+INSERT INTO t1 (node) VALUES ('node1');
+SELECT f1 FROM t1;
+f1
+1
+SELECT @@auto_increment_increment = 1;
+@@auto_increment_increment = 1
+1
+SELECT @@auto_increment_offset = 1;
+@@auto_increment_offset = 1
+1
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+INSERT INTO t1 (node) VALUES ('node2');
+SELECT f1 FROM t1;
+f1
+1
+COMMIT;
+COMMIT;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+SELECT * FROM t1;
+f1	node
+1	node1
+SELECT * FROM t1;
+f1	node
+1	node1
+SET GLOBAL wsrep_auto_increment_control = 1;
+SET GLOBAL auto_increment_increment = 2;
+SET GLOBAL auto_increment_offset = 1;
+SET GLOBAL wsrep_auto_increment_control = 1;
+SET GLOBAL auto_increment_increment = 2;
+SET GLOBAL auto_increment_offset = 2;
+DROP TABLE t1;

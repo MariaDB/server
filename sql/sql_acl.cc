@@ -879,8 +879,8 @@ struct validation_data { LEX_STRING *user, *password; };
 static my_bool do_validate(THD *, plugin_ref plugin, void *arg)
 {
   struct validation_data *data= (struct validation_data *)arg;
-  struct st_mysql_password_validation *handler=
-    (st_mysql_password_validation *)plugin_decl(plugin)->info;
+  struct st_mariadb_password_validation *handler=
+    (st_mariadb_password_validation *)plugin_decl(plugin)->info;
   return handler->validate_password(data->user, data->password);
 }
 
@@ -1140,8 +1140,6 @@ bool acl_init(bool dont_read_acl_tables)
   */
   return_val= acl_reload(thd);
   delete thd;
-  /* Remember that we don't have a THD */
-  set_current_thd(0);
   DBUG_RETURN(return_val);
 }
 
@@ -2765,11 +2763,19 @@ bool change_password(THD *thd, LEX_USER *user)
   enum_binlog_format save_binlog_format;
   int result=0;
   const CSET_STRING query_save __attribute__((unused)) = thd->query_string;
-
   DBUG_ENTER("change_password");
   DBUG_PRINT("enter",("host: '%s'  user: '%s'  new_password: '%s'",
 		      user->host.str, user->user.str, user->password.str));
   DBUG_ASSERT(user->host.str != 0);                     // Ensured by parent
+
+  /*
+    This statement will be replicated as a statement, even when using
+    row-based replication.  The flag will be reset at the end of the
+    statement.
+    This has to be handled here as it's called by set_var.cc, which is
+    not automaticly handled by sql_parse.cc
+  */
+  save_binlog_format= thd->set_current_stmt_binlog_format_stmt();
 
   if (mysql_bin_log.is_open() ||
       (WSREP(thd) && !IF_WSREP(thd->wsrep_applier, 0)))
@@ -2789,15 +2795,6 @@ bool change_password(THD *thd, LEX_USER *user)
     DBUG_RETURN(result != 1);
 
   result= 1;
-
-  /*
-    This statement will be replicated as a statement, even when using
-    row-based replication.  The flag will be reset at the end of the
-    statement.
-    This has to be handled here as it's called by set_var.cc, which is
-    not automaticly handled by sql_parse.cc
-  */
-  save_binlog_format= thd->set_current_stmt_binlog_format_stmt();
 
   mysql_mutex_lock(&acl_cache->lock);
   ACL_USER *acl_user;
@@ -2844,7 +2841,7 @@ end:
   close_mysql_tables(thd);
 
 #ifdef WITH_WSREP
-error: // this label is used in WSREP_TO_ISOLATION_END
+error: // this label is used in WSREP_TO_ISOLATION_BEGIN
   if (WSREP(thd) && !thd->wsrep_applier)
   {
     WSREP_TO_ISOLATION_END;
@@ -6556,8 +6553,6 @@ bool grant_init()
   thd->store_globals();
   return_val=  grant_reload(thd);
   delete thd;
-  /* Remember that we don't have a THD */
-  set_current_thd(0);
   DBUG_RETURN(return_val);
 }
 
@@ -9346,7 +9341,7 @@ bool mysql_create_user(THD *thd, List <LEX_USER> &list, bool handle_as_role)
   LEX_USER *user_name;
   List_iterator <LEX_USER> user_list(list);
   TABLE_LIST tables[TABLES_MAX];
-  bool some_users_created= FALSE;
+  bool binlog= false;
   DBUG_ENTER("mysql_create_user");
   DBUG_PRINT("entry", ("Handle as %s", handle_as_role ? "role" : "user"));
 
@@ -9402,12 +9397,41 @@ bool mysql_create_user(THD *thd, List <LEX_USER> &list, bool handle_as_role)
     */
     if (handle_grant_data(tables, 0, user_name, NULL))
     {
-      append_user(thd, &wrong_users, user_name);
-      result= TRUE;
-      continue;
+      if (thd->lex->create_info.or_replace())
+      {
+        // Drop the existing user
+        if (handle_grant_data(tables, 1, user_name, NULL) <= 0)
+        {
+          // DROP failed
+          append_user(thd, &wrong_users, user_name);
+          result= true;
+          continue;
+        }
+        // Proceed with the creation
+      }
+      else if (thd->lex->create_info.if_not_exists())
+      {
+        binlog= true;
+        if (handle_as_role)
+          push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
+                              ER_ROLE_CREATE_EXISTS, ER(ER_ROLE_CREATE_EXISTS),
+                              user_name->user.str);
+        else
+          push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
+                              ER_USER_CREATE_EXISTS, ER(ER_USER_CREATE_EXISTS),
+                              user_name->user.str, user_name->host.str);
+        continue;
+      }
+      else
+      {
+        // "CREATE USER user1" for an existing user
+        append_user(thd, &wrong_users, user_name);
+        result= true;
+        continue;
+      }
     }
 
-    some_users_created= TRUE;
+    binlog= true;
     if (replace_user_table(thd, tables[USER_TABLE].table, *user_name, 0, 0, 1, 0))
     {
       append_user(thd, &wrong_users, user_name);
@@ -9454,7 +9478,7 @@ bool mysql_create_user(THD *thd, List <LEX_USER> &list, bool handle_as_role)
              (handle_as_role) ? "CREATE ROLE" : "CREATE USER",
              wrong_users.c_ptr_safe());
 
-  if (some_users_created)
+  if (binlog)
     result |= write_bin_log(thd, FALSE, thd->query(), thd->query_length());
 
   mysql_rwlock_unlock(&LOCK_grant);
@@ -9481,7 +9505,7 @@ bool mysql_drop_user(THD *thd, List <LEX_USER> &list, bool handle_as_role)
   LEX_USER *user_name, *tmp_user_name;
   List_iterator <LEX_USER> user_list(list);
   TABLE_LIST tables[TABLES_MAX];
-  bool some_users_deleted= FALSE;
+  bool binlog= false;
   ulonglong old_sql_mode= thd->variables.sql_mode;
   DBUG_ENTER("mysql_drop_user");
   DBUG_PRINT("entry", ("Handle as %s", handle_as_role ? "role" : "user"));
@@ -9500,6 +9524,7 @@ bool mysql_drop_user(THD *thd, List <LEX_USER> &list, bool handle_as_role)
 
   while ((tmp_user_name= user_list++))
   {
+    int rc;
     user_name= get_current_user(thd, tmp_user_name, false);
     if (!user_name)
     {
@@ -9516,14 +9541,30 @@ bool mysql_drop_user(THD *thd, List <LEX_USER> &list, bool handle_as_role)
       continue;
     }
 
-    if (handle_grant_data(tables, 1, user_name, NULL) <= 0)
+    if ((rc= handle_grant_data(tables, 1, user_name, NULL)) > 0)
     {
-      append_user(thd, &wrong_users, user_name);
-      result= TRUE;
+      // The user or role was successfully deleted
+      binlog= true;
       continue;
     }
 
-    some_users_deleted= TRUE;
+    if (rc == 0 && thd->lex->if_exists())
+    {
+      // "DROP USER IF EXISTS user1" for a non-existing user or role
+      if (handle_as_role)
+        push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
+                            ER_ROLE_DROP_EXISTS, ER(ER_ROLE_DROP_EXISTS),
+                            user_name->user.str);
+      else
+        push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
+                            ER_USER_DROP_EXISTS, ER(ER_USER_DROP_EXISTS),
+                            user_name->user.str, user_name->host.str);
+      binlog= true;
+      continue;
+    }
+    // Internal error, or "DROP USER user1" for a non-existing user
+    append_user(thd, &wrong_users, user_name);
+    result= TRUE;
   }
 
   if (!handle_as_role)
@@ -9545,7 +9586,7 @@ bool mysql_drop_user(THD *thd, List <LEX_USER> &list, bool handle_as_role)
              (handle_as_role) ? "DROP ROLE" : "DROP USER",
              wrong_users.c_ptr_safe());
 
-  if (some_users_deleted)
+  if (binlog)
     result |= write_bin_log(thd, FALSE, thd->query(), thd->query_length());
 
   mysql_rwlock_unlock(&LOCK_grant);
@@ -10038,7 +10079,6 @@ bool sp_grant_privileges(THD *thd, const char *sp_db, const char *sp_name,
   List<LEX_USER> user_list;
   bool result;
   ACL_USER *au;
-  char passwd_buff[SCRAMBLED_PASSWORD_CHAR_LENGTH+1];
   Dummy_error_handler error_handler;
   DBUG_ENTER("sp_grant_privileges");
 
@@ -10079,33 +10119,10 @@ bool sp_grant_privileges(THD *thd, const char *sp_db, const char *sp_name,
 
   if(au)
   {
-    if (au->salt_len)
-    {
-      if (au->salt_len == SCRAMBLE_LENGTH)
-      {
-        make_password_from_salt(passwd_buff, au->salt);
-        combo->auth.length= SCRAMBLED_PASSWORD_CHAR_LENGTH;
-      }
-      else if (au->salt_len == SCRAMBLE_LENGTH_323)
-      {
-        make_password_from_salt_323(passwd_buff, (ulong *) au->salt);
-        combo->auth.length= SCRAMBLED_PASSWORD_CHAR_LENGTH_323;
-      }
-      else
-      {
-        push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN, ER_PASSWD_LENGTH,
-                            ER(ER_PASSWD_LENGTH), SCRAMBLED_PASSWORD_CHAR_LENGTH);
-        return TRUE;
-      }
-      combo->auth.str= passwd_buff;
-    }
-
     if (au->plugin.str != native_password_plugin_name.str &&
         au->plugin.str != old_password_plugin_name.str)
-    {
       combo->plugin= au->plugin;
-      combo->auth= au->auth_string;
-    }
+    combo->auth= au->auth_string;
   }
 
   if (user_list.push_back(combo))
@@ -10280,7 +10297,7 @@ struct APPLICABLE_ROLES_DATA
   TABLE *table;
   const LEX_STRING host;
   const LEX_STRING user_and_host;
-  ACL_USER_BASE *user;
+  ACL_USER *user;
 };
 
 static int
@@ -10306,6 +10323,17 @@ applicable_roles_insert(ACL_USER_BASE *grantee, ACL_ROLE *role, void *ptr)
     table->field[2]->store(STRING_WITH_LEN("YES"), cs);
   else
     table->field[2]->store(STRING_WITH_LEN("NO"), cs);
+
+  /* Default role is only valid when looking at a role granted to a user. */
+  if (!is_role)
+  {
+    if (data->user->default_rolename.length &&
+        !strcmp(data->user->default_rolename.str, role->user.str))
+      table->field[3]->store(STRING_WITH_LEN("YES"), cs);
+    else
+      table->field[3]->store(STRING_WITH_LEN("NO"), cs);
+    table->field[3]->set_notnull();
+  }
 
   if (schema_table_store_record(table->in_use, table))
     return -1;

@@ -181,7 +181,7 @@
 */
 #define OPTION_ALLOW_BATCH              (1ULL << 36) // THD, intern (slave)
 #define OPTION_SKIP_REPLICATION         (1ULL << 37) // THD, user
-#define OPTION_RPL_ALLOW_PARALLEL       (1ULL << 38)
+#define OPTION_RPL_SKIP_PARALLEL        (1ULL << 38)
 
 /* The rest of the file is included in the server only */
 #ifndef MYSQL_CLIENT
@@ -346,11 +346,6 @@ enum enum_parsing_place
   PARSING_PLACE_SIZE /* always should be the last */
 };
 
-
-enum enum_var_type
-{
-  OPT_DEFAULT= 0, OPT_SESSION, OPT_GLOBAL
-};
 
 class sys_var;
 

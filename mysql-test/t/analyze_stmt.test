@@ -233,3 +233,29 @@ analyze select * into outfile '../../tmp/data1.tmp' from t1;
 --remove_file $MYSQLTEST_VARDIR/tmp/data1.tmp
 
 drop table t1;
+
+
+--echo #
+--echo # MDEV-7024: Assertion `! is_set()' failed in 
+--echo # Diagnostics_area::set_eof_status on executing ANALYZE SELECT via PS
+--echo #
+
+create table t1(a int);
+prepare stmt from "analyze select * from t1";
+execute stmt;
+drop table t1;
+
+--echo #
+--echo # MDEV-7674: ANALYZE shows r_rows=0
+--echo #
+
+create table t1(a int);
+insert into t1 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+
+create table t2 (a int, key(a));
+insert into t2 values (0),(1);
+
+analyze select * from t1 straight_join t2 force index(a) where t2.a=t1.a;
+
+drop table t1,t2;
+

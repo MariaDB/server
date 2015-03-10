@@ -24,7 +24,7 @@
 #include "handshake.hpp"
 
 #include "asn.hpp"  // provide crypto wrapper??
-
+#include <my_attribute.h>
 
 
 namespace yaSSL {
@@ -242,6 +242,7 @@ void EncryptedPreMasterSecret::read(SSL& ssl, input_buffer& input)
     }
 
     opaque preMasterSecret[SECRET_LEN];
+    memset(preMasterSecret, 0, sizeof(preMasterSecret));
     rsa.decrypt(preMasterSecret, secret_, length_, 
                 ssl.getCrypto().get_random());
 
@@ -299,6 +300,11 @@ void ClientDiffieHellmanPublic::read(SSL& ssl, input_buffer& input)
     tmp[0] = input[AUTO];
     tmp[1] = input[AUTO];
     ato16(tmp, keyLength);
+
+    if (keyLength < dh.get_agreedKeyLength()/2) {
+        ssl.SetError(bad_input);
+        return;
+    }
 
     alloc(keyLength);
     input.read(Yc_, keyLength);
@@ -408,6 +414,10 @@ void DH_Server::read(SSL& ssl, input_buffer& input)
     tmp[1] = input[AUTO];
     ato16(tmp, length);
 
+    if (length == 0) {
+        ssl.SetError(bad_input);
+        return;
+    }
     signature_ = NEW_YS byte[length];
     input.read(signature_, length);
     if (input.get_error()) {
@@ -864,6 +874,12 @@ void ChangeCipherSpec::Process(input_buffer& input, SSL& ssl)
         return;
     }
 
+    // detect duplicate change_cipher
+    if (ssl.getSecurity().get_parms().pending_ == false) {
+        ssl.order_error();
+        return;
+    }
+
     ssl.useSecurity().use_parms().pending_ = false;
     if (ssl.getSecurity().get_resuming()) {
         if (ssl.getSecurity().get_parms().entity_ == client_end)
@@ -947,7 +963,7 @@ void Alert::Process(input_buffer& input, SSL& ssl)
 
         if (ssl.getSecurity().get_parms().cipher_type_ == block) {
             int    ivExtra = 0;
-            opaque fill;
+            opaque fill __attribute__((unused));
 
             if (ssl.isTLSv1_1())
                 ivExtra = ssl.getCrypto().get_cipher().get_blockSize();
@@ -2047,12 +2063,8 @@ input_buffer& operator>>(input_buffer& input, CertificateRequest& request)
         tmp[0] = input[AUTO];
         tmp[1] = input[AUTO];
         ato16(tmp, dnSz);
-        
-        DistinguishedName dn;
-        request.certificate_authorities_.push_back(dn = NEW_YS 
-                                                  byte[REQUEST_HEADER + dnSz]);
-        memcpy(dn, tmp, REQUEST_HEADER);
-        input.read(&dn[REQUEST_HEADER], dnSz);
+       
+        input.set_current(input.get_current() + dnSz);
 
         sz -= dnSz + REQUEST_HEADER;
 
@@ -2190,6 +2202,11 @@ input_buffer& operator>>(input_buffer& input, CertificateVerify& request)
     uint16 sz = 0;
     ato16(tmp, sz);
     request.set_length(sz);
+
+    if (sz == 0) {
+        input.set_error();
+        return input;
+    }
 
     request.signature_ = NEW_YS byte[sz];
     input.read(request.signature_, sz);
@@ -2395,7 +2412,7 @@ void Finished::Process(input_buffer& input, SSL& ssl)
         if (ssl.isTLSv1_1())
             ivExtra = ssl.getCrypto().get_cipher().get_blockSize();
 
-    opaque fill;
+    opaque fill __attribute__((unused));
     int    padSz = ssl.getSecurity().get_parms().encrypt_size_ - ivExtra -
                      HANDSHAKE_HEADER - finishedSz - digestSz;
     for (int i = 0; i < padSz; i++) 

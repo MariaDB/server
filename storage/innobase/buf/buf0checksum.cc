@@ -27,19 +27,20 @@ Created Aug 11, 2011 Vasil Dimov
 #include "fil0fil.h" /* FIL_* */
 #include "ut0crc32.h" /* ut_crc32() */
 #include "ut0rnd.h" /* ut_fold_binary() */
+#include "buf0checksum.h"
 
 #ifndef UNIV_INNOCHECKSUM
 
 #include "srv0srv.h" /* SRV_CHECKSUM_* */
 #include "buf0types.h"
 
+#endif /* !UNIV_INNOCHECKSUM */
+
 /** the macro MYSQL_SYSVAR_ENUM() requires "long unsigned int" and if we
 use srv_checksum_algorithm_t here then we get a compiler error:
 ha_innodb.cc:12251: error: cannot convert 'srv_checksum_algorithm_t*' to
   'long unsigned int*' in initialization */
 UNIV_INTERN ulong	srv_checksum_algorithm = SRV_CHECKSUM_ALGORITHM_INNODB;
-
-#endif /* !UNIV_INNOCHECKSUM */
 
 /********************************************************************//**
 Calculates a page CRC32 which is stored to the page when it is written
@@ -63,7 +64,8 @@ buf_calc_page_crc32(
 	there we store the old formula checksum. */
 
 	checksum = ut_crc32(page + FIL_PAGE_OFFSET,
-			    FIL_PAGE_FILE_FLUSH_LSN - FIL_PAGE_OFFSET)
+			    FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION
+			    - FIL_PAGE_OFFSET)
 		^ ut_crc32(page + FIL_PAGE_DATA,
 			   UNIV_PAGE_SIZE - FIL_PAGE_DATA
 			   - FIL_PAGE_END_LSN_OLD_CHKSUM);
@@ -93,7 +95,8 @@ buf_calc_page_new_checksum(
 	there we store the old formula checksum. */
 
 	checksum = ut_fold_binary(page + FIL_PAGE_OFFSET,
-				  FIL_PAGE_FILE_FLUSH_LSN - FIL_PAGE_OFFSET)
+				  FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION
+				  - FIL_PAGE_OFFSET)
 		+ ut_fold_binary(page + FIL_PAGE_DATA,
 				 UNIV_PAGE_SIZE - FIL_PAGE_DATA
 				 - FIL_PAGE_END_LSN_OLD_CHKSUM);
@@ -118,7 +121,7 @@ buf_calc_page_old_checksum(
 {
 	ulint checksum;
 
-	checksum = ut_fold_binary(page, FIL_PAGE_FILE_FLUSH_LSN);
+	checksum = ut_fold_binary(page, FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION);
 
 	checksum = checksum & 0xFFFFFFFFUL;
 

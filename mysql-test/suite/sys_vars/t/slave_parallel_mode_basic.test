@@ -3,10 +3,9 @@
 # Also tests some command line options, in slave_parallel_mode_basic-master.opt
 
 --error ER_GLOBAL_VARIABLE
-SET SESSION slave_parallel_mode= '';
+SET SESSION slave_parallel_mode= none;
 
 SELECT @@slave_parallel_mode;
---error WARN_NO_MASTER_INFO
 SELECT @@m1.slave_parallel_mode;
 
 CHANGE MASTER TO master_host='127.0.0.1', master_port=3310, master_user='root';
@@ -15,24 +14,21 @@ SELECT @@slave_parallel_mode;
 --let $status_items= Parallel_Mode
 --source include/show_slave_status.inc
 
---error WARN_NO_MASTER_INFO
 SELECT @@m2.slave_parallel_mode;
---error WARN_NO_MASTER_INFO
-SET GLOBAL m2.slave_parallel_mode = '';
+SET GLOBAL m2.slave_parallel_mode = none;
 
 CHANGE MASTER 'm1' TO master_host='127.0.0.1', master_port=3311, master_user='root';
 SELECT @@m1.slave_parallel_mode;
 --source include/show_slave_status.inc
-SET GLOBAL m1.slave_parallel_mode= follow_master_commit;
+SET GLOBAL m1.slave_parallel_mode= conservative;
 --source include/show_slave_status.inc
 SET default_master_connection= 'm1';
 SELECT @@slave_parallel_mode;
-SET GLOBAL slave_parallel_mode= waiting;
+SET GLOBAL slave_parallel_mode= aggressive;
 SELECT @@slave_parallel_mode;
 --source include/show_slave_status.inc
 SET default_master_connection= '';
 SELECT @@slave_parallel_mode;
-
 
 RESET SLAVE ALL;
 RESET SLAVE 'm1' ALL;

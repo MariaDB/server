@@ -6,26 +6,26 @@ include/stop_slave.inc
 SET GLOBAL slave_parallel_threads=10;
 CHANGE MASTER TO master_use_gtid=slave_pos;
 SET @old_parallel_mode=@@GLOBAL.slave_parallel_mode;
-SET GLOBAL slave_parallel_mode='domain,transactional,waiting';
+SET GLOBAL slave_parallel_mode='optimistic';
 SET @old_parallel_threads=@@GLOBAL.slave_parallel_threads;
 include/stop_slave.inc
 SET GLOBAL slave_parallel_threads=10;
 CHANGE MASTER TO master_use_gtid=slave_pos;
 SET @old_parallel_mode=@@GLOBAL.slave_parallel_mode;
-SET GLOBAL slave_parallel_mode='domain,transactional,waiting';
+SET GLOBAL slave_parallel_mode='optimistic';
 SET @old_parallel_threads=@@GLOBAL.slave_parallel_threads;
 include/stop_slave.inc
 SET GLOBAL slave_parallel_threads=10;
 CHANGE MASTER TO master_use_gtid=slave_pos;
 SET @old_parallel_mode=@@GLOBAL.slave_parallel_mode;
-SET GLOBAL slave_parallel_mode='domain,transactional,waiting';
-*** MDEV-6676: Test that @@replicate_allow_parallel is preserved in slave binlog ***
+SET GLOBAL slave_parallel_mode='optimistic';
+*** MDEV-6676: Test that @@skip_parallel_replication is preserved in slave binlog ***
 INSERT INTO t1 VALUES(1,1);
 BEGIN;
 INSERT INTO t1 VALUES(2,1);
 INSERT INTO t1 VALUES(3,1);
 COMMIT;
-SET SESSION replicate_allow_parallel=0;
+SET SESSION skip_parallel_replication=1;
 UPDATE t1 SET b=b+1 WHERE a=2;
 UPDATE t1 SET b=b+1 WHERE a=2;
 UPDATE t1 SET b=b+1 WHERE a=2;
@@ -36,7 +36,7 @@ UPDATE t1 SET b=b+1 WHERE a=2;
 UPDATE t1 SET b=b+1 WHERE a=2;
 UPDATE t1 SET b=b+1 WHERE a=2;
 UPDATE t1 SET b=b+1 WHERE a=2;
-SET SESSION replicate_allow_parallel=1;
+SET SESSION skip_parallel_replication=0;
 SELECT * FROM t1 ORDER BY a;
 a	b
 1	1
@@ -73,13 +73,13 @@ Ok, no retry
 *** MDEV-6676: Test that the FL_WAITED flag in GTID is preserved in slave binlog ***
 include/stop_slave.inc
 CHANGE MASTER TO master_use_gtid=slave_pos;
-SET GLOBAL slave_parallel_mode='domain,transactional';
+SET GLOBAL slave_parallel_mode='optimistic';
 include/stop_slave.inc
 CHANGE MASTER TO master_use_gtid=slave_pos;
-SET GLOBAL slave_parallel_mode='domain,transactional';
+SET GLOBAL slave_parallel_mode='optimistic';
 include/stop_slave.inc
 CHANGE MASTER TO master_use_gtid=slave_pos;
-SET GLOBAL slave_parallel_mode='domain,transactional';
+SET GLOBAL slave_parallel_mode='optimistic';
 BEGIN;
 UPDATE t1 SET b=b+1 WHERE a=2;
 SET debug_sync="thd_report_wait_for SIGNAL waiting1";

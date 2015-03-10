@@ -198,7 +198,7 @@ error:
   if (snip_info) {
     grn_obj_close(&snip_info->ctx, grn_ctx_db(&snip_info->ctx));
     grn_ctx_fin(&snip_info->ctx);
-    my_free(snip_info, MYF(0));
+    my_free(snip_info);
   }
   return TRUE;
 }
@@ -295,7 +295,7 @@ MRN_API void mroonga_snippet_deinit(UDF_INIT *initid)
     snip_info->result_str.free();
     grn_obj_close(&snip_info->ctx, grn_ctx_db(&snip_info->ctx));
     grn_ctx_fin(&snip_info->ctx);
-    my_free(snip_info, MYF(0));
+    my_free(snip_info);
   }
 }
 

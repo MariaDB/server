@@ -391,6 +391,7 @@ class DllExport XHUGE : public XLOAD {
   XHUGE(void) : XLOAD() {}
 
   // Methods
+  using XLOAD::Close;
   virtual bool  Open(PGLOBAL g, char *filename, int id, MODE mode);
   virtual bool  Seek(PGLOBAL g, int low, int high, int origin);
   virtual bool  Read(PGLOBAL g, void *buf, int n, int size);

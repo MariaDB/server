@@ -14,8 +14,8 @@
   License along with this library; if not, write to the Free Software
   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 */
-#ifndef GRN_NFKC_H
-#define GRN_NFKC_H
+#ifndef GROONGA_NFKC_H
+#define GROONGA_NFKC_H
 
 #include <groonga.h>
 
@@ -29,4 +29,4 @@ GRN_API grn_char_type grn_nfkc_char_type(const unsigned char *str);
 }
 #endif
 
-#endif /* GRN_NFKC_H */
+#endif /* GROONGA_NFKC_H */

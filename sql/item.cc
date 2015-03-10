@@ -58,134 +58,6 @@ bool cmp_items(Item *a, Item *b)
   return a->eq(b, FALSE);
 }
 
-/****************************************************************************/
-
-/* Hybrid_type_traits {_real} */
-
-void Hybrid_type_traits::fix_length_and_dec(Item *item, Item *arg) const
-{
-  item->decimals= NOT_FIXED_DEC;
-  item->max_length= item->float_length(arg->decimals);
-}
-
-static const Hybrid_type_traits real_traits_instance;
-
-const Hybrid_type_traits *Hybrid_type_traits::instance()
-{
-  return &real_traits_instance;
-}
-
-
-my_decimal *
-Hybrid_type_traits::val_decimal(Hybrid_type *val, my_decimal *to) const
-{
-  double2my_decimal(E_DEC_FATAL_ERROR, val->real, val->dec_buf);
-  return val->dec_buf;
-}
-
-
-String *
-Hybrid_type_traits::val_str(Hybrid_type *val, String *to, uint8 decimals) const
-{
-  to->set_real(val->real, decimals, &my_charset_bin);
-  return to;
-}
-
-/* Hybrid_type_traits_decimal */
-static const Hybrid_type_traits_decimal decimal_traits_instance;
-
-const Hybrid_type_traits_decimal *Hybrid_type_traits_decimal::instance()
-{
-  return &decimal_traits_instance;
-}
-
-
-void
-Hybrid_type_traits_decimal::fix_length_and_dec(Item *item, Item *arg) const
-{
-  item->decimals= arg->decimals;
-  item->max_length= MY_MIN(arg->max_length + DECIMAL_LONGLONG_DIGITS,
-                        DECIMAL_MAX_STR_LENGTH);
-}
-
-
-void Hybrid_type_traits_decimal::set_zero(Hybrid_type *val) const
-{
-  my_decimal_set_zero(&val->dec_buf[0]);
-  val->used_dec_buf_no= 0;
-}
-
-
-void Hybrid_type_traits_decimal::add(Hybrid_type *val, Field *f) const
-{
-  my_decimal_add(E_DEC_FATAL_ERROR,
-                 &val->dec_buf[val->used_dec_buf_no ^ 1],
-                 &val->dec_buf[val->used_dec_buf_no],
-                 f->val_decimal(&val->dec_buf[2]));
-  val->used_dec_buf_no^= 1;
-}
-
-
-/**
-  @todo
-  what is '4' for scale?
-*/
-void Hybrid_type_traits_decimal::div(Hybrid_type *val, ulonglong u) const
-{
-  int2my_decimal(E_DEC_FATAL_ERROR, u, TRUE, &val->dec_buf[2]);
-  /* XXX: what is '4' for scale? */
-  my_decimal_div(E_DEC_FATAL_ERROR,
-                 &val->dec_buf[val->used_dec_buf_no ^ 1],
-                 &val->dec_buf[val->used_dec_buf_no],
-                 &val->dec_buf[2], 4);
-  val->used_dec_buf_no^= 1;
-}
-
-
-longlong
-Hybrid_type_traits_decimal::val_int(Hybrid_type *val, bool unsigned_flag) const
-{
-  longlong result;
-  my_decimal2int(E_DEC_FATAL_ERROR, &val->dec_buf[val->used_dec_buf_no],
-                 unsigned_flag, &result);
-  return result;
-}
-
-
-double
-Hybrid_type_traits_decimal::val_real(Hybrid_type *val) const
-{
-  my_decimal2double(E_DEC_FATAL_ERROR, &val->dec_buf[val->used_dec_buf_no],
-                    &val->real);
-  return val->real;
-}
-
-
-String *
-Hybrid_type_traits_decimal::val_str(Hybrid_type *val, String *to,
-                                    uint8 decimals) const
-{
-  my_decimal_round(E_DEC_FATAL_ERROR, &val->dec_buf[val->used_dec_buf_no],
-                   decimals, FALSE, &val->dec_buf[2]);
-  my_decimal2string(E_DEC_FATAL_ERROR, &val->dec_buf[2], 0, 0, 0, to);
-  return to;
-}
-
-/* Hybrid_type_traits_integer */
-static const Hybrid_type_traits_integer integer_traits_instance;
-
-const Hybrid_type_traits_integer *Hybrid_type_traits_integer::instance()
-{
-  return &integer_traits_instance;
-}
-
-void
-Hybrid_type_traits_integer::fix_length_and_dec(Item *item, Item *arg) const
-{
-  item->decimals= 0;
-  item->max_length= MY_INT64_NUM_DECIMAL_DIGITS;
-  item->unsigned_flag= 0;
-}
 
 /*****************************************************************************
 ** Item functions
@@ -885,20 +757,20 @@ Item_ident::Item_ident(THD *thd, Item_ident *item)
 void Item_ident::cleanup()
 {
   DBUG_ENTER("Item_ident::cleanup");
-#ifdef CANT_BE_USED_AS_MEMORY_IS_FREED
-		       db_name ? db_name : "(null)",
-                       orig_db_name ? orig_db_name : "(null)",
-		       table_name ? table_name : "(null)",
-                       orig_table_name ? orig_table_name : "(null)",
-		       field_name ? field_name : "(null)",
-                       orig_field_name ? orig_field_name : "(null)"));
-#endif
+  bool was_fixed= fixed;
   Item::cleanup();
   db_name= orig_db_name; 
   table_name= orig_table_name;
   field_name= orig_field_name;
   /* Store if this Item was depended */
-  can_be_depended= MY_TEST(depended_from);
+  if (was_fixed)
+  {
+    /*
+      We can trust that depended_from set correctly only if this item
+      was fixed
+    */
+    can_be_depended= MY_TEST(depended_from);
+  }
   DBUG_VOID_RETURN;
 }
 
@@ -2508,7 +2380,8 @@ void Item_ident::print(String *str, enum_query_type query_type)
       When printing EXPLAIN, don't print database name when it's the same as
       current database.
     */
-    bool skip_db= (query_type & QT_EXPLAIN) && !strcmp(thd->db, db_name);
+    bool skip_db= (query_type & QT_EXPLAIN) && thd->db && 
+                  !strcmp(thd->db, db_name);
     if (!skip_db && 
         !(cached_table && cached_table->belong_to_view &&
           cached_table->belong_to_view->compact_view_format))
@@ -3132,7 +3005,6 @@ my_decimal *Item_null::val_decimal(my_decimal *decimal_value)
 
 Item *Item_null::safe_charset_converter(CHARSET_INFO *tocs)
 {
-  collation.set(tocs);
   return this;
 }
 

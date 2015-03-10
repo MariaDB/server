@@ -27,6 +27,111 @@ Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 #	#	Query	1	#	DROP DATABASE IF EXISTS d1
 RESET MASTER;
 USE test;
+CREATE OR REPLACE FUNCTION f1() RETURNS INT RETURN 1;
+CREATE OR REPLACE FUNCTION f1() RETURNS INT RETURN 1;
+DROP FUNCTION f1;
+CREATE FUNCTION IF NOT EXISTS f1() RETURNS INT RETURN 1;
+CREATE FUNCTION IF NOT EXISTS f1() RETURNS INT RETURN 1;
+Warnings:
+Note	1304	FUNCTION f1 already exists
+DROP FUNCTION IF EXISTS f1;
+DROP FUNCTION IF EXISTS f1;
+Warnings:
+Note	1305	FUNCTION test.f1 does not exist
+SHOW BINLOG EVENTS;
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+#	#	Format_desc	1	#	VER
+#	#	Gtid_list	1	#	[]
+#	#	Binlog_checkpoint	1	#	master-bin.000001
+#	#	Gtid	1	#	GTID #-#-#
+#	#	Query	1	#	use `test`; CREATE OR REPLACE DEFINER=`root`@`localhost` FUNCTION `f1`() RETURNS int(11)
+RETURN 1
+#	#	Gtid	1	#	GTID #-#-#
+#	#	Query	1	#	use `test`; CREATE OR REPLACE DEFINER=`root`@`localhost` FUNCTION `f1`() RETURNS int(11)
+RETURN 1
+#	#	Gtid	1	#	GTID #-#-#
+#	#	Query	1	#	use `test`; DROP FUNCTION f1
+#	#	Gtid	1	#	GTID #-#-#
+#	#	Query	1	#	use `test`; CREATE DEFINER=`root`@`localhost` FUNCTION IF NOT EXISTS `f1`() RETURNS int(11)
+RETURN 1
+#	#	Gtid	1	#	GTID #-#-#
+#	#	Query	1	#	use `test`; CREATE DEFINER=`root`@`localhost` FUNCTION IF NOT EXISTS `f1`() RETURNS int(11)
+RETURN 1
+#	#	Gtid	1	#	GTID #-#-#
+#	#	Query	1	#	use `test`; DROP FUNCTION IF EXISTS f1
+#	#	Gtid	1	#	GTID #-#-#
+#	#	Query	1	#	use `test`; DROP FUNCTION IF EXISTS f1
+RESET MASTER;
+CREATE TABLE t1 (a DATETIME);
+CREATE OR REPLACE PROCEDURE p1() DELETE FROM t1;
+CREATE OR REPLACE PROCEDURE p1() DELETE FROM t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE IF NOT EXISTS p1() DELETE FROM t1;
+CREATE PROCEDURE IF NOT EXISTS p1() DELETE FROM t1;
+Warnings:
+Note	1304	PROCEDURE p1 already exists
+DROP PROCEDURE IF EXISTS p1;
+DROP PROCEDURE IF EXISTS p1;
+Warnings:
+Note	1305	PROCEDURE test.p1 does not exist
+SHOW BINLOG EVENTS;
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+#	#	Format_desc	1	#	VER
+#	#	Gtid_list	1	#	[]
+#	#	Binlog_checkpoint	1	#	master-bin.000001
+#	#	Gtid	1	#	GTID #-#-#
+#	#	Query	1	#	use `test`; CREATE TABLE t1 (a DATETIME)
+#	#	Gtid	1	#	GTID #-#-#
+#	#	Query	1	#	use `test`; CREATE OR REPLACE DEFINER=`root`@`localhost` PROCEDURE `p1`()
+DELETE FROM t1
+#	#	Gtid	1	#	GTID #-#-#
+#	#	Query	1	#	use `test`; CREATE OR REPLACE DEFINER=`root`@`localhost` PROCEDURE `p1`()
+DELETE FROM t1
+#	#	Gtid	1	#	GTID #-#-#
+#	#	Query	1	#	use `test`; DROP PROCEDURE p1
+#	#	Gtid	1	#	GTID #-#-#
+#	#	Query	1	#	use `test`; CREATE DEFINER=`root`@`localhost` PROCEDURE IF NOT EXISTS `p1`()
+DELETE FROM t1
+#	#	Gtid	1	#	GTID #-#-#
+#	#	Query	1	#	use `test`; CREATE DEFINER=`root`@`localhost` PROCEDURE IF NOT EXISTS `p1`()
+DELETE FROM t1
+#	#	Gtid	1	#	GTID #-#-#
+#	#	Query	1	#	use `test`; DROP PROCEDURE IF EXISTS p1
+#	#	Gtid	1	#	GTID #-#-#
+#	#	Query	1	#	use `test`; DROP PROCEDURE IF EXISTS p1
+DROP TABLE t1;
+RESET MASTER;
+CREATE OR REPLACE FUNCTION metaphon RETURNS STRING SONAME 'UDF_EXAMPLE_LIB';
+CREATE OR REPLACE FUNCTION metaphon RETURNS STRING SONAME 'UDF_EXAMPLE_LIB';
+DROP FUNCTION metaphon;
+CREATE FUNCTION IF NOT EXISTS metaphon RETURNS STRING SONAME 'UDF_EXAMPLE_LIB';
+CREATE FUNCTION IF NOT EXISTS metaphon RETURNS STRING SONAME 'UDF_EXAMPLE_LIB';
+Warnings:
+Note	1125	Function 'metaphon' already exists
+DROP FUNCTION IF EXISTS metaphon;
+DROP FUNCTION IF EXISTS metaphon;
+Warnings:
+Note	1305	FUNCTION test.metaphon does not exist
+SHOW BINLOG EVENTS;
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+#	#	Format_desc	1	#	VER
+#	#	Gtid_list	1	#	[]
+#	#	Binlog_checkpoint	1	#	master-bin.000001
+#	#	Gtid	1	#	GTID #-#-#
+#	#	Query	1	#	use `test`; CREATE OR REPLACE FUNCTION metaphon RETURNS STRING SONAME 'UDM_EXAMPLE_LIB'
+#	#	Gtid	1	#	GTID #-#-#
+#	#	Query	1	#	use `test`; CREATE OR REPLACE FUNCTION metaphon RETURNS STRING SONAME 'UDM_EXAMPLE_LIB'
+#	#	Gtid	1	#	GTID #-#-#
+#	#	Query	1	#	use `test`; DROP FUNCTION metaphon
+#	#	Gtid	1	#	GTID #-#-#
+#	#	Query	1	#	use `test`; CREATE FUNCTION IF NOT EXISTS metaphon RETURNS STRING SONAME 'UDM_EXAMPLE_LIB'
+#	#	Gtid	1	#	GTID #-#-#
+#	#	Query	1	#	use `test`; CREATE FUNCTION IF NOT EXISTS metaphon RETURNS STRING SONAME 'UDM_EXAMPLE_LIB'
+#	#	Gtid	1	#	GTID #-#-#
+#	#	Query	1	#	use `test`; DROP FUNCTION IF EXISTS metaphon
+#	#	Gtid	1	#	GTID #-#-#
+#	#	Query	1	#	use `test`; DROP FUNCTION IF EXISTS metaphon
+RESET MASTER;
 #
 # CREATE SERVER is not logged
 #
@@ -75,4 +180,127 @@ Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 #	#	Query	1	#	use `test`; DROP VIEW IF EXISTS v1
 #	#	Gtid	1	#	GTID #-#-#
 #	#	Query	1	#	use `test`; DROP VIEW IF EXISTS v1
+RESET MASTER;
+CREATE OR REPLACE ROLE r1;
+CREATE OR REPLACE ROLE r1;
+DROP ROLE r1;
+CREATE ROLE IF NOT EXISTS r1;
+CREATE ROLE IF NOT EXISTS r1;
+Warnings:
+Note	1974	Can't create role 'r1'; it already exists
+DROP ROLE IF EXISTS r1;
+DROP ROLE IF EXISTS r1;
+Warnings:
+Note	1975	Can't drop role 'r1'; it doesn't exist
+SHOW BINLOG EVENTS;
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+#	#	Format_desc	1	#	VER
+#	#	Gtid_list	1	#	[]
+#	#	Binlog_checkpoint	1	#	master-bin.000001
+#	#	Gtid	1	#	GTID #-#-#
+#	#	Query	1	#	use `test`; CREATE OR REPLACE ROLE r1
+#	#	Gtid	1	#	GTID #-#-#
+#	#	Query	1	#	use `test`; CREATE OR REPLACE ROLE r1
+#	#	Gtid	1	#	GTID #-#-#
+#	#	Query	1	#	use `test`; DROP ROLE r1
+#	#	Gtid	1	#	GTID #-#-#
+#	#	Query	1	#	use `test`; CREATE ROLE IF NOT EXISTS r1
+#	#	Gtid	1	#	GTID #-#-#
+#	#	Query	1	#	use `test`; CREATE ROLE IF NOT EXISTS r1
+#	#	Gtid	1	#	GTID #-#-#
+#	#	Query	1	#	use `test`; DROP ROLE IF EXISTS r1
+#	#	Gtid	1	#	GTID #-#-#
+#	#	Query	1	#	use `test`; DROP ROLE IF EXISTS r1
+RESET MASTER;
+CREATE OR REPLACE USER u1@localhost;
+CREATE OR REPLACE USER u1@localhost;
+DROP USER u1@localhost;
+CREATE USER IF NOT EXISTS u1@localhost;
+CREATE USER IF NOT EXISTS u1@localhost;
+Warnings:
+Note	1972	Can't create user 'u1'@'localhost'; it already exists
+DROP USER IF EXISTS u1@localhost;
+DROP USER IF EXISTS u1@localhost;
+Warnings:
+Note	1973	Can't drop user 'u1'@'localhost'; it doesn't exist
+SHOW BINLOG EVENTS;
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+#	#	Format_desc	1	#	VER
+#	#	Gtid_list	1	#	[]
+#	#	Binlog_checkpoint	1	#	master-bin.000001
+#	#	Gtid	1	#	GTID #-#-#
+#	#	Query	1	#	use `test`; CREATE OR REPLACE USER u1@localhost
+#	#	Gtid	1	#	GTID #-#-#
+#	#	Query	1	#	use `test`; CREATE OR REPLACE USER u1@localhost
+#	#	Gtid	1	#	GTID #-#-#
+#	#	Query	1	#	use `test`; DROP USER u1@localhost
+#	#	Gtid	1	#	GTID #-#-#
+#	#	Query	1	#	use `test`; CREATE USER IF NOT EXISTS u1@localhost
+#	#	Gtid	1	#	GTID #-#-#
+#	#	Query	1	#	use `test`; CREATE USER IF NOT EXISTS u1@localhost
+#	#	Gtid	1	#	GTID #-#-#
+#	#	Query	1	#	use `test`; DROP USER IF EXISTS u1@localhost
+#	#	Gtid	1	#	GTID #-#-#
+#	#	Query	1	#	use `test`; DROP USER IF EXISTS u1@localhost
+RESET MASTER;
+SET timestamp=UNIX_TIMESTAMP('2014-11-01 10:20:30');
+CREATE OR REPLACE EVENT ev1 ON SCHEDULE EVERY 1 SECOND DO DROP TABLE IF EXISTS t1;
+CREATE OR REPLACE EVENT ev1 ON SCHEDULE EVERY 1 SECOND DO DROP TABLE IF EXISTS t2;
+SELECT EVENT_NAME, EVENT_DEFINITION FROM INFORMATION_SCHEMA.EVENTS;
+EVENT_NAME	EVENT_DEFINITION
+ev1	DROP TABLE IF EXISTS t2
+DROP EVENT ev1;
+DROP EVENT IF EXISTS ev1;
+Warnings:
+Note	1305	Event ev1 does not exist
+SHOW BINLOG EVENTS;
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+#	#	Format_desc	1	#	VER
+#	#	Gtid_list	1	#	[]
+#	#	Binlog_checkpoint	1	#	master-bin.000001
+#	#	Gtid	1	#	GTID #-#-#
+#	#	Query	1	#	use `test`; CREATE OR REPLACE DEFINER=`root`@`localhost` EVENT ev1 ON SCHEDULE EVERY 1 SECOND DO DROP TABLE IF EXISTS t1
+#	#	Gtid	1	#	GTID #-#-#
+#	#	Query	1	#	use `test`; CREATE OR REPLACE DEFINER=`root`@`localhost` EVENT ev1 ON SCHEDULE EVERY 1 SECOND DO DROP TABLE IF EXISTS t2
+#	#	Gtid	1	#	GTID #-#-#
+#	#	Query	1	#	use `test`; DROP EVENT ev1
+#	#	Gtid	1	#	GTID #-#-#
+#	#	Query	1	#	use `test`; DROP EVENT IF EXISTS ev1
+RESET MASTER;
+CREATE TABLE t1 (a INT);
+CREATE OR REPLACE TRIGGER tr1 BEFORE INSERT ON t1 FOR EACH ROW SET NEW.a=10;
+CREATE OR REPLACE TRIGGER tr1 BEFORE INSERT ON t1 FOR EACH ROW SET NEW.a=11;
+DROP TRIGGER tr1;
+CREATE TRIGGER IF NOT EXISTS tr1 BEFORE INSERT ON t1 FOR EACH ROW SET NEW.a=20;
+CREATE TRIGGER IF NOT EXISTS tr1 BEFORE INSERT ON t1 FOR EACH ROW SET NEW.a=21;
+Warnings:
+Note	1359	Trigger already exists
+DROP TRIGGER IF EXISTS tr1;
+DROP TRIGGER IF EXISTS tr1;
+Warnings:
+Note	1360	Trigger does not exist
+DROP TABLE t1;
+SHOW BINLOG EVENTS;
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+#	#	Format_desc	1	#	VER
+#	#	Gtid_list	1	#	[]
+#	#	Binlog_checkpoint	1	#	master-bin.000001
+#	#	Gtid	1	#	GTID #-#-#
+#	#	Query	1	#	use `test`; CREATE TABLE t1 (a INT)
+#	#	Gtid	1	#	GTID #-#-#
+#	#	Query	1	#	use `test`; CREATE OR REPLACE DEFINER=`root`@`localhost` TRIGGER tr1 BEFORE INSERT ON t1 FOR EACH ROW SET NEW.a=10
+#	#	Gtid	1	#	GTID #-#-#
+#	#	Query	1	#	use `test`; CREATE OR REPLACE DEFINER=`root`@`localhost` TRIGGER tr1 BEFORE INSERT ON t1 FOR EACH ROW SET NEW.a=11
+#	#	Gtid	1	#	GTID #-#-#
+#	#	Query	1	#	use `test`; DROP TRIGGER tr1
+#	#	Gtid	1	#	GTID #-#-#
+#	#	Query	1	#	use `test`; CREATE DEFINER=`root`@`localhost` TRIGGER IF NOT EXISTS tr1 BEFORE INSERT ON t1 FOR EACH ROW SET NEW.a=20
+#	#	Gtid	1	#	GTID #-#-#
+#	#	Query	1	#	use `test`; CREATE DEFINER=`root`@`localhost` TRIGGER IF NOT EXISTS tr1 BEFORE INSERT ON t1 FOR EACH ROW SET NEW.a=21
+#	#	Gtid	1	#	GTID #-#-#
+#	#	Query	1	#	use `test`; DROP TRIGGER IF EXISTS tr1
+#	#	Gtid	1	#	GTID #-#-#
+#	#	Query	1	#	use `test`; DROP TRIGGER IF EXISTS tr1
+#	#	Gtid	1	#	GTID #-#-#
+#	#	Query	1	#	use `test`; DROP TABLE `t1` /* generated by server */
 RESET MASTER;

@@ -1,7 +1,7 @@
 /*************** Tabodbc H Declares Source Code File (.H) **************/
-/*  Name: TABODBC.H   Version 1.6                                      */
+/*  Name: TABODBC.H   Version 1.8                                      */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          2000-2013    */
+/*  (C) Copyright to the author Olivier BERTRAND          2000-2015    */
 /*                                                                     */
 /*  This file contains the TDBODBC classes declares.                   */
 /***********************************************************************/
@@ -24,6 +24,7 @@ class DllExport ODBCDEF : public TABDEF { /* Logical table description */
   friend class TDBODBC;
   friend class TDBXDBC;
   friend class TDBDRV;
+  friend class TDBOTB;
  public:
   // Constructor
   ODBCDEF(void);
@@ -49,6 +50,8 @@ class DllExport ODBCDEF : public TABDEF { /* Logical table description */
   PSZ     Connect;            /* ODBC connection string                */
   PSZ     Tabname;            /* External table name                   */
   PSZ     Tabschema;          /* External table schema                 */
+  PSZ     Username;           /* User connect name                     */
+  PSZ     Password;           /* Password connect info                 */
   PSZ     Tabcat;             /* External table catalog                */
   PSZ     Srcdef;             /* The source table SQL definition       */
   PSZ     Qchar;              /* Identifier quoting character          */
@@ -56,11 +59,15 @@ class DllExport ODBCDEF : public TABDEF { /* Logical table description */
   PSZ     Sep;                /* Decimal separator                     */
   int     Catver;             /* ODBC version for catalog functions    */
   int     Options;            /* Open connection options               */
+  int     Cto;                /* Open connection timeout               */
+  int     Qto;                /* Query (command) timeout               */
   int     Quoted;             /* Identifier quoting level              */
   int     Maxerr;             /* Maxerr for an Exec table              */
   int     Maxres;             /* Maxres for a catalog table            */
+  int     Memory;             /* Put result set in memory              */
   bool    Scrollable;         /* Use scrollable cursor                 */
   bool    Xsrc;               /* Execution type                        */
+  bool    UseCnc;             /* Use SQLConnect (!SQLDriverConnect)    */
   }; // end of ODBCDEF
 
 #if !defined(NODBC)
@@ -86,6 +93,7 @@ class TDBODBC : public TDBASE {
   // Methods
   virtual PTDB CopyOne(PTABS t);
   virtual int  GetRecpos(void);
+  virtual bool SetRecpos(PGLOBAL g, int recpos);
   virtual PSZ  GetFile(PGLOBAL g);
   virtual void SetFile(PGLOBAL g, PSZ fn);
   virtual void ResetSize(void);
@@ -120,9 +128,12 @@ class TDBODBC : public TDBASE {
   // Members
   ODBConn *Ocp;               // Points to an ODBC connection class
   ODBCCOL *Cnp;               // Points to count(*) column
+  ODBCPARM Ops;               // Additional parameters
   char    *Connect;           // Points to connection string
   char    *TableName;         // Points to ODBC table name
   char    *Schema;            // Points to ODBC table Schema
+  char    *User;              // User connect info
+  char    *Pwd;               // Password connect info
   char    *Catalog;           // Points to ODBC table Catalog
   char    *Srcdef;            // The source table SQL definition
   char    *Query;             // Points to SQL statement
@@ -134,8 +145,11 @@ class TDBODBC : public TDBASE {
   char    *Qrystr;            // The original query
   char     Sep;               // The decimal separator
   int      Options;           // Connect options
+  int      Cto;               // Connect timeout
+  int      Qto;               // Query timeout
   int      Quoted;            // The identifier quoting level
   int      Fpos;              // Position of last read record
+  int      Curpos;            // Cursor position of last fetch
   int      AftRows;           // The number of affected rows
   int      Rows;              // Rowset size
   int      Catver;            // Catalog ODBC version
@@ -143,7 +157,11 @@ class TDBODBC : public TDBASE {
   int      Rbuf;              // Number of lines read in buffer
   int      BufSize;           // Size of connect string buffer
   int      Nparm;             // The number of statement parameters
+  int      Memory;            // 0: No 1: Alloc 2: Put 3: Get
   bool     Scrollable;        // Use scrollable cursor
+  bool     Placed;            // True for position reading
+  bool     UseCnc;            // Use SQLConnect (!SQLDriverConnect)
+  PQRYRES  Qrp;               // Points to storage result
   }; // end of class TDBODBC
 
 /***********************************************************************/
@@ -162,6 +180,7 @@ class ODBCCOL : public COLBLK {
           SQLLEN *GetStrLen(void) {return StrLen;}
           int     GetRank(void) {return Rank;}
 //        PVBLK   GetBlkp(void) {return Blkp;}
+          void    SetCrp(PCOLRES crp) {Crp = crp;}
 
   // Methods
   virtual bool   SetBuffer(PGLOBAL g, PVAL value, bool ok, bool check);
@@ -178,6 +197,7 @@ class ODBCCOL : public COLBLK {
 
   // Members
   TIMESTAMP_STRUCT *Sqlbuf;    // To get SQL_TIMESTAMP's
+  PCOLRES Crp;                 // To storage result
   void   *Bufp;                // To extended buffer
   PVBLK   Blkp;                // To Value Block
 //char    F_Date[12];          // Internal Date format
@@ -306,6 +326,7 @@ class TDBOTB : public TDBDRV {
   char    *Dsn;               // Points to connection string
   char    *Schema;            // Points to schema name or NULL
   char    *Tab;               // Points to ODBC table name or pattern
+  ODBCPARM Ops;               // Additional parameters
   }; // end of class TDBOTB
 
 /***********************************************************************/

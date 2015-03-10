@@ -71,6 +71,7 @@ Created 2/16/1996 Heikki Tuuri
 #include "buf0flu.h"
 #include "btr0defragment.h"
 #include "ut0timer.h"
+#include "btr0scrub.h"
 
 #ifndef UNIV_HOTBACKUP
 # include "trx0rseg.h"
@@ -135,13 +136,38 @@ UNIV_INTERN enum srv_shutdown_state	srv_shutdown_state = SRV_SHUTDOWN_NONE;
 static os_file_t	files[1000];
 
 /** io_handler_thread parameters for thread identification */
-static ulint		n[SRV_MAX_N_IO_THREADS + 6];
-/** io_handler_thread identifiers, 32 is the maximum number of purge threads  */
-/** 6 is the ? */
-#define	START_OLD_THREAD_CNT	(SRV_MAX_N_IO_THREADS + 6 + SRV_MAX_N_PURGE_THREADS)
-static os_thread_id_t	thread_ids[SRV_MAX_N_IO_THREADS + 6 + SRV_MAX_N_PURGE_THREADS + MTFLUSH_MAX_WORKER];
+static ulint		n[SRV_MAX_N_IO_THREADS];
+/** io_handler_thread identifiers, 32 is the maximum number of purge threads.
+The extra elements at the end are allocated as follows:
+SRV_MAX_N_IO_THREADS + 1: srv_master_thread
+SRV_MAX_N_IO_THREADS + 2: lock_wait_timeout_thread
+SRV_MAX_N_IO_THREADS + 3: srv_error_monitor_thread
+SRV_MAX_N_IO_THREADS + 4: srv_monitor_thread
+SRV_MAX_N_IO_THREADS + 5: srv_redo_log_follow_thread
+SRV_MAX_N_IO_THREADS + 6: srv_purge_coordinator_thread
+SRV_MAX_N_IO_THREADS + 7: srv_worker_thread
+...
+SRV_MAX_N_IO_THREADS + 7 + srv_n_purge_threads - 1: srv_worker_thread */
+static os_thread_id_t	thread_ids[SRV_MAX_N_IO_THREADS + 7
+				   + SRV_MAX_N_PURGE_THREADS
+				   + MTFLUSH_MAX_WORKER];
 /* Thread contex data for multi-threaded flush */
 void *mtflush_ctx=NULL;
+
+/** Thead handles */
+static os_thread_t	thread_handles[SRV_MAX_N_IO_THREADS + 7 + SRV_MAX_N_PURGE_THREADS];
+static os_thread_t	buf_flush_page_cleaner_thread_handle;
+static os_thread_t	buf_dump_thread_handle;
+static os_thread_t	dict_stats_thread_handle;
+static os_thread_t	buf_flush_lru_manager_thread_handle;
+static os_thread_t	srv_redo_log_follow_thread_handle;
+/** Status variables, is thread started ?*/
+static bool		thread_started[SRV_MAX_N_IO_THREADS + 7 + SRV_MAX_N_PURGE_THREADS] = {false};
+static bool		buf_flush_page_cleaner_thread_started = false;
+static bool		buf_dump_thread_started = false;
+static bool		dict_stats_thread_started = false;
+static bool		buf_flush_lru_manager_thread_started = false;
+static bool		srv_redo_log_follow_thread_started = false;
 
 /** We use this mutex to test the return value of pthread_mutex_trylock
    on successful locking. HP-UX does NOT return 0, though Linux et al do. */
@@ -667,7 +693,8 @@ create_log_files(
 	fil_space_create(
 		logfilename, SRV_LOG_SPACE_FIRST_ID,
 		fsp_flags_set_page_size(0, UNIV_PAGE_SIZE),
-		FIL_LOG);
+		FIL_LOG,
+		NULL /* no encryption yet */);
 	ut_a(fil_validate());
 
 	logfile0 = fil_node_create(
@@ -689,7 +716,7 @@ create_log_files(
 #ifdef UNIV_LOG_ARCHIVE
 	/* Create the file space object for archived logs. */
 	fil_space_create("arch_log_space", SRV_LOG_SPACE_FIRST_ID + 1,
-			 0, FIL_LOG);
+		0, FIL_LOG, NULL /* no encryption yet */);
 #endif
 	log_group_init(0, srv_n_log_files,
 		       srv_log_file_size * UNIV_PAGE_SIZE,
@@ -815,6 +842,7 @@ open_or_create_data_files(
 	ulint		space;
 	ulint		rounded_size_pages;
 	char		name[10000];
+	fil_space_crypt_t*    crypt_data;
 
 	if (srv_n_data_files >= 1000) {
 
@@ -1030,7 +1058,7 @@ skip_size_check:
 check_first_page:
 			check_msg = fil_read_first_page(
 				files[i], one_opened, &flags, &space,
-				min_flushed_lsn, max_flushed_lsn, ULINT_UNDEFINED);
+				min_flushed_lsn, max_flushed_lsn, ULINT_UNDEFINED, &crypt_data);
 
 			if (check_msg) {
 
@@ -1124,6 +1152,8 @@ check_first_page:
 			}
 
 			*sum_of_new_sizes += srv_data_file_sizes[i];
+
+			crypt_data = fil_space_create_crypt_data();
 		}
 
 		ret = os_file_close(files[i]);
@@ -1131,7 +1161,9 @@ check_first_page:
 
 		if (i == 0) {
 			flags = fsp_flags_set_page_size(0, UNIV_PAGE_SIZE);
-			fil_space_create(name, 0, flags, FIL_TABLESPACE);
+			fil_space_create(name, 0, flags, FIL_TABLESPACE,
+					 crypt_data);
+			crypt_data = NULL;
 		}
 
 		ut_a(fil_validate());
@@ -1277,7 +1309,8 @@ srv_undo_tablespace_open(
 
 		/* Set the compressed page size to 0 (non-compressed) */
 		flags = fsp_flags_set_page_size(0, UNIV_PAGE_SIZE);
-		fil_space_create(name, space, flags, FIL_TABLESPACE);
+		fil_space_create(name, space, flags, FIL_TABLESPACE,
+				 NULL /* no encryption */);
 
 		ut_a(fil_validate());
 
@@ -1542,8 +1575,9 @@ init_log_online(void)
 
 		/* Create the thread that follows the redo log to output the
 		   changed page bitmap */
-		os_thread_create(&srv_redo_log_follow_thread, NULL,
+		srv_redo_log_follow_thread_handle = os_thread_create(&srv_redo_log_follow_thread, NULL,
 				 thread_ids + 5 + SRV_MAX_N_IO_THREADS);
+		srv_redo_log_follow_thread_started = true;
 	}
 }
 
@@ -1560,8 +1594,8 @@ innobase_start_or_create_for_mysql(void)
 	lsn_t		min_flushed_lsn;
 	lsn_t		max_flushed_lsn;
 #ifdef UNIV_LOG_ARCHIVE
-	lsn_t		min_arch_log_no=0;
-	lsn_t		max_arch_log_no;
+	lsn_t		min_arch_log_no	= LSN_MAX;
+	lsn_t		max_arch_log_no	= LSN_MAX;
 #endif /* UNIV_LOG_ARCHIVE */
 	ulint		sum_of_new_sizes;
 	ulint		sum_of_data_file_sizes;
@@ -1646,7 +1680,7 @@ innobase_start_or_create_for_mysql(void)
 	stacktrace feature. */
 
 	if (srv_use_stacktrace) {
-#ifdef __linux__
+#if defined (__linux__) && HAVE_BACKTRACE && HAVE_BACKTRACE_SYMBOLS
 		 struct sigaction sigact;
 
 		 sigact.sa_sigaction = os_stacktrace_print;
@@ -1659,7 +1693,7 @@ innobase_start_or_create_for_mysql(void)
 			 srv_use_stacktrace = FALSE;
 
 		 }
-#endif /* __linux__ */
+#endif /* defined (__linux__) && HAVE_BACKTRACE && HAVE_BACKTRACE_SYMBOLS */
 	}
 
 #ifdef UNIV_DEBUG
@@ -1880,6 +1914,7 @@ innobase_start_or_create_for_mysql(void)
 			    + 1 /* srv_error_monitor_thread */
 			    + 1 /* srv_monitor_thread */
 			    + 1 /* srv_master_thread */
+			    + 1 /* srv_redo_log_follow_thread */
 			    + 1 /* srv_purge_coordinator_thread */
 			    + 1 /* buf_dump_thread */
 			    + 1 /* dict_stats_thread */
@@ -2072,7 +2107,8 @@ innobase_start_or_create_for_mysql(void)
 
 		n[i] = i;
 
-		os_thread_create(io_handler_thread, n + i, thread_ids + i);
+		thread_handles[i] = os_thread_create(io_handler_thread, n + i, thread_ids + i);
+		thread_started[i] = true;
 	}
 
 	if (srv_n_log_files * srv_log_file_size * UNIV_PAGE_SIZE
@@ -2308,7 +2344,8 @@ innobase_start_or_create_for_mysql(void)
 		fil_space_create(logfilename,
 				 SRV_LOG_SPACE_FIRST_ID,
 				 fsp_flags_set_page_size(0, UNIV_PAGE_SIZE),
-				 FIL_LOG);
+				 FIL_LOG,
+				 NULL /* no encryption yet */);
 
 		ut_a(fil_validate());
 
@@ -2330,7 +2367,7 @@ innobase_start_or_create_for_mysql(void)
 		/* Create the file space object for archived logs. Under
 		MySQL, no archiving ever done. */
 		fil_space_create("arch_log_space", SRV_LOG_SPACE_FIRST_ID + 1,
-				 0, FIL_LOG);
+			0, FIL_LOG, NULL /* no encryption yet */);
 #endif /* UNIV_LOG_ARCHIVE */
 		log_group_init(0, i, srv_log_file_size * UNIV_PAGE_SIZE,
 			       SRV_LOG_SPACE_FIRST_ID,
@@ -2362,6 +2399,11 @@ files_checked:
 	can also be used by recovery if it tries to drop some table */
 	if (!srv_read_only_mode) {
 		dict_stats_thread_init();
+	}
+
+	if (!srv_read_only_mode && srv_scrub_log) {
+		/* TODO(minliz): have/use log_scrub_thread_init() instead? */
+		log_scrub_event = os_event_create();
 	}
 
 	trx_sys_file_format_init();
@@ -2735,19 +2777,22 @@ files_checked:
 	if (!srv_read_only_mode) {
 		/* Create the thread which watches the timeouts
 		for lock waits */
-		os_thread_create(
+		thread_handles[2 + SRV_MAX_N_IO_THREADS] = os_thread_create(
 			lock_wait_timeout_thread,
 			NULL, thread_ids + 2 + SRV_MAX_N_IO_THREADS);
+		thread_started[2 + SRV_MAX_N_IO_THREADS] = true;
 
 		/* Create the thread which warns of long semaphore waits */
-		os_thread_create(
+		thread_handles[3 + SRV_MAX_N_IO_THREADS] = os_thread_create(
 			srv_error_monitor_thread,
 			NULL, thread_ids + 3 + SRV_MAX_N_IO_THREADS);
+		thread_started[3 + SRV_MAX_N_IO_THREADS] = true;
 
 		/* Create the thread which prints InnoDB monitor info */
-		os_thread_create(
+		thread_handles[4 + SRV_MAX_N_IO_THREADS] = os_thread_create(
 			srv_monitor_thread,
 			NULL, thread_ids + 4 + SRV_MAX_N_IO_THREADS);
+		thread_started[4 + SRV_MAX_N_IO_THREADS] = true;
 	}
 
 	/* Create the SYS_FOREIGN and SYS_FOREIGN_COLS system tables */
@@ -2774,26 +2819,30 @@ files_checked:
 
 	if (!srv_read_only_mode) {
 
-		os_thread_create(
+		thread_handles[1 + SRV_MAX_N_IO_THREADS] = os_thread_create(
 			srv_master_thread,
 			NULL, thread_ids + (1 + SRV_MAX_N_IO_THREADS));
+		thread_started[1 + SRV_MAX_N_IO_THREADS] = true;
 	}
 
 	if (!srv_read_only_mode
 	    && srv_force_recovery < SRV_FORCE_NO_BACKGROUND) {
 
-		os_thread_create(
+		thread_handles[6 + SRV_MAX_N_IO_THREADS] = os_thread_create(
 			srv_purge_coordinator_thread,
-			NULL, thread_ids + 5 + SRV_MAX_N_IO_THREADS);
+			NULL, thread_ids + 6 + SRV_MAX_N_IO_THREADS);
+
+		thread_started[6 + SRV_MAX_N_IO_THREADS] = true;
 
 		ut_a(UT_ARR_SIZE(thread_ids)
-		     > 5 + srv_n_purge_threads + SRV_MAX_N_IO_THREADS);
+		     > 6 + srv_n_purge_threads + SRV_MAX_N_IO_THREADS);
 
 		/* We've already created the purge coordinator thread above. */
 		for (i = 1; i < srv_n_purge_threads; ++i) {
-			os_thread_create(
+			thread_handles[6 + i + SRV_MAX_N_IO_THREADS] = os_thread_create(
 				srv_worker_thread, NULL,
-				thread_ids + 5 + i + SRV_MAX_N_IO_THREADS);
+				thread_ids + 6 + i + SRV_MAX_N_IO_THREADS);
+			thread_started[6 + i + SRV_MAX_N_IO_THREADS] = true;
 		}
 
 		srv_start_wait_for_purge_to_start();
@@ -2815,16 +2864,15 @@ files_checked:
 				srv_mtflush_threads,
 				mtflush_ctx,
 				(thread_ids + 6 + SRV_MAX_N_PURGE_THREADS));
-#if UNIV_DEBUG
-			fprintf(stderr, "InnoDB: Note: %s:%d buf-pool-instances:%lu mtflush_threads %lu\n",
-				__FILE__, __LINE__, srv_buf_pool_instances, srv_mtflush_threads);
-#endif
 		}
 
 
-		os_thread_create(buf_flush_page_cleaner_thread, NULL, NULL);
+		buf_flush_page_cleaner_thread_handle = os_thread_create(buf_flush_page_cleaner_thread, NULL, NULL);
+		buf_flush_page_cleaner_thread_started = true;
 	}
-	os_thread_create(buf_flush_lru_manager_thread, NULL, NULL);
+
+	buf_flush_lru_manager_thread_handle = os_thread_create(buf_flush_lru_manager_thread, NULL, NULL);
+	buf_flush_lru_manager_thread_started = true;
 
 #ifdef UNIV_DEBUG
 	/* buf_debug_prints = TRUE; */
@@ -2975,13 +3023,25 @@ files_checked:
 
 	if (!srv_read_only_mode) {
 		/* Create the buffer pool dump/load thread */
-		os_thread_create(buf_dump_thread, NULL, NULL);
+		buf_dump_thread_handle = os_thread_create(buf_dump_thread, NULL, NULL);
+		buf_dump_thread_started = true;
 
 		/* Create the dict stats gathering thread */
-		os_thread_create(dict_stats_thread, NULL, NULL);
+		dict_stats_thread_handle = os_thread_create(dict_stats_thread, NULL, NULL);
+		dict_stats_thread_started = true;
 
 		/* Create the thread that will optimize the FTS sub-system. */
 		fts_optimize_init();
+
+		/* Init data for datafile scrub threads */
+		btr_scrub_init();
+
+		/* Create thread(s) that handles key rotation */
+		fil_crypt_threads_init();
+
+		/* Create the log scrub thread */
+		if (srv_scrub_log)
+			os_thread_create(log_scrub_thread, NULL, NULL);
 	}
 
 	/* Initialize online defragmentation. */
@@ -3047,6 +3107,9 @@ innobase_shutdown_for_mysql(void)
 		fts_optimize_start_shutdown();
 
 		fts_optimize_end();
+
+		/* Shutdown key rotation threads */
+		fil_crypt_threads_end();
 	}
 
 	/* 1. Flush the buffer pool to disk, write the current lsn to
@@ -3155,7 +3218,55 @@ innobase_shutdown_for_mysql(void)
 
 	if (!srv_read_only_mode) {
 		dict_stats_thread_deinit();
+		if (srv_scrub_log) {
+			/* TODO(minliz): have/use log_scrub_thread_deinit() instead? */
+			os_event_free(log_scrub_event);
+			log_scrub_event = NULL;
+		}
 	}
+
+	if (!srv_read_only_mode) {
+		fil_crypt_threads_cleanup();
+
+		/* Cleanup data for datafile scrubbing */
+		btr_scrub_cleanup();
+	}
+
+#ifdef __WIN__
+	/* MDEV-361: ha_innodb.dll leaks handles on Windows
+	MDEV-7403: should not pass recv_writer_thread_handle to
+	CloseHandle().
+
+	On Windows we should call CloseHandle() for all
+	open thread handles. */
+	if (os_thread_count == 0) {
+		for (i = 0; i < SRV_MAX_N_IO_THREADS + 6 + 32; ++i) {
+			if (thread_started[i]) {
+				CloseHandle(thread_handles[i]);
+			}
+		}
+
+		if (buf_flush_page_cleaner_thread_started) {
+			CloseHandle(buf_flush_page_cleaner_thread_handle);
+		}
+
+		if (buf_dump_thread_started) {
+			CloseHandle(buf_dump_thread_handle);
+		}
+
+		if (dict_stats_thread_started) {
+			CloseHandle(dict_stats_thread_handle);
+		}
+
+		if (buf_flush_lru_manager_thread_started) {
+			CloseHandle(buf_flush_lru_manager_thread_handle);
+		}
+
+		if (srv_redo_log_follow_thread_started) {
+			CloseHandle(srv_redo_log_follow_thread_handle);
+		}
+	}
+#endif /* __WIN __ */
 
 	/* This must be disabled before closing the buffer pool
 	and closing the data dictionary.  */

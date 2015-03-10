@@ -62,7 +62,7 @@ Relay_log_info::Relay_log_info(bool is_slave_recovery)
    group_master_log_pos(0), log_space_total(0), ignore_log_space_limit(0),
    last_master_timestamp(0), sql_thread_caught_up(true), slave_skip_counter(0),
    abort_pos_wait(0), slave_run_id(0), sql_driver_thd(),
-   inited(0), abort_slave(0), stop_for_until(0),
+   gtid_skip_flag(GTID_SKIP_NOT), inited(0), abort_slave(0), stop_for_until(0),
    slave_running(0), until_condition(UNTIL_NONE),
    until_log_pos(0), retried_trans(0), executed_entries(0),
    m_flags(0)
@@ -100,18 +100,9 @@ Relay_log_info::Relay_log_info(bool is_slave_recovery)
 
 Relay_log_info::~Relay_log_info()
 {
-  inuse_relaylog *cur;
   DBUG_ENTER("Relay_log_info::~Relay_log_info");
 
-  cur= inuse_relaylog_list;
-  while (cur)
-  {
-    DBUG_ASSERT(cur->queued_count == cur->dequeued_count);
-    inuse_relaylog *next= cur->next;
-    my_atomic_rwlock_destroy(&cur->inuse_relaylog_atomic_lock);
-    my_free(cur);
-    cur= next;
-  }
+  reset_inuse_relaylog();
   mysql_mutex_destroy(&run_lock);
   mysql_mutex_destroy(&data_lock);
   mysql_mutex_destroy(&log_space_lock);
@@ -1384,14 +1375,34 @@ int
 Relay_log_info::alloc_inuse_relaylog(const char *name)
 {
   inuse_relaylog *ir;
+  uint32 gtid_count;
+  rpl_gtid *gtid_list;
 
   if (!(ir= (inuse_relaylog *)my_malloc(sizeof(*ir), MYF(MY_WME|MY_ZEROFILL))))
   {
     my_error(ER_OUTOFMEMORY, MYF(0), (int)sizeof(*ir));
     return 1;
   }
+  gtid_count= relay_log_state.count();
+  if (!(gtid_list= (rpl_gtid *)my_malloc(sizeof(*gtid_list)*gtid_count,
+                                         MYF(MY_WME))))
+  {
+    my_free(ir);
+    my_error(ER_OUTOFMEMORY, MYF(0), (int)sizeof(*gtid_list)*gtid_count);
+    return 1;
+  }
+  if (relay_log_state.get_gtid_list(gtid_list, gtid_count))
+  {
+    my_free(gtid_list);
+    my_free(ir);
+    DBUG_ASSERT(0 /* Should not be possible as we allocated correct length */);
+    my_error(ER_OUT_OF_RESOURCES, MYF(0));
+    return 1;
+  }
   ir->rli= this;
   strmake_buf(ir->name, name);
+  ir->relay_log_state= gtid_list;
+  ir->relay_log_state_count= gtid_count;
 
   if (!inuse_relaylog_list)
     inuse_relaylog_list= ir;
@@ -1401,9 +1412,46 @@ Relay_log_info::alloc_inuse_relaylog(const char *name)
     last_inuse_relaylog->next= ir;
   }
   last_inuse_relaylog= ir;
-  my_atomic_rwlock_init(&ir->inuse_relaylog_atomic_lock);
 
   return 0;
+}
+
+
+void
+Relay_log_info::free_inuse_relaylog(inuse_relaylog *ir)
+{
+  my_free(ir->relay_log_state);
+  my_free(ir);
+}
+
+
+void
+Relay_log_info::reset_inuse_relaylog()
+{
+  inuse_relaylog *cur= inuse_relaylog_list;
+  while (cur)
+  {
+    DBUG_ASSERT(cur->queued_count == cur->dequeued_count);
+    inuse_relaylog *next= cur->next;
+    free_inuse_relaylog(cur);
+    cur= next;
+  }
+  inuse_relaylog_list= last_inuse_relaylog= NULL;
+}
+
+
+int
+Relay_log_info::update_relay_log_state(rpl_gtid *gtid_list, uint32 count)
+{
+  int res= 0;
+  while (count)
+  {
+    if (relay_log_state.update_nolock(gtid_list, false))
+      res= 1;
+    ++gtid_list;
+    --count;
+  }
+  return res;
 }
 
 
@@ -1851,11 +1899,20 @@ void rpl_group_info::slave_close_thread_tables(THD *thd)
 
 
 static void
-mark_start_commit_inner(rpl_parallel_entry *e, group_commit_orderer *gco)
+mark_start_commit_inner(rpl_parallel_entry *e, group_commit_orderer *gco,
+                        rpl_group_info *rgi)
 {
+  group_commit_orderer *tmp;
   uint64 count= ++e->count_committing_event_groups;
-  if (gco->next_gco && gco->next_gco->wait_count == count)
-    mysql_cond_broadcast(&gco->next_gco->COND_group_commit_orderer);
+  /* Signal any following GCO whose wait_count has been reached now. */
+  tmp= gco;
+  while ((tmp= tmp->next_gco))
+  {
+    uint64 wait_count= tmp->wait_count;
+    if (wait_count > count)
+      break;
+    mysql_cond_broadcast(&tmp->COND_group_commit_orderer);
+  }
 }
 
 
@@ -1864,7 +1921,7 @@ rpl_group_info::mark_start_commit_no_lock()
 {
   if (did_mark_start_commit)
     return;
-  mark_start_commit_inner(parallel_entry, gco);
+  mark_start_commit_inner(parallel_entry, gco, this);
   did_mark_start_commit= true;
 }
 
@@ -1879,7 +1936,7 @@ rpl_group_info::mark_start_commit()
 
   e= this->parallel_entry;
   mysql_mutex_lock(&e->LOCK_parallel_entry);
-  mark_start_commit_inner(e, gco);
+  mark_start_commit_inner(e, gco, this);
   mysql_mutex_unlock(&e->LOCK_parallel_entry);
   did_mark_start_commit= true;
 }

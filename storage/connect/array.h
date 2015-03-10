@@ -50,6 +50,7 @@ class DllExport ARRAY : public XOBJECT, public CSORT { // Array descblock
 //        void  SetCorrel(bool b) {Correlated = b;}
 
   // Methods
+  using XOBJECT::GetIntValue;
   virtual void  Reset(void) {Bot = -1;}
   virtual int   Qcompare(int *, int *);
   virtual bool  Compare(PXOB) {assert(FALSE); return FALSE;}

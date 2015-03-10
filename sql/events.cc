@@ -273,7 +273,12 @@ create_query_string(THD *thd, String *buf)
 {
   buf->length(0);
   /* Append the "CREATE" part of the query */
-  if (buf->append(STRING_WITH_LEN("CREATE ")))
+  if (thd->lex->create_info.or_replace())
+  {
+    if (buf->append(STRING_WITH_LEN("CREATE OR REPLACE ")))
+      return 1;
+  }
+  else if (buf->append(STRING_WITH_LEN("CREATE ")))
     return 1;
   /* Append definer */
   append_definer(thd, buf, &(thd->lex->definer->user), &(thd->lex->definer->host));
@@ -292,8 +297,7 @@ create_query_string(THD *thd, String *buf)
 
   @param[in,out]  thd            THD
   @param[in]      parse_data     Event's data from parsing stage
-  @param[in]      if_not_exists  Whether IF NOT EXISTS was
-                                 specified
+
   In case there is an event with the same name (db) and
   IF NOT EXISTS is specified, an warning is put into the stack.
   @sa Events::drop_event for the notes about locking, pre-locking
@@ -304,8 +308,7 @@ create_query_string(THD *thd, String *buf)
 */
 
 bool
-Events::create_event(THD *thd, Event_parse_data *parse_data,
-                     bool if_not_exists)
+Events::create_event(THD *thd, Event_parse_data *parse_data)
 {
   bool ret;
   bool event_already_exists;
@@ -347,8 +350,11 @@ Events::create_event(THD *thd, Event_parse_data *parse_data,
                        parse_data->dbname.str, parse_data->name.str))
     DBUG_RETURN(TRUE);
 
+  if (thd->lex->create_info.or_replace() && event_queue)
+    event_queue->drop_event(thd, parse_data->dbname, parse_data->name);
+
   /* On error conditions my_error() is called so no need to handle here */
-  if (!(ret= db_repository->create_event(thd, parse_data, if_not_exists,
+  if (!(ret= db_repository->create_event(thd, parse_data,
                                          &event_already_exists)))
   {
     Event_queue_element *new_element;
@@ -896,8 +902,6 @@ end:
     delete scheduler;
   }
   delete thd;
-  /* Remember that we don't have a THD */
-  set_current_thd(0);
 
   DBUG_RETURN(res);
 }

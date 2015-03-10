@@ -95,7 +95,8 @@ static wsrep_cb_status_t wsrep_apply_events(THD*        thd,
 
   DBUG_ENTER("wsrep_apply_events");
 
-  if (thd->killed == KILL_CONNECTION)
+  if (thd->killed == KILL_CONNECTION &&
+      thd->wsrep_conflict_state != REPLAYING)
   {
     WSREP_INFO("applier has been aborted, skipping apply_rbr: %lld",
                (long long) wsrep_thd_trx_seqno(thd));

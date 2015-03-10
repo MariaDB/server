@@ -209,10 +209,10 @@ rw_lock_create_func(
 # ifdef UNIV_SYNC_DEBUG
 	ulint		level,		/*!< in: level */
 # endif /* UNIV_SYNC_DEBUG */
-	const char*	cfile_name,	/*!< in: file name where created */
-	ulint		cline,		/*!< in: file line where created */
 #endif /* UNIV_DEBUG */
-	const char*	cmutex_name)	/*!< in: mutex name */
+	const char*	cmutex_name,	/*!< in: mutex name */
+	const char*	cfile_name,	/*!< in: file name where created */
+	ulint		cline)		/*!< in: file line where created */
 {
 	/* If this is the very first time a synchronization object is
 	created, then the following call initializes the sync system. */
@@ -221,15 +221,14 @@ rw_lock_create_func(
 	mutex_create(rw_lock_mutex_key, rw_lock_get_mutex(lock),
 		     SYNC_NO_ORDER_CHECK);
 
-	ut_d(lock->mutex.cfile_name = cfile_name);
-	ut_d(lock->mutex.cline = cline);
-
-	lock->mutex.cmutex_name = cmutex_name;
+	lock->mutex.cfile_name = cfile_name;
+	lock->mutex.cline = cline;
+	lock->mutex.lock_name = cmutex_name;
 	ut_d(lock->mutex.ib_mutex_type = 1);
+
 #else /* INNODB_RW_LOCKS_USE_ATOMICS */
 # ifdef UNIV_DEBUG
-	UT_NOT_USED(cfile_name);
-	UT_NOT_USED(cline);
+	UT_NOT_USED(cmutex_name);
 # endif
 #endif /* INNODB_RW_LOCKS_USE_ATOMICS */
 
@@ -252,9 +251,12 @@ rw_lock_create_func(
 
 	ut_d(lock->magic_n = RW_LOCK_MAGIC_N);
 
+	lock->cfile_name = cfile_name;
+	lock->cline = (unsigned int) cline;
 	lock->lock_name = cmutex_name;
-
 	lock->count_os_wait = 0;
+	lock->file_name = "not yet reserved";
+	lock->line = 0;
 	lock->last_s_file_name = "not yet reserved";
 	lock->last_x_file_name = "not yet reserved";
 	lock->last_s_line = 0;
@@ -286,20 +288,21 @@ rw_lock_create_func(
 # ifdef UNIV_SYNC_DEBUG
 	ulint		level,		/*!< in: level */
 # endif /* UNIV_SYNC_DEBUG */
-	const char*	cfile_name,	/*!< in: file name where created */
-	ulint		cline,		/*!< in: file line where created */
 #endif /* UNIV_DEBUG */
-	const char*	cmutex_name)	/*!< in: mutex name */
+	const char*	cmutex_name,	/*!< in: mutex name */
+	const char*	cfile_name,	/*!< in: file name where created */
+	ulint		cline)		/*!< in: file line where created */
 {
 	rw_lock_create_func(&lock->base_lock,
 #ifdef UNIV_DEBUG
 # ifdef UNIV_SYNC_DEBUG
 			    level,
 # endif
-			    cfile_name,
-			    cline,
 #endif
-			    cmutex_name);
+			    cmutex_name,
+			    cfile_name,
+			    cline);
+
 	lock->high_priority_s_waiters = 0;
 	lock->high_priority_s_event = os_event_create();
 	lock->high_priority_x_waiters = 0;
@@ -321,6 +324,7 @@ rw_lock_free_func(
 	ib_mutex_t*	mutex;
 #endif /* !INNODB_RW_LOCKS_USE_ATOMICS */
 
+	os_rmb;
 	ut_ad(rw_lock_validate(lock));
 	ut_a(lock->lock_word == X_LOCK_DECR);
 
@@ -654,6 +658,12 @@ rw_lock_x_lock_wait(
 					       file_name, line);
 #endif
 
+			if (srv_instrument_semaphores) {
+				lock->thread_id = os_thread_get_curr_id();
+				lock->file_name = file_name;
+				lock->line = line;
+			}
+
 			sync_array_wait_event(sync_arr, index);
 #ifdef UNIV_SYNC_DEBUG
 			rw_lock_remove_debug_info(
@@ -693,6 +703,8 @@ rw_lock_x_lock_low(
 	const char*	file_name,/*!< in: file name where lock requested */
 	ulint		line)	/*!< in: line where requested */
 {
+	ibool local_recursive= lock->recursive;
+
 	if (rw_lock_lock_word_decr(lock, X_LOCK_DECR)) {
 
 		/* lock->recursive also tells us if the writer_thread
@@ -714,12 +726,12 @@ rw_lock_x_lock_low(
 	} else {
 		os_thread_id_t	thread_id = os_thread_get_curr_id();
 
-		if (!pass) {
-			os_rmb;
-		}
-
-		/* Decrement failed: relock or failed lock */
-		if (!pass && lock->recursive
+		/* Decrement failed: relock or failed lock
+		Note: recursive must be loaded before writer_thread see
+		comment for rw_lock_set_writer_id_and_recursion_flag().
+		To achieve this we load it before rw_lock_lock_word_decr(),
+		which implies full memory barrier in current implementation. */
+		if (!pass && local_recursive
 		    && os_thread_eq(lock->writer_thread, thread_id)) {
 			/* Relock */
 			if (lock->lock_word == 0) {
@@ -738,6 +750,12 @@ rw_lock_x_lock_low(
 #endif
 	lock->last_x_file_name = file_name;
 	lock->last_x_line = (unsigned int) line;
+
+	if (srv_instrument_semaphores) {
+		lock->thread_id = os_thread_get_curr_id();
+		lock->file_name = file_name;
+		lock->line = line;
+	}
 
 	return(TRUE);
 }

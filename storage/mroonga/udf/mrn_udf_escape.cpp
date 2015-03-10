@@ -81,7 +81,7 @@ MRN_API my_bool mroonga_escape_init(UDF_INIT *initid, UDF_ARGS *args,
 error:
   if (info) {
     grn_ctx_fin(&(info->ctx));
-    my_free(info, MYF(0));
+    my_free(info);
   }
   return TRUE;
 }
@@ -147,7 +147,7 @@ MRN_API void mroonga_escape_deinit(UDF_INIT *initid)
     grn_obj_unlink(&(info->ctx), &(info->target_characters));
     grn_obj_unlink(&(info->ctx), &(info->escaped_query));
     grn_ctx_fin(&(info->ctx));
-    my_free(info, MYF(0));
+    my_free(info);
   }
 }
 

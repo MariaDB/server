@@ -148,6 +148,35 @@ EXPLAIN
     }
   }
 }
+explain format=json select * from t2 where (a1=1 and a2=1) or 
+(b1=2 and b2=1);
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t2",
+      "access_type": "index_merge",
+      "possible_keys": ["a1", "b1"],
+      "key_length": "10,10",
+      "index_merge": {
+        "union": {
+          "range": {
+            "key": "a1",
+            "used_key_parts": ["a1", "a2"]
+          },
+          "range": {
+            "key": "b1",
+            "used_key_parts": ["b1", "b2"]
+          }
+        }
+      },
+      "rows": 2,
+      "filtered": 100,
+      "attached_condition": "(((t2.a1 = 1) and (t2.a2 = 1)) or ((t2.b1 = 2) and (t2.b2 = 1)))"
+    }
+  }
+}
 # Try ref access on two key components
 explain format=json select * from t0,t2 where t2.b1=t0.a and t2.b2=4;
 EXPLAIN

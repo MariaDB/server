@@ -1,0 +1,44 @@
+CREATE TABLE t1 (f1 INTEGER AUTO_INCREMENT PRIMARY KEY, node VARCHAR(10)) ENGINE=InnoDB;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `f1` int(11) NOT NULL AUTO_INCREMENT,
+  `node` varchar(10) DEFAULT NULL,
+  PRIMARY KEY (`f1`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+SELECT @@auto_increment_increment = (SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size');
+@@auto_increment_increment = (SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size')
+1
+SELECT @@auto_increment_offset = 1;
+@@auto_increment_offset = 1
+1
+INSERT INTO t1 VALUES (DEFAULT, 'node1');;
+INSERT INTO t1 VALUES (DEFAULT, 'node2');;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `f1` int(11) NOT NULL AUTO_INCREMENT,
+  `node` varchar(10) DEFAULT NULL,
+  PRIMARY KEY (`f1`)
+) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=latin1
+SELECT @@auto_increment_increment = (SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size');
+@@auto_increment_increment = (SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size')
+1
+SELECT @@auto_increment_offset = 2;
+@@auto_increment_offset = 2
+1
+INSERT INTO t1 VALUES (DEFAULT, 'node2'), (DEFAULT, 'node2'), (DEFAULT, 'node2'), (DEFAULT, 'node2'), (DEFAULT, 'node2'), (DEFAULT, 'node2'), (DEFAULT, 'node2'), (DEFAULT, 'node2'), (DEFAULT, 'node2'), (DEFAULT, 'node2');;
+INSERT INTO t1 VALUES (DEFAULT, 'node1'), (DEFAULT, 'node1'), (DEFAULT, 'node1'), (DEFAULT, 'node1'), (DEFAULT, 'node1'), (DEFAULT, 'node1'), (DEFAULT, 'node1'), (DEFAULT, 'node1'), (DEFAULT, 'node1'), (DEFAULT, 'node1');;
+SELECT COUNT(*) = 22 FROM t1;
+COUNT(*) = 22
+1
+SELECT COUNT(DISTINCT f1) = 22 FROM t1;
+COUNT(DISTINCT f1) = 22
+1
+SELECT COUNT(*) = 22 FROM t1;
+COUNT(*) = 22
+1
+SELECT COUNT(DISTINCT f1) = 22 FROM t1;
+COUNT(DISTINCT f1) = 22
+1
+DROP TABLE t1;

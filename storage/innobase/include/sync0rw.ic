@@ -325,6 +325,12 @@ rw_lock_s_lock_low(
 	lock->last_s_file_name = file_name;
 	lock->last_s_line = line;
 
+	if (srv_instrument_semaphores) {
+		lock->thread_id = os_thread_get_curr_id();
+		lock->file_name = file_name;
+		lock->line = line;
+	}
+
 	return(TRUE);	/* locking succeeded */
 }
 
@@ -386,6 +392,7 @@ rw_lock_x_lock_func_nowait(
 	ulint		line)	/*!< in: line where requested */
 {
 	ibool success;
+	ibool local_recursive= lock->recursive;
 
 #ifdef INNODB_RW_LOCKS_USE_ATOMICS
 	success = os_compare_and_swap_lint(&lock->lock_word, X_LOCK_DECR, 0);
@@ -400,10 +407,14 @@ rw_lock_x_lock_func_nowait(
 	mutex_exit(&(lock->mutex));
 
 #endif
+	/* Note: recursive must be loaded before writer_thread see
+	comment for rw_lock_set_writer_id_and_recursion_flag().
+	To achieve this we load it before os_compare_and_swap_lint(),
+	which implies full memory barrier in current implementation. */
 	if (success) {
 		rw_lock_set_writer_id_and_recursion_flag(lock, TRUE);
 
-	} else if (lock->recursive
+	} else if (local_recursive
 		   && os_thread_eq(lock->writer_thread,
 				   os_thread_get_curr_id())) {
 		/* Relock: this lock_word modification is safe since no other
@@ -425,6 +436,12 @@ rw_lock_x_lock_func_nowait(
 #ifdef UNIV_SYNC_DEBUG
 	rw_lock_add_debug_info(lock, 0, RW_LOCK_EX, file_name, line);
 #endif
+
+	if (srv_instrument_semaphores) {
+		lock->thread_id = os_thread_get_curr_id();
+		lock->file_name = file_name;
+		lock->line = line;
+	}
 
 	lock->last_x_file_name = file_name;
 	lock->last_x_line = line;
@@ -546,8 +563,8 @@ pfs_rw_lock_create_func(
 #  ifdef UNIV_SYNC_DEBUG
 	ulint		level,		/*!< in: level */
 #  endif /* UNIV_SYNC_DEBUG */
-	const char*	cmutex_name,	/*!< in: mutex name */
 # endif /* UNIV_DEBUG */
+	const char*	cmutex_name,	/*!< in: mutex name */
 	const char*	cfile_name,	/*!< in: file name where created */
 	ulint		cline)		/*!< in: file line where created */
 {
@@ -560,8 +577,8 @@ pfs_rw_lock_create_func(
 #  ifdef UNIV_SYNC_DEBUG
 			    level,
 #  endif /* UNIV_SYNC_DEBUG */
-			    cmutex_name,
 # endif /* UNIV_DEBUG */
+			    cmutex_name,
 			    cfile_name,
 			    cline);
 }

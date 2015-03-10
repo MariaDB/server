@@ -14,7 +14,6 @@
   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
 
 #define MYSQL_SERVER 1
-#include <my_global.h>
 #include "mysql_version.h"
 #if MYSQL_VERSION_ID < 50500
 #include "mysql_priv.h"
@@ -7730,6 +7729,7 @@ longlong spider_split_read_param(
     DBUG_RETURN(result_list->semi_split_read_base);
   }
   spider_get_select_limit(spider, &select_lex, &select_limit, &offset_limit);
+  DBUG_PRINT("info",("spider result_list->set_split_read=%s", result_list->set_split_read ? "TRUE" : "FALSE"));
   if (!result_list->set_split_read)
   {
     int bulk_update_mode = spider_param_bulk_update_mode(thd,
@@ -7803,6 +7803,7 @@ longlong spider_split_read_param(
       result_list->set_split_read = TRUE;
       DBUG_RETURN(9223372036854775807LL);
     }
+#ifdef SPIDER_HAS_EXPLAIN_QUERY
     Explain_query *explain = thd->lex->explain;
     bool filesort = FALSE;
     if (explain)
@@ -7827,18 +7828,23 @@ longlong spider_split_read_param(
         }
       }
     }
+#endif
     result_list->split_read_base =
       spider_param_split_read(thd, share->split_read);
+#ifdef SPIDER_HAS_EXPLAIN_QUERY
     if (filesort)
     {
       result_list->semi_split_read = 0;
       result_list->semi_split_read_limit = 9223372036854775807LL;
     } else {
+#endif
       result_list->semi_split_read =
         spider_param_semi_split_read(thd, share->semi_split_read);
       result_list->semi_split_read_limit =
         spider_param_semi_split_read_limit(thd, share->semi_split_read_limit);
+#ifdef SPIDER_HAS_EXPLAIN_QUERY
     }
+#endif
     result_list->first_read =
       spider_param_first_read(thd, share->first_read);
     result_list->second_read =
@@ -7846,6 +7852,11 @@ longlong spider_split_read_param(
     result_list->semi_split_read_base = 0;
     result_list->set_split_read = TRUE;
   }
+  DBUG_PRINT("info",("spider result_list->semi_split_read=%f", result_list->semi_split_read));
+  DBUG_PRINT("info",("spider select_lex->explicit_limit=%d", select_lex ? select_lex->explicit_limit : 0));
+  DBUG_PRINT("info",("spider OPTION_FOUND_ROWS=%s", select_lex && (select_lex->options & OPTION_FOUND_ROWS) ? "TRUE" : "FALSE"));
+  DBUG_PRINT("info",("spider select_lex->group_list.elements=%u", select_lex ? select_lex->group_list.elements : 0));
+  DBUG_PRINT("info",("spider select_lex->with_sum_func=%s", select_lex && select_lex->with_sum_func ? "TRUE" : "FALSE"));
   if (
     result_list->semi_split_read > 0 &&
     select_lex && select_lex->explicit_limit &&
@@ -7932,12 +7943,18 @@ bool spider_check_direct_order_limit(
   longlong select_limit;
   longlong offset_limit;
   DBUG_ENTER("spider_check_direct_order_limit");
+  if (spider_check_index_merge(spider->get_top_table(),
+    spider_get_select_lex(spider)))
+  {
+    DBUG_PRINT("info",("spider set use_index_merge"));
+    spider->use_index_merge = TRUE;
+  }
   DBUG_PRINT("info",("spider SQLCOM_HA_READ=%s",
     (spider->sql_command == SQLCOM_HA_READ) ? "TRUE" : "FALSE"));
   DBUG_PRINT("info",("spider sql_kinds with SPIDER_SQL_KIND_HANDLER=%s",
     (spider->sql_kinds & SPIDER_SQL_KIND_HANDLER) ? "TRUE" : "FALSE"));
-  DBUG_PRINT("info",("spider has_clone_for_merge=%s",
-    spider->has_clone_for_merge ? "TRUE" : "FALSE"));
+  DBUG_PRINT("info",("spider use_index_merge=%s",
+    spider->use_index_merge ? "TRUE" : "FALSE"));
   DBUG_PRINT("info",("spider is_clone=%s",
     spider->is_clone ? "TRUE" : "FALSE"));
 #ifdef HA_CAN_BULK_ACCESS
@@ -7946,7 +7963,7 @@ bool spider_check_direct_order_limit(
 #endif
   if (
     spider->sql_command != SQLCOM_HA_READ &&
-    !spider->has_clone_for_merge &&
+    !spider->use_index_merge &&
 #ifdef HA_CAN_BULK_ACCESS
     (!spider->is_clone || spider->is_bulk_access_clone)
 #else
@@ -7958,10 +7975,10 @@ bool spider_check_direct_order_limit(
     DBUG_PRINT("info",("spider select_lex=%p", select_lex));
 #if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100000
     DBUG_PRINT("info",("spider leaf_tables.elements=%u",
-      select_lex->leaf_tables.elements));
+      select_lex ? select_lex->leaf_tables.elements : 0));
 #endif
 
-    if (select_lex->options & SELECT_DISTINCT)
+    if (select_lex && (select_lex->options & SELECT_DISTINCT))
     {
       DBUG_PRINT("info",("spider with distinct"));
       spider->result_list.direct_distinct = TRUE;
@@ -7972,6 +7989,9 @@ bool spider_check_direct_order_limit(
     DBUG_PRINT("info",("spider select_limit=%lld", select_limit));
     DBUG_PRINT("info",("spider offset_limit=%lld", offset_limit));
     if (
+#ifdef SPIDER_NEED_CHECK_CONDITION_AT_CHECKING_DIRECT_ORDER_LIMIT
+      !spider->condition ||
+#endif
       !select_lex ||
 #if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100000
       select_lex->leaf_tables.elements != 1 ||
@@ -8038,19 +8058,19 @@ bool spider_check_direct_order_limit(
       DBUG_PRINT("info",("spider first_check=%s",
         first_check ? "TRUE" : "FALSE"));
       DBUG_PRINT("info",("spider (select_lex->options & OPTION_FOUND_ROWS)=%s",
-        (select_lex->options & OPTION_FOUND_ROWS) ? "TRUE" : "FALSE"));
+        select_lex && (select_lex->options & OPTION_FOUND_ROWS) ? "TRUE" : "FALSE"));
 #ifdef HANDLER_HAS_DIRECT_AGGREGATE
       DBUG_PRINT("info",("spider direct_aggregate=%s",
         spider->result_list.direct_aggregate ? "TRUE" : "FALSE"));
 #endif
       DBUG_PRINT("info",("spider select_lex->group_list.elements=%u",
-        select_lex->group_list.elements));
+        select_lex ? select_lex->group_list.elements : 0));
       DBUG_PRINT("info",("spider select_lex->with_sum_func=%s",
-        select_lex->with_sum_func ? "TRUE" : "FALSE"));
+        select_lex && select_lex->with_sum_func ? "TRUE" : "FALSE"));
       DBUG_PRINT("info",("spider select_lex->having=%s",
-        select_lex->having ? "TRUE" : "FALSE"));
+        select_lex && select_lex->having ? "TRUE" : "FALSE"));
       DBUG_PRINT("info",("spider select_lex->order_list.elements=%u",
-        select_lex->order_list.elements));
+        select_lex ? select_lex->order_list.elements : 0));
       if (
         !first_check ||
         !select_lex->explicit_limit ||
@@ -8089,6 +8109,63 @@ bool spider_check_direct_order_limit(
     }
   }
   DBUG_PRINT("info",("spider FALSE by parameter"));
+  DBUG_RETURN(FALSE);
+}
+
+bool spider_check_index_merge(
+  TABLE *table,
+  st_select_lex *select_lex
+) {
+  uint roop_count;
+  JOIN *join;
+  DBUG_ENTER("spider_check_index_merge");
+  if (!select_lex)
+  {
+    DBUG_PRINT("info",("spider select_lex is null"));
+    DBUG_RETURN(FALSE);
+  }
+  join = select_lex->join;
+  if (!join)
+  {
+    DBUG_PRINT("info",("spider join is null"));
+    DBUG_RETURN(FALSE);
+  }
+  for (roop_count = 0; roop_count < spider_join_table_count(join); ++roop_count)
+  {
+    JOIN_TAB *join_tab = &join->join_tab[roop_count];
+    if (join_tab && join_tab->table == table)
+    {
+      DBUG_PRINT("info",("spider join_tab->type=%u", join_tab->type));
+      if (
+#ifdef SPIDER_HAS_JT_HASH_INDEX_MERGE
+        join_tab->type == JT_HASH_INDEX_MERGE ||
+#endif
+        join_tab->type == JT_INDEX_MERGE
+      ) {
+        DBUG_RETURN(TRUE);
+      }
+/*
+      DBUG_PRINT("info",("spider join_tab->quick->get_type()=%u",
+        join_tab->quick ? join_tab->quick->get_type() : 0));
+      if (
+        join_tab->quick &&
+        join_tab->quick->get_type() == QUICK_SELECT_I::QS_TYPE_INDEX_MERGE
+      ) {
+        DBUG_RETURN(TRUE);
+      }
+*/
+      DBUG_PRINT("info",("spider join_tab->select->quick->get_type()=%u",
+        join_tab->select && join_tab->select->quick ? join_tab->select->quick->get_type() : 0));
+      if (
+        join_tab->select &&
+        join_tab->select->quick &&
+        join_tab->select->quick->get_type() == QUICK_SELECT_I::QS_TYPE_INDEX_MERGE
+      ) {
+        DBUG_RETURN(TRUE);
+      }
+      break;
+    }
+  }
   DBUG_RETURN(FALSE);
 }
 

@@ -1936,7 +1936,8 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
         view_algorithm view_or_trigger_or_sp_or_event
         definer_tail no_definer_tail
         view_suid view_tail view_list_opt view_list view_select
-        view_check_option trigger_tail sp_tail sf_tail udf_tail event_tail
+        view_check_option trigger_tail sp_tail sf_tail event_tail
+        udf_tail udf_tail2
         install uninstall partition_entry binlog_base64_event
         init_key_options normal_key_options normal_key_opts all_key_opt 
         spatial_key_options fulltext_key_options normal_key_opt 
@@ -2558,23 +2559,17 @@ create:
             Lex->create_view_algorithm= DTYPE_ALGORITHM_UNDEFINED;
             Lex->create_view_suid= TRUE;
           }
-          view_or_trigger_or_sp_or_event
+          view_or_trigger_or_sp_or_event { }
+        | create_or_replace USER opt_if_not_exists clear_privileges grant_list
           {
-            // TODO: remove this when "MDEV-5359 CREATE OR REPLACE..." is done
-            if ($1.or_replace() && Lex->sql_command != SQLCOM_CREATE_VIEW)
-            {
-               my_error(ER_WRONG_USAGE, MYF(0), "OR REPLACE",
-                       "TRIGGERS / SP / EVENT");
-               MYSQL_YYABORT;
-            }
+            if (Lex->set_command_with_check(SQLCOM_CREATE_USER, $1 | $3))
+              MYSQL_YYABORT;
           }
-        | CREATE USER clear_privileges grant_list
+        | create_or_replace ROLE_SYM opt_if_not_exists
+          clear_privileges role_list opt_with_admin
           {
-            Lex->sql_command = SQLCOM_CREATE_USER;
-          }
-        | CREATE ROLE_SYM clear_privileges role_list opt_with_admin
-          {
-            Lex->sql_command = SQLCOM_CREATE_ROLE;
+            if (Lex->set_command_with_check(SQLCOM_CREATE_ROLE, $1 | $3))
+              MYSQL_YYABORT;
           }
         | CREATE LOGFILE_SYM GROUP_SYM logfile_group_info 
           {
@@ -2649,7 +2644,8 @@ event_tail:
             LEX *lex=Lex;
 
             lex->stmt_definition_begin= $1;
-            lex->create_info.set($3);
+            if (lex->add_create_options_with_check($3))
+              MYSQL_YYABORT;
             if (!(lex->event_parse_data= Event_parse_data::new_instance(thd)))
               MYSQL_YYABORT;
             lex->event_parse_data->identifier= $4;
@@ -11861,13 +11857,13 @@ drop:
             lex->set_command(SQLCOM_DROP_PROCEDURE, $3);
             lex->spname= $4;
           }
-        | DROP USER clear_privileges user_list
+        | DROP USER opt_if_exists clear_privileges user_list
           {
-            Lex->sql_command = SQLCOM_DROP_USER;
+            Lex->set_command(SQLCOM_DROP_USER, $3);
           }
-        | DROP ROLE_SYM clear_privileges role_list
+        | DROP ROLE_SYM opt_if_exists clear_privileges role_list
           {
-            Lex->sql_command = SQLCOM_DROP_ROLE;
+            Lex->set_command(SQLCOM_DROP_ROLE, $3);
           }
         | DROP VIEW_SYM opt_if_exists
           {
@@ -13548,7 +13544,12 @@ literal:
         | UNDERSCORE_CHARSET hex_or_bin_String
           {
             Item_string_with_introducer *item_str;
-            item_str= new (thd->mem_root) Item_string_with_introducer($2, $1);
+            /*
+              Pass NULL as name. Name will be set in the "select_item" rule and
+              will include the introducer and the original hex/bin notation.
+            */
+            item_str= new (thd->mem_root)
+               Item_string_with_introducer(NULL, $2->ptr(), $2->length(), $1);
             if (!item_str || !item_str->check_well_formed_result(true))
               MYSQL_YYABORT;
 
@@ -16149,23 +16150,28 @@ view_check_option:
 trigger_tail:
           TRIGGER_SYM
           remember_name
+          opt_if_not_exists
+          {
+            if (Lex->add_create_options_with_check($3))
+              MYSQL_YYABORT;
+          }
           sp_name
           trg_action_time
           trg_event
           ON
-          remember_name /* $7 */
-          { /* $8 */
+          remember_name /* $9 */
+          { /* $10 */
             Lex->raw_trg_on_table_name_begin= YYLIP->get_tok_start();
           }
-          table_ident /* $9 */
+          table_ident /* $11 */
           FOR_SYM
-          remember_name /* $11 */
-          { /* $12 */
+          remember_name /* $13 */
+          { /* $14 */
             Lex->raw_trg_on_table_name_end= YYLIP->get_tok_start();
           }
           EACH_SYM
           ROW_SYM
-          { /* $15 */
+          { /* $17 */
             LEX *lex= thd->lex;
             Lex_input_stream *lip= YYLIP;
 
@@ -16176,17 +16182,17 @@ trigger_tail:
             }
 
             lex->stmt_definition_begin= $2;
-            lex->ident.str= $7;
-            lex->ident.length= $11 - $7;
-            lex->spname= $3;
+            lex->ident.str= $9;
+            lex->ident.length= $13 - $9;
+            lex->spname= $5;
 
-            if (!make_sp_head(thd, $3, TYPE_ENUM_TRIGGER))
+            if (!make_sp_head(thd, $5, TYPE_ENUM_TRIGGER))
               MYSQL_YYABORT;
 
             lex->sphead->set_body_start(thd, lip->get_cpp_ptr());
           }
-          sp_proc_stmt /* $16 */
-          { /* $17 */
+          sp_proc_stmt /* $18 */
+          { /* $19 */
             LEX *lex= Lex;
             sp_head *sp= lex->sphead;
 
@@ -16202,7 +16208,7 @@ trigger_tail:
               sp_proc_stmt alternatives are not saving/restoring LEX, so
               lex->query_tables can be wiped out.
             */
-            if (!lex->select_lex.add_table_to_list(thd, $9,
+            if (!lex->select_lex.add_table_to_list(thd, $11,
                                                    (LEX_STRING*) 0,
                                                    TL_OPTION_UPDATING,
                                                    TL_READ_NO_INSERT,
@@ -16218,45 +16224,32 @@ trigger_tail:
 **************************************************************************/
 
 udf_tail:
-          AGGREGATE_SYM remember_name FUNCTION_SYM ident
+          AGGREGATE_SYM udf_tail2 { thd->lex->udf.type= UDFTYPE_AGGREGATE; }
+        | udf_tail2               { thd->lex->udf.type= UDFTYPE_FUNCTION;  }
+        ;
+
+udf_tail2:
+          FUNCTION_SYM opt_if_not_exists ident
           RETURNS_SYM udf_type SONAME_SYM TEXT_STRING_sys
           {
             LEX *lex= thd->lex;
-            if (is_native_function(thd, & $4))
-            {
-              my_error(ER_NATIVE_FCT_NAME_COLLISION, MYF(0),
-                       $4.str);
+            if (lex->add_create_options_with_check($2))
               MYSQL_YYABORT;
-            }
-            lex->sql_command = SQLCOM_CREATE_FUNCTION;
-            lex->udf.type= UDFTYPE_AGGREGATE;
-            lex->stmt_definition_begin= $2;
-            lex->udf.name = $4;
-            lex->udf.returns=(Item_result) $6;
-            lex->udf.dl=$8.str;
-          }
-        | remember_name FUNCTION_SYM ident
-          RETURNS_SYM udf_type SONAME_SYM TEXT_STRING_sys
-          {
-            LEX *lex= thd->lex;
             if (is_native_function(thd, & $3))
             {
-              my_error(ER_NATIVE_FCT_NAME_COLLISION, MYF(0),
-                       $3.str);
+              my_error(ER_NATIVE_FCT_NAME_COLLISION, MYF(0), $3.str);
               MYSQL_YYABORT;
             }
-            lex->sql_command = SQLCOM_CREATE_FUNCTION;
-            lex->udf.type= UDFTYPE_FUNCTION;
-            lex->stmt_definition_begin= $1;
-            lex->udf.name = $3;
-            lex->udf.returns=(Item_result) $5;
-            lex->udf.dl=$7.str;
+            lex->sql_command= SQLCOM_CREATE_FUNCTION;
+            lex->udf.name= $3;
+            lex->udf.returns= (Item_result) $5;
+            lex->udf.dl= $7.str;
           }
         ;
 
 sf_tail:
-          remember_name /* $1 */
-          FUNCTION_SYM /* $2 */
+          FUNCTION_SYM /* $1 */
+          opt_if_not_exists /* $2 */
           sp_name /* $3 */
           '(' /* $4 */
           { /* $5 */
@@ -16264,7 +16257,8 @@ sf_tail:
             Lex_input_stream *lip= YYLIP;
             const char* tmp_param_begin;
 
-            lex->stmt_definition_begin= $1;
+            if (lex->add_create_options_with_check($2))
+              MYSQL_YYABORT;
             lex->spname= $3;
 
             if (lex->sphead)
@@ -16359,18 +16353,20 @@ sf_tail:
         ;
 
 sp_tail:
-          PROCEDURE_SYM remember_name sp_name
+          PROCEDURE_SYM opt_if_not_exists sp_name
           {
+            if (Lex->add_create_options_with_check($2))
+              MYSQL_YYABORT;
+
             if (Lex->sphead)
             {
               my_error(ER_SP_NO_RECURSIVE_CREATE, MYF(0), "PROCEDURE");
               MYSQL_YYABORT;
             }
 
-            Lex->stmt_definition_begin= $2;
-
             if (!make_sp_head(thd, $3, TYPE_ENUM_PROCEDURE))
               MYSQL_YYABORT;
+            Lex->spname= $3;
           }
           '('
           {

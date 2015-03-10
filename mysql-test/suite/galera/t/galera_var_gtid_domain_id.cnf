@@ -1,0 +1,16 @@
+!include ../galera_2nodes.cnf
+
+[mysqld]
+log-bin
+log-slave-updates
+
+[mysqld.1]
+gtid_domain_id=1
+wsrep_gtid_mode=ON
+wsrep_gtid_domain_id=9999
+
+[mysqld.2]
+gtid_domain_id=2
+wsrep_gtid_mode=ON
+#wsrep_gitd_domain_id value will be inherited from donor node (mysqld.1)
+#wsrep_gitd_domain_id=X 

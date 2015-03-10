@@ -1,0 +1,25 @@
+CREATE TABLE t1(i INT) ENGINE=INNODB;
+INSERT INTO t1 VALUES(1);
+SELECT * FROM t1;
+i
+1
+SET @@global.wsrep_cluster_address = '';
+SET @@session.wsrep_dirty_reads=OFF;
+SET SESSION wsrep_sync_wait=0;
+SHOW STATUS LIKE 'wsrep_ready';
+Variable_name	Value
+wsrep_ready	OFF
+SHOW STATUS LIKE 'wsrep_cluster_status';
+Variable_name	Value
+wsrep_cluster_status	non-Primary
+SELECT * FROM t1;
+ERROR 08S01: WSREP has not yet prepared node for application use
+SET @@session.wsrep_dirty_reads=ON;
+SELECT * FROM t1;
+i
+1
+SELECT * FROM t1;
+i
+1
+DROP TABLE t1;
+# End of test

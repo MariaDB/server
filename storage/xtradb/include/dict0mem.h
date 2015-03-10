@@ -137,6 +137,12 @@ Width of the page compression flag
 #define DICT_TF_WIDTH_PAGE_COMPRESSION_LEVEL 4
 
 /**
+Width of the page encryption flag
+*/
+#define DICT_TF_WIDTH_PAGE_ENCRYPTION  1
+#define DICT_TF_WIDTH_PAGE_ENCRYPTION_KEY 8
+
+/**
 Width of atomic writes flag
 DEFAULT=0, ON = 1, OFF = 2
 */
@@ -149,7 +155,9 @@ DEFAULT=0, ON = 1, OFF = 2
 			+ DICT_TF_WIDTH_DATA_DIR        \
 			+ DICT_TF_WIDTH_PAGE_COMPRESSION \
 			+ DICT_TF_WIDTH_PAGE_COMPRESSION_LEVEL \
-			+ DICT_TF_WIDTH_ATOMIC_WRITES)
+		        + DICT_TF_WIDTH_ATOMIC_WRITES \
+		        + DICT_TF_WIDTH_PAGE_ENCRYPTION \
+		        + DICT_TF_WIDTH_PAGE_ENCRYPTION_KEY)
 
 /** A mask of all the known/used bits in table flags */
 #define DICT_TF_BIT_MASK	(~(~0 << DICT_TF_BITS))
@@ -174,9 +182,16 @@ DEFAULT=0, ON = 1, OFF = 2
 /** Zero relative shift position of the ATOMIC_WRITES field */
 #define DICT_TF_POS_ATOMIC_WRITES	(DICT_TF_POS_PAGE_COMPRESSION_LEVEL	\
 					+ DICT_TF_WIDTH_PAGE_COMPRESSION_LEVEL)
+
+/** Zero relative shift position of the PAGE_ENCRYPTION field */
+#define DICT_TF_POS_PAGE_ENCRYPTION	(DICT_TF_POS_ATOMIC_WRITES	\
+		                        + DICT_TF_WIDTH_ATOMIC_WRITES)
+/** Zero relative shift position of the PAGE_ENCRYPTION_KEY field */
+#define DICT_TF_POS_PAGE_ENCRYPTION_KEY	(DICT_TF_POS_PAGE_ENCRYPTION	\
+                                        + DICT_TF_WIDTH_PAGE_ENCRYPTION)
 /** Zero relative shift position of the start of the UNUSED bits */
-#define DICT_TF_POS_UNUSED		(DICT_TF_POS_ATOMIC_WRITES     \
-					+ DICT_TF_WIDTH_ATOMIC_WRITES)
+#define DICT_TF_POS_UNUSED		(DICT_TF_POS_PAGE_ENCRYPTION_KEY     \
+                                        + DICT_TF_WIDTH_PAGE_ENCRYPTION_KEY)
 
 /** Bit mask of the COMPACT field */
 #define DICT_TF_MASK_COMPACT				\
@@ -206,6 +221,14 @@ DEFAULT=0, ON = 1, OFF = 2
 #define DICT_TF_MASK_ATOMIC_WRITES		\
 		((~(~0 << DICT_TF_WIDTH_ATOMIC_WRITES)) \
 		<< DICT_TF_POS_ATOMIC_WRITES)
+/** Bit mask of the PAGE_ENCRYPTION field */
+#define DICT_TF_MASK_PAGE_ENCRYPTION			\
+		((~(~0L << DICT_TF_WIDTH_PAGE_ENCRYPTION))	\
+		<< DICT_TF_POS_PAGE_ENCRYPTION)
+/** Bit mask of the PAGE_ENCRYPTION_KEY field */
+#define DICT_TF_MASK_PAGE_ENCRYPTION_KEY		\
+		((~(~0L << DICT_TF_WIDTH_PAGE_ENCRYPTION_KEY)) \
+		<< DICT_TF_POS_PAGE_ENCRYPTION_KEY)
 
 /** Return the value of the COMPACT field */
 #define DICT_TF_GET_COMPACT(flags)			\
@@ -223,6 +246,17 @@ DEFAULT=0, ON = 1, OFF = 2
 #define DICT_TF_HAS_DATA_DIR(flags)			\
 		((flags & DICT_TF_MASK_DATA_DIR)	\
 		>> DICT_TF_POS_DATA_DIR)
+
+/** Return the contents of the PAGE_ENCRYPTION field */
+#define DICT_TF_GET_PAGE_ENCRYPTION(flags)			\
+		((flags & DICT_TF_MASK_PAGE_ENCRYPTION) \
+		>> DICT_TF_POS_PAGE_ENCRYPTION)
+/** Return the contents of the PAGE_ENCRYPTION KEY field */
+#define DICT_TF_GET_PAGE_ENCRYPTION_KEY(flags)			\
+		((flags & DICT_TF_MASK_PAGE_ENCRYPTION_KEY) \
+		>> DICT_TF_POS_PAGE_ENCRYPTION_KEY)
+
+
 /** Return the contents of the UNUSED bits */
 #define DICT_TF_GET_UNUSED(flags)			\
 		(flags >> DICT_TF_POS_UNUSED)
@@ -1204,20 +1238,29 @@ struct dict_table_t{
 				calculation; this counter is not protected by
 				any latch, because this is only used for
 				heuristics */
-#define BG_STAT_NONE		0
-#define BG_STAT_IN_PROGRESS	(1 << 0)
+
+#define BG_STAT_IN_PROGRESS	((byte)(1 << 0))
 				/*!< BG_STAT_IN_PROGRESS is set in
 				stats_bg_flag when the background
 				stats code is working on this table. The DROP
 				TABLE code waits for this to be cleared
 				before proceeding. */
-#define BG_STAT_SHOULD_QUIT	(1 << 1)
+#define BG_STAT_SHOULD_QUIT	((byte)(1 << 1))
 				/*!< BG_STAT_SHOULD_QUIT is set in
 				stats_bg_flag when DROP TABLE starts
 				waiting on BG_STAT_IN_PROGRESS to be cleared,
 				the background stats thread will detect this
 				and will eventually quit sooner */
-	byte		stats_bg_flag;
+#define BG_SCRUB_IN_PROGRESS	((byte)(1 << 2))
+				/*!< BG_SCRUB_IN_PROGRESS is set in
+				stats_bg_flag when the background
+				scrub code is working on this table. The DROP
+				TABLE code waits for this to be cleared
+				before proceeding. */
+
+#define BG_IN_PROGRESS (BG_STAT_IN_PROGRESS | BG_SCRUB_IN_PROGRESS)
+
+	byte 		stats_bg_flag;
 				/*!< see BG_STAT_* above.
 				Writes are covered by dict_sys->mutex.
 				Dirty reads are possible. */

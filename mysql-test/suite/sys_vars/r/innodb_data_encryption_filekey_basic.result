@@ -1,0 +1,9 @@
+SELECT @start_data_encryption_filekey;
+@start_data_encryption_filekey
+NULL
+SELECT COUNT(@@GLOBAL.innodb_data_encryption_filekey);
+COUNT(@@GLOBAL.innodb_data_encryption_filekey)
+0
+1 Expected
+SET @@GLOBAL.innodb_data_encryption_filekey='secret';
+ERROR HY000: Variable 'innodb_data_encryption_filekey' is a read only variable

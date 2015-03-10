@@ -39,11 +39,10 @@ static wsrep_log_cb_t logger = default_logger;
 
 static int verify(const wsrep_t *wh, const char *iface_ver)
 {
-    const size_t msg_len = 128;
-    char msg[msg_len];
+    char msg[128];
 
 #define VERIFY(_p) if (!(_p)) {                                       \
-        snprintf(msg, msg_len, "wsrep_load(): verify(): %s\n", # _p); \
+        snprintf(msg, sizeof(msg), "wsrep_load(): verify(): %s\n", # _p); \
         logger (WSREP_LOG_ERROR, msg);                                \
         return EINVAL;                                                \
     }
@@ -52,7 +51,7 @@ static int verify(const wsrep_t *wh, const char *iface_ver)
     VERIFY(wh->version);
 
     if (strcmp(wh->version, iface_ver)) {
-        snprintf (msg, msg_len,
+        snprintf (msg, sizeof(msg),
                   "provider interface version mismatch: need '%s', found '%s'",
                   iface_ver, wh->version);
         logger (WSREP_LOG_ERROR, msg);
@@ -115,9 +114,8 @@ int wsrep_load(const char *spec, wsrep_t **hptr, wsrep_log_cb_t log_cb)
     int ret = 0;
     void *dlh = NULL;
     wsrep_loader_fun dlfun;
-    const size_t msg_len = 1024;
-    char msg[msg_len + 1];
-    msg[msg_len] = 0;
+    char msg[1025];
+    msg[sizeof(msg)-1] = 0;
 
     if (NULL != log_cb)
         logger = log_cb;
@@ -125,7 +123,7 @@ int wsrep_load(const char *spec, wsrep_t **hptr, wsrep_log_cb_t log_cb)
     if (!(spec && hptr))
         return EINVAL;
 
-    snprintf (msg, msg_len,
+    snprintf (msg, sizeof(msg)-1,
               "wsrep_load(): loading provider library '%s'", spec);
     logger (WSREP_LOG_INFO, msg);
 
@@ -143,7 +141,7 @@ int wsrep_load(const char *spec, wsrep_t **hptr, wsrep_log_cb_t log_cb)
     }
 
     if (!(dlh = dlopen(spec, RTLD_NOW | RTLD_LOCAL))) {
-        snprintf(msg, msg_len, "wsrep_load(): dlopen(): %s", dlerror());
+        snprintf(msg, sizeof(msg)-1, "wsrep_load(): dlopen(): %s", dlerror());
         logger (WSREP_LOG_ERROR, msg);
         ret = EINVAL;
         goto out;
@@ -155,14 +153,14 @@ int wsrep_load(const char *spec, wsrep_t **hptr, wsrep_log_cb_t log_cb)
     }
 
     if ((ret = (*dlfun)(*hptr)) != 0) {
-        snprintf(msg, msg_len, "wsrep_load(): loader failed: %s",
+        snprintf(msg, sizeof(msg)-1, "wsrep_load(): loader failed: %s",
                  strerror(ret));
         logger (WSREP_LOG_ERROR, msg);
         goto out;
     }
 
     if ((ret = verify(*hptr, WSREP_INTERFACE_VERSION)) != 0) {
-        snprintf (msg, msg_len,
+        snprintf (msg, sizeof(msg)-1,
                   "wsrep_load(): interface version mismatch: my version %s, "
                   "provider version %s", WSREP_INTERFACE_VERSION,
                   (*hptr)->version);
@@ -178,7 +176,7 @@ out:
         free(*hptr);
         *hptr = NULL;
     } else {
-        snprintf (msg, msg_len,
+        snprintf (msg, sizeof(msg)-1,
                   "wsrep_load(): %s %s by %s loaded successfully.",
                   (*hptr)->provider_name, (*hptr)->provider_version,
                   (*hptr)->provider_vendor);

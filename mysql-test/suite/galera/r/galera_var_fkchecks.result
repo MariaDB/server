@@ -1,0 +1,26 @@
+CREATE TABLE parent (
+id INT PRIMARY KEY,
+KEY (id)
+) ENGINE=InnoDB;
+CREATE TABLE child (
+id INT PRIMARY KEY,
+parent_id INT,
+FOREIGN KEY (parent_id) 
+REFERENCES parent(id)
+) ENGINE=InnoDB;
+INSERT INTO parent VALUES (1);
+INSERT INTO child VALUES (1,1);
+SET SESSION foreign_key_checks = 0;
+INSERT INTO child VALUES (2,2);
+SELECT COUNT(*) = 1 FROM child WHERE id = 2;
+COUNT(*) = 1
+1
+INSERT INTO child VALUES (3,3);
+ERROR 23000: Cannot add or update a child row: a foreign key constraint fails (`test`.`child`, CONSTRAINT `child_ibfk_1` FOREIGN KEY (`parent_id`) REFERENCES `parent` (`id`))
+SET SESSION foreign_key_checks = 0;
+DELETE FROM parent;
+SELECT COUNT(*) = 0 FROM parent;
+COUNT(*) = 0
+1
+DROP TABLE child;
+DROP TABLE parent;

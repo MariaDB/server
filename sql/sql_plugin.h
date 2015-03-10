@@ -78,8 +78,6 @@ typedef struct st_mysql_show_var SHOW_VAR;
 #define PLUGIN_IS_DYING         16
 #define PLUGIN_IS_DISABLED      32
 
-/* A handle for the dynamic library containing a plugin or plugins. */
-
 struct st_ptr_backup {
   void **ptr;
   void *value;
@@ -87,6 +85,8 @@ struct st_ptr_backup {
   void save(const char **p) { save((void**)p); }
   void restore() { *ptr= value; }
 };
+
+/* A handle for the dynamic library containing a plugin or plugins. */
 
 struct st_plugin_dl
 {

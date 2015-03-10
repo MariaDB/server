@@ -56,6 +56,11 @@ Created 11/5/1995 Heikki Tuuri
 #include "buf0checksum.h"
 #include "trx0trx.h"
 #include "srv0start.h"
+#include "ut0byte.h"
+
+#include "fil0pageencryption.h"
+#include "fil0pagecompress.h"
+
 
 /* prototypes for new functions added to ha_innodb.cc */
 trx_t* innobase_get_trx();
@@ -295,7 +300,6 @@ UNIV_INTERN mysql_pfs_key_t	buf_block_debug_latch_key;
 
 #ifdef UNIV_PFS_MUTEX
 UNIV_INTERN mysql_pfs_key_t	buffer_block_mutex_key;
-UNIV_INTERN mysql_pfs_key_t	buf_pool_mutex_key;
 UNIV_INTERN mysql_pfs_key_t	buf_pool_zip_mutex_key;
 UNIV_INTERN mysql_pfs_key_t	buf_pool_flush_state_mutex_key;
 UNIV_INTERN mysql_pfs_key_t	buf_pool_LRU_list_mutex_key;
@@ -570,12 +574,13 @@ buf_page_is_corrupted(
 	ulint		zip_size)	/*!< in: size of compressed page;
 					0 for uncompressed pages */
 {
+	ulint		page_encrypted = fil_page_is_compressed_encrypted(read_buf) || fil_page_is_encrypted(read_buf);
 	ulint		checksum_field1;
 	ulint		checksum_field2;
 	ibool		crc32_inited = FALSE;
 	ib_uint32_t	crc32 = ULINT32_UNDEFINED;
 
-	if (!zip_size
+	if (!page_encrypted && !zip_size
 	    && memcmp(read_buf + FIL_PAGE_LSN + 4,
 		      read_buf + UNIV_PAGE_SIZE
 		      - FIL_PAGE_END_LSN_OLD_CHKSUM + 4, 4)) {
@@ -628,6 +633,9 @@ buf_page_is_corrupted(
 	if (zip_size) {
 		return(!page_zip_verify_checksum(read_buf, zip_size));
 	}
+	if (page_encrypted) {
+		return (FALSE);
+	}
 
 	checksum_field1 = mach_read_from_4(
 		read_buf + FIL_PAGE_SPACE_OR_CHKSUM);
@@ -635,9 +643,14 @@ buf_page_is_corrupted(
 	checksum_field2 = mach_read_from_4(
 		read_buf + UNIV_PAGE_SIZE - FIL_PAGE_END_LSN_OLD_CHKSUM);
 
+#if FIL_PAGE_LSN % 8
+#error "FIL_PAGE_LSN must be 64 bit aligned"
+#endif
+
 	/* declare empty pages non-corrupted */
 	if (checksum_field1 == 0 && checksum_field2 == 0
-	    && mach_read_from_4(read_buf + FIL_PAGE_LSN) == 0) {
+	    && *reinterpret_cast<const ib_uint64_t*>(read_buf +
+						     FIL_PAGE_LSN) == 0) {
 		/* make sure that the page is really empty */
 		for (ulint i = 0; i < UNIV_PAGE_SIZE; i++) {
 			if (read_buf[i] != 0) {
@@ -1065,6 +1078,13 @@ buf_block_init(
 	block->page.state = BUF_BLOCK_NOT_USED;
 	block->page.buf_fix_count = 0;
 	block->page.io_fix = BUF_IO_NONE;
+	block->page.crypt_buf = NULL;
+	block->page.crypt_buf_free = NULL;
+	block->page.comp_buf = NULL;
+	block->page.comp_buf_free = NULL;
+	block->page.key_version = 0;
+	block->page.encrypt_later = false;
+
 
 	block->modify_clock = 0;
 
@@ -1697,8 +1717,9 @@ buf_pool_watch_is_sentinel(
 
 /****************************************************************//**
 Add watch for the given page to be read in. Caller must have
-appropriate hash_lock for the bpage. This function may release the
-hash_lock and reacquire it.
+appropriate hash_lock for the bpage and hold the LRU list mutex to avoid a race
+condition with buf_LRU_free_page inserting the same page into the page hash.
+This function may release the hash_lock and reacquire it.
 @return NULL if watch set, block if the page is in the buffer pool */
 UNIV_INTERN
 buf_page_t*
@@ -1712,6 +1733,8 @@ buf_pool_watch_set(
 	ulint		i;
 	buf_pool_t*	buf_pool = buf_pool_get(space, offset);
 	prio_rw_lock_t*	hash_lock;
+
+	ut_ad(mutex_own(&buf_pool->LRU_list_mutex));
 
 	hash_lock = buf_page_hash_lock_get(buf_pool, fold);
 
@@ -1775,14 +1798,11 @@ page_found:
 			ut_ad(!bpage->in_page_hash);
 			ut_ad(bpage->buf_fix_count == 0);
 
-			mutex_enter(&buf_pool->zip_mutex);
-
 			bpage->state = BUF_BLOCK_ZIP_PAGE;
 			bpage->space = static_cast<ib_uint32_t>(space);
 			bpage->offset = static_cast<ib_uint32_t>(offset);
 			bpage->buf_fix_count = 1;
-
-			mutex_exit(&buf_pool->zip_mutex);
+			bpage->buf_pool_index = buf_pool_index(buf_pool);
 
 			ut_d(bpage->in_page_hash = TRUE);
 			HASH_INSERT(buf_page_t, hash, buf_pool->page_hash,
@@ -1835,7 +1855,6 @@ buf_pool_watch_remove(
 #endif /* UNIV_SYNC_DEBUG */
 
 	ut_ad(buf_page_get_state(watch) == BUF_BLOCK_ZIP_PAGE);
-	ut_ad(buf_own_zip_mutex_for_page(watch));
 
 	HASH_DELETE(buf_page_t, hash, buf_pool->page_hash, fold, watch);
 	ut_d(watch->in_page_hash = FALSE);
@@ -1878,9 +1897,7 @@ buf_pool_watch_unset(
 #endif /* PAGE_ATOMIC_REF_COUNT */
 
 		if (bpage->buf_fix_count == 0) {
-			mutex_enter(&buf_pool->zip_mutex);
 			buf_pool_watch_remove(buf_pool, fold, bpage);
-			mutex_exit(&buf_pool->zip_mutex);
 		}
 	}
 
@@ -2727,9 +2744,11 @@ loop:
 		/* Page not in buf_pool: needs to be read from file */
 
 		if (mode == BUF_GET_IF_IN_POOL_OR_WATCH) {
+			mutex_enter(&buf_pool->LRU_list_mutex);
 			rw_lock_x_lock(hash_lock);
 			block = (buf_block_t*) buf_pool_watch_set(
 				space, offset, fold);
+			mutex_exit(&buf_pool->LRU_list_mutex);
 
 			if (UNIV_LIKELY_NULL(block)) {
 				/* We can release hash_lock after we
@@ -3061,15 +3080,19 @@ got_block:
 		if (buf_LRU_free_page(&fix_block->page, true)) {
 
 			mutex_exit(fix_mutex);
-			rw_lock_x_lock(hash_lock);
 
 			if (mode == BUF_GET_IF_IN_POOL_OR_WATCH) {
+				mutex_enter(&buf_pool->LRU_list_mutex);
+				rw_lock_x_lock(hash_lock);
+
 				/* Set the watch, as it would have
 				been set if the page were not in the
 				buffer pool in the first place. */
 				block = (buf_block_t*) buf_pool_watch_set(
 					space, offset, fold);
+				mutex_exit(&buf_pool->LRU_list_mutex);
 			} else {
+				rw_lock_x_lock(hash_lock);
 				block = (buf_block_t*) buf_page_hash_get_low(
 					buf_pool, space, offset, fold);
 			}
@@ -3444,11 +3467,13 @@ page is not in the buffer pool it is not loaded and NULL is returned.
 Suitable for using when holding the lock_sys_t::mutex.
 @return	pointer to a page or NULL */
 UNIV_INTERN
-const buf_block_t*
+buf_block_t*
 buf_page_try_get_func(
 /*==================*/
 	ulint		space_id,/*!< in: tablespace id */
 	ulint		page_no,/*!< in: page number */
+	ulint		rw_latch,/*!< in: RW_S_LATCH, RW_X_LATCH */
+	bool		possibly_freed,
 	const char*	file,	/*!< in: file name */
 	ulint		line,	/*!< in: line where called */
 	mtr_t*		mtr)	/*!< in: mini-transaction */
@@ -3486,8 +3511,12 @@ buf_page_try_get_func(
 	buf_block_buf_fix_inc(block, file, line);
 	mutex_exit(&block->mutex);
 
-	fix_type = MTR_MEMO_PAGE_S_FIX;
-	success = rw_lock_s_lock_nowait(&block->lock, file, line);
+	if (rw_latch == RW_S_LATCH) {
+		fix_type = MTR_MEMO_PAGE_S_FIX;
+		success = rw_lock_s_lock_nowait(&block->lock, file, line);
+	} else {
+		success = false;
+	}
 
 	if (!success) {
 		/* Let us try to get an X-latch. If the current thread
@@ -3512,9 +3541,11 @@ buf_page_try_get_func(
 	ut_a(buf_block_get_state(block) == BUF_BLOCK_FILE_PAGE);
 #endif /* UNIV_DEBUG || UNIV_BUF_DEBUG */
 #if defined UNIV_DEBUG_FILE_ACCESSES || defined UNIV_DEBUG
-	mutex_enter(&block->mutex);
-	ut_a(!block->page.file_page_was_freed);
-	mutex_exit(&block->mutex);
+	if (!possibly_freed) {
+		mutex_enter(&block->mutex);
+		ut_a(!block->page.file_page_was_freed);
+		mutex_exit(&block->mutex);
+	}
 #endif /* UNIV_DEBUG_FILE_ACCESSES || UNIV_DEBUG */
 	buf_block_dbg_add_level(block, SYNC_NO_ORDER_CHECK);
 
@@ -3544,6 +3575,13 @@ buf_page_init_low(
 	bpage->newest_modification = 0;
 	bpage->oldest_modification = 0;
 	bpage->write_size = 0;
+	bpage->crypt_buf = NULL;
+	bpage->crypt_buf_free = NULL;
+	bpage->comp_buf = NULL;
+	bpage->comp_buf_free = NULL;
+	bpage->key_version = 0;
+	bpage->encrypt_later = false;
+
 	HASH_INVALIDATE(bpage, hash);
 	bpage->is_corrupt = FALSE;
 #if defined UNIV_DEBUG_FILE_ACCESSES || defined UNIV_DEBUG
@@ -4068,7 +4106,7 @@ buf_page_create(
 	Then InnoDB could in a crash recovery print a big, false, corruption
 	warning if the stamp contains an lsn bigger than the ib_logfile lsn. */
 
-	memset(frame + FIL_PAGE_FILE_FLUSH_LSN, 0, 8);
+	memset(frame + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION, 0, 8);
 
 #if defined UNIV_DEBUG || defined UNIV_BUF_DEBUG
 	ut_a(++buf_dbg_counter % 5771 || buf_validate());
@@ -4272,6 +4310,16 @@ buf_page_io_complete(
 		ulint	read_space_id;
 		byte*	frame;
 
+		if (!buf_page_decrypt_after_read(bpage)) {
+			/* encryption error! */
+			if (buf_page_get_zip_size(bpage)) {
+				frame = bpage->zip.data;
+			} else {
+				frame = ((buf_block_t*) bpage)->frame;
+			}
+			goto corrupt;
+		}
+
 		if (buf_page_get_zip_size(bpage)) {
 			frame = bpage->zip.data;
 			os_atomic_increment_ulint(&buf_pool->n_pend_unzip, 1);
@@ -4449,6 +4497,9 @@ corrupt:
 				bpage->offset, buf_page_get_zip_size(bpage),
 				update_ibuf_bitmap);
 		}
+	} else {
+		/* io_type == BUF_IO_WRITE */
+		buf_page_encrypt_after_write(bpage);
 	}
 
 	if (io_type == BUF_IO_WRITE
@@ -4459,7 +4510,7 @@ corrupt:
 #endif /* UNIV_DEBUG || UNIV_BUF_DEBUG */
 		buf_page_get_flush_type(bpage) == BUF_FLUSH_LRU)) {
 
-		have_LRU_mutex = TRUE; /* optimistic */
+		have_LRU_mutex = true; /* optimistic */
 	}
 retry_mutex:
 	if (have_LRU_mutex) {
@@ -4479,6 +4530,7 @@ retry_mutex:
 			  && !have_LRU_mutex) {
 
 		mutex_exit(block_mutex);
+		have_LRU_mutex = true;
 		goto retry_mutex;
 	}
 
@@ -5725,4 +5777,244 @@ buf_pool_mutex_exit(
 {
 	ut_ad(mutex_own(&buf_pool->LRU_list_mutex));
 	mutex_exit(&buf_pool->LRU_list_mutex);
+}
+
+/********************************************************************//**
+Encrypts a buffer page right before it's flushed to disk
+*/
+byte*
+buf_page_encrypt_before_write(
+/*==========================*/
+	buf_page_t* bpage,     /*!< in/out: buffer page to be flushed */
+	const byte* src_frame) /*!< in: src frame */
+{
+	bpage->encrypt_later = false;
+
+	if (srv_encrypt_tables == FALSE) {
+		/* Encryption is disabled */
+		return const_cast<byte*>(src_frame);
+	}
+
+	if (bpage->offset == 0) {
+		/* Page 0 of a tablespace is not encrypted */
+		ut_ad(bpage->key_version == 0);
+		return const_cast<byte*>(src_frame);
+	}
+
+	if (fil_space_check_encryption_write(bpage->space) == false) {
+		/* An unencrypted table */
+		bpage->key_version = 0;
+		return const_cast<byte*>(src_frame);
+	}
+
+	if (bpage->space == TRX_SYS_SPACE && bpage->offset == TRX_SYS_PAGE_NO) {
+		/* don't encrypt page as it contains address to dblwr buffer */
+		bpage->key_version = 0;
+		return const_cast<byte*>(src_frame);
+	}
+
+	ulint zip_size = buf_page_get_zip_size(bpage);
+	ulint page_size = (zip_size) ? zip_size : UNIV_PAGE_SIZE;
+
+	/**
+	* TODO(jonaso): figure out more clever malloc strategy
+	*
+	* This implementation does a malloc/free per iop for encrypted
+	* tablespaces. Alternative strategies that have been considered are
+	*
+	* 1) use buf_block_alloc (i.e alloc from buffer pool)
+	*    this does not work as buf_block_alloc will then be called
+	*    when needing to flush a page, which might be triggered
+	*    due to shortage of memory in buffer pool
+	* 2) allocate a buffer per fil_node_t
+	*    this would break abstraction layers and has therfore not been
+	*    considered a lot.
+	*/
+
+	if (bpage->crypt_buf_free == NULL) {
+		bpage->crypt_buf_free = (byte*)malloc(page_size*2);
+		// TODO: Is 4k aligment enough ?
+		bpage->crypt_buf = (byte *)ut_align(bpage->crypt_buf_free, page_size);
+	}
+
+	byte *dst_frame = bpage->crypt_buf;
+
+	if (!fil_space_is_page_compressed(bpage->space)) {
+		// encrypt page content
+		fil_space_encrypt(bpage->space, bpage->offset,
+			bpage->newest_modification,
+			src_frame, zip_size, dst_frame, 0);
+
+		unsigned key_version =
+			mach_read_from_4(dst_frame + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION);
+		ut_ad(key_version == 0 || key_version >= bpage->key_version);
+		bpage->key_version = key_version;
+	} else {
+		/** Compression and encryption is done later at os0file.cc */
+		bpage->encrypt_later = true;
+		dst_frame = (byte *)src_frame;
+	}
+
+	// return dst_frame which will be written
+	return dst_frame;
+}
+
+/********************************************************************//**
+Release memory after encrypted page has been written to disk
+*/
+ibool
+buf_page_encrypt_after_write(
+/*=========================*/
+	buf_page_t* bpage) /*!< in/out: buffer page flushed */
+{
+	if (bpage->crypt_buf_free != NULL) {
+		free(bpage->crypt_buf_free);
+		bpage->crypt_buf_free = NULL;
+		bpage->crypt_buf = NULL;
+	}
+
+	if (bpage->comp_buf_free != NULL) {
+		free(bpage->comp_buf_free);
+		bpage->comp_buf_free = NULL;
+		bpage->comp_buf = NULL;
+	}
+
+	return (TRUE);
+}
+
+/********************************************************************//**
+Allocates memory to read in an encrypted page
+*/
+byte*
+buf_page_decrypt_before_read(
+/*=========================*/
+        buf_page_t* bpage, /*!< in/out: buffer page to be read */
+	ulint	zip_size)  /*!< in: compressed page size, or 0 */
+{
+	ulint size = (zip_size) ? zip_size : UNIV_PAGE_SIZE;
+
+        /*
+          Here we only need to allocate space for not header pages
+          in case of file space encryption.  Table encryption is handled
+          later.
+        */
+	if (!srv_encrypt_tables || bpage->offset == 0 ||
+            fil_space_check_encryption_read(bpage->space) == false)
+          return zip_size ? bpage->zip.data : ((buf_block_t*) bpage)->frame;
+
+        if (bpage->crypt_buf_free == NULL)
+        {
+          // allocate buffer to read data into
+          bpage->crypt_buf_free = (byte*)malloc(size*2);
+          // TODO: Is 4K aligment enough ?
+          bpage->crypt_buf = (byte*)ut_align(bpage->crypt_buf_free, size);
+        }
+        return bpage->crypt_buf;
+}
+
+/********************************************************************//**
+Decrypt page after it has been read from disk
+*/
+ibool
+buf_page_decrypt_after_read(
+/*========================*/
+	buf_page_t* bpage) /*!< in/out: buffer page read from disk */
+{
+	ut_ad(bpage->key_version == 0);
+	ulint zip_size = buf_page_get_zip_size(bpage);
+	ulint size = (zip_size) ? zip_size : UNIV_PAGE_SIZE;
+
+	byte* dst_frame = (zip_size) ? bpage->zip.data :
+		((buf_block_t*) bpage)->frame;
+
+	if (bpage->offset == 0) {
+		/* File header pages are not encrypted */
+		ut_a(bpage->crypt_buf == NULL);
+		return (TRUE);
+	}
+
+	const byte* src_frame = bpage->crypt_buf != NULL ?
+		bpage->crypt_buf : dst_frame;
+
+	unsigned key_version =
+		mach_read_from_4(src_frame + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION);
+	bool page_compressed_encrypted = fil_page_is_compressed_encrypted(dst_frame);
+
+	if (key_version == 0) {
+		/* the page we read is unencrypted */
+		if (fil_page_is_compressed(dst_frame)) {
+			if (bpage->comp_buf_free == NULL) {
+				bpage->comp_buf_free = (byte *)malloc(UNIV_PAGE_SIZE*2);
+				// TODO: is 4k aligment enough ?
+				bpage->comp_buf = (byte*)ut_align(bpage->comp_buf_free, UNIV_PAGE_SIZE);
+			}
+
+			fil_decompress_page(bpage->comp_buf, dst_frame, size, NULL);
+		} else {
+			if (dst_frame != src_frame) {
+				/* but we had allocated a crypt_buf */
+				// TODO: Can this be avoided ?
+				memcpy(dst_frame, src_frame, size);
+			}
+		}
+	} else {
+		/* the page we read is encrypted */
+		if (dst_frame == src_frame) {
+			/* but we had NOT allocated a crypt buf
+			* malloc a buffer, copy page to it
+			* and then decrypt from that into real page*/
+			bpage->crypt_buf_free = (byte *)malloc(UNIV_PAGE_SIZE*2);
+			// TODO: is 4k aligment enough ?
+			src_frame = bpage->crypt_buf = (byte*)ut_align(bpage->crypt_buf_free, UNIV_PAGE_SIZE);
+			memcpy(bpage->crypt_buf, dst_frame, size);
+		}
+		/* decrypt from src_frame to dst_frame */
+		fil_space_decrypt(bpage->space,
+				  src_frame, size, dst_frame);
+
+		/* decompress from dst_frame to comp_buf and then copy to
+		buffer pool */
+		if (page_compressed_encrypted) {
+			if (bpage->comp_buf_free == NULL) {
+				bpage->comp_buf_free = (byte *)malloc(UNIV_PAGE_SIZE*2);
+				// TODO: is 4k aligment enough ?
+				bpage->comp_buf = (byte*)ut_align(bpage->comp_buf_free, UNIV_PAGE_SIZE);
+			}
+
+			fil_decompress_page(bpage->comp_buf, dst_frame, size, NULL);
+		}
+	}
+
+	bpage->key_version = key_version;
+
+	if (bpage->crypt_buf_free != NULL) {
+		// free temp page
+		free(bpage->crypt_buf_free);
+		bpage->crypt_buf = NULL;
+		bpage->crypt_buf_free = NULL;
+	}
+
+	if (bpage->comp_buf_free != NULL) {
+		// free temp page
+		free(bpage->comp_buf_free);
+		bpage->comp_buf = NULL;
+		bpage->comp_buf_free = NULL;
+	}
+
+	return (TRUE);
+}
+
+/********************************************************************//**
+Release memory allocated for decryption
+*/
+void
+buf_page_decrypt_cleanup(
+/*=====================*/
+	buf_page_t* bpage) /*!< in/out: buffer page */
+{
+	if (bpage->crypt_buf != NULL) {
+		free(bpage->crypt_buf_free);
+		bpage->crypt_buf = NULL;
+		bpage->crypt_buf_free = NULL;
+	}
 }

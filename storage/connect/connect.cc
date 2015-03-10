@@ -52,7 +52,7 @@
 /*  Routines called internally by semantic routines.                   */
 /***********************************************************************/
 void  CntEndDB(PGLOBAL);
-RCODE EvalColumns(PGLOBAL g, PTDB tdbp, bool mrr= false);
+RCODE EvalColumns(PGLOBAL g, PTDB tdbp, bool reset, bool mrr= false);
 
 /***********************************************************************/
 /*  MySQL routines called externally by semantic routines.             */
@@ -388,7 +388,7 @@ bool CntRewindTable(PGLOBAL g, PTDB tdbp)
 /***********************************************************************/
 /*  Evaluate all columns after a record is read.                       */
 /***********************************************************************/
-RCODE EvalColumns(PGLOBAL g, PTDB tdbp, bool mrr)
+RCODE EvalColumns(PGLOBAL g, PTDB tdbp, bool reset, bool mrr)
   {
   RCODE rc= RC_OK;
   PCOL  colp;
@@ -413,7 +413,8 @@ RCODE EvalColumns(PGLOBAL g, PTDB tdbp, bool mrr)
 
   for (colp= tdbp->GetColumns(); rc == RC_OK && colp;
        colp= colp->GetNext()) {
-    colp->Reset();
+    if (reset)
+      colp->Reset();
 
     // Virtual columns are computed by MariaDB
     if (!colp->GetColUse(U_VIRTUAL) && (!mrr || colp->GetKcol()))
@@ -457,6 +458,10 @@ RCODE CntReadNext(PGLOBAL g, PTDB tdbp)
     goto err;
     } // endif rc
 
+  // Do it now to avoid double eval when filtering
+  for (PCOL colp= tdbp->GetColumns(); colp; colp= colp->GetNext())
+    colp->Reset();
+
   do {
     if ((rc= (RCODE)tdbp->ReadDB(g)) == RC_OK)
       if (!ApplyFilter(g, tdbp->GetFilter()))
@@ -464,9 +469,12 @@ RCODE CntReadNext(PGLOBAL g, PTDB tdbp)
 
     } while (rc == RC_NF);
 
+  if (rc == RC_OK)
+    rc= EvalColumns(g, tdbp, false);
+
  err:
   g->jump_level--;
-  return (rc != RC_OK) ? rc : EvalColumns(g, tdbp);
+  return rc;
   } // end of CntReadNext
 
 /***********************************************************************/
@@ -812,7 +820,7 @@ RCODE CntIndexRead(PGLOBAL g, PTDB ptdb, OPVAL op,
 
  rnd:
   if ((rc= (RCODE)ptdb->ReadDB(g)) == RC_OK)
-    rc= EvalColumns(g, ptdb, mrr);
+    rc= EvalColumns(g, ptdb, true, mrr);
 
   return rc;
   } // end of CntIndexRead

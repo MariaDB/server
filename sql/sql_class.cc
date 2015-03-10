@@ -67,6 +67,7 @@
 #include "wsrep_mysqld.h"
 #include "wsrep_thd.h"
 #include "sql_connect.h"
+#include "my_atomic.h"
 
 /*
   The following is used to initialise Table_ident with a internal
@@ -912,7 +913,8 @@ THD::THD(bool is_wsrep_applier)
 #endif /* defined(ENABLED_DEBUG_SYNC) */
    wait_for_commit_ptr(0),
    main_da(0, false, false),
-   m_stmt_da(&main_da)
+   m_stmt_da(&main_da),
+   tdc_hash_pins(0)
 #ifdef WITH_WSREP
   ,
    wsrep_applier(is_wsrep_applier),
@@ -933,7 +935,7 @@ THD::THD(bool is_wsrep_applier)
   */
   THD *old_THR_THD= current_thd;
   set_current_thd(this);
-  status_var.memory_used= 0;
+  status_var.local_memory_used= status_var.global_memory_used= 0;
   main_da.init();
 
   /*
@@ -1033,7 +1035,6 @@ THD::THD(bool is_wsrep_applier)
 
 #ifdef WITH_WSREP
   mysql_mutex_init(key_LOCK_wsrep_thd, &LOCK_wsrep_thd, MY_MUTEX_INIT_FAST);
-  mysql_cond_init(key_COND_wsrep_thd, &COND_wsrep_thd, NULL);
   wsrep_ws_handle.trx_id = WSREP_UNDEFINED_TRX_ID;
   wsrep_ws_handle.opaque = NULL;
   wsrep_retry_counter     = 0;
@@ -1701,14 +1702,17 @@ THD::~THD()
 
   free_root(&main_mem_root, MYF(0));
   main_da.free_memory();
-  if (status_var.memory_used != 0)
+  if (tdc_hash_pins)
+    lf_hash_put_pins(tdc_hash_pins);
+  /* Ensure everything is freed */
+  if (status_var.local_memory_used != 0)
   {
-    DBUG_PRINT("error", ("memory_used: %lld", status_var.memory_used));
+    DBUG_PRINT("error", ("memory_used: %lld", status_var.local_memory_used));
     SAFEMALLOC_REPORT_MEMORY(my_thread_dbug_id());
-    DBUG_ASSERT(status_var.memory_used == 0);  // Ensure everything is freed
+    DBUG_ASSERT(status_var.local_memory_used == 0);
   }
 
-  set_current_thd(orig_thd);
+  set_current_thd(orig_thd == this ? 0 : orig_thd);
   DBUG_VOID_RETURN;
 }
 
@@ -1745,6 +1749,16 @@ void add_to_status(STATUS_VAR *to_var, STATUS_VAR *from_var)
   to_var->binlog_bytes_written+= from_var->binlog_bytes_written;
   to_var->cpu_time+=            from_var->cpu_time;
   to_var->busy_time+=           from_var->busy_time;
+  to_var->local_memory_used+=   from_var->local_memory_used;
+
+  /*
+    Update global_memory_used. We have to do this with atomic_add as the
+    global value can change outside of LOCK_status.
+  */
+  // workaround for gcc 4.2.4-1ubuntu4 -fPIE (from DEB_BUILD_HARDENING=1)
+  int64 volatile * volatile ptr= &to_var->global_memory_used;
+  my_atomic_add64_explicit(ptr, from_var->global_memory_used,
+                           MY_MEMORY_ORDER_RELAXED);
 }
 
 /*
@@ -1782,6 +1796,11 @@ void add_diff_to_status(STATUS_VAR *to_var, STATUS_VAR *from_var,
                                  dec_var->binlog_bytes_written;
   to_var->cpu_time+=             from_var->cpu_time - dec_var->cpu_time;
   to_var->busy_time+=            from_var->busy_time - dec_var->busy_time;
+
+  /*
+    We don't need to accumulate memory_used as these are not reset or used by
+    the calling functions.  See execute_show_status().
+  */
 }
 
 #define SECONDS_TO_WAIT_FOR_KILL 2
@@ -2435,8 +2454,7 @@ void THD::make_explain_field_list(List<Item> &field_list, uint8 explain_flags,
                                                  MYSQL_TYPE_LONGLONG));
   if (is_analyze)
   {
-    field_list.push_back(item= new Item_return_int("r_rows", 10,
-                                                   MYSQL_TYPE_LONGLONG));
+    field_list.push_back(item= new Item_float("r_rows", 0.1234, 10, 4));
     item->maybe_null=1;
   }
 
@@ -2967,9 +2985,7 @@ int select_export::send_data(List<Item> &items)
     if (res && !my_charset_same(write_cs, res->charset()) &&
         !my_charset_same(write_cs, &my_charset_bin))
     {
-      const char *well_formed_error_pos;
-      const char *cannot_convert_error_pos;
-      const char *from_end_pos;
+      String_copier copier;
       const char *error_pos;
       uint32 bytes;
       uint64 estimated_bytes=
@@ -2982,16 +2998,11 @@ int select_export::send_data(List<Item> &items)
         goto err;
       }
 
-      bytes= well_formed_copy_nchars(write_cs, (char *) cvt_str.ptr(),
+      bytes= copier.well_formed_copy(write_cs, (char *) cvt_str.ptr(),
                                      cvt_str.alloced_length(),
-                                     res->charset(), res->ptr(), res->length(),
-                                     UINT_MAX32, // copy all input chars,
-                                                 // i.e. ignore nchars parameter
-                                     &well_formed_error_pos,
-                                     &cannot_convert_error_pos,
-                                     &from_end_pos);
-      error_pos= well_formed_error_pos ? well_formed_error_pos
-                                       : cannot_convert_error_pos;
+                                     res->charset(),
+                                     res->ptr(), res->length());
+      error_pos= copier.most_important_error_pos();
       if (error_pos)
       {
         char printable_buff[32];
@@ -3004,7 +3015,7 @@ int select_export::send_data(List<Item> &items)
                             "string", printable_buff,
                             item->name, static_cast<long>(row_count));
       }
-      else if (from_end_pos < res->ptr() + res->length())
+      else if (copier.source_end_pos() < res->ptr() + res->length())
       { 
         /*
           result is longer than UINT_MAX32 and doesn't fit into String
@@ -3818,7 +3829,7 @@ create_result_table(THD *thd_arg, List<Item> *column_types,
   if (! (table= create_tmp_table(thd_arg, &tmp_table_param, *column_types,
                                  (ORDER*) 0, is_union_distinct, 1,
                                  options, HA_POS_ERROR, (char*) table_alias,
-                                 keep_row_order)))
+                                 !create_table, keep_row_order)))
     return TRUE;
 
   col_stat= (Column_statistics*) table->in_use->alloc(table->s->fields *
@@ -6341,8 +6352,8 @@ int THD::binlog_query(THD::enum_binlog_query_type qtype, char const *query_arg,
   DBUG_PRINT("enter", ("qtype: %s  query: '%-.*s'",
                        show_query_type(qtype), (int) query_len, query_arg));
 
-  DBUG_ASSERT(query_arg &&
-                        (WSREP_EMULATE_BINLOG(this) || mysql_bin_log.is_open()));
+  DBUG_ASSERT(query_arg);
+  DBUG_ASSERT(WSREP_EMULATE_BINLOG(this) || mysql_bin_log.is_open());
 
   /* If this is withing a BEGIN ... COMMIT group, don't log it */
   if (variables.option_bits & OPTION_GTID_BEGIN)
@@ -6432,6 +6443,14 @@ int THD::binlog_query(THD::enum_binlog_query_type qtype, char const *query_arg,
       The MYSQL_LOG::write() function will set the STMT_END_F flag and
       flush the pending rows event if necessary.
     */
+    /*
+      Even though wsrep only supports ROW binary log format, a user can set
+      binlog format to STATEMENT (wsrep_forced_binlog_format). In which case
+      the control might reach here even when binary logging (--log-bin) is
+      not enabled. This is possible because wsrep patch partially enables
+      binary logging by setting wsrep_emulate_binlog.
+    */
+    if (mysql_bin_log.is_open())
     {
       Query_log_event qinfo(this, query_arg, query_len, is_trans, direct,
                             suppress_use, errcode);

@@ -52,16 +52,6 @@ IF(NOT SYSTEM_TYPE)
   ENDIF()
 ENDIF()
 
-
-# Always enable -Wall for gnu C/C++
-IF(CMAKE_COMPILER_IS_GNUCXX AND NOT CMAKE_CXX_FLAGS MATCHES ".*-Wall.*")
-  SET(CMAKE_CXX_FLAGS "-Wall ${CMAKE_CXX_FLAGS} -Wall -Wno-unused-parameter -Wno-init-self")
-ENDIF()
-IF(CMAKE_COMPILER_IS_GNUCC AND NOT CMAKE_C_FLAGS MATCHES ".*-Wall.*")
-  SET(CMAKE_C_FLAGS "-Wall ${CMAKE_C_FLAGS} -Wall")
-ENDIF()
-
-
 IF(CMAKE_COMPILER_IS_GNUCXX)
   # MySQL "canonical" GCC flags. At least -fno-rtti flag affects
   # ABI and cannot be simply removed. 
@@ -198,6 +188,7 @@ CHECK_INCLUDE_FILES (grp.h HAVE_GRP_H)
 CHECK_INCLUDE_FILES (ieeefp.h HAVE_IEEEFP_H)
 CHECK_INCLUDE_FILES (inttypes.h HAVE_INTTYPES_H)
 CHECK_INCLUDE_FILES (langinfo.h HAVE_LANGINFO_H)
+CHECK_INCLUDE_FILES (link.h HAVE_LINK_H)
 CHECK_INCLUDE_FILES (linux/unistd.h HAVE_LINUX_UNISTD_H)
 CHECK_INCLUDE_FILES (linux/falloc.h HAVE_LINUX_FALLOC_H)
 CHECK_INCLUDE_FILES (limits.h HAVE_LIMITS_H)
@@ -964,8 +955,6 @@ MARK_AS_ADVANCED(NO_ALARM)
 IF(CMAKE_COMPILER_IS_GNUCXX)
 IF(WITH_ATOMIC_OPS STREQUAL "up")
   SET(MY_ATOMIC_MODE_DUMMY 1 CACHE BOOL "Assume single-CPU mode, no concurrency")
-ELSEIF(WITH_ATOMIC_OPS STREQUAL "rwlocks")
-  SET(MY_ATOMIC_MODE_RWLOCKS 1 CACHE BOOL "Use pthread rwlocks for atomic ops")
 ELSEIF(WITH_ATOMIC_OPS STREQUAL "smp")
 ELSEIF(NOT WITH_ATOMIC_OPS)
   CHECK_CXX_SOURCE_COMPILES("
@@ -997,12 +986,8 @@ ELSE()
 ENDIF()
 ENDIF()
 
-SET(WITH_ATOMIC_OPS "${WITH_ATOMIC_OPS}" CACHE STRING
-  "Implement atomic operations using pthread rwlocks (rwlocks); or atomic CPU
-instructions for multi-processor (smp) or uniprocessor (up)
-configuration. By default gcc built-in sync functions are used,
-if available and 'smp' configuration otherwise.")
-MARK_AS_ADVANCED(WITH_ATOMIC_OPS MY_ATOMIC_MODE_RWLOCK MY_ATOMIC_MODE_DUMMY)
+SET(WITH_ATOMIC_OPS "${WITH_ATOMIC_OPS}" CACHE STRING "Implement atomic operations using atomic CPU instructions for multi-processor (smp) or uniprocessor (up) configuration. By default gcc built-in sync functions are used, if available and 'smp' configuration otherwise.")
+MARK_AS_ADVANCED(WITH_ATOMIC_OPS MY_ATOMIC_MODE_DUMMY)
 
 IF(WITH_VALGRIND)
   SET(HAVE_valgrind 1)

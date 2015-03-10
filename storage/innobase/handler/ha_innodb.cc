@@ -4,7 +4,7 @@ Copyright (c) 2000, 2014, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, 2009 Google Inc.
 Copyright (c) 2009, Percona Inc.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2014, SkySQL Ab.
+Copyright (c) 2013, 2015, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -103,6 +103,7 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include "fts0priv.h"
 #include "page0zip.h"
 #include "fil0pagecompress.h"
+#include "fil0pageencryption.h"
 
 #define thd_get_trx_isolation(X) ((enum_tx_isolation)thd_tx_isolation(X))
 
@@ -234,6 +235,20 @@ static my_bool	innodb_optimize_fulltext_only		= FALSE;
 static char*	internal_innobase_data_file_path	= NULL;
 
 static char*	innodb_version_str = (char*) INNODB_VERSION_STR;
+
+extern my_bool srv_encrypt_tables;
+extern uint srv_n_fil_crypt_threads;
+extern uint srv_fil_crypt_rotate_key_age;
+extern uint srv_n_fil_crypt_iops;
+
+extern my_bool srv_immediate_scrub_data_uncompressed;
+extern my_bool srv_background_scrub_data_uncompressed;
+extern my_bool srv_background_scrub_data_compressed;
+extern uint srv_background_scrub_data_interval;
+extern uint srv_background_scrub_data_check_interval;
+#ifdef UNIV_DEBUG
+extern my_bool srv_scrub_force_testing;
+#endif
 
 /** Possible values for system variable "innodb_stats_method". The values
 are defined the same as its corresponding MyISAM system variable
@@ -548,9 +563,14 @@ ha_create_table_option innodb_table_option_list[]=
   HA_TOPTION_BOOL("PAGE_COMPRESSED", page_compressed, 0),
   /* With this option user can set zip compression level for page
   compression for this table*/
-  HA_TOPTION_NUMBER("PAGE_COMPRESSION_LEVEL", page_compression_level, ULINT_UNDEFINED, 0, 9, 1),
+  HA_TOPTION_NUMBER("PAGE_COMPRESSION_LEVEL", page_compression_level, 0, 1, 9, 1),
   /* With this option user can enable atomic writes feature for this table */
   HA_TOPTION_ENUM("ATOMIC_WRITES", atomic_writes, "DEFAULT,ON,OFF", 0),
+  /* With this option the user can enable page encryption for the table */
+  HA_TOPTION_BOOL("PAGE_ENCRYPTION", page_encryption, 0),
+  /* With this option the user defines the key identifier using for the encryption */
+  HA_TOPTION_NUMBER("PAGE_ENCRYPTION_KEY", page_encryption_key, 0, 1, 255, 1),
+
   HA_TOPTION_END
 };
 
@@ -611,6 +631,7 @@ static ibool innodb_have_lzo=IF_LZO(1, 0);
 static ibool innodb_have_lz4=IF_LZ4(1, 0);
 static ibool innodb_have_lzma=IF_LZMA(1, 0);
 static ibool innodb_have_bzip2=IF_BZIP2(1, 0);
+static ibool innodb_have_snappy=IF_SNAPPY(1, 0);
 
 static const char innobase_hton_name[]= "InnoDB";
 
@@ -792,6 +813,14 @@ static SHOW_VAR innodb_status_variables[]= {
    (char*) &export_vars.innodb_page_compressed_trim_op_saved,     SHOW_LONGLONG},
   {"num_pages_page_decompressed",
    (char*) &export_vars.innodb_pages_page_decompressed,   SHOW_LONGLONG},
+  {"num_pages_page_compression_error",
+   (char*) &export_vars.innodb_pages_page_compression_error,   SHOW_LONGLONG},
+  {"num_pages_page_encrypted",
+   (char*) &export_vars.innodb_pages_page_encrypted,   SHOW_LONGLONG},
+  {"num_pages_page_decrypted",
+   (char*) &export_vars.innodb_pages_page_decrypted,   SHOW_LONGLONG},
+  {"num_pages_page_encryption_error",
+   (char*) &export_vars.innodb_pages_page_encryption_error,   SHOW_LONGLONG},
   {"have_lz4",
   (char*) &innodb_have_lz4,		  SHOW_BOOL},
   {"have_lzo",
@@ -800,6 +829,8 @@ static SHOW_VAR innodb_status_variables[]= {
   (char*) &innodb_have_lzma,		  SHOW_BOOL},
   {"have_bzip2",
   (char*) &innodb_have_bzip2,		  SHOW_BOOL},
+  {"have_snappy",
+  (char*) &innodb_have_snappy,		  SHOW_BOOL},
 
   /* Defragmentation */
   {"defragment_compression_failures",
@@ -824,6 +855,42 @@ static SHOW_VAR innodb_status_variables[]= {
   {"secondary_index_triggered_cluster_reads_avoided",
   (char*) &export_vars.innodb_sec_rec_cluster_reads_avoided, SHOW_LONG},
 
+  /* Encryption */
+  {"encryption_rotation_pages_read_from_cache",
+   (char*) &export_vars.innodb_encryption_rotation_pages_read_from_cache,
+   SHOW_LONG},
+  {"encryption_rotation_pages_read_from_disk",
+  (char*) &export_vars.innodb_encryption_rotation_pages_read_from_disk,
+   SHOW_LONG},
+  {"encryption_rotation_pages_modified",
+  (char*) &export_vars.innodb_encryption_rotation_pages_modified,
+   SHOW_LONG},
+  {"encryption_rotation_pages_flushed",
+  (char*) &export_vars.innodb_encryption_rotation_pages_flushed,
+   SHOW_LONG},
+  {"encryption_rotation_estimated_iops",
+  (char*) &export_vars.innodb_encryption_rotation_estimated_iops,
+   SHOW_LONG},
+
+  /* scrubing */
+  {"scrub_background_page_reorganizations",
+   (char*) &export_vars.innodb_scrub_page_reorganizations,
+   SHOW_LONG},
+  {"scrub_background_page_splits",
+   (char*) &export_vars.innodb_scrub_page_splits,
+   SHOW_LONG},
+  {"scrub_background_page_split_failures_underflow",
+   (char*) &export_vars.innodb_scrub_page_split_failures_underflow,
+   SHOW_LONG},
+  {"scrub_background_page_split_failures_out_of_filespace",
+   (char*) &export_vars.innodb_scrub_page_split_failures_out_of_filespace,
+   SHOW_LONG},
+  {"scrub_background_page_split_failures_missing_index",
+   (char*) &export_vars.innodb_scrub_page_split_failures_missing_index,
+   SHOW_LONG},
+  {"scrub_background_page_split_failures_unknown",
+   (char*) &export_vars.innodb_scrub_page_split_failures_unknown,
+   SHOW_LONG},
 
   {NullS, NullS, SHOW_LONG}
 };
@@ -1683,6 +1750,15 @@ convert_error_code_to_mysql(
 			prefix ? DICT_MAX_FIXED_COL_LEN : 0);
 		return(HA_ERR_TO_BIG_ROW);
 	}
+
+
+	case DB_TOO_BIG_FOR_REDO:
+		my_printf_error(ER_TOO_BIG_ROWSIZE, "%s" , MYF(0),
+				"The size of BLOB/TEXT data inserted"
+				" in one transaction is greater than"
+				" 10% of redo log size. Increase the"
+				" redo log size using innodb_log_file_size.");
+		return(HA_ERR_TO_BIG_ROW);
 
 	case DB_TOO_BIG_INDEX_COL:
 		my_error(ER_INDEX_COLUMN_TOO_LONG, MYF(0),
@@ -3061,7 +3137,8 @@ innobase_init(
 
 	innobase_hton->flush_logs = innobase_flush_logs;
 	innobase_hton->show_status = innobase_show_status;
-	innobase_hton->flags = HTON_SUPPORTS_EXTENDED_KEYS;
+	innobase_hton->flags =
+		HTON_SUPPORTS_EXTENDED_KEYS | HTON_SUPPORTS_FOREIGN_KEYS;
 
 	innobase_hton->release_temporary_latches =
 		innobase_release_temporary_latches;
@@ -3159,6 +3236,15 @@ innobase_init(
 	if (innodb_compression_algorithm == PAGE_BZIP2_ALGORITHM) {
 		sql_print_error("InnoDB: innodb_compression_algorithm = %lu unsupported.\n"
 				"InnoDB: libbz2 is not installed. \n",
+				innodb_compression_algorithm);
+		goto error;
+	}
+#endif
+
+#ifndef HAVE_SNAPPY
+	if (innodb_compression_algorithm == PAGE_SNAPPY_ALGORITHM) {
+		sql_print_error("InnoDB: innodb_compression_algorithm = %lu unsupported.\n"
+				"InnoDB: libsnappy is not installed. \n",
 				innodb_compression_algorithm);
 		goto error;
 	}
@@ -7457,12 +7543,15 @@ ha_innobase::innobase_lock_autoinc(void)
 		break;
 
 	case AUTOINC_NEW_STYLE_LOCKING:
-		/* For simple (single/multi) row INSERTs, we fallback to the
-		old style only if another transaction has already acquired
-		the AUTOINC lock on behalf of a LOAD FILE or INSERT ... SELECT
-		etc. type of statement. */
+		/* For simple (single/multi) row INSERTs/REPLACEs and RBR
+		events, we fallback to the old style only if another
+		transaction has already acquired the AUTOINC lock on
+		behalf of a LOAD FILE or INSERT ... SELECT etc. type of
+		statement. */
 		if (thd_sql_command(user_thd) == SQLCOM_INSERT
-		    || thd_sql_command(user_thd) == SQLCOM_REPLACE) {
+		    || thd_sql_command(user_thd) == SQLCOM_REPLACE
+		    || thd_sql_command(user_thd) == SQLCOM_END // RBR event
+		) {
 			dict_table_t*	ib_table = prebuilt->table;
 
 			/* Acquire the AUTOINC mutex. */
@@ -7471,9 +7560,11 @@ ha_innobase::innobase_lock_autoinc(void)
 			/* We need to check that another transaction isn't
 			already holding the AUTOINC lock on the table. */
 			if (ib_table->n_waiting_or_granted_auto_inc_locks) {
-				/* Release the mutex to avoid deadlocks. */
+				/* Release the mutex to avoid deadlocks and
+				fall back to old style locking. */
 				dict_table_autoinc_unlock(ib_table);
 			} else {
+				/* Do not fall back to old style locking. */
 				break;
 			}
 		}
@@ -7640,19 +7731,21 @@ no_commit:
 			;
 		} else if (src_table == prebuilt->table) {
 #ifdef WITH_WSREP
-			switch (wsrep_run_wsrep_commit(user_thd, 0, 1))
-			{
-			case WSREP_TRX_OK:
-				break;
-			case WSREP_TRX_SIZE_EXCEEDED:
-			case WSREP_TRX_CERT_FAIL:
-			case WSREP_TRX_ERROR:
-				DBUG_RETURN(1);
-			}
+			if (wsrep_on(user_thd)) {
+				switch (wsrep_run_wsrep_commit(user_thd, 1))
+				{
+				case WSREP_TRX_OK:
+					break;
+				case WSREP_TRX_SIZE_EXCEEDED:
+				case WSREP_TRX_CERT_FAIL:
+				case WSREP_TRX_ERROR:
+					DBUG_RETURN(1);
+				}
 
-			if (binlog_hton->commit(binlog_hton, user_thd, 1))
-                                DBUG_RETURN(1);
-                        wsrep_post_commit(user_thd, TRUE);
+				if (binlog_hton->commit(binlog_hton, user_thd, 1))
+					DBUG_RETURN(1);
+				wsrep_post_commit(user_thd, TRUE);
+			}
 #endif /* WITH_WSREP */
 			/* Source table is not in InnoDB format:
 			no need to re-acquire locks on it. */
@@ -7665,19 +7758,21 @@ no_commit:
 			prebuilt->sql_stat_start = TRUE;
 		} else {
 #ifdef WITH_WSREP
-			switch (wsrep_run_wsrep_commit(user_thd, 0, 1))
-			{
-			case WSREP_TRX_OK:
-				break;
-			case WSREP_TRX_SIZE_EXCEEDED:
-			case WSREP_TRX_CERT_FAIL:
-			case WSREP_TRX_ERROR:
-				DBUG_RETURN(1);
-			}
+			if (wsrep_on(user_thd)) {
+				switch (wsrep_run_wsrep_commit(user_thd, 1))
+				{
+				case WSREP_TRX_OK:
+					break;
+				case WSREP_TRX_SIZE_EXCEEDED:
+				case WSREP_TRX_CERT_FAIL:
+				case WSREP_TRX_ERROR:
+					DBUG_RETURN(1);
+				}
 
-			if (binlog_hton->commit(binlog_hton, user_thd, 1))
-                                DBUG_RETURN(1);
-                        wsrep_post_commit(user_thd, TRUE);
+				if (binlog_hton->commit(binlog_hton, user_thd, 1))
+					DBUG_RETURN(1);
+				wsrep_post_commit(user_thd, TRUE);
+			}
 #endif /* WITH_WSREP */
 			/* Ensure that there are no other table locks than
 			LOCK_IX and LOCK_AUTO_INC on the destination table. */
@@ -7793,6 +7888,14 @@ no_commit:
 #ifdef WITH_WSREP
 			/* workaround for LP bug #355000, retrying the insert */
 			case SQLCOM_INSERT:
+
+				WSREP_DEBUG("DUPKEY error for autoinc\n"
+				      "THD %ld, value %llu, off %llu inc %llu",
+				      thd_get_thread_id(current_thd),
+				      auto_inc,
+				      prebuilt->autoinc_offset,
+				      prebuilt->autoinc_increment);
+
                                if (wsrep_on(current_thd)                     &&
                                    auto_inc_inserted                         &&
                                    wsrep_drupal_282555_workaround            &&
@@ -7808,8 +7911,7 @@ no_commit:
 					error= DB_SUCCESS;
 					wsrep_thd_set_conflict_state(
 						current_thd, MUST_ABORT);
-                                        innobase_srv_conc_exit_innodb(
-						prebuilt->trx);
+                                        innobase_srv_conc_exit_innodb(prebuilt->trx);
                                         /* jump straight to func exit over
                                          * later wsrep hooks */
                                         goto func_exit;
@@ -9872,10 +9974,10 @@ wsrep_append_key(
 	DBUG_ENTER("wsrep_append_key");
 	bool const copy = true;
 #ifdef WSREP_DEBUG_PRINT
-	fprintf(stderr, "%s conn %ld, trx %llu, keylen %d, table %s ",
+	fprintf(stderr, "%s conn %ld, trx %llu, keylen %d, table %s\n Query: %s ",
 		(shared) ? "Shared" : "Exclusive",
 		thd_get_thread_id(thd), (long long)trx->id, key_len,
-		table_share->table_name.str);
+		table_share->table_name.str, wsrep_thd_query(thd));
 	for (int i=0; i<key_len; i++) {
 		fprintf(stderr, "%hhX, ", key[i]);
 	}
@@ -10945,6 +11047,8 @@ innobase_table_flags(
 	modified by another thread while the table is being created. */
 	const ulint     default_compression_level = page_zip_level;
 
+	const ulint default_encryption_key = srv_default_page_encryption_key;
+
 	*flags = 0;
 	*flags2 = 0;
 
@@ -11144,9 +11248,12 @@ index_bad:
 		    zip_ssize,
 		    use_data_dir,
 		    options->page_compressed,
-		    (ulint)options->page_compression_level == ULINT_UNDEFINED ?
+		    options->page_compression_level == 0 ?
 		        default_compression_level : options->page_compression_level,
-		    options->atomic_writes);
+		    options->atomic_writes,
+		    options->page_encryption,
+		    options->page_encryption_key == 0 ?
+		        default_encryption_key : options->page_encryption_key);
 
 	if (create_info->options & HA_LEX_CREATE_TMP_TABLE) {
 		*flags2 |= DICT_TF2_TEMPORARY;
@@ -11184,8 +11291,34 @@ ha_innobase::check_table_options(
 	ha_table_option_struct *options= table->s->option_struct;
 	atomic_writes_t awrites = (atomic_writes_t)options->atomic_writes;
 
+	if (options->page_encryption) {
+		if (srv_encrypt_tables) {
+			push_warning(
+				thd, Sql_condition::WARN_LEVEL_WARN,
+				HA_WRONG_CREATE_OPTION,
+				"InnoDB: PAGE_ENCRYPTION not available if innodb_encrypt_tables=ON");
+			return "INNODB_ENCRYPT_TABLES";
+		}
+		if (!use_tablespace) {
+			push_warning(
+				thd, Sql_condition::WARN_LEVEL_WARN,
+				HA_WRONG_CREATE_OPTION,
+				"InnoDB: PAGE_ENCRYPTION requires"
+				" innodb_file_per_table.");
+			return "PAGE_ENCRYPTION";
+		}
+	}
+
 	/* Check page compression requirements */
 	if (options->page_compressed) {
+
+		if (srv_encrypt_tables) {
+			push_warning(
+				thd, Sql_condition::WARN_LEVEL_WARN,
+				HA_WRONG_CREATE_OPTION,
+				"InnoDB: PAGE_COMPRESSION not available if innodb_encrypt_tables=ON");
+			return "PAGE_COMPRESSED";
+		}
 
 		if (row_format == ROW_TYPE_COMPRESSED) {
 			push_warning(
@@ -11235,7 +11368,7 @@ ha_innobase::check_table_options(
 
 	/* Check page compression level requirements, some of them are
 	already checked above */
-	if ((ulint)options->page_compression_level != ULINT_UNDEFINED) {
+	if (options->page_compression_level != 0) {
 		if (options->page_compressed == false) {
 			push_warning(
 				thd, Sql_condition::WARN_LEVEL_WARN,
@@ -11245,14 +11378,40 @@ ha_innobase::check_table_options(
 			return "PAGE_COMPRESSION_LEVEL";
 		}
 
-		if (options->page_compression_level < 0 || options->page_compression_level > 9) {
+		if (options->page_compression_level < 1 || options->page_compression_level > 9) {
 			push_warning_printf(
 				thd, Sql_condition::WARN_LEVEL_WARN,
 				HA_WRONG_CREATE_OPTION,
 				"InnoDB: invalid PAGE_COMPRESSION_LEVEL = %lu."
-				" Valid values are [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]",
+				" Valid values are [1, 2, 3, 4, 5, 6, 7, 8, 9]",
 				options->page_compression_level);
 			return "PAGE_COMPRESSION_LEVEL";
+		}
+	}
+
+	if (options->page_encryption_key != 0) {
+		if (options->page_encryption == false) {
+			/* ignore this to allow alter table without changing page_encryption_key ...*/
+		}
+
+		if (options->page_encryption_key < 1 || options->page_encryption_key > 255) {
+			push_warning_printf(
+				thd, Sql_condition::WARN_LEVEL_WARN,
+				HA_WRONG_CREATE_OPTION,
+				"InnoDB: invalid PAGE_ENCRYPTION_KEY = %lu."
+				" Valid values are [1..255]",
+				options->page_encryption_key);
+			return "PAGE_ENCRYPTION_KEY";
+		}
+
+		if (!has_encryption_key(options->page_encryption_key)) {
+			push_warning_printf(
+				thd, Sql_condition::WARN_LEVEL_WARN,
+				HA_WRONG_CREATE_OPTION,
+				"InnoDB: PAGE_ENCRYPTION_KEY encryption key %lu not available",
+				options->page_encryption_key
+			);
+			return "PAGE_ENCRYPTION_KEY";
 		}
 	}
 
@@ -13915,6 +14074,7 @@ ha_innobase::start_stmt(
 	thr_lock_type	lock_type)
 {
 	trx_t*		trx;
+	DBUG_ENTER("ha_innobase::start_stmt");
 
 	update_thd(thd);
 
@@ -13937,6 +14097,29 @@ ha_innobase::start_stmt(
 	prebuilt->sql_stat_start = TRUE;
 	prebuilt->hint_need_to_fetch_extra_cols = 0;
 	reset_template();
+
+	if (dict_table_is_temporary(prebuilt->table)
+	    && prebuilt->mysql_has_locked
+	    && prebuilt->select_lock_type == LOCK_NONE) {
+		dberr_t error;
+
+		switch (thd_sql_command(thd)) {
+		case SQLCOM_INSERT:
+		case SQLCOM_UPDATE:
+		case SQLCOM_DELETE:
+			init_table_handle_for_HANDLER();
+			prebuilt->select_lock_type = LOCK_X;
+			prebuilt->stored_select_lock_type = LOCK_X;
+			error = row_lock_table_for_mysql(prebuilt, NULL, 1);
+
+			if (error != DB_SUCCESS) {
+				int st = convert_error_code_to_mysql(
+					error, 0, thd);
+				DBUG_RETURN(st);
+			}
+			break;
+		}
+	}
 
 	if (!prebuilt->mysql_has_locked) {
 		/* This handle is for a temporary table created inside
@@ -13975,7 +14158,7 @@ ha_innobase::start_stmt(
 		++trx->will_lock;
 	}
 
-	return(0);
+	DBUG_RETURN(0);
 }
 
 /******************************************************************//**
@@ -15139,7 +15322,16 @@ ha_innobase::get_auto_increment(
 		next value in the series. */
 		if (prebuilt->autoinc_increment > increment) {
 
+			WSREP_DEBUG("autoinc decrease: %llu -> %llu\n"
+				    "THD: %ld, current: %llu, autoinc: %llu",
+				    prebuilt->autoinc_increment,
+				    increment,
+				    thd_get_thread_id(ha_thd()),
+				    current, autoinc);
+			if (!wsrep_on(ha_thd()))
+			{
 			current = autoinc - prebuilt->autoinc_increment;
+			}
 
 			current = innobase_next_autoinc(
 				current, 1, increment, 1, col_max_value);
@@ -15340,10 +15532,8 @@ ha_innobase::cmp_ref(
 			len1 = innobase_read_from_2_little_endian(ref1);
 			len2 = innobase_read_from_2_little_endian(ref2);
 
-			ref1 += 2;
-			ref2 += 2;
 			result = ((Field_blob*) field)->cmp(
-				ref1, len1, ref2, len2);
+				ref1 + 2, len1, ref2 + 2, len2);
 		} else {
 			result = field->key_cmp(ref1, ref2);
 		}
@@ -17591,6 +17781,57 @@ innodb_status_output_update(
 	os_event_set(srv_monitor_event);
 }
 
+/******************************************************************
+Update the system variable innodb_encryption_threads */
+static
+void
+innodb_encryption_threads_update(
+/*=========================*/
+	THD*				thd,	/*!< in: thread handle */
+	struct st_mysql_sys_var*	var,	/*!< in: pointer to
+						system variable */
+	void*				var_ptr,/*!< out: where the
+						formal string goes */
+	const void*			save)	/*!< in: immediate result
+						from check function */
+{
+	fil_crypt_set_thread_cnt(*static_cast<const uint*>(save));
+}
+
+/******************************************************************
+Update the system variable innodb_encryption_rotate_key_age */
+static
+void
+innodb_encryption_rotate_key_age_update(
+/*=========================*/
+	THD*				thd,	/*!< in: thread handle */
+	struct st_mysql_sys_var*	var,	/*!< in: pointer to
+						system variable */
+	void*				var_ptr,/*!< out: where the
+						formal string goes */
+	const void*			save)	/*!< in: immediate result
+						from check function */
+{
+	fil_crypt_set_rotate_key_age(*static_cast<const uint*>(save));
+}
+
+/******************************************************************
+Update the system variable innodb_encryption_rotation_iops */
+static
+void
+innodb_encryption_rotation_iops_update(
+/*=========================*/
+	THD*				thd,	/*!< in: thread handle */
+	struct st_mysql_sys_var*	var,	/*!< in: pointer to
+						system variable */
+	void*				var_ptr,/*!< out: where the
+						formal string goes */
+	const void*			save)	/*!< in: immediate result
+						from check function */
+{
+	fil_crypt_set_rotation_iops(*static_cast<const uint*>(save));
+}
+
 static SHOW_VAR innodb_status_variables_export[]= {
 	{"Innodb", (char*) &show_innodb_vars, SHOW_FUNC},
 	{NullS, NullS, SHOW_LONG}
@@ -18844,7 +19085,7 @@ static MYSQL_SYSVAR_BOOL(use_trim, srv_use_trim,
   "Use trim. Default FALSE.",
   NULL, NULL, FALSE);
 
-static const char *page_compression_algorithms[]= { "none", "zlib", "lz4", "lzo", "lzma", "bzip2", 0 };
+static const char *page_compression_algorithms[]= { "none", "zlib", "lz4", "lzo", "lzma", "bzip2", "snappy", 0 };
 static TYPELIB page_compression_algorithms_typelib=
 {
   array_elements(page_compression_algorithms) - 1, 0,
@@ -18882,6 +19123,121 @@ static MYSQL_SYSVAR_ULONG(fatal_semaphore_wait_threshold, srv_fatal_semaphore_wa
   1, /* Minimum setting */
   UINT_MAX32, /* Maximum setting */
   0);
+
+static MYSQL_SYSVAR_BOOL(encrypt_tables, srv_encrypt_tables, 0,
+			 "Encrypt all tables in the storage engine",
+			 0, 0, 0);
+
+static MYSQL_SYSVAR_UINT(encryption_threads, srv_n_fil_crypt_threads,
+			 PLUGIN_VAR_RQCMDARG,
+			 "No of threads performing background key rotation and "
+			 "scrubbing",
+			 NULL,
+			 innodb_encryption_threads_update,
+			 srv_n_fil_crypt_threads, 0, UINT_MAX32, 0);
+
+static MYSQL_SYSVAR_UINT(encryption_rotate_key_age,
+			 srv_fil_crypt_rotate_key_age,
+			 PLUGIN_VAR_RQCMDARG,
+			 "Rotate any page having a key older than this",
+			 NULL,
+			 innodb_encryption_rotate_key_age_update,
+			 srv_fil_crypt_rotate_key_age, 0, UINT_MAX32, 0);
+
+static MYSQL_SYSVAR_UINT(encryption_rotation_iops, srv_n_fil_crypt_iops,
+			 PLUGIN_VAR_RQCMDARG,
+			 "Use this many iops for background key rotation",
+			 NULL,
+			 innodb_encryption_rotation_iops_update,
+			 srv_n_fil_crypt_iops, 0, UINT_MAX32, 0);
+
+static MYSQL_SYSVAR_UINT(default_page_encryption_key, srv_default_page_encryption_key,
+			 PLUGIN_VAR_RQCMDARG,
+			 "Encryption key used for page encryption.",
+			 NULL,
+			 NULL,
+			 DEFAULT_ENCRYPTION_KEY, 1, 255, 0);
+
+static MYSQL_SYSVAR_BOOL(scrub_log, srv_scrub_log,
+  PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_READONLY,
+  "Enable redo log scrubbing",
+  0, 0, 0);
+
+/*
+  If innodb_scrub_log is on, logs will be scrubbed in less than
+  (((innodb_log_file_size * innodb_log_files_in_group) / 512 ) /
+   ((1000 * 86400) / innodb_scrub_log_interval))
+  days.
+  In above formula, the first line calculates the number of log blocks to scrub,
+  and the second line calculates the number of log blocks scrubbed in one day.
+*/
+static MYSQL_SYSVAR_ULONGLONG(scrub_log_interval, innodb_scrub_log_interval,
+  PLUGIN_VAR_OPCMDARG,
+  "Innodb redo log scrubbing interval in ms",
+  NULL, NULL,
+  2000,             /* default */
+  10,               /* min */
+  ULONGLONG_MAX, 0);/* max */
+
+static MYSQL_SYSVAR_BOOL(encrypt_log, srv_encrypt_log,
+  PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_READONLY,
+  "Enable redo log encryption/decryption.",
+  NULL, NULL, FALSE);
+
+static MYSQL_SYSVAR_BOOL(immediate_scrub_data_uncompressed,
+			 srv_immediate_scrub_data_uncompressed,
+			 0,
+			 "Enable scrubbing of data",
+			 NULL, NULL, FALSE);
+
+static MYSQL_SYSVAR_BOOL(background_scrub_data_uncompressed,
+			 srv_background_scrub_data_uncompressed,
+			 0,
+			 "Enable scrubbing of uncompressed data by "
+			 "background threads (same as encryption_threads)",
+			 NULL, NULL, FALSE);
+
+static MYSQL_SYSVAR_BOOL(background_scrub_data_compressed,
+			 srv_background_scrub_data_compressed,
+			 0,
+			 "Enable scrubbing of compressed data by "
+			 "background threads (same as encryption_threads)",
+			 NULL, NULL, FALSE);
+
+static MYSQL_SYSVAR_UINT(background_scrub_data_check_interval,
+			 srv_background_scrub_data_check_interval,
+			 0,
+			 "check if spaces needs scrubbing every "
+			 "innodb_background_scrub_data_check_interval "
+			 "seconds",
+			 NULL, NULL,
+			 srv_background_scrub_data_check_interval,
+			 1,
+			 UINT_MAX32, 0);
+
+static MYSQL_SYSVAR_UINT(background_scrub_data_interval,
+			 srv_background_scrub_data_interval,
+			 0,
+			 "scrub spaces that were last scrubbed longer than "
+			 " innodb_background_scrub_data_interval seconds ago",
+			 NULL, NULL,
+			 srv_background_scrub_data_interval,
+			 1,
+			 UINT_MAX32, 0);
+
+#ifdef UNIV_DEBUG
+static MYSQL_SYSVAR_BOOL(scrub_force_testing,
+			 srv_scrub_force_testing,
+			 0,
+			 "Perform extra scrubbing to increase test exposure",
+			 NULL, NULL, FALSE);
+#endif /* UNIV_DEBUG */
+
+static MYSQL_SYSVAR_BOOL(instrument_semaphores, srv_instrument_semaphores,
+  PLUGIN_VAR_OPCMDARG,
+  "Enable semaphore request instrumentation. This could have some effect on performance but allows better"
+  " information on long semaphore wait problems. (Default: not enabled)",
+  0, 0, FALSE);
 
 static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(additional_mem_pool_size),
@@ -19055,12 +19411,32 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
 #endif /* UNIV_DEBUG */
   MYSQL_SYSVAR(simulate_comp_failures),
   MYSQL_SYSVAR(force_primary_key),
+  MYSQL_SYSVAR(fatal_semaphore_wait_threshold),
+  /* Table page compression feature */
   MYSQL_SYSVAR(use_trim),
   MYSQL_SYSVAR(compression_algorithm),
   MYSQL_SYSVAR(mtflush_threads),
   MYSQL_SYSVAR(use_mtflush),
+  /* Encryption feature */
+  MYSQL_SYSVAR(encrypt_tables),
+  MYSQL_SYSVAR(encryption_threads),
+  MYSQL_SYSVAR(encryption_rotate_key_age),
+  MYSQL_SYSVAR(encryption_rotation_iops),
+  MYSQL_SYSVAR(scrub_log),
+  MYSQL_SYSVAR(scrub_log_interval),
+  MYSQL_SYSVAR(encrypt_log),
+  MYSQL_SYSVAR(default_page_encryption_key),
 
-  MYSQL_SYSVAR(fatal_semaphore_wait_threshold),
+  /* Scrubing feature */
+  MYSQL_SYSVAR(immediate_scrub_data_uncompressed),
+  MYSQL_SYSVAR(background_scrub_data_uncompressed),
+  MYSQL_SYSVAR(background_scrub_data_compressed),
+  MYSQL_SYSVAR(background_scrub_data_interval),
+  MYSQL_SYSVAR(background_scrub_data_check_interval),
+#ifdef UNIV_DEBUG
+  MYSQL_SYSVAR(scrub_force_testing),
+#endif
+  MYSQL_SYSVAR(instrument_semaphores),
   NULL
 };
 
@@ -19070,7 +19446,7 @@ maria_declare_plugin(innobase)
   &innobase_storage_engine,
   innobase_hton_name,
   plugin_author,
-  "Supports transactions, row-level locking, and foreign keys",
+  "Supports transactions, row-level locking, foreign keys and encryption for tables",
   PLUGIN_LICENSE_GPL,
   innobase_init, /* Plugin Init */
   NULL, /* Plugin Deinit */
@@ -19107,8 +19483,11 @@ i_s_innodb_sys_fields,
 i_s_innodb_sys_foreign,
 i_s_innodb_sys_foreign_cols,
 i_s_innodb_sys_tablespaces,
-i_s_innodb_sys_datafiles
-
+i_s_innodb_sys_datafiles,
+i_s_innodb_mutexes,
+i_s_innodb_sys_semaphore_waits,
+i_s_innodb_tablespaces_encryption,
+i_s_innodb_tablespaces_scrubbing
 maria_declare_plugin_end;
 
 /** @brief Initialize the default value of innodb_commit_concurrency.
@@ -19563,6 +19942,36 @@ innobase_convert_to_system_charset(
                           static_cast<uint>(len), errors));
 }
 
+/**********************************************************************
+Issue a warning that the row is too big. */
+UNIV_INTERN
+void
+ib_warn_row_too_big(const dict_table_t*	table)
+{
+	/* If prefix is true then a 768-byte prefix is stored
+	locally for BLOB fields. Refer to dict_table_get_format() */
+	const bool prefix = (dict_tf_get_format(table->flags)
+			     == UNIV_FORMAT_A);
+
+	const ulint	free_space = page_get_free_space_of_empty(
+		table->flags & DICT_TF_COMPACT) / 2;
+
+	THD*	thd = current_thd;
+
+	if (thd == NULL) {
+		return;
+	}
+
+	push_warning_printf(
+		thd, Sql_condition::WARN_LEVEL_WARN, HA_ERR_TO_BIG_ROW,
+		"Row size too large (> %lu). Changing some columns to TEXT"
+		" or BLOB %smay help. In current row format, BLOB prefix of"
+		" %d bytes is stored inline.", free_space
+		, prefix ? "or using ROW_FORMAT=DYNAMIC or"
+		" ROW_FORMAT=COMPRESSED ": ""
+		, prefix ? DICT_MAX_FIXED_COL_LEN : 0);
+}
+
 /*************************************************************//**
 Check for a valid value of innobase_compression_algorithm.
 @return	0 for valid innodb_compression_algorithm. */
@@ -19652,5 +20061,15 @@ innodb_compression_algorithm_validate(
 	}
 #endif
 
+#ifndef HAVE_SNAPPY
+	if (compression_algorithm == PAGE_SNAPPY_ALGORITHM) {
+		push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+				    HA_ERR_UNSUPPORTED,
+				    "InnoDB: innodb_compression_algorithm = %lu unsupported.\n"
+				    "InnoDB: libsnappy is not installed. \n",
+				    compression_algorithm);
+		DBUG_RETURN(1);
+	}
+#endif
 	DBUG_RETURN(0);
 }

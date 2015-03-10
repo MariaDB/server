@@ -42,6 +42,7 @@
 #define WSREP_SST_OPT_SOCKET   "--socket"
 #define WSREP_SST_OPT_GTID     "--gtid"
 #define WSREP_SST_OPT_BYPASS   "--bypass"
+#define WSREP_SST_OPT_GTID_DOMAIN_ID "--gtid-domain-id"
 
 #define WSREP_SST_MYSQLDUMP    "mysqldump"
 #define WSREP_SST_RSYNC        "rsync"

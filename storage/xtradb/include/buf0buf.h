@@ -376,11 +376,13 @@ Given a tablespace id and page number tries to get that page. If the
 page is not in the buffer pool it is not loaded and NULL is returned.
 Suitable for using when holding the lock_sys_t::mutex. */
 UNIV_INTERN
-const buf_block_t*
+buf_block_t*
 buf_page_try_get_func(
 /*==================*/
 	ulint		space_id,/*!< in: tablespace id */
 	ulint		page_no,/*!< in: page number */
+	ulint		rw_latch,       /*!< in: RW_S_LATCH, RW_X_LATCH */
+	bool		possibly_freed, /*!< in: don't mind if page is freed */
 	const char*	file,	/*!< in: file name */
 	ulint		line,	/*!< in: line where called */
 	mtr_t*		mtr);	/*!< in: mini-transaction */
@@ -392,7 +394,8 @@ not loaded.  Suitable for using when holding the lock_sys_t::mutex.
 @param mtr	in: mini-transaction
 @return		the page if in buffer pool, NULL if not */
 #define buf_page_try_get(space_id, page_no, mtr)	\
-	buf_page_try_get_func(space_id, page_no, __FILE__, __LINE__, mtr);
+	buf_page_try_get_func(space_id, page_no, RW_S_LATCH, false, \
+			      __FILE__, __LINE__, mtr);
 
 /********************************************************************//**
 Get read access to a compressed page (usually of type
@@ -1368,7 +1371,10 @@ buf_pool_watch_is_sentinel(
 	const buf_page_t*	bpage)		/*!< in: block */
 	__attribute__((nonnull, warn_unused_result));
 /****************************************************************//**
-Add watch for the given page to be read in. Caller must have the buffer pool
+Add watch for the given page to be read in. Caller must have
+appropriate hash_lock for the bpage and hold the LRU list mutex to avoid a race
+condition with buf_LRU_free_page inserting the same page into the page hash.
+This function may release the hash_lock and reacquire it.
 @return NULL if watch set, block if the page is in the buffer pool */
 UNIV_INTERN
 buf_page_t*
@@ -1459,6 +1465,53 @@ buf_own_zip_mutex_for_page(
 	__attribute__((nonnull,warn_unused_result));
 #endif /* UNIV_DEBUG */
 
+/********************************************************************//**
+The hook that is called just before a page is written to disk.
+The function encrypts the content of the page and returns a pointer
+to a frame that will be written instead of the real frame. */
+byte*
+buf_page_encrypt_before_write(
+/*==========================*/
+	buf_page_t* page, /*!< in/out: buffer page to be flushed */
+	const byte* frame);
+
+/**********************************************************************
+The hook that is called after page is written to disk.
+The function releases any resources needed for encryption that was allocated
+in buf_page_encrypt_before_write */
+ibool
+buf_page_encrypt_after_write(
+/*=========================*/
+	buf_page_t* page); /*!< in/out: buffer page that was flushed */
+
+/********************************************************************//**
+The hook that is called just before a page is read from disk.
+The function allocates memory that is used to temporarily store disk content
+before getting decrypted */
+byte*
+buf_page_decrypt_before_read(
+/*=========================*/
+	buf_page_t* page, /*!< in/out: buffer page read from disk */
+	ulint	zip_size);  /*!< in: compressed page size, or 0 */
+
+/********************************************************************//**
+The hook that is called just after a page is read from disk.
+The function decrypt disk content into buf_page_t and releases the
+temporary buffer that was allocated in buf_page_decrypt_before_read */
+ibool
+buf_page_decrypt_after_read(
+/*========================*/
+	buf_page_t* page); /*!< in/out: buffer page read from disk */
+
+/********************************************************************//**
+Release memory allocated for page decryption.
+Only used in scenarios where read fails, e.g due to tablespace being dropped */
+void
+buf_page_decrypt_cleanup(
+/*=====================*/
+	buf_page_t* page); /*!< in/out: buffer page read from disk */
+
+
 /** The common buffer control block structure
 for compressed and uncompressed frames */
 
@@ -1533,6 +1586,20 @@ struct buf_page_t{
 					if written again we check is TRIM
 					operation needed. */
 
+	unsigned        key_version;    /*!< key version for this block */
+	byte*           crypt_buf;      /*!< for encryption the data needs to be
+					copied to a separate buffer before it's
+					encrypted&written. this as a page can be
+					read while it's being flushed */
+	byte*           crypt_buf_free; /*!< for encryption, allocated buffer
+					that is then alligned */
+	byte*		comp_buf;	/*!< for compression we need
+					temporal buffer because page
+					can be read while it's being flushed */
+	byte*		comp_buf_free;	/*!< for compression, allocated
+					buffer that is then alligned */
+	bool		encrypt_later;  /*!< should we encrypt the page
+					at os0file.cc ? */
 #ifndef UNIV_HOTBACKUP
 	buf_page_t*	hash;		/*!< node used in chaining to
 					buf_pool->page_hash or

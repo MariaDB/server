@@ -423,6 +423,29 @@ size_t my_well_formed_len_mb(CHARSET_INFO *cs, const char *b, const char *e,
 }
 
 
+/*
+  Copy a multi-byte string. Abort if a bad byte sequence was found.
+  Note more than "nchars" characters are copied.
+*/
+size_t
+my_copy_abort_mb(CHARSET_INFO *cs,
+                 char *dst, size_t dst_length,
+                 const char *src, size_t src_length,
+                 size_t nchars, MY_STRCOPY_STATUS *status)
+{
+  int well_formed_error;
+  size_t res;
+
+  set_if_smaller(src_length, dst_length);
+  res= cs->cset->well_formed_len(cs, src, src + src_length,
+                                 nchars, &well_formed_error);
+  memmove(dst, src, res);
+  status->m_source_end_pos= src + res;
+  status->m_well_formed_error_pos= well_formed_error ? src + res : NULL;
+  return res;
+}
+
+
 uint my_instr_mb(CHARSET_INFO *cs,
                  const char *b, size_t b_length, 
                  const char *s, size_t s_length,

@@ -29,6 +29,7 @@ Created 2/2/1994 Heikki Tuuri
 #include "univ.i"
 
 #include "page0types.h"
+#ifndef UNIV_INNOCHECKSUM
 #include "fil0fil.h"
 #include "buf0buf.h"
 #include "data0data.h"
@@ -41,6 +42,8 @@ Created 2/2/1994 Heikki Tuuri
 #undef UNIV_INLINE
 #define UNIV_INLINE
 #endif
+
+#endif /* !UNIV_INNOCHECKSUM */
 
 /*			PAGE HEADER
 			===========
@@ -117,6 +120,8 @@ typedef	byte		page_header_t;
 				a new-style compact page */
 /*-----------------------------*/
 
+#ifndef UNIV_INNOCHECKSUM
+
 /* Heap numbers */
 #define PAGE_HEAP_NO_INFIMUM	0	/* page infimum */
 #define PAGE_HEAP_NO_SUPREMUM	1	/* page supremum */
@@ -156,6 +161,8 @@ number may drop below the minimum in the first and the last slot in the
 directory. */
 #define PAGE_DIR_SLOT_MAX_N_OWNED	8
 #define	PAGE_DIR_SLOT_MIN_N_OWNED	4
+
+extern my_bool srv_immediate_scrub_data_uncompressed;
 
 /************************************************************//**
 Gets the start of a page.
@@ -343,6 +350,7 @@ page_cmp_dtuple_rec_with_match(
 				matched; when function returns contains the
 				value for current comparison */
 #endif /* !UNIV_HOTBACKUP */
+#endif /* !UNIV_INNOCHECKSUM */
 /*************************************************************//**
 Gets the page number.
 @return	page number */
@@ -351,6 +359,7 @@ ulint
 page_get_page_no(
 /*=============*/
 	const page_t*	page);	/*!< in: page */
+#ifndef UNIV_INNOCHECKSUM
 /*************************************************************//**
 Gets the tablespace identifier.
 @return	space id */
@@ -359,6 +368,7 @@ ulint
 page_get_space_id(
 /*==============*/
 	const page_t*	page);	/*!< in: page */
+#endif /* !UNIV_INNOCHECKSUM */
 /*************************************************************//**
 Gets the number of user records on page (the infimum and supremum records
 are not user records).
@@ -368,6 +378,7 @@ ulint
 page_get_n_recs(
 /*============*/
 	const page_t*	page);	/*!< in: index page */
+#ifndef UNIV_INNOCHECKSUM
 /***************************************************************//**
 Returns the number of records before the given record in chain.
 The number includes infimum and supremum records.
@@ -516,6 +527,7 @@ ulint
 page_rec_get_heap_no(
 /*=================*/
 	const rec_t*	rec);	/*!< in: the physical record */
+#endif /* !UNIV_INNOCHECKSUM */
 /************************************************************//**
 Determine whether the page is a B-tree leaf.
 @return	true if the page is a B-tree leaf (PAGE_LEVEL = 0) */
@@ -525,6 +537,7 @@ page_is_leaf(
 /*=========*/
 	const page_t*	page)	/*!< in: page */
 	__attribute__((nonnull, pure));
+#ifndef UNIV_INNOCHECKSUM
 /************************************************************//**
 Determine whether the page is empty.
 @return	true if the page is empty (PAGE_N_RECS = 0) */
@@ -1115,8 +1128,11 @@ page_find_rec_max_not_deleted(
 #define UNIV_INLINE  UNIV_INLINE_ORIGINAL
 #endif
 
+#endif /* !UNIV_INNOCHECKSUM */
+
 #ifndef UNIV_NONINL
 #include "page0page.ic"
 #endif
+
 
 #endif

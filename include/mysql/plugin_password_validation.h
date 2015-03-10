@@ -17,9 +17,9 @@
 /**
   @file
 
-  Authentication Plugin API.
+  Password Validation Plugin API.
 
-  This file defines the API for server authentication plugins.
+  This file defines the API for server password validation plugins.
 */
 
 #define MYSQL_PLUGIN_PASSWORD_VALIDATION_INCLUDED
@@ -31,7 +31,7 @@
 /**
   Password validation plugin descriptor
 */
-struct st_mysql_password_validation
+struct st_mariadb_password_validation
 {
   int interface_version;                        /**< version plugin uses */
   /**

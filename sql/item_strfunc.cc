@@ -383,8 +383,8 @@ String *Item_func_aes_encrypt::val_str(String *str)
     if (!str_value.alloc(aes_length))		// Ensure that memory is free
     {
       // finally encrypt directly to allocated buffer.
-      if (my_aes_encrypt(sptr->ptr(),sptr->length(), (char*) str_value.ptr(),
-			 key->ptr(), key->length()) == aes_length)
+      if (my_aes_encrypt((const uchar*) sptr->ptr(), sptr->length(), (uchar*) str_value.ptr(),
+                         key->ptr(), key->length()) == aes_length)
       {
 	// We got the expected result length
 	str_value.length((uint) aes_length);
@@ -420,8 +420,8 @@ String *Item_func_aes_decrypt::val_str(String *str)
     {
       // finally decrypt directly to allocated buffer.
       int length;
-      length=my_aes_decrypt(sptr->ptr(), sptr->length(),
-			    (char*) str_value.ptr(),
+      length=my_aes_decrypt((const uchar*)sptr->ptr(), sptr->length(),
+			    (uchar*) str_value.ptr(),
                             key->ptr(), key->length());
       if (length >= 0)  // if we got correct data data
       {

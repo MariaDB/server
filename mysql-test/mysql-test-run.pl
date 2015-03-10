@@ -109,6 +109,7 @@ require "lib/mtr_gprof.pl";
 require "lib/mtr_misc.pl";
 
 $SIG{INT}= sub { mtr_error("Got ^C signal"); };
+$SIG{HUP}= sub { mtr_error("Hangup detected on controlling terminal"); };
 
 our $mysql_version_id;
 my $mysql_version_extra;
@@ -262,6 +263,7 @@ our $opt_ddd;
 our $opt_client_ddd;
 my $opt_boot_ddd;
 our $opt_manual_gdb;
+our $opt_manual_lldb;
 our $opt_manual_dbx;
 our $opt_manual_ddd;
 our $opt_manual_debug;
@@ -895,6 +897,7 @@ sub run_worker ($) {
   my ($server_port, $thread_num)= @_;
 
   $SIG{INT}= sub { exit(1); };
+  $SIG{HUP}= sub { exit(1); };
 
   # Connect to server
   my $server = new IO::Socket::INET
@@ -1141,6 +1144,7 @@ sub command_line_setup {
              'gdb'                      => \$opt_gdb,
              'client-gdb'               => \$opt_client_gdb,
              'manual-gdb'               => \$opt_manual_gdb,
+             'manual-lldb'              => \$opt_manual_lldb,
 	     'boot-gdb'                 => \$opt_boot_gdb,
              'manual-debug'             => \$opt_manual_debug,
              'ddd'                      => \$opt_ddd,
@@ -1471,6 +1475,12 @@ sub command_line_setup {
   {
     $default_vardir= "$glob_mysql_test_dir/var";
   }
+  unless (IS_WINDOWS) {
+    my $realpath = realpath($default_vardir);
+    die "realpath('$default_vardir') failed: $!\n"
+      unless defined($realpath) && $realpath ne '';
+    $default_vardir = $realpath;
+  }
 
   if ( ! $opt_vardir )
   {
@@ -1577,8 +1587,9 @@ sub command_line_setup {
       $opt_debugger= undef;
     }
 
-    if ( $opt_gdb || $opt_ddd || $opt_manual_gdb || $opt_manual_ddd ||
-	 $opt_manual_debug || $opt_debugger || $opt_dbx || $opt_manual_dbx)
+    if ( $opt_gdb || $opt_ddd || $opt_manual_gdb || $opt_manual_lldb || 
+         $opt_manual_ddd || $opt_manual_debug || $opt_debugger || $opt_dbx || 
+         $opt_manual_dbx)
     {
       mtr_error("You need to use the client debug options for the",
 		"embedded server. Ex: --client-gdb");
@@ -1605,9 +1616,9 @@ sub command_line_setup {
   # --------------------------------------------------------------------------
   # Check debug related options
   # --------------------------------------------------------------------------
-  if ( $opt_gdb || $opt_client_gdb || $opt_ddd || $opt_client_ddd ||
-       $opt_manual_gdb || $opt_manual_ddd || $opt_manual_debug ||
-       $opt_dbx || $opt_client_dbx || $opt_manual_dbx ||
+  if ( $opt_gdb || $opt_client_gdb || $opt_ddd || $opt_client_ddd || 
+       $opt_manual_gdb || $opt_manual_lldb || $opt_manual_ddd || 
+       $opt_manual_debug || $opt_dbx || $opt_client_dbx || $opt_manual_dbx || 
        $opt_debugger || $opt_client_debugger )
   {
     if ( using_extern() )
@@ -2382,6 +2393,26 @@ sub environment_setup {
                                  "$path_client_bindir/mysql_tzinfo_to_sql",
                                  "$bindir/sql$opt_vs_config/mysql_tzinfo_to_sql");
   $ENV{'MYSQL_TZINFO_TO_SQL'}= native_path($exe_mysql_tzinfo_to_sql);
+
+  # ----------------------------------------------------
+  # replace
+  # ----------------------------------------------------
+  my $exe_replace= mtr_exe_exists(vs_config_dirs('extra', 'replace'),
+                                 "$basedir/extra/replace",
+                                 "$bindir/extra$opt_vs_config/replace",
+                                 "$path_client_bindir/replace");
+  $ENV{'REPLACE'}= native_path($exe_replace);
+
+  # ----------------------------------------------------
+  # innochecksum
+  # ----------------------------------------------------
+  my $exe_innochecksum=
+    mtr_exe_maybe_exists("$bindir/extra$opt_vs_config/innochecksum",
+		         "$path_client_bindir/innochecksum");
+  if ($exe_innochecksum)
+  {
+    $ENV{'INNOCHECKSUM'}= native_path($exe_innochecksum);
+  }
 
   # Create an environment variable to make it possible
   # to detect that valgrind is being used from test cases
@@ -4355,6 +4386,8 @@ sub extract_warning_lines ($$) {
      qr/InnoDB: Error: table `test`.`t[12]` .*does not exist in the InnoDB internal/,
      qr/InnoDB: Warning: Setting innodb_use_sys_malloc/,
      qr/InnoDB: Warning: a long semaphore wait:/,
+     qr/InnoDB: Disabling redo log encryption/,
+     qr/InnoDB: Redo log crypto: Can't initialize to key version -1u/,
      qr/Slave: Unknown table 't1' .* 1051/,
      qr/Slave SQL:.*(Internal MariaDB error code: [[:digit:]]+|Query:.*)/,
      qr/slave SQL thread aborted/,
@@ -5016,6 +5049,10 @@ sub mysqld_start ($$) {
   {
     gdb_arguments(\$args, \$exe, $mysqld->name());
   }
+  elsif ( $opt_manual_lldb )
+  {
+    lldb_arguments(\$args, \$exe, $mysqld->name());
+  }
   elsif ( $opt_ddd || $opt_manual_ddd )
   {
     ddd_arguments(\$args, \$exe, $mysqld->name());
@@ -5550,7 +5587,6 @@ sub start_mysqltest ($) {
   return $proc;
 }
 
-
 #
 # Modify the exe and args so that program is run in gdb in xterm
 #
@@ -5601,6 +5637,32 @@ sub gdb_arguments {
   $$exe= "xterm";
 }
 
+#
+# Modify the exe and args so that program is run in lldb
+#
+sub lldb_arguments {
+  my $args= shift;
+  my $exe= shift;
+  my $type= shift;
+  my $input= shift;
+
+  my $lldb_init_file= "$opt_vardir/tmp/lldbinit.$type";
+  unlink($lldb_init_file);
+
+  # Put $args into a single string
+  my $str= join(" ", @$$args);
+  $input = $input ? "< $input" : "";
+
+  # write init file for mysqld or client
+  mtr_tofile($lldb_init_file, "set args $str $input\n");
+
+    print "\nTo start lldb for $type, type in another window:\n";
+    print "cd $glob_mysql_test_dir && lldb -s $lldb_init_file $$exe\n";
+
+    # Indicate the exe should not be started
+    $$exe= undef;
+    return;
+}
 
 #
 # Modify the exe and args so that program is run in ddd
@@ -5729,7 +5791,6 @@ sub debugger_arguments {
   }
 }
 
-
 #
 # Modify the exe and args so that program is run in valgrind
 #
@@ -5751,10 +5812,14 @@ sub valgrind_arguments {
       if -f "$glob_mysql_test_dir/valgrind.supp";
 
     # Ensure the jemalloc works with mysqld
-    if ($mysqld_variables{'version-malloc-library'} ne "system" &&
-        $$exe =~ /mysqld/)
+    if ($$exe =~ /mysqld/)
     {
-      mtr_add_arg($args, "--soname-synonyms=somalloc=NONE" );
+      my %somalloc=(
+        'system jemalloc' => 'libjemalloc*',
+        'bundled jemalloc' => 'NONE'
+      );
+      my ($syn) = $somalloc{$mysqld_variables{'version-malloc-library'}};
+      mtr_add_arg($args, '--soname-synonyms=somalloc=%s', $syn) if $syn;
     }
   }
 
@@ -6028,6 +6093,8 @@ Options for debugging the product
   manual-ddd            Let user manually start mysqld in ddd, before running
                         test(s)
   manual-dbx            Let user manually start mysqld in dbx, before running
+                        test(s)
+  manual-lldb           Let user manually start mysqld in lldb, before running 
                         test(s)
   max-save-core         Limit the number of core files saved (to avoid filling
                         up disks for heavily crashing server). Defaults to

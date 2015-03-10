@@ -62,6 +62,7 @@
 #include "sql_repl.h"
 #include "opt_range.h"
 #include "rpl_parallel.h"
+#include "encryption_keys.h"
 
 /*
   The rule for this file: everything should be 'static'. When a sys_var
@@ -437,6 +438,24 @@ static bool binlog_format_check(sys_var *self, THD *thd, set_var *var)
   if (check_has_super(self, thd, var))
     return true;
 
+  /*
+    MariaDB Galera does not support STATEMENT or MIXED binlog format currently.
+  */
+  if (WSREP(thd) && var->save_result.ulonglong_value != BINLOG_FORMAT_ROW)
+  {
+    // Push a warning to the error log.
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN, ER_UNKNOWN_ERROR,
+                        "MariaDB Galera does not support binlog format: %s",
+                        binlog_format_names[var->save_result.ulonglong_value]);
+
+    if (var->type == OPT_GLOBAL)
+    {
+      WSREP_ERROR("MariaDB Galera does not support binlog format: %s",
+                  binlog_format_names[var->save_result.ulonglong_value]);
+      return true;
+    }
+  }
+
   if (var->type == OPT_GLOBAL)
     return false;
 
@@ -464,26 +483,6 @@ static bool binlog_format_check(sys_var *self, THD *thd, set_var *var)
          ER_STORED_FUNCTION_PREVENTS_SWITCH_BINLOG_FORMAT,
          ER_INSIDE_TRANSACTION_PREVENTS_SWITCH_BINLOG_FORMAT))
     return true;
-
-#ifdef WITH_WSREP
-  /* MariaDB Galera does not support STATEMENT or MIXED binlog
-  format currently */
-  if (WSREP(thd) &&
-     (var->save_result.ulonglong_value == BINLOG_FORMAT_STMT ||
-      var->save_result.ulonglong_value == BINLOG_FORMAT_MIXED))
-  {
-    WSREP_DEBUG("MariaDB Galera does not support binlog format : %s",
-                var->save_result.ulonglong_value == BINLOG_FORMAT_STMT ?
-                "STATEMENT" : "MIXED");
-    /* Push also warning, because error message is general */
-    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-                        ER_UNKNOWN_ERROR,
-                        "MariaDB Galera does not support binlog format: %s",
-                        var->save_result.ulonglong_value == BINLOG_FORMAT_STMT ?
-                        "STATEMENT" : "MIXED");
-    return true;
-  }
-#endif
 
   return false;
 }
@@ -986,11 +985,8 @@ static bool check_master_connection(sys_var *self, THD *thd, set_var *var)
   tmp.str= var->save_result.string_value.str;
   tmp.length= var->save_result.string_value.length;
   if (!tmp.str || check_master_connection_name(&tmp))
-  {
-    my_error(ER_WRONG_ARGUMENTS, MYF(ME_JUST_WARNING),
-             var->var->name.str);
     return true;
-  }
+
   return false;
 }
 
@@ -1128,6 +1124,23 @@ static Sys_var_mybool Sys_locked_in_memory(
 static Sys_var_mybool Sys_log_bin(
        "log_bin", "Whether the binary log is enabled",
        READ_ONLY GLOBAL_VAR(opt_bin_log), NO_CMD_LINE, DEFAULT(FALSE));
+
+
+#ifndef DBUG_OFF
+static Sys_var_mybool Sys_debug_use_static_keys(
+       "debug_use_static_encryption_keys",
+       "Enable use of nonrandom encryption keys. Only to be used in "
+       "internal testing",
+       READ_ONLY GLOBAL_VAR(debug_use_static_encryption_keys),
+       CMD_LINE(OPT_ARG), DEFAULT(FALSE));
+
+static Sys_var_uint Sys_debug_encryption_key_version(
+       "debug_encryption_key_version",
+       "Encryption key version. Only to be used in internal testing.",
+       GLOBAL_VAR(opt_debug_encryption_key_version),
+       CMD_LINE(REQUIRED_ARG), VALID_RANGE(0,UINT_MAX), DEFAULT(0),
+       BLOCK_SIZE(1));
+#endif
 
 static Sys_var_mybool Sys_trust_function_creators(
        "log_bin_trust_function_creators",
@@ -1390,16 +1403,18 @@ static Sys_var_ulonglong Sys_max_heap_table_size(
        VALID_RANGE(16384, (ulonglong)~(intptr)0), DEFAULT(16*1024*1024),
        BLOCK_SIZE(1024));
 
+static ulong mdl_locks_cache_size;
 static Sys_var_ulong Sys_metadata_locks_cache_size(
-       "metadata_locks_cache_size", "Size of unused metadata locks cache",
+       "metadata_locks_cache_size", "Unused",
        READ_ONLY GLOBAL_VAR(mdl_locks_cache_size), CMD_LINE(REQUIRED_ARG),
-       VALID_RANGE(1, 1024*1024), DEFAULT(MDL_LOCKS_CACHE_SIZE_DEFAULT),
+       VALID_RANGE(1, 1024*1024), DEFAULT(1024),
        BLOCK_SIZE(1));
 
+static ulong mdl_locks_hash_partitions;
 static Sys_var_ulong Sys_metadata_locks_hash_instances(
-       "metadata_locks_hash_instances", "Number of metadata locks hash instances",
+       "metadata_locks_hash_instances", "Unused",
        READ_ONLY GLOBAL_VAR(mdl_locks_hash_partitions), CMD_LINE(REQUIRED_ARG),
-       VALID_RANGE(1, 1024), DEFAULT(MDL_LOCKS_HASH_PARTITIONS_DEFAULT),
+       VALID_RANGE(1, 1024), DEFAULT(8),
        BLOCK_SIZE(1));
 
 /*
@@ -1874,18 +1889,11 @@ static Sys_var_ulong Sys_slave_parallel_max_queued(
 bool
 Sys_var_slave_parallel_mode::global_update(THD *thd, set_var *var)
 {
-  ulonglong new_value= var->save_result.ulonglong_value;
+  enum_slave_parallel_mode new_value=
+    (enum_slave_parallel_mode)var->save_result.ulonglong_value;
   LEX_STRING *base_name= &var->base;
   Master_info *mi;
-  ulonglong *value_ptr;
   bool res= false;
-
-  if ((new_value & (SLAVE_PARALLEL_FOLLOW_MASTER_COMMIT|SLAVE_PARALLEL_TRX)) ==
-      (SLAVE_PARALLEL_FOLLOW_MASTER_COMMIT|SLAVE_PARALLEL_TRX))
-  {
-    my_error(ER_INVALID_SLAVE_PARALLEL_MODE, MYF(0), "transactional");
-    return true;
-  }
 
   if (!base_name->length)
     base_name= &thd->variables.default_master_connection;
@@ -1894,7 +1902,9 @@ Sys_var_slave_parallel_mode::global_update(THD *thd, set_var *var)
   mysql_mutex_lock(&LOCK_active_mi);
 
   mi= master_info_index->
-    get_master_info(base_name, Sql_condition::WARN_LEVEL_WARN);
+    get_master_info(base_name, !base_name->length ?
+                    Sql_condition::WARN_LEVEL_ERROR :
+                    Sql_condition::WARN_LEVEL_WARN);
 
   if (mi)
   {
@@ -1908,30 +1918,27 @@ Sys_var_slave_parallel_mode::global_update(THD *thd, set_var *var)
     {
       mi->parallel_mode= new_value;
       if (!base_name->length)
+      {
+        /* Use as default value for new connections */
         opt_slave_parallel_mode= new_value;
+      }
     }
   }
 
   mysql_mutex_unlock(&LOCK_active_mi);
   mysql_mutex_lock(&LOCK_global_system_variables);
 
-  if (!mi)
-  {
-    my_error(WARN_NO_MASTER_INFO, MYF(0), base_name->length, base_name->str);
-    return true;
-  }
-  mi_slave_parallel_mode_ptr(base_name, &value_ptr, false);
-  if (value_ptr)
-    *value_ptr= new_value;
   return res;
 }
 
 
 uchar *
-Sys_var_slave_parallel_mode::global_value_ptr(THD *thd, const LEX_STRING *base_name)
+Sys_var_slave_parallel_mode::global_value_ptr(THD *thd,
+                                              const LEX_STRING *base_name)
 {
   Master_info *mi;
-  ulonglong val= opt_slave_parallel_mode;
+  enum_slave_parallel_mode val=
+    (enum_slave_parallel_mode)opt_slave_parallel_mode;
 
   if (!base_name->length)
     base_name= &thd->variables.default_master_connection;
@@ -1940,26 +1947,26 @@ Sys_var_slave_parallel_mode::global_value_ptr(THD *thd, const LEX_STRING *base_n
   mysql_mutex_lock(&LOCK_active_mi);
 
   mi= master_info_index->
-    get_master_info(base_name, Sql_condition::WARN_LEVEL_WARN);
+    get_master_info(base_name, !base_name->length ?
+                    Sql_condition::WARN_LEVEL_ERROR :
+                    Sql_condition::WARN_LEVEL_WARN);
   if (mi)
     val= mi->parallel_mode;
 
   mysql_mutex_unlock(&LOCK_active_mi);
   mysql_mutex_lock(&LOCK_global_system_variables);
+  if (!mi)
+    return 0;
 
-  if (!mi && base_name->length)
-  {
-    my_error(WARN_NO_MASTER_INFO, MYF(0), base_name->length, base_name->str);
-    return NULL;
-  }
-  return (uchar*)set_to_string(thd, 0, val, typelib.type_names);
+  return valptr(thd, val);
 }
 
 
+/* The order here must match enum_slave_parallel_mode in mysqld.h. */
 static const char *slave_parallel_mode_names[] = {
-  "domain", "follow_master_commit", "transactional", "waiting", NULL
+  "none", "minimal", "conservative", "optimistic", "aggressive", NULL
 };
-TYPELIB slave_parallel_mode_typelib = {
+export TYPELIB slave_parallel_mode_typelib = {
   array_elements(slave_parallel_mode_names)-1,
   "",
   slave_parallel_mode_names,
@@ -1969,28 +1976,26 @@ TYPELIB slave_parallel_mode_typelib = {
 static Sys_var_slave_parallel_mode Sys_slave_parallel_mode(
        "slave_parallel_mode",
        "Controls what transactions are applied in parallel when using "
-       "--slave-parallel-threads. Syntax: slave_parallel_mode=value[,value...], "
-       "where \"value\" could be one or more of: \"domain\", to apply different "
-       "replication domains in parallel; \"follow_master_commit\", to apply "
-       "in parallel transactions that group-committed together on the master; "
-       "\"transactional\", to optimistically try to apply all transactional "
-       "DML in parallel; and \"waiting\" to extend \"transactional\" to "
-       "even transactions that had to wait on the master.",
-       GLOBAL_VAR(opt_slave_parallel_mode),
-       NO_CMD_LINE, slave_parallel_mode_names,
-       DEFAULT(SLAVE_PARALLEL_DOMAIN |
-               SLAVE_PARALLEL_FOLLOW_MASTER_COMMIT));
+       "--slave-parallel-threads. Possible values: \"optimistic\" tries to "
+       "apply most transactional DML in parallel, and handles any conflicts "
+       "with rollback and retry. \"conservative\" limits parallelism in an "
+       "effort to avoid any conflicts. \"aggressive\" tries to maximise the "
+       "parallelism, possibly at the cost of increased conflict rate. "
+       "\"minimal\" only parallelizes the commit steps of transactions. "
+       "\"none\" disables parallel apply completely.",
+       GLOBAL_VAR(opt_slave_parallel_mode), NO_CMD_LINE,
+       slave_parallel_mode_names, DEFAULT(SLAVE_PARALLEL_CONSERVATIVE));
 
 
-static Sys_var_bit Sys_replicate_allow_parallel(
-       "replicate_allow_parallel",
-       "If set when a transaction is written to the binlog, that transaction "
-       "is allowed to replicate in parallel on a slave where "
-       "slave_parallel_mode is set to \"transactional\". Can be cleared for "
-       "transactions that are likely to cause a conflict if replicated in "
-       "parallel, to avoid unnecessary rollback and retry.",
-       SESSION_ONLY(option_bits), NO_CMD_LINE, OPTION_RPL_ALLOW_PARALLEL,
-       DEFAULT(TRUE), NO_MUTEX_GUARD, NOT_IN_BINLOG);
+static Sys_var_bit Sys_skip_parallel_replication(
+       "skip_parallel_replication",
+       "If set when a transaction is written to the binlog, parallel apply of "
+       "that transaction will be avoided on a slave where slave_parallel_mode "
+       "is not \"aggressive\". Can be used to avoid unnecessary rollback and "
+       "retry for transactions that are likely to cause a conflict if "
+       "replicated in parallel.",
+       SESSION_ONLY(option_bits), NO_CMD_LINE, OPTION_RPL_SKIP_PARALLEL,
+       DEFAULT(FALSE), NO_MUTEX_GUARD, NOT_IN_BINLOG);
 
 
 static bool
@@ -3279,7 +3284,7 @@ static Sys_var_uint Sys_threadpool_max_threads(
   "thread_pool_max_threads",
   "Maximum allowed number of worker threads in the thread pool",
    GLOBAL_VAR(threadpool_max_threads), CMD_LINE(REQUIRED_ARG),
-   VALID_RANGE(1, 65536), DEFAULT(500), BLOCK_SIZE(1),
+   VALID_RANGE(1, 65536), DEFAULT(1000), BLOCK_SIZE(1),
    NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0), 
    ON_UPDATE(fix_tp_max_threads)
 );
@@ -3391,6 +3396,22 @@ static Sys_var_charptr Sys_malloc_library(
        "version_malloc_library", "Version of the used malloc library",
        READ_ONLY GLOBAL_VAR(malloc_library), CMD_LINE_HELP_ONLY,
        IN_SYSTEM_CHARSET, DEFAULT(MALLOC_LIBRARY));
+
+#ifdef HAVE_YASSL
+#include <openssl/ssl.h>
+#define SSL_LIBRARY "YaSSL " YASSL_VERSION
+#elif HAVE_OPENSSL
+#include <openssl/opensslv.h>
+#define SSL_LIBRARY OPENSSL_VERSION_TEXT
+#else
+#error No SSL?
+#endif
+
+static char *ssl_library;
+static Sys_var_charptr Sys_ssl_library(
+       "version_ssl_library", "Version of the used SSL library",
+       READ_ONLY GLOBAL_VAR(ssl_library), CMD_LINE_HELP_ONLY,
+       IN_SYSTEM_CHARSET, DEFAULT(SSL_LIBRARY));
 
 static Sys_var_ulong Sys_net_wait_timeout(
        "wait_timeout",
@@ -3556,13 +3577,13 @@ static Sys_var_bit Sys_log_off(
 static bool fix_sql_log_bin_after_update(sys_var *self, THD *thd,
                                          enum_var_type type)
 {
-  if (type == OPT_SESSION)
-  {
-    if (thd->variables.sql_log_bin)
-      thd->variables.option_bits |= OPTION_BIN_LOG;
-    else
-      thd->variables.option_bits &= ~OPTION_BIN_LOG;
-  }
+  DBUG_ASSERT(type == OPT_SESSION);
+
+  if (thd->variables.sql_log_bin)
+    thd->variables.option_bits |= OPTION_BIN_LOG;
+  else
+    thd->variables.option_bits &= ~OPTION_BIN_LOG;
+
   return FALSE;
 }
 
@@ -3584,7 +3605,10 @@ static bool check_sql_log_bin(sys_var *self, THD *thd, set_var *var)
     return TRUE;
 
   if (var->type == OPT_GLOBAL)
-    return FALSE;
+  {
+    my_error(ER_INCORRECT_GLOBAL_LOCAL_VAR, MYF(0), self->name.str, "SESSION");
+    return TRUE;
+  }
 
   if (error_if_in_trans_or_substatement(thd,
           ER_STORED_FUNCTION_PREVENTS_SWITCH_SQL_LOG_BIN,
@@ -3595,9 +3619,9 @@ static bool check_sql_log_bin(sys_var *self, THD *thd, set_var *var)
 }
 
 static Sys_var_mybool Sys_log_binlog(
-       "sql_log_bin", "sql_log_bin",
-       SESSION_VAR(sql_log_bin), NO_CMD_LINE,
-       DEFAULT(TRUE), NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(check_sql_log_bin),
+       "sql_log_bin", "Controls whether logging to the binary log is done",
+       SESSION_VAR(sql_log_bin), NO_CMD_LINE, DEFAULT(TRUE),
+       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(check_sql_log_bin),
        ON_UPDATE(fix_sql_log_bin_after_update));
 
 static Sys_var_bit Sys_sql_warnings(
@@ -4189,23 +4213,18 @@ bool Sys_var_rpl_filter::global_update(THD *thd, set_var *var)
 {
   bool result= true;                            // Assume error
   Master_info *mi;
+  LEX_STRING *base_name= &var->base;
+
+  if (!base_name->length)
+    base_name= &thd->variables.default_master_connection;
 
   mysql_mutex_unlock(&LOCK_global_system_variables);
   mysql_mutex_lock(&LOCK_active_mi);
   
-  if (!var->base.length) // no base name
-  {
-    mi= master_info_index->
-      get_master_info(&thd->variables.default_master_connection,
-                      Sql_condition::WARN_LEVEL_ERROR);
-  }
-  else // has base name
-  {
-    mi= master_info_index->
-      get_master_info(&var->base, 
-                      Sql_condition::WARN_LEVEL_WARN);
-  }
-
+  mi= master_info_index->
+    get_master_info(base_name, !base_name->length ?
+                    Sql_condition::WARN_LEVEL_ERROR :
+                    Sql_condition::WARN_LEVEL_WARN);
   if (mi)
   {
     if (mi->rli.slave_running)
@@ -4229,7 +4248,7 @@ bool Sys_var_rpl_filter::global_update(THD *thd, set_var *var)
 bool Sys_var_rpl_filter::set_filter_value(const char *value, Master_info *mi)
 {
   bool status= true;
-  Rpl_filter* rpl_filter= mi ? mi->rpl_filter : global_rpl_filter;
+  Rpl_filter* rpl_filter= mi->rpl_filter;
 
   switch (opt_id) {
   case OPT_REPLICATE_DO_DB:
@@ -4255,7 +4274,8 @@ bool Sys_var_rpl_filter::set_filter_value(const char *value, Master_info *mi)
   return status;
 }
 
-uchar *Sys_var_rpl_filter::global_value_ptr(THD *thd, const LEX_STRING *base)
+uchar *Sys_var_rpl_filter::global_value_ptr(THD *thd,
+                                            const LEX_STRING *base_name)
 {
   char buf[256];
   String tmp(buf, sizeof(buf), &my_charset_bin);
@@ -4265,18 +4285,12 @@ uchar *Sys_var_rpl_filter::global_value_ptr(THD *thd, const LEX_STRING *base)
 
   mysql_mutex_unlock(&LOCK_global_system_variables);
   mysql_mutex_lock(&LOCK_active_mi);
-  if (!base->length) // no base name
-  {
-    mi= master_info_index->
-      get_master_info(&thd->variables.default_master_connection,
-                      Sql_condition::WARN_LEVEL_ERROR);
-  }
-  else // has base name
-  {
-    mi= master_info_index->
-      get_master_info(base, 
-                      Sql_condition::WARN_LEVEL_WARN);
-  }
+
+  mi= master_info_index->
+    get_master_info(base_name, !base_name->length ?
+                    Sql_condition::WARN_LEVEL_ERROR :
+                    Sql_condition::WARN_LEVEL_WARN);
+
   mysql_mutex_lock(&LOCK_global_system_variables);
 
   if (!mi)
@@ -4599,7 +4613,7 @@ static Sys_var_charptr Sys_wsrep_provider_options(
 static Sys_var_charptr Sys_wsrep_data_home_dir(
        "wsrep_data_home_dir", "home directory for wsrep provider",
        READ_ONLY GLOBAL_VAR(wsrep_data_home_dir), CMD_LINE(REQUIRED_ARG),
-       IN_FS_CHARSET, DEFAULT(""));
+       IN_FS_CHARSET, DEFAULT(mysql_real_data_home));
 
 static Sys_var_charptr Sys_wsrep_cluster_name(
        "wsrep_cluster_name", "Name for the cluster",
@@ -4762,11 +4776,12 @@ static bool fix_wsrep_causal_reads(sys_var *self, THD* thd, enum_var_type var_ty
   return false;
 }
 static Sys_var_mybool Sys_wsrep_causal_reads(
-       "wsrep_causal_reads", "(DEPRECATED) Setting this variable is equivalent "
+       "wsrep_causal_reads", "Setting this variable is equivalent "
        "to setting wsrep_sync_wait READ flag",
        SESSION_VAR(wsrep_causal_reads), CMD_LINE(OPT_ARG), DEFAULT(FALSE),
        NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
-       ON_UPDATE(fix_wsrep_causal_reads));
+       ON_UPDATE(fix_wsrep_causal_reads),
+       DEPRECATED("'@@wsrep_sync_wait=1'"));
 
 static Sys_var_uint Sys_wsrep_sync_wait(
        "wsrep_sync_wait", "Ensure \"synchronous\" read view before executing "
@@ -4840,6 +4855,28 @@ static Sys_var_mybool Sys_wsrep_slave_UK_checks(
 static Sys_var_mybool Sys_wsrep_restart_slave(
        "wsrep_restart_slave", "Should MySQL slave be restarted automatically, when node joins back to cluster",
        GLOBAL_VAR(wsrep_restart_slave), CMD_LINE(OPT_ARG), DEFAULT(FALSE));
+
+static Sys_var_mybool Sys_wsrep_dirty_reads(
+       "wsrep_dirty_reads", "Do not reject SELECT queries even when the node "
+       "is not ready.", SESSION_ONLY(wsrep_dirty_reads), NO_CMD_LINE,
+       DEFAULT(FALSE), NO_MUTEX_GUARD, NOT_IN_BINLOG);
+
+static Sys_var_uint Sys_wsrep_gtid_domain_id(
+       "wsrep_gtid_domain_id", "When wsrep_gtid_mode is set, this value is "
+       "used as gtid_domain_id for galera transactions and also copied to the "
+       "joiner nodes during state transfer. It is ignored, otherwise.",
+       GLOBAL_VAR(wsrep_gtid_domain_id), CMD_LINE(REQUIRED_ARG),
+       VALID_RANGE(0, UINT_MAX32), DEFAULT(0), BLOCK_SIZE(1), NO_MUTEX_GUARD,
+       NOT_IN_BINLOG);
+
+static Sys_var_mybool Sys_wsrep_gtid_mode(
+       "wsrep_gtid_mode", "Automatically update the (joiner) node's "
+       "wsrep_gtid_domain_id value with that of donor's (received during "
+       "state transfer) and use it in place of gtid_domain_id for all galera "
+       "transactions. When OFF (default), wsrep_gtid_domain_id is simply "
+       "ignored (backward compatibility).",
+       GLOBAL_VAR(wsrep_gtid_mode), CMD_LINE(OPT_ARG), DEFAULT(FALSE));
+
 #endif /* WITH_WSREP */
 
 static bool fix_host_cache_size(sys_var *, THD *, enum_var_type)
@@ -4872,7 +4909,7 @@ static Sys_var_ulong Sys_sp_cache_size(
        "The soft upper limit for number of cached stored routines for "
        "one connection.",
        GLOBAL_VAR(stored_program_cache_size), CMD_LINE(REQUIRED_ARG),
-       VALID_RANGE(256, 512 * 1024), DEFAULT(256), BLOCK_SIZE(1));
+       VALID_RANGE(0, 512 * 1024), DEFAULT(256), BLOCK_SIZE(1));
 
 export const char *plugin_maturity_names[]=
 { "unknown", "experimental", "alpha", "beta", "gamma", "stable", 0 };
@@ -5132,6 +5169,20 @@ static Sys_var_harows Sys_expensive_subquery_limit(
        SESSION_VAR(expensive_subquery_limit), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(0, HA_POS_ERROR), DEFAULT(100), BLOCK_SIZE(1));
 
+static Sys_var_mybool Sys_encrypt_tmp_disk_tables(
+       "encrypt_tmp_disk_tables",
+       "Encrypt tmp disk tables (created as part of query execution)",
+       GLOBAL_VAR(encrypt_tmp_disk_tables),
+       CMD_LINE(OPT_ARG), DEFAULT(FALSE));
+
+const char *encryption_algorithm_names[]=
+{ "none", "aes_ecb", "aes_cbc", "aes_ctr", 0 };
+static Sys_var_enum Sys_encryption_algorithm(
+       "encryption_algorithm",
+       "Which encryption algorithm to use for table encryption. aes_cbc is the recommended one.",
+       READ_ONLY GLOBAL_VAR(encryption_algorithm),CMD_LINE(REQUIRED_ARG),
+       encryption_algorithm_names, DEFAULT(0));
+
 static bool check_pseudo_slave_mode(sys_var *self, THD *thd, set_var *var)
 {
   longlong previous_val= thd->variables.pseudo_slave_mode;
@@ -5202,3 +5253,14 @@ static Sys_var_mybool Sys_strict_password_validation(
        "that cannot be validated (passwords specified as a hash)",
        GLOBAL_VAR(strict_password_validation),
        CMD_LINE(OPT_ARG), DEFAULT(TRUE), NO_MUTEX_GUARD, NOT_IN_BINLOG);
+
+#ifdef HAVE_MMAP
+static Sys_var_ulong Sys_log_tc_size(
+       "log_tc_size",
+       "Size of transaction coordinator log.",
+       READ_ONLY GLOBAL_VAR(opt_tc_log_size),
+       CMD_LINE(REQUIRED_ARG),
+       VALID_RANGE(my_getpagesize() * 3, ULONG_MAX),
+       DEFAULT(my_getpagesize() * 6),
+       BLOCK_SIZE(my_getpagesize()));
+#endif

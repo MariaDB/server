@@ -1,0 +1,41 @@
+# bool global
+--source include/have_maria.inc
+
+SET @start_global_value = @@global.encrypt_tmp_disk_tables;
+
+#
+# exists as global only
+#
+select @@global.encrypt_tmp_disk_tables;
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+select @@session.encrypt_tmp_disk_tables;
+show global variables like 'encrypt_tmp_disk_tables';
+show session variables like 'encrypt_tmp_disk_tables';
+select * from information_schema.global_variables
+where variable_name='encrypt_tmp_disk_tables';
+select * from information_schema.session_variables
+where variable_name='encrypt_tmp_disk_tables';
+
+#
+# show that it's writable
+#
+set global encrypt_tmp_disk_tables=ON;
+select @@global.encrypt_tmp_disk_tables;
+set global encrypt_tmp_disk_tables=OFF;
+select @@global.encrypt_tmp_disk_tables;
+set global encrypt_tmp_disk_tables=1;
+select @@global.encrypt_tmp_disk_tables;
+--error ER_GLOBAL_VARIABLE
+set session encrypt_tmp_disk_tables=1;
+
+#
+# incorrect types
+#
+--error ER_WRONG_TYPE_FOR_VAR
+set global encrypt_tmp_disk_tables=1.1;
+--error ER_WRONG_TYPE_FOR_VAR
+set global encrypt_tmp_disk_tables=1e1;
+--error ER_WRONG_VALUE_FOR_VAR
+set global encrypt_tmp_disk_tables="foo";
+
+SET @@global.encrypt_tmp_disk_tables = @start_global_value;

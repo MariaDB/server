@@ -72,13 +72,13 @@ show grants for role4;
 Grants for role4
 GRANT USAGE ON *.* TO 'role4'
 select * from information_schema.applicable_roles;
-GRANTEE	ROLE_NAME	IS_GRANTABLE
-role1	role2	NO
-role1	role3	YES
-role3	role4	YES
-root@localhost	role1	YES
-root@localhost	role2	YES
-root@localhost	role4	YES
+GRANTEE	ROLE_NAME	IS_GRANTABLE	IS_DEFAULT
+role1	role2	NO	NULL
+role1	role3	YES	NULL
+role3	role4	YES	NULL
+root@localhost	role1	YES	NO
+root@localhost	role2	YES	NO
+root@localhost	role4	YES	NO
 grant role2 to role1 with admin option;
 revoke role1 from foo@localhost;
 revoke admin option for role4 from role3;
@@ -131,13 +131,13 @@ show grants for role4;
 Grants for role4
 GRANT USAGE ON *.* TO 'role4'
 select * from information_schema.applicable_roles;
-GRANTEE	ROLE_NAME	IS_GRANTABLE
-role1	role2	YES
-role1	role3	YES
-role3	role4	NO
-root@localhost	role1	NO
-root@localhost	role2	YES
-root@localhost	role4	YES
+GRANTEE	ROLE_NAME	IS_GRANTABLE	IS_DEFAULT
+role1	role2	YES	NULL
+role1	role3	YES	NULL
+role3	role4	NO	NULL
+root@localhost	role1	NO	NO
+root@localhost	role2	YES	NO
+root@localhost	role4	YES	NO
 grant role1 to role4;
 ERROR 28000: Access denied for user 'root'@'localhost'
 grant role1 to role4 with admin option;

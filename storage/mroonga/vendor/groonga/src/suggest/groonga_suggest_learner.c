@@ -16,7 +16,7 @@
 */
 
 /* for grn_str_getopt() */
-#include <str.h>
+#include <grn_str.h>
 
 #include "zmq_compatible.h"
 #include <stdio.h>

@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2000, 2014, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2000, 2015, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -611,6 +611,7 @@ handle_new_error:
 	case DB_DUPLICATE_KEY:
 	case DB_FOREIGN_DUPLICATE_KEY:
 	case DB_TOO_BIG_RECORD:
+	case DB_TOO_BIG_FOR_REDO:
 	case DB_UNDO_RECORD_TOO_BIG:
 	case DB_ROW_IS_REFERENCED:
 	case DB_NO_REFERENCED_ROW:
@@ -3245,6 +3246,41 @@ run_again:
 	return(err);
 }
 
+static
+void
+fil_wait_crypt_bg_threads(
+	dict_table_t* table)
+{
+	uint start = time(0);
+	uint last = start;
+
+	if (table->space != 0) {
+		fil_space_crypt_mark_space_closing(table->space);
+	}
+
+	while (table->n_ref_count > 0) {
+		dict_mutex_exit_for_mysql();
+		os_thread_sleep(20000);
+		dict_mutex_enter_for_mysql();
+		uint now = time(0);
+		if (now >= last + 30) {
+			fprintf(stderr,
+				"WARNING: waited %u seconds "
+				"for ref-count on table: %s space: %u\n",
+				now - start, table->name, table->space);
+			last = now;
+		}
+
+		if (now >= start + 300) {
+			fprintf(stderr,
+				"WARNING: after %u seconds, gave up waiting "
+				"for ref-count on table: %s space: %u\n",
+				now - start, table->name, table->space);
+			break;
+		}
+	}
+}
+
 /*********************************************************************//**
 Truncates a table for MySQL.
 @return	error code or DB_SUCCESS */
@@ -3793,6 +3829,10 @@ row_drop_table_for_mysql(
 	pars_info_t*	info			= NULL;
 	mem_heap_t*	heap			= NULL;
 
+	DBUG_ENTER("row_drop_table_for_mysql");
+
+	DBUG_PRINT("row_drop_table_for_mysql", ("table: %s", name));
+
 	ut_a(name != NULL);
 
 	if (srv_created_new_raw) {
@@ -3802,7 +3842,7 @@ row_drop_table_for_mysql(
 		      "InnoDB: Shut down mysqld and edit my.cnf so that newraw"
 		      " is replaced with raw.\n", stderr);
 
-		return(DB_ERROR);
+		DBUG_RETURN(DB_ERROR);
 	}
 
 	/* The table name is prefixed with the database name and a '/'.
@@ -4050,6 +4090,9 @@ row_drop_table_for_mysql(
 	preserve existing behaviour we remove the locks but ideally we
 	shouldn't have to. There should never be record locks on a table
 	that is going to be dropped. */
+
+	/* Wait on background threads to stop using table */
+	fil_wait_crypt_bg_threads(table);
 
 	if (table->n_ref_count == 0) {
 		lock_remove_all_on_table(table, TRUE);
@@ -4372,7 +4415,7 @@ row_drop_table_for_mysql(
 
 	case DB_OUT_OF_FILE_SPACE:
 		err = DB_MUST_GET_MORE_FILE_SPACE;
-
+		trx->error_state = err;
 		row_mysql_handle_errors(&err, trx, NULL, NULL);
 
 		/* raise error */
@@ -4432,7 +4475,7 @@ funct_exit:
 
 	srv_wake_master_thread();
 
-	return(err);
+	DBUG_RETURN(err);
 }
 
 /*********************************************************************//**

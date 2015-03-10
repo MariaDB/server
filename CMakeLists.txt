@@ -28,10 +28,12 @@ ENDIF()
 
 # We use the LOCATION target property (CMP0026)
 # and get_target_property() for non-existent targets (CMP0045)
+# and INSTALL_NAME_DIR (CMP0042)
 IF(CMAKE_VERSION VERSION_EQUAL "3.0.0" OR
    CMAKE_VERSION VERSION_GREATER "3.0.0")
  CMAKE_POLICY(SET CMP0026 OLD)
  CMAKE_POLICY(SET CMP0045 OLD)
+ CMAKE_POLICY(SET CMP0042 OLD)
 ENDIF()
 
 MESSAGE(STATUS "Running cmake version ${CMAKE_VERSION}")
@@ -112,34 +114,13 @@ FOREACH(_base
 ENDFOREACH()
 
 
-
 # Following autotools tradition, add preprocessor definitions
 # specified in environment variable CPPFLAGS
 IF(DEFINED ENV{CPPFLAGS})
   ADD_DEFINITIONS($ENV{CPPFLAGS})
 ENDIF()
 
-#
-# Control aspects of the development environment which are
-# specific to MySQL maintainers and developers.
-#
-INCLUDE(maintainer)
-
-SET(MYSQL_MAINTAINER_MODE "OFF" CACHE STRING "MySQL maintainer-specific development environment. Options are: ON OFF AUTO.")
-
-# Whether the maintainer mode compiler options should be enabled.
-IF(CMAKE_C_COMPILER_ID MATCHES "GNU")
-  SET_MYSQL_MAINTAINER_GNU_C_OPTIONS()
-ENDIF()
-IF(CMAKE_CXX_COMPILER_ID MATCHES "GNU")
-  SET_MYSQL_MAINTAINER_GNU_CXX_OPTIONS()
-ENDIF()
-IF(CMAKE_C_COMPILER_ID MATCHES "Intel")
-  SET_MYSQL_MAINTAINER_INTEL_C_OPTIONS()
-ENDIF()
-IF(CMAKE_CXX_COMPILER_ID MATCHES "Intel")
-  SET_MYSQL_MAINTAINER_INTEL_CXX_OPTIONS()
-ENDIF()
+SET(MYSQL_MAINTAINER_MODE "AUTO" CACHE STRING "MySQL maintainer-specific development environment. Options are: ON OFF AUTO.")
 
 # Packaging
 IF (NOT CPACK_GENERATOR)
@@ -157,6 +138,7 @@ INCLUDE(cpack_rpm)
 INCLUDE(cpack_deb)
 
 # Add macros
+INCLUDE(wsrep)
 INCLUDE(character_sets)
 INCLUDE(cpu_info)
 INCLUDE(zlib)
@@ -170,7 +152,6 @@ INCLUDE(ctest)
 INCLUDE(plugin)
 INCLUDE(install_macros)
 INCLUDE(mysql_add_executable)
-INCLUDE(wsrep)
 
 # Handle options
 OPTION(DISABLE_SHARED 
@@ -255,6 +236,7 @@ MARK_AS_ADVANCED(WITH_FAST_MUTEXES)
 
 OPTION(WITH_INNODB_DISALLOW_WRITES "InnoDB freeze writes patch from Google" ${WITH_WSREP})
 IF (WITH_INNODB_DISALLOW_WRITES)
+  MESSAGE(STATUS "INNODB_DISALLOW_WRITES")
   SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DWITH_INNODB_DISALLOW_WRITES")
   SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DWITH_INNODB_DISALLOW_WRITES")
 ENDIF()
@@ -353,6 +335,11 @@ CHECK_JEMALLOC()
 
 CHECK_PCRE()
 
+IF(CMAKE_CROSSCOMPILING)
+  SET(IMPORT_EXECUTABLES "IMPORTFILE-NOTFOUND" CACHE FILEPATH "Path to import_executables.cmake from a native build")
+  INCLUDE(${IMPORT_EXECUTABLES})
+ENDIF()
+
 #
 # Setup maintainer mode options. Platform checks are
 # not run with the warning options as to not perturb fragile checks
@@ -360,18 +347,7 @@ CHECK_PCRE()
 # We have to add MAINTAINER_C_WARNINGS first to ensure that the flags
 # given by the invoking user are honored
 #
-IF(MYSQL_MAINTAINER_MODE MATCHES "ON")
-  SET(CMAKE_C_FLAGS "${MY_MAINTAINER_C_WARNINGS} ${CMAKE_C_FLAGS}")
-  SET(CMAKE_CXX_FLAGS "${MY_MAINTAINER_CXX_WARNINGS} ${CMAKE_CXX_FLAGS}")
-ELSEIF(MYSQL_MAINTAINER_MODE MATCHES "AUTO")
-  SET(CMAKE_C_FLAGS_DEBUG "${MY_MAINTAINER_C_WARNINGS} ${CMAKE_C_FLAGS_DEBUG}")
-  SET(CMAKE_CXX_FLAGS_DEBUG "${MY_MAINTAINER_CXX_WARNINGS} ${CMAKE_CXX_FLAGS_DEBUG}")
-ENDIF()
-
-IF(CMAKE_CROSSCOMPILING)
-  SET(IMPORT_EXECUTABLES "IMPORTFILE-NOTFOUND" CACHE FILEPATH "Path to import_executables.cmake from a native build")
-  INCLUDE(${IMPORT_EXECUTABLES})
-ENDIF()
+INCLUDE(maintainer)
 
 IF(WITH_UNIT_TESTS)
  ENABLE_TESTING()
@@ -456,7 +432,8 @@ CONFIGURE_FILE(${CMAKE_SOURCE_DIR}/include/mysql_version.h.in
 CONFIGURE_FILE(${CMAKE_SOURCE_DIR}/sql/sql_builtin.cc.in
     ${CMAKE_BINARY_DIR}/sql/sql_builtin.cc)
 CONFIGURE_FILE(
-    ${CMAKE_SOURCE_DIR}/cmake/info_macros.cmake.in ${CMAKE_BINARY_DIR}/info_macros.cmake @ONLY)
+    ${CMAKE_SOURCE_DIR}/cmake/info_macros.cmake.in
+    ${CMAKE_BINARY_DIR}/info_macros.cmake @ONLY)
 
 IF(DEB)
   CONFIGURE_FILE(
@@ -468,7 +445,7 @@ ENDIF(DEB)
 INCLUDE(${CMAKE_BINARY_DIR}/info_macros.cmake)
 # Source: This can be done during the cmake phase, all information is
 # available, but should be repeated on each "make" just in case someone
-# does "cmake ; make ; bzr pull ; make".
+# does "cmake ; make ; git pull ; make".
 CREATE_INFO_SRC(${CMAKE_BINARY_DIR}/Docs)
 ADD_CUSTOM_TARGET(INFO_SRC ALL
   COMMAND ${CMAKE_COMMAND} -P ${CMAKE_SOURCE_DIR}/cmake/info_src.cmake
@@ -497,4 +474,3 @@ IF(NON_DISTRIBUTABLE_WARNING)
   MESSAGE(WARNING "
 You have linked MariaDB with GPLv3 libraries!  You may not distribute the resulting binary. If you do, you will put yourself into a legal problem with Free Software Foundation.")
 ENDIF()
-

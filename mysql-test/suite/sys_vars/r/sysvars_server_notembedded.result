@@ -11,14 +11,14 @@ variable_name not in (
 'have_openssl',
 'have_symlink',
 'hostname',
-'large_files_support',
+'large_files_support', 'log_tc_size',
 'lower_case_file_system',
 'lower_case_table_names',
 'open_files_limit',
 'system_time_zone',
 'version_comment',
 'version_compile_machine', 'version_compile_os',
-'version_malloc_library', 'version'
+'version_malloc_library', 'version_ssl_library', 'version'
         )
 order by variable_name;
 VARIABLE_NAME	AUTOCOMMIT
@@ -693,6 +693,34 @@ NUMERIC_BLOCK_SIZE	1
 ENUM_VALUE_LIST	NULL
 READ_ONLY	NO
 COMMAND_LINE_ARGUMENT	REQUIRED
+VARIABLE_NAME	ENCRYPTION_ALGORITHM
+SESSION_VALUE	NULL
+GLOBAL_VALUE	none
+GLOBAL_VALUE_ORIGIN	COMPILE-TIME
+DEFAULT_VALUE	none
+VARIABLE_SCOPE	GLOBAL
+VARIABLE_TYPE	ENUM
+VARIABLE_COMMENT	Which encryption algorithm to use for table encryption. aes_cbc is the recommended one.
+NUMERIC_MIN_VALUE	NULL
+NUMERIC_MAX_VALUE	NULL
+NUMERIC_BLOCK_SIZE	NULL
+ENUM_VALUE_LIST	none,aes_ecb,aes_cbc,aes_ctr
+READ_ONLY	YES
+COMMAND_LINE_ARGUMENT	REQUIRED
+VARIABLE_NAME	ENCRYPT_TMP_DISK_TABLES
+SESSION_VALUE	NULL
+GLOBAL_VALUE	OFF
+GLOBAL_VALUE_ORIGIN	COMPILE-TIME
+DEFAULT_VALUE	OFF
+VARIABLE_SCOPE	GLOBAL
+VARIABLE_TYPE	BOOLEAN
+VARIABLE_COMMENT	Encrypt tmp disk tables (created as part of query execution)
+NUMERIC_MIN_VALUE	NULL
+NUMERIC_MAX_VALUE	NULL
+NUMERIC_BLOCK_SIZE	NULL
+ENUM_VALUE_LIST	OFF,ON
+READ_ONLY	NO
+COMMAND_LINE_ARGUMENT	OPTIONAL
 VARIABLE_NAME	ERROR_COUNT
 SESSION_VALUE	0
 GLOBAL_VALUE	NULL
@@ -2128,7 +2156,7 @@ GLOBAL_VALUE_ORIGIN	COMPILE-TIME
 DEFAULT_VALUE	1024
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BIGINT UNSIGNED
-VARIABLE_COMMENT	Size of unused metadata locks cache
+VARIABLE_COMMENT	Unused
 NUMERIC_MIN_VALUE	1
 NUMERIC_MAX_VALUE	1048576
 NUMERIC_BLOCK_SIZE	1
@@ -2142,7 +2170,7 @@ GLOBAL_VALUE_ORIGIN	COMPILE-TIME
 DEFAULT_VALUE	8
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BIGINT UNSIGNED
-VARIABLE_COMMENT	Number of metadata locks hash instances
+VARIABLE_COMMENT	Unused
 NUMERIC_MIN_VALUE	1
 NUMERIC_MAX_VALUE	1024
 NUMERIC_BLOCK_SIZE	1
@@ -3395,20 +3423,6 @@ NUMERIC_BLOCK_SIZE	1
 ENUM_VALUE_LIST	NULL
 READ_ONLY	YES
 COMMAND_LINE_ARGUMENT	REQUIRED
-VARIABLE_NAME	REPLICATE_ALLOW_PARALLEL
-SESSION_VALUE	ON
-GLOBAL_VALUE	NULL
-GLOBAL_VALUE_ORIGIN	COMPILE-TIME
-DEFAULT_VALUE	ON
-VARIABLE_SCOPE	SESSION ONLY
-VARIABLE_TYPE	BOOLEAN
-VARIABLE_COMMENT	If set when a transaction is written to the binlog, that transaction is allowed to replicate in parallel on a slave where slave_parallel_mode is set to "transactional". Can be cleared for transactions that are likely to cause a conflict if replicated in parallel, to avoid unnecessary rollback and retry.
-NUMERIC_MIN_VALUE	NULL
-NUMERIC_MAX_VALUE	NULL
-NUMERIC_BLOCK_SIZE	NULL
-ENUM_VALUE_LIST	OFF,ON
-READ_ONLY	NO
-COMMAND_LINE_ARGUMENT	NULL
 VARIABLE_NAME	REPLICATE_ANNOTATE_ROW_EVENTS
 SESSION_VALUE	NULL
 GLOBAL_VALUE	OFF
@@ -3675,6 +3689,20 @@ NUMERIC_BLOCK_SIZE	NULL
 ENUM_VALUE_LIST	OFF,ON
 READ_ONLY	YES
 COMMAND_LINE_ARGUMENT	OPTIONAL
+VARIABLE_NAME	SKIP_PARALLEL_REPLICATION
+SESSION_VALUE	OFF
+GLOBAL_VALUE	NULL
+GLOBAL_VALUE_ORIGIN	COMPILE-TIME
+DEFAULT_VALUE	OFF
+VARIABLE_SCOPE	SESSION ONLY
+VARIABLE_TYPE	BOOLEAN
+VARIABLE_COMMENT	If set when a transaction is written to the binlog, parallel apply of that transaction will be avoided on a slave where slave_parallel_mode is not "aggressive". Can be used to avoid unnecessary rollback and retry for transactions that are likely to cause a conflict if replicated in parallel.
+NUMERIC_MIN_VALUE	NULL
+NUMERIC_MAX_VALUE	NULL
+NUMERIC_BLOCK_SIZE	NULL
+ENUM_VALUE_LIST	OFF,ON
+READ_ONLY	NO
+COMMAND_LINE_ARGUMENT	NULL
 VARIABLE_NAME	SKIP_REPLICATION
 SESSION_VALUE	OFF
 GLOBAL_VALUE	NULL
@@ -3817,16 +3845,16 @@ READ_ONLY	NO
 COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	SLAVE_PARALLEL_MODE
 SESSION_VALUE	NULL
-GLOBAL_VALUE	domain,follow_master_commit
+GLOBAL_VALUE	conservative
 GLOBAL_VALUE_ORIGIN	COMPILE-TIME
-DEFAULT_VALUE	domain,follow_master_commit
+DEFAULT_VALUE	conservative
 VARIABLE_SCOPE	GLOBAL
-VARIABLE_TYPE	SET
-VARIABLE_COMMENT	Controls what transactions are applied in parallel when using --slave-parallel-threads. Syntax: slave_parallel_mode=value[,value...], where "value" could be one or more of: "domain", to apply different replication domains in parallel; "follow_master_commit", to apply in parallel transactions that group-committed together on the master; "transactional", to optimistically try to apply all transactional DML in parallel; and "waiting" to extend "transactional" to even transactions that had to wait on the master.
+VARIABLE_TYPE	ENUM
+VARIABLE_COMMENT	Controls what transactions are applied in parallel when using --slave-parallel-threads. Possible values: "optimistic" tries to apply most transactional DML in parallel, and handles any conflicts with rollback and retry. "conservative" limits parallelism in an effort to avoid any conflicts. "aggressive" tries to maximise the parallelism, possibly at the cost of increased conflict rate. "minimal" only parallelizes the commit steps of transactions. "none" disables parallel apply completely.
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
-ENUM_VALUE_LIST	domain,follow_master_commit,transactional,waiting
+ENUM_VALUE_LIST	none,minimal,conservative,optimistic,aggressive
 READ_ONLY	NO
 COMMAND_LINE_ARGUMENT	NULL
 VARIABLE_NAME	SLAVE_PARALLEL_THREADS
@@ -4032,7 +4060,7 @@ GLOBAL_VALUE_ORIGIN	COMPILE-TIME
 DEFAULT_VALUE	ON
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	BOOLEAN
-VARIABLE_COMMENT	sql_log_bin
+VARIABLE_COMMENT	Controls whether logging to the binary log is done
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -4271,7 +4299,7 @@ DEFAULT_VALUE	256
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BIGINT UNSIGNED
 VARIABLE_COMMENT	The soft upper limit for number of cached stored routines for one connection.
-NUMERIC_MIN_VALUE	256
+NUMERIC_MIN_VALUE	0
 NUMERIC_MAX_VALUE	524288
 NUMERIC_BLOCK_SIZE	1
 ENUM_VALUE_LIST	NULL
@@ -4447,9 +4475,9 @@ READ_ONLY	NO
 COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	THREAD_POOL_MAX_THREADS
 SESSION_VALUE	NULL
-GLOBAL_VALUE	500
+GLOBAL_VALUE	1000
 GLOBAL_VALUE_ORIGIN	COMPILE-TIME
-DEFAULT_VALUE	500
+DEFAULT_VALUE	1000
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	INT UNSIGNED
 VARIABLE_COMMENT	Maximum allowed number of worker threads in the thread pool
@@ -4754,7 +4782,7 @@ where variable_name in (
 'system_time_zone',
 'version_comment',
 'version_compile_machine', 'version_compile_os',
-'version_malloc_library', 'version'
+'version_malloc_library', 'version_ssl_library', 'version'
         )
 order by variable_name;
 VARIABLE_NAME	HAVE_OPENSSL
@@ -4887,4 +4915,29 @@ NUMERIC_BLOCK_SIZE	NULL
 ENUM_VALUE_LIST	NULL
 READ_ONLY	YES
 COMMAND_LINE_ARGUMENT	NULL
+VARIABLE_NAME	VERSION_SSL_LIBRARY
+VARIABLE_SCOPE	GLOBAL
+VARIABLE_TYPE	VARCHAR
+VARIABLE_COMMENT	Version of the used SSL library
+NUMERIC_MIN_VALUE	NULL
+NUMERIC_MAX_VALUE	NULL
+NUMERIC_BLOCK_SIZE	NULL
+ENUM_VALUE_LIST	NULL
+READ_ONLY	YES
+COMMAND_LINE_ARGUMENT	NULL
+select VARIABLE_NAME, GLOBAL_VALUE_ORIGIN, VARIABLE_SCOPE, VARIABLE_TYPE,
+VARIABLE_COMMENT, ENUM_VALUE_LIST, READ_ONLY, COMMAND_LINE_ARGUMENT
+from information_schema.system_variables
+where variable_name in (
+'log_tc_size'
+        )
+order by variable_name;
+VARIABLE_NAME	LOG_TC_SIZE
+GLOBAL_VALUE_ORIGIN	AUTO
+VARIABLE_SCOPE	GLOBAL
+VARIABLE_TYPE	BIGINT UNSIGNED
+VARIABLE_COMMENT	Size of transaction coordinator log.
+ENUM_VALUE_LIST	NULL
+READ_ONLY	YES
+COMMAND_LINE_ARGUMENT	REQUIRED
 set global div_precision_increment=default;

@@ -105,6 +105,7 @@
 #include "sp_rcontext.h"
 #include "sp_cache.h"
 #include "sql_reload.h"  // reload_acl_and_cache
+#include <my_aes.h>
 
 #ifdef HAVE_POLL_H
 #include <poll.h>
@@ -507,11 +508,6 @@ ulonglong query_cache_size=0;
 ulong query_cache_limit=0;
 ulong executed_events=0;
 query_id_t global_query_id;
-my_atomic_rwlock_t global_query_id_lock;
-my_atomic_rwlock_t thread_running_lock;
-my_atomic_rwlock_t thread_count_lock;
-my_atomic_rwlock_t statistics_lock;
-my_atomic_rwlock_t slave_executed_entries_lock;
 ulong aborted_threads, aborted_connects;
 ulong delayed_insert_timeout, delayed_insert_limit, delayed_queue_size;
 ulong delayed_insert_threads, delayed_insert_writes, delayed_rows_in_use;
@@ -531,10 +527,6 @@ my_decimal decimal_zero;
   mysql_send_long_data() call.
 */
 ulong max_long_data_size;
-
-/* Limits for internal temporary tables (MyISAM or Aria) */
-uint internal_tmp_table_max_key_length;
-uint internal_tmp_table_max_key_segments;
 
 bool max_user_connections_checking=0;
 /**
@@ -567,8 +559,7 @@ ulong stored_program_cache_size= 0;
 
 ulong opt_slave_parallel_threads= 0;
 ulong opt_slave_domain_parallel_threads= 0;
-ulonglong opt_slave_parallel_mode=
-  SLAVE_PARALLEL_DOMAIN | SLAVE_PARALLEL_FOLLOW_MASTER_COMMIT;
+ulong opt_slave_parallel_mode= SLAVE_PARALLEL_CONSERVATIVE;
 ulong opt_binlog_commit_wait_count= 0;
 ulong opt_binlog_commit_wait_usec= 0;
 ulong opt_slave_parallel_max_queued= 131072;
@@ -632,6 +623,9 @@ const char *mysql_real_data_home_ptr= mysql_real_data_home;
 char server_version[SERVER_VERSION_LENGTH];
 char *mysqld_unix_port, *opt_mysql_tmpdir;
 ulong thread_handling;
+
+my_bool encrypt_tmp_disk_tables;
+ulong   encryption_algorithm;
 
 /** name of reference on left expression in rewritten IN subquery */
 const char *in_left_expr_name= "<left expr>";
@@ -845,8 +839,12 @@ static struct my_option pfs_early_options[]=
     "Default startup value for the statements_digest consumer.",
     &pfs_param.m_consumer_statement_digest_enabled,
     &pfs_param.m_consumer_statement_digest_enabled, 0,
-    GET_BOOL, OPT_ARG, TRUE, 0, 0, 0, 0, 0}
+    GET_BOOL, OPT_ARG, TRUE, 0, 0, 0, 0, 0},
 #endif /* WITH_PERFSCHEMA_STORAGE_ENGINE */
+  {"getopt-prefix-matching", 0,
+    "Recognize command-line options by their unambiguos prefixes.",
+    &my_getopt_prefix_matching, &my_getopt_prefix_matching, 0, GET_BOOL,
+    NO_ARG, 1, 0, 1, 0, 0, 0}
 };
 
 #ifdef HAVE_PSI_INTERFACE
@@ -861,6 +859,7 @@ PSI_mutex_key key_LOCK_des_key_file;
 
 PSI_mutex_key key_BINLOG_LOCK_index, key_BINLOG_LOCK_xid_list,
   key_BINLOG_LOCK_binlog_background_thread,
+  m_key_LOCK_binlog_end_pos,
   key_delayed_insert_mutex, key_hash_filo_lock, key_LOCK_active_mi,
   key_LOCK_connection_count, key_LOCK_crypt, key_LOCK_delayed_create,
   key_LOCK_delayed_insert, key_LOCK_delayed_status, key_LOCK_error_log,
@@ -890,6 +889,7 @@ PSI_mutex_key key_LOCK_stats,
   key_LOCK_wakeup_ready, key_LOCK_wait_commit;
 PSI_mutex_key key_LOCK_gtid_waiting;
 
+PSI_mutex_key key_LOCK_after_binlog_sync;
 PSI_mutex_key key_LOCK_prepare_ordered, key_LOCK_commit_ordered,
   key_LOCK_slave_init;
 PSI_mutex_key key_TABLE_SHARE_LOCK_share;
@@ -911,6 +911,7 @@ static PSI_mutex_info all_server_mutexes[]=
   { &key_BINLOG_LOCK_index, "MYSQL_BIN_LOG::LOCK_index", 0},
   { &key_BINLOG_LOCK_xid_list, "MYSQL_BIN_LOG::LOCK_xid_list", 0},
   { &key_BINLOG_LOCK_binlog_background_thread, "MYSQL_BIN_LOG::LOCK_binlog_background_thread", 0},
+  { &m_key_LOCK_binlog_end_pos, "MYSQL_BIN_LOG::LOCK_binlog_end_pos", 0 },
   { &key_RELAYLOG_LOCK_index, "MYSQL_RELAY_LOG::LOCK_index", 0},
   { &key_delayed_insert_mutex, "Delayed_insert::mutex", 0},
   { &key_hash_filo_lock, "hash_filo::lock", 0},
@@ -954,6 +955,7 @@ static PSI_mutex_info all_server_mutexes[]=
   { &key_TABLE_SHARE_LOCK_share, "TABLE_SHARE::LOCK_share", 0},
   { &key_LOCK_error_messages, "LOCK_error_messages", PSI_FLAG_GLOBAL},
   { &key_LOCK_prepare_ordered, "LOCK_prepare_ordered", PSI_FLAG_GLOBAL},
+  { &key_LOCK_after_binlog_sync, "LOCK_after_binlog_sync", PSI_FLAG_GLOBAL},
   { &key_LOCK_commit_ordered, "LOCK_commit_ordered", PSI_FLAG_GLOBAL},
   { &key_LOCK_slave_init, "LOCK_slave_init", PSI_FLAG_GLOBAL},
   { &key_LOG_INFO_lock, "LOG_INFO::lock", 0},
@@ -1414,7 +1416,7 @@ my_bool plugins_are_initialized= FALSE;
 #ifndef DBUG_OFF
 static const char* default_dbug_option;
 #endif
-static const char *current_dbug_option="disabled";
+const char *current_dbug_option="";
 #ifdef HAVE_LIBWRAP
 const char *libwrapName= NULL;
 int allow_severity = LOG_INFO;
@@ -2121,7 +2123,6 @@ void clean_up(bool print_message)
   free_all_rpl_filters();
 #ifdef HAVE_REPLICATION
   end_slave_list();
-  mi_cmdline_destroy();
 #endif
   my_uuid_end();
   delete binlog_filter;
@@ -2148,11 +2149,6 @@ void clean_up(bool print_message)
   /* Tell main we are ready */
   logger.cleanup_end();
   sys_var_end();
-  my_atomic_rwlock_destroy(&global_query_id_lock);
-  my_atomic_rwlock_destroy(&thread_running_lock);
-  my_atomic_rwlock_destroy(&thread_count_lock);
-  my_atomic_rwlock_destroy(&statistics_lock); 
-  my_atomic_rwlock_destroy(&slave_executed_entries_lock);
   free_charsets();
   mysql_mutex_lock(&LOCK_thread_count);
   DBUG_PRINT("quit", ("got thread count lock"));
@@ -2243,6 +2239,7 @@ static void clean_up_mutexes()
   mysql_cond_destroy(&COND_server_started);
   mysql_mutex_destroy(&LOCK_prepare_ordered);
   mysql_cond_destroy(&COND_prepare_ordered);
+  mysql_mutex_destroy(&LOCK_after_binlog_sync);
   mysql_mutex_destroy(&LOCK_commit_ordered);
   mysql_mutex_destroy(&LOCK_slave_init);
   mysql_cond_destroy(&COND_slave_init);
@@ -2824,7 +2821,7 @@ void delete_running_thd(THD *thd)
 
   delete thd;
   dec_thread_running();
-  thread_safe_decrement32(&thread_count, &thread_count_lock);
+  thread_safe_decrement32(&thread_count);
   if (!thread_count)
   {
     mysql_mutex_lock(&LOCK_thread_count);
@@ -2866,7 +2863,7 @@ void unlink_thd(THD *thd)
   mysql_mutex_unlock(&LOCK_thread_count);
 
   delete thd;
-  thread_safe_decrement32(&thread_count, &thread_count_lock);
+  thread_safe_decrement32(&thread_count);
 
   DBUG_VOID_RETURN;
 }
@@ -2979,8 +2976,6 @@ bool one_thread_per_connection_end(THD *thd, bool put_in_cache)
   const bool wsrep_applier= IF_WSREP(thd->wsrep_applier, false);
 
   unlink_thd(thd);
-  /* Mark that current_thd is not valid anymore */
-  set_current_thd(0);
 
   if (put_in_cache && cache_thread() && !wsrep_applier)
     DBUG_RETURN(0);                             // Thread is reused
@@ -3717,163 +3712,166 @@ static bool init_global_datetime_format(timestamp_type format_type,
   return false;
 }
 
+#define COM_STATUS(X)  (void*) offsetof(STATUS_VAR, X), SHOW_LONG_STATUS
+#define STMT_STATUS(X) COM_STATUS(com_stat[(uint) X])
+
 SHOW_VAR com_status_vars[]= {
-  {"admin_commands",       (char*) offsetof(STATUS_VAR, com_other), SHOW_LONG_STATUS},
-  {"alter_db",             (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_ALTER_DB]), SHOW_LONG_STATUS},
-  {"alter_db_upgrade",     (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_ALTER_DB_UPGRADE]), SHOW_LONG_STATUS},
-  {"alter_event",          (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_ALTER_EVENT]), SHOW_LONG_STATUS},
-  {"alter_function",       (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_ALTER_FUNCTION]), SHOW_LONG_STATUS},
-  {"alter_procedure",      (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_ALTER_PROCEDURE]), SHOW_LONG_STATUS},
-  {"alter_server",         (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_ALTER_SERVER]), SHOW_LONG_STATUS},
-  {"alter_table",          (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_ALTER_TABLE]), SHOW_LONG_STATUS},
-  {"alter_tablespace",     (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_ALTER_TABLESPACE]), SHOW_LONG_STATUS},
-  {"analyze",              (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_ANALYZE]), SHOW_LONG_STATUS},
-  {"assign_to_keycache",   (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_ASSIGN_TO_KEYCACHE]), SHOW_LONG_STATUS},
-  {"begin",                (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_BEGIN]), SHOW_LONG_STATUS},
-  {"binlog",               (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_BINLOG_BASE64_EVENT]), SHOW_LONG_STATUS},
-  {"call_procedure",       (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_CALL]), SHOW_LONG_STATUS},
-  {"change_db",            (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_CHANGE_DB]), SHOW_LONG_STATUS},
-  {"change_master",        (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_CHANGE_MASTER]), SHOW_LONG_STATUS},
-  {"check",                (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_CHECK]), SHOW_LONG_STATUS},
-  {"checksum",             (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_CHECKSUM]), SHOW_LONG_STATUS},
-  {"commit",               (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_COMMIT]), SHOW_LONG_STATUS},
-  {"compound_sql",         (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_COMPOUND]), SHOW_LONG_STATUS},
-  {"create_db",            (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_CREATE_DB]), SHOW_LONG_STATUS},
-  {"create_event",         (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_CREATE_EVENT]), SHOW_LONG_STATUS},
-  {"create_function",      (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_CREATE_SPFUNCTION]), SHOW_LONG_STATUS},
-  {"create_index",         (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_CREATE_INDEX]), SHOW_LONG_STATUS},
-  {"create_procedure",     (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_CREATE_PROCEDURE]), SHOW_LONG_STATUS},
-  {"create_role",          (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_CREATE_ROLE]), SHOW_LONG_STATUS},
-  {"create_server",        (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_CREATE_SERVER]), SHOW_LONG_STATUS},
-  {"create_table",         (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_CREATE_TABLE]), SHOW_LONG_STATUS},
-  {"create_trigger",       (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_CREATE_TRIGGER]), SHOW_LONG_STATUS},
-  {"create_udf",           (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_CREATE_FUNCTION]), SHOW_LONG_STATUS},
-  {"create_user",          (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_CREATE_USER]), SHOW_LONG_STATUS},
-  {"create_view",          (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_CREATE_VIEW]), SHOW_LONG_STATUS},
-  {"dealloc_sql",          (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_DEALLOCATE_PREPARE]), SHOW_LONG_STATUS},
-  {"delete",               (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_DELETE]), SHOW_LONG_STATUS},
-  {"delete_multi",         (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_DELETE_MULTI]), SHOW_LONG_STATUS},
-  {"do",                   (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_DO]), SHOW_LONG_STATUS},
-  {"drop_db",              (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_DROP_DB]), SHOW_LONG_STATUS},
-  {"drop_event",           (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_DROP_EVENT]), SHOW_LONG_STATUS},
-  {"drop_function",        (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_DROP_FUNCTION]), SHOW_LONG_STATUS},
-  {"drop_index",           (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_DROP_INDEX]), SHOW_LONG_STATUS},
-  {"drop_procedure",       (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_DROP_PROCEDURE]), SHOW_LONG_STATUS},
-  {"drop_role",            (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_DROP_ROLE]), SHOW_LONG_STATUS},
-  {"drop_server",          (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_DROP_SERVER]), SHOW_LONG_STATUS},
-  {"drop_table",           (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_DROP_TABLE]), SHOW_LONG_STATUS},
-  {"drop_trigger",         (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_DROP_TRIGGER]), SHOW_LONG_STATUS},
-  {"drop_user",            (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_DROP_USER]), SHOW_LONG_STATUS},
-  {"drop_view",            (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_DROP_VIEW]), SHOW_LONG_STATUS},
-  {"empty_query",          (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_EMPTY_QUERY]), SHOW_LONG_STATUS},
-  {"execute_sql",          (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_EXECUTE]), SHOW_LONG_STATUS},
-  {"flush",                (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_FLUSH]), SHOW_LONG_STATUS},
-  {"get_diagnostics",      (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_GET_DIAGNOSTICS]), SHOW_LONG_STATUS},
-  {"grant",                (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_GRANT]), SHOW_LONG_STATUS},
-  {"grant_role",           (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_GRANT_ROLE]), SHOW_LONG_STATUS},
-  {"ha_close",             (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_HA_CLOSE]), SHOW_LONG_STATUS},
-  {"ha_open",              (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_HA_OPEN]), SHOW_LONG_STATUS},
-  {"ha_read",              (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_HA_READ]), SHOW_LONG_STATUS},
-  {"help",                 (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_HELP]), SHOW_LONG_STATUS},
-  {"insert",               (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_INSERT]), SHOW_LONG_STATUS},
-  {"insert_select",        (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_INSERT_SELECT]), SHOW_LONG_STATUS},
-  {"install_plugin",       (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_INSTALL_PLUGIN]), SHOW_LONG_STATUS},
-  {"kill",                 (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_KILL]), SHOW_LONG_STATUS},
-  {"load",                 (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_LOAD]), SHOW_LONG_STATUS},
-  {"lock_tables",          (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_LOCK_TABLES]), SHOW_LONG_STATUS},
-  {"optimize",             (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_OPTIMIZE]), SHOW_LONG_STATUS},
-  {"preload_keys",         (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_PRELOAD_KEYS]), SHOW_LONG_STATUS},
-  {"prepare_sql",          (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_PREPARE]), SHOW_LONG_STATUS},
-  {"purge",                (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_PURGE]), SHOW_LONG_STATUS},
-  {"purge_before_date",    (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_PURGE_BEFORE]), SHOW_LONG_STATUS},
-  {"release_savepoint",    (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_RELEASE_SAVEPOINT]), SHOW_LONG_STATUS},
-  {"rename_table",         (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_RENAME_TABLE]), SHOW_LONG_STATUS},
-  {"rename_user",          (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_RENAME_USER]), SHOW_LONG_STATUS},
-  {"repair",               (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_REPAIR]), SHOW_LONG_STATUS},
-  {"replace",              (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_REPLACE]), SHOW_LONG_STATUS},
-  {"replace_select",       (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_REPLACE_SELECT]), SHOW_LONG_STATUS},
-  {"reset",                (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_RESET]), SHOW_LONG_STATUS},
-  {"resignal",             (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_RESIGNAL]), SHOW_LONG_STATUS},
-  {"revoke",               (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_REVOKE]), SHOW_LONG_STATUS},
-  {"revoke_all",           (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_REVOKE_ALL]), SHOW_LONG_STATUS},
-  {"revoke_role",          (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_REVOKE_ROLE]), SHOW_LONG_STATUS},
-  {"rollback",             (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_ROLLBACK]), SHOW_LONG_STATUS},
-  {"rollback_to_savepoint",(char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_ROLLBACK_TO_SAVEPOINT]), SHOW_LONG_STATUS},
-  {"savepoint",            (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_SAVEPOINT]), SHOW_LONG_STATUS},
-  {"select",               (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_SELECT]), SHOW_LONG_STATUS},
-  {"set_option",           (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_SET_OPTION]), SHOW_LONG_STATUS},
-  {"show_authors",         (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_SHOW_AUTHORS]), SHOW_LONG_STATUS},
-  {"show_binlog_events",   (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_SHOW_BINLOG_EVENTS]), SHOW_LONG_STATUS},
-  {"show_binlogs",         (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_SHOW_BINLOGS]), SHOW_LONG_STATUS},
-  {"show_charsets",        (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_SHOW_CHARSETS]), SHOW_LONG_STATUS},
-  {"show_collations",      (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_SHOW_COLLATIONS]), SHOW_LONG_STATUS},
-  {"show_contributors",    (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_SHOW_CONTRIBUTORS]), SHOW_LONG_STATUS},
-  {"show_create_db",       (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_SHOW_CREATE_DB]), SHOW_LONG_STATUS},
-  {"show_create_event",    (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_SHOW_CREATE_EVENT]), SHOW_LONG_STATUS},
-  {"show_create_func",     (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_SHOW_CREATE_FUNC]), SHOW_LONG_STATUS},
-  {"show_create_proc",     (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_SHOW_CREATE_PROC]), SHOW_LONG_STATUS},
-  {"show_create_table",    (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_SHOW_CREATE]), SHOW_LONG_STATUS},
-  {"show_create_trigger",  (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_SHOW_CREATE_TRIGGER]), SHOW_LONG_STATUS},
-  {"show_databases",       (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_SHOW_DATABASES]), SHOW_LONG_STATUS},
-  {"show_engine_logs",     (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_SHOW_ENGINE_LOGS]), SHOW_LONG_STATUS},
-  {"show_engine_mutex",    (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_SHOW_ENGINE_MUTEX]), SHOW_LONG_STATUS},
-  {"show_engine_status",   (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_SHOW_ENGINE_STATUS]), SHOW_LONG_STATUS},
-  {"show_errors",          (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_SHOW_ERRORS]), SHOW_LONG_STATUS},
-  {"show_events",          (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_SHOW_EVENTS]), SHOW_LONG_STATUS},
-  {"show_explain",         (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_SHOW_EXPLAIN]), SHOW_LONG_STATUS},
-  {"show_fields",          (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_SHOW_FIELDS]), SHOW_LONG_STATUS},
+  {"admin_commands",       COM_STATUS(com_other)},
+  {"alter_db",             STMT_STATUS(SQLCOM_ALTER_DB)},
+  {"alter_db_upgrade",     STMT_STATUS(SQLCOM_ALTER_DB_UPGRADE)},
+  {"alter_event",          STMT_STATUS(SQLCOM_ALTER_EVENT)},
+  {"alter_function",       STMT_STATUS(SQLCOM_ALTER_FUNCTION)},
+  {"alter_procedure",      STMT_STATUS(SQLCOM_ALTER_PROCEDURE)},
+  {"alter_server",         STMT_STATUS(SQLCOM_ALTER_SERVER)},
+  {"alter_table",          STMT_STATUS(SQLCOM_ALTER_TABLE)},
+  {"alter_tablespace",     STMT_STATUS(SQLCOM_ALTER_TABLESPACE)},
+  {"analyze",              STMT_STATUS(SQLCOM_ANALYZE)},
+  {"assign_to_keycache",   STMT_STATUS(SQLCOM_ASSIGN_TO_KEYCACHE)},
+  {"begin",                STMT_STATUS(SQLCOM_BEGIN)},
+  {"binlog",               STMT_STATUS(SQLCOM_BINLOG_BASE64_EVENT)},
+  {"call_procedure",       STMT_STATUS(SQLCOM_CALL)},
+  {"change_db",            STMT_STATUS(SQLCOM_CHANGE_DB)},
+  {"change_master",        STMT_STATUS(SQLCOM_CHANGE_MASTER)},
+  {"check",                STMT_STATUS(SQLCOM_CHECK)},
+  {"checksum",             STMT_STATUS(SQLCOM_CHECKSUM)},
+  {"commit",               STMT_STATUS(SQLCOM_COMMIT)},
+  {"compound_sql",         STMT_STATUS(SQLCOM_COMPOUND)},
+  {"create_db",            STMT_STATUS(SQLCOM_CREATE_DB)},
+  {"create_event",         STMT_STATUS(SQLCOM_CREATE_EVENT)},
+  {"create_function",      STMT_STATUS(SQLCOM_CREATE_SPFUNCTION)},
+  {"create_index",         STMT_STATUS(SQLCOM_CREATE_INDEX)},
+  {"create_procedure",     STMT_STATUS(SQLCOM_CREATE_PROCEDURE)},
+  {"create_role",          STMT_STATUS(SQLCOM_CREATE_ROLE)},
+  {"create_server",        STMT_STATUS(SQLCOM_CREATE_SERVER)},
+  {"create_table",         STMT_STATUS(SQLCOM_CREATE_TABLE)},
+  {"create_trigger",       STMT_STATUS(SQLCOM_CREATE_TRIGGER)},
+  {"create_udf",           STMT_STATUS(SQLCOM_CREATE_FUNCTION)},
+  {"create_user",          STMT_STATUS(SQLCOM_CREATE_USER)},
+  {"create_view",          STMT_STATUS(SQLCOM_CREATE_VIEW)},
+  {"dealloc_sql",          STMT_STATUS(SQLCOM_DEALLOCATE_PREPARE)},
+  {"delete",               STMT_STATUS(SQLCOM_DELETE)},
+  {"delete_multi",         STMT_STATUS(SQLCOM_DELETE_MULTI)},
+  {"do",                   STMT_STATUS(SQLCOM_DO)},
+  {"drop_db",              STMT_STATUS(SQLCOM_DROP_DB)},
+  {"drop_event",           STMT_STATUS(SQLCOM_DROP_EVENT)},
+  {"drop_function",        STMT_STATUS(SQLCOM_DROP_FUNCTION)},
+  {"drop_index",           STMT_STATUS(SQLCOM_DROP_INDEX)},
+  {"drop_procedure",       STMT_STATUS(SQLCOM_DROP_PROCEDURE)},
+  {"drop_role",            STMT_STATUS(SQLCOM_DROP_ROLE)},
+  {"drop_server",          STMT_STATUS(SQLCOM_DROP_SERVER)},
+  {"drop_table",           STMT_STATUS(SQLCOM_DROP_TABLE)},
+  {"drop_trigger",         STMT_STATUS(SQLCOM_DROP_TRIGGER)},
+  {"drop_user",            STMT_STATUS(SQLCOM_DROP_USER)},
+  {"drop_view",            STMT_STATUS(SQLCOM_DROP_VIEW)},
+  {"empty_query",          STMT_STATUS(SQLCOM_EMPTY_QUERY)},
+  {"execute_sql",          STMT_STATUS(SQLCOM_EXECUTE)},
+  {"flush",                STMT_STATUS(SQLCOM_FLUSH)},
+  {"get_diagnostics",      STMT_STATUS(SQLCOM_GET_DIAGNOSTICS)},
+  {"grant",                STMT_STATUS(SQLCOM_GRANT)},
+  {"grant_role",           STMT_STATUS(SQLCOM_GRANT_ROLE)},
+  {"ha_close",             STMT_STATUS(SQLCOM_HA_CLOSE)},
+  {"ha_open",              STMT_STATUS(SQLCOM_HA_OPEN)},
+  {"ha_read",              STMT_STATUS(SQLCOM_HA_READ)},
+  {"help",                 STMT_STATUS(SQLCOM_HELP)},
+  {"insert",               STMT_STATUS(SQLCOM_INSERT)},
+  {"insert_select",        STMT_STATUS(SQLCOM_INSERT_SELECT)},
+  {"install_plugin",       STMT_STATUS(SQLCOM_INSTALL_PLUGIN)},
+  {"kill",                 STMT_STATUS(SQLCOM_KILL)},
+  {"load",                 STMT_STATUS(SQLCOM_LOAD)},
+  {"lock_tables",          STMT_STATUS(SQLCOM_LOCK_TABLES)},
+  {"optimize",             STMT_STATUS(SQLCOM_OPTIMIZE)},
+  {"preload_keys",         STMT_STATUS(SQLCOM_PRELOAD_KEYS)},
+  {"prepare_sql",          STMT_STATUS(SQLCOM_PREPARE)},
+  {"purge",                STMT_STATUS(SQLCOM_PURGE)},
+  {"purge_before_date",    STMT_STATUS(SQLCOM_PURGE_BEFORE)},
+  {"release_savepoint",    STMT_STATUS(SQLCOM_RELEASE_SAVEPOINT)},
+  {"rename_table",         STMT_STATUS(SQLCOM_RENAME_TABLE)},
+  {"rename_user",          STMT_STATUS(SQLCOM_RENAME_USER)},
+  {"repair",               STMT_STATUS(SQLCOM_REPAIR)},
+  {"replace",              STMT_STATUS(SQLCOM_REPLACE)},
+  {"replace_select",       STMT_STATUS(SQLCOM_REPLACE_SELECT)},
+  {"reset",                STMT_STATUS(SQLCOM_RESET)},
+  {"resignal",             STMT_STATUS(SQLCOM_RESIGNAL)},
+  {"revoke",               STMT_STATUS(SQLCOM_REVOKE)},
+  {"revoke_all",           STMT_STATUS(SQLCOM_REVOKE_ALL)},
+  {"revoke_role",          STMT_STATUS(SQLCOM_REVOKE_ROLE)},
+  {"rollback",             STMT_STATUS(SQLCOM_ROLLBACK)},
+  {"rollback_to_savepoint",STMT_STATUS(SQLCOM_ROLLBACK_TO_SAVEPOINT)},
+  {"savepoint",            STMT_STATUS(SQLCOM_SAVEPOINT)},
+  {"select",               STMT_STATUS(SQLCOM_SELECT)},
+  {"set_option",           STMT_STATUS(SQLCOM_SET_OPTION)},
+  {"show_authors",         STMT_STATUS(SQLCOM_SHOW_AUTHORS)},
+  {"show_binlog_events",   STMT_STATUS(SQLCOM_SHOW_BINLOG_EVENTS)},
+  {"show_binlogs",         STMT_STATUS(SQLCOM_SHOW_BINLOGS)},
+  {"show_charsets",        STMT_STATUS(SQLCOM_SHOW_CHARSETS)},
+  {"show_collations",      STMT_STATUS(SQLCOM_SHOW_COLLATIONS)},
+  {"show_contributors",    STMT_STATUS(SQLCOM_SHOW_CONTRIBUTORS)},
+  {"show_create_db",       STMT_STATUS(SQLCOM_SHOW_CREATE_DB)},
+  {"show_create_event",    STMT_STATUS(SQLCOM_SHOW_CREATE_EVENT)},
+  {"show_create_func",     STMT_STATUS(SQLCOM_SHOW_CREATE_FUNC)},
+  {"show_create_proc",     STMT_STATUS(SQLCOM_SHOW_CREATE_PROC)},
+  {"show_create_table",    STMT_STATUS(SQLCOM_SHOW_CREATE)},
+  {"show_create_trigger",  STMT_STATUS(SQLCOM_SHOW_CREATE_TRIGGER)},
+  {"show_databases",       STMT_STATUS(SQLCOM_SHOW_DATABASES)},
+  {"show_engine_logs",     STMT_STATUS(SQLCOM_SHOW_ENGINE_LOGS)},
+  {"show_engine_mutex",    STMT_STATUS(SQLCOM_SHOW_ENGINE_MUTEX)},
+  {"show_engine_status",   STMT_STATUS(SQLCOM_SHOW_ENGINE_STATUS)},
+  {"show_errors",          STMT_STATUS(SQLCOM_SHOW_ERRORS)},
+  {"show_events",          STMT_STATUS(SQLCOM_SHOW_EVENTS)},
+  {"show_explain",         STMT_STATUS(SQLCOM_SHOW_EXPLAIN)},
+  {"show_fields",          STMT_STATUS(SQLCOM_SHOW_FIELDS)},
 #ifndef DBUG_OFF
-  {"show_function_code",   (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_SHOW_FUNC_CODE]), SHOW_LONG_STATUS},
+  {"show_function_code",   STMT_STATUS(SQLCOM_SHOW_FUNC_CODE)},
 #endif
-  {"show_function_status", (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_SHOW_STATUS_FUNC]), SHOW_LONG_STATUS},
-  {"show_generic",         (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_SHOW_GENERIC]), SHOW_LONG_STATUS},
-  {"show_grants",          (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_SHOW_GRANTS]), SHOW_LONG_STATUS},
-  {"show_keys",            (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_SHOW_KEYS]), SHOW_LONG_STATUS},
-  {"show_master_status",   (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_SHOW_MASTER_STAT]), SHOW_LONG_STATUS},
-  {"show_open_tables",     (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_SHOW_OPEN_TABLES]), SHOW_LONG_STATUS},
-  {"show_plugins",         (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_SHOW_PLUGINS]), SHOW_LONG_STATUS},
-  {"show_privileges",      (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_SHOW_PRIVILEGES]), SHOW_LONG_STATUS},
+  {"show_function_status", STMT_STATUS(SQLCOM_SHOW_STATUS_FUNC)},
+  {"show_generic",         STMT_STATUS(SQLCOM_SHOW_GENERIC)},
+  {"show_grants",          STMT_STATUS(SQLCOM_SHOW_GRANTS)},
+  {"show_keys",            STMT_STATUS(SQLCOM_SHOW_KEYS)},
+  {"show_master_status",   STMT_STATUS(SQLCOM_SHOW_MASTER_STAT)},
+  {"show_open_tables",     STMT_STATUS(SQLCOM_SHOW_OPEN_TABLES)},
+  {"show_plugins",         STMT_STATUS(SQLCOM_SHOW_PLUGINS)},
+  {"show_privileges",      STMT_STATUS(SQLCOM_SHOW_PRIVILEGES)},
 #ifndef DBUG_OFF
-  {"show_procedure_code",  (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_SHOW_PROC_CODE]), SHOW_LONG_STATUS},
+  {"show_procedure_code",  STMT_STATUS(SQLCOM_SHOW_PROC_CODE)},
 #endif
-  {"show_procedure_status",(char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_SHOW_STATUS_PROC]), SHOW_LONG_STATUS},
-  {"show_processlist",     (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_SHOW_PROCESSLIST]), SHOW_LONG_STATUS},
-  {"show_profile",         (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_SHOW_PROFILE]), SHOW_LONG_STATUS},
-  {"show_profiles",        (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_SHOW_PROFILES]), SHOW_LONG_STATUS},
-  {"show_relaylog_events", (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_SHOW_RELAYLOG_EVENTS]), SHOW_LONG_STATUS},
-  {"show_slave_hosts",     (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_SHOW_SLAVE_HOSTS]), SHOW_LONG_STATUS},
-  {"show_slave_status",    (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_SHOW_SLAVE_STAT]), SHOW_LONG_STATUS},
-  {"show_status",          (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_SHOW_STATUS]), SHOW_LONG_STATUS},
-  {"show_storage_engines", (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_SHOW_STORAGE_ENGINES]), SHOW_LONG_STATUS},
-  {"show_table_status",    (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_SHOW_TABLE_STATUS]), SHOW_LONG_STATUS},
-  {"show_tables",          (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_SHOW_TABLES]), SHOW_LONG_STATUS},
-  {"show_triggers",        (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_SHOW_TRIGGERS]), SHOW_LONG_STATUS},
-  {"show_variables",       (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_SHOW_VARIABLES]), SHOW_LONG_STATUS},
-  {"show_warnings",        (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_SHOW_WARNS]), SHOW_LONG_STATUS},
-  {"shutdown",             (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_SHUTDOWN]), SHOW_LONG_STATUS},
-  {"signal",               (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_SIGNAL]), SHOW_LONG_STATUS},
-  {"start_all_slaves",      (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_SLAVE_ALL_START]), SHOW_LONG_STATUS},
-  {"start_slave",          (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_SLAVE_START]), SHOW_LONG_STATUS},
-  {"stmt_close",           (char*) offsetof(STATUS_VAR, com_stmt_close), SHOW_LONG_STATUS},
-  {"stmt_execute",         (char*) offsetof(STATUS_VAR, com_stmt_execute), SHOW_LONG_STATUS},
-  {"stmt_fetch",           (char*) offsetof(STATUS_VAR, com_stmt_fetch), SHOW_LONG_STATUS},
-  {"stmt_prepare",         (char*) offsetof(STATUS_VAR, com_stmt_prepare), SHOW_LONG_STATUS},
-  {"stmt_reprepare",       (char*) offsetof(STATUS_VAR, com_stmt_reprepare), SHOW_LONG_STATUS},
-  {"stmt_reset",           (char*) offsetof(STATUS_VAR, com_stmt_reset), SHOW_LONG_STATUS},
-  {"stmt_send_long_data",  (char*) offsetof(STATUS_VAR, com_stmt_send_long_data), SHOW_LONG_STATUS},
-  {"stop_all_slaves",       (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_SLAVE_ALL_STOP]), SHOW_LONG_STATUS},
-  {"stop_slave",           (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_SLAVE_STOP]), SHOW_LONG_STATUS},
-  {"truncate",             (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_TRUNCATE]), SHOW_LONG_STATUS},
-  {"uninstall_plugin",     (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_UNINSTALL_PLUGIN]), SHOW_LONG_STATUS},
-  {"unlock_tables",        (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_UNLOCK_TABLES]), SHOW_LONG_STATUS},
-  {"update",               (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_UPDATE]), SHOW_LONG_STATUS},
-  {"update_multi",         (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_UPDATE_MULTI]), SHOW_LONG_STATUS},
-  {"xa_commit",            (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_XA_COMMIT]),SHOW_LONG_STATUS},
-  {"xa_end",               (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_XA_END]),SHOW_LONG_STATUS},
-  {"xa_prepare",           (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_XA_PREPARE]),SHOW_LONG_STATUS},
-  {"xa_recover",           (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_XA_RECOVER]),SHOW_LONG_STATUS},
-  {"xa_rollback",          (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_XA_ROLLBACK]),SHOW_LONG_STATUS},
-  {"xa_start",             (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_XA_START]),SHOW_LONG_STATUS},
+  {"show_procedure_status",STMT_STATUS(SQLCOM_SHOW_STATUS_PROC)},
+  {"show_processlist",     STMT_STATUS(SQLCOM_SHOW_PROCESSLIST)},
+  {"show_profile",         STMT_STATUS(SQLCOM_SHOW_PROFILE)},
+  {"show_profiles",        STMT_STATUS(SQLCOM_SHOW_PROFILES)},
+  {"show_relaylog_events", STMT_STATUS(SQLCOM_SHOW_RELAYLOG_EVENTS)},
+  {"show_slave_hosts",     STMT_STATUS(SQLCOM_SHOW_SLAVE_HOSTS)},
+  {"show_slave_status",    STMT_STATUS(SQLCOM_SHOW_SLAVE_STAT)},
+  {"show_status",          STMT_STATUS(SQLCOM_SHOW_STATUS)},
+  {"show_storage_engines", STMT_STATUS(SQLCOM_SHOW_STORAGE_ENGINES)},
+  {"show_table_status",    STMT_STATUS(SQLCOM_SHOW_TABLE_STATUS)},
+  {"show_tables",          STMT_STATUS(SQLCOM_SHOW_TABLES)},
+  {"show_triggers",        STMT_STATUS(SQLCOM_SHOW_TRIGGERS)},
+  {"show_variables",       STMT_STATUS(SQLCOM_SHOW_VARIABLES)},
+  {"show_warnings",        STMT_STATUS(SQLCOM_SHOW_WARNS)},
+  {"shutdown",             STMT_STATUS(SQLCOM_SHUTDOWN)},
+  {"signal",               STMT_STATUS(SQLCOM_SIGNAL)},
+  {"start_all_slaves",     STMT_STATUS(SQLCOM_SLAVE_ALL_START)},
+  {"start_slave",          STMT_STATUS(SQLCOM_SLAVE_START)},
+  {"stmt_close",           COM_STATUS(com_stmt_close)},
+  {"stmt_execute",         COM_STATUS(com_stmt_execute)},
+  {"stmt_fetch",           COM_STATUS(com_stmt_fetch)},
+  {"stmt_prepare",         COM_STATUS(com_stmt_prepare)},
+  {"stmt_reprepare",       COM_STATUS(com_stmt_reprepare)},
+  {"stmt_reset",           COM_STATUS(com_stmt_reset)},
+  {"stmt_send_long_data",  COM_STATUS(com_stmt_send_long_data)},
+  {"stop_all_slaves",      STMT_STATUS(SQLCOM_SLAVE_ALL_STOP)},
+  {"stop_slave",           STMT_STATUS(SQLCOM_SLAVE_STOP)},
+  {"truncate",             STMT_STATUS(SQLCOM_TRUNCATE)},
+  {"uninstall_plugin",     STMT_STATUS(SQLCOM_UNINSTALL_PLUGIN)},
+  {"unlock_tables",        STMT_STATUS(SQLCOM_UNLOCK_TABLES)},
+  {"update",               STMT_STATUS(SQLCOM_UPDATE)},
+  {"update_multi",         STMT_STATUS(SQLCOM_UPDATE_MULTI)},
+  {"xa_commit",            STMT_STATUS(SQLCOM_XA_COMMIT)},
+  {"xa_end",               STMT_STATUS(SQLCOM_XA_END)},
+  {"xa_prepare",           STMT_STATUS(SQLCOM_XA_PREPARE)},
+  {"xa_recover",           STMT_STATUS(SQLCOM_XA_RECOVER)},
+  {"xa_rollback",          STMT_STATUS(SQLCOM_XA_ROLLBACK)},
+  {"xa_start",             STMT_STATUS(SQLCOM_XA_START)},
   {NullS, NullS, SHOW_LONG}
 };
 
@@ -3890,11 +3888,11 @@ PSI_statement_info com_statement_info[(uint) COM_END + 1];
 */
 void init_sql_statement_info()
 {
-  char *first_com= (char*) offsetof(STATUS_VAR, com_stat[0]);
-  char *last_com= (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_END]);
-  int record_size= (char*) offsetof(STATUS_VAR, com_stat[1])
-                   - (char*) offsetof(STATUS_VAR, com_stat[0]);
-  char *ptr;
+  size_t first_com= offsetof(STATUS_VAR, com_stat[0]);
+  size_t last_com=  offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_END]);
+  int record_size= offsetof(STATUS_VAR, com_stat[1])
+                   - offsetof(STATUS_VAR, com_stat[0]);
+  size_t ptr;
   uint i;
   uint com_index;
 
@@ -3908,7 +3906,7 @@ void init_sql_statement_info()
   SHOW_VAR *var= &com_status_vars[0];
   while (var->name != NULL)
   {
-    ptr= var->value;
+    ptr= (size_t)(var->value);
     if ((first_com <= ptr) && (ptr <= last_com))
     {
       com_index= ((int)(ptr - first_com))/record_size;
@@ -3961,10 +3959,10 @@ extern "C" my_thread_id mariadb_dbug_id()
 extern "C" {
 static void my_malloc_size_cb_func(long long size, my_bool is_thread_specific)
 {
+  THD *thd= current_thd;
   /* If thread specific memory */
-  if (is_thread_specific)
+  if (likely(is_thread_specific))
   {
-    THD *thd= current_thd;
     if (mysqld_server_initialized || thd)
     {
       /*
@@ -3977,18 +3975,23 @@ static void my_malloc_size_cb_func(long long size, my_bool is_thread_specific)
       if (thd)
       {
         DBUG_PRINT("info", ("memory_used: %lld  size: %lld",
-                            (longlong) thd->status_var.memory_used, size));
-        thd->status_var.memory_used+= size;
-        DBUG_ASSERT((longlong) thd->status_var.memory_used >= 0);
+                            (longlong) thd->status_var.local_memory_used,
+                            size));
+        thd->status_var.local_memory_used+= size;
+        DBUG_ASSERT((longlong) thd->status_var.local_memory_used >= 0);
       }
     }
   }
-  // workaround for gcc 4.2.4-1ubuntu4 -fPIE (from DEB_BUILD_HARDENING=1)
-  int64 volatile * volatile ptr=&global_status_var.memory_used;
-  my_atomic_add64_explicit(ptr, size, MY_MEMORY_ORDER_RELAXED);
+  else if (likely(thd))
+    thd->status_var.global_memory_used+= size;
+  else
+  {
+    // workaround for gcc 4.2.4-1ubuntu4 -fPIE (from DEB_BUILD_HARDENING=1)
+    int64 volatile * volatile ptr=&global_status_var.global_memory_used;
+    my_atomic_add64_explicit(ptr, size, MY_MEMORY_ORDER_RELAXED);
+  }
 }
 }
-
 
 static int init_common_variables()
 {
@@ -4121,6 +4124,7 @@ static int init_common_variables()
   strmake(pidfile_name, opt_log_basename, sizeof(pidfile_name)-5);
   strmov(fn_ext(pidfile_name),".pid");		// Add proper extension
   SYSVAR_AUTOSIZE(pidfile_name_ptr, pidfile_name);
+  mark_sys_var_value_origin(&opt_tc_log_size, sys_var::AUTO);
 
   /*
     The default-storage-engine entry in my_long_options should have a
@@ -4535,6 +4539,8 @@ static int init_thread_environment()
   mysql_mutex_init(key_LOCK_prepare_ordered, &LOCK_prepare_ordered,
                    MY_MUTEX_INIT_SLOW);
   mysql_cond_init(key_COND_prepare_ordered, &COND_prepare_ordered, NULL);
+  mysql_mutex_init(key_LOCK_after_binlog_sync, &LOCK_after_binlog_sync,
+                   MY_MUTEX_INIT_SLOW);
   mysql_mutex_init(key_LOCK_commit_ordered, &LOCK_commit_ordered,
                    MY_MUTEX_INIT_SLOW);
   mysql_mutex_init(key_LOCK_slave_init, &LOCK_slave_init,
@@ -4783,7 +4789,8 @@ static int init_server_components()
     all things are initialized so that unireg_abort() doesn't fail
   */
   mdl_init();
-  if (tdc_init() | hostname_cache_init())
+  tdc_init();
+  if (hostname_cache_init())
     unireg_abort(1);
 
   query_cache_set_min_res_unit(query_cache_min_res_unit);
@@ -4793,6 +4800,14 @@ static int init_server_components()
   my_rnd_init(&sql_rand,(ulong) server_start_time,(ulong) server_start_time/2);
   setup_fpu();
   init_thr_lock();
+  if (my_aes_init_dynamic_encrypt((enum_my_aes_encryption_algorithm)
+                                  encryption_algorithm))
+  {
+    fprintf(stderr, "Can't initialize encryption algorithm to \"%s\".\nCheck that the program is linked with the right library (openssl?)\n",
+            encryption_algorithm_names[encryption_algorithm]);
+    unireg_abort(1);
+  }
+
 #ifndef EMBEDDED_LIBRARY
   if (init_thr_timer(thread_scheduler->max_threads + extra_max_connections))
   {
@@ -4975,7 +4990,7 @@ a file name for --log-bin-index option", opt_binlog_index_name);
       - SST may modify binlog index file, so it must be opened
         after SST has happened
      */
-  if (WSREP_ON && !wsrep_recovery) /* WSREP BEFORE SE */
+  if (WSREP_ON && !wsrep_recovery && !opt_abort) /* WSREP BEFORE SE */
   {
     if (opt_bootstrap) // bootsrap option given - disable wsrep functionality
     {
@@ -5038,11 +5053,6 @@ a file name for --log-bin-index option", opt_binlog_index_name);
     unireg_abort(1);
   }
   plugins_are_initialized= TRUE;  /* Don't separate from init function */
-
-#ifdef WITH_WSREP
-  if (WSREP_ON && wsrep_check_opts())
-    global_system_variables.wsrep_on= 0;
-#endif
 
   /* we do want to exit if there are any other unknown options */
   if (remaining_argc > 1)
@@ -5140,11 +5150,6 @@ a file name for --log-bin-index option", opt_binlog_index_name);
     sql_print_error("Aria engine is not enabled or did not start. The Aria engine must be enabled to continue as mysqld was configured with --with-aria-tmp-tables");
     unireg_abort(1);
   }
-  internal_tmp_table_max_key_length=   maria_max_key_length();
-  internal_tmp_table_max_key_segments= maria_max_key_segments();
-#else
-  internal_tmp_table_max_key_length=   myisam_max_key_length();
-  internal_tmp_table_max_key_segments= myisam_max_key_segments();
 #endif
 
 #ifdef WITH_WSREP
@@ -5167,9 +5172,18 @@ a file name for --log-bin-index option", opt_binlog_index_name);
     unireg_abort(1);
   }
 
-  if (opt_bin_log && mysql_bin_log.open(opt_bin_logname, LOG_BIN, 0,
-                                        WRITE_CACHE, max_binlog_size, 0, TRUE))
-    unireg_abort(1);
+  if (opt_bin_log)
+  {
+    /**
+     * mutex lock is not needed here.
+     * but to be able to have mysql_mutex_assert_owner() in code,
+     * we do it anyway */
+    mysql_mutex_lock(mysql_bin_log.get_log_lock());
+    if (mysql_bin_log.open(opt_bin_logname, LOG_BIN, 0,
+                           WRITE_CACHE, max_binlog_size, 0, TRUE))
+      unireg_abort(1);
+    mysql_mutex_unlock(mysql_bin_log.get_log_lock());
+  }
 
 #ifdef HAVE_REPLICATION
   if (opt_bin_log && expire_logs_days)
@@ -5319,11 +5333,11 @@ LEX_STRING sql_statement_names[(uint) SQLCOM_END + 1];
 
 static void init_sql_statement_names()
 {
-  char *first_com= (char*) offsetof(STATUS_VAR, com_stat[0]);
-  char *last_com= (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_END]);
-  int record_size= (char*) offsetof(STATUS_VAR, com_stat[1])
-                   - (char*) offsetof(STATUS_VAR, com_stat[0]);
-  char *ptr;
+  size_t first_com= offsetof(STATUS_VAR, com_stat[0]);
+  size_t last_com= offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_END]);
+  int record_size= offsetof(STATUS_VAR, com_stat[1])
+                   - offsetof(STATUS_VAR, com_stat[0]);
+  size_t ptr;
   uint i;
   uint com_index;
 
@@ -5333,7 +5347,7 @@ static void init_sql_statement_names()
   SHOW_VAR *var= &com_status_vars[0];
   while (var->name != NULL)
   {
-    ptr= var->value;
+    ptr= (size_t)(var->value);
     if ((first_com <= ptr) && (ptr <= last_com))
     {
       com_index= ((int)(ptr - first_com))/record_size;
@@ -5597,6 +5611,9 @@ int mysqld_main(int argc, char **argv)
       set_user(mysqld_user, user_info);
   }
 
+  if (WSREP_ON && wsrep_check_opts())
+    global_system_variables.wsrep_on= 0;
+
   if (opt_bin_log && !global_system_variables.server_id)
   {
     SYSVAR_AUTOSIZE(global_system_variables.server_id, ::server_id= 1);
@@ -5764,6 +5781,7 @@ int mysqld_main(int argc, char **argv)
                          (char*) "" : mysqld_unix_port),
                          mysqld_port,
                          MYSQL_COMPILATION_COMMENT);
+  fclose(stdin);
 #if defined(_WIN32) && !defined(EMBEDDED_LIBRARY)
   Service.SetRunning();
 #endif
@@ -6203,7 +6221,7 @@ void create_thread_to_handle_connection(THD *thd)
     thd->unlink();
     mysql_mutex_unlock(&LOCK_thread_count);
     delete thd;
-    thread_safe_decrement32(&thread_count, &thread_count_lock);
+    thread_safe_decrement32(&thread_count);
     return;
     /* purecov: end */
   }
@@ -6257,7 +6275,7 @@ static void create_new_thread(THD *thd)
 
   mysql_mutex_unlock(&LOCK_connection_count);
 
-  thread_safe_increment32(&thread_count, &thread_count_lock);
+  thread_safe_increment32(&thread_count);
 
   /* Start a new thread to handle connection. */
   mysql_mutex_lock(&LOCK_thread_count);
@@ -6542,7 +6560,6 @@ void handle_connections_sockets()
 	(void) mysql_socket_close(new_sock);
       }
       delete thd;
-      set_current_thd(0);
       statistic_increment(connection_errors_internal, &LOCK_status);
       continue;
     }
@@ -6657,7 +6674,6 @@ pthread_handler_t handle_connections_namedpipes(void *arg)
     {
       close_connection(thd, ER_OUT_OF_RESOURCES);
       delete thd;
-      set_current_thd(0);
       continue;
     }
     /* Host is unknown */
@@ -7210,12 +7226,6 @@ struct my_option my_long_options[]=
    "more than one storage engine, when binary log is disabled).",
    &opt_tc_log_file, &opt_tc_log_file, 0, GET_STR,
    REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
-#ifdef HAVE_MMAP
-  {"log-tc-size", 0, "Size of transaction coordinator log.",
-   &opt_tc_log_size, &opt_tc_log_size, 0, GET_ULONG,
-   REQUIRED_ARG, TC_LOG_MIN_SIZE, TC_LOG_MIN_SIZE, (ulonglong) ULONG_MAX, 0,
-   TC_LOG_PAGE_SIZE, 0},
-#endif
   {"master-info-file", 0,
    "The location and name of the file that remembers the master and where "
    "the I/O replication thread is in the master's binlogs. Defaults to "
@@ -7323,16 +7333,16 @@ struct my_option my_long_options[]=
 #ifdef HAVE_REPLICATION
   {"slave-parallel-mode", OPT_SLAVE_PARALLEL_MODE,
    "Controls what transactions are applied in parallel when using "
-   "--slave-parallel-threads. Syntax: slave_parallel_mode=value[,value...], "
-   "where \"value\" could be one or more of: \"domain\", to apply different "
-   "replication domains in parallel; \"follow_master_commit\", to apply "
-   "in parallel transactions that group-committed together on the master; "
-   "\"transactional\", to optimistically try to apply all transactional "
-   "DML in parallel; and \"waiting\" to extend \"transactional\" to "
-   "even transactions that had to wait on the master.",
+   "--slave-parallel-threads. Possible values: \"optimistic\" tries to "
+   "apply most transactional DML in parallel, and handles any conflicts "
+   "with rollback and retry. \"conservative\" limits parallelism in an "
+   "effort to avoid any conflicts. \"aggressive\" tries to maximise the "
+   "parallelism, possibly at the cost of increased conflict rate. "
+   "\"minimal\" only parallelizes the commit steps of transactions. "
+   "\"none\" disables parallel apply completely.",
    &opt_slave_parallel_mode, &opt_slave_parallel_mode,
-   &slave_parallel_mode_typelib, GET_SET | GET_ASK_ADDR, REQUIRED_ARG,
-   SLAVE_PARALLEL_DOMAIN | SLAVE_PARALLEL_FOLLOW_MASTER_COMMIT, 0, 0, 0, 0, 0},
+   &slave_parallel_mode_typelib, GET_ENUM | GET_ASK_ADDR, REQUIRED_ARG,
+   SLAVE_PARALLEL_CONSERVATIVE, 0, 0, 0, 0, 0},
 #endif
 #if defined(_WIN32) && !defined(EMBEDDED_LIBRARY)
   {"slow-start-timeout", 0,
@@ -7466,7 +7476,8 @@ struct my_option my_long_options[]=
   MYSQL_TO_BE_IMPLEMENTED_OPTION("validate-user-plugins") // NO_EMBEDDED_ACCESS_CHECKS
 };
 
-static int show_queries(THD *thd, SHOW_VAR *var, char *buff)
+static int show_queries(THD *thd, SHOW_VAR *var, char *buff,
+                        enum enum_var_type scope)
 {
   var->type= SHOW_LONGLONG;
   var->value= (char *)&thd->query_id;
@@ -7474,14 +7485,16 @@ static int show_queries(THD *thd, SHOW_VAR *var, char *buff)
 }
 
 
-static int show_net_compression(THD *thd, SHOW_VAR *var, char *buff)
+static int show_net_compression(THD *thd, SHOW_VAR *var, char *buff,
+                                enum enum_var_type scope)
 {
   var->type= SHOW_MY_BOOL;
   var->value= (char *)&thd->net.compress;
   return 0;
 }
 
-static int show_starttime(THD *thd, SHOW_VAR *var, char *buff)
+static int show_starttime(THD *thd, SHOW_VAR *var, char *buff,
+                          enum enum_var_type scope)
 {
   var->type= SHOW_LONG;
   var->value= buff;
@@ -7490,7 +7503,8 @@ static int show_starttime(THD *thd, SHOW_VAR *var, char *buff)
 }
 
 #ifdef ENABLED_PROFILING
-static int show_flushstatustime(THD *thd, SHOW_VAR *var, char *buff)
+static int show_flushstatustime(THD *thd, SHOW_VAR *var, char *buff,
+                                enum enum_var_type scope)
 {
   var->type= SHOW_LONG;
   var->value= buff;
@@ -7500,14 +7514,16 @@ static int show_flushstatustime(THD *thd, SHOW_VAR *var, char *buff)
 #endif
 
 #ifdef HAVE_REPLICATION
-static int show_rpl_status(THD *thd, SHOW_VAR *var, char *buff)
+static int show_rpl_status(THD *thd, SHOW_VAR *var, char *buff,
+                           enum enum_var_type scope)
 {
   var->type= SHOW_CHAR;
   var->value= const_cast<char*>(rpl_status_type[(int)rpl_status]);
   return 0;
 }
 
-static int show_slave_running(THD *thd, SHOW_VAR *var, char *buff)
+static int show_slave_running(THD *thd, SHOW_VAR *var, char *buff,
+                              enum enum_var_type scope)
 {
   Master_info *mi= NULL;
   bool tmp;
@@ -7534,7 +7550,8 @@ static int show_slave_running(THD *thd, SHOW_VAR *var, char *buff)
 }
 
 
-static int show_slave_received_heartbeats(THD *thd, SHOW_VAR *var, char *buff)
+static int show_slave_received_heartbeats(THD *thd, SHOW_VAR *var, char *buff,
+                                          enum enum_var_type scope)
 {
   Master_info *mi= NULL;
   longlong tmp;
@@ -7560,7 +7577,8 @@ static int show_slave_received_heartbeats(THD *thd, SHOW_VAR *var, char *buff)
 }
 
 
-static int show_heartbeat_period(THD *thd, SHOW_VAR *var, char *buff)
+static int show_heartbeat_period(THD *thd, SHOW_VAR *var, char *buff,
+                                 enum enum_var_type scope)
 {
   Master_info *mi= NULL;
   float tmp;
@@ -7588,7 +7606,8 @@ static int show_heartbeat_period(THD *thd, SHOW_VAR *var, char *buff)
 
 #endif /* HAVE_REPLICATION */
 
-static int show_open_tables(THD *thd, SHOW_VAR *var, char *buff)
+static int show_open_tables(THD *thd, SHOW_VAR *var, char *buff,
+                            enum enum_var_type scope)
 {
   var->type= SHOW_LONG;
   var->value= buff;
@@ -7596,7 +7615,8 @@ static int show_open_tables(THD *thd, SHOW_VAR *var, char *buff)
   return 0;
 }
 
-static int show_prepared_stmt_count(THD *thd, SHOW_VAR *var, char *buff)
+static int show_prepared_stmt_count(THD *thd, SHOW_VAR *var, char *buff,
+                                    enum enum_var_type scope)
 {
   var->type= SHOW_LONG;
   var->value= buff;
@@ -7606,7 +7626,8 @@ static int show_prepared_stmt_count(THD *thd, SHOW_VAR *var, char *buff)
   return 0;
 }
 
-static int show_table_definitions(THD *thd, SHOW_VAR *var, char *buff)
+static int show_table_definitions(THD *thd, SHOW_VAR *var, char *buff,
+                                  enum enum_var_type scope)
 {
   var->type= SHOW_LONG;
   var->value= buff;
@@ -7615,7 +7636,8 @@ static int show_table_definitions(THD *thd, SHOW_VAR *var, char *buff)
 }
 
 
-static int show_flush_commands(THD *thd, SHOW_VAR *var, char *buff)
+static int show_flush_commands(THD *thd, SHOW_VAR *var, char *buff,
+                               enum enum_var_type scope)
 {
   var->type= SHOW_LONG;
   var->value= buff;
@@ -7626,7 +7648,8 @@ static int show_flush_commands(THD *thd, SHOW_VAR *var, char *buff)
 
 #if defined(HAVE_OPENSSL) && !defined(EMBEDDED_LIBRARY)
 /* Functions relying on CTX */
-static int show_ssl_ctx_sess_accept(THD *thd, SHOW_VAR *var, char *buff)
+static int show_ssl_ctx_sess_accept(THD *thd, SHOW_VAR *var, char *buff,
+                                    enum enum_var_type scope)
 {
   var->type= SHOW_LONG;
   var->value= buff;
@@ -7635,7 +7658,8 @@ static int show_ssl_ctx_sess_accept(THD *thd, SHOW_VAR *var, char *buff)
   return 0;
 }
 
-static int show_ssl_ctx_sess_accept_good(THD *thd, SHOW_VAR *var, char *buff)
+static int show_ssl_ctx_sess_accept_good(THD *thd, SHOW_VAR *var, char *buff,
+                                         enum enum_var_type scope)
 {
   var->type= SHOW_LONG;
   var->value= buff;
@@ -7644,7 +7668,8 @@ static int show_ssl_ctx_sess_accept_good(THD *thd, SHOW_VAR *var, char *buff)
   return 0;
 }
 
-static int show_ssl_ctx_sess_connect_good(THD *thd, SHOW_VAR *var, char *buff)
+static int show_ssl_ctx_sess_connect_good(THD *thd, SHOW_VAR *var, char *buff,
+                                          enum enum_var_type scope)
 {
   var->type= SHOW_LONG;
   var->value= buff;
@@ -7653,7 +7678,9 @@ static int show_ssl_ctx_sess_connect_good(THD *thd, SHOW_VAR *var, char *buff)
   return 0;
 }
 
-static int show_ssl_ctx_sess_accept_renegotiate(THD *thd, SHOW_VAR *var, char *buff)
+static int show_ssl_ctx_sess_accept_renegotiate(THD *thd, SHOW_VAR *var,
+                                                char *buff,
+                                                enum enum_var_type scope)
 {
   var->type= SHOW_LONG;
   var->value= buff;
@@ -7662,7 +7689,9 @@ static int show_ssl_ctx_sess_accept_renegotiate(THD *thd, SHOW_VAR *var, char *b
   return 0;
 }
 
-static int show_ssl_ctx_sess_connect_renegotiate(THD *thd, SHOW_VAR *var, char *buff)
+static int show_ssl_ctx_sess_connect_renegotiate(THD *thd, SHOW_VAR *var,
+                                                 char *buff,
+                                                 enum enum_var_type scope)
 {
   var->type= SHOW_LONG;
   var->value= buff;
@@ -7671,7 +7700,8 @@ static int show_ssl_ctx_sess_connect_renegotiate(THD *thd, SHOW_VAR *var, char *
   return 0;
 }
 
-static int show_ssl_ctx_sess_cb_hits(THD *thd, SHOW_VAR *var, char *buff)
+static int show_ssl_ctx_sess_cb_hits(THD *thd, SHOW_VAR *var, char *buff,
+                                     enum enum_var_type scope)
 {
   var->type= SHOW_LONG;
   var->value= buff;
@@ -7680,7 +7710,8 @@ static int show_ssl_ctx_sess_cb_hits(THD *thd, SHOW_VAR *var, char *buff)
   return 0;
 }
 
-static int show_ssl_ctx_sess_hits(THD *thd, SHOW_VAR *var, char *buff)
+static int show_ssl_ctx_sess_hits(THD *thd, SHOW_VAR *var, char *buff,
+                                  enum enum_var_type scope)
 {
   var->type= SHOW_LONG;
   var->value= buff;
@@ -7689,7 +7720,8 @@ static int show_ssl_ctx_sess_hits(THD *thd, SHOW_VAR *var, char *buff)
   return 0;
 }
 
-static int show_ssl_ctx_sess_cache_full(THD *thd, SHOW_VAR *var, char *buff)
+static int show_ssl_ctx_sess_cache_full(THD *thd, SHOW_VAR *var, char *buff,
+                                        enum enum_var_type scope)
 {
   var->type= SHOW_LONG;
   var->value= buff;
@@ -7698,7 +7730,8 @@ static int show_ssl_ctx_sess_cache_full(THD *thd, SHOW_VAR *var, char *buff)
   return 0;
 }
 
-static int show_ssl_ctx_sess_misses(THD *thd, SHOW_VAR *var, char *buff)
+static int show_ssl_ctx_sess_misses(THD *thd, SHOW_VAR *var, char *buff,
+                                    enum enum_var_type scope)
 {
   var->type= SHOW_LONG;
   var->value= buff;
@@ -7707,7 +7740,8 @@ static int show_ssl_ctx_sess_misses(THD *thd, SHOW_VAR *var, char *buff)
   return 0;
 }
 
-static int show_ssl_ctx_sess_timeouts(THD *thd, SHOW_VAR *var, char *buff)
+static int show_ssl_ctx_sess_timeouts(THD *thd, SHOW_VAR *var, char *buff,
+                                      enum enum_var_type scope)
 {
   var->type= SHOW_LONG;
   var->value= buff;
@@ -7716,7 +7750,8 @@ static int show_ssl_ctx_sess_timeouts(THD *thd, SHOW_VAR *var, char *buff)
   return 0;
 }
 
-static int show_ssl_ctx_sess_number(THD *thd, SHOW_VAR *var, char *buff)
+static int show_ssl_ctx_sess_number(THD *thd, SHOW_VAR *var, char *buff,
+                                    enum enum_var_type scope)
 {
   var->type= SHOW_LONG;
   var->value= buff;
@@ -7725,7 +7760,8 @@ static int show_ssl_ctx_sess_number(THD *thd, SHOW_VAR *var, char *buff)
   return 0;
 }
 
-static int show_ssl_ctx_sess_connect(THD *thd, SHOW_VAR *var, char *buff)
+static int show_ssl_ctx_sess_connect(THD *thd, SHOW_VAR *var, char *buff,
+                                     enum enum_var_type scope)
 {
   var->type= SHOW_LONG;
   var->value= buff;
@@ -7734,7 +7770,9 @@ static int show_ssl_ctx_sess_connect(THD *thd, SHOW_VAR *var, char *buff)
   return 0;
 }
 
-static int show_ssl_ctx_sess_get_cache_size(THD *thd, SHOW_VAR *var, char *buff)
+static int show_ssl_ctx_sess_get_cache_size(THD *thd, SHOW_VAR *var,
+                                            char *buff,
+                                            enum enum_var_type scope)
 {
   var->type= SHOW_LONG;
   var->value= buff;
@@ -7743,7 +7781,8 @@ static int show_ssl_ctx_sess_get_cache_size(THD *thd, SHOW_VAR *var, char *buff)
   return 0;
 }
 
-static int show_ssl_ctx_get_verify_mode(THD *thd, SHOW_VAR *var, char *buff)
+static int show_ssl_ctx_get_verify_mode(THD *thd, SHOW_VAR *var, char *buff,
+                                        enum enum_var_type scope)
 {
   var->type= SHOW_LONG;
   var->value= buff;
@@ -7752,7 +7791,8 @@ static int show_ssl_ctx_get_verify_mode(THD *thd, SHOW_VAR *var, char *buff)
   return 0;
 }
 
-static int show_ssl_ctx_get_verify_depth(THD *thd, SHOW_VAR *var, char *buff)
+static int show_ssl_ctx_get_verify_depth(THD *thd, SHOW_VAR *var, char *buff,
+                                         enum enum_var_type scope)
 {
   var->type= SHOW_LONG;
   var->value= buff;
@@ -7761,7 +7801,9 @@ static int show_ssl_ctx_get_verify_depth(THD *thd, SHOW_VAR *var, char *buff)
   return 0;
 }
 
-static int show_ssl_ctx_get_session_cache_mode(THD *thd, SHOW_VAR *var, char *buff)
+static int show_ssl_ctx_get_session_cache_mode(THD *thd, SHOW_VAR *var,
+                                               char *buff,
+                                               enum enum_var_type scope)
 {
   var->type= SHOW_CHAR;
   if (!ssl_acceptor_fd)
@@ -7794,7 +7836,9 @@ static int show_ssl_ctx_get_session_cache_mode(THD *thd, SHOW_VAR *var, char *bu
          when session_status or global_status is requested from
          inside an Event.
  */
-static int show_ssl_get_version(THD *thd, SHOW_VAR *var, char *buff)
+
+static int show_ssl_get_version(THD *thd, SHOW_VAR *var, char *buff,
+                                enum enum_var_type scope)
 {
   var->type= SHOW_CHAR;
   if( thd->vio_ok() && thd->net.vio->ssl_arg )
@@ -7804,7 +7848,8 @@ static int show_ssl_get_version(THD *thd, SHOW_VAR *var, char *buff)
   return 0;
 }
 
-static int show_ssl_session_reused(THD *thd, SHOW_VAR *var, char *buff)
+static int show_ssl_session_reused(THD *thd, SHOW_VAR *var, char *buff,
+                                   enum enum_var_type scope)
 {
   var->type= SHOW_LONG;
   var->value= buff;
@@ -7815,7 +7860,8 @@ static int show_ssl_session_reused(THD *thd, SHOW_VAR *var, char *buff)
   return 0;
 }
 
-static int show_ssl_get_default_timeout(THD *thd, SHOW_VAR *var, char *buff)
+static int show_ssl_get_default_timeout(THD *thd, SHOW_VAR *var, char *buff,
+                                        enum enum_var_type scope)
 {
   var->type= SHOW_LONG;
   var->value= buff;
@@ -7826,7 +7872,8 @@ static int show_ssl_get_default_timeout(THD *thd, SHOW_VAR *var, char *buff)
   return 0;
 }
 
-static int show_ssl_get_verify_mode(THD *thd, SHOW_VAR *var, char *buff)
+static int show_ssl_get_verify_mode(THD *thd, SHOW_VAR *var, char *buff,
+                                    enum enum_var_type scope)
 {
   var->type= SHOW_LONG;
   var->value= buff;
@@ -7837,7 +7884,8 @@ static int show_ssl_get_verify_mode(THD *thd, SHOW_VAR *var, char *buff)
   return 0;
 }
 
-static int show_ssl_get_verify_depth(THD *thd, SHOW_VAR *var, char *buff)
+static int show_ssl_get_verify_depth(THD *thd, SHOW_VAR *var, char *buff,
+                                     enum enum_var_type scope)
 {
   var->type= SHOW_LONG;
   var->value= buff;
@@ -7848,7 +7896,8 @@ static int show_ssl_get_verify_depth(THD *thd, SHOW_VAR *var, char *buff)
   return 0;
 }
 
-static int show_ssl_get_cipher(THD *thd, SHOW_VAR *var, char *buff)
+static int show_ssl_get_cipher(THD *thd, SHOW_VAR *var, char *buff,
+                               enum enum_var_type scope)
 {
   var->type= SHOW_CHAR;
   if( thd->vio_ok() && thd->net.vio->ssl_arg )
@@ -7858,7 +7907,8 @@ static int show_ssl_get_cipher(THD *thd, SHOW_VAR *var, char *buff)
   return 0;
 }
 
-static int show_ssl_get_cipher_list(THD *thd, SHOW_VAR *var, char *buff)
+static int show_ssl_get_cipher_list(THD *thd, SHOW_VAR *var, char *buff,
+                                    enum enum_var_type scope)
 {
   var->type= SHOW_CHAR;
   var->value= buff;
@@ -7932,7 +7982,8 @@ end:
 */
 
 static int
-show_ssl_get_server_not_before(THD *thd, SHOW_VAR *var, char *buff)
+show_ssl_get_server_not_before(THD *thd, SHOW_VAR *var, char *buff,
+                               enum enum_var_type scope)
 {
   var->type= SHOW_CHAR;
   if(thd->vio_ok() && thd->net.vio->ssl_arg)
@@ -7965,7 +8016,8 @@ show_ssl_get_server_not_before(THD *thd, SHOW_VAR *var, char *buff)
 */
 
 static int
-show_ssl_get_server_not_after(THD *thd, SHOW_VAR *var, char *buff)
+show_ssl_get_server_not_after(THD *thd, SHOW_VAR *var, char *buff,
+                              enum enum_var_type scope)
 {
   var->type= SHOW_CHAR;
   if(thd->vio_ok() && thd->net.vio->ssl_arg)
@@ -7986,7 +8038,8 @@ show_ssl_get_server_not_after(THD *thd, SHOW_VAR *var, char *buff)
 
 #endif /* HAVE_OPENSSL && !EMBEDDED_LIBRARY */
 
-static int show_default_keycache(THD *thd, SHOW_VAR *var, char *buff)
+static int show_default_keycache(THD *thd, SHOW_VAR *var, char *buff,
+                                 enum enum_var_type scope)
 {
   struct st_data {
     KEY_CACHE_STATISTICS stats;
@@ -8026,8 +8079,24 @@ static int show_default_keycache(THD *thd, SHOW_VAR *var, char *buff)
   return 0;
 }
 
+
+static int show_memory_used(THD *thd, SHOW_VAR *var, char *buff,
+                            enum enum_var_type scope)
+{
+  var->type= SHOW_LONGLONG;
+  var->value= buff;
+  if (scope == OPT_GLOBAL)
+    *(longlong*) buff= (global_status_var.local_memory_used +
+                        global_status_var.global_memory_used);
+  else
+    *(longlong*) buff= thd->status_var.local_memory_used;
+  return 0;
+}
+
+
 #ifndef DBUG_OFF
-static int debug_status_func(THD *thd, SHOW_VAR *var, char *buff)
+static int debug_status_func(THD *thd, SHOW_VAR *var, char *buff,
+                             enum enum_var_type scope)
 {
 #define add_var(X,Y,Z)                  \
   v->name= X;                           \
@@ -8063,7 +8132,8 @@ static int debug_status_func(THD *thd, SHOW_VAR *var, char *buff)
 #endif
 
 #ifdef HAVE_POOL_OF_THREADS
-int show_threadpool_idle_threads(THD *thd, SHOW_VAR *var, char *buff)
+int show_threadpool_idle_threads(THD *thd, SHOW_VAR *var, char *buff,
+                                 enum enum_var_type scope)
 {
   var->type= SHOW_INT;
   var->value= buff;
@@ -8149,7 +8219,7 @@ SHOW_VAR status_vars[]= {
   {"Last_query_cost",          (char*) offsetof(STATUS_VAR, last_query_cost), SHOW_DOUBLE_STATUS},
   {"Max_statement_time_exceeded", (char*) offsetof(STATUS_VAR, max_statement_time_exceeded), SHOW_LONG_STATUS},
   {"Max_used_connections",     (char*) &max_used_connections,  SHOW_LONG},
-  {"Memory_used",              (char*) offsetof(STATUS_VAR, memory_used), SHOW_LONGLONG_STATUS},
+  {"Memory_used",              (char*) &show_memory_used, SHOW_SIMPLE_FUNC},
   {"Not_flushed_delayed_rows", (char*) &delayed_rows_in_use,    SHOW_LONG_NOFLUSH},
   {"Open_files",               (char*) &my_file_opened,         SHOW_LONG_NOFLUSH},
   {"Open_streams",             (char*) &my_stream_opened,       SHOW_LONG_NOFLUSH},
@@ -8465,11 +8535,6 @@ static int mysql_init_variables(void)
   denied_connections= 0;
   executed_events= 0;
   global_query_id= thread_id= 1L;
-  my_atomic_rwlock_init(&global_query_id_lock);
-  my_atomic_rwlock_init(&thread_running_lock);
-  my_atomic_rwlock_init(&thread_count_lock);
-  my_atomic_rwlock_init(&statistics_lock);
-  my_atomic_rwlock_init(&slave_executed_entries_lock);
   strmov(server_version, MYSQL_SERVER_VERSION);
   threads.empty();
   thread_cache.empty();
@@ -8629,6 +8694,7 @@ mysqld_get_one_option(int optid, const struct my_option *opt, char *argument)
     if (argument[0] == '1' && !argument[1])
       break;
     DBUG_SET_INITIAL(argument);
+    current_dbug_option= argument;
     opt_endinfo=1;				/* unireg: memory allocation */
 #else
     sql_print_warning("'%s' is disabled in this build", opt->name);
@@ -8783,6 +8849,13 @@ mysqld_get_one_option(int optid, const struct my_option *opt, char *argument)
     }
 
     cur_rpl_filter->add_db_rewrite(key, val);
+    break;
+  }
+  case (int)OPT_SLAVE_PARALLEL_MODE:
+  {
+    /* Store latest mode for Master::Info */
+    cur_rpl_filter->set_parallel_mode
+      ((enum_slave_parallel_mode)opt_slave_parallel_mode);
     break;
   }
 
@@ -9030,6 +9103,7 @@ mysql_getopt_value(const char *name, uint length,
       return (uchar**) &key_cache->changed_blocks_hash_size;
     }
   }
+#ifdef HAVE_REPLICATION
   case OPT_REPLICATE_DO_DB:
   case OPT_REPLICATE_DO_TABLE:
   case OPT_REPLICATE_IGNORE_DB:
@@ -9037,6 +9111,7 @@ mysql_getopt_value(const char *name, uint length,
   case OPT_REPLICATE_WILD_DO_TABLE:
   case OPT_REPLICATE_WILD_IGNORE_TABLE:
   case OPT_REPLICATE_REWRITE_DB:
+  case OPT_SLAVE_PARALLEL_MODE:
   {
     /* Store current filter for mysqld_get_one_option() */
     if (!(cur_rpl_filter= get_or_create_rpl_filter(name, length)))
@@ -9044,24 +9119,15 @@ mysql_getopt_value(const char *name, uint length,
       if (error)
         *error= EXIT_OUT_OF_MEMORY;
     }
-    return 0;
-  }
-#ifdef HAVE_REPLICATION
-  case OPT_SLAVE_PARALLEL_MODE:
-  {
-    ulonglong *ptr;
-    LEX_STRING connection_name;
-    if (!length)
-      return &opt_slave_parallel_mode;
-    connection_name.str= const_cast<char *>(name);
-    connection_name.length= length;
-    if (mi_slave_parallel_mode_ptr(&connection_name, &ptr, true))
+    if (option->id == OPT_SLAVE_PARALLEL_MODE)
     {
-      if (error)
-        *error= EXIT_OUT_OF_MEMORY;
-      return NULL;
+      /*
+        Ensure parallel_mode variable is shown in --help. The other
+        variables are not easily printable here.
+       */
+      return (char**) &opt_slave_parallel_mode;
     }
-    return ptr;
+    return 0;
   }
 #endif
   }
@@ -9181,6 +9247,16 @@ static int get_options(int *argc_ptr, char ***argv_ptr)
     global_system_variables.option_bits|= OPTION_BIG_SELECTS;
   else
     global_system_variables.option_bits&= ~OPTION_BIG_SELECTS;
+
+  if (!opt_bootstrap && WSREP_PROVIDER_EXISTS &&
+      global_system_variables.binlog_format != BINLOG_FORMAT_ROW)
+  {
+
+    WSREP_ERROR ("Only binlog_format = 'ROW' is currently supported. "
+                 "Configured value: '%s'. Please adjust your configuration.",
+                 binlog_format_names[global_system_variables.binlog_format]);
+    return 1;
+  }
 
   // Synchronize @@global.autocommit on --autocommit
   const ulonglong turn_bit_on= opt_autocommit ?
@@ -9785,6 +9861,8 @@ PSI_stage_info stage_storing_result_in_query_cache= { 0, "storing result in quer
 PSI_stage_info stage_storing_row_into_queue= { 0, "storing row into queue", 0};
 PSI_stage_info stage_system_lock= { 0, "System lock", 0};
 PSI_stage_info stage_unlocking_tables= { 0, "Unlocking tables", 0};
+PSI_stage_info stage_table_lock= { 0, "Table lock", 0};
+PSI_stage_info stage_filling_schema_table= { 0, "Filling schema table", 0};
 PSI_stage_info stage_update= { 0, "update", 0};
 PSI_stage_info stage_updating= { 0, "updating", 0};
 PSI_stage_info stage_updating_main_table= { 0, "updating main table", 0};
@@ -9921,6 +9999,8 @@ PSI_stage_info *all_server_stages[]=
   & stage_storing_row_into_queue,
   & stage_system_lock,
   & stage_unlocking_tables,
+  & stage_table_lock,
+  & stage_filling_schema_table,
   & stage_update,
   & stage_updating,
   & stage_updating_main_table,

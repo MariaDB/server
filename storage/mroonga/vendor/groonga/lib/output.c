@@ -15,15 +15,13 @@
   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 */
 
-#ifndef GROONGA_IN_H
-#include "groonga_in.h"
-#endif /* GROONGA_IN_H */
+#include "grn.h"
 
 #include <string.h>
-#include "str.h"
-#include "db.h"
-#include "util.h"
-#include "output.h"
+#include "grn_str.h"
+#include "grn_db.h"
+#include "grn_util.h"
+#include "grn_output.h"
 
 #define LEVELS (&ctx->impl->levels)
 #define DEPTH (GRN_BULK_VSIZE(LEVELS)>>2)
@@ -521,10 +519,10 @@ grn_text_atoj(grn_ctx *ctx, grn_obj *outbuf, grn_content_type output_type,
         buf.header.domain = DB_OBJ(a->obj)->range;
         break;
       case GRN_ACCESSOR_GET_SCORE :
-        grn_obj_get_value(ctx, a->obj, id, &buf);
         {
           grn_rset_recinfo *ri = (grn_rset_recinfo *)grn_obj_get_value_(ctx, a->obj, id, &vs);
-          GRN_INT32_PUT(ctx, &buf, ri->score);
+          int32_t int32_score = ri->score;
+          GRN_INT32_PUT(ctx, &buf, int32_score);
         }
         buf.header.domain = GRN_DB_INT32;
         break;
@@ -534,6 +532,42 @@ grn_text_atoj(grn_ctx *ctx, grn_obj *outbuf, grn_content_type output_type,
           GRN_INT32_PUT(ctx, &buf, ri->n_subrecs);
         }
         buf.header.domain = GRN_DB_INT32;
+        break;
+      case GRN_ACCESSOR_GET_MAX :
+        {
+          grn_rset_recinfo *ri = (grn_rset_recinfo *)grn_obj_get_value_(ctx, a->obj, id, &vs);
+          int64_t max;
+          max = grn_rset_recinfo_get_max(ctx, ri, a->obj);
+          GRN_INT64_PUT(ctx, &buf, max);
+        }
+        buf.header.domain = GRN_DB_INT64;
+        break;
+      case GRN_ACCESSOR_GET_MIN :
+        {
+          grn_rset_recinfo *ri = (grn_rset_recinfo *)grn_obj_get_value_(ctx, a->obj, id, &vs);
+          int64_t min;
+          min = grn_rset_recinfo_get_min(ctx, ri, a->obj);
+          GRN_INT64_PUT(ctx, &buf, min);
+        }
+        buf.header.domain = GRN_DB_INT64;
+        break;
+      case GRN_ACCESSOR_GET_SUM :
+        {
+          grn_rset_recinfo *ri = (grn_rset_recinfo *)grn_obj_get_value_(ctx, a->obj, id, &vs);
+          int64_t sum;
+          sum = grn_rset_recinfo_get_sum(ctx, ri, a->obj);
+          GRN_INT64_PUT(ctx, &buf, sum);
+        }
+        buf.header.domain = GRN_DB_INT64;
+        break;
+      case GRN_ACCESSOR_GET_AVG :
+        {
+          grn_rset_recinfo *ri = (grn_rset_recinfo *)grn_obj_get_value_(ctx, a->obj, id, &vs);
+          double avg;
+          avg = grn_rset_recinfo_get_avg(ctx, ri, a->obj);
+          GRN_FLOAT_PUT(ctx, &buf, avg);
+        }
+        buf.header.domain = GRN_DB_FLOAT;
         break;
       case GRN_ACCESSOR_GET_COLUMN_VALUE :
         if ((a->obj->header.flags & GRN_OBJ_COLUMN_TYPE_MASK) == GRN_OBJ_COLUMN_VECTOR) {
@@ -1023,6 +1057,7 @@ grn_output_table_header(grn_ctx *ctx, grn_obj *outbuf,
                         grn_content_type output_type,
                         grn_obj *table, grn_obj_format *format)
 {
+  if (format->nhits != -1) {
     grn_output_array_open(ctx, outbuf, output_type, "NHITS", 1);
     if (output_type == GRN_CONTENT_XML) {
       grn_text_itoa(ctx, outbuf, format->nhits);
@@ -1030,6 +1065,7 @@ grn_output_table_header(grn_ctx *ctx, grn_obj *outbuf,
       grn_output_int32(ctx, outbuf, output_type, format->nhits);
     }
     grn_output_array_close(ctx, outbuf, output_type);
+  }
 }
 
 static inline int
@@ -1105,6 +1141,20 @@ count_used_n_codes(grn_ctx *ctx, grn_expr_code *start, grn_expr_code *target)
   return n_codes;
 }
 
+static grn_bool
+is_score_accessor(grn_ctx *ctx, grn_obj *obj)
+{
+  grn_accessor *a;
+
+  if (obj->header.type != GRN_ACCESSOR) {
+    return GRN_FALSE;
+  }
+
+  for (a = (grn_accessor *)obj; a->next; a = a->next) {
+  }
+  return a->action == GRN_ACCESSOR_GET_SCORE;
+}
+
 static inline void
 grn_output_table_column(grn_ctx *ctx, grn_obj *outbuf,
                         grn_content_type output_type,
@@ -1112,11 +1162,18 @@ grn_output_table_column(grn_ctx *ctx, grn_obj *outbuf,
 {
   grn_output_array_open(ctx, outbuf, output_type, "COLUMN", 2);
   if (column) {
-    grn_id range_id;
+    grn_id range_id = GRN_ID_NIL;
     GRN_BULK_REWIND(buf);
     grn_column_name_(ctx, column, buf);
     grn_output_obj(ctx, outbuf, output_type, buf, NULL);
-    range_id = grn_obj_get_range(ctx, column);
+    if (column->header.type == GRN_COLUMN_INDEX) {
+      range_id = GRN_DB_UINT32;
+    } else if (is_score_accessor(ctx, column)) {
+      range_id = GRN_DB_INT32;
+    }
+    if (range_id == GRN_ID_NIL) {
+      range_id = grn_obj_get_range(ctx, column);
+    }
     if (range_id == GRN_ID_NIL) {
       grn_output_cstr(ctx, outbuf, output_type, "null");
     } else {
@@ -1136,6 +1193,46 @@ grn_output_table_column(grn_ctx *ctx, grn_obj *outbuf,
     grn_output_cstr(ctx, outbuf, output_type, "");
   }
   grn_output_array_close(ctx, outbuf, output_type);
+}
+
+static inline void
+grn_output_table_column_by_expression(grn_ctx *ctx, grn_obj *outbuf,
+                                      grn_content_type output_type,
+                                      grn_expr_code *code,
+                                      grn_expr_code *code_end,
+                                      grn_obj *buf)
+{
+  if (code_end <= code) {
+    grn_output_array_open(ctx, outbuf, output_type, "COLUMN", 2);
+    grn_output_null(ctx, outbuf, output_type);
+    grn_output_null(ctx, outbuf, output_type);
+    grn_output_array_close(ctx, outbuf, output_type);
+    return;
+  }
+
+  switch (code_end[-1].op) {
+  case GRN_OP_GET_MEMBER :
+    if ((code_end - code) == 3) {
+      grn_output_array_open(ctx, outbuf, output_type, "COLUMN", 2);
+
+      GRN_BULK_REWIND(buf);
+      grn_column_name_(ctx, code[0].value, buf);
+      GRN_TEXT_PUTC(ctx, buf, '[');
+      grn_inspect(ctx, buf, code[1].value);
+      GRN_TEXT_PUTC(ctx, buf, ']');
+
+      grn_output_obj(ctx, outbuf, output_type, buf, NULL);
+      grn_output_null(ctx, outbuf, output_type);
+
+      grn_output_array_close(ctx, outbuf, output_type);
+    } else {
+      grn_output_table_column(ctx, outbuf, output_type, code->value, buf);
+    }
+    break;
+  default :
+    grn_output_table_column(ctx, outbuf, output_type, code->value, buf);
+    break;
+  }
 }
 
 static inline void
@@ -1163,30 +1260,35 @@ grn_output_table_columns_by_expression(grn_ctx *ctx, grn_obj *outbuf,
     }
 
     have_comma = GRN_TRUE;
-    code_start_offset = previous_comma_offset + 1;
     if (is_first_comma) {
+      int n_used_codes;
       int code_end_offset;
-      int n_used_code;
 
-      grn_output_table_column(ctx, outbuf, output_type,
-                              expr->codes[0].value, buf);
+      n_used_codes = count_used_n_codes(ctx, expr->codes, code - 1);
+      code_end_offset = code - expr->codes - n_used_codes;
 
-      code_end_offset = code - expr->codes - code_start_offset - 1;
-      n_used_code = count_used_n_codes(ctx,
-                                       expr->codes,
-                                       expr->codes + code_end_offset);
-      code_start_offset = code_end_offset - n_used_code + 1;
+      grn_output_table_column_by_expression(ctx, outbuf, output_type,
+                                            expr->codes,
+                                            expr->codes + code_end_offset,
+                                            buf);
+      code_start_offset = code_end_offset;
       is_first_comma = GRN_FALSE;
+    } else {
+      code_start_offset = previous_comma_offset + 1;
     }
 
-    grn_output_table_column(ctx, outbuf, output_type,
-                            expr->codes[code_start_offset].value, buf);
+    grn_output_table_column_by_expression(ctx, outbuf, output_type,
+                                          expr->codes + code_start_offset,
+                                          code,
+                                          buf);
     previous_comma_offset = code - expr->codes;
   }
 
   if (!have_comma && expr->codes_curr > 0) {
-    grn_output_table_column(ctx, outbuf, output_type,
-                            expr->codes[0].value, buf);
+    grn_output_table_column_by_expression(ctx, outbuf, output_type,
+                                          expr->codes,
+                                          code_end,
+                                          buf);
   }
 
   grn_output_array_close(ctx, outbuf, output_type);
@@ -1209,7 +1311,7 @@ grn_output_table_columns_by_columns(grn_ctx *ctx, grn_obj *outbuf,
   grn_output_array_close(ctx, outbuf, output_type);
 }
 
-static inline void
+void
 grn_output_table_columns(grn_ctx *ctx, grn_obj *outbuf,
                          grn_content_type output_type,
                          grn_obj *table, grn_obj_format *format)
@@ -1322,7 +1424,7 @@ grn_output_table_records_by_columns(grn_ctx *ctx, grn_obj *outbuf,
   }
 }
 
-static inline void
+void
 grn_output_table_records(grn_ctx *ctx, grn_obj *outbuf,
                          grn_content_type output_type,
                          grn_obj *table, grn_obj_format *format)
@@ -1924,4 +2026,52 @@ grn_output_envelope(grn_ctx *ctx,
   case GRN_CONTENT_NONE:
     break;
   }
+}
+
+static inline grn_bool
+is_output_columns_format_v1(grn_ctx *ctx,
+                            const char *output_columns,
+                            unsigned int output_columns_len)
+{
+  unsigned int i;
+
+  /* TODO: REMOVE ME. If new output_columns handler is marked as stable,
+     this check is removed. We need more error checks. */
+  if (grn_ctx_get_command_version(ctx) == GRN_COMMAND_VERSION_1) {
+    return GRN_TRUE;
+  }
+
+  for (i = 0; i < output_columns_len; i++) {
+    switch (output_columns[i]) {
+    case ',' :
+    case '(' :
+    case '[' :
+      return GRN_FALSE;
+    default :
+      break;
+    }
+  }
+
+  return GRN_TRUE;
+}
+
+grn_rc
+grn_output_format_set_columns(grn_ctx *ctx, grn_obj_format *format,
+                              grn_obj *table,
+                              const char *columns, int columns_len)
+{
+  grn_rc rc;
+
+  if (is_output_columns_format_v1(ctx, columns, columns_len)) {
+    rc = grn_obj_columns(ctx, table, columns, columns_len, &(format->columns));
+  } else {
+    grn_obj *variable;
+    GRN_EXPR_CREATE_FOR_QUERY(ctx, table, format->expression, variable);
+    rc = grn_expr_parse(ctx, format->expression,
+                        columns, columns_len, NULL,
+                        GRN_OP_MATCH, GRN_OP_AND,
+                        GRN_EXPR_SYNTAX_OUTPUT_COLUMNS);
+  }
+
+  return rc;
 }

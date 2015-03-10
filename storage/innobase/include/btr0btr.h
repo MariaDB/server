@@ -448,7 +448,7 @@ btr_root_raise_and_insert(
 	const dtuple_t*	tuple,	/*!< in: tuple to insert */
 	ulint		n_ext,	/*!< in: number of externally stored columns */
 	mtr_t*		mtr)	/*!< in: mtr */
-	__attribute__((nonnull, warn_unused_result));
+	__attribute__((nonnull(2,3,4,7), warn_unused_result));
 /*************************************************************//**
 Reorganizes an index page.
 
@@ -543,7 +543,7 @@ btr_page_split_and_insert(
 	const dtuple_t*	tuple,	/*!< in: tuple to insert */
 	ulint		n_ext,	/*!< in: number of externally stored columns */
 	mtr_t*		mtr)	/*!< in: mtr */
-	__attribute__((nonnull, warn_unused_result));
+	__attribute__((nonnull(2,3,4,7), warn_unused_result));
 /*******************************************************//**
 Inserts a data tuple to a tree on a non-leaf level. It is assumed
 that mtr holds an x-latch on the tree. */
@@ -731,6 +731,7 @@ btr_page_free_low(
 	dict_index_t*	index,	/*!< in: index tree */
 	buf_block_t*	block,	/*!< in: block to be freed, x-latched */
 	ulint		level,	/*!< in: page level */
+	bool		blob,   /*!< in: blob page */
 	mtr_t*		mtr)	/*!< in: mtr */
 	__attribute__((nonnull));
 /*************************************************************//**
@@ -866,5 +867,9 @@ btr_lift_page_up(
 #ifndef UNIV_NONINL
 #include "btr0btr.ic"
 #endif
+
+/****************************************************************
+Global variable controlling if scrubbing should be performed */
+extern my_bool srv_immediate_scrub_data_uncompressed;
 
 #endif

@@ -28,5 +28,11 @@
 #define ER_MRN_ERROR_FROM_GROONGA_STR "Error from Groonga [%s]"
 #define ER_MRN_INVALID_NULL_VALUE_NUM 16505
 #define ER_MRN_INVALID_NULL_VALUE_STR "NULL value can't be used for %s"
+#define ER_MRN_UNSUPPORTED_COLUMN_FLAG_NUM 16506
+#define ER_MRN_UNSUPPORTED_COLUMN_FLAG_STR \
+  "The column flag '%-.64s' is unsupported. It is ignored"
+#define ER_MRN_INVALID_COLUMN_FLAG_NUM 16507
+#define ER_MRN_INVALID_COLUMN_FLAG_STR \
+  "The column flag '%-.64s' is invalid. '%-64s' is used instead"
 
 #endif /* MRN_ERR_H_ */

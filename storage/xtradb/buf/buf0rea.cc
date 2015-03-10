@@ -222,6 +222,8 @@ not_to_recover:
 	ut_ad(buf_page_in_file(bpage));
 	ut_ad(!mutex_own(&buf_pool_from_bpage(bpage)->LRU_list_mutex));
 
+	byte* frame = buf_page_decrypt_before_read(bpage, zip_size);
+
 	if (sync) {
 		thd_wait_begin(NULL, THD_WAIT_DISKIO);
 	}
@@ -230,14 +232,14 @@ not_to_recover:
 		*err = _fil_io(OS_FILE_READ | wake_later
 			       | ignore_nonexistent_pages,
 			       sync, space, zip_size, offset, 0, zip_size,
-			       bpage->zip.data, bpage, 0, trx);
+			       frame, bpage, 0, trx, 0, false);
 	} else {
 		ut_a(buf_page_get_state(bpage) == BUF_BLOCK_FILE_PAGE);
 
 		*err = _fil_io(OS_FILE_READ | wake_later
 			      | ignore_nonexistent_pages,
 			      sync, space, 0, offset, 0, UNIV_PAGE_SIZE,
-			      ((buf_block_t*) bpage)->frame, bpage, &bpage->write_size, trx);
+			      frame, bpage, &bpage->write_size, trx, 0, false);
 	}
 
 	if (sync) {
@@ -245,6 +247,7 @@ not_to_recover:
 	}
 
 	if (*err != DB_SUCCESS) {
+		buf_page_decrypt_cleanup(bpage);
 		if (ignore_nonexistent_pages || *err == DB_TABLESPACE_DELETED) {
 			buf_read_page_handle_error(bpage);
 			return(0);
@@ -641,9 +644,9 @@ buf_read_ahead_linear(
 
 	fail_count = 0;
 
-	for (i = low; i < high; i++) {
+	prio_rw_lock_t*	hash_lock;
 
-		prio_rw_lock_t*	hash_lock;
+	for (i = low; i < high; i++) {
 
 		bpage = buf_page_hash_get_s_locked(buf_pool, space, i,
 						   &hash_lock);
@@ -692,7 +695,7 @@ buf_read_ahead_linear(
 	/* If we got this far, we know that enough pages in the area have
 	been accessed in the right order: linear read-ahead can be sensible */
 
-	bpage = buf_page_hash_get(buf_pool, space, offset);
+	bpage = buf_page_hash_get_s_locked(buf_pool, space, offset, &hash_lock);
 
 	if (bpage == NULL) {
 
@@ -719,6 +722,8 @@ buf_read_ahead_linear(
 
 	pred_offset = fil_page_get_prev(frame);
 	succ_offset = fil_page_get_next(frame);
+
+	rw_lock_s_unlock(hash_lock);
 
 	if ((offset == low) && (succ_offset == offset + 1)) {
 

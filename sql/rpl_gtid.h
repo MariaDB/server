@@ -159,6 +159,8 @@ struct rpl_slave_state
   HASH hash;
   /* Mutex protecting access to the state. */
   mysql_mutex_t LOCK_slave_state;
+  /* Auxiliary buffer to sort gtid list. */
+  DYNAMIC_ARRAY gtid_sort_array;
 
   uint64 last_sub_id;
   bool inited;
@@ -178,7 +180,8 @@ struct rpl_slave_state
                   bool in_transaction, bool in_statement);
   uint64 next_sub_id(uint32 domain_id);
   int iterate(int (*cb)(rpl_gtid *, void *), void *data,
-              rpl_gtid *extra_gtids, uint32 num_extra);
+              rpl_gtid *extra_gtids, uint32 num_extra,
+              bool sort);
   int tostring(String *dest, rpl_gtid *extra_gtids, uint32 num_extra);
   bool domain_to_gtid(uint32 domain_id, rpl_gtid *out_gtid);
   int load(THD *thd, char *state_from_master, size_t len, bool reset,
@@ -228,6 +231,9 @@ struct rpl_binlog_state
   mysql_mutex_t LOCK_binlog_state;
   my_bool initialized;
 
+  /* Auxiliary buffer to sort gtid list. */
+  DYNAMIC_ARRAY gtid_sort_array;
+
   rpl_binlog_state();
   ~rpl_binlog_state();
 
@@ -235,6 +241,7 @@ struct rpl_binlog_state
   void reset();
   void free();
   bool load(struct rpl_gtid *list, uint32 count);
+  bool load(rpl_slave_state *slave_pos);
   int update_nolock(const struct rpl_gtid *gtid, bool strict);
   int update(const struct rpl_gtid *gtid, bool strict);
   int update_with_next_gtid(uint32 domain_id, uint32 server_id,
@@ -271,6 +278,9 @@ struct slave_connection_state
   /* Mapping from domain_id to the entry with GTID requested for that domain. */
   HASH hash;
 
+  /* Auxiliary buffer to sort gtid list. */
+  DYNAMIC_ARRAY gtid_sort_array;
+
   slave_connection_state();
   ~slave_connection_state();
 
@@ -287,6 +297,7 @@ struct slave_connection_state
   int to_string(String *out_str);
   int append_to_string(String *out_str);
   int get_gtid_list(rpl_gtid *gtid_list, uint32 list_size);
+  bool is_pos_reached();
 };
 
 

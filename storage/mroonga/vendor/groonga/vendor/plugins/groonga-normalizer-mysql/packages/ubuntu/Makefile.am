@@ -1,4 +1,4 @@
-CODE_NAMES = precise,trusty
+CODE_NAMES = precise,trusty,utopic
 SOURCE = ../$(PACKAGE)-$(VERSION).tar.gz
 
 all:

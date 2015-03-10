@@ -26,7 +26,6 @@ ENDIF()
 # must be compiled with "-fvisibility=hidden"
 IF(WITH_SSL STREQUAL "bundled" AND HAVE_VISIBILITY_HIDDEN)
   SET_SOURCE_FILES_PROPERTIES(
-    my_aes.cc
     my_md5.cc
     my_sha1.cc
     my_sha2.cc
@@ -39,6 +38,7 @@ SET(MYSYS_SSL_SOURCES
     my_sha2.cc
     my_md5.cc
     my_rnd.cc
+    my_crypt.cc
    )
 
 ADD_CONVENIENCE_LIBRARY(mysys_ssl ${MYSYS_SSL_SOURCES})

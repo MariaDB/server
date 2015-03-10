@@ -777,7 +777,7 @@ int TDBMYSQL::Cardinality(PGLOBAL g)
     char   query[96];
     MYSQLC myc;
 
-    if (myc.Open(g, Host, Database, User, Pwd, Port))
+    if (myc.Open(g, Host, Database, User, Pwd, Port, csname))
       return -1;
 
     strcpy(query, "SELECT COUNT(*) FROM ");
@@ -871,7 +871,7 @@ bool TDBMYSQL::OpenDB(PGLOBAL g)
   /*  servers allowing concurency in getting results ???               */
   /*********************************************************************/
   if (!Myc.Connected()) {
-    if (Myc.Open(g, Host, Database, User, Pwd, Port))
+    if (Myc.Open(g, Host, Database, User, Pwd, Port, csname))
       return true;
 
     } // endif Connected
@@ -1141,19 +1141,16 @@ int TDBMYSQL::WriteDB(PGLOBAL g)
   int  rc;
   uint len = Query->GetLength();
   char buf[64];
-  bool b, oom = false;
+  bool oom = false;
 
   // Make the Insert command value list
   for (PCOL colp = Columns; colp; colp = colp->GetNext()) {
     if (!colp->GetValue()->IsNull()) {
-      if ((b = colp->GetResultType() == TYPE_STRING ||
-               colp->GetResultType() == TYPE_DATE))
-        oom |= Query->Append('\'');
-  
-      oom |= Query->Append(colp->GetValue()->GetCharString(buf));
-  
-      if (b)
-        oom |= Query->Append('\'');
+      if (colp->GetResultType() == TYPE_STRING ||
+          colp->GetResultType() == TYPE_DATE)
+        oom |= Query->Append_quoted(colp->GetValue()->GetCharString(buf));
+      else
+        oom |= Query->Append(colp->GetValue()->GetCharString(buf));
   
     } else
       oom |= Query->Append("NULL");

@@ -85,9 +85,7 @@ static const LEX_STRING sys_table_aliases[]=
 };
 
 const char *ha_row_type[] = {
-  "", "FIXED", "DYNAMIC", "COMPRESSED", "REDUNDANT", "COMPACT",
-  "PAGE",
-  "?","?","?"
+  "", "FIXED", "DYNAMIC", "COMPRESSED", "REDUNDANT", "COMPACT", "PAGE"
 };
 
 const char *tx_isolation_names[] =
@@ -233,24 +231,13 @@ handlerton *ha_resolve_by_legacy_type(THD *thd, enum legacy_db_type db_type)
 /**
   Use other database handler if databasehandler is not compiled in.
 */
-handlerton *ha_checktype(THD *thd, enum legacy_db_type database_type,
-                          bool no_substitute, bool report_error)
+handlerton *ha_checktype(THD *thd, handlerton *hton, bool no_substitute)
 {
-  handlerton *hton= ha_resolve_by_legacy_type(thd, database_type);
   if (ha_storage_engine_is_enabled(hton))
     return hton;
 
   if (no_substitute)
-  {
-    if (report_error)
-    {
-      const char *engine_name= ha_resolve_storage_engine_name(hton);
-      my_error(ER_FEATURE_DISABLED,MYF(0),engine_name,engine_name);
-    }
     return NULL;
-  }
-
-  (void) RUN_HOOK(transaction, after_rollback, (thd, FALSE));
 
   return ha_default_handlerton(thd);
 } /* ha_checktype */
@@ -1165,9 +1152,8 @@ static int prepare_or_error(handlerton *ht, THD *thd, bool all)
   {
     /* avoid sending error, if we're going to replay the transaction */
 #ifdef WITH_WSREP
-    if (ht == wsrep_hton &&
-        err != WSREP_TRX_SIZE_EXCEEDED &&
-        thd->wsrep_conflict_state != MUST_REPLAY)
+    if (ht != wsrep_hton ||
+        err == EMSGSIZE || thd->wsrep_conflict_state != MUST_REPLAY)
 #endif
       my_error(ER_ERROR_DURING_COMMIT, MYF(0), err);
   }
@@ -1479,13 +1465,24 @@ int ha_commit_trans(THD *thd, bool all)
 
 done:
   DBUG_EXECUTE_IF("crash_commit_after", DBUG_SUICIDE(););
+
+  mysql_mutex_assert_not_owner(&LOCK_prepare_ordered);
+  mysql_mutex_assert_not_owner(mysql_bin_log.get_log_lock());
+  mysql_mutex_assert_not_owner(&LOCK_after_binlog_sync);
+  mysql_mutex_assert_not_owner(&LOCK_commit_ordered);
   RUN_HOOK(transaction, after_commit, (thd, FALSE));
   goto end;
 
   /* Come here if error and we need to rollback. */
 err:
   error= 1;                                  /* Transaction was rolled back */
-  ha_rollback_trans(thd, all);
+  /*
+    In parallel replication, rollback is delayed, as there is extra replication
+    book-keeping to be done before rolling back and allowing a conflicting
+    transaction to continue (MDEV-7458).
+  */
+  if (!(thd->rgi_slave && thd->rgi_slave->is_parallel_exec))
+    ha_rollback_trans(thd, all);
 
 end:
   if (rw_trans && mdl_request.ticket)
@@ -4994,12 +4991,12 @@ bool ha_table_exists(THD *thd, const char *db, const char *table_name,
   else if (engines_with_discover)
     hton= &dummy;
 
-  TABLE_SHARE *share= tdc_lock_share(db, table_name);
-  if (share)
+  TDC_element *element= tdc_lock_share(thd, db, table_name);
+  if (element && element != MY_ERRPTR)
   {
     if (hton)
-      *hton= share->db_type();
-    tdc_unlock_share(share);
+      *hton= element->share->db_type();
+    tdc_unlock_share(element);
     DBUG_RETURN(TRUE);
   }
 
@@ -6042,6 +6039,9 @@ void handler::set_lock_type(enum thr_lock_type lock)
   implementing the wsrep API should provide this service to support
   multi-master operation.
 
+  @note Aborting the transaction does NOT end it, it still has to
+  be rolled back with hton->rollback().
+
   @param bf_thd       brute force THD asking for the abort
   @param victim_thd   victim THD to be aborted
 
@@ -6069,7 +6069,6 @@ int ha_abort_transaction(THD *bf_thd, THD *victim_thd, my_bool signal)
     else
       hton->abort_transaction(hton, bf_thd, victim_thd, signal);
     ha_info_next= ha_info->next();
-    ha_info->reset(); /* keep it conveniently zero-filled */
   }
   DBUG_RETURN(0);
 }

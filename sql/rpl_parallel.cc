@@ -47,8 +47,7 @@ rpt_handle_event(rpl_parallel_thread::queued_event *qev,
   /* Mutex will be released in apply_event_and_update_pos(). */
   err= apply_event_and_update_pos(ev, thd, rgi, rpt);
 
-  thread_safe_increment64(&rli->executed_entries,
-                          &slave_executed_entries_lock);
+  thread_safe_increment64(&rli->executed_entries);
   /* ToDo: error handling. */
   return err;
 }
@@ -106,9 +105,10 @@ handle_queued_pos_update(THD *thd, rpl_parallel_thread::queued_event *qev)
 
 
 static void
-finish_event_group(THD *thd, uint64 sub_id, rpl_parallel_entry *entry,
-                   rpl_group_info *rgi)
+finish_event_group(rpl_parallel_thread *rpt, uint64 sub_id,
+                   rpl_parallel_entry *entry, rpl_group_info *rgi)
 {
+  THD *thd= rpt->thd;
   wait_for_commit *wfc= &rgi->commit_orderer;
   int err;
 
@@ -139,24 +139,46 @@ finish_event_group(THD *thd, uint64 sub_id, rpl_parallel_entry *entry,
     signal_error_to_sql_driver_thread(thd, rgi, err);
   thd->wait_for_commit_ptr= NULL;
 
-  /*
-    Record that this event group has finished (eg. transaction is
-    committed, if transactional), so other event groups will no longer
-    attempt to wait for us to commit. Once we have increased
-    entry->last_committed_sub_id, no other threads will execute
-    register_wait_for_prior_commit() against us. Thus, by doing one
-    extra (usually redundant) wakeup_subsequent_commits() we can ensure
-    that no register_wait_for_prior_commit() can ever happen without a
-    subsequent wakeup_subsequent_commits() to wake it up.
-
-    We can race here with the next transactions, but that is fine, as
-    long as we check that we do not decrease last_committed_sub_id. If
-    this commit is done, then any prior commits will also have been
-    done and also no longer need waiting for.
-  */
   mysql_mutex_lock(&entry->LOCK_parallel_entry);
+  /*
+    We need to mark that this event group started its commit phase, in case we
+    missed it before (otherwise we would deadlock the next event group that is
+    waiting for this). In most cases (normal DML), it will be a no-op.
+  */
+  rgi->mark_start_commit_no_lock();
+
   if (entry->last_committed_sub_id < sub_id)
+  {
+    /*
+      Record that this event group has finished (eg. transaction is
+      committed, if transactional), so other event groups will no longer
+      attempt to wait for us to commit. Once we have increased
+      entry->last_committed_sub_id, no other threads will execute
+      register_wait_for_prior_commit() against us. Thus, by doing one
+      extra (usually redundant) wakeup_subsequent_commits() we can ensure
+      that no register_wait_for_prior_commit() can ever happen without a
+      subsequent wakeup_subsequent_commits() to wake it up.
+
+      We can race here with the next transactions, but that is fine, as
+      long as we check that we do not decrease last_committed_sub_id. If
+      this commit is done, then any prior commits will also have been
+      done and also no longer need waiting for.
+    */
     entry->last_committed_sub_id= sub_id;
+
+    /* Now free any GCOs in which all transactions have committed. */
+    group_commit_orderer *tmp_gco= rgi->gco;
+    while (tmp_gco &&
+           (!tmp_gco->next_gco || tmp_gco->last_sub_id > sub_id))
+      tmp_gco= tmp_gco->prev_gco;
+    while (tmp_gco)
+    {
+      group_commit_orderer *prev_gco= tmp_gco->prev_gco;
+      tmp_gco->next_gco->prev_gco= NULL;
+      rpt->loc_free_gco(tmp_gco);
+      tmp_gco= prev_gco;
+    }
+  }
 
   /*
     If this event group got error, then any following event groups that have
@@ -166,12 +188,6 @@ finish_event_group(THD *thd, uint64 sub_id, rpl_parallel_entry *entry,
   if (unlikely(rgi->worker_error) &&
       entry->stop_on_error_sub_id == (uint64)ULONGLONG_MAX)
     entry->stop_on_error_sub_id= sub_id;
-  /*
-    We need to mark that this event group started its commit phase, in case we
-    missed it before (otherwise we would deadlock the next event group that is
-    waiting for this). In most cases (normal DML), it will be a no-op.
-  */
-  rgi->mark_start_commit_no_lock();
   mysql_mutex_unlock(&entry->LOCK_parallel_entry);
 
   thd->clear_error();
@@ -337,6 +353,7 @@ do_retry:
     until after the unmark.
   */
   rgi->unmark_start_commit();
+  DEBUG_SYNC(thd, "rpl_parallel_retry_after_unmark");
 
   /*
     We might get the deadlock error that causes the retry during commit, while
@@ -559,7 +576,7 @@ handle_rpl_parallel_thread(void *arg)
   bool in_event_group= false;
   bool skip_event_group= false;
   rpl_group_info *group_rgi= NULL;
-  group_commit_orderer *gco, *tmp_gco;
+  group_commit_orderer *gco;
   uint64 event_gtid_sub_id= 0;
   rpl_sql_thread_info sql_info(NULL);
   int err;
@@ -659,7 +676,7 @@ handle_rpl_parallel_thread(void *arg)
           */
           group_rgi->cleanup_context(thd, 1);
           in_event_group= false;
-          finish_event_group(thd, group_rgi->gtid_sub_id,
+          finish_event_group(rpt, group_rgi->gtid_sub_id,
                              qev->entry_for_queued, group_rgi);
 
           rpt->loc_free_rgi(group_rgi);
@@ -671,7 +688,7 @@ handle_rpl_parallel_thread(void *arg)
       }
       DBUG_ASSERT(qev->typ==rpl_parallel_thread::queued_event::QUEUED_EVENT);
 
-      thd->rgi_slave= group_rgi= rgi;
+      thd->rgi_slave= rgi;
       gco= rgi->gco;
       /* Handle a new event group, which will be initiated by a GTID event. */
       if ((event_type= qev->ev->get_type_code()) == GTID_EVENT)
@@ -687,6 +704,21 @@ handle_rpl_parallel_thread(void *arg)
                       STRING_WITH_LEN("now SIGNAL scheduled_gtid_0_x_100"));
             }
           });
+
+        if(unlikely(thd->wait_for_commit_ptr) && group_rgi != NULL)
+        {
+          /*
+            This indicates that we get a new GTID event in the middle of
+            a not completed event group. This is corrupt binlog (the master
+            will never write such binlog), so it does not happen unless
+            someone tries to inject wrong crafted binlog, but let us still
+            try to handle it somewhat nicely.
+          */
+          group_rgi->cleanup_context(thd, true);
+          finish_event_group(rpt, group_rgi->gtid_sub_id,
+                             group_rgi->parallel_entry, group_rgi);
+          rpt->loc_free_rgi(group_rgi);
+        }
 
         thd->tx_isolation= (enum_tx_isolation)thd->variables.tx_isolation;
         in_event_group= true;
@@ -714,8 +746,12 @@ handle_rpl_parallel_thread(void *arg)
         mysql_mutex_lock(&entry->LOCK_parallel_entry);
         if (!(gco->flags & group_commit_orderer::INSTALLED))
         {
-          if (gco->prev_gco)
-            gco->prev_gco->next_gco= gco;
+          group_commit_orderer *prev_gco= gco->prev_gco;
+          if (prev_gco)
+          {
+            prev_gco->last_sub_id= gco->prior_sub_id;
+            prev_gco->next_gco= gco;
+          }
           gco->flags|= group_commit_orderer::INSTALLED;
         }
         wait_count= gco->wait_count;
@@ -732,6 +768,8 @@ handle_rpl_parallel_thread(void *arg)
             if (thd->check_killed() && !rgi->worker_error)
             {
               DEBUG_SYNC(thd, "rpl_parallel_start_waiting_for_prior_killed");
+              thd->clear_error();
+              thd->get_stmt_da()->reset_diagnostics_area();
               thd->send_kill_message();
               slave_output_error_info(rgi, thd);
               signal_error_to_sql_driver_thread(thd, rgi, 1);
@@ -746,18 +784,6 @@ handle_rpl_parallel_thread(void *arg)
             mysql_cond_wait(&gco->COND_group_commit_orderer,
                             &entry->LOCK_parallel_entry);
           } while (wait_count > entry->count_committing_event_groups);
-        }
-
-        if ((tmp_gco= gco->prev_gco))
-        {
-          /*
-            Now all the event groups in the previous batch have entered their
-            commit phase, and will no longer access their gco. So we can free
-            it here.
-          */
-          DBUG_ASSERT(!tmp_gco->prev_gco);
-          gco->prev_gco= NULL;
-          rpt->loc_free_gco(tmp_gco);
         }
 
         if (entry->force_abort && wait_count > entry->stop_count)
@@ -780,19 +806,6 @@ handle_rpl_parallel_thread(void *arg)
         unlock_or_exit_cond(thd, &entry->LOCK_parallel_entry,
                             &did_enter_cond, &old_stage);
 
-        if(thd->wait_for_commit_ptr)
-        {
-          /*
-            This indicates that we get a new GTID event in the middle of
-            a not completed event group. This is corrupt binlog (the master
-            will never write such binlog), so it does not happen unless
-            someone tries to inject wrong crafted binlog, but let us still
-            try to handle it somewhat nicely.
-          */
-          rgi->cleanup_context(thd, true);
-          thd->wait_for_commit_ptr->unregister_wait_for_prior_commit();
-          thd->wait_for_commit_ptr->wakeup_subsequent_commits(rgi->worker_error);
-        }
         thd->wait_for_commit_ptr= &rgi->commit_orderer;
 
         if (opt_gtid_ignore_duplicates)
@@ -830,11 +843,13 @@ handle_rpl_parallel_thread(void *arg)
         }
       }
 
+      group_rgi= rgi;
       group_ending= is_group_ending(qev->ev, event_type);
       if (group_ending && likely(!rgi->worker_error))
       {
         DEBUG_SYNC(thd, "rpl_parallel_before_mark_start_commit");
         rgi->mark_start_commit();
+        DEBUG_SYNC(thd, "rpl_parallel_after_mark_start_commit");
       }
 
       /*
@@ -855,6 +870,7 @@ handle_rpl_parallel_thread(void *arg)
             thd->get_stmt_da()->reset_diagnostics_area();
             my_error(ER_LOCK_DEADLOCK, MYF(0));
             err= 1;
+            DEBUG_SYNC(thd, "rpl_parallel_simulate_temp_err_xid");
           });
         if (!err)
 #endif
@@ -894,7 +910,7 @@ handle_rpl_parallel_thread(void *arg)
       if (end_of_group)
       {
         in_event_group= false;
-        finish_event_group(thd, event_gtid_sub_id, entry, rgi);
+        finish_event_group(rpt, event_gtid_sub_id, entry, rgi);
         rpt->loc_free_rgi(rgi);
         thd->rgi_slave= group_rgi= rgi= NULL;
         skip_event_group= false;
@@ -935,7 +951,7 @@ handle_rpl_parallel_thread(void *arg)
       */
       mysql_mutex_unlock(&rpt->LOCK_rpl_thread);
       signal_error_to_sql_driver_thread(thd, group_rgi, 1);
-      finish_event_group(thd, group_rgi->gtid_sub_id,
+      finish_event_group(rpt, group_rgi->gtid_sub_id,
                          group_rgi->parallel_entry, group_rgi);
       in_event_group= false;
       mysql_mutex_lock(&rpt->LOCK_rpl_thread);
@@ -984,7 +1000,6 @@ handle_rpl_parallel_thread(void *arg)
 static void
 dealloc_gco(group_commit_orderer *gco)
 {
-  DBUG_ASSERT(!gco->prev_gco /* Must only free after dealloc previous */);
   mysql_cond_destroy(&gco->COND_group_commit_orderer);
   my_free(gco);
 }
@@ -995,6 +1010,7 @@ rpl_parallel_change_thread_count(rpl_parallel_thread_pool *pool,
                                  uint32 new_count, bool skip_check)
 {
   uint32 i;
+  rpl_parallel_thread **old_list= NULL;
   rpl_parallel_thread **new_list= NULL;
   rpl_parallel_thread *new_free_list= NULL;
   rpl_parallel_thread *rpt_array= NULL;
@@ -1099,10 +1115,14 @@ rpl_parallel_change_thread_count(rpl_parallel_thread_pool *pool,
     }
   }
 
-  my_free(pool->threads);
+  old_list= pool->threads;
+  if (new_count < pool->count)
+    pool->count= new_count;
   pool->threads= new_list;
+  if (new_count > pool->count)
+    pool->count= new_count;
+  my_free(old_list);
   pool->free_list= new_free_list;
-  pool->count= new_count;
   for (i= 0; i < pool->count; ++i)
   {
     mysql_mutex_lock(&pool->threads[i]->LOCK_rpl_thread);
@@ -1193,9 +1213,7 @@ rpl_parallel_thread::inuse_relaylog_refcount_update()
   inuse_relaylog *ir= accumulated_ir_last;
   if (ir)
   {
-    my_atomic_rwlock_wrlock(&ir->rli->inuse_relaylog_atomic_lock);
     my_atomic_add64(&ir->dequeued_count, accumulated_ir_count);
-    my_atomic_rwlock_wrunlock(&ir->rli->inuse_relaylog_atomic_lock);
     accumulated_ir_count= 0;
     accumulated_ir_last= NULL;
   }
@@ -1365,7 +1383,8 @@ rpl_parallel_thread::free_rgi(rpl_group_info *rgi)
 
 
 group_commit_orderer *
-rpl_parallel_thread::get_gco(uint64 wait_count, group_commit_orderer *prev)
+rpl_parallel_thread::get_gco(uint64 wait_count, group_commit_orderer *prev,
+                             uint64 prior_sub_id)
 {
   group_commit_orderer *gco;
   mysql_mutex_assert_owner(&LOCK_rpl_thread);
@@ -1381,6 +1400,7 @@ rpl_parallel_thread::get_gco(uint64 wait_count, group_commit_orderer *prev)
   gco->wait_count= wait_count;
   gco->prev_gco= prev;
   gco->next_gco= NULL;
+  gco->prior_sub_id= prior_sub_id;
   gco->flags= 0;
   return gco;
 }
@@ -1389,7 +1409,6 @@ rpl_parallel_thread::get_gco(uint64 wait_count, group_commit_orderer *prev)
 void
 rpl_parallel_thread::loc_free_gco(group_commit_orderer *gco)
 {
-  DBUG_ASSERT(!gco->prev_gco /* Must not free until wait has completed. */);
   if (!loc_gco_list)
     loc_gco_last_ptr_ptr= &gco->next_gco;
   else
@@ -1596,8 +1615,12 @@ static void
 free_rpl_parallel_entry(void *element)
 {
   rpl_parallel_entry *e= (rpl_parallel_entry *)element;
-  if (e->current_gco)
+  while (e->current_gco)
+  {
+    group_commit_orderer *prev_gco= e->current_gco->prev_gco;
     dealloc_gco(e->current_gco);
+    e->current_gco= prev_gco;
+  }
   mysql_cond_destroy(&e->COND_parallel_entry);
   mysql_mutex_destroy(&e->LOCK_parallel_entry);
   my_free(e);
@@ -1874,6 +1897,41 @@ rpl_parallel::wait_for_workers_idle(THD *thd)
 
 
 /*
+  Handle seeing a GTID during slave restart in GTID mode. If we stopped with
+  different replication domains having reached different positions in the relay
+  log, we need to skip event groups in domains that are further progressed.
+
+  Updates the state with the seen GTID, and returns true if this GTID should
+  be skipped, false otherwise.
+*/
+bool
+process_gtid_for_restart_pos(Relay_log_info *rli, rpl_gtid *gtid)
+{
+  slave_connection_state::entry *gtid_entry;
+  slave_connection_state *state= &rli->restart_gtid_pos;
+
+  if (likely(state->count() == 0) ||
+      !(gtid_entry= state->find_entry(gtid->domain_id)))
+    return false;
+  if (gtid->server_id == gtid_entry->gtid.server_id)
+  {
+    uint64 seq_no= gtid_entry->gtid.seq_no;
+    if (gtid->seq_no >= seq_no)
+    {
+      /*
+        This domain has reached its start position. So remove it, so that
+        further events will be processed normally.
+      */
+      state->remove(&gtid_entry->gtid);
+    }
+    return gtid->seq_no <= seq_no;
+  }
+  else
+    return true;
+}
+
+
+/*
   This is used when we get an error during processing in do_event();
   We will not queue any event to the thread, but we still need to wake it up
   to be sure that it will be returned to the pool.
@@ -1935,13 +1993,15 @@ rpl_parallel::do_event(rpl_group_info *serial_rgi, Log_event *ev,
     return -1;
 
   /* Execute pre-10.0 event, which have no GTID, in single-threaded mode. */
-  if (unlikely(!current) && typ != GTID_EVENT)
+  is_group_event= Log_event::is_group_event(typ);
+  if (unlikely(!current) && typ != GTID_EVENT &&
+      !(unlikely(rli->gtid_skip_flag != GTID_SKIP_NOT) && is_group_event))
     return -1;
 
   /* ToDo: what to do with this lock?!? */
   mysql_mutex_unlock(&rli->data_lock);
 
-  if (typ == FORMAT_DESCRIPTION_EVENT)
+  if (unlikely(typ == FORMAT_DESCRIPTION_EVENT))
   {
     Format_description_log_event *fdev=
       static_cast<Format_description_log_event *>(ev);
@@ -1967,6 +2027,19 @@ rpl_parallel::do_event(rpl_group_info *serial_rgi, Log_event *ev,
       }
     }
   }
+  else if (unlikely(typ == GTID_LIST_EVENT))
+  {
+    Gtid_list_log_event *glev= static_cast<Gtid_list_log_event *>(ev);
+    rpl_gtid *list= glev->list;
+    uint32 count= glev->count;
+    rli->update_relay_log_state(list, count);
+    while (count)
+    {
+      process_gtid_for_restart_pos(rli, list);
+      ++list;
+      --count;
+    }
+  }
 
   /*
     Stop queueing additional event groups once the SQL thread is requested to
@@ -1976,7 +2049,6 @@ rpl_parallel::do_event(rpl_group_info *serial_rgi, Log_event *ev,
     been partially queued, but after that we will just ignore any further
     events the SQL driver thread may try to queue, and eventually it will stop.
   */
-  is_group_event= Log_event::is_group_event(typ);
   if ((typ == GTID_EVENT || !is_group_event) && rli->abort_slave)
     sql_thread_stopping= true;
   if (sql_thread_stopping)
@@ -1989,11 +2061,37 @@ rpl_parallel::do_event(rpl_group_info *serial_rgi, Log_event *ev,
     return 0;
   }
 
+  if (unlikely(rli->gtid_skip_flag != GTID_SKIP_NOT) && is_group_event)
+  {
+    if (typ == GTID_EVENT)
+      rli->gtid_skip_flag= GTID_SKIP_NOT;
+    else
+    {
+      if (rli->gtid_skip_flag == GTID_SKIP_STANDALONE)
+      {
+        if (!Log_event::is_part_of_group(typ))
+          rli->gtid_skip_flag= GTID_SKIP_NOT;
+      }
+      else
+      {
+        DBUG_ASSERT(rli->gtid_skip_flag == GTID_SKIP_TRANSACTION);
+        if (typ == XID_EVENT ||
+            (typ == QUERY_EVENT &&
+             (((Query_log_event *)ev)->is_commit() ||
+              ((Query_log_event *)ev)->is_rollback())))
+          rli->gtid_skip_flag= GTID_SKIP_NOT;
+      }
+      delete_or_keep_event_post_apply(serial_rgi, typ, ev);
+      return 0;
+    }
+  }
+
   if (typ == GTID_EVENT)
   {
+    rpl_gtid gtid;
     Gtid_log_event *gtid_ev= static_cast<Gtid_log_event *>(ev);
     uint32 domain_id= (rli->mi->using_gtid == Master_info::USE_GTID_NO ||
-                       !(rli->mi->parallel_mode & SLAVE_PARALLEL_DOMAIN) ?
+                       rli->mi->parallel_mode <= SLAVE_PARALLEL_MINIMAL ?
                        0 : gtid_ev->domain_id);
     if (!(e= find(domain_id)))
     {
@@ -2002,6 +2100,23 @@ rpl_parallel::do_event(rpl_group_info *serial_rgi, Log_event *ev,
       return 1;
     }
     current= e;
+
+    gtid.domain_id= gtid_ev->domain_id;
+    gtid.server_id= gtid_ev->server_id;
+    gtid.seq_no= gtid_ev->seq_no;
+    rli->update_relay_log_state(&gtid, 1);
+    if (process_gtid_for_restart_pos(rli, &gtid))
+    {
+      /*
+        This domain has progressed further into the relay log before the last
+        SQL thread restart. So we need to skip this event group to not doubly
+        apply it.
+      */
+      rli->gtid_skip_flag= ((gtid_ev->flags2 & Gtid_log_event::FL_STANDALONE) ?
+                            GTID_SKIP_STANDALONE : GTID_SKIP_TRANSACTION);
+      delete_or_keep_event_post_apply(serial_rgi, typ, ev);
+      return 0;
+    }
   }
   else
     e= current;
@@ -2034,7 +2149,7 @@ rpl_parallel::do_event(rpl_group_info *serial_rgi, Log_event *ev,
   {
     Gtid_log_event *gtid_ev= static_cast<Gtid_log_event *>(ev);
     bool new_gco;
-    ulonglong mode= rli->mi->parallel_mode;
+    enum_slave_parallel_mode mode= rli->mi->parallel_mode;
     uchar gtid_flags= gtid_ev->flags2;
     group_commit_orderer *gco;
     uint8 force_switch_flag;
@@ -2073,7 +2188,8 @@ rpl_parallel::do_event(rpl_group_info *serial_rgi, Log_event *ev,
     {
       uint8 flags= gco->flags;
 
-      if (!(gtid_flags & Gtid_log_event::FL_GROUP_COMMIT_ID) ||
+      if (mode <= SLAVE_PARALLEL_MINIMAL ||
+          !(gtid_flags & Gtid_log_event::FL_GROUP_COMMIT_ID) ||
           e->last_commit_id != gtid_ev->commit_id)
         flags|= group_commit_orderer::MULTI_BATCH;
       /* Make sure we do not attempt to run DDL in parallel speculatively. */
@@ -2088,7 +2204,7 @@ rpl_parallel::do_event(rpl_group_info *serial_rgi, Log_event *ev,
         */
         new_gco= false;
       }
-      else if ((mode & SLAVE_PARALLEL_TRX) &&
+      else if ((mode >= SLAVE_PARALLEL_OPTIMISTIC) &&
                !(flags & group_commit_orderer::FORCE_SWITCH))
       {
         /*
@@ -2104,9 +2220,9 @@ rpl_parallel::do_event(rpl_group_info *serial_rgi, Log_event *ev,
         */
         new_gco= false;
         if (!(gtid_flags & Gtid_log_event::FL_TRANSACTIONAL) ||
-            !(gtid_flags & Gtid_log_event::FL_ALLOW_PARALLEL) ||
-            ((gtid_flags & Gtid_log_event::FL_WAITED) &&
-             !(mode & SLAVE_PARALLEL_WAITING)))
+            ( (!(gtid_flags & Gtid_log_event::FL_ALLOW_PARALLEL) ||
+               (gtid_flags & Gtid_log_event::FL_WAITED)) &&
+              (mode < SLAVE_PARALLEL_AGGRESSIVE)))
         {
           /*
             This transaction should not be speculatively run in parallel with
@@ -2145,7 +2261,7 @@ rpl_parallel::do_event(rpl_group_info *serial_rgi, Log_event *ev,
       */
       uint64 count= e->count_queued_event_groups;
 
-      if (!(gco= cur_thread->get_gco(count, gco)))
+      if (!(gco= cur_thread->get_gco(count, gco, e->current_sub_id)))
       {
         cur_thread->free_rgi(rgi);
         cur_thread->free_qev(qev);

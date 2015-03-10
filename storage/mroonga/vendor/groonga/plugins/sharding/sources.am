@@ -1,0 +1,4 @@
+sharding_scripts =				\
+	logical_count.rb			\
+	logical_enumerator.rb			\
+	logical_range_filter.rb

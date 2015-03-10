@@ -88,6 +88,8 @@ extern my_bool     wsrep_slave_FK_checks;
 extern my_bool     wsrep_slave_UK_checks;
 extern ulong       wsrep_running_threads;
 extern bool        wsrep_new_cluster;
+extern bool        wsrep_gtid_mode;
+extern uint32      wsrep_gtid_domain_id;
 
 enum enum_wsrep_OSU_method { WSREP_OSU_TOI, WSREP_OSU_RSU };
 enum enum_wsrep_sync_wait {
@@ -112,7 +114,8 @@ extern const char* wsrep_provider_name;
 extern const char* wsrep_provider_version;
 extern const char* wsrep_provider_vendor;
 
-int  wsrep_show_status(THD *thd, SHOW_VAR *var, char *buff);
+int  wsrep_show_status(THD *thd, SHOW_VAR *var, char *buff,
+                       enum enum_var_type scope);
 int  wsrep_init();
 void wsrep_deinit(bool free_options);
 void wsrep_recover();
@@ -161,7 +164,7 @@ extern wsrep_seqno_t wsrep_locked_seqno;
   (global_system_variables.wsrep_on)
 
 #define WSREP(thd) \
-  (WSREP_ON && (thd && thd->variables.wsrep_on))
+  (WSREP_ON && wsrep && (thd && thd->variables.wsrep_on))
 
 #define WSREP_CLIENT(thd) \
     (WSREP(thd) && thd->wsrep_client_thread)
@@ -314,6 +317,7 @@ int wsrep_create_trigger_query(THD *thd, uchar** buf, size_t* buf_len);
 #define WSREP_EMULATE_BINLOG(thd) (0)
 #define WSREP_CLIENT(thd) (0)
 #define WSREP_FORMAT(my_format) ((ulong)my_format)
+#define WSREP_PROVIDER_EXISTS (0)
 #define wsrep_emulate_bin_log (0)
 #define wsrep_xid_seqno(X) (0)
 #define wsrep_to_isolation (0)

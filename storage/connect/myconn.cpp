@@ -51,7 +51,8 @@
 #define  DLL_EXPORT            // Items are exported from this DLL
 #include "myconn.h"
 
-extern "C" int   zconv;
+//extern "C" int   zconv;
+int GetConvSize(void);
 extern MYSQL_PLUGIN_IMPORT uint  mysqld_port;
 extern MYSQL_PLUGIN_IMPORT char *mysqld_unix_port;
 
@@ -265,7 +266,7 @@ PQRYRES MyColumns(PGLOBAL g, THD *thd, const char *host, const char *db,
       return NULL;
     } else if (type == TYPE_STRING) {
       if (v == 'X') {
-        len = zconv;
+        len = GetConvSize();
         sprintf(g->Message, "Column %s converted to varchar(%d)",
                 colname, len);
         PushWarning(g, thd);
@@ -430,10 +431,11 @@ int MYSQLC::GetResultSize(PGLOBAL g, PSZ sql)
 /***********************************************************************/
 int MYSQLC::Open(PGLOBAL g, const char *host, const char *db,
                             const char *user, const char *pwd,
-                            int pt)
+                            int pt, const char *csname)
   {
   const char *pipe = NULL;
-  uint cto = 6000, nrt = 12000;
+  uint        cto = 6000, nrt = 12000;
+  my_bool     my_true= 1;
 
   m_DB = mysql_init(NULL);
 
@@ -469,6 +471,18 @@ int MYSQLC::Open(PGLOBAL g, const char *host, const char *db,
 
     } // endif pwd
 #endif // 0
+
+/***********************************************************************/
+/*	BUG# 17044 Federated Storage Engine is not UTF8 clean              */
+/*	Add set names to whatever charset the table is at open of table    */
+/*  this sets the csname like 'set names utf8'.                        */
+/***********************************************************************/
+  if (csname)
+    mysql_options(m_DB, MYSQL_SET_CHARSET_NAME, csname);
+
+  // Don't know what this one do but FEDERATED does it
+  mysql_options(m_DB, MYSQL_OPT_USE_THREAD_SPECIFIC_MEMORY,
+                  (char*)&my_true);
 
   if (!mysql_real_connect(m_DB, host, user, pwd, db, pt, pipe, CLIENT_MULTI_RESULTS)) {
 #if defined(_DEBUG)

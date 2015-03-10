@@ -80,7 +80,7 @@ extern struct wsrep_service_st {
   int                         (*wsrep_on_func)(MYSQL_THD);
   void                        (*wsrep_post_commit_func)(THD* thd, bool all);
   bool                        (*wsrep_prepare_key_func)(const unsigned char*, size_t, const unsigned char*, size_t, struct wsrep_buf*, size_t*);
-  enum wsrep_trx_status       (*wsrep_run_wsrep_commit_func)(THD *thd, handlerton *hton, bool all);
+  enum wsrep_trx_status       (*wsrep_run_wsrep_commit_func)(THD *thd, bool all);
   void                        (*wsrep_thd_LOCK_func)(THD *thd);
   void                        (*wsrep_thd_UNLOCK_func)(THD *thd);
   void                        (*wsrep_thd_awake_func)(THD *thd, my_bool signal);
@@ -119,7 +119,7 @@ extern struct wsrep_service_st {
 #define wsrep_on(X) wsrep_service->wsrep_on_func(X)
 #define wsrep_post_commit(T,A) wsrep_service->wsrep_post_commit_func(T,A)
 #define wsrep_prepare_key(A,B,C,D,E,F) wsrep_service->wsrep_prepare_key_func(A,B,C,D,E,F)
-#define wsrep_run_wsrep_commit(T,H,A) wsrep_service->wsrep_run_wsrep_commit_func(T,H,A)
+#define wsrep_run_wsrep_commit(T,A) wsrep_service->wsrep_run_wsrep_commit_func(T,A)
 #define wsrep_thd_LOCK(T) wsrep_service->wsrep_thd_LOCK_func(T)
 #define wsrep_thd_UNLOCK(T) wsrep_service->wsrep_thd_UNLOCK_func(T)
 #define wsrep_thd_awake(T,S) wsrep_service->wsrep_thd_awake_func(T,S)
@@ -167,7 +167,7 @@ enum wsrep_conflict_state wsrep_thd_conflict_state(MYSQL_THD thd, my_bool sync);
 enum wsrep_conflict_state wsrep_thd_get_conflict_state(MYSQL_THD thd);
 enum wsrep_exec_mode wsrep_thd_exec_mode(THD *thd);
 enum wsrep_query_state wsrep_thd_query_state(THD *thd);
-enum wsrep_trx_status wsrep_run_wsrep_commit(THD *thd, handlerton *hton, bool all);
+enum wsrep_trx_status wsrep_run_wsrep_commit(THD *thd, bool all);
 int wsrep_is_wsrep_xid(const struct xid_t* xid);
 int wsrep_on(MYSQL_THD thd);
 int wsrep_thd_retry_counter(THD *thd);

@@ -43,6 +43,9 @@ Created 9/5/1995 Heikki Tuuri
 #include "sync0arr.h"
 #include "ut0counter.h"
 
+/** Enable semaphore request instrumentation */
+extern my_bool srv_instrument_semaphores;
+
 #if  defined(UNIV_DEBUG) && !defined(UNIV_HOTBACKUP)
 extern "C" my_bool	timed_mutexes;
 #endif /* UNIV_DEBUG && !UNIV_HOTBACKUP */
@@ -69,7 +72,6 @@ instrumentation due to their large number of instances. */
 /* Key defines to register InnoDB mutexes with performance schema */
 extern mysql_pfs_key_t	autoinc_mutex_key;
 extern mysql_pfs_key_t	buffer_block_mutex_key;
-extern mysql_pfs_key_t	buf_pool_mutex_key;
 extern mysql_pfs_key_t	buf_pool_zip_mutex_key;
 extern mysql_pfs_key_t	buf_pool_LRU_list_mutex_key;
 extern mysql_pfs_key_t	buf_pool_free_list_mutex_key;
@@ -189,7 +191,7 @@ necessary only if the memory block containing it is freed. */
 #  endif/* UNIV_SYNC_DEBUG */
 # else
 #  define mutex_create(K, M, level)				\
-	pfs_mutex_create_func((K), (M), #M)
+	pfs_mutex_create_func((K), (M), __FILE__, __LINE__, #M)
 # endif	/* UNIV_DEBUG */
 
 # define mutex_enter(M)						\
@@ -256,9 +258,9 @@ mutex_create_func(
 # ifdef UNIV_SYNC_DEBUG
 	ulint		level,		/*!< in: level */
 # endif /* UNIV_SYNC_DEBUG */
+#endif /* UNIV_DEBUG */
 	const char*	cfile_name,	/*!< in: file name where created */
 	ulint		cline,		/*!< in: file line where created */
-#endif /* UNIV_DEBUG */
 	const char*	cmutex_name);	/*!< in: mutex name */
 
 /******************************************************************//**
@@ -275,11 +277,11 @@ mutex_create_func(
 # ifdef UNIV_SYNC_DEBUG
 	ulint			level,		/*!< in: level */
 # endif /* UNIV_SYNC_DEBUG */
+#endif /* UNIV_DEBUG */
 	const char*		cfile_name,	/*!< in: file name where
 						created */
 	ulint			cline,		/*!< in: file line where
 						created */
-#endif /* UNIV_DEBUG */
 	const char*		cmutex_name);	/*!< in: mutex name */
 /******************************************************************//**
 NOTE! Use the corresponding macro mutex_free(), not directly this function!
@@ -402,9 +404,9 @@ pfs_mutex_create_func(
 #  ifdef UNIV_SYNC_DEBUG
 	ulint		level,		/*!< in: level */
 #  endif /* UNIV_SYNC_DEBUG */
+# endif /* UNIV_DEBUG */
 	const char*	cfile_name,	/*!< in: file name where created */
 	ulint		cline,		/*!< in: file line where created */
-# endif /* UNIV_DEBUG */
 	const char*	cmutex_name);
 /******************************************************************//**
 NOTE! Please use the corresponding macro mutex_create(), not directly
@@ -423,11 +425,11 @@ pfs_mutex_create_func(
 #  ifdef UNIV_SYNC_DEBUG
 	ulint			level,		/*!< in: level */
 #  endif /* UNIV_SYNC_DEBUG */
+# endif /* UNIV_DEBUG */
 	const char*		cfile_name,	/*!< in: file name where
 						created */
 	ulint			cline,		/*!< in: file line where
 						created */
-# endif /* UNIV_DEBUG */
 	const char*		cmutex_name);
 /******************************************************************//**
 NOTE! Please use the corresponding macro mutex_enter(), not directly
@@ -947,27 +949,28 @@ struct ib_mutex_t {
 				Otherwise, this is 0. */
 	UT_LIST_NODE_T(ib_mutex_t)	list; /*!< All allocated mutexes are put into
 				a list.	Pointers to the next and prev. */
+
 #ifdef UNIV_SYNC_DEBUG
-	const char*	file_name;	/*!< File where the mutex was locked */
-	ulint	line;		/*!< Line where the mutex was locked */
-	ulint	level;		/*!< Level in the global latching order */
+	ulint	level;			/*!< Level in the global latching order */
 #endif /* UNIV_SYNC_DEBUG */
-#ifdef UNIV_DEBUG
-	const char*	cfile_name;/*!< File name where mutex created */
-	ulint		cline;	/*!< Line where created */
-#endif
+
+	const char*	file_name;	/*!< File where the mutex was locked */
+	ulint		line;		/*!< Line where the mutex was locked */
+	const char*	cfile_name;	/*!< File name where mutex created */
+	ulint		cline;		/*!< Line where created */
 	ulong		count_os_wait;	/*!< count of os_wait */
+	const char*	cmutex_name;	/*!< mutex name */
+	os_thread_id_t thread_id;	/*!< The thread id of the thread
+					which locked the mutex. */
+
 #ifdef UNIV_DEBUG
 
 /** Value of mutex_t::magic_n */
 # define MUTEX_MAGIC_N	979585UL
-
-	os_thread_id_t thread_id; /*!< The thread id of the thread
-				which locked the mutex. */
 	ulint		magic_n;	/*!< MUTEX_MAGIC_N */
 	ulint		ib_mutex_type;	/*!< 0=usual mutex, 1=rw_lock mutex */
 #endif /* UNIV_DEBUG */
-	const char*	cmutex_name;	/*!< mutex name */
+
 #ifdef UNIV_PFS_MUTEX
 	struct PSI_mutex* pfs_psi;	/*!< The performance schema
 					instrumentation hook */

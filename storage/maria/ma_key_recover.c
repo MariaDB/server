@@ -340,7 +340,7 @@ my_bool _ma_log_prefix(MARIA_PAGE *ma_page, uint changed_length,
 
   /* Store keypage_flag */
   *log_pos++= KEY_OP_SET_PAGEFLAG;
-  *log_pos++= buff[KEYPAGE_TRANSFLAG_OFFSET];
+  *log_pos++= _ma_get_keypage_flag(info->s, buff);
 
   if (move_length < 0)
   {
@@ -424,7 +424,7 @@ my_bool _ma_log_suffix(MARIA_PAGE *ma_page, uint org_length, uint new_length)
 
   /* Store keypage_flag */
   *log_pos++= KEY_OP_SET_PAGEFLAG;
-  *log_pos++= buff[KEYPAGE_TRANSFLAG_OFFSET];
+  *log_pos++= _ma_get_keypage_flag(info->s, buff);
 
   if ((diff= (int) (new_length - org_length)) < 0)
   {
@@ -526,7 +526,7 @@ my_bool _ma_log_add(MARIA_PAGE *ma_page,
 
   /* Store keypage_flag */
   *log_pos++= KEY_OP_SET_PAGEFLAG;
-  *log_pos++= buff[KEYPAGE_TRANSFLAG_OFFSET];
+  *log_pos++= _ma_get_keypage_flag(info->s, buff);
 
   /*
     Don't overwrite page boundary
@@ -667,7 +667,7 @@ void _ma_log_key_changes(MARIA_PAGE *ma_page, LEX_CUSTRING *log_array,
   uint org_length;
   ha_checksum crc;
 
-  DBUG_ASSERT(ma_page->flag == (uint) ma_page->buff[KEYPAGE_TRANSFLAG_OFFSET]);
+  DBUG_ASSERT(ma_page->flag == (uint) _ma_get_keypage_flag(share, ma_page->buff));
 
   /* We have to change length as the page may have been shortened */
   org_length= _ma_get_page_used(share, ma_page->buff);
@@ -1155,7 +1155,7 @@ uint _ma_apply_redo_index(MARIA_HA *info,
     }
     case KEY_OP_SET_PAGEFLAG:
       DBUG_PRINT("redo", ("key_op_set_pageflag"));
-      buff[KEYPAGE_TRANSFLAG_OFFSET]= *header++;
+      _ma_store_keypage_flag(share, buff, *header++);
       break;
     case KEY_OP_COMPACT_PAGE:
     {

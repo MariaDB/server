@@ -132,13 +132,11 @@ void scramble_323(char *to, const char *message, const char *password);
 my_bool check_scramble_323(const unsigned char *reply, const char *message,
                            unsigned long *salt);
 void get_salt_from_password_323(unsigned long *res, const char *password);
-void make_password_from_salt_323(char *to, const unsigned long *salt);
 void make_scrambled_password(char *to, const char *password);
 void scramble(char *to, const char *message, const char *password);
 my_bool check_scramble(const unsigned char *reply, const char *message,
                        const unsigned char *hash_stage2);
 void get_salt_from_password(unsigned char *res, const char *password);
-void make_password_from_salt(char *to, const unsigned char *hash_stage2);
 char *octet2hex(char *to, const char *str, unsigned int len);
 char *get_tty_password(const char *opt_message);
 void get_tty_password_buff(const char *opt_message, char *to, size_t length);
@@ -172,6 +170,7 @@ extern LIST *list_reverse(LIST *root);
 extern void list_free(LIST *root,unsigned int free_data);
 extern unsigned int list_length(LIST *);
 extern int list_walk(LIST *,list_walk_action action,unsigned char * argument);
+extern unsigned int mariadb_deinitialize_ssl;
 extern unsigned int mysql_port;
 extern char *mysql_unix_port;
 typedef struct st_mysql_field {
@@ -746,3 +745,5 @@ int mysql_close_cont(MYSQL *sock, int status);
 my_socket mysql_get_socket(const MYSQL *mysql);
 unsigned int mysql_get_timeout_value(const MYSQL *mysql);
 unsigned int mysql_get_timeout_value_ms(const MYSQL *mysql);
+unsigned long mysql_net_read_packet(MYSQL *mysql);
+unsigned long mysql_net_field_length(unsigned char **packet);

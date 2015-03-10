@@ -1,0 +1,41 @@
+include/master-slave.inc
+[connection master]
+CREATE ROLE role_1;
+SELECT User FROM mysql.user WHERE is_role='Y' ORDER BY User;
+User
+role_1
+CREATE ROLE IF NOT EXISTS role_1;
+Warnings:
+Note	1974	Can't create role 'role_1'; it already exists
+CREATE ROLE IF NOT EXISTS role_2;
+SELECT User FROM mysql.user WHERE is_role='Y' ORDER BY User;
+User
+role_1
+role_2
+CREATE OR REPLACE ROLE IF NOT EXISTS role_3;
+ERROR HY000: Incorrect usage of OR REPLACE and IF NOT EXISTS
+CREATE OR REPLACE ROLE role_3;
+CREATE OR REPLACE ROLE role_2;
+SELECT User FROM mysql.user WHERE is_role='Y' ORDER BY User;
+User
+role_1
+role_2
+role_3
+CREATE ROLE role_2;
+ERROR HY000: Operation CREATE ROLE failed for 'role_2'
+SELECT User FROM mysql.user WHERE is_role='Y' ORDER BY User;
+User
+role_1
+role_2
+role_3
+DROP ROLE role_1;
+DROP ROLE IF EXISTS role_2;
+DROP ROLE IF EXISTS role_3;
+DROP ROLE IF EXISTS role_4;
+Warnings:
+Note	1975	Can't drop role 'role_4'; it doesn't exist
+DROP ROLE role_4;
+ERROR HY000: Operation DROP ROLE failed for 'role_4'
+SELECT User FROM mysql.user WHERE is_role='Y' ORDER BY User;
+User
+include/rpl_end.inc

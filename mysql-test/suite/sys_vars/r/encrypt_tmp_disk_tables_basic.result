@@ -1,0 +1,41 @@
+SET @start_global_value = @@global.encrypt_tmp_disk_tables;
+select @@global.encrypt_tmp_disk_tables;
+@@global.encrypt_tmp_disk_tables
+0
+select @@session.encrypt_tmp_disk_tables;
+ERROR HY000: Variable 'encrypt_tmp_disk_tables' is a GLOBAL variable
+show global variables like 'encrypt_tmp_disk_tables';
+Variable_name	Value
+encrypt_tmp_disk_tables	OFF
+show session variables like 'encrypt_tmp_disk_tables';
+Variable_name	Value
+encrypt_tmp_disk_tables	OFF
+select * from information_schema.global_variables
+where variable_name='encrypt_tmp_disk_tables';
+VARIABLE_NAME	VARIABLE_VALUE
+ENCRYPT_TMP_DISK_TABLES	OFF
+select * from information_schema.session_variables
+where variable_name='encrypt_tmp_disk_tables';
+VARIABLE_NAME	VARIABLE_VALUE
+ENCRYPT_TMP_DISK_TABLES	OFF
+set global encrypt_tmp_disk_tables=ON;
+select @@global.encrypt_tmp_disk_tables;
+@@global.encrypt_tmp_disk_tables
+1
+set global encrypt_tmp_disk_tables=OFF;
+select @@global.encrypt_tmp_disk_tables;
+@@global.encrypt_tmp_disk_tables
+0
+set global encrypt_tmp_disk_tables=1;
+select @@global.encrypt_tmp_disk_tables;
+@@global.encrypt_tmp_disk_tables
+1
+set session encrypt_tmp_disk_tables=1;
+ERROR HY000: Variable 'encrypt_tmp_disk_tables' is a GLOBAL variable and should be set with SET GLOBAL
+set global encrypt_tmp_disk_tables=1.1;
+ERROR 42000: Incorrect argument type to variable 'encrypt_tmp_disk_tables'
+set global encrypt_tmp_disk_tables=1e1;
+ERROR 42000: Incorrect argument type to variable 'encrypt_tmp_disk_tables'
+set global encrypt_tmp_disk_tables="foo";
+ERROR 42000: Variable 'encrypt_tmp_disk_tables' can't be set to the value of 'foo'
+SET @@global.encrypt_tmp_disk_tables = @start_global_value;

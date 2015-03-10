@@ -3,12 +3,14 @@ ignore-builtin-innodb
 plugin-load-add=$HA_INNODB_SO
 innodb
 innodb-cmpmem
+innodb-cmp-per-index
 innodb-trx
+innodb-locks
 innodb-buffer-pool-stats
 innodb-buffer-page
 innodb-buffer-page-lru
 innodb-sys-foreign
-innodb-sys-foreign-col
+innodb-sys-foreign-cols
 innodb-sys-tables
 innodb-metrics
 
@@ -17,24 +19,27 @@ ignore-builtin-innodb
 plugin-load-add=$HA_XTRADB_SO
 innodb
 innodb-cmpmem
+innodb-cmp-per-index
 innodb-trx
+innodb-locks
 innodb-buffer-pool-stats
 innodb-buffer-page
 innodb-buffer-page-lru
 innodb-sys-foreign
-innodb-sys-foreign-col
+innodb-sys-foreign-cols
 innodb-sys-tables
 innodb-metrics
 
 [xtradb]
 innodb
 innodb-cmpmem
+innodb-cmp-per-index
 innodb-trx
+innodb-locks
 innodb-metrics
 innodb-buffer-pool-stats
 innodb-buffer-page
 innodb-buffer-page-lru
 innodb-sys-foreign
-innodb-sys-foreign-col
+innodb-sys-foreign-cols
 innodb-sys-tables
-innodb-metrics

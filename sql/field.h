@@ -403,6 +403,8 @@ public:
   { return store_time_dec(ltime, TIME_SECOND_PART_DIGITS); }
   int store(const char *to, uint length, CHARSET_INFO *cs,
             enum_check_fields check_level);
+  int store(const LEX_STRING *ls, CHARSET_INFO *cs)
+  { return store(ls->str, ls->length, cs); }
   virtual double val_real(void)=0;
   virtual longlong val_int(void)=0;
   virtual my_decimal *val_decimal(my_decimal *);
@@ -668,23 +670,26 @@ public:
       functions but no GROUP BY clause) with no qualifying rows. If
       this is the case (in which TABLE::null_row is true), the field
       is considered to be NULL.
+
       Note that if a table->null_row is set then also all null_bits are
       set for the row.
 
-      Otherwise, if the field is NULLable, it has a valid null_ptr
-      pointer, and its NULLity is recorded in the "null_bit" bit of
-      null_ptr[row_offset].
+      In the case of the 'result_field' for GROUP BY, table->null_row might
+      refer to the *next* row in the table (when the algorithm is: read the
+      next row, see if any of group column values have changed, send the
+      result - grouped - row to the client if yes). So, table->null_row might
+      be wrong, but such a result_field is always nullable (that's defined by
+      original_field->maybe_null()) and we trust its null bit.
     */
-    return (table->null_row ? TRUE :
-            null_ptr ? MY_TEST(null_ptr[row_offset] & null_bit) : 0);
+    return null_ptr ? null_ptr[row_offset] & null_bit : table->null_row;
   }
   inline bool is_real_null(my_ptrdiff_t row_offset= 0) const
-    { return null_ptr ? (null_ptr[row_offset] & null_bit ? 1 : 0) : 0; }
+    { return null_ptr && (null_ptr[row_offset] & null_bit); }
   inline bool is_null_in_record(const uchar *record) const
   {
     if (!null_ptr)
       return 0;
-    return MY_TEST(record[(uint) (null_ptr - table->record[0])] & null_bit);
+    return record[(uint) (null_ptr - table->record[0])] & null_bit;
   }
   inline void set_null(my_ptrdiff_t row_offset= 0)
     { if (null_ptr) null_ptr[row_offset]|= null_bit; }
@@ -1127,6 +1132,17 @@ class Field_longstr :public Field_str
 protected:
   int report_if_important_data(const char *ptr, const char *end,
                                bool count_spaces);
+  bool check_string_copy_error(const String_copier *copier,
+                               const char *end, CHARSET_INFO *cs);
+  int check_conversion_status(const String_copier *copier,
+                              const char *end, CHARSET_INFO *cs,
+                              bool count_spaces)
+  {
+    if (check_string_copy_error(copier, end, cs))
+      return 2;
+    return report_if_important_data(copier->source_end_pos(),
+                                    end, count_spaces);
+  }
 public:
   Field_longstr(uchar *ptr_arg, uint32 len_arg, uchar *null_ptr_arg,
                 uchar null_bit_arg, utype unireg_check_arg,

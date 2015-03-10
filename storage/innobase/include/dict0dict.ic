@@ -543,6 +543,9 @@ dict_tf_is_valid(
 	ulint	data_dir = DICT_TF_HAS_DATA_DIR(flags);
 	ulint	atomic_writes = DICT_TF_GET_ATOMIC_WRITES(flags);
 
+	ulint	page_encryption = DICT_TF_GET_PAGE_ENCRYPTION(flags);
+	ulint	page_encryption_key = DICT_TF_GET_PAGE_ENCRYPTION_KEY(flags);
+
 	/* Make sure there are no bits that we do not know about. */
 	if (unused != 0) {
 		fprintf(stderr,
@@ -552,10 +555,12 @@ dict_tf_is_valid(
 			"InnoDB: compact %ld atomic_blobs %ld\n"
 			"InnoDB: unused %ld data_dir %ld zip_ssize %ld\n"
 			"InnoDB: page_compression %ld page_compression_level %ld\n"
-			"InnoDB: atomic_writes %ld\n",
+			"InnoDB: atomic_writes %ld\n"
+			"InnoDB: page_encryption %ld page_encryption_key %ld\n",
 			unused,
 			compact, atomic_blobs, unused, data_dir, zip_ssize,
-			page_compression, page_compression_level, atomic_writes
+			page_compression, page_compression_level, atomic_writes,
+			page_encryption, page_encryption_key
 		);
 
 		return(false);
@@ -852,7 +857,9 @@ dict_tf_set(
 					pages */
 	ulint		page_compression_level, /*!< in: table page compression
 						 level */
-	ulint		atomic_writes)  /*!< in: table atomic writes setup */
+	ulint		atomic_writes,  /*!< in: table atomic writes setup */
+	bool		page_encrypted, /*!< in: table uses page encryption */
+	ulint		page_encryption_key /*!< in: page encryption key */)
 {
 	atomic_writes_t awrites = (atomic_writes_t)atomic_writes;
 
@@ -893,6 +900,11 @@ dict_tf_set(
 	if (use_data_dir) {
 		*flags |= (1 << DICT_TF_POS_DATA_DIR);
 	}
+
+	if (page_encrypted) {
+		*flags |= (1 << DICT_TF_POS_PAGE_ENCRYPTION)
+		       | (page_encryption_key << DICT_TF_POS_PAGE_ENCRYPTION_KEY);
+	}
 }
 
 /********************************************************************//**
@@ -915,6 +927,10 @@ dict_tf_to_fsp_flags(
 	ulint fsp_flags;
 	ulint page_compression = DICT_TF_GET_PAGE_COMPRESSION(table_flags);
 	ulint page_compression_level = DICT_TF_GET_PAGE_COMPRESSION_LEVEL(table_flags);
+
+	ulint page_encryption = DICT_TF_GET_PAGE_ENCRYPTION(table_flags);
+	ulint page_encryption_key = DICT_TF_GET_PAGE_ENCRYPTION_KEY(table_flags);
+
 	ulint atomic_writes = DICT_TF_GET_ATOMIC_WRITES(table_flags);
 
 	DBUG_EXECUTE_IF("dict_tf_to_fsp_flags_failure",
@@ -941,6 +957,14 @@ dict_tf_to_fsp_flags(
 	/* In addition, tablespace flags also contain page compression level
 	if page compression is used for this table. */
 	fsp_flags |= FSP_FLAGS_SET_PAGE_COMPRESSION_LEVEL(fsp_flags, page_compression_level);
+
+	/* In addition, tablespace flags also contain if the page
+	encryption is used for this table. */
+	fsp_flags |= FSP_FLAGS_SET_PAGE_ENCRYPTION(fsp_flags, page_encryption);
+
+	/* In addition, tablespace flags also contain page encryption key if the page
+	encryption is used for this table. */
+	fsp_flags |= FSP_FLAGS_SET_PAGE_ENCRYPTION_KEY(fsp_flags, page_encryption_key);
 
 	/* In addition, tablespace flags also contain flag if atomic writes
 	is used for this table */
@@ -983,6 +1007,9 @@ dict_sys_tables_type_to_tf(
 			 | DICT_TF_MASK_PAGE_COMPRESSION
 			 | DICT_TF_MASK_PAGE_COMPRESSION_LEVEL
 			 | DICT_TF_MASK_ATOMIC_WRITES
+		         | DICT_TF_MASK_PAGE_ENCRYPTION
+		         | DICT_TF_MASK_PAGE_ENCRYPTION_KEY
+
 	);
 
 	return(flags);
@@ -1018,7 +1045,9 @@ dict_tf_to_sys_tables_type(
 			 | DICT_TF_MASK_DATA_DIR
 			 | DICT_TF_MASK_PAGE_COMPRESSION
 			 | DICT_TF_MASK_PAGE_COMPRESSION_LEVEL
-			 | DICT_TF_MASK_ATOMIC_WRITES);
+		         | DICT_TF_MASK_ATOMIC_WRITES
+		         | DICT_TF_MASK_PAGE_ENCRYPTION
+		         | DICT_TF_MASK_PAGE_ENCRYPTION_KEY);
 
 	return(type);
 }

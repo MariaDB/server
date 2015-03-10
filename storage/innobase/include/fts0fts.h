@@ -715,6 +715,34 @@ fts_drop_index_tables(
 	dict_index_t*	index)			/*!< in: Index to drop */
 	__attribute__((nonnull, warn_unused_result));
 
+/******************************************************************
+Wait for background threads to stop using FTS index
+*/
+UNIV_INTERN
+void
+fts_wait_bg_to_stop_using_index(
+/*======================*/
+	trx_t*		trx,			/*!< in: transaction */
+	dict_index_t*	index,			/*!< in: FTS Index */
+	bool		drop_table);		/*!< in: in addition to stop
+						using index, also prevent
+						threads from start using it,
+						used by drop table */
+
+/******************************************************************
+Wait for background threads to stop using any FTS index of the table
+*/
+UNIV_INTERN
+void
+fts_wait_bg_to_stop_using_table(
+/*======================*/
+	trx_t*		trx,			/*!< in: transaction */
+	dict_table_t*	table,			/*!< in: table to stop threads */
+	bool		drop_table);		/*!< in: in addition to stop
+						using table, also prevent
+						threads from start using it,
+						used by drop table */
+
 /******************************************************************//**
 Remove the table from the OPTIMIZER's list. We do wait for
 acknowledgement from the consumer of the message. */

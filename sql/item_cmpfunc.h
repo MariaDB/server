@@ -48,6 +48,14 @@ class Arg_comparator: public Sql_alloc
   THD *thd;
   Item *a_cache, *b_cache;         // Cached values of a and b items
                                    //   when one of arguments is NULL.
+  int set_compare_func(Item_result_field *owner, Item_result type);
+  inline int set_compare_func(Item_result_field *owner_arg)
+  {
+    return set_compare_func(owner_arg, item_cmp_type((*a)->result_type(),
+                                                     (*b)->result_type()));
+  }
+  bool agg_arg_charsets_for_comparison();
+
 public:
   DTCollation cmp_collation;
   /* Allow owner function to use string buffers. */
@@ -58,12 +66,6 @@ public:
   Arg_comparator(Item **a1, Item **a2): a(a1), b(a2),  set_null(TRUE),
     comparators(0), thd(0), a_cache(0), b_cache(0) {};
 
-  int set_compare_func(Item_result_field *owner, Item_result type);
-  inline int set_compare_func(Item_result_field *owner_arg)
-  {
-    return set_compare_func(owner_arg, item_cmp_type((*a)->result_type(),
-                                                     (*b)->result_type()));
-  }
   int set_cmp_func(Item_result_field *owner_arg,
 			  Item **a1, Item **a2,
 			  Item_result type);
@@ -732,6 +734,11 @@ public:
   void fix_length_and_dec();
   const char *func_name() const { return "interval"; }
   uint decimal_precision() const { return 2; }
+  void print(String *str, enum_query_type query_type)
+  {
+    str->append(func_name());
+    print_args(str, 0, query_type);
+  }
 };
 
 
@@ -763,8 +770,8 @@ public:
    :Item_func_hybrid_field_type(a, b) { }
   Item_func_case_abbreviation2(Item *a, Item *b, Item *c)
    :Item_func_hybrid_field_type(a, b, c) { }
-  void fix_length_and_dec(Item **args);
-  uint decimal_precision(Item **args) const;
+  void fix_length_and_dec2(Item **args);
+  uint decimal_precision2(Item **args) const;
 };
 
 
@@ -779,7 +786,7 @@ public:
   bool date_op(MYSQL_TIME *ltime,uint fuzzydate);
   void fix_length_and_dec()
   {
-    Item_func_case_abbreviation2::fix_length_and_dec(args);
+    Item_func_case_abbreviation2::fix_length_and_dec2(args);
     maybe_null= args[1]->maybe_null;
   }
   const char *func_name() const { return "ifnull"; }
@@ -787,7 +794,7 @@ public:
   table_map not_null_tables() const { return 0; }
   uint decimal_precision() const
   {
-    return Item_func_case_abbreviation2::decimal_precision(args);
+    return Item_func_case_abbreviation2::decimal_precision2(args);
   }
 };
 
@@ -807,7 +814,7 @@ public:
   void fix_length_and_dec();
   uint decimal_precision() const
   {
-    return Item_func_case_abbreviation2::decimal_precision(args + 1);
+    return Item_func_case_abbreviation2::decimal_precision2(args + 1);
   }
   const char *func_name() const { return "if"; }
   bool eval_not_null_tables(uchar *opt_arg);

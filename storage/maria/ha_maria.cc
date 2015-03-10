@@ -290,6 +290,11 @@ static MYSQL_SYSVAR_BOOL(used_for_temp_tables,
        "Whether temporary tables should be MyISAM or Aria", 0, 0,
        1);
 
+static MYSQL_SYSVAR_BOOL(encrypt_tables, maria_encrypt_tables, 0,
+       "Encrypt tables (only for tables with ROW_FORMAT=PAGE (default) "
+       "and not FIXED/DYNAMIC)",
+       0, 0, 0);
+
 #ifdef HAVE_PSI_INTERFACE
 
 static PSI_mutex_info all_aria_mutexes[]=
@@ -1563,6 +1568,7 @@ int ha_maria::repair(THD *thd, HA_CHECK *param, bool do_optimize)
   MARIA_SHARE *share= file->s;
   ha_rows rows= file->state->records;
   TRN *old_trn= file->trn;
+  my_bool locking= 0;
   DBUG_ENTER("ha_maria::repair");
 
   /*
@@ -1599,12 +1605,18 @@ int ha_maria::repair(THD *thd, HA_CHECK *param, bool do_optimize)
   share->state.dupp_key= MI_MAX_KEY;
   strmov(fixed_name, share->open_file_name.str);
 
-  // Don't lock tables if we have used LOCK TABLE
-  if (!thd->locked_tables_mode &&
-      maria_lock_database(file, table->s->tmp_table ? F_EXTRA_LCK : F_WRLCK))
+  /*
+    Don't lock tables if we have used LOCK TABLE or if we come from
+    enable_index()
+  */
+  if (!thd->locked_tables_mode && ! (param->testflag & T_NO_LOCKS))
   {
-    _ma_check_print_error(param, ER(ER_CANT_LOCK), my_errno);
-    DBUG_RETURN(HA_ADMIN_FAILED);
+    locking= 1;
+    if (maria_lock_database(file, table->s->tmp_table ? F_EXTRA_LCK : F_WRLCK))
+    {
+      _ma_check_print_error(param, ER(ER_CANT_LOCK), my_errno);
+      DBUG_RETURN(HA_ADMIN_FAILED);
+    }
   }
 
   if (!do_optimize ||
@@ -1740,7 +1752,7 @@ int ha_maria::repair(THD *thd, HA_CHECK *param, bool do_optimize)
   mysql_mutex_unlock(&share->intern_lock);
   thd_proc_info(thd, old_proc_info);
   thd_progress_end(thd);                        // Mark done
-  if (!thd->locked_tables_mode)
+  if (locking)
     maria_lock_database(file, F_UNLCK);
 
   /* Reset trn, that may have been set by repair */
@@ -1974,8 +1986,16 @@ int ha_maria::enable_indexes(uint mode)
     param.op_name= "recreating_index";
     param.testflag= (T_SILENT | T_REP_BY_SORT | T_QUICK |
                      T_CREATE_MISSING_KEYS | T_SAFE_REPAIR);
+    /*
+      Don't lock and unlock table if it's locked.
+      Normally table should be locked.  This test is mostly for safety.
+    */
+    if (likely(file->lock_type != F_UNLCK))
+      param.testflag|= T_NO_LOCKS;
+
     if (file->create_unique_index_by_sort)
       param.testflag|= T_CREATE_UNIQUE_BY_SORT;
+
     if (bulk_insert_single_undo == BULK_INSERT_SINGLE_UNDO_AND_NO_REPAIR)
     {
       bulk_insert_single_undo= BULK_INSERT_SINGLE_UNDO_AND_REPAIR;
@@ -2219,7 +2239,7 @@ bool ha_maria::check_and_repair(THD *thd)
   {
     /* Remove error about crashed table */
     thd->get_stmt_da()->clear_warning_info(thd->query_id);
-    push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_NOTE,
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
                         ER_CRASHED_ON_USAGE,
                         "Zerofilling moved table %s", table->s->path.str);
     sql_print_information("Zerofilling moved table:  '%s'",
@@ -3118,6 +3138,11 @@ int ha_maria::create(const char *name, register TABLE *table_arg,
        ha_create_info->page_checksum ==  HA_CHOICE_YES)
     create_flags|= HA_CREATE_PAGE_CHECKSUM;
 
+  mysql_mutex_lock(&LOCK_global_system_variables);
+  mysql_mutex_unlock(&LOCK_global_system_variables);
+  if (row_type == BLOCK_RECORD && maria_encrypt_tables)
+    create_flags|= HA_CREATE_ENCRYPTED;
+
   (void) translog_log_debug_info(0, LOGREC_DEBUG_INFO_QUERY,
                                  (uchar*) thd->query(), thd->query_length());
 
@@ -3687,6 +3712,7 @@ struct st_mysql_sys_var* system_variables[]= {
   MYSQL_SYSVAR(stats_method),
   MYSQL_SYSVAR(sync_log_dir),
   MYSQL_SYSVAR(used_for_temp_tables),
+  MYSQL_SYSVAR(encrypt_tables),
   NULL
 };
 

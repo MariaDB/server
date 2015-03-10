@@ -503,10 +503,22 @@ unconditional_materialization:
 bool mysql_derived_merge_for_insert(THD *thd, LEX *lex, TABLE_LIST *derived)
 {
   DBUG_ENTER("mysql_derived_merge_for_insert");
+  DBUG_PRINT("enter", ("derived: %p", derived));
+  DBUG_PRINT("info", ("merged_for_insert: %d  is_materialized_derived: %d  "
+                      "is_multitable: %d  single_table_updatable: %d  "
+                      "merge_underlying_list: %d",
+                      derived->merged_for_insert,
+                      derived->is_materialized_derived(),
+                      derived->is_multitable(),
+                      derived->single_table_updatable(),
+                      derived->merge_underlying_list != 0));
   if (derived->merged_for_insert)
     DBUG_RETURN(FALSE);
   if (derived->is_materialized_derived())
     DBUG_RETURN(mysql_derived_prepare(thd, lex, derived));
+  if ((thd->lex->sql_command == SQLCOM_UPDATE_MULTI ||
+       thd->lex->sql_command == SQLCOM_DELETE_MULTI))
+    DBUG_RETURN(FALSE);
   if (!derived->is_multitable())
   {
     if (!derived->single_table_updatable())
@@ -516,8 +528,9 @@ bool mysql_derived_merge_for_insert(THD *thd, LEX *lex, TABLE_LIST *derived)
       derived->table= derived->merge_underlying_list->table;
       derived->schema_table= derived->merge_underlying_list->schema_table;
       derived->merged_for_insert= TRUE;
+      DBUG_ASSERT(derived->table);
     }
-  }  
+  }
   DBUG_RETURN(FALSE);
 }
 
@@ -544,6 +557,7 @@ bool mysql_derived_init(THD *thd, LEX *lex, TABLE_LIST *derived)
 {
   SELECT_LEX_UNIT *unit= derived->get_unit();
   DBUG_ENTER("mysql_derived_init");
+  DBUG_PRINT("enter", ("derived: %p", derived));
 
   // Skip already prepared views/DT
   if (!unit || unit->prepared)
@@ -689,6 +703,7 @@ bool mysql_derived_prepare(THD *thd, LEX *lex, TABLE_LIST *derived)
   thd->create_tmp_table_for_derived= FALSE;
 
   derived->table= derived->derived_result->table;
+  DBUG_ASSERT(derived->table);
   if (derived->is_derived() && derived->is_merged_derived())
     first_select->mark_as_belong_to_derived(derived);
 
@@ -956,8 +971,7 @@ bool mysql_derived_reinit(THD *thd, LEX *lex, TABLE_LIST *derived)
   DBUG_ENTER("mysql_derived_reinit");
   st_select_lex_unit *unit= derived->get_unit();
 
-  if (derived->table)
-    derived->merged_for_insert= FALSE;
+  derived->merged_for_insert= FALSE;
   unit->unclean();
   unit->types.empty();
   /* for derived tables & PS (which can't be reset by Item_subselect) */
@@ -965,4 +979,3 @@ bool mysql_derived_reinit(THD *thd, LEX *lex, TABLE_LIST *derived)
   unit->set_thd(thd);
   DBUG_RETURN(FALSE);
 }
-

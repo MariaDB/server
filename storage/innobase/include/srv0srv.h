@@ -3,7 +3,7 @@
 Copyright (c) 1995, 2013, Oracle and/or its affiliates. All rights reserved.
 Copyright (c) 2008, 2009, Google Inc.
 Copyright (c) 2009, Percona Inc.
-Copyright (c) 2013, 2014, SkySQL Ab. All Rights Reserved.
+Copyright (c) 2013, 2015, MariaDB Corporation. All Rights Reserved.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -133,6 +133,12 @@ struct srv_stats_t {
         ulint_ctr_64_t          pages_page_decompressed;
 	/* Number of page compression errors */
 	ulint_ctr_64_t          pages_page_compression_error;
+	/* Number of pages encrypted with page encryption */
+	ulint_ctr_64_t          pages_page_encrypted;
+   	/* Number of pages decrypted with page encryption */
+	ulint_ctr_64_t          pages_page_decrypted;
+	/* Number of page encryption errors */
+	ulint_ctr_64_t          pages_page_encryption_error;
 
 	/** Number of data read in total (in bytes) */
 	ulint_ctr_1_t		data_read;
@@ -442,7 +448,6 @@ extern my_bool			srv_stats_sample_traditional;
 
 extern ibool	srv_use_doublewrite_buf;
 extern ulong	srv_doublewrite_batch_size;
-extern ulong	srv_checksum_algorithm;
 
 extern my_bool	srv_force_primary_key;
 
@@ -471,6 +476,11 @@ extern ibool	srv_buf_dump_thread_active;
 
 /* TRUE during the lifetime of the stats thread */
 extern ibool	srv_dict_stats_thread_active;
+
+/* TRUE if enable log scrubbing */
+extern my_bool	srv_scrub_log;
+/* TRUE during the lifetime of the log scrub thread */
+extern ibool	srv_log_scrub_thread_active;
 
 extern ulong	srv_n_spin_wait_rounds;
 extern ulong	srv_n_free_tickets_to_enter;
@@ -535,6 +545,9 @@ extern my_bool srv_print_all_deadlocks;
 
 extern my_bool	srv_cmp_per_index_enabled;
 
+/* is encryption enabled */
+extern my_bool	srv_encrypt_tables;
+
 /** Status variables to be passed to MySQL */
 extern struct export_var_t export_vars;
 
@@ -548,6 +561,12 @@ extern uint srv_simulate_comp_failures;
 that semaphore times out in InnoDB */
 #define DEFAULT_SRV_FATAL_SEMAPHORE_TIMEOUT 600
 extern ulong	srv_fatal_semaphore_wait_threshold;
+
+/** Default encryption key used for page encryption */
+extern uint srv_default_page_encryption_key;
+
+/** Enable semaphore request instrumentation */
+extern my_bool srv_instrument_semaphores;
 
 # ifdef UNIV_PFS_THREAD
 /* Keys to register InnoDB threads with performance schema */
@@ -1001,9 +1020,29 @@ struct export_var_t{
 						compression */
 	ib_int64_t innodb_pages_page_compression_error;/*!< Number of page
 						compression errors */
+	ib_int64_t innodb_pages_page_encrypted;/*!< Number of pages
+						encrypted by page encryption */
+	ib_int64_t innodb_pages_page_decrypted;/*!< Number of pages
+						decrypted by page encryption */
+	ib_int64_t innodb_pages_page_encryption_error;/*!< Number of page
+						encryption errors */
 
 	ulint innodb_sec_rec_cluster_reads;	/*!< srv_sec_rec_cluster_reads */
-	ulint innodb_sec_rec_cluster_reads_avoided; /*!< srv_sec_rec_cluster_reads_avoided */
+	ulint innodb_sec_rec_cluster_reads_avoided;
+	/*!< srv_sec_rec_cluster_reads_avoided */
+
+	ulint innodb_encryption_rotation_pages_read_from_cache;
+	ulint innodb_encryption_rotation_pages_read_from_disk;
+	ulint innodb_encryption_rotation_pages_modified;
+	ulint innodb_encryption_rotation_pages_flushed;
+	ulint innodb_encryption_rotation_estimated_iops;
+
+	ulint innodb_scrub_page_reorganizations;
+	ulint innodb_scrub_page_splits;
+	ulint innodb_scrub_page_split_failures_underflow;
+	ulint innodb_scrub_page_split_failures_out_of_filespace;
+	ulint innodb_scrub_page_split_failures_missing_index;
+	ulint innodb_scrub_page_split_failures_unknown;
 };
 
 /** Thread slot in the thread table.  */

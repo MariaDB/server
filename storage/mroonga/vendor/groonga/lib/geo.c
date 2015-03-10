@@ -15,9 +15,9 @@
   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 */
 
-#include "geo.h"
-#include "pat.h"
-#include "util.h"
+#include "grn_geo.h"
+#include "grn_pat.h"
+#include "grn_util.h"
 
 #include <string.h>
 #include <stdlib.h>
@@ -1989,13 +1989,13 @@ exit:
   return rc;
 }
 
-int
-grn_geo_estimate_in_rectangle(grn_ctx *ctx,
-                              grn_obj *index,
-                              grn_obj *top_left_point,
-                              grn_obj *bottom_right_point)
+uint32_t
+grn_geo_estimate_size_in_rectangle(grn_ctx *ctx,
+                                   grn_obj *index,
+                                   grn_obj *top_left_point,
+                                   grn_obj *bottom_right_point)
 {
-  int n = 0;
+  uint32_t n = 0;
   int total_records;
   grn_rc rc;
   in_rectangle_data data;
@@ -2004,7 +2004,6 @@ grn_geo_estimate_in_rectangle(grn_ctx *ctx,
   GRN_VOID_INIT(&(data.bottom_right_point_buffer));
   if (in_rectangle_data_prepare(ctx, index, top_left_point, bottom_right_point,
                                 "grn_geo_estimate_in_rectangle()", &data)) {
-    n = -1;
     goto exit;
   }
 
@@ -2025,8 +2024,6 @@ grn_geo_estimate_in_rectangle(grn_ctx *ctx,
       if (rc == GRN_END_OF_DATA) {
         n = total_records;
         rc = GRN_SUCCESS;
-      } else {
-        n = -1;
       }
       goto exit;
     }
@@ -2052,13 +2049,32 @@ grn_geo_estimate_in_rectangle(grn_ctx *ctx,
                        (double)total_longitude_distance);
     }
     estimated_n_records = ceil(total_records * select_ratio);
-    n = (int)estimated_n_records;
+    n = (uint32_t)estimated_n_records;
   }
 
 exit :
   grn_obj_unlink(ctx, &(data.top_left_point_buffer));
   grn_obj_unlink(ctx, &(data.bottom_right_point_buffer));
   return n;
+}
+
+int
+grn_geo_estimate_in_rectangle(grn_ctx *ctx,
+                              grn_obj *index,
+                              grn_obj *top_left_point,
+                              grn_obj *bottom_right_point)
+{
+  uint32_t size;
+
+  size = grn_geo_estimate_size_in_rectangle(ctx,
+                                            index,
+                                            top_left_point,
+                                            bottom_right_point);
+  if (ctx->rc != GRN_SUCCESS) {
+    return -1;
+  }
+
+  return size;
 }
 
 grn_bool

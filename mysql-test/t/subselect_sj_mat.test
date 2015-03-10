@@ -1843,3 +1843,45 @@ drop database mysqltest4;
 
 --echo # End of 5.5 tests
 
+--echo #
+--echo # MDEV-7220: Materialization strategy is not used for REPLACE ... SELECT
+--echo #
+create table t0(a int);
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+
+create table t1 (a int, b int, c int);
+insert into t1 
+select A.a+B.a*10+C.a*100, A.a+B.a*10+C.a*100, A.a+B.a*10+C.a*100
+from t0 A, t0 B, t0 C;
+
+create table t2 (a int, b int, c int);
+insert into t2 select A.a, A.a, A.a from t1 A;
+insert into t2 select * from t2;
+insert into t2 select * from t2;
+
+create table t3 as select * from t2 limit 1;
+
+--echo # The testcase only makes sense if the following uses Materialization:
+explain
+select * from t1 where (a,b) in (select max(a),b from t2 group by b);
+
+flush status;
+replace into t3 
+select * from t1 where (a,b) in (select max(a),b from t2 group by b);
+--echo #  Sequential reads:
+--echo #    1K is read from t1
+--echo #    4K is read from t2
+--echo #    1K groups is read from the tmp. table
+--echo #
+--echo #  Lookups:
+--echo #    4K lookups in group by table
+--echo #    1K lookups in temp.table
+--echo #
+--echo #  Writes:
+--echo #    2x 1K writes to temporary tables (grouping table and subquery materialization table
+--echo #
+--echo #  The point is that neither counter should be in the millions (this
+--echo #     will happen if Materialization is not used 
+show status where Variable_name like 'Handler_read%' or  Variable_name like 'Handler_%write%';
+
+drop table t0,t1,t2,t3;

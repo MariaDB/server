@@ -36,6 +36,10 @@ using namespace std;
 # include "page0zip.ic"
 #endif
 #undef THIS_MODULE
+#include "fil0fil.h"
+#include "buf0checksum.h"
+#include "mach0data.h"
+#ifndef UNIV_INNOCHECKSUM
 #include "page0page.h"
 #include "mtr0log.h"
 #include "ut0sort.h"
@@ -43,15 +47,18 @@ using namespace std;
 #include "btr0cur.h"
 #include "page0types.h"
 #include "log0recv.h"
+#endif /* !UNIV_INNOCHECKSUM */
 #include "zlib.h"
 #ifndef UNIV_HOTBACKUP
+#ifndef UNIV_INNOCHECKSUM
 # include "buf0buf.h"
-# include "buf0lru.h"
 # include "btr0sea.h"
 # include "dict0boot.h"
 # include "lock0lock.h"
-# include "srv0mon.h"
 # include "srv0srv.h"
+#endif /* !UNIV_INNOCHECKSUM */
+# include "buf0lru.h"
+# include "srv0mon.h"
 # include "ut0crc32.h"
 #else /* !UNIV_HOTBACKUP */
 # include "buf0checksum.h"
@@ -60,6 +67,7 @@ using namespace std;
 #endif /* !UNIV_HOTBACKUP */
 
 #ifndef UNIV_HOTBACKUP
+#ifndef UNIV_INNOCHECKSUM
 /** Statistics on compression, indexed by page_zip_des_t::ssize - 1 */
 UNIV_INTERN page_zip_stat_t		page_zip_stat[PAGE_ZIP_SSIZE_MAX];
 /** Statistics on compression, indexed by index->id */
@@ -69,6 +77,7 @@ UNIV_INTERN ib_mutex_t			page_zip_stat_per_index_mutex;
 #ifdef HAVE_PSI_INTERFACE
 UNIV_INTERN mysql_pfs_key_t		page_zip_stat_per_index_mutex_key;
 #endif /* HAVE_PSI_INTERFACE */
+#endif /* !UNIV_INNOCHECKSUM */
 #endif /* !UNIV_HOTBACKUP */
 
 /* Compression level to be used by zlib. Settable by user. */
@@ -117,6 +126,7 @@ Compare at most sizeof(field_ref_zero) bytes.
 
 /* Enable some extra debugging output.  This code can be enabled
 independently of any UNIV_ debugging conditions. */
+#ifndef UNIV_INNOCHECKSUM
 #if defined UNIV_DEBUG || defined UNIV_ZIP_DEBUG
 # include <stdarg.h>
 __attribute__((format (printf, 1, 2)))
@@ -149,7 +159,9 @@ page_zip_fail_func(
 @param fmt_args	ignored: printf(3) format string and arguments */
 # define page_zip_fail(fmt_args) /* empty */
 #endif /* UNIV_DEBUG || UNIV_ZIP_DEBUG */
+#endif /* !UNIV_INNOCHECKSUM */
 
+#ifndef UNIV_INNOCHECKSUM
 #ifndef UNIV_HOTBACKUP
 /**********************************************************************//**
 Determine the guaranteed free space on an empty page.
@@ -4838,6 +4850,7 @@ corrupt:
 
 	return(ptr + 8 + size + trailer_size);
 }
+#endif /* !UNIV_INNOCHECKSUM */
 
 /**********************************************************************//**
 Calculate the compressed page checksum.
@@ -4913,8 +4926,19 @@ page_zip_verify_checksum(
 	stored = static_cast<ib_uint32_t>(mach_read_from_4(
 		static_cast<const unsigned char*>(data) + FIL_PAGE_SPACE_OR_CHKSUM));
 
-	/* declare empty pages non-corrupted */
-	if (stored == 0) {
+#if FIL_PAGE_LSN % 8
+#error "FIL_PAGE_LSN must be 64 bit aligned"
+#endif
+
+#ifndef UNIV_INNOCHECKSUM
+	/* innochecksum doesn't compile with ut_d. Since we don't
+	need to check for empty pages when running innochecksum,
+	just don't include this code. */
+	/* Check if page is empty */
+	if (stored == 0
+	    && *reinterpret_cast<const ib_uint64_t*>(static_cast<const char*>(
+		data)
+		+ FIL_PAGE_LSN) == 0) {
 		/* make sure that the page is really empty */
 		ulint i;
 		for (i = 0; i < size; i++) {
@@ -4922,9 +4946,10 @@ page_zip_verify_checksum(
 				return(FALSE);
 			}
 		}
-
+		/* Empty page */
 		return(TRUE);
 	}
+#endif
 
 	calc = static_cast<ib_uint32_t>(page_zip_calc_checksum(
 		data, size, static_cast<srv_checksum_algorithm_t>(

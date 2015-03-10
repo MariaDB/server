@@ -44,9 +44,9 @@ public:
 
   bool has_scans() { return (r_scans != 0); }
   ha_rows get_loops() { return r_scans; }
-  ha_rows get_avg_rows()
+  double get_avg_rows()
   {
-    return r_scans ? (ha_rows)rint((double) r_rows / r_scans): 0;
+    return r_scans ? ((double)r_rows / r_scans): 0;
   }
 
   double get_filtered_after_where()

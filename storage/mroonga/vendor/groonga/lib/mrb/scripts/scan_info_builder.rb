@@ -41,6 +41,20 @@ module Groonga
       Operator::TERM_EXTRACT,
     ]
 
+    ARITHMETIC_OPERATORS = [
+      Operator::BITWISE_OR,
+      Operator::BITWISE_XOR,
+      Operator::BITWISE_AND,
+      Operator::BITWISE_NOT,
+      Operator::SHIFTL,
+      Operator::SHIFTR,
+      Operator::SHIFTRR,
+      Operator::PLUS,
+      Operator::MINUS,
+      Operator::STAR,
+      Operator::MOD,
+    ]
+
     LOGICAL_OPERATORS = [
       Operator::AND,
       Operator::OR,
@@ -89,7 +103,7 @@ module Groonga
             status = Status::COL1
             data.args << code.value
           when Status::COL1
-            raise "invalid expression: can't use column as a value: <#{code.value.name}>: <#{@expression.grn_inspect}>"
+            raise ErrorMessage, "invalid expression: can't use column as a value: <#{code.value.name}>: <#{@expression.grn_inspect}>"
             status = Status::COL2
           when Status::COL2
             # Do nothing
@@ -114,7 +128,7 @@ module Groonga
         first_data = @data_list.first
         if (first_data.flags & ScanInfo::Flags::PUSH) == 0 or
             first_data.logical_op != @operator
-          raise "invalid expr"
+          raise ErrorMessage, "invalid expr"
         else
           first_data.flags &= ~ScanInfo::Flags::PUSH
           first_data.logical_op = @operator
@@ -140,6 +154,11 @@ module Groonga
           return false if status > Status::CONST
           status = Status::START
           n_relation_expressions += 1
+        when *ARITHMETIC_OPERATORS
+          return false if status < Status::COL1
+          return false if status > Status::CONST
+          status = Status::START
+          return false if n_relation_expressions != (n_logical_expressions + 1)
         when *LOGICAL_OPERATORS
           return false if status != Status::START
           n_logical_expressions += 1
@@ -206,10 +225,12 @@ module Groonga
                     new_data.flags = ScanInfo::Flags::POP
                     new_data.logical_op = operator
                     @data_list << new_data
+                    break
                   end
                 else
                   data.flags &= ~ScanInfo::Flags::PUSH
                   data.logical_op = operator
+                  break
                 end
               else
                 if n_dif_ops > 0
@@ -225,6 +246,7 @@ module Groonga
                     @data_list[r..-1] +
                     @data_list[j...r]
                 end
+                break
               end
             end
           else
@@ -235,7 +257,7 @@ module Groonga
         end
 
         if j < 0
-          raise GRN_INVALID_ARGUMENT.new("unmatched nesting level")
+          raise ErrorMessage, "unmatched nesting level"
         end
       end
     end

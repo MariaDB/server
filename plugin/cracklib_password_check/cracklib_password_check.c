@@ -58,7 +58,7 @@ static struct st_mysql_sys_var* sysvars[]= {
   NULL
 };
 
-static struct st_mysql_password_validation info=
+static struct st_mariadb_password_validation info=
 {
   MariaDB_PASSWORD_VALIDATION_INTERFACE_VERSION,
   crackme

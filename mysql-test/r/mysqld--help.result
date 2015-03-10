@@ -162,6 +162,13 @@ The following options may be given as the first argument:
  --div-precision-increment=# 
  Precision of the result of '/' operator will be increased
  on that value
+ --encrypt-tmp-disk-tables 
+ Encrypt tmp disk tables (created as part of query
+ execution)
+ --encryption-algorithm=name 
+ Which encryption algorithm to use for table encryption.
+ aes_cbc is the recommended one.. One of: none, aes_ecb, 
+ aes_cbc, aes_ctr
  --event-scheduler[=name] 
  Enable the event scheduler. Possible values are ON, OFF,
  and DISABLED (keep the event scheduler completely
@@ -205,6 +212,10 @@ The following options may be given as the first argument:
  mysql.general_logif --log-output=TABLE is used
  --general-log-file=name 
  Log connections and queries to given file
+ --getopt-prefix-matching 
+ Recognize command-line options by their unambiguos
+ prefixes.
+ (Defaults to on; use --skip-getopt-prefix-matching to disable.)
  --group-concat-max-len=# 
  The maximum length of the result of function 
  GROUP_CONCAT()
@@ -441,9 +452,9 @@ The following options may be given as the first argument:
  in between
  --memlock           Lock mysqld in memory.
  --metadata-locks-cache-size=# 
- Size of unused metadata locks cache
+ Unused
  --metadata-locks-hash-instances=# 
- Number of metadata locks hash instances
+ Unused
  --min-examined-row-limit=# 
  Don't write queries to slow log that examine fewer rows
  than that
@@ -922,15 +933,14 @@ The following options may be given as the first argument:
  replication. Only used when --slave-parallel-threads > 0.
  --slave-parallel-mode=name 
  Controls what transactions are applied in parallel when
- using --slave-parallel-threads. Syntax:
- slave_parallel_mode=value[,value...], where "value" could
- be one or more of: "domain", to apply different
- replication domains in parallel; "follow_master_commit",
- to apply in parallel transactions that group-committed
- together on the master; "transactional", to
- optimistically try to apply all transactional DML in
- parallel; and "waiting" to extend "transactional" to even
- transactions that had to wait on the master.
+ using --slave-parallel-threads. Possible values:
+ "optimistic" tries to apply most transactional DML in
+ parallel, and handles any conflicts with rollback and
+ retry. "conservative" limits parallelism in an effort to
+ avoid any conflicts. "aggressive" tries to maximise the
+ parallelism, possibly at the cost of increased conflict
+ rate. "minimal" only parallelizes the commit steps of
+ transactions. "none" disables parallel apply completely.
  --slave-parallel-threads=# 
  If non-zero, number of threads to spawn to apply in
  parallel events on the slave that were group-committed on
@@ -1138,6 +1148,8 @@ delayed-insert-limit 100
 delayed-insert-timeout 300
 delayed-queue-size 1000
 div-precision-increment 4
+encrypt-tmp-disk-tables FALSE
+encryption-algorithm none
 event-scheduler OFF
 expensive-subquery-limit 100
 expire-logs-days 0
@@ -1153,6 +1165,7 @@ ft-query-expansion-limit 20
 ft-stopword-file (No default value)
 gdb FALSE
 general-log FALSE
+getopt-prefix-matching TRUE
 group-concat-max-len 1024
 gtid-domain-id 0
 gtid-ignore-duplicates FALSE
@@ -1199,7 +1212,6 @@ log-slow-rate-limit 1
 log-slow-slave-statements FALSE
 log-slow-verbosity 
 log-tc tc.log
-log-tc-size 24576
 log-warnings 1
 long-query-time 10
 low-priority-updates FALSE
@@ -1352,7 +1364,7 @@ slave-exec-mode STRICT
 slave-max-allowed-packet 1073741824
 slave-net-timeout 3600
 slave-parallel-max-queued 131072
-slave-parallel-mode domain,follow_master_commit
+slave-parallel-mode conservative
 slave-parallel-threads 0
 slave-run-triggers-for-rbr NO
 slave-skip-errors (No default value)
@@ -1379,7 +1391,7 @@ table-open-cache 400
 tc-heuristic-recover COMMIT
 thread-cache-size 0
 thread-pool-idle-timeout 60
-thread-pool-max-threads 500
+thread-pool-max-threads 1000
 thread-pool-oversubscribe 3
 thread-pool-stall-limit 500
 thread-stack 294912

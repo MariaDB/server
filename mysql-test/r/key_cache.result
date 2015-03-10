@@ -435,16 +435,16 @@ p	i	a
 4	3	zzzz
 update t1 set p=3 where p=1;
 update t2 set i=2 where i=1;
-show status like 'key_%';
-Variable_name	Value
-Key_blocks_not_flushed	0
-Key_blocks_unused	KEY_BLOCKS_UNUSED
-Key_blocks_used	4
-Key_blocks_warm	0
-Key_read_requests	22
-Key_reads	0
-Key_write_requests	26
-Key_writes	6
+select * from information_schema.session_status where variable_name like 'key_%' and variable_name != 'Key_blocks_unused';
+VARIABLE_NAME	VARIABLE_VALUE
+KEY_BLOCKS_NOT_FLUSHED	0
+KEY_BLOCKS_USED	4
+KEY_BLOCKS_WARM	0
+KEY_READ_REQUESTS	22
+KEY_READS	0
+KEY_WRITE_REQUESTS	26
+KEY_WRITES	6
+select variable_value into @key_blocks_unused from information_schema.session_status where variable_name = 'Key_blocks_unused';
 select * from information_schema.key_caches where segment_number is null;
 KEY_CACHE_NAME	SEGMENTS	SEGMENT_NUMBER	FULL_SIZE	BLOCK_SIZE	USED_BLOCKS	UNUSED_BLOCKS	DIRTY_BLOCKS	READ_REQUESTS	READS	WRITE_REQUESTS	WRITES
 default	NULL	NULL	2097152	1024	4	#	0	22	0	26	6
@@ -483,16 +483,18 @@ p	i	a
 4	3	zzzz
 update t1 set p=3 where p=1;
 update t2 set i=2 where i=1;
-show status like 'key_%';
-Variable_name	Value
-Key_blocks_not_flushed	0
-Key_blocks_unused	KEY_BLOCKS_UNUSED
-Key_blocks_used	4
-Key_blocks_warm	0
-Key_read_requests	22
-Key_reads	0
-Key_write_requests	26
-Key_writes	6
+select * from information_schema.session_status where variable_name like 'key_%' and variable_name != 'Key_blocks_unused';
+VARIABLE_NAME	VARIABLE_VALUE
+KEY_BLOCKS_NOT_FLUSHED	0
+KEY_BLOCKS_USED	4
+KEY_BLOCKS_WARM	0
+KEY_READ_REQUESTS	22
+KEY_READS	0
+KEY_WRITE_REQUESTS	26
+KEY_WRITES	6
+select variable_value < @key_blocks_unused from information_schema.session_status where variable_name = 'Key_blocks_unused';
+variable_value < @key_blocks_unused
+1
 select * from information_schema.key_caches where segment_number is null;
 KEY_CACHE_NAME	SEGMENTS	SEGMENT_NUMBER	FULL_SIZE	BLOCK_SIZE	USED_BLOCKS	UNUSED_BLOCKS	DIRTY_BLOCKS	READ_REQUESTS	READS	WRITE_REQUESTS	WRITES
 default	2	NULL	2097152	1024	4	#	0	22	0	26	6
@@ -526,16 +528,18 @@ p	i	a
 4	3	zzzz
 update t1 set p=3 where p=1;
 update t2 set i=2 where i=1;
-show status like 'key_%';
-Variable_name	Value
-Key_blocks_not_flushed	0
-Key_blocks_unused	KEY_BLOCKS_UNUSED
-Key_blocks_used	4
-Key_blocks_warm	0
-Key_read_requests	22
-Key_reads	0
-Key_write_requests	26
-Key_writes	6
+select * from information_schema.session_status where variable_name like 'key_%' and variable_name != 'Key_blocks_unused';
+VARIABLE_NAME	VARIABLE_VALUE
+KEY_BLOCKS_NOT_FLUSHED	0
+KEY_BLOCKS_USED	4
+KEY_BLOCKS_WARM	0
+KEY_READ_REQUESTS	22
+KEY_READS	0
+KEY_WRITE_REQUESTS	26
+KEY_WRITES	6
+select variable_value = @key_blocks_unused from information_schema.session_status where variable_name = 'Key_blocks_unused';
+variable_value = @key_blocks_unused
+1
 select * from information_schema.key_caches where segment_number is null;
 KEY_CACHE_NAME	SEGMENTS	SEGMENT_NUMBER	FULL_SIZE	BLOCK_SIZE	USED_BLOCKS	UNUSED_BLOCKS	DIRTY_BLOCKS	READ_REQUESTS	READS	WRITE_REQUESTS	WRITES
 default	1	NULL	2097152	1024	4	#	0	22	0	26	6

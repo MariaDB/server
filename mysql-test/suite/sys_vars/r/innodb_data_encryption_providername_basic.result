@@ -1,0 +1,9 @@
+SELECT @start_data_encryption_providername;
+@start_data_encryption_providername
+NULL
+SELECT COUNT(@@GLOBAL.innodb_data_encryption_providername);
+COUNT(@@GLOBAL.innodb_data_encryption_providername)
+0
+1 Expected
+SET @@GLOBAL.innodb_data_encryption_providername='key.txt';
+ERROR HY000: Variable 'innodb_data_encryption_providername' is a read only variable

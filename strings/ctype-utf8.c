@@ -5614,7 +5614,8 @@ MY_CHARSET_HANDLER my_charset_utf8_handler=
     my_strntod_8bit,
     my_strtoll10_8bit,
     my_strntoull10rnd_8bit,
-    my_scan_8bit
+    my_scan_8bit,
+    my_copy_abort_mb,
 };
 
 
@@ -7167,7 +7168,8 @@ static MY_CHARSET_HANDLER my_charset_filename_handler=
     my_strntod_8bit,
     my_strtoll10_8bit,
     my_strntoull10rnd_8bit,
-    my_scan_8bit
+    my_scan_8bit,
+    my_copy_abort_mb,
 };
 
 
@@ -8110,7 +8112,8 @@ MY_CHARSET_HANDLER my_charset_utf8mb4_handler=
   my_strntod_8bit,
   my_strtoll10_8bit,
   my_strntoull10rnd_8bit,
-  my_scan_8bit
+  my_scan_8bit,
+  my_copy_abort_mb,
 };
 
 

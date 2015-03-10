@@ -1,0 +1,94 @@
+/*
+   Copyright (c) 2015, MariaDB Foundation
+
+   This program is free software; you can redistribute it and/or modify
+   it under the terms of the GNU General Public License as published by
+   the Free Software Foundation; version 2 of the License.
+
+   This program is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+   GNU General Public License for more details.
+
+   You should have received a copy of the GNU General Public License
+   along with this program; if not, write to the Free Software
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+*/
+
+
+#ifndef MY_FUNCTION_NAME
+#error MY_FUNCTION_NAME is not defined
+#endif
+
+#if defined(IS_MB3_CHAR) && !defined(IS_MB2_CHAR)
+#error IS_MB3_CHAR is defined, while IS_MB2_CHAR is not!
+#endif
+
+#if defined(IS_MB4_CHAR) && !defined(IS_MB3_CHAR)
+#error IS_MB4_CHAR is defined, while IS_MB3_CHAR is not!
+#endif
+
+
+#ifdef WELL_FORMED_LEN
+/**
+  Returns well formed length of a character string with
+  variable character length for character sets with:
+  - mbminlen == 1
+  - mbmaxlen == 2, 3, or 4
+*/
+static size_t
+MY_FUNCTION_NAME(well_formed_len)(CHARSET_INFO *cs __attribute__((unused)),
+                                  const char *b, const char *e,
+                                  size_t nchars, int *error)
+{
+  const char *b0= b;
+
+  DBUG_ASSERT(cs->mbminlen == 1);
+  DBUG_ASSERT(cs->mbmaxlen <= 4);
+
+  for (*error= 0 ; b < e && nchars-- ; )
+  {
+    if ((uchar) b[0] < 128)
+    {
+      b++; /* Single byte ASCII character */
+      continue;
+    }
+
+    if (b + 2 <= e && IS_MB2_CHAR(b[0], b[1]))
+    {
+      b+= 2; /* Double byte character */
+      continue;
+    }
+
+#ifdef IS_MB3_CHAR
+    if (b + 3 <= e && IS_MB3_CHAR(b[0], b[1], b[2]))
+    {
+      b+= 3; /* Three-byte character */
+      continue;
+    }
+#endif
+
+#ifdef IS_MB4_CHAR
+    if (b + 4 <= e && IS_MB4_CHAR(b[0], b[1], b[2], b[3]))
+    {
+      b+= 4; /* Four-byte character */
+      continue;
+    }
+#endif
+
+#ifdef IS_8BIT_CHAR
+    if (IS_8BIT_CHAR(b[0]))
+    {      
+      b++; /* Single byte non-ASCII character, e.g. half width kana in sjis */
+      continue;
+    }
+#endif
+
+    /* Wrong byte sequence */
+    *error= 1;
+    break;
+  }
+  return b - b0;
+}
+
+#endif /* WELL_FORMED_LEN */

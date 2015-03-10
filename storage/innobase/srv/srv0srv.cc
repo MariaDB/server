@@ -1,9 +1,9 @@
 /*****************************************************************************
 
-Copyright (c) 1995, 2013, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1995, 2014, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, 2009 Google Inc.
 Copyright (c) 2009, Percona Inc.
-Copyright (c) 2013, 2014, SkySQL Ab. All Rights Reserved.
+Copyright (c) 2013, 2015, MariaDB Corporation. All Rights Reserved.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -73,7 +73,10 @@ Created 10/8/1995 Heikki Tuuri
 
 #include "mysql/plugin.h"
 #include "mysql/service_thd_wait.h"
+#include "fil0fil.h"
 #include "fil0pagecompress.h"
+#include "btr0scrub.h"
+#include "fil0pageencryption.h"
 
 #ifdef WITH_WSREP
 extern int wsrep_debug;
@@ -92,6 +95,9 @@ UNIV_INTERN ibool	srv_error_monitor_active = FALSE;
 UNIV_INTERN ibool	srv_buf_dump_thread_active = FALSE;
 
 UNIV_INTERN ibool	srv_dict_stats_thread_active = FALSE;
+
+UNIV_INTERN ibool	srv_log_scrub_active = FALSE;
+UNIV_INTERN my_bool	srv_scrub_log = FALSE;
 
 UNIV_INTERN const char*	srv_main_thread_op_info = "";
 
@@ -516,6 +522,12 @@ time when the last flush of log file has happened. The master
 thread ensures that we flush the log files at least once per
 second. */
 static time_t	srv_last_log_flush_time;
+
+/** Default encryption key used for page encryption */
+UNIV_INTERN uint	srv_default_page_encryption_key = DEFAULT_ENCRYPTION_KEY;
+
+/** Enable semaphore request instrumentation */
+UNIV_INTERN my_bool 	srv_instrument_semaphores = FALSE;
 
 /* Interval in seconds at which various tasks are performed by the
 master thread when server is active. In order to balance the workload,
@@ -1426,10 +1438,14 @@ srv_export_innodb_status(void)
 	ulint			LRU_len;
 	ulint			free_len;
 	ulint			flush_list_len;
+	fil_crypt_stat_t	crypt_stat;
+	btr_scrub_stat_t	scrub_stat;
 
 	buf_get_total_stat(&stat);
 	buf_get_total_list_len(&LRU_len, &free_len, &flush_list_len);
 	buf_get_total_list_size_in_bytes(&buf_pools_list_size);
+	fil_crypt_total_stat(&crypt_stat);
+	btr_scrub_total_stat(&scrub_stat);
 
 	mutex_enter(&srv_innodb_monitor_mutex);
 
@@ -1584,6 +1600,10 @@ srv_export_innodb_status(void)
 	export_vars.innodb_page_compressed_trim_op = srv_stats.page_compressed_trim_op;
 	export_vars.innodb_page_compressed_trim_op_saved = srv_stats.page_compressed_trim_op_saved;
 	export_vars.innodb_pages_page_decompressed = srv_stats.pages_page_decompressed;
+	export_vars.innodb_pages_page_compression_error = srv_stats.pages_page_compression_error;
+	export_vars.innodb_pages_page_decrypted = srv_stats.pages_page_decrypted;
+	export_vars.innodb_pages_page_encrypted = srv_stats.pages_page_encrypted;
+	export_vars.innodb_pages_page_encryption_error = srv_stats.pages_page_encryption_error;
 
 	export_vars.innodb_defragment_compression_failures =
 		btr_defragment_compression_failures;
@@ -1626,6 +1646,30 @@ srv_export_innodb_status(void)
 		srv_stats.n_sec_rec_cluster_reads;
 	export_vars.innodb_sec_rec_cluster_reads_avoided =
 		srv_stats.n_sec_rec_cluster_reads_avoided;
+
+	export_vars.innodb_encryption_rotation_pages_read_from_cache =
+		crypt_stat.pages_read_from_cache;
+	export_vars.innodb_encryption_rotation_pages_read_from_disk =
+		crypt_stat.pages_read_from_disk;
+	export_vars.innodb_encryption_rotation_pages_modified =
+		crypt_stat.pages_modified;
+	export_vars.innodb_encryption_rotation_pages_flushed =
+		crypt_stat.pages_flushed;
+	export_vars.innodb_encryption_rotation_estimated_iops =
+		crypt_stat.estimated_iops;
+
+	export_vars.innodb_scrub_page_reorganizations =
+		scrub_stat.page_reorganizations;
+	export_vars.innodb_scrub_page_splits =
+		scrub_stat.page_splits;
+	export_vars.innodb_scrub_page_split_failures_underflow =
+		scrub_stat.page_split_failures_underflow;
+	export_vars.innodb_scrub_page_split_failures_out_of_filespace =
+		scrub_stat.page_split_failures_out_of_filespace;
+	export_vars.innodb_scrub_page_split_failures_missing_index =
+		scrub_stat.page_split_failures_missing_index;
+	export_vars.innodb_scrub_page_split_failures_unknown =
+		scrub_stat.page_split_failures_unknown;
 
 	mutex_exit(&srv_innodb_monitor_mutex);
 }
@@ -2010,6 +2054,8 @@ srv_any_background_threads_are_active(void)
 		thread_active = "buf_dump_thread";
 	} else if (srv_dict_stats_thread_active) {
 		thread_active = "dict_stats_thread";
+	} else if (srv_scrub_log && srv_log_scrub_thread_active) {
+		thread_active = "log_scrub_thread";
 	}
 
 	os_event_set(srv_error_event);
@@ -2017,6 +2063,8 @@ srv_any_background_threads_are_active(void)
 	os_event_set(srv_buf_dump_event);
 	os_event_set(lock_sys->timeout_event);
 	os_event_set(dict_stats_event);
+	if (srv_scrub_log)
+		os_event_set(log_scrub_event);
 
 	return(thread_active);
 }
@@ -2750,7 +2798,9 @@ srv_do_purge(
 
 		*n_total_purged += n_pages_purged;
 
-	} while (!srv_purge_should_exit(n_pages_purged) && n_pages_purged > 0);
+	} while (!srv_purge_should_exit(n_pages_purged)
+		 && n_pages_purged > 0
+		 && purge_sys->state == PURGE_STATE_RUN);
 
 	return(rseg_history_len);
 }

@@ -56,11 +56,7 @@ void test_oom()
 
 void do_all_tests()
 {
-  PFS_atomic::init();
-
   test_oom();
-
-  PFS_atomic::cleanup();
 }
 
 int main(int argc, char **argv)

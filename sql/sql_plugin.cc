@@ -25,6 +25,7 @@
 #include "sql_parse.h"          // check_table_access
 #include "sql_base.h"                           // close_mysql_tables
 #include "key.h"                                // key_copy
+#include "sql_table.h"
 #include "sql_show.h"           // remove_status_vars, add_status_vars
 #include "strfunc.h"            // find_set
 #include "sql_acl.h"                       // *_ACL
@@ -36,6 +37,7 @@
 #include "lock.h"                               // MYSQL_LOCK_IGNORE_TIMEOUT
 #include <mysql/plugin_auth.h>
 #include <mysql/plugin_password_validation.h>
+#include <mysql/plugin_encryption_key_management.h>
 #include "sql_plugin_compat.h"
 
 #define REPORT_TO_LOG  1
@@ -84,7 +86,8 @@ const LEX_STRING plugin_type_names[MYSQL_MAX_PLUGIN_TYPE_NUM]=
   { C_STRING_WITH_LEN("AUDIT") },
   { C_STRING_WITH_LEN("REPLICATION") },
   { C_STRING_WITH_LEN("AUTHENTICATION") },
-  { C_STRING_WITH_LEN("PASSWORD VALIDATION") }
+  { C_STRING_WITH_LEN("PASSWORD VALIDATION") },
+  { C_STRING_WITH_LEN("ENCRYPTION KEY MANAGEMENT") }
 };
 
 extern int initialize_schema_table(st_plugin_int *plugin);
@@ -92,6 +95,9 @@ extern int finalize_schema_table(st_plugin_int *plugin);
 
 extern int initialize_audit_plugin(st_plugin_int *plugin);
 extern int finalize_audit_plugin(st_plugin_int *plugin);
+
+extern int initialize_encryption_key_management_plugin(st_plugin_int *plugin);
+extern int finalize_encryption_key_management_plugin(st_plugin_int *plugin);
 
 /*
   The number of elements in both plugin_type_initialize and
@@ -101,13 +107,32 @@ extern int finalize_audit_plugin(st_plugin_int *plugin);
 plugin_type_init plugin_type_initialize[MYSQL_MAX_PLUGIN_TYPE_NUM]=
 {
   0, ha_initialize_handlerton, 0, 0,initialize_schema_table,
-  initialize_audit_plugin, 0, 0, 0
+  initialize_audit_plugin, 0, 0, 0, initialize_encryption_key_management_plugin
 };
 
 plugin_type_init plugin_type_deinitialize[MYSQL_MAX_PLUGIN_TYPE_NUM]=
 {
   0, ha_finalize_handlerton, 0, 0, finalize_schema_table,
-  finalize_audit_plugin, 0, 0, 0
+  finalize_audit_plugin, 0, 0, 0, finalize_encryption_key_management_plugin
+};
+
+/*
+  Defines in which order plugin types have to be initialized.
+  Essentially, we want to initialize MYSQL_KEY_MANAGEMENT_PLUGIN before
+  MYSQL_STORAGE_ENGINE_PLUGIN, and that before MYSQL_INFORMATION_SCHEMA_PLUGIN
+*/
+static int plugin_type_initialization_order[MYSQL_MAX_PLUGIN_TYPE_NUM]=
+{
+  MYSQL_DAEMON_PLUGIN,
+  MariaDB_ENCRYPTION_KEY_MANAGEMENT_PLUGIN,
+  MYSQL_STORAGE_ENGINE_PLUGIN,
+  MYSQL_INFORMATION_SCHEMA_PLUGIN,
+  MYSQL_FTPARSER_PLUGIN,
+  MYSQL_AUTHENTICATION_PLUGIN,
+  MariaDB_PASSWORD_VALIDATION_PLUGIN,
+  MYSQL_AUDIT_PLUGIN,
+  MYSQL_REPLICATION_PLUGIN,
+  MYSQL_UDF_PLUGIN
 };
 
 #ifdef HAVE_DLOPEN
@@ -140,7 +165,8 @@ static int min_plugin_info_interface_version[MYSQL_MAX_PLUGIN_TYPE_NUM]=
   MYSQL_AUDIT_INTERFACE_VERSION,
   MYSQL_REPLICATION_INTERFACE_VERSION,
   MIN_AUTHENTICATION_INTERFACE_VERSION,
-  MariaDB_PASSWORD_VALIDATION_INTERFACE_VERSION
+  MariaDB_PASSWORD_VALIDATION_INTERFACE_VERSION,
+  MariaDB_ENCRYPTION_KEY_MANAGEMENT_INTERFACE_VERSION
 };
 static int cur_plugin_info_interface_version[MYSQL_MAX_PLUGIN_TYPE_NUM]=
 {
@@ -152,7 +178,8 @@ static int cur_plugin_info_interface_version[MYSQL_MAX_PLUGIN_TYPE_NUM]=
   MYSQL_AUDIT_INTERFACE_VERSION,
   MYSQL_REPLICATION_INTERFACE_VERSION,
   MYSQL_AUTHENTICATION_INTERFACE_VERSION,
-  MariaDB_PASSWORD_VALIDATION_INTERFACE_VERSION
+  MariaDB_PASSWORD_VALIDATION_INTERFACE_VERSION,
+  MariaDB_ENCRYPTION_KEY_MANAGEMENT_INTERFACE_VERSION
 };
 
 static struct
@@ -176,10 +203,10 @@ static struct
     - yet disable explicitly a component needed for the functionality
       to work, by using '--skip-performance-schema' (the plugin)
   */
-  { "performance_schema", PLUGIN_FORCE },
+  { "performance_schema", PLUGIN_FORCE }
 
   /* we disable few other plugins by default */
-  { "feedback", PLUGIN_OFF }
+  ,{ "feedback", PLUGIN_OFF }
 };
 
 /* support for Services */
@@ -1197,11 +1224,16 @@ static void plugin_del(struct st_plugin_int *plugin)
   /* Free allocated strings before deleting the plugin. */
   plugin_vars_free_values(plugin->system_vars);
   restore_ptr_backup(plugin->nbackups, plugin->ptr_backup);
-  my_hash_delete(&plugin_hash[plugin->plugin->type], (uchar*)plugin);
-  plugin_dl_del(plugin->plugin_dl);
-  plugin->state= PLUGIN_IS_FREED;
-  plugin_array_version++;
-  free_root(&plugin->mem_root, MYF(0));
+  if (plugin->plugin_dl)
+  {
+    my_hash_delete(&plugin_hash[plugin->plugin->type], (uchar*)plugin);
+    plugin_dl_del(plugin->plugin_dl);
+    plugin->state= PLUGIN_IS_FREED;
+    plugin_array_version++;
+    free_root(&plugin->mem_root, MYF(0));
+  }
+  else
+    plugin->state= PLUGIN_IS_UNINITIALIZED;
   DBUG_VOID_RETURN;
 }
 
@@ -1235,7 +1267,7 @@ static void reap_plugins(void)
 
   list= reap;
   while ((plugin= *(--list)))
-    plugin_deinitialize(plugin, true);
+      plugin_deinitialize(plugin, true);
 
   mysql_mutex_lock(&LOCK_plugin);
 
@@ -1482,13 +1514,13 @@ static void init_plugin_psi_keys(void)
 int plugin_init(int *argc, char **argv, int flags)
 {
   uint i;
-  bool is_myisam;
   struct st_maria_plugin **builtins;
   struct st_maria_plugin *plugin;
   struct st_plugin_int tmp, *plugin_ptr, **reap;
   MEM_ROOT tmp_root;
   bool reaped_mandatory_plugin= false;
   bool mandatory= true;
+  LEX_STRING MyISAM= { C_STRING_WITH_LEN("MyISAM") };
   DBUG_ENTER("plugin_init");
 
   if (initialized)
@@ -1572,46 +1604,28 @@ int plugin_init(int *argc, char **argv, int flags)
       tmp.state= PLUGIN_IS_UNINITIALIZED;
       if (register_builtin(plugin, &tmp, &plugin_ptr))
         goto err_unlock;
-
-      is_myisam= !my_strcasecmp(&my_charset_latin1, plugin->name, "MyISAM");
-
-      /*
-        strictly speaking, we should to initialize all plugins,
-        even for mysqld --help, because important subsystems
-        may be disabled otherwise, and the help will be incomplete.
-        For example, if the mysql.plugin table is not MyISAM.
-        But for now it's an unlikely corner case, and to optimize
-        mysqld --help for all other users, we will only initialize
-        MyISAM here.
-      */
-      if (plugin_initialize(&tmp_root, plugin_ptr, argc, argv, !is_myisam &&
-                            (flags & PLUGIN_INIT_SKIP_INITIALIZATION)))
-      {
-        if (plugin_ptr->load_option == PLUGIN_FORCE)
-          goto err_unlock;
-        plugin_ptr->state= PLUGIN_IS_DISABLED;
-      }
-
-      /*
-        initialize the global default storage engine so that it may
-        not be null in any child thread.
-      */
-      if (is_myisam)
-      {
-        DBUG_ASSERT(!global_system_variables.table_plugin);
-        global_system_variables.table_plugin=
-          intern_plugin_lock(NULL, plugin_int_to_ref(plugin_ptr));
-        DBUG_ASSERT(plugin_ptr->ref_count == 1);
-      }
     }
   }
 
-  /* should now be set to MyISAM storage engine */
-  DBUG_ASSERT(global_system_variables.table_plugin);
+  /* First, we initialize only MyISAM - that should always succeed */
+  plugin_ptr= plugin_find_internal(&MyISAM, MYSQL_STORAGE_ENGINE_PLUGIN);
+  DBUG_ASSERT(plugin_ptr);
+  DBUG_ASSERT(plugin_ptr->load_option == PLUGIN_FORCE);
+
+  if (plugin_initialize(&tmp_root, plugin_ptr, argc, argv, false))
+    goto err_unlock;
+
+  /*
+    initialize the global default storage engine so that it may
+    not be null in any child thread.
+  */
+  global_system_variables.table_plugin=
+    intern_plugin_lock(NULL, plugin_int_to_ref(plugin_ptr));
+  DBUG_ASSERT(plugin_ptr->ref_count == 1);
 
   mysql_mutex_unlock(&LOCK_plugin);
 
-  /* Register all dynamic plugins */
+  /* Register (not initialize!) all dynamic plugins */
   if (!(flags & PLUGIN_INIT_SKIP_DYNAMIC_LOADING))
   {
     I_List_iterator<i_string> iter(opt_plugin_load_list);
@@ -1620,7 +1634,18 @@ int plugin_init(int *argc, char **argv, int flags)
       plugin_load_list(&tmp_root, item->ptr);
 
     if (!(flags & PLUGIN_INIT_SKIP_PLUGIN_TABLE))
-      plugin_load(&tmp_root);
+    {
+      char path[FN_REFLEN + 1];
+      build_table_filename(path, sizeof(path) - 1, "mysql", "plugin", reg_ext, 0);
+      enum legacy_db_type db_type;
+      frm_type_enum frm_type= dd_frm_type(NULL, path, &db_type);
+      /* if mysql.plugin table is MyISAM - load it right away */
+      if (frm_type == FRMTYPE_TABLE && db_type == DB_TYPE_MYISAM)
+      {
+        plugin_load(&tmp_root);
+        flags|= PLUGIN_INIT_SKIP_PLUGIN_TABLE;
+      }
+    }
   }
 
   /*
@@ -1631,18 +1656,34 @@ int plugin_init(int *argc, char **argv, int flags)
   reap= (st_plugin_int **) my_alloca((plugin_array.elements+1) * sizeof(void*));
   *(reap++)= NULL;
 
-  for (i= 0; i < plugin_array.elements; i++)
+  for(;;)
   {
-    plugin_ptr= *dynamic_element(&plugin_array, i, struct st_plugin_int **);
-    if (plugin_ptr->plugin_dl && plugin_ptr->state == PLUGIN_IS_UNINITIALIZED)
+    for (i=0; i < MYSQL_MAX_PLUGIN_TYPE_NUM; i++)
     {
-      if (plugin_initialize(&tmp_root, plugin_ptr, argc, argv,
-                            (flags & PLUGIN_INIT_SKIP_INITIALIZATION)))
+      HASH *hash= plugin_hash + plugin_type_initialization_order[i];
+      for (uint idx= 0; idx < hash->records; idx++)
       {
-        plugin_ptr->state= PLUGIN_IS_DYING;
-        *(reap++)= plugin_ptr;
+        plugin_ptr= (struct st_plugin_int *) my_hash_element(hash, idx);
+        if (plugin_ptr->state == PLUGIN_IS_UNINITIALIZED)
+        {
+          if (plugin_initialize(&tmp_root, plugin_ptr, argc, argv,
+                                (flags & PLUGIN_INIT_SKIP_INITIALIZATION)))
+          {
+            plugin_ptr->state= PLUGIN_IS_DYING;
+            *(reap++)= plugin_ptr;
+          }
+        }
       }
     }
+
+    /* load and init plugins from the plugin table (unless done already) */
+    if (flags & PLUGIN_INIT_SKIP_PLUGIN_TABLE)
+      break;
+
+    mysql_mutex_unlock(&LOCK_plugin);
+    plugin_load(&tmp_root);
+    flags|= PLUGIN_INIT_SKIP_PLUGIN_TABLE;
+    mysql_mutex_lock(&LOCK_plugin);
   }
 
   /*
@@ -1717,23 +1758,22 @@ static void plugin_load(MEM_ROOT *tmp_root)
   new_thd->db= my_strdup("mysql", MYF(0));
   new_thd->db_length= 5;
   bzero((char*) &new_thd->net, sizeof(new_thd->net));
-  tables.init_one_table("mysql", 5, "plugin", 6, "plugin", TL_READ);
-  tables.open_strategy= TABLE_LIST:: IF_EMBEDDED(OPEN_IF_EXISTS, OPEN_NORMAL);
+  tables.init_one_table(STRING_WITH_LEN("mysql"), STRING_WITH_LEN("plugin"),
+                        "plugin", TL_READ);
+  tables.open_strategy= TABLE_LIST::OPEN_NORMAL;
 
   result= open_and_lock_tables(new_thd, &tables, FALSE, MYSQL_LOCK_IGNORE_TIMEOUT);
 
   table= tables.table;
-  if (IF_EMBEDDED(!table, false))
-    goto end;
-
   if (result)
   {
     DBUG_PRINT("error",("Can't open plugin table"));
     if (!opt_help)
-      sql_print_error("Can't open the mysql.plugin table. Please "
-                      "run mysql_upgrade to create it.");
+      sql_print_error("Could not open mysql.plugin table. "
+                      "Some plugins may be not loaded");
     else
-      sql_print_warning("Could not open mysql.plugin table. Some options may be missing from the help text");
+      sql_print_warning("Could not open mysql.plugin table. "
+                        "Some options may be missing from the help text");
     goto end;
   }
 
@@ -1775,7 +1815,6 @@ static void plugin_load(MEM_ROOT *tmp_root)
 end:
   /* Remember that we don't have a THD */
   delete new_thd;
-  set_current_thd(0);
   DBUG_VOID_RETURN;
 }
 
@@ -1922,8 +1961,6 @@ void plugin_shutdown(void)
       if (!(plugins[i]->state & (PLUGIN_IS_UNINITIALIZED | PLUGIN_IS_FREED |
                                  PLUGIN_IS_DISABLED)))
       {
-        sql_print_warning("Plugin '%s' will be forced to shutdown",
-                          plugins[i]->name.str);
         /*
           We are forcing deinit on plugins so we don't want to do a ref_count
           check until we have processed all the plugins.
@@ -3254,7 +3291,31 @@ sys_var_pluginvar::sys_var_pluginvar(sys_var_chain *chain, const char *name_arg,
 uchar* sys_var_pluginvar::real_value_ptr(THD *thd, enum_var_type type)
 {
   if (type == OPT_DEFAULT)
-    return (uchar*)&option.def_value;
+  {
+    switch (plugin_var->flags & PLUGIN_VAR_TYPEMASK) {
+    case PLUGIN_VAR_BOOL:
+      thd->sys_var_tmp.my_bool_value= option.def_value;
+      return (uchar*) &thd->sys_var_tmp.my_bool_value;
+    case PLUGIN_VAR_INT:
+      thd->sys_var_tmp.int_value= option.def_value;
+      return (uchar*) &thd->sys_var_tmp.int_value;
+    case PLUGIN_VAR_LONG:
+    case PLUGIN_VAR_ENUM:
+      thd->sys_var_tmp.long_value= option.def_value;
+      return (uchar*) &thd->sys_var_tmp.long_value;
+    case PLUGIN_VAR_LONGLONG:
+    case PLUGIN_VAR_SET:
+      return (uchar*) &option.def_value;
+    case PLUGIN_VAR_STR:
+      thd->sys_var_tmp.ptr_value= (void*) option.def_value;
+      return (uchar*) &thd->sys_var_tmp.ptr_value;
+    case PLUGIN_VAR_DOUBLE:
+      thd->sys_var_tmp.double_value= getopt_ulonglong2double(option.def_value);
+      return (uchar*) &thd->sys_var_tmp.double_value;
+    default:
+      DBUG_ASSERT(0);
+    }
+  }
 
   DBUG_ASSERT(thd || (type == OPT_GLOBAL));
   if (plugin_var->flags & PLUGIN_VAR_THDLOCAL)
@@ -3757,7 +3818,7 @@ static int construct_options(MEM_ROOT *mem_root, struct st_plugin_int *tmp,
 
     options->name= optname;
     options->comment= opt->comment;
-    options->app_type= opt;
+    options->app_type= (opt->flags & PLUGIN_VAR_NOSYSVAR) ? NULL : opt;
     options->id= 0;
 
     plugin_opt_set_limits(options, opt);
@@ -3913,6 +3974,7 @@ static int test_plugin_options(MEM_ROOT *tmp_root, struct st_plugin_int *tmp,
         v= new (mem_root) sys_var_pluginvar(&chain, varname, tmp, o);
         if (!(o->flags & PLUGIN_VAR_NOCMDOPT))
         {
+          // update app_type, used for I_S.SYSTEM_VARIABLES
           for (my_option *mo=opts; mo->name; mo++)
             if (mo->app_type == o)
               mo->app_type= v;
@@ -3988,7 +4050,7 @@ static int test_plugin_options(MEM_ROOT *tmp_root, struct st_plugin_int *tmp,
         we copy string values to a plugin's memroot.
       */
       if (mysqld_server_started &&
-          (((*opt)->flags & (PLUGIN_VAR_STR | PLUGIN_VAR_NOCMDOPT |
+          (((*opt)->flags & (PLUGIN_VAR_TYPEMASK | PLUGIN_VAR_NOCMDOPT |
                              PLUGIN_VAR_MEMALLOC)) == PLUGIN_VAR_STR))
       {
         sysvar_str_t* str= (sysvar_str_t *)*opt;

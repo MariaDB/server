@@ -77,30 +77,6 @@ static uint flush_divider= 1000;
 #endif /*TEST_HIGH_CONCURENCY*/
 
 
-/**
-  @brief Dummy pagecache callback.
-*/
-
-static my_bool
-dummy_callback(uchar *page __attribute__((unused)),
-               pgcache_page_no_t page_no __attribute__((unused)),
-               uchar* data_ptr __attribute__((unused)))
-{
-  return 0;
-}
-
-
-/**
-  @brief Dummy pagecache callback.
-*/
-
-static void
-dummy_fail_callback(uchar* data_ptr __attribute__((unused)))
-{
-  return;
-}
-
-
 /*
   Get pseudo-random length of the field in (0;limit)
 
@@ -392,8 +368,8 @@ int main(int argc __attribute__((unused)),
 	    errno);
     exit(1);
   }
-  pagecache_file_init(file1, &dummy_callback, &dummy_callback,
-                      &dummy_fail_callback, &dummy_callback, NULL);
+
+  pagecache_file_set_null_hooks(&file1);
   DBUG_PRINT("info", ("file1: %d", file1.file));
   if (my_chmod(file1_name, 0777, MYF(MY_WME)))
     exit(1);

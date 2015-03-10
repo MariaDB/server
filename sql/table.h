@@ -47,6 +47,7 @@ class ACL_internal_schema_access;
 class ACL_internal_table_access;
 class Field;
 class Table_statistics;
+class TDC_element;
 
 /*
   Used to identify NESTED_JOIN structures within a join (applicable only to
@@ -611,32 +612,7 @@ struct TABLE_SHARE
   mysql_mutex_t LOCK_ha_data;           /* To protect access to ha_data */
   mysql_mutex_t LOCK_share;             /* To protect TABLE_SHARE */
 
-  typedef I_P_List <TABLE, TABLE_share> TABLE_list;
-  typedef I_P_List <TABLE, All_share_tables> All_share_tables_list;
-  struct
-  {
-    /**
-      Protects ref_count, m_flush_tickets, all_tables, free_tables, flushed,
-      all_tables_refs.
-    */
-    mysql_mutex_t LOCK_table_share;
-    mysql_cond_t COND_release;
-    TABLE_SHARE *next, **prev;            /* Link to unused shares */
-    uint ref_count;                       /* How many TABLE objects uses this */
-    uint all_tables_refs;                 /* Number of refs to all_tables */
-    /**
-      List of tickets representing threads waiting for the share to be flushed.
-    */
-    Wait_for_flush_list m_flush_tickets;
-    /*
-      Doubly-linked (back-linked) lists of used and unused TABLE objects
-      for this share.
-    */
-    All_share_tables_list all_tables;
-    TABLE_list free_tables;
-    ulong version;
-    bool flushed;
-  } tdc;
+  TDC_element *tdc;
 
   LEX_CUSTRING tabledef_version;
 
@@ -1347,7 +1323,7 @@ public:
   bool add_tmp_key(uint key, uint key_parts,
                    uint (*next_field_no) (uchar *), uchar *arg,
                    bool unique);
-  void create_key_part_by_field(KEY *keyinfo, KEY_PART_INFO *key_part_info,
+  void create_key_part_by_field(KEY_PART_INFO *key_part_info,
                                 Field *field, uint fieldnr);
   void use_index(int key_to_save);
   void set_table_map(table_map map_arg, uint tablenr_arg)
@@ -1906,6 +1882,7 @@ struct TABLE_LIST
   LEX_STRING	timestamp;		/* GMT time stamp of last operation */
   st_lex_user   definer;                /* definer of view */
   ulonglong	file_version;		/* version of file's field set */
+  ulonglong	mariadb_version;	/* version of server on creation */
   ulonglong     updatable_view;         /* VIEW can be updated */
   /** 
       @brief The declared algorithm, if this is a view.
@@ -2097,6 +2074,24 @@ struct TABLE_LIST
   TABLE_LIST *find_underlying_table(TABLE *table);
   TABLE_LIST *first_leaf_for_name_resolution();
   TABLE_LIST *last_leaf_for_name_resolution();
+  /**
+     @brief
+       Find the bottom in the chain of embedded table VIEWs.
+
+     @detail
+       This is used for single-table UPDATE/DELETE when they are modifying a
+       single-table VIEW.
+  */
+  TABLE_LIST *find_table_for_update()
+  {
+    TABLE_LIST *tbl= this;
+    while(!tbl->is_multitable() && tbl->single_table_updatable() &&
+        tbl->merge_underlying_list)
+    {
+      tbl= tbl->merge_underlying_list;
+    }
+    return tbl;
+  }
   TABLE *get_real_join_table();
   bool is_leaf_for_name_resolution();
   inline TABLE_LIST *top_table()

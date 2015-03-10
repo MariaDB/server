@@ -6,8 +6,8 @@ groonga-normalizer-mysql
 
 ## Description
 
-Groonga-normalizer-mysql is a groonga plugin. It provides MySQL
-compatible normalizers and a custom normalizer to groonga.
+Groonga-normalizer-mysql is a Groonga plugin. It provides MySQL
+compatible normalizers and a custom normalizer to Groonga.
 
 MySQL compatible normalizers are `NormalizerMySQLGeneralCI` and
 `NormalizerMySQLUnicodeCI`. `NormalizerMySQLGeneralCI` corresponds to
@@ -62,14 +62,14 @@ doesn't identify them.
 
 ### Debian GNU/Linux
 
-[Add apt-line for the groonga deb package repository](http://groonga.org/docs/install/debian.html)
+[Add apt-line for the Groonga deb package repository](http://groonga.org/docs/install/debian.html)
 and install `groonga-normalizer-mysql` package:
 
     % sudo aptitude -V -D -y install groonga-normalizer-mysql
 
 ### Ubuntu
 
-[Add apt-line for the groonga deb package repository](http://groonga.org/docs/install/ubuntu.html)
+[Add apt-line for the Groonga deb package repository](http://groonga.org/docs/install/ubuntu.html)
 and install `groonga-normalizer-mysql` package:
 
     % sudo aptitude -V -D -y install groonga-normalizer-mysql
@@ -114,16 +114,16 @@ Install the following build tools:
 * [Microsoft Visual Studio 2010 Express](http://www.microsoft.com/japan/msdn/vstudio/express/): 2012 isn't tested yet.
 * [CMake](http://www.cmake.org/)
 
-#### Build groonga
+#### Build Groonga
 
-Download the latest groonga source from [packages.groonga.org](http://packages.groonga.org/source/groonga/). Source file name is formatted as `groonga-X.Y.Z.zip`.
+Download the latest Groonga source from [packages.groonga.org](http://packages.groonga.org/source/groonga/). Source file name is formatted as `groonga-X.Y.Z.zip`.
 
 Extract the source and move to the source folder:
 
     > cd ...\groonga-X.Y.Z
     groonga-X.Y.Z>
 
-Run CMake. Here is a command line to install groonga to `C:\groonga` folder:
+Run CMake. Here is a command line to install Groonga to `C:\groonga` folder:
 
     groonga-X.Y.Z> cmake . -G "Visual Studio 10 Win64" -DCMAKE_INSTALL_PREFIX=C:\groonga
 
@@ -148,7 +148,7 @@ IMPORTANT!!!: Set `PKG_CONFIG_PATH` environment variable:
 
     groonga-normalizer-mysql-X.Y.Z> set PKG_CONFIG_PATH=C:\groongalocal\lib\pkgconfig
 
-Run CMake. Here is a command line to install groonga to `C:\groonga` folder:
+Run CMake. Here is a command line to install Groonga to `C:\groonga` folder:
 
     groonga-normalizer-mysql-X.Y.Z> cmake . -G "Visual Studio 10 Win64" -DCMAKE_INSTALL_PREFIX=C:\groonga
 
@@ -173,7 +173,7 @@ Then, you can use `NormalizerMySQLGeneralCI` and
 
 ## Dependencies
 
-* groonga >= 3.0.3
+* Groonga >= 3.0.3
 
 ## Mailing list
 

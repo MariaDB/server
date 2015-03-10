@@ -48,8 +48,27 @@ int repl_semi_request_commit(Trans_param *param)
   return 0;
 }
 
+int repl_semi_report_binlog_sync(Binlog_storage_param *param,
+                                 const char *log_file,
+                                 my_off_t log_pos, uint32 flags)
+{
+  int error= 0;
+  if (rpl_semi_sync_master_wait_point ==
+      SEMI_SYNC_MASTER_WAIT_POINT_AFTER_BINLOG_SYNC)
+  {
+    error = repl_semisync.commitTrx(log_file, log_pos);
+  }
+
+  return error;
+}
+
 int repl_semi_report_commit(Trans_param *param)
 {
+  if (rpl_semi_sync_master_wait_point !=
+      SEMI_SYNC_MASTER_WAIT_POINT_AFTER_STORAGE_COMMIT)
+  {
+    return 0;
+  }
 
   bool is_real_trans= param->flags & TRANS_IS_REAL_TRANS;
 
@@ -175,6 +194,33 @@ static MYSQL_SYSVAR_BOOL(enabled, rpl_semi_sync_master_enabled,
   &fix_rpl_semi_sync_master_enabled,	// update
   0);
 
+/* NOTE: must match order of rpl_semi_sync_master_wait_point_t */
+static const char *rpl_semi_sync_master_wait_point_names[] =
+{
+  "AFTER_SYNC",
+  "AFTER_COMMIT",
+  NullS
+};
+
+static TYPELIB rpl_semi_sync_master_wait_point_typelib =
+{
+  array_elements(rpl_semi_sync_master_wait_point_names) - 1,
+  "",
+  rpl_semi_sync_master_wait_point_names,
+  NULL
+};
+
+static MYSQL_SYSVAR_ENUM(
+    wait_point,
+    rpl_semi_sync_master_wait_point,
+    PLUGIN_VAR_RQCMDARG,
+    "Should transaction wait for semi-sync ack after having synced binlog, "
+    "or after having committed in storeage engine.",
+    NULL, // check
+    NULL, // update
+    SEMI_SYNC_MASTER_WAIT_POINT_AFTER_STORAGE_COMMIT,
+    &rpl_semi_sync_master_wait_point_typelib);
+
 static MYSQL_SYSVAR_ULONG(timeout, rpl_semi_sync_master_timeout,
   PLUGIN_VAR_OPCMDARG,
  "The timeout value (in ms) for semi-synchronous replication in the master",
@@ -198,6 +244,7 @@ static MYSQL_SYSVAR_ULONG(trace_level, rpl_semi_sync_master_trace_level,
 
 static SYS_VAR* semi_sync_master_system_vars[]= {
   MYSQL_SYSVAR(enabled),
+  MYSQL_SYSVAR(wait_point),
   MYSQL_SYSVAR(timeout),
   MYSQL_SYSVAR(wait_no_slave),
   MYSQL_SYSVAR(trace_level),
@@ -256,6 +303,7 @@ Binlog_storage_observer storage_observer = {
   sizeof(Binlog_storage_observer), // len
 
   repl_semi_report_binlog_update, // report_update
+  repl_semi_report_binlog_sync,   // after_sync
 };
 
 Binlog_transmit_observer transmit_observer = {

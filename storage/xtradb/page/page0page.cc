@@ -1087,7 +1087,9 @@ delete_all:
 
 	last_rec = page_rec_get_prev(page_get_supremum_rec(page));
 
-	if ((size == ULINT_UNDEFINED) || (n_recs == ULINT_UNDEFINED)) {
+	bool scrub = srv_immediate_scrub_data_uncompressed;
+	if ((size == ULINT_UNDEFINED) || (n_recs == ULINT_UNDEFINED) ||
+	    scrub) {
 		rec_t*		rec2		= rec;
 		/* Calculate the sum of sizes and the number of records */
 		size = 0;
@@ -1103,6 +1105,12 @@ delete_all:
 			ut_ad(size + s < UNIV_PAGE_SIZE);
 			size += s;
 			n_recs++;
+
+			if (scrub) {
+				/* scrub record */
+				uint recsize = rec_offs_data_size(offsets);
+				memset(rec2, 0, recsize);
+			}
 
 			rec2 = page_rec_get_next(rec2);
 		} while (!page_rec_is_supremum(rec2));

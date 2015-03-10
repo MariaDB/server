@@ -647,6 +647,7 @@ typedef struct system_variables
 
   my_bool wsrep_on;
   my_bool wsrep_causal_reads;
+  my_bool wsrep_dirty_reads;
   uint wsrep_sync_wait;
   ulong wsrep_retry_autocommit;
   double long_query_time_double, max_statement_time_double;
@@ -759,7 +760,10 @@ typedef struct system_status_var
   double last_query_cost;
   double cpu_time, busy_time;
   /* Don't initialize */
-  volatile int64 memory_used;             /* This shouldn't be accumulated */
+  /* Memory used for thread local storage */
+  volatile int64 local_memory_used;
+  /* Memory allocated for global usage */
+  volatile int64 global_memory_used;
 } STATUS_VAR;
 
 /*
@@ -769,7 +773,7 @@ typedef struct system_status_var
 */
 
 #define last_system_status_var questions
-#define last_cleared_system_status_var memory_used
+#define last_cleared_system_status_var local_memory_used
 
 /*
   Global status variables
@@ -2727,10 +2731,13 @@ public:
   union
   {
     my_bool   my_bool_value;
+    int       int_value;
+    uint      uint_value;
     long      long_value;
     ulong     ulong_value;
     ulonglong ulonglong_value;
     double    double_value;
+    void      *ptr_value;
   } sys_var_tmp;
 
   struct {
@@ -3241,6 +3248,14 @@ public:
       mysql_mutex_lock(&LOCK_thd_data);
       killed= NOT_KILLED;
       mysql_mutex_unlock(&LOCK_thd_data);
+    }
+  }
+  inline void reset_kill_query()
+  {
+    if (killed < KILL_CONNECTION)
+    {
+      reset_killed();
+      mysys_var->abort= 0;
     }
   }
   inline void send_kill_message() const
@@ -3769,6 +3784,8 @@ public:
             (rgi_slave && rgi_have_temporary_tables()));
   }
 
+  LF_PINS *tdc_hash_pins;
+
   inline ulong wsrep_binlog_format() const
   {
     return WSREP_FORMAT(variables.binlog_format);
@@ -3786,7 +3803,6 @@ public:
   enum wsrep_query_state    wsrep_query_state;
   enum wsrep_conflict_state wsrep_conflict_state;
   mysql_mutex_t             LOCK_wsrep_thd;
-  mysql_cond_t              COND_wsrep_thd;
   wsrep_trx_meta_t          wsrep_trx_meta;
   uint32                    wsrep_rand;
   Relay_log_info            *wsrep_rli;
@@ -4106,7 +4122,7 @@ public:
   virtual bool check_simple_select() const { return FALSE; }
   void abort_result_set();
   virtual void cleanup();
-  bool is_result_interceptor() { return true; }
+  bool is_result_interceptor() { return false; }
 };
 
 

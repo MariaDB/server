@@ -1,5 +1,5 @@
-/* Copyright (c) 2000, 2013 Oracle and/or its affiliates.
-   Copyright (c) 2009, 2013 Monty Program Ab.
+/* Copyright (c) 2000, 2014 Oracle and/or its affiliates.
+   Copyright (c) 2009, 2015 MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -291,18 +291,18 @@ static double table_cond_selectivity(JOIN *join, uint idx, JOIN_TAB *s,
 void dbug_serve_apcs(THD *thd, int n_calls)
 {
   const char *save_proc_info= thd->proc_info;
-  /* This is so that mysqltest knows we're ready to serve requests: */
-  thd_proc_info(thd, "show_explain_trap");
   
   /* Busy-wait for n_calls APC requests to arrive and be processed */
   int n_apcs= thd->apc_target.n_calls_processed + n_calls;
   while (thd->apc_target.n_calls_processed < n_apcs)
   {
-    my_sleep(300);
+    /* This is so that mysqltest knows we're ready to serve requests: */
+    thd_proc_info(thd, "show_explain_trap");
+    my_sleep(30000);
+    thd_proc_info(thd, save_proc_info);
     if (thd->check_killed())
       break;
   }
-  thd_proc_info(thd, save_proc_info);
 }
 
 
@@ -3043,6 +3043,7 @@ void JOIN::exec_inner()
       const ha_rows select_limit_arg=
         select_options & OPTION_FOUND_ROWS
         ? HA_POS_ERROR : unit->select_limit_cnt;
+      curr_join->filesort_found_rows= filesort_limit_arg != HA_POS_ERROR;
 
       DBUG_PRINT("info", ("has_group_by %d "
                           "curr_join->table_count %d "
@@ -3089,7 +3090,8 @@ void JOIN::exec_inner()
                                     *curr_fields_list),
                                    Protocol::SEND_NUM_ROWS | Protocol::SEND_EOF);
   error= do_select(curr_join, curr_fields_list, NULL, procedure);
-  if (curr_join->order && curr_join->filesort_found_rows)
+  if (curr_join->order && curr_join->sortorder &&
+      curr_join->filesort_found_rows)
   {
     /* Use info provided by filesort. */
     DBUG_ASSERT(curr_join->table_count > curr_join->const_tables);
@@ -4981,7 +4983,18 @@ add_key_part(DYNAMIC_ARRAY *keyuse_array, KEY_FIELD *key_field)
 }
 
 
-#define FT_KEYPART   (MAX_REF_PARTS+10)
+/*
+  A key part number that means we're using a fulltext scan.
+  
+  In order not to confuse it with regular equalities, we need to pick
+  a number that's greater than MAX_REF_PARTS.
+
+  Hash Join code stores field->field_index in KEYUSE::keypart, so the 
+  number needs to be bigger than MAX_FIELDS, also.
+
+  CAUTION: sql_test.cc has its own definition of FT_KEYPART.
+*/
+#define FT_KEYPART   (MAX_FIELDS+10)
 
 static bool
 add_ft_keys(DYNAMIC_ARRAY *keyuse_array,
@@ -7475,8 +7488,12 @@ double table_cond_selectivity(JOIN *join, uint idx, JOIN_TAB *s,
             else
               fldno= table->key_info[key].key_part[keyparts-1].fieldnr - 1;
             if (keyuse->val->const_item())
-            {              
-              sel /= table->field[fldno]->cond_selectivity;
+            { 
+              if (table->field[fldno]->cond_selectivity > 0)
+	      {            
+                sel /= table->field[fldno]->cond_selectivity;
+                set_if_smaller(sel, 1.0);
+              }
               /* 
                TODO: we could do better here:
                  1. cond_selectivity might be =1 (the default) because quick 
@@ -7530,7 +7547,10 @@ double table_cond_selectivity(JOIN *join, uint idx, JOIN_TAB *s,
         if (!(next_field->table->map & rem_tables) && next_field->table != table)
         { 
           if (field->cond_selectivity > 0)
+	  {
             sel/= field->cond_selectivity;
+            set_if_smaller(sel, 1.0);
+          }
           break;
         }
       }
@@ -8719,7 +8739,8 @@ static bool create_hj_key_for_table(JOIN *join, JOIN_TAB *join_tab,
       {
         Field *field= table->field[keyuse->keypart];
         uint fieldnr= keyuse->keypart+1;
-        table->create_key_part_by_field(keyinfo, key_part_info, field, fieldnr);
+        table->create_key_part_by_field(key_part_info, field, fieldnr);
+        keyinfo->key_length += key_part_info->store_length;
         key_part_info++;
       }
     }
@@ -10066,7 +10087,7 @@ bool generate_derived_keys_for_table(KEYUSE *keyuse, uint count, uint keys)
       else
       {
         /* Mark keyuses for this key to be excluded */
-        for (KEYUSE *curr=save_first_keyuse; curr < first_keyuse; curr++)
+        for (KEYUSE *curr=save_first_keyuse; curr < keyuse; curr++)
 	{
           curr->key= MAX_KEY;
         }
@@ -12295,8 +12316,8 @@ public:
   { TRASH(ptr, size); }
 
   Item *and_level;
-  Item_func *cmp_func;
-  COND_CMP(Item *a,Item_func *b) :and_level(a),cmp_func(b) {}
+  Item_bool_func2 *cmp_func;
+  COND_CMP(Item *a,Item_bool_func2 *b) :and_level(a),cmp_func(b) {}
 };
 
 /**
@@ -13685,6 +13706,75 @@ static void update_const_equal_items(COND *cond, JOIN_TAB *tab, bool const_key)
 }
 
 
+/**
+  Check if
+    WHERE expr=value AND expr=const
+  can be rewritten as:
+    WHERE const=value AND expr=const
+
+  @param target       - the target operator whose "expr" argument will be
+                        replaced to "const".
+  @param target_expr  - the target's "expr" which will be replaced to "const".
+  @param target_value - the target's second argument, it will remain unchanged.
+  @param source       - the equality expression ("=" or "<=>") that
+                        can be used to rewrite the "target" part
+                        (under certain conditions, see the code).
+  @param source_expr  - the source's "expr". It should be exactly equal to 
+                        the target's "expr" to make condition rewrite possible.
+  @param source_const - the source's "const" argument, it will be inserted
+                        into "target" instead of "expr".
+*/
+static bool
+can_change_cond_ref_to_const(Item_bool_func2 *target,
+                             Item *target_expr, Item *target_value,
+                             Item_bool_func2 *source,
+                             Item *source_expr, Item *source_const)
+{
+  if (!target_expr->eq(source_expr,0) ||
+       target_value == source_const ||
+       target_expr->cmp_context != source_expr->cmp_context)
+    return false;
+  if (target_expr->cmp_context == STRING_RESULT)
+  {
+    /*
+      In this example:
+        SET NAMES utf8 COLLATE utf8_german2_ci;
+        DROP TABLE IF EXISTS t1;
+        CREATE TABLE t1 (a CHAR(10) CHARACTER SET utf8);
+        INSERT INTO t1 VALUES ('o-umlaut'),('oe');
+        SELECT * FROM t1 WHERE a='oe' COLLATE utf8_german2_ci AND a='oe';
+
+      the query should return only the row with 'oe'.
+      It should not return 'o-umlaut', because 'o-umlaut' does not match
+      the right part of the condition: a='oe'
+      ('o-umlaut' is not equal to 'oe' in utf8_general_ci,
+       which is the collation of the field "a").
+
+      If we change the right part from:
+         ... AND a='oe'
+      to
+         ... AND 'oe' COLLATE utf8_german2_ci='oe'
+      it will be evalulated to TRUE and removed from the condition,
+      so the overall query will be simplified to:
+
+        SELECT * FROM t1 WHERE a='oe' COLLATE utf8_german2_ci;
+
+      which will erroneously start to return both 'oe' and 'o-umlaut'.
+      So changing "expr" to "const" is not possible if the effective
+      collations of "target" and "source" are not exactly the same.
+
+      Note, the code before the fix for MDEV-7152 only checked that
+      collations of "source_const" and "target_value" are the same.
+      This was not enough, as the bug report demonstrated.
+    */
+    return
+      target->compare_collation() == source->compare_collation() &&
+      target_value->collation.collation == source_const->collation.collation;
+  }
+  return true; // Non-string comparison
+}
+
+
 /*
   change field = field to field = const for each found field = const in the
   and_level
@@ -13693,6 +13783,7 @@ static void update_const_equal_items(COND *cond, JOIN_TAB *tab, bool const_key)
 static void
 change_cond_ref_to_const(THD *thd, I_List<COND_CMP> *save_list,
                          Item *and_father, Item *cond,
+                         Item_bool_func2 *field_value_owner,
                          Item *field, Item *value)
 {
   if (cond->type() == Item::COND_ITEM)
@@ -13703,7 +13794,7 @@ change_cond_ref_to_const(THD *thd, I_List<COND_CMP> *save_list,
     Item *item;
     while ((item=li++))
       change_cond_ref_to_const(thd, save_list,and_level ? cond : item, item,
-			       field, value);
+			       field_value_owner, field, value);
     return;
   }
   if (cond->eq_cmp_result() == Item::COND_OK)
@@ -13715,11 +13806,8 @@ change_cond_ref_to_const(THD *thd, I_List<COND_CMP> *save_list,
   Item *right_item= args[1];
   Item_func::Functype functype=  func->functype();
 
-  if (right_item->eq(field,0) && left_item != value &&
-      right_item->cmp_context == field->cmp_context &&
-      (left_item->result_type() != STRING_RESULT ||
-       value->result_type() != STRING_RESULT ||
-       left_item->collation.collation == value->collation.collation))
+  if (can_change_cond_ref_to_const(func, right_item, left_item,
+                                   field_value_owner, field, value))
   {
     Item *tmp=value->clone_item();
     if (tmp)
@@ -13738,11 +13826,8 @@ change_cond_ref_to_const(THD *thd, I_List<COND_CMP> *save_list,
       func->set_cmp_func();
     }
   }
-  else if (left_item->eq(field,0) && right_item != value &&
-           left_item->cmp_context == field->cmp_context &&
-           (right_item->result_type() != STRING_RESULT ||
-            value->result_type() != STRING_RESULT ||
-            right_item->collation.collation == value->collation.collation))
+  else if (can_change_cond_ref_to_const(func, left_item, right_item,
+                                        field_value_owner, field, value))
   {
     Item *tmp= value->clone_item();
     if (tmp)
@@ -13791,7 +13876,8 @@ propagate_cond_constants(THD *thd, I_List<COND_CMP> *save_list,
         Item **args= cond_cmp->cmp_func->arguments();
         if (!args[0]->const_item())
           change_cond_ref_to_const(thd, &save,cond_cmp->and_level,
-                                   cond_cmp->and_level, args[0], args[1]);
+                                   cond_cmp->and_level,
+                                   cond_cmp->cmp_func, args[0], args[1]);
       }
     }
   }
@@ -13813,14 +13899,14 @@ propagate_cond_constants(THD *thd, I_List<COND_CMP> *save_list,
           resolve_const_item(thd, &args[1], args[0]);
 	  func->update_used_tables();
           change_cond_ref_to_const(thd, save_list, and_father, and_father,
-                                   args[0], args[1]);
+                                   func, args[0], args[1]);
 	}
 	else if (left_const)
 	{
           resolve_const_item(thd, &args[0], args[1]);
 	  func->update_used_tables();
           change_cond_ref_to_const(thd, save_list, and_father, and_father,
-                                   args[1], args[0]);
+                                   func, args[1], args[0]);
 	}
       }
     }
@@ -15811,7 +15897,6 @@ create_tmp_table(THD *thd, TMP_TABLE_PARAM *param, List<Item> &fields,
               (int) distinct, (int) save_sum_fields,
               (ulong) rows_limit, MY_TEST(group)));
 
-  thd->inc_status_created_tmp_tables();
   thd->query_plan_flags|= QPLAN_TMP_TABLE;
 
   if (use_temp_pool && !(test_flags & TEST_KEEP_TMP_TABLES))
@@ -16766,14 +16851,19 @@ bool open_tmp_table(TABLE *table)
                                    HA_OPEN_TMP_TABLE |
                                    HA_OPEN_INTERNAL_TABLE)))
   {
-    table->file->print_error(error,MYF(0)); /* purecov: inspected */
-    table->db_stat=0;
-    return(1);
+    table->file->print_error(error, MYF(0)); /* purecov: inspected */
+    table->db_stat= 0;
+    return 1;
   }
   table->db_stat= HA_OPEN_KEYFILE+HA_OPEN_RNDFILE;
-  (void) table->file->extra(HA_EXTRA_QUICK);		/* Faster */
-  table->created= TRUE;
-  return(0);
+  (void) table->file->extra(HA_EXTRA_QUICK); /* Faster */
+  if (!table->created)
+  {
+    table->created= TRUE;
+    table->in_use->inc_status_created_tmp_tables();
+  }
+
+  return 0;
 }
 
 
@@ -16819,6 +16909,7 @@ bool create_internal_tmp_table(TABLE *table, KEY *keyinfo,
   MARIA_UNIQUEDEF uniquedef;
   TABLE_SHARE *share= table->s;
   MARIA_CREATE_INFO create_info;
+  my_bool encrypt= encrypt_tmp_disk_tables;
   DBUG_ENTER("create_internal_tmp_table");
 
   if (share->keys)
@@ -16830,7 +16921,7 @@ bool create_internal_tmp_table(TABLE *table, KEY *keyinfo,
       goto err;
 
     bzero(seg, sizeof(*seg) * keyinfo->user_defined_key_parts);
-    if (keyinfo->key_length >= table->file->max_key_length() ||
+    if (keyinfo->key_length > table->file->max_key_length() ||
 	keyinfo->user_defined_key_parts > table->file->max_key_parts() ||
 	share->uniques)
     {
@@ -16921,27 +17012,61 @@ bool create_internal_tmp_table(TABLE *table, KEY *keyinfo,
     delete the row.  The cases when this can happen is when there is
     a group by and no sum functions or if distinct is used.
   */
-  if ((error= maria_create(share->table_name.str,
-                           table->no_rows ? NO_RECORD :
-                           (share->reclength < 64 &&
-                            !share->blob_fields ? STATIC_RECORD :
-                            table->used_for_duplicate_elimination ||
-                            table->keep_row_order ?
-                            DYNAMIC_RECORD : BLOCK_RECORD),
-                           share->keys, &keydef,
-                           (uint) (*recinfo-start_recinfo),
-                           start_recinfo,
-                           share->uniques, &uniquedef,
-                           &create_info,
-                           HA_CREATE_TMP_TABLE | HA_CREATE_INTERNAL_TABLE)))
   {
-    table->file->print_error(error,MYF(0));	/* purecov: inspected */
-    table->db_stat=0;
-    goto err;
+    enum data_file_type file_type= table->no_rows ? NO_RECORD :
+        (share->reclength < 64 && !share->blob_fields ? STATIC_RECORD :
+         table->used_for_duplicate_elimination || table->keep_row_order ?
+          DYNAMIC_RECORD : BLOCK_RECORD);
+    uint create_flags= HA_CREATE_TMP_TABLE | HA_CREATE_INTERNAL_TABLE;
+
+    if (file_type != NO_RECORD && MY_TEST(encrypt))
+    {
+      /* encryption is only supported for BLOCK_RECORD */
+      file_type= BLOCK_RECORD;
+      create_flags|= HA_CREATE_ENCRYPTED;
+      if (table->keep_row_order)
+      {
+        create_flags|= HA_INSERT_ORDER;
+      }
+
+      if (table->used_for_duplicate_elimination)
+      {
+        /*
+          sql-layer expect the last column to be stored/restored also
+          when it's null.
+
+          This is probably a bug (that sql-layer doesn't annotate
+          the column as not-null) but both heap, aria-static, aria-dynamic and
+          myisam has this property. aria-block_record does not since it
+          does not store null-columns at all.
+          Emulate behaviour by making column not-nullable when creating the
+          table.
+        */
+        uint cols= (*recinfo-start_recinfo);
+        start_recinfo[cols-1].null_bit= 0;
+      }
+    }
+
+    if ((error= maria_create(share->table_name.str,
+                             file_type,
+                             share->keys, &keydef,
+                             (uint) (*recinfo-start_recinfo),
+                             start_recinfo,
+                             share->uniques, &uniquedef,
+                             &create_info,
+                             create_flags)))
+    {
+      table->file->print_error(error,MYF(0));	/* purecov: inspected */
+      table->db_stat=0;
+      goto err;
+    }
   }
+
   table->in_use->inc_status_created_tmp_disk_tables();
+  table->in_use->inc_status_created_tmp_tables();
   table->in_use->query_plan_flags|= QPLAN_TMP_DISK;
   share->db_record_offset= 1;
+  table->created= TRUE;
   DBUG_RETURN(0);
  err:
   DBUG_RETURN(1);
@@ -17001,7 +17126,7 @@ bool create_internal_tmp_table(TABLE *table, KEY *keyinfo,
       goto err;
 
     bzero(seg, sizeof(*seg) * keyinfo->user_defined_key_parts);
-    if (keyinfo->key_length >= table->file->max_key_length() ||
+    if (keyinfo->key_length > table->file->max_key_length() ||
 	keyinfo->user_defined_key_parts > table->file->max_key_parts() ||
 	share->uniques)
     {
@@ -17086,6 +17211,7 @@ bool create_internal_tmp_table(TABLE *table, KEY *keyinfo,
     goto err;
   }
   table->in_use->inc_status_created_tmp_disk_tables();
+  table->in_use->inc_status_created_tmp_tables();
   table->in_use->query_plan_flags|= QPLAN_TMP_DISK;
   share->db_record_offset= 1;
   table->created= TRUE;
@@ -18931,7 +19057,8 @@ end_send(JOIN *join, JOIN_TAB *join_tab __attribute__((unused)),
         records are read. Because of optimization in some cases it can
         provide only select_limit_cnt+1 records.
       */
-      if (join->order && join->filesort_found_rows &&
+      if (join->order && join->sortorder &&
+          join->filesort_found_rows &&
           join->select_options & OPTION_FOUND_ROWS)
       {
         DBUG_PRINT("info", ("filesort NESTED_LOOP_QUERY_LIMIT"));
@@ -18953,8 +19080,9 @@ end_send(JOIN *join, JOIN_TAB *join_tab __attribute__((unused)),
 	  /* Join over all rows in table;  Return number of found rows */
 	  TABLE *table=jt->table;
 
-          join->select_options ^= OPTION_FOUND_ROWS;
-          if (join->filesort_found_rows)
+	  join->select_options ^= OPTION_FOUND_ROWS;
+	  if (table->sort.record_pointers ||
+	      (table->sort.io_cache && my_b_inited(table->sort.io_cache)))
 	  {
 	    /* Using filesort */
 	    join->send_records= table->sort.found_records;
@@ -20808,11 +20936,7 @@ create_sort_index(THD *thd, JOIN *join, ORDER *order,
                             select, filesort_limit, 0,
                             &examined_rows, &found_rows);
   table->sort.found_records= filesort_retval;
-  if (found_rows != HA_POS_ERROR)
-  {
-    tab->records= found_rows;                     // For SQL_CALC_ROWS
-    join->filesort_found_rows= true;
-  }
+  tab->records= found_rows;                     // For SQL_CALC_ROWS
 
   if (quick_created)
   {
@@ -23721,7 +23845,7 @@ int JOIN::save_explain_data_intern(Explain_query *output, bool need_tmp_table,
                                    bool need_order, bool distinct, 
                                    const char *message)
 {
-  Explain_node *explain_node;
+  Explain_node *explain_node= 0;
   JOIN *join= this; /* Legacy: this code used to be a non-member function */
   int error= 0;
   DBUG_ENTER("JOIN::save_explain_data_intern");
@@ -23729,6 +23853,13 @@ int JOIN::save_explain_data_intern(Explain_query *output, bool need_tmp_table,
 		      (ulong)join->select_lex, join->select_lex->type,
 		      message ? message : "NULL"));
   DBUG_ASSERT(have_query_plan == QEP_AVAILABLE);
+  /* fake_select_lex is created/printed by Explain_union */
+  DBUG_ASSERT(join->select_lex != join->unit->fake_select_lex);
+
+  /* There should be no attempts to save query plans for merged selects */
+  DBUG_ASSERT(!join->select_lex->master_unit()->derived ||
+              join->select_lex->master_unit()->derived->is_materialized_derived());
+
   /* Don't log this into the slow query log */
 
   if (message)
@@ -23745,12 +23876,7 @@ int JOIN::save_explain_data_intern(Explain_query *output, bool need_tmp_table,
     /* Setting xpl_sel->message means that all other members are invalid */
     output->add_node(xpl_sel);
   }
-  else if (join->select_lex == join->unit->fake_select_lex)
-  {
-    /* Do nothing, Explain_union will create and print fake_select_lex */
-  }
-  else if (!join->select_lex->master_unit()->derived ||
-           join->select_lex->master_unit()->derived->is_materialized_derived())
+  else
   {
     Explain_select *xpl_sel;
     explain_node= xpl_sel= new (output->mem_root) Explain_select(output->mem_root);
@@ -23915,10 +24041,12 @@ static void select_describe(JOIN *join, bool need_tmp_table, bool need_order,
     }
 
     /* 
-      Display subqueries only if they are not parts of eliminated WHERE/ON
-      clauses.
+      Save plans for child subqueries, when
+      (1) they are not parts of eliminated WHERE/ON clauses.
+      (2) they are not VIEWs that were "merged for INSERT".
     */
-    if (!(unit->item && unit->item->eliminated))
+    if (!(unit->item && unit->item->eliminated) &&             // (1)
+        !(unit->derived && unit->derived->merged_for_insert))  // (2)
     {
       if (mysql_explain_union(thd, unit, result))
         DBUG_VOID_RETURN;

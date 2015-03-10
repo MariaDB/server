@@ -1,0 +1,46 @@
+include/master-slave.inc
+[connection master]
+CREATE USER u1@localhost IDENTIFIED BY 'abcdefghijk';
+SELECT CURRENT_USER;
+CURRENT_USER
+u1@localhost
+CREATE USER IF NOT EXISTS u2@localhost;
+SELECT CURRENT_USER;
+CURRENT_USER
+u2@localhost
+SELECT user, password FROM mysql.user WHERE user LIKE 'u%' ORDER BY user;
+user	password
+u1	*D9553C4CE316A9845CE49E30A2D7E3857AF966C4
+u2	
+SELECT user, password FROM mysql.user WHERE user LIKE 'u%' ORDER BY user;
+user	password
+u1	*D9553C4CE316A9845CE49E30A2D7E3857AF966C4
+u2	
+CREATE OR REPLACE USER u1@localhost IDENTIFIED BY 'abcdefghijk2';
+SELECT CURRENT_USER;
+CURRENT_USER
+u1@localhost
+SELECT user, password FROM mysql.user WHERE user LIKE 'u%' ORDER BY user;
+user	password
+u1	*A9A5EF53CE2EFAA6F4A746D63A917B2370971A7E
+u2	
+SELECT user, password FROM mysql.user WHERE user LIKE 'u%' ORDER BY user;
+user	password
+u1	*A9A5EF53CE2EFAA6F4A746D63A917B2370971A7E
+u2	
+CREATE USER u1@localhost;
+ERROR HY000: Operation CREATE USER failed for 'u1'@'localhost'
+DROP USER u3@localhost;
+ERROR HY000: Operation DROP USER failed for 'u3'@'localhost'
+SELECT user, password FROM mysql.user WHERE user LIKE 'u%' ORDER BY user;
+user	password
+u1	*A9A5EF53CE2EFAA6F4A746D63A917B2370971A7E
+u2	
+DROP USER IF EXISTS u1@localhost;
+DROP USER u2@localhost;
+DROP USER IF EXISTS u3@localhost;
+Warnings:
+Note	1973	Can't drop user 'u3'@'localhost'; it doesn't exist
+SELECT user, password FROM mysql.user WHERE user LIKE 'u%' ORDER BY user;
+user	password
+include/rpl_end.inc

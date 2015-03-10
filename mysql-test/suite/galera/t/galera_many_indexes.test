@@ -1,0 +1,74 @@
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+CREATE TABLE t1 (f1 VARCHAR(767) PRIMARY KEY) ENGINE=InnoDB;
+
+# MySQL complains about multiple identical indexes on the same column
+--disable_warnings
+
+--let $count = 63
+while ($count)
+{
+  --disable_query_log
+  --eval SET @ddl_var1 = CONCAT("CREATE UNIQUE INDEX i", $count, " ON t1(f1)")
+  --let $ddl_var = `SELECT @ddl_var1`
+  --enable_query_log
+  --eval $ddl_var
+  --dec $count
+}
+--enable_warnings
+
+INSERT INTO t1 VALUES (REPEAT('a', 767));
+--connection node_2
+SELECT COUNT(*) = 1 FROM t1;
+SELECT LENGTH(f1) = 767 FROM t1;
+
+EXPLAIN SELECT COUNT(*) = 1 FROM t1 FORCE KEY (PRIMARY) WHERE f1 = REPEAT('a', 767);
+SELECT COUNT(*) = 1 FROM t1 FORCE KEY (PRIMARY) WHERE f1 = REPEAT('a', 767);
+
+EXPLAIN SELECT COUNT(*) = 1 FROM t1 FORCE KEY (i1) WHERE f1 = REPEAT('a', 767);
+SELECT COUNT(*) = 1 FROM t1 FORCE KEY (i1) WHERE f1 = REPEAT('a', 767);
+
+EXPLAIN SELECT COUNT(*) = 1 FROM t1 FORCE KEY (i63) WHERE f1 = REPEAT('a', 767);
+SELECT COUNT(*) = 1 FROM t1 FORCE KEY (i63) WHERE f1 = REPEAT('a', 767);
+
+INSERT INTO t1 VALUES (REPEAT('b', 767));
+ANALYZE TABLE t1;
+
+--connection node_1
+SELECT COUNT(*) = 2 FROM t1;
+ANALYZE TABLE t1;
+DELETE FROM t1 WHERE f1 = REPEAT('b', 767);
+
+# Rollback
+--connection node_1
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+SELECT COUNT(*) = 1 FROM t1;
+INSERT INTO t1 (f1) VALUES (REPEAT('c', 767));
+ROLLBACK;
+SELECT COUNT(*) = 1 FROM t1;
+
+--connection node_2
+START TRANSACTION;
+SET AUTOCOMMIT=OFF;
+SELECT COUNT(*) = 1 FROM t1;
+
+# Deadlock
+--connection node_1
+START TRANSACTION;
+--connection node_2
+START TRANSACTION;
+
+--connection node_1
+UPDATE t1 SET f1 = REPEAT('e', 767);
+--connection node_2
+UPDATE t1 SET f1 = REPEAT('f', 767);
+
+--connection node_1
+COMMIT;
+--connection node_2
+--error ER_LOCK_DEADLOCK
+COMMIT;
+
+DROP TABLE t1;

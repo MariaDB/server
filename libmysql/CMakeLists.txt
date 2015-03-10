@@ -257,7 +257,11 @@ mariadb_dyncol_unpack_free
 mariadb_dyncol_column_cmp_named
 mariadb_dyncol_column_count
 mariadb_dyncol_prepare_decimal
-
+#
+mariadb_deinitialize_ssl
+# low-level API to MySQL protocol
+mysql_net_read_packet
+mysql_net_field_length
 # Added in MariaDB-10.0 to stay compatible with MySQL-5.6, yuck!
 mysql_options4
 )

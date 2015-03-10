@@ -1,1 +1,1 @@
---slave-parallel-mode=domain --m1.slave-parallel-mode=transactional --m2.slave-parallel-mode=domain,follow_master_commit,waiting
+--slave-parallel-mode=minimal --m1.slave-parallel-mode=optimistic --m2.slave-parallel-mode=aggressive

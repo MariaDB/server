@@ -81,6 +81,7 @@ typedef struct Trans_observer {
      succeeded.
 
      @note The return value is currently ignored by the server.
+     @note This hook is called wo/ any global mutex held
 
      @param param The parameter for transaction observers
 
@@ -103,6 +104,8 @@ typedef struct Trans_observer {
 
      @param param The parameter for transaction observers
 
+     @note This hook is called wo/ any global mutex held
+
      @retval 0 Sucess
      @retval 1 Failure
   */
@@ -114,7 +117,13 @@ typedef struct Trans_observer {
 */
 enum Binlog_storage_flags {
   /** Binary log was sync:ed */
-  BINLOG_STORAGE_IS_SYNCED = 1
+  BINLOG_STORAGE_IS_SYNCED = 1,
+
+  /** First(or alone) in a group commit */
+  BINLOG_GROUP_COMMIT_LEADER = 2,
+
+  /** Last(or alone) in a group commit */
+  BINLOG_GROUP_COMMIT_TRAILER = 4
 };
 
 /**
@@ -137,6 +146,8 @@ typedef struct Binlog_storage_observer {
      binary log file. Whether the binary log file is synchronized to
      disk is indicated by the bit BINLOG_STORAGE_IS_SYNCED in @a flags.
 
+     @note: this hook is called with LOCK_log mutex held
+
      @param param Observer common parameter
      @param log_file Binlog file name been updated
      @param log_pos Binlog position after update
@@ -148,6 +159,26 @@ typedef struct Binlog_storage_observer {
   int (*after_flush)(Binlog_storage_param *param,
                      const char *log_file, my_off_t log_pos,
                      uint32 flags);
+
+  /**
+     This callback is called after binlog has been synced
+
+     This callback is called after events flushed to disk has been sync:ed
+     ("group committed").
+
+     @note: this hook is called with LOCK_after_binlog_sync mutex held
+
+     @param param Observer common parameter
+     @param log_file Binlog file name been updated
+     @param log_pos Binlog position after update
+     @param flags flags for binlog storage
+
+     @retval 0 Sucess
+     @retval 1 Failure
+  */
+  int (*after_sync)(Binlog_storage_param *param,
+                    const char *log_file, my_off_t log_pos,
+                    uint32 flags);
 } Binlog_storage_observer;
 
 /**

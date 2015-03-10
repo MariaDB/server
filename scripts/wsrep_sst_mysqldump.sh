@@ -17,10 +17,14 @@
 
 # This is a reference script for mysqldump-based state snapshot tansfer
 
+# This variable is not used in mysqldump sst, so better initialize it
+# to avoid shell's "parameter not set" message.
+WSREP_SST_OPT_CONF=""
+
 . $(dirname $0)/wsrep_sst_common
+PATH=$PATH:/usr/sbin:/usr/bin:/sbin:/bin
 
 EINVAL=22
-PATH=$PATH:/usr/sbin:/usr/bin:/sbin:/bin
 
 local_ip()
 {
@@ -70,12 +74,6 @@ if test -n "$WSREP_SST_OPT_PSWD"; then AUTH="$AUTH -p$WSREP_SST_OPT_PSWD"; fi
 
 STOP_WSREP="SET wsrep_on=OFF;"
 
-# NOTE: we don't use --routines here because we're dumping mysql.proc table
-MYSQLDUMP="mysqldump $AUTH -S$WSREP_SST_OPT_SOCKET \
---add-drop-database --add-drop-table --skip-add-locks --create-options \
---disable-keys --extended-insert --skip-lock-tables --quick --set-charset \
---skip-comments --flush-privileges --all-databases"
-
 # mysqldump cannot restore CSV tables, fix this issue
 CSV_TABLES_FIX="
 set sql_mode='';
@@ -98,8 +96,58 @@ DROP PREPARE stmt;"
 
 SET_START_POSITION="SET GLOBAL wsrep_start_position='$WSREP_SST_OPT_GTID';"
 
+SET_WSREP_GTID_DOMAIN_ID=""
+if [ -n WSREP_SST_OPT_GTID_DOMAIN_ID]
+then
+  SET_WSREP_GTID_DOMAIN_ID="
+  SET @val = (SELECT GLOBAL_VALUE FROM INFORMATION_SCHEMA.SYSTEM_VARIABLES WHERE VARIABLE_NAME = 'WSREP_GTID_STRICT_MODE' AND GLOBAL_VALUE > 0);
+  SET @stmt = IF (@val IS NOT NULL, 'SET GLOBAL WSREP_GTID_DOMAIN_ID=$WSREP_SST_OPT_GTID_DOMAIN_ID', 'SET @dummy = 0');
+  PREPARE stmt FROM @stmt;
+  EXECUTE stmt;
+  DROP PREPARE stmt;"
+fi
+
+# Retrieve the donor's @@global.gtid_binlog_state.
+GTID_BINLOG_STATE=$(echo "SHOW GLOBAL VARIABLES LIKE 'gtid_binlog_state'" |\
+mysql $AUTH -S$WSREP_SST_OPT_SOCKET --disable-reconnect --connect_timeout=10 |\
+tail -1 | awk -F ' ' '{ print $2 }')
+
 MYSQL="mysql $AUTH -h$WSREP_SST_OPT_HOST -P$WSREP_SST_OPT_PORT "\
 "--disable-reconnect --connect_timeout=10"
+
+# Check if binary logging is enabled on the joiner node.
+# Note: SELECT cannot be used at this point.
+LOG_BIN=$(echo "SHOW VARIABLES LIKE 'log_bin'" | $MYSQL |\
+tail -1 | awk -F ' ' '{ print $2 }')
+
+# Check the joiner node's server version.
+SERVER_VERSION=$(echo "SHOW VARIABLES LIKE 'version'" | $MYSQL |\
+tail -1 | awk -F ' ' '{ print $2 }')
+
+RESET_MASTER=""
+SET_GTID_BINLOG_STATE=""
+SQL_LOG_BIN_OFF=""
+
+# Safety check
+if echo $SERVER_VERSION | grep '^10.0' > /dev/null
+then
+  # If binary logging is enabled on the joiner node, we need to copy donor's
+  # gtid_binlog_state to joiner. In order to do that, a RESET MASTER must be
+  # executed to erase binary logs (if any). Binary logging should also be
+  # turned off for the session so that gtid state does not get altered while
+  # the dump gets replayed on joiner.
+  if [[ "$LOG_BIN" == 'ON' ]]; then
+    RESET_MASTER="RESET MASTER;"
+    SET_GTID_BINLOG_STATE="SET @@global.gtid_binlog_state='$GTID_BINLOG_STATE';"
+    SQL_LOG_BIN_OFF="SET @@session.sql_log_bin=OFF;"
+  fi
+fi
+
+# NOTE: we don't use --routines here because we're dumping mysql.proc table
+MYSQLDUMP="mysqldump $AUTH -S$WSREP_SST_OPT_SOCKET \
+--add-drop-database --add-drop-table --skip-add-locks --create-options \
+--disable-keys --extended-insert --skip-lock-tables --quick --set-charset \
+--skip-comments --flush-privileges --all-databases"
 
 # need to disable logging when loading the dump
 # reason is that dump contains ALTER TABLE for log tables, and
@@ -113,12 +161,15 @@ $MYSQL -e"$STOP_WSREP SET GLOBAL SLOW_QUERY_LOG=OFF"
 RESTORE_GENERAL_LOG="SET GLOBAL GENERAL_LOG=$GENERAL_LOG_OPT;"
 RESTORE_SLOW_QUERY_LOG="SET GLOBAL SLOW_QUERY_LOG=$SLOW_LOG_OPT;"
 
+
 if [ $WSREP_SST_OPT_BYPASS -eq 0 ]
 then
-    (echo $STOP_WSREP && $MYSQLDUMP && echo $CSV_TABLES_FIX \
-    && echo $RESTORE_GENERAL_LOG && echo $RESTORE_SLOW_QUERY_LOG \
-    && echo $SET_START_POSITION \
-    || echo "SST failed to complete;") | $MYSQL
+    (echo $STOP_WSREP && echo $RESET_MASTER && \
+     echo $SET_GTID_BINLOG_STATE && echo $SQL_LOG_BIN_OFF && \
+     echo $STOP_WSREP && $MYSQLDUMP && echo $CSV_TABLES_FIX && \
+     echo $RESTORE_GENERAL_LOG && echo $RESTORE_SLOW_QUERY_LOG && \
+     echo $SET_START_POSITION && echo $SET_WSREP_GTID_DOMAIN_ID \
+     || echo "SST failed to complete;") | $MYSQL
 else
     wsrep_log_info "Bypassing state dump."
     echo $SET_START_POSITION | $MYSQL

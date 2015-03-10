@@ -7115,5 +7115,13 @@ ER_SUBQUERIES_NOT_SUPPORTED 42000
         eng "%s does not support subqueries or stored functions."
 ER_SET_STATEMENT_NOT_SUPPORTED 42000
         eng "The system variable %.200s cannot be set in SET STATEMENT." 
-ER_INVALID_SLAVE_PARALLEL_MODE
-	eng "Invalid use of '%s' option for slave_parallel_mode"
+ER_UNUSED_17
+        eng "You should never see it"
+ER_USER_CREATE_EXISTS
+        eng "Can't create user '%-.64s'@'%-.64s'; it already exists"
+ER_USER_DROP_EXISTS
+        eng "Can't drop user '%-.64s'@'%-.64s'; it doesn't exist"
+ER_ROLE_CREATE_EXISTS
+        eng "Can't create role '%-.64s'; it already exists"
+ER_ROLE_DROP_EXISTS
+        eng "Can't drop role '%-.64s'; it doesn't exist"

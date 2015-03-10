@@ -264,10 +264,10 @@ retry:
   compatible= TRUE;
   upgrading= FALSE;
   cursor->blocker= cursor->upgrade_from= 0;
-  _lf_unpin(pins, 3);
+  lf_unpin(pins, 3);
   do {
     cursor->curr= PTR(*cursor->prev);
-    _lf_pin(pins, 1, cursor->curr);
+    lf_pin(pins, 1, cursor->curr);
   } while(*cursor->prev != (intptr)cursor->curr && LF_BACKOFF);
   for (;;)
   {
@@ -276,7 +276,7 @@ retry:
     do {
       cur_link= cursor->curr->link;
       cursor->next= PTR(cur_link);
-      _lf_pin(pins, 0, cursor->next);
+      lf_pin(pins, 0, cursor->next);
     } while (cur_link != cursor->curr->link && LF_BACKOFF);
     cur_hashnr= cursor->curr->hashnr;
     cur_resource= cursor->curr->resource;
@@ -316,7 +316,7 @@ retry:
           if (prev_active && !cur_active)
           {
             cursor->blocker= cursor->curr;
-            _lf_pin(pins, 3, cursor->curr);
+            lf_pin(pins, 3, cursor->curr);
           }
           if (cur_loid == loid)
           {
@@ -329,7 +329,7 @@ retry:
               if (cur_active)
               {
                 cursor->blocker= cursor->curr;  /* loose-locks! */
-                _lf_unpin(pins, 3);             /* loose-locks! */
+                lf_unpin(pins, 3);             /* loose-locks! */
                 return ALREADY_HAVE_THE_LOCK;
               }
               else
@@ -345,7 +345,7 @@ retry:
             {
               compatible= FALSE;
               cursor->blocker= cursor->curr;
-              _lf_pin(pins, 3, cursor->curr);
+              lf_pin(pins, 3, cursor->curr);
             }
           }
           prev_lock= lock_combining_matrix[prev_lock][cur_lock];
@@ -353,13 +353,13 @@ retry:
         }
       }
       cursor->prev= &(cursor->curr->link);
-      _lf_pin(pins, 2, cursor->curr);
+      lf_pin(pins, 2, cursor->curr);
     }
     else
     {
       if (my_atomic_casptr((void **)cursor->prev,
                            (void **)(char*) &cursor->curr, cursor->next))
-        _lf_alloc_free(pins, cursor->curr);
+        lf_alloc_free(pins, cursor->curr);
       else
       {
         (void)LF_BACKOFF;
@@ -367,7 +367,7 @@ retry:
       }
     }
     cursor->curr= cursor->next;
-    _lf_pin(pins, 1, cursor->curr);
+    lf_pin(pins, 1, cursor->curr);
   }
   /*
     either the end of lock list - no more locks for this resource,
@@ -435,9 +435,9 @@ static int lockinsert(LOCK * volatile *head, LOCK *node, LF_PINS *pins,
     }
 
   } while (res == REPEAT_ONCE_MORE);
-  _lf_unpin(pins, 0);
-  _lf_unpin(pins, 1);
-  _lf_unpin(pins, 2);
+  lf_unpin(pins, 0);
+  lf_unpin(pins, 1);
+  lf_unpin(pins, 2);
   /*
     note that blocker is not necessarily pinned here (when it's == curr).
     this is ok as in such a case it's either a dummy node for
@@ -461,9 +461,9 @@ static int lockpeek(LOCK * volatile *head, LOCK *node, LF_PINS *pins,
 
   res= lockfind(head, node, &cursor, pins);
 
-  _lf_unpin(pins, 0);
-  _lf_unpin(pins, 1);
-  _lf_unpin(pins, 2);
+  lf_unpin(pins, 0);
+  lf_unpin(pins, 1);
+  lf_unpin(pins, 2);
   if (blocker)
     *blocker= cursor.blocker;
   return res;
@@ -502,7 +502,7 @@ static int lockdelete(LOCK * volatile *head, LOCK *node, LF_PINS *pins)
     {
       if (my_atomic_casptr((void **)cursor.prev,
                            (void **)(char*)&cursor.curr, cursor.next))
-        _lf_alloc_free(pins, cursor.curr);
+        lf_alloc_free(pins, cursor.curr);
       else
         lockfind(head, node, &cursor, pins);
     }
@@ -513,10 +513,10 @@ static int lockdelete(LOCK * volatile *head, LOCK *node, LF_PINS *pins)
         cursor.upgrade_from->flags|= IGNORE_ME;
     }
   } while (res == REPEAT_ONCE_MORE);
-  _lf_unpin(pins, 0);
-  _lf_unpin(pins, 1);
-  _lf_unpin(pins, 2);
-  _lf_unpin(pins, 3);
+  lf_unpin(pins, 0);
+  lf_unpin(pins, 1);
+  lf_unpin(pins, 2);
+  lf_unpin(pins, 3);
   return res;
 }
 
@@ -532,7 +532,7 @@ void lockman_init(LOCKMAN *lm, loid_to_lo_func *func, uint timeout)
 
 void lockman_destroy(LOCKMAN *lm)
 {
-  LOCK *el= *(LOCK **)_lf_dynarray_lvalue(&lm->array, 0);
+  LOCK *el= *(LOCK **)lf_dynarray_lvalue(&lm->array, 0);
   while (el)
   {
     intptr next= el->link;
@@ -556,7 +556,7 @@ static void initialize_bucket(LOCKMAN *lm, LOCK * volatile *node,
   uint parent= my_clear_highest_bit(bucket);
   LOCK *dummy= (LOCK *)my_malloc(sizeof(LOCK), MYF(MY_WME));
   LOCK **tmp= 0, *cur;
-  LOCK * volatile *el= _lf_dynarray_lvalue(&lm->array, parent);
+  LOCK * volatile *el= lf_dynarray_lvalue(&lm->array, parent);
 
   if (*el == NULL && bucket)
     initialize_bucket(lm, el, parent, pins);
@@ -604,15 +604,14 @@ enum lockman_getlock_result lockman_getlock(LOCKMAN *lm, LOCK_OWNER *lo,
   enum lockman_lock_type old_lock;
 
   DBUG_ASSERT(lo->loid);
-  lf_rwlock_by_pins(pins);
-  node= (LOCK *)_lf_alloc_new(pins);
+  node= (LOCK *)lf_alloc_new(pins);
   node->flags= 0;
   node->lock= lock;
   node->loid= lo->loid;
   node->resource= resource;
   hashnr= calc_hash(resource);
   bucket= hashnr % lm->size;
-  el= _lf_dynarray_lvalue(&lm->array, bucket);
+  el= lf_dynarray_lvalue(&lm->array, bucket);
   if (*el == NULL)
     initialize_bucket(lm, el, bucket, pins);
   node->hashnr= my_reverse_bits(hashnr) | 1;
@@ -621,8 +620,7 @@ enum lockman_getlock_result lockman_getlock(LOCKMAN *lm, LOCK_OWNER *lo,
   {
     int r;
     old_lock= blocker->lock;
-    _lf_alloc_free(pins, node);
-    lf_rwunlock_by_pins(pins);
+    lf_alloc_free(pins, node);
     r= getlock_result[old_lock][lock];
     DBUG_ASSERT(r);
     return r;
@@ -639,7 +637,7 @@ enum lockman_getlock_result lockman_getlock(LOCKMAN *lm, LOCK_OWNER *lo,
     ulonglong deadline;
     struct timespec timeout;
 
-    _lf_assert_pin(pins, 3); /* blocker must be pinned here */
+    lf_assert_pin(pins, 3); /* blocker must be pinned here */
     wait_for_lo= lm->loid_to_lo(blocker->loid);
 
     /*
@@ -652,7 +650,7 @@ enum lockman_getlock_result lockman_getlock(LOCKMAN *lm, LOCK_OWNER *lo,
     if (lock_compatibility_matrix[blocker->lock][lock])
     {
       blocker= wait_for_lo->all_locks;
-      _lf_pin(pins, 3, blocker);
+      lf_pin(pins, 3, blocker);
       if (blocker != wait_for_lo->all_locks)
         continue;
       wait_for_lo= wait_for_lo->waiting_for;
@@ -667,7 +665,6 @@ enum lockman_getlock_result lockman_getlock(LOCKMAN *lm, LOCK_OWNER *lo,
       continue;
 
     lo->waiting_for= wait_for_lo;
-    lf_rwunlock_by_pins(pins);
 
     /*
       We lock a mutex - it may belong to a wrong LOCK_OWNER, but it must
@@ -683,7 +680,6 @@ enum lockman_getlock_result lockman_getlock(LOCKMAN *lm, LOCK_OWNER *lo,
         the lock was rolled back. Either way - the lock was removed
       */
       pthread_mutex_unlock(wait_for_lo->mutex);
-      lf_rwlock_by_pins(pins);
       continue;
     }
 
@@ -695,7 +691,6 @@ enum lockman_getlock_result lockman_getlock(LOCKMAN *lm, LOCK_OWNER *lo,
       pthread_cond_timedwait(wait_for_lo->cond, wait_for_lo->mutex, &timeout);
     } while (!DELETED(blocker->link) && my_hrtime().val < deadline/1000);
     pthread_mutex_unlock(wait_for_lo->mutex);
-    lf_rwlock_by_pins(pins);
     if (!DELETED(blocker->link))
     {
       /*
@@ -704,14 +699,12 @@ enum lockman_getlock_result lockman_getlock(LOCKMAN *lm, LOCK_OWNER *lo,
         Instead we're relying on the caller to abort the transaction,
         and release all locks at once - see lockman_release_locks()
       */
-      _lf_unpin(pins, 3);
-      lf_rwunlock_by_pins(pins);
+      lf_unpin(pins, 3);
       return DIDNT_GET_THE_LOCK;
     }
   }
   lo->waiting_for= 0;
-  _lf_assert_unpin(pins, 3); /* unpin should not be needed */
-  lf_rwunlock_by_pins(pins);
+  lf_assert_unpin(pins, 3); /* unpin should not be needed */
   return getlock_result[lock][lock];
 }
 
@@ -729,18 +722,16 @@ int lockman_release_locks(LOCKMAN *lm, LOCK_OWNER *lo)
   LF_PINS *pins= lo->pins;
 
   pthread_mutex_lock(lo->mutex);
-  lf_rwlock_by_pins(pins);
   for (node= lo->all_locks; node; node= next)
   {
     next= node->lonext;
     bucket= calc_hash(node->resource) % lm->size;
-    el= _lf_dynarray_lvalue(&lm->array, bucket);
+    el= lf_dynarray_lvalue(&lm->array, bucket);
     if (*el == NULL)
       initialize_bucket(lm, el, bucket, pins);
     lockdelete(el, node, pins);
     my_atomic_add32(&lm->count, -1);
   }
-  lf_rwunlock_by_pins(pins);
   lo->all_locks= 0;
   /* now signal all waiters */
   pthread_cond_broadcast(lo->cond);
@@ -757,7 +748,7 @@ static const char *lock2str[]=
 */
 void print_lockhash(LOCKMAN *lm)
 {
-  LOCK *el= *(LOCK **)_lf_dynarray_lvalue(&lm->array, 0);
+  LOCK *el= *(LOCK **)lf_dynarray_lvalue(&lm->array, 0);
   printf("hash: size %u count %u\n", lm->size, lm->count);
   while (el)
   {

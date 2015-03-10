@@ -197,6 +197,19 @@ int thd_key_create(MYSQL_THD_KEY_T *key);
 void thd_key_delete(MYSQL_THD_KEY_T *key);
 void* thd_getspecific(void* thd, MYSQL_THD_KEY_T key);
 int thd_setspecific(void* thd, MYSQL_THD_KEY_T key, void *value);
+#include <mysql/service_encryption_keys.h>
+extern struct encryption_keys_service_st {
+  unsigned int (*get_latest_encryption_key_version_func)();
+  unsigned int (*has_encryption_key_func)(unsigned int);
+  unsigned int (*get_encryption_key_size_func)(unsigned int);
+  int (*get_encryption_key_func)(unsigned int, unsigned char*, unsigned int);
+  int (*get_encryption_iv_func)(unsigned int, unsigned char*, unsigned int);
+} *encryption_keys_service;
+unsigned int get_latest_encryption_key_version();
+unsigned int has_encryption_key(unsigned int version);
+unsigned int get_encryption_key_size(unsigned int version);
+int get_encryption_key(unsigned int version, unsigned char* key, unsigned int keybufsize);
+int get_encryption_iv(unsigned int version, unsigned char* iv, unsigned int ivbufsize);
 struct st_mysql_xid {
   long formatID;
   long gtrid_length;
@@ -212,12 +225,16 @@ enum enum_mysql_show_type
   SHOW_SINT, SHOW_SLONG, SHOW_SLONGLONG, SHOW_SIMPLE_FUNC,
   SHOW_always_last
 };
+enum enum_var_type
+{
+  SHOW_OPT_DEFAULT= 0, SHOW_OPT_SESSION, SHOW_OPT_GLOBAL
+};
 struct st_mysql_show_var {
   const char *name;
-  char *value;
+  void *value;
   enum enum_mysql_show_type type;
 };
-typedef int (*mysql_show_var_func)(void*, struct st_mysql_show_var*, char *);
+typedef int (*mysql_show_var_func)(void*, struct st_mysql_show_var*, void *, enum enum_var_type);
 struct st_mysql_sys_var;
 struct st_mysql_value;
 typedef int (*mysql_var_check_func)(void* thd,
@@ -349,7 +366,7 @@ void *thd_get_ha_data(const void* thd, const struct handlerton *hton);
 void thd_set_ha_data(void* thd, const struct handlerton *hton,
                      const void *ha_data);
 void thd_wakeup_subsequent_commits(void* thd, int wakeup_error);
-struct st_mysql_password_validation
+struct st_mariadb_password_validation
 {
   int interface_version;
   int (*validate_password)(MYSQL_LEX_STRING *username,

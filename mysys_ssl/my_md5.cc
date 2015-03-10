@@ -34,6 +34,7 @@ typedef TaoCrypt::MD5 MD5_CTX;
 
 static void md5_init(MD5_CTX *context)
 {
+  context= new(context) MD5_CTX;
   context->Init();
 }
 

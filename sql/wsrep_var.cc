@@ -15,7 +15,6 @@
 
 #include "wsrep_var.h"
 
-#include <sql_plugin.h>
 #include <mysqld.h>
 #include <sql_class.h>
 #include <set_var.h>
@@ -67,6 +66,7 @@ bool wsrep_causal_reads_update (SV *sv)
   } else {
     sv->wsrep_sync_wait &= ~WSREP_SYNC_WAIT_BEFORE_READ;
   }
+
   return false;
 }
 
@@ -353,7 +353,14 @@ bool wsrep_cluster_address_update (sys_var *self, THD* thd, enum_var_type type)
   */
   mysql_mutex_unlock(&LOCK_global_system_variables);
   wsrep_stop_replication(thd);
+
+  /*
+    Unlock and lock LOCK_wsrep_slave_threads to maintain lock order & avoid
+    any potential deadlock.
+  */
+  mysql_mutex_unlock(&LOCK_wsrep_slave_threads);
   mysql_mutex_lock(&LOCK_global_system_variables);
+  mysql_mutex_lock(&LOCK_wsrep_slave_threads);
 
   if (wsrep_start_replication())
   {
@@ -528,7 +535,8 @@ static int show_var_cmp(const void *var1, const void *var2)
   return strcasecmp(((SHOW_VAR*)var1)->name, ((SHOW_VAR*)var2)->name);
 }
 
-int wsrep_show_status (THD *thd, SHOW_VAR *var, char *buff)
+int wsrep_show_status (THD *thd, SHOW_VAR *var, char *buff,
+                       enum enum_var_type scope)
 {
   uint i, maxi= SHOW_VAR_FUNC_BUFF_SIZE / sizeof(*var) - 1;
   SHOW_VAR *v= (SHOW_VAR *)buff;

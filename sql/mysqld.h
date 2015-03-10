@@ -20,7 +20,7 @@
 #include "sql_bitmap.h"                         /* Bitmap */
 #include "my_decimal.h"                         /* my_decimal */
 #include "mysql_com.h"                     /* SERVER_VERSION_LENGTH */
-#include "my_atomic.h"                     /* my_atomic_rwlock_t */
+#include "my_atomic.h"
 #include "mysql/psi/mysql_file.h"          /* MYSQL_FILE */
 #include "sql_list.h"                      /* I_List */
 #include "sql_cmd.h"
@@ -54,6 +54,24 @@ typedef Bitmap<((MAX_INDEXES+7)/8*8)> key_map; /* Used for finding keys */
 #define TEST_SIGINT		1024	/**< Allow sigint on threads */
 #define TEST_SYNCHRONIZATION    2048    /**< get server to do sleep in
                                            some places */
+
+/* Keep things compatible */
+#define OPT_DEFAULT SHOW_OPT_DEFAULT
+#define OPT_SESSION SHOW_OPT_SESSION
+#define OPT_GLOBAL SHOW_OPT_GLOBAL
+
+/*
+  Values for --slave-parallel-mode
+  Must match order in slave_parallel_mode_typelib in sys_vars.cc.
+*/
+enum enum_slave_parallel_mode {
+  SLAVE_PARALLEL_NONE,
+  SLAVE_PARALLEL_MINIMAL,
+  SLAVE_PARALLEL_CONSERVATIVE,
+  SLAVE_PARALLEL_OPTIMISTIC,
+  SLAVE_PARALLEL_AGGRESSIVE
+};
+
 /* Function prototypes */
 void kill_mysql(void);
 void close_connection(THD *thd, uint sql_errno= 0);
@@ -105,6 +123,7 @@ extern my_bool read_only, opt_readonly;
 extern my_bool lower_case_file_system;
 extern my_bool opt_enable_named_pipe, opt_sync_frm, opt_allow_suspicious_udfs;
 extern my_bool opt_secure_auth;
+extern const char *current_dbug_option;
 extern char* opt_secure_file_priv;
 extern char* opt_secure_backup_file_priv;
 extern size_t opt_secure_backup_file_priv_len;
@@ -184,7 +203,7 @@ extern ulong stored_program_cache_size;
 extern ulong opt_slave_parallel_threads;
 extern ulong opt_slave_domain_parallel_threads;
 extern ulong opt_slave_parallel_max_queued;
-extern ulonglong opt_slave_parallel_mode;
+extern ulong opt_slave_parallel_mode;
 extern ulong opt_binlog_commit_wait_count;
 extern ulong opt_binlog_commit_wait_usec;
 extern my_bool opt_gtid_ignore_duplicates;
@@ -230,6 +249,9 @@ extern ulong connection_errors_internal;
 extern ulong connection_errors_max_connection;
 extern ulong connection_errors_peer_addr;
 extern ulong log_warnings;
+extern my_bool encrypt_tmp_disk_tables;
+extern ulong encryption_algorithm;
+extern const char *encryption_algorithm_names[];
 
 /*
   THR_MALLOC is a key which will be used to set/get MEM_ROOT** for a thread,
@@ -249,6 +271,7 @@ extern PSI_mutex_key key_LOCK_des_key_file;
 
 extern PSI_mutex_key key_BINLOG_LOCK_index, key_BINLOG_LOCK_xid_list,
   key_BINLOG_LOCK_binlog_background_thread,
+  m_key_LOCK_binlog_end_pos,
   key_delayed_insert_mutex, key_hash_filo_lock, key_LOCK_active_mi,
   key_LOCK_connection_count, key_LOCK_crypt, key_LOCK_delayed_create,
   key_LOCK_delayed_insert, key_LOCK_delayed_status, key_LOCK_error_log,
@@ -414,6 +437,8 @@ extern PSI_stage_info stage_storing_result_in_query_cache;
 extern PSI_stage_info stage_storing_row_into_queue;
 extern PSI_stage_info stage_system_lock;
 extern PSI_stage_info stage_unlocking_tables;
+extern PSI_stage_info stage_table_lock;
+extern PSI_stage_info stage_filling_schema_table;
 extern PSI_stage_info stage_update;
 extern PSI_stage_info stage_updating;
 extern PSI_stage_info stage_updating_main_table;
@@ -536,8 +561,6 @@ extern mysql_cond_t COND_manager;
 extern mysql_cond_t COND_slave_init;
 extern int32 thread_running;
 extern int32 thread_count;
-extern my_atomic_rwlock_t thread_running_lock, thread_count_lock;
-extern my_atomic_rwlock_t slave_executed_entries_lock;
 
 extern char *opt_ssl_ca, *opt_ssl_capath, *opt_ssl_cert, *opt_ssl_cipher,
   *opt_ssl_key, *opt_ssl_crl, *opt_ssl_crlpath;
@@ -625,28 +648,18 @@ enum enum_query_type
 /* query_id */
 typedef int64 query_id_t;
 extern query_id_t global_query_id;
-extern my_atomic_rwlock_t global_query_id_lock;
-extern my_atomic_rwlock_t statistics_lock;
 
 void unireg_end(void) __attribute__((noreturn));
 
 /* increment query_id and return it.  */
 inline __attribute__((warn_unused_result)) query_id_t next_query_id()
 {
-  query_id_t id;
-  my_atomic_rwlock_wrlock(&global_query_id_lock);
-  id= my_atomic_add64_explicit(&global_query_id, 1, MY_MEMORY_ORDER_RELAXED);
-  my_atomic_rwlock_wrunlock(&global_query_id_lock);
-  return (id);
+  return my_atomic_add64_explicit(&global_query_id, 1, MY_MEMORY_ORDER_RELAXED);
 }
 
 inline query_id_t get_query_id()
 {
-  query_id_t id;
-  my_atomic_rwlock_wrlock(&global_query_id_lock);
-  id= my_atomic_load64_explicit(&global_query_id, MY_MEMORY_ORDER_RELAXED);
-  my_atomic_rwlock_wrunlock(&global_query_id_lock);
-  return id;
+  return my_atomic_load64_explicit(&global_query_id, MY_MEMORY_ORDER_RELAXED);
 }
 
 
@@ -667,44 +680,34 @@ inline void table_case_convert(char * name, uint length)
                                      name, length, name, length);
 }
 
-inline void thread_safe_increment32(int32 *value, my_atomic_rwlock_t *lock)
+inline void thread_safe_increment32(int32 *value)
 {
-  my_atomic_rwlock_wrlock(lock);
   (void) my_atomic_add32_explicit(value, 1, MY_MEMORY_ORDER_RELAXED);
-  my_atomic_rwlock_wrunlock(lock);
 }
 
-inline void thread_safe_decrement32(int32 *value, my_atomic_rwlock_t *lock)
+inline void thread_safe_decrement32(int32 *value)
 {
-  my_atomic_rwlock_wrlock(lock);
   (void) my_atomic_add32_explicit(value, -1, MY_MEMORY_ORDER_RELAXED);
-  my_atomic_rwlock_wrunlock(lock);
 }
 
-inline void thread_safe_increment64(int64 *value, my_atomic_rwlock_t *lock)
+inline void thread_safe_increment64(int64 *value)
 {
-  my_atomic_rwlock_wrlock(lock);
   (void) my_atomic_add64_explicit(value, 1, MY_MEMORY_ORDER_RELAXED);
-  my_atomic_rwlock_wrunlock(lock);
 }
 
-inline void thread_safe_decrement64(int64 *value, my_atomic_rwlock_t *lock)
+inline void thread_safe_decrement64(int64 *value)
 {
-  my_atomic_rwlock_wrlock(lock);
   (void) my_atomic_add64_explicit(value, -1, MY_MEMORY_ORDER_RELAXED);
-  my_atomic_rwlock_wrunlock(lock);
 }
 
-inline void
-inc_thread_running()
+inline void inc_thread_running()
 {
-  thread_safe_increment32(&thread_running, &thread_running_lock);
+  thread_safe_increment32(&thread_running);
 }
 
-inline void
-dec_thread_running()
+inline void dec_thread_running()
 {
-  thread_safe_decrement32(&thread_running, &thread_running_lock);
+  thread_safe_decrement32(&thread_running);
 }
 
 void set_server_version(void);
@@ -754,9 +757,6 @@ extern my_bool opt_mysql56_temporal_format, strict_password_validation;
 extern ulong binlog_checksum_options;
 extern bool max_user_connections_checking;
 extern ulong opt_binlog_dbug_fsync_sleep;
-
-extern uint internal_tmp_table_max_key_length;
-extern uint internal_tmp_table_max_key_segments;
 
 extern uint volatile global_disable_checkpoint;
 extern my_bool opt_help;

@@ -27,9 +27,6 @@ extern ulonglong thd_to_trx_id(THD *thd);
 extern "C" int thd_binlog_format(const MYSQL_THD thd);
 // todo: share interface with ha_innodb.c
 
-enum wsrep_trx_status wsrep_run_wsrep_commit(THD *thd, handlerton *hton,
-                                             bool all);
-
 /*
   Cleanup after local transaction commit/rollback, replay or TOI.
 */
@@ -157,12 +154,15 @@ static int wsrep_prepare(handlerton *hton, THD *thd, bool all)
       !thd_test_options(thd, OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN)) &&
       (thd->variables.wsrep_on && !wsrep_trans_cache_is_empty(thd)))
   {
-    int res= wsrep_run_wsrep_commit(thd, hton, all);
-    if (res == WSREP_TRX_SIZE_EXCEEDED)
-      res= EMSGSIZE;
-    else
-      res= EDEADLK; // for a better error message
-    DBUG_RETURN (wsrep_run_wsrep_commit(thd, hton, all));
+    int res= wsrep_run_wsrep_commit(thd, all);
+    if (res != 0)
+    {
+      if (res == WSREP_TRX_SIZE_EXCEEDED)
+        res= EMSGSIZE;
+      else
+        res= EDEADLK;                           // for a better error message
+    }
+    DBUG_RETURN (res);
   }
   DBUG_RETURN(0);
 }
@@ -278,19 +278,18 @@ extern Rpl_filter* binlog_filter;
 extern my_bool opt_log_slave_updates;
 
 enum wsrep_trx_status
-wsrep_run_wsrep_commit(THD *thd, handlerton *hton, bool all)
+wsrep_run_wsrep_commit(THD *thd, bool all)
 {
   int rcode= -1;
   size_t data_len= 0;
   IO_CACHE *cache;
   int replay_round= 0;
+  DBUG_ENTER("wsrep_run_wsrep_commit");
 
   if (thd->get_stmt_da()->is_error()) {
     WSREP_ERROR("commit issue, error: %d %s",
                 thd->get_stmt_da()->sql_errno(), thd->get_stmt_da()->message());
   }
-
-  DBUG_ENTER("wsrep_run_wsrep_commit");
 
   if (thd->slave_thread && !opt_log_slave_updates) DBUG_RETURN(WSREP_TRX_OK);
 
@@ -554,7 +553,6 @@ static int wsrep_hton_init(void *p)
   wsrep_hton->rollback= wsrep_rollback;
   wsrep_hton->prepare= wsrep_prepare;
   wsrep_hton->flags= HTON_NOT_USER_SELECTABLE | HTON_HIDDEN; // todo: fix flags
-  wsrep_hton->slot= 0;
   return 0;
 }
 
@@ -563,7 +561,7 @@ struct st_mysql_storage_engine wsrep_storage_engine=
 { MYSQL_HANDLERTON_INTERFACE_VERSION };
 
 
-mysql_declare_plugin(wsrep)
+maria_declare_plugin(wsrep)
 {
   MYSQL_STORAGE_ENGINE_PLUGIN,
   &wsrep_storage_engine,
@@ -577,7 +575,7 @@ mysql_declare_plugin(wsrep)
   0x0100 /* 1.0 */,
   NULL,                       /* status variables                */
   NULL,                       /* system variables                */
-  NULL,                       /* config options                  */
-  0,                          /* flags                           */
+  "1.0",         /* string version */
+  MariaDB_PLUGIN_MATURITY_STABLE /* maturity */
 }
-mysql_declare_plugin_end;
+maria_declare_plugin_end;

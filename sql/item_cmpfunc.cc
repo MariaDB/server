@@ -627,17 +627,6 @@ int Arg_comparator::set_compare_func(Item_result_field *item, Item_result type)
   }
   case STRING_RESULT:
   {
-    /*
-      We must set cmp_charset here as we may be called from for an automatic
-      generated item, like in natural join
-    */
-    if (cmp_collation.set((*a)->collation, (*b)->collation) || 
-	cmp_collation.derivation == DERIVATION_NONE)
-    {
-      my_coll_agg_error((*a)->collation, (*b)->collation,
-                        owner->func_name());
-      return 1;
-    }
     if (cmp_collation.collation == &my_charset_bin)
     {
       /*
@@ -761,6 +750,37 @@ bool get_mysql_time_from_str(THD *thd, String *str, timestamp_type warn_type,
 
 
 /**
+  Aggregate comparator argument charsets for comparison.
+  One of the arguments ("a" or "b") can be replaced,
+  typically by Item_string or Item_func_conv_charset.
+
+  @return Aggregation result
+  @retval false - if no conversion is needed,
+                  or if one of the arguments was converted
+  @retval true  - on error, if arguments are not comparable.
+
+  TODO: get rid of this method eventually and refactor the calling code.
+  Argument conversion should happen on the Item_func level.
+  Arg_comparator should get comparable arguments.
+*/
+bool Arg_comparator::agg_arg_charsets_for_comparison()
+{
+  if (cmp_collation.set((*a)->collation, (*b)->collation, MY_COLL_CMP_CONV) ||
+      cmp_collation.derivation == DERIVATION_NONE)
+  {
+    my_coll_agg_error((*a)->collation, (*b)->collation, owner->func_name());
+    return true;
+  }
+  if (agg_item_set_converter(cmp_collation, owner->func_name(),
+                             a, 1, MY_COLL_CMP_CONV, 1) ||
+      agg_item_set_converter(cmp_collation, owner->func_name(),
+                             b, 1, MY_COLL_CMP_CONV, 1))
+    return true;
+  return false;
+}
+
+
+/**
   Prepare the comparator (set the comparison function) for comparing
   items *a1 and *a2 in the context of 'type'.
 
@@ -787,10 +807,11 @@ int Arg_comparator::set_cmp_func(Item_result_field *owner_arg,
       (*a)->result_type() == STRING_RESULT &&
       (*b)->result_type() == STRING_RESULT)
   {
-    DTCollation coll;
-    coll.set((*a)->collation.collation);
-    if (agg_item_set_converter(coll, owner->func_name(),
-                               b, 1, MY_COLL_CMP_CONV, 1))
+    /*
+      We must set cmp_collation here as we may be called from for an automatic
+      generated item, like in natural join
+    */
+    if (agg_arg_charsets_for_comparison())
       return 1;
   }
   if (type == INT_RESULT &&
@@ -2441,7 +2462,7 @@ void Item_func_between::print(String *str, enum_query_type query_type)
 
 
 void
-Item_func_case_abbreviation2::fix_length_and_dec(Item **args)
+Item_func_case_abbreviation2::fix_length_and_dec2(Item **args)
 {
   uint32 char_length;
   agg_result_type(&cached_result_type, args, 2);
@@ -2484,7 +2505,7 @@ Item_func_case_abbreviation2::fix_length_and_dec(Item **args)
 
 
 
-uint Item_func_case_abbreviation2::decimal_precision(Item **args) const
+uint Item_func_case_abbreviation2::decimal_precision2(Item **args) const
 {
   int arg0_int_part= args[0]->decimal_int_part();
   int arg1_int_part= args[1]->decimal_int_part();
@@ -2671,7 +2692,7 @@ Item_func_if::fix_length_and_dec()
     maybe_null= true;
     return;
   }
-  Item_func_case_abbreviation2::fix_length_and_dec(args + 1);
+  Item_func_case_abbreviation2::fix_length_and_dec2(args + 1);
 }
 
 
@@ -2730,20 +2751,20 @@ bool Item_func_if::date_op(MYSQL_TIME *ltime, uint fuzzydate)
 void
 Item_func_nullif::fix_length_and_dec()
 {
-  if (!args[0])					// Only false if EOM
+  if (!m_args0_copy)					// Only false if EOM
     return;
 
-  cached_result_type= args[0]->result_type();
-  cached_field_type= args[0]->field_type();
-  collation.set(args[0]->collation);
-  decimals= args[0]->decimals;
-  unsigned_flag= args[0]->unsigned_flag;
-  fix_char_length(args[0]->max_char_length());
+  cached_result_type= m_args0_copy->result_type();
+  cached_field_type= m_args0_copy->field_type();
+  collation.set(m_args0_copy->collation);
+  decimals= m_args0_copy->decimals;
+  unsigned_flag= m_args0_copy->unsigned_flag;
+  fix_char_length(m_args0_copy->max_char_length());
 
   convert_const_compared_to_int_field(current_thd);
-  args[0]->cmp_context= args[1]->cmp_context=
-    item_cmp_type(args[0]->result_type(), args[1]->result_type());
-  cmp.set_cmp_func(this, tmp_arg, tmp_arg + 1, args[0]->cmp_context);
+  m_args0_copy->cmp_context= args[1]->cmp_context=
+    item_cmp_type(m_args0_copy->result_type(), args[1]->result_type());
+  cmp.set_cmp_func(this, tmp_arg, tmp_arg + 1, m_args0_copy->cmp_context);
   maybe_null=1;
 }
 

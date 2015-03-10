@@ -232,6 +232,12 @@ bool trans_commit(THD *thd)
     ~(SERVER_STATUS_IN_TRANS | SERVER_STATUS_IN_TRANS_READONLY);
   DBUG_PRINT("info", ("clearing SERVER_STATUS_IN_TRANS"));
   res= ha_commit_trans(thd, TRUE);
+
+  mysql_mutex_assert_not_owner(&LOCK_prepare_ordered);
+  mysql_mutex_assert_not_owner(mysql_bin_log.get_log_lock());
+  mysql_mutex_assert_not_owner(&LOCK_after_binlog_sync);
+  mysql_mutex_assert_not_owner(&LOCK_commit_ordered);
+
   if (WSREP_ON)
     wsrep_post_commit(thd, TRUE);
     /*
@@ -432,6 +438,11 @@ bool trans_commit_stmt(THD *thd)
         wsrep_post_commit(thd, FALSE);
     }
   }
+
+  mysql_mutex_assert_not_owner(&LOCK_prepare_ordered);
+  mysql_mutex_assert_not_owner(mysql_bin_log.get_log_lock());
+  mysql_mutex_assert_not_owner(&LOCK_after_binlog_sync);
+  mysql_mutex_assert_not_owner(&LOCK_commit_ordered);
 
     /*
       if res is non-zero, then ha_commit_trans has rolled back the

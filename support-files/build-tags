@@ -1,9 +1,16 @@
 #! /bin/sh
 
 rm -f TAGS
-filter='\.cc$\|\.c$\|\.h$\|sql_yacc\.yy$\|\.ic$\|errmsg-utf8\.txt$'
 
-list="find . -type f"
-bzr root >/dev/null 2>/dev/null && list="bzr ls --from-root -R --kind=file --versioned"
-
-$list |grep $filter | xargs etags -o TAGS --append
+if git rev-parse HEAD >/dev/null 2>&1
+then
+  cd `git rev-parse --show-toplevel`
+  echo client storage dbug libmysql sql-common \
+       sql extra mysys mysys_ssl strings regex pcre vio include \
+       tools unittest plugin libmysqld | \
+       xargs -n1 git ls-files | \
+       xargs etags -o TAGS --append
+else
+  find . -type f |
+       xargs etags -o TAGS --append
+fi

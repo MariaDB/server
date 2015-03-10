@@ -76,20 +76,32 @@ enum pagecache_write_mode
 /* page number for maria */
 typedef ulonglong pgcache_page_no_t;
 
+/* args for read/write hooks */
+typedef struct st_pagecache_io_hook_args
+{
+  uchar * page;
+  pgcache_page_no_t pageno;
+  uchar * data;
+
+  uchar *crypt_buf; /* when using encryption */
+} PAGECACHE_IO_HOOK_ARGS;
+
 /* file descriptor for Maria */
 typedef struct st_pagecache_file
 {
   File file;
+
   /** Cannot be NULL */
-  my_bool (*read_callback)(uchar *page, pgcache_page_no_t offset,
-                           uchar *data);
+  my_bool (*pre_read_hook)(PAGECACHE_IO_HOOK_ARGS *args);
+  my_bool (*post_read_hook)(int error, PAGECACHE_IO_HOOK_ARGS *args);
+
   /** Cannot be NULL */
-  my_bool (*write_callback)(uchar *page, pgcache_page_no_t offset,
-                            uchar *data);
-  void (*write_fail)(uchar *data);
+  my_bool (*pre_write_hook)(PAGECACHE_IO_HOOK_ARGS *args);
+  void (*post_write_hook)(int error, PAGECACHE_IO_HOOK_ARGS *args);
+
   /** Cannot be NULL */
-  my_bool (*flush_log_callback)(uchar *page, pgcache_page_no_t offset,
-                                uchar *data);
+  my_bool (*flush_log_callback)(PAGECACHE_IO_HOOK_ARGS *args);
+
   uchar *callback_data;
 } PAGECACHE_FILE;
 
@@ -270,12 +282,8 @@ extern void pagecache_set_write_on_delete_by_link(PAGECACHE_BLOCK_LINK *block);
 /* PCFLUSH_ERROR and PCFLUSH_PINNED. */
 #define PCFLUSH_PINNED_AND_ERROR (PCFLUSH_ERROR|PCFLUSH_PINNED)
 
-#define pagecache_file_init(F,RC,WC,WF,GLC,D) \
-  do{ \
-    (F).read_callback= (RC); (F).write_callback= (WC); \
-    (F).write_fail= (WF); \
-    (F).flush_log_callback= (GLC); (F).callback_data= (uchar*)(D); \
-  } while(0)
+// initialize file with empty hooks
+void pagecache_file_set_null_hooks(PAGECACHE_FILE*);
 
 #define flush_pagecache_blocks(A,B,C)                   \
   flush_pagecache_blocks_with_filter(A,B,C,NULL,NULL)

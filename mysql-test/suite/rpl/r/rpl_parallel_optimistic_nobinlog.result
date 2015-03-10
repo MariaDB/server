@@ -11,7 +11,7 @@ SET GLOBAL TRANSACTION ISOLATION LEVEL READ COMMITTED;
 SET GLOBAL slave_parallel_threads=10;
 CHANGE MASTER TO master_use_gtid=slave_pos;
 SET @old_parallel_mode=@@GLOBAL.slave_parallel_mode;
-SET GLOBAL slave_parallel_mode='domain,transactional,waiting';
+SET GLOBAL slave_parallel_mode='aggressive';
 *** Test that we replicate correctly when using READ COMMITTED and --log-slave-updates=0 on the slave ***
 INSERT INTO t1 SELECT 4, COUNT(*) FROM t2;
 INSERT INTO t2 SELECT 4, COUNT(*) FROM t1;

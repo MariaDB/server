@@ -26,7 +26,6 @@ ${PCRE_INCLUDES}
 ${ZLIB_INCLUDE_DIR}
 ${SSL_INCLUDE_DIRS}
 ${SSL_INTERNAL_INCLUDE_DIRS}
-${CMAKE_SOURCE_DIR}/sql/backup
 )
 
 SET(GEN_SOURCES
@@ -106,7 +105,7 @@ SET(SQL_EMBEDDED_SOURCES emb_qcache.cc libmysqld.c lib_sql.cc
            ../sql/compat56.cc
            ../sql/table_cache.cc
            ../sql/item_inetfunc.cc
-           ../sql/wsrep_dummy.cc
+           ../sql/wsrep_dummy.cc ../sql/encryption_keys.cc
            ${GEN_SOURCES}
            ${MYSYS_LIBWRAP_SOURCE}
 )

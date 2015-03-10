@@ -2,7 +2,7 @@ set(CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
 FUNCTION(CHECK_OQGRAPH)
 MESSAGE(STATUS "Configuring OQGraph")
-FIND_PACKAGE(Boost)
+FIND_PACKAGE(Boost 1.40.0)
 IF(NOT Boost_FOUND)
   MESSAGE(STATUS "Boost not found. OQGraph will not be compiled")
   RETURN()
@@ -50,17 +50,16 @@ IF(BOOST_OK)
 
   ADD_DEFINITIONS(-DBOOST_NO_RTTI=1 -DBOOST_NO_TYPEID=1 -DBOOST_DISABLE_ASSERTS=1)
   MESSAGE(STATUS "OQGraph OK")
+  MYSQL_ADD_PLUGIN(oqgraph ha_oqgraph.cc graphcore.cc graphcore-graph.cc
+                   oqgraph_shim.cc oqgraph_thunk.cc oqgraph_judy.cc
+                   STORAGE_ENGINE
+                   MODULE_ONLY
+                   RECOMPILE_FOR_EMBEDDED
+                   COMPONENT oqgraph-engine
+                   LINK_LIBRARIES ${Judy_LIBRARIES})
 ELSE(BOOST_OK)
   MESSAGE(STATUS "Requisites for OQGraph not met. OQGraph will not be compiled")
 ENDIF(BOOST_OK)
 ENDFUNCTION()
 
 CHECK_OQGRAPH()
-MYSQL_ADD_PLUGIN(oqgraph ha_oqgraph.cc graphcore.cc graphcore-graph.cc
-                 oqgraph_shim.cc oqgraph_thunk.cc oqgraph_judy.cc
-                 STORAGE_ENGINE
-                 ONLY_IF BOOST_OK
-                 MODULE_ONLY
-                 RECOMPILE_FOR_EMBEDDED
-                 COMPONENT oqgraph-engine
-                 LINK_LIBRARIES ${Judy_LIBRARIES})

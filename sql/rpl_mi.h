@@ -16,18 +16,6 @@
 #ifndef RPL_MI_H
 #define RPL_MI_H
 
-
-/*
-  Bit masks for the values in --slave-parallel-mode.
-  Note that these values cannot be changed - they are stored in master.info,
-  so need to be possible to read back in a different version of the server.
-*/
-#define SLAVE_PARALLEL_DOMAIN               (1ULL << 0)
-#define SLAVE_PARALLEL_FOLLOW_MASTER_COMMIT (1ULL << 1)
-#define SLAVE_PARALLEL_TRX                  (1ULL << 2)
-#define SLAVE_PARALLEL_WAITING              (1ULL << 3)
-
-
 #ifdef HAVE_REPLICATION
 
 #include "rpl_rli.h"
@@ -196,7 +184,8 @@ class Master_info : public Slave_reporting_capability
   static const char *using_gtid_astext(enum enum_using_gtid arg);
   bool using_parallel()
   {
-    return opt_slave_parallel_threads > 0 && parallel_mode != 0;
+    return opt_slave_parallel_threads > 0 &&
+      parallel_mode > SLAVE_PARALLEL_NONE;
   }
 
   /* the variables below are needed because we can change masters on the fly */
@@ -312,12 +301,8 @@ class Master_info : public Slave_reporting_capability
   /* domain-id based filter */
   Domain_id_filter domain_id_filter;
 
-  /*
-    The parallel replication modes, if any. A combination (binary OR) of any
-    of SLAVE_PARALLEL_DOMAIN, SLAVE_PARALLEL_FOLLOW_MASTER_COMMIT,
-    SLAVE_PARALLEL_TRX, and SLAVE_PARALLEL_WAITING.
-  */
-  ulonglong parallel_mode;
+  /* The parallel replication mode. */
+  enum_slave_parallel_mode parallel_mode;
 };
 
 int init_master_info(Master_info* mi, const char* master_info_fname,
@@ -383,14 +368,5 @@ void create_logfile_name_with_suffix(char *res_file_name, size_t length,
 uchar *get_key_master_info(Master_info *mi, size_t *length,
                            my_bool not_used __attribute__((unused)));
 void free_key_master_info(Master_info *mi);
-int mi_cmdline_init();
-void mi_cmdline_destroy();
-void mi_slave_parallel_mode_lookup(LEX_STRING *connection_name,
-                                   ulonglong *out_mode);
-int mi_slave_parallel_mode_ptr(LEX_STRING *connection_name,
-                               ulonglong **out_mode_ptr,
-                               bool create_if_missing);
-
-
 #endif /* HAVE_REPLICATION */
 #endif /* RPL_MI_H */

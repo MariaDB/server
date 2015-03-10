@@ -1,0 +1,4 @@
+--source include/have_binlog_format_row.inc
+set global rpl_semi_sync_master_wait_point=AFTER_SYNC;
+source rpl_semi_sync.test;
+set global rpl_semi_sync_master_wait_point=default;

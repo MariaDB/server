@@ -240,7 +240,7 @@ parse_cnf()
 get_footprint()
 {
     pushd $WSREP_SST_OPT_DATA 1>/dev/null
-    payload=$(find . -regex '.*\.ibd$\|.*\.MYI$\|.*\.MYD$\|.*ibdata1$' -type f -print0 | xargs -0 du --block-size=1 -c | awk 'END { print $1 }')
+    payload=$(find . -regex '.*\.ibd$\|.*\.MYI$\|.*\.MYD$\|.*ibdata1$' -type f -print0 | du --files0-from=- --block-size=1 -c | awk 'END { print $1 }')
     if $my_print_defaults xtrabackup | grep -q -- "--compress";then 
         # QuickLZ has around 50% compression ratio
         # When compression/compaction used, the progress is only an approximate.
@@ -604,7 +604,9 @@ then
 
         wsrep_log_info "Streaming GTID file before SST"
 
-        echo "${WSREP_SST_OPT_GTID}" > "${MAGIC_FILE}"
+        # Store donor's wsrep GTID (state ID) and wsrep_gtid_domain_id
+        # (separated by a space).
+        echo "${WSREP_SST_OPT_GTID} ${WSREP_SST_OPT_GTID_DOMAIN_ID}" > "${MAGIC_FILE}"
 
         ttcmd="$tcmd"
 
@@ -660,7 +662,10 @@ then
 
         wsrep_log_info "Bypassing the SST for IST"
         echo "continue" # now server can resume updating data
-        echo "${WSREP_SST_OPT_GTID}" > "${MAGIC_FILE}"
+
+        # Store donor's wsrep GTID (state ID) and wsrep_gtid_domain_id
+        # (separated by a space).
+        echo "${WSREP_SST_OPT_GTID} ${WSREP_SST_OPT_GTID_DOMAIN_ID}" > "${MAGIC_FILE}"
         echo "1" > "${DATA}/${IST_FILE}"
         get_keys
         if [[ $encrypt -eq 1 ]];then
@@ -923,7 +928,7 @@ then
         wsrep_log_error "SST magic file ${MAGIC_FILE} not found/readable"
         exit 2
     fi
-    cat "${MAGIC_FILE}" # output UUID:seqno
+    cat "${MAGIC_FILE}" # Output : UUID:seqno wsrep_gtid_domain_id
     wsrep_log_info "Total time on joiner: $totime seconds"
 fi
 

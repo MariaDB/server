@@ -1,6 +1,11 @@
 # Exercise the code path for INFORMATION_SCHEMA.INNODB_BUFFER_POOL_STATS
 # and INFORMATION_SCHEMA.INNODB_BUFFER_PAGE
 
+# This test assumes that buffer pool is idle
+# with key rotation threads buffer pages gets evicted this
+# testcase gets flaky
+-- source include/not_encrypted.inc
+
 -- source include/have_innodb.inc
 
 -- disable_result_log

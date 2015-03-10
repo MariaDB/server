@@ -88,9 +88,11 @@ protected:
 */
 extern mysql_mutex_t LOCK_prepare_ordered;
 extern mysql_cond_t COND_prepare_ordered;
+extern mysql_mutex_t LOCK_after_binlog_sync;
 extern mysql_mutex_t LOCK_commit_ordered;
 #ifdef HAVE_PSI_INTERFACE
 extern PSI_mutex_key key_LOCK_prepare_ordered, key_LOCK_commit_ordered;
+extern PSI_mutex_key key_LOCK_after_binlog_sync;
 extern PSI_cond_key key_COND_prepare_ordered;
 #endif
 
@@ -116,7 +118,6 @@ public:
 };
 
 #define TC_LOG_PAGE_SIZE   8192
-#define TC_LOG_MIN_SIZE    (3*TC_LOG_PAGE_SIZE)
 
 #ifdef HAVE_MMAP
 class TC_LOG_MMAP: public TC_LOG
@@ -131,7 +132,7 @@ class TC_LOG_MMAP: public TC_LOG
   struct pending_cookies {
     uint count;
     uint pending_count;
-    ulong cookies[TC_LOG_PAGE_SIZE/sizeof(my_xid)];
+    ulong cookies[1];
   };
 
   private:
@@ -341,6 +342,7 @@ public:
   /** Instrumentation key to use for file io in @c log_file */
   PSI_file_key m_log_file_key;
 #endif
+  /* for documentation of mutexes held in various places in code */
 };
 
 class MYSQL_QUERY_LOG: public MYSQL_LOG
@@ -472,11 +474,12 @@ class MYSQL_BIN_LOG: public TC_LOG, private MYSQL_LOG
     anyway). Instead we should signal COND_xid_list whenever a new binlog
     checkpoint arrives - when all have arrived, RESET MASTER will complete.
   */
-  bool reset_master_pending;
+  uint reset_master_pending;
   ulong mark_xid_done_waiting;
 
   /* LOCK_log and LOCK_index are inited by init_pthread_objects() */
   mysql_mutex_t LOCK_index;
+  mysql_mutex_t LOCK_binlog_end_pos;
   mysql_mutex_t LOCK_xid_list;
   mysql_cond_t  COND_xid_list;
   mysql_cond_t update_cond;
@@ -811,6 +814,67 @@ public:
   int bump_seq_no_counter_if_needed(uint32 domain_id, uint64 seq_no);
   bool check_strict_gtid_sequence(uint32 domain_id, uint32 server_id,
                                   uint64 seq_no);
+
+
+  void update_binlog_end_pos(my_off_t pos)
+  {
+    mysql_mutex_assert_owner(&LOCK_log);
+    mysql_mutex_assert_not_owner(&LOCK_binlog_end_pos);
+    lock_binlog_end_pos();
+    /**
+     * note: it would make more sense to assert(pos > binlog_end_pos)
+     * but there are two places triggered by mtr that has pos == binlog_end_pos
+     * i didn't investigate but accepted as it should do no harm
+     */
+    DBUG_ASSERT(pos >= binlog_end_pos);
+    binlog_end_pos= pos;
+    signal_update();
+    unlock_binlog_end_pos();
+  }
+
+  /**
+   * used when opening new file, and binlog_end_pos moves backwards
+   */
+  void reset_binlog_end_pos(const char file_name[FN_REFLEN], my_off_t pos)
+  {
+    mysql_mutex_assert_owner(&LOCK_log);
+    mysql_mutex_assert_not_owner(&LOCK_binlog_end_pos);
+    lock_binlog_end_pos();
+    binlog_end_pos= pos;
+    strcpy(binlog_end_pos_file, file_name);
+    signal_update();
+    unlock_binlog_end_pos();
+  }
+
+  /*
+    It is called by the threads(e.g. dump thread) which want to read
+    log without LOCK_log protection.
+  */
+  my_off_t get_binlog_end_pos(char file_name_buf[FN_REFLEN]) const
+  {
+    mysql_mutex_assert_not_owner(&LOCK_log);
+    mysql_mutex_assert_owner(&LOCK_binlog_end_pos);
+    strcpy(file_name_buf, binlog_end_pos_file);
+    return binlog_end_pos;
+  }
+  void lock_binlog_end_pos() { mysql_mutex_lock(&LOCK_binlog_end_pos); }
+  void unlock_binlog_end_pos() { mysql_mutex_unlock(&LOCK_binlog_end_pos); }
+  mysql_mutex_t* get_binlog_end_pos_lock() { return &LOCK_binlog_end_pos; }
+
+  int wait_for_update_binlog_end_pos(THD* thd, struct timespec * timeout);
+
+  /*
+    Binlog position of end of the binlog.
+    Access to this is protected by LOCK_binlog_end_pos
+
+    The difference between this and last_commit_pos_{file,offset} is that
+    the commit position is updated later. If semi-sync wait point is set
+    to WAIT_AFTER_SYNC, the commit pos is update after semi-sync-ack has
+    been received and the end point is updated after the write as it's needed
+    for the dump threads to be able to semi-sync the event.
+  */
+  my_off_t binlog_end_pos;
+  char binlog_end_pos_file[FN_REFLEN];
 };
 
 class Log_event_handler

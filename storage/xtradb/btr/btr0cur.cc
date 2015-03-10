@@ -2519,6 +2519,38 @@ btr_cur_pess_upd_restore_supremum(
 }
 
 /*************************************************************//**
+Check if the total length of the modified blob for the row is within 10%
+of the total redo log size.  This constraint on the blob length is to
+avoid overwriting the redo logs beyond the last checkpoint lsn.
+@return	DB_SUCCESS or DB_TOO_BIG_RECORD. */
+static
+dberr_t
+btr_check_blob_limit(const big_rec_t*	big_rec_vec)
+{
+	const	ib_uint64_t redo_size = srv_n_log_files * srv_log_file_size
+		* UNIV_PAGE_SIZE;
+	const	ulint redo_10p = redo_size / 10;
+	ulint	total_blob_len = 0;
+	dberr_t	err = DB_SUCCESS;
+
+	/* Calculate the total number of bytes for blob data */
+	for (ulint i = 0; i < big_rec_vec->n_fields; i++) {
+		total_blob_len += big_rec_vec->fields[i].len;
+	}
+
+	if (total_blob_len > redo_10p) {
+		ib_logf(IB_LOG_LEVEL_ERROR, "The total blob data"
+			" length (" ULINTPF ") is greater than"
+			" 10%% of the total redo log size (" UINT64PF
+			"). Please increase total redo log size.",
+			total_blob_len, redo_size);
+		err = DB_TOO_BIG_RECORD;
+	}
+
+	return(err);
+}
+
+/*************************************************************//**
 Performs an update of a record on a page of a tree. It is assumed
 that mtr holds an x-latch on the tree and on the cursor page. If the
 update is made on the leaf level, to avoid deadlocks, mtr must also
@@ -2756,26 +2788,14 @@ make_external:
 	}
 
 	if (big_rec_vec) {
-		const ulint redo_10p = srv_log_file_size * UNIV_PAGE_SIZE / 10;
-		ulint total_blob_len = 0;
 
-		/* Calculate the total number of bytes for blob data */
-		for (ulint i = 0; i < big_rec_vec->n_fields; i++) {
-			total_blob_len += big_rec_vec->fields[i].len;
-		}
+		err = btr_check_blob_limit(big_rec_vec);
 
-		if (total_blob_len > redo_10p) {
-			ib_logf(IB_LOG_LEVEL_ERROR, "The total blob data"
-				" length (" ULINTPF ") is greater than"
-				" 10%% of the redo log file size (" UINT64PF
-				"). Please increase innodb_log_file_size.",
-				total_blob_len, srv_log_file_size);
+		if (err != DB_SUCCESS) {
 			if (n_reserved > 0) {
 				fil_space_release_free_extents(
 					index->space, n_reserved);
 			}
-
-			err = DB_TOO_BIG_RECORD;
 			goto err_exit;
 		}
 	}
@@ -4676,7 +4696,6 @@ btr_store_big_rec_extern_fields(
 	buf_block_t**	freed_pages	= NULL;
 	ulint		n_freed_pages	= 0;
 	dberr_t		error		= DB_SUCCESS;
-	ulint		total_blob_len	= 0;
 
 	ut_ad(rec_offs_validate(rec, index, offsets));
 	ut_ad(rec_offs_any_extern(offsets));
@@ -4696,21 +4715,11 @@ btr_store_big_rec_extern_fields(
 	rec_page_no = buf_block_get_page_no(rec_block);
 	ut_a(fil_page_get_type(page_align(rec)) == FIL_PAGE_INDEX);
 
-	const ulint redo_10p = (srv_log_file_size * UNIV_PAGE_SIZE / 10);
+	error = btr_check_blob_limit(big_rec_vec);
 
-	/* Calculate the total number of bytes for blob data */
-	for (ulint i = 0; i < big_rec_vec->n_fields; i++) {
-		total_blob_len += big_rec_vec->fields[i].len;
-	}
-
-	if (total_blob_len > redo_10p) {
+	if (error != DB_SUCCESS) {
 		ut_ad(op == BTR_STORE_INSERT);
-		ib_logf(IB_LOG_LEVEL_ERROR, "The total blob data length"
-			" (" ULINTPF ") is greater than 10%% of the"
-			" redo log file size (" UINT64PF "). Please"
-			" increase innodb_log_file_size.",
-			total_blob_len, srv_log_file_size);
-		return(DB_TOO_BIG_RECORD);
+		return(error);
 	}
 
 	if (page_zip) {
@@ -4931,11 +4940,11 @@ alloc_another:
 				change when B-tree nodes are split or
 				merged. */
 				mlog_write_ulint(page
-						 + FIL_PAGE_FILE_FLUSH_LSN,
+						 + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION,
 						 space_id,
 						 MLOG_4BYTES, &mtr);
 				mlog_write_ulint(page
-						 + FIL_PAGE_FILE_FLUSH_LSN + 4,
+						 + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION + 4,
 						 rec_page_no,
 						 MLOG_4BYTES, &mtr);
 
@@ -4943,9 +4952,10 @@ alloc_another:
 				memset(page + page_zip_get_size(page_zip)
 				       - c_stream.avail_out,
 				       0, c_stream.avail_out);
-				mlog_log_string(page + FIL_PAGE_FILE_FLUSH_LSN,
+				mlog_log_string(page
+						+ FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION,
 						page_zip_get_size(page_zip)
-						- FIL_PAGE_FILE_FLUSH_LSN,
+						- FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION,
 						&mtr);
 				/* Copy the page to compressed storage,
 				because it will be flushed to disk
@@ -5118,7 +5128,7 @@ func_exit:
 		ut_ad(btr_blob_op_is_update(op));
 
 		for (i = 0; i < n_freed_pages; i++) {
-			btr_page_free_low(index, freed_pages[i], 0, alloc_mtr);
+			btr_page_free_low(index, freed_pages[i], 0, true, alloc_mtr);
 		}
 	}
 
@@ -5352,7 +5362,7 @@ btr_free_externally_stored_field(
 			}
 			next_page_no = mach_read_from_4(page + FIL_PAGE_NEXT);
 
-			btr_page_free_low(index, ext_block, 0, &mtr);
+			btr_page_free_low(index, ext_block, 0, true, &mtr);
 
 			if (page_zip != NULL) {
 				mach_write_to_4(field_ref + BTR_EXTERN_PAGE_NO,
@@ -5383,7 +5393,7 @@ btr_free_externally_stored_field(
 			because we did not store it on the page (we save the
 			space overhead from an index page header. */
 
-			btr_page_free_low(index, ext_block, 0, &mtr);
+			btr_page_free_low(index, ext_block, 0, true, &mtr);
 
 			mlog_write_ulint(field_ref + BTR_EXTERN_PAGE_NO,
 					 next_page_no,

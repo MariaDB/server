@@ -89,6 +89,12 @@ my_bool wsrep_restart_slave_activated  = 0; // node has dropped, and slave
 my_bool wsrep_slave_UK_checks          = 0; // slave thread does UK checks
 my_bool wsrep_slave_FK_checks          = 0; // slave thread does FK checks
 bool wsrep_new_cluster                 = false; // Bootstrap the cluster ?
+
+// Use wsrep_gtid_domain_id for galera transactions?
+bool wsrep_gtid_mode                   = 0;
+// gtid_domain_id for galera transactions.
+uint32 wsrep_gtid_domain_id            = 0;
+
 /*
  * End configuration options
  */
@@ -123,7 +129,7 @@ PSI_mutex_key key_LOCK_wsrep_rollback, key_LOCK_wsrep_thd,
   key_LOCK_wsrep_slave_threads, key_LOCK_wsrep_desync,
   key_LOCK_wsrep_config_state;
 
-PSI_cond_key key_COND_wsrep_rollback, key_COND_wsrep_thd,
+PSI_cond_key key_COND_wsrep_rollback,
   key_COND_wsrep_replaying, key_COND_wsrep_ready, key_COND_wsrep_sst,
   key_COND_wsrep_sst_init, key_COND_wsrep_sst_thread;
 
@@ -149,7 +155,6 @@ static PSI_cond_info wsrep_conds[]=
   { &key_COND_wsrep_sst_init, "COND_wsrep_sst_init", PSI_FLAG_GLOBAL},
   { &key_COND_wsrep_sst_thread, "wsrep_sst_thread", 0},
   { &key_COND_wsrep_rollback, "COND_wsrep_rollback", PSI_FLAG_GLOBAL},
-  { &key_COND_wsrep_thd, "THD::COND_wsrep_thd", 0},
   { &key_COND_wsrep_replaying, "COND_wsrep_replaying", PSI_FLAG_GLOBAL}
 };
 #else
@@ -334,7 +339,13 @@ wsrep_view_handler_cb (void*                    app_ctx,
              wsrep_cluster_size, wsrep_local_index, view->proto_ver);
 
   /* Proceed further only if view is PRIMARY */
-  if (WSREP_VIEW_PRIMARY != view->status) {
+  if (WSREP_VIEW_PRIMARY != view->status)
+  {
+#ifdef HAVE_QUERY_CACHE
+    // query cache must be initialised by now
+    query_cache.flush();
+#endif /* HAVE_QUERY_CACHE */
+
     wsrep_ready_set(FALSE);
     memb_status= WSREP_MEMBER_UNDEFINED;
     /* Always record local_uuid and local_seqno in non-prim since this
@@ -381,9 +392,16 @@ wsrep_view_handler_cb (void*                    app_ctx,
     wsrep_ready_set(FALSE);
 
     /* Close client connections to ensure that they don't interfere
-     * with SST */
-    WSREP_DEBUG("[debug]: closing client connections for PRIM");
-    wsrep_close_client_connections(TRUE);
+     * with SST. Necessary only if storage engines are initialized
+     * before SST.
+     * TODO: Just killing all ongoing transactions should be enough
+     * since wsrep_ready is OFF and no new transactions can start.
+     */
+    if (!wsrep_before_SE())
+    {
+        WSREP_DEBUG("[debug]: closing client connections for PRIM");
+        wsrep_close_client_connections(TRUE);
+    }
 
     ssize_t const req_len= wsrep_sst_prepare (sst_req);
 
@@ -662,9 +680,6 @@ int wsrep_init()
     strncpy(provider_vendor,
             wsrep->provider_vendor,  sizeof(provider_vendor) - 1);
   }
-
-  if (!wsrep_data_home_dir || strlen(wsrep_data_home_dir) == 0)
-    wsrep_data_home_dir = mysql_real_data_home;
 
   char node_addr[512]= { 0, };
   size_t const node_addr_max= sizeof(node_addr) - 1;
@@ -1687,7 +1702,6 @@ wsrep_grant_mdl_exception(MDL_context *requestor_ctx,
 pthread_handler_t start_wsrep_THD(void *arg)
 {
   THD *thd;
-  rpl_sql_thread_info sql_info(NULL);
   wsrep_thd_processor_fun processor= (wsrep_thd_processor_fun)arg;
 
   if (my_thread_init())
@@ -1702,6 +1716,12 @@ pthread_handler_t start_wsrep_THD(void *arg)
   }
   mysql_mutex_lock(&LOCK_thread_count);
   thd->thread_id=thread_id++;
+
+  if (wsrep_gtid_mode)
+  {
+    /* Adjust domain_id. */
+    thd->variables.gtid_domain_id= wsrep_gtid_domain_id;
+  }
 
   thd->real_id=pthread_self(); // Keep purify happy
   thread_count++;
@@ -1718,7 +1738,6 @@ pthread_handler_t start_wsrep_THD(void *arg)
   thd->bootstrap=1;
   thd->max_client_packet_length= thd->net.max_packet;
   thd->security_ctx->master_access= ~(ulong)0;
-  thd->system_thread_info.rpl_sql_info= &sql_info;
 
   /* from handle_one_connection... */
   pthread_detach_this_thread();

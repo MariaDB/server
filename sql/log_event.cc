@@ -52,6 +52,8 @@
 
 #define my_b_write_string(A, B) my_b_write((A), (B), (uint) (sizeof(B) - 1))
 
+using std::max;
+
 /**
   BINLOG_CHECKSUM variable.
 */
@@ -1315,9 +1317,10 @@ int Log_event::read_log_event(IO_CACHE* file, String* packet,
   }
   data_len= uint4korr(buf + EVENT_LEN_OFFSET);
   if (data_len < LOG_EVENT_MINIMAL_HEADER_LEN ||
-      data_len > current_thd->variables.max_allowed_packet)
+      data_len > max(current_thd->variables.max_allowed_packet,
+                     opt_binlog_rows_event_max_size + MAX_LOG_EVENT_HEADER))
   {
-    DBUG_PRINT("error",("data_len: %ld", data_len));
+    DBUG_PRINT("error",("data_len: %lu", data_len));
     result= ((data_len < LOG_EVENT_MINIMAL_HEADER_LEN) ? LOG_READ_BOGUS :
 	     LOG_READ_TOO_LARGE);
     goto end;
@@ -1438,7 +1441,7 @@ failed my_b_read"));
     */
     DBUG_RETURN(0);
   }
-  uint data_len = uint4korr(head + EVENT_LEN_OFFSET);
+  ulong data_len = uint4korr(head + EVENT_LEN_OFFSET);
   char *buf= 0;
   const char *error= 0;
   Log_event *res=  0;
@@ -1447,7 +1450,8 @@ failed my_b_read"));
   uint max_allowed_packet= thd ? slave_max_allowed_packet:~(uint)0;
 #endif
 
-  if (data_len > max_allowed_packet)
+  if (data_len > max<ulong>(max_allowed_packet,
+                        opt_binlog_rows_event_max_size + MAX_LOG_EVENT_HEADER))
   {
     error = "Event too big";
     goto err;
@@ -1481,7 +1485,7 @@ err:
   {
     DBUG_ASSERT(error != 0);
     sql_print_error("Error in Log_event::read_log_event(): "
-                    "'%s', data_len: %d, event_type: %d",
+                    "'%s', data_len: %lu, event_type: %d",
 		    error,data_len,(uchar)(head[EVENT_TYPE_OFFSET]));
     my_free(buf);
     /*
@@ -1658,7 +1662,7 @@ Log_event* Log_event::read_log_event(const char* buf, uint event_len,
       ev = new Execute_load_log_event(buf, event_len, description_event);
       break;
     case START_EVENT_V3: /* this is sent only by MySQL <=4.x */
-      ev = new Start_log_event_v3(buf, description_event);
+      ev = new Start_log_event_v3(buf, event_len, description_event);
       break;
     case STOP_EVENT:
       ev = new Stop_log_event(buf, description_event);
@@ -4637,11 +4641,16 @@ void Start_log_event_v3::print(FILE* file, PRINT_EVENT_INFO* print_event_info)
   Start_log_event_v3::Start_log_event_v3()
 */
 
-Start_log_event_v3::Start_log_event_v3(const char* buf,
+Start_log_event_v3::Start_log_event_v3(const char* buf, uint event_len,
                                        const Format_description_log_event
                                        *description_event)
-  :Log_event(buf, description_event)
+  :Log_event(buf, description_event), binlog_version(BINLOG_VERSION)
 {
+  if (event_len < LOG_EVENT_MINIMAL_HEADER_LEN + ST_COMMON_HEADER_LEN_OFFSET)
+  {
+    server_version[0]= 0;
+    return;
+  }
   buf+= LOG_EVENT_MINIMAL_HEADER_LEN;
   binlog_version= uint2korr(buf+ST_BINLOG_VER_OFFSET);
   memcpy(server_version, buf+ST_SERVER_VER_OFFSET,
@@ -4946,9 +4955,12 @@ Format_description_log_event(const char* buf,
                              const
                              Format_description_log_event*
                              description_event)
-  :Start_log_event_v3(buf, description_event), event_type_permutation(0)
+  :Start_log_event_v3(buf, event_len, description_event),
+   common_header_len(0), post_header_len(NULL), event_type_permutation(0)
 {
   DBUG_ENTER("Format_description_log_event::Format_description_log_event(char*,...)");
+  if (!Start_log_event_v3::is_valid())
+    DBUG_VOID_RETURN; /* sanity check */
   buf+= LOG_EVENT_MINIMAL_HEADER_LEN;
   if ((common_header_len=buf[ST_COMMON_HEADER_LEN_OFFSET]) < OLD_HEADER_LEN)
     DBUG_VOID_RETURN; /* sanity check */
@@ -6392,7 +6404,7 @@ Gtid_log_event::Gtid_log_event(THD *thd_arg, uint64 seq_no_arg,
     flags2|= FL_DDL;
   else if (is_transactional)
     flags2|= FL_TRANSACTIONAL;
-  if (thd_arg->variables.option_bits & OPTION_RPL_ALLOW_PARALLEL)
+  if (!(thd_arg->variables.option_bits & OPTION_RPL_SKIP_PARALLEL))
     flags2|= FL_ALLOW_PARALLEL;
   /* Preserve any DDL or WAITED flag in the slave's binlog. */
   if (thd_arg->rgi_slave)
@@ -6537,9 +6549,9 @@ Gtid_log_event::do_apply_event(rpl_group_info *rgi)
   /* Execute this like a BEGIN query event. */
   bits|= OPTION_GTID_BEGIN;
   if (flags2 & FL_ALLOW_PARALLEL)
-    bits|= (ulonglong)OPTION_RPL_ALLOW_PARALLEL;
+    bits&= ~(ulonglong)OPTION_RPL_SKIP_PARALLEL;
   else
-    bits&= ~(ulonglong)OPTION_RPL_ALLOW_PARALLEL;
+    bits|= (ulonglong)OPTION_RPL_SKIP_PARALLEL;
   thd->variables.option_bits= bits;
   DBUG_PRINT("info", ("Set OPTION_GTID_BEGIN"));
   thd->set_query_and_id(gtid_begin_string, sizeof(gtid_begin_string)-1,
@@ -6630,8 +6642,8 @@ Gtid_log_event::print(FILE *file, PRINT_EVENT_INFO *print_event_info)
         print_event_info->allow_parallel != !!(flags2 & FL_ALLOW_PARALLEL))
     {
       my_b_printf(&cache,
-                  "/*!100101 SET @@session.replicate_allow_parallel=%u*/%s\n",
-                  !!(flags2 & FL_ALLOW_PARALLEL), print_event_info->delimiter);
+                  "/*!100101 SET @@session.skip_parallel_replication=%u*/%s\n",
+                  !(flags2 & FL_ALLOW_PARALLEL), print_event_info->delimiter);
       print_event_info->allow_parallel= !!(flags2 & FL_ALLOW_PARALLEL);
       print_event_info->allow_parallel_printed= true;
     }

@@ -64,15 +64,7 @@ int main(int argc __attribute__((unused)), char **argv)
   pthread_attr_init(&thr_attr);
   pthread_attr_setdetachstate(&thr_attr,PTHREAD_CREATE_DETACHED);
 
-#ifdef MY_ATOMIC_MODE_RWLOCKS
-#if defined(HPUX11) || defined(__POWERPC__) /* showed to be very slow (scheduler-related) */
-#define CYCLES 300
-#else
 #define CYCLES 3000
-#endif
-#else
-#define CYCLES 3000
-#endif
 #define THREADS 30
 
   diag("N CPUs: %d, atomic ops: %s", my_getncpus(), MY_ATOMIC_MODE);

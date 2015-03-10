@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2014, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2014, SkySQL Ab. All Rights Reserved.
+Copyright (c) 2013, 2015, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -26,7 +26,7 @@ Created 10/25/1995 Heikki Tuuri
 
 #ifndef fil0fil_h
 #define fil0fil_h
-
+#define MSG_CANNOT_DECRYPT "can not decrypt"
 #include "univ.i"
 
 #ifndef UNIV_INNOCHECKSUM
@@ -123,16 +123,20 @@ extern fil_addr_t	fil_addr_null;
 					MySQL/InnoDB 5.1.7 or later, the
 					contents of this field is valid
 					for all uncompressed pages. */
-#define FIL_PAGE_FILE_FLUSH_LSN	26	/*!< this is only defined for the
-					first page in a system tablespace
-					data file (ibdata*, not *.ibd):
-					the file has been flushed to disk
-					at least up to this lsn */
+#define FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION 26 /*!< for the first page
+					in a system tablespace data file
+					(ibdata*, not *.ibd): the file has
+					been flushed to disk at least up
+					to this lsn
+					for other pages: a 32-bit key version
+					used to encrypt the page + 32-bit checksum
+					or 64 bits of zero if no encryption
+					*/
 /** If page type is FIL_PAGE_COMPRESSED then the 8 bytes starting at
 FIL_PAGE_FILE_FLUSH_LSN are broken down as follows: */
 
 /** Control information version format (u8) */
-static const ulint FIL_PAGE_VERSION = FIL_PAGE_FILE_FLUSH_LSN;
+static const ulint FIL_PAGE_VERSION = FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION;
 
 /** Compression algorithm (u8) */
 static const ulint FIL_PAGE_ALGORITHM_V1 = FIL_PAGE_VERSION + 1;
@@ -155,9 +159,6 @@ static const ulint FIL_PAGE_COMPRESS_SIZE_V1 = FIL_PAGE_ORIGINAL_SIZE_V1 + 2;
 #define FIL_PAGE_COMPRESSED_SIZE 2      /*!< Number of bytes used to store
  					actual payload data size on
  					compressed pages. */
-#define FIL_PAGE_COMPRESSION_ZLIB 1    /*!< Compressin algorithm ZLIB. */
-#define FIL_PAGE_COMPRESSION_LZ4  2    /*!< Compressin algorithm LZ4. */
-
 /* @} */
 /** File page trailer @{ */
 #define FIL_PAGE_END_LSN_OLD_CHKSUM 8	/*!< the low 4 bytes of this are used
@@ -168,7 +169,10 @@ static const ulint FIL_PAGE_COMPRESS_SIZE_V1 = FIL_PAGE_ORIGINAL_SIZE_V1 + 2;
 /* @} */
 
 /** File page types (values of FIL_PAGE_TYPE) @{ */
+#define FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED 35631 /* page compressed +
+						 	 	 encrypted page */
 #define FIL_PAGE_PAGE_COMPRESSED 34354  /*!< Page compressed page */
+#define FIL_PAGE_PAGE_ENCRYPTED  34355  /*!< Page encrypted page  */
 #define FIL_PAGE_INDEX		17855	/*!< B-tree node */
 #define FIL_PAGE_UNDO_LOG	2	/*!< Undo log page */
 #define FIL_PAGE_INODE		3	/*!< Index node */
@@ -206,6 +210,9 @@ extern ulint	fil_n_pending_tablespace_flushes;
 /** Number of files currently open */
 extern ulint	fil_n_file_opened;
 
+/* structure containing encryption specification */
+typedef struct fil_space_crypt_struct fil_space_crypt_t;
+
 struct fsp_open_info {
 	ibool		success;	/*!< Has the tablespace been opened? */
 	const char*	check_msg;	/*!< fil_check_first_page() message */
@@ -215,6 +222,8 @@ struct fsp_open_info {
 	lsn_t		lsn;		/*!< Flushed LSN from header page */
 	ulint		id;		/*!< Space ID */
 	ulint		flags;		/*!< Tablespace flags */
+	ulint		encryption_error; /*!< if an encryption error occurs */
+	fil_space_crypt_t* crypt_data;  /*!< crypt data */
 };
 
 struct fil_space_t;
@@ -328,8 +337,13 @@ struct fil_space_t {
 				/*!< true if this space is currently in
 				unflushed_spaces */
 	ibool		is_corrupt;
+	bool		printed_compression_failure;
+				/*!< true if we have already printed
+				compression failure */
 	UT_LIST_NODE_T(fil_space_t) space_list;
 				/*!< list of all spaces */
+        fil_space_crypt_t* crypt_data;
+	ulint		file_block_size;/*!< file system block size */
 	ulint		magic_n;/*!< FIL_SPACE_MAGIC_N */
 };
 
@@ -472,7 +486,9 @@ fil_space_create(
 	ulint		id,	/*!< in: space id */
 	ulint		zip_size,/*!< in: compressed page size, or
 				0 for uncompressed tablespaces */
-	ulint		purpose);/*!< in: FIL_TABLESPACE, or FIL_LOG if log */
+	ulint		purpose, /*!< in: FIL_TABLESPACE, or FIL_LOG if log */
+	fil_space_crypt_t* crypt_data); /*!< in: crypt data */
+
 /*******************************************************************//**
 Assigns a new space id for a new single-table tablespace. This works simply by
 incrementing the global counter. If 4 billion id's is not enough, we may need
@@ -607,8 +623,10 @@ fil_read_first_page(
 						lsn values in data files */
 	lsn_t*		max_flushed_lsn,	/*!< out: max of flushed
 						lsn values in data files */
-	ulint		orig_space_id)		/*!< in: file space id or
+	ulint		orig_space_id,		/*!< in: file space id or
 						ULINT_UNDEFINED */
+	fil_space_crypt_t** crypt_data)		/*!< out: crypt data */
+
 	__attribute__((warn_unused_result));
 /*******************************************************************//**
 Increments the count of pending operation, if space is not being deleted.
@@ -617,7 +635,8 @@ UNIV_INTERN
 ibool
 fil_inc_pending_ops(
 /*================*/
-	ulint	id);	/*!< in: space id */
+	ulint	id,		/*!< in: space id */
+	ibool	print_err);	/*!< in: need to print error or not */
 /*******************************************************************//**
 Decrements the count of pending operations. */
 UNIV_INTERN
@@ -944,8 +963,8 @@ fil_space_get_n_reserved_extents(
 Reads or writes data. This operation is asynchronous (aio).
 @return DB_SUCCESS, or DB_TABLESPACE_DELETED if we are trying to do
 i/o on a tablespace which does not exist */
-#define fil_io(type, sync, space_id, zip_size, block_offset, byte_offset, len, buf, message, write_size) \
-	_fil_io(type, sync, space_id, zip_size, block_offset, byte_offset, len, buf, message, write_size, NULL)
+#define fil_io(type, sync, space_id, zip_size, block_offset, byte_offset, len, buf, message, write_size, lsn, encrypt) \
+	_fil_io(type, sync, space_id, zip_size, block_offset, byte_offset, len, buf, message, write_size, NULL, lsn, encrypt)
 
 UNIV_INTERN
 dberr_t
@@ -981,7 +1000,10 @@ _fil_io(
 			       operation for this page and if
 			       initialized we do not trim again if
 			       actual page size does not decrease. */
-	trx_t*	trx)
+	trx_t*	trx,
+	lsn_t	lsn,		/*!< in: lsn of the newest modification */
+	bool	encrypt_later)  /*!< in: encrypt later ? */
+
 	__attribute__((nonnull(8)));
 /**********************************************************************//**
 Waits for an aio operation to complete. This function is used to write the
@@ -1282,7 +1304,266 @@ char*
 fil_space_name(
 /*===========*/
 	fil_space_t*	space);	/*!< in: space */
+
+/******************************************************************
+Get id of first tablespace or ULINT_UNDEFINED if none */
+UNIV_INTERN
+ulint
+fil_get_first_space();
+
+/******************************************************************
+Get id of next tablespace or ULINT_UNDEFINED if none */
+UNIV_INTERN
+ulint
+fil_get_next_space(
+	ulint id);      /*!< in: space id */
+
+/*********************************************************************
+Init global resources needed for tablespace encryption/decryption */
+void
+fil_space_crypt_init();
+
+/*********************************************************************
+Cleanup global resources needed for tablespace encryption/decryption */
+void
+fil_space_crypt_cleanup();
+
+/*********************************************************************
+Create crypt data, i.e data that is used for a single tablespace */
+fil_space_crypt_t *
+fil_space_create_crypt_data();
+
+/*********************************************************************
+Destroy crypt data */
+UNIV_INTERN
+void
+fil_space_destroy_crypt_data(
+/*=========================*/
+	fil_space_crypt_t **crypt_data); /*!< in/out: crypt data */
+
+/*********************************************************************
+Get crypt data for a space*/
+fil_space_crypt_t *
+fil_space_get_crypt_data(
+/*======================*/
+	ulint space); /*!< in: tablespace id */
+
+/*********************************************************************
+Set crypt data for a space*/
+void
+fil_space_set_crypt_data(
+/*======================*/
+	ulint space,                    /*!< in: tablespace id */
+	fil_space_crypt_t* crypt_data); /*!< in: crypt data */
+
+/*********************************************************************
+Compare crypt data*/
+int
+fil_space_crypt_compare(
+/*======================*/
+	const fil_space_crypt_t* crypt_data1,  /*!< in: crypt data */
+	const fil_space_crypt_t* crypt_data2); /*!< in: crypt data */
+
+/*********************************************************************
+Read crypt data from buffer page */
+fil_space_crypt_t *
+fil_space_read_crypt_data(
+/*======================*/
+	ulint space,      /*!< in: tablespace id */
+	const byte* page, /*!< in: buffer page */
+	ulint offset);    /*!< in: offset where crypt data is stored */
+
+/*********************************************************************
+Write crypt data to buffer page */
+void
+fil_space_write_crypt_data(
+/*=======================*/
+	ulint space,   /*!< in: tablespace id */
+	byte* page,    /*!< in: buffer page */
+	ulint offset,  /*!< in: offset where to store data */
+	ulint maxsize, /*!< in: max space available to store crypt data in */
+	mtr_t * mtr);  /*!< in: mini-transaction */
+
+/*********************************************************************
+Clear crypt data from page 0 (used for import tablespace) */
+void
+fil_space_clear_crypt_data(
+/*======================*/
+	byte* page,    /*!< in: buffer page */
+	ulint offset); /*!< in: offset where crypt data is stored */
+
+/*********************************************************************
+Parse crypt data log record */
+byte*
+fil_parse_write_crypt_data(
+/*=======================*/
+	byte* ptr,     /*!< in: start of log record */
+	byte* end_ptr, /*!< in: end of log record */
+	buf_block_t*); /*!< in: buffer page to apply record to */
+
+/*********************************************************************
+Check if extra buffer shall be allocated for decrypting after read */
+UNIV_INTERN
+bool
+fil_space_check_encryption_read(
+/*==============================*/
+	ulint space);          /*!< in: tablespace id */
+
+/*********************************************************************
+Check if page shall be encrypted before write */
+UNIV_INTERN
+bool
+fil_space_check_encryption_write(
+/*==============================*/
+	ulint space);          /*!< in: tablespace id */
+
+/*********************************************************************
+Encrypt buffer page */
+void
+fil_space_encrypt(
+/*===============*/
+	ulint space,          /*!< in: tablespace id */
+	ulint offset,         /*!< in: page no */
+	lsn_t lsn,            /*!< in: page lsn */
+	const byte* src_frame,/*!< in: page frame */
+	ulint size,           /*!< in: size of data to encrypt */
+	byte* dst_frame,     /*!< in: where to encrypt to */
+	ulint page_encryption_key); /*!< in: page encryption key id if page
+			    encrypted */
+
+/*********************************************************************
+Decrypt buffer page */
+void
+fil_space_decrypt(
+/*===============*/
+	ulint space,          /*!< in: tablespace id */
+	const byte* src_frame,/*!< in: page frame */
+	ulint page_size,      /*!< in: size of data to encrypt */
+	byte* dst_frame);     /*!< in: where to decrypt to */
+
+
+/*********************************************************************
+Decrypt buffer page
+@return true if page was encrypted */
+bool
+fil_space_decrypt(
+/*===============*/
+	fil_space_crypt_t* crypt_data, /*!< in: crypt data */
+	const byte* src_frame,/*!< in: page frame */
+	ulint page_size,      /*!< in: page size */
+	byte* dst_frame);     /*!< in: where to decrypt to */
+
+/*********************************************************************
+fil_space_verify_crypt_checksum
+NOTE: currently this function can only be run in single threaded mode
+as it modifies srv_checksum_algorithm (temporarily)
+@return true if page is encrypted AND OK, false otherwise */
+bool
+fil_space_verify_crypt_checksum(
+/*===============*/
+	const byte* src_frame,/*!< in: page frame */
+	ulint zip_size);      /*!< in: size of data to encrypt */
+
+/*********************************************************************
+Init threads for key rotation */
+void
+fil_crypt_threads_init();
+
+/*********************************************************************
+Set thread count (e.g start or stops threads) used for key rotation */
+void
+fil_crypt_set_thread_cnt(
+/*=====================*/
+	uint new_cnt); /*!< in: requested #threads */
+
+/*********************************************************************
+End threads for key rotation */
+void
+fil_crypt_threads_end();
+
+/*********************************************************************
+Cleanup resources for threads for key rotation */
+void
+fil_crypt_threads_cleanup();
+
+/*********************************************************************
+Set rotate key age */
+void
+fil_crypt_set_rotate_key_age(
+/*=====================*/
+	uint rotate_age); /*!< in: requested rotate age */
+
+/*********************************************************************
+Set rotation threads iops */
+void
+fil_crypt_set_rotation_iops(
+/*=====================*/
+	uint iops); /*!< in: requested iops */
+
+/*********************************************************************
+Mark a space as closing */
+UNIV_INTERN
+void
+fil_space_crypt_mark_space_closing(
+/*===============*/
+	ulint space);          /*!< in: tablespace id */
+
+/*********************************************************************
+Wait for crypt threads to stop accessing space */
+UNIV_INTERN
+void
+fil_space_crypt_close_tablespace(
+/*===============*/
+	ulint space);          /*!< in: tablespace id */
+
+/** Struct for retreiving info about encryption */
+struct fil_space_crypt_status_t {
+	ulint space;             /*!< tablespace id */
+	ulint scheme;            /*!< encryption scheme */
+	uint  min_key_version;   /*!< min key version */
+	uint  current_key_version;/*!< current key version */
+	uint  keyserver_requests;/*!< no of key requests to key server */
+	bool rotating;           /*!< is key rotation ongoing */
+	bool flushing;           /*!< is flush at end of rotation ongoing */
+	ulint rotate_next_page_number; /*!< next page if key rotating */
+	ulint rotate_max_page_number;  /*!< max page if key rotating */
+};
+
+/*********************************************************************
+Get crypt status for a space
+@return 0 if crypt data found */
+int
+fil_space_crypt_get_status(
+/*==================*/
+	ulint id,	                           /*!< in: space id */
+	struct fil_space_crypt_status_t * status); /*!< out: status  */
+
+/** Struct for retreiving statistics about encryption key rotation */
+struct fil_crypt_stat_t {
+	ulint pages_read_from_cache;
+	ulint pages_read_from_disk;
+	ulint pages_modified;
+	ulint pages_flushed;
+	ulint estimated_iops;
+};
+
+/*********************************************************************
+Get crypt rotation statistics */
+void
+fil_crypt_total_stat(
+/*==================*/
+	fil_crypt_stat_t* stat); /*!< out: crypt stat */
+
 #endif
+
+/*******************************************************************//**
+Return space flags */
+ulint
+fil_space_flags(
+/*===========*/
+	fil_space_t*	space);	/*!< in: space */
+
+
 
 /****************************************************************//**
 Does error handling when a file operation fails.
@@ -1303,5 +1584,26 @@ const char*
 fil_get_page_type_name(
 /*===================*/
 	ulint	page_type);	/*!< in: FIL_PAGE_TYPE */
+
+/** Struct for retreiving info about scrubbing */
+struct fil_space_scrub_status_t {
+	ulint space;             /*!< tablespace id */
+	bool compressed;        /*!< is space compressed  */
+	time_t last_scrub_completed;  /*!< when was last scrub completed */
+	bool scrubbing;               /*!< is scrubbing ongoing */
+	time_t current_scrub_started; /*!< when started current scrubbing */
+	ulint current_scrub_active_threads; /*!< current scrub active threads */
+	ulint current_scrub_page_number; /*!< current scrub page no */
+	ulint current_scrub_max_page_number; /*!< current scrub max page no */
+};
+
+/*********************************************************************
+Get scrub status for a space
+@return 0 if no scrub info found */
+int
+fil_space_get_scrub_status(
+/*==================*/
+	ulint id,	                           /*!< in: space id */
+	struct fil_space_scrub_status_t * status); /*!< out: status  */
 
 #endif /* fil0fil_h */

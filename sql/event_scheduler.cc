@@ -134,7 +134,7 @@ post_init_event_thread(THD *thd)
     return TRUE;
   }
 
-  thread_safe_increment32(&thread_count, &thread_count_lock);
+  thread_safe_increment32(&thread_count);
   mysql_mutex_lock(&LOCK_thread_count);
   threads.append(thd);
   mysql_mutex_unlock(&LOCK_thread_count);

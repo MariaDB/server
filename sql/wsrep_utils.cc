@@ -35,8 +35,9 @@
 #include <netdb.h>    // getaddrinfo()
 
 #ifdef HAVE_GETIFADDRS
+#include <net/if.h>
 #include <ifaddrs.h>
-#endif
+#endif /* HAVE_GETIFADDRS */
 
 extern char** environ; // environment variables
 
@@ -325,10 +326,6 @@ thd::~thd ()
 /* Returns INADDR_NONE, INADDR_ANY, INADDR_LOOPBACK or something else */
 unsigned int wsrep_check_ip (const char* const addr)
 {
-#if 0
-  if (addr && 0 == strcasecmp(addr, MY_BIND_ALL_ADDRESSES)) return INADDR_ANY;
-#endif
-
   unsigned int ret = INADDR_NONE;
   struct addrinfo *res, hints;
 
@@ -380,11 +377,12 @@ size_t wsrep_guess_ip (char* buf, size_t buf_len)
     unsigned int const ip_type= wsrep_check_ip(my_bind_addr_str);
 
     if (INADDR_NONE == ip_type) {
-      WSREP_ERROR("Networking not configured, cannot receive state transfer.");
+      WSREP_ERROR("Networking not configured, cannot receive state "
+                  "transfer.");
       return 0;
     }
 
-    if (INADDR_ANY != ip_type) {;
+    if (INADDR_ANY != ip_type) {
       strncpy (buf, my_bind_addr_str, buf_len);
       return strlen(buf);
     }
@@ -409,6 +407,13 @@ size_t wsrep_guess_ip (char* buf, size_t buf_len)
     return ip_len;
   }
 
+  /*
+    getifaddrs() is avaiable at least on Linux since glib 2.3, FreeBSD,
+    MAC OSX, OpenSolaris, Solaris.
+
+    On platforms which do not support getifaddrs() this function returns
+    a failure and user is prompted to do manual configuration.
+  */
 #if HAVE_GETIFADDRS
   struct ifaddrs *ifaddr, *ifa;
   if (getifaddrs(&ifaddr) == 0)
@@ -418,10 +423,11 @@ size_t wsrep_guess_ip (char* buf, size_t buf_len)
       if (!ifa->ifa_addr || ifa->ifa_addr->sa_family != AF_INET) // TODO AF_INET6
         continue;
 
-      if (vio_getnameinfo(ifa->ifa_addr, buf, buf_len, NULL, 0, NI_NUMERICHOST))
+      // Skip loopback interfaces (like lo:127.0.0.1)
+      if (ifa->ifa_flags & IFF_LOOPBACK)
         continue;
 
-      if (strcmp(buf, "127.0.0.1") == 0) // lame
+      if (vio_getnameinfo(ifa->ifa_addr, buf, buf_len, NULL, 0, NI_NUMERICHOST))
         continue;
 
       freeifaddrs(ifaddr);
@@ -429,21 +435,9 @@ size_t wsrep_guess_ip (char* buf, size_t buf_len)
     }
     freeifaddrs(ifaddr);
   }
-#endif
+#endif /* HAVE_GETIFADDRS */
 
   return 0;
-}
-
-size_t wsrep_guess_address(char* buf, size_t buf_len)
-{
-  size_t addr_len = wsrep_guess_ip (buf, buf_len);
-
-  if (addr_len && addr_len < buf_len) {
-    addr_len += snprintf (buf + addr_len, buf_len - addr_len,
-                          ":%u", mysqld_port);
-  }
-
-  return addr_len;
 }
 
 /*

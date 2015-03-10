@@ -3848,6 +3848,18 @@ set join_buffer_space_limit=default;
 
 drop table t1;
 
+--echo #
+--echo # MDEV-6687: Assertion `0' failed in Protocol::end_statement on query
+--echo #
+SET join_cache_level = 3;
+--echo # The following should have 
+--echo #  - table order PROFILING,user,  
+--echo #  - table user accessed with hash_ALL:
+explain
+SELECT * FROM INFORMATION_SCHEMA.PROFILING, mysql.user WHERE password_expired = PAGE_FAULTS_MINOR;
+
+set join_cache_level=default;
+
 # The following command must be the last one the file 
 # this must be the last command in the file
 set @@optimizer_switch=@save_optimizer_switch;

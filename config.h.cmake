@@ -46,6 +46,7 @@
 #cmakedefine HAVE_INTTYPES_H 1
 #cmakedefine HAVE_KQUEUE 1
 #cmakedefine HAVE_LIMITS_H 1
+#cmakedefine HAVE_LINK_H 1
 #cmakedefine HAVE_LINUX_UNISTD_H 1
 #cmakedefine HAVE_LOCALE_H 1
 #cmakedefine HAVE_MALLOC_H 1
@@ -473,7 +474,6 @@
 #cmakedefine HAVE_SOLARIS_STYLE_GETHOST 1
 
 #cmakedefine MY_ATOMIC_MODE_DUMMY 1
-#cmakedefine MY_ATOMIC_MODE_RWLOCKS 1
 #cmakedefine HAVE_GCC_ATOMIC_BUILTINS 1
 #cmakedefine HAVE_SOLARIS_ATOMIC 1
 #cmakedefine HAVE_DECL_SHM_HUGETLB 1
@@ -590,6 +590,7 @@
 #cmakedefine HAVE_CHARSET_utf32 1
 #cmakedefine HAVE_UCA_COLLATIONS 1
 #cmakedefine HAVE_COMPRESS 1
+#cmakedefine HAVE_EncryptAes128Ctr 1
 
 
 /*

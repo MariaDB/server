@@ -6,7 +6,7 @@ include/stop_slave.inc
 SET GLOBAL slave_parallel_threads=10;
 CHANGE MASTER TO master_use_gtid=slave_pos;
 SET @old_parallel_mode=@@GLOBAL.slave_parallel_mode;
-SET GLOBAL slave_parallel_mode='domain,transactional';
+SET GLOBAL slave_parallel_mode='optimistic';
 INSERT INTO t1 VALUES(1,1);
 BEGIN;
 INSERT INTO t1 VALUES(2,1);
@@ -121,10 +121,10 @@ c
 204
 205
 206
-*** Test @@replicate_allow_parallel. ***
+*** Test @@skip_parallel_replication. ***
 include/stop_slave.inc
 UPDATE t1 SET b=10 WHERE a=3;
-SET SESSION replicate_allow_parallel=0;
+SET SESSION skip_parallel_replication=1;
 UPDATE t1 SET b=20 WHERE a=3;
 UPDATE t1 SET b=30 WHERE a=3;
 UPDATE t1 SET b=50 WHERE a=3;
@@ -134,7 +134,7 @@ UPDATE t1 SET b=210 WHERE a=3;
 UPDATE t1 SET b=340 WHERE a=3;
 UPDATE t1 SET b=550 WHERE a=3;
 UPDATE t1 SET b=890 WHERE a=3;
-SET SESSION replicate_allow_parallel=1;
+SET SESSION skip_parallel_replication=0;
 SELECT * FROM t1 ORDER BY a;
 a	b
 1	2

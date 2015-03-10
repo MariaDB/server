@@ -372,6 +372,9 @@ int init_slave()
   if (run_slave_init_thread())
     return 1;
 
+  if (global_rpl_thread_pool.init(opt_slave_parallel_threads))
+    return 1;
+
   /*
     This is called when mysqld starts. Before client connections are
     accepted. However bootstrap may conflict with us if it does START SLAVE.
@@ -404,9 +407,6 @@ int init_slave()
     active_mi= 0;
     goto err;
   }
-
-  if (global_rpl_thread_pool.init(opt_slave_parallel_threads))
-    return 1;
 
   /*
     If --slave-skip-errors=... was not used, the string value for the
@@ -943,6 +943,8 @@ int start_slave_threads(bool need_slave_mutex, bool wait_for_start,
                                              Master_info::USE_GTID_CURRENT_POS);
     mi->events_queued_since_last_gtid= 0;
     mi->gtid_reconnect_event_skip_count= 0;
+
+    mi->rli.restart_gtid_pos.reset();
   }
 
   if (!error && (thread_mask & SLAVE_IO))
@@ -2585,7 +2587,7 @@ static bool send_show_master_info_header(THD *thd, bool full,
   field_list.push_back(new Item_empty_string("Replicate_Ignore_Domain_Ids",
                                              FN_REFLEN));
   field_list.push_back(new Item_empty_string("Parallel_Mode",
-             sizeof("domain,follow_master_commit,transactional,waiting")-1));
+                                             sizeof("conservative")-1));
   if (full)
   {
     field_list.push_back(new Item_return_int("Retried_transactions",
@@ -2788,22 +2790,9 @@ static bool send_show_master_info_data(THD *thd, Master_info *mi, bool full,
 
     // Parallel_Mode
     {
-      /* Note how sizeof("domain") has room for "domain," due to traling 0. */
-      char buf[sizeof("domain") + sizeof("follow_master_commit") +
-               sizeof("transactional") + sizeof("waiting") + 1];
-      char *p= buf;
-      uint32 mode= mi->parallel_mode;
-      if (mode & SLAVE_PARALLEL_DOMAIN)
-        p= strmov(p, "domain,");
-      if (mode & SLAVE_PARALLEL_FOLLOW_MASTER_COMMIT)
-        p= strmov(p, "follow_master_commit,");
-      if (mode & SLAVE_PARALLEL_TRX)
-        p= strmov(p, "transactional,");
-      if (mode & SLAVE_PARALLEL_WAITING)
-        p= strmov(p, "waiting,");
-      if (p != buf)
-        --p;                                    // Discard last ','
-      protocol->store(buf, p-buf, &my_charset_bin);
+      const char *mode_name= get_type(&slave_parallel_mode_typelib,
+                                      mi->parallel_mode);
+      protocol->store(mode_name, strlen(mode_name), &my_charset_bin);
     }
 
     if (full)
@@ -3652,8 +3641,7 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
                             serial_rgi->trans_retries));
       }
     }
-    thread_safe_increment64(&rli->executed_entries,
-                            &slave_executed_entries_lock);
+    thread_safe_increment64(&rli->executed_entries);
     DBUG_RETURN(exec_res);
   }
   mysql_mutex_unlock(&rli->data_lock);
@@ -4493,6 +4481,16 @@ pthread_handler_t handle_slave_sql(void *arg)
 
   serial_rgi->gtid_sub_id= 0;
   serial_rgi->gtid_pending= false;
+  if (mi->using_gtid != Master_info::USE_GTID_NO)
+  {
+    /*
+      We initialize the relay log state from the know starting position.
+      It will then be updated as required by GTID and GTID_LIST events found
+      while applying events read from relay logs.
+    */
+    rli->relay_log_state.load(&rpl_global_gtid_slave_state);
+  }
+  rli->gtid_skip_flag = GTID_SKIP_NOT;
   if (init_relay_log_pos(rli,
                          rli->group_relay_log_name,
                          rli->group_relay_log_pos,
@@ -4503,6 +4501,7 @@ pthread_handler_t handle_slave_sql(void *arg)
                 "Error initializing relay log position: %s", errmsg);
     goto err;
   }
+  rli->reset_inuse_relaylog();
   if (rli->alloc_inuse_relaylog(rli->group_relay_log_name))
     goto err;
 
@@ -4719,7 +4718,49 @@ log '%s' at position %s, relay log '%s' position: %s%s", RPL_LOG_NAME,
   thd->reset_query();
   thd->reset_db(NULL, 0);
   if (rli->mi->using_gtid != Master_info::USE_GTID_NO)
+  {
+    ulong domain_count;
+
     flush_relay_log_info(rli);
+    if (mi->using_parallel())
+    {
+      /*
+        In parallel replication GTID mode, we may stop with different domains
+        at different positions in the relay log.
+
+        To handle this when we restart the SQL thread, mark the current
+        per-domain position in the Relay_log_info.
+      */
+      mysql_mutex_lock(&rpl_global_gtid_slave_state.LOCK_slave_state);
+      domain_count= rpl_global_gtid_slave_state.count();
+      mysql_mutex_unlock(&rpl_global_gtid_slave_state.LOCK_slave_state);
+      if (domain_count > 1)
+      {
+        inuse_relaylog *ir;
+
+        /*
+          Load the starting GTID position, so that we can skip already applied
+          GTIDs when we restart the SQL thread. And set the start position in
+          the relay log back to a known safe place to start (prior to any not
+          yet applied transaction in any domain).
+        */
+        rli->restart_gtid_pos.load(&rpl_global_gtid_slave_state, NULL, 0);
+        if ((ir= rli->inuse_relaylog_list))
+        {
+          rpl_gtid *gtid= ir->relay_log_state;
+          uint32 count= ir->relay_log_state_count;
+          while (count > 0)
+          {
+            process_gtid_for_restart_pos(rli, gtid);
+            ++gtid;
+            --count;
+          }
+          strmake_buf(rli->group_relay_log_name, ir->name);
+          rli->group_relay_log_pos= BIN_LOG_HEADER_SIZE;
+        }
+      }
+    }
+  }
   THD_STAGE_INFO(thd, stage_waiting_for_slave_mutex_on_exit);
   thd->add_status_to_global();
   mysql_mutex_lock(&rli->run_lock);
@@ -4732,6 +4773,7 @@ err_during_init:
   /* Forget the relay log's format */
   delete rli->relay_log.description_event_for_exec;
   rli->relay_log.description_event_for_exec= 0;
+  rli->reset_inuse_relaylog();
   /* Wake up master_pos_wait() */
   mysql_mutex_unlock(&rli->data_lock);
   DBUG_PRINT("info",("Signaling possibly waiting master_pos_wait() functions"));
@@ -5679,6 +5721,18 @@ static int queue_event(Master_info* mi,const char* buf, ulong event_len)
     inc_pos= event_len;
   }
   break;
+
+#ifndef DBUG_OFF
+  case XID_EVENT:
+    DBUG_EXECUTE_IF("slave_discard_xid_for_gtid_0_x_1000",
+    {
+      /* Inject an event group that is missing its XID commit event. */
+      if (mi->last_queued_gtid.domain_id == 0 &&
+          mi->last_queued_gtid.seq_no == 1000)
+        goto skip_relay_logging;
+    });
+    /* Fall through to default case ... */
+#endif
 
   default:
   default_action:

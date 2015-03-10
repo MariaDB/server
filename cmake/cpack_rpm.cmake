@@ -153,8 +153,8 @@ SETA(CPACK_RPM_server_PACKAGE_REQUIRES
 
 IF(WITH_WSREP)
 SETA(CPACK_RPM_server_PACKAGE_REQUIRES
-  "galera" "rsync" "lsof" "socat" "grep" "gawk" "iproute"
-  "coreutils" "findutils")
+  "galera" "rsync" "lsof" "grep" "gawk" "iproute"
+  "coreutils" "findutils" "tar")
 ENDIF()
 
 SET(CPACK_RPM_server_PRE_INSTALL_SCRIPT_FILE ${CMAKE_SOURCE_DIR}/support-files/rpm/server-prein.sh)
@@ -194,6 +194,7 @@ ELSEIF(RPM MATCHES "fedora" OR RPM MATCHES "(rhel|centos)7")
   ALTERNATIVE_NAME("client" "mysql")
   ALTERNATIVE_NAME("devel"  "mariadb-devel")
   ALTERNATIVE_NAME("server" "mariadb-server")
+  ALTERNATIVE_NAME("server" "mysql-compat-server")
   ALTERNATIVE_NAME("shared" "mariadb-libs")
   ALTERNATIVE_NAME("shared" "mysql-libs")
   ALTERNATIVE_NAME("test"   "mariadb-test")

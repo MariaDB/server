@@ -15,8 +15,8 @@
   License along with this library; if not, write to the Free Software
   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 */
-#ifndef GRN_PLUGIN_H
-#define GRN_PLUGIN_H
+#ifndef GROONGA_PLUGIN_H
+#define GROONGA_PLUGIN_H
 
 #include <stddef.h>
 
@@ -26,9 +26,24 @@
 extern "C" {
 #endif
 
-#define GRN_PLUGIN_INIT grn_plugin_impl_init
-#define GRN_PLUGIN_REGISTER grn_plugin_impl_register
-#define GRN_PLUGIN_FIN grn_plugin_impl_fin
+# define GRN_PLUGIN_IMPL_NAME_RAW(type)         \
+  grn_plugin_impl_ ## type
+# define GRN_PLUGIN_IMPL_NAME_TAGGED(type, tag) \
+  GRN_PLUGIN_IMPL_NAME_RAW(type ## _ ## tag)
+# define GRN_PLUGIN_IMPL_NAME_TAGGED_EXPANDABLE(type, tag)      \
+  GRN_PLUGIN_IMPL_NAME_TAGGED(type, tag)
+
+#ifdef GRN_PLUGIN_FUNCTION_TAG
+# define GRN_PLUGIN_IMPL_NAME(type)                             \
+  GRN_PLUGIN_IMPL_NAME_TAGGED_EXPANDABLE(type, GRN_PLUGIN_FUNCTION_TAG)
+#else /* GRN_PLUGIN_FUNCTION_TAG */
+# define GRN_PLUGIN_IMPL_NAME(type)             \
+  GRN_PLUGIN_IMPL_NAME_RAW(type)
+#endif /* GRN_PLUGIN_FUNCTION_TAG */
+
+#define GRN_PLUGIN_INIT     GRN_PLUGIN_IMPL_NAME(init)
+#define GRN_PLUGIN_REGISTER GRN_PLUGIN_IMPL_NAME(register)
+#define GRN_PLUGIN_FIN      GRN_PLUGIN_IMPL_NAME(fin)
 
 #if defined(_WIN32) || defined(_WIN64)
 #  define GRN_PLUGIN_EXPORT __declspec(dllexport)
@@ -117,6 +132,8 @@ GRN_API void grn_plugin_mutex_unlock(grn_ctx *ctx, grn_plugin_mutex *mutex);
 GRN_API grn_obj *grn_plugin_proc_alloc(grn_ctx *ctx, grn_user_data *user_data,
                                        grn_id domain, grn_obj_flags flags);
 
+GRN_API grn_obj *grn_plugin_proc_get_vars(grn_ctx *ctx, grn_user_data *user_data);
+
 GRN_API grn_obj *grn_plugin_proc_get_var(grn_ctx *ctx, grn_user_data *user_data,
                                          const char *name, int name_size);
 
@@ -149,4 +166,4 @@ GRN_API grn_obj * grn_plugin_command_create(grn_ctx *ctx,
 }
 #endif
 
-#endif /* GRN_PLUGIN_H */
+#endif /* GROONGA_PLUGIN_H */

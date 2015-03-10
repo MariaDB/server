@@ -392,8 +392,12 @@ err:
   else
     fatal_error= 1;
 
-  if ((*share->write_record_abort)(info))
-    fatal_error= 1;
+  if (filepos != HA_OFFSET_ERROR)
+  {
+    if ((*share->write_record_abort)(info))
+      fatal_error= 1;
+  }
+
   if (fatal_error)
   {
     maria_print_error(info->s, HA_ERR_CRASHED);
@@ -970,6 +974,7 @@ int _ma_split_page(MARIA_HA *info, MARIA_KEY *key, MARIA_PAGE *split_page,
                    int move_length,
                    uchar *key_buff, my_bool insert_last_key)
 {
+  uint keynr;
   uint length,a_length,key_ref_length,t_length,nod_flag,key_length;
   uint page_length, split_length, page_flag;
   uchar *key_pos,*pos, *after_key;
@@ -1045,10 +1050,8 @@ int _ma_split_page(MARIA_HA *info, MARIA_KEY *key, MARIA_PAGE *split_page,
   page_store_info(share, &new_page);
 
   /* Copy key number */
-  new_page.buff[share->keypage_header - KEYPAGE_USED_SIZE -
-                KEYPAGE_KEYID_SIZE - KEYPAGE_FLAG_SIZE]=
-    split_page->buff[share->keypage_header - KEYPAGE_USED_SIZE -
-                     KEYPAGE_KEYID_SIZE - KEYPAGE_FLAG_SIZE];
+  keynr= _ma_get_keynr(share, split_page->buff);
+  _ma_store_keynr(share, new_page.buff, keynr);
 
   res= 2;                                       /* Middle key up */
   if (share->now_transactional && _ma_log_new(&new_page, 0))
@@ -1494,8 +1497,7 @@ static int _ma_balance_page(MARIA_HA *info, MARIA_KEYDEF *keyinfo,
   page_store_info(share, &extra_page);
 
   /* Copy key number */
-  extra_buff[share->keypage_header - KEYPAGE_USED_SIZE - KEYPAGE_KEYID_SIZE -
-             KEYPAGE_FLAG_SIZE]= keyinfo->key_nr;
+  _ma_store_keynr(share, extra_buff, keyinfo->key_nr);
 
   /* move first largest keys to new page  */
   pos= right_page->buff + right_length-extra_length;
@@ -2051,7 +2053,7 @@ static my_bool _ma_log_split(MARIA_PAGE *ma_page,
 
   /* Store keypage_flag */
   *log_pos++= KEY_OP_SET_PAGEFLAG;
-  *log_pos++= ma_page->buff[KEYPAGE_TRANSFLAG_OFFSET];
+  *log_pos++= _ma_get_keypage_flag(info->s, ma_page->buff);
 
   if (new_length <= offset || !key_pos)
   {
@@ -2218,7 +2220,7 @@ static my_bool _ma_log_del_prefix(MARIA_PAGE *ma_page,
 
   /* Store keypage_flag */
   *log_pos++= KEY_OP_SET_PAGEFLAG;
-  *log_pos++= ma_page->buff[KEYPAGE_TRANSFLAG_OFFSET];
+  *log_pos++= _ma_get_keypage_flag(info->s, ma_page->buff);
 
   if (offset < diff_length + info->s->keypage_header)
   {
@@ -2342,7 +2344,7 @@ static my_bool _ma_log_key_middle(MARIA_PAGE *ma_page,
 
   /* Store keypage_flag */
   *log_pos++= KEY_OP_SET_PAGEFLAG;
-  *log_pos++= ma_page->buff[KEYPAGE_TRANSFLAG_OFFSET];
+  *log_pos++= _ma_get_keypage_flag(info->s, ma_page->buff);
 
   log_pos[0]= KEY_OP_DEL_SUFFIX;
   int2store(log_pos+1, data_deleted_last);

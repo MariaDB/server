@@ -88,6 +88,7 @@ class XCLCOL : public PRXCOL {
   XCLCOL(PGLOBAL g, PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i);
 
   // Methods
+  using PRXCOL::Init;
   virtual void Reset(void) {}	  // Evaluated only by TDBXCL
   virtual void ReadColumn(PGLOBAL g);
   virtual bool Init(PGLOBAL g, PTDBASE tp = NULL);

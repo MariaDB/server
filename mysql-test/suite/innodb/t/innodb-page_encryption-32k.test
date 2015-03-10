@@ -1,0 +1,94 @@
+--source include/no_valgrind_without_big.inc
+# Tests for setting innodb-page-size=32k;
+--source include/have_xtradb.inc
+--source include/have_innodb_32k.inc
+
+call mtr.add_suppression("InnoDB: Warning: innodb_page_size has been changed from default value *");
+
+--disable_query_log
+# These values can change during the test
+let $innodb_file_format_orig = `SELECT @@innodb_file_format`;
+let $innodb_file_per_table_orig = `SELECT @@innodb_file_per_table`;
+--enable_query_log
+
+SET GLOBAL innodb_file_format = `Barracuda`;
+SET GLOBAL innodb_file_per_table = ON;
+
+create table innodb_normal(c1 bigint not null, b char(200)) engine=innodb;
+create table innodb_compact(c1 bigint not null, b char(200)) engine=innodb row_format=compact page_encryption=1 page_encryption_key=1;
+create table innodb_dynamic(c1 bigint not null, b char(200)) engine=innodb row_format=dynamic page_encryption=1  page_encryption_key=3;
+create table innodb_redundant(c1 bigint not null, b char(200))  engine=innodb row_format=redundant page_encryption=1  page_encryption_key=4;
+
+show create table innodb_compact;
+show create table innodb_dynamic;
+show create table innodb_redundant;
+
+delimiter //;
+create procedure innodb_insert_proc (repeat_count int)
+begin
+  declare current_num int;
+  set current_num = 0;
+  while current_num < repeat_count do
+    insert into innodb_normal values(current_num, substring(MD5(RAND()), -150));
+    set current_num = current_num + 1;
+  end while;
+end//
+delimiter ;//
+commit;
+
+set autocommit=0;
+call innodb_insert_proc(5000);
+commit;
+set autocommit=1;
+
+insert into innodb_compact select * from innodb_normal;
+insert into innodb_dynamic select * from innodb_normal;
+insert into innodb_redundant select * from innodb_normal;
+
+update innodb_compact set c1 = c1 + 1;
+update innodb_dynamic set c1 = c1 + 1;
+update innodb_redundant set c1 = c1 + 1;
+select count(*) from innodb_compact where c1 < 1500000;
+select count(*) from innodb_dynamic where c1 < 1500000;
+select count(*) from innodb_redundant where c1 < 1500000;
+
+--source include/restart_mysqld.inc
+
+update innodb_compact set c1 = c1 + 1;
+update innodb_dynamic set c1 = c1 + 1;
+update innodb_redundant set c1 = c1 + 1;
+select count(*) from innodb_compact where c1 < 1500000;
+select count(*) from innodb_dynamic where c1 < 1500000;
+select count(*) from innodb_redundant where c1 < 1500000;
+
+alter table innodb_compact engine=innodb page_encryption=0;
+show create table innodb_compact;
+alter table innodb_dynamic engine=innodb page_encryption=0;
+show create table innodb_dynamic;
+alter table innodb_redundant engine=innodb page_encryption=0;
+show create table innodb_redundant;
+
+--source include/restart_mysqld.inc
+
+show create table innodb_compact;
+show create table innodb_dynamic;
+show create table innodb_redundant;
+
+update innodb_compact set c1 = c1 + 1;
+update innodb_dynamic set c1 = c1 + 1;
+update innodb_redundant set c1 = c1 + 1;
+select count(*) from innodb_compact where c1 < 1500000;
+select count(*) from innodb_dynamic where c1 < 1500000;
+select count(*) from innodb_redundant where c1 < 1500000;
+
+drop procedure innodb_insert_proc;
+drop table innodb_normal;
+drop table innodb_compact;
+drop table innodb_dynamic;
+drop table innodb_redundant;
+
+# reset system
+--disable_query_log
+EVAL SET GLOBAL innodb_file_per_table = $innodb_file_per_table_orig;
+EVAL SET GLOBAL innodb_file_format = $innodb_file_format_orig;
+--enable_query_log

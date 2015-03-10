@@ -1,5 +1,9 @@
 --source include/have_innodb.inc
 
+# lazy evition might not be lazy enough when key rotation
+# scans through pages
+-- source include/not_encrypted.inc
+
 let $per_table=`select @@innodb_file_per_table`;
 let $format=`select @@innodb_file_format`;
 

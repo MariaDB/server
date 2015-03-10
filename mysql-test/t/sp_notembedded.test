@@ -374,6 +374,9 @@ CREATE VIEW v1 AS SELECT f1('a') FROM t1;
 --send SELECT * FROM v1
 
 --connection default
+let $wait_condition=
+  select count(*) = 2 from information_schema.processlist where state = "User sleep";
+--source include/wait_condition.inc
 --disable_query_log
 --eval KILL QUERY $ID_2
 --eval KILL QUERY $ID_1
@@ -457,6 +460,26 @@ DROP EVENT teste_bug11763507;
 --echo # ------------------------------------------------------------------
 --echo # -- End of 5.1 tests
 --echo # ------------------------------------------------------------------
+
+#
+# A case of SHOW GRANTS
+# (creating a new procedure changes the password)
+#
+grant create routine on test.* to foo1@localhost identified by 'foo';
+update mysql.user set password = replace(password, '*', '-') where user='foo1';
+--connect (foo,localhost,foo1,foo)
+show grants;
+--connection default
+flush privileges;
+--connection foo
+show grants;
+create procedure spfoo() select 1;
+show grants;
+
+--connection default
+--disconnect foo
+drop procedure spfoo;
+drop user foo1@localhost;
 
 #
 # Restore global concurrent_insert value. Keep in the end of the test file.

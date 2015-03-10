@@ -118,7 +118,7 @@ static void get_cs_converted_string_value(THD *thd,
 
 static int show_create_view(THD *thd, TABLE_LIST *table, String *buff);
 
-static void append_algorithm(TABLE_LIST *table, String *buff);
+static const LEX_STRING *view_algorithm(TABLE_LIST *table);
 
 bool get_lookup_field_values(THD *, COND *, TABLE_LIST *, LOOKUP_FIELD_VALUES *);
 
@@ -2137,7 +2137,9 @@ static void store_key_options(THD *thd, String *packet, TABLE *table,
 void
 view_store_options(THD *thd, TABLE_LIST *table, String *buff)
 {
-  append_algorithm(table, buff);
+  buff->append(STRING_WITH_LEN("ALGORITHM="));
+  buff->append(view_algorithm(table));
+  buff->append(' ');
   append_definer(thd, buff, &table->definer.user, &table->definer.host);
   if (table->view_suid)
     buff->append(STRING_WITH_LEN("SQL SECURITY DEFINER "));
@@ -2157,21 +2159,20 @@ view_store_options(THD *thd, TABLE_LIST *table, String *buff)
     definer_host  [in] host name part of definer
 */
 
-static void append_algorithm(TABLE_LIST *table, String *buff)
+static const LEX_STRING *view_algorithm(TABLE_LIST *table)
 {
-  buff->append(STRING_WITH_LEN("ALGORITHM="));
-  switch ((int16)table->algorithm) {
-  case VIEW_ALGORITHM_UNDEFINED:
-    buff->append(STRING_WITH_LEN("UNDEFINED "));
-    break;
+  static const LEX_STRING undefined= { C_STRING_WITH_LEN("UNDEFINED") };
+  static const LEX_STRING merge=     { C_STRING_WITH_LEN("MERGE") };
+  static const LEX_STRING temptable= { C_STRING_WITH_LEN("TEMPTABLE") };
+  switch (table->algorithm) {
   case VIEW_ALGORITHM_TMPTABLE:
-    buff->append(STRING_WITH_LEN("TEMPTABLE "));
-    break;
+    return &temptable;
   case VIEW_ALGORITHM_MERGE:
-    buff->append(STRING_WITH_LEN("MERGE "));
-    break;
+    return &merge;
   default:
     DBUG_ASSERT(0); // never should happen
+  case VIEW_ALGORITHM_UNDEFINED:
+    return &undefined;
   }
 }
 
@@ -2191,7 +2192,7 @@ void append_definer(THD *thd, String *buffer, const LEX_STRING *definer_user,
 {
   buffer->append(STRING_WITH_LEN("DEFINER="));
   append_identifier(thd, buffer, definer_user->str, definer_user->length);
-  if (definer_host->str[0])
+  if (definer_host->str && definer_host->str[0])
   {
     buffer->append('@');
     append_identifier(thd, buffer, definer_host->str, definer_host->length);
@@ -2821,7 +2822,7 @@ int fill_schema_processlist(THD* thd, TABLE_LIST* tables, COND* cond)
         thread in this thread. However it's better that we notice it eventually
         than hide it.
       */
-      table->field[12]->store((longlong) (tmp->status_var.memory_used +
+      table->field[12]->store((longlong) (tmp->status_var.local_memory_used +
                                           sizeof(THD)),
                               FALSE);
       table->field[12]->set_notnull();
@@ -3116,8 +3117,8 @@ static bool show_status_array(THD *thd, const char *wild,
     */
     for (var=variables; var->type == SHOW_FUNC ||
            var->type == SHOW_SIMPLE_FUNC; var= &tmp)
-      ((mysql_show_var_func)(var->value))(thd, &tmp, buff);
-
+      ((mysql_show_var_func)(var->value))(thd, &tmp, buff, scope);
+    
     SHOW_TYPE show_type=var->type;
     if (show_type == SHOW_ARRAY)
     {
@@ -3131,15 +3132,15 @@ static bool show_status_array(THD *thd, const char *wild,
                                                  name_buffer, wild))) &&
           (!cond || cond->val_int()))
       {
-        char *value=var->value;
+        void *value=var->value;
         const char *pos, *end;                  // We assign a lot of const's
 
         if (show_type == SHOW_SYS)
         {
-          sys_var *var= ((sys_var *) value);
+          sys_var *var= (sys_var *) value;
           show_type= var->show_type();
           mysql_mutex_lock(&LOCK_global_system_variables);
-          value= (char*) var->value_ptr(thd, scope, &null_lex_str);
+          value= var->value_ptr(thd, scope, &null_lex_str);
           charset= var->charset(thd);
         }
 
@@ -3199,7 +3200,7 @@ static bool show_status_array(THD *thd, const char *wild,
         }
         case SHOW_CHAR:
         {
-          if (!(pos= value))
+          if (!(pos= (char*)value))
             pos= "";
           end= strend(pos);
           break;
@@ -4028,7 +4029,7 @@ fill_schema_table_by_open(THD *thd, bool is_show_fields_or_keys,
     Again we don't do this for SHOW COLUMNS/KEYS because
     of backward compatibility.
   */
-  if (!is_show_fields_or_keys && result && thd->is_error() &&
+  if (!is_show_fields_or_keys && result &&
       (thd->get_stmt_da()->sql_errno() == ER_NO_SUCH_TABLE ||
        thd->get_stmt_da()->sql_errno() == ER_WRONG_OBJECT))
   {
@@ -5004,12 +5005,11 @@ err:
       column with the error text, and clear the error so that the operation
       can continue.
     */
-    const char *error= thd->is_error() ? thd->get_stmt_da()->message() : "";
+    const char *error= thd->get_stmt_da()->message();
     table->field[20]->store(error, strlen(error), cs);
 
     push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
-                 thd->get_stmt_da()->sql_errno(),
-                 thd->get_stmt_da()->message());
+                 thd->get_stmt_da()->sql_errno(), error);
     thd->clear_error();
   }
 
@@ -6062,6 +6062,7 @@ static int get_schema_views_record(THD *thd, TABLE_LIST *tables,
                            strlen(tables->view_creation_ctx->
                                   get_connection_cl()->name), cs);
 
+    table->field[10]->store(view_algorithm(tables), cs);
 
     if (schema_table_store_record(thd, table))
       DBUG_RETURN(1);
@@ -7863,12 +7864,13 @@ bool get_schema_tables_result(JOIN *join,
   THD *thd= join->thd;
   LEX *lex= thd->lex;
   bool result= 0;
-  const char *old_proc_info;
+  PSI_stage_info org_stage;
   DBUG_ENTER("get_schema_tables_result");
 
   Warnings_only_error_handler err_handler;
   thd->push_internal_handler(&err_handler);
-  old_proc_info= thd_proc_info(thd, "Filling schema table");
+  thd->enter_stage(&stage_filling_schema_table, &org_stage, __func__, __FILE__,
+                   __LINE__);
   
   JOIN_TAB *tab;
   for (tab= first_linear_tab(join, WITHOUT_BUSH_ROOTS, WITH_CONST_TABLES);
@@ -7972,7 +7974,7 @@ bool get_schema_tables_result(JOIN *join,
   }
   else if (result)
     my_error(ER_UNKNOWN_ERROR, MYF(0));
-  thd_proc_info(thd, old_proc_info);
+  THD_STAGE_INFO(thd, org_stage);
   DBUG_RETURN(result);
 }
 
@@ -8218,6 +8220,7 @@ ST_FIELD_INFO applicable_roles_fields_info[]=
   {"GRANTEE", USERNAME_WITH_HOST_CHAR_LENGTH, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE},
   {"ROLE_NAME", USERNAME_CHAR_LENGTH, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE},
   {"IS_GRANTABLE", 3, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE},
+  {"IS_DEFAULT", 3, MYSQL_TYPE_STRING, 0, MY_I_S_MAYBE_NULL, 0, SKIP_OPEN_TABLE},
   {0, 0, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE}
 };
 
@@ -8376,6 +8379,7 @@ ST_FIELD_INFO view_fields_info[]=
    OPEN_FRM_ONLY},
   {"COLLATION_CONNECTION", MY_CS_NAME_SIZE, MYSQL_TYPE_STRING, 0, 0, 0,
    OPEN_FRM_ONLY},
+  {"ALGORITHM", 10, MYSQL_TYPE_STRING, 0, 0, 0, OPEN_FRM_ONLY},
   {0, 0, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE}
 };
 

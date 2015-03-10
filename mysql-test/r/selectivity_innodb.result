@@ -1419,6 +1419,36 @@ Note	1003	select `test`.`a`.`a` AS `a`,`test`.`a`.`b` AS `b`,`test`.`b`.`a` AS `
 set histogram_size=@save_histogram_size;
 set optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;
 drop table t0,t1,t2;
+#
+# Bug mdev-7316: a conjunct in WHERE with selectivity == 0
+#
+CREATE TABLE t1 (a varchar(16), b int, PRIMARY KEY(a), KEY(b)) ENGINE=INNODB;
+INSERT INTO t1 VALUES
+('USAChinese',10), ('USAEnglish',20), ('USAFrench',30);
+CREATE TABLE t2 (i int) ENGINE=INNODB;
+INSERT INTO t2 VALUES
+(1),(2),(3),(4),(5),(6),(7),(8),(9),(10),(1),(2),(3),(4);
+ANALYZE TABLE t1, t2;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+test.t2	analyze	status	Engine-independent statistics collected
+test.t2	analyze	status	OK
+set use_stat_tables='preferably';
+set optimizer_use_condition_selectivity=3;
+EXPLAIN EXTENDED
+SELECT * FROM t1, t2
+WHERE  a <> 'USARussian' AND b IS NULL;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ref	PRIMARY,b	b	5	const	2	66.67	Using where; Using index
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	14	100.00	Using join buffer (flat, BNL join)
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t2`.`i` AS `i` from `test`.`t1` join `test`.`t2` where ((`test`.`t1`.`a` <> 'USARussian') and isnull(`test`.`t1`.`b`))
+SELECT * FROM t1, t2
+WHERE a <> 'USARussian' AND b IS NULL;
+a	b	i
+set optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;
+DROP TABLE t1,t2;
 set use_stat_tables=@save_use_stat_tables;
 set optimizer_switch=@save_optimizer_switch_for_selectivity_test;
 set @tmp_ust= @@use_stat_tables;
@@ -1481,6 +1511,30 @@ create table t1(col1 int, col2 bit(1) DEFAULT NULL) engine=innodb;
 select * from t1 where col2 != true;
 col1	col2
 drop table t1;
+#
+# MDEV-7413: optimizer_use_condition_selectivity > 2 crashes 10.0.15+maria-1~wheezy
+#
+CREATE TABLE t1 (
+parent_id int,
+child_group_id int,
+child_user_id int,
+KEY (parent_id,child_group_id,child_user_id)
+) ENGINE=InnoDB;
+CREATE TABLE t2 (
+id int,
+lower_group_name varchar(255),
+directory_id int(20),
+UNIQUE KEY (directory_id)
+) ENGINE=InnoDB;
+CREATE TABLE t3 (id int) ENGINE=InnoDB;
+insert into t1 values (1,1,1),(2,2,2);
+insert into t2 values (10,'foo',10),(20,'bar',20);
+insert into t3 values (101),(102);
+set use_stat_tables = PREFERABLY, optimizer_use_condition_selectivity = 3;
+select * from t1, t2, t3 
+where t1.child_user_id=t3.id and t1.child_group_id is null and t2.lower_group_name='foo' and t1.parent_id=t2.id and t2.directory_id=10;
+parent_id	child_group_id	child_user_id	id	lower_group_name	directory_id	id
+drop table t1,t2,t3;
 #
 # End of 10.0 tests
 #

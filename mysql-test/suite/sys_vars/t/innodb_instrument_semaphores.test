@@ -1,0 +1,42 @@
+--source include/have_innodb.inc
+
+--echo #
+--echo # innodb_instrument_semaphores
+--echo #
+
+--echo # save the initial value
+SET @innodb_instrument_semaphores_global_saved = @@global.innodb_instrument_semaphores;
+
+--echo # default
+SELECT @@global.innodb_instrument_semaphores;
+
+--echo
+--echo # scope
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SELECT @@session.innodb_instrument_semaphores;
+SET @@global.innodb_instrument_semaphores=OFF;
+SELECT @@global.innodb_instrument_semaphores;
+SET @@global.innodb_instrument_semaphores=ON;
+SELECT @@global.innodb_instrument_semaphores;
+
+--echo
+--echo # valid values
+SET @@global.innodb_instrument_semaphores='OFF';
+SELECT @@global.innodb_instrument_semaphores;
+SET @@global.innodb_instrument_semaphores=ON;
+SELECT @@global.innodb_instrument_semaphores;
+SET @@global.innodb_instrument_semaphores=default;
+SELECT @@global.innodb_instrument_semaphores;
+
+--echo
+--echo # invalid values
+--error ER_WRONG_VALUE_FOR_VAR
+SET @@global.innodb_instrument_semaphores=NULL;
+--error ER_WRONG_VALUE_FOR_VAR
+SET @@global.innodb_instrument_semaphores='junk';
+
+--echo
+--echo # restore the initial value
+SET @@global.innodb_instrument_semaphores = @innodb_instrument_semaphores_global_saved;
+
+--echo # End of test

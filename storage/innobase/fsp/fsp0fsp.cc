@@ -766,7 +766,12 @@ fsp_header_init(
 	} else {
 		fsp_fill_free_list(TRUE, space, header, mtr);
 	}
+
+	ulint maxsize = 0;
+	ulint offset = fsp_header_get_crypt_offset(zip_size, &maxsize);
+	fil_space_write_crypt_data(space, page, offset, maxsize, mtr);
 }
+
 #endif /* !UNIV_HOTBACKUP */
 
 /**********************************************************************//**
@@ -4121,3 +4126,61 @@ fsp_print(
 	fprintf(stderr, "NUMBER of file segments: %lu\n", (ulong) n_segs);
 }
 #endif /* !UNIV_HOTBACKUP */
+
+/**********************************************************************//**
+Compute offset after xdes where crypt data can be stored
+@return	offset */
+ulint
+fsp_header_get_crypt_offset(
+/*========================*/
+	ulint   zip_size, /*!< in: zip_size */
+	ulint*  max_size) /*!< out: free space available for crypt data */
+{
+	ulint pageno = 0;
+	/* compute first page_no that will have xdes stored on page != 0*/
+	for (ulint i = 0;
+	     (pageno = xdes_calc_descriptor_page(zip_size, i)) == 0; )
+		i++;
+
+	/* use pageno prior to this...i.e last page on page 0 */
+	ut_ad(pageno > 0);
+	pageno--;
+
+	ulint iv_offset = XDES_ARR_OFFSET +
+		XDES_SIZE * (1 + xdes_calc_descriptor_index(zip_size, pageno));
+
+	if (max_size != NULL) {
+		/* return how much free space there is available on page */
+		*max_size = (zip_size ? zip_size : UNIV_PAGE_SIZE) -
+			(FSP_HEADER_OFFSET + iv_offset + FIL_PAGE_DATA_END);
+	}
+
+	return FSP_HEADER_OFFSET + iv_offset;
+}
+
+/**********************************************************************//**
+Checks if a single page is free.
+@return	true if free */
+UNIV_INTERN
+bool
+fsp_page_is_free_func(
+/*==============*/
+	ulint		space,		/*!< in: space id */
+	ulint		page_no,	/*!< in: page offset */
+	mtr_t*		mtr,		/*!< in/out: mini-transaction */
+	const char *file,
+	ulint line)
+{
+	ulint		flags;
+
+	ut_ad(mtr);
+
+	mtr_x_lock_func(fil_space_get_latch(space, &flags), file, line, mtr);
+	ulint zip_size = fsp_flags_get_zip_size(flags);
+
+	xdes_t* descr = xdes_get_descriptor(space, zip_size, page_no, mtr);
+	ut_a(descr);
+
+	return xdes_mtr_get_bit(
+		descr, XDES_FREE_BIT, page_no % FSP_EXTENT_SIZE, mtr);
+}

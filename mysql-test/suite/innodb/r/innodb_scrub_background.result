@@ -1,0 +1,88 @@
+#
+# immediate scrubbing is off
+# background scrubbing is on
+#
+show variables like 'innodb_%scrub_data%';
+Variable_name	Value
+innodb_background_scrub_data_check_interval	3600
+innodb_background_scrub_data_compressed	ON
+innodb_background_scrub_data_interval	604800
+innodb_background_scrub_data_uncompressed	ON
+innodb_immediate_scrub_data_uncompressed	OFF
+# make sure spaces are checked quickly
+SET GLOBAL innodb_background_scrub_data_check_interval=1;
+create table snapshot_status engine = myisam
+select * from information_schema.global_status
+where variable_name like 'innodb_scrub%';
+truncate table snapshot_status;
+insert into snapshot_status
+select * from information_schema.global_status
+where variable_name like 'innodb_scrub%';
+#
+# Test delete of records
+#
+create table t1 (
+a int auto_increment primary key,
+b varchar(256),
+c text, index(b)) engine = innodb row_format=dynamic;
+# Populate table with rows
+delete from t1;
+#
+# Test delete+rollback+delete
+#
+create table t2 (
+a int auto_increment primary key,
+b varchar(256),
+c text, index(b)) engine = innodb row_format=dynamic;
+# Populate table with rows
+begin;
+delete from t2;
+rollback;
+delete from t2;
+#
+# Test insert+rollback
+#
+create table t3 (
+a int auto_increment primary key,
+b varchar(256),
+c text, index(b)) engine = innodb row_format=dynamic;
+# Populate table with rows
+begin;
+rollback;
+# start scrubbing threads
+SET GLOBAL innodb_encryption_threads=5;
+# Wait max 10 min for scrubbing
+# Success!
+# stop scrubbing threads
+SET GLOBAL innodb_encryption_threads=0;
+# verify that this test have caused background scrubbing
+select sum(gs.variable_value - ss.variable_value) > 0 as should_be_1
+from snapshot_status ss,
+information_schema.global_status gs
+where ss.variable_name = gs.variable_name;
+should_be_1
+1
+# restart mysqld so that all pages are flushed
+# read all rows from table
+select * from t1;
+# dynamic: delete: grep -c bicycle t1.ibd
+0
+# dynamic: delete: grep -c repairman t1.ibd
+0
+# dynamic: delete rollback: grep -c bicycle t2.ibd
+0
+# dynamic: delete rollback: grep -c repairman t2.ibd
+0
+# dynamic: insert rollback: grep -c bicycle t3.ibd
+0
+# dynamic: insert rollback: grep -c repairman t3.ibd
+0
+drop table t1, t2, t3;
+show variables like 'innodb_%scrub_data%';
+Variable_name	Value
+innodb_background_scrub_data_check_interval	3600
+innodb_background_scrub_data_compressed	ON
+innodb_background_scrub_data_interval	604800
+innodb_background_scrub_data_uncompressed	ON
+innodb_immediate_scrub_data_uncompressed	OFF
+drop table snapshot_status;

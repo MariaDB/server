@@ -17,6 +17,7 @@ def	information_schema	ALL_PLUGINS	PLUGIN_TYPE	4		NO	varchar	80	240	NULL	NULL	NU
 def	information_schema	ALL_PLUGINS	PLUGIN_TYPE_VERSION	5		NO	varchar	20	60	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(20)				
 def	information_schema	ALL_PLUGINS	PLUGIN_VERSION	2		NO	varchar	20	60	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(20)				
 def	information_schema	APPLICABLE_ROLES	GRANTEE	1		NO	varchar	190	570	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(190)				
+def	information_schema	APPLICABLE_ROLES	IS_DEFAULT	4	NULL	YES	varchar	3	9	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(3)				
 def	information_schema	APPLICABLE_ROLES	IS_GRANTABLE	3		NO	varchar	3	9	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(3)				
 def	information_schema	APPLICABLE_ROLES	ROLE_NAME	2		NO	varchar	128	384	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(128)				
 def	information_schema	CHARACTER_SETS	CHARACTER_SET_NAME	1		NO	varchar	32	96	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(32)				
@@ -454,6 +455,7 @@ def	information_schema	USER_STATISTICS	TOTAL_CONNECTIONS	2	0	NO	int	NULL	NULL	10
 def	information_schema	USER_STATISTICS	TOTAL_SSL_CONNECTIONS	24	0	NO	bigint	NULL	NULL	20	0	NULL	NULL	NULL	bigint(21) unsigned				
 def	information_schema	USER_STATISTICS	UPDATE_COMMANDS	16	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	NULL	bigint(21)				
 def	information_schema	USER_STATISTICS	USER	1		NO	varchar	128	384	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(128)				
+def	information_schema	VIEWS	ALGORITHM	11		NO	varchar	10	30	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(10)				
 def	information_schema	VIEWS	CHARACTER_SET_CLIENT	9		NO	varchar	32	96	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(32)				
 def	information_schema	VIEWS	CHECK_OPTION	5		NO	varchar	8	24	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(8)				
 def	information_schema	VIEWS	COLLATION_CONNECTION	10		NO	varchar	32	96	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(32)				
@@ -542,6 +544,7 @@ COL_CML	TABLE_SCHEMA	TABLE_NAME	COLUMN_NAME	DATA_TYPE	CHARACTER_MAXIMUM_LENGTH	C
 3.0000	information_schema	APPLICABLE_ROLES	GRANTEE	varchar	190	570	utf8	utf8_general_ci	varchar(190)
 3.0000	information_schema	APPLICABLE_ROLES	ROLE_NAME	varchar	128	384	utf8	utf8_general_ci	varchar(128)
 3.0000	information_schema	APPLICABLE_ROLES	IS_GRANTABLE	varchar	3	9	utf8	utf8_general_ci	varchar(3)
+3.0000	information_schema	APPLICABLE_ROLES	IS_DEFAULT	varchar	3	9	utf8	utf8_general_ci	varchar(3)
 3.0000	information_schema	CHARACTER_SETS	CHARACTER_SET_NAME	varchar	32	96	utf8	utf8_general_ci	varchar(32)
 3.0000	information_schema	CHARACTER_SETS	DEFAULT_COLLATE_NAME	varchar	32	96	utf8	utf8_general_ci	varchar(32)
 3.0000	information_schema	CHARACTER_SETS	DESCRIPTION	varchar	60	180	utf8	utf8_general_ci	varchar(60)
@@ -987,3 +990,4 @@ NULL	information_schema	USER_STATISTICS	MAX_STATEMENT_TIME_EXCEEDED	bigint	NULL	
 3.0000	information_schema	VIEWS	SECURITY_TYPE	varchar	7	21	utf8	utf8_general_ci	varchar(7)
 3.0000	information_schema	VIEWS	CHARACTER_SET_CLIENT	varchar	32	96	utf8	utf8_general_ci	varchar(32)
 3.0000	information_schema	VIEWS	COLLATION_CONNECTION	varchar	32	96	utf8	utf8_general_ci	varchar(32)
+3.0000	information_schema	VIEWS	ALGORITHM	varchar	10	30	utf8	utf8_general_ci	varchar(10)

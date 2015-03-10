@@ -1,11 +1,11 @@
 /************* Tabodbc C++ Program Source Code File (.CPP) *************/
 /* PROGRAM NAME: TABODBC                                               */
 /* -------------                                                       */
-/*  Version 2.8                                                        */
+/*  Version 2.9                                                        */
 /*                                                                     */
 /* COPYRIGHT:                                                          */
 /* ----------                                                          */
-/*  (C) Copyright to the author Olivier BERTRAND          2000-2014    */
+/*  (C) Copyright to the author Olivier BERTRAND          2000-2015    */
 /*                                                                     */
 /* WHAT THIS PROGRAM DOES:                                             */
 /* -----------------------                                             */
@@ -66,8 +66,8 @@
 #include "plgdbsem.h"
 #include "mycat.h"
 #include "xtable.h"
-#include "tabodbc.h"
 #include "odbccat.h"
+#include "tabodbc.h"
 #include "tabmul.h"
 #include "reldef.h"
 #include "tabcol.h"
@@ -93,9 +93,10 @@ bool ExactInfo(void);
 /***********************************************************************/
 ODBCDEF::ODBCDEF(void)
   {
-  Connect= Tabname= Tabschema= Tabcat= Srcdef= Qchar= Qrystr= Sep= NULL;
-  Catver = Options = Quoted = Maxerr = Maxres = 0;
-  Scrollable = Xsrc = false;
+  Connect = Tabname = Tabschema = Username = Password = NULL;
+  Tabcat = Srcdef = Qchar = Qrystr = Sep = NULL;
+  Catver = Options = Cto = Qto = Quoted = Maxerr = Maxres = 0;
+  Scrollable = Memory = Xsrc = UseCnc = false;
   }  // end of ODBCDEF constructor
 
 /***********************************************************************/
@@ -117,6 +118,8 @@ bool ODBCDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
   Tabschema = GetStringCatInfo(g, "Schema", Tabschema);
   Tabcat = GetStringCatInfo(g, "Qualifier", NULL);
   Tabcat = GetStringCatInfo(g, "Catalog", Tabcat);
+  Username = GetStringCatInfo(g, "User", NULL);
+  Password = GetStringCatInfo(g, "Password", NULL);
 
   if ((Srcdef = GetStringCatInfo(g, "Srcdef", NULL)))
     Read_Only = true;
@@ -130,9 +133,17 @@ bool ODBCDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
   Quoted = GetIntCatInfo("Quoted", 0);
   Options = ODBConn::noOdbcDialog;
 //Options = ODBConn::noOdbcDialog | ODBConn::useCursorLib;
+  Cto= GetIntCatInfo("ConnectTimeout", DEFAULT_LOGIN_TIMEOUT);
+  Qto= GetIntCatInfo("QueryTimeout", DEFAULT_QUERY_TIMEOUT);
 
-  if ((Scrollable = GetBoolCatInfo("Scrollable", false)))
-    Elemt = 0;   // Not compatible with extended fetch
+  if ((Scrollable = GetBoolCatInfo("Scrollable", false)) && !Elemt)
+    Elemt = 1;     // Cannot merge SQLFetch and SQLExtendedFetch
+
+  UseCnc = GetBoolCatInfo("UseDSN", false);
+
+  // Memory was Boolean, it is now integer
+  if (!(Memory = GetIntCatInfo("Memory", 0)))
+    Memory = GetBoolCatInfo("Memory", false) ? 1 : 0;
 
   Pseudo = 2;    // FILID is Ok but not ROWID
   return false;
@@ -190,28 +201,40 @@ TDBODBC::TDBODBC(PODEF tdp) : TDBASE(tdp)
     Connect = tdp->Connect;
     TableName = tdp->Tabname;
     Schema = tdp->Tabschema;
+    Ops.User = tdp->Username;
+    Ops.Pwd = tdp->Password;
     Catalog = tdp->Tabcat;
     Srcdef = tdp->Srcdef;
     Qrystr = tdp->Qrystr;
     Sep = tdp->GetSep();
     Options = tdp->Options;
+    Ops.Cto = tdp->Cto;
+    Ops.Qto = tdp->Qto;
     Quoted = MY_MAX(0, tdp->GetQuoted());
     Rows = tdp->GetElemt();
     Catver = tdp->Catver;
+    Memory = tdp->Memory;
     Scrollable = tdp->Scrollable;
+    Ops.UseCnc = tdp->UseCnc;
   } else {
     Connect = NULL;
     TableName = NULL;
     Schema = NULL;
+    Ops.User = NULL;
+    Ops.Pwd = NULL;
     Catalog = NULL;
     Srcdef = NULL;
     Qrystr = NULL;
     Sep = 0;
     Options = 0;
+    Ops.Cto = DEFAULT_LOGIN_TIMEOUT;
+    Ops.Qto = DEFAULT_QUERY_TIMEOUT;
     Quoted = 0;
     Rows = 0;
     Catver = 0;
+    Memory = 0;
     Scrollable = false;
+    Ops.UseCnc = false;
   } // endif tdp
 
   Quote = NULL;
@@ -220,12 +243,15 @@ TDBODBC::TDBODBC(PODEF tdp) : TDBASE(tdp)
 //Where = NULL;
   MulConn = NULL;
   DBQ = NULL;
+  Qrp = NULL;
   Fpos = 0;
+  Curpos = 0;
   AftRows = 0;
   CurNum = 0;
   Rbuf = 0;
   BufSize = 0;
   Nparm = 0;
+  Placed = false;
   } // end of TDBODBC standard constructor
 
 TDBODBC::TDBODBC(PTDBODBC tdbp) : TDBASE(tdbp)
@@ -235,9 +261,11 @@ TDBODBC::TDBODBC(PTDBODBC tdbp) : TDBASE(tdbp)
   Connect = tdbp->Connect;
   TableName = tdbp->TableName;
   Schema = tdbp->Schema;
+  Ops = tdbp->Ops;
   Catalog = tdbp->Catalog;
   Srcdef = tdbp->Srcdef;
   Qrystr = tdbp->Qrystr;
+  Memory = tdbp->Memory;
   Scrollable = tdbp->Scrollable;
   Quote = tdbp->Quote;
   Query = tdbp->Query;
@@ -248,14 +276,15 @@ TDBODBC::TDBODBC(PTDBODBC tdbp) : TDBASE(tdbp)
   Options = tdbp->Options;
   Quoted = tdbp->Quoted;
   Rows = tdbp->Rows;
-  Fpos = tdbp->Fpos;
-  AftRows = tdbp->AftRows;
-//Tpos = tdbp->Tpos;
-//Spos = tdbp->Spos;
-  CurNum = tdbp->CurNum;
-  Rbuf = tdbp->Rbuf;
+  Fpos = 0;
+  Curpos = 0;
+  AftRows = 0;
+  CurNum = 0;
+  Rbuf = 0;
   BufSize = tdbp->BufSize;
   Nparm = tdbp->Nparm;
+  Qrp = tdbp->Qrp;
+  Placed = false;
   } // end of TDBODBC copy constructor
 
 // Method
@@ -359,7 +388,7 @@ int TDBODBC::Decode(char *txt, char *buf, size_t n)
 /***********************************************************************/
 char *TDBODBC::MakeSQL(PGLOBAL g, bool cnt)
   {
-  char   *colist, *tabname, *sql, buf[64];
+  char   *colist, *tabname, *sql, buf[NAM_LEN * 3];
   LPCSTR  schmp = NULL, catp = NULL;
   int     len, ncol = 0;
   bool    first = true;
@@ -463,6 +492,9 @@ char *TDBODBC::MakeSQL(PGLOBAL g, bool cnt)
 
   if (To_CondFil)
     strcat(strcat(sql, " WHERE "), To_CondFil->Body);
+    
+  if (trace)
+    htrc("sql: '%s'\n", sql); 
 
   return sql;
   } // end of MakeSQL
@@ -472,7 +504,7 @@ char *TDBODBC::MakeSQL(PGLOBAL g, bool cnt)
 /***********************************************************************/
 char *TDBODBC::MakeInsert(PGLOBAL g)
   {
-  char *stmt, *colist, *valist;
+  char *stmt, *colist, *valist, buf[NAM_LEN * 3];
 //  char *tk = "`";
   int   len = 0;
   bool  b = FALSE;
@@ -499,10 +531,13 @@ char *TDBODBC::MakeInsert(PGLOBAL g)
     } else
       b = true;
 
+    // Column name can be in UTF-8 encoding
+    Decode(colp->GetName(), buf, sizeof(buf));
+
     if (Quote)
-      strcat(strcat(strcat(colist, Quote), colp->GetName()), Quote);
+      strcat(strcat(strcat(colist, Quote), buf), Quote);
     else
-      strcat(colist, colp->GetName());
+      strcat(colist, buf);
 
     strcat(valist, "?");        // Parameter marker
     } // endfor colp
@@ -547,8 +582,7 @@ bool TDBODBC::BindParameters(PGLOBAL g)
 /***********************************************************************/
 char *TDBODBC::MakeCommand(PGLOBAL g)
   {
-  char *p, name[68], *qc = Ocp->GetQuoteChar();
-  char *stmt = (char*)PlugSubAlloc(g, NULL, strlen(Qrystr) + 64);
+  char *p, *stmt, name[68], *body = NULL, *qc = Ocp->GetQuoteChar();
   char *qrystr = (char*)PlugSubAlloc(g, NULL, strlen(Qrystr) + 1);
   bool  qtd = Quoted > 0;
   int   i = 0, k = 0;
@@ -558,6 +592,15 @@ char *TDBODBC::MakeCommand(PGLOBAL g)
   do {
     qrystr[i] = (Qrystr[i] == '`') ? *qc : tolower(Qrystr[i]);
     } while (Qrystr[i++]);
+
+  if (To_CondFil && (p = strstr(qrystr, " where "))) {
+    p[7] = 0;           // Remove where clause
+    Qrystr[(p - qrystr) + 7] = 0;
+    body = To_CondFil->Body;
+    stmt = (char*)PlugSubAlloc(g, NULL, strlen(qrystr) 
+                                      + strlen(body) + 64);
+  } else
+    stmt = (char*)PlugSubAlloc(g, NULL, strlen(Qrystr) + 64);
 
   // Check whether the table name is equal to a keyword
   // If so, it must be quoted in the original query
@@ -585,6 +628,9 @@ char *TDBODBC::MakeCommand(PGLOBAL g)
     do {
       stmt[i++] = (Qrystr[k] == '`') ? *qc : Qrystr[k];
       } while (Qrystr[k++]);
+
+    if (body)
+      strcat(stmt, body);
 
   } else {
     sprintf(g->Message, "Cannot use this %s command",
@@ -687,7 +733,7 @@ int TDBODBC::Cardinality(PGLOBAL g)
     char     qry[96], tbn[64];
     ODBConn *ocp = new(g) ODBConn(g, this);
 
-    if (ocp->Open(Connect, Options) < 1)
+    if (ocp->Open(Connect, &Ops, Options) < 1)
       return -1;
 
     // Table name can be encoded in UTF-8
@@ -748,9 +794,9 @@ int TDBODBC::GetProgMax(PGLOBAL g)
 /***********************************************************************/
 bool TDBODBC::OpenDB(PGLOBAL g)
   {
-  bool rc = false;
+  bool rc = true;
 
-  if (g->Trace)
+  if (trace)
     htrc("ODBC OpenDB: tdbp=%p tdb=R%d use=%dmode=%d\n",
             this, Tdb_No, Use, Mode);
 
@@ -758,19 +804,28 @@ bool TDBODBC::OpenDB(PGLOBAL g)
     /*******************************************************************/
     /*  Table already open, just replace it at its beginning.          */
     /*******************************************************************/
-//  if (To_Kindex)
-      /*****************************************************************/
-      /*  Table is to be accessed through a sorted index table.        */
-      /*****************************************************************/
-//    To_Kindex->Reset();
+    if (Memory == 1) {
+      if ((Qrp = Ocp->AllocateResult(g)))
+        Memory = 2;            // Must be filled
+      else
+        Memory = 0;            // Allocation failed, don't use it
 
-//  rewind(Stream);    >>>>>>> Something to be done with Cursor <<<<<<<
-    if (Ocp->Rewind(Query, (PODBCCOL)Columns)) {
-      Ocp->Close();
-      return true;
-      } // endif Rewind
+    } else if (Memory == 2)
+      Memory = 3;              // Ok to use memory result
 
+    if (Memory < 3) {
+      // Method will depend on cursor type
+      if ((Rbuf = Ocp->Rewind(Query, (PODBCCOL)Columns)) < 0) {
+        Ocp->Close();
+        return true;
+        } // endif Rewind
+
+    } else
+      Rbuf = Qrp->Nblin;
+
+    CurNum = 0;
     Fpos = 0;
+    Curpos = 1;
     return false;
     } // endif use
 
@@ -786,7 +841,7 @@ bool TDBODBC::OpenDB(PGLOBAL g)
   else if (Ocp->IsOpen())
     Ocp->Close();
 
-  if (Ocp->Open(Connect, Options) < 1)
+  if (Ocp->Open(Connect, &Ops, Options) < 1)
     return true;
   else if (Quoted)
     Quote = Ocp->GetQuoteChar();
@@ -797,6 +852,37 @@ bool TDBODBC::OpenDB(PGLOBAL g)
   /*  Make the command and allocate whatever is used for getting results.                   */
   /*********************************************************************/
   if (Mode == MODE_READ || Mode == MODE_READX) {
+    if (Memory > 1 && !Srcdef) {
+      char *Sql;
+      int   n;
+
+      if ((Sql = MakeSQL(g, true))) {
+        // Allocate a Count(*) column
+        Cnp = new(g) ODBCCOL;
+        Cnp->InitValue(g);
+
+        if ((n = Ocp->GetResultSize(Sql, Cnp)) < 0) {
+          strcpy(g->Message, "Cannot get result size");
+          return true;
+          } // endif n
+
+        Ocp->m_Rows = n;
+
+        if ((Qrp = Ocp->AllocateResult(g)))
+          Memory = 2;            // Must be filled
+        else {
+          strcpy(g->Message, "Memory allocation failed");
+          return true;
+          } // endif n
+
+        Ocp->m_Rows = 0;
+      } else {
+        strcpy(g->Message, "MakeSQL failed");
+        return true;
+      } // endif Sql
+
+      } // endif Memory
+
     if ((Query = MakeSQL(g, false))) {
       for (PODBCCOL colp = (PODBCCOL)Columns; colp;
                     colp = (PODBCCOL)colp->GetNext())
@@ -816,12 +902,12 @@ bool TDBODBC::OpenDB(PGLOBAL g)
 
       } // endif Query
 
-  } else if (Mode == MODE_UPDATE || Mode == MODE_DELETE)
-    Query = MakeCommand(g);
-  else
+  } else if (Mode == MODE_UPDATE || Mode == MODE_DELETE) {
+    rc = false;  // wait for CheckCond before calling MakeCommand(g);
+  } else
     sprintf(g->Message, "Invalid mode %d", Mode);
 
-  if (!Query || rc) {
+  if (rc) {
     Ocp->Close();
     return true;
     } // endif rc
@@ -838,8 +924,39 @@ bool TDBODBC::OpenDB(PGLOBAL g)
 /***********************************************************************/
 int TDBODBC::GetRecpos(void)
   {
-  return Fpos;              // To be really implemented
+  return Fpos;
   } // end of GetRecpos
+
+/***********************************************************************/
+/*  SetRecpos: set the position of next read record.                   */
+/***********************************************************************/
+bool TDBODBC::SetRecpos(PGLOBAL g, int recpos)
+  {
+  if (Ocp->m_Full) {
+    Fpos = 0;
+    CurNum = recpos - 1;
+  } else if (Memory == 3) {
+    Fpos = recpos;
+    CurNum = -1;
+  } else if (Scrollable) {
+    // Is new position in the current row set?
+    if (recpos >= Curpos && recpos < Curpos + Rbuf) {
+      CurNum = recpos - Curpos;
+      Fpos = 0;
+    } else {
+      Fpos = recpos;
+      CurNum = 0;
+    } // endif recpos
+
+  } else {
+    strcpy(g->Message, "This action requires a scrollable cursor");
+    return true;
+  } // endif's
+
+  // Indicate the table position was externally set
+  Placed = true;
+  return false;
+  } // end of SetRecpos
 
 /***********************************************************************/
 /*  VRDNDOS: Data Base read routine for odbc access method.            */
@@ -853,6 +970,9 @@ int TDBODBC::ReadDB(PGLOBAL g)
       GetTdb_No(), Mode, To_Key_Col, To_Link, To_Kindex);
 
   if (Mode == MODE_UPDATE || Mode == MODE_DELETE) {
+    if (!Query && !(Query = MakeCommand(g)))
+      return RC_FX;
+
     // Send the UPDATE/DELETE command to the remote table
     if (!Ocp->ExecSQLcommand(Query)) {
       sprintf(g->Message, "%s: %d affected rows", TableName, AftRows);
@@ -870,20 +990,39 @@ int TDBODBC::ReadDB(PGLOBAL g)
   if (To_Kindex) {
     // Direct access of ODBC tables is not implemented yet
     strcpy(g->Message, MSG(NO_ODBC_DIRECT));
-    longjmp(g->jumper[g->jump_level], GetAmType());
+    return RC_FX;
     } // endif To_Kindex
 
   /*********************************************************************/
   /*  Now start the reading process.                                   */
   /*  Here is the place to fetch the line(s).                          */
   /*********************************************************************/
-  if (++CurNum >= Rbuf) {
-    Rbuf = Ocp->Fetch();
-    CurNum = 0;
-    } // endif CurNum
+  if (Placed) {
+    if (Fpos && CurNum >= 0)
+      Rbuf = Ocp->Fetch((Curpos = Fpos));
 
-  rc = (Rbuf > 0) ? RC_OK : (Rbuf == 0) ? RC_EF : RC_FX;
-  Fpos++;                // Used for progress info
+    rc = (Rbuf > 0) ? RC_OK : (Rbuf == 0) ? RC_EF : RC_FX;
+    Placed = false;
+  } else {
+    if (Memory != 3) {
+      if (++CurNum >= Rbuf) {
+        Rbuf = Ocp->Fetch();
+        Curpos = Fpos + 1;
+        CurNum = 0;
+        } // endif CurNum
+
+      rc = (Rbuf > 0) ? RC_OK : (Rbuf == 0) ? RC_EF : RC_FX;
+    } else                 // Getting result from memory
+      rc = (Fpos < Qrp->Nblin) ? RC_OK : RC_EF;
+
+    if (rc == RC_OK) {
+      if (Memory == 2)
+        Qrp->Nblin++;
+
+      Fpos++;                // Used for memory and pos
+      } // endif rc
+
+  } // endif Placed
 
   if (trace > 1)
     htrc(" Read: Rbuf=%d rc=%d\n", Rbuf, rc);
@@ -913,6 +1052,9 @@ int TDBODBC::WriteDB(PGLOBAL g)
 int TDBODBC::DeleteDB(PGLOBAL g, int irc)
   {
   if (irc == RC_FX) {
+    if (!Query && !(Query = MakeCommand(g)))
+      return RC_FX;
+
     // Send the DELETE (all) command to the remote table
     if (!Ocp->ExecSQLcommand(Query)) {
       sprintf(g->Message, "%s: %d affected rows", TableName, AftRows);
@@ -966,6 +1108,7 @@ ODBCCOL::ODBCCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PSZ am)
   } // endif cprec
 
   // Set additional ODBC access method information for column.
+  Crp = NULL;
 //Long = cdp->GetLong();
   Long = Precision;
 //strcpy(F_Date, cdp->F_Date);
@@ -987,6 +1130,7 @@ ODBCCOL::ODBCCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PSZ am)
 /***********************************************************************/
 ODBCCOL::ODBCCOL(void) : COLBLK()
   {
+  Crp = NULL;
   Buf_Type = TYPE_INT;     // This is a count(*) column
   // Set additional Dos access method information for column.
   Long = sizeof(int);
@@ -1005,6 +1149,7 @@ ODBCCOL::ODBCCOL(void) : COLBLK()
 /***********************************************************************/
 ODBCCOL::ODBCCOL(ODBCCOL *col1, PTDB tdbp) : COLBLK(col1, tdbp)
   {
+  Crp = col1->Crp;
   Long = col1->Long;
 //strcpy(F_Date, col1->F_Date);
   To_Val = col1->To_Val;
@@ -1070,7 +1215,20 @@ bool ODBCCOL::SetBuffer(PGLOBAL g, PVAL value, bool ok, bool check)
 void ODBCCOL::ReadColumn(PGLOBAL g)
   {
   PTDBODBC tdbp = (PTDBODBC)To_Tdb;
-  int n = tdbp->CurNum;
+  int i = tdbp->Fpos - 1, n = tdbp->CurNum;
+
+  if (tdbp->Memory == 3) {
+    // Get the value from the stored memory
+    if (Crp->Nulls && Crp->Nulls[i] == '*') {
+      Value->Reset();
+      Value->SetNull(true);
+    } else {
+      Value->SetValue_pvblk(Crp->Kdata, i);
+      Value->SetNull(false);
+    } // endif Nulls
+
+    return;
+  } // endif Memory
 
   if (StrLen[n] == SQL_NULL_DATA) {
     // Null value
@@ -1078,7 +1236,7 @@ void ODBCCOL::ReadColumn(PGLOBAL g)
       Value->SetNull(true);
 
     Value->Reset();
-    return;
+    goto put;
   } else
     Value->SetNull(false);
 
@@ -1110,12 +1268,27 @@ void ODBCCOL::ReadColumn(PGLOBAL g)
 
   } // endif Buf_Type
 
-  if (g->Trace) {
+  if (trace) {
     char buf[64];
 
     htrc("ODBC Column %s: rows=%d buf=%p type=%d value=%s\n",
       Name, tdbp->Rows, Bufp, Buf_Type, Value->GetCharString(buf));
-    } // endif Trace
+    } // endif trace
+
+ put:
+  if (tdbp->Memory != 2)
+    return;
+
+  /*********************************************************************/
+  /*  Fill the allocated result structure.                             */
+  /*********************************************************************/
+  if (Value->IsNull()) {
+    if (Crp->Nulls)
+      Crp->Nulls[i] = '*';           // Null value
+
+    Crp->Kdata->Reset(i);
+  } else
+    Crp->Kdata->SetValue(Value, i);
 
   } // end of ReadColumn
 
@@ -1334,7 +1507,7 @@ bool TDBXDBC::OpenDB(PGLOBAL g)
   {
   bool rc = false;
 
-  if (g->Trace)
+  if (trace)
     htrc("ODBC OpenDB: tdbp=%p tdb=R%d use=%dmode=%d\n",
             this, Tdb_No, Use, Mode);
 
@@ -1350,12 +1523,12 @@ bool TDBXDBC::OpenDB(PGLOBAL g)
   /*  and if so to allocate just a new result set. But this only for   */
   /*  drivers allowing concurency in getting results ???               */
   /*********************************************************************/
-  if (!Ocp)
+  if (!Ocp) {
     Ocp = new(g) ODBConn(g, this);
-  else if (Ocp->IsOpen())
+  } else if (Ocp->IsOpen())
     Ocp->Close();
 
-  if (Ocp->Open(Connect, Options) < 1)
+  if (Ocp->Open(Connect, &Ops, Options) < 1)
     return true;
 
   Use = USE_OPEN;       // Do it now in case we are recursively called
@@ -1489,6 +1662,11 @@ TDBOTB::TDBOTB(PODEF tdp) : TDBDRV(tdp)
   Dsn = tdp->GetConnect();
   Schema = tdp->GetTabschema();
   Tab = tdp->GetTabname();
+  Ops.User = tdp->Username;
+  Ops.Pwd = tdp->Password;
+  Ops.Cto = tdp->Cto;
+  Ops.Qto = tdp->Qto;
+  Ops.UseCnc = tdp->UseCnc;
   } // end of TDBOTB constructor
 
 /***********************************************************************/
@@ -1496,7 +1674,7 @@ TDBOTB::TDBOTB(PODEF tdp) : TDBDRV(tdp)
 /***********************************************************************/
 PQRYRES TDBOTB::GetResult(PGLOBAL g)
   {
-  return ODBCTables(g, Dsn, Schema, Tab, Maxres, false);
+  return ODBCTables(g, Dsn, Schema, Tab, Maxres, false, &Ops);
 	} // end of GetResult
 
 /* ---------------------------TDBOCL class --------------------------- */
@@ -1506,7 +1684,7 @@ PQRYRES TDBOTB::GetResult(PGLOBAL g)
 /***********************************************************************/
 PQRYRES TDBOCL::GetResult(PGLOBAL g)
   {
-  return ODBCColumns(g, Dsn, Schema, Tab, NULL, Maxres, false);
+  return ODBCColumns(g, Dsn, Schema, Tab, NULL, Maxres, false, &Ops);
 	} // end of GetResult
 
 /* ------------------------ End of Tabodbc --------------------------- */

@@ -2521,7 +2521,7 @@ public:
   void print(FILE* file, PRINT_EVENT_INFO* print_event_info);
 #endif
 
-  Start_log_event_v3(const char* buf,
+  Start_log_event_v3(const char* buf, uint event_len,
                      const Format_description_log_event* description_event);
   ~Start_log_event_v3() {}
   Log_event_type get_type_code() { return START_EVENT_V3;}
@@ -2530,7 +2530,7 @@ public:
 #ifdef MYSQL_SERVER
   bool write(IO_CACHE* file);
 #endif
-  bool is_valid() const { return 1; }
+  bool is_valid() const { return server_version[0] != 0; }
   int get_data_size()
   {
     return START_V3_HEADER_LEN; //no variable-sized part
@@ -3177,8 +3177,8 @@ public:
   */
   static const uchar FL_TRANSACTIONAL= 4;
   /*
-    FL_ALLOW_PARALLEL reflects the value of @@SESSION.replicate_allow_parallel
-    at the time of commit.
+    FL_ALLOW_PARALLEL reflects the (negation of the) value of
+    @@SESSION.skip_parallel_replication at the time of commit.
   */
   static const uchar FL_ALLOW_PARALLEL= 8;
   /*

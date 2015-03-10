@@ -1957,6 +1957,8 @@ drop table if exists t1;
 create table t1 (i int, j int);
 create trigger t1_bi before insert on t1 for each row begin end;
 create trigger t1_bi before insert on t1 for each row begin end;
+ERROR HY000: Trigger already exists
+create trigger t1_bi2 before insert on t1 for each row begin end;
 ERROR 42000: This version of MariaDB doesn't yet support 'multiple triggers with the same action time and event for one table'
 drop trigger t1_bi;
 drop trigger t1_bi;

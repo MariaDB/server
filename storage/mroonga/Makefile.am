@@ -67,8 +67,6 @@ update-latest-release: misc
 	  misc/update-latest-release.rb			\
 	  $(PACKAGE) $(OLD_RELEASE) $(OLD_RELEASE_DATE)	\
 	  $(VERSION) $(NEW_RELEASE_DATE)		\
-	  packages/rpm/fedora/mysql-mroonga.spec.in	\
-	  packages/rpm/fedora/mariadb-mroonga.spec.in	\
 	  packages/rpm/centos/mariadb-mroonga.spec.in	\
 	  packages/rpm/centos/mysql55-mroonga.spec.in	\
 	  packages/rpm/centos/mysql56-community-mroonga.spec.in	\

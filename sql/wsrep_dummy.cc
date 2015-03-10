@@ -71,7 +71,7 @@ int wsrep_on(THD *thd)
 void wsrep_post_commit(THD*, bool)
 { }
 
-enum wsrep_trx_status wsrep_run_wsrep_commit(THD *, handlerton *, bool)
+enum wsrep_trx_status wsrep_run_wsrep_commit(THD *, bool)
 { return WSREP_TRX_ERROR; }
 
 void wsrep_thd_LOCK(THD *)

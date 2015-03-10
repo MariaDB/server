@@ -4,10 +4,10 @@ plugin-load-add=$HA_XTRADB_SO
 innodb
 innodb-cmpmem
 innodb-trx
-innodb-sys-index
+innodb-sys-indexes
 
 [xtradb]
 innodb
 innodb-cmpmem
 innodb-trx
-innodb-sys-index
+innodb-sys-indexes

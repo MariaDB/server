@@ -42,6 +42,7 @@ mach_write_to_1(
 
 	b[0] = (byte) n;
 }
+#endif /* !UNIV_INNOCHECKSUM */
 
 /********************************************************//**
 The following function is used to fetch data from one byte.
@@ -85,6 +86,8 @@ mach_read_from_2(
 {
 	return(((ulint)(b[0]) << 8) | (ulint)(b[1]));
 }
+
+#ifndef UNIV_INNOCHECKSUM
 
 /********************************************************//**
 The following function is used to convert a 16-bit data item
@@ -295,6 +298,8 @@ mach_write_to_8(
 	mach_write_to_4(static_cast<byte*>(b) + 4, (ulint) n);
 }
 
+#endif /* !UNIV_INNOCHECKSUM */
+
 /********************************************************//**
 The following function is used to fetch data from 8 consecutive
 bytes. The most significant byte is at the lowest address.
@@ -312,6 +317,8 @@ mach_read_from_8(
 
 	return(ull);
 }
+
+#ifndef UNIV_INNOCHECKSUM
 
 /*******************************************************//**
 The following function is used to store data in 7 consecutive
@@ -852,7 +859,10 @@ mach_write_ulonglong(
 		*dest ^=  0x80;
 	}
 }
+#endif /* !UNIV_HOTBACKUP */
+#endif /* !UNIV_INNOCHECKSUM */
 
+#ifndef UNIV_HOTBACKUP
 /********************************************************//**
 Reads 1 - 4 bytes from a file page buffered in the buffer pool.
 @return	value read */
@@ -878,4 +888,3 @@ mach_read_ulint(
 }
 
 #endif /* !UNIV_HOTBACKUP */
-#endif /* !UNIV_INNOCHECKSUM */

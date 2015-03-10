@@ -94,6 +94,7 @@ enum charset_enum {IN_SYSTEM_CHARSET, IN_FS_CHARSET};
 
 static const char *bool_values[3]= {"OFF", "ON", 0};
 TYPELIB bool_typelib={ array_elements(bool_values)-1, "", bool_values, 0 };
+extern const char *encrypt_algorithm_names[];
 
 /**
   A small wrapper class to pass getopt arguments as a pair
@@ -219,6 +220,7 @@ public:
     return scope() == SESSION ? (T*)(((uchar*)&max_system_variables) + offset)
                               : 0;
   }
+  uchar *default_value_ptr(THD *thd) { return (uchar*) &option.def_value; }
 };
 
 typedef Sys_var_integer<int, GET_INT, SHOW_SINT> Sys_var_int;
@@ -227,6 +229,31 @@ typedef Sys_var_integer<ulong, GET_ULONG, SHOW_ULONG> Sys_var_ulong;
 typedef Sys_var_integer<ha_rows, GET_HA_ROWS, SHOW_HA_ROWS> Sys_var_harows;
 typedef Sys_var_integer<ulonglong, GET_ULL, SHOW_ULONGLONG> Sys_var_ulonglong;
 typedef Sys_var_integer<long, GET_LONG, SHOW_SLONG> Sys_var_long;
+
+
+template<> uchar *Sys_var_int::default_value_ptr(THD *thd)
+{
+  thd->sys_var_tmp.int_value= option.def_value;
+  return (uchar*) &thd->sys_var_tmp.int_value;
+}
+
+template<> uchar *Sys_var_uint::default_value_ptr(THD *thd)
+{
+  thd->sys_var_tmp.uint_value= option.def_value;
+  return (uchar*) &thd->sys_var_tmp.uint_value;
+}
+
+template<> uchar *Sys_var_long::default_value_ptr(THD *thd)
+{
+  thd->sys_var_tmp.long_value= option.def_value;
+  return (uchar*) &thd->sys_var_tmp.long_value;
+}
+
+template<> uchar *Sys_var_ulong::default_value_ptr(THD *thd)
+{
+  thd->sys_var_tmp.ulong_value= option.def_value;
+  return (uchar*) &thd->sys_var_tmp.ulong_value;
+}
 
 
 /**
@@ -386,6 +413,11 @@ public:
   { var->save_result.ulonglong_value= (ulonglong)*(my_bool *)global_value_ptr(thd, 0); }
   void global_save_default(THD *thd, set_var *var)
   { var->save_result.ulonglong_value= option.def_value; }
+  uchar *default_value_ptr(THD *thd)
+  {
+    thd->sys_var_tmp.my_bool_value= option.def_value;
+    return (uchar*) &thd->sys_var_tmp.my_bool_value;
+  }
 };
 
 /**
@@ -741,7 +773,8 @@ public:
                on_check_function on_check_func=0,
                on_update_function on_update_func=0,
                const char *substitute=0)
-    : sys_var(&all_sys_vars, name_arg, comment, flag_args, 0, getopt.id,
+    : sys_var(&all_sys_vars, name_arg, comment, flag_args,
+              (char*)&current_dbug_option-(char*)&global_system_variables, getopt.id,
               getopt.arg_type, SHOW_CHAR, (intptr)def_val,
               lock, binlog_status_arg, on_check_func, on_update_func,
               substitute)
@@ -2280,14 +2313,15 @@ public:
 /**
    Class for connection_name.slave_parallel_mode.
 */
-class Sys_var_slave_parallel_mode: public Sys_var_set
+class Sys_var_slave_parallel_mode: public Sys_var_enum
 {
 public:
   Sys_var_slave_parallel_mode(const char *name_arg,
           const char *comment, int flag_args, ptrdiff_t off, size_t size,
-          CMD_LINE getopt, const char *values[], ulonglong def_val)
-    : Sys_var_set(name_arg, comment, flag_args, off, size,
-                  getopt, values, def_val)
+          CMD_LINE getopt, const char *values[],
+          enum_slave_parallel_mode def_val)
+    : Sys_var_enum(name_arg, comment, flag_args, off, size,
+                   getopt, values, def_val)
   {
     option.var_type|= GET_ASK_ADDR;
     option.value= (uchar**)1; // crash me, please

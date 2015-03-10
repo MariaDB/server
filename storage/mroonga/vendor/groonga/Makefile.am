@@ -69,7 +69,6 @@ update-latest-release: misc
 	  misc/update-latest-release.rb				\
 	  $(PACKAGE) $(OLD_RELEASE) $(OLD_RELEASE_DATE)		\
 	  $(VERSION) $(NEW_RELEASE_DATE)			\
-	  packages/rpm/fedora/groonga.spec.in			\
 	  packages/rpm/centos/groonga.spec.in			\
 	  packages/debian/changelog				\
 	  doc/source/install.rst				\

@@ -3,7 +3,7 @@
 Copyright (c) 1995, 2013, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, 2009 Google Inc.
 Copyright (c) 2009, Percona Inc.
-Copyright (c) 2013, 2014, SkySQL Ab.
+Copyright (c) 2013, 2015, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -74,8 +74,11 @@ Created 10/8/1995 Heikki Tuuri
 #include "btr0defragment.h"
 #include "mysql/plugin.h"
 #include "mysql/service_thd_wait.h"
+#include "fil0fil.h"
 #include "fil0pagecompress.h"
 #include <my_rdtsc.h>
+#include "btr0scrub.h"
+#include "fil0pageencryption.h"
 
 /* prototypes of new functions added to ha_innodb.cc for kill_idle_transaction */
 ibool		innobase_thd_is_idle(const void* thd);
@@ -110,6 +113,9 @@ UNIV_INTERN ibool	srv_error_monitor_active = FALSE;
 UNIV_INTERN ibool	srv_buf_dump_thread_active = FALSE;
 
 UNIV_INTERN ibool	srv_dict_stats_thread_active = FALSE;
+
+UNIV_INTERN ibool	srv_log_scrub_active = FALSE;
+UNIV_INTERN my_bool	srv_scrub_log = FALSE;
 
 UNIV_INTERN const char*	srv_main_thread_op_info = "";
 
@@ -663,6 +669,12 @@ time when the last flush of log file has happened. The master
 thread ensures that we flush the log files at least once per
 second. */
 static time_t	srv_last_log_flush_time;
+
+/** Default encryption key used for page encryption */
+UNIV_INTERN uint	srv_default_page_encryption_key = DEFAULT_ENCRYPTION_KEY;
+
+/** Enable semaphore request instrumentation */
+UNIV_INTERN my_bool 	srv_instrument_semaphores = FALSE;
 
 /* Interval in seconds at which various tasks are performed by the
 master thread when server is active. In order to balance the workload,
@@ -1679,15 +1691,6 @@ srv_printf_innodb_monitor(
 	srv_n_system_rows_deleted_old = srv_stats.n_system_rows_deleted;
 	srv_n_system_rows_read_old = srv_stats.n_system_rows_read;
 
-	/* Only if lock_print_info_summary proceeds correctly,
-	before we call the lock_print_info_all_transactions
-	to print all the lock information. */
-	ret = lock_print_info_summary(file, nowait);
-
-	if (ret) {
-		lock_print_info_all_transactions(file);
-	}
-
 	fputs("----------------------------\n"
 	      "END OF INNODB MONITOR OUTPUT\n"
 	      "============================\n", file);
@@ -1712,10 +1715,14 @@ srv_export_innodb_status(void)
 	ulint			mem_adaptive_hash, mem_dictionary;
 	read_view_t*		oldest_view;
 	ulint			i;
+	fil_crypt_stat_t	crypt_stat;
+	btr_scrub_stat_t	scrub_stat;
 
 	buf_get_total_stat(&stat);
 	buf_get_total_list_len(&LRU_len, &free_len, &flush_list_len);
 	buf_get_total_list_size_in_bytes(&buf_pools_list_size);
+	fil_crypt_total_stat(&crypt_stat);
+	btr_scrub_total_stat(&scrub_stat);
 
 	mem_adaptive_hash = 0;
 
@@ -1982,6 +1989,10 @@ srv_export_innodb_status(void)
 	export_vars.innodb_page_compressed_trim_op = srv_stats.page_compressed_trim_op;
 	export_vars.innodb_page_compressed_trim_op_saved = srv_stats.page_compressed_trim_op_saved;
 	export_vars.innodb_pages_page_decompressed = srv_stats.pages_page_decompressed;
+	export_vars.innodb_pages_page_compression_error = srv_stats.pages_page_compression_error;
+	export_vars.innodb_pages_page_decrypted = srv_stats.pages_page_decrypted;
+	export_vars.innodb_pages_page_encrypted = srv_stats.pages_page_encrypted;
+	export_vars.innodb_pages_page_encryption_error = srv_stats.pages_page_encryption_error;
 
 	export_vars.innodb_defragment_compression_failures =
 		btr_defragment_compression_failures;
@@ -2024,6 +2035,30 @@ srv_export_innodb_status(void)
 		srv_stats.n_sec_rec_cluster_reads;
 	export_vars.innodb_sec_rec_cluster_reads_avoided =
 		srv_stats.n_sec_rec_cluster_reads_avoided;
+
+	export_vars.innodb_encryption_rotation_pages_read_from_cache =
+		crypt_stat.pages_read_from_cache;
+	export_vars.innodb_encryption_rotation_pages_read_from_disk =
+		crypt_stat.pages_read_from_disk;
+	export_vars.innodb_encryption_rotation_pages_modified =
+		crypt_stat.pages_modified;
+	export_vars.innodb_encryption_rotation_pages_flushed =
+		crypt_stat.pages_flushed;
+	export_vars.innodb_encryption_rotation_estimated_iops =
+		crypt_stat.estimated_iops;
+
+	export_vars.innodb_scrub_page_reorganizations =
+		scrub_stat.page_reorganizations;
+	export_vars.innodb_scrub_page_splits =
+		scrub_stat.page_splits;
+	export_vars.innodb_scrub_page_split_failures_underflow =
+		scrub_stat.page_split_failures_underflow;
+	export_vars.innodb_scrub_page_split_failures_out_of_filespace =
+		scrub_stat.page_split_failures_out_of_filespace;
+	export_vars.innodb_scrub_page_split_failures_missing_index =
+		scrub_stat.page_split_failures_missing_index;
+	export_vars.innodb_scrub_page_split_failures_unknown =
+		scrub_stat.page_split_failures_unknown;
 
 	mutex_exit(&srv_innodb_monitor_mutex);
 }
@@ -2439,6 +2474,8 @@ srv_any_background_threads_are_active(void)
 		thread_active = "buf_dump_thread";
 	} else if (srv_dict_stats_thread_active) {
 		thread_active = "dict_stats_thread";
+	} else if (srv_scrub_log && srv_log_scrub_thread_active) {
+		thread_active = "log_scrub_thread";
 	}
 
 	os_event_set(srv_error_event);
@@ -2446,6 +2483,8 @@ srv_any_background_threads_are_active(void)
 	os_event_set(srv_buf_dump_event);
 	os_event_set(lock_sys->timeout_event);
 	os_event_set(dict_stats_event);
+	if (srv_scrub_log)
+		os_event_set(log_scrub_event);
 
 	return(thread_active);
 }
