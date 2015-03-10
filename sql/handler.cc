@@ -117,6 +117,7 @@ static plugin_ref ha_default_tmp_plugin(THD *thd)
   return ha_default_plugin(thd);
 }
 
+
 /** @brief
   Return the default storage engine handlerton for thread
 

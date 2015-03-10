@@ -3439,6 +3439,12 @@ static Sys_var_plugin Sys_default_tmp_storage_engine(
        SESSION_VAR(tmp_table_plugin), NO_CMD_LINE,
        MYSQL_STORAGE_ENGINE_PLUGIN, DEFAULT(&default_tmp_storage_engine));
 
+static Sys_var_plugin Sys_enforce_storage_engine(
+       "enforce_storage_engine", "Force the use of a storage engine for new tables",
+       SESSION_ONLY(enforced_table_plugin),
+       NO_CMD_LINE, MYSQL_STORAGE_ENGINE_PLUGIN,
+       DEFAULT(&enforced_storage_engine), NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(check_has_super));
+
 #if defined(ENABLED_DEBUG_SYNC)
 /*
   Variable can be set for the session only.

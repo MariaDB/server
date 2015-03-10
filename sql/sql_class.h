@@ -618,6 +618,7 @@ typedef struct system_variables
 
   plugin_ref table_plugin;
   plugin_ref tmp_table_plugin;
+  plugin_ref enforced_table_plugin;
 
   /* Only charset part of these variables is sensible */
   CHARSET_INFO  *character_set_filesystem;

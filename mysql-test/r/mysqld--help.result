@@ -169,6 +169,8 @@ The following options may be given as the first argument:
  Which encryption algorithm to use for table encryption.
  aes_cbc is the recommended one.. One of: none, aes_ecb, 
  aes_cbc, aes_ctr
+ --enforce-storage-engine=name 
+ Force the use of a storage engine for new tables
  --event-scheduler[=name] 
  Enable the event scheduler. Possible values are ON, OFF,
  and DISABLED (keep the event scheduler completely
@@ -1150,6 +1152,7 @@ delayed-queue-size 1000
 div-precision-increment 4
 encrypt-tmp-disk-tables FALSE
 encryption-algorithm none
+enforce-storage-engine (No default value)
 event-scheduler OFF
 expensive-subquery-limit 100
 expire-logs-days 0

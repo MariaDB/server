@@ -369,6 +369,7 @@ static char *lc_time_names_name;
 char *my_bind_addr_str;
 static char *default_collation_name;
 char *default_storage_engine, *default_tmp_storage_engine;
+char *enforced_storage_engine=NULL;
 static char compiled_default_collation_name[]= MYSQL_DEFAULT_COLLATION_NAME;
 static I_List<THD> thread_cache;
 static bool binlog_format_used= false;
@@ -5144,6 +5145,9 @@ a file name for --log-bin-index option", opt_binlog_index_name);
   if (init_default_storage_engine(default_tmp_storage_engine, tmp_table_plugin))
     unireg_abort(1);
 
+  if (init_default_storage_engine(enforced_storage_engine, enforced_table_plugin))
+    unireg_abort(1);
+
 #ifdef USE_ARIA_FOR_TMP_TABLES
   if (!ha_storage_engine_is_enabled(maria_hton) && !opt_bootstrap)
   {
@@ -7156,6 +7160,9 @@ struct my_option my_long_options[]=
   {"stack-trace", 0 , "Print a symbolic stack trace on failure",
    &opt_stack_trace, &opt_stack_trace, 0, GET_BOOL, NO_ARG, 1, 0, 0, 0, 0, 0},
 #endif /* HAVE_STACKTRACE */
+  {"enforce-storage-engine", 0, "Force the use of a storage engine for new tables",
+   &enforced_storage_engine, 0, 0, GET_STR, REQUIRED_ARG,
+   0, 0, 0, 0, 0, 0 },
   {"external-locking", 0, "Use system (external) locking (disabled by "
    "default).  With this option enabled you can run myisamchk to test "
    "(not repair) tables while the MySQL server is running. Disable with "
