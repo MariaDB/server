@@ -277,7 +277,14 @@ buf_page_set_state(
 		break;
 	}
 #endif /* UNIV_DEBUG */
+
 	bpage->state = state;
+#ifdef UNIV_DEBUG
+	if( buf_page_get_state(bpage) != state) {
+		fprintf(stderr, "InnoDB: Error: Requested state %d current state %d old_state %d\n",
+			state, buf_page_get_state(bpage), old_state);
+	}
+#endif
 	ut_ad(buf_page_get_state(bpage) == state);
 }
 
