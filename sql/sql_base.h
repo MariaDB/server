@@ -117,13 +117,7 @@ TABLE *open_ltable(THD *thd, TABLE_LIST *table_list, thr_lock_type update,
                             MYSQL_OPEN_GET_NEW_TABLE |\
                             MYSQL_OPEN_HAS_MDL_LOCK)
 
-bool open_table(THD *thd, TABLE_LIST *table_list, MEM_ROOT *mem_root,
-                Open_table_context *ot_ctx);
-
-bool open_new_frm(THD *thd, TABLE_SHARE *share, const char *alias,
-                  uint db_stat, uint prgflag,
-                  uint ha_open_flags, TABLE *outparam, TABLE_LIST *table_desc,
-                  MEM_ROOT *mem_root);
+bool open_table(THD *thd, TABLE_LIST *table_list, Open_table_context *ot_ctx);
 
 bool get_key_map_from_key_list(key_map *map, TABLE *table,
                                List<String> *index_list);
@@ -308,16 +302,14 @@ void close_all_tables_for_name(THD *thd, TABLE_SHARE *share,
                                TABLE *skip_table);
 OPEN_TABLE_LIST *list_open_tables(THD *thd, const char *db, const char *wild);
 bool tdc_open_view(THD *thd, TABLE_LIST *table_list, const char *alias,
-                   const char *cache_key, uint cache_key_length,
-                   MEM_ROOT *mem_root, uint flags);
+                   const char *cache_key, uint cache_key_length, uint flags);
 
 static inline bool tdc_open_view(THD *thd, TABLE_LIST *table_list,
-                                 const char *alias, MEM_ROOT *mem_root,
-                                 uint flags)
+                                 const char *alias, uint flags)
 {
   const char *key;
   uint key_length= get_table_def_key(table_list, &key);
-  return tdc_open_view(thd, table_list, alias, key, key_length, mem_root, flags);
+  return tdc_open_view(thd, table_list, alias, key, key_length, flags);
 }
 
 TABLE *find_table_for_mdl_upgrade(THD *thd, const char *db,

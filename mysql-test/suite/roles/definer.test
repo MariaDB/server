@@ -115,6 +115,7 @@ open(F, '>', $f) or die "open(>$f): $!";
 syswrite F, $_ or die "syswrite($f): $!" 
 EOF
 
+flush tables;
 show create view test.v5;
 select * from test.v5;
 drop user role4;

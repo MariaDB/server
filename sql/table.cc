@@ -40,6 +40,7 @@
 #include "sql_statistics.h"
 #include "discover.h"
 #include "mdl.h"                 // MDL_wait_for_graph_visitor
+#include "sql_view.h"
 
 /* INFORMATION_SCHEMA name */
 LEX_STRING INFORMATION_SCHEMA_NAME= {C_STRING_WITH_LEN("information_schema")};
@@ -558,13 +559,15 @@ enum open_frm_error open_table_def(THD *thd, TABLE_SHARE *share, uint flags)
   uchar head[FRM_HEADER_SIZE];
   char	path[FN_REFLEN];
   size_t frmlen, read_length;
+  uint length;
   DBUG_ENTER("open_table_def");
   DBUG_PRINT("enter", ("table: '%s'.'%s'  path: '%s'", share->db.str,
                        share->table_name.str, share->normalized_path.str));
 
   share->error= OPEN_FRM_OPEN_ERROR;
 
-  strxmov(path, share->normalized_path.str, reg_ext, NullS);
+  length=(uint) (strxmov(path, share->normalized_path.str, reg_ext, NullS) -
+                 path);
   if (flags & GTS_FORCE_DISCOVERY)
   {
     DBUG_ASSERT(flags & GTS_TABLE);
@@ -595,7 +598,21 @@ enum open_frm_error open_table_def(THD *thd, TABLE_SHARE *share, uint flags)
   if (memcmp(head, STRING_WITH_LEN("TYPE=VIEW\n")) == 0)
   {
     share->is_view= 1;
-    share->error= flags & GTS_VIEW ? OPEN_FRM_OK : OPEN_FRM_NOT_A_TABLE;
+    if (flags & GTS_VIEW)
+    {
+      LEX_STRING pathstr= { path, length };
+      /*
+        Create view file parser and hold it in TABLE_SHARE member
+        view_def.
+      */
+      share->view_def= sql_parse_prepare(&pathstr, &share->mem_root, true);
+      if (!share->view_def)
+        share->error= OPEN_FRM_ERROR_ALREADY_ISSUED;
+      else
+        share->error= OPEN_FRM_OK;
+    }
+    else
+      share->error= OPEN_FRM_NOT_A_TABLE;
     goto err;
   }
   if (!is_binary_frm_header(head))

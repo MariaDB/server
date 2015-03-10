@@ -215,8 +215,7 @@ fill_defined_view_parts (THD *thd, TABLE_LIST *view)
   TABLE_LIST decoy;
 
   memcpy (&decoy, view, sizeof (TABLE_LIST));
-  if (tdc_open_view(thd, &decoy, decoy.alias, thd->mem_root,
-                    OPEN_VIEW_NO_PARSE))
+  if (tdc_open_view(thd, &decoy, decoy.alias, OPEN_VIEW_NO_PARSE))
     return TRUE;
 
   if (!lex->definer)
@@ -1038,22 +1037,19 @@ err:
 
 
 
-/*
+/**
   read VIEW .frm and create structures
 
-  SYNOPSIS
-    mysql_make_view()
-    thd			Thread handler
-    parser		parser object
-    table		TABLE_LIST structure for filling
-    flags               flags
-  RETURN
-    0 ok
-    1 error
-*/
+  @param[in]  thd                 Thread handler
+  @param[in]  share               Share object of view
+  @param[in]  table               TABLE_LIST structure for filling
+  @param[in]  open_view_no_parse  Flag to indicate open view but
+                                  do not parse.
 
-bool mysql_make_view(THD *thd, File_parser *parser, TABLE_LIST *table,
-                     uint flags)
+  @return false-in case of success, true-in case of error.
+*/
+bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *table,
+                     bool open_view_no_parse)
 {
   SELECT_LEX *end, *UNINIT_VAR(view_select);
   LEX *old_lex, *lex;
@@ -1064,6 +1060,13 @@ bool mysql_make_view(THD *thd, File_parser *parser, TABLE_LIST *table,
   TABLE_LIST *UNINIT_VAR(view_main_select_tables);
   DBUG_ENTER("mysql_make_view");
   DBUG_PRINT("info", ("table: 0x%lx (%s)", (ulong) table, table->table_name));
+
+  if (table->required_type == FRMTYPE_TABLE)
+  {
+    my_error(ER_WRONG_OBJECT, MYF(0), share->db.str, share->table_name.str,
+             "BASE TABLE");
+    DBUG_RETURN(true);
+  }
 
   if (table->view)
   {
@@ -1137,12 +1140,14 @@ bool mysql_make_view(THD *thd, File_parser *parser, TABLE_LIST *table,
   table->definer.user.length= table->definer.host.length= 0;
 
   /*
-    TODO: when VIEWs will be stored in cache, table mem_root should
-    be used here
+    TODO: when VIEWs will be stored in cache (not only parser),
+    table mem_root should be used here
   */
-  if ((result= parser->parse((uchar*)table, thd->mem_root,
-                             view_parameters, required_view_parameters,
-                             &file_parser_dummy_hook)))
+  DBUG_ASSERT(share->view_def != NULL);
+  if ((result= share->view_def->parse((uchar*)table, thd->mem_root,
+                                      view_parameters,
+                                      required_view_parameters,
+                                      &file_parser_dummy_hook)))
     goto end;
 
   /*
@@ -1174,7 +1179,7 @@ bool mysql_make_view(THD *thd, File_parser *parser, TABLE_LIST *table,
   */
   table->view_creation_ctx= View_creation_ctx::create(thd, table);
 
-  if (flags & OPEN_VIEW_NO_PARSE)
+  if (open_view_no_parse)
   {
     if (arena)
       thd->restore_active_arena(arena, &backup);
@@ -1613,6 +1618,7 @@ end:
   if (arena)
     thd->restore_active_arena(arena, &backup);
   thd->lex= old_lex;
+  status_var_increment(thd->status_var.opened_views);
   DBUG_RETURN(result);
 
 err:

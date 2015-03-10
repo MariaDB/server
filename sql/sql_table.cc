@@ -5436,7 +5436,7 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table,
             lock on this table. The table will be closed by
             close_thread_table() at the end of this branch.
           */
-          open_res= open_table(thd, table, thd->mem_root, &ot_ctx);
+          open_res= open_table(thd, table, &ot_ctx);
           /* Restore */
           table->open_strategy= save_open_strategy;
           if (open_res)
@@ -7059,7 +7059,7 @@ static bool mysql_inplace_alter_table(THD *thd,
   }
 
   table_list->mdl_request.ticket= mdl_ticket;
-  if (open_table(thd, table_list, thd->mem_root, &ot_ctx))
+  if (open_table(thd, table_list, &ot_ctx))
     DBUG_RETURN(true);
 
   /*

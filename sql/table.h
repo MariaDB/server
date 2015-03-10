@@ -30,6 +30,7 @@
 #include "mysql_com.h"              /* enum_field_types */
 #include "thr_lock.h"                  /* thr_lock_type */
 #include "filesort_utils.h"
+#include "parse_file.h"
 
 /* Structs that defines the TABLE */
 
@@ -729,6 +730,13 @@ struct TABLE_SHARE
     to modify create_info->used_fields for ALTER TABLE.
   */
   ulong incompatible_version;
+
+  /**
+    For shares representing views File_parser object with view
+    definition read from .FRM file.
+  */
+  const File_parser *view_def;
+
 
   /*
     Cache for row-based replication table share checks that does not
