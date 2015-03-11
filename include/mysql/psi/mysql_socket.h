@@ -305,6 +305,22 @@ inline_mysql_socket_set_state(MYSQL_SOCKET socket, enum PSI_socket_state state)
 #endif /* HAVE_PSI_SOCKET_INTERFACE */
 
 /**
+  @def mysql_socket_fd(K, F)
+  Create a socket.
+  @c mysql_socket_fd is a replacement for @c socket.
+  @param K PSI_socket_key for this instrumented socket
+  @param F File descriptor
+*/
+
+#ifdef HAVE_PSI_SOCKET_INTERFACE
+  #define mysql_socket_fd(K, F) \
+    inline_mysql_socket_fd(K, F)
+#else
+  #define mysql_socket_fd(K, F) \
+    inline_mysql_socket_fd(F)
+#endif
+
+/**
   @def mysql_socket_socket(K, D, T, P)
   Create a socket.
   @c mysql_socket_socket is a replacement for @c socket.
@@ -577,6 +593,39 @@ static inline void inline_mysql_socket_register(
   PSI_SOCKET_CALL(register_socket)(category, info, count);
 }
 #endif
+
+/** mysql_socket_fd */
+
+static inline MYSQL_SOCKET
+inline_mysql_socket_fd
+(
+#ifdef HAVE_PSI_SOCKET_INTERFACE
+  PSI_socket_key key,
+#endif
+  int fd)
+{
+  MYSQL_SOCKET mysql_socket= MYSQL_INVALID_SOCKET;
+  mysql_socket.fd= fd;
+
+  DBUG_ASSERT(mysql_socket.fd != INVALID_SOCKET);
+#ifdef HAVE_PSI_SOCKET_INTERFACE
+  mysql_socket.m_psi= PSI_SOCKET_CALL(init_socket)
+    (key, (const my_socket*)&mysql_socket.fd, NULL, 0);
+#endif
+  /**
+    Currently systemd socket activation is the user of this
+    function. Its API (man sd_listen_fds) says FD_CLOSE_EXEC
+    is already called. If there becomes another user, we
+    can call it again without detriment.
+
+    If needed later:
+    #if defined(HAVE_FCNTL) && defined(FD_CLOEXEC)
+        (void) fcntl(mysql_socket.fd, F_SETFD, FD_CLOEXEC);
+    #endif
+  */
+
+  return mysql_socket;
+}
 
 /** mysql_socket_socket */
 

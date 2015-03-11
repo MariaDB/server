@@ -241,7 +241,11 @@ support-files/config.small.ini
 support-files/mariadb.pc
 support-files/mariadb.pp
 support-files/mariadb.service
+support-files/mariadb.socket
+support-files/mariadb-extra.socket
 support-files/mariadb@.service
+support-files/mariadb@.socket
+support-files/mariadb-extra@.socket
 support-files/my-huge.cnf
 support-files/my-innodb-heavy-4G.cnf
 support-files/my-large.cnf

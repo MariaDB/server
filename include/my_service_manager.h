@@ -31,8 +31,16 @@
 /** INTERVAL in seconds followed by printf style status */
 #define service_manager_extend_timeout(INTERVAL, FMTSTR, ...) \
   sd_notifyf(0, "STATUS=" FMTSTR "\nEXTEND_TIMEOUT_USEC=%u\n", ##__VA_ARGS__, INTERVAL * 1000000)
+/* sd_listen_fds_with_names added v227 however RHEL/Centos7 has v219, fallback to sd_listen_fds */
+#ifndef HAVE_SYSTEMD_SD_LISTEN_FDS_WITH_NAMES
+#define sd_listen_fds_with_names(FD, NAMES) sd_listen_fds(FD)
+#endif
 
 #else
+#define sd_listen_fds_with_names(FD, NAMES) (0)
+#define sd_is_socket_unix(FD, TYPE, LISTENING, PATH, SIZE) (0)
+#define sd_is_socket_inet(FD, FAMILY, TYPE, LISTENING, PORT) (0)
+#define SD_LISTEN_FDS_START (0)
 #define sd_notify(X, Y)
 #define sd_notifyf(E, F, ...)
 #define service_manager_extend_timeout(I, FMTSTR, ...)

@@ -1,0 +1,20 @@
+
+[Unit]
+
+Description=MariaDB @VERSION@ database server (socket activation extra port)
+Documentation=man:mariadbd(8)
+Documentation=https://mariadb.com/kb/en/library/systemd/
+
+[Socket]
+
+Service=mariadb.service
+
+# An "extra" as a descriptor name that means treat these ListenStreams as
+# the same as an extra_port.
+# Ref: https://mariadb.com/kb/en/thread-pool-system-status-variables/#extra_port
+
+FileDescriptorName=extra
+
+ListenStream=@mariadb-extra
+ListenStream=@MYSQL_UNIX_ADDR@-extra
+

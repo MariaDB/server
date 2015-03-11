@@ -120,6 +120,10 @@ IF(UNIX AND NOT WITHOUT_SERVER)
   IF(HAVE_SYSTEMD)
     CONFIGURE_FILE(mariadb.service.in
                    ${CMAKE_CURRENT_BINARY_DIR}/mariadb.service @ONLY)
+    CONFIGURE_FILE(mariadb.socket.in
+                   ${CMAKE_CURRENT_BINARY_DIR}/mariadb.socket @ONLY)
+    CONFIGURE_FILE(mariadb-extra.socket.in
+                   ${CMAKE_CURRENT_BINARY_DIR}/mariadb-extra.socket @ONLY)
     EXECUTE_PROCESS(
     COMMAND ${CMAKE_COMMAND} -E create_symlink ./mariadb.service mysql.service
     COMMAND ${CMAKE_COMMAND} -E create_symlink ./mariadb.service mysqld.service
@@ -136,13 +140,24 @@ IF(UNIX AND NOT WITHOUT_SERVER)
     IF(NOT CMAKE_VERSION VERSION_LESS 3.3.0 OR NOT RPM)
       CONFIGURE_FILE(mariadb@.service.in
                      ${CMAKE_CURRENT_BINARY_DIR}/mariadb@.service @ONLY)
-      INSTALL(FILES ${CMAKE_CURRENT_BINARY_DIR}/mariadb@.service
+      CONFIGURE_FILE(mariadb@.socket.in
+                     ${CMAKE_CURRENT_BINARY_DIR}/mariadb@.socket @ONLY)
+      CONFIGURE_FILE(mariadb-extra@.socket.in
+                     ${CMAKE_CURRENT_BINARY_DIR}/mariadb-extra@.socket @ONLY)
+      INSTALL(FILES
+              ${CMAKE_CURRENT_BINARY_DIR}/mariadb@.service
+              ${CMAKE_CURRENT_BINARY_DIR}/mariadb@.socket
+              ${CMAKE_CURRENT_BINARY_DIR}/mariadb-extra@.socket
+              ${CMAKE_CURRENT_BINARY_DIR}/mysql.service
+              ${CMAKE_CURRENT_BINARY_DIR}/mysqld.service
               DESTINATION ${inst_location}/systemd COMPONENT SupportFiles)
     ENDIF()
 
     IF(INSTALL_SYSTEMD_UNITDIR)
       INSTALL(FILES
               ${CMAKE_CURRENT_BINARY_DIR}/mariadb.service
+              ${CMAKE_CURRENT_BINARY_DIR}/mariadb.socket
+              ${CMAKE_CURRENT_BINARY_DIR}/mariadb-extra.socket
               ${CMAKE_CURRENT_BINARY_DIR}/mysql.service
               ${CMAKE_CURRENT_BINARY_DIR}/mysqld.service
               DESTINATION ${INSTALL_SYSTEMD_UNITDIR} COMPONENT Server)
@@ -154,6 +169,8 @@ IF(UNIX AND NOT WITHOUT_SERVER)
                 "${INSTALL_SYSTEMD_UNITDIR}/mariadb@bootstrap.service.d"
                 COMPONENT Server)
         INSTALL(FILES ${CMAKE_CURRENT_BINARY_DIR}/mariadb@.service
+                ${CMAKE_CURRENT_BINARY_DIR}/mariadb@.socket
+                ${CMAKE_CURRENT_BINARY_DIR}/mariadb-extra@.socket
                 DESTINATION ${INSTALL_SYSTEMD_UNITDIR} COMPONENT Server)
       ENDIF()
 
