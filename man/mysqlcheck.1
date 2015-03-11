@@ -7,7 +7,7 @@
 .\"    Source: MySQL 5.1
 .\"  Language: English
 .\"
-.TH "\FBMYSQLCHECK\FR" "1" "04/06/2010" "MySQL 5\&.1" "MySQL Database System"
+.TH "\FBMYSQLCHECK\FR" "1" "2015/12/27" "MySQL 5\&.1" "MySQL Database System"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -657,6 +657,22 @@ prompts for one\&.
 .sp
 Specifying a password on the command line should be considered insecure\&. See
 Section\ \&5.3.2.2, \(lqEnd-User Guidelines for Password Security\(rq\&. You can use an option file to avoid giving the password on the command line\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysqlcheck: persisent option
+.\" persistent option: mysql
+\fB\-\-persistent\fR,
+\fB\-Z\fR
+.sp
+Used with ANALYZE TABLE to append the option PERSISENT FOR ALL.
 .RE
 .sp
 .RS 4
