@@ -1122,10 +1122,6 @@ set statement autocommit=default for select 1;
 ERROR 42000: The system variable autocommit cannot be set in SET STATEMENT.
 set statement tx_isolation=default for select 1;
 ERROR 42000: The system variable tx_isolation cannot be set in SET STATEMENT.
-set statement rand_seed1=default for select 1;
-ERROR 42000: The system variable rand_seed1 cannot be set in SET STATEMENT.
-set statement rand_seed2=default for select 1;
-ERROR 42000: The system variable rand_seed2 cannot be set in SET STATEMENT.
 set statement skip_replication=default for select 1;
 ERROR 42000: The system variable skip_replication cannot be set in SET STATEMENT.
 set statement sql_log_off=default for select 1;
@@ -1214,3 +1210,13 @@ ERROR HY000: Unknown system variable 'non_existing'
 show errors;
 Level	Code	Message
 Error	1193	Unknown system variable 'non_existing'
+#
+# MDEV-6954: SET STATEMENT rand_seedX = ...FOR ... makes
+# the next rand() to return 0
+#
+set @rnd=1;
+# test that rand() is not always 0 after restoring rand_seed, rand_seed2...
+# @rnd should be 0
+select @rnd;
+@rnd
+0

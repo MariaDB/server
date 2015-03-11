@@ -1050,10 +1050,6 @@ set statement autocommit=default for select 1;
 --error ER_SET_STATEMENT_NOT_SUPPORTED
 set statement tx_isolation=default for select 1;
 --error ER_SET_STATEMENT_NOT_SUPPORTED
-set statement rand_seed1=default for select 1;
---error ER_SET_STATEMENT_NOT_SUPPORTED
-set statement rand_seed2=default for select 1;
---error ER_SET_STATEMENT_NOT_SUPPORTED
 set statement skip_replication=default for select 1;
 --error ER_SET_STATEMENT_NOT_SUPPORTED
 set statement sql_log_off=default for select 1;
@@ -1115,3 +1111,23 @@ set @@old_passwords=@save_old_passwords;
 --error ER_UNKNOWN_SYSTEM_VARIABLE
 set statement non_existing=1 for select 1;
 show errors;
+
+--echo #
+--echo # MDEV-6954: SET STATEMENT rand_seedX = ...FOR ... makes
+--echo # the next rand() to return 0
+--echo #
+set @rnd=1;
+let $1=10;
+--disable_query_log
+--echo # test that rand() is not always 0 after restoring rand_seed, rand_seed2...
+while ($1)
+{
+  --disable_result_log
+  set statement rand_seed1=1, rand_seed2=1 for select 1;
+  --enable_result_log
+  set @rnd= rand()=0 and @rnd;
+  dec $1;
+}
+--enable_query_log
+--echo # @rnd should be 0
+select @rnd;
