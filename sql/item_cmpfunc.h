@@ -1412,16 +1412,25 @@ public:
 };
 
 /* Functions used by where clause */
-
-class Item_func_isnull :public Item_bool_func
+class Item_func_null_predicate :public Item_bool_func
 {
 public:
-  Item_func_isnull(Item *a) :Item_bool_func(a) { sargable= TRUE; }
+  Item_func_null_predicate(Item *a) :Item_bool_func(a) { sargable= true; }
+  optimize_type select_optimize() const { return OPTIMIZE_NULL; }
+  CHARSET_INFO *compare_collation() { return args[0]->collation.collation; }
+  void fix_length_and_dec() { decimals=0; max_length=1; maybe_null=0; }
+};
+
+
+class Item_func_isnull :public Item_func_null_predicate
+{
+public:
+  Item_func_isnull(Item *a) :Item_func_null_predicate(a) {}
   longlong val_int();
   enum Functype functype() const { return ISNULL_FUNC; }
   void fix_length_and_dec()
   {
-    decimals=0; max_length=1; maybe_null=0;
+    Item_func_null_predicate::fix_length_and_dec();
     update_used_tables();
   }
   const char *func_name() const { return "isnull"; }
@@ -1441,9 +1450,7 @@ public:
     }
   }
   table_map not_null_tables() const { return 0; }
-  optimize_type select_optimize() const { return OPTIMIZE_NULL; }
   Item *neg_transformer(THD *thd);
-  CHARSET_INFO *compare_collation() { return args[0]->collation.collation; }
 };
 
 /* Functions used by HAVING for rewriting IN subquery */
@@ -1474,25 +1481,19 @@ public:
 };
 
 
-class Item_func_isnotnull :public Item_bool_func
+class Item_func_isnotnull :public Item_func_null_predicate
 {
   bool abort_on_null;
 public:
-  Item_func_isnotnull(Item *a) :Item_bool_func(a), abort_on_null(0)
-  { sargable= TRUE; }
+  Item_func_isnotnull(Item *a) :Item_func_null_predicate(a), abort_on_null(0)
+  { }
   longlong val_int();
   enum Functype functype() const { return ISNOTNULL_FUNC; }
-  void fix_length_and_dec()
-  {
-    decimals=0; max_length=1; maybe_null=0;
-  }
   const char *func_name() const { return "isnotnull"; }
-  optimize_type select_optimize() const { return OPTIMIZE_NULL; }
   table_map not_null_tables() const
   { return abort_on_null ? not_null_tables_cache : 0; }
   Item *neg_transformer(THD *thd);
   virtual void print(String *str, enum_query_type query_type);
-  CHARSET_INFO *compare_collation() { return args[0]->collation.collation; }
   void top_level_item() { abort_on_null=1; }
 };
 
