@@ -516,6 +516,7 @@ ulong binlog_stmt_cache_use= 0, binlog_stmt_cache_disk_use= 0;
 ulong max_connections, max_connect_errors;
 ulong extra_max_connections;
 ulong slave_retried_transactions;
+ulonglong slave_skipped_errors;
 ulong feature_files_opened_with_delayed_keys;
 ulonglong denied_connections;
 my_decimal decimal_zero;
@@ -7921,6 +7922,7 @@ SHOW_VAR status_vars[]= {
   {"Slave_received_heartbeats",(char*) &show_slave_received_heartbeats, SHOW_SIMPLE_FUNC},
   {"Slave_retried_transactions",(char*)&slave_retried_transactions, SHOW_LONG},
   {"Slave_running",            (char*) &show_slave_running,     SHOW_SIMPLE_FUNC},
+  {"Slave_skipped_errors",     (char*) &slave_skipped_errors, SHOW_LONGLONG},
 #endif
   {"Slow_launch_threads",      (char*) &slow_launch_threads,    SHOW_LONG},
   {"Slow_queries",             (char*) offsetof(STATUS_VAR, long_query_count), SHOW_LONG_STATUS},

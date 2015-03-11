@@ -130,6 +130,7 @@ extern my_bool opt_log_slave_updates;
 extern char *opt_slave_skip_errors;
 extern my_bool opt_replicate_annotate_row_events;
 extern ulonglong relay_log_space_limit;
+extern ulonglong slave_skipped_errors;
 
 /*
   3 possible values for Master_info::slave_running and
