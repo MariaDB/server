@@ -2792,6 +2792,7 @@ public:
                             wsrep_consistency_check;
   wsrep_stats_var*          wsrep_status_vars;
   int                       wsrep_mysql_replicated;
+  ulong                     wsrep_OSU_method;
   const char*               wsrep_TOI_pre_query; /* a query to apply before
                                                     the actual TOI query */
   size_t                    wsrep_TOI_pre_query_len;

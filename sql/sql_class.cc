@@ -1203,6 +1203,7 @@ THD::THD()
   wsrep_consistency_check = NO_CONSISTENCY_CHECK;
   wsrep_status_vars       = 0;
   wsrep_mysql_replicated  = 0;
+  wsrep_OSU_method        = WSREP_OSU_NONE;
   wsrep_TOI_pre_query     = NULL;
   wsrep_TOI_pre_query_len = 0;
 #endif
@@ -1609,7 +1610,7 @@ void THD::init(void)
   wsrep_PA_safe= true;
   wsrep_consistency_check = NO_CONSISTENCY_CHECK;
   wsrep_mysql_replicated  = 0;
-
+  wsrep_OSU_method        = WSREP_OSU_NONE;
   wsrep_TOI_pre_query     = NULL;
   wsrep_TOI_pre_query_len = 0;
 
