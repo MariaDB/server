@@ -94,6 +94,12 @@ static Relay_log_info* wsrep_relay_log_init(const char* log_fname)
   }
 
   rli->sql_thd= current_thd;
+
+  if ((rli->deferred_events_collecting= rpl_filter->is_on()))
+  {
+    rli->deferred_events= new Deferred_log_events(rli);
+  }
+
   return rli;
 }
 
@@ -132,6 +138,10 @@ static void wsrep_return_from_bf_mode(THD *thd, struct wsrep_thd_shadow* shadow)
   thd->net.vio                = shadow->vio;
   thd->variables.tx_isolation = shadow->tx_isolation;
   thd->reset_db(shadow->db, shadow->db_length);
+
+  thd->wsrep_rli->cleanup_after_session();
+  delete thd->wsrep_rli;
+  thd->wsrep_rli= NULL;
 }
 
 void wsrep_replay_transaction(THD *thd)

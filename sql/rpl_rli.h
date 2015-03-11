@@ -580,6 +580,7 @@ private:
 
 // Defined in rpl_rli.cc
 int init_relay_log_info(Relay_log_info* rli, const char* info_fname);
-
+void delete_or_keep_event_post_apply(Relay_log_info *rli,
+                                     Log_event_type typ, Log_event *ev);
 
 #endif /* RPL_RLI_H */

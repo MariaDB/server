@@ -73,6 +73,7 @@ static wsrep_cb_status_t wsrep_apply_events(THD*        thd,
   char *buf= (char *)events_buf;
   int rcode= 0;
   int event= 1;
+  Log_event_type typ;
 
   DBUG_ENTER("wsrep_apply_events");
 
@@ -106,7 +107,10 @@ static wsrep_cb_status_t wsrep_apply_events(THD*        thd,
       rcode= 1;
       goto error;
     }
-    switch (ev->get_type_code()) {
+
+    typ= ev->get_type_code();
+
+    switch (typ) {
     case WRITE_ROWS_EVENT:
     case UPDATE_ROWS_EVENT:
     case DELETE_ROWS_EVENT:
@@ -117,14 +121,20 @@ static wsrep_cb_status_t wsrep_apply_events(THD*        thd,
       break;
     }
 
-    thd->server_id = ev->server_id; // use the original server id for logging
-    thd->set_time();                // time the query
+    /* Use the original server id for logging. */
+    thd->set_server_id(ev->server_id);
+    thd->set_time();                            // time the query
     wsrep_xid_init(&thd->transaction.xid_state.xid,
                    &thd->wsrep_trx_meta.gtid.uuid,
                    thd->wsrep_trx_meta.gtid.seqno);
     thd->lex->current_select= 0;
     if (!ev->when)
       ev->when = time(NULL);
+
+    thd->variables.option_bits=
+      (thd->variables.option_bits & ~OPTION_SKIP_REPLICATION) |
+      (ev->flags & LOG_EVENT_SKIP_REPLICATION_F ?  OPTION_SKIP_REPLICATION : 0);
+
     ev->thd = thd;
     exec_res = ev->apply_event(thd->wsrep_rli);
     DBUG_PRINT("info", ("exec_event result: %d", exec_res));
@@ -172,7 +182,8 @@ static wsrep_cb_status_t wsrep_apply_events(THD*        thd,
         WSREP_ERROR("Error in %s event: commit of row events failed: %lld",
                     ev->get_type_str(), (long long)wsrep_thd_trx_seqno(thd));
     }
-    delete ev;
+
+    delete_or_keep_event_post_apply(thd->wsrep_rli, typ, ev);
   }
 
  error:
