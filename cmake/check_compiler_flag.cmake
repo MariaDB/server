@@ -9,6 +9,7 @@ SET(fail_patterns
     FAIL_REGEX "unrecognized .*option"
     FAIL_REGEX "ignoring unknown option"
     FAIL_REGEX "warning:.*ignored"
+    FAIL_REGEX "warning:.*redefined"
     FAIL_REGEX "[Ww]arning: [Oo]ption"
     )
 
