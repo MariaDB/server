@@ -500,16 +500,13 @@ sync_array_cell_print(
 		if (mutex) {
 			fprintf(file,
 				"Mutex at %p created file %s line %lu, lock var %lu\n"
-#ifdef UNIV_SYNC_DEBUG
-				"Last time reserved in file %s line %lu, "
-#endif /* UNIV_SYNC_DEBUG */
+				"Last time reserved by thread %lu in file %s line %lu, "
 				"waiters flag %lu\n",
 				(void*) mutex, innobase_basename(mutex->cfile_name),
 				(ulong) mutex->cline,
 				(ulong) mutex->lock_word,
-#ifdef UNIV_SYNC_DEBUG
+				mutex->thread_id,
 				mutex->file_name, (ulong) mutex->line,
-#endif /* UNIV_SYNC_DEBUG */
 				(ulong) mutex->waiters);
 		}
 
@@ -528,8 +525,10 @@ sync_array_cell_print(
 				" RW-latch at %p created in file %s line %lu\n",
 				(void*) rwlock, innobase_basename(rwlock->cfile_name),
 				(ulong) rwlock->cline);
+
 			writer = rw_lock_get_writer(rwlock);
-			if (writer != RW_LOCK_NOT_LOCKED) {
+
+			if (writer && writer != RW_LOCK_NOT_LOCKED) {
 				fprintf(file,
 					"a writer (thread id %lu) has"
 					" reserved it in mode %s",
@@ -552,6 +551,11 @@ sync_array_cell_print(
 				(ulong) rwlock->last_s_line,
 				rwlock->last_x_file_name,
 				(ulong) rwlock->last_x_line);
+
+			fprintf(file,
+				"Holder thread %lu file %s line %lu\n",
+				rwlock->thread_id, rwlock->file_name, rwlock->line);
+
 		}
 	} else {
 		ut_error;

@@ -522,15 +522,12 @@ sync_array_cell_print(
 		if (mutex) {
 			fprintf(file,
 				"Mutex at %p '%s', lock var %lu\n"
-#ifdef UNIV_SYNC_DEBUG
-				"Last time reserved in file %s line %lu, "
-#endif /* UNIV_SYNC_DEBUG */
+				"Last time reserved by thread %lu in file %s line %lu, "
 				"waiters flag %lu\n",
 				(void*) mutex, mutex->cmutex_name,
 				(ulong) mutex->lock_word,
-#ifdef UNIV_SYNC_DEBUG
+				mutex->thread_id,
 				mutex->file_name, (ulong) mutex->line,
-#endif /* UNIV_SYNC_DEBUG */
 				(ulong) mutex->waiters);
 		}
 
@@ -607,6 +604,10 @@ sync_array_cell_print(
 				(ulong) rwlock->last_s_line,
 				rwlock->last_x_file_name,
 				(ulong) rwlock->last_x_line);
+
+			fprintf(file,
+				"Holder thread %lu file %s line %lu\n",
+				rwlock->thread_id, rwlock->file_name, rwlock->line);
 
 			/* If stacktrace feature is enabled we will send a SIGUSR2
 			signal to thread that has locked RW-latch with write mode.
@@ -741,7 +742,7 @@ sync_array_detect_deadlock(
 						       depth);
 			if (ret) {
 				fprintf(stderr,
-			"Mutex %p owned by thread %lu file %s line %lu\n",
+					"Mutex %p owned by thread %lu file %s line %lu\n",
 					mutex, (ulong) os_thread_pf(mutex->thread_id),
 					mutex->file_name, (ulong) mutex->line);
 				sync_array_cell_print(stderr, cell, &r);
