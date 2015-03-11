@@ -8431,6 +8431,7 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
   THD_STAGE_INFO(thd, stage_setup);
   if (!(alter_info->flags & ~(Alter_info::ALTER_RENAME |
                               Alter_info::ALTER_KEYS_ONOFF)) &&
+      alter_info->flags != 0 &&
       alter_info->requested_algorithm !=
       Alter_info::ALTER_TABLE_ALGORITHM_COPY &&
       !table->s->tmp_table) // no need to touch frm
@@ -8449,7 +8450,8 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
     DBUG_RETURN(res);
   }
 
-  handle_if_exists_options(thd, table, alter_info);
+  if (alter_info->flags != 0)
+    handle_if_exists_options(thd, table, alter_info);
 
   /*
     Look if we have to do anything at all.
