@@ -216,7 +216,9 @@ binary-indep: build install
 	dh_installexamples -i
 	dh_installmenu -i
 	dh_installlogrotate -i
+	dh_systemd_enable -i support-files/mariadb.service support-files/mariadb.socket
 	dh_installinit -i
+	dh_systemd_start -i --restart-after-upgrade mariadb.socket
 	dh_installcron -i 
 	dh_installman -i
 	dh_installinfo -i

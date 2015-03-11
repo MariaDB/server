@@ -1,0 +1,104 @@
+#
+#  /etc/systemd/system/mariadb.service
+#
+
+[Unit]
+Description=MariaDB database server
+After=network.target
+After=syslog.target
+Requires=%p.socket
+
+[Install]
+WantedBy=multi-user.target
+Alias=mysql.service
+Alias=mysqld.service
+
+
+[Service]
+
+##############################################################################
+## Core requirements
+##
+
+Type=Notify
+
+# Setting this to true can break replication and the Type=Notify settings
+PrivateNetwork=false
+
+##############################################################################
+## Package maintainers
+##
+
+User=mysql
+
+# Execute pre and post scripts as root
+PermissionsStartOnly=true
+
+# Needed to create system tables etc.
+ExecStartPre=/usr/bin/mariadb-systemd-start
+
+# Start main service
+# skip-networking as its socket activation based
+ExecStart=/usr/sbin/mysqld $OPTIONS
+
+KillMode=process
+KillSignal=SIGTERM
+# Don't want to see an automated SIGKILL ever
+SendSIGKILL=no
+
+RestartPreventExitStatus=1
+Restart=on-fail
+RestartSec=5s
+
+PrivateTmp=true
+PrivateDevices=true
+
+UMask=077
+WorkingDirectory=/
+# To avoid mysql reading /root/.my.cnf which according to debian init script is
+# problematic
+Environment="HOME="
+
+##############################################################################
+## USERs can override
+##
+##
+## by creating a file in /etc/systemd/system/mariadb.server.d/MY_SPECIAL.conf
+
+# Useful options not previously available in [mysqld_safe]
+
+OOMScoreAdjust=-600
+
+BlockIOWeight=1000
+
+##
+## Options previously available to be set via [mysqld_safe]
+## that now needs to be set by systemd config files as mysqld_safe
+## isn't executed.
+##
+
+# Number of files limit. previously [mysqld_safe] open-file-limit
+LimitNOFILE=16364
+
+# Maximium core size. previously [mysqld_safe] core-file-size
+# LimitCore=
+
+# Nice priority. previously [mysqld_safe] nice
+# Nice=-5
+
+# Timezone. previously [mysqld_safe] timezone
+# Environment="TZ=UTC"
+
+# Library substitutions. previously [mysqld_safe] malloc-lib with explict paths
+# (in LD_LIBRARY_PATH) and library name (in LD_PRELOAD).
+# Environment="LD_LIBRARY_PATH=/path1 /path2" "LD_PRELOAD=
+
+# Flush caches. previously [mysqld_safe] flush-caches=1
+# ExecStartPre=sync
+# ExecStartPre=sysctl -q -w vm.drop_caches=3
+
+# numa-interleave=1 equalivant
+# Change ExecStart=numactl --interleave=all /usr/sbin/mysqld......
+
+# crash-script equalivent
+# FailureAction=
