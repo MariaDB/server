@@ -7646,9 +7646,20 @@ alter_list_item:
               MYSQL_YYABORT;
             }
             LEX *lex= Lex;
-            lex->create_info.table_charset=
-            lex->create_info.default_table_charset= $5;
-            lex->create_info.used_fields|= (HA_CREATE_USED_CHARSET |
+            HA_CREATE_INFO *cinfo= &Lex->create_info;
+            if ((cinfo->used_fields & HA_CREATE_USED_DEFAULT_CHARSET) &&
+                 cinfo->default_table_charset && $5 &&
+                 !my_charset_same(cinfo->default_table_charset,$5))
+            {
+              my_error(ER_CONFLICTING_DECLARATIONS, MYF(0),
+                       "CHARACTER SET ", cinfo->default_table_charset->csname,
+                       "CHARACTER SET ", $5->csname);
+              MYSQL_YYABORT;
+            }
+
+            cinfo->table_charset=
+            cinfo->default_table_charset= $5;
+            cinfo->used_fields|= (HA_CREATE_USED_CHARSET |
               HA_CREATE_USED_DEFAULT_CHARSET);
             lex->alter_info.flags|= Alter_info::ALTER_CONVERT;
           }
