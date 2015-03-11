@@ -944,9 +944,9 @@ dealloc_gco(group_commit_orderer *gco)
 }
 
 
-int
+static int
 rpl_parallel_change_thread_count(rpl_parallel_thread_pool *pool,
-                                 uint32 new_count, bool skip_check)
+                                 uint32 new_count)
 {
   uint32 i;
   rpl_parallel_thread **new_list= NULL;
@@ -989,24 +989,6 @@ rpl_parallel_change_thread_count(rpl_parallel_thread_pool *pool,
     }
     new_list[i]->next= new_free_list;
     new_free_list= new_list[i];
-  }
-
-  if (!skip_check)
-  {
-    mysql_mutex_lock(&LOCK_active_mi);
-    if (master_info_index->give_error_if_slave_running())
-    {
-      mysql_mutex_unlock(&LOCK_active_mi);
-      goto err;
-    }
-    if (pool->changing)
-    {
-      mysql_mutex_unlock(&LOCK_active_mi);
-      my_error(ER_CHANGE_SLAVE_PARALLEL_THREADS_ACTIVE, MYF(0));
-      goto err;
-    }
-    pool->changing= true;
-    mysql_mutex_unlock(&LOCK_active_mi);
   }
 
   /*
@@ -1068,13 +1050,6 @@ rpl_parallel_change_thread_count(rpl_parallel_thread_pool *pool,
     mysql_mutex_unlock(&pool->threads[i]->LOCK_rpl_thread);
   }
 
-  if (!skip_check)
-  {
-    mysql_mutex_lock(&LOCK_active_mi);
-    pool->changing= false;
-    mysql_mutex_unlock(&LOCK_active_mi);
-  }
-
   mysql_mutex_lock(&pool->LOCK_rpl_thread_pool);
   mysql_cond_broadcast(&pool->COND_rpl_thread_pool);
   mysql_mutex_unlock(&pool->LOCK_rpl_thread_pool);
@@ -1101,13 +1076,23 @@ err:
     }
     my_free(new_list);
   }
-  if (!skip_check)
-  {
-    mysql_mutex_lock(&LOCK_active_mi);
-    pool->changing= false;
-    mysql_mutex_unlock(&LOCK_active_mi);
-  }
   return 1;
+}
+
+
+int
+rpl_parallel_activate_pool(rpl_parallel_thread_pool *pool)
+{
+  if (!pool->count)
+    return rpl_parallel_change_thread_count(pool, opt_slave_parallel_threads);
+  return 0;
+}
+
+
+int
+rpl_parallel_inactivate_pool(rpl_parallel_thread_pool *pool)
+{
+  return rpl_parallel_change_thread_count(pool, 0);
 }
 
 
@@ -1354,7 +1339,7 @@ rpl_parallel_thread::loc_free_gco(group_commit_orderer *gco)
 
 
 rpl_parallel_thread_pool::rpl_parallel_thread_pool()
-  : count(0), threads(0), free_list(0), changing(false), inited(false)
+  : count(0), threads(0), free_list(0), inited(false)
 {
 }
 
@@ -1369,10 +1354,14 @@ rpl_parallel_thread_pool::init(uint32 size)
   mysql_mutex_init(key_LOCK_rpl_thread_pool, &LOCK_rpl_thread_pool,
                    MY_MUTEX_INIT_SLOW);
   mysql_cond_init(key_COND_rpl_thread_pool, &COND_rpl_thread_pool, NULL);
-  changing= false;
   inited= true;
 
-  return rpl_parallel_change_thread_count(this, size, true);
+  /*
+    The pool is initially empty. Threads will be spawned when a slave SQL
+    thread is started.
+  */
+
+  return 0;
 }
 
 
@@ -1381,7 +1370,7 @@ rpl_parallel_thread_pool::destroy()
 {
   if (!inited)
     return;
-  rpl_parallel_change_thread_count(this, 0, true);
+  rpl_parallel_change_thread_count(this, 0);
   mysql_mutex_destroy(&LOCK_rpl_thread_pool);
   mysql_cond_destroy(&COND_rpl_thread_pool);
   inited= false;

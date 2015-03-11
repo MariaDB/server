@@ -652,6 +652,10 @@ int terminate_slave_threads(Master_info* mi,int thread_mask,bool skip_lock)
       DBUG_RETURN(ER_ERROR_DURING_FLUSH_LOGS);
 
     mysql_mutex_unlock(log_lock);
+
+    if (opt_slave_parallel_threads > 0 &&
+        !master_info_index->any_slave_sql_running())
+      rpl_parallel_inactivate_pool(&global_rpl_thread_pool);
   }
   if (thread_mask & (SLAVE_IO|SLAVE_FORCE_ALL))
   {
@@ -958,7 +962,10 @@ int start_slave_threads(bool need_slave_mutex, bool wait_for_start,
                               mi);
   if (!error && (thread_mask & SLAVE_SQL))
   {
-    error= start_slave_thread(
+    if (opt_slave_parallel_threads > 0)
+      error= rpl_parallel_activate_pool(&global_rpl_thread_pool);
+    if (!error)
+      error= start_slave_thread(
 #ifdef HAVE_PSI_INTERFACE
                               key_thread_slave_sql,
 #endif
