@@ -161,6 +161,22 @@ IF(UNIX)
       SET(LIBWRAP "wrap")
     ENDIF()
   ENDIF()
+
+  OPTION(WITH_SYSTEMD "Compile with systemd notification on ready" ON)
+  IF(WITH_SYSTEMD)
+    SET(CMAKE_REQUIRED_LIBRARIES ${CMAKE_REQUIRED_LIBRARIES} systemd-daemon)
+    CHECK_C_SOURCE_COMPILES(
+    "
+    #include <systemd/sd-daemon.h>
+    int main()
+    {
+      sd_listen_fds(0);
+    }"
+    HAVE_SYSTEMD)
+    IF(HAVE_SYSTEMD)
+      SET(LIBSYSTEMD "systemd-daemon")
+    ENDIF()
+  ENDIF()
 ENDIF()
 
 #
@@ -251,6 +267,9 @@ CHECK_INCLUDE_FILES (wchar.h HAVE_WCHAR_H)
 CHECK_INCLUDE_FILES (wctype.h HAVE_WCTYPE_H)
 CHECK_INCLUDE_FILES (sys/sockio.h HAVE_SYS_SOCKIO_H)
 CHECK_INCLUDE_FILES (sys/utsname.h HAVE_SYS_UTSNAME_H)
+IF(WITH_SYSTEMD)
+CHECK_INCLUDE_FILES (systemd/sd-daemon.h HAVE_SYSTEMD_SD_DAEMON_H)
+ENDIF()
 
 IF(BFD_H_EXISTS)
   IF(NOT_FOR_DISTRIBUTION)
@@ -456,6 +475,12 @@ CHECK_FUNCTION_EXISTS (nl_langinfo HAVE_NL_LANGINFO)
 
 IF(HAVE_SYS_EVENT_H)
 CHECK_FUNCTION_EXISTS (kqueue HAVE_KQUEUE)
+ENDIF()
+
+IF(WITH_SYSTEMD)
+CHECK_FUNCTION_EXISTS (sd_listen_fds HAVE_SYSTEMD_SD_DAEMON_H)
+CHECK_FUNCTION_EXISTS (sd_notify HAVE_SYSTEMD_SD_DAEMON_H)
+CHECK_FUNCTION_EXISTS (sd_notifyf HAVE_SYSTEMD_SD_DAEMON_H)
 ENDIF()
 
 #--------------------------------------------------------------------

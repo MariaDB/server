@@ -120,7 +120,7 @@ DTRACE_INSTRUMENT(sql)
 TARGET_LINK_LIBRARIES(sql ${MYSQLD_STATIC_PLUGIN_LIBS} 
   mysys mysys_ssl dbug strings vio pcre ${LIBJEMALLOC}
   ${LIBWRAP} ${LIBCRYPT} ${LIBDL} ${CMAKE_THREAD_LIBS_INIT}
-  ${SSL_LIBRARIES})
+  ${LIBSYSTEMD} ${SSL_LIBRARIES})
 
 IF(WIN32)
   SET(MYSQLD_SOURCE main.cc nt_servc.cc nt_servc.h message.rc)
@@ -178,6 +178,13 @@ SET(INTERFACE_LIBS ${LIBRT})
 IF(INTERFACE_LIBS)
  SET_TARGET_PROPERTIES(mysqld PROPERTIES LINK_INTERFACE_LIBRARIES 
   "${INTERFACE_LIBS}")
+ENDIF()
+
+IF(WITH_SYSTEMD)
+# Used for notify systemd's feature
+IF(HAVE_SYSTEMD_SD_DAEMON_H)
+  TARGET_LINK_LIBRARIES(mysqld systemd-daemon)
+ENDIF()
 ENDIF()
 
 # On Solaris, some extra effort is required in order to get dtrace probes
