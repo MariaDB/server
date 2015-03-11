@@ -1068,3 +1068,11 @@ execute stmt1;
 deallocate prepare stmt1;
 drop table t1;
 set @@old_passwords=@save_old_passwords;
+
+--echo #
+--echo #MDEV-6951:Erroneous SET STATEMENT produces two identical errors 
+--echo #
+
+--error ER_UNKNOWN_SYSTEM_VARIABLE
+set statement non_existing=1 for select 1;
+show errors;

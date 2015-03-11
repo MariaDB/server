@@ -367,9 +367,7 @@ find_sys_var_null_base(THD *thd, struct sys_var_with_base *tmp)
 {
   tmp->var= find_sys_var(thd, tmp->base_name.str, tmp->base_name.length);
 
-  if (tmp->var == NULL)
-    my_error(ER_UNKNOWN_SYSTEM_VARIABLE, MYF(0), tmp->base_name.str);
-  else
+  if (tmp->var != NULL)
     tmp->base_name= null_lex_str;
 
   return thd->is_error();

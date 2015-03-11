@@ -1138,3 +1138,11 @@ password(a)
 deallocate prepare stmt1;
 drop table t1;
 set @@old_passwords=@save_old_passwords;
+#
+#MDEV-6951:Erroneous SET STATEMENT produces two identical errors 
+#
+set statement non_existing=1 for select 1;
+ERROR HY000: Unknown system variable 'non_existing'
+show errors;
+Level	Code	Message
+Error	1193	Unknown system variable 'non_existing'
