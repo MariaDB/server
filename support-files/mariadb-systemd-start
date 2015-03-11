@@ -1,11 +1,11 @@
-#! /bin/bash
+#!/bin/bash
 #
 # Scripts to run by MySQL systemd service
 #
 #
 # try to run mysql_install_db and fix perms and SELinux contexts
 
-install_db () {    
+install_db () {
     # Note: something different than datadir=/var/lib/mysql requires SELinux policy changes (in enforcing mode)
     datadir=/var/lib/mysql
     log=/var/log/mysqld.log
@@ -30,7 +30,7 @@ install_db () {
         /usr/sbin/restorecon $log
     fi
 
-    # If special mysql dir is in place, skip db install 
+    # If special mysql dir is in place, skip db install
     [ -d "$datadir/mysql" ] && exit 0
 
     # Create initial db

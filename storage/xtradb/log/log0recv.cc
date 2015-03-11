@@ -1996,7 +1996,7 @@ loop:
 
 		progress=(ulong) (i * 100) / hash_get_n_cells(recv_sys->addr_hash);
 		if (has_printed
-		    && progress  != ((i + 1) * 100) 
+		    && progress  != ((i + 1) * 100)
                         / hash_get_n_cells(recv_sys->addr_hash)) {
 
 			fprintf(stderr, "%lu ", progress);

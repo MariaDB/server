@@ -1,8 +1,8 @@
-#! /bin/bash
+#!/bin/bash
 #
 # Used to generate a mariadb.socket file based on the curent mysql/maridb settings
 #
-# This is to assist distro maintainers in migrating to systemd socket activation from 
+# This is to assist distro maintainers in migrating to systemd socket activation from
 # a user system with networking settings somewhere in the my.cnf files.
 #
 # Redirect output to user directory like /etc/systemd/system/mariadb.socket.d/migrated-from-my.cnf-settings.conf
@@ -95,7 +95,7 @@ if [ -n "${port}" -o \
   # we've set unix or inet sockets to non default
   # reset the ListenStream list to empty
   echo "ListenStream="
-  # if port isn't set it really needs to be to 
+  # if port isn't set it really needs to be to
   # fill out the details
   [ -z "${port}" ] && port=3306
   # socket has a default value so ensure that is set
