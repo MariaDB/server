@@ -232,6 +232,10 @@ eval SET @pos= '$pos';
 SELECT master_gtid_wait(NULL);
 # Check empty argument returns immediately.
 SELECT master_gtid_wait('', NULL);
+# Check this gets counted
+SHOW STATUS LIKE 'Master_gtid_wait_count';
+SHOW STATUS LIKE 'Master_gtid_wait_timeouts';
+SHOW STATUS LIKE 'Master_gtid_wait_time';
 # Let's check that we get a timeout
 SELECT master_gtid_wait(@pos, 0.5);
 SELECT * FROM t1 ORDER BY a;
@@ -276,7 +280,7 @@ SELECT master_gtid_wait('1-1-1', 0);
 send SELECT master_gtid_wait('2-1-1,1-1-4,0-1-110');
 
 --connect (s2,127.0.0.1,root,,test,$SERVER_MYPORT_2,)
-# This will time out.
+# This will time out. No event 0-1-1000 exists
 send SELECT master_gtid_wait('0-1-1000', 0.5);
 
 --connect (s3,127.0.0.1,root,,test,$SERVER_MYPORT_2,)
@@ -305,15 +309,31 @@ send SELECT master_gtid_wait('2-1-5,1-1-4,0-1-110');
 send SELECT master_gtid_wait('2-1-2');
 
 --connection server_2
-# This one completes immediately.
+# This one completes immediately ( < 1 ms).
+SHOW STATUS LIKE 'Master_gtid_wait_timeouts';
+SHOW STATUS LIKE 'Master_gtid_wait_count';
 SELECT master_gtid_wait('1-1-1');
+SHOW STATUS LIKE 'Master_gtid_wait_timeouts';
+SHOW STATUS LIKE 'Master_gtid_wait_count';
+let $wait_time = query_get_value(SHOW STATUS LIKE 'Master_gtid_wait_time', Value, 1);
+--replace_result $wait_time MASTER_GTID_WAIT_TIME
+eval SELECT $wait_time <= 1000000 AS Master_gtid_wait_less_than_second;
+
 
 --connect (s10,127.0.0.1,root,,test,$SERVER_MYPORT_2,)
 send SELECT master_gtid_wait('0-1-109');
 
 --connection server_2
 # This one should time out.
+SHOW STATUS LIKE 'Master_gtid_wait_timeouts';
+SHOW STATUS LIKE 'Master_gtid_wait_count';
 SELECT master_gtid_wait('2-1-2', 0.5);
+SHOW STATUS LIKE 'Master_gtid_wait_timeouts';
+SHOW STATUS LIKE 'Master_gtid_wait_count';
+# (0.5-3 seconds)
+let $wait_time = query_get_value(SHOW STATUS LIKE 'Master_gtid_wait_time', Value, 1);
+--replace_result $wait_time MASTER_GTID_WAIT_TIME
+eval SELECT $wait_time BETWEEN 500000 AND 3000000 AS Master_gtid_wait_time_between_half_and_3_seconds;
 
 --replace_result $kill1_id KILL_ID
 eval KILL QUERY $kill1_id;
