@@ -47,7 +47,7 @@ while read var; do
       extraport=$val
       ;;
     --backlog)
-      backlog=$val 
+      backlog=$val
       ;;
     --max-connections)
       maxconnections=$val
