@@ -93,8 +93,9 @@ if [ -n "${port}" -o \
     -n "${bindaddress}" -o \
     -n "${socket}" ]; then
   # we've set unix or inet sockets to non default
-  # reset the ListenStream list to empty
+  echo "# reset the ListenStream list to empty"
   echo "ListenStream="
+  echo
   # if port isn't set it really needs to be to
   # fill out the details
   [ -z "${port}" ] && port=3306
@@ -125,7 +126,7 @@ if [ -n "${bindaddress}" ]; then
     # roughly IPv6
     bind=[${bindaddress}]:
     print_ports
-  else
+  elif [ -x /usr/bin/host ]; then
     # hostname
     # Systemd.sockets don't support it so look it up
     coproc hosts { host ${bindaddress}; }
@@ -139,6 +140,10 @@ if [ -n "${bindaddress}" ]; then
         print_ports
       fi
     done < /dev/fd/${hosts[0]}
+  else
+    echo "Warning: bindaddress=${bindaddress} was a hostname we couldn't resolve. using all interfaces" >&2
+    bind=
+    print_ports
   fi
 else
   bind=''
