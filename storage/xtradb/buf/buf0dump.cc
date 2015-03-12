@@ -126,7 +126,7 @@ buf_dump_status(
 	if (severity == STATUS_NOTICE || severity == STATUS_ERR) {
 		ut_print_timestamp(stderr);
 	}
-	ib_logf(severity, export_vars.innodb_buffer_pool_dump_status);
+	ib_logf((ib_log_level_t) severity, export_vars.innodb_buffer_pool_dump_status);
 
 	va_end(ap);
 }
