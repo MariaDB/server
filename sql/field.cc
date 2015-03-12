@@ -1246,6 +1246,18 @@ double Field::pos_in_interval_val_str(Field *min, Field *max, uint data_offset)
 }
 
 
+/*
+  This handles all numeric and BIT data types.
+*/ 
+bool Field::can_optimize_group_min_max(const Item_bool_func2 *cond,
+                                       const Item *const_item)
+{
+  DBUG_ASSERT(cmp_type() != STRING_RESULT);
+  DBUG_ASSERT(cmp_type() != TIME_RESULT);
+  return const_item->cmp_type() != TIME_RESULT;
+}
+
+
 /**
   Numeric fields base class constructor.
 */
@@ -5257,6 +5269,14 @@ my_decimal *Field_temporal::val_decimal(my_decimal *d)
   return TIME_to_my_decimal(&ltime, d);
 }
 
+
+bool Field_temporal::can_optimize_group_min_max(const Item_bool_func2 *cond,
+                                                const Item *const_item)
+{
+  return true; // Field is of TIME_RESULT, which supersedes everything else.
+}
+
+
 /****************************************************************************
 ** time type
 ** In string context: HH:MM:SS
@@ -6445,6 +6465,18 @@ int Field_longstr::store_decimal(const my_decimal *d)
 uint32 Field_longstr::max_data_length() const
 {
   return field_length + (field_length > 255 ? 2 : 1);
+}
+
+
+bool Field_longstr::can_optimize_group_min_max(const Item_bool_func2 *cond,
+                                               const Item *const_item)
+{
+  // Can't use indexes when comparing a string to a number or a date
+  if (const_item->cmp_type() != STRING_RESULT)
+    return false;
+
+  // Don't use an index when comparing strings of different collations.
+  return charset() ==  ((Item_bool_func2*) cond)->compare_collation();
 }
 
 

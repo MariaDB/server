@@ -131,6 +131,11 @@ public:
   bool is_bool_type() { return true; }
   void fix_length_and_dec() { decimals=0; max_length=1; }
   uint decimal_precision() const { return 1; }
+  virtual bool can_optimize_group_min_max(Item_field *min_max_arg_item,
+                                          const Item *const_item) const
+  {
+    return false;
+  }
 };
 
 
@@ -418,6 +423,12 @@ public:
   bool subst_argument_checker(uchar **arg)
   {
     return (*arg != NULL);     
+  }
+  bool can_optimize_group_min_max(Item_field *min_max_arg_item,
+                                  const Item *const_item) const
+  {
+    return min_max_arg_item->field->can_optimize_group_min_max(this,
+                                                               const_item);
   }
 };
 

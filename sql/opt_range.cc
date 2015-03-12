@@ -13412,39 +13412,13 @@ check_group_min_max_predicates(Item *cond, Item_field *min_max_arg_item,
         if (!simple_pred(pred, args, &inv))
           DBUG_RETURN(FALSE);
 
-        /* Check for compatible string comparisons - similar to get_mm_leaf. */
         if (args[0] && args[1] && !args[2]) // this is a binary function
         {
-          if (args[1]->cmp_type() == TIME_RESULT &&
-              min_max_arg_item->field->cmp_type() != TIME_RESULT)
+          DBUG_ASSERT(pred->is_bool_type());
+          Item_bool_func *bool_func= (Item_bool_func*) pred;
+          if (!bool_func->can_optimize_group_min_max(min_max_arg_item,
+                                                     args[1]))
             DBUG_RETURN(FALSE);
-
-          /*
-            Can't use GROUP_MIN_MAX optimization for ENUM and SET,
-            because the values are stored as numbers in index,
-            while MIN() and MAX() work as strings.
-            It would return the records with min and max enum numeric indexes.
-           "Bug#45300 MAX() and ENUM type" should be fixed first.
-          */
-          if (min_max_arg_item->field->real_type() == MYSQL_TYPE_ENUM ||
-              min_max_arg_item->field->real_type() == MYSQL_TYPE_SET)
-            DBUG_RETURN(FALSE);
-
-          if (min_max_arg_item->result_type() == STRING_RESULT &&
-              /*
-                Don't use an index when comparing strings of different collations.
-              */
-              ((args[1]->result_type() == STRING_RESULT &&
-                image_type == Field::itRAW &&
-                min_max_arg_item->field->charset() !=
-                pred->compare_collation()) ||
-             /*
-               We can't always use indexes when comparing a string index to a
-               number.
-             */
-             (args[1]->result_type() != STRING_RESULT &&
-              min_max_arg_item->field->cmp_type() != args[1]->result_type())))
-          DBUG_RETURN(FALSE);
         }
       }
       else

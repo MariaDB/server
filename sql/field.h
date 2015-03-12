@@ -39,6 +39,7 @@ class Relay_log_info;
 class Field;
 class Column_statistics;
 class Column_statistics_collected;
+class Item_bool_func2;
 
 enum enum_check_fields
 {
@@ -963,6 +964,9 @@ public:
     return (double) 0.5; 
   }
 
+  virtual bool can_optimize_group_min_max(const Item_bool_func2 *cond,
+                                          const Item *const_item);
+
   friend int cre_myisam(char * name, register TABLE *form, uint options,
 			ulonglong auto_increment_value);
   friend class Copy_field;
@@ -1154,6 +1158,8 @@ public:
   int store_decimal(const my_decimal *d);
   uint32 max_data_length() const;
   bool match_collation_to_optimize_range() const { return true; }
+  bool can_optimize_group_min_max(const Item_bool_func2 *cond,
+                                  const Item *const_item);
 };
 
 /* base class for float and double and decimal (old one) */
@@ -1581,6 +1587,12 @@ public:
   uint size_of() const { return sizeof(*this); }
   uint32 max_display_length() { return 4; }
   void move_field_offset(my_ptrdiff_t ptr_diff) {}
+  bool can_optimize_group_min_max(const Item_bool_func2 *cond,
+                                  const Item *const_item)
+  {
+    DBUG_ASSERT(0);
+    return false;
+  }
 };
 
 
@@ -1613,6 +1625,8 @@ public:
   {
     return pos_in_interval_val_real(min, max);
   }
+  bool can_optimize_group_min_max(const Item_bool_func2 *cond,
+                                  const Item *const_item);
 };
 
 
@@ -2650,6 +2664,18 @@ public:
   virtual const uchar *unpack(uchar *to, const uchar *from,
                               const uchar *from_end, uint param_data);
 
+  bool can_optimize_group_min_max(const Item_bool_func2 *cond,
+                                  const Item *const_item)
+  {
+    /*
+      Can't use GROUP_MIN_MAX optimization for ENUM and SET,
+      because the values are stored as numbers in index,
+      while MIN() and MAX() work as strings.
+      It would return the records with min and max enum numeric indexes.
+     "Bug#45300 MAX() and ENUM type" should be fixed first.
+    */
+    return false;
+  }
 private:
   int do_save_field_metadata(uchar *first_byte);
   uint is_equal(Create_field *new_field);
