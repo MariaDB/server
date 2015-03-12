@@ -1461,6 +1461,11 @@ error_exit:
 	with a latch. */
 	dict_table_n_rows_inc(table);
 
+	if (prebuilt->clust_index_was_generated) {
+		/* set row id to prebuilt */
+		ut_memcpy(prebuilt->row_id, node->row_id_buf, DATA_ROW_ID_LEN);
+	}
+
 	row_update_statistics_if_needed(table);
 	trx->op_info = "";
 
