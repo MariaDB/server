@@ -180,6 +180,10 @@ install: build
 	install -m 0644 $(builddir)/Docs/INFO_SRC $(TMP)/usr/share/doc/mariadb-server-10.0/INFO_SRC
 	install -m 0644 $(builddir)/Docs/INFO_BIN $(TMP)/usr/share/doc/mariadb-server-10.0/INFO_BIN
 
+	# systemd helpers
+	install -m 0755 support-files/mariadb-socket-convert $(TMP)/usr/bin/
+	install -m 0755 support-files/mariadb-systemd-start $(TMP)/usr/bin/
+
 	# mariadb-test
 	mv $(TMP)/usr/mysql-test	$(TMP)/usr/share/mysql
 

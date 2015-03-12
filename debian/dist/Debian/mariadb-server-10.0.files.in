@@ -43,6 +43,8 @@ usr/bin/perror
 usr/bin/replace
 usr/bin/resolve_stack_dump
 usr/bin/resolveip
+usr/bin/mariadb-socket-convert
+usr/bin/mariadb-systemd-start
 usr/share/doc/mariadb-server-10.0/mysqld.sym.gz
 usr/share/doc/mariadb-server-10.0/INFO_SRC
 usr/share/doc/mariadb-server-10.0/INFO_BIN
