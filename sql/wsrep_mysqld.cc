@@ -1393,12 +1393,6 @@ int wsrep_to_isolation_begin(THD *thd, char *db_, char *table_,
   }
 
   /*
-    Save current global value into thd to persist the used method
-    even if global wsrep_OSU_method_options changes during isolation
-   */
-  thd->wsrep_OSU_method= wsrep_OSU_method_options;
-
-  /*
     It makes sense to set auto_increment_* to defaults in TOI operations.
     Must be done before wsrep_TOI_begin() since Query_log_event encapsulating
     TOI statement and auto inc variables for wsrep replication is constructed
@@ -1413,12 +1407,13 @@ int wsrep_to_isolation_begin(THD *thd, char *db_, char *table_,
 
   if (thd->variables.wsrep_on && thd->wsrep_exec_mode==LOCAL_STATE)
   {
-    switch (thd->wsrep_OSU_method) {
+    switch (thd->variables.wsrep_OSU_method) {
     case WSREP_OSU_TOI: ret =  wsrep_TOI_begin(thd, db_, table_,
                                                table_list); break;
     case WSREP_OSU_RSU: ret =  wsrep_RSU_begin(thd, db_, table_); break;
     default:
-      WSREP_ERROR("Unsupported OSU method: %lu", thd->wsrep_OSU_method);
+      WSREP_ERROR("Unsupported OSU method: %lu",
+                  thd->variables.wsrep_OSU_method);
       ret= -1;
       break;
     }
@@ -1440,18 +1435,17 @@ void wsrep_to_isolation_end(THD *thd)
 {
   if (thd->wsrep_exec_mode == TOTAL_ORDER)
   {
-    switch(thd->wsrep_OSU_method)
+    switch(thd->variables.wsrep_OSU_method)
     {
     case WSREP_OSU_TOI: wsrep_TOI_end(thd); break;
     case WSREP_OSU_RSU: wsrep_RSU_end(thd); break;
     default:
       WSREP_WARN("Unsupported wsrep OSU method at isolation end: %lu",
-                 thd->wsrep_OSU_method);
+                 thd->variables.wsrep_OSU_method);
       break;
     }
     wsrep_cleanup_transaction(thd);
   }
-  thd->wsrep_OSU_method= WSREP_OSU_NONE;
 }
 
 #define WSREP_MDL_LOG(severity, msg, req, gra)	                               \

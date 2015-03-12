@@ -96,7 +96,6 @@ extern my_bool     wsrep_certify_nonPK;
 extern long        wsrep_max_protocol_version;
 extern long        wsrep_protocol_version;
 extern ulong       wsrep_forced_binlog_format;
-extern ulong       wsrep_OSU_method_options;
 extern my_bool     wsrep_desync;
 extern my_bool     wsrep_recovery;
 extern my_bool     wsrep_replicate_myisam;
