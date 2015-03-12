@@ -502,6 +502,10 @@ NULLIF(TIMESTAMP'2001-01-01 00:00:00',1.0),
 NULLIF(TIMESTAMP'2001-01-01 00:00:00',1e0),
 NULLIF(TIMESTAMP'2001-01-01 00:00:00','2001-01-01'),
 NULLIF(TIMESTAMP'2001-01-01 00:00:00',TIME'00:00:00');
+Warnings:
+Warning	1292	Incorrect datetime value: '1'
+Warning	1292	Incorrect datetime value: '1.0'
+Warning	1292	Incorrect datetime value: '1'
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -518,6 +522,10 @@ NULLIF(DATE'2001-01-01',1.0),
 NULLIF(DATE'2001-01-01',1e0),
 NULLIF(DATE'2001-01-01','2001-01-01'),
 NULLIF(DATE'2001-01-01',TIME'00:00:00');
+Warnings:
+Warning	1292	Incorrect datetime value: '1'
+Warning	1292	Incorrect datetime value: '1.0'
+Warning	1292	Incorrect datetime value: '1'
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -1348,6 +1356,38 @@ t2	CREATE TABLE `t2` (
   `NULLIF(TIME'10:10:10',  c_time)` time DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t2;
+DROP TABLE t1;
+#
+# MDEV-7759 NULLIF(x,y) is not equal to CASE WHEN x=y THEN NULL ELSE x END
+#
+CREATE TABLE t1 (a YEAR);
+INSERT INTO t1 VALUES (2010),(2020);
+SELECT * FROM t1 WHERE a=2010 AND NULLIF(10.1,a) IS NULL;
+a
+2010
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=2010 AND NULLIF(10.1,a) IS NULL;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where ((`test`.`t1`.`a` = 2010) and 1)
+SELECT * FROM t1 WHERE a=2010 AND CASE WHEN 10.1=a THEN NULL ELSE 10.1 END IS NULL;
+a
+2010
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=2010 AND CASE WHEN 10.1=a THEN NULL ELSE 10.1 END IS NULL;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where ((`test`.`t1`.`a` = 2010) and 1)
+DROP TABLE t1;
+# Two warnings expected
+CREATE TABLE t1 AS SELECT
+NULLIF(TIMESTAMP'2001-01-01 00:00:00',1) AS a,
+CASE WHEN TIMESTAMP'2001-01-01 00:00:00'=1 THEN NULL
+ELSE TIMESTAMP'2001-01-01 00:00:00'
+  END AS b;
+Warnings:
+Warning	1292	Incorrect datetime value: '1'
+Warning	1292	Incorrect datetime value: '1'
 DROP TABLE t1;
 #
 # End of 10.1 tests

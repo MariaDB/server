@@ -66,10 +66,11 @@ public:
   Arg_comparator(Item **a1, Item **a2): a(a1), b(a2),  set_null(TRUE),
     comparators(0), thd(0), a_cache(0), b_cache(0) {};
 
+private:
   int set_cmp_func(Item_result_field *owner_arg,
 			  Item **a1, Item **a2,
 			  Item_result type);
-
+public:
   inline int set_cmp_func(Item_result_field *owner_arg,
 			  Item **a1, Item **a2, bool set_null_arg)
   {

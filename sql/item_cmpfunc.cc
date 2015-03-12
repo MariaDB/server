@@ -552,6 +552,26 @@ void Item_func::convert_const_compared_to_int_field(THD *thd)
 }
 
 
+bool Item_func::setup_args_and_comparator(THD *thd, Arg_comparator *cmp)
+{
+  DBUG_ASSERT(arg_count == 2);
+
+  if (args[0]->cmp_type() == STRING_RESULT &&
+      args[1]->cmp_type() == STRING_RESULT &&
+      agg_arg_charsets_for_comparison(cmp->cmp_collation, args, 2))
+      return true;
+
+  args[0]->cmp_context= args[1]->cmp_context=
+    item_cmp_type(args[0]->result_type(), args[1]->result_type());
+
+  //  Convert constants when compared to int/year field, unless this is LIKE
+  if (functype() != LIKE_FUNC)
+    convert_const_compared_to_int_field(thd);
+
+  return cmp->set_cmp_func(this, tmp_arg, tmp_arg + 1, true);
+}
+
+
 void Item_bool_func2::fix_length_and_dec()
 {
   max_length= 1;				     // Function returns 0 or 1
@@ -562,32 +582,7 @@ void Item_bool_func2::fix_length_and_dec()
   */
   if (!args[0] || !args[1])
     return;
-
-  /* 
-    We allow to convert to Unicode character sets in some cases.
-    The conditions when conversion is possible are:
-    - arguments A and B have different charsets
-    - A wins according to coercibility rules
-    - character set of A is superset for character set of B
-   
-    If all of the above is true, then it's possible to convert
-    B into the character set of A, and then compare according
-    to the collation of A.
-  */
-
-  DTCollation coll;
-  if (args[0]->cmp_type() == STRING_RESULT &&
-      args[1]->cmp_type() == STRING_RESULT &&
-      agg_arg_charsets_for_comparison(coll, args, 2))
-    return;
-    
-  args[0]->cmp_context= args[1]->cmp_context=
-    item_cmp_type(args[0]->result_type(), args[1]->result_type());
-
-  //  Convert constants when compared to int/year field, unless this is LIKE
-  if (functype() != LIKE_FUNC)
-    convert_const_compared_to_int_field(current_thd);
-  set_cmp_func();
+  setup_args_and_comparator(current_thd, &cmp);
 }
 
 
@@ -2760,12 +2755,8 @@ Item_func_nullif::fix_length_and_dec()
   decimals= m_args0_copy->decimals;
   unsigned_flag= m_args0_copy->unsigned_flag;
   fix_char_length(m_args0_copy->max_char_length());
-
-  convert_const_compared_to_int_field(current_thd);
-  m_args0_copy->cmp_context= args[1]->cmp_context=
-    item_cmp_type(m_args0_copy->result_type(), args[1]->result_type());
-  cmp.set_cmp_func(this, tmp_arg, tmp_arg + 1, m_args0_copy->cmp_context);
   maybe_null=1;
+  setup_args_and_comparator(current_thd, &cmp);
 }
 
 
