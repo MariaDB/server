@@ -294,7 +294,7 @@ public:
 };
 
 
-class Item_func_spatial_rel: public Item_int_func
+class Item_func_spatial_rel: public Item_bool_func
 {
   enum Functype spatial_rel;
   Gcalc_heap collector;
@@ -317,9 +317,7 @@ public:
     Item_func::print(str, query_type);
   }
 
-  void fix_length_and_dec() { maybe_null= 1; }
   bool is_null() { (void) val_int(); return null_value; }
-  bool is_bool_func() { return 1; }
   uint decimal_precision() const { return 1; }
   optimize_type select_optimize() const { return OPTIMIZE_OP; }
 };

@@ -128,7 +128,7 @@ public:
   Item_bool_func(Item *a, Item *b, Item *c) :Item_int_func(a, b, c) {}
   Item_bool_func(List<Item> &list) :Item_int_func(list) { }
   Item_bool_func(THD *thd, Item_bool_func *item) :Item_int_func(thd, item) {}
-  bool is_bool_func() { return 1; }
+  bool is_bool_type() { return true; }
   void fix_length_and_dec() { decimals=0; max_length=1; }
   uint decimal_precision() const { return 1; }
 };
@@ -847,7 +847,6 @@ public:
   longlong int_op();
   String *str_op(String *str);
   my_decimal *decimal_op(my_decimal *);
-  bool is_bool_func() { return false; }
   void fix_length_and_dec();
   uint decimal_precision() const { return m_args0_copy->decimal_precision(); }
   const char *func_name() const { return "nullif"; }

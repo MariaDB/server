@@ -1463,3 +1463,7 @@ create table t1(g GEOMETRY(9,4) REF_SYSTEM_ID=101, pt POINT(8,2), pg GEOMETRY RE
 SELECT SRID from information_schema.geometry_columns WHERE G_TABLE_NAME='t1';
 drop table t1;
 
+-- echo # Expect an int(1) column to be created
+CREATE TABLE t1 AS SELECT CONTAINS(NULL, NULL);
+SHOW CREATE TABLE t1;
+DROP TABLE t1;

@@ -1732,3 +1732,11 @@ SRID
 0
 102
 drop table t1;
+# Expect an int(1) column to be created
+CREATE TABLE t1 AS SELECT CONTAINS(NULL, NULL);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `CONTAINS(NULL, NULL)` int(1) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;

@@ -1001,14 +1001,14 @@ longlong Item_func_spatial_mbr_rel::val_int()
 
 Item_func_spatial_rel::Item_func_spatial_rel(Item *a,Item *b,
                                              enum Functype sp_rel) :
-    Item_int_func(a,b), collector()
+    Item_bool_func(a,b), collector()
 {
   spatial_rel = sp_rel;
 }
 
 
 Item_func_spatial_rel::Item_func_spatial_rel(Item *a,Item *b, Item *mask) :
-    Item_int_func(a,b,mask), spatial_rel(SP_RELATE_FUNC)
+    Item_bool_func(a,b,mask), spatial_rel(SP_RELATE_FUNC)
 {}
 
 
