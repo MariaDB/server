@@ -27,9 +27,6 @@ Created April 08, 2011 Vasil Dimov
 
 #include <stdarg.h> /* va_* */
 #include <string.h> /* strerror() */
-#ifdef HAVE_SYSTEMD
-#include <systemd/sd-daemon.h>
-#endif
 
 #include "buf0buf.h" /* buf_pool_mutex_enter(), srv_buf_pool_instances */
 #include "buf0dump.h"
@@ -201,10 +198,6 @@ buf_dump(
 
 	buf_dump_status(STATUS_NOTICE, "Dumping buffer pool(s) to %s",
 			full_filename);
-#ifdef HAVE_SYSTEMD
-	sd_notifyf(0, "STATUS=Dumping buffer pool(s) to %s", full_filename);
-#endif
-
 
 	f = fopen(tmp_filename, "w");
 	if (f == NULL) {
@@ -329,9 +322,6 @@ buf_dump(
 
 	buf_dump_status(STATUS_NOTICE,
 			"Buffer pool(s) dump completed at %s", now);
-#ifdef HAVE_SYSTEMD
-	sd_notifyf(0, "STATUS=Buffer pool(s) dump completed at %s", full_filename);
-#endif
 }
 
 /*****************************************************************//**
