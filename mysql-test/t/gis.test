@@ -6,7 +6,7 @@
 #
 
 --disable_warnings
-DROP TABLE IF EXISTS t1, gis_point, gis_line, gis_polygon, gis_multi_point, gis_multi_line, gis_multi_polygon, gis_geometrycollection, gis_geometry;
+DROP TABLE IF EXISTS t1, t2, t3, gis_point, gis_line, gis_polygon, gis_multi_point, gis_multi_line, gis_multi_polygon, gis_geometrycollection, gis_geometry;
 --enable_warnings
 
 CREATE TABLE gis_point  (fid INTEGER NOT NULL PRIMARY KEY, g POINT);
@@ -1467,3 +1467,22 @@ drop table t1;
 CREATE TABLE t1 AS SELECT CONTAINS(NULL, NULL);
 SHOW CREATE TABLE t1;
 DROP TABLE t1;
+
+
+--echo #
+--echo # MDEV-7334 valgrind warning "unitialized bytes" in 10.1.
+--echo #
+CREATE TABLE t1 (
+  gp  point,
+  ln  linestring,
+  pg  polygon,
+  mp  multipoint,
+  mln multilinestring,
+  mpg multipolygon,
+  gc  geometrycollection,
+  gm  geometry
+);
+ALTER TABLE t1 ADD fid INT NOT NULL;
+select SRID from information_schema.geometry_columns where F_TABLE_NAME='t1';
+drop table t1;
+

@@ -9902,6 +9902,7 @@ Create_field::Create_field(Field *old_field,Field *orig_field)
 #ifdef HAVE_SPATIAL
   case MYSQL_TYPE_GEOMETRY:
     geom_type= ((Field_geom*)old_field)->geom_type;
+    srid= ((Field_geom*)old_field)->srid;
     break;
 #endif
   case MYSQL_TYPE_YEAR:
