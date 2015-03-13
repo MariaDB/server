@@ -1545,7 +1545,10 @@ commit_one_phase_2(THD *thd, bool all, THD_TRANS *trans, bool is_real_trans)
   }
   /* Free resources and perform other cleanup even for 'empty' transactions. */
   if (is_real_trans)
+  {
+    thd->has_waiter= false;
     thd->transaction.cleanup();
+  }
 
   DBUG_RETURN(error);
 }
@@ -1626,7 +1629,10 @@ int ha_rollback_trans(THD *thd, bool all)
 
   /* Always cleanup. Even if nht==0. There may be savepoints. */
   if (is_real_trans)
+  {
+    thd->has_waiter= false;
     thd->transaction.cleanup();
+  }
   if (all)
     thd->transaction_rollback_request= FALSE;
 

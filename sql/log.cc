@@ -7029,6 +7029,14 @@ MYSQL_BIN_LOG::queue_for_group_commit(group_commit_entry *orig_entry)
       }
     }
 
+    /*
+      Handle the heuristics that if another transaction is waiting for this
+      transaction (or if it does so later), then we want to trigger group
+      commit immediately, without waiting for the binlog_commit_wait_usec
+      timeout to expire.
+    */
+    entry->thd->waiting_on_group_commit= true;
+
     /* Add the entry to the group commit queue. */
     next_entry= entry->next;
     entry->next= group_commit_queue;
@@ -7044,7 +7052,7 @@ MYSQL_BIN_LOG::queue_for_group_commit(group_commit_entry *orig_entry)
     cur= entry->thd->wait_for_commit_ptr;
   }
 
-  if (opt_binlog_commit_wait_count > 0)
+  if (opt_binlog_commit_wait_count > 0 && orig_queue != NULL)
     mysql_cond_signal(&COND_prepare_ordered);
   mysql_mutex_unlock(&LOCK_prepare_ordered);
   DEBUG_SYNC(orig_entry->thd, "commit_after_release_LOCK_prepare_ordered");
@@ -7218,6 +7226,11 @@ MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader)
     while (current)
     {
       group_commit_entry *next= current->next;
+      /*
+        Now that group commit is started, we can clear the flag; there is no
+        longer any use in waiters on this commit trying to trigger it early.
+      */
+      current->thd->waiting_on_group_commit= false;
       current->next= queue;
       queue= current;
       current= next;
@@ -7530,7 +7543,7 @@ MYSQL_BIN_LOG::wait_for_sufficient_commits()
   mysql_mutex_assert_owner(&LOCK_prepare_ordered);
 
   for (e= last_head= group_commit_queue, count= 0; e; e= e->next)
-    if (++count >= opt_binlog_commit_wait_count)
+    if (++count >= opt_binlog_commit_wait_count || unlikely(e->thd->has_waiter))
       return;
 
   mysql_mutex_unlock(&LOCK_log);
@@ -7545,13 +7558,20 @@ MYSQL_BIN_LOG::wait_for_sufficient_commits()
                               &wait_until);
     if (err == ETIMEDOUT)
       break;
+    if (unlikely(last_head->thd->has_waiter))
+      break;
     head= group_commit_queue;
     for (e= head; e && e != last_head; e= e->next)
+    {
       ++count;
+      if (unlikely(e->thd->has_waiter))
+        goto after_loop;
+    }
     if (count >= opt_binlog_commit_wait_count)
       break;
     last_head= head;
   }
+after_loop:
 
   /*
     We must not wait for LOCK_log while holding LOCK_prepare_ordered.
@@ -7572,6 +7592,42 @@ MYSQL_BIN_LOG::wait_for_sufficient_commits()
     mysql_mutex_lock(&LOCK_log);
     mysql_mutex_lock(&LOCK_prepare_ordered);
   }
+}
+
+
+void
+MYSQL_BIN_LOG::binlog_trigger_immediate_group_commit()
+{
+  group_commit_entry *head;
+  mysql_mutex_lock(&LOCK_prepare_ordered);
+  head= group_commit_queue;
+  if (head)
+  {
+    head->thd->has_waiter= true;
+    mysql_cond_signal(&COND_prepare_ordered);
+  }
+  mysql_mutex_unlock(&LOCK_prepare_ordered);
+}
+
+
+/*
+  This function is called when a transaction T1 goes to wait for another
+  transaction T2. It is used to cut short any binlog group commit delay from
+  --binlog-commit-wait-count in the case where another transaction is stalled
+  on the wait due to conflicting row locks.
+
+  If T2 is already ready to group commit, any waiting group commit will be
+  signalled to proceed immediately. Otherwise, a flag will be set in T2, and
+  when T2 later becomes ready, immediate group commit will be triggered.
+*/
+void
+binlog_report_wait_for(THD *thd1, THD *thd2)
+{
+  if (opt_binlog_commit_wait_count == 0)
+    return;
+  thd2->has_waiter= true;
+  if (thd2->waiting_on_group_commit)
+    mysql_bin_log.binlog_trigger_immediate_group_commit();
 }
 
 

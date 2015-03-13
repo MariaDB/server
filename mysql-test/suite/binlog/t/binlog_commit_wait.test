@@ -1,0 +1,123 @@
+--source include/have_innodb.inc
+--source include/have_log_bin.inc
+
+ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
+CREATE TABLE t1 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
+
+SET @old_count= @@GLOBAL.binlog_commit_wait_count;
+SET GLOBAL binlog_commit_wait_count= 3;
+SET @old_usec= @@GLOBAL.binlog_commit_wait_usec;
+SET GLOBAL binlog_commit_wait_usec= 20000000;
+
+connect(con1,localhost,root,,test);
+connect(con2,localhost,root,,test);
+connect(con3,localhost,root,,test);
+
+# Check that if T2 goes to wait for a row lock of T1 while T1 is waiting for
+# more transactions to arrive for group commit, the commit of T1 will complete
+# immediately.
+# We test this by setting a very high timeout (20 seconds), and testing that
+# that much time does not elapse.
+
+--connection default
+SET @a= current_timestamp();
+
+--connection con1
+BEGIN;
+INSERT INTO t1 VALUES (1,0);
+send COMMIT;
+
+--connection con2
+send INSERT INTO t1 VALUES (1,1);
+
+--connection con1
+reap;
+
+--connection default
+SET @b= unix_timestamp(current_timestamp()) - unix_timestamp(@a);
+SELECT IF(@b < 20, "Ok", CONCAT("Error: too much time elapsed: ", @b, " seconds >= 20"));
+
+--connection con2
+--error ER_DUP_ENTRY
+reap;
+
+
+# Test that the commit triggers when sufficient commits have queued up.
+--connection default
+SET @a= current_timestamp();
+
+--connection con1
+send INSERT INTO t1 VALUES (2,0);
+
+--connection con2
+send INSERT INTO t1 VALUES (3,0);
+
+--connection con3
+INSERT INTO t1 VALUES (4,0);
+
+--connection con1
+reap;
+--connection con2
+reap;
+
+--connection default
+SET @b= unix_timestamp(current_timestamp()) - unix_timestamp(@a);
+SELECT IF(@b < 20, "Ok", CONCAT("Error: too much time elapsed: ", @b, " seconds >= 20"));
+
+
+# Test that commit triggers immediately if there is already a transaction
+# waiting on another transaction that reaches its commit.
+
+--connection default
+SET @a= current_timestamp();
+
+--connection con1
+send INSERT INTO t1 VALUES (6,0);
+
+--connection con2
+BEGIN;
+UPDATE t1 SET b=b+1 WHERE a=1;
+
+--connection con3
+send UPDATE t1 SET b=b+10 WHERE a=1;
+
+--connection con2
+# A small sleep to let con3 have time to wait on con2.
+# The sleep might be too small on loaded host, but that is not a big problem;
+# it only means we will trigger a different code path (con3 waits after con2
+# is ready to commit rather than before); and either path should work the same.
+# So we will not get false positive in case of different timing; at worst false
+# negative.
+SELECT SLEEP(0.25);
+UPDATE t1 SET b=b+1 WHERE a=3;
+COMMIT;
+
+--connection con1
+reap;
+
+--connection default
+SET @b= unix_timestamp(current_timestamp()) - unix_timestamp(@a);
+SELECT IF(@b < 20, "Ok", CONCAT("Error: too much time elapsed: ", @b, " seconds >= 20"));
+
+--connection default
+SET @a= current_timestamp();
+
+# Now con3 will be waiting for a following group commit to trigger.
+--connection con1
+send INSERT INTO t1 VALUES (7,0);
+--connection con2
+INSERT INTO t1 VALUES (8,0);
+--connection con3
+reap;
+
+--connection default
+SET @b= unix_timestamp(current_timestamp()) - unix_timestamp(@a);
+SELECT IF(@b < 20, "Ok", CONCAT("Error: too much time elapsed: ", @b, " seconds >= 20"));
+
+--connection default
+SELECT * FROM t1 ORDER BY a;
+
+--connection default
+DROP TABLE t1;
+SET GLOBAL binlog_commit_wait_count= @old_count;
+SET GLOBAL binlog_commit_wait_usec= @old_usec;

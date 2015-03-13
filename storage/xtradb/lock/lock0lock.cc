@@ -375,7 +375,7 @@ struct lock_stack_t {
 	ulint		heap_no;		/*!< heap number if rec lock */
 };
 
-extern "C" void thd_report_wait_for(const MYSQL_THD thd, MYSQL_THD other_thd);
+extern "C" void thd_report_wait_for(MYSQL_THD thd, MYSQL_THD other_thd);
 extern "C" int thd_need_wait_for(const MYSQL_THD thd);
 extern "C"
 int thd_need_ordering_with(const MYSQL_THD thd, const MYSQL_THD other_thd);

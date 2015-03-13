@@ -887,6 +887,7 @@ THD::THD()
    in_lock_tables(0),
    bootstrap(0),
    derived_tables_processing(FALSE),
+   waiting_on_group_commit(FALSE), has_waiter(FALSE),
    spcont(NULL),
    m_parser_state(NULL),
 #if defined(ENABLED_DEBUG_SYNC)
@@ -4233,6 +4234,8 @@ thd_need_wait_for(const MYSQL_THD thd)
 {
   rpl_group_info *rgi;
 
+  if (mysql_bin_log.is_open() && opt_binlog_commit_wait_count > 0)
+    return true;
   if (!thd)
     return false;
   rgi= thd->rgi_slave;
@@ -4267,13 +4270,14 @@ thd_need_wait_for(const MYSQL_THD thd)
   not harmful, but could lead to unnecessary kill and retry, so best avoided).
 */
 extern "C" void
-thd_report_wait_for(const MYSQL_THD thd, MYSQL_THD other_thd)
+thd_report_wait_for(MYSQL_THD thd, MYSQL_THD other_thd)
 {
   rpl_group_info *rgi;
   rpl_group_info *other_rgi;
 
   if (!thd || !other_thd)
     return;
+  binlog_report_wait_for(thd, other_thd);
   rgi= thd->rgi_slave;
   other_rgi= other_thd->rgi_slave;
   if (!rgi || !other_rgi)
