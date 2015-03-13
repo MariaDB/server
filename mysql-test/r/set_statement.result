@@ -1128,8 +1128,6 @@ set statement rand_seed2=default for select 1;
 ERROR 42000: The system variable rand_seed2 cannot be set in SET STATEMENT.
 set statement skip_replication=default for select 1;
 ERROR 42000: The system variable skip_replication cannot be set in SET STATEMENT.
-set statement last_insert_id=1 for select 1;
-ERROR 42000: The system variable last_insert_id cannot be set in SET STATEMENT.
 set statement sql_log_off=default for select 1;
 ERROR 42000: The system variable sql_log_off cannot be set in SET STATEMENT.
 set statement character_set_client=default for select 1;

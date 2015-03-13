@@ -1056,8 +1056,6 @@ set statement rand_seed2=default for select 1;
 --error ER_SET_STATEMENT_NOT_SUPPORTED
 set statement skip_replication=default for select 1;
 --error ER_SET_STATEMENT_NOT_SUPPORTED
-set statement last_insert_id=1 for select 1;
---error ER_SET_STATEMENT_NOT_SUPPORTED
 set statement sql_log_off=default for select 1;
 --error ER_SET_STATEMENT_NOT_SUPPORTED
 set statement character_set_client=default for select 1;
