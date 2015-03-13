@@ -7487,7 +7487,7 @@ static int show_queries(THD *thd, SHOW_VAR *var, char *buff,
                         enum enum_var_type scope)
 {
   var->type= SHOW_LONGLONG;
-  var->value= (char *)&thd->query_id;
+  var->value= &thd->query_id;
   return 0;
 }
 
@@ -7496,7 +7496,7 @@ static int show_net_compression(THD *thd, SHOW_VAR *var, char *buff,
                                 enum enum_var_type scope)
 {
   var->type= SHOW_MY_BOOL;
-  var->value= (char *)&thd->net.compress;
+  var->value= &thd->net.compress;
   return 0;
 }
 
@@ -7848,7 +7848,7 @@ static int show_ssl_get_version(THD *thd, SHOW_VAR *var, char *buff,
   if( thd->vio_ok() && thd->net.vio->ssl_arg )
     var->value= const_cast<char*>(SSL_get_version((SSL*) thd->net.vio->ssl_arg));
   else
-    var->value= (char *)"";
+    var->value= const_cast<char*>("");
   return 0;
 }
 
@@ -7907,7 +7907,7 @@ static int show_ssl_get_cipher(THD *thd, SHOW_VAR *var, char *buff,
   if( thd->vio_ok() && thd->net.vio->ssl_arg )
     var->value= const_cast<char*>(SSL_get_cipher((SSL*) thd->net.vio->ssl_arg));
   else
-    var->value= (char *)"";
+    var->value= const_cast<char*>("");
   return 0;
 }
 
@@ -8055,14 +8055,14 @@ static int show_default_keycache(THD *thd, SHOW_VAR *var, char *buff,
   v= data->var;
 
   var->type= SHOW_ARRAY;
-  var->value= (char*)v;
+  var->value= v;
 
   get_key_cache_statistics(dflt_key_cache, 0, &data->stats);
 
 #define set_one_keycache_var(X,Y)       \
   v->name= X;                           \
   v->type= SHOW_LONGLONG;               \
-  v->value= (char*)&data->stats.Y;      \
+  v->value= &data->stats.Y;      \
   v++;
 
   set_one_keycache_var("blocks_not_flushed", blocks_changed);
@@ -8116,11 +8116,11 @@ static int debug_status_func(THD *thd, SHOW_VAR *var, char *buff,
   if (_db_keyword_(0, "role_merge_stats", 1))
   {
     static SHOW_VAR roles[]= {
-      {"global",  (char*) &role_global_merges,  SHOW_ULONG},
-      {"db",      (char*) &role_db_merges,      SHOW_ULONG},
-      {"table",   (char*) &role_table_merges,   SHOW_ULONG},
-      {"column",  (char*) &role_column_merges,  SHOW_ULONG},
-      {"routine", (char*) &role_routine_merges, SHOW_ULONG},
+      {"global",  &role_global_merges,  SHOW_ULONG},
+      {"db",      &role_db_merges,      SHOW_ULONG},
+      {"table",   &role_table_merges,   SHOW_ULONG},
+      {"column",  &role_column_merges,  SHOW_ULONG},
+      {"routine", &role_routine_merges, SHOW_ULONG},
       {NullS, NullS, SHOW_LONG}
     };
 
