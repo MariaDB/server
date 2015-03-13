@@ -187,7 +187,7 @@ static const uchar sort_order_sjis[]=
 #define MY_FUNCTION_NAME(x)   my_ ## x ## _sjis
 #define IS_8BIT_CHAR(x)       issjiskata(x)
 #define IS_MB2_CHAR(x,y)      (issjishead(x) && issjistail(y))
-#define WELL_FORMED_LEN
+#define DEFINE_ASIAN_ROUTINES
 #include "ctype-mb.ic"
 
 
@@ -34144,7 +34144,9 @@ static MY_CHARSET_HANDLER my_charset_handler=
   my_strtoll10_8bit,
   my_strntoull10rnd_8bit,
   my_scan_8bit,
-  my_copy_abort_mb,
+  my_charlen_sjis,
+  my_well_formed_char_length_sjis,
+  my_copy_fix_mb,
 };
 
 

@@ -922,8 +922,8 @@ String_copier::well_formed_copy(CHARSET_INFO *to_cs,
       my_charset_same(from_cs, to_cs))
   {
     m_cannot_convert_error_pos= NULL;
-    return to_cs->cset->copy_abort(to_cs, to, to_length, from, from_length,
-                                   nchars, this);
+    return to_cs->cset->copy_fix(to_cs, to, to_length, from, from_length,
+                                 nchars, this);
   }
   else
   {

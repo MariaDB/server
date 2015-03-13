@@ -5446,8 +5446,8 @@ int my_wildcmp_utf8(CHARSET_INFO *cs,
 
 
 static
-int my_valid_mbcharlen_utf8(CHARSET_INFO *cs __attribute__((unused)),
-                            const uchar *s, const uchar *e)
+int my_charlen_utf8(CHARSET_INFO *cs __attribute__((unused)),
+                    const uchar *s, const uchar *e)
 {
   uchar c;
 
@@ -5515,7 +5515,7 @@ my_well_formed_len_utf8(CHARSET_INFO *cs, const char *b, const char *e,
   {
     int mb_len;
 
-    if ((mb_len= my_valid_mbcharlen_utf8(cs, (uchar*) b, (uchar*) e)) <= 0)
+    if ((mb_len= my_charlen_utf8(cs, (uchar*) b, (uchar*) e)) <= 0)
     {
       *error= b < e ? 1 : 0;
       break;
@@ -5526,9 +5526,20 @@ my_well_formed_len_utf8(CHARSET_INFO *cs, const char *b, const char *e,
   return (size_t) (b - b_start);
 }
 
+
+#define MY_FUNCTION_NAME(x)       my_ ## x ## _utf8
+#define CHARLEN(cs,str,end)       my_charlen_utf8(cs,str,end)
+#define DEFINE_WELL_FORMED_CHAR_LENGTH_USING_CHARLEN
+#include "ctype-mb.ic"
+#undef MY_FUNCTION_NAME
+#undef CHARLEN
+#undef DEFINE_WELL_FORMED_CHAR_LENGTH_USING_CHARLEN
+/* my_well_formed_char_length_utf8 */
+
+
 static uint my_ismbchar_utf8(CHARSET_INFO *cs,const char *b, const char *e)
 {
-  int  res= my_valid_mbcharlen_utf8(cs, (const uchar*)b, (const uchar*)e);
+  int  res= my_charlen_utf8(cs, (const uchar*) b, (const uchar*) e);
   return (res>1) ? res : 0;
 }
 
@@ -5615,7 +5626,9 @@ MY_CHARSET_HANDLER my_charset_utf8_handler=
     my_strtoll10_8bit,
     my_strntoull10rnd_8bit,
     my_scan_8bit,
-    my_copy_abort_mb,
+    my_charlen_utf8,
+    my_well_formed_char_length_utf8,
+    my_copy_fix_mb,
 };
 
 
@@ -7125,6 +7138,24 @@ my_wc_mb_filename(CHARSET_INFO *cs __attribute__((unused)),
 }
 
 
+static int
+my_charlen_filename(CHARSET_INFO *cs, const uchar *str, const uchar *end)
+{
+  my_wc_t wc;
+  return cs->cset->mb_wc(cs, &wc, str, end);
+}
+
+
+#define MY_FUNCTION_NAME(x)       my_ ## x ## _filename
+#define CHARLEN(cs,str,end)       my_charlen_filename(cs,str,end)
+#define DEFINE_WELL_FORMED_CHAR_LENGTH_USING_CHARLEN
+#include "ctype-mb.ic"
+#undef MY_FUNCTION_NAME
+#undef CHARLEN
+#undef DEFINE_WELL_FORMED_CHAR_LENGTH_USING_CHARLEN
+/* my_well_formed_char_length_filename */
+
+
 static MY_COLLATION_HANDLER my_collation_filename_handler =
 {
     NULL,               /* init */
@@ -7169,7 +7200,9 @@ static MY_CHARSET_HANDLER my_charset_filename_handler=
     my_strtoll10_8bit,
     my_strntoull10rnd_8bit,
     my_scan_8bit,
-    my_copy_abort_mb,
+    my_charlen_filename,
+    my_well_formed_char_length_filename,
+    my_copy_fix_mb,
 };
 
 
@@ -7954,8 +7987,8 @@ my_wildcmp_utf8mb4(CHARSET_INFO *cs,
 
 
 static int
-my_valid_mbcharlen_utf8mb4(CHARSET_INFO *cs __attribute__((unused)),
-                           const uchar *s, const uchar *e)
+my_charlen_utf8mb4(CHARSET_INFO *cs __attribute__((unused)),
+                   const uchar *s, const uchar *e)
 {
   uchar c;
 
@@ -8015,7 +8048,7 @@ size_t my_well_formed_len_utf8mb4(CHARSET_INFO *cs,
   {
     int mb_len;
 
-    if ((mb_len= my_valid_mbcharlen_utf8mb4(cs, (uchar*) b, (uchar*) e)) <= 0)
+    if ((mb_len= my_charlen_utf8mb4(cs, (uchar*) b, (uchar*) e)) <= 0)
     {
       *error= b < e ? 1 : 0;
       break;
@@ -8027,10 +8060,19 @@ size_t my_well_formed_len_utf8mb4(CHARSET_INFO *cs,
 }
 
 
+#define MY_FUNCTION_NAME(x)       my_ ## x ## _utf8mb4
+#define CHARLEN(cs,str,end)       my_charlen_utf8mb4(cs,str,end)
+#define DEFINE_WELL_FORMED_CHAR_LENGTH_USING_CHARLEN
+#include "ctype-mb.ic"
+#undef MY_FUNCTION_NAME
+#undef CHARLEN
+#undef DEFINE_WELL_FORMED_CHAR_LENGTH_USING_CHARLEN
+/* my_well_formed_char_length_utf8mb4 */
+
 static uint
 my_ismbchar_utf8mb4(CHARSET_INFO *cs, const char *b, const char *e)
 {
-  int res= my_valid_mbcharlen_utf8mb4(cs, (const uchar*)b, (const uchar*)e);
+  int res= my_charlen_utf8mb4(cs, (const uchar*) b, (const uchar*) e);
   return (res > 1) ? res : 0;
 }
 
@@ -8113,7 +8155,9 @@ MY_CHARSET_HANDLER my_charset_utf8mb4_handler=
   my_strtoll10_8bit,
   my_strntoull10rnd_8bit,
   my_scan_8bit,
-  my_copy_abort_mb,
+  my_charlen_utf8mb4,
+  my_well_formed_char_length_utf8mb4,
+  my_copy_fix_mb,
 };
 
 

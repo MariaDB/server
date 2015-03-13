@@ -444,22 +444,64 @@ struct my_charset_handler_st
   size_t        (*scan)(CHARSET_INFO *, const char *b, const char *e,
                         int sq);
 
-  /* Copying routines */
+  /* String copying routines and helpers for them */
   /*
-    copy_abort() - copy a string, abort if a bad byte sequence was found.
+    charlen() - calculate length of the left-most character in bytes.
+    @param  cs    Character set
+    @param  str   The beginning of the string
+    @param  end   The end of the string
+    
+    @return       MY_CS_ILSEQ if a bad byte sequence was found.
+    @return       MY_CS_TOOSMALLN(x) if the string ended unexpectedly.
+    @return       a positive number in the range 1..mbmaxlen,
+                  if a valid character was found.
+  */
+  int (*charlen)(CHARSET_INFO *cs, const uchar *str, const uchar *end);
+  /*
+    well_formed_char_length() - returns character length of a string.
+    
+    @param cs          Character set
+    @param str         The beginning of the string
+    @param end         The end of the string
+    @param nchars      Not more than "nchars" left-most characters are checked.
+    @param status[OUT] Additional statistics is returned here.
+                       "status" can be uninitialized before the call,
+                       and it is fully initialized after the call.
+    
+    status->m_source_end_pos is set to the position where reading stopped.
+    
+    If a bad byte sequence is found, the function returns immediately and
+    status->m_well_formed_error_pos is set to the position where a bad byte
+    sequence was found.
+    
+    status->m_well_formed_error_pos is set to NULL if no bad bytes were found.
+    If status->m_well_formed_error_pos is NULL after the call, that means:
+    - either the function reached the end of the string,
+    - or all "nchars" characters were read.
+    The caller can check status->m_source_end_pos to detect which of these two
+    happened.
+  */
+  size_t (*well_formed_char_length)(CHARSET_INFO *cs,
+                                    const char *str, const char *end,
+                                    size_t nchars,
+                                    MY_STRCOPY_STATUS *status);
+
+  /*
+    copy_fix() - copy a string, replace bad bytes to '?'.
     Not more than "nchars" characters are copied.
 
     status->m_source_end_pos is set to a position in the range
-    between "src" and "src + src_length".
+    between "src" and "src + src_length", where reading stopped.
 
     status->m_well_formed_error_pos is set to NULL if the string
     in the range "src" and "status->m_source_end_pos" was well formed,
-    or is set to "src + src_length" otherwise.
+    or is set to a position between "src" and "src + src_length" where
+    the leftmost bad byte sequence was found.
   */
-  size_t  (*copy_abort)(CHARSET_INFO *,
-                        char *dst, size_t dst_length,
-                        const char *src, size_t src_length,
-                        size_t nchars, MY_STRCOPY_STATUS *status);
+  size_t  (*copy_fix)(CHARSET_INFO *,
+                      char *dst, size_t dst_length,
+                      const char *src, size_t src_length,
+                      size_t nchars, MY_STRCOPY_STATUS *status);
 };
 
 extern MY_CHARSET_HANDLER my_charset_8bit_handler;
@@ -596,10 +638,10 @@ size_t my_copy_8bit(CHARSET_INFO *,
                     char *dst, size_t dst_length,
                     const char *src, size_t src_length,
                     size_t nchars, MY_STRCOPY_STATUS *);
-size_t my_copy_abort_mb(CHARSET_INFO *cs,
-                        char *dst, size_t dst_length,
-                        const char *src, size_t src_length,
-                        size_t nchars, MY_STRCOPY_STATUS *);
+size_t my_copy_fix_mb(CHARSET_INFO *cs,
+                      char *dst, size_t dst_length,
+                      const char *src, size_t src_length,
+                      size_t nchars, MY_STRCOPY_STATUS *);
 
 /* Functions for 8bit */
 extern size_t my_caseup_str_8bit(CHARSET_INFO *, char *);
@@ -691,6 +733,11 @@ size_t my_numcells_8bit(CHARSET_INFO *, const char *b, const char *e);
 size_t my_charpos_8bit(CHARSET_INFO *, const char *b, const char *e, size_t pos);
 size_t my_well_formed_len_8bit(CHARSET_INFO *, const char *b, const char *e,
                              size_t pos, int *error);
+size_t my_well_formed_char_length_8bit(CHARSET_INFO *cs,
+                                       const char *b, const char *e,
+                                       size_t nchars,
+                                       MY_STRCOPY_STATUS *status);
+int my_charlen_8bit(CHARSET_INFO *, const uchar *str, const uchar *end);
 uint my_mbcharlen_8bit(CHARSET_INFO *, uint c);
 
 

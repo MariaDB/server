@@ -99,7 +99,7 @@ DROP TEMPORARY TABLE head, tail;
 SHOW CREATE TABLE t1;
 UPDATE t1 SET a=unhex(code) ORDER BY code;
 SELECT COUNT(*) FROM t1;
-SELECT COUNT(*) FROM t1 WHERE a<>'' AND OCTET_LENGTH(a)=1;
+SELECT COUNT(*) FROM t1 WHERE a<>'?' AND OCTET_LENGTH(a)=1;
 SELECT COUNT(*) FROM t1 WHERE a<>'' AND OCTET_LENGTH(a)=2;
 #
 # Display all characters that have upper or lower case mapping.

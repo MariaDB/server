@@ -197,7 +197,7 @@ static const uchar sort_order_ujis[]=
 #define IS_MB2_KATA(x,y)      (isujis_ss2(x)    && iskata(y))
 #define IS_MB2_CHAR(x, y)     (IS_MB2_KATA(x,y) || IS_MB2_JIS(x,y))
 #define IS_MB3_CHAR(x, y, z)  (isujis_ss3(x)    && IS_MB2_JIS(y,z))
-#define WELL_FORMED_LEN
+#define DEFINE_ASIAN_ROUTINES
 #include "ctype-mb.ic"
 
 
@@ -67255,7 +67255,9 @@ static MY_CHARSET_HANDLER my_charset_handler=
     my_strtoll10_8bit,
     my_strntoull10rnd_8bit,
     my_scan_8bit,
-    my_copy_abort_mb,
+    my_charlen_ujis,
+    my_well_formed_char_length_ujis,
+    my_copy_fix_mb,
 };
 
 
