@@ -255,12 +255,12 @@ static int my_aes_encrypt_cbc(const uchar* source, uint32 source_length,
   }
 
   if (noPadding) {
-	if (remaining_bytes!=0) {
-	   memcpy(dest + source_length, source + source_length, remaining_bytes);
-	}
+    if (remaining_bytes!=0) {
+      /* Note that we moved the original pointers above */
+      memcpy(dest, source, remaining_bytes);
+    }
     *dest_length = MY_AES_BLOCK_SIZE * (num_blocks) + remaining_bytes;
     return AES_OK;
-
   }
 
   /* Encode the rest. We always have incomplete block */
@@ -383,12 +383,12 @@ static int my_aes_encrypt_ecb(const uchar* source, uint32 source_length,
   }
 
   if (noPadding) {
-	if (remaining_bytes!=0) {
-	   memcpy(dest + source_length, source + source_length, remaining_bytes);
-	}
-	*dest_length = MY_AES_BLOCK_SIZE * (num_blocks) + remaining_bytes;
+    if (remaining_bytes!=0) {
+      /* Note that we moved the original pointers above */
+      memcpy(dest, source, remaining_bytes);
+    }
+    *dest_length = MY_AES_BLOCK_SIZE * (num_blocks) + remaining_bytes;
     return AES_OK;
-
   }
 
   /* Encode the rest. We always have incomplete block */
@@ -430,7 +430,8 @@ static int my_aes_encrypt_ecb(const uchar* source, uint32 source_length,
   }
   EVP_CIPHER_CTX_key_length(&ctx.ctx);
   OPENSSL_assert(EVP_CIPHER_CTX_key_length(&ctx.ctx) == key_length);
-  OPENSSL_assert(EVP_CIPHER_CTX_iv_length(&ctx.ctx) == iv_length);
+  // ECB does not use IV
+  OPENSSL_assert(EVP_CIPHER_CTX_iv_length(&ctx.ctx) == 0);
   OPENSSL_assert(EVP_CIPHER_CTX_block_size(&ctx.ctx) == 16);
   if (! EVP_EncryptUpdate(&ctx.ctx, (unsigned char *) dest, &u_len,
                           (unsigned const char *) source, source_length))
@@ -438,9 +439,9 @@ static int my_aes_encrypt_ecb(const uchar* source, uint32 source_length,
   if (! EVP_EncryptFinal_ex(&ctx.ctx, (unsigned char *) dest + u_len, &f_len))
     return AES_BAD_DATA;                        /* Error */
 
-  if (remaining_bytes!=0) {
-   	  memcpy(dest + source_length, source + source_length, remaining_bytes);
-     }
+  if (remaining_bytes!=0)
+    memcpy(dest + source_length, source + source_length, remaining_bytes);
+
   *dest_length = (unsigned long int) (u_len + f_len + remaining_bytes);
 
   return AES_OK;
@@ -524,7 +525,8 @@ static int my_aes_decrypt_cbc(const uchar* source, uint32 source_length,
   if (noPadding) {
     memcpy(dest, block, MY_AES_BLOCK_SIZE);
     if (remaining_bytes!=0) {
-            	  memcpy(dest + source_length, source + source_length, remaining_bytes);
+      /* Note that we have moved dest and source */
+      memcpy(dest + MY_AES_BLOCK_SIZE, source + MY_AES_BLOCK_SIZE, remaining_bytes);
     }
     *dest_length = MY_AES_BLOCK_SIZE * num_blocks + remaining_bytes;
     return AES_OK;
@@ -656,7 +658,8 @@ static int my_aes_decrypt_ecb(const uchar* source, uint32 source_length,
   if (noPadding) {
     memcpy(dest, block, MY_AES_BLOCK_SIZE);
     if (remaining_bytes!=0) {
-      memcpy(dest + source_length, source + source_length, remaining_bytes);
+      /* Note that we have moved dest and source */
+      memcpy(dest + MY_AES_BLOCK_SIZE, source + MY_AES_BLOCK_SIZE, remaining_bytes);
     }
     *dest_length = MY_AES_BLOCK_SIZE * num_blocks + remaining_bytes;
     return AES_OK;
@@ -699,7 +702,8 @@ static int my_aes_decrypt_ecb(const uchar* source, uint32 source_length,
     EVP_CIPHER_CTX_set_padding(&ctx.ctx, 0);
   }
   OPENSSL_assert(EVP_CIPHER_CTX_key_length(&ctx.ctx) == key_length);
-  OPENSSL_assert(EVP_CIPHER_CTX_iv_length(&ctx.ctx) == iv_length);
+  // ECB does not use IV
+  OPENSSL_assert(EVP_CIPHER_CTX_iv_length(&ctx.ctx) == 0);
   OPENSSL_assert(EVP_CIPHER_CTX_block_size(&ctx.ctx) == 16);
   if (! EVP_DecryptUpdate(&ctx.ctx, (unsigned char *) dest, &u_len,
                           (unsigned char *)source, source_length))
