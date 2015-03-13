@@ -1136,7 +1136,7 @@ public:
   virtual Item *get_tmp_table_item(THD *thd) { return copy_or_same(thd); }
 
   static CHARSET_INFO *default_charset();
-  virtual CHARSET_INFO *compare_collation() { return NULL; }
+  virtual CHARSET_INFO *compare_collation() const { return NULL; }
 
   /*
     For backward compatibility, to make numeric

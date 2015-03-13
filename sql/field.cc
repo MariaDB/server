@@ -6476,7 +6476,7 @@ bool Field_longstr::can_optimize_group_min_max(const Item_bool_func2 *cond,
     return false;
 
   // Don't use an index when comparing strings of different collations.
-  return charset() ==  ((Item_bool_func2*) cond)->compare_collation();
+  return charset() ==  cond->compare_collation();
 }
 
 

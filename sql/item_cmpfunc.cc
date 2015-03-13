@@ -6279,9 +6279,9 @@ void Item_equal::print(String *str, enum_query_type query_type)
 }
 
 
-CHARSET_INFO *Item_equal::compare_collation()
+CHARSET_INFO *Item_equal::compare_collation() const
 { 
-  Item_equal_fields_iterator it(*this);
+  Item_equal_fields_iterator it(*((Item_equal*) this));
   Item *item= it++;
   return item->collation.collation;
 }
