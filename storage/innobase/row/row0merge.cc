@@ -3730,6 +3730,8 @@ wait_again:
 			DEBUG_FTS_SORT_PRINT("FTS_SORT: Complete Insert\n");
 #endif
 		} else {
+			char		buf[3 * NAME_LEN];
+			char		*bufend;
 			row_merge_dup_t	dup = {
 				sort_idx, table, col_map, 0};
 
@@ -3739,9 +3741,16 @@ wait_again:
 				(total_static_cost + total_dynamic_cost)
 				* PCT_COST_MERGESORT_INDEX * 100;
 
+			bufend = innobase_convert_name(buf, sizeof buf,
+				indexes[i]->name, strlen(indexes[i]->name),
+				trx ? trx->mysql_thd : NULL,
+				FALSE);
+
+			buf[bufend - buf]='\0';
+
 			sql_print_information("InnoDB: Online DDL : Start merge-sorting"
 				" index %s (%lu / %lu), estimated cost : %2.4f",
-				indexes[i]->name, (i+1), n_indexes, pct_cost);
+				buf, (i+1), n_indexes, pct_cost);
 
 			error = row_merge_sort(
 				trx, &dup, &merge_files[i],
@@ -3751,7 +3760,7 @@ wait_again:
 
 			sql_print_information("InnoDB: Online DDL : End of "
 				" merge-sorting index %s (%lu / %lu)",
-				indexes[i]->name, (i+1), n_indexes);
+				buf, (i+1), n_indexes);
 
 			if (error == DB_SUCCESS) {
 				pct_cost = (COST_BUILD_INDEX_STATIC +
@@ -3762,7 +3771,7 @@ wait_again:
 
 				sql_print_information("InnoDB: Online DDL : Start "
 					"building index %s (%lu / %lu), estimated "
-					"cost : %2.4f", indexes[i]->name, (i+1),
+					"cost : %2.4f", buf, (i+1),
 					n_indexes, pct_cost);
 
 				error = row_merge_insert_index_tuples(
@@ -3773,7 +3782,7 @@ wait_again:
 
 				sql_print_information("InnoDB: Online DDL : "
 					"End of building index %s (%lu / %lu)",
-					indexes[i]->name, (i+1), n_indexes);
+					buf, (i+1), n_indexes);
 			}
 		}
 
