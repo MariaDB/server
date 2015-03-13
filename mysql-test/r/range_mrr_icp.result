@@ -620,10 +620,10 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	ref	a	a	11	const	2	Using index condition
 explain select * from t1 where a=binary 'aaa';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	a	a	11	NULL	2	Using index condition; Rowid-ordered scan
+1	SIMPLE	t1	ref	a	a	11	const	2	Using index condition
 explain select * from t1 where a='aaa' collate latin1_bin;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	a	a	11	NULL	2	Using index condition; Rowid-ordered scan
+1	SIMPLE	t1	ref	a	a	11	const	2	Using index condition
 explain select * from t1 where a='aaa' collate latin1_german1_ci;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	ALL	a	NULL	NULL	NULL	9	Using where
