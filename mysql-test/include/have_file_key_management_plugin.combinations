@@ -1,0 +1,6 @@
+[aes_cbc]
+encryption-algorithm=aes_cbc
+
+[aes_ecb]
+encryption-algorithm=aes_ecb
+

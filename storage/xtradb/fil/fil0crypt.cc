@@ -734,7 +734,7 @@ fil_space_encrypt(ulint space, ulint offset, lsn_t lsn,
 	uint32 dstlen;
 
 	if (page_compressed) {
-		srclen = page_size -  FIL_PAGE_DATA;;
+		srclen = page_size -  FIL_PAGE_DATA;
 	}
 
 	int rc = (* my_aes_encrypt_dynamic)(src, srclen,

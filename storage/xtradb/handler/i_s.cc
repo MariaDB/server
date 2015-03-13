@@ -7651,7 +7651,7 @@ i_s_dict_fill_sys_tablespaces(
 {
 	Field**	fields;
 	ulint	atomic_blobs	= FSP_FLAGS_HAS_ATOMIC_BLOBS(flags);
-	ulint	page_size	= fsp_flags_get_page_size(flags);;
+	ulint	page_size	= fsp_flags_get_page_size(flags);
 	ulint	zip_size	= fsp_flags_get_zip_size(flags);
 	const char* file_format;
 	const char* row_format;

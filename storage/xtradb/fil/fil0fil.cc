@@ -6052,7 +6052,7 @@ fil_flush(
 	     node != NULL;
 	     node = UT_LIST_GET_NEXT(chain, node)) {
 
-		ib_int64_t old_mod_counter = node->modification_counter;;
+		ib_int64_t old_mod_counter = node->modification_counter;
 
 		if (old_mod_counter <= node->flush_counter) {
 			continue;

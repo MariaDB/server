@@ -11793,7 +11793,7 @@ ha_innobase::check_table_options(
 	const bool	use_tablespace, /*!< in: use file par table */
 	const ulint     file_format)
 {
-	enum row_type	row_format = table->s->row_type;;
+	enum row_type	row_format = table->s->row_type;
 	ha_table_option_struct *options= table->s->option_struct;
 	atomic_writes_t awrites = (atomic_writes_t)options->atomic_writes;
 
