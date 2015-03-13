@@ -1486,3 +1486,9 @@ ALTER TABLE t1 ADD fid INT NOT NULL;
 select SRID from information_schema.geometry_columns where F_TABLE_NAME='t1';
 drop table t1;
 
+--echo #
+--echo # MDEV-7510 GIS: IsRing returns false for a primitive triangle.
+--echo #
+select ST_IsRing(ST_LineFromText('LINESTRING(0 0,0 10,10 10,0 0)'));
+select ST_IsRing(ST_LineFromText('LINESTRING(0 0,0 10,10 10,-10 -10, 0 -10, 0 0)'));
+

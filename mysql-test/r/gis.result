@@ -1378,7 +1378,7 @@ SELECT IsRing(LineFromWKB(AsBinary(Boundary(boundary)),SRID(boundary)))
 FROM named_places 
 WHERE name = 'Goose Island';
 IsRing(LineFromWKB(AsBinary(Boundary(boundary)),SRID(boundary)))
-0
+1
 # Conformance Item T21 
 SELECT GLength(centerline) 
 FROM road_segments 
@@ -1765,3 +1765,12 @@ SRID
 0
 0
 drop table t1;
+#
+# MDEV-7510 GIS: IsRing returns false for a primitive triangle.
+#
+select ST_IsRing(ST_LineFromText('LINESTRING(0 0,0 10,10 10,0 0)'));
+ST_IsRing(ST_LineFromText('LINESTRING(0 0,0 10,10 10,0 0)'))
+1
+select ST_IsRing(ST_LineFromText('LINESTRING(0 0,0 10,10 10,-10 -10, 0 -10, 0 0)'));
+ST_IsRing(ST_LineFromText('LINESTRING(0 0,0 10,10 10,-10 -10, 0 -10, 0 0)'))
+0

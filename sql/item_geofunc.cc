@@ -1867,7 +1867,6 @@ longlong Item_func_issimple::val_int()
   Gcalc_operation_transporter trn(&func, &collector);
   Geometry *g;
   int result= 1;
-  const Gcalc_scan_iterator::event_point *ev;
   MBR mbr;
   const char *c_end;
 
@@ -1892,6 +1891,8 @@ longlong Item_func_issimple::val_int()
 
   while (scan_it.more_points())
   {
+    const Gcalc_scan_iterator::event_point *ev, *next_ev;
+
     if (scan_it.step())
       goto mem_error;
 
@@ -1899,11 +1900,18 @@ longlong Item_func_issimple::val_int()
     if (ev->simple_event())
       continue;
 
-    if ((ev->event == scev_thread || ev->event == scev_single_point) &&
-        !ev->get_next())
+    next_ev= ev->get_next();
+    if ((ev->event & (scev_thread | scev_single_point)) && !next_ev)
       continue;
 
-    if (ev->event == scev_two_threads && !ev->get_next()->get_next())
+    if ((ev->event == scev_two_threads) && !next_ev->get_next())
+      continue;
+
+    /* If the first and last points of a curve coincide - that is     */
+    /* an exception to the rule and the line is considered as simple. */
+    if ((next_ev && !next_ev->get_next()) &&
+        (ev->event & (scev_thread | scev_end)) &&
+        (next_ev->event & (scev_thread | scev_end)))
       continue;
 
     result= 0;
