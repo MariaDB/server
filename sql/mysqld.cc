@@ -6283,7 +6283,7 @@ void handle_connections_sockets()
   }
 
 #ifdef HAVE_POLL
-  if (systemd_listen_cnt == 0)
+  if (systemd_listen_cnt == 0 && systemd_n>0)
   {
     sd_notify(0, "STATUS=No listening sockets");
     abort_loop=1;
