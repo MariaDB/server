@@ -1081,9 +1081,9 @@ static Gcalc_function::op_type op_matrix(int n)
   switch (n)
   {
     case 0:
-      return Gcalc_function::op_border;
-    case 1:
       return Gcalc_function::op_internals;
+    case 1:
+      return Gcalc_function::op_border;
     case 2:
       return (Gcalc_function::op_type)
         ((int) Gcalc_function::op_not | (int) Gcalc_function::op_union);
@@ -1103,6 +1103,8 @@ static int setup_relate_func(Geometry *g1, Geometry *g2,
   int last_shape_pos;
 
   last_shape_pos= func->get_next_expression_pos();
+  if (func->reserve_op_buffer(1))
+    return 1;
   func->add_operation(Gcalc_function::op_intersection, 0);
   for (int nc=0; nc<9; nc++)
   {
@@ -1120,11 +1122,11 @@ static int setup_relate_func(Geometry *g1, Geometry *g2,
         cur_op|= Gcalc_function::v_find_t;
         break;
       case 'F':
-        cur_op|= Gcalc_function::v_find_f;
+        cur_op|= (Gcalc_function::op_not | Gcalc_function::v_find_t);
         break;
     };
     ++n_operands;
-    if (func->reserve_op_buffer(1))
+    if (func->reserve_op_buffer(3))
       return 1;
     func->add_operation(cur_op, 2);
 
@@ -2346,7 +2348,7 @@ String *Item_func_pointonsurface::val_str(String *str)
     }
     x0= scan_it.get_sp_x(pprev);
     px= scan_it.get_sp_x(pit.point());
-    if (fabs(px - x0) > GIS_ZERO)
+    if (px - x0 > GIS_ZERO)
     {
       if (scan_it.get_h() > GIS_ZERO)
       {
