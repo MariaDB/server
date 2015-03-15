@@ -2,11 +2,23 @@
 *.a
 *.ctest
 *.o
+*.obj
 *.reject
 *.so
 *.so.*
+*.lib
+*.exe
+*.dll
 *.spec
 *~
+*.bak
+*.log
+*.pdb
+*.idb
+*.dep
+*.exp
+*.gch
+*.pch
 .*.swp
 *.ninja
 .ninja_*
@@ -138,6 +150,7 @@ sql-bench/test-select
 sql-bench/test-table-elimination
 sql-bench/test-transactions
 sql-bench/test-wisconsin
+sql/data
 sql/gen_lex_hash
 sql/lex_hash.h
 sql/mysql_tzinfo_to_sql
@@ -230,3 +243,18 @@ storage/mroonga/vendor/groonga/src/grnslap
 storage/mroonga/vendor/groonga/src/groonga
 storage/mroonga/vendor/groonga/src/groonga-benchmark
 storage/mroonga/vendor/groonga/src/suggest/groonga-suggest-create-dataset
+# From C++.gitignore
+# Compiled Object files
+*.slo
+*.lo
+*.o
+# Compiled Dynamic libraries
+*.so
+*.dylib
+# Compiled Static libraries
+*.lai
+*.la
+*.a
+# Executables
+*.out
+*.app
