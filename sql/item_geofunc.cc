@@ -2346,7 +2346,7 @@ String *Item_func_pointonsurface::val_str(String *str)
     }
     x0= scan_it.get_sp_x(pprev);
     px= scan_it.get_sp_x(pit.point());
-    if (px - x0 > GIS_ZERO)
+    if (fabs(px - x0) > GIS_ZERO)
     {
       if (scan_it.get_h() > GIS_ZERO)
       {
