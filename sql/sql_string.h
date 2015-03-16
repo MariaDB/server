@@ -43,14 +43,13 @@ inline uint32 copy_and_convert(char *to, uint32 to_length,
 }
 
 
-class String_copier: private MY_STRCOPY_STATUS
+class String_copier: private MY_STRCONV_STATUS
 {
-  const char *m_cannot_convert_error_pos;
 public:
   const char *source_end_pos() const
-  { return m_source_end_pos; }
+  { return m_native_copy_status.m_source_end_pos; }
   const char *well_formed_error_pos() const
-  { return m_well_formed_error_pos; }
+  { return m_native_copy_status.m_well_formed_error_pos; }
   const char *cannot_convert_error_pos() const
   { return m_cannot_convert_error_pos; }
   const char *most_important_error_pos() const

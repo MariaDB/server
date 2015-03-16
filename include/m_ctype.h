@@ -382,6 +382,16 @@ typedef struct
 } MY_STRCOPY_STATUS;
 
 
+/*
+  A structure to return the statistics of a Unicode string conversion.
+*/
+typedef struct
+{
+  MY_STRCOPY_STATUS m_native_copy_status;
+  const char *m_cannot_convert_error_pos;
+} MY_STRCONV_STATUS;
+
+
 /* See strings/CHARSET_INFO.txt about information on this structure  */
 struct my_charset_handler_st
 {
@@ -852,9 +862,37 @@ const MY_CONTRACTIONS *my_charset_get_contractions(CHARSET_INFO *cs,
 extern size_t my_vsnprintf_ex(CHARSET_INFO *cs, char *to, size_t n,
                               const char* fmt, va_list ap);
 
+/*
+  Convert a string between two character sets.
+  Bad byte sequences as well as characters that cannot be
+  encoded in the destination character set are replaced to '?'.
+*/
 uint32 my_convert(char *to, uint32 to_length, CHARSET_INFO *to_cs,
                   const char *from, uint32 from_length,
                   CHARSET_INFO *from_cs, uint *errors);
+
+/*
+  Convert a string between two character sets.
+  Bad byte sequences as well as characters that cannot be
+  encoded in the destination character set are replaced to '?'.
+  Not more than "nchars" characters are copied.
+  Conversion statistics is returnd in "status" and is set as follows:
+  - status->m_native_copy_status.m_source_end_pos - to the position
+    between (src) and (src+src_length), where the function stopped reading
+    the source string.
+  - status->m_native_copy_status.m_well_formed_error_pos - to the position
+    between (src) and (src+src_length), where the first badly formed byte
+    sequence was found, or to NULL if the string was well formed in the
+    given range.
+  - status->m_cannot_convert_error_pos - to the position 
+    between (src) and (src+src_length), where the first character that
+    cannot be represented in the destination character set was found,
+    or to NULL if all characters in the given range were successfully
+    converted.
+*/
+size_t my_convert_fix(CHARSET_INFO *dstcs, char *dst, size_t dst_length,
+                      CHARSET_INFO *srccs, const char *src, size_t src_length,
+                      size_t nchars, MY_STRCONV_STATUS *status);
 
 #define	_MY_U	01	/* Upper case */
 #define	_MY_L	02	/* Lower case */

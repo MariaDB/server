@@ -914,8 +914,6 @@ String_copier::well_formed_copy(CHARSET_INFO *to_cs,
                                 const char *from, uint from_length,
                                 uint nchars)
 {
-  uint res;
-
   if ((to_cs == &my_charset_bin) || 
       (from_cs == &my_charset_bin) ||
       (to_cs == from_cs) ||
@@ -923,73 +921,10 @@ String_copier::well_formed_copy(CHARSET_INFO *to_cs,
   {
     m_cannot_convert_error_pos= NULL;
     return to_cs->cset->copy_fix(to_cs, to, to_length, from, from_length,
-                                 nchars, this);
+                                 nchars, &m_native_copy_status);
   }
-  else
-  {
-    int cnvres;
-    my_wc_t wc;
-    my_charset_conv_mb_wc mb_wc= from_cs->cset->mb_wc;
-    my_charset_conv_wc_mb wc_mb= to_cs->cset->wc_mb;
-    const uchar *from_end= (const uchar*) from + from_length;
-    uchar *to_end= (uchar*) to + to_length;
-    char *to_start= to;
-    m_well_formed_error_pos= NULL;
-    m_cannot_convert_error_pos= NULL;
-
-    for ( ; nchars; nchars--)
-    {
-      const char *from_prev= from;
-      if ((cnvres= (*mb_wc)(from_cs, &wc, (uchar*) from, from_end)) > 0)
-        from+= cnvres;
-      else if (cnvres == MY_CS_ILSEQ)
-      {
-        if (!m_well_formed_error_pos)
-          m_well_formed_error_pos= from;
-        from++;
-        wc= '?';
-      }
-      else if (cnvres > MY_CS_TOOSMALL)
-      {
-        /*
-          A correct multibyte sequence detected
-          But it doesn't have Unicode mapping.
-        */
-        if (!m_cannot_convert_error_pos)
-          m_cannot_convert_error_pos= from;
-        from+= (-cnvres);
-        wc= '?';
-      }
-      else
-      {
-        if ((uchar *) from >= from_end)
-          break; // End of line
-        // Incomplete byte sequence
-        if (!m_well_formed_error_pos)
-          m_well_formed_error_pos= from;
-        from++;
-        wc= '?';
-      }
-outp:
-      if ((cnvres= (*wc_mb)(to_cs, wc, (uchar*) to, to_end)) > 0)
-        to+= cnvres;
-      else if (cnvres == MY_CS_ILUNI && wc != '?')
-      {
-        if (!m_cannot_convert_error_pos)
-          m_cannot_convert_error_pos= from_prev;
-        wc= '?';
-        goto outp;
-      }
-      else
-      {
-        from= from_prev;
-        break;
-      }
-    }
-    m_source_end_pos= from;
-    res= (uint) (to - to_start);
-  }
-  return res;
+  return my_convert_fix(to_cs, to, to_length, from_cs, from, from_length,
+                        nchars, this);
 }
 
 
