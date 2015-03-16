@@ -5182,8 +5182,9 @@ void mark_transaction_to_rollback(THD *thd, bool all)
 class XID_cache_element
 {
   /*
-    bits 1..31 are reference counter
-    bit 32 is UNINITIALIZED flag
+    bits 1..30 are reference counter
+    bit 31 is UNINITIALIZED flag
+    bit 32 is unused
 
     Newly allocated and deleted elements have UNINITIALIZED flag set.
 
@@ -5204,8 +5205,8 @@ class XID_cache_element
     Currently m_state is only used to prevent elements from being deleted while
     XA RECOVER iterates xid cache.
   */
-  uint32 m_state;
-  static const uint32 UNINITIALIZED= 1 << 31;
+  int32 m_state;
+  static const int32 UNINITIALIZED= 1 << 30;
 public:
   XID_STATE *m_xid_state;
   bool lock()
@@ -5224,7 +5225,7 @@ public:
   }
   void mark_uninitialized()
   {
-    uint old= 0;
+    int32 old= 0;
     while (!my_atomic_cas32_weak_explicit(&m_state, &old, UNINITIALIZED,
                                           MY_MEMORY_ORDER_RELAXED,
                                           MY_MEMORY_ORDER_RELAXED))
