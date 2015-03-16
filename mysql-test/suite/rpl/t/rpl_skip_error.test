@@ -140,6 +140,7 @@ connection slave;
 
 CREATE TABLE t2(id INT NOT NULL PRIMARY KEY, data INT) Engine=MyIsam;
 SHOW CREATE TABLE t2;
+show global status like 'slave_skipped_errors';
 
 connection master;
 

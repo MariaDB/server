@@ -95,6 +95,9 @@ t2	CREATE TABLE `t2` (
   `data` int(11) DEFAULT NULL,
   PRIMARY KEY (`id`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
+show global status like 'slave_skipped_errors';
+Variable_name	Value
+Slave_skipped_errors	4
 INSERT INTO t2 VALUES(1, 1);
 INSERT INTO t2 VALUES(2, 1);
 INSERT INTO t2 VALUES(3, 1);
