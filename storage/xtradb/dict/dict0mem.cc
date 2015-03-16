@@ -744,7 +744,7 @@ dict_foreign_set_validate(
 {
 	dict_foreign_not_exists	not_exists(fk_set);
 
-	dict_foreign_set::iterator it = std::find_if(
+	dict_foreign_set::const_iterator it = std::find_if(
 		fk_set.begin(), fk_set.end(), not_exists);
 
 	if (it == fk_set.end()) {

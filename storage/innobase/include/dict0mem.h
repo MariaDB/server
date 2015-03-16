@@ -51,6 +51,7 @@ Created 1/8/1996 Heikki Tuuri
 #include <set>
 #include <algorithm>
 #include <iterator>
+#include <ostream>
 
 /* Forward declaration. */
 struct ib_rbt_t;
