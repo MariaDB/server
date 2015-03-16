@@ -1995,10 +1995,14 @@ gtid_waiting::wait_for_pos(THD *thd, String *gtid_str, longlong timeout_us)
   rpl_gtid *wait_pos;
   uint32 count, i;
   struct timespec wait_until, *wait_until_ptr;
+  ulonglong before;
 
   /* Wait for the empty position returns immediately. */
   if (gtid_str->length() == 0)
+  {
+    status_var_increment(thd->status_var.master_gtid_wait_count);
     return 0;
+  }
 
   if (!(wait_pos= gtid_parse_string_to_list(gtid_str->ptr(), gtid_str->length(),
                                             &count)))
@@ -2006,6 +2010,8 @@ gtid_waiting::wait_for_pos(THD *thd, String *gtid_str, longlong timeout_us)
     my_error(ER_INCORRECT_GTID_STATE, MYF(0));
     return 1;
   }
+  status_var_increment(thd->status_var.master_gtid_wait_count);
+  before = microsecond_interval_timer();
 
   if (timeout_us >= 0)
   {
@@ -2019,6 +2025,13 @@ gtid_waiting::wait_for_pos(THD *thd, String *gtid_str, longlong timeout_us)
   {
     if ((err= wait_for_gtid(thd, &wait_pos[i], wait_until_ptr)))
       break;
+  }
+  switch (err)
+  {
+    case -1:
+      status_var_increment(thd->status_var.master_gtid_wait_timeouts);
+    case 0: /* deliberate fall through */
+      status_var_add(thd->status_var.master_gtid_wait_time, microsecond_interval_timer() - before);
   }
   my_free(wait_pos);
   return err;
