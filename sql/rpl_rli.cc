@@ -1769,7 +1769,7 @@ void rpl_group_info::cleanup_context(THD *thd, bool error)
     trans_rollback(thd);      // if a "real transaction"
     /*
       Now that we have rolled back the transaction, make sure we do not
-      errorneously update the GTID position.
+      erroneously update the GTID position.
     */
     gtid_pending= false;
   }

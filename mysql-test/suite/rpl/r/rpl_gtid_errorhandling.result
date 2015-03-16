@@ -179,7 +179,7 @@ a
 SET sql_log_bin=0;
 CALL mtr.add_suppression("Slave: Could not update replication slave gtid state");
 SET sql_log_bin=1;
-*** MDEV-4906: When event apply fails, next SQL thread start errorneously commits the failing GTID to gtid_slave_pos ***
+*** MDEV-4906: When event apply fails, next SQL thread start erroneously commits the failing GTID to gtid_slave_pos ***
 include/stop_slave.inc
 SET sql_log_bin=0;
 DELETE FROM t2;
