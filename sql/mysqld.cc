@@ -4889,11 +4889,7 @@ static int init_server_components()
   my_charset_error_reporter= charset_error_reporter;
 #endif
 
-  if (xid_cache_init())
-  {
-    sql_print_error("Out of memory");
-    unireg_abort(1);
-  }
+  xid_cache_init();
 
   /*
     initialize delegates for extension observers, errors have already

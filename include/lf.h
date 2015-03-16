@@ -117,7 +117,12 @@ uint lf_alloc_pool_count(LF_ALLOCATOR *allocator);
 #define lf_alloc_free(PINS, PTR)       lf_pinbox_free((PINS), (PTR))
 #define lf_alloc_get_pins(A)           lf_pinbox_get_pins(&(A)->pinbox)
 #define lf_alloc_put_pins(PINS)        lf_pinbox_put_pins(PINS)
-#define lf_alloc_direct_free(ALLOC, ADDR) my_free((ADDR))
+#define lf_alloc_direct_free(ALLOC, ADDR) \
+  do {                                    \
+    if ((ALLOC)->destructor)              \
+      (ALLOC)->destructor((uchar*) ADDR); \
+    my_free(ADDR);                        \
+  } while(0)
 
 void *lf_alloc_new(LF_PINS *pins);
 

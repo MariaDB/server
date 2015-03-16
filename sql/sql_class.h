@@ -1119,6 +1119,7 @@ struct st_savepoint {
 
 enum xa_states {XA_NOTR=0, XA_ACTIVE, XA_IDLE, XA_PREPARED, XA_ROLLBACK_ONLY};
 extern const char *xa_state_names[];
+class XID_cache_element;
 
 typedef struct st_xid_state {
   /* For now, this is only used to catch duplicated external xids */
@@ -1127,16 +1128,16 @@ typedef struct st_xid_state {
   bool in_thd;
   /* Error reported by the Resource Manager (RM) to the Transaction Manager. */
   uint rm_error;
+  XID_cache_element *xid_cache_element;
 } XID_STATE;
 
-extern mysql_mutex_t LOCK_xid_cache;
-extern HASH xid_cache;
-bool xid_cache_init(void);
+void xid_cache_init(void);
 void xid_cache_free(void);
-XID_STATE *xid_cache_search(XID *xid);
+XID_STATE *xid_cache_search(THD *thd, XID *xid);
 bool xid_cache_insert(XID *xid, enum xa_states xa_state);
-bool xid_cache_insert(XID_STATE *xid_state);
-void xid_cache_delete(XID_STATE *xid_state);
+bool xid_cache_insert(THD *thd, XID_STATE *xid_state);
+void xid_cache_delete(THD *thd, XID_STATE *xid_state);
+int xid_cache_iterate(THD *thd, my_hash_walk_action action, void *argument);
 
 /**
   @class Security_context
@@ -3800,6 +3801,8 @@ public:
   }
 
   LF_PINS *tdc_hash_pins;
+  LF_PINS *xid_hash_pins;
+  bool fix_xid_hash_pins();
 
   inline ulong wsrep_binlog_format() const
   {

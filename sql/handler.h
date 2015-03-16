@@ -612,11 +612,11 @@ struct xid_t {
     return sizeof(formatID)+sizeof(gtrid_length)+sizeof(bqual_length)+
            gtrid_length+bqual_length;
   }
-  uchar *key()
+  uchar *key() const
   {
     return (uchar *)&gtrid_length;
   }
-  uint key_length()
+  uint key_length() const
   {
     return sizeof(gtrid_length)+sizeof(bqual_length)+gtrid_length+bqual_length;
   }
