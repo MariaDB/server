@@ -1320,8 +1320,9 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
   {
     LEX_STRING tmp;
     status_var_increment(thd->status_var.com_stat[SQLCOM_CHANGE_DB]);
-    thd->convert_string(&tmp, system_charset_info,
-			packet, packet_length, thd->charset());
+    if (thd->copy_with_error(system_charset_info, &tmp,
+                             thd->charset(), packet, packet_length))
+      break;
     if (!mysql_change_db(thd, &tmp, FALSE))
     {
       general_log_write(thd, command, thd->db, thd->db_length);

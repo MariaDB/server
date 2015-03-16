@@ -3106,9 +3106,49 @@ public:
     return make_lex_string(lex_str, str, length);
   }
 
+  // Allocate LEX_STRING for character set conversion
+  bool alloc_lex_string(LEX_STRING *dst, uint length)
+  {
+    if ((dst->str= (char*) alloc(length)))
+      return false;
+    dst->length= 0;  // Safety
+    return true;     // EOM
+  }
   bool convert_string(LEX_STRING *to, CHARSET_INFO *to_cs,
 		      const char *from, uint from_length,
 		      CHARSET_INFO *from_cs);
+  /*
+    Convert a strings between character sets.
+    Uses my_convert_fix(), which uses an mb_wc .. mc_mb loop internally.
+    dstcs and srccs cannot be &my_charset_bin.
+  */
+  bool convert_fix(CHARSET_INFO *dstcs, LEX_STRING *dst,
+                   CHARSET_INFO *srccs, const char *src, uint src_length,
+                   String_copier *status);
+
+  /*
+    Same as above, but additionally sends ER_INVALID_CHARACTER_STRING
+    in case of bad byte sequences or Unicode conversion problems.
+  */
+  bool convert_with_error(CHARSET_INFO *dstcs, LEX_STRING *dst,
+                          CHARSET_INFO *srccs,
+                          const char *src, uint src_length);
+
+  /*
+    If either "dstcs" or "srccs" is &my_charset_bin,
+    then performs native copying using cs->cset->copy_fix().
+    Otherwise, performs Unicode conversion using convert_fix().
+  */
+  bool copy_fix(CHARSET_INFO *dstcs, LEX_STRING *dst,
+                CHARSET_INFO *srccs, const char *src, uint src_length,
+                String_copier *status);
+
+  /*
+    Same as above, but additionally sends ER_INVALID_CHARACTER_STRING
+    in case of bad byte sequences or Unicode conversion problems.
+  */
+  bool copy_with_error(CHARSET_INFO *dstcs, LEX_STRING *dst,
+                       CHARSET_INFO *srccs, const char *src, uint src_length);
 
   bool convert_string(String *s, CHARSET_INFO *from_cs, CHARSET_INFO *to_cs);
 

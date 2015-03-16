@@ -9332,3 +9332,15 @@ DROP TABLE allbytes;
 #
 # End of 10.0 tests
 #
+#
+# Start of 10.1 tests
+#
+#
+# MDEV-6572 "USE dbname" with a bad sequence erroneously connects to a wrong database
+#
+SET NAMES utf8;
+SELECT * FROM `test😁😁test`;
+ERROR HY000: Invalid utf8 character string: 'test\xF0\x9F\x98\x81\xF0\x9F\x98\x81test'
+#
+# End of 10.1 tests
+#

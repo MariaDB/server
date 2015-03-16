@@ -2231,18 +2231,88 @@ bool THD::convert_string(LEX_STRING *to, CHARSET_INFO *to_cs,
 			 const char *from, uint from_length,
 			 CHARSET_INFO *from_cs)
 {
-  DBUG_ENTER("convert_string");
+  DBUG_ENTER("THD::convert_string");
   size_t new_length= to_cs->mbmaxlen * from_length;
   uint dummy_errors;
-  if (!(to->str= (char*) alloc(new_length+1)))
-  {
-    to->length= 0;				// Safety fix
-    DBUG_RETURN(1);				// EOM
-  }
+  if (alloc_lex_string(to, new_length + 1))
+    DBUG_RETURN(true);                          // EOM
   to->length= copy_and_convert((char*) to->str, new_length, to_cs,
 			       from, from_length, from_cs, &dummy_errors);
-  to->str[to->length]=0;			// Safety
-  DBUG_RETURN(0);
+  to->str[to->length]= 0;                       // Safety
+  DBUG_RETURN(false);
+}
+
+
+/*
+  Convert a string between two character sets.
+  dstcs and srccs cannot be &my_charset_bin.
+*/
+bool THD::convert_fix(CHARSET_INFO *dstcs, LEX_STRING *dst,
+                      CHARSET_INFO *srccs, const char *src, uint src_length,
+                      String_copier *status)
+{
+  DBUG_ENTER("THD::convert_fix");
+  size_t dst_length= dstcs->mbmaxlen * src_length;
+  if (alloc_lex_string(dst, dst_length + 1))
+    DBUG_RETURN(true);                           // EOM
+  dst->length= status->convert_fix(dstcs, (char*) dst->str, dst_length,
+                                   srccs, src, src_length, src_length);
+  dst->str[dst->length]= 0;                      // Safety
+  DBUG_RETURN(false);
+}
+
+
+/*
+  Copy or convert a string.
+*/
+bool THD::copy_fix(CHARSET_INFO *dstcs, LEX_STRING *dst,
+                   CHARSET_INFO *srccs, const char *src, uint src_length,
+                   String_copier *status)
+{
+  DBUG_ENTER("THD::copy_fix");
+  size_t dst_length= dstcs->mbmaxlen * src_length;
+  if (alloc_lex_string(dst, dst_length + 1))
+    DBUG_RETURN(true);                          // EOM
+  dst->length= status->well_formed_copy(dstcs, dst->str, dst_length,
+                                        srccs, src, src_length, src_length);
+  dst->str[dst->length]= '\0';
+  DBUG_RETURN(false);
+}
+
+
+class String_copier_with_error: public String_copier
+{
+public:
+  bool check_errors(CHARSET_INFO *srccs, const char *src, uint src_length)
+  {
+    if (most_important_error_pos())
+    {
+      ErrConvString err(src, src_length, &my_charset_bin);
+      my_error(ER_INVALID_CHARACTER_STRING, MYF(0), srccs->csname, err.ptr());
+      return true;
+    }
+    return false;
+  }
+};
+
+
+bool THD::convert_with_error(CHARSET_INFO *dstcs, LEX_STRING *dst,
+                             CHARSET_INFO *srccs,
+                             const char *src, uint src_length)
+{
+  String_copier_with_error status;
+  return convert_fix(dstcs, dst, srccs, src, src_length, &status) ||
+         status.check_errors(srccs, src, src_length);
+}
+
+
+bool THD::copy_with_error(CHARSET_INFO *dstcs, LEX_STRING *dst,
+                          CHARSET_INFO *srccs,
+                          const char *src, uint src_length)
+{
+  String_copier_with_error status;
+  return copy_fix(dstcs, dst, srccs, src, src_length, &status) ||
+         status.check_errors(srccs, src, src_length);
 }
 
 

@@ -1880,3 +1880,18 @@ DROP TABLE t1;
 --echo #
 --echo # End of tests
 --echo #
+
+--echo #
+--echo # Start of 10.1 tests
+--echo #
+
+--echo #
+--echo # MDEV-6572 "USE dbname" with a bad sequence erroneously connects to a wrong database
+--echo #
+SET NAMES utf8mb4;
+--error ER_INVALID_CHARACTER_STRING
+SELECT * FROM `test😁😁test`;
+
+--echo #
+--echo # End of 10.1 tests
+--echo #

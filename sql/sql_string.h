@@ -58,6 +58,17 @@ public:
                                      cannot_convert_error_pos();
   }
   /*
+    Convert a string between character sets.
+    "dstcs" and "srccs" cannot be &my_charset_bin.
+  */
+  uint convert_fix(CHARSET_INFO *dstcs, char *dst, uint dst_length,
+                   CHARSET_INFO *srccs, const char *src, uint src_length,
+                   uint nchars)
+  {
+    return my_convert_fix(dstcs, dst, dst_length,
+                          srccs, src, src_length, nchars, this);
+  }
+  /*
      Copy a string. Fix bad bytes/characters one Unicode conversion,
      break on bad bytes in case of non-Unicode copying.
   */

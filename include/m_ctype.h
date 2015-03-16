@@ -889,6 +889,10 @@ uint32 my_convert(char *to, uint32 to_length, CHARSET_INFO *to_cs,
     cannot be represented in the destination character set was found,
     or to NULL if all characters in the given range were successfully
     converted.
+
+  "src" is allowed to be a NULL pointer. In this case "src_length" must
+  be equal to 0. All "status" members are initialized to NULL, and 0 is
+  returned.
 */
 size_t my_convert_fix(CHARSET_INFO *dstcs, char *dst, size_t dst_length,
                       CHARSET_INFO *srccs, const char *src, size_t src_length,
