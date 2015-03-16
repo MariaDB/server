@@ -333,7 +333,7 @@ SHOW STATUS LIKE 'Master_gtid_wait_count';
 # (0.5-3 seconds)
 let $wait_time = query_get_value(SHOW STATUS LIKE 'Master_gtid_wait_time', Value, 1);
 --replace_result $wait_time MASTER_GTID_WAIT_TIME
-eval SELECT $wait_time BETWEEN 500000 AND 3000000 AS Master_gtid_wait_time_between_half_and_3_seconds;
+eval SELECT $wait_time >= 500000 AS Master_gtid_wait_time_greater_half_second;
 
 --replace_result $kill1_id KILL_ID
 eval KILL QUERY $kill1_id;

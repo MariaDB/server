@@ -314,8 +314,8 @@ Master_gtid_wait_timeouts	1
 SHOW STATUS LIKE 'Master_gtid_wait_count';
 Variable_name	Value
 Master_gtid_wait_count	5
-SELECT MASTER_GTID_WAIT_TIME BETWEEN 500000 AND 3000000 AS Master_gtid_wait_time_between_half_and_3_seconds;
-Master_gtid_wait_time_between_half_and_3_seconds
+SELECT MASTER_GTID_WAIT_TIME >= 500000 AS Master_gtid_wait_time_greater_half_second;
+Master_gtid_wait_time_greater_half_second
 1
 KILL QUERY KILL_ID;
 ERROR 70100: Query execution was interrupted
