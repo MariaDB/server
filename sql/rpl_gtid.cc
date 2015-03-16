@@ -2011,7 +2011,7 @@ gtid_waiting::wait_for_pos(THD *thd, String *gtid_str, longlong timeout_us)
     return 1;
   }
   status_var_increment(thd->status_var.master_gtid_wait_count);
-  before = microsecond_interval_timer();
+  before= microsecond_interval_timer();
 
   if (timeout_us >= 0)
   {
@@ -2030,8 +2030,10 @@ gtid_waiting::wait_for_pos(THD *thd, String *gtid_str, longlong timeout_us)
   {
     case -1:
       status_var_increment(thd->status_var.master_gtid_wait_timeouts);
-    case 0: /* deliberate fall through */
-      status_var_add(thd->status_var.master_gtid_wait_time, microsecond_interval_timer() - before);
+      /* Deliberate fall through. */
+    case 0:
+      status_var_add(thd->status_var.master_gtid_wait_time,
+                     microsecond_interval_timer() - before);
   }
   my_free(wait_pos);
   return err;

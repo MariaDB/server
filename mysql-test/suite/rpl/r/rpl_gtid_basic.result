@@ -295,9 +295,11 @@ Master_gtid_wait_timeouts	0
 SHOW STATUS LIKE 'Master_gtid_wait_count';
 Variable_name	Value
 Master_gtid_wait_count	4
-SELECT MASTER_GTID_WAIT_TIME <= 1000000 AS Master_gtid_wait_less_than_second;
-Master_gtid_wait_less_than_second
-1
+SET @a= MASTER_GTID_WAIT_TIME;
+SELECT IF(@a <= 100*1000*1000, "OK", CONCAT("Error: wait time ", @a, " is larger than expected"))
+AS Master_gtid_wait_time_as_expected;
+Master_gtid_wait_time_as_expected
+OK
 SELECT master_gtid_wait('0-1-109');
 SHOW STATUS LIKE 'Master_gtid_wait_timeouts';
 Variable_name	Value
@@ -314,9 +316,10 @@ Master_gtid_wait_timeouts	1
 SHOW STATUS LIKE 'Master_gtid_wait_count';
 Variable_name	Value
 Master_gtid_wait_count	5
-SELECT MASTER_GTID_WAIT_TIME BETWEEN 500000 AND 3000000 AS Master_gtid_wait_time_between_half_and_3_seconds;
-Master_gtid_wait_time_between_half_and_3_seconds
-1
+SET @a= MASTER_GTID_WAIT_TIME;
+SELECT IF(@a BETWEEN 0.4*1000*1000 AND 100*1000*1000, "OK", CONCAT("Error: wait time ", @a, " not as expected")) AS Master_gtid_wait_time_as_expected;
+Master_gtid_wait_time_as_expected
+OK
 KILL QUERY KILL_ID;
 ERROR 70100: Query execution was interrupted
 SET gtid_domain_id=2;
@@ -472,5 +475,6 @@ a
 31
 32
 33
+34
 DROP TABLE t1;
 include/rpl_end.inc
