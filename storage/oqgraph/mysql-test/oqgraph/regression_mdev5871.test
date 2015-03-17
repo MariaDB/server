@@ -11,7 +11,7 @@ CREATE TABLE graph_base (
     INDEX (to_id)
   ) ENGINE=MyISAM;
 
-# Since late June 2014 OQGraph supoprts 'assisted discovery' as per https://mariadb.atlassian.net/browse/MDEV-5871
+# Since late June 2014 OQGraph supports 'assisted discovery' as per https://mariadb.atlassian.net/browse/MDEV-5871
 
 CREATE TABLE graph ENGINE=OQGRAPH DATA_TABLE='graph_base' ORIGID='from_id' DESTID='to_id';
 DESCRIBE graph;
