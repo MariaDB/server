@@ -232,6 +232,10 @@ eval SET @pos= '$pos';
 SELECT master_gtid_wait(NULL);
 # Check empty argument returns immediately.
 SELECT master_gtid_wait('', NULL);
+# Check this gets counted
+SHOW STATUS LIKE 'Master_gtid_wait_count';
+SHOW STATUS LIKE 'Master_gtid_wait_timeouts';
+SHOW STATUS LIKE 'Master_gtid_wait_time';
 # Let's check that we get a timeout
 SELECT master_gtid_wait(@pos, 0.5);
 SELECT * FROM t1 ORDER BY a;
@@ -276,7 +280,7 @@ SELECT master_gtid_wait('1-1-1', 0);
 send SELECT master_gtid_wait('2-1-1,1-1-4,0-1-110');
 
 --connect (s2,127.0.0.1,root,,test,$SERVER_MYPORT_2,)
-# This will time out.
+# This will time out. No event 0-1-1000 exists
 send SELECT master_gtid_wait('0-1-1000', 0.5);
 
 --connect (s3,127.0.0.1,root,,test,$SERVER_MYPORT_2,)
@@ -306,14 +310,35 @@ send SELECT master_gtid_wait('2-1-2');
 
 --connection server_2
 # This one completes immediately.
+SHOW STATUS LIKE 'Master_gtid_wait_timeouts';
+SHOW STATUS LIKE 'Master_gtid_wait_count';
 SELECT master_gtid_wait('1-1-1');
+SHOW STATUS LIKE 'Master_gtid_wait_timeouts';
+SHOW STATUS LIKE 'Master_gtid_wait_count';
+let $wait_time = query_get_value(SHOW STATUS LIKE 'Master_gtid_wait_time', Value, 1);
+--replace_result $wait_time MASTER_GTID_WAIT_TIME
+eval SET @a= $wait_time;
+SELECT IF(@a <= 100*1000*1000, "OK", CONCAT("Error: wait time ", @a, " is larger than expected"))
+  AS Master_gtid_wait_time_as_expected;
+
 
 --connect (s10,127.0.0.1,root,,test,$SERVER_MYPORT_2,)
 send SELECT master_gtid_wait('0-1-109');
 
 --connection server_2
 # This one should time out.
+SHOW STATUS LIKE 'Master_gtid_wait_timeouts';
+SHOW STATUS LIKE 'Master_gtid_wait_count';
 SELECT master_gtid_wait('2-1-2', 0.5);
+SHOW STATUS LIKE 'Master_gtid_wait_timeouts';
+SHOW STATUS LIKE 'Master_gtid_wait_count';
+let $wait_time = query_get_value(SHOW STATUS LIKE 'Master_gtid_wait_time', Value, 1);
+--replace_result $wait_time MASTER_GTID_WAIT_TIME
+eval SET @a= $wait_time;
+# We expect a wait time of just a bit over 0.5 seconds. But thread scheduling
+# and timer inaccuracies could introduce significant jitter. So allow a
+# generous interval.
+SELECT IF(@a BETWEEN 0.4*1000*1000 AND 100*1000*1000, "OK", CONCAT("Error: wait time ", @a, " not as expected")) AS Master_gtid_wait_time_as_expected;
 
 --replace_result $kill1_id KILL_ID
 eval KILL QUERY $kill1_id;

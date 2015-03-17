@@ -95,6 +95,9 @@ t2	CREATE TABLE `t2` (
   `data` int(11) DEFAULT NULL,
   PRIMARY KEY (`id`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
+show global status like 'slave_skipped_errors';
+Variable_name	Value
+Slave_skipped_errors	4
 INSERT INTO t2 VALUES(1, 1);
 INSERT INTO t2 VALUES(2, 1);
 INSERT INTO t2 VALUES(3, 1);
@@ -104,6 +107,9 @@ DELETE FROM t2 WHERE id = 5;
 SET SQL_LOG_BIN=1;
 UPDATE t2 SET id= id + 3, data = 2;
 
+show global status like 'slave_skipped_errors';
+Variable_name	Value
+Slave_skipped_errors	5
 **** We cannot execute a select as there are differences in the 
 **** behavior between STMT and RBR.
 ==== Clean Up ====
