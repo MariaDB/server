@@ -48,6 +48,8 @@ Created 9/5/1995 Heikki Tuuri
 #include "ha_prototypes.h"
 #include "my_cpu.h"
 
+#include <vector>
+
 /* There is a bug in Visual Studio 2010.
 Visual Studio has a feature "Checked Iterators". In a debug build, every
 iterator operation is checked at runtime for errors, e.g., out of range.
