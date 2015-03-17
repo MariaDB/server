@@ -837,18 +837,9 @@ bool trans_xa_commit(THD *thd)
       my_error(ER_OUT_OF_RESOURCES, MYF(0));
       DBUG_RETURN(TRUE);
     }
-    /*
-      xid_state.in_thd is always true beside of xa recovery procedure.
-      Note, that there is no race condition here between xid_cache_search
-      and xid_cache_delete, since we always delete our own XID
-      (thd->lex->xid == thd->transaction.xid_state.xid).
-      The only case when thd->lex->xid != thd->transaction.xid_state.xid
-      and xid_state->in_thd == 0 is in the function
-      xa_cache_insert(XID, xa_states), which is called before starting
-      client connections, and thus is always single-threaded.
-    */
+
     XID_STATE *xs= xid_cache_search(thd, thd->lex->xid);
-    res= !xs || xs->in_thd;
+    res= !xs;
     if (res)
       my_error(ER_XAER_NOTA, MYF(0));
     else
@@ -949,7 +940,7 @@ bool trans_xa_rollback(THD *thd)
     }
 
     XID_STATE *xs= xid_cache_search(thd, thd->lex->xid);
-    if (!xs || xs->in_thd)
+    if (!xs)
       my_error(ER_XAER_NOTA, MYF(0));
     else
     {

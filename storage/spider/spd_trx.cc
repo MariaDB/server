@@ -1872,7 +1872,6 @@ int spider_internal_start_trx(
 
       trx->internal_xid_state.xa_state = XA_ACTIVE;
       trx->internal_xid_state.xid.set(&trx->xid);
-      trx->internal_xid_state.in_thd = 1;
       if ((error_num = spider_xa_lock(&trx->internal_xid_state)))
       {
         if (error_num == ER_SPIDER_XA_LOCKED_NUM)
