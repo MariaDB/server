@@ -1320,8 +1320,9 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
   {
     LEX_STRING tmp;
     status_var_increment(thd->status_var.com_stat[SQLCOM_CHANGE_DB]);
-    thd->convert_string(&tmp, system_charset_info,
-			packet, packet_length, thd->charset());
+    if (thd->copy_with_error(system_charset_info, &tmp,
+                             thd->charset(), packet, packet_length))
+      break;
     if (!mysql_change_db(thd, &tmp, FALSE))
     {
       general_log_write(thd, command, thd->db, thd->db_length);
@@ -2742,6 +2743,18 @@ mysql_execute_command(THD *thd)
         my_error(ER_WRONG_ARGUMENTS, MYF(0), "SET");
       lex->restore_set_statement_var();
       goto error;
+    }
+    /*
+      The value of last_insert_id is remembered in THD to be written to binlog
+      when it's used *the first time* in the statement. But SET STATEMENT
+      must read the old value of last_insert_id to be able to restore it at
+      the end. This should not count at "reading of last_insert_id" and
+      should not remember last_insert_id for binlog. That is, it should clear
+      stmt_depends_on_first_successful_insert_id_in_prev_stmt flag.
+    */
+    if (!thd->in_sub_stmt)
+    {
+      thd->stmt_depends_on_first_successful_insert_id_in_prev_stmt= 0;
     }
   }
 
@@ -7298,11 +7311,10 @@ TABLE_LIST *st_select_lex::add_table_to_list(THD *thd,
                                              LEX_STRING *option)
 {
   register TABLE_LIST *ptr;
-  TABLE_LIST *previous_table_ref; /* The table preceding the current one. */
+  TABLE_LIST *UNINIT_VAR(previous_table_ref); /* The table preceding the current one. */
   char *alias_str;
   LEX *lex= thd->lex;
   DBUG_ENTER("add_table_to_list");
-  LINT_INIT(previous_table_ref);
 
   if (!table)
     DBUG_RETURN(0);				// End of memory

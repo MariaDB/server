@@ -1932,12 +1932,28 @@ int ha_recover(HASH *commit_list)
     so mysql_xa_recover does not filter XID's to ensure uniqueness.
     It can be easily fixed later, if necessary.
 */
+
+static my_bool xa_recover_callback(XID_STATE *xs, Protocol *protocol)
+{
+  if (xs->xa_state == XA_PREPARED)
+  {
+    protocol->prepare_for_resend();
+    protocol->store_longlong((longlong) xs->xid.formatID, FALSE);
+    protocol->store_longlong((longlong) xs->xid.gtrid_length, FALSE);
+    protocol->store_longlong((longlong) xs->xid.bqual_length, FALSE);
+    protocol->store(xs->xid.data, xs->xid.gtrid_length + xs->xid.bqual_length,
+                    &my_charset_bin);
+    if (protocol->write())
+      return TRUE;
+  }
+  return FALSE;
+}
+
+
 bool mysql_xa_recover(THD *thd)
 {
   List<Item> field_list;
   Protocol *protocol= thd->protocol;
-  int i=0;
-  XID_STATE *xs;
   DBUG_ENTER("mysql_xa_recover");
 
   field_list.push_back(new Item_int("formatID", 0, MY_INT32_NUM_DECIMAL_DIGITS));
@@ -1949,26 +1965,9 @@ bool mysql_xa_recover(THD *thd)
                             Protocol::SEND_NUM_ROWS | Protocol::SEND_EOF))
     DBUG_RETURN(1);
 
-  mysql_mutex_lock(&LOCK_xid_cache);
-  while ((xs= (XID_STATE*) my_hash_element(&xid_cache, i++)))
-  {
-    if (xs->xa_state==XA_PREPARED)
-    {
-      protocol->prepare_for_resend();
-      protocol->store_longlong((longlong)xs->xid.formatID, FALSE);
-      protocol->store_longlong((longlong)xs->xid.gtrid_length, FALSE);
-      protocol->store_longlong((longlong)xs->xid.bqual_length, FALSE);
-      protocol->store(xs->xid.data, xs->xid.gtrid_length+xs->xid.bqual_length,
-                      &my_charset_bin);
-      if (protocol->write())
-      {
-        mysql_mutex_unlock(&LOCK_xid_cache);
-        DBUG_RETURN(1);
-      }
-    }
-  }
-
-  mysql_mutex_unlock(&LOCK_xid_cache);
+  if (xid_cache_iterate(thd, (my_hash_walk_action) xa_recover_callback,
+                        protocol))
+    DBUG_RETURN(1);
   my_eof(thd);
   DBUG_RETURN(0);
 }
@@ -5418,8 +5417,7 @@ int handler::index_read_idx_map(uchar * buf, uint index, const uchar * key,
                                 key_part_map keypart_map,
                                 enum ha_rkey_function find_flag)
 {
-  int error, error1;
-  LINT_INIT(error1);
+  int error, UNINIT_VAR(error1);
 
   error= ha_index_init(index, 0);
   if (!error)

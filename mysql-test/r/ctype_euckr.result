@@ -407,12 +407,12 @@ Warnings:
 Warning	1366	Incorrect string value: '\xA1\xFF' for column 's1' at row 1
 select hex(s1), hex(convert(s1 using utf8)) from t1 order by binary s1;
 hex(s1)	hex(convert(s1 using utf8))
-	
-	
-	
-	
-	
-	
+3F3F	3F3F
+3F3F	3F3F
+3F40	3F40
+3F5B	3F5B
+3F60	3F60
+3F7B	3F7B
 A141	ECA2A5
 A15A	ECA381
 A161	ECA382
@@ -445,7 +445,7 @@ FROM t1 t11, t1 t12
 WHERE t11.a >= 0x81 AND t11.a <= 0xFE
 AND   t12.a >= 0x41 AND t12.a <= 0xFE
 ORDER BY t11.a, t12.a;
-SELECT s as bad_code FROM t2 WHERE a='' ORDER BY s;
+SELECT s as bad_code FROM t2 WHERE a='?' ORDER BY s;
 bad_code
 815B
 815C
@@ -1959,7 +1959,7 @@ FE7D
 FE7E
 FE7F
 FE80
-DELETE FROM t2 WHERE a='';
+DELETE FROM t2 WHERE a='?';
 ALTER TABLE t2 ADD u VARCHAR(1) CHARACTER SET utf8, ADD a2 VARCHAR(1) CHARACTER SET euckr;
 UPDATE t2 SET u=a, a2=u;
 SELECT s as unassigned_code FROM t2 WHERE u='?';
@@ -24492,7 +24492,7 @@ Warning	1366	Incorrect string value: '\x80\' for column 'a' at row 61
 Warning	1366	Incorrect string value: '\x80]' for column 'a' at row 62
 Warning	1366	Incorrect string value: '\x80^' for column 'a' at row 63
 Warning	1366	Incorrect string value: '\x80_' for column 'a' at row 64
-SELECT COUNT(*) FROM t1 WHERE a<>'';
+SELECT COUNT(*) FROM t1 WHERE a<>'?';
 COUNT(*)
 22428
 SELECT code, hex(upper(a)), hex(lower(a)),a, upper(a), lower(a) FROM t1 WHERE hex(a)<>hex(upper(a)) OR hex(a)<>hex(lower(a));

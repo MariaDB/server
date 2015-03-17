@@ -477,7 +477,7 @@ Warning	1366	Incorrect string value: '\x80_' for column 'a' at row 64
 SELECT COUNT(*) FROM t1;
 COUNT(*)
 14623
-SELECT COUNT(*) FROM t1 WHERE a<>'' AND OCTET_LENGTH(a)=1;
+SELECT COUNT(*) FROM t1 WHERE a<>'?' AND OCTET_LENGTH(a)=1;
 COUNT(*)
 63
 SELECT COUNT(*) FROM t1 WHERE a<>'' AND OCTET_LENGTH(a)=2;

@@ -7063,8 +7063,7 @@ bool Intvar_log_event::write(IO_CACHE* file)
 void Intvar_log_event::print(FILE* file, PRINT_EVENT_INFO* print_event_info)
 {
   char llbuff[22];
-  const char *msg;
-  LINT_INIT(msg);
+  const char *UNINIT_VAR(msg);
   Write_on_release_cache cache(&print_event_info->head_cache, file,
                                Write_on_release_cache::FLUSH_F);
 
@@ -11709,14 +11708,12 @@ record_compare_exit:
 int Rows_log_event::find_key()
 {
   uint i, best_key_nr, last_part;
-  KEY *key, *best_key;
-  ulong best_rec_per_key, tmp;
+  KEY *key, *UNINIT_VAR(best_key);
+  ulong UNINIT_VAR(best_rec_per_key), tmp;
   DBUG_ENTER("Rows_log_event::find_key");
   DBUG_ASSERT(m_table);
 
   best_key_nr= MAX_KEY;
-  LINT_INIT(best_key);
-  LINT_INIT(best_rec_per_key);
 
   /*
     Keys are sorted so that any primary key is first, followed by unique keys,

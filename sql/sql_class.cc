@@ -914,7 +914,8 @@ THD::THD(bool is_wsrep_applier)
    wait_for_commit_ptr(0),
    main_da(0, false, false),
    m_stmt_da(&main_da),
-   tdc_hash_pins(0)
+   tdc_hash_pins(0),
+   xid_hash_pins(0)
 #ifdef WITH_WSREP
   ,
    wsrep_applier(is_wsrep_applier),
@@ -1593,7 +1594,7 @@ void THD::cleanup(void)
 
   transaction.xid_state.xa_state= XA_NOTR;
   trans_rollback(this);
-  xid_cache_delete(&transaction.xid_state);
+  xid_cache_delete(this, &transaction.xid_state);
 
   DBUG_ASSERT(open_tables == NULL);
   /*
@@ -1704,6 +1705,8 @@ THD::~THD()
   main_da.free_memory();
   if (tdc_hash_pins)
     lf_hash_put_pins(tdc_hash_pins);
+  if (xid_hash_pins)
+    lf_hash_put_pins(xid_hash_pins);
   /* Ensure everything is freed */
   if (status_var.local_memory_used != 0)
   {
@@ -2228,18 +2231,88 @@ bool THD::convert_string(LEX_STRING *to, CHARSET_INFO *to_cs,
 			 const char *from, uint from_length,
 			 CHARSET_INFO *from_cs)
 {
-  DBUG_ENTER("convert_string");
+  DBUG_ENTER("THD::convert_string");
   size_t new_length= to_cs->mbmaxlen * from_length;
   uint dummy_errors;
-  if (!(to->str= (char*) alloc(new_length+1)))
-  {
-    to->length= 0;				// Safety fix
-    DBUG_RETURN(1);				// EOM
-  }
+  if (alloc_lex_string(to, new_length + 1))
+    DBUG_RETURN(true);                          // EOM
   to->length= copy_and_convert((char*) to->str, new_length, to_cs,
 			       from, from_length, from_cs, &dummy_errors);
-  to->str[to->length]=0;			// Safety
-  DBUG_RETURN(0);
+  to->str[to->length]= 0;                       // Safety
+  DBUG_RETURN(false);
+}
+
+
+/*
+  Convert a string between two character sets.
+  dstcs and srccs cannot be &my_charset_bin.
+*/
+bool THD::convert_fix(CHARSET_INFO *dstcs, LEX_STRING *dst,
+                      CHARSET_INFO *srccs, const char *src, uint src_length,
+                      String_copier *status)
+{
+  DBUG_ENTER("THD::convert_fix");
+  size_t dst_length= dstcs->mbmaxlen * src_length;
+  if (alloc_lex_string(dst, dst_length + 1))
+    DBUG_RETURN(true);                           // EOM
+  dst->length= status->convert_fix(dstcs, (char*) dst->str, dst_length,
+                                   srccs, src, src_length, src_length);
+  dst->str[dst->length]= 0;                      // Safety
+  DBUG_RETURN(false);
+}
+
+
+/*
+  Copy or convert a string.
+*/
+bool THD::copy_fix(CHARSET_INFO *dstcs, LEX_STRING *dst,
+                   CHARSET_INFO *srccs, const char *src, uint src_length,
+                   String_copier *status)
+{
+  DBUG_ENTER("THD::copy_fix");
+  size_t dst_length= dstcs->mbmaxlen * src_length;
+  if (alloc_lex_string(dst, dst_length + 1))
+    DBUG_RETURN(true);                          // EOM
+  dst->length= status->well_formed_copy(dstcs, dst->str, dst_length,
+                                        srccs, src, src_length, src_length);
+  dst->str[dst->length]= '\0';
+  DBUG_RETURN(false);
+}
+
+
+class String_copier_with_error: public String_copier
+{
+public:
+  bool check_errors(CHARSET_INFO *srccs, const char *src, uint src_length)
+  {
+    if (most_important_error_pos())
+    {
+      ErrConvString err(src, src_length, &my_charset_bin);
+      my_error(ER_INVALID_CHARACTER_STRING, MYF(0), srccs->csname, err.ptr());
+      return true;
+    }
+    return false;
+  }
+};
+
+
+bool THD::convert_with_error(CHARSET_INFO *dstcs, LEX_STRING *dst,
+                             CHARSET_INFO *srccs,
+                             const char *src, uint src_length)
+{
+  String_copier_with_error status;
+  return convert_fix(dstcs, dst, srccs, src, src_length, &status) ||
+         status.check_errors(srccs, src, src_length);
+}
+
+
+bool THD::copy_with_error(CHARSET_INFO *dstcs, LEX_STRING *dst,
+                          CHARSET_INFO *srccs,
+                          const char *src, uint src_length)
+{
+  String_copier_with_error status;
+  return copy_fix(dstcs, dst, srccs, src, src_length, &status) ||
+         status.check_errors(srccs, src, src_length);
 }
 
 
@@ -5106,120 +5179,233 @@ void mark_transaction_to_rollback(THD *thd, bool all)
 /***************************************************************************
   Handling of XA id cacheing
 ***************************************************************************/
-
-mysql_mutex_t LOCK_xid_cache;
-HASH xid_cache;
-
-extern "C" uchar *xid_get_hash_key(const uchar *, size_t *, my_bool);
-extern "C" void xid_free_hash(void *);
-
-uchar *xid_get_hash_key(const uchar *ptr, size_t *length,
-                                  my_bool not_used __attribute__((unused)))
+class XID_cache_element
 {
-  *length=((XID_STATE*)ptr)->xid.key_length();
-  return ((XID_STATE*)ptr)->xid.key();
-}
+  /*
+    bits 1..30 are reference counter
+    bit 31 is UNINITIALIZED flag
+    bit 32 is unused
 
-void xid_free_hash(void *ptr)
-{
-  if (!((XID_STATE*)ptr)->in_thd)
-    my_free(ptr);
-}
+    Newly allocated and deleted elements have UNINITIALIZED flag set.
 
-#ifdef HAVE_PSI_INTERFACE
-static PSI_mutex_key key_LOCK_xid_cache;
+    On lock() m_state is atomically incremented. It also creates load-ACQUIRE
+    memory barrier to make sure m_state is actually updated before furhter
+    memory accesses. Attempting to lock UNINITIALIED element returns failure
+    and further accesses to element memory are forbidden.
 
-static PSI_mutex_info all_xid_mutexes[]=
-{
-  { &key_LOCK_xid_cache, "LOCK_xid_cache", PSI_FLAG_GLOBAL}
+    On unlock() m_state is decremented. It also creates store-RELEASE memory
+    barrier to make sure m_state is actually updated after preceding memory
+    accesses.
+
+    UNINITIALIZED flag is cleared upon successful insert.
+
+    UNINITIALIZED flag is set before delete in a spin loop, after last reference
+    is released.
+
+    Currently m_state is only used to prevent elements from being deleted while
+    XA RECOVER iterates xid cache.
+  */
+  int32 m_state;
+  static const int32 UNINITIALIZED= 1 << 30;
+public:
+  XID_STATE *m_xid_state;
+  bool lock()
+  {
+    if (my_atomic_add32_explicit(&m_state, 1,
+                                 MY_MEMORY_ORDER_ACQUIRE) & UNINITIALIZED)
+    {
+      unlock();
+      return false;
+    }
+    return true;
+  }
+  void unlock()
+  {
+    my_atomic_add32_explicit(&m_state, -1, MY_MEMORY_ORDER_RELEASE);
+  }
+  void mark_uninitialized()
+  {
+    int32 old= 0;
+    while (!my_atomic_cas32_weak_explicit(&m_state, &old, UNINITIALIZED,
+                                          MY_MEMORY_ORDER_RELAXED,
+                                          MY_MEMORY_ORDER_RELAXED))
+    {
+      old= 0;
+      (void) LF_BACKOFF;
+    }
+  }
+  void mark_initialized()
+  {
+    DBUG_ASSERT(m_state & UNINITIALIZED);
+    my_atomic_add32_explicit(&m_state, -UNINITIALIZED, MY_MEMORY_ORDER_RELAXED);
+  }
+  static void lf_hash_initializer(LF_HASH *hash __attribute__((unused)),
+                                  XID_cache_element *element,
+                                  XID_STATE *xid_state)
+  {
+    element->m_xid_state= xid_state;
+    xid_state->xid_cache_element= element;
+  }
+  static void lf_alloc_constructor(uchar *ptr)
+  {
+    XID_cache_element *element= (XID_cache_element*) (ptr + LF_HASH_OVERHEAD);
+    element->m_state= UNINITIALIZED;
+  }
+  static void lf_alloc_destructor(uchar *ptr)
+  {
+    XID_cache_element *element= (XID_cache_element*) (ptr + LF_HASH_OVERHEAD);
+    if (element->m_state != UNINITIALIZED)
+    {
+      DBUG_ASSERT(!element->m_xid_state->in_thd);
+      my_free(element->m_xid_state);
+    }
+  }
+  static uchar *key(const XID_cache_element *element, size_t *length,
+                    my_bool not_used __attribute__((unused)))
+  {
+    *length= element->m_xid_state->xid.key_length();
+    return element->m_xid_state->xid.key();
+  }
 };
 
-static void init_xid_psi_keys(void)
+
+static LF_HASH xid_cache;
+static bool xid_cache_inited;
+
+
+bool THD::fix_xid_hash_pins()
 {
-  const char* category= "sql";
-  int count;
-
-  if (PSI_server == NULL)
-    return;
-
-  count= array_elements(all_xid_mutexes);
-  PSI_server->register_mutex(category, all_xid_mutexes, count);
+  if (!xid_hash_pins)
+    xid_hash_pins= lf_hash_get_pins(&xid_cache);
+  return !xid_hash_pins;
 }
-#endif /* HAVE_PSI_INTERFACE */
 
-bool xid_cache_init()
+
+void xid_cache_init()
 {
-#ifdef HAVE_PSI_INTERFACE
-  init_xid_psi_keys();
-#endif
-
-  mysql_mutex_init(key_LOCK_xid_cache, &LOCK_xid_cache, MY_MUTEX_INIT_FAST);
-  return my_hash_init(&xid_cache, &my_charset_bin, 100, 0, 0,
-                      xid_get_hash_key, xid_free_hash, 0) != 0;
+  xid_cache_inited= true;
+  lf_hash_init(&xid_cache, sizeof(XID_cache_element), LF_HASH_UNIQUE, 0, 0,
+               (my_hash_get_key) XID_cache_element::key, &my_charset_bin);
+  xid_cache.alloc.constructor= XID_cache_element::lf_alloc_constructor;
+  xid_cache.alloc.destructor= XID_cache_element::lf_alloc_destructor;
+  xid_cache.initializer=
+    (lf_hash_initializer) XID_cache_element::lf_hash_initializer;
 }
+
 
 void xid_cache_free()
 {
-  if (my_hash_inited(&xid_cache))
+  if (xid_cache_inited)
   {
-    my_hash_free(&xid_cache);
-    mysql_mutex_destroy(&LOCK_xid_cache);
+    lf_hash_destroy(&xid_cache);
+    xid_cache_inited= false;
   }
 }
 
-XID_STATE *xid_cache_search(XID *xid)
+
+XID_STATE *xid_cache_search(THD *thd, XID *xid)
 {
-  mysql_mutex_lock(&LOCK_xid_cache);
-  XID_STATE *res=(XID_STATE *)my_hash_search(&xid_cache, xid->key(),
-                                             xid->key_length());
-  mysql_mutex_unlock(&LOCK_xid_cache);
-  return res;
+  DBUG_ASSERT(thd->xid_hash_pins);
+  XID_cache_element *element=
+    (XID_cache_element*) lf_hash_search(&xid_cache, thd->xid_hash_pins,
+                                        xid->key(), xid->key_length());
+  if (element)
+  {
+    lf_hash_search_unpin(thd->xid_hash_pins);
+    return element->m_xid_state;
+  }
+  return 0;
 }
 
 
 bool xid_cache_insert(XID *xid, enum xa_states xa_state)
 {
   XID_STATE *xs;
-  my_bool res;
-  mysql_mutex_lock(&LOCK_xid_cache);
-  if (my_hash_search(&xid_cache, xid->key(), xid->key_length()))
-    res=0;
-  else if (!(xs=(XID_STATE *)my_malloc(sizeof(*xs), MYF(MY_WME))))
-    res=1;
-  else
+  LF_PINS *pins;
+  int res= 1;
+
+  if (!(pins= lf_hash_get_pins(&xid_cache)))
+    return true;
+
+  if ((xs= (XID_STATE*) my_malloc(sizeof(*xs), MYF(MY_WME))))
   {
     xs->xa_state=xa_state;
     xs->xid.set(xid);
     xs->in_thd=0;
     xs->rm_error=0;
-    res=my_hash_insert(&xid_cache, (uchar*)xs);
+
+    if ((res= lf_hash_insert(&xid_cache, pins, xs)))
+      my_free(xs);
+    else
+      xs->xid_cache_element->mark_initialized();
+    if (res == 1)
+      res= 0;
   }
-  mysql_mutex_unlock(&LOCK_xid_cache);
+  lf_hash_put_pins(pins);
   return res;
 }
 
 
-bool xid_cache_insert(XID_STATE *xid_state)
+bool xid_cache_insert(THD *thd, XID_STATE *xid_state)
 {
-  mysql_mutex_lock(&LOCK_xid_cache);
-  if (my_hash_search(&xid_cache, xid_state->xid.key(),
-      xid_state->xid.key_length()))
-  {
-    mysql_mutex_unlock(&LOCK_xid_cache);
-    my_error(ER_XAER_DUPID, MYF(0));
+  if (thd->fix_xid_hash_pins())
     return true;
+
+  int res= lf_hash_insert(&xid_cache, thd->xid_hash_pins, xid_state);
+  switch (res)
+  {
+  case 0:
+    xid_state->xid_cache_element->mark_initialized();
+    break;
+  case 1:
+    my_error(ER_XAER_DUPID, MYF(0));
+  default:
+    xid_state->xid_cache_element= 0;
   }
-  bool res= my_hash_insert(&xid_cache, (uchar*)xid_state);
-  mysql_mutex_unlock(&LOCK_xid_cache);
   return res;
 }
 
 
-void xid_cache_delete(XID_STATE *xid_state)
+void xid_cache_delete(THD *thd, XID_STATE *xid_state)
 {
-  mysql_mutex_lock(&LOCK_xid_cache);
-  my_hash_delete(&xid_cache, (uchar *)xid_state);
-  mysql_mutex_unlock(&LOCK_xid_cache);
+  if (xid_state->xid_cache_element)
+  {
+    DBUG_ASSERT(thd->xid_hash_pins);
+    xid_state->xid_cache_element->mark_uninitialized();
+    lf_hash_delete(&xid_cache, thd->xid_hash_pins,
+                   xid_state->xid.key(), xid_state->xid.key_length());
+    xid_state->xid_cache_element= 0;
+    if (!xid_state->in_thd)
+      my_free(xid_state);
+  }
+}
+
+
+struct xid_cache_iterate_arg
+{
+  my_hash_walk_action action;
+  void *argument;
+};
+
+static my_bool xid_cache_iterate_callback(XID_cache_element *element,
+                                          xid_cache_iterate_arg *arg)
+{
+  my_bool res= FALSE;
+  if (element->lock())
+  {
+    res= arg->action(element->m_xid_state, arg->argument);
+    element->unlock();
+  }
+  return res;
+}
+
+int xid_cache_iterate(THD *thd, my_hash_walk_action action, void *arg)
+{
+  xid_cache_iterate_arg argument= { action, arg };
+  return thd->fix_xid_hash_pins() ? -1 :
+         lf_hash_iterate(&xid_cache, thd->xid_hash_pins,
+                         (my_hash_walk_action) xid_cache_iterate_callback,
+                         &argument);
 }
 
 

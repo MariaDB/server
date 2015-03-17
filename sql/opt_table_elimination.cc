@@ -1486,28 +1486,8 @@ void check_equality(Dep_analysis_context *ctx, Dep_module_expr **eq_mod,
       left->real_item()->type() == Item::FIELD_ITEM)
   {
     Field *field= ((Item_field*)left->real_item())->field;
-    if (right->cmp_type() == TIME_RESULT && field->cmp_type() != TIME_RESULT)
+    if (!field->can_optimize_outer_join_table_elimination(cond, right))
       return;
-    if (field->result_type() == STRING_RESULT)
-    {
-      if (right->result_type() != STRING_RESULT)
-      {
-        if (field->cmp_type() != right->result_type())
-          return;
-      }
-      else
-      {
-        /*
-          We can't assume there's a functional dependency if the effective
-          collation of the operation differ from the field collation.
-        */
-        if ((field->cmp_type() == STRING_RESULT ||
-            field->real_type() == MYSQL_TYPE_ENUM ||
-            field->real_type() == MYSQL_TYPE_SET) &&
-            field->charset() != cond->compare_collation())
-          return;
-      }
-    }
     Dep_value_field *field_val;
     if ((field_val= ctx->get_field_value(field)))
       add_module_expr(ctx, eq_mod, and_level, field_val, right, NULL);

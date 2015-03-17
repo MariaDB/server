@@ -3397,7 +3397,7 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
                      DYNAMIC_ARRAY *keyuse_array)
 {
   int error= 0;
-  TABLE *table;
+  TABLE *UNINIT_VAR(table); /* inited in all loops */
   uint i,table_count,const_count,key;
   table_map found_const_table_map, all_table_map, found_ref, refs;
   key_map const_ref, eq_part;
@@ -3412,7 +3412,6 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
   TABLE_LIST *tables;
   DBUG_ENTER("make_join_statistics");
 
-  LINT_INIT(table); /* inited in all loops */
   table_count=join->table_count;
 
   /*
@@ -4124,6 +4123,7 @@ error:
 /// Used when finding key fields
 typedef struct key_field_t {
   Field		*field;
+  Item_func     *cond;
   Item		*val;			///< May be empty if diff constant
   uint		level;
   uint		optimize;
@@ -4466,46 +4466,6 @@ add_key_field(JOIN *join,
       }
       if (!eq_func) // eq_func is NEVER true when num_values > 1
         return;
-
-      if ((*value)->cmp_type() == TIME_RESULT &&
-          field->cmp_type() != TIME_RESULT)
-        return;
-
-      /*
-        Note, for ITEM/ENUM columns:
-        - field->cmp_type() returns INT_RESULT
-        - field->result_type() returns STRING_RESULT
-        - field->type() returns MYSQL_TYPE_STRING
-
-        Using field->real_type() to detect ENUM/SET,
-        as they need a special handling:
-        - Conditions between a ENUM/SET filter and a TIME expression
-          cannot be optimized. They were filtered out in the previous if block.
-        - It's Ok to use ref access for an ENUM/SET field compared to an
-          INT/REAL/DECIMAL expression.
-        - It's Ok to use ref for an ENUM/SET field compared to a STRING
-          expression if the collation of the field and the collation of
-          the condition match.
-      */
-      if ((field->real_type() == MYSQL_TYPE_ENUM ||
-           field->real_type() == MYSQL_TYPE_SET) &&
-          (*value)->cmp_type () == STRING_RESULT &&
-          field->charset() != cond->compare_collation())
-        return;
-
-      /*
-	We can't use indexes when comparing a string index to a
-	number or two strings if the effective collation
-        of the operation differ from the field collation.
-       */
-
-      if (field->cmp_type() == STRING_RESULT)
-      {
-        if ((*value)->cmp_type() != STRING_RESULT)
-            return;
-        if (field->charset() != cond->compare_collation())
-          return;
-      }
     }
   }
   /*
@@ -4517,6 +4477,7 @@ add_key_field(JOIN *join,
   (*key_fields)->field=		field;
   (*key_fields)->eq_func=	eq_func;
   (*key_fields)->val=		*value;
+  (*key_fields)->cond=          cond;
   (*key_fields)->level=         and_level;
   (*key_fields)->optimize=      optimize;
   /*
@@ -4958,7 +4919,8 @@ add_key_part(DYNAMIC_ARRAY *keyuse_array, KEY_FIELD *key_field)
       uint key_parts= form->actual_n_key_parts(keyinfo);
       for (uint part=0 ; part <  key_parts ; part++)
       {
-	if (field->eq(form->key_info[key].key_part[part].field))
+        if (field->eq(form->key_info[key].key_part[part].field) &&
+            field->can_optimize_keypart_ref(key_field->cond, key_field->val))
 	{
           if (add_keyuse(keyuse_array, key_field, key, part))
             return TRUE;
@@ -4969,6 +4931,8 @@ add_key_part(DYNAMIC_ARRAY *keyuse_array, KEY_FIELD *key_field)
         (key_field->optimize & KEY_OPTIMIZE_EQ) &&
         key_field->val->used_tables())
     {
+      if (!field->can_optimize_hash_join(key_field->cond, key_field->val))
+        return false;      
       /* 
         If a key use is extracted from an equi-join predicate then it is
         added not only as a key use for every index whose component can
@@ -12071,13 +12035,12 @@ remove_const(JOIN *join,ORDER *first_order, COND *cond,
     return change_list ? 0 : first_order;		// No need to sort
 
   ORDER *order,**prev_ptr, *tmp_order;
-  table_map first_table;
+  table_map UNINIT_VAR(first_table); /* protected by first_is_base_table */
   table_map not_const_tables= ~join->const_table_map;
   table_map ref;
   bool first_is_base_table= FALSE;
   DBUG_ENTER("remove_const");
   
-  LINT_INIT(first_table); /* protected by first_is_base_table */
   if (join->join_tab[join->const_tables].table)
   {
     first_table= join->join_tab[join->const_tables].table->map;
@@ -15503,8 +15466,7 @@ static Field *create_tmp_field_from_item(THD *thd, Item *item, TABLE *table,
                                          uint convert_blob_length)
 {
   bool maybe_null= item->maybe_null;
-  Field *new_field;
-  LINT_INIT(new_field);
+  Field *UNINIT_VAR(new_field);
 
   switch (item->result_type()) {
   case REAL_RESULT:
@@ -17497,9 +17459,8 @@ do_select(JOIN *join,List<Item> *fields,TABLE *table,Procedure *procedure)
 {
   int rc= 0;
   enum_nested_loop_state error= NESTED_LOOP_OK;
-  JOIN_TAB *join_tab;
+  JOIN_TAB *UNINIT_VAR(join_tab);
   DBUG_ENTER("do_select");
-  LINT_INIT(join_tab);
   
   join->procedure=procedure;
   join->tmp_table= table;			/* Save for easy recursion */

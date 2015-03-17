@@ -239,7 +239,6 @@ MYRG_INFO *myrg_parent_open(const char *parent_name,
   rc= 1;
   errpos= 0;
   bzero((char*) &file_cache, sizeof(file_cache));
-  LINT_INIT(m_info);
 
   /* Open MERGE meta file. */
   if ((fd= mysql_file_open(rg_key_file_MRG,

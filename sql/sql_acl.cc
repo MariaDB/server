@@ -11701,7 +11701,6 @@ static ulong parse_client_handshake_packet(MPVIO_EXT *mpvio,
   char *passwd= strend(user)+1;
   uint user_len= passwd - user - 1, db_len;
   char *db= passwd;
-  char db_buff[SAFE_NAME_LEN + 1];      // buffer to store db in utf8
   char user_buff[USERNAME_LENGTH + 1];	// buffer to store user in utf8
   uint dummy_errors;
 
@@ -11738,12 +11737,9 @@ static ulong parse_client_handshake_packet(MPVIO_EXT *mpvio,
   char *client_plugin= next_field= passwd + passwd_len + (db ? db_len + 1 : 0);
 
   /* Since 4.1 all database names are stored in utf8 */
-  if (db)
-  {
-    db_len= copy_and_convert(db_buff, sizeof(db_buff) - 1, system_charset_info,
-                             db, db_len, thd->charset(), &dummy_errors);
-    db= db_buff;
-  }
+  if (thd->copy_with_error(system_charset_info, &mpvio->db,
+                           thd->charset(), db, db_len))
+    return packet_error;
 
   user_len= copy_and_convert(user_buff, sizeof(user_buff) - 1,
                              system_charset_info, user, user_len,
@@ -11773,8 +11769,6 @@ static ulong parse_client_handshake_packet(MPVIO_EXT *mpvio,
 
   Security_context *sctx= thd->security_ctx;
 
-  if (thd->make_lex_string(&mpvio->db, db, db_len) == 0)
-    return packet_error; /* The error is set by make_lex_string(). */
   my_free(sctx->user);
   if (!(sctx->user= my_strndup(user, user_len, MYF(MY_WME))))
     return packet_error; /* The error is set by my_strdup(). */

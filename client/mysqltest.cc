@@ -2617,12 +2617,11 @@ void var_query_set(VAR *var, const char *query, const char** query_end)
 {
   char *end = (char*)((query_end && *query_end) ?
 		      *query_end : query + strlen(query));
-  MYSQL_RES *res;
+  MYSQL_RES *UNINIT_VAR(res);
   MYSQL_ROW row;
   MYSQL* mysql = cur_con->mysql;
   DYNAMIC_STRING ds_query;
   DBUG_ENTER("var_query_set");
-  LINT_INIT(res);
 
   if (!mysql)
   {
@@ -2801,7 +2800,7 @@ void var_set_query_get_value(struct st_command *command, VAR *var)
 {
   long row_no;
   int col_no= -1;
-  MYSQL_RES* res;
+  MYSQL_RES* UNINIT_VAR(res);
   MYSQL* mysql= cur_con->mysql;
 
   static DYNAMIC_STRING ds_query;
@@ -2814,7 +2813,6 @@ void var_set_query_get_value(struct st_command *command, VAR *var)
   };
 
   DBUG_ENTER("var_set_query_get_value");
-  LINT_INIT(res);
 
   if (!mysql)
   {

@@ -41,11 +41,13 @@
 #include "spd_malloc.h"
 
 ulong *spd_db_att_thread_id;
+#if MYSQL_VERSION_ID < 100103
 #ifdef XID_CACHE_IS_SPLITTED
 uint *spd_db_att_xid_cache_split_num;
 #endif
 pthread_mutex_t *spd_db_att_LOCK_xid_cache;
 HASH *spd_db_att_xid_cache;
+#endif
 struct charset_info_st *spd_charset_utf8_bin;
 const char **spd_defaults_extra_file;
 const char **spd_defaults_file;
@@ -6263,7 +6265,7 @@ int spider_db_init(
       "?LOCK_xid_cache@@3PAUst_mysql_mutex@@A"));
   spd_db_att_xid_cache = *((HASH **)
     GetProcAddress(current_module, "?xid_cache@@3PAUst_hash@@A"));
-#else
+#elif MYSQL_VERSION_ID < 100103
   spd_db_att_LOCK_xid_cache = (pthread_mutex_t *)
 #if MYSQL_VERSION_ID < 50500
     GetProcAddress(current_module,
@@ -6289,7 +6291,7 @@ int spider_db_init(
   spd_db_att_xid_cache_split_num = &opt_xid_cache_split_num;
   spd_db_att_LOCK_xid_cache = LOCK_xid_cache;
   spd_db_att_xid_cache = xid_cache;
-#else
+#elif MYSQL_VERSION_ID < 100103
   spd_db_att_LOCK_xid_cache = &LOCK_xid_cache;
   spd_db_att_xid_cache = &xid_cache;
 #endif

@@ -1486,3 +1486,23 @@ ALTER TABLE t1 ADD fid INT NOT NULL;
 select SRID from information_schema.geometry_columns where F_TABLE_NAME='t1';
 drop table t1;
 
+--echo #
+--echo # MDEV-7510 GIS: IsRing returns false for a primitive triangle.
+--echo #
+select ST_IsRing(ST_LineFromText('LINESTRING(0 0,0 10,10 10,0 0)'));
+select ST_IsRing(ST_LineFromText('LINESTRING(0 0,0 10,10 10,-10 -10, 0 -10, 0 0)'));
+
+--echo #
+--echo # MDEV-7514 GIS: PointOnSurface returns NULL instead of the point.
+--echo #
+SELECT ST_GEOMETRYTYPE(ST_PointOnSurface(ST_PolyFromText('POLYGON((-70.916 42.1002,-70.9468 42.0946,-70.9754 42.0875,-70.9749 42.0879,-70.9759 42.0897,-70.916 42.1002))')));
+
+--echo #
+--echo # MDEV-7529 GIS: ST_Relate returns unexpected results for POINT relations
+--echo #
+select ST_Relate(ST_PointFromText('POINT(0 0)'),ST_PointFromText('POINT(0 0)'),'T*F**FFF*') AS equals;
+select ST_Relate(ST_PointFromText('POINT(0 0)'),ST_PointFromText('POINT(0 0)'),'T*****FF*') AS contains;
+select ST_Relate(ST_PointFromText('POINT(0 0)'),ST_PointFromText('POINT(0 0)'),'T*F**F***') AS within;
+select ST_Relate(ST_PointFromText('POINT(0 0)'),ST_PointFromText('POINT(1 1)'),'FF*FF****') as disjoint;
+select ST_Relate(ST_PointFromText('POINT(0 0)'),ST_PointFromText('POINT(0 0)'),'FF*FF****') as disjoint;
+

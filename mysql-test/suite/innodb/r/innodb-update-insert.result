@@ -30,7 +30,7 @@ Warnings:
 Warning	1366	Incorrect string value: '\xA3' for column 'f1' at row 1
 select f1 from t1;
 f1
-
+?
 update t1 set f1=0x6a;
 update t1 set f3=repeat(0xb1,8103);
 update t1 set f1=0x4a;
@@ -39,5 +39,5 @@ Warnings:
 Warning	1366	Incorrect string value: '\x82' for column 'f1' at row 1
 select f1 from t1;
 f1
-
+?
 drop table t1;

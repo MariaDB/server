@@ -404,7 +404,7 @@ Equals(g1.g, g2.g) as e, Disjoint(g1.g, g2.g) as d, Touches(g1.g, g2.g) as t,
 Intersects(g1.g, g2.g) as i, Crosses(g1.g, g2.g) as r
 FROM gis_geometrycollection g1, gis_geometrycollection g2 ORDER BY first, second;
 first	second	w	c	o	e	d	t	i	r
-120	120	1	1	0	1	0	1	1	0
+120	120	1	1	0	1	0	0	1	0
 120	121	0	0	1	0	0	0	1	0
 120	122	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
 120	123	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
@@ -1378,7 +1378,7 @@ SELECT IsRing(LineFromWKB(AsBinary(Boundary(boundary)),SRID(boundary)))
 FROM named_places 
 WHERE name = 'Goose Island';
 IsRing(LineFromWKB(AsBinary(Boundary(boundary)),SRID(boundary)))
-0
+1
 # Conformance Item T21 
 SELECT GLength(centerline) 
 FROM road_segments 
@@ -1765,3 +1765,36 @@ SRID
 0
 0
 drop table t1;
+#
+# MDEV-7510 GIS: IsRing returns false for a primitive triangle.
+#
+select ST_IsRing(ST_LineFromText('LINESTRING(0 0,0 10,10 10,0 0)'));
+ST_IsRing(ST_LineFromText('LINESTRING(0 0,0 10,10 10,0 0)'))
+1
+select ST_IsRing(ST_LineFromText('LINESTRING(0 0,0 10,10 10,-10 -10, 0 -10, 0 0)'));
+ST_IsRing(ST_LineFromText('LINESTRING(0 0,0 10,10 10,-10 -10, 0 -10, 0 0)'))
+0
+#
+# MDEV-7514 GIS: PointOnSurface returns NULL instead of the point.
+#
+SELECT ST_GEOMETRYTYPE(ST_PointOnSurface(ST_PolyFromText('POLYGON((-70.916 42.1002,-70.9468 42.0946,-70.9754 42.0875,-70.9749 42.0879,-70.9759 42.0897,-70.916 42.1002))')));
+ST_GEOMETRYTYPE(ST_PointOnSurface(ST_PolyFromText('POLYGON((-70.916 42.1002,-70.9468 42.0946,-70.9754 42.0875,-70.9749 42.0879,-70.9759 42.0897,-70.916 42.1002))')))
+NULL
+#
+# MDEV-7529 GIS: ST_Relate returns unexpected results for POINT relations
+#
+select ST_Relate(ST_PointFromText('POINT(0 0)'),ST_PointFromText('POINT(0 0)'),'T*F**FFF*') AS equals;
+equals
+1
+select ST_Relate(ST_PointFromText('POINT(0 0)'),ST_PointFromText('POINT(0 0)'),'T*****FF*') AS contains;
+contains
+1
+select ST_Relate(ST_PointFromText('POINT(0 0)'),ST_PointFromText('POINT(0 0)'),'T*F**F***') AS within;
+within
+1
+select ST_Relate(ST_PointFromText('POINT(0 0)'),ST_PointFromText('POINT(1 1)'),'FF*FF****') as disjoint;
+disjoint
+1
+select ST_Relate(ST_PointFromText('POINT(0 0)'),ST_PointFromText('POINT(0 0)'),'FF*FF****') as disjoint;
+disjoint
+0

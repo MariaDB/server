@@ -13966,8 +13966,8 @@ IDENT_sys:
             }
             else
             {
-              if (thd->convert_string(&$$, system_charset_info,
-                                  $1.str, $1.length, thd->charset()))
+              if (thd->convert_with_error(system_charset_info, &$$,
+                                          thd->charset(), $1.str, $1.length))
                 MYSQL_YYABORT;
             }
           }

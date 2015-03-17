@@ -45,7 +45,7 @@
 
 #define MY_FUNCTION_NAME(x)   my_ ## x ## _gbk
 #define IS_MB2_CHAR(x,y)      (isgbkhead(x) && isgbktail(y))
-#define WELL_FORMED_LEN
+#define DEFINE_ASIAN_ROUTINES
 #include "ctype-mb.ic"
 
 
@@ -10724,6 +10724,9 @@ my_mb_wc_gbk(CHARSET_INFO *cs __attribute__((unused)),
   if (s+2>e)
     return MY_CS_TOOSMALL2;
     
+  if (!IS_MB2_CHAR(hi, s[1]))
+    return MY_CS_ILSEQ;
+  
   if (!(pwc[0]=func_gbk_uni_onechar( (hi<<8) + s[1])))
     return -2;
   
@@ -10776,7 +10779,9 @@ static MY_CHARSET_HANDLER my_charset_handler=
   my_strtoll10_8bit,
   my_strntoull10rnd_8bit,
   my_scan_8bit,
-  my_copy_abort_mb,
+  my_charlen_gbk,
+  my_well_formed_char_length_gbk,
+  my_copy_fix_mb,
 };
 
 

@@ -399,7 +399,8 @@ public:
   }
 
   bool is_null() { return MY_TEST(args[0]->is_null() || args[1]->is_null()); }
-  CHARSET_INFO *compare_collation() { return cmp.cmp_collation.collation; }
+  CHARSET_INFO *compare_collation() const
+  { return cmp.cmp_collation.collation; }
   void top_level_item() { abort_on_null= TRUE; }
   Arg_comparator *get_comparator() { return &cmp; }
   void cleanup()
@@ -700,7 +701,7 @@ public:
   bool fix_fields(THD *, Item **);
   void fix_length_and_dec();
   virtual void print(String *str, enum_query_type query_type);
-  CHARSET_INFO *compare_collation() { return cmp_collation.collation; }
+  CHARSET_INFO *compare_collation() const { return cmp_collation.collation; }
   bool eval_not_null_tables(uchar *opt_arg);
   void fix_after_pullout(st_select_lex *new_parent, Item **ref);
   bool count_sargable_conds(uchar *arg);
@@ -1319,7 +1320,7 @@ public:
   const char *func_name() const { return "case"; }
   virtual void print(String *str, enum_query_type query_type);
   Item *find_item(String *str);
-  CHARSET_INFO *compare_collation() { return cmp_collation.collation; }
+  CHARSET_INFO *compare_collation() const { return cmp_collation.collation; }
   void cleanup();
   void agg_str_lengths(Item *arg);
   void agg_num_lengths(Item *arg);
@@ -1388,7 +1389,7 @@ public:
   enum Functype functype() const { return IN_FUNC; }
   const char *func_name() const { return " IN "; }
   bool nulls_in_row();
-  CHARSET_INFO *compare_collation() { return cmp_collation.collation; }
+  CHARSET_INFO *compare_collation() const { return cmp_collation.collation; }
   bool eval_not_null_tables(uchar *opt_arg);
   void fix_after_pullout(st_select_lex *new_parent, Item **ref);
 };
@@ -1428,7 +1429,8 @@ class Item_func_null_predicate :public Item_bool_func
 public:
   Item_func_null_predicate(Item *a) :Item_bool_func(a) { sargable= true; }
   optimize_type select_optimize() const { return OPTIMIZE_NULL; }
-  CHARSET_INFO *compare_collation() { return args[0]->collation.collation; }
+  CHARSET_INFO *compare_collation() const
+  { return args[0]->collation.collation; }
   void fix_length_and_dec() { decimals=0; max_length=1; maybe_null=0; }
 };
 
@@ -1574,8 +1576,7 @@ public:
       in case of a "PAD SPACE" collation, but only if "expr2" has '%'
       at the end.         
     */
-    return ((Item_func_like *)this)->compare_collation() == &my_charset_bin ?
-           COND_TRUE : COND_OK;
+    return compare_collation() == &my_charset_bin ? COND_TRUE : COND_OK;
   }
   const char *func_name() const { return "like"; }
   bool fix_fields(THD *thd, Item **ref);
@@ -1689,7 +1690,7 @@ public:
     print_op(str, query_type);
   }
 
-  CHARSET_INFO *compare_collation() { return cmp_collation.collation; }
+  CHARSET_INFO *compare_collation() const { return cmp_collation.collation; }
 };
 
 
@@ -1952,7 +1953,7 @@ public:
   bool walk(Item_processor processor, bool walk_subquery, uchar *arg);
   Item *transform(Item_transformer transformer, uchar *arg);
   virtual void print(String *str, enum_query_type query_type);
-  CHARSET_INFO *compare_collation();
+  CHARSET_INFO *compare_collation() const;
 
   void set_context_field(Item_field *ctx_field) { context_field= ctx_field; }
   void set_link_equal_fields(bool flag) { link_equal_fields= flag; }

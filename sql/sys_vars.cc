@@ -3765,7 +3765,7 @@ static ulonglong read_last_insert_id(THD *thd)
 }
 static Sys_var_session_special Sys_last_insert_id(
        "last_insert_id", "The value to be returned from LAST_INSERT_ID()",
-       NO_SET_STMT sys_var::ONLY_SESSION, NO_CMD_LINE,
+       sys_var::ONLY_SESSION, NO_CMD_LINE,
        VALID_RANGE(0, ULONGLONG_MAX), BLOCK_SIZE(1),
        NO_MUTEX_GUARD, IN_BINLOG, ON_CHECK(0),
        ON_UPDATE(update_last_insert_id), ON_READ(read_last_insert_id));
@@ -3830,17 +3830,17 @@ static bool update_rand_seed1(THD *thd, set_var *var)
   thd->rand.seed1= (ulong) var->save_result.ulonglong_value;
   return false;
 }
-static ulonglong read_rand_seed(THD *thd)
+static ulonglong read_rand_seed1(THD *thd)
 {
-  return 0;
+  return thd->rand.seed1;
 }
 static Sys_var_session_special Sys_rand_seed1(
        "rand_seed1", "Sets the internal state of the RAND() "
        "generator for replication purposes",
-       NO_SET_STMT sys_var::ONLY_SESSION, NO_CMD_LINE,
+       sys_var::ONLY_SESSION, NO_CMD_LINE,
        VALID_RANGE(0, ULONG_MAX), BLOCK_SIZE(1),
        NO_MUTEX_GUARD, IN_BINLOG, ON_CHECK(0),
-       ON_UPDATE(update_rand_seed1), ON_READ(read_rand_seed));
+       ON_UPDATE(update_rand_seed1), ON_READ(read_rand_seed1));
 
 static bool update_rand_seed2(THD *thd, set_var *var)
 {
@@ -3852,13 +3852,17 @@ static bool update_rand_seed2(THD *thd, set_var *var)
   thd->rand.seed2= (ulong) var->save_result.ulonglong_value;
   return false;
 }
+static ulonglong read_rand_seed2(THD *thd)
+{
+  return thd->rand.seed2;
+}
 static Sys_var_session_special Sys_rand_seed2(
        "rand_seed2", "Sets the internal state of the RAND() "
        "generator for replication purposes",
-       NO_SET_STMT sys_var::ONLY_SESSION, NO_CMD_LINE,
+       sys_var::ONLY_SESSION, NO_CMD_LINE,
        VALID_RANGE(0, ULONG_MAX), BLOCK_SIZE(1),
        NO_MUTEX_GUARD, IN_BINLOG, ON_CHECK(0),
-       ON_UPDATE(update_rand_seed2), ON_READ(read_rand_seed));
+       ON_UPDATE(update_rand_seed2), ON_READ(read_rand_seed2));
 
 static ulonglong read_error_count(THD *thd)
 {

@@ -1540,8 +1540,7 @@ static void close_connections(void)
   while (select_thread_in_use)
   {
     struct timespec abstime;
-    int error;
-    LINT_INIT(error);
+    int UNINIT_VAR(error);
     DBUG_PRINT("info",("Waiting for select thread"));
 
 #ifndef DONT_USE_THR_ALARM
@@ -4890,11 +4889,7 @@ static int init_server_components()
   my_charset_error_reporter= charset_error_reporter;
 #endif
 
-  if (xid_cache_init())
-  {
-    sql_print_error("Out of memory");
-    unireg_abort(1);
-  }
+  xid_cache_init();
 
   /*
     initialize delegates for extension observers, errors have already
@@ -7533,8 +7528,7 @@ static int show_slave_running(THD *thd, SHOW_VAR *var, char *buff,
                               enum enum_var_type scope)
 {
   Master_info *mi= NULL;
-  bool tmp;
-  LINT_INIT(tmp);
+  bool UNINIT_VAR(tmp);
 
   var->type= SHOW_MY_BOOL;
   var->value= buff;
@@ -7561,8 +7555,7 @@ static int show_slave_received_heartbeats(THD *thd, SHOW_VAR *var, char *buff,
                                           enum enum_var_type scope)
 {
   Master_info *mi= NULL;
-  longlong tmp;
-  LINT_INIT(tmp);
+  longlong UNINIT_VAR(tmp);
 
   var->type= SHOW_LONGLONG;
   var->value= buff;
@@ -7588,8 +7581,7 @@ static int show_heartbeat_period(THD *thd, SHOW_VAR *var, char *buff,
                                  enum enum_var_type scope)
 {
   Master_info *mi= NULL;
-  float tmp;
-  LINT_INIT(tmp);
+  float UNINIT_VAR(tmp);
 
   var->type= SHOW_CHAR;
   var->value= buff;

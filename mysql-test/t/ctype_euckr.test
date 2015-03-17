@@ -95,8 +95,8 @@ WHERE t11.a >= 0x81 AND t11.a <= 0xFE
 AND   t12.a >= 0x41 AND t12.a <= 0xFE
 ORDER BY t11.a, t12.a;
 --enable_warnings
-SELECT s as bad_code FROM t2 WHERE a='' ORDER BY s;
-DELETE FROM t2 WHERE a='';
+SELECT s as bad_code FROM t2 WHERE a='?' ORDER BY s;
+DELETE FROM t2 WHERE a='?';
 ALTER TABLE t2 ADD u VARCHAR(1) CHARACTER SET utf8, ADD a2 VARCHAR(1) CHARACTER SET euckr;
 --disable_warnings
 UPDATE t2 SET u=a, a2=u;
@@ -145,7 +145,7 @@ ORDER BY head, tail;
 DROP TEMPORARY TABLE head, tail;
 SHOW CREATE TABLE t1;
 UPDATE t1 SET a=unhex(code) ORDER BY code;
-SELECT COUNT(*) FROM t1 WHERE a<>'';
+SELECT COUNT(*) FROM t1 WHERE a<>'?';
 #
 # Display all characters that have upper or lower case mapping.
 #

@@ -1249,8 +1249,20 @@ double Field::pos_in_interval_val_str(Field *min, Field *max, uint data_offset)
 /*
   This handles all numeric and BIT data types.
 */ 
+bool Field::can_optimize_keypart_ref(const Item_func *cond,
+                                     const Item *item) const
+{
+  DBUG_ASSERT(cmp_type() != STRING_RESULT);
+  DBUG_ASSERT(cmp_type() != TIME_RESULT);
+  return item->cmp_type() != TIME_RESULT;
+}
+
+
+/*
+  This handles all numeric and BIT data types.
+*/ 
 bool Field::can_optimize_group_min_max(const Item_bool_func2 *cond,
-                                       const Item *const_item)
+                                       const Item *const_item) const
 {
   DBUG_ASSERT(cmp_type() != STRING_RESULT);
   DBUG_ASSERT(cmp_type() != TIME_RESULT);
@@ -5270,8 +5282,15 @@ my_decimal *Field_temporal::val_decimal(my_decimal *d)
 }
 
 
+bool Field_temporal::can_optimize_keypart_ref(const Item_func *cond,
+                                              const Item *value) const
+{
+  return true; // Field is of TIME_RESULT, which supersedes everything else.
+}
+
+
 bool Field_temporal::can_optimize_group_min_max(const Item_bool_func2 *cond,
-                                                const Item *const_item)
+                                                const Item *const_item) const
 {
   return true; // Field is of TIME_RESULT, which supersedes everything else.
 }
@@ -6468,15 +6487,50 @@ uint32 Field_longstr::max_data_length() const
 }
 
 
-bool Field_longstr::can_optimize_group_min_max(const Item_bool_func2 *cond,
-                                               const Item *const_item)
+bool
+Field_longstr::cmp_to_string_with_same_collation(const Item_func *cond,
+                                                 const Item *item) const
 {
-  // Can't use indexes when comparing a string to a number or a date
-  if (const_item->cmp_type() != STRING_RESULT)
-    return false;
+  return item->cmp_type() == STRING_RESULT &&
+         charset() == cond->compare_collation();
+}
 
-  // Don't use an index when comparing strings of different collations.
-  return charset() ==  ((Item_bool_func2*) cond)->compare_collation();
+
+bool
+Field_longstr::cmp_to_string_with_stricter_collation(const Item_func *cond,
+                                                     const Item *item) const
+{
+  return item->cmp_type() == STRING_RESULT &&
+         (charset() == cond->compare_collation() ||
+          cond->compare_collation()->state & MY_CS_BINSORT);
+}
+
+
+bool Field_longstr::can_optimize_keypart_ref(const Item_func *cond,
+                                             const Item *item) const
+{
+  DBUG_ASSERT(cmp_type() == STRING_RESULT);
+  return cmp_to_string_with_stricter_collation(cond, item);
+}
+
+
+bool Field_longstr::can_optimize_hash_join(const Item_func *cond,
+                                           const Item *item) const
+{
+  DBUG_ASSERT(cmp_type() == STRING_RESULT);
+  return cmp_to_string_with_same_collation(cond, item);
+}
+
+
+bool Field_longstr::can_optimize_group_min_max(const Item_bool_func2 *cond,
+                                               const Item *const_item) const
+{
+  /*
+    Can't use indexes when comparing a string to a number or a date
+    Don't use an index when comparing strings of different collations.
+  */
+  DBUG_ASSERT(cmp_type() == STRING_RESULT);
+  return cmp_to_string_with_same_collation(cond, const_item);
 }
 
 
@@ -8486,6 +8540,31 @@ uint Field_num::is_equal(Create_field *new_field)
 	  ((new_field->flags & AUTO_INCREMENT_FLAG) ==
 	   (uint) (flags & AUTO_INCREMENT_FLAG)) &&
           (new_field->pack_length == pack_length()));
+}
+
+
+bool Field_enum::can_optimize_keypart_ref(const Item_func *cond,
+                                          const Item *item) const
+{
+  DBUG_ASSERT(cmp_type() == INT_RESULT);
+  DBUG_ASSERT(result_type() == STRING_RESULT);
+
+  switch (item->cmp_type())
+  {
+  case TIME_RESULT:
+    return false;
+  case INT_RESULT:
+  case DECIMAL_RESULT:
+  case REAL_RESULT:
+    return true;
+  case STRING_RESULT:
+    return charset() == ((Item_func*)cond)->compare_collation();
+  case IMPOSSIBLE_RESULT:
+  case ROW_RESULT:
+    DBUG_ASSERT(0);
+    break;
+  }
+  return false;
 }
 
 

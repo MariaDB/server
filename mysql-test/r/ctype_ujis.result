@@ -2626,7 +2626,7 @@ Warning	1366	Incorrect string value: '\x80_' for column 'a' at row 64
 SELECT COUNT(*) FROM t1;
 COUNT(*)
 44671
-SELECT COUNT(*) FROM t1 WHERE a<>'';
+SELECT COUNT(*) FROM t1 WHERE a<>'?';
 COUNT(*)
 17735
 SELECT COUNT(*) FROM t1 WHERE a<>'' AND OCTET_LENGTH(a)=2;
@@ -25938,7 +25938,7 @@ CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET ujis);
 INSERT INTO t1 VALUES (0x8EA0);
 SELECT HEX(a), CHAR_LENGTH(a) FROM t1;
 HEX(a)	CHAR_LENGTH(a)
-	0
+3F3F	2
 DROP TABLE t1;
 SELECT _ujis 0x8EA0;
 ERROR HY000: Invalid ujis character string: '8EA0'

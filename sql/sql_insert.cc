@@ -331,8 +331,7 @@ static int check_update_fields(THD *thd, TABLE_LIST *insert_table_list,
                                table_map *map)
 {
   TABLE *table= insert_table_list->table;
-  my_bool autoinc_mark;
-  LINT_INIT(autoinc_mark);
+  my_bool UNINIT_VAR(autoinc_mark);
 
   table->next_number_field_updated= FALSE;
 

@@ -248,6 +248,13 @@ int my_strcasecmp_8bit(CHARSET_INFO * cs,const char *s, const char *t)
 }
 
 
+int my_charlen_8bit(CHARSET_INFO *cs __attribute__((unused)),
+                    const uchar *str, const uchar *end)
+{
+  return str >= end ? MY_CS_TOOSMALL : 1;
+}
+
+
 int my_mb_wc_8bit(CHARSET_INFO *cs,my_wc_t *wc,
 		  const uchar *str,
 		  const uchar *end __attribute__((unused)))
@@ -1108,6 +1115,19 @@ size_t my_well_formed_len_8bit(CHARSET_INFO *cs __attribute__((unused)),
 }
 
 
+size_t
+my_well_formed_char_length_8bit(CHARSET_INFO *cs __attribute__((unused)),
+                                const char *start, const char *end,
+                                size_t nchars, MY_STRCOPY_STATUS *status)
+{
+  size_t nbytes= (size_t) (end - start);
+  size_t res= MY_MIN(nbytes, nchars);
+  status->m_well_formed_error_pos= NULL;
+  status->m_source_end_pos= start + res;
+  return res;
+}
+
+
 /*
   Copy a 8-bit string. Not more than "nchars" character are copied.
 */
@@ -1906,6 +1926,8 @@ MY_CHARSET_HANDLER my_charset_8bit_handler=
     my_strtoll10_8bit,
     my_strntoull10rnd_8bit,
     my_scan_8bit,
+    my_charlen_8bit,
+    my_well_formed_char_length_8bit,
     my_copy_8bit,
 };
 

@@ -6,6 +6,7 @@
 #include <mysql/plugin_encryption_key_management.h>
 #include <my_md5.h>
 #include <my_rnd.h>
+#include "sql_class.h"
 
 /* rotate key randomly between 45 and 90 seconds */
 #define KEY_ROTATION_MIN 45
@@ -80,7 +81,14 @@ static int example_key_management_plugin_init(void *p)
   my_rnd_init(&seed, time(0), 0);
   get_latest_key_version();
 
-  my_aes_init_dynamic_encrypt(MY_AES_ALGORITHM_CTR);
+  if (current_aes_dynamic_method == MY_AES_ALGORITHM_NONE)
+  {
+    sql_print_error("No encryption method choosen with --encryption-algorithm. "
+                    "example_key_management_plugin disabled");
+    return 1;
+  }
+
+  my_aes_init_dynamic_encrypt(current_aes_dynamic_method);
 
   pthread_mutex_init(&mutex, NULL);
 

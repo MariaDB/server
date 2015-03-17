@@ -3235,8 +3235,8 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
       {
         /* Try creating index_merge/ROR-union scan. */
         SEL_IMERGE *imerge;
-        TABLE_READ_PLAN *best_conj_trp= NULL, *new_conj_trp;
-        LINT_INIT(new_conj_trp); /* no empty index_merge lists possible */
+        TABLE_READ_PLAN *best_conj_trp= NULL,
+          *UNINIT_VAR(new_conj_trp); /* no empty index_merge lists possible */
         DBUG_PRINT("info",("No range reads possible,"
                            " trying to construct index_merge"));
         List_iterator_fast<SEL_IMERGE> it(tree->merges);
