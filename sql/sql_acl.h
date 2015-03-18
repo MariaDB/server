@@ -402,6 +402,8 @@ int acl_check_set_default_role(THD *thd, const char *host, const char *user);
 int acl_set_default_role(THD *thd, const char *host, const char *user,
                          const char *rolename);
 
+extern SHOW_VAR acl_statistics[];
+
 #ifndef DBUG_OFF
 extern ulong role_global_merges, role_db_merges, role_table_merges,
              role_column_merges, role_routine_merges;

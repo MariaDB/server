@@ -10340,12 +10340,61 @@ applicable_roles_insert(ACL_USER_BASE *grantee, ACL_ROLE *role, void *ptr)
   return 0;
 }
 
+/**
+  Hash iterate function to count the number of total column privileges granted.
+*/
+static my_bool count_column_grants(void *grant_table,
+                                       void *current_count)
+{
+  HASH hash_columns = ((GRANT_TABLE *)grant_table)->hash_columns;
+  *(ulong *)current_count+= hash_columns.records;
+  return 0;
+}
+
+/**
+  SHOW function that computes the number of column grants.
+
+  This must be performed under the mutex in order to make sure the
+  iteration does not fail.
+*/
+static int show_column_grants(THD *thd, SHOW_VAR *var, char *buff,
+                              enum enum_var_type scope)
+{
+  var->type= SHOW_ULONG;
+  var->value= buff;
+  *(ulong *)buff= 0;
+  mysql_rwlock_rdlock(&LOCK_grant);
+  mysql_mutex_lock(&acl_cache->lock);
+  my_hash_iterate(&column_priv_hash, count_column_grants, buff);
+  mysql_mutex_unlock(&acl_cache->lock);
+  mysql_rwlock_unlock(&LOCK_grant);
+  return 0;
+}
+
+
 #else
 bool check_grant(THD *, ulong, TABLE_LIST *, bool, uint, bool)
 {
   return 0;
 }
 #endif /*NO_EMBEDDED_ACCESS_CHECKS */
+
+
+SHOW_VAR acl_statistics[] = {
+#ifndef NO_EMBEDDED_ACCESS_CHECKS
+  {"column_grants",    (char*)show_column_grants,          SHOW_SIMPLE_FUNC},
+  {"database_grants",  (char*)&acl_dbs.elements,           SHOW_UINT},
+  {"function_grants",  (char*)&func_priv_hash.records,     SHOW_ULONG},
+  {"procedure_grants", (char*)&proc_priv_hash.records,     SHOW_ULONG},
+  {"proxy_users",      (char*)&acl_proxy_users.elements,   SHOW_UINT},
+  {"role_grants",      (char*)&acl_roles_mappings.records, SHOW_ULONG},
+  {"roles",            (char*)&acl_roles.records,          SHOW_ULONG},
+  {"table_grants",     (char*)&column_priv_hash.records,   SHOW_ULONG},
+  {"users",            (char*)&acl_users.elements,         SHOW_UINT},
+#endif
+  {NullS, NullS, SHOW_LONG},
+};
+
 
 int fill_schema_enabled_roles(THD *thd, TABLE_LIST *tables, COND *cond)
 {
