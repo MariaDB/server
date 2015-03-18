@@ -1580,6 +1580,7 @@ sync_thread_level_arrays_free(void)
 
 		/* If this slot was allocated then free the slot memory too. */
 		if (slot->levels != NULL) {
+			slot->levels->elems.erase(slot->levels->elems.begin(),slot->levels->elems.end());
 			free(slot->levels);
 			slot->levels = NULL;
 		}
