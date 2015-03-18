@@ -5508,6 +5508,45 @@ String *Item::check_well_formed_result(String *str, bool send_error)
   return str;
 }
 
+
+/**
+  Copy a string with optional character set conversion.
+*/
+bool
+String_copier_for_item::copy_with_warn(CHARSET_INFO *dstcs, String *dst,
+                                       CHARSET_INFO *srccs, const char *src,
+                                       uint32 src_length, uint32 nchars)
+{
+  if ((dst->copy(dstcs, srccs, src, src_length, nchars, this)))
+    return true; // EOM
+  if (const char *pos= well_formed_error_pos())
+  {
+    ErrConvString err(pos, src_length - (pos - src), &my_charset_bin);
+    push_warning_printf(m_thd, Sql_condition::WARN_LEVEL_WARN,
+                        ER_INVALID_CHARACTER_STRING,
+                        ER(ER_INVALID_CHARACTER_STRING),
+                        srccs == &my_charset_bin ?
+                        dstcs->csname : srccs->csname,
+                        err.ptr());
+    return m_thd->is_strict_mode();
+  }
+  if (const char *pos= cannot_convert_error_pos())
+  {
+    char buf[16];
+    int mblen= srccs->cset->charlen(srccs, (const uchar *) pos,
+                                           (const uchar *) src + src_length);
+    DBUG_ASSERT(mblen > 0 && mblen * 2 + 1 <= (int) sizeof(buf));
+    octet2hex(buf, pos, mblen);
+    push_warning_printf(m_thd, Sql_condition::WARN_LEVEL_WARN,
+                        ER_CANNOT_CONVERT_CHARACTER,
+                        ER(ER_CANNOT_CONVERT_CHARACTER),
+                        srccs->csname, buf, dstcs->csname);
+    return m_thd->is_strict_mode();
+  }
+  return false;
+}
+
+
 /*
   Compare two items using a given collation
   
