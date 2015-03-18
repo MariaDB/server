@@ -1,4 +1,4 @@
-/* Copyright (C) Olivier Bertrand 2004 - 2014
+/* Copyright (C) Olivier Bertrand 2004 - 2015
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -56,11 +56,7 @@ public:
               oldopn= newopn= NULL;
               oldpix= newpix= NULL;}
 
-  inline char *SetName(PGLOBAL g, char *name) {
-    char *nm= NULL;
-    if (name) {nm= (char*)PlugSubAlloc(g, NULL, strlen(name) + 1);
-               strcpy(nm, name);}
-    return nm;}
+  inline char *SetName(PGLOBAL g, char *name) {return PlugDup(g, name);}
 
   bool         oldsep;              // Sepindex before create/alter
   bool         newsep;              // Sepindex after create/alter

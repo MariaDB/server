@@ -1,7 +1,7 @@
 /**************** Table H Declares Source Code File (.H) ***************/
 /*  Name: TABLE.H    Version 2.3                                       */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          1999-2014    */
+/*  (C) Copyright to the author Olivier BERTRAND          1999-2015    */
 /*                                                                     */
 /*  This file contains the TBX, OPJOIN and TDB class definitions.      */
 /***********************************************************************/
@@ -24,9 +24,7 @@ typedef class CMD *PCMD;
 class CMD : public BLOCK {
  public:
   // Constructor
-  CMD(PGLOBAL g, char *cmd) {
-    Cmd = (char*)PlugSubAlloc(g, NULL, strlen(cmd) + 1);
-    strcpy(Cmd, cmd); Next = NULL; }
+  CMD(PGLOBAL g, char *cmd) {Cmd = PlugDup(g, cmd); Next = NULL;}
 
   // Members
   PCMD  Next;

@@ -171,7 +171,7 @@
 #define JSONMAX      10             // JSON Default max grp size
 
 extern "C" {
-       char  version[]= "Version 1.03.0006 February 06, 2015";
+       char  version[]= "Version 1.03.0006 March 16, 2015";
 
 #if defined(WIN32)
        char  compver[]= "Version 1.03.0006 " __DATE__ " "  __TIME__;
@@ -211,6 +211,8 @@ extern "C" {
 /***********************************************************************/
 PQRYRES OEMColumns(PGLOBAL g, PTOS topt, char *tab, char *db, bool info);
 PQRYRES VirColumns(PGLOBAL g, char *tab, char *db, bool info);
+PQRYRES JSONColumns(PGLOBAL g, char *dp, const char *fn, char *objn,
+                    int pretty, int lvl, int mxr, bool info);
 void    PushWarning(PGLOBAL g, THD *thd, int level);
 bool    CheckSelf(PGLOBAL g, TABLE_SHARE *s, const char *host,
                   const char *db, char *tab, const char *src, int port);
@@ -1020,8 +1022,7 @@ char *GetListOption(PGLOBAL g, const char *opname,
     } // endif pv
 
     if (!stricmp(opname, key)) {
-      opval= (char*)PlugSubAlloc(g, NULL, strlen(val) + 1);
-      strcpy(opval, val);
+      opval= PlugDup(g, val);
       break;
     } else if (!pn)
       break;
@@ -1506,8 +1507,7 @@ PIXDEF ha_connect::GetIndexInfo(TABLE_SHARE *s)
 
     // Now get index information
     pn= (char*)s->keynames.type_names[n];
-    name= (char*)PlugSubAlloc(g, NULL, strlen(pn) + 1);
-    strcpy(name, pn);    // This is probably unuseful
+    name= PlugDup(g, pn);
     unique= (kp.flags & 1) != 0;
     pkp= NULL;
 
@@ -1517,8 +1517,7 @@ PIXDEF ha_connect::GetIndexInfo(TABLE_SHARE *s)
     // Get the the key parts info
     for (int k= 0; (unsigned)k < kp.user_defined_key_parts; k++) {
       pn= (char*)kp.key_part[k].field->field_name;
-      name= (char*)PlugSubAlloc(g, NULL, strlen(pn) + 1);
-      strcpy(name, pn);    // This is probably unuseful
+      name= PlugDup(g, pn);
 
       // Allocate the key part description block
       kpp= new(g) KPARTDEF(name, k + 1);
@@ -4738,9 +4737,9 @@ static char *encode(PGLOBAL g, const char *cnm)
   @return
     Return 0 if ok
 */
-static bool add_field(String *sql, const char *field_name, int typ,
-                      int len, int dec, char *key, uint tm, const char *rem,
-                      char *dft, char *xtra, int flag, bool dbf, char v)
+static bool add_field(String *sql, const char *field_name, int typ, int len,
+                      int dec, char *key, uint tm, const char *rem, char *dft,
+                      char *xtra, char *fmt, int flag, bool dbf, char v)
 {
   char var = (len > 255) ? 'V' : v;
   bool q, error= false;
@@ -4808,6 +4807,12 @@ static bool add_field(String *sql, const char *field_name, int typ,
     error|= sql->append_for_single_quote(rem, strlen(rem));
     error|= sql->append("'");
     } // endif rem
+
+  if (fmt && *fmt) {
+    error|= sql->append(" FIELD_FORMAT='");
+    error|= sql->append_for_single_quote(fmt, strlen(fmt));
+    error|= sql->append("'");
+    } // endif flag
 
   if (flag) {
     error|= sql->append(" FLAG=");
@@ -4952,12 +4957,12 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
   const char *fncn= "?";
   const char *user, *fn, *db, *host, *pwd, *sep, *tbl, *src;
   const char *col, *ocl, *rnk, *pic, *fcl, *skc;
-  char       *tab, *dsn, *shm, *dpath; 
+  char       *tab, *dsn, *shm, *dpath, *objn; 
 #if defined(WIN32)
   char       *nsp= NULL, *cls= NULL;
 #endif   // WIN32
   int         port= 0, hdr= 0, mxr __attribute__((unused))= 0, mxe= 0, rc= 0;
-  int         cop __attribute__((unused)) = 0;
+  int         cop __attribute__((unused))= 0, pty= 2, lrecl= 0, lvl= 0;
 #if defined(ODBC_SUPPORT)
   POPARM      sop = NULL;
   char       *ucnc = NULL;
@@ -4987,7 +4992,7 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
   if (!g)
     return HA_ERR_INTERNAL_ERROR;
 
-  user= host= pwd= tbl= src= col= ocl= pic= fcl= skc= rnk= dsn= NULL;
+  user= host= pwd= tbl= src= col= ocl= pic= fcl= skc= rnk= dsn= objn= NULL;
 
   // Get the useful create options
   ttp= GetTypeID(topt->type);
@@ -5003,6 +5008,7 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
   hdr= (int)topt->header;
   tbl= topt->tablist;
   col= topt->colist;
+  lrecl= (int)topt->lrecl;
 
   if (topt->oplist) {
     host= GetListOption(g, "host", topt->oplist, "localhost");
@@ -5017,6 +5023,7 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
     skc= GetListOption(g, "skipcol", topt->oplist, NULL);
     rnk= GetListOption(g, "rankcol", topt->oplist, NULL);
     pwd= GetListOption(g, "password", topt->oplist);
+    objn= GetListOption(g, "Object", topt->oplist, NULL);
 #if defined(WIN32)
     nsp= GetListOption(g, "namespace", topt->oplist);
     cls= GetListOption(g, "class", topt->oplist);
@@ -5034,6 +5041,8 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
 #if defined(PROMPT_OK)
     cop= atoi(GetListOption(g, "checkdsn", topt->oplist, "0"));
 #endif   // PROMPT_OK
+    pty= atoi(GetListOption(g,"Pretty", topt->oplist, "2"));
+    lvl= atoi(GetListOption(g,"Level", topt->oplist, "0"));
   } else {
     host= "localhost";
     user= (ttp == TAB_ODBC ? NULL : "root");
@@ -5077,8 +5086,7 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
         goto err;
         } // endif tbl
 
-      tab= (char*)PlugSubAlloc(g, NULL, strlen(tbl) + 1);
-      strcpy(tab, tbl);
+      tab= PlugDup(g, tbl);
 
       if ((p= strchr(tab, ',')))
         *p= 0;
@@ -5205,6 +5213,13 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
         strcpy(g->Message, "Missing OEM module or subtype");
 
       break;
+    case TAB_JSON:
+      if (!fn)
+        sprintf(g->Message, "Missing %s file name", topt->type);
+      else
+        ok= true;
+
+      break;
     case TAB_VIR:
       ok= true;
       break;
@@ -5226,7 +5241,7 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
     } // endif src
 
   if (ok) {
-    char   *cnm, *rem, *dft, *xtra, *key;
+    char   *cnm, *rem, *dft, *xtra, *key, *fmt;
     int     i, len, prec, dec, typ, flg;
 
 //  if (cat)
@@ -5315,6 +5330,9 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
       case TAB_VIR:
         qrp= VirColumns(g, tab, (char*)db, fnc == FNC_COL);
         break;
+      case TAB_JSON:
+        qrp= JSONColumns(g, (char*)db, fn, objn, pty, lrecl, lvl, fnc == FNC_COL);
+        break;
       case TAB_OEM:
         qrp= OEMColumns(g, topt, tab, (char*)db, fnc == FNC_COL);
         break;
@@ -5331,7 +5349,7 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
     if (fnc != FNC_NO || src || ttp == TAB_PIVOT) {
       // Catalog like table
       for (crp= qrp->Colresp; !rc && crp; crp= crp->Next) {
-        cnm= encode(g, crp->Name);
+        cnm= (ttp == TAB_PIVOT) ? crp->Name : encode(g, crp->Name);
         typ= crp->Type;
         len= crp->Length;
         dec= crp->Prec;
@@ -5347,7 +5365,7 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
                        NOT_NULL_FLAG, "", flg, dbf, v);
 #else   // !NEW_WAY
         if (add_field(&sql, cnm, typ, len, dec, NULL, NOT_NULL_FLAG,
-                      NULL, NULL, NULL, flg, dbf, v))
+                      NULL, NULL, NULL, NULL, flg, dbf, v))
           rc= HA_ERR_OUT_OF_MEM;
 #endif  // !NEW_WAY
       } // endfor crp
@@ -5368,7 +5386,7 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
         typ= len= prec= dec= 0;
         tm= NOT_NULL_FLAG;
         cnm= (char*)"noname";
-        dft= xtra= key= NULL;
+        dft= xtra= key= fmt= NULL;
         v= ' ';
 #if defined(NEW_WAY)
         rem= "";
@@ -5407,6 +5425,9 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
               if (crp->Kdata->GetIntValue(i))
                 tm= 0;               // Nullable
 
+              break;
+            case FLD_FORMAT:
+              fmt= (crp->Kdata) ? crp->Kdata->GetCharValue(i) : NULL;
               break;
             case FLD_REM:
               rem= crp->Kdata->GetCharValue(i);
@@ -5485,7 +5506,7 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
                        tm, rem, 0, dbf, v);
 #else   // !NEW_WAY
         if (add_field(&sql, cnm, typ, prec, dec, key, tm, rem, dft, xtra,
-                      0, dbf, v))
+                      fmt, 0, dbf, v))
           rc= HA_ERR_OUT_OF_MEM;
 #endif  // !NEW_WAY
         } // endfor i
@@ -6545,7 +6566,7 @@ maria_declare_plugin(connect)
   0x0103,                                       /* version number (1.03) */
   NULL,                                         /* status variables */
   connect_system_variables,                     /* system variables */
-  "1.03.0005",                                  /* string version */
+  "1.03.0006",                                  /* string version */
   MariaDB_PLUGIN_MATURITY_BETA                  /* maturity */
 }
 maria_declare_plugin_end;

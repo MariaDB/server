@@ -1,5 +1,5 @@
 /*************** tabjson H Declares Source Code File (.H) **************/
-/*  Name: tabjson.h   Version 1.0                                      */
+/*  Name: tabjson.h   Version 1.1                                      */
 /*                                                                     */
 /*  (C) Copyright to the author Olivier BERTRAND          2014 - 2015  */
 /*                                                                     */
@@ -34,6 +34,7 @@ typedef struct _jnode {
 class JSONDEF : public DOSDEF {                   /* Table description */
   friend class TDBJSON;
   friend class TDBJSN;
+  friend class TDBJCL;
  public:
   // Constructor
   JSONDEF(void);
@@ -52,6 +53,7 @@ class JSONDEF : public DOSDEF {                   /* Table description */
   char *Xcol;                   /* Name of expandable column           */
   int   Limit;                  /* Limit of multiple values            */
   int   Pretty;                 /* Depends on file structure           */
+  int   Level;                  /* Used for catalog table              */
   bool  Strict;                 /* Strict syntax checking              */
   }; // end of JSONDEF
 
@@ -199,3 +201,25 @@ class TDBJSON : public TDBJSN {
   bool  Done;                      // True when document parsing is done
   bool  Changed;                   // After Update, Insert or Delete
   }; // end of class TDBJSON
+
+/***********************************************************************/
+/*  This is the class declaration for the JSON catalog table.          */
+/***********************************************************************/
+class TDBJCL : public TDBCAT {
+ public:
+  // Constructor
+  TDBJCL(PJDEF tdp);
+
+ protected:
+  // Specific routines
+  virtual PQRYRES GetResult(PGLOBAL g);
+
+  // Members
+//char *Dp;
+  const char *Fn;
+  char *Objn;
+  int   Pretty;
+  int   Lrecl;
+  int   lvl;
+  }; // end of class TDBJCL
+

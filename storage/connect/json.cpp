@@ -1,5 +1,5 @@
 /*************** json CPP Declares Source Code File (.H) ***************/
-/*  Name: json.cpp   Version 1.0                                       */
+/*  Name: json.cpp   Version 1.1                                       */
 /*                                                                     */
 /*  (C) Copyright to the author Olivier BERTRAND          2014 - 2015  */
 /*                                                                     */
@@ -1157,6 +1157,6 @@ void JVALUE::SetString(PGLOBAL g, PSZ s)
 /***********************************************************************/
 bool JVALUE::IsNull(void)
 {
-  return (Jsp) ? Jsp->IsNull() : (Value) ? Value->IsNull() : true;
+  return (Jsp) ? Jsp->IsNull() : (Value) ? Value->IsZero() : true;
 } // end of IsNull
 
