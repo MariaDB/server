@@ -1,0 +1,32 @@
+FLUSH DES_KEY_FILE;
+wsrep_last_committed_diff
+1
+FLUSH HOSTS;
+wsrep_last_committed_diff
+1
+SET GLOBAL wsrep_replicate_myisam = TRUE;
+INSERT INTO mysql.user VALUES('localhost','user1',PASSWORD('pass1'), 'Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','','','','',0,0,0,0,'mysql_native_password','','N');
+FLUSH PRIVILEGES;
+DELETE FROM mysql.user WHERE user = 'user1';
+SET GLOBAL wsrep_replicate_myisam = FALSE;
+FLUSH PRIVILEGES;
+FLUSH QUERY CACHE;
+wsrep_last_committed_diff
+1
+FLUSH STATUS;
+wsrep_last_committed_diff
+1
+FLUSH USER_RESOURCES;
+wsrep_last_committed_diff
+1
+CREATE TABLE t1 (f1 INTEGER);
+FLUSH LOGS;
+FLUSH TABLES WITH READ LOCK;
+UNLOCK TABLES;
+FLUSH TABLES t1 WITH READ LOCK;
+UNLOCK TABLES;
+FLUSH TABLES t1 FOR EXPORT;
+UNLOCK TABLES;
+wsrep_last_committed_diff
+1
+DROP TABLE t1;
