@@ -47,6 +47,19 @@ Created 9/5/1995 Heikki Tuuri
 #include "ha_prototypes.h"
 #include "my_cpu.h"
 
+/* There is a bug in Visual Studio 2010
+Visual Studio has a feature "Checked Iterators". In a debug build, every
+iterator operation is checked at runtime for errors, e g, out of range.
+Disable this "Checked Iterators" for Windows and Debug if defined.
+*/
+#ifdef UNIV_DEBUG
+#ifdef __WIN__
+#ifdef _ITERATOR_DEBUG_LEVEL
+#define _ITERATOR_DEBUG_LEVEL 0
+#endif /* _ITERATOR_DEBUG_LEVEL */
+#endif /* __WIN__*/
+#endif /* UNIV_DEBUG */
+
 #include <vector>
 
 /*
