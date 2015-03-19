@@ -510,6 +510,9 @@ fil_space_write_crypt_data_low(fil_space_crypt_t *crypt_data,
 	mlog_write_ulint(page + offset + MAGIC_SZ + 2 + len, min_key_version,
 			 MLOG_4BYTES, mtr);
 
+	DBUG_EXECUTE_IF("ib_file_crypt_redo_crash_1",
+		ut_error;);
+
 	byte* log_ptr = mlog_open(mtr, 11 + 12 + len);
 	if (log_ptr != NULL) {
 		log_ptr = mlog_write_initial_log_record_fast(
@@ -530,6 +533,9 @@ fil_space_write_crypt_data_low(fil_space_crypt_t *crypt_data,
 
 		mlog_catenate_string(mtr, crypt_data->iv, len);
 	}
+
+	DBUG_EXECUTE_IF("ib_file_crypt_redo_crash_2",
+		ut_error;);
 }
 
 /******************************************************************
