@@ -23,6 +23,8 @@ SELECT variable_value INTO @group_commit_reason_usec FROM information_schema.glo
  WHERE variable_name = 'binlog_group_commit_reason_usec';
 SELECT variable_value INTO @group_commit_reason_transaction FROM information_schema.global_status
  WHERE variable_name = 'binlog_group_commit_reason_transaction';
+SELECT variable_value INTO @group_commit_reason_immediate FROM information_schema.global_status
+ WHERE variable_name = 'binlog_group_commit_reason_immediate';
 
 # Note: binlog_group_commits is counted at the start of the group and group_commit_reason_* is
 # counted near when the groups its finalised.
@@ -62,6 +64,8 @@ SELECT variable_value - @group_commit_reason_usec FROM information_schema.global
  WHERE variable_name = 'binlog_group_commit_reason_usec';
 SELECT variable_value - @group_commit_reason_transaction FROM information_schema.global_status
  WHERE variable_name = 'binlog_group_commit_reason_transaction';
+SELECT variable_value - @group_commit_reason_immediate FROM information_schema.global_status
+ WHERE variable_name = 'binlog_group_commit_reason_immediate';
 
 --connection con2
 --error ER_DUP_ENTRY
@@ -101,6 +105,8 @@ SELECT variable_value - @group_commit_reason_usec FROM information_schema.global
  WHERE variable_name = 'binlog_group_commit_reason_usec';
 SELECT variable_value - @group_commit_reason_transaction FROM information_schema.global_status
  WHERE variable_name = 'binlog_group_commit_reason_transaction';
+SELECT variable_value - @group_commit_reason_immediate FROM information_schema.global_status
+ WHERE variable_name = 'binlog_group_commit_reason_immediate';
 
 # Test that commit triggers immediately if there is already a transaction
 # waiting on another transaction that reaches its commit.
@@ -147,6 +153,8 @@ SELECT variable_value - @group_commit_reason_usec FROM information_schema.global
  WHERE variable_name = 'binlog_group_commit_reason_usec';
 SELECT variable_value - @group_commit_reason_transaction FROM information_schema.global_status
  WHERE variable_name = 'binlog_group_commit_reason_transaction';
+SELECT variable_value - @group_commit_reason_immediate FROM information_schema.global_status
+ WHERE variable_name = 'binlog_group_commit_reason_immediate';
 
 --connection default
 SET @a= current_timestamp();
@@ -174,6 +182,8 @@ SELECT variable_value - @group_commit_reason_usec FROM information_schema.global
  WHERE variable_name = 'binlog_group_commit_reason_usec';
 SELECT variable_value - @group_commit_reason_transaction FROM information_schema.global_status
  WHERE variable_name = 'binlog_group_commit_reason_transaction';
+SELECT variable_value - @group_commit_reason_immediate FROM information_schema.global_status
+ WHERE variable_name = 'binlog_group_commit_reason_immediate';
 
 # Test that when the binlog_commit_wait_usec is reached the tranction gets a group commit
 
@@ -201,6 +211,8 @@ SELECT variable_value - @group_commit_reason_usec FROM information_schema.global
  WHERE variable_name = 'binlog_group_commit_reason_usec';
 SELECT variable_value - @group_commit_reason_transaction FROM information_schema.global_status
  WHERE variable_name = 'binlog_group_commit_reason_transaction';
+SELECT variable_value - @group_commit_reason_immediate FROM information_schema.global_status
+ WHERE variable_name = 'binlog_group_commit_reason_immediate';
 
 --connection default
 SELECT * FROM t1 ORDER BY a;
