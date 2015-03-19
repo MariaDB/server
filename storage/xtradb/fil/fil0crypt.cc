@@ -1,5 +1,4 @@
 /*****************************************************************************
-
 Copyright (C) 2013, 2015, Google Inc. All Rights Reserved.
 Copyright (C) 2014, 2015, MariaDB Corporation. All Rights Reserved.
 
@@ -546,7 +545,12 @@ fil_space_write_crypt_data(ulint space, byte* page, ulint offset,
 			   ulint maxsize, mtr_t* mtr)
 {
 	fil_space_crypt_t* crypt_data = fil_space_get_crypt_data(space);
-	if (crypt_data == NULL) {
+	ibool page_encrypted = fil_space_is_page_encrypted(space);
+
+	/* If no crypt data is stored on memory cache for this space
+	or space is not encrypted and encryption is not enabled, then
+	do not continue writing crypt data to page 0. */
+	if (crypt_data == NULL || (!page_encrypted && !srv_encrypt_tables)) {
 		return;
 	}
 
@@ -1136,11 +1140,22 @@ fil_crypt_start_encrypting_space(ulint space, bool *recheck) {
 	bool pending_op = true;
 
 	mutex_enter(&fil_crypt_threads_mutex);
+
 	fil_space_crypt_t *crypt_data = fil_space_get_crypt_data(space);
+	ibool page_encrypted = fil_space_is_page_encrypted(space);
+
+	/*If spage is not encrypted and encryption is not enabled, then
+	do not continue encrypting the space. */
+	if (!page_encrypted && !srv_encrypt_tables) {
+		mutex_exit(&fil_crypt_threads_mutex);
+		return pending_op;
+	}
+
 	if (crypt_data != NULL || fil_crypt_start_converting) {
 		/* someone beat us to it */
-		if (fil_crypt_start_converting)
+		if (fil_crypt_start_converting) {
 			*recheck = true;
+		}
 
 		mutex_exit(&fil_crypt_threads_mutex);
 		return pending_op;
@@ -1281,8 +1296,9 @@ static bool
 fil_crypt_space_needs_rotation(uint space, const key_state_t *key_state,
 			       bool *recheck)
 {
-	if (fil_space_get_type(space) != FIL_TABLESPACE)
+	if (fil_space_get_type(space) != FIL_TABLESPACE) {
 		return false;
+	}
 
 	if (fil_inc_pending_ops(space, true)) {
 		/* tablespace being dropped */
@@ -1293,13 +1309,16 @@ fil_crypt_space_needs_rotation(uint space, const key_state_t *key_state,
 	bool pending_op = true;
 
 	fil_space_crypt_t *crypt_data = fil_space_get_crypt_data(space);
+
 	if (crypt_data == NULL) {
 		/**
 		* space has no crypt data
 		*   start encrypting it...
 		*/
 		pending_op = fil_crypt_start_encrypting_space(space, recheck);
+
 		crypt_data = fil_space_get_crypt_data(space);
+
 		if (crypt_data == NULL) {
 			if (pending_op) {
 				fil_decr_pending_ops(space);
@@ -1309,6 +1328,7 @@ fil_crypt_space_needs_rotation(uint space, const key_state_t *key_state,
 	}
 
 	mutex_enter(&crypt_data->mutex);
+
 	do {
 		/* prevent threads from starting to rotate space */
 		if (crypt_data->rotate_state.starting) {
@@ -1817,8 +1837,9 @@ fil_crypt_rotate_page(
 	ulint sleeptime_ms = 0;
 
 	/* check if tablespace is closing before reading page */
-	if (fil_crypt_is_closing(space))
+	if (fil_crypt_is_closing(space)) {
 		return;
+	}
 
 	if (space == TRX_SYS_SPACE && offset == TRX_SYS_PAGE_NO) {
 		/* don't encrypt this as it contains address to dblwr buffer */

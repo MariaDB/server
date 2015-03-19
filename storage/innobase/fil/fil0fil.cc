@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2014, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2014, MariaDB Corporation. All Rights Reserved.
+Copyright (c) 2013, 2015, MariaDB Corporation. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -3519,6 +3519,7 @@ fil_create_new_single_table_tablespace(
 
 	success = fil_space_create(tablename, space_id, flags, FIL_TABLESPACE,
 				   fil_space_create_crypt_data());
+
 	if (!success || !fil_node_create(path, size, space_id, FALSE)) {
 		err = DB_ERROR;
 		goto error_exit_1;
@@ -6935,6 +6936,7 @@ fil_space_get_crypt_data(
 	mutex_enter(&fil_system->mutex);
 
 	space = fil_space_get_by_id(id);
+
 	if (space != NULL) {
 		crypt_data = space->crypt_data;
 	}
@@ -6961,8 +6963,8 @@ fil_space_set_crypt_data(
 	mutex_enter(&fil_system->mutex);
 
 	space = fil_space_get_by_id(id);
-	if (space != NULL) {
 
+	if (space != NULL) {
 		if (space->crypt_data != NULL) {
 			ut_a(!fil_space_crypt_compare(crypt_data,
 						      space->crypt_data));
