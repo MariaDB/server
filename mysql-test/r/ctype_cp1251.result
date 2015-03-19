@@ -385,6 +385,8 @@ FC	FC	FC	D18C	FC
 FD	FD	FD	D18D	FD	
 FE	FE	FE	D18E	FE	
 FF	FF	FF	D18F	FF	
+Warnings:
+Warning	1976	Cannot convert 'cp1251' character 0x98 to 'utf8'
 DROP TABLE t1;
 set global LC_TIME_NAMES=convert((-8388608) using cp1251);
 ERROR HY000: Unknown locale: '-8388608'

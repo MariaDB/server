@@ -531,6 +531,21 @@ class st_select_lex_unit;
 class Item_func_not;
 class Item_splocal;
 
+/**
+  String_copier that honors the current sql_mode (strict vs non strict)
+  and can send warnings.
+*/
+class String_copier_for_item: public String_copier
+{
+  THD *m_thd;
+public:
+  bool copy_with_warn(CHARSET_INFO *dstcs, String *dst,
+                      CHARSET_INFO *srccs, const char *src,
+                      uint32 src_length, uint32 nchars);
+  String_copier_for_item(THD *thd): m_thd(thd) { }
+};
+
+
 class Item {
   Item(const Item &);			/* Prevent use of these */
   void operator=(Item &);

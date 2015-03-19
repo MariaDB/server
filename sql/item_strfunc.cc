@@ -3378,15 +3378,12 @@ String *Item_func_conv_charset::val_str(String *str)
   if (use_cached_value)
     return null_value ? 0 : &str_value;
   String *arg= args[0]->val_str(str);
-  uint dummy_errors;
-  if (args[0]->null_value)
-  {
-    null_value=1;
-    return 0;
-  }
-  null_value= tmp_value.copy(arg->ptr(), arg->length(), arg->charset(),
-                             conv_charset, &dummy_errors);
-  return null_value ? 0 : check_well_formed_result(&tmp_value);
+  String_copier_for_item copier(current_thd);
+  return ((null_value= args[0]->null_value ||
+                       copier.copy_with_warn(conv_charset, &tmp_value,
+                                             arg->charset(), arg->ptr(),
+                                             arg->length(), arg->length()))) ?
+    0 : &tmp_value;
 }
 
 void Item_func_conv_charset::fix_length_and_dec()

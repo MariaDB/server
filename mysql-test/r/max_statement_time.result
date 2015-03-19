@@ -87,6 +87,7 @@ SLEEP(2)
 1
 SHOW STATUS LIKE '%timeout%';
 Variable_name	Value
+Master_gtid_wait_timeouts	0
 Ssl_default_timeout	0
 Ssl_session_cache_timeouts	0
 SET @@max_statement_time=0;

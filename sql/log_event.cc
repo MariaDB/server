@@ -428,8 +428,12 @@ inline int idempotent_error_code(int err_code)
 
 inline int ignored_error_code(int err_code)
 {
-  return ((err_code == ER_SLAVE_IGNORED_TABLE) ||
-          (use_slave_mask && bitmap_is_set(&slave_error_mask, err_code)));
+  if (use_slave_mask && bitmap_is_set(&slave_error_mask, err_code))
+  {
+    statistic_increment(slave_skipped_errors, LOCK_status);
+    return 1;
+  }
+  return err_code == ER_SLAVE_IGNORED_TABLE;
 }
 
 /*

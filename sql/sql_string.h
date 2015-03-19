@@ -200,6 +200,7 @@ public:
   inline bool is_empty() const { return (str_length == 0); }
   inline void mark_as_const() { Alloced_length= 0;}
   inline const char *ptr() const { return Ptr; }
+  inline const char *end() const { return Ptr + str_length; }
   inline char *c_ptr()
   {
     DBUG_ASSERT(!alloced || !Ptr || !Alloced_length || 
@@ -422,6 +423,17 @@ public:
   bool copy(const String *str, CHARSET_INFO *tocs, uint *errors)
   {
     return copy(str->ptr(), str->length(), str->charset(), tocs, errors);
+  }
+  bool copy(CHARSET_INFO *tocs,
+            CHARSET_INFO *fromcs, const char *src, uint32 src_length,
+            uint32 nchars, String_copier *copier)
+  {
+    if (alloc(tocs->mbmaxlen * src_length))
+      return true;
+    str_length= copier->well_formed_copy(tocs, Ptr, Alloced_length,
+                                         fromcs, src, src_length, nchars);
+    str_charset= tocs;
+    return false;
   }
   void move(String &s)
   {

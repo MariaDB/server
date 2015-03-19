@@ -7125,3 +7125,5 @@ ER_ROLE_CREATE_EXISTS
         eng "Can't create role '%-.64s'; it already exists"
 ER_ROLE_DROP_EXISTS
         eng "Can't drop role '%-.64s'; it doesn't exist"
+ER_CANNOT_CONVERT_CHARACTER
+        eng "Cannot convert '%s' character 0x%-.64s to '%s'"
