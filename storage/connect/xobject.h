@@ -138,6 +138,7 @@ class DllExport STRING : public BLOCK {
          bool   Append(STRING &str);
          bool   Append(char c);
          bool   Resize(uint n);
+         bool   Append_quoted(PSZ s);
   inline void   Trim(void) {(void)Resize(Length + 1);}
   inline void   Chop(void) {if (Length) Strp[--Length] = 0;}
   inline void   RepLast(char c) {if (Length) Strp[Length-1] = c;}

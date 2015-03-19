@@ -163,6 +163,7 @@ class TYPBLK : public VALBLK {
   virtual void   Reset(int n) {Typp[n] = 0;}
 
   // Methods
+  using VALBLK::SetValue;
   virtual void   SetValue(PSZ sp, int n);
   virtual void   SetValue(char *sp, uint len, int n);
   virtual void   SetValue(short sval, int n)
@@ -233,6 +234,7 @@ class CHRBLK : public VALBLK {
   virtual bool   IsCi(void) {return Ci;}
 
   // Methods
+  using VALBLK::SetValue;
   virtual void   SetValue(PSZ sp, int n);
   virtual void   SetValue(char *sp, uint len, int n);
   virtual void   SetValue(PVAL valp, int n);
@@ -286,6 +288,7 @@ class STRBLK : public VALBLK {
   virtual void   Reset(int n) {Strp[n] = NULL;}
 
   // Methods
+  using VALBLK::SetValue;
   virtual void   SetValue(PSZ sp, int n);
   virtual void   SetValue(char *sp, uint len, int n);
   virtual void   SetValue(PVAL valp, int n);
@@ -322,6 +325,7 @@ class DATBLK : public TYPBLK<int> {
   virtual char *GetCharString(char *p, int n);
 
   // Methods
+  using TYPBLK<int>::SetValue;
   virtual void  SetValue(PSZ sp, int n);
 
  protected:
@@ -345,6 +349,8 @@ class PTRBLK : public STRBLK {
   // Implementation
 
   // Methods
+  using STRBLK::SetValue;
+  using STRBLK::CompVal;
   virtual void   SetValue(PSZ p, int n) {Strp[n] = p;}
   virtual int    CompVal(int i1, int i2);
 

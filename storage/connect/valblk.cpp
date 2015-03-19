@@ -1,7 +1,7 @@
 /************ Valblk C++ Functions Source Code File (.CPP) *************/
 /*  Name: VALBLK.CPP  Version 2.1                                      */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          2005-2014    */
+/*  (C) Copyright to the author Olivier BERTRAND          2005-2015    */
 /*                                                                     */
 /*  This file contains the VALBLK and derived classes functions.       */
 /*  Second family is VALBLK, representing simple suballocated arrays   */
@@ -1155,10 +1155,9 @@ void STRBLK::SetValue(PVAL valp, int n)
 void STRBLK::SetValue(PSZ p, int n)
   {
   if (p) {
-    if (!Sorted || !n || !Strp[n-1] || strcmp(p, Strp[n-1])) {
-      Strp[n] = (PSZ)PlugSubAlloc(Global, NULL, strlen(p) + 1);
-      strcpy(Strp[n], p);
-    } else
+    if (!Sorted || !n || !Strp[n-1] || strcmp(p, Strp[n-1]))
+      Strp[n] = (PSZ)PlugDup(Global, p);
+    else
       Strp[n] = Strp[n-1];
 
   } else

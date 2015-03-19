@@ -5,7 +5,7 @@
 /*                                                                     */
 /* COPYRIGHT:                                                          */
 /* ----------                                                          */
-/*  (C) Copyright to the author Olivier BERTRAND          2005-2013    */
+/*  (C) Copyright to the author Olivier BERTRAND          2005-2015    */
 /*                                                                     */
 /* WHAT THIS PROGRAM DOES:                                             */
 /* -----------------------                                             */
@@ -150,10 +150,17 @@ PQRYRES PIVAID::MakePivotColumns(PGLOBAL g)
     query = Tabsrc;
 
   // Open a MySQL connection for this table
-  if (Myc.Open(g, Host, Database, User, Pwd, Port))
-    return NULL;
-  else
+  if (!Myc.Open(g, Host, Database, User, Pwd, Port)) {
     b = true;
+
+    // Returned values must be in their original character set
+    if (Myc.ExecSQL(g, "SET character_set_results=NULL", &w) == RC_FX)
+      goto err;
+    else
+      Myc.FreeResult();
+
+  } else
+    return NULL;
 
   // Send the source command to MySQL
   if (Myc.ExecSQL(g, query, &w) == RC_FX)
@@ -241,6 +248,10 @@ PQRYRES PIVAID::MakePivotColumns(PGLOBAL g)
 
   } else {
     // The query was limited, we must get pivot column values
+    // Returned values must be in their original character set
+//  if (Myc.ExecSQL(g, "SET character_set_results=NULL", &w) == RC_FX)
+//    goto err;
+
     query = (char*)PlugSubAlloc(g, NULL, 0);
     sprintf(query, "SELECT DISTINCT `%s` FROM `%s`", Picol, Tabname);
     PlugSubAlloc(g, NULL, strlen(query) + 1);
@@ -284,8 +295,7 @@ PQRYRES PIVAID::MakePivotColumns(PGLOBAL g)
       valp->SetValue_pvblk(Rblkp, i);
 
     colname = valp->GetCharString(buf);
-    crp->Name = (char*)PlugSubAlloc(g, NULL, strlen(colname) + 1);
-    strcpy(crp->Name, colname);
+    crp->Name = PlugDup(g, colname);
     crp->Flag = 1;
 
     // Add this column
@@ -558,7 +568,7 @@ bool TDBPIVOT::MakePivotColumns(PGLOBAL g)
     //  Check and initialize the subtable columns
     for (PCOL cp = Columns; cp; cp = cp->GetNext())
       if (cp->GetAmType() == TYPE_AM_SRC) {
-        if (((PSRCCOL)cp)->Init(g))
+        if (((PSRCCOL)cp)->Init(g, NULL))
           return TRUE;
 
       } else if (cp->GetAmType() == TYPE_AM_FNC)
@@ -874,9 +884,9 @@ SRCCOL::SRCCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int n)
 /***********************************************************************/
 /*  Initialize the column as pointing to the source column.            */
 /***********************************************************************/
-bool SRCCOL::Init(PGLOBAL g)
+bool SRCCOL::Init(PGLOBAL g, PTDBASE tp)
   {
-  if (PRXCOL::Init(g))
+  if (PRXCOL::Init(g, tp))
     return true;
 
   AddStatus(BUF_READ);     // All is done here

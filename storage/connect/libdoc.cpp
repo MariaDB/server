@@ -1,6 +1,6 @@
 /******************************************************************/
 /*  Implementation of XML document processing using libxml2       */
-/*  Author: Olivier Bertrand                2007-2013             */
+/*  Author: Olivier Bertrand                2007-2015             */
 /******************************************************************/
 #include "my_global.h"
 #include <string.h>
@@ -408,8 +408,7 @@ PFBLOCK LIBXMLDOC::LinkXblock(PGLOBAL g, MODE m, int rc, char *fn)
   xp->Next = (PX2BLOCK)dup->Openlist;
   dup->Openlist = (PFBLOCK)xp;
   xp->Type = TYPE_FB_XML2;
-  xp->Fname = (LPCSTR)PlugSubAlloc(g, NULL, strlen(fn) + 1);
-  strcpy((char*)xp->Fname, fn);
+  xp->Fname = (LPCSTR)PlugDup(g, fn);
   xp->Count = 1;
   xp->Length = (m == MODE_READ) ? 1 : 0;
   xp->Retcode = rc;

@@ -1,5 +1,5 @@
 /**************** json H Declares Source Code File (.H) ****************/
-/*  Name: json.h   Version 1.0                                         */
+/*  Name: json.h   Version 1.1                                         */
 /*                                                                     */
 /*  (C) Copyright to the author Olivier BERTRAND          2014 - 2015  */
 /*                                                                     */
@@ -18,7 +18,8 @@ enum JTYP {TYPE_STRG = 1,
            TYPE_BOOL = 4,
            TYPE_INTG = 7, 
            TYPE_JSON = 12, 
-           TYPE_JAR, TYPE_JOB, 
+           TYPE_JAR, 
+           TYPE_JOB, 
            TYPE_JVAL};
 
 class JOUT;
@@ -122,6 +123,10 @@ class JPAIR : public BLOCK {
  public:
   JPAIR(PSZ key) : BLOCK() {Key = key; Val = NULL; Next = NULL;}
 
+  inline PSZ   GetKey(void) {return Key;}
+  inline PJVAL GetVal(void) {return Val;}
+  inline PJPR  GetNext(void) {return Next;}
+
  protected:
   PSZ   Key;      // This pair key name
   PJVAL Val;      // To the value of the pair
@@ -143,20 +148,25 @@ class JSON : public BLOCK {
   virtual PJVAL  AddValue(PGLOBAL g, PJVAL jvp = NULL) {X return NULL;}
   virtual PJPR   AddPair(PGLOBAL g, PSZ key) {X return NULL;}
   virtual PJVAL  GetValue(const char *key) {X return NULL;}
-  virtual PJOB   GetObject(void) {X return NULL;}
-  virtual PJAR   GetArray(void) {X return NULL;}
+  virtual PJOB   GetObject(void) {return NULL;}
+  virtual PJAR   GetArray(void) {return NULL;}
   virtual PJVAL  GetValue(int i) {X return NULL;}
   virtual PVAL   GetValue(void) {X return NULL;}
   virtual PJSON  GetJson(void) {X return NULL;}
+  virtual PJPR   GetFirst(void) {X return NULL;}
   virtual int    GetInteger(void) {X return 0;}
   virtual double GetFloat() {X return 0.0;}
   virtual PSZ    GetString() {X return NULL;}
-  virtual PSZ    GetText(PGLOBAL g) {X return NULL;}
+  virtual PSZ    GetText(PGLOBAL g, PSZ text) {X return NULL;}
   virtual bool   SetValue(PGLOBAL g, PJVAL jvp, int i) {X return true;}
   virtual void   SetValue(PGLOBAL g, PJVAL jvp, PSZ key) {X}
   virtual void   SetValue(PVAL valp) {X}
   virtual void   SetValue(PJSON jsp) {X}
+  virtual void   SetString(PGLOBAL g, PSZ s) {X}
+  virtual void   SetInteger(PGLOBAL g, int n) {X}
+  virtual void   SetFloat(PGLOBAL g, double f) {X}
   virtual bool   DeleteValue(int i) {X return true;}
+  virtual bool   IsNull(void) {X return true;}
 
  protected:
   int Size;
@@ -171,13 +181,17 @@ class JOBJECT : public JSON {
  public:
   JOBJECT(void) : JSON() {First = Last = NULL;}
 
+  using JSON::GetValue;
+  using JSON::SetValue;
   virtual void  Clear(void) {First = Last = NULL; Size = 0;}
   virtual JTYP  GetType(void) {return TYPE_JOB;}
+  virtual PJPR  GetFirst(void) {return First;}
   virtual PJPR  AddPair(PGLOBAL g, PSZ key);
   virtual PJOB  GetObject(void) {return this;}
   virtual PJVAL GetValue(const char* key);
-  virtual PSZ   GetText(PGLOBAL g);
+  virtual PSZ   GetText(PGLOBAL g, PSZ text);
   virtual void  SetValue(PGLOBAL g, PJVAL jvp, PSZ key);
+  virtual bool  IsNull(void);
 
  protected:
   PJPR First;
@@ -192,6 +206,8 @@ class JARRAY : public JSON {
  public:
   JARRAY(void) : JSON() {Alloc = 0; First = Last = NULL; Mvals = NULL;}
 
+  using JSON::GetValue;
+  using JSON::SetValue;
   virtual void  Clear(void) {First = Last = NULL; Size = 0;}
   virtual JTYP  GetType(void) {return TYPE_JAR;}
   virtual PJAR  GetArray(void) {return this;}
@@ -200,6 +216,7 @@ class JARRAY : public JSON {
   virtual PJVAL GetValue(int i);
   virtual bool  SetValue(PGLOBAL g, PJVAL jvp, int i);
   virtual bool  DeleteValue(int n);
+  virtual bool  IsNull(void);
 
  protected:
   // Members
@@ -223,6 +240,8 @@ class JVALUE : public JSON {
                 {Jsp = jsp; Value = NULL; Next = NULL; Del = false;}
   JVALUE(PGLOBAL g, PVAL valp);
 
+  using JSON::GetValue;
+  using JSON::SetValue;
   virtual void   Clear(void)
           {Jsp = NULL; Value = NULL; Next = NULL; Del = false; Size = 0;}
   virtual JTYP   GetType(void) {return TYPE_JVAL;}
@@ -234,8 +253,13 @@ class JVALUE : public JSON {
   virtual int    GetInteger(void);
   virtual double GetFloat(void);
   virtual PSZ    GetString(void);
+  virtual PSZ    GetText(PGLOBAL g, PSZ text);
   virtual void   SetValue(PVAL valp) {Value = valp;}
   virtual void   SetValue(PJSON jsp) {Jsp = jsp;}
+  virtual void   SetString(PGLOBAL g, PSZ s);
+  virtual void   SetInteger(PGLOBAL g, int n);
+  virtual void   SetFloat(PGLOBAL g, double f);
+  virtual bool   IsNull(void);
 
  protected:
   PJSON Jsp;      // To the json value

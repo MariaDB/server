@@ -5,7 +5,7 @@
 /*                                                                     */
 /* COPYRIGHT:                                                          */
 /* ----------                                                          */
-/*  (C) Copyright to the author Olivier BERTRAND          2004-2014    */
+/*  (C) Copyright to the author Olivier BERTRAND          2004-2015    */
 /*                                                                     */
 /* WHAT THIS PROGRAM DOES:                                             */
 /* -----------------------                                             */
@@ -153,10 +153,9 @@ char *RELDEF::GetStringCatInfo(PGLOBAL g, PSZ what, PSZ sdef)
 	if (s) {
     if (!Hc->IsPartitioned() ||
         (stricmp(what, "filename") && stricmp(what, "tabname")
-                                   && stricmp(what, "connect"))) {
-		  sval= (char*)PlugSubAlloc(g, NULL, strlen(s) + 1);
-		  strcpy(sval, s);
-    } else
+                                   && stricmp(what, "connect")))
+		  sval= PlugDup(g, s);
+    else
       sval= s;
 
   } else if (!stricmp(what, "filename")) {
@@ -213,8 +212,7 @@ bool TABDEF::Define(PGLOBAL g, PCATLG cat, LPCSTR name, LPCSTR am)
   {
   int   poff = 0;
 
-  Name = (PSZ)PlugSubAlloc(g, NULL, strlen(name) + 1);
-  strcpy(Name, name);
+  Name = (PSZ)PlugDup(g, name);
   Cat = cat;
   Hc = ((MYCAT*)cat)->GetHandler();
   Catfunc = GetFuncID(GetStringCatInfo(g, "Catfunc", NULL));
@@ -712,8 +710,7 @@ COLDEF::COLDEF(void) : COLCRT()
 /***********************************************************************/
 int COLDEF::Define(PGLOBAL g, void *memp, PCOLINFO cfp, int poff)
   {
-  Name = (PSZ)PlugSubAlloc(g, memp, strlen(cfp->Name) + 1);
-  strcpy(Name, cfp->Name);
+  Name = (PSZ)PlugDup(g, cfp->Name);
 
   if (!(cfp->Flags & U_SPECIAL)) {
     Poff = poff;
@@ -735,22 +732,16 @@ int COLDEF::Define(PGLOBAL g, void *memp, PCOLINFO cfp, int poff)
     Key = cfp->Key;
     Freq = cfp->Freq;
 
-    if (cfp->Remark && *cfp->Remark) {
-      Desc = (PSZ)PlugSubAlloc(g, memp, strlen(cfp->Remark) + 1);
-      strcpy(Desc, cfp->Remark);
-      } // endif Remark
+    if (cfp->Remark && *cfp->Remark)
+      Desc = (PSZ)PlugDup(g, cfp->Remark);
 
-    if (cfp->Datefmt) {
-      Decode = (PSZ)PlugSubAlloc(g, memp, strlen(cfp->Datefmt) + 1);
-      strcpy(Decode, cfp->Datefmt);
-      } // endif Datefmt
+    if (cfp->Datefmt)
+      Decode = (PSZ)PlugDup(g, cfp->Datefmt);
 
     } // endif special
 
-  if (cfp->Fieldfmt) {
-    Fmt = (PSZ)PlugSubAlloc(g, memp, strlen(cfp->Fieldfmt) + 1);
-    strcpy(Fmt, cfp->Fieldfmt);
-    } // endif Fieldfmt
+  if (cfp->Fieldfmt)
+    Fmt = (PSZ)PlugDup(g, cfp->Fieldfmt);
 
   Flags = cfp->Flags;
   return (Flags & (U_VIRTUAL|U_SPECIAL)) ? 0 : Long;
