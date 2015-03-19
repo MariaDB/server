@@ -27,6 +27,24 @@ SET GLOBAL binlog_direct_non_transactional_updates=OFF;
 SET SESSION binlog_direct_non_transactional_updates=OFF;
 CHANGE MASTER TO master_use_gtid=current_pos;
 
+# Get Initial status measurements
+# we take out measurements from server_2 as that's where
+# the its critical that 3 separate binlog_group_commits occur
+SELECT variable_value INTO @group_commits FROM information_schema.global_status
+ WHERE variable_name = 'binlog_group_commits';
+SELECT variable_value INTO @group_commit_reason_count FROM information_schema.global_status
+ WHERE variable_name = 'binlog_group_commit_reason_count';
+SELECT variable_value INTO @group_commit_reason_usec FROM information_schema.global_status
+ WHERE variable_name = 'binlog_group_commit_reason_usec';
+SELECT variable_value INTO @group_commit_reason_transaction FROM information_schema.global_status
+ WHERE variable_name = 'binlog_group_commit_reason_transaction';
+SELECT variable_value INTO @group_commit_reason_immediate FROM information_schema.global_status
+ WHERE variable_name = 'binlog_group_commit_reason_immediate';
+
+# Note: binlog_group_commits is counted at the start of the group and group_commit_reason_* is
+# counted near when the groups its finalised.
+
+
 --connection server_3
 --sync_with_master
 --save_master_pos
@@ -56,6 +74,18 @@ SELECT * FROM t1 ORDER BY a;
 --source include/sync_with_master_gtid.inc
 SELECT * FROM t1 ORDER BY a;
 
+# Measure status(es)
+--connection server_2
+SELECT variable_value - @group_commits FROM information_schema.global_status
+ WHERE variable_name = 'binlog_group_commits';
+SELECT variable_value - @group_commit_reason_count FROM information_schema.global_status
+ WHERE variable_name = 'binlog_group_commit_reason_count';
+SELECT variable_value - @group_commit_reason_usec FROM information_schema.global_status
+ WHERE variable_name = 'binlog_group_commit_reason_usec';
+SELECT variable_value - @group_commit_reason_transaction FROM information_schema.global_status
+ WHERE variable_name = 'binlog_group_commit_reason_transaction';
+SELECT variable_value - @group_commit_reason_immediate FROM information_schema.global_status
+ WHERE variable_name = 'binlog_group_commit_reason_immediate';
 
 # Clean up
 

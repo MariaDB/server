@@ -95,6 +95,10 @@ mysql_mutex_t LOCK_commit_ordered;
 
 static ulonglong binlog_status_var_num_commits;
 static ulonglong binlog_status_var_num_group_commits;
+static ulonglong binlog_status_group_commit_reason_count;
+static ulonglong binlog_status_group_commit_reason_immediate;
+static ulonglong binlog_status_group_commit_reason_transaction;
+static ulonglong binlog_status_group_commit_reason_usec;
 static char binlog_snapshot_file[FN_REFLEN];
 static ulonglong binlog_snapshot_position;
 
@@ -104,6 +108,14 @@ static SHOW_VAR binlog_status_vars_detail[]=
     (char *)&binlog_status_var_num_commits, SHOW_LONGLONG},
   {"group_commits",
     (char *)&binlog_status_var_num_group_commits, SHOW_LONGLONG},
+  {"group_commit_reason_count",
+    (char *)&binlog_status_group_commit_reason_count, SHOW_LONGLONG},
+  {"group_commit_reason_immediate",
+    (char *)&binlog_status_group_commit_reason_immediate, SHOW_LONGLONG},
+  {"group_commit_reason_transaction",
+    (char *)&binlog_status_group_commit_reason_transaction, SHOW_LONGLONG},
+  {"group_commit_reason_usec",
+    (char *)&binlog_status_group_commit_reason_usec, SHOW_LONGLONG},
   {"snapshot_file",
     (char *)&binlog_snapshot_file, SHOW_CHAR},
   {"snapshot_position",
@@ -3035,6 +3047,8 @@ MYSQL_BIN_LOG::MYSQL_BIN_LOG(uint *sync_period)
    bytes_written(0), file_id(1), open_count(1),
    group_commit_queue(0), group_commit_queue_busy(FALSE),
    num_commits(0), num_group_commits(0),
+   group_commit_reason_count(0), group_commit_reason_usec(0),
+   group_commit_reason_transaction(0), group_commit_reason_immediate(0),
    sync_period_ptr(sync_period), sync_counter(0),
    state_file_deleted(false), binlog_state_recover_done(false),
    is_relay_log(0), signal_cnt(0),
@@ -7543,8 +7557,18 @@ MYSQL_BIN_LOG::wait_for_sufficient_commits()
   mysql_mutex_assert_owner(&LOCK_prepare_ordered);
 
   for (e= last_head= group_commit_queue, count= 0; e; e= e->next)
-    if (++count >= opt_binlog_commit_wait_count || unlikely(e->thd->has_waiter))
+  {
+    if (++count >= opt_binlog_commit_wait_count)
+    {
+      group_commit_reason_count++;
       return;
+    }
+    if (unlikely(e->thd->has_waiter))
+    {
+      group_commit_reason_transaction++;
+      return;
+    }
+  }
 
   mysql_mutex_unlock(&LOCK_log);
   set_timespec_nsec(wait_until, (ulonglong)1000*opt_binlog_commit_wait_usec);
@@ -7557,18 +7581,30 @@ MYSQL_BIN_LOG::wait_for_sufficient_commits()
     err= mysql_cond_timedwait(&COND_prepare_ordered, &LOCK_prepare_ordered,
                               &wait_until);
     if (err == ETIMEDOUT)
+    {
+      group_commit_reason_usec++;
       break;
+    }
     if (unlikely(last_head->thd->has_waiter))
+    {
+      group_commit_reason_transaction++;
       break;
+    }
     head= group_commit_queue;
     for (e= head; e && e != last_head; e= e->next)
     {
       ++count;
       if (unlikely(e->thd->has_waiter))
+      {
+        group_commit_reason_transaction++;
         goto after_loop;
+      }
     }
     if (count >= opt_binlog_commit_wait_count)
+    {
+      group_commit_reason_count++;
       break;
+    }
     last_head= head;
   }
 after_loop:
@@ -7603,6 +7639,7 @@ MYSQL_BIN_LOG::binlog_trigger_immediate_group_commit()
   head= group_commit_queue;
   if (head)
   {
+    group_commit_reason_immediate++;
     head->thd->has_waiter= true;
     mysql_cond_signal(&COND_prepare_ordered);
   }
@@ -9746,6 +9783,10 @@ TC_LOG_BINLOG::set_status_variables(THD *thd)
   mysql_mutex_lock(&LOCK_commit_ordered);
   binlog_status_var_num_commits= this->num_commits;
   binlog_status_var_num_group_commits= this->num_group_commits;
+  binlog_status_group_commit_reason_count= this->group_commit_reason_count;
+  binlog_status_group_commit_reason_usec= this->group_commit_reason_usec;
+  binlog_status_group_commit_reason_transaction= this->group_commit_reason_transaction;
+  binlog_status_group_commit_reason_immediate= this->group_commit_reason_immediate;
   if (!have_snapshot)
   {
     set_binlog_snapshot_file(last_commit_pos_file);
