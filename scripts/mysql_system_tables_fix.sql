@@ -84,6 +84,10 @@ ALTER TABLE user MODIFY max_user_connections int(11) DEFAULT '0' NOT NULL AFTER 
 #
 # procs_priv
 #
+ALTER IGNORE TABLE procs_priv
+  MODIFY Routine_name char(64)
+    COLLATE utf8_general_ci DEFAULT '' NOT NULL;
+
 ALTER TABLE procs_priv
   MODIFY Timestamp timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP AFTER Proc_priv;
 
@@ -92,7 +96,8 @@ ALTER TABLE procs_priv
 #
 
 # Correct the name fields to not binary, and expand sql_data_access
-ALTER TABLE proc MODIFY sql_mode
+ALTER TABLE proc MODIFY returns longblob NOT NULL,
+                 MODIFY sql_mode
                         set('REAL_AS_FLOAT',
                             'PIPES_AS_CONCAT',
                             'ANSI_QUOTES',
@@ -131,6 +136,12 @@ ALTER TABLE proc MODIFY sql_mode
 # Reset some fields after the conversion
 ALTER TABLE proc  MODIFY definer
                          char(141) collate utf8_bin DEFAULT '' NOT NULL;
+
+ALTER TABLE proc ADD character_set_client
+                     char(32) collate utf8_bin DEFAULT NULL
+                     AFTER comment;
+ALTER TABLE proc MODIFY character_set_client
+                        char(32) collate utf8_bin DEFAULT NULL;
 
 SELECT CASE WHEN COUNT(*) > 0 THEN 
 CONCAT ("WARNING: NULL values of the 'character_set_client' column ('mysql.proc' table) have been updated with a default value (", @@character_set_client, "). Please verify if necessary.")
@@ -220,6 +231,33 @@ ALTER TABLE event MODIFY sql_mode
                             'NO_ENGINE_SUBSTITUTION',
                             'PAD_CHAR_TO_FULL_LENGTH'
                             ) DEFAULT '' NOT NULL AFTER on_completion;
+
+ALTER TABLE event MODIFY COLUMN originator INT UNSIGNED NOT NULL;
+ALTER TABLE event ADD COLUMN originator INT UNSIGNED NOT NULL AFTER comment;
+
+ALTER TABLE event MODIFY COLUMN status ENUM('ENABLED','DISABLED','SLAVESIDE_DISABLED') NOT NULL default 'ENABLED';
+
+ALTER TABLE event ADD character_set_client
+                      char(32) collate utf8_bin DEFAULT NULL
+                      AFTER time_zone;
+ALTER TABLE event MODIFY character_set_client
+                         char(32) collate utf8_bin DEFAULT NULL;
+
+ALTER TABLE event ADD collation_connection
+                      char(32) collate utf8_bin DEFAULT NULL
+                      AFTER character_set_client;
+ALTER TABLE event MODIFY collation_connection
+                         char(32) collate utf8_bin DEFAULT NULL;
+
+ALTER TABLE event ADD db_collation
+                      char(32) collate utf8_bin DEFAULT NULL
+                      AFTER collation_connection;
+ALTER TABLE event MODIFY db_collation
+                         char(32) collate utf8_bin DEFAULT NULL;
+
+ALTER TABLE event ADD body_utf8 longblob DEFAULT NULL
+                      AFTER db_collation;
+ALTER TABLE event MODIFY body_utf8 longblob DEFAULT NULL;
 
 #
 # user.Create_tablespace_priv
