@@ -3956,11 +3956,11 @@ longlong Item_master_pos_wait::val_int()
   }
 #ifdef HAVE_REPLICATION
   longlong pos = (ulong)args[1]->val_int();
-  longlong timeout = (arg_count==3) ? args[2]->val_int() : 0 ;
+  longlong timeout = (arg_count>=3) ? args[2]->val_int() : 0 ;
   String connection_name_buff;
   LEX_STRING connection_name;
   Master_info *mi;
-  if (arg_count == 4)
+  if (arg_count >= 4)
   {
     String *con;
     if (!(con= args[3]->val_str(&connection_name_buff)))

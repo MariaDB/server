@@ -1,0 +1,27 @@
+include/master-slave.inc
+[connection master]
+connection slave;
+# Normal anonymous connection -- works (expected -1)
+select master_pos_wait('master-bin.000001',1000000,1);
+master_pos_wait('master-bin.000001',1000000,1)
+-1
+include/stop_slave.inc
+connection slave;
+reset slave all;
+change master 'my_slave' to master_port=MASTER_MYPORT, master_host='127.0.0.1', master_user='root';
+set default_master_connection = 'my_slave';
+include/start_slave.inc
+connection slave;
+# Call without connection name -- works (expected -1)
+select master_pos_wait('master-bin.000001',1000000,1);
+master_pos_wait('master-bin.000001',1000000,1)
+-1
+set default_master_connection = '';
+# Call for non-existing anonymous connection -- works (expected NULL)
+select master_pos_wait('master-bin.000001',1000000,1);
+master_pos_wait('master-bin.000001',1000000,1)
+NULL
+# Call with a valid connection name -- hangs (expected -1)
+select master_pos_wait('master-bin.000001',1000000,1,"my_slave");
+master_pos_wait('master-bin.000001',1000000,1,"my_slave")
+-1
