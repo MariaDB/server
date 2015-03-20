@@ -477,7 +477,7 @@ public:
   DDL options:
   - CREATE IF NOT EXISTS
   - DROP IF EXISTS
-  - CRESTE LIKE
+  - CREATE LIKE
   - REPLACE
 */
 struct DDL_options_st
@@ -544,6 +544,9 @@ class DDL_options: public DDL_options_st
 {
 public:
   DDL_options() { init(); }
+  DDL_options(Options options) { init(options); }
+  DDL_options(const DDL_options_st &options)
+  { DDL_options_st::operator=(options); }
 };
 
 

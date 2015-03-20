@@ -2857,7 +2857,7 @@ public:
                ha_key_alg algorithm, DDL_options_st ddl)
   {
     if (check_add_key(ddl) ||
-        !(last_key= new Key(type, name, algorithm, false, ddl.if_not_exists())))
+        !(last_key= new Key(type, name, algorithm, false, ddl)))
       return true;
     alter_info.key_list.push_back(last_key);
     return false;
@@ -2866,7 +2866,7 @@ public:
   bool add_create_index(Key::Keytype type, const LEX_STRING &name,
                         ha_key_alg algorithm, DDL_options_st ddl)
   {
-    if (!(last_key= new Key(type, name, algorithm, false, ddl.if_not_exists())))
+    if (!(last_key= new Key(type, name, algorithm, false, ddl)))
       return true;
     alter_info.key_list.push_back(last_key);
     return false;

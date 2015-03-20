@@ -852,7 +852,9 @@ static void add_key_to_list(LEX *lex, LEX_STRING *field_name,
                             enum Key::Keytype type, bool check_exists)
 {
   Key *key;
-  key= new Key(type, null_lex_str, HA_KEY_ALG_UNDEF, false, check_exists);
+  key= new Key(type, null_lex_str, HA_KEY_ALG_UNDEF, false,
+               DDL_options(check_exists ? DDL_options::OPT_IF_NOT_EXISTS :
+                                          DDL_options::OPT_NONE));
   key->columns.push_back(new Key_part_spec(*field_name, 0));
   lex->alter_info.key_list.push_back(key);
 }
@@ -6055,8 +6057,7 @@ key_def:
           {
             if (Lex->check_add_key($4) ||
                !(Lex->last_key= new Key(Key::MULTIPLE, $1.str ? $1 : $5,
-                                        HA_KEY_ALG_UNDEF, true,
-                                        $4.if_not_exists())))
+                                        HA_KEY_ALG_UNDEF, true, $4)))
               MYSQL_YYABORT;
             Lex->option_list= NULL;
           }
@@ -6071,7 +6072,7 @@ key_def:
                                       lex->fk_delete_opt,
                                       lex->fk_update_opt,
                                       lex->fk_match_option,
-                                      $4.if_not_exists());
+                                      $4);
             if (key == NULL)
               MYSQL_YYABORT;
             /*

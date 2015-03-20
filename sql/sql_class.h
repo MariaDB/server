@@ -278,7 +278,7 @@ public:
 };
 
 
-class Key :public Sql_alloc {
+class Key :public Sql_alloc, public DDL_options {
 public:
   enum Keytype { PRIMARY, UNIQUE, MULTIPLE, FULLTEXT, SPATIAL, FOREIGN_KEY};
   enum Keytype type;
@@ -287,31 +287,30 @@ public:
   LEX_STRING name;
   engine_option_value *option_list;
   bool generated;
-  bool create_if_not_exists;
 
   Key(enum Keytype type_par, const LEX_STRING &name_arg,
-      ha_key_alg algorithm_arg, bool generated_arg, bool if_not_exists_opt)
-    :type(type_par), key_create_info(default_key_create_info),
-    name(name_arg), option_list(NULL), generated(generated_arg),
-    create_if_not_exists(if_not_exists_opt)
+      ha_key_alg algorithm_arg, bool generated_arg, DDL_options_st ddl_options)
+    :DDL_options(ddl_options),
+     type(type_par), key_create_info(default_key_create_info),
+    name(name_arg), option_list(NULL), generated(generated_arg)
   {
     key_create_info.algorithm= algorithm_arg;
   } 
   Key(enum Keytype type_par, const LEX_STRING &name_arg,
       KEY_CREATE_INFO *key_info_arg,
       bool generated_arg, List<Key_part_spec> &cols,
-      engine_option_value *create_opt, bool if_not_exists_opt)
-    :type(type_par), key_create_info(*key_info_arg), columns(cols),
-    name(name_arg), option_list(create_opt), generated(generated_arg),
-    create_if_not_exists(if_not_exists_opt)
+      engine_option_value *create_opt, DDL_options_st ddl_options)
+    :DDL_options(ddl_options),
+     type(type_par), key_create_info(*key_info_arg), columns(cols),
+    name(name_arg), option_list(create_opt), generated(generated_arg)
   {}
   Key(enum Keytype type_par, const char *name_arg, size_t name_len_arg,
       KEY_CREATE_INFO *key_info_arg, bool generated_arg,
       List<Key_part_spec> &cols,
-      engine_option_value *create_opt, bool if_not_exists_opt)
-    :type(type_par), key_create_info(*key_info_arg), columns(cols),
-    option_list(create_opt), generated(generated_arg),
-    create_if_not_exists(if_not_exists_opt)
+      engine_option_value *create_opt, DDL_options_st ddl_options)
+    :DDL_options(ddl_options),
+    type(type_par), key_create_info(*key_info_arg), columns(cols),
+    option_list(create_opt), generated(generated_arg)
   {
     name.str= (char *)name_arg;
     name.length= name_len_arg;
@@ -344,9 +343,9 @@ public:
 	      const LEX_STRING &ref_db_arg, const LEX_STRING &ref_table_arg,
               List<Key_part_spec> &ref_cols,
 	      uint delete_opt_arg, uint update_opt_arg, uint match_opt_arg,
-              bool if_not_exists_opt)
+	      DDL_options ddl_options)
     :Key(FOREIGN_KEY, name_arg, &default_key_create_info, 0, cols, NULL,
-         if_not_exists_opt),
+         ddl_options),
     ref_db(ref_db_arg), ref_table(ref_table_arg), ref_columns(ref_cols),
     delete_opt(delete_opt_arg), update_opt(update_opt_arg),
     match_opt(match_opt_arg)

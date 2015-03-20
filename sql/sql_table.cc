@@ -5830,7 +5830,7 @@ drop_create_field:
     const char *keyname;
     while ((key=key_it++))
     {
-      if (!key->create_if_not_exists)
+      if (!key->if_not_exists())
         continue;
       /* If the name of the key is not specified,     */
       /* let us check the name of the first key part. */
@@ -7627,7 +7627,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
       key= new Key(key_type, key_name, strlen(key_name),
                    &key_create_info,
                    MY_TEST(key_info->flags & HA_GENERATED_KEY),
-                   key_parts, key_info->option_list, FALSE);
+                   key_parts, key_info->option_list, DDL_options());
       new_key_list.push_back(key);
     }
   }
