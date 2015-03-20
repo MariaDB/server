@@ -290,6 +290,14 @@ public:
   bool create_if_not_exists;
 
   Key(enum Keytype type_par, const LEX_STRING &name_arg,
+      ha_key_alg algorithm_arg, bool generated_arg, bool if_not_exists_opt)
+    :type(type_par), key_create_info(default_key_create_info),
+    name(name_arg), option_list(NULL), generated(generated_arg),
+    create_if_not_exists(if_not_exists_opt)
+  {
+    key_create_info.algorithm= algorithm_arg;
+  } 
+  Key(enum Keytype type_par, const LEX_STRING &name_arg,
       KEY_CREATE_INFO *key_info_arg,
       bool generated_arg, List<Key_part_spec> &cols,
       engine_option_value *create_opt, bool if_not_exists_opt)

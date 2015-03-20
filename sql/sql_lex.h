@@ -2424,7 +2424,6 @@ struct LEX: public Query_tables_list
   */
   LEX_USER *definer;
 
-  List<Key_part_spec> col_list;
   List<Key_part_spec> ref_list;
   List<LEX_USER>      users_list;
   List<LEX_COLUMN>    columns;
@@ -2436,6 +2435,7 @@ struct LEX: public Query_tables_list
 private:
   Query_arena_memroot *arena_for_set_stmt;
   MEM_ROOT *mem_root_for_set_stmt;
+  void parse_error();
 public:
   inline bool is_arena_for_set_stmt() {return arena_for_set_stmt != 0;}
   bool set_arena_for_set_stmt(Query_arena *backup);
@@ -2469,7 +2469,7 @@ public:
   udf_func udf;
   HA_CHECK_OPT   check_opt;			// check/repair options
   Table_specification_st create_info;
-  KEY_CREATE_INFO key_create_info;
+  Key *last_key;
   LEX_MASTER_INFO mi;				// used by CHANGE MASTER
   LEX_SERVER_OPTIONS server_options;
   LEX_STRING relay_log_connection_name;
@@ -2842,6 +2842,35 @@ public:
   void init_last_field(Create_field *field, const char *name, CHARSET_INFO *cs);
   void set_last_field_type(enum enum_field_types type);
   bool set_bincmp(CHARSET_INFO *cs, bool bin);
+  // Check if "KEY IF NOT EXISTS name" used outside of ALTER context
+  bool check_add_key(DDL_options_st ddl)
+  {
+    if (ddl.if_not_exists() && sql_command != SQLCOM_ALTER_TABLE)
+    {
+      parse_error();
+      return true;
+    }
+    return false;
+  }
+  // Add a key as a part of CREATE TABLE or ALTER TABLE
+  bool add_key(Key::Keytype type, const LEX_STRING &name,
+               ha_key_alg algorithm, DDL_options_st ddl)
+  {
+    if (check_add_key(ddl) ||
+        !(last_key= new Key(type, name, algorithm, false, ddl.if_not_exists())))
+      return true;
+    alter_info.key_list.push_back(last_key);
+    return false;
+  }
+  // Add a key for a CREATE INDEX statement
+  bool add_create_index(Key::Keytype type, const LEX_STRING &name,
+                        ha_key_alg algorithm, DDL_options_st ddl)
+  {
+    if (!(last_key= new Key(type, name, algorithm, false, ddl.if_not_exists())))
+      return true;
+    alter_info.key_list.push_back(last_key);
+    return false;
+  }
   void set_command(enum_sql_command command,
                    DDL_options_st options)
   {

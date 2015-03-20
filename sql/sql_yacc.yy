@@ -155,6 +155,12 @@ void my_parse_error(const char *s, const char *yytext=0)
                   err.ptr(), lip->yylineno);
 }
 
+void LEX::parse_error()
+{
+  my_parse_error(ER(ER_SYNTAX_ERROR));
+}
+
+
 /**
   @brief Bison callback to report a syntax/OOM error
 
@@ -717,7 +723,7 @@ bool setup_select_in_parentheses(LEX *lex)
   return FALSE;
 }
 
-static bool add_create_index_prepare (LEX *lex, Table_ident *table)
+static bool add_create_index_prepare(LEX *lex, Table_ident *table)
 {
   lex->sql_command= SQLCOM_CREATE_INDEX;
   if (!lex->current_select->add_table_to_list(lex->thd, table, NULL,
@@ -727,24 +733,7 @@ static bool add_create_index_prepare (LEX *lex, Table_ident *table)
     return TRUE;
   lex->alter_info.reset();
   lex->alter_info.flags= Alter_info::ALTER_ADD_INDEX;
-  lex->col_list.empty();
   lex->option_list= NULL;
-  return FALSE;
-}
-
-static bool add_create_index (LEX *lex, Key::Keytype type,
-                              const LEX_STRING &name,
-                              bool check_exists,
-                              KEY_CREATE_INFO *info= NULL, bool generated= 0)
-{
-  Key *key;
-  key= new Key(type, name, info ? info : &lex->key_create_info, generated, 
-               lex->col_list, lex->option_list, check_exists);
-  if (key == NULL)
-    return TRUE;
-
-  lex->alter_info.key_list.push_back(key);
-  lex->col_list.empty();
   return FALSE;
 }
 
@@ -860,15 +849,12 @@ static bool sp_create_assignment_instr(THD *thd, bool no_lookahead)
 
 
 static void add_key_to_list(LEX *lex, LEX_STRING *field_name,
-                            enum Key::Keytype type)
+                            enum Key::Keytype type, bool check_exists)
 {
   Key *key;
-  lex->col_list.push_back(new Key_part_spec(*field_name, 0));
-  key= new Key(type, null_lex_str,
-               &default_key_create_info, 0,
-               lex->col_list, NULL, lex->check_exists);
+  key= new Key(type, null_lex_str, HA_KEY_ALG_UNDEF, false, check_exists);
+  key->columns.push_back(new Key_part_spec(*field_name, 0));
   lex->alter_info.key_list.push_back(key);
-  lex->col_list.empty();
 }
 
 void LEX::init_last_field(Create_field *field, const char *name, CHARSET_INFO *cs)
@@ -1023,7 +1009,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
   Currently there are 164 shift/reduce conflicts.
   We should not introduce new conflicts any more.
 */
-%expect 165
+%expect 164
 
 /*
    Comments for TOKENS.
@@ -1715,7 +1701,6 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
         NCHAR_STRING opt_component key_cache_name
         sp_opt_label BIN_NUM label_ident TEXT_STRING_filesystem ident_or_empty
         opt_constraint constraint opt_ident
-        opt_if_not_exists_opt_table_element_name
 
 %type <lex_str_ptr>
         opt_table_alias
@@ -1819,10 +1804,10 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
         option_type opt_var_type opt_var_ident_type
 
 %type <key_type>
-        normal_key_type opt_unique constraint_key_type fulltext spatial
+        opt_unique constraint_key_type fulltext spatial
 
 %type <key_alg>
-        btree_or_rtree
+        btree_or_rtree opt_key_algorithm_clause opt_USING_key_algorithm
 
 %type <string_list>
         using_list opt_use_partition use_partition
@@ -1937,7 +1922,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
         view_check_option trigger_tail sp_tail sf_tail event_tail
         udf_tail udf_tail2
         install uninstall partition_entry binlog_base64_event
-        init_key_options normal_key_options normal_key_opts all_key_opt 
+        normal_key_options normal_key_opts all_key_opt 
         spatial_key_options fulltext_key_options normal_key_opt 
         fulltext_key_opt spatial_key_opt fulltext_key_opts spatial_key_opts
 	keep_gcc_happy
@@ -2475,7 +2460,6 @@ create:
                                                    TL_WRITE, MDL_EXCLUSIVE))
               MYSQL_YYABORT;
             lex->alter_info.reset();
-            lex->col_list.empty();
             /*
               For CREATE TABLE we should not open the table even if it exists.
               If the table exists, we should either not create it or replace it
@@ -2501,41 +2485,34 @@ create:
             }
             create_table_set_open_action_and_adjust_tables(lex);
           }
-        | CREATE opt_unique INDEX_SYM opt_if_not_exists ident key_alg ON table_ident
+        | CREATE opt_unique INDEX_SYM opt_if_not_exists ident
+          opt_key_algorithm_clause
+          ON table_ident
           {
             if (add_create_index_prepare(Lex, $8))
+              MYSQL_YYABORT;
+            if (Lex->add_create_index($2, $5, $6, $4))
               MYSQL_YYABORT;
           }
           '(' key_list ')' normal_key_options
-          {
-            if (add_create_index(Lex, $2, $5, $4.if_not_exists()))
-              MYSQL_YYABORT;
-          }
           opt_index_lock_algorithm { }
-        | CREATE fulltext INDEX_SYM opt_if_not_exists ident init_key_options ON
-          table_ident
+        | CREATE fulltext INDEX_SYM opt_if_not_exists ident ON table_ident
           {
-            if (add_create_index_prepare(Lex, $8))
+            if (add_create_index_prepare(Lex, $7))
+              MYSQL_YYABORT;
+            if (Lex->add_create_index($2, $5, HA_KEY_ALG_UNDEF, $4))
               MYSQL_YYABORT;
           }
           '(' key_list ')' fulltext_key_options
-          {
-            if (add_create_index(Lex, $2, $5, $4.if_not_exists()))
-              MYSQL_YYABORT;
-          }
           opt_index_lock_algorithm { }
-        | CREATE spatial INDEX_SYM opt_if_not_exists ident
-          init_key_options ON
-          table_ident
+        | CREATE spatial INDEX_SYM opt_if_not_exists ident ON table_ident
           {
-            if (add_create_index_prepare(Lex, $8))
+            if (add_create_index_prepare(Lex, $7))
+              MYSQL_YYABORT;
+            if (Lex->add_create_index($2, $5, HA_KEY_ALG_UNDEF, $4))
               MYSQL_YYABORT;
           }
           '(' key_list ')' spatial_key_options
-          {
-            if (add_create_index(Lex, $2, $5, $4.if_not_exists()))
-              MYSQL_YYABORT;
-          }
           opt_index_lock_algorithm { }
         | create_or_replace DATABASE opt_if_not_exists ident
           {
@@ -6026,71 +6003,89 @@ field_list_item:
 column_def:
           field_spec opt_check_constraint
         | field_spec references
-          {
-            Lex->col_list.empty(); /* Alloced by sql_alloc */
-          }
         ;
 
 key_def:
-          normal_key_type opt_if_not_exists_opt_table_element_name
-          key_alg '(' key_list ')'
-          { Lex->option_list= NULL; }
-          normal_key_options
+          key_or_index opt_if_not_exists opt_ident opt_USING_key_algorithm
           {
-            if (add_create_index (Lex, $1, $2, Lex->check_exists))
+            Lex->option_list= NULL;
+            if (Lex->add_key(Key::MULTIPLE, $3, $4, $2))
               MYSQL_YYABORT;
           }
-        | fulltext opt_key_or_index opt_if_not_exists_opt_table_element_name
-          init_key_options '(' key_list ')'
-          { Lex->option_list= NULL; }
-            fulltext_key_options
+          '(' key_list ')' normal_key_options { }
+        | key_or_index opt_if_not_exists ident TYPE_SYM btree_or_rtree
           {
-            if (add_create_index (Lex, $1, $3, Lex->check_exists))
+            Lex->option_list= NULL;
+            if (Lex->add_key(Key::MULTIPLE, $3, $5, $2))
               MYSQL_YYABORT;
           }
-        | spatial opt_key_or_index opt_if_not_exists_opt_table_element_name
-          init_key_options '(' key_list ')'
-          { Lex->option_list= NULL; }
-            spatial_key_options
+          '(' key_list ')' normal_key_options { }
+        | fulltext opt_key_or_index opt_if_not_exists opt_ident
           {
-            if (add_create_index (Lex, $1, $3, Lex->check_exists))
+            Lex->option_list= NULL;
+            if (Lex->add_key($1, $4, HA_KEY_ALG_UNDEF, $3))
               MYSQL_YYABORT;
           }
+          '(' key_list ')' fulltext_key_options { }
+        | spatial opt_key_or_index opt_if_not_exists opt_ident
+          {
+            Lex->option_list= NULL;
+            if (Lex->add_key($1, $4, HA_KEY_ALG_UNDEF, $3))
+              MYSQL_YYABORT;
+          }
+          '(' key_list ')' spatial_key_options { }
         | opt_constraint constraint_key_type
-          opt_if_not_exists_opt_table_element_name key_alg '(' key_list ')'
-          { Lex->option_list= NULL; }
-          normal_key_options
+          opt_if_not_exists opt_ident
+          opt_USING_key_algorithm
           {
-            if (add_create_index (Lex, $2, $3.str ? $3 : $1, Lex->check_exists))
+            Lex->option_list= NULL;
+            if (Lex->add_key($2, $4.str ? $4 : $1, $5, $3))
               MYSQL_YYABORT;
           }
-        | opt_constraint FOREIGN KEY_SYM opt_if_not_exists_opt_table_element_name
+          '(' key_list ')' normal_key_options { }
+        | opt_constraint constraint_key_type opt_if_not_exists ident
+          TYPE_SYM btree_or_rtree
+          {
+            Lex->option_list= NULL;
+            if (Lex->add_key($2, $4.str ? $4 : $1, $6, $3))
+              MYSQL_YYABORT;
+          }
+          '(' key_list ')' normal_key_options { }
+        | opt_constraint FOREIGN KEY_SYM opt_if_not_exists opt_ident
+          {
+            if (Lex->check_add_key($4) ||
+               !(Lex->last_key= new Key(Key::MULTIPLE, $1.str ? $1 : $5,
+                                        HA_KEY_ALG_UNDEF, true,
+                                        $4.if_not_exists())))
+              MYSQL_YYABORT;
+            Lex->option_list= NULL;
+          }
           '(' key_list ')' references
           {
             LEX *lex=Lex;
-            Key *key= new Foreign_key($4.str ? $4 : $1, lex->col_list,
-                                      $8->db,
-                                      $8->table,
+            Key *key= new Foreign_key($5.str ? $5 : $1,
+                                      lex->last_key->columns,
+                                      $10->db,
+                                      $10->table,
                                       lex->ref_list,
                                       lex->fk_delete_opt,
                                       lex->fk_update_opt,
                                       lex->fk_match_option,
-                                      lex->check_exists);
+                                      $4.if_not_exists());
             if (key == NULL)
               MYSQL_YYABORT;
+            /*
+              handle_if_exists_options() expectes the two keys in this order:
+              the Foreign_key, followed by its auto-generated Key.
+            */
             lex->alter_info.key_list.push_back(key);
+            lex->alter_info.key_list.push_back(Lex->last_key);
             lex->option_list= NULL;
-            if (add_create_index (lex, Key::MULTIPLE, $1.str ? $1 : $4,
-                                  Lex->check_exists,
-                                  &default_key_create_info, 1))
-              MYSQL_YYABORT;
+
             /* Only used for ALTER TABLE. Ignored otherwise. */
             lex->alter_info.flags|= Alter_info::ADD_FOREIGN_KEY;
           }
-        | opt_constraint check_constraint
-          {
-            Lex->col_list.empty(); /* Alloced by sql_alloc */
-          }
+        | opt_constraint check_constraint { }
         ;
 
 opt_check_constraint:
@@ -6141,9 +6136,9 @@ field_spec:
             lex->alter_info.create_list.push_back(f);
 
             if (f->flags & PRI_KEY_FLAG)
-              add_key_to_list(lex, &$1, Key::PRIMARY);
+              add_key_to_list(lex, &$1, Key::PRIMARY, Lex->check_exists);
             else if (f->flags & (UNIQUE_FLAG | UNIQUE_KEY_FLAG))
-              add_key_to_list(lex, &$1, Key::UNIQUE);
+              add_key_to_list(lex, &$1, Key::UNIQUE, Lex->check_exists);
           }
         ;
 
@@ -6913,10 +6908,6 @@ delete_option:
         | SET DEFAULT   { $$= Foreign_key::FK_OPTION_DEFAULT;  }
         ;
 
-normal_key_type:
-          key_or_index { $$= Key::MULTIPLE; }
-        ;
-
 constraint_key_type:
           PRIMARY_SYM KEY_SYM { $$= Key::PRIMARY; }
         | UNIQUE_SYM opt_key_or_index { $$= Key::UNIQUE; }
@@ -6960,36 +6951,19 @@ spatial:
           }
         ;
 
-init_key_options:
-          {
-            Lex->key_create_info= default_key_create_info;
-          }
-        ;
-
-/*
-  For now, key_alg initializies lex->key_create_info.
-  In the future, when all key options are after key definition,
-  we can remove key_alg and move init_key_options to key_options
-*/
-
-key_alg:
-          init_key_options
-        | init_key_options key_using_alg
-        ;
-
 normal_key_options:
           /* empty */ {}
-        | normal_key_opts
+        | normal_key_opts { Lex->last_key->option_list= Lex->option_list; }
         ;
 
 fulltext_key_options:
           /* empty */ {}
-        | fulltext_key_opts
+        | fulltext_key_opts { Lex->last_key->option_list= Lex->option_list; }
         ;
 
 spatial_key_options:
           /* empty */ {}
-        | spatial_key_opts
+        | spatial_key_opts { Lex->last_key->option_list= Lex->option_list; }
         ;
 
 normal_key_opts:
@@ -7007,15 +6981,28 @@ fulltext_key_opts:
         | fulltext_key_opts fulltext_key_opt
         ;
 
+opt_USING_key_algorithm:
+          /* Empty*/              { $$= HA_KEY_ALG_UNDEF; }
+        | USING    btree_or_rtree { $$= $2; }
+
+/* TYPE is a valid identifier, so it's handled differently than USING */
+opt_key_algorithm_clause:
+          /* Empty*/              { $$= HA_KEY_ALG_UNDEF; }
+        | USING    btree_or_rtree { $$= $2; }
+        | TYPE_SYM btree_or_rtree { $$= $2; }
+
 key_using_alg:
-          USING btree_or_rtree     { Lex->key_create_info.algorithm= $2; }
-        | TYPE_SYM btree_or_rtree  { Lex->key_create_info.algorithm= $2; }
+          USING btree_or_rtree
+          { Lex->last_key->key_create_info.algorithm= $2; }
+        | TYPE_SYM btree_or_rtree
+          { Lex->last_key->key_create_info.algorithm= $2; }
         ;
 
 all_key_opt:
           KEY_BLOCK_SIZE opt_equal ulong_num
-          { Lex->key_create_info.block_size= $3; }
-	| COMMENT_SYM TEXT_STRING_sys { Lex->key_create_info.comment= $2; }
+          { Lex->last_key->key_create_info.block_size= $3; }
+        | COMMENT_SYM TEXT_STRING_sys
+          { Lex->last_key->key_create_info.comment= $2; }
         | IDENT_sys equal TEXT_STRING_sys
           {
             new (thd->mem_root)
@@ -7055,7 +7042,7 @@ fulltext_key_opt:
         | WITH PARSER_SYM IDENT_sys
           {
             if (plugin_is_ready(&$3, MYSQL_FTPARSER_PLUGIN))
-              Lex->key_create_info.parser_name= $3;
+              Lex->last_key->key_create_info.parser_name= $3;
             else
             {
               my_error(ER_FUNCTION_NOT_DEFINED, MYF(0), $3.str);
@@ -7071,8 +7058,14 @@ btree_or_rtree:
         ;
 
 key_list:
-          key_list ',' key_part order_dir { Lex->col_list.push_back($3); }
-        | key_part order_dir { Lex->col_list.push_back($1); }
+          key_list ',' key_part order_dir
+          {
+            Lex->last_key->columns.push_back($3);
+          }
+        | key_part order_dir
+          {
+            Lex->last_key->columns.push_back($1);
+          }
         ;
 
 key_part:
@@ -7100,18 +7093,6 @@ opt_ident:
         | field_ident { $$= $1; }
         ;
 
-opt_if_not_exists_opt_table_element_name:
-        opt_if_not_exists_table_element opt_ident
-        {
-          LEX *lex= Lex;
-          if (lex->check_exists && lex->sql_command != SQLCOM_ALTER_TABLE)
-          {
-            my_parse_error(ER(ER_SYNTAX_ERROR));
-            MYSQL_YYABORT;
-          }
-          $$= $2;
-        };
-
 opt_component:
           /* empty */    { $$= null_lex_str; }
         | '.' ident      { $$= $2; }
@@ -7131,7 +7112,6 @@ alter:
             Lex->name= null_lex_str;
             Lex->sql_command= SQLCOM_ALTER_TABLE;
             Lex->duplicates= DUP_ERROR; 
-            Lex->col_list.empty();
             Lex->select_lex.init_order();
             Lex->create_info.init();
             Lex->create_info.row_type= ROW_TYPE_NOT_USED;
