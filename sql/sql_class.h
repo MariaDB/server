@@ -96,6 +96,16 @@ enum enum_mark_columns
 { MARK_COLUMNS_NONE, MARK_COLUMNS_READ, MARK_COLUMNS_WRITE};
 enum enum_filetype { FILETYPE_CSV, FILETYPE_XML };
 
+enum enum_binlog_row_image {
+  /** PKE in the before image and changed columns in the after image */
+  BINLOG_ROW_IMAGE_MINIMAL= 0,
+  /** Whenever possible, before and after image contain all columns except blobs. */
+  BINLOG_ROW_IMAGE_NOBLOB= 1,
+  /** All columns in both before and after image. */
+  BINLOG_ROW_IMAGE_FULL= 2
+};
+
+
 /* Bits for different SQL modes modes (including ANSI mode) */
 #define MODE_REAL_AS_FLOAT              (1ULL << 0)
 #define MODE_PIPES_AS_CONCAT            (1ULL << 1)
@@ -588,6 +598,7 @@ typedef struct system_variables
   /* Flags for slow log filtering */
   ulong log_slow_rate_limit; 
   ulong binlog_format; ///< binlog format for this thd (see enum_binlog_format)
+  ulong binlog_row_image;
   ulong progress_report_time;
   ulong completion_type;
   ulong query_cache_type;
