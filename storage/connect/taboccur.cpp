@@ -45,9 +45,7 @@
 #include "tabcol.h"
 #include "taboccur.h"
 #include "xtable.h"
-#if defined(MYSQL_SUPPORT)
 #include "tabmysql.h"
-#endif   // MYSQL_SUPPORT
 #include "ha_connect.h"
 #include "mycat.h"
 

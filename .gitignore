@@ -293,6 +293,7 @@ storage/mroonga/vendor/groonga/src/suggest/groonga-suggest-create-dataset
 [Dd]ebugPublic/
 [Rr]elease/
 [Rr]eleases/
+[Rr]eleaseWithDebInfo/
 x64/
 x86/
 build/
