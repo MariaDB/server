@@ -78,9 +78,7 @@
 #include "tabxml.h"
 #endif   // XML_SUPPORT
 #include "tabmul.h"
-#if defined(MYSQL_SUPPORT)
 #include "tabmysql.h"
-#endif   // MYSQL_SUPPORT
 #if defined(ODBC_SUPPORT)
 #define NODBC
 #include "tabodbc.h"
@@ -122,10 +120,8 @@ TABTYPE GetTypeID(const char *type)
 #ifdef ODBC_SUPPORT
                  : (!stricmp(type, "ODBC"))  ? TAB_ODBC
 #endif
-#ifdef MYSQL_SUPPORT
                  : (!stricmp(type, "MYSQL")) ? TAB_MYSQL
                  : (!stricmp(type, "MYPRX")) ? TAB_MYSQL
-#endif
                  : (!stricmp(type, "DIR"))   ? TAB_DIR
 #ifdef WIN32
 	               : (!stricmp(type, "MAC"))   ? TAB_MAC
@@ -537,9 +533,7 @@ PRELDEF MYCAT::MakeTableDesc(PGLOBAL g, LPCSTR name, LPCSTR am)
 	  case TAB_XCL: tdp= new(g) XCLDEF;   break;
 	  case TAB_PRX: tdp= new(g) PRXDEF;   break;
 		case TAB_OCCUR: tdp= new(g) OCCURDEF;	break;
-#if defined(MYSQL_SUPPORT)
 		case TAB_MYSQL: tdp= new(g) MYSQLDEF;	break;
-#endif   // MYSQL_SUPPORT
 #if defined(PIVOT_SUPPORT)
     case TAB_PIVOT: tdp= new(g) PIVOTDEF; break;
 #endif   // PIVOT_SUPPORT

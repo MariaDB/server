@@ -1540,12 +1540,11 @@ int TDBJSON::MakeNewDoc(PGLOBAL g)
 int TDBJSON::MakeDocument(PGLOBAL g)
   {
   char    filename[_MAX_PATH];
+  int     rc = RC_OK;
   DWORD   drc;
 
   if (Done)
     return RC_OK;
-  else
-    Done = true;
 
   // Now open the JSON file
   PlugSetPath(filename, Txfp->To_File, GetPath());
@@ -1553,16 +1552,11 @@ int TDBJSON::MakeDocument(PGLOBAL g)
 	/*********************************************************************/
 	/*  Get top of the parsed tree and the inside table document.        */
 	/*********************************************************************/
-  Top = MakeJsonTree(g, filename, Objname, Pretty, Doc, drc);
+  if (!(Top = MakeJsonTree(g, filename, Objname, Pretty, Doc, drc)))
+    rc = (drc == ENOENT && Mode == MODE_INSERT) ? MakeNewDoc(g) : RC_FX;
 
-  if (!Top) {
-    if (drc != ENOENT || Mode != MODE_INSERT)
-      return RC_FX;
-
-    return MakeNewDoc(g);
-    } // endif !Top
-
-  return RC_OK;
+  Done = (rc == RC_OK);
+  return rc;
   } // end of MakeDocument
 
 #if 0

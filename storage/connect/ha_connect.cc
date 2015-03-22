@@ -130,10 +130,8 @@
 #if defined(ODBC_SUPPORT)
 #include "odbccat.h"
 #endif   // ODBC_SUPPORT
-#if defined(MYSQL_SUPPORT)
 #include "xtable.h"
 #include "tabmysql.h"
-#endif   // MYSQL_SUPPORT
 #include "filamdbf.h"
 #include "tabxcl.h"
 #include "tabfmt.h"
@@ -5147,7 +5145,6 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
         ok= true;
 
       break;
-#if defined(MYSQL_SUPPORT)
     case TAB_MYSQL:
       ok= true;
 
@@ -5187,14 +5184,15 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
         ok= false;
 
       break;
-#endif   // MYSQL_SUPPORT
 #if defined(WIN32)
     case TAB_WMI:
       ok= true;
       break;
 #endif   // WIN32
+#if defined(PIVOT_SUPPORT)
     case TAB_PIVOT:
       supfnc= FNC_NO;
+#endif   // PIVOT_SUPPORT
     case TAB_PRX:
     case TAB_TBL:
     case TAB_XCL:
@@ -5293,12 +5291,10 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
 
         break;
 #endif   // ODBC_SUPPORT
-#if defined(MYSQL_SUPPORT)
       case TAB_MYSQL:
         qrp= MyColumns(g, thd, host, db, user, pwd, tab,
                        NULL, port, fnc == FNC_COL);
         break;
-#endif   // MYSQL_SUPPORT
       case TAB_CSV:
         qrp= CSVColumns(g, dpath, fn, spc, qch, hdr, mxe, fnc == FNC_COL);
         break;
@@ -5324,9 +5320,11 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
             } // endif OcrColumns
 
         break;
+#if defined(PIVOT_SUPPORT)
       case TAB_PIVOT:
         qrp= PivotColumns(g, tab, src, pic, fcl, skc, host, db, user, pwd, port);
         break;
+#endif   // PIVOT_SUPPORT
       case TAB_VIR:
         qrp= VirColumns(g, tab, (char*)db, fnc == FNC_COL);
         break;
