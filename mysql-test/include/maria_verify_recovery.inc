@@ -78,6 +78,8 @@ let $mms_purpose=comparison;
 let $mms_compare_physically=$mms_compare_physically_save;
 while ($mms_table_to_use)
 {
+  # the size of the index file is different for with/without encryption
+  --replace_result 372 <SIZE> 394 <SIZE>
   eval check table $mms_tname$mms_table_to_use extended;
   --echo * testing that checksum after recovery is as expected
   let $new_checksum=`CHECKSUM TABLE $mms_tname$mms_table_to_use`;

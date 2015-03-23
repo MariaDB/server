@@ -36,7 +36,7 @@
 #include "ma_checkpoint.h"
 #include "ma_loghandler_lsn.h"
 #include "ma_servicethread.h"
-
+#include "ma_crypt.h"
 
 /** @brief type of checkpoint currently running */
 static CHECKPOINT_LEVEL checkpoint_in_progress= CHECKPOINT_NONE;
@@ -1109,6 +1109,7 @@ static int collect_tables(LEX_STRING *str, LSN checkpoint_start_log_horizon)
       mysql_mutex_destroy(&share->intern_lock);
       mysql_mutex_unlock(&share->close_lock);
       mysql_mutex_destroy(&share->close_lock);
+      ma_crypt_free(share);
       my_free(share);
     }
     else
@@ -1222,6 +1223,7 @@ err:
       {
         /* maria_close() left us to free the share */
         mysql_mutex_destroy(&share->intern_lock);
+        ma_crypt_free(share);
         my_free(share);
       }
       else

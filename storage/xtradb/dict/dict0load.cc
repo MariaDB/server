@@ -1153,6 +1153,12 @@ loop:
 					space_id, name);
 			}
 
+			/* We need to read page 0 to get (optional) IV
+			regardless if encryptions is turned on or not,
+			since if it's off we should decrypt a potentially
+			already encrypted table */
+			bool read_page_0 = true;
+
 			/* We set the 2nd param (fix_dict = true)
 			here because we already have an x-lock on
 			dict_operation_lock and dict_sys->mutex. Besides,
@@ -1160,7 +1166,7 @@ loop:
 			If the filepath is not known, it will need to
 			be discovered. */
 			dberr_t	err = fil_open_single_table_tablespace(
-				false, srv_read_only_mode ? false : true,
+				read_page_0, srv_read_only_mode ? false : true,
 				space_id, dict_tf_to_fsp_flags(flags),
 				name, filepath);
 
@@ -2640,6 +2646,99 @@ check_rec:
 	mem_heap_free(heap);
 
 	return(table);
+}
+
+/***********************************************************************//**
+Loads a table id based on the index id.
+@return	true if found */
+static
+bool
+dict_load_table_id_on_index_id(
+/*==================*/
+	index_id_t		index_id,  /*!< in: index id */
+	table_id_t*		table_id) /*!< out: table id */
+{
+	/* check hard coded indexes */
+	switch(index_id) {
+	case DICT_TABLES_ID:
+	case DICT_COLUMNS_ID:
+	case DICT_INDEXES_ID:
+	case DICT_FIELDS_ID:
+		*table_id = index_id;
+		return true;
+	case DICT_TABLE_IDS_ID:
+		/* The following is a secondary index on SYS_TABLES */
+		*table_id = DICT_TABLES_ID;
+		return true;
+	}
+
+	bool		found = false;
+	mtr_t		mtr;
+
+	ut_ad(mutex_own(&(dict_sys->mutex)));
+
+	/* NOTE that the operation of this function is protected by
+	the dictionary mutex, and therefore no deadlocks can occur
+	with other dictionary operations. */
+
+	mtr_start(&mtr);
+
+	btr_pcur_t pcur;
+	const rec_t* rec = dict_startscan_system(&pcur, &mtr, SYS_INDEXES);
+
+	while (rec) {
+		ulint len;
+		const byte* field = rec_get_nth_field_old(
+			rec, DICT_FLD__SYS_INDEXES__ID, &len);
+		ut_ad(len == 8);
+
+		/* Check if the index id is the one searched for */
+		if (index_id == mach_read_from_8(field)) {
+			found = true;
+			/* Now we get the table id */
+			const byte* field = rec_get_nth_field_old(
+				rec,
+				DICT_FLD__SYS_INDEXES__TABLE_ID,
+				&len);
+			*table_id = mach_read_from_8(field);
+			break;
+		}
+		mtr_commit(&mtr);
+		mtr_start(&mtr);
+		rec = dict_getnext_system(&pcur, &mtr);
+	}
+
+	btr_pcur_close(&pcur);
+	mtr_commit(&mtr);
+
+	return(found);
+}
+
+UNIV_INTERN
+dict_table_t*
+dict_table_open_on_index_id(
+/*==================*/
+	index_id_t index_id,	/*!< in: index id */
+	bool dict_locked)	/*!< in: dict locked */
+{
+	if (!dict_locked) {
+		mutex_enter(&dict_sys->mutex);
+	}
+
+	ut_ad(mutex_own(&dict_sys->mutex));
+	table_id_t table_id;
+	dict_table_t * table = NULL;
+	if (dict_load_table_id_on_index_id(index_id, &table_id)) {
+		bool local_dict_locked = true;
+		table = dict_table_open_on_id(table_id,
+					      local_dict_locked,
+					      DICT_TABLE_OP_LOAD_TABLESPACE);
+	}
+
+	if (!dict_locked) {
+		mutex_exit(&dict_sys->mutex);
+	}
+	return table;
 }
 
 /********************************************************************//**

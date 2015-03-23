@@ -75,7 +75,7 @@ mlog_write_initial_log_record(
 {
 	byte*	log_ptr;
 
-	ut_ad(type <= MLOG_BIGGEST_TYPE);
+	ut_ad(type <= MLOG_BIGGEST_TYPE || EXTRA_CHECK_MLOG_NUMBER(type));
 	ut_ad(type > MLOG_8BYTES);
 
 	log_ptr = mlog_open(mtr, 11);
@@ -111,7 +111,7 @@ mlog_parse_initial_log_record(
 	}
 
 	*type = (byte)((ulint)*ptr & ~MLOG_SINGLE_REC_FLAG);
-	ut_ad(*type <= MLOG_BIGGEST_TYPE);
+	ut_ad(*type <= MLOG_BIGGEST_TYPE || EXTRA_CHECK_MLOG_NUMBER(*type));
 
 	ptr++;
 
@@ -150,8 +150,6 @@ mlog_parse_nbytes(
 	ib_uint64_t	dval;
 
 	ut_a(type <= MLOG_8BYTES);
-	ut_a(!page || !page_zip || fil_page_get_type(page) != FIL_PAGE_INDEX);
-
 	if (end_ptr < ptr + 2) {
 
 		return(NULL);
@@ -159,6 +157,11 @@ mlog_parse_nbytes(
 
 	offset = mach_read_from_2(ptr);
 	ptr += 2;
+
+	ut_a(!page || !page_zip || fil_page_get_type(page) != FIL_PAGE_INDEX ||
+	     /* scrubbing changes page type from FIL_PAGE_INDEX to
+	     * FIL_PAGE_TYPE_ALLOCATED (rest of this assertion is below) */
+	     (type == MLOG_2BYTES && offset == FIL_PAGE_TYPE));
 
 	if (offset >= UNIV_PAGE_SIZE) {
 		recv_sys->found_corrupt_log = TRUE;
@@ -219,6 +222,14 @@ mlog_parse_nbytes(
 			}
 			mach_write_to_2(page + offset, val);
 		}
+		ut_a(!page || !page_zip ||
+		     fil_page_get_type(page) != FIL_PAGE_INDEX ||
+		     /* scrubbing changes page type from FIL_PAGE_INDEX to
+		     * FIL_PAGE_TYPE_ALLOCATED */
+		     (type == MLOG_2BYTES &&
+		      offset == FIL_PAGE_TYPE &&
+		      val == FIL_PAGE_TYPE_ALLOCATED));
+
 		break;
 	case MLOG_4BYTES:
 		if (page) {

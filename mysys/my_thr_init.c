@@ -22,6 +22,7 @@
 #include "mysys_priv.h"
 #include <m_string.h>
 #include <signal.h>
+#include <my_crypt_key_management.h>
 
 pthread_key(struct st_my_thread_var*, THR_KEY_mysys);
 mysql_mutex_t THR_LOCK_malloc, THR_LOCK_open,
@@ -65,6 +66,10 @@ static void my_thread_init_common_mutex(void)
 #if !defined(HAVE_LOCALTIME_R) || !defined(HAVE_GMTIME_R)
   mysql_mutex_init(key_LOCK_localtime_r, &LOCK_localtime_r, MY_MUTEX_INIT_SLOW);
 #endif
+#ifndef DBUG_OFF
+  mysql_rwlock_init(key_LOCK_dbug_encryption_key_version,
+                    &LOCK_dbug_encryption_key_version);
+#endif
 }
 
 void my_thread_destroy_common_mutex(void)
@@ -78,6 +83,9 @@ void my_thread_destroy_common_mutex(void)
   mysql_mutex_destroy(&THR_LOCK_charset);
 #if !defined(HAVE_LOCALTIME_R) || !defined(HAVE_GMTIME_R)
   mysql_mutex_destroy(&LOCK_localtime_r);
+#endif
+#ifndef DBUG_OFF
+  mysql_rwlock_destroy(&LOCK_dbug_encryption_key_version);
 #endif
 }
 

@@ -917,6 +917,35 @@ buf_block_free(
 
 	mutex_exit(&block->mutex);
 }
+
+/********************************************************************//**
+Get crypt buffer. */
+UNIV_INLINE
+byte*
+buf_page_get_crypt_buffer(
+/*=========================*/
+	const buf_page_t*	bpage) /*!< in: buffer pool page */
+{
+	return bpage->crypt_buf;
+}
+
+/********************************************************************//**
+Get buf frame. */
+UNIV_INLINE
+void *
+buf_page_get_frame(
+/*=========================*/
+	const buf_page_t*	bpage) /*!< in: buffer pool page */
+{
+	if (bpage->crypt_buf) {
+		return buf_page_get_crypt_buffer(bpage);
+	} else if (bpage->zip.data) {
+		return bpage->zip.data;
+	} else {
+		return ((buf_block_t*) bpage)->frame;
+	}
+}
+
 #endif /* !UNIV_HOTBACKUP */
 
 /*********************************************************************//**

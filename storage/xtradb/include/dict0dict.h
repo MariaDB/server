@@ -139,6 +139,17 @@ dict_table_open_on_id(
 	ibool		dict_locked,	/*!< in: TRUE=data dictionary locked */
 	dict_table_op_t	table_op)	/*!< in: operation to perform */
 	__attribute__((warn_unused_result));
+
+/**********************************************************************//**
+Returns a table object based on table id.
+@return	table, NULL if does not exist */
+UNIV_INTERN
+dict_table_t*
+dict_table_open_on_index_id(
+/*==================*/
+	table_id_t	table_id,	/*!< in: table id */
+	bool		dict_locked)	/*!< in: TRUE=data dictionary locked */
+	__attribute__((warn_unused_result));
 /********************************************************************//**
 Decrements the count of open handles to a table. */
 UNIV_INTERN
@@ -918,8 +929,10 @@ dict_tf_set(
 					pages */
 	ulint		page_compression_level, /*!< in: table page compression
 						 level */
-	ulint		atomic_writes)  /*!< in: table atomic
+	ulint		atomic_writes,  /*!< in: table atomic
 					writes option value*/
+	bool		page_encrypted,/*!< in: table uses page encryption */
+	ulint		page_encryption_key) /*!< in: page encryption key */
 	__attribute__((nonnull));
 /********************************************************************//**
 Convert a 32 bit integer table flags to the 32 bit integer that is
@@ -1445,8 +1458,12 @@ dict_index_calc_min_rec_len(
 Reserves the dictionary system mutex for MySQL. */
 UNIV_INTERN
 void
-dict_mutex_enter_for_mysql(void);
+dict_mutex_enter_for_mysql_func(const char * file, ulint line);
 /*============================*/
+
+#define dict_mutex_enter_for_mysql() \
+  dict_mutex_enter_for_mysql_func(__FILE__, __LINE__)
+
 /********************************************************************//**
 Releases the dictionary system mutex for MySQL. */
 UNIV_INTERN

@@ -336,6 +336,7 @@ SET(INNOBASE_SOURCES
 	btr/btr0btr.cc
 	btr/btr0cur.cc
 	btr/btr0pcur.cc
+	btr/btr0scrub.cc
 	btr/btr0sea.cc
 	btr/btr0defragment.cc
 	buf/buf0buddy.cc
@@ -360,7 +361,8 @@ SET(INNOBASE_SOURCES
 	eval/eval0eval.cc
 	eval/eval0proc.cc
 	fil/fil0fil.cc
-        fil/fil0pagecompress.cc
+	fil/fil0pagecompress.cc
+	fil/fil0crypt.cc
 	fsp/fsp0fsp.cc
 	fut/fut0fut.cc
 	fut/fut0lst.cc
@@ -385,6 +387,7 @@ SET(INNOBASE_SOURCES
 	lock/lock0wait.cc
 	log/log0log.cc
 	log/log0recv.cc
+	log/log0crypt.cc
 	mach/mach0data.cc
 	mem/mem0mem.cc
 	mem/mem0pool.cc
@@ -469,5 +472,5 @@ ENDIF()
 MYSQL_ADD_PLUGIN(innobase ${INNOBASE_SOURCES} STORAGE_ENGINE
   MODULE_ONLY
   MODULE_OUTPUT_NAME ha_innodb
-  LINK_LIBRARIES ${ZLIB_LIBRARY} ${LINKER_SCRIPT})
+  LINK_LIBRARIES ${ZLIB_LIBRARY} ${LINKER_SCRIPT} pcre pcreposix mysys_ssl)
 

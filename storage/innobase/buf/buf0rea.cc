@@ -176,6 +176,8 @@ buf_read_page_low(
 
 	ut_ad(buf_page_in_file(bpage));
 
+	byte* frame = buf_page_decrypt_before_read(bpage, zip_size);
+
 	if (sync) {
 		thd_wait_begin(NULL, THD_WAIT_DISKIO);
 	}
@@ -184,15 +186,15 @@ buf_read_page_low(
 		*err = fil_io(OS_FILE_READ | wake_later
 			      | ignore_nonexistent_pages,
 			      sync, space, zip_size, offset, 0, zip_size,
-			bpage->zip.data, bpage, &bpage->write_size);
+			      frame, bpage, &bpage->write_size, 0);
 	} else {
 		ut_a(buf_page_get_state(bpage) == BUF_BLOCK_FILE_PAGE);
 
 		*err = fil_io(OS_FILE_READ | wake_later
 			      | ignore_nonexistent_pages,
 			      sync, space, 0, offset, 0, UNIV_PAGE_SIZE,
-			      ((buf_block_t*) bpage)->frame, bpage,
-			      &bpage->write_size);
+			      frame, bpage,
+			      &bpage->write_size, 0);
 	}
 
 	if (sync) {
@@ -200,6 +202,7 @@ buf_read_page_low(
 	}
 
 	if (*err != DB_SUCCESS) {
+		buf_page_decrypt_cleanup(bpage);
 		if (ignore_nonexistent_pages || *err == DB_TABLESPACE_DELETED) {
 			buf_read_page_handle_error(bpage);
 			return(0);

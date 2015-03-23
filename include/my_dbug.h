@@ -176,6 +176,9 @@ extern void _db_suicide_();
 #define DBUG_SYNC_POINT(lock_name,lock_timeout) \
  debug_sync_point(lock_name,lock_timeout)
 void debug_sync_point(const char* lock_name, uint lock_timeout);
+
+/* Extern function for debugging */
+extern void dump_buffer(FILE *stream, unsigned n, const unsigned char* buf);
 #else
 #define DBUG_SYNC_POINT(lock_name,lock_timeout)
 #endif /* EXTRA_DEBUG */

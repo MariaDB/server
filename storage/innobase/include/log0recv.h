@@ -434,6 +434,11 @@ struct recv_sys_t{
 				scan find a corrupt log block, or a corrupt
 				log record, or there is a log parsing
 				buffer overflow */
+	uint		recv_log_crypt_ver;
+				/*!< mysqld key version to generate redo
+				log crypt key for recovery */
+	byte		recv_log_crypt_key[MY_AES_BLOCK_SIZE];
+				/*!< crypto key to decrypt redo log for recovery */
 #ifdef UNIV_LOG_ARCHIVE
 	log_group_t*	archive_group;
 				/*!< in archive recovery: the log group whose

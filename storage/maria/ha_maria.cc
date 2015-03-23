@@ -290,6 +290,11 @@ static MYSQL_SYSVAR_BOOL(used_for_temp_tables,
        "Whether temporary tables should be MyISAM or Aria", 0, 0,
        1);
 
+static MYSQL_SYSVAR_BOOL(encrypt_tables, maria_encrypt_tables, 0,
+       "Encrypt tables (only for tables with ROW_FORMAT=PAGE (default) "
+       "and not FIXED/DYNAMIC)",
+       0, 0, 0);
+
 #ifdef HAVE_PSI_INTERFACE
 
 static PSI_mutex_info all_aria_mutexes[]=
@@ -3133,6 +3138,11 @@ int ha_maria::create(const char *name, register TABLE *table_arg,
        ha_create_info->page_checksum ==  HA_CHOICE_YES)
     create_flags|= HA_CREATE_PAGE_CHECKSUM;
 
+  mysql_mutex_lock(&LOCK_global_system_variables);
+  mysql_mutex_unlock(&LOCK_global_system_variables);
+  if (row_type == BLOCK_RECORD && maria_encrypt_tables)
+    create_flags|= HA_CREATE_ENCRYPTED;
+
   (void) translog_log_debug_info(0, LOGREC_DEBUG_INFO_QUERY,
                                  (uchar*) thd->query(), thd->query_length());
 
@@ -3702,6 +3712,7 @@ struct st_mysql_sys_var* system_variables[]= {
   MYSQL_SYSVAR(stats_method),
   MYSQL_SYSVAR(sync_log_dir),
   MYSQL_SYSVAR(used_for_temp_tables),
+  MYSQL_SYSVAR(encrypt_tables),
   NULL
 };
 

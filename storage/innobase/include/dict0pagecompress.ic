@@ -42,6 +42,8 @@ dict_tf_verify_flags(
         ulint   page_compression = DICT_TF_GET_PAGE_COMPRESSION(table_flags);
 	ulint   page_compression_level = DICT_TF_GET_PAGE_COMPRESSION_LEVEL(table_flags);
 	ulint   atomic_writes = DICT_TF_GET_ATOMIC_WRITES(table_flags);
+	ulint   page_encryption = DICT_TF_GET_PAGE_ENCRYPTION(table_flags);
+	ulint   page_encryption_key = DICT_TF_GET_PAGE_ENCRYPTION_KEY(table_flags);
 	ulint	post_antelope = FSP_FLAGS_GET_POST_ANTELOPE(fsp_flags);
 	ulint	zip_ssize = FSP_FLAGS_GET_ZIP_SSIZE(fsp_flags);
 	ulint	fsp_atomic_blobs = FSP_FLAGS_HAS_ATOMIC_BLOBS(fsp_flags);
@@ -50,6 +52,9 @@ dict_tf_verify_flags(
         ulint   fsp_page_compression = FSP_FLAGS_GET_PAGE_COMPRESSION(fsp_flags);
 	ulint   fsp_page_compression_level = FSP_FLAGS_GET_PAGE_COMPRESSION_LEVEL(fsp_flags);
 	ulint   fsp_atomic_writes = FSP_FLAGS_GET_ATOMIC_WRITES(fsp_flags);
+        ulint   fsp_page_encryption = FSP_FLAGS_GET_PAGE_ENCRYPTION(fsp_flags);
+        ulint   fsp_page_encryption_key = FSP_FLAGS_GET_PAGE_ENCRYPTION_KEY(fsp_flags);
+
 
 	DBUG_EXECUTE_IF("dict_tf_verify_flags_failure",
 			return(ULINT_UNDEFINED););
@@ -106,6 +111,27 @@ dict_tf_verify_flags(
 
 		return (FALSE);
 	}
+
+        if (page_encryption != fsp_page_encryption) {
+                fprintf(stderr,
+                        "InnoDB: Error: table flags has page_encryption %ld"
+                        " in the data dictionary\n"
+                        "InnoDB: but the flags in file has page_encryption %ld\n",
+                        page_encryption, fsp_page_encryption);
+
+                return (FALSE);
+        }
+
+        if (page_encryption_key != fsp_page_encryption_key) {
+                fprintf(stderr,
+                        "InnoDB: Error: table flags has page_encryption_key %ld"
+                        " in the data dictionary\n"
+                        "InnoDB: but the flags in file has page_encryption_key %ld\n",
+                        page_encryption_key, fsp_page_encryption_key);
+
+                return (FALSE);
+        }
+
 
 	return(TRUE);
 }

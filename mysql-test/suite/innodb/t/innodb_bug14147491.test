@@ -2,6 +2,8 @@
 # Test opening a corrupted table.
 #
 
+-- source include/not_encrypted.inc
+
 # Don't test under valgrind, memory leaks will occur
 source include/not_valgrind.inc;
 # Avoid CrashReporter popup on Mac

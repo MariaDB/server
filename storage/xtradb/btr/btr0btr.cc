@@ -1157,9 +1157,27 @@ btr_page_alloc_low(
 	reservation for free extents, and thus we know that a page can
 	be allocated: */
 
-	return(fseg_alloc_free_page_general(
-		       seg_header, hint_page_no, file_direction,
-		       TRUE, mtr, init_mtr));
+	buf_block_t* block = fseg_alloc_free_page_general(
+		seg_header, hint_page_no, file_direction,
+		TRUE, mtr, init_mtr);
+
+#ifdef UNIV_DEBUG_SCRUBBING
+	if (block != NULL) {
+		fprintf(stderr,
+			"alloc %lu:%lu to index: %lu root: %lu\n",
+			buf_block_get_page_no(block),
+			buf_block_get_space(block),
+			index->id,
+			dict_index_get_page(index));
+	} else {
+		fprintf(stderr,
+			"failed alloc index: %lu root: %lu\n",
+			index->id,
+			dict_index_get_page(index));
+	}
+#endif /* UNIV_DEBUG_SCRUBBING */
+
+	return block;
 }
 
 /**************************************************************//**
@@ -1307,6 +1325,7 @@ btr_page_free_low(
 	dict_index_t*	index,	/*!< in: index tree */
 	buf_block_t*	block,	/*!< in: block to be freed, x-latched */
 	ulint		level,	/*!< in: page level */
+	bool		blob,   /*!< in: blob page */
 	mtr_t*		mtr)	/*!< in: mtr */
 {
 	fseg_header_t*	seg_header;
@@ -1318,6 +1337,76 @@ btr_page_free_low(
 
 	buf_block_modify_clock_inc(block);
 	btr_blob_dbg_assert_empty(index, buf_block_get_page_no(block));
+
+	if (blob) {
+		ut_a(level == 0);
+	}
+
+	bool scrub = srv_immediate_scrub_data_uncompressed;
+	/* scrub page */
+	if (scrub && blob) {
+		/* blob page: scrub entire page */
+		// TODO(jonaso): scrub only what is actually needed
+		page_t* page = buf_block_get_frame(block);
+		memset(page + PAGE_HEADER, 0,
+		       UNIV_PAGE_SIZE - PAGE_HEADER);
+#ifdef UNIV_DEBUG_SCRUBBING
+		fprintf(stderr,
+			"btr_page_free_low: scrub blob page %lu/%lu\n",
+			buf_block_get_space(block),
+			buf_block_get_page_no(block));
+#endif /* UNIV_DEBUG_SCRUBBING */
+	} else if (scrub) {
+		/* scrub records on page */
+
+		/* TODO(jonaso): in theory we could clear full page
+		* but, since page still remains in buffer pool, and
+		* gets flushed etc. Lots of routines validates consistency
+		* of it. And in order to remain structurally consistent
+		* we clear each record by it own
+		*
+		* NOTE: The TODO below mentions removing page from buffer pool
+		* and removing redo entries, once that is done, clearing full
+		* pages should be possible
+		*/
+		uint cnt = 0;
+		uint bytes = 0;
+		page_t* page = buf_block_get_frame(block);
+		mem_heap_t* heap = NULL;
+		ulint* offsets = NULL;
+		rec_t* rec = page_rec_get_next(page_get_infimum_rec(page));
+		while (!page_rec_is_supremum(rec)) {
+			offsets = rec_get_offsets(rec, index,
+						  offsets, ULINT_UNDEFINED,
+						  &heap);
+			uint size = rec_offs_data_size(offsets);
+			memset(rec, 0, size);
+			rec = page_rec_get_next(rec);
+			cnt++;
+			bytes += size;
+		}
+#ifdef UNIV_DEBUG_SCRUBBING
+		fprintf(stderr,
+			"btr_page_free_low: scrub %lu/%lu - "
+			"%u records %u bytes\n",
+			buf_block_get_space(block),
+			buf_block_get_page_no(block),
+			cnt, bytes);
+#endif /* UNIV_DEBUG_SCRUBBING */
+		if (heap) {
+			mem_heap_free(heap);
+		}
+	}
+
+#ifdef UNIV_DEBUG_SCRUBBING
+	if (scrub == false) {
+		fprintf(stderr,
+			"btr_page_free_low %lu/%lu blob: %u\n",
+			buf_block_get_space(block),
+			buf_block_get_page_no(block),
+			blob);
+	}
+#endif /* UNIV_DEBUG_SCRUBBING */
 
 	if (dict_index_is_ibuf(index)) {
 
@@ -1332,6 +1421,14 @@ btr_page_free_low(
 		seg_header = root + PAGE_HEADER + PAGE_BTR_SEG_LEAF;
 	} else {
 		seg_header = root + PAGE_HEADER + PAGE_BTR_SEG_TOP;
+	}
+
+	if (scrub) {
+		/**
+		* Reset page type so that scrub thread won't try to scrub it
+		*/
+		mlog_write_ulint(buf_block_get_frame(block) + FIL_PAGE_TYPE,
+				 FIL_PAGE_TYPE_ALLOCATED, MLOG_2BYTES, mtr);
 	}
 
 	fseg_free_page(seg_header,
@@ -1363,7 +1460,7 @@ btr_page_free(
 	ulint		level	= btr_page_get_level(page, mtr);
 
 	ut_ad(fil_page_get_type(block->frame) == FIL_PAGE_INDEX);
-	btr_page_free_low(index, block, level, mtr);
+	btr_page_free_low(index, block, level, false, mtr);
 }
 
 /**************************************************************//**
@@ -2320,9 +2417,14 @@ btr_root_raise_and_insert(
 		ibuf_reset_free_bits(new_block);
 	}
 
-	/* Reposition the cursor to the child node */
-	page_cur_search(new_block, index, tuple,
-			PAGE_CUR_LE, page_cursor);
+	if (tuple != NULL) {
+		/* Reposition the cursor to the child node */
+		page_cur_search(new_block, index, tuple,
+				PAGE_CUR_LE, page_cursor);
+	} else {
+		/* Set cursor to first record on child node */
+		page_cur_set_before_first(new_block, page_cursor);
+	}
 
 	/* Split the child and insert tuple */
 	return(btr_page_split_and_insert(flags, cursor, offsets, heap,
@@ -2998,6 +3100,9 @@ function must always succeed, we cannot reverse it: therefore enough
 free disk space (2 pages) must be guaranteed to be available before
 this function is called.
 
+NOTE: jonaso added support for calling function with tuple == NULL
+which cause it to only split a page.
+
 @return inserted record */
 UNIV_INTERN
 rec_t*
@@ -3075,7 +3180,7 @@ func_start:
 	half-page */
 	insert_left = FALSE;
 
-	if (n_iterations > 0) {
+	if (tuple != NULL && n_iterations > 0) {
 		direction = FSP_UP;
 		hint_page_no = page_no + 1;
 		split_rec = btr_page_get_split_rec(cursor, tuple, n_ext);
@@ -3136,7 +3241,12 @@ func_start:
 		*offsets = rec_get_offsets(split_rec, cursor->index, *offsets,
 					   n_uniq, heap);
 
-		insert_left = cmp_dtuple_rec(tuple, split_rec, *offsets) < 0;
+		if (tuple != NULL) {
+			insert_left = cmp_dtuple_rec(
+				tuple, split_rec, *offsets) < 0;
+		} else {
+			insert_left = 1;
+		}
 
 		if (!insert_left && new_page_zip && n_iterations > 0) {
 			/* If a compressed page has already been split,
@@ -3170,8 +3280,10 @@ insert_empty:
 	on the appropriate half-page, we may release the tree x-latch.
 	We can then move the records after releasing the tree latch,
 	thus reducing the tree latch contention. */
-
-	if (split_rec) {
+	if (tuple == NULL) {
+		insert_will_fit = 1;
+	}
+	else if (split_rec) {
 		insert_will_fit = !new_page_zip
 			&& btr_page_insert_fits(cursor, split_rec,
 						offsets, tuple, n_ext, heap);
@@ -3292,6 +3404,11 @@ insert_empty:
 	/* 6. The split and the tree modification is now completed. Decide the
 	page where the tuple should be inserted */
 
+	if (tuple == NULL) {
+		rec = NULL;
+		goto func_exit;
+	}
+
 	if (insert_left) {
 		insert_block = left_block;
 	} else {
@@ -3379,6 +3496,9 @@ func_exit:
 	ut_ad(page_validate(buf_block_get_frame(left_block), cursor->index));
 	ut_ad(page_validate(buf_block_get_frame(right_block), cursor->index));
 
+	if (tuple == NULL) {
+		ut_ad(rec == NULL);
+	}
 	ut_ad(!rec || rec_offs_validate(rec, cursor->index, *offsets));
 	return(rec);
 }

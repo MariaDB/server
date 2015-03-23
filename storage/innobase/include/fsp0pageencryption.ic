@@ -1,0 +1,168 @@
+/*****************************************************************************
+
+ Copyright (C) 2014 eperi GmbH. All Rights Reserved.
+
+ This program is free software; you can redistribute it and/or modify
+ it under the terms of the GNU General Public License as published by
+ the Free Software Foundation; version 2 of the License.
+
+ This program is distributed in the hope that it will be useful,
+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ GNU General Public License for more details.
+
+ You should have received a copy of the GNU General Public License
+ along with this program; if not, write to the Free Software
+ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+
+/******************************************************************//**
+@file include/fsp0pageencryption.ic
+Implementation for helper functions for encrypting/decrypting pages
+and atomic writes information to file space.
+
+Created 08/28/2014
+***********************************************************************/
+
+#include "fsp0fsp.h"
+#include "fil0pageencryption.h"
+#include <my_crypt_key_management.h>
+
+
+/********************************************************************//**
+Determine if the tablespace is page encrypted from dict_table_t::flags.
+@return	TRUE if page encrypted, FALSE if not page encrypted */
+UNIV_INLINE
+ibool
+fsp_flags_is_page_encrypted(
+/*=========================*/
+	ulint	flags)	/*!< in: tablespace flags */
+{
+	return(FSP_FLAGS_GET_PAGE_ENCRYPTION(flags));
+}
+
+/********************************************************************//**
+Extract the page encryption key from tablespace flags.
+A tablespace has only one physical page encryption key
+whether that page is encrypted or not.
+@return	page encryption key of the file-per-table tablespace,
+or zero if the table is not encrypted.  */
+UNIV_INLINE
+ulint
+fsp_flags_get_page_encryption_key(
+/*=================================*/
+	ulint	flags)	/*!< in: tablespace flags */
+{
+	return(FSP_FLAGS_GET_PAGE_ENCRYPTION_KEY(flags));
+}
+
+
+/*******************************************************************//**
+Returns the page encryption flag of the space, or false if the space
+is not encrypted. The tablespace must be cached in the memory cache.
+@return	true if page encrypted, false if not or space not found */
+UNIV_INLINE
+ibool
+fil_space_is_page_encrypted(
+/*=========================*/
+    ulint   id)	/*!< in: space id */
+{
+	ulint	flags;
+
+	flags = fil_space_get_flags(id);
+
+	if (flags && flags != ULINT_UNDEFINED) {
+
+		return(fsp_flags_is_page_encrypted(flags));
+	}
+
+	return(flags);
+}
+
+/*******************************************************************//**
+Returns the page encryption key of the space, or 0 if the space
+is not encrypted. The tablespace must be cached in the memory cache.
+@return	page compression level, ULINT_UNDEFINED if space not found */
+UNIV_INLINE
+ulint
+fil_space_get_page_encryption_key(
+/*=================================*/
+	ulint	id)	/*!< in: space id */
+{
+	ulint	flags;
+
+	flags = fil_space_get_flags(id);
+
+	if (flags && flags != ULINT_UNDEFINED) {
+
+		return(fsp_flags_get_page_encryption_key(flags));
+	}
+
+	return(flags);
+}
+
+/*******************************************************************//**
+Find out whether the page is page is encrypted
+@return	true if page is page encrypted, false if not */
+UNIV_INLINE
+ibool
+fil_page_is_encrypted(
+/*==================*/
+	const byte *buf)	/*!< in: page */
+{
+	return(mach_read_from_2(buf+FIL_PAGE_TYPE) == FIL_PAGE_PAGE_ENCRYPTED);
+}
+
+/*******************************************************************//**
+Find out whether the page is page is first compressed and then encrypted
+@return	true if page is page compressed+encrypted, false if not */
+UNIV_INLINE
+ibool
+fil_page_is_compressed_encrypted(
+/*=============================*/
+	const byte *buf)	/*!< in: page */
+{
+	return(mach_read_from_2(buf+FIL_PAGE_TYPE) == FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED);
+}
+
+/*******************************************************************//**
+Find out whether the page can be decrypted.
+This is the case, if the page is already decrypted and is not the first page of the table space.
+If the page is already decrypted it is not of the FIL_PAGE_PAGE_ENCRYPTED type.
+if it is the first page of the table space, it is assumed that a page can be decrypted if the
+key found in the flags (part of the 1st page) can be read from the key provider.
+The case, if the key changed, is currently not caught.
+The function for decrypting the page should already be executed before this.
+@return	PAGE_ENCRYPTION_KEY_MISSING if key provider is available, but key is not available
+		PAGE_ENCRYPTION_ERROR if other error occurred
+		0  if decryption should be possible
+*/
+UNIV_INLINE
+ulint
+fil_page_encryption_status(
+/*=====================*/
+    const byte *buf)	/*!< in: page */
+{
+	ulint page_type = mach_read_from_2(buf+FIL_PAGE_TYPE);
+
+	if (page_type == FIL_PAGE_TYPE_FSP_HDR) {
+		ulint flags = mach_read_from_4(FSP_HEADER_OFFSET + FSP_SPACE_FLAGS + buf);
+		if (fsp_flags_is_page_encrypted(flags)) {
+			if (!HasCryptoKey(fsp_flags_get_page_encryption_key(flags))) {
+				/* accessing table would surely fail, because no key or no key provider available */
+				if (!HasCryptoKey(fsp_flags_get_page_encryption_key(flags))) {
+					return PAGE_ENCRYPTION_KEY_MISSING;
+				}
+				return PAGE_ENCRYPTION_ERROR;
+			}
+		}
+	}
+
+	if(page_type == FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED) {
+		ulint key = mach_read_from_4(buf + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION);
+		if (!HasCryptoKey(key)) {
+						return PAGE_ENCRYPTION_KEY_MISSING;
+		}
+		return PAGE_ENCRYPTION_ERROR;
+	}
+	return 0;
+}

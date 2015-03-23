@@ -694,8 +694,9 @@ recv_synchronize_groups(
 		recovered_lsn */
 
 		log_group_set_fields(group, recovered_lsn);
-	}
+		ut_a(log_sys);
 
+	}
 	/* Copy the checkpoint info to the groups; remember that we have
 	incremented checkpoint_no by one, and the info will not be written
 	over the max checkpoint info, thus making the preservation of max
@@ -1144,7 +1145,9 @@ recv_parse_or_apply_log_rec_body(
 				      + 0 /*FLST_PREV*/
 				      || offs == PAGE_BTR_IBUF_FREE_LIST_NODE
 				      + PAGE_HEADER + FIL_ADDR_PAGE
-				      + FIL_ADDR_SIZE /*FLST_NEXT*/);
+				      + FIL_ADDR_SIZE /*FLST_NEXT*/
+				      || offs ==
+				      FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID);
 				break;
 			}
 		}
@@ -1370,6 +1373,9 @@ recv_parse_or_apply_log_rec_body(
 			ptr = page_zip_parse_compress_no_data(
 				ptr, end_ptr, page, page_zip, index);
 		}
+		break;
+	case MLOG_FILE_WRITE_CRYPT_DATA:
+		ptr = fil_parse_write_crypt_data(ptr, end_ptr, block);
 		break;
 	default:
 		ptr = NULL;
@@ -3021,6 +3027,7 @@ recv_recovery_from_checkpoint_start_func(
 	ulint		max_cp_field;
 	lsn_t		checkpoint_lsn;
 	ib_uint64_t	checkpoint_no;
+	uint		recv_crypt_ver;
 	lsn_t		group_scanned_lsn = 0;
 	lsn_t		contiguous_lsn;
 #ifdef UNIV_LOG_ARCHIVE
@@ -3080,13 +3087,21 @@ recv_recovery_from_checkpoint_start_func(
 #ifdef UNIV_LOG_ARCHIVE
 	archived_lsn = mach_read_from_8(buf + LOG_CHECKPOINT_ARCHIVED_LSN);
 #endif /* UNIV_LOG_ARCHIVE */
+	recv_crypt_ver = mach_read_from_4(buf + LOG_CRYPT_VER);
+	if (recv_crypt_ver == UNENCRYPTED_KEY_VER)
+	{
+		log_init_crypt_msg_and_nonce();
+	} else {
+		ut_memcpy(redo_log_crypt_msg, buf + LOG_CRYPT_MSG, MY_AES_BLOCK_SIZE);
+		ut_memcpy(aes_ctr_nonce, buf + LOG_CRYPT_IV, MY_AES_BLOCK_SIZE);
+	}
 
 	/* Read the first log file header to print a note if this is
 	a recovery from a restored InnoDB Hot Backup */
 
 	fil_io(OS_FILE_READ | OS_FILE_LOG, true, max_cp_group->space_id, 0,
 	       0, 0, LOG_FILE_HDR_SIZE,
-	       log_hdr_buf, max_cp_group, 0);
+		log_hdr_buf, max_cp_group, 0, 0);
 
 	if (0 == ut_memcmp(log_hdr_buf + LOG_FILE_WAS_CREATED_BY_HOT_BACKUP,
 			   (byte*)"ibbackup", (sizeof "ibbackup") - 1)) {
@@ -3117,7 +3132,7 @@ recv_recovery_from_checkpoint_start_func(
 		fil_io(OS_FILE_WRITE | OS_FILE_LOG, true,
 		       max_cp_group->space_id, 0,
 		       0, 0, OS_FILE_LOG_BLOCK_SIZE,
-		       log_hdr_buf, max_cp_group, 0);
+			log_hdr_buf, max_cp_group, 0, 0);
 	}
 
 #ifdef UNIV_LOG_ARCHIVE
@@ -3141,7 +3156,10 @@ recv_recovery_from_checkpoint_start_func(
 		recv_sys->scanned_lsn = checkpoint_lsn;
 		recv_sys->scanned_checkpoint_no = 0;
 		recv_sys->recovered_lsn = checkpoint_lsn;
-
+		recv_sys->recv_log_crypt_ver = recv_crypt_ver;
+		log_init_crypt_key(redo_log_crypt_msg,
+				   recv_sys->recv_log_crypt_ver,
+				   recv_sys->recv_log_crypt_key);
 		srv_start_lsn = checkpoint_lsn;
 	}
 
@@ -3224,7 +3242,6 @@ recv_recovery_from_checkpoint_start_func(
 
 		group = UT_LIST_GET_NEXT(log_groups, group);
 	}
-
 	/* Done with startup scan. Clear the flag. */
 	recv_log_scan_is_startup_type = FALSE;
 	if (TYPE_CHECKPOINT) {
@@ -3312,6 +3329,8 @@ recv_recovery_from_checkpoint_start_func(
 
 	log_sys->next_checkpoint_lsn = checkpoint_lsn;
 	log_sys->next_checkpoint_no = checkpoint_no + 1;
+	log_crypt_set_ver_and_key(log_sys->redo_log_crypt_ver,
+				  log_sys->redo_log_crypt_key);
 
 #ifdef UNIV_LOG_ARCHIVE
 	log_sys->archived_lsn = archived_lsn;
@@ -3342,6 +3361,8 @@ recv_recovery_from_checkpoint_start_func(
 		    log_sys->lsn - log_sys->last_checkpoint_lsn);
 
 	log_sys->next_checkpoint_no = checkpoint_no + 1;
+	log_crypt_set_ver_and_key(log_sys->redo_log_crypt_ver,
+				  log_sys->redo_log_crypt_key);
 
 #ifdef UNIV_LOG_ARCHIVE
 	if (archived_lsn == LSN_MAX) {
@@ -3543,6 +3564,16 @@ recv_reset_logs(
 
 	log_sys->next_checkpoint_no = 0;
 	log_sys->last_checkpoint_lsn = 0;
+	/* redo_log_crypt_ver will be set by log_checkpoint() to the
+	latest key version. */
+	log_sys->redo_log_crypt_ver = UNENCRYPTED_KEY_VER;
+	/*
+	  Note: flags (srv_encrypt_log and debug_use_static_keys)
+	  haven't been read and set yet!
+	  So don't use condition such as:
+	  if (srv_encrypt_log && debug_use_static_keys)
+	*/
+	log_init_crypt_msg_and_nonce();
 
 #ifdef UNIV_LOG_ARCHIVE
 	log_sys->archived_lsn = log_sys->lsn;
@@ -4019,4 +4050,3 @@ byte* recv_dblwr_t::find_page(ulint space_id, ulint page_no)
 
 	return(result);
 }
-

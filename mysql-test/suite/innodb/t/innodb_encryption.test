@@ -1,0 +1,175 @@
+#
+#
+#
+-- source include/have_innodb.inc
+
+# embedded does not support restart
+-- source include/not_embedded.inc
+
+SET @start_global_value = @@global.innodb_encryption_threads;
+
+SHOW VARIABLES LIKE 'innodb_encrypt%';
+
+DESCRIBE INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION;
+
+--echo # Wait max 5 min for key encryption threads to encrypt one space
+let $cnt=300;
+while ($cnt)
+{
+    let $success=`SELECT COUNT(*) > 0 FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION > 0`;
+    if ($success)
+    {
+        let $cnt=0;
+    }
+    if (!$success)
+    {
+        real_sleep 1;
+        dec $cnt;
+    }
+}
+if (!$success)
+{
+    SELECT * FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION;
+    SHOW STATUS LIKE 'innodb_encryption%';
+    -- die Timeout waiting for encryption threads
+}
+--echo # Success!
+
+--echo # Wait max 10 min for key encryption threads to encrypt all space
+let $cnt=600;
+while ($cnt)
+{
+    let $success=`SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION = 0`;
+    if ($success)
+    {
+        let $cnt=0;
+    }
+    if (!$success)
+    {
+        real_sleep 1;
+        dec $cnt;
+    }
+}
+if (!$success)
+{
+    SELECT * FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION;
+    SHOW STATUS LIKE 'innodb_encryption%';
+    -- die Timeout waiting for encryption threads
+}
+--echo # Success!
+
+--echo # Now turn off encryption and wait for threads to decrypt everything
+SET GLOBAL innodb_encrypt_tables = off;
+
+--echo # Wait max 10 min for key encryption threads to decrypt all space
+let $cnt=600;
+while ($cnt)
+{
+    let $success=`SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0`;
+    if ($success)
+    {
+        let $cnt=0;
+    }
+    if (!$success)
+    {
+        real_sleep 1;
+        dec $cnt;
+    }
+}
+if (!$success)
+{
+    SELECT * FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION;
+    SHOW STATUS LIKE 'innodb_encryption%';
+    -- die Timeout waiting for encryption threads
+}
+--echo # Success!
+
+--echo # Shutdown innodb_encryption_threads
+SET GLOBAL innodb_encryption_threads=0;
+
+--echo # Turn on encryption
+--echo # since threads are off tables should remain unencrypted
+SET GLOBAL innodb_encrypt_tables = on;
+
+--echo # Wait 15s to check that nothing gets encrypted
+let $cnt=15;
+while ($cnt)
+{
+    let $success=`SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0`;
+    if ($success)
+    {
+        real_sleep 1;
+        dec $cnt;
+    }
+    if (!$success)
+    {
+        SELECT * FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0;
+        -- die Failure, tablespace getting encrypted even if innodb_encryption_threads=0
+    }
+}
+--echo # Success!
+
+--echo # Startup innodb_encryption_threads
+SET GLOBAL innodb_encryption_threads=@start_global_value;
+
+--echo # Wait 1 min to check that it start encrypting again
+let $cnt=60;
+while ($cnt)
+{
+    let $success=`SELECT COUNT(*) > 0 FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0 OR KEY_ROTATION_PAGE_NUMBER IS NOT NULL`;
+    if ($success)
+    {
+        let $cnt=0;
+    }
+    if (!$success)
+    {
+        real_sleep 1;
+        dec $cnt;
+    }
+}
+if (!$success)
+{
+    SELECT * FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION;
+    SHOW STATUS LIKE 'innodb_encryption%';
+    -- die Timeout waiting for encryption threads
+}
+--echo # Success!
+
+--echo #
+--echo # Check that restart with encryption turned off works
+--echo # even if spaces are encrypted
+--echo #
+--echo # First wait max 10 min for key encryption threads to encrypt all spaces
+let $cnt=600;
+while ($cnt)
+{
+    let $success=`SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION = 0`;
+    if ($success)
+    {
+        let $cnt=0;
+    }
+    if (!$success)
+    {
+        real_sleep 1;
+        dec $cnt;
+    }
+}
+if (!$success)
+{
+    SELECT * FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION;
+    SHOW STATUS LIKE 'innodb_encryption%';
+    -- die Timeout waiting for encryption threads
+}
+--echo # Success!
+--echo # Restart mysqld --innodb_encrypt_tables=0 --innodb_encryption_threads=0
+-- let $restart_parameters=--innodb_encrypt_tables=0 --innodb_encryption_threads=0
+-- source include/restart_mysqld.inc
+
+SHOW VARIABLES LIKE 'innodb_encrypt%';
+SELECT COUNT(*) > 0 as should_be_1
+FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION
+WHERE MIN_KEY_VERSION <> 0;
+
+--echo # Restart mysqld again...with default options
+-- let $restart_parameters=
+-- source include/restart_mysqld.inc

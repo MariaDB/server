@@ -235,6 +235,20 @@ static char*	internal_innobase_data_file_path	= NULL;
 
 static char*	innodb_version_str = (char*) INNODB_VERSION_STR;
 
+extern my_bool srv_encrypt_tables;
+extern uint srv_n_fil_crypt_threads;
+extern uint srv_fil_crypt_rotate_key_age;
+extern uint srv_n_fil_crypt_iops;
+
+extern my_bool srv_immediate_scrub_data_uncompressed;
+extern my_bool srv_background_scrub_data_uncompressed;
+extern my_bool srv_background_scrub_data_compressed;
+extern uint srv_background_scrub_data_interval;
+extern uint srv_background_scrub_data_check_interval;
+#ifdef UNIV_DEBUG
+extern my_bool srv_scrub_force_testing;
+#endif
+
 /** Possible values for system variable "innodb_stats_method". The values
 are defined the same as its corresponding MyISAM system variable
 "myisam_stats_method"(see "myisam_stats_method_names"), for better usability */
@@ -551,6 +565,12 @@ ha_create_table_option innodb_table_option_list[]=
   HA_TOPTION_NUMBER("PAGE_COMPRESSION_LEVEL", page_compression_level, ULINT_UNDEFINED, 0, 9, 1),
   /* With this option user can enable atomic writes feature for this table */
   HA_TOPTION_ENUM("ATOMIC_WRITES", atomic_writes, "DEFAULT,ON,OFF", 0),
+  /* With this option the user can enable page encryption for the table */
+  HA_TOPTION_BOOL("PAGE_ENCRYPTION", page_encryption, 0),
+
+  /* With this option the user defines the key identifier using for the encryption */
+  HA_TOPTION_NUMBER("PAGE_ENCRYPTION_KEY", page_encryption_key, ULINT_UNDEFINED, 1, 255, 1),
+
   HA_TOPTION_END
 };
 
@@ -792,6 +812,14 @@ static SHOW_VAR innodb_status_variables[]= {
    (char*) &export_vars.innodb_page_compressed_trim_op_saved,     SHOW_LONGLONG},
   {"num_pages_page_decompressed",
    (char*) &export_vars.innodb_pages_page_decompressed,   SHOW_LONGLONG},
+  {"num_pages_page_compression_error",
+   (char*) &export_vars.innodb_pages_page_compression_error,   SHOW_LONGLONG},
+  {"num_pages_page_encrypted",
+   (char*) &export_vars.innodb_pages_page_encrypted,   SHOW_LONGLONG},
+  {"num_pages_page_decrypted",
+   (char*) &export_vars.innodb_pages_page_decrypted,   SHOW_LONGLONG},
+  {"num_pages_page_encryption_error",
+   (char*) &export_vars.innodb_pages_page_encryption_error,   SHOW_LONGLONG},
   {"have_lz4",
   (char*) &innodb_have_lz4,		  SHOW_BOOL},
   {"have_lzo",
@@ -824,6 +852,42 @@ static SHOW_VAR innodb_status_variables[]= {
   {"secondary_index_triggered_cluster_reads_avoided",
   (char*) &export_vars.innodb_sec_rec_cluster_reads_avoided, SHOW_LONG},
 
+  /* Encryption */
+  {"encryption_rotation_pages_read_from_cache",
+   (char*) &export_vars.innodb_encryption_rotation_pages_read_from_cache,
+   SHOW_LONG},
+  {"encryption_rotation_pages_read_from_disk",
+  (char*) &export_vars.innodb_encryption_rotation_pages_read_from_disk,
+   SHOW_LONG},
+  {"encryption_rotation_pages_modified",
+  (char*) &export_vars.innodb_encryption_rotation_pages_modified,
+   SHOW_LONG},
+  {"encryption_rotation_pages_flushed",
+  (char*) &export_vars.innodb_encryption_rotation_pages_flushed,
+   SHOW_LONG},
+  {"encryption_rotation_estimated_iops",
+  (char*) &export_vars.innodb_encryption_rotation_estimated_iops,
+   SHOW_LONG},
+
+  /* scrubing */
+  {"scrub_background_page_reorganizations",
+   (char*) &export_vars.innodb_scrub_page_reorganizations,
+   SHOW_LONG},
+  {"scrub_background_page_splits",
+   (char*) &export_vars.innodb_scrub_page_splits,
+   SHOW_LONG},
+  {"scrub_background_page_split_failures_underflow",
+   (char*) &export_vars.innodb_scrub_page_split_failures_underflow,
+   SHOW_LONG},
+  {"scrub_background_page_split_failures_out_of_filespace",
+   (char*) &export_vars.innodb_scrub_page_split_failures_out_of_filespace,
+   SHOW_LONG},
+  {"scrub_background_page_split_failures_missing_index",
+   (char*) &export_vars.innodb_scrub_page_split_failures_missing_index,
+   SHOW_LONG},
+  {"scrub_background_page_split_failures_unknown",
+   (char*) &export_vars.innodb_scrub_page_split_failures_unknown,
+   SHOW_LONG},
 
   {NullS, NullS, SHOW_LONG}
 };
@@ -10957,6 +11021,8 @@ innobase_table_flags(
 	modified by another thread while the table is being created. */
 	const ulint     default_compression_level = page_zip_level;
 
+	const ulint default_encryption_key = 1;
+
 	*flags = 0;
 	*flags2 = 0;
 
@@ -11158,7 +11224,10 @@ index_bad:
 		    options->page_compressed,
 		    (ulint)options->page_compression_level == ULINT_UNDEFINED ?
 		        default_compression_level : options->page_compression_level,
-		    options->atomic_writes);
+		    options->atomic_writes,
+		    options->page_encryption,
+		    (ulint)options->page_encryption_key == ULINT_UNDEFINED ?
+                        default_encryption_key : options->page_encryption_key);
 
 	if (create_info->options & HA_LEX_CREATE_TMP_TABLE) {
 		*flags2 |= DICT_TF2_TEMPORARY;
@@ -11195,6 +11264,24 @@ ha_innobase::check_table_options(
 	enum row_type	row_format = table->s->row_type;;
 	ha_table_option_struct *options= table->s->option_struct;
 	atomic_writes_t awrites = (atomic_writes_t)options->atomic_writes;
+
+	if (options->page_encryption) {
+		if (srv_encrypt_tables) {
+			push_warning(
+				thd, Sql_condition::WARN_LEVEL_WARN,
+				HA_WRONG_CREATE_OPTION,
+				"InnoDB: PAGE_ENCRYPTION not available if innodb_encrypt_tables=ON");
+			return "INNODB_ENCRYPT_TABLES";
+		}
+		if (!use_tablespace) {
+			push_warning(
+				thd, Sql_condition::WARN_LEVEL_WARN,
+				HA_WRONG_CREATE_OPTION,
+				"InnoDB: PAGE_ENCRYPTION requires"
+				" innodb_file_per_table.");
+			return "PAGE_ENCRYPTION";
+		}
+	}
 
 	/* Check page compression requirements */
 	if (options->page_compressed) {
@@ -11265,6 +11352,33 @@ ha_innobase::check_table_options(
 				" Valid values are [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]",
 				options->page_compression_level);
 			return "PAGE_COMPRESSION_LEVEL";
+		}
+	}
+
+	if ((ulint)options->page_encryption_key != ULINT_UNDEFINED) {
+		if (options->page_encryption == false) {
+			/* ignore this to allow alter table without changing page_encryption_key ...*/
+		}
+
+		if (options->page_encryption_key < 1 || options->page_encryption_key > 255) {
+			push_warning_printf(
+				thd, Sql_condition::WARN_LEVEL_WARN,
+				HA_WRONG_CREATE_OPTION,
+				"InnoDB: invalid PAGE_ENCRYPTION_KEY = %lu."
+				" Valid values are [1..255]",
+				options->page_encryption_key);
+			return "PAGE_ENCRYPTION_KEY";
+		}
+
+		if (!HasCryptoKey(options->page_encryption_key)) {
+			push_warning_printf(
+				thd, Sql_condition::WARN_LEVEL_WARN,
+				HA_WRONG_CREATE_OPTION,
+				"InnoDB: PAGE_ENCRYPTION_KEY encryption key %lu not available",
+				options->page_encryption_key
+			);
+			return "PAGE_ENCRYPTION_KEY";
+
 		}
 	}
 
@@ -17636,6 +17750,57 @@ innodb_status_output_update(
 	os_event_set(srv_monitor_event);
 }
 
+/******************************************************************
+Update the system variable innodb_encryption_threads */
+static
+void
+innodb_encryption_threads_update(
+/*=========================*/
+	THD*				thd,	/*!< in: thread handle */
+	struct st_mysql_sys_var*	var,	/*!< in: pointer to
+						system variable */
+	void*				var_ptr,/*!< out: where the
+						formal string goes */
+	const void*			save)	/*!< in: immediate result
+						from check function */
+{
+	fil_crypt_set_thread_cnt(*static_cast<const uint*>(save));
+}
+
+/******************************************************************
+Update the system variable innodb_encryption_rotate_key_age */
+static
+void
+innodb_encryption_rotate_key_age_update(
+/*=========================*/
+	THD*				thd,	/*!< in: thread handle */
+	struct st_mysql_sys_var*	var,	/*!< in: pointer to
+						system variable */
+	void*				var_ptr,/*!< out: where the
+						formal string goes */
+	const void*			save)	/*!< in: immediate result
+						from check function */
+{
+	fil_crypt_set_rotate_key_age(*static_cast<const uint*>(save));
+}
+
+/******************************************************************
+Update the system variable innodb_encryption_rotation_iops */
+static
+void
+innodb_encryption_rotation_iops_update(
+/*=========================*/
+	THD*				thd,	/*!< in: thread handle */
+	struct st_mysql_sys_var*	var,	/*!< in: pointer to
+						system variable */
+	void*				var_ptr,/*!< out: where the
+						formal string goes */
+	const void*			save)	/*!< in: immediate result
+						from check function */
+{
+	fil_crypt_set_rotation_iops(*static_cast<const uint*>(save));
+}
+
 static SHOW_VAR innodb_status_variables_export[]= {
 	{"Innodb", (char*) &show_innodb_vars, SHOW_FUNC},
 	{NullS, NullS, SHOW_LONG}
@@ -18928,6 +19093,108 @@ static MYSQL_SYSVAR_ULONG(fatal_semaphore_wait_threshold, srv_fatal_semaphore_wa
   UINT_MAX32, /* Maximum setting */
   0);
 
+static MYSQL_SYSVAR_BOOL(encrypt_tables, srv_encrypt_tables, 0,
+			 "Encrypt all tables in the storage engine",
+			 0, 0, 0);
+
+static MYSQL_SYSVAR_UINT(encryption_threads, srv_n_fil_crypt_threads,
+			 PLUGIN_VAR_RQCMDARG,
+			 "No of threads performing background key rotation and "
+			 "scrubbing",
+			 NULL,
+			 innodb_encryption_threads_update,
+			 srv_n_fil_crypt_threads, 0, UINT_MAX32, 0);
+
+static MYSQL_SYSVAR_UINT(encryption_rotate_key_age,
+			 srv_fil_crypt_rotate_key_age,
+			 PLUGIN_VAR_RQCMDARG,
+			 "Rotate any page having a key older than this",
+			 NULL,
+			 innodb_encryption_rotate_key_age_update,
+			 srv_fil_crypt_rotate_key_age, 0, UINT_MAX32, 0);
+
+static MYSQL_SYSVAR_UINT(encryption_rotation_iops, srv_n_fil_crypt_iops,
+			 PLUGIN_VAR_RQCMDARG,
+			 "Use this many iops for background key rotation",
+			 NULL,
+			 innodb_encryption_rotation_iops_update,
+			 srv_n_fil_crypt_iops, 0, UINT_MAX32, 0);
+
+static MYSQL_SYSVAR_BOOL(scrub_log, srv_scrub_log,
+  PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_READONLY,
+  "Enable redo log scrubbing",
+  0, 0, 0);
+
+/*
+  If innodb_scrub_log is on, logs will be scrubbed in less than
+  (((innodb_log_file_size * innodb_log_files_in_group) / 512 ) /
+   ((1000 * 86400) / innodb_scrub_log_interval))
+  days.
+  In above formula, the first line calculates the number of log blocks to scrub,
+  and the second line calculates the number of log blocks scrubbed in one day.
+*/
+static MYSQL_SYSVAR_ULONGLONG(scrub_log_interval, innodb_scrub_log_interval,
+  PLUGIN_VAR_OPCMDARG,
+  "Innodb redo log scrubbing interval in ms",
+  NULL, NULL,
+  2000,             /* default */
+  10,               /* min */
+  ULONGLONG_MAX, 0);/* max */
+
+static MYSQL_SYSVAR_BOOL(encrypt_log, srv_encrypt_log,
+  PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_READONLY,
+  "Enable redo log encryption/decryption.",
+  NULL, NULL, FALSE);
+
+static MYSQL_SYSVAR_BOOL(immediate_scrub_data_uncompressed,
+			 srv_immediate_scrub_data_uncompressed,
+			 0,
+			 "Enable scrubbing of data",
+			 NULL, NULL, FALSE);
+
+static MYSQL_SYSVAR_BOOL(background_scrub_data_uncompressed,
+			 srv_background_scrub_data_uncompressed,
+			 0,
+			 "Enable scrubbing of uncompressed data by "
+			 "background threads (same as encryption_threads)",
+			 NULL, NULL, FALSE);
+
+static MYSQL_SYSVAR_BOOL(background_scrub_data_compressed,
+			 srv_background_scrub_data_compressed,
+			 0,
+			 "Enable scrubbing of compressed data by "
+			 "background threads (same as encryption_threads)",
+			 NULL, NULL, FALSE);
+
+static MYSQL_SYSVAR_UINT(background_scrub_data_check_interval,
+			 srv_background_scrub_data_check_interval,
+			 0,
+			 "check if spaces needs scrubbing every "
+			 "innodb_background_scrub_data_check_interval "
+			 "seconds",
+			 NULL, NULL,
+			 srv_background_scrub_data_check_interval,
+			 1,
+			 UINT_MAX32, 0);
+
+static MYSQL_SYSVAR_UINT(background_scrub_data_interval,
+			 srv_background_scrub_data_interval,
+			 0,
+			 "scrub spaces that were last scrubbed longer than "
+			 " innodb_background_scrub_data_interval seconds ago",
+			 NULL, NULL,
+			 srv_background_scrub_data_interval,
+			 1,
+			 UINT_MAX32, 0);
+
+#ifdef UNIV_DEBUG
+static MYSQL_SYSVAR_BOOL(scrub_force_testing,
+			 srv_scrub_force_testing,
+			 0,
+			 "Perform extra scrubbing to increase test exposure",
+			 NULL, NULL, FALSE);
+#endif /* UNIV_DEBUG */
+
 static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(additional_mem_pool_size),
   MYSQL_SYSVAR(api_trx_level),
@@ -19100,12 +19367,30 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
 #endif /* UNIV_DEBUG */
   MYSQL_SYSVAR(simulate_comp_failures),
   MYSQL_SYSVAR(force_primary_key),
+  MYSQL_SYSVAR(fatal_semaphore_wait_threshold),
+  /* Table page compression feature */
   MYSQL_SYSVAR(use_trim),
   MYSQL_SYSVAR(compression_algorithm),
   MYSQL_SYSVAR(mtflush_threads),
   MYSQL_SYSVAR(use_mtflush),
+  /* Encryption feature */
+  MYSQL_SYSVAR(encrypt_tables),
+  MYSQL_SYSVAR(encryption_threads),
+  MYSQL_SYSVAR(encryption_rotate_key_age),
+  MYSQL_SYSVAR(encryption_rotation_iops),
+  MYSQL_SYSVAR(scrub_log),
+  MYSQL_SYSVAR(scrub_log_interval),
+  MYSQL_SYSVAR(encrypt_log),
 
-  MYSQL_SYSVAR(fatal_semaphore_wait_threshold),
+  /* Scrubing feature */
+  MYSQL_SYSVAR(immediate_scrub_data_uncompressed),
+  MYSQL_SYSVAR(background_scrub_data_uncompressed),
+  MYSQL_SYSVAR(background_scrub_data_compressed),
+  MYSQL_SYSVAR(background_scrub_data_interval),
+  MYSQL_SYSVAR(background_scrub_data_check_interval),
+#ifdef UNIV_DEBUG
+  MYSQL_SYSVAR(scrub_force_testing),
+#endif
   NULL
 };
 
@@ -19115,7 +19400,7 @@ maria_declare_plugin(innobase)
   &innobase_storage_engine,
   innobase_hton_name,
   plugin_author,
-  "Supports transactions, row-level locking, and foreign keys",
+  "Supports transactions, row-level locking, foreign keys and encryption for tables",
   PLUGIN_LICENSE_GPL,
   innobase_init, /* Plugin Init */
   NULL, /* Plugin Deinit */
@@ -19152,8 +19437,9 @@ i_s_innodb_sys_fields,
 i_s_innodb_sys_foreign,
 i_s_innodb_sys_foreign_cols,
 i_s_innodb_sys_tablespaces,
-i_s_innodb_sys_datafiles
-
+i_s_innodb_sys_datafiles,
+i_s_innodb_tablespaces_encryption,
+i_s_innodb_tablespaces_scrubbing
 maria_declare_plugin_end;
 
 /** @brief Initialize the default value of innodb_commit_concurrency.

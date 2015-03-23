@@ -40,6 +40,7 @@ Created 12/9/1995 Heikki Tuuri
 #include "sync0sync.h"
 #include "sync0rw.h"
 #endif /* !UNIV_HOTBACKUP */
+#include "log0crypt.h"
 
 /* Type used for all log sequence number storage and arithmetics */
 typedef	ib_uint64_t		lsn_t;
@@ -745,8 +746,20 @@ extern log_t*	log_sys;
 					is valid */
 #endif
 #define LOG_CHECKPOINT_OFFSET_HIGH32	(16 + LOG_CHECKPOINT_ARRAY_END)
-#define LOG_CHECKPOINT_SIZE		(20 + LOG_CHECKPOINT_ARRAY_END)
-
+#define LOG_CRYPT_VER			(20 + LOG_CHECKPOINT_ARRAY_END)
+					/*!< 32-bit key version. Corresponding
+					key has been used for log records with                                        
+					lsn <= the checkpoint' lsn */
+#define LOG_CRYPT_MSG			(24 + LOG_CHECKPOINT_ARRAY_END)
+					/*!< a 128-bit value used to
+					derive cryto key for redo log.
+					It is generated via the concatenation
+					of 1 purpose byte T (0x02) and a
+					15-byte random number.*/
+#define LOG_CRYPT_IV			(40 + LOG_CHECKPOINT_ARRAY_END)
+					/*!< a 128-bit random number used as
+					AES-CTR iv/nonce for redo log */
+#define LOG_CHECKPOINT_SIZE		(56 + LOG_CHECKPOINT_ARRAY_END)
 
 /* Offsets of a log file header */
 #define LOG_GROUP_ID		0	/* log group number */
@@ -854,6 +867,10 @@ struct log_t{
 	lsn_t		lsn;		/*!< log sequence number */
 	ulint		buf_free;	/*!< first free offset within the log
 					buffer */
+	uint		redo_log_crypt_ver;
+					/*!< 32-bit crypto ver */
+	byte		redo_log_crypt_key[MY_AES_BLOCK_SIZE];
+					/*!< crypto key to encrypt redo log */
 #ifndef UNIV_HOTBACKUP
 	ib_prio_mutex_t		mutex;		/*!< mutex protecting the log */
 
@@ -1082,6 +1099,22 @@ struct log_t{
 #define LOG_ARCH_OFF		75
 /* @} */
 #endif /* UNIV_LOG_ARCHIVE */
+
+extern os_event_t log_scrub_event;
+/* log scrubbing interval in ms */
+extern ulonglong innodb_scrub_log_interval;
+
+/*****************************************************************//**
+This is the main thread for log scrub. It waits for an event and
+when waked up fills current log block with dummy records and
+sleeps again.
+@return this function does not return, it calls os_thread_exit() */
+extern "C" UNIV_INTERN
+os_thread_ret_t
+DECLARE_THREAD(log_scrub_thread)(
+/*===============================*/
+	void* arg);				/*!< in: a dummy parameter
+						required by os_thread_create */
 
 #ifndef UNIV_NONINL
 #include "log0log.ic"

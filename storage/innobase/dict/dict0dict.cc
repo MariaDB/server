@@ -321,10 +321,10 @@ dict_get_db_name_len(
 Reserves the dictionary system mutex for MySQL. */
 UNIV_INTERN
 void
-dict_mutex_enter_for_mysql(void)
+dict_mutex_enter_for_mysql_func(const char * file, ulint line)
 /*============================*/
 {
-	mutex_enter(&(dict_sys->mutex));
+	mutex_enter_func(&(dict_sys->mutex), file, line);
 }
 
 /********************************************************************//**

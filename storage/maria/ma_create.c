@@ -20,6 +20,7 @@
 #include <my_bit.h>
 #include "ma_blockrec.h"
 #include "trnman_public.h"
+#include "ma_crypt.h"
 
 #if defined(MSDOS) || defined(__WIN__)
 #ifdef __WIN__
@@ -72,6 +73,9 @@ int maria_create(const char *name, enum data_file_type datafile_type,
   my_bool forced_packed;
   myf     sync_dir=  0;
   uchar   *log_data= NULL;
+  my_bool encrypted= MY_TEST(flags & HA_CREATE_ENCRYPTED);
+  my_bool insert_order= MY_TEST(flags & HA_INSERT_ORDER);
+  uint crypt_page_header_space= 0;
   DBUG_ENTER("maria_create");
   DBUG_PRINT("enter", ("keys: %u  columns: %u  uniques: %u  flags: %u",
                       keys, columns, uniques, flags));
@@ -140,6 +144,12 @@ int maria_create(const char *name, enum data_file_type datafile_type,
   forced_packed= 0;
   column_nr= 0;
 
+  if (encrypted)
+  {
+    DBUG_ASSERT(datafile_type == BLOCK_RECORD);
+    crypt_page_header_space= ma_crypt_get_data_page_header_space();
+  }
+
   for (column= columndef, end_column= column + columns ;
        column != end_column ;
        column++)
@@ -160,7 +170,8 @@ int maria_create(const char *name, enum data_file_type datafile_type,
       if (type == FIELD_SKIP_PRESPACE)
         type= column->type= FIELD_NORMAL; /* SKIP_PRESPACE not supported */
       if (type == FIELD_NORMAL &&
-          column->length > FULL_PAGE_SIZE(maria_block_size))
+          column->length > FULL_PAGE_SIZE2(maria_block_size,
+                                           crypt_page_header_space))
       {
         /* FIELD_NORMAL can't be split over many blocks, convert to a CHAR */
         type= column->type= FIELD_SKIP_ENDSPACE;
@@ -256,6 +267,19 @@ int maria_create(const char *name, enum data_file_type datafile_type,
     datafile_type= BLOCK_RECORD;
   }
 
+  if (encrypted)
+  {
+    /*
+       datafile_type is set (finally?)
+       update encryption that is only supported for BLOCK_RECORD
+    */
+    if (datafile_type != BLOCK_RECORD)
+    {
+      encrypted= FALSE;
+      crypt_page_header_space= 0;
+    }
+  }
+
   if (datafile_type == DYNAMIC_RECORD)
     options|= HA_OPTION_PACK_RECORD;	/* Must use packed records */
 
@@ -340,9 +364,9 @@ int maria_create(const char *name, enum data_file_type datafile_type,
   {
     if (datafile_type == BLOCK_RECORD)
     {
-      uint rows_per_page= ((maria_block_size - PAGE_OVERHEAD_SIZE) /
-                           (min_pack_length + extra_header_size +
-                            DIR_ENTRY_SIZE));
+      uint rows_per_page=
+          ((maria_block_size - PAGE_OVERHEAD_SIZE_RAW - crypt_page_header_space)
+           / (min_pack_length + extra_header_size + DIR_ENTRY_SIZE));
       ulonglong data_file_length= ci->data_file_length;
       if (!data_file_length)
         data_file_length= ((((ulonglong) 1 << ((BLOCK_RECORD_POINTER_SIZE-1) *
@@ -665,7 +689,20 @@ int maria_create(const char *name, enum data_file_type datafile_type,
                                 (key_segs + unique_key_parts)*HA_KEYSEG_SIZE+
                                 columns*(MARIA_COLUMNDEF_SIZE + 2));
 
- DBUG_PRINT("info", ("info_length: %u", info_length));
+  if (encrypted)
+  {
+    share.base.extra_options|= MA_EXTRA_OPTIONS_ENCRYPTED;
+
+    /* store crypt data in info */
+    info_length+= ma_crypt_get_file_length();
+  }
+
+  if (insert_order)
+  {
+    share.base.extra_options|= MA_EXTRA_OPTIONS_INSERT_ORDER;
+  }
+
+  DBUG_PRINT("info", ("info_length: %u", info_length));
   /* There are only 16 bits for the total header length. */
   if (info_length > 65535)
   {
@@ -1003,6 +1040,13 @@ int maria_create(const char *name, enum data_file_type datafile_type,
   if (_ma_column_nr_write(file, column_array, columns))
     goto err;
 
+  if (encrypted)
+  {
+    if (ma_crypt_create(&share) ||
+        ma_crypt_write(&share, file))
+      goto err;
+  }
+
   if ((kfile_size_before_extension= mysql_file_tell(file,MYF(0))) == MY_FILEPOS_ERROR)
     goto err;
 #ifndef DBUG_OFF
@@ -1178,6 +1222,7 @@ int maria_create(const char *name, enum data_file_type datafile_type,
     mysql_mutex_unlock(&THR_LOCK_maria);
   res= 0;
   my_free((char*) rec_per_key_part);
+  ma_crypt_free(&share);
   errpos=0;
   if (mysql_file_close(file,MYF(0)))
     res= my_errno;
@@ -1208,6 +1253,7 @@ err_no_lock:
                                        MY_UNPACK_FILENAME | MY_APPEND_EXT),
 			     sync_dir);
   }
+  ma_crypt_free(&share);
   my_free(log_data);
   my_free(rec_per_key_part);
   DBUG_RETURN(my_errno=save_errno);		/* return the fatal errno */

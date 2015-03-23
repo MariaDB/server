@@ -23,14 +23,27 @@
 #define EMPTY_SPACE_SIZE	2	/* Stores empty space on page */
 #define PAGE_TYPE_SIZE		1
 #define PAGE_SUFFIX_SIZE	4	/* Bytes for checksum */
-#define PAGE_HEADER_SIZE	(LSN_SIZE + DIR_COUNT_SIZE + DIR_FREE_SIZE +\
+#define PAGE_HEADER_SIZE_RAW    (LSN_SIZE + DIR_COUNT_SIZE + DIR_FREE_SIZE + \
                                  EMPTY_SPACE_SIZE + PAGE_TYPE_SIZE)
-#define PAGE_OVERHEAD_SIZE	(PAGE_HEADER_SIZE + DIR_ENTRY_SIZE + \
+
+#define PAGE_HEADER_SIZE(share) (PAGE_HEADER_SIZE_RAW + \
+                                 (share)->crypt_page_header_space)
+
+#define PAGE_OVERHEAD_SIZE_RAW  (PAGE_HEADER_SIZE_RAW + DIR_ENTRY_SIZE + \
                                  PAGE_SUFFIX_SIZE)
+#define PAGE_OVERHEAD_SIZE(share) (PAGE_OVERHEAD_SIZE_RAW + \
+                                   (share)->crypt_page_header_space)
+
 #define BLOCK_RECORD_POINTER_SIZE	6
 
-#define FULL_PAGE_SIZE(block_size) ((block_size) - LSN_SIZE - \
-                                    PAGE_TYPE_SIZE - PAGE_SUFFIX_SIZE)
+#define FULL_PAGE_HEADER_SIZE(share) (LSN_SIZE + PAGE_TYPE_SIZE + \
+                                      (share)->crypt_page_header_space)
+#define FULL_PAGE_SIZE(share)   ((share)->block_size - \
+                                 FULL_PAGE_HEADER_SIZE(share) - \
+                                 PAGE_SUFFIX_SIZE)
+
+#define FULL_PAGE_SIZE2(block_size, crypt_size) \
+  ((block_size) - (LSN_SIZE + PAGE_TYPE_SIZE + PAGE_SUFFIX_SIZE + (crypt_size)))
 
 #define ROW_EXTENT_PAGE_SIZE	5
 #define ROW_EXTENT_COUNT_SIZE   2
@@ -68,6 +81,9 @@ enum en_page_type { UNALLOCATED_PAGE, HEAD_PAGE, TAIL_PAGE, BLOB_PAGE, MAX_PAGE_
 #define DIR_COUNT_OFFSET        (LSN_SIZE+PAGE_TYPE_SIZE)
 #define DIR_FREE_OFFSET         (DIR_COUNT_OFFSET+DIR_COUNT_SIZE)
 #define EMPTY_SPACE_OFFSET      (DIR_FREE_OFFSET+DIR_FREE_SIZE)
+        /* for encryption */
+#define KEY_VERSION_OFFSET      (EMPTY_SPACE_OFFSET+EMPTY_SPACE_SIZE)
+#define FULL_PAGE_KEY_VERSION_OFFSET (PAGE_TYPE_OFFSET + PAGE_TYPE_SIZE)
 
 /* Bits used for flag uchar (one byte, first in record) */
 #define ROW_FLAG_TRANSID                1
@@ -176,7 +192,7 @@ my_bool _ma_write_block_record(MARIA_HA *info, const uchar *record);
 my_bool _ma_write_abort_block_record(MARIA_HA *info);
 my_bool _ma_compare_block_record(register MARIA_HA *info,
                                  register const uchar *record);
-void    _ma_compact_block_page(uchar *buff, uint block_size, uint rownr,
+void    _ma_compact_block_page(MARIA_SHARE *share, uchar *buff, uint rownr,
                                my_bool extend_block, TrID min_read_from,
                                uint min_row_length);
 my_bool enough_free_entries_on_page(MARIA_SHARE *share, uchar *page_buff);

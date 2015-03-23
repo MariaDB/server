@@ -1,0 +1,168 @@
+-- source include/have_innodb.inc
+-- source include/not_embedded.inc
+
+let $MYSQLD_DATADIR=`select @@datadir`;
+let ib1_IBD = $MYSQLD_DATADIR/ibdata1;
+let t1_IBD = $MYSQLD_DATADIR/test/t1.ibd;
+let t2_IBD = $MYSQLD_DATADIR/test/t2.ibd;
+let t3_IBD = $MYSQLD_DATADIR/test/t3.ibd;
+
+--echo #
+--echo # immediate scrubbing is off
+--echo # background scrubbing is on
+--echo #
+show variables like 'innodb_%scrub_data%';
+
+-- echo # make sure spaces are checked quickly
+SET GLOBAL innodb_background_scrub_data_check_interval=1;
+
+create table snapshot_status engine = myisam
+select * from information_schema.global_status
+where variable_name like 'innodb_scrub%';
+
+let $rowcount=500;
+let $formatno = 1;
+while ($formatno)
+{
+let $format = `select case $formatno
+               when 1 then 'dynamic'
+               when 2 then 'redundant'
+               when 3 then 'compact'
+               when 4 then 'compressed'
+               end`;
+dec $formatno;
+
+truncate table snapshot_status;
+insert into snapshot_status
+select * from information_schema.global_status
+where variable_name like 'innodb_scrub%';
+
+-- echo #
+-- echo # Test delete of records
+-- echo #
+
+eval create table t1 (
+  a int auto_increment primary key,
+  b varchar(256),
+  c text, index(b)) engine = innodb row_format=$format;
+
+let $numinserts = $rowcount;
+-- echo # Populate table with rows
+--disable_query_log
+while ($numinserts)
+{
+  dec $numinserts;
+  insert into t1(b,c) values ('bicycle', repeat('repairman', 1000));
+}
+--enable_query_log
+
+delete from t1;
+
+-- echo #
+-- echo # Test delete+rollback+delete
+-- echo #
+
+eval create table t2 (
+  a int auto_increment primary key,
+  b varchar(256),
+  c text, index(b)) engine = innodb row_format=$format;
+
+let $numinserts = $rowcount;
+-- echo # Populate table with rows
+--disable_query_log
+while ($numinserts)
+{
+  dec $numinserts;
+  insert into t2(b,c) values ('bicycle', repeat('repairman', 1000));
+}
+--enable_query_log
+
+begin;
+delete from t2;
+rollback;
+delete from t2;
+
+-- echo #
+-- echo # Test insert+rollback
+-- echo #
+
+eval create table t3 (
+  a int auto_increment primary key,
+  b varchar(256),
+  c text, index(b)) engine = innodb row_format=$format;
+
+let $numinserts = $rowcount;
+-- echo # Populate table with rows
+begin;
+--disable_query_log
+while ($numinserts)
+{
+  dec $numinserts;
+  insert into t3(b,c) values ('bicycle', repeat('repairman', 1000));
+}
+--enable_query_log
+
+rollback;
+
+-- echo # start scrubbing threads
+SET GLOBAL innodb_encryption_threads=5;
+-- echo # Wait max 10 min for scrubbing
+let $cnt=600;
+while ($cnt)
+{
+    let $success=`SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_SCRUBBING WHERE LAST_SCRUB_COMPLETED IS NULL AND ( NAME in ('test/t1', 'test/t2', 'test/t3') OR SPACE = 0 )`;
+    if ($success)
+    {
+        let $cnt=0;
+    }
+    if (!$success)
+    {
+        real_sleep 1;
+        dec $cnt;
+    }
+}
+if (!$success)
+{
+    SELECT * FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_SCRUBBING;
+    SHOW STATUS LIKE 'innodb_%scrub%';
+    -- die Timeout waiting for background threads
+}
+-- echo # Success!
+-- echo # stop scrubbing threads
+SET GLOBAL innodb_encryption_threads=0;
+
+-- echo # verify that this test have caused background scrubbing
+--sorted_result
+select sum(gs.variable_value - ss.variable_value) > 0 as should_be_1
+from snapshot_status ss,
+     information_schema.global_status gs
+where ss.variable_name = gs.variable_name;
+
+-- echo # restart mysqld so that all pages are flushed
+-- source include/restart_mysqld.inc
+-- echo # read all rows from table
+-- disable_result_log
+select * from t1;
+-- enable_result_log
+
+-- echo # $format: delete: grep -c bicycle t1.ibd
+-- exec grep -c bicycle $t1_IBD || true
+-- echo # $format: delete: grep -c repairman t1.ibd
+-- exec grep -c repairman $t1_IBD || true
+
+-- echo # $format: delete rollback: grep -c bicycle t2.ibd
+-- exec grep -c bicycle $t2_IBD || true
+-- echo # $format: delete rollback: grep -c repairman t2.ibd
+-- exec grep -c repairman $t2_IBD || true
+
+-- echo # $format: insert rollback: grep -c bicycle t3.ibd
+-- exec grep -c bicycle $t3_IBD || true
+-- echo # $format: insert rollback: grep -c repairman t3.ibd
+-- exec grep -c repairman $t3_IBD || true
+
+drop table t1, t2, t3;
+}
+
+show variables like 'innodb_%scrub_data%';
+
+drop table snapshot_status;

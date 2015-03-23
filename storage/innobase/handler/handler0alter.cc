@@ -277,6 +277,13 @@ ha_innobase::check_if_supported_inplace_alter(
 				ER_ALTER_OPERATION_NOT_SUPPORTED_REASON);
 			DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
 		}
+
+		if (new_options->page_encryption != old_options->page_encryption ||
+			new_options->page_encryption_key != old_options->page_encryption_key) {
+			ha_alter_info->unsupported_reason = innobase_get_err_msg(
+				ER_ALTER_OPERATION_NOT_SUPPORTED_REASON);
+			DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
+		}
 	}
 
 	if (ha_alter_info->handler_flags

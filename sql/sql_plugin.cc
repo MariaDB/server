@@ -1233,9 +1233,24 @@ static void reap_plugins(void)
 
   mysql_mutex_unlock(&LOCK_plugin);
 
+  /*
+    First free all normal plugins, last the key management plugin.
+    This is becasue the storage engines may need the key management plugin
+    during deinitialization.
+  */
   list= reap;
   while ((plugin= *(--list)))
-    plugin_deinitialize(plugin, true);
+  {
+    if (plugin->plugin->type != MYSQL_KEY_MANAGEMENT_PLUGIN)
+      plugin_deinitialize(plugin, true);
+  }
+
+  list= reap;
+  while ((plugin= *(--list)))
+  {
+    if (plugin->state != PLUGIN_IS_UNINITIALIZED)
+      plugin_deinitialize(plugin, true);
+  }
 
   mysql_mutex_lock(&LOCK_plugin);
 
@@ -1481,7 +1496,7 @@ static void init_plugin_psi_keys(void)
 */
 int plugin_init(int *argc, char **argv, int flags)
 {
-  uint i;
+  uint i,j;
   bool is_myisam;
   struct st_maria_plugin **builtins;
   struct st_maria_plugin *plugin;
@@ -1631,16 +1646,22 @@ int plugin_init(int *argc, char **argv, int flags)
   reap= (st_plugin_int **) my_alloca((plugin_array.elements+1) * sizeof(void*));
   *(reap++)= NULL;
 
-  for (i= 0; i < plugin_array.elements; i++)
+  /* first MYSQL_KEY_MANAGEMENT_PLUGIN, then the rest */
+  for (j= 0 ; j <= 1; j++)
   {
-    plugin_ptr= *dynamic_element(&plugin_array, i, struct st_plugin_int **);
-    if (plugin_ptr->plugin_dl && plugin_ptr->state == PLUGIN_IS_UNINITIALIZED)
+    for (i= 0; i < plugin_array.elements; i++)
     {
-      if (plugin_initialize(&tmp_root, plugin_ptr, argc, argv,
-                            (flags & PLUGIN_INIT_SKIP_INITIALIZATION)))
+      plugin_ptr= *dynamic_element(&plugin_array, i, struct st_plugin_int **);
+      if (((j == 0 && plugin->type == MYSQL_KEY_MANAGEMENT_PLUGIN) || j > 0) &&
+          plugin_ptr->plugin_dl &&
+          plugin_ptr->state == PLUGIN_IS_UNINITIALIZED)
       {
-        plugin_ptr->state= PLUGIN_IS_DYING;
-        *(reap++)= plugin_ptr;
+        if (plugin_initialize(&tmp_root, plugin_ptr, argc, argv,
+                              (flags & PLUGIN_INIT_SKIP_INITIALIZATION)))
+        {
+          plugin_ptr->state= PLUGIN_IS_DYING;
+          *(reap++)= plugin_ptr;
+        }
       }
     }
   }

@@ -1,0 +1,3 @@
+show global variables like "debug_use_static_encryption_keys";
+Variable_name	Value
+debug_use_static_encryption_keys	OFF

@@ -19,7 +19,14 @@ if ($rpl_inited)
 shutdown_server 60;
 
 # Write file to make mysql-test-run.pl start up the server again
---exec echo "restart" > $_expect_file_name
+if ($restart_parameters)
+{
+  --exec echo "restart: $restart_parameters" > $_expect_file_name
+}
+if (!$restart_parameters)
+{
+  --exec echo "restart" > $_expect_file_name
+}
 
 # Turn on reconnect
 --enable_reconnect

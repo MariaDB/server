@@ -16886,6 +16886,7 @@ bool create_internal_tmp_table(TABLE *table, KEY *keyinfo,
   MARIA_UNIQUEDEF uniquedef;
   TABLE_SHARE *share= table->s;
   MARIA_CREATE_INFO create_info;
+  my_bool encrypt= encrypt_tmp_disk_tables;
   DBUG_ENTER("create_internal_tmp_table");
 
   if (share->keys)
@@ -16988,24 +16989,56 @@ bool create_internal_tmp_table(TABLE *table, KEY *keyinfo,
     delete the row.  The cases when this can happen is when there is
     a group by and no sum functions or if distinct is used.
   */
-  if ((error= maria_create(share->table_name.str,
-                           table->no_rows ? NO_RECORD :
-                           (share->reclength < 64 &&
-                            !share->blob_fields ? STATIC_RECORD :
-                            table->used_for_duplicate_elimination ||
-                            table->keep_row_order ?
-                            DYNAMIC_RECORD : BLOCK_RECORD),
-                           share->keys, &keydef,
-                           (uint) (*recinfo-start_recinfo),
-                           start_recinfo,
-                           share->uniques, &uniquedef,
-                           &create_info,
-                           HA_CREATE_TMP_TABLE | HA_CREATE_INTERNAL_TABLE)))
   {
-    table->file->print_error(error,MYF(0));	/* purecov: inspected */
-    table->db_stat=0;
-    goto err;
+    enum data_file_type file_type= table->no_rows ? NO_RECORD :
+        (share->reclength < 64 && !share->blob_fields ? STATIC_RECORD :
+         table->used_for_duplicate_elimination || table->keep_row_order ?
+          DYNAMIC_RECORD : BLOCK_RECORD);
+    uint create_flags= HA_CREATE_TMP_TABLE | HA_CREATE_INTERNAL_TABLE;
+
+    if (file_type != NO_RECORD && MY_TEST(encrypt))
+    {
+      /* encryption is only supported for BLOCK_RECORD */
+      file_type= BLOCK_RECORD;
+      create_flags|= HA_CREATE_ENCRYPTED;
+      if (table->keep_row_order)
+      {
+        create_flags|= HA_INSERT_ORDER;
+      }
+
+      if (table->used_for_duplicate_elimination)
+      {
+        /*
+          sql-layer expect the last column to be stored/restored also
+          when it's null.
+
+          This is probably a bug (that sql-layer doesn't annotate
+          the column as not-null) but both heap, aria-static, aria-dynamic and
+          myisam has this property. aria-block_record does not since it
+          does not store null-columns at all.
+          Emulate behaviour by making column not-nullable when creating the
+          table.
+        */
+        uint cols= (*recinfo-start_recinfo);
+        start_recinfo[cols-1].null_bit= 0;
+      }
+    }
+
+    if ((error= maria_create(share->table_name.str,
+                             file_type,
+                             share->keys, &keydef,
+                             (uint) (*recinfo-start_recinfo),
+                             start_recinfo,
+                             share->uniques, &uniquedef,
+                             &create_info,
+                             create_flags)))
+    {
+      table->file->print_error(error,MYF(0));	/* purecov: inspected */
+      table->db_stat=0;
+      goto err;
+    }
   }
+
   table->in_use->inc_status_created_tmp_disk_tables();
   table->in_use->query_plan_flags|= QPLAN_TMP_DISK;
   share->db_record_offset= 1;

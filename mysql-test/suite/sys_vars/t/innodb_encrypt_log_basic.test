@@ -1,0 +1,50 @@
+--source include/have_innodb.inc
+
+# Display default value
+SELECT @@GLOBAL.innodb_encrypt_log;
+--echo 0 Expected
+
+# Check if value can be set
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SET @@GLOBAL.innodb_encrypt_log=1;
+--echo Expected error 'Read only variable'
+
+SELECT @@GLOBAL.innodb_encrypt_log;
+--echo 0 Expected
+
+# Check if the value in GLOBAL TABLE matches value in variable
+SELECT IF(@@GLOBAL.innodb_encrypt_log, 'ON', 'OFF') = VARIABLE_VALUE
+FROM INFORMATION_SCHEMA.GLOBAL_VARIABLES
+WHERE VARIABLE_NAME='innodb_encrypt_log';
+--echo 1 Expected
+
+SELECT @@GLOBAL.innodb_encrypt_log;
+--echo 0 Expected
+
+SELECT VARIABLE_VALUE
+FROM INFORMATION_SCHEMA.GLOBAL_VARIABLES 
+WHERE VARIABLE_NAME='innodb_encrypt_log';
+--echo 0 Expected
+
+# Check if accessing variable with and without GLOBAL point to same variable
+SELECT @@innodb_encrypt_log = @@GLOBAL.innodb_encrypt_log;
+--echo 1 Expected
+
+# Check if innodb_encrypt_log can be accessed with and without @@ sign
+SELECT @@innodb_encrypt_log;
+--echo 0 Expected
+
+--Error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SELECT COUNT(@@local.innodb_encrypt_log);
+--echo Expected error 'Variable is a GLOBAL variable'
+
+--Error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SELECT COUNT(@@SESSION.innodb_encrypt_log);
+--echo Expected error 'Variable is a GLOBAL variable'
+
+SELECT @@GLOBAL.innodb_encrypt_log;
+--echo 0 Expected
+
+--Error ER_BAD_FIELD_ERROR
+SELECT innodb_encrypt_log;
+--echo Expected error 'Unknown column in field list'

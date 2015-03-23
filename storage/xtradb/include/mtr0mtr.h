@@ -189,6 +189,14 @@ For 1 - 8 bytes, the flag value must give the length also! @{ */
 						page */
 #define MLOG_BIGGEST_TYPE	((byte)53)	/*!< biggest value (used in
 						assertions) */
+
+#define MLOG_FILE_WRITE_CRYPT_DATA ((byte)100)	/*!< log record for
+						writing/updating crypt data of
+						a tablespace */
+
+#define EXTRA_CHECK_MLOG_NUMBER(x) \
+  ((x) == MLOG_FILE_WRITE_CRYPT_DATA)
+
 /* @} */
 
 /** @name Flags for MLOG_FILE operations
@@ -251,6 +259,18 @@ mtr_release_s_latch_at_savepoint(
 #else /* !UNIV_HOTBACKUP */
 # define mtr_release_s_latch_at_savepoint(mtr,savepoint,lock) ((void) 0)
 #endif /* !UNIV_HOTBACKUP */
+
+/**********************************************************//**
+Releases a buf_page stored in an mtr memo after a
+savepoint. */
+UNIV_INTERN
+void
+mtr_release_buf_page_at_savepoint(
+/*=============================*/
+	mtr_t*		mtr,		/*!< in: mtr */
+	ulint		savepoint,	/*!< in: savepoint */
+	buf_block_t*	block);		/*!< in: block to release */
+
 /***************************************************************//**
 Gets the logging mode of a mini-transaction.
 @return	logging mode: MTR_LOG_NONE, ... */

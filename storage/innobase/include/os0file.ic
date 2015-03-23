@@ -224,6 +224,11 @@ pfs_os_aio_func(
 					  on this file space */
 	ulint		page_compression_level, /*!< page compression
 						 level to be used */
+	ibool		page_encryption, /*!< in: is page encryption used
+					 on this file space */
+	ulint		page_encryption_key, /*!< page encryption
+					     key to be used */
+	lsn_t		lsn,		/* lsn of the newest modification */
 	const char*	src_file,/*!< in: file name where func invoked */
 	ulint		src_line)/*!< in: line where the func invoked */
 {
@@ -240,7 +245,8 @@ pfs_os_aio_func(
 
 	result = os_aio_func(type, mode, name, file, buf, offset,
 		n, message1, message2, write_size,
-		page_compression, page_compression_level);
+		page_compression, page_compression_level,
+		page_encryption, page_encryption_key, lsn);
 
 	register_pfs_file_io_end(locker, n);
 

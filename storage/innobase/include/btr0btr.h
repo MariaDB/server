@@ -731,6 +731,7 @@ btr_page_free_low(
 	dict_index_t*	index,	/*!< in: index tree */
 	buf_block_t*	block,	/*!< in: block to be freed, x-latched */
 	ulint		level,	/*!< in: page level */
+	bool		blob,   /*!< in: blob page */
 	mtr_t*		mtr)	/*!< in: mtr */
 	__attribute__((nonnull));
 /*************************************************************//**
@@ -866,5 +867,9 @@ btr_lift_page_up(
 #ifndef UNIV_NONINL
 #include "btr0btr.ic"
 #endif
+
+/****************************************************************
+Global variable controlling if scrubbing should be performed */
+extern my_bool srv_immediate_scrub_data_uncompressed;
 
 #endif

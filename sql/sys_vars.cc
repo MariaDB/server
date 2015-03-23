@@ -62,6 +62,7 @@
 #include "sql_repl.h"
 #include "opt_range.h"
 #include "rpl_parallel.h"
+#include "my_crypt_key_management.h"
 
 /*
   The rule for this file: everything should be 'static'. When a sys_var
@@ -1123,6 +1124,26 @@ static Sys_var_mybool Sys_locked_in_memory(
 static Sys_var_mybool Sys_log_bin(
        "log_bin", "Whether the binary log is enabled",
        READ_ONLY GLOBAL_VAR(opt_bin_log), NO_CMD_LINE, DEFAULT(FALSE));
+
+
+#ifndef DBUG_OFF
+static Sys_var_mybool Sys_debug_use_static_keys(
+       "debug_use_static_encryption_keys",
+       "Enable use of nonrandom encryption keys. Only to be used in "
+       "internal testing",
+       READ_ONLY GLOBAL_VAR(debug_use_static_encryption_keys),
+       CMD_LINE(OPT_ARG), DEFAULT(FALSE));
+
+static PolyLock_rwlock PLock_sys_debug_encryption_key_version(
+       &LOCK_dbug_encryption_key_version);
+
+static Sys_var_uint Sys_debug_encryption_key_version(
+       "debug_encryption_key_version",
+       "Encryption key version. Only to be used in internal testing.",
+       GLOBAL_VAR(opt_debug_encryption_key_version),
+       CMD_LINE(REQUIRED_ARG), VALID_RANGE(0,UINT_MAX), DEFAULT(0),
+       BLOCK_SIZE(1), &PLock_sys_debug_encryption_key_version);
+#endif
 
 static Sys_var_mybool Sys_trust_function_creators(
        "log_bin_trust_function_creators",
@@ -5132,6 +5153,20 @@ static Sys_var_harows Sys_expensive_subquery_limit(
        "executed during optimization and used for constant optimization",
        SESSION_VAR(expensive_subquery_limit), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(0, HA_POS_ERROR), DEFAULT(100), BLOCK_SIZE(1));
+
+static Sys_var_mybool Sys_encrypt_tmp_disk_tables(
+       "encrypt_tmp_disk_tables",
+       "Encrypt tmp disk tables (created as part of query execution)",
+       GLOBAL_VAR(encrypt_tmp_disk_tables),
+       CMD_LINE(OPT_ARG), DEFAULT(FALSE));
+
+const char *encryption_algorithm_names[]=
+{ "none", "aes_ecb", "aes_cbc", "aes_ctr", 0 };
+static Sys_var_enum Sys_encryption_algorithm(
+       "encryption_algorithm",
+       "Which encryption algorithm to use for table encryption. aes_cbc is the recommended one.",
+       READ_ONLY GLOBAL_VAR(encryption_algorithm),CMD_LINE(REQUIRED_ARG),
+       encryption_algorithm_names, DEFAULT(0));
 
 static bool check_pseudo_slave_mode(sys_var *self, THD *thd, set_var *var)
 {

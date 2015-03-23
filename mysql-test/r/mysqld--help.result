@@ -162,6 +162,13 @@ The following options may be given as the first argument:
  --div-precision-increment=# 
  Precision of the result of '/' operator will be increased
  on that value
+ --encrypt-tmp-disk-tables 
+ Encrypt tmp disk tables (created as part of query
+ execution)
+ --encryption-algorithm=name 
+ Which encryption algorithm to use for table encryption.
+ aes_cbc is the recommended one.. One of: none, aes_ecb, 
+ aes_cbc, aes_ctr
  --event-scheduler[=name] 
  Enable the event scheduler. Possible values are ON, OFF,
  and DISABLED (keep the event scheduler completely
@@ -1141,6 +1148,8 @@ delayed-insert-limit 100
 delayed-insert-timeout 300
 delayed-queue-size 1000
 div-precision-increment 4
+encrypt-tmp-disk-tables FALSE
+encryption-algorithm none
 event-scheduler OFF
 expensive-subquery-limit 100
 expire-logs-days 0

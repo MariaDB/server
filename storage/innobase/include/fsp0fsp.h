@@ -57,6 +57,11 @@ is found in a remote location, not the default data directory. */
 /** Number of flag bits used to indicate the page compression and compression level */
 #define FSP_FLAGS_WIDTH_PAGE_COMPRESSION  1
 #define FSP_FLAGS_WIDTH_PAGE_COMPRESSION_LEVEL 4
+
+/** Number of flag bits used to indicate the page compression and compression level */
+#define FSP_FLAGS_WIDTH_PAGE_ENCRYPTION  1
+#define FSP_FLAGS_WIDTH_PAGE_ENCRYPTION_KEY 8
+
 /** Number of flag bits used to indicate atomic writes for this tablespace */
 #define FSP_FLAGS_WIDTH_ATOMIC_WRITES  2
 
@@ -68,7 +73,9 @@ is found in a remote location, not the default data directory. */
 				+ FSP_FLAGS_WIDTH_DATA_DIR      \
 				+ FSP_FLAGS_WIDTH_PAGE_COMPRESSION \
 				+ FSP_FLAGS_WIDTH_PAGE_COMPRESSION_LEVEL \
-				+ FSP_FLAGS_WIDTH_ATOMIC_WRITES)
+				+ FSP_FLAGS_WIDTH_ATOMIC_WRITES \
+				+ FSP_FLAGS_WIDTH_PAGE_ENCRYPTION \
+				+ FSP_FLAGS_WIDTH_PAGE_ENCRYPTION_KEY)
 
 /** A mask of all the known/used bits in tablespace flags */
 #define FSP_FLAGS_MASK		(~(~0 << FSP_FLAGS_WIDTH))
@@ -92,9 +99,15 @@ dictionary */
 /** Zero relative shift position of the ATOMIC_WRITES field */
 #define FSP_FLAGS_POS_ATOMIC_WRITES	(FSP_FLAGS_POS_PAGE_COMPRESSION_LEVEL	\
 					+ FSP_FLAGS_WIDTH_PAGE_COMPRESSION_LEVEL)
- /** Zero relative shift position of the PAGE_SSIZE field */
-#define FSP_FLAGS_POS_PAGE_SSIZE	(FSP_FLAGS_POS_ATOMIC_WRITES	\
-					+ FSP_FLAGS_WIDTH_ATOMIC_WRITES)
+/** Zero relative shift position of the PAGE_ENCRYPTION field */
+#define FSP_FLAGS_POS_PAGE_ENCRYPTION	(FSP_FLAGS_POS_ATOMIC_WRITES	\
+ 					+ FSP_FLAGS_WIDTH_ATOMIC_WRITES)
+/** Zero relative shift position of the PAGE_ENCRYPTION_KEY field */
+#define FSP_FLAGS_POS_PAGE_ENCRYPTION_KEY	(FSP_FLAGS_POS_PAGE_ENCRYPTION	\
+					+ FSP_FLAGS_WIDTH_PAGE_ENCRYPTION)
+/** Zero relative shift position of the PAGE_SSIZE field */
+#define FSP_FLAGS_POS_PAGE_SSIZE	(FSP_FLAGS_POS_PAGE_ENCRYPTION_KEY	\
+					+ FSP_FLAGS_WIDTH_PAGE_ENCRYPTION_KEY)
 /** Zero relative shift position of the start of the UNUSED bits */
 #define FSP_FLAGS_POS_DATA_DIR		(FSP_FLAGS_POS_PAGE_SSIZE	\
 					+ FSP_FLAGS_WIDTH_PAGE_SSIZE)
@@ -130,11 +143,18 @@ dictionary */
 #define FSP_FLAGS_MASK_PAGE_COMPRESSION_LEVEL		\
 		((~(~0 << FSP_FLAGS_WIDTH_PAGE_COMPRESSION_LEVEL))	\
 		<< FSP_FLAGS_POS_PAGE_COMPRESSION_LEVEL)
+/** Bit mask of the PAGE_ENCRYPTION field */
+#define FSP_FLAGS_MASK_PAGE_ENCRYPTION				\
+		((~(~0 << FSP_FLAGS_WIDTH_PAGE_ENCRYPTION))	\
+		<< FSP_FLAGS_POS_PAGE_ENCRYPTION)
+/** Bit mask of the PAGE_ENCRYPTION_KEY field */
+#define FSP_FLAGS_MASK_PAGE_ENCRYPTION_KEY			\
+		((~(~0 << FSP_FLAGS_WIDTH_PAGE_ENCRYPTION_KEY))	\
+		<< FSP_FLAGS_POS_PAGE_ENCRYPTION_KEY)
 /** Bit mask of the ATOMIC_WRITES field */
 #define FSP_FLAGS_MASK_ATOMIC_WRITES		\
 		((~(~0 << FSP_FLAGS_WIDTH_ATOMIC_WRITES))	\
 		<< FSP_FLAGS_POS_ATOMIC_WRITES)
-
 /** Return the value of the POST_ANTELOPE field */
 #define FSP_FLAGS_GET_POST_ANTELOPE(flags)			\
 		((flags & FSP_FLAGS_MASK_POST_ANTELOPE)		\
@@ -171,6 +191,14 @@ dictionary */
 #define FSP_FLAGS_GET_ATOMIC_WRITES(flags)		\
 		((flags & FSP_FLAGS_MASK_ATOMIC_WRITES) \
 		>> FSP_FLAGS_POS_ATOMIC_WRITES)
+/** Return the value of the PAGE_ENCRYPTION field */
+#define FSP_FLAGS_GET_PAGE_ENCRYPTION(flags)		\
+		((flags & FSP_FLAGS_MASK_PAGE_ENCRYPTION)	\
+		>> FSP_FLAGS_POS_PAGE_ENCRYPTION)
+/** Return the value of the PAGE_ENCRYPTION_KEY field */
+#define FSP_FLAGS_GET_PAGE_ENCRYPTION_KEY(flags)		\
+		((flags & FSP_FLAGS_MASK_PAGE_ENCRYPTION_KEY) \
+		>> FSP_FLAGS_POS_PAGE_ENCRYPTION_KEY)
 
 /** Set a PAGE_SSIZE into the correct bits in a given
 tablespace flags. */
@@ -186,6 +214,14 @@ tablespace flags. */
 tablespace flags. */
 #define FSP_FLAGS_SET_PAGE_COMPRESSION_LEVEL(flags, level)	\
 		(flags | (level << FSP_FLAGS_POS_PAGE_COMPRESSION_LEVEL))
+
+/** Set a PAGE_ENCRYPTION into the correct bits in a given tablespace flags. */
+#define FSP_FLAGS_SET_PAGE_ENCRYPTION(flags, encryption)	\
+		(flags | (encryption << FSP_FLAGS_POS_PAGE_ENCRYPTION))
+/** Set a PAGE_ENCRYPTION_KEY into the correct bits in a given tablespace flags. */
+#define FSP_FLAGS_SET_PAGE_ENCRYPTION_KEY(flags, encryption_key)	\
+		(flags | (encryption_key << FSP_FLAGS_POS_PAGE_ENCRYPTION_KEY))
+
 /** Set a ATOMIC_WRITES into the correct bits in a given
 tablespace flags. */
 #define FSP_FLAGS_SET_ATOMIC_WRITES(flags, atomics)	\
@@ -799,6 +835,33 @@ ulint
 fsp_flags_get_page_size(
 /*====================*/
 	ulint	flags);		/*!< in: tablespace flags */
+
+/*********************************************************************/
+/* @return offset into fsp header where crypt data is stored */
+UNIV_INTERN
+ulint
+fsp_header_get_crypt_offset(
+/*========================*/
+	ulint zip_size,		/*!< in: zip_size */
+	ulint* max_size);	/*!< out: free space after offset */
+
+#define fsp_page_is_free(space,page,mtr) \
+	fsp_page_is_free_func(space,page,mtr, __FILE__, __LINE__)
+
+#ifndef UNIV_INNOCHECKSUM
+/**********************************************************************//**
+Checks if a single page is free.
+@return	true if free */
+UNIV_INTERN
+bool
+fsp_page_is_free_func(
+/*==============*/
+	ulint		space,		/*!< in: space id */
+	ulint		page,		/*!< in: page offset */
+	mtr_t*		mtr,		/*!< in/out: mini-transaction */
+	const char *file,
+	ulint line);
+#endif
 
 #ifndef UNIV_NONINL
 #include "fsp0fsp.ic"

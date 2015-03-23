@@ -81,6 +81,10 @@ reduce the size of the log.
 /* Global log system variable */
 UNIV_INTERN log_t*	log_sys	= NULL;
 
+/* Next log block number to do dummy record filling if no log records written
+for a while */
+static ulint		next_lbn_to_pad = 0;
+
 #ifdef UNIV_PFS_RWLOCK
 UNIV_INTERN mysql_pfs_key_t	checkpoint_lock_key;
 # ifdef UNIV_LOG_ARCHIVE
@@ -532,10 +536,9 @@ function_exit:
 	return(lsn);
 }
 
-#ifdef UNIV_LOG_ARCHIVE
 /******************************************************//**
 Pads the current log block full with dummy log records. Used in producing
-consistent archived log files. */
+consistent archived log files and scrubbing redo log. */
 static
 void
 log_pad_current_log_block(void)
@@ -564,7 +567,6 @@ log_pad_current_log_block(void)
 
 	ut_a(lsn % OS_FILE_LOG_BLOCK_SIZE == LOG_BLOCK_HDR_SIZE);
 }
-#endif /* UNIV_LOG_ARCHIVE */
 
 /******************************************************//**
 Calculates the data capacity of a log group, when the log file headers are not
@@ -900,6 +902,7 @@ log_init(void)
 	/*----------------------------*/
 
 	log_sys->next_checkpoint_no = 0;
+	log_sys->redo_log_crypt_ver = UNENCRYPTED_KEY_VER;
 	log_sys->last_checkpoint_lsn = log_sys->lsn;
 	log_sys->n_pending_checkpoint_writes = 0;
 
@@ -945,7 +948,7 @@ log_init(void)
 	log_block_set_first_rec_group(log_sys->buf, LOG_BLOCK_HDR_SIZE);
 
 	log_sys->buf_free = LOG_BLOCK_HDR_SIZE;
-	log_sys->lsn = LOG_START_LSN + LOG_BLOCK_HDR_SIZE;
+	log_sys->lsn = LOG_START_LSN + LOG_BLOCK_HDR_SIZE; // TODO(minliz): ensure various LOG_START_LSN?
 
 	MONITOR_SET(MONITOR_LSN_CHECKPOINT_AGE,
 		    log_sys->lsn - log_sys->last_checkpoint_lsn);
@@ -1273,7 +1276,7 @@ log_group_file_header_flush(
 		       (ulint) (dest_offset / UNIV_PAGE_SIZE),
 		       (ulint) (dest_offset % UNIV_PAGE_SIZE),
 		       OS_FILE_LOG_BLOCK_SIZE,
-		       buf, group, 0);
+		       buf, group, 0, 0);
 
 		srv_stats.os_log_pending_writes.dec();
 	}
@@ -1290,6 +1293,36 @@ log_block_store_checksum(
 	byte*	block)	/*!< in/out: pointer to a log block */
 {
 	log_block_set_checksum(block, log_block_calc_checksum(block));
+}
+
+/******************************************************//**
+Encrypt one or more log block before it is flushed to disk
+@return true if encryption succeeds. */
+static
+bool
+log_group_encrypt_before_write(
+/*===========================*/
+	const log_group_t* group,	/*!< in: log group to be flushed */
+	byte* block,			/*!< in/out: pointer to a log block */
+	const ulint size)		/*!< in: size of log blocks */
+
+{
+	Crypt_result result = AES_OK;
+
+	ut_ad(size % OS_FILE_LOG_BLOCK_SIZE == 0);
+	byte* dst_frame = (byte*)malloc(size);
+
+	//encrypt log blocks content
+	result = log_blocks_encrypt(block, size, dst_frame);
+
+	if (result == AES_OK)
+	{
+		ut_ad(block[0] == dst_frame[0]);
+		memcpy(block, dst_frame, size);
+	}
+	free(dst_frame);
+
+	return (result == AES_OK);
 }
 
 /******************************************************//**
@@ -1398,10 +1431,19 @@ loop:
 
 		ut_a(next_offset / UNIV_PAGE_SIZE <= ULINT_MAX);
 
+		if (srv_encrypt_log &&
+		    log_sys->redo_log_crypt_ver != UNENCRYPTED_KEY_VER &&
+		    !log_group_encrypt_before_write(group, buf, write_len))
+		{
+			fprintf(stderr,
+				"\nInnodb redo log encryption failed.\n");
+			abort();
+		}
+
 		fil_io(OS_FILE_WRITE | OS_FILE_LOG, true, group->space_id, 0,
 		       (ulint) (next_offset / UNIV_PAGE_SIZE),
 		       (ulint) (next_offset % UNIV_PAGE_SIZE), write_len, buf,
-		       group, 0);
+			group, 0, 0);
 
 		srv_stats.os_log_pending_writes.dec();
 
@@ -1884,6 +1926,8 @@ log_group_checkpoint(
 	mach_write_to_8(buf + LOG_CHECKPOINT_NO, log_sys->next_checkpoint_no);
 	mach_write_to_8(buf + LOG_CHECKPOINT_LSN, log_sys->next_checkpoint_lsn);
 
+	log_crypt_write_checkpoint_buf(buf);
+
 	lsn_offset = log_group_calc_lsn_offset(log_sys->next_checkpoint_lsn,
 					       group);
 	mach_write_to_4(buf + LOG_CHECKPOINT_OFFSET_LOW32,
@@ -1967,7 +2011,7 @@ log_group_checkpoint(
 		       write_offset / UNIV_PAGE_SIZE,
 		       write_offset % UNIV_PAGE_SIZE,
 		       OS_FILE_LOG_BLOCK_SIZE,
-		       buf, ((byte*) group + 1), 0);
+			buf, ((byte*) group + 1), 0, 0);
 
 		ut_ad(((ulint) group & 0x1UL) == 0);
 	}
@@ -2008,6 +2052,8 @@ log_reset_first_header_and_checkpoint(
 	mach_write_to_8(buf + LOG_CHECKPOINT_NO, 0);
 	mach_write_to_8(buf + LOG_CHECKPOINT_LSN, lsn);
 
+	log_crypt_write_checkpoint_buf(buf);
+
 	mach_write_to_4(buf + LOG_CHECKPOINT_OFFSET_LOW32,
 			LOG_FILE_HDR_SIZE + LOG_BLOCK_HDR_SIZE);
 	mach_write_to_4(buf + LOG_CHECKPOINT_OFFSET_HIGH32, 0);
@@ -2047,7 +2093,7 @@ log_group_read_checkpoint_info(
 
 	fil_io(OS_FILE_READ | OS_FILE_LOG, true, group->space_id, 0,
 	       field / UNIV_PAGE_SIZE, field % UNIV_PAGE_SIZE,
-	       OS_FILE_LOG_BLOCK_SIZE, log_sys->checkpoint_buf, NULL, 0);
+		OS_FILE_LOG_BLOCK_SIZE, log_sys->checkpoint_buf, NULL, 0, 0);
 }
 
 /******************************************************//**
@@ -2146,7 +2192,6 @@ log_checkpoint(
 	}
 
 	log_sys->next_checkpoint_lsn = oldest_lsn;
-
 #ifdef UNIV_DEBUG
 	if (log_debug_writes) {
 		fprintf(stderr, "Making checkpoint no "
@@ -2157,6 +2202,10 @@ log_checkpoint(
 #endif /* UNIV_DEBUG */
 
 	log_groups_write_checkpoint_info();
+
+	/* generate key version and key used to encrypt next log block */
+	log_crypt_set_ver_and_key(log_sys->redo_log_crypt_ver,
+				  log_sys->redo_log_crypt_key);
 
 	MONITOR_INC(MONITOR_NUM_CHECKPOINT);
 
@@ -2291,6 +2340,33 @@ loop:
 }
 
 /******************************************************//**
+Decrypt a specified log segment after they are read from a log file to a buffer.
+@return true if decryption succeeds. */
+static
+bool
+log_group_decrypt_after_read(
+/*==========================*/
+	const log_group_t* group,	/*!< in: log group to be read from */
+	byte* frame,	/*!< in/out: log segment */
+	const ulint size)	/*!< in: log segment size */
+{
+	Crypt_result result;
+	ut_ad(size % OS_FILE_LOG_BLOCK_SIZE == 0);
+	byte* dst_frame = (byte*)malloc(size);
+
+	// decrypt log blocks content
+	result = log_blocks_decrypt(frame, size, dst_frame);
+
+	if (result == AES_OK)
+	{
+		memcpy(frame, dst_frame, size);
+	}
+	free(dst_frame);
+
+	return (result == AES_OK);
+}
+
+/******************************************************//**
 Reads a specified log segment to a buffer. */
 UNIV_INTERN
 void
@@ -2341,7 +2417,14 @@ loop:
 	fil_io(OS_FILE_READ | OS_FILE_LOG, sync, group->space_id, 0,
 	       (ulint) (source_offset / UNIV_PAGE_SIZE),
 	       (ulint) (source_offset % UNIV_PAGE_SIZE),
-	       len, buf, NULL, 0);
+		len, buf, NULL, 0, 0);
+
+	if (recv_sys->recv_log_crypt_ver != UNENCRYPTED_KEY_VER &&
+	    !log_group_decrypt_after_read(group, buf, len))
+	{
+		fprintf(stderr, "Innodb redo log decryption failed.\n");
+		abort();
+	}
 
 	start_lsn += len;
 	buf += len;
@@ -2565,6 +2648,14 @@ loop:
 	log_sys->n_log_ios++;
 
 	MONITOR_INC(MONITOR_LOG_IO);
+
+	if (srv_encrypt_log &&
+	    log_sys->redo_log_crypt_ver != UNENCRYPTED_KEY_VER &&
+	    !log_group_encrypt_before_write(group, buf, len))
+	{
+		fprintf(stderr, "Innodb redo log encryption failed.\n");
+		abort();
+	}
 
 	fil_io(OS_FILE_WRITE | OS_FILE_LOG, false, group->archive_space_id,
 	       (ulint) (next_offset / UNIV_PAGE_SIZE),
@@ -3737,5 +3828,63 @@ log_mem_free(void)
 
 		log_sys = NULL;
 	}
+}
+
+/** Event to wake up the log scrub thread */
+UNIV_INTERN os_event_t log_scrub_event = NULL;
+
+UNIV_INTERN ibool srv_log_scrub_thread_active = FALSE;
+
+/*****************************************************************//*
+If no log record has been written for a while, fill current log
+block with dummy records. */
+static
+void
+log_scrub()
+/*=========*/
+{
+	ulint cur_lbn = log_block_convert_lsn_to_no(log_sys->lsn);
+	if (next_lbn_to_pad == cur_lbn)
+	{
+		log_pad_current_log_block();
+	}
+	next_lbn_to_pad = log_block_convert_lsn_to_no(log_sys->lsn);
+}
+
+/* log scrubbing interval in ms. */
+UNIV_INTERN ulonglong innodb_scrub_log_interval;
+
+/*****************************************************************//**
+This is the main thread for log scrub. It waits for an event and
+when waked up fills current log block with dummy records and
+sleeps again.
+@return this function does not return, it calls os_thread_exit() */
+extern "C" UNIV_INTERN
+os_thread_ret_t
+DECLARE_THREAD(log_scrub_thread)(
+/*===============================*/
+	void* arg __attribute__((unused)))	/*!< in: a dummy parameter
+						required by os_thread_create */
+{
+	ut_ad(!srv_read_only_mode);
+
+	srv_log_scrub_thread_active = TRUE;
+
+	while(srv_shutdown_state == SRV_SHUTDOWN_NONE)
+	{
+		os_event_wait_time(log_scrub_event, innodb_scrub_log_interval * 1000);
+
+		log_scrub();
+
+		os_event_reset(log_scrub_event);
+	}
+
+	srv_log_scrub_thread_active = FALSE;
+
+	/* We count the number of threads in os_thread_exit(). A created
+	thread should always use that to exit and not use return() to exit. */
+	os_thread_exit(NULL);
+
+	OS_THREAD_DUMMY_RETURN;
 }
 #endif /* !UNIV_HOTBACKUP */
