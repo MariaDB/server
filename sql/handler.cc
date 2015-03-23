@@ -53,6 +53,7 @@
 
 #ifdef WITH_WSREP
 #include "wsrep_mysqld.h"
+#include "wsrep_xid.h"
 #endif
 /*
   While we have legacy_db_type, we have this array to
@@ -1468,7 +1469,7 @@ int ha_commit_trans(THD *thd, bool all)
   if (!error && wsrep_is_wsrep_xid(&thd->transaction.xid_state.xid))
   {
     // xid was rewritten by wsrep
-    xid= wsrep_xid_seqno(&thd->transaction.xid_state.xid);
+    xid= wsrep_xid_seqno(thd->transaction.xid_state.xid);
   }
 #endif // WITH_WSREP
   if (!is_real_trans)
@@ -1851,7 +1852,7 @@ static my_bool xarecover_handlerton(THD *unused, plugin_ref plugin,
       {
 #ifdef WITH_WSREP
         my_xid x=(wsrep_is_wsrep_xid(&info->list[i]) ?
-                  wsrep_xid_seqno(&info->list[i]) :
+                  wsrep_xid_seqno(info->list[i]) :
                   info->list[i].get_my_xid());
 #else
         my_xid x=info->list[i].get_my_xid();

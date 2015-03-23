@@ -299,9 +299,8 @@ int wsrep_trx_order_before(void *thd1, void *thd2);
 int wsrep_innobase_mysql_sort(int mysql_type, uint charset_number,
 			      unsigned char* str, unsigned int str_length,
 			      unsigned int buf_length);
-int 
-wsrep_on(void *thd_ptr);
-extern "C" int wsrep_is_wsrep_xid(const void*);
+int wsrep_on(void *thd_ptr);
+int wsrep_is_wsrep_xid(const void*);
 #endif /* WITH_WSREP */
 /**********************************************************************//**
 Determines the connection character set.

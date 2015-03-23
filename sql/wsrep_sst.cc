@@ -1,4 +1,4 @@
-/* Copyright 2008-2012 Codership Oy <http://www.codership.com>
+/* Copyright 2008-2015 Codership Oy <http://www.codership.com>
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -26,6 +26,7 @@
 #include <sql_parse.h>
 #include "wsrep_priv.h"
 #include "wsrep_utils.h"
+#include "wsrep_xid.h"
 #include <cstdio>
 #include <cstdlib>
 
@@ -244,20 +245,42 @@ void wsrep_sst_complete (const wsrep_uuid_t* sst_uuid,
   mysql_mutex_unlock (&LOCK_wsrep_sst);
 }
 
-void wsrep_sst_received (wsrep_t*            const wsrep,
-                         const wsrep_uuid_t* const uuid,
-                         wsrep_seqno_t       const seqno,
-                         const void*         const state,
-                         size_t              const state_len)
+void wsrep_sst_received (wsrep_t* const      wsrep,
+                         const wsrep_uuid_t& uuid,
+                         wsrep_seqno_t const seqno,
+                         const void* const   state,
+                         size_t const        state_len)
 {
-    int const rcode(seqno < 0 ? seqno : 0);
-    wsrep_gtid_t const state_id = {
-        *uuid, (rcode ? WSREP_SEQNO_UNDEFINED : seqno)
-    };
+    wsrep_get_SE_checkpoint(local_uuid, local_seqno);
+
+    if (memcmp(&local_uuid, &uuid, sizeof(wsrep_uuid_t)) ||
+        local_seqno < seqno || seqno < 0)
+    {
+        wsrep_set_SE_checkpoint(uuid, seqno);
+        local_uuid = uuid;
+        local_seqno = seqno;
+    }
+    else if (local_seqno > seqno)
+    {
+        WSREP_WARN("SST postion is in the past: %lld, current: %lld. "
+                   "Can't continue.",
+                   (long long)seqno, (long long)local_seqno);
+        unireg_abort(1);
+    }
+
 #ifdef GTID_SUPPORT
-    wsrep_init_sidno(state_id.uuid);
+    wsrep_init_sidno(uuid);
 #endif /* GTID_SUPPORT */
-    wsrep->sst_received(wsrep, &state_id, state, state_len, rcode);
+
+    if (wsrep)
+    {
+        int const rcode(seqno < 0 ? seqno : 0);
+        wsrep_gtid_t const state_id = {
+            uuid, (rcode ? WSREP_SEQNO_UNDEFINED : seqno)
+        };
+
+        wsrep->sst_received(wsrep, &state_id, state, state_len, rcode);
+    }
 }
 
 // Let applier threads to continue
@@ -266,7 +289,7 @@ void wsrep_sst_continue ()
   if (sst_needed)
   {
     WSREP_INFO("Signalling provider to continue.");
-    wsrep_sst_received (wsrep, &local_uuid, local_seqno, NULL, 0);
+    wsrep_sst_received (wsrep, local_uuid, local_seqno, NULL, 0);
   }
 }
 

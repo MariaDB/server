@@ -1,4 +1,4 @@
-/* Copyright 2008-2013 Codership Oy <http://www.codership.com>
+/* Copyright 2008-2015 Codership Oy <http://www.codership.com>
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -23,6 +23,7 @@
 #include "wsrep_var.h"
 #include "wsrep_binlog.h"
 #include "wsrep_applier.h"
+#include "wsrep_xid.h"
 #include <cstdio>
 #include <cstdlib>
 #include "log_event.h"
@@ -158,63 +159,22 @@ static void wsrep_log_states (wsrep_log_level_t   const level,
   wsrep_log_cb (level, msg);
 }
 
-static my_bool set_SE_checkpoint(THD* unused, plugin_ref plugin, void* arg)
-{
-  XID* xid= reinterpret_cast<XID*>(arg);
-  handlerton* hton= plugin_data(plugin, handlerton *);
-  if (hton->db_type == DB_TYPE_INNODB)
-  {
-    const wsrep_uuid_t* uuid(wsrep_xid_uuid(xid));
-    char uuid_str[40] = {0, };
-    wsrep_uuid_print(uuid, uuid_str, sizeof(uuid_str));
-    WSREP_DEBUG("Set WSREPXid for InnoDB:  %s:%lld",
-                uuid_str, (long long)wsrep_xid_seqno(xid));
-    hton->wsrep_set_checkpoint(hton, xid);
-  }
-  return FALSE;
-}
-
-void wsrep_set_SE_checkpoint(XID* xid)
-{
-  plugin_foreach(NULL, set_SE_checkpoint, MYSQL_STORAGE_ENGINE_PLUGIN, xid);
-}
-
-static my_bool get_SE_checkpoint(THD* unused, plugin_ref plugin, void* arg)
-{
-  XID* xid= reinterpret_cast<XID*>(arg);
-  handlerton* hton= plugin_data(plugin, handlerton *);
-  if (hton->db_type == DB_TYPE_INNODB)
-  {
-    hton->wsrep_get_checkpoint(hton, xid);
-    const wsrep_uuid_t* uuid(wsrep_xid_uuid(xid));
-    char uuid_str[40] = {0, };
-    wsrep_uuid_print(uuid, uuid_str, sizeof(uuid_str));
-    WSREP_DEBUG("Read WSREPXid from InnoDB:  %s:%lld",
-                uuid_str, (long long)wsrep_xid_seqno(xid));
-
-  }
-  return FALSE;
-}
-
-void wsrep_get_SE_checkpoint(XID* xid)
-{
-  plugin_foreach(NULL, get_SE_checkpoint, MYSQL_STORAGE_ENGINE_PLUGIN, xid);
-}
-
 #ifdef GTID_SUPPORT
-void wsrep_init_sidno(const wsrep_uuid_t& uuid)
+void wsrep_init_sidno(const wsrep_uuid_t& wsrep_uuid)
 {
   /* generate new Sid map entry from inverted uuid */
   rpl_sid sid;
   wsrep_uuid_t ltid_uuid;
+
   for (size_t i= 0; i < sizeof(ltid_uuid.data); ++i)
   {
-      ltid_uuid.data[i] = ~local_uuid.data[i];
+      ltid_uuid.data[i] = ~wsrep_uuid.data[i];
   }
+
   sid.copy_from(ltid_uuid.data);
   global_sid_lock->wrlock();
   wsrep_sidno= global_sid_map->add_sid(sid);
-  WSREP_INFO("inited wsrep sidno %d", wsrep_sidno);
+  WSREP_INFO("Initialized wsrep sidno %d", wsrep_sidno);
   global_sid_lock->unlock();
 }
 #endif /* GTID_SUPPORT */
@@ -355,13 +315,11 @@ wsrep_view_handler_cb (void*                    app_ctx,
         local_seqno= view->state_id.seqno;
       }
       /* Init storage engine XIDs from first view */
-      XID xid;
-      wsrep_xid_init(&xid, &local_uuid, local_seqno);
-      wsrep_set_SE_checkpoint(&xid);
-      new_status= WSREP_MEMBER_JOINED;
+      wsrep_set_SE_checkpoint(local_uuid, local_seqno);
 #ifdef GTID_SUPPORT
       wsrep_init_sidno(local_uuid);
 #endif /* GTID_SUPPORT */
+      new_status= WSREP_MEMBER_JOINED;
     }
 
     // just some sanity check
@@ -471,38 +429,28 @@ static void wsrep_synced_cb(void* app_ctx)
 static void wsrep_init_position()
 {
   /* read XIDs from storage engines */
-  XID xid;
-  memset(&xid, 0, sizeof(xid));
-  xid.formatID= -1;
-  wsrep_get_SE_checkpoint(&xid);
+  wsrep_uuid_t uuid;
+  wsrep_seqno_t seqno;
+  wsrep_get_SE_checkpoint(uuid, seqno);
 
-  if (xid.formatID == -1)
+  if (!memcmp(&uuid, &WSREP_UUID_UNDEFINED, sizeof(wsrep_uuid_t)))
   {
     WSREP_INFO("Read nil XID from storage engines, skipping position init");
     return;
   }
-  else if (!wsrep_is_wsrep_xid(&xid))
-  {
-    WSREP_WARN("Read non-wsrep XID from storage engines, skipping position init");
-    return;
-  }
-
-  const wsrep_uuid_t* uuid= wsrep_xid_uuid(&xid);
-  const wsrep_seqno_t seqno= wsrep_xid_seqno(&xid);
 
   char uuid_str[40] = {0, };
-  wsrep_uuid_print(uuid, uuid_str, sizeof(uuid_str));
+  wsrep_uuid_print(&uuid, uuid_str, sizeof(uuid_str));
   WSREP_INFO("Initial position: %s:%lld", uuid_str, (long long)seqno);
-
 
   if (!memcmp(&local_uuid, &WSREP_UUID_UNDEFINED, sizeof(local_uuid)) &&
       local_seqno == WSREP_SEQNO_UNDEFINED)
   {
     // Initial state
-    local_uuid= *uuid;
+    local_uuid= uuid;
     local_seqno= seqno;
   }
-  else if (memcmp(&local_uuid, uuid, sizeof(local_uuid)) ||
+  else if (memcmp(&local_uuid, &uuid, sizeof(local_uuid)) ||
            local_seqno != seqno)
   {
     WSREP_WARN("Initial position was provided by configuration or SST, "
@@ -758,14 +706,12 @@ void wsrep_recover()
                uuid_str, (long long)local_seqno);
     return;
   }
-  XID xid;
-  memset(&xid, 0, sizeof(xid));
-  xid.formatID= -1;
-  wsrep_get_SE_checkpoint(&xid);
+  wsrep_uuid_t uuid;
+  wsrep_seqno_t seqno;
+  wsrep_get_SE_checkpoint(uuid, seqno);
   char uuid_str[40];
-  wsrep_uuid_print(wsrep_xid_uuid(&xid), uuid_str, sizeof(uuid_str));
-  WSREP_INFO("Recovered position: %s:%lld", uuid_str,
-             (long long)wsrep_xid_seqno(&xid));
+  wsrep_uuid_print(&uuid, uuid_str, sizeof(uuid_str));
+  WSREP_INFO("Recovered position: %s:%lld", uuid_str, (long long)seqno);
 }
 
 
@@ -1324,11 +1270,9 @@ static void wsrep_TOI_end(THD *thd) {
 
   WSREP_DEBUG("TO END: %lld, %d : %s", (long long)wsrep_thd_trx_seqno(thd),
               thd->wsrep_exec_mode, (thd->query()) ? thd->query() : "void");
-  
-  XID xid;
-  wsrep_xid_init(&xid, &thd->wsrep_trx_meta.gtid.uuid,
-                 thd->wsrep_trx_meta.gtid.seqno);
-  wsrep_set_SE_checkpoint(&xid);
+
+  wsrep_set_SE_checkpoint(thd->wsrep_trx_meta.gtid.uuid,
+                          thd->wsrep_trx_meta.gtid.seqno);
   WSREP_DEBUG("TO END: %lld, update seqno",
               (long long)wsrep_thd_trx_seqno(thd));
   

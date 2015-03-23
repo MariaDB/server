@@ -1,4 +1,4 @@
-/* Copyright (C) 2013 Codership Oy <info@codership.com>
+/* Copyright (C) 2013-2015 Codership Oy <info@codership.com>
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -13,11 +13,12 @@
    with this program; if not, write to the Free Software Foundation, Inc.,
    51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA. */
 
+#include "wsrep_applier.h"
 #include "wsrep_priv.h"
 #include "wsrep_binlog.h" // wsrep_dump_rbr_buf()
+#include "wsrep_xid.h"
 
-#include "log_event.h" // EVENT_LEN_OFFSET, etc.
-#include "wsrep_applier.h"
+#include "log_event.h" // class THD, EVENT_LEN_OFFSET, etc.
 
 /*
   read the first event from (*buf). The size of the (*buf) is (*buf_len).
@@ -150,7 +151,7 @@ static wsrep_cb_status_t wsrep_apply_events(THD*        thd,
     thd->set_server_id(ev->server_id);
     thd->set_time();                            // time the query
     wsrep_xid_init(&thd->transaction.xid_state.xid,
-                   &thd->wsrep_trx_meta.gtid.uuid,
+                   thd->wsrep_trx_meta.gtid.uuid,
                    thd->wsrep_trx_meta.gtid.seqno);
     thd->lex->current_select= 0;
     if (!ev->when)

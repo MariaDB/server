@@ -1,4 +1,4 @@
-/* Copyright 2008-2013 Codership Oy <http://www.codership.com>
+/* Copyright 2008-2015 Codership Oy <http://www.codership.com>
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -321,13 +321,7 @@ int wsrep_create_trigger_query(THD *thd, uchar** buf, size_t* buf_len);
 int wsrep_create_event_query(THD *thd, uchar** buf, size_t* buf_len);
 int wsrep_alter_event_query(THD *thd, uchar** buf, size_t* buf_len);
 
-struct xid_t;
-void wsrep_get_SE_checkpoint(xid_t*);
-void wsrep_set_SE_checkpoint(xid_t*);
+#ifdef GTID_SUPPORT
 void wsrep_init_sidno(const wsrep_uuid_t&);
-void wsrep_xid_init(xid_t*, const wsrep_uuid_t*, wsrep_seqno_t);
-const wsrep_uuid_t* wsrep_xid_uuid(const xid_t*);
-wsrep_seqno_t wsrep_xid_seqno(const xid_t*);
-extern "C" int wsrep_is_wsrep_xid(const void* xid);
-
+#endif /* GTID_SUPPORT */
 #endif /* WSREP_MYSQLD_H */
