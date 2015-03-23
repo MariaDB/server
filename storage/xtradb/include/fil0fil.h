@@ -339,9 +339,7 @@ struct fil_space_t {
 	ibool		is_corrupt;
 	UT_LIST_NODE_T(fil_space_t) space_list;
 				/*!< list of all spaces */
-
-	fil_space_crypt_t* crypt_data;
-
+        fil_space_crypt_t* crypt_data;
 	ulint		magic_n;/*!< FIL_SPACE_MAGIC_N */
 };
 

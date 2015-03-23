@@ -269,10 +269,9 @@ fil_compress_page(
         int level = 0;
         ulint header_len = FIL_PAGE_DATA + FIL_PAGE_COMPRESSED_SIZE;
 	ulint write_size=0;
-	ulint comp_method = innodb_compression_algorithm; /* Cache to avoid
-							  change during
-							  function execution */
-	ulint orig_page_type = 0;
+	/* Cache to avoid change during function execution */
+	ulint comp_method = innodb_compression_algorithm;
+	ulint orig_page_type;
 
 	ut_ad(buf);
 	ut_ad(out_buf);
@@ -489,9 +488,9 @@ fil_compress_page(
 	srv_stats.page_compression_saved.add((len - write_size));
 	srv_stats.pages_page_compressed.inc();
 
+	/* If we do not persistently trim rest of page, we need to write it
+	all */
 	if (!srv_use_trim) {
-		/* If persistent trims are not used we always write full
-		page */
 		write_size = len;
 	}
 
@@ -738,5 +737,3 @@ fil_decompress_page(
 		ut_free(in_buf);
 	}
 }
-
-

@@ -176,13 +176,9 @@ static struct
     - yet disable explicitly a component needed for the functionality
       to work, by using '--skip-performance-schema' (the plugin)
   */
-  { "performance_schema", PLUGIN_FORCE },
+  { "performance_schema", PLUGIN_FORCE }
 
   /* we disable few other plugins by default */
-  /* TODO: Make it possible to default disable built-in
-  plugins wo/ editing this file. */
-  { "example_key_management_plugin", PLUGIN_OFF}
-
   //,{ "feedback", PLUGIN_OFF }
 };
 
@@ -1237,6 +1233,11 @@ static void reap_plugins(void)
 
   mysql_mutex_unlock(&LOCK_plugin);
 
+  /*
+    First free all normal plugins, last the key management plugin.
+    This is becasue the storage engines may need the key management plugin
+    during deinitialization.
+  */
   list= reap;
   while ((plugin= *(--list)))
   {
@@ -1247,7 +1248,7 @@ static void reap_plugins(void)
   list= reap;
   while ((plugin= *(--list)))
   {
-    if (plugin->plugin->type == MYSQL_KEY_MANAGEMENT_PLUGIN)
+    if (plugin->state != PLUGIN_IS_UNINITIALIZED)
       plugin_deinitialize(plugin, true);
   }
 
@@ -1495,7 +1496,7 @@ static void init_plugin_psi_keys(void)
 */
 int plugin_init(int *argc, char **argv, int flags)
 {
-  uint i;
+  uint i,j;
   bool is_myisam;
   struct st_maria_plugin **builtins;
   struct st_maria_plugin *plugin;
@@ -1549,65 +1550,6 @@ int plugin_init(int *argc, char **argv, int flags)
   /*
     First we register builtin plugins
   */
-  mandatory = false;
-  for (builtins= mysql_optional_plugins; *builtins; builtins++)
-  {
-    for (plugin= *builtins; plugin->info; plugin++)
-    {
-      if (opt_ignore_builtin_innodb &&
-          !my_strnncoll(&my_charset_latin1, (const uchar*) plugin->name,
-                        6, (const uchar*) "InnoDB", 6))
-        continue;
-
-      if (plugin->type != MYSQL_KEY_MANAGEMENT_PLUGIN)
-	continue;
-
-      bzero(&tmp, sizeof(tmp));
-      tmp.plugin= plugin;
-      tmp.name.str= (char *)plugin->name;
-      tmp.name.length= strlen(plugin->name);
-      tmp.state= 0;
-      tmp.load_option= mandatory ? PLUGIN_FORCE : PLUGIN_ON;
-
-      for (i=0; i < array_elements(override_plugin_load_policy); i++)
-      {
-        if (!my_strcasecmp(&my_charset_latin1, plugin->name,
-                           override_plugin_load_policy[i].plugin_name))
-        {
-          tmp.load_option= override_plugin_load_policy[i].override;
-          break;
-        }
-      }
-
-      free_root(&tmp_root, MYF(MY_MARK_BLOCKS_FREE));
-      tmp.state= PLUGIN_IS_UNINITIALIZED;
-      if (register_builtin(plugin, &tmp, &plugin_ptr))
-        goto err_unlock;
-
-      is_myisam= !my_strcasecmp(&my_charset_latin1, plugin->name, "MyISAM");
-
-      if (plugin_initialize(&tmp_root, plugin_ptr, argc, argv, !is_myisam &&
-                            (flags & PLUGIN_INIT_SKIP_INITIALIZATION)))
-      {
-        if (plugin_ptr->load_option == PLUGIN_FORCE)
-          goto err_unlock;
-        plugin_ptr->state= PLUGIN_IS_DISABLED;
-      }
-
-      if (is_myisam)
-      {
-        DBUG_ASSERT(!global_system_variables.table_plugin);
-        global_system_variables.table_plugin=
-          intern_plugin_lock(NULL, plugin_int_to_ref(plugin_ptr));
-        DBUG_ASSERT(plugin_ptr->ref_count == 1);
-      }
-    }
-  }
-
-  /*
-    First we register builtin plugins
-  */
-  mandatory = true;
   for (builtins= mysql_mandatory_plugins; *builtins || mandatory; builtins++)
   {
     if (!*builtins)
@@ -1623,9 +1565,6 @@ int plugin_init(int *argc, char **argv, int flags)
           !my_strnncoll(&my_charset_latin1, (const uchar*) plugin->name,
                         6, (const uchar*) "InnoDB", 6))
         continue;
-
-      if (plugin->type == MYSQL_KEY_MANAGEMENT_PLUGIN)
-	continue;
 
       bzero(&tmp, sizeof(tmp));
       tmp.plugin= plugin;
@@ -1707,16 +1646,22 @@ int plugin_init(int *argc, char **argv, int flags)
   reap= (st_plugin_int **) my_alloca((plugin_array.elements+1) * sizeof(void*));
   *(reap++)= NULL;
 
-  for (i= 0; i < plugin_array.elements; i++)
+  /* first MYSQL_KEY_MANAGEMENT_PLUGIN, then the rest */
+  for (j= 0 ; j <= 1; j++)
   {
-    plugin_ptr= *dynamic_element(&plugin_array, i, struct st_plugin_int **);
-    if (plugin_ptr->plugin_dl && plugin_ptr->state == PLUGIN_IS_UNINITIALIZED)
+    for (i= 0; i < plugin_array.elements; i++)
     {
-      if (plugin_initialize(&tmp_root, plugin_ptr, argc, argv,
-                            (flags & PLUGIN_INIT_SKIP_INITIALIZATION)))
+      plugin_ptr= *dynamic_element(&plugin_array, i, struct st_plugin_int **);
+      if (((j == 0 && plugin->type == MYSQL_KEY_MANAGEMENT_PLUGIN) || j > 0) &&
+          plugin_ptr->plugin_dl &&
+          plugin_ptr->state == PLUGIN_IS_UNINITIALIZED)
       {
-        plugin_ptr->state= PLUGIN_IS_DYING;
-        *(reap++)= plugin_ptr;
+        if (plugin_initialize(&tmp_root, plugin_ptr, argc, argv,
+                              (flags & PLUGIN_INIT_SKIP_INITIALIZATION)))
+        {
+          plugin_ptr->state= PLUGIN_IS_DYING;
+          *(reap++)= plugin_ptr;
+        }
       }
     }
   }

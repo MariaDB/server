@@ -18,23 +18,13 @@
 #include <mysql_version.h>
 #include <my_aes.h>
 #include <my_crypt_key_management.h>
-#include <string.h>
 #include "sql_class.h"
-
-//#include "file_key_management_plugin.h"
 #include "KeySingleton.h"
 #include "EncKeys.h"
-
 
 /* Encryption for tables and columns */
 static char* filename = NULL;
 static char* filekey = NULL;
-static char* encryption_method = NULL;
-
-static MYSQL_SYSVAR_STR(encryption_method, encryption_method,
-  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
-  "Name of the encryption method. This can be aes_cbc (default) or aes_ctr (requires OpenSSL on Linux).",
-  NULL, NULL, "aes_cbc");
 
 static MYSQL_SYSVAR_STR(filename, filename,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
@@ -47,7 +37,6 @@ static MYSQL_SYSVAR_STR(filekey, filekey,
   NULL, NULL, NULL);
 
 static struct st_mysql_sys_var* settings[] = {
-  MYSQL_SYSVAR(encryption_method),
   MYSQL_SYSVAR(filename),
   MYSQL_SYSVAR(filekey),
   NULL
@@ -56,9 +45,11 @@ static struct st_mysql_sys_var* settings[] = {
 
 
 /**
- * This method is using with the id 0 if exists. This method is used by innobase/xtradb for the key
- * rotation feature of encrypting log files.
- */
+   This method is using with the id 0 if exists. 
+   This method is used by innobase/xtradb for the key
+   rotation feature of encrypting log files.
+*/
+
 static int get_highest_key_used_in_key_file()
 {
   if (KeySingleton::getInstance().hasKey(0))
@@ -93,7 +84,8 @@ static int get_key_size_from_key_file(unsigned int keyID)
   }
 }
 
-static int get_key_from_key_file(unsigned int keyID, unsigned char* dstbuf, unsigned buflen)
+static int get_key_from_key_file(unsigned int keyID, unsigned char* dstbuf,
+                                 unsigned buflen)
 {
   keyentry* entry = KeySingleton::getInstance().getKeys((int)keyID);
 
@@ -117,7 +109,8 @@ static int get_key_from_key_file(unsigned int keyID, unsigned char* dstbuf, unsi
   }
 }
 
-static int get_iv_from_key_file(unsigned int keyID, unsigned char* dstbuf, unsigned buflen)
+static int get_iv_from_key_file(unsigned int keyID, unsigned char* dstbuf,
+                                unsigned buflen)
 {
   keyentry* entry = KeySingleton::getInstance().getKeys((int)keyID);
 
@@ -145,21 +138,13 @@ static int get_iv_from_key_file(unsigned int keyID, unsigned char* dstbuf, unsig
 static int file_key_management_plugin_init(void *p)
 {
   /* init */
-  printf("@DE: Loading file_key_management_plugin_init \n");
-
-  /* Setting encryption method */
-  if (encryption_method != NULL && strcmp("aes_ctr", encryption_method) == 0)
+  
+  if (current_aes_dynamic_method == MY_AES_ALGORITHM_NONE)
   {
-      my_aes_init_dynamic_encrypt(MY_AES_ALGORITHM_CTR);
-  } else if (encryption_method != NULL && strcmp("aes_ecb", encryption_method) == 0)
-  {
-      my_aes_init_dynamic_encrypt(MY_AES_ALGORITHM_ECB);
+    sql_print_error("No encryption method choosen with --encryption-algorithm. "
+                    "file_key_management_plugin disabled");
+    return 1;
   }
-  else
-  {
-      my_aes_init_dynamic_encrypt(MY_AES_ALGORITHM_CBC);
-  }
-
 
   /* Initializing the key provider */
   struct CryptoKeyFuncs_t func;
@@ -173,10 +158,10 @@ static int file_key_management_plugin_init(void *p)
 
   if (filename == NULL || strcmp("", filename) == 0)
   {
-      sql_print_error("Parameter file_key_management_plugin_filename is required");
+    sql_print_error("Parameter file_key_management_plugin_filename is required");
 
-      return 1;
-     }
+    return 1;
+  }
 
   KeySingleton::getInstance(filename, filekey);
 

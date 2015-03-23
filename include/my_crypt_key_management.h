@@ -7,15 +7,15 @@
 #include "mysql/psi/psi.h"
 
 #ifndef DBUG_OFF
-extern my_bool opt_danger_danger_use_dbug_keys;
+extern my_bool debug_use_static_encryption_keys;
 
 #ifdef HAVE_PSI_INTERFACE
-extern PSI_rwlock_key key_LOCK_dbug_crypto_key_version;
+extern PSI_rwlock_key key_LOCK_dbug_encryption_key_version;
 #endif
 
-extern mysql_rwlock_t LOCK_dbug_crypto_key_version;
-extern uint opt_danger_danger_dbug_crypto_key_version;
-#endif
+extern mysql_rwlock_t LOCK_dbug_encryption_key_version;
+extern uint opt_debug_encryption_key_version;
+#endif /* DBUG_OFF */
 
 C_MODE_START
 /**

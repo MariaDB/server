@@ -20276,7 +20276,7 @@ static MYSQL_SYSVAR_ULONG(fatal_semaphore_wait_threshold, srv_fatal_semaphore_wa
   0);
 
 static MYSQL_SYSVAR_BOOL(encrypt_tables, srv_encrypt_tables, 0,
-			 "Encrypt tables",
+			 "Encrypt all tables in the storage engine",
 			 0, 0, 0);
 
 static MYSQL_SYSVAR_UINT(encryption_threads, srv_n_fil_crypt_threads,
@@ -20620,7 +20620,7 @@ maria_declare_plugin(xtradb)
   &innobase_storage_engine,
   innobase_hton_name,
   plugin_author,
-  "Percona-XtraDB, Supports transactions, row-level locking, foreign keys and encryption for tables and columns",
+  "Percona-XtraDB, Supports transactions, row-level locking, foreign keys and encryption for tables",
   PLUGIN_LICENSE_GPL,
   innobase_init, /* Plugin Init */
   NULL, /* Plugin Deinit */

@@ -304,9 +304,8 @@ fil_crypt_get_latest_key(byte *dst, uint* key_length,
 		}
 
 		return fil_crypt_get_key(dst, key_length, crypt_data, *version, false);
-	} else {
-		return fil_crypt_get_key(dst, key_length, NULL, *version, true);
 	}
+        return fil_crypt_get_key(dst, key_length, NULL, *version, true);
 }
 
 /******************************************************************
@@ -618,8 +617,6 @@ fil_space_encrypt(ulint space, ulint offset, lsn_t lsn,
 	fil_space_crypt_t* crypt_data;
 	ulint page_size = (zip_size) ? zip_size : UNIV_PAGE_SIZE;
 
-	fprintf(stderr, "JAN: page_size %lu\n", page_size);
-
 	// get key (L)
 	uint key_version;
 	byte key[MY_AES_MAX_KEY_LENGTH];
@@ -712,7 +709,7 @@ fil_space_encrypt(ulint space, ulint offset, lsn_t lsn,
 	uint32 dstlen;
 
 	if (page_compressed) {
-		srclen = page_size;
+		srclen = page_size -  FIL_PAGE_DATA;;
 	}
 
 
@@ -727,7 +724,7 @@ fil_space_encrypt(ulint space, ulint offset, lsn_t lsn,
 			"Unable to encrypt data-block "
 			" src: %p srclen: %ld buf: %p buflen: %d."
 			" return-code: %d. Can't continue!\n",
-			src, (long)(page_size - unencrypted_bytes),
+			src, (long)srclen,
 			dst, dstlen, rc);
 		ut_error;
 	}
@@ -772,7 +769,7 @@ fil_space_encrypt(ulint space, ulint offset, lsn_t lsn,
 	} else {
 		/* Page compressed and encrypted tables have different
 		FIL_HEADER */
-		ulint page_len = log10((double)srclen)/log10((double)2);
+		ulint page_len = log10((double)page_size)/log10((double)2);
 		/* Set up the correct page type */
 		mach_write_to_2(dst_frame+FIL_PAGE_TYPE, FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED);
 		/* Set up the compression algorithm */
@@ -810,7 +807,6 @@ bool
 fil_space_decrypt(fil_space_crypt_t* crypt_data,
 		  const byte* src_frame, ulint page_size, byte* dst_frame)
 {
-	ulint space_id = mach_read_from_4(src_frame + FIL_PAGE_SPACE_ID);
 	ulint page_type = mach_read_from_2(src_frame+FIL_PAGE_TYPE);
 	// key version
 	uint key_version;
@@ -821,22 +817,17 @@ fil_space_decrypt(fil_space_crypt_t* crypt_data,
             || page_type == FIL_PAGE_PAGE_COMPRESSED);
 
 	ulint orig_page_type=0;
-	fprintf(stderr, "JAN: page type %lu\n", page_type);
-
 	if (page_type == FIL_PAGE_PAGE_ENCRYPTED) {
 		key_version = mach_read_from_2(
 			src_frame + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION);
-		fprintf(stderr, "JAN: key_version %lu\n", key_version);
 		orig_page_type =  mach_read_from_2(
 			src_frame + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION + 2);
-		fprintf(stderr, "JAN: decrypt: orig_page_type %lu\n", orig_page_type);
 	} else {
 		key_version = mach_read_from_4(
 			src_frame + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION);
 	}
 
 	if (key_version == 0 && !page_encrypted) {
-		fprintf(stderr, "JAN: unencrypted\n");
 		//TODO: is this really needed ?
 		memcpy(dst_frame, src_frame, page_size);
 		return false; /* page not decrypted */
@@ -848,8 +839,6 @@ fil_space_decrypt(fil_space_crypt_t* crypt_data,
 	ulint offset = mach_read_from_4(
 		src_frame + FIL_PAGE_OFFSET);
 	ib_uint64_t lsn = mach_read_from_8(src_frame + FIL_PAGE_LSN);
-
-	fprintf(stderr, "JAN: space %lu, offset %lu lsn %lu\n", space, offset, lsn);
 
 	// copy page header
 	memcpy(dst_frame, src_frame, FIL_PAGE_DATA);
@@ -895,9 +884,6 @@ fil_space_decrypt(fil_space_crypt_t* crypt_data,
 	    }
 	}
 
-	// decrypt page data
-	ulint unencrypted_bytes = FIL_PAGE_DATA + FIL_PAGE_DATA_END;
-
 	const byte* src = src_frame + FIL_PAGE_DATA;
 	byte* dst = dst_frame + FIL_PAGE_DATA;
 	uint32 dstlen;
@@ -905,18 +891,21 @@ fil_space_decrypt(fil_space_crypt_t* crypt_data,
 
 	ulint compressed_len;
 	ulint compression_method;
+
 	if (page_compressed) {
 		orig_page_type = mach_read_from_2(src_frame + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION+4);
 		compressed_len = mach_read_from_1(src_frame + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION+6);
 		compression_method = mach_read_from_1(src_frame + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION+7);
 	}
+
 	if (page_encrypted && !page_compressed) {
 		orig_page_type = mach_read_from_2(src_frame + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION+2);
 	}
 
 	if (page_type == FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED) {
-		srclen = pow((double)2, (double)((int)compressed_len));
+		srclen = pow((double)2, (double)((int)compressed_len)) - FIL_PAGE_DATA;
 	}
+
 	int rc = (* my_aes_decrypt_dynamic)(src, srclen,
 	                                    dst, &dstlen,
 	                                    (unsigned char*)key, key_length,
@@ -928,13 +917,12 @@ fil_space_decrypt(fil_space_crypt_t* crypt_data,
 			"Unable to decrypt data-block "
 			" src: %p srclen: %ld buf: %p buflen: %d."
 			" return-code: %d. Can't continue!\n",
-			src, (long)(page_size - unencrypted_bytes),
+			src, (long)srclen,
 			dst, dstlen, rc);
 		ut_error;
 	}
 
 	if (page_type != FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED) {
-		fprintf(stderr, "JAN: trailer...\n");
 		// copy page trailer
 		memcpy(dst_frame + page_size - FIL_PAGE_DATA_END,
 		       src_frame + page_size - FIL_PAGE_DATA_END,
@@ -1221,7 +1209,7 @@ fil_crypt_start_encrypting_space(ulint space, bool *recheck) {
 			 !fil_tablespace_is_being_deleted(space));
 
 		/* try to reacquire pending op */
-		if (fil_inc_pending_ops(space))
+		if (fil_inc_pending_ops(space, true))
 			break;
 
 		/* pending op reacquired! */
@@ -1268,7 +1256,7 @@ fil_crypt_space_needs_rotation(uint space, const key_state_t *key_state,
 	if (fil_space_get_type(space) != FIL_TABLESPACE)
 		return false;
 
-	if (fil_inc_pending_ops(space)) {
+	if (fil_inc_pending_ops(space, true)) {
 		/* tablespace being dropped */
 		return false;
 	}

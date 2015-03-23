@@ -1,4 +1,5 @@
 --source include/have_innodb.inc
+--source include/have_innodb_encryption.inc
 
 SELECT @start_data_encryption_providerurl;
 

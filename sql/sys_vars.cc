@@ -1127,21 +1127,22 @@ static Sys_var_mybool Sys_log_bin(
 
 
 #ifndef DBUG_OFF
-static Sys_var_mybool Sys_danger_danger_use_dbug_keys(
-       "danger_danger_use_dbug_keys",
-       "Enable use of nonrandom keys for crypto",
-       READ_ONLY GLOBAL_VAR(opt_danger_danger_use_dbug_keys),
+static Sys_var_mybool Sys_debug_use_static_keys(
+       "debug_use_static_encryption_keys",
+       "Enable use of nonrandom encryption keys. Only to be used in "
+       "internal testing",
+       READ_ONLY GLOBAL_VAR(debug_use_static_encryption_keys),
        CMD_LINE(OPT_ARG), DEFAULT(FALSE));
 
-static PolyLock_rwlock PLock_sys_danger_danger_dbug_crypto_key_version(
-       &LOCK_dbug_crypto_key_version);
+static PolyLock_rwlock PLock_sys_debug_encryption_key_version(
+       &LOCK_dbug_encryption_key_version);
 
-static Sys_var_uint Sys_danger_danger_dbug_crypto_key_version(
-       "danger_danger_dbug_crypto_key_version",
-       "Crypto key version for debugging only",
-       GLOBAL_VAR(opt_danger_danger_dbug_crypto_key_version),
+static Sys_var_uint Sys_debug_encryption_key_version(
+       "debug_encryption_key_version",
+       "Encryption key version. Only to be used in internal testing.",
+       GLOBAL_VAR(opt_debug_encryption_key_version),
        CMD_LINE(REQUIRED_ARG), VALID_RANGE(0,UINT_MAX), DEFAULT(0),
-       BLOCK_SIZE(1), &PLock_sys_danger_danger_dbug_crypto_key_version);
+       BLOCK_SIZE(1), &PLock_sys_debug_encryption_key_version);
 #endif
 
 static Sys_var_mybool Sys_trust_function_creators(
@@ -5159,13 +5160,13 @@ static Sys_var_mybool Sys_encrypt_tmp_disk_tables(
        GLOBAL_VAR(encrypt_tmp_disk_tables),
        CMD_LINE(OPT_ARG), DEFAULT(FALSE));
 
-const char *encrypt_algorithm_names[]=
+const char *encryption_algorithm_names[]=
 { "none", "aes_ecb", "aes_cbc", "aes_ctr", 0 };
-static Sys_var_enum Sys_encrypt_algorithm(
-       "encrypt_algorithm",
-       "Which encryption algorithm to use for table encryption",
-       READ_ONLY GLOBAL_VAR(encrypt_algorithm),CMD_LINE(REQUIRED_ARG),
-       encrypt_algorithm_names, DEFAULT(0));
+static Sys_var_enum Sys_encryption_algorithm(
+       "encryption_algorithm",
+       "Which encryption algorithm to use for table encryption. aes_cbc is the recommended one.",
+       READ_ONLY GLOBAL_VAR(encryption_algorithm),CMD_LINE(REQUIRED_ARG),
+       encryption_algorithm_names, DEFAULT(0));
 
 static bool check_pseudo_slave_mode(sys_var *self, THD *thd, set_var *var)
 {

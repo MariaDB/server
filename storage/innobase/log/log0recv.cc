@@ -3568,10 +3568,10 @@ recv_reset_logs(
 	latest key version. */
 	log_sys->redo_log_crypt_ver = UNENCRYPTED_KEY_VER;
 	/*
-	  Note: flags (srv_encrypt_log and opt_danger_danger_use_dbug_keys)
+	  Note: flags (srv_encrypt_log and debug_use_static_keys)
 	  haven't been read and set yet!
 	  So don't use condition such as:
-	  if (srv_encrypt_log && opt_danger_danger_use_dbug_keys)
+	  if (srv_encrypt_log && debug_use_static_keys)
 	*/
 	log_init_crypt_msg_and_nonce();
 

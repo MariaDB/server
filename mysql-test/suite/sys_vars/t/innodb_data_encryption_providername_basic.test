@@ -1,4 +1,5 @@
 --source include/have_innodb.inc
+--source include/have_innodb_encryption.inc
 
 SELECT @start_data_encryption_providername;
 
@@ -8,6 +9,3 @@ SELECT COUNT(@@GLOBAL.innodb_data_encryption_providername);
 # This variable is read only variable
 --error 1238
 SET @@GLOBAL.innodb_data_encryption_providername='key.txt';
-
-
-

@@ -102,8 +102,7 @@ static const char *f_extensions[]= { ".cnf", 0 };
 #define NEWLINE "\n"
 #endif
 
-static int handle_default_option(void *in_ctx, const char *group_name,
-                                 const char *option);
+static int handle_default_option(void *, const char *, const char *);
 
 /*
    This structure defines the context that we pass to callback
@@ -917,7 +916,7 @@ static int search_default_file_with_ext(Process_option_func opt_handler,
    
     end= remove_end_comment(ptr);
     if ((value= strchr(ptr, '=')))
-      end= value;				/* Option without argument */
+      end= value;
     for ( ; my_isspace(&my_charset_latin1,end[-1]) ; end--) ;
     if (!value)
     {

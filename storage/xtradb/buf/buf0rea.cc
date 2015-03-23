@@ -222,7 +222,7 @@ not_to_recover:
 	ut_ad(buf_page_in_file(bpage));
 	ut_ad(!mutex_own(&buf_pool_from_bpage(bpage)->LRU_list_mutex));
 
-	byte* frame = buf_page_decrypt_before_read(bpage);
+	byte* frame = buf_page_decrypt_before_read(bpage, zip_size);
 
 	if (sync) {
 		thd_wait_begin(NULL, THD_WAIT_DISKIO);

@@ -1463,7 +1463,8 @@ before getting decrypted */
 byte*
 buf_page_decrypt_before_read(
 /*=========================*/
-	buf_page_t* page); /*!< in/out: buffer page read from disk */
+	buf_page_t* page, /*!< in/out: buffer page read from disk */
+	ulint	zip_size);  /*!< in: compressed page size, or 0 */
 
 /********************************************************************//**
 The hook that is called just after a page is read from disk.

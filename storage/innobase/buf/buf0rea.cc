@@ -176,7 +176,7 @@ buf_read_page_low(
 
 	ut_ad(buf_page_in_file(bpage));
 
-	byte* frame = buf_page_decrypt_before_read(bpage);
+	byte* frame = buf_page_decrypt_before_read(bpage, zip_size);
 
 	if (sync) {
 		thd_wait_begin(NULL, THD_WAIT_DISKIO);

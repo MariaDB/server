@@ -1,2 +1,0 @@
-[mysqld]
-loose-innodb-encrypt-tables=OFF

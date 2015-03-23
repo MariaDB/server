@@ -3,10 +3,7 @@
 #ifndef MYSYS_MY_CRYPT_H_
 #define MYSYS_MY_CRYPT_H_
 
-/* We expect same result code from encryption functions as in my_aes.h */
 #include <my_aes.h>
-
-typedef int Crypt_result;
 
 #if !defined(HAVE_YASSL) && defined(HAVE_OPENSSL)
 

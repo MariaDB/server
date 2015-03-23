@@ -5659,7 +5659,6 @@ buf_page_encrypt_before_write(
 	byte *dst_frame = bpage->crypt_buf;
 
 	if (!fil_space_is_page_compressed(bpage->space)) {
-		fprintf(stderr, "JAN: problem:::\n");
 		// encrypt page content
 		fil_space_encrypt(bpage->space, bpage->offset,
 			bpage->newest_modification,
@@ -5710,38 +5709,28 @@ Allocates memory to read in an encrypted page
 byte*
 buf_page_decrypt_before_read(
 /*=========================*/
-	buf_page_t* bpage) /*!< in/out: buffer page to be read */
+        buf_page_t* bpage, /*!< in/out: buffer page to be read */
+	ulint	zip_size)  /*!< in: compressed page size, or 0 */
 {
-	ulint zip_size = buf_page_get_zip_size(bpage);
 	ulint size = (zip_size) ? zip_size : UNIV_PAGE_SIZE;
 
-	if (bpage->offset == 0) {
-		/* File header pages are not encrypted */
-unencrypted:
-		if (zip_size)
-			return bpage->zip.data;
-		else
-			return ((buf_block_t*) bpage)->frame;
-	}
+        /*
+          Here we only need to allocate space for not header pages
+          in case of file space encryption.  Table encryption is handled
+          later.
+        */
+	if (!srv_encrypt_tables || bpage->offset == 0 ||
+            fil_space_check_encryption_read(bpage->space) == false)
+          return zip_size ? bpage->zip.data : ((buf_block_t*) bpage)->frame;
 
-	if (fil_space_check_encryption_read(bpage->space) == false) {
-		goto unencrypted;
-	}
-
-	if (srv_encrypt_tables) {
-		if (bpage->crypt_buf_free == NULL) {
-			// allocate buffer to read data into
-			bpage->crypt_buf_free = (byte*)malloc(size*2);
-			// TODO: Is 4K aligment enough ?
-			bpage->crypt_buf = (byte*)ut_align(bpage->crypt_buf_free, size);
-		}
-
-		return bpage->crypt_buf;
-	} else {
-		// If database contains encrypted data it will be
-		// handled later.
-		goto unencrypted;
-	}
+        if (bpage->crypt_buf_free == NULL)
+        {
+          // allocate buffer to read data into
+          bpage->crypt_buf_free = (byte*)malloc(size*2);
+          // TODO: Is 4K aligment enough ?
+          bpage->crypt_buf = (byte*)ut_align(bpage->crypt_buf_free, size);
+        }
+        return bpage->crypt_buf;
 }
 
 /********************************************************************//**
@@ -5760,7 +5749,6 @@ buf_page_decrypt_after_read(
 		((buf_block_t*) bpage)->frame;
 
 	if (bpage->offset == 0) {
-		fprintf(stderr, "JAN: page type %lu\n",  mach_read_from_2(dst_frame+FIL_PAGE_TYPE));
 		/* File header pages are not encrypted */
 		ut_a(bpage->crypt_buf == NULL);
 		return (TRUE);
@@ -5775,12 +5763,7 @@ buf_page_decrypt_after_read(
 
 	bool page_compressed_encrypted = fil_page_is_compressed_encrypted(dst_frame);
 
-	fprintf(stderr, "JAN: key_version %u, page_type %lu\n", key_version,
-		mach_read_from_2(src_frame+FIL_PAGE_TYPE));
-
 	if (key_version == 0) {
-		fprintf(stderr, "JAN: unencrypted, dst %p src %p\n", dst_frame, src_frame);
-
 		/* the page we read is unencrypted */
 		if (dst_frame != src_frame) {
 			/* but we had allocated a crypt_buf */
@@ -5799,13 +5782,10 @@ buf_page_decrypt_after_read(
 			memcpy(bpage->crypt_buf, dst_frame, size);
 		}
 
-		fprintf(stderr, "JAN: buf0buf.cc: decrypt page 1 %lu\n",  mach_read_from_2(dst_frame+FIL_PAGE_TYPE));
-		fprintf(stderr, "JAN: buf0buf.cc: decrypt page 2 %lu\n",  mach_read_from_2(src_frame+FIL_PAGE_TYPE));
 		/* decrypt from src_frame to dst_frame */
 		fil_space_decrypt(bpage->space,
 				  src_frame, size, dst_frame);
 
-		fprintf(stderr, "JAN: buf0buf.cc: after decrypt %lu\n",  mach_read_from_2(dst_frame+FIL_PAGE_TYPE));
 		/* decompress from dst_frame to comp_buf and then copy to
 		buffer pool */
 		if (page_compressed_encrypted) {
@@ -5815,9 +5795,7 @@ buf_page_decrypt_after_read(
 				bpage->comp_buf = (byte*)ut_align(bpage->comp_buf_free, UNIV_PAGE_SIZE);
 			}
 
-			fprintf(stderr, "JAN: buf0buf.cc: decompress %lu\n",  mach_read_from_2(dst_frame+FIL_PAGE_TYPE));
 			fil_decompress_page(bpage->comp_buf, dst_frame, size, NULL);
-			fprintf(stderr, "JAN: buf0buf.cc: after decompress %lu\n",  mach_read_from_2(dst_frame+FIL_PAGE_TYPE));
 		}
 	}
 	bpage->key_version = key_version;

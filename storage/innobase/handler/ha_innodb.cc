@@ -104,7 +104,6 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include "page0zip.h"
 #include "fil0pagecompress.h"
 
-
 #define thd_get_trx_isolation(X) ((enum_tx_isolation)thd_tx_isolation(X))
 
 #ifdef MYSQL_DYNAMIC_PLUGIN
@@ -3193,7 +3192,7 @@ innobase_init(
 			goto error;
 		}
 	}
-	
+
 #ifndef HAVE_LZ4
 	if (innodb_compression_algorithm == PAGE_LZ4_ALGORITHM) {
 		sql_print_error("InnoDB: innodb_compression_algorithm = %lu unsupported.\n"
@@ -3260,7 +3259,6 @@ innobase_init(
 
 	srv_data_home = (innobase_data_home_dir ? innobase_data_home_dir :
 			 default_path);
-
 
 	/* Set default InnoDB data file size to 12 MB and let it be
 	auto-extending. Thus users can use InnoDB in >= 4.0 without having
@@ -19096,7 +19094,7 @@ static MYSQL_SYSVAR_ULONG(fatal_semaphore_wait_threshold, srv_fatal_semaphore_wa
   0);
 
 static MYSQL_SYSVAR_BOOL(encrypt_tables, srv_encrypt_tables, 0,
-			 "Encrypt tables",
+			 "Encrypt all tables in the storage engine",
 			 0, 0, 0);
 
 static MYSQL_SYSVAR_UINT(encryption_threads, srv_n_fil_crypt_threads,

@@ -11,6 +11,5 @@ select distinct variable_name as `there should be *no* variables listed below:` 
 left join t1 on variable_name=test_name where test_name is null;
 there should be *no* variables listed below:
 strict_password_validation
-encrypt_algorithm
 drop table t1;
 drop table t2;

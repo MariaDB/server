@@ -784,7 +784,7 @@ my_bool enough_free_entries_on_page(MARIA_SHARE *share,
    @brief Extend a record area to fit a given size block
 
    @fn extend_area_on_page()
-   @param info                  Handler if head page and 0 if tail page
+   @param info                  Handler
    @param buff			Page buffer
    @param dir			Pointer to dir entry in buffer
    @param rownr			Row number we working on
@@ -793,6 +793,7 @@ my_bool enough_free_entries_on_page(MARIA_SHARE *share,
    @param empty_space		Total empty space in buffer
 			        This is updated with length after dir
                                 is allocated and current block freed
+   @param head_page		1 if head page, 0 for tail page
 
   @implementation
     The logic is as follows (same as in _ma_update_block_record())
@@ -815,16 +816,17 @@ my_bool enough_free_entries_on_page(MARIA_SHARE *share,
   @retval 1   error (wrong info in block)
 */
 
-static my_bool extend_area_on_page(MARIA_SHARE *share,
-                                   MARIA_HA *info,
+static my_bool extend_area_on_page(MARIA_HA *info,
                                    uchar *buff, uchar *dir,
                                    uint rownr,
                                    uint request_length,
                                    uint *empty_space, uint *ret_offset,
-                                   uint *ret_length)
+                                   uint *ret_length,
+                                   my_bool head_page)
 {
   uint rec_offset, length, org_rec_length;
   uint max_entry= (uint) buff[DIR_COUNT_OFFSET];
+  MARIA_SHARE *share= info->s;
   uint block_size= share->block_size;
   DBUG_ENTER("extend_area_on_page");
 
@@ -906,8 +908,8 @@ static my_bool extend_area_on_page(MARIA_SHARE *share,
         int2store(dir+2, 0);
         _ma_compact_block_page(share,
                                buff, rownr, 1,
-                               info ? info->trn->min_read_from: 0,
-                               info ? info->s->base.min_block_length : 0);
+                               head_page ? info->trn->min_read_from: 0,
+                               head_page ? share->base.min_block_length : 0);
         rec_offset= uint2korr(dir);
         length=     uint2korr(dir+2);
         if (length < request_length)
@@ -915,7 +917,7 @@ static my_bool extend_area_on_page(MARIA_SHARE *share,
           DBUG_PRINT("error", ("Not enough space: "
                                "length: %u  request_length: %u",
                                length, request_length));
-          _ma_set_fatal_error(info->s, HA_ERR_WRONG_IN_RECORD);
+          _ma_set_fatal_error(share, HA_ERR_WRONG_IN_RECORD);
           DBUG_RETURN(1);                       /* Error in block */
         }
         *empty_space= length;                   /* All space is here */
@@ -928,7 +930,8 @@ static my_bool extend_area_on_page(MARIA_SHARE *share,
   *ret_length= length;
 
   check_directory(share,
-                  buff, block_size, info ? info->s->base.min_block_length : 0,
+                  buff, block_size,
+                  head_page ? share->base.min_block_length : 0,
                   *empty_space - length);
   DBUG_RETURN(0);
 }
@@ -994,6 +997,7 @@ static uint empty_space_on_page(uchar *buff, uint block_size)
   @brief Ensure we have space for new directory entries
 
   @fn make_space_for_directory()
+  @param info		Handler
   @param buff		Page buffer
   @param max_entry	Number of current entries in directory
   @param count		Number of new entries to be added to directory
@@ -1001,6 +1005,7 @@ static uint empty_space_on_page(uchar *buff, uint block_size)
   @param empty_space    Total empty space in buffer. It's updated
 			to reflect the new empty space
   @param first_pos      Store position to last data byte on page here
+  @param head_page	1 if head page, 0 for tail page.
 
   @note
   This function is inline as the argument passing is the biggest
@@ -1012,13 +1017,14 @@ static uint empty_space_on_page(uchar *buff, uint block_size)
 */
 
 static inline my_bool
-make_space_for_directory(MARIA_SHARE *share,
-                         MARIA_HA *info,
+make_space_for_directory(MARIA_HA *info,
                          uchar *buff, uint max_entry,
                          uint count, uchar *first_dir, uint *empty_space,
-                         uint *first_pos)
+                         uint *first_pos,
+                         my_bool head_page)
 {
   uint length_needed= DIR_ENTRY_SIZE * count;
+  MARIA_SHARE *share= info->s;
 
   /*
     The following is not true only in the case and UNDO is used to reinsert
@@ -1034,8 +1040,8 @@ make_space_for_directory(MARIA_SHARE *share,
       /* Create place for directory */
       _ma_compact_block_page(share,
                              buff, max_entry - 1, 0,
-                             info ? info->trn->min_read_from : 0,
-                             info ? info->s->base.min_block_length : 0);
+                             head_page ? info->trn->min_read_from : 0,
+                             head_page ? share->base.min_block_length : 0);
       *first_pos= (uint2korr(first_dir) + uint2korr(first_dir + 2));
       *empty_space= uint2korr(buff + EMPTY_SPACE_OFFSET);
       if (*empty_space < length_needed)
@@ -1065,13 +1071,14 @@ make_space_for_directory(MARIA_SHARE *share,
 
   SYNOPSIS
   find_free_position()
-    info                Handler if head page and 0 otherwise
+    info                Handler
     buff                Page
     block_size          Size of page
     res_rownr           Store index to free position here
     res_length		Store length of found segment here
     empty_space		Store length of empty space on disk here. This is
 		        all empty space, including the found block.
+  @param head_page	1 if head page, 0 for tail page.
 
   NOTES
     If there is a free directory entry (entry with position == 0),
@@ -1097,14 +1104,15 @@ make_space_for_directory(MARIA_SHARE *share,
     #      Pointer to directory entry on page
 */
 
-static uchar *find_free_position(MARIA_SHARE *share,
-                                 MARIA_HA *info,
+static uchar *find_free_position(MARIA_HA *info,
                                  uchar *buff, uint block_size, uint *res_rownr,
-                                 uint *res_length, uint *empty_space)
+                                 uint *res_length, uint *empty_space,
+                                 my_bool head_page)
 {
   uint max_entry, free_entry;
   uint length, first_pos;
   uchar *dir, *first_dir;
+  MARIA_SHARE *share= info->s;
   DBUG_ENTER("find_free_position");
 
   max_entry= (uint) buff[DIR_COUNT_OFFSET];
@@ -1141,7 +1149,7 @@ static uchar *find_free_position(MARIA_SHARE *share,
     *res_length= length;
 
     check_directory(share, buff, block_size,
-                    info ? info->s->base.min_block_length : 0, (uint) -1);
+                    head_page ? share->base.min_block_length : 0, (uint) -1);
     DBUG_RETURN(dir);
   }
   /* No free places in dir; create a new one */
@@ -1150,9 +1158,8 @@ static uchar *find_free_position(MARIA_SHARE *share,
   if (max_entry == MAX_ROWS_PER_PAGE)
     DBUG_RETURN(0);
 
-  if (make_space_for_directory(share,
-                               info, buff, max_entry, 1,
-                               first_dir, empty_space, &first_pos))
+  if (make_space_for_directory(info, buff, max_entry, 1,
+                               first_dir, empty_space, &first_pos, head_page))
     DBUG_RETURN(0);
 
   dir= first_dir - DIR_ENTRY_SIZE;
@@ -1164,7 +1171,8 @@ static uchar *find_free_position(MARIA_SHARE *share,
   *res_length= length;
 
   check_directory(share,
-                  buff, block_size, info ? info->s->base.min_block_length : 0,
+                  buff, block_size,
+                  head_page ? share->base.min_block_length : 0,
                   *empty_space);
   DBUG_RETURN(dir);
 }
@@ -1174,13 +1182,14 @@ static uchar *find_free_position(MARIA_SHARE *share,
    @brief Enlarge page directory to hold more entries
 
    @fn extend_directory()
-   @param info          Handler if head page and 0 otherwise
+   @param info          Handler
    @param buff		Page buffer
    @param block_size	Block size
    @param max_entry	Number of directory entries on page
    @param new_entry	Position for new entry
    @param empty_space	Total empty space in buffer. It's updated
 			to reflect the new empty space
+   @param head_page	1 if head page, 0 for tail page.
 
    @note
    This is only called on UNDO when we want to expand the directory
@@ -1193,13 +1202,13 @@ static uchar *find_free_position(MARIA_SHARE *share,
    @retval 1  error (No data on page, fatal error)
 */
 
-static my_bool extend_directory(MARIA_SHARE *share,
-                                MARIA_HA *info, uchar *buff, uint block_size,
+static my_bool extend_directory(MARIA_HA *info, uchar *buff, uint block_size,
                                 uint max_entry, uint new_entry,
-                                uint *empty_space)
+                                uint *empty_space, my_bool head_page)
 {
   uint length, first_pos;
   uchar *dir, *first_dir;
+  MARIA_SHARE *share= info->s;
   DBUG_ENTER("extend_directory");
 
   /*
@@ -1209,10 +1218,9 @@ static my_bool extend_directory(MARIA_SHARE *share,
   */
   first_dir= dir_entry_pos(buff, block_size, max_entry) + DIR_ENTRY_SIZE;
 
-  if (make_space_for_directory(share,
-                               info, buff, max_entry,
+  if (make_space_for_directory(info, buff, max_entry,
                                new_entry - max_entry + 1,
-                               first_dir, empty_space, &first_pos))
+                               first_dir, empty_space, &first_pos, head_page))
     DBUG_RETURN(1);
 
   /* Set the new directory entry to cover the max possible length */
@@ -1248,7 +1256,7 @@ static my_bool extend_directory(MARIA_SHARE *share,
 
   check_directory(share,
                   buff, block_size,
-                  info ? MY_MIN(info->s->base.min_block_length, length) : 0,
+                  head_page ? MY_MIN(share->base.min_block_length, length) : 0,
                   *empty_space);
   DBUG_RETURN(0);
 }
@@ -1781,10 +1789,9 @@ static my_bool get_head_or_tail_page(MARIA_HA *info,
 
     DBUG_ASSERT((uint) (res->buff[PAGE_TYPE_OFFSET] & PAGE_TYPE_MASK) ==
                 page_type);
-    if (!(dir= find_free_position(share,
-                                  page_type == HEAD_PAGE ? info : 0,
-                                  res->buff, block_size, &res->rownr,
-                                  &res->length, &res->empty_space)))
+    if (!(dir= find_free_position(info, res->buff, block_size, &res->rownr,
+                                  &res->length, &res->empty_space,
+                                  page_type == HEAD_PAGE)))
       goto crashed;
 
     if (res->length < length)
@@ -1885,9 +1892,9 @@ static my_bool get_rowpos_in_head_or_tail_page(MARIA_HA *info,
   max_entry= (uint) buff[DIR_COUNT_OFFSET];
   if (max_entry <= rownr)
   {
-    if (extend_directory(share,
-                         page_type == HEAD_PAGE ? info : 0, buff, block_size,
-                         max_entry, rownr, &res->empty_space))
+    if (extend_directory(info, buff, block_size,
+                         max_entry, rownr, &res->empty_space,
+                         page_type == HEAD_PAGE))
       goto err;
   }
 
@@ -1897,9 +1904,9 @@ static my_bool get_rowpos_in_head_or_tail_page(MARIA_HA *info,
   */
   dir= dir_entry_pos(buff, block_size, rownr);
 
-  if (extend_area_on_page(share, page_type == HEAD_PAGE ? info : 0, buff, dir,
-                          rownr, length,
-                          &res->empty_space, &rec_offset, &max_length))
+  if (extend_area_on_page(info, buff, dir, rownr, length,
+                          &res->empty_space, &rec_offset, &max_length,
+                          page_type == HEAD_PAGE))
     goto err;
 
   res->buff= buff;
@@ -3764,9 +3771,9 @@ static my_bool _ma_update_block_record2(MARIA_HA *info,
     */
     block.org_bitmap_value= _ma_free_size_to_head_pattern(&share->bitmap,
                                                           org_empty_size);
-    if (extend_area_on_page(share, info, buff, dir, rownr,
+    if (extend_area_on_page(info, buff, dir, rownr,
                             new_row->total_length, &org_empty_size,
-                            &rec_offset, &length))
+                            &rec_offset, &length, 1))
     {
       errpos= 1;
       goto err;
@@ -3945,9 +3952,9 @@ static my_bool _ma_update_at_original_place(MARIA_HA *info,
     of the row
   */
   empty_size= org_empty_size;
-  if (extend_area_on_page(share, info, buff, dir, rownr,
+  if (extend_area_on_page(info, buff, dir, rownr,
                           length_on_head_page, &empty_size,
-                          &rec_offset, &length))
+                          &rec_offset, &length, 1))
     goto err;
 
   row_pos.buff= buff;
@@ -6411,8 +6418,8 @@ uint _ma_apply_redo_insert_row_head_or_tail(MARIA_HA *info, LSN lsn,
       }
       make_empty_page(info, buff, page_type, 0);
       empty_space= block_size - PAGE_HEADER_SIZE(share) - PAGE_SUFFIX_SIZE;
-      (void) extend_directory(share, page_type == HEAD_PAGE ? info: 0, buff,
-                              block_size, 0, rownr, &empty_space);
+      (void) extend_directory(info, buff, block_size, 0, rownr, &empty_space,
+                              page_type == HEAD_PAGE);
       rec_offset= PAGE_HEADER_SIZE(share);
       dir= dir_entry_pos(buff, block_size, rownr);
       empty_space+= uint2korr(dir+2);
@@ -6429,14 +6436,13 @@ uint _ma_apply_redo_insert_row_head_or_tail(MARIA_HA *info, LSN lsn,
       if (max_entry <= rownr)
       {
         /* Add directory entry first in directory and data last on page */
-        if (extend_directory(share, page_type == HEAD_PAGE ? info : 0, buff,
-                             block_size, max_entry, rownr, &empty_space))
+        if (extend_directory(info, buff, block_size, max_entry, rownr,
+                             &empty_space, page_type == HEAD_PAGE))
           goto crashed_file;
       }
-      if (extend_area_on_page(share, page_type == HEAD_PAGE ? info : 0, buff,
-                              dir, rownr,
+      if (extend_area_on_page(info, buff, dir, rownr,
                               (uint) data_length, &empty_space,
-                              &rec_offset, &length))
+                              &rec_offset, &length, page_type == HEAD_PAGE))
         goto crashed_file;
     }
   }

@@ -2,18 +2,20 @@
 
 #include <mysql_version.h>
 #include <my_global.h>
+#include <my_pthread.h>
 #include <my_aes.h>
 #include <my_crypt_key_management.h>
 #include <my_md5.h>
+#include <my_rnd.h>
 
 /* rotate key randomly between 45 and 90 seconds */
 #define KEY_ROTATION_MIN 45
 #define KEY_ROTATION_MAX 90
 
-static unsigned int seed = 0;
+static struct my_rnd_struct seed;
 static unsigned int key_version = 0;
 static unsigned int next_key_version = 0;
-static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t mutex;
 
 static
 int
@@ -25,7 +27,7 @@ get_latest_key_version()
   {
     key_version = now;
     unsigned int interval = KEY_ROTATION_MAX - KEY_ROTATION_MIN;
-    next_key_version = now + KEY_ROTATION_MIN + rand_r(&seed) % interval;
+    next_key_version = now + KEY_ROTATION_MIN + my_rnd(&seed) * interval;
   }
   pthread_mutex_unlock(&mutex);
 
@@ -78,10 +80,12 @@ static int get_iv(unsigned int keyID, unsigned char* dstbuf, unsigned buflen)
 static int example_key_management_plugin_init(void *p)
 {
   /* init */
-  seed = time(0);
+  my_rnd_init(&seed, time(0), 0);
   get_latest_key_version();
 
   my_aes_init_dynamic_encrypt(MY_AES_ALGORITHM_CTR);
+
+  pthread_mutex_init(&mutex, NULL);
 
   struct CryptoKeyFuncs_t func;
   func.getLatestCryptoKeyVersionFunc = get_latest_key_version;
@@ -95,9 +99,7 @@ static int example_key_management_plugin_init(void *p)
 
 static int example_key_management_plugin_deinit(void *p)
 {
-  /**
-   * don't uninstall...
-   */
+  pthread_mutex_destroy(&mutex);
   return 0;
 }
 
@@ -116,8 +118,8 @@ maria_declare_plugin(example_key_management_plugin)
   "Jonas Oreland",
   "Example key management plugin",
   PLUGIN_LICENSE_GPL,
-  example_key_management_plugin_init,   /* Plugin Init */
-  example_key_management_plugin_deinit, /* Plugin Deinit */
+  example_key_management_plugin_init,
+  example_key_management_plugin_deinit,
   0x0100 /* 1.0 */,
   NULL,	/* status variables */
   NULL,	/* system variables */

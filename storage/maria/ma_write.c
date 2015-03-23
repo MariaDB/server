@@ -392,7 +392,7 @@ err:
   else
     fatal_error= 1;
 
-  if (filepos != HA_POS_ERROR)
+  if (filepos != HA_OFFSET_ERROR)
   {
     if ((*share->write_record_abort)(info))
       fatal_error= 1;

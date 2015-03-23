@@ -321,6 +321,7 @@ typedef struct st_maria_pack
 
 typedef struct st_maria_file_bitmap
 {
+  struct st_maria_share *share;
   uchar *map;
   pgcache_page_no_t page;              /* Page number for current bitmap */
   pgcache_page_no_t last_bitmap_page; /* Last possible bitmap page */

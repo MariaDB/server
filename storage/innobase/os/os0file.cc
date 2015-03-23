@@ -661,6 +661,8 @@ os_file_get_last_error_low(
 		return(OS_FILE_OPERATION_ABORTED);
 	} else if (err == ERROR_ACCESS_DENIED) {
 		return(OS_FILE_ACCESS_VIOLATION);
+	} else if (err == ERROR_BUFFER_OVERFLOW) {
+		return(OS_FILE_NAME_TOO_LONG);
 	} else {
 		return(OS_FILE_ERROR_MAX + err);
 	}
@@ -735,6 +737,8 @@ os_file_get_last_error_low(
 		return(OS_FILE_NOT_FOUND);
 	case EEXIST:
 		return(OS_FILE_ALREADY_EXISTS);
+	case ENAMETOOLONG:
+		return(OS_FILE_NAME_TOO_LONG);
 	case EXDEV:
 	case ENOTDIR:
 	case EISDIR:
@@ -1946,7 +1950,7 @@ os_file_create_func(
 	try to set atomic writes and if that fails when creating a new
 	table, produce a error. If atomic writes are used on existing
 	file, ignore error and use traditional writes for that file */
-	if (file != INVALID_HANDLE_VALUE
+	if (file != INVALID_HANDLE_VALUE && type == OS_DATA_FILE
 	    && (awrites == ATOMIC_WRITES_ON ||
 		(srv_use_atomic_writes && awrites == ATOMIC_WRITES_DEFAULT))
 	    && !os_file_set_atomic_writes(name, file)) {
@@ -2092,7 +2096,7 @@ os_file_create_func(
 	try to set atomic writes and if that fails when creating a new
 	table, produce a error. If atomic writes are used on existing
 	file, ignore error and use traditional writes for that file */
-	if (file != -1
+	if (file != -1 && type == OS_DATA_FILE
 	    && (awrites == ATOMIC_WRITES_ON ||
 		(srv_use_atomic_writes && awrites == ATOMIC_WRITES_DEFAULT))
 	    && !os_file_set_atomic_writes(name, file)) {
@@ -2305,8 +2309,6 @@ os_file_close_func(
 #ifdef __WIN__
 	BOOL	ret;
 
-	ut_a(file);
-
 	ret = CloseHandle(file);
 
 	if (ret) {
@@ -2343,8 +2345,6 @@ os_file_close_no_error_handling(
 {
 #ifdef __WIN__
 	BOOL	ret;
-
-	ut_a(file);
 
 	ret = CloseHandle(file);
 
@@ -2573,8 +2573,6 @@ os_file_flush_func(
 {
 #ifdef __WIN__
 	BOOL	ret;
-
-	ut_a(file);
 
 	os_n_fsyncs++;
 
@@ -2909,7 +2907,6 @@ os_file_read_func(
 	os_bytes_read_since_printout += n;
 
 try_again:
-	ut_ad(file);
 	ut_ad(buf);
 	ut_ad(n > 0);
 
@@ -3037,7 +3034,6 @@ os_file_read_no_error_handling_func(
 	os_bytes_read_since_printout += n;
 
 try_again:
-	ut_ad(file);
 	ut_ad(buf);
 	ut_ad(n > 0);
 
@@ -3172,7 +3168,6 @@ os_file_write_func(
 
 	os_n_file_writes++;
 
-	ut_ad(file);
 	ut_ad(buf);
 	ut_ad(n > 0);
 
@@ -3366,7 +3361,7 @@ os_file_status(
 	struct _stat64	statinfo;
 
 	ret = _stat64(path, &statinfo);
-	if (ret && (errno == ENOENT || errno == ENOTDIR)) {
+	if (ret && (errno == ENOENT || errno == ENOTDIR || errno == ENAMETOOLONG)) {
 		/* file does not exist */
 		*exists = FALSE;
 		return(TRUE);
@@ -3394,7 +3389,7 @@ os_file_status(
 	struct stat	statinfo;
 
 	ret = stat(path, &statinfo);
-	if (ret && (errno == ENOENT || errno == ENOTDIR)) {
+	if (ret && (errno == ENOENT || errno == ENOTDIR || errno == ENAMETOOLONG)) {
 		/* file does not exist */
 		*exists = FALSE;
 		return(TRUE);
@@ -4674,10 +4669,10 @@ found:
 			os_slot_alloc_lzo_mem(slot);
 		}
 #endif
-		fprintf(stderr, "JAN: compress page\n");
+
 		/* Call page compression */
 		tmp = fil_compress_page(
-			fil_node_get_space_id(slot->message1),
+                        fil_node_get_space_id(slot->message1),
 			(byte *)buf,
 			slot->page_buf,
 			len,
@@ -4717,7 +4712,6 @@ found:
 		// if it is not yet allocated.
 		os_slot_alloc_page_buf2(slot);
 
-		fprintf(stderr, "JAN: encrypt page\n");
 		fil_space_encrypt(
 			fil_node_get_space_id(slot->message1),
 			slot->offset,
@@ -5039,7 +5033,6 @@ os_aio_func(
 #endif /* WIN_ASYNC_IO */
 	ulint		wake_later;
 
-	ut_ad(file);
 	ut_ad(buf);
 	ut_ad(n > 0);
 	ut_ad(n % OS_FILE_LOG_BLOCK_SIZE == 0);
@@ -5383,13 +5376,16 @@ os_aio_windows_handle(
 
 		ut_a((slot->len & 0xFFFFFFFFUL) == slot->len);
 
-		switch (slot->type) {
-		case OS_FILE_WRITE:
+ 		switch (slot->type) {
+ 		case OS_FILE_WRITE:
 			if (slot->message1
 			    && slot->page_encryption
 			    && slot->page_encryption_success) {
-				ret_val = os_file_write(slot->name, slot->file, slot->page_buf2,
-					slot->offset, slot->len);
+				ret_val = os_file_write(slot->name,
+                                                        slot->file,
+                                                        slot->page_buf2,
+                                                        slot->offset,
+                                                        slot->len);
 			} else {
 				if (slot->message1
 				    && slot->page_compression
@@ -5402,8 +5398,7 @@ os_aio_windows_handle(
 						(DWORD) slot->len, &len,
 						&(slot->control));
 				}
-			}
-
+ 			}
 			break;
 		case OS_FILE_READ:
 			ret = ReadFile(slot->file, slot->buf,
@@ -5441,7 +5436,6 @@ os_aio_windows_handle(
 			os_slot_alloc_page_buf2(slot);
 			os_slot_alloc_tmp_encryption_buf(slot);
 
-			fprintf(stderr, "JAN: decrypt data 1\n");
 			// Decrypt the data
 			fil_space_decrypt(
 				fil_node_get_space_id(slot->message1),
@@ -5451,26 +5445,23 @@ os_aio_windows_handle(
 			// Copy decrypted buffer back to buf
 			memcpy(slot->buf, slot->page_buf2, slot->len);
 		}
-
 		if (fil_page_is_compressed(slot->buf)) {
-			// We allocate memory for page compressed buffer if and only
-			// if it is not yet allocated.
+			/* We allocate memory for page compressed buffer if
+                           and only if it is not yet allocated. */
 			os_slot_alloc_page_buf(slot);
-
 #ifdef HAVE_LZO
 			if (fil_page_is_lzo_compressed(slot->buf)) {
 				os_slot_alloc_lzo_mem(slot);
 			}
 #endif
-			fprintf(stderr, "JAN: decompress data\n");
 			fil_decompress_page(
-				slot->page_buf,
-				slot->buf,
-				slot->len,
-				slot->write_size);
+                                            slot->page_buf,
+                                            slot->buf,
+                                            slot->len,
+                                            slot->write_size);
 		}
 	} else {
-		// OS_FILE_WRITE
+		/* OS_FILE_WRITE */
 		if (slot->page_compression_success &&
 			(fil_page_is_compressed(slot->page_buf) ||
 			 fil_page_is_compressed_encrypted(slot->buf))) {
@@ -5578,7 +5569,6 @@ retry:
 					os_slot_alloc_tmp_encryption_buf(slot);
 					ut_ad(slot->message1 != NULL);
 
-					fprintf(stderr, "JAN: decrypt data 2\n");
 					// Decrypt the data
 					fil_space_decrypt(
 						fil_node_get_space_id(slot->message1),
@@ -5587,29 +5577,23 @@ retry:
 						slot->page_buf2);
 					// Copy decrypted buffer back to buf
 					memcpy(slot->buf, slot->page_buf2, slot->len);
-				}
+ 				}
 
-				/* If the page is page compressed and this is read,
-				we decompress before we annouce the read is
-				complete. */
+				/* If the table is page compressed and this
+                                   is read, we decompress before we announce
+                                   the read is complete. For writes, we free
+                                   the compressed page. */
 				if (fil_page_is_compressed(slot->buf)) {
 					// We allocate memory for page compressed buffer if and only
 					// if it is not yet allocated.
 					os_slot_alloc_page_buf(slot);
-
 #ifdef HAVE_LZO
 					if (fil_page_is_lzo_compressed(slot->buf)) {
 						os_slot_alloc_lzo_mem(slot);
 					}
 #endif
 
-					fprintf(stderr, "JAN: decompress data\n");
-
-					fil_decompress_page(
-						slot->page_buf,
-						slot->buf,
-						slot->len,
-						slot->write_size);
+					fil_decompress_page(slot->page_buf, slot->buf, slot->len, slot->write_size);
 				}
 			} else {
 				/* OS_FILE_WRITE */
@@ -5622,7 +5606,6 @@ retry:
 					}
 				}
 			}
-
 
 			/* Mark this request as completed. The error handling
 			will be done in the calling function. */
@@ -6698,7 +6681,7 @@ os_slot_alloc_lzo_mem(
 	os_aio_slot_t*   slot) /*!< in: slot structure     */
 {
 	ut_a(slot != NULL);
-	if (slot->lzo_mem == NULL) {
+	if(slot->lzo_mem == NULL) {
 		slot->lzo_mem = static_cast<byte *>(ut_malloc(LZO1X_1_15_MEM_COMPRESS));
 		ut_a(slot->lzo_mem != NULL);
 		memset(slot->lzo_mem, 0, LZO1X_1_15_MEM_COMPRESS);
@@ -6720,6 +6703,7 @@ os_slot_alloc_tmp_encryption_buf(
 		memset(slot->tmp_encryption_buf, 0, 64);
 	}
 }
+
 
 /***********************************************************************//**
 Try to get number of bytes per sector from file system.

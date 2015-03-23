@@ -36,7 +36,7 @@ It is called when:
 Note:
 We should not use flags and conditions such as:
 	(srv_encrypt_log &&
-	 opt_danger_danger_use_dbug_keys &&
+	 debug_use_static_keys &&
 	 GetLatestCryptoKeyVersion() == UNENCRYPTED_KEY_VER)
 because they haven't been read and set yet in the situation of resetting
 redo logs.
@@ -129,8 +129,8 @@ log_block_get_start_lsn(
 	ulint log_block_no)		/*!< in: log block number */
 {
 	lsn_t start_lsn =
-		(lsn & 0xffffffff00000000) |
-		(((log_block_no - 1) & 0x3fffffff) << 9);
+		(lsn & (lsn_t)0xffffffff00000000ULL) |
+		(((log_block_no - 1) & (lsn_t)0x3fffffff) << 9);
 	return start_lsn;
 }
 

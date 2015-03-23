@@ -1,4 +1,4 @@
-/* Copyright (C) 2014 eperi GmbH. All Rights Reserved.
+/* Copyright (C) 2014 eperi GmbH.
 
  This program is free software; you can redistribute it and/or modify
  it under the terms of the GNU General Public License as published by

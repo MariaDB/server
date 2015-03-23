@@ -67,8 +67,8 @@ static void my_thread_init_common_mutex(void)
   mysql_mutex_init(key_LOCK_localtime_r, &LOCK_localtime_r, MY_MUTEX_INIT_SLOW);
 #endif
 #ifndef DBUG_OFF
-  mysql_rwlock_init(key_LOCK_dbug_crypto_key_version,
-                    &LOCK_dbug_crypto_key_version);
+  mysql_rwlock_init(key_LOCK_dbug_encryption_key_version,
+                    &LOCK_dbug_encryption_key_version);
 #endif
 }
 
@@ -85,7 +85,7 @@ void my_thread_destroy_common_mutex(void)
   mysql_mutex_destroy(&LOCK_localtime_r);
 #endif
 #ifndef DBUG_OFF
-  mysql_rwlock_destroy(&LOCK_dbug_crypto_key_version);
+  mysql_rwlock_destroy(&LOCK_dbug_encryption_key_version);
 #endif
 }
 

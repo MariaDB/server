@@ -238,6 +238,7 @@ my_bool _ma_bitmap_init(MARIA_SHARE *share, File file,
                             sizeof(MARIA_PINNED_PAGE), 1, 1, MYF(0)))
     return 1;
 
+  bitmap->share= share;
   bitmap->block_size= share->block_size;
   bitmap->file.file= file;
   _ma_bitmap_set_pagecache_callbacks(&bitmap->file, share);
@@ -1233,8 +1234,7 @@ static void fill_block(MARIA_FILE_BITMAP *bitmap,
 */
 
 
-static my_bool allocate_head(MARIA_SHARE *share,
-                             MARIA_FILE_BITMAP *bitmap, uint size,
+static my_bool allocate_head(MARIA_FILE_BITMAP *bitmap, uint size,
                              MARIA_BITMAP_BLOCK *block)
 {
   uint min_bits= size_to_head_pattern(bitmap, size);
@@ -1242,11 +1242,11 @@ static my_bool allocate_head(MARIA_SHARE *share,
   uchar *best_data= 0;
   uint best_bits= (uint) -1, UNINIT_VAR(best_pos);
   uint first_pattern= 0; /* if doing insert_order */
+  MARIA_SHARE *share= bitmap->share;
   my_bool insert_order=
       MY_TEST(share->base.extra_options & MA_EXTRA_OPTIONS_INSERT_ORDER);
   DBUG_ENTER("allocate_head");
 
-  DBUG_ASSERT(share != 0);
   DBUG_ASSERT(size <= FULL_PAGE_SIZE(share));
 
   if (insert_order)
@@ -1618,7 +1618,7 @@ static my_bool find_head(MARIA_HA *info, uint length, uint position)
     We need to have DIRENTRY_SIZE here to take into account that we may
     need an extra directory entry for the row
   */
-  while (allocate_head(info->s, bitmap, length + DIR_ENTRY_SIZE, block))
+  while (allocate_head(bitmap, length + DIR_ENTRY_SIZE, block))
     if (move_to_next_bitmap(info, bitmap))
       return 1;
   return 0;

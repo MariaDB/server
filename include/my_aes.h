@@ -125,7 +125,7 @@ my_aes_encrypt_dynamic_type get_aes_encrypt_func(enum enum_my_aes_encryption_alg
 
 my_bool my_aes_init_dynamic_encrypt(enum enum_my_aes_encryption_algorithm method);
 
-extern enum enum_my_aes_encryption_algorithm current_aes_dynamic_method;
+extern MYSQL_PLUGIN_IMPORT enum enum_my_aes_encryption_algorithm current_aes_dynamic_method;
 
 
 

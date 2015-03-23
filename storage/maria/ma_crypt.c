@@ -83,7 +83,7 @@ ma_crypt_free(MARIA_SHARE* share)
 }
 
 int
-ma_crypt_write(MARIA_SHARE* share, File* file)
+ma_crypt_write(MARIA_SHARE* share, File file)
 {
   uchar buff[2];
   MARIA_CRYPT_DATA *crypt_data= share->crypt_data;
@@ -93,10 +93,10 @@ ma_crypt_write(MARIA_SHARE* share, File* file)
   buff[0] = crypt_data->type;
   buff[1] = crypt_data->iv_length;
 
-  if (mysql_file_write(*file, buff, 2, MYF(MY_NABP)))
+  if (mysql_file_write(file, buff, 2, MYF(MY_NABP)))
     return 1;
 
-  if (mysql_file_write(*file, crypt_data->iv, crypt_data->iv_length,
+  if (mysql_file_write(file, crypt_data->iv, crypt_data->iv_length,
                        MYF(MY_NABP)))
     return 1;
 

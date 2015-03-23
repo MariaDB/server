@@ -1043,7 +1043,7 @@ int maria_create(const char *name, enum data_file_type datafile_type,
   if (encrypted)
   {
     if (ma_crypt_create(&share) ||
-        ma_crypt_write(&share, &file))
+        ma_crypt_write(&share, file))
       goto err;
   }
 

@@ -16661,8 +16661,7 @@ create_tmp_table(THD *thd, TMP_TABLE_PARAM *param, List<Item> &fields,
   {
     if (share->db_type() == TMP_ENGINE_HTON)
     {
-      if (create_internal_tmp_table(table, param->keyinfo,
-                                    param->start_recinfo,
+      if (create_internal_tmp_table(table, param->keyinfo, param->start_recinfo,
                                     &param->recinfo, select_options))
         goto err;
     }
@@ -17085,8 +17084,7 @@ bool create_internal_tmp_table(TABLE *table, KEY *keyinfo,
 bool create_internal_tmp_table(TABLE *table, KEY *keyinfo, 
                                TMP_ENGINE_COLUMNDEF *start_recinfo,
                                TMP_ENGINE_COLUMNDEF **recinfo,
-                               ulonglong options,
-                               my_bool encrypt)
+                               ulonglong options)
 {
   int error;
   MI_KEYDEF keydef;
@@ -17252,7 +17250,7 @@ create_internal_tmp_table_from_heap(THD *thd, TABLE *table,
   if (create_internal_tmp_table(&new_table, table->key_info, start_recinfo,
                                 recinfo,
                                 thd->lex->select_lex.options | 
-                                thd->variables.option_bits))
+			        thd->variables.option_bits))
     goto err2;
   if (open_tmp_table(&new_table))
     goto err1;

@@ -26,8 +26,6 @@ this program; if not, write to the Free Software Foundation, Inc.,
 
 #include "dict0stats.h"
 
-
-
 /* Structure defines translation table between mysql index and innodb
 index structures */
 struct innodb_idx_translate_t {
