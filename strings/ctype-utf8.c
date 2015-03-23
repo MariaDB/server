@@ -7098,7 +7098,7 @@ my_wc_mb_filename(CHARSET_INFO *cs __attribute__((unused)),
                   my_wc_t wc, uchar *s, uchar *e)
 {
   int code;
-  char hex[]= "0123456789abcdef";
+  static const char hex[]= "0123456789abcdef";
 
   if (s >= e)
     return MY_CS_TOOSMALL;
@@ -7144,6 +7144,15 @@ my_charlen_filename(CHARSET_INFO *cs, const uchar *str, const uchar *end)
 }
 
 
+static uint
+my_ismbchar_filename(CHARSET_INFO *cs, const char *str, const char *end)
+{
+  my_wc_t wc;
+  int rc= my_mb_wc_filename(cs, &wc, (const uchar *) str, (const uchar *) end);
+  return rc > 1 ? rc : 0;
+}
+
+  
 #define MY_FUNCTION_NAME(x)       my_ ## x ## _filename
 #define CHARLEN(cs,str,end)       my_charlen_filename(cs,str,end)
 #define DEFINE_WELL_FORMED_CHAR_LENGTH_USING_CHARLEN
@@ -7172,7 +7181,7 @@ static MY_COLLATION_HANDLER my_collation_filename_handler =
 static MY_CHARSET_HANDLER my_charset_filename_handler=
 {
     NULL,               /* init */
-    my_ismbchar_utf8,
+    my_ismbchar_filename,
     my_mbcharlen_utf8,
     my_numchars_mb,
     my_charpos_mb,
