@@ -66,7 +66,8 @@ struct group_commit_orderer {
     This flag is set when this GCO has been installed into the next_gco pointer
     of the previous GCO.
   */
-  static const uint8 INSTALLED = 0x01;
+  bool installed;
+
   /*
     This flag is set for a GCO in which we have event groups with multiple
     different commit_id values from the master. This happens when we
@@ -77,13 +78,13 @@ struct group_commit_orderer {
     of current commit_id, as DDL is not safe to speculatively apply in parallel
     with prior event groups.
   */
-  static const uint8 MULTI_BATCH = 0x02;
+  static const uint8 MULTI_BATCH = 0x01;
   /*
     This flag is set for a GCO that contains DDL. If set, it forces a switch to
     a new GCO upon seeing a new commit_id, as DDL is not safe to speculatively
     replicate in parallel with subsequent transactions.
   */
-  static const uint8 FORCE_SWITCH = 0x04;
+  static const uint8 FORCE_SWITCH = 0x02;
   uint8 flags;
 };
 

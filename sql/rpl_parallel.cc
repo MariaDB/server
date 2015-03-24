@@ -744,7 +744,7 @@ handle_rpl_parallel_thread(void *arg)
           in parallel with.
         */
         mysql_mutex_lock(&entry->LOCK_parallel_entry);
-        if (!(gco->flags & group_commit_orderer::INSTALLED))
+        if (!gco->installed)
         {
           group_commit_orderer *prev_gco= gco->prev_gco;
           if (prev_gco)
@@ -752,7 +752,7 @@ handle_rpl_parallel_thread(void *arg)
             prev_gco->last_sub_id= gco->prior_sub_id;
             prev_gco->next_gco= gco;
           }
-          gco->flags|= group_commit_orderer::INSTALLED;
+          gco->installed= true;
         }
         wait_count= gco->wait_count;
         if (wait_count > entry->count_committing_event_groups)
@@ -1401,6 +1401,7 @@ rpl_parallel_thread::get_gco(uint64 wait_count, group_commit_orderer *prev,
   gco->prev_gco= prev;
   gco->next_gco= NULL;
   gco->prior_sub_id= prior_sub_id;
+  gco->installed= false;
   gco->flags= 0;
   return gco;
 }
