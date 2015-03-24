@@ -43,6 +43,8 @@
 #include "debug_sync.h"         // DEBUG_SYNC
 #include "sql_audit.h"
 
+#include "sql_analyze_stmt.h"   // tracker in TABLE_IO_WAIT
+
 #ifdef WITH_PARTITION_STORAGE_ENGINE
 #include "ha_partition.h"
 #endif
@@ -53,6 +55,17 @@
 
 #include "wsrep_mysqld.h"
 #include "wsrep.h"
+
+#define TABLE_IO_WAIT(TRACKER, PSI, OP, INDEX, FLAGS, PAYLOAD) \
+  { \
+    if (unlikely(tracker)) \
+      tracker->start_tracking(); \
+    \
+    MYSQL_TABLE_IO_WAIT(PSI, OP, INDEX, FLAGS, PAYLOAD); \
+    \
+    if (unlikely(tracker)) \
+      tracker->stop_tracking(); \
+  }
 
 /*
   While we have legacy_db_type, we have this array to
@@ -2566,11 +2579,37 @@ int handler::ha_close(void)
     status_var_add(table->in_use->status_var.rows_tmp_read, rows_tmp_read);
   PSI_CALL_close_table(m_psi);
   m_psi= NULL; /* instrumentation handle, invalid after close_table() */
+
+  /* Detach from ANALYZE tracker */
+  tracker= NULL;
   
   DBUG_ASSERT(m_lock_type == F_UNLCK);
   DBUG_ASSERT(inited == NONE);
   DBUG_RETURN(close());
 }
+
+inline int handler::ha_write_tmp_row(uchar *buf)
+{
+  int error;
+  MYSQL_INSERT_ROW_START(table_share->db.str, table_share->table_name.str);
+  increment_statistics(&SSV::ha_tmp_write_count);
+  TABLE_IO_WAIT(tracker, m_psi, PSI_TABLE_WRITE_ROW, MAX_KEY, 0,
+                { error= write_row(buf); })
+  MYSQL_INSERT_ROW_DONE(error);
+  return error;
+}
+
+inline int handler::ha_update_tmp_row(const uchar *old_data, uchar *new_data)
+{
+  int error;
+  MYSQL_UPDATE_ROW_START(table_share->db.str, table_share->table_name.str);
+  increment_statistics(&SSV::ha_tmp_update_count);
+  TABLE_IO_WAIT(tracker, m_psi, PSI_TABLE_UPDATE_ROW, active_index, 0,
+                { error= update_row(old_data, new_data);})
+  MYSQL_UPDATE_ROW_DONE(error);
+  return error;
+}
+
 
 int handler::ha_rnd_next(uchar *buf)
 {
@@ -2580,7 +2619,7 @@ int handler::ha_rnd_next(uchar *buf)
               m_lock_type != F_UNLCK);
   DBUG_ASSERT(inited == RND);
 
-  MYSQL_TABLE_IO_WAIT(m_psi, PSI_TABLE_FETCH_ROW, MAX_KEY, 0,
+  TABLE_IO_WAIT(tracker, m_psi, PSI_TABLE_FETCH_ROW, MAX_KEY, 0,
     { result= rnd_next(buf); })
   if (!result)
   {
@@ -2605,7 +2644,7 @@ int handler::ha_rnd_pos(uchar *buf, uchar *pos)
   /* TODO: Find out how to solve ha_rnd_pos when finding duplicate update. */
   /* DBUG_ASSERT(inited == RND); */
 
-  MYSQL_TABLE_IO_WAIT(m_psi, PSI_TABLE_FETCH_ROW, MAX_KEY, 0,
+  TABLE_IO_WAIT(tracker, m_psi, PSI_TABLE_FETCH_ROW, MAX_KEY, 0,
     { result= rnd_pos(buf, pos); })
   increment_statistics(&SSV::ha_read_rnd_count);
   if (!result)
@@ -2624,7 +2663,7 @@ int handler::ha_index_read_map(uchar *buf, const uchar *key,
               m_lock_type != F_UNLCK);
   DBUG_ASSERT(inited==INDEX);
 
-  MYSQL_TABLE_IO_WAIT(m_psi, PSI_TABLE_FETCH_ROW, active_index, 0,
+  TABLE_IO_WAIT(tracker, m_psi, PSI_TABLE_FETCH_ROW, active_index, 0,
     { result= index_read_map(buf, key, keypart_map, find_flag); })
   increment_statistics(&SSV::ha_read_key_count);
   if (!result)
@@ -2648,7 +2687,7 @@ int handler::ha_index_read_idx_map(uchar *buf, uint index, const uchar *key,
   DBUG_ASSERT(table_share->tmp_table != NO_TMP_TABLE ||
               m_lock_type != F_UNLCK);
   DBUG_ASSERT(end_range == NULL);
-  MYSQL_TABLE_IO_WAIT(m_psi, PSI_TABLE_FETCH_ROW, index, 0,
+  TABLE_IO_WAIT(tracker, m_psi, PSI_TABLE_FETCH_ROW, index, 0,
     { result= index_read_idx_map(buf, index, key, keypart_map, find_flag); })
   increment_statistics(&SSV::ha_read_key_count);
   if (!result)
@@ -2668,7 +2707,7 @@ int handler::ha_index_next(uchar * buf)
               m_lock_type != F_UNLCK);
   DBUG_ASSERT(inited==INDEX);
 
-  MYSQL_TABLE_IO_WAIT(m_psi, PSI_TABLE_FETCH_ROW, active_index, 0,
+  TABLE_IO_WAIT(tracker, m_psi, PSI_TABLE_FETCH_ROW, active_index, 0,
     { result= index_next(buf); })
   increment_statistics(&SSV::ha_read_next_count);
   if (!result)
@@ -2685,7 +2724,7 @@ int handler::ha_index_prev(uchar * buf)
               m_lock_type != F_UNLCK);
   DBUG_ASSERT(inited==INDEX);
 
-  MYSQL_TABLE_IO_WAIT(m_psi, PSI_TABLE_FETCH_ROW, active_index, 0,
+  TABLE_IO_WAIT(tracker, m_psi, PSI_TABLE_FETCH_ROW, active_index, 0,
     { result= index_prev(buf); })
   increment_statistics(&SSV::ha_read_prev_count);
   if (!result)
@@ -2701,7 +2740,7 @@ int handler::ha_index_first(uchar * buf)
               m_lock_type != F_UNLCK);
   DBUG_ASSERT(inited==INDEX);
 
-  MYSQL_TABLE_IO_WAIT(m_psi, PSI_TABLE_FETCH_ROW, active_index, 0,
+  TABLE_IO_WAIT(tracker, m_psi, PSI_TABLE_FETCH_ROW, active_index, 0,
     { result= index_first(buf); })
   increment_statistics(&SSV::ha_read_first_count);
   if (!result)
@@ -2717,7 +2756,7 @@ int handler::ha_index_last(uchar * buf)
               m_lock_type != F_UNLCK);
   DBUG_ASSERT(inited==INDEX);
 
-  MYSQL_TABLE_IO_WAIT(m_psi, PSI_TABLE_FETCH_ROW, active_index, 0,
+  TABLE_IO_WAIT(tracker, m_psi, PSI_TABLE_FETCH_ROW, active_index, 0,
     { result= index_last(buf); })
   increment_statistics(&SSV::ha_read_last_count);
   if (!result)
@@ -2733,7 +2772,7 @@ int handler::ha_index_next_same(uchar *buf, const uchar *key, uint keylen)
               m_lock_type != F_UNLCK);
   DBUG_ASSERT(inited==INDEX);
 
-  MYSQL_TABLE_IO_WAIT(m_psi, PSI_TABLE_FETCH_ROW, active_index, 0,
+  TABLE_IO_WAIT(tracker, m_psi, PSI_TABLE_FETCH_ROW, active_index, 0,
     { result= index_next_same(buf, key, keylen); })
   increment_statistics(&SSV::ha_read_next_count);
   if (!result)
@@ -5857,7 +5896,7 @@ int handler::ha_write_row(uchar *buf)
   mark_trx_read_write();
   increment_statistics(&SSV::ha_write_count);
 
-  MYSQL_TABLE_IO_WAIT(m_psi, PSI_TABLE_WRITE_ROW, MAX_KEY, 0,
+  TABLE_IO_WAIT(tracker, m_psi, PSI_TABLE_WRITE_ROW, MAX_KEY, 0,
                       { error= write_row(buf); })
 
   MYSQL_INSERT_ROW_DONE(error);
@@ -5890,7 +5929,7 @@ int handler::ha_update_row(const uchar *old_data, uchar *new_data)
   mark_trx_read_write();
   increment_statistics(&SSV::ha_update_count);
 
-  MYSQL_TABLE_IO_WAIT(m_psi, PSI_TABLE_UPDATE_ROW, active_index, 0,
+  TABLE_IO_WAIT(tracker, m_psi, PSI_TABLE_UPDATE_ROW, active_index, 0,
                       { error= update_row(old_data, new_data);})
 
   MYSQL_UPDATE_ROW_DONE(error);
@@ -5918,7 +5957,7 @@ int handler::ha_delete_row(const uchar *buf)
   mark_trx_read_write();
   increment_statistics(&SSV::ha_delete_count);
 
-  MYSQL_TABLE_IO_WAIT(m_psi, PSI_TABLE_DELETE_ROW, active_index, 0,
+  TABLE_IO_WAIT(tracker, m_psi, PSI_TABLE_DELETE_ROW, active_index, 0,
     { error= delete_row(buf);})
   MYSQL_DELETE_ROW_DONE(error);
   if (unlikely(error))

@@ -252,6 +252,7 @@ typedef struct st_join_table {
   enum explain_extra_tag info;
   
   Table_access_tracker *tracker;
+
   Table_access_tracker *jbuf_tracker;
   /* 
     Bitmap of TAB_INFO_* bits that encodes special line for EXPLAIN 'Extra'
@@ -1260,6 +1261,8 @@ public:
                                  OPTIMIZATION_DONE=2};
   bool optimized; ///< flag to avoid double optimization in EXPLAIN
   bool initialized; ///< flag to avoid double init_execution calls
+
+  Exec_time_tracker *tracker;
   
   enum { QEP_NOT_PRESENT_YET, QEP_AVAILABLE, QEP_DELETED} have_query_plan;
 
@@ -1353,6 +1356,8 @@ public:
     group_optimized_away= 0;
     no_rows_in_result_called= 0;
     positions= best_positions= 0;
+
+    tracker= NULL;
 
     all_fields= fields_arg;
     if (&fields_list != &fields_arg)      /* Avoid valgrind-warning */
