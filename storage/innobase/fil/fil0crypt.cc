@@ -212,6 +212,7 @@ fil_crypt_get_key(byte *dst, uint* key_length,
 	mutex_enter(&crypt_data->mutex);
 
         if (!page_encrypted) {
+		*key_length = get_encryption_key_size(version);
 		// Check if we already have key
 		for (uint i = 0; i < crypt_data->key_count; i++) {
 			if (crypt_data->keys[i].key_version == version) {
