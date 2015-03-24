@@ -1922,16 +1922,6 @@ typedef int (*set_thread_connect_attrs_v1_t)(const char *buffer, uint length,
                                              const void *from_cs);
 
 /**
-  Get current row read statistics for the specific instance of a table
-  @param table       Instance of table we need statistics for
-  @param count  OUT  Number of operations
-  @param sum    OUT  Total duration of operations
-*/
-typedef void (*get_table_current_stats_v1_t)(PSI_table *table, 
-                                             ulonglong *count, 
-                                             ulonglong *sum);
-
-/**
   Performance Schema Interface, version 1.
   @since PSI_VERSION_1
 */
@@ -2132,8 +2122,6 @@ struct PSI_v1
   digest_add_token_v1_t digest_add_token;
   /** @sa set_thread_connect_attrs_v1_t. */
   set_thread_connect_attrs_v1_t set_thread_connect_attrs;
-  /** @sa get_table_current_stats_v1 */
-  get_table_current_stats_v1_t get_table_current_stats;
 };
 
 /** @} (end of group Group_PSI_v1) */

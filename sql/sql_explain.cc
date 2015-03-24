@@ -1295,8 +1295,11 @@ void Explain_table_access::print_explain_json(Explain_query *query,
     else
       writer->add_null();
 
-    op_tracker.end_tracking();
-    op_tracker.print_json(writer);
+    if (op_tracker.get_loops())
+    {
+      writer->add_member("r_total_time_ms").
+              add_double(op_tracker.get_time_ms());
+    }
   }
   
   /* `filtered` */
@@ -1977,42 +1980,5 @@ void create_explain_query_if_not_exists(LEX *lex, MEM_ROOT *mem_root)
 {
   if (!lex->explain)
     create_explain_query(lex, mem_root);
-}
-
-//////////////////////////////////////////////////////////////////////////////
-// 
-//////////////////////////////////////////////////////////////////////////////
-
-void Table_op_tracker::start_tracking(TABLE *table)
-{
-  //TODO: will this compile without P_S ?
-  start_count= end_count= 0;
-  if ((psi_table= table->file->m_psi))
-  {
-    PSI_CALL_get_table_current_stats(psi_table, &start_count, &start_sum);
-  }
-}
-
-
-void Table_op_tracker::end_tracking()
-{
-  if (psi_table)
-  {
-    PSI_CALL_get_table_current_stats(psi_table, &end_count, &end_sum);
-  }
-}
-
-void Table_op_tracker::print_json(Json_writer *writer)
-{
-  if (start_count != end_count)
-  {
-    /*
-      We have time in picoseconds, we want to print in milli-seconds
-       picosecond is sec* 10^ -12
-       millisecond is sec * 10^-3
-    */
-    double ms= double(end_sum - start_sum) / 1e9;
-    writer->add_member("r_total_time_ms").add_double(ms);
-  }
 }
 

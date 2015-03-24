@@ -14,6 +14,7 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
 
+#include "sql_analyze_stmt.h"
 
 /*
 
@@ -105,7 +106,7 @@ public:
   inline void on_record_after_where() { r_rows_after_where++; }
 };
 
-
+#if 0
 /*
   A class to track operations (currently, row reads) on a PSI_table.
 */
@@ -128,7 +129,7 @@ public:
   // this may print nothing if the table was not tracked.
   void print_json(Json_writer *writer);
 };
-
+#endif
 
 #define ANALYZE_START_TRACKING(tracker) \
   if (tracker) \
@@ -138,38 +139,6 @@ public:
   if (tracker) \
   { tracker->stop_tracking(); }
 
-/*
-  A class for tracking time it takes to do a certain action
-*/
-class Exec_time_tracker
-{
-  ulonglong count;
-  ulonglong cycles;
-  ulonglong last_start;
-public:
-  Exec_time_tracker() : count(0), cycles(0) {}
-  
-  // interface for collecting time
-  void start_tracking()
-  {
-    last_start= my_timer_cycles();
-  }
-
-  void stop_tracking()
-  {
-    ulonglong last_end= my_timer_cycles();
-    count++;
-    cycles += last_end - last_start;
-  }
-
-  // interface for getting the time
-  ulonglong get_loops() { return count; }
-  double get_time_ms()
-  {
-    // convert 'cycles' to milliseconds.
-    return 1000 * ((double)cycles) / sys_timer_info.cycles.frequency;
-  }
-};
 
 /**************************************************************************************
  
@@ -772,7 +741,7 @@ public:
 
   /* Tracker for reading the table */
   Table_access_tracker tracker;
-  Table_op_tracker op_tracker;
+  Exec_time_tracker op_tracker;
   Table_access_tracker jbuf_tracker;
 
   int print_explain(select_result_sink *output, uint8 explain_flags, 

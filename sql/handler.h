@@ -1571,6 +1571,7 @@ typedef struct {
 
 #define UNDEF_NODEGROUP 65535
 class Item;
+class Exec_time_tracker;
 struct st_table_log_memory_entry;
 
 class partition_info;
@@ -2594,6 +2595,9 @@ public:
   ulonglong rows_changed;
   /* One bigger than needed to avoid to test if key == MAX_KEY */
   ulonglong index_rows_read[MAX_KEY+1];
+  
+  /* ANALYZE time tracker, if present */
+  Exec_time_tracker *tracker;
 
   Item *pushed_idx_cond;
   uint pushed_idx_cond_keyno;  /* The index which the above condition is for */
@@ -2648,6 +2652,7 @@ public:
     ft_handler(0), inited(NONE),
     implicit_emptied(0),
     pushed_cond(0), next_insert_id(0), insert_id_for_cur_row(0),
+    tracker(NULL),
     pushed_idx_cond(NULL),
     pushed_idx_cond_keyno(MAX_KEY),
     auto_inc_intervals_count(0),

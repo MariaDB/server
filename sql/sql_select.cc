@@ -23419,7 +23419,7 @@ void JOIN_TAB::save_explain_data(Explain_table_access *eta, table_map prefix_tab
   tab->tracker= &eta->tracker;
   tab->jbuf_tracker= &eta->jbuf_tracker;
   
-  eta->op_tracker.start_tracking(table);
+  tab->table->file->tracker= &eta->op_tracker;
   /* id and select_type are kept in Explain_select */
 
   /* table */

@@ -37,7 +37,6 @@
 #define PSI_CALL_get_table_share        PSI_TABLE_CALL(get_table_share)
 #define PSI_CALL_release_table_share    PSI_TABLE_CALL(release_table_share)
 #define PSI_CALL_drop_table_share       PSI_TABLE_CALL(drop_table_share)
-#define PSI_CALL_get_table_current_stats PSI_TABLE_CALL(get_table_current_stats)
 #else
 #define PSI_CALL_unbind_table(A1)                       /* no-op */
 #define PSI_CALL_rebind_table(A1,A2,A3)                 NULL
@@ -46,7 +45,6 @@
 #define PSI_CALL_get_table_share(A1,A2)                 NULL
 #define PSI_CALL_release_table_share(A1)                /* no-op */
 #define PSI_CALL_drop_table_share(A1,A2,A3,A4,A5)       /* no-op */
-#define PSI_CALL_get_table_current_stats(A1,A2,A3)      /* no-op */
 #endif
 
 /**
