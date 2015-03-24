@@ -15,6 +15,43 @@
    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
 
 
+/*
+
+== EXPLAIN/ANALYZE architecture ==
+
+=== [SHOW] EXPLAIN data ===
+Query optimization produces two data structures:
+1. execution data structures themselves (eg. JOINs, JOIN_TAB, etc, etc)
+2. Explain data structures.
+
+#2 are self contained set of data structures that has sufficient info to
+produce output of SHOW EXPLAIN, EXPLAIN [FORMAT=JSON], or 
+ANALYZE [FORMAT=JSON], without accessing the execution data structures.
+
+(the only exception is that Explain data structures keep Item* pointers,
+and we require that one might call item->print(QT_EXPLAIN) when printing
+FORMAT=JSON output)
+
+=== ANALYZE data ===
+EXPLAIN data structures have embedded ANALYZE data structures. These are 
+objects that are used to track how the parts of query plan were executed:
+how many times each part of query plan was invoked, how many rows were
+read/returned, etc.
+
+Each execution data structure keeps a direct pointer to its ANALYZE data
+structure. It is needed so that execution code can quickly increment the
+counters.
+
+(note that this increases the set of data that is frequently accessed 
+during the execution. What is the impact of this?)
+
+Since ANALYZE/EXPLAIN data structures are separated from execution data
+structures, it is easy to have them survive until the end of the query,
+where we can return ANALYZE [FORMAT=JSON] output to the user, or print 
+it into the slow query log.
+
+*/
+
 class String_list: public List<char>
 {
 public:
@@ -43,7 +80,6 @@ public:
 
   ha_rows r_scans; /* How many scans were ran on this join_tab */
   ha_rows r_rows; /* How many rows we've got after that */
-//  ha_rows r_rows_after_table_cond; /* Rows after applying the table condition */
   ha_rows r_rows_after_where; /* Rows after applying attached part of WHERE */
 
   bool has_scans() { return (r_scans != 0); }
@@ -103,7 +139,7 @@ public:
   { tracker->stop_tracking(); }
 
 /*
-  A class for tracking execution time
+  A class for tracking time it takes to do a certain action
 */
 class Exec_time_tracker
 {
@@ -127,7 +163,6 @@ public:
   }
 
   // interface for getting the time
-  //loops, starts, stops
   ulonglong get_loops() { return count; }
   double get_time_ms()
   {
@@ -710,7 +745,7 @@ public:
   // Valid if ET_USING tag is present
   Explain_quick_select *quick_info;
   
-  /* Non-NULL values means this tab uses "range checked for each record" */
+  /* Non-NULL value means this tab uses "range checked for each record" */
   Explain_range_checked_fer *range_checked_fer;
  
   bool full_scan_on_null_key;
