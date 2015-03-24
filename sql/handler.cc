@@ -43,8 +43,6 @@
 #include "debug_sync.h"         // DEBUG_SYNC
 #include "sql_audit.h"
 
-#include "sql_analyze_stmt.h"   // tracker in TABLE_IO_WAIT
-
 #ifdef WITH_PARTITION_STORAGE_ENGINE
 #include "ha_partition.h"
 #endif
@@ -55,17 +53,6 @@
 
 #include "wsrep_mysqld.h"
 #include "wsrep.h"
-
-#define TABLE_IO_WAIT(TRACKER, PSI, OP, INDEX, FLAGS, PAYLOAD) \
-  { \
-    if (unlikely(tracker)) \
-      tracker->start_tracking(); \
-    \
-    MYSQL_TABLE_IO_WAIT(PSI, OP, INDEX, FLAGS, PAYLOAD); \
-    \
-    if (unlikely(tracker)) \
-      tracker->stop_tracking(); \
-  }
 
 /*
   While we have legacy_db_type, we have this array to
@@ -2586,28 +2573,6 @@ int handler::ha_close(void)
   DBUG_ASSERT(m_lock_type == F_UNLCK);
   DBUG_ASSERT(inited == NONE);
   DBUG_RETURN(close());
-}
-
-inline int handler::ha_write_tmp_row(uchar *buf)
-{
-  int error;
-  MYSQL_INSERT_ROW_START(table_share->db.str, table_share->table_name.str);
-  increment_statistics(&SSV::ha_tmp_write_count);
-  TABLE_IO_WAIT(tracker, m_psi, PSI_TABLE_WRITE_ROW, MAX_KEY, 0,
-                { error= write_row(buf); })
-  MYSQL_INSERT_ROW_DONE(error);
-  return error;
-}
-
-inline int handler::ha_update_tmp_row(const uchar *old_data, uchar *new_data)
-{
-  int error;
-  MYSQL_UPDATE_ROW_START(table_share->db.str, table_share->table_name.str);
-  increment_statistics(&SSV::ha_tmp_update_count);
-  TABLE_IO_WAIT(tracker, m_psi, PSI_TABLE_UPDATE_ROW, active_index, 0,
-                { error= update_row(old_data, new_data);})
-  MYSQL_UPDATE_ROW_DONE(error);
-  return error;
 }
 
 

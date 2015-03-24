@@ -34,6 +34,8 @@
 #include "sql_array.h"          /* Dynamic_array<> */
 #include "mdl.h"
 
+#include "sql_analyze_stmt.h" // for Exec_time_tracker 
+
 #include <my_compare.h>
 #include <ft_global.h>
 #include <keycache.h>
@@ -1571,7 +1573,6 @@ typedef struct {
 
 #define UNDEF_NODEGROUP 65535
 class Item;
-class Exec_time_tracker;
 struct st_table_log_memory_entry;
 
 class partition_info;
@@ -4205,6 +4206,18 @@ inline const char *table_case_name(HA_CREATE_INFO *info, const char *name)
 {
   return ((lower_case_table_names == 2 && info->alias) ? info->alias : name);
 }
+
+
+#define TABLE_IO_WAIT(TRACKER, PSI, OP, INDEX, FLAGS, PAYLOAD) \
+  { \
+    if (unlikely(tracker)) \
+      tracker->start_tracking(); \
+    \
+    MYSQL_TABLE_IO_WAIT(PSI, OP, INDEX, FLAGS, PAYLOAD); \
+    \
+    if (unlikely(tracker)) \
+      tracker->stop_tracking(); \
+  }
 
 void print_keydup_error(TABLE *table, KEY *key, const char *msg, myf errflag);
 void print_keydup_error(TABLE *table, KEY *key, myf errflag);
