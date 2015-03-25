@@ -732,7 +732,12 @@ void Explain_select::print_explain_json(Explain_query *query,
     */
     writer->add_member("query_block").start_object();
     writer->add_member("select_id").add_ll(select_id);
-    
+     
+    if (is_analyze && time_tracker.get_loops())
+    {
+      writer->add_member("r_loops").add_ll(time_tracker.get_loops());
+      writer->add_member("r_total_time_ms").add_double(time_tracker.get_time_ms());
+    }
     if (exec_const_cond)
     {
       writer->add_member("const_condition");
@@ -1289,6 +1294,12 @@ void Explain_table_access::print_explain_json(Explain_query *query,
     }
     else
       writer->add_null();
+
+    if (op_tracker.get_loops())
+    {
+      writer->add_member("r_total_time_ms").
+              add_double(op_tracker.get_time_ms());
+    }
   }
   
   /* `filtered` */

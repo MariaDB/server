@@ -34,6 +34,8 @@
 #include "sql_array.h"          /* Dynamic_array<> */
 #include "mdl.h"
 
+#include "sql_analyze_stmt.h" // for Exec_time_tracker 
+
 #include <my_compare.h>
 #include <ft_global.h>
 #include <keycache.h>
@@ -2594,6 +2596,9 @@ public:
   ulonglong rows_changed;
   /* One bigger than needed to avoid to test if key == MAX_KEY */
   ulonglong index_rows_read[MAX_KEY+1];
+  
+  /* ANALYZE time tracker, if present */
+  Exec_time_tracker *tracker;
 
   Item *pushed_idx_cond;
   uint pushed_idx_cond_keyno;  /* The index which the above condition is for */
@@ -2648,6 +2653,7 @@ public:
     ft_handler(0), inited(NONE),
     implicit_emptied(0),
     pushed_cond(0), next_insert_id(0), insert_id_for_cur_row(0),
+    tracker(NULL),
     pushed_idx_cond(NULL),
     pushed_idx_cond_keyno(MAX_KEY),
     auto_inc_intervals_count(0),
@@ -4200,6 +4206,18 @@ inline const char *table_case_name(HA_CREATE_INFO *info, const char *name)
 {
   return ((lower_case_table_names == 2 && info->alias) ? info->alias : name);
 }
+
+
+#define TABLE_IO_WAIT(TRACKER, PSI, OP, INDEX, FLAGS, PAYLOAD) \
+  { \
+    if (unlikely(tracker)) \
+      tracker->start_tracking(); \
+    \
+    MYSQL_TABLE_IO_WAIT(PSI, OP, INDEX, FLAGS, PAYLOAD); \
+    \
+    if (unlikely(tracker)) \
+      tracker->stop_tracking(); \
+  }
 
 void print_keydup_error(TABLE *table, KEY *key, const char *msg, myf errflag);
 void print_keydup_error(TABLE *table, KEY *key, myf errflag);

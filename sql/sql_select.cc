@@ -2390,7 +2390,9 @@ void JOIN::exec()
                                                select_lex->select_number))
                         dbug_serve_apcs(thd, 1);
                  );
+  ANALYZE_START_TRACKING(tracker);
   exec_inner();
+  ANALYZE_STOP_TRACKING(tracker);
 
   DBUG_EXECUTE_IF("show_explain_probe_join_exec_end", 
                   if (dbug_user_var_equals_int(thd, 
@@ -23404,6 +23406,7 @@ void JOIN_TAB::save_explain_data(Explain_table_access *eta, table_map prefix_tab
   tab->tracker= &eta->tracker;
   tab->jbuf_tracker= &eta->jbuf_tracker;
   
+  tab->table->file->tracker= &eta->op_tracker;
   /* id and select_type are kept in Explain_select */
 
   /* table */
@@ -23842,6 +23845,7 @@ int JOIN::save_explain_data_intern(Explain_query *output, bool need_tmp_table,
     Explain_select *xpl_sel;
     explain_node= xpl_sel= new (output->mem_root) Explain_select(output->mem_root);
     table_map used_tables=0;
+    tracker= &xpl_sel->time_tracker;
 
     join->select_lex->set_explain_type(true);
     xpl_sel->select_id= join->select_lex->select_number;
