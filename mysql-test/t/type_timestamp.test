@@ -493,3 +493,20 @@ set timestamp=0;
 SET time_zone=DEFAULT;
 
 --echo End of 10.0 tests
+
+--echo #
+--echo # Start of 10.1 tests
+--echo #
+
+--echo #
+--echo # MDEV-7831 Bad warning for DATE_ADD(timestamp_column, INTERVAL 10 SECOND) 
+--echo #
+CREATE TABLE t1 (a TIMESTAMP);
+INSERT INTO t1 VALUES ('0000-00-00 00:00:00');
+SELECT DATE_ADD(a, INTERVAL 10 SECOND) FROM t1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # End of 10.1 tests
+--echo #

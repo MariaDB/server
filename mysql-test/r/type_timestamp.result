@@ -691,3 +691,20 @@ drop function f1;
 set timestamp=0;
 SET time_zone=DEFAULT;
 End of 10.0 tests
+#
+# Start of 10.1 tests
+#
+#
+# MDEV-7831 Bad warning for DATE_ADD(timestamp_column, INTERVAL 10 SECOND) 
+#
+CREATE TABLE t1 (a TIMESTAMP);
+INSERT INTO t1 VALUES ('0000-00-00 00:00:00');
+SELECT DATE_ADD(a, INTERVAL 10 SECOND) FROM t1;
+DATE_ADD(a, INTERVAL 10 SECOND)
+NULL
+Warnings:
+Warning	1292	Incorrect datetime value: '0000-00-00 00:00:00'
+DROP TABLE t1;
+#
+# End of 10.1 tests
+#
