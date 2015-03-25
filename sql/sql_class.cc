@@ -2464,7 +2464,7 @@ int THD::send_explain_fields(select_result *result, uint8 explain_flags, bool is
 {
   List<Item> field_list;
   if (lex->explain_json)
-    make_explain_json_field_list(field_list);
+    make_explain_json_field_list(field_list, is_analyze);
   else
     make_explain_field_list(field_list, explain_flags, is_analyze);
 
@@ -2475,9 +2475,12 @@ int THD::send_explain_fields(select_result *result, uint8 explain_flags, bool is
 }
 
 
-void THD::make_explain_json_field_list(List<Item> &field_list)
+void THD::make_explain_json_field_list(List<Item> &field_list, bool is_analyze)
 {
-  Item *item= new Item_empty_string("EXPLAIN", 78, system_charset_info);
+  Item *item= new Item_empty_string((is_analyze ?
+                                     "ANALYZE" :
+                                     "EXPLAIN"),
+                                    78, system_charset_info);
   field_list.push_back(item);
 }
 

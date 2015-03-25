@@ -3171,7 +3171,7 @@ public:
                           bool is_analyze);
   void make_explain_field_list(List<Item> &field_list, uint8 explain_flags,
                                bool is_analyze);
-  void make_explain_json_field_list(List<Item> &field_list);
+  void make_explain_json_field_list(List<Item> &field_list, bool is_analyze);
 
   /**
     Clear the current error, if any.
