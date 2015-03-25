@@ -47,8 +47,6 @@ typedef int Crypt_result;
 
 C_MODE_START
 
-#define AES_KEY_LENGTH 128		/* Must be 128 192 or 256 */
-
 /**
   Crypt buffer with AES dynamic (defined at startup) encryption algorithm.
 
@@ -126,53 +124,6 @@ my_aes_encrypt_dynamic_type get_aes_encrypt_func(enum enum_my_aes_encryption_alg
 my_bool my_aes_init_dynamic_encrypt(enum enum_my_aes_encryption_algorithm method);
 
 extern MYSQL_PLUGIN_IMPORT enum enum_my_aes_encryption_algorithm current_aes_dynamic_method;
-
-/**
-  Crypt buffer with AES encryption algorithm.
-
-  SYNOPSIS
-  my_aes_encrypt()
-
-  @param source		Pointer to data for encryption
-  @param source_length	Size of encryption data
-  @param dest		Buffer to place encrypted data (must be large enough)
-  @param key		Key to be used for encryption
-  @param kel_length	Length of the key. Will handle keys of any length
-
-  @return  		Size of encrypted data, or negative in case of error.
-*/
-
-int my_aes_encrypt(const uchar *source, int source_length, uchar *dest,
-		   const char *key, int key_length);
-
-/**
-  DeCrypt buffer with AES encryption algorithm.
-
-  SYNOPSIS
-  my_aes_decrypt()
-
-  @param source		Pointer to data for decryption
-  @param source_length	size of encrypted data
-  @param dest		buffer to place decrypted data (must be large enough)
-  @param key		Key to be used for decryption
-  @param kel_length	Length of the key. Will handle keys of any length
-
-  @return               size of original data, or negative in case of error.
-*/
-
-
-int my_aes_decrypt(const uchar *source, int source_length, uchar *dest,
-		   const char *key, int key_length);
-
-/**
-  get size of buffer which will be large enough for encrypted data
-
-  SYNOPSIS
-  my_aes_get_size()
-  @param source_length	Length of data to be encrypted
-
-  @return               Size of buffer required to store encrypted data
-*/
 
 int my_aes_get_size(int source_length);
 
