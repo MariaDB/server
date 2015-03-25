@@ -17,14 +17,15 @@
 
 // TODO: Add Windows support
 
-#ifndef MYSYS_MY_CRYPT_H_
-#define MYSYS_MY_CRYPT_H_
+#ifndef MY_CRYPT_INCLUDED
+#define MY_CRYPT_INCLUDED
 
 #include <my_aes.h>
 
-#if !defined(HAVE_YASSL) && defined(HAVE_OPENSSL)
-
 C_MODE_START
+
+#ifdef HAVE_EncryptAes128Ctr
+
 Crypt_result my_aes_encrypt_ctr(const uchar* source, uint32 source_length,
                                 uchar* dest, uint32* dest_length,
                                 const unsigned char* key, uint8 key_length,
@@ -36,6 +37,8 @@ Crypt_result my_aes_decrypt_ctr(const uchar* source, uint32 source_length,
                                 const unsigned char* key, uint8 key_length,
                                 const unsigned char* iv, uint8 iv_length,
                                 uint no_padding);
+
+#endif
 
 Crypt_result my_aes_encrypt_cbc(const uchar* source, uint32 source_length,
                                 uchar* dest, uint32* dest_length,
@@ -60,12 +63,9 @@ Crypt_result my_aes_decrypt_ecb(const uchar* source, uint32 source_length,
                                 const unsigned char* key, uint8 key_length,
                                 const unsigned char* iv, uint8 iv_length,
                                 uint no_padding);
-C_MODE_END
 
-#endif /* !defined(HAVE_YASSL) && defined(HAVE_OPENSSL) */
-
-C_MODE_START
 Crypt_result my_random_bytes(uchar* buf, int num);
+
 C_MODE_END
 
-#endif /* MYSYS_MY_CRYPT_H_ */
+#endif /* MY_CRYPT_INCLUDED */

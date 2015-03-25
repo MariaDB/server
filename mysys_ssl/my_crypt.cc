@@ -15,48 +15,83 @@
  along with this program; if not, write to the Free Software
  Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
 
-/*
-  TODO: add support for YASSL
-*/
-
 #include <my_global.h>
 #include <my_crypt.h>
 
-#ifdef HAVE_EncryptAes128Ctr
+// TODO
+// different key lengths
 
+#ifdef HAVE_YASSL
+#include "aes.hpp"
+
+typedef TaoCrypt::CipherDir Dir;
+static const Dir CRYPT_ENCRYPT = TaoCrypt::ENCRYPTION;
+static const Dir CRYPT_DECRYPT = TaoCrypt::DECRYPTION;
+
+typedef TaoCrypt::Mode CipherMode;
+static inline CipherMode EVP_aes_128_ecb() { return TaoCrypt::ECB; }
+static inline CipherMode EVP_aes_128_cbc() { return TaoCrypt::CBC; }
+
+typedef TaoCrypt::byte KeyByte;
+
+#else
 #include <openssl/evp.h>
 #include <openssl/aes.h>
 
-static const int CRYPT_ENCRYPT = 1;
-static const int CRYPT_DECRYPT = 0;
+typedef int Dir;
+static const Dir CRYPT_ENCRYPT = 1;
+static const Dir CRYPT_DECRYPT = 0;
 
-C_MODE_START
+typedef const EVP_CIPHER *CipherMode;
+struct MyCTX : EVP_CIPHER_CTX {
+  MyCTX()  { EVP_CIPHER_CTX_init(this); }
+  ~MyCTX() { EVP_CIPHER_CTX_cleanup(this); }
+};
 
-static int do_crypt(const EVP_CIPHER *cipher, int encrypt,
+typedef uchar KeyByte;
+#endif
+
+static int do_crypt(CipherMode cipher, Dir dir,
                     const uchar* source, uint32 source_length,
                     uchar* dest, uint32* dest_length,
-                    const uchar* key, uint8 key_length,
-                    const uchar* iv, uint8 iv_length, int no_padding)
+                    const KeyByte *key, uint8 key_length,
+                    const KeyByte *iv, uint8 iv_length, int no_padding)
 {
-  int res= AES_OPENSSL_ERROR, fin;
   int tail= no_padding ? source_length % MY_AES_BLOCK_SIZE : 0;
+  DBUG_ASSERT(source_length - tail >= MY_AES_BLOCK_SIZE);
 
-  EVP_CIPHER_CTX ctx;
-  EVP_CIPHER_CTX_init(&ctx);
-  if (!EVP_CipherInit_ex(&ctx, cipher, NULL, key, iv, encrypt))
-    goto err;
+#ifdef HAVE_YASSL
+  TaoCrypt::AES ctx(dir, cipher);
+
+  ctx.SetKey(key, key_length);
+  if (iv)
+  {
+    ctx.SetIV(iv);
+    DBUG_ASSERT(TaoCrypt::AES::BLOCK_SIZE == iv_length);
+  }
+  DBUG_ASSERT(TaoCrypt::AES::BLOCK_SIZE == MY_AES_BLOCK_SIZE);
+
+  ctx.Process(dest, source, source_length - tail);
+  *dest_length= source_length;
+#else // HAVE_OPENSSL
+  int fin;
+  struct MyCTX ctx;
+  if (!EVP_CipherInit_ex(&ctx, cipher, NULL, key, iv, dir))
+    return AES_OPENSSL_ERROR;
 
   EVP_CIPHER_CTX_set_padding(&ctx, !no_padding);
 
   DBUG_ASSERT(EVP_CIPHER_CTX_key_length(&ctx) == key_length);
-  DBUG_ASSERT(EVP_CIPHER_CTX_iv_length(&ctx) == iv_length || !EVP_CIPHER_CTX_iv_length(&ctx));
+  DBUG_ASSERT(EVP_CIPHER_CTX_iv_length(&ctx) == iv_length);
   DBUG_ASSERT(EVP_CIPHER_CTX_block_size(&ctx) == MY_AES_BLOCK_SIZE || !no_padding);
 
   if (!EVP_CipherUpdate(&ctx, dest, (int*)dest_length, source, source_length - tail))
-    goto err;
+    return AES_OPENSSL_ERROR;
   if (!EVP_CipherFinal_ex(&ctx, dest + *dest_length, &fin))
-    goto err;
+    return AES_OPENSSL_ERROR;
   *dest_length += fin;
+
+#endif
 
   if (tail)
   {
@@ -66,24 +101,23 @@ static int do_crypt(const EVP_CIPHER *cipher, int encrypt,
       What we do here, we XOR the tail with the previous encrypted block.
     */
 
-    DBUG_ASSERT(source_length - tail == *dest_length);
-    DBUG_ASSERT(source_length - tail > MY_AES_BLOCK_SIZE);
     const uchar *s= source + source_length - tail;
     const uchar *e= source + source_length;
     uchar *d= dest + source_length - tail;
-    const uchar *m= (encrypt ? d : s) - MY_AES_BLOCK_SIZE;
+    const uchar *m= (dir == CRYPT_ENCRYPT ? d : s) - MY_AES_BLOCK_SIZE;
     while (s < e)
       *d++ = *s++ ^ *m++;
     *dest_length= source_length;
   }
 
-  res= AES_OK;
-err:
-  EVP_CIPHER_CTX_cleanup(&ctx);
-  return res;
+  return AES_OK;
 }
 
+C_MODE_START
+
 /* CTR is a stream cypher mode, it needs no special padding code */
+
+#ifdef HAVE_EncryptAes128Ctr
 
 int my_aes_encrypt_ctr(const uchar* source, uint32 source_length,
                        uchar* dest, uint32* dest_length,
@@ -106,6 +140,7 @@ int my_aes_decrypt_ctr(const uchar* source, uint32 source_length,
                   dest, dest_length, key, key_length, iv, iv_length, 0);
 }
 
+#endif /* HAVE_EncryptAes128Ctr */
 
 int my_aes_encrypt_ecb(const uchar* source, uint32 source_length,
                        uchar* dest, uint32* dest_length,
@@ -114,7 +149,7 @@ int my_aes_encrypt_ecb(const uchar* source, uint32 source_length,
                        uint no_padding)
 {
   return do_crypt(EVP_aes_128_ecb(), CRYPT_ENCRYPT, source, source_length,
-                        dest, dest_length, key, key_length, iv, iv_length, no_padding);
+                        dest, dest_length, key, key_length, 0, 0, no_padding);
 }
 
 int my_aes_decrypt_ecb(const uchar* source, uint32 source_length,
@@ -124,7 +159,7 @@ int my_aes_decrypt_ecb(const uchar* source, uint32 source_length,
                        uint no_padding)
 {
   return do_crypt(EVP_aes_128_ecb(), CRYPT_DECRYPT, source, source_length,
-                        dest, dest_length, key, key_length, iv, iv_length, no_padding);
+                        dest, dest_length, key, key_length, 0, 0, no_padding);
 }
 
 int my_aes_encrypt_cbc(const uchar* source, uint32 source_length,
@@ -148,8 +183,6 @@ int my_aes_decrypt_cbc(const uchar* source, uint32 source_length,
 }
 
 C_MODE_END
-
-#endif /* HAVE_EncryptAes128Ctr */
 
 #if defined(HAVE_YASSL)
 
