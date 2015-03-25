@@ -43,7 +43,7 @@ ulong subquery_cache_miss, subquery_cache_hit;
 Expression_cache_tmptable::Expression_cache_tmptable(THD *thd,
                                                      List<Item> &dependants,
                                                      Item *value)
-  :cache_table(NULL), table_thd(thd), items(dependants), val(value),
+  :cache_table(NULL), table_thd(thd), stat(NULL), items(dependants), val(value),
    hit(0), miss(0), inited (0)
 {
   DBUG_ENTER("Expression_cache_tmptable::Expression_cache_tmptable");
@@ -61,6 +61,9 @@ void Expression_cache_tmptable::disable_cache()
     cache_table->file->ha_index_end();
   free_tmp_table(table_thd, cache_table);
   cache_table= NULL;
+  flush_stat();
+  if (stat)
+    stat->cache= NULL;
 }
 
 
@@ -164,6 +167,7 @@ void Expression_cache_tmptable::init()
     goto error;
   }
 
+  flush_stat();
   DBUG_VOID_RETURN;
 
 error:
@@ -180,6 +184,11 @@ Expression_cache_tmptable::~Expression_cache_tmptable()
 
   if (cache_table)
     disable_cache();
+  else
+  {
+    flush_stat();
+    stat= NULL;
+  }
 }
 
 
@@ -323,3 +332,7 @@ void Expression_cache_tmptable::print(String *str, enum_query_type query_type)
   }
   str->append('>');
 }
+
+
+const char *Expression_cache_stat::state_str[3]=
+{"UNINITIALYZED", "DISABLED", "ENABLED"};

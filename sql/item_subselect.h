@@ -244,7 +244,10 @@ public:
   bool limit_index_condition_pushdown_processor(uchar *opt_arg) 
   {
     return TRUE;
-   }
+  }
+
+  void set_expr_cache_stat(THD *thd);
+
 
   friend class select_result_interceptor;
   friend class Item_in_optimizer;

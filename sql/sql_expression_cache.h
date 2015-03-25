@@ -19,6 +19,7 @@
 
 #include "sql_select.h"
 
+
 /**
   Interface for expression cache
 
@@ -62,11 +63,40 @@ public:
     Initialize this cache
   */
   virtual void init()= 0;
+
+  /**
+    Save this object's statistics into Expression_cache_stat object
+  */
+  virtual void flush_stat()= 0;
 };
 
 struct st_table_ref;
 struct st_join_table;
 class Item_field;
+
+
+class Expression_cache_stat :public Sql_alloc
+{
+public:
+  enum expr_cache_state {UNINITED, STOPPED, OK};
+  Expression_cache_stat(Expression_cache *c) :
+    cache(c), hit(0), miss(0), state(UNINITED)
+  {}
+
+  Expression_cache *cache;
+  ulong hit, miss;
+  enum expr_cache_state state;
+
+  static const char* state_str[3];
+  void set(ulong h, ulong m, enum expr_cache_state s)
+  {hit= h; miss= m; state= s;}
+
+  void flush_stat()
+  {
+    if (cache)
+      cache->flush_stat();
+  }
+};
 
 
 /**
@@ -85,6 +115,20 @@ public:
   bool is_inited() { return inited; };
   void init();
 
+  void set_stat(Expression_cache_stat *st)
+  {
+    stat= st;
+    flush_stat();
+  }
+  virtual void flush_stat()
+  {
+    if (stat)
+      stat->set(hit, miss, (inited ? (cache_table ?
+                                      Expression_cache_stat::OK :
+                                      Expression_cache_stat::STOPPED) :
+                            Expression_cache_stat::UNINITED));
+  }
+
 private:
   void disable_cache();
 
@@ -94,6 +138,8 @@ private:
   TABLE *cache_table;
   /* Thread handle for the temporary table */
   THD *table_thd;
+  /* EXPALIN/ANALYZE statistics */
+  Expression_cache_stat *stat;
   /* TABLE_REF for index lookup */
   struct st_table_ref ref;
   /* Cached result */
@@ -103,7 +149,7 @@ private:
   /* Value Item example */
   Item *val;
   /* hit/miss counters */
-  uint hit, miss;
+  ulong hit, miss;
   /* Set on if the object has been succesfully initialized with init() */
   bool inited;
 };

@@ -23,6 +23,7 @@
 #include "sql_select.h"
 #include "my_json_writer.h"
 #include "opt_range.h"
+#include "sql_expression_cache.h"
 
 const char * STR_DELETING_ALL_ROWS= "Deleting all rows";
 const char * STR_IMPOSSIBLE_WHERE= "Impossible WHERE";
@@ -543,6 +544,7 @@ void Explain_union::print_explain_json(Explain_query *query,
       writer->add_null();
   }
 
+  print_explain_json_cache(writer, is_analyze);
   writer->add_member("query_specifications").start_array();
 
   for (int i= 0; i < (int) union_members.elements(); i++)
@@ -637,6 +639,30 @@ void Explain_node::print_explain_json_for_children(Explain_query *query,
 
   if (started)
     writer->end_array();
+}
+
+
+void Explain_node::print_explain_json_cache(Json_writer *writer,
+                                            bool is_analyze)
+{
+    if (cache_stat)
+    {
+      cache_stat->flush_stat();
+      writer->add_member("expression_cache").start_object();
+      writer->add_member("state").
+        add_str(Expression_cache_stat::state_str[cache_stat->state]);
+      if (is_analyze)
+      {
+        writer->add_member("r_hit").add_ll(cache_stat->hit);
+        writer->add_member("r_miss").add_ll(cache_stat->miss);
+        writer->add_member("r_loops").add_ll(cache_stat->hit +
+                                             cache_stat->miss);
+        writer->add_member("r_hit_ratio").add_ll(((double)cache_stat->hit)/
+                                             ((double)(cache_stat->hit +
+                                             cache_stat->miss)) * 100.0);
+      }
+      writer->end_object();
+    }
 }
 
 
@@ -757,17 +783,19 @@ void Explain_select::print_explain_json(Explain_query *query,
   {
     writer->add_member("query_block").start_object();
     writer->add_member("select_id").add_ll(select_id);
-     
+
     if (is_analyze && time_tracker.get_loops())
     {
       writer->add_member("r_loops").add_ll(time_tracker.get_loops());
       writer->add_member("r_total_time_ms").add_double(time_tracker.get_time_ms());
     }
+
     if (exec_const_cond)
     {
       writer->add_member("const_condition");
       write_item(writer, exec_const_cond);
     }
+    print_explain_json_cache(writer, is_analyze);
      
     Filesort_tracker *first_table_sort= NULL;
     bool first_table_sort_used= false;
