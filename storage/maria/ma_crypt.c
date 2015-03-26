@@ -33,17 +33,6 @@ struct st_maria_crypt_data
   uchar iv[1];    // var size
 };
 
-static
-void
-fatal(const char * fmt, ...)
-{
-  va_list args;
-  va_start(args,fmt);
-  vfprintf(stderr, fmt, args);
-  va_end(args);
-  abort();
-}
-
 uint
 ma_crypt_get_data_page_header_space()
 {
@@ -143,18 +132,21 @@ ma_crypt_read(MARIA_SHARE* share, uchar *buff)
   /* currently only supported type */
   if (type != CRYPT_SCHEME_1)
   {
-    fatal("Unsupported crypt scheme! type: %d iv_length: %d\n",
-          type, iv_length);
+    my_printf_error(HA_ERR_UNSUPPORTED,
+             "Unsupported crypt scheme! type: %d iv_length: %d\n",
+             MYF(ME_FATALERROR|ME_NOREFRESH),
+             type, iv_length);
+    return 0;
   }
 
   share->crypt_page_header_space= CRYPT_SCHEME_1_KEY_VERSION_SIZE;
   return buff + 2 + iv_length;
 }
 
-static void ma_encrypt(MARIA_CRYPT_DATA *, const uchar *, uchar *, uint,
-                       uint, LSN, uint *);
-static void ma_decrypt(MARIA_CRYPT_DATA *, const uchar *, uchar *, uint,
-                       uint, LSN, uint);
+static int ma_encrypt(MARIA_CRYPT_DATA *, const uchar *, uchar *, uint,
+                      uint, LSN, uint *);
+static int ma_decrypt(MARIA_CRYPT_DATA *, const uchar *, uchar *, uint,
+                      uint, LSN, uint);
 
 static my_bool ma_crypt_pre_read_hook(PAGECACHE_IO_HOOK_ARGS *args)
 {
@@ -196,9 +188,9 @@ static my_bool ma_crypt_data_post_read_hook(int res,
     /* 1 - copy head */
     memcpy(dst, src, head);
     /* 2 - decrypt page */
-    ma_decrypt(share->crypt_data,
-               src + head, dst + head, size - (head + tail), pageno, lsn,
-               key_version);
+    res= ma_decrypt(share->crypt_data,
+                    src + head, dst + head, size - (head + tail), pageno, lsn,
+                    key_version);
     /* 3 - copy tail */
     memcpy(dst + size - tail, src + size - tail, tail);
     /* 4 clear key version to get correct crc */
@@ -263,9 +255,10 @@ static my_bool ma_crypt_data_pre_write_hook(PAGECACHE_IO_HOOK_ARGS *args)
     /* 1 - copy head */
     memcpy(dst, src, head);
     /* 2 - encrypt page */
-    ma_encrypt(share->crypt_data,
-               src + head, dst + head, size - (head + tail), pageno, lsn,
-               &key_version);
+    if (ma_encrypt(share->crypt_data,
+                   src + head, dst + head, size - (head + tail), pageno, lsn,
+                  &key_version))
+      return 1;
     /* 3 - copy tail */
     memcpy(dst + size - tail, src + size - tail, tail);
     /* 4 - store key version */
@@ -329,8 +322,8 @@ static my_bool ma_crypt_index_post_read_hook(int res,
     /* 1 - copy head */
     memcpy(dst, src, head);
     /* 2 - decrypt page */
-    ma_decrypt(share->crypt_data,
-               src + head, dst + head, size, pageno, lsn, key_version);
+    res= ma_decrypt(share->crypt_data,
+                    src + head, dst + head, size, pageno, lsn, key_version);
     /* 3 - copy tail */
     memcpy(dst + block_size - tail, src + block_size - tail, tail);
     /* 4 clear key version to get correct crc */
@@ -382,8 +375,9 @@ static my_bool ma_crypt_index_pre_write_hook(PAGECACHE_IO_HOOK_ARGS *args)
     /* 1 - copy head */
     memcpy(dst, src, head);
     /* 2 - encrypt page */
-    ma_encrypt(share->crypt_data,
-               src + head, dst + head, size, pageno, lsn, &key_version);
+    if (ma_encrypt(share->crypt_data,
+                   src + head, dst + head, size, pageno, lsn, &key_version))
+      return 1;
     /* 3 - copy tail */
     memcpy(dst + block_size - tail, src + block_size - tail, tail);
     /* 4 - store key version */
@@ -409,7 +403,7 @@ void ma_crypt_set_index_pagecache_callbacks(PAGECACHE_FILE *file,
 
 #define COUNTER_LEN MY_AES_BLOCK_SIZE
 
-static void ma_encrypt(MARIA_CRYPT_DATA *crypt_data,
+static int ma_encrypt(MARIA_CRYPT_DATA *crypt_data,
                        const uchar *src, uchar *dst, uint size,
                        uint pageno, LSN lsn,
                        uint *key_version)
@@ -434,17 +428,21 @@ static void ma_encrypt(MARIA_CRYPT_DATA *crypt_data,
   DBUG_ASSERT(dstlen == size);
   if (! (rc == AES_OK && dstlen == size))
   {
-    fatal("failed to encrypt! rc: %d, dstlen: %d size: %d\n",
-          rc, dstlen, (int)size);
+    my_printf_error(HA_ERR_GENERIC,
+                    "failed to encrypt! rc: %d, dstlen: %u size: %u\n",
+                    MYF(ME_FATALERROR|ME_NOREFRESH),
+                    rc, dstlen, size);
+    return 1;
   }
 
   *key_version= 1;
+  return 0;
 }
 
-static void ma_decrypt(MARIA_CRYPT_DATA *crypt_data,
-                       const uchar *src, uchar *dst, uint size,
-                       uint pageno, LSN lsn,
-                       uint key_version)
+static int ma_decrypt(MARIA_CRYPT_DATA *crypt_data,
+                      const uchar *src, uchar *dst, uint size,
+                      uint pageno, LSN lsn,
+                      uint key_version)
 {
   int rc;
   uint32 dstlen;
@@ -466,7 +464,11 @@ static void ma_decrypt(MARIA_CRYPT_DATA *crypt_data,
   DBUG_ASSERT(dstlen == size);
   if (! (rc == AES_OK && dstlen == size))
   {
-    fatal("failed to decrypt! rc: %d, dstlen: %d size: %d\n",
-          rc, dstlen, (int)size);
+    my_printf_error(HA_ERR_GENERIC,
+                    "failed to encrypt! rc: %d, dstlen: %u size: %u\n",
+                    MYF(ME_FATALERROR|ME_NOREFRESH),
+                    rc, dstlen, size);
+    return 1;
   }
+  return 0;
 }
