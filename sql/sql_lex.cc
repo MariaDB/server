@@ -281,7 +281,6 @@ void
 Lex_input_stream::reset(char *buffer, unsigned int length)
 {
   yylineno= 1;
-  yytoklen= 0;
   yylval= NULL;
   lookahead_token= -1;
   lookahead_yylval= NULL;
@@ -641,7 +640,7 @@ static LEX_STRING get_token(Lex_input_stream *lip, uint skip, uint length)
 {
   LEX_STRING tmp;
   lip->yyUnget();                       // ptr points now after last token char
-  tmp.length=lip->yytoklen=length;
+  tmp.length= length;
   tmp.str= lip->m_thd->strmake(lip->get_tok_start() + skip, tmp.length);
 
   lip->m_cpp_text_start= lip->get_cpp_tok_start() + skip;
@@ -665,7 +664,7 @@ static LEX_STRING get_quoted_token(Lex_input_stream *lip,
   const char *from, *end;
   char *to;
   lip->yyUnget();                       // ptr points now after last token char
-  tmp.length= lip->yytoklen=length;
+  tmp.length= length;
   tmp.str=(char*) lip->m_thd->alloc(tmp.length+1);
   from= lip->get_tok_start() + skip;
   to= tmp.str;
@@ -687,135 +686,152 @@ static LEX_STRING get_quoted_token(Lex_input_stream *lip,
 }
 
 
+static size_t
+my_unescape(CHARSET_INFO *cs, char *to, const char *str, const char *end,
+            int sep, bool backslash_escapes)
+{
+  char *start= to;
+  for ( ; str != end ; str++)
+  {
+#ifdef USE_MB
+    int l;
+    if (use_mb(cs) && (l= my_ismbchar(cs, str, end)))
+    {
+      while (l--)
+        *to++ = *str++;
+      str--;
+      continue;
+    }
+#endif
+    if (backslash_escapes && *str == '\\' && str + 1 != end)
+    {
+      switch(*++str) {
+      case 'n':
+        *to++='\n';
+        break;
+      case 't':
+        *to++= '\t';
+        break;
+      case 'r':
+        *to++ = '\r';
+        break;
+      case 'b':
+        *to++ = '\b';
+        break;
+      case '0':
+        *to++= 0;                      // Ascii null
+        break;
+      case 'Z':                        // ^Z must be escaped on Win32
+        *to++='\032';
+        break;
+      case '_':
+      case '%':
+        *to++= '\\';                   // remember prefix for wildcard
+        /* Fall through */
+      default:
+        *to++= *str;
+        break;
+      }
+    }
+    else if (*str == sep)
+      *to++= *str++;                // Two ' or "
+    else
+      *to++ = *str;
+  }
+  *to= 0;
+  return to - start;
+}
+
+
+size_t
+Lex_input_stream::unescape(CHARSET_INFO *cs, char *to,
+                           const char *str, const char *end,
+                           int sep)
+{
+  return my_unescape(cs, to, str, end, sep, m_thd->backslash_escapes());
+}
+
+
 /*
   Return an unescaped text literal without quotes
   Fix sometimes to do only one scan of the string
 */
 
-static char *get_text(Lex_input_stream *lip, int pre_skip, int post_skip)
+bool Lex_input_stream::get_text(LEX_STRING *dst, int pre_skip, int post_skip)
 {
   reg1 uchar c,sep;
   uint found_escape=0;
-  CHARSET_INFO *cs= lip->m_thd->charset();
+  CHARSET_INFO *cs= m_thd->charset();
 
-  lip->tok_bitmap= 0;
-  sep= lip->yyGetLast();                        // String should end with this
-  while (! lip->eof())
+  tok_bitmap= 0;
+  sep= yyGetLast();                        // String should end with this
+  while (! eof())
   {
-    c= lip->yyGet();
-    lip->tok_bitmap|= c;
+    c= yyGet();
+    tok_bitmap|= c;
 #ifdef USE_MB
     {
       int l;
       if (use_mb(cs) &&
           (l = my_ismbchar(cs,
-                           lip->get_ptr() -1,
-                           lip->get_end_of_query()))) {
-        lip->skip_binary(l-1);
+                           get_ptr() -1,
+                           get_end_of_query()))) {
+        skip_binary(l-1);
         continue;
       }
     }
 #endif
     if (c == '\\' &&
-        !(lip->m_thd->variables.sql_mode & MODE_NO_BACKSLASH_ESCAPES))
+        !(m_thd->variables.sql_mode & MODE_NO_BACKSLASH_ESCAPES))
     {					// Escaped character
       found_escape=1;
-      if (lip->eof())
-	return 0;
-      lip->yySkip();
+      if (eof())
+	return true;
+      yySkip();
     }
     else if (c == sep)
     {
-      if (c == lip->yyGet())            // Check if two separators in a row
+      if (c == yyGet())                 // Check if two separators in a row
       {
         found_escape=1;                 // duplicate. Remember for delete
 	continue;
       }
       else
-        lip->yyUnget();
+        yyUnget();
 
       /* Found end. Unescape and return string */
       const char *str, *end;
-      char *start;
 
-      str= lip->get_tok_start();
-      end= lip->get_ptr();
+      str= get_tok_start();
+      end= get_ptr();
       /* Extract the text from the token */
       str += pre_skip;
       end -= post_skip;
       DBUG_ASSERT(end >= str);
 
-      if (!(start= (char*) lip->m_thd->alloc((uint) (end-str)+1)))
-	return (char*) "";		// Sql_alloc has set error flag
+      if (!(dst->str= (char*) m_thd->alloc((uint) (end - str) + 1)))
+      {
+        dst->str= (char*) "";        // Sql_alloc has set error flag
+        dst->length= 0;
+        return true;
+      }
 
-      lip->m_cpp_text_start= lip->get_cpp_tok_start() + pre_skip;
-      lip->m_cpp_text_end= lip->get_cpp_ptr() - post_skip;
+      m_cpp_text_start= get_cpp_tok_start() + pre_skip;
+      m_cpp_text_end= get_cpp_ptr() - post_skip;
 
       if (!found_escape)
       {
-	lip->yytoklen=(uint) (end-str);
-	memcpy(start,str,lip->yytoklen);
-	start[lip->yytoklen]=0;
+        memcpy(dst->str, str, dst->length= (end - str));
+        dst->str[dst->length]= 0;
       }
       else
       {
-        char *to;
-
-	for (to=start ; str != end ; str++)
-	{
-#ifdef USE_MB
-	  int l;
-	  if (use_mb(cs) &&
-              (l = my_ismbchar(cs, str, end))) {
-	      while (l--)
-		  *to++ = *str++;
-	      str--;
-	      continue;
-	  }
-#endif
-	  if (!(lip->m_thd->variables.sql_mode & MODE_NO_BACKSLASH_ESCAPES) &&
-              *str == '\\' && str+1 != end)
-	  {
-	    switch(*++str) {
-	    case 'n':
-	      *to++='\n';
-	      break;
-	    case 't':
-	      *to++= '\t';
-	      break;
-	    case 'r':
-	      *to++ = '\r';
-	      break;
-	    case 'b':
-	      *to++ = '\b';
-	      break;
-	    case '0':
-	      *to++= 0;			// Ascii null
-	      break;
-	    case 'Z':			// ^Z must be escaped on Win32
-	      *to++='\032';
-	      break;
-	    case '_':
-	    case '%':
-	      *to++= '\\';		// remember prefix for wildcard
-	      /* Fall through */
-	    default:
-              *to++= *str;
-	      break;
-	    }
-	  }
-	  else if (*str == sep)
-	    *to++= *str++;		// Two ' or "
-	  else
-	    *to++ = *str;
-	}
-	*to=0;
-	lip->yytoklen=(uint) (to-start);
+        dst->length= unescape(cs, dst->str, str, end, sep);
       }
-      return start;
+      return false;
     }
   }
-  return 0;					// unexpected end of query
+  return true;                         // unexpected end of query
 }
 
 
@@ -1122,12 +1138,11 @@ static int lex_one_token(YYSTYPE *yylval, THD *thd)
       }
       /* Found N'string' */
       lip->yySkip();                         // Skip '
-      if (!(yylval->lex_str.str = get_text(lip, 2, 1)))
+      if (lip->get_text(&yylval->lex_str, 2, 1))
       {
 	state= MY_LEX_CHAR;             // Read char by char
 	break;
       }
-      yylval->lex_str.length= lip->yytoklen;
       lex->text_string_is_7bit= (lip->tok_bitmap & 0x80) ? 0 : 1;
       return(NCHAR_STRING);
 
@@ -1488,12 +1503,11 @@ static int lex_one_token(YYSTYPE *yylval, THD *thd)
       }
       /* " used for strings */
     case MY_LEX_STRING:			// Incomplete text string
-      if (!(yylval->lex_str.str = get_text(lip, 1, 1)))
+      if (lip->get_text(&yylval->lex_str, 1, 1))
       {
 	state= MY_LEX_CHAR;		// Read char by char
 	break;
       }
-      yylval->lex_str.length=lip->yytoklen;
 
       lip->body_utf8_append(lip->m_cpp_text_start);
 

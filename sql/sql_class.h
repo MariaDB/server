@@ -2960,6 +2960,10 @@ public:
     return (bool) (variables.sql_mode & (MODE_STRICT_TRANS_TABLES |
                                          MODE_STRICT_ALL_TABLES));
   }
+  inline bool backslash_escapes() const
+  {
+    return !MY_TEST(variables.sql_mode & MODE_NO_BACKSLASH_ESCAPES);
+  }
   inline my_time_t query_start() { query_start_used=1; return start_time; }
   inline ulong query_start_sec_part()
   { query_start_sec_part_used=1; return start_time_sec_part; }

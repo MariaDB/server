@@ -1804,6 +1804,8 @@ enum enum_comment_state
 
 class Lex_input_stream
 {
+  size_t unescape(CHARSET_INFO *cs, char *to,
+                  const char *str, const char *end, int sep);
 public:
   Lex_input_stream()
   {
@@ -2088,9 +2090,6 @@ public:
   /** Current line number. */
   uint yylineno;
 
-  /** Length of the last token parsed. */
-  uint yytoklen;
-
   /** Interface with bison, value of the last token parsed. */
   LEX_YYSTYPE yylval;
 
@@ -2105,6 +2104,7 @@ public:
   /** LALR(2) resolution, value of the look ahead token.*/
   LEX_YYSTYPE lookahead_yylval;
 
+  bool get_text(LEX_STRING *to, int pre_skip, int post_skip);
 private:
   /** Pointer to the current position in the raw input stream. */
   char *m_ptr;
