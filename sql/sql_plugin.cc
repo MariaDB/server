@@ -1616,7 +1616,7 @@ int plugin_init(int *argc, char **argv, int flags)
     goto err_unlock;
 
   /*
-    initialize the global default storage engine so that it may
+    set the global default storage engine variable so that it will
     not be null in any child thread.
   */
   global_system_variables.table_plugin=

@@ -1,4 +1,29 @@
-// Copyright (C) 2014 Google Inc.
+/*
+  Copyright (c) 2014 Google Inc.
+  Copyright (c) 2014, 2015 MariaDB Corporation
+
+  This program is free software; you can redistribute it and/or modify
+  it under the terms of the GNU General Public License as published by
+  the Free Software Foundation; version 2 of the License.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
+
+  You should have received a copy of the GNU General Public License
+  along with this program; if not, write to the Free Software
+  Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+
+/**
+  Example key management plugin. It demonstrates how to return
+  keys on request, how to change them. That the engine can have
+  different pages in the same tablespace encrypted with different keys
+  and what the background re-encryption thread does.
+
+  THIS IS AN EXAMPLE ONLY! ENCRYPTION KEYS ARE HARD-CODED AND *NOT* SECRET!
+  DO NOT USE THIS PLUGIN IN PRODUCTION! EVER!
+*/
 
 #include <my_global.h>
 #include <my_pthread.h>
@@ -36,7 +61,7 @@ get_latest_key_version()
 static int
 get_key(unsigned int version, unsigned char* dstbuf, unsigned buflen)
 {
-  char *dst = (char*)dstbuf; // md5 function takes char* as argument...
+  unsigned char *dst = dstbuf;
   unsigned len = 0;
   for (; len + MD5_HASH_SIZE <= buflen; len += MD5_HASH_SIZE)
   {

@@ -27,16 +27,41 @@ Created 09/15/2014
 #include <sys/types.h>
 #include <stdio.h>
 
+/**
+   Calculate key and iv from a given salt and secret as it is handled in openssl
+   encrypted files via console
 
+   SYNOPSIS
+   my_bytes_to_key()
 
+   @param salt   [in]  the given salt as extracted from the encrypted file
+   @param secret [in]  the given secret as String, provided by the user
+   @param key    [out] 32 Bytes of key are written to this pointer
+   @param iv     [out] 16 Bytes of iv are written to this pointer
+ */
 
+void my_bytes_to_key(const uchar *salt,
+                     const char *secret, uchar *key,
+                     uchar *iv);
+
+/**
+   Decode Hexencoded String to uint8[].
+
+   SYNOPSIS
+   my_aes_hex2uint()
+   @param iv        [in]	Pointer to hexadecimal encoded IV String
+   @param dest      [out]	Pointer to output uint8 array. Memory needs to be
+                                allocated by caller
+   @param iv_length [in]  Size of destination array.
+ */
+
+void my_aes_hex2uint(const char *in, uchar *out, int dest_length);
 
 struct keyentry {
 	uint32 id;
 	char *iv;
 	char *key;
 };
-
 
 class EncKeys
 {

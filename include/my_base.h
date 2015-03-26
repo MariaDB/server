@@ -355,7 +355,7 @@ enum ha_base_keytype {
 #define HA_CREATE_RELIES_ON_SQL_LAYER 128
 #define HA_CREATE_INTERNAL_TABLE 256
 #define HA_CREATE_ENCRYPTED      512
-#define HA_INSERT_ORDER         1024
+#define HA_PRESERVE_INSERT_ORDER         1024
 
 /* Flags used by start_bulk_insert */
 

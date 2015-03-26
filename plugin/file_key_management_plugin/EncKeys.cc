@@ -259,7 +259,6 @@ int EncKeys::parseFile(const char* filename, const uint32 maxKeyId,
 {
   int errorCode= 0;
   char *buffer= decryptFile(filename, secret, &errorCode);
-  uint32 id= 0;
 
   if (errorCode != NO_ERROR_PARSE_OK)
     return errorCode;
@@ -271,7 +270,6 @@ int EncKeys::parseFile(const char* filename, const uint32 maxKeyId,
     keyLineInKeyFile++;
     switch (parseLine(line, maxKeyId)) {
     case NO_ERROR_PARSE_OK:
-      id= oneKey->id;
       keys[oneKey->id - 1]= *oneKey;
       delete(oneKey);
       countKeys++;

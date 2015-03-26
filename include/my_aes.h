@@ -1,4 +1,5 @@
 /* Copyright (c) 2002, 2006 MySQL AB, 2009 Sun Microsystems, Inc.
+   Copyright (c) 2014, 2015 MariaDB Corporation
    Use is subject to license terms.
 
  This program is free software; you can redistribute it and/or modify
@@ -21,7 +22,6 @@
 #ifndef MY_AES_INCLUDED
 #define MY_AES_INCLUDED
 
-/* We expect same result code from encryption functions as in my_aes.h */
 typedef int Crypt_result;
 
 #define AES_OK 0
@@ -36,7 +36,7 @@ typedef int Crypt_result;
 #define CRYPT_BUFFER_TO_SMALL -11
 #define CRYPT_KEY_UNKNOWN -48
 
-/* The max block sizes of all supported algorithms */
+/* The block size for all supported algorithms */
 #define MY_AES_BLOCK_SIZE 16
 
 /* The max key length of all supported algorithms */
@@ -126,38 +126,6 @@ my_aes_encrypt_dynamic_type get_aes_encrypt_func(enum enum_my_aes_encryption_alg
 my_bool my_aes_init_dynamic_encrypt(enum enum_my_aes_encryption_algorithm method);
 
 extern MYSQL_PLUGIN_IMPORT enum enum_my_aes_encryption_algorithm current_aes_dynamic_method;
-
-
-
-/**
-   Calculate key and iv from a given salt and secret as it is handled in openssl
-   encrypted files via console
-
-   SYNOPSIS
-   my_bytes_to_key()
-
-   @param salt   [in]  the given salt as extracted from the encrypted file
-   @param secret [in]  the given secret as String, provided by the user
-   @param key    [out] 32 Bytes of key are written to this pointer
-   @param iv     [out] 16 Bytes of iv are written to this pointer
- */
-
-void my_bytes_to_key(const uchar *salt,
-                     const char *secret, uchar *key,
-                     uchar *iv);
-
-/**
-   Decode Hexencoded String to uint8[].
-
-   SYNOPSIS
-   my_aes_hex2uint()
-   @param iv        [in]	Pointer to hexadecimal encoded IV String
-   @param dest      [out]	Pointer to output uint8 array. Memory needs to be
-                                allocated by caller
-   @param iv_length [in]  Size of destination array.
- */
-
-void my_aes_hex2uint(const char *in, uchar *out, int dest_length);
 
 /**
   Crypt buffer with AES encryption algorithm.

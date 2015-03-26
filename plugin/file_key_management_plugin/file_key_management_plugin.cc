@@ -42,6 +42,101 @@ static struct st_mysql_sys_var* settings[] = {
   NULL
 };
 
+/**
+   Decode Hexencoded String to uint8[].
+
+   SYNOPSIS
+   my_aes_hex2uint()
+   @param iv        [in]	Pointer to hexadecimal encoded IV String
+   @param dest      [out]	Pointer to output uint8 array. Memory allocated by caller
+   @param iv_length [in]  Size of destination array.
+ */
+
+void my_aes_hex2uint(const char* in, unsigned char *out, int dest_length)
+{
+  const char *pos= in;
+  int count;
+  for (count = 0; count < dest_length; count++)
+  {
+    uchar res;
+    sscanf(pos, "%2hhx", &res);
+    out[count] = res;
+    pos += 2 * sizeof(char);
+  }
+}
+
+
+/**
+   Calculate key and iv from a given salt and secret as it is handled
+   in openssl encrypted files via console
+
+   SYNOPSIS
+   my_bytes_to_key()
+   @param salt   [in]  the given salt as extracted from the encrypted file
+   @param secret [in]  the given secret as String, provided by the user
+   @param key    [out] 32 Bytes of key are written to this pointer
+   @param iv     [out] 16 Bytes of iv are written to this pointer
+*/
+
+void my_bytes_to_key(const unsigned char *salt, const char *secret, unsigned char *key,
+                     unsigned char *iv)
+{
+#ifdef HAVE_YASSL
+  /* the yassl function has no support for SHA1. Reason unknown. */
+  int keyLen = 32;
+  int ivLen  = 16;
+  int EVP_SALT_SZ = 8;
+  const int SHA_LEN = 20;
+  yaSSL::SHA myMD;
+  uint digestSz = myMD.get_digestSize();
+  unsigned char digest[SHA_LEN];                   // max size
+  int sz = strlen(secret);
+  int count = 1;
+  int keyLeft   = keyLen;
+  int ivLeft    = ivLen;
+  int keyOutput = 0;
+
+  while (keyOutput < (keyLen + ivLen))
+  {
+    int digestLeft = digestSz;
+    if (keyOutput)                      // first time D_0 is empty
+      myMD.update(digest, digestSz);
+    myMD.update((yaSSL::byte* )secret, sz);
+    if (salt)
+      myMD.update(salt, EVP_SALT_SZ);
+    myMD.get_digest(digest);
+    for (int j = 1; j < count; j++)
+    {
+      myMD.update(digest, digestSz);
+      myMD.get_digest(digest);
+    }
+
+    if (keyLeft)
+    {
+      int store = MY_MIN(keyLeft, static_cast<int>(digestSz));
+      memcpy(&key[keyLen - keyLeft], digest, store);
+
+      keyOutput  += store;
+      keyLeft    -= store;
+      digestLeft -= store;
+    }
+
+    if (ivLeft && digestLeft)
+    {
+      int store = MY_MIN(ivLeft, digestLeft);
+      memcpy(&iv[ivLen - ivLeft], &digest[digestSz - digestLeft], store);
+
+      keyOutput += store;
+      ivLeft    -= store;
+    }
+  }
+#elif defined(HAVE_OPENSSL)
+  const EVP_CIPHER *type = EVP_aes_256_cbc();
+  const EVP_MD *digest = EVP_sha1();
+  EVP_BytesToKey(type, digest, salt, (uchar*) secret, strlen(secret), 1, key, iv);
+#endif
+}
+
 
 
 /**

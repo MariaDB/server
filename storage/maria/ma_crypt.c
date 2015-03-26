@@ -1,4 +1,19 @@
-/* Copyright 2013 Google Inc. All Rights Reserved. */
+/*
+  Copyright (c) 2013 Google Inc.
+  Copyright (c) 2014, 2015 MariaDB Corporation
+
+  This program is free software; you can redistribute it and/or modify
+  it under the terms of the GNU General Public License as published by
+  the Free Software Foundation; version 2 of the License.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
+
+  You should have received a copy of the GNU General Public License
+  along with this program; if not, write to the Free Software
+  Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
 
 #include <my_global.h>
 #include "ma_crypt.h"
@@ -136,12 +151,10 @@ ma_crypt_read(MARIA_SHARE* share, uchar *buff)
   return buff + 2 + iv_length;
 }
 
-static void ma_encrypt(MARIA_CRYPT_DATA *crypt_data,
-                       const uchar *src, uchar *dst, uint size,
-                       uint pageno, LSN lsn, uint *key_version);
-static void ma_decrypt(MARIA_CRYPT_DATA *crypt_data,
-                       const uchar *src, uchar *dst, uint size,
-                       uint pageno, LSN lsn, uint key_version);
+static void ma_encrypt(MARIA_CRYPT_DATA *, const uchar *, uchar *, uint,
+                       uint, LSN, uint *);
+static void ma_decrypt(MARIA_CRYPT_DATA *, const uchar *, uchar *, uint,
+                       uint, LSN, uint);
 
 static my_bool ma_crypt_pre_read_hook(PAGECACHE_IO_HOOK_ARGS *args)
 {
@@ -249,7 +262,7 @@ static my_bool ma_crypt_data_pre_write_hook(PAGECACHE_IO_HOOK_ARGS *args)
 
     /* 1 - copy head */
     memcpy(dst, src, head);
-    /* 2 - decrypt page */
+    /* 2 - encrypt page */
     ma_encrypt(share->crypt_data,
                src + head, dst + head, size - (head + tail), pageno, lsn,
                &key_version);
@@ -368,7 +381,7 @@ static my_bool ma_crypt_index_pre_write_hook(PAGECACHE_IO_HOOK_ARGS *args)
 
     /* 1 - copy head */
     memcpy(dst, src, head);
-    /* 2 - decrypt page */
+    /* 2 - encrypt page */
     ma_encrypt(share->crypt_data,
                src + head, dst + head, size, pageno, lsn, &key_version);
     /* 3 - copy tail */
@@ -456,6 +469,4 @@ static void ma_decrypt(MARIA_CRYPT_DATA *crypt_data,
     fatal("failed to decrypt! rc: %d, dstlen: %d size: %d\n",
           rc, dstlen, (int)size);
   }
-
-  (void)key_version;
 }
