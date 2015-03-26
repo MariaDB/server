@@ -144,8 +144,7 @@ static struct encryption_keys_service_st encryption_keys_handler=
   get_latest_encryption_key_version,
   has_encryption_key,
   get_encryption_key_size,
-  get_encryption_key,
-  get_encryption_iv
+  get_encryption_key
 };
 
 static struct thd_specifics_service_st thd_specifics_handler=

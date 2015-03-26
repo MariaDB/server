@@ -62,18 +62,12 @@ static unsigned int get_key_size(unsigned int ver)
   return 16;
 }
 
-static int get_iv(unsigned int ver, unsigned char* dstbuf, unsigned buflen)
-{
-  return 0; // to be removed
-}
-
 struct st_mariadb_encryption_key_management debug_key_management_plugin= {
   MariaDB_ENCRYPTION_KEY_MANAGEMENT_INTERFACE_VERSION,
   get_latest_key_version,
   has_key,
   get_key_size,
-  get_key,
-  get_iv
+  get_key
 };
 
 /*

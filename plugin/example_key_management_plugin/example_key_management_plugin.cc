@@ -86,20 +86,6 @@ static unsigned int get_key_size(unsigned int keyID)
 	return 16;
 }
 
-static int get_iv(unsigned int keyID, unsigned char* dstbuf, unsigned buflen)
-{
-  if (buflen < 16)
-  {
-	  return CRYPT_BUFFER_TO_SMALL;
-  }
-
-  for (int i=0; i<16; i++)
-	  dstbuf[i] = 0;
-
-  return CRYPT_KEY_OK;
-}
-
-
 static int example_key_management_plugin_init(void *p)
 {
   /* init */
@@ -131,8 +117,7 @@ struct st_mariadb_encryption_key_management example_key_management_plugin= {
   get_latest_key_version,
   has_key_func,
   get_key_size,
-  get_key,
-  get_iv
+  get_key
 };
 
 /*

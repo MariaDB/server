@@ -59,15 +59,6 @@ struct st_mariadb_encryption_key_management
     @return 0 on success, non-zero on failure
   */
   int (*get_key)(unsigned int version, unsigned char* key, unsigned int keybufsize);
-
-  /**
-    function returning an IV for a key version
-
-    the IV is put in 'iv' buffer, that has size of 'ivbufsize' bytes.
-
-    @return 0 on success, non-zero on failure
-  */
-  int (*get_iv)(unsigned int version, unsigned char* iv, unsigned int ivbufsize);
 };
 #endif
 

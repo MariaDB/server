@@ -203,13 +203,11 @@ extern struct encryption_keys_service_st {
   unsigned int (*has_encryption_key_func)(unsigned int);
   unsigned int (*get_encryption_key_size_func)(unsigned int);
   int (*get_encryption_key_func)(unsigned int, unsigned char*, unsigned int);
-  int (*get_encryption_iv_func)(unsigned int, unsigned char*, unsigned int);
 } *encryption_keys_service;
 unsigned int get_latest_encryption_key_version();
 unsigned int has_encryption_key(unsigned int version);
 unsigned int get_encryption_key_size(unsigned int version);
 int get_encryption_key(unsigned int version, unsigned char* key, unsigned int keybufsize);
-int get_encryption_iv(unsigned int version, unsigned char* iv, unsigned int ivbufsize);
 struct st_mysql_xid {
   long formatID;
   long gtrid_length;

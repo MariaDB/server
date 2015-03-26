@@ -204,32 +204,6 @@ static int get_key_from_key_file(unsigned int keyID, unsigned char* dstbuf,
   }
 }
 
-static int get_iv_from_key_file(unsigned int keyID, unsigned char* dstbuf,
-                                unsigned buflen)
-{
-  keyentry* entry = KeySingleton::getInstance().getKeys((int)keyID);
-
-  if (entry != NULL)
-  {
-    char* ivString = entry->iv;
-    size_t iv_len = strlen(ivString)/2;
-
-    if (buflen < iv_len)
-    {
-      return CRYPT_BUFFER_TO_SMALL;
-    }
-
-    my_aes_hex2uint(ivString, (unsigned char*)dstbuf, iv_len);
-
-    return CRYPT_KEY_OK;
-  }
-  else
-  {
-    return CRYPT_KEY_UNKNOWN;
-  }
-}
-
-
 static int file_key_management_plugin_init(void *p)
 {
   /* init */
@@ -265,8 +239,7 @@ struct st_mariadb_encryption_key_management file_key_management_plugin= {
   get_highest_key_used_in_key_file,
   has_key_from_key_file,
   get_key_size_from_key_file,
-  get_key_from_key_file,
-  get_iv_from_key_file
+  get_key_from_key_file
 };
 
 /*

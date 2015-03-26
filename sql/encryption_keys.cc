@@ -39,14 +39,6 @@ int get_encryption_key(uint version, uchar* key, uint size)
   return 1;
 }
 
-int get_encryption_iv(uint version, uchar* iv, uint size)
-{
-  if (encryption_key_manager)
-    return handle->get_iv(version, iv, size);
-
-  return 1;
-}
-
 int initialize_encryption_key_management_plugin(st_plugin_int *plugin)
 {
   if (encryption_key_manager)
