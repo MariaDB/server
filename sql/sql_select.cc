@@ -16987,7 +16987,6 @@ bool create_internal_tmp_table(TABLE *table, KEY *keyinfo,
     {
       /* encryption is only supported for BLOCK_RECORD */
       file_type= BLOCK_RECORD;
-      create_flags|= HA_CREATE_ENCRYPTED;
       if (table->used_for_duplicate_elimination)
       {
         /*
