@@ -131,11 +131,11 @@ public:
 
 #define ANALYZE_START_TRACKING(tracker) \
   if (tracker) \
-  { tracker->start_tracking(); }
+  { (tracker)->start_tracking(); }
 
 #define ANALYZE_STOP_TRACKING(tracker) \
   if (tracker) \
-  { tracker->stop_tracking(); }
+  { (tracker)->stop_tracking(); }
 
 
 /**************************************************************************************
@@ -809,6 +809,7 @@ public:
 
   /* ANALYZE members and methods */
   Table_access_tracker tracker;
+  Exec_time_tracker time_tracker;
   //psergey-todo: io-tracker here.
 
   virtual int print_explain(Explain_query *query, select_result_sink *output, 

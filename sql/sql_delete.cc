@@ -542,6 +542,7 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
 
   explain= (Explain_delete*)thd->lex->explain->get_upd_del_plan();
   explain->tracker.on_scan_init();
+  ANALYZE_START_TRACKING(&explain->time_tracker);
 
   while (!(error=info.read_record(&info)) && !thd->killed &&
 	 ! thd->is_error())
@@ -619,6 +620,7 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
   end_read_record(&info);
   if (options & OPTION_QUICK)
     (void) table->file->extra(HA_EXTRA_NORMAL);
+  ANALYZE_STOP_TRACKING(&explain->time_tracker);
 
 cleanup:
   /*

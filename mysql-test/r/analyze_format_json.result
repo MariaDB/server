@@ -264,3 +264,80 @@ ANALYZE
   }
 }
 drop table t1;
+#
+# MDEV-7812: ANALYZE FORMAT=JSON UPDATE/DELETE doesnt print
+# the r_total_time_ms
+#
+create table t2(a int);
+insert into t2 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table t3(a int);
+insert into t3 select A.a + B.a* 10 + C.a * 100 from t2 A, t2 B, t2 C;
+create table t1 (pk int primary key);
+insert into t1 select a from t3;
+alter table t1 add b int;
+analyze format=json
+update t1 set b=pk;
+ANALYZE
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "update": 1,
+      "table_name": "t1",
+      "access_type": "ALL",
+      "rows": 1000,
+      "r_rows": 1000,
+      "r_filtered": 100,
+      "r_total_time_ms": "REPLACED"
+    }
+  }
+}
+analyze format=json
+select * from t1 where pk < 10 and b > 4;
+ANALYZE
+{
+  "query_block": {
+    "select_id": 1,
+    "r_loops": 1,
+    "r_total_time_ms": "REPLACED",
+    "table": {
+      "table_name": "t1",
+      "access_type": "range",
+      "possible_keys": ["PRIMARY"],
+      "key": "PRIMARY",
+      "key_length": "4",
+      "used_key_parts": ["pk"],
+      "r_loops": 1,
+      "rows": 11,
+      "r_rows": 10,
+      "r_total_time_ms": "REPLACED",
+      "filtered": 100,
+      "r_filtered": 50,
+      "index_condition": "(t1.pk < 10)",
+      "attached_condition": "(t1.b > 4)"
+    }
+  }
+}
+analyze format=json
+delete from t1 where pk < 10 and b > 4;
+ANALYZE
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "delete": 1,
+      "table_name": "t1",
+      "access_type": "range",
+      "possible_keys": ["PRIMARY"],
+      "key": "PRIMARY",
+      "key_length": "4",
+      "used_key_parts": ["pk"],
+      "rows": 11,
+      "r_rows": 10,
+      "r_filtered": 50,
+      "r_total_time_ms": "REPLACED",
+      "attached_condition": "((t1.pk < 10) and (t1.b > 4))"
+    }
+  }
+}
+drop table t1, t3, t2;

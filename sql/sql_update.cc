@@ -731,6 +731,7 @@ int mysql_update(THD *thd,
   */
   can_compare_record= records_are_comparable(table);
   explain->tracker.on_scan_init();
+  ANALYZE_START_TRACKING(&explain->time_tracker);
 
   while (!(error=info.read_record(&info)) && !thd->killed)
   {
@@ -907,6 +908,7 @@ int mysql_update(THD *thd,
       break;
     }
   }
+  ANALYZE_STOP_TRACKING(&explain->time_tracker);
   table->auto_increment_field_not_null= FALSE;
   dup_key_found= 0;
   /*

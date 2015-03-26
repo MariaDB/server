@@ -1892,7 +1892,7 @@ void Explain_update::print_explain_json(Explain_query *query,
   /* `r_filtered` */
   if (is_analyze)
   {
-    double r_filtered= tracker.get_filtered_after_where();
+    double r_filtered= tracker.get_filtered_after_where() * 100.0;
     writer->add_member("r_filtered").add_double(r_filtered);
   }
 
@@ -1904,6 +1904,10 @@ void Explain_update::print_explain_json(Explain_query *query,
 
   if (using_io_buffer)
     writer->add_member("using_io_buffer").add_ll(1);
+
+  if (is_analyze && time_tracker.get_loops())
+    writer->
+      add_member("r_total_time_ms").add_double(time_tracker.get_time_ms());
 
   if (where_cond)
   {
