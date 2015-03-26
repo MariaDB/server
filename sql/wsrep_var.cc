@@ -144,10 +144,10 @@ err:
 static
 void wsrep_set_local_position(const char* const value, bool const sst)
 {
-  size_t const value_len = strlen(value);
+  size_t const value_len(strlen(value));
   wsrep_uuid_t uuid;
-  size_t const uuid_len = wsrep_uuid_scan(value, value_len, &uuid);
-  wsrep_seqno_t const seqno = strtoll(value + uuid_len + 1, NULL, 10);
+  size_t const uuid_len(wsrep_uuid_scan(value, value_len, &uuid));
+  wsrep_seqno_t const seqno(strtoll(value + uuid_len + 1, NULL, 10));
 
   if (sst) {
     wsrep_sst_received (wsrep, uuid, seqno, NULL, 0);
