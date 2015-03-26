@@ -411,7 +411,6 @@ static int ma_encrypt(MARIA_CRYPT_DATA *crypt_data,
   int rc;
   uint32 dstlen;
   uchar counter[COUNTER_LEN];
-  uchar *key= crypt_data->iv;
 
   // create counter block
   memcpy(counter + 0, crypt_data->iv + CRYPT_SCHEME_1_IV_LEN, 4);
@@ -420,7 +419,7 @@ static int ma_encrypt(MARIA_CRYPT_DATA *crypt_data,
 
   rc = my_aes_encrypt_dynamic(src, size,
                               dst, &dstlen,
-                              key, sizeof(crypt_data->iv),
+                              crypt_data->iv, CRYPT_SCHEME_1_IV_LEN,
                               counter, sizeof(counter),
                               1);
 
@@ -447,7 +446,6 @@ static int ma_decrypt(MARIA_CRYPT_DATA *crypt_data,
   int rc;
   uint32 dstlen;
   uchar counter[COUNTER_LEN];
-  uchar *key= crypt_data->iv;
 
   // create counter block
   memcpy(counter + 0, crypt_data->iv + CRYPT_SCHEME_1_IV_LEN, 4);
@@ -456,7 +454,7 @@ static int ma_decrypt(MARIA_CRYPT_DATA *crypt_data,
 
   rc = my_aes_decrypt_dynamic(src, size,
                               dst, &dstlen,
-                              key, sizeof(crypt_data->iv),
+                              crypt_data->iv, CRYPT_SCHEME_1_IV_LEN,
                               counter, sizeof(counter),
                               1);
 
