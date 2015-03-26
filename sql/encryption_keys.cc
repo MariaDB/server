@@ -1,13 +1,7 @@
 #include <my_global.h>
 #include <mysql/plugin_encryption_key_management.h>
-#include "encryption_keys.h"
 #include "log.h"
 #include "sql_plugin.h"
-
-#ifndef DBUG_OFF
-my_bool debug_use_static_encryption_keys = 0;
-uint opt_debug_encryption_key_version = 0;
-#endif
 
 /* there can be only one encryption key management plugin enabled */
 static plugin_ref encryption_key_manager= 0;
@@ -15,16 +9,6 @@ static struct st_mariadb_encryption_key_management *handle;
 
 unsigned int get_latest_encryption_key_version()
 {
-#ifndef DBUG_OFF
-  if (debug_use_static_encryption_keys)
-  {
-    //mysql_mutex_lock(&LOCK_global_system_variables);
-    uint res = opt_debug_encryption_key_version;
-    //mysql_mutex_unlock(&LOCK_global_system_variables);
-    return res;
-  }
-#endif
-
   if (encryption_key_manager)
     return handle->get_latest_key_version();
 
@@ -49,19 +33,6 @@ unsigned int get_encryption_key_size(uint version)
 
 int get_encryption_key(uint version, uchar* key, uint size)
 {
-#ifndef DBUG_OFF
-  if (debug_use_static_encryption_keys)
-  {
-    memset(key, 0, size);
-    // Just don't support tiny keys, no point anyway.
-    if (size < 4)
-      return 1;
-
-    mi_int4store(key, version);
-    return 0;
-  }
-#endif
-
   if (encryption_key_manager)
     return handle->get_key(version, key, size);
 
