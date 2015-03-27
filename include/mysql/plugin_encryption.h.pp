@@ -362,7 +362,7 @@ void *thd_get_ha_data(const void* thd, const struct handlerton *hton);
 void thd_set_ha_data(void* thd, const struct handlerton *hton,
                      const void *ha_data);
 void thd_wakeup_subsequent_commits(void* thd, int wakeup_error);
-struct st_mariadb_encryption_key_management
+struct st_mariadb_encryption
 {
   int interface_version;
   unsigned int (*get_latest_key_version)();

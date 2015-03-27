@@ -18,7 +18,7 @@
   @file
   encryption keys service
 
-  Functions to get encryption keys and IV from the encryption key management plugin
+  Functions to get encryption keys from the encryption plugin
 */
 
 #ifdef __cplusplus

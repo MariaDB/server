@@ -28,7 +28,7 @@
 #include <my_global.h>
 #include <my_pthread.h>
 #include <my_aes.h>
-#include <mysql/plugin_encryption_key_management.h>
+#include <mysql/plugin_encryption.h>
 #include <my_md5.h>
 #include <my_rnd.h>
 #include "sql_class.h"
@@ -101,8 +101,8 @@ static int example_key_management_plugin_deinit(void *p)
   return 0;
 }
 
-struct st_mariadb_encryption_key_management example_key_management_plugin= {
-  MariaDB_ENCRYPTION_KEY_MANAGEMENT_INTERFACE_VERSION,
+struct st_mariadb_encryption example_key_management_plugin= {
+  MariaDB_ENCRYPTION_INTERFACE_VERSION,
   get_latest_key_version,
   get_key
 };
@@ -112,7 +112,7 @@ struct st_mariadb_encryption_key_management example_key_management_plugin= {
 */
 maria_declare_plugin(example_key_management)
 {
-  MariaDB_ENCRYPTION_KEY_MANAGEMENT_PLUGIN,
+  MariaDB_ENCRYPTION_PLUGIN,
   &example_key_management_plugin,
   "example_key_management",
   "Jonas Oreland",

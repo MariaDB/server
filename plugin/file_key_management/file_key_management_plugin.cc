@@ -16,7 +16,7 @@
 
 #include "parser.h"
 #include <mysql_version.h>
-#include <mysql/plugin_encryption_key_management.h>
+#include <mysql/plugin_encryption.h>
 #include <string.h>
 
 static char* filename;
@@ -94,8 +94,8 @@ static int file_key_management_plugin_init(void *p)
   return parser.parse(&keys);
 }
 
-struct st_mariadb_encryption_key_management file_key_management_plugin= {
-  MariaDB_ENCRYPTION_KEY_MANAGEMENT_INTERFACE_VERSION,
+struct st_mariadb_encryption file_key_management_plugin= {
+  MariaDB_ENCRYPTION_INTERFACE_VERSION,
   get_highest_key_used_in_key_file,
   get_key_from_key_file
 };
@@ -105,7 +105,7 @@ struct st_mariadb_encryption_key_management file_key_management_plugin= {
 */
 maria_declare_plugin(file_key_management)
 {
-  MariaDB_ENCRYPTION_KEY_MANAGEMENT_PLUGIN,
+  MariaDB_ENCRYPTION_PLUGIN,
   &file_key_management_plugin,
   "file_key_management",
   "Denis Endro eperi GmbH",

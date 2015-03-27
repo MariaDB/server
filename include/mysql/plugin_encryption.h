@@ -1,4 +1,4 @@
-#ifndef MYSQL_PLUGIN_ENCRYPTION_KEY_MANAGEMENT_INCLUDED
+#ifndef MYSQL_PLUGIN_ENCRYPTION_INCLUDED
 /* Copyright (C) 2014 Sergei Golubchik and MariaDB
 
    This program is free software; you can redistribute it and/or modify
@@ -17,25 +17,25 @@
 /**
   @file
 
-  Encryption key Management Plugin API.
+  Encryption Plugin API.
 
   This file defines the API for server plugins that manage encryption
   keys for MariaDB on-disk data encryption.
 */
 
-#define MYSQL_PLUGIN_ENCRYPTION_KEY_MANAGEMENT_INCLUDED
+#define MYSQL_PLUGIN_ENCRYPTION_INCLUDED
 
 #include <mysql/plugin.h>
 
-#define MariaDB_ENCRYPTION_KEY_MANAGEMENT_INTERFACE_VERSION 0x0200
+#define MariaDB_ENCRYPTION_INTERFACE_VERSION 0x0200
 
 #define BAD_ENCRYPTION_KEY_VERSION (~(unsigned int)0)
 #define KEY_BUFFER_TOO_SMALL       (100)
 
 /**
-  Encryption key management plugin descriptor
+  Encryption plugin descriptor
 */
-struct st_mariadb_encryption_key_management
+struct st_mariadb_encryption
 {
   int interface_version;                        /**< version plugin uses */
 

@@ -32,7 +32,7 @@ Modified           Jan Lindström jan.lindstrom@mariadb.com
 #include "srv0start.h" // for srv_start_lsn
 #include "log0recv.h"  // for recv_sys
 
-#include "mysql/plugin_encryption_key_management.h" // for BAD_ENCRYPTION_KEY_VERSION
+#include "mysql/plugin_encryption.h" // for BAD_ENCRYPTION_KEY_VERSION
 #include "ha_prototypes.h" // IB_LOG_
 
 /* If true, enable redo log encryption. */

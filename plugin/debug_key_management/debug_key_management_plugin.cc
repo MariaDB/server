@@ -24,7 +24,7 @@
 */
 
 #include <my_global.h>
-#include <mysql/plugin_encryption_key_management.h>
+#include <mysql/plugin_encryption.h>
 #include <string.h>
 #include <myisampack.h>
 
@@ -61,8 +61,8 @@ static unsigned int get_key(unsigned int version, unsigned char* dstbuf, unsigne
   return 0;
 }
 
-struct st_mariadb_encryption_key_management debug_key_management_plugin= {
-  MariaDB_ENCRYPTION_KEY_MANAGEMENT_INTERFACE_VERSION,
+struct st_mariadb_encryption debug_key_management_plugin= {
+  MariaDB_ENCRYPTION_INTERFACE_VERSION,
   get_latest_key_version,
   get_key
 };
@@ -72,7 +72,7 @@ struct st_mariadb_encryption_key_management debug_key_management_plugin= {
 */
 maria_declare_plugin(debug_key_management)
 {
-  MariaDB_ENCRYPTION_KEY_MANAGEMENT_PLUGIN,
+  MariaDB_ENCRYPTION_PLUGIN,
   &debug_key_management_plugin,
   "debug_key_management",
   "Sergei Golubchik",

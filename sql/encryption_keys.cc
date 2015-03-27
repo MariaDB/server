@@ -1,11 +1,11 @@
 #include <my_global.h>
-#include <mysql/plugin_encryption_key_management.h>
+#include <mysql/plugin_encryption.h>
 #include "log.h"
 #include "sql_plugin.h"
 
-/* there can be only one encryption key management plugin enabled */
+/* there can be only one encryption plugin enabled */
 static plugin_ref encryption_key_manager= 0;
-static struct st_mariadb_encryption_key_management *handle;
+static struct st_mariadb_encryption *handle;
 
 unsigned int get_latest_encryption_key_version()
 {
@@ -34,7 +34,7 @@ uint get_encryption_key(uint version, uchar* key, uint *size)
   return BAD_ENCRYPTION_KEY_VERSION;
 }
 
-int initialize_encryption_key_management_plugin(st_plugin_int *plugin)
+int initialize_encryption_plugin(st_plugin_int *plugin)
 {
   if (encryption_key_manager)
     return 1;
@@ -47,12 +47,12 @@ int initialize_encryption_key_management_plugin(st_plugin_int *plugin)
   }
 
   encryption_key_manager= plugin_lock(NULL, plugin_int_to_ref(plugin));
-  handle= (struct st_mariadb_encryption_key_management*)
+  handle= (struct st_mariadb_encryption*)
             plugin->plugin->info;
   return 0;
 }
 
-int finalize_encryption_key_management_plugin(st_plugin_int *plugin)
+int finalize_encryption_plugin(st_plugin_int *plugin)
 {
   if (plugin->plugin->deinit && plugin->plugin->deinit(NULL))
   {
