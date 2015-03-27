@@ -70,6 +70,12 @@ sub skip_combinations {
     unless $::mysqld_variables{'version-ssl-library'} =~ /OpenSSL (\S+)/
        and $1 ge "1.0.1";
 
+  $skip{'include/have_example_key_management_plugin.inc'} = 'no example_key_management_plugin'
+    unless $ENV{EXAMPLE_KEY_MANAGEMENT_PLUGIN_SO};
+
+  $skip{'include/have_file_key_management_plugin.inc'} = 'no file_key_management_plugin'
+    unless $ENV{FILE_KEY_MANAGEMENT_PLUGIN_SO};
+
   %skip;
 }
 
