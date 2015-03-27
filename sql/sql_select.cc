@@ -19084,7 +19084,15 @@ end_send(JOIN *join, JOIN_TAB *join_tab __attribute__((unused)),
 }
 
 
-	/* ARGSUSED */
+/*
+  @brief
+    Perform a GROUP BY operation over a stream of rows ordered by their group. The 
+    result is sent into join->result.
+
+  @detail
+    Also applies HAVING, etc.
+*/
+
 enum_nested_loop_state
 end_send_group(JOIN *join, JOIN_TAB *join_tab __attribute__((unused)),
 	       bool end_of_records)
@@ -19260,8 +19268,17 @@ end:
   DBUG_RETURN(NESTED_LOOP_OK);
 }
 
-/* ARGSUSED */
-/** Group by searching after group record and updating it if possible. */
+
+/*
+  @brief
+    Perform a GROUP BY operation over rows coming in arbitrary order. 
+    
+    This is done by looking up the group in a temp.table and updating group
+    values.
+
+  @detail
+    Also applies HAVING, etc.
+*/
 
 static enum_nested_loop_state
 end_update(JOIN *join, JOIN_TAB *join_tab __attribute__((unused)),
@@ -19391,7 +19408,17 @@ end_unique_update(JOIN *join, JOIN_TAB *join_tab __attribute__((unused)),
 }
 
 
-	/* ARGSUSED */
+/*
+  @brief
+    Perform a GROUP BY operation over a stream of rows ordered by their group.
+    Write the result into a temporary table.
+
+  @detail
+    Also applies HAVING, etc.
+
+    The rows are written into temptable so e.g. filesort can read them.
+*/
+
 enum_nested_loop_state
 end_write_group(JOIN *join, JOIN_TAB *join_tab __attribute__((unused)),
 		bool end_of_records)

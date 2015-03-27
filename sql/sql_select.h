@@ -1039,7 +1039,20 @@ public:
   table_map outer_join;
   /* Bitmap of tables used in the select list items */
   table_map select_list_used_tables;
-  ha_rows  send_records,found_records,examined_rows,row_limit, select_limit;
+  ha_rows  send_records,found_records,examined_rows;
+
+  /*
+    LIMIT for the JOIN operation. When not using aggregation or DISITNCT, this 
+    is the same as select's LIMIT clause specifies.
+    Note that this doesn't take sql_calc_found_rows into account.
+  */
+  ha_rows row_limit;
+
+  /*
+    How many output rows should be produced after GROUP BY.
+    (if sql_calc_found_rows is used, LIMIT is ignored)
+  */
+  ha_rows select_limit;
   /**
     Used to fetch no more than given amount of rows per one
     fetch operation of server side cursor.
@@ -1048,8 +1061,10 @@ public:
       - fetch_limit= HA_POS_ERROR if there is no cursor.
       - when we open a cursor, we set fetch_limit to 0,
       - on each fetch iteration we add num_rows to fetch to fetch_limit
+    NOTE: currently always HA_POS_ERROR.
   */
   ha_rows  fetch_limit;
+
   /* Finally picked QEP. This is result of join optimization */
   POSITION *best_positions;
 
