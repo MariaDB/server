@@ -73,11 +73,11 @@ struct st_mariadb_encryption_key_management debug_key_management_plugin= {
 /*
   Plugin library descriptor
 */
-maria_declare_plugin(debug_key_management_plugin)
+maria_declare_plugin(debug_key_management)
 {
   MariaDB_ENCRYPTION_KEY_MANAGEMENT_PLUGIN,
   &debug_key_management_plugin,
-  "debug_key_management_plugin",
+  "debug_key_management",
   "Sergei Golubchik",
   "Debug key management plugin",
   PLUGIN_LICENSE_GPL,

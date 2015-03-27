@@ -211,13 +211,13 @@ static int file_key_management_plugin_init(void *p)
   if (current_aes_dynamic_method == MY_AES_ALGORITHM_NONE)
   {
     sql_print_error("No encryption method choosen with --encryption-algorithm. "
-                    "file_key_management_plugin disabled");
+                    "file_key_management disabled");
     return 1;
   }
 
   if (filename == NULL || strcmp("", filename) == 0)
   {
-    sql_print_error("Parameter file_key_management_plugin_filename is required");
+    sql_print_error("Parameter file_key_management_filename is required");
 
     return 1;
   }
@@ -245,13 +245,13 @@ struct st_mariadb_encryption_key_management file_key_management_plugin= {
 /*
   Plugin library descriptor
 */
-maria_declare_plugin(file_key_management_plugin)
+maria_declare_plugin(file_key_management)
 {
   MariaDB_ENCRYPTION_KEY_MANAGEMENT_PLUGIN,
   &file_key_management_plugin,
-  "file_key_management_plugin",
+  "file_key_management",
   "Denis Endro eperi GmbH",
-  "File key management plugin",
+  "File-based key management plugin",
   PLUGIN_LICENSE_GPL,
   file_key_management_plugin_init,   /* Plugin Init */
   file_key_management_plugin_deinit, /* Plugin Deinit */

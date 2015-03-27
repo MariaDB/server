@@ -10,10 +10,10 @@ space	name	min_key_version	current_key_version
 1	mysql/innodb_table_stats	0	1
 2	mysql/innodb_index_stats	0	1
 0	NULL	0	1
-set global debug_key_management_plugin_version=10;
+set global debug_key_management_version=10;
 select space,name,min_key_version,current_key_version from information_schema.innodb_tablespaces_encryption;
 space	name	min_key_version	current_key_version
 1	mysql/innodb_table_stats	0	10
 2	mysql/innodb_index_stats	0	10
 0	NULL	0	10
-set global debug_key_management_plugin_version=1;
+set global debug_key_management_version=1;

@@ -123,11 +123,11 @@ struct st_mariadb_encryption_key_management example_key_management_plugin= {
 /*
   Plugin library descriptor
 */
-maria_declare_plugin(example_key_management_plugin)
+maria_declare_plugin(example_key_management)
 {
   MariaDB_ENCRYPTION_KEY_MANAGEMENT_PLUGIN,
   &example_key_management_plugin,
-  "example_key_management_plugin",
+  "example_key_management",
   "Jonas Oreland",
   "Example key management plugin",
   PLUGIN_LICENSE_GPL,
