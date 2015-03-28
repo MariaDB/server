@@ -17,7 +17,6 @@
 #include "wsrep_binlog.h" // wsrep_dump_rbr_buf()
 
 #include "log_event.h" // EVENT_LEN_OFFSET, etc.
-
 #include "wsrep_applier.h"
 
 /*
@@ -64,7 +63,25 @@ err:
 #include "rpl_rli.h"     // class Relay_log_info;
 #include "sql_base.h"    // close_temporary_table()
 
-extern const Format_description_log_event *wsrep_format_desc;
+static inline void
+wsrep_set_apply_format(THD* thd, Format_description_log_event* ev)
+{
+  if (thd->wsrep_apply_format)
+  {
+      delete (Format_description_log_event*)thd->wsrep_apply_format;
+  }
+  thd->wsrep_apply_format= ev;
+}
+
+static inline Format_description_log_event*
+wsrep_get_apply_format(THD* thd)
+{
+  if (thd->wsrep_apply_format)
+  {
+    return (Format_description_log_event*) thd->wsrep_apply_format;
+  }
+  return thd->wsrep_rli->relay_log.description_event_for_exec;
+}
 
 static wsrep_cb_status_t wsrep_apply_events(THD*        thd,
                                             const void* events_buf,
@@ -98,7 +115,8 @@ static wsrep_cb_status_t wsrep_apply_events(THD*        thd,
   {
     int exec_res;
     int error = 0;
-    Log_event* ev=  wsrep_read_log_event(&buf, &buf_len, wsrep_format_desc);
+    Log_event* ev= wsrep_read_log_event(&buf, &buf_len,
+                                        wsrep_get_apply_format(thd));
 
     if (!ev)
     {
@@ -111,6 +129,9 @@ static wsrep_cb_status_t wsrep_apply_events(THD*        thd,
     typ= ev->get_type_code();
 
     switch (typ) {
+    case FORMAT_DESCRIPTION_EVENT:
+      wsrep_set_apply_format(thd, (Format_description_log_event*)ev);
+      continue;
     case WRITE_ROWS_EVENT:
     case UPDATE_ROWS_EVENT:
     case DELETE_ROWS_EVENT:
@@ -339,6 +360,7 @@ wsrep_cb_status_t wsrep_commit_cb(void*         const     ctx,
   else
     rcode = wsrep_rollback(thd, meta->gtid.seqno);
 
+  wsrep_set_apply_format(thd, NULL);
   thd->mdl_context.release_transactional_locks();
   free_root(thd->mem_root,MYF(MY_KEEP_PREALLOC));
   thd->tx_isolation= (enum_tx_isolation) thd->variables.tx_isolation;

@@ -28,7 +28,6 @@
 #include "log_event.h"
 #include <slave.h>
 
-Format_description_log_event *wsrep_format_desc = NULL;
 wsrep_t *wsrep                  = NULL;
 my_bool wsrep_emulate_bin_log   = FALSE; // activating parts of binlog interface
 
@@ -498,7 +497,6 @@ int wsrep_init()
 
   wsrep_ready_set(FALSE);
   assert(wsrep_provider);
-  wsrep_format_desc= new Format_description_log_event(4);
   wsrep_init_position();
 
   if ((rcode= wsrep_load(wsrep_provider, &wsrep, wsrep_log_cb)) != WSREP_OK)
@@ -718,8 +716,6 @@ void wsrep_deinit(bool free_options)
   provider_version[0]= '\0';
   provider_vendor[0]=  '\0';
 
-  delete wsrep_format_desc;
-  wsrep_format_desc= NULL;
   wsrep_inited= 0;
 
   if (free_options)
@@ -1133,6 +1129,12 @@ int wsrep_to_buf_helper(
     return 1;
 
   int ret(0);
+
+  Format_description_log_event *tmp_fd= new Format_description_log_event(4);
+  tmp_fd->checksum_alg= binlog_checksum_options;
+  tmp_fd->write(&tmp_io_cache);
+  delete tmp_fd;
+
   /* if there is prepare query, add event for it */
   if (thd->wsrep_TOI_pre_query)
   {

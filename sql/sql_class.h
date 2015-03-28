@@ -2389,6 +2389,7 @@ public:
   const char*               wsrep_TOI_pre_query; /* a query to apply before 
 						    the actual TOI query */
   size_t                    wsrep_TOI_pre_query_len;
+  void*                     wsrep_apply_format;
   bool                      wsrep_apply_toi; /* applier processing in TOI */
 #endif /* WITH_WSREP */
   /**
