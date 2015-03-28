@@ -2739,6 +2739,10 @@ PCFIL ha_connect::CheckCond(PGLOBAL g, PCFIL filp, AMT tty, Item *cond)
                   case MYSQL_TYPE_DATETIME:
                     strcat(body, "{ts '");
                     strncat(body, res->ptr(), res->length());
+
+                    if (res->length() < 19)
+                      strcat(body, "1970-01-01 00:00:00" + res->length());
+
                     strcat(body, "'}");
                     break;
                   case MYSQL_TYPE_DATE:
@@ -4134,6 +4138,10 @@ MODE ha_connect::CheckMode(PGLOBAL g, THD *thd,
           break;
 //        } // endif partitioned
 
+      case SQLCOM_END:
+        // Met in procedures: IF(EXISTS(SELECT...
+        newmode= MODE_READ;
+        break;
       default:
         htrc("Unsupported sql_command=%d\n", thd_sql_command(thd));
         strcpy(g->Message, "CONNECT Unsupported command");
