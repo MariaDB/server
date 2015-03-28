@@ -14,27 +14,23 @@
  Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
 
 
-#include <my_global.h>
+#include "parser.h"
 #include <mysql_version.h>
 #include <mysql/plugin_encryption_key_management.h>
-#include <my_aes.h>
-#include "sql_class.h"
-#include "KeySingleton.h"
-#include "EncKeys.h"
+#include <string.h>
 
-/* Encryption for tables and columns */
-static char* filename = NULL;
-static char* filekey = NULL;
+static char* filename;
+static char* filekey;
 
 static MYSQL_SYSVAR_STR(filename, filename,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
   "Path and name of the key file.",
-  NULL, NULL, NULL);
+  NULL, NULL, "");
 
 static MYSQL_SYSVAR_STR(filekey, filekey,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
   "Key to encrypt / decrypt the keyfile.",
-  NULL, NULL, NULL);
+  NULL, NULL, "");
 
 static struct st_mysql_sys_var* settings[] = {
   MYSQL_SYSVAR(filename),
@@ -42,102 +38,23 @@ static struct st_mysql_sys_var* settings[] = {
   NULL
 };
 
-/**
-   Decode Hexencoded String to uint8[].
+Dynamic_array<keyentry> keys(static_cast<uint>(0));
 
-   SYNOPSIS
-   my_aes_hex2uint()
-   @param iv        [in]	Pointer to hexadecimal encoded IV String
-   @param dest      [out]	Pointer to output uint8 array. Memory allocated by caller
-   @param iv_length [in]  Size of destination array.
- */
-
-void my_aes_hex2uint(const char* in, unsigned char *out, int dest_length)
+static keyentry *get_key(unsigned int key_id)
 {
-  const char *pos= in;
-  int count;
-  for (count = 0; count < dest_length; count++)
+  keyentry *a= keys.front(), *b= keys.back() + 1, *c;
+  while (b - a > 1)
   {
-    uchar res;
-    sscanf(pos, "%2hhx", &res);
-    out[count] = res;
-    pos += 2 * sizeof(char);
+    c= a + (b - a)/2;
+    if (c->id == key_id)
+      return c;
+    else if (c->id < key_id)
+      a= c;
+    else
+      b= c;
   }
+  return a->id == key_id ? a : 0;
 }
-
-
-/**
-   Calculate key and iv from a given salt and secret as it is handled
-   in openssl encrypted files via console
-
-   SYNOPSIS
-   my_bytes_to_key()
-   @param salt   [in]  the given salt as extracted from the encrypted file
-   @param secret [in]  the given secret as String, provided by the user
-   @param key    [out] 32 Bytes of key are written to this pointer
-   @param iv     [out] 16 Bytes of iv are written to this pointer
-*/
-
-void my_bytes_to_key(const unsigned char *salt, const char *secret, unsigned char *key,
-                     unsigned char *iv)
-{
-#ifdef HAVE_YASSL
-  /* the yassl function has no support for SHA1. Reason unknown. */
-  int keyLen = 32;
-  int ivLen  = 16;
-  int EVP_SALT_SZ = 8;
-  const int SHA_LEN = 20;
-  yaSSL::SHA myMD;
-  uint digestSz = myMD.get_digestSize();
-  unsigned char digest[SHA_LEN];                   // max size
-  int sz = strlen(secret);
-  int count = 1;
-  int keyLeft   = keyLen;
-  int ivLeft    = ivLen;
-  int keyOutput = 0;
-
-  while (keyOutput < (keyLen + ivLen))
-  {
-    int digestLeft = digestSz;
-    if (keyOutput)                      // first time D_0 is empty
-      myMD.update(digest, digestSz);
-    myMD.update((yaSSL::byte* )secret, sz);
-    if (salt)
-      myMD.update(salt, EVP_SALT_SZ);
-    myMD.get_digest(digest);
-    for (int j = 1; j < count; j++)
-    {
-      myMD.update(digest, digestSz);
-      myMD.get_digest(digest);
-    }
-
-    if (keyLeft)
-    {
-      int store = MY_MIN(keyLeft, static_cast<int>(digestSz));
-      memcpy(&key[keyLen - keyLeft], digest, store);
-
-      keyOutput  += store;
-      keyLeft    -= store;
-      digestLeft -= store;
-    }
-
-    if (ivLeft && digestLeft)
-    {
-      int store = MY_MIN(ivLeft, digestLeft);
-      memcpy(&iv[ivLen - ivLeft], &digest[digestSz - digestLeft], store);
-
-      keyOutput += store;
-      ivLeft    -= store;
-    }
-  }
-#elif defined(HAVE_OPENSSL)
-  const EVP_CIPHER *type = EVP_aes_256_cbc();
-  const EVP_MD *digest = EVP_sha1();
-  EVP_BytesToKey(type, digest, salt, (uchar*) secret, strlen(secret), 1, key, iv);
-#endif
-}
-
-
 
 /**
    This method is using with the id 0 if exists. 
@@ -147,91 +64,45 @@ void my_bytes_to_key(const unsigned char *salt, const char *secret, unsigned cha
 
 static unsigned int get_highest_key_used_in_key_file()
 {
-  if (KeySingleton::getInstance().hasKey(0))
-  {
-      return 0;
-  }
-  else
-    return CRYPT_KEY_UNKNOWN;
+  return 0;
 }
 
-static unsigned int has_key_from_key_file(unsigned int keyID)
+static unsigned int has_key_from_key_file(unsigned int key_id)
 {
-  keyentry* entry = KeySingleton::getInstance().getKeys(keyID);
+  keyentry* entry = get_key(key_id);
 
   return entry != NULL;
 }
 
-static unsigned int get_key_size_from_key_file(unsigned int keyID)
+static unsigned int get_key_size_from_key_file(unsigned int key_id)
 {
-  keyentry* entry = KeySingleton::getInstance().getKeys(keyID);
+  keyentry* entry = get_key(key_id);
 
-  if (entry != NULL)
-  {
-    char* keyString = entry->key;
-    size_t key_len = strlen(keyString)/2;
-
-    return key_len;
-  }
-  else
-  {
-    return CRYPT_KEY_UNKNOWN;
-  }
+  return entry ? entry->length : CRYPT_KEY_UNKNOWN;
 }
 
-static int get_key_from_key_file(unsigned int keyID, unsigned char* dstbuf,
+static int get_key_from_key_file(unsigned int key_id, unsigned char* dstbuf,
                                  unsigned buflen)
 {
-  keyentry* entry = KeySingleton::getInstance().getKeys((int)keyID);
+  keyentry* entry = get_key(key_id);
 
   if (entry != NULL)
   {
-    char* keyString = entry->key;
-    size_t key_len = strlen(keyString)/2;
-
-    if (buflen < key_len)
-    {
+    if (buflen < entry->length)
       return CRYPT_BUFFER_TO_SMALL;
-    }
 
-    my_aes_hex2uint(keyString, (unsigned char*)dstbuf, key_len);
+    memcpy(dstbuf, entry->key, entry->length);
 
     return CRYPT_KEY_OK;
   }
   else
-  {
     return CRYPT_KEY_UNKNOWN;
-  }
 }
 
 static int file_key_management_plugin_init(void *p)
 {
-  /* init */
-  
-  if (current_aes_dynamic_method == MY_AES_ALGORITHM_NONE)
-  {
-    sql_print_error("No encryption method choosen with --encryption-algorithm. "
-                    "file_key_management disabled");
-    return 1;
-  }
-
-  if (filename == NULL || strcmp("", filename) == 0)
-  {
-    sql_print_error("Parameter file_key_management_filename is required");
-
-    return 1;
-  }
-
-  KeySingleton::getInstance(filename, filekey);
-
-  return 0;
-}
-
-static int file_key_management_plugin_deinit(void *p)
-{
-  KeySingleton::getInstance().~KeySingleton();
-
-  return 0;
+  Parser parser(filename, filekey);
+  return parser.parse(&keys);
 }
 
 struct st_mariadb_encryption_key_management file_key_management_plugin= {
@@ -253,12 +124,12 @@ maria_declare_plugin(file_key_management)
   "Denis Endro eperi GmbH",
   "File-based key management plugin",
   PLUGIN_LICENSE_GPL,
-  file_key_management_plugin_init,   /* Plugin Init */
-  file_key_management_plugin_deinit, /* Plugin Deinit */
+  file_key_management_plugin_init,
+  NULL,
   0x0100 /* 1.0 */,
   NULL,	/* status variables */
   settings,
   "1.0",
-  MariaDB_PLUGIN_MATURITY_UNKNOWN
+  MariaDB_PLUGIN_MATURITY_ALPHA
 }
 maria_declare_plugin_end;
