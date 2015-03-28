@@ -76,13 +76,10 @@ static inline Format_description_log_event*
 wsrep_get_apply_format(THD* thd)
 {
   if (thd->wsrep_apply_format)
-      return (Format_description_log_event*) thd->wsrep_apply_format;
-  /* TODO: mariadb does not support rli->get_rli_description_event()
-   * => look for alternative way to remember last FDE in replication
-   */
-  //return thd->wsrep_rli->get_rli_description_event();
-  thd->wsrep_apply_format = new Format_description_log_event(4);
-  return (Format_description_log_event*) thd->wsrep_apply_format;
+  {
+    return (Format_description_log_event*) thd->wsrep_apply_format;
+  }
+  return thd->wsrep_rgi->rli->relay_log.description_event_for_exec;
 }
 
 static wsrep_cb_status_t wsrep_apply_events(THD*        thd,

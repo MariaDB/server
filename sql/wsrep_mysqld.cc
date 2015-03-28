@@ -738,6 +738,7 @@ void wsrep_deinit(bool free_options)
   provider_name[0]=    '\0';
   provider_version[0]= '\0';
   provider_vendor[0]=  '\0';
+
   wsrep_inited= 0;
 
   if (free_options)
@@ -1133,6 +1134,11 @@ int wsrep_to_buf_helper(
                        65536, MYF(MY_WME)))
     return 1;
   int ret(0);
+
+  Format_description_log_event *tmp_fd= new Format_description_log_event(4);
+  tmp_fd->checksum_alg= binlog_checksum_options;
+  tmp_fd->write(&tmp_io_cache);
+  delete tmp_fd;
 
 #ifdef GTID_SUPPORT
   if (thd->variables.gtid_next.type == GTID_GROUP)

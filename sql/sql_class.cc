@@ -1605,7 +1605,6 @@ void THD::init(void)
   wsrep_trx_meta.depends_on= WSREP_SEQNO_UNDEFINED;
   wsrep_converted_lock_session= false;
   wsrep_retry_counter= 0;
-  wsrep_rli= NULL;
   wsrep_rgi= NULL;
   wsrep_PA_safe= true;
   wsrep_consistency_check = NO_CONSISTENCY_CHECK;
@@ -1820,7 +1819,6 @@ THD::~THD()
   mysql_mutex_lock(&LOCK_wsrep_thd);
   mysql_mutex_unlock(&LOCK_wsrep_thd);
   mysql_mutex_destroy(&LOCK_wsrep_thd);
-  if (wsrep_rli) delete wsrep_rli;
   if (wsrep_rgi) delete wsrep_rgi;
   if (wsrep_status_vars) wsrep->stats_free(wsrep, wsrep_status_vars);
 #endif

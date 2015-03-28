@@ -2777,7 +2777,6 @@ public:
   // wsrep_seqno_t             wsrep_trx_seqno;
   wsrep_trx_meta_t          wsrep_trx_meta;
   uint32                    wsrep_rand;
-  Relay_log_info*           wsrep_rli;
   rpl_group_info*           wsrep_rgi;
   bool                      wsrep_converted_lock_session;
   wsrep_ws_handle_t         wsrep_ws_handle;

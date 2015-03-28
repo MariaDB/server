@@ -1954,7 +1954,8 @@ static void __cdecl kill_server(int sig_ptr)
   }
 #endif
 #ifdef WITH_WSREP
-  if (WSREP_ON) wsrep_stop_replication(NULL);
+  /* Stop wsrep threads in case they are running. */
+  wsrep_stop_replication(NULL);
 #endif
 
   close_connections();
