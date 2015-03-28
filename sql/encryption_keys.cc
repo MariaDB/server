@@ -59,14 +59,13 @@ int initialize_encryption_key_management_plugin(st_plugin_int *plugin)
 
 int finalize_encryption_key_management_plugin(st_plugin_int *plugin)
 {
-  DBUG_ASSERT(encryption_key_manager);
-
   if (plugin->plugin->deinit && plugin->plugin->deinit(NULL))
   {
     DBUG_PRINT("warning", ("Plugin '%s' deinit function returned error.",
                            plugin->name.str));
   }
-  plugin_unlock(NULL, encryption_key_manager);
+  if (encryption_key_manager)
+    plugin_unlock(NULL, encryption_key_manager);
   encryption_key_manager= 0;
   return 0;
 }

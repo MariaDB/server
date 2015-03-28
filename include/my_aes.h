@@ -22,6 +22,8 @@
 #ifndef MY_AES_INCLUDED
 #define MY_AES_INCLUDED
 
+#include <my_global.h>
+
 typedef int Crypt_result;
 
 #define AES_OK 0

@@ -87,8 +87,7 @@ FILE *my_fopen(const char *filename, int flags, myf MyFlags)
     my_errno=errno;
   DBUG_PRINT("error",("Got error %d on open",my_errno));
   if (MyFlags & (MY_FFNF | MY_FAE | MY_WME))
-    my_error((flags & O_RDONLY) || (flags == O_RDONLY ) ? EE_FILENOTFOUND :
-	     EE_CANTCREATEFILE,
+    my_error((flags & O_RDONLY) ? EE_FILENOTFOUND : EE_CANTCREATEFILE,
 	     MYF(ME_BELL+ME_WAITTANG), filename, my_errno);
   DBUG_RETURN((FILE*) 0);
 } /* my_fopen */

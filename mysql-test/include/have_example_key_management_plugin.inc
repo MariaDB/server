@@ -1,7 +1,6 @@
 -- source encryption_algorithms.inc
 
-if (`select count(*) = 0 from information_schema.plugins
-     where plugin_name = 'example_key_management' and plugin_status='active'`)
+if (!$EXAMPLE_KEY_MANAGEMENT_SO)
 {
   --skip Needs example_key_management
 }
