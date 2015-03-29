@@ -82,6 +82,7 @@ usr/share/mysql/debian-start.inc.sh
 usr/share/mysql/echo_stderr
 usr/share/mysql/errmsg-utf8.txt
 usr/share/mysql/fill_help_tables.sql
+usr/share/mysql/maria_add_gis_sp_bootstrap.sql
 usr/share/mysql/mysql_system_tables_data.sql
 usr/share/mysql/mysql_system_tables.sql
 usr/share/mysql/mysql_performance_tables.sql
