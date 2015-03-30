@@ -1,0 +1,2 @@
+--plugin-load-add=$FILE_KEY_MANAGEMENT_SO
+--encryption-algorithm=aes_cbc

@@ -1,0 +1,2 @@
+--loose-file-key-management-filekey=bad
+--loose-file-key-management-filename=$MYSQL_TEST_DIR/std_data/keys.txt
