@@ -2714,7 +2714,12 @@ PCFIL ha_connect::CheckCond(PGLOBAL g, PCFIL filp, AMT tty, Item *cond)
             case MYSQL_TYPE_DATETIME:
               if (tty == TYPE_AM_ODBC) {
                 strcat(body, "{ts '");
-                strcat(strncat(body, res->ptr(), res->length()), "'}");
+                strncat(body, res->ptr(), res->length());
+
+                if (res->length() < 19)
+                  strcat(body, "1970-01-01 00:00:00" + res->length());
+
+                strcat(body, "'}");
                 break;
                 } // endif ODBC
 
