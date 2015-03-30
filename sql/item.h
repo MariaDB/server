@@ -2688,22 +2688,7 @@ public:
 
 class Item_string :public Item_basic_constant
 {
-  bool m_cs_specified;
 protected:
-  /**
-    Set the value of m_cs_specified attribute.
-
-    m_cs_specified attribute shows whether character-set-introducer was
-    explicitly specified in the original query for this text literal or
-    not. The attribute makes sense (is used) only for views.
-
-    This operation is to be called from the parser during parsing an input
-    query.
-  */
-  inline void set_cs_specified(bool cs_specified)
-  {
-    m_cs_specified= cs_specified;
-  }
   void fix_from_value(Derivation dv, const Metadata metadata)
   {
     fix_charset_and_length_from_str_value(dv, metadata);
@@ -2718,7 +2703,6 @@ protected:
 protected:
   /* Just create an item and do not fill string representation */
   Item_string(CHARSET_INFO *cs, Derivation dv= DERIVATION_COERCIBLE)
-    : m_cs_specified(FALSE)
   {
     collation.set(cs, dv);
     max_length= 0;
@@ -2728,7 +2712,6 @@ protected:
   }
 public:
   Item_string(CHARSET_INFO *csi, const char *str_arg, uint length_arg)
-    : m_cs_specified(FALSE)
   {
     collation.set(csi, DERIVATION_COERCIBLE);
     set_name(NULL, 0, system_charset_info);
@@ -2740,21 +2723,18 @@ public:
   // Constructors with the item name set from its value
   Item_string(const char *str, uint length, CHARSET_INFO *cs,
               Derivation dv, uint repertoire)
-    : m_cs_specified(FALSE)
   {
     str_value.set_or_copy_aligned(str, length, cs);
     fix_and_set_name_from_value(dv, Metadata(&str_value, repertoire));
   }
   Item_string(const char *str, uint length,
               CHARSET_INFO *cs, Derivation dv= DERIVATION_COERCIBLE)
-    : m_cs_specified(FALSE)
   {
     str_value.set_or_copy_aligned(str, length, cs);
     fix_and_set_name_from_value(dv, Metadata(&str_value));
   }
   Item_string(const String *str, CHARSET_INFO *tocs, uint *conv_errors,
               Derivation dv, uint repertoire)
-    :m_cs_specified(false)
   {
     if (str_value.copy(str, tocs, conv_errors))
       str_value.set("", 0, tocs); // EOM ?
@@ -2764,7 +2744,6 @@ public:
   // Constructors with an externally provided item name
   Item_string(const char *name_par, const char *str, uint length,
               CHARSET_INFO *cs, Derivation dv= DERIVATION_COERCIBLE)
-    :m_cs_specified(false)
   {
     str_value.set_or_copy_aligned(str, length, cs);
     fix_from_value(dv, Metadata(&str_value));
@@ -2772,7 +2751,6 @@ public:
   }
   Item_string(const char *name_par, const char *str, uint length,
               CHARSET_INFO *cs, Derivation dv, uint repertoire)
-    :m_cs_specified(false)
   {
     str_value.set_or_copy_aligned(str, length, cs);
     fix_from_value(dv, Metadata(&str_value, repertoire));
@@ -2836,9 +2814,9 @@ public:
       the original query.
       @retval FALSE otherwise.
   */
-  inline bool is_cs_specified() const
+  virtual bool is_cs_specified() const
   {
-    return m_cs_specified;
+    return false;
   }
 
   String *check_well_formed_result(bool send_error)
@@ -2881,14 +2859,14 @@ class Item_string_with_introducer :public Item_string
 public:
   Item_string_with_introducer(const char *str, uint length, CHARSET_INFO *cs)
     :Item_string(str, length, cs)
-  {
-    set_cs_specified(true);
-  }
+  { }
   Item_string_with_introducer(const char *name,
                               const char *str, uint length, CHARSET_INFO *tocs)
     :Item_string(name, str, length, tocs)
+  { }
+  virtual bool is_cs_specified() const
   {
-    set_cs_specified(true);
+    return true;
   }
 };
 
