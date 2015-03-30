@@ -7224,6 +7224,15 @@ MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader)
   if (likely(is_open()))                       // Should always be true
   {
     commit_id= (last_in_queue == leader ? 0 : (uint64)leader->thd->query_id);
+    DBUG_EXECUTE_IF("binlog_force_commit_id",
+      {
+        const LEX_STRING name= { C_STRING_WITH_LEN("commit_id") };
+        bool null_value;
+        user_var_entry *entry=
+          (user_var_entry*) my_hash_search(&leader->thd->user_vars,
+                                           (uchar*) name.str, name.length);
+        commit_id= entry->val_int(&null_value);
+      });
     /*
       Commit every transaction in the queue.
 

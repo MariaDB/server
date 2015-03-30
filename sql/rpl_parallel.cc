@@ -113,6 +113,7 @@ finish_event_group(rpl_parallel_thread *rpt, uint64 sub_id,
   wait_for_commit *wfc= &rgi->commit_orderer;
   int err;
 
+  thd->get_stmt_da()->set_overwrite_status(true);
   /*
     Remove any left-over registration to wait for a prior commit to
     complete. Normally, such wait would already have been removed at
@@ -129,14 +130,14 @@ finish_event_group(rpl_parallel_thread *rpt, uint64 sub_id,
     for us to complete and rely on this also ensuring that any other
     event in the group has completed.
 
-    But in the error case, we have to abort anyway, and it seems best
-    to just complete as quickly as possible with unregister. Anyone
-    waiting for us will in any case receive the error back from their
-    wait_for_prior_commit() call.
+    And in the error case, correct GCO lifetime relies on the fact that once
+    the last event group in the GCO has executed wait_for_prior_commit(),
+    all earlier event groups have also committed; this way no more
+    mark_start_commit() calls can be made and it is safe to de-allocate
+    the GCO.
   */
-  if (rgi->worker_error)
-    wfc->unregister_wait_for_prior_commit();
-  else if ((err= wfc->wait_for_prior_commit(thd)))
+  err= wfc->wait_for_prior_commit(thd);
+  if (unlikely(err) && !rgi->worker_error)
     signal_error_to_sql_driver_thread(thd, rgi, err);
   thd->wait_for_commit_ptr= NULL;
 
@@ -193,6 +194,10 @@ finish_event_group(rpl_parallel_thread *rpt, uint64 sub_id,
 
   thd->clear_error();
   thd->reset_killed();
+  /*
+    Would do thd->get_stmt_da()->set_overwrite_status(false) here, but
+    reset_diagnostics_area() already does that.
+  */
   thd->get_stmt_da()->reset_diagnostics_area();
   wfc->wakeup_subsequent_commits(rgi->worker_error);
 }
@@ -761,8 +766,7 @@ handle_rpl_parallel_thread(void *arg)
 
         if (unlikely(entry->stop_on_error_sub_id <= rgi->wait_commit_sub_id))
           skip_event_group= true;
-        else
-          register_wait_for_prior_event_group_commit(rgi, entry);
+        register_wait_for_prior_event_group_commit(rgi, entry);
 
         unlock_or_exit_cond(thd, &entry->LOCK_parallel_entry,
                             &did_enter_cond, &old_stage);
@@ -849,7 +853,9 @@ handle_rpl_parallel_thread(void *arg)
       else
       {
         delete qev->ev;
+        thd->get_stmt_da()->set_overwrite_status(true);
         err= thd->wait_for_prior_commit();
+        thd->get_stmt_da()->set_overwrite_status(false);
       }
 
       end_of_group=

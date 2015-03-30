@@ -53,7 +53,7 @@ struct group_commit_orderer {
   group_commit_orderer *prev_gco;
   group_commit_orderer *next_gco;
   /*
-    The sub_id of last event group in this the previous GCO.
+    The sub_id of last event group in the previous GCO.
     Only valid if prev_gco != NULL.
   */
   uint64 prior_sub_id;
