@@ -43,6 +43,10 @@
 #define REPORT_TO_LOG  1
 #define REPORT_TO_USER 2
 
+#ifdef HAVE_LINK_H
+#include <link.h>
+#endif
+
 extern struct st_maria_plugin *mysql_optional_plugins[];
 extern struct st_maria_plugin *mysql_mandatory_plugins[];
 
@@ -767,6 +771,14 @@ static st_plugin_dl *plugin_dl_add(const LEX_STRING *dl, int report)
   }
   dlopen_count++;
 
+#ifdef HAVE_LINK_H
+  if (global_system_variables.log_warnings > 2)
+  {
+    struct link_map *lm = (struct link_map*) plugin_dl.handle;
+    sql_print_information("Loaded '%s' with offset 0x%lx", dl->str, lm->l_addr);
+  }
+#endif
+
   /* Checks which plugin interface present and reads info */
   if (!(sym= dlsym(plugin_dl.handle, maria_plugin_interface_version_sym)))
   {
@@ -1383,16 +1395,6 @@ static int plugin_initialize(MEM_ROOT *tmp_root, struct st_plugin_int *plugin,
   {
     ret= 0;
     goto err;
-  }
-
-  if (plugin->plugin_dl && global_system_variables.log_warnings >= 9)
-  {
-    void *sym= dlsym(plugin->plugin_dl->handle,
-                     plugin->plugin_dl->mariaversion ?
-                       maria_plugin_declarations_sym : plugin_declarations_sym);
-    DBUG_ASSERT(sym);
-    sql_print_information("Plugin %s loaded at %p",
-                          plugin->name.str, sym);
   }
 
   if (plugin_type_initialize[plugin->plugin->type])
