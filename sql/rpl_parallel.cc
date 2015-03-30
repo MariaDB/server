@@ -372,9 +372,34 @@ do_retry:
   statistic_increment(slave_retried_transactions, LOCK_status);
   mysql_mutex_unlock(&rli->data_lock);
 
-  mysql_mutex_lock(&entry->LOCK_parallel_entry);
-  register_wait_for_prior_event_group_commit(rgi, entry);
-  mysql_mutex_unlock(&entry->LOCK_parallel_entry);
+  for (;;)
+  {
+    mysql_mutex_lock(&entry->LOCK_parallel_entry);
+    register_wait_for_prior_event_group_commit(rgi, entry);
+    mysql_mutex_unlock(&entry->LOCK_parallel_entry);
+
+    /*
+      Let us wait for all prior transactions to complete before trying again.
+      This way, we avoid repeatedly conflicting with and getting deadlock
+      killed by the same earlier transaction.
+    */
+    if (!(err= thd->wait_for_prior_commit()))
+      break;
+
+    convert_kill_to_deadlock_error(rgi);
+    if (!has_temporary_error(thd))
+      goto err;
+    /*
+      If we get a temporary error such as a deadlock kill, we can safely
+      ignore it, as we already rolled back.
+
+      But we still want to retry the wait for the prior transaction to
+      complete its commit.
+    */
+    thd->clear_error();
+    if(thd->wait_for_commit_ptr)
+      thd->wait_for_commit_ptr->unregister_wait_for_prior_commit();
+  }
 
   strmake_buf(log_name, ir->name);
   if ((fd= open_binlog(&rlog, log_name, &errmsg)) <0)
