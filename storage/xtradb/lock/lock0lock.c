@@ -983,14 +983,15 @@ lock_rec_has_to_wait(
 		}
 
 #ifdef WITH_WSREP
-		/* if BF thread is locking and has conflict with another BF
+		/* if BF thread has conflict with another BF
 		   thread, we need to look at trx ordering and lock types */
-		if (for_locking                                    &&
-		    wsrep_thd_is_BF(trx->mysql_thd, FALSE)         &&
+		if (wsrep_thd_is_BF(trx->mysql_thd, FALSE)         &&
 		    wsrep_thd_is_BF(lock2->trx->mysql_thd, TRUE)) {
 
 			if (wsrep_debug) {
-				fprintf(stderr, "\n BF-BF lock conflict \n");
+				fprintf(stderr, 
+					"BF-BF lock conflict, locking: %d \n",
+					for_locking);
 				lock_rec_print(stderr, lock2);
 			}
 
@@ -999,10 +1000,17 @@ lock_rec_has_to_wait(
 			    (type_mode & LOCK_MODE_MASK) == LOCK_X        &&
 			    (lock2->type_mode & LOCK_MODE_MASK) == LOCK_X)
 			{
-				/* exclusive lock conflicts are not accepted */
-				fprintf(stderr, "BF-BF X lock conflict\n");
-				lock_rec_print(stderr, lock2);
-				abort();
+				if (for_locking) {
+					/* exclusive lock conflicts are not 
+					   accepted */
+					fprintf(stderr, 
+						"BF-BF X lock conflict\n");
+					lock_rec_print(stderr, lock2);
+					abort();
+				} else if (wsrep_debug) {
+					fprintf(stderr, 
+						"BF-BF X lock conflict\n");
+				}
 			} else {
 				/* if lock2->index->n_uniq <= 
 				   lock2->index->n_user_defined_cols
