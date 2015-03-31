@@ -27,9 +27,10 @@
 
 #include <mysql/plugin.h>
 
-#define MariaDB_ENCRYPTION_KEY_MANAGEMENT_INTERFACE_VERSION 0x0100
+#define MariaDB_ENCRYPTION_KEY_MANAGEMENT_INTERFACE_VERSION 0x0200
 
-#define BAD_ENCRYPTION_KEY_VERSION (UINT_MAX32)
+#define BAD_ENCRYPTION_KEY_VERSION (~(unsigned int)0)
+#define KEY_BUFFER_TOO_SMALL       (100)
 
 /**
   Encryption key management plugin descriptor
@@ -45,20 +46,28 @@ struct st_mariadb_encryption_key_management
   */
   unsigned int (*get_latest_key_version)();
 
-  /** function returning if a key of the given version exists */
-  unsigned int (*has_key_version)(unsigned int version);
-
-  /** function returning the key size in bytes */
-  unsigned int (*get_key_size)(unsigned int version);
-
   /**
     function returning a key for a key version
 
-    the key is put in 'key' buffer, that has size of 'keybufsize' bytes.
+    @param version      the requested key version
+    @param key          the key will be stored there. Can be NULL -
+                        in which case no key will be returned
+    @param key_length   in: key buffer size
+                        out: the actual length of the key
 
-    @return 0 on success, non-zero on failure
+    This method can be used to query the key length - the required
+    buffer size - by passing key==NULL.
+
+    If the buffer size is less than the key length the content of the
+    key buffer is undefined (the plugin is free to partially fill it with
+    the key data or leave it untouched).
+
+    @return 0 on success, or
+            BAD_ENCRYPTION_KEY_VERSION, KEY_BUFFER_TOO_SMALL,
+            or any other non-zero number for errors
   */
-  int (*get_key)(unsigned int version, unsigned char* key, unsigned int keybufsize);
+  unsigned int (*get_key)(unsigned int version, unsigned char *key,
+                          unsigned int *key_length);
 };
 #endif
 

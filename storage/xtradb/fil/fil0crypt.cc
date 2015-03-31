@@ -212,12 +212,12 @@ fil_crypt_get_key(byte *dst, uint* key_length,
 	mutex_enter(&crypt_data->mutex);
 
         if (!page_encrypted) {
-		*key_length = get_encryption_key_size(version);
 		// Check if we already have key
 		for (uint i = 0; i < crypt_data->key_count; i++) {
 			if (crypt_data->keys[i].key_version == version) {
 				memcpy(dst, crypt_data->keys[i].key,
 					sizeof(crypt_data->keys[i].key));
+                                *key_length= MY_AES_BLOCK_SIZE;
 				mutex_exit(&crypt_data->mutex);
 				return;
 			}
@@ -231,23 +231,14 @@ fil_crypt_get_key(byte *dst, uint* key_length,
 		}
         }
 
-	if (has_encryption_key(version)) {
-		int rc;
-		*key_length = get_encryption_key_size(version);
+        *key_length= MY_AES_MAX_KEY_LENGTH;
+	int rc = get_encryption_key(version, (unsigned char*)keybuf, key_length);
+	if (rc) {
 
-		rc = get_encryption_key(version, (unsigned char*)keybuf, *key_length);
-
-		if (rc != CRYPT_KEY_OK) {
-			ib_logf(IB_LOG_LEVEL_FATAL,
-				"Key %d can not be found. Reason=%d", version, rc);
-			ut_error;
-		}
-	} else {
 		ib_logf(IB_LOG_LEVEL_FATAL,
-			"Key %d not found", version);
+			"Key %d can not be found. Reason=%d", version, rc);
 		ut_error;
 	}
-
 
 	// do ctr key initialization
 	if (current_aes_dynamic_method == MY_AES_ALGORITHM_CTR)

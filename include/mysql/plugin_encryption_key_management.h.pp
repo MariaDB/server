@@ -201,13 +201,11 @@ int thd_setspecific(void* thd, MYSQL_THD_KEY_T key, void *value);
 extern struct encryption_keys_service_st {
   unsigned int (*get_latest_encryption_key_version_func)();
   unsigned int (*has_encryption_key_func)(unsigned int);
-  unsigned int (*get_encryption_key_size_func)(unsigned int);
-  int (*get_encryption_key_func)(unsigned int, unsigned char*, unsigned int);
+  unsigned int (*get_encryption_key_func)(unsigned int, unsigned char*, unsigned int*);
 } *encryption_keys_service;
 unsigned int get_latest_encryption_key_version();
 unsigned int has_encryption_key(unsigned int version);
-unsigned int get_encryption_key_size(unsigned int version);
-int get_encryption_key(unsigned int version, unsigned char* key, unsigned int keybufsize);
+unsigned int get_encryption_key(unsigned int version, unsigned char* key, unsigned int *keybufsize);
 struct st_mysql_xid {
   long formatID;
   long gtrid_length;
@@ -368,7 +366,6 @@ struct st_mariadb_encryption_key_management
 {
   int interface_version;
   unsigned int (*get_latest_key_version)();
-  unsigned int (*has_key_version)(unsigned int version);
-  unsigned int (*get_key_size)(unsigned int version);
-  int (*get_key)(unsigned int version, unsigned char* key, unsigned int keybufsize);
+  unsigned int (*get_key)(unsigned int version, unsigned char *key,
+                          unsigned int *key_length);
 };

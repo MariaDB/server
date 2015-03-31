@@ -18,25 +18,20 @@ unsigned int get_latest_encryption_key_version()
 unsigned int has_encryption_key(uint version)
 {
   if (encryption_key_manager)
-    return handle->has_key_version(version);
+  {
+    uint unused;
+    return handle->get_key(version, NULL, &unused) != BAD_ENCRYPTION_KEY_VERSION;
+  }
 
   return 0;
 }
 
-unsigned int get_encryption_key_size(uint version)
-{
-  if (encryption_key_manager)
-    return handle->get_key_size(version);
-
-  return 0;
-}
-
-int get_encryption_key(uint version, uchar* key, uint size)
+uint get_encryption_key(uint version, uchar* key, uint *size)
 {
   if (encryption_key_manager)
     return handle->get_key(version, key, size);
 
-  return 1;
+  return BAD_ENCRYPTION_KEY_VERSION;
 }
 
 int initialize_encryption_key_management_plugin(st_plugin_int *plugin)

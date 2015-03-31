@@ -28,23 +28,20 @@ extern "C" {
 extern struct encryption_keys_service_st {
   unsigned int (*get_latest_encryption_key_version_func)();
   unsigned int (*has_encryption_key_func)(unsigned int);
-  unsigned int (*get_encryption_key_size_func)(unsigned int);
-  int (*get_encryption_key_func)(unsigned int, unsigned char*, unsigned int);
+  unsigned int (*get_encryption_key_func)(unsigned int, unsigned char*, unsigned int*);
 } *encryption_keys_service;
 
 #ifdef MYSQL_DYNAMIC_PLUGIN
 
 #define get_latest_encryption_key_version() encryption_keys_service->get_latest_encryption_key_version_func()
 #define has_encryption_key(V) encryption_keys_service->has_encryption_key_func(V)
-#define get_encryption_key_size(V) encryption_keys_service->get_encryption_key_size_func(V)
 #define get_encryption_key(V,K,S) encryption_keys_service->get_encryption_key_func((V), (K), (S))
 
 #else
 
 unsigned int get_latest_encryption_key_version();
 unsigned int has_encryption_key(unsigned int version);
-unsigned int get_encryption_key_size(unsigned int version);
-int get_encryption_key(unsigned int version, unsigned char* key, unsigned int keybufsize);
+unsigned int get_encryption_key(unsigned int version, unsigned char* key, unsigned int *keybufsize);
 
 #endif
 

@@ -28,6 +28,8 @@
 #include <string.h>
 #include <myisampack.h>
 
+#define KEY_SIZE 16
+
 static uint key_version;
 
 static MYSQL_SYSVAR_UINT(version, key_version, PLUGIN_VAR_RQCMDARG,
@@ -43,30 +45,25 @@ static unsigned int get_latest_key_version()
   return key_version;
 }
 
-static int get_key(unsigned int version, unsigned char* dstbuf, unsigned buflen)
+static unsigned int get_key(unsigned int version, unsigned char* dstbuf, unsigned *buflen)
 {
-  if (buflen < 4)
-    return 1;
-  memset(dstbuf, 0, buflen);
+  if (*buflen < KEY_SIZE)
+  {
+    *buflen= KEY_SIZE;
+    return KEY_BUFFER_TOO_SMALL;
+  }
+  *buflen= KEY_SIZE;
+  if (!dstbuf)
+    return 0;
+
+  memset(dstbuf, 0, KEY_SIZE);
   mi_int4store(dstbuf, version);
   return 0;
-}
-
-static unsigned int has_key(unsigned int ver)
-{
-  return 1;
-}
-
-static unsigned int get_key_size(unsigned int ver)
-{
-  return 16;
 }
 
 struct st_mariadb_encryption_key_management debug_key_management_plugin= {
   MariaDB_ENCRYPTION_KEY_MANAGEMENT_INTERFACE_VERSION,
   get_latest_key_version,
-  has_key,
-  get_key_size,
   get_key
 };
 

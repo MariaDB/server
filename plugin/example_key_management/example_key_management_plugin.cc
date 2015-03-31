@@ -58,32 +58,21 @@ get_latest_key_version()
   return key_version;
 }
 
-static int
-get_key(unsigned int version, unsigned char* dstbuf, unsigned buflen)
+static unsigned int
+get_key(unsigned int version, unsigned char* dstbuf, unsigned *buflen)
 {
-  unsigned char *dst = dstbuf;
-  unsigned len = 0;
-  for (; len + MD5_HASH_SIZE <= buflen; len += MD5_HASH_SIZE)
+  if (*buflen < MD5_HASH_SIZE)
   {
-    compute_md5_hash(dst, (const char*)&version, sizeof(version));
-    dst += MD5_HASH_SIZE;
-    version++;
+    *buflen= MD5_HASH_SIZE;
+    return KEY_BUFFER_TOO_SMALL;
   }
-  if (len < buflen)
-  {
-    memset(dst, 0, buflen - len);
-  }
+  *buflen= MD5_HASH_SIZE;
+  if (!dstbuf)
+    return 0;
+
+  my_md5(dstbuf, (const char*)&version, sizeof(version));
+
   return 0;
-}
-
-static unsigned int has_key_func(unsigned int keyID)
-{
-  return true;
-}
-
-static unsigned int get_key_size(unsigned int keyID)
-{
-	return 16;
 }
 
 static int example_key_management_plugin_init(void *p)
@@ -115,8 +104,6 @@ static int example_key_management_plugin_deinit(void *p)
 struct st_mariadb_encryption_key_management example_key_management_plugin= {
   MariaDB_ENCRYPTION_KEY_MANAGEMENT_INTERFACE_VERSION,
   get_latest_key_version,
-  has_key_func,
-  get_key_size,
   get_key
 };
 

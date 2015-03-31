@@ -117,7 +117,8 @@ log_init_crypt_key(
 	}
 
 	byte mysqld_key[MY_AES_BLOCK_SIZE] = {0};
-	if (get_encryption_key(crypt_ver, mysqld_key, MY_AES_BLOCK_SIZE))
+        uint keylen= sizeof(mysqld_key);
+	if (get_encryption_key(crypt_ver, mysqld_key, &keylen))
 	{
 		ib_logf(IB_LOG_LEVEL_ERROR,
 			"Redo log crypto: getting mysqld crypto key "

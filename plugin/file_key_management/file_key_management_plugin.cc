@@ -67,36 +67,25 @@ static unsigned int get_highest_key_used_in_key_file()
   return 0;
 }
 
-static unsigned int has_key_from_key_file(unsigned int key_id)
+static unsigned int get_key_from_key_file(unsigned int key_id,
+                          unsigned char* dstbuf, unsigned *buflen)
 {
   keyentry* entry = get_key(key_id);
 
-  return entry != NULL;
-}
+  if (entry == NULL)
+    return BAD_ENCRYPTION_KEY_VERSION;
 
-static unsigned int get_key_size_from_key_file(unsigned int key_id)
-{
-  keyentry* entry = get_key(key_id);
-
-  return entry ? entry->length : CRYPT_KEY_UNKNOWN;
-}
-
-static int get_key_from_key_file(unsigned int key_id, unsigned char* dstbuf,
-                                 unsigned buflen)
-{
-  keyentry* entry = get_key(key_id);
-
-  if (entry != NULL)
+  if (*buflen < entry->length)
   {
-    if (buflen < entry->length)
-      return CRYPT_BUFFER_TO_SMALL;
+    *buflen= entry->length;
+    return KEY_BUFFER_TOO_SMALL;
+  }
 
+  *buflen= entry->length;
+  if (dstbuf)
     memcpy(dstbuf, entry->key, entry->length);
 
-    return CRYPT_KEY_OK;
-  }
-  else
-    return CRYPT_KEY_UNKNOWN;
+  return 0;
 }
 
 static int file_key_management_plugin_init(void *p)
@@ -108,8 +97,6 @@ static int file_key_management_plugin_init(void *p)
 struct st_mariadb_encryption_key_management file_key_management_plugin= {
   MariaDB_ENCRYPTION_KEY_MANAGEMENT_INTERFACE_VERSION,
   get_highest_key_used_in_key_file,
-  has_key_from_key_file,
-  get_key_size_from_key_file,
   get_key_from_key_file
 };
 
