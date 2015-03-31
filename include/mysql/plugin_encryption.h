@@ -1,5 +1,5 @@
 #ifndef MYSQL_PLUGIN_ENCRYPTION_INCLUDED
-/* Copyright (C) 2014 Sergei Golubchik and MariaDB
+/* Copyright (C) 2014, 2015 Sergei Golubchik and MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -28,9 +28,6 @@
 #include <mysql/plugin.h>
 
 #define MariaDB_ENCRYPTION_INTERFACE_VERSION 0x0200
-
-#define BAD_ENCRYPTION_KEY_VERSION (~(unsigned int)0)
-#define KEY_BUFFER_TOO_SMALL       (100)
 
 /**
   Encryption plugin descriptor
@@ -68,6 +65,9 @@ struct st_mariadb_encryption
   */
   unsigned int (*get_key)(unsigned int version, unsigned char *key,
                           unsigned int *key_length);
+
+  encrypt_decrypt_func encrypt;
+  encrypt_decrypt_func decrypt;
 };
 #endif
 

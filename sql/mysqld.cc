@@ -630,7 +630,6 @@ char *mysqld_unix_port, *opt_mysql_tmpdir;
 ulong thread_handling;
 
 my_bool encrypt_tmp_disk_tables;
-ulong   encryption_algorithm;
 
 /** name of reference on left expression in rewritten IN subquery */
 const char *in_left_expr_name= "<left expr>";
@@ -4804,13 +4803,6 @@ static int init_server_components()
   my_rnd_init(&sql_rand,(ulong) server_start_time,(ulong) server_start_time/2);
   setup_fpu();
   init_thr_lock();
-  if (my_aes_init_dynamic_encrypt((enum_my_aes_encryption_algorithm)
-                                  encryption_algorithm))
-  {
-    fprintf(stderr, "Can't initialize encryption algorithm to \"%s\".\nCheck that the program is linked with the right library (openssl?)\n",
-            encryption_algorithm_names[encryption_algorithm]);
-    unireg_abort(1);
-  }
 
 #ifndef EMBEDDED_LIBRARY
   if (init_thr_timer(thread_scheduler->max_threads + extra_max_connections))

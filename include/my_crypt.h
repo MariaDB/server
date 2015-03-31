@@ -26,45 +26,45 @@ C_MODE_START
 
 #ifdef HAVE_EncryptAes128Ctr
 
-Crypt_result my_aes_encrypt_ctr(const uchar* source, uint32 source_length,
-                                uchar* dest, uint32* dest_length,
-                                const unsigned char* key, uint8 key_length,
-                                const unsigned char* iv, uint8 iv_length,
-                                uint no_padding);
+int my_aes_encrypt_ctr(const uchar* source, uint source_length,
+                                uchar* dest, uint* dest_length,
+                                const unsigned char* key, uint key_length,
+                                const unsigned char* iv, uint iv_length,
+                                int no_padding);
 
-Crypt_result my_aes_decrypt_ctr(const uchar* source, uint32 source_length,
-                                uchar* dest, uint32* dest_length,
-                                const unsigned char* key, uint8 key_length,
-                                const unsigned char* iv, uint8 iv_length,
-                                uint no_padding);
+int my_aes_decrypt_ctr(const uchar* source, uint source_length,
+                                uchar* dest, uint* dest_length,
+                                const unsigned char* key, uint key_length,
+                                const unsigned char* iv, uint iv_length,
+                                int no_padding);
 
 #endif
 
-Crypt_result my_aes_encrypt_cbc(const uchar* source, uint32 source_length,
-                                uchar* dest, uint32* dest_length,
-                                const unsigned char* key, uint8 key_length,
-                                const unsigned char* iv, uint8 iv_length,
-                                uint no_padding);
+int my_aes_encrypt_cbc(const uchar* source, uint source_length,
+                                uchar* dest, uint* dest_length,
+                                const unsigned char* key, uint key_length,
+                                const unsigned char* iv, uint iv_length,
+                                int no_padding);
 
-Crypt_result my_aes_decrypt_cbc(const uchar* source, uint32 source_length,
-                                uchar* dest, uint32* dest_length,
-                                const unsigned char* key, uint8 key_length,
-                                const unsigned char* iv, uint8 iv_length,
-                                uint no_padding);
+int my_aes_decrypt_cbc(const uchar* source, uint source_length,
+                                uchar* dest, uint* dest_length,
+                                const unsigned char* key, uint key_length,
+                                const unsigned char* iv, uint iv_length,
+                                int no_padding);
 
-Crypt_result my_aes_encrypt_ecb(const uchar* source, uint32 source_length,
-                                uchar* dest, uint32* dest_length,
-                                const unsigned char* key, uint8 key_length,
-                                const unsigned char* iv, uint8 iv_length,
-                                uint no_padding);
+int my_aes_encrypt_ecb(const uchar* source, uint source_length,
+                                uchar* dest, uint* dest_length,
+                                const unsigned char* key, uint key_length,
+                                const unsigned char* iv, uint iv_length,
+                                int no_padding);
 
-Crypt_result my_aes_decrypt_ecb(const uchar* source, uint32 source_length,
-                                uchar* dest, uint32* dest_length,
-                                const unsigned char* key, uint8 key_length,
-                                const unsigned char* iv, uint8 iv_length,
-                                uint no_padding);
+int my_aes_decrypt_ecb(const uchar* source, uint source_length,
+                                uchar* dest, uint* dest_length,
+                                const unsigned char* key, uint key_length,
+                                const unsigned char* iv, uint iv_length,
+                                int no_padding);
 
-Crypt_result my_random_bytes(uchar* buf, int num);
+int my_random_bytes(uchar* buf, int num);
 
 C_MODE_END
 

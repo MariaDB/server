@@ -1,4 +1,4 @@
--- source encryption_algorithms.inc
+--source encryption_algorithms.inc
 
 if (!$FILE_KEY_MANAGEMENT_SO)
 {

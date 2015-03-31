@@ -27,11 +27,9 @@
 
 #include <my_global.h>
 #include <my_pthread.h>
-#include <my_aes.h>
 #include <mysql/plugin_encryption.h>
-#include <my_md5.h>
 #include <my_rnd.h>
-#include "sql_class.h"
+#include <my_crypt.h>
 
 /* rotate key randomly between 45 and 90 seconds */
 #define KEY_ROTATION_MIN 45
@@ -61,12 +59,12 @@ get_latest_key_version()
 static unsigned int
 get_key(unsigned int version, unsigned char* dstbuf, unsigned *buflen)
 {
-  if (*buflen < MD5_HASH_SIZE)
+  if (*buflen < MY_MD5_HASH_SIZE)
   {
-    *buflen= MD5_HASH_SIZE;
+    *buflen= MY_MD5_HASH_SIZE;
     return KEY_BUFFER_TOO_SMALL;
   }
-  *buflen= MD5_HASH_SIZE;
+  *buflen= MY_MD5_HASH_SIZE;
   if (!dstbuf)
     return 0;
 
@@ -75,21 +73,35 @@ get_key(unsigned int version, unsigned char* dstbuf, unsigned *buflen)
   return 0;
 }
 
+/*
+  for the sake of an example, let's use different encryption algorithms/modes
+  for different keys.
+*/
+int encrypt(const unsigned char* src, unsigned int slen,
+            unsigned char* dst, unsigned int* dlen,
+            const unsigned char* key, unsigned int klen,
+            const unsigned char* iv, unsigned int ivlen,
+            int no_padding, unsigned int key_version)
+{
+  return ((key_version & 1) ? my_aes_encrypt_cbc : my_aes_encrypt_ecb)
+    (src, slen, dst, dlen, key, klen, iv, ivlen, no_padding);
+}
+
+int decrypt(const unsigned char* src, unsigned int slen,
+            unsigned char* dst, unsigned int* dlen,
+            const unsigned char* key, unsigned int klen,
+            const unsigned char* iv, unsigned int ivlen,
+            int no_padding, unsigned int key_version)
+{
+  return ((key_version & 1) ? my_aes_decrypt_cbc : my_aes_decrypt_ecb)
+    (src, slen, dst, dlen, key, klen, iv, ivlen, no_padding);
+}
+
 static int example_key_management_plugin_init(void *p)
 {
   /* init */
   my_rnd_init(&seed, time(0), 0);
   get_latest_key_version();
-
-  if (current_aes_dynamic_method == MY_AES_ALGORITHM_NONE)
-  {
-    sql_print_error("No encryption method choosen with --encryption-algorithm. "
-                    "example_key_management_plugin disabled");
-    return 1;
-  }
-
-  my_aes_init_dynamic_encrypt(current_aes_dynamic_method);
-
   pthread_mutex_init(&mutex, NULL);
 
   return 0;
@@ -104,7 +116,9 @@ static int example_key_management_plugin_deinit(void *p)
 struct st_mariadb_encryption example_key_management_plugin= {
   MariaDB_ENCRYPTION_INTERFACE_VERSION,
   get_latest_key_version,
-  get_key
+  get_key,
+  encrypt,
+  decrypt
 };
 
 /*

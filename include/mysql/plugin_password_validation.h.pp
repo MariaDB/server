@@ -198,14 +198,31 @@ void thd_key_delete(MYSQL_THD_KEY_T *key);
 void* thd_getspecific(void* thd, MYSQL_THD_KEY_T key);
 int thd_setspecific(void* thd, MYSQL_THD_KEY_T key, void *value);
 #include <mysql/service_encryption_keys.h>
+typedef int (*encrypt_decrypt_func)(const unsigned char* src, unsigned int slen,
+                                    unsigned char* dst, unsigned int* dlen,
+                                    const unsigned char* key, unsigned int klen,
+                                    const unsigned char* iv, unsigned int ivlen,
+                                    int no_padding, unsigned int key_version);
 extern struct encryption_keys_service_st {
   unsigned int (*get_latest_encryption_key_version_func)();
   unsigned int (*has_encryption_key_func)(unsigned int);
   unsigned int (*get_encryption_key_func)(unsigned int, unsigned char*, unsigned int*);
+  encrypt_decrypt_func encrypt_data_func;
+  encrypt_decrypt_func decrypt_data_func;
 } *encryption_keys_service;
 unsigned int get_latest_encryption_key_version();
 unsigned int has_encryption_key(unsigned int version);
 unsigned int get_encryption_key(unsigned int version, unsigned char* key, unsigned int *keybufsize);
+int encrypt_data(const unsigned char* src, unsigned int slen,
+                 unsigned char* dst, unsigned int* dlen,
+                 const unsigned char* key, unsigned int klen,
+                 const unsigned char* iv, unsigned int ivlen,
+                 int no_padding, unsigned int key_version);
+int decrypt_data(const unsigned char* src, unsigned int slen,
+                 unsigned char* dst, unsigned int* dlen,
+                 const unsigned char* key, unsigned int klen,
+                 const unsigned char* iv, unsigned int ivlen,
+                 int no_padding, unsigned int key_version);
 struct st_mysql_xid {
   long formatID;
   long gtrid_length;

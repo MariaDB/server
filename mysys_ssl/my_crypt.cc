@@ -26,8 +26,8 @@ static const Dir CRYPT_ENCRYPT = TaoCrypt::ENCRYPTION;
 static const Dir CRYPT_DECRYPT = TaoCrypt::DECRYPTION;
 
 typedef TaoCrypt::Mode CipherMode;
-static inline CipherMode aes_ecb(uint8) { return TaoCrypt::ECB; }
-static inline CipherMode aes_cbc(uint8) { return TaoCrypt::CBC; }
+static inline CipherMode aes_ecb(uint) { return TaoCrypt::ECB; }
+static inline CipherMode aes_cbc(uint) { return TaoCrypt::CBC; }
 
 typedef TaoCrypt::byte KeyByte;
 
@@ -42,7 +42,7 @@ static const Dir CRYPT_DECRYPT = 0;
 typedef const EVP_CIPHER *CipherMode;
 
 #define make_aes_dispatcher(mode)                               \
-  static inline CipherMode aes_ ## mode(uint8 key_length)       \
+  static inline CipherMode aes_ ## mode(uint key_length)       \
   {                                                             \
     switch (key_length) {                                       \
     case 16: return EVP_aes_128_ ## mode();                     \
@@ -67,10 +67,10 @@ struct MyCTX : EVP_CIPHER_CTX {
 #endif
 
 static int do_crypt(CipherMode cipher, Dir dir,
-                    const uchar* source, uint32 source_length,
-                    uchar* dest, uint32* dest_length,
-                    const KeyByte *key, uint8 key_length,
-                    const KeyByte *iv, uint8 iv_length, int no_padding)
+                    const uchar* source, uint source_length,
+                    uchar* dest, uint* dest_length,
+                    const KeyByte *key, uint key_length,
+                    const KeyByte *iv, uint iv_length, int no_padding)
 {
   int tail= source_length % MY_AES_BLOCK_SIZE;
 
@@ -123,8 +123,8 @@ static int do_crypt(CipherMode cipher, Dir dir,
 
   EVP_CIPHER_CTX_set_padding(&ctx, !no_padding);
 
-  DBUG_ASSERT(EVP_CIPHER_CTX_key_length(&ctx) == key_length);
-  DBUG_ASSERT(EVP_CIPHER_CTX_iv_length(&ctx) == iv_length);
+  DBUG_ASSERT(EVP_CIPHER_CTX_key_length(&ctx) == (int)key_length);
+  DBUG_ASSERT(EVP_CIPHER_CTX_iv_length(&ctx) == (int)iv_length);
   DBUG_ASSERT(EVP_CIPHER_CTX_block_size(&ctx) == MY_AES_BLOCK_SIZE || !no_padding);
 
   /* use built-in OpenSSL padding, if possible */
@@ -164,11 +164,11 @@ C_MODE_START
 
 #ifdef HAVE_EncryptAes128Ctr
 
-int my_aes_encrypt_ctr(const uchar* source, uint32 source_length,
-                       uchar* dest, uint32* dest_length,
-                       const uchar* key, uint8 key_length,
-                       const uchar* iv, uint8 iv_length,
-                       uint no_padding)
+int my_aes_encrypt_ctr(const uchar* source, uint source_length,
+                       uchar* dest, uint* dest_length,
+                       const uchar* key, uint key_length,
+                       const uchar* iv, uint iv_length,
+                       int no_padding)
 {
   /* CTR is a stream cipher mode, it needs no special padding code */
   return do_crypt(aes_ctr(key_length), CRYPT_ENCRYPT, source, source_length,
@@ -176,11 +176,11 @@ int my_aes_encrypt_ctr(const uchar* source, uint32 source_length,
 }
 
 
-int my_aes_decrypt_ctr(const uchar* source, uint32 source_length,
-                       uchar* dest, uint32* dest_length,
-                       const uchar* key, uint8 key_length,
-                       const uchar* iv, uint8 iv_length,
-                       uint no_padding)
+int my_aes_decrypt_ctr(const uchar* source, uint source_length,
+                       uchar* dest, uint* dest_length,
+                       const uchar* key, uint key_length,
+                       const uchar* iv, uint iv_length,
+                       int no_padding)
 {
   return do_crypt(aes_ctr(key_length), CRYPT_DECRYPT, source, source_length,
                   dest, dest_length, key, key_length, iv, iv_length, 0);
@@ -188,41 +188,41 @@ int my_aes_decrypt_ctr(const uchar* source, uint32 source_length,
 
 #endif /* HAVE_EncryptAes128Ctr */
 
-int my_aes_encrypt_ecb(const uchar* source, uint32 source_length,
-                       uchar* dest, uint32* dest_length,
-                       const uchar* key, uint8 key_length,
-                       const uchar* iv, uint8 iv_length,
-                       uint no_padding)
+int my_aes_encrypt_ecb(const uchar* source, uint source_length,
+                       uchar* dest, uint* dest_length,
+                       const uchar* key, uint key_length,
+                       const uchar* iv, uint iv_length,
+                       int no_padding)
 {
   return do_crypt(aes_ecb(key_length), CRYPT_ENCRYPT, source, source_length,
                         dest, dest_length, key, key_length, 0, 0, no_padding);
 }
 
-int my_aes_decrypt_ecb(const uchar* source, uint32 source_length,
-                       uchar* dest, uint32* dest_length,
-                       const uchar* key, uint8 key_length,
-                       const uchar* iv, uint8 iv_length,
-                       uint no_padding)
+int my_aes_decrypt_ecb(const uchar* source, uint source_length,
+                       uchar* dest, uint* dest_length,
+                       const uchar* key, uint key_length,
+                       const uchar* iv, uint iv_length,
+                       int no_padding)
 {
   return do_crypt(aes_ecb(key_length), CRYPT_DECRYPT, source, source_length,
                         dest, dest_length, key, key_length, 0, 0, no_padding);
 }
 
-int my_aes_encrypt_cbc(const uchar* source, uint32 source_length,
-                       uchar* dest, uint32* dest_length,
-                       const uchar* key, uint8 key_length,
-                       const uchar* iv, uint8 iv_length,
-                       uint no_padding)
+int my_aes_encrypt_cbc(const uchar* source, uint source_length,
+                       uchar* dest, uint* dest_length,
+                       const uchar* key, uint key_length,
+                       const uchar* iv, uint iv_length,
+                       int no_padding)
 {
   return do_crypt(aes_cbc(key_length), CRYPT_ENCRYPT, source, source_length,
                         dest, dest_length, key, key_length, iv, iv_length, no_padding);
 }
 
-int my_aes_decrypt_cbc(const uchar* source, uint32 source_length,
-                       uchar* dest, uint32* dest_length,
-                       const uchar* key, uint8 key_length,
-                       const uchar* iv, uint8 iv_length,
-                       uint no_padding)
+int my_aes_decrypt_cbc(const uchar* source, uint source_length,
+                       uchar* dest, uint* dest_length,
+                       const uchar* key, uint key_length,
+                       const uchar* iv, uint iv_length,
+                       int no_padding)
 {
   return do_crypt(aes_cbc(key_length), CRYPT_DECRYPT, source, source_length,
                         dest, dest_length, key, key_length, iv, iv_length, no_padding);

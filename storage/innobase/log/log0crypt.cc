@@ -32,7 +32,6 @@ Modified           Jan Lindström jan.lindstrom@mariadb.com
 #include "srv0start.h" // for srv_start_lsn
 #include "log0recv.h"  // for recv_sys
 
-#include "mysql/plugin_encryption.h" // for BAD_ENCRYPTION_KEY_VERSION
 #include "ha_prototypes.h" // IB_LOG_
 
 /* If true, enable redo log encryption. */
@@ -127,12 +126,10 @@ log_init_crypt_key(
 	}
 
 	uint32 dst_len;
-	my_aes_encrypt_dynamic_type func= get_aes_encrypt_func(MY_AES_ALGORITHM_ECB);
-	int rc= (*func)(crypt_msg, MY_AES_BLOCK_SIZE, //src, srclen
+	int rc= my_aes_encrypt_ecb(crypt_msg, MY_AES_BLOCK_SIZE, //src, srclen
                         key, &dst_len, //dst, &dstlen
                         (unsigned char*)&mysqld_key, sizeof(mysqld_key),
-                        NULL, 0,
-                        1);
+                        NULL, 0, 1);
 
 	if (rc != AES_OK || dst_len != MY_AES_BLOCK_SIZE)
 	{
@@ -207,11 +204,11 @@ log_blocks_crypt(
 		mach_write_to_4(aes_ctr_counter + 11, log_block_no);
 		bzero(aes_ctr_counter + 15, 1);
 
-		int rc = (* my_aes_encrypt_dynamic)(log_block + LOG_BLOCK_HDR_SIZE, src_len,
-		                                dst_block + LOG_BLOCK_HDR_SIZE, &dst_len,
-		                                (unsigned char*)key, 16,
-		                                aes_ctr_counter, MY_AES_BLOCK_SIZE,
-		                                1);
+		int rc = encrypt_data(log_block + LOG_BLOCK_HDR_SIZE, src_len,
+		                      dst_block + LOG_BLOCK_HDR_SIZE, &dst_len,
+		                      (unsigned char*)key, 16,
+		                      aes_ctr_counter, MY_AES_BLOCK_SIZE, 1,
+                                      recv_sys->recv_log_crypt_ver);
 
 		ut_a(rc == AES_OK);
 		ut_a(dst_len == src_len);
@@ -266,8 +263,7 @@ log_crypt_set_ver_and_key(
 		encrypted = true;
 
 		if (vkey == UNENCRYPTED_KEY_VER ||
-		    vkey == BAD_ENCRYPTION_KEY_VERSION ||
-			vkey == (unsigned int)CRYPT_KEY_UNKNOWN) {
+		    vkey == BAD_ENCRYPTION_KEY_VERSION) {
 			encrypted = false;
 
 			ib_logf(IB_LOG_LEVEL_WARN,

@@ -16,7 +16,6 @@
   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
 
 #include <my_global.h>
-#include "ma_crypt.h"
 #include "maria_def.h"
 #include "ma_blockrec.h"
 #include <my_crypt.h>
@@ -291,7 +290,7 @@ void ma_crypt_set_data_pagecache_callbacks(PAGECACHE_FILE *file,
                                            __attribute__((unused)))
 {
   /* Only use encryption if we have defined it */
-  if (likely(current_aes_dynamic_method != MY_AES_ALGORITHM_NONE))
+  if (get_latest_encryption_key_version() != BAD_ENCRYPTION_KEY_VERSION)
   {
     file->pre_read_hook= ma_crypt_pre_read_hook;
     file->post_read_hook= ma_crypt_data_post_read_hook;
@@ -411,17 +410,16 @@ static int ma_encrypt(MARIA_CRYPT_DATA *crypt_data,
   int rc;
   uint32 dstlen;
   uchar counter[COUNTER_LEN];
+  *key_version= 1;
 
   // create counter block
   memcpy(counter + 0, crypt_data->iv + CRYPT_SCHEME_1_IV_LEN, 4);
   int4store(counter + 4, pageno);
   int8store(counter + 8, lsn);
 
-  rc = my_aes_encrypt_dynamic(src, size,
-                              dst, &dstlen,
-                              crypt_data->iv, CRYPT_SCHEME_1_IV_LEN,
-                              counter, sizeof(counter),
-                              1);
+  rc = encrypt_data(src, size, dst, &dstlen,
+                    crypt_data->iv, CRYPT_SCHEME_1_IV_LEN,
+                    counter, sizeof(counter), 1, *key_version);
 
   DBUG_ASSERT(rc == AES_OK);
   DBUG_ASSERT(dstlen == size);
@@ -434,7 +432,6 @@ static int ma_encrypt(MARIA_CRYPT_DATA *crypt_data,
     return 1;
   }
 
-  *key_version= 1;
   return 0;
 }
 
@@ -452,11 +449,9 @@ static int ma_decrypt(MARIA_CRYPT_DATA *crypt_data,
   int4store(counter + 4, pageno);
   int8store(counter + 8, lsn);
 
-  rc = my_aes_decrypt_dynamic(src, size,
-                              dst, &dstlen,
-                              crypt_data->iv, CRYPT_SCHEME_1_IV_LEN,
-                              counter, sizeof(counter),
-                              1);
+  rc =decrypt_data(src, size, dst, &dstlen,
+                   crypt_data->iv, CRYPT_SCHEME_1_IV_LEN,
+                   counter, sizeof(counter), 1, key_version);
 
   DBUG_ASSERT(rc == AES_OK);
   DBUG_ASSERT(dstlen == size);

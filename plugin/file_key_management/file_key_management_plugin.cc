@@ -15,12 +15,28 @@
 
 
 #include "parser.h"
-#include <mysql_version.h>
 #include <mysql/plugin_encryption.h>
 #include <string.h>
 
 static char* filename;
 static char* filekey;
+static unsigned long encryption_algorithm;
+
+static const char *encryption_algorithm_names[]=
+{
+  "aes_cbc",
+#ifdef HAVE_EncryptAes128Ctr
+  "aes_ctr",
+#endif
+  0
+};
+
+static TYPELIB encryption_algorithm_typelib=
+{
+  array_elements(encryption_algorithm_names)-1,"",
+  encryption_algorithm_names, NULL
+};
+
 
 static MYSQL_SYSVAR_STR(filename, filename,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
@@ -32,9 +48,15 @@ static MYSQL_SYSVAR_STR(filekey, filekey,
   "Key to encrypt / decrypt the keyfile.",
   NULL, NULL, "");
 
+static MYSQL_SYSVAR_ENUM(encryption_algorithm, encryption_algorithm,
+  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
+  "Encryption algorithm to use.",
+  NULL, NULL, 0, &encryption_algorithm_typelib);
+
 static struct st_mysql_sys_var* settings[] = {
   MYSQL_SYSVAR(filename),
   MYSQL_SYSVAR(filekey),
+  MYSQL_SYSVAR(encryption_algorithm),
   NULL
 };
 
@@ -88,17 +110,36 @@ static unsigned int get_key_from_key_file(unsigned int key_id,
   return 0;
 }
 
-static int file_key_management_plugin_init(void *p)
-{
-  Parser parser(filename, filekey);
-  return parser.parse(&keys);
-}
-
 struct st_mariadb_encryption file_key_management_plugin= {
   MariaDB_ENCRYPTION_INTERFACE_VERSION,
   get_highest_key_used_in_key_file,
-  get_key_from_key_file
+  get_key_from_key_file,
+  0,0
 };
+
+static int file_key_management_plugin_init(void *p)
+{
+  Parser parser(filename, filekey);
+  switch (encryption_algorithm) {
+  case 0: // AES_CBC
+    file_key_management_plugin.encrypt=
+      (encrypt_decrypt_func)my_aes_encrypt_cbc;
+    file_key_management_plugin.decrypt=
+      (encrypt_decrypt_func)my_aes_decrypt_cbc;
+    break;
+#ifdef HAVE_EncryptAes128Ctr
+  case 1: // AES_CTR
+    file_key_management_plugin.encrypt=
+      (encrypt_decrypt_func)my_aes_encrypt_ctr;
+    file_key_management_plugin.decrypt=
+      (encrypt_decrypt_func)my_aes_decrypt_ctr;
+    break;
+#endif
+  default:
+    return 1; // cannot happen
+  }
+  return parser.parse(&keys);
+}
 
 /*
   Plugin library descriptor

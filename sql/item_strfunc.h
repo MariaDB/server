@@ -142,7 +142,9 @@ class Item_aes_crypt :public Item_str_func
   void create_key(String *user_key, uchar* key);
 
 protected:
-  my_aes_encrypt_dynamic_type crypt;
+  int (*crypt)(const uchar* src, uint slen, uchar* dst, uint* dlen,
+               const uchar* key, uint klen, const uchar* iv, uint ivlen,
+               int no_padding);
 
 public:
   Item_aes_crypt(Item *a, Item *b) :Item_str_func(a,b) {}

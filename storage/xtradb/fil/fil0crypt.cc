@@ -693,11 +693,9 @@ fil_space_encrypt(ulint space, ulint offset, lsn_t lsn,
 		srclen = page_size -  FIL_PAGE_DATA;
 	}
 
-	int rc = (* my_aes_encrypt_dynamic)(src, srclen,
-	                                    dst, &dstlen,
-	                                    (unsigned char*)key, key_length,
-	                                    (unsigned char*)iv, sizeof(iv),
-	                                    1);
+	int rc = encrypt_data(src, srclen, dst, &dstlen,
+	                      (unsigned char*)key, key_length,
+	                      (unsigned char*)iv, sizeof(iv), 1, key_version);
 
 	if (! ((rc == AES_OK) && ((ulint) dstlen == srclen))) {
 		ib_logf(IB_LOG_LEVEL_FATAL,
@@ -867,11 +865,9 @@ fil_space_decrypt(fil_space_crypt_t* crypt_data,
 		srclen = pow((double)2, (double)((int)compressed_len)) - FIL_PAGE_DATA;
 	}
 
-	int rc = (* my_aes_decrypt_dynamic)(src, srclen,
-	                                    dst, &dstlen,
-	                                    (unsigned char*)key, key_length,
-	                                    (unsigned char*)iv, sizeof(iv),
-	                                    1);
+	int rc = decrypt_data(src, srclen, dst, &dstlen,
+	                      (unsigned char*)key, key_length,
+	                      (unsigned char*)iv, sizeof(iv), 1, key_version);
 
 	if (! ((rc == AES_OK) && ((ulint) dstlen == srclen))) {
 		ib_logf(IB_LOG_LEVEL_FATAL,

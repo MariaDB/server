@@ -17,6 +17,8 @@ Created 11/25/2013 Minli Zhu
 #define PURPOSE_BYTE_OFFSET	0
 #define UNENCRYPTED_KEY_VER	0
 
+typedef int Crypt_result;
+
 /* If true, enable redo log encryption. */
 extern my_bool srv_encrypt_log;
 /* Plain text used by AES_ECB to generate redo log crypt key. */
