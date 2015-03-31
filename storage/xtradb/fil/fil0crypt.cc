@@ -240,49 +240,38 @@ fil_crypt_get_key(byte *dst, uint* key_length,
 		ut_error;
 	}
 
-	// do ctr key initialization
-	if (current_aes_dynamic_method == MY_AES_ALGORITHM_CTR)
-	{
-		/* Now compute L by encrypting IV using this key. Note
-		that we use random IV from crypt data. */
-		const unsigned char* src = crypt_data->iv;
-		const int srclen = crypt_data->iv_length;
-		unsigned char* buf = page_encrypted ? keybuf : crypt_data->keys[0].key;
-		uint32 buflen = page_encrypted ? *key_length : sizeof(crypt_data->keys[0].key);
+	/* Now compute L by encrypting IV using this key. Note
+	that we use random IV from crypt data. */
+	const unsigned char* src = crypt_data->iv;
+	const int srclen = crypt_data->iv_length;
+	unsigned char* buf = page_encrypted ? keybuf : crypt_data->keys[0].key;
+	uint32 buflen = page_encrypted ? *key_length : sizeof(crypt_data->keys[0].key);
 
-		// call ecb explicit
-		my_aes_encrypt_dynamic_type func = get_aes_encrypt_func(MY_AES_ALGORITHM_ECB);
-		int rc = (*func)(src, srclen,
-			buf, &buflen,
-			(unsigned char*)keybuf, *key_length,
-			NULL, 0,
-			1);
+	// call ecb explicit
+	rc = my_aes_encrypt_ecb(src, srclen, buf, &buflen,
+		(unsigned char*)keybuf, *key_length, NULL, 0, 1);
 
-		if (rc != AES_OK) {
-			ib_logf(IB_LOG_LEVEL_FATAL,
-				"Unable to encrypt key-block "
-				" src: %p srclen: %d buf: %p buflen: %d."
-				" return-code: %d. Can't continue!\n",
-				src, srclen, buf, buflen, rc);
-			ut_error;
-		}
-
-		if (!page_encrypted) {
-			crypt_data->keys[0].key_version = version;
-			crypt_data->key_count++;
-
-			if (crypt_data->key_count > array_elements(crypt_data->keys)) {
-				crypt_data->key_count = array_elements(crypt_data->keys);
-			}
-		}
-
-		// set the key size to the aes block size because this encrypted data is the key
-		*key_length = MY_AES_BLOCK_SIZE;
-		memcpy(dst, buf, buflen);
-	} else {
-		// otherwise keybuf contains the right key
-		memcpy(dst, keybuf, *key_length);
+	if (rc != AES_OK) {
+		ib_logf(IB_LOG_LEVEL_FATAL,
+			"Unable to encrypt key-block "
+			" src: %p srclen: %d buf: %p buflen: %d."
+			" return-code: %d. Can't continue!\n",
+			src, srclen, buf, buflen, rc);
+		ut_error;
 	}
+
+	if (!page_encrypted) {
+		crypt_data->keys[0].key_version = version;
+		crypt_data->key_count++;
+
+		if (crypt_data->key_count > array_elements(crypt_data->keys)) {
+			crypt_data->key_count = array_elements(crypt_data->keys);
+		}
+	}
+
+	// set the key size to the aes block size because this encrypted data is the key
+	*key_length = MY_AES_BLOCK_SIZE;
+	memcpy(dst, buf, buflen);
 
 	mutex_exit(&crypt_data->mutex);
 }
@@ -664,19 +653,12 @@ fil_space_encrypt(ulint space, ulint offset, lsn_t lsn,
 	/* Load the iv or counter (depending to the encryption algorithm used) */
 	unsigned char iv[MY_AES_BLOCK_SIZE];
 
-	if (current_aes_dynamic_method == MY_AES_ALGORITHM_CTR) {
-		// create counter block (C)
-		mach_write_to_4(iv + 0, space);
-		ulint space_offset = mach_read_from_4(
-			src_frame + FIL_PAGE_OFFSET);
-		mach_write_to_4(iv + 4, space_offset);
-		mach_write_to_8(iv + 8, lsn);
-	} else {
-		// Get random IV from crypt_data
-		mutex_enter(&crypt_data->mutex);
-		memcpy(iv, crypt_data->iv, crypt_data->iv_length);
-		mutex_exit(&crypt_data->mutex);
-	}
+	// create counter block (C)
+	mach_write_to_4(iv + 0, space);
+	ulint space_offset = mach_read_from_4(
+		src_frame + FIL_PAGE_OFFSET);
+	mach_write_to_4(iv + 4, space_offset);
+	mach_write_to_8(iv + 8, lsn);
 
 	ibool page_compressed = (mach_read_from_2(src_frame+FIL_PAGE_TYPE) == FIL_PAGE_PAGE_COMPRESSED);
 	ibool page_encrypted  = fil_space_is_page_encrypted(space);
@@ -858,18 +840,11 @@ fil_space_decrypt(fil_space_crypt_t* crypt_data,
 	// get the iv
 	unsigned char iv[MY_AES_BLOCK_SIZE];
 
-	if (current_aes_dynamic_method == MY_AES_ALGORITHM_CTR) {
-		// create counter block
+	// create counter block
 
-		mach_write_to_4(iv + 0, space);
-		mach_write_to_4(iv + 4, offset);
-		mach_write_to_8(iv + 8, lsn);
-	} else {
-		// Get random IV from crypt_data
-		mutex_enter(&crypt_data->mutex);
-		memcpy(iv, crypt_data->iv, crypt_data->iv_length);
-		mutex_exit(&crypt_data->mutex);
-	}
+	mach_write_to_4(iv + 0, space);
+	mach_write_to_4(iv + 4, offset);
+	mach_write_to_8(iv + 8, lsn);
 
 	const byte* src = src_frame + FIL_PAGE_DATA;
 	byte* dst = dst_frame + FIL_PAGE_DATA;
