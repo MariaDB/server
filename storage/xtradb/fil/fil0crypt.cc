@@ -2033,6 +2033,9 @@ fil_crypt_flush_space(rotate_thread_t *state, ulint space)
 						      RW_X_LATCH, NULL, BUF_GET,
 						      __FILE__, __LINE__, &mtr);
 		byte* frame = buf_block_get_frame(block);
+		ulint maxsize = 0;
+		crypt_data->page0_offset =
+			fsp_header_get_crypt_offset(zip_size, &maxsize);
 		fil_space_write_crypt_data(space, frame,
 					   crypt_data->page0_offset,
 					   ULINT_MAX, &mtr);
