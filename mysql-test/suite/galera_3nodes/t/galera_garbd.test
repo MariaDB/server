@@ -48,3 +48,15 @@ DROP TABLE t1;
 --echo Restarting node #3 to satisfy MTR's end-of-test checks
 --connection node_3
 --source include/start_mysqld.inc
+
+
+# Workaround for galera#101
+
+--connection node_1
+CALL mtr.add_suppression("WSREP: Protocol violation\. JOIN message sender 1\.0 \(.*\) is not in state transfer \(SYNCED\)");
+
+--connection node_2
+CALL mtr.add_suppression("WSREP: Protocol violation\. JOIN message sender 1\.0 \(.*\) is not in state transfer \(SYNCED\)");
+
+--connection node_3
+CALL mtr.add_suppression("WSREP: Protocol violation\. JOIN message sender 1\.0 \(.*\) is not in state transfer \(SYNCED\)");

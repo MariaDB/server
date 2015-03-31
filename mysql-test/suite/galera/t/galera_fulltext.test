@@ -24,16 +24,16 @@ SELECT COUNT(*) = 13 FROM INFORMATION_SCHEMA.INNODB_SYS_TABLES WHERE name LIKE '
 #
 
 --connection node_1
-# Insert 10K rows
-INSERT INTO t1 (f2) SELECT 'foobarbaz' FROM ten AS a1, ten AS a2, ten AS a3, ten AS a4;
+# Insert 1K rows
+INSERT INTO t1 (f2) SELECT 'foobarbaz' FROM ten AS a1, ten AS a2, ten AS a3;
 
 --connection node_2
-SELECT COUNT(f2) = 10000 FROM t1 WHERE MATCH(f2) AGAINST ('foobarbaz');
+SELECT COUNT(f2) = 1000 FROM t1 WHERE MATCH(f2) AGAINST ('foobarbaz');
 
 UPDATE t1 SET f2 = 'abcdefjhk';
 
 --connection node_1
-SELECT COUNT(f2) = 10000 FROM t1 WHERE MATCH(f2) AGAINST ('abcdefjhk');
+SELECT COUNT(f2) = 1000 FROM t1 WHERE MATCH(f2) AGAINST ('abcdefjhk');
 
 --connection node_2
 

@@ -7,7 +7,7 @@
 --source include/galera_cluster.inc
 --source include/have_innodb.inc
 
---let $wsrep_provider_options_node1 = `SELECT @@wsrep_provider_options`
+--connection node_1
 SET GLOBAL wsrep_provider_options = 'pc.weight=3';
 
 --source include/wait_until_connected_again.inc
@@ -50,12 +50,16 @@ SHOW STATUS LIKE 'wsrep_local_state_comment';
 
 # For Node #1, we expect a primary component of size 1
 
-SELECT VARIABLE_VALUE = 1 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--let $wait_condition = SELECT VARIABLE_VALUE = 1 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--source include/wait_condition.inc
+
 SELECT VARIABLE_VALUE = 'Primary' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_status';
 SELECT VARIABLE_VALUE = 'ON' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_connected';
 SELECT VARIABLE_VALUE = 'ON' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_ready';
 SELECT VARIABLE_VALUE = 4 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_state';
 SELECT VARIABLE_VALUE = 'Synced' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_state_comment';
+
+SET GLOBAL wsrep_provider_options = 'pc.weight=1';
 
 # Restore the cluster by resetting wsrep_cluster_address on nodes #1 and #2
 
@@ -103,8 +107,17 @@ SELECT VARIABLE_VALUE = 4 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_N
 SELECT VARIABLE_VALUE = 'Synced' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_state_comment';
 
 --connection node_1
+
+SET GLOBAL wsrep_provider_options = 'pc.weight=1';
+--let $wait_condition = SELECT @@wsrep_provider_options LIKE '%pc.weight = 1%'
+--source include/wait_condition.inc
+
 CALL mtr.add_suppression('WSREP: gcs_caused\\(\\) returned -1');
+
+--connection node_2
+CALL mtr.add_suppression('overriding reported weight for');
 
 --connection node_3
 CALL mtr.add_suppression('WSREP: user message in state LEAVING');
 CALL mtr.add_suppression('sending install message failed: Transport endpoint is not connected');
+CALL mtr.add_suppression('overriding reported weight for');

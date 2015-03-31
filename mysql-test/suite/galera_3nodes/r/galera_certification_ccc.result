@@ -15,3 +15,6 @@ SELECT COUNT(*) = 2 FROM t1;
 COUNT(*) = 2
 1
 DROP TABLE t1;
+CALL mtr.add_suppression("SYNC message from member 1 in non-primary configuration");
+CALL mtr.add_suppression("SYNC message from member 1 in non-primary configuration");
+CALL mtr.add_suppression("SYNC message from member 1 in non-primary configuration");
