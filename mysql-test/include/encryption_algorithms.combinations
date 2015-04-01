@@ -1,8 +1,5 @@
 [cbc]
 encryption-algorithm=aes_cbc
 
-[ecb]
-encryption-algorithm=aes_ecb
-
 [ctr]
 encryption-algorithm=aes_ctr

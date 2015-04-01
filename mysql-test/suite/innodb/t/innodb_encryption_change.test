@@ -1,0 +1,229 @@
+#
+#
+#
+-- source include/have_innodb.inc
+-- source include/have_example_key_management_plugin.inc
+
+# embedded does not support restart
+-- source include/not_embedded.inc
+
+--disable_query_log
+let $orig_algorithm=`SELECT @@encryption_algorithm`;
+let $innodb_file_format_orig = `SELECT @@innodb_file_format`;
+let $innodb_file_per_table_orig = `SELECT @@innodb_file_per_table`;
+let $encrypt_tables_orig = `SELECT @@innodb_encrypt_tables`;
+--enable_query_log
+
+SET @start_global_value = @@global.innodb_encryption_threads;
+SET GLOBAL innodb_file_format = `Barracuda`;
+SET GLOBAL innodb_file_per_table = ON;
+
+--disable_query_log
+EVAL SET GLOBAL encryption_algorithm = $orig_algorithm;
+--enable_query_log
+
+SHOW VARIABLES LIKE 'innodb_encrypt%';
+
+DESCRIBE INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION;
+
+create table innodb_normal(c1 bigint not null, b char(200)) engine=innodb;
+create table innodb_compact(c1 bigint not null, b char(200)) engine=innodb row_format=compact;
+create table innodb_dynamic(c1 bigint not null, b char(200)) engine=innodb row_format=dynamic;
+create table innodb_compressed(c1 bigint not null, b char(200)) engine=innodb row_format=compressed;
+create table innodb_redundant(c1 bigint not null, b char(200)) engine=innodb row_format=redundant;
+
+delimiter //;
+create procedure innodb_insert_proc (repeat_count int)
+begin
+  declare current_num int;
+  set current_num = 0;
+  while current_num < repeat_count do
+    insert into innodb_normal values(current_num, substring(MD5(RAND()), -64));
+    set current_num = current_num + 1;
+  end while;
+end//
+delimiter ;//
+commit;
+
+set autocommit=0;
+call innodb_insert_proc(2000);
+commit;
+set autocommit=1;
+
+insert into innodb_compact select * from innodb_normal;
+insert into innodb_dynamic select * from innodb_normal;
+insert into innodb_compressed select * from innodb_normal;
+insert into innodb_redundant select * from innodb_normal;
+
+--echo " Start encrypt tablespaces
+SET GLOBAL innodb_encrypt_tables = on;
+SET GLOBAL innodb_encryption_threads = 4;
+
+--echo # Wait max 5 min for key encryption threads to encrypt one space
+let $cnt=300;
+while ($cnt)
+{
+    let $success=`SELECT COUNT(*) > 0 FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION > 0`;
+    if ($success)
+    {
+        let $cnt=0;
+    }
+    if (!$success)
+    {
+        real_sleep 1;
+        dec $cnt;
+    }
+}
+if (!$success)
+{
+    SELECT * FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION;
+    SHOW STATUS LIKE 'innodb_encryption%';
+    -- die Timeout waiting for encryption threads
+}
+--echo # Success!
+
+--echo # Wait max 10 min for key encryption threads to encrypt all space
+let $cnt=600;
+while ($cnt)
+{
+    let $success=`SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION = 0`;
+    if ($success)
+    {
+        let $cnt=0;
+    }
+    if (!$success)
+    {
+        real_sleep 1;
+        dec $cnt;
+    }
+}
+if (!$success)
+{
+    SELECT * FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION;
+    SHOW STATUS LIKE 'innodb_encryption%';
+    -- die Timeout waiting for encryption threads
+}
+--echo # Success!
+
+--echo # Now turn off encryption and wait for threads to decrypt everything
+SET GLOBAL innodb_encrypt_tables = off;
+set GLOBAL encryption_algorithm = aes_cbc;
+
+--echo # Wait max 10 min for key encryption threads to decrypt all space
+let $cnt=600;
+while ($cnt)
+{
+    let $success=`SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0`;
+    if ($success)
+    {
+        let $cnt=0;
+    }
+    if (!$success)
+    {
+        real_sleep 1;
+        dec $cnt;
+    }
+}
+if (!$success)
+{
+    SELECT * FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION;
+    SHOW STATUS LIKE 'innodb_encryption%';
+    -- die Timeout waiting for encryption threads
+}
+--echo # Success!
+
+--echo # Shutdown innodb_encryption_threads
+SET GLOBAL innodb_encryption_threads=0;
+
+--echo # Turn on encryption
+--echo # since threads are off tables should remain unencrypted
+SET GLOBAL innodb_encrypt_tables = on;
+
+--echo # Wait 15s to check that nothing gets encrypted
+let $cnt=15;
+while ($cnt)
+{
+    let $success=`SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0`;
+    if ($success)
+    {
+        real_sleep 1;
+        dec $cnt;
+    }
+    if (!$success)
+    {
+        SELECT * FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0;
+        -- die Failure, tablespace getting encrypted even if innodb_encryption_threads=0
+    }
+}
+--echo # Success!
+
+--echo # Startup innodb_encryption_threads
+SET GLOBAL innodb_encryption_threads=4;
+
+--echo # Wait 1 min to check that it start encrypting again
+let $cnt=60;
+while ($cnt)
+{
+    let $success=`SELECT COUNT(*) > 0 FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0 OR KEY_ROTATION_PAGE_NUMBER IS NOT NULL`;
+    if ($success)
+    {
+        let $cnt=0;
+    }
+    if (!$success)
+    {
+        real_sleep 1;
+        dec $cnt;
+    }
+}
+if (!$success)
+{
+    SELECT * FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION;
+    SHOW STATUS LIKE 'innodb_encryption%';
+    -- die Timeout waiting for encryption threads
+}
+--echo # Success!
+--echo # Wait max 10 min for key encryption threads to decrypt all space
+let $cnt=600;
+while ($cnt)
+{
+    let $success=`SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0`;
+    if ($success)
+    {
+        let $cnt=0;
+    }
+    if (!$success)
+    {
+        real_sleep 1;
+        dec $cnt;
+    }
+}
+if (!$success)
+{
+    SELECT * FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION;
+    SHOW STATUS LIKE 'innodb_encryption%';
+    -- die Timeout waiting for encryption threads
+}
+--echo # Success!
+
+SELECT variable_value >= 0 FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_num_pages_page_encrypted';
+SELECT variable_value >= 0 FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_num_pages_page_decrypted';
+SELECT variable_value = 0 FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_num_pages_page_encryption_error';
+SELECT variable_value > 0 FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_num_pages_page_compressed';
+SELECT variable_value > 0 FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_num_pages_page_decompressed';
+
+drop procedure innodb_insert_proc;
+drop table innodb_normal;
+drop table innodb_compact;
+drop table innodb_dynamic;
+drop table innodb_compressed;
+drop table innodb_redundant;
+
+# reset system
+--disable_query_log
+EVAL SET GLOBAL innodb_encrypt_tables = $encrypt_tables_orig;
+SET GLOBAL innodb_encryption_threads=@start_global_value;
+EVAL SET GLOBAL encryption_algorithm = $orig_algorithm;
+EVAL SET GLOBAL innodb_file_per_table = $innodb_file_per_table_orig;
+EVAL SET GLOBAL innodb_file_format = $innodb_file_format_orig;
+--enable_query_log
+

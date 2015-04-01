@@ -678,7 +678,7 @@ extern log_t*	log_sys;
 #define LOG_CHECKPOINT_OFFSET_HIGH32	(16 + LOG_CHECKPOINT_ARRAY_END)
 #define LOG_CRYPT_VER			(20 + LOG_CHECKPOINT_ARRAY_END)
 					/*!< 32-bit key version. Corresponding
-					key has been used for log records with                                        
+					key has been used for log records with
 					lsn <= the checkpoint' lsn */
 #define LOG_CRYPT_MSG			(24 + LOG_CHECKPOINT_ARRAY_END)
 					/*!< a 128-bit value used to
@@ -688,8 +688,10 @@ extern log_t*	log_sys;
 					15-byte random number.*/
 #define LOG_CRYPT_IV			(40 + LOG_CHECKPOINT_ARRAY_END)
 					/*!< a 128-bit random number used as
-					AES-CTR iv/nonce for redo log */
-#define LOG_CHECKPOINT_SIZE		(56 + LOG_CHECKPOINT_ARRAY_END)
+					AES-* iv/nonce for redo log */
+#define LOG_CRYPT_METHOD		(56 + LOG_CHECKPOINT_ARRAY_END)
+					/*!< AES method used */
+#define LOG_CHECKPOINT_SIZE		(57 + LOG_CHECKPOINT_ARRAY_END)
 
 /* Offsets of a log file header */
 #define LOG_GROUP_ID		0	/* log group number */

@@ -63,7 +63,7 @@
 #include "opt_range.h"
 #include "rpl_parallel.h"
 #include "encryption_keys.h"
-
+#include "my_aes.h"
 /*
   The rule for this file: everything should be 'static'. When a sys_var
   variable or a function from this file is - in very rare cases - needed
@@ -5185,13 +5185,30 @@ static Sys_var_mybool Sys_encrypt_tmp_disk_tables(
        GLOBAL_VAR(encrypt_tmp_disk_tables),
        CMD_LINE(OPT_ARG), DEFAULT(FALSE));
 
+
+static bool fix_encryption_algorithm(sys_var *self, THD *thd,
+                                     enum_var_type type)
+{
+  if (my_aes_init_dynamic_encrypt((enum_my_aes_encryption_algorithm)
+                                  encryption_algorithm))
+  {
+    fprintf(stderr, "Can't initialize encryption algorithm to \"%s\".\nCheck that the program is linked with the right library (openssl?)\n",
+            encryption_algorithm_names[encryption_algorithm]);
+    return true;
+  }
+
+  return false;
+}
+
 const char *encryption_algorithm_names[]=
-{ "none", "aes_ecb", "aes_cbc", "aes_ctr", 0 };
+{ "none", "aes_cbc", "aes_ctr", 0 };
 static Sys_var_enum Sys_encryption_algorithm(
        "encryption_algorithm",
        "Which encryption algorithm to use for table encryption. aes_cbc is the recommended one.",
-       READ_ONLY GLOBAL_VAR(encryption_algorithm),CMD_LINE(REQUIRED_ARG),
-       encryption_algorithm_names, DEFAULT(0));
+       GLOBAL_VAR(encryption_algorithm),CMD_LINE(REQUIRED_ARG),
+       encryption_algorithm_names, DEFAULT(0),
+       NO_MUTEX_GUARD, NOT_IN_BINLOG,
+       ON_CHECK(0), ON_UPDATE(fix_encryption_algorithm));
 
 static bool check_pseudo_slave_mode(sys_var *self, THD *thd, set_var *var)
 {

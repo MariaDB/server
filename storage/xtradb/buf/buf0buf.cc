@@ -2450,6 +2450,19 @@ buf_block_align_instance(
 				      == 0xffffffff);
 				break;
 			case BUF_BLOCK_FILE_PAGE:
+				if (block->page.space
+					!= page_get_space_id(page_align(ptr))) {
+				    fprintf(stderr, "Block space id %du page space id %lu page type %s\n",
+					block->page.space, page_get_space_id(page_align(ptr)),
+					fil_get_page_type_name(mach_read_from_4(ptr + FIL_PAGE_TYPE)));
+			        }
+
+			        if (block->page.offset
+					!= page_get_page_no(page_align(ptr))) {
+				fprintf(stderr, "Block offset %du page offset %lu page type %s\n",
+					block->page.offset, page_get_page_no(page_align(ptr)),
+					fil_get_page_type_name(mach_read_from_4(ptr + FIL_PAGE_TYPE)));
+			        }
 				ut_ad(block->page.space
 				      == page_get_space_id(page_align(ptr)));
 				ut_ad(block->page.offset

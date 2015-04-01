@@ -1,0 +1,7 @@
+--aria-encrypt-tables=ON
+--encrypt-tmp-disk-tables=ON
+--innodb-encryption-rotate-key-age=15
+--innodb-encryption-threads=0
+--innodb-tablespaces-encryption
+--innodb-encrypt-log=ON
+

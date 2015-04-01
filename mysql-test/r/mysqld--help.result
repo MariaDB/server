@@ -167,8 +167,8 @@ The following options may be given as the first argument:
  execution)
  --encryption-algorithm=name 
  Which encryption algorithm to use for table encryption.
- aes_cbc is the recommended one.. One of: none, aes_ecb, 
- aes_cbc, aes_ctr
+ aes_cbc is the recommended one.. One of: none, aes_cbc, 
+ aes_ctr
  --enforce-storage-engine=name 
  Force the use of a storage engine for new tables
  --event-scheduler[=name] 

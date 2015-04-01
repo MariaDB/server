@@ -115,8 +115,8 @@ extern MYSQL_PLUGIN_IMPORT my_aes_decrypt_dynamic_type my_aes_decrypt_dynamic;
 
 enum enum_my_aes_encryption_algorithm
 {
-  MY_AES_ALGORITHM_NONE, MY_AES_ALGORITHM_ECB, MY_AES_ALGORITHM_CBC,
-  MY_AES_ALGORITHM_CTR
+  MY_AES_ALGORITHM_NONE, MY_AES_ALGORITHM_CTR,
+  MY_AES_ALGORITHM_CBC, MY_AES_ALGORITHM_ECB
 };
 
 my_aes_decrypt_dynamic_type get_aes_decrypt_func(enum enum_my_aes_encryption_algorithm method);

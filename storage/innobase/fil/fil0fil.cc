@@ -6858,7 +6858,7 @@ Get crypt data for a tablespace */
 UNIV_INTERN
 fil_space_crypt_t*
 fil_space_get_crypt_data(
-/*==================*/
+/*=====================*/
 	ulint id)	/*!< in: space id */
 {
 	fil_space_t*	space;
@@ -6882,9 +6882,26 @@ fil_space_get_crypt_data(
 /******************************************************************
 Get crypt data for a tablespace */
 UNIV_INTERN
+fil_space_crypt_t*
+fil_space_crypt_data(
+/*=================*/
+	fil_space_t* space)	/*!< in: filespace */
+{
+	fil_space_crypt_t* crypt_data = NULL;
+
+	if (space != NULL) {
+		crypt_data = space->crypt_data;
+	}
+
+	return(crypt_data);
+}
+
+/******************************************************************
+Get crypt data for a tablespace */
+UNIV_INTERN
 void
 fil_space_set_crypt_data(
-/*==================*/
+/*=====================*/
 	ulint id, 	               /*!< in: space id */
 	fil_space_crypt_t* crypt_data) /*!< in: crypt data */
 {

@@ -23,8 +23,6 @@ Created            Jonas Oreland Google
 Modified           Jan Lindström jan.lindstrom@mariadb.com
 *******************************************************/
 
-#include "fil0fil.h"
-#include "fil0crypt.h"
 #include "srv0srv.h"
 #include "srv0start.h"
 #include "mach0data.h"
@@ -37,6 +35,8 @@ Modified           Jan Lindström jan.lindstrom@mariadb.com
 #include "fsp0fsp.h"
 #include "fil0pagecompress.h"
 #include "ha_prototypes.h" // IB_LOG_
+#include "fil0fil.h"
+#include "fil0crypt.h"
 
 #include <my_crypt.h>
 
@@ -118,34 +118,6 @@ static const unsigned char CRYPT_MAGIC[MAGIC_SZ] = {
 
 static const unsigned char EMPTY_PATTERN[MAGIC_SZ] = {
 	0x0, 0x0, 0x0, 0x0, 0x0, 0x0 };
-
-/******************************************************************
-Map used AES method to crypt scheme
-@return used AES crypt scheme */
-UNIV_INTERN
-uint
-fil_crypt_get_aes_method(
-/*=====================*/
-	uint aes_method)
-{
-	switch (aes_method) {
-	case MY_AES_ALGORITHM_NONE:
-		return (uint) CRYPT_SCHEME_1_UNENCRYPTED;
-		break;
-	case MY_AES_ALGORITHM_CTR:
-		return (uint) CRYPT_SCHEME_1_CTR;
-		break;
-	case MY_AES_ALGORITHM_CBC:
-		return (uint) CRYPT_SCHEME_1_CBC;
-		break;
-	default:
-		ib_logf(IB_LOG_LEVEL_FATAL,
-			"Current AES method %d not supported.\n", aes_method);
-		ut_error;
-	}
-
-	return (uint) CRYPT_SCHEME_1_UNENCRYPTED;
-}
 
 /*********************************************************************
 Init space crypt */
@@ -657,29 +629,6 @@ fil_space_check_encryption_write(
 	}
 
 	return true;
-}
-
-/******************************************************************
-Map current aes method
-@return AES method */
-UNIV_INTERN
-uint
-fil_crypt_map_aes_method(
-/*=====================*/
-	uint	aes_method)	/*!< in: AES method */
-{
-	switch((fil_crypt_method_t)aes_method) {
-	case CRYPT_SCHEME_1_CTR:
-		return (uint)MY_AES_ALGORITHM_CTR;
-		break;
-	case CRYPT_SCHEME_1_CBC:
-		return (uint)MY_AES_ALGORITHM_CBC;
-		break;
-	default:
-		ib_logf(IB_LOG_LEVEL_FATAL,
-			"Current AES method %d not supported.\n", (int)aes_method);
-		ut_error;
-	}
 }
 
 /******************************************************************

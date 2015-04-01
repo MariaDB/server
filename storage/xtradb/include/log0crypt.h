@@ -23,6 +23,8 @@ extern my_bool srv_encrypt_log;
 extern byte redo_log_crypt_msg[MY_AES_BLOCK_SIZE];
 /* IV to concatenate with counter used by AES_CTR for redo log crypto. */
 extern byte aes_ctr_nonce[MY_AES_BLOCK_SIZE];
+/* AES method used for redo log encryption/decryption. */
+extern byte redo_aes_method;
 
 /*********************************************************************//**
 Generate a 128-bit random message used to generate redo log crypto key.

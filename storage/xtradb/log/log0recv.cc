@@ -3164,13 +3164,16 @@ recv_recovery_from_checkpoint_start_func(
 #ifdef UNIV_LOG_ARCHIVE
 	archived_lsn = mach_read_from_8(buf + LOG_CHECKPOINT_ARCHIVED_LSN);
 #endif /* UNIV_LOG_ARCHIVE */
+
 	recv_crypt_ver = mach_read_from_4(buf + LOG_CRYPT_VER);
+
 	if (recv_crypt_ver == UNENCRYPTED_KEY_VER)
 	{
 		log_init_crypt_msg_and_nonce();
 	} else {
 		ut_memcpy(redo_log_crypt_msg, buf + LOG_CRYPT_MSG, MY_AES_BLOCK_SIZE);
 		ut_memcpy(aes_ctr_nonce, buf + LOG_CRYPT_IV, MY_AES_BLOCK_SIZE);
+		redo_aes_method = (byte)mach_read_from_1(buf + LOG_CRYPT_METHOD);
 	}
 
 	/* Read the first log file header to print a note if this is

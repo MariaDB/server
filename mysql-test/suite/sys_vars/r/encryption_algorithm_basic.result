@@ -3,5 +3,6 @@ select @@global.encryption_algorithm;
 none
 select @@session.encryption_algorithm;
 ERROR HY000: Variable 'encryption_algorithm' is a GLOBAL variable
-set global encryption_algorithm="none";
-ERROR HY000: Variable 'encryption_algorithm' is a read only variable
+set global encryption_algorithm = aes_cbc;
+set global encryption_algorithm = aes_cbc;
+ERROR 42000: Access denied; you need (at least one of) the SUPER privilege(s) for this operation

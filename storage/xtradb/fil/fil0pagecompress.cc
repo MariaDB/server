@@ -87,6 +87,7 @@ static ulint srv_data_read, srv_data_written;
 For page compressed pages compress the page before actual write
 operation.
 @return compressed page to be written*/
+UNIV_INTERN
 byte*
 fil_compress_page(
 /*==============*/
@@ -373,6 +374,7 @@ fil_compress_page(
 /****************************************************************//**
 For page compressed pages decompress the page after actual read
 operation. */
+UNIV_INTERN
 void
 fil_decompress_page(
 /*================*/

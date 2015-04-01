@@ -1,13 +1,33 @@
-# bool global
+# enum global
 
+--disable_query_log
+let $orig_algorithm=`SELECT @@encryption_algorithm`;
+--enable_query_log
+#
 # exists as global only
 #
 select @@global.encryption_algorithm;
 --error ER_INCORRECT_GLOBAL_LOCAL_VAR
 select @@session.encryption_algorithm;
 
+set global encryption_algorithm = aes_cbc;
+
 #
-# show that it's not writable
+# Check changeable only by super
 #
---error 1238
-set global encryption_algorithm="none";
+--source include/add_anonymous_users.inc
+
+connect (con1,localhost,user_1,,);
+connection con1;
+--error 1227
+set global encryption_algorithm = aes_cbc;
+
+connection default;
+
+--source include/delete_anonymous_users.inc
+
+# reset system
+--disable_query_log
+EVAL SET GLOBAL encryption_algorithm = $orig_algorithm;
+--enable_query_log
+

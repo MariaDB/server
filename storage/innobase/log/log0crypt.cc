@@ -30,6 +30,9 @@ Modified           Jan Lindström jan.lindstrom@mariadb.com
 #include "log0log.h"
 #include "srv0start.h" // for srv_start_lsn
 #include "log0recv.h"  // for recv_sys
+#include "ha_prototypes.h" // ib_logf
+#include "fil0fil.h"   // for page types
+#include "fil0crypt.h" // for aes_method
 
 #include "mysql/plugin_encryption_key_management.h" // for BAD_ENCRYPTION_KEY_VERSION
 #include "ha_prototypes.h" // IB_LOG_
@@ -43,15 +46,17 @@ UNIV_INTERN my_bool srv_encrypt_log = FALSE;
 static const byte redo_log_purpose_byte = 0x02;
 /* Plain text used by AES_ECB to generate redo log crypt key. */
 byte redo_log_crypt_msg[MY_AES_BLOCK_SIZE] = {0};
-/* IV to concatenate with counter used by AES_CTR for redo log
+/* IV to concatenate with counter used by AES for redo log
  * encryption/decryption. */
 byte aes_ctr_nonce[MY_AES_BLOCK_SIZE] = {0};
+/* AES method used for redo log encryption/decryption. */
+byte redo_aes_method = 0;
 
 /*********************************************************************//**
 Generate a 128-bit value used to generate crypt key for redo log.
 It is generated via the concatenation of 1 purpose byte (0x02) and 15-byte
 random number.
-Init AES-CTR iv/nonce with random number.
+Init AES iv/nonce with random number.
 It is called when:
 - redo logs do not exist when start up, or
 - transition from without crypto.
@@ -69,8 +74,8 @@ log_init_crypt_msg_and_nonce(void)
 /*==============================*/
 {
 	mach_write_to_1(redo_log_crypt_msg, redo_log_purpose_byte);
-	if (my_random_bytes(redo_log_crypt_msg + 1, PURPOSE_BYTE_LEN) != AES_OK)
-	{
+
+	if (my_random_bytes(redo_log_crypt_msg + 1, PURPOSE_BYTE_LEN) != AES_OK) {
 		ib_logf(IB_LOG_LEVEL_ERROR,
 			"Redo log crypto: generate "
 			"%u-byte random number as crypto msg failed.",
@@ -78,14 +83,16 @@ log_init_crypt_msg_and_nonce(void)
 		abort();
 	}
 
-	if (my_random_bytes(aes_ctr_nonce, MY_AES_BLOCK_SIZE) != AES_OK)
-	{
+	if (my_random_bytes(aes_ctr_nonce, MY_AES_BLOCK_SIZE) != AES_OK) {
 		ib_logf(IB_LOG_LEVEL_ERROR,
 			"Redo log crypto: generate "
-			"%u-byte random number as AES_CTR nonce failed.",
+			"%u-byte random number failed.",
 			MY_AES_BLOCK_SIZE);
 		abort();
 	}
+
+	/* Set up current AES method */
+	redo_aes_method = (byte)fil_crypt_get_aes_method(current_aes_dynamic_method);
 }
 
 /*********************************************************************//**
@@ -98,16 +105,14 @@ log_init_crypt_key(
 	const uint crypt_ver,		/*< in: key version */
 	byte* key)			/*< out: crypt key*/
 {
-	if (crypt_ver == UNENCRYPTED_KEY_VER)
-	{
+	if (crypt_ver == UNENCRYPTED_KEY_VER) {
 		ib_logf(IB_LOG_LEVEL_INFO,
 			"Redo log crypto: unencrypted key ver.");
 		memset(key, 0, MY_AES_BLOCK_SIZE);
 		return;
 	}
 
-	if (crypt_msg[PURPOSE_BYTE_OFFSET] != redo_log_purpose_byte)
-	{
+	if (crypt_msg[PURPOSE_BYTE_OFFSET] != redo_log_purpose_byte) {
 		ib_logf(IB_LOG_LEVEL_ERROR,
 			"Redo log crypto: msg type mismatched. "
 			"Expected: %x; Actual: %x.",
@@ -116,8 +121,8 @@ log_init_crypt_key(
 	}
 
 	byte mysqld_key[MY_AES_BLOCK_SIZE] = {0};
-	if (get_encryption_key(crypt_ver, mysqld_key, MY_AES_BLOCK_SIZE))
-	{
+
+	if (get_encryption_key(crypt_ver, mysqld_key, MY_AES_BLOCK_SIZE)) {
 		ib_logf(IB_LOG_LEVEL_ERROR,
 			"Redo log crypto: getting mysqld crypto key "
 			"from key version failed.");
@@ -125,15 +130,16 @@ log_init_crypt_key(
 	}
 
 	uint32 dst_len;
+
 	my_aes_encrypt_dynamic_type func= get_aes_encrypt_func(MY_AES_ALGORITHM_ECB);
+
 	int rc= (*func)(crypt_msg, MY_AES_BLOCK_SIZE, //src, srclen
                         key, &dst_len, //dst, &dstlen
                         (unsigned char*)&mysqld_key, sizeof(mysqld_key),
                         NULL, 0,
                         1);
 
-	if (rc != AES_OK || dst_len != MY_AES_BLOCK_SIZE)
-	{
+	if (rc != AES_OK || dst_len != MY_AES_BLOCK_SIZE) {
 		ib_logf(IB_LOG_LEVEL_ERROR,
 			"Redo log crypto: getting redo log crypto key "
 			"failed.");
@@ -158,7 +164,7 @@ log_block_get_start_lsn(
 }
 
 /*********************************************************************//**
-Call AES CTR to encrypt/decrypt log blocks. */
+Call AES to encrypt/decrypt log blocks. */
 static
 Crypt_result
 log_blocks_crypt(
@@ -175,21 +181,22 @@ log_blocks_crypt(
 	ulint log_block_no, log_block_start_lsn;
 	byte *key;
 	ulint lsn;
-	if (is_encrypt)
-	{
+	uint aes_method = (uint)redo_aes_method;
+
+	if (is_encrypt) {
 		ut_a(log_sys && log_sys->redo_log_crypt_ver != UNENCRYPTED_KEY_VER);
 		key = (byte *)(log_sys->redo_log_crypt_key);
 		lsn = log_sys->lsn;
-
 	} else {
 		ut_a(recv_sys && recv_sys->recv_log_crypt_ver != UNENCRYPTED_KEY_VER);
 		key = (byte *)(recv_sys->recv_log_crypt_key);
 		lsn = srv_start_lsn;
 	}
+
 	ut_a(size % OS_FILE_LOG_BLOCK_SIZE == 0);
 	src_len = OS_FILE_LOG_BLOCK_SIZE - LOG_BLOCK_HDR_SIZE;
-	for (ulint i = 0; i < size ; i += OS_FILE_LOG_BLOCK_SIZE)
-	{
+
+	for (ulint i = 0; i < size ; i += OS_FILE_LOG_BLOCK_SIZE) {
 		log_block_no = log_block_get_hdr_no(log_block);
 		log_block_start_lsn = log_block_get_start_lsn(lsn, log_block_no);
 
@@ -205,11 +212,13 @@ log_blocks_crypt(
 		mach_write_to_4(aes_ctr_counter + 11, log_block_no);
 		bzero(aes_ctr_counter + 15, 1);
 
-		int rc = (* my_aes_encrypt_dynamic)(log_block + LOG_BLOCK_HDR_SIZE, src_len,
-		                                dst_block + LOG_BLOCK_HDR_SIZE, &dst_len,
-		                                (unsigned char*)key, 16,
-		                                aes_ctr_counter, MY_AES_BLOCK_SIZE,
-		                                1);
+		my_aes_encrypt_dynamic_type func = get_aes_encrypt_func((enum_my_aes_encryption_algorithm)fil_crypt_map_aes_method(aes_method));
+
+		int rc = (*func)(log_block + LOG_BLOCK_HDR_SIZE, src_len,
+			         dst_block + LOG_BLOCK_HDR_SIZE, &dst_len,
+			         (unsigned char*)key, 16,
+			         aes_ctr_counter, MY_AES_BLOCK_SIZE,
+			         1);
 
 		ut_a(rc == AES_OK);
 		ut_a(dst_len == src_len);
@@ -302,13 +311,17 @@ log_crypt_write_checkpoint_buf(
 {
 	ut_a(log_sys);
 	mach_write_to_4(buf + LOG_CRYPT_VER, log_sys->redo_log_crypt_ver);
+
 	if (!srv_encrypt_log ||
 	    log_sys->redo_log_crypt_ver == UNENCRYPTED_KEY_VER) {
 		memset(buf + LOG_CRYPT_MSG, 0, MY_AES_BLOCK_SIZE);
 		memset(buf + LOG_CRYPT_IV, 0, MY_AES_BLOCK_SIZE);
+		memset(buf + LOG_CRYPT_METHOD, 0, 1);
 		return;
 	}
+
 	ut_a(redo_log_crypt_msg[PURPOSE_BYTE_OFFSET] == redo_log_purpose_byte);
 	memcpy(buf + LOG_CRYPT_MSG, redo_log_crypt_msg, MY_AES_BLOCK_SIZE);
 	memcpy(buf + LOG_CRYPT_IV, aes_ctr_nonce, MY_AES_BLOCK_SIZE);
+	mach_write_to_1(buf + LOG_CRYPT_METHOD, redo_aes_method);
 }
