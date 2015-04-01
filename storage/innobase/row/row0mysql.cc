@@ -57,6 +57,7 @@ Created 9/17/2000 Heikki Tuuri
 #include "btr0sea.h"
 #include "btr0defragment.h"
 #include "fil0fil.h"
+#include "fil0crypt.h"
 #include "ibuf0ibuf.h"
 #include "fts0fts.h"
 #include "fts0types.h"

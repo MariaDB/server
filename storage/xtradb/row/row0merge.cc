@@ -786,7 +786,7 @@ row_merge_read(
 #endif /* UNIV_DEBUG */
 
 	success = os_file_read_no_error_handling(OS_FILE_FROM_FD(fd), buf,
-		                                 ofs, srv_sort_buf_size, FALSE);
+		                                 ofs, srv_sort_buf_size);
 
 #ifdef POSIX_FADV_DONTNEED
 	/* Each block is read exactly once.  Free up the file cache. */

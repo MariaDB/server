@@ -921,9 +921,7 @@ buf_flush_write_block_low(
 			zip_size ? zip_size : UNIV_PAGE_SIZE,
 			frame,
 			bpage,
-			&bpage->write_size,
-			bpage->newest_modification,
-			bpage->encrypt_later);
+			&bpage->write_size);
 	} else {
 
 		/* InnoDB uses doublewrite buffer and doublewrite buffer
@@ -943,9 +941,7 @@ buf_flush_write_block_low(
 				zip_size ? zip_size : UNIV_PAGE_SIZE,
 				frame,
 				bpage,
-				&bpage->write_size,
-				bpage->newest_modification,
-				bpage->encrypt_later);
+				&bpage->write_size);
 		} else if (flush_type == BUF_FLUSH_SINGLE_PAGE) {
 			buf_dblwr_write_single_page(bpage, sync);
 		} else {

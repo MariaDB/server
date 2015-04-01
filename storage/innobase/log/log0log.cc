@@ -1276,7 +1276,7 @@ log_group_file_header_flush(
 		       (ulint) (dest_offset / UNIV_PAGE_SIZE),
 		       (ulint) (dest_offset % UNIV_PAGE_SIZE),
 		       OS_FILE_LOG_BLOCK_SIZE,
-		       buf, group, 0, 0, false);
+		       buf, group, 0);
 
 		srv_stats.os_log_pending_writes.dec();
 	}
@@ -1443,7 +1443,7 @@ loop:
 		fil_io(OS_FILE_WRITE | OS_FILE_LOG, true, group->space_id, 0,
 		       (ulint) (next_offset / UNIV_PAGE_SIZE),
 		       (ulint) (next_offset % UNIV_PAGE_SIZE), write_len, buf,
-			group, 0, 0, false);
+			group, 0);
 
 		srv_stats.os_log_pending_writes.dec();
 
@@ -2011,7 +2011,7 @@ log_group_checkpoint(
 		       write_offset / UNIV_PAGE_SIZE,
 		       write_offset % UNIV_PAGE_SIZE,
 		       OS_FILE_LOG_BLOCK_SIZE,
-			buf, ((byte*) group + 1), 0, 0, false);
+			buf, ((byte*) group + 1), 0);
 
 		ut_ad(((ulint) group & 0x1UL) == 0);
 	}
@@ -2093,7 +2093,7 @@ log_group_read_checkpoint_info(
 
 	fil_io(OS_FILE_READ | OS_FILE_LOG, true, group->space_id, 0,
 	       field / UNIV_PAGE_SIZE, field % UNIV_PAGE_SIZE,
-		OS_FILE_LOG_BLOCK_SIZE, log_sys->checkpoint_buf, NULL, 0, 0, false);
+		OS_FILE_LOG_BLOCK_SIZE, log_sys->checkpoint_buf, NULL, 0);
 }
 
 /******************************************************//**
@@ -2417,7 +2417,7 @@ loop:
 	fil_io(OS_FILE_READ | OS_FILE_LOG, sync, group->space_id, 0,
 	       (ulint) (source_offset / UNIV_PAGE_SIZE),
 	       (ulint) (source_offset % UNIV_PAGE_SIZE),
-		len, buf, NULL, 0, 0, false);
+		len, buf, NULL, 0);
 
 	if (recv_sys->recv_log_crypt_ver != UNENCRYPTED_KEY_VER &&
 	    !log_group_decrypt_after_read(group, buf, len))

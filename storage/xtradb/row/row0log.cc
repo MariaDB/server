@@ -2552,7 +2552,7 @@ all_done:
 		success = os_file_read_no_error_handling(
 			OS_FILE_FROM_FD(index->online_log->fd),
 			index->online_log->head.block, ofs,
-			srv_sort_buf_size, FALSE);
+			srv_sort_buf_size);
 
 		if (!success) {
 			fprintf(stderr, "InnoDB: unable to read temporary file"
@@ -3380,7 +3380,7 @@ all_done:
 		success = os_file_read_no_error_handling(
 			OS_FILE_FROM_FD(index->online_log->fd),
 			index->online_log->head.block, ofs,
-			srv_sort_buf_size, FALSE);
+			srv_sort_buf_size);
 
 		if (!success) {
 			fprintf(stderr, "InnoDB: unable to read temporary file"

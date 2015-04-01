@@ -40,6 +40,7 @@ Created 11/5/1995 Heikki Tuuri
 #include "mem0mem.h"
 #include "btr0btr.h"
 #include "fil0fil.h"
+#include "fil0crypt.h"
 #ifndef UNIV_HOTBACKUP
 #include "buf0buddy.h"
 #include "lock0lock.h"
@@ -54,7 +55,6 @@ Created 11/5/1995 Heikki Tuuri
 #include "page0zip.h"
 #include "srv0mon.h"
 #include "buf0checksum.h"
-#include "fil0pageencryption.h"
 #include "fil0pagecompress.h"
 #include "ut0byte.h"
 #include <new>
@@ -504,7 +504,7 @@ buf_page_is_corrupted(
 	ulint		zip_size)	/*!< in: size of compressed page;
 					0 for uncompressed pages */
 {
-	ulint		page_encrypted = fil_page_is_compressed_encrypted(read_buf) || fil_page_is_encrypted(read_buf);
+	ulint		page_encrypted = fil_page_is_encrypted(read_buf);
 	ulint		checksum_field1;
 	ulint		checksum_field2;
 	ibool		crc32_inited = FALSE;
@@ -5763,7 +5763,7 @@ buf_page_decrypt_after_read(
 	unsigned key_version =
 		mach_read_from_4(src_frame + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION);
 
-	bool page_compressed_encrypted = fil_page_is_compressed_encrypted(dst_frame);
+	bool page_compressed = fil_page_is_compressed(dst_frame);
 
 	if (key_version == 0) {
 		/* the page we read is unencrypted */
@@ -5801,7 +5801,7 @@ buf_page_decrypt_after_read(
 
 		/* decompress from dst_frame to comp_buf and then copy to
 		buffer pool */
-		if (page_compressed_encrypted) {
+		if (page_compressed) {
 			if (bpage->comp_buf_free == NULL) {
 				bpage->comp_buf_free = (byte *)malloc(UNIV_PAGE_SIZE*2);
 				// TODO: is 4k aligment enough ?

@@ -79,6 +79,7 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include "fsp0fsp.h"
 #include "sync0sync.h"
 #include "fil0fil.h"
+#include "fil0crypt.h"
 #include "trx0xa.h"
 #include "row0merge.h"
 #include "dict0boot.h"
@@ -103,7 +104,6 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include "fts0priv.h"
 #include "page0zip.h"
 #include "fil0pagecompress.h"
-#include "fil0pageencryption.h"
 
 #define thd_get_trx_isolation(X) ((enum_tx_isolation)thd_tx_isolation(X))
 
@@ -11047,8 +11047,6 @@ innobase_table_flags(
 	modified by another thread while the table is being created. */
 	const ulint     default_compression_level = page_zip_level;
 
-	const ulint default_encryption_key = srv_default_page_encryption_key;
-
 	*flags = 0;
 	*flags2 = 0;
 
@@ -11250,10 +11248,7 @@ index_bad:
 		    options->page_compressed,
 		    options->page_compression_level == 0 ?
 		        default_compression_level : options->page_compression_level,
-		    options->atomic_writes,
-		    options->page_encryption,
-		    options->page_encryption_key == 0 ?
-		        default_encryption_key : options->page_encryption_key);
+		    options->atomic_writes);
 
 	if (create_info->options & HA_LEX_CREATE_TMP_TABLE) {
 		*flags2 |= DICT_TF2_TEMPORARY;
@@ -19156,7 +19151,7 @@ static MYSQL_SYSVAR_UINT(default_page_encryption_key, srv_default_page_encryptio
 			 "Encryption key used for page encryption.",
 			 NULL,
 			 NULL,
-			 DEFAULT_ENCRYPTION_KEY, 1, 255, 0);
+			 FIL_DEFAULT_ENCRYPTION_KEY, 1, 255, 0);
 
 static MYSQL_SYSVAR_BOOL(scrub_log, srv_scrub_log,
   PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_READONLY,

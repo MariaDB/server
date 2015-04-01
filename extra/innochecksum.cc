@@ -52,10 +52,10 @@ The parts not included are excluded by #ifndef UNIV_INNOCHECKSUM. */
 #include "ut0ut.h"
 #include "ut0byte.h"
 #include "mach0data.h"
-#include "fsp0types.h"
 #include "rem0rec.h"
 #include "buf0checksum.h"        /* buf_calc_page_*() */
 #include "fil0fil.h"             /* FIL_* */
+#include "fsp0types.h"
 #include "page0page.h"           /* PAGE_* */
 #include "page0zip.h"            /* page_zip_*() */
 #include "trx0undo.h"            /* TRX_* */
