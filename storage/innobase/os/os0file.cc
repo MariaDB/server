@@ -242,7 +242,6 @@ struct os_aio_slot_t{
 	int		n_bytes;	/* bytes written/read. */
 	int		ret;		/* AIO return code */
 #endif /* WIN_ASYNC_IO */
-	byte		*lzo_mem;	/* Temporal memory used by LZO */
 };
 
 /** The asynchronous i/o array structure */

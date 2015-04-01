@@ -523,8 +523,8 @@ thread ensures that we flush the log files at least once per
 second. */
 static time_t	srv_last_log_flush_time;
 
-/** Default encryption key used for page encryption */
-UNIV_INTERN uint	srv_default_page_encryption_key = FIL_DEFAULT_ENCRYPTION_KEY;
+/** Default encryption key used for tablespace encryption */
+UNIV_INTERN uint	srv_default_encryption_key = FIL_DEFAULT_ENCRYPTION_KEY;
 
 /** Enable semaphore request instrumentation */
 UNIV_INTERN my_bool 	srv_instrument_semaphores = FALSE;

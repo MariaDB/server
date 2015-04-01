@@ -562,8 +562,8 @@ that semaphore times out in InnoDB */
 #define DEFAULT_SRV_FATAL_SEMAPHORE_TIMEOUT 600
 extern ulong	srv_fatal_semaphore_wait_threshold;
 
-/** Default encryption key used for page encryption */
-extern uint srv_default_page_encryption_key;
+/** Default encryption key used for tablespace encryption */
+extern uint srv_default_encryption_key;
 
 /** Enable semaphore request instrumentation */
 extern my_bool srv_instrument_semaphores;

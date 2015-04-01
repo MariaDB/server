@@ -176,7 +176,7 @@ buf_read_page_low(
 
 	ut_ad(buf_page_in_file(bpage));
 
-	byte* frame = buf_page_decrypt_before_read(bpage, zip_size);
+	byte* frame = zip_size ? bpage->zip.data : ((buf_block_t*) bpage)->frame;
 
 	if (sync) {
 		thd_wait_begin(NULL, THD_WAIT_DISKIO);
@@ -202,7 +202,6 @@ buf_read_page_low(
 	}
 
 	if (*err != DB_SUCCESS) {
-		buf_page_decrypt_cleanup(bpage);
 		if (ignore_nonexistent_pages || *err == DB_TABLESPACE_DELETED) {
 			buf_read_page_handle_error(bpage);
 			return(0);

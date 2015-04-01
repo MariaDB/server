@@ -566,10 +566,10 @@ ha_create_table_option innodb_table_option_list[]=
   HA_TOPTION_NUMBER("PAGE_COMPRESSION_LEVEL", page_compression_level, 0, 1, 9, 1),
   /* With this option user can enable atomic writes feature for this table */
   HA_TOPTION_ENUM("ATOMIC_WRITES", atomic_writes, "DEFAULT,ON,OFF", 0),
-  /* With this option the user can enable page encryption for the table */
-  HA_TOPTION_BOOL("PAGE_ENCRYPTION", page_encryption, 0),
+  /* With this option the user can enable encryption for the table */
+  HA_TOPTION_ENUM("ENCRYPTION", encryption, "DEFAULT, ON, OFF", 0),
   /* With this option the user defines the key identifier using for the encryption */
-  HA_TOPTION_NUMBER("PAGE_ENCRYPTION_KEY", page_encryption_key, 0, 1, 255, 1),
+  HA_TOPTION_NUMBER("ENCRYPTION_KEY", encryption_key, 0, 1, UINT_MAX32, 1),
 
   HA_TOPTION_END
 };
@@ -11285,20 +11285,21 @@ ha_innobase::check_table_options(
 	enum row_type	row_format = table->s->row_type;
 	ha_table_option_struct *options= table->s->option_struct;
 	atomic_writes_t awrites = (atomic_writes_t)options->atomic_writes;
+	fil_encryption_t encrypt = (fil_encryption_t)options->encryption;
 
-	if (options->page_encryption) {
+	if (encrypt == FIL_SPACE_ENCRYPTION_ON) {
 		if (srv_encrypt_tables) {
 			push_warning(
 				thd, Sql_condition::WARN_LEVEL_WARN,
 				HA_WRONG_CREATE_OPTION,
-				"InnoDB: PAGE_ENCRYPTION not available if innodb_encrypt_tables=ON");
+				"InnoDB: ENCRYPTION not available if innodb_encrypt_tables=ON");
 			return "INNODB_ENCRYPT_TABLES";
 		}
 		if (!use_tablespace) {
 			push_warning(
 				thd, Sql_condition::WARN_LEVEL_WARN,
 				HA_WRONG_CREATE_OPTION,
-				"InnoDB: PAGE_ENCRYPTION requires"
+				"InnoDB: ENCRYPTION requires"
 				" innodb_file_per_table.");
 			return "PAGE_ENCRYPTION";
 		}
@@ -11306,14 +11307,6 @@ ha_innobase::check_table_options(
 
 	/* Check page compression requirements */
 	if (options->page_compressed) {
-
-		if (srv_encrypt_tables) {
-			push_warning(
-				thd, Sql_condition::WARN_LEVEL_WARN,
-				HA_WRONG_CREATE_OPTION,
-				"InnoDB: PAGE_COMPRESSION not available if innodb_encrypt_tables=ON");
-			return "PAGE_COMPRESSED";
-		}
 
 		if (row_format == ROW_TYPE_COMPRESSED) {
 			push_warning(
@@ -11384,29 +11377,29 @@ ha_innobase::check_table_options(
 		}
 	}
 
-	if (options->page_encryption_key != 0) {
-		if (options->page_encryption == false) {
+	if (options->encryption_key != 0) {
+		if (options->encryption == FIL_SPACE_ENCRYPTION_OFF) {
 			/* ignore this to allow alter table without changing page_encryption_key ...*/
 		}
 
-		if (options->page_encryption_key < 1 || options->page_encryption_key > 255) {
+		if (options->encryption_key < 1) {
 			push_warning_printf(
 				thd, Sql_condition::WARN_LEVEL_WARN,
 				HA_WRONG_CREATE_OPTION,
-				"InnoDB: invalid PAGE_ENCRYPTION_KEY = %lu."
-				" Valid values are [1..255]",
-				options->page_encryption_key);
-			return "PAGE_ENCRYPTION_KEY";
+				"InnoDB: invalid ENCRYPTION_KEY = %lu."
+				" Valid values are [1..INT32_MAX]",
+				options->encryption_key);
+			return "ENCRYPTION_KEY";
 		}
 
-		if (!has_encryption_key(options->page_encryption_key)) {
+		if (!has_encryption_key(options->encryption_key)) {
 			push_warning_printf(
 				thd, Sql_condition::WARN_LEVEL_WARN,
 				HA_WRONG_CREATE_OPTION,
-				"InnoDB: PAGE_ENCRYPTION_KEY encryption key %lu not available",
-				options->page_encryption_key
+				"InnoDB: ENCRYPTION_KEY encryption key %lu not available",
+				options->encryption_key
 			);
-			return "PAGE_ENCRYPTION_KEY";
+			return "ENCRYPTION_KEY";
 		}
 	}
 
@@ -11467,6 +11460,11 @@ ha_innobase::create(
 
 	const char*	stmt;
 	size_t		stmt_len;
+	/* Cache table options */
+	ha_table_option_struct *options= table->s->option_struct;
+	fil_encryption_t encrypt = (fil_encryption_t)options->encryption;
+	ulint key_id = (options->encryption_key == 0) ? srv_default_encryption_key :
+		options->encryption_key;
 
 	DBUG_ENTER("ha_innobase::create");
 
@@ -11705,6 +11703,18 @@ ha_innobase::create(
 	}
 
 	innobase_commit_low(trx);
+
+	/* If user has requested that table should be encrypted or table
+	should remain as unencrypted store crypt data */
+	if (encrypt == FIL_SPACE_ENCRYPTION_ON || encrypt == FIL_SPACE_ENCRYPTION_OFF) {
+		ulint maxsize;
+		ulint zip_size = fil_space_get_zip_size(innobase_table->space);
+		fil_space_crypt_t* crypt_data = fil_space_create_crypt_data();
+		crypt_data->page0_offset = fsp_header_get_crypt_offset(zip_size, &maxsize);
+		crypt_data->keys[0].key_id = key_id;
+		crypt_data->encryption = encrypt;
+		fil_space_set_crypt_data(innobase_table->space, crypt_data);
+	}
 
 	row_mysql_unlock_data_dictionary(trx);
 
@@ -19146,12 +19156,12 @@ static MYSQL_SYSVAR_UINT(encryption_rotation_iops, srv_n_fil_crypt_iops,
 			 innodb_encryption_rotation_iops_update,
 			 srv_n_fil_crypt_iops, 0, UINT_MAX32, 0);
 
-static MYSQL_SYSVAR_UINT(default_page_encryption_key, srv_default_page_encryption_key,
+static MYSQL_SYSVAR_UINT(default_encryption_key, srv_default_encryption_key,
 			 PLUGIN_VAR_RQCMDARG,
-			 "Encryption key used for page encryption.",
+			 "Default encryption key used for table encryption.",
 			 NULL,
 			 NULL,
-			 FIL_DEFAULT_ENCRYPTION_KEY, 1, 255, 0);
+			 FIL_DEFAULT_ENCRYPTION_KEY, 1, UINT_MAX32, 0);
 
 static MYSQL_SYSVAR_BOOL(scrub_log, srv_scrub_log,
   PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_READONLY,
@@ -19420,7 +19430,7 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(scrub_log),
   MYSQL_SYSVAR(scrub_log_interval),
   MYSQL_SYSVAR(encrypt_log),
-  MYSQL_SYSVAR(default_page_encryption_key),
+  MYSQL_SYSVAR(default_encryption_key),
 
   /* Scrubing feature */
   MYSQL_SYSVAR(immediate_scrub_data_uncompressed),

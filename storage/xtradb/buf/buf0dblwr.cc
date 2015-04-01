@@ -871,7 +871,7 @@ buf_dblwr_write_block_to_datafile(
 		0,
 		buf_block_get_page_no(block),
 		0,
-		UNIV_PAGE_SIZE,
+		bpage->real_size,
 		frame,
 		(void*) block,
 		(ulint *)&bpage->write_size);
@@ -1247,7 +1247,8 @@ retry:
 			TRX_SYS_SPACE,
 			0,
 			offset,
-			0, UNIV_PAGE_SIZE,
+			0,
+			bpage->real_size,
 			frame,
 			NULL,
 			0);

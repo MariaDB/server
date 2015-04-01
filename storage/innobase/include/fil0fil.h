@@ -1272,6 +1272,16 @@ ulint
 fil_get_next_space(
 	ulint id);      /*!< in: space id */
 
+/*******************************************************************//**
+Returns the block size of the file space
+@return	block size */
+UNIV_INTERN
+ulint
+fil_space_get_block_size(
+/*=====================*/
+	ulint	id,	/*!< in: space id */
+	ulint   offset, /*!< in: page offset */
+	ulint   len);	/*!< in: page len */
 
 #endif
 

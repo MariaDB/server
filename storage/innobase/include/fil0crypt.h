@@ -37,6 +37,14 @@ Created 04/01/2015 Jan Lindström
 /* This key will be used if nothing else is given */
 #define FIL_DEFAULT_ENCRYPTION_KEY 1
 
+/** Enum values for encryption table option */
+typedef enum {
+	FIL_SPACE_ENCRYPTION_DEFAULT = 0,	/* Tablespace encrypted if
+						srv_encrypt_tables = ON */
+	FIL_SPACE_ENCRYPTION_ON = 1,		/* Tablespace is encrypted always */
+	FIL_SPACE_ENCRYPTION_OFF = 2		/* Tablespace is not encrypted */
+} fil_encryption_t;
+
 /**
  * CRYPT_SCHEME_UNENCRYPTED
  *
@@ -67,6 +75,8 @@ struct key_struct
 {
 	uint key_version;			/*!< Key version used as
 						identifier */
+	uint key_id;				/*1< Key id used as
+						identifier */
 	byte key[MY_AES_MAX_KEY_LENGTH];	/*!< Cached L or key */
 	uint key_length;			/*!< Key length */
 };
@@ -95,6 +105,7 @@ struct fil_space_crypt_struct
 	key_struct keys[3]; // cached L = AES_ECB(KEY, IV)
 	uint min_key_version; // min key version for this space
 	ulint page0_offset;   // byte offset on page 0 for crypt data
+	fil_encryption_t encryption; // Encryption setup
 
 	ib_mutex_t mutex;   // mutex protecting following variables
 	bool closing;	    // is tablespace being closed
@@ -227,9 +238,7 @@ fil_space_encrypt(
 	lsn_t lsn,            /*!< in: page lsn */
 	const byte* src_frame,/*!< in: page frame */
 	ulint size,           /*!< in: size of data to encrypt */
-	byte* dst_frame,      /*!< in: where to encrypt to */
-	ulint page_encryption_key); /*!< in: page encryption key id if page
-				    encrypted */
+	byte* dst_frame);      /*!< in: where to encrypt to */
 
 /*********************************************************************
 Decrypt buffer page */

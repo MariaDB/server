@@ -982,6 +982,16 @@ _fil_io(
 #define fil_io(type, sync, space_id, zip_size, block_offset, byte_offset, len, buf, message, write_size) \
 	_fil_io(type, sync, space_id, zip_size, block_offset, byte_offset, len, buf, message, write_size, NULL)
 
+/*******************************************************************//**
+Returns the block size of the file space
+@return	block size */
+UNIV_INTERN
+ulint
+fil_space_get_block_size(
+/*=====================*/
+	ulint	id,	/*!< in: space id */
+	ulint   offset, /*!< in: page offset */
+	ulint   len);	/*!< in: page len */
 
 /**********************************************************************//**
 Waits for an aio operation to complete. This function is used to write the

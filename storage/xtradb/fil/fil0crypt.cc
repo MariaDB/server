@@ -319,6 +319,7 @@ fil_space_create_crypt_data()
 		&crypt_data->mutex, SYNC_NO_ORDER_CHECK);
 	crypt_data->iv_length = iv_length;
 	my_random_bytes(crypt_data->iv, iv_length);
+	crypt_data->encryption = FIL_SPACE_ENCRYPTION_DEFAULT;
 	return crypt_data;
 }
 
@@ -421,6 +422,9 @@ fil_space_read_crypt_data(
 	uint min_key_version = mach_read_from_4
 		(page + offset + MAGIC_SZ + 2 + iv_length);
 
+	fil_encryption_t encryption = (fil_encryption_t)mach_read_from_1(
+		page + offset + MAGIC_SZ + 2 + iv_length + 4);
+
 	const uint sz = sizeof(fil_space_crypt_t) + iv_length;
 	fil_space_crypt_t* crypt_data = static_cast<fil_space_crypt_t*>(
 		malloc(sz));
@@ -429,6 +433,7 @@ fil_space_read_crypt_data(
 	crypt_data->type = type;
 	crypt_data->min_key_version = min_key_version;
 	crypt_data->page0_offset = offset;
+	crypt_data->encryption = encryption;
 	mutex_create(fil_crypt_data_mutex_key,
 		     &crypt_data->mutex, SYNC_NO_ORDER_CHECK);
 	crypt_data->iv_length = iv_length;
@@ -474,8 +479,9 @@ fil_space_write_crypt_data_low(
 		page + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID);
 	const uint len = crypt_data->iv_length;
 	const uint min_key_version = crypt_data->min_key_version;
+	const fil_encryption_t encryption = crypt_data->encryption;
 	crypt_data->page0_offset = offset;
-	ut_a(2 + len + 4 + MAGIC_SZ < maxsize);
+	ut_a(2 + len + 4 + 1 + MAGIC_SZ < maxsize);
 
 	/*
 	redo log this as bytewise updates to page 0
@@ -489,8 +495,10 @@ fil_space_write_crypt_data_low(
 			  mtr);
 	mlog_write_ulint(page + offset + MAGIC_SZ + 2 + len, min_key_version,
 			 MLOG_4BYTES, mtr);
+	mlog_write_ulint(page + offset + MAGIC_SZ + 2 + len + 4, encryption,
+		MLOG_1BYTE, mtr);
 
-	byte* log_ptr = mlog_open(mtr, 11 + 12 + len);
+	byte* log_ptr = mlog_open(mtr, 11 + 13 + len);
 
 	if (log_ptr != NULL) {
 		log_ptr = mlog_write_initial_log_record_fast(
@@ -507,6 +515,8 @@ fil_space_write_crypt_data_low(
 		log_ptr += 1;
 		mach_write_to_4(log_ptr, min_key_version);
 		log_ptr += 4;
+		mach_write_to_1(log_ptr, encryption);
+		log_ptr += 1;
 		mlog_close(mtr, log_ptr);
 
 		mlog_catenate_string(mtr, crypt_data->iv, len);
@@ -555,7 +565,8 @@ fil_parse_write_crypt_data(
 		2 + // size of offset
 		1 + // size of type
 		1 + // size of iv-len
-		4;  // size of min_key_version
+		4 +  // size of min_key_version
+		1; // fil_encryption_t
 
 	if (end_ptr - ptr < entry_size){
 		return NULL;
@@ -582,9 +593,17 @@ fil_parse_write_crypt_data(
 		return NULL;
 	}
 
+	fil_encryption_t encryption = (fil_encryption_t)mach_read_from_1(ptr);
+	ptr +=1;
+
+	if (end_ptr - ptr < len) {
+		return NULL;
+	}
+
 	fil_space_crypt_t* crypt_data = fil_space_create_crypt_data();
 	crypt_data->page0_offset = offset;
 	crypt_data->min_key_version = min_key_version;
+	crypt_data->encryption = encryption;
 	memcpy(crypt_data->iv, ptr, len);
 	ptr += len;
 
@@ -610,7 +629,8 @@ fil_space_clear_crypt_data(
 		1 +   // type
 		1 +   // len
 		len + // iv
-		4;    // min key version
+		4 +    // min key version
+		1; // fil_encryption_t
 	memset(page + offset, 0, size);
 }
 
@@ -674,13 +694,11 @@ fil_space_encrypt(
 	const byte*	src_frame,	/*!< in: Source page to be encrypted */
 	ulint		zip_size,	/*!< in: compressed size if
 					row_format compressed */
-	byte*		dst_frame,	/*!< in: outbut buffer */
-	ulint		encryption_key)	/*!< in: encryption key id if page
-					encrypted */
+	byte*		dst_frame)	/*!< in: outbut buffer */
 {
 	fil_space_crypt_t* crypt_data=NULL;
 	ulint page_size = (zip_size) ? zip_size : UNIV_PAGE_SIZE;
-	uint key_version = (uint)encryption_key;
+	uint key_version;
 	unsigned char key[MY_AES_MAX_KEY_LENGTH];
 	uint key_length=MY_AES_MAX_KEY_LENGTH;
 	uint aes_method;
@@ -699,6 +717,7 @@ fil_space_encrypt(
 
 	/* Get crypt data from file space */
 	crypt_data = fil_space_get_crypt_data(space);
+	key_version = crypt_data->keys[0].key_id;
 
 	if (crypt_data == NULL) {
 		//TODO: Is this really needed ?
@@ -805,6 +824,10 @@ fil_space_check_encryption_read(
 	}
 
 	if (crypt_data->type == CRYPT_SCHEME_UNENCRYPTED) {
+		return false;
+	}
+
+	if (crypt_data->encryption == FIL_SPACE_ENCRYPTION_OFF) {
 		return false;
 	}
 
@@ -1352,6 +1375,11 @@ fil_crypt_space_needs_rotation(
 	mutex_enter(&crypt_data->mutex);
 
 	do {
+		if (crypt_data->encryption == FIL_SPACE_ENCRYPTION_OFF) {
+			/* This space is unencrypted by user request */
+			break;
+		}
+
 		/* prevent threads from starting to rotate space */
 		if (crypt_data->rotate_state.starting) {
 			/* recheck this space later */

@@ -5544,6 +5544,74 @@ fil_report_invalid_page_access(
 }
 
 /********************************************************************//**
+Find correct node from file space
+@return node */
+static
+fil_node_t*
+fil_space_get_node(
+	fil_space_t*	space,		/*!< in: file spage */
+	ulint 		space_id,	/*!< in: space id   */
+	ulint* 		block_offset,	/*!< in/out: offset in number of blocks */
+	ulint 		byte_offset,	/*!< in: remainder of offset in bytes; in
+					aio this must be divisible by the OS block
+					size */
+	ulint 		len)		/*!< in: how many bytes to read or write; this
+					must not cross a file boundary; in aio this
+					must be a block size multiple */
+{
+	fil_node_t*	node;
+	ut_ad(mutex_own(&fil_system->mutex));
+
+	node = UT_LIST_GET_FIRST(space->chain);
+
+	for (;;) {
+		if (node == NULL) {
+			return(NULL);
+		} else if (fil_is_user_tablespace_id(space->id)
+			   && node->size == 0) {
+
+			/* We do not know the size of a single-table tablespace
+			before we open the file */
+			break;
+		} else if (node->size > *block_offset) {
+			/* Found! */
+			break;
+		} else {
+			*block_offset -= node->size;
+			node = UT_LIST_GET_NEXT(chain, node);
+		}
+	}
+
+	return (node);
+}
+/********************************************************************//**
+Return block size of node in file space
+@return file block size */
+UNIV_INTERN
+ulint
+fil_space_get_block_size(
+/*=====================*/
+	ulint	space_id,
+	ulint	block_offset,
+	ulint	len)
+{
+	ulint block_size = 512;
+	fil_space_t* space = fil_space_get_space(space_id);
+
+	if (space) {
+		mutex_enter(&fil_system->mutex);
+		fil_node_t* node = fil_space_get_node(space, space_id, &block_offset, 0, len);
+		mutex_exit(&fil_system->mutex);
+
+		if (node) {
+			block_size = node->file_block_size;
+		}
+	}
+
+	return block_size;
+}
+
+/********************************************************************//**
 Reads or writes data. This operation is asynchronous (aio).
 @return DB_SUCCESS, or DB_TABLESPACE_DELETED if we are trying to do
 i/o on a tablespace which does not exist */
@@ -5589,7 +5657,7 @@ fil_io(
 	ulint		is_log;
 	ulint		wake_later;
 	os_offset_t	offset;
-	ibool		ignore_nonexistent_pages;
+	bool		ignore_nonexistent_pages;
 
 	is_log = type & OS_FILE_LOG;
 	type = type & ~OS_FILE_LOG;
@@ -5674,34 +5742,18 @@ fil_io(
 
 	ut_ad(mode != OS_AIO_IBUF || space->purpose == FIL_TABLESPACE);
 
-	node = UT_LIST_GET_FIRST(space->chain);
+	node = fil_space_get_node(space, space_id, &block_offset, byte_offset, len);
 
-	for (;;) {
-		if (node == NULL) {
-			if (ignore_nonexistent_pages) {
-				mutex_exit(&fil_system->mutex);
-				return(DB_ERROR);
-			}
-
-			fil_report_invalid_page_access(
+	if (!node) {
+		if (ignore_nonexistent_pages) {
+			mutex_exit(&fil_system->mutex);
+			return(DB_ERROR);
+		}
+		fil_report_invalid_page_access(
 				block_offset, space_id, space->name,
 				byte_offset, len, type);
 
-			ut_error;
-
-		} else if (fil_is_user_tablespace_id(space->id)
-			   && node->size == 0) {
-
-			/* We do not know the size of a single-table tablespace
-			before we open the file */
-			break;
-		} else if (node->size > block_offset) {
-			/* Found! */
-			break;
-		} else {
-			block_offset -= node->size;
-			node = UT_LIST_GET_NEXT(chain, node);
-		}
+		ut_error;
 	}
 
 	/* Open file if closed */
