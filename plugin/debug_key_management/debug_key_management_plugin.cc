@@ -50,7 +50,7 @@ static unsigned int get_key(unsigned int version, unsigned char* dstbuf, unsigne
   if (*buflen < KEY_SIZE)
   {
     *buflen= KEY_SIZE;
-    return KEY_BUFFER_TOO_SMALL;
+    return ENCRYPTION_KEY_BUFFER_TOO_SMALL;
   }
   *buflen= KEY_SIZE;
   if (!dstbuf)

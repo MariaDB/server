@@ -290,7 +290,7 @@ void ma_crypt_set_data_pagecache_callbacks(PAGECACHE_FILE *file,
                                            __attribute__((unused)))
 {
   /* Only use encryption if we have defined it */
-  if (get_latest_encryption_key_version() != BAD_ENCRYPTION_KEY_VERSION)
+  if (encryption_key_get_latest_version() != ENCRYPTION_KEY_VERSION_INVALID)
   {
     file->pre_read_hook= ma_crypt_pre_read_hook;
     file->post_read_hook= ma_crypt_data_post_read_hook;
@@ -417,9 +417,9 @@ static int ma_encrypt(MARIA_CRYPT_DATA *crypt_data,
   int4store(counter + 4, pageno);
   int8store(counter + 8, lsn);
 
-  rc = encrypt_data(src, size, dst, &dstlen,
-                    crypt_data->iv, CRYPT_SCHEME_1_IV_LEN,
-                    counter, sizeof(counter), 1, *key_version);
+  rc = encryption_encrypt(src, size, dst, &dstlen,
+                          crypt_data->iv, CRYPT_SCHEME_1_IV_LEN,
+                          counter, sizeof(counter), 1, *key_version);
 
   DBUG_ASSERT(rc == AES_OK);
   DBUG_ASSERT(dstlen == size);
@@ -449,9 +449,9 @@ static int ma_decrypt(MARIA_CRYPT_DATA *crypt_data,
   int4store(counter + 4, pageno);
   int8store(counter + 8, lsn);
 
-  rc =decrypt_data(src, size, dst, &dstlen,
-                   crypt_data->iv, CRYPT_SCHEME_1_IV_LEN,
-                   counter, sizeof(counter), 1, key_version);
+  rc =encryption_decrypt(src, size, dst, &dstlen,
+                         crypt_data->iv, CRYPT_SCHEME_1_IV_LEN,
+                         counter, sizeof(counter), 1, key_version);
 
   DBUG_ASSERT(rc == AES_OK);
   DBUG_ASSERT(dstlen == size);

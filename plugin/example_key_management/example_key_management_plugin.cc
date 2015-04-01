@@ -62,7 +62,7 @@ get_key(unsigned int version, unsigned char* dstbuf, unsigned *buflen)
   if (*buflen < MY_MD5_HASH_SIZE)
   {
     *buflen= MY_MD5_HASH_SIZE;
-    return KEY_BUFFER_TOO_SMALL;
+    return ENCRYPTION_KEY_BUFFER_TOO_SMALL;
   }
   *buflen= MY_MD5_HASH_SIZE;
   if (!dstbuf)

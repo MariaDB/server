@@ -11404,7 +11404,7 @@ ha_innobase::check_table_options(
 			return "PAGE_ENCRYPTION_KEY";
 		}
 
-		if (!has_encryption_key(options->page_encryption_key)) {
+		if (!encryption_key_exists(options->page_encryption_key)) {
 			push_warning_printf(
 				thd, Sql_condition::WARN_LEVEL_WARN,
 				HA_WRONG_CREATE_OPTION,

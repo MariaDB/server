@@ -117,7 +117,7 @@ log_init_crypt_key(
 
 	byte mysqld_key[MY_AES_BLOCK_SIZE] = {0};
         uint keylen= sizeof(mysqld_key);
-	if (get_encryption_key(crypt_ver, mysqld_key, &keylen))
+	if (encryption_key_get(crypt_ver, mysqld_key, &keylen))
 	{
 		ib_logf(IB_LOG_LEVEL_ERROR,
 			"Redo log crypto: getting mysqld crypto key "
@@ -204,11 +204,11 @@ log_blocks_crypt(
 		mach_write_to_4(aes_ctr_counter + 11, log_block_no);
 		bzero(aes_ctr_counter + 15, 1);
 
-		int rc = encrypt_data(log_block + LOG_BLOCK_HDR_SIZE, src_len,
-		                      dst_block + LOG_BLOCK_HDR_SIZE, &dst_len,
-		                      (unsigned char*)key, 16,
-		                      aes_ctr_counter, MY_AES_BLOCK_SIZE, 1,
-                                      log_sys->redo_log_crypt_ver);
+		int rc = encryption_encrypt(log_block + LOG_BLOCK_HDR_SIZE, src_len,
+		                            dst_block + LOG_BLOCK_HDR_SIZE, &dst_len,
+		                            (unsigned char*)key, 16,
+		                            aes_ctr_counter, MY_AES_BLOCK_SIZE, 1,
+                                            log_sys->redo_log_crypt_ver);
 
 		ut_a(rc == AES_OK);
 		ut_a(dst_len == src_len);
@@ -259,11 +259,11 @@ log_crypt_set_ver_and_key(
 
 	if (srv_encrypt_log) {
 		unsigned int vkey;
-		vkey = get_latest_encryption_key_version();
+		vkey = encryption_key_get_latest_version();
 		encrypted = true;
 
 		if (vkey == UNENCRYPTED_KEY_VER ||
-		    vkey == BAD_ENCRYPTION_KEY_VERSION) {
+		    vkey == ENCRYPTION_KEY_VERSION_INVALID) {
 			encrypted = false;
 
 			ib_logf(IB_LOG_LEVEL_WARN,

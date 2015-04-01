@@ -197,20 +197,20 @@ int thd_key_create(MYSQL_THD_KEY_T *key);
 void thd_key_delete(MYSQL_THD_KEY_T *key);
 void* thd_getspecific(void* thd, MYSQL_THD_KEY_T key);
 int thd_setspecific(void* thd, MYSQL_THD_KEY_T key, void *value);
-#include <mysql/service_encryption_keys.h>
+#include <mysql/service_encryption.h>
 typedef int (*encrypt_decrypt_func)(const unsigned char* src, unsigned int slen,
                                     unsigned char* dst, unsigned int* dlen,
                                     const unsigned char* key, unsigned int klen,
                                     const unsigned char* iv, unsigned int ivlen,
                                     int no_padding, unsigned int key_version);
-struct encryption_keys_service_st {
-  unsigned int (*get_latest_encryption_key_version_func)();
-  unsigned int (*has_encryption_key_func)(unsigned int);
-  unsigned int (*get_encryption_key_func)(unsigned int, unsigned char*, unsigned int*);
-  encrypt_decrypt_func encrypt_data_func;
-  encrypt_decrypt_func decrypt_data_func;
+struct encryption_service_st {
+  unsigned int (*encryption_key_get_latest_version_func)();
+  unsigned int (*encryption_key_exists_func)(unsigned int);
+  unsigned int (*encryption_key_get_func)(unsigned int, unsigned char*, unsigned int*);
+  encrypt_decrypt_func encryption_encrypt_func;
+  encrypt_decrypt_func encryption_decrypt_func;
 };
-extern struct encryption_keys_service_st encryption_keys_handler;
+extern struct encryption_service_st encryption_handler;
 struct st_mysql_xid {
   long formatID;
   long gtrid_length;

@@ -95,12 +95,12 @@ static unsigned int get_key_from_key_file(unsigned int key_id,
   keyentry* entry = get_key(key_id);
 
   if (entry == NULL)
-    return BAD_ENCRYPTION_KEY_VERSION;
+    return ENCRYPTION_KEY_VERSION_INVALID;
 
   if (*buflen < entry->length)
   {
     *buflen= entry->length;
-    return KEY_BUFFER_TOO_SMALL;
+    return ENCRYPTION_KEY_BUFFER_TOO_SMALL;
   }
 
   *buflen= entry->length;

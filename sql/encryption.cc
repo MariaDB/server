@@ -19,21 +19,19 @@
 #include "sql_plugin.h"
 #include <my_crypt.h>
 
-#warning TODO rename to follow single consistent style
-
 /* there can be only one encryption plugin enabled */
-static plugin_ref encryption_key_manager= 0;
-struct encryption_keys_service_st encryption_keys_handler;
+static plugin_ref encryption_manager= 0;
+struct encryption_service_st encryption_handler;
 
 unsigned int has_key(uint version)
 {
   uint unused;
-  return get_encryption_key(version, NULL, &unused) != BAD_ENCRYPTION_KEY_VERSION;
+  return encryption_key_get(version, NULL, &unused) != ENCRYPTION_KEY_VERSION_INVALID;
 }
 
 uint no_key()
 {
-  return BAD_ENCRYPTION_KEY_VERSION;
+  return ENCRYPTION_KEY_VERSION_INVALID;
 }
 
 static int no_crypt(const uchar* source, uint source_length,
@@ -48,7 +46,7 @@ static int no_crypt(const uchar* source, uint source_length,
 
 int initialize_encryption_plugin(st_plugin_int *plugin)
 {
-  if (encryption_key_manager)
+  if (encryption_manager)
     return 1;
 
   if (plugin->plugin->init && plugin->plugin->init(plugin))
@@ -58,22 +56,22 @@ int initialize_encryption_plugin(st_plugin_int *plugin)
     return 1;
   }
 
-  encryption_key_manager= plugin_lock(NULL, plugin_int_to_ref(plugin));
+  encryption_manager= plugin_lock(NULL, plugin_int_to_ref(plugin));
   st_mariadb_encryption *handle=
     (struct st_mariadb_encryption*) plugin->plugin->info;
 
-  encryption_keys_handler.encrypt_data_func=
+  encryption_handler.encryption_encrypt_func=
     handle->encrypt ? handle->encrypt
                     : (encrypt_decrypt_func)my_aes_encrypt_cbc;
 
-  encryption_keys_handler.decrypt_data_func=
+  encryption_handler.encryption_decrypt_func=
     handle->decrypt ? handle->decrypt
                     : (encrypt_decrypt_func)my_aes_decrypt_cbc;
 
-  encryption_keys_handler.get_encryption_key_func=
+  encryption_handler.encryption_key_get_func=
     handle->get_key;
 
-  encryption_keys_handler.get_latest_encryption_key_version_func=
+  encryption_handler.encryption_key_get_latest_version_func=
     handle->get_latest_key_version; // must be the last
 
   return 0;
@@ -81,21 +79,21 @@ int initialize_encryption_plugin(st_plugin_int *plugin)
 
 int finalize_encryption_plugin(st_plugin_int *plugin)
 {
-  encryption_keys_handler.encrypt_data_func= no_crypt;
-  encryption_keys_handler.decrypt_data_func= no_crypt;
-  encryption_keys_handler.has_encryption_key_func= has_key;
-  encryption_keys_handler.get_encryption_key_func=
+  encryption_handler.encryption_encrypt_func= no_crypt;
+  encryption_handler.encryption_decrypt_func= no_crypt;
+  encryption_handler.encryption_key_exists_func= has_key;
+  encryption_handler.encryption_key_get_func=
       (uint (*)(uint, uchar*, uint*))no_key;
-  encryption_keys_handler.get_latest_encryption_key_version_func= no_key;
+  encryption_handler.encryption_key_get_latest_version_func= no_key;
 
   if (plugin && plugin->plugin->deinit && plugin->plugin->deinit(NULL))
   {
     DBUG_PRINT("warning", ("Plugin '%s' deinit function returned error.",
                            plugin->name.str));
   }
-  if (encryption_key_manager)
-    plugin_unlock(NULL, encryption_key_manager);
-  encryption_key_manager= 0;
+  if (encryption_manager)
+    plugin_unlock(NULL, encryption_manager);
+  encryption_manager= 0;
   return 0;
 }
 

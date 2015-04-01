@@ -1192,7 +1192,7 @@ fil_space_create(
 	ut_a(fil_system);
 
 	if (fsp_flags_is_page_encrypted(flags)) {
-		if (!has_encryption_key(fsp_flags_get_page_encryption_key(flags))) {
+		if (!encryption_key_exists(fsp_flags_get_page_encryption_key(flags))) {
 			/* by returning here it should be avoided that
 			 * the server crashes, if someone tries to access an
 			 * encrypted table and the encryption key is not available.

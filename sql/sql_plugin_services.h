@@ -161,7 +161,7 @@ static struct st_service_ref list_of_services[]=
   { "logger_service",              VERSION_logger,              &logger_service_handler },
   { "thd_autoinc_service",         VERSION_thd_autoinc,         &thd_autoinc_handler },
   { "wsrep_service",               VERSION_wsrep,               &wsrep_handler },
-  { "encryption_keys_service",     VERSION_encryption_keys,     &encryption_keys_handler },
+  { "encryption_service",          VERSION_encryption,          &encryption_handler },
   { "thd_specifics_service",       VERSION_thd_specifics,       &thd_specifics_handler },
   { "thd_error_context_service",   VERSION_thd_error_context,   &thd_error_conext_handler },
 };

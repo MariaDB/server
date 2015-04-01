@@ -25,10 +25,10 @@ void _mi_report_crashed(void *file __attribute__((unused)),
 
 static unsigned int no_key()
 {
-  return BAD_ENCRYPTION_KEY_VERSION;
+  return ENCRYPTION_KEY_VERSION_INVALID;
 }
 
-struct encryption_keys_service_st encryption_keys_handler=
+struct encryption_service_st encryption_handler=
 {
   no_key, 0, 0, 0, 0
 };
