@@ -516,8 +516,8 @@ class MYSQL_BIN_LOG: public TC_LOG, private MYSQL_LOG
   /* Number of group commits done. */
   ulonglong num_group_commits;
   /* The reason why the group commit was grouped */
-  ulonglong group_commit_reason_count, group_commit_reason_usec;
-  ulonglong group_commit_reason_transaction, group_commit_reason_immediate;
+  ulonglong group_commit_trigger_count, group_commit_trigger_timeout;
+  ulonglong group_commit_trigger_lock_wait;
 
   /* pointer to the sync period variable, for binlog this will be
      sync_binlog_period, for relay log this will be

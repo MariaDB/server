@@ -17,16 +17,14 @@ connect(con3,localhost,root,,test);
 --connection default
 SELECT variable_value INTO @group_commits FROM information_schema.global_status
  WHERE variable_name = 'binlog_group_commits';
-SELECT variable_value INTO @group_commit_reason_count FROM information_schema.global_status
- WHERE variable_name = 'binlog_group_commit_reason_count';
-SELECT variable_value INTO @group_commit_reason_usec FROM information_schema.global_status
- WHERE variable_name = 'binlog_group_commit_reason_usec';
-SELECT variable_value INTO @group_commit_reason_transaction FROM information_schema.global_status
- WHERE variable_name = 'binlog_group_commit_reason_transaction';
-SELECT variable_value INTO @group_commit_reason_immediate FROM information_schema.global_status
- WHERE variable_name = 'binlog_group_commit_reason_immediate';
+SELECT variable_value INTO @group_commit_trigger_count FROM information_schema.global_status
+ WHERE variable_name = 'binlog_group_commit_trigger_count';
+SELECT variable_value INTO @group_commit_trigger_timeout FROM information_schema.global_status
+ WHERE variable_name = 'binlog_group_commit_trigger_timeout';
+SELECT variable_value INTO @group_commit_trigger_lock_wait FROM information_schema.global_status
+ WHERE variable_name = 'binlog_group_commit_trigger_lock_wait';
 
-# Note: binlog_group_commits is counted at the start of the group and group_commit_reason_* is
+# Note: binlog_group_commits is counted at the start of the group and group_commit_trigger_* is
 # counted near when the groups its finalised.
 
 # Check that if T2 goes to wait for a row lock of T1 while T1 is waiting for
@@ -53,19 +51,17 @@ reap;
 SET @b= unix_timestamp(current_timestamp()) - unix_timestamp(@a);
 SELECT IF(@b < 20, "Ok", CONCAT("Error: too much time elapsed: ", @b, " seconds >= 20"));
 
-# before: binlog_group_commit=0, binlog_group_commit_reason_count=0
-# before: binlog_group_commit_reason_usec=0, binlog_group_commit_reason_transaction=0
-# after:  binlog_group_commit+1 by reason of binlog_group_commit_reason_transaction+1
+# before: binlog_group_commit=0, binlog_group_commit_trigger_count=0
+# before: binlog_group_commit_trigger_timeout=0, binlog_group_commit_trigger_lock_wait=0
+# after:  binlog_group_commit+1 by reason of binlog_group_commit_trigger_lock_wait+1
 SELECT variable_value - @group_commits FROM information_schema.global_status
  WHERE variable_name = 'binlog_group_commits';
-SELECT variable_value - @group_commit_reason_count FROM information_schema.global_status
- WHERE variable_name = 'binlog_group_commit_reason_count';
-SELECT variable_value - @group_commit_reason_usec FROM information_schema.global_status
- WHERE variable_name = 'binlog_group_commit_reason_usec';
-SELECT variable_value - @group_commit_reason_transaction FROM information_schema.global_status
- WHERE variable_name = 'binlog_group_commit_reason_transaction';
-SELECT variable_value - @group_commit_reason_immediate FROM information_schema.global_status
- WHERE variable_name = 'binlog_group_commit_reason_immediate';
+SELECT variable_value - @group_commit_trigger_count FROM information_schema.global_status
+ WHERE variable_name = 'binlog_group_commit_trigger_count';
+SELECT variable_value - @group_commit_trigger_timeout FROM information_schema.global_status
+ WHERE variable_name = 'binlog_group_commit_trigger_timeout';
+SELECT variable_value - @group_commit_trigger_lock_wait FROM information_schema.global_status
+ WHERE variable_name = 'binlog_group_commit_trigger_lock_wait';
 
 --connection con2
 --error ER_DUP_ENTRY
@@ -94,19 +90,17 @@ reap;
 SET @b= unix_timestamp(current_timestamp()) - unix_timestamp(@a);
 SELECT IF(@b < 20, "Ok", CONCAT("Error: too much time elapsed: ", @b, " seconds >= 20"));
 
-# before: binlog_group_commit=1, binlog_group_commit_reason_count=0
-# before: binlog_group_commit_reason_usec=0, binlog_group_commit_reason_transaction=1
-# after:  binlog_group_commit+1 by reason of binlog_group_commit_reason_count+1
+# before: binlog_group_commit=1, binlog_group_commit_trigger_count=0
+# before: binlog_group_commit_trigger_timeout=0, binlog_group_commit_trigger_lock_wait=1
+# after:  binlog_group_commit+1 by reason of binlog_group_commit_trigger_count+1
 SELECT variable_value - @group_commits FROM information_schema.global_status
  WHERE variable_name = 'binlog_group_commits';
-SELECT variable_value - @group_commit_reason_count FROM information_schema.global_status
- WHERE variable_name = 'binlog_group_commit_reason_count';
-SELECT variable_value - @group_commit_reason_usec FROM information_schema.global_status
- WHERE variable_name = 'binlog_group_commit_reason_usec';
-SELECT variable_value - @group_commit_reason_transaction FROM information_schema.global_status
- WHERE variable_name = 'binlog_group_commit_reason_transaction';
-SELECT variable_value - @group_commit_reason_immediate FROM information_schema.global_status
- WHERE variable_name = 'binlog_group_commit_reason_immediate';
+SELECT variable_value - @group_commit_trigger_count FROM information_schema.global_status
+ WHERE variable_name = 'binlog_group_commit_trigger_count';
+SELECT variable_value - @group_commit_trigger_timeout FROM information_schema.global_status
+ WHERE variable_name = 'binlog_group_commit_trigger_timeout';
+SELECT variable_value - @group_commit_trigger_lock_wait FROM information_schema.global_status
+ WHERE variable_name = 'binlog_group_commit_trigger_lock_wait';
 
 # Test that commit triggers immediately if there is already a transaction
 # waiting on another transaction that reaches its commit.
@@ -142,19 +136,17 @@ reap;
 SET @b= unix_timestamp(current_timestamp()) - unix_timestamp(@a);
 SELECT IF(@b < 20, "Ok", CONCAT("Error: too much time elapsed: ", @b, " seconds >= 20"));
 
-# before: binlog_group_commit=2, binlog_group_commit_reason_count=1
-# before: binlog_group_commit_reason_usec=0, binlog_group_commit_reason_transaction=1
-# after:  binlog_group_commit+1 by reason of binlog_group_commit_reason_transaction+1
+# before: binlog_group_commit=2, binlog_group_commit_trigger_count=1
+# before: binlog_group_commit_trigger_timeout=0, binlog_group_commit_trigger_lock_wait=1
+# after:  binlog_group_commit+1 by reason of binlog_group_commit_trigger_lock_wait+1
 SELECT variable_value - @group_commits FROM information_schema.global_status
  WHERE variable_name = 'binlog_group_commits';
-SELECT variable_value - @group_commit_reason_count FROM information_schema.global_status
- WHERE variable_name = 'binlog_group_commit_reason_count';
-SELECT variable_value - @group_commit_reason_usec FROM information_schema.global_status
- WHERE variable_name = 'binlog_group_commit_reason_usec';
-SELECT variable_value - @group_commit_reason_transaction FROM information_schema.global_status
- WHERE variable_name = 'binlog_group_commit_reason_transaction';
-SELECT variable_value - @group_commit_reason_immediate FROM information_schema.global_status
- WHERE variable_name = 'binlog_group_commit_reason_immediate';
+SELECT variable_value - @group_commit_trigger_count FROM information_schema.global_status
+ WHERE variable_name = 'binlog_group_commit_trigger_count';
+SELECT variable_value - @group_commit_trigger_timeout FROM information_schema.global_status
+ WHERE variable_name = 'binlog_group_commit_trigger_timeout';
+SELECT variable_value - @group_commit_trigger_lock_wait FROM information_schema.global_status
+ WHERE variable_name = 'binlog_group_commit_trigger_lock_wait';
 
 --connection default
 SET @a= current_timestamp();
@@ -171,19 +163,17 @@ reap;
 SET @b= unix_timestamp(current_timestamp()) - unix_timestamp(@a);
 SELECT IF(@b < 20, "Ok", CONCAT("Error: too much time elapsed: ", @b, " seconds >= 20"));
 
-# before: binlog_group_commit=3, binlog_group_commit_reason_count=1
-# before: binlog_group_commit_reason_usec=0, binlog_group_commit_reason_transaction=2
-# after:  binlog_group_commit+1 by reason of binlog_group_commit_reason_count+1
+# before: binlog_group_commit=3, binlog_group_commit_trigger_count=1
+# before: binlog_group_commit_trigger_timeout=0, binlog_group_commit_trigger_lock_wait=2
+# after:  binlog_group_commit+1 by reason of binlog_group_commit_trigger_count+1
 SELECT variable_value - @group_commits FROM information_schema.global_status
  WHERE variable_name = 'binlog_group_commits';
-SELECT variable_value - @group_commit_reason_count FROM information_schema.global_status
- WHERE variable_name = 'binlog_group_commit_reason_count';
-SELECT variable_value - @group_commit_reason_usec FROM information_schema.global_status
- WHERE variable_name = 'binlog_group_commit_reason_usec';
-SELECT variable_value - @group_commit_reason_transaction FROM information_schema.global_status
- WHERE variable_name = 'binlog_group_commit_reason_transaction';
-SELECT variable_value - @group_commit_reason_immediate FROM information_schema.global_status
- WHERE variable_name = 'binlog_group_commit_reason_immediate';
+SELECT variable_value - @group_commit_trigger_count FROM information_schema.global_status
+ WHERE variable_name = 'binlog_group_commit_trigger_count';
+SELECT variable_value - @group_commit_trigger_timeout FROM information_schema.global_status
+ WHERE variable_name = 'binlog_group_commit_trigger_timeout';
+SELECT variable_value - @group_commit_trigger_lock_wait FROM information_schema.global_status
+ WHERE variable_name = 'binlog_group_commit_trigger_lock_wait';
 
 # Test that when the binlog_commit_wait_usec is reached the tranction gets a group commit
 
@@ -200,19 +190,17 @@ SET @b= unix_timestamp(current_timestamp()) - unix_timestamp(@a);
 SELECT IF(@b < 4, CONCAT("Error: too little time elapsed: ", @b, " seconds < 4"),
           IF(@b < 20, "Ok", CONCAT("Error: too much time elapsed: ", @b, " seconds >= 20")));
 
-# before: binlog_group_commit=4, binlog_group_commit_reason_count=2
-# before: binlog_group_commit_reason_usec=0, binlog_group_commit_reason_transaction=2
-# after:  binlog_group_commit+1 by reason of binlog_group_commit_reason_usec+1
+# before: binlog_group_commit=4, binlog_group_commit_trigger_count=2
+# before: binlog_group_commit_trigger_timeout=0, binlog_group_commit_trigger_lock_wait=2
+# after:  binlog_group_commit+1 by reason of binlog_group_commit_trigger_timeout+1
 SELECT variable_value - @group_commits FROM information_schema.global_status
  WHERE variable_name = 'binlog_group_commits';
-SELECT variable_value - @group_commit_reason_count FROM information_schema.global_status
- WHERE variable_name = 'binlog_group_commit_reason_count';
-SELECT variable_value - @group_commit_reason_usec FROM information_schema.global_status
- WHERE variable_name = 'binlog_group_commit_reason_usec';
-SELECT variable_value - @group_commit_reason_transaction FROM information_schema.global_status
- WHERE variable_name = 'binlog_group_commit_reason_transaction';
-SELECT variable_value - @group_commit_reason_immediate FROM information_schema.global_status
- WHERE variable_name = 'binlog_group_commit_reason_immediate';
+SELECT variable_value - @group_commit_trigger_count FROM information_schema.global_status
+ WHERE variable_name = 'binlog_group_commit_trigger_count';
+SELECT variable_value - @group_commit_trigger_timeout FROM information_schema.global_status
+ WHERE variable_name = 'binlog_group_commit_trigger_timeout';
+SELECT variable_value - @group_commit_trigger_lock_wait FROM information_schema.global_status
+ WHERE variable_name = 'binlog_group_commit_trigger_lock_wait';
 
 --connection default
 SELECT * FROM t1 ORDER BY a;

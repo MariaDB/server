@@ -6,14 +6,12 @@ SET @old_usec= @@GLOBAL.binlog_commit_wait_usec;
 SET GLOBAL binlog_commit_wait_usec= 20000000;
 SELECT variable_value INTO @group_commits FROM information_schema.global_status
 WHERE variable_name = 'binlog_group_commits';
-SELECT variable_value INTO @group_commit_reason_count FROM information_schema.global_status
-WHERE variable_name = 'binlog_group_commit_reason_count';
-SELECT variable_value INTO @group_commit_reason_usec FROM information_schema.global_status
-WHERE variable_name = 'binlog_group_commit_reason_usec';
-SELECT variable_value INTO @group_commit_reason_transaction FROM information_schema.global_status
-WHERE variable_name = 'binlog_group_commit_reason_transaction';
-SELECT variable_value INTO @group_commit_reason_immediate FROM information_schema.global_status
-WHERE variable_name = 'binlog_group_commit_reason_immediate';
+SELECT variable_value INTO @group_commit_trigger_count FROM information_schema.global_status
+WHERE variable_name = 'binlog_group_commit_trigger_count';
+SELECT variable_value INTO @group_commit_trigger_timeout FROM information_schema.global_status
+WHERE variable_name = 'binlog_group_commit_trigger_timeout';
+SELECT variable_value INTO @group_commit_trigger_lock_wait FROM information_schema.global_status
+WHERE variable_name = 'binlog_group_commit_trigger_lock_wait';
 SET @a= current_timestamp();
 BEGIN;
 INSERT INTO t1 VALUES (1,0);
@@ -27,22 +25,18 @@ SELECT variable_value - @group_commits FROM information_schema.global_status
 WHERE variable_name = 'binlog_group_commits';
 variable_value - @group_commits
 1
-SELECT variable_value - @group_commit_reason_count FROM information_schema.global_status
-WHERE variable_name = 'binlog_group_commit_reason_count';
-variable_value - @group_commit_reason_count
+SELECT variable_value - @group_commit_trigger_count FROM information_schema.global_status
+WHERE variable_name = 'binlog_group_commit_trigger_count';
+variable_value - @group_commit_trigger_count
 0
-SELECT variable_value - @group_commit_reason_usec FROM information_schema.global_status
-WHERE variable_name = 'binlog_group_commit_reason_usec';
-variable_value - @group_commit_reason_usec
+SELECT variable_value - @group_commit_trigger_timeout FROM information_schema.global_status
+WHERE variable_name = 'binlog_group_commit_trigger_timeout';
+variable_value - @group_commit_trigger_timeout
 0
-SELECT variable_value - @group_commit_reason_transaction FROM information_schema.global_status
-WHERE variable_name = 'binlog_group_commit_reason_transaction';
-variable_value - @group_commit_reason_transaction
+SELECT variable_value - @group_commit_trigger_lock_wait FROM information_schema.global_status
+WHERE variable_name = 'binlog_group_commit_trigger_lock_wait';
+variable_value - @group_commit_trigger_lock_wait
 1
-SELECT variable_value - @group_commit_reason_immediate FROM information_schema.global_status
-WHERE variable_name = 'binlog_group_commit_reason_immediate';
-variable_value - @group_commit_reason_immediate
-0
 ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
 SET @a= current_timestamp();
 INSERT INTO t1 VALUES (2,0);
@@ -56,22 +50,18 @@ SELECT variable_value - @group_commits FROM information_schema.global_status
 WHERE variable_name = 'binlog_group_commits';
 variable_value - @group_commits
 2
-SELECT variable_value - @group_commit_reason_count FROM information_schema.global_status
-WHERE variable_name = 'binlog_group_commit_reason_count';
-variable_value - @group_commit_reason_count
+SELECT variable_value - @group_commit_trigger_count FROM information_schema.global_status
+WHERE variable_name = 'binlog_group_commit_trigger_count';
+variable_value - @group_commit_trigger_count
 1
-SELECT variable_value - @group_commit_reason_usec FROM information_schema.global_status
-WHERE variable_name = 'binlog_group_commit_reason_usec';
-variable_value - @group_commit_reason_usec
+SELECT variable_value - @group_commit_trigger_timeout FROM information_schema.global_status
+WHERE variable_name = 'binlog_group_commit_trigger_timeout';
+variable_value - @group_commit_trigger_timeout
 0
-SELECT variable_value - @group_commit_reason_transaction FROM information_schema.global_status
-WHERE variable_name = 'binlog_group_commit_reason_transaction';
-variable_value - @group_commit_reason_transaction
+SELECT variable_value - @group_commit_trigger_lock_wait FROM information_schema.global_status
+WHERE variable_name = 'binlog_group_commit_trigger_lock_wait';
+variable_value - @group_commit_trigger_lock_wait
 1
-SELECT variable_value - @group_commit_reason_immediate FROM information_schema.global_status
-WHERE variable_name = 'binlog_group_commit_reason_immediate';
-variable_value - @group_commit_reason_immediate
-0
 SET @a= current_timestamp();
 INSERT INTO t1 VALUES (6,0);
 BEGIN;
@@ -90,22 +80,18 @@ SELECT variable_value - @group_commits FROM information_schema.global_status
 WHERE variable_name = 'binlog_group_commits';
 variable_value - @group_commits
 3
-SELECT variable_value - @group_commit_reason_count FROM information_schema.global_status
-WHERE variable_name = 'binlog_group_commit_reason_count';
-variable_value - @group_commit_reason_count
+SELECT variable_value - @group_commit_trigger_count FROM information_schema.global_status
+WHERE variable_name = 'binlog_group_commit_trigger_count';
+variable_value - @group_commit_trigger_count
 1
-SELECT variable_value - @group_commit_reason_usec FROM information_schema.global_status
-WHERE variable_name = 'binlog_group_commit_reason_usec';
-variable_value - @group_commit_reason_usec
+SELECT variable_value - @group_commit_trigger_timeout FROM information_schema.global_status
+WHERE variable_name = 'binlog_group_commit_trigger_timeout';
+variable_value - @group_commit_trigger_timeout
 0
-SELECT variable_value - @group_commit_reason_transaction FROM information_schema.global_status
-WHERE variable_name = 'binlog_group_commit_reason_transaction';
-variable_value - @group_commit_reason_transaction
+SELECT variable_value - @group_commit_trigger_lock_wait FROM information_schema.global_status
+WHERE variable_name = 'binlog_group_commit_trigger_lock_wait';
+variable_value - @group_commit_trigger_lock_wait
 2
-SELECT variable_value - @group_commit_reason_immediate FROM information_schema.global_status
-WHERE variable_name = 'binlog_group_commit_reason_immediate';
-variable_value - @group_commit_reason_immediate
-0
 SET @a= current_timestamp();
 INSERT INTO t1 VALUES (7,0);
 INSERT INTO t1 VALUES (8,0);
@@ -117,22 +103,18 @@ SELECT variable_value - @group_commits FROM information_schema.global_status
 WHERE variable_name = 'binlog_group_commits';
 variable_value - @group_commits
 4
-SELECT variable_value - @group_commit_reason_count FROM information_schema.global_status
-WHERE variable_name = 'binlog_group_commit_reason_count';
-variable_value - @group_commit_reason_count
+SELECT variable_value - @group_commit_trigger_count FROM information_schema.global_status
+WHERE variable_name = 'binlog_group_commit_trigger_count';
+variable_value - @group_commit_trigger_count
 2
-SELECT variable_value - @group_commit_reason_usec FROM information_schema.global_status
-WHERE variable_name = 'binlog_group_commit_reason_usec';
-variable_value - @group_commit_reason_usec
+SELECT variable_value - @group_commit_trigger_timeout FROM information_schema.global_status
+WHERE variable_name = 'binlog_group_commit_trigger_timeout';
+variable_value - @group_commit_trigger_timeout
 0
-SELECT variable_value - @group_commit_reason_transaction FROM information_schema.global_status
-WHERE variable_name = 'binlog_group_commit_reason_transaction';
-variable_value - @group_commit_reason_transaction
+SELECT variable_value - @group_commit_trigger_lock_wait FROM information_schema.global_status
+WHERE variable_name = 'binlog_group_commit_trigger_lock_wait';
+variable_value - @group_commit_trigger_lock_wait
 2
-SELECT variable_value - @group_commit_reason_immediate FROM information_schema.global_status
-WHERE variable_name = 'binlog_group_commit_reason_immediate';
-variable_value - @group_commit_reason_immediate
-0
 SET @a= current_timestamp();
 SET GLOBAL binlog_commit_wait_usec= 5*1000*1000;
 INSERT INTO t1 VALUES (9,0);
@@ -146,22 +128,18 @@ SELECT variable_value - @group_commits FROM information_schema.global_status
 WHERE variable_name = 'binlog_group_commits';
 variable_value - @group_commits
 5
-SELECT variable_value - @group_commit_reason_count FROM information_schema.global_status
-WHERE variable_name = 'binlog_group_commit_reason_count';
-variable_value - @group_commit_reason_count
+SELECT variable_value - @group_commit_trigger_count FROM information_schema.global_status
+WHERE variable_name = 'binlog_group_commit_trigger_count';
+variable_value - @group_commit_trigger_count
 2
-SELECT variable_value - @group_commit_reason_usec FROM information_schema.global_status
-WHERE variable_name = 'binlog_group_commit_reason_usec';
-variable_value - @group_commit_reason_usec
+SELECT variable_value - @group_commit_trigger_timeout FROM information_schema.global_status
+WHERE variable_name = 'binlog_group_commit_trigger_timeout';
+variable_value - @group_commit_trigger_timeout
 1
-SELECT variable_value - @group_commit_reason_transaction FROM information_schema.global_status
-WHERE variable_name = 'binlog_group_commit_reason_transaction';
-variable_value - @group_commit_reason_transaction
+SELECT variable_value - @group_commit_trigger_lock_wait FROM information_schema.global_status
+WHERE variable_name = 'binlog_group_commit_trigger_lock_wait';
+variable_value - @group_commit_trigger_lock_wait
 2
-SELECT variable_value - @group_commit_reason_immediate FROM information_schema.global_status
-WHERE variable_name = 'binlog_group_commit_reason_immediate';
-variable_value - @group_commit_reason_immediate
-0
 SELECT * FROM t1 ORDER BY a;
 a	b
 1	11
