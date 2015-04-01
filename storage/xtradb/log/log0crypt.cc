@@ -26,7 +26,7 @@ Modified           Jan Lindström jan.lindstrom@mariadb.com
 #include "m_string.h"
 #include "log0crypt.h"
 #include <my_crypt.h>
-#include <my_aes.h>
+#include <my_crypt.h>
 
 #include "log0log.h"
 #include "srv0start.h" // for srv_start_lsn
@@ -69,7 +69,7 @@ log_init_crypt_msg_and_nonce(void)
 /*==============================*/
 {
 	mach_write_to_1(redo_log_crypt_msg, redo_log_purpose_byte);
-	if (my_random_bytes(redo_log_crypt_msg + 1, PURPOSE_BYTE_LEN) != AES_OK)
+	if (my_random_bytes(redo_log_crypt_msg + 1, PURPOSE_BYTE_LEN) != MY_AES_OK)
 	{
 		ib_logf(IB_LOG_LEVEL_ERROR,
 			"Redo log crypto: generate "
@@ -78,7 +78,7 @@ log_init_crypt_msg_and_nonce(void)
 		abort();
 	}
 
-	if (my_random_bytes(aes_ctr_nonce, MY_AES_BLOCK_SIZE) != AES_OK)
+	if (my_random_bytes(aes_ctr_nonce, MY_AES_BLOCK_SIZE) != MY_AES_OK)
 	{
 		ib_logf(IB_LOG_LEVEL_ERROR,
 			"Redo log crypto: generate "
@@ -131,7 +131,7 @@ log_init_crypt_key(
                         (unsigned char*)&mysqld_key, sizeof(mysqld_key),
                         NULL, 0, 1);
 
-	if (rc != AES_OK || dst_len != MY_AES_BLOCK_SIZE)
+	if (rc != MY_AES_OK || dst_len != MY_AES_BLOCK_SIZE)
 	{
 		ib_logf(IB_LOG_LEVEL_ERROR,
 			"Redo log crypto: getting redo log crypto key "
@@ -168,7 +168,7 @@ log_blocks_crypt(
 	const bool is_encrypt)		/*!< in: encrypt or decrypt*/
 {
 	byte *log_block = (byte*)block;
-	Crypt_result rc = AES_OK;
+	Crypt_result rc = MY_AES_OK;
 	uint32 src_len, dst_len;
 	byte aes_ctr_counter[MY_AES_BLOCK_SIZE];
 	ulint log_block_no, log_block_start_lsn;
@@ -210,7 +210,7 @@ log_blocks_crypt(
 		                            aes_ctr_counter, MY_AES_BLOCK_SIZE, 1,
                                             log_sys->redo_log_crypt_ver);
 
-		ut_a(rc == AES_OK);
+		ut_a(rc == MY_AES_OK);
 		ut_a(dst_len == src_len);
 		log_block += OS_FILE_LOG_BLOCK_SIZE;
 		dst_block += OS_FILE_LOG_BLOCK_SIZE;

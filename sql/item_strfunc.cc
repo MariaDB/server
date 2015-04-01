@@ -54,7 +54,6 @@
 #include <base64.h>
 #include <my_md5.h>
 #include "sha1.h"
-#include "my_aes.h"
 #include <zlib.h>
 C_MODE_START
 #include "../mysys/my_static.h"			// For soundex_map
@@ -402,9 +401,9 @@ String *Item_aes_crypt::val_str(String *str)
       uchar rkey[AES_KEY_LENGTH / 8];
       create_key(user_key, rkey);
 
-      if (crypt((uchar*)sptr->ptr(), sptr->length(),
-                (uchar*)str_value.ptr(), &aes_length,
-                rkey, AES_KEY_LENGTH / 8, 0, 0, 0) == AES_OK)
+      if (!crypt((uchar*)sptr->ptr(), sptr->length(),
+                 (uchar*)str_value.ptr(), &aes_length,
+                 rkey, AES_KEY_LENGTH / 8, 0, 0, 0))
       {
         str_value.length((uint) aes_length);
         return &str_value;

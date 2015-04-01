@@ -78,7 +78,7 @@ static int do_crypt(CipherMode cipher, Dir dir,
   TaoCrypt::AES ctx(dir, cipher);
 
   if (unlikely(key_length != 16 && key_length != 24 && key_length != 32))
-    return AES_BAD_KEYSIZE;
+    return MY_AES_BAD_KEYSIZE;
 
   ctx.SetKey(key, key_length);
   if (iv)
@@ -106,7 +106,7 @@ static int do_crypt(CipherMode cipher, Dir dir,
     {
       int n= dest[source_length - 1];
       if (tail || n == 0 || n > MY_AES_BLOCK_SIZE)
-        return AES_OPENSSL_ERROR;
+        return MY_AES_BAD_DATA;
       *dest_length-= n;
     }
   }
@@ -116,10 +116,10 @@ static int do_crypt(CipherMode cipher, Dir dir,
   struct MyCTX ctx;
 
   if (unlikely(!cipher))
-    return AES_BAD_KEYSIZE;
+    return MY_AES_BAD_KEYSIZE;
 
   if (!EVP_CipherInit_ex(&ctx, cipher, NULL, key, iv, dir))
-    return AES_OPENSSL_ERROR;
+    return MY_AES_OPENSSL_ERROR;
 
   EVP_CIPHER_CTX_set_padding(&ctx, !no_padding);
 
@@ -130,9 +130,9 @@ static int do_crypt(CipherMode cipher, Dir dir,
   /* use built-in OpenSSL padding, if possible */
   if (!EVP_CipherUpdate(&ctx, dest, (int*)dest_length,
                         source, source_length - (no_padding ? tail : 0)))
-    return AES_OPENSSL_ERROR;
+    return MY_AES_OPENSSL_ERROR;
   if (!EVP_CipherFinal_ex(&ctx, dest + *dest_length, &fin))
-    return AES_OPENSSL_ERROR;
+    return MY_AES_BAD_DATA;
   *dest_length += fin;
 
 #endif
@@ -146,7 +146,7 @@ static int do_crypt(CipherMode cipher, Dir dir,
     */
 
     if (unlikely(source_length < MY_AES_BLOCK_SIZE))
-      return AES_OPENSSL_ERROR;
+      return MY_AES_BAD_DATA;
 
     const uchar *s= source + source_length - tail;
     const uchar *e= source + source_length;
@@ -157,7 +157,7 @@ static int do_crypt(CipherMode cipher, Dir dir,
     *dest_length= source_length;
   }
 
-  return AES_OK;
+  return MY_AES_OK;
 }
 
 C_MODE_START
@@ -240,7 +240,7 @@ int my_random_bytes(uchar* buf, int num)
 {
   TaoCrypt::RandomNumberGenerator rand;
   rand.GenerateBlock((TaoCrypt::byte*) buf, num);
-  return AES_OK;
+  return MY_AES_OK;
 }
 
 C_MODE_END
@@ -261,9 +261,26 @@ int my_random_bytes(uchar* buf, int num)
   */
   RAND_METHOD* rand = RAND_SSLeay();
   if (rand == NULL || rand->bytes(buf, num) != 1)
-    return AES_OPENSSL_ERROR;
-  return AES_OK;
+    return MY_AES_OPENSSL_ERROR;
+  return MY_AES_OK;
 }
 
 C_MODE_END
 #endif /* HAVE_YASSL */
+
+/**
+  Get size of buffer which will be large enough for encrypted data
+
+  SYNOPSIS
+    my_aes_get_size()
+    @param source_length  [in] Length of data to be encrypted
+
+  @return
+    Size of buffer required to store encrypted data
+*/
+
+int my_aes_get_size(int source_length)
+{
+  return MY_AES_BLOCK_SIZE * (source_length / MY_AES_BLOCK_SIZE)
+    + MY_AES_BLOCK_SIZE;
+}

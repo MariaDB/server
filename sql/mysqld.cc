@@ -105,7 +105,6 @@
 #include "sp_rcontext.h"
 #include "sp_cache.h"
 #include "sql_reload.h"  // reload_acl_and_cache
-#include <my_aes.h>
 
 #ifdef HAVE_POLL_H
 #include <poll.h>

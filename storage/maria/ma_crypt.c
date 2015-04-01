@@ -421,9 +421,9 @@ static int ma_encrypt(MARIA_CRYPT_DATA *crypt_data,
                           crypt_data->iv, CRYPT_SCHEME_1_IV_LEN,
                           counter, sizeof(counter), 1, *key_version);
 
-  DBUG_ASSERT(rc == AES_OK);
+  DBUG_ASSERT(rc == MY_AES_OK);
   DBUG_ASSERT(dstlen == size);
-  if (! (rc == AES_OK && dstlen == size))
+  if (! (rc == MY_AES_OK && dstlen == size))
   {
     my_printf_error(HA_ERR_GENERIC,
                     "failed to encrypt! rc: %d, dstlen: %u size: %u\n",
@@ -453,9 +453,9 @@ static int ma_decrypt(MARIA_CRYPT_DATA *crypt_data,
                          crypt_data->iv, CRYPT_SCHEME_1_IV_LEN,
                          counter, sizeof(counter), 1, key_version);
 
-  DBUG_ASSERT(rc == AES_OK);
+  DBUG_ASSERT(rc == MY_AES_OK);
   DBUG_ASSERT(dstlen == size);
-  if (! (rc == AES_OK && dstlen == size))
+  if (! (rc == MY_AES_OK && dstlen == size))
   {
     my_printf_error(HA_ERR_GENERIC,
                     "failed to encrypt! rc: %d, dstlen: %u size: %u\n",

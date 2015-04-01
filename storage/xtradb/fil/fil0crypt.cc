@@ -40,7 +40,7 @@ Modified           Jan Lindström jan.lindstrom@mariadb.com
 
 #include <my_crypt.h>
 
-#include <my_aes.h>
+#include <my_crypt.h>
 #include <math.h>
 
 
@@ -251,7 +251,7 @@ fil_crypt_get_key(byte *dst, uint* key_length,
 	rc = my_aes_encrypt_ecb(src, srclen, buf, &buflen,
 		(unsigned char*)keybuf, *key_length, NULL, 0, 1);
 
-	if (rc != AES_OK) {
+	if (rc != MY_AES_OK) {
 		ib_logf(IB_LOG_LEVEL_FATAL,
 			"Unable to encrypt key-block "
 			" src: %p srclen: %d buf: %p buflen: %d."
@@ -697,7 +697,7 @@ fil_space_encrypt(ulint space, ulint offset, lsn_t lsn,
 	                            (unsigned char*)key, key_length,
 	                            (unsigned char*)iv, sizeof(iv), 1, key_version);
 
-	if (! ((rc == AES_OK) && ((ulint) dstlen == srclen))) {
+	if (! ((rc == MY_AES_OK) && ((ulint) dstlen == srclen))) {
 		ib_logf(IB_LOG_LEVEL_FATAL,
 			"Unable to encrypt data-block "
 			" src: %p srclen: %ld buf: %p buflen: %d."
@@ -869,7 +869,7 @@ fil_space_decrypt(fil_space_crypt_t* crypt_data,
 	                            (unsigned char*)key, key_length,
 	                            (unsigned char*)iv, sizeof(iv), 1, key_version);
 
-	if (! ((rc == AES_OK) && ((ulint) dstlen == srclen))) {
+	if (! ((rc == MY_AES_OK) && ((ulint) dstlen == srclen))) {
 		ib_logf(IB_LOG_LEVEL_FATAL,
 			"Unable to decrypt data-block "
 			" src: %p srclen: %ld buf: %p buflen: %d."
