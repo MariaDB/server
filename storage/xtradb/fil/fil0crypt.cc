@@ -181,20 +181,12 @@ fil_crypt_get_key(
 		crypt_data->keys[i] = crypt_data->keys[i - 1];
 	}
 
-	if (has_encryption_key(version)) {
-		int rc;
-		*key_length = get_encryption_key_size(version);
+	*key_length = sizeof(keybuf);
+	int rc = get_encryption_key(version, (unsigned char*)keybuf, *key_length);
 
-		rc = get_encryption_key(version, (unsigned char*)keybuf, *key_length);
-
-		if (rc != CRYPT_KEY_OK) {
-			ib_logf(IB_LOG_LEVEL_FATAL,
-				"Key %d can not be found. Reason=%d", version, rc);
-			ut_error;
-		}
-	} else {
+	if (rc != CRYPT_KEY_OK) {
 		ib_logf(IB_LOG_LEVEL_FATAL,
-			"Key %d not found", version);
+			"Key %d can not be found. Reason=%d", version, rc);
 		ut_error;
 	}
 
@@ -208,15 +200,15 @@ fil_crypt_get_key(
 	/* We use AES_ECB to encryp IV */
 	my_aes_encrypt_dynamic_type func = get_aes_encrypt_func(MY_AES_ALGORITHM_ECB);
 
-	int rc = (*func)(src,		/* Data to be encrypted = IV */
-			srclen,		/* data length */
-			buf,		/* Output buffer */
-			&buflen,	/* Output buffer */
-			keybuf,		/* Key */
-			*key_length,	/* Key length */
-			NULL,		/* AES_ECB does not use IV */
-			0,		/* IV-length */
-			1);		/* NoPadding */
+	rc = (*func)(src,	/* Data to be encrypted = IV */
+		srclen,		/* data length */
+		buf,		/* Output buffer */
+		&buflen,	/* Output buffer */
+		keybuf,		/* Key */
+		*key_length,	/* Key length */
+		NULL,		/* AES_ECB does not use IV */
+		0,		/* IV-length */
+		1);		/* NoPadding */
 
 	if (rc != AES_OK) {
 		ib_logf(IB_LOG_LEVEL_FATAL,
@@ -251,14 +243,12 @@ fil_crypt_get_latest_key(
 	fil_space_crypt_t* crypt_data, 	/*!< in: crypt data */
 	uint*		version)	/*!< in: Key version */
 {
-	if (srv_encrypt_tables) {
-	        // used for key rotation - get the next key id from the key provider
-		int rc = get_latest_encryption_key_version();
+	// used for key rotation - get the next key id from the key provider
+	int rc = get_latest_encryption_key_version();
 
-		// if no new key was created use the last one
-		if (rc >= 0) {
-			*version = rc;
-		}
+	// if no new key was created use the last one
+	if (rc >= 0) {
+		*version = rc;
 	}
 
 	return fil_crypt_get_key(dst, key_length, crypt_data, *version);
@@ -424,10 +414,6 @@ fil_space_destroy_crypt_data(
 	fil_space_crypt_t **crypt_data)	/*!< out: crypt data */
 {
 	if (crypt_data != NULL && (*crypt_data) != NULL) {
-		/* lock (and unlock) mutex to make sure no one has it locked
-		* currently */
-		mutex_enter(& (*crypt_data)->mutex);
-		mutex_exit(& (*crypt_data)->mutex);
 		mutex_free(& (*crypt_data)->mutex);
 		free(*crypt_data);
 		(*crypt_data) = NULL;
@@ -756,6 +742,8 @@ fil_space_encrypt(
 	/* Store compression algorithm (for page compresed tables) or 0 */
 	mach_write_to_2(dst_frame +  FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION + 6,
 		compression_algo);
+
+	srv_stats.pages_encrypted.inc();
 }
 
 /*********************************************************************
@@ -934,6 +922,8 @@ fil_space_decrypt(
 		mach_write_to_8(dst_frame + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION,
 			compression_algo);
 	}
+
+	srv_stats.pages_decrypted.inc();
 
 	return true; /* page was decrypted */
 }

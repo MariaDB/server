@@ -650,20 +650,6 @@ fil_node_open_file(
 
 		success = os_file_read(node->handle, page, 0, UNIV_PAGE_SIZE);
 
-		if (fil_page_is_encrypted(page)) {
-			/* if page is (still) encrypted, write an error and return.
-			* Otherwise the server would crash if decrypting is not possible.
-			* This may be the case, if the key file could not be
-			* opened on server startup.
-			*/
-			ib_logf(IB_LOG_LEVEL_ERROR,
-                               "InnoDB: can not decrypt page, because "
-                               "keys could not be read.\n"
-                               );
-				return false;
-
-		}
-
 		space_id = fsp_header_get_space_id(page);
 		flags = fsp_header_get_flags(page);
 
@@ -1939,7 +1925,6 @@ fil_check_first_page(
 {
 	ulint	space_id;
 	ulint	flags;
-	ulint page_is_encrypted;
 
 	if (srv_force_recovery >= SRV_FORCE_IGNORE_CORRUPT) {
 		return(NULL);
@@ -1947,20 +1932,14 @@ fil_check_first_page(
 
 	space_id = mach_read_from_4(FSP_HEADER_OFFSET + FSP_SPACE_ID + page);
 	flags = mach_read_from_4(FSP_HEADER_OFFSET + FSP_SPACE_FLAGS + page);
-	/* Note: the 1st page is usually not encrypted. If the Key Provider
-	or the encryption key is not available, the
-	check for reading the first page should intentionally fail
-	with "can not decrypt" message. */
-	page_is_encrypted = fil_page_encryption_status(page, space_id);
-	if (!page_is_encrypted) {
-		if (UNIV_PAGE_SIZE != fsp_flags_get_page_size(flags)) {
-			fprintf(stderr,
-				"InnoDB: Error: Current page size %lu != "
-				" page size on page %lu\n",
-				UNIV_PAGE_SIZE, fsp_flags_get_page_size(flags));
 
-			return("innodb-page-size mismatch");
-		}
+	if (UNIV_PAGE_SIZE != fsp_flags_get_page_size(flags)) {
+		fprintf(stderr,
+			"InnoDB: Error: Current page size %lu != "
+			" page size on page %lu\n",
+			UNIV_PAGE_SIZE, fsp_flags_get_page_size(flags));
+
+		return("innodb-page-size mismatch");
 	}
 
 	if (!space_id && !flags) {
@@ -1976,17 +1955,9 @@ fil_check_first_page(
 		}
 	}
 
-	if (!page_is_encrypted && buf_page_is_corrupted(
+	if (buf_page_is_corrupted(
 		    false, page, fsp_flags_get_zip_size(flags))) {
 		return("checksum mismatch");
-	} else {
-		if (page_is_encrypted) {
-			/* this error message is interpreted by the calling method, which is
-			 * executed if the server starts in recovery mode.
-			 */
-			return(FIL_MSG_CANNOT_DECRYPT);
-
-		}
 	}
 
 	if (page_get_space_id(page) == space_id
@@ -2024,6 +1995,7 @@ fil_read_first_page(
 	byte*		page;
 	lsn_t		flushed_lsn;
 	const char*	check_msg = NULL;
+	fil_space_crypt_t* cdata;
 
 	buf = static_cast<byte*>(ut_malloc(2 * UNIV_PAGE_SIZE));
 
@@ -2042,13 +2014,6 @@ fil_read_first_page(
 		*space_id = fsp_header_get_space_id(page);
 	}
 
-	/* Page is page compressed page, need to decompress, before
-	continue. */
-	if (fil_page_is_compressed(page)) {
-		ulint write_size=0;
-		fil_decompress_page(NULL, page, UNIV_PAGE_SIZE, &write_size);
-	}
-
 	if (!one_read_already) {
 		check_msg = fil_check_first_page(page);
 	}
@@ -2056,12 +2021,30 @@ fil_read_first_page(
 	flushed_lsn = mach_read_from_8(page +
 				       FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION);
 
+
+	ulint space = fsp_header_get_space_id(page);
+	ulint offset = fsp_header_get_crypt_offset(
+		fsp_flags_get_zip_size(*flags), NULL);
+	cdata = fil_space_read_crypt_data(space, page, offset);
+
+	/* If file space is encrypted we need to have at least some
+	encryption service available where to get keys */
+	if ((cdata && cdata->encryption == FIL_SPACE_ENCRYPTION_ON) ||
+		( srv_encrypt_tables &&
+			cdata && cdata->encryption == FIL_SPACE_ENCRYPTION_DEFAULT)) {
+		int rc = get_latest_encryption_key_version();
+
+		if (rc < 0) {
+			ib_logf(IB_LOG_LEVEL_FATAL,
+				"Tablespace id %ld encrypted but encryption service"
+				" not available. Can't continue opening tablespace.\n",
+				space);
+			ut_error;
+		}
+	}
+
 	if (crypt_data) {
-		ulint space = fsp_header_get_space_id(page);
-		ulint offset =
-			fsp_header_get_crypt_offset(
-				fsp_flags_get_zip_size(*flags), NULL);
-		*crypt_data = fil_space_read_crypt_data(space, page, offset);
+		*crypt_data = cdata;
 	}
 
 	ut_free(buf);
@@ -4216,7 +4199,6 @@ fil_validate_single_table_tablespace(
 
 check_first_page:
 	fsp->success = TRUE;
-	fsp->encryption_error = 0;
 	if (const char* check_msg = fil_read_first_page(
 		    fsp->file, FALSE, &fsp->flags, &fsp->id,
 		    &fsp->lsn, &fsp->lsn, ULINT_UNDEFINED, &fsp->crypt_data)) {
@@ -4224,14 +4206,6 @@ check_first_page:
 			"%s in tablespace %s (table %s)",
 			check_msg, fsp->filepath, tablename);
 		fsp->success = FALSE;
-		if (strncmp(check_msg, FIL_MSG_CANNOT_DECRYPT, strlen(check_msg))==0) {
-			/* by returning here, it should be avoided, that the server crashes,
-			 * if started in recovery mode and can not decrypt tables, if
-			 * the key file can not be read.
-			 */
-			fsp->encryption_error = 1;
-			return;
-		}
 	}
 
 	if (!fsp->success) {
@@ -4385,13 +4359,6 @@ fil_load_single_table_tablespace(
 	}
 
 	if (!def.success && !remote.success) {
-
-		if (def.encryption_error || remote.encryption_error) {
-			fprintf(stderr,
-				"InnoDB: Error: could not open single-table"
-				" tablespace file %s. Encryption error!\n", def.filepath);
-			return;
-		}
 
 		/* The following call prints an error message */
 		os_file_get_last_error(true);
