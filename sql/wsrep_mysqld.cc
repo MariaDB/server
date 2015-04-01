@@ -133,6 +133,8 @@ PSI_cond_key key_COND_wsrep_rollback,
   key_COND_wsrep_replaying, key_COND_wsrep_ready, key_COND_wsrep_sst,
   key_COND_wsrep_sst_init, key_COND_wsrep_sst_thread;
 
+PSI_file_key key_file_wsrep_gra_log;
+
 static PSI_mutex_info wsrep_mutexes[]=
 {
   { &key_LOCK_wsrep_ready, "LOCK_wsrep_ready", PSI_FLAG_GLOBAL},
@@ -157,6 +159,12 @@ static PSI_cond_info wsrep_conds[]=
   { &key_COND_wsrep_rollback, "COND_wsrep_rollback", PSI_FLAG_GLOBAL},
   { &key_COND_wsrep_replaying, "COND_wsrep_replaying", PSI_FLAG_GLOBAL}
 };
+
+static PSI_file_info wsrep_files[]=
+{
+  { &key_file_wsrep_gra_log, "wsrep_gra_log", 0}
+};
+
 #else
 #define mysql_mutex_register(X,Y,Z)
 #define mysql_cond_register(X,Y,Z)
@@ -625,6 +633,8 @@ int wsrep_init()
   mysql_mutex_init(key_LOCK_wsrep_slave_threads, &LOCK_wsrep_slave_threads, MY_MUTEX_INIT_FAST);
   mysql_mutex_init(key_LOCK_wsrep_desync, &LOCK_wsrep_desync, MY_MUTEX_INIT_FAST);
   mysql_mutex_init(key_LOCK_wsrep_config_state, &LOCK_wsrep_config_state, MY_MUTEX_INIT_FAST);
+
+  mysql_file_register("sql", wsrep_files, array_elements(wsrep_files));
 
   wsrep_ready_set(FALSE);
   assert(wsrep_provider);

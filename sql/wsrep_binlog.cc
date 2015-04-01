@@ -16,6 +16,8 @@
 #include "wsrep_binlog.h"
 #include "wsrep_priv.h"
 #include "log.h"
+#include "log_event.h"
+#include "wsrep_applier.h"
 
 extern handlerton *binlog_hton;
 /*
@@ -212,7 +214,10 @@ cleanup:
         WSREP_ERROR("failed to reinitialize io-cache");
     }
 
-    if (unlikely(WSREP_OK != err)) wsrep_dump_rbr_buf(thd, buf, used);
+    if (unlikely(WSREP_OK != err))
+    {
+      wsrep_dump_rbr_buf_with_header(thd, buf, used);
+    }
 
     my_free(heap_buf);
     return err;
@@ -352,6 +357,7 @@ int wsrep_binlog_savepoint_rollback(THD *thd, void *sv)
   return rcode;
 }
 
+#if 0
 void wsrep_dump_rbr_direct(THD* thd, IO_CACHE* cache)
 {
   char filename[PATH_MAX]= {0};
@@ -407,8 +413,62 @@ cleanup:
   // close file
   if (of) fclose(of);
 }
+#endif
 
 void thd_binlog_flush_pending_rows_event(THD *thd, bool stmt_end)
 {
   thd->binlog_flush_pending_rows_event(stmt_end);
 }
+
+/* Dump replication buffer along with header to a file. */
+void wsrep_dump_rbr_buf_with_header(THD *thd, const void *rbr_buf,
+                                    size_t buf_len)
+{
+  char filename[PATH_MAX]= {0};
+  File file;
+  IO_CACHE cache;
+  Format_description_log_event *ev= wsrep_get_apply_format(thd);
+
+  int len= my_snprintf(filename, PATH_MAX, "%s/GRA_%ld_%lld_v2.log",
+                       wsrep_data_home_dir, thd->thread_id,
+                       (long long) wsrep_thd_trx_seqno(thd));
+
+  if (len >= PATH_MAX)
+  {
+    WSREP_ERROR("RBR dump path too long: %d, skipping dump.", len);
+    return;
+  }
+
+  if ((file= mysql_file_open(key_file_wsrep_gra_log, filename,
+                             O_RDWR | O_CREAT | O_BINARY, MYF(MY_WME))) < 0)
+  {
+    WSREP_ERROR("Failed to open file '%s' : %d (%s)",
+                filename, errno, strerror(errno));
+    goto cleanup1;
+  }
+
+  if (init_io_cache(&cache, file, 0, WRITE_CACHE, 0, 0, MYF(MY_WME | MY_NABP)))
+  {
+    mysql_file_close(file, MYF(MY_WME));
+    goto cleanup2;
+  }
+
+  if (my_b_safe_write(&cache, BINLOG_MAGIC, BIN_LOG_HEADER_SIZE))
+  {
+    goto cleanup2;
+  }
+
+  if (ev->write(&cache) || my_b_write(&cache, rbr_buf, buf_len) ||
+      flush_io_cache(&cache))
+  {
+    WSREP_ERROR("Failed to write to '%s'.", filename);
+    goto cleanup2;
+  }
+
+cleanup2:
+  end_io_cache(&cache);
+
+cleanup1:
+  mysql_file_close(file, MYF(MY_WME));
+}
+

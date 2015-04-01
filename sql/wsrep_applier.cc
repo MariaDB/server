@@ -14,7 +14,7 @@
    51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA. */
 
 #include "wsrep_priv.h"
-#include "wsrep_binlog.h" // wsrep_dump_rbr_buf()
+#include "wsrep_binlog.h"
 
 #include "log_event.h" // EVENT_LEN_OFFSET, etc.
 #include "wsrep_applier.h"
@@ -62,8 +62,7 @@ err:
 #include "rpl_rli.h"     // class Relay_log_info;
 #include "sql_base.h"    // close_temporary_table()
 
-static inline void
-wsrep_set_apply_format(THD* thd, Format_description_log_event* ev)
+void wsrep_set_apply_format(THD* thd, Format_description_log_event* ev)
 {
   if (thd->wsrep_apply_format)
   {
@@ -72,8 +71,7 @@ wsrep_set_apply_format(THD* thd, Format_description_log_event* ev)
   thd->wsrep_apply_format= ev;
 }
 
-static inline Format_description_log_event*
-wsrep_get_apply_format(THD* thd)
+Format_description_log_event* wsrep_get_apply_format(THD* thd)
 {
   if (thd->wsrep_apply_format)
       return (Format_description_log_event*) thd->wsrep_apply_format;
@@ -260,7 +258,7 @@ wsrep_cb_status_t wsrep_apply_cb(void* const             ctx,
 
   if (WSREP_CB_SUCCESS != rcode)
   {
-    wsrep_dump_rbr_buf(thd, buf, buf_len);
+    wsrep_dump_rbr_buf_with_header(thd, buf, buf_len);
   }
 
   TABLE *tmp;
