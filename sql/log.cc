@@ -9783,16 +9783,18 @@ TC_LOG_BINLOG::set_status_variables(THD *thd)
   mysql_mutex_lock(&LOCK_commit_ordered);
   binlog_status_var_num_commits= this->num_commits;
   binlog_status_var_num_group_commits= this->num_group_commits;
-  binlog_status_group_commit_reason_count= this->group_commit_reason_count;
-  binlog_status_group_commit_reason_usec= this->group_commit_reason_usec;
-  binlog_status_group_commit_reason_transaction= this->group_commit_reason_transaction;
-  binlog_status_group_commit_reason_immediate= this->group_commit_reason_immediate;
   if (!have_snapshot)
   {
     set_binlog_snapshot_file(last_commit_pos_file);
     binlog_snapshot_position= last_commit_pos_offset;
   }
   mysql_mutex_unlock(&LOCK_commit_ordered);
+  mysql_mutex_lock(&LOCK_prepare_ordered);
+  binlog_status_group_commit_reason_count= this->group_commit_reason_count;
+  binlog_status_group_commit_reason_usec= this->group_commit_reason_usec;
+  binlog_status_group_commit_reason_transaction= this->group_commit_reason_transaction;
+  binlog_status_group_commit_reason_immediate= this->group_commit_reason_immediate;
+  mysql_mutex_unlock(&LOCK_prepare_ordered);
 
   if (have_snapshot)
   {
