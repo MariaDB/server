@@ -23,39 +23,15 @@ void _mi_report_crashed(void *file __attribute__((unused)),
 {
 }
 
-unsigned int get_latest_encryption_key_version()
+static unsigned int no_key()
 {
   return BAD_ENCRYPTION_KEY_VERSION;
 }
 
-int encrypt_data(const uchar* source __attribute__((unused)),
-                 uint source_length __attribute__((unused)),
-                 uchar* dest __attribute__((unused)),
-                 uint* dest_length __attribute__((unused)),
-                 const uchar* key __attribute__((unused)),
-                 uint key_length __attribute__((unused)),
-                 const uchar* iv __attribute__((unused)),
-                 uint iv_length __attribute__((unused)),
-                 int no_padding __attribute__((unused)),
-                 uint key_version __attribute__((unused)))
+struct encryption_keys_service_st encryption_keys_handler=
 {
-  return 1;
-}
-
-
-int decrypt_data(const uchar* source __attribute__((unused)),
-                 uint source_length __attribute__((unused)),
-                 uchar* dest __attribute__((unused)),
-                 uint* dest_length __attribute__((unused)),
-                 const uchar* key __attribute__((unused)),
-                 uint key_length __attribute__((unused)),
-                 const uchar* iv __attribute__((unused)),
-                 uint iv_length __attribute__((unused)),
-                 int no_padding __attribute__((unused)),
-                 uint key_version __attribute__((unused)))
-{
-  return 1;
-}
+  no_key, 0, 0, 0, 0
+};
 
 /* only those that included myisamchk.h may need and can use the below */
 #ifdef _myisamchk_h

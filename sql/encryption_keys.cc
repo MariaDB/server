@@ -19,61 +19,29 @@
 #include "sql_plugin.h"
 #include <my_crypt.h>
 
+#warning TODO rename to follow single consistent style
+
 /* there can be only one encryption plugin enabled */
 static plugin_ref encryption_key_manager= 0;
-static struct st_mariadb_encryption *handle;
+struct encryption_keys_service_st encryption_keys_handler;
 
-unsigned int get_latest_encryption_key_version()
+unsigned int has_key(uint version)
 {
-  if (encryption_key_manager)
-    return handle->get_latest_key_version();
+  uint unused;
+  return get_encryption_key(version, NULL, &unused) != BAD_ENCRYPTION_KEY_VERSION;
+}
 
+uint no_key()
+{
   return BAD_ENCRYPTION_KEY_VERSION;
 }
 
-unsigned int has_encryption_key(uint version)
+static int no_crypt(const uchar* source, uint source_length,
+                    uchar* dest, uint* dest_length,
+                    const uchar* key, uint key_length,
+                    const uchar* iv, uint iv_length,
+                    int no_padding, uint key_version)
 {
-  if (encryption_key_manager)
-  {
-    uint unused;
-    return handle->get_key(version, NULL, &unused) != BAD_ENCRYPTION_KEY_VERSION;
-  }
-
-  return 0;
-}
-
-uint get_encryption_key(uint version, uchar* key, uint *size)
-{
-  if (encryption_key_manager)
-    return handle->get_key(version, key, size);
-
-  return BAD_ENCRYPTION_KEY_VERSION;
-}
-
-int encrypt_data(const uchar* source, uint source_length,
-                 uchar* dest, uint* dest_length,
-                 const uchar* key, uint key_length,
-                 const uchar* iv, uint iv_length,
-                 int no_padding, uint key_version)
-{
-  if (encryption_key_manager)
-    return handle->encrypt(source, source_length,
-                           dest, dest_length, key, key_length,
-                           iv, iv_length, no_padding, key_version);
-  return 1;
-}
-
-
-int decrypt_data(const uchar* source, uint source_length,
-                 uchar* dest, uint* dest_length,
-                 const uchar* key, uint key_length,
-                 const uchar* iv, uint iv_length,
-                 int no_padding, uint key_version)
-{
-  if (encryption_key_manager)
-    return handle->decrypt(source, source_length,
-                           dest, dest_length, key, key_length,
-                           iv, iv_length, no_padding, key_version);
   return 1;
 }
 
@@ -91,21 +59,36 @@ int initialize_encryption_plugin(st_plugin_int *plugin)
   }
 
   encryption_key_manager= plugin_lock(NULL, plugin_int_to_ref(plugin));
-  handle= (struct st_mariadb_encryption*)
-            plugin->plugin->info;
+  st_mariadb_encryption *handle=
+    (struct st_mariadb_encryption*) plugin->plugin->info;
 
-  /* default encryption algorithm */
-  if (!handle->encrypt)
-    handle->encrypt= (encrypt_decrypt_func)my_aes_encrypt_cbc;
-  if (!handle->decrypt)
-    handle->decrypt= (encrypt_decrypt_func)my_aes_decrypt_cbc;
+  encryption_keys_handler.encrypt_data_func=
+    handle->encrypt ? handle->encrypt
+                    : (encrypt_decrypt_func)my_aes_encrypt_cbc;
+
+  encryption_keys_handler.decrypt_data_func=
+    handle->decrypt ? handle->decrypt
+                    : (encrypt_decrypt_func)my_aes_decrypt_cbc;
+
+  encryption_keys_handler.get_encryption_key_func=
+    handle->get_key;
+
+  encryption_keys_handler.get_latest_encryption_key_version_func=
+    handle->get_latest_key_version; // must be the last
 
   return 0;
 }
 
 int finalize_encryption_plugin(st_plugin_int *plugin)
 {
-  if (plugin->plugin->deinit && plugin->plugin->deinit(NULL))
+  encryption_keys_handler.encrypt_data_func= no_crypt;
+  encryption_keys_handler.decrypt_data_func= no_crypt;
+  encryption_keys_handler.has_encryption_key_func= has_key;
+  encryption_keys_handler.get_encryption_key_func=
+      (uint (*)(uint, uchar*, uint*))no_key;
+  encryption_keys_handler.get_latest_encryption_key_version_func= no_key;
+
+  if (plugin && plugin->plugin->deinit && plugin->plugin->deinit(NULL))
   {
     DBUG_PRINT("warning", ("Plugin '%s' deinit function returned error.",
                            plugin->name.str));
