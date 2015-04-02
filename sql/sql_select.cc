@@ -11398,6 +11398,7 @@ void JOIN_TAB::cleanup()
     table->reginfo.join_tab= 0;
   }
   end_read_record(&read_record);
+  explain_plan= NULL;
   DBUG_VOID_RETURN;
 }
 
@@ -18762,9 +18763,13 @@ test_if_quick_select(JOIN_TAB *tab)
 
   delete tab->select->quick;
   tab->select->quick=0;
-  return tab->select->test_quick_select(tab->join->thd, tab->keys,
-					(table_map) 0, HA_POS_ERROR, 0,
-                                        FALSE, /*remove where parts*/FALSE);
+  int res= tab->select->test_quick_select(tab->join->thd, tab->keys,
+                                          (table_map) 0, HA_POS_ERROR, 0,
+                                          FALSE, /*remove where parts*/FALSE);
+  if (tab->explain_plan && tab->explain_plan->range_checked_fer)
+    tab->explain_plan->range_checked_fer->collect_data(tab->select->quick);
+
+  return res;
 }
 
 
@@ -23387,6 +23392,7 @@ int append_possible_keys(MEM_ROOT *alloc, String_list &list, TABLE *table,
   return 0;
 }
 
+
 /*
   TODO: this function is only applicable for the first non-const optimization
   join tab. 
@@ -23427,6 +23433,8 @@ void JOIN_TAB::save_explain_data(Explain_table_access *eta, table_map prefix_tab
   quick_type= -1;
   QUICK_SELECT_I *quick= NULL;
 
+
+  explain_plan= eta;
   eta->key.clear();
   eta->quick_info= NULL;
   
@@ -23690,9 +23698,9 @@ void JOIN_TAB::save_explain_data(Explain_table_access *eta, table_map prefix_tab
       {
         eta->push_extra(ET_RANGE_CHECKED_FOR_EACH_RECORD);
         eta->range_checked_fer= new (thd->mem_root) Explain_range_checked_fer;
-        eta->range_checked_fer->keys_map= tab->keys;
-        append_possible_keys(thd->mem_root, eta->range_checked_fer->key_set,
-                             table, tab->keys);
+        if (eta->range_checked_fer)
+          eta->range_checked_fer->
+            append_possible_keys_stat(thd->mem_root, table, tab->keys);
       }
       else if (tab->select->cond ||
                (tab->cache_select && tab->cache_select->cond))

@@ -104,3 +104,33 @@ analyze format=json
 delete from t1 where pk < 10 and b > 4;
 
 drop table t1, t3, t2;
+
+--echo #
+--echo # MDEV-7833:ANALYZE FORMAT=JSON and Range checked for each record
+--echo #
+create table t3(a int);
+insert into t3 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+
+create table t4(a int);
+insert into t4 select A.a + B.a* 10 + C.a * 100 from t3 A, t3 B, t3 C;
+
+create table t1 (lb1 int, rb1 int, lb2 int, rb2 int, c1 int, c2 int);
+
+insert into t1 values (1,2,10,20,15,15);
+insert into t1 values (3,5,10,20,15,15);
+insert into t1 values (10,20,10,20,15,15);
+insert into t1 values (10,20,1,2,15,15);
+insert into t1 values (10,20,10,20,1,3);
+
+create table t2 (key1 int, key2 int, key3 int, key4 int, col1 int,
+                 key(key1), key(key2), key(key3), key(key4));
+insert into t2 select a,a,a,a,a from t3;
+insert into t2 select 15,15,15,15,15 from t4;
+
+--replace_regex /"r_total_time_ms": [0-9]*[.]?[0-9]*/"r_total_time_ms": "REPLACED"/
+analyze format=json
+select * from t1, t2 where (t2.key1 between t1.lb1 and t1.rb1) and
+                           (t2.key2 between t1.lb2 and t1.rb2) and
+                           (t2.key3=t1.c1  OR t2.key4=t1.c2);
+
+drop table t1,t2,t3,t4;

@@ -54,7 +54,7 @@ it into the slow query log.
 class String_list: public List<char>
 {
 public:
-  bool append_str(MEM_ROOT *mem_root, const char *str);
+  const char *append_str(MEM_ROOT *mem_root, const char *str);
 };
 
 class Json_writer;
@@ -622,11 +622,29 @@ private:
   It's a set of keys, tabular explain prints hex bitmap, json prints key names.
 */
 
+typedef const char* NAME;
+
 class Explain_range_checked_fer : public Sql_alloc
 {
 public:
   String_list key_set;
   key_map keys_map;
+private:
+  ha_rows full_scan, index_merge;
+  ha_rows *keys_stat;
+  NAME *keys_stat_names;
+  uint keys;
+
+public:
+  Explain_range_checked_fer()
+    :Sql_alloc(), full_scan(0), index_merge(0),
+    keys_stat(0), keys_stat_names(0), keys(0)
+  {}
+
+  int append_possible_keys_stat(MEM_ROOT *alloc,
+                                TABLE *table, key_map possible_keys);
+  void collect_data(QUICK_SELECT_I *quick);
+  void print_json(Json_writer *writer, bool is_analyze);
 };
 
 /*

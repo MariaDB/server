@@ -362,7 +362,12 @@ typedef struct st_join_table {
   SJ_TMP_TABLE  *check_weed_out_table;
   /* for EXPLAIN only: */
   SJ_TMP_TABLE  *first_weedout_table;
-  
+
+  /**
+    reference to saved plan and execution statistics
+  */
+  Explain_table_access *explain_plan;
+
   /*
     If set, means we should stop join enumeration after we've got the first
     match and return to the specified join tab. May point to

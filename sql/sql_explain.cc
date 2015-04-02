@@ -22,6 +22,7 @@
 #include "sql_priv.h"
 #include "sql_select.h"
 #include "my_json_writer.h"
+#include "opt_range.h"
 
 const char * STR_DELETING_ALL_ROWS= "Deleting all rows";
 const char * STR_IMPOSSIBLE_WHERE= "Impossible WHERE";
@@ -1076,15 +1077,26 @@ int Explain_table_access::print_explain(select_result_sink *output, uint8 explai
 }
 
 
-bool String_list::append_str(MEM_ROOT *mem_root, const char *str)
+/**
+  Adds copy of the string to the list
+
+  @param mem_root        where to allocate string
+  @param str             string to copy and add
+
+  @return
+    NULL - out of memory error
+    poiner on allocated copy of the string
+*/
+
+const char *String_list::append_str(MEM_ROOT *mem_root, const char *str)
 {
   size_t len= strlen(str);
   char *cp;
   if (!(cp = (char*)alloc_root(mem_root, len+1)))
-    return 1;
+    return NULL;
   memcpy(cp, str, len+1);
   push_back(cp);
-  return 0;
+  return cp;
 }
 
 
@@ -1207,8 +1219,7 @@ void Explain_table_access::print_explain_json(Explain_query *query,
 
   if (range_checked_fer)
   {
-    writer->add_member("range-checked-for-each-record").start_object();
-    add_json_keyset(writer, "keys", &possible_keys);
+    range_checked_fer->print_json(writer, is_analyze);
   }
 
   if (full_scan_on_null_key)
@@ -1986,3 +1997,88 @@ void create_explain_query_if_not_exists(LEX *lex, MEM_ROOT *mem_root)
     create_explain_query(lex, mem_root);
 }
 
+
+/**
+  Build arrays for collectiong keys statistics, sdd possible key names
+  to the list and name array
+
+  @param alloc           MEM_ROOT to put data in
+  @param list            list of possible key names to fill
+  @param table           table of the keys
+  @patam possible_keys   possible keys map
+
+  @retval 0 - OK
+  @retval 1 - Error
+*/
+
+int Explain_range_checked_fer::append_possible_keys_stat(MEM_ROOT *alloc,
+                                                         TABLE *table,
+                                                         key_map possible_keys)
+{
+  uint j;
+  multi_alloc_root(alloc, &keys_stat, sizeof(ha_rows) * table->s->keys,
+                   &keys_stat_names, sizeof(char *) * table->s->keys, NULL);
+  if ((!keys_stat) || (!keys_stat_names))
+  {
+    keys_stat= NULL;
+    keys_stat_names= NULL;
+    return 1;
+  }
+  keys_map= possible_keys;
+  keys= table->s->keys;
+  bzero(keys_stat, sizeof(ha_rows) * table->s->keys);
+  for (j= 0; j < table->s->keys; j++)
+  {
+    if (possible_keys.is_set(j))
+      keys_stat_names[j]= key_set.append_str(alloc, table->key_info[j].name);
+    else
+      keys_stat_names[j]= NULL;
+  }
+  return 0;
+}
+
+void Explain_range_checked_fer::collect_data(QUICK_SELECT_I *quick)
+{
+  if (quick)
+  {
+    if (quick->index == MAX_KEY)
+      index_merge++;
+    else
+    {
+      DBUG_ASSERT(quick->index < keys);
+      DBUG_ASSERT(keys_stat);
+      DBUG_ASSERT(keys_stat_names);
+      DBUG_ASSERT(keys_stat_names[ quick->index]);
+      keys_stat[quick->index]++;
+    }
+  }
+  else
+    full_scan++;
+}
+
+
+void Explain_range_checked_fer::print_json(Json_writer *writer,
+                                           bool is_analyze)
+{
+  writer->add_member("range-checked-for-each-record").start_object();
+  add_json_keyset(writer, "keys", &key_set);
+  if (is_analyze)
+  {
+    writer->add_member("r_keys").start_object();
+    writer->add_member("full_scan").add_ll(full_scan);
+    writer->add_member("index_merge").add_ll(index_merge);
+    if (keys_stat)
+    {
+      writer->add_member("range").start_object();
+      for (uint i= 0; i < keys; i++)
+      {
+        if (keys_stat_names[i])
+        {
+          writer->add_member(keys_stat_names[i]).add_ll(keys_stat[i]);
+        }
+      }
+      writer->end_object();
+    }
+    writer->end_object();
+  }
+}
