@@ -5967,7 +5967,7 @@ THD::binlog_prepare_pending_rows_event(TABLE* table, uint32 serv_id,
   {
     /* Create a new RowsEventT... */
     Rows_log_event* const
-	ev= new RowsEventT(this, table, table->s->table_map_id,
+        ev= new RowsEventT(this, table, table->s->table_map_id,
                            is_transactional);
     if (unlikely(!ev))
       DBUG_RETURN(NULL);
@@ -6136,7 +6136,7 @@ int THD::binlog_write_row(TABLE* table, bool is_trans,
     is_trans= 1;
 
   Rows_log_event* const ev=
-    binlog_prepare_pending_rows_event(table, variables.server_id, cols, colcnt,
+    binlog_prepare_pending_rows_event(table, variables.server_id,
                                       len, is_trans,
                                       static_cast<Write_rows_log_event*>(0));
 
@@ -6185,9 +6185,9 @@ int THD::binlog_update_row(TABLE* table, bool is_trans,
 #endif
 
   Rows_log_event* const ev=
-    binlog_prepare_pending_rows_event(table, variables.server_id, cols, colcnt,
-				      before_size + after_size, is_trans,
-				      static_cast<Update_rows_log_event*>(0));
+    binlog_prepare_pending_rows_event(table, variables.server_id,
+                                      before_size + after_size, is_trans,
+                                      static_cast<Update_rows_log_event*>(0));
 
   if (unlikely(ev == 0))
     return HA_ERR_OUT_OF_MEM;
@@ -6221,9 +6221,9 @@ int THD::binlog_delete_row(TABLE* table, bool is_trans,
     is_trans= 1;
 
   Rows_log_event* const ev=
-    binlog_prepare_pending_rows_event(table, variables.server_id, cols, colcnt,
-				      len, is_trans,
-				      static_cast<Delete_rows_log_event*>(0));
+    binlog_prepare_pending_rows_event(table, variables.server_id,
+                                      len, is_trans,
+                                      static_cast<Delete_rows_log_event*>(0));
 
   if (unlikely(ev == 0))
     return HA_ERR_OUT_OF_MEM;

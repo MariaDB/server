@@ -4518,8 +4518,8 @@ public:
   };
 
 #if defined(MYSQL_SERVER)
-  Write_rows_log_event(THD*, TABLE*, ulong table_id, 
-		       MY_BITMAP const *cols, bool is_transactional);
+  Write_rows_log_event(THD*, TABLE*, ulong table_id,
+                       bool is_transactional);
 #endif
 #ifdef HAVE_REPLICATION
   Write_rows_log_event(const char *buf, uint event_len, 
@@ -4581,12 +4581,6 @@ public:
 
 #ifdef MYSQL_SERVER
   Update_rows_log_event(THD*, TABLE*, ulong table_id,
-			MY_BITMAP const *cols_bi,
-			MY_BITMAP const *cols_ai,
-                        bool is_transactional);
-
-  Update_rows_log_event(THD*, TABLE*, ulong table_id,
-			MY_BITMAP const *cols,
                         bool is_transactional);
 
   void init(MY_BITMAP const *cols);
@@ -4665,8 +4659,7 @@ public:
   };
 
 #ifdef MYSQL_SERVER
-  Delete_rows_log_event(THD*, TABLE*, ulong, 
-			MY_BITMAP const *cols, bool is_transactional);
+  Delete_rows_log_event(THD*, TABLE*, ulong, bool is_transactional);
 #endif
 #ifdef HAVE_REPLICATION
   Delete_rows_log_event(const char *buf, uint event_len, 
