@@ -5868,6 +5868,7 @@ buf_page_encrypt_before_write(
 	ulint space_id) /*!< in: space id */
 {
 	fil_space_crypt_t* crypt_data = fil_space_get_crypt_data(space_id);
+	bpage->real_size = UNIV_PAGE_SIZE;
 
 	if (crypt_data != NULL && crypt_data->encryption == FIL_SPACE_ENCRYPTION_OFF) {
 		/* Encryption is disabled */
@@ -5921,7 +5922,7 @@ buf_page_encrypt_before_write(
 			mach_read_from_4(dst_frame + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION);
 		ut_ad(key_version == 0 || key_version >= bpage->key_version);
 		bpage->key_version = key_version;
-		bpage->real_size = zip_size;
+		bpage->real_size = page_size;
 	} else {
 		/* First we compress the page content */
 		ulint out_len = 0;

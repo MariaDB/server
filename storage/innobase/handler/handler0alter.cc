@@ -279,7 +279,7 @@ ha_innobase::check_if_supported_inplace_alter(
 		}
 
 		if (new_options->encryption != old_options->encryption ||
-			new_options->encryption_key != old_options->encryption_key) {
+			new_options->encryption_key_id != old_options->encryption_key_id) {
 			ha_alter_info->unsupported_reason = innobase_get_err_msg(
 				ER_ALTER_OPERATION_NOT_SUPPORTED_REASON);
 			DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);

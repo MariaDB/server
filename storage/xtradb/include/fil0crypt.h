@@ -159,7 +159,7 @@ void
 fil_space_set_crypt_data(
 /*======================*/
 	ulint space,                    /*!< in: tablespace id */
-	fil_space_crypt_t* crypt_data); /*!< in: crypt data */
+	fil_space_crypt_t* crypt_data); /*!< in: crypt data to set */
 
 /*********************************************************************
 Compare crypt data*/

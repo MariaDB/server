@@ -205,9 +205,8 @@ if (!$success)
 }
 --echo # Success!
 
-SELECT variable_value >= 0 FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_num_pages_page_encrypted';
-SELECT variable_value >= 0 FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_num_pages_page_decrypted';
-SELECT variable_value = 0 FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_num_pages_page_encryption_error';
+SELECT variable_value >= 0 FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_num_pages_encrypted';
+SELECT variable_value >= 0 FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_num_pages_decrypted';
 SELECT variable_value > 0 FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_num_pages_page_compressed';
 SELECT variable_value > 0 FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_num_pages_page_decompressed';
 

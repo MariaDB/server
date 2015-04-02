@@ -66,14 +66,11 @@ SET GLOBAL innodb_encryption_threads=4;
 # Success!
 # Wait max 10 min for key encryption threads to decrypt all space
 # Success!
-SELECT variable_value >= 0 FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_num_pages_page_encrypted';
+SELECT variable_value >= 0 FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_num_pages_encrypted';
 variable_value >= 0
 1
-SELECT variable_value >= 0 FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_num_pages_page_decrypted';
+SELECT variable_value >= 0 FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_num_pages_decrypted';
 variable_value >= 0
-1
-SELECT variable_value = 0 FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_num_pages_page_encryption_error';
-variable_value = 0
 1
 SELECT variable_value > 0 FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_num_pages_page_compressed';
 variable_value > 0

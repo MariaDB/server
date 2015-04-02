@@ -632,9 +632,9 @@ ha_create_table_option innodb_table_option_list[]=
   /* With this option user can enable atomic writes feature for this table */
   HA_TOPTION_ENUM("ATOMIC_WRITES", atomic_writes, "DEFAULT,ON,OFF", 0),
   /* With this option the user can enable encryption for the table */
-  HA_TOPTION_ENUM("ENCRYPTION", encryption, "DEFAULT, ON, OFF", 0),
+  HA_TOPTION_ENUM("ENCRYPTION", encryption, "DEFAULT,ON,OFF", 0),
   /* With this option the user defines the key identifier using for the encryption */
-  HA_TOPTION_NUMBER("ENCRYPTION_KEY", encryption_key, 0, 1, UINT_MAX32, 1),
+  HA_TOPTION_NUMBER("ENCRYPTION_KEY_ID", encryption_key_id, 0, 1, UINT_MAX32, 1),
 
   HA_TOPTION_END
 };
@@ -11882,29 +11882,19 @@ ha_innobase::check_table_options(
 		}
 	}
 
-	if (options->encryption_key != 0) {
+	if (options->encryption_key_id != 0) {
 		if (options->encryption == FIL_SPACE_ENCRYPTION_OFF) {
 			/* ignore this to allow alter table without changing page_encryption_key ...*/
 		}
 
-		if (options->encryption_key < 1) {
+		if (!has_encryption_key(options->encryption_key_id)) {
 			push_warning_printf(
 				thd, Sql_condition::WARN_LEVEL_WARN,
 				HA_WRONG_CREATE_OPTION,
-				"InnoDB: invalid ENCRYPTION_KEY = %lu."
-				" Valid values are [1..UINTMAX32]",
-				options->encryption_key);
-			return "ENCRYPTION_KEY";
-		}
-
-		if (!has_encryption_key(options->encryption_key)) {
-			push_warning_printf(
-				thd, Sql_condition::WARN_LEVEL_WARN,
-				HA_WRONG_CREATE_OPTION,
-				"InnoDB: ENCRYPTION_KEY %lu not available",
-				options->encryption_key
+				"InnoDB: ENCRYPTION_KEY_ID %lu not available",
+				options->encryption_key_id
 			);
-			return "ENCRYPTION_KEY";
+			return "ENCRYPTION_KEY_ID";
 
 		}
 	}
@@ -11967,10 +11957,10 @@ ha_innobase::create(
 	const char*	stmt;
 	size_t		stmt_len;
 	/* Cache table options */
-	ha_table_option_struct *options= table->s->option_struct;
+	ha_table_option_struct *options= form->s->option_struct;
 	fil_encryption_t encrypt = (fil_encryption_t)options->encryption;
-	ulint key_id = (options->encryption_key == 0) ? srv_default_encryption_key :
-		options->encryption_key;
+	ulint key_id = (options->encryption_key_id == 0) ? srv_default_encryption_key :
+		options->encryption_key_id;
 
 	DBUG_ENTER("ha_innobase::create");
 
@@ -12216,18 +12206,6 @@ ha_innobase::create(
 
 	innobase_commit_low(trx);
 
-	/* If user has requested that table should be encrypted or table
-	should remain as unencrypted store crypt data */
-	if (encrypt == FIL_SPACE_ENCRYPTION_ON || encrypt == FIL_SPACE_ENCRYPTION_OFF) {
-		ulint maxsize;
-		ulint zip_size = fil_space_get_zip_size(innobase_table->space);
-		fil_space_crypt_t* crypt_data = fil_space_create_crypt_data();
-		crypt_data->page0_offset = fsp_header_get_crypt_offset(zip_size, &maxsize);
-		crypt_data->keys[0].key_id = key_id;
-		crypt_data->encryption = encrypt;
-		fil_space_set_crypt_data(innobase_table->space, crypt_data);
-	}
-
 	row_mysql_unlock_data_dictionary(trx);
 
 	/* Flush the log to reduce probability that the .frm files and
@@ -12240,6 +12218,28 @@ ha_innobase::create(
 		norm_name, FALSE, FALSE, DICT_ERR_IGNORE_NONE);
 
 	DBUG_ASSERT(innobase_table != 0);
+
+	/* If user has requested that table should be encrypted or table
+	should remain as unencrypted store crypt data */
+	if (encrypt == FIL_SPACE_ENCRYPTION_ON || encrypt == FIL_SPACE_ENCRYPTION_OFF) {
+		ulint maxsize;
+		ulint zip_size = fil_space_get_zip_size(innobase_table->space);
+		fil_space_crypt_t* old_crypt_data = fil_space_get_crypt_data(innobase_table->space);
+		fil_space_crypt_t* crypt_data;
+
+		crypt_data = fil_space_create_crypt_data();
+		crypt_data->page0_offset = fsp_header_get_crypt_offset(zip_size, &maxsize);
+		crypt_data->keys[0].key_id = key_id;
+		crypt_data->encryption = encrypt;
+
+		/* If there is old crypt data, copy IV */
+		if (old_crypt_data) {
+			memcpy(crypt_data->iv, old_crypt_data->iv, old_crypt_data->iv_length);
+			crypt_data->iv_length = old_crypt_data->iv_length;
+		}
+
+		fil_space_set_crypt_data(innobase_table->space, crypt_data);
+	}
 
 	innobase_copy_frm_flags_from_create_info(innobase_table, create_info);
 
@@ -20339,7 +20339,7 @@ static MYSQL_SYSVAR_UINT(encryption_rotation_iops, srv_n_fil_crypt_iops,
 
 static MYSQL_SYSVAR_UINT(default_encryption_key, srv_default_encryption_key,
 			 PLUGIN_VAR_RQCMDARG,
-			 "Default encryption key used for table encryption.",
+			 "Default encryption key id used for table encryption.",
 			 NULL,
 			 NULL,
 			 FIL_DEFAULT_ENCRYPTION_KEY, 1, UINT_MAX32, 0);

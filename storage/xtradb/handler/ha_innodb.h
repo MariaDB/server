@@ -72,7 +72,7 @@ struct ha_table_option_struct
 					Atomic writes are not used if
 					value OFF.*/
         uint  encryption;      		/*!<  DEFAULT, ON, OFF */
-        int   encryption_key;		/*!< encryption key id  */
+        int   encryption_key_id;	/*!< encryption key id  */
 };
 
 /** The class defining a handle to an Innodb table */
