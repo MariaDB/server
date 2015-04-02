@@ -5675,39 +5675,24 @@ static int binlog_log_row(TABLE* table,
 
   if (check_table_binlog_row_based(thd, table))
   {
-    MY_BITMAP cols;
-    /* Potential buffer on the stack for the bitmap */
-    uint32 bitbuf[BITMAP_STACKBUF_SIZE/sizeof(uint32)];
-    uint n_fields= table->s->fields;
-    my_bool use_bitbuf= n_fields <= sizeof(bitbuf)*8;
-
     /*
       If there are no table maps written to the binary log, this is
       the first row handled in this statement. In that case, we need
       to write table maps for all locked tables to the binary log.
     */
-    if (likely(!(error= my_bitmap_init(&cols,
-                                    use_bitbuf ? bitbuf : NULL,
-                                    (n_fields + 7) & ~7UL,
-                                    FALSE))))
+    if (likely(!(error= write_locked_table_maps(thd))))
     {
-      bitmap_set_all(&cols);
-      if (likely(!(error= write_locked_table_maps(thd))))
-      {
-        /*
-          We need to have a transactional behavior for SQLCOM_CREATE_TABLE
-          (i.e. CREATE TABLE... SELECT * FROM TABLE) in order to keep a
-          compatible behavior with the STMT based replication even when
-          the table is not transactional. In other words, if the operation
-          fails while executing the insert phase nothing is written to the
-          binlog.
-        */
-        bool const has_trans= thd->lex->sql_command == SQLCOM_CREATE_TABLE ||
-                             table->file->has_transactions();
-        error= (*log_func)(thd, table, has_trans, before_record, after_record);
-      }
-      if (!use_bitbuf)
-        my_bitmap_free(&cols);
+      /*
+         We need to have a transactional behavior for SQLCOM_CREATE_TABLE
+         (i.e. CREATE TABLE... SELECT * FROM TABLE) in order to keep a
+         compatible behavior with the STMT based replication even when
+         the table is not transactional. In other words, if the operation
+         fails while executing the insert phase nothing is written to the
+         binlog.
+         */
+      bool const has_trans= thd->lex->sql_command == SQLCOM_CREATE_TABLE ||
+                            table->file->has_transactions();
+      error= (*log_func)(thd, table, has_trans, before_record, after_record);
     }
   }
   return error ? HA_ERR_RBR_LOGGING_FAILED : 0;
