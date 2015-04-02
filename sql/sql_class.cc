@@ -5919,13 +5919,11 @@ int THD::decide_logging_format(TABLE_LIST *tables)
     If error, NULL.
  */
 
-template <class RowsEventT> Rows_log_event* 
+template <class RowsEventT> Rows_log_event*
 THD::binlog_prepare_pending_rows_event(TABLE* table, uint32 serv_id,
-                                       MY_BITMAP const* cols,
-                                       size_t colcnt,
                                        size_t needed,
                                        bool is_transactional,
-				       RowsEventT *hint __attribute__((unused)))
+                                       RowsEventT *hint __attribute__((unused)))
 {
   DBUG_ENTER("binlog_prepare_pending_rows_event");
   /* Pre-conditions */
@@ -5961,16 +5959,15 @@ THD::binlog_prepare_pending_rows_event(TABLE* table, uint32 serv_id,
     event.
   */
   if (!pending ||
-      pending->server_id != serv_id || 
+      pending->server_id != serv_id ||
       pending->get_table_id() != table->s->table_map_id ||
-      pending->get_general_type_code() != general_type_code || 
-      pending->get_data_size() + needed > opt_binlog_rows_event_max_size || 
-      pending->get_width() != colcnt ||
-      !bitmap_cmp(pending->get_cols(), cols)) 
+      pending->get_general_type_code() != general_type_code ||
+      pending->get_data_size() + needed > opt_binlog_rows_event_max_size ||
+      pending->read_write_bitmaps_cmp(table) == FALSE)
   {
     /* Create a new RowsEventT... */
     Rows_log_event* const
-	ev= new RowsEventT(this, table, table->s->table_map_id, cols,
+	ev= new RowsEventT(this, table, table->s->table_map_id,
                            is_transactional);
     if (unlikely(!ev))
       DBUG_RETURN(NULL);
