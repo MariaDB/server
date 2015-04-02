@@ -2127,14 +2127,12 @@ public:
   int binlog_write_table_map(TABLE *table, bool is_transactional,
                              my_bool *with_annotate= 0);
   int binlog_write_row(TABLE* table, bool is_transactional,
-                       MY_BITMAP const* cols, size_t colcnt,
                        const uchar *buf);
   int binlog_delete_row(TABLE* table, bool is_transactional,
-                        MY_BITMAP const* cols, size_t colcnt,
                         const uchar *buf);
   int binlog_update_row(TABLE* table, bool is_transactional,
-                        MY_BITMAP const* cols, size_t colcnt,
                         const uchar *old_data, const uchar *new_data);
+  void binlog_prepare_row_images(TABLE* table);
 
   void set_server_id(uint32 sid) { variables.server_id = sid; }
 

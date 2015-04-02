@@ -5658,8 +5658,7 @@ static int write_locked_table_maps(THD *thd)
 }
 
 
-typedef bool Log_func(THD*, TABLE*, bool, MY_BITMAP*,
-                      uint, const uchar*, const uchar*);
+typedef bool Log_func(THD*, TABLE*, bool, const uchar*, const uchar*);
 
 static int binlog_log_row(TABLE* table,
                           const uchar *before_record,
@@ -5705,8 +5704,7 @@ static int binlog_log_row(TABLE* table,
         */
         bool const has_trans= thd->lex->sql_command == SQLCOM_CREATE_TABLE ||
                              table->file->has_transactions();
-        error= (*log_func)(thd, table, has_trans, &cols, table->s->fields,
-                           before_record, after_record);
+        error= (*log_func)(thd, table, has_trans, before_record, after_record);
       }
       if (!use_bitbuf)
         my_bitmap_free(&cols);
