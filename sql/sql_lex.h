@@ -2866,7 +2866,8 @@ public:
   bool add_create_index(Key::Keytype type, const LEX_STRING &name,
                         ha_key_alg algorithm, DDL_options_st ddl)
   {
-    if (!(last_key= new Key(type, name, algorithm, false, ddl)))
+    if (check_create_options(ddl) ||
+       !(last_key= new Key(type, name, algorithm, false, ddl)))
       return true;
     alter_info.key_list.push_back(last_key);
     return false;

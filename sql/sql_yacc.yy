@@ -2487,31 +2487,33 @@ create:
             }
             create_table_set_open_action_and_adjust_tables(lex);
           }
-        | CREATE opt_unique INDEX_SYM opt_if_not_exists ident
+        | create_or_replace opt_unique INDEX_SYM opt_if_not_exists ident
           opt_key_algorithm_clause
           ON table_ident
           {
             if (add_create_index_prepare(Lex, $8))
               MYSQL_YYABORT;
-            if (Lex->add_create_index($2, $5, $6, $4))
+            if (Lex->add_create_index($2, $5, $6, $1 | $4))
               MYSQL_YYABORT;
           }
           '(' key_list ')' normal_key_options
           opt_index_lock_algorithm { }
-        | CREATE fulltext INDEX_SYM opt_if_not_exists ident ON table_ident
+        | create_or_replace fulltext INDEX_SYM opt_if_not_exists ident
+          ON table_ident
           {
             if (add_create_index_prepare(Lex, $7))
               MYSQL_YYABORT;
-            if (Lex->add_create_index($2, $5, HA_KEY_ALG_UNDEF, $4))
+            if (Lex->add_create_index($2, $5, HA_KEY_ALG_UNDEF, $1 | $4))
               MYSQL_YYABORT;
           }
           '(' key_list ')' fulltext_key_options
           opt_index_lock_algorithm { }
-        | CREATE spatial INDEX_SYM opt_if_not_exists ident ON table_ident
+        | create_or_replace spatial INDEX_SYM opt_if_not_exists ident
+          ON table_ident
           {
             if (add_create_index_prepare(Lex, $7))
               MYSQL_YYABORT;
-            if (Lex->add_create_index($2, $5, HA_KEY_ALG_UNDEF, $4))
+            if (Lex->add_create_index($2, $5, HA_KEY_ALG_UNDEF, $1 | $4))
               MYSQL_YYABORT;
           }
           '(' key_list ')' spatial_key_options
