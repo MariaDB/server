@@ -405,3 +405,61 @@ ANALYZE
   }
 }
 drop table t1,t2,t3,t4;
+#
+# MDEV-7904: ANALYZE FORMAT=JSON SELECT .. UNION SELECT doesn't print r_rows for union output
+#
+create table t0 (a int);
+INSERT INTO t0 VALUES (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table t1 (a int);
+INSERT INTO t1 select * from t0;
+analyze format=json (select * from t1 A where a<5) union (select * from t1 B where a in (2,3));
+ANALYZE
+{
+  "query_block": {
+    "union_result": {
+      "table_name": "<union1,2>",
+      "access_type": "ALL",
+      "r_loops": 1,
+      "r_rows": 5,
+      "query_specifications": [
+        {
+          "query_block": {
+            "select_id": 1,
+            "r_loops": 1,
+            "r_total_time_ms": "REPLACED",
+            "table": {
+              "table_name": "A",
+              "access_type": "ALL",
+              "r_loops": 1,
+              "rows": 10,
+              "r_rows": 10,
+              "r_total_time_ms": "REPLACED",
+              "filtered": 100,
+              "r_filtered": 50,
+              "attached_condition": "(A.a < 5)"
+            }
+          }
+        },
+        {
+          "query_block": {
+            "select_id": 2,
+            "r_loops": 1,
+            "r_total_time_ms": "REPLACED",
+            "table": {
+              "table_name": "B",
+              "access_type": "ALL",
+              "r_loops": 1,
+              "rows": 10,
+              "r_rows": 10,
+              "r_total_time_ms": "REPLACED",
+              "filtered": 100,
+              "r_filtered": 20,
+              "attached_condition": "(B.a in (2,3))"
+            }
+          }
+        }
+      ]
+    }
+  }
+}
+drop table t0, t1;
