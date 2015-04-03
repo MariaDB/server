@@ -837,7 +837,7 @@ sub run_test_server ($$$) {
 	    redo;
 	  }
 
-	  # Limit number of parallell NDB tests
+	  # Limit number of parallel NDB tests
 	  if ($t->{ndb_test} and $num_ndb_tests >= $max_ndb){
 	    #mtr_report("Skipping, num ndb is already at max, $num_ndb_tests");
 	    next;
@@ -6423,7 +6423,7 @@ Options to control what engine/variation to run:
   skip-ssl              Dont start server with support for ssl connections
   vs-config             Visual Studio configuration used to create executables
                         (default: MTR_VS_CONFIG environment variable)
-  parallel=#            How many parallell test should be run
+  parallel=#            How many parallel test should be run
   defaults-file=<config template> Use fixed config template for all
                         tests
   defaults-extra-file=<config template> Extra config template to add to
