@@ -235,7 +235,7 @@ public:
   int      CheckRecord(PGLOBAL g, const uchar *oldbuf, uchar *newbuf);
   int      ReadIndexed(uchar *buf, OPVAL op, const uchar* key= NULL,
                                              uint key_len= 0);
-  bool     MakeKeyWhere(PGLOBAL g, char *qry, OPVAL op, char *q,
+  bool     MakeKeyWhere(PGLOBAL g, PSTRG qry, OPVAL op, char q,
                                    const void *key, int klen);
   inline char *Strz(LEX_STRING &ls); 
 
