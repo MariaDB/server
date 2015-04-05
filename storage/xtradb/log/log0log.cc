@@ -4187,8 +4187,8 @@ log_scrub()
 	next_lbn_to_pad = log_block_convert_lsn_to_no(log_sys->lsn);
 }
 
-/* log scrubbing interval in ms. */
-UNIV_INTERN ulonglong innodb_scrub_log_interval;
+/* log scrubbing speed, in bytes/sec */
+UNIV_INTERN ulonglong innodb_scrub_log_speed;
 
 /*****************************************************************//**
 This is the main thread for log scrub. It waits for an event and
@@ -4208,7 +4208,10 @@ DECLARE_THREAD(log_scrub_thread)(
 
 	while(srv_shutdown_state == SRV_SHUTDOWN_NONE)
 	{
-		os_event_wait_time(log_scrub_event, innodb_scrub_log_interval * 1000);
+		/* log scrubbing interval in µs. */
+		ulonglong interval = 1000*1000*512/innodb_scrub_log_speed;
+
+		os_event_wait_time(log_scrub_event, interval);
 
 		log_scrub();
 

@@ -20346,21 +20346,13 @@ static MYSQL_SYSVAR_BOOL(scrub_log, srv_scrub_log,
   "Enable redo log scrubbing",
   0, 0, 0);
 
-/*
-  If innodb_scrub_log is on, logs will be scrubbed in less than
-  (((innodb_log_file_size * innodb_log_files_in_group) / 512 ) /
-   ((1000 * 86400) / innodb_scrub_log_interval))
-  days.
-  In above formula, the first line calculates the number of log blocks to scrub,
-  and the second line calculates the number of log blocks scrubbed in one day.
-*/
-static MYSQL_SYSVAR_ULONGLONG(scrub_log_interval, innodb_scrub_log_interval,
+static MYSQL_SYSVAR_ULONGLONG(scrub_log_speed, innodb_scrub_log_speed,
   PLUGIN_VAR_OPCMDARG,
-  "Innodb redo log scrubbing interval in ms",
+  "Background redo log scrubbing speed in bytes/sec",
   NULL, NULL,
-  2000,             /* default */
-  10,               /* min */
-  ULONGLONG_MAX, 0);/* max */
+  256,              /* 256 bytes/sec, corresponds to 2000 ms scrub_log_interval */
+  1,                /* min */
+  50000, 0);        /* 50Kbyte/sec, corresponds to 10 ms scrub_log_interval */
 
 static MYSQL_SYSVAR_BOOL(encrypt_log, srv_encrypt_log,
   PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_READONLY,
@@ -20644,7 +20636,7 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(encryption_rotate_key_age),
   MYSQL_SYSVAR(encryption_rotation_iops),
   MYSQL_SYSVAR(scrub_log),
-  MYSQL_SYSVAR(scrub_log_interval),
+  MYSQL_SYSVAR(scrub_log_speed),
   MYSQL_SYSVAR(encrypt_log),
   MYSQL_SYSVAR(default_page_encryption_key),
   /* Scrubing feature */
