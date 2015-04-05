@@ -238,7 +238,7 @@ bool TDBMUL::InitFileNames(PGLOBAL g)
         continue;      // Not a match
 
       strcat(strcpy(filename, direc), entry->d_name);
-      pfn[n] = PlugDup(g, filename);
+      pfn[n++] = PlugDup(g, filename);
 
       if (trace)
         htrc("Adding pfn[%d] %s\n", n, filename);

@@ -2173,12 +2173,12 @@ int ha_connect::CheckRecord(PGLOBAL g, const uchar *oldbuf, uchar *newbuf)
 /***********************************************************************/
 /*  Return the where clause for remote indexed read.                   */
 /***********************************************************************/
-bool ha_connect::MakeKeyWhere(PGLOBAL g, char *qry, OPVAL op, char *q, 
+bool ha_connect::MakeKeyWhere(PGLOBAL g, PSTRG qry, OPVAL op, char q, 
                                          const void *key, int klen)
 {
   const uchar   *ptr;
   uint           rem, len, stlen; //, prtlen;
-  bool           nq, b= false;
+  bool           nq, oom, b= false;
   Field         *fp;
   KEY           *kfp;
   KEY_PART_INFO *kpart;
@@ -2190,7 +2190,7 @@ bool ha_connect::MakeKeyWhere(PGLOBAL g, char *qry, OPVAL op, char *q,
     return true;
   } // endif key
 
-  strcat(qry, " WHERE (");
+  oom= qry->Append(" WHERE (");
   kfp= &table->key_info[active_index];
   rem= kfp->user_defined_key_parts,
   len= klen,
@@ -2203,24 +2203,26 @@ bool ha_connect::MakeKeyWhere(PGLOBAL g, char *qry, OPVAL op, char *q,
     nq= fp->str_needs_quotes();
 
     if (b)
-      strcat(qry, " AND ");
+      oom|= qry->Append(" AND ");
     else
       b= true;
 
-    strcat(strncat(strcat(qry, q), fp->field_name, strlen(fp->field_name)), q);
+    oom|= qry->Append(q);
+    oom|= qry->Append((PSZ)fp->field_name);
+    oom|= qry->Append(q);
 
     switch (op) {
       case OP_EQ:
       case OP_GT:
       case OP_GE:
-        strcat(qry, GetValStr(op, false));
+        oom|= qry->Append((PSZ)GetValStr(op, false));
         break;
       default:
-        strcat(qry, " ??? ");
+        oom|= qry->Append(" ??? ");
       } // endwitch op
 
     if (nq)
-      strcat(qry, "'");
+      oom|= qry->Append('\'');
 
     if (kpart->key_part_flag & HA_VAR_LENGTH_PART) {
       String varchar;
@@ -2228,17 +2230,17 @@ bool ha_connect::MakeKeyWhere(PGLOBAL g, char *qry, OPVAL op, char *q,
 
       varchar.set_quick((char*) ptr+HA_KEY_BLOB_LENGTH,
                       var_length, &my_charset_bin);
-      strncat(qry, varchar.ptr(), varchar.length());
+      oom|= qry->Append(varchar.ptr(), varchar.length());
     } else {
       char   strbuff[MAX_FIELD_WIDTH];
       String str(strbuff, sizeof(strbuff), kpart->field->charset()), *res;
 
       res= fp->val_str(&str, ptr);
-      strncat(qry, res->ptr(), res->length());
+      oom|= qry->Append(res->ptr(), res->length());
     } // endif flag
 
     if (nq)
-      strcat(qry, "'");
+      oom|= qry->Append('\'');
 
     if (stlen >= len)
       break;
@@ -2251,8 +2253,10 @@ bool ha_connect::MakeKeyWhere(PGLOBAL g, char *qry, OPVAL op, char *q,
     ptr+= stlen - MY_TEST(kpart->null_bit);
     } // endfor kpart
 
-  strcat(qry, ")");
-  return false;
+  if ((oom|= qry->Append(")")))
+    strcpy(g->Message, "Out of memory");
+
+  return oom;
 } // end of MakeKeyWhere
 
 
@@ -2714,7 +2718,12 @@ PCFIL ha_connect::CheckCond(PGLOBAL g, PCFIL filp, AMT tty, Item *cond)
             case MYSQL_TYPE_DATETIME:
               if (tty == TYPE_AM_ODBC) {
                 strcat(body, "{ts '");
-                strcat(strncat(body, res->ptr(), res->length()), "'}");
+                strncat(body, res->ptr(), res->length());
+
+                if (res->length() < 19)
+                  strcat(body, "1970-01-01 00:00:00" + res->length());
+
+                strcat(body, "'}");
                 break;
                 } // endif ODBC
 
@@ -2739,6 +2748,10 @@ PCFIL ha_connect::CheckCond(PGLOBAL g, PCFIL filp, AMT tty, Item *cond)
                   case MYSQL_TYPE_DATETIME:
                     strcat(body, "{ts '");
                     strncat(body, res->ptr(), res->length());
+
+                    if (res->length() < 19)
+                      strcat(body, "1970-01-01 00:00:00" + res->length());
+
                     strcat(body, "'}");
                     break;
                   case MYSQL_TYPE_DATE:
@@ -4134,6 +4147,10 @@ MODE ha_connect::CheckMode(PGLOBAL g, THD *thd,
           break;
 //        } // endif partitioned
 
+      case SQLCOM_END:
+        // Met in procedures: IF(EXISTS(SELECT...
+        newmode= MODE_READ;
+        break;
       default:
         htrc("Unsupported sql_command=%d\n", thd_sql_command(thd));
         strcpy(g->Message, "CONNECT Unsupported command");
