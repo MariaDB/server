@@ -19125,12 +19125,12 @@ static MYSQL_SYSVAR_ULONG(fatal_semaphore_wait_threshold, srv_fatal_semaphore_wa
   0);
 
 static MYSQL_SYSVAR_BOOL(encrypt_tables, srv_encrypt_tables, 0,
-			 "Encrypt all tables in the storage engine",
+			 "Enable InnoDB on-disk data encryption",
 			 0, 0, 0);
 
 static MYSQL_SYSVAR_UINT(encryption_threads, srv_n_fil_crypt_threads,
 			 PLUGIN_VAR_RQCMDARG,
-			 "No of threads performing background key rotation and "
+			 "Number of threads performing background key rotation and "
 			 "scrubbing",
 			 NULL,
 			 innodb_encryption_threads_update,
@@ -19139,7 +19139,9 @@ static MYSQL_SYSVAR_UINT(encryption_threads, srv_n_fil_crypt_threads,
 static MYSQL_SYSVAR_UINT(encryption_rotate_key_age,
 			 srv_fil_crypt_rotate_key_age,
 			 PLUGIN_VAR_RQCMDARG,
-			 "Rotate any page having a key older than this",
+			 "Key rotation - re-encrypt in background "
+                         "all pages that were encrypted with a key that "
+                         "many (or more) versions behind",
 			 NULL,
 			 innodb_encryption_rotate_key_age_update,
 			 srv_fil_crypt_rotate_key_age, 0, UINT_MAX32, 0);
@@ -19160,7 +19162,7 @@ static MYSQL_SYSVAR_UINT(default_page_encryption_key, srv_default_page_encryptio
 
 static MYSQL_SYSVAR_BOOL(scrub_log, srv_scrub_log,
   PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_READONLY,
-  "Enable redo log scrubbing",
+  "Enable background redo log (ib_logfile0, ib_logfile1...) scrubbing",
   0, 0, 0);
 
 static MYSQL_SYSVAR_ULONGLONG(scrub_log_speed, innodb_scrub_log_speed,
