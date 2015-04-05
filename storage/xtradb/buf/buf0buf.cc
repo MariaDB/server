@@ -5921,11 +5921,6 @@ buf_page_decrypt_after_read(
 	buf_page_t* bpage) /*!< in/out: buffer page read from disk */
 {
 	ut_ad(bpage->key_version == 0);
-	ulint zip_size = buf_page_get_zip_size(bpage);
-	ulint size = (zip_size) ? zip_size : UNIV_PAGE_SIZE;
-
-	byte* dst_frame = (zip_size) ? bpage->zip.data :
-		((buf_block_t*) bpage)->frame;
 
 	if (bpage->offset == 0) {
 		/* File header pages are not encrypted */
@@ -5933,6 +5928,11 @@ buf_page_decrypt_after_read(
 		return (TRUE);
 	}
 
+	ulint zip_size = buf_page_get_zip_size(bpage);
+	ulint size = (zip_size) ? zip_size : UNIV_PAGE_SIZE;
+
+	byte* dst_frame = (zip_size) ? bpage->zip.data :
+		((buf_block_t*) bpage)->frame;
 	const byte* src_frame = bpage->crypt_buf != NULL ?
 		bpage->crypt_buf : dst_frame;
 

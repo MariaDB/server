@@ -630,10 +630,6 @@ buf_dblwr_process()
 	fil_flush_file_spaces(FIL_TABLESPACE);
 
         {
-		fprintf(stderr,
-			"Clear dblwr buffer after completing "
-			"processing of it...\n");
-
 		size_t bytes = TRX_SYS_DOUBLEWRITE_BLOCK_SIZE * UNIV_PAGE_SIZE;
 		byte *unaligned_buf = static_cast<byte*>(
 			ut_malloc(bytes + UNIV_PAGE_SIZE - 1));

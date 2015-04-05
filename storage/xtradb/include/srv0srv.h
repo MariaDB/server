@@ -1246,8 +1246,7 @@ struct export_var_t{
 						encryption errors */
 
 	ulint innodb_sec_rec_cluster_reads;	/*!< srv_sec_rec_cluster_reads */
-	ulint innodb_sec_rec_cluster_reads_avoided;
-	/*!< srv_sec_rec_cluster_reads_avoided */
+	ulint innodb_sec_rec_cluster_reads_avoided; /*!< srv_sec_rec_cluster_reads_avoided */
 
 	ulint innodb_encryption_rotation_pages_read_from_cache;
 	ulint innodb_encryption_rotation_pages_read_from_disk;
