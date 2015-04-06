@@ -2627,7 +2627,16 @@ mysql_execute_command(THD *thd)
       goto error;
   }
 #endif /* WITH_WSREP */
-  status_var_increment(thd->status_var.com_stat[lex->sql_command]);
+  if (lex->tmp_table())
+  {
+    if (lex->sql_command == SQLCOM_CREATE_TABLE)
+      status_var_increment(thd->status_var.com_stat[SQLCOM_CREATE_TEMP_TABLE]);
+    else if (lex->sql_command == SQLCOM_DROP_TABLE)
+      status_var_increment(thd->status_var.com_stat[SQLCOM_DROP_TEMP_TABLE]);
+  }
+  else
+    status_var_increment(thd->status_var.com_stat[lex->sql_command]);
+ 
   thd->progress.report_to_client= MY_TEST(sql_command_flags[lex->sql_command] &
                                           CF_REPORT_PROGRESS);
 
