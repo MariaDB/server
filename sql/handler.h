@@ -4210,12 +4210,13 @@ inline const char *table_case_name(HA_CREATE_INFO *info, const char *name)
 
 #define TABLE_IO_WAIT(TRACKER, PSI, OP, INDEX, FLAGS, PAYLOAD) \
   { \
-    if (unlikely(tracker)) \
+    Exec_time_tracker *this_tracker; \
+    if (unlikely((this_tracker= tracker))) \
       tracker->start_tracking(); \
     \
     MYSQL_TABLE_IO_WAIT(PSI, OP, INDEX, FLAGS, PAYLOAD); \
     \
-    if (unlikely(tracker)) \
+    if (unlikely(this_tracker)) \
       tracker->stop_tracking(); \
   }
 

@@ -23441,8 +23441,11 @@ void JOIN_TAB::save_explain_data(Explain_table_access *eta, table_map prefix_tab
   tab->tracker= &eta->tracker;
   tab->jbuf_tracker= &eta->jbuf_tracker;
   
-  tab->table->file->tracker= &eta->op_tracker;
-  /* id and select_type are kept in Explain_select */
+  /* Enable the table access time tracker only for "ANALYZE stmt" */
+  if (thd->lex->analyze_stmt)
+    tab->table->file->tracker= &eta->op_tracker;
+
+  /* No need to save id and select_type here, they are kept in Explain_select */
 
   /* table */
   if (table->derived_select_number)
@@ -23864,12 +23867,15 @@ int JOIN::save_explain_data_intern(Explain_query *output, bool need_tmp_table,
   if (message)
   {
     Explain_select *xpl_sel;
-    explain_node= xpl_sel= new (output->mem_root) Explain_select(output->mem_root);
+    explain_node= xpl_sel= 
+      new (output->mem_root) Explain_select(output->mem_root, 
+                                            thd->lex->analyze_stmt);
     join->select_lex->set_explain_type(true);
 
     xpl_sel->select_id= join->select_lex->select_number;
     xpl_sel->select_type= join->select_lex->type;
     xpl_sel->message= message;
+    tracker= &xpl_sel->time_tracker;
     if (select_lex->master_unit()->derived)
       xpl_sel->connection_type= Explain_node::EXPLAIN_NODE_DERIVED;
     /* Setting xpl_sel->message means that all other members are invalid */
@@ -23878,7 +23884,9 @@ int JOIN::save_explain_data_intern(Explain_query *output, bool need_tmp_table,
   else
   {
     Explain_select *xpl_sel;
-    explain_node= xpl_sel= new (output->mem_root) Explain_select(output->mem_root);
+    explain_node= xpl_sel= 
+      new (output->mem_root) Explain_select(output->mem_root, 
+                                            thd->lex->analyze_stmt);
     table_map used_tables=0;
     tracker= &xpl_sel->time_tracker;
 

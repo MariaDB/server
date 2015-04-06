@@ -4374,6 +4374,12 @@ int st_select_lex_unit::save_union_explain_part2(Explain_query *output)
         eu->add_child(unit->first_select()->select_number);
       }
     }
+
+    /* 
+      Having a time tracker for reading UNION result is not very interesting
+      but is easier, as JOIN::exec now relies on having a tracker.
+    */
+    fake_select_lex->join->tracker= &eu->time_tracker;
   }
   return 0;
 }
