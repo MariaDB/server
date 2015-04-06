@@ -160,8 +160,9 @@ class Explain_query;
 class Explain_node : public Sql_alloc
 {
 public:
-  Explain_node(MEM_ROOT *root)
-    :children(root)
+  Explain_node(MEM_ROOT *root) : 
+     connection_type(EXPLAIN_NODE_OTHER),
+     children(root)
   {}
   /* A type specifying what kind of node this is */
   enum explain_node_type 
@@ -181,7 +182,6 @@ public:
     EXPLAIN_NODE_NON_MERGED_SJ /* aka JTBM semi-join */
   };
 
-  Explain_node() : connection_type(EXPLAIN_NODE_OTHER) {}
 
   virtual enum explain_node_type get_type()= 0;
   virtual int get_select_id()= 0;
