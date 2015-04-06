@@ -412,7 +412,7 @@ create table t0 (a int);
 INSERT INTO t0 VALUES (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
 create table t1 (a int);
 INSERT INTO t1 select * from t0;
-analyze format=json (select * from t1 A where a<5) union (select * from t1 B where a in (2,3));
+analyze format=json (select * from t1 tbl1 where a<5) union (select * from t1 tbl2 where a in (2,3));
 ANALYZE
 {
   "query_block": {
@@ -428,7 +428,7 @@ ANALYZE
             "r_loops": 1,
             "r_total_time_ms": "REPLACED",
             "table": {
-              "table_name": "A",
+              "table_name": "tbl1",
               "access_type": "ALL",
               "r_loops": 1,
               "rows": 10,
@@ -436,7 +436,7 @@ ANALYZE
               "r_total_time_ms": "REPLACED",
               "filtered": 100,
               "r_filtered": 50,
-              "attached_condition": "(A.a < 5)"
+              "attached_condition": "(tbl1.a < 5)"
             }
           }
         },
@@ -446,7 +446,7 @@ ANALYZE
             "r_loops": 1,
             "r_total_time_ms": "REPLACED",
             "table": {
-              "table_name": "B",
+              "table_name": "tbl2",
               "access_type": "ALL",
               "r_loops": 1,
               "rows": 10,
@@ -454,7 +454,7 @@ ANALYZE
               "r_total_time_ms": "REPLACED",
               "filtered": 100,
               "r_filtered": 20,
-              "attached_condition": "(B.a in (2,3))"
+              "attached_condition": "(tbl2.a in (2,3))"
             }
           }
         }
