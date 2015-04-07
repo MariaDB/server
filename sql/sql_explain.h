@@ -104,40 +104,6 @@ public:
   inline void on_record_after_where() { r_rows_after_where++; }
 };
 
-#if 0
-/*
-  A class to track operations (currently, row reads) on a PSI_table.
-*/
-class Table_op_tracker
-{
-  PSI_table *psi_table;
-
-  /* Table counter values at start. Sum is in picoseconds */
-  ulonglong start_sum;
-  ulonglong start_count;
-
-  /* Table counter values at end */
-  ulonglong end_sum;
-  ulonglong end_count;
-public:
-  void start_tracking(TABLE *table);
-  // At the moment, print_json will call end_tracking.
-  void end_tracking();
-
-  // this may print nothing if the table was not tracked.
-  void print_json(Json_writer *writer);
-};
-#endif
-
-#define ANALYZE_START_TRACKING(tracker) \
-  if (tracker) \
-  { (tracker)->start_tracking(); }
-
-#define ANALYZE_STOP_TRACKING(tracker) \
-  if (tracker) \
-  { (tracker)->stop_tracking(); }
-
-
 /**************************************************************************************
  
   Data structures for producing EXPLAIN outputs.
@@ -274,10 +240,11 @@ class Explain_select : public Explain_basic_join
 public:
   enum explain_node_type get_type() { return EXPLAIN_SELECT; }
 
-  Explain_select(MEM_ROOT *root) : 
+  Explain_select(MEM_ROOT *root, bool is_analyze) : 
   Explain_basic_join(root),
     message(NULL),
-    using_temporary(false), using_filesort(false)
+    using_temporary(false), using_filesort(false),
+    time_tracker(is_analyze)
   {}
 
   /*
@@ -303,7 +270,7 @@ public:
   bool using_filesort;
 
   /* ANALYZE members */
-  Exec_time_tracker time_tracker;
+  Time_and_counter_tracker time_tracker;
   
   int print_explain(Explain_query *query, select_result_sink *output, 
                     uint8 explain_flags, bool is_analyze);
@@ -329,7 +296,8 @@ class Explain_union : public Explain_node
 {
 public:
   Explain_union(MEM_ROOT *root) : 
-  Explain_node(root)
+  Explain_node(root),
+  time_tracker(false)
   {}
 
   enum explain_node_type get_type() { return EXPLAIN_UNION; }
@@ -364,6 +332,8 @@ public:
   const char *fake_select_type;
   bool using_filesort;
   bool using_tmp;
+  /* TODO: the below is not printed yet:*/
+  Time_and_counter_tracker time_tracker; 
 
   Table_access_tracker *get_fake_select_lex_tracker()
   {
@@ -787,8 +757,9 @@ class Explain_update : public Explain_node
 {
 public:
 
-  Explain_update(MEM_ROOT *root) : 
-  Explain_node(root)
+  Explain_update(MEM_ROOT *root, bool is_analyze) : 
+    Explain_node(root),
+    command_tracker(is_analyze)
   {}
 
   virtual enum explain_node_type get_type() { return EXPLAIN_UPDATE; }
@@ -827,7 +798,9 @@ public:
 
   /* ANALYZE members and methods */
   Table_access_tracker tracker;
-  Exec_time_tracker time_tracker;
+
+  /* This tracks execution of the whole command */
+  Time_and_counter_tracker command_tracker;
   //psergey-todo: io-tracker here.
 
   virtual int print_explain(Explain_query *query, select_result_sink *output, 
@@ -870,8 +843,8 @@ public:
 class Explain_delete: public Explain_update
 {
 public:
-  Explain_delete(MEM_ROOT *root) : 
-  Explain_update(root)
+  Explain_delete(MEM_ROOT *root, bool is_analyze) : 
+  Explain_update(root, is_analyze)
   {}
 
   /*

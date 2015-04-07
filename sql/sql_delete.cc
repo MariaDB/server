@@ -52,9 +52,11 @@
     invoked on a running DELETE statement.
 */
 
-void Delete_plan::save_explain_data(MEM_ROOT *mem_root, Explain_query *query)
+Explain_delete* Delete_plan::save_explain_delete_data(MEM_ROOT *mem_root, THD *thd)
 {
-  Explain_delete *explain= new (mem_root) Explain_delete(mem_root);
+  Explain_query *query= thd->lex->explain;
+  Explain_delete *explain= 
+     new (mem_root) Explain_delete(mem_root, thd->lex->analyze_stmt);
 
   if (deleting_all_rows)
   {
@@ -69,14 +71,19 @@ void Delete_plan::save_explain_data(MEM_ROOT *mem_root, Explain_query *query)
   }
  
   query->add_upd_del_plan(explain);
+  return explain;
 }
 
 
-void Update_plan::save_explain_data(MEM_ROOT *mem_root, Explain_query *query)
+Explain_update* 
+Update_plan::save_explain_update_data(MEM_ROOT *mem_root, THD *thd)
 {
-  Explain_update* explain= new (mem_root) Explain_update(mem_root);
+  Explain_query *query= thd->lex->explain;
+  Explain_update* explain= 
+    new (mem_root) Explain_update(mem_root, thd->lex->analyze_stmt);
   save_explain_data_intern(mem_root, query, explain);
   query->add_upd_del_plan(explain);
+  return explain;
 }
 
 
@@ -461,7 +468,8 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
   if (thd->lex->describe)
     goto produce_explain_and_leave;
   
-  query_plan.save_explain_data(thd->mem_root, thd->lex->explain);
+  explain= query_plan.save_explain_delete_data(thd->mem_root, thd);
+  ANALYZE_START_TRACKING(&explain->command_tracker);
 
   DBUG_EXECUTE_IF("show_explain_probe_delete_exec_start", 
                   dbug_serve_apcs(thd, 1););
@@ -542,7 +550,6 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
 
   explain= (Explain_delete*)thd->lex->explain->get_upd_del_plan();
   explain->tracker.on_scan_init();
-  ANALYZE_START_TRACKING(&explain->time_tracker);
 
   while (!(error=info.read_record(&info)) && !thd->killed &&
 	 ! thd->is_error())
@@ -620,7 +627,7 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
   end_read_record(&info);
   if (options & OPTION_QUICK)
     (void) table->file->extra(HA_EXTRA_NORMAL);
-  ANALYZE_STOP_TRACKING(&explain->time_tracker);
+  ANALYZE_STOP_TRACKING(&explain->command_tracker);
 
 cleanup:
   /*
@@ -701,7 +708,7 @@ produce_explain_and_leave:
     We come here for various "degenerate" query plans: impossible WHERE,
     no-partitions-used, impossible-range, etc.
   */
-  query_plan.save_explain_data(thd->mem_root, thd->lex->explain);
+  query_plan.save_explain_delete_data(thd->mem_root, thd);
 
 send_nothing_and_leave:
   /* 

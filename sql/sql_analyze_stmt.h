@@ -20,6 +20,7 @@
 */
 class Exec_time_tracker
 {
+protected:
   ulonglong count;
   ulonglong cycles;
   ulonglong last_start;
@@ -34,9 +35,8 @@ public:
 
   void stop_tracking()
   {
-    ulonglong last_end= my_timer_cycles();
     count++;
-    cycles += last_end - last_start;
+    cycles += my_timer_cycles()- last_start;
   }
 
   // interface for getting the time
@@ -47,4 +47,42 @@ public:
     return 1000 * ((double)cycles) / sys_timer_info.cycles.frequency;
   }
 };
+
+
+/*
+  A class for counting certain actions (in all queries), and optionally
+  collecting the timings (in ANALYZE queries).
+*/
+
+class Time_and_counter_tracker: public Exec_time_tracker
+{
+public: 
+  const bool timed;
+  
+  Time_and_counter_tracker(bool timed_arg) : timed(timed_arg)
+  {}
+   
+  /* Loops are counted in both ANALYZE and regular queries, as this is cheap */
+  void incr_loops() { count++; }
+  
+  /*
+    Unlike Exec_time_tracker::stop_tracking, we don't increase loops.
+  */
+  void stop_tracking()
+  {
+    cycles += my_timer_cycles()- last_start;
+  }
+};
+
+#define ANALYZE_START_TRACKING(tracker) \
+  { \
+    (tracker)->incr_loops(); \
+    if (unlikely((tracker)->timed)) \
+    { (tracker)->start_tracking(); } \
+  }
+
+#define ANALYZE_STOP_TRACKING(tracker) \
+  if (unlikely((tracker)->timed)) \
+  { (tracker)->stop_tracking(); }
+
 

@@ -1933,9 +1933,9 @@ void Explain_update::print_explain_json(Explain_query *query,
   if (using_io_buffer)
     writer->add_member("using_io_buffer").add_ll(1);
 
-  if (is_analyze && time_tracker.get_loops())
+  if (is_analyze && command_tracker.get_loops())
     writer->
-      add_member("r_total_time_ms").add_double(time_tracker.get_time_ms());
+      add_member("r_total_time_ms").add_double(command_tracker.get_time_ms());
 
   if (where_cond)
   {

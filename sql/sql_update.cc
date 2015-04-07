@@ -517,7 +517,9 @@ int mysql_update(THD *thd,
   */
   if (thd->lex->describe)
     goto produce_explain_and_leave;
-  query_plan.save_explain_data(thd->mem_root, thd->lex->explain);
+  explain= query_plan.save_explain_update_data(thd->mem_root, thd);
+
+  ANALYZE_START_TRACKING(&explain->command_tracker);
 
   DBUG_EXECUTE_IF("show_explain_probe_update_exec_start", 
                   dbug_serve_apcs(thd, 1););
@@ -721,7 +723,6 @@ int mysql_update(THD *thd,
   if (table->file->ha_table_flags() & HA_PARTIAL_COLUMN_READ)
     table->prepare_for_position();
 
-  explain= thd->lex->explain->get_upd_del_plan();
   table->reset_default_fields();
 
   /*
@@ -731,7 +732,6 @@ int mysql_update(THD *thd,
   */
   can_compare_record= records_are_comparable(table);
   explain->tracker.on_scan_init();
-  ANALYZE_START_TRACKING(&explain->time_tracker);
 
   while (!(error=info.read_record(&info)) && !thd->killed)
   {
@@ -908,7 +908,7 @@ int mysql_update(THD *thd,
       break;
     }
   }
-  ANALYZE_STOP_TRACKING(&explain->time_tracker);
+  ANALYZE_STOP_TRACKING(&explain->command_tracker);
   table->auto_increment_field_not_null= FALSE;
   dup_key_found= 0;
   /*
@@ -1046,7 +1046,7 @@ produce_explain_and_leave:
     We come here for various "degenerate" query plans: impossible WHERE,
     no-partitions-used, impossible-range, etc.
   */
-  query_plan.save_explain_data(thd->mem_root, thd->lex->explain);
+  query_plan.save_explain_update_data(thd->mem_root, thd);
 
 emit_explain_and_leave:
   int err2= thd->lex->explain->send_explain(thd);
