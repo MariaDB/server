@@ -23500,8 +23500,9 @@ void JOIN_TAB::save_explain_data(Explain_table_access *eta, table_map prefix_tab
     partition_info *part_info;
     if (!table->derived_select_number && 
         (part_info= table->part_info))
-    {          
-      make_used_partitions_str(part_info, &eta->used_partitions);
+    { //TODO: all thd->mem_root here should be fixed
+      make_used_partitions_str(thd->mem_root, part_info, &eta->used_partitions,
+                               eta->used_partitions_list);
       eta->used_partitions_set= true;
     }
     else

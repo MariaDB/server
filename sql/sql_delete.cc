@@ -117,7 +117,8 @@ void Update_plan::save_explain_data_intern(MEM_ROOT *mem_root,
     partition_info *part_info;
     if ((part_info= table->part_info))
     {          
-      make_used_partitions_str(part_info, &explain->used_partitions);
+      make_used_partitions_str(mem_root, part_info, &explain->used_partitions,
+                               explain->used_partitions_list);
       explain->used_partitions_set= true;
     }
     else
