@@ -1360,6 +1360,7 @@ void Explain_table_access::print_explain_json(Explain_query *query,
     writer->end_object(); // "block-nl-join"
     writer->add_member("buffer_type").add_str(bka_type.incremental?
                                               "incremental":"flat");
+    writer->add_member("buffer_size").add_size(bka_type.join_buffer_size);
     writer->add_member("join_type").add_str(bka_type.join_alg);
     if (bka_type.mrr_type.length())
       writer->add_member("mrr_type").add_str(bka_type.mrr_type);

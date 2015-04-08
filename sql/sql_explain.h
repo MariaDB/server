@@ -511,6 +511,8 @@ class EXPLAIN_BKA_TYPE
 public:
   EXPLAIN_BKA_TYPE() : join_alg(NULL) {}
 
+  size_t join_buffer_size;
+
   bool incremental;
 
   /* 
