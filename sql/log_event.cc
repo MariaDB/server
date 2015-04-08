@@ -6405,7 +6405,8 @@ Gtid_log_event::Gtid_log_event(THD *thd_arg, uint64 seq_no_arg,
   if (thd_arg->transaction.stmt.trans_did_wait() ||
       thd_arg->transaction.all.trans_did_wait())
     flags2|= FL_WAITED;
-  if (sql_command_flags[thd->lex->sql_command] & CF_DISALLOW_IN_RO_TRANS)
+  if (sql_command_flags[thd->lex->sql_command] &
+      (CF_DISALLOW_IN_RO_TRANS | CF_AUTO_COMMIT_TRANS))
     flags2|= FL_DDL;
   else if (is_transactional)
     flags2|= FL_TRANSACTIONAL;
