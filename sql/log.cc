@@ -5857,6 +5857,7 @@ bool MYSQL_BIN_LOG::write(Log_event *event_info, my_bool *with_annotate)
     if (direct)
     {
       int res;
+      uint64 commit_id= 0;
       DBUG_PRINT("info", ("direct is set"));
       if ((res= thd->wait_for_prior_commit()))
         DBUG_RETURN(res);
@@ -5864,7 +5865,16 @@ bool MYSQL_BIN_LOG::write(Log_event *event_info, my_bool *with_annotate)
       my_org_b_tell= my_b_tell(file);
       mysql_mutex_lock(&LOCK_log);
       prev_binlog_id= current_binlog_id;
-      if (write_gtid_event(thd, true, using_trans, 0))
+      DBUG_EXECUTE_IF("binlog_force_commit_id",
+        {
+          const LEX_STRING name= { C_STRING_WITH_LEN("commit_id") };
+          bool null_value;
+          user_var_entry *entry=
+            (user_var_entry*) my_hash_search(&thd->user_vars,
+                                             (uchar*) name.str, name.length);
+          commit_id= entry->val_int(&null_value);
+        });
+      if (write_gtid_event(thd, true, using_trans, commit_id))
         goto err;
     }
     else

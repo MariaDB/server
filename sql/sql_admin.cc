@@ -320,6 +320,7 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
   int result_code;
   int compl_result_code;
   bool need_repair_or_alter= 0;
+  wait_for_commit* suspended_wfc;
 
   DBUG_ENTER("mysql_admin_table");
   DBUG_PRINT("enter", ("extra_open_options: %u", extra_open_options));
@@ -336,6 +337,13 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
   if (protocol->send_result_set_metadata(&field_list,
                             Protocol::SEND_NUM_ROWS | Protocol::SEND_EOF))
     DBUG_RETURN(TRUE);
+
+  /*
+    This function calls trans_commit() during its operation, but that does not
+    imply that the operation is complete or binlogged. So we have to suspend
+    temporarily the wakeup_subsequent_commits() calls (if used).
+  */
+  suspended_wfc= thd->suspend_subsequent_commits();
 
   mysql_ha_rm_tables(thd, tables);
 
@@ -464,7 +472,7 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
           if (!table->table->part_info)
           {
             my_error(ER_PARTITION_MGMT_ON_NONPARTITIONED, MYF(0));
-            DBUG_RETURN(TRUE);
+            goto err2;
           }
           if (set_part_state(alter_info, table->table->part_info, PART_ADMIN))
           {
@@ -1045,6 +1053,8 @@ send_result_message:
   }
 
   my_eof(thd);
+  thd->resume_subsequent_commits(suspended_wfc);
+  DBUG_EXECUTE_IF("inject_analyze_table_sleep", my_sleep(500000););
   DBUG_RETURN(FALSE);
 
 err:
@@ -1058,6 +1068,8 @@ err:
   }
   close_thread_tables(thd);			// Shouldn't be needed
   thd->mdl_context.release_transactional_locks();
+err2:
+  thd->resume_subsequent_commits(suspended_wfc);
   DBUG_RETURN(TRUE);
 }
 
