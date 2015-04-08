@@ -171,8 +171,24 @@ finish_event_group(rpl_parallel_thread *rpt, uint64 sub_id,
     /* Now free any GCOs in which all transactions have committed. */
     group_commit_orderer *tmp_gco= rgi->gco;
     while (tmp_gco &&
-           (!tmp_gco->next_gco || tmp_gco->last_sub_id > sub_id))
+           (!tmp_gco->next_gco || tmp_gco->last_sub_id > sub_id ||
+            tmp_gco->next_gco->wait_count > entry->count_committing_event_groups))
+    {
+      /*
+        We must not free a GCO before the wait_count of the following GCO has
+        been reached and wakeup has been sent. Otherwise we will lose the
+        wakeup and hang (there were several such bugs in the past).
+
+        The intention is that this is ensured already since we only free when
+        the last event group in the GCO has committed
+        (tmp_gco->last_sub_id <= sub_id). However, if we have a bug, we have
+        extra check on next_gco->wait_count to hopefully avoid hanging; we
+        have here an assertion in debug builds that this check does not in
+        fact trigger.
+      */
+      DBUG_ASSERT(!tmp_gco->next_gco || tmp_gco->last_sub_id > sub_id);
       tmp_gco= tmp_gco->prev_gco;
+    }
     while (tmp_gco)
     {
       group_commit_orderer *prev_gco= tmp_gco->prev_gco;

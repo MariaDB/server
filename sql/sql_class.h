@@ -3682,6 +3682,15 @@ public:
     if (wait_for_commit_ptr)
       wait_for_commit_ptr->wakeup_subsequent_commits(wakeup_error);
   }
+  wait_for_commit *suspend_subsequent_commits() {
+    wait_for_commit *suspended= wait_for_commit_ptr;
+    wait_for_commit_ptr= NULL;
+    return suspended;
+  }
+  void resume_subsequent_commits(wait_for_commit *suspended) {
+    DBUG_ASSERT(!wait_for_commit_ptr);
+    wait_for_commit_ptr= suspended;
+  }
 
 private:
 
