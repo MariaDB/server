@@ -2158,6 +2158,7 @@ int TABLE_SHARE::init_from_sql_statement_string(THD *thd, bool write,
   uint unused2;
   handlerton *hton= plugin_hton(db_plugin);
   LEX_CUSTRING frm= {0,0};
+  LEX_STRING db_backup= { thd->db, thd->db_length };
 
   DBUG_ENTER("TABLE_SHARE::init_from_sql_statement_string");
 
@@ -2185,6 +2186,7 @@ int TABLE_SHARE::init_from_sql_statement_string(THD *thd, bool write,
   else
     thd->set_n_backup_active_arena(arena, &backup);
 
+  thd->reset_db(db.str, db.length);
   lex_start(thd);
 
   if ((error= parse_sql(thd, & parser_state, NULL) || 
@@ -2213,6 +2215,7 @@ int TABLE_SHARE::init_from_sql_statement_string(THD *thd, bool write,
 ret:
   my_free(const_cast<uchar*>(frm.str));
   lex_end(thd->lex);
+  thd->reset_db(db_backup.str, db_backup.length);
   thd->lex= old_lex;
   if (arena)
     thd->restore_active_arena(arena, &backup);
