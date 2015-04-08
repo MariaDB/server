@@ -1201,6 +1201,13 @@ void Explain_table_access::tag_to_json(Json_writer *writer, enum explain_extra_t
     case ET_USING_MRR:
       writer->add_member("mrr_type").add_str(mrr_type.c_ptr());
       break;
+    case ET_USING_INDEX_FOR_GROUP_BY:
+      writer->add_member("using_index_for_group_by");
+      if (loose_scan_is_scanning)
+        writer->add_str("scanning");
+      else
+        writer->add_bool(true);
+      break;
     default:
       DBUG_ASSERT(0);
   }
@@ -1572,8 +1579,7 @@ void Explain_quick_select::print_json(Json_writer *writer)
 
 void Explain_quick_select::print_extra_recursive(String *str)
 {
-  if (quick_type == QUICK_SELECT_I::QS_TYPE_RANGE || 
-      quick_type == QUICK_SELECT_I::QS_TYPE_RANGE_DESC)
+  if (is_basic())
   {
     str->append(range.get_key_name());
   }
