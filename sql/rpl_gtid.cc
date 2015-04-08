@@ -517,6 +517,7 @@ rpl_slave_state::record_gtid(THD *thd, const rpl_gtid *gtid, uint64 sub_id,
   element *elem;
   ulonglong thd_saved_option= thd->variables.option_bits;
   Query_tables_list lex_backup;
+  wait_for_commit* suspended_wfc;
   DBUG_ENTER("record_gtid");
 
   if (unlikely(!loaded))
@@ -540,6 +541,28 @@ rpl_slave_state::record_gtid(THD *thd, const rpl_gtid *gtid, uint64 sub_id,
                     DBUG_RETURN(1);
                   } );
 
+  /*
+    If we are applying a non-transactional event group, we will be committing
+    here a transaction, but that does not imply that the event group has
+    completed or has been binlogged. So we should not trigger
+    wakeup_subsequent_commits() here.
+
+    Note: An alternative here could be to put a call to mark_start_commit() in
+    stmt_done() before the call to record_and_update_gtid(). This would
+    prevent later calling mark_start_commit() after we have run
+    wakeup_subsequent_commits() from committing the GTID update transaction
+    (which must be avoided to avoid accessing freed group_commit_orderer
+    object). It would also allow following event groups to start slightly
+    earlier. And in the cases where record_gtid() is called without an active
+    transaction, the current statement should have been binlogged already, so
+    binlog order is preserved.
+
+    But this is rather subtle, and potentially fragile. And it does not really
+    seem worth it; non-transactional loads are unlikely to benefit much from
+    parallel replication in any case. So for now, we go with the simple
+    suspend/resume of wakeup_subsequent_commits() here in record_gtid().
+  */
+  suspended_wfc= thd->suspend_subsequent_commits();
   thd->lex->reset_n_backup_query_tables_list(&lex_backup);
   tlist.init_one_table(STRING_WITH_LEN("mysql"),
                        rpl_gtid_slave_state_table_name.str,
@@ -691,6 +714,12 @@ end:
   }
   thd->lex->restore_backup_query_tables_list(&lex_backup);
   thd->variables.option_bits= thd_saved_option;
+  thd->resume_subsequent_commits(suspended_wfc);
+  DBUG_EXECUTE_IF("inject_record_gtid_serverid_100_sleep",
+    {
+      if (gtid->server_id == 100)
+        my_sleep(500000);
+    });
   DBUG_RETURN(err);
 }
 
