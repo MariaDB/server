@@ -20668,7 +20668,7 @@ maria_declare_plugin(xtradb)
   innodb_status_variables_export,/* status variables             */
   innobase_system_variables, /* system variables */
   INNODB_VERSION_STR,         /* string version */
-  MariaDB_PLUGIN_MATURITY_STABLE /* maturity */
+  MariaDB_PLUGIN_MATURITY_BETA /* maturity */
 },
 i_s_xtradb_read_view,
 i_s_xtradb_internal_hash_tables,
