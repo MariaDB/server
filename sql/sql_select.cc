@@ -2376,8 +2376,10 @@ void JOIN::save_explain_data(Explain_query *output, bool can_overwrite,
       This is fake_select_lex. It has no query plan, but we need to set up a
       tracker for ANALYZE 
     */
-    Explain_union *eu= output->get_union(select_lex->master_unit()->first_select()->select_number);
+    uint nr= select_lex->master_unit()->first_select()->select_number;
+    Explain_union *eu= output->get_union(nr);
     join_tab[0].tracker= eu->get_fake_select_lex_tracker();
+    tracker= &eu->time_tracker;
   }
 }
 

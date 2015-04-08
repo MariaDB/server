@@ -894,3 +894,15 @@ EXPLAIN
   }
 }
 DROP TABLE t1, t2;
+#
+# MDEV-7927: Server crashes in in Time_and_counter_tracker::incr_loops
+#
+CREATE TABLE t1 (i INT);
+INSERT INTO t1 VALUES (1),(2);
+EXPLAIN SELECT * FROM t1 WHERE 3 IN ( SELECT 4 UNION SELECT 5 );
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
+2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+3	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
+DROP TABLE t1;
