@@ -247,7 +247,7 @@ Create a fil_space_crypt_t object
 @return crypt object */
 UNIV_INTERN
 fil_space_crypt_t*
-fil_space_create_crypt_data()
+fil_space_create_crypt_data(uint key_id)
 /*=========================*/
 {
 	const uint iv_length = CRYPT_SCHEME_1_IV_LEN;
@@ -262,7 +262,8 @@ fil_space_create_crypt_data()
 		crypt_data->min_key_version = 0;
 	} else {
 		crypt_data->type = CRYPT_SCHEME_1;
-		crypt_data->min_key_version = encryption_key_get_latest_version(crypt_data->key_id);
+                crypt_data->key_id = key_id;
+		crypt_data->min_key_version = encryption_key_get_latest_version(key_id);
 	}
 
 	mutex_create(fil_crypt_data_mutex_key,
@@ -369,8 +370,11 @@ fil_space_read_crypt_data(
 	uint min_key_version = mach_read_from_4
 		(page + offset + MAGIC_SZ + 2 + iv_length);
 
+	uint key_id = mach_read_from_4
+		(page + offset + MAGIC_SZ + 2 + iv_length + 4);
+
 	fil_encryption_t encryption = (fil_encryption_t)mach_read_from_1(
-		page + offset + MAGIC_SZ + 2 + iv_length + 4);
+		page + offset + MAGIC_SZ + 2 + iv_length + 8);
 
 	const uint sz = sizeof(fil_space_crypt_t) + iv_length;
 	fil_space_crypt_t* crypt_data = static_cast<fil_space_crypt_t*>(
@@ -379,6 +383,7 @@ fil_space_read_crypt_data(
 
 	crypt_data->type = type;
 	crypt_data->min_key_version = min_key_version;
+	crypt_data->key_id = key_id;
 	crypt_data->page0_offset = offset;
 	crypt_data->encryption = encryption;
 	mutex_create(fil_crypt_data_mutex_key,
@@ -422,9 +427,10 @@ fil_space_write_crypt_data_low(
 		page + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID);
 	const uint len = crypt_data->iv_length;
 	const uint min_key_version = crypt_data->min_key_version;
+	const uint key_id = crypt_data->key_id;
 	const fil_encryption_t encryption = crypt_data->encryption;
 	crypt_data->page0_offset = offset;
-	ut_a(2 + len + 4 + 1 + MAGIC_SZ < maxsize);
+	ut_a(2 + len + 4 + 1 + 4 + MAGIC_SZ < maxsize);
 
 	/*
 	redo log this as bytewise updates to page 0
@@ -438,10 +444,12 @@ fil_space_write_crypt_data_low(
 			  mtr);
 	mlog_write_ulint(page + offset + MAGIC_SZ + 2 + len, min_key_version,
 			 MLOG_4BYTES, mtr);
-	mlog_write_ulint(page + offset + MAGIC_SZ + 2 + len + 4, encryption,
+	mlog_write_ulint(page + offset + MAGIC_SZ + 2 + len, key_id,
+			 MLOG_4BYTES, mtr);
+	mlog_write_ulint(page + offset + MAGIC_SZ + 2 + len + 8, encryption,
 		MLOG_1BYTE, mtr);
 
-	byte* log_ptr = mlog_open(mtr, 11 + 12 + len);
+	byte* log_ptr = mlog_open(mtr, 11 + 17 + len);
 
 	if (log_ptr != NULL) {
 		log_ptr = mlog_write_initial_log_record_fast(
@@ -457,6 +465,8 @@ fil_space_write_crypt_data_low(
 		mach_write_to_1(log_ptr, len);
 		log_ptr += 1;
 		mach_write_to_4(log_ptr, min_key_version);
+		log_ptr += 4;
+		mach_write_to_4(log_ptr, key_id);
 		log_ptr += 4;
 		mach_write_to_1(log_ptr, encryption);
 		log_ptr += 1;
@@ -509,6 +519,7 @@ fil_parse_write_crypt_data(
 		1 + // size of type
 		1 + // size of iv-len
 		4 +  // size of min_key_version
+		4 +  // size of key_id
 		1; // fil_encryption_t
 
 	if (end_ptr - ptr < entry_size){
@@ -531,9 +542,8 @@ fil_parse_write_crypt_data(
 	uint min_key_version = mach_read_from_4(ptr);
 	ptr += 4;
 
-	if (end_ptr - ptr < len) {
-		return NULL;
-	}
+	uint key_id = mach_read_from_4(ptr);
+	ptr += 4;
 
 	fil_encryption_t encryption = (fil_encryption_t)mach_read_from_1(ptr);
 	ptr +=1;
@@ -542,7 +552,7 @@ fil_parse_write_crypt_data(
 		return NULL;
 	}
 
-	fil_space_crypt_t* crypt_data = fil_space_create_crypt_data();
+	fil_space_crypt_t* crypt_data = fil_space_create_crypt_data(key_id);
 	crypt_data->page0_offset = offset;
 	crypt_data->min_key_version = min_key_version;
 	crypt_data->encryption = encryption;
@@ -572,6 +582,7 @@ fil_space_clear_crypt_data(
 		1 +   // len
 		len + // iv
 		4 +    // min key version
+		4 +    // key id
 		1; // fil_encryption_t
 	memset(page + offset, 0, size);
 }
@@ -1073,7 +1084,7 @@ fil_crypt_start_encrypting_space(
 	* crypt data in page 0 */
 
 	/* 1 - create crypt data */
-	crypt_data = fil_space_create_crypt_data();
+	crypt_data = fil_space_create_crypt_data(FIL_DEFAULT_ENCRYPTION_KEY);
 	if (crypt_data == NULL) {
 		mutex_exit(&fil_crypt_threads_mutex);
 		return pending_op;

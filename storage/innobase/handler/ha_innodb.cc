@@ -11713,9 +11713,8 @@ ha_innobase::create(
 		fil_space_crypt_t* old_crypt_data = fil_space_get_crypt_data(innobase_table->space);
 		fil_space_crypt_t* crypt_data;
 
-		crypt_data = fil_space_create_crypt_data();
+		crypt_data = fil_space_create_crypt_data(key_id);
 		crypt_data->page0_offset = fsp_header_get_crypt_offset(zip_size, &maxsize);
-		crypt_data->key_id = key_id;
 		crypt_data->encryption = encrypt;
 
 		/* If there is old crypt data, copy IV */

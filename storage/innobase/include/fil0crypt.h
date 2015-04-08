@@ -118,7 +118,7 @@ fil_space_crypt_cleanup();
 Create crypt data, i.e data that is used for a single tablespace */
 UNIV_INTERN
 fil_space_crypt_t *
-fil_space_create_crypt_data();
+fil_space_create_crypt_data(uint key_id);
 
 /*********************************************************************
 Destroy crypt data */
