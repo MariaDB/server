@@ -78,20 +78,18 @@ static keyentry *get_key(unsigned int key_id)
   return a->id == key_id ? a : 0;
 }
 
-/**
-   This method is using with the id 0 if exists. 
-   This method is used by innobase/xtradb for the key
-   rotation feature of encrypting log files.
-*/
-
-static unsigned int get_highest_key_used_in_key_file()
+/* the version is always the same, no automatic key rotation */
+static unsigned int get_latest_version(uint key_id)
 {
-  return 0;
+  return  get_key(key_id) ? 1 : ENCRYPTION_KEY_VERSION_INVALID;
 }
 
 static unsigned int get_key_from_key_file(unsigned int key_id,
-                          unsigned char* dstbuf, unsigned *buflen)
+       unsigned int key_version, unsigned char* dstbuf, unsigned *buflen)
 {
+  if (key_version != 1)
+    return ENCRYPTION_KEY_VERSION_INVALID;
+
   keyentry* entry = get_key(key_id);
 
   if (entry == NULL)
@@ -112,7 +110,7 @@ static unsigned int get_key_from_key_file(unsigned int key_id,
 
 struct st_mariadb_encryption file_key_management_plugin= {
   MariaDB_ENCRYPTION_INTERFACE_VERSION,
-  get_highest_key_used_in_key_file,
+  get_latest_version,
   get_key_from_key_file,
   0,0
 };

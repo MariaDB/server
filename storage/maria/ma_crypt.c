@@ -20,6 +20,9 @@
 #include "ma_blockrec.h"
 #include <my_crypt.h>
 
+#define HARD_CODED_ENCRYPTION_KEY_VERSION 1
+#define HARD_CODED_ENCRYPTION_KEY_ID 1
+
 #define CRYPT_SCHEME_1         1
 #define CRYPT_SCHEME_1_ID_LEN  4 /* 4 bytes for counter-block */
 #define CRYPT_SCHEME_1_IV_LEN           16
@@ -28,6 +31,7 @@
 struct st_maria_crypt_data
 {
   uchar type;
+  uint  keyid;
   uchar iv_length;
   uchar iv[1];    // var size
 };
@@ -68,6 +72,7 @@ ma_crypt_create(MARIA_SHARE* share)
   MARIA_CRYPT_DATA *crypt_data= (MARIA_CRYPT_DATA*)my_malloc(sz, MYF(0));
   bzero(crypt_data, sz);
   crypt_data->type= CRYPT_SCHEME_1;
+  crypt_data->keyid= HARD_CODED_ENCRYPTION_KEY_ID;
   crypt_data->iv_length= iv_length;
   my_random_bytes(crypt_data->iv, iv_length);
   share->crypt_data= crypt_data;
@@ -118,6 +123,7 @@ ma_crypt_read(MARIA_SHARE* share, uchar *buff)
     MARIA_CRYPT_DATA *crypt_data= (MARIA_CRYPT_DATA*)my_malloc(sz, MYF(0));
 
     crypt_data->type= type;
+    crypt_data->keyid= HARD_CODED_ENCRYPTION_KEY_ID;
     crypt_data->iv_length= iv_length;
     memcpy(crypt_data->iv, buff + 2, iv_length);
     share->crypt_data= crypt_data;
@@ -290,7 +296,8 @@ void ma_crypt_set_data_pagecache_callbacks(PAGECACHE_FILE *file,
                                            __attribute__((unused)))
 {
   /* Only use encryption if we have defined it */
-  if (encryption_key_get_latest_version() != ENCRYPTION_KEY_VERSION_INVALID)
+  if (encryption_key_get_latest_version(HARD_CODED_ENCRYPTION_KEY_ID) !=
+      ENCRYPTION_KEY_VERSION_INVALID)
   {
     file->pre_read_hook= ma_crypt_pre_read_hook;
     file->post_read_hook= ma_crypt_data_post_read_hook;
@@ -410,7 +417,7 @@ static int ma_encrypt(MARIA_CRYPT_DATA *crypt_data,
   int rc;
   uint32 dstlen;
   uchar counter[COUNTER_LEN];
-  *key_version= 1;
+  *key_version= HARD_CODED_ENCRYPTION_KEY_VERSION;
 
   // create counter block
   memcpy(counter + 0, crypt_data->iv + CRYPT_SCHEME_1_IV_LEN, 4);
@@ -419,7 +426,8 @@ static int ma_encrypt(MARIA_CRYPT_DATA *crypt_data,
 
   rc = encryption_encrypt(src, size, dst, &dstlen,
                           crypt_data->iv, CRYPT_SCHEME_1_IV_LEN,
-                          counter, sizeof(counter), 1, *key_version);
+                          counter, sizeof(counter), 1,
+                          crypt_data->keyid, *key_version);
 
   DBUG_ASSERT(rc == MY_AES_OK);
   DBUG_ASSERT(dstlen == size);
@@ -451,7 +459,8 @@ static int ma_decrypt(MARIA_CRYPT_DATA *crypt_data,
 
   rc =encryption_decrypt(src, size, dst, &dstlen,
                          crypt_data->iv, CRYPT_SCHEME_1_IV_LEN,
-                         counter, sizeof(counter), 1, key_version);
+                         counter, sizeof(counter), 1, crypt_data->keyid,
+                         key_version);
 
   DBUG_ASSERT(rc == MY_AES_OK);
   DBUG_ASSERT(dstlen == size);

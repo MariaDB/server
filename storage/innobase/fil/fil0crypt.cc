@@ -177,10 +177,11 @@ fil_crypt_get_key(
 	}
 
 	*key_length = sizeof(keybuf);
-	int rc = encryption_key_get(version, keybuf, key_length);
+	uint rc = encryption_key_get(crypt_data->key_id, version, keybuf, key_length);
 	if (rc) {
 		ib_logf(IB_LOG_LEVEL_FATAL,
-			"Key %d can not be found. Reason=%d", version, rc);
+			"Key id %u version %u can not be found. Reason=%u",
+			crypt_data->key_id, version, rc);
 		ut_error;
 	}
 
@@ -229,11 +230,13 @@ fil_crypt_get_latest_key(
 	uint*		version)	/*!< in: Key version */
 {
         // used for key rotation - get the next key id from the key provider
-	uint rc = encryption_key_get_latest_version();
+	uint rc = *version = encryption_key_get_latest_version(crypt_data->key_id);
 
-	// if no new key was created use the last one
-	if (rc != ENCRYPTION_KEY_VERSION_INVALID) {
-		*version = rc;
+	if (rc == ENCRYPTION_KEY_VERSION_INVALID) {
+		ib_logf(IB_LOG_LEVEL_FATAL,
+			"Unknown key id %u. Can't continue!\n",
+                        crypt_data->key_id);
+		ut_error;
 	}
 
 	return fil_crypt_get_key(dst, key_length, crypt_data, *version);
@@ -259,7 +262,7 @@ fil_space_create_crypt_data()
 		crypt_data->min_key_version = 0;
 	} else {
 		crypt_data->type = CRYPT_SCHEME_1;
-		crypt_data->min_key_version = encryption_key_get_latest_version();
+		crypt_data->min_key_version = encryption_key_get_latest_version(crypt_data->key_id);
 	}
 
 	mutex_create(fil_crypt_data_mutex_key,
@@ -612,11 +615,11 @@ fil_space_encrypt(
 					row_format compressed */
 	byte*		dst_frame)	/*!< in: outbut buffer */
 {
-	fil_space_crypt_t* crypt_data=NULL;
+	fil_space_crypt_t* crypt_data = NULL;
 	ulint page_size = (zip_size) ? zip_size : UNIV_PAGE_SIZE;
 	uint key_version;
 	unsigned char key[MY_AES_MAX_KEY_LENGTH];
-	uint key_length=MY_AES_MAX_KEY_LENGTH;
+	uint key_length = MY_AES_MAX_KEY_LENGTH;
 	unsigned char iv[MY_AES_BLOCK_SIZE];
 
 	ulint orig_page_type = mach_read_from_2(src_frame+FIL_PAGE_TYPE);
@@ -632,7 +635,6 @@ fil_space_encrypt(
 
 	/* Get crypt data from file space */
 	crypt_data = fil_space_get_crypt_data(space);
-	key_version = crypt_data->keys[0].key_id;
 
 	if (crypt_data == NULL) {
 		//TODO: Is this really needed ?
@@ -674,8 +676,8 @@ fil_space_encrypt(
 	}
 
 	int rc = encryption_encrypt(src, srclen, dst, &dstlen,
-	                      key, key_length,
-	                      iv, sizeof(iv), 1, key_version);
+	                      key, key_length, iv, sizeof(iv), 1,
+                              crypt_data->key_id, key_version);
 
 	if (! ((rc == MY_AES_OK) && ((ulint) dstlen == srclen))) {
 		ib_logf(IB_LOG_LEVEL_FATAL,
@@ -775,7 +777,7 @@ fil_space_decrypt(
 	uint key_version = mach_read_from_4(src_frame + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION);
 	bool page_compressed = (page_type == FIL_PAGE_PAGE_COMPRESSED);
 
-	if (key_version == ENCRYPTION_KEY_VERSION_NOT_ENCRYPTED) {
+	if (key_version == ENCRYPTION_KEY_NOT_ENCRYPTED) {
 		//TODO: is this really needed ?
 		memcpy(dst_frame, src_frame, page_size);
 		return false; /* page not decrypted */
@@ -820,7 +822,8 @@ fil_space_decrypt(
 	}
 
 	int rc = encryption_decrypt(src, srclen, dst, &dstlen, key, key_length,
-				    iv, sizeof(iv), 1, key_version);
+				    iv, sizeof(iv), 1,
+                                    crypt_data->key_id, key_version);
 
 	if (! ((rc == MY_AES_OK) && ((ulint) dstlen == srclen))) {
 		ib_logf(IB_LOG_LEVEL_FATAL,
@@ -968,10 +971,11 @@ fil_crypt_get_key_state(
 	key_state_t *new_state)	/*!< out: key state */
 {
 	if (srv_encrypt_tables == TRUE) {
-		new_state->key_version = encryption_key_get_latest_version();
+		new_state->key_version =
+			encryption_key_get_latest_version(FIL_DEFAULT_ENCRYPTION_KEY);
 		new_state->rotate_key_age = srv_fil_crypt_rotate_key_age;
 		ut_a(new_state->key_version != ENCRYPTION_KEY_VERSION_INVALID);
-		ut_a(new_state->key_version != ENCRYPTION_KEY_VERSION_NOT_ENCRYPTED);
+		ut_a(new_state->key_version != ENCRYPTION_KEY_NOT_ENCRYPTED);
 	} else {
 		new_state->key_version = 0;
 		new_state->rotate_key_age = 0;
@@ -2422,15 +2426,17 @@ fil_space_crypt_get_status(
 			status->rotating = false;
 		}
 		mutex_exit(&crypt_data->mutex);
+
+		if (srv_encrypt_tables == TRUE) {
+			status->current_key_version =
+				encryption_key_get_latest_version(crypt_data->key_id);
+		} else {
+			status->current_key_version = 0;
+		}
 	} else {
 		memset(status, 0, sizeof(*status));
 	}
 
-	if (srv_encrypt_tables == TRUE) {
-		status->current_key_version = encryption_key_get_latest_version();
-	} else {
-		status->current_key_version = 0;
-	}
 	return crypt_data == NULL ? 1 : 0;
 }
 

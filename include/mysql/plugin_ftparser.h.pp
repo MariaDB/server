@@ -202,11 +202,13 @@ typedef int (*encrypt_decrypt_func)(const unsigned char* src, unsigned int slen,
                                     unsigned char* dst, unsigned int* dlen,
                                     const unsigned char* key, unsigned int klen,
                                     const unsigned char* iv, unsigned int ivlen,
-                                    int no_padding, unsigned int key_version);
+                                    int no_padding, unsigned int key_id,
+                                    unsigned int key_version);
 struct encryption_service_st {
-  unsigned int (*encryption_key_get_latest_version_func)();
-  unsigned int (*encryption_key_exists_func)(unsigned int);
-  unsigned int (*encryption_key_get_func)(unsigned int, unsigned char*, unsigned int*);
+  unsigned int (*encryption_key_get_latest_version_func)(unsigned int);
+  unsigned int (*encryption_key_id_exists_func)(unsigned int);
+  unsigned int (*encryption_key_version_exists_func)(unsigned int, unsigned int);
+  unsigned int (*encryption_key_get_func)(unsigned int, unsigned int, unsigned char*, unsigned int*);
   encrypt_decrypt_func encryption_encrypt_func;
   encrypt_decrypt_func encryption_decrypt_func;
 };

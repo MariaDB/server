@@ -11887,7 +11887,7 @@ ha_innobase::check_table_options(
 			/* ignore this to allow alter table without changing page_encryption_key ...*/
 		}
 
-		if (!encryption_key_exists(options->encryption_key_id)) {
+		if (!encryption_key_id_exists(options->encryption_key_id)) {
 			push_warning_printf(
 				thd, Sql_condition::WARN_LEVEL_WARN,
 				HA_WRONG_CREATE_OPTION,
@@ -12229,7 +12229,7 @@ ha_innobase::create(
 
 		crypt_data = fil_space_create_crypt_data();
 		crypt_data->page0_offset = fsp_header_get_crypt_offset(zip_size, &maxsize);
-		crypt_data->keys[0].key_id = key_id;
+		crypt_data->key_id = key_id;
 		crypt_data->encryption = encrypt;
 
 		/* If there is old crypt data, copy IV */

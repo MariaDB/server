@@ -48,20 +48,19 @@ fil_page_encryption_status(
 	const byte *buf,	/*!< in: page */
 	ulint space_id)		/*!< in: space_id */
 {
+	fil_space_crypt_t *crypt_data = fil_space_get_crypt_data(space_id);
 	ulint page_type = mach_read_from_2(buf+FIL_PAGE_TYPE);
 
 	if (page_type == FIL_PAGE_TYPE_FSP_HDR) {
-		fil_space_crypt_t *crypt_data = fil_space_get_crypt_data(space_id);
-
 		if (crypt_data != NULL) {
-			if (!encryption_key_exists(crypt_data->keys[0].key_version)) {
+			if (!encryption_key_id_exists(crypt_data->key_id)) {
 				/* accessing table would surely fail, because no key or no key provider available */
 				return 1;
 			}
 		}
 	} else {
 		ulint key = mach_read_from_4(buf + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION);
-		if (!encryption_key_exists(key)) {
+		if (!encryption_key_version_exists(crypt_data->key_id, key)) {
 			return 1;
 		}
 	}

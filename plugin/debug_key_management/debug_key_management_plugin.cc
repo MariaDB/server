@@ -19,6 +19,8 @@
   It's used to debug the encryption code with a fixed keys that change
   only on user request.
 
+  It does not support different key ids, the only valid key id is 1.
+
   THIS IS AN EXAMPLE ONLY! ENCRYPTION KEYS ARE HARD-CODED AND *NOT* SECRET!
   DO NOT USE THIS PLUGIN IN PRODUCTION! EVER!
 */
@@ -40,13 +42,20 @@ static struct st_mysql_sys_var* sysvars[] = {
   NULL
 };
 
-static unsigned int get_latest_key_version()
+static unsigned int get_latest_key_version(unsigned int keyid)
 {
+  if (keyid != 1)
+    return ENCRYPTION_KEY_VERSION_INVALID;
+
   return key_version;
 }
 
-static unsigned int get_key(unsigned int version, unsigned char* dstbuf, unsigned *buflen)
+static unsigned int get_key(unsigned int keyid, unsigned int version,
+                            unsigned char* dstbuf, unsigned *buflen)
 {
+  if (keyid != 1)
+    return ENCRYPTION_KEY_VERSION_INVALID;
+
   if (*buflen < KEY_SIZE)
   {
     *buflen= KEY_SIZE;

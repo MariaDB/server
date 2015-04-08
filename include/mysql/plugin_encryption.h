@@ -37,11 +37,11 @@ struct st_mariadb_encryption
   int interface_version;                        /**< version plugin uses */
 
   /**
-    function returning latest key version.
+    function returning latest key version for a given key id
 
-    @return a version or BAD_ENCRYPTION_KEY_VERSION to indicate an error.
+    @return a version or ENCRYPTION_KEY_VERSION_INVALID to indicate an error.
   */
-  unsigned int (*get_latest_key_version)();
+  unsigned int (*get_latest_key_version)(unsigned int key_id);
 
   /**
     function returning a key for a key version
@@ -60,11 +60,11 @@ struct st_mariadb_encryption
     the key data or leave it untouched).
 
     @return 0 on success, or
-            BAD_ENCRYPTION_KEY_VERSION, KEY_BUFFER_TOO_SMALL,
+            ENCRYPTION_KEY_VERSION_INVALID, ENCRYPTION_KEY_BUFFER_TOO_SMALL
             or any other non-zero number for errors
   */
-  unsigned int (*get_key)(unsigned int version, unsigned char *key,
-                          unsigned int *key_length);
+  unsigned int (*get_key)(unsigned int key_id, unsigned int version,
+                          unsigned char *key, unsigned int *key_length);
 
   encrypt_decrypt_func encrypt;
   encrypt_decrypt_func decrypt;

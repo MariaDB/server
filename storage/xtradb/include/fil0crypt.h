@@ -58,10 +58,7 @@ typedef enum {
 /* Cached L or key for given key_version */
 struct key_struct
 {
-	uint key_version;			/*!< Key version used as
-						identifier */
-	uint key_id;				/*1< Key id used as
-						identifier */
+	uint key_version;			/*!< Version of the key */
 	uint key_length;			/*!< Key length */
 	unsigned char key[MY_AES_MAX_KEY_LENGTH]; /*!< Cached key
                                                 (that is L in CRYPT_SCHEME_1) */
@@ -88,6 +85,7 @@ struct fil_space_crypt_struct
 	ulint type;	    // CRYPT_SCHEME
 	uint keyserver_requests; // no of key requests to key server
 	uint key_count;	    // No of initalized key-structs
+	uint key_id;	    // Key id for this space
 	key_struct keys[3]; // cached L = AES_ECB(KEY, IV)
 	uint min_key_version; // min key version for this space
 	ulint page0_offset;   // byte offset on page 0 for crypt data

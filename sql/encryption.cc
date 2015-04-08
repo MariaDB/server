@@ -23,13 +23,18 @@
 static plugin_ref encryption_manager= 0;
 struct encryption_service_st encryption_handler;
 
-unsigned int has_key(uint version)
+unsigned int has_key_id(uint id)
 {
-  uint unused;
-  return encryption_key_get(version, NULL, &unused) != ENCRYPTION_KEY_VERSION_INVALID;
+  return encryption_key_get_latest_version(id) != ENCRYPTION_KEY_VERSION_INVALID;
 }
 
-uint no_key()
+unsigned int has_key_version(uint id, uint version)
+{
+  uint unused;
+  return encryption_key_get(id, version, NULL, &unused) != ENCRYPTION_KEY_VERSION_INVALID;
+}
+
+uint no_key(uint)
 {
   return ENCRYPTION_KEY_VERSION_INVALID;
 }
@@ -38,7 +43,7 @@ static int no_crypt(const uchar* source, uint source_length,
                     uchar* dest, uint* dest_length,
                     const uchar* key, uint key_length,
                     const uchar* iv, uint iv_length,
-                    int no_padding, uint key_version)
+                    int no_padding, uint key_id, uint key_version)
 {
   return 1;
 }
@@ -81,9 +86,10 @@ int finalize_encryption_plugin(st_plugin_int *plugin)
 {
   encryption_handler.encryption_encrypt_func= no_crypt;
   encryption_handler.encryption_decrypt_func= no_crypt;
-  encryption_handler.encryption_key_exists_func= has_key;
+  encryption_handler.encryption_key_id_exists_func= has_key_id;
+  encryption_handler.encryption_key_version_exists_func= has_key_version;
   encryption_handler.encryption_key_get_func=
-      (uint (*)(uint, uchar*, uint*))no_key;
+      (uint (*)(uint, uint, uchar*, uint*))no_key;
   encryption_handler.encryption_key_get_latest_version_func= no_key;
 
   if (plugin && plugin->plugin->deinit && plugin->plugin->deinit(NULL))

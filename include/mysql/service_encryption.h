@@ -30,7 +30,7 @@ extern "C" {
 
 /* returned from encryption_key_get_latest_version() */
 #define ENCRYPTION_KEY_VERSION_INVALID        (~(unsigned int)0)
-#define ENCRYPTION_KEY_VERSION_NOT_ENCRYPTED  (0)
+#define ENCRYPTION_KEY_NOT_ENCRYPTED          (0)
 
 /* returned from encryption_key_get()  */
 #define ENCRYPTION_KEY_BUFFER_TOO_SMALL    (100)
@@ -39,12 +39,14 @@ typedef int (*encrypt_decrypt_func)(const unsigned char* src, unsigned int slen,
                                     unsigned char* dst, unsigned int* dlen,
                                     const unsigned char* key, unsigned int klen,
                                     const unsigned char* iv, unsigned int ivlen,
-                                    int no_padding, unsigned int key_version);
+                                    int no_padding, unsigned int key_id,
+                                    unsigned int key_version);
 
 struct encryption_service_st {
-  unsigned int (*encryption_key_get_latest_version_func)();
-  unsigned int (*encryption_key_exists_func)(unsigned int);
-  unsigned int (*encryption_key_get_func)(unsigned int, unsigned char*, unsigned int*);
+  unsigned int (*encryption_key_get_latest_version_func)(unsigned int);
+  unsigned int (*encryption_key_id_exists_func)(unsigned int);
+  unsigned int (*encryption_key_version_exists_func)(unsigned int, unsigned int);
+  unsigned int (*encryption_key_get_func)(unsigned int, unsigned int, unsigned char*, unsigned int*);
   encrypt_decrypt_func encryption_encrypt_func;
   encrypt_decrypt_func encryption_decrypt_func;
 };
@@ -53,20 +55,22 @@ struct encryption_service_st {
 
 extern struct encryption_service_st *encryption_service;
 
-#define encryption_key_get_latest_version() encryption_service->encryption_key_get_latest_version_func()
-#define encryption_key_exists(V) encryption_service->encryption_key_exists_func(V)
-#define encryption_key_get(V,K,S) encryption_service->encryption_key_get_func((V), (K), (S))
-#define encryption_encrypt(S,SL,D,DL,K,KL,I,IL,NP,KV) encryption_service->encryption_encrypt_func(S,SL,D,DL,K,KL,I,IL,NP,KV)
-#define encryption_decrypt(S,SL,D,DL,K,KL,I,IL,NP,KV) encryption_service->encryption_decrypt_func(S,SL,D,DL,K,KL,I,IL,NP,KV)
+#define encryption_key_get_latest_version(KI) encryption_service->encryption_key_get_latest_version_func(KI)
+#define encryption_key_id_exists(KI) encryption_service->encryption_key_id_exists_func((KI))
+#define encryption_key_version_exists(KI,KV) encryption_service->encryption_key_version_exists_func((KI),(KV))
+#define encryption_key_get(KI,KV,K,S) encryption_service->encryption_key_get_func((KI),(KV),(K),(S))
+#define encryption_encrypt(S,SL,D,DL,K,KL,I,IL,NP,KI,KV) encryption_service->encryption_encrypt_func((S),(SL),(D),(DL),(K),(KL),(I),(IL),(NP),(KI),(KV))
+#define encryption_decrypt(S,SL,D,DL,K,KL,I,IL,NP,KI,KV) encryption_service->encryption_decrypt_func((S),(SL),(D),(DL),(K),(KL),(I),(IL),(NP),(KI),(KV))
 #else
 
 extern struct encryption_service_st encryption_handler;
 
-#define encryption_key_get_latest_version() encryption_handler.encryption_key_get_latest_version_func()
-#define encryption_key_exists(V) encryption_handler.encryption_key_exists_func(V)
-#define encryption_key_get(V,K,S) encryption_handler.encryption_key_get_func((V), (K), (S))
-#define encryption_encrypt(S,SL,D,DL,K,KL,I,IL,NP,KV) encryption_handler.encryption_encrypt_func(S,SL,D,DL,K,KL,I,IL,NP,KV)
-#define encryption_decrypt(S,SL,D,DL,K,KL,I,IL,NP,KV) encryption_handler.encryption_decrypt_func(S,SL,D,DL,K,KL,I,IL,NP,KV)
+#define encryption_key_get_latest_version(KI) encryption_handler.encryption_key_get_latest_version_func(KI)
+#define encryption_key_id_exists(KI) encryption_handler.encryption_key_id_exists_func((KI))
+#define encryption_key_version_exists(KI,KV) encryption_handler.encryption_key_version_exists_func((KI),(KV))
+#define encryption_key_get(KI,KV,K,S) encryption_handler.encryption_key_get_func((KI),(KV),(K),(S))
+#define encryption_encrypt(S,SL,D,DL,K,KL,I,IL,NP,KI,KV) encryption_handler.encryption_encrypt_func((S),(SL),(D),(DL),(K),(KL),(I),(IL),(NP),(KI),(KV))
+#define encryption_decrypt(S,SL,D,DL,K,KL,I,IL,NP,KI,KV) encryption_handler.encryption_decrypt_func((S),(SL),(D),(DL),(K),(KL),(I),(IL),(NP),(KI),(KV))
 #endif
 
 #ifdef __cplusplus

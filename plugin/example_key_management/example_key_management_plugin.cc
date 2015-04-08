@@ -21,6 +21,8 @@
   different pages in the same tablespace encrypted with different keys
   and what the background re-encryption thread does.
 
+  It does not support different key ids, for all ids the key will be the same.
+
   THIS IS AN EXAMPLE ONLY! ENCRYPTION KEYS ARE HARD-CODED AND *NOT* SECRET!
   DO NOT USE THIS PLUGIN IN PRODUCTION! EVER!
 */
@@ -41,7 +43,7 @@ static unsigned int next_key_version = 0;
 static pthread_mutex_t mutex;
 
 static unsigned int
-get_latest_key_version()
+get_latest_key_version(unsigned int key_id)
 {
   uint now = time(0);
   pthread_mutex_lock(&mutex);
@@ -57,7 +59,8 @@ get_latest_key_version()
 }
 
 static unsigned int
-get_key(unsigned int version, unsigned char* dstbuf, unsigned *buflen)
+get_key(unsigned int key_id, unsigned int version,
+        unsigned char* dstbuf, unsigned *buflen)
 {
   if (*buflen < MY_MD5_HASH_SIZE)
   {
@@ -81,7 +84,7 @@ int encrypt(const unsigned char* src, unsigned int slen,
             unsigned char* dst, unsigned int* dlen,
             const unsigned char* key, unsigned int klen,
             const unsigned char* iv, unsigned int ivlen,
-            int no_padding, unsigned int key_version)
+            int no_padding, unsigned int keyid, unsigned int key_version)
 {
   return ((key_version & 1) ? my_aes_encrypt_cbc : my_aes_encrypt_ecb)
     (src, slen, dst, dlen, key, klen, iv, ivlen, no_padding);
@@ -91,7 +94,7 @@ int decrypt(const unsigned char* src, unsigned int slen,
             unsigned char* dst, unsigned int* dlen,
             const unsigned char* key, unsigned int klen,
             const unsigned char* iv, unsigned int ivlen,
-            int no_padding, unsigned int key_version)
+            int no_padding, unsigned int keyid, unsigned int key_version)
 {
   return ((key_version & 1) ? my_aes_decrypt_cbc : my_aes_decrypt_ecb)
     (src, slen, dst, dlen, key, klen, iv, ivlen, no_padding);
@@ -101,7 +104,7 @@ static int example_key_management_plugin_init(void *p)
 {
   /* init */
   my_rnd_init(&seed, time(0), 0);
-  get_latest_key_version();
+  get_latest_key_version(1);
   pthread_mutex_init(&mutex, NULL);
 
   return 0;

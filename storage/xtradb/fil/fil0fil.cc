@@ -2032,7 +2032,7 @@ fil_read_first_page(
 	if ((cdata && cdata->encryption == FIL_SPACE_ENCRYPTION_ON) ||
 		( srv_encrypt_tables &&
 			cdata && cdata->encryption == FIL_SPACE_ENCRYPTION_DEFAULT)) {
-		uint rc = encryption_key_get_latest_version();
+		uint rc = encryption_key_get_latest_version(cdata->key_id);
 
 		if (rc == ENCRYPTION_KEY_VERSION_INVALID) {
 			ib_logf(IB_LOG_LEVEL_FATAL,

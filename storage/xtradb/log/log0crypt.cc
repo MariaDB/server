@@ -47,6 +47,8 @@ byte redo_log_crypt_msg[MY_AES_BLOCK_SIZE] = {0};
  * encryption/decryption. */
 byte aes_ctr_nonce[MY_AES_BLOCK_SIZE] = {0};
 
+#define LOG_DEFAULT_ENCRYPTION_KEY 1
+
 /*********************************************************************//**
 Generate a 128-bit value used to generate crypt key for redo log.
 It is generated via the concatenation of 1 purpose byte (0x02) and 15-byte
@@ -117,7 +119,7 @@ log_init_crypt_key(
 
 	byte mysqld_key[MY_AES_BLOCK_SIZE] = {0};
         uint keylen= sizeof(mysqld_key);
-	if (encryption_key_get(crypt_ver, mysqld_key, &keylen))
+	if (encryption_key_get(LOG_DEFAULT_ENCRYPTION_KEY, crypt_ver, mysqld_key, &keylen))
 	{
 		ib_logf(IB_LOG_LEVEL_ERROR,
 			"Redo log crypto: getting mysqld crypto key "
@@ -201,6 +203,7 @@ log_blocks_crypt(
 						dst_block + LOG_BLOCK_HDR_SIZE, &dst_len,
 						(unsigned char*)(log_sys->redo_log_crypt_key), 16,
 						aes_ctr_counter, MY_AES_BLOCK_SIZE, 1,
+						LOG_DEFAULT_ENCRYPTION_KEY,
 						log_sys->redo_log_crypt_ver);
 		} else {
 			ut_a(recv_sys);
@@ -209,6 +212,7 @@ log_blocks_crypt(
 						dst_block + LOG_BLOCK_HDR_SIZE, &dst_len,
 						(unsigned char*)(recv_sys->recv_log_crypt_key), 16,
 						aes_ctr_counter, MY_AES_BLOCK_SIZE, 1,
+						LOG_DEFAULT_ENCRYPTION_KEY,
 						recv_sys->recv_log_crypt_ver);
 		}
 
@@ -261,7 +265,7 @@ log_crypt_set_ver_and_key(
 
 	if (srv_encrypt_log) {
 		unsigned int vkey;
-		vkey = encryption_key_get_latest_version();
+		vkey = encryption_key_get_latest_version(LOG_DEFAULT_ENCRYPTION_KEY);
 		encrypted = true;
 
 		if (vkey == UNENCRYPTED_KEY_VER ||
