@@ -4,7 +4,6 @@
 --disable_query_log
 let $innodb_file_format_orig = `SELECT @@innodb_file_format`;
 let $innodb_file_per_table_orig = `SELECT @@innodb_file_per_table`;
-let $default_encryption_key = `SELECT @@innodb_default_encryption_key`;
 --enable_query_log
 
 SET GLOBAL innodb_file_format = `Barracuda`;
@@ -18,7 +17,7 @@ create table innodb_dynamic(c1 bigint not null, b char(200)) engine=innodb row_f
 create table innodb_dynamic(c1 bigint not null, b char(200)) engine=innodb row_format=dynamic encryption='ON' encryption_key_id=33;
 create table innodb_redundant(c1 bigint not null, b char(200))  engine=innodb row_format=redundant encryption='ON' encryption_key_id=4;
 
-SET GLOBAL innodb_default_encryption_key = 5;
+set innodb_default_encryption_key_id = 5;
 create table innodb_defkey(c1  bigint not null, b char(200))  engine=innodb encryption='ON';
 show create table innodb_defkey;
 
@@ -162,5 +161,4 @@ drop table innodb_defkey;
 --disable_query_log
 EVAL SET GLOBAL innodb_file_per_table = $innodb_file_per_table_orig;
 EVAL SET GLOBAL innodb_file_format = $innodb_file_format_orig;
-EVAL SET GLOBAL innodb_default_encryption_key = $default_encryption_key;
 --enable_query_log

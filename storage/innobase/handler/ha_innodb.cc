@@ -548,11 +548,9 @@ ib_cb_t innodb_api_cb[] = {
 	(ib_cb_t) ib_cursor_stmt_begin
 };
 
-static MYSQL_SYSVAR_UINT(default_encryption_key, srv_default_encryption_key,
-			 PLUGIN_VAR_RQCMDARG,
+static MYSQL_THDVAR_UINT(default_encryption_key_id, PLUGIN_VAR_RQCMDARG,
 			 "Default encryption key id used for table encryption.",
-			 NULL,
-			 NULL,
+			 NULL, NULL,
 			 FIL_DEFAULT_ENCRYPTION_KEY, 1, UINT_MAX32, 0);
 
 /**
@@ -576,7 +574,7 @@ ha_create_table_option innodb_table_option_list[]=
   /* With this option the user can enable encryption for the table */
   HA_TOPTION_ENUM("ENCRYPTION", encryption, "DEFAULT,ON,OFF", 0),
   /* With this option the user defines the key identifier using for the encryption */
-  HA_TOPTION_SYSVAR("ENCRYPTION_KEY_ID", encryption_key_id, default_encryption_key),
+  HA_TOPTION_SYSVAR("ENCRYPTION_KEY_ID", encryption_key_id, default_encryption_key_id),
 
   HA_TOPTION_END
 };
@@ -19417,8 +19415,7 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(scrub_log),
   MYSQL_SYSVAR(scrub_log_speed),
   MYSQL_SYSVAR(encrypt_log),
-  MYSQL_SYSVAR(default_encryption_key),
-
+  MYSQL_SYSVAR(default_encryption_key_id),
   /* Scrubing feature */
   MYSQL_SYSVAR(immediate_scrub_data_uncompressed),
   MYSQL_SYSVAR(background_scrub_data_uncompressed),

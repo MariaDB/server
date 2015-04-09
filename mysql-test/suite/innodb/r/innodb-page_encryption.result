@@ -7,7 +7,7 @@ create table innodb_dynamic(c1 bigint not null, b char(200)) engine=innodb row_f
 ERROR HY000: Can't create table `test`.`innodb_dynamic` (errno: 140 "Wrong create options")
 create table innodb_dynamic(c1 bigint not null, b char(200)) engine=innodb row_format=dynamic encryption='ON' encryption_key_id=33;
 create table innodb_redundant(c1 bigint not null, b char(200))  engine=innodb row_format=redundant encryption='ON' encryption_key_id=4;
-SET GLOBAL innodb_default_encryption_key = 5;
+set innodb_default_encryption_key_id = 5;
 create table innodb_defkey(c1  bigint not null, b char(200))  engine=innodb encryption='ON';
 show create table innodb_defkey;
 Table	Create Table
