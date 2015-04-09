@@ -172,19 +172,8 @@ log_blocks_crypt(
 	uint32 src_len, dst_len;
 	byte aes_ctr_counter[MY_AES_BLOCK_SIZE];
 	ulint log_block_no, log_block_start_lsn;
-	byte *key;
-	ulint lsn;
-	if (is_encrypt)
-	{
-		ut_a(log_sys && log_sys->redo_log_crypt_ver != UNENCRYPTED_KEY_VER);
-		key = (byte *)(log_sys->redo_log_crypt_key);
-		lsn = log_sys->lsn;
+	ulint lsn = is_encrypt ? log_sys->lsn : srv_start_lsn;
 
-	} else {
-		ut_a(recv_sys && recv_sys->recv_log_crypt_ver != UNENCRYPTED_KEY_VER);
-		key = (byte *)(recv_sys->recv_log_crypt_key);
-		lsn = srv_start_lsn;
-	}
 	ut_a(size % OS_FILE_LOG_BLOCK_SIZE == 0);
 	src_len = OS_FILE_LOG_BLOCK_SIZE - LOG_BLOCK_HDR_SIZE;
 	for (ulint i = 0; i < size ; i += OS_FILE_LOG_BLOCK_SIZE)
@@ -204,11 +193,24 @@ log_blocks_crypt(
 		mach_write_to_4(aes_ctr_counter + 11, log_block_no);
 		bzero(aes_ctr_counter + 15, 1);
 
-		int rc = encryption_encrypt(log_block + LOG_BLOCK_HDR_SIZE, src_len,
-		                      dst_block + LOG_BLOCK_HDR_SIZE, &dst_len,
-		                      (unsigned char*)key, 16,
-		                      aes_ctr_counter, MY_AES_BLOCK_SIZE, 1,
-                                      recv_sys->recv_log_crypt_ver);
+		int rc;
+		if (is_encrypt) {
+			ut_a(log_sys);
+			ut_a(log_sys->redo_log_crypt_ver != UNENCRYPTED_KEY_VER);
+			rc = encryption_encrypt(log_block + LOG_BLOCK_HDR_SIZE, src_len,
+						dst_block + LOG_BLOCK_HDR_SIZE, &dst_len,
+						(unsigned char*)(log_sys->redo_log_crypt_key), 16,
+						aes_ctr_counter, MY_AES_BLOCK_SIZE, 1,
+						log_sys->redo_log_crypt_ver);
+		} else {
+			ut_a(recv_sys);
+			ut_a(recv_sys->recv_log_crypt_ver != UNENCRYPTED_KEY_VER);
+			rc = encryption_decrypt(log_block + LOG_BLOCK_HDR_SIZE, src_len,
+						dst_block + LOG_BLOCK_HDR_SIZE, &dst_len,
+						(unsigned char*)(recv_sys->recv_log_crypt_key), 16,
+						aes_ctr_counter, MY_AES_BLOCK_SIZE, 1,
+						recv_sys->recv_log_crypt_ver);
+		}
 
 		ut_a(rc == MY_AES_OK);
 		ut_a(dst_len == src_len);
