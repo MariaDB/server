@@ -3708,28 +3708,11 @@ static Sys_var_harows Sys_select_limit(
        SESSION_VAR(select_limit), NO_CMD_LINE,
        VALID_RANGE(0, HA_POS_ERROR), DEFAULT(HA_POS_ERROR), BLOCK_SIZE(1));
 
-static bool update_timestamp(THD *thd, set_var *var)
-{
-  if (var->value)
-  {
-    my_hrtime_t hrtime = { hrtime_from_time(var->save_result.double_value) };
-    thd->set_time(hrtime);
-  }
-  else // SET timestamp=DEFAULT
-    thd->user_time.val= 0;
-  return false;
-}
-static double read_timestamp(THD *thd)
-{
-  return thd->start_time +
-         thd->start_time_sec_part/(double)TIME_SECOND_PART_FACTOR;
-}
-static Sys_var_session_special_double Sys_timestamp(
+static Sys_var_timestamp Sys_timestamp(
        "timestamp", "Set the time for this client",
        sys_var::ONLY_SESSION, NO_CMD_LINE,
        VALID_RANGE(0, TIMESTAMP_MAX_VALUE),
-       NO_MUTEX_GUARD, IN_BINLOG, ON_CHECK(0), 
-       ON_UPDATE(update_timestamp), ON_READ(read_timestamp));
+       NO_MUTEX_GUARD, IN_BINLOG);
 
 static bool update_last_insert_id(THD *thd, set_var *var)
 {

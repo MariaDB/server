@@ -2663,7 +2663,7 @@ mysql_execute_command(THD *thd)
         lex->free_arena_for_set_stmt();
         goto error;
       }
-      if (v->var->is_default())
+      if (v->var->session_is_default(thd))
           o= new set_var(v->type, v->var, &v->base, NULL);
       else
       {

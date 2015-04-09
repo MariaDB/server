@@ -1657,38 +1657,48 @@ public:
 };
 
 
-class Sys_var_session_special_double: public Sys_var_double
-{
-  typedef bool (*session_special_update_function)(THD *thd, set_var *var);
-  typedef double (*session_special_read_function)(THD *thd);
+/*
+  Dedicated class because of a weird behavior of a default value.
+  Assigning timestamp to itself
 
-  session_special_read_function read_func;
-  session_special_update_function update_func;
+    SET @@timestamp = @@timestamp
+
+  make it non-default and stops the time flow.
+*/
+class Sys_var_timestamp: public Sys_var_double
+{
 public:
-  Sys_var_session_special_double(const char *name_arg,
+  Sys_var_timestamp(const char *name_arg,
                const char *comment, int flag_args,
                CMD_LINE getopt,
                double min_val, double max_val,
-               PolyLock *lock, enum binlog_status_enum binlog_status_arg,
-               on_check_function on_check_func,
-               session_special_update_function update_func_arg,
-               session_special_read_function read_func_arg,
-               const char *substitute=0)
+               PolyLock *lock, enum binlog_status_enum binlog_status_arg)
     : Sys_var_double(name_arg, comment, flag_args, 0,
               sizeof(double), getopt, min_val,
-              max_val, 0, lock, binlog_status_arg, on_check_func, 0,
-              substitute),
-      read_func(read_func_arg), update_func(update_func_arg)
+              max_val, 0, lock, binlog_status_arg)
   {
     SYSVAR_ASSERT(scope() == ONLY_SESSION);
     SYSVAR_ASSERT(getopt.id < 0); // NO_CMD_LINE, because the offset is fake
   }
   bool session_update(THD *thd, set_var *var)
-  { return update_func(thd, var); }
+  {
+    if (var->value)
+    {
+      my_hrtime_t hrtime = { hrtime_from_time(var->save_result.double_value) };
+      thd->set_time(hrtime);
+    }
+    else // SET timestamp=DEFAULT
+      thd->user_time.val= 0;
+    return false;
+  }
   bool global_update(THD *thd, set_var *var)
   {
     DBUG_ASSERT(FALSE);
     return true;
+  }
+  bool session_is_default(THD *thd)
+  {
+    return thd->user_time.val == 0;
   }
   void session_save_default(THD *thd, set_var *var)
   { var->value= 0; }
@@ -1696,7 +1706,8 @@ public:
   { DBUG_ASSERT(FALSE); }
   uchar *session_value_ptr(THD *thd, const LEX_STRING *base)
   {
-    thd->sys_var_tmp.double_value= read_func(thd);
+    thd->sys_var_tmp.double_value= thd->start_time +
+          thd->start_time_sec_part/(double)TIME_SECOND_PART_FACTOR;
     return (uchar*) &thd->sys_var_tmp.double_value;
   }
   uchar *global_value_ptr(THD *thd, const LEX_STRING *base)
