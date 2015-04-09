@@ -1465,26 +1465,15 @@ buf_get_nth_chunk_block(
 }
 
 /********************************************************************//**
-Get crypt buffer. */
-UNIV_INLINE
-byte*
-buf_page_get_crypt_buffer(
-/*=========================*/
-	const buf_page_t*	bpage) /*!< in: buffer pool page */
-{
-	return bpage->crypt_buf;
-}
-
-/********************************************************************//**
 Get buf frame. */
 UNIV_INLINE
 void *
 buf_page_get_frame(
-/*=========================*/
+/*===============*/
 	const buf_page_t*	bpage) /*!< in: buffer pool page */
 {
-	if (bpage->crypt_buf) {
-		return buf_page_get_crypt_buffer(bpage);
+	if (bpage->slot && bpage->slot->crypt_buf) {
+		return bpage->slot->crypt_buf;
 	} else if (bpage->zip.data) {
 		return bpage->zip.data;
 	} else {

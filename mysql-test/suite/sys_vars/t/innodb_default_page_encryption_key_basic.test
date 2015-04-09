@@ -1,60 +1,60 @@
 
 --source include/have_innodb.inc
 
-SET @start_global_value = @@global.innodb_default_page_encryption_key;
+SET @start_global_value = @@global.innodb_default_encryption_key;
 SELECT @start_global_value;
 
 #
 # exists as global only
 #
 --echo Valid value 0-9
-select @@global.innodb_default_page_encryption_key <= 9;
-select @@global.innodb_default_page_encryption_key;
+select @@global.innodb_default_encryption_key <= 9;
+select @@global.innodb_default_encryption_key;
 --error ER_INCORRECT_GLOBAL_LOCAL_VAR
-select @@session.innodb_default_page_encryption_key;
-show global variables like 'innodb_default_page_encryption_key';
-show session variables like 'innodb_default_page_encryption_key';
-select * from information_schema.global_variables where variable_name='innodb_default_page_encryption_key';
-select * from information_schema.session_variables where variable_name='innodb_default_page_encryption_key';
+select @@session.innodb_default_encryption_key;
+show global variables like 'innodb_default_encryption_key';
+show session variables like 'innodb_default_encryption_key';
+select * from information_schema.global_variables where variable_name='innodb_default_encryption_key';
+select * from information_schema.session_variables where variable_name='innodb_default_encryption_key';
 
 #
 # show that it's writable
 #
-set global innodb_default_page_encryption_key=2;
-select @@global.innodb_default_page_encryption_key;
-select * from information_schema.global_variables where variable_name='innodb_default_page_encryption_key';
-select * from information_schema.session_variables where variable_name='innodb_default_page_encryption_key';
+set global innodb_default_encryption_key=2;
+select @@global.innodb_default_encryption_key;
+select * from information_schema.global_variables where variable_name='innodb_default_encryption_key';
+select * from information_schema.session_variables where variable_name='innodb_default_encryption_key';
 --error ER_GLOBAL_VARIABLE
-set session innodb_default_page_encryption_key=4;
+set session innodb_default_encryption_key=4;
 
 #
 # incorrect types
 #
 --error ER_WRONG_TYPE_FOR_VAR
-set global innodb_default_page_encryption_key=1.1;
+set global innodb_default_encryption_key=1.1;
 --error ER_WRONG_TYPE_FOR_VAR
-set global innodb_default_page_encryption_key=1e1;
+set global innodb_default_encryption_key=1e1;
 --error ER_WRONG_TYPE_FOR_VAR
-set global innodb_default_page_encryption_key="foo";
+set global innodb_default_encryption_key="foo";
 
-set global innodb_default_page_encryption_key=10;
-select @@global.innodb_default_page_encryption_key;
-select * from information_schema.global_variables where variable_name='innodb_default_page_encryption_key';
-set global innodb_default_page_encryption_key=-7;
-select @@global.innodb_default_page_encryption_key;
-select * from information_schema.global_variables where variable_name='innodb_default_page_encryption_key';
+set global innodb_default_encryption_key=10;
+select @@global.innodb_default_encryption_key;
+select * from information_schema.global_variables where variable_name='innodb_default_encryption_key';
+set global innodb_default_encryption_key=-7;
+select @@global.innodb_default_encryption_key;
+select * from information_schema.global_variables where variable_name='innodb_default_encryption_key';
 
 #
 # min/max values
 #
-set global innodb_default_page_encryption_key=1;
-select @@global.innodb_default_page_encryption_key;
-set global innodb_default_page_encryption_key=255;
-select @@global.innodb_default_page_encryption_key;
+set global innodb_default_encryption_key=1;
+select @@global.innodb_default_encryption_key;
+set global innodb_default_encryption_key=255;
+select @@global.innodb_default_encryption_key;
 
 #
 # cleanup
 #
 
-SET @@global.innodb_default_page_encryption_key = @start_global_value;
-SELECT @@global.innodb_default_page_encryption_key;
+SET @@global.innodb_default_encryption_key = @start_global_value;
+SELECT @@global.innodb_default_encryption_key;

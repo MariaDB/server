@@ -1,4 +1,5 @@
 -- source include/have_innodb.inc
+-- source include/not_embedded.inc
 -- source include/have_file_key_management_plugin.inc
 
 --disable_query_log
@@ -13,8 +14,8 @@ SET GLOBAL innodb_file_per_table = ON;
 set global innodb_compression_algorithm = 1;
 
 create table innodb_normal(c1 bigint not null, b char(200)) engine=innodb page_compressed=1;
-create table innodb_compact(c1 bigint not null, b char(200)) engine=innodb row_format=compact page_encryption=1 page_encryption_key=1 page_compressed=1;
-create table innodb_dynamic(c1 bigint not null, b char(200)) engine=innodb row_format=dynamic page_encryption=1 page_encryption_key=2 page_compressed=1;
+create table innodb_compact(c1 bigint not null, b char(200)) engine=innodb row_format=compact encryption='ON' encryption_key_id=1 page_compressed=1;
+create table innodb_dynamic(c1 bigint not null, b char(200)) engine=innodb row_format=dynamic encryption='ON' encryption_key_id=2 page_compressed=1;
 show warnings;
 
 show create table innodb_normal;
@@ -53,11 +54,10 @@ t1.c1 = t2.c1 and t1.b = t2.b;
 select count(*) from innodb_dynamic t1, innodb_normal t2 where
 t1.c1 = t2.c1 and t1.b = t2.b;
 
-SELECT variable_value >= 0 FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_num_pages_page_encrypted';
-SELECT variable_value >= 0 FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_num_pages_page_decrypted';
-SELECT variable_value = 0 FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_num_pages_page_encryption_error';
-SELECT variable_value >= 0 FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_num_pages_page_compressed';
-SELECT variable_value >= 0 FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_num_pages_page_decompressed';
+SELECT variable_value >= 0 FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_num_pages_encrypted';
+SELECT variable_value >= 0 FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_num_pages_decrypted';
+SELECT variable_value >= 0 FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_num_pages_compressed';
+SELECT variable_value >= 0 FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_num_pages_decompressed';
 
 --source include/restart_mysqld.inc
 
@@ -77,17 +77,16 @@ t1.c1 = t2.c1 and t1.b = t2.b;
 select count(*) from innodb_dynamic t1, innodb_normal t2 where
 t1.c1 = t2.c1 and t1.b = t2.b;
 
-SELECT variable_value >= 0 FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_num_pages_page_encrypted';
-SELECT variable_value >= 0 FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_num_pages_page_decrypted';
-SELECT variable_value = 0 FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_num_pages_page_encryption_error';
-SELECT variable_value > 0 FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_num_pages_page_compressed';
-SELECT variable_value > 0 FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_num_pages_page_decompressed';
+SELECT variable_value >= 0 FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_num_pages_encrypted';
+SELECT variable_value >= 0 FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_num_pages_decrypted';
+SELECT variable_value >= 0 FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_num_pages_compressed';
+SELECT variable_value >= 0 FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_num_pages_decompressed';
 
 alter table innodb_normal engine=innodb page_compressed=DEFAULT;
 show create table innodb_normal;
-alter table innodb_compact engine=innodb page_encryption=DEFAULT page_encryption_key=DEFAULT page_compressed=DEFAULT;
+alter table innodb_compact engine=innodb encryption=DEFAULT encryption_key_id=DEFAULT page_compressed=DEFAULT;
 show create table innodb_compact;
-alter table innodb_dynamic engine=innodb page_encryption=DEFAULT page_encryption_key=DEFAULT page_compressed=DEFAULT;
+alter table innodb_dynamic engine=innodb encryption=DEFAULT encryption_key_id=DEFAULT page_compressed=DEFAULT;
 show create table innodb_dynamic;
 
 --source include/restart_mysqld.inc
@@ -110,11 +109,10 @@ t1.c1 = t2.c1 and t1.b = t2.b;
 select count(*) from innodb_dynamic t1, innodb_normal t2 where
 t1.c1 = t2.c1 and t1.b = t2.b;
 
-SELECT variable_value = 0 FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_num_pages_page_encrypted';
-SELECT variable_value = 0 FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_num_pages_page_decrypted';
-SELECT variable_value = 0 FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_num_pages_page_encryption_error';
-SELECT variable_value = 0 FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_num_pages_page_compressed';
-SELECT variable_value = 0 FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_num_pages_page_decompressed';
+SELECT variable_value = 0 FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_num_pages_encrypted';
+SELECT variable_value = 0 FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_num_pages_decrypted';
+SELECT variable_value = 0 FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_num_pages_compressed';
+SELECT variable_value = 0 FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_num_pages_decompressed';
 
 drop procedure innodb_insert_proc;
 drop table innodb_normal;

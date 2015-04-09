@@ -81,6 +81,7 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include "fsp0fsp.h"
 #include "sync0sync.h"
 #include "fil0fil.h"
+#include "fil0crypt.h"
 #include "trx0xa.h"
 #include "row0merge.h"
 #include "dict0boot.h"
@@ -106,7 +107,6 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include "fts0priv.h"
 #include "page0zip.h"
 #include "fil0pagecompress.h"
-#include "fil0pageencryption.h"
 
 
 #define thd_get_trx_isolation(X) ((enum_tx_isolation)thd_tx_isolation(X))
@@ -631,10 +631,10 @@ ha_create_table_option innodb_table_option_list[]=
   HA_TOPTION_NUMBER("PAGE_COMPRESSION_LEVEL", page_compression_level, 0, 1, 9, 1),
   /* With this option user can enable atomic writes feature for this table */
   HA_TOPTION_ENUM("ATOMIC_WRITES", atomic_writes, "DEFAULT,ON,OFF", 0),
-  /* With this option the user can enable page encryption for the table */
-  HA_TOPTION_BOOL("PAGE_ENCRYPTION", page_encryption, 0),
+  /* With this option the user can enable encryption for the table */
+  HA_TOPTION_ENUM("ENCRYPTION", encryption, "DEFAULT,ON,OFF", 0),
   /* With this option the user defines the key identifier using for the encryption */
-  HA_TOPTION_NUMBER("PAGE_ENCRYPTION_KEY", page_encryption_key, 0, 1, 255, 1),
+  HA_TOPTION_NUMBER("ENCRYPTION_KEY_ID", encryption_key_id, 0, 1, UINT_MAX32, 1),
 
   HA_TOPTION_END
 };
@@ -1013,12 +1013,10 @@ static SHOW_VAR innodb_status_variables[]= {
    (char*) &export_vars.innodb_pages_page_decompressed,   SHOW_LONGLONG},
   {"num_pages_page_compression_error",
    (char*) &export_vars.innodb_pages_page_compression_error,   SHOW_LONGLONG},
-  {"num_pages_page_encrypted",
-   (char*) &export_vars.innodb_pages_page_encrypted,   SHOW_LONGLONG},
-  {"num_pages_page_decrypted",
-   (char*) &export_vars.innodb_pages_page_decrypted,   SHOW_LONGLONG},
-  {"num_pages_page_encryption_error",
-   (char*) &export_vars.innodb_pages_page_encryption_error,   SHOW_LONGLONG},
+  {"num_pages_encrypted",
+   (char*) &export_vars.innodb_pages_encrypted,   SHOW_LONGLONG},
+  {"num_pages_decrypted",
+   (char*) &export_vars.innodb_pages_decrypted,   SHOW_LONGLONG},
   {"have_lz4",
   (char*) &innodb_have_lz4,                  SHOW_BOOL},
   {"have_lzo",
@@ -11557,8 +11555,6 @@ innobase_table_flags(
 	modified by another thread while the table is being created. */
 	const ulint     default_compression_level = page_zip_level;
 
-	const ulint default_encryption_key = srv_default_page_encryption_key;
-
 	*flags = 0;
 	*flags2 = 0;
 
@@ -11757,10 +11753,7 @@ index_bad:
 		    options->page_compressed,
 		    options->page_compression_level == 0 ?
 		        default_compression_level : options->page_compression_level,
-		    options->atomic_writes,
-		    options->page_encryption,
-		    options->page_encryption_key == 0 ?
-		        default_encryption_key : options->page_encryption_key);
+		    options->atomic_writes);
 
 	if (create_info->options & HA_LEX_CREATE_TMP_TABLE) {
 		*flags2 |= DICT_TF2_TEMPORARY;
@@ -11796,13 +11789,14 @@ ha_innobase::check_table_options(
 	enum row_type	row_format = table->s->row_type;
 	ha_table_option_struct *options= table->s->option_struct;
 	atomic_writes_t awrites = (atomic_writes_t)options->atomic_writes;
+	fil_encryption_t encrypt = (fil_encryption_t)options->encryption;
 
-	if (options->page_encryption) {
+	if (encrypt == FIL_SPACE_ENCRYPTION_ON) {
 		if (srv_encrypt_tables) {
 			push_warning(
 				thd, Sql_condition::WARN_LEVEL_WARN,
 				HA_WRONG_CREATE_OPTION,
-				"InnoDB: PAGE_ENCRYPTION not available if innodb_encrypt_tables=ON");
+				"InnoDB: ENCRYPTION not available if innodb_encrypt_tables=ON");
 			return "INNODB_ENCRYPT_TABLES";
 		}
 
@@ -11810,7 +11804,7 @@ ha_innobase::check_table_options(
 			push_warning(
 				thd, Sql_condition::WARN_LEVEL_WARN,
 				HA_WRONG_CREATE_OPTION,
-				"InnoDB: PAGE_ENCRYPTION requires"
+				"InnoDB: ENCRYPTION requires"
 				" innodb_file_per_table.");
 			return "PAGE_ENCRYPTION";
 		}
@@ -11818,14 +11812,6 @@ ha_innobase::check_table_options(
 
 	/* Check page compression requirements */
 	if (options->page_compressed) {
-
-		if (srv_encrypt_tables) {
-			push_warning(
-				thd, Sql_condition::WARN_LEVEL_WARN,
-				HA_WRONG_CREATE_OPTION,
-				"InnoDB: PAGE_COMPRESSION not available if innodb_encrypt_tables=ON");
-			return "PAGE_COMPRESSED";
-		}
 
 		if (row_format == ROW_TYPE_COMPRESSED) {
 			push_warning(
@@ -11896,29 +11882,19 @@ ha_innobase::check_table_options(
 		}
 	}
 
-	if (options->page_encryption_key != 0) {
-		if (options->page_encryption == false) {
+	if (options->encryption_key_id != 0) {
+		if (options->encryption == FIL_SPACE_ENCRYPTION_OFF) {
 			/* ignore this to allow alter table without changing page_encryption_key ...*/
 		}
 
-		if (options->page_encryption_key < 1 || options->page_encryption_key > 255) {
+		if (!encryption_key_exists(options->encryption_key_id)) {
 			push_warning_printf(
 				thd, Sql_condition::WARN_LEVEL_WARN,
 				HA_WRONG_CREATE_OPTION,
-				"InnoDB: invalid PAGE_ENCRYPTION_KEY = %lu."
-				" Valid values are [1..255]",
-				options->page_encryption_key);
-			return "PAGE_ENCRYPTION_KEY";
-		}
-
-		if (!encryption_key_exists(options->page_encryption_key)) {
-			push_warning_printf(
-				thd, Sql_condition::WARN_LEVEL_WARN,
-				HA_WRONG_CREATE_OPTION,
-				"InnoDB: PAGE_ENCRYPTION_KEY encryption key %lu not available",
-				options->page_encryption_key
+				"InnoDB: ENCRYPTION_KEY_ID %lu not available",
+				options->encryption_key_id
 			);
-			return "PAGE_ENCRYPTION_KEY";
+			return "ENCRYPTION_KEY_ID";
 
 		}
 	}
@@ -11980,6 +11956,11 @@ ha_innobase::create(
 
 	const char*	stmt;
 	size_t		stmt_len;
+	/* Cache table options */
+	ha_table_option_struct *options= form->s->option_struct;
+	fil_encryption_t encrypt = (fil_encryption_t)options->encryption;
+	ulint key_id = (options->encryption_key_id == 0) ? srv_default_encryption_key :
+		options->encryption_key_id;
 
 	DBUG_ENTER("ha_innobase::create");
 
@@ -12237,6 +12218,28 @@ ha_innobase::create(
 		norm_name, FALSE, FALSE, DICT_ERR_IGNORE_NONE);
 
 	DBUG_ASSERT(innobase_table != 0);
+
+	/* If user has requested that table should be encrypted or table
+	should remain as unencrypted store crypt data */
+	if (encrypt == FIL_SPACE_ENCRYPTION_ON || encrypt == FIL_SPACE_ENCRYPTION_OFF) {
+		ulint maxsize;
+		ulint zip_size = fil_space_get_zip_size(innobase_table->space);
+		fil_space_crypt_t* old_crypt_data = fil_space_get_crypt_data(innobase_table->space);
+		fil_space_crypt_t* crypt_data;
+
+		crypt_data = fil_space_create_crypt_data();
+		crypt_data->page0_offset = fsp_header_get_crypt_offset(zip_size, &maxsize);
+		crypt_data->keys[0].key_id = key_id;
+		crypt_data->encryption = encrypt;
+
+		/* If there is old crypt data, copy IV */
+		if (old_crypt_data) {
+			memcpy(crypt_data->iv, old_crypt_data->iv, old_crypt_data->iv_length);
+			crypt_data->iv_length = old_crypt_data->iv_length;
+		}
+
+		fil_space_set_crypt_data(innobase_table->space, crypt_data);
+	}
 
 	innobase_copy_frm_flags_from_create_info(innobase_table, create_info);
 
@@ -20336,12 +20339,12 @@ static MYSQL_SYSVAR_UINT(encryption_rotation_iops, srv_n_fil_crypt_iops,
 			 innodb_encryption_rotation_iops_update,
 			 srv_n_fil_crypt_iops, 0, UINT_MAX32, 0);
 
-static MYSQL_SYSVAR_UINT(default_page_encryption_key, srv_default_page_encryption_key,
+static MYSQL_SYSVAR_UINT(default_encryption_key, srv_default_encryption_key,
 			 PLUGIN_VAR_RQCMDARG,
-			 "Encryption key used for page encryption.",
+			 "Default encryption key id used for table encryption.",
 			 NULL,
 			 NULL,
-			 DEFAULT_ENCRYPTION_KEY, 1, 255, 0);
+			 FIL_DEFAULT_ENCRYPTION_KEY, 1, UINT_MAX32, 0);
 
 static MYSQL_SYSVAR_BOOL(scrub_log, srv_scrub_log,
   PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_READONLY,
@@ -20640,7 +20643,7 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(scrub_log),
   MYSQL_SYSVAR(scrub_log_speed),
   MYSQL_SYSVAR(encrypt_log),
-  MYSQL_SYSVAR(default_page_encryption_key),
+  MYSQL_SYSVAR(default_encryption_key),
   /* Scrubing feature */
   MYSQL_SYSVAR(immediate_scrub_data_uncompressed),
   MYSQL_SYSVAR(background_scrub_data_uncompressed),

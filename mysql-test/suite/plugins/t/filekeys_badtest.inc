@@ -11,7 +11,7 @@ call mtr.add_suppression("Plugin 'file_key_management' registration.*failed");
 --source include/search_pattern_in_file.inc
 
 --error ER_CANT_CREATE_TABLE
-create table t1(c1 bigint not null, b char(200))  engine=innodb page_encryption=1 page_encryption_key=1;
+create table t1(c1 bigint not null, b char(200))  engine=innodb encryption='on' encryption_key_id=1;
 
 select plugin_status from information_schema.plugins
        where plugin_name = 'file_key_management';

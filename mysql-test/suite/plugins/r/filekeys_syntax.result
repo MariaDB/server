@@ -1,7 +1,7 @@
 call mtr.add_suppression("File '.*keys.txt' not found");
 call mtr.add_suppression("Plugin 'file_key_management' init function returned error");
 call mtr.add_suppression("Plugin 'file_key_management' registration.*failed");
-create table t1(c1 bigint not null, b char(200))  engine=innodb page_encryption=1 page_encryption_key=1;
+create table t1(c1 bigint not null, b char(200))  engine=innodb encryption='on' encryption_key_id=1;
 ERROR HY000: Can't create table `test`.`t1` (errno: 140 "Wrong create options")
 select plugin_status from information_schema.plugins
 where plugin_name = 'file_key_management';
@@ -11,7 +11,7 @@ ERROR HY000: Invalid key id at MYSQL_TMP_DIR/keys.txt line 2, column 2
 call mtr.add_suppression("File '.*keys.txt' not found");
 call mtr.add_suppression("Plugin 'file_key_management' init function returned error");
 call mtr.add_suppression("Plugin 'file_key_management' registration.*failed");
-create table t1(c1 bigint not null, b char(200))  engine=innodb page_encryption=1 page_encryption_key=1;
+create table t1(c1 bigint not null, b char(200))  engine=innodb encryption='on' encryption_key_id=1;
 ERROR HY000: Can't create table `test`.`t1` (errno: 140 "Wrong create options")
 select plugin_status from information_schema.plugins
 where plugin_name = 'file_key_management';
@@ -19,7 +19,7 @@ plugin_status
 call mtr.add_suppression("Invalid key id");
 call mtr.add_suppression("Plugin 'file_key_management' init function returned error");
 call mtr.add_suppression("Plugin 'file_key_management' registration.*failed");
-create table t1(c1 bigint not null, b char(200))  engine=innodb page_encryption=1 page_encryption_key=1;
+create table t1(c1 bigint not null, b char(200))  engine=innodb encryption='on' encryption_key_id=1;
 ERROR HY000: Can't create table `test`.`t1` (errno: 140 "Wrong create options")
 select plugin_status from information_schema.plugins
 where plugin_name = 'file_key_management';
@@ -29,7 +29,7 @@ ERROR HY000: Invalid key id at MYSQL_TMP_DIR/keys.txt line 2, column 11
 call mtr.add_suppression("Invalid key id");
 call mtr.add_suppression("Plugin 'file_key_management' init function returned error");
 call mtr.add_suppression("Plugin 'file_key_management' registration.*failed");
-create table t1(c1 bigint not null, b char(200))  engine=innodb page_encryption=1 page_encryption_key=1;
+create table t1(c1 bigint not null, b char(200))  engine=innodb encryption='on' encryption_key_id=1;
 ERROR HY000: Can't create table `test`.`t1` (errno: 140 "Wrong create options")
 select plugin_status from information_schema.plugins
 where plugin_name = 'file_key_management';
@@ -37,7 +37,7 @@ plugin_status
 call mtr.add_suppression("Invalid key id");
 call mtr.add_suppression("Plugin 'file_key_management' init function returned error");
 call mtr.add_suppression("Plugin 'file_key_management' registration.*failed");
-create table t1(c1 bigint not null, b char(200))  engine=innodb page_encryption=1 page_encryption_key=1;
+create table t1(c1 bigint not null, b char(200))  engine=innodb encryption='on' encryption_key_id=1;
 ERROR HY000: Can't create table `test`.`t1` (errno: 140 "Wrong create options")
 select plugin_status from information_schema.plugins
 where plugin_name = 'file_key_management';
@@ -47,7 +47,7 @@ ERROR HY000: Invalid key at MYSQL_TMP_DIR/keys.txt line 2, column 47
 call mtr.add_suppression("Invalid key id");
 call mtr.add_suppression("Plugin 'file_key_management' init function returned error");
 call mtr.add_suppression("Plugin 'file_key_management' registration.*failed");
-create table t1(c1 bigint not null, b char(200))  engine=innodb page_encryption=1 page_encryption_key=1;
+create table t1(c1 bigint not null, b char(200))  engine=innodb encryption='on' encryption_key_id=1;
 ERROR HY000: Can't create table `test`.`t1` (errno: 140 "Wrong create options")
 select plugin_status from information_schema.plugins
 where plugin_name = 'file_key_management';
@@ -55,7 +55,7 @@ plugin_status
 call mtr.add_suppression("Invalid key");
 call mtr.add_suppression("Plugin 'file_key_management' init function returned error");
 call mtr.add_suppression("Plugin 'file_key_management' registration.*failed");
-create table t1(c1 bigint not null, b char(200))  engine=innodb page_encryption=1 page_encryption_key=1;
+create table t1(c1 bigint not null, b char(200))  engine=innodb encryption='on' encryption_key_id=1;
 ERROR HY000: Can't create table `test`.`t1` (errno: 140 "Wrong create options")
 select plugin_status from information_schema.plugins
 where plugin_name = 'file_key_management';
@@ -65,7 +65,7 @@ ERROR HY000: Invalid key at MYSQL_TMP_DIR/keys.txt line 2, column 33
 call mtr.add_suppression("Invalid key");
 call mtr.add_suppression("Plugin 'file_key_management' init function returned error");
 call mtr.add_suppression("Plugin 'file_key_management' registration.*failed");
-create table t1(c1 bigint not null, b char(200))  engine=innodb page_encryption=1 page_encryption_key=1;
+create table t1(c1 bigint not null, b char(200))  engine=innodb encryption='on' encryption_key_id=1;
 ERROR HY000: Can't create table `test`.`t1` (errno: 140 "Wrong create options")
 select plugin_status from information_schema.plugins
 where plugin_name = 'file_key_management';
@@ -73,7 +73,7 @@ plugin_status
 call mtr.add_suppression("Invalid key");
 call mtr.add_suppression("Plugin 'file_key_management' init function returned error");
 call mtr.add_suppression("Plugin 'file_key_management' registration.*failed");
-create table t1(c1 bigint not null, b char(200))  engine=innodb page_encryption=1 page_encryption_key=1;
+create table t1(c1 bigint not null, b char(200))  engine=innodb encryption='on' encryption_key_id=1;
 ERROR HY000: Can't create table `test`.`t1` (errno: 140 "Wrong create options")
 select plugin_status from information_schema.plugins
 where plugin_name = 'file_key_management';
@@ -83,7 +83,7 @@ ERROR HY000: Syntax error at MYSQL_TMP_DIR/keys.txt line 2, column 2
 call mtr.add_suppression("Invalid key");
 call mtr.add_suppression("Plugin 'file_key_management' init function returned error");
 call mtr.add_suppression("Plugin 'file_key_management' registration.*failed");
-create table t1(c1 bigint not null, b char(200))  engine=innodb page_encryption=1 page_encryption_key=1;
+create table t1(c1 bigint not null, b char(200))  engine=innodb encryption='on' encryption_key_id=1;
 ERROR HY000: Can't create table `test`.`t1` (errno: 140 "Wrong create options")
 select plugin_status from information_schema.plugins
 where plugin_name = 'file_key_management';
@@ -91,7 +91,7 @@ plugin_status
 call mtr.add_suppression("Syntax error");
 call mtr.add_suppression("Plugin 'file_key_management' init function returned error");
 call mtr.add_suppression("Plugin 'file_key_management' registration.*failed");
-create table t1(c1 bigint not null, b char(200))  engine=innodb page_encryption=1 page_encryption_key=1;
+create table t1(c1 bigint not null, b char(200))  engine=innodb encryption='on' encryption_key_id=1;
 ERROR HY000: Can't create table `test`.`t1` (errno: 140 "Wrong create options")
 select plugin_status from information_schema.plugins
 where plugin_name = 'file_key_management';
@@ -101,7 +101,7 @@ ERROR HY000: Syntax error at MYSQL_TMP_DIR/keys.txt line 2, column 1
 call mtr.add_suppression("Syntax error");
 call mtr.add_suppression("Plugin 'file_key_management' init function returned error");
 call mtr.add_suppression("Plugin 'file_key_management' registration.*failed");
-create table t1(c1 bigint not null, b char(200))  engine=innodb page_encryption=1 page_encryption_key=1;
+create table t1(c1 bigint not null, b char(200))  engine=innodb encryption='on' encryption_key_id=1;
 ERROR HY000: Can't create table `test`.`t1` (errno: 140 "Wrong create options")
 select plugin_status from information_schema.plugins
 where plugin_name = 'file_key_management';
@@ -109,7 +109,7 @@ plugin_status
 call mtr.add_suppression("Syntax error");
 call mtr.add_suppression("Plugin 'file_key_management' init function returned error");
 call mtr.add_suppression("Plugin 'file_key_management' registration.*failed");
-create table t1(c1 bigint not null, b char(200))  engine=innodb page_encryption=1 page_encryption_key=1;
+create table t1(c1 bigint not null, b char(200))  engine=innodb encryption='on' encryption_key_id=1;
 ERROR HY000: Can't create table `test`.`t1` (errno: 140 "Wrong create options")
 select plugin_status from information_schema.plugins
 where plugin_name = 'file_key_management';

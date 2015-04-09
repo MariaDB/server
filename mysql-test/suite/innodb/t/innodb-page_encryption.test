@@ -4,22 +4,22 @@
 --disable_query_log
 let $innodb_file_format_orig = `SELECT @@innodb_file_format`;
 let $innodb_file_per_table_orig = `SELECT @@innodb_file_per_table`;
-let $default_page_encryption_key = `SELECT @@innodb_default_page_encryption_key`;
+let $default_encryption_key = `SELECT @@innodb_default_encryption_key`;
 --enable_query_log
 
 SET GLOBAL innodb_file_format = `Barracuda`;
 SET GLOBAL innodb_file_per_table = ON;
 
 create table innodb_normal(c1 bigint not null, b char(200)) engine=innodb;
-create table innodb_compact(c1 bigint not null, b char(200)) engine=innodb row_format=compact page_encryption=1 page_encryption_key=1;
-create table innodb_compressed(c1 bigint not null, b char(200)) engine=innodb row_format=compressed page_encryption=1 page_encryption_key=2;
+create table innodb_compact(c1 bigint not null, b char(200)) engine=innodb row_format=compact encryption='ON' encryption_key_id=1;
+create table innodb_compressed(c1 bigint not null, b char(200)) engine=innodb row_format=compressed encryption='ON' encryption_key_id=2;
 --error ER_CANT_CREATE_TABLE
-create table innodb_dynamic(c1 bigint not null, b char(200)) engine=innodb row_format=dynamic page_encryption=1  page_encryption_key=3;
-create table innodb_dynamic(c1 bigint not null, b char(200)) engine=innodb row_format=dynamic page_encryption=1  page_encryption_key=33;
-create table innodb_redundant(c1 bigint not null, b char(200))  engine=innodb row_format=redundant page_encryption=1  page_encryption_key=4;
+create table innodb_dynamic(c1 bigint not null, b char(200)) engine=innodb row_format=dynamic encryption='ON' encryption_key_id=3;
+create table innodb_dynamic(c1 bigint not null, b char(200)) engine=innodb row_format=dynamic encryption='ON' encryption_key_id=33;
+create table innodb_redundant(c1 bigint not null, b char(200))  engine=innodb row_format=redundant encryption='ON' encryption_key_id=4;
 
-SET GLOBAL innodb_default_page_encryption_key = 5;
-create table innodb_defkey(c1  bigint not null, b char(200))  engine=innodb page_encryption=1;
+SET GLOBAL innodb_default_encryption_key = 5;
+create table innodb_defkey(c1  bigint not null, b char(200))  engine=innodb encryption='ON';
 show create table innodb_defkey;
 
 show create table innodb_compact;
@@ -75,9 +75,8 @@ select count(*) from innodb_defkey t1, innodb_normal t2 where
 t1.c1 = t2.c1 and t1.b = t2.b;
 
 # Note there that these variables are updated only when real I/O is done, thus they are not reliable
-SELECT variable_value >= 0 FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_num_pages_page_encrypted';
-SELECT variable_value >= 0 FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_num_pages_page_decrypted';
-SELECT variable_value = 0 FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_num_pages_page_encryption_error';
+SELECT variable_value >= 0 FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_num_pages_encrypted';
+SELECT variable_value >= 0 FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_num_pages_decrypted';
 
 --source include/restart_mysqld.inc
 
@@ -106,17 +105,16 @@ t1.c1 = t2.c1 and t1.b = t2.b;
 select count(*) from innodb_defkey t1, innodb_normal t2 where
 t1.c1 = t2.c1 and t1.b = t2.b;
 
-SELECT variable_value >= 0 FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_num_pages_page_encrypted';
-SELECT variable_value >= 0 FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_num_pages_page_decrypted';
-SELECT variable_value = 0 FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_num_pages_page_encryption_error';
+SELECT variable_value >= 0 FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_num_pages_encrypted';
+SELECT variable_value >= 0 FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_num_pages_decrypted';
 
-alter table innodb_compact engine=innodb page_encryption=DEFAULT page_encryption_key=DEFAULT;
+alter table innodb_compact engine=innodb encryption=DEFAULT encryption_key_id=DEFAULT;
 show create table innodb_compact;
-alter table innodb_compressed engine=innodb page_encryption=DEFAULT page_encryption_key=DEFAULT;
+alter table innodb_compressed engine=innodb encryption=DEFAULT encryption_key_id=DEFAULT;
 show create table innodb_compressed;
-alter table innodb_dynamic engine=innodb page_encryption=DEFAULT page_encryption_key=DEFAULT;
+alter table innodb_dynamic engine=innodb encryption=DEFAULT encryption_key_id=DEFAULT;
 show create table innodb_dynamic;
-alter table innodb_redundant engine=innodb page_encryption=DEFAULT page_encryption_key=DEFAULT;
+alter table innodb_redundant engine=innodb encryption=DEFAULT encryption_key_id=DEFAULT;
 show create table innodb_redundant;
 
 --source include/restart_mysqld.inc
@@ -149,9 +147,8 @@ select count(*) from innodb_redundant t1, innodb_normal t2 where
 t1.c1 = t2.c1 and t1.b = t2.b;
 
 # After alter+restart these should be 0
-SELECT variable_value = 0 FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_num_pages_page_encrypted';
-SELECT variable_value = 0 FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_num_pages_page_decrypted';
-SELECT variable_value = 0 FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_num_pages_page_encryption_error';
+SELECT variable_value = 0 FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_num_pages_encrypted';
+SELECT variable_value = 0 FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_num_pages_decrypted';
 
 drop procedure innodb_insert_proc;
 drop table innodb_normal;
@@ -165,5 +162,5 @@ drop table innodb_defkey;
 --disable_query_log
 EVAL SET GLOBAL innodb_file_per_table = $innodb_file_per_table_orig;
 EVAL SET GLOBAL innodb_file_format = $innodb_file_format_orig;
-EVAL SET GLOBAL innodb_default_page_encryption_key = $default_page_encryption_key;
+EVAL SET GLOBAL innodb_default_encryption_key = $default_encryption_key;
 --enable_query_log

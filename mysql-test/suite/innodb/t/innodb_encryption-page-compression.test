@@ -15,16 +15,6 @@ SET GLOBAL innodb_file_per_table = ON;
 # zlib
 set global innodb_compression_algorithm = 1;
 
---replace_regex /#sql-[0-9a-f_]*`/#sql-temporary`/
---error 1005
-create table innodb_normal(c1 bigint not null, b char(200)) engine=innodb page_compressed=1;
---replace_regex /#sql-[0-9a-f_]*`/#sql-temporary`/
---error 1005
-create table innodb_compact(c1 bigint not null, b char(200)) engine=innodb row_format=compact page_compressed=1;
---replace_regex /#sql-[0-9a-f_]*`/#sql-temporary`/
---error 1005
-create table innodb_dynamic(c1 bigint not null, b char(200)) engine=innodb row_format=dynamic page_compressed=1;
-
 # reset system
 --disable_query_log
 EVAL SET GLOBAL innodb_compression_algorithm = $innodb_compression_algorithm_orig;

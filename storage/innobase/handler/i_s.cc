@@ -61,6 +61,8 @@ Modified Dec 29, 2014 Jan Lindström (Added sys_semaphore_waits)
 #include "btr0btr.h"
 #include "page0zip.h"
 #include "sync0arr.h"
+#include "fil0fil.h"
+#include "fil0crypt.h"
 
 /** structure associates a name string with a file page type and/or buffer
 page state. */
