@@ -11796,23 +11796,12 @@ ha_innobase::check_table_options(
 	atomic_writes_t awrites = (atomic_writes_t)options->atomic_writes;
 	fil_encryption_t encrypt = (fil_encryption_t)options->encryption;
 
-	if (encrypt == FIL_SPACE_ENCRYPTION_ON) {
-		if (srv_encrypt_tables) {
-			push_warning(
-				thd, Sql_condition::WARN_LEVEL_WARN,
-				HA_WRONG_CREATE_OPTION,
-				"InnoDB: ENCRYPTION not available if innodb_encrypt_tables=ON");
-			return "INNODB_ENCRYPT_TABLES";
-		}
-
-		if (!use_tablespace) {
-			push_warning(
-				thd, Sql_condition::WARN_LEVEL_WARN,
-				HA_WRONG_CREATE_OPTION,
-				"InnoDB: ENCRYPTION requires"
-				" innodb_file_per_table.");
-			return "PAGE_ENCRYPTION";
-		}
+	if (encrypt != FIL_SPACE_ENCRYPTION_DEFAULT && !use_tablespace) {
+		push_warning(
+			thd, Sql_condition::WARN_LEVEL_WARN,
+			HA_WRONG_CREATE_OPTION,
+			"InnoDB: ENCRYPTED requires innodb_file_per_table");
+		return "ENCRYPTED";
 	}
 
 	/* Check page compression requirements */
@@ -11887,8 +11876,8 @@ ha_innobase::check_table_options(
 		}
 	}
 
-	if (options->encryption == FIL_SPACE_ENCRYPTION_ON ||
-            (options->encryption == FIL_SPACE_ENCRYPTION_DEFAULT && srv_encrypt_tables)) {
+	if (encrypt == FIL_SPACE_ENCRYPTION_ON ||
+            (encrypt == FIL_SPACE_ENCRYPTION_DEFAULT && srv_encrypt_tables)) {
 		if (!encryption_key_id_exists(options->encryption_key_id)) {
 			push_warning_printf(
 				thd, Sql_condition::WARN_LEVEL_WARN,
@@ -12222,7 +12211,7 @@ ha_innobase::create(
 
 	/* If user has requested that table should be encrypted or table
 	should remain as unencrypted store crypt data */
-	if (encrypt == FIL_SPACE_ENCRYPTION_ON || encrypt == FIL_SPACE_ENCRYPTION_OFF) {
+	if (encrypt != FIL_SPACE_ENCRYPTION_DEFAULT) {
 		ulint maxsize;
 		ulint zip_size = fil_space_get_zip_size(innobase_table->space);
 		fil_space_crypt_t* old_crypt_data = fil_space_get_crypt_data(innobase_table->space);
