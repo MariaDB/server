@@ -1,15 +1,13 @@
 --innodb-file-per-table=1
 --innodb-file-format=Barracuda
---innodb-encrypt-tables=off
 --innodb-immediate-scrub-data-uncompressed=ON
 --innodb-background-scrub-data-uncompressed=ON
 --innodb-background-scrub-data-compressed=ON
---loose-innodb-scrub-force-testing=ON
---innodb-encryption-threads=0
+--loose-innodb-debug-force-scrubbing=ON
 --encrypt-tmp-disk-tables=ON
 --aria-encrypt-tables=ON
 --innodb-encryption-threads=4
 --innodb-encryption-rotate-key-age=15
 --innodb-encrypt-tables=ON
+--innodb-encrypt-log=ON
 --innodb-tablespaces-scrubbing
-
