@@ -44,14 +44,14 @@ a
 1
 2
 include/stop_slave.inc
-START SLAVE UNTIL master_gtid_pos = "1-10-100,2-20-200";
+START SLAVE UNTIL master_gtid_pos = "1-10-100,2-20-200,0-1-300";
 include/wait_for_slave_to_start.inc
 Using_Gtid = 'Current_Pos'
 Until_Condition = 'Gtid'
+INSERT INTO t1 VALUES (3);
+DELETE FROM t1 WHERE a=3;
 include/stop_slave.inc
-include/start_slave.inc
 *** Test UNTIL condition in an earlier binlog than the start GTID. ***
-include/stop_slave.inc
 SET gtid_domain_id = 1;
 INSERT INTO t1 VALUES (3);
 SET gtid_domain_id = 2;
