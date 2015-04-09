@@ -683,7 +683,7 @@ extern my_bool srv_print_all_deadlocks;
 extern my_bool	srv_cmp_per_index_enabled;
 
 /* is encryption enabled */
-extern my_bool	srv_encrypt_tables;
+extern ulong	srv_encrypt_tables;
 
 /** Status variables to be passed to MySQL */
 extern struct export_var_t export_vars;

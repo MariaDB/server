@@ -236,7 +236,6 @@ static char*	internal_innobase_data_file_path	= NULL;
 
 static char*	innodb_version_str = (char*) INNODB_VERSION_STR;
 
-extern my_bool srv_encrypt_tables;
 extern uint srv_n_fil_crypt_threads;
 extern uint srv_fil_crypt_rotate_key_age;
 extern uint srv_n_fil_crypt_iops;
@@ -11298,6 +11297,14 @@ ha_innobase::check_table_options(
 		return "ENCRYPTED";
  	}
 
+        if (encrypt == FIL_SPACE_ENCRYPTION_OFF && srv_encrypt_tables == 2) {
+		push_warning(
+			thd, Sql_condition::WARN_LEVEL_WARN,
+			HA_WRONG_CREATE_OPTION,
+			"InnoDB: ENCRYPTED=OFF cannot be used when innodb_encrypt_tables=FORCE");
+		return "ENCRYPTED";
+	}
+
 	/* Check page compression requirements */
 	if (options->page_compressed) {
 
@@ -19117,9 +19124,16 @@ static MYSQL_SYSVAR_ULONG(fatal_semaphore_wait_threshold, srv_fatal_semaphore_wa
   UINT_MAX32, /* Maximum setting */
   0);
 
-static MYSQL_SYSVAR_BOOL(encrypt_tables, srv_encrypt_tables, 0,
-			 "Enable InnoDB on-disk data encryption",
-			 0, 0, 0);
+static const char* srv_encrypt_tables_names[] = { "OFF", "ON", "FORCE", 0 };
+static TYPELIB srv_encrypt_tables_typelib = {
+	array_elements(srv_encrypt_tables_names)-1, 0, srv_encrypt_tables_names,
+	NULL
+};
+static MYSQL_SYSVAR_ENUM(encrypt_tables, srv_encrypt_tables,
+			 PLUGIN_VAR_OPCMDARG,
+			 "Enable encryption for tables. "
+                         "Don't forget to enable --innodb-encrypt-log too",
+			 NULL, NULL, 0, &srv_encrypt_tables_typelib);
 
 static MYSQL_SYSVAR_UINT(encryption_threads, srv_n_fil_crypt_threads,
 			 PLUGIN_VAR_RQCMDARG,
@@ -19161,7 +19175,7 @@ static MYSQL_SYSVAR_ULONGLONG(scrub_log_speed, innodb_scrub_log_speed,
 
 static MYSQL_SYSVAR_BOOL(encrypt_log, srv_encrypt_log,
   PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_READONLY,
-  "Enable redo log encryption/decryption.",
+  "Enable redo log encryption",
   NULL, NULL, FALSE);
 
 static MYSQL_SYSVAR_BOOL(immediate_scrub_data_uncompressed,

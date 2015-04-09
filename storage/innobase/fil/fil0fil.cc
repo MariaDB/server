@@ -1992,7 +1992,7 @@ fil_read_first_page(
 	/* If file space is encrypted we need to have at least some
 	encryption service available where to get keys */
 	if ((cdata && cdata->encryption == FIL_SPACE_ENCRYPTION_ON) ||
-		( srv_encrypt_tables &&
+		(srv_encrypt_tables &&
 			cdata && cdata->encryption == FIL_SPACE_ENCRYPTION_DEFAULT)) {
 		uint rc = encryption_key_get_latest_version(cdata->key_id);
 

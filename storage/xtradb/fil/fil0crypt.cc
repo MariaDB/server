@@ -48,7 +48,7 @@ UNIV_INTERN mysql_pfs_key_t fil_crypt_key_mutex_key;
 #endif
 
 /** Is encryption enabled/disabled */
-UNIV_INTERN my_bool srv_encrypt_tables = FALSE;
+UNIV_INTERN ulong srv_encrypt_tables = 0;
 
 /** No of key rotation threads requested */
 UNIV_INTERN uint srv_n_fil_crypt_threads = 0;
@@ -257,7 +257,7 @@ fil_space_create_crypt_data(uint key_id)
 
 	memset(crypt_data, 0, sz);
 
-	if (srv_encrypt_tables == FALSE) {
+	if (!srv_encrypt_tables) {
 		crypt_data->type = CRYPT_SCHEME_UNENCRYPTED;
 		crypt_data->min_key_version = 0;
 	} else {
@@ -596,7 +596,7 @@ fil_space_check_encryption_write(
 /*==============================*/
 	ulint space)          /*!< in: tablespace id */
 {
-	if (srv_encrypt_tables == FALSE)
+	if (!srv_encrypt_tables)
 		return false;
 
 	fil_space_crypt_t* crypt_data = fil_space_get_crypt_data(space);
@@ -981,7 +981,7 @@ fil_crypt_get_key_state(
 /*====================*/
 	key_state_t *new_state)	/*!< out: key state */
 {
-	if (srv_encrypt_tables == TRUE) {
+	if (srv_encrypt_tables) {
 		new_state->key_version =
 			encryption_key_get_latest_version(FIL_DEFAULT_ENCRYPTION_KEY);
 		new_state->rotate_key_age = srv_fil_crypt_rotate_key_age;
@@ -2438,7 +2438,7 @@ fil_space_crypt_get_status(
 		}
 		mutex_exit(&crypt_data->mutex);
 
-		if (srv_encrypt_tables == TRUE) {
+		if (srv_encrypt_tables) {
 			status->current_key_version =
 				encryption_key_get_latest_version(crypt_data->key_id);
 		} else {

@@ -1,0 +1,31 @@
+-- source include/have_innodb.inc
+-- source include/have_example_key_management_plugin.inc
+
+select @@innodb_encrypt_tables;
+
+create table t1 (a int) engine=innodb encrypted=yes;
+create table t2 (a int) engine=innodb encrypted=default;
+--error ER_CANT_CREATE_TABLE
+create table t3 (a int) engine=innodb encrypted=no;
+
+set global innodb_encrypt_tables='ON';
+create table t3 (a int) engine=innodb encrypted=no;
+set global innodb_encrypt_tables='FORCE';
+
+show create table t1;
+show create table t2;
+show create table t3;
+
+--replace_regex /#sql-[0-9a-f_]*/#sql-temporary/
+--error ER_CANT_CREATE_TABLE
+alter table t1 encrypted=no;
+alter table t2 encrypted=yes;
+alter table t3 encrypted=default;
+
+show create table t1;
+show create table t2;
+show create table t3;
+
+drop table t1;
+drop table t2;
+drop table t3;
