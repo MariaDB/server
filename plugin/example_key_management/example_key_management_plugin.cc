@@ -104,8 +104,8 @@ static int example_key_management_plugin_init(void *p)
 {
   /* init */
   my_rnd_init(&seed, time(0), 0);
-  get_latest_key_version(1);
   pthread_mutex_init(&mutex, NULL);
+  get_latest_key_version(1);
 
   return 0;
 }
