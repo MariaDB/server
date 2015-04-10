@@ -2290,6 +2290,7 @@ class SQL_SELECT;
 
 class Explain_query;
 class Explain_update;
+class Explain_delete;
 
 /* 
   Query plan of a single-table UPDATE.
@@ -2332,10 +2333,11 @@ public:
   void set_impossible_where() { impossible_where= true; }
   void set_no_partitions() { no_partitions= true; }
 
-  void save_explain_data(MEM_ROOT *mem_root, Explain_query *query);
+  Explain_update* save_explain_update_data(MEM_ROOT *mem_root, THD *thd);
+protected:
   void save_explain_data_intern(MEM_ROOT *mem_root, Explain_query *query,
                                 Explain_update *eu);
-
+public:
   virtual ~Update_plan() {}
 
   Update_plan(MEM_ROOT *mem_root_arg) : 
@@ -2365,7 +2367,7 @@ public:
     scanned_rows= rows_arg;
   }
 
-  void save_explain_data(MEM_ROOT *mem_root, Explain_query *query);
+  Explain_delete* save_explain_delete_data(MEM_ROOT *mem_root, THD *thd);
 };
 
 

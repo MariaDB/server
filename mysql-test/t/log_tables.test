@@ -727,7 +727,8 @@ CREATE TABLE `db_17876.slow_log_data` (
   `insert_id` int(11) default NULL,
   `server_id` int(11) default NULL,
   `sql_text` mediumtext,
-  `thread_id` bigint(21) unsigned default NULL
+  `thread_id` bigint(21) unsigned default NULL,
+  `rows_affected` int(11) default NULL
 );
 
 CREATE TABLE `db_17876.general_log_data` (

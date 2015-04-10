@@ -1282,7 +1282,7 @@ public:
   bool optimized; ///< flag to avoid double optimization in EXPLAIN
   bool initialized; ///< flag to avoid double init_execution calls
 
-  Exec_time_tracker *tracker;
+  Time_and_counter_tracker *tracker;
   
   enum { QEP_NOT_PRESENT_YET, QEP_AVAILABLE, QEP_DELETED} have_query_plan;
 

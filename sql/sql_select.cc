@@ -2376,8 +2376,10 @@ void JOIN::save_explain_data(Explain_query *output, bool can_overwrite,
       This is fake_select_lex. It has no query plan, but we need to set up a
       tracker for ANALYZE 
     */
-    Explain_union *eu= output->get_union(select_lex->master_unit()->first_select()->select_number);
+    uint nr= select_lex->master_unit()->first_select()->select_number;
+    Explain_union *eu= output->get_union(nr);
     join_tab[0].tracker= eu->get_fake_select_lex_tracker();
+    tracker= &eu->time_tracker;
   }
 }
 
@@ -23434,8 +23436,11 @@ void JOIN_TAB::save_explain_data(Explain_table_access *eta, table_map prefix_tab
   tab->tracker= &eta->tracker;
   tab->jbuf_tracker= &eta->jbuf_tracker;
   
-  tab->table->file->tracker= &eta->op_tracker;
-  /* id and select_type are kept in Explain_select */
+  /* Enable the table access time tracker only for "ANALYZE stmt" */
+  if (thd->lex->analyze_stmt)
+    tab->table->file->tracker= &eta->op_tracker;
+
+  /* No need to save id and select_type here, they are kept in Explain_select */
 
   /* table */
   if (table->derived_select_number)
@@ -23488,8 +23493,9 @@ void JOIN_TAB::save_explain_data(Explain_table_access *eta, table_map prefix_tab
     partition_info *part_info;
     if (!table->derived_select_number && 
         (part_info= table->part_info))
-    {          
-      make_used_partitions_str(part_info, &eta->used_partitions);
+    { //TODO: all thd->mem_root here should be fixed
+      make_used_partitions_str(thd->mem_root, part_info, &eta->used_partitions,
+                               eta->used_partitions_list);
       eta->used_partitions_set= true;
     }
     else
@@ -23857,12 +23863,15 @@ int JOIN::save_explain_data_intern(Explain_query *output, bool need_tmp_table,
   if (message)
   {
     Explain_select *xpl_sel;
-    explain_node= xpl_sel= new (output->mem_root) Explain_select(output->mem_root);
+    explain_node= xpl_sel= 
+      new (output->mem_root) Explain_select(output->mem_root, 
+                                            thd->lex->analyze_stmt);
     join->select_lex->set_explain_type(true);
 
     xpl_sel->select_id= join->select_lex->select_number;
     xpl_sel->select_type= join->select_lex->type;
     xpl_sel->message= message;
+    tracker= &xpl_sel->time_tracker;
     if (select_lex->master_unit()->derived)
       xpl_sel->connection_type= Explain_node::EXPLAIN_NODE_DERIVED;
     /* Setting xpl_sel->message means that all other members are invalid */
@@ -23871,7 +23880,9 @@ int JOIN::save_explain_data_intern(Explain_query *output, bool need_tmp_table,
   else
   {
     Explain_select *xpl_sel;
-    explain_node= xpl_sel= new (output->mem_root) Explain_select(output->mem_root);
+    explain_node= xpl_sel= 
+      new (output->mem_root) Explain_select(output->mem_root, 
+                                            thd->lex->analyze_stmt);
     table_map used_tables=0;
     tracker= &xpl_sel->time_tracker;
 

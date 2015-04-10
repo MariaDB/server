@@ -51,6 +51,9 @@ it into the slow query log.
 
 */
 
+#ifndef SQL_EXPLAIN_INCLUDED
+#define SQL_EXPLAIN_INCLUDED
+
 class String_list: public List<char>
 {
 public:
@@ -104,40 +107,6 @@ public:
   inline void on_record_after_where() { r_rows_after_where++; }
 };
 
-#if 0
-/*
-  A class to track operations (currently, row reads) on a PSI_table.
-*/
-class Table_op_tracker
-{
-  PSI_table *psi_table;
-
-  /* Table counter values at start. Sum is in picoseconds */
-  ulonglong start_sum;
-  ulonglong start_count;
-
-  /* Table counter values at end */
-  ulonglong end_sum;
-  ulonglong end_count;
-public:
-  void start_tracking(TABLE *table);
-  // At the moment, print_json will call end_tracking.
-  void end_tracking();
-
-  // this may print nothing if the table was not tracked.
-  void print_json(Json_writer *writer);
-};
-#endif
-
-#define ANALYZE_START_TRACKING(tracker) \
-  if (tracker) \
-  { (tracker)->start_tracking(); }
-
-#define ANALYZE_STOP_TRACKING(tracker) \
-  if (tracker) \
-  { (tracker)->stop_tracking(); }
-
-
 /**************************************************************************************
  
   Data structures for producing EXPLAIN outputs.
@@ -160,8 +129,9 @@ class Explain_query;
 class Explain_node : public Sql_alloc
 {
 public:
-  Explain_node(MEM_ROOT *root)
-    :children(root)
+  Explain_node(MEM_ROOT *root) : 
+     connection_type(EXPLAIN_NODE_OTHER),
+     children(root)
   {}
   /* A type specifying what kind of node this is */
   enum explain_node_type 
@@ -181,7 +151,6 @@ public:
     EXPLAIN_NODE_NON_MERGED_SJ /* aka JTBM semi-join */
   };
 
-  Explain_node() : connection_type(EXPLAIN_NODE_OTHER) {}
 
   virtual enum explain_node_type get_type()= 0;
   virtual int get_select_id()= 0;
@@ -274,10 +243,11 @@ class Explain_select : public Explain_basic_join
 public:
   enum explain_node_type get_type() { return EXPLAIN_SELECT; }
 
-  Explain_select(MEM_ROOT *root) : 
+  Explain_select(MEM_ROOT *root, bool is_analyze) : 
   Explain_basic_join(root),
     message(NULL),
-    using_temporary(false), using_filesort(false)
+    using_temporary(false), using_filesort(false),
+    time_tracker(is_analyze)
   {}
 
   /*
@@ -303,7 +273,7 @@ public:
   bool using_filesort;
 
   /* ANALYZE members */
-  Exec_time_tracker time_tracker;
+  Time_and_counter_tracker time_tracker;
   
   int print_explain(Explain_query *query, select_result_sink *output, 
                     uint8 explain_flags, bool is_analyze);
@@ -329,7 +299,8 @@ class Explain_union : public Explain_node
 {
 public:
   Explain_union(MEM_ROOT *root) : 
-  Explain_node(root)
+  Explain_node(root),
+  time_tracker(false)
   {}
 
   enum explain_node_type get_type() { return EXPLAIN_UNION; }
@@ -364,6 +335,8 @@ public:
   const char *fake_select_type;
   bool using_filesort;
   bool using_tmp;
+  /* TODO: the below is not printed yet:*/
+  Time_and_counter_tracker time_tracker; 
 
   Table_access_tracker *get_fake_select_lex_tracker()
   {
@@ -538,6 +511,8 @@ class EXPLAIN_BKA_TYPE
 public:
   EXPLAIN_BKA_TYPE() : join_alg(NULL) {}
 
+  size_t join_buffer_size;
+
   bool incremental;
 
   /* 
@@ -676,6 +651,7 @@ public:
   /* id and 'select_type' are cared-of by the parent Explain_select */
   StringBuffer<32> table_name;
   StringBuffer<32> used_partitions;
+  String_list used_partitions_list;
   // valid with ET_USING_MRR
   StringBuffer<32> mrr_type;
   StringBuffer<32> firstmatch_table_name;
@@ -787,8 +763,9 @@ class Explain_update : public Explain_node
 {
 public:
 
-  Explain_update(MEM_ROOT *root) : 
-  Explain_node(root)
+  Explain_update(MEM_ROOT *root, bool is_analyze) : 
+    Explain_node(root),
+    command_tracker(is_analyze)
   {}
 
   virtual enum explain_node_type get_type() { return EXPLAIN_UPDATE; }
@@ -797,6 +774,7 @@ public:
   const char *select_type;
 
   StringBuffer<32> used_partitions;
+  String_list used_partitions_list;
   bool used_partitions_set;
 
   bool impossible_where;
@@ -827,7 +805,9 @@ public:
 
   /* ANALYZE members and methods */
   Table_access_tracker tracker;
-  Exec_time_tracker time_tracker;
+
+  /* This tracks execution of the whole command */
+  Time_and_counter_tracker command_tracker;
   //psergey-todo: io-tracker here.
 
   virtual int print_explain(Explain_query *query, select_result_sink *output, 
@@ -870,8 +850,8 @@ public:
 class Explain_delete: public Explain_update
 {
 public:
-  Explain_delete(MEM_ROOT *root) : 
-  Explain_update(root)
+  Explain_delete(MEM_ROOT *root, bool is_analyze) : 
+  Explain_update(root, is_analyze)
   {}
 
   /*
@@ -890,3 +870,4 @@ public:
 };
 
 
+#endif //SQL_EXPLAIN_INCLUDED

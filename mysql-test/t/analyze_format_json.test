@@ -145,7 +145,7 @@ create table t1 (a int);
 INSERT INTO t1 select * from t0;
 
 --replace_regex /"r_total_time_ms": [0-9]*[.]?[0-9]*/"r_total_time_ms": "REPLACED"/
-analyze format=json (select * from t1 A where a<5) union (select * from t1 B where a in (2,3));
+analyze format=json (select * from t1 tbl1 where a<5) union (select * from t1 tbl2 where a in (2,3));
 
 drop table t0, t1;
 

@@ -37,6 +37,18 @@ Explain_query::Explain_query(THD *thd_arg, MEM_ROOT *root) :
 {
 }
 
+static void print_json_array(Json_writer *writer,
+                             const char *title, String_list &list)
+{
+  List_iterator_fast<char> it(list);
+  const char *name;
+  writer->add_member(title).start_array();
+  while ((name= it++))
+    writer->add_str(name);
+  writer->end_array();
+}
+
+
 
 Explain_query::~Explain_query()
 {
@@ -1201,6 +1213,13 @@ void Explain_table_access::tag_to_json(Json_writer *writer, enum explain_extra_t
     case ET_USING_MRR:
       writer->add_member("mrr_type").add_str(mrr_type.c_ptr());
       break;
+    case ET_USING_INDEX_FOR_GROUP_BY:
+      writer->add_member("using_index_for_group_by");
+      if (loose_scan_is_scanning)
+        writer->add_str("scanning");
+      else
+        writer->add_bool(true);
+      break;
     default:
       DBUG_ASSERT(0);
   }
@@ -1212,16 +1231,8 @@ void add_json_keyset(Json_writer *writer, const char *elem_name,
                      String_list *keyset)
 {
   if (!keyset->is_empty())
-  {
-    List_iterator_fast<char> it(*keyset);
-    const char *name;
-    writer->add_member(elem_name).start_array();
-    while ((name= it++))
-      writer->add_str(name);
-    writer->end_array();
-  }
+    print_json_array(writer, elem_name, *keyset);
 }
-
 
 void Explain_table_access::print_explain_json(Explain_query *query,
                                               Json_writer *writer,
@@ -1245,7 +1256,10 @@ void Explain_table_access::print_explain_json(Explain_query *query,
   writer->add_member("table").start_object();
 
   writer->add_member("table_name").add_str(table_name);
-  // partitions
+
+  if (used_partitions_set)
+    print_json_array(writer, "partitions", used_partitions_list);
+
   writer->add_member("access_type").add_str(join_type_str[type]);
 
   add_json_keyset(writer, "possible_keys", &possible_keys);
@@ -1274,14 +1288,7 @@ void Explain_table_access::print_explain_json(Explain_query *query,
     parts_list= &key.key_parts_list;
 
   if (parts_list && !parts_list->is_empty())
-  {
-    List_iterator_fast<char> it(*parts_list);
-    const char *name;
-    writer->add_member("used_key_parts").start_array();
-    while ((name= it++))
-      writer->add_str(name);
-    writer->end_array();
-  }
+    print_json_array(writer, "used_key_parts", *parts_list);
 
   if (quick_info && !quick_info->is_basic())
   {
@@ -1292,14 +1299,7 @@ void Explain_table_access::print_explain_json(Explain_query *query,
   
   /* `ref` */
   if (!ref_list.is_empty())
-  {
-    List_iterator_fast<char> it(ref_list);
-    const char *str;
-    writer->add_member("ref").start_array();
-    while ((str= it++))
-      writer->add_str(str);
-    writer->end_array();
-  }
+    print_json_array(writer, "ref", ref_list);
 
   /* r_loops (not present in tabular output) */
   if (is_analyze)
@@ -1360,6 +1360,7 @@ void Explain_table_access::print_explain_json(Explain_query *query,
     writer->end_object(); // "block-nl-join"
     writer->add_member("buffer_type").add_str(bka_type.incremental?
                                               "incremental":"flat");
+    writer->add_member("buffer_size").add_size(bka_type.join_buffer_size);
     writer->add_member("join_type").add_str(bka_type.join_alg);
     if (bka_type.mrr_type.length())
       writer->add_member("mrr_type").add_str(bka_type.mrr_type);
@@ -1547,13 +1548,8 @@ void Explain_quick_select::print_json(Json_writer *writer)
     writer->add_member("range").start_object();
 
     writer->add_member("key").add_str(range.get_key_name());
-    
-    List_iterator_fast<char> it(range.key_parts_list);
-    const char *name;
-    writer->add_member("used_key_parts").start_array();
-    while ((name= it++))
-        writer->add_str(name);
-    writer->end_array();
+
+    print_json_array(writer, "used_key_parts", range.key_parts_list);
 
     writer->end_object();
   }
@@ -1572,8 +1568,7 @@ void Explain_quick_select::print_json(Json_writer *writer)
 
 void Explain_quick_select::print_extra_recursive(String *str)
 {
-  if (quick_type == QUICK_SELECT_I::QS_TYPE_RANGE || 
-      quick_type == QUICK_SELECT_I::QS_TYPE_RANGE_DESC)
+  if (is_basic())
   {
     str->append(range.get_key_name());
   }
@@ -1839,6 +1834,10 @@ void Explain_update::print_explain_json(Explain_query *query,
     writer->add_member("delete").add_ll(1);
 
   writer->add_member("table_name").add_str(table_name);
+
+  if (used_partitions_set)
+    print_json_array(writer, "partitions", used_partitions_list);
+
   writer->add_member("access_type").add_str(join_type_str[jtype]);
 
   if (!possible_keys.is_empty())
@@ -1933,9 +1932,9 @@ void Explain_update::print_explain_json(Explain_query *query,
   if (using_io_buffer)
     writer->add_member("using_io_buffer").add_ll(1);
 
-  if (is_analyze && time_tracker.get_loops())
+  if (is_analyze && command_tracker.get_loops())
     writer->
-      add_member("r_total_time_ms").add_double(time_tracker.get_time_ms());
+      add_member("r_total_time_ms").add_double(command_tracker.get_time_ms());
 
   if (where_cond)
   {

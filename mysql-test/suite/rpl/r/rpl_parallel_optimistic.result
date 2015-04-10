@@ -287,6 +287,174 @@ include/stop_slave.inc
 SET GLOBAL binlog_format= @old_format;
 SET GLOBAL tx_isolation= @old_isolation;
 include/start_slave.inc
+*** MDEV-7888: ANALYZE TABLE does wakeup_subsequent_commits(), causing wrong binlog order and parallel replication hang ***
+DROP TABLE t1, t2, t3;
+CREATE TABLE t1 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
+CREATE TABLE t2 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
+CREATE TABLE t3 (a INT PRIMARY KEY, b INT) ENGINE=MyISAM;
+INSERT INTO t2 VALUES (1,1), (2,1), (3,1), (4,1), (5,1);
+include/save_master_gtid.inc
+include/sync_with_master_gtid.inc
+include/stop_slave.inc
+SET @old_dbug= @@GLOBAL.debug_dbug;
+SET GLOBAL debug_dbug= '+d,inject_analyze_table_sleep';
+ALTER TABLE t2 COMMENT "123abc";
+ANALYZE TABLE t2;
+Table	Op	Msg_type	Msg_text
+test.t2	analyze	status	OK
+INSERT INTO t1 VALUES (1,2);
+INSERT INTO t1 VALUES (2,2);
+INSERT INTO t1 VALUES (3,2);
+INSERT INTO t1 VALUES (4,2);
+INSERT INTO t3 VALUES (1,3);
+ALTER TABLE t2 COMMENT "hello, world";
+BEGIN;
+INSERT INTO t1 VALUES (5,4);
+INSERT INTO t1 VALUES (6,4);
+INSERT INTO t1 VALUES (7,4);
+INSERT INTO t1 VALUES (8,4);
+INSERT INTO t1 VALUES (9,4);
+INSERT INTO t1 VALUES (10,4);
+INSERT INTO t1 VALUES (11,4);
+INSERT INTO t1 VALUES (12,4);
+INSERT INTO t1 VALUES (13,4);
+INSERT INTO t1 VALUES (14,4);
+INSERT INTO t1 VALUES (15,4);
+INSERT INTO t1 VALUES (16,4);
+INSERT INTO t1 VALUES (17,4);
+INSERT INTO t1 VALUES (18,4);
+INSERT INTO t1 VALUES (19,4);
+INSERT INTO t1 VALUES (20,4);
+COMMIT;
+INSERT INTO t1 VALUES (21,5);
+INSERT INTO t1 VALUES (22,5);
+SELECT * FROM t1 ORDER BY a;
+a	b
+1	2
+2	2
+3	2
+4	2
+5	4
+6	4
+7	4
+8	4
+9	4
+10	4
+11	4
+12	4
+13	4
+14	4
+15	4
+16	4
+17	4
+18	4
+19	4
+20	4
+21	5
+22	5
+SELECT * FROM t2 ORDER BY a;
+a	b
+1	1
+2	1
+3	1
+4	1
+5	1
+SELECT * FROM t3 ORDER BY a;
+a	b
+1	3
+include/save_master_gtid.inc
+include/start_slave.inc
+include/sync_with_master_gtid.inc
+SELECT * FROM t1 ORDER BY a;
+a	b
+1	2
+2	2
+3	2
+4	2
+5	4
+6	4
+7	4
+8	4
+9	4
+10	4
+11	4
+12	4
+13	4
+14	4
+15	4
+16	4
+17	4
+18	4
+19	4
+20	4
+21	5
+22	5
+SELECT * FROM t2 ORDER BY a;
+a	b
+1	1
+2	1
+3	1
+4	1
+5	1
+SELECT * FROM t3 ORDER BY a;
+a	b
+1	3
+include/stop_slave.inc
+SET GLOBAL debug_dbug= @old_debug;
+include/start_slave.inc
+*** MDEV-7929: record_gtid() for non-transactional event group calls wakeup_subsequent_commits() too early, causing slave hang. ***
+include/stop_slave.inc
+SET @old_dbug= @@GLOBAL.debug_dbug;
+SET GLOBAL debug_dbug= '+d,inject_record_gtid_serverid_100_sleep';
+ALTER TABLE t3 COMMENT "DDL statement 1";
+INSERT INTO t1 VALUES (30,0);
+INSERT INTO t1 VALUES (31,0);
+INSERT INTO t1 VALUES (32,0);
+INSERT INTO t1 VALUES (33,0);
+INSERT INTO t1 VALUES (34,0);
+INSERT INTO t1 VALUES (35,0);
+INSERT INTO t1 VALUES (36,0);
+SET @old_server_id= @@SESSION.server_id;
+SET SESSION server_id= 100;
+ANALYZE TABLE t2;
+Table	Op	Msg_type	Msg_text
+test.t2	analyze	status	OK
+SET SESSION server_id= @old_server_id;
+INSERT INTO t1 VALUES (37,0);
+ALTER TABLE t3 COMMENT "DDL statement 2";
+INSERT INTO t1 VALUES (38,0);
+INSERT INTO t1 VALUES (39,0);
+ALTER TABLE t3 COMMENT "DDL statement 3";
+SELECT * FROM t1 WHERE a >= 30 ORDER BY a;
+a	b
+30	0
+31	0
+32	0
+33	0
+34	0
+35	0
+36	0
+37	0
+38	0
+39	0
+include/save_master_gtid.inc
+include/start_slave.inc
+include/sync_with_master_gtid.inc
+SELECT * FROM t1 WHERE a >= 30 ORDER BY a;
+a	b
+30	0
+31	0
+32	0
+33	0
+34	0
+35	0
+36	0
+37	0
+38	0
+39	0
+include/stop_slave.inc
+SET GLOBAL debug_dbug= @old_debug;
+include/start_slave.inc
 include/stop_slave.inc
 SET GLOBAL slave_parallel_mode=@old_parallel_mode;
 SET GLOBAL slave_parallel_threads=@old_parallel_threads;

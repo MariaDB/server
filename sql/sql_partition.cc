@@ -68,6 +68,7 @@
                                         // mysql_*_alter_copy_data
 #include "opt_range.h"                  // store_key_image_to_rec
 #include "sql_alter.h"                  // Alter_table_ctx
+#include "sql_select.h"
 
 #include <algorithm>
 using std::max;
@@ -7290,8 +7291,10 @@ void mem_alloc_error(size_t size)
 /**
   Return comma-separated list of used partitions in the provided given string.
 
+    @param      mem_root   Where to allocate following list
     @param      part_info  Partitioning info
     @param[out] parts      The resulting list of string to fill
+    @param[out] used_partitions_list result list to fill
 
     Generate a list of used partitions (from bits in part_info->read_partitions
     bitmap), and store it into the provided String object.
@@ -7302,7 +7305,10 @@ void mem_alloc_error(size_t size)
     that was written or locked.
 */
 
-void make_used_partitions_str(partition_info *part_info, String *parts_str)
+void make_used_partitions_str(MEM_ROOT *alloc,
+                              partition_info *part_info,
+                              String *parts_str,
+                              String_list &used_partitions_list)
 {
   parts_str->length(0);
   partition_element *pe;
@@ -7321,6 +7327,7 @@ void make_used_partitions_str(partition_info *part_info, String *parts_str)
         {
           if (parts_str->length())
             parts_str->append(',');
+          uint index= parts_str->length();
           parts_str->append(head_pe->partition_name,
                            strlen(head_pe->partition_name),
                            system_charset_info);
@@ -7328,6 +7335,7 @@ void make_used_partitions_str(partition_info *part_info, String *parts_str)
           parts_str->append(pe->partition_name,
                            strlen(pe->partition_name),
                            system_charset_info);
+          used_partitions_list.append_str(alloc, parts_str->ptr() + index);
         }
         partition_id++;
       }
@@ -7341,6 +7349,7 @@ void make_used_partitions_str(partition_info *part_info, String *parts_str)
       {
         if (parts_str->length())
           parts_str->append(',');
+        used_partitions_list.append_str(alloc, pe->partition_name);
         parts_str->append(pe->partition_name, strlen(pe->partition_name),
                          system_charset_info);
       }
