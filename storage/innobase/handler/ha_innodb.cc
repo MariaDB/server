@@ -548,6 +548,13 @@ ib_cb_t innodb_api_cb[] = {
 	(ib_cb_t) ib_cursor_stmt_begin
 };
 
+static MYSQL_SYSVAR_UINT(default_encryption_key, srv_default_encryption_key,
+			 PLUGIN_VAR_RQCMDARG,
+			 "Default encryption key id used for table encryption.",
+			 NULL,
+			 NULL,
+			 FIL_DEFAULT_ENCRYPTION_KEY, 1, UINT_MAX32, 0);
+
 /**
   Structure for CREATE TABLE options (table options).
   It needs to be called ha_table_option_struct.
@@ -569,7 +576,7 @@ ha_create_table_option innodb_table_option_list[]=
   /* With this option the user can enable encryption for the table */
   HA_TOPTION_ENUM("ENCRYPTION", encryption, "DEFAULT,ON,OFF", 0),
   /* With this option the user defines the key identifier using for the encryption */
-  HA_TOPTION_NUMBER("ENCRYPTION_KEY_ID", encryption_key_id, 0, 1, UINT_MAX32, 1),
+  HA_TOPTION_SYSVAR("ENCRYPTION_KEY_ID", encryption_key_id, default_encryption_key),
 
   HA_TOPTION_END
 };
@@ -11375,11 +11382,8 @@ ha_innobase::check_table_options(
 		}
 	}
 
-	if (options->encryption_key_id != 0) {
-		if (options->encryption == FIL_SPACE_ENCRYPTION_OFF) {
-			/* ignore this to allow alter table without changing page_encryption_key ...*/
-		}
-
+	if (options->encryption == FIL_SPACE_ENCRYPTION_ON ||
+            (options->encryption == FIL_SPACE_ENCRYPTION_DEFAULT && srv_encrypt_tables)) {
 		if (!encryption_key_id_exists(options->encryption_key_id)) {
 			push_warning_printf(
 				thd, Sql_condition::WARN_LEVEL_WARN,
@@ -11451,8 +11455,7 @@ ha_innobase::create(
 	/* Cache table options */
 	ha_table_option_struct *options= form->s->option_struct;
 	fil_encryption_t encrypt = (fil_encryption_t)options->encryption;
-	ulint key_id = (options->encryption_key_id == 0) ? srv_default_encryption_key :
-		options->encryption_key_id;
+	ulint key_id = options->encryption_key_id;
 
 	DBUG_ENTER("ha_innobase::create");
 
@@ -19154,13 +19157,6 @@ static MYSQL_SYSVAR_UINT(encryption_rotation_iops, srv_n_fil_crypt_iops,
 			 NULL,
 			 innodb_encryption_rotation_iops_update,
 			 srv_n_fil_crypt_iops, 0, UINT_MAX32, 0);
-
-static MYSQL_SYSVAR_UINT(default_encryption_key, srv_default_encryption_key,
-			 PLUGIN_VAR_RQCMDARG,
-			 "Default encryption key id used for table encryption.",
-			 NULL,
-			 NULL,
-			 FIL_DEFAULT_ENCRYPTION_KEY, 1, UINT_MAX32, 0);
 
 static MYSQL_SYSVAR_BOOL(scrub_log, srv_scrub_log,
   PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_READONLY,
