@@ -818,8 +818,18 @@ void Explain_select::print_explain_json(Explain_query *query,
       if (using_temporary)
       {
         started_objects= 1;
+        if (using_filesort)
+        {
+          started_objects++;
+          writer->add_member("filesort").start_object();
+        }
         writer->add_member("temporary_table").start_object();
         writer->add_member("function").add_str("buffer");
+      }
+      else
+      {
+        if (using_filesort)
+          first_table_sort= &ops_tracker.filesort_tracker[0];
       }
     }
       
@@ -1293,7 +1303,12 @@ void add_json_keyset(Json_writer *writer, const char *elem_name,
 
 /*
   @param fs_tracker   Normally NULL. When not NULL, it means that the join tab
-                      used filesort.
+                      used filesort to pre-sort the data. Then, sorted data 
+                      was read and the rest of the join was executed.
+
+  @note
+  EXPLAIN command will check whether fs_tracker is present, but it can't use 
+  any value from fs_tracker (these are only valid for ANALYZE).
 */
 
 void Explain_table_access::print_explain_json(Explain_query *query,
@@ -1330,7 +1345,8 @@ void Explain_table_access::print_explain_json(Explain_query *query,
       }
     }
     writer->add_member("filesort").start_object();
-    fs_tracker->print_json(writer);
+    if (is_analyze)
+      fs_tracker->print_json(writer);
   }
 
   if (bka_type.is_using_jbuf())

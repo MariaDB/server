@@ -479,13 +479,15 @@ EXPLAIN
       "materialized": {
         "query_block": {
           "select_id": 2,
-          "temporary_table": {
-            "function": "buffer",
-            "table": {
-              "table_name": "t1",
-              "access_type": "ALL",
-              "rows": 10,
-              "filtered": 100
+          "filesort": {
+            "temporary_table": {
+              "function": "buffer",
+              "table": {
+                "table_name": "t1",
+                "access_type": "ALL",
+                "rows": 10,
+                "filtered": 100
+              }
             }
           }
         }
@@ -521,13 +523,15 @@ EXPLAIN
       "materialized": {
         "query_block": {
           "select_id": 2,
-          "temporary_table": {
-            "function": "buffer",
-            "table": {
-              "table_name": "t1",
-              "access_type": "ALL",
-              "rows": 10,
-              "filtered": 100
+          "filesort": {
+            "temporary_table": {
+              "function": "buffer",
+              "table": {
+                "table_name": "t1",
+                "access_type": "ALL",
+                "rows": 10,
+                "filtered": 100
+              }
             }
           }
         }

@@ -63,8 +63,8 @@ select * from t0,t2 where t2.a=t0.a order by t2.b limit 4;
 --echo #
 explain
 select * from t0,t2 where t2.a=t0.a order by t0.a limit 4;
-## explain format=json
-## select * from t0,t2 where t2.a=t0.a order by t0.a limit 4;
+explain format=json
+select * from t0,t2 where t2.a=t0.a order by t0.a limit 4;
 --replace_regex /"r_total_time_ms": [0-9]*[.]?[0-9]*/"r_total_time_ms": "REPLACED"/ /"r_buffer_size": "[^"]+"/"r_buffer_size": "REPLACED"/
 analyze format=json 
 select * from t0,t2 where t2.a=t0.a order by t0.a limit 4;
