@@ -1225,7 +1225,8 @@ public:
   /** Is set if we have a GROUP BY and we have ORDER BY on a constant. */
   bool          skip_sort_order;
 
-  bool need_tmp, hidden_group_fields;
+  bool need_tmp; 
+  bool hidden_group_fields;
   /* TRUE if there was full cleunap of the JOIN */
   bool cleaned;
   DYNAMIC_ARRAY keyuse;
@@ -1282,7 +1283,7 @@ public:
   bool optimized; ///< flag to avoid double optimization in EXPLAIN
   bool initialized; ///< flag to avoid double init_execution calls
 
-  Time_and_counter_tracker *tracker;
+  Explain_select *explain;
   
   enum { QEP_NOT_PRESENT_YET, QEP_AVAILABLE, QEP_DELETED} have_query_plan;
 
@@ -1377,7 +1378,7 @@ public:
     no_rows_in_result_called= 0;
     positions= best_positions= 0;
 
-    tracker= NULL;
+    explain= NULL;
 
     all_fields= fields_arg;
     if (&fields_list != &fields_arg)      /* Avoid valgrind-warning */

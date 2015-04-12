@@ -969,7 +969,7 @@ bool st_select_lex_unit::exec()
             1st execution sets certain members (e.g. select_result) to perform
             subquery execution rather than EXPLAIN line production. In order 
             to reset them back, we re-do all of the actions (yes it is ugly):
-          */
+          */ // psergey-todo: is the above really necessary anymore?? 
 	  join->init(thd, item_list, fake_select_lex->options, result);
           saved_error= mysql_select(thd, &fake_select_lex->ref_pointer_array,
                                 &result_table_list,

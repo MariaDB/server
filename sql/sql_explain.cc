@@ -743,11 +743,6 @@ void Explain_select::print_explain_json(Explain_query *query,
   }
   else
   {
-    /*
-       TODO: how does this approach allow to print ORDER BY members?
-         Explain_basic_join does not have ORDER/GROUP.
-         A: factor out join tab printing loop into a common func.
-    */
     writer->add_member("query_block").start_object();
     writer->add_member("select_id").add_ll(select_id);
      
@@ -761,8 +756,67 @@ void Explain_select::print_explain_json(Explain_query *query,
       writer->add_member("const_condition");
       write_item(writer, exec_const_cond);
     }
+     
+    Filesort_tracker *first_table_sort= false;
+    int started_objects= 0;
 
-    Explain_basic_join::print_explain_json_interns(query, writer, is_analyze);
+    if (is_analyze)
+    {
+      /* ANALYZE has collected this part of query plan independently */
+      for (int i= ops_tracker.n_actions-1; i >= 0; i--)
+      {
+        if (ops_tracker.qep_actions[i] == EXPL_ACTION_FILESORT)
+        {
+          if (i == 0)
+          {
+            /* filesort operation was the first in the pipeline */
+            first_table_sort= &ops_tracker.filesort_tracker[0];
+            break;
+          }
+          writer->add_member("filesort").start_object();
+          started_objects++;
+        }
+        else if (ops_tracker.qep_actions[i] == EXPL_ACTION_TEMPTABLE)
+        {
+          writer->add_member("temporary_table").start_object();
+          started_objects++;
+          /*
+          if (tmp == EXPL_TMP_TABLE_BUFFER)
+            func= "buffer";
+          else if (tmp == EXPL_TMP_TABLE_GROUP)
+            func= "group-by";
+          else
+            func= "distinct";
+          writer->add_member("function").add_str(func);
+         */
+        }
+        else if (ops_tracker.qep_actions[i] == EXPL_ACTION_REMOVE_DUPS)
+        {
+          writer->add_member("duplicate_removal").start_object();
+          started_objects++;
+        }
+        else
+          DBUG_ASSERT(0);
+      }
+
+    }
+    else
+    {
+      /* This is just EXPLAIN. Try to produce something meaningful */
+      if (using_temporary)
+      {
+        started_objects= 1;
+        writer->add_member("temporary_table").start_object();
+        writer->add_member("function").add_str("buffer");
+      }
+    }
+      
+    Explain_basic_join::print_explain_json_interns(query, writer, is_analyze,
+                                                   first_table_sort);
+
+    for (;started_objects; started_objects--)
+      writer->end_object();
+
     writer->end_object();
   }
 
@@ -776,24 +830,27 @@ void Explain_basic_join::print_explain_json(Explain_query *query,
   writer->add_member("query_block").start_object();
   writer->add_member("select_id").add_ll(select_id);
   
-  print_explain_json_interns(query, writer, is_analyze);
+  print_explain_json_interns(query, writer, is_analyze, NULL);
 
   writer->end_object();
 }
 
 
-void Explain_basic_join::print_explain_json_interns(Explain_query *query, 
-                                                    Json_writer *writer, 
-                                                    bool is_analyze)
+void Explain_basic_join::
+print_explain_json_interns(Explain_query *query, 
+                           Json_writer *writer, 
+                           bool is_analyze,
+                           Filesort_tracker *first_table_sort)
 {
   Json_writer_nesting_guard guard(writer);
   for (uint i=0; i< n_join_tabs; i++)
   {
     if (join_tabs[i]->start_dups_weedout)
       writer->add_member("duplicates_removal").start_object();
-    
-    join_tabs[i]->print_explain_json(query, writer, is_analyze);
-    
+
+    join_tabs[i]->print_explain_json(query, writer, is_analyze,
+                                     (i==0)? first_table_sort : NULL);
+
     if (join_tabs[i]->end_dups_weedout)
       writer->end_object();
   }
@@ -1230,11 +1287,47 @@ void add_json_keyset(Json_writer *writer, const char *elem_name,
 }
 
 
+/*
+  @param fs_tracker   Normally NULL. When not NULL, it means that the join tab
+                      used filesort.
+*/
+
 void Explain_table_access::print_explain_json(Explain_query *query,
                                               Json_writer *writer,
-                                              bool is_analyze)
+                                              bool is_analyze,
+                                              Filesort_tracker *fs_tracker)
 {
   Json_writer_nesting_guard guard(writer);
+  
+  if (fs_tracker)
+  {
+    /* filesort was invoked on this join tab before doing the join with the rest */
+    writer->add_member("read_sorted_file").start_object();
+    if (is_analyze)
+    {
+      writer->add_member("r_rows");
+      /*
+        r_rows when reading filesort result. This can be less than the number
+        of rows produced by filesort due to NL-join having LIMIT.
+      */
+      if (tracker.has_scans())
+        writer->add_double(tracker.get_avg_rows());
+      else
+        writer->add_null();
+
+      /* 
+        r_filtered when reading filesort result. We should have checked the
+        WHERE while doing filesort but lets check just in case.
+      */
+      if (tracker.has_scans() && tracker.get_filtered_after_where() < 1.0)
+      {
+        writer->add_member("r_filtered");
+        writer->add_double(tracker.get_filtered_after_where()*100.0);
+      }
+    }
+    writer->add_member("filesort").start_object();
+    fs_tracker->print_json(writer);
+  }
 
   if (bka_type.is_using_jbuf())
   {
@@ -1322,13 +1415,21 @@ void Explain_table_access::print_explain_json(Explain_query *query,
   if (is_analyze)
   {
     writer->add_member("r_rows");
-    if (tracker.has_scans())
+    if (fs_tracker)
     {
-      double avg_rows= tracker.get_avg_rows();
-      writer->add_double(avg_rows);
+      /* Get r_rows value from filesort */
+      if (fs_tracker->get_r_loops())
+        writer->add_double(fs_tracker->get_avg_examined_rows());
+      else
+        writer->add_null();
     }
     else
-      writer->add_null();
+    {
+      if (tracker.has_scans())
+        writer->add_double(tracker.get_avg_rows());
+      else
+        writer->add_null();
+    }
 
     if (op_tracker.get_loops())
     {
@@ -1345,10 +1446,22 @@ void Explain_table_access::print_explain_json(Explain_query *query,
   if (is_analyze)
   {
     writer->add_member("r_filtered");
-    if (tracker.has_scans())
-      writer->add_double(tracker.get_filtered_after_where()*100.0);
+    if (fs_tracker)
+    {
+      /* Get r_filtered value from filesort */
+      if (fs_tracker->get_r_loops())
+        writer->add_double(fs_tracker->get_r_filtered());
+      else
+        writer->add_null();
+    }
     else
-      writer->add_null();
+    {
+      /* Get r_filtered from the NL-join runtime */
+      if (tracker.has_scans())
+        writer->add_double(tracker.get_filtered_after_where()*100.0);
+      else
+        writer->add_null();
+    }
   }
 
   for (int i=0; i < (int)extra_tags.elements(); i++)
@@ -1412,6 +1525,12 @@ void Explain_table_access::print_explain_json(Explain_query *query,
     writer->add_member("unique").add_ll(1);
     sjm_nest->print_explain_json(query, writer, is_analyze);
     writer->end_object();
+  }
+
+  if (fs_tracker)
+  {
+    writer->end_object(); // filesort
+    writer->end_object(); // read_sorted_file
   }
 
   writer->end_object();
@@ -1777,7 +1896,7 @@ int Explain_update::print_explain(Explain_query *query,
     extra_str.append(mrr_type);
   }
   
-  if (using_filesort)
+  if (is_using_filesort())
   {
     if (extra_str.length() !=0)
       extra_str.append(STRING_WITH_LEN("; "));
@@ -1825,7 +1944,14 @@ void Explain_update::print_explain_json(Explain_query *query,
 
   writer->add_member("query_block").start_object();
   writer->add_member("select_id").add_ll(1);
-
+ 
+  /* This is the total time it took to do the UPDATE/DELETE */
+  if (is_analyze && command_tracker.get_loops())
+  {
+    writer->add_member("r_total_time_ms").
+            add_double(command_tracker.get_time_ms());
+  }
+  
   if (impossible_where || no_partitions)
   {
     const char *msg= impossible_where ?  STR_IMPOSSIBLE_WHERE : 
@@ -1837,6 +1963,25 @@ void Explain_update::print_explain_json(Explain_query *query,
     return;
   }
 
+  DBUG_ASSERT(!(is_using_filesort() && using_io_buffer));
+  
+  bool doing_buffering= false;
+
+  if (is_using_filesort())
+  {
+    writer->add_member("filesort").start_object();
+    if (is_analyze)
+      filesort_tracker->print_json(writer);
+    doing_buffering= true;
+  }
+
+  if (using_io_buffer)
+  {
+    writer->add_member("buffer").start_object();
+    doing_buffering= true;
+  }
+
+  /* Produce elements that are common for buffered and un-buffered cases */
   writer->add_member("table").start_object();
 
   if (get_type() == EXPLAIN_UPDATE)
@@ -1898,50 +2043,58 @@ void Explain_update::print_explain_json(Explain_query *query,
     writer->end_object();
   }
   
-#if 0
-  /* `ref` */
-  if (!ref_list.is_empty())
-  {
-    List_iterator_fast<char> it(ref_list);
-    const char *str;
-    writer->add_member("ref").start_array();
-    while ((str= it++))
-      writer->add_str(str);
-    writer->end_array();
-  }
-#endif
-
   /* `rows` */
   writer->add_member("rows").add_ll(rows);
 
-  /* `r_rows` */
-  if (is_analyze && tracker.has_scans())
-  {
-    double avg_rows= tracker.get_avg_rows();
-    writer->add_member("r_rows").add_double(avg_rows);
-  }
- 
-  /* UPDATE/DELETE do not produce `filtered` estimate */
-
-  /* `r_filtered` */
-  if (is_analyze)
-  {
-    double r_filtered= tracker.get_filtered_after_where() * 100.0;
-    writer->add_member("r_filtered").add_double(r_filtered);
-  }
 
   if (mrr_type.length() != 0)
     writer->add_member("mrr_type").add_str(mrr_type.ptr());
-  
-  if (using_filesort)
-    writer->add_member("using_filesort").add_ll(1);
 
-  if (using_io_buffer)
-    writer->add_member("using_io_buffer").add_ll(1);
+  if (is_analyze)
+  {
+    if (doing_buffering)
+    {
+      ha_rows r_rows;
+      double r_filtered;
 
-  if (is_analyze && command_tracker.get_loops())
-    writer->
-      add_member("r_total_time_ms").add_double(command_tracker.get_time_ms());
+      if (is_using_filesort())
+      {
+        if (filesort_tracker->get_r_loops())
+          r_rows= filesort_tracker->get_avg_examined_rows();
+        else
+          r_rows= 0;
+        r_filtered= filesort_tracker->get_r_filtered() * 100.0;
+      }
+      else
+      {
+        if (buf_tracker.has_scans())
+          r_rows= (ha_rows) buf_tracker.get_avg_rows();
+        else
+          r_rows= 0;
+        r_filtered= buf_tracker.get_filtered_after_where() * 100.0;
+      }
+      writer->add_member("r_rows").add_ll(r_rows);
+      writer->add_member("r_filtered").add_double(r_filtered);
+    }
+    else /* Not doing buffering */
+    {
+      writer->add_member("r_rows");
+      if (tracker.has_scans())
+        writer->add_double(tracker.get_avg_rows());
+      else
+        writer->add_null();
+
+      /* There is no 'filtered' estimate in UPDATE/DELETE atm */
+      double r_filtered= tracker.get_filtered_after_where() * 100.0;
+      writer->add_member("r_filtered").add_double(r_filtered);
+    }
+
+    if (table_tracker.get_loops())
+    {
+      writer->add_member("r_total_time_ms").
+              add_double(table_tracker.get_time_ms());
+    }
+  }
 
   if (where_cond)
   {
@@ -1949,7 +2102,15 @@ void Explain_update::print_explain_json(Explain_query *query,
     write_item(writer, where_cond);
   }
 
+  /*** The part of plan that is before the buffering/sorting ends here ***/
+  if (is_using_filesort())
+    writer->end_object();
+
+  if (using_io_buffer)
+    writer->end_object();
+
   writer->end_object(); // table
+
   print_explain_json_for_children(query, writer, is_analyze);
   writer->end_object(); // query_block
 }
@@ -2105,3 +2266,4 @@ void Explain_range_checked_fer::print_json(Json_writer *writer,
     writer->end_object();
   }
 }
+

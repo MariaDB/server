@@ -4331,7 +4331,9 @@ void LEX::restore_set_statement_var()
 int st_select_lex_unit::save_union_explain(Explain_query *output)
 {
   SELECT_LEX *first= first_select();
-  Explain_union *eu= new (output->mem_root) Explain_union(output->mem_root);
+  Explain_union *eu= 
+    new (output->mem_root) Explain_union(output->mem_root, 
+                                         thd->lex->analyze_stmt);
 
   if (derived)
     eu->connection_type= Explain_node::EXPLAIN_NODE_DERIVED;
@@ -4374,12 +4376,7 @@ int st_select_lex_unit::save_union_explain_part2(Explain_query *output)
         eu->add_child(unit->first_select()->select_number);
       }
     }
-
-    /* 
-      Having a time tracker for reading UNION result is not very interesting
-      but is easier, as JOIN::exec now relies on having a tracker.
-    */
-    fake_select_lex->join->tracker= &eu->time_tracker;
+    fake_select_lex->join->explain= &eu->fake_select_lex_explain;
   }
   return 0;
 }

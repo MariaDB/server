@@ -9340,6 +9340,7 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
       tables.db= from->s->db.str;
 
       THD_STAGE_INFO(thd, stage_sorting);
+      Filesort_tracker dummy_tracker;
       if (thd->lex->select_lex.setup_ref_array(thd, order_num) ||
           setup_order(thd, thd->lex->select_lex.ref_pointer_array,
                       &tables, fields, all_fields, order) ||
@@ -9347,7 +9348,8 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
           (from->sort.found_records= filesort(thd, from, sortorder, length,
                                               NULL, HA_POS_ERROR,
                                               true,
-                                              &examined_rows, &found_rows)) ==
+                                              &examined_rows, &found_rows,
+                                              &dummy_tracker)) ==
           HA_POS_ERROR)
         goto err;
     }

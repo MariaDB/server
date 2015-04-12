@@ -1,0 +1,73 @@
+
+create table t0(a int);
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+
+create table t1(a int);
+insert into t1 select A.a + B.a* 10 + C.a * 100 from t0 A, t0 B, t0 C;
+
+create table t2 (
+  a int, 
+  b int, 
+  key (a)
+);
+
+insert into t2 select A.a*1000 + B.a, A.a*1000 + B.a from t0 A, t1 B;
+
+--echo #
+--echo # Try an UPDATE that uses filesort:
+--echo #
+explain 
+update t2 set b=b+1 order by b limit 5;
+explain format=json
+update t2 set b=b+1 order by b limit 5;
+--replace_regex /"r_total_time_ms": [0-9]*[.]?[0-9]*/"r_total_time_ms": "REPLACED"/
+analyze format=json
+update t2 set b=b+1 order by b limit 5;
+
+--echo #
+--echo # Try an UPDATE that uses buffering:
+--echo #
+explain
+update t2 set a=a+1 where a<10;
+explain format=json
+update t2 set a=a+1 where a<10;
+--replace_regex /"r_total_time_ms": [0-9]*[.]?[0-9]*/"r_total_time_ms": "REPLACED"/
+analyze format=json
+update t2 set a=a+1 where a<10;
+
+--echo #
+--echo # Try a DELETE that uses filesort:
+--echo #
+explain 
+delete from t2 order by b limit 5;
+explain format=json
+delete from t2 order by b limit 5;
+--replace_regex /"r_total_time_ms": [0-9]*[.]?[0-9]*/"r_total_time_ms": "REPLACED"/
+analyze format=json
+delete from t2 order by b limit 5;
+
+--echo #
+--echo # Try a SELECT with QEP in form: filesort { tmp_table { join } } 
+--echo #
+explain
+select * from t0,t2 where t2.a=t0.a order by t2.b limit 4;
+explain format=json
+select * from t0,t2 where t2.a=t0.a order by t2.b limit 4;
+--replace_regex /"r_total_time_ms": [0-9]*[.]?[0-9]*/"r_total_time_ms": "REPLACED"/
+analyze format=json
+select * from t0,t2 where t2.a=t0.a order by t2.b limit 4;
+
+
+--echo #
+--echo # Try a SELECT with QEP in form: join { filesort { table0 }, table2 }
+--echo #
+explain
+select * from t0,t2 where t2.a=t0.a order by t0.a limit 4;
+## explain format=json
+## select * from t0,t2 where t2.a=t0.a order by t0.a limit 4;
+--replace_regex /"r_total_time_ms": [0-9]*[.]?[0-9]*/"r_total_time_ms": "REPLACED"/
+analyze format=json 
+select * from t0,t2 where t2.a=t0.a order by t0.a limit 4;
+
+drop table t2;
+drop table t0, t1;

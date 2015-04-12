@@ -281,6 +281,7 @@ ANALYZE
 {
   "query_block": {
     "select_id": 1,
+    "r_total_time_ms": "REPLACED",
     "table": {
       "update": 1,
       "table_name": "t1",
@@ -324,6 +325,7 @@ ANALYZE
 {
   "query_block": {
     "select_id": 1,
+    "r_total_time_ms": "REPLACED",
     "table": {
       "delete": 1,
       "table_name": "t1",

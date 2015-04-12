@@ -2335,8 +2335,7 @@ public:
 
   Explain_update* save_explain_update_data(MEM_ROOT *mem_root, THD *thd);
 protected:
-  void save_explain_data_intern(MEM_ROOT *mem_root, Explain_query *query,
-                                Explain_update *eu);
+  void save_explain_data_intern(MEM_ROOT *mem_root, Explain_update *eu, bool is_analyze);
 public:
   virtual ~Update_plan() {}
 

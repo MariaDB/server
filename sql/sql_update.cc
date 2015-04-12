@@ -554,11 +554,15 @@ int mysql_update(THD *thd,
       table->sort.io_cache = (IO_CACHE *) my_malloc(sizeof(IO_CACHE),
 						    MYF(MY_FAE | MY_ZEROFILL |
                                                         MY_THREAD_SPECIFIC));
+      Filesort_tracker *fs_tracker= 
+        thd->lex->explain->get_upd_del_plan()->filesort_tracker;
+
       if (!(sortorder=make_unireg_sortorder(order, &length, NULL)) ||
           (table->sort.found_records= filesort(thd, table, sortorder, length,
                                                select, limit,
                                                true,
-                                               &examined_rows, &found_rows))
+                                               &examined_rows, &found_rows,
+                                               fs_tracker))
           == HA_POS_ERROR)
       {
 	goto err;
@@ -578,7 +582,7 @@ int mysql_update(THD *thd,
 	we go trough the matching rows, save a pointer to them and
 	update these in a separate loop based on the pointer.
       */
-
+      explain->buf_tracker.on_scan_init();
       IO_CACHE tempfile;
       if (open_cached_file(&tempfile, mysql_tmpdir,TEMP_PREFIX,
 			   DISK_BUFFER_SIZE, MYF(MY_WME)))
@@ -619,6 +623,7 @@ int mysql_update(THD *thd,
 
       while (!(error=info.read_record(&info)) && !thd->killed)
       {
+        explain->buf_tracker.on_record_read();
         if (table->vfield)
           update_virtual_fields(thd, table,
                                 table->triggers ? VCOL_UPDATE_ALL :
@@ -629,6 +634,7 @@ int mysql_update(THD *thd,
           if (table->file->was_semi_consistent_read())
 	    continue;  /* repeat the read of the same row if it still exists */
 
+          explain->buf_tracker.on_record_after_where();
 	  table->file->position(table->record[0]);
 	  if (my_b_write(&tempfile,table->file->ref,
 			 table->file->ref_length))

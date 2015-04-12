@@ -67,7 +67,8 @@ Explain_delete* Delete_plan::save_explain_delete_data(MEM_ROOT *mem_root, THD *t
   else
   {
     explain->deleting_all_rows= false;
-    Update_plan::save_explain_data_intern(mem_root, query, explain);
+    Update_plan::save_explain_data_intern(mem_root, explain, 
+                                          thd->lex->analyze_stmt);
   }
  
   query->add_upd_del_plan(explain);
@@ -81,15 +82,15 @@ Update_plan::save_explain_update_data(MEM_ROOT *mem_root, THD *thd)
   Explain_query *query= thd->lex->explain;
   Explain_update* explain= 
     new (mem_root) Explain_update(mem_root, thd->lex->analyze_stmt);
-  save_explain_data_intern(mem_root, query, explain);
+  save_explain_data_intern(mem_root, explain, thd->lex->analyze_stmt);
   query->add_upd_del_plan(explain);
   return explain;
 }
 
 
 void Update_plan::save_explain_data_intern(MEM_ROOT *mem_root,
-                                           Explain_query *query, 
-                                           Explain_update *explain)
+                                           Explain_update *explain,
+                                           bool is_analyze)
 {
   explain->select_type= "SIMPLE";
   explain->table_name.append(table->pos_in_table_list->alias);
@@ -109,6 +110,9 @@ void Update_plan::save_explain_data_intern(MEM_ROOT *mem_root,
     return;
   }
   
+  if (is_analyze)
+    table->file->set_time_tracker(&explain->table_tracker);
+
   select_lex->set_explain_type(TRUE);
   explain->select_type= select_lex->type;
   /* Partitions */
@@ -151,7 +155,9 @@ void Update_plan::save_explain_data_intern(MEM_ROOT *mem_root,
 
   explain->using_where= MY_TEST(select && select->cond);
   explain->where_cond= select? select->cond: NULL;
-  explain->using_filesort= using_filesort;
+
+  if (using_filesort)
+    explain->filesort_tracker= new (mem_root) Filesort_tracker;
   explain->using_io_buffer= using_io_buffer;
 
   append_possible_keys(mem_root, explain->possible_keys, table, 
@@ -486,13 +492,16 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
       table->sort.io_cache= (IO_CACHE *) my_malloc(sizeof(IO_CACHE),
                                                    MYF(MY_FAE | MY_ZEROFILL |
                                                        MY_THREAD_SPECIFIC));
-    
+      Filesort_tracker *fs_tracker= 
+        thd->lex->explain->get_upd_del_plan()->filesort_tracker;
+
       if (!(sortorder= make_unireg_sortorder(order, &length, NULL)) ||
 	  (table->sort.found_records= filesort(thd, table, sortorder, length,
                                                select, HA_POS_ERROR,
                                                true,
-                                               &examined_rows, &found_rows))
-	  == HA_POS_ERROR)
+                                               &examined_rows, &found_rows,
+                                               fs_tracker))
+	    == HA_POS_ERROR)
       {
         delete select;
         free_underlaid_joins(thd, &thd->lex->select_lex);

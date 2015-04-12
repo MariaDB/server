@@ -2596,9 +2596,13 @@ public:
   ulonglong rows_changed;
   /* One bigger than needed to avoid to test if key == MAX_KEY */
   ulonglong index_rows_read[MAX_KEY+1];
-  
+
+private:
   /* ANALYZE time tracker, if present */
   Exec_time_tracker *tracker;
+public:
+  void set_time_tracker(Exec_time_tracker *tracker_arg) { tracker=tracker_arg;}
+
 
   Item *pushed_idx_cond;
   uint pushed_idx_cond_keyno;  /* The index which the above condition is for */

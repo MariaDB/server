@@ -59,51 +59,6 @@ public:
 
 class Json_writer;
 
-/*
-  A class for collecting read statistics.
-  
-  The idea is that we run several scans. Each scans gets rows, and then filters
-  some of them out.  We count scans, rows, and rows left after filtering.
-
-  (note: at the moment, the class is not actually tied to a physical table. 
-   It can be used to track reading from files, buffers, etc).
-*/
-
-class Table_access_tracker 
-{
-public:
-  Table_access_tracker() :
-    r_scans(0), r_rows(0), /*r_rows_after_table_cond(0),*/
-    r_rows_after_where(0)
-  {}
-
-  ha_rows r_scans; /* How many scans were ran on this join_tab */
-  ha_rows r_rows; /* How many rows we've got after that */
-  ha_rows r_rows_after_where; /* Rows after applying attached part of WHERE */
-
-  bool has_scans() { return (r_scans != 0); }
-  ha_rows get_loops() { return r_scans; }
-  double get_avg_rows()
-  {
-    return r_scans ? ((double)r_rows / r_scans): 0;
-  }
-
-  double get_filtered_after_where()
-  {
-    double r_filtered;
-    if (r_rows > 0)
-      r_filtered= (double)r_rows_after_where / r_rows;
-    else
-      r_filtered= 1.0;
-
-    return r_filtered;
-  }
-  
-  inline void on_scan_init() { r_scans++; }
-  inline void on_record_read() { r_rows++; }
-  inline void on_record_after_where() { r_rows_after_where++; }
-};
-
 /**************************************************************************************
  
   Data structures for producing EXPLAIN outputs.
@@ -212,7 +167,8 @@ public:
                           bool is_analyze);
 
   void print_explain_json_interns(Explain_query *query, Json_writer *writer,
-                                  bool is_analyze);
+                                  bool is_analyze, 
+                                  Filesort_tracker *first_table_sort);
 
   /* A flat array of Explain structs for tables. */
   Explain_table_access** join_tabs;
@@ -271,6 +227,8 @@ public:
 
   /* ANALYZE members */
   Time_and_counter_tracker time_tracker;
+
+  Sort_and_group_tracker  ops_tracker;
   
   int print_explain(Explain_query *query, select_result_sink *output, 
                     uint8 explain_flags, bool is_analyze);
@@ -295,9 +253,9 @@ private:
 class Explain_union : public Explain_node
 {
 public:
-  Explain_union(MEM_ROOT *root) : 
-  Explain_node(root),
-  time_tracker(false)
+  Explain_union(MEM_ROOT *root, bool is_analyze) : 
+    Explain_node(root),
+    fake_select_lex_explain(root, is_analyze)
   {}
 
   enum explain_node_type get_type() { return EXPLAIN_UNION; }
@@ -332,8 +290,13 @@ public:
   const char *fake_select_type;
   bool using_filesort;
   bool using_tmp;
-  /* TODO: the below is not printed yet:*/
-  Time_and_counter_tracker time_tracker; 
+  
+  /*
+    Explain data structure for "fake_select_lex" (i.e. for the degenerate
+    SELECT that reads UNION result).
+    It doesn't have a query plan, but we still need execution tracker, etc.
+  */
+  Explain_select fake_select_lex_explain;
 
   Table_access_tracker *get_fake_select_lex_tracker()
   {
@@ -729,13 +692,13 @@ public:
   Table_access_tracker tracker;
   Exec_time_tracker op_tracker;
   Table_access_tracker jbuf_tracker;
-
+  
   int print_explain(select_result_sink *output, uint8 explain_flags, 
                     bool is_analyze,
                     uint select_id, const char *select_type,
                     bool using_temporary, bool using_filesort);
   void print_explain_json(Explain_query *query, Json_writer *writer,
-                          bool is_analyze);
+                          bool is_analyze, Filesort_tracker *fs_tracker);
 
 private:
   void append_tag_name(String *str, enum explain_extra_tag tag);
@@ -759,6 +722,7 @@ public:
 
   Explain_update(MEM_ROOT *root, bool is_analyze) : 
     Explain_node(root),
+    filesort_tracker(NULL),
     command_tracker(is_analyze)
   {}
 
@@ -793,15 +757,30 @@ public:
 
   ha_rows rows;
 
-  bool using_filesort;
   bool using_io_buffer;
+
+  /* Tracker for doing reads when filling the buffer */
+  Table_access_tracker buf_tracker;
+  
+  bool is_using_filesort() { return filesort_tracker? true: false; }
+  /*
+    Non-null value of filesort_tracker means "using filesort"
+
+    if we are using filesort, then table_tracker is for the io done inside
+    filesort.
+    
+    'tracker' is for tracking post-filesort reads.
+  */
+  Filesort_tracker *filesort_tracker;
 
   /* ANALYZE members and methods */
   Table_access_tracker tracker;
 
   /* This tracks execution of the whole command */
   Time_and_counter_tracker command_tracker;
-  //psergey-todo: io-tracker here.
+  
+  /* TODO: This tracks time to read rows from the table */
+  Exec_time_tracker table_tracker;
 
   virtual int print_explain(Explain_query *query, select_result_sink *output, 
                             uint8 explain_flags, bool is_analyze);

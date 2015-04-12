@@ -145,7 +145,8 @@ ha_rows filesort(THD *thd, TABLE *table, SORT_FIELD *sortorder, uint s_length,
 		 SQL_SELECT *select, ha_rows max_rows,
                  bool sort_positions,
                  ha_rows *examined_rows,
-                 ha_rows *found_rows)
+                 ha_rows *found_rows,
+                 Filesort_tracker* tracker)
 {
   int error;
   size_t memory_available= thd->variables.sortbuff_size;
@@ -211,6 +212,7 @@ ha_rows filesort(THD *thd, TABLE *table, SORT_FIELD *sortorder, uint s_length,
   else
     thd->inc_status_sort_scan();
   thd->query_plan_flags|= QPLAN_FILESORT;
+  tracker->report_use(max_rows);
 
   // If number of rows is not known, use as much of sort buffer as possible. 
   num_rows= table->file->estimate_rows_upper_bound();
@@ -226,6 +228,7 @@ ha_rows filesort(THD *thd, TABLE *table, SORT_FIELD *sortorder, uint s_length,
     DBUG_PRINT("info", ("filesort PQ is applicable"));
     thd->query_plan_flags|= QPLAN_FILESORT_PRIORITY_QUEUE;
     status_var_increment(thd->status_var.filesort_pq_sorts_);
+    tracker->incr_pq_used();
     const size_t compare_length= param.sort_length;
     if (pq.init(param.max_rows,
                 true,                           // max_at_top
@@ -282,6 +285,7 @@ ha_rows filesort(THD *thd, TABLE *table, SORT_FIELD *sortorder, uint s_length,
       my_error(ER_OUT_OF_SORTMEMORY,MYF(ME_ERROR + ME_FATALERROR));
       goto err;
     }
+    tracker->report_sort_buffer_size(table_sort.sort_buffer_size());
   }
 
   if (open_cached_file(&buffpek_pointers,mysql_tmpdir,TEMP_PREFIX,
@@ -300,6 +304,8 @@ ha_rows filesort(THD *thd, TABLE *table, SORT_FIELD *sortorder, uint s_length,
     goto err;
 
   maxbuffer= (uint) (my_b_tell(&buffpek_pointers)/sizeof(*buffpek));
+  tracker->report_merge_passes_at_start(thd->query_plan_fsort_passes);
+  tracker->report_row_numbers(param.examined_rows, *found_rows, num_rows);
 
   if (maxbuffer == 0)			// The whole set is in memory
   {
@@ -365,6 +371,7 @@ ha_rows filesort(THD *thd, TABLE *table, SORT_FIELD *sortorder, uint s_length,
 
   err:
   my_free(param.tmp_buffer);
+  tracker->report_merge_passes_at_end(thd->query_plan_fsort_passes);
   if (!subselect || !subselect->is_uncacheable())
   {
     table_sort.free_sort_buffer();

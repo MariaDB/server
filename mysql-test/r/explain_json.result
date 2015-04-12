@@ -478,11 +478,14 @@ EXPLAIN
       "materialized": {
         "query_block": {
           "select_id": 2,
-          "table": {
-            "table_name": "t1",
-            "access_type": "ALL",
-            "rows": 10,
-            "filtered": 100
+          "temporary_table": {
+            "function": "buffer",
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "rows": 10,
+              "filtered": 100
+            }
           }
         }
       }
@@ -517,11 +520,14 @@ EXPLAIN
       "materialized": {
         "query_block": {
           "select_id": 2,
-          "table": {
-            "table_name": "t1",
-            "access_type": "ALL",
-            "rows": 10,
-            "filtered": 100
+          "temporary_table": {
+            "function": "buffer",
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "rows": 10,
+              "filtered": 100
+            }
           }
         }
       }
@@ -558,11 +564,14 @@ EXPLAIN
         "unique": 1,
         "query_block": {
           "select_id": 2,
-          "table": {
-            "table_name": "t1",
-            "access_type": "ALL",
-            "rows": 10,
-            "filtered": 100
+          "temporary_table": {
+            "function": "buffer",
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "rows": 10,
+              "filtered": 100
+            }
           }
         }
       }

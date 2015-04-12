@@ -1988,7 +1988,7 @@ int JOIN::init_execution()
 			   group_list && simple_group,
 			   select_options, tmp_rows_limit, "")))
       DBUG_RETURN(1);
-
+    explain->ops_tracker.report_tmp_table(exec_tmp_table1);
     /*
       We don't have to store rows in temp table that doesn't match HAVING if:
       - we are sorting the table and writing complete group rows to the
@@ -2378,8 +2378,8 @@ void JOIN::save_explain_data(Explain_query *output, bool can_overwrite,
     */
     uint nr= select_lex->master_unit()->first_select()->select_number;
     Explain_union *eu= output->get_union(nr);
+    explain= &eu->fake_select_lex_explain;
     join_tab[0].tracker= eu->get_fake_select_lex_tracker();
-    tracker= &eu->time_tracker;
   }
 }
 
@@ -2392,9 +2392,10 @@ void JOIN::exec()
                                                select_lex->select_number))
                         dbug_serve_apcs(thd, 1);
                  );
-  ANALYZE_START_TRACKING(tracker);
+  ANALYZE_START_TRACKING(&explain->time_tracker);
+  explain->ops_tracker.report_join_start();
   exec_inner();
-  ANALYZE_STOP_TRACKING(tracker);
+  ANALYZE_STOP_TRACKING(&explain->time_tracker);
 
   DBUG_EXECUTE_IF("show_explain_probe_join_exec_end", 
                   if (dbug_user_var_equals_int(thd, 
@@ -2768,6 +2769,7 @@ void JOIN::exec_inner()
 						HA_POS_ERROR, "")))
 	  DBUG_VOID_RETURN;
 	curr_join->exec_tmp_table2= exec_tmp_table2;
+        explain->ops_tracker.report_tmp_table(exec_tmp_table2);
       }
       if (curr_join->group_list)
       {
@@ -2869,6 +2871,7 @@ void JOIN::exec_inner()
       curr_join->select_distinct=0;
     }
     curr_tmp_table->reginfo.lock_type= TL_UNLOCK;
+    // psergey-todo: here is one place where we switch to
     if (curr_join->make_simple_join(this, curr_tmp_table))
       DBUG_VOID_RETURN;
     calc_group_buffer(curr_join, curr_join->group_list);
@@ -3057,7 +3060,6 @@ void JOIN::exec_inner()
                           curr_join->table_count,
                           (int) curr_join->select_limit,
                           (int) unit->select_limit_cnt));
-
       if (create_sort_index(thd,
                             curr_join,
                             order_arg,
@@ -20931,7 +20933,8 @@ create_sort_index(THD *thd, JOIN *join, ORDER *order,
     table->file->info(HA_STATUS_VARIABLE);	// Get record count
   filesort_retval= filesort(thd, table, join->sortorder, length,
                             select, filesort_limit, 0,
-                            &examined_rows, &found_rows);
+                            &examined_rows, &found_rows, 
+                            join->explain->ops_tracker.report_sorting());
   table->sort.found_records= filesort_retval;
   tab->records= found_rows;                     // For SQL_CALC_ROWS
 
@@ -23442,10 +23445,10 @@ void JOIN_TAB::save_explain_data(Explain_table_access *eta, table_map prefix_tab
   
   tab->tracker= &eta->tracker;
   tab->jbuf_tracker= &eta->jbuf_tracker;
-  
+
   /* Enable the table access time tracker only for "ANALYZE stmt" */
   if (thd->lex->analyze_stmt)
-    tab->table->file->tracker= &eta->op_tracker;
+    tab->table->file->set_time_tracker(&eta->op_tracker);
 
   /* No need to save id and select_type here, they are kept in Explain_select */
 
@@ -23849,7 +23852,6 @@ int JOIN::save_explain_data_intern(Explain_query *output, bool need_tmp_table,
                                    bool need_order, bool distinct, 
                                    const char *message)
 {
-  Explain_node *explain_node= 0;
   JOIN *join= this; /* Legacy: this code used to be a non-member function */
   int error= 0;
   DBUG_ENTER("JOIN::save_explain_data_intern");
@@ -23864,33 +23866,32 @@ int JOIN::save_explain_data_intern(Explain_query *output, bool need_tmp_table,
   DBUG_ASSERT(!join->select_lex->master_unit()->derived ||
               join->select_lex->master_unit()->derived->is_materialized_derived());
 
+  explain= NULL;
+
   /* Don't log this into the slow query log */
 
   if (message)
   {
-    Explain_select *xpl_sel;
-    explain_node= xpl_sel= 
-      new (output->mem_root) Explain_select(output->mem_root, 
-                                            thd->lex->analyze_stmt);
+    explain= new (output->mem_root) Explain_select(output->mem_root, 
+                                                   thd->lex->analyze_stmt);
     join->select_lex->set_explain_type(true);
 
-    xpl_sel->select_id= join->select_lex->select_number;
-    xpl_sel->select_type= join->select_lex->type;
-    xpl_sel->message= message;
-    tracker= &xpl_sel->time_tracker;
+    explain->select_id= join->select_lex->select_number;
+    explain->select_type= join->select_lex->type;
+    /* Setting explain->message means that all other members are invalid */
+    explain->message= message;
+
     if (select_lex->master_unit()->derived)
-      xpl_sel->connection_type= Explain_node::EXPLAIN_NODE_DERIVED;
-    /* Setting xpl_sel->message means that all other members are invalid */
-    output->add_node(xpl_sel);
+      explain->connection_type= Explain_node::EXPLAIN_NODE_DERIVED;
+    output->add_node(explain);
   }
   else
   {
     Explain_select *xpl_sel;
-    explain_node= xpl_sel= 
+    explain= xpl_sel= 
       new (output->mem_root) Explain_select(output->mem_root, 
                                             thd->lex->analyze_stmt);
     table_map used_tables=0;
-    tracker= &xpl_sel->time_tracker;
 
     join->select_lex->set_explain_type(true);
     xpl_sel->select_id= join->select_lex->select_number;
@@ -23986,13 +23987,12 @@ int JOIN::save_explain_data_intern(Explain_query *output, bool need_tmp_table,
     if (!(unit->item && unit->item->eliminated) &&                    // (1)
         (!unit->derived || unit->derived->is_materialized_derived())) // (2)
     {
-      explain_node->add_child(unit->first_select()->select_number);
+      explain->add_child(unit->first_select()->select_number);
     }
   }
 
   if (!error && select_lex->is_top_level_node())
     output->query_plan_ready();
-    
 
   DBUG_RETURN(error);
 }

@@ -102,6 +102,7 @@ SET(SQL_EMBEDDED_SOURCES emb_qcache.cc libmysqld.c lib_sql.cc
            ../sql/my_json_writer.cc ../sql/my_json_writer.h
 	   ../sql/rpl_gtid.cc
            ../sql/sql_explain.cc ../sql/sql_explain.h
+           ../sql/sql_analyze_stmt.cc ../sql/sql_analyze_stmt.h
            ../sql/compat56.cc
            ../sql/table_cache.cc
            ../sql/item_inetfunc.cc
