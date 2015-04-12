@@ -48,17 +48,19 @@ ANALYZE
 {
   "query_block": {
     "select_id": 1,
-    "table": {
-      "update": 1,
-      "table_name": "t1",
-      "partitions": ["p0"],
-      "access_type": "ALL",
-      "rows": 10,
-      "r_rows": 3,
-      "r_filtered": 100,
-      "using_io_buffer": 1,
-      "r_total_time_ms": "REPLACED",
-      "attached_condition": "(t1.a in (2,3,4))"
+    "r_total_time_ms": "REPLACED",
+    "buffer": {
+      "table": {
+        "update": 1,
+        "table_name": "t1",
+        "partitions": ["p0"],
+        "access_type": "ALL",
+        "rows": 10,
+        "r_rows": 10,
+        "r_filtered": 30,
+        "r_total_time_ms": "REPLACED",
+        "attached_condition": "(t1.a in (2,3,4))"
+      }
     }
   }
 }
@@ -67,6 +69,7 @@ ANALYZE
 {
   "query_block": {
     "select_id": 1,
+    "r_total_time_ms": "REPLACED",
     "table": {
       "delete": 1,
       "table_name": "t1",

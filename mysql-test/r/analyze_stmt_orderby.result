@@ -169,25 +169,27 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "temporary_table": {
-      "function": "buffer",
-      "table": {
-        "table_name": "t0",
-        "access_type": "ALL",
-        "rows": 10,
-        "filtered": 100,
-        "attached_condition": "(t0.a is not null)"
-      },
-      "table": {
-        "table_name": "t2",
-        "access_type": "ref",
-        "possible_keys": ["a"],
-        "key": "a",
-        "key_length": "5",
-        "used_key_parts": ["a"],
-        "ref": ["test.t0.a"],
-        "rows": 1,
-        "filtered": 100
+    "filesort": {
+      "temporary_table": {
+        "function": "buffer",
+        "table": {
+          "table_name": "t0",
+          "access_type": "ALL",
+          "rows": 10,
+          "filtered": 100,
+          "attached_condition": "(t0.a is not null)"
+        },
+        "table": {
+          "table_name": "t2",
+          "access_type": "ref",
+          "possible_keys": ["a"],
+          "key": "a",
+          "key_length": "5",
+          "used_key_parts": ["a"],
+          "ref": ["test.t0.a"],
+          "rows": 1,
+          "filtered": 100
+        }
       }
     }
   }
@@ -240,6 +242,36 @@ select * from t0,t2 where t2.a=t0.a order by t0.a limit 4;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t0	ALL	NULL	NULL	NULL	NULL	10	Using where; Using filesort
 1	SIMPLE	t2	ref	a	a	5	test.t0.a	1	
+explain format=json
+select * from t0,t2 where t2.a=t0.a order by t0.a limit 4;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "read_sorted_file": {
+      "filesort": {
+        "table": {
+          "table_name": "t0",
+          "access_type": "ALL",
+          "rows": 10,
+          "filtered": 100,
+          "attached_condition": "(t0.a is not null)"
+        }
+      }
+    },
+    "table": {
+      "table_name": "t2",
+      "access_type": "ref",
+      "possible_keys": ["a"],
+      "key": "a",
+      "key_length": "5",
+      "used_key_parts": ["a"],
+      "ref": ["test.t0.a"],
+      "rows": 1,
+      "filtered": 100
+    }
+  }
+}
 analyze format=json 
 select * from t0,t2 where t2.a=t0.a order by t0.a limit 4;
 ANALYZE
