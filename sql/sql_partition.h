@@ -74,6 +74,7 @@ typedef struct {
   uint32 end_part;
 } part_id_range;
 
+class String_list;
 struct st_partition_iter;
 #define NOT_A_PARTITION_ID UINT_MAX32
 
@@ -114,7 +115,9 @@ bool mysql_unpack_partition(THD *thd, char *part_buf,
                             TABLE *table, bool is_create_table_ind,
                             handlerton *default_db_type,
                             bool *work_part_info_used);
-void make_used_partitions_str(partition_info *part_info, String *parts_str);
+void make_used_partitions_str(MEM_ROOT *mem_root,
+                              partition_info *part_info, String *parts_str,
+                              String_list &used_partitions_list);
 uint32 get_list_array_idx_for_endpoint(partition_info *part_info,
                                        bool left_endpoint,
                                        bool include_endpoint);

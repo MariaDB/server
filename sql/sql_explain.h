@@ -51,6 +51,9 @@ it into the slow query log.
 
 */
 
+#ifndef SQL_EXPLAIN_INCLUDED
+#define SQL_EXPLAIN_INCLUDED
+
 class String_list: public List<char>
 {
 public:
@@ -471,6 +474,8 @@ class EXPLAIN_BKA_TYPE
 public:
   EXPLAIN_BKA_TYPE() : join_alg(NULL) {}
 
+  size_t join_buffer_size;
+
   bool incremental;
 
   /* 
@@ -609,6 +614,7 @@ public:
   /* id and 'select_type' are cared-of by the parent Explain_select */
   StringBuffer<32> table_name;
   StringBuffer<32> used_partitions;
+  String_list used_partitions_list;
   // valid with ET_USING_MRR
   StringBuffer<32> mrr_type;
   StringBuffer<32> firstmatch_table_name;
@@ -732,6 +738,7 @@ public:
   const char *select_type;
 
   StringBuffer<32> used_partitions;
+  String_list used_partitions_list;
   bool used_partitions_set;
 
   bool impossible_where;
@@ -842,3 +849,4 @@ public:
 };
 
 
+#endif //SQL_EXPLAIN_INCLUDED
