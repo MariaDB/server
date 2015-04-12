@@ -142,7 +142,7 @@ ANALYZE
       "r_loops": 1,
       "r_used_priority_queue": false,
       "r_output_rows": 10000,
-      "r_buffer_size": "195Kb",
+      "r_buffer_size": "REPLACED",
       "table": {
         "delete": 1,
         "table_name": "t2",
@@ -254,7 +254,7 @@ ANALYZE
         "r_loops": 1,
         "r_used_priority_queue": false,
         "r_output_rows": 10,
-        "r_buffer_size": "360",
+        "r_buffer_size": "REPLACED",
         "table": {
           "table_name": "t0",
           "access_type": "ALL",
