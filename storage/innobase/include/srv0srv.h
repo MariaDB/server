@@ -133,12 +133,10 @@ struct srv_stats_t {
         ulint_ctr_64_t          pages_page_decompressed;
 	/* Number of page compression errors */
 	ulint_ctr_64_t          pages_page_compression_error;
-	/* Number of pages encrypted with page encryption */
-	ulint_ctr_64_t          pages_page_encrypted;
-   	/* Number of pages decrypted with page encryption */
-	ulint_ctr_64_t          pages_page_decrypted;
-	/* Number of page encryption errors */
-	ulint_ctr_64_t          pages_page_encryption_error;
+	/* Number of pages encrypted */
+	ulint_ctr_64_t          pages_encrypted;
+   	/* Number of pages decrypted */
+	ulint_ctr_64_t          pages_decrypted;
 
 	/** Number of data read in total (in bytes) */
 	ulint_ctr_1_t		data_read;
@@ -546,7 +544,7 @@ extern my_bool srv_print_all_deadlocks;
 extern my_bool	srv_cmp_per_index_enabled;
 
 /* is encryption enabled */
-extern my_bool	srv_encrypt_tables;
+extern ulong	srv_encrypt_tables;
 
 /** Status variables to be passed to MySQL */
 extern struct export_var_t export_vars;
@@ -561,9 +559,6 @@ extern uint srv_simulate_comp_failures;
 that semaphore times out in InnoDB */
 #define DEFAULT_SRV_FATAL_SEMAPHORE_TIMEOUT 600
 extern ulong	srv_fatal_semaphore_wait_threshold;
-
-/** Default encryption key used for page encryption */
-extern uint srv_default_page_encryption_key;
 
 /** Enable semaphore request instrumentation */
 extern my_bool srv_instrument_semaphores;
@@ -1020,16 +1015,13 @@ struct export_var_t{
 						compression */
 	ib_int64_t innodb_pages_page_compression_error;/*!< Number of page
 						compression errors */
-	ib_int64_t innodb_pages_page_encrypted;/*!< Number of pages
-						encrypted by page encryption */
-	ib_int64_t innodb_pages_page_decrypted;/*!< Number of pages
-						decrypted by page encryption */
-	ib_int64_t innodb_pages_page_encryption_error;/*!< Number of page
-						encryption errors */
+	ib_int64_t innodb_pages_encrypted;      /*!< Number of pages
+						encrypted */
+	ib_int64_t innodb_pages_decrypted;      /*!< Number of pages
+						decrypted */
 
 	ulint innodb_sec_rec_cluster_reads;	/*!< srv_sec_rec_cluster_reads */
-	ulint innodb_sec_rec_cluster_reads_avoided;
-	/*!< srv_sec_rec_cluster_reads_avoided */
+	ulint innodb_sec_rec_cluster_reads_avoided;/*!< srv_sec_rec_cluster_reads_avoided */
 
 	ulint innodb_encryption_rotation_pages_read_from_cache;
 	ulint innodb_encryption_rotation_pages_read_from_disk;

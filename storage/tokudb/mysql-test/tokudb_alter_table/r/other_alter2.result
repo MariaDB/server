@@ -61,7 +61,7 @@ foo	CREATE TABLE `foo` (
   UNIQUE KEY `c` (`c`),
   KEY `d` (`d`),
   KEY `b` (`b`) `clustering`=yes
-) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
+) ENGINE=TokuDB DEFAULT CHARSET=latin1
 show create table foo_isam;
 Table	Create Table
 foo_isam	CREATE TABLE `foo_isam` (

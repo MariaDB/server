@@ -1,42 +1,44 @@
 SET GLOBAL innodb_file_format = `Barracuda`;
 SET GLOBAL innodb_file_per_table = ON;
 create table innodb_normal(c1 bigint not null, b char(200)) engine=innodb;
-create table innodb_compact(c1 bigint not null, b char(200)) engine=innodb row_format=compact page_encryption=1 page_encryption_key=1;
-create table innodb_compressed(c1 bigint not null, b char(200)) engine=innodb row_format=compressed page_encryption=1 page_encryption_key=2;
-create table innodb_dynamic(c1 bigint not null, b char(200)) engine=innodb row_format=dynamic page_encryption=1  page_encryption_key=3;
-create table innodb_redundant(c1 bigint not null, b char(200))  engine=innodb row_format=redundant page_encryption=1  page_encryption_key=4;
-SET GLOBAL innodb_default_page_encryption_key = 5;
-create table innodb_defkey(c1  bigint not null, b char(200))  engine=innodb page_encryption=1;
+create table innodb_compact(c1 bigint not null, b char(200)) engine=innodb row_format=compact encrypted=yes encryption_key_id=1;
+create table innodb_compressed(c1 bigint not null, b char(200)) engine=innodb row_format=compressed encrypted=yes encryption_key_id=2;
+create table innodb_dynamic(c1 bigint not null, b char(200)) engine=innodb row_format=dynamic encrypted=yes encryption_key_id=3;
+ERROR HY000: Can't create table `test`.`innodb_dynamic` (errno: 140 "Wrong create options")
+create table innodb_dynamic(c1 bigint not null, b char(200)) engine=innodb row_format=dynamic encrypted=yes encryption_key_id=33;
+create table innodb_redundant(c1 bigint not null, b char(200))  engine=innodb row_format=redundant encrypted=yes encryption_key_id=4;
+set innodb_default_encryption_key_id = 5;
+create table innodb_defkey(c1  bigint not null, b char(200))  engine=innodb encrypted=yes;
 show create table innodb_defkey;
 Table	Create Table
 innodb_defkey	CREATE TABLE `innodb_defkey` (
   `c1` bigint(20) NOT NULL,
   `b` char(200) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 `page_encryption`=1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 `encrypted`=yes `ENCRYPTION_KEY_ID`=5
 show create table innodb_compact;
 Table	Create Table
 innodb_compact	CREATE TABLE `innodb_compact` (
   `c1` bigint(20) NOT NULL,
   `b` char(200) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=COMPACT `page_encryption`=1 `page_encryption_key`=1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=COMPACT `encrypted`=yes `encryption_key_id`=1
 show create table innodb_compressed;
 Table	Create Table
 innodb_compressed	CREATE TABLE `innodb_compressed` (
   `c1` bigint(20) NOT NULL,
   `b` char(200) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=COMPRESSED `page_encryption`=1 `page_encryption_key`=2
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=COMPRESSED `encrypted`=yes `encryption_key_id`=2
 show create table innodb_dynamic;
 Table	Create Table
 innodb_dynamic	CREATE TABLE `innodb_dynamic` (
   `c1` bigint(20) NOT NULL,
   `b` char(200) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=DYNAMIC `page_encryption`=1 `page_encryption_key`=3
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=DYNAMIC `encrypted`=yes `encryption_key_id`=33
 show create table innodb_redundant;
 Table	Create Table
 innodb_redundant	CREATE TABLE `innodb_redundant` (
   `c1` bigint(20) NOT NULL,
   `b` char(200) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=REDUNDANT `page_encryption`=1 `page_encryption_key`=4
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=REDUNDANT `encrypted`=yes `encryption_key_id`=4
 create procedure innodb_insert_proc (repeat_count int)
 begin
 declare current_num int;
@@ -97,14 +99,11 @@ select count(*) from innodb_defkey t1, innodb_normal t2 where
 t1.c1 = t2.c1 and t1.b = t2.b;
 count(*)
 2000
-SELECT variable_value >= 0 FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_num_pages_page_encrypted';
+SELECT variable_value >= 0 FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_num_pages_encrypted';
 variable_value >= 0
 1
-SELECT variable_value >= 0 FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_num_pages_page_decrypted';
+SELECT variable_value >= 0 FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_num_pages_decrypted';
 variable_value >= 0
-1
-SELECT variable_value = 0 FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_num_pages_page_encryption_error';
-variable_value = 0
 1
 SET GLOBAL innodb_file_format = `Barracuda`;
 SET GLOBAL innodb_file_per_table = ON;
@@ -149,37 +148,34 @@ select count(*) from innodb_defkey t1, innodb_normal t2 where
 t1.c1 = t2.c1 and t1.b = t2.b;
 count(*)
 2000
-SELECT variable_value >= 0 FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_num_pages_page_encrypted';
+SELECT variable_value >= 0 FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_num_pages_encrypted';
 variable_value >= 0
 1
-SELECT variable_value >= 0 FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_num_pages_page_decrypted';
+SELECT variable_value >= 0 FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_num_pages_decrypted';
 variable_value >= 0
 1
-SELECT variable_value = 0 FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_num_pages_page_encryption_error';
-variable_value = 0
-1
-alter table innodb_compact engine=innodb page_encryption=DEFAULT page_encryption_key=DEFAULT;
+alter table innodb_compact engine=innodb encrypted=DEFAULT encryption_key_id=DEFAULT;
 show create table innodb_compact;
 Table	Create Table
 innodb_compact	CREATE TABLE `innodb_compact` (
   `c1` bigint(20) NOT NULL,
   `b` char(200) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=COMPACT
-alter table innodb_compressed engine=innodb page_encryption=DEFAULT page_encryption_key=DEFAULT;
+alter table innodb_compressed engine=innodb encrypted=DEFAULT encryption_key_id=DEFAULT;
 show create table innodb_compressed;
 Table	Create Table
 innodb_compressed	CREATE TABLE `innodb_compressed` (
   `c1` bigint(20) NOT NULL,
   `b` char(200) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=COMPRESSED
-alter table innodb_dynamic engine=innodb page_encryption=DEFAULT page_encryption_key=DEFAULT;
+alter table innodb_dynamic engine=innodb encrypted=DEFAULT encryption_key_id=DEFAULT;
 show create table innodb_dynamic;
 Table	Create Table
 innodb_dynamic	CREATE TABLE `innodb_dynamic` (
   `c1` bigint(20) NOT NULL,
   `b` char(200) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=DYNAMIC
-alter table innodb_redundant engine=innodb page_encryption=DEFAULT page_encryption_key=DEFAULT;
+alter table innodb_redundant engine=innodb encrypted=DEFAULT encryption_key_id=DEFAULT;
 show create table innodb_redundant;
 Table	Create Table
 innodb_redundant	CREATE TABLE `innodb_redundant` (
@@ -217,7 +213,7 @@ Table	Create Table
 innodb_defkey	CREATE TABLE `innodb_defkey` (
   `c1` bigint(20) NOT NULL,
   `b` char(200) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 `page_encryption`=1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 `encrypted`=yes `ENCRYPTION_KEY_ID`=5
 update innodb_normal set c1 = c1 +1;
 update innodb_compact set c1 = c1 + 1;
 update innodb_compressed set c1 = c1 + 1;
@@ -251,13 +247,10 @@ select count(*) from innodb_redundant t1, innodb_normal t2 where
 t1.c1 = t2.c1 and t1.b = t2.b;
 count(*)
 2000
-SELECT variable_value = 0 FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_num_pages_page_encrypted';
+SELECT variable_value = 0 FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_num_pages_encrypted';
 variable_value = 0
 1
-SELECT variable_value = 0 FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_num_pages_page_decrypted';
-variable_value = 0
-1
-SELECT variable_value = 0 FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_num_pages_page_encryption_error';
+SELECT variable_value = 0 FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_num_pages_decrypted';
 variable_value = 0
 1
 drop procedure innodb_insert_proc;

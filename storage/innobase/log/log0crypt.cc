@@ -26,12 +26,12 @@ Modified           Jan Lindström jan.lindstrom@mariadb.com
 #include "m_string.h"
 #include "log0crypt.h"
 #include <my_crypt.h>
-#include <my_aes.h>
+#include <my_crypt.h>
+
 #include "log0log.h"
 #include "srv0start.h" // for srv_start_lsn
 #include "log0recv.h"  // for recv_sys
 
-#include "mysql/plugin_encryption_key_management.h" // for BAD_ENCRYPTION_KEY_VERSION
 #include "ha_prototypes.h" // IB_LOG_
 
 /* If true, enable redo log encryption. */
@@ -46,6 +46,8 @@ byte redo_log_crypt_msg[MY_AES_BLOCK_SIZE] = {0};
 /* IV to concatenate with counter used by AES_CTR for redo log
  * encryption/decryption. */
 byte aes_ctr_nonce[MY_AES_BLOCK_SIZE] = {0};
+
+#define LOG_DEFAULT_ENCRYPTION_KEY 1
 
 /*********************************************************************//**
 Generate a 128-bit value used to generate crypt key for redo log.
@@ -69,7 +71,7 @@ log_init_crypt_msg_and_nonce(void)
 /*==============================*/
 {
 	mach_write_to_1(redo_log_crypt_msg, redo_log_purpose_byte);
-	if (my_random_bytes(redo_log_crypt_msg + 1, PURPOSE_BYTE_LEN) != AES_OK)
+	if (my_random_bytes(redo_log_crypt_msg + 1, PURPOSE_BYTE_LEN) != MY_AES_OK)
 	{
 		ib_logf(IB_LOG_LEVEL_ERROR,
 			"Redo log crypto: generate "
@@ -78,7 +80,7 @@ log_init_crypt_msg_and_nonce(void)
 		abort();
 	}
 
-	if (my_random_bytes(aes_ctr_nonce, MY_AES_BLOCK_SIZE) != AES_OK)
+	if (my_random_bytes(aes_ctr_nonce, MY_AES_BLOCK_SIZE) != MY_AES_OK)
 	{
 		ib_logf(IB_LOG_LEVEL_ERROR,
 			"Redo log crypto: generate "
@@ -116,7 +118,8 @@ log_init_crypt_key(
 	}
 
 	byte mysqld_key[MY_AES_BLOCK_SIZE] = {0};
-	if (get_encryption_key(crypt_ver, mysqld_key, MY_AES_BLOCK_SIZE))
+        uint keylen= sizeof(mysqld_key);
+	if (encryption_key_get(LOG_DEFAULT_ENCRYPTION_KEY, crypt_ver, mysqld_key, &keylen))
 	{
 		ib_logf(IB_LOG_LEVEL_ERROR,
 			"Redo log crypto: getting mysqld crypto key "
@@ -125,14 +128,12 @@ log_init_crypt_key(
 	}
 
 	uint32 dst_len;
-	my_aes_encrypt_dynamic_type func= get_aes_encrypt_func(MY_AES_ALGORITHM_ECB);
-	int rc= (*func)(crypt_msg, MY_AES_BLOCK_SIZE, //src, srclen
+	int rc= my_aes_encrypt_ecb(crypt_msg, MY_AES_BLOCK_SIZE, //src, srclen
                         key, &dst_len, //dst, &dstlen
                         (unsigned char*)&mysqld_key, sizeof(mysqld_key),
-                        NULL, 0,
-                        1);
+                        NULL, 0, 1);
 
-	if (rc != AES_OK || dst_len != MY_AES_BLOCK_SIZE)
+	if (rc != MY_AES_OK || dst_len != MY_AES_BLOCK_SIZE)
 	{
 		ib_logf(IB_LOG_LEVEL_ERROR,
 			"Redo log crypto: getting redo log crypto key "
@@ -169,23 +170,12 @@ log_blocks_crypt(
 	const bool is_encrypt)		/*!< in: encrypt or decrypt*/
 {
 	byte *log_block = (byte*)block;
-	Crypt_result rc = AES_OK;
+	Crypt_result rc = MY_AES_OK;
 	uint32 src_len, dst_len;
 	byte aes_ctr_counter[MY_AES_BLOCK_SIZE];
 	ulint log_block_no, log_block_start_lsn;
-	byte *key;
-	ulint lsn;
-	if (is_encrypt)
-	{
-		ut_a(log_sys && log_sys->redo_log_crypt_ver != UNENCRYPTED_KEY_VER);
-		key = (byte *)(log_sys->redo_log_crypt_key);
-		lsn = log_sys->lsn;
+	ulint lsn = is_encrypt ? log_sys->lsn : srv_start_lsn;
 
-	} else {
-		ut_a(recv_sys && recv_sys->recv_log_crypt_ver != UNENCRYPTED_KEY_VER);
-		key = (byte *)(recv_sys->recv_log_crypt_key);
-		lsn = srv_start_lsn;
-	}
 	ut_a(size % OS_FILE_LOG_BLOCK_SIZE == 0);
 	src_len = OS_FILE_LOG_BLOCK_SIZE - LOG_BLOCK_HDR_SIZE;
 	for (ulint i = 0; i < size ; i += OS_FILE_LOG_BLOCK_SIZE)
@@ -205,13 +195,28 @@ log_blocks_crypt(
 		mach_write_to_4(aes_ctr_counter + 11, log_block_no);
 		bzero(aes_ctr_counter + 15, 1);
 
-		int rc = (* my_aes_encrypt_dynamic)(log_block + LOG_BLOCK_HDR_SIZE, src_len,
-		                                dst_block + LOG_BLOCK_HDR_SIZE, &dst_len,
-		                                (unsigned char*)key, 16,
-		                                aes_ctr_counter, MY_AES_BLOCK_SIZE,
-		                                1);
+		int rc;
+		if (is_encrypt) {
+			ut_a(log_sys);
+			ut_a(log_sys->redo_log_crypt_ver != UNENCRYPTED_KEY_VER);
+			rc = encryption_encrypt(log_block + LOG_BLOCK_HDR_SIZE, src_len,
+						dst_block + LOG_BLOCK_HDR_SIZE, &dst_len,
+						(unsigned char*)(log_sys->redo_log_crypt_key), 16,
+						aes_ctr_counter, MY_AES_BLOCK_SIZE, 1,
+						LOG_DEFAULT_ENCRYPTION_KEY,
+						log_sys->redo_log_crypt_ver);
+		} else {
+			ut_a(recv_sys);
+			ut_a(recv_sys->recv_log_crypt_ver != UNENCRYPTED_KEY_VER);
+			rc = encryption_decrypt(log_block + LOG_BLOCK_HDR_SIZE, src_len,
+						dst_block + LOG_BLOCK_HDR_SIZE, &dst_len,
+						(unsigned char*)(recv_sys->recv_log_crypt_key), 16,
+						aes_ctr_counter, MY_AES_BLOCK_SIZE, 1,
+						LOG_DEFAULT_ENCRYPTION_KEY,
+						recv_sys->recv_log_crypt_ver);
+		}
 
-		ut_a(rc == AES_OK);
+		ut_a(rc == MY_AES_OK);
 		ut_a(dst_len == src_len);
 		log_block += OS_FILE_LOG_BLOCK_SIZE;
 		dst_block += OS_FILE_LOG_BLOCK_SIZE;
@@ -260,12 +265,11 @@ log_crypt_set_ver_and_key(
 
 	if (srv_encrypt_log) {
 		unsigned int vkey;
-		vkey = get_latest_encryption_key_version();
+		vkey = encryption_key_get_latest_version(LOG_DEFAULT_ENCRYPTION_KEY);
 		encrypted = true;
 
 		if (vkey == UNENCRYPTED_KEY_VER ||
-		    vkey == BAD_ENCRYPTION_KEY_VERSION ||
-			vkey == (unsigned int)CRYPT_KEY_UNKNOWN) {
+		    vkey == ENCRYPTION_KEY_VERSION_INVALID) {
 			encrypted = false;
 
 			ib_logf(IB_LOG_LEVEL_WARN,

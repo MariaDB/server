@@ -54,7 +54,6 @@
 #include <base64.h>
 #include <my_md5.h>
 #include "sha1.h"
-#include "my_aes.h"
 #include <zlib.h>
 C_MODE_START
 #include "../mysys/my_static.h"			// For soundex_map
@@ -366,29 +365,48 @@ void Item_func_sha2::fix_length_and_dec()
 }
 
 /* Implementation of AES encryption routines */
+void Item_aes_crypt::create_key(String *user_key, uchar *real_key)
+{
+  uchar *real_key_end= real_key + AES_KEY_LENGTH / 8;
+  uchar *ptr;
+  const char *sptr= user_key->ptr();
+  const char *key_end= sptr + user_key->length();
 
-String *Item_func_aes_encrypt::val_str(String *str)
+  bzero(real_key, AES_KEY_LENGTH / 8);
+
+  for (ptr= real_key; sptr < key_end; ptr++, sptr++)
+  {
+    if (ptr == real_key_end)
+      ptr= real_key;
+    *ptr ^= (uchar) *sptr;
+  }
+}
+
+
+String *Item_aes_crypt::val_str(String *str)
 {
   DBUG_ASSERT(fixed == 1);
-  char key_buff[80];
-  String tmp_key_value(key_buff, sizeof(key_buff), system_charset_info);
-  String *sptr= args[0]->val_str(str);			// String to encrypt
-  String *key=  args[1]->val_str(&tmp_key_value);	// key
-  int aes_length;
-  if (sptr && key) // we need both arguments to be not NULL
+  StringBuffer<80> user_key_buf;
+  String *sptr= args[0]->val_str(str);
+  String *user_key=  args[1]->val_str(&user_key_buf);
+  uint32 aes_length;
+
+  if (sptr && user_key) // we need both arguments to be not NULL
   {
     null_value=0;
     aes_length=my_aes_get_size(sptr->length()); // Calculate result length
 
     if (!str_value.alloc(aes_length))		// Ensure that memory is free
     {
-      // finally encrypt directly to allocated buffer.
-      if (my_aes_encrypt((const uchar*) sptr->ptr(), sptr->length(), (uchar*) str_value.ptr(),
-                         key->ptr(), key->length()) == aes_length)
+      uchar rkey[AES_KEY_LENGTH / 8];
+      create_key(user_key, rkey);
+
+      if (!crypt((uchar*)sptr->ptr(), sptr->length(),
+                 (uchar*)str_value.ptr(), &aes_length,
+                 rkey, AES_KEY_LENGTH / 8, 0, 0, 0))
       {
-	// We got the expected result length
-	str_value.length((uint) aes_length);
-	return &str_value;
+        str_value.length((uint) aes_length);
+        return &str_value;
       }
     }
   }
@@ -396,43 +414,10 @@ String *Item_func_aes_encrypt::val_str(String *str)
   return 0;
 }
 
-
 void Item_func_aes_encrypt::fix_length_and_dec()
 {
   max_length=my_aes_get_size(args[0]->max_length);
-}
-
-
-String *Item_func_aes_decrypt::val_str(String *str)
-{
-  DBUG_ASSERT(fixed == 1);
-  char key_buff[80];
-  String tmp_key_value(key_buff, sizeof(key_buff), system_charset_info);
-  String *sptr, *key;
-  DBUG_ENTER("Item_func_aes_decrypt::val_str");
-
-  sptr= args[0]->val_str(str);			// String to decrypt
-  key=  args[1]->val_str(&tmp_key_value);	// Key
-  if (sptr && key)  			// Need to have both arguments not NULL
-  {
-    null_value=0;
-    if (!str_value.alloc(sptr->length()))  // Ensure that memory is free
-    {
-      // finally decrypt directly to allocated buffer.
-      int length;
-      length=my_aes_decrypt((const uchar*)sptr->ptr(), sptr->length(),
-			    (uchar*) str_value.ptr(),
-                            key->ptr(), key->length());
-      if (length >= 0)  // if we got correct data data
-      {
-        str_value.length((uint) length);
-        DBUG_RETURN(&str_value);
-      }
-    }
-  }
-  // Bad parameters. No memory or bad data will all go here
-  null_value=1;
-  DBUG_RETURN(0);
+  crypt= my_aes_encrypt_ecb;
 }
 
 
@@ -440,6 +425,7 @@ void Item_func_aes_decrypt::fix_length_and_dec()
 {
    max_length=args[0]->max_length;
    maybe_null= 1;
+   crypt= my_aes_decrypt_ecb;
 }
 
 

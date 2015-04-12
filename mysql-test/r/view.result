@@ -5395,6 +5395,7 @@ DROP FUNCTION f1;
 DROP VIEW v1;
 DROP TABLE t1, t2;
 create view v1 as select 1;
+FOUND /mariadb-version/ in v1.frm
 drop view v1;
 #
 # MDEV-7260: Crash in get_best_combination when executing multi-table

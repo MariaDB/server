@@ -37,11 +37,15 @@
 #include "lock.h"                               // MYSQL_LOCK_IGNORE_TIMEOUT
 #include <mysql/plugin_auth.h>
 #include <mysql/plugin_password_validation.h>
-#include <mysql/plugin_encryption_key_management.h>
+#include <mysql/plugin_encryption.h>
 #include "sql_plugin_compat.h"
 
 #define REPORT_TO_LOG  1
 #define REPORT_TO_USER 2
+
+#ifdef HAVE_LINK_H
+#include <link.h>
+#endif
 
 extern struct st_maria_plugin *mysql_optional_plugins[];
 extern struct st_maria_plugin *mysql_mandatory_plugins[];
@@ -87,7 +91,7 @@ const LEX_STRING plugin_type_names[MYSQL_MAX_PLUGIN_TYPE_NUM]=
   { C_STRING_WITH_LEN("REPLICATION") },
   { C_STRING_WITH_LEN("AUTHENTICATION") },
   { C_STRING_WITH_LEN("PASSWORD VALIDATION") },
-  { C_STRING_WITH_LEN("ENCRYPTION KEY MANAGEMENT") }
+  { C_STRING_WITH_LEN("ENCRYPTION") }
 };
 
 extern int initialize_schema_table(st_plugin_int *plugin);
@@ -96,8 +100,8 @@ extern int finalize_schema_table(st_plugin_int *plugin);
 extern int initialize_audit_plugin(st_plugin_int *plugin);
 extern int finalize_audit_plugin(st_plugin_int *plugin);
 
-extern int initialize_encryption_key_management_plugin(st_plugin_int *plugin);
-extern int finalize_encryption_key_management_plugin(st_plugin_int *plugin);
+extern int initialize_encryption_plugin(st_plugin_int *plugin);
+extern int finalize_encryption_plugin(st_plugin_int *plugin);
 
 /*
   The number of elements in both plugin_type_initialize and
@@ -107,13 +111,13 @@ extern int finalize_encryption_key_management_plugin(st_plugin_int *plugin);
 plugin_type_init plugin_type_initialize[MYSQL_MAX_PLUGIN_TYPE_NUM]=
 {
   0, ha_initialize_handlerton, 0, 0,initialize_schema_table,
-  initialize_audit_plugin, 0, 0, 0, initialize_encryption_key_management_plugin
+  initialize_audit_plugin, 0, 0, 0, initialize_encryption_plugin
 };
 
 plugin_type_init plugin_type_deinitialize[MYSQL_MAX_PLUGIN_TYPE_NUM]=
 {
   0, ha_finalize_handlerton, 0, 0, finalize_schema_table,
-  finalize_audit_plugin, 0, 0, 0, finalize_encryption_key_management_plugin
+  finalize_audit_plugin, 0, 0, 0, finalize_encryption_plugin
 };
 
 /*
@@ -124,7 +128,7 @@ plugin_type_init plugin_type_deinitialize[MYSQL_MAX_PLUGIN_TYPE_NUM]=
 static int plugin_type_initialization_order[MYSQL_MAX_PLUGIN_TYPE_NUM]=
 {
   MYSQL_DAEMON_PLUGIN,
-  MariaDB_ENCRYPTION_KEY_MANAGEMENT_PLUGIN,
+  MariaDB_ENCRYPTION_PLUGIN,
   MYSQL_STORAGE_ENGINE_PLUGIN,
   MYSQL_INFORMATION_SCHEMA_PLUGIN,
   MYSQL_FTPARSER_PLUGIN,
@@ -166,7 +170,7 @@ static int min_plugin_info_interface_version[MYSQL_MAX_PLUGIN_TYPE_NUM]=
   MYSQL_REPLICATION_INTERFACE_VERSION,
   MIN_AUTHENTICATION_INTERFACE_VERSION,
   MariaDB_PASSWORD_VALIDATION_INTERFACE_VERSION,
-  MariaDB_ENCRYPTION_KEY_MANAGEMENT_INTERFACE_VERSION
+  MariaDB_ENCRYPTION_INTERFACE_VERSION
 };
 static int cur_plugin_info_interface_version[MYSQL_MAX_PLUGIN_TYPE_NUM]=
 {
@@ -179,7 +183,7 @@ static int cur_plugin_info_interface_version[MYSQL_MAX_PLUGIN_TYPE_NUM]=
   MYSQL_REPLICATION_INTERFACE_VERSION,
   MYSQL_AUTHENTICATION_INTERFACE_VERSION,
   MariaDB_PASSWORD_VALIDATION_INTERFACE_VERSION,
-  MariaDB_ENCRYPTION_KEY_MANAGEMENT_INTERFACE_VERSION
+  MariaDB_ENCRYPTION_INTERFACE_VERSION
 };
 
 static struct
@@ -303,6 +307,7 @@ public:
   virtual void global_save_default(THD *thd, set_var *var) {}
   bool session_update(THD *thd, set_var *var);
   bool global_update(THD *thd, set_var *var);
+  bool session_is_default(THD *thd);
 };
 
 
@@ -766,6 +771,14 @@ static st_plugin_dl *plugin_dl_add(const LEX_STRING *dl, int report)
     goto ret;
   }
   dlopen_count++;
+
+#ifdef HAVE_LINK_H
+  if (global_system_variables.log_warnings > 2)
+  {
+    struct link_map *lm = (struct link_map*) plugin_dl.handle;
+    sql_print_information("Loaded '%s' with offset 0x%lx", dl->str, lm->l_addr);
+  }
+#endif
 
   /* Checks which plugin interface present and reads info */
   if (!(sym= dlsym(plugin_dl.handle, maria_plugin_interface_version_sym)))
@@ -1385,16 +1398,6 @@ static int plugin_initialize(MEM_ROOT *tmp_root, struct st_plugin_int *plugin,
     goto err;
   }
 
-  if (plugin->plugin_dl && global_system_variables.log_warnings >= 9)
-  {
-    void *sym= dlsym(plugin->plugin_dl->handle,
-                     plugin->plugin_dl->mariaversion ?
-                       maria_plugin_declarations_sym : plugin_declarations_sym);
-    DBUG_ASSERT(sym);
-    sql_print_information("Plugin %s loaded at %p",
-                          plugin->name.str, sym);
-  }
-
   if (plugin_type_initialize[plugin->plugin->type])
   {
     if ((*plugin_type_initialize[plugin->plugin->type])(plugin))
@@ -1560,6 +1563,9 @@ int plugin_init(int *argc, char **argv, int flags)
   DBUG_ASSERT(strcmp(list_of_services[4].name, "debug_sync_service") == 0);
   list_of_services[4].service= *(void**)&debug_sync_C_callback_ptr;
 
+  /* prepare encryption_keys service */
+  finalize_encryption_plugin(0);
+
   mysql_mutex_lock(&LOCK_plugin);
 
   initialized= 1;
@@ -1616,7 +1622,7 @@ int plugin_init(int *argc, char **argv, int flags)
     goto err_unlock;
 
   /*
-    initialize the global default storage engine so that it may
+    set the global default storage engine variable so that it will
     not be null in any child thread.
   */
   global_system_variables.table_plugin=
@@ -3332,6 +3338,39 @@ uchar* sys_var_pluginvar::real_value_ptr(THD *thd, enum_var_type type)
     return intern_sys_var_ptr(thd, *(int*) (plugin_var+1), false);
   }
   return *(uchar**) (plugin_var+1);
+}
+
+
+bool sys_var_pluginvar::session_is_default(THD *thd)
+{
+  uchar *value= plugin_var->flags & PLUGIN_VAR_THDLOCAL
+                ? intern_sys_var_ptr(thd, *(int*) (plugin_var+1), true)
+                : *(uchar**) (plugin_var+1);
+
+    real_value_ptr(thd, OPT_SESSION);
+
+  switch (plugin_var->flags & PLUGIN_VAR_TYPEMASK) {
+  case PLUGIN_VAR_BOOL:
+    return option.def_value == *(my_bool*)value;
+  case PLUGIN_VAR_INT:
+    return option.def_value == *(int*)value;
+  case PLUGIN_VAR_LONG:
+  case PLUGIN_VAR_ENUM:
+    return option.def_value == *(long*)value;
+  case PLUGIN_VAR_LONGLONG:
+  case PLUGIN_VAR_SET:
+    return option.def_value == *(longlong*)value;
+  case PLUGIN_VAR_STR:
+    {
+      const char *a=(char*)option.def_value;
+      const char *b=(char*)value;
+      return (!a && !b) || (a && b && strcmp(a,b));
+    }
+  case PLUGIN_VAR_DOUBLE:
+    return getopt_ulonglong2double(option.def_value) == *(double*)value;
+  default:
+    DBUG_ASSERT(0);
+  }
 }
 
 

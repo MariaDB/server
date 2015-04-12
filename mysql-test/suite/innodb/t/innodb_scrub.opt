@@ -2,12 +2,11 @@
 --encrypt-tmp-disk-tables=ON
 --innodb-background-scrub-data-compressed=OFF
 --innodb-background-scrub-data-uncompressed=OFF
---innodb-encrypt-tables=0
 --innodb-encrypt-tables=ON
+--innodb-encrypt-log=ON
 --innodb-encryption-rotate-key-age=15
---innodb-encryption-threads=0
 --innodb-encryption-threads=4
 --innodb-file-format=Barracuda
 --innodb-file-per-table=1
 --innodb-immediate-scrub-data-uncompressed=ON
---loose-innodb-scrub-force-testing=ON
+--loose-innodb-debug-force-scrubbing=ON

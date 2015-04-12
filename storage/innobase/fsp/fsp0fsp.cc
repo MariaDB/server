@@ -31,6 +31,7 @@ Created 11/29/1995 Heikki Tuuri
 
 #include "buf0buf.h"
 #include "fil0fil.h"
+#include "fil0crypt.h"
 #include "mtr0log.h"
 #include "ut0byte.h"
 #include "page0page.h"

@@ -27,8 +27,7 @@ Created 10/25/1995 Heikki Tuuri
 #include "fil0fil.h"
 #include "fil0pagecompress.h"
 #include "fsp0pagecompress.h"
-#include "fil0pageencryption.h"
-#include "fsp0pageencryption.h"
+#include "fil0crypt.h"
 
 #include <debug_sync.h>
 #include <my_dbug.h>
@@ -287,7 +286,7 @@ fil_read(
 				actual page size does not decrease. */
 {
 	return(fil_io(OS_FILE_READ, sync, space_id, zip_size, block_offset,
-		      byte_offset, len, buf, message, write_size, 0, false));
+		      byte_offset, len, buf, message, write_size));
 }
 
 /********************************************************************//**
@@ -314,18 +313,16 @@ fil_write(
 				this must be appropriately aligned */
 	void*	message,	/*!< in: message for aio handler if non-sync
 				aio used, else ignored */
-	ulint*	write_size,	/*!< in/out: Actual write size initialized
+	ulint*	write_size)	/*!< in/out: Actual write size initialized
 				after fist successfull trim
 				operation for this page and if
 				initialized we do not trim again if
 				actual page size does not decrease. */
-	lsn_t	lsn,		/*!< in: lsn of the newest modification */
-	bool	encrypt_later)  /*!< in: encrypt later ? */
 {
 	ut_ad(!srv_read_only_mode);
 
 	return(fil_io(OS_FILE_WRITE, sync, space_id, zip_size, block_offset,
-			byte_offset, len, buf, message, write_size, lsn, encrypt_later));
+			byte_offset, len, buf, message, write_size));
 }
 
 /*******************************************************************//**
@@ -651,22 +648,7 @@ fil_node_open_file(
 		set */
 		page = static_cast<byte*>(ut_align(buf2, UNIV_PAGE_SIZE));
 
-		success = os_file_read(node->handle, page, 0, UNIV_PAGE_SIZE,
-			               space->flags);
-
-		if (fil_page_encryption_status(page)) {
-			/* if page is (still) encrypted, write an error and return.
-			* Otherwise the server would crash if decrypting is not possible.
-			* This may be the case, if the key file could not be
-			* opened on server startup.
-			*/
-			ib_logf(IB_LOG_LEVEL_ERROR,
-                               "InnoDB: can not decrypt page, because "
-                               "keys could not be read.\n"
-                               );
-				return false;
-
-		}
+		success = os_file_read(node->handle, page, 0, UNIV_PAGE_SIZE);
 
 		space_id = fsp_header_get_space_id(page);
 		flags = fsp_header_get_flags(page);
@@ -1190,21 +1172,6 @@ fil_space_create(
 	DBUG_EXECUTE_IF("fil_space_create_failure", return(false););
 
 	ut_a(fil_system);
-
-	if (fsp_flags_is_page_encrypted(flags)) {
-		if (!has_encryption_key(fsp_flags_get_page_encryption_key(flags))) {
-			/* by returning here it should be avoided that
-			 * the server crashes, if someone tries to access an
-			 * encrypted table and the encryption key is not available.
-			 * The the table is treaded as non-existent.
-			 */
-			ib_logf(IB_LOG_LEVEL_WARN,
-				"Tablespace '%s' can not be opened, because "
-				" encryption key can not be found (space id: %lu, key %lu)\n"
-				, name, (ulong) id, fsp_flags_get_page_encryption_key(flags));
-			return (FALSE);
-		}
-	}
 
 	/* Look for a matching tablespace and if found free it. */
 	do {
@@ -1879,7 +1846,7 @@ fil_write_lsn_and_arch_no_to_file(
 				lsn);
 
 		err = fil_write(TRUE, space, 0, sum_of_sizes, 0,
-			        UNIV_PAGE_SIZE, buf, NULL, 0, 0, false);
+			UNIV_PAGE_SIZE, buf, NULL, 0);
 	}
 
 	mem_free(buf1);
@@ -1958,7 +1925,6 @@ fil_check_first_page(
 {
 	ulint	space_id;
 	ulint	flags;
-	ulint page_is_encrypted;
 
 	if (srv_force_recovery >= SRV_FORCE_IGNORE_CORRUPT) {
 		return(NULL);
@@ -1966,23 +1932,14 @@ fil_check_first_page(
 
 	space_id = mach_read_from_4(FSP_HEADER_OFFSET + FSP_SPACE_ID + page);
 	flags = mach_read_from_4(FSP_HEADER_OFFSET + FSP_SPACE_FLAGS + page);
-	/* Note: the 1st page is usually not encrypted. If the Key Provider
-	or the encryption key is not available, the
-	check for reading the first page should intentionally fail
-	with "can not decrypt" message. */
-	page_is_encrypted = fil_page_encryption_status(page);
-	if (page_is_encrypted == PAGE_ENCRYPTION_KEY_MISSING && page_is_encrypted) {
-		page_is_encrypted = 1;
-	} else {
-		page_is_encrypted = 0;
-		if (UNIV_PAGE_SIZE != fsp_flags_get_page_size(flags)) {
-			fprintf(stderr, 
-				"InnoDB: Error: Current page size %lu != "
-				" page size on page %lu\n",
-				UNIV_PAGE_SIZE, fsp_flags_get_page_size(flags));
 
-			return("innodb-page-size mismatch");
-		}
+	if (UNIV_PAGE_SIZE != fsp_flags_get_page_size(flags)) {
+		fprintf(stderr,
+			"InnoDB: Error: Current page size %lu != "
+			" page size on page %lu\n",
+			UNIV_PAGE_SIZE, fsp_flags_get_page_size(flags));
+
+		return("innodb-page-size mismatch");
 	}
 
 	if (!space_id && !flags) {
@@ -1998,17 +1955,9 @@ fil_check_first_page(
 		}
 	}
 
-	if (!page_is_encrypted && buf_page_is_corrupted(
+	if (buf_page_is_corrupted(
 		    false, page, fsp_flags_get_zip_size(flags))) {
 		return("checksum mismatch");
-	} else {
-		if (page_is_encrypted) {
-			/* this error message is interpreted by the calling method, which is
-			 * executed if the server starts in recovery mode.
-			 */
-			return(MSG_CANNOT_DECRYPT);
-
-		}
 	}
 
 	if (page_get_space_id(page) == space_id
@@ -2046,6 +1995,7 @@ fil_read_first_page(
 	byte*		page;
 	lsn_t		flushed_lsn;
 	const char*	check_msg = NULL;
+	fil_space_crypt_t* cdata;
 
 	buf = static_cast<byte*>(ut_malloc(2 * UNIV_PAGE_SIZE));
 
@@ -2053,10 +2003,7 @@ fil_read_first_page(
 
 	page = static_cast<byte*>(ut_align(buf, UNIV_PAGE_SIZE));
 
-	os_file_read(data_file, page, 0, UNIV_PAGE_SIZE,
-		orig_space_id != ULINT_UNDEFINED ?
-		fil_space_is_page_compressed(orig_space_id) :
-		FALSE);
+	os_file_read(data_file, page, 0, UNIV_PAGE_SIZE);
 
 	/* The FSP_HEADER on page 0 is only valid for the first file
 	in a tablespace.  So if this is not the first datafile, leave
@@ -2067,13 +2014,6 @@ fil_read_first_page(
 		*space_id = fsp_header_get_space_id(page);
 	}
 
-	/* Page is page compressed page, need to decompress, before
-	continue. */
-	if (fil_page_is_compressed(page)) {
-		ulint write_size=0;
-		fil_decompress_page(NULL, page, UNIV_PAGE_SIZE, &write_size);
-	}
-
 	if (!one_read_already) {
 		check_msg = fil_check_first_page(page);
 	}
@@ -2081,12 +2021,30 @@ fil_read_first_page(
 	flushed_lsn = mach_read_from_8(page +
 				       FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION);
 
+
+	ulint space = fsp_header_get_space_id(page);
+	ulint offset = fsp_header_get_crypt_offset(
+		fsp_flags_get_zip_size(*flags), NULL);
+	cdata = fil_space_read_crypt_data(space, page, offset);
+
+	/* If file space is encrypted we need to have at least some
+	encryption service available where to get keys */
+	if ((cdata && cdata->encryption == FIL_SPACE_ENCRYPTION_ON) ||
+		(srv_encrypt_tables &&
+			cdata && cdata->encryption == FIL_SPACE_ENCRYPTION_DEFAULT)) {
+		uint rc = encryption_key_get_latest_version(cdata->key_id);
+
+		if (rc == ENCRYPTION_KEY_VERSION_INVALID) {
+			ib_logf(IB_LOG_LEVEL_FATAL,
+				"Tablespace id %ld encrypted but encryption service"
+				" not available. Can't continue opening tablespace.\n",
+				space);
+			ut_error;
+		}
+	}
+
 	if (crypt_data) {
-		ulint space = fsp_header_get_space_id(page);
-		ulint offset =
-			fsp_header_get_crypt_offset(
-				fsp_flags_get_zip_size(*flags), NULL);
-		*crypt_data = fil_space_read_crypt_data(space, page, offset);
+		*crypt_data = cdata;
 	}
 
 	ut_free(buf);
@@ -3551,7 +3509,7 @@ fil_create_new_single_table_tablespace(
 	}
 
 	success = fil_space_create(tablename, space_id, flags, FIL_TABLESPACE,
-				   fil_space_create_crypt_data());
+				   fil_space_create_crypt_data(FIL_DEFAULT_ENCRYPTION_KEY));
 
 	if (!success || !fil_node_create(path, size, space_id, FALSE)) {
 		err = DB_ERROR;
@@ -4106,8 +4064,7 @@ fil_user_tablespace_find_space_id(
 
 		for (ulint j = 0; j < page_count; ++j) {
 
-			st = os_file_read(fsp->file, page, (j* page_size), page_size,
-				          fsp_flags_is_page_compressed(fsp->flags));
+			st = os_file_read(fsp->file, page, (j* page_size), page_size);
 
 			if (!st) {
 				ib_logf(IB_LOG_LEVEL_INFO,
@@ -4242,7 +4199,6 @@ fil_validate_single_table_tablespace(
 
 check_first_page:
 	fsp->success = TRUE;
-	fsp->encryption_error = 0;
 	if (const char* check_msg = fil_read_first_page(
 		    fsp->file, FALSE, &fsp->flags, &fsp->id,
 		    &fsp->lsn, &fsp->lsn, ULINT_UNDEFINED, &fsp->crypt_data)) {
@@ -4250,14 +4206,6 @@ check_first_page:
 			"%s in tablespace %s (table %s)",
 			check_msg, fsp->filepath, tablename);
 		fsp->success = FALSE;
-		if (strncmp(check_msg, MSG_CANNOT_DECRYPT, strlen(check_msg))==0) {
-			/* by returning here, it should be avoided, that the server crashes,
-			 * if started in recovery mode and can not decrypt tables, if
-			 * the key file can not be read.
-			 */
-			fsp->encryption_error = 1;
-			return;
-		}
 	}
 
 	if (!fsp->success) {
@@ -4411,13 +4359,6 @@ fil_load_single_table_tablespace(
 	}
 
 	if (!def.success && !remote.success) {
-
-		if (def.encryption_error || remote.encryption_error) {
-			fprintf(stderr,
-				"InnoDB: Error: could not open single-table"
-				" tablespace file %s. Encryption error!\n", def.filepath);
-			return;
-		}
 
 		/* The following call prints an error message */
 		os_file_get_last_error(true);
@@ -5258,7 +5199,7 @@ retry:
 		success = os_aio(OS_FILE_WRITE, OS_AIO_SYNC,
 				 node->name, node->handle, buf,
 				 offset, page_size * n_pages,
-			         node, NULL, space_id, NULL, 0, 0, 0, 0, 0, 0, false);
+				 node, NULL, space_id, NULL, 0);
 #endif /* UNIV_HOTBACKUP */
 
 		DBUG_EXECUTE_IF("ib_os_aio_func_io_failure_28",
@@ -5606,6 +5547,74 @@ fil_report_invalid_page_access(
 }
 
 /********************************************************************//**
+Find correct node from file space
+@return node */
+static
+fil_node_t*
+fil_space_get_node(
+	fil_space_t*	space,		/*!< in: file spage */
+	ulint 		space_id,	/*!< in: space id   */
+	ulint* 		block_offset,	/*!< in/out: offset in number of blocks */
+	ulint 		byte_offset,	/*!< in: remainder of offset in bytes; in
+					aio this must be divisible by the OS block
+					size */
+	ulint 		len)		/*!< in: how many bytes to read or write; this
+					must not cross a file boundary; in aio this
+					must be a block size multiple */
+{
+	fil_node_t*	node;
+	ut_ad(mutex_own(&fil_system->mutex));
+
+	node = UT_LIST_GET_FIRST(space->chain);
+
+	for (;;) {
+		if (node == NULL) {
+			return(NULL);
+		} else if (fil_is_user_tablespace_id(space->id)
+			   && node->size == 0) {
+
+			/* We do not know the size of a single-table tablespace
+			before we open the file */
+			break;
+		} else if (node->size > *block_offset) {
+			/* Found! */
+			break;
+		} else {
+			*block_offset -= node->size;
+			node = UT_LIST_GET_NEXT(chain, node);
+		}
+	}
+
+	return (node);
+}
+/********************************************************************//**
+Return block size of node in file space
+@return file block size */
+UNIV_INTERN
+ulint
+fil_space_get_block_size(
+/*=====================*/
+	ulint	space_id,
+	ulint	block_offset,
+	ulint	len)
+{
+	ulint block_size = 512;
+	fil_space_t* space = fil_space_get_space(space_id);
+
+	if (space) {
+		mutex_enter(&fil_system->mutex);
+		fil_node_t* node = fil_space_get_node(space, space_id, &block_offset, 0, len);
+		mutex_exit(&fil_system->mutex);
+
+		if (node) {
+			block_size = node->file_block_size;
+		}
+	}
+
+	return block_size;
+}
+
+/********************************************************************//**
 Reads or writes data. This operation is asynchronous (aio).
 @return DB_SUCCESS, or DB_TABLESPACE_DELETED if we are trying to do
 i/o on a tablespace which does not exist */
@@ -5643,9 +5652,7 @@ _fil_io(
 				operation for this page and if
 				initialized we do not trim again if
 				actual page size does not decrease. */
-	trx_t*	trx,
-	lsn_t	lsn,		/*!< in: lsn of the newest modification */
-	bool	encrypt_later)	/*!< in: encrypt later ? */
+	trx_t*	trx)
 {
 	ulint		mode;
 	fil_space_t*	space;
@@ -5654,11 +5661,7 @@ _fil_io(
 	ulint		is_log;
 	ulint		wake_later;
 	os_offset_t	offset;
-	ibool		ignore_nonexistent_pages;
-	ibool		page_compressed = FALSE;
-	ulint		page_compression_level = 0;
-	ibool		page_encrypted;
-	ulint		page_encryption_key;
+	bool		ignore_nonexistent_pages;
 
 	is_log = type & OS_FILE_LOG;
 	type = type & ~OS_FILE_LOG;
@@ -5726,13 +5729,6 @@ _fil_io(
 
 	space = fil_space_get_by_id(space_id);
 
-	page_compressed = fsp_flags_is_page_compressed(space->flags);
-	page_compression_level = fsp_flags_get_page_compression_level(space->flags);
-
-	page_encrypted = fsp_flags_is_page_encrypted(space->flags);
-	page_encryption_key = fsp_flags_get_page_encryption_key(space->flags);
-
-
 	/* If we are deleting a tablespace we don't allow any read
 	operations on that. However, we do allow write operations. */
 	if (space == 0 || (type == OS_FILE_READ && space->stop_new_ops)) {
@@ -5750,34 +5746,18 @@ _fil_io(
 
 	ut_ad(mode != OS_AIO_IBUF || space->purpose == FIL_TABLESPACE);
 
-	node = UT_LIST_GET_FIRST(space->chain);
+	node = fil_space_get_node(space, space_id, &block_offset, byte_offset, len);
 
-	for (;;) {
-		if (node == NULL) {
-			if (ignore_nonexistent_pages) {
-				mutex_exit(&fil_system->mutex);
-				return(DB_ERROR);
-			}
-
-			fil_report_invalid_page_access(
+	if (!node) {
+		if (ignore_nonexistent_pages) {
+			mutex_exit(&fil_system->mutex);
+			return(DB_ERROR);
+		}
+		fil_report_invalid_page_access(
 				block_offset, space_id, space->name,
 				byte_offset, len, type);
 
-			ut_error;
-
-		} else if (fil_is_user_tablespace_id(space->id)
-			   && node->size == 0) {
-
-			/* We do not know the size of a single-table tablespace
-			before we open the file */
-			break;
-		} else if (node->size > block_offset) {
-			/* Found! */
-			break;
-		} else {
-			block_offset -= node->size;
-			node = UT_LIST_GET_NEXT(chain, node);
-		}
+		ut_error;
 	}
 
 	/* Open file if closed */
@@ -5889,13 +5869,7 @@ _fil_io(
 		message,
 		space_id,
 		trx,
-		page_compressed,
-		page_compression_level,
-		write_size,
-		page_encrypted,
-		page_encryption_key,
-	        lsn,
-		encrypt_later);
+		write_size);
 
 #else
 	/* In mysqlbackup do normal i/o, not aio */
@@ -6454,9 +6428,7 @@ fil_iterate(
 			readptr = iter.crypt_io_buffer;
 		}
 
-		if (!os_file_read(iter.file, readptr, offset,
-				  (ulint) n_bytes,
-				  fil_space_is_page_compressed(space_id))) {
+		if (!os_file_read(iter.file, readptr, offset, (ulint) n_bytes)) {
 
 			ib_logf(IB_LOG_LEVEL_ERROR, "os_file_read() failed");
 
@@ -6607,8 +6579,7 @@ fil_tablespace_iterate(
 
 	/* Read the first page and determine the page and zip size. */
 
-	if (!os_file_read(file, page, 0, UNIV_PAGE_SIZE,
-			  dict_tf_get_page_compression(table->flags))) {
+	if (!os_file_read(file, page, 0, UNIV_PAGE_SIZE)) {
 
 		err = DB_IO_ERROR;
 
@@ -6668,7 +6639,7 @@ fil_tablespace_iterate(
 
 		if (iter.crypt_data != NULL) {
 			/* clear crypt data from page 0 and write it back */
-			os_file_read(file, page, 0, UNIV_PAGE_SIZE, 0);
+			os_file_read(file, page, 0, UNIV_PAGE_SIZE);
 			fil_space_clear_crypt_data(page, crypt_data_offset);
 			lsn_t lsn = mach_read_from_8(page + FIL_PAGE_LSN);
 			if (callback.get_zip_size() == 0) {
@@ -6915,79 +6886,6 @@ fil_system_exit(void)
 	mutex_exit(&fil_system->mutex);
 }
 
-/*******************************************************************//**
-Return space name */
-char*
-fil_space_name(
-/*===========*/
-	fil_space_t*	space)	/*!< in: space */
-{
-	return (space->name);
-}
-
-/*******************************************************************//**
-Return space flags */
-ulint
-fil_space_flags(
-/*===========*/
-	fil_space_t*	space)	/*!< in: space */
-{
-	return (space->flags);
-}
-
-/*******************************************************************//**
-Return page type name */
-const char*
-fil_get_page_type_name(
-/*===================*/
-	ulint	page_type)	/*!< in: FIL_PAGE_TYPE */
-{
-	switch(page_type) {
-	case FIL_PAGE_PAGE_COMPRESSED:
-		return (const char*)"PAGE_COMPRESSED";
-	case FIL_PAGE_INDEX:
-		return (const char*)"INDEX";
-	case FIL_PAGE_UNDO_LOG:
-		return (const char*)"UNDO LOG";
-	case FIL_PAGE_INODE:
-		return (const char*)"INODE";
-	case FIL_PAGE_IBUF_FREE_LIST:
-		return (const char*)"IBUF_FREE_LIST";
-	case FIL_PAGE_TYPE_ALLOCATED:
-		return (const char*)"ALLOCATED";
-	case FIL_PAGE_IBUF_BITMAP:
-		return (const char*)"IBUF_BITMAP";
-	case FIL_PAGE_TYPE_SYS:
-		return (const char*)"SYS";
-	case FIL_PAGE_TYPE_TRX_SYS:
-		return (const char*)"TRX_SYS";
-	case FIL_PAGE_TYPE_FSP_HDR:
-		return (const char*)"FSP_HDR";
-	case FIL_PAGE_TYPE_XDES:
-		return (const char*)"XDES";
-	case FIL_PAGE_TYPE_BLOB:
-		return (const char*)"BLOB";
-	case FIL_PAGE_TYPE_ZBLOB:
-		return (const char*)"ZBLOB";
-	case FIL_PAGE_TYPE_ZBLOB2:
-		return (const char*)"ZBLOB2";
-	case FIL_PAGE_TYPE_COMPRESSED:
-		return (const char*)"ORACLE PAGE COMPRESSED";
-	default:
-		return (const char*)"PAGE TYPE CORRUPTED";
-	}
-}
-/****************************************************************//**
-Get block size from fil node
-@return block size*/
-ulint
-fil_node_get_block_size(
-/*====================*/
-	fil_node_t*     node)		/*!< in: Node where to get block
-					size */
-{
-	return (node->file_block_size);
-}
 
 /******************************************************************
 Get id of first tablespace or ULINT_UNDEFINED if none */

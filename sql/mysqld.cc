@@ -105,7 +105,6 @@
 #include "sp_rcontext.h"
 #include "sp_cache.h"
 #include "sql_reload.h"  // reload_acl_and_cache
-#include <my_aes.h>
 
 #ifdef HAVE_POLL_H
 #include <poll.h>
@@ -630,7 +629,6 @@ char *mysqld_unix_port, *opt_mysql_tmpdir;
 ulong thread_handling;
 
 my_bool encrypt_tmp_disk_tables;
-ulong   encryption_algorithm;
 
 /** name of reference on left expression in rewritten IN subquery */
 const char *in_left_expr_name= "<left expr>";
@@ -4804,13 +4802,6 @@ static int init_server_components()
   my_rnd_init(&sql_rand,(ulong) server_start_time,(ulong) server_start_time/2);
   setup_fpu();
   init_thr_lock();
-  if (my_aes_init_dynamic_encrypt((enum_my_aes_encryption_algorithm)
-                                  encryption_algorithm))
-  {
-    fprintf(stderr, "Can't initialize encryption algorithm to \"%s\".\nCheck that the program is linked with the right library (openssl?)\n",
-            encryption_algorithm_names[encryption_algorithm]);
-    unireg_abort(1);
-  }
 
 #ifndef EMBEDDED_LIBRARY
   if (init_thr_timer(thread_scheduler->max_threads + extra_max_connections))
@@ -7487,7 +7478,7 @@ static int show_queries(THD *thd, SHOW_VAR *var, char *buff,
                         enum enum_var_type scope)
 {
   var->type= SHOW_LONGLONG;
-  var->value= (char *)&thd->query_id;
+  var->value= &thd->query_id;
   return 0;
 }
 
@@ -7496,7 +7487,7 @@ static int show_net_compression(THD *thd, SHOW_VAR *var, char *buff,
                                 enum enum_var_type scope)
 {
   var->type= SHOW_MY_BOOL;
-  var->value= (char *)&thd->net.compress;
+  var->value= &thd->net.compress;
   return 0;
 }
 
@@ -7848,7 +7839,7 @@ static int show_ssl_get_version(THD *thd, SHOW_VAR *var, char *buff,
   if( thd->vio_ok() && thd->net.vio->ssl_arg )
     var->value= const_cast<char*>(SSL_get_version((SSL*) thd->net.vio->ssl_arg));
   else
-    var->value= (char *)"";
+    var->value= const_cast<char*>("");
   return 0;
 }
 
@@ -7907,7 +7898,7 @@ static int show_ssl_get_cipher(THD *thd, SHOW_VAR *var, char *buff,
   if( thd->vio_ok() && thd->net.vio->ssl_arg )
     var->value= const_cast<char*>(SSL_get_cipher((SSL*) thd->net.vio->ssl_arg));
   else
-    var->value= (char *)"";
+    var->value= const_cast<char*>("");
   return 0;
 }
 
@@ -8055,14 +8046,14 @@ static int show_default_keycache(THD *thd, SHOW_VAR *var, char *buff,
   v= data->var;
 
   var->type= SHOW_ARRAY;
-  var->value= (char*)v;
+  var->value= v;
 
   get_key_cache_statistics(dflt_key_cache, 0, &data->stats);
 
 #define set_one_keycache_var(X,Y)       \
   v->name= X;                           \
   v->type= SHOW_LONGLONG;               \
-  v->value= (char*)&data->stats.Y;      \
+  v->value= &data->stats.Y;      \
   v++;
 
   set_one_keycache_var("blocks_not_flushed", blocks_changed);
@@ -8116,11 +8107,11 @@ static int debug_status_func(THD *thd, SHOW_VAR *var, char *buff,
   if (_db_keyword_(0, "role_merge_stats", 1))
   {
     static SHOW_VAR roles[]= {
-      {"global",  (char*) &role_global_merges,  SHOW_ULONG},
-      {"db",      (char*) &role_db_merges,      SHOW_ULONG},
-      {"table",   (char*) &role_table_merges,   SHOW_ULONG},
-      {"column",  (char*) &role_column_merges,  SHOW_ULONG},
-      {"routine", (char*) &role_routine_merges, SHOW_ULONG},
+      {"global",  &role_global_merges,  SHOW_ULONG},
+      {"db",      &role_db_merges,      SHOW_ULONG},
+      {"table",   &role_table_merges,   SHOW_ULONG},
+      {"column",  &role_column_merges,  SHOW_ULONG},
+      {"routine", &role_routine_merges, SHOW_ULONG},
       {NullS, NullS, SHOW_LONG}
     };
 

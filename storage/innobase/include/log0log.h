@@ -1022,8 +1022,8 @@ struct log_t{
 #endif /* UNIV_LOG_ARCHIVE */
 
 extern os_event_t log_scrub_event;
-/* log scrubbing interval in ms */
-extern ulonglong innodb_scrub_log_interval;
+/* log scrubbing speed, in bytes/sec */
+extern ulonglong innodb_scrub_log_speed;
 
 /*****************************************************************//**
 This is the main thread for log scrub. It waits for an event and

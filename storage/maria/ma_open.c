@@ -837,7 +837,8 @@ MARIA_HA *maria_open(const char *name, int mode, uint open_flags)
 
     if (MY_TEST(share->base.extra_options & MA_EXTRA_OPTIONS_ENCRYPTED))
     {
-      disk_pos= ma_crypt_read(share, disk_pos);
+      if (!(disk_pos= ma_crypt_read(share, disk_pos)))
+        goto err;
     }
 
     if ((share->data_file_type == BLOCK_RECORD ||

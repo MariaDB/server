@@ -165,10 +165,6 @@ The following options may be given as the first argument:
  --encrypt-tmp-disk-tables 
  Encrypt tmp disk tables (created as part of query
  execution)
- --encryption-algorithm=name 
- Which encryption algorithm to use for table encryption.
- aes_cbc is the recommended one.. One of: none, aes_ecb, 
- aes_cbc, aes_ctr
  --enforce-storage-engine=name 
  Force the use of a storage engine for new tables
  --event-scheduler[=name] 
@@ -1151,7 +1147,6 @@ delayed-insert-timeout 300
 delayed-queue-size 1000
 div-precision-increment 4
 encrypt-tmp-disk-tables FALSE
-encryption-algorithm none
 enforce-storage-engine (No default value)
 event-scheduler OFF
 expensive-subquery-limit 100
