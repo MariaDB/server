@@ -64,7 +64,7 @@ IF(NOT WITH_ARIA_STORAGE_ENGINE)
 ENDIF()
 
 TARGET_LINK_LIBRARIES(aria myisam
-  mysys mysys_ssl ${LIBCRYPT} ${LIBDL} ${SSL_LIBRARIES})
+  mysys mysys_ssl)
 
 MYSQL_ADD_EXECUTABLE(aria_ftdump maria_ftdump.c COMPONENT Server)
 TARGET_LINK_LIBRARIES(aria_ftdump aria)

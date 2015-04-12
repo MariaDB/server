@@ -21,7 +21,7 @@ Name	Status	Type	Library	License
 EXAMPLE	NOT INSTALLED	STORAGE ENGINE	ha_example.so	GPL
 UNUSABLE	NOT INSTALLED	DAEMON	ha_example.so	GPL
 daemon_example	NOT INSTALLED	DAEMON	libdaemon_example.so	GPL
-example_key_management_plugin	NOT INSTALLED	ENCRYPTION KEY MANAGEMENT	example_key_management_plugin.so	GPL
+example_key_management	NOT INSTALLED	ENCRYPTION	example_key_management.so	GPL
 three_attempts	NOT INSTALLED	AUTHENTICATION	dialog_examples.so	GPL
 two_questions	NOT INSTALLED	AUTHENTICATION	dialog_examples.so	GPL
 show status like '%libraries%';

@@ -3,7 +3,7 @@
 Copyright (c) 1996, 2014, Oracle and/or its affiliates. All rights reserved.
 Copyright (c) 2008, Google Inc.
 Copyright (c) 2009, Percona Inc.
-Copyright (c) 2013, 2014, SkySQL Ab. All Rights Reserved.
+Copyright (c) 2013, 2015, MariaDB Corporation
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -53,6 +53,7 @@ Created 2/16/1996 Heikki Tuuri
 #include "os0file.h"
 #include "os0thread.h"
 #include "fil0fil.h"
+#include "fil0crypt.h"
 #include "fsp0fsp.h"
 #include "rem0rec.h"
 #include "mtr0mtr.h"
@@ -1119,7 +1120,7 @@ check_first_page:
 
 			*sum_of_new_sizes += srv_data_file_sizes[i];
 
-			crypt_data = fil_space_create_crypt_data();
+			crypt_data = fil_space_create_crypt_data(FIL_DEFAULT_ENCRYPTION_KEY);
 		}
 
 		ret = os_file_close(files[i]);

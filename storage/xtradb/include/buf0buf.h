@@ -1469,16 +1469,19 @@ buf_own_zip_mutex_for_page(
 The hook that is called just before a page is written to disk.
 The function encrypts the content of the page and returns a pointer
 to a frame that will be written instead of the real frame. */
+UNIV_INTERN
 byte*
 buf_page_encrypt_before_write(
 /*==========================*/
 	buf_page_t* page, /*!< in/out: buffer page to be flushed */
-	const byte* frame);
+	const byte* frame,
+	ulint space_id);
 
 /**********************************************************************
 The hook that is called after page is written to disk.
 The function releases any resources needed for encryption that was allocated
 in buf_page_encrypt_before_write */
+UNIV_INTERN
 ibool
 buf_page_encrypt_after_write(
 /*=========================*/
@@ -1488,6 +1491,7 @@ buf_page_encrypt_after_write(
 The hook that is called just before a page is read from disk.
 The function allocates memory that is used to temporarily store disk content
 before getting decrypted */
+UNIV_INTERN
 byte*
 buf_page_decrypt_before_read(
 /*=========================*/
@@ -1498,19 +1502,35 @@ buf_page_decrypt_before_read(
 The hook that is called just after a page is read from disk.
 The function decrypt disk content into buf_page_t and releases the
 temporary buffer that was allocated in buf_page_decrypt_before_read */
+UNIV_INTERN
 ibool
 buf_page_decrypt_after_read(
 /*========================*/
 	buf_page_t* page); /*!< in/out: buffer page read from disk */
 
-/********************************************************************//**
-Release memory allocated for page decryption.
-Only used in scenarios where read fails, e.g due to tablespace being dropped */
-void
-buf_page_decrypt_cleanup(
-/*=====================*/
-	buf_page_t* page); /*!< in/out: buffer page read from disk */
+/** @brief The temporary memory structure.
 
+NOTE! The definition appears here only for other modules of this
+directory (buf) to see it. Do not use from outside! */
+
+typedef struct {
+	bool		reserved;	/*!< true if this slot is reserved
+					*/
+#ifdef HAVE_LZO
+	byte*		lzo_mem;	/*!< Temporal memory used by LZO */
+#endif
+	byte*           crypt_buf;	/*!< for encryption the data needs to be
+					copied to a separate buffer before it's
+					encrypted&written. this as a page can be
+					read while it's being flushed */
+	byte*		crypt_buf_free; /*!< for encryption, allocated buffer
+					that is then alligned */
+	byte*		comp_buf;	/*!< for compression we need
+					temporal buffer because page
+					can be read while it's being flushed */
+	byte*		comp_buf_free;	/*!< for compression, allocated
+					buffer that is then alligned */
+} buf_tmp_buffer_t;
 
 /** The common buffer control block structure
 for compressed and uncompressed frames */
@@ -1587,19 +1607,16 @@ struct buf_page_t{
 					operation needed. */
 
 	unsigned        key_version;    /*!< key version for this block */
-	byte*           crypt_buf;      /*!< for encryption the data needs to be
-					copied to a separate buffer before it's
-					encrypted&written. this as a page can be
-					read while it's being flushed */
-	byte*           crypt_buf_free; /*!< for encryption, allocated buffer
-					that is then alligned */
-	byte*		comp_buf;	/*!< for compression we need
-					temporal buffer because page
-					can be read while it's being flushed */
-	byte*		comp_buf_free;	/*!< for compression, allocated
-					buffer that is then alligned */
-	bool		encrypt_later;  /*!< should we encrypt the page
-					at os0file.cc ? */
+
+	ulint           real_size;	/*!< Real size of the page
+					Normal pages == UNIV_PAGE_SIZE
+					page compressed pages, payload
+					size alligned to sector boundary.
+					*/
+
+	buf_tmp_buffer_t* slot;		/*!< Slot for temporary memory
+					used for encryption/compression
+					or NULL */
 #ifndef UNIV_HOTBACKUP
 	buf_page_t*	hash;		/*!< node used in chaining to
 					buf_pool->page_hash or
@@ -1918,6 +1935,17 @@ struct buf_buddy_stat_t {
 	ib_uint64_t	relocated_usec;
 };
 
+/** @brief The temporary memory array structure.
+
+NOTE! The definition appears here only for other modules of this
+directory (buf) to see it. Do not use from outside! */
+
+typedef struct {
+	ulint		n_slots;	/*!< Total number of slots */
+	buf_tmp_buffer_t *slots;	/*!< Pointer to the slots in the
+					array */
+} buf_tmp_array_t;
+
 /** @brief The buffer pool structure.
 
 NOTE! The definition appears here only for other modules of this
@@ -2090,6 +2118,10 @@ struct buf_pool_t{
 	buf_page_t*			watch;
 					/*!< Sentinel records for buffer
 					pool watches.  */
+
+	buf_tmp_array_t*		tmp_arr;
+					/*!< Array for temporal memory
+					used in compression and encryption */
 
 #if BUF_BUDDY_LOW > UNIV_ZIP_SIZE_MIN
 # error "BUF_BUDDY_LOW > UNIV_ZIP_SIZE_MIN"

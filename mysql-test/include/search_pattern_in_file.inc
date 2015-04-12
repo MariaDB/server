@@ -60,12 +60,12 @@
 
 perl;
     use strict;
-    my $search_file=           $ENV{'SEARCH_FILE'}           or die "SEARCH_FILE not set";
-    my $search_pattern=        $ENV{'SEARCH_PATTERN'}        or die "SEARCH_PATTERN not set";
-    my $search_range=          $ENV{'SEARCH_RANGE'};
+    my $search_file=    $ENV{'SEARCH_FILE'}    or die "SEARCH_FILE not set";
+    my $search_pattern= $ENV{'SEARCH_PATTERN'} or die "SEARCH_PATTERN not set";
+    my $search_range=   $ENV{'SEARCH_RANGE'};
     my $file_content;
     $search_range= 50000 unless $search_range =~ /-?[0-9]+/;
-    open(FILE, "$search_file") or die("Unable to open '$search_file': $!\n");
+    open(FILE, '<', $search_file) or die("Unable to open '$search_file': $!\n");
     if ($search_range >= 0) {
        read(FILE, $file_content, $search_range, 0);
     } else {
@@ -75,7 +75,10 @@ perl;
        read(FILE, $file_content, -$search_range, 0);
     }
     close(FILE);
-    if ( not $file_content =~ m{$search_pattern} ) {
-       die("# ERROR: The file '$search_file' does not contain the expected pattern  $search_pattern\n->$file_content<-\n");
+    $search_file =~ s{^.*?([^/\\]+)$}{$1};
+    if ($file_content =~ m{$search_pattern}) {
+      print "FOUND /$search_pattern/ in $search_file\n"
+    } else {
+      print "NOT FOUND /$search_pattern/ in $search_file\n"
     }
 EOF

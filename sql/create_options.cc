@@ -297,8 +297,7 @@ bool parse_option_list(THD* thd, handlerton *hton, void *option_struct_arg,
                        (uchar*)val->name.str, val->name.length))
         continue;
 
-      seen=true;
-
+      /* skip duplicates (see engine_option_value constructor above) */
       if (val->parsed && !val->value.str)
         continue;
 
@@ -306,39 +305,58 @@ bool parse_option_list(THD* thd, handlerton *hton, void *option_struct_arg,
                         *option_struct, suppress_warning || val->parsed, root))
         DBUG_RETURN(TRUE);
       val->parsed= true;
+      seen=true;
       break;
     }
-    if (!seen)
+    if (!seen || (opt->var && !last->value.str))
     {
       LEX_STRING default_val= null_lex_str;
 
       /*
-        If it's CREATE/ALTER TABLE parsing mode (options are created in the
-        transient thd->mem_root, not in the long living TABLE_SHARE::mem_root),
-        and variable-backed option was not explicitly set.
+        Okay, here's the logic for sysvar options:
+        1. When we parse CREATE TABLE and sysvar option was not explicitly
+           mentioned we add it to the list as if it was specified with the
+           *current* value of the underlying sysvar.
+        2. But only if the underlying sysvar value is different from the
+           sysvar's default.
+        3. If it's ALTER TABLE and the sysvar option was not explicitly
+           mentioned - do nothing, do not add it to the list.
+        4. But if it was ALTER TABLE with sysvar option = DEFAULT, we
+           add it to the list (under the same condition #2).
+        5. If we're here parsing the option list from the .frm file
+           for a normal open_table() and the sysvar option was not there -
+           do not add it to the list (makes no sense anyway) and
+           use the *default* value of the underlying sysvar. Because
+           sysvar value can change, but it should not affect existing tables.
 
-        If it's not create, but opening of the existing frm (that was,
-        probably, created with the older version of the storage engine and
-        does not have this option stored), we take the *default* value of the
-        sysvar, not the *current* value. Because we don't want to have
-        different option values for the same table if it's opened many times.
+        This is how it's implemented: the current sysvar value is added
+        to the list if suppress_warning is FALSE (meaning a table is created,
+        that is CREATE TABLE or ALTER TABLE) and it's actually a CREATE TABLE
+        command or it's an ALTER TABLE and the option was seen (=DEFAULT).
+
+        Note that if the option was set explicitly (not =DEFAULT) it wouldn't
+        have passes the if() condition above.
       */
-      if (root == thd->mem_root && opt->var)
+      if (!suppress_warning && opt->var &&
+          (thd->lex->sql_command == SQLCOM_CREATE_TABLE || seen))
       {
         // take a value from the variable and add it to the list
         sys_var *sysvar= find_hton_sysvar(hton, opt->var);
         DBUG_ASSERT(sysvar);
 
-        char buf[256];
-        String sbuf(buf, sizeof(buf), system_charset_info), *str;
-        if ((str= sysvar->val_str(&sbuf, thd, OPT_SESSION, &null_lex_str)))
+        if (!sysvar->session_is_default(thd))
         {
-          LEX_STRING name= { const_cast<char*>(opt->name), opt->name_length };
-          default_val.str= strmake_root(root, str->ptr(), str->length());
-          default_val.length= str->length();
-          val= new (root) engine_option_value(name, default_val, true,
-                                              option_list, &last);
-          val->parsed= true;
+          char buf[256];
+          String sbuf(buf, sizeof(buf), system_charset_info), *str;
+          if ((str= sysvar->val_str(&sbuf, thd, OPT_SESSION, &null_lex_str)))
+          {
+            LEX_STRING name= { const_cast<char*>(opt->name), opt->name_length };
+            default_val.str= strmake_root(root, str->ptr(), str->length());
+            default_val.length= str->length();
+            val= new (root) engine_option_value(name, default_val,
+                         opt->type != HA_OPTION_TYPE_ULL, option_list, &last);
+            val->parsed= true;
+          }
         }
       }
       set_one_value(opt, thd, &default_val, *option_struct,

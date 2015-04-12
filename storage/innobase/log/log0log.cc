@@ -1276,7 +1276,7 @@ log_group_file_header_flush(
 		       (ulint) (dest_offset / UNIV_PAGE_SIZE),
 		       (ulint) (dest_offset % UNIV_PAGE_SIZE),
 		       OS_FILE_LOG_BLOCK_SIZE,
-		       buf, group, 0, 0, false);
+		       buf, group, 0);
 
 		srv_stats.os_log_pending_writes.dec();
 	}
@@ -1307,7 +1307,7 @@ log_group_encrypt_before_write(
 	const ulint size)		/*!< in: size of log blocks */
 
 {
-	Crypt_result result = AES_OK;
+	Crypt_result result = MY_AES_OK;
 
 	ut_ad(size % OS_FILE_LOG_BLOCK_SIZE == 0);
 	byte* dst_frame = (byte*)malloc(size);
@@ -1315,14 +1315,14 @@ log_group_encrypt_before_write(
 	//encrypt log blocks content
 	result = log_blocks_encrypt(block, size, dst_frame);
 
-	if (result == AES_OK)
+	if (result == MY_AES_OK)
 	{
 		ut_ad(block[0] == dst_frame[0]);
 		memcpy(block, dst_frame, size);
 	}
 	free(dst_frame);
 
-	return (result == AES_OK);
+	return (result == MY_AES_OK);
 }
 
 /******************************************************//**
@@ -1443,7 +1443,7 @@ loop:
 		fil_io(OS_FILE_WRITE | OS_FILE_LOG, true, group->space_id, 0,
 		       (ulint) (next_offset / UNIV_PAGE_SIZE),
 		       (ulint) (next_offset % UNIV_PAGE_SIZE), write_len, buf,
-			group, 0, 0, false);
+			group, 0);
 
 		srv_stats.os_log_pending_writes.dec();
 
@@ -2011,7 +2011,7 @@ log_group_checkpoint(
 		       write_offset / UNIV_PAGE_SIZE,
 		       write_offset % UNIV_PAGE_SIZE,
 		       OS_FILE_LOG_BLOCK_SIZE,
-			buf, ((byte*) group + 1), 0, 0, false);
+			buf, ((byte*) group + 1), 0);
 
 		ut_ad(((ulint) group & 0x1UL) == 0);
 	}
@@ -2093,7 +2093,7 @@ log_group_read_checkpoint_info(
 
 	fil_io(OS_FILE_READ | OS_FILE_LOG, true, group->space_id, 0,
 	       field / UNIV_PAGE_SIZE, field % UNIV_PAGE_SIZE,
-		OS_FILE_LOG_BLOCK_SIZE, log_sys->checkpoint_buf, NULL, 0, 0, false);
+		OS_FILE_LOG_BLOCK_SIZE, log_sys->checkpoint_buf, NULL, 0);
 }
 
 /******************************************************//**
@@ -2357,13 +2357,13 @@ log_group_decrypt_after_read(
 	// decrypt log blocks content
 	result = log_blocks_decrypt(frame, size, dst_frame);
 
-	if (result == AES_OK)
+	if (result == MY_AES_OK)
 	{
 		memcpy(frame, dst_frame, size);
 	}
 	free(dst_frame);
 
-	return (result == AES_OK);
+	return (result == MY_AES_OK);
 }
 
 /******************************************************//**
@@ -2417,7 +2417,7 @@ loop:
 	fil_io(OS_FILE_READ | OS_FILE_LOG, sync, group->space_id, 0,
 	       (ulint) (source_offset / UNIV_PAGE_SIZE),
 	       (ulint) (source_offset % UNIV_PAGE_SIZE),
-		len, buf, NULL, 0, 0, false);
+		len, buf, NULL, 0);
 
 	if (recv_sys->recv_log_crypt_ver != UNENCRYPTED_KEY_VER &&
 	    !log_group_decrypt_after_read(group, buf, len))
@@ -3857,8 +3857,8 @@ log_scrub()
 	next_lbn_to_pad = log_block_convert_lsn_to_no(log_sys->lsn);
 }
 
-/* log scrubbing interval in ms. */
-UNIV_INTERN ulonglong innodb_scrub_log_interval;
+/* log scrubbing speed, in bytes/sec */
+UNIV_INTERN ulonglong innodb_scrub_log_speed;
 
 /*****************************************************************//**
 This is the main thread for log scrub. It waits for an event and
@@ -3878,7 +3878,10 @@ DECLARE_THREAD(log_scrub_thread)(
 
 	while(srv_shutdown_state == SRV_SHUTDOWN_NONE)
 	{
-		os_event_wait_time(log_scrub_event, innodb_scrub_log_interval * 1000);
+		/* log scrubbing interval in µs. */
+		ulonglong interval = 1000*1000*512/innodb_scrub_log_speed;
+
+		os_event_wait_time(log_scrub_event, interval);
 
 		log_scrub();
 

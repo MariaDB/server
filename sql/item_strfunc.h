@@ -134,21 +134,35 @@ public:
   const char *func_name() const { return "from_base64"; }
 };
 
+#include <my_crypt.h>
 
-class Item_func_aes_encrypt :public Item_str_func
+class Item_aes_crypt :public Item_str_func
+{
+  enum { AES_KEY_LENGTH = 128 };
+  void create_key(String *user_key, uchar* key);
+
+protected:
+  int (*crypt)(const uchar* src, uint slen, uchar* dst, uint* dlen,
+               const uchar* key, uint klen, const uchar* iv, uint ivlen,
+               int no_padding);
+
+public:
+  Item_aes_crypt(Item *a, Item *b) :Item_str_func(a,b) {}
+  String *val_str(String *);
+};
+
+class Item_func_aes_encrypt :public Item_aes_crypt
 {
 public:
-  Item_func_aes_encrypt(Item *a, Item *b) :Item_str_func(a,b) {}
-  String *val_str(String *);
+  Item_func_aes_encrypt(Item *a, Item *b) :Item_aes_crypt(a,b) {}
   void fix_length_and_dec();
   const char *func_name() const { return "aes_encrypt"; }
 };
 
-class Item_func_aes_decrypt :public Item_str_func	
+class Item_func_aes_decrypt :public Item_aes_crypt
 {
 public:
-  Item_func_aes_decrypt(Item *a, Item *b) :Item_str_func(a,b) {}
-  String *val_str(String *);
+  Item_func_aes_decrypt(Item *a, Item *b) :Item_aes_crypt(a,b) {}
   void fix_length_and_dec();
   const char *func_name() const { return "aes_decrypt"; }
 };

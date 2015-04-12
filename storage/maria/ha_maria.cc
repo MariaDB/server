@@ -3138,11 +3138,6 @@ int ha_maria::create(const char *name, register TABLE *table_arg,
        ha_create_info->page_checksum ==  HA_CHOICE_YES)
     create_flags|= HA_CREATE_PAGE_CHECKSUM;
 
-  mysql_mutex_lock(&LOCK_global_system_variables);
-  mysql_mutex_unlock(&LOCK_global_system_variables);
-  if (row_type == BLOCK_RECORD && maria_encrypt_tables)
-    create_flags|= HA_CREATE_ENCRYPTED;
-
   (void) translog_log_debug_info(0, LOGREC_DEBUG_INFO_QUERY,
                                  (uchar*) thd->query(), thd->query_length());
 

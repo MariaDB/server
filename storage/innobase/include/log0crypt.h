@@ -11,11 +11,13 @@ Created 11/25/2013 Minli Zhu
 #include "ut0byte.h"
 #include "ut0lst.h"
 #include "ut0rnd.h"
-#include "my_aes.h"
+#include "my_crypt.h"
 
 #define PURPOSE_BYTE_LEN	MY_AES_BLOCK_SIZE - 1
 #define PURPOSE_BYTE_OFFSET	0
-#define UNENCRYPTED_KEY_VER	0
+#define UNENCRYPTED_KEY_VER	ENCRYPTION_KEY_NOT_ENCRYPTED
+
+typedef int Crypt_result;
 
 /* If true, enable redo log encryption. */
 extern my_bool srv_encrypt_log;

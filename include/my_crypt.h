@@ -1,40 +1,87 @@
-// TODO: Add Windows support
+/*
+ Copyright (c) 2014 Google Inc.
+ Copyright (c) 2014, 2015 MariaDB Corporation
 
-#ifndef MYSYS_MY_CRYPT_H_
-#define MYSYS_MY_CRYPT_H_
+ This program is free software; you can redistribute it and/or modify
+ it under the terms of the GNU General Public License as published by
+ the Free Software Foundation; version 2 of the License.
 
-#include <my_aes.h>
+ This program is distributed in the hope that it will be useful,
+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ GNU General Public License for more details.
 
-#if !defined(HAVE_YASSL) && defined(HAVE_OPENSSL)
+ You should have received a copy of the GNU General Public License
+ along with this program; if not, write to the Free Software
+ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
 
-C_MODE_START
-Crypt_result my_aes_encrypt_ctr(const uchar* source, uint32 source_length,
-                                uchar* dest, uint32* dest_length,
-                                const unsigned char* key, uint8 key_length,
-                                const unsigned char* iv, uint8 iv_length,
-                                uint noPadding);
+#ifndef MY_CRYPT_INCLUDED
+#define MY_CRYPT_INCLUDED
 
-Crypt_result my_aes_decrypt_ctr(const uchar* source, uint32 source_length,
-                                uchar* dest, uint32* dest_length,
-                                const unsigned char* key, uint8 key_length,
-                                const unsigned char* iv, uint8 iv_length,
-                                uint noPadding);
-C_MODE_END
+#include <my_global.h>
 
-Crypt_result EncryptAes128Ctr(const uchar* key,
-                              const uchar* iv, int iv_size,
-                              const uchar* plaintext, int plaintext_size,
-                              uchar* ciphertext, int* ciphertext_used);
+#ifdef __cplusplus
+extern "C" {
+#endif
 
-Crypt_result DecryptAes128Ctr(const uchar* key,
-                              const uchar* iv, int iv_size,
-                              const uchar* ciphertext, int ciphertext_size,
-                              uchar* plaintext, int* plaintext_used);
+/* return values from my_aes_encrypt/my_aes_decrypt functions */
+#define MY_AES_OK 0
+#define MY_AES_BAD_DATA  -1
+#define MY_AES_OPENSSL_ERROR -2
+#define MY_AES_BAD_KEYSIZE -3
 
-#endif /* !defined(HAVE_YASSL) && defined(HAVE_OPENSSL) */
+/* The block size for all supported algorithms */
+#define MY_AES_BLOCK_SIZE 16
 
-C_MODE_START
-Crypt_result my_random_bytes(uchar* buf, int num);
-C_MODE_END
+/* The max key length of all supported algorithms */
+#define MY_AES_MAX_KEY_LENGTH 32
 
-#endif /* MYSYS_MY_CRYPT_H_ */
+#ifdef HAVE_EncryptAes128Ctr
+
+int my_aes_encrypt_ctr(const uchar* source, uint source_length,
+                                uchar* dest, uint* dest_length,
+                                const uchar* key, uint key_length,
+                                const uchar* iv, uint iv_length,
+                                int no_padding);
+
+int my_aes_decrypt_ctr(const uchar* source, uint source_length,
+                                uchar* dest, uint* dest_length,
+                                const uchar* key, uint key_length,
+                                const uchar* iv, uint iv_length,
+                                int no_padding);
+
+#endif
+
+int my_aes_encrypt_cbc(const uchar* source, uint source_length,
+                                uchar* dest, uint* dest_length,
+                                const uchar* key, uint key_length,
+                                const uchar* iv, uint iv_length,
+                                int no_padding);
+
+int my_aes_decrypt_cbc(const uchar* source, uint source_length,
+                                uchar* dest, uint* dest_length,
+                                const uchar* key, uint key_length,
+                                const uchar* iv, uint iv_length,
+                                int no_padding);
+
+int my_aes_encrypt_ecb(const uchar* source, uint source_length,
+                                uchar* dest, uint* dest_length,
+                                const uchar* key, uint key_length,
+                                const uchar* iv, uint iv_length,
+                                int no_padding);
+
+int my_aes_decrypt_ecb(const uchar* source, uint source_length,
+                                uchar* dest, uint* dest_length,
+                                const uchar* key, uint key_length,
+                                const uchar* iv, uint iv_length,
+                                int no_padding);
+
+int my_random_bytes(uchar* buf, int num);
+
+int my_aes_get_size(int source_length);
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif /* MY_CRYPT_INCLUDED */

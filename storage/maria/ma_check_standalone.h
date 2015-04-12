@@ -23,6 +23,16 @@ void _mi_report_crashed(void *file __attribute__((unused)),
 {
 }
 
+static unsigned int no_key()
+{
+  return ENCRYPTION_KEY_VERSION_INVALID;
+}
+
+struct encryption_service_st encryption_handler=
+{
+  no_key, 0, 0, 0, 0, 0
+};
+
 /* only those that included myisamchk.h may need and can use the below */
 #ifdef _myisamchk_h
 /*
@@ -121,5 +131,6 @@ void _ma_check_print_error(HA_CHECK *param, const char *fmt,...)
   va_end(args);
   DBUG_VOID_RETURN;
 }
+
 #endif
 

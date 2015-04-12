@@ -1,8 +1,5 @@
 [cbc]
-encryption-algorithm=aes_cbc
-
-[ecb]
-encryption-algorithm=aes_ecb
+file-key-management-encryption-algorithm=aes_cbc
 
 [ctr]
-encryption-algorithm=aes_ctr
+file-key-management-encryption-algorithm=aes_ctr

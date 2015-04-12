@@ -1,0 +1,21 @@
+-- source include/have_innodb.inc
+if (`select count(*) = 0 from information_schema.plugins
+     where plugin_name = 'debug_key_management' and plugin_status='active'`)
+{
+  --skip Needs debug_key_management
+}
+
+show variables like 'innodb_encrypt%';
+
+let $wait_condition= select count(*) = 3 from information_schema.innodb_tablespaces_encryption where current_key_version=1;
+--source include/wait_condition.inc
+
+select space,name,current_key_version from information_schema.innodb_tablespaces_encryption order by space;
+set global debug_key_management_version=10;
+
+let $wait_condition= select count(*) = 3 from information_schema.innodb_tablespaces_encryption where current_key_version=10;
+--source include/wait_condition.inc
+
+select space,name,current_key_version from information_schema.innodb_tablespaces_encryption order by space;
+set global debug_key_management_version=1;
+

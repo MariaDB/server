@@ -2007,3 +2007,22 @@ INSERT INTO t1 VALUES (1),(2),(3),(4),(5),(6),(7),(8);
 INSERT INTO t1 SELECT a.* FROM t1 a, t1 b, t1 c, t1 d, t1 e;
 ALTER TABLE t1 MODIFY i FLOAT;
 DROP TABLE t1;
+#
+# Start of 10.1 tests
+#
+#
+# MDEV-7816 ALTER with DROP INDEX and ADD INDEX .. COMMENT='comment2' ignores the new comment
+#
+CREATE TABLE t1(a INT);
+CREATE INDEX i1 ON t1(a) COMMENT 'comment1';
+ALTER TABLE t1 DROP INDEX i1, ADD INDEX i1(a) COMMENT 'comment2';
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  KEY `i1` (`a`) COMMENT 'comment2'
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+#
+# Start of 10.1 tests
+#

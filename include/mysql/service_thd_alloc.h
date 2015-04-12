@@ -16,7 +16,7 @@
 
 /**
   @file
-  This service provdes functions to allocate memory in a connection local
+  This service provides functions to allocate memory in a connection local
   memory pool. The memory allocated there will be automatically freed at the
   end of the statement, don't use it for allocations that should live longer
   than that. For short living allocations this is more efficient than

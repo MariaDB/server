@@ -147,7 +147,7 @@ sys_var::sys_var(sys_var_chain *chain, const char *name_arg,
   flags(flags_arg), show_val_type(show_val_type_arg),
   guard(lock), offset(off), on_check(on_check_func), on_update(on_update_func),
   deprecation_substitute(substitute),
-  is_os_charset(FALSE), default_val(FALSE)
+  is_os_charset(FALSE)
 {
   /*
     There is a limitation in handle_options() related to short options:
@@ -790,7 +790,6 @@ int set_var::light_check(THD *thd)
 */
 int set_var::update(THD *thd)
 {
-  var->set_is_default(value == 0);
   return value ? var->update(thd, this) : var->set_default(thd, this);
 }
 

@@ -6383,6 +6383,14 @@ static bool fill_alter_inplace_info(THD *thd,
           new_field->field->field_index != key_part->fieldnr - 1)
         goto index_changed;
     }
+
+    /* Check that key comment is not changed. */
+    if (table_key->comment.length != new_key->comment.length ||
+        (table_key->comment.length &&
+         memcmp(table_key->comment.str, new_key->comment.str,
+                table_key->comment.length) != 0))
+      goto index_changed;
+
     continue;
 
   index_changed:

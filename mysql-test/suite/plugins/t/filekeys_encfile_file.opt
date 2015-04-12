@@ -1,0 +1,2 @@
+--loose-file-key-management-filekey=FILE:$MTR_SUITE_DIR/t/filekeys-data.key
+--loose-file-key-management-filename=$MTR_SUITE_DIR/t/filekeys-data.enc

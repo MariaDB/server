@@ -16878,7 +16878,6 @@ bool create_internal_tmp_table(TABLE *table, KEY *keyinfo,
   MARIA_UNIQUEDEF uniquedef;
   TABLE_SHARE *share= table->s;
   MARIA_CREATE_INFO create_info;
-  my_bool encrypt= encrypt_tmp_disk_tables;
   DBUG_ENTER("create_internal_tmp_table");
 
   if (share->keys)
@@ -16984,20 +16983,14 @@ bool create_internal_tmp_table(TABLE *table, KEY *keyinfo,
   {
     enum data_file_type file_type= table->no_rows ? NO_RECORD :
         (share->reclength < 64 && !share->blob_fields ? STATIC_RECORD :
-         table->used_for_duplicate_elimination || table->keep_row_order ?
-          DYNAMIC_RECORD : BLOCK_RECORD);
-    uint create_flags= HA_CREATE_TMP_TABLE | HA_CREATE_INTERNAL_TABLE;
+         table->used_for_duplicate_elimination ? DYNAMIC_RECORD : BLOCK_RECORD);
+    uint create_flags= HA_CREATE_TMP_TABLE | HA_CREATE_INTERNAL_TABLE |
+        (table->keep_row_order ? HA_PRESERVE_INSERT_ORDER : 0);
 
-    if (file_type != NO_RECORD && MY_TEST(encrypt))
+    if (file_type != NO_RECORD && encrypt_tmp_disk_tables)
     {
       /* encryption is only supported for BLOCK_RECORD */
       file_type= BLOCK_RECORD;
-      create_flags|= HA_CREATE_ENCRYPTED;
-      if (table->keep_row_order)
-      {
-        create_flags|= HA_INSERT_ORDER;
-      }
-
       if (table->used_for_duplicate_elimination)
       {
         /*

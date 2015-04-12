@@ -1,3 +1,0 @@
-# This is just to satisfy all_vars
---source include/have_debug.inc
-show global variables like "debug_use_static_encryption_keys";

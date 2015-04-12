@@ -1,7 +1,6 @@
--- source encryption_algorithms.inc
+--source encryption_algorithms.inc
 
-if (`select count(*) = 0 from information_schema.plugins
-     where plugin_name = 'file_key_management_plugin' and plugin_status='active'`)
+if (!$FILE_KEY_MANAGEMENT_SO)
 {
-  --skip Needs file_key_management_plugin
+  --skip Needs file_key_management
 }

@@ -73,8 +73,8 @@ int maria_create(const char *name, enum data_file_type datafile_type,
   my_bool forced_packed;
   myf     sync_dir=  0;
   uchar   *log_data= NULL;
-  my_bool encrypted= MY_TEST(flags & HA_CREATE_ENCRYPTED);
-  my_bool insert_order= MY_TEST(flags & HA_INSERT_ORDER);
+  my_bool encrypted= maria_encrypt_tables && datafile_type == BLOCK_RECORD;
+  my_bool insert_order= MY_TEST(flags & HA_PRESERVE_INSERT_ORDER);
   uint crypt_page_header_space= 0;
   DBUG_ENTER("maria_create");
   DBUG_PRINT("enter", ("keys: %u  columns: %u  uniques: %u  flags: %u",

@@ -92,7 +92,7 @@ typedef struct st_mysql_xid MYSQL_XID;
 
 /* MariaDB plugin types */
 #define MariaDB_PASSWORD_VALIDATION_PLUGIN  8
-#define MariaDB_ENCRYPTION_KEY_MANAGEMENT_PLUGIN 9
+#define MariaDB_ENCRYPTION_PLUGIN 9
 
 /* We use the following strings to define licenses for plugins */
 #define PLUGIN_LICENSE_PROPRIETARY 0

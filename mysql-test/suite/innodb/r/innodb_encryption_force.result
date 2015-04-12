@@ -1,0 +1,47 @@
+select @@innodb_encrypt_tables;
+@@innodb_encrypt_tables
+FORCE
+create table t1 (a int) engine=innodb encrypted=yes;
+create table t2 (a int) engine=innodb encrypted=default;
+create table t3 (a int) engine=innodb encrypted=no;
+ERROR HY000: Can't create table `test`.`t3` (errno: 140 "Wrong create options")
+set global innodb_encrypt_tables='ON';
+create table t3 (a int) engine=innodb encrypted=no;
+set global innodb_encrypt_tables='FORCE';
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 `encrypted`=yes
+show create table t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+show create table t3;
+Table	Create Table
+t3	CREATE TABLE `t3` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 `encrypted`=no
+alter table t1 encrypted=no;
+ERROR HY000: Can't create table `test`.`#sql-temporary` (errno: 140 "Wrong create options")
+alter table t2 encrypted=yes;
+alter table t3 encrypted=default;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 `encrypted`=yes
+show create table t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 `encrypted`=yes
+show create table t3;
+Table	Create Table
+t3	CREATE TABLE `t3` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+drop table t1;
+drop table t2;
+drop table t3;

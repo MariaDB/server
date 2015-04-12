@@ -84,173 +84,6 @@ static ulint srv_data_read, srv_data_written;
 //#define UNIV_PAGECOMPRESS_DEBUG 1
 
 /****************************************************************//**
-For page compressed pages decompress the page after actual read
-operation. */
-static
-void
-fil_decompress_page_2(
-/*==================*/
-	byte*           page_buf,      /*!< out: destination buffer for
-				       uncompressed data */
-	byte*           buf,           /*!< in: source compressed data */
-        ulong           len,           /*!< in: length of output buffer.*/
-	ulint*		write_size)    /*!< in/out: Actual payload size of
-				       the compressed data. */
-{
-	ulint	page_type = mach_read_from_2(buf + FIL_PAGE_TYPE);
-
-	if (page_type != FIL_PAGE_TYPE_COMPRESSED) {
-		/* It is not a compressed page */
-		return;
-	}
-
-	byte*   ptr = buf + FIL_PAGE_DATA;
-	ulint   version = mach_read_from_1(buf + FIL_PAGE_VERSION);
-	int err = 0;
-
-	ut_a(version == 1);
-
-	/* Read the original page type, before we compressed the data. */
-	page_type = mach_read_from_2(buf + FIL_PAGE_ORIGINAL_TYPE_V1);
-
-	ulint   original_len = mach_read_from_2(buf + FIL_PAGE_ORIGINAL_SIZE_V1);
-
-	if (original_len < UNIV_PAGE_SIZE_MIN - (FIL_PAGE_DATA + 8)
-	     || original_len > UNIV_PAGE_SIZE_MAX - FIL_PAGE_DATA
-	     || len < original_len + FIL_PAGE_DATA) {
-		ib_logf(IB_LOG_LEVEL_ERROR,
-			"Corruption: We try to uncompress corrupted page. "
-			"Original len %lu len %lu.",
-			original_len, len);
-
-		fflush(stderr);
-		ut_error;
-
-	}
-
-	ulint   algorithm = mach_read_from_1(buf + FIL_PAGE_ALGORITHM_V1);
-
-	switch(algorithm) {
-	case PAGE_ZLIB_ALGORITHM: {
-
-		err = uncompress(page_buf, &len, ptr, original_len);
-
-		/* If uncompress fails it means that page is corrupted */
-		if (err != Z_OK) {
-
-			ib_logf(IB_LOG_LEVEL_ERROR,
-				"Corruption: Page is marked as compressed "
-				"but uncompress failed with error %d "
-				" size %lu len %lu.",
-				err, original_len, len);
-
-			fflush(stderr);
-
-			ut_error;
-		}
-
-		break;
-	}
-#ifdef HAVE_LZ4
-	case PAGE_LZ4_ALGORITHM: {
-
-		err = LZ4_decompress_fast(
-			(const char*) ptr, (char*) (page_buf), original_len);
-
-		if (err < 0) {
-			ib_logf(IB_LOG_LEVEL_ERROR,
-				"Corruption: Page is marked as compressed"
-				" but decompression read only %d bytes"
-				" size %lu len %lu.",
-				err, original_len, len);
-			fflush(stderr);
-
-			ut_error;
-		}
-		break;
-	}
-#endif /* HAVE_LZ4 */
-
-#ifdef HAVE_LZMA
-	case PAGE_LZMA_ALGORITHM: {
-
-		lzma_ret	ret;
-		size_t		src_pos = 0;
-		size_t		dst_pos = 0;
-		uint64_t 	memlimit = UINT64_MAX;
-
-		ret = lzma_stream_buffer_decode(
-			&memlimit,
-			0,
-			NULL,
-			ptr,
-			&src_pos,
-			original_len,
-			(page_buf),
-			&dst_pos,
-			len);
-
-
-		if (ret != LZMA_OK || (dst_pos <= 0 || dst_pos > len)) {
-			ib_logf(IB_LOG_LEVEL_ERROR,
-				"Corruption: Page is marked as compressed"
-				" but decompression read only %ld bytes"
-				" size %lu len %lu.",
-				dst_pos, original_len, len);
-			fflush(stderr);
-
-			ut_error;
-		}
-
-		break;
-	}
-#endif /* HAVE_LZMA */
-
-#ifdef HAVE_LZO
-	case PAGE_LZO_ALGORITHM: {
-	        ulint olen = 0;
-
-		err = lzo1x_decompress((const unsigned char *)ptr,
-			original_len,(unsigned char *)(page_buf), &olen, NULL);
-
-		if (err != LZO_E_OK || (olen == 0 || olen > UNIV_PAGE_SIZE)) {
-			ib_logf(IB_LOG_LEVEL_ERROR,
-				"Corruption: Page is marked as compressed"
-				" but decompression read only %ld bytes"
-				" size %lu len %lu.",
-				olen, original_len, len);
-
-			fflush(stderr);
-
-			ut_error;
-		}
-		break;
-	}
-#endif /* HAVE_LZO */
-
-	default:
-		ib_logf(IB_LOG_LEVEL_ERROR,
-			" Corruption: Page is marked as compressed "
-			" but compression algorithm %s"
-			" is not known."
-			,fil_get_compression_alg_name(algorithm));
-
-		fflush(stderr);
-		ut_error;
-		break;
-	}
-
-	/* Leave the header alone */
-	memmove(buf+FIL_PAGE_DATA, page_buf, original_len);
-
-	mach_write_to_2(buf + FIL_PAGE_TYPE, page_type);
-
-	ut_ad(memcmp(buf + FIL_PAGE_LSN + 4,
-		     buf + (original_len + FIL_PAGE_DATA)
-		     - FIL_PAGE_END_LSN_OLD_CHKSUM + 4, 4) == 0);
-}
-
-/****************************************************************//**
 For page compressed pages compress the page before actual write
 operation.
 @return compressed page to be written*/
@@ -270,7 +103,7 @@ fil_compress_page(
 	byte*		lzo_mem)       /*!< in: temporal memory used by LZO */
 {
         int err = Z_OK;
-        int level = 0;
+        int level = compression_level;
         ulint header_len = FIL_PAGE_DATA + FIL_PAGE_COMPRESSED_SIZE;
 	ulint write_size=0;
 	/* Cache to avoid change during function execution */
@@ -290,14 +123,10 @@ fil_compress_page(
 	if (orig_page_type == 0 ||
 	    orig_page_type == FIL_PAGE_TYPE_FSP_HDR ||
 	    orig_page_type == FIL_PAGE_TYPE_XDES ||
-	    orig_page_type == FIL_PAGE_PAGE_COMPRESSED ||
-	    orig_page_type == FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED) {
+		orig_page_type == FIL_PAGE_PAGE_COMPRESSED) {
 		*out_len = len;
 		return (buf);
 	}
-
-        level = compression_level;
-	ut_ad(fil_space_is_page_compressed(space_id));
 
 	fil_system_enter();
 	fil_space_t* space = fil_space_get_by_id(space_id);
@@ -575,16 +404,6 @@ fil_decompress_page(
 		in_buf = static_cast<byte *>(ut_malloc(UNIV_PAGE_SIZE*3));
 	} else {
 		in_buf = page_buf;
-	}
-
-	if (ptype == FIL_PAGE_TYPE_COMPRESSED) {
-
-		fil_decompress_page_2(in_buf, buf, len, write_size);
-		// Need to free temporal buffer if no buffer was given
-		if (page_buf == NULL) {
-			ut_free(in_buf);
-		}
-		return;
 	}
 
 	/* Before actual decompress, make sure that page type is correct */
