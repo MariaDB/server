@@ -930,7 +930,7 @@ loop_out:
       {
         push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
                             ER_TABLE_EXISTS_ERROR, ER(ER_TABLE_EXISTS_ERROR),
-                            view->db, view->table_name);
+                            view->table_name);
         DBUG_RETURN(0);
       }
       else if (mode == VIEW_CREATE_NEW)

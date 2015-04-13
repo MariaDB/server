@@ -156,7 +156,7 @@ DROP VIEW v1;
 CREATE VIEW IF NOT EXISTS v1 AS SELECT 1;
 CREATE VIEW IF NOT EXISTS v1 AS SELECT 1;
 Warnings:
-Note	1050	Table 'test' already exists
+Note	1050	Table 'v1' already exists
 DROP VIEW IF EXISTS v1;
 DROP VIEW IF EXISTS v1;
 Warnings:
