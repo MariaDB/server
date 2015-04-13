@@ -927,6 +927,7 @@ private:
   int  next_max();
   void update_min_result();
   void update_max_result();
+  int cmp_min_max_key(const uchar *key, uint16 length);
 public:
   QUICK_GROUP_MIN_MAX_SELECT(TABLE *table, JOIN *join, bool have_min,
                              bool have_max, bool have_agg_distinct,

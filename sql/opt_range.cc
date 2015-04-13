@@ -14697,6 +14697,36 @@ int QUICK_GROUP_MIN_MAX_SELECT::next_prefix()
 }
 
 
+/**
+  Allocate a temporary buffer, populate the buffer using the group prefix key
+  and the min/max field key, and compare the result to the current key pointed
+  by index_info.
+  
+  @param key    - the min or max field key
+  @param length - length of "key"
+*/
+int
+QUICK_GROUP_MIN_MAX_SELECT::cmp_min_max_key(const uchar *key, uint16 length)
+{
+  /*
+    Allocate a buffer.
+    Note, we allocate one extra byte, because some of Field_xxx::cmp(),
+    e.g. Field_newdate::cmp(), use uint3korr() which actually read four bytes
+    and then bit-and the read value with 0xFFFFFF.
+    See "MDEV-7920 main.group_min_max fails ... with valgrind" for details.
+  */
+  uchar *buffer= (uchar*) my_alloca(real_prefix_len + min_max_arg_len + 1);
+  /* Concatenate the group prefix key and the min/max field key */
+  memcpy(buffer, group_prefix, real_prefix_len);
+  memcpy(buffer + real_prefix_len, key, length);
+  /* Compare the key pointed by key_info to the created key */
+  int cmp_res= key_cmp(index_info->key_part, buffer,
+                       real_prefix_len + min_max_arg_len);
+  my_afree(buffer);
+  return cmp_res;
+}
+
+
 /*
   Find the minimal key in a group that satisfies some range conditions for the
   min/max argument field.
@@ -14798,15 +14828,7 @@ int QUICK_GROUP_MIN_MAX_SELECT::next_min_in_range()
     /* If there is an upper limit, check if the found key is in the range. */
     if ( !(cur_range->flag & NO_MAX_RANGE) )
     {
-      /* Compose the MAX key for the range. */
-      uchar *max_key= (uchar*) my_alloca(real_prefix_len + min_max_arg_len);
-      memcpy(max_key, group_prefix, real_prefix_len);
-      memcpy(max_key + real_prefix_len, cur_range->max_key,
-             cur_range->max_length);
-      /* Compare the found key with max_key. */
-      int cmp_res= key_cmp(index_info->key_part, max_key,
-                           real_prefix_len + min_max_arg_len);
-      my_afree(max_key);
+      int cmp_res= cmp_min_max_key(cur_range->max_key, cur_range->max_length);
       /*
         The key is outside of the range if: 
         the interval is open and the key is equal to the maximum boundry
@@ -14924,15 +14946,7 @@ int QUICK_GROUP_MIN_MAX_SELECT::next_max_in_range()
     /* If there is a lower limit, check if the found key is in the range. */
     if ( !(cur_range->flag & NO_MIN_RANGE) )
     {
-      /* Compose the MIN key for the range. */
-      uchar *min_key= (uchar*) my_alloca(real_prefix_len + min_max_arg_len);
-      memcpy(min_key, group_prefix, real_prefix_len);
-      memcpy(min_key + real_prefix_len, cur_range->min_key,
-             cur_range->min_length);
-      /* Compare the found key with min_key. */
-      int cmp_res= key_cmp(index_info->key_part, min_key,
-                           real_prefix_len + min_max_arg_len);
-      my_afree(min_key);
+      int cmp_res= cmp_min_max_key(cur_range->min_key, cur_range->min_length);
       /*
         The key is outside of the range if: 
         the interval is open and the key is equal to the minimum boundry
