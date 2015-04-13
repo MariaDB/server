@@ -116,6 +116,26 @@ SHOW STATUS LIKE 'Slave_open_temp_tables';
 Variable_name	Value
 Slave_open_temp_tables	0
 FLUSH LOGS;
+*** MDEV-7936: Assertion `!table || table->in_use == _current_thd()' failed on parallel replication in optimistic mode ***
+CREATE TEMPORARY TABLE t4 (a INT PRIMARY KEY) ENGINE=InnoDB;
+SET @old_dbug= @@SESSION.debug_dbug;
+SET SESSION debug_dbug="+d,binlog_force_commit_id";
+SET @commit_id= 10000;
+INSERT INTO t4 VALUES (30);
+INSERT INTO t4 VALUES (31);
+SET SESSION debug_dbug= @old_dbug;
+INSERT INTO t1 SELECT a, "conservative" FROM t4;
+DROP TEMPORARY TABLE t4;
+SELECT * FROM t1 WHERE a >= 30 ORDER BY a;
+a	b
+30	conservative
+31	conservative
+include/save_master_pos.inc
+include/sync_with_master_gtid.inc
+SELECT * FROM t1 WHERE a >= 30 ORDER BY a;
+a	b
+30	conservative
+31	conservative
 include/stop_slave.inc
 SET GLOBAL slave_parallel_threads=@old_parallel_threads;
 include/start_slave.inc

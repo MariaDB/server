@@ -4656,7 +4656,9 @@ int create_table_impl(THD *thd,
   if (create_info->tmp_table())
   {
     TABLE *tmp_table;
-    if ((tmp_table= find_temporary_table(thd, db, table_name)))
+    if (find_and_use_temporary_table(thd, db, table_name, &tmp_table))
+      goto err;
+    if (tmp_table)
     {
       bool table_creation_was_logged= tmp_table->s->table_creation_was_logged;
       if (options.or_replace())

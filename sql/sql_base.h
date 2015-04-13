@@ -143,7 +143,11 @@ TABLE_LIST *find_table_in_list(TABLE_LIST *table,
                                const char *db_name,
                                const char *table_name);
 TABLE *find_temporary_table(THD *thd, const char *db, const char *table_name);
+bool find_and_use_temporary_table(THD *thd, const char *db,
+                                  const char *table_name, TABLE **out_table);
 TABLE *find_temporary_table(THD *thd, const TABLE_LIST *tl);
+bool find_and_use_temporary_table(THD *thd, const TABLE_LIST *tl,
+                                  TABLE **out_table);
 TABLE *find_temporary_table(THD *thd, const char *table_key,
                             uint table_key_length);
 void close_thread_tables(THD *thd);
