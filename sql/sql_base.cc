@@ -1550,6 +1550,69 @@ TABLE *find_temporary_table(THD *thd, const TABLE_LIST *tl)
 }
 
 
+static bool
+use_temporary_table(THD *thd, TABLE *table, TABLE **out_table)
+{
+  *out_table= table;
+  if (!table)
+    return false;
+  /*
+    Temporary tables are not safe for parallel replication. They were
+    designed to be visible to one thread only, so have no table locking.
+    Thus there is no protection against two conflicting transactions
+    committing in parallel and things like that.
+
+    So for now, anything that uses temporary tables will be serialised
+    with anything before it, when using parallel replication.
+
+    ToDo: We might be able to introduce a reference count or something
+    on temp tables, and have slave worker threads wait for it to reach
+    zero before being allowed to use the temp table. Might not be worth
+    it though, as statement-based replication using temporary tables is
+    in any case rather fragile.
+  */
+  if (thd->rgi_slave && thd->rgi_slave->is_parallel_exec &&
+      thd->wait_for_prior_commit())
+    return true;
+  /*
+    We need to set the THD as it may be different in case of
+    parallel replication
+  */
+  if (table->in_use != thd)
+  {
+    table->in_use= thd;
+#ifdef REMOVE_AFTER_MERGE_WITH_10
+    if (thd->rgi_slave)
+    {
+      /*
+        We may be stealing an opened temporary tables from one slave
+        thread to another, we need to let the performance schema know that,
+        for aggregates per thread to work properly.
+      */
+      table->file->unbind_psi();
+      table->file->rebind_psi();
+    }
+#endif
+  }
+  return false;
+}
+
+bool
+find_and_use_temporary_table(THD *thd, const char *db, const char *table_name,
+                             TABLE **out_table)
+{
+  return use_temporary_table(thd, find_temporary_table(thd, db, table_name),
+                             out_table);
+}
+
+
+bool
+find_and_use_temporary_table(THD *thd, const TABLE_LIST *tl, TABLE **out_table)
+{
+  return use_temporary_table(thd, find_temporary_table(thd, tl), out_table);
+}
+
+
 /**
   Find a temporary table specified by a key in the THD::temporary_tables list.
 
@@ -1570,26 +1633,6 @@ TABLE *find_temporary_table(THD *thd,
     if (table->s->table_cache_key.length == table_key_length &&
         !memcmp(table->s->table_cache_key.str, table_key, table_key_length))
     {
-      /*
-        We need to set the THD as it may be different in case of
-        parallel replication
-      */
-      if (table->in_use != thd)
-      {
-        table->in_use= thd;
-#ifdef REMOVE_AFTER_MERGE_WITH_10
-        if (thd->rgi_slave)
-        {
-          /*
-            We may be stealing an opened temporary tables from one slave
-            thread to another, we need to let the performance schema know that,
-            for aggregates per thread to work properly.
-          */
-          table->file->unbind_psi();
-          table->file->rebind_psi();
-        }
-#endif
-      }
       result= table;
       break;
     }
@@ -5822,7 +5865,9 @@ bool open_temporary_table(THD *thd, TABLE_LIST *tl)
     DBUG_RETURN(FALSE);
   }
 
-  if (!(table= find_temporary_table(thd, tl)))
+  if (find_and_use_temporary_table(thd, tl, &table))
+    DBUG_RETURN(TRUE);
+  if (!table)
   {
     if (tl->open_type == OT_TEMPORARY_ONLY &&
         tl->open_strategy == TABLE_LIST::OPEN_NORMAL)
@@ -5832,25 +5877,6 @@ bool open_temporary_table(THD *thd, TABLE_LIST *tl)
     }
     DBUG_RETURN(FALSE);
   }
-
-  /*
-    Temporary tables are not safe for parallel replication. They were
-    designed to be visible to one thread only, so have no table locking.
-    Thus there is no protection against two conflicting transactions
-    committing in parallel and things like that.
-
-    So for now, anything that uses temporary tables will be serialised
-    with anything before it, when using parallel replication.
-
-    ToDo: We might be able to introduce a reference count or something
-    on temp tables, and have slave worker threads wait for it to reach
-    zero before being allowed to use the temp table. Might not be worth
-    it though, as statement-based replication using temporary tables is
-    in any case rather fragile.
-  */
-  if (thd->rgi_slave && thd->rgi_slave->is_parallel_exec &&
-      thd->wait_for_prior_commit())
-    DBUG_RETURN(true);
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   if (tl->partition_names)
