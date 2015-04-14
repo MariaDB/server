@@ -2004,11 +2004,21 @@ after_set_capability:
         !(master_row= mysql_fetch_row(master_res)))
     {
       err_code= mysql_errno(mysql);
-      errmsg= "The slave I/O thread stops because master does not support "
-        "MariaDB global transaction id. A fatal error is encountered when "
-        "it tries to SELECT @@GLOBAL.gtid_domain_id.";
-      sprintf(err_buff, "%s Error: %s", errmsg, mysql_error(mysql));
-      goto err;
+      if (is_network_error(err_code))
+      {
+        mi->report(ERROR_LEVEL, err_code, NULL,
+                   "Get master @@GLOBAL.gtid_domain_id failed with error: %s",
+                   mysql_error(mysql));
+        goto network_err;
+      }
+      else
+      {
+        errmsg= "The slave I/O thread stops because master does not support "
+          "MariaDB global transaction id. A fatal error is encountered when "
+          "it tries to SELECT @@GLOBAL.gtid_domain_id.";
+        sprintf(err_buff, "%s Error: %s", errmsg, mysql_error(mysql));
+        goto err;
+      }
     }
     mysql_free_result(master_res);
     master_res= NULL;
