@@ -9499,6 +9499,18 @@ int Rows_log_event::do_add_row_data(uchar *row_data, size_t length)
   DBUG_ENTER("Rows_log_event::do_add_row_data");
   DBUG_PRINT("enter", ("row_data: 0x%lx  length: %lu", (ulong) row_data,
                        (ulong) length));
+
+  /*
+    If length is zero, there is nothing to write, so we just
+    return. Note that this is not an optimization, since calling
+    realloc() with size 0 means free().
+   */
+  if (length == 0)
+  {
+    m_row_count++;
+    DBUG_RETURN(0);
+  }
+
   /*
     Don't print debug messages when running valgrind since they can
     trigger false warnings.
@@ -12374,7 +12386,7 @@ Update_rows_log_event::do_exec_row(rpl_group_info *rgi)
       able to skip to the next pair of updates
     */
     m_curr_row= m_curr_row_end;
-    unpack_current_row(rgi);
+    unpack_current_row(rgi, &m_cols_ai);
     thd_proc_info(thd, tmp);
     return error;
   }
