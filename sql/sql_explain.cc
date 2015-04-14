@@ -769,7 +769,7 @@ void Explain_select::print_explain_json(Explain_query *query,
       write_item(writer, exec_const_cond);
     }
      
-    Filesort_tracker *first_table_sort= false;
+    Filesort_tracker *first_table_sort= NULL;
     int started_objects= 0;
 
     if (is_analyze)
