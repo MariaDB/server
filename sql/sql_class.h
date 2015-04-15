@@ -2685,7 +2685,7 @@ public:
     can not continue. In particular, disables activation of
     CONTINUE or EXIT handlers of stored routines.
     Reset in the end of processing of the current user request, in
-    @see mysql_reset_thd_for_next_command().
+    @see THD::reset_for_next_command().
   */
   bool is_fatal_error;
   /**

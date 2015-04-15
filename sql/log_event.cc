@@ -5796,7 +5796,7 @@ int Load_log_event::do_apply_event(NET* net, rpl_group_info *rgi,
   */
   lex_start(thd);
   thd->lex->local_file= local_fname;
-  mysql_reset_thd_for_next_command(thd);
+  thd->reset_for_next_command();
 
    /*
     We test replicate_*_db rules. Note that we have already prepared
@@ -6539,7 +6539,7 @@ Gtid_log_event::do_apply_event(rpl_group_info *rgi)
   thd->variables.gtid_domain_id= this->domain_id;
   thd->variables.gtid_seq_no= this->seq_no;
   rgi->gtid_ev_flags2= flags2;
-  mysql_reset_thd_for_next_command(thd);
+  thd->reset_for_next_command();
 
   if (opt_gtid_strict_mode && opt_bin_log && opt_log_slave_updates)
   {
@@ -7347,9 +7347,9 @@ int Xid_log_event::do_apply_event(rpl_group_info *rgi)
     mysql.gtid_slave_pos table with the GTID of the current transaction.
 
     Therefore, it acts much like a normal SQL statement, so we need to do
-    mysql_reset_thd_for_next_command() as if starting a new statement.
+    THD::reset_for_next_command() as if starting a new statement.
   */
-  mysql_reset_thd_for_next_command(thd);
+  thd->reset_for_next_command();
   /*
     Record any GTID in the same transaction, so slave state is transactionally
     consistent.
@@ -8578,7 +8578,7 @@ int Append_block_log_event::do_apply_event(rpl_group_info *rgi)
       as the present method does not call mysql_parse().
     */
     lex_start(thd);
-    mysql_reset_thd_for_next_command(thd);
+    thd->reset_for_next_command();
     /* old copy may exist already */
     mysql_file_delete(key_file_log_event_data, fname, MYF(0));
     if ((fd= mysql_file_create(key_file_log_event_data,
@@ -9640,18 +9640,18 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
       Lock_tables() reads the contents of thd->lex, so they must be
       initialized.
 
-      We also call the mysql_reset_thd_for_next_command(), since this
+      We also call the THD::reset_for_next_command(), since this
       is the logical start of the next "statement". Note that this
       call might reset the value of current_stmt_binlog_format, so
       we need to do any changes to that value after this function.
     */
     delete_explain_query(thd->lex);
     lex_start(thd);
-    mysql_reset_thd_for_next_command(thd);
+    thd->reset_for_next_command();
     /*
       The current statement is just about to begin and 
       has not yet modified anything. Note, all.modified is reset
-      by mysql_reset_thd_for_next_command.
+      by THD::reset_for_next_command().
     */
     thd->transaction.stmt.modified_non_trans_table= FALSE;
     thd->transaction.stmt.m_unsafe_rollback_flags&= ~THD_TRANS::DID_WAIT;

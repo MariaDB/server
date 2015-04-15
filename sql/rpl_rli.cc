@@ -1485,7 +1485,7 @@ rpl_load_gtid_slave_state(THD *thd)
     goto end;
   array_inited= true;
 
-  mysql_reset_thd_for_next_command(thd);
+  thd->reset_for_next_command();
 
   tlist.init_one_table(STRING_WITH_LEN("mysql"),
                        rpl_gtid_slave_state_table_name.str,

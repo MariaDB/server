@@ -24,7 +24,6 @@
 #include "sql_base.h"                       // close_tables_for_reopen
 #include "key.h"                            // key_copy
 #include "lock.h"                           // mysql_unlock_tables
-#include "sql_parse.h"             // mysql_reset_thd_for_next_command
 #include "rpl_rli.h"
 #include "rpl_utility.h"
 #endif
@@ -82,14 +81,14 @@ Old_rows_log_event::do_apply_event(Old_rows_log_event *ev, rpl_group_info *rgi)
       Lock_tables() reads the contents of ev_thd->lex, so they must be
       initialized.
 
-      We also call the mysql_reset_thd_for_next_command(), since this
+      We also call the THD::reset_for_next_command(), since this
       is the logical start of the next "statement". Note that this
       call might reset the value of current_stmt_binlog_format, so
       we need to do any changes to that value after this function.
     */
     delete_explain_query(thd->lex);
     lex_start(ev_thd);
-    mysql_reset_thd_for_next_command(ev_thd);
+    ev_thd->reset_for_next_command();
 
     /*
       This is a row injection, so we flag the "statement" as

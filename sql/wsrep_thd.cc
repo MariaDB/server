@@ -192,7 +192,7 @@ void wsrep_replay_transaction(THD *thd)
       thd->wsrep_conflict_state= REPLAYING;
       mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
 
-      mysql_reset_thd_for_next_command(thd);
+      thd->reset_for_next_command();
       thd->killed= NOT_KILLED;
       close_thread_tables(thd);
       if (thd->locked_tables_mode && thd->lock)

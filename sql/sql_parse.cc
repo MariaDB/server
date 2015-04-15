@@ -1593,7 +1593,7 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
       break;
     }
     packet= arg_end + 1;
-    mysql_reset_thd_for_next_command(thd);
+    thd->reset_for_next_command();
     lex_start(thd);
     /* Must be before we init the table list. */
     if (lower_case_table_names)
@@ -6723,15 +6723,8 @@ bool my_yyoverflow(short **yyss, YYSTYPE **yyvs, ulong *yystacksize)
   (prepared or conventional).  It is not called by substatements of
   routines.
 
-  @todo Remove mysql_reset_thd_for_next_command and only use the
-  member function.
-
   @todo Call it after we use THD for queries, not before.
 */
-void mysql_reset_thd_for_next_command(THD *thd)
-{
-  thd->reset_for_next_command();
-}
 
 void THD::reset_for_next_command()
 {
@@ -7005,7 +6998,7 @@ static void wsrep_mysql_parse(THD *thd, char *rawbuf, uint length,
       if (thd->wsrep_conflict_state == ABORTED ||
           thd->wsrep_conflict_state == CERT_FAILURE)
       {
-        mysql_reset_thd_for_next_command(thd);
+        thd->reset_for_next_command();
         thd->killed= NOT_KILLED;
         if (is_autocommit                           &&
             thd->lex->sql_command != SQLCOM_SELECT  &&
@@ -7101,13 +7094,13 @@ void mysql_parse(THD *thd, char *rawbuf, uint length,
     of (among others) lex->safe_to_cache_query and thd->server_status,
     which are reset respectively in
     - lex_start()
-    - mysql_reset_thd_for_next_command()
+    - THD::reset_for_next_command()
     So, initializing the lexical analyser *before* using the query cache
     is required for the cache to work properly.
     FIXME: cleanup the dependencies in the code to simplify this.
   */
   lex_start(thd);
-  mysql_reset_thd_for_next_command(thd);
+  thd->reset_for_next_command();
 
   if (query_cache_send_result_to_client(thd, rawbuf, length) <= 0)
   {
@@ -7221,7 +7214,7 @@ bool mysql_test_parse_for_slave(THD *thd, char *rawbuf, uint length)
   if (!(error= parser_state.init(thd, rawbuf, length)))
   {
     lex_start(thd);
-    mysql_reset_thd_for_next_command(thd);
+    thd->reset_for_next_command();
 
     if (!parse_sql(thd, & parser_state, NULL, true) &&
         all_tables_not_ok(thd, lex->select_lex.table_list.first))
