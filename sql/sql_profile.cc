@@ -302,7 +302,8 @@ void QUERY_PROFILE::new_status(const char *status_arg,
   PROF_MEASUREMENT *prof;
   DBUG_ENTER("QUERY_PROFILE::status");
 
-  DBUG_ASSERT(status_arg != NULL);
+  if (!status_arg)
+    DBUG_VOID_RETURN;
 
   if ((function_arg != NULL) && (file_arg != NULL))
     prof= new PROF_MEASUREMENT(this, status_arg, function_arg, base_name(file_arg), line_arg);
@@ -336,32 +337,6 @@ PROFILING::~PROFILING()
     delete current;
 }
 
-/**
-  A new state is given, and that signals the profiler to start a new
-  timed step for the current query's profile.
-
-  @param  status_arg  name of this step
-  @param  function_arg  calling function (usually supplied from compiler)
-  @param  function_arg  calling file (usually supplied from compiler)
-  @param  function_arg  calling line number (usually supplied from compiler)
-*/
-void PROFILING::status_change(const char *status_arg,
-                              const char *function_arg,
-                              const char *file_arg, unsigned int line_arg)
-{
-  DBUG_ENTER("PROFILING::status_change");
-
-  if (status_arg == NULL)  /* We don't know how to handle that */
-    DBUG_VOID_RETURN;
-
-  if (current == NULL)  /* This profile was already discarded. */
-    DBUG_VOID_RETURN;
-
-  if (unlikely(enabled))
-    current->new_status(status_arg, function_arg, file_arg, line_arg);
-
-  DBUG_VOID_RETURN;
-}
 
 /**
   Prepare to start processing a new query.  It is an error to do this

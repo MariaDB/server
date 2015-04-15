@@ -306,8 +306,8 @@ bool mysql_lock_tables(THD *thd, MYSQL_LOCK *sql_lock, uint flags)
   PSI_stage_info org_stage;
   DBUG_ENTER("mysql_lock_tables(sql_lock)");
 
-  thd->enter_stage(&stage_system_lock, &org_stage, __func__, __FILE__,
-                   __LINE__);
+  thd->backup_stage(&org_stage);
+  THD_STAGE_INFO(thd, stage_system_lock);
   if (sql_lock->table_count && lock_external(thd, sql_lock->table,
                                              sql_lock->table_count))
     goto end;

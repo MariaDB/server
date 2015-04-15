@@ -278,7 +278,14 @@ public:
 
   void status_change(const char *status_arg,
                      const char *function_arg,
-                     const char *file_arg, unsigned int line_arg);
+                     const char *file_arg, unsigned int line_arg)
+  {
+    if (unlikely(current))
+    {
+      DBUG_ASSERT(enabled);
+      current->new_status(status_arg, function_arg, file_arg, line_arg);
+    }
+  }
 
   inline void set_thd(THD *thd_arg) { thd= thd_arg; };
 

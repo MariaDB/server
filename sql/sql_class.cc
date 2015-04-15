@@ -557,40 +557,11 @@ void set_thd_stage_info(void *thd_arg,
   if (thd == NULL)
     thd= current_thd;
 
-  thd->enter_stage(new_stage, old_stage, calling_func, calling_file,
-                   calling_line);
-}
+  if (old_stage)
+    thd->backup_stage(old_stage);
 
-void THD::enter_stage(const PSI_stage_info *new_stage,
-                      PSI_stage_info *old_stage,
-                      const char *calling_func,
-                      const char *calling_file,
-                      const unsigned int calling_line)
-{
-  DBUG_PRINT("THD::enter_stage", ("%s:%d", calling_file, calling_line));
-
-  if (old_stage != NULL)
-  {
-    old_stage->m_key= m_current_stage_key;
-    old_stage->m_name= proc_info;
-  }
-
-  if (new_stage != NULL)
-  {
-    const char *msg= new_stage->m_name;
-
-#if defined(ENABLED_PROFILING)
-    profiling.status_change(msg, calling_func, calling_file, calling_line);
-#endif
-
-    m_current_stage_key= new_stage->m_key;
-    proc_info= msg;
-
-#ifdef HAVE_PSI_THREAD_INTERFACE
-    MYSQL_SET_STAGE(m_current_stage_key, calling_file, calling_line);
-#endif
-  }
-  return;
+  if (new_stage)
+    thd->enter_stage(new_stage, calling_func, calling_file, calling_line);
 }
 
 void thd_enter_cond(MYSQL_THD thd, mysql_cond_t *cond, mysql_mutex_t *mutex,

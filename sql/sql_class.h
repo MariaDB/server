@@ -53,7 +53,7 @@ void set_thd_stage_info(void *thd,
                         const unsigned int calling_line);
 
 #define THD_STAGE_INFO(thd, stage) \
-  (thd)->enter_stage(& stage, NULL, __func__, __FILE__, __LINE__)
+  (thd)->enter_stage(&stage, __func__, __FILE__, __LINE__)
 
 #include "my_apc.h"
 #include "rpl_gtid.h"
@@ -1989,10 +1989,28 @@ private:
 
 public:
   void enter_stage(const PSI_stage_info *stage,
-                   PSI_stage_info *old_stage,
                    const char *calling_func,
                    const char *calling_file,
-                   const unsigned int calling_line);
+                   const unsigned int calling_line)
+  {
+    DBUG_PRINT("THD::enter_stage", ("%s:%d", calling_file, calling_line));
+    DBUG_ASSERT(stage);
+    m_current_stage_key= stage->m_key;
+    proc_info= stage->m_name;
+#if defined(ENABLED_PROFILING)
+    profiling.status_change(stage->m_name, calling_func, calling_file,
+                            calling_line);
+#endif
+#ifdef HAVE_PSI_THREAD_INTERFACE
+    MYSQL_SET_STAGE(m_current_stage_key, calling_file, calling_line);
+#endif
+  }
+
+  void backup_stage(PSI_stage_info *stage)
+  {
+    stage->m_key= m_current_stage_key;
+    stage->m_name= proc_info;
+  }
 
   const char *get_proc_info() const
   { return proc_info; }
@@ -2915,7 +2933,10 @@ public:
     mysql_mutex_assert_owner(mutex);
     mysys_var->current_mutex = mutex;
     mysys_var->current_cond = cond;
-    enter_stage(stage, old_stage, src_function, src_file, src_line);
+    if (old_stage)
+      backup_stage(old_stage);
+    if (stage)
+      enter_stage(stage, src_function, src_file, src_line);
   }
   inline void exit_cond(const PSI_stage_info *stage,
                         const char *src_function, const char *src_file,
@@ -2931,7 +2952,8 @@ public:
     mysql_mutex_lock(&mysys_var->mutex);
     mysys_var->current_mutex = 0;
     mysys_var->current_cond = 0;
-    enter_stage(stage, NULL, src_function, src_file, src_line);
+    if (stage)
+      enter_stage(stage, src_function, src_file, src_line);
     mysql_mutex_unlock(&mysys_var->mutex);
     return;
   }

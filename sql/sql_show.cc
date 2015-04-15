@@ -7891,9 +7891,9 @@ bool get_schema_tables_result(JOIN *join,
 
   Warnings_only_error_handler err_handler;
   thd->push_internal_handler(&err_handler);
-  thd->enter_stage(&stage_filling_schema_table, &org_stage, __func__, __FILE__,
-                   __LINE__);
-  
+  thd->backup_stage(&org_stage);
+  THD_STAGE_INFO(thd, stage_filling_schema_table);
+
   JOIN_TAB *tab;
   for (tab= first_linear_tab(join, WITHOUT_BUSH_ROOTS, WITH_CONST_TABLES);
        tab; 
