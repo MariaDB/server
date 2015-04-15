@@ -3652,10 +3652,18 @@ static Sys_var_bit Sys_unique_checks(
        DEFAULT(TRUE), NO_MUTEX_GUARD, IN_BINLOG);
 
 #ifdef ENABLED_PROFILING
+static bool update_profiling(sys_var *self, THD *thd, enum_var_type type)
+{
+  if (type == OPT_SESSION)
+    thd->profiling.reset();
+  return false;
+}
+
 static Sys_var_bit Sys_profiling(
        "profiling", "profiling",
        NO_SET_STMT SESSION_VAR(option_bits), NO_CMD_LINE, OPTION_PROFILING,
-       DEFAULT(FALSE));
+       DEFAULT(FALSE), NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
+       ON_UPDATE(update_profiling));
 
 static Sys_var_ulong Sys_profiling_history_size(
        "profiling_history_size", "Limit of query profiling memory",

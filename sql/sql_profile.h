@@ -268,32 +268,62 @@ private:
 public:
   PROFILING();
   ~PROFILING();
-  void set_query_source(char *query_source_arg, uint query_length_arg);
 
-  void start_new_query(const char *initial_state= "starting");
+  /**
+    At a point in execution where we know the query source, save the text
+    of it in the query profile.
+
+    This must be called exactly once per descrete statement.
+  */
+  void set_query_source(char *query_source_arg, uint query_length_arg)
+  {
+    if (unlikely(current))
+      current->set_query_source(query_source_arg, query_length_arg);
+  }
+
+  /**
+    Prepare to start processing a new query.  It is an error to do this
+    if there's a query already in process; nesting is not supported.
+
+    @param  initial_state  (optional) name of period before first state change
+  */
+  void start_new_query(const char *initial_state= "starting")
+  {
+    DBUG_ASSERT(!current);
+    if (unlikely(enabled))
+      current= new QUERY_PROFILE(this, initial_state);
+  }
 
   void discard_current_query();
 
-  void finish_current_query();
+  void finish_current_query()
+  {
+    if (unlikely(current))
+      finish_current_query_impl();
+  }
+
+  void finish_current_query_impl();
 
   void status_change(const char *status_arg,
                      const char *function_arg,
                      const char *file_arg, unsigned int line_arg)
   {
     if (unlikely(current))
-    {
-      DBUG_ASSERT(enabled);
       current->new_status(status_arg, function_arg, file_arg, line_arg);
-    }
   }
 
-  inline void set_thd(THD *thd_arg) { thd= thd_arg; };
+  inline void set_thd(THD *thd_arg)
+  {
+    thd= thd_arg;
+    reset();
+  }
 
   /* SHOW PROFILES */
   bool show_profiles();
 
   /* ... from INFORMATION_SCHEMA.PROFILING ... */
   int fill_statistics_info(THD *thd, TABLE_LIST *tables, Item *cond);
+  void reset();
 };
 
 #  endif /* ENABLED_PROFILING */
