@@ -195,7 +195,7 @@ Pre-Depends: mariadb-common, adduser (>= 3.40), debconf
 Depends: mariadb-client-10.1 (>= ${source:Version}), libdbi-perl,
          perl (>= 5.6), ${shlibs:Depends}, ${misc:Depends}, psmisc, passwd,
          lsb-base (>= 3.0-10), mariadb-server-core-10.1 (>= ${binary:Version}),
-         galera (>=25.2), rsync, lsof, grep, gawk, iproute,
+         galera-3 (>=25.3), rsync, lsof, grep, gawk, iproute,
          coreutils, bsdutils, findutils, tar
 Provides: mariadb-server, mysql-server, virtual-mysql-server
 Conflicts: mariadb-server (<< ${source:Version}), mysql-server (<< ${source:Version}),
