@@ -2464,9 +2464,13 @@ int wsrep_create_trigger_query(THD *thd, uchar** buf, size_t* buf_len)
   if (lex->definer)
   {
     /* SUID trigger. */
+    LEX_USER *d= get_current_user(thd, lex->definer);
 
-    definer_user= lex->definer->user;
-    definer_host= lex->definer->host;
+    if (!d)
+      return 1;
+
+    definer_user= d->user;
+    definer_host= d->host;
   }
   else
   {
