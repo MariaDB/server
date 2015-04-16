@@ -4174,12 +4174,6 @@ end:
   DBUG_RETURN(error);
 }
 
-extern "C" uchar *schema_set_get_key(const TABLE_LIST *table, size_t *length,
-                                     my_bool not_used __attribute__((unused)))
-{
-  *length= table->db_length;
-  return (uchar*) table->db;
-}
 
 /**
   Acquire upgradable (SNW, SNRW) metadata locks on tables used by
@@ -4217,7 +4211,6 @@ lock_table_names(THD *thd, const DDL_options_st &options,
   MDL_request_list mdl_requests;
   TABLE_LIST *table;
   MDL_request global_request;
-  Hash_set<TABLE_LIST> schema_set(schema_set_get_key);
   ulong org_lock_wait_timeout= lock_wait_timeout;
   /* Check if we are using CREATE TABLE ... IF NOT EXISTS */
   bool create_table;
@@ -4243,9 +4236,17 @@ lock_table_names(THD *thd, const DDL_options_st &options,
       DBUG_RETURN(true);
     }
 
-    if (! (flags & MYSQL_OPEN_SKIP_SCOPED_MDL_LOCK) &&
-        schema_set.insert(table))
-      DBUG_RETURN(TRUE);
+    /* Scoped locks: Take intention exclusive locks on all involved schemas. */
+    if (!(flags & MYSQL_OPEN_SKIP_SCOPED_MDL_LOCK))
+    {
+      MDL_request *schema_request= new (thd->mem_root) MDL_request;
+      if (schema_request == NULL)
+        DBUG_RETURN(TRUE);
+      schema_request->init(MDL_key::SCHEMA, table->db, "",
+                           MDL_INTENTION_EXCLUSIVE,
+                           MDL_TRANSACTION);
+      mdl_requests.push_front(schema_request);
+    }
 
     mdl_requests.push_front(&table->mdl_request);
   }
@@ -4259,22 +4260,6 @@ lock_table_names(THD *thd, const DDL_options_st &options,
 
   if (!(flags & MYSQL_OPEN_SKIP_SCOPED_MDL_LOCK))
   {
-    /*
-      Scoped locks: Take intention exclusive locks on all involved
-      schemas.
-    */
-    Hash_set<TABLE_LIST>::Iterator it(schema_set);
-    while ((table= it++))
-    {
-      MDL_request *schema_request= new (thd->mem_root) MDL_request;
-      if (schema_request == NULL)
-        DBUG_RETURN(TRUE);
-      schema_request->init(MDL_key::SCHEMA, table->db, "",
-                           MDL_INTENTION_EXCLUSIVE,
-                           MDL_TRANSACTION);
-      mdl_requests.push_front(schema_request);
-    }
-
     /*
       Protect this statement against concurrent global read lock
       by acquiring global intention exclusive lock with statement

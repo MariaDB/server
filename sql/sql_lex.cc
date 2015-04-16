@@ -562,7 +562,7 @@ void lex_end(LEX *lex)
     lex->sphead= NULL;
   }
 
-  lex->mi.reset();
+  lex->mi.reset(lex->sql_command == SQLCOM_CHANGE_MASTER);
 
   DBUG_VOID_RETURN;
 }
