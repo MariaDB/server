@@ -739,7 +739,7 @@ Item_ident::Item_ident(TABLE_LIST *view_arg, const char *field_name_arg)
 */
 
 Item_ident::Item_ident(THD *thd, Item_ident *item)
-  :Item(thd, item),
+  :Item_result_field(thd, item),
    orig_db_name(item->orig_db_name),
    orig_table_name(item->orig_table_name), 
    orig_field_name(item->orig_field_name),
@@ -758,7 +758,7 @@ void Item_ident::cleanup()
 {
   DBUG_ENTER("Item_ident::cleanup");
   bool was_fixed= fixed;
-  Item::cleanup();
+  Item_result_field::cleanup();
   db_name= orig_db_name; 
   table_name= orig_table_name;
   field_name= orig_field_name;
@@ -2189,7 +2189,7 @@ Item_field::Item_field(Name_resolution_context *context_arg,
                        const char *db_arg,const char *table_name_arg,
                        const char *field_name_arg)
   :Item_ident(context_arg, db_arg,table_name_arg,field_name_arg),
-   field(0), result_field(0), item_equal(0), no_const_subst(0),
+   field(0), item_equal(0), no_const_subst(0),
    have_privileges(0), any_privileges(0)
 {
   SELECT_LEX *select= current_thd->lex->current_select;
@@ -2206,7 +2206,6 @@ Item_field::Item_field(Name_resolution_context *context_arg,
 Item_field::Item_field(THD *thd, Item_field *item)
   :Item_ident(thd, item),
    field(item->field),
-   result_field(item->result_field),
    item_equal(item->item_equal),
    no_const_subst(item->no_const_subst),
    have_privileges(item->have_privileges),
@@ -5172,7 +5171,7 @@ void Item_field::cleanup()
     it will be linked correctly next time by name of field and table alias.
     I.e. we can drop 'field'.
    */
-  field= result_field= 0;
+  field= 0;
   item_equal= NULL;
   null_value= FALSE;
   DBUG_VOID_RETURN;
@@ -6611,7 +6610,7 @@ Item_ref::Item_ref(Name_resolution_context *context_arg,
                    const char *field_name_arg,
                    bool alias_name_used_arg)
   :Item_ident(context_arg, NullS, table_name_arg, field_name_arg),
-   result_field(0), ref(item), reference_trough_name(0)
+   ref(item), reference_trough_name(0)
 {
   alias_name_used= alias_name_used_arg;
   /*
@@ -6655,7 +6654,7 @@ public:
 Item_ref::Item_ref(TABLE_LIST *view_arg, Item **item,
                    const char *field_name_arg, bool alias_name_used_arg)
   :Item_ident(view_arg, field_name_arg),
-   result_field(NULL), ref(item), reference_trough_name(0)
+   ref(item), reference_trough_name(0)
 {
   alias_name_used= alias_name_used_arg;
   /*
@@ -6999,7 +6998,6 @@ void Item_ref::cleanup()
 {
   DBUG_ENTER("Item_ref::cleanup");
   Item_ident::cleanup();
-  result_field= 0;
   if (reference_trough_name)
   {
     /* We have to reset the reference as it may been freed */

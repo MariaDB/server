@@ -2069,7 +2069,33 @@ public:
 #define NO_CACHED_FIELD_INDEX ((uint)(-1))
 
 class st_select_lex;
-class Item_ident :public Item
+
+
+class Item_result_field :public Item	/* Item with result field */
+{
+public:
+  Field *result_field;				/* Save result here */
+  Item_result_field() :result_field(0) {}
+  // Constructor used for Item_sum/Item_cond_and/or (see Item comment)
+  Item_result_field(THD *thd, Item_result_field *item):
+    Item(thd, item), result_field(item->result_field)
+  {}
+  ~Item_result_field() {}			/* Required with gcc 2.95 */
+  Field *get_tmp_table_field() { return result_field; }
+  Field *tmp_table_field(TABLE *t_arg) { return result_field; }
+  table_map used_tables() const { return true; }
+  void set_result_field(Field *field) { result_field= field; }
+  bool is_result_field() { return true; }
+  void save_in_result_field(bool no_conversions)
+  {
+    save_in_field(result_field, no_conversions);
+  }
+  void cleanup();
+  bool check_vcol_func_processor(uchar *arg) { return FALSE;}
+};
+
+
+class Item_ident :public Item_result_field
 {
 protected:
   /* 
@@ -2165,7 +2191,7 @@ class Item_field :public Item_ident
 protected:
   void set_field(Field *field);
 public:
-  Field *field,*result_field;
+  Field *field;
   Item_equal *item_equal;
   bool no_const_subst;
   /*
@@ -2234,8 +2260,6 @@ public:
     return MONOTONIC_STRICT_INCREASING;
   }
   longlong val_int_endpoint(bool left_endp, bool *incl_endp);
-  Field *get_tmp_table_field() { return result_field; }
-  Field *tmp_table_field(TABLE *t_arg) { return result_field; }
   bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate);
   bool get_date_result(MYSQL_TIME *ltime,ulonglong fuzzydate);
   bool is_null() { return field->is_null(); }
@@ -2261,6 +2285,9 @@ public:
   {
     update_table_bitmaps();
   }
+  bool is_result_field() { return false; }
+  void set_result_field(Field *field) {}
+  void save_in_result_field(bool no_conversions) { }
   Item *get_tmp_table_item(THD *thd);
   bool collect_item_field_processor(uchar * arg);
   bool add_field_to_set_processor(uchar * arg);
@@ -2270,7 +2297,6 @@ public:
   bool register_field_in_bitmap(uchar *arg);
   bool check_partition_func_processor(uchar *int_arg) {return FALSE;}
   bool vcol_in_partition_func_processor(uchar *bool_arg);
-  bool check_vcol_func_processor(uchar *arg) { return FALSE;}
   bool enumerate_field_refs_processor(uchar *arg);
   bool update_table_bitmaps_processor(uchar *arg);
   void cleanup();
@@ -3241,30 +3267,6 @@ public:
 
 
 
-class Item_result_field :public Item	/* Item with result field */
-{
-public:
-  Field *result_field;				/* Save result here */
-  Item_result_field() :result_field(0) {}
-  // Constructor used for Item_sum/Item_cond_and/or (see Item comment)
-  Item_result_field(THD *thd, Item_result_field *item):
-    Item(thd, item), result_field(item->result_field)
-  {}
-  ~Item_result_field() {}			/* Required with gcc 2.95 */
-  Field *get_tmp_table_field() { return result_field; }
-  Field *tmp_table_field(TABLE *t_arg) { return result_field; }
-  table_map used_tables() const { return 1; }
-  void set_result_field(Field *field) { result_field= field; }
-  bool is_result_field() { return 1; }
-  void save_in_result_field(bool no_conversions)
-  {
-    save_in_field(result_field, no_conversions);
-  }
-  void cleanup();
-  bool check_vcol_func_processor(uchar *arg) { return FALSE;}
-};
-
-
 /**
   Array of items, e.g. function or aggerate function arguments.
 */
@@ -3376,14 +3378,13 @@ protected:
   void set_properties();
 public:
   enum Ref_Type { REF, DIRECT_REF, VIEW_REF, OUTER_REF, AGGREGATE_REF };
-  Field *result_field;			 /* Save result here */
   Item **ref;
   bool reference_trough_name;
   Item_ref(Name_resolution_context *context_arg,
            const char *db_arg, const char *table_name_arg,
            const char *field_name_arg)
     :Item_ident(context_arg, db_arg, table_name_arg, field_name_arg),
-    result_field(0), ref(0), reference_trough_name(1) {}
+    ref(0), reference_trough_name(1) {}
   /*
     This constructor is used in two scenarios:
     A) *item = NULL
@@ -3406,7 +3407,7 @@ public:
 
   /* Constructor need to process subselect with temporary tables (see Item) */
   Item_ref(THD *thd, Item_ref *item)
-    :Item_ident(thd, item), result_field(item->result_field), ref(item->ref) {}
+    :Item_ident(thd, item), ref(item->ref) {}
   enum Type type() const		{ return REF_ITEM; }
   enum Type real_type() const           { return ref ? (*ref)->type() :
                                           REF_ITEM; }
@@ -3442,6 +3443,7 @@ public:
   enum_field_types field_type() const   { return (*ref)->field_type(); }
   Field *get_tmp_table_field()
   { return result_field ? result_field : (*ref)->get_tmp_table_field(); }
+  Field *tmp_table_field(TABLE *t_arg) { return 0; } 
   Item *get_tmp_table_item(THD *thd);
   table_map used_tables() const;		
   void update_used_tables(); 
@@ -3453,8 +3455,6 @@ public:
   { 
     return depended_from ? 0 : (*ref)->not_null_tables();
   }
-  void set_result_field(Field *field)	{ result_field= field; }
-  bool is_result_field() { return 1; }
   void save_in_result_field(bool no_conversions)
   {
     (*ref)->save_in_field(result_field, no_conversions);
