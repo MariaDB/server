@@ -1787,16 +1787,12 @@ check_slave_parallel_threads(sys_var *self, THD *thd, set_var *var)
 static bool
 fix_slave_parallel_threads(sys_var *self, THD *thd, enum_var_type type)
 {
-  bool running;
-  bool err= false;
+  bool err;
 
   mysql_mutex_unlock(&LOCK_global_system_variables);
   mysql_mutex_lock(&LOCK_active_mi);
-  running= master_info_index->give_error_if_slave_running();
+  err= master_info_index->give_error_if_slave_running();
   mysql_mutex_unlock(&LOCK_active_mi);
-  if (running || rpl_parallel_change_thread_count(&global_rpl_thread_pool,
-                                                  opt_slave_parallel_threads))
-    err= true;
   mysql_mutex_lock(&LOCK_global_system_variables);
 
   return err;

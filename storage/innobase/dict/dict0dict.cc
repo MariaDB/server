@@ -4149,16 +4149,25 @@ dict_table_get_highest_foreign_id(
 	for (dict_foreign_set::iterator it = table->foreign_set.begin();
 	     it != table->foreign_set.end();
 	     ++it) {
+		char    fkid[MAX_TABLE_NAME_LEN+20];
 		foreign = *it;
 
-		if (ut_strlen(foreign->id) > ((sizeof dict_ibfk) - 1) + len
-		    && 0 == ut_memcmp(foreign->id, table->name, len)
-		    && 0 == ut_memcmp(foreign->id + len,
+		strcpy(fkid, foreign->id);
+		/* Convert foreign key identifier on dictionary memory
+		cache to filename charset. */
+		innobase_convert_to_filename_charset(
+				strchr(fkid, '/') + 1,
+				strchr(foreign->id, '/') + 1,
+				MAX_TABLE_NAME_LEN);
+
+		if (ut_strlen(fkid) > ((sizeof dict_ibfk) - 1) + len
+		    && 0 == ut_memcmp(fkid, table->name, len)
+		    && 0 == ut_memcmp(fkid + len,
 				      dict_ibfk, (sizeof dict_ibfk) - 1)
-		    && foreign->id[len + ((sizeof dict_ibfk) - 1)] != '0') {
+		    && fkid[len + ((sizeof dict_ibfk) - 1)] != '0') {
 			/* It is of the >= 4.0.18 format */
 
-			id = strtoul(foreign->id + len
+			id = strtoul(fkid + len
 				     + ((sizeof dict_ibfk) - 1),
 				     &endp, 10);
 			if (*endp == '\0') {
