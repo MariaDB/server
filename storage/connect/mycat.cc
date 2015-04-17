@@ -74,9 +74,6 @@
 #include "tabxcl.h"
 #include "tabtbl.h"
 #include "taboccur.h"
-#if defined(XML_SUPPORT)
-#include "tabxml.h"
-#endif   // XML_SUPPORT
 #include "tabmul.h"
 #include "tabmysql.h"
 #if defined(ODBC_SUPPORT)
@@ -89,7 +86,9 @@
 #include "tabvir.h"
 #include "tabjson.h"
 #include "ha_connect.h"
-#include "mycat.h"
+#if defined(XML_SUPPORT)
+#include "tabxml.h"
+#endif   // XML_SUPPORT
 
 /***********************************************************************/
 /*  Extern static variables.                                           */

@@ -56,7 +56,6 @@
 #include "xtable.h"
 #include "tabcol.h"
 #include "colblk.h"
-#include "mycat.h"
 #include "reldef.h"
 #include "tabmysql.h"
 #include "valblk.h"

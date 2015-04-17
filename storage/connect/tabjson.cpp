@@ -19,7 +19,6 @@
 #include "global.h"
 #include "plgdbsem.h"
 //#include "xtable.h"
-//#include "mycat.h"                           // for FNC_COL
 #include "maputil.h"
 #include "filamtxt.h"
 #include "tabdos.h"
@@ -32,7 +31,7 @@
 #include "tabmul.h"
 #include "checklvl.h"
 #include "resource.h"
-#include "mycat.h"
+#include "mycat.h"                             // for FNC_COL
 
 /***********************************************************************/
 /*  This should be an option.                                          */
@@ -44,140 +43,6 @@
 /*  External function.                                                 */
 /***********************************************************************/
 USETEMP UseTemp(void);
-
-/***********************************************************************/
-/*  Make the document tree from a file.                                */
-/***********************************************************************/
-PJSON MakeJsonTree(PGLOBAL g, char *fn, char *objn, int pty, 
-                   PJAR& doc, DWORD& drc)
-{
-  char   *p, *memory, *objpath, *key;
-  int     len, i = 0;
-  HANDLE  hFile;
-	MEMMAP  mm;
-  PJSON   jsp, top;
-  PJOB    objp = NULL;
-  PJAR    arp = NULL;
-  PJVAL   val = NULL;
-
-	/*********************************************************************/
-	/*  Create the mapping file object.                                  */
-	/*********************************************************************/
-	hFile = CreateFileMap(g, fn, &mm, MODE_READ, false);
-
-	if (hFile == INVALID_HANDLE_VALUE) {
-    drc = GetLastError();
-
-    if (!*g->Message)
-      sprintf(g->Message, MSG(OPEN_MODE_ERROR), "map", (int)drc, fn);
-                
-	  return NULL;
-  	} // endif hFile
-
-  /*********************************************************************/
-  /*  Get the file size (assuming file is smaller than 4 GB)           */
-  /*********************************************************************/
-  len = mm.lenL;
-	memory = (char *)mm.memory;
-
-	if (!len) {      				// Empty file
-    CloseFileHandle(hFile);
-    CloseMemMap(memory, len);
-    drc = ENOENT;
-  	return NULL;
-	} else if (!memory) {
-    sprintf(g->Message, MSG(MAP_VIEW_ERROR), fn, drc);
-    CloseFileHandle(hFile);
-    return NULL;
-  } // endif Memory
-
-  CloseFileHandle(hFile);                    // Not used anymore
-
-  /*********************************************************************/
-  /*  Parse the json file and allocate its tree structure.             */
-  /*********************************************************************/
-  g->Message[0] = 0;
-  jsp = top = ParseJson(g, memory, len, pty);
-  CloseMemMap(memory, len);
-  drc = EBADF;
-
-  if (!jsp && g->Message[0])
-    return NULL;
-
-  objpath = PlugDup(g, objn);    // NULL if !objn
-
-  /*********************************************************************/
-  /*  Find the table in the tree structure.                            */
-  /*********************************************************************/
-  for (doc = NULL; jsp && objpath; objpath = p) {
-    if ((p = strchr(objpath, ':')))
-      *p++ = 0;
-
-    if (*objpath != '[') {         // objpass is a key
-      if (jsp->GetType() != TYPE_JOB) {
-        strcpy(g->Message, "Table path does no match json file");
-        return NULL;
-        } // endif Type
-
-      key = objpath;
-      objp = jsp->GetObject();
-      arp = NULL;
-      val = objp->GetValue(key);
-
-      if (!val || !(jsp = val->GetJson())) {
-        sprintf(g->Message, "Cannot find object key %s", key);
-        return NULL;
-        } // endif val
-
-    } else if (objpath[strlen(objpath)-1] == ']') {
-      if (jsp->GetType() != TYPE_JAR) {
-        strcpy(g->Message, "Table path does no match json file");
-        return NULL;
-        } // endif Type
-
-      arp = jsp->GetArray();
-      objp = NULL;
-      i = atoi(objpath+1) - 1;
-      val = arp->GetValue(i);
-
-      if (!val) {
-        sprintf(g->Message, "Cannot find array value %d", i);
-        return NULL;
-        } // endif val
-
-    } else {
-      sprintf(g->Message, "Invalid Table path %s", objn);
-      return NULL;
-    } // endif objpath
-
-    jsp = val->GetJson();
-    } // endfor objpath
-
-  if (jsp && jsp->GetType() == TYPE_JAR)
-    doc = jsp->GetArray();
-  else { 
-    // The table is void or is just one object or one value
-    doc = new(g) JARRAY;
-
-    if (val) {
-      doc->AddValue(g, val);
-      doc->InitArray(g);
-    } else if (jsp) {
-      doc->AddValue(g, new(g) JVALUE(jsp));
-      doc->InitArray(g);
-    } // endif val
-
-    if (objp)
-      objp->SetValue(g, new(g) JVALUE(doc), key);
-    else if (arp)
-      arp->SetValue(g, new(g) JVALUE(doc), i);
-    else
-      top = doc;
-
-  } // endif jsp
-
-  return top;
-} // end of MakeJsonTree
 
 typedef struct _jncol {
   struct _jncol *Next;
@@ -202,11 +67,9 @@ PQRYRES JSONColumns(PGLOBAL g, char *dp, const char *fn, char *objn,
   static XFLD fldtyp[] = {FLD_NAME, FLD_TYPE, FLD_TYPENAME, FLD_PREC, 
                           FLD_LENGTH, FLD_SCALE, FLD_NULL, FLD_FORMAT};
   static unsigned int length[] = {0, 6, 8, 10, 10, 6, 6, 0};
-  char    filename[_MAX_PATH], colname[65], fmt[129], *buf;
+  char    filename[_MAX_PATH], colname[65], fmt[129];
   int     i, j, n = 0;
   int     ncol = sizeof(buftyp) / sizeof(int);
-  FILE   *infile;
-  DWORD   drc;
   PVAL    valp;
   JCOL    jcol;
   PJCL    jcp, fjcp = NULL, pjcp = NULL;
@@ -214,7 +77,9 @@ PQRYRES JSONColumns(PGLOBAL g, char *dp, const char *fn, char *objn,
   PJSON   jsp;
   PJVAL   jvp;
   PJOB    row;
-  PJAR    doc;
+  PJDEF   tdp;
+  TDBJSN *tjnp;
+  PJTDB   tjsp;
   PQRYRES qrp;
   PCOLRES crp;
 
@@ -235,43 +100,49 @@ PQRYRES JSONColumns(PGLOBAL g, char *dp, const char *fn, char *objn,
     strcpy(g->Message, MSG(MISSING_FNAME));
     return NULL;
   } else
-    PlugSetPath(filename, fn, dp);           
+    PlugSetPath(filename, fn, dp);
+
+  tdp = new(g) JSONDEF;
+  tdp->Database = dp;
+  tdp->Fn = filename;
+  tdp->Objname = objn;
+  tdp->Pretty = pretty;
 
   if (pretty == 2) {
-    if (!MakeJsonTree(g, filename, objn, pretty, doc, drc))
+    tjsp = new(g) TDBJSON(tdp, new(g) MAPFAM(tdp));
+
+    if (tjsp->MakeDocument(g))
       return NULL;
 
-    jsp = (doc) ? doc->GetValue(0) : NULL;
+    jsp = (tjsp->GetDoc()) ? tjsp->GetDoc()->GetValue(0) : NULL;
   } else {
     if (!lrecl) {
       sprintf(g->Message, "LRECL must be specified for pretty=%d", pretty);
       return NULL;
-    } else if (!(buf = (char*)PlugSubAlloc(g, NULL, lrecl))) {
-      sprintf(g->Message, "Alloc error, lrecl=%d", lrecl);
+      } // endif lrecl
+
+    tdp->Lrecl = lrecl;
+    tdp->Ending = CRLF;
+    tjnp = new(g) TDBJSN(tdp, new(g) DOSFAM(tdp));
+    tjnp->SetMode(MODE_READ);
+
+    if (tjnp->OpenDB(g))
       return NULL;
-    } // endif buf
 
-    if (!(infile = global_fopen(g, MSGID_CANNOT_OPEN, filename, "r")))
-      return NULL;
+    switch (tjnp->ReadDB(g)) {
+      case RC_EF:
+        strcpy(g->Message, "Void json table");
+      case RC_FX:
+        goto err;
+      default:
+        jsp = tjnp->GetRow();
+      } // endswitch ReadDB
 
-    // Read first record
-    for (i = 0; i <= pretty; i++)
-      if (!fgets(buf, lrecl, infile)) {
-        if (feof(infile)) {
-          strcpy(g->Message, "Void json table");
-          return NULL;
-          } // endif fgets
-
-        sprintf(g->Message, MSG(READ_ERROR), filename, strerror(0));
-        return NULL;
-        } // endif fgets
-
-      jsp = ParseJson(g, buf, strlen(buf), pretty, NULL);
-    } // endif pretty
+  } // endif pretty
 
   if (!(row = (jsp) ? jsp->GetObject() : NULL)) {
     strcpy(g->Message, "Can only retrieve columns from object rows");
-    return NULL;
+    goto err;
     } // endif row
 
   jcol.Next = NULL;
@@ -394,20 +265,18 @@ PQRYRES JSONColumns(PGLOBAL g, char *dp, const char *fn, char *objn,
 
     if (pretty != 2) {
       // Read next record
-      if (!fgets(buf, lrecl, infile)) {
-        if (!feof(infile)) {
-          sprintf(g->Message, MSG(READ_ERROR), filename, strerror(0));
-          return NULL;
-        } else
+      switch (tjnp->ReadDB(g)) {
+        case RC_EF:
           jsp = NULL;
-
-      } else if (pretty == 1 && strlen(buf) == 1 && *buf == ']') {
-        jsp = NULL;
-      } else
-        jsp = ParseJson(g, buf, strlen(buf), pretty, NULL);
+          break;
+        case RC_FX:
+          goto err;
+        default:
+          jsp = tjnp->GetRow();
+        } // endswitch ReadDB
 
     } else
-      jsp = doc->GetValue(i);
+      jsp = tjsp->GetDoc()->GetValue(i);
 
     if (!(row = (jsp) ? jsp->GetObject() : NULL))
       break;
@@ -415,7 +284,7 @@ PQRYRES JSONColumns(PGLOBAL g, char *dp, const char *fn, char *objn,
     } // endor i
 
   if (pretty != 2)
-    fclose(infile);
+    tjnp->CloseDB(g);
 
  skipit:
   if (trace)
@@ -471,7 +340,7 @@ PQRYRES JSONColumns(PGLOBAL g, char *dp, const char *fn, char *objn,
 
 err:
   if (pretty != 2)
-    fclose(infile);
+    tjnp->CloseDB(g);
 
   return NULL;
   } // end of JSONColumns
@@ -487,6 +356,7 @@ JSONDEF::JSONDEF(void)
   Limit = 1;
   Level = 0;
   ReadMode = 0;
+  Strict = false;
 } // end of JSONDEF constructor
 
 /***********************************************************************/
@@ -540,7 +410,7 @@ PTDB JSONDEF::GetTable(PGLOBAL g, MODE m)
     // Txfp must be set for TDBDOS
     tdbp = new(g) TDBJSN(this, txfp);
   } else {
-    txfp = new(g) DOSFAM(this);
+    txfp = new(g) MAPFAM(this);
     tdbp = new(g) TDBJSON(this, txfp);
   } // endif Pretty
 
@@ -557,30 +427,45 @@ PTDB JSONDEF::GetTable(PGLOBAL g, MODE m)
 /***********************************************************************/
 TDBJSN::TDBJSN(PJDEF tdp, PTXF txfp) : TDBDOS(tdp, txfp)
   {
+  Top = NULL;
   Row = NULL;
+  Val = NULL;
   Colp = NULL;
-  Jmode = tdp->Jmode;
-  Xcol = tdp->Xcol;
+
+  if (tdp) {
+    Jmode = tdp->Jmode;
+    Objname = tdp->Objname;
+    Xcol = tdp->Xcol;
+    Limit = tdp->Limit;
+    Pretty = tdp->Pretty;
+    Strict = tdp->Strict;
+  } else {
+    Jmode = MODE_OBJECT;
+    Objname = NULL;
+    Xcol = NULL;
+    Limit = 1;
+    Pretty = 0;
+    Strict = false;
+  } // endif tdp
+
   Fpos = -1;
-//Spos = 0;
   N = 0;
-  Limit = tdp->Limit;
   NextSame = 0;
   SameRow = 0;
   Xval = -1;
-  Pretty = tdp->Pretty;
-  Strict = tdp->Strict;
   Comma = false;
   } // end of TDBJSN standard constructor
 
 TDBJSN::TDBJSN(TDBJSN *tdbp) : TDBDOS(NULL, tdbp)
   {
+  Top = tdbp->Top;
   Row = tdbp->Row;
+  Val = tdbp->Val;
   Colp = tdbp->Colp;
   Jmode = tdbp->Jmode;
+  Objname = tdbp->Objname;
   Xcol = tdbp->Xcol;
   Fpos = tdbp->Fpos;
-//Spos = tdbp->Spos;
   N = tdbp->N;
   Limit = tdbp->Limit;
   NextSame = tdbp->NextSame;
@@ -659,6 +544,34 @@ int TDBJSN::GetMaxSize(PGLOBAL g)
   } // end of GetMaxSize
 
 /***********************************************************************/
+/*  Find the row in the tree structure.                                */
+/***********************************************************************/
+PJSON TDBJSN::FindRow(PGLOBAL g)
+{
+  char *p, *objpath;
+  PJSON jsp = Row;
+  PJVAL val = NULL;
+
+  for (objpath = PlugDup(g, Objname); jsp && objpath; objpath = p) {
+    if ((p = strchr(objpath, ':')))
+      *p++ = 0;
+
+    if (*objpath != '[') {         // objpass is a key
+      val = (jsp->GetType() == TYPE_JOB) ?
+             jsp->GetObject()->GetValue(objpath) : NULL;
+    } else if (objpath[strlen(objpath)-1] == ']') {
+      val = (jsp->GetType() == TYPE_JAR) ?
+        jsp->GetArray()->GetValue(atoi(objpath+1) - 1) : NULL;
+    } else
+      val = NULL;
+
+    jsp = (val) ? val->GetJson() : NULL;
+    } // endfor objpath
+
+  return jsp;
+} // end of FindRow
+
+/***********************************************************************/
 /*  OpenDB: Data Base open routine for JSN access method.              */
 /***********************************************************************/
 bool TDBJSN::OpenDB(PGLOBAL g)
@@ -668,7 +581,6 @@ bool TDBJSN::OpenDB(PGLOBAL g)
     /*  Table already open replace it at its beginning.                */
     /*******************************************************************/
     Fpos= -1;
-//  Spos = 0;
     NextSame = 0;
     SameRow = 0;
   } else {
@@ -743,6 +655,7 @@ int TDBJSN::ReadDB(PGLOBAL g)
                              strlen(To_Line), Pretty, &Comma))) {
       rc = (Pretty == 1 && !strcmp(To_Line, "]")) ? RC_EF : RC_FX;
     } else {
+      Row = FindRow(g);
       SameRow = 0;
       Fpos++;
       rc = RC_OK;
@@ -752,19 +665,85 @@ int TDBJSN::ReadDB(PGLOBAL g)
   } // end of ReadDB
 
 /***********************************************************************/
+/*  Make the top tree from the object path.                            */
+/***********************************************************************/
+int TDBJSN::MakeTopTree(PGLOBAL g, PJSON jsp)
+  {
+  if (Objname) {
+    if (!Val) {
+      // Parse and allocate Objname item(s)
+      char *p;
+      char *objpath = PlugDup(g, Objname);
+      int   i;
+      PJOB  objp;
+      PJAR  arp;
+      PJVAL val = NULL;
+  
+      Top = NULL;
+  
+      for (; objpath; objpath = p) {
+        if ((p = strchr(objpath, ':')))
+          *p++ = 0;
+  
+        if (*objpath != '[') {
+          objp = new(g) JOBJECT;
+  
+          if (!Top)
+            Top = objp;
+  
+          if (val)
+            val->SetValue(objp);
+  
+          val = new(g) JVALUE;
+          objp->SetValue(g, val, objpath);
+        } else if (objpath[strlen(objpath)-1] == ']') {
+          arp = new(g) JARRAY;
+
+          if (!Top)
+            Top = arp;
+    
+          if (val)
+            val->SetValue(arp);
+    
+          val = new(g) JVALUE;
+          i = atoi(objpath+1) - 1;
+          arp->SetValue(g, val, i);
+          arp->InitArray(g);
+        } else {
+          sprintf(g->Message, "Invalid Table path %s", Objname);
+          return RC_FX;
+        } // endif objpath
+    
+        } // endfor p
+
+      Val = val;
+      } // endif Val
+
+    Val->SetValue(jsp);
+  } else
+    Top = jsp;
+
+  return RC_OK;
+  } // end of MakeTopTree
+
+/***********************************************************************/
 /*  PrepareWriting: Prepare the line for WriteDB.                      */
 /***********************************************************************/
   bool TDBJSN::PrepareWriting(PGLOBAL g)
   {
-  PSZ s = Serialize(g, Row, NULL, Pretty);
+  PSZ s;
 
-  if (s) {
+  if (MakeTopTree(g, Row))
+    return true;
+
+  if ((s = Serialize(g, Top, NULL, Pretty))) {
     if (Comma)
       strcat(s, ",");
 
     if ((signed)strlen(s) > Lrecl) {
-      sprintf(g->Message, "Line would be truncated (lrecl=%d)", Lrecl);
-      return true;
+      strncpy(To_Line, s, Lrecl);
+      sprintf(g->Message, "Line truncated (lrecl=%d)", Lrecl);
+      return PushWarning(g, this);
     } else
       strcpy(To_Line, s);
 
@@ -1083,6 +1062,10 @@ void JSONCOL::ReadColumn(PGLOBAL g)
   if (!Tjp->SameRow || Xnod >= Tjp->SameRow)
     Value->SetValue_pval(GetColumnValue(g, Tjp->Row, 0));
 
+  // Set null when applicable
+  if (Nullable)
+    Value->SetNull(Value->IsZero());
+
   } // end of ReadColumn
 
 /***********************************************************************/
@@ -1272,7 +1255,7 @@ PVAL JSONCOL::CalculateArray(PGLOBAL g, PJAR arp, int n)
 /***********************************************************************/
 PJSON JSONCOL::GetRow(PGLOBAL g)
   {
-  PJVAL val;
+  PJVAL val = NULL;
   PJAR  arp;
   PJSON nwr, row = Tjp->Row;
 
@@ -1438,18 +1421,14 @@ void JSONCOL::WriteColumn(PGLOBAL g)
 /***********************************************************************/
 TDBJSON::TDBJSON(PJDEF tdp, PTXF txfp) : TDBJSN(tdp, txfp)
   {
-  Top = NULL;
   Doc = NULL;
-  Objname = tdp->Objname;
   Multiple = tdp->Multiple;
   Done = Changed = false;
   } // end of TDBJSON standard constructor
 
 TDBJSON::TDBJSON(PJTDB tdbp) : TDBJSN(tdbp)
   {
-  Top = tdbp->Top;
   Doc = tdbp->Doc;
-  Objname = tdbp->Objname;
   Multiple = tdbp->Multiple;
   Done = tdbp->Done;
   Changed = tdbp->Changed;
@@ -1473,64 +1452,17 @@ PTDB TDBJSON::CopyOne(PTABS t)
   } // end of CopyOne
 
 /***********************************************************************/
-/*  Make the document tree from a file.                                */
+/*  Make the document tree from the object path.                       */
 /***********************************************************************/
 int TDBJSON::MakeNewDoc(PGLOBAL g)
   {
   // Create a void table that will be populated
   Doc = new(g) JARRAY;
 
-  if (Objname) {
-    // Parse and allocate Objname item(s)
-    char *p;
-    char *objpath = (char*)PlugSubAlloc(g, NULL, strlen(Objname)+1);
-    int   i;
-    PJOB  objp;
-    PJAR  arp;
-    PJVAL val = NULL;
+  if (MakeTopTree(g, Doc))
+    return RC_FX;
 
-    strcpy(objpath, Objname);
-    Top = NULL;
-
-    for (; objpath; objpath = p) {
-      if ((p = strchr(objpath, ':')))
-        *p++ = 0;
-
-      if (*objpath != '[') {
-        objp = new(g) JOBJECT;
-
-        if (!Top)
-          Top = objp;
-
-        if (val)
-          val->SetValue(objp);
-
-        val = new(g) JVALUE;
-        objp->SetValue(g, val, objpath);
-      } else if (objpath[strlen(objpath)-1] == ']') {
-        arp = new(g) JARRAY;
-
-        if (!Top)
-          Top = arp;
-
-        if (val)
-          val->SetValue(arp);
-
-        val = new(g) JVALUE;
-        i = atoi(objpath+1) - 1;
-        arp->SetValue(g, val, i);
-        arp->InitArray(g);
-      } else {
-        sprintf(g->Message, "Invalid Table path %s", Objname);
-        return RC_FX;
-      } // endif objpath
-
-      } // endfor p
-
-    val->SetValue(Doc);
-  } else
-    Top = Doc;
-
+  Done = true;
   return RC_OK;
   } // end of MakeNewDoc
 
@@ -1539,36 +1471,9 @@ int TDBJSON::MakeNewDoc(PGLOBAL g)
 /***********************************************************************/
 int TDBJSON::MakeDocument(PGLOBAL g)
   {
-  char    filename[_MAX_PATH];
-  int     rc = RC_OK;
-  DWORD   drc;
-
-  if (Done)
-    return RC_OK;
-
-  // Now open the JSON file
-  PlugSetPath(filename, Txfp->To_File, GetPath());
-
-	/*********************************************************************/
-	/*  Get top of the parsed tree and the inside table document.        */
-	/*********************************************************************/
-  if (!(Top = MakeJsonTree(g, filename, Objname, Pretty, Doc, drc)))
-    rc = (drc == ENOENT && Mode == MODE_INSERT) ? MakeNewDoc(g) : RC_FX;
-
-  Done = (rc == RC_OK);
-  return rc;
-  } // end of MakeDocument
-
-#if 0
-/***********************************************************************/
-/*  Make the document tree from a file.                                */
-/***********************************************************************/
-int TDBJSON::MakeDocument(PGLOBAL g)
-  {
-  char   *p, *memory, *objpath, *key, filename[_MAX_PATH];
+  char   *p, *memory, *objpath, *key;
   int     len, i = 0;
-  HANDLE  hFile;
-	MEMMAP  mm;
+  MODE    mode = Mode;
   PJSON   jsp;
   PJOB    objp = NULL;
   PJAR    arp = NULL;
@@ -1576,61 +1481,33 @@ int TDBJSON::MakeDocument(PGLOBAL g)
 
   if (Done)
     return RC_OK;
-  else
-    Done = true;
 
-  // Now open the JSON file
-  PlugSetPath(filename, Txfp->To_File, GetPath());
+  /*********************************************************************/
+	/*  Create the mapping file object in mode read.                     */
+  /*********************************************************************/
+  Mode = MODE_READ;
 
-	/*********************************************************************/
-	/*  Create the mapping file object.                                  */
-	/*********************************************************************/
-	hFile = CreateFileMap(g, filename, &mm, MODE_READ, false);
+  if (!Txfp->OpenTableFile(g)) {
+    PFBLOCK fp = Txfp->GetTo_Fb();
 
-	if (hFile == INVALID_HANDLE_VALUE) {
-    DWORD drc = GetLastError();
-
-    if (drc != ENOENT || Mode != MODE_INSERT) {
-      if (!(*g->Message))
-        sprintf(g->Message, MSG(OPEN_MODE_ERROR),
-                "map", (int)drc, filename);
-                
-  	  return RC_FX;
-    } else
+    if (fp) {
+      len = fp->Length;
+      memory = fp->Memory;
+    } else {
+      Mode = mode;         // Restore saved Mode
       return MakeNewDoc(g);
+    } // endif fp
 
-  	} // endif hFile
-
-  /*********************************************************************/
-  /*  Get the file size (assuming file is smaller than 4 GB)           */
-  /*********************************************************************/
-  len = mm.lenL;
-	memory = (char *)mm.memory;
-
-	if (!len) {      				// Empty file
-    CloseFileHandle(hFile);
-    CloseMemMap(memory, len);
-
-    if (Mode == MODE_INSERT)
-  		return MakeNewDoc(g);
-
-		} // endif len
-
-  if (!memory) {
-    CloseFileHandle(hFile);
-    sprintf(g->Message, MSG(MAP_VIEW_ERROR), filename, GetLastError());
+  } else
     return RC_FX;
-    } // endif Memory
-
-  CloseFileHandle(hFile);                    // Not used anymore
-  hFile = INVALID_HANDLE_VALUE;              // For Fblock
 
   /*********************************************************************/
   /*  Parse the json file and allocate its tree structure.             */
   /*********************************************************************/
   g->Message[0] = 0;
   jsp = Top = ParseJson(g, memory, len, Pretty);
-  CloseMemMap(memory, len);
+  Txfp->CloseTableFile(g, false);
+  Mode = mode;             // Restore saved Mode
 
   if (!jsp && g->Message[0])
     return RC_FX;
@@ -1707,9 +1584,9 @@ int TDBJSON::MakeDocument(PGLOBAL g)
 
   } // endif jsp
 
+  Done = true;
   return RC_OK;
   } // end of MakeDocument
-#endif // 0
 
 /***********************************************************************/
 /*  JSON Cardinality: returns table size in number of rows.            */

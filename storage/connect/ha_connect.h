@@ -26,6 +26,11 @@
 #pragma interface     /* gcc class implementation */
 #endif
 
+/****************************************************************************/
+/*  mycat.h contains the TOS, PTOS, ha_table_option_struct declarations.    */
+/****************************************************************************/
+#include "mycat.h"
+
 static char *strz(PGLOBAL g, LEX_STRING &ls);
 
 /****************************************************************************/
@@ -68,7 +73,6 @@ public:
 
 typedef class XCHK *PCHK;
 typedef class user_connect *PCONNECT;
-typedef struct ha_table_option_struct TOS, *PTOS;
 typedef struct ha_field_option_struct FOS, *PFOS;
 typedef struct ha_index_option_struct XOS, *PXOS;
 
@@ -80,6 +84,9 @@ extern handlerton *connect_hton;
   These can be specified in the CREATE TABLE:
   CREATE TABLE ( ... ) {...here...}
 */
+#if 0  // moved to mycat.h
+typedef struct ha_table_option_struct TOS, *PTOS;
+
 struct ha_table_option_struct {
   const char *type;
   const char *filename;
@@ -111,6 +118,7 @@ struct ha_table_option_struct {
   bool readonly;
   bool sepindex;
   };
+#endif // 0
 
 /**
   structure for CREATE TABLE options (field options)

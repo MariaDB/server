@@ -47,7 +47,6 @@
 #include "xtable.h"
 #include "tabmysql.h"
 #include "ha_connect.h"
-#include "mycat.h"
 
 /***********************************************************************/
 /*  Prepare and count columns in the column list.                      */

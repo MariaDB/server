@@ -53,7 +53,6 @@
 #include "xtable.h"
 #include "tabmysql.h"
 #include "ha_connect.h"
-#include "mycat.h"
 
 /* -------------- Implementation of the XCOL classes	---------------- */
 

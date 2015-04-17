@@ -43,7 +43,6 @@
 #include "plgdbsem.h"
 #include "plgcnx.h"                       // For DB types
 #include "myutil.h"
-#include "mycat.h"
 #include "valblk.h"
 #include "resource.h"
 #include "reldef.h"
