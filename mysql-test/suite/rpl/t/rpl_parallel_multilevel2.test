@@ -27,22 +27,6 @@ SET GLOBAL binlog_direct_non_transactional_updates=OFF;
 SET SESSION binlog_direct_non_transactional_updates=OFF;
 CHANGE MASTER TO master_use_gtid=current_pos;
 
-# Get Initial status measurements
-# we take out measurements from server_2 as that's where
-# the its critical that separate binlog_group_commits occur
-SELECT variable_value INTO @group_commits FROM information_schema.global_status
- WHERE variable_name = 'binlog_group_commits';
-SELECT variable_value INTO @group_commit_trigger_count FROM information_schema.global_status
- WHERE variable_name = 'binlog_group_commit_trigger_count';
-SELECT variable_value INTO @group_commit_trigger_timeout FROM information_schema.global_status
- WHERE variable_name = 'binlog_group_commit_trigger_timeout';
-SELECT variable_value INTO @group_commit_trigger_lock_wait FROM information_schema.global_status
- WHERE variable_name = 'binlog_group_commit_trigger_lock_wait';
-
-# Note: binlog_group_commits is counted at the start of the group and group_commit_trigger_* is
-# counted near when the groups its finalised.
-
-
 --connection server_3
 --sync_with_master
 --save_master_pos
@@ -72,27 +56,6 @@ SELECT * FROM t1 ORDER BY a;
 --source include/sync_with_master_gtid.inc
 SELECT * FROM t1 ORDER BY a;
 
-# Measure status(es)
---connection server_2
-# A create tempory table being a DDL needs to be its own group for SBR.
-# RBR has table maps which indicate that the temp table needs to be created first.
-# In SBR the first insert from server 1 is begins the second group. The second 
-# insert statement depends on the first it has to be ordered in a third group.
-# 1 group is generated in row based replication as the insert into t1 is values rather than references to t2
-# and the table map indicates that the temp table needs to be created first.
-# 3 groups are generated in mixed/statement based replication
-# All groups result in a binlog_group_commit_trigger_timeout as no other
-# transactions are pushed to server_2 so therefore non_timeout_triggers is 0.
-SELECT IF((commits.variable_value - @group_commits)=IF(@@binlog_format='ROW',1,3), "OK", "Not 1 (row) or 3 (mixed/statement replication) groups"),
- ((commits.variable_value - @group_commits) - (trigger_timeout.variable_value - @group_commit_trigger_timeout)) as non_timeout_triggers
- FROM information_schema.global_status commits
- JOIN  information_schema.global_status trigger_timeout
- WHERE commits.variable_name = 'binlog_group_commits'
- AND trigger_timeout.variable_name = 'binlog_group_commit_trigger_timeout';
-SELECT variable_value - @group_commit_trigger_count as trigger_count FROM information_schema.global_status
- WHERE variable_name = 'binlog_group_commit_trigger_count';
-SELECT variable_value - @group_commit_trigger_lock_wait as trigger_lock_wait FROM information_schema.global_status
- WHERE variable_name = 'binlog_group_commit_trigger_lock_wait';
 
 # Clean up
 

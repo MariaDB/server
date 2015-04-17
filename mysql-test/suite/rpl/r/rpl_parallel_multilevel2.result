@@ -16,14 +16,6 @@ SET @old_updates= @@GLOBAL.binlog_direct_non_transactional_updates;
 SET GLOBAL binlog_direct_non_transactional_updates=OFF;
 SET SESSION binlog_direct_non_transactional_updates=OFF;
 CHANGE MASTER TO master_use_gtid=current_pos;
-SELECT variable_value INTO @group_commits FROM information_schema.global_status
-WHERE variable_name = 'binlog_group_commits';
-SELECT variable_value INTO @group_commit_trigger_count FROM information_schema.global_status
-WHERE variable_name = 'binlog_group_commit_trigger_count';
-SELECT variable_value INTO @group_commit_trigger_timeout FROM information_schema.global_status
-WHERE variable_name = 'binlog_group_commit_trigger_timeout';
-SELECT variable_value INTO @group_commit_trigger_lock_wait FROM information_schema.global_status
-WHERE variable_name = 'binlog_group_commit_trigger_lock_wait';
 SET @old_parallel_threads=@@GLOBAL.slave_parallel_threads;
 include/stop_slave.inc
 SET GLOBAL slave_parallel_threads=10;
@@ -45,22 +37,6 @@ include/sync_with_master_gtid.inc
 SELECT * FROM t1 ORDER BY a;
 a	b
 1	10
-SELECT IF((commits.variable_value - @group_commits)=IF(@@binlog_format='ROW',1,3), "OK", "Not 1 (row) or 3 (mixed/statement replication) groups"),
-((commits.variable_value - @group_commits) - (trigger_timeout.variable_value - @group_commit_trigger_timeout)) as non_timeout_triggers
-FROM information_schema.global_status commits
-JOIN  information_schema.global_status trigger_timeout
-WHERE commits.variable_name = 'binlog_group_commits'
- AND trigger_timeout.variable_name = 'binlog_group_commit_trigger_timeout';
-IF((commits.variable_value - @group_commits)=IF(@@binlog_format='ROW',1,3), "OK", "Not 1 (row) or 3 (mixed/statement replication) groups")	non_timeout_triggers
-OK	0
-SELECT variable_value - @group_commit_trigger_count as trigger_count FROM information_schema.global_status
-WHERE variable_name = 'binlog_group_commit_trigger_count';
-trigger_count
-0
-SELECT variable_value - @group_commit_trigger_lock_wait as trigger_lock_wait FROM information_schema.global_status
-WHERE variable_name = 'binlog_group_commit_trigger_lock_wait';
-trigger_lock_wait
-0
 include/stop_slave.inc
 SET GLOBAL slave_parallel_threads=@old_parallel_threads;
 SET GLOBAL binlog_commit_wait_count=@old_commit_count;
