@@ -770,7 +770,7 @@ os_file_handle_error_cond_exit(
 		os_has_said_disk_full = TRUE;
 
 		fflush(stderr);
-
+		ut_error;
 		return(FALSE);
 
 	case OS_FILE_AIO_RESOURCES_RESERVED:
@@ -4878,7 +4878,7 @@ os_aio_func(
 	mode = mode & (~OS_AIO_SIMULATED_WAKE_LATER);
 
 	DBUG_EXECUTE_IF("ib_os_aio_func_io_failure_28",
-			mode = OS_AIO_SYNC; os_has_said_disk_full = TRUE;);
+			mode = OS_AIO_SYNC; os_has_said_disk_full = FALSE;);
 
 	if (mode == OS_AIO_SYNC
 #ifdef WIN_ASYNC_IO
@@ -4910,7 +4910,11 @@ os_aio_func(
 			ret = os_file_write_func(name, file, buf, offset, n);
 
 			DBUG_EXECUTE_IF("ib_os_aio_func_io_failure_28",
-				os_has_said_disk_full = TRUE; ret = 0; errno = 28;);
+				os_has_said_disk_full = FALSE; ret = 0; errno = 28;);
+
+			if (!ret) {
+				os_file_handle_error_cond_exit(name, "os_file_write_func", TRUE, FALSE);
+			}
 		}
 
 		return ret;
@@ -5762,9 +5766,14 @@ consecutive_loop:
 			aio_slot->offset, total_len);
 
 		DBUG_EXECUTE_IF("ib_os_aio_func_io_failure_28",
-			os_has_said_disk_full = TRUE;
+			os_has_said_disk_full = FALSE;
 			ret = 0;
 			errno = 28;);
+
+		if (!ret) {
+			os_file_handle_error_cond_exit(aio_slot->name, "os_file_write_func", TRUE, FALSE);
+		}
+
 	} else {
 		ret = os_file_read(
 			aio_slot->file, combined_buf,

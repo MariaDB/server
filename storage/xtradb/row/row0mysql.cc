@@ -1457,6 +1457,11 @@ error_exit:
 			srv_stats.n_rows_inserted.add((size_t)trx->id, 1);
 		}
 
+		if (prebuilt->clust_index_was_generated) {
+			/* set row id to prebuilt */
+			ut_memcpy(prebuilt->row_id, node->row_id_buf, DATA_ROW_ID_LEN);
+		}
+
 		/* Not protected by dict_table_stats_lock() for performance
 		reasons, we would rather get garbage in stat_n_rows (which is
 		just an estimate anyway) than protecting the following code

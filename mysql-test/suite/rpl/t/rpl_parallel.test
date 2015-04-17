@@ -11,9 +11,20 @@ SET @old_parallel_threads=@@GLOBAL.slave_parallel_threads;
 SET GLOBAL slave_parallel_threads=10;
 --source include/stop_slave.inc
 SET GLOBAL slave_parallel_threads=10;
+
+# Check that we do not spawn any worker threads when no slave is running.
+SELECT IF(COUNT(*) < 10, "OK", CONCAT("Found too many system user processes: ", COUNT(*))) FROM information_schema.processlist WHERE user = "system user";
+
 CHANGE MASTER TO master_use_gtid=slave_pos;
 --source include/start_slave.inc
 
+# Check that worker threads get spawned when slave starts.
+SELECT IF(COUNT(*) >= 10, "OK", CONCAT("Found too few system user processes: ", COUNT(*))) FROM information_schema.processlist WHERE user = "system user";
+# ... and that worker threads get removed when slave stops.
+--source include/stop_slave.inc
+SELECT IF(COUNT(*) < 10, "OK", CONCAT("Found too many system user processes: ", COUNT(*))) FROM information_schema.processlist WHERE user = "system user";
+--source include/start_slave.inc
+SELECT IF(COUNT(*) >= 10, "OK", CONCAT("Found too few system user processes: ", COUNT(*))) FROM information_schema.processlist WHERE user = "system user";
 
 --echo *** Test long-running query in domain 1 can run in parallel with short queries in domain 0 ***
 
