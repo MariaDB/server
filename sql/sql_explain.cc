@@ -1191,7 +1191,7 @@ const char *String_list::append_str(MEM_ROOT *mem_root, const char *str)
   if (!(cp = (char*)alloc_root(mem_root, len+1)))
     return NULL;
   memcpy(cp, str, len+1);
-  push_back(cp);
+  push_back(cp, mem_root);
   return cp;
 }
 

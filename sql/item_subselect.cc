@@ -1776,7 +1776,7 @@ Item_in_subselect::single_value_transformer(JOIN *join)
       of the statement. Thus one of 'substitution' arguments
       can be broken in case of PS.
     */ 
-    substitution= func->create(left_expr, where_item);
+    substitution= func->create(thd, left_expr, where_item);
     have_to_be_excluded= 1;
     if (thd->lex->describe)
     {
@@ -1945,7 +1945,7 @@ bool Item_allany_subselect::transform_into_max_min(JOIN *join)
     The swap is needed for expressions of type 'f1 < ALL ( SELECT ....)'
     where we want to evaluate the sub query even if f1 would be null.
   */
-  subs= func->create_swap(*(optimizer->get_cache()), subs);
+  subs= func->create_swap(thd, *(optimizer->get_cache()), subs);
   thd->change_item_tree(place, subs);
   if (subs->fix_fields(thd, &subs))
     DBUG_RETURN(true);
@@ -2037,8 +2037,9 @@ Item_in_subselect::create_single_in_to_exists_cond(JOIN * join,
   if (join_having || select_lex->with_sum_func ||
       select_lex->group_list.elements)
   {
-    Item *item= func->create(expr,
-                             new Item_ref_null_helper(&select_lex->context,
+    Item *item= func->create(thd, expr,
+                             new (thd->mem_root) Item_ref_null_helper(
+                                                      &select_lex->context,
                                                       this,
                                                       select_lex->
                                                       ref_pointer_array,
@@ -2068,14 +2069,14 @@ Item_in_subselect::create_single_in_to_exists_cond(JOIN * join,
       Item *having= item;
       Item *orig_item= item;
        
-      item= func->create(expr, item);
+      item= func->create(thd, expr, item);
       if (!abort_on_null && orig_item->maybe_null)
       {
-	having= new Item_is_not_null_test(this, having);
+	having= new (thd->mem_root) Item_is_not_null_test(this, having);
         if (left_expr->maybe_null)
         {
-          if (!(having= new Item_func_trig_cond(having,
-                                                get_cond_guard(0))))
+          if (!(having= new (thd->mem_root) Item_func_trig_cond(having,
+                                                            get_cond_guard(0))))
             DBUG_RETURN(true);
         }
         having->name= (char*) in_having_cond;
@@ -2083,8 +2084,8 @@ Item_in_subselect::create_single_in_to_exists_cond(JOIN * join,
           DBUG_RETURN(true);
         *having_item= having;
 
-	item= new Item_cond_or(item,
-			       new Item_func_isnull(orig_item));
+	item= new (thd->mem_root) Item_cond_or(item,
+                               new (thd->mem_root) Item_func_isnull(orig_item));
       }
       /* 
         If we may encounter NULL IN (SELECT ...) and care whether subquery
@@ -2092,7 +2093,8 @@ Item_in_subselect::create_single_in_to_exists_cond(JOIN * join,
       */
       if (!abort_on_null && left_expr->maybe_null)
       {
-        if (!(item= new Item_func_trig_cond(item, get_cond_guard(0))))
+        if (!(item= new (thd->mem_root) Item_func_trig_cond(item,
+                                                            get_cond_guard(0))))
           DBUG_RETURN(true);
       }
 
@@ -2111,15 +2113,17 @@ Item_in_subselect::create_single_in_to_exists_cond(JOIN * join,
       if (select_lex->master_unit()->is_union())
       {
         Item *new_having=
-          func->create(expr,
-                       new Item_ref_null_helper(&select_lex->context, this,
-                                            select_lex->ref_pointer_array,
-                                            (char *)"<no matter>",
-                                            (char *)"<result>"));
+          func->create(thd, expr,
+                       new (thd->mem_root) Item_ref_null_helper(
+                                                  &select_lex->context,
+                                                  this,
+                                                  select_lex->ref_pointer_array,
+                                                  (char *)"<no matter>",
+                                                  (char *)"<result>"));
         if (!abort_on_null && left_expr->maybe_null)
         {
-          if (!(new_having= new Item_func_trig_cond(new_having,
-                                                    get_cond_guard(0))))
+          if (!(new_having= new (thd->mem_root) Item_func_trig_cond(new_having,
+                                                            get_cond_guard(0))))
             DBUG_RETURN(true);
         }
 

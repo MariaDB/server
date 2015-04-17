@@ -264,64 +264,64 @@ static void my_coll_agg_error(DTCollation &c1, DTCollation &c2,
 }
 
 
-Item_bool_func2* Eq_creator::create(Item *a, Item *b) const
+Item_bool_func2* Eq_creator::create(THD *thd, Item *a, Item *b) const
 {
-  return new Item_func_eq(a, b);
+  return new (thd->mem_root) Item_func_eq(a, b);
 }
 
-Item_bool_func2* Eq_creator::create_swap(Item *a, Item *b) const
+Item_bool_func2* Eq_creator::create_swap(THD *thd, Item *a, Item *b) const
 {
-  return new Item_func_eq(b, a);
+  return new (thd->mem_root) Item_func_eq(b, a);
 }
 
-Item_bool_func2* Ne_creator::create(Item *a, Item *b) const
+Item_bool_func2* Ne_creator::create(THD *thd, Item *a, Item *b) const
 {
-  return new Item_func_ne(a, b);
+  return new (thd->mem_root) Item_func_ne(a, b);
 }
 
-Item_bool_func2* Ne_creator::create_swap(Item *a, Item *b) const
+Item_bool_func2* Ne_creator::create_swap(THD *thd, Item *a, Item *b) const
 {
-  return new Item_func_ne(b, a);
+  return new (thd->mem_root) Item_func_ne(b, a);
 }
 
-Item_bool_func2* Gt_creator::create(Item *a, Item *b) const
+Item_bool_func2* Gt_creator::create(THD *thd, Item *a, Item *b) const
 {
-  return new Item_func_gt(a, b);
+  return new (thd->mem_root) Item_func_gt(a, b);
 }
 
-Item_bool_func2* Gt_creator::create_swap(Item *a, Item *b) const
+Item_bool_func2* Gt_creator::create_swap(THD *thd, Item *a, Item *b) const
 {
-  return new Item_func_lt(b, a);
+  return new (thd->mem_root) Item_func_lt(b, a);
 }
 
-Item_bool_func2* Lt_creator::create(Item *a, Item *b) const
+Item_bool_func2* Lt_creator::create(THD *thd, Item *a, Item *b) const
 {
-  return new Item_func_lt(a, b);
+  return new (thd->mem_root) Item_func_lt(a, b);
 }
 
-Item_bool_func2* Lt_creator::create_swap(Item *a, Item *b) const
+Item_bool_func2* Lt_creator::create_swap(THD *thd, Item *a, Item *b) const
 {
-  return new Item_func_gt(b, a);
+  return new (thd->mem_root) Item_func_gt(b, a);
 }
 
-Item_bool_func2* Ge_creator::create(Item *a, Item *b) const
+Item_bool_func2* Ge_creator::create(THD *thd, Item *a, Item *b) const
 {
-  return new Item_func_ge(a, b);
+  return new (thd->mem_root) Item_func_ge(a, b);
 }
 
-Item_bool_func2* Ge_creator::create_swap(Item *a, Item *b) const
+Item_bool_func2* Ge_creator::create_swap(THD *thd, Item *a, Item *b) const
 {
-  return new Item_func_le(b, a);
+  return new (thd->mem_root) Item_func_le(b, a);
 }
 
-Item_bool_func2* Le_creator::create(Item *a, Item *b) const
+Item_bool_func2* Le_creator::create(THD *thd, Item *a, Item *b) const
 {
-  return new Item_func_le(a, b);
+  return new (thd->mem_root) Item_func_le(a, b);
 }
 
-Item_bool_func2* Le_creator::create_swap(Item *a, Item *b) const
+Item_bool_func2* Le_creator::create_swap(THD *thd, Item *a, Item *b) const
 {
-  return new Item_func_ge(b, a);
+  return new (thd->mem_root) Item_func_ge(b, a);
 }
 
 /*
@@ -5746,7 +5746,7 @@ Item_equal::Item_equal(Item_equal *item_equal)
   The optional parameter f is used to adjust the flag compare_as_dates.
 */
 
-void Item_equal::add_const(Item *c, Item *f)
+void Item_equal::add_const(THD *thd, Item *c, Item *f)
 {
   if (cond_false)
     return;
@@ -5766,7 +5766,7 @@ void Item_equal::add_const(Item *c, Item *f)
   }
   else
   {
-    Item_func_eq *func= new Item_func_eq(c, const_item);
+    Item_func_eq *func= new (thd->mem_root) Item_func_eq(c, const_item);
     if (func->set_cmp_func())
     {
       /*
@@ -5833,7 +5833,7 @@ bool Item_equal::contains(Field *field)
   contains a reference to f2->field.  
 */
 
-void Item_equal::merge(Item_equal *item)
+void Item_equal::merge(THD *thd, Item_equal *item)
 {
   Item *c= item->get_const();
   if (c)
@@ -5846,7 +5846,7 @@ void Item_equal::merge(Item_equal *item)
       the multiple equality already contains a constant and its 
       value is not equal to the value of c.
     */
-    add_const(c);
+    add_const(thd, c);
   }
   cond_false|= item->cond_false;
 } 
@@ -5880,7 +5880,7 @@ void Item_equal::merge(Item_equal *item)
   they have common members.  
 */
   
-bool Item_equal::merge_with_check(Item_equal *item, bool save_merged)
+bool Item_equal::merge_with_check(THD *thd, Item_equal *item, bool save_merged)
 {
   bool intersected= FALSE;
   Item_equal_fields_iterator_slow fi(*item);
@@ -5897,12 +5897,12 @@ bool Item_equal::merge_with_check(Item_equal *item, bool save_merged)
   if (intersected)
   {
     if (!save_merged)
-      merge(item);
+      merge(thd, item);
     else
     {
       Item *c= item->get_const();
       if (c)
-        add_const(c);
+        add_const(thd, c);
       if (!cond_false)
       {
         Item *item;
@@ -5939,7 +5939,7 @@ bool Item_equal::merge_with_check(Item_equal *item, bool save_merged)
   Item_equal is joined to the 'list'.
 */
 
-void Item_equal::merge_into_list(List<Item_equal> *list,
+void Item_equal::merge_into_list(THD *thd, List<Item_equal> *list,
                                  bool save_merged,
                                  bool only_intersected)
 {
@@ -5950,12 +5950,12 @@ void Item_equal::merge_into_list(List<Item_equal> *list,
   {
     if (!merge_into)
     {
-      if (item->merge_with_check(this, save_merged))
+      if (item->merge_with_check(thd, this, save_merged))
         merge_into= item;
     }
     else
     {
-      if (merge_into->merge_with_check(item, false))
+      if (merge_into->merge_with_check(thd, item, false))
         it.remove();
     }
   }
@@ -6005,7 +6005,7 @@ void Item_equal::sort(Item_field_cmpfunc compare, void *arg)
   Currently this function is called only after substitution of constant tables.
 */
 
-void Item_equal::update_const()
+void Item_equal::update_const(THD *thd)
 {
   List_iterator<Item> it(equal_items);
   if (with_const)
@@ -6034,7 +6034,7 @@ void Item_equal::update_const()
       else
       {
         it.remove();
-        add_const(item);
+        add_const(thd, item);
       }
     } 
   }

@@ -1865,7 +1865,7 @@ void st_select_lex::init_query()
     thus push_context should be moved to a place where query
     initialization is checked for failure.
   */
-  parent_lex->push_context(&context);
+  parent_lex->push_context(&context, parent_lex->thd->mem_root);
   cond_count= between_count= with_wild= 0;
   max_equal_elems= 0;
   ref_pointer_array= 0;
@@ -2315,7 +2315,7 @@ bool st_select_lex::add_item_to_list(THD *thd, Item *item)
 {
   DBUG_ENTER("st_select_lex::add_item_to_list");
   DBUG_PRINT("info", ("Item: 0x%lx", (long) item));
-  DBUG_RETURN(item_list.push_back(item));
+  DBUG_RETURN(item_list.push_back(item, thd->mem_root));
 }
 
 
@@ -3459,7 +3459,7 @@ bool st_select_lex::add_index_hint (THD *thd, char *str, uint length)
   return index_hints->push_front (new (thd->mem_root) 
                                  Index_hint(current_index_hint_type,
                                             current_index_hint_clause,
-                                            str, length));
+                                            str, length), thd->mem_root);
 }
 
 
@@ -4135,7 +4135,7 @@ bool st_select_lex::save_leaf_tables(THD *thd)
   TABLE_LIST *table;
   while ((table= li++))
   {
-    if (leaf_tables_exec.push_back(table))
+    if (leaf_tables_exec.push_back(table, thd->mem_root))
       return 1;
     table->tablenr_exec= table->get_tablenr();
     table->map_exec= table->get_map();

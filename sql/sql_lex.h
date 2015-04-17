@@ -2790,9 +2790,9 @@ public:
 
   void cleanup_after_one_table_open();
 
-  bool push_context(Name_resolution_context *context)
+  bool push_context(Name_resolution_context *context, MEM_ROOT *mem_root)
   {
-    return context_stack.push_front(context);
+    return context_stack.push_front(context, mem_root);
   }
 
   void pop_context()

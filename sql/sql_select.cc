@@ -172,7 +172,7 @@ static enum_nested_loop_state
 end_unique_update(JOIN *join, JOIN_TAB *join_tab, bool end_of_records);
 
 static int test_if_group_changed(List<Cached_item> &list);
-static int join_read_const_table(JOIN_TAB *tab, POSITION *pos);
+static int join_read_const_table(THD *thd, JOIN_TAB *tab, POSITION *pos);
 static int join_read_system(JOIN_TAB *tab);
 static int join_read_const(JOIN_TAB *tab);
 static int join_read_key(JOIN_TAB *tab);
@@ -3297,7 +3297,7 @@ mysql_select(THD *thd, Item ***rref_pointer_array,
     if (select_options & SELECT_DESCRIBE)
       free_join= 0;
 
-    if (!(join= new JOIN(thd, fields, select_options, result)))
+    if (!(join= new (thd->mem_root) JOIN(thd, fields, select_options, result)))
 	DBUG_RETURN(TRUE);
     THD_STAGE_INFO(thd, stage_init);
     thd->lex->used_tables=0;
@@ -3647,7 +3647,7 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
       int tmp;
       s->type=JT_SYSTEM;
       join->const_table_map|=s->table->map;
-      if ((tmp=join_read_const_table(s, p_pos)))
+      if ((tmp=join_read_const_table(join->thd, s, p_pos)))
       {
         if (tmp > 0)
           goto error;		// Fatal error
@@ -3730,7 +3730,7 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
 	  s->type=JT_SYSTEM;
 	  join->const_table_map|=table->map;
 	  set_position(join,const_count++,s,(KEYUSE*) 0);
-	  if ((tmp= join_read_const_table(s, join->positions+const_count-1)))
+	  if ((tmp= join_read_const_table(join->thd, s, join->positions+const_count-1)))
 	  {
 	    if (tmp > 0)
 	      goto error;			// Fatal error
@@ -3811,7 +3811,7 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
 	        if (create_ref_for_key(join, s, start_keyuse, FALSE,
 				       found_const_table_map))
                   goto error;
-	        if ((tmp=join_read_const_table(s,
+	        if ((tmp=join_read_const_table(join->thd, s,
                                                join->positions+const_count-1)))
 	        {
 		  if (tmp > 0)
@@ -8474,13 +8474,13 @@ get_best_combination(JOIN *join)
   fix_semijoin_strategies_for_picked_join_order(join);
   
   JOIN_TAB_RANGE *root_range;
-  if (!(root_range= new JOIN_TAB_RANGE))
+  if (!(root_range= new (thd->mem_root) JOIN_TAB_RANGE))
     DBUG_RETURN(TRUE);
   root_range->start= join->join_tab;
   /* root_range->end will be set later */
   join->join_tab_ranges.empty();
 
-  if (join->join_tab_ranges.push_back(root_range))
+  if (join->join_tab_ranges.push_back(root_range, thd->mem_root))
     DBUG_RETURN(TRUE);
 
   JOIN_TAB *sjm_nest_end= NULL;
@@ -12417,7 +12417,7 @@ finish:
     FALSE   otherwise
 */
 
-static bool check_simple_equality(Item *left_item, Item *right_item,
+static bool check_simple_equality(THD *thd, Item *left_item, Item *right_item,
                                   Item *item, COND_EQUAL *cond_equal)
 {
   Item *orig_left_item= left_item;
@@ -12474,14 +12474,14 @@ static bool check_simple_equality(Item *left_item, Item *right_item,
     if (left_copyfl)
     {
       /* left_item_equal of an upper level contains left_item */
-      left_item_equal= new Item_equal(left_item_equal);
+      left_item_equal= new (thd->mem_root) Item_equal(left_item_equal);
       left_item_equal->set_context_field(((Item_field*) left_item));
       cond_equal->current_level.push_back(left_item_equal);
     }
     if (right_copyfl)
     {
       /* right_item_equal of an upper level contains right_item */
-      right_item_equal= new Item_equal(right_item_equal);
+      right_item_equal= new (thd->mem_root) Item_equal(right_item_equal);
       right_item_equal->set_context_field(((Item_field*) right_item));
       cond_equal->current_level.push_back(right_item_equal);
     }
@@ -12494,7 +12494,7 @@ static bool check_simple_equality(Item *left_item, Item *right_item,
       else
       {
         /* Merge two multiple equalities forming a new one */
-        left_item_equal->merge(right_item_equal);
+        left_item_equal->merge(thd, right_item_equal);
         /* Remove the merged multiple equality from the list */
         List_iterator<Item_equal> li(cond_equal->current_level);
         while ((li++) != right_item_equal) ;
@@ -12509,9 +12509,9 @@ static bool check_simple_equality(Item *left_item, Item *right_item,
       else 
       {
         /* None of the fields was found in multiple equalities */
-        Item_equal *item_equal= new Item_equal(orig_left_item,
-                                               orig_right_item,
-                                               FALSE);
+        Item_equal *item_equal= new (thd->mem_root) Item_equal(orig_left_item,
+                                                               orig_right_item,
+                                                               FALSE);
         item_equal->set_context_field((Item_field*)left_item);
         cond_equal->current_level.push_back(item_equal);
       }
@@ -12552,7 +12552,8 @@ static bool check_simple_equality(Item *left_item, Item *right_item,
         if (!item)
         {
           Item_func_eq *eq_item;
-          if (!(eq_item= new Item_func_eq(orig_left_item, orig_right_item)) ||
+          if (!(eq_item= new (thd->mem_root) Item_func_eq(orig_left_item,
+                                                          orig_right_item)) ||
               eq_item->set_cmp_func())
             return FALSE;
           eq_item->quick_fix_field();
@@ -12567,7 +12568,7 @@ static bool check_simple_equality(Item *left_item, Item *right_item,
                                                field_item->field, &copyfl);
       if (copyfl)
       {
-        item_equal= new Item_equal(item_equal);
+        item_equal= new (thd->mem_root) Item_equal(item_equal);
         cond_equal->current_level.push_back(item_equal);
         item_equal->set_context_field(field_item);
       }
@@ -12578,13 +12579,14 @@ static bool check_simple_equality(Item *left_item, Item *right_item,
           already contains a constant and its value is  not equal to
           the value of const_item.
         */
-        item_equal->add_const(const_item, orig_field_item);
+        item_equal->add_const(thd, const_item, orig_field_item);
       }
       else
       {
-        item_equal= new Item_equal(const_item, orig_field_item, TRUE);
+        item_equal= new (thd->mem_root) Item_equal(const_item, orig_field_item,
+                                                   TRUE);
         item_equal->set_context_field(field_item);
-        cond_equal->current_level.push_back(item_equal);
+        cond_equal->current_level.push_back(item_equal, thd->mem_root);
       }
       return TRUE;
     }
@@ -12638,7 +12640,8 @@ static bool check_row_equality(THD *thd, Item *left_row, Item_row *right_row,
     }
     else
     { 
-      is_converted= check_simple_equality(left_item, right_item, 0, cond_equal);
+      is_converted= check_simple_equality(thd, left_item, right_item, 0,
+                                          cond_equal);
     }  
  
     if (!is_converted)
@@ -12699,7 +12702,7 @@ bool Item_func_eq::check_equality(THD *thd, COND_EQUAL *cond_equal,
                               (Item_row *) right_item,
                               cond_equal, eq_list);
   }
-  return check_simple_equality(left_item, right_item, this, cond_equal);
+  return check_simple_equality(thd, left_item, right_item, this, cond_equal);
 }
 
                           
@@ -13061,8 +13064,8 @@ static COND *build_equal_items(JOIN *join, COND *cond,
     else if (cond->type() == Item::FUNC_ITEM &&
              ((Item_cond*) cond)->functype() == Item_func::MULT_EQUAL_FUNC)
     {
-      cond_equal= new COND_EQUAL;
-      cond_equal->current_level.push_back((Item_equal *) cond);
+      cond_equal= new (thd->mem_root) COND_EQUAL;
+      cond_equal->current_level.push_back((Item_equal *) cond, thd->mem_root);
     }
   }
   if (cond_equal)
@@ -13657,7 +13660,8 @@ static COND* substitute_for_best_equal_field(JOIN_TAB *context_tab,
   @param const_key  mark key parts as constant
 */
 
-static void update_const_equal_items(COND *cond, JOIN_TAB *tab, bool const_key)
+static void update_const_equal_items(THD *thd, COND *cond, JOIN_TAB *tab,
+                                     bool const_key)
 {
   if (!(cond->used_tables() & tab->table->map))
     return;
@@ -13668,7 +13672,7 @@ static void update_const_equal_items(COND *cond, JOIN_TAB *tab, bool const_key)
     List_iterator_fast<Item> li(*cond_list);
     Item *item;
     while ((item= li++))
-      update_const_equal_items(item, tab,
+      update_const_equal_items(thd, item, tab,
                                (((Item_cond*) cond)->top_level() &&
                                 ((Item_cond*) cond)->functype() ==
                                 Item_func::COND_AND_FUNC));
@@ -13678,7 +13682,7 @@ static void update_const_equal_items(COND *cond, JOIN_TAB *tab, bool const_key)
   {
     Item_equal *item_equal= (Item_equal *) cond;
     bool contained_const= item_equal->get_const() != NULL;
-    item_equal->update_const();
+    item_equal->update_const(thd);
     if (!contained_const && item_equal->get_const())
     {
       /* Update keys for range analysis */
@@ -14734,7 +14738,7 @@ void propagate_new_equalities(THD *thd, Item *cond,
         List_iterator<Item_equal> it(*new_equalities);
 	while ((equal_item= it++))
 	{
-          equal_item->merge_into_list(cond_equalities, true, true);
+          equal_item->merge_into_list(thd, cond_equalities, true, true);
         }
         List_iterator<Item_equal> ei(*cond_equalities);
         while ((equal_item= ei++))
@@ -14768,7 +14772,7 @@ void propagate_new_equalities(THD *thd, Item *cond,
     equality->upper_levels= inherited;
     while ((equal_item= it++))
     {
-      equality->merge_with_check(equal_item, true);
+      equality->merge_with_check(thd, equal_item, true);
     }
     if (equality->const_item() && !equality->val_int())
       *is_simplifiable_cond= true;
@@ -15088,7 +15092,7 @@ internal_remove_eq_conds(THD *thd, COND *cond, Item::cond_result *cond_value)
       while ((equality= it++))
       {
 	equality->upper_levels= cond_equal->upper_levels;
-        equality->merge_into_list(cond_equalities, false, false);
+        equality->merge_into_list(thd, cond_equalities, false, false);
         List_iterator_fast<Item_equal> ei(*cond_equalities);
         while ((equality= ei++))
 	{
@@ -18324,7 +18328,7 @@ int safe_index_read(JOIN_TAB *tab)
 */
 
 static int
-join_read_const_table(JOIN_TAB *tab, POSITION *pos)
+join_read_const_table(THD *thd, JOIN_TAB *tab, POSITION *pos)
 {
   int error;
   TABLE_LIST *tbl;
@@ -18421,7 +18425,7 @@ join_read_const_table(JOIN_TAB *tab, POSITION *pos)
     List_iterator<TABLE_LIST> ti(join->select_lex->leaf_tables);
     /* Check appearance of new constant items in Item_equal objects */
     if (join->conds)
-      update_const_equal_items(join->conds, tab, TRUE);
+      update_const_equal_items(thd, join->conds, tab, TRUE);
     while ((tbl= ti++))
     {
       TABLE_LIST *embedded;
@@ -18430,7 +18434,7 @@ join_read_const_table(JOIN_TAB *tab, POSITION *pos)
       {
         embedded= embedding;
         if (embedded->on_expr)
-           update_const_equal_items(embedded->on_expr, tab, TRUE);
+           update_const_equal_items(thd, embedded->on_expr, tab, TRUE);
         embedding= embedded->embedding;
       }
       while (embedding &&
@@ -20912,7 +20916,7 @@ create_sort_index(THD *thd, JOIN *join, ORDER *order,
   for (ORDER *ord= join->order; ord; ord= ord->next)
     length++;
   if (!(join->sortorder= 
-        make_unireg_sortorder(order, &length, join->sortorder)))
+        make_unireg_sortorder(thd, order, &length, join->sortorder)))
     goto err;				/* purecov: inspected */
 
   table->sort.io_cache=(IO_CACHE*) my_malloc(sizeof(IO_CACHE),
@@ -21329,7 +21333,7 @@ err:
 }
 
 
-SORT_FIELD *make_unireg_sortorder(ORDER *order, uint *length,
+SORT_FIELD *make_unireg_sortorder(THD *thd, ORDER *order, uint *length,
                                   SORT_FIELD *sortorder)
 {
   uint count;
@@ -21340,8 +21344,8 @@ SORT_FIELD *make_unireg_sortorder(ORDER *order, uint *length,
   for (ORDER *tmp = order; tmp; tmp=tmp->next)
     count++;
   if (!sortorder)
-    sortorder= (SORT_FIELD*) sql_alloc(sizeof(SORT_FIELD) *
-                                       (MY_MAX(count, *length) + 1));
+    sortorder= (SORT_FIELD*) thd->alloc(sizeof(SORT_FIELD) *
+                                        (MY_MAX(count, *length) + 1));
   pos= sort= sortorder;
 
   if (!pos)
@@ -22239,7 +22243,7 @@ setup_copy_fields(THD *thd, TMP_TABLE_PARAM *param,
   DBUG_ENTER("setup_copy_fields");
 
   if (param->field_count && 
-      !(copy=param->copy_field= new Copy_field[param->field_count]))
+      !(copy=param->copy_field= new (thd->mem_root) Copy_field[param->field_count]))
     goto err2;
 
   param->copy_funcs.empty();
@@ -22335,7 +22339,7 @@ setup_copy_fields(THD *thd, TMP_TABLE_PARAM *param,
       else if (param->copy_funcs.push_back(pos))
 	goto err;
     }
-    res_all_fields.push_back(pos);
+    res_all_fields.push_back(pos, thd->mem_root);
     ref_pointer_array[((i < border)? all_fields.elements-i-1 : i-border)]=
       pos;
   }
@@ -22591,7 +22595,7 @@ change_to_use_tmp_fields(THD *thd, Item **ref_pointer_array,
     else
       item_field= item;
 
-    res_all_fields.push_back(item_field);
+    res_all_fields.push_back(item_field, thd->mem_root);
     ref_pointer_array[((i < border)? all_fields.elements-i-1 : i-border)]=
       item_field;
   }

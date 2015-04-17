@@ -411,7 +411,7 @@ public:
   {
     return sel_cmp(field,max_value, arg->min_value, max_flag, arg->min_flag);
   }
-  SEL_ARG *clone_and(SEL_ARG* arg)
+  SEL_ARG *clone_and(THD *thd, SEL_ARG* arg)
   {						// Get overlapping range
     uchar *new_min,*new_max;
     uint8 flag_min,flag_max;
@@ -431,8 +431,9 @@ public:
     {
       new_max=arg->max_value; flag_max=arg->max_flag;
     }
-    return new SEL_ARG(field, part, new_min, new_max, flag_min, flag_max,
-                       MY_TEST(maybe_flag && arg->maybe_flag));
+    return new (thd->mem_root) SEL_ARG(field, part, new_min, new_max, flag_min,
+                                       flag_max,
+                                       MY_TEST(maybe_flag && arg->maybe_flag));
   }
   SEL_ARG *clone_first(SEL_ARG *arg)
   {						// min <= X < arg->min
@@ -1772,7 +1773,7 @@ SQL_SELECT *make_select(TABLE *head, table_map const_tables,
 
   if (!conds && !allow_null_cond)
     DBUG_RETURN(0);
-  if (!(select= new SQL_SELECT))
+  if (!(select= new (head->in_use->mem_root) SQL_SELECT))
   {
     *error= 1;			// out of memory
     DBUG_RETURN(0);		/* purecov: inspected */
@@ -8231,7 +8232,7 @@ get_mm_parts(RANGE_OPT_PARAM *param, COND *cond_func, Field *field,
     if (field->eq(key_part->field))
     {
       SEL_ARG *sel_arg=0;
-      if (!tree && !(tree=new SEL_TREE()))
+      if (!tree && !(tree=new (param->thd->mem_root) SEL_TREE()))
 	DBUG_RETURN(0);				// OOM
       if (!value || !(value->used_tables() & ~param->read_tables))
       {
@@ -9482,7 +9483,7 @@ key_and(RANGE_OPT_PARAM *param, SEL_ARG *key1, SEL_ARG *key2, uint clone_flag)
     e2->incr_refs();
     if (!next || next->type != SEL_ARG::IMPOSSIBLE)
     {
-      SEL_ARG *new_arg= e1->clone_and(e2);
+      SEL_ARG *new_arg= e1->clone_and(param->thd, e2);
       if (!new_arg)
 	return &null_element;			// End of memory
       new_arg->next_key_part=next;
@@ -11053,7 +11054,9 @@ get_quick_keys(PARAM *param,QUICK_RANGE_SELECT *quick,KEY_PART *key,
   }
 
   /* Get range for retrieving rows in QUICK_SELECT::get_next */
-  if (!(range= new QUICK_RANGE(param->min_key,
+  if (!(range= new (param->thd->mem_root) QUICK_RANGE(
+                               param->thd,
+                               param->min_key,
 			       (uint) (tmp_min_key - param->min_key),
                                min_part >=0 ? make_keypart_map(min_part) : 0,
 			       param->max_key,
@@ -11271,7 +11274,7 @@ QUICK_RANGE_SELECT *get_quick_select_for_ref(THD *thd, TABLE *table,
 
     *ref->null_ref_key= 1;		// Set null byte then create a range
     if (!(null_range= new (alloc)
-          QUICK_RANGE(ref->key_buff, ref->key_length,
+          QUICK_RANGE(thd, ref->key_buff, ref->key_length,
                       make_prev_keypart_map(ref->key_parts),
                       ref->key_buff, ref->key_length,
                       make_prev_keypart_map(ref->key_parts), EQ_RANGE)))
@@ -14193,7 +14196,7 @@ bool QUICK_GROUP_MIN_MAX_SELECT::add_range(SEL_ARG *sel_range)
                     min_max_arg_len) == 0)
       range_flag|= EQ_RANGE;  /* equality condition */
   }
-  range= new QUICK_RANGE(sel_range->min_value, min_max_arg_len,
+  range= new QUICK_RANGE(join->thd, sel_range->min_value, min_max_arg_len,
                          make_keypart_map(sel_range->part),
                          sel_range->max_value, min_max_arg_len,
                          make_keypart_map(sel_range->part),

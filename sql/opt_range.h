@@ -69,13 +69,13 @@ class QUICK_RANGE :public Sql_alloc {
   uint16 dummy;					/* Avoid warnings on 'flag' */
 #endif
   QUICK_RANGE();				/* Full range */
-  QUICK_RANGE(const uchar *min_key_arg, uint min_length_arg,
+  QUICK_RANGE(THD *thd, const uchar *min_key_arg, uint min_length_arg,
               key_part_map min_keypart_map_arg,
 	      const uchar *max_key_arg, uint max_length_arg,
               key_part_map max_keypart_map_arg,
 	      uint flag_arg)
-    : min_key((uchar*) sql_memdup(min_key_arg,min_length_arg+1)),
-      max_key((uchar*) sql_memdup(max_key_arg,max_length_arg+1)),
+    : min_key((uchar*) thd->memdup(min_key_arg, min_length_arg + 1)),
+      max_key((uchar*) thd->memdup(max_key_arg, max_length_arg + 1)),
       min_length((uint16) min_length_arg),
       max_length((uint16) max_length_arg),
       flag((uint16) flag_arg),

@@ -557,7 +557,7 @@ int mysql_update(THD *thd,
       Filesort_tracker *fs_tracker= 
         thd->lex->explain->get_upd_del_plan()->filesort_tracker;
 
-      if (!(sortorder=make_unireg_sortorder(order, &length, NULL)) ||
+      if (!(sortorder=make_unireg_sortorder(thd, order, &length, NULL)) ||
           (table->sort.found_records= filesort(thd, table, sortorder, length,
                                                select, limit,
                                                true,

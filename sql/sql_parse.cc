@@ -5698,7 +5698,7 @@ static bool execute_sqlcom_select(THD *thd, TABLE_LIST *all_tables)
     SELECT_LEX *param= lex->unit.global_parameters();
     if (!param->explicit_limit)
       param->select_limit=
-        new Item_int((ulonglong) thd->variables.select_limit);
+        new (thd->mem_root) Item_int((ulonglong) thd->variables.select_limit);
   }
   if (!(res= open_and_lock_tables(thd, all_tables, TRUE, 0)))
   {
@@ -5775,7 +5775,7 @@ static bool execute_sqlcom_select(THD *thd, TABLE_LIST *all_tables)
       }
       else
       {
-        if (!result && !(result= new select_send()))
+        if (!result && !(result= new (thd->mem_root) select_send()))
           return 1;                               /* purecov: inspected */
       }
       query_cache_store_query(thd, all_tables);
@@ -7630,7 +7630,7 @@ TABLE_LIST *st_select_lex::nest_last_join(THD *thd)
 void st_select_lex::add_joined_table(TABLE_LIST *table)
 {
   DBUG_ENTER("add_joined_table");
-  join_list->push_front(table);
+  join_list->push_front(table, parent_lex->thd->mem_root);
   table->join_list= join_list;
   table->embedding= embedding;
   DBUG_VOID_RETURN;
@@ -7808,7 +7808,7 @@ push_new_name_resolution_context(THD *thd,
     left_op->first_leaf_for_name_resolution();
   on_context->last_name_resolution_table=
     right_op->last_leaf_for_name_resolution();
-  return thd->lex->push_context(on_context);
+  return thd->lex->push_context(on_context, thd->mem_root);
 }
 
 

@@ -293,11 +293,11 @@ public:
   /**
     Create operation with given arguments.
   */
-  virtual Item_bool_func2* create(Item *a, Item *b) const = 0;
+  virtual Item_bool_func2* create(THD *thd, Item *a, Item *b) const = 0;
   /**
     Create operation with given arguments in swap order.
   */
-  virtual Item_bool_func2* create_swap(Item *a, Item *b) const = 0;
+  virtual Item_bool_func2* create_swap(THD *thd, Item *a, Item *b) const = 0;
   virtual const char* symbol(bool invert) const = 0;
   virtual bool eqne_op() const = 0;
   virtual bool l_op() const = 0;
@@ -308,8 +308,8 @@ class Eq_creator :public Comp_creator
 public:
   Eq_creator() {}                             /* Remove gcc warning */
   virtual ~Eq_creator() {}                    /* Remove gcc warning */
-  virtual Item_bool_func2* create(Item *a, Item *b) const;
-  virtual Item_bool_func2* create_swap(Item *a, Item *b) const;
+  virtual Item_bool_func2* create(THD *thd, Item *a, Item *b) const;
+  virtual Item_bool_func2* create_swap(THD *thd, Item *a, Item *b) const;
   virtual const char* symbol(bool invert) const { return invert? "<>" : "="; }
   virtual bool eqne_op() const { return 1; }
   virtual bool l_op() const { return 0; }
@@ -320,8 +320,8 @@ class Ne_creator :public Comp_creator
 public:
   Ne_creator() {}                             /* Remove gcc warning */
   virtual ~Ne_creator() {}                    /* Remove gcc warning */
-  virtual Item_bool_func2* create(Item *a, Item *b) const;
-  virtual Item_bool_func2* create_swap(Item *a, Item *b) const;
+  virtual Item_bool_func2* create(THD *thd, Item *a, Item *b) const;
+  virtual Item_bool_func2* create_swap(THD *thd, Item *a, Item *b) const;
   virtual const char* symbol(bool invert) const { return invert? "=" : "<>"; }
   virtual bool eqne_op() const { return 1; }
   virtual bool l_op() const { return 0; }
@@ -332,8 +332,8 @@ class Gt_creator :public Comp_creator
 public:
   Gt_creator() {}                             /* Remove gcc warning */
   virtual ~Gt_creator() {}                    /* Remove gcc warning */
-  virtual Item_bool_func2* create(Item *a, Item *b) const;
-  virtual Item_bool_func2* create_swap(Item *a, Item *b) const;
+  virtual Item_bool_func2* create(THD *thd, Item *a, Item *b) const;
+  virtual Item_bool_func2* create_swap(THD *thd, Item *a, Item *b) const;
   virtual const char* symbol(bool invert) const { return invert? "<=" : ">"; }
   virtual bool eqne_op() const { return 0; }
   virtual bool l_op() const { return 0; }
@@ -344,8 +344,8 @@ class Lt_creator :public Comp_creator
 public:
   Lt_creator() {}                             /* Remove gcc warning */
   virtual ~Lt_creator() {}                    /* Remove gcc warning */
-  virtual Item_bool_func2* create(Item *a, Item *b) const;
-  virtual Item_bool_func2* create_swap(Item *a, Item *b) const;
+  virtual Item_bool_func2* create(THD *thd, Item *a, Item *b) const;
+  virtual Item_bool_func2* create_swap(THD *thd, Item *a, Item *b) const;
   virtual const char* symbol(bool invert) const { return invert? ">=" : "<"; }
   virtual bool eqne_op() const { return 0; }
   virtual bool l_op() const { return 1; }
@@ -356,8 +356,8 @@ class Ge_creator :public Comp_creator
 public:
   Ge_creator() {}                             /* Remove gcc warning */
   virtual ~Ge_creator() {}                    /* Remove gcc warning */
-  virtual Item_bool_func2* create(Item *a, Item *b) const;
-  virtual Item_bool_func2* create_swap(Item *a, Item *b) const;
+  virtual Item_bool_func2* create(THD *thd, Item *a, Item *b) const;
+  virtual Item_bool_func2* create_swap(THD *thd, Item *a, Item *b) const;
   virtual const char* symbol(bool invert) const { return invert? "<" : ">="; }
   virtual bool eqne_op() const { return 0; }
   virtual bool l_op() const { return 0; }
@@ -368,8 +368,8 @@ class Le_creator :public Comp_creator
 public:
   Le_creator() {}                             /* Remove gcc warning */
   virtual ~Le_creator() {}                    /* Remove gcc warning */
-  virtual Item_bool_func2* create(Item *a, Item *b) const;
-  virtual Item_bool_func2* create_swap(Item *a, Item *b) const;
+  virtual Item_bool_func2* create(THD *thd, Item *a, Item *b) const;
+  virtual Item_bool_func2* create_swap(THD *thd, Item *a, Item *b) const;
   virtual const char* symbol(bool invert) const { return invert? ">" : "<="; }
   virtual bool eqne_op() const { return 0; }
   virtual bool l_op() const { return 1; }
@@ -1940,18 +1940,18 @@ public:
   Item_equal(Item_equal *item_equal);
   /* Currently the const item is always the first in the list of equal items */
   inline Item* get_const() { return with_const ? equal_items.head() : NULL; }
-  void add_const(Item *c, Item *f = NULL);
+  void add_const(THD *thd, Item *c, Item *f = NULL);
   /** Add a non-constant item to the multiple equality */
   void add(Item *f) { equal_items.push_back(f); }
   bool contains(Field *field);
   Item* get_first(struct st_join_table *context, Item *field);
   /** Get number of field items / references to field items in this object */   
   uint n_field_items() { return equal_items.elements - MY_TEST(with_const); }
-  void merge(Item_equal *item);
-  bool merge_with_check(Item_equal *equal_item, bool save_merged);
-  void merge_into_list(List<Item_equal> *list, bool save_merged,
+  void merge(THD *thd, Item_equal *item);
+  bool merge_with_check(THD *thd, Item_equal *equal_item, bool save_merged);
+  void merge_into_list(THD *thd, List<Item_equal> *list, bool save_merged,
                       bool only_intersected);
-  void update_const();
+  void update_const(THD *thd);
   enum Functype functype() const { return MULT_EQUAL_FUNC; }
   longlong val_int(); 
   const char *func_name() const { return "multiple equal"; }

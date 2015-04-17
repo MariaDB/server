@@ -7962,7 +7962,7 @@ bool setup_fields(THD *thd, Item **ref_pointer_array,
   RETURN pointer on pointer to next_leaf of last element
 */
 
-void make_leaves_list(List<TABLE_LIST> &list, TABLE_LIST *tables,
+void make_leaves_list(THD *thd, List<TABLE_LIST> &list, TABLE_LIST *tables,
                       bool full_table_list, TABLE_LIST *boundary)
  
 {
@@ -7978,12 +7978,12 @@ void make_leaves_list(List<TABLE_LIST> &list, TABLE_LIST *tables,
         tables/views were already prepared and has their leaf_tables
         set properly.
       */
-      make_leaves_list(list, select_lex->get_table_list(),
+      make_leaves_list(thd, list, select_lex->get_table_list(),
       full_table_list, boundary);
     }
     else
     {
-      list.push_back(table);
+      list.push_back(table, thd->mem_root);
     }
   }
 }
@@ -8044,7 +8044,7 @@ bool setup_tables(THD *thd, Name_resolution_context *context,
     leaves.empty();
     if (!select_lex->is_prep_leaf_list_saved)
     {
-      make_leaves_list(leaves, tables, full_table_list, first_select_table);
+      make_leaves_list(thd, leaves, tables, full_table_list, first_select_table);
       select_lex->leaf_tables_exec.empty();
     }
     else

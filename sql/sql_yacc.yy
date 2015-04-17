@@ -8797,7 +8797,7 @@ bool_pri:
           }
         | bool_pri comp_op predicate %prec EQ
           {
-            $$= (*$2)(0)->create($1,$3);
+            $$= (*$2)(0)->create(thd, $1, $3);
             if ($$ == NULL)
               MYSQL_YYABORT;
           }
@@ -11328,7 +11328,7 @@ order_clause:
                */
                DBUG_ASSERT(sel->master_unit()->fake_select_lex);
                lex->current_select= sel->master_unit()->fake_select_lex;
-               lex->push_context(&lex->current_select->context);
+               lex->push_context(&lex->current_select->context, thd->mem_root);
              }
           }
           order_list
@@ -13862,20 +13862,20 @@ field_ident:
 table_ident:
           ident
           {
-            $$= new Table_ident($1);
+            $$= new (thd->mem_root) Table_ident($1);
             if ($$ == NULL)
               MYSQL_YYABORT;
           }
         | ident '.' ident
           {
-            $$= new Table_ident(thd, $1,$3,0);
+            $$= new (thd->mem_root) Table_ident(thd, $1, $3, 0);
             if ($$ == NULL)
               MYSQL_YYABORT;
           }
         | '.' ident
           {
             /* For Delphi */
-            $$= new Table_ident($2);
+            $$= new (thd->mem_root) Table_ident($2);
             if ($$ == NULL)
               MYSQL_YYABORT;
           }
@@ -13884,13 +13884,13 @@ table_ident:
 table_ident_opt_wild:
           ident opt_wild
           {
-            $$= new Table_ident($1);
+            $$= new (thd->mem_root) Table_ident($1);
             if ($$ == NULL)
               MYSQL_YYABORT;
           }
         | ident '.' ident opt_wild
           {
-            $$= new Table_ident(thd, $1,$3,0);
+            $$= new (thd->mem_root) Table_ident(thd, $1, $3, 0);
             if ($$ == NULL)
               MYSQL_YYABORT;
           }
@@ -13900,7 +13900,7 @@ table_ident_nodb:
           ident
           {
             LEX_STRING db={(char*) any_db,3};
-            $$= new Table_ident(thd, db,$1,0);
+            $$= new (thd->mem_root) Table_ident(thd, db, $1, 0);
             if ($$ == NULL)
               MYSQL_YYABORT;
           }
