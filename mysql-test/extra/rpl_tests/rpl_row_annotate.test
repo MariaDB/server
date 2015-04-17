@@ -107,12 +107,12 @@ if (!$annotate)
 --echo ########################################################################
 --echo # Ensure that a replication failure doesn't segfault - MDEV-7864
 --echo ########################################################################
-DELETE FROM t2 WHERE a=2;
+DELETE FROM t3 WHERE a=2;
 connection master;
-SET binlog_format=ROW;
+SET SESSION binlog_format=ROW;
 REPLACE INTO t5 (a) SELECT a.a*10000+b.a*1000+c.a*100+d.a*10 FROM t5 a, t5 b, t5 c, t5 d;
-INSERT INTO t2 (a) SELECT a FROM t5 WHERE a > 10;
-DELETE FROM t2 WHERE a IN (SELECT 2 UNION SELECT a FROM t5);
+INSERT INTO t3 (a) SELECT a FROM t5 WHERE a > 10;
+DELETE FROM t3 WHERE a IN (SELECT 2 UNION SELECT a FROM t5);
 sync_slave_with_master;
 SHOW SLAVE STATUS;
 
