@@ -4913,7 +4913,8 @@ os_aio_func(
 				os_has_said_disk_full = FALSE; ret = 0; errno = 28;);
 
 			if (!ret) {
-				os_file_handle_error_cond_exit(name, "os_file_write_func", TRUE, FALSE);
+				os_file_handle_error_cond_exit(name, "os_file_write_func", TRUE, FALSE,
+							       __FILE__, __LINE__);
 			}
 		}
 
@@ -5771,7 +5772,8 @@ consecutive_loop:
 			errno = 28;);
 
 		if (!ret) {
-			os_file_handle_error_cond_exit(aio_slot->name, "os_file_write_func", TRUE, FALSE);
+			os_file_handle_error_cond_exit(aio_slot->name, "os_file_write_func", TRUE, FALSE,
+						       __FILE__, __LINE__);
 		}
 
 	} else {
