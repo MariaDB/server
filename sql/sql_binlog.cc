@@ -99,8 +99,7 @@ void mysql_client_binlog_statement(THD* thd)
     have_fd_event= FALSE;
   }
   if (!(rgi= thd->rgi_fake))
-    rgi= thd->rgi_fake= new rpl_group_info(rli);
-  rgi->thd= thd;
+    rgi= thd->rgi_fake= new rpl_group_info(rli, thd);
 
   const char *error= 0;
   char *buf= (char *) my_malloc(decoded_len, MYF(MY_WME));

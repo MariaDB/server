@@ -1654,8 +1654,8 @@ rpl_group_info::reinit(Relay_log_info *rli)
   commit_orderer.reinit();
 }
 
-rpl_group_info::rpl_group_info(Relay_log_info *rli)
-  : thd(0), wait_commit_sub_id(0),
+rpl_group_info::rpl_group_info(Relay_log_info *rli, THD *thd_)
+  : thd(thd_), wait_commit_sub_id(0),
     wait_commit_group_info(0), parallel_entry(0),
     deferred_events(NULL), m_annotate_event(0), is_parallel_exec(false)
 {

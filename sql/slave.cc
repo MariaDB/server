@@ -4434,10 +4434,10 @@ pthread_handler_t handle_slave_sql(void *arg)
   LINT_INIT(saved_master_log_pos);
   LINT_INIT(saved_log_pos);
 
-  serial_rgi= new rpl_group_info(rli);
   thd = new THD; // note that contructor of THD uses DBUG_ !
   thd->thread_stack = (char*)&thd; // remember where our stack is
   thd->system_thread_info.rpl_sql_info= &sql_info;
+  serial_rgi= new rpl_group_info(rli, thd);
 
   DBUG_ASSERT(rli->inited);
   DBUG_ASSERT(rli->mi == mi);
@@ -4818,7 +4818,7 @@ err_during_init:
   */
   thd->temporary_tables = 0; // remove tempation from destructor to close them
   THD_CHECK_SENTRY(thd);
-  serial_rgi->thd= rli->sql_driver_thd= 0;
+  rli->sql_driver_thd= 0;
   mysql_mutex_lock(&LOCK_thread_count);
   THD_CHECK_SENTRY(thd);
   thd->rgi_fake= thd->rgi_slave= NULL;

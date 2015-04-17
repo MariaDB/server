@@ -684,7 +684,7 @@ struct rpl_group_info
   uint64 retry_event_count;
   bool killed_for_retry;
 
-  rpl_group_info(Relay_log_info *rli_);
+  rpl_group_info(Relay_log_info *rli_, THD *thd_=0);
   ~rpl_group_info();
   void reinit(Relay_log_info *rli);
 
@@ -743,7 +743,8 @@ struct rpl_group_info
   {
     if (m_annotate_event)
     {
-      this->thd->variables.binlog_annotate_row_events= 0;
+      if (this->thd)
+        this->thd->variables.binlog_annotate_row_events= 0;
       delete m_annotate_event;
       m_annotate_event= 0;
     }
