@@ -40,7 +40,7 @@ class Arg_comparator: public Sql_alloc
 {
   Item **a, **b;
   arg_cmp_func func;
-  Item_result_field *owner;
+  Item_func_or_sum *owner;
   bool set_null;                   // TRUE <=> set owner->null_value
   Arg_comparator *comparators;   // used only for compare_row()
   double precision;
@@ -48,8 +48,8 @@ class Arg_comparator: public Sql_alloc
   THD *thd;
   Item *a_cache, *b_cache;         // Cached values of a and b items
                                    //   when one of arguments is NULL.
-  int set_compare_func(Item_result_field *owner, Item_result type);
-  inline int set_compare_func(Item_result_field *owner_arg)
+  int set_compare_func(Item_func_or_sum *owner, Item_result type);
+  inline int set_compare_func(Item_func_or_sum *owner_arg)
   {
     return set_compare_func(owner_arg, item_cmp_type((*a)->result_type(),
                                                      (*b)->result_type()));
@@ -67,11 +67,11 @@ public:
     comparators(0), thd(0), a_cache(0), b_cache(0) {};
 
 private:
-  int set_cmp_func(Item_result_field *owner_arg,
+  int set_cmp_func(Item_func_or_sum *owner_arg,
 			  Item **a1, Item **a2,
 			  Item_result type);
 public:
-  inline int set_cmp_func(Item_result_field *owner_arg,
+  inline int set_cmp_func(Item_func_or_sum *owner_arg,
 			  Item **a1, Item **a2, bool set_null_arg)
   {
     set_null= set_null_arg;
@@ -104,7 +104,8 @@ public:
 
   Item** cache_converted_constant(THD *thd, Item **value, Item **cache,
                                   Item_result type);
-  void set_datetime_cmp_func(Item_result_field *owner_arg, Item **a1, Item **b1);
+  void set_datetime_cmp_func(Item_func_or_sum *owner_arg,
+                             Item **a1, Item **b1);
   static arg_cmp_func comparator_matrix [6][2];
   inline bool is_owner_equal_func()
   {

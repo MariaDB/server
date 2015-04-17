@@ -7466,7 +7466,7 @@ void Item_cache_wrapper::print(String *str, enum_query_type query_type)
     return;
   }
 
-  str->append(func_name());
+  str->append("<expr_cache>");
   if (expr_cache)
   {
     init_on_demand();

@@ -30,10 +30,11 @@ extern "C"				/* Bug in BSDI include file */
 }
 #endif
 
-class Item_func :public Item_result_field
+
+class Item_func :public Item_func_or_sum
 {
+  void sync_with_sum_func_and_with_field(List<Item> &list);
 protected:
-  Item **args, *tmp_arg[2];
   /*
     Allowed numbers of columns in result (usually 1, which means scalar value)
     0 means get this number from first argument
@@ -41,7 +42,6 @@ protected:
   uint allowed_arg_cols;
   String *val_str_from_val_str_ascii(String *str, String *str2);
 public:
-  uint arg_count;
   /*
     In some cases used_tables_cache is not what used_tables() return
     so the method should be used where one need used tables bit map 
@@ -72,69 +72,59 @@ public:
   enum Type type() const { return FUNC_ITEM; }
   virtual enum Functype functype() const   { return UNKNOWN_FUNC; }
   Item_func(void):
-    allowed_arg_cols(1), arg_count(0)
+    Item_func_or_sum(), allowed_arg_cols(1)
   {
     with_sum_func= 0;
     with_field= 0;
   }
   Item_func(Item *a):
-    allowed_arg_cols(1), arg_count(1)
+    Item_func_or_sum(a), allowed_arg_cols(1)
   {
-    args= tmp_arg;
-    args[0]= a;
     with_sum_func= a->with_sum_func;
     with_field= a->with_field;
   }
   Item_func(Item *a,Item *b):
-    allowed_arg_cols(1), arg_count(2)
+    Item_func_or_sum(a, b), allowed_arg_cols(1)
   {
-    args= tmp_arg;
-    args[0]= a; args[1]= b;
     with_sum_func= a->with_sum_func || b->with_sum_func;
     with_field= a->with_field || b->with_field;
   }
   Item_func(Item *a,Item *b,Item *c):
-    allowed_arg_cols(1)
+    Item_func_or_sum(a, b, c), allowed_arg_cols(1)
   {
-    arg_count= 0;
-    if ((args= (Item**) sql_alloc(sizeof(Item*)*3)))
-    {
-      arg_count= 3;
-      args[0]= a; args[1]= b; args[2]= c;
-      with_sum_func= a->with_sum_func || b->with_sum_func || c->with_sum_func;
-      with_field= a->with_field || b->with_field || c->with_field;
-    }
+    with_sum_func= a->with_sum_func || b->with_sum_func || c->with_sum_func;
+    with_field= a->with_field || b->with_field || c->with_field;
   }
   Item_func(Item *a,Item *b,Item *c,Item *d):
-    allowed_arg_cols(1)
+    Item_func_or_sum(a, b, c, d), allowed_arg_cols(1)
   {
-    arg_count= 0;
-    if ((args= (Item**) sql_alloc(sizeof(Item*)*4)))
-    {
-      arg_count= 4;
-      args[0]= a; args[1]= b; args[2]= c; args[3]= d;
-      with_sum_func= a->with_sum_func || b->with_sum_func ||
-	c->with_sum_func || d->with_sum_func;
-      with_field= a->with_field || b->with_field ||
-        c->with_field || d->with_field;
-    }
+    with_sum_func= a->with_sum_func || b->with_sum_func ||
+                   c->with_sum_func || d->with_sum_func;
+    with_field= a->with_field || b->with_field ||
+                c->with_field || d->with_field;
   }
   Item_func(Item *a,Item *b,Item *c,Item *d,Item* e):
-    allowed_arg_cols(1)
+    Item_func_or_sum(a, b, c, d, e), allowed_arg_cols(1)
   {
-    arg_count= 5;
-    if ((args= (Item**) sql_alloc(sizeof(Item*)*5)))
-    {
-      args[0]= a; args[1]= b; args[2]= c; args[3]= d; args[4]= e;
-      with_sum_func= a->with_sum_func || b->with_sum_func ||
-	c->with_sum_func || d->with_sum_func || e->with_sum_func ;
-      with_field= a->with_field || b->with_field ||
-        c->with_field || d->with_field || e->with_field;
-    }
+    with_sum_func= a->with_sum_func || b->with_sum_func ||
+                   c->with_sum_func || d->with_sum_func || e->with_sum_func;
+    with_field= a->with_field || b->with_field ||
+                c->with_field || d->with_field || e->with_field;
   }
-  Item_func(List<Item> &list);
+  Item_func(List<Item> &list)
+    :Item_func_or_sum(list), allowed_arg_cols(1)
+  {
+    set_arguments(list);
+  }
   // Constructor used for Item_cond_and/or (see Item comment)
-  Item_func(THD *thd, Item_func *item);
+  Item_func(THD *thd, Item_func *item)
+   :Item_func_or_sum(thd, item),
+    allowed_arg_cols(item->allowed_arg_cols),
+    used_tables_cache(item->used_tables_cache),
+    not_null_tables_cache(item->not_null_tables_cache),
+    const_item_cache(item->const_item_cache)
+  {
+  }
   bool fix_fields(THD *, Item **ref);
   void fix_after_pullout(st_select_lex *new_parent, Item **ref);
   void quick_fix_field();
@@ -146,10 +136,13 @@ public:
   virtual bool have_rev_func() const { return 0; }
   virtual Item *key_item() const { return args[0]; }
   virtual bool const_item() const { return const_item_cache; }
-  inline Item **arguments() const { return args; }
-  void set_arguments(List<Item> &list);
-  inline uint argument_count() const { return arg_count; }
-  inline void remove_arguments() { arg_count=0; }
+  void set_arguments(List<Item> &list)
+  {
+    allowed_arg_cols= 1;
+    Item_args::set_arguments(list);
+    sync_with_sum_func_and_with_field(list);
+    list.empty();                                     // Fields are used
+  }
   void split_sum_func(THD *thd, Item **ref_pointer_array, List<Item> &fields);
   virtual void print(String *str, enum_query_type query_type);
   void print_op(String *str, enum_query_type query_type);

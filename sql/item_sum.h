@@ -305,7 +305,7 @@ class st_select_lex;
     
 */
 
-class Item_sum :public Item_result_field
+class Item_sum :public Item_func_or_sum
 {
   friend class Aggregator_distinct;
   friend class Aggregator_simple;
@@ -362,8 +362,6 @@ public:
   List<Item_field> outer_fields;
 
 protected:  
-  uint arg_count;
-  Item **args, *tmp_args[2];
   /* 
     Copy of the arguments list to hold the original set of arguments.
     Used in EXPLAIN EXTENDED instead of the current argument list because 
@@ -383,22 +381,20 @@ protected:
 public:  
 
   void mark_as_sum_func();
-  Item_sum() :quick_group(1), arg_count(0), forced_const(FALSE)
+  Item_sum() :Item_func_or_sum(), quick_group(1), forced_const(FALSE)
   {
     mark_as_sum_func();
     init_aggregator();
   }
-  Item_sum(Item *a) :quick_group(1), arg_count(1), args(tmp_args),
+  Item_sum(Item *a) :Item_func_or_sum(a), quick_group(1),
     orig_args(tmp_orig_args), forced_const(FALSE)
   {
-    args[0]=a;
     mark_as_sum_func();
     init_aggregator();
   }
-  Item_sum( Item *a, Item *b ) :quick_group(1), arg_count(2), args(tmp_args),
+  Item_sum(Item *a, Item *b) :Item_func_or_sum(a, b), quick_group(1),
     orig_args(tmp_orig_args), forced_const(FALSE)
   {
-    args[0]=a; args[1]=b;
     mark_as_sum_func();
     init_aggregator();
   }
@@ -839,7 +835,6 @@ public:
   {
     return trace_unsupported_by_check_vcol_func_processor("avg_field");
   }
-  const char *func_name() const { DBUG_ASSERT(0); return "avg_field"; }
 };
 
 
@@ -920,7 +915,6 @@ public:
   {
     return trace_unsupported_by_check_vcol_func_processor("var_field");
   }
-  const char *func_name() const { DBUG_ASSERT(0); return "variance_field"; }
 };
 
 
@@ -996,7 +990,6 @@ public:
   my_decimal *val_decimal(my_decimal *);
   enum Item_result result_type () const { return REAL_RESULT; }
   enum_field_types field_type() const { return MYSQL_TYPE_DOUBLE;}
-  const char *func_name() const { DBUG_ASSERT(0); return "std_field"; }
 };
 
 /*

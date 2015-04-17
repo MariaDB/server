@@ -88,51 +88,51 @@ static inline bool test_if_sum_overflows_ull(ulonglong arg1, ulonglong arg2)
   return ULONGLONG_MAX - arg1 < arg2;
 }
 
-void Item_func::set_arguments(List<Item> &list)
-{
-  allowed_arg_cols= 1;
-  arg_count=list.elements;
-  args= tmp_arg;                                // If 2 arguments
-  if (arg_count <= 2 || (args=(Item**) sql_alloc(sizeof(Item*)*arg_count)))
-  {
-    List_iterator_fast<Item> li(list);
-    Item *item;
-    Item **save_args= args;
 
-    while ((item=li++))
-    {
-      *(save_args++)= item;
-      with_sum_func|=item->with_sum_func;
-      with_field|= item->with_field;
-    }
+void Item_args::set_arguments(List<Item> &list)
+{
+  arg_count= list.elements;
+  if (arg_count <= 2)
+  {
+    args= tmp_arg;
   }
-  list.empty();					// Fields are used
-}
-
-Item_func::Item_func(List<Item> &list)
-  :allowed_arg_cols(1)
-{
-  set_arguments(list);
-}
-
-Item_func::Item_func(THD *thd, Item_func *item)
-  :Item_result_field(thd, item),
-   allowed_arg_cols(item->allowed_arg_cols),
-   arg_count(item->arg_count),
-   used_tables_cache(item->used_tables_cache),
-   not_null_tables_cache(item->not_null_tables_cache),
-   const_item_cache(item->const_item_cache)
-{
-  if (arg_count)
+  else if (!(args= (Item**) sql_alloc(sizeof(Item*) * arg_count)))
   {
-    if (arg_count <=2)
-      args= tmp_arg;
-    else
-    {
-      if (!(args=(Item**) thd->alloc(sizeof(Item*)*arg_count)))
-	return;
-    }
-    memcpy((char*) args, (char*) item->args, sizeof(Item*)*arg_count);
+    arg_count= 0;
+    return;
+  }
+  uint i= 0;
+  List_iterator_fast<Item> li(list);
+  Item *item;
+  while ((item= li++))
+    args[i++]= item;
+}
+
+
+Item_args::Item_args(THD *thd, const Item_args *other)
+  :arg_count(other->arg_count)
+{
+  if (arg_count <= 2)
+  {
+    args= tmp_arg;
+  }
+  else if (!(args= (Item**) thd->alloc(sizeof(Item*) * arg_count)))
+  {
+    arg_count= 0;
+    return;
+  }
+  memcpy(args, other->args, sizeof(Item*) * arg_count);
+}
+
+
+void Item_func::sync_with_sum_func_and_with_field(List<Item> &list)
+{
+  List_iterator_fast<Item> li(list);
+  Item *item;
+  while ((item= li++))
+  {
+    with_sum_func|= item->with_sum_func;
+    with_field|= item->with_field;
   }
 }
 

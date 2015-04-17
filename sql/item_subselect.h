@@ -240,7 +240,6 @@ public:
     @return the SELECT_LEX structure associated with this Item
   */
   st_select_lex* get_select_lex();
-  const char *func_name() const { DBUG_ASSERT(0); return "subselect"; }
   virtual bool expr_cache_is_needed(THD *);
   virtual void get_cache_parameters(List<Item> &parameters);
   virtual bool is_subquery_processor (uchar *opt_arg) { return 1; }

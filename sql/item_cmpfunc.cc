@@ -585,7 +585,7 @@ void Item_bool_func2::fix_length_and_dec()
 }
 
 
-int Arg_comparator::set_compare_func(Item_result_field *item, Item_result type)
+int Arg_comparator::set_compare_func(Item_func_or_sum *item, Item_result type)
 {
   owner= item;
   func= comparator_matrix[type]
@@ -787,7 +787,7 @@ bool Arg_comparator::agg_arg_charsets_for_comparison()
   items, holding the cached converted value of the original (constant) item.
 */
 
-int Arg_comparator::set_cmp_func(Item_result_field *owner_arg,
+int Arg_comparator::set_cmp_func(Item_func_or_sum *owner_arg,
                                         Item **a1, Item **a2,
                                         Item_result type)
 {
@@ -858,7 +858,7 @@ Item** Arg_comparator::cache_converted_constant(THD *thd_arg, Item **value,
 }
 
 
-void Arg_comparator::set_datetime_cmp_func(Item_result_field *owner_arg,
+void Arg_comparator::set_datetime_cmp_func(Item_func_or_sum *owner_arg,
                                            Item **a1, Item **b1)
 {
   thd= current_thd;

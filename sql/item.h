@@ -3263,6 +3263,93 @@ public:
   }
   void cleanup();
   bool check_vcol_func_processor(uchar *arg) { return FALSE;}
+};
+
+
+/**
+  Array of items, e.g. function or aggerate function arguments.
+*/
+class Item_args
+{
+protected:
+  Item **args, *tmp_arg[2];
+  void set_arguments(List<Item> &list);
+public:
+  uint arg_count;
+  Item_args(void)
+    :args(NULL), arg_count(0)
+  { }
+  Item_args(Item *a)
+    :args(tmp_arg), arg_count(1)
+  {
+    args[0]= a;
+  }
+  Item_args(Item *a, Item *b)
+    :args(tmp_arg), arg_count(2)
+  {
+    args[0]= a; args[1]= b;
+  }
+  Item_args(Item *a, Item *b, Item *c)
+  {
+    arg_count= 0;
+    if ((args= (Item**) sql_alloc(sizeof(Item*) * 3)))
+    {
+      arg_count= 3;
+      args[0]= a; args[1]= b; args[2]= c;
+    }
+  }
+  Item_args(Item *a, Item *b, Item *c, Item *d)
+  {
+    arg_count= 0;
+    if ((args= (Item**) sql_alloc(sizeof(Item*) * 4)))
+    {
+      arg_count= 4;
+      args[0]= a; args[1]= b; args[2]= c; args[3]= d;
+    }
+  }
+  Item_args(Item *a, Item *b, Item *c, Item *d, Item* e)
+  {
+    arg_count= 5;
+    if ((args= (Item**) sql_alloc(sizeof(Item*) * 5)))
+    {
+      arg_count= 5;
+      args[0]= a; args[1]= b; args[2]= c; args[3]= d; args[4]= e;
+    }
+  }
+  Item_args(List<Item> &list)
+  {
+    set_arguments(list);
+  }
+  Item_args(THD *thd, const Item_args *other);
+  inline Item **arguments() const { return args; }
+  inline uint argument_count() const { return arg_count; }
+  inline void remove_arguments() { arg_count=0; }
+};
+
+
+/**
+  An abstract class representing common features of
+  regular functions and aggregate functions.
+*/
+class Item_func_or_sum: public Item_result_field, public Item_args
+{
+public:
+  Item_func_or_sum()
+    :Item_result_field(), Item_args() {}
+  Item_func_or_sum(Item *a)
+    :Item_result_field(), Item_args(a) { }
+  Item_func_or_sum(Item *a, Item *b)
+    :Item_result_field(), Item_args(a, b) { }
+  Item_func_or_sum(Item *a, Item *b, Item *c)
+    :Item_result_field(), Item_args(a, b, c) { }
+  Item_func_or_sum(Item *a, Item *b, Item *c, Item *d)
+    :Item_result_field(), Item_args(a, b, c, d) { }
+  Item_func_or_sum(Item *a, Item *b, Item *c, Item *d, Item *e)
+    :Item_result_field(), Item_args(a, b, c, d, e) { }
+  Item_func_or_sum(THD *thd, Item_func_or_sum *item)
+    :Item_result_field(thd, item), Item_args(thd, item) { }
+  Item_func_or_sum(List<Item> &list)
+    :Item_result_field(), Item_args(list) { }
   /*
     This method is used for debug purposes to print the name of an
     item to the debug log. The second use of this method is as
@@ -3559,7 +3646,6 @@ public:
   Item_cache_wrapper(Item *item_arg);
   ~Item_cache_wrapper();
 
-  const char *func_name() const { return "<expr_cache>"; }
   enum Type type() const { return EXPR_CACHE_ITEM; }
   enum Type real_type() const { return orig_item->type(); }
 
