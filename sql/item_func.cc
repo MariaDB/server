@@ -3482,7 +3482,7 @@ void udf_handler::cleanup()
 
 
 bool
-udf_handler::fix_fields(THD *thd, Item_result_field *func,
+udf_handler::fix_fields(THD *thd, Item_func_or_sum *func,
 			uint arg_count, Item **arguments)
 {
   uchar buff[STACK_BUFF_ALLOC];			// Max argument in function

@@ -829,7 +829,6 @@ public:
     return hybrid_type == DECIMAL_RESULT ?
       MYSQL_TYPE_NEWDECIMAL : MYSQL_TYPE_DOUBLE;
   }
-  void fix_length_and_dec() {}
   enum Item_result result_type () const { return hybrid_type; }
   bool check_vcol_func_processor(uchar *int_arg) 
   {
@@ -909,7 +908,6 @@ public:
     return hybrid_type == DECIMAL_RESULT ?
       MYSQL_TYPE_NEWDECIMAL : MYSQL_TYPE_DOUBLE;
   }
-  void fix_length_and_dec() {}
   enum Item_result result_type () const { return hybrid_type; }
   bool check_vcol_func_processor(uchar *int_arg) 
   {
