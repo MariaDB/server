@@ -1596,10 +1596,39 @@ enum enum_stats_auto_recalc { HA_STATS_AUTO_RECALC_DEFAULT= 0,
 */
 struct Schema_specification_st
 {
+  CHARSET_INFO *table_charset;
   CHARSET_INFO *default_table_charset;
+  ulong used_fields;
   void init()
   {
     bzero(this, sizeof(*this));
+  }
+  bool check_conflicting_charset_declarations(CHARSET_INFO *cs);
+  bool add_table_option_default_charset(CHARSET_INFO *cs)
+  {
+    // cs can be NULL, e.g.:  CREATE TABLE t1 (..) CHARACTER SET DEFAULT;
+    if (check_conflicting_charset_declarations(cs))
+      return true;
+    default_table_charset= cs;
+    used_fields|= HA_CREATE_USED_DEFAULT_CHARSET;
+    return false;
+  }
+  bool add_alter_list_item_convert_to_charset(CHARSET_INFO *cs)
+  {
+    /* 
+      cs cannot be NULL, as sql_yacc.yy translates
+         CONVERT TO CHARACTER SET DEFAULT
+      to
+         CONVERT TO CHARACTER SET <character-set-of-the-current-database>
+      TODO: Should't we postpone resolution of DEFAULT until the
+      character set of the table owner database is loaded from its db.opt?
+    */
+    DBUG_ASSERT(cs);
+    if (check_conflicting_charset_declarations(cs))
+      return true;
+    table_charset= default_table_charset= cs;
+    used_fields|= (HA_CREATE_USED_CHARSET | HA_CREATE_USED_DEFAULT_CHARSET);  
+    return false;
   }
 };
 
@@ -1619,7 +1648,6 @@ struct Schema_specification_st
 */
 struct Table_scope_and_contents_source_st
 {
-  CHARSET_INFO *table_charset;
   LEX_CUSTRING tabledef_version;
   LEX_STRING connect_string;
   const char *password, *tablespace;
@@ -1630,7 +1658,6 @@ struct Table_scope_and_contents_source_st
   ulonglong auto_increment_value;
   ulong table_options;                  ///< HA_OPTION_ values
   ulong avg_row_length;
-  ulong used_fields;
   ulong key_block_size;
   /*
     number of pages to sample during

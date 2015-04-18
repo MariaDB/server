@@ -5888,18 +5888,8 @@ create_table_option:
 default_charset:
           opt_default charset opt_equal charset_name_or_default
           {
-            HA_CREATE_INFO *cinfo= &Lex->create_info;
-            if ((cinfo->used_fields & HA_CREATE_USED_DEFAULT_CHARSET) &&
-                 cinfo->default_table_charset && $4 &&
-                 !my_charset_same(cinfo->default_table_charset,$4))
-            {
-              my_error(ER_CONFLICTING_DECLARATIONS, MYF(0),
-                       "CHARACTER SET ", cinfo->default_table_charset->csname,
-                       "CHARACTER SET ", $4->csname);
+            if (Lex->create_info.add_table_option_default_charset($4))
               MYSQL_YYABORT;
-            }
-            Lex->create_info.default_table_charset= $4;
-            Lex->create_info.used_fields|= HA_CREATE_USED_DEFAULT_CHARSET;
           }
         ;
 
@@ -7708,10 +7698,8 @@ alter_list_item:
               MYSQL_YYABORT;
             }
             LEX *lex= Lex;
-            lex->create_info.table_charset=
-            lex->create_info.default_table_charset= $5;
-            lex->create_info.used_fields|= (HA_CREATE_USED_CHARSET |
-              HA_CREATE_USED_DEFAULT_CHARSET);
+            if (lex->create_info.add_alter_list_item_convert_to_charset($5))
+              MYSQL_YYABORT;
             lex->alter_info.flags|= Alter_info::ALTER_CONVERT;
           }
         | create_table_options_space_separated
