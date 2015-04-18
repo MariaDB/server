@@ -905,6 +905,7 @@ THD::THD(bool is_wsrep_applier)
    in_lock_tables(0),
    bootstrap(0),
    derived_tables_processing(FALSE),
+   waiting_on_group_commit(FALSE), has_waiter(FALSE),
    spcont(NULL),
    m_parser_state(NULL),
 #if defined(ENABLED_DEBUG_SYNC)
@@ -4508,6 +4509,7 @@ thd_report_wait_for(MYSQL_THD thd, MYSQL_THD other_thd)
   thd->transaction.stmt.mark_trans_did_wait();
   if (!other_thd)
     return;
+  binlog_report_wait_for(thd, other_thd);
   rgi= thd->rgi_slave;
   other_rgi= other_thd->rgi_slave;
   if (!rgi || !other_rgi)

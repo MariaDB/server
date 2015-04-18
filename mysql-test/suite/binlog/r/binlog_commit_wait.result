@@ -1,0 +1,57 @@
+ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
+CREATE TABLE t1 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
+SET @old_count= @@GLOBAL.binlog_commit_wait_count;
+SET GLOBAL binlog_commit_wait_count= 3;
+SET @old_usec= @@GLOBAL.binlog_commit_wait_usec;
+SET GLOBAL binlog_commit_wait_usec= 20000000;
+SET @a= current_timestamp();
+BEGIN;
+INSERT INTO t1 VALUES (1,0);
+COMMIT;
+INSERT INTO t1 VALUES (1,1);
+SET @b= unix_timestamp(current_timestamp()) - unix_timestamp(@a);
+SELECT IF(@b < 20, "Ok", CONCAT("Error: too much time elapsed: ", @b, " seconds >= 20"));
+IF(@b < 20, "Ok", CONCAT("Error: too much time elapsed: ", @b, " seconds >= 20"))
+Ok
+ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
+SET @a= current_timestamp();
+INSERT INTO t1 VALUES (2,0);
+INSERT INTO t1 VALUES (3,0);
+INSERT INTO t1 VALUES (4,0);
+SET @b= unix_timestamp(current_timestamp()) - unix_timestamp(@a);
+SELECT IF(@b < 20, "Ok", CONCAT("Error: too much time elapsed: ", @b, " seconds >= 20"));
+IF(@b < 20, "Ok", CONCAT("Error: too much time elapsed: ", @b, " seconds >= 20"))
+Ok
+SET @a= current_timestamp();
+INSERT INTO t1 VALUES (6,0);
+BEGIN;
+UPDATE t1 SET b=b+1 WHERE a=1;
+UPDATE t1 SET b=b+10 WHERE a=1;
+SELECT SLEEP(0.25);
+SLEEP(0.25)
+0
+UPDATE t1 SET b=b+1 WHERE a=3;
+COMMIT;
+SET @b= unix_timestamp(current_timestamp()) - unix_timestamp(@a);
+SELECT IF(@b < 20, "Ok", CONCAT("Error: too much time elapsed: ", @b, " seconds >= 20"));
+IF(@b < 20, "Ok", CONCAT("Error: too much time elapsed: ", @b, " seconds >= 20"))
+Ok
+SET @a= current_timestamp();
+INSERT INTO t1 VALUES (7,0);
+INSERT INTO t1 VALUES (8,0);
+SET @b= unix_timestamp(current_timestamp()) - unix_timestamp(@a);
+SELECT IF(@b < 20, "Ok", CONCAT("Error: too much time elapsed: ", @b, " seconds >= 20"));
+IF(@b < 20, "Ok", CONCAT("Error: too much time elapsed: ", @b, " seconds >= 20"))
+Ok
+SELECT * FROM t1 ORDER BY a;
+a	b
+1	11
+2	0
+3	1
+4	0
+6	0
+7	0
+8	0
+DROP TABLE t1;
+SET GLOBAL binlog_commit_wait_count= @old_count;
+SET GLOBAL binlog_commit_wait_usec= @old_usec;

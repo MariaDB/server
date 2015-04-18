@@ -47,6 +47,29 @@ Created 9/5/1995 Heikki Tuuri
 #include "ha_prototypes.h"
 #include "my_cpu.h"
 
+#include <vector>
+
+/* There is a bug in Visual Studio 2010.
+Visual Studio has a feature "Checked Iterators". In a debug build, every
+iterator operation is checked at runtime for errors, e.g., out of range.
+Because of bug there is runtime error on following code
+for (std::vector<sync_level_t>::iterator it = array->elems.begin(); it !=
+array->elems.end(); ++it) and runtime check fails on comparison
+it != array->elems.end() that is correct and standard way to do end
+of range comparison.
+Disable this "Checked Iterators" for Windows and Debug if defined.
+*/
+#ifdef UNIV_DEBUG
+#ifdef __WIN__
+#ifdef _ITERATOR_DEBUG_LEVEL
+#undef  _ITERATOR_DEBUG_LEVEL
+#define _ITERATOR_DEBUG_LEVEL 0
+#endif /* _ITERATOR_DEBUG_LEVEL */
+#endif /* __WIN__*/
+#endif /* UNIV_DEBUG */
+
+#include <vector>
+
 /*
 	REASONS FOR IMPLEMENTING THE SPIN LOCK MUTEX
 	============================================
@@ -225,12 +248,9 @@ static const ulint SYNC_THREAD_N_LEVELS = 10000;
 
 /** Array for tracking sync levels per thread. */
 struct sync_arr_t {
-	ulint		in_use;		/*!< Number of active cells */
 	ulint		n_elems;	/*!< Number of elements in the array */
-	ulint		max_elems;	/*!< Maximum elements */
-	ulint		next_free;	/*!< ULINT_UNDEFINED or index of next
-					free slot */
-	sync_level_t*	elems;		/*!< Array elements */
+
+	std::vector<sync_level_t>	elems;		/*!< Vector of elements */
 };
 
 /** Mutexes or rw-locks held by a thread */
@@ -1084,10 +1104,9 @@ sync_thread_add_level(
 			SYNC_LEVEL_VARYING, nothing is done */
 	ibool	relock)	/*!< in: TRUE if re-entering an x-lock */
 {
-	ulint		i;
-	sync_level_t*	slot;
 	sync_arr_t*	array;
 	sync_thread_t*	thread_slot;
+	sync_level_t	sync_level;
 
 	if (!sync_order_checks_on) {
 
@@ -1112,21 +1131,11 @@ sync_thread_add_level(
 	thread_slot = sync_thread_level_arrays_find_slot();
 
 	if (thread_slot == NULL) {
-		ulint	sz;
-
-		sz = sizeof(*array)
-		   + (sizeof(*array->elems) * SYNC_THREAD_N_LEVELS);
 
 		/* We have to allocate the level array for a new thread */
-		array = static_cast<sync_arr_t*>(calloc(sz, sizeof(char)));
+		array = static_cast<sync_arr_t*>(calloc(1, sizeof(sync_arr_t)));
 		ut_a(array != NULL);
-
-		array->next_free = ULINT_UNDEFINED;
-		array->max_elems = SYNC_THREAD_N_LEVELS;
-		array->elems = (sync_level_t*) &array[1];
-
 		thread_slot = sync_thread_level_arrays_find_free();
-
 		thread_slot->levels = array;
 		thread_slot->id = os_thread_get_curr_id();
 	}
@@ -1337,26 +1346,11 @@ sync_thread_add_level(
 	}
 
 levels_ok:
-	if (array->next_free == ULINT_UNDEFINED) {
-		ut_a(array->n_elems < array->max_elems);
 
-		i = array->n_elems++;
-	} else {
-		i = array->next_free;
-		array->next_free = array->elems[i].level;
-	}
-
-	ut_a(i < array->n_elems);
-	ut_a(i != ULINT_UNDEFINED);
-
-	++array->in_use;
-
-	slot = &array->elems[i];
-
-	ut_a(slot->latch == NULL);
-
-	slot->latch = latch;
-	slot->level = level;
+	array->n_elems++;
+	sync_level.latch = latch;
+	sync_level.level = level;
+	array->elems.push_back(sync_level);
 
 	mutex_exit(&sync_thread_mutex);
 }
@@ -1374,7 +1368,6 @@ sync_thread_reset_level(
 {
 	sync_arr_t*	array;
 	sync_thread_t*	thread_slot;
-	ulint		i;
 
 	if (!sync_order_checks_on) {
 
@@ -1403,36 +1396,16 @@ sync_thread_reset_level(
 
 	array = thread_slot->levels;
 
-	for (i = 0; i < array->n_elems; i++) {
-		sync_level_t*	slot;
+	for (std::vector<sync_level_t>::iterator it = array->elems.begin(); it != array->elems.end(); ++it) {
+		sync_level_t level = *it;
 
-		slot = &array->elems[i];
-
-		if (slot->latch != latch) {
+		if (level.latch != latch) {
 			continue;
 		}
 
-		slot->latch = NULL;
-
-		/* Update the free slot list. See comment in sync_level_t
-		for the level field. */
-		slot->level = array->next_free;
-		array->next_free = i;
-
-		ut_a(array->in_use >= 1);
-		--array->in_use;
-
-		/* If all cells are idle then reset the free
-		list. The assumption is that this will save
-		time when we need to scan up to n_elems. */
-
-		if (array->in_use == 0) {
-			array->n_elems = 0;
-			array->next_free = ULINT_UNDEFINED;
-		}
-
+		array->elems.erase(it);
+		array->n_elems--;
 		mutex_exit(&sync_thread_mutex);
-
 		return(TRUE);
 	}
 
@@ -1518,6 +1491,7 @@ sync_thread_level_arrays_free(void)
 
 		/* If this slot was allocated then free the slot memory too. */
 		if (slot->levels != NULL) {
+			slot->levels->elems.erase(slot->levels->elems.begin(),slot->levels->elems.end());
 			free(slot->levels);
 			slot->levels = NULL;
 		}

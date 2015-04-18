@@ -156,6 +156,8 @@ bool trans_begin(THD *thd, uint flags)
   */
   thd->transaction.all.modified_non_trans_table= FALSE;
   thd->transaction.all.m_unsafe_rollback_flags&= ~THD_TRANS::DID_WAIT;
+  thd->has_waiter= false;
+  thd->waiting_on_group_commit= false;
 
   if (res)
     DBUG_RETURN(TRUE);
