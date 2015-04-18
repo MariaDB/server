@@ -99,9 +99,9 @@ namespace NDB_CPC.telnetclient
 				if ( sock1.Connected ) 
 				{	
 					// Define a new Callback to read the data 
-					AsyncCallback recieveData = new AsyncCallback( OnRecievedData );
+					AsyncCallback receiveData = new AsyncCallback( OnRecievedData );
 					// Begin reading data asyncronously
-					sock1.BeginReceive( m_byBuff, 0, m_byBuff.Length, SocketFlags.None, recieveData , sock1 );
+					sock1.BeginReceive( m_byBuff, 0, m_byBuff.Length, SocketFlags.None, receiveData , sock1 );
 				}
 			}
 			catch( Exception ex )
@@ -163,7 +163,7 @@ namespace NDB_CPC.telnetclient
 				}
 				else
 				{
-					// If no data was recieved then the connection is probably dead
+					// If no data was received then the connection is probably dead
 					Console.WriteLine( "Disconnected", sock.RemoteEndPoint );
 					sock.Shutdown( SocketShutdown.Both );
 					sock.Close();
