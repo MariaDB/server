@@ -3435,9 +3435,13 @@ row_merge_create_index(
 
 	for (i = 0; i < n_fields; i++) {
 		index_field_t*	ifield = &index_def->fields[i];
+		const char * col_name = ifield->col_name ?
+			dict_table_get_col_name_for_mysql(table, ifield->col_name) :
+			dict_table_get_col_name(table, ifield->col_no);
 
 		dict_mem_index_add_field(
-			index, dict_table_get_col_name(table, ifield->col_no),
+			index,
+			col_name,
 			ifield->prefix_len);
 	}
 

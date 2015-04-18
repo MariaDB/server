@@ -4884,7 +4884,10 @@ innobase_release_savepoint(
 	DBUG_ASSERT(hton == innodb_hton_ptr);
 
 	trx = check_trx_exists(thd);
-	trx_start_if_not_started(trx);
+
+	if (trx->state == TRX_STATE_NOT_STARTED) {
+		trx_start_if_not_started(trx);
+	}
 
 	/* TODO: use provided savepoint data area to store savepoint data */
 
@@ -5556,6 +5559,8 @@ innobase_match_index_columns(
 			if (innodb_idx_fld >= innodb_idx_fld_end) {
 				DBUG_RETURN(FALSE);
 			}
+
+			mtype = innodb_idx_fld->col->mtype;
 		}
 
 		if (col_type != mtype) {
