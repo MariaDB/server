@@ -1,5 +1,5 @@
 /************* RelDef CPP Program Source Code File (.CPP) **************/
-/* PROGRAM NAME: REFDEF                                                */
+/* PROGRAM NAME: RELDEF                                                */
 /* -------------                                                       */
 /*  Version 1.4                                                        */
 /*                                                                     */
@@ -35,7 +35,6 @@
 /***********************************************************************/
 #include "global.h"
 #include "plgdbsem.h"
-#include "mycat.h"
 #include "reldef.h"
 #include "colblk.h"
 #include "filamap.h"
@@ -72,6 +71,14 @@ RELDEF::RELDEF(void)
   Cat = NULL;
   Hc = NULL;
   } // end of RELDEF constructor
+
+/***********************************************************************/
+/*  This function return a pointer to the Table Option Struct.         */
+/***********************************************************************/
+PTOS RELDEF::GetTopt(void)
+	{
+	return Hc->GetTableOptionStruct();
+	} // end of GetTopt
 
 /***********************************************************************/
 /*  This function sets an integer table information.                   */

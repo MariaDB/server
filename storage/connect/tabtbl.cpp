@@ -72,7 +72,6 @@
 #include "tabtbl.h"
 #include "tabmysql.h"
 #include "ha_connect.h"
-#include "mycat.h"       // For GetHandler
 
 #if defined(WIN32)
 #if defined(__BORLANDC__)

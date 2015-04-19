@@ -145,7 +145,6 @@
 #include "connect.h"
 #include "user_connect.h"
 #include "ha_connect.h"
-#include "mycat.h"
 #include "myutil.h"
 #include "preparse.h"
 #include "inihandl.h"
@@ -169,7 +168,7 @@
 #define JSONMAX      10             // JSON Default max grp size
 
 extern "C" {
-       char  version[]= "Version 1.03.0006 March 16, 2015";
+       char  version[]= "Version 1.03.0006 April 12, 2015";
 
 #if defined(WIN32)
        char  compver[]= "Version 1.03.0006 " __DATE__ " "  __TIME__;
@@ -211,6 +210,7 @@ PQRYRES OEMColumns(PGLOBAL g, PTOS topt, char *tab, char *db, bool info);
 PQRYRES VirColumns(PGLOBAL g, char *tab, char *db, bool info);
 PQRYRES JSONColumns(PGLOBAL g, char *dp, const char *fn, char *objn,
                     int pretty, int lvl, int mxr, bool info);
+PQRYRES XMLColumns(PGLOBAL g, char *dp, char *tab, PTOS topt, bool info);
 void    PushWarning(PGLOBAL g, THD *thd, int level);
 bool    CheckSelf(PGLOBAL g, TABLE_SHARE *s, const char *host,
                   const char *db, char *tab, const char *src, int port);
@@ -5228,6 +5228,9 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
         strcpy(g->Message, "Missing OEM module or subtype");
 
       break;
+#if defined(LIBXML2_SUPPORT) || defined(DOMDOC_SUPPORT)
+    case TAB_XML:
+#endif   // LIBXML2_SUPPORT  ||         DOMDOC_SUPPORT
     case TAB_JSON:
       if (!fn)
         sprintf(g->Message, "Missing %s file name", topt->type);
@@ -5348,6 +5351,11 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
       case TAB_JSON:
         qrp= JSONColumns(g, (char*)db, fn, objn, pty, lrecl, lvl, fnc == FNC_COL);
         break;
+#if defined(LIBXML2_SUPPORT) || defined(DOMDOC_SUPPORT)
+      case TAB_XML:
+        qrp= XMLColumns(g, (char*)db, tab, topt, fnc == FNC_COL);
+        break;
+#endif   // LIBXML2_SUPPORT  ||         DOMDOC_SUPPORT
       case TAB_OEM:
         qrp= OEMColumns(g, topt, tab, (char*)db, fnc == FNC_COL);
         break;
@@ -5385,7 +5393,9 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
 #endif  // !NEW_WAY
       } // endfor crp
 
-    } else {            
+    } else {
+      char *schem= NULL;
+
       // Not a catalog table
       if (!qrp->Nblin) {
         if (tab)
@@ -5469,6 +5479,19 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
                 key= crp->Kdata->GetCharValue(i);
 
               break;
+            case FLD_SCHEM:
+#if defined(ODBC_SUPPORT)
+              if (ttp == TAB_ODBC && crp->Kdata) {
+                if (schem && stricmp(schem, crp->Kdata->GetCharValue(i))) {
+                  sprintf(g->Message, 
+                         "Several %s tables found, specify DBNAME", tab);
+                  my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
+                  goto err;
+               } else if (!schem)
+                  schem= crp->Kdata->GetCharValue(i);
+
+                } // endif ttp
+#endif   // ODBC_SUPPORT
             default:
               break;                 // Ignore
             } // endswitch Fld
@@ -5787,6 +5810,18 @@ int ha_connect::create(const char *name, TABLE *table_arg,
       rc= HA_ERR_INTERNAL_ERROR;
       DBUG_RETURN(rc);
       } // endif xsup
+
+    } // endif type
+
+  if (type == TAB_JSON) {
+    int pretty= atoi(GetListOption(g, "Pretty", options->oplist, "2"));
+
+    if (!options->lrecl && pretty != 2) {
+      sprintf(g->Message, "LRECL must be specified for pretty=%d", pretty);
+      my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
+      rc= HA_ERR_INTERNAL_ERROR;
+      DBUG_RETURN(rc);
+      } // endif lrecl
 
     } // endif type
 

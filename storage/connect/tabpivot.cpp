@@ -49,7 +49,6 @@
 #include "tabpivot.h"
 #include "valblk.h"
 #include "ha_connect.h"
-#include "mycat.h"       // For GetHandler
 
 /***********************************************************************/
 /*  Make the Pivot table column list.                                  */
