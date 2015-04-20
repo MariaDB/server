@@ -2282,6 +2282,11 @@ static int binlog_savepoint_set(handlerton *hton, THD *thd, void *sv)
   char buf[1024];
 #ifdef WITH_WSREP
   if (wsrep_emulate_bin_log) DBUG_RETURN(0);
+  /*
+    Clear table maps before writing SAVEPOINT event. This enforces
+    recreation of table map events for the following row event.
+   */
+  thd->clear_binlog_table_maps();
 #endif /* WITH_WSREP */
   String log_query(buf, sizeof(buf), &my_charset_bin);
   if (log_query.copy(STRING_WITH_LEN("SAVEPOINT "), &my_charset_bin) ||
