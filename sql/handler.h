@@ -1697,6 +1697,33 @@ struct HA_CREATE_INFO: public Table_scope_and_contents_source_st,
     Table_scope_and_contents_source_st::init();
     Schema_specification_st::init();
   }
+  bool check_conflicting_charset_declarations(CHARSET_INFO *cs);
+  bool add_table_option_default_charset(CHARSET_INFO *cs)
+  {
+    // cs can be NULL, e.g.:  CREATE TABLE t1 (..) CHARACTER SET DEFAULT;
+    if (check_conflicting_charset_declarations(cs))
+      return true;
+    default_table_charset= cs;
+    used_fields|= HA_CREATE_USED_DEFAULT_CHARSET;
+    return false;
+  }
+  bool add_alter_list_item_convert_to_charset(CHARSET_INFO *cs)
+  {
+    /* 
+      cs cannot be NULL, as sql_yacc.yy translates
+         CONVERT TO CHARACTER SET DEFAULT
+      to
+         CONVERT TO CHARACTER SET <character-set-of-the-current-database>
+      TODO: Should't we postpone resolution of DEFAULT until the
+      character set of the table owner database is loaded from its db.opt?
+    */
+    DBUG_ASSERT(cs);
+    if (check_conflicting_charset_declarations(cs))
+      return true;
+    table_charset= default_table_charset= cs;
+    used_fields|= (HA_CREATE_USED_CHARSET | HA_CREATE_USED_DEFAULT_CHARSET);  
+    return false;
+  }
 };
 
 
