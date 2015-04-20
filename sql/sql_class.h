@@ -2720,6 +2720,18 @@ public:
   */
   bool       is_slave_error;
   /*
+    True when a transaction is queued up for binlog group commit.
+    Used so that if another transaction needs to wait for a row lock held by
+    this transaction, it can signal to trigger the group commit immediately,
+    skipping the normal --binlog-commit-wait-count wait.
+  */
+  bool waiting_on_group_commit;
+  /*
+    Set true when another transaction goes to wait on a row lock held by this
+    transaction. Used together with waiting_on_group_commit.
+  */
+  bool has_waiter;
+  /*
     In case of a slave, set to the error code the master got when executing
     the query. 0 if no error on the master.
   */

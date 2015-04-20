@@ -3337,7 +3337,7 @@ int apply_event_and_update_pos(Log_event* ev, THD* thd,
   else
   {
     /*
-      Make sure we do not errorneously update gtid_slave_pos with a lingering
+      Make sure we do not erroneously update gtid_slave_pos with a lingering
       GTID from this failed event group (MDEV-4906).
     */
     rgi->gtid_pending= false;
