@@ -653,6 +653,7 @@ bool close_cached_connection_tables(THD *thd, LEX_STRING *connection)
 
 static void mark_temp_tables_as_free_for_reuse(THD *thd)
 {
+  rpl_group_info *rgi_slave;
   DBUG_ENTER("mark_temp_tables_as_free_for_reuse");
 
   if (thd->query_id == 0)
@@ -661,7 +662,9 @@ static void mark_temp_tables_as_free_for_reuse(THD *thd)
     DBUG_VOID_RETURN;
   }
   
-  if (thd->temporary_tables)
+  rgi_slave=thd->rgi_slave;
+  if ((!rgi_slave && thd->temporary_tables) ||
+      (rgi_slave && unlikely(rgi_slave->rli->save_temporary_tables)))
   {
     thd->lock_temporary_tables();
     for (TABLE *table= thd->temporary_tables ; table ; table= table->next)
@@ -670,7 +673,7 @@ static void mark_temp_tables_as_free_for_reuse(THD *thd)
         mark_tmp_table_for_reuse(table);
     }
     thd->unlock_temporary_tables();
-    if (thd->rgi_slave)
+    if (rgi_slave)
     {
       /*
         Temporary tables are shared with other by sql execution threads.
