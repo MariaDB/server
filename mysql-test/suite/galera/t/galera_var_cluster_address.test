@@ -1,0 +1,105 @@
+#
+# Check the handling of @@wsrep_cluster_address
+#
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+#
+# Set to invalid value
+# 
+
+--connection node_1
+--let $wsrep_cluster_address_node1 = `SELECT @@wsrep_cluster_address`
+SET GLOBAL wsrep_cluster_address = 'foo://';
+
+# With wsrep_sync_wait, this returns an error
+#--error ER_LOCK_WAIT_TIMEOUT
+#SHOW STATUS;
+
+SET SESSION wsrep_sync_wait=0;
+
+--error ER_UNKNOWN_COM_ERROR
+SELECT * FROM INFORMATION_SCHEMA.GLOBAL_STATUS;
+
+# Must return 'OFF'
+SHOW STATUS LIKE 'wsrep_ready';
+
+# Must return 'Non-primary'
+SHOW STATUS LIKE 'wsrep_cluster_status';
+
+# Must return 0 = 'Initialized'
+SHOW STATUS LIKE 'wsrep_local_state';
+SHOW STATUS LIKE 'wsrep_local_state_comment';
+
+--connection node_2
+--sleep 1
+# Node #2 thinks that it is now part of a single-node primary cluster 
+SELECT VARIABLE_VALUE = 1 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+SELECT VARIABLE_VALUE = 'Primary' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_status';
+
+#
+# Reset everything as it was
+#
+
+--connection node_1
+--disable_query_log
+--eval SET GLOBAL wsrep_cluster_address = '$wsrep_cluster_address_node1';
+--enable_query_log
+
+--connection node_2
+SET GLOBAL wsrep_cluster_address = @@wsrep_cluster_address;
+
+--source include/wait_until_connected_again.inc
+
+--connection node_1
+SELECT VARIABLE_VALUE = 'Primary' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_status';
+SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+
+#
+# Set to invalid host
+#
+
+--connection node_1
+SET GLOBAL wsrep_cluster_address = 'gcomm://192.0.2.1';
+
+--error ER_UNKNOWN_COM_ERROR
+SELECT * FROM INFORMATION_SCHEMA.GLOBAL_STATUS;
+
+# Must return 'OFF'
+SHOW STATUS LIKE 'wsrep_ready';
+
+# Must return 'Non-primary'
+SHOW STATUS LIKE 'wsrep_cluster_status';
+
+# Must return 0 = 'Initialized'
+SHOW STATUS LIKE 'wsrep_local_state';
+SHOW STATUS LIKE 'wsrep_local_state_comment';
+
+#
+# Reset everything as it was
+#
+
+--connection node_1
+--disable_query_log
+--eval SET GLOBAL wsrep_cluster_address = '$wsrep_cluster_address_node1';
+--enable_query_log
+
+--connection node_2
+SET GLOBAL wsrep_cluster_address = @@wsrep_cluster_address;
+--sleep 1
+
+--connection node_1
+SELECT VARIABLE_VALUE = 'Primary' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_status';
+SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+
+CALL mtr.add_suppression("WSREP: .*Backend not supported: foo.*");
+CALL mtr.add_suppression("WSREP: .*Failed to initialize backend using 'foo.*");
+CALL mtr.add_suppression("WSREP: .*Failed to open channel 'my_wsrep_cluster' at 'foo*");
+CALL mtr.add_suppression("WSREP: gcs connect failed: Socket type not supported");
+CALL mtr.add_suppression("WSREP: failed to open gcomm backend connection: 110: failed to reach primary view: 110 \\(Connection timed out\\)");
+CALL mtr.add_suppression("WSREP: .*Failed to open backend connection: -110 \\(Connection timed out\\)");
+CALL mtr.add_suppression("WSREP: .*Failed to open channel 'my_wsrep_cluster' at 'gcomm://192\\.0\\.2\\.1': -110 \\(Connection timed out\\)");
+CALL mtr.add_suppression("WSREP: gcs connect failed: Connection timed out");
+CALL mtr.add_suppression("WSREP: wsrep::connect\\(\\) failed: 7");
+#CALL mtr.add_suppression("gcs_caused\\(\\) returned -103 \\(Software caused connection abort\\)");

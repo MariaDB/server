@@ -1,0 +1,12 @@
+SET GLOBAL binlog_rows_query_log_events=TRUE;
+CREATE TABLE t1 (f1 INT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+SELECT COUNT(*) = 1 FROM t1;
+COUNT(*) = 1
+1
+UPDATE t1 SET f1 = 2 WHERE f1 = 1;
+SELECT COUNT(*) = 1 FROM t1 WHERE f1 = 2;
+COUNT(*) = 1
+1
+SET GLOBAL binlog_rows_query_log_events = 0;
+DROP TABLE t1;

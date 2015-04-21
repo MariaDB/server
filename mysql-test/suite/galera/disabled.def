@@ -1,0 +1,18 @@
+galera_wsrep_provider_unset_set : lp1379204 'Unsupported protocol downgrade: incremental data collection disabled. Expect abort.'
+galera_kill_nochanges : mysql-wsrep#24 Galera server does not restart properly if killed
+galera_bf_abort_for_update : mysql-wsrep#26 SELECT FOR UPDATE sometimes allowed to proceed in the face of a concurrent update
+galera_toi_ddl_fk_insert : qa#39 galera_toi_ddl_fk_insert fails sporadically
+galera_binlog_row_image : MDEV-7471 - Enable binlog_row_image parameter in MariaDB
+galera_binlog_rows_query_log_events : Unknown system variable 'binlog_rows_query_log_events' (see annotate_rows_log_event)
+
+galera_sbr : MDEV-7995 - DMLs not getting replicated with log-bin=OFF & binlog-format != ROW
+galera_create_trigger : MDEV-7996 - CURRENT_USER definer does not replicate for triggers
+galera_ist_mysqldump : Lost connection to MySQL server during query
+galera_ist_xtrabackup-v2 : mysqltest failed but provided no output
+galera_ist_innodb_flush_logs : mysqltest failed but provided no output
+galera_sst_mysqldump : query 'show status' failed with wrong errno 1927
+galera_as_master_gtid : Needs to be re-worked
+galera_as_master_gtid_change_master : Needs to be re-worked
+galera_migrate : query 'let $success= `$wait_condition`' failed: 1146
+galera_var_notify_cmd : Result content mismatch
+

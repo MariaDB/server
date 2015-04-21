@@ -1,0 +1,34 @@
+#
+# Test repl.key_format = FLAT16 . Since it is very difficult to cause a collision on a 16-byte hash,
+# we simply verify that the option is settable and that replication works.
+#
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+--connection node_1
+--let $wsrep_provider_options_orig = `SELECT @@wsrep_provider_options`
+SET GLOBAL wsrep_provider_options = 'repl.key_format=FLAT16';
+
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (123);
+
+CREATE TABLE t2 (f1 VARCHAR(256)) ENGINE=InnoDB;
+INSERT INTO t2 VALUES (REPEAT('a', 256));
+
+--connection node_2
+SELECT COUNT(*) = 1 FROM t1;
+UPDATE t1 SET f1 = 234;
+UPDATE t2 SET f1 = REPEAT('b', 256);
+
+--connection node_1
+SELECT COUNT(*) = 1 FROM t1 WHERE f1 = 234;
+SELECT COUNT(*) = 1 FROM t2 WHERE f1 = REPEAT('b', 256);
+
+
+--disable_query_log
+--eval SET GLOBAL wsrep_provider_options = '$wsrep_provider_options_orig';
+--enable_query_log
+
+DROP TABLE t1;
+DROP TABLE t2;

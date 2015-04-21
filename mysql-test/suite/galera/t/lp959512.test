@@ -1,0 +1,26 @@
+#
+# LP#959512 IO cache not reset at trx cleanup if write set was empty Edit
+#
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+DROP TABLE IF EXISTS variable;
+DROP TABLE IF EXISTS foo;
+CREATE TABLE variable (
+   name varchar(128) NOT NULL DEFAULT '' COMMENT 'The name of the variable.',
+   value longblob NOT NULL COMMENT 'The value of the variable.',
+    PRIMARY KEY (name)
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COMMENT='Named variable/value pairs created by Drupal core or any...';
+CREATE TABLE foo (a int);
+INSERT INTO variable (name, value) VALUES ('menu_expanded', 'a:0:{}');
+START TRANSACTION;
+SELECT 1 AS expression FROM variable variable
+   WHERE ( (name = 'menu_expanded') ) FOR UPDATE;
+UPDATE variable SET value='a:0:{}' WHERE ( (name = 'menu_expanded') );
+COMMIT;
+INSERT INTO foo VALUES (1);
+UPDATE foo SET a = 2 WHERE a = 1;
+
+DROP TABLE foo;
+DROP TABLE variable;

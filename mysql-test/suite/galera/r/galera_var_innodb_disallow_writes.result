@@ -1,0 +1,12 @@
+SET SESSION wsrep_sync_wait = 0;
+CREATE TABLE t1 (f1 INTEGER) Engine=InnoDB;
+SET GLOBAL innodb_disallow_writes=ON;
+INSERT INTO t1 VALUES (1);;
+SET GLOBAL innodb_disallow_writes=OFF;
+SELECT COUNT(*) = 1 FROM t1;
+COUNT(*) = 1
+1
+SELECT COUNT(*) = 1 FROM t1;
+COUNT(*) = 1
+1
+DROP TABLE t1;

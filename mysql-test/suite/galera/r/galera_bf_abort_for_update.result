@@ -1,0 +1,10 @@
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+INSERT INTO t1 VALUES (1);
+INSERT INTO t1 VALUES (1);
+SELECT * FROM t1 FOR UPDATE;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+wsrep_local_aborts_increment
+1
+DROP TABLE t1;

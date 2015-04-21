@@ -1,0 +1,1 @@
+--log-output=TABLE --log-queries-not-using-indexes --general-log --slow-query-log

@@ -5,9 +5,8 @@
 binlog-format=row
 innodb-autoinc-lock-mode=2
 default-storage-engine=innodb
-
-wsrep-cluster-address=gcomm://
 wsrep-provider=@ENV.WSREP_PROVIDER
+wsrep_node_address=127.0.0.1
 # enforce read-committed characteristics across the cluster
 wsrep-causal-reads=ON
 wsrep-sync-wait=7
@@ -16,9 +15,10 @@ wsrep-sync-wait=7
 #galera_port=@OPT.port
 #ist_port=@OPT.port
 #sst_port=@OPT.port
+wsrep-cluster-address=gcomm://
 wsrep_provider_options='base_port=@mysqld.1.#galera_port;gcache.size=10M'
+wsrep_node_incoming_address=127.0.0.1:@mysqld.1.port
 wsrep_sst_receive_address='127.0.0.1:@mysqld.1.#sst_port'
-wsrep_node_incoming_address=127.0.0.1
 
 [mysqld.2]
 #galera_port=@OPT.port
@@ -26,7 +26,9 @@ wsrep_node_incoming_address=127.0.0.1
 #sst_port=@OPT.port
 wsrep_cluster_address='gcomm://127.0.0.1:@mysqld.1.#galera_port'
 wsrep_provider_options='base_port=@mysqld.2.#galera_port;gcache.size=10M'
+wsrep_node_incoming_address=127.0.0.1:@mysqld.2.port
 wsrep_sst_receive_address='127.0.0.1:@mysqld.2.#sst_port'
+
 
 [ENV]
 NODE_MYPORT_1= @mysqld.1.port

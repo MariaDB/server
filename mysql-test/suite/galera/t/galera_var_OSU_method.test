@@ -36,4 +36,10 @@ SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 't1';
 --connection node_1
 SET SESSION wsrep_OSU_method = "TOI";
 
+--connection node_1
+SET DEBUG_SYNC= 'RESET';
+
+--connection node_1a
+SET DEBUG_SYNC= 'RESET';
+
 DROP TABLE t1;

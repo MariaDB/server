@@ -1,0 +1,39 @@
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+#
+# At this time, issing a FLUSH TABLES WITH READ LOCK causes SELECT and SHOW to hang if 
+# casuality can not be ensured because another node issued a statement in the meantime
+# which could not be applied because FTWRL blocks the applier as well
+#
+# See LP bug 1271177
+#
+
+CREATE TABLE t1 (id INT PRIMARY KEY) ENGINE=InnoDB;
+
+--connection node_2
+--let $wsrep_provider_options_orig = `SELECT @@wsrep_provider_options;`
+SET GLOBAL wsrep_provider_options = "repl.causal_read_timeout=PT1S";
+FLUSH TABLES WITH READ LOCK;
+
+--connection node_1
+INSERT INTO t1 VALUES (1);
+
+--connection node_2
+--error ER_LOCK_WAIT_TIMEOUT
+SHOW TABLES;
+
+--error ER_LOCK_WAIT_TIMEOUT
+SELECT * FROM t1;
+
+UNLOCK TABLES;
+
+SHOW TABLES;
+SELECT COUNT(*) = 1 FROM t1;
+
+--disable_query_log
+--eval SET GLOBAL wsrep_provider_options = "$wsrep_provider_options_orig";
+--enable_query_log
+
+DROP TABLE t1;
+
