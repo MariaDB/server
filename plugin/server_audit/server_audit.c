@@ -164,6 +164,7 @@ static char *default_home= (char *)".";
 #define localtime_r(a, b) localtime_s(b, a)
 #endif /*WIN32*/
 
+extern LEX_STRING *thd_query_string (MYSQL_THD thd);
 
 extern char server_version[];
 static const char *serv_ver= NULL;
@@ -2215,12 +2216,15 @@ static void log_current_query(MYSQL_THD thd)
 {
   unsigned long thd_id;
   struct connection_info *cn;
+  LEX_STRING *stmt;
+
   if (!thd ||
       !(cn= find_connection((thd_id= thd_get_thread_id(thd)))))
     return;
   if (FILTER(EVENT_QUERY) && do_log_user(cn->user))
   {
-    log_statement_ex(cn, cn->query_time, thd_id, cn->query, cn->query_length,
+    stmt = thd_query_string(thd);
+    log_statement_ex(cn, cn->query_time, thd_id, stmt->str, stmt->length,
                      0, "QUERY");
     cn->log_always= 1;
   }
