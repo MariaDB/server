@@ -99,6 +99,14 @@ void wsrep_register_hton(THD* thd, bool all)
  */
 void wsrep_post_commit(THD* thd, bool all)
 {
+  /*
+    TODO: It can perhaps be fixed in a more elegant fashion by turning off
+    wsrep_emulate_binlog if wsrep_on=0 on server start.
+    https://github.com/codership/mysql-wsrep/issues/112
+  */
+  if (!WSREP_ON)
+    return;
+
   switch (thd->wsrep_exec_mode)
   {
   case LOCAL_COMMIT:
