@@ -1499,12 +1499,13 @@ wsrep_grant_mdl_exception(MDL_context *requestor_ctx,
       mysql_mutex_unlock(&granted_thd->LOCK_wsrep_thd);
       ret = TRUE;
     }
-    else if (granted_thd->lex->sql_command == SQLCOM_FLUSH)
+    else if (granted_thd->lex->sql_command == SQLCOM_FLUSH ||
+             granted_thd->wsrep_exec_mode == LOCAL_FLUSH)
     {
-      WSREP_DEBUG("mdl granted over FLUSH BF");
+      WSREP_DEBUG("BF thread waiting for FLUSH");
       ticket->wsrep_report(wsrep_debug);
       mysql_mutex_unlock(&granted_thd->LOCK_wsrep_thd);
-      ret = TRUE;
+      ret = FALSE;
     }
     else if (request_thd->lex->sql_command == SQLCOM_DROP_TABLE)
     {
