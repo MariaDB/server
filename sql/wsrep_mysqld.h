@@ -28,10 +28,17 @@ class set_var;
 class THD;
 
 enum wsrep_exec_mode {
-    LOCAL_STATE,
-    REPL_RECV,
-    TOTAL_ORDER,
-    LOCAL_COMMIT
+  /* Transaction processing before replication. */
+  LOCAL_STATE,
+  /* Slave thread applying write sets from other nodes or replaying thread. */
+  REPL_RECV,
+  /* Total-order-isolation mode */
+  TOTAL_ORDER,
+  /*
+    Transaction procession after it has been replicated in prepare stage and
+    has passed certification
+  */
+  LOCAL_COMMIT
 };
 
 enum wsrep_query_state {
