@@ -395,14 +395,17 @@ bool st_select_lex_unit::prepare(THD *thd_arg, select_result *sel_result,
       SELECT_LEX *last= first_select();
       while (last->next_select())
         last= last->next_select();
-      if (!(tmp_result= union_result= new select_union_direct(sel_result, last)))
+      if (!(tmp_result= union_result=
+              new (thd_arg->mem_root) select_union_direct(thd_arg, sel_result,
+                                                          last)))
         goto err; /* purecov: inspected */
       fake_select_lex= NULL;
       instantiate_tmp_table= false;
     }
     else
     {
-      if (!(tmp_result= union_result= new select_union()))
+      if (!(tmp_result= union_result=
+              new (thd_arg->mem_root) select_union(thd_arg)))
         goto err; /* purecov: inspected */
       instantiate_tmp_table= true;
     }

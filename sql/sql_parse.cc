@@ -3364,13 +3364,13 @@ mysql_execute_command(THD *thd)
           select_create is currently not re-execution friendly and
           needs to be created for every execution of a PS/SP.
         */
-        if ((result= new select_create(create_table,
-                                       &create_info,
-                                       &alter_info,
-                                       select_lex->item_list,
-                                       lex->duplicates,
-                                       lex->ignore,
-                                       select_tables)))
+        if ((result= new (thd->mem_root) select_create(thd, create_table,
+                                                       &create_info,
+                                                       &alter_info,
+                                                       select_lex->item_list,
+                                                       lex->duplicates,
+                                                       lex->ignore,
+                                                       select_tables)))
         {
           /*
             CREATE from SELECT give its SELECT_LEX for SELECT,
@@ -3934,13 +3934,14 @@ end_with_restore_list:
       select_lex->context.table_list= 
         select_lex->context.first_name_resolution_table= second_table;
       res= mysql_insert_select_prepare(thd);
-      if (!res && (sel_result= new select_insert(first_table,
-                                                 first_table->table,
-                                                 &lex->field_list,
-                                                 &lex->update_list,
-                                                 &lex->value_list,
-                                                 lex->duplicates,
-                                                 lex->ignore)))
+      if (!res && (sel_result= new (thd->mem_root) select_insert(thd,
+                                                             first_table,
+                                                             first_table->table,
+                                                             &lex->field_list,
+                                                             &lex->update_list,
+                                                             &lex->value_list,
+                                                             lex->duplicates,
+                                                             lex->ignore)))
       {
         if (lex->analyze_stmt)
           ((select_result_interceptor*)sel_result)->disable_my_ok_calls();
@@ -4009,14 +4010,15 @@ end_with_restore_list:
           Actually, it is ANALYZE .. DELETE .. RETURNING. We need to produce
           output and then discard it.
         */
-        sel_result= new select_send_analyze();
+        sel_result= new (thd->mem_root) select_send_analyze(thd);
         replaced_protocol= true;
         save_protocol= thd->protocol;
         thd->protocol= new Protocol_discard(thd);
       }
       else
       {
-        if (!(sel_result= lex->result) && !(sel_result= new select_send()))
+        if (!(sel_result= lex->result) &&
+            !(sel_result= new (thd->mem_root) select_send(thd)))
           return 1;
       }
     }
@@ -4073,7 +4075,8 @@ end_with_restore_list:
 
     if (!thd->is_fatal_error)
     {
-      result= new multi_delete(aux_tables, lex->table_count);
+      result= new (thd->mem_root) multi_delete(thd, aux_tables,
+                                               lex->table_count);
       if (result)
       {
         res= mysql_select(thd, &select_lex->ref_pointer_array,
@@ -5710,7 +5713,7 @@ static bool execute_sqlcom_select(THD *thd, TABLE_LIST *all_tables)
         to prepend EXPLAIN to any query and receive output for it,
         even if the query itself redirects the output.
       */
-      if (!(result= new select_send()))
+      if (!(result= new (thd->mem_root) select_send(thd)))
         return 1;                               /* purecov: inspected */
       thd->send_explain_fields(result, lex->describe, lex->analyze_stmt);
         
@@ -5768,14 +5771,14 @@ static bool execute_sqlcom_select(THD *thd, TABLE_LIST *all_tables)
         else 
         {
           DBUG_ASSERT(thd->protocol);
-          result= new select_send_analyze();
+          result= new (thd->mem_root) select_send_analyze(thd);
           save_protocol= thd->protocol;
           thd->protocol= new Protocol_discard(thd);
         }
       }
       else
       {
-        if (!result && !(result= new (thd->mem_root) select_send()))
+        if (!result && !(result= new (thd->mem_root) select_send(thd)))
           return 1;                               /* purecov: inspected */
       }
       query_cache_store_query(thd, all_tables);
@@ -8222,23 +8225,25 @@ Comp_creator *comp_ne_creator(bool invert)
   @return
     constructed Item (or 0 if out of memory)
 */
-Item * all_any_subquery_creator(Item *left_expr,
+Item * all_any_subquery_creator(THD *thd, Item *left_expr,
 				chooser_compare_func_creator cmp,
 				bool all,
 				SELECT_LEX *select_lex)
 {
   if ((cmp == &comp_eq_creator) && !all)       //  = ANY <=> IN
-    return new Item_in_subselect(left_expr, select_lex);
+    return new (thd->mem_root) Item_in_subselect(thd, left_expr, select_lex);
 
   if ((cmp == &comp_ne_creator) && all)        // <> ALL <=> NOT IN
-    return new Item_func_not(new Item_in_subselect(left_expr, select_lex));
+    return new (thd->mem_root) Item_func_not(
+             new (thd->mem_root) Item_in_subselect(thd, left_expr, select_lex));
 
   Item_allany_subselect *it=
-    new Item_allany_subselect(left_expr, cmp, select_lex, all);
+    new (thd->mem_root) Item_allany_subselect(thd, left_expr, cmp, select_lex,
+                                              all);
   if (all)
-    return it->upper_item= new Item_func_not_all(it);	/* ALL */
+    return it->upper_item= new (thd->mem_root) Item_func_not_all(it); /* ALL */
 
-  return it->upper_item= new Item_func_nop_all(it);      /* ANY/SOME */
+  return it->upper_item= new (thd->mem_root) Item_func_nop_all(it);   /* ANY/SOME */
 }
 
 

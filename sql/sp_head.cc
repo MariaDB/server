@@ -3613,7 +3613,7 @@ sp_instr_cpush::execute(THD *thd, uint *nextp)
 {
   DBUG_ENTER("sp_instr_cpush::execute");
 
-  int ret= thd->spcont->push_cursor(&m_lex_keeper, this);
+  int ret= thd->spcont->push_cursor(thd, &m_lex_keeper, this);
 
   *nextp= m_ip+1;
 

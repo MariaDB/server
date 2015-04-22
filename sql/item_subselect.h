@@ -265,7 +265,7 @@ class Item_singlerow_subselect :public Item_subselect
 protected:
   Item_cache *value, **row;
 public:
-  Item_singlerow_subselect(st_select_lex *select_lex);
+  Item_singlerow_subselect(THD *thd_arg, st_select_lex *select_lex);
   Item_singlerow_subselect() :Item_subselect(), value(0), row (0)
   {}
 
@@ -360,7 +360,7 @@ public:
   /* true if we got this from EXISTS or to IN */
   bool exists_transformed;
 
-  Item_exists_subselect(st_select_lex *select_lex);
+  Item_exists_subselect(THD *thd_arg, st_select_lex *select_lex);
   Item_exists_subselect()
     :Item_subselect(), upper_not(NULL),abort_on_null(0),
     emb_on_expr_nest(NULL), optimizer(0), exists_transformed(0)
@@ -566,7 +566,7 @@ public:
 
   Item_func_not_all *upper_item; // point on NOT/NOP before ALL/SOME subquery
 
-  Item_in_subselect(Item * left_expr, st_select_lex *select_lex);
+  Item_in_subselect(THD *thd_arg, Item * left_expr, st_select_lex *select_lex);
   Item_in_subselect()
     :Item_exists_subselect(), left_expr_cache(0), first_execution(TRUE),
     in_strategy(SUBS_NOT_TRANSFORMED),
@@ -708,7 +708,8 @@ public:
   chooser_compare_func_creator func_creator;
   bool all;
 
-  Item_allany_subselect(Item * left_expr, chooser_compare_func_creator fc,
+  Item_allany_subselect(THD *thd_arg, Item * left_expr,
+                        chooser_compare_func_creator fc,
                         st_select_lex *select_lex, bool all);
 
   void cleanup();
@@ -982,7 +983,7 @@ public:
   This function is actually defined in sql_parse.cc, but it depends on
   chooser_compare_func_creator defined in this file.
  */
-Item * all_any_subquery_creator(Item *left_expr,
+Item * all_any_subquery_creator(THD *thd, Item *left_expr,
                                 chooser_compare_func_creator cmp,
                                 bool all,
                                 SELECT_LEX *select_lex);

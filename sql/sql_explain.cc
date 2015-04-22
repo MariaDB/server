@@ -156,7 +156,7 @@ int Explain_query::send_explain(THD *thd)
   select_result *result;
   LEX *lex= thd->lex;
  
-  if (!(result= new (thd->mem_root) select_send()) || 
+  if (!(result= new (thd->mem_root) select_send(thd)) || 
       thd->send_explain_fields(result, lex->describe, lex->analyze_stmt))
     return 1;
 

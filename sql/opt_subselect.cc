@@ -5104,8 +5104,8 @@ TABLE *create_dummy_tmp_table(THD *thd)
 class select_value_catcher :public select_subselect
 {
 public:
-  select_value_catcher(Item_subselect *item_arg)
-    :select_subselect(item_arg)
+  select_value_catcher(THD *thd_arg, Item_subselect *item_arg):
+    select_subselect(thd_arg, item_arg)
   {}
   int send_data(List<Item> &items);
   int setup(List<Item> *items);
@@ -5216,7 +5216,8 @@ bool setup_jtbm_semi_joins(JOIN *join, List<TABLE_LIST> *join_list,
         subselect_single_select_engine *engine=
           (subselect_single_select_engine*)subq_pred->engine;
         select_value_catcher *new_sink;
-        if (!(new_sink= new select_value_catcher(subq_pred)))
+        if (!(new_sink=
+                new (join->thd->mem_root) select_value_catcher(join->thd, subq_pred)))
           DBUG_RETURN(TRUE);
         if (new_sink->setup(&engine->select_lex->join->fields_list) ||
             engine->select_lex->join->change_result(new_sink, NULL) ||

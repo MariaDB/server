@@ -1516,7 +1516,7 @@ static int mysql_test_select(Prepared_statement *stmt,
   else if (check_access(thd, privilege, any_db, NULL, NULL, 0, 0))
     goto error;
 
-  if (!lex->result && !(lex->result= new (stmt->mem_root) select_send))
+  if (!lex->result && !(lex->result= new (stmt->mem_root) select_send(thd)))
   {
     my_error(ER_OUTOFMEMORY, MYF(ME_FATALERROR), 
              static_cast<int>(sizeof(select_send)));
@@ -2024,7 +2024,7 @@ static int mysql_test_handler_read(Prepared_statement *stmt,
 
   if (!stmt->is_sql_prepare())
   {
-    if (!lex->result && !(lex->result= new (stmt->mem_root) select_send))
+    if (!lex->result && !(lex->result= new (stmt->mem_root) select_send(thd)))
     {
       my_error(ER_OUTOFMEMORY, MYF(0), sizeof(select_send));
       DBUG_RETURN(1);
@@ -3035,8 +3035,8 @@ void mysql_stmt_get_longdata(THD *thd, char *packet, ulong packet_length)
  Select_fetch_protocol_binary
 ****************************************************************************/
 
-Select_fetch_protocol_binary::Select_fetch_protocol_binary(THD *thd_arg)
-  :protocol(thd_arg)
+Select_fetch_protocol_binary::Select_fetch_protocol_binary(THD *thd_arg):
+  select_send(thd_arg), protocol(thd_arg)
 {}
 
 bool Select_fetch_protocol_binary::send_result_set_metadata(List<Item> &list, uint flags)

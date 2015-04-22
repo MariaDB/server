@@ -2628,11 +2628,6 @@ void THD::rollback_item_tree_changes()
 ** Functions to provide a interface to select results
 *****************************************************************************/
 
-select_result::select_result()
-{
-  thd=current_thd;
-}
-
 void select_result::cleanup()
 {
   /* do nothing */
@@ -3287,12 +3282,6 @@ int select_dump::send_data(List<Item> &items)
   DBUG_RETURN(0);
 err:
   DBUG_RETURN(1);
-}
-
-
-select_subselect::select_subselect(Item_subselect *item_arg)
-{
-  item= item_arg;
 }
 
 

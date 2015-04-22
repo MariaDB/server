@@ -3348,15 +3348,17 @@ bool mysql_insert_select_prepare(THD *thd)
 }
 
 
-select_insert::select_insert(TABLE_LIST *table_list_par, TABLE *table_par,
+select_insert::select_insert(THD *thd_arg, TABLE_LIST *table_list_par,
+                             TABLE *table_par,
                              List<Item> *fields_par,
                              List<Item> *update_fields,
                              List<Item> *update_values,
                              enum_duplicates duplic,
-                             bool ignore_check_option_errors)
-  :table_list(table_list_par), table(table_par), fields(fields_par),
-   autoinc_value_of_last_inserted_row(0),
-   insert_into_view(table_list_par && table_list_par->view != 0)
+                             bool ignore_check_option_errors):
+  select_result_interceptor(thd_arg),
+  table_list(table_list_par), table(table_par), fields(fields_par),
+  autoinc_value_of_last_inserted_row(0),
+  insert_into_view(table_list_par && table_list_par->view != 0)
 {
   bzero((char*) &info,sizeof(info));
   info.handle_duplicates= duplic;

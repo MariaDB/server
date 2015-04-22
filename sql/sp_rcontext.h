@@ -281,7 +281,7 @@ public:
   /// @return error flag.
   /// @retval false on success.
   /// @retval true on error.
-  bool push_cursor(sp_lex_keeper *lex_keeper, sp_instr_cpush *i);
+  bool push_cursor(THD *thd, sp_lex_keeper *lex_keeper, sp_instr_cpush *i);
 
   /// Pop and delete given number of sp_cursor instance from the cursor stack.
   ///
@@ -428,7 +428,7 @@ private:
     List<sp_variable> *spvar_list;
     uint field_count;
   public:
-    Select_fetch_into_spvars() {}               /* Remove gcc warning */
+    Select_fetch_into_spvars(THD *thd_arg): select_result_interceptor(thd_arg) {}
     uint get_field_count() { return field_count; }
     void set_spvar_list(List<sp_variable> *vars) { spvar_list= vars; }
 
@@ -438,7 +438,7 @@ private:
 };
 
 public:
-  sp_cursor(sp_lex_keeper *lex_keeper, sp_instr_cpush *i);
+  sp_cursor(THD *thd_arg, sp_lex_keeper *lex_keeper, sp_instr_cpush *i);
 
   virtual ~sp_cursor()
   { destroy(); }

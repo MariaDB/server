@@ -612,7 +612,7 @@ Item* handle_sql2003_note184_exception(THD *thd, Item* left, bool equal,
           Item_in_subselect(left, subselect)
       */
       subselect= expr3->invalidate_and_restore_select_lex();
-      result= new (thd->mem_root) Item_in_subselect(left, subselect);
+      result= new (thd->mem_root) Item_in_subselect(thd, left, subselect);
 
       if (! equal)
         result = negate_expression(thd, result);
@@ -8803,7 +8803,7 @@ bool_pri:
           }
         | bool_pri comp_op all_or_any '(' subselect ')' %prec EQ
           {
-            $$= all_any_subquery_creator($1, $2, $3, $5);
+            $$= all_any_subquery_creator(thd, $1, $2, $3, $5);
             if ($$ == NULL)
               MYSQL_YYABORT;
           }
@@ -8813,13 +8813,13 @@ bool_pri:
 predicate:
           bit_expr IN_SYM '(' subselect ')'
           {
-            $$= new (thd->mem_root) Item_in_subselect($1, $4);
+            $$= new (thd->mem_root) Item_in_subselect(thd, $1, $4);
             if ($$ == NULL)
               MYSQL_YYABORT;
           }
         | bit_expr not IN_SYM '(' subselect ')'
           {
-            Item *item= new (thd->mem_root) Item_in_subselect($1, $5);
+            Item *item= new (thd->mem_root) Item_in_subselect(thd, $1, $5);
             if (item == NULL)
               MYSQL_YYABORT;
             $$= negate_expression(thd, item);
@@ -9217,7 +9217,7 @@ simple_expr:
           }
         | '(' subselect ')'
           { 
-            $$= new (thd->mem_root) Item_singlerow_subselect($2);
+            $$= new (thd->mem_root) Item_singlerow_subselect(thd, $2);
             if ($$ == NULL)
               MYSQL_YYABORT;
           }
@@ -9239,7 +9239,7 @@ simple_expr:
           }
         | EXISTS '(' subselect ')'
           {
-            $$= new (thd->mem_root) Item_exists_subselect($3);
+            $$= new (thd->mem_root) Item_exists_subselect(thd, $3);
             if ($$ == NULL)
               MYSQL_YYABORT;
           }
@@ -11621,7 +11621,8 @@ procedure_item:
 select_var_list_init:
           {
             LEX *lex=Lex;
-            if (!lex->describe && (!(lex->result= new select_dumpvar())))
+            if (!lex->describe &&
+                (!(lex->result= new (thd->mem_root) select_dumpvar(thd))))
               MYSQL_YYABORT;
           }
           select_var_list
@@ -11688,8 +11689,10 @@ into_destination:
           {
             LEX *lex= Lex;
             lex->uncacheable(UNCACHEABLE_SIDEEFFECT);
-            if (!(lex->exchange= new sql_exchange($2.str, 0)) ||
-                !(lex->result= new select_export(lex->exchange)))
+            if (!(lex->exchange=
+                    new (thd->mem_root) sql_exchange($2.str, 0)) ||
+                !(lex->result=
+                    new (thd->mem_root) select_export(thd, lex->exchange)))
               MYSQL_YYABORT;
           }
           opt_load_data_charset
@@ -11703,7 +11706,8 @@ into_destination:
               lex->uncacheable(UNCACHEABLE_SIDEEFFECT);
               if (!(lex->exchange= new sql_exchange($2.str,1)))
                 MYSQL_YYABORT;
-              if (!(lex->result= new select_dump(lex->exchange)))
+              if (!(lex->result=
+                      new (thd->mem_root) select_dump(thd, lex->exchange)))
                 MYSQL_YYABORT;
             }
           }
