@@ -5885,16 +5885,6 @@ int THD::binlog_query(THD::enum_binlog_query_type qtype, char const *query_arg,
       The MYSQL_LOG::write() function will set the STMT_END_F flag and
       flush the pending rows event if necessary.
     */
-#ifdef WITH_WSREP
-    /*
-      Even though wsrep only supports ROW binary log format, a user can set
-      binlog format to STATEMENT (wsrep_forced_binlog_format). In which case
-      the control might reach here even when binary logging (--log-bin) is
-      not enabled. This is possible because wsrep patch partially enables
-      binary logging by setting wsrep_emulate_binlog.
-    */
-    if (mysql_bin_log.is_open())
-#endif /* WITH_WSREP */
     {
       Query_log_event qinfo(this, query_arg, query_len, is_trans, direct,
                             suppress_use, errcode);
