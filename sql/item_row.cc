@@ -39,8 +39,7 @@
 */
 
 Item_row::Item_row(List<Item> &arg):
-  Item(), used_tables_cache(0), not_null_tables_cache(0),
-  const_item_cache(1), with_null(0)
+  Item(), Used_tables_and_const_cache(), not_null_tables_cache(0), with_null(0)
 {
 
   //TODO: think placing 2-3 component items in item (as it done for function)
@@ -126,8 +125,7 @@ void Item_row::cleanup()
 
   Item::cleanup();
   /* Reset to the original values */
-  used_tables_cache= 0;
-  const_item_cache= 1;
+  used_tables_and_const_cache_init();
   with_null= 0;
 
   DBUG_VOID_RETURN;
@@ -143,29 +141,14 @@ void Item_row::split_sum_func(THD *thd, Item **ref_pointer_array,
 }
 
 
-void Item_row::update_used_tables()
-{
-  used_tables_cache= 0;
-  const_item_cache= 1;
-  for (uint i= 0; i < arg_count; i++)
-  {
-    items[i]->update_used_tables();
-    used_tables_cache|= items[i]->used_tables();
-    const_item_cache&= items[i]->const_item();
-  }
-}
-
-
 void Item_row::fix_after_pullout(st_select_lex *new_parent, Item **ref)
 {
-  used_tables_cache= 0;
-  const_item_cache= 1;
+  used_tables_and_const_cache_init();
   not_null_tables_cache= 0;
   for (uint i= 0; i < arg_count; i++)
   {
     items[i]->fix_after_pullout(new_parent, &items[i]);
-    used_tables_cache|= items[i]->used_tables();
-    const_item_cache&= items[i]->const_item();
+    used_tables_and_const_cache_join(items[i]);
     not_null_tables_cache|= items[i]->not_null_tables();
   }
 }

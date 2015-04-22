@@ -44,7 +44,8 @@ class Cached_item;
 
 /* base class for subselects */
 
-class Item_subselect :public Item_result_field
+class Item_subselect :public Item_result_field,
+                      protected Used_tables_and_const_cache
 {
   bool value_assigned;   /* value already assigned to subselect */
   bool own_engine;  /* the engine was not taken from other Item_subselect */
@@ -53,16 +54,12 @@ protected:
   THD *thd;
   /* old engine if engine was changed */
   subselect_engine *old_engine;
-  /* cache of used external tables */
-  table_map used_tables_cache;
   /* allowed number of columns (1 for single value subqueries) */
   uint max_columns;
   /* where subquery is placed */
   enum_parsing_place parsing_place;
   /* work with 'substitution' */
   bool have_to_be_excluded;
-  /* cache of constant state */
-  bool const_item_cache;
   
   bool inside_first_fix_fields;
   bool done_first_fix_fields;

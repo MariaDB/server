@@ -178,8 +178,14 @@ Item_func::fix_fields(THD *thd, Item **ref)
   Item **arg,**arg_end;
   uchar buff[STACK_BUFF_ALLOC];			// Max argument in function
 
-  used_tables_cache= not_null_tables_cache= 0;
-  const_item_cache=1;
+  /*
+    The Used_tables_and_const_cache of "this" was initialized by
+    the constructor, or by Item_func::cleanup().
+  */
+  DBUG_ASSERT(used_tables_cache == 0);
+  DBUG_ASSERT(const_item_cache == true);
+
+  not_null_tables_cache= 0;
 
   /*
     Use stack limit of STACK_MIN_SIZE * 2 since
@@ -221,8 +227,7 @@ Item_func::fix_fields(THD *thd, Item **ref)
 
       with_sum_func= with_sum_func || item->with_sum_func;
       with_field= with_field || item->with_field;
-      used_tables_cache|=     item->used_tables();
-      const_item_cache&=      item->const_item();
+      used_tables_and_const_cache_join(item);
       with_subselect|=        item->has_subquery();
     }
   }
@@ -269,8 +274,8 @@ void Item_func::fix_after_pullout(st_select_lex *new_parent, Item **ref)
 {
   Item **arg,**arg_end;
 
-  used_tables_cache= not_null_tables_cache= 0;
-  const_item_cache=1;
+  used_tables_and_const_cache_init();
+  not_null_tables_cache= 0;
 
   if (arg_count)
   {
@@ -279,9 +284,8 @@ void Item_func::fix_after_pullout(st_select_lex *new_parent, Item **ref)
       (*arg)->fix_after_pullout(new_parent, arg);
       Item *item= *arg;
 
-      used_tables_cache|=     item->used_tables();
+      used_tables_and_const_cache_join(item);
       not_null_tables_cache|= item->not_null_tables();
-      const_item_cache&=      item->const_item();
     }
   }
 }
@@ -433,19 +437,6 @@ void Item_func::split_sum_func(THD *thd, Item **ref_pointer_array,
   Item **arg, **arg_end;
   for (arg= args, arg_end= args+arg_count; arg != arg_end ; arg++)
     (*arg)->split_sum_func2(thd, ref_pointer_array, fields, arg, TRUE);
-}
-
-
-void Item_func::update_used_tables()
-{
-  used_tables_cache=0;
-  const_item_cache=1;
-  for (uint i=0 ; i < arg_count ; i++)
-  {
-    args[i]->update_used_tables();
-    used_tables_cache|=args[i]->used_tables();
-    const_item_cache&=args[i]->const_item();
-  }
 }
 
 
@@ -3503,8 +3494,7 @@ udf_handler::fix_fields(THD *thd, Item_func_or_sum *func,
 
   /* Fix all arguments */
   func->maybe_null=0;
-  used_tables_cache=0;
-  const_item_cache=1;
+  used_tables_and_const_cache_init();
 
   if ((f_args.arg_count=arg_count))
   {
@@ -3546,8 +3536,7 @@ udf_handler::fix_fields(THD *thd, Item_func_or_sum *func,
       func->with_sum_func= func->with_sum_func || item->with_sum_func;
       func->with_field= func->with_field || item->with_field;
       func->with_subselect|= item->with_subselect;
-      used_tables_cache|=item->used_tables();
-      const_item_cache&=item->const_item();
+      used_tables_and_const_cache_join(item);
       f_args.arg_type[i]=item->result_type();
     }
     //TODO: why all following memory is not allocated with 1 call of sql_alloc?

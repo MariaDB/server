@@ -12770,7 +12770,9 @@ static bool check_equality(THD *thd, Item *item, COND_EQUAL *cond_equal,
   @param inherited  path to all inherited multiple equality items
 
   @return
-    pointer to the transformed condition
+    pointer to the transformed condition,
+    whose Used_tables_and_const_cache is up to date,
+    so no additional update_used_tables() is needed on the result.
 */
 
 static COND *build_equal_items_for_cond(THD *thd, COND *cond,
@@ -12784,9 +12786,9 @@ static COND *build_equal_items_for_cond(THD *thd, COND *cond,
   if (cond->type() == Item::COND_ITEM)
   {
     List<Item> eq_list;
-    bool and_level= ((Item_cond*) cond)->functype() ==
-      Item_func::COND_AND_FUNC;
-    List<Item> *args= ((Item_cond*) cond)->argument_list();
+    Item_cond *cond_item= (Item_cond*) cond;
+    bool and_level= cond_item->functype() == Item_func::COND_AND_FUNC;
+    List<Item> *args= cond_item->argument_list();
     
     List_iterator<Item> li(*args);
     Item *item;
@@ -12837,8 +12839,10 @@ static COND *build_equal_items_for_cond(THD *thd, COND *cond,
     /*
        Make replacement of equality predicates for lower levels
        of the condition expression.
+       Update used_tables_cache and const_item_cache on the way.
     */
     li.rewind();
+    cond_item->used_tables_and_const_cache_init();
     while ((item= li++))
     { 
       Item *new_item;
@@ -12853,12 +12857,27 @@ static COND *build_equal_items_for_cond(THD *thd, COND *cond,
         */
         li.replace(new_item);
       }
+      cond_item->used_tables_and_const_cache_join(new_item);
     }
     if (and_level)
     {
       args->append(&eq_list);
       args->append((List<Item> *)&cond_equal.current_level);
+      /*
+        Instead of the cond_item->update_used_tables() call below,
+        we could do this:
+        
+        cond_item->used_tables_and_const_cache_update_and_join(eq_list);
+        cond_item->used_tables_and_const_cache_update_and_join(
+                                    *(List<Item> *) &cond_equal.current_level);
+
+        But initializing 2 iterators will probably be even slower than
+        redundant iterations over the topmost elements in "args",
+        which were already processed in the "while" loop above.
+      */
+      cond_item->update_used_tables();
     }
+    return cond_item;
   }
   else if (cond->type() == Item::FUNC_ITEM ||
            cond->real_item()->type() == Item::FIELD_ITEM)
@@ -12890,8 +12909,9 @@ static COND *build_equal_items_for_cond(THD *thd, COND *cond,
           item_equal->upper_levels= inherited;
           return item_equal;
 	}
-
-        return eq_list.pop();
+        Item *res= eq_list.pop();
+        res->update_used_tables();
+        return res;
       }
       else
       {
@@ -12913,7 +12933,7 @@ static COND *build_equal_items_for_cond(THD *thd, COND *cond,
         and_cond->cond_equal.copy(cond_equal);
         cond_equal.current_level= and_cond->cond_equal.current_level;
         args->append((List<Item> *)&cond_equal.current_level);
-        
+        and_cond->update_used_tables();
         return and_cond;
       }
     }
@@ -12928,8 +12948,8 @@ static COND *build_equal_items_for_cond(THD *thd, COND *cond,
                         &is_subst_valid, 
                         &Item::equal_fields_propagator,
                         (uchar *) inherited);
-    cond->update_used_tables();
   }
+  cond->update_used_tables();
   return cond;
 }
 
@@ -13016,7 +13036,6 @@ static COND *build_equal_items(JOIN *join, COND *cond,
   if (cond) 
   {
     cond= build_equal_items_for_cond(thd, cond, inherited, link_equal_fields);
-    cond->update_used_tables();
     if (cond->type() == Item::COND_ITEM &&
         ((Item_cond*) cond)->functype() == Item_func::COND_AND_FUNC)
       cond_equal= &((Item_cond_and*) cond)->cond_equal;

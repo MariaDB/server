@@ -1763,7 +1763,11 @@ public:
   enum Type type() const { return COND_ITEM; }
   List<Item>* argument_list() { return &list; }
   table_map used_tables() const;
-  void update_used_tables();
+  void update_used_tables()
+  {
+    used_tables_and_const_cache_init();
+    used_tables_and_const_cache_update_and_join(list);
+  }
   virtual void print(String *str, enum_query_type query_type);
   void split_sum_func(THD *thd, Item **ref_pointer_array, List<Item> &fields);
   friend int setup_conds(THD *thd, TABLE_LIST *tables, TABLE_LIST *leaves,

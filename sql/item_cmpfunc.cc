@@ -1520,9 +1520,8 @@ bool Item_in_optimizer::fix_left(THD *thd)
   if (args[1]->fixed)
   {
     /* to avoid overriding is called to update left expression */
-    used_tables_cache|= args[1]->used_tables();
+    used_tables_and_const_cache_join(args[1]);
     with_sum_func= with_sum_func || args[1]->with_sum_func;
-    const_item_cache= const_item_cache && args[1]->const_item();
   }
   DBUG_RETURN(0);
 }
@@ -1551,8 +1550,7 @@ bool Item_in_optimizer::fix_fields(THD *thd, Item **ref)
   with_subselect= 1;
   with_sum_func= with_sum_func || args[1]->with_sum_func;
   with_field= with_field || args[1]->with_field;
-  used_tables_cache|= args[1]->used_tables();
-  const_item_cache&= args[1]->const_item();
+  used_tables_and_const_cache_join(args[1]);
   fixed= 1;
   return FALSE;
 }
@@ -2081,11 +2079,10 @@ void Item_func_interval::fix_length_and_dec()
   }
   maybe_null= 0;
   max_length= 2;
-  used_tables_cache|= row->used_tables();
+  used_tables_and_const_cache_join(row);
   not_null_tables_cache= row->not_null_tables();
   with_sum_func= with_sum_func || row->with_sum_func;
   with_field= with_field || row->with_field;
-  const_item_cache&= row->const_item();
 }
 
 
@@ -4302,8 +4299,8 @@ Item_cond::fix_fields(THD *thd, Item **ref)
   List_iterator<Item> li(list);
   Item *item;
   uchar buff[sizeof(char*)];			// Max local vars in function
-  not_null_tables_cache= used_tables_cache= 0;
-  const_item_cache= 1;
+  not_null_tables_cache= 0;
+  used_tables_and_const_cache_init();
 
   /*
     and_table_cache is the value that Item_cond_or() returns for
@@ -4453,8 +4450,7 @@ void Item_cond::fix_after_pullout(st_select_lex *new_parent, Item **ref)
   List_iterator<Item> li(list);
   Item *item;
 
-  used_tables_cache=0;
-  const_item_cache=1;
+  used_tables_and_const_cache_init();
 
   and_tables_cache= ~(table_map) 0; // Here and below we do as fix_fields does
   not_null_tables_cache= 0;
@@ -4464,8 +4460,7 @@ void Item_cond::fix_after_pullout(st_select_lex *new_parent, Item **ref)
     table_map tmp_table_map;
     item->fix_after_pullout(new_parent, li.ref());
     item= *li.ref();
-    used_tables_cache|= item->used_tables();
-    const_item_cache&= item->const_item();
+    used_tables_and_const_cache_join(item);
 
     if (item->const_item())
       and_tables_cache= (table_map) 0;
@@ -4645,22 +4640,6 @@ table_map
 Item_cond::used_tables() const
 {						// This caches used_tables
   return used_tables_cache;
-}
-
-
-void Item_cond::update_used_tables()
-{
-  List_iterator_fast<Item> li(list);
-  Item *item;
-
-  used_tables_cache=0;
-  const_item_cache=1;
-  while ((item=li++))
-  {
-    item->update_used_tables();
-    used_tables_cache|= item->used_tables();
-    const_item_cache&= item->const_item();
-  }
 }
 
 

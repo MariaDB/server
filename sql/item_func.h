@@ -31,7 +31,7 @@ extern "C"				/* Bug in BSDI include file */
 #endif
 
 
-class Item_func :public Item_func_or_sum
+class Item_func :public Item_func_or_sum, public Used_tables_and_const_cache
 {
   void sync_with_sum_func_and_with_field(List<Item> &list);
 protected:
@@ -42,15 +42,8 @@ protected:
   uint allowed_arg_cols;
   String *val_str_from_val_str_ascii(String *str, String *str2);
 public:
-  /*
-    In some cases used_tables_cache is not what used_tables() return
-    so the method should be used where one need used tables bit map 
-    (even internally in Item_func_* code).
-  */
-  table_map used_tables_cache;
   table_map not_null_tables_cache;
 
-  bool const_item_cache;
   enum Functype { UNKNOWN_FUNC,EQ_FUNC,EQUAL_FUNC,NE_FUNC,LT_FUNC,LE_FUNC,
 		  GE_FUNC,GT_FUNC,FT_FUNC,
 		  LIKE_FUNC,ISNULL_FUNC,ISNOTNULL_FUNC,
@@ -118,19 +111,26 @@ public:
   }
   // Constructor used for Item_cond_and/or (see Item comment)
   Item_func(THD *thd, Item_func *item)
-   :Item_func_or_sum(thd, item),
+   :Item_func_or_sum(thd, item), Used_tables_and_const_cache(item),
     allowed_arg_cols(item->allowed_arg_cols),
-    used_tables_cache(item->used_tables_cache),
-    not_null_tables_cache(item->not_null_tables_cache),
-    const_item_cache(item->const_item_cache)
+    not_null_tables_cache(item->not_null_tables_cache)
   {
   }
   bool fix_fields(THD *, Item **ref);
+  void cleanup()
+  {
+    Item_func_or_sum::cleanup();
+    used_tables_and_const_cache_init();
+  }
   void fix_after_pullout(st_select_lex *new_parent, Item **ref);
   void quick_fix_field();
   table_map used_tables() const;
   table_map not_null_tables() const;
-  void update_used_tables();
+  void update_used_tables()
+  {
+    used_tables_and_const_cache_init();
+    used_tables_and_const_cache_update_and_join(arg_count, args);
+  }
   bool eq(const Item *item, bool binary_cmp) const;
   virtual optimize_type select_optimize() const { return OPTIMIZE_NONE; }
   virtual bool have_rev_func() const { return 0; }
@@ -1367,8 +1367,7 @@ public:
   {
     DBUG_ASSERT(fixed == 0);
     bool res= udf.fix_fields(thd, this, arg_count, args);
-    used_tables_cache= udf.used_tables_cache;
-    const_item_cache= udf.const_item_cache;
+    used_tables_and_const_cache_copy(&udf);
     fixed= 1;
     return res;
   }

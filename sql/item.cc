@@ -4730,10 +4730,7 @@ Item_field::fix_outer_field(THD *thd, Field **from_field, Item **reference)
         else
         {
           Item::Type ref_type= (*reference)->type();
-          prev_subselect_item->used_tables_cache|=
-            (*reference)->used_tables();
-          prev_subselect_item->const_item_cache&=
-            (*reference)->const_item();
+          prev_subselect_item->used_tables_and_const_cache_join(*reference);
           mark_as_dependent(thd, last_checked_context->select_lex,
                             context->select_lex, this,
                             ((ref_type == REF_ITEM || ref_type == FIELD_ITEM) ?
@@ -4759,8 +4756,7 @@ Item_field::fix_outer_field(THD *thd, Field **from_field, Item **reference)
       if (ref != not_found_item)
       {
         DBUG_ASSERT(*ref && (*ref)->fixed);
-        prev_subselect_item->used_tables_cache|= (*ref)->used_tables();
-        prev_subselect_item->const_item_cache&= (*ref)->const_item();
+        prev_subselect_item->used_tables_and_const_cache_join(*ref);
         break;
       }
     }
@@ -6783,8 +6779,7 @@ bool Item_ref::fix_fields(THD *thd, Item **reference)
           if (ref != not_found_item)
           {
             DBUG_ASSERT(*ref && (*ref)->fixed);
-            prev_subselect_item->used_tables_cache|= (*ref)->used_tables();
-            prev_subselect_item->const_item_cache&= (*ref)->const_item();
+            prev_subselect_item->used_tables_and_const_cache_join(*ref);
             break;
           }
           /*
@@ -6828,10 +6823,7 @@ bool Item_ref::fix_fields(THD *thd, Item **reference)
           if (from_field == view_ref_found)
           {
             Item::Type refer_type= (*reference)->type();
-            prev_subselect_item->used_tables_cache|=
-              (*reference)->used_tables();
-            prev_subselect_item->const_item_cache&=
-              (*reference)->const_item();
+            prev_subselect_item->used_tables_and_const_cache_join(*reference);
             DBUG_ASSERT((*reference)->type() == REF_ITEM);
             mark_as_dependent(thd, last_checked_context->select_lex,
                               context->select_lex, this,

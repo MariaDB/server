@@ -49,8 +49,9 @@ const char *exists_outer_expr_name= "<exists outer expr>";
 int check_and_do_in_subquery_rewrites(JOIN *join);
 
 Item_subselect::Item_subselect():
-  Item_result_field(), value_assigned(0), own_engine(0), thd(0), old_engine(0), 
-  used_tables_cache(0), have_to_be_excluded(0), const_item_cache(1),
+  Item_result_field(), Used_tables_and_const_cache(),
+  value_assigned(0), own_engine(0), thd(0), old_engine(0), 
+  have_to_be_excluded(0),
   inside_first_fix_fields(0), done_first_fix_fields(FALSE), 
   expr_cache(0), forced_const(FALSE), substitution(0), engine(0), eliminated(FALSE),
   changed(0), is_correlated(FALSE)
