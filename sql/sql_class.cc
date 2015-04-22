@@ -4205,23 +4205,30 @@ extern "C" int thd_killed(const MYSQL_THD thd)
 /*
   return thd->killed status to the client,
   mapped to the API enum thd_kill_levels values.
+
+  @note Since this function is called quite frequently thd_kill_level(NULL) is
+  forbidden for performance reasons (saves one conditional branch). If your ever
+  need to call thd_kill_level() when THD is not available, you options are (most
+  to least preferred):
+  - try to pass THD through to thd_kill_level()
+  - add current_thd to some service and use thd_killed(current_thd)
+  - add thd_killed_current() function to kill statement service
+  - add if (!thd) thd= current_thd here
 */
 extern "C" enum thd_kill_levels thd_kill_level(const MYSQL_THD thd)
 {
-  THD* current= current_thd;
-
-  if (!thd)
-    thd= current;
-
-  if (thd == current)
-  {
-    Apc_target *apc_target= (Apc_target*)&thd->apc_target;
-    if (apc_target->have_apc_requests())
-        apc_target->process_apc_requests(); 
-  }
+  DBUG_ASSERT(thd);
 
   if (likely(thd->killed == NOT_KILLED))
+  {
+    Apc_target *apc_target= (Apc_target*) &thd->apc_target;
+    if (unlikely(apc_target->have_apc_requests()))
+    {
+      if (thd == current_thd)
+        apc_target->process_apc_requests();
+    }
     return THD_IS_NOT_KILLED;
+  }
 
   return thd->killed & KILL_HARD_BIT ? THD_ABORT_ASAP : THD_ABORT_SOFTLY;
 }
