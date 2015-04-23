@@ -2,6 +2,7 @@
 #include "rpl_parallel.h"
 #include "slave.h"
 #include "rpl_mi.h"
+#include "sql_parse.h"
 #include "debug_sync.h"
 
 /*
@@ -326,7 +327,7 @@ retry_event_group(rpl_group_info *rgi, rpl_parallel_thread *rpt,
   IO_CACHE rlog;
   LOG_INFO linfo;
   File fd= (File)-1;
-  const char *errmsg= NULL;
+  const char *errmsg;
   inuse_relaylog *ir= rgi->relay_log;
   uint64 event_count;
   uint64 events_to_execute= rgi->retry_event_count;
@@ -342,6 +343,7 @@ retry_event_group(rpl_group_info *rgi, rpl_parallel_thread *rpt,
 do_retry:
   event_count= 0;
   err= 0;
+  errmsg= NULL;
 
   /*
     If we already started committing before getting the deadlock (or other
@@ -377,7 +379,16 @@ do_retry:
   */
   if(thd->wait_for_commit_ptr)
     thd->wait_for_commit_ptr->unregister_wait_for_prior_commit();
+  DBUG_EXECUTE_IF("inject_mdev8031", {
+      /* Simulate that we get deadlock killed at this exact point. */
+      rgi->killed_for_retry= true;
+      mysql_mutex_lock(&thd->LOCK_thd_data);
+      thd->killed= KILL_CONNECTION;
+      mysql_mutex_unlock(&thd->LOCK_thd_data);
+  });
   rgi->cleanup_context(thd, 1);
+  thd->reset_killed();
+  thd->clear_error();
 
   /*
     If we retry due to a deadlock kill that occured during the commit step, we
@@ -418,9 +429,21 @@ do_retry:
       complete its commit.
     */
     thd->clear_error();
+    thd->reset_killed();
     if(thd->wait_for_commit_ptr)
       thd->wait_for_commit_ptr->unregister_wait_for_prior_commit();
+    DBUG_EXECUTE_IF("inject_mdev8031", {
+        /* Inject a small sleep to give prior transaction a chance to commit. */
+        my_sleep(100000);
+    });
   }
+
+  /*
+    Let us clear any lingering deadlock kill one more time, here after
+    wait_for_prior_commit() has completed. This should rule out any
+    possibility of an old deadlock kill lingering on beyond this point.
+  */
+  thd->reset_killed();
 
   strmake_buf(log_name, ir->name);
   if ((fd= open_binlog(&rlog, log_name, &errmsg)) <0)
@@ -437,6 +460,14 @@ do_retry:
     err= 1;
     goto err;
   }
+  DBUG_EXECUTE_IF("inject_mdev8031", {
+      /* Simulate pending KILL caught in read_relay_log_description_event(). */
+      if (thd->check_killed()) {
+        thd->send_kill_message();
+        err= 1;
+        goto err;
+      }
+  });
   my_b_seek(&rlog, cur_offset);
 
   do
@@ -459,7 +490,7 @@ do_retry:
       {
         errmsg= "slave SQL thread aborted because of I/O error";
         err= 1;
-        goto err;
+        goto check_retry;
       }
       if (rlog.error > 0)
       {
@@ -488,10 +519,25 @@ do_retry:
       }
       strmake_buf(log_name ,linfo.log_file_name);
 
+      DBUG_EXECUTE_IF("inject_retry_event_group_open_binlog_kill", {
+          if (retries < 2)
+          {
+            /* Simulate that we get deadlock killed during open_binlog(). */
+            mysql_reset_thd_for_next_command(thd);
+            rgi->killed_for_retry= true;
+            mysql_mutex_lock(&thd->LOCK_thd_data);
+            thd->killed= KILL_CONNECTION;
+            mysql_mutex_unlock(&thd->LOCK_thd_data);
+            thd->send_kill_message();
+            fd= (File)-1;
+            err= 1;
+            goto check_retry;
+          }
+      });
       if ((fd= open_binlog(&rlog, log_name, &errmsg)) <0)
       {
         err= 1;
-        goto err;
+        goto check_retry;
       }
       /* Loop to try again on the new log file. */
     }
@@ -534,26 +580,31 @@ do_retry:
                     if (retries == 0) err= dbug_simulate_tmp_error(rgi, thd););
     DBUG_EXECUTE_IF("rpl_parallel_simulate_infinite_temp_err_gtid_0_x_100",
                     err= dbug_simulate_tmp_error(rgi, thd););
-    if (err)
+    if (!err)
+      continue;
+
+check_retry:
+    convert_kill_to_deadlock_error(rgi);
+    if (has_temporary_error(thd))
     {
-      convert_kill_to_deadlock_error(rgi);
-      if (has_temporary_error(thd))
+      ++retries;
+      if (retries < slave_trans_retries)
       {
-        ++retries;
-        if (retries < slave_trans_retries)
+        if (fd >= 0)
         {
           end_io_cache(&rlog);
           mysql_file_close(fd, MYF(MY_WME));
           fd= (File)-1;
-          goto do_retry;
         }
-        sql_print_error("Slave worker thread retried transaction %lu time(s) "
-                        "in vain, giving up. Consider raising the value of "
-                        "the slave_transaction_retries variable.",
-                        slave_trans_retries);
+        goto do_retry;
       }
-      goto err;
+      sql_print_error("Slave worker thread retried transaction %lu time(s) "
+                      "in vain, giving up. Consider raising the value of "
+                      "the slave_transaction_retries variable.",
+                      slave_trans_retries);
     }
+    goto err;
+
   } while (event_count < events_to_execute);
 
 err:
