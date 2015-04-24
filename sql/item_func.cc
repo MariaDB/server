@@ -291,21 +291,6 @@ void Item_func::fix_after_pullout(st_select_lex *new_parent, Item **ref)
 }
 
 
-bool Item_func::walk(Item_processor processor, bool walk_subquery,
-                     uchar *argument)
-{
-  if (arg_count)
-  {
-    Item **arg,**arg_end;
-    for (arg= args, arg_end= args+arg_count; arg != arg_end; arg++)
-    {
-      if ((*arg)->walk(processor, walk_subquery, argument))
-	return 1;
-    }
-  }
-  return (this->*processor)(argument);
-}
-
 void Item_func::traverse_cond(Cond_traverser traverser,
                               void *argument, traverse_order order)
 {
@@ -334,6 +319,26 @@ void Item_func::traverse_cond(Cond_traverser traverser,
 }
 
 
+bool Item_args::transform_args(Item_transformer transformer, uchar *arg)
+{
+  for (uint i= 0; i < arg_count; i++)
+  {
+    Item *new_item= args[i]->transform(transformer, arg);
+    if (!new_item)
+      return true;
+    /*
+      THD::change_item_tree() should be called only if the tree was
+      really transformed, i.e. when a new item has been created.
+      Otherwise we'll be allocating a lot of unnecessary memory for
+      change records at each execution.
+    */
+    if (args[i] != new_item)
+      current_thd->change_item_tree(&args[i], new_item);
+  }
+  return false;
+}
+
+
 /**
   Transform an Item_func object with a transformer callback function.
 
@@ -354,26 +359,8 @@ void Item_func::traverse_cond(Cond_traverser traverser,
 Item *Item_func::transform(Item_transformer transformer, uchar *argument)
 {
   DBUG_ASSERT(!current_thd->stmt_arena->is_stmt_prepare());
-
-  if (arg_count)
-  {
-    Item **arg,**arg_end;
-    for (arg= args, arg_end= args+arg_count; arg != arg_end; arg++)
-    {
-      Item *new_item= (*arg)->transform(transformer, argument);
-      if (!new_item)
-	return 0;
-
-      /*
-        THD::change_item_tree() should be called only if the tree was
-        really transformed, i.e. when a new item has been created.
-        Otherwise we'll be allocating a lot of unnecessary memory for
-        change records at each execution.
-      */
-      if (*arg != new_item)
-        current_thd->change_item_tree(arg, new_item);
-    }
-  }
+  if (transform_args(transformer, argument))
+    return 0;
   return (this->*transformer)(argument);
 }
 

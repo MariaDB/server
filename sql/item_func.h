@@ -232,7 +232,6 @@ public:
                                                                items, nitems,
                                                                item_sep);
   }
-  bool walk(Item_processor processor, bool walk_subquery, uchar *arg);
   Item *transform(Item_transformer transformer, uchar *arg);
   Item* compile(Item_analyzer analyzer, uchar **arg_p,
                 Item_transformer transformer, uchar *arg_t);

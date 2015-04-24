@@ -3275,6 +3275,16 @@ class Item_args
 protected:
   Item **args, *tmp_arg[2];
   void set_arguments(List<Item> &list);
+  bool walk_args(Item_processor processor, bool walk_subquery, uchar *arg)
+  {
+    for (uint i= 0; i < arg_count; i++)
+    {
+      if (args[i]->walk(processor, walk_subquery, arg))
+        return true;
+    }
+    return false;
+  }
+  bool transform_args(Item_transformer transformer, uchar *arg);
 public:
   uint arg_count;
   Item_args(void)
@@ -3417,6 +3427,12 @@ public:
     :Item_result_field(thd, item), Item_args(thd, item) { }
   Item_func_or_sum(List<Item> &list)
     :Item_result_field(), Item_args(list) { }
+  bool walk(Item_processor processor, bool walk_subquery, uchar *arg)
+  {
+    if (walk_args(processor, walk_subquery, arg))
+      return true;
+    return (this->*processor)(arg);
+  }
   /*
     This method is used for debug purposes to print the name of an
     item to the debug log. The second use of this method is as

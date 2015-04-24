@@ -497,22 +497,6 @@ Item *Item_sum::get_tmp_table_item(THD *thd)
 }
 
 
-bool Item_sum::walk (Item_processor processor, bool walk_subquery,
-                     uchar *argument)
-{
-  if (arg_count)
-  {
-    Item **arg,**arg_end;
-    for (arg= args, arg_end= args+arg_count; arg != arg_end; arg++)
-    {
-      if ((*arg)->walk(processor, walk_subquery, argument))
-	return 1;
-    }
-  }
-  return (this->*processor)(argument);
-}
-
-
 Field *Item_sum::create_tmp_field(bool group, TABLE *table,
                                   uint convert_blob_length)
 {
