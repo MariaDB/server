@@ -118,7 +118,7 @@ public:
     derivation= derivation_arg;
     set_repertoire_from_charset(collation_arg);
   }
-  void set(DTCollation &dt)
+  void set(const DTCollation &dt)
   { 
     collation= dt.collation;
     derivation= dt.derivation;
@@ -546,7 +546,48 @@ public:
 };
 
 
-class Item {
+/**
+  A class to store type attributes for the standard data types.
+  Does not include attributes for the extended data types
+  such as ENUM, SET, GEOMETRY.
+*/
+class Type_std_attributes
+{
+public:
+  DTCollation collation;
+  uint decimals;
+  /*
+    The maximum value length in characters multiplied by collation->mbmaxlen.
+    Almost always it's the maximum value length in bytes.
+  */
+  uint32 max_length;
+  bool unsigned_flag;
+  Type_std_attributes()
+   :collation(&my_charset_bin, DERIVATION_COERCIBLE),
+    decimals(0), max_length(0), unsigned_flag(false)
+  { }
+  Type_std_attributes(const Type_std_attributes *other)
+   :collation(other->collation),
+    decimals(other->decimals),
+    max_length(other->max_length),
+    unsigned_flag(other->unsigned_flag)
+  { }
+  void set(const Type_std_attributes *other)
+  {
+    *this= *other;
+  }
+  void set(const Field *field)
+  {
+    decimals= field->decimals();
+    max_length= field->field_length;
+    collation.set(field->charset());
+    unsigned_flag= MY_TEST(field->flags & UNSIGNED_FLAG);
+  }
+};
+
+
+class Item: public Type_std_attributes
+{
   Item(const Item &);			/* Prevent use of these */
   void operator=(Item &);
   /**
@@ -615,23 +656,16 @@ public:
    */
   Item *next;
   /*
-    The maximum value length in characters multiplied by collation->mbmaxlen.
-    Almost always it's the maximum value length in bytes.
-  */
-  uint32 max_length;
-  /*
     TODO: convert name and name_length fields into LEX_STRING to keep them in
     sync (see bug #11829681/60295 etc). Then also remove some strlen(name)
     calls.
   */
   uint name_length;                     /* Length of name */
-  uint decimals;
   int8 marker;
   bool maybe_null;			/* If item may be null */
   bool in_rollup;                       /* If used in GROUP BY list
                                            of a query with ROLLUP */ 
   bool null_value;			/* if item is null */
-  bool unsigned_flag;
   bool with_sum_func;                   /* True if item contains a sum func */
   /**
     True if any item except Item_sum contains a field. Set during parsing.
@@ -643,7 +677,6 @@ public:
   bool with_subselect;                  /* If this item is a subselect or some
                                            of its arguments is or contains a
                                            subselect */
-  DTCollation collation;
   Item_result cmp_context;              /* Comparison context */
   // alloc & destruct is done as start of select using sql_alloc
   Item();
@@ -4149,14 +4182,11 @@ protected:
   {
     item= i;
     null_value=maybe_null=item->maybe_null;
-    decimals=item->decimals;
-    max_length=item->max_length;
+    Type_std_attributes::set(item);
     name=item->name;
     cached_field_type= item->field_type();
     cached_result_type= item->result_type();
-    unsigned_flag= item->unsigned_flag;
     fixed= item->fixed;
-    collation.set(item->collation);
   }
 
 public:
@@ -4608,10 +4638,7 @@ public:
   virtual bool setup(Item *item)
   {
     example= item;
-    max_length= item->max_length;
-    decimals= item->decimals;
-    collation.set(item->collation);
-    unsigned_flag= item->unsigned_flag;
+    Type_std_attributes::set(item);
     if (item->type() == FIELD_ITEM)
       cached_field= ((Item_field *)item)->field;
     return 0;

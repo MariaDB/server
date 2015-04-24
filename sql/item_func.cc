@@ -6645,11 +6645,8 @@ void Item_func_sp::fix_length_and_dec()
   DBUG_ENTER("Item_func_sp::fix_length_and_dec");
 
   DBUG_ASSERT(sp_result_field);
-  decimals= sp_result_field->decimals();
-  max_length= sp_result_field->field_length;
-  collation.set(sp_result_field->charset());
+  Type_std_attributes::set(sp_result_field);
   maybe_null= 1;
-  unsigned_flag= MY_TEST(sp_result_field->flags & UNSIGNED_FLAG);
 
   DBUG_VOID_RETURN;
 }
@@ -6999,9 +6996,6 @@ my_decimal *Item_func_last_value::val_decimal(my_decimal *decimal_value)
 void Item_func_last_value::fix_length_and_dec()
 {
   last_value=          args[arg_count -1];
-  decimals=            last_value->decimals;
-  max_length=          last_value->max_length;
-  collation.set(last_value->collation.collation);
+  Type_std_attributes::set(last_value);
   maybe_null=          last_value->maybe_null;
-  unsigned_flag=       last_value->unsigned_flag;
 }

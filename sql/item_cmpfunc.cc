@@ -2654,13 +2654,10 @@ void Item_func_if::fix_after_pullout(st_select_lex *new_parent, Item **ref)
 
 void Item_func_if::cache_type_info(Item *source)
 {
-  collation.set(source->collation);
+  Type_std_attributes::set(source);
   cached_field_type=  source->field_type();
   cached_result_type= source->result_type();
-  decimals=           source->decimals;
-  max_length=         source->max_length;
   maybe_null=         source->maybe_null;
-  unsigned_flag=      source->unsigned_flag;
 }
 
 
