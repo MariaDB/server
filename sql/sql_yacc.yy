@@ -864,15 +864,6 @@ void LEX::init_last_field(Create_field *field, const char *name, CHARSET_INFO *c
   last_field= field;
 
   field->field_name= name;
-  field->flags= 0;
-  field->def= 0;
-  field->on_update= 0;
-  field->sql_type= MYSQL_TYPE_NULL;
-  field->change= 0;
-  field->geom_type= Field::GEOM_GEOMETRY;
-  field->comment= null_lex_str;
-  field->vcol_info= 0;
-  field->interval_list.empty();
 
   /* reset LEX fields that are used in Create_field::set_and_check() */
   length= 0;

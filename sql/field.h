@@ -2900,6 +2900,7 @@ public:
 };
 
 
+extern const LEX_STRING null_lex_str;
 /*
   Create field class for CREATE TABLE
 */
@@ -2954,9 +2955,13 @@ public:
   */
   bool stored_in_db;
 
-  Create_field() :after(0), pack_length(0), key_length(0), interval(0),
-                  srid(0), field(0), option_list(NULL), option_struct(NULL),
-                  create_if_not_exists(false), stored_in_db(true)
+  Create_field() :change(0), after(0), comment(null_lex_str),
+                  def(0), on_update(0), sql_type(MYSQL_TYPE_NULL),
+                  flags(0), pack_length(0), key_length(0), interval(0),
+                  srid(0), geom_type(Field::GEOM_GEOMETRY),
+                  field(0), option_list(NULL), option_struct(NULL),
+                  create_if_not_exists(false), vcol_info(0),
+                  stored_in_db(true)
   {
     interval_list.empty();
   }
