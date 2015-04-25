@@ -50,12 +50,11 @@ DELETE FROM t3 WHERE a=2;
 INSERT INTO t5 (a) SELECT a.a*10000+b.a*1000+c.a*100+d.a*10 FROM t5 a, t5 b, t5 c, t5 d;
 INSERT INTO t3 (a) SELECT a FROM t5 WHERE a > 10;
 DELETE t3 FROM t3 INNER JOIN t5 ON t3.a=t5.a;
-select master_pos_wait('master-bin.000002', 10808, 300, '');
-master_pos_wait('master-bin.000002', 10808, 300, '')
-NULL
-SELECT "Could not execute Delete_rows_v1 event on table test1.t3; Can't find record in 't3', Error_code: 1032; handler error HA_ERR_END_OF_FILE; the event's master log master-bin.000002, end_log_pos END_LOG_POS" as 'Last_SQL_Error (expected "Delete_rows_v1 event on table test1.t3; Can\'t find record in \'t3\'" error)';
+---- Wait until slave stops with an error ----
+include/wait_for_slave_sql_error.inc [errno=1032]
 Last_SQL_Error (expected "Delete_rows_v1 event on table test1.t3; Can't find record in 't3'" error)
 Could not execute Delete_rows_v1 event on table test1.t3; Can't find record in 't3', Error_code: 1032; handler error HA_ERR_END_OF_FILE; the event's master log master-bin.000002, end_log_pos END_LOG_POS
+call mtr.add_suppression("Slave: Can't find record in 't3' Error_code: 1032");
 SET GLOBAL sql_slave_skip_counter=1;
 START SLAVE;
 ########################################################################
@@ -146,6 +145,10 @@ slave-bin.000001	#	Write_rows_v1	1	#	table_id: #
 slave-bin.000001	#	Write_rows_v1	1	#	table_id: #
 slave-bin.000001	#	Write_rows_v1	1	#	table_id: # flags: STMT_END_F
 slave-bin.000001	#	Query	1	#	COMMIT
+slave-bin.000001	#	Gtid	2	#	BEGIN GTID 0-2-27
+slave-bin.000001	#	Table_map	2	#	table_id: # (mtr.test_suppressions)
+slave-bin.000001	#	Write_rows_v1	2	#	table_id: # flags: STMT_END_F
+slave-bin.000001	#	Query	2	#	COMMIT
 slave-bin.000001	#	Rotate	2	#	slave-bin.000002;pos=4
 # 
 ########################################################################
