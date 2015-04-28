@@ -40,7 +40,7 @@ void wsrep_cleanup_transaction(THD *thd)
   thd->wsrep_ws_handle.trx_id= WSREP_UNDEFINED_TRX_ID;
   thd->wsrep_trx_meta.gtid= WSREP_GTID_UNDEFINED;
   thd->wsrep_trx_meta.depends_on= WSREP_SEQNO_UNDEFINED;
-  if (thd->wsrep_exec_mode != LOCAL_FLUSH) thd->wsrep_exec_mode= LOCAL_STATE;
+  thd->wsrep_exec_mode= LOCAL_STATE;
   return;
 }
 

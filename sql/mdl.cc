@@ -3373,4 +3373,21 @@ void MDL_ticket::wsrep_report(bool debug)
          psi_stage->m_name);
     }
 }
+bool MDL_context::wsrep_has_explicit_locks()
+{
+  MDL_ticket *ticket = NULL;
+
+  Ticket_iterator it(m_tickets[MDL_EXPLICIT]);
+
+  while ((ticket = it++))
+  {
+    if (ticket->m_type == MDL_EXCLUSIVE)
+    {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 #endif /* WITH_WSREP */

@@ -1500,7 +1500,7 @@ wsrep_grant_mdl_exception(MDL_context *requestor_ctx,
       ret = TRUE;
     }
     else if (granted_thd->lex->sql_command == SQLCOM_FLUSH ||
-             granted_thd->wsrep_exec_mode == LOCAL_FLUSH)
+             granted_thd->mdl_context.wsrep_has_explicit_locks())
     {
       WSREP_DEBUG("BF thread waiting for FLUSH");
       ticket->wsrep_report(wsrep_debug);

@@ -30,8 +30,6 @@ class THD;
 enum wsrep_exec_mode {
   /* Transaction processing before replication. */
   LOCAL_STATE,
-  /* Local flush. */
-  LOCAL_FLUSH,
   /* Slave thread applying write sets from other nodes or replaying thread. */
   REPL_RECV,
   /* Total-order-isolation mode */

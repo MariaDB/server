@@ -934,7 +934,8 @@ private:
 public:
 #ifdef WITH_WSREP
   THD *wsrep_get_thd() const { return get_thd(); }
-#endif
+  bool wsrep_has_explicit_locks();
+#endif /* WITH_WSREP */
   void find_deadlock();
 
   ulong get_thread_id() const { return thd_get_thread_id(get_thd()); }

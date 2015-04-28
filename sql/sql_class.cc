@@ -861,7 +861,6 @@ extern "C" const char *wsrep_thd_exec_mode_str(THD *thd)
   return 
     (!thd) ? "void" :
     (thd->wsrep_exec_mode == LOCAL_STATE)  ? "local"         :
-    (thd->wsrep_exec_mode == LOCAL_FLUSH)  ? "flush"         :
     (thd->wsrep_exec_mode == REPL_RECV)    ? "applier"       :
     (thd->wsrep_exec_mode == TOTAL_ORDER)  ? "total order"   : 
     (thd->wsrep_exec_mode == LOCAL_COMMIT) ? "local commit"  : "void";
