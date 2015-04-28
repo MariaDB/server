@@ -5,6 +5,12 @@
 --source include/galera_cluster.inc
 --source include/have_innodb.inc
 
+# Save original auto_increment_offset values.
+--connection node_1
+let $auto_increment_offset_node_1 = `SELECT @@global.auto_increment_offset`;
+--connection node_2
+let $auto_increment_offset_node_2 = `SELECT @@global.auto_increment_offset`;
+
 --connection node_1
 CREATE TABLE t1 (f1 INTEGER) ENGINE=InnoDB;
 INSERT INTO t1 VALUES (1);
@@ -21,3 +27,12 @@ SELECT COUNT(*) = 1 FROM t1;
 SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
 
 DROP TABLE t1;
+
+--disable_query_log
+# Restore original auto_increment_offset values.
+--connection node_1
+--eval SET @@global.auto_increment_offset = $auto_increment_offset_node_1;
+--connection node_2a
+--eval SET @@global.auto_increment_offset = $auto_increment_offset_node_2;
+--enable_query_log
+

@@ -49,12 +49,3 @@ VARIABLE_VALUE = 'Primary'
 SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
 VARIABLE_VALUE = 2
 1
-CALL mtr.add_suppression("WSREP: .*Backend not supported: foo.*");
-CALL mtr.add_suppression("WSREP: .*Failed to initialize backend using 'foo.*");
-CALL mtr.add_suppression("WSREP: .*Failed to open channel 'my_wsrep_cluster' at 'foo*");
-CALL mtr.add_suppression("WSREP: gcs connect failed: Socket type not supported");
-CALL mtr.add_suppression("WSREP: failed to open gcomm backend connection: 110: failed to reach primary view: 110 \\(Connection timed out\\)");
-CALL mtr.add_suppression("WSREP: .*Failed to open backend connection: -110 \\(Connection timed out\\)");
-CALL mtr.add_suppression("WSREP: .*Failed to open channel 'my_wsrep_cluster' at 'gcomm://192\\.0\\.2\\.1': -110 \\(Connection timed out\\)");
-CALL mtr.add_suppression("WSREP: gcs connect failed: Connection timed out");
-CALL mtr.add_suppression("WSREP: wsrep::connect\\(\\) failed: 7");
