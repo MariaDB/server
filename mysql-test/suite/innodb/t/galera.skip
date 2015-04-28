@@ -22,3 +22,28 @@ innodb_bug59733 : Test contains statements unsafe to replicate in statement-base
 innodb_gis : Test contains statements unsafe to replicate in statement-based replication
 innodb_prefix_index_restart_server : crash, lp1372288
 innodb_stats_external_pages : Test contains statements unsafe to replicate in statement-based replication
+innodb-2byte-collation : Unsafe statement written to the binary log
+innodb-change-buffer-recovery : Test contains statements unsafe to replicate in statement-based replication
+innodb_bug53756 : Cannot execute statement: impossible to write to binary log since BINLOG_FORMAT = STATEMENT
+innodb-alter-autoinc : AUTO_INCREMENT differences
+innodb_bug13635833 : Test contains statements unsafe to replicate in statement-based replication
+innodb_bug13867871 : mysql-wsrep#3 - innodb_bug13867871 test fails with wsrep loaded
+innodb_bug14006907 : DDL lock wait timeout
+innodb_bug38231 : Deadlock on UNLOCK TABLE
+innodb_bug-13628249 : mysql-wsrep#12 InnoDB: Failing assertion: !srv_read_only_mode with server restart 
+innodb-wl6445-1 : mysql-wsrep#12 InnoDB: Failing assertion: !srv_read_only_mode with server restart
+innodb-wl6445-2 : mysql-wsrep#12 InnoDB: Failing assertion: !srv_read_only_mode with server restart
+innodb_bug12400341 : Test does not account for applier threads when performing SHOW PROCESSLIST
+innodb-blob : 'Cannot execute statement: impossible to write to binary log since BINLOG_FORMAT = STATEMENT and at least one table uses a storage engine limited to row-based logging'
+innodb_corrupt_bit : 'Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT.'
+innodb-index-online : ALTER succeeds as it is given a higher priority
+innodb-table-online : ALTER succeeds as it is given a higher priority
+innodb-index-online-purge : ALTER succeeds as it is given a higher priority
+innodb-wl5522-debug : Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT.
+innodb_stats_table_flag_auto_recalc : Performs multiple restarts in a row which causes '1047: Unknown command' errors
+innodb_stats : mysql-wsrep#114 Regression: Assertion thd->wsrep_exec_mode == LOCAL_STATE failed in wsrep_to_isolation_begin
+innodb_stats_auto_recalc_on_nonexistent : mysql-wsrep#114 Regression: Assertion thd->wsrep_exec_mode == LOCAL_STATE failed in wsrep_to_isolation_begin
+innodb_stats_fetch : mysql-wsrep#114 Regression: Assertion thd->wsrep_exec_mode == LOCAL_STATE failed in wsrep_to_isolation_begin
+innodb_stats_fetch_corrupted : mysql-wsrep#114 Regression: Assertion thd->wsrep_exec_mode == LOCAL_STATE failed in wsrep_to_isolation_begin
+innodb_stats_fetch_nonexistent : mysql-wsrep#114 Regression: Assertion thd->wsrep_exec_mode == LOCAL_STATE failed in wsrep_to_isolation_begin
+
