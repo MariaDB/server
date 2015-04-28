@@ -4818,7 +4818,7 @@ err_during_init:
   */
   thd->temporary_tables = 0; // remove tempation from destructor to close them
   THD_CHECK_SENTRY(thd);
-  serial_rgi->thd= rli->sql_driver_thd= 0;
+  rli->sql_driver_thd= 0;
   mysql_mutex_lock(&LOCK_thread_count);
   THD_CHECK_SENTRY(thd);
   thd->rgi_fake= thd->rgi_slave= NULL;
