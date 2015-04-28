@@ -62,7 +62,7 @@ handler::multi_range_read_info_const(uint keyno, RANGE_SEQ_IF *seq,
   range_seq_t seq_it;
   ha_rows rows, total_rows= 0;
   uint n_ranges=0;
-  THD *thd= current_thd;
+  THD *thd= table->in_use;
   
   /* Default MRR implementation doesn't need buffer */
   *bufsz= 0;
@@ -814,7 +814,7 @@ int DsMrr_impl::dsmrr_init(handler *h_arg, RANGE_SEQ_IF *seq_funcs,
                            void *seq_init_param, uint n_ranges, uint mode,
                            HANDLER_BUFFER *buf)
 {
-  THD *thd= current_thd;
+  THD *thd= h_arg->get_table()->in_use;
   int res;
   Key_parameters keypar;
   uint UNINIT_VAR(key_buff_elem_size); /* set/used when do_sort_keys==TRUE */
@@ -1573,7 +1573,7 @@ bool DsMrr_impl::choose_mrr_impl(uint keyno, ha_rows rows, uint *flags,
 {
   Cost_estimate dsmrr_cost;
   bool res;
-  THD *thd= current_thd;
+  THD *thd= primary_file->get_table()->in_use;
   TABLE_SHARE *share= primary_file->get_table_share();
 
   bool doing_cpk_scan= check_cpk_scan(thd, share, keyno, *flags); 

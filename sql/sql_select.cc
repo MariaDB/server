@@ -12502,14 +12502,14 @@ static bool check_simple_equality(THD *thd, Item *left_item, Item *right_item,
     if (left_copyfl)
     {
       /* left_item_equal of an upper level contains left_item */
-      left_item_equal= new (thd->mem_root) Item_equal(left_item_equal);
+      left_item_equal= new (thd->mem_root) Item_equal(thd, left_item_equal);
       left_item_equal->set_context_field(((Item_field*) left_item));
       cond_equal->current_level.push_back(left_item_equal);
     }
     if (right_copyfl)
     {
       /* right_item_equal of an upper level contains right_item */
-      right_item_equal= new (thd->mem_root) Item_equal(right_item_equal);
+      right_item_equal= new (thd->mem_root) Item_equal(thd, right_item_equal);
       right_item_equal->set_context_field(((Item_field*) right_item));
       cond_equal->current_level.push_back(right_item_equal);
     }
@@ -12537,7 +12537,8 @@ static bool check_simple_equality(THD *thd, Item *left_item, Item *right_item,
       else 
       {
         /* None of the fields was found in multiple equalities */
-        Item_equal *item_equal= new (thd->mem_root) Item_equal(orig_left_item,
+        Item_equal *item_equal= new (thd->mem_root) Item_equal(thd,
+                                                               orig_left_item,
                                                                orig_right_item,
                                                                FALSE);
         item_equal->set_context_field((Item_field*)left_item);
@@ -12596,7 +12597,7 @@ static bool check_simple_equality(THD *thd, Item *left_item, Item *right_item,
                                                field_item->field, &copyfl);
       if (copyfl)
       {
-        item_equal= new (thd->mem_root) Item_equal(item_equal);
+        item_equal= new (thd->mem_root) Item_equal(thd, item_equal);
         cond_equal->current_level.push_back(item_equal);
         item_equal->set_context_field(field_item);
       }
@@ -12611,8 +12612,8 @@ static bool check_simple_equality(THD *thd, Item *left_item, Item *right_item,
       }
       else
       {
-        item_equal= new (thd->mem_root) Item_equal(const_item, orig_field_item,
-                                                   TRUE);
+        item_equal= new (thd->mem_root) Item_equal(thd, const_item,
+                                                   orig_field_item, TRUE);
         item_equal->set_context_field(field_item);
         cond_equal->current_level.push_back(item_equal, thd->mem_root);
       }

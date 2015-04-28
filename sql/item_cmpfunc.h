@@ -1904,12 +1904,8 @@ public:
 
   COND_EQUAL *upper_levels;       /* multiple equalities of upper and levels */
 
-  inline Item_equal()
-    : Item_bool_func(), with_const(FALSE), eval_item(0), cond_false(0),
-      context_field(NULL)
-  { const_item_cache=0; sargable= TRUE; }
-  Item_equal(Item *f1, Item *f2, bool with_const_item);
-  Item_equal(Item_equal *item_equal);
+  Item_equal(THD *thd_arg, Item *f1, Item *f2, bool with_const_item);
+  Item_equal(THD *thd_arg, Item_equal *item_equal);
   /* Currently the const item is always the first in the list of equal items */
   inline Item* get_const() { return with_const ? equal_items.head() : NULL; }
   void add_const(THD *thd, Item *c, Item *f = NULL);

@@ -5628,14 +5628,14 @@ Item *Item_bool_rowready_func2::negated_item()
   of the type Item_field or Item_direct_view_ref(Item_field). 
 */
 
-Item_equal::Item_equal(Item *f1, Item *f2, bool with_const_item)
+Item_equal::Item_equal(THD *thd_arg, Item *f1, Item *f2, bool with_const_item)
   : Item_bool_func(), eval_item(0), cond_false(0), cond_true(0), 
     context_field(NULL), link_equal_fields(FALSE)
 {
   const_item_cache= 0;
   with_const= with_const_item;
-  equal_items.push_back(f1);
-  equal_items.push_back(f2);
+  equal_items.push_back(f1, thd_arg->mem_root);
+  equal_items.push_back(f2, thd_arg->mem_root);
   compare_as_dates= with_const_item && f2->cmp_type() == TIME_RESULT;
   upper_levels= NULL;
   sargable= TRUE; 
@@ -5654,7 +5654,7 @@ Item_equal::Item_equal(Item *f1, Item *f2, bool with_const_item)
   outer join).
 */
 
-Item_equal::Item_equal(Item_equal *item_equal)
+Item_equal::Item_equal(THD *thd_arg, Item_equal *item_equal)
   : Item_bool_func(), eval_item(0), cond_false(0), cond_true(0),
      context_field(NULL), link_equal_fields(FALSE)
 {
@@ -5663,7 +5663,7 @@ Item_equal::Item_equal(Item_equal *item_equal)
   Item *item;
   while ((item= li++))
   {
-    equal_items.push_back(item);
+    equal_items.push_back(item, thd_arg->mem_root);
   }
   with_const= item_equal->with_const;
   compare_as_dates= item_equal->compare_as_dates;

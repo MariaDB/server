@@ -50,7 +50,7 @@ if (my_b_write((file),(uchar*) (from),param->ref_length)) \
 
 static uchar *read_buffpek_from_file(IO_CACHE *buffer_file, uint count,
                                      uchar *buf);
-static ha_rows find_all_keys(Sort_param *param,SQL_SELECT *select,
+static ha_rows find_all_keys(THD *thd, Sort_param *param, SQL_SELECT *select,
                              Filesort_info *fs_info,
                              IO_CACHE *buffer_file,
                              IO_CACHE *tempfile,
@@ -294,7 +294,7 @@ ha_rows filesort(THD *thd, TABLE *table, SORT_FIELD *sortorder, uint s_length,
 
   param.sort_form= table;
   param.end=(param.local_sortorder=sortorder)+s_length;
-  num_rows= find_all_keys(&param, select,
+  num_rows= find_all_keys(thd, &param, select,
                           &table_sort,
                           &buffpek_pointers,
                           &tempfile, 
@@ -667,7 +667,7 @@ static void dbug_print_record(TABLE *table, bool print_rowid)
     HA_POS_ERROR on error.
 */
 
-static ha_rows find_all_keys(Sort_param *param, SQL_SELECT *select,
+static ha_rows find_all_keys(THD *thd, Sort_param *param, SQL_SELECT *select,
                              Filesort_info *fs_info,
 			     IO_CACHE *buffpek_pointers,
                              IO_CACHE *tempfile,
@@ -679,7 +679,6 @@ static ha_rows find_all_keys(Sort_param *param, SQL_SELECT *select,
   uchar *ref_pos,*next_pos,ref_buff[MAX_REFLENGTH];
   my_off_t record;
   TABLE *sort_form;
-  THD *thd= current_thd;
   handler *file;
   MY_BITMAP *save_read_set, *save_write_set, *save_vcol_set;
   
