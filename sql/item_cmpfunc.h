@@ -1768,6 +1768,8 @@ public:
     used_tables_and_const_cache_init();
     used_tables_and_const_cache_update_and_join(list);
   }
+  COND *build_equal_items(THD *thd, COND_EQUAL *inherited,
+                          bool link_item_fields);
   virtual void print(String *str, enum_query_type query_type);
   void split_sum_func(THD *thd, Item **ref_pointer_array, List<Item> &fields);
   friend int setup_conds(THD *thd, TABLE_LIST *tables, TABLE_LIST *leaves,
@@ -2078,9 +2080,9 @@ public:
 class Item_cond_and :public Item_cond
 {
 public:
-  COND_EQUAL cond_equal;  /* contains list of Item_equal objects for 
-                             the current and level and reference
-                             to multiple equalities of upper and levels */  
+  COND_EQUAL m_cond_equal;  /* contains list of Item_equal objects for 
+                               the current and level and reference
+                               to multiple equalities of upper and levels */  
   Item_cond_and() :Item_cond() {}
   Item_cond_and(Item *i1,Item *i2) :Item_cond(i1,i2) {}
   Item_cond_and(THD *thd, Item_cond_and *item) :Item_cond(thd, item) {}
@@ -2101,6 +2103,8 @@ public:
   void mark_as_condition_AND_part(TABLE_LIST *embedding);
   virtual uint exists2in_reserved_items() { return list.elements; };
   bool walk_top_and(Item_processor processor, uchar *arg);
+  COND *build_equal_items(THD *thd, COND_EQUAL *inherited,
+                          bool link_item_fields);
 };
 
 inline bool is_cond_and(Item *item)

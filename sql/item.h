@@ -1127,6 +1127,12 @@ public:
   void print_item_w_name(String *, enum_query_type query_type);
   void print_value(String *);
   virtual void update_used_tables() {}
+  virtual COND *build_equal_items(THD *thd, COND_EQUAL *inherited,
+                                  bool link_item_fields)
+  {
+    update_used_tables();
+    return this;
+  }
   virtual void split_sum_func(THD *thd, Item **ref_pointer_array,
                               List<Item> &fields) {}
   /* Called for items that really have to be split */
@@ -2128,7 +2134,19 @@ public:
 };
 
 
-class Item_ident :public Item_result_field
+class Item_ident_or_func_or_sum: public Item_result_field
+{
+public:
+  Item_ident_or_func_or_sum(): Item_result_field() { }
+  Item_ident_or_func_or_sum(THD *thd, Item_ident_or_func_or_sum *item)
+    :Item_result_field(thd, item)
+  { }
+  COND *build_equal_items(THD *thd, COND_EQUAL *inherited,
+                          bool link_item_fields);
+};
+
+
+class Item_ident :public Item_ident_or_func_or_sum
 {
 protected:
   /* 
@@ -3441,25 +3459,20 @@ public:
   An abstract class representing common features of
   regular functions and aggregate functions.
 */
-class Item_func_or_sum: public Item_result_field, public Item_args
+class Item_func_or_sum: public Item_ident_or_func_or_sum, public Item_args
 {
 public:
-  Item_func_or_sum()
-    :Item_result_field(), Item_args() {}
-  Item_func_or_sum(Item *a)
-    :Item_result_field(), Item_args(a) { }
-  Item_func_or_sum(Item *a, Item *b)
-    :Item_result_field(), Item_args(a, b) { }
-  Item_func_or_sum(Item *a, Item *b, Item *c)
-    :Item_result_field(), Item_args(a, b, c) { }
+  Item_func_or_sum() :Item_args() {}
+  Item_func_or_sum(Item *a) :Item_args(a) { }
+  Item_func_or_sum(Item *a, Item *b) :Item_args(a, b) { }
+  Item_func_or_sum(Item *a, Item *b, Item *c) :Item_args(a, b, c) { }
   Item_func_or_sum(Item *a, Item *b, Item *c, Item *d)
-    :Item_result_field(), Item_args(a, b, c, d) { }
+    :Item_args(a, b, c, d) { }
   Item_func_or_sum(Item *a, Item *b, Item *c, Item *d, Item *e)
-    :Item_result_field(), Item_args(a, b, c, d, e) { }
+    :Item_args(a, b, c, d, e) { }
   Item_func_or_sum(THD *thd, Item_func_or_sum *item)
-    :Item_result_field(thd, item), Item_args(thd, item) { }
-  Item_func_or_sum(List<Item> &list)
-    :Item_result_field(), Item_args(list) { }
+    :Item_ident_or_func_or_sum(thd, item), Item_args(thd, item) { }
+  Item_func_or_sum(List<Item> &list) :Item_args(list) { }
   bool walk(Item_processor processor, bool walk_subquery, uchar *arg)
   {
     if (walk_args(processor, walk_subquery, arg))

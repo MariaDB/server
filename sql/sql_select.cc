@@ -3865,7 +3865,7 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
     conds= remove_eq_conds(join->thd, conds, &join->cond_value);
     if (conds && conds->type() == Item::COND_ITEM &&
         ((Item_cond*) conds)->functype() == Item_func::COND_AND_FUNC)
-      join->cond_equal= &((Item_cond_and*) conds)->cond_equal;
+      join->cond_equal= &((Item_cond_and*) conds)->m_cond_equal;
     join->select_lex->where= conds;
     if (join->cond_value == Item::COND_FALSE)
     {
@@ -3878,7 +3878,7 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
     { 
       if (conds->type() == Item::COND_ITEM && 
 	  ((Item_cond*) conds)->functype() == Item_func::COND_AND_FUNC)
-        join->cond_equal= (&((Item_cond_and *) conds)->cond_equal);
+        join->cond_equal= (&((Item_cond_and *) conds)->m_cond_equal);
       else if (conds->type() == Item::FUNC_ITEM &&
 	       ((Item_func*) conds)->functype() == Item_func::MULT_EQUAL_FUNC)
       {
@@ -4050,7 +4050,7 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
 	       ((Item_cond*) (join->conds))->functype() ==
                Item_func::COND_AND_FUNC && 
                join->cond_equal ==
-	       &((Item_cond_and *) (join->conds))->cond_equal) ||
+	       &((Item_cond_and *) (join->conds))->m_cond_equal) ||
               (join->conds->type() == Item::FUNC_ITEM &&
 	       ((Item_func*) (join->conds))->functype() ==
                Item_func::MULT_EQUAL_FUNC &&
@@ -12377,7 +12377,7 @@ finish:
     general case, its own constant for each fields from the multiple
     equality. But at the same time it would allow us to get rid
     of constant propagation completely: it would be done by the call
-    to build_equal_items_for_cond.
+    to cond->build_equal_items().
 
 
     The implementation does not follow exactly the above rules to
@@ -12710,7 +12710,10 @@ static bool check_equality(THD *thd, Item *item, COND_EQUAL *cond_equal,
 
                           
 /**
-  Replace all equality predicates in a condition by multiple equality items.
+  Item_xxx::build_equal_items()
+  
+  Replace all equality predicates in a condition referenced by "this"
+  by multiple equality items.
 
     At each 'and' level the function detects items for equality predicates
     and replaced them by a set of multiple equality items of class Item_equal,
@@ -12766,7 +12769,6 @@ static bool check_equality(THD *thd, Item *item, COND_EQUAL *cond_equal,
     all possible Item_equal objects in upper levels.
 
   @param thd        thread handle
-  @param cond       condition(expression) where to make replacement
   @param inherited  path to all inherited multiple equality items
 
   @return
@@ -12775,180 +12777,195 @@ static bool check_equality(THD *thd, Item *item, COND_EQUAL *cond_equal,
     so no additional update_used_tables() is needed on the result.
 */
 
-static COND *build_equal_items_for_cond(THD *thd, COND *cond,
-                                        COND_EQUAL *inherited,
-                                        bool link_item_fields)
+COND *Item_cond_and::build_equal_items(THD *thd,
+                                       COND_EQUAL *inherited,
+                                       bool link_item_fields)
 {
   Item_equal *item_equal;
   COND_EQUAL cond_equal;
   cond_equal.upper_levels= inherited;
 
-  if (cond->type() == Item::COND_ITEM)
+  List<Item> eq_list;
+  List<Item> *args= argument_list();
+  
+  List_iterator<Item> li(*args);
+  Item *item;
+
+  /*
+     Retrieve all conjuncts of this level detecting the equality
+     that are subject to substitution by multiple equality items and
+     removing each such predicate from the conjunction after having 
+     found/created a multiple equality whose inference the predicate is.
+ */      
+  while ((item= li++))
   {
-    List<Item> eq_list;
-    Item_cond *cond_item= (Item_cond*) cond;
-    bool and_level= cond_item->functype() == Item_func::COND_AND_FUNC;
-    List<Item> *args= cond_item->argument_list();
-    
-    List_iterator<Item> li(*args);
-    Item *item;
+    /*
+      PS/SP note: we can safely remove a node from AND-OR
+      structure here because it's restored before each
+      re-execution of any prepared statement/stored procedure.
+    */
+    if (check_equality(thd, item, &cond_equal, &eq_list))
+      li.remove();
+  }
 
-    if (and_level)
+  /*
+    Check if we eliminated all the predicates of the level, e.g.
+    (a=a AND b=b AND a=a).
+  */
+  if (!args->elements && 
+      !cond_equal.current_level.elements && 
+      !eq_list.elements)
+    return new Item_int((longlong) 1, 1);
+
+  List_iterator_fast<Item_equal> it(cond_equal.current_level);
+  while ((item_equal= it++))
+  {
+    item_equal->set_link_equal_fields(link_item_fields);
+    item_equal->fix_fields(thd, NULL);
+    item_equal->update_used_tables();
+    set_if_bigger(thd->lex->current_select->max_equal_elems,
+                  item_equal->n_field_items());  
+  }
+
+  m_cond_equal.copy(cond_equal);
+  cond_equal.current_level= m_cond_equal.current_level;
+  inherited= &m_cond_equal;
+
+  /*
+     Make replacement of equality predicates for lower levels
+     of the condition expression.
+  */
+  li.rewind();
+  while ((item= li++))
+  { 
+    Item *new_item;
+    if ((new_item= item->build_equal_items(thd, inherited, FALSE))
+        != item)
     {
+      /* This replacement happens only for standalone equalities */
       /*
-         Retrieve all conjuncts of this level detecting the equality
-         that are subject to substitution by multiple equality items and
-         removing each such predicate from the conjunction after having 
-         found/created a multiple equality whose inference the predicate is.
-     */      
-      while ((item= li++))
-      {
-        /*
-          PS/SP note: we can safely remove a node from AND-OR
-          structure here because it's restored before each
-          re-execution of any prepared statement/stored procedure.
-        */
-        if (check_equality(thd, item, &cond_equal, &eq_list))
-          li.remove();
-      }
-
-      /*
-        Check if we eliminated all the predicates of the level, e.g.
-        (a=a AND b=b AND a=a).
+        This is ok with PS/SP as the replacement is done for
+        arguments of an AND/OR item, which are restored for each
+        execution of PS/SP.
       */
-      if (!args->elements && 
-          !cond_equal.current_level.elements && 
-          !eq_list.elements)
-        return new Item_int((longlong) 1, 1);
+      li.replace(new_item);
+    }
+  }
+  args->append(&eq_list);
+  args->append((List<Item> *)&cond_equal.current_level);
+  update_used_tables();
+  return this;
+}
 
-      List_iterator_fast<Item_equal> it(cond_equal.current_level);
-      while ((item_equal= it++))
+
+COND *Item_cond::build_equal_items(THD *thd,
+                                   COND_EQUAL *inherited,
+                                   bool link_item_fields)
+{
+  List<Item> *args= argument_list();
+  
+  List_iterator<Item> li(*args);
+  Item *item;
+
+  /*
+     Make replacement of equality predicates for lower levels
+     of the condition expression.
+     Update used_tables_cache and const_item_cache on the way.
+  */
+  used_tables_and_const_cache_init();
+  while ((item= li++))
+  { 
+    Item *new_item;
+    if ((new_item= item->build_equal_items(thd, inherited, FALSE))
+        != item)
+    {
+      /* This replacement happens only for standalone equalities */
+      /*
+        This is ok with PS/SP as the replacement is done for
+        arguments of an AND/OR item, which are restored for each
+        execution of PS/SP.
+      */
+      li.replace(new_item);
+    }
+    used_tables_and_const_cache_join(new_item);
+  }
+  return this;
+}
+
+
+COND *Item_ident_or_func_or_sum::build_equal_items(THD *thd,
+                                                   COND_EQUAL *inherited,
+                                                   bool link_item_fields)
+{
+  COND_EQUAL cond_equal;
+  cond_equal.upper_levels= inherited;
+  List<Item> eq_list;
+  /*
+    If an equality predicate forms the whole and level,
+    we call it standalone equality and it's processed here.
+    E.g. in the following where condition
+    WHERE a=5 AND (b=5 or a=c)
+    (b=5) and (a=c) are standalone equalities.
+    In general we can't leave alone standalone eqalities:
+    for WHERE a=b AND c=d AND (b=c OR d=5)
+    b=c is replaced by =(a,b,c,d).  
+   */
+  if (check_equality(thd, this, &cond_equal, &eq_list))
+  {
+    Item_equal *item_equal;
+    int n= cond_equal.current_level.elements + eq_list.elements;
+    if (n == 0)
+      return new Item_int((longlong) 1,1);
+    else if (n == 1)
+    {
+      if ((item_equal= cond_equal.current_level.pop()))
       {
-        item_equal->set_link_equal_fields(link_item_fields);
         item_equal->fix_fields(thd, NULL);
         item_equal->update_used_tables();
         set_if_bigger(thd->lex->current_select->max_equal_elems,
                       item_equal->n_field_items());  
+        item_equal->upper_levels= inherited;
+        return item_equal;
       }
-
-      ((Item_cond_and*)cond)->cond_equal.copy(cond_equal);
-      cond_equal.current_level=
-        ((Item_cond_and*)cond)->cond_equal.current_level;
-      inherited= &(((Item_cond_and*)cond)->cond_equal);
+      Item *res= eq_list.pop();
+      res->update_used_tables();
+      return res;
     }
-    /*
-       Make replacement of equality predicates for lower levels
-       of the condition expression.
-       Update used_tables_cache and const_item_cache on the way.
-    */
-    li.rewind();
-    cond_item->used_tables_and_const_cache_init();
-    while ((item= li++))
-    { 
-      Item *new_item;
-      if ((new_item= build_equal_items_for_cond(thd, item, inherited, FALSE))
-          != item)
-      {
-        /* This replacement happens only for standalone equalities */
-        /*
-          This is ok with PS/SP as the replacement is done for
-          arguments of an AND/OR item, which are restored for each
-          execution of PS/SP.
-        */
-        li.replace(new_item);
-      }
-      cond_item->used_tables_and_const_cache_join(new_item);
-    }
-    if (and_level)
+    else
     {
-      args->append(&eq_list);
-      args->append((List<Item> *)&cond_equal.current_level);
-      /*
-        Instead of the cond_item->update_used_tables() call below,
-        we could do this:
-        
-        cond_item->used_tables_and_const_cache_update_and_join(eq_list);
-        cond_item->used_tables_and_const_cache_update_and_join(
-                                    *(List<Item> *) &cond_equal.current_level);
-
-        But initializing 2 iterators will probably be even slower than
-        redundant iterations over the topmost elements in "args",
-        which were already processed in the "while" loop above.
+      /* 
+        Here a new AND level must be created. It can happen only
+        when a row equality is processed as a standalone predicate.
       */
-      cond_item->update_used_tables();
-    }
-    return cond_item;
-  }
-  else if (cond->type() == Item::FUNC_ITEM ||
-           cond->real_item()->type() == Item::FIELD_ITEM)
-  {
-    List<Item> eq_list;
-    /*
-      If an equality predicate forms the whole and level,
-      we call it standalone equality and it's processed here.
-      E.g. in the following where condition
-      WHERE a=5 AND (b=5 or a=c)
-      (b=5) and (a=c) are standalone equalities.
-      In general we can't leave alone standalone eqalities:
-      for WHERE a=b AND c=d AND (b=c OR d=5)
-      b=c is replaced by =(a,b,c,d).  
-     */
-    if (check_equality(thd, cond, &cond_equal, &eq_list))
-    {
-      int n= cond_equal.current_level.elements + eq_list.elements;
-      if (n == 0)
-        return new Item_int((longlong) 1,1);
-      else if (n == 1)
+      Item_cond_and *and_cond= new Item_cond_and(eq_list);
+      and_cond->quick_fix_field();
+      List<Item> *args= and_cond->argument_list();
+      List_iterator_fast<Item_equal> it(cond_equal.current_level);
+      while ((item_equal= it++))
       {
-        if ((item_equal= cond_equal.current_level.pop()))
-        {
-          item_equal->fix_fields(thd, NULL);
-          item_equal->update_used_tables();
-          set_if_bigger(thd->lex->current_select->max_equal_elems,
-                        item_equal->n_field_items());  
-          item_equal->upper_levels= inherited;
-          return item_equal;
-	}
-        Item *res= eq_list.pop();
-        res->update_used_tables();
-        return res;
+        item_equal->fix_length_and_dec();
+        item_equal->update_used_tables();
+        set_if_bigger(thd->lex->current_select->max_equal_elems,
+                      item_equal->n_field_items());  
       }
-      else
-      {
-        /* 
-          Here a new AND level must be created. It can happen only
-          when a row equality is processed as a standalone predicate.
-	*/
-        Item_cond_and *and_cond= new Item_cond_and(eq_list);
-        and_cond->quick_fix_field();
-        List<Item> *args= and_cond->argument_list();
-        List_iterator_fast<Item_equal> it(cond_equal.current_level);
-        while ((item_equal= it++))
-        {
-          item_equal->fix_length_and_dec();
-          item_equal->update_used_tables();
-          set_if_bigger(thd->lex->current_select->max_equal_elems,
-                        item_equal->n_field_items());  
-        }
-        and_cond->cond_equal.copy(cond_equal);
-        cond_equal.current_level= and_cond->cond_equal.current_level;
-        args->append((List<Item> *)&cond_equal.current_level);
-        and_cond->update_used_tables();
-        return and_cond;
-      }
+      and_cond->m_cond_equal.copy(cond_equal);
+      cond_equal.current_level= and_cond->m_cond_equal.current_level;
+      args->append((List<Item> *)&cond_equal.current_level);
+      and_cond->update_used_tables();
+      return and_cond;
     }
-    /* 
-      For each field reference in cond, not from equal item predicates,
-      set a pointer to the multiple equality it belongs to (if there is any)
-      as soon the field is not of a string type or the field reference is
-      an argument of a comparison predicate. 
-    */ 
-    uchar* is_subst_valid= (uchar *) Item::ANY_SUBST;
-    cond= cond->compile(&Item::subst_argument_checker,
-                        &is_subst_valid, 
-                        &Item::equal_fields_propagator,
-                        (uchar *) inherited);
   }
+  /* 
+    For each field reference in cond, not from equal item predicates,
+    set a pointer to the multiple equality it belongs to (if there is any)
+    as soon the field is not of a string type or the field reference is
+    an argument of a comparison predicate. 
+  */ 
+  uchar* is_subst_valid= (uchar *) Item::ANY_SUBST;
+  COND *cond= compile(&Item::subst_argument_checker,
+                      &is_subst_valid, 
+                      &Item::equal_fields_propagator,
+                      (uchar *) inherited);
   cond->update_used_tables();
   return cond;
 }
@@ -12958,7 +12975,7 @@ static COND *build_equal_items_for_cond(THD *thd, COND *cond,
   Build multiple equalities for a condition and all on expressions that
   inherit these multiple equalities.
 
-    The function first applies the build_equal_items_for_cond function
+    The function first applies the cond->build_equal_items() method
     to build all multiple equalities for condition cond utilizing equalities
     referred through the parameter inherited. The extended set of
     equalities is returned in the structure referred by the cond_equal_ref
@@ -13035,10 +13052,10 @@ static COND *build_equal_items(JOIN *join, COND *cond,
 
   if (cond) 
   {
-    cond= build_equal_items_for_cond(thd, cond, inherited, link_equal_fields);
+    cond= cond->build_equal_items(thd, inherited, link_equal_fields);
     if (cond->type() == Item::COND_ITEM &&
         ((Item_cond*) cond)->functype() == Item_func::COND_AND_FUNC)
-      cond_equal= &((Item_cond_and*) cond)->cond_equal;
+      cond_equal= &((Item_cond_and*) cond)->m_cond_equal;
 
     else if (cond->type() == Item::FUNC_ITEM &&
              ((Item_cond*) cond)->functype() == Item_func::MULT_EQUAL_FUNC)
@@ -13516,7 +13533,7 @@ static COND* substitute_for_best_equal_field(JOIN_TAB *context_tab,
                       Item_func::COND_AND_FUNC;
     if (and_level)
     {
-      cond_equal= &((Item_cond_and *) cond)->cond_equal;
+      cond_equal= &((Item_cond_and *) cond)->m_cond_equal;
       cond_list->disjoin((List<Item> *) &cond_equal->current_level);/* remove Item_equal objects from the AND. */
 
       List_iterator_fast<Item_equal> it(cond_equal->current_level);      
@@ -14667,7 +14684,7 @@ optimize_cond(JOIN *join, COND *conds,
     conds= remove_eq_conds(thd, conds, cond_value);
     if (conds && conds->type() == Item::COND_ITEM &&
         ((Item_cond*) conds)->functype() == Item_func::COND_AND_FUNC)
-      *cond_equal= &((Item_cond_and*) conds)->cond_equal;
+      *cond_equal= &((Item_cond_and*) conds)->m_cond_equal;
     DBUG_EXECUTE("info",print_where(conds,"after remove", QT_ORDINARY););
   }
   DBUG_RETURN(conds);
@@ -14708,8 +14725,8 @@ void propagate_new_equalities(THD *thd, Item *cond,
     if (and_level)
     {
       Item_cond_and *cond_and= (Item_cond_and *) cond; 
-      List<Item_equal> *cond_equalities= &cond_and->cond_equal.current_level;
-      cond_and->cond_equal.upper_levels= inherited;
+      List<Item_equal> *cond_equalities= &cond_and->m_cond_equal.current_level;
+      cond_and->m_cond_equal.upper_levels= inherited;
       if (!cond_equalities->is_empty() && cond_equalities != new_equalities)
       {
         Item_equal *equal_item;
@@ -14735,7 +14752,7 @@ void propagate_new_equalities(THD *thd, Item *cond,
     while ((item= li++))
     {
       COND_EQUAL *new_inherited= and_level && item->type() == Item::COND_ITEM ?
-	                           &((Item_cond_and *) cond)->cond_equal :
+                                   &((Item_cond_and *) cond)->m_cond_equal :
                                    inherited;
       propagate_new_equalities(thd, item, new_equalities, new_inherited,
                                is_simplifiable_cond);
@@ -14920,7 +14937,7 @@ internal_remove_eq_conds(THD *thd, COND *cond, Item::cond_result *cond_value)
         So it's easier  to do it at one pass through the list of the equalities.
       */ 
        List<Item_equal> *cond_equalities=
-        &((Item_cond_and *) cond)->cond_equal.current_level;
+        &((Item_cond_and *) cond)->m_cond_equal.current_level;
        cond_arg_list->disjoin((List<Item> *) cond_equalities);
        List_iterator<Item_equal> it(*cond_equalities);
        Item_equal *eq_item;
@@ -14976,7 +14993,7 @@ internal_remove_eq_conds(THD *thd, COND *cond, Item::cond_result *cond_value)
               of cond_arg_list. 
 	    */
             List<Item_equal> *new_item_equalities=
-              &((Item_cond_and *) new_item)->cond_equal.current_level;
+              &((Item_cond_and *) new_item)->m_cond_equal.current_level;
             if (!new_item_equalities->is_empty())
 	    {
               /*
@@ -15062,7 +15079,7 @@ internal_remove_eq_conds(THD *thd, COND *cond, Item::cond_result *cond_value)
         These multiple equalities are to be merged into the
         multiple equalities of  cond_arg_list.
       */
-      COND_EQUAL *cond_equal= &((Item_cond_and *) cond)->cond_equal;
+      COND_EQUAL *cond_equal= &((Item_cond_and *) cond)->m_cond_equal;
       List<Item_equal> *cond_equalities= &cond_equal->current_level;
       cond_arg_list->disjoin((List<Item> *) cond_equalities);
       Item_equal *equality;
