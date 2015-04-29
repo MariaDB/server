@@ -4244,7 +4244,6 @@ bool select_create::send_eof()
     DBUG_RETURN(1);
   }
 
-  exit_done= 1;                                 // Avoid double calls
   /*
     Do an implicit commit at end of statement for non-temporary
     tables.  This can fail, but we should unlock the table
@@ -4270,6 +4269,9 @@ bool select_create::send_eof()
   }
   else if (!thd->is_current_stmt_binlog_format_row())
     table->s->table_creation_was_logged= 1;
+
+  /* exit_done must only be set after last potential call to abort_result_set() */
+  exit_done= 1;                                 // Avoid double calls
 
   table->file->extra(HA_EXTRA_NO_IGNORE_DUP_KEY);
   table->file->extra(HA_EXTRA_WRITE_CANNOT_REPLACE);
