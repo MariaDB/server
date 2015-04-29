@@ -25,5 +25,36 @@ echo "*** must be NULL ***";
 select master_pos_wait('foo', 98);
 
 # End of 4.1 tests
+
+
+--echo *** MDEV-7130: MASTER_POS_WAIT(log_name,log_pos,timeout,"connection_name") hangs, does not respect the timeout ***
+
+--connection slave
+--source include/stop_slave.inc
+reset slave all;
+--replace_result $MASTER_MYPORT MASTER_MYPORT
+eval change master 'my_slave' to master_port=$MASTER_MYPORT, master_host='127.0.0.1', master_user='root';
+set default_master_connection = 'my_slave';
+--source include/start_slave.inc
+
+--echo # Call without connection name -- works (expected -1)
+select master_pos_wait('master-bin.000001',1000000,1);
+
+set default_master_connection = '';
+
+--echo # Call for non-existing anonymous connection -- works (expected NULL)
+select master_pos_wait('master-bin.000001',1000000,1);
+
+--echo # Call with a valid connection name -- hangs before MDEV-7130 fix (expected -1)
+select master_pos_wait('master-bin.000001',1000000,1,"my_slave");
+
+STOP SLAVE 'my_slave';
+RESET SLAVE 'my_slave' ALL;
+
+--replace_result $MASTER_MYPORT MASTER_MYPORT
+eval change master to master_port=$MASTER_MYPORT, master_host='127.0.0.1', master_user='root';
+
+# End of 10.0 tests
+
 --let $rpl_only_running_threads= 1
 --source include/rpl_end.inc
