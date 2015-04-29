@@ -444,6 +444,17 @@ public:
   */
   table_map used_tables() const { return used_tables_cache; }
   void update_used_tables ();
+  COND *build_equal_items(THD *thd, COND_EQUAL *inherited,
+                          bool link_item_fields)
+  {
+    /*
+      Item_sum (and derivants) of the original WHERE/HAVING clauses
+      should already be replaced to Item_aggregate_ref by the time when
+      build_equal_items() is called. See Item::split_sum_func2().
+    */
+    DBUG_ASSERT(0);
+    return Item::build_equal_items(thd, inherited, link_item_fields);
+  }
   bool is_null() { return null_value; }
   void make_const () 
   { 

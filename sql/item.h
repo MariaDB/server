@@ -3575,6 +3575,22 @@ public:
   Item *get_tmp_table_item(THD *thd);
   table_map used_tables() const;		
   void update_used_tables(); 
+  COND *build_equal_items(THD *thd, COND_EQUAL *inherited,
+                          bool link_item_fields)
+  {
+    /*
+      Item_ref cannot refer to Item_field when build_equal_items() is called,
+      because all "WHERE/HAVING field" are already replaced to
+      "WHERE/HAVING field<>0" by this time. See normalize_cond().
+      TODO: make sure with Igor and Sanja, perhaps the below expression
+      can be simplified just to a Item::build_equal_items() call.
+    */
+    return real_type() == FIELD_ITEM ?
+           Item_ident_or_func_or_sum::build_equal_items(thd, inherited,
+                                                        link_item_fields) :
+           Item::build_equal_items(thd, inherited,
+                                   link_item_fields);
+  }
   bool const_item() const 
   {
     return (*ref)->const_item();
