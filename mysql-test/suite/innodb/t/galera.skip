@@ -41,9 +41,4 @@ innodb-table-online : ALTER succeeds as it is given a higher priority
 innodb-index-online-purge : ALTER succeeds as it is given a higher priority
 innodb-wl5522-debug : Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT.
 innodb_stats_table_flag_auto_recalc : Performs multiple restarts in a row which causes '1047: Unknown command' errors
-innodb_stats : mysql-wsrep#114 Regression: Assertion thd->wsrep_exec_mode == LOCAL_STATE failed in wsrep_to_isolation_begin
-innodb_stats_auto_recalc_on_nonexistent : mysql-wsrep#114 Regression: Assertion thd->wsrep_exec_mode == LOCAL_STATE failed in wsrep_to_isolation_begin
-innodb_stats_fetch : mysql-wsrep#114 Regression: Assertion thd->wsrep_exec_mode == LOCAL_STATE failed in wsrep_to_isolation_begin
-innodb_stats_fetch_corrupted : mysql-wsrep#114 Regression: Assertion thd->wsrep_exec_mode == LOCAL_STATE failed in wsrep_to_isolation_begin
-innodb_stats_fetch_nonexistent : mysql-wsrep#114 Regression: Assertion thd->wsrep_exec_mode == LOCAL_STATE failed in wsrep_to_isolation_begin
 
