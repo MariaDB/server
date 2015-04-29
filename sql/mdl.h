@@ -588,6 +588,7 @@ public:
 public:
 #ifdef WITH_WSREP
   void wsrep_report(bool debug);
+  bool wsrep_has_aborting_conflicting_lock;
 #endif /* WITH_WSREP */
   bool has_pending_conflicting_lock() const;
 

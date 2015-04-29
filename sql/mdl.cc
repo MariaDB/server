@@ -1542,6 +1542,7 @@ void MDL_lock::Ticket_list::add_ticket(MDL_ticket *ticket)
         if (!wsrep_grant_mdl_exception(ticket->get_ctx(), granted))
         {
           WSREP_DEBUG("MDL victim killed at add_ticket");
+	  ticket->wsrep_has_aborting_conflicting_lock = TRUE;
         }
       }
     }
@@ -2443,6 +2444,13 @@ MDL_context::acquire_lock(MDL_request *mdl_request, ulong lock_wait_timeout)
   lock= ticket->m_lock;
 
   lock->m_waiting.add_ticket(ticket);
+
+#ifdef WITH_WSREP
+  if (ticket->wsrep_has_aborting_conflicting_lock == TRUE) {
+    DBUG_PRINT("wsrep", ("Increasing timeout while waiting for victim thread to release MDL"));
+    set_timespec(abs_timeout, 20);
+  }
+#endif
 
   /*
     Once we added a pending ticket to the waiting queue,
