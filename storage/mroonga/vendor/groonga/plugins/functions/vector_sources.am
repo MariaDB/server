@@ -1,0 +1,2 @@
+vector_la_SOURCES =				\
+	vector.c

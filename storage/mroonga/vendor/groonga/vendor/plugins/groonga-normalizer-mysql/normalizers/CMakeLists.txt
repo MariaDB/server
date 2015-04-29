@@ -18,9 +18,13 @@
 set(NORMALIZERS_DIR "${GROONGA_PLUGINS_DIR}/normalizers")
 read_file_list(${CMAKE_CURRENT_SOURCE_DIR}/mysql_sources.am MYSQL_SOURCES)
 if(GROONGA_NORMALIZER_MYSQL_EMBED)
-  add_convenience_library(mysql_normalizer ${MYSQL_SOURCES})
+  add_library(mysql_normalizer STATIC ${MYSQL_SOURCES})
   set_property(TARGET mysql_normalizer APPEND PROPERTY
     COMPILE_DEFINITIONS "GROONGA_NORMALIZER_MYSQL_EMBED")
+  set_target_properties(
+    mysql_normalizer
+    PROPERTIES
+    POSITION_INDEPENDENT_CODE ON)
 else()
   add_library(mysql_normalizer MODULE ${MYSQL_SOURCES})
   set_target_properties(mysql_normalizer PROPERTIES

@@ -40,7 +40,7 @@ INSERT INTO bugs (id, priority) VALUES (1, 10);
 INSERT INTO bugs (id, priority) VALUES (2, 3);
 INSERT INTO bugs (id, priority) VALUES (3, -2);
 
-SELECT mroonga_command("dump");
+SELECT mroonga_command("dump --dump_plugins no --dump_records no");
 
 SELECT *
        FROM bugs

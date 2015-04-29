@@ -12,26 +12,17 @@ tags TEXT COMMENT 'flags "COLUMN_VECTOR", type "tags"',
 FULLTEXT INDEX bugs_tags_index (tags) COMMENT 'table "tags"'
 ) DEFAULT CHARSET=utf8;
 INSERT INTO bugs (id, tags) VALUES (1, "Linux MySQL groonga");
-SELECT mroonga_command("dump");
-mroonga_command("dump")
+SELECT mroonga_command("dump --dump_plugins no --dump_records no");
+mroonga_command("dump --dump_plugins no --dump_records no")
 table_create tags TABLE_PAT_KEY ShortText --default_tokenizer TokenDelimit
 column_create tags name COLUMN_SCALAR ShortText
+
 table_create bugs TABLE_PAT_KEY UInt32
 column_create bugs id COLUMN_SCALAR UInt32
+
 column_create bugs tags COLUMN_VECTOR tags
+
 column_create tags bugs_tags_index COLUMN_INDEX|WITH_POSITION bugs tags
-load --table tags
-[
-["_key","name"],
-["Linux",""],
-["MySQL",""],
-["groonga",""]
-]
-load --table bugs
-[
-["_key","id","tags"],
-[1,1,["Linux","MySQL","groonga"]]
-]
 SELECT *, MATCH (tags) AGAINST ("+MySQL" IN BOOLEAN MODE) AS score
 FROM bugs
 WHERE MATCH (tags) AGAINST ("+MySQL" IN BOOLEAN MODE);

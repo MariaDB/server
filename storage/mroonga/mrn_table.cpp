@@ -1,7 +1,7 @@
 /* -*- c-basic-offset: 2 -*- */
 /*
   Copyright(C) 2011-2013 Kentoku SHIBA
-  Copyright(C) 2011-2014 Kouhei Sutou <kou@clear-code.com>
+  Copyright(C) 2011-2015 Kouhei Sutou <kou@clear-code.com>
 
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -24,15 +24,27 @@
 #  include <sql_servers.h>
 #  include <sql_base.h>
 #endif
+#ifdef WITH_PARTITION_STORAGE_ENGINE
+#  include <partition_info.h>
+#endif
+#include <sql_plugin.h>
+
 #include "mrn_err.h"
 #include "mrn_table.hpp"
 #include "mrn_mysql_compat.h"
+#include "mrn_variables.hpp"
 #include <mrn_lock.hpp>
 
 #if MYSQL_VERSION_ID >= 50603 && !defined(MRN_MARIADB_P)
 #  define MRN_HA_RESOLVE_BY_NAME(name) ha_resolve_by_name(NULL, (name), TRUE)
 #else
 #  define MRN_HA_RESOLVE_BY_NAME(name) ha_resolve_by_name(NULL, (name))
+#endif
+
+#if MYSQL_VERSION_ID >= 50706 && !defined(MRN_MARIADB_P)
+#  define MRN_PLUGIN_DATA(plugin, type) plugin_data<type>(plugin)
+#else
+#  define MRN_PLUGIN_DATA(plugin, type) plugin_data(plugin, type)
 #endif
 
 #define LEX_STRING_IS_EMPTY(string)                                     \
@@ -47,21 +59,21 @@
 extern HASH *mrn_table_def_cache;
 #endif
 
-#ifdef HAVE_PSI_INTERFACE
-#ifdef WIN32
-#  ifdef MRN_TABLE_SHARE_HAVE_LOCK_SHARE
-extern PSI_mutex_key *mrn_table_share_lock_share;
-#  endif
-#  ifdef MRN_TABLE_SHARE_HAVE_LOCK_HA_DATA
-extern PSI_mutex_key *mrn_table_share_lock_ha_data;
-#  endif
-#endif
-extern PSI_mutex_key mrn_share_mutex_key;
-extern PSI_mutex_key mrn_long_term_share_auto_inc_mutex_key;
-#endif
-
 #ifdef __cplusplus
 extern "C" {
+#endif
+
+#ifdef HAVE_PSI_INTERFACE
+#  ifdef WIN32
+#    ifdef MRN_TABLE_SHARE_HAVE_LOCK_SHARE
+extern PSI_mutex_key *mrn_table_share_lock_share;
+#    endif
+#    ifdef MRN_TABLE_SHARE_HAVE_LOCK_HA_DATA
+extern PSI_mutex_key *mrn_table_share_lock_ha_data;
+#    endif
+#  endif
+extern PSI_mutex_key mrn_share_mutex_key;
+extern PSI_mutex_key mrn_long_term_share_auto_inc_mutex_key;
 #endif
 
 extern HASH mrn_open_tables;
@@ -135,7 +147,7 @@ static char *mrn_get_string_between_quote(const char *ptr)
     DBUG_RETURN(NULL);
 
   size_t length = end_ptr - start_ptr;
-  char *extracted_string = (char *)my_malloc(length + 1, MYF(MY_WME));
+  char *extracted_string = (char *)mrn_my_malloc(length + 1, MYF(MY_WME));
   if (esc_flg) {
     size_t extracted_index = 0;
     const char *current_ptr = start_ptr;
@@ -372,9 +384,9 @@ int mrn_parse_table_param(MRN_SHARE *share, TABLE *table)
     }
 
     {
-      params_string = my_strndup(params_string_value,
-                                 params_string_length,
-                                 MYF(MY_WME));
+      params_string = mrn_my_strndup(params_string_value,
+                                     params_string_length,
+                                     MYF(MY_WME));
       if (!params_string) {
         error = HA_ERR_OUT_OF_MEM;
         goto error;
@@ -437,9 +449,9 @@ int mrn_parse_table_param(MRN_SHARE *share, TABLE *table)
   {
     share->engine_length = strlen(mrn_default_wrapper_engine);
     if (
-      !(share->engine = my_strndup(mrn_default_wrapper_engine,
-                                   share->engine_length,
-                                   MYF(MY_WME)))
+      !(share->engine = mrn_my_strndup(mrn_default_wrapper_engine,
+                                       share->engine_length,
+                                       MYF(MY_WME)))
     ) {
       error = HA_ERR_OUT_OF_MEM;
       goto error;
@@ -471,7 +483,7 @@ int mrn_parse_table_param(MRN_SHARE *share, TABLE *table)
         error = ER_UNKNOWN_STORAGE_ENGINE;
         goto error;
       }
-      share->hton = plugin_data(share->plugin, handlerton *);
+      share->hton = MRN_PLUGIN_DATA(share->plugin, handlerton *);
       share->wrapper_mode = TRUE;
     }
   }
@@ -507,7 +519,7 @@ int mrn_add_index_param(MRN_SHARE *share, KEY *key_info, int i)
       my_free(share->key_parser[i]);
     }
     if (
-      !(share->key_parser[i] = my_strdup(mrn_default_parser, MYF(MY_WME)))
+      !(share->key_parser[i] = mrn_my_strdup(mrn_default_parser, MYF(MY_WME)))
     ) {
       error = HA_ERR_OUT_OF_MEM;
       goto error;
@@ -517,9 +529,9 @@ int mrn_add_index_param(MRN_SHARE *share, KEY *key_info, int i)
   }
   DBUG_PRINT("info", ("mroonga create comment string"));
   if (
-    !(param_string = my_strndup(key_info->comment.str,
-                                key_info->comment.length,
-                                MYF(MY_WME)))
+    !(param_string = mrn_my_strndup(key_info->comment.str,
+                                    key_info->comment.length,
+                                    MYF(MY_WME)))
   ) {
     error = HA_ERR_OUT_OF_MEM;
     goto error_alloc_param_string;
@@ -569,7 +581,7 @@ int mrn_add_index_param(MRN_SHARE *share, KEY *key_info, int i)
 #endif
   if (!share->key_parser[i]) {
     if (
-      !(share->key_parser[i] = my_strdup(mrn_default_parser, MYF(MY_WME)))
+      !(share->key_parser[i] = mrn_my_strdup(mrn_default_parser, MYF(MY_WME)))
     ) {
       error = HA_ERR_OUT_OF_MEM;
       goto error;
@@ -630,9 +642,9 @@ int mrn_add_column_param(MRN_SHARE *share, Field *field, int i)
 
   DBUG_PRINT("info", ("mroonga create comment string"));
   if (
-    !(param_string = my_strndup(field->comment.str,
-                                field->comment.length,
-                                MYF(MY_WME)))
+    !(param_string = mrn_my_strndup(field->comment.str,
+                                    field->comment.length,
+                                    MYF(MY_WME)))
   ) {
     error = HA_ERR_OUT_OF_MEM;
     goto error_alloc_param_string;
@@ -768,7 +780,7 @@ MRN_LONG_TERM_SHARE *mrn_get_long_term_share(const char *table_name,
                    table_name_length)))
   {
     if (!(long_term_share = (MRN_LONG_TERM_SHARE *)
-      my_multi_malloc(MYF(MY_WME | MY_ZEROFILL),
+      mrn_my_multi_malloc(MYF(MY_WME | MY_ZEROFILL),
         &long_term_share, sizeof(*long_term_share),
         &tmp_name, table_name_length + 1,
         NullS))
@@ -817,7 +829,7 @@ MRN_SHARE *mrn_get_share(const char *table_name, TABLE *table, int *error)
     (uchar*) table_name, length)))
   {
     if (!(share = (MRN_SHARE *)
-      my_multi_malloc(MYF(MY_WME | MY_ZEROFILL),
+      mrn_my_multi_malloc(MYF(MY_WME | MY_ZEROFILL),
         &share, sizeof(*share),
         &tmp_name, length + 1,
         &index_table, sizeof(char *) * table->s->keys,
@@ -847,7 +859,7 @@ MRN_SHARE *mrn_get_share(const char *table_name, TABLE *table, int *error)
     share->col_flags_length = col_flags_length;
     share->col_type = col_type;
     share->col_type_length = col_type_length;
-    strmov(share->table_name, table_name);
+    mrn_my_stpmov(share->table_name, table_name);
     share->table_share = table->s;
 
     if (
@@ -1033,7 +1045,7 @@ TABLE_SHARE *mrn_create_tmp_table_share(TABLE_LIST *table_list, const char *path
   share->tmp_table = INTERNAL_TMP_TABLE; // TODO: is this right?
   share->path.str = (char *) path;
   share->path.length = strlen(share->path.str);
-  share->normalized_path.str = my_strdup(path, MYF(MY_WME));
+  share->normalized_path.str = mrn_my_strdup(path, MYF(MY_WME));
   share->normalized_path.length = strlen(share->normalized_path.str);
   if (open_table_def(thd, share, GTS_TABLE))
   {
@@ -1060,7 +1072,7 @@ KEY *mrn_create_key_info_for_table(MRN_SHARE *share, TABLE *table, int *error)
   if (share->wrap_keys)
   {
     if (!(wrap_key_info = (KEY *)
-      my_multi_malloc(MYF(MY_WME | MY_ZEROFILL),
+      mrn_my_multi_malloc(MYF(MY_WME | MY_ZEROFILL),
         &wrap_key_info, sizeof(*wrap_key_info) * share->wrap_keys,
         NullS))
     ) {

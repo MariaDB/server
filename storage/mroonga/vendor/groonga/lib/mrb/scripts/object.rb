@@ -1,7 +1,11 @@
 module Groonga
   class Object
-    def inspect
-      super[0..-2] + ": #{grn_inspect}>"
+    def domain
+      Context.instance[domain_id]
+    end
+
+    def range
+      Context.instance[range_id]
     end
   end
 end

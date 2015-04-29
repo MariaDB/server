@@ -33,7 +33,9 @@
 #include "mrb_accessor.h"
 #include "mrb_ctx.h"
 #include "mrb_expr.h"
+#include "mrb_operator.h"
 #include "mrb_converter.h"
+#include "mrb_options.h"
 
 static struct mrb_data_type mrb_grn_scan_info_type = {
   "Groonga::ScanInfo",
@@ -99,17 +101,35 @@ mrb_grn_expr_code_initialize(mrb_state *mrb, mrb_value self)
 static mrb_value
 mrb_grn_scan_info_put_index(mrb_state *mrb, mrb_value self)
 {
+  grn_ctx *ctx = (grn_ctx *)mrb->ud;
+  scan_info *si;
+  mrb_value mrb_index;
   int sid;
   int32_t weight;
-  scan_info *si;
-  grn_ctx *ctx = (grn_ctx *)mrb->ud;
+  mrb_value mrb_scorer;
+  mrb_value mrb_scorer_args_expr;
+  int32_t scorer_args_expr_offset;
   grn_obj *index;
-  mrb_value mrb_index;
+  grn_obj *scorer = NULL;
+  grn_obj *scorer_args_expr = NULL;
 
-  mrb_get_args(mrb, "oii", &mrb_index, &sid, &weight);
+  mrb_get_args(mrb, "oiiooi",
+               &mrb_index, &sid, &weight,
+               &mrb_scorer,
+               &mrb_scorer_args_expr,
+               &scorer_args_expr_offset);
   si = DATA_PTR(self);
   index = DATA_PTR(mrb_index);
-  grn_scan_info_put_index(ctx, si, index, sid, weight);
+  if (!mrb_nil_p(mrb_scorer)) {
+    scorer = DATA_PTR(mrb_scorer);
+  }
+  if (!mrb_nil_p(mrb_scorer_args_expr)) {
+    scorer_args_expr = DATA_PTR(mrb_scorer_args_expr);
+  }
+  grn_scan_info_put_index(ctx, si, index, sid, weight,
+                          scorer,
+                          scorer_args_expr,
+                          scorer_args_expr_offset);
   return self;
 }
 
@@ -121,17 +141,19 @@ mrb_grn_scan_info_get_op(mrb_state *mrb, mrb_value self)
 
   si = DATA_PTR(self);
   op = grn_scan_info_get_op(si);
-  return mrb_fixnum_value(op);
+  return grn_mrb_value_from_operator(mrb, op);
 }
 
 static mrb_value
 mrb_grn_scan_info_set_op(mrb_state *mrb, mrb_value self)
 {
   scan_info *si;
+  mrb_value mrb_op;
   grn_operator op;
 
-  mrb_get_args(mrb, "i", &op);
+  mrb_get_args(mrb, "o", &mrb_op, &op);
   si = DATA_PTR(self);
+  op = grn_mrb_value_to_operator(mrb, mrb_op);
   grn_scan_info_set_op(si, op);
   return self;
 }
@@ -191,10 +213,12 @@ static mrb_value
 mrb_grn_scan_info_set_logical_op(mrb_state *mrb, mrb_value self)
 {
   scan_info *si;
+  mrb_value mrb_logical_op;
   grn_operator logical_op;
 
-  mrb_get_args(mrb, "i", &logical_op);
+  mrb_get_args(mrb, "o", &mrb_logical_op);
   si = DATA_PTR(self);
+  logical_op = grn_mrb_value_to_operator(mrb, mrb_logical_op);
   grn_scan_info_set_logical_op(si, logical_op);
   return self;
 }
@@ -207,7 +231,7 @@ mrb_grn_scan_info_get_logical_op(mrb_state *mrb, mrb_value self)
 
   si = DATA_PTR(self);
   logical_op = grn_scan_info_get_logical_op(si);
-  return mrb_fixnum_value(logical_op);
+  return grn_mrb_value_from_operator(mrb, logical_op);
 }
 
 static mrb_value
@@ -257,33 +281,6 @@ mrb_grn_scan_info_get_similarity_threshold(mrb_state *mrb, mrb_value self)
 }
 
 static mrb_value
-mrb_grn_scan_info_set_scorer(mrb_state *mrb, mrb_value self)
-{
-  scan_info *si;
-  mrb_value mrb_scorer;
-
-  mrb_get_args(mrb, "o", &mrb_scorer);
-  si = DATA_PTR(self);
-  if (mrb_nil_p(mrb_scorer)) {
-    grn_scan_info_set_scorer(si, NULL);
-  } else {
-    grn_scan_info_set_scorer(si, DATA_PTR(mrb_scorer));
-  }
-  return self;
-}
-
-static mrb_value
-mrb_grn_scan_info_get_scorer(mrb_state *mrb, mrb_value self)
-{
-  scan_info *si;
-  grn_obj *scorer;
-
-  si = DATA_PTR(self);
-  scorer = grn_scan_info_get_scorer(si);
-  return grn_mrb_value_from_grn_obj(mrb, scorer);
-}
-
-static mrb_value
 mrb_grn_scan_info_get_arg(mrb_state *mrb, mrb_value self)
 {
   grn_ctx *ctx = (grn_ctx *)mrb->ud;
@@ -315,11 +312,86 @@ mrb_grn_scan_info_push_arg(mrb_state *mrb, mrb_value self)
 }
 
 static mrb_value
+mrb_grn_expr_code_inspect(mrb_state *mrb, mrb_value self)
+{
+  grn_ctx *ctx = (grn_ctx *)mrb->ud;
+  grn_expr_code *code;
+  mrb_value inspected;
+
+  code = DATA_PTR(self);
+
+  inspected = mrb_str_buf_new(mrb, 48);
+
+  mrb_str_cat_lit(mrb, inspected, "#<");
+  mrb_str_cat_cstr(mrb, inspected, mrb_obj_classname(mrb, self));
+  mrb_str_cat_lit(mrb, inspected, ":");
+  mrb_str_concat(mrb, inspected, mrb_ptr_to_str(mrb, mrb_cptr(self)));
+
+  {
+    int32_t weight;
+    uint32_t offset;
+
+    weight = grn_expr_code_get_weight(ctx, DATA_PTR(self), &offset);
+
+    mrb_str_cat_lit(mrb, inspected, " weight=");
+    mrb_str_concat(mrb, inspected,
+                   mrb_funcall(mrb,
+                               mrb_fixnum_value(weight),
+                               "inspect",
+                               0));
+    mrb_str_cat_lit(mrb, inspected, ", offset=");
+    mrb_str_concat(mrb, inspected,
+                   mrb_funcall(mrb,
+                               mrb_fixnum_value(offset),
+                               "inspect",
+                               0));
+  }
+
+  mrb_str_cat_lit(mrb, inspected, ", modify=");
+  mrb_str_concat(mrb, inspected,
+                 mrb_funcall(mrb,
+                             mrb_fixnum_value(code->modify),
+                             "inspect",
+                             0));
+
+  mrb_str_cat_lit(mrb, inspected, ", op=");
+  mrb_str_concat(mrb, inspected,
+                 mrb_funcall(mrb,
+                             grn_mrb_value_from_operator(mrb, code->op),
+                             "inspect",
+                             0));
+
+  mrb_str_cat_lit(mrb, inspected, ", flags=");
+  mrb_str_concat(mrb, inspected,
+                 mrb_funcall(mrb,
+                             mrb_fixnum_value(code->flags),
+                             "inspect",
+                             0));
+
+  mrb_str_cat_lit(mrb, inspected, ", value=");
+  mrb_str_concat(mrb, inspected,
+                 mrb_funcall(mrb,
+                             grn_mrb_value_from_grn_obj(mrb, code->value),
+                             "inspect",
+                             0));
+
+  mrb_str_cat_lit(mrb, inspected, ">");
+
+  return inspected;
+}
+
+static mrb_value
 mrb_grn_expr_code_get_weight(mrb_state *mrb, mrb_value self)
 {
   grn_ctx *ctx = (grn_ctx *)mrb->ud;
+  int32_t weight;
+  uint32_t offset;
+  mrb_value mrb_values[2];
 
-  return mrb_fixnum_value(grn_expr_code_get_weight(ctx, DATA_PTR(self)));
+  weight = grn_expr_code_get_weight(ctx, DATA_PTR(self), &offset);
+  mrb_values[0] = mrb_fixnum_value(weight);
+  mrb_values[1] = mrb_fixnum_value(offset);
+  return mrb_ary_new_from_values(mrb, 2, mrb_values);
 }
 
 static mrb_value
@@ -337,7 +409,7 @@ mrb_grn_expr_code_get_op(mrb_state *mrb, mrb_value self)
   grn_expr_code *expr_code;
 
   expr_code = DATA_PTR(self);
-  return mrb_fixnum_value(expr_code->op);
+  return grn_mrb_value_from_operator(mrb, expr_code->op);
 }
 
 static mrb_value
@@ -491,8 +563,7 @@ mrb_grn_expression_parse(mrb_state *mrb, mrb_value self)
   if (!mrb_nil_p(mrb_options)) {
     mrb_value mrb_flags;
 
-    mrb_flags = mrb_hash_get(mrb, mrb_options,
-                             mrb_symbol_value(mrb_intern_lit(mrb, "flags")));
+    mrb_flags = grn_mrb_options_get_lit(mrb, mrb_options, "flags");
     if (!mrb_nil_p(mrb_flags)) {
       flags = mrb_fixnum(mrb_flags);
     }
@@ -512,13 +583,15 @@ mrb_grn_expression_append_object(mrb_state *mrb, mrb_value self)
   grn_obj *expr;
   mrb_value mrb_object;
   grn_obj *object;
+  mrb_value mrb_op;
   grn_operator op;
   int n_args;
 
   expr = DATA_PTR(self);
-  mrb_get_args(mrb, "oii", &mrb_object, &op, &n_args);
+  mrb_get_args(mrb, "ooi", &mrb_object, &mrb_op, &n_args);
 
   object = DATA_PTR(mrb_object);
+  op = grn_mrb_value_to_operator(mrb, mrb_op);
   grn_expr_append_obj(ctx, expr, object, op, n_args);
   grn_mrb_ctx_check(mrb);
 
@@ -531,12 +604,14 @@ mrb_grn_expression_append_constant(mrb_state *mrb, mrb_value self)
   grn_ctx *ctx = (grn_ctx *)mrb->ud;
   grn_obj *expr;
   mrb_value mrb_constant;
+  mrb_value mrb_op;
   grn_operator op;
   int n_args;
 
   expr = DATA_PTR(self);
-  mrb_get_args(mrb, "oii", &mrb_constant, &op, &n_args);
+  mrb_get_args(mrb, "ooi", &mrb_constant, &mrb_op, &n_args);
 
+  op = grn_mrb_value_to_operator(mrb, mrb_op);
   switch (mrb_type(mrb_constant)) {
   case MRB_TT_FALSE :
     if (mrb_nil_p(mrb_constant)) {
@@ -624,12 +699,14 @@ mrb_grn_expression_append_operator(mrb_state *mrb, mrb_value self)
 {
   grn_ctx *ctx = (grn_ctx *)mrb->ud;
   grn_obj *expr;
-  grn_operator op;
+  mrb_value mrb_op;
   int n_args;
+  grn_operator op;
 
   expr = DATA_PTR(self);
-  mrb_get_args(mrb, "ii", &op, &n_args);
+  mrb_get_args(mrb, "oi", &mrb_op, &n_args);
 
+  op = grn_mrb_value_to_operator(mrb, mrb_op);
   grn_expr_append_op(ctx, expr, op, n_args);
   grn_mrb_ctx_check(mrb);
 
@@ -649,7 +726,7 @@ grn_mrb_expr_init(grn_ctx *ctx)
   mrb_define_method(mrb, klass, "initialize",
                     mrb_grn_scan_info_initialize, MRB_ARGS_REQ(1));
   mrb_define_method(mrb, klass, "put_index",
-                    mrb_grn_scan_info_put_index, MRB_ARGS_REQ(3));
+                    mrb_grn_scan_info_put_index, MRB_ARGS_REQ(6));
   mrb_define_method(mrb, klass, "op",
                     mrb_grn_scan_info_get_op, MRB_ARGS_NONE());
   mrb_define_method(mrb, klass, "op=",
@@ -674,10 +751,6 @@ grn_mrb_expr_init(grn_ctx *ctx)
                     mrb_grn_scan_info_get_similarity_threshold, MRB_ARGS_NONE());
   mrb_define_method(mrb, klass, "similarity_threshold=",
                     mrb_grn_scan_info_set_similarity_threshold, MRB_ARGS_REQ(1));
-  mrb_define_method(mrb, klass, "scorer",
-                    mrb_grn_scan_info_get_scorer, MRB_ARGS_NONE());
-  mrb_define_method(mrb, klass, "scorer=",
-                    mrb_grn_scan_info_set_scorer, MRB_ARGS_REQ(1));
   mrb_define_method(mrb, klass, "get_arg",
                     mrb_grn_scan_info_get_arg, MRB_ARGS_REQ(1));
   mrb_define_method(mrb, klass, "push_arg",
@@ -688,6 +761,8 @@ grn_mrb_expr_init(grn_ctx *ctx)
   MRB_SET_INSTANCE_TT(klass, MRB_TT_DATA);
   mrb_define_method(mrb, klass, "initialize",
                     mrb_grn_expr_code_initialize, MRB_ARGS_REQ(1));
+  mrb_define_method(mrb, klass, "inspect",
+                    mrb_grn_expr_code_inspect, MRB_ARGS_NONE());
   mrb_define_method(mrb, klass, "weight",
                     mrb_grn_expr_code_get_weight, MRB_ARGS_NONE());
   mrb_define_method(mrb, klass, "value",
@@ -696,6 +771,14 @@ grn_mrb_expr_init(grn_ctx *ctx)
                     mrb_grn_expr_code_get_op, MRB_ARGS_NONE());
   mrb_define_method(mrb, klass, "flags",
                     mrb_grn_expr_code_get_flags, MRB_ARGS_NONE());
+
+  {
+    struct RClass *expression_code_class = klass;
+    struct RClass *flags_module;
+    flags_module = mrb_define_module_under(mrb, expression_code_class, "Flags");
+    mrb_define_const(mrb, flags_module, "RELATIONAL_EXPRESSION",
+                     mrb_fixnum_value(GRN_EXPR_CODE_RELATIONAL_EXPRESSION));
+  }
 
   klass = mrb_define_class_under(mrb, module, "Expression", object_class);
   MRB_SET_INSTANCE_TT(klass, MRB_TT_DATA);
@@ -724,11 +807,6 @@ grn_mrb_expr_init(grn_ctx *ctx)
                     mrb_grn_expression_append_constant, MRB_ARGS_REQ(3));
   mrb_define_method(mrb, klass, "append_operator",
                     mrb_grn_expression_append_operator, MRB_ARGS_REQ(2));
-
-  grn_mrb_load(ctx, "expression.rb");
-  grn_mrb_load(ctx, "scan_info.rb");
-  grn_mrb_load(ctx, "scan_info_data.rb");
-  grn_mrb_load(ctx, "scan_info_builder.rb");
 }
 
 scan_info **
@@ -747,7 +825,7 @@ grn_mrb_scan_info_build(grn_ctx *ctx, grn_obj *expr, int *n,
 
   mrb_expression = grn_mrb_value_from_grn_obj(mrb, expr);
   mrb_sis = mrb_funcall(mrb, mrb_expression, "build_scan_info", 2,
-                        mrb_fixnum_value(op),
+                        grn_mrb_value_from_operator(mrb, op),
                         mrb_fixnum_value(size));
 
   if (mrb_nil_p(mrb_sis)) {
@@ -780,5 +858,32 @@ exit:
   mrb_gc_arena_restore(mrb, arena_index);
 
   return sis;
+}
+
+unsigned int
+grn_mrb_expr_estimate_size(grn_ctx *ctx, grn_obj *expr, grn_obj *table)
+{
+  grn_mrb_data *data = &(ctx->impl->mrb);
+  mrb_state *mrb = data->state;
+  mrb_value mrb_expression;
+  mrb_value mrb_table;
+  mrb_value mrb_size;
+  unsigned int size;
+  int arena_index;
+
+  arena_index = mrb_gc_arena_save(mrb);
+
+  mrb_expression = grn_mrb_value_from_grn_obj(mrb, expr);
+  mrb_table = grn_mrb_value_from_grn_obj(mrb, table);
+  mrb_size = mrb_funcall(mrb, mrb_expression, "estimate_size", 1, mrb_table);
+  if (mrb->exc) {
+    size = grn_table_size(ctx, table);
+  } else {
+    size = mrb_fixnum(mrb_size);
+  }
+
+  mrb_gc_arena_restore(mrb, arena_index);
+
+  return size;
 }
 #endif

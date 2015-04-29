@@ -1,7 +1,5 @@
-DROP DATABASE IF EXISTS repair_test;
 CREATE DATABASE repair_test;
 USE repair_test;
-DROP TABLE IF EXISTS diaries;
 CREATE TABLE diaries (
 id INT PRIMARY KEY AUTO_INCREMENT,
 title TEXT,

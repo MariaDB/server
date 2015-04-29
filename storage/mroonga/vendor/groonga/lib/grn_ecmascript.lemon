@@ -219,6 +219,9 @@ relational_expression ::= relational_expression PREFIX shift_expression. {
 relational_expression ::= relational_expression SUFFIX shift_expression. {
   grn_expr_append_op(efsi->ctx, efsi->e, GRN_OP_SUFFIX, 2);
 }
+relational_expression ::= relational_expression REGEXP shift_expression. {
+  grn_expr_append_op(efsi->ctx, efsi->e, GRN_OP_REGEXP, 2);
+}
 
 shift_expression ::= additive_expression.
 shift_expression ::= shift_expression SHIFTL additive_expression. {

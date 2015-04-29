@@ -1,5 +1,5 @@
 /* -*- c-basic-offset: 2 -*- */
-/* Copyright(C) 2009-2012 Brazil
+/* Copyright(C) 2009-2015 Brazil
 
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -187,7 +187,15 @@ GRN_API grn_id grn_table_queue_tail(grn_table_queue *queue);
 /**** grn_hash ****/
 
 #define GRN_HASH_TINY         (0x01<<6)
-#define GRN_HASH_MAX_KEY_SIZE GRN_TABLE_MAX_KEY_SIZE
+#define GRN_HASH_MAX_KEY_SIZE_NORMAL GRN_TABLE_MAX_KEY_SIZE
+#define GRN_HASH_MAX_KEY_SIZE_LARGE  (0xffff)
+
+#define GRN_HASH_IS_LARGE_KEY(hash)\
+  ((hash)->key_size > GRN_HASH_MAX_KEY_SIZE_NORMAL)
+
+typedef struct _grn_hash_header_common grn_hash_header_common;
+typedef struct _grn_hash_header_normal grn_hash_header_normal;
+typedef struct _grn_hash_header_large  grn_hash_header_large;
 
 struct _grn_hash {
   grn_db_obj obj;
@@ -205,7 +213,11 @@ struct _grn_hash {
 
   /* For grn_io_hash. */
   grn_io *io;
-  struct grn_hash_header *header;
+  union {
+    grn_hash_header_common *common;
+    grn_hash_header_normal *normal;
+    grn_hash_header_large  *large;
+  } header;
   uint32_t *lock;
   // uint32_t nref;
   // unsigned int max_n_subrecs;
@@ -230,24 +242,36 @@ struct _grn_hash {
   grn_tiny_bitmap bitmap;
 };
 
-/* Header of grn_io_hash. */
-struct grn_hash_header {
-  uint32_t flags;
-  grn_encoding encoding;
-  uint32_t key_size;
-  uint32_t value_size;
-  grn_id tokenizer;
-  uint32_t curr_rec;
-  int32_t curr_key;
-  uint32_t idx_offset;
-  uint32_t entry_size;
-  uint32_t max_offset;
-  uint32_t n_entries;
-  uint32_t n_garbages;
-  uint32_t lock;
-  grn_id normalizer;
-  uint32_t reserved[15];
-  grn_id garbages[GRN_HASH_MAX_KEY_SIZE];
+#define GRN_HASH_HEADER_COMMON_FIELDS\
+  uint32_t flags;\
+  grn_encoding encoding;\
+  uint32_t key_size;\
+  uint32_t value_size;\
+  grn_id tokenizer;\
+  uint32_t curr_rec;\
+  int32_t curr_key;\
+  uint32_t idx_offset;\
+  uint32_t entry_size;\
+  uint32_t max_offset;\
+  uint32_t n_entries;\
+  uint32_t n_garbages;\
+  uint32_t lock;\
+  grn_id normalizer;\
+  uint32_t reserved[15]
+
+struct _grn_hash_header_common {
+  GRN_HASH_HEADER_COMMON_FIELDS;
+};
+
+struct _grn_hash_header_normal {
+  GRN_HASH_HEADER_COMMON_FIELDS;
+  grn_id garbages[GRN_HASH_MAX_KEY_SIZE_NORMAL];
+  grn_table_queue queue;
+};
+
+struct _grn_hash_header_large {
+  GRN_HASH_HEADER_COMMON_FIELDS;
+  grn_id garbages[GRN_HASH_MAX_KEY_SIZE_LARGE];
   grn_table_queue queue;
 };
 

@@ -7,7 +7,9 @@ groonga_include_HEADERS =			\
 	obj.h					\
 	output.h				\
 	plugin.h				\
+	portability.h				\
 	request_canceler.h			\
+	scorer.h				\
 	token.h					\
 	tokenizer.h				\
 	token_filter.h				\

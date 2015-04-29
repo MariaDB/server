@@ -7,20 +7,30 @@ groonga-normalizer-mysql
 ## Description
 
 Groonga-normalizer-mysql is a Groonga plugin. It provides MySQL
-compatible normalizers and a custom normalizer to Groonga.
+compatible normalizers and a custom normalizers to Groonga.
 
-MySQL compatible normalizers are `NormalizerMySQLGeneralCI` and
-`NormalizerMySQLUnicodeCI`. `NormalizerMySQLGeneralCI` corresponds to
-`utf8mb4_general_ci`.  `NormalizerMySQLUnicodeCI` corresponds to
-`utf8mb4_unicode_ci`.
+Here are MySQL compatible normalizers:
 
-A custom normalizer is
-`NormalizerMySQLUnicodeCIExceptKanaCIKanaWithVoicedSoundMark`. It is
-self-descriptive name but long. It is a variant normalizer of
-`NormalizerMySQLUnicode`. It has different behaviors. The followings
-are the different behaviors.
+* `NormalizerMySQLGeneralCI` for `utf8mb4_general_ci`
+* `NormalizerMySQLUnicodeCI` for `utf8mb4_unicode_ci`
+* `NormalizerMySQLUnicode520CI` for `utf8mb4_unicode_520_ci`
 
-* `NormalizerMySQLUnicode` normalizes all small Hiragana such as `ぁ`,
+Here are custom normalizers:
+
+* `NormalizerMySQLUnicodeCIExceptKanaCIKanaWithVoicedSoundMark`
+   * It's based on `NormalizerMySQLUnicodeCI`
+* `NormalizerMySQLUnicode520CIExceptKanaCIKanaWithVoicedSoundMark`
+   * It's based on `NormalizerMySQLUnicode520CI`
+
+They are self-descriptive name but long. They are variant normalizers
+of `NormalizerMySQLUnicodeCI` and `NormalizerMySQLUnicode520CI`. They
+have different behaviors. The followings are the different
+behaviors. They describes with
+`NormalizerMySQLUnicodeCIExceptKanaCIKanaWithVoicedSoundMark` but they
+are true for
+`NormalizerMySQLUnicode520CIExceptKanaCIKanaWithVoicedSoundMark`.
+
+* `NormalizerMySQLUnicodeCI` normalizes all small Hiragana such as `ぁ`,
   `っ` to Hiragana such as `あ`, `つ`.
   `NormalizerMySQLUnicodeCIExceptKanaCIKanaWithVoicedSoundMark`
   doesn't normalize `ぁ` to `あ` nor `っ` to `つ`. `ぁ` and `あ` are
@@ -51,11 +61,12 @@ are the different behaviors.
   normalizes all halfwidth Katakana with voided sound mark such as `ｶﾞ`
   to fullwidth Katakana with voiced sound mark such as `ガ`.
 
-`NormalizerMySQLUnicodeCIExceptKanaCIKanaWithVoicedSoundMark` is MySQL
-incompatible normalizer but it is useful for Japanese text. For
-example, `ふらつく` and `ブラック` has different
-means. `NormalizerMySQLUnicodeCI` identifies `ふらつく` with `ブラック
-` but `NormalizerMySQLUnicodeCIExceptKanaCIKanaWithVoicedSoundMark
+`NormalizerMySQLUnicodeCIExceptKanaCIKanaWithVoicedSoundMark` and
+`NormalizerMySQLUnicode520CIExceptKanaCIKanaWithVoicedSoundMark` and
+are MySQL incompatible normalizers but they are useful for Japanese
+text. For example, `ふらつく` and `ブラック` has different
+means. `NormalizerMySQLUnicodeCI` identifies `ふらつく` with `ブラック`
+but `NormalizerMySQLUnicodeCIExceptKanaCIKanaWithVoicedSoundMark`
 doesn't identify them.
 
 ## Install
@@ -65,15 +76,14 @@ doesn't identify them.
 [Add apt-line for the Groonga deb package repository](http://groonga.org/docs/install/debian.html)
 and install `groonga-normalizer-mysql` package:
 
-    % sudo aptitude -V -D -y install groonga-normalizer-mysql
+    % sudo apt-get -y install groonga-normalizer-mysql
 
 ### Ubuntu
 
 [Add apt-line for the Groonga deb package repository](http://groonga.org/docs/install/ubuntu.html)
 and install `groonga-normalizer-mysql` package:
 
-    % sudo aptitude -V -D -y install groonga-normalizer-mysql
-
+    % sudo apt-get -y install groonga-normalizer-mysql
 
 ### CentOS
 
@@ -125,7 +135,7 @@ Extract the source and move to the source folder:
 
 Run CMake. Here is a command line to install Groonga to `C:\groonga` folder:
 
-    groonga-X.Y.Z> cmake . -G "Visual Studio 10 Win64" -DCMAKE_INSTALL_PREFIX=C:\groonga
+    groonga-X.Y.Z> cmake . -G "Visual Studio 12 Win64" -DCMAKE_INSTALL_PREFIX=C:\groonga
 
 Build:
 
@@ -150,7 +160,7 @@ IMPORTANT!!!: Set `PKG_CONFIG_PATH` environment variable:
 
 Run CMake. Here is a command line to install Groonga to `C:\groonga` folder:
 
-    groonga-normalizer-mysql-X.Y.Z> cmake . -G "Visual Studio 10 Win64" -DCMAKE_INSTALL_PREFIX=C:\groonga
+    groonga-normalizer-mysql-X.Y.Z> cmake . -G "Visual Studio 12 Win64" -DCMAKE_INSTALL_PREFIX=C:\groonga
 
 Build:
 
