@@ -346,6 +346,7 @@ public:
   */
   struct MDL_scoped_lock : public MDL_lock_strategy
   {
+    MDL_scoped_lock() {}
     virtual const bitmap_t *incompatible_granted_types_bitmap() const
     { return m_granted_incompatible; }
     virtual const bitmap_t *incompatible_waiting_types_bitmap() const
@@ -382,6 +383,7 @@ public:
   */
   struct MDL_object_lock : public MDL_lock_strategy
   {
+    MDL_object_lock() {}
     virtual const bitmap_t *incompatible_granted_types_bitmap() const
     { return m_granted_incompatible; }
     virtual const bitmap_t *incompatible_waiting_types_bitmap() const
@@ -741,8 +743,8 @@ MDL_lock* MDL_map::find_or_insert(LF_PINS *pins, const MDL_key *mdl_key)
   }
 
 retry:
-  while (!(lock= (MDL_lock*) lf_hash_search_using_hash_value(&m_locks, pins,
-                   mdl_key->hash_value(), mdl_key->ptr(), mdl_key->length())))
+  while (!(lock= (MDL_lock*) lf_hash_search(&m_locks, pins, mdl_key->ptr(),
+                                            mdl_key->length())))
     if (lf_hash_insert(&m_locks, pins, (uchar*) mdl_key) == -1)
       return NULL;
 
@@ -780,10 +782,8 @@ MDL_map::get_lock_owner(LF_PINS *pins, const MDL_key *mdl_key)
   }
   else
   {
-    lock= (MDL_lock*) lf_hash_search_using_hash_value(&m_locks, pins,
-                                                      mdl_key->hash_value(),
-                                                      mdl_key->ptr(),
-                                                      mdl_key->length());
+    lock= (MDL_lock*) lf_hash_search(&m_locks, pins, mdl_key->ptr(),
+                                     mdl_key->length());
     if (lock)
     {
       /*
