@@ -3737,11 +3737,11 @@ bool select_insert::send_eof()
   }
   char buff[160];
   if (info.ignore)
-    sprintf(buff, ER(ER_INSERT_INFO), (ulong) info.records,
+    my_snprintf(buff, sizeof(buff), ER(ER_INSERT_INFO), (ulong) info.records,
 	    (ulong) (info.records - info.copied),
             (long) thd->get_stmt_da()->current_statement_warn_count());
   else
-    sprintf(buff, ER(ER_INSERT_INFO), (ulong) info.records,
+    my_snprintf(buff, sizeof(buff), ER(ER_INSERT_INFO), (ulong) info.records,
 	    (ulong) (info.deleted+info.updated),
             (long) thd->get_stmt_da()->current_statement_warn_count());
   row_count= info.copied + info.deleted +
@@ -3752,7 +3752,10 @@ bool select_insert::send_eof()
     (thd->arg_of_last_insert_id_function ?
      thd->first_successful_insert_id_in_prev_stmt :
      (info.copied ? autoinc_value_of_last_inserted_row : 0));
-  ::my_ok(thd, row_count, id, buff);
+  if (!((thd->lex->sql_command == SQLCOM_CREATE_TABLE) &&
+	((&thd->lex->select_lex)->item_list.elements))) {
+    ::my_ok(thd, row_count, id, buff);
+  }
   DBUG_RETURN(0);
 }
 
@@ -4234,10 +4237,11 @@ void select_create::store_values(List<Item> &values)
 
 bool select_create::send_eof()
 {
+  DBUG_ENTER("select_create::send_eof");
   if (select_insert::send_eof())
   {
     abort_result_set();
-    return 1;
+    DBUG_RETURN(1);
   }
 
   exit_done= 1;                                 // Avoid double calls
@@ -4259,7 +4263,7 @@ bool select_create::send_eof()
                     thd->thread_id, thd->wsrep_conflict_state, thd->query());
         mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
         abort_result_set();
-	return TRUE;
+	DBUG_RETURN(TRUE);
       }
       mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
 #endif /* WITH_WSREP */
@@ -4269,6 +4273,28 @@ bool select_create::send_eof()
 
   table->file->extra(HA_EXTRA_NO_IGNORE_DUP_KEY);
   table->file->extra(HA_EXTRA_WRITE_CANNOT_REPLACE);
+
+  ulonglong id, row_count;
+  char buff[160];
+  if (info.ignore)
+    my_snprintf(buff, sizeof(buff), ER(ER_INSERT_INFO), (ulong) info.records,
+	    (ulong) (info.records - info.copied),
+	    (long) thd->get_stmt_da()->current_statement_warn_count());
+  else
+    my_snprintf(buff, sizeof(buff), ER(ER_INSERT_INFO), (ulong) info.records,
+	    (ulong) (info.deleted+info.updated),
+	    (long) thd->get_stmt_da()->current_statement_warn_count());
+  row_count= info.copied + info.deleted +
+    ((thd->client_capabilities & CLIENT_FOUND_ROWS) ?
+     info.touched : info.updated);
+  
+  id= (thd->first_successful_insert_id_in_cur_stmt > 0) ?
+    thd->first_successful_insert_id_in_cur_stmt :
+    (thd->arg_of_last_insert_id_function ?
+     thd->first_successful_insert_id_in_prev_stmt :
+     (info.copied ? autoinc_value_of_last_inserted_row : 0));
+  
+  ::my_ok(thd, row_count, id, buff);
 
   if (m_plock)
   {
@@ -4290,12 +4316,13 @@ bool select_create::send_eof()
                                                 create_info->
                                                 pos_in_locked_tables,
                                                 table, lock))
-        return 0;                               // ok
+        DBUG_RETURN(0);                               // ok
       /* Fail. Continue without locking the table */
     }
     mysql_unlock_tables(thd, lock);
   }
-  return 0;
+
+  DBUG_RETURN(0);
 }
 
 
