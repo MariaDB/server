@@ -149,7 +149,7 @@ MYSQL_SOCKET socket __attribute__ ((unused))
 /**
   MYSQL_SOCKET helper. Get socket descriptor.
   @param mysql_socket Instrumented socket
-  @sa mysql_socket_setfd
+  @sa mysql_socket_getfd
 */
 static inline my_socket
 mysql_socket_getfd(MYSQL_SOCKET mysql_socket)
@@ -161,7 +161,7 @@ mysql_socket_getfd(MYSQL_SOCKET mysql_socket)
   MYSQL_SOCKET helper. Set socket descriptor.
   @param mysql_socket Instrumented socket
   @param fd Socket descriptor
-  @sa mysql_socket_getfd
+  @sa mysql_socket_setfd
 */
 static inline void
 mysql_socket_setfd(MYSQL_SOCKET *mysql_socket, my_socket fd)
