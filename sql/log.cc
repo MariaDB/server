@@ -3075,7 +3075,7 @@ bool MYSQL_BIN_LOG::open(const char *log_name,
               it may be good to consider what actually happens when
               open_purge_index_file succeeds but register or sync fails.
 
-              Perhaps we might need the code below in MYSQL_LOG_BIN::cleanup
+              Perhaps we might need the code below in MYSQL_BIN_LOG::cleanup
               for "real life" purposes as well? 
      */
     DBUG_EXECUTE_IF("fault_injection_registering_index", {
