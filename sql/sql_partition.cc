@@ -57,7 +57,6 @@
 #include "lock.h"                           // mysql_lock_remove
 #include "sql_show.h"                       // append_identifier
 #include <m_ctype.h>
-#include "my_md5.h"
 #include "transaction.h"
 #include "debug_sync.h"
 
