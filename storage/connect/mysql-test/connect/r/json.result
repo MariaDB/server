@@ -89,8 +89,8 @@ ISBN	Language	Subject	AuthorFN	AuthorLN	Title	Translation	Translator	Publisher	L
 UPDATE t1 SET AuthorFN = 'Philippe' WHERE AuthorLN = 'Knab';
 SELECT * FROM t1 WHERE ISBN = '9782212090819';
 ISBN	Language	Subject	AuthorFN	AuthorLN	Title	Translation	Translator	Publisher	Location	Year
-9782212090819	fr	applications	Philippe	Bernadac	Construire une application XML	NULL	NULL	Eyrolles	Paris	1999
-9782212090819	fr	applications	François	Knab	Construire une application XML	NULL	NULL	Eyrolles	Paris	1999
+9782212090819	fr	applications	Jean-Christophe	Bernadac	Construire une application XML	NULL	NULL	Eyrolles	Paris	1999
+9782212090819	fr	applications	Philippe	Knab	Construire une application XML	NULL	NULL	Eyrolles	Paris	1999
 #
 # To add an author a new table must be created
 #
@@ -104,8 +104,8 @@ William J.	Pardi
 INSERT INTO t2 VALUES('Charles','Dickens');
 SELECT * FROM t1;
 ISBN	Language	Subject	AuthorFN	AuthorLN	Title	Translation	Translator	Publisher	Location	Year
-9782212090819	fr	applications	Philippe	Bernadac	Construire une application XML	NULL	NULL	Eyrolles	Paris	1999
-9782212090819	fr	applications	François	Knab	Construire une application XML	NULL	NULL	Eyrolles	Paris	1999
+9782212090819	fr	applications	Jean-Christophe	Bernadac	Construire une application XML	NULL	NULL	Eyrolles	Paris	1999
+9782212090819	fr	applications	Philippe	Knab	Construire une application XML	NULL	NULL	Eyrolles	Paris	1999
 9782840825685	fr	applications	William J.	Pardi	XML en Action	adapté de l'anglais par	James Guerin	Microsoft Press	Paris	1999
 9782840825685	fr	applications	Charles	Dickens	XML en Action	adapté de l'anglais par	James Guerin	Microsoft Press	Paris	1999
 DROP TABLE t1;
@@ -127,11 +127,11 @@ line
 		"SUBJECT": "applications",
 		"AUTHOR": [
 			{
-				"FIRSTNAME": "Philippe",
+				"FIRSTNAME": "Jean-Christophe",
 				"LASTNAME": "Bernadac"
 			},
 			{
-				"FIRSTNAME": "François",
+				"FIRSTNAME": "Philippe",
 				"LASTNAME": "Knab"
 			}
 		],

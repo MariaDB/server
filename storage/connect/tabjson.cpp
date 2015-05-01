@@ -968,6 +968,20 @@ bool JSONCOL::ParseJpath(PGLOBAL g)
   else if (!Jpath)
     Jpath = Name;
 
+  if (To_Tdb->GetOrig()) {
+    // This is an updated column, get nodes from origin
+    for (PJCOL colp = (PJCOL)Tjp->GetColumns(); colp;
+               colp = (PJCOL)colp->GetNext())
+      if (!stricmp(Name, colp->GetName())) {
+        Nod = colp->Nod;
+        Nodes = colp->Nodes;
+        goto fin;
+        } // endif Name
+
+    sprintf(g->Message, "Cannot parse updated column %s", Name);
+    return true;
+    } // endif To_Orig
+
   pbuf = PlugDup(g, Jpath);
 
   // The Jpath must be analyzed
@@ -998,6 +1012,7 @@ bool JSONCOL::ParseJpath(PGLOBAL g)
 
     } // endfor i, p
 
+ fin:
   MulVal = AllocateValue(g, Value);
   Parsed = true;
   return false;
@@ -1147,7 +1162,7 @@ PVAL JSONCOL::ExpandArray(PGLOBAL g, PJAR arp, int n)
 
   ars = MY_MIN(Tjp->Limit, arp->size());
 
-  if (!(jvp = arp->GetValue(Nodes[n].Nx))) {
+  if (!(jvp = arp->GetValue((Nodes[n].Rx = Nodes[n].Nx)))) {
     strcpy(g->Message, "Logical error expanding array");
     longjmp(g->jumper[g->jump_level], 666);
     } // endif jvp
@@ -1278,7 +1293,7 @@ PJSON JSONCOL::GetRow(PGLOBAL g)
             if (Nodes[i].Rank)
               val = arp->GetValue(Nodes[i].Rank - 1);
             else
-              val = arp->GetValue(Nodes[i].Nx);
+              val = arp->GetValue(Nodes[i].Rx);
 
           } else
             val = NULL;
@@ -1726,7 +1741,7 @@ bool TDBJSON::OpenDB(PGLOBAL g)
 /***********************************************************************/
 int TDBJSON::ReadDB(PGLOBAL g)
   {
-  int   rc;
+  int rc;
 
   N++;
 

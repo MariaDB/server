@@ -118,7 +118,7 @@ extern "C" {
 /*  Static variables                                                   */
 /***********************************************************************/
 #if defined(STORAGE)
-         char      sys_stamp[4] = SYS_STAMP;
+         char      sys_stamp[5] = SYS_STAMP;
 #else
   extern char      sys_stamp[];
 #endif
