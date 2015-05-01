@@ -402,3 +402,10 @@ SET default_regex_flags=DEFAULT;
 --echo # MDEV-6965 non-captured group \2 in regexp_replace
 --echo #
 SELECT REGEXP_REPLACE('1 foo and bar', '(\\d+) foo and (\\d+ )?bar', '\\1 this and \\2that');
+
+--echo #
+--echo # MDEV-8006 MariaDB PCRE Handling Multiple Remote Denial of Service Vulnerabilities
+--echo #
+
+SELECT REGEXP_SUBSTR('ABC','(?i)((?2){0,1999}?(())|A)*');
+SELECT REGEXP_SUBSTR('ABC','((?+1)()){222,}+');
