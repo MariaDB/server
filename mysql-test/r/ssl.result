@@ -2166,3 +2166,9 @@ drop table t1;
 SHOW STATUS LIKE 'Ssl_cipher';
 Variable_name	Value
 Ssl_cipher	DHE-RSA-AES256-SHA
+select aes_decrypt('MySQL','adf');
+aes_decrypt('MySQL','adf')
+NULL
+select 'still connected?';
+still connected?
+still connected?
