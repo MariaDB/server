@@ -833,19 +833,10 @@ bool wsrep_start_replication()
                               wsrep_sst_donor,
                               bootstrap)))
   {
-    if (-ESOCKTNOSUPPORT == rcode)
-    {
-      DBUG_PRINT("wsrep",("unrecognized cluster address: '%s', rcode: %d",
-                          wsrep_cluster_address, rcode));
-      WSREP_ERROR("unrecognized cluster address: '%s', rcode: %d",
-                  wsrep_cluster_address, rcode);
-    }
-    else
-    {
-      DBUG_PRINT("wsrep",("wsrep->connect() failed: %d", rcode));
-      WSREP_ERROR("wsrep::connect() failed: %d", rcode);
-    }
-
+    DBUG_PRINT("wsrep",("wsrep->connect(%s) failed: %d",
+                        wsrep_cluster_address, rcode));
+    WSREP_ERROR("wsrep::connect(%s) failed: %d",
+                wsrep_cluster_address, rcode);
     return false;
   }
   else
