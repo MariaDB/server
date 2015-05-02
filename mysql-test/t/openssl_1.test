@@ -23,7 +23,7 @@ flush privileges;
 connect (con1,localhost,ssl_user1,,,,,SSL-CIPHER=DHE-RSA-AES256-SHA);
 --replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
 --error ER_ACCESS_DENIED_ERROR
-connect (con2,localhost,ssl_user2,,,,,SSL-CIPHER=RC4-SHA);
+connect (con2,localhost,ssl_user2,,,,,SSL-CIPHER=AES256-SHA);
 connect (con2,localhost,ssl_user2,,,,,SSL-CIPHER=DHE-RSA-AES256-SHA);
 connect (con3,localhost,ssl_user3,,,,,SSL-CIPHER=DHE-RSA-AES256-SHA);
 connect (con4,localhost,ssl_user4,,,,,SSL-CIPHER=DHE-RSA-AES256-SHA);
@@ -222,8 +222,6 @@ DROP TABLE t1;
 # Common ciphers to openssl and yassl
 --exec $MYSQL --host=localhost -e "SHOW STATUS LIKE 'Ssl_cipher';" --ssl-cipher=DHE-RSA-AES256-SHA
 --exec $MYSQL --host=localhost -e "SHOW STATUS LIKE 'Ssl_cipher';" --ssl-cipher=EDH-RSA-DES-CBC3-SHA
---exec $MYSQL --host=localhost -e "SHOW STATUS LIKE 'Ssl_cipher';" --ssl-cipher=EDH-RSA-DES-CBC-SHA
---exec $MYSQL --host=localhost -e "SHOW STATUS LIKE 'Ssl_cipher';" --ssl-cipher=RC4-SHA
 --disable_query_log
 --disable_result_log
 
