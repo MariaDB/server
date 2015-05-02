@@ -61,7 +61,8 @@ ssl_error_string[] =
   "Private key does not match the certificate public key",
   "SSL_CTX_set_default_verify_paths failed",
   "Failed to set ciphers to use",
-  "SSL_CTX_new failed"
+  "SSL_CTX_new failed",
+  "SSL_CTX_set_tmp_dh failed"
 };
 
 const char*
@@ -171,16 +172,14 @@ new_VioSSLFd(const char *key_file, const char *cert_file,
 
   if (!(ssl_fd= ((struct st_VioSSLFd*)
                  my_malloc(sizeof(struct st_VioSSLFd),MYF(0)))))
-    DBUG_RETURN(0);
-
+    goto err0;
   if (!(ssl_fd->ssl_context= SSL_CTX_new(is_client_method ? 
                                          SSLv23_client_method() :
                                          SSLv23_server_method())))
   {
     *error= SSL_INITERR_MEMFAIL;
     DBUG_PRINT("error", ("%s", sslGetErrString(*error)));
-    my_free(ssl_fd);
-    DBUG_RETURN(0);
+    goto err1;
   }
 
   SSL_CTX_set_options(ssl_fd->ssl_context, ssl_ctx_options);
@@ -195,9 +194,7 @@ new_VioSSLFd(const char *key_file, const char *cert_file,
   {
     *error= SSL_INITERR_CIPHERS;
     DBUG_PRINT("error", ("%s", sslGetErrString(*error)));
-    SSL_CTX_free(ssl_fd->ssl_context);
-    my_free(ssl_fd);
-    DBUG_RETURN(0);
+    goto err2;
   }
 
   /* Load certs from the trusted ca */
@@ -211,9 +208,7 @@ new_VioSSLFd(const char *key_file, const char *cert_file,
       *error= SSL_INITERR_BAD_PATHS;
       DBUG_PRINT("error", ("SSL_CTX_load_verify_locations failed : %s", 
                  sslGetErrString(*error)));
-      SSL_CTX_free(ssl_fd->ssl_context);
-      my_free(ssl_fd);
-      DBUG_RETURN(0);
+      goto err2;
     }
 
     /* otherwise go use the defaults */
@@ -221,9 +216,7 @@ new_VioSSLFd(const char *key_file, const char *cert_file,
     {
       *error= SSL_INITERR_BAD_PATHS;
       DBUG_PRINT("error", ("%s", sslGetErrString(*error)));
-      SSL_CTX_free(ssl_fd->ssl_context);
-      my_free(ssl_fd);
-      DBUG_RETURN(0);
+      goto err2;
     }
   }
 
@@ -243,9 +236,7 @@ new_VioSSLFd(const char *key_file, const char *cert_file,
       DBUG_PRINT("warning", ("X509_STORE_load_locations for CRL failed"));
       *error= SSL_INITERR_BAD_PATHS;
       DBUG_PRINT("error", ("%s", sslGetErrString(*error)));
-      SSL_CTX_free(ssl_fd->ssl_context);
-      my_free(ssl_fd);
-      DBUG_RETURN(0);
+      goto err2;
     }
 #endif
   }
@@ -253,19 +244,32 @@ new_VioSSLFd(const char *key_file, const char *cert_file,
   if (vio_set_cert_stuff(ssl_fd->ssl_context, cert_file, key_file, error))
   {
     DBUG_PRINT("error", ("vio_set_cert_stuff failed"));
-    SSL_CTX_free(ssl_fd->ssl_context);
-    my_free(ssl_fd);
-    DBUG_RETURN(0);
+    goto err2;
   }
 
   /* DH stuff */
   dh=get_dh1024();
-  SSL_CTX_set_tmp_dh(ssl_fd->ssl_context, dh);
+  if (!SSL_CTX_set_tmp_dh(ssl_fd->ssl_context, dh))
+  {
+    *error= SSL_INITERR_DH;
+    goto err3;
+  }
+
   DH_free(dh);
 
   DBUG_PRINT("exit", ("OK 1"));
 
   DBUG_RETURN(ssl_fd);
+
+err3:
+  DH_free(dh);
+err2:
+  SSL_CTX_free(ssl_fd->ssl_context);
+err1:
+  my_free(ssl_fd);
+err0:
+  DBUG_EXECUTE("error", ERR_print_errors_fp(DBUG_FILE););
+  DBUG_RETURN(0);
 }
 
 

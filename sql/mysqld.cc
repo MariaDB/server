@@ -4557,7 +4557,6 @@ static void init_ssl()
 					  opt_ssl_cipher, &error,
                                           opt_ssl_crl, opt_ssl_crlpath);
     DBUG_PRINT("info",("ssl_acceptor_fd: 0x%lx", (long) ssl_acceptor_fd));
-    ERR_remove_state(0);
     if (!ssl_acceptor_fd)
     {
       sql_print_warning("Failed to setup SSL");
@@ -4565,6 +4564,14 @@ static void init_ssl()
       opt_use_ssl = 0;
       have_ssl= SHOW_OPTION_DISABLED;
     }
+    if (global_system_variables.log_warnings > 0)
+    {
+      ulong err;
+      while ((err= ERR_get_error()))
+        sql_print_warning("SSL error: %s", ERR_error_string(err, NULL));
+    }
+    else
+      ERR_remove_state(0);
   }
   else
   {
