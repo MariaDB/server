@@ -1060,9 +1060,16 @@ bool TDBMYSQL::ReadKey(PGLOBAL g, OPVAL op, const void *key, int len)
   int  oldlen = Query->GetLength();
 
   if (!key || op == OP_NEXT ||
-        Mode == MODE_UPDATE || Mode == MODE_DELETE)
+        Mode == MODE_UPDATE || Mode == MODE_DELETE) {
+    if (!key && Mode == MODE_READX) {
+      // This is a false indexed read
+      m_Rc = Myc.ExecSQL(g, Query->GetStr());
+      Mode = MODE_READ;
+      return (m_Rc == RC_FX) ? true : false;
+      } // endif key
+
     return false;
-  else if (op == OP_FIRST) {
+  } else if (op == OP_FIRST) {
     if (To_CondFil) {
       oom = Query->Append(" WHERE ");
 
