@@ -5013,6 +5013,7 @@ static int init_server_components()
   init_global_client_stats();
   if (!opt_bootstrap)
     servers_init(0);
+  init_status_vars();
   DBUG_RETURN(0);
 }
 
@@ -5461,7 +5462,6 @@ int mysqld_main(int argc, char **argv)
 #endif
   }
 
-  init_status_vars();
   if (opt_bootstrap) /* If running with bootstrap, do not start replication. */
     opt_skip_slave_start= 1;
 
