@@ -27,6 +27,9 @@ alter online table t1 rename to t2;
 # No OPs
 
 alter online table t1 algorithm=INPLACE, lock=NONE;
+alter online table t1;
+alter table t1 algorithm=INPLACE;
+alter table t1 lock=NONE;
 
 drop table t1;
 
