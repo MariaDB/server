@@ -64,18 +64,28 @@ SELECT 'bug' as '' FROM INFORMATION_SCHEMA.ENGINES WHERE engine='innodb'
 --source include/not_windows_embedded.inc
 --source include/have_example_plugin.inc
 #
-# Check that --bootstrap can load/unload plugins
+# Check that --bootstrap can install and uninstall plugins
 #
---disable_query_log
 let $PLUGIN_DIR=`select @@plugin_dir`;
-eval SELECT "install plugin example soname '$HA_EXAMPLE_SO';" INTO OUTFILE '$MYSQLTEST_VARDIR/tmp/install_plugin.sql';
---enable_query_log
+--write_file $MYSQLTEST_VARDIR/tmp/install_plugin.sql
+install soname 'ha_example';
+uninstall plugin unusable;
+EOF
 --exec $MYSQLD_BOOTSTRAP_CMD --plugin-dir=$PLUGIN_DIR  < $MYSQLTEST_VARDIR/tmp/install_plugin.sql >> $MYSQLTEST_VARDIR/tmp/bootstrap.log 2>&1
-remove_file $MYSQLTEST_VARDIR/tmp/install_plugin.sql;
+--remove_file $MYSQLTEST_VARDIR/tmp/install_plugin.sql
+
+#
+# Check that installed plugins are *not* automatically loaded in --bootstrap
+#
 --write_file $MYSQLTEST_VARDIR/tmp/bootstrap_plugins.sql
 use test;
 create table t1(a int) engine=example;
-drop table t1;
 EOF
 --exec $MYSQLD_BOOTSTRAP_CMD --plugin-dir=$PLUGIN_DIR < $MYSQLTEST_VARDIR/tmp/bootstrap_plugins.sql >> $MYSQLTEST_VARDIR/tmp/bootstrap.log 2>&1
-remove_file $MYSQLTEST_VARDIR/tmp/bootstrap_plugins.sql;
+--remove_file $MYSQLTEST_VARDIR/tmp/bootstrap_plugins.sql
+flush tables;
+show create table t1;
+drop table t1;
+--replace_result .dll .so
+select * from mysql.plugin;
+truncate table mysql.plugin;

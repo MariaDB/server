@@ -15,3 +15,14 @@ SELECT 'bug' as '' FROM INFORMATION_SCHEMA.ENGINES WHERE engine='innodb'
  and SUPPORT='YES';
 
 End of 5.5 tests
+flush tables;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+drop table t1;
+select * from mysql.plugin;
+name	dl
+EXAMPLE	ha_example.so
+truncate table mysql.plugin;
