@@ -4338,11 +4338,12 @@ static int init_common_variables()
     if (lower_case_table_names_used)
     {
       if (global_system_variables.log_warnings)
-	sql_print_warning("\
-You have forced lower_case_table_names to 0 through a command-line \
-option, even though your file system '%s' is case insensitive.  This means \
-that you can corrupt a MyISAM table by accessing it with different cases. \
-You should consider changing lower_case_table_names to 1 or 2",
+        sql_print_warning("You have forced lower_case_table_names to 0 through "
+                          "a command-line option, even though your file system "
+                          "'%s' is case insensitive.  This means that you can "
+                          "corrupt a MyISAM table by accessing it with "
+                          "different cases.  You should consider changing "
+                          "lower_case_table_names to 1 or 2",
 			mysql_real_data_home);
     }
     else
@@ -4738,15 +4739,16 @@ static int init_server_components()
   {
     if (opt_bin_log)
     {
-      sql_print_error("using --replicate-same-server-id in conjunction with \
---log-slave-updates is impossible, it would lead to infinite loops in this \
-server.");
+      sql_print_error("using --replicate-same-server-id in conjunction with "
+                      "--log-slave-updates is impossible, it would lead to "
+                      "infinite loops in this server.");
       unireg_abort(1);
     }
     else
-      sql_print_warning("using --replicate-same-server-id in conjunction with \
---log-slave-updates would lead to infinite loops in this server. However this \
-will be ignored as the --log-bin option is not defined.");
+      sql_print_warning("using --replicate-same-server-id in conjunction with "
+                        "--log-slave-updates would lead to infinite loops in "
+                        "this server. However this will be ignored as the "
+                        "--log-bin option is not defined.");
   }
 #endif
 
@@ -4759,8 +4761,8 @@ will be ignored as the --log-bin option is not defined.");
     if (opt_bin_logname[0] && 
         opt_bin_logname[strlen(opt_bin_logname) - 1] == FN_LIBCHAR)
     {
-      sql_print_error("Path '%s' is a directory name, please specify \
-a file name for --log-bin option", opt_bin_logname);
+      sql_print_error("Path '%s' is a directory name, please specify "
+                      "a file name for --log-bin option", opt_bin_logname);
       unireg_abort(1);
     }
 
@@ -4770,8 +4772,9 @@ a file name for --log-bin option", opt_bin_logname);
         opt_binlog_index_name[strlen(opt_binlog_index_name) - 1] 
         == FN_LIBCHAR)
     {
-      sql_print_error("Path '%s' is a directory name, please specify \
-a file name for --log-bin-index option", opt_binlog_index_name);
+      sql_print_error("Path '%s' is a directory name, please specify "
+                      "a file name for --log-bin-index option",
+                      opt_binlog_index_name);
       unireg_abort(1);
     }
 
@@ -8080,16 +8083,15 @@ static void usage(void)
   else
   {
 #ifdef __WIN__
-  puts("NT and Win32 specific options:\n\
-  --install                     Install the default service (NT).\n\
-  --install-manual              Install the default service started manually (NT).\n\
-  --install service_name        Install an optional service (NT).\n\
-  --install-manual service_name Install an optional service started manually (NT).\n\
-  --remove                      Remove the default service from the service list (NT).\n\
-  --remove service_name         Remove the service_name from the service list (NT).\n\
-  --enable-named-pipe           Only to be used for the default server (NT).\n\
-  --standalone                  Dummy option to start as a standalone server (NT).\
-");
+  puts("NT and Win32 specific options:\n"
+       "  --install                     Install the default service (NT).\n"
+       "  --install-manual              Install the default service started manually (NT).\n"
+       "  --install service_name        Install an optional service (NT).\n"
+       "  --install-manual service_name Install an optional service started manually (NT).\n"
+       "  --remove                      Remove the default service from the service list (NT).\n"
+       "  --remove service_name         Remove the service_name from the service list (NT).\n"
+       "  --enable-named-pipe           Only to be used for the default server (NT).\n"
+       "  --standalone                  Dummy option to start as a standalone server (NT).");
   puts("");
 #endif
   print_defaults(MYSQL_CONFIG_NAME,load_default_groups);
@@ -8101,14 +8103,12 @@ static void usage(void)
 
   if (! plugins_are_initialized)
   {
-    puts("\n\
-Plugins have parameters that are not reflected in this list\n\
-because execution stopped before plugins were initialized.");
+    puts("\nPlugins have parameters that are not reflected in this list"
+         "\nbecause execution stopped before plugins were initialized.");
   }
 
-  puts("\n\
-To see what values a running MySQL server is using, type\n\
-'mysqladmin variables' instead of 'mysqld --verbose --help'.");
+  puts("\nTo see what values a running MySQL server is using, type"
+       "\n'mysqladmin variables' instead of 'mysqld --verbose --help'.");
   }
   DBUG_VOID_RETURN;
 }
