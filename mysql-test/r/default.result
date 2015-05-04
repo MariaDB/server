@@ -220,3 +220,17 @@ NULL
 10
 drop table t1, t2;
 End of 5.0 tests.
+#
+# Start of 10.1 tests
+#
+CREATE TABLE t1 (a INT DEFAULT 100, b INT DEFAULT NULL);
+INSERT INTO t1 VALUES ();
+SELECT * FROM t1 WHERE DEFAULT(a);
+a	b
+100	NULL
+SELECT * FROM t1 WHERE DEFAULT(b);
+a	b
+DROP TABLE IF EXISTS t1;
+#
+# End of 10.1 tests
+#
