@@ -2134,19 +2134,7 @@ public:
 };
 
 
-class Item_ident_or_func_or_sum: public Item_result_field
-{
-public:
-  Item_ident_or_func_or_sum(): Item_result_field() { }
-  Item_ident_or_func_or_sum(THD *thd, Item_ident_or_func_or_sum *item)
-    :Item_result_field(thd, item)
-  { }
-  COND *build_equal_items(THD *thd, COND_EQUAL *inherited,
-                          bool link_item_fields);
-};
-
-
-class Item_ident :public Item_ident_or_func_or_sum
+class Item_ident :public Item_result_field
 {
 protected:
   /* 
@@ -2335,6 +2323,25 @@ public:
   void update_used_tables()
   {
     update_table_bitmaps();
+  }
+  COND *build_equal_items(THD *thd, COND_EQUAL *inherited,
+                                  bool link_item_fields)
+  {
+    /*
+      normilize_cond() replaced all conditions of type
+         WHERE/HAVING field
+      to:
+        WHERE/HAVING field<>0
+      By the time of a build_equal_items() call, all such conditions should
+      already be replaced. No Item_field are possible.
+      Note, some Item_field derivants are still possible.
+      Item_insert_value:
+        SELECT * FROM t1 WHERE VALUES(a);
+      Item_default_value:
+        SELECT * FROM t1 WHERE DEFAULT(a);
+    */
+    DBUG_ASSERT(type() != FIELD_ITEM);
+    return Item_ident::build_equal_items(thd, inherited, link_item_fields);
   }
   bool is_result_field() { return false; }
   void set_result_field(Field *field) {}
@@ -3459,7 +3466,7 @@ public:
   An abstract class representing common features of
   regular functions and aggregate functions.
 */
-class Item_func_or_sum: public Item_ident_or_func_or_sum, public Item_args
+class Item_func_or_sum: public Item_result_field, public Item_args
 {
 public:
   Item_func_or_sum() :Item_args() {}
@@ -3471,7 +3478,7 @@ public:
   Item_func_or_sum(Item *a, Item *b, Item *c, Item *d, Item *e)
     :Item_args(a, b, c, d, e) { }
   Item_func_or_sum(THD *thd, Item_func_or_sum *item)
-    :Item_ident_or_func_or_sum(thd, item), Item_args(thd, item) { }
+    :Item_result_field(thd, item), Item_args(thd, item) { }
   Item_func_or_sum(List<Item> &list) :Item_args(list) { }
   bool walk(Item_processor processor, bool walk_subquery, uchar *arg)
   {
@@ -3576,20 +3583,18 @@ public:
   table_map used_tables() const;		
   void update_used_tables(); 
   COND *build_equal_items(THD *thd, COND_EQUAL *inherited,
-                          bool link_item_fields)
+                                  bool link_item_fields)
   {
     /*
-      Item_ref cannot refer to Item_field when build_equal_items() is called,
-      because all "WHERE/HAVING field" are already replaced to
-      "WHERE/HAVING field<>0" by this time. See normalize_cond().
-      TODO: make sure with Igor and Sanja, perhaps the below expression
-      can be simplified just to a Item::build_equal_items() call.
+      normilize_cond() replaced all conditions of type
+         WHERE/HAVING field
+      to:
+        WHERE/HAVING field<>0
+      By the time of a build_equal_items() call, all such conditions should
+      already be replaced. No Item_ref referencing to Item_field are possible.
     */
-    return real_type() == FIELD_ITEM ?
-           Item_ident_or_func_or_sum::build_equal_items(thd, inherited,
-                                                        link_item_fields) :
-           Item::build_equal_items(thd, inherited,
-                                   link_item_fields);
+    DBUG_ASSERT(real_type() != FIELD_ITEM);
+    return Item_ident::build_equal_items(thd, inherited, link_item_fields);
   }
   bool const_item() const 
   {

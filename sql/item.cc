@@ -734,7 +734,7 @@ Item_ident::Item_ident(TABLE_LIST *view_arg, const char *field_name_arg)
 */
 
 Item_ident::Item_ident(THD *thd, Item_ident *item)
-  :Item_ident_or_func_or_sum(thd, item),
+  :Item_result_field(thd, item),
    orig_db_name(item->orig_db_name),
    orig_table_name(item->orig_table_name), 
    orig_field_name(item->orig_field_name),

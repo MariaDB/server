@@ -12893,9 +12893,9 @@ COND *Item_cond::build_equal_items(THD *thd,
 }
 
 
-COND *Item_ident_or_func_or_sum::build_equal_items(THD *thd,
-                                                   COND_EQUAL *inherited,
-                                                   bool link_item_fields)
+COND *Item_func::build_equal_items(THD *thd,
+                                   COND_EQUAL *inherited,
+                                   bool link_item_fields)
 {
   COND_EQUAL cond_equal;
   cond_equal.upper_levels= inherited;

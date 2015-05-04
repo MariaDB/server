@@ -131,6 +131,8 @@ public:
     used_tables_and_const_cache_init();
     used_tables_and_const_cache_update_and_join(arg_count, args);
   }
+  COND *build_equal_items(THD *thd, COND_EQUAL *inherited,
+                          bool link_item_fields);
   bool eq(const Item *item, bool binary_cmp) const;
   virtual optimize_type select_optimize() const { return OPTIMIZE_NONE; }
   virtual bool have_rev_func() const { return 0; }
