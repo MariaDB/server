@@ -1,4 +1,4 @@
-/* Copyright (C) 2008-2014 Kentoku Shiba
+/* Copyright (C) 2008-2015 Kentoku Shiba
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -8529,12 +8529,16 @@ int ha_spider::info(
         } else if (tmp_auto_increment_mode == 1 &&
           !share->lgtm_tblhnd_share->auto_increment_init)
         {
+          DBUG_PRINT("info",("spider auto_increment_value=%llu",
+            share->lgtm_tblhnd_share->auto_increment_value));
           share->lgtm_tblhnd_share->auto_increment_lclval =
             share->lgtm_tblhnd_share->auto_increment_value;
           share->lgtm_tblhnd_share->auto_increment_init = TRUE;
           stats.auto_increment_value =
             share->lgtm_tblhnd_share->auto_increment_value;
         } else {
+          DBUG_PRINT("info",("spider auto_increment_value=%llu",
+            share->lgtm_tblhnd_share->auto_increment_value));
           stats.auto_increment_value =
             share->lgtm_tblhnd_share->auto_increment_value;
         }
@@ -9198,12 +9202,18 @@ bool ha_spider::need_info_for_auto_inc()
   DBUG_ENTER("ha_spider::need_info_for_auto_inc");
   DBUG_PRINT("info",("spider this=%p", this));
   DBUG_PRINT("info",("spider return=%s", (
-    !spider_param_auto_increment_mode(thd, share->auto_increment_mode) &&
-    !info_auto_called
+    !share->lgtm_tblhnd_share->auto_increment_init ||
+    (
+      !spider_param_auto_increment_mode(thd, share->auto_increment_mode) &&
+      !info_auto_called
+    )
   ) ? "TRUE" : "FALSE"));
   DBUG_RETURN((
-    !spider_param_auto_increment_mode(thd, share->auto_increment_mode) &&
-    !info_auto_called
+    !share->lgtm_tblhnd_share->auto_increment_init ||
+    (
+      !spider_param_auto_increment_mode(thd, share->auto_increment_mode) &&
+      !info_auto_called
+    )
   ));
 }
 #endif
@@ -9245,6 +9255,10 @@ int ha_spider::update_auto_increment()
     DBUG_PRINT("info",("spider force_auto_increment=FALSE"));
   }
 */
+  DBUG_PRINT("info",("spider auto_increment_mode=%d",
+    auto_increment_mode));
+  DBUG_PRINT("info",("spider next_number_field=%lld",
+    table->next_number_field->val_int()));
   if (
     auto_increment_mode == 1 &&
     !(
@@ -9256,6 +9270,8 @@ int ha_spider::update_auto_increment()
     lock_here = TRUE;
     pthread_mutex_lock(&share->lgtm_tblhnd_share->auto_increment_mutex);
     next_insert_id = share->lgtm_tblhnd_share->auto_increment_value;
+    DBUG_PRINT("info",("spider auto_increment_value=%llu",
+      share->lgtm_tblhnd_share->auto_increment_value));
   }
   if ((error_num = handler::update_auto_increment()))
   {
@@ -10843,6 +10859,9 @@ int ha_spider::rename_table(
       pthread_mutex_unlock(&spider_lgtm_tblhnd_share_mutex);
       goto error;
     }
+    DBUG_PRINT("info",
+      ("spider auto_increment_init=%s",
+        from_lgtm_tblhnd_share->auto_increment_init ? "TRUE" : "FALSE"));
     to_lgtm_tblhnd_share->auto_increment_init =
       from_lgtm_tblhnd_share->auto_increment_init;
     to_lgtm_tblhnd_share->auto_increment_lclval =
