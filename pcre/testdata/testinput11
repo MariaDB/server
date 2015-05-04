@@ -134,4 +134,6 @@ is required for these tests. --/
 
 /(((a\2)|(a*)\g<-1>))*a?/B
 
+/((?+1)(\1))/B
+
 /-- End of testinput11 --/
