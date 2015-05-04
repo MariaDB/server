@@ -12685,27 +12685,21 @@ static bool check_row_equality(THD *thd, Item *left_row, Item_row *right_row,
            or, if the procedure fails by a fatal error.
 */
 
-static bool check_equality(THD *thd, Item *item, COND_EQUAL *cond_equal,
-                           List<Item> *eq_list)
+bool Item_func_eq::check_equality(THD *thd, COND_EQUAL *cond_equal,
+                                  List<Item> *eq_list)
 {
-  if (item->type() == Item::FUNC_ITEM &&
-         ((Item_func*) item)->functype() == Item_func::EQ_FUNC)
-  {
-    Item *left_item= ((Item_func*) item)->arguments()[0];
-    Item *right_item= ((Item_func*) item)->arguments()[1];
+  Item *left_item= arguments()[0];
+  Item *right_item= arguments()[1];
 
-    if (left_item->type() == Item::ROW_ITEM &&
-        right_item->type() == Item::ROW_ITEM)
-    {
-      return check_row_equality(thd,
-                                (Item_row *) left_item,
-                                (Item_row *) right_item,
-                                cond_equal, eq_list);
-    }
-    else 
-      return check_simple_equality(left_item, right_item, item, cond_equal);
-  } 
-  return FALSE;
+  if (left_item->type() == Item::ROW_ITEM &&
+      right_item->type() == Item::ROW_ITEM)
+  {
+    return check_row_equality(thd,
+                              (Item_row *) left_item,
+                              (Item_row *) right_item,
+                              cond_equal, eq_list);
+  }
+  return check_simple_equality(left_item, right_item, this, cond_equal);
 }
 
                           
@@ -12804,7 +12798,7 @@ COND *Item_cond_and::build_equal_items(THD *thd,
       structure here because it's restored before each
       re-execution of any prepared statement/stored procedure.
     */
-    if (check_equality(thd, item, &cond_equal, &eq_list))
+    if (item->check_equality(thd, &cond_equal, &eq_list))
       li.remove();
   }
 
@@ -12893,9 +12887,9 @@ COND *Item_cond::build_equal_items(THD *thd,
 }
 
 
-COND *Item_func::build_equal_items(THD *thd,
-                                   COND_EQUAL *inherited,
-                                   bool link_item_fields)
+COND *Item_func_eq::build_equal_items(THD *thd,
+                                      COND_EQUAL *inherited,
+                                      bool link_item_fields)
 {
   COND_EQUAL cond_equal;
   cond_equal.upper_levels= inherited;
@@ -12910,7 +12904,7 @@ COND *Item_func::build_equal_items(THD *thd,
     for WHERE a=b AND c=d AND (b=c OR d=5)
     b=c is replaced by =(a,b,c,d).  
    */
-  if (check_equality(thd, this, &cond_equal, &eq_list))
+  if (Item_func_eq::check_equality(thd, &cond_equal, &eq_list))
   {
     Item_equal *item_equal;
     int n= cond_equal.current_level.elements + eq_list.elements;
@@ -12955,6 +12949,13 @@ COND *Item_func::build_equal_items(THD *thd,
       return and_cond;
     }
   }
+  return Item_func::build_equal_items(thd, inherited, link_item_fields);
+}
+
+
+COND *Item_func::build_equal_items(THD *thd, COND_EQUAL *inherited,
+                                   bool link_item_fields)
+{
   /* 
     For each field reference in cond, not from equal item predicates,
     set a pointer to the multiple equality it belongs to (if there is any)

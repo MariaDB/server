@@ -1133,6 +1133,16 @@ public:
     update_used_tables();
     return this;
   }
+  /*
+    Checks whether the item is:
+    - a simple equality (field=field_item or field=constant_item), or
+    - a row equality
+    and form multiple equality predicates.
+  */
+  virtual bool check_equality(THD *thd, COND_EQUAL *cond, List<Item> *eq_list)
+  {
+    return false;
+  }
   virtual void split_sum_func(THD *thd, Item **ref_pointer_array,
                               List<Item> &fields) {}
   /* Called for items that really have to be split */
