@@ -2461,6 +2461,8 @@ bool MYSQL_LOG::open(
   char buff[FN_REFLEN];
   MY_STAT f_stat;
   File file= -1;
+  my_off_t seek_offset;
+  bool is_fifo = false;
   int open_flags= O_CREAT | O_BINARY;
   DBUG_ENTER("MYSQL_LOG::open");
   DBUG_PRINT("enter", ("log_type: %d", (int) log_type_arg));
@@ -2477,14 +2479,16 @@ bool MYSQL_LOG::open(
                                  log_type_arg, io_cache_type_arg))
     goto err;
 
-  /* File is regular writable file */
-  if (my_stat(log_file_name, &f_stat, MYF(0)) && !MY_S_ISREG(f_stat.st_mode))
-    goto err;
+  is_fifo = my_stat(log_file_name, &f_stat, MYF(0)) &&
+            MY_S_ISFIFO(f_stat.st_mode);
 
   if (io_cache_type == SEQ_READ_APPEND)
     open_flags |= O_RDWR | O_APPEND;
   else
     open_flags |= O_WRONLY | (log_type == LOG_BIN ? 0 : O_APPEND);
+
+  if (is_fifo)
+    open_flags |= O_NONBLOCK;
 
   db[0]= 0;
 
@@ -2493,11 +2497,16 @@ bool MYSQL_LOG::open(
   m_log_file_key= log_file_key;
 #endif
 
-  if ((file= mysql_file_open(log_file_key,
-                             log_file_name, open_flags,
-                             MYF(MY_WME | ME_WAITTANG))) < 0 ||
-      init_io_cache(&log_file, file, IO_SIZE, io_cache_type,
-                    mysql_file_tell(file, MYF(MY_WME)), 0,
+  if ((file= mysql_file_open(log_file_key, log_file_name, open_flags,
+                             MYF(MY_WME | ME_WAITTANG))) < 0)
+    goto err;
+
+  if (is_fifo)
+    seek_offset= 0;
+  else if ((seek_offset= mysql_file_tell(file, MYF(MY_WME))))
+    goto err;
+
+  if (init_io_cache(&log_file, file, IO_SIZE, io_cache_type, seek_offset, 0,
                     MYF(MY_WME | MY_NABP |
                         ((log_type == LOG_BIN) ? MY_WAIT_IF_FULL : 0))))
     goto err;
@@ -2586,17 +2595,17 @@ void MYSQL_LOG::close(uint exiting)
   {
     end_io_cache(&log_file);
 
-    if (mysql_file_sync(log_file.file, MYF(MY_WME)) && ! write_error)
+    if (log_type == LOG_BIN && mysql_file_sync(log_file.file, MYF(MY_WME)) && ! write_error)
     {
       write_error= 1;
-      sql_print_error(ER(ER_ERROR_ON_WRITE), name, errno);
+      sql_print_error(ER_THD_OR_DEFAULT(current_thd, ER_ERROR_ON_WRITE), name, errno);
     }
 
     if (!(exiting & LOG_CLOSE_DELAYED_CLOSE) &&
         mysql_file_close(log_file.file, MYF(MY_WME)) && ! write_error)
     {
       write_error= 1;
-      sql_print_error(ER(ER_ERROR_ON_WRITE), name, errno);
+      sql_print_error(ER_THD_OR_DEFAULT(current_thd, ER_ERROR_ON_WRITE), name, errno);
     }
   }
 
@@ -5921,6 +5930,10 @@ bool MYSQL_BIN_LOG::write_incident(THD *thd)
     if (check_purge)
       purge();
   }
+  else
+  {
+    mysql_mutex_unlock(&LOCK_log);
+  }
 
   DBUG_RETURN(error);
 }
@@ -6238,6 +6251,8 @@ MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader)
         last_in_queue->commit_errno= errno;
         check_purge= false;
       }
+      /* In case of binlog rotate, update the correct current binlog offset. */
+      commit_offset= my_b_write_tell(&log_file);
     }
   }
 

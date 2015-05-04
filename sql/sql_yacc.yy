@@ -1,6 +1,6 @@
 /*
-   Copyright (c) 2000, 2014, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2014, Monty Program Ab.
+   Copyright (c) 2000, 2015, Oracle and/or its affiliates.
+   Copyright (c) 2010, 2015, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1145,6 +1145,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  MULTIPOINT
 %token  MULTIPOLYGON
 %token  MUTEX_SYM
+%token  MYSQL_SYM
 %token  MYSQL_ERRNO_SYM
 %token  NAMES_SYM                     /* SQL-2003-N */
 %token  NAME_SYM                      /* SQL-2003-N */
@@ -7197,7 +7198,7 @@ opt_checksum_type:
         ;
 
 repair:
-          REPAIR opt_no_write_to_binlog table_or_tables
+          REPAIR opt_no_write_to_binlog table_or_view
           {
             LEX *lex=Lex;
             lex->sql_command = SQLCOM_REPAIR;
@@ -7210,6 +7211,15 @@ repair:
           table_list opt_mi_repair_type
           {
             LEX* lex= thd->lex;
+            if ((lex->only_view &&
+                 ((lex->check_opt.flags & (T_QUICK | T_EXTEND)) ||
+                   (lex->check_opt.sql_flags & TT_USEFRM))) ||
+                (!lex->only_view &&
+                 (lex->check_opt.sql_flags & TT_FROM_MYSQL)))
+            {
+              my_parse_error(ER(ER_SYNTAX_ERROR));
+              MYSQL_YYABORT;
+            }
             DBUG_ASSERT(!lex->m_stmt);
             lex->m_stmt= new (thd->mem_root) Repair_table_statement(lex);
             if (lex->m_stmt == NULL)
@@ -7231,6 +7241,7 @@ mi_repair_type:
           QUICK        { Lex->check_opt.flags|= T_QUICK; }
         | EXTENDED_SYM { Lex->check_opt.flags|= T_EXTEND; }
         | USE_FRM      { Lex->check_opt.sql_flags|= TT_USEFRM; }
+        | FROM MYSQL_SYM { Lex->check_opt.sql_flags|= TT_FROM_MYSQL; }
         ;
 
 analyze:
@@ -7263,7 +7274,7 @@ binlog_base64_event:
         ;
 
 check:
-          CHECK_SYM table_or_tables
+          CHECK_SYM table_or_view
           {
             LEX *lex=Lex;
 
@@ -7281,6 +7292,13 @@ check:
           table_list opt_mi_check_type
           {
             LEX* lex= thd->lex;
+            if (lex->only_view &&
+                (lex->check_opt.flags & (T_QUICK | T_FAST | T_EXTEND |
+                                         T_CHECK_ONLY_CHANGED)))
+            {
+              my_parse_error(ER(ER_SYNTAX_ERROR));
+              MYSQL_YYABORT;
+            }
             DBUG_ASSERT(!lex->m_stmt);
             lex->m_stmt= new (thd->mem_root) Check_table_statement(lex);
             if (lex->m_stmt == NULL)
@@ -7388,6 +7406,7 @@ keycache:
             LEX *lex=Lex;
             lex->sql_command= SQLCOM_ASSIGN_TO_KEYCACHE;
             lex->ident= $6;
+            lex->only_view= FALSE;
           }
         ;
 
@@ -7432,6 +7451,7 @@ preload:
             LEX *lex=Lex;
             lex->sql_command=SQLCOM_PRELOAD_KEYS;
             lex->alter_info.reset();
+            lex->only_view= FALSE;
           }
           preload_list_or_parts
           {}
@@ -9220,7 +9240,8 @@ udf_expr:
                parse it out. If we hijack the input stream with
                remember_name we may get quoted or escaped names.
             */
-            else if ($2->type() != Item::FIELD_ITEM)
+            else if ($2->type() != Item::FIELD_ITEM &&
+                     $2->type() != Item::REF_ITEM /* For HAVING */ )
               $2->set_name($1, (uint) ($3 - $1), thd->charset());
             $$= $2;
           }
@@ -13192,6 +13213,7 @@ keyword_sp:
         | MULTIPOINT               {}
         | MULTIPOLYGON             {}
         | MUTEX_SYM                {}
+        | MYSQL_SYM                {}
         | MYSQL_ERRNO_SYM          {}
         | NAME_SYM                 {}
         | NAMES_SYM                {}
@@ -13790,8 +13812,13 @@ lock:
         ;
 
 table_or_tables:
-          TABLE_SYM
-        | TABLES
+          TABLE_SYM        { Lex->only_view= FALSE; }
+        | TABLES           { Lex->only_view= FALSE; }
+        ;
+
+table_or_view:
+          table_or_tables
+        | VIEW_SYM         { Lex->only_view= TRUE;  }
         ;
 
 table_lock_list:
@@ -14602,6 +14629,13 @@ subselect_end:
             */
             lex->current_select->select_n_where_fields+=
             child->select_n_where_fields;
+
+            /*
+              Aggregate functions in having clause may add fields to an outer
+              select. Count them also.
+            */
+            lex->current_select->select_n_having_items+=
+            child->select_n_having_items;
           }
         ;
 
