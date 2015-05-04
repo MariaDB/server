@@ -160,8 +160,7 @@ sure both macros are undefined; an emulation function will then be used. */
    for longer patterns in extreme cases. */
 #undef LINK_SIZE
 
-/* Define to the sub-directory in which libtool stores uninstalled libraries.
-   */
+/* Define to the sub-directory where libtool stores uninstalled libraries. */
 #undef LT_OBJDIR
 
 /* The value of MATCH_LIMIT determines the default number of times the

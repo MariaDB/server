@@ -13,7 +13,18 @@ PCRE(3)                    Library Functions Manual                    PCRE(3)
 
 
 NAME
-       PCRE - Perl-compatible regular expressions
+       PCRE - Perl-compatible regular expressions (original API)
+
+PLEASE TAKE NOTE
+
+       This  document relates to PCRE releases that use the original API, with
+       library names libpcre, libpcre16, and libpcre32. January 2015  saw  the
+       first release of a new API, known as PCRE2, with release numbers start-
+       ing  at  10.00  and  library   names   libpcre2-8,   libpcre2-16,   and
+       libpcre2-32. The old libraries (now called PCRE1) are still being main-
+       tained for bug fixes,  but  there  will  be  no  new  development.  New
+       projects are advised to use the new PCRE2 libraries.
+
 
 INTRODUCTION
 
@@ -179,8 +190,8 @@ AUTHOR
 
 REVISION
 
-       Last updated: 08 January 2014
-       Copyright (c) 1997-2014 University of Cambridge.
+       Last updated: 10 February 2015
+       Copyright (c) 1997-2015 University of Cambridge.
 ------------------------------------------------------------------------------
 
 

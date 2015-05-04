@@ -1496,4 +1496,10 @@
 /^s?c/mi8
     scat
 
+/[A-`]/i8
+    abcdefghijklmno
+
+/\C\X*QT/8
+    Ӆ\x0aT
+
 /-- End of testinput6 --/

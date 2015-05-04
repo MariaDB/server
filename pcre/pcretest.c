@@ -2257,16 +2257,19 @@ if (callout_extra)
   fprintf(f, "Callout %d: last capture = %d\n",
     cb->callout_number, cb->capture_last);
 
-  for (i = 0; i < cb->capture_top * 2; i += 2)
+  if (cb->offset_vector != NULL)
     {
-    if (cb->offset_vector[i] < 0)
-      fprintf(f, "%2d: <unset>\n", i/2);
-    else
+    for (i = 0; i < cb->capture_top * 2; i += 2)
       {
-      fprintf(f, "%2d: ", i/2);
-      PCHARSV(cb->subject, cb->offset_vector[i],
-        cb->offset_vector[i+1] - cb->offset_vector[i], f);
-      fprintf(f, "\n");
+      if (cb->offset_vector[i] < 0)
+        fprintf(f, "%2d: <unset>\n", i/2);
+      else
+        {
+        fprintf(f, "%2d: ", i/2);
+        PCHARSV(cb->subject, cb->offset_vector[i],
+          cb->offset_vector[i+1] - cb->offset_vector[i], f);
+        fprintf(f, "\n");
+        }
       }
     }
   }
@@ -2519,7 +2522,7 @@ re->name_entry_size = swap_uint16(re->name_entry_size);
 re->name_count = swap_uint16(re->name_count);
 re->ref_count = swap_uint16(re->ref_count);
 
-if (extra != NULL)
+if (extra != NULL && (extra->flags & PCRE_EXTRA_STUDY_DATA) != 0)
   {
   pcre_study_data *rsd = (pcre_study_data *)(extra->study_data);
   rsd->size = swap_uint32(rsd->size);
@@ -2700,7 +2703,7 @@ re->name_entry_size = swap_uint16(re->name_entry_size);
 re->name_count = swap_uint16(re->name_count);
 re->ref_count = swap_uint16(re->ref_count);
 
-if (extra != NULL)
+if (extra != NULL && (extra->flags & PCRE_EXTRA_STUDY_DATA) != 0)
   {
   pcre_study_data *rsd = (pcre_study_data *)(extra->study_data);
   rsd->size = swap_uint32(rsd->size);
@@ -3453,7 +3456,7 @@ while (!done)
   pcre_extra *extra = NULL;
 
 #if !defined NOPOSIX  /* There are still compilers that require no indent */
-  regex_t preg;
+  regex_t preg = { NULL, 0, 0} ;
   int do_posix = 0;
 #endif
 
@@ -5603,6 +5606,12 @@ while (!done)
 
       if (!do_g && !do_G) break;
 
+      if (use_offsets == NULL)
+        {
+        fprintf(outfile, "Cannot do global matching without an ovector\n");
+        break;
+        }
+
       /* If we have matched an empty string, first check to see if we are at
       the end of the subject. If so, the /g loop is over. Otherwise, mimic what
       Perl's /g options does. This turns out to be rather cunning. First we set
@@ -5618,9 +5627,33 @@ while (!done)
         g_notempty = PCRE_NOTEMPTY_ATSTART | PCRE_ANCHORED;
         }
 
-      /* For /g, update the start offset, leaving the rest alone */
+      /* For /g, update the start offset, leaving the rest alone. There is a
+      tricky case when \K is used in a positive lookbehind assertion. This can
+      cause the end of the match to be less than or equal to the start offset.
+      In this case we restart at one past the start offset. This may return the
+      same match if the original start offset was bumped along during the
+      match, but eventually the new start offset will hit the actual start
+      offset. (In PCRE2 the true start offset is available, and this can be
+      done better. It is not worth doing more than making sure we do not loop
+      at this stage in the life of PCRE1.) */
 
-      if (do_g) start_offset = use_offsets[1];
+      if (do_g)
+        {
+        if (g_notempty == 0 && use_offsets[1] <= start_offset)
+          {
+          if (start_offset >= len) break;  /* End of subject */
+          start_offset++;
+          if (use_utf)
+            {
+            while (start_offset < len)
+              {
+              if ((bptr[start_offset] & 0xc0) != 0x80) break;
+              start_offset++;
+              }
+            }
+          }
+        else start_offset = use_offsets[1];
+        }
 
       /* For /G, update the pointer and length */
 
@@ -5637,7 +5670,7 @@ while (!done)
   CONTINUE:
 
 #if !defined NOPOSIX
-  if (posix || do_posix) regfree(&preg);
+  if ((posix || do_posix) && preg.re_pcre != 0) regfree(&preg);
 #endif
 
   if (re != NULL) new_free(re);

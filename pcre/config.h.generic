@@ -162,8 +162,7 @@ sure both macros are undefined; an emulation function will then be used. */
 #define LINK_SIZE 2
 #endif
 
-/* Define to the sub-directory in which libtool stores uninstalled libraries.
-   */
+/* Define to the sub-directory where libtool stores uninstalled libraries. */
 /* This is ignored unless you are using libtool. */
 #ifndef LT_OBJDIR
 #define LT_OBJDIR ".libs/"
@@ -236,7 +235,7 @@ sure both macros are undefined; an emulation function will then be used. */
 #define PACKAGE_NAME "PCRE"
 
 /* Define to the full name and version of this package. */
-#define PACKAGE_STRING "PCRE 8.36"
+#define PACKAGE_STRING "PCRE 8.37"
 
 /* Define to the one symbol short name of this package. */
 #define PACKAGE_TARNAME "pcre"
@@ -245,7 +244,7 @@ sure both macros are undefined; an emulation function will then be used. */
 #define PACKAGE_URL ""
 
 /* Define to the version of this package. */
-#define PACKAGE_VERSION "8.36"
+#define PACKAGE_VERSION "8.37"
 
 /* The value of PARENS_NEST_LIMIT specifies the maximum depth of nested
    parentheses (of any kind) in a pattern. This limits the amount of system
@@ -337,7 +336,7 @@ sure both macros are undefined; an emulation function will then be used. */
 /* #undef SUPPORT_VALGRIND */
 
 /* Version number of package */
-#define VERSION "8.36"
+#define VERSION "8.37"
 
 /* Define to empty if `const' does not conform to ANSI C. */
 /* #undef const */

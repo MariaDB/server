@@ -51,8 +51,6 @@ POSSIBILITY OF SUCH DAMAGE.
 
 #include "pcre_internal.h"
 
-#define PCRE_BUG 0x80000000
-
 /*
  Letter characters:
    \xe6\x92\xad = 0x64ad = 25773 (kanji)
@@ -69,6 +67,9 @@ POSSIBILITY OF SUCH DAMAGE.
       \xc3\x89 = 0xc9 = 201 (E')
    \xc3\xa1 = 0xe1 = 225 (a')
       \xc3\x81 = 0xc1 = 193 (A')
+   \x53 = 0x53 = S
+     \x73 = 0x73 = s
+     \xc5\xbf = 0x17f = 383 (long S)
    \xc8\xba = 0x23a = 570
       \xe2\xb1\xa5 = 0x2c65 = 11365
    \xe1\xbd\xb8 = 0x1f78 = 8056
@@ -78,6 +79,10 @@ POSSIBILITY OF SUCH DAMAGE.
    \xc7\x84 = 0x1c4 = 452
      \xc7\x85 = 0x1c5 = 453
      \xc7\x86 = 0x1c6 = 454
+ Caseless sets:
+   ucp_Armenian - \x{531}-\x{556} -> \x{561}-\x{586}
+   ucp_Coptic - \x{2c80}-\x{2ce3} -> caseless: XOR 0x1
+   ucp_Latin - \x{ff21}-\x{ff3a} -> \x{ff41]-\x{ff5a}
 
  Mark property:
    \xcc\x8d = 0x30d = 781
@@ -626,6 +631,9 @@ static struct regression_test_case regression_test_cases[] = {
 	{ MUA, 0, "(?P<Name>a)?(?P<Name2>b)?(?(Name)c|d)+?dd", "bcabcacdb bdddd" },
 	{ MUA, 0, "(?P<Name>a)?(?P<Name2>b)?(?(Name)c|d)+l", "ababccddabdbccd abcccl" },
 	{ MUA, 0, "((?:a|aa)(?(1)aaa))x", "aax" },
+	{ MUA, 0, "(?(?!)a|b)", "ab" },
+	{ MUA, 0, "(?(?!)a)", "ab" },
+	{ MUA, 0 | F_NOMATCH, "(?(?!)a|b)", "ac" },
 
 	/* Set start of match. */
 	{ MUA, 0, "(?:\\Ka)*aaaab", "aaaaaaaa aaaaaaabb" },
@@ -944,7 +952,7 @@ static void setstack16(pcre16_extra *extra)
 
 	pcre16_assign_jit_stack(extra, callback16, getstack16());
 }
-#endif /* SUPPORT_PCRE8 */
+#endif /* SUPPORT_PCRE16 */
 
 #ifdef SUPPORT_PCRE32
 static pcre32_jit_stack *stack32;
@@ -967,7 +975,7 @@ static void setstack32(pcre32_extra *extra)
 
 	pcre32_assign_jit_stack(extra, callback32, getstack32());
 }
-#endif /* SUPPORT_PCRE8 */
+#endif /* SUPPORT_PCRE32 */
 
 #ifdef SUPPORT_PCRE16
 
@@ -1177,7 +1185,7 @@ static int regression_tests(void)
 #elif defined SUPPORT_PCRE16
 	pcre16_config(PCRE_CONFIG_UTF16, &utf);
 	pcre16_config(PCRE_CONFIG_UNICODE_PROPERTIES, &ucp);
-#elif defined SUPPORT_PCRE16
+#elif defined SUPPORT_PCRE32
 	pcre32_config(PCRE_CONFIG_UTF32, &utf);
 	pcre32_config(PCRE_CONFIG_UNICODE_PROPERTIES, &ucp);
 #endif
