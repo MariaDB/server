@@ -2,7 +2,7 @@
 #define ITEM_GEOFUNC_INCLUDED
 
 /* Copyright (c) 2000, 2010 Oracle and/or its affiliates.
-   Copyright (C) 2011 Monty Program Ab.
+   Copyright (C) 2011, 2015 MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -116,7 +116,7 @@ class Item_func_point: public Item_geometry_func
 public:
   Item_func_point(Item *a, Item *b): Item_geometry_func(a, b) {}
   Item_func_point(Item *a, Item *b, Item *srid): Item_geometry_func(a, b, srid) {}
-  const char *func_name() const { return "st_point"; }
+  const char *func_name() const { return "point"; }
   String *val_str(String *);
   Field::geometry_type get_geometry_type() const;
 };

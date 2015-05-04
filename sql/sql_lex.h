@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2014, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2014, Monty Program Ab.
+   Copyright (c) 2010, 2015, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -2742,6 +2742,8 @@ struct LEX: public Query_tables_list
     }
     return FALSE;
   }
+
+  bool save_prep_leaf_tables();
 
   int print_explain(select_result_sink *output, uint8 explain_flags,
                     bool *printed_anything);

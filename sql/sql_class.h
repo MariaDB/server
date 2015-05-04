@@ -1,5 +1,6 @@
-/* Copyright (c) 2000, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2013, Monty Program Ab.
+/*
+   Copyright (c) 2000, 2015, Oracle and/or its affiliates.
+   Copyright (c) 2009, 2015, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -772,9 +773,6 @@ void add_to_status(STATUS_VAR *to_var, STATUS_VAR *from_var);
 void add_diff_to_status(STATUS_VAR *to_var, STATUS_VAR *from_var,
                         STATUS_VAR *dec_var);
 
-void mark_transaction_to_rollback(THD *thd, bool all);
-
-
 /**
   Get collation by name, send error to client on failure.
   @param name     Collation name
@@ -801,7 +799,6 @@ mysqld_collation_get_by_name(const char *name,
   }
   return cs;
 }
-
 
 #ifdef MYSQL_SERVER
 
@@ -3113,6 +3110,8 @@ public:
     if (get_stmt_da()->is_error())
       get_stmt_da()->reset_diagnostics_area();
     is_slave_error= 0;
+    if (killed == KILL_BAD_DATA)
+      killed= NOT_KILLED; // KILL_BAD_DATA can be reset w/o a mutex
     DBUG_VOID_RETURN;
   }
 #ifndef EMBEDDED_LIBRARY
@@ -3704,6 +3703,7 @@ public:
     wait_for_commit_ptr= suspended;
   }
 
+  void mark_transaction_to_rollback(bool all);
 private:
 
   /** The current internal error handler for this thread, or NULL. */
@@ -4884,8 +4884,6 @@ public:
   sent by the user (ie: stored procedure).
 */
 #define CF_SKIP_QUESTIONS       (1U << 1)
-
-void mark_transaction_to_rollback(THD *thd, bool all);
 
 /* Inline functions */
 

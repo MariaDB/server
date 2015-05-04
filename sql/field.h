@@ -1,7 +1,7 @@
 #ifndef FIELD_INCLUDED
 #define FIELD_INCLUDED
 /* Copyright (c) 2000, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2014, SkySQL Ab.
+   Copyright (c) 2008, 2015, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -2561,6 +2561,14 @@ public:
   int  store(longlong nr, bool unsigned_val);
   int  store_decimal(const my_decimal *);
   uint size_of() const { return sizeof(*this); }
+  /**
+   Key length is provided only to support hash joins. (compared byte for byte)
+   Ex: SELECT .. FROM t1,t2 WHERE t1.field_geom1=t2.field_geom2.
+
+   The comparison is not very relevant, as identical geometry might be
+   represented differently, but we need to support it either way.
+  */
+  uint32 key_length() const { return packlength; }
 
   /**
     Non-nullable GEOMETRY types cannot have defaults,

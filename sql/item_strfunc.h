@@ -3,7 +3,7 @@
 
 /*
    Copyright (c) 2000, 2011, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2013, Monty Program Ab.
+   Copyright (c) 2009, 2015, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -937,7 +937,6 @@ public:
   Item_func_conv_charset(Item *a, CHARSET_INFO *cs, bool cache_if_const) 
     :Item_str_func(a) 
   {
-    DBUG_ASSERT(args[0]->fixed);
     conv_charset= cs;
     if (cache_if_const && args[0]->const_item() && !args[0]->is_expensive())
     {
