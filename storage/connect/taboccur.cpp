@@ -1,7 +1,7 @@
 /************ TabOccur CPP Declares Source Code File (.CPP) ************/
 /*  Name: TABOCCUR.CPP   Version 1.1                                   */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          2013         */
+/*  (C) Copyright to the author Olivier BERTRAND          2013 - 2015  */
 /*                                                                     */
 /*  OCCUR: Table that provides a view of a source table where the      */
 /*  contain of several columns of the source table is placed in only   */
@@ -45,11 +45,8 @@
 #include "tabcol.h"
 #include "taboccur.h"
 #include "xtable.h"
-#if defined(MYSQL_SUPPORT)
 #include "tabmysql.h"
-#endif   // MYSQL_SUPPORT
 #include "ha_connect.h"
-#include "mycat.h"
 
 /***********************************************************************/
 /*  Prepare and count columns in the column list.                      */
@@ -93,8 +90,7 @@ bool OcrColumns(PGLOBAL g, PQRYRES qrp, const char *col,
     } // endif col
 
   // Prepare the column list
-  colist = (char*)PlugSubAlloc(g, NULL, strlen(col) + 1);
-  strcpy(colist, col);
+  colist = PlugDup(g, col);
   m = PrepareColist(colist);
 
   if ((rk = (rank && *rank))) {
@@ -191,8 +187,7 @@ bool OcrSrcCols(PGLOBAL g, PQRYRES qrp, const char *col,
     } // endif col
 
   // Prepare the column list
-  colist = (char*)PlugSubAlloc(g, NULL, strlen(col) + 1);
-  strcpy(colist, col);
+  colist = PlugDup(g, col);
   m = PrepareColist(colist);
 
   if ((rk = (rank && *rank)))

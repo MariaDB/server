@@ -111,7 +111,7 @@ AM_CONDITIONAL([WITH_TEST], [test "$ac_cv_ruby_available" = "yes"])
 # For package
 AC_ARG_WITH(rsync-path,
             [AS_HELP_STRING([--with-rsync-path=PATH],
-            [specify rsync path to upload groonga packages.])],
+            [specify rsync path to upload Groonga packages.])],
             [RSYNC_PATH="$withval"],
             [RSYNC_PATH="packages@packages.groonga.org:public"])
 AC_SUBST(RSYNC_PATH)
@@ -188,7 +188,7 @@ echo "  CFLAGS:                ${CFLAGS}"
 echo "  CXXFLAGS:              ${CXXFLAGS}"
 echo "  Libraries:             ${LIBS}"
 echo
-echo "groonga"
+echo "Groonga"
 echo "  CFLAGS:                ${GROONGA_CFLAGS}"
 echo "  Libraries:             ${GROONGA_LIBS}"
 echo "  install directory:     ${normalizers_pluginsdir}"

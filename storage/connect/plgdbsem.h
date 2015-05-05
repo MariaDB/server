@@ -1,7 +1,7 @@
 /************** PlgDBSem H Declares Source Code File (.H) **************/
 /*  Name: PLGDBSEM.H  Version 3.6                                      */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          1998-2014    */
+/*  (C) Copyright to the author Olivier BERTRAND          1998-2015    */
 /*                                                                     */
 /*  This file contains the PlugDB++ application type definitions.      */
 /***********************************************************************/
@@ -504,9 +504,10 @@ enum XFLD {FLD_NO       =  0,         /* Not a field definition item   */
            FLD_EXTRA    = 13,         /* Field extra info              */
            FLD_PRIV     = 14,         /* Field priviledges             */
            FLD_DATEFMT  = 15,         /* Field date format             */
-           FLD_CAT      = 16,         /* Table catalog                 */
-           FLD_SCHEM    = 17,         /* Table schema                  */
-           FLD_TABNAME  = 18};        /* Column Table name             */
+           FLD_FORMAT   = 16,         /* Field format                  */
+           FLD_CAT      = 17,         /* Table catalog                 */
+           FLD_SCHEM    = 18,         /* Table schema                  */
+           FLD_TABNAME  = 19};        /* Column Table name             */
 
 /***********************************************************************/
 /*  Result of last SQL noconv query.                                   */
@@ -584,6 +585,7 @@ DllExport PCATLG  PlgGetCatalog(PGLOBAL g, bool jump = true);
 DllExport bool    PlgSetXdbPath(PGLOBAL g, PSZ, PSZ, char *, int, char *, int);
 DllExport void    PlgDBfree(MBLOCK&);
 DllExport void   *PlgDBSubAlloc(PGLOBAL g, void *memp, size_t size);
+DllExport char   *PlgDBDup(PGLOBAL g, const char *str);
 DllExport void   *PlgDBalloc(PGLOBAL, void *, MBLOCK&);
 DllExport void   *PlgDBrealloc(PGLOBAL, void *, MBLOCK&, size_t);
 DllExport void    NewPointer(PTABS, void *, void *);

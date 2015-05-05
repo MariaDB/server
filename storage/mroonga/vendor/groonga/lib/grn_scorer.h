@@ -39,6 +39,8 @@ struct _grn_scorer_matched_record {
   uint64_t n_candidates;
   uint32_t n_tokens;
   int weight;
+  grn_obj *args_expr;
+  unsigned int args_expr_offset;
 };
 
 

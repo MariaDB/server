@@ -42,7 +42,6 @@
 #include "tabcol.h"
 #include "catalog.h"
 #include "ha_connect.h"
-#include "mycat.h"
 
 #define my_strupr(p) my_caseup_str(default_charset_info, (p));
 #define my_strlwr(p) my_casedn_str(default_charset_info, (p));

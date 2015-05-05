@@ -1,5 +1,5 @@
-/* Copyright (c) 2010, 2014, Oracle and/or its affiliates.
-   Copyright (c) 2013, 2014, SkySQL Ab.
+/* Copyright (c) 2010, 2015, Oracle and/or its affiliates.
+   Copyright (c) 2013, 2015, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -282,6 +282,12 @@ static bool recreate_temporary_table(THD *thd, TABLE *table)
   DBUG_ENTER("recreate_temporary_table");
 
   table->file->info(HA_STATUS_AUTO | HA_STATUS_NO_LOCK);
+
+  /*
+    If LOCK TABLES list is not empty and contains this table
+    then unlock the table and remove it from this list.
+  */
+  mysql_lock_remove(thd, thd->lock, table);
 
   /* Don't free share. */
   close_temporary_table(thd, table, FALSE, FALSE);

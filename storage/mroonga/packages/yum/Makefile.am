@@ -1,7 +1,7 @@
 REPOSITORIES_PATH = repositories
 DISTRIBUTIONS = centos
 ARCHITECTURES = i386 x86_64
-MYSQL_VARIANTS = mysql55 mysql56-community mariadb
+MYSQL_VARIANTS = mysql55 mysql56-community mariadb percona-server-56
 SPEC_DIR = $(builddir)/../rpm/centos
 
 all:
@@ -61,3 +61,4 @@ $(abs_top_builddir)/$(PACKAGE)-$(VERSION).tar.gz:
 specs: $(SPEC_DIR)/mysql55-$(PACKAGE).spec
 specs: $(SPEC_DIR)/mysql56-community-$(PACKAGE).spec
 specs: $(SPEC_DIR)/mariadb-$(PACKAGE).spec
+specs: $(SPEC_DIR)/percona-server-56-$(PACKAGE).spec

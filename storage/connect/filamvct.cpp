@@ -5,7 +5,7 @@
 /*                                                                     */
 /* COPYRIGHT:                                                          */
 /* ----------                                                          */
-/*  (C) Copyright to the author Olivier BERTRAND          2005-2014    */
+/*  (C) Copyright to the author Olivier BERTRAND          2005-2015    */
 /*                                                                     */
 /* WHAT THIS PROGRAM DOES:                                             */
 /* -----------------------                                             */
@@ -1451,8 +1451,7 @@ bool VCMFAM::OpenTableFile(PGLOBAL g)
     /*******************************************************************/
     fp = (PFBLOCK)PlugSubAlloc(g, NULL, sizeof(FBLOCK));
     fp->Type = TYPE_FB_MAP;
-    fp->Fname = (char*)PlugSubAlloc(g, NULL, strlen(filename) + 1);
-    strcpy((char*)fp->Fname, filename);
+    fp->Fname = PlugDup(g, filename);
     fp->Next = dbuserp->Openlist;
     dbuserp->Openlist = fp;
     fp->Count = 1;
@@ -2844,8 +2843,7 @@ bool VMPFAM::MapColumnFile(PGLOBAL g, MODE mode, int i)
     /*******************************************************************/
     fp = (PFBLOCK)PlugSubAlloc(g, NULL, sizeof(FBLOCK));
     fp->Type = TYPE_FB_MAP;
-    fp->Fname = (char*)PlugSubAlloc(g, NULL, strlen(filename) + 1);
-    strcpy((char*)fp->Fname, filename);
+    fp->Fname = PlugDup(g, filename);
     fp->Next = dup->Openlist;
     dup->Openlist = fp;
     fp->Count = 1;

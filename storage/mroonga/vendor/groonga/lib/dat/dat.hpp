@@ -42,6 +42,12 @@
 # endif  // WIN32
 #endif  // GRN_DAT_API
 
+#ifdef WIN32
+# define grn_memcpy(dest, src, n) ::memcpy_s((dest), (n), (src), (n))
+#else  // WIN32
+# define grn_memcpy(dest, src, n) std::memcpy((dest), (src), (n))
+#endif  // WIN32
+
 namespace grn {
 namespace dat {
 

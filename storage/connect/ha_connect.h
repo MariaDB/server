@@ -1,4 +1,4 @@
-/* Copyright (C) Olivier Bertrand 2004 - 2014
+/* Copyright (C) Olivier Bertrand 2004 - 2015
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -25,6 +25,11 @@
 #ifdef USE_PRAGMA_INTERFACE
 #pragma interface     /* gcc class implementation */
 #endif
+
+/****************************************************************************/
+/*  mycat.h contains the TOS, PTOS, ha_table_option_struct declarations.    */
+/****************************************************************************/
+#include "mycat.h"
 
 static char *strz(PGLOBAL g, LEX_STRING &ls);
 
@@ -56,11 +61,7 @@ public:
               oldopn= newopn= NULL;
               oldpix= newpix= NULL;}
 
-  inline char *SetName(PGLOBAL g, char *name) {
-    char *nm= NULL;
-    if (name) {nm= (char*)PlugSubAlloc(g, NULL, strlen(name) + 1);
-               strcpy(nm, name);}
-    return nm;}
+  inline char *SetName(PGLOBAL g, char *name) {return PlugDup(g, name);}
 
   bool         oldsep;              // Sepindex before create/alter
   bool         newsep;              // Sepindex after create/alter
@@ -72,7 +73,6 @@ public:
 
 typedef class XCHK *PCHK;
 typedef class user_connect *PCONNECT;
-typedef struct ha_table_option_struct TOS, *PTOS;
 typedef struct ha_field_option_struct FOS, *PFOS;
 typedef struct ha_index_option_struct XOS, *PXOS;
 
@@ -84,6 +84,9 @@ extern handlerton *connect_hton;
   These can be specified in the CREATE TABLE:
   CREATE TABLE ( ... ) {...here...}
 */
+#if 0  // moved to mycat.h
+typedef struct ha_table_option_struct TOS, *PTOS;
+
 struct ha_table_option_struct {
   const char *type;
   const char *filename;
@@ -115,6 +118,7 @@ struct ha_table_option_struct {
   bool readonly;
   bool sepindex;
   };
+#endif // 0
 
 /**
   structure for CREATE TABLE options (field options)
@@ -239,7 +243,7 @@ public:
   int      CheckRecord(PGLOBAL g, const uchar *oldbuf, uchar *newbuf);
   int      ReadIndexed(uchar *buf, OPVAL op, const uchar* key= NULL,
                                              uint key_len= 0);
-  bool     MakeKeyWhere(PGLOBAL g, char *qry, OPVAL op, char *q,
+  bool     MakeKeyWhere(PGLOBAL g, PSTRG qry, OPVAL op, char q,
                                    const void *key, int klen);
   inline char *Strz(LEX_STRING &ls); 
 

@@ -26,6 +26,7 @@
 #include <mrn_windows.hpp>
 #include <mrn_table.hpp>
 #include <mrn_macro.hpp>
+#include <mrn_variables.hpp>
 
 MRN_BEGIN_DECLS
 
@@ -170,8 +171,8 @@ MRN_API my_bool mroonga_snippet_init(UDF_INIT *initid, UDF_ARGS *args, char *mes
   initid->maybe_null = 1;
   initid->const_item = 1;
 
-  if (!(snip_info = (st_mrn_snip_info *) my_malloc(sizeof(st_mrn_snip_info),
-                                                   MYF(MY_WME | MY_ZEROFILL))))
+  if (!(snip_info = (st_mrn_snip_info *) mrn_my_malloc(sizeof(st_mrn_snip_info),
+                                                       MYF(MY_WME | MY_ZEROFILL))))
   {
     strcpy(message, "mroonga_snippet() out of memory");
     goto error;
@@ -292,7 +293,7 @@ MRN_API void mroonga_snippet_deinit(UDF_INIT *initid)
     if (snip_info->snippet) {
       grn_obj_close(&snip_info->ctx, snip_info->snippet);
     }
-    snip_info->result_str.free();
+    MRN_STRING_FREE(snip_info->result_str);
     grn_obj_close(&snip_info->ctx, grn_ctx_db(&snip_info->ctx));
     grn_ctx_fin(&snip_info->ctx);
     my_free(snip_info);

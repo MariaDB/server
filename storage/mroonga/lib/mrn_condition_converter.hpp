@@ -23,6 +23,8 @@
 #include <groonga.h>
 #include <mrn_mysql_compat.h>
 
+#include <item_cmpfunc.h>
+
 namespace mrn {
   class ConditionConverter {
   public:

@@ -1,5 +1,5 @@
-/* Copyright (c) 2000, 2014, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2014, SkySQL Ab.
+/* Copyright (c) 2000, 2015, Oracle and/or its affiliates.
+   Copyright (c) 2008, 2015, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -515,6 +515,7 @@ ulong binlog_cache_use= 0, binlog_cache_disk_use= 0;
 ulong binlog_stmt_cache_use= 0, binlog_stmt_cache_disk_use= 0;
 ulong max_connections, max_connect_errors;
 ulong extra_max_connections;
+ulong max_digest_length= 0;
 ulong slave_retried_transactions;
 ulong feature_files_opened_with_delayed_keys;
 ulonglong denied_connections;
@@ -2251,7 +2252,8 @@ static struct passwd *check_user(const char *user)
   {
     if (!opt_bootstrap && !opt_help)
     {
-      sql_print_error("Fatal error: Please read \"Security\" section of the manual to find out how to run mysqld as root!\n");
+      sql_print_error("Fatal error: Please consult the Knowledge Base "
+                      "to find out how to run mysqld as root!\n");
       unireg_abort(1);
     }
     return NULL;
@@ -4068,6 +4070,10 @@ static int init_common_variables()
     return 1;
   set_server_version();
 
+  if (!opt_help)
+    sql_print_information("%s (mysqld %s) starting as process %lu ...",
+                          my_progname, server_version, (ulong) getpid());
+
 #ifndef EMBEDDED_LIBRARY
   if (opt_abort && !opt_verbose)
     unireg_abort(0);
@@ -5269,6 +5275,8 @@ int mysqld_main(int argc, char **argv)
       pfs_param.m_hints.m_table_open_cache= tc_size;
       pfs_param.m_hints.m_max_connections= max_connections;
       pfs_param.m_hints.m_open_files_limit= open_files_limit;
+      /* the performance schema digest size is the same as the SQL layer */
+      pfs_param.m_max_digest_length= max_digest_length;
       PSI_hook= initialize_performance_schema(&pfs_param);
       if (PSI_hook == NULL)
       {

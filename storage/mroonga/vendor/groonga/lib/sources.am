@@ -24,8 +24,11 @@ libgroonga_la_SOURCES =				\
 	grn_ii.h				\
 	io.c					\
 	grn_io.h				\
+	logger.c				\
+	grn_logger.h				\
 	mrb.c					\
 	grn_mrb.h				\
+	grn_msgpack.h				\
 	nfkc.c					\
 	normalizer.c				\
 	grn_normalizer.h			\

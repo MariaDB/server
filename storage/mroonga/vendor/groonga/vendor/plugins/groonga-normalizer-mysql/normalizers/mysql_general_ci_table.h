@@ -17,7 +17,7 @@
   MA 02110-1301, USA
 
   This file uses normalization table defined in
-  mysql-5.5.29/strings/ctype-utf8.c.
+  mysql-5.6.23/strings/ctype-utf8.c.
   The following is the header of the file:
 
     Copyright (c) 2000, 2012, Oracle and/or its affiliates. All rights reserved.

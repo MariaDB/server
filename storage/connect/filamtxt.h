@@ -42,6 +42,7 @@ class DllExport TXTFAM : public BLOCK {
   virtual PTXF  Duplicate(PGLOBAL g) = 0;
   virtual bool  GetUseTemp(void) {return false;}
   virtual int   GetDelRows(void) {return DelRows;}
+        PFBLOCK GetTo_Fb(void) {return To_Fb;}
           int   GetCurBlk(void) {return CurBlk;}
           void  SetTdbp(PTDBDOS tdbp) {Tdbp = tdbp;}
           int   GetBlock(void) {return Block;}

@@ -25,6 +25,7 @@
 #include <mrn_windows.hpp>
 #include <mrn_macro.hpp>
 #include <mrn_database_manager.hpp>
+#include <mrn_variables.hpp>
 
 MRN_BEGIN_DECLS
 
@@ -58,8 +59,8 @@ MRN_API my_bool mroonga_command_init(UDF_INIT *initid, UDF_ARGS *args,
   initid->maybe_null = 1;
   initid->const_item = 1;
 
-  info = (CommandInfo *)my_malloc(sizeof(CommandInfo),
-                                  MYF(MY_WME | MY_ZEROFILL));
+  info = (CommandInfo *)mrn_my_malloc(sizeof(CommandInfo),
+                                      MYF(MY_WME | MY_ZEROFILL));
   if (!info) {
     strcpy(message, "mroonga_command(): out of memory");
     goto error;
@@ -67,7 +68,7 @@ MRN_API my_bool mroonga_command_init(UDF_INIT *initid, UDF_ARGS *args,
 
   grn_ctx_init(&(info->ctx), 0);
   {
-    const char *current_db_path = current_thd->db;
+    const char *current_db_path = MRN_THD_DB_PATH(current_thd);
     const char *action;
     if (current_db_path) {
       action = "open database";
@@ -163,7 +164,7 @@ MRN_API void mroonga_command_deinit(UDF_INIT *initid)
       grn_obj_close(&(info->ctx), info->db);
     }
     grn_ctx_fin(&(info->ctx));
-    info->result.free();
+    MRN_STRING_FREE(info->result);
     my_free(info);
   }
 }

@@ -1,5 +1,5 @@
 /* Copyright (c) 2010, 2014, Oracle and/or its affiliates.
-   Copyright (c) 2012, 2014, Monty Program Ab.
+   Copyright (c) 2012, 2015, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -309,7 +309,8 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
                                                   HA_CHECK_OPT *),
                               int (handler::*operator_func)(THD *,
                                                             HA_CHECK_OPT *),
-                              int (view_operator_func)(THD *, TABLE_LIST*))
+                              int (view_operator_func)(THD *, TABLE_LIST*,
+                                                       HA_CHECK_OPT *))
 {
   TABLE_LIST *table;
   SELECT_LEX *select= &thd->lex->select_lex;
@@ -393,7 +394,18 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
       lex->query_tables_own_last= 0;
 
       if (view_operator_func == NULL)
+      {
         table->required_type=FRMTYPE_TABLE;
+        DBUG_ASSERT(!lex->only_view);
+      }
+      else if (lex->only_view)
+      {
+        table->required_type= FRMTYPE_VIEW;
+      }
+      else if (!lex->only_view && lex->sql_command == SQLCOM_REPAIR)
+      {
+        table->required_type= FRMTYPE_TABLE;
+      }
 
       if (lex->sql_command == SQLCOM_CHECK ||
           lex->sql_command == SQLCOM_REPAIR ||
@@ -521,9 +533,9 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
     }
 
     /*
-      CHECK TABLE command is only command where VIEW allowed here and this
-      command use only temporary teble method for VIEWs resolving => there
-      can't be VIEW tree substitition of join view => if opening table
+      CHECK/REPAIR TABLE command is only command where VIEW allowed here and
+      this command use only temporary table method for VIEWs resolving =>
+      there can't be VIEW tree substitition of join view => if opening table
       succeed then table->table will have real TABLE pointer as value (in
       case of join view substitution table->table can be 0, but here it is
       impossible)
@@ -536,7 +548,7 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
                      ER_CHECK_NO_SUCH_TABLE, ER(ER_CHECK_NO_SUCH_TABLE));
       /* if it was a view will check md5 sum */
       if (table->view &&
-          view_checksum(thd, table) == HA_ADMIN_WRONG_CHECKSUM)
+          view_check(thd, table, check_opt) == HA_ADMIN_WRONG_CHECKSUM)
         push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
                      ER_VIEW_CHECKSUM, ER(ER_VIEW_CHECKSUM));
       if (thd->get_stmt_da()->is_error() &&
@@ -551,7 +563,7 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
     if (table->view)
     {
       DBUG_PRINT("admin", ("calling view_operator_func"));
-      result_code= (*view_operator_func)(thd, table);
+      result_code= (*view_operator_func)(thd, table, check_opt);
       goto send_result;
     }
 
@@ -968,7 +980,16 @@ send_result_message:
       size_t length;
 
       protocol->store(STRING_WITH_LEN("error"), system_charset_info);
-      if (table->table->file->ha_table_flags() & HA_CAN_REPAIR)
+#if MYSQL_VERSION_ID > 100104
+#error fix the error message to take TABLE or VIEW as an argument
+#else
+      if (table->view)
+        length= my_snprintf(buf, sizeof(buf),
+                            "Upgrade required. Please do \"REPAIR VIEW %`s\" or dump/reload to fix it!",
+                            table->table_name);
+      else
+#endif
+      if (table->table->file->ha_table_flags() & HA_CAN_REPAIR || table->view)
         length= my_snprintf(buf, sizeof(buf), ER(ER_TABLE_NEEDS_UPGRADE),
                             table->table_name);
       else
@@ -1189,7 +1210,7 @@ bool Sql_cmd_check_table::execute(THD *thd)
 
   res= mysql_admin_table(thd, first_table, &m_lex->check_opt, "check",
                          lock_type, 0, 0, HA_OPEN_FOR_REPAIR, 0,
-                         &handler::ha_check, &view_checksum);
+                         &handler::ha_check, &view_check);
 
   m_lex->select_lex.table_list.first= first_table;
   m_lex->query_tables= first_table;
@@ -1246,7 +1267,7 @@ bool Sql_cmd_repair_table::execute(THD *thd)
                          TL_WRITE, 1,
                          MY_TEST(m_lex->check_opt.sql_flags & TT_USEFRM),
                          HA_OPEN_FOR_REPAIR, &prepare_for_repair,
-                         &handler::ha_repair, 0);
+                         &handler::ha_repair, &view_repair);
 
   /* ! we write after unlocking the table */
   if (!res && !m_lex->no_write_to_binlog)

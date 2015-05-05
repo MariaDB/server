@@ -13,9 +13,6 @@ case "${TRAVIS_OS_NAME}" in
          libmecab-dev \
          mecab-naist-jdic \
          cmake
-    if [ "${ENABLE_JEMALLOC}" = "yes" ]; then
-      sudo apt-get install -qq -y libjemalloc-dev
-    fi
     ;;
   osx)
     brew install \
