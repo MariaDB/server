@@ -59,6 +59,13 @@ GRN_API unsigned int
 GRN_API int
   grn_scorer_matched_record_get_weight(grn_ctx *ctx,
                                        grn_scorer_matched_record *record);
+GRN_API grn_obj *
+  grn_scorer_matched_record_get_arg(grn_ctx *ctx,
+                                    grn_scorer_matched_record *record,
+                                    unsigned int i);
+GRN_API unsigned int
+  grn_scorer_matched_record_get_n_args(grn_ctx *ctx,
+                                       grn_scorer_matched_record *record);
 
 
 

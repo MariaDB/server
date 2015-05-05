@@ -17,6 +17,8 @@
 */
 
 #include "../grn_ctx_impl.h"
+#include "../grn_ii.h"
+#include "../grn_db.h"
 
 #ifdef GRN_WITH_MRUBY
 #include <mruby.h>
@@ -24,9 +26,12 @@
 #include <mruby/data.h>
 #include <mruby/string.h>
 #include <mruby/hash.h>
+#include <mruby/variable.h>
 
 #include "mrb_ctx.h"
 #include "mrb_index_cursor.h"
+#include "mrb_converter.h"
+#include "mrb_options.h"
 
 static struct mrb_data_type mrb_grn_index_cursor_type = {
   "Groonga::IndexCursor",
@@ -46,6 +51,7 @@ mrb_grn_index_cursor_singleton_open_raw(mrb_state *mrb, mrb_value klass)
   grn_id rid_min = GRN_ID_NIL;
   grn_id rid_max = GRN_ID_MAX;
   int flags = 0;
+  mrb_value mrb_index_cursor;
 
   mrb_get_args(mrb, "oo|H", &mrb_table_cursor, &mrb_index, &mrb_options);
 
@@ -58,7 +64,10 @@ mrb_grn_index_cursor_singleton_open_raw(mrb_state *mrb, mrb_value klass)
                                        rid_min, rid_max, flags);
   grn_mrb_ctx_check(mrb);
 
-  return mrb_funcall(mrb, klass, "new", 1, mrb_cptr_value(mrb, index_cursor));
+  mrb_index_cursor = mrb_funcall(mrb, klass, "new", 1,
+                                 mrb_cptr_value(mrb, index_cursor));
+  mrb_iv_set(mrb, mrb_index_cursor, mrb_intern_lit(mrb, "@index"), mrb_index);
+  return mrb_index_cursor;
 }
 
 static mrb_value
@@ -103,6 +112,91 @@ mrb_grn_index_cursor_count(mrb_state *mrb, mrb_value self)
   return mrb_fixnum_value(n_records);
 }
 
+static mrb_value
+mrb_grn_index_cursor_select(mrb_state *mrb, mrb_value self)
+{
+  grn_ctx *ctx = (grn_ctx *)mrb->ud;
+  mrb_value mrb_result_set;
+  mrb_value mrb_options;
+  grn_obj *index_cursor;
+  grn_obj *expr = NULL;
+  grn_obj *expr_variable = NULL;
+  int offset = 0;
+  int limit = 10;
+  int n_matched_records = 0;
+  mrb_value mrb_index;
+  grn_obj *index;
+  grn_obj *lexicon;
+  grn_obj *data_table;
+  grn_hash *result_set;
+  grn_posting *posting;
+  grn_id term_id;
+  grn_operator op = GRN_OP_OR;
+
+  mrb_get_args(mrb, "o|H", &mrb_result_set, &mrb_options);
+
+  index_cursor = DATA_PTR(self);
+  result_set = DATA_PTR(mrb_result_set);
+
+  if (!mrb_nil_p(mrb_options)) {
+    mrb_value mrb_expr;
+    mrb_value mrb_offset;
+    mrb_value mrb_limit;
+
+    mrb_expr = grn_mrb_options_get_lit(mrb, mrb_options, "expression");
+    if (!mrb_nil_p(mrb_expr)) {
+      expr = DATA_PTR(mrb_expr);
+      expr_variable = grn_expr_get_var_by_offset(ctx, expr, 0);
+    }
+
+    mrb_offset = grn_mrb_options_get_lit(mrb, mrb_options, "offset");
+    if (!mrb_nil_p(mrb_offset)) {
+      offset = mrb_fixnum(mrb_offset);
+    }
+
+    mrb_limit = grn_mrb_options_get_lit(mrb, mrb_options, "limit");
+    if (!mrb_nil_p(mrb_limit)) {
+      limit = mrb_fixnum(mrb_limit);
+    }
+  }
+
+  if (limit <= 0) {
+    return mrb_fixnum_value(n_matched_records);
+  }
+
+  mrb_index = mrb_iv_get(mrb, self, mrb_intern_lit(mrb, "@index"));
+  index = DATA_PTR(mrb_index);
+  lexicon = ((grn_ii *)index)->lexicon;
+  data_table = grn_ctx_at(ctx, grn_obj_get_range(ctx, index));
+
+  while ((posting = grn_index_cursor_next(ctx, index_cursor, &term_id))) {
+    if (expr) {
+      grn_bool matched_raw;
+      grn_obj *matched;
+
+      GRN_RECORD_SET(ctx, expr_variable, posting->rid);
+      matched = grn_expr_exec(ctx, expr, 0);
+      GRN_TRUEP(ctx, matched, matched_raw);
+      if (!matched_raw) {
+        continue;
+      }
+    }
+    n_matched_records++;
+    if (offset > 0) {
+      offset--;
+      continue;
+    }
+    grn_ii_posting_add(ctx, (grn_ii_posting *)posting, result_set, op);
+    limit--;
+    if (limit == 0) {
+      break;
+    }
+  }
+  grn_ii_resolve_sel_and(ctx, result_set, op);
+
+  return mrb_fixnum_value(n_matched_records);
+}
+
 void
 grn_mrb_index_cursor_init(grn_ctx *ctx)
 {
@@ -124,5 +218,7 @@ grn_mrb_index_cursor_init(grn_ctx *ctx)
                     mrb_grn_index_cursor_close, MRB_ARGS_NONE());
   mrb_define_method(mrb, klass, "count",
                     mrb_grn_index_cursor_count, MRB_ARGS_NONE());
+  mrb_define_method(mrb, klass, "select",
+                    mrb_grn_index_cursor_select, MRB_ARGS_ARG(1, 1));
 }
 #endif

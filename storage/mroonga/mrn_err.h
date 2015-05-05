@@ -34,5 +34,8 @@
 #define ER_MRN_INVALID_COLUMN_FLAG_NUM 16507
 #define ER_MRN_INVALID_COLUMN_FLAG_STR \
   "The column flag '%-.64s' is invalid. '%-64s' is used instead"
+#define ER_MRN_INVALID_INDEX_FLAG_NUM 16508
+#define ER_MRN_INVALID_INDEX_FLAG_STR \
+  "The index flag '%-.64s' is invalid. It is ignored"
 
 #endif /* MRN_ERR_H_ */

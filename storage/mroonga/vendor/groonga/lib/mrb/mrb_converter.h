@@ -27,6 +27,26 @@ extern "C" {
 
 void grn_mrb_converter_init(grn_ctx *ctx);
 
+typedef struct {
+  grn_obj from;
+  grn_obj to;
+  union {
+    int64_t time_value;
+  } value;
+} grn_mrb_value_to_raw_data_buffer;
+
+void grn_mrb_value_to_raw_data_buffer_init(mrb_state *mrb,
+                                           grn_mrb_value_to_raw_data_buffer *buffer);
+void grn_mrb_value_to_raw_data_buffer_fin(mrb_state *mrb,
+                                          grn_mrb_value_to_raw_data_buffer *buffer);
+void grn_mrb_value_to_raw_data(mrb_state *mrb,
+                               const char *context,
+                               mrb_value mrb_value_,
+                               grn_id domain_id,
+                               grn_mrb_value_to_raw_data_buffer *buffer,
+                               void **raw_value,
+                               unsigned int *raw_value_size);
+
 struct RClass *grn_mrb_class_from_grn_obj(mrb_state *mrb, grn_obj *object);
 mrb_value      grn_mrb_value_from_grn_obj(mrb_state *mrb, grn_obj *object);
 

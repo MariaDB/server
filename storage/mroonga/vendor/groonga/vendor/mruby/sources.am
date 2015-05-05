@@ -11,6 +11,7 @@ libmruby_la_SOURCES = \
 	../mruby-source/src/error.c \
 	../mruby-source/src/error.h \
 	../mruby-source/src/etc.c \
+	../mruby-source/src/fmt_fp.c \
 	../mruby-source/src/gc.c \
 	../mruby-source/src/hash.c \
 	../mruby-source/src/init.c \

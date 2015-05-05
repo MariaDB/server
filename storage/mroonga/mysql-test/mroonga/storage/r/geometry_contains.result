@@ -16,113 +16,113 @@ shops	CREATE TABLE `shops` (
 ) ENGINE=Mroonga DEFAULT CHARSET=latin1
 INSERT INTO shops (name, location)
 VALUES ('nezu-no-taiyaki',
-GeomFromText('POINT(139.762573 35.720253)'));
+ST_GeomFromText('POINT(139.762573 35.720253)'));
 INSERT INTO shops (name, location)
 VALUES ('taiyaki-kataoka',
-GeomFromText('POINT(139.715591 35.712521)'));
+ST_GeomFromText('POINT(139.715591 35.712521)'));
 INSERT INTO shops (name, location)
 VALUES ('soba-taiyaki-ku',
-GeomFromText('POINT(139.659088 35.683712)'));
+ST_GeomFromText('POINT(139.659088 35.683712)'));
 INSERT INTO shops (name, location)
 VALUES ('kuruma',
-GeomFromText('POINT(139.706207 35.721516)'));
+ST_GeomFromText('POINT(139.706207 35.721516)'));
 INSERT INTO shops (name, location)
 VALUES ('hirose-ya',
-GeomFromText('POINT(139.685608 35.714844)'));
+ST_GeomFromText('POINT(139.685608 35.714844)'));
 INSERT INTO shops (name, location)
 VALUES ('sazare',
-GeomFromText('POINT(139.685043 35.714653)'));
+ST_GeomFromText('POINT(139.685043 35.714653)'));
 INSERT INTO shops (name, location)
 VALUES ('omede-taiyaki',
-GeomFromText('POINT(139.817154 35.700516)'));
+ST_GeomFromText('POINT(139.817154 35.700516)'));
 INSERT INTO shops (name, location)
 VALUES ('onaga-ya',
-GeomFromText('POINT(139.81105 35.698254)'));
+ST_GeomFromText('POINT(139.81105 35.698254)'));
 INSERT INTO shops (name, location)
 VALUES ('shiro-ya',
-GeomFromText('POINT(139.638611 35.705517)'));
+ST_GeomFromText('POINT(139.638611 35.705517)'));
 INSERT INTO shops (name, location)
 VALUES ('fuji-ya',
-GeomFromText('POINT(139.637115 35.703938)'));
+ST_GeomFromText('POINT(139.637115 35.703938)'));
 INSERT INTO shops (name, location)
 VALUES ('miyoshi',
-GeomFromText('POINT(139.537323 35.644539)'));
+ST_GeomFromText('POINT(139.537323 35.644539)'));
 INSERT INTO shops (name, location)
 VALUES ('juju-ya',
-GeomFromText('POINT(139.695755 35.628922)'));
+ST_GeomFromText('POINT(139.695755 35.628922)'));
 INSERT INTO shops (name, location)
 VALUES ('tatsumi-ya',
-GeomFromText('POINT(139.638657 35.665501)'));
+ST_GeomFromText('POINT(139.638657 35.665501)'));
 INSERT INTO shops (name, location)
 VALUES ('tetsuji',
-GeomFromText('POINT(139.76857 35.680912)'));
+ST_GeomFromText('POINT(139.76857 35.680912)'));
 INSERT INTO shops (name, location)
 VALUES ('gazuma-ya',
-GeomFromText('POINT(139.647598 35.700817)'));
+ST_GeomFromText('POINT(139.647598 35.700817)'));
 INSERT INTO shops (name, location)
 VALUES ('honma-mon',
-GeomFromText('POINT(139.652573 35.722736)'));
+ST_GeomFromText('POINT(139.652573 35.722736)'));
 INSERT INTO shops (name, location)
 VALUES ('naniwa-ya',
-GeomFromText('POINT(139.796234 35.730061)'));
+ST_GeomFromText('POINT(139.796234 35.730061)'));
 INSERT INTO shops (name, location)
 VALUES ('kuro-dai',
-GeomFromText('POINT(139.704834 35.650345)'));
+ST_GeomFromText('POINT(139.704834 35.650345)'));
 INSERT INTO shops (name, location)
 VALUES ('daruma',
-GeomFromText('POINT(139.770599 35.681461)'));
+ST_GeomFromText('POINT(139.770599 35.681461)'));
 INSERT INTO shops (name, location)
 VALUES ('yanagi-ya',
-GeomFromText('POINT(139.783981 35.685341)'));
+ST_GeomFromText('POINT(139.783981 35.685341)'));
 INSERT INTO shops (name, location)
 VALUES ('sharaku',
-GeomFromText('POINT(139.794846 35.716969)'));
+ST_GeomFromText('POINT(139.794846 35.716969)'));
 INSERT INTO shops (name, location)
 VALUES ('takane',
-GeomFromText('POINT(139.560913 35.698601)'));
+ST_GeomFromText('POINT(139.560913 35.698601)'));
 INSERT INTO shops (name, location)
 VALUES ('chiyoda',
-GeomFromText('POINT(139.652817 35.642601)'));
+ST_GeomFromText('POINT(139.652817 35.642601)'));
 INSERT INTO shops (name, location)
 VALUES ('da-ka-po',
-GeomFromText('POINT(139.727356 35.627346)'));
+ST_GeomFromText('POINT(139.727356 35.627346)'));
 INSERT INTO shops (name, location)
 VALUES ('matsushima-ya',
-GeomFromText('POINT(139.737381 35.640556)'));
+ST_GeomFromText('POINT(139.737381 35.640556)'));
 INSERT INTO shops (name, location)
 VALUES ('kazuya',
-GeomFromText('POINT(139.760895 35.673508)'));
+ST_GeomFromText('POINT(139.760895 35.673508)'));
 INSERT INTO shops (name, location)
 VALUES ('furuya-kogane-an',
-GeomFromText('POINT(139.676071 35.680603)'));
+ST_GeomFromText('POINT(139.676071 35.680603)'));
 INSERT INTO shops (name, location)
 VALUES ('hachi-no-ie',
-GeomFromText('POINT(139.668106 35.608021)'));
+ST_GeomFromText('POINT(139.668106 35.608021)'));
 INSERT INTO shops (name, location)
 VALUES ('azuki-chan',
-GeomFromText('POINT(139.673203 35.64151)'));
+ST_GeomFromText('POINT(139.673203 35.64151)'));
 INSERT INTO shops (name, location)
 VALUES ('kuriko-an',
-GeomFromText('POINT(139.796829 35.712013)'));
+ST_GeomFromText('POINT(139.796829 35.712013)'));
 INSERT INTO shops (name, location)
 VALUES ('yume-no-aru-machi-no-taiyaki-ya-san',
-GeomFromText('POINT(139.712524 35.616199)'));
+ST_GeomFromText('POINT(139.712524 35.616199)'));
 INSERT INTO shops (name, location)
 VALUES ('naze-ya',
-GeomFromText('POINT(139.665833 35.609039)'));
+ST_GeomFromText('POINT(139.665833 35.609039)'));
 INSERT INTO shops (name, location)
 VALUES ('sanoki-ya',
-GeomFromText('POINT(139.770721 35.66592)'));
+ST_GeomFromText('POINT(139.770721 35.66592)'));
 INSERT INTO shops (name, location)
 VALUES ('shigeta',
-GeomFromText('POINT(139.780273 35.672626)'));
+ST_GeomFromText('POINT(139.780273 35.672626)'));
 INSERT INTO shops (name, location)
 VALUES ('nishimi-ya',
-GeomFromText('POINT(139.774628 35.671825)'));
+ST_GeomFromText('POINT(139.774628 35.671825)'));
 INSERT INTO shops (name, location)
 VALUES ('hiiragi',
-GeomFromText('POINT(139.711517 35.647701)'));
-SELECT id, name, AsText(location) AS location_text FROM shops;
+ST_GeomFromText('POINT(139.711517 35.647701)'));
+SELECT id, name, ST_AsText(location) AS location_text FROM shops;
 id	name	location_text
 1	nezu-no-taiyaki	POINT(139.76257305555555 35.72025305555556)
 2	taiyaki-kataoka	POINT(139.7155911111111 35.712521111111116)
@@ -160,8 +160,8 @@ id	name	location_text
 34	shigeta	POINT(139.78027305555557 35.67262611111111)
 35	nishimi-ya	POINT(139.77462805555555 35.671825)
 36	hiiragi	POINT(139.71151694444444 35.64770111111111)
-SELECT id, name, AsText(location) AS location_text FROM shops
-WHERE MBRContains(GeomFromText('LineString(139.7727 35.6684, 139.7038 35.7121)'), location)
+SELECT id, name, ST_AsText(location) AS location_text FROM shops
+WHERE MBRContains(ST_GeomFromText('LineString(139.7727 35.6684, 139.7038 35.7121)'), location)
 ORDER BY id;
 id	name	location_text
 14	tetsuji	POINT(139.76857 35.680911944444446)

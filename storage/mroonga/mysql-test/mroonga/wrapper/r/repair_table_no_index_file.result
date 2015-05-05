@@ -1,7 +1,5 @@
-DROP DATABASE IF EXISTS repair_test;
 CREATE DATABASE repair_test;
 USE repair_test;
-DROP TABLE IF EXISTS diaries;
 CREATE TABLE diaries (
 id INT PRIMARY KEY AUTO_INCREMENT,
 title TEXT,
@@ -25,7 +23,7 @@ id	title	body
 2	groonga (1)	starting groonga...
 FLUSH TABLES;
 SELECT * FROM diaries WHERE MATCH(body) AGAINST("starting");
-ERROR HY000: syscall error 'repair_test.mrn.0000104' (No such file or directory)
+ERROR HY000: syscall error 'repair_test.mrn.0000106' (No such file or directory)
 REPAIR TABLE diaries;
 Table	Op	Msg_type	Msg_text
 repair_test.diaries	repair	status	OK

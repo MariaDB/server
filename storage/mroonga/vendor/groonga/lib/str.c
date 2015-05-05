@@ -27,6 +27,14 @@
 #endif /* _ISOC99_SOURCE */
 #include <math.h>
 
+#if defined(HAVE__GMTIME64_S) && defined(__GNUC__)
+# ifdef _WIN64
+#  define gmtime_s(tm, time) _gmtime64_s(tm, time)
+# else /* _WIN64 */
+#  define gmtime_s(tm, time) _gmtime32_s(tm, time)
+# endif /* _WIN64 */
+#endif /* defined(HAVE__GMTIME64_S) && defined(__GNUC__) */
+
 /* For Visual C++ 2010. Drop the code when we drop Visual C++ 2010 support. */
 #if defined(_MSC_VER) && _MSC_VER < 1800
 # define va_copy(destination, source) destination = source
@@ -530,7 +538,7 @@ normalize_utf8(grn_ctx *ctx, grn_str *nstr)
             nstr->ctypes = ctypes;
           }
         }
-        memcpy(d, p, lp);
+        grn_memcpy(d, p, lp);
         d_ = d;
         d += lp;
         length++;
@@ -1146,7 +1154,7 @@ grn_fakenstr_open(grn_ctx *ctx, const char *str, size_t str_len, grn_encoding en
   }
   nstr->orig = str;
   nstr->orig_blen = str_len;
-  memcpy(nstr->norm, str, str_len);
+  grn_memcpy(nstr->norm, str, str_len);
   nstr->norm[str_len] = '\0';
   nstr->norm_blen = str_len;
   nstr->ctypes = NULL;
@@ -1490,6 +1498,20 @@ grn_atoll(const char *nptr, const char *end, const char **rest)
   }
   if (rest) { *rest = o ? nptr : p; }
   return n ? -v : v;
+}
+
+uint64_t
+grn_atoull(const char *nptr, const char *end, const char **rest)
+{
+  uint64_t v = 0, t;
+  while (nptr < end && *nptr >= '0' && *nptr <= '9') {
+    t = v * 10 + (*nptr - '0');
+    if (t < v) { v = 0; break; }
+    v = t;
+    nptr++;
+  }
+  if (rest) { *rest = nptr; }
+  return v;
 }
 
 unsigned int
@@ -1916,7 +1938,7 @@ grn_bulk_resize(grn_ctx *ctx, grn_obj *buf, unsigned int newsize)
       if (rounded_newsize < newsize) { return GRN_NOT_ENOUGH_SPACE; }
       newsize = rounded_newsize;
       if (!(head = GRN_MALLOC(newsize))) { return GRN_NO_MEMORY_AVAILABLE; }
-      memcpy(head, GRN_BULK_HEAD(buf), GRN_BULK_VSIZE(buf));
+      grn_memcpy(head, GRN_BULK_HEAD(buf), GRN_BULK_VSIZE(buf));
       buf->u.b.curr = head + grn_bulk_margin_size + GRN_BULK_VSIZE(buf);
       buf->u.b.head = head + grn_bulk_margin_size;
       buf->u.b.tail = head + newsize;
@@ -1942,7 +1964,7 @@ grn_bulk_write(grn_ctx *ctx, grn_obj *buf, const char *str, unsigned int len)
     if ((rc = grn_bulk_resize(ctx, buf, GRN_BULK_VSIZE(buf) + len))) { return rc; }
   }
   curr = GRN_BULK_CURR(buf);
-  memcpy(curr, str, len);
+  grn_memcpy(curr, str, len);
   GRN_BULK_INCR_LEN(buf, len);
   return rc;
 }
@@ -2074,26 +2096,30 @@ grn_text_ulltoa(grn_ctx *ctx, grn_obj *buf, unsigned long long int i)
 inline static void
 ftoa_(grn_ctx *ctx, grn_obj *buf, double d)
 {
-  char *curr;
+  char *start;
+  size_t before_size;
   size_t len;
 #define DIGIT_NUMBER 15
-  grn_bulk_reserve(ctx, buf, DIGIT_NUMBER + 1);
-  curr = GRN_BULK_CURR(buf);
-  len = sprintf(curr, "%#.*g", DIGIT_NUMBER, d);
+#define FIRST_BUFFER_SIZE (DIGIT_NUMBER + 4)
+  before_size = GRN_BULK_VSIZE(buf);
+  grn_bulk_reserve(ctx, buf, FIRST_BUFFER_SIZE);
+  grn_text_printf(ctx, buf, "%#.*g", DIGIT_NUMBER, d);
+  len = GRN_BULK_VSIZE(buf) - before_size;
+  start = GRN_BULK_CURR(buf) - len;
+#undef FIRST_BUFFER_SIZE
 #undef DIGIT_NUMBER
-  if (curr[len - 1] == '.') {
-    GRN_BULK_INCR_LEN(buf, len);
+  if (start[len - 1] == '.') {
     GRN_TEXT_PUTC(ctx, buf, '0');
   } else {
     char *p, *q;
-    curr[len] = '\0';
-    if ((p = strchr(curr, 'e'))) {
+    start[len] = '\0';
+    if ((p = strchr(start, 'e'))) {
       for (q = p; *(q - 2) != '.' && *(q - 1) == '0'; q--) { len--; }
-      memmove(q, p, curr + len - q);
+      grn_memmove(q, p, start + len - q);
     } else {
-      for (q = curr + len; *(q - 2) != '.' && *(q - 1) == '0'; q--) { len--; }
+      for (q = start + len; *(q - 2) != '.' && *(q - 1) == '0'; q--) { len--; }
     }
-    GRN_BULK_INCR_LEN(buf, len);
+    grn_bulk_truncate(ctx, buf, before_size + len);
   }
 }
 
@@ -2491,9 +2517,11 @@ grn_text_printf(grn_ctx *ctx, grn_obj *bulk, const char *format, ...)
 grn_rc
 grn_text_vprintf(grn_ctx *ctx, grn_obj *bulk, const char *format, va_list args)
 {
-  int rest_size, written_size;
+  grn_bool is_written = GRN_FALSE;
+  int written_size;
 
   {
+    int rest_size;
     va_list copied_args;
 
     rest_size = GRN_BULK_REST(bulk);
@@ -2501,9 +2529,43 @@ grn_text_vprintf(grn_ctx *ctx, grn_obj *bulk, const char *format, va_list args)
     written_size = vsnprintf(GRN_BULK_CURR(bulk), rest_size,
                              format, copied_args);
     va_end(copied_args);
+
+    if (written_size < rest_size) {
+      is_written = GRN_TRUE;
+    }
   }
 
-  if (written_size >= rest_size) {
+#ifdef WIN32
+  if (written_size == -1 && errno == ERANGE) {
+# define N_NEW_SIZES 3
+    int i;
+    int new_sizes[N_NEW_SIZES];
+
+    new_sizes[0] = GRN_BULK_REST(bulk) + strlen(format) * 2;
+    new_sizes[1] = new_sizes[0] + 4096;
+    new_sizes[2] = new_sizes[0] + 65536;
+
+    for (i = 0; i < N_NEW_SIZES; i++) {
+      grn_rc rc;
+      int new_size = new_sizes[i];
+      va_list copied_args;
+
+      rc = grn_bulk_reserve(ctx, bulk, GRN_BULK_VSIZE(bulk) + new_size);
+      if (rc) {
+        return rc;
+      }
+      va_copy(copied_args, args);
+      written_size = vsnprintf(GRN_BULK_CURR(bulk), new_size,
+                               format, copied_args);
+      va_end(copied_args);
+      if (written_size != -1) {
+        break;
+      }
+    }
+# undef N_NEW_SIZES
+  }
+#else /* WIN32 */
+  if (!is_written) {
     grn_rc rc;
     int required_size = written_size + 1; /* "+ 1" for terminate '\0'. */
 
@@ -2514,6 +2576,7 @@ grn_text_vprintf(grn_ctx *ctx, grn_obj *bulk, const char *format, va_list args)
     written_size = vsnprintf(GRN_BULK_CURR(bulk), required_size,
                              format, args);
   }
+#endif /* WIN32 */
 
   if (written_size < 0) {
     return GRN_INVALID_ARGUMENT;
@@ -3148,7 +3211,7 @@ grn_str_url_path_normalize(grn_ctx *ctx, const char *path, size_t path_len,
       }
     }
     if (be - b >= pc - p) {
-      memcpy(b, p, (pc - p));
+      grn_memcpy(b, p, (pc - p));
       b += pc - p;
       p = pc;
       if (p < pe && *pc == '/' && be > b) {

@@ -19,16 +19,14 @@
 #define GRN_CTX_IMPL_H
 
 #ifndef GRN_CTX_H
-#include "grn_ctx.h"
+# include "grn_ctx.h"
 #endif /* GRN_CTX_H */
 
 #ifndef GRN_COM_H
-#include "grn_com.h"
+# include "grn_com.h"
 #endif /* GRN_COM_H */
 
-#ifdef GRN_WITH_MESSAGE_PACK
-#include <msgpack.h>
-#endif
+#include "grn_msgpack.h"
 
 #ifdef GRN_WITH_MRUBY
 # include <mruby.h>
@@ -111,6 +109,9 @@ struct _grn_mrb_data {
   struct {
     struct RClass *time_class;
   } builtin;
+  struct {
+    struct RClass *operator_class;
+  } groonga;
 };
 #endif
 
@@ -129,6 +130,7 @@ struct _grn_ctx_impl {
   grn_calloc_func calloc_func;
   grn_realloc_func realloc_func;
   grn_strdup_func strdup_func;
+  grn_free_func free_func;
 #endif
 
 #ifdef USE_MEMORY_DEBUG

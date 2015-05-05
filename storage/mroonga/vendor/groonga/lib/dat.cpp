@@ -70,7 +70,7 @@ bool
 grn_dat_remove_file(grn_ctx *ctx, const char *path)
 {
   struct stat stat;
-  return !::stat(path, &stat) && !unlink(path);
+  return !::stat(path, &stat) && !grn_unlink(path);
 }
 
 grn_rc
@@ -144,7 +144,7 @@ grn_dat_generate_trie_path(const char *base_path, char *trie_path, uint32_t file
     return;
   }
   const size_t len = std::strlen(base_path);
-  std::memcpy(trie_path, base_path, len);
+  grn_memcpy(trie_path, base_path, len);
   trie_path[len] = '.';
   grn_itoh(file_id % (1U << (4 * FILE_ID_LENGTH)),
            trie_path + len + 1, FILE_ID_LENGTH);
@@ -502,7 +502,7 @@ grn_dat_get_key(grn_ctx *ctx, grn_dat *dat, grn_id id, void *keybuf, int bufsize
     return 0;
   }
   if (keybuf && (bufsize >= (int)key.length())) {
-    std::memcpy(keybuf, key.ptr(), key.length());
+    grn_memcpy(keybuf, key.ptr(), key.length());
   }
   return (int)key.length();
 }

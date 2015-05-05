@@ -13,28 +13,17 @@ INDEX bugs_priority_index (priority) COMMENT 'table "priorities"'
 INSERT INTO bugs (id, priority) VALUES (1, 10);
 INSERT INTO bugs (id, priority) VALUES (2, 3);
 INSERT INTO bugs (id, priority) VALUES (3, -2);
-SELECT mroonga_command("dump");
-mroonga_command("dump")
+SELECT mroonga_command("dump --dump_plugins no --dump_records no");
+mroonga_command("dump --dump_plugins no --dump_records no")
 table_create priorities TABLE_PAT_KEY Int32
 column_create priorities id COLUMN_SCALAR Int32
+
 table_create bugs TABLE_PAT_KEY UInt32
 column_create bugs id COLUMN_SCALAR UInt32
+
 column_create bugs priority COLUMN_SCALAR priorities
+
 column_create priorities bugs_priority_index COLUMN_INDEX|WITH_POSITION bugs priority
-load --table priorities
-[
-["_key","id"],
-[-2,0],
-[3,0],
-[10,0]
-]
-load --table bugs
-[
-["_key","id","priority"],
-[1,1,10],
-[2,2,3],
-[3,3,-2]
-]
 SELECT *
 FROM bugs
 WHERE priority = 3;
