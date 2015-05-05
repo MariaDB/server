@@ -227,12 +227,15 @@ my_bool vio_reset(Vio* vio, enum enum_vio_type type,
     Propagate the timeout values. Necessary to also propagate
     the underlying proprieties associated with the timeout,
     such as the socket blocking mode.
+
+    note: old_vio.read_timeout/old_vio.write_timeout is stored in ms
+    but vio_timeout() takes seconds as argument, hence the / 1000
   */
   if (old_vio.read_timeout >= 0)
-    ret|= vio_timeout(vio, 0, old_vio.read_timeout);
+    ret|= vio_timeout(vio, 0, old_vio.read_timeout / 1000);
 
   if (old_vio.write_timeout >= 0)
-    ret|= vio_timeout(vio, 1, old_vio.write_timeout);
+    ret|= vio_timeout(vio, 1, old_vio.write_timeout / 1000);
 
   DBUG_RETURN(MY_TEST(ret));
 }
