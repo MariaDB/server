@@ -272,54 +272,51 @@ public:
   Spatial relations
 */
 
-class Item_func_spatial_mbr_rel: public Item_bool_func2
+class Item_func_spatial_rel: public Item_bool_func
 {
+protected:
   enum Functype spatial_rel;
+  String tmp_value1, tmp_value2;
 public:
-  Item_func_spatial_mbr_rel(Item *a,Item *b, enum Functype sp_rel) :
-    Item_bool_func2(a,b) { spatial_rel = sp_rel; }
-  longlong val_int();
-  enum Functype functype() const 
-  { 
-    return spatial_rel;
-  }
+  Item_func_spatial_rel(Item *a, Item *b, enum Functype sp_rel)
+   :Item_bool_func(a, b), spatial_rel(sp_rel)
+  { }
+  Item_func_spatial_rel(Item *a, Item *b, Item *c, enum Functype sp_rel)
+   :Item_bool_func(a, b, c), spatial_rel(sp_rel)
+  { }
+  enum Functype functype() const { return spatial_rel; }
   enum Functype rev_functype() const { return spatial_rel; }
-  const char *func_name() const;
-  virtual inline void print(String *str, enum_query_type query_type)
-  {
-    Item_func::print(str, query_type);
-  }
-  void fix_length_and_dec() { maybe_null= 1; }
   bool is_null() { (void) val_int(); return null_value; }
+  optimize_type select_optimize() const { return OPTIMIZE_OP; }
 };
 
 
-class Item_func_spatial_rel: public Item_bool_func
+class Item_func_spatial_mbr_rel: public Item_func_spatial_rel
 {
-  enum Functype spatial_rel;
+public:
+  Item_func_spatial_mbr_rel(Item *a, Item *b, enum Functype sp_rel)
+   :Item_func_spatial_rel(a, b, sp_rel)
+  { }
+  longlong val_int();
+  const char *func_name() const;
+};
+
+
+class Item_func_spatial_precise_rel: public Item_func_spatial_rel
+{
   Gcalc_heap collector;
   Gcalc_scan_iterator scan_it;
   Gcalc_function func;
-  String tmp_value1,tmp_value2, tmp_matrix;
+  String tmp_matrix;
 public:
-  Item_func_spatial_rel(Item *a,Item *b, enum Functype sp_rel);
-  Item_func_spatial_rel(Item *a, Item *b, Item *matrix);
-  virtual ~Item_func_spatial_rel();
+  Item_func_spatial_precise_rel(Item *a, Item *b, enum Functype sp_rel)
+   :Item_func_spatial_rel(a, b, sp_rel), collector()
+  { }
+  Item_func_spatial_precise_rel(Item *a, Item *b, Item *matrix)
+   :Item_func_spatial_rel(a, b, matrix, SP_RELATE_FUNC)
+  { }
   longlong val_int();
-  enum Functype functype() const 
-  { 
-    return spatial_rel;
-  }
-  enum Functype rev_functype() const { return spatial_rel; }
   const char *func_name() const;
-  virtual inline void print(String *str, enum_query_type query_type)
-  {
-    Item_func::print(str, query_type);
-  }
-
-  bool is_null() { (void) val_int(); return null_value; }
-  uint decimal_precision() const { return 1; }
-  optimize_type select_optimize() const { return OPTIMIZE_OP; }
 };
 
 

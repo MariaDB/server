@@ -957,8 +957,8 @@ const char *Item_func_spatial_mbr_rel::func_name() const
 longlong Item_func_spatial_mbr_rel::val_int()
 {
   DBUG_ASSERT(fixed == 1);
-  String *res1= args[0]->val_str(&cmp.value1);
-  String *res2= args[1]->val_str(&cmp.value2);
+  String *res1= args[0]->val_str(&tmp_value1);
+  String *res2= args[1]->val_str(&tmp_value2);
   Geometry_buffer buffer1, buffer2;
   Geometry *g1, *g2;
   MBR mbr1, mbr2;
@@ -999,25 +999,7 @@ longlong Item_func_spatial_mbr_rel::val_int()
 }
 
 
-Item_func_spatial_rel::Item_func_spatial_rel(Item *a,Item *b,
-                                             enum Functype sp_rel) :
-    Item_bool_func(a,b), collector()
-{
-  spatial_rel = sp_rel;
-}
-
-
-Item_func_spatial_rel::Item_func_spatial_rel(Item *a,Item *b, Item *mask) :
-    Item_bool_func(a,b,mask), spatial_rel(SP_RELATE_FUNC)
-{}
-
-
-Item_func_spatial_rel::~Item_func_spatial_rel()
-{
-}
-
-
-const char *Item_func_spatial_rel::func_name() const 
+const char *Item_func_spatial_precise_rel::func_name() const 
 { 
   switch (spatial_rel) {
     case SP_CONTAINS_FUNC:
@@ -1158,9 +1140,9 @@ static int setup_relate_func(Geometry *g1, Geometry *g2,
 
 #define GIS_ZERO 0.00000000001
 
-longlong Item_func_spatial_rel::val_int()
+longlong Item_func_spatial_precise_rel::val_int()
 {
-  DBUG_ENTER("Item_func_spatial_rel::val_int");
+  DBUG_ENTER("Item_func_spatial_precise_rel::val_int");
   DBUG_ASSERT(fixed == 1);
   String *res1;
   String *res2;

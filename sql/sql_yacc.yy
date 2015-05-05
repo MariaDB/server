@@ -9938,8 +9938,8 @@ geometry_function:
           CONTAINS_SYM '(' expr ',' expr ')'
           {
             $$= GEOM_NEW(thd,
-                         Item_func_spatial_rel($3, $5,
-                                               Item_func::SP_CONTAINS_FUNC));
+                         Item_func_spatial_precise_rel($3, $5,
+                                                 Item_func::SP_CONTAINS_FUNC));
           }
         | GEOMETRYCOLLECTION '(' expr_list ')'
           {
