@@ -27,6 +27,11 @@ if(BIG_ENDIAN)
   return()
 endif()
 
+if(CMAKE_SYSTEM_NAME STREQUAL "SunOS")
+  message(STATUS "Mroonga is not supported on Solaris")
+  return()
+endif()
+
 if(MSVC)
   if(MSVC_VERSION LESS 1600)
     message(STATUS "Mroonga supports only MSVC 2010 or later")
