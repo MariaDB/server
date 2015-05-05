@@ -1505,8 +1505,9 @@ bool XMLCOL::ParseXpath(PGLOBAL g, bool mode)
   } else if (Type == 2) {
     // HTML like table, columns are retrieved by position
     new(this) XPOSCOL(Value);        // Change the class of this column
-    Tdbp->Hasnod = true;
-    return false;
+    Inod = -1;
+//  Tdbp->Hasnod = true;
+//  return false;
   } else if (Type == 0 && !mode) {
     strcat(strcat(pbuf, "@"), Name);
   } else {                           // Type == 1

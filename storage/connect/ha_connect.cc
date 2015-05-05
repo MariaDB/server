@@ -4632,8 +4632,13 @@ int ha_connect::delete_or_rename_table(const char *name, const char *to)
 
         } // endif pos
 
-    } else       // Avoid infamous DBUG_ASSERT
-      thd->get_stmt_da()->reset_diagnostics_area();
+      } // endif open_table_def
+
+//  This below was done to avoid DBUG_ASSERT in some case that
+//  we don't know anymore what they were. It was suppressed because
+//  it did cause assertion in other cases (see MDEV-7935)
+//  } else       // Avoid infamous DBUG_ASSERT
+//    thd->get_stmt_da()->reset_diagnostics_area();
 
     free_table_share(share);
   } else              // Temporary file
