@@ -54,13 +54,6 @@ else()
   _pkgconfig_invoke(groonga GROONGA PLUGINS_DIR "" --variable=pluginsdir)
 endif()
 
-if(NOT DEFINED CMAKE_C_COMPILE_OPTIONS_PIC)
-  # For old CMake
-  if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_COMPILER_IS_CLANGCXX)
-    check_build_flag("-fPIC")
-  endif()
-endif()
-
 include_directories(
   ${CMAKE_BINARY_DIR}
   ${GROONGA_INCLUDE_DIRS})
