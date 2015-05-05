@@ -171,8 +171,10 @@ bool TDBMUL::InitFileNames(PGLOBAL g)
       } // endif hSearch
 
     while (n < PFNZ) {
-      strcat(strcat(strcpy(filename, drive), direc), FileData.cFileName);
-      pfn[n++] = PlugDup(g, filename);
+      if (!(FileData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)) {
+        strcat(strcat(strcpy(filename, drive), direc), FileData.cFileName);
+        pfn[n++] = PlugDup(g, filename);
+        } // endif dwFileAttributes
 
       if (!FindNextFile(hSearch, &FileData)) {
         rc = GetLastError();

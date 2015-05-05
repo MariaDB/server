@@ -168,35 +168,21 @@
 #define JSONMAX      10             // JSON Default max grp size
 
 extern "C" {
-       char  version[]= "Version 1.03.0006 April 12, 2015";
-
+       char  version[]= "Version 1.03.0007 April 30, 2015";
 #if defined(WIN32)
-       char  compver[]= "Version 1.03.0006 " __DATE__ " "  __TIME__;
+       char  compver[]= "Version 1.03.0007 " __DATE__ " "  __TIME__;
        char slash= '\\';
 #else   // !WIN32
        char slash= '/';
 #endif  // !WIN32
-
-//     int   trace= 0;             // The general trace value
-//     ulong xconv= 0;             // The type conversion option
-//     int   zconv= 0;             // The text conversion size
 } // extern "C"
 
 #if defined(XMAP)
        my_bool xmap= false;
 #endif   // XMAP
 
-//     uint worksize= 0;
 ulong  ha_connect::num= 0;
-//int  DTVAL::Shift= 0;
 
-/* CONNECT system variables */
-//atic int     conv_size= 0;
-//atic uint    work_size= 0;
-//atic ulong   type_conv= 0;
-#if defined(XMAP)
-//atic my_bool indx_map= 0;
-#endif   // XMAP
 #if defined(XMSG)
 extern "C" {
        char *msg_path;
@@ -613,9 +599,9 @@ DllExport LPCSTR PlugSetPath(LPSTR to, LPCSTR name, LPCSTR dir)
   delete_table method in handler.cc
 */
 static const char *ha_connect_exts[]= {
-  ".dos", ".fix", ".csv", ".bin", ".fmt", ".dbf", ".xml", ".ini", ".vec",
-  ".dnx", ".fnx", ".bnx", ".vnx", ".dbx", ".dop", ".fop", ".bop", ".vop",
-  NULL};
+  ".dos", ".fix", ".csv", ".bin", ".fmt", ".dbf", ".xml", ".json", ".ini",
+  ".vec", ".dnx", ".fnx", ".bnx", ".vnx", ".dbx", ".dop", ".fop", ".bop",
+  ".vop", NULL};
 
 /**
   @brief
@@ -4646,8 +4632,13 @@ int ha_connect::delete_or_rename_table(const char *name, const char *to)
 
         } // endif pos
 
-    } else       // Avoid infamous DBUG_ASSERT
-      thd->get_stmt_da()->reset_diagnostics_area();
+      } // endif open_table_def
+
+//  This below was done to avoid DBUG_ASSERT in some case that
+//  we don't know anymore what they were. It was suppressed because
+//  it did cause assertion in other cases (see MDEV-7935)
+//  } else       // Avoid infamous DBUG_ASSERT
+//    thd->get_stmt_da()->reset_diagnostics_area();
 
     free_table_share(share);
   } else              // Temporary file
@@ -4729,6 +4720,25 @@ ha_rows ha_connect::records_in_range(uint inx, key_range *min_key,
 
   DBUG_RETURN(rows);
 } // end of records_in_range
+
+// Used to check whether a MYSQL table is created on itself
+bool CheckSelf(PGLOBAL g, TABLE_SHARE *s, const char *host,
+                      const char *db, char *tab, const char *src, int port)
+{
+  if (src)
+    return false;
+  else if (host && stricmp(host, "localhost") && strcmp(host, "127.0.0.1"))
+    return false;
+  else if (db && stricmp(db, s->db.str))
+    return false;
+  else if (tab && stricmp(tab, s->table_name.str))
+    return false;
+  else if (port && port != (signed)GetDefaultPort())
+    return false;
+
+  strcpy(g->Message, "This MySQL table is defined on itself");
+  return true;
+} // end of CheckSelf
 
 /**
   Convert an ISO-8859-1 column name to UTF-8
@@ -4932,25 +4942,6 @@ static int init_table_share(THD* thd,
   return table_s->init_from_sql_statement_string(thd, true,
                                                  sql->ptr(), sql->length());
 } // end of init_table_share
-
-// Used to check whether a MYSQL table is created on itself
-bool CheckSelf(PGLOBAL g, TABLE_SHARE *s, const char *host,
-                      const char *db, char *tab, const char *src, int port)
-{
-  if (src)
-    return false;
-  else if (host && stricmp(host, "localhost") && strcmp(host, "127.0.0.1"))
-    return false;
-  else if (db && stricmp(db, s->db.str))
-    return false;
-  else if (tab && stricmp(tab, s->table_name.str))
-    return false;
-  else if (port && port != (signed)GetDefaultPort())
-    return false;
-
-  strcpy(g->Message, "This MySQL table is defined on itself");
-  return true;
-} // end of CheckSelf
 
 /**
   @brief

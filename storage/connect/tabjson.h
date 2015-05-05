@@ -25,7 +25,8 @@ typedef struct _jnode {
   PVAL  CncVal;                 // To cont value used for OP_CNC
   PVAL  Valp;                   // The internal array VALUE
   int   Rank;                   // The rank in array
-  int   Nx;                     // Same row number
+  int   Rx;                     // Read row number
+  int   Nx;                     // Next to read row number
 } JNODE, *PJNODE;
 
 /***********************************************************************/
