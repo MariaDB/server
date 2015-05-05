@@ -319,6 +319,7 @@ if(MRN_BUNDLED)
   mysql_add_plugin(mroonga
     ${MRN_ALL_SOURCES}
     STORAGE_ENGINE MODULE_ONLY
+    RECOMPILE_FOR_EMBEDDED
     LINK_LIBRARIES ${MRN_LIBRARIES})
 else()
   add_library(mroonga MODULE ${MRN_ALL_SOURCES})
