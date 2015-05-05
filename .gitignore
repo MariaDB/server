@@ -1,15 +1,8 @@
-# Edited by Olivier Bertrand
 *-t
-*.a
 *.ctest
-*.o
 *.reject
-*.so
-*.so.*
 *.spec
-*~
 *.bak
-*.log
 .*.swp
 *.ninja
 .ninja_*
@@ -19,7 +12,6 @@ typescript
 CMakeCache.txt
 CMakeFiles/
 MakeFile
-cmake_install.cmake
 install_manifest.txt
 CPackConfig.cmake
 CPackSourceConfig.cmake
@@ -199,10 +191,6 @@ storage/tokudb/ft-index/tools/tokudb_dump
 storage/tokudb/ft-index/tools/tokudb_gen
 storage/tokudb/ft-index/tools/tokudb_load
 storage/tokudb/ft-index/tools/tokuftdump
-storage/tokudb/ft-index/ft/ftverify
-storage/tokudb/ft-index/ft/tdb-recover
-storage/tokudb/ft-index/ft/tdb_logprint
-storage/tokudb/ft-index/ft/tokuftdump
 storage/tokudb/ft-index/xz/
 support-files/MySQL-shared-compat.spec
 support-files/binary-configure
@@ -236,11 +224,12 @@ storage/mroonga/vendor/groonga/src/grnslap
 storage/mroonga/vendor/groonga/src/groonga
 storage/mroonga/vendor/groonga/src/groonga-benchmark
 storage/mroonga/vendor/groonga/src/suggest/groonga-suggest-create-dataset
+storage/mroonga/mysql-test/mroonga/storage/r/information_schema_plugins.result
+storage/mroonga/mysql-test/mroonga/storage/r/variable_version.result
 # C and C++
 
 # Compiled Object files
 *.slo
-*.lo
 *.o
 *.ko
 *.obj
@@ -280,7 +269,6 @@ storage/mroonga/vendor/groonga/src/suggest/groonga-suggest-create-dataset
 *.user
 *.userosscache
 *.sln.docstates
-*.ncb
 *.sln
 
 *.vcproj
@@ -321,8 +309,6 @@ dlldata.c
 *_i.h
 *.ilk
 *.meta
-*.obj
-*.pch
 *.pdb
 *.pgc
 *.pgd
