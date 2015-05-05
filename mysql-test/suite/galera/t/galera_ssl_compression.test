@@ -1,0 +1,34 @@
+#
+# Test SSL compression. The accompanying galera_ssl_compression.cnf has a customized wsrep_provider_options setting that enables SSL and compression.
+#
+# Unfortunately there is no wire-level traffic bytes counter that would allow us to determine that compression kicked in, so we can only 
+# perform a most basic replication check.
+#
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+SELECT VARIABLE_VALUE = 'Synced' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_state_comment';
+SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+
+--connection node_2
+SELECT VARIABLE_VALUE = 'Synced' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_state_comment';
+SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+
+--connection node_1
+
+# Check that the socket.ssl_compression provider option is not dynamic
+--error ER_WRONG_ARGUMENTS
+SET GLOBAL wsrep_provider_options = "socket.ssl_compression=No";
+
+CREATE TABLE t1 (f1 VARCHAR(333) PRIMARY KEY, f2 BLOB) Engine=InnoDB;
+INSERT INTO t1 VALUES (REPEAT('a', 333), REPEAT('b', 65535));
+
+--connection node_2
+SELECT COUNT(*) = 1 FROM t1 WHERE f1 = REPEAT('a', 333) AND f2 = REPEAT('b', 65535);
+
+--connection node_1
+DROP TABLE t1;
+
+CALL mtr.add_suppression("Unknown parameter 'socket\.ssl_compression'");
+CALL mtr.add_suppression("Set options returned 7");
