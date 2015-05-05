@@ -24,4 +24,8 @@ libmrn_need_mysql_la_SOURCES =			\
 	mrn_time_converter.cpp			\
 	mrn_time_converter.hpp			\
 	mrn_database_manager.cpp		\
-	mrn_database_manager.hpp
+	mrn_database_manager.hpp		\
+	mrn_value_decoder.cpp			\
+	mrn_value_decoder.hpp			\
+	mrn_database_repairer.cpp		\
+	mrn_database_repairer.hpp

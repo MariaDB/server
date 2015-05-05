@@ -1,0 +1,36 @@
+DROP TABLE IF EXISTS logs;
+SET NAMES UTF8;
+CREATE TABLE logs(
+message TEXT,
+host TEXT,
+FULLTEXT KEY (message),
+FULLTEXT KEY (host)
+) DEFAULT CHARSET=utf8;
+INSERT INTO logs VALUES("Error Error Error",               "host1");
+INSERT INTO logs VALUES("Warning Warning Warning",         "host1");
+INSERT INTO logs VALUES("Error Error",                     "host2");
+INSERT INTO logs VALUES("Warning Warning",                 "host2");
+INSERT INTO logs VALUES("Error",                           "host2");
+INSERT INTO logs VALUES("Warning",                         "host2");
+INSERT INTO logs VALUES("Error Error Error Error",         "host2");
+INSERT INTO logs VALUES("Warning Warning Warning Warning", "host2");
+SELECT * FROM logs;
+message	host
+Error Error Error	host1
+Warning Warning Warning	host1
+Error Error	host2
+Warning Warning	host2
+Error	host2
+Warning	host2
+Error Error Error Error	host2
+Warning Warning Warning Warning	host2
+SELECT *,       MATCH(host)    AGAINST("host2" IN NATURAL LANGUAGE MODE) AS score
+FROM logs
+WHERE    MATCH(message) AGAINST("Error" IN NATURAL LANGUAGE MODE)
+ORDER BY MATCH(host)    AGAINST("host2" IN NATURAL LANGUAGE MODE);
+message	host	score
+Error Error Error	host1	0
+Error Error	host2	116509
+Error	host2	116509
+Error Error Error Error	host2	116509
+DROP TABLE logs;

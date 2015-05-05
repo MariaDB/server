@@ -1,7 +1,7 @@
 /* -*- c-basic-offset: 2 -*- */
 /*
   Copyright(C) 2011-2013 Kentoku SHIBA
-  Copyright(C) 2011-2013 Kouhei Sutou <kou@clear-code.com>
+  Copyright(C) 2011-2015 Kouhei Sutou <kou@clear-code.com>
 
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -21,6 +21,7 @@
 #include "mrn_parameters_parser.hpp"
 
 #include <mrn_mysql_compat.h>
+#include <mrn_variables.hpp>
 
 namespace mrn {
   class Parameter {
@@ -30,8 +31,8 @@ namespace mrn {
 
     Parameter(const char *key, unsigned int key_length,
               const char *value, unsigned int value_length)
-      : key_(my_strndup(key, key_length, MYF(0))),
-        value_(my_strndup(value, value_length, MYF(0))) {
+      : key_(mrn_my_strndup(key, key_length, MYF(0))),
+        value_(mrn_my_strndup(value, value_length, MYF(0))) {
     };
     ~Parameter() {
       if (key_) {

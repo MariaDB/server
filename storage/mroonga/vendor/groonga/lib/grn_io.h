@@ -380,7 +380,7 @@ uint32_t grn_expire(grn_ctx *ctx, int count_thresh, uint32_t limit);
     *_p++ = _v & 0xff; \
   } else { \
     *_p++ = 0x8f; \
-    memcpy(_p, &_v, sizeof(uint32_t));\
+    grn_memcpy(_p, &_v, sizeof(uint32_t));\
     _p += sizeof(uint32_t); \
   } \
   p = _p; \
@@ -395,7 +395,7 @@ uint32_t grn_expire(grn_ctx *ctx, int count_thresh, uint32_t limit);
   switch (_v >> 4) { \
   case 0x08 : \
     if (_v == 0x8f) { \
-      memcpy(&_v, _p, sizeof(uint32_t));\
+      grn_memcpy(&_v, _p, sizeof(uint32_t));\
       _p += sizeof(uint32_t); \
     } \
     break; \
