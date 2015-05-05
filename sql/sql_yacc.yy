@@ -63,6 +63,7 @@
 #include "keycaches.h"
 #include "set_var.h"
 #include "rpl_mi.h"
+#include "lex_token.h"
 
 /* this is to get the bison compilation windows warnings out */
 #ifdef _MSC_VER
@@ -13370,6 +13371,13 @@ literal:
         | temporal_literal { $$= $1; }
         | NULL_SYM
           {
+            /*
+              For the digest computation, in this context only,
+              NULL is considered a literal, hence reduced to '?'
+              REDUCE:
+                TOK_GENERIC_VALUE := NULL_SYM
+            */
+            YYLIP->reduce_digest_token(TOK_GENERIC_VALUE, NULL_SYM);
             $$ = new (thd->mem_root) Item_null();
             if ($$ == NULL)
               MYSQL_YYABORT;

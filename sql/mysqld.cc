@@ -515,6 +515,7 @@ ulong binlog_cache_use= 0, binlog_cache_disk_use= 0;
 ulong binlog_stmt_cache_use= 0, binlog_stmt_cache_disk_use= 0;
 ulong max_connections, max_connect_errors;
 ulong extra_max_connections;
+ulong max_digest_length= 0;
 ulong slave_retried_transactions;
 ulong feature_files_opened_with_delayed_keys;
 ulonglong denied_connections;
@@ -5274,6 +5275,8 @@ int mysqld_main(int argc, char **argv)
       pfs_param.m_hints.m_table_open_cache= tc_size;
       pfs_param.m_hints.m_max_connections= max_connections;
       pfs_param.m_hints.m_open_files_limit= open_files_limit;
+      /* the performance schema digest size is the same as the SQL layer */
+      pfs_param.m_max_digest_length= max_digest_length;
       PSI_hook= initialize_performance_schema(&pfs_param);
       if (PSI_hook == NULL)
       {

@@ -136,6 +136,8 @@ sql-bench/test-select
 sql-bench/test-table-elimination
 sql-bench/test-transactions
 sql-bench/test-wisconsin
+sql/lex_token.h
+sql/gen_lex_token
 sql/gen_lex_hash
 sql/lex_hash.h
 sql/mysql_tzinfo_to_sql
@@ -164,8 +166,6 @@ storage/myisam/myisamlog
 storage/myisam/myisampack
 storage/myisam/rt_test
 storage/myisam/sp_test
-storage/perfschema/gen_pfs_lex_token
-storage/perfschema/pfs_lex_token.h
 storage/tokudb/ft-index/buildheader/db.h
 storage/tokudb/ft-index/buildheader/make_tdb
 storage/tokudb/ft-index/buildheader/runcat.sh

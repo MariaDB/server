@@ -874,6 +874,7 @@ THD::THD()
    stmt_depends_on_first_successful_insert_id_in_prev_stmt(FALSE),
    m_examined_row_count(0),
    accessed_rows_and_keys(0),
+   m_digest(NULL),
    m_statement_psi(NULL),
    m_idle_psi(NULL),
    thread_id(0),
@@ -1043,6 +1044,13 @@ THD::THD()
   my_rnd_init(&rand, tmp + (ulong) &rand, tmp + (ulong) ::global_query_id);
   substitute_null_with_insert_id = FALSE;
   thr_lock_info_init(&lock_info); /* safety: will be reset after start */
+
+  m_token_array= NULL;
+  if (max_digest_length > 0)
+  {
+    m_token_array= (unsigned char*) my_malloc(max_digest_length,
+                                              MYF(MY_WME|MY_THREAD_SPECIFIC));
+  }
 
   m_internal_handler= NULL;
   m_binlog_invoker= INVOKER_NONE;
@@ -1625,6 +1633,7 @@ THD::~THD()
 #endif
 
   free_root(&main_mem_root, MYF(0));
+  my_free(m_token_array);
   main_da.free_memory();
   if (status_var.memory_used != 0)
   {

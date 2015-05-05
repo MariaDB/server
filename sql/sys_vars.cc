@@ -1313,6 +1313,12 @@ static Sys_var_ulong Sys_max_connect_errors(
        VALID_RANGE(1, UINT_MAX), DEFAULT(MAX_CONNECT_ERRORS),
        BLOCK_SIZE(1));
 
+static Sys_var_long Sys_max_digest_length(
+       "max_digest_length", "Maximum length considered for digest text.",
+       PARSED_EARLY READ_ONLY GLOBAL_VAR(max_digest_length),
+       CMD_LINE(REQUIRED_ARG),
+       VALID_RANGE(0, 1024 * 1024), DEFAULT(1024), BLOCK_SIZE(1));
+
 static bool check_max_delayed_threads(sys_var *self, THD *thd, set_var *var)
 {
   return var->type != OPT_GLOBAL &&

@@ -49,6 +49,7 @@
 #include <base64.h>
 #include <my_bitmap.h>
 #include "rpl_utility.h"
+#include "sql_digest.h"
 
 #define my_b_write_string(A, B) my_b_write((A), (B), (uint) (sizeof(B) - 1))
 
@@ -4282,12 +4283,17 @@ int Query_log_event::do_apply_event(rpl_group_info *rgi,
       Parser_state parser_state;
       if (!parser_state.init(thd, thd->query(), thd->query_length()))
       {
+        DBUG_ASSERT(thd->m_digest == NULL);
+        thd->m_digest= & thd->m_digest_state;
+        DBUG_ASSERT(thd->m_statement_psi == NULL);
         thd->m_statement_psi= MYSQL_START_STATEMENT(&thd->m_statement_state,
                                                     stmt_info_rpl.m_key,
                                                     thd->db, thd->db_length,
                                                     thd->charset());
         THD_STAGE_INFO(thd, stage_init);
         MYSQL_SET_STATEMENT_TEXT(thd->m_statement_psi, thd->query(), thd->query_length());
+        if (thd->m_digest != NULL)
+          thd->m_digest->reset(thd->m_token_array, max_digest_length);
 
         mysql_parse(thd, thd->query(), thd->query_length(), &parser_state);
         /* Finalize server status flags after executing a statement. */
@@ -4379,11 +4385,10 @@ compare_errors:
         !ignored_error_code(expected_error))
     {
       rli->report(ERROR_LEVEL, 0, rgi->gtid_info(),
-                      "\
-Query caused different errors on master and slave.     \
-Error on master: message (format)='%s' error code=%d ; \
-Error on slave: actual message='%s', error code=%d. \
-Default database: '%s'. Query: '%s'",
+                      "Query caused different errors on master and slave.     "
+                      "Error on master: message (format)='%s' error code=%d ; "
+                      "Error on slave: actual message='%s', error code=%d. "
+                      "Default database: '%s'. Query: '%s'",
                       ER_SAFE(expected_error),
                       expected_error,
                       actual_error ? thd->get_stmt_da()->message() : "no error",
@@ -4479,6 +4484,7 @@ end:
   /* Mark the statement completed. */
   MYSQL_END_STATEMENT(thd->m_statement_psi, thd->get_stmt_da());
   thd->m_statement_psi= NULL;
+  thd->m_digest= NULL;
 
   /*
     As a disk space optimization, future masters will not log an event for
