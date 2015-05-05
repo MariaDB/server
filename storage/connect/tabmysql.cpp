@@ -56,7 +56,6 @@
 #include "xtable.h"
 #include "tabcol.h"
 #include "colblk.h"
-#include "mycat.h"
 #include "reldef.h"
 #include "tabmysql.h"
 #include "valblk.h"
@@ -1078,8 +1077,7 @@ bool TDBMYSQL::ReadKey(PGLOBAL g, OPVAL op, const void *key, int len)
     if (Myc.m_Res)
       Myc.FreeResult();
 
-    To_Def->GetHandler()->MakeKeyWhere(g, Query->GetStr(),
-                                       op, "`", key, len);
+    To_Def->GetHandler()->MakeKeyWhere(g, Query, op, '`', key, len);
 
     if (To_CondFil) {
       oom = Query->Append(" AND (");

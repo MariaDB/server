@@ -70,11 +70,8 @@
 #include "tabcol.h"
 #include "tabdos.h"      // TDBDOS and DOSCOL class dcls
 #include "tabtbl.h"
-#if defined(MYSQL_SUPPORT)
 #include "tabmysql.h"
-#endif   // MYSQL_SUPPORT
 #include "ha_connect.h"
-#include "mycat.h"       // For GetHandler
 
 #if defined(WIN32)
 #if defined(__BORLANDC__)

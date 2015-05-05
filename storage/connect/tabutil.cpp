@@ -43,14 +43,11 @@
 #include "plgdbsem.h"
 #include "plgcnx.h"                       // For DB types
 #include "myutil.h"
-#include "mycat.h"
 #include "valblk.h"
 #include "resource.h"
 #include "reldef.h"
 #include "xtable.h"
-#if defined(MYSQL_SUPPORT)
 #include "tabmysql.h"
-#endif   // MYSQL_SUPPORT
 #include "tabcol.h"
 #include "tabutil.h"
 #include "ha_connect.h"
@@ -94,19 +91,13 @@ TABLE_SHARE *GetTableShare(PGLOBAL g, THD *thd, const char *db,
 
   if (!open_table_def(thd, s, GTS_TABLE | GTS_VIEW)) {
     if (!s->is_view) {
-      if (stricmp(plugin_name(s->db_plugin)->str, "connect")) {
-#if defined(MYSQL_SUPPORT)
+      if (stricmp(plugin_name(s->db_plugin)->str, "connect"))
         mysql = true;
-#else   // !MYSQL_SUPPORT
-        sprintf(g->Message, "%s.%s is not a CONNECT table", db, name);
-        return NULL;
-#endif   // MYSQL_SUPPORT
-      } else
+      else
         mysql = false;
 
-    } else {
+    } else
       mysql = true;
-    } // endif is_view
 
   } else {
     if (thd->is_error())
@@ -428,7 +419,6 @@ PTDBASE TDBPRX::GetSubTable(PGLOBAL g, PTABLE tabp, bool b)
   } // endif srcdef
 
   if (mysql) {
-#if defined(MYSQL_SUPPORT)
     // Access sub-table via MySQL API
     if (!(tdbp= cat->GetTable(g, tabp, Mode, "MYPRX"))) {
       char buf[MAX_STR];
@@ -445,11 +435,6 @@ PTDBASE TDBPRX::GetSubTable(PGLOBAL g, PTABLE tabp, bool b)
     if (Mode == MODE_UPDATE || Mode == MODE_DELETE)
       tdbp->SetName(Name);      // For Make_Command
 
-#else   // !MYSQL_SUPPORT
-      sprintf(g->Message, "%s.%s is not a CONNECT table",
-                          db, tblp->Name);
-      goto err;
-#endif   // MYSQL_SUPPORT
   } else {
     // Sub-table is a CONNECT table
     tabp->Next = To_Table;          // For loop checking

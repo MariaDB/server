@@ -5,7 +5,7 @@
 /*                                                                     */
 /* COPYRIGHT:                                                          */
 /* ----------                                                          */
-/*  (C) Copyright to PlugDB Software Development          2003 - 2012  */
+/*  (C) Copyright to PlugDB Software Development          2003 - 2015  */
 /*  Author: Olivier BERTRAND                                           */
 /*                                                                     */
 /* WHAT THIS PROGRAM DOES:                                             */
@@ -172,8 +172,7 @@ bool TDBMUL::InitFileNames(PGLOBAL g)
 
     while (n < PFNZ) {
       strcat(strcat(strcpy(filename, drive), direc), FileData.cFileName);
-      pfn[n] = (char*)PlugSubAlloc(g, NULL, strlen(filename) + 1);
-      strcpy(pfn[n++], filename);
+      pfn[n++] = PlugDup(g, filename);
 
       if (!FindNextFile(hSearch, &FileData)) {
         rc = GetLastError();
@@ -239,8 +238,7 @@ bool TDBMUL::InitFileNames(PGLOBAL g)
         continue;      // Not a match
 
       strcat(strcpy(filename, direc), entry->d_name);
-      pfn[n] = (char*)PlugSubAlloc(g, NULL, strlen(filename) + 1);
-      strcpy(pfn[n++], filename);
+      pfn[n++] = PlugDup(g, filename);
 
       if (trace)
         htrc("Adding pfn[%d] %s\n", n, filename);
@@ -292,8 +290,7 @@ bool TDBMUL::InitFileNames(PGLOBAL g)
       *(++p) = '\0';
 
       // Suballocate the file name
-      pfn[n] = (char*)PlugSubAlloc(g, NULL, strlen(filename) + 1);
-      strcpy(pfn[n++], filename);
+      pfn[n++] = PlugDup(g, filename);
     } // endfor n
 
   } // endif Mul
