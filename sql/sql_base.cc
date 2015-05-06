@@ -5676,7 +5676,7 @@ TABLE *open_table_uncached(THD *thd, handlerton *hton,
     /* Temporary tables are not safe for parallel replication. */
     if (thd->rgi_slave && thd->rgi_slave->is_parallel_exec &&
         thd->wait_for_prior_commit())
-      return NULL;
+      DBUG_RETURN(NULL);
   }
 
   /* Create the cache_key for temporary tables */
