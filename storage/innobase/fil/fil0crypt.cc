@@ -2339,7 +2339,12 @@ fil_space_crypt_mark_space_closing(
 /*===============================*/
 	ulint	space)	/*!< in: Space id */
 {
+	if (!srv_encrypt_tables) {
+		return;
+	}
+
 	mutex_enter(&fil_crypt_threads_mutex);
+
 	fil_space_crypt_t* crypt_data = fil_space_get_crypt_data(space);
 
 	if (crypt_data == NULL) {
@@ -2361,7 +2366,12 @@ fil_space_crypt_close_tablespace(
 /*=============================*/
 	ulint	space)	/*!< in: Space id */
 {
+	if (!srv_encrypt_tables) {
+		return;
+	}
+
 	mutex_enter(&fil_crypt_threads_mutex);
+
 	fil_space_crypt_t* crypt_data = fil_space_get_crypt_data(space);
 
 	if (crypt_data == NULL) {
