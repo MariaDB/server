@@ -8206,6 +8206,7 @@ i_s_tablespaces_encryption_fill_table(
 	bool		found_space_0 = false;
 
 	DBUG_ENTER("i_s_tablespaces_encryption_fill_table");
+	RETURN_IF_INNODB_NOT_STARTED(tables->schema_table_name);
 
 	/* deny access to user without PROCESS_ACL privilege */
 	if (check_global_access(thd, SUPER_ACL)) {
@@ -8504,6 +8505,7 @@ i_s_tablespaces_scrubbing_fill_table(
 	bool		found_space_0 = false;
 
 	DBUG_ENTER("i_s_tablespaces_scrubbing_fill_table");
+	RETURN_IF_INNODB_NOT_STARTED(tables->schema_table_name);
 
 	/* deny access to user without SUPER_ACL privilege */
 	if (check_global_access(thd, SUPER_ACL)) {
