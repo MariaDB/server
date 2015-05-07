@@ -1,7 +1,7 @@
 /************* Value C++ Functions Source Code File (.CPP) *************/
 /*  Name: VALUE.CPP  Version 2.5                                       */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          2001-2014    */
+/*  (C) Copyright to the author Olivier BERTRAND          2001-2015    */
 /*                                                                     */
 /*  This file contains the VALUE and derived classes family functions. */
 /*  These classes contain values of different types. They are used so  */

@@ -52,7 +52,6 @@
 #include "tabutil.h"
 #include "ha_connect.h"
 
-//extern "C" int zconv;
 int GetConvSize(void);
 
 /************************************************************************/
@@ -72,11 +71,8 @@ TABLE_SHARE *GetTableShare(PGLOBAL g, THD *thd, const char *db,
 {
   char         key[256];
   uint         k;
-//TABLE_LIST   table_list;
   TABLE_SHARE *s;
 
-//table_list.init_one_table(db, strlen(db), name, strlen(name),
-//                          NULL, TL_IGNORE);
 	k = sprintf(key, "%s", db) + 1;
 	k += sprintf(key + k, "%s", name);
   key[++k] = 0;
@@ -85,9 +81,6 @@ TABLE_SHARE *GetTableShare(PGLOBAL g, THD *thd, const char *db,
     strcpy(g->Message, "Error allocating share\n");
     return NULL;
     } // endif s
-
-//        1           2          4            8 
-//flags = GTS_TABLE | GTS_VIEW | GTS_NOLOCK | GTS_FORCE_DISCOVERY;
 
   if (!open_table_def(thd, s, GTS_TABLE | GTS_VIEW)) {
     if (!s->is_view) {

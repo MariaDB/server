@@ -115,6 +115,7 @@ typedef struct _descriptor {
 /*  Side effects:                                                           */
 /*      Moves file pointer to byte 32; fills buffer at buf with             */
 /*  first 32 bytes of file.                                                 */
+/*  Converts numeric values to platform byte ordering (LE in file)          */
 /****************************************************************************/
 static int dbfhead(PGLOBAL g, FILE *file, PSZ fn, DBFHEADER *buf)
   {
@@ -141,6 +142,11 @@ static int dbfhead(PGLOBAL g, FILE *file, PSZ fn, DBFHEADER *buf)
 
   } else
     strcpy(g->Message, MSG(DBASE_FILE));
+
+  // Convert numeric fields to have them in platform byte ordering
+  buf->Records = uint4korr(&buf->Records);
+  buf->Headlen = uint2korr(&buf->Headlen);
+  buf->Reclen = uint2korr(&buf->Reclen);
 
   // Check last byte(s) of header
   if (fseek(file, buf->Headlen - dbc, SEEK_SET) != 0) {
@@ -565,8 +571,8 @@ bool DBFFAM::AllocateBuffer(PGLOBAL g)
       header->Filedate[0] = datm->tm_year - 100;
       header->Filedate[1] = datm->tm_mon + 1;
       header->Filedate[2] = datm->tm_mday;
-      header->Headlen = (ushort)hlen;
-      header->Reclen = (ushort)reclen;
+      int2store(&header->Headlen, hlen);
+      int2store(&header->Reclen, reclen);
       descp = (DESCRIPTOR*)header;
 
       // Currently only standard Xbase types are supported
@@ -729,7 +735,7 @@ bool DBFFAM::CopyHeader(PGLOBAL g)
   if (Headlen) {
     void  *hdr = PlugSubAlloc(g, NULL, Headlen);
     size_t n, hlen = (size_t)Headlen;
-    int   pos = ftell(Stream);
+    int    pos = ftell(Stream);
 
     if (fseek(Stream, 0, SEEK_SET))
       strcpy(g->Message, "Seek error in CopyHeader");
@@ -863,13 +869,14 @@ void DBFFAM::CloseTableFile(PGLOBAL g, bool abort)
 
       if (n > Records) {
         // Update the number of rows in the file header
-        char filename[_MAX_PATH];
+        char filename[_MAX_PATH], nRecords[4];
 
+        int4store(&nRecords, n);
         PlugSetPath(filename, To_File, Tdbp->GetPath());
         if ((Stream= global_fopen(g, MSGID_OPEN_MODE_STRERROR, filename, "r+b")))
         {
           fseek(Stream, 4, SEEK_SET);     // Get header.Records position
-          fwrite(&n, sizeof(int), 1, Stream);
+          fwrite(nRecords, sizeof(nRecords), 1, Stream);
           fclose(Stream);
           Stream= NULL;
           Records= n;                    // Update Records value
@@ -944,13 +951,13 @@ bool DBMFAM::AllocateBuffer(PGLOBAL g)
     /************************************************************************/
     DBFHEADER *hp = (DBFHEADER*)Memory;
 
-    if (Lrecl != (int)hp->Reclen) {
-      sprintf(g->Message, MSG(BAD_LRECL), Lrecl, hp->Reclen);
+    if (Lrecl != (int)uint2korr(&hp->Reclen)) {
+      sprintf(g->Message, MSG(BAD_LRECL), Lrecl, uint2korr(&hp->Reclen));
       return true;
       } // endif Lrecl
 
-    Records = (int)hp->Records;
-    Headlen = (int)hp->Headlen;
+    Records = (int)uint4korr(&hp->Records);
+    Headlen = (int)uint2korr(&hp->Headlen);
     } // endif Headlen
 
   /**************************************************************************/
