@@ -2833,6 +2833,15 @@ int fill_schema_processlist(THD* thd, TABLE_LIST* tables, COND* cond)
       /* QUERY_ID */
       table->field[14]->store(tmp->query_id, TRUE);
 
+      /* INFO_BINARY */
+      if (tmp->query())
+      {
+        table->field[15]->store(tmp->query(),
+                                MY_MIN(PROCESS_LIST_INFO_WIDTH,
+                                tmp->query_length()), &my_charset_bin);
+        table->field[15]->set_notnull();
+      }
+
       if (schema_table_store_record(thd, table))
       {
         mysql_mutex_unlock(&LOCK_thread_count);
@@ -8620,6 +8629,8 @@ ST_FIELD_INFO processlist_fields_info[]=
   {"MEMORY_USED", 7, MYSQL_TYPE_LONG, 0, 0, "Memory_used", SKIP_OPEN_TABLE},
   {"EXAMINED_ROWS", 7, MYSQL_TYPE_LONG, 0, 0, "Examined_rows", SKIP_OPEN_TABLE},
   {"QUERY_ID", 4, MYSQL_TYPE_LONGLONG, 0, 0, 0, SKIP_OPEN_TABLE},
+  {"INFO_BINARY", PROCESS_LIST_INFO_WIDTH, MYSQL_TYPE_BLOB, 0, 1,
+   "Info_binary", SKIP_OPEN_TABLE},
   {0, 0, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE}
 };
 
