@@ -3013,6 +3013,15 @@ files_checked:
 			(ulong) srv_force_recovery);
 	}
 
+	if (!srv_read_only_mode) {
+		/*
+		  Create a checkpoint before logging anything new, so that
+		  the current encryption key in use is definitely logged
+		  before any log blocks encrypted with that key.
+		*/
+		log_make_checkpoint_at(LSN_MAX, TRUE);
+	}
+
 	if (srv_force_recovery == 0) {
 		/* In the insert buffer we may have even bigger tablespace
 		id's, because we may have dropped those tablespaces, but
