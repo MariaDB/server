@@ -4901,7 +4901,7 @@ static int init_table_share(THD* thd,
           oom|= sql->append(' ');
           oom|= sql->append(opt->name);
           oom|= sql->append('=');
-          oom|= sql->append(vull ? "ON" : "OFF");
+          oom|= sql->append(vull ? "YES" : "NO");
           } // endif vull
 
         break;
