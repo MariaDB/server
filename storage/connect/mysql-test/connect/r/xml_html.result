@@ -1,5 +1,5 @@
 Warnings:
-Warning 1105  No file name. Table will use t1.xml
+Warning	1105	No file name. Table will use t1.xml
 SET NAMES utf8;
 #
 # Testing HTML like XML file
@@ -11,9 +11,9 @@ CREATE TABLE beers (
 ENGINE=CONNECT TABLE_TYPE=XML FILE_NAME='beers.xml'
 TABNAME='table' OPTION_LIST='xmlsup=libxml2,rownode=tr,colnode=td';
 SELECT * FROM beers;
-Name  Origin  Description
-Huntsman  Bath, UK  Wonderful hop, light alcohol
-Tuborg  Danmark In small bottles
+Name	Origin	Description
+Huntsman	Bath, UK	Wonderful hop, light alcohol
+Tuborg	Danmark	In small bottles
 DROP TABLE beers;
 #
 # Testing HTML file
@@ -26,7 +26,7 @@ CREATE TABLE coffee (
 ENGINE=CONNECT TABLE_TYPE=XML FILE_NAME='coffee.htm'
 TABNAME='TABLE' HEADER=1 OPTION_LIST='xmlsup=libxml2,Coltype=HTML';
 SELECT * FROM coffee;
-Name  Cups  Type  Sugar
-T. Sexton 10  Espresso  No
-J. Dinnen 5 Decaf Yes
+Name	Cups	Type	Sugar
+T. Sexton	10	Espresso	No
+J. Dinnen	5	Decaf	Yes
 DROP TABLE coffee;
