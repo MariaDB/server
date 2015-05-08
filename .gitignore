@@ -245,6 +245,11 @@ storage/mroonga/vendor/groonga/src/suggest/groonga-suggest-create-dataset
 *.ko
 *.obj
 *.elf
+*.exp
+*.manifest
+*.dep
+*.idb
+*.res
 
 # Precompiled Headers
 *.gch
