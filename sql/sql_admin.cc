@@ -1012,7 +1012,7 @@ send_result_message:
         break;
       }
     }
-    if (table->table)
+    if (table->table && !table->view)
     {
       if (table->table->s->tmp_table)
       {
