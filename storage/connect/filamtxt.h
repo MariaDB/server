@@ -57,8 +57,8 @@ class DllExport TXTFAM : public BLOCK {
   virtual int   GetFileLength(PGLOBAL g);
   virtual int   Cardinality(PGLOBAL g);
   virtual int   MaxBlkSize(PGLOBAL g, int s);
-  virtual bool  AllocateBuffer(PGLOBAL g) {return false;}
-  virtual void  ResetBuffer(PGLOBAL g) {}
+  virtual bool  AllocateBuffer(PGLOBAL) {return false;}
+  virtual void  ResetBuffer(PGLOBAL) {}
   virtual int   GetNerr(void) {return 0;}
   virtual int   GetRowID(void) = 0;
   virtual bool  RecordPos(PGLOBAL g) = 0;

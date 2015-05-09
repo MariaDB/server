@@ -5,7 +5,7 @@
 /*                                                                     */
 /* COPYRIGHT:                                                          */
 /* ----------                                                          */
-/*  (C) Copyright to the author Olivier BERTRAND          1998-2014    */
+/*  (C) Copyright to the author Olivier BERTRAND          1998-2015    */
 /*                                                                     */
 /* WHAT THIS PROGRAM DOES:                                             */
 /* -----------------------                                             */
@@ -117,7 +117,7 @@ DOSDEF::DOSDEF(void)
 /***********************************************************************/
 /*  DefineAM: define specific AM block values from XDB file.           */
 /***********************************************************************/
-bool DOSDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
+bool DOSDEF::DefineAM(PGLOBAL g, LPCSTR am, int)
   {
   char   buf[8];
   bool   map = (am && (*am == 'M' || *am == 'm'));
@@ -303,7 +303,7 @@ bool DOSDEF::DeleteIndexFile(PGLOBAL g, PIXDEF pxdf)
 /***********************************************************************/
 /*  InvalidateIndex: mark all indexes as invalid.                      */
 /***********************************************************************/
-bool DOSDEF::InvalidateIndex(PGLOBAL g)
+bool DOSDEF::InvalidateIndex(PGLOBAL)
   {
   if (To_Indx)
     for (PIXDEF xp = To_Indx; xp; xp = xp->Next)
@@ -1736,15 +1736,16 @@ err:
 /***********************************************************************/
 /*  Make a dynamic index.                                              */
 /***********************************************************************/
-bool TDBDOS::InitialyzeIndex(PGLOBAL g, PIXDEF xdp, bool sorted)
+bool TDBDOS::InitialyzeIndex(PGLOBAL g, volatile PIXDEF xdp, bool sorted)
   {
   int     k, rc;
-  bool    brc, dynamic;
+  volatile bool dynamic;
+  bool    brc;
   PCOL    colp;
   PCOLDEF cdp;
   PVAL    valp;
   PXLOAD  pxp;
-  PKXBASE kxp;
+  volatile PKXBASE kxp;
   PKPDEF  kdp;
 
   if (!xdp && !(xdp = To_Xdp)) {
@@ -1864,7 +1865,7 @@ int TDBDOS::GetProgCur(void)
 /***********************************************************************/
 /*  RowNumber: return the ordinal number of the current row.           */
 /***********************************************************************/
-int TDBDOS::RowNumber(PGLOBAL g, bool b)
+int TDBDOS::RowNumber(PGLOBAL g, bool)
   {
   if (To_Kindex) {
     /*******************************************************************/
@@ -1944,7 +1945,7 @@ int TDBDOS::Cardinality(PGLOBAL g)
           rec = ((PDOSDEF)To_Def)->Ending;
 
           if (AvgLen <= 0)          // No given average estimate
-            rec += EstimatedLength(g);
+            rec += EstimatedLength();
           else   // An estimate was given for the average record length
             rec += AvgLen;
 
@@ -1988,7 +1989,7 @@ int TDBDOS::GetMaxSize(PGLOBAL g)
       /*  Estimate the number of lines in the table (if not known) by  */
       /*  dividing the file length by minimum record length.           */
       /*****************************************************************/
-      rec = EstimatedLength(g) + ((PDOSDEF)To_Def)->Ending;
+      rec = EstimatedLength() + ((PDOSDEF)To_Def)->Ending;
       MaxSize = (len + rec - 1) / rec;
 
       if (trace)
@@ -2005,7 +2006,7 @@ int TDBDOS::GetMaxSize(PGLOBAL g)
 /***********************************************************************/
 /*  DOS EstimatedLength. Returns an estimated minimum line length.     */
 /***********************************************************************/
-int TDBDOS::EstimatedLength(PGLOBAL g)
+int TDBDOS::EstimatedLength(void)
   {
   int     dep = 0;
   PCOLDEF cdp = To_Def->GetCols();
@@ -2023,7 +2024,7 @@ int TDBDOS::EstimatedLength(PGLOBAL g)
 /***********************************************************************/
 /*  DOS tables favor the use temporary files for Update.               */
 /***********************************************************************/
-bool TDBDOS::IsUsingTemp(PGLOBAL g)
+bool TDBDOS::IsUsingTemp(PGLOBAL)
   {
   USETEMP utp = UseTemp();
 
@@ -2183,7 +2184,7 @@ int TDBDOS::ReadDB(PGLOBAL g)
 /***********************************************************************/
 /*  PrepareWriting: Prepare the line to write.                         */
 /***********************************************************************/
-bool TDBDOS::PrepareWriting(PGLOBAL g)
+bool TDBDOS::PrepareWriting(PGLOBAL)
   {
   if (!Ftype && (Mode == MODE_INSERT || Txfp->GetUseTemp())) {
     char *p;

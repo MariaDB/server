@@ -5,7 +5,7 @@
 /*                                                                     */
 /* COPYRIGHT:                                                          */
 /* ----------                                                          */
-/*  (C) Copyright to the author Olivier BERTRAND          2005-2014    */
+/*  (C) Copyright to the author Olivier BERTRAND          2005-2015    */
 /*                                                                     */
 /* WHAT THIS PROGRAM DOES:                                             */
 /* -----------------------                                             */
@@ -102,7 +102,7 @@ bool FIXFAM::SetPos(PGLOBAL g, int pos)
 /***********************************************************************/
 /*  Initialize CurBlk and CurNum for indexed DELETE.                   */
 /***********************************************************************/
-int FIXFAM::InitDelete(PGLOBAL g, int fpos, int spos)
+int FIXFAM::InitDelete(PGLOBAL, int fpos, int)
   {
   CurBlk = fpos / Nrec;
   CurNum = fpos % Nrec;
@@ -690,7 +690,8 @@ bool BGXFAM::BigSeek(PGLOBAL g, HANDLE h, BIGINT pos, int org)
 /***********************************************************************/
 /*  Read from a big file.                                              */
 /***********************************************************************/
-int BGXFAM::BigRead(PGLOBAL g, HANDLE h, void *inbuf, int req)
+int BGXFAM::BigRead(PGLOBAL g __attribute__((unused)), 
+                    HANDLE h, void *inbuf, int req)
   {
   int rc;
 

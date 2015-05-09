@@ -132,7 +132,7 @@ VALBLK::VALBLK(void *mp, int type, int nval, bool un)
 /***********************************************************************/
 /*  Raise error for numeric types.                                     */
 /***********************************************************************/
-PSZ VALBLK::GetCharValue(int n)
+PSZ VALBLK::GetCharValue(int)
   {
   PGLOBAL& g = Global;
 
@@ -145,7 +145,7 @@ PSZ VALBLK::GetCharValue(int n)
 /***********************************************************************/
 /*  Set format so formatted dates can be converted on input.           */
 /***********************************************************************/
-bool VALBLK::SetFormat(PGLOBAL g, PSZ fmt, int len, int year)
+bool VALBLK::SetFormat(PGLOBAL g, PSZ, int, int)
   {
   sprintf(g->Message, MSG(NO_DATE_FMT), Type);
   return true;
@@ -752,7 +752,7 @@ double CHRBLK::GetFloatValue(int n)
 /***********************************************************************/
 /*  STRING GetCharString: get string representation of a char value.   */
 /***********************************************************************/
-char *CHRBLK::GetCharString(char *p, int n)
+char *CHRBLK::GetCharString(char *, int n)
   {
   return (char *)GetValPtrEx(n);
   } // end of GetCharString

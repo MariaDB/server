@@ -296,7 +296,7 @@ my_bool Json_Value_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 } // end of Json_Value_init
 
 char *Json_Value(UDF_INIT *initid, UDF_ARGS *args, char *result, 
-                unsigned long *res_length, char *is_null, char *error)
+                unsigned long *res_length, char *, char *)
 {
   char   *str;
   PJVAL   jvp;
@@ -329,7 +329,7 @@ my_bool Json_Array_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 } // end of Json_Array_init
 
 char *Json_Array(UDF_INIT *initid, UDF_ARGS *args, char *result, 
-                unsigned long *res_length, char *is_null, char *error)
+                unsigned long *res_length, char *, char *)
 {
   char   *str;
   uint    i;
@@ -376,7 +376,7 @@ my_bool Json_Array_Add_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 } // end of Json_Array_Add_init
 
 char *Json_Array_Add(UDF_INIT *initid, UDF_ARGS *args, char *result, 
-                unsigned long *res_length, char *is_null, char *error)
+                unsigned long *res_length, char *, char *)
 {
   char   *str;
   PJVAL   jvp;
@@ -429,7 +429,7 @@ my_bool Json_Array_Delete_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 } // end of Json_Array_Delete_init
 
 char *Json_Array_Delete(UDF_INIT *initid, UDF_ARGS *args, char *result, 
-                unsigned long *res_length, char *is_null, char *error)
+                unsigned long *res_length, char *, char *)
 {
   char   *str;
   int     n;
@@ -482,7 +482,7 @@ my_bool Json_Object_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 } // end of Json_Object_init
 
 char *Json_Object(UDF_INIT *initid, UDF_ARGS *args, char *result, 
-                  unsigned long *res_length, char *is_null, char *error)
+                  unsigned long *res_length, char *, char *)
 {
   char   *str;
   uint    i;
@@ -520,7 +520,7 @@ my_bool Json_Object_Nonull_init(UDF_INIT *initid, UDF_ARGS *args,
 } // end of Json_Object_Nonull_init
 
 char *Json_Object_Nonull(UDF_INIT *initid, UDF_ARGS *args, char *result, 
-                  unsigned long *res_length, char *is_null, char *error)
+                  unsigned long *res_length, char *, char *)
 {
   char   *str;
   uint    i;
@@ -574,8 +574,7 @@ my_bool Json_Array_Grp_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
   return false;
 } // end of Json_Array_Grp_init
 
-void Json_Array_Grp_add(UDF_INIT *initid, UDF_ARGS *args, 
-                      char *is_null, char *error)
+void Json_Array_Grp_add(UDF_INIT *initid, UDF_ARGS *args, char*, char*)
 {
   PGLOBAL g = (PGLOBAL)initid->ptr;
   PJAR    arp = (PJAR)g->Activityp;
@@ -585,8 +584,8 @@ void Json_Array_Grp_add(UDF_INIT *initid, UDF_ARGS *args,
 
 } // end of Json_Array_Grp_add
 
-char *Json_Array_Grp(UDF_INIT *initid, UDF_ARGS *args, char *result, 
-                unsigned long *res_length, char *is_null, char *error)
+char *Json_Array_Grp(UDF_INIT *initid, UDF_ARGS *, char *result, 
+                     unsigned long *res_length, char *, char *)
 {
   char   *str;
   PGLOBAL g = (PGLOBAL)initid->ptr;
@@ -605,7 +604,7 @@ char *Json_Array_Grp(UDF_INIT *initid, UDF_ARGS *args, char *result,
   return str;
 } // end of Json_Array_Grp
 
-void Json_Array_Grp_clear(UDF_INIT *initid, char *is_null, char *error)
+void Json_Array_Grp_clear(UDF_INIT *initid, char*, char*)
 {
   PGLOBAL g = (PGLOBAL)initid->ptr;
 
@@ -646,8 +645,7 @@ my_bool Json_Object_Grp_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
   return false;
 } // end of Json_Object_Grp_init
 
-void Json_Object_Grp_add(UDF_INIT *initid, UDF_ARGS *args, 
-                      char *is_null, char *error)
+void Json_Object_Grp_add(UDF_INIT *initid, UDF_ARGS *args, char*, char*)
 {
   PGLOBAL g = (PGLOBAL)initid->ptr;
   PJOB    objp = (PJOB)g->Activityp;
@@ -657,8 +655,8 @@ void Json_Object_Grp_add(UDF_INIT *initid, UDF_ARGS *args,
 
 } // end of Json_Object_Grp_add
 
-char *Json_Object_Grp(UDF_INIT *initid, UDF_ARGS *args, char *result, 
-                unsigned long *res_length, char *is_null, char *error)
+char *Json_Object_Grp(UDF_INIT *initid, UDF_ARGS *, char *result, 
+                      unsigned long *res_length, char *, char *)
 {
   char   *str;
   PGLOBAL g = (PGLOBAL)initid->ptr;
@@ -675,7 +673,7 @@ char *Json_Object_Grp(UDF_INIT *initid, UDF_ARGS *args, char *result,
   return str;
 } // end of Json_Object_Grp
 
-void Json_Object_Grp_clear(UDF_INIT *initid, char *is_null, char *error)
+void Json_Object_Grp_clear(UDF_INIT *initid, char*, char*)
 {
   PGLOBAL g = (PGLOBAL)initid->ptr;
 

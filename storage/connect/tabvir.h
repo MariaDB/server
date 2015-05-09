@@ -11,7 +11,7 @@ typedef class TDBVIR   *PTDBVIR;
 /***********************************************************************/
 /*  Return the unique column definition to MariaDB.                    */
 /***********************************************************************/
-PQRYRES VirColumns(PGLOBAL g, char *tab, char *db, bool info);
+PQRYRES VirColumns(PGLOBAL g, bool info);
 
 /* --------------------------- VIR classes --------------------------- */
 
