@@ -66,10 +66,6 @@ sub skip_combinations {
     unless $::mysqld_variables{'version-ssl-library'} =~ /OpenSSL (\S+)/
        and $1 ge "1.0.1";
 
-  $skip{'include/encryption_algorithms.combinations'} = [ 'ctr' ]
-    unless $::mysqld_variables{'version-ssl-library'} =~ /OpenSSL (\S+)/
-       and $1 ge "1.0.1";
-
   %skip;
 }
 
