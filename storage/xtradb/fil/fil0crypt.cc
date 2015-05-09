@@ -444,7 +444,7 @@ fil_space_write_crypt_data_low(
 			  mtr);
 	mlog_write_ulint(page + offset + MAGIC_SZ + 2 + len, min_key_version,
 			 MLOG_4BYTES, mtr);
-	mlog_write_ulint(page + offset + MAGIC_SZ + 2 + len, key_id,
+	mlog_write_ulint(page + offset + MAGIC_SZ + 2 + len + 4, key_id,
 			 MLOG_4BYTES, mtr);
 	mlog_write_ulint(page + offset + MAGIC_SZ + 2 + len + 8, encryption,
 		MLOG_1BYTE, mtr);
