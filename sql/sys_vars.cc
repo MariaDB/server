@@ -1,5 +1,5 @@
-/* Copyright (c) 2002, 2014, Oracle and/or its affiliates.
-   Copyright (c) 2012, 2014, SkySQL Ab.
+/* Copyright (c) 2002, 2015, Oracle and/or its affiliates.
+   Copyright (c) 2012, 2015, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1334,6 +1334,12 @@ static Sys_var_ulong Sys_max_connect_errors(
        VALID_RANGE(1, UINT_MAX), DEFAULT(MAX_CONNECT_ERRORS),
        BLOCK_SIZE(1));
 
+static Sys_var_long Sys_max_digest_length(
+       "max_digest_length", "Maximum length considered for digest text.",
+       PARSED_EARLY READ_ONLY GLOBAL_VAR(max_digest_length),
+       CMD_LINE(REQUIRED_ARG),
+       VALID_RANGE(0, 1024 * 1024), DEFAULT(1024), BLOCK_SIZE(1));
+
 static bool check_max_delayed_threads(sys_var *self, THD *thd, set_var *var)
 {
   return var->type != OPT_GLOBAL &&
@@ -1773,16 +1779,12 @@ check_slave_parallel_threads(sys_var *self, THD *thd, set_var *var)
 static bool
 fix_slave_parallel_threads(sys_var *self, THD *thd, enum_var_type type)
 {
-  bool running;
-  bool err= false;
+  bool err;
 
   mysql_mutex_unlock(&LOCK_global_system_variables);
   mysql_mutex_lock(&LOCK_active_mi);
-  running= master_info_index->give_error_if_slave_running();
+  err= master_info_index->give_error_if_slave_running();
   mysql_mutex_unlock(&LOCK_active_mi);
-  if (running || rpl_parallel_change_thread_count(&global_rpl_thread_pool,
-                                                  opt_slave_parallel_threads))
-    err= true;
   mysql_mutex_lock(&LOCK_global_system_variables);
 
   return err;
@@ -2549,7 +2551,7 @@ static Sys_var_ulong Sys_trans_alloc_block_size(
        "transaction_alloc_block_size",
        "Allocation block size for transactions to be stored in binary log",
        SESSION_VAR(trans_alloc_block_size), CMD_LINE(REQUIRED_ARG),
-       VALID_RANGE(1024, UINT_MAX), DEFAULT(QUERY_ALLOC_BLOCK_SIZE),
+       VALID_RANGE(1024, 128 * 1024 * 1024), DEFAULT(QUERY_ALLOC_BLOCK_SIZE),
        BLOCK_SIZE(1024), NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
        ON_UPDATE(fix_trans_mem_root));
 
@@ -2557,7 +2559,7 @@ static Sys_var_ulong Sys_trans_prealloc_size(
        "transaction_prealloc_size",
        "Persistent buffer for transactions to be stored in binary log",
        SESSION_VAR(trans_prealloc_size), CMD_LINE(REQUIRED_ARG),
-       VALID_RANGE(1024, UINT_MAX), DEFAULT(TRANS_ALLOC_PREALLOC_SIZE),
+       VALID_RANGE(1024, 128 * 1024 * 1024), DEFAULT(TRANS_ALLOC_PREALLOC_SIZE),
        BLOCK_SIZE(1024), NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
        ON_UPDATE(fix_trans_mem_root));
 

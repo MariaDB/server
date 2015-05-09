@@ -648,6 +648,40 @@ dict_table_get_col_name(
 	return(s);
 }
 
+/**********************************************************************//**
+Returns a column's name.
+@return column name. NOTE: not guaranteed to stay valid if table is
+modified in any way (columns added, etc.). */
+UNIV_INTERN
+const char*
+dict_table_get_col_name_for_mysql(
+/*==============================*/
+	const dict_table_t*	table,	/*!< in: table */
+	const char*		col_name)/*! in: MySQL table column name */
+{
+	ulint		i;
+	const char*	s;
+
+	ut_ad(table);
+	ut_ad(col_name);
+	ut_ad(table->magic_n == DICT_TABLE_MAGIC_N);
+
+	s = table->col_names;
+	if (s) {
+		/* If we have many virtual columns MySQL key_part->fieldnr
+		could be larger than number of columns in InnoDB table
+		when creating new indexes. */
+		for (i = 0; i < table->n_def; i++) {
+
+			if (!innobase_strcasecmp(s, col_name)) {
+				break; /* Found */
+			}
+			s += strlen(s) + 1;
+		}
+	}
+
+	return(s);
+}
 #ifndef UNIV_HOTBACKUP
 /********************************************************************//**
 Acquire the autoinc lock. */
@@ -2427,10 +2461,10 @@ too_big:
 			dict_mem_index_free(new_index);
 			dict_mem_index_free(index);
 			return(DB_TOO_BIG_RECORD);
-		} else {
-
+		} else if (current_thd != NULL) {
+			/* Avoid the warning to be printed
+			during recovery. */
 			ib_warn_row_too_big(table);
-
 		}
 	}
 
@@ -4136,16 +4170,25 @@ dict_table_get_highest_foreign_id(
 	for (dict_foreign_set::iterator it = table->foreign_set.begin();
 	     it != table->foreign_set.end();
 	     ++it) {
+		char    fkid[MAX_TABLE_NAME_LEN+20];
 		foreign = *it;
 
-		if (ut_strlen(foreign->id) > ((sizeof dict_ibfk) - 1) + len
-		    && 0 == ut_memcmp(foreign->id, table->name, len)
-		    && 0 == ut_memcmp(foreign->id + len,
+		strcpy(fkid, foreign->id);
+		/* Convert foreign key identifier on dictionary memory
+		cache to filename charset. */
+		innobase_convert_to_filename_charset(
+				strchr(fkid, '/') + 1,
+				strchr(foreign->id, '/') + 1,
+				MAX_TABLE_NAME_LEN);
+
+		if (ut_strlen(fkid) > ((sizeof dict_ibfk) - 1) + len
+		    && 0 == ut_memcmp(fkid, table->name, len)
+		    && 0 == ut_memcmp(fkid + len,
 				      dict_ibfk, (sizeof dict_ibfk) - 1)
-		    && foreign->id[len + ((sizeof dict_ibfk) - 1)] != '0') {
+		    && fkid[len + ((sizeof dict_ibfk) - 1)] != '0') {
 			/* It is of the >= 4.0.18 format */
 
-			id = strtoul(foreign->id + len
+			id = strtoul(fkid + len
 				     + ((sizeof dict_ibfk) - 1),
 				     &endp, 10);
 			if (*endp == '\0') {

@@ -306,7 +306,7 @@ grn_snip_strndup(grn_ctx *ctx, const char *string, unsigned int string_len)
    if (!copied_string) {
      return NULL;
    }
-   memcpy(copied_string, string, string_len);
+   grn_memcpy(copied_string, string, string_len);
    copied_string[string_len]= '\0'; /* not required, but for ql use */
    return copied_string;
 }
@@ -775,7 +775,9 @@ grn_snip_get_result(grn_ctx *ctx, grn_obj *snip, const unsigned int index, char 
       if (snip_->tag_result[j].end_offset > sres->end_offset) {
         continue;
       }
-      memcpy(p, snip_->tag_result[j].cond->opentag, snip_->tag_result[j].cond->opentag_len);
+      grn_memcpy(p,
+                 snip_->tag_result[j].cond->opentag,
+                 snip_->tag_result[j].cond->opentag_len);
       p += snip_->tag_result[j].cond->opentag_len;
     }
 
@@ -820,8 +822,9 @@ grn_snip_get_result(grn_ctx *ctx, grn_obj *snip, const unsigned int index, char 
          snip_->tag_result[k].end_offset <= sres->end_offset; k--) {
       /* TODO: avoid all loop */
       if (snip_->tag_result[k].end_offset == i + 1) {
-        memcpy(p, snip_->tag_result[k].cond->closetag,
-               snip_->tag_result[k].cond->closetag_len);
+        grn_memcpy(p,
+                   snip_->tag_result[k].cond->closetag,
+                   snip_->tag_result[k].cond->closetag_len);
         p += snip_->tag_result[k].cond->closetag_len;
       }
       if (k <= sres->first_tag_result_idx) {

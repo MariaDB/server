@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2014, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2014, Monty Program Ab.
+   Copyright (c) 2010, 2015, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -47,6 +47,7 @@ class sys_var;
 class Item_func_match;
 class File_parser;
 class Key_part_spec;
+struct sql_digest_state;
 
 #ifdef MYSQL_SERVER
 /*
@@ -2048,6 +2049,10 @@ public:
   /** LALR(2) resolution, value of the look ahead token.*/
   LEX_YYSTYPE lookahead_yylval;
 
+  void add_digest_token(uint token, LEX_YYSTYPE yylval);
+
+  void reduce_digest_token(uint token_left, uint token_right);
+
 private:
   /** Pointer to the current position in the raw input stream. */
   char *m_ptr;
@@ -2167,7 +2172,7 @@ public:
   /**
     Current statement digest instrumentation. 
   */
-  PSI_digest_locker* m_digest_psi;
+  sql_digest_state* m_digest;
 };
 
 /**
@@ -2743,6 +2748,8 @@ struct LEX: public Query_tables_list
     return FALSE;
   }
 
+  bool save_prep_leaf_tables();
+
   int print_explain(select_result_sink *output, uint8 explain_flags,
                     bool *printed_anything);
 };
@@ -2861,6 +2868,18 @@ public:
 };
 
 /**
+  Input parameters to the parser.
+*/
+struct Parser_input
+{
+  bool m_compute_digest;
+
+  Parser_input()
+    : m_compute_digest(false)
+  {}
+};
+
+/**
   Internal state of the parser.
   The complete state consist of:
   - state data used during lexical parsing,
@@ -2887,8 +2906,14 @@ public:
   ~Parser_state()
   {}
 
+  Parser_input m_input;
   Lex_input_stream m_lip;
   Yacc_state m_yacc;
+
+  /**
+    Current performance digest instrumentation. 
+  */
+  PSI_digest_locker* m_digest_psi;
 
   void reset(char *found_semicolon, unsigned int length)
   {
@@ -2897,6 +2922,11 @@ public:
   }
 };
 
+extern sql_digest_state *
+digest_add_token(sql_digest_state *state, uint token, LEX_YYSTYPE yylval);
+
+extern sql_digest_state *
+digest_reduce_token(sql_digest_state *state, uint token_left, uint token_right);
 
 struct st_lex_local: public LEX
 {

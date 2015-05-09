@@ -1,6 +1,6 @@
 /***********************************************************************
 
-Copyright (c) 1995, 2013, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1995, 2014, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2009, Percona Inc.
 
 Portions of this file contain modifications contributed and copyrighted
@@ -722,6 +722,7 @@ os_file_handle_error_cond_exit(
 
 		fflush(stderr);
 
+		ut_error;
 		return(FALSE);
 
 	case OS_FILE_AIO_RESOURCES_RESERVED:
@@ -2910,13 +2911,18 @@ try_again:
 	ret = os_file_pread(file, buf, n, offset, trx);
 
 	if ((ulint) ret == n) {
-
 		return(TRUE);
+	} else if (ret == -1) {
+                ib_logf(IB_LOG_LEVEL_ERROR,
+			"Error in system call pread(). The operating"
+			" system error number is %lu.",(ulint) errno);
+        } else {
+		/* Partial read occured */
+		ib_logf(IB_LOG_LEVEL_ERROR,
+			"Tried to read " ULINTPF " bytes at offset "
+			UINT64PF ". Was only able to read %ld.",
+			n, offset, (lint) ret);
 	}
-
-	ib_logf(IB_LOG_LEVEL_ERROR,
-		"Tried to read " ULINTPF " bytes at offset " UINT64PF ". "
-		"Was only able to read %ld.", n, offset, (lint) ret);
 #endif /* __WIN__ */
 	retry = os_file_handle_error(NULL, "read");
 
@@ -3009,8 +3015,17 @@ try_again:
 	ret = os_file_pread(file, buf, n, offset, NULL);
 
 	if ((ulint) ret == n) {
-
 		return(TRUE);
+	} else if (ret == -1) {
+                ib_logf(IB_LOG_LEVEL_ERROR,
+			"Error in system call pread(). The operating"
+			" system error number is %lu.",(ulint) errno);
+        } else {
+		/* Partial read occured */
+		ib_logf(IB_LOG_LEVEL_ERROR,
+			"Tried to read " ULINTPF " bytes at offset "
+			UINT64PF ". Was only able to read %ld.",
+			n, offset, (lint) ret);
 	}
 #endif /* __WIN__ */
 	retry = os_file_handle_error_no_exit(NULL, "read", FALSE);
@@ -3191,18 +3206,26 @@ retry:
 
 		ut_print_timestamp(stderr);
 
-		fprintf(stderr,
-			" InnoDB: Error: Write to file %s failed"
-			" at offset " UINT64PF ".\n"
-			"InnoDB: %lu bytes should have been written,"
-			" only %ld were written.\n"
-			"InnoDB: Operating system error number %lu.\n"
-			"InnoDB: Check that your OS and file system"
-			" support files of this size.\n"
-			"InnoDB: Check also that the disk is not full"
-			" or a disk quota exceeded.\n",
-			name, offset, n, (lint) ret,
-			(ulint) errno);
+		if(ret == -1) {
+			ib_logf(IB_LOG_LEVEL_ERROR,
+				"Failure of system call pwrite(). Operating"
+				" system error number is %lu.",
+				(ulint) errno);
+		} else {
+			fprintf(stderr,
+				" InnoDB: Error: Write to file %s failed"
+				" at offset " UINT64PF ".\n"
+				"InnoDB: %lu bytes should have been written,"
+				" only %ld were written.\n"
+				"InnoDB: Operating system error number %lu.\n"
+				"InnoDB: Check that your OS and file system"
+				" support files of this size.\n"
+				"InnoDB: Check also that the disk is not full"
+				" or a disk quota exceeded.\n",
+				name, offset, n, (lint) ret,
+				(ulint) errno);
+		}
+
 		if (strerror(errno) != NULL) {
 			fprintf(stderr,
 				"InnoDB: Error number %d means '%s'.\n",
@@ -4759,7 +4782,7 @@ os_aio_func(
 	mode = mode & (~OS_AIO_SIMULATED_WAKE_LATER);
 
 	DBUG_EXECUTE_IF("ib_os_aio_func_io_failure_28",
-		mode = OS_AIO_SYNC; os_has_said_disk_full = TRUE;);
+		mode = OS_AIO_SYNC; os_has_said_disk_full = FALSE;);
 
 	if (mode == OS_AIO_SYNC) {
 		ibool ret;
@@ -4775,7 +4798,11 @@ os_aio_func(
 			ret = os_file_write(name, file, buf, offset, n);
 
 			DBUG_EXECUTE_IF("ib_os_aio_func_io_failure_28",
-				os_has_said_disk_full = TRUE; ret = 0; errno = 28;);
+				os_has_said_disk_full = FALSE; ret = 0; errno = 28;);
+
+			if (!ret) {
+				os_file_handle_error_cond_exit(name, "os_file_write_func", TRUE, FALSE);
+			}
 		}
 
 		if (!ret) {
@@ -5606,7 +5633,12 @@ consecutive_loop:
 			aio_slot->offset, total_len);
 
 		DBUG_EXECUTE_IF("ib_os_aio_func_io_failure_28",
-			os_has_said_disk_full = TRUE; ret = 0; errno = 28;);
+			os_has_said_disk_full = FALSE; ret = 0; errno = 28;);
+
+		if (!ret) {
+			os_file_handle_error_cond_exit(aio_slot->name, "os_file_write_func", TRUE, FALSE);
+		}
+
 	} else {
 		ret = os_file_read(
 			aio_slot->file, combined_buf,

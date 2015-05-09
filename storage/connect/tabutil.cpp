@@ -1,7 +1,7 @@
 /************* Tabutil cpp Declares Source Code File (.CPP) ************/
-/*  Name: TABUTIL.CPP   Version 1.0                                    */
+/*  Name: TABUTIL.CPP   Version 1.1                                    */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          2013         */
+/*  (C) Copyright to the author Olivier BERTRAND          2013 - 2015  */
 /*                                                                     */
 /*  Utility function used by the PROXY, XCOL, OCCUR, and TBL tables.   */
 /***********************************************************************/
@@ -9,7 +9,8 @@
 /***********************************************************************/
 /*  Include relevant section of system dependant header files.         */
 /***********************************************************************/
-#include "my_global.h"
+#define MYSQL_SERVER 1
+#include <my_global.h>
 #include "sql_class.h"
 #include "table.h"
 #include "field.h"
@@ -42,19 +43,15 @@
 #include "plgdbsem.h"
 #include "plgcnx.h"                       // For DB types
 #include "myutil.h"
-#include "mycat.h"
 #include "valblk.h"
 #include "resource.h"
 #include "reldef.h"
 #include "xtable.h"
-#if defined(MYSQL_SUPPORT)
 #include "tabmysql.h"
-#endif   // MYSQL_SUPPORT
 #include "tabcol.h"
 #include "tabutil.h"
 #include "ha_connect.h"
 
-//extern "C" int zconv;
 int GetConvSize(void);
 
 /************************************************************************/
@@ -74,11 +71,8 @@ TABLE_SHARE *GetTableShare(PGLOBAL g, THD *thd, const char *db,
 {
   char         key[256];
   uint         k;
-//TABLE_LIST   table_list;
   TABLE_SHARE *s;
 
-//table_list.init_one_table(db, strlen(db), name, strlen(name),
-//                          NULL, TL_IGNORE);
 	k = sprintf(key, "%s", db) + 1;
 	k += sprintf(key + k, "%s", name);
   key[++k] = 0;
@@ -88,26 +82,20 @@ TABLE_SHARE *GetTableShare(PGLOBAL g, THD *thd, const char *db,
     return NULL;
     } // endif s
 
-//        1           2          4            8 
-//flags = GTS_TABLE | GTS_VIEW | GTS_NOLOCK | GTS_FORCE_DISCOVERY;
-
   if (!open_table_def(thd, s, GTS_TABLE | GTS_VIEW)) {
     if (!s->is_view) {
-      if (stricmp(plugin_name(s->db_plugin)->str, "connect")) {
-#if defined(MYSQL_SUPPORT)
+      if (stricmp(plugin_name(s->db_plugin)->str, "connect"))
         mysql = true;
-#else   // !MYSQL_SUPPORT
-        sprintf(g->Message, "%s.%s is not a CONNECT table", db, name);
-        return NULL;
-#endif   // MYSQL_SUPPORT
-      } else
+      else
         mysql = false;
 
-    } else {
+    } else
       mysql = true;
-    } // endif is_view
 
   } else {
+    if (thd->is_error())
+      thd->clear_error();  // Avoid stopping info commands
+
     sprintf(g->Message, "Error %d opening share\n", s->error);
     free_table_share(s);
     return NULL;
@@ -424,7 +412,6 @@ PTDBASE TDBPRX::GetSubTable(PGLOBAL g, PTABLE tabp, bool b)
   } // endif srcdef
 
   if (mysql) {
-#if defined(MYSQL_SUPPORT)
     // Access sub-table via MySQL API
     if (!(tdbp= cat->GetTable(g, tabp, Mode, "MYPRX"))) {
       char buf[MAX_STR];
@@ -441,11 +428,6 @@ PTDBASE TDBPRX::GetSubTable(PGLOBAL g, PTABLE tabp, bool b)
     if (Mode == MODE_UPDATE || Mode == MODE_DELETE)
       tdbp->SetName(Name);      // For Make_Command
 
-#else   // !MYSQL_SUPPORT
-      sprintf(g->Message, "%s.%s is not a CONNECT table",
-                          db, tblp->Name);
-      goto err;
-#endif   // MYSQL_SUPPORT
   } else {
     // Sub-table is a CONNECT table
     tabp->Next = To_Table;          // For loop checking

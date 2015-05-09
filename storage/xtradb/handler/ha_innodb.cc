@@ -1863,6 +1863,15 @@ convert_error_code_to_mysql(
 		return(HA_ERR_TO_BIG_ROW);
 	}
 
+
+	case DB_TOO_BIG_FOR_REDO:
+		my_printf_error(ER_TOO_BIG_ROWSIZE, "%s" , MYF(0),
+				"The size of BLOB/TEXT data inserted"
+				" in one transaction is greater than"
+				" 10% of redo log size. Increase the"
+				" redo log size using innodb_log_file_size.");
+		return(HA_ERR_TO_BIG_ROW);
+
 	case DB_TOO_BIG_INDEX_COL:
 		my_error(ER_INDEX_COLUMN_TOO_LONG, MYF(0),
 			 DICT_MAX_FIELD_LEN_BY_FORMAT_FLAG(flags));
@@ -4765,7 +4774,10 @@ innobase_release_savepoint(
 	DBUG_ASSERT(hton == innodb_hton_ptr);
 
 	trx = check_trx_exists(thd);
-	trx_start_if_not_started(trx);
+
+	if (trx->state == TRX_STATE_NOT_STARTED) {
+		trx_start_if_not_started(trx);
+	}
 
 	/* TODO: use provided savepoint data area to store savepoint data */
 
@@ -5438,6 +5450,8 @@ innobase_match_index_columns(
 			if (innodb_idx_fld >= innodb_idx_fld_end) {
 				DBUG_RETURN(FALSE);
 			}
+
+			mtype = innodb_idx_fld->col->mtype;
 		}
 
 		if (col_type != mtype) {
@@ -7860,12 +7874,15 @@ ha_innobase::innobase_lock_autoinc(void)
 		break;
 
 	case AUTOINC_NEW_STYLE_LOCKING:
-		/* For simple (single/multi) row INSERTs, we fallback to the
-		old style only if another transaction has already acquired
-		the AUTOINC lock on behalf of a LOAD FILE or INSERT ... SELECT
-		etc. type of statement. */
+		/* For simple (single/multi) row INSERTs/REPLACEs and RBR
+		events, we fallback to the old style only if another
+		transaction has already acquired the AUTOINC lock on
+		behalf of a LOAD FILE or INSERT ... SELECT etc. type of
+		statement. */
 		if (thd_sql_command(user_thd) == SQLCOM_INSERT
-		    || thd_sql_command(user_thd) == SQLCOM_REPLACE) {
+		    || thd_sql_command(user_thd) == SQLCOM_REPLACE
+		    || thd_sql_command(user_thd) == SQLCOM_END // RBR event
+		) {
 			dict_table_t*	ib_table = prebuilt->table;
 
 			/* Acquire the AUTOINC mutex. */
@@ -7874,9 +7891,11 @@ ha_innobase::innobase_lock_autoinc(void)
 			/* We need to check that another transaction isn't
 			already holding the AUTOINC lock on the table. */
 			if (ib_table->n_waiting_or_granted_auto_inc_locks) {
-				/* Release the mutex to avoid deadlocks. */
+				/* Release the mutex to avoid deadlocks and
+				fall back to old style locking. */
 				dict_table_autoinc_unlock(ib_table);
 			} else {
+				/* Do not fall back to old style locking. */
 				break;
 			}
 		}
@@ -15705,10 +15724,8 @@ ha_innobase::cmp_ref(
 			len1 = innobase_read_from_2_little_endian(ref1);
 			len2 = innobase_read_from_2_little_endian(ref2);
 
-			ref1 += 2;
-			ref2 += 2;
 			result = ((Field_blob*) field)->cmp(
-				ref1, len1, ref2, len2);
+				ref1 + 2, len1, ref2 + 2, len2);
 		} else {
 			result = field->key_cmp(ref1, ref2);
 		}
@@ -20407,6 +20424,7 @@ bool ha_innobase::is_thd_killed()
 
 /**********************************************************************
 Issue a warning that the row is too big. */
+UNIV_INTERN
 void
 ib_warn_row_too_big(const dict_table_t*	table)
 {

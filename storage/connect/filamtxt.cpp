@@ -5,7 +5,7 @@
 /*                                                                     */
 /* COPYRIGHT:                                                          */
 /* ----------                                                          */
-/*  (C) Copyright to the author Olivier BERTRAND          2005-2014    */
+/*  (C) Copyright to the author Olivier BERTRAND          2005-2015    */
 /*                                                                     */
 /* WHAT THIS PROGRAM DOES:                                             */
 /* -----------------------                                             */
@@ -289,8 +289,7 @@ bool TXTFAM::AddListValue(PGLOBAL g, int type, void *val, PPARM *top)
       pp->Intval = *(int*)val;
       break;
 //  case TYPE_STRING:
-//    pp->Value = PlugSubAlloc(g, NULL, strlen((char*)val) + 1);
-//    strcpy((char*)pp->Value, (char*)val);
+//    pp->Value = PlugDup(g, (char*)val);
 //    break;
     case TYPE_PCHAR:
       pp->Value = val;
@@ -325,8 +324,7 @@ int TXTFAM::StoreValues(PGLOBAL g, bool upd)
     if (Tdbp->PrepareWriting(g))
       return RC_FX;
 
-    buf = (char*)PlugSubAlloc(g, NULL, strlen(Tdbp->GetLine()) + 1);
-    strcpy(buf, Tdbp->GetLine());
+    buf = PlugDup(g, Tdbp->GetLine());
     rc = AddListValue(g, TYPE_PCHAR, buf, &To_Upd);
     } // endif upd
 

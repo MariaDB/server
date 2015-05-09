@@ -137,6 +137,9 @@ int vio_socket_io_wait(Vio *vio, enum enum_vio_io_event event)
 #define VIO_DONTWAIT 0
 #endif
 
+/*
+  returns number of bytes read or -1 in case of an error
+*/
 size_t vio_read(Vio *vio, uchar *buf, size_t size)
 {
   ssize_t ret;

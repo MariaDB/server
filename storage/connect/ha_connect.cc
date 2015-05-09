@@ -130,10 +130,8 @@
 #if defined(ODBC_SUPPORT)
 #include "odbccat.h"
 #endif   // ODBC_SUPPORT
-#if defined(MYSQL_SUPPORT)
 #include "xtable.h"
 #include "tabmysql.h"
-#endif   // MYSQL_SUPPORT
 #include "filamdbf.h"
 #include "tabxcl.h"
 #include "tabfmt.h"
@@ -147,7 +145,6 @@
 #include "connect.h"
 #include "user_connect.h"
 #include "ha_connect.h"
-#include "mycat.h"
 #include "myutil.h"
 #include "preparse.h"
 #include "inihandl.h"
@@ -171,35 +168,21 @@
 #define JSONMAX      10             // JSON Default max grp size
 
 extern "C" {
-       char  version[]= "Version 1.03.0006 February 06, 2015";
-
+       char  version[]= "Version 1.03.0007 April 30, 2015";
 #if defined(WIN32)
-       char  compver[]= "Version 1.03.0006 " __DATE__ " "  __TIME__;
+       char  compver[]= "Version 1.03.0007 " __DATE__ " "  __TIME__;
        char slash= '\\';
 #else   // !WIN32
        char slash= '/';
 #endif  // !WIN32
-
-//     int   trace= 0;             // The general trace value
-//     ulong xconv= 0;             // The type conversion option
-//     int   zconv= 0;             // The text conversion size
 } // extern "C"
 
 #if defined(XMAP)
        my_bool xmap= false;
 #endif   // XMAP
 
-//     uint worksize= 0;
 ulong  ha_connect::num= 0;
-//int  DTVAL::Shift= 0;
 
-/* CONNECT system variables */
-//atic int     conv_size= 0;
-//atic uint    work_size= 0;
-//atic ulong   type_conv= 0;
-#if defined(XMAP)
-//atic my_bool indx_map= 0;
-#endif   // XMAP
 #if defined(XMSG)
 extern "C" {
        char *msg_path;
@@ -211,6 +194,9 @@ extern "C" {
 /***********************************************************************/
 PQRYRES OEMColumns(PGLOBAL g, PTOS topt, char *tab, char *db, bool info);
 PQRYRES VirColumns(PGLOBAL g, char *tab, char *db, bool info);
+PQRYRES JSONColumns(PGLOBAL g, char *dp, const char *fn, char *objn,
+                    int pretty, int lvl, int mxr, bool info);
+PQRYRES XMLColumns(PGLOBAL g, char *dp, char *tab, PTOS topt, bool info);
 void    PushWarning(PGLOBAL g, THD *thd, int level);
 bool    CheckSelf(PGLOBAL g, TABLE_SHARE *s, const char *host,
                   const char *db, char *tab, const char *src, int port);
@@ -613,9 +599,9 @@ DllExport LPCSTR PlugSetPath(LPSTR to, LPCSTR name, LPCSTR dir)
   delete_table method in handler.cc
 */
 static const char *ha_connect_exts[]= {
-  ".dos", ".fix", ".csv", ".bin", ".fmt", ".dbf", ".xml", ".ini", ".vec",
-  ".dnx", ".fnx", ".bnx", ".vnx", ".dbx", ".dop", ".fop", ".bop", ".vop",
-  NULL};
+  ".dos", ".fix", ".csv", ".bin", ".fmt", ".dbf", ".xml", ".json", ".ini",
+  ".vec", ".dnx", ".fnx", ".bnx", ".vnx", ".dbx", ".dop", ".fop", ".bop",
+  ".vop", NULL};
 
 /**
   @brief
@@ -1020,8 +1006,7 @@ char *GetListOption(PGLOBAL g, const char *opname,
     } // endif pv
 
     if (!stricmp(opname, key)) {
-      opval= (char*)PlugSubAlloc(g, NULL, strlen(val) + 1);
-      strcpy(opval, val);
+      opval= PlugDup(g, val);
       break;
     } else if (!pn)
       break;
@@ -1506,8 +1491,7 @@ PIXDEF ha_connect::GetIndexInfo(TABLE_SHARE *s)
 
     // Now get index information
     pn= (char*)s->keynames.type_names[n];
-    name= (char*)PlugSubAlloc(g, NULL, strlen(pn) + 1);
-    strcpy(name, pn);    // This is probably unuseful
+    name= PlugDup(g, pn);
     unique= (kp.flags & 1) != 0;
     pkp= NULL;
 
@@ -1517,8 +1501,7 @@ PIXDEF ha_connect::GetIndexInfo(TABLE_SHARE *s)
     // Get the the key parts info
     for (int k= 0; (unsigned)k < kp.user_defined_key_parts; k++) {
       pn= (char*)kp.key_part[k].field->field_name;
-      name= (char*)PlugSubAlloc(g, NULL, strlen(pn) + 1);
-      strcpy(name, pn);    // This is probably unuseful
+      name= PlugDup(g, pn);
 
       // Allocate the key part description block
       kpp= new(g) KPARTDEF(name, k + 1);
@@ -2176,12 +2159,12 @@ int ha_connect::CheckRecord(PGLOBAL g, const uchar *oldbuf, uchar *newbuf)
 /***********************************************************************/
 /*  Return the where clause for remote indexed read.                   */
 /***********************************************************************/
-bool ha_connect::MakeKeyWhere(PGLOBAL g, char *qry, OPVAL op, char *q, 
+bool ha_connect::MakeKeyWhere(PGLOBAL g, PSTRG qry, OPVAL op, char q, 
                                          const void *key, int klen)
 {
   const uchar   *ptr;
   uint           rem, len, stlen; //, prtlen;
-  bool           nq, b= false;
+  bool           nq, oom, b= false;
   Field         *fp;
   KEY           *kfp;
   KEY_PART_INFO *kpart;
@@ -2193,7 +2176,7 @@ bool ha_connect::MakeKeyWhere(PGLOBAL g, char *qry, OPVAL op, char *q,
     return true;
   } // endif key
 
-  strcat(qry, " WHERE (");
+  oom= qry->Append(" WHERE (");
   kfp= &table->key_info[active_index];
   rem= kfp->user_defined_key_parts,
   len= klen,
@@ -2206,24 +2189,26 @@ bool ha_connect::MakeKeyWhere(PGLOBAL g, char *qry, OPVAL op, char *q,
     nq= fp->str_needs_quotes();
 
     if (b)
-      strcat(qry, " AND ");
+      oom|= qry->Append(" AND ");
     else
       b= true;
 
-    strcat(strncat(strcat(qry, q), fp->field_name, strlen(fp->field_name)), q);
+    oom|= qry->Append(q);
+    oom|= qry->Append((PSZ)fp->field_name);
+    oom|= qry->Append(q);
 
     switch (op) {
       case OP_EQ:
       case OP_GT:
       case OP_GE:
-        strcat(qry, GetValStr(op, false));
+        oom|= qry->Append((PSZ)GetValStr(op, false));
         break;
       default:
-        strcat(qry, " ??? ");
+        oom|= qry->Append(" ??? ");
       } // endwitch op
 
     if (nq)
-      strcat(qry, "'");
+      oom|= qry->Append('\'');
 
     if (kpart->key_part_flag & HA_VAR_LENGTH_PART) {
       String varchar;
@@ -2231,17 +2216,17 @@ bool ha_connect::MakeKeyWhere(PGLOBAL g, char *qry, OPVAL op, char *q,
 
       varchar.set_quick((char*) ptr+HA_KEY_BLOB_LENGTH,
                       var_length, &my_charset_bin);
-      strncat(qry, varchar.ptr(), varchar.length());
+      oom|= qry->Append(varchar.ptr(), varchar.length());
     } else {
       char   strbuff[MAX_FIELD_WIDTH];
       String str(strbuff, sizeof(strbuff), kpart->field->charset()), *res;
 
       res= fp->val_str(&str, ptr);
-      strncat(qry, res->ptr(), res->length());
+      oom|= qry->Append(res->ptr(), res->length());
     } // endif flag
 
     if (nq)
-      strcat(qry, "'");
+      oom|= qry->Append('\'');
 
     if (stlen >= len)
       break;
@@ -2254,8 +2239,10 @@ bool ha_connect::MakeKeyWhere(PGLOBAL g, char *qry, OPVAL op, char *q,
     ptr+= stlen - MY_TEST(kpart->null_bit);
     } // endfor kpart
 
-  strcat(qry, ")");
-  return false;
+  if ((oom|= qry->Append(")")))
+    strcpy(g->Message, "Out of memory");
+
+  return oom;
 } // end of MakeKeyWhere
 
 
@@ -2717,7 +2704,12 @@ PCFIL ha_connect::CheckCond(PGLOBAL g, PCFIL filp, AMT tty, Item *cond)
             case MYSQL_TYPE_DATETIME:
               if (tty == TYPE_AM_ODBC) {
                 strcat(body, "{ts '");
-                strcat(strncat(body, res->ptr(), res->length()), "'}");
+                strncat(body, res->ptr(), res->length());
+
+                if (res->length() < 19)
+                  strcat(body, "1970-01-01 00:00:00" + res->length());
+
+                strcat(body, "'}");
                 break;
                 } // endif ODBC
 
@@ -2742,6 +2734,10 @@ PCFIL ha_connect::CheckCond(PGLOBAL g, PCFIL filp, AMT tty, Item *cond)
                   case MYSQL_TYPE_DATETIME:
                     strcat(body, "{ts '");
                     strncat(body, res->ptr(), res->length());
+
+                    if (res->length() < 19)
+                      strcat(body, "1970-01-01 00:00:00" + res->length());
+
                     strcat(body, "'}");
                     break;
                   case MYSQL_TYPE_DATE:
@@ -4112,6 +4108,7 @@ MODE ha_connect::CheckMode(PGLOBAL g, THD *thd,
       case SQLCOM_UPDATE_MULTI:
       case SQLCOM_SELECT:
       case SQLCOM_OPTIMIZE:
+      case SQLCOM_SET_OPTION:
         break;
       case SQLCOM_LOCK_TABLES:
         locked= 1;
@@ -4136,6 +4133,10 @@ MODE ha_connect::CheckMode(PGLOBAL g, THD *thd,
           break;
 //        } // endif partitioned
 
+      case SQLCOM_END:
+        // Met in procedures: IF(EXISTS(SELECT...
+        newmode= MODE_READ;
+        break;
       default:
         htrc("Unsupported sql_command=%d\n", thd_sql_command(thd));
         strcpy(g->Message, "CONNECT Unsupported command");
@@ -4631,8 +4632,13 @@ int ha_connect::delete_or_rename_table(const char *name, const char *to)
 
         } // endif pos
 
-    } else       // Avoid infamous DBUG_ASSERT
-      thd->get_stmt_da()->reset_diagnostics_area();
+      } // endif open_table_def
+
+//  This below was done to avoid DBUG_ASSERT in some case that
+//  we don't know anymore what they were. It was suppressed because
+//  it did cause assertion in other cases (see MDEV-7935)
+//  } else       // Avoid infamous DBUG_ASSERT
+//    thd->get_stmt_da()->reset_diagnostics_area();
 
     free_table_share(share);
   } else              // Temporary file
@@ -4715,6 +4721,25 @@ ha_rows ha_connect::records_in_range(uint inx, key_range *min_key,
   DBUG_RETURN(rows);
 } // end of records_in_range
 
+// Used to check whether a MYSQL table is created on itself
+bool CheckSelf(PGLOBAL g, TABLE_SHARE *s, const char *host,
+                      const char *db, char *tab, const char *src, int port)
+{
+  if (src)
+    return false;
+  else if (host && stricmp(host, "localhost") && strcmp(host, "127.0.0.1"))
+    return false;
+  else if (db && stricmp(db, s->db.str))
+    return false;
+  else if (tab && stricmp(tab, s->table_name.str))
+    return false;
+  else if (port && port != (signed)GetDefaultPort())
+    return false;
+
+  strcpy(g->Message, "This MySQL table is defined on itself");
+  return true;
+} // end of CheckSelf
+
 /**
   Convert an ISO-8859-1 column name to UTF-8
 */
@@ -4737,9 +4762,9 @@ static char *encode(PGLOBAL g, const char *cnm)
   @return
     Return 0 if ok
 */
-static bool add_field(String *sql, const char *field_name, int typ,
-                      int len, int dec, char *key, uint tm, const char *rem,
-                      char *dft, char *xtra, int flag, bool dbf, char v)
+static bool add_field(String *sql, const char *field_name, int typ, int len,
+                      int dec, char *key, uint tm, const char *rem, char *dft,
+                      char *xtra, char *fmt, int flag, bool dbf, char v)
 {
   char var = (len > 255) ? 'V' : v;
   bool q, error= false;
@@ -4807,6 +4832,12 @@ static bool add_field(String *sql, const char *field_name, int typ,
     error|= sql->append_for_single_quote(rem, strlen(rem));
     error|= sql->append("'");
     } // endif rem
+
+  if (fmt && *fmt) {
+    error|= sql->append(" FIELD_FORMAT='");
+    error|= sql->append_for_single_quote(fmt, strlen(fmt));
+    error|= sql->append("'");
+    } // endif flag
 
   if (flag) {
     error|= sql->append(" FLAG=");
@@ -4912,25 +4943,6 @@ static int init_table_share(THD* thd,
                                                  sql->ptr(), sql->length());
 } // end of init_table_share
 
-// Used to check whether a MYSQL table is created on itself
-bool CheckSelf(PGLOBAL g, TABLE_SHARE *s, const char *host,
-                      const char *db, char *tab, const char *src, int port)
-{
-  if (src)
-    return false;
-  else if (host && stricmp(host, "localhost") && strcmp(host, "127.0.0.1"))
-    return false;
-  else if (db && stricmp(db, s->db.str))
-    return false;
-  else if (tab && stricmp(tab, s->table_name.str))
-    return false;
-  else if (port && port != (signed)GetDefaultPort())
-    return false;
-
-  strcpy(g->Message, "This MySQL table is defined on itself");
-  return true;
-} // end of CheckSelf
-
 /**
   @brief
   connect_assisted_discovery() is called when creating a table with no columns.
@@ -4951,12 +4963,12 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
   const char *fncn= "?";
   const char *user, *fn, *db, *host, *pwd, *sep, *tbl, *src;
   const char *col, *ocl, *rnk, *pic, *fcl, *skc;
-  char       *tab, *dsn, *shm, *dpath; 
+  char       *tab, *dsn, *shm, *dpath, *objn; 
 #if defined(WIN32)
   char       *nsp= NULL, *cls= NULL;
 #endif   // WIN32
   int         port= 0, hdr= 0, mxr __attribute__((unused))= 0, mxe= 0, rc= 0;
-  int         cop __attribute__((unused)) = 0;
+  int         cop __attribute__((unused))= 0, pty= 2, lrecl= 0, lvl= 0;
 #if defined(ODBC_SUPPORT)
   POPARM      sop = NULL;
   char       *ucnc = NULL;
@@ -4986,7 +4998,7 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
   if (!g)
     return HA_ERR_INTERNAL_ERROR;
 
-  user= host= pwd= tbl= src= col= ocl= pic= fcl= skc= rnk= dsn= NULL;
+  user= host= pwd= tbl= src= col= ocl= pic= fcl= skc= rnk= dsn= objn= NULL;
 
   // Get the useful create options
   ttp= GetTypeID(topt->type);
@@ -5002,6 +5014,7 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
   hdr= (int)topt->header;
   tbl= topt->tablist;
   col= topt->colist;
+  lrecl= (int)topt->lrecl;
 
   if (topt->oplist) {
     host= GetListOption(g, "host", topt->oplist, "localhost");
@@ -5016,6 +5029,7 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
     skc= GetListOption(g, "skipcol", topt->oplist, NULL);
     rnk= GetListOption(g, "rankcol", topt->oplist, NULL);
     pwd= GetListOption(g, "password", topt->oplist);
+    objn= GetListOption(g, "Object", topt->oplist, NULL);
 #if defined(WIN32)
     nsp= GetListOption(g, "namespace", topt->oplist);
     cls= GetListOption(g, "class", topt->oplist);
@@ -5033,6 +5047,8 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
 #if defined(PROMPT_OK)
     cop= atoi(GetListOption(g, "checkdsn", topt->oplist, "0"));
 #endif   // PROMPT_OK
+    pty= atoi(GetListOption(g,"Pretty", topt->oplist, "2"));
+    lvl= atoi(GetListOption(g,"Level", topt->oplist, "0"));
   } else {
     host= "localhost";
     user= (ttp == TAB_ODBC ? NULL : "root");
@@ -5076,8 +5092,7 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
         goto err;
         } // endif tbl
 
-      tab= (char*)PlugSubAlloc(g, NULL, strlen(tbl) + 1);
-      strcpy(tab, tbl);
+      tab= PlugDup(g, tbl);
 
       if ((p= strchr(tab, ',')))
         *p= 0;
@@ -5138,7 +5153,6 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
         ok= true;
 
       break;
-#if defined(MYSQL_SUPPORT)
     case TAB_MYSQL:
       ok= true;
 
@@ -5178,14 +5192,15 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
         ok= false;
 
       break;
-#endif   // MYSQL_SUPPORT
 #if defined(WIN32)
     case TAB_WMI:
       ok= true;
       break;
 #endif   // WIN32
+#if defined(PIVOT_SUPPORT)
     case TAB_PIVOT:
       supfnc= FNC_NO;
+#endif   // PIVOT_SUPPORT
     case TAB_PRX:
     case TAB_TBL:
     case TAB_XCL:
@@ -5202,6 +5217,16 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
         ok= true;
       else
         strcpy(g->Message, "Missing OEM module or subtype");
+
+      break;
+#if defined(LIBXML2_SUPPORT) || defined(DOMDOC_SUPPORT)
+    case TAB_XML:
+#endif   // LIBXML2_SUPPORT  ||         DOMDOC_SUPPORT
+    case TAB_JSON:
+      if (!fn)
+        sprintf(g->Message, "Missing %s file name", topt->type);
+      else
+        ok= true;
 
       break;
     case TAB_VIR:
@@ -5225,7 +5250,7 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
     } // endif src
 
   if (ok) {
-    char   *cnm, *rem, *dft, *xtra, *key;
+    char   *cnm, *rem, *dft, *xtra, *key, *fmt;
     int     i, len, prec, dec, typ, flg;
 
 //  if (cat)
@@ -5277,12 +5302,10 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
 
         break;
 #endif   // ODBC_SUPPORT
-#if defined(MYSQL_SUPPORT)
       case TAB_MYSQL:
         qrp= MyColumns(g, thd, host, db, user, pwd, tab,
                        NULL, port, fnc == FNC_COL);
         break;
-#endif   // MYSQL_SUPPORT
       case TAB_CSV:
         qrp= CSVColumns(g, dpath, fn, spc, qch, hdr, mxe, fnc == FNC_COL);
         break;
@@ -5308,12 +5331,22 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
             } // endif OcrColumns
 
         break;
+#if defined(PIVOT_SUPPORT)
       case TAB_PIVOT:
         qrp= PivotColumns(g, tab, src, pic, fcl, skc, host, db, user, pwd, port);
         break;
+#endif   // PIVOT_SUPPORT
       case TAB_VIR:
         qrp= VirColumns(g, tab, (char*)db, fnc == FNC_COL);
         break;
+      case TAB_JSON:
+        qrp= JSONColumns(g, (char*)db, fn, objn, pty, lrecl, lvl, fnc == FNC_COL);
+        break;
+#if defined(LIBXML2_SUPPORT) || defined(DOMDOC_SUPPORT)
+      case TAB_XML:
+        qrp= XMLColumns(g, (char*)db, tab, topt, fnc == FNC_COL);
+        break;
+#endif   // LIBXML2_SUPPORT  ||         DOMDOC_SUPPORT
       case TAB_OEM:
         qrp= OEMColumns(g, topt, tab, (char*)db, fnc == FNC_COL);
         break;
@@ -5330,7 +5363,7 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
     if (fnc != FNC_NO || src || ttp == TAB_PIVOT) {
       // Catalog like table
       for (crp= qrp->Colresp; !rc && crp; crp= crp->Next) {
-        cnm= encode(g, crp->Name);
+        cnm= (ttp == TAB_PIVOT) ? crp->Name : encode(g, crp->Name);
         typ= crp->Type;
         len= crp->Length;
         dec= crp->Prec;
@@ -5346,12 +5379,14 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
                        NOT_NULL_FLAG, "", flg, dbf, v);
 #else   // !NEW_WAY
         if (add_field(&sql, cnm, typ, len, dec, NULL, NOT_NULL_FLAG,
-                      NULL, NULL, NULL, flg, dbf, v))
+                      NULL, NULL, NULL, NULL, flg, dbf, v))
           rc= HA_ERR_OUT_OF_MEM;
 #endif  // !NEW_WAY
       } // endfor crp
 
-    } else {            
+    } else {
+      char *schem= NULL;
+
       // Not a catalog table
       if (!qrp->Nblin) {
         if (tab)
@@ -5367,7 +5402,7 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
         typ= len= prec= dec= 0;
         tm= NOT_NULL_FLAG;
         cnm= (char*)"noname";
-        dft= xtra= key= NULL;
+        dft= xtra= key= fmt= NULL;
         v= ' ';
 #if defined(NEW_WAY)
         rem= "";
@@ -5407,6 +5442,9 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
                 tm= 0;               // Nullable
 
               break;
+            case FLD_FORMAT:
+              fmt= (crp->Kdata) ? crp->Kdata->GetCharValue(i) : NULL;
+              break;
             case FLD_REM:
               rem= crp->Kdata->GetCharValue(i);
               break;
@@ -5432,6 +5470,19 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
                 key= crp->Kdata->GetCharValue(i);
 
               break;
+            case FLD_SCHEM:
+#if defined(ODBC_SUPPORT)
+              if (ttp == TAB_ODBC && crp->Kdata) {
+                if (schem && stricmp(schem, crp->Kdata->GetCharValue(i))) {
+                  sprintf(g->Message, 
+                         "Several %s tables found, specify DBNAME", tab);
+                  my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
+                  goto err;
+               } else if (!schem)
+                  schem= crp->Kdata->GetCharValue(i);
+
+                } // endif ttp
+#endif   // ODBC_SUPPORT
             default:
               break;                 // Ignore
             } // endswitch Fld
@@ -5461,7 +5512,9 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
             case TYPE_DOUBLE:
               // Some data sources do not count dec in length (prec)
               prec += (dec + 2);        // To be safe
+              break;
             case TYPE_DECIM:
+              prec= len;
               break;
             default:
               dec= 0;
@@ -5482,7 +5535,7 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
                        tm, rem, 0, dbf, v);
 #else   // !NEW_WAY
         if (add_field(&sql, cnm, typ, prec, dec, key, tm, rem, dft, xtra,
-                      0, dbf, v))
+                      fmt, 0, dbf, v))
           rc= HA_ERR_OUT_OF_MEM;
 #endif  // !NEW_WAY
         } // endfor i
@@ -5748,6 +5801,18 @@ int ha_connect::create(const char *name, TABLE *table_arg,
       rc= HA_ERR_INTERNAL_ERROR;
       DBUG_RETURN(rc);
       } // endif xsup
+
+    } // endif type
+
+  if (type == TAB_JSON) {
+    int pretty= atoi(GetListOption(g, "Pretty", options->oplist, "2"));
+
+    if (!options->lrecl && pretty != 2) {
+      sprintf(g->Message, "LRECL must be specified for pretty=%d", pretty);
+      my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
+      rc= HA_ERR_INTERNAL_ERROR;
+      DBUG_RETURN(rc);
+      } // endif lrecl
 
     } // endif type
 
@@ -6542,7 +6607,7 @@ maria_declare_plugin(connect)
   0x0103,                                       /* version number (1.03) */
   NULL,                                         /* status variables */
   connect_system_variables,                     /* system variables */
-  "1.03.0005",                                  /* string version */
+  "1.03.0006",                                  /* string version */
   MariaDB_PLUGIN_MATURITY_BETA                  /* maturity */
 }
 maria_declare_plugin_end;

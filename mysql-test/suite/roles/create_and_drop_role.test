@@ -68,3 +68,22 @@ create user foo@bar;
 drop user foo@bar;
 drop role r1;
 
+#
+# MDEV-7774 Assertion `status == 0' fails when dropping in this order:
+#
+CREATE USER u1;
+CREATE ROLE r1;
+CREATE USER r1@localhost;
+CREATE ROLE r2;
+GRANT r2 to r1;
+GRANT r2 to r1@localhost;
+# MDEV-7774: Dropping in this order caused the crash.
+DROP ROLE r1;
+--sorted_result
+SELECT * FROM mysql.roles_mapping;
+SHOW GRANTS FOR r1@localhost; # Related to MDEV-7774, also caused a crash, by
+                              # not updating the internal acl_roles_mapping
+                              # data structure correctly;
+DROP USER u1;
+DROP ROLE r2;
+DROP USER r1@localhost;

@@ -85,7 +85,7 @@ update-po:
 update-document:
 	@if test -z "$(GROONGA_ORG_PATH)"; then				\
 	  echo "\$$(GROONGA_ORG_PATH) is missing";			\
-	  echo "add --with-groonga-github-com-path in configure";	\
+	  echo "add --with-groonga-org-path in configure";	\
 	  exit 1;							\
 	fi
 	rm -rf tmp-doc

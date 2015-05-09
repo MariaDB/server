@@ -443,6 +443,9 @@ namespace open_query
     return num_vertices(share->g);
   }
 
+  THD* oqgraph::get_thd() { return share->g.get_table_thd(); }
+  void oqgraph::set_thd(THD* thd) { share->g.set_table_thd(thd); }
+
   oqgraph* oqgraph::create(oqgraph_share *share) throw()
   {
     assert(share != NULL);

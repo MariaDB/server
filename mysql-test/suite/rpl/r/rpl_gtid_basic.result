@@ -310,7 +310,7 @@ master_gtid_wait('2-1-10')
 0
 master_gtid_wait('2-1-10')
 0
-*** Test sql_gtid_slave_pos when used with GTID ***
+*** Test gtid_slave_pos when used with GTID ***
 include/stop_slave.inc
 SET gtid_domain_id=2;
 SET gtid_seq_no=1000;
@@ -413,5 +413,26 @@ SELECT IF(LOCATE("2-1-1040", @@GLOBAL.gtid_slave_pos)>0, "Ok", CONCAT("ERROR! ex
 status
 Ok
 SET GLOBAL slave_ddl_exec_mode= @saved_mode;
+*** Test GTID-connecting to a master with out-of-order sequence numbers in the binlog. ***
+SET gtid_domain_id= @@GLOBAL.gtid_domain_id;
+INSERT INTO t1 VALUES (31);
+SET gtid_domain_id= @@GLOBAL.gtid_domain_id;
+INSERT INTO t1 VALUES (32);
+INSERT INTO t1 VALUES (33);
+include/stop_slave.inc
+INSERT INTO t1 VALUES (34);
+include/start_slave.inc
+SELECT * FROM t1 WHERE a >= 30 ORDER BY a;
+a
+31
+32
+33
+34
+SELECT * FROM t1 WHERE a >= 30 ORDER BY a;
+a
+31
+32
+33
+34
 DROP TABLE t1;
 include/rpl_end.inc

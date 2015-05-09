@@ -16,6 +16,8 @@ typedef class XMLCOL *PXMLCOL;
 /***********************************************************************/
 class DllExport XMLDEF : public TABDEF {  /* Logical table description */
   friend class TDBXML;
+  friend class TDBXCT;
+  friend PQRYRES XMLColumns(PGLOBAL, char*, char*, PTOS, bool);
  public:
   // Constructor
    XMLDEF(void);
@@ -55,6 +57,7 @@ class DllExport TDBXML : public TDBASE {
   friend class XMLCOL;
   friend class XMULCOL;
   friend class XPOSCOL;
+  friend PQRYRES XMLColumns(PGLOBAL, char*, char*, PTOS, bool);
  public:
   // Constructor
   TDBXML(PXMLDEF tdp);
@@ -237,4 +240,24 @@ class XPOSCOL : public XMLCOLX {
   virtual void ReadColumn(PGLOBAL g);
   virtual void WriteColumn(PGLOBAL g);
   }; // end of class XPOSCOL
+
+/***********************************************************************/
+/*  This is the class declaration for the XML catalog table.           */
+/***********************************************************************/
+class TDBXCT : public TDBCAT {
+ public:
+  // Constructor
+  TDBXCT(PXMLDEF tdp);
+
+ protected:
+  // Specific routines
+  virtual PQRYRES GetResult(PGLOBAL g);
+
+  // Members
+  PTOS  Topt;
+  char *Dp;
+//const char *Fn;
+  char *Tabn;
+  }; // end of class TDBXCT
+
 #endif // INCLUDE_TDBXML

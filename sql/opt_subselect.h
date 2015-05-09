@@ -1,5 +1,5 @@
 /*
-   Copyright (c) 2010, 2012, Monty Program Ab
+   Copyright (c) 2010, 2015, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -299,7 +299,7 @@ public:
 };
 
 
-extern void advance_sj_state(JOIN *join, table_map remaining_tables, uint idx,
+void advance_sj_state(JOIN *join, table_map remaining_tables, uint idx,
                       double *current_record_count, double *current_read_time,
                       POSITION *loose_scan_pos);
 void restore_prev_sj_state(const table_map remaining_tables, 

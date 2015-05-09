@@ -1,0 +1,93 @@
+--source json_udf.inc
+
+let $MYSQLD_DATADIR= `select @@datadir`;
+
+--copy_file $MTR_SUITE_DIR/std_data/biblio.json $MYSQLD_DATADIR/test/biblio.json
+--copy_file $MTR_SUITE_DIR/std_data/employee.dat $MYSQLD_DATADIR/test/employee.dat
+
+--echo #
+--echo # Test UDF's with constant arguments
+--echo #
+SELECT Json_Array();
+SELECT Json_Object(56,3.1416,'foo',NULL);
+SELECT Json_Object(56 qty,3.1416 price,'foo' truc, NULL garanty);
+SELECT Json_Array(56,3.1416,'My name is "Foo"',NULL);
+--error ER_CANT_INITIALIZE_UDF
+SELECT Json_Array_Add(Json_Array(56,3.1416,'foo',NULL)) Array;
+SELECT Json_Array_Add(Json_Array(56,3.1416,'foo',NULL),'One more') Array;
+SELECT Json_Array_Add(Json_Value('one value'),'One more');
+--error ER_CANT_INITIALIZE_UDF
+SELECT Json_Array_Add('one value','One more');
+SELECT Json_Array_Add('one value' json_,'One more');
+--error ER_CANT_INITIALIZE_UDF
+SELECT Json_Value(56,3.1416,'foo',NULL);
+SELECT Json_Value(3.1416);
+SELECT Json_Value('foo');
+SELECT Json_Value(NULL);
+SELECT Json_Value();
+SELECT Json_Object();
+SELECT Json_Object(Json_Array(56,3.1416,'foo'),NULL);
+SELECT Json_Array(Json_Array(56,3.1416,'foo'),NULL);
+SELECT Json_Array(Json_Object(56 "qty",3.1416 "price",'foo'),NULL);
+
+--echo #
+--echo # Test UDF's with column arguments
+--echo #
+CREATE TABLE t1
+(
+  ISBN CHAR(15),
+  LANG CHAR(2),
+  SUBJECT CHAR(32),
+  AUTHOR CHAR(64),
+  TITLE CHAR(32),
+  TRANSLATION CHAR(32),
+  TRANSLATOR CHAR(80),
+  PUBLISHER CHAR(32),
+  DATEPUB int(4)
+) ENGINE=CONNECT TABLE_TYPE=JSON FILE_NAME='biblio.json';
+
+SELECT Json_Array(AUTHOR, TITLE, DATEPUB) FROM t1;
+SELECT Json_Object(AUTHOR, TITLE, DATEPUB) FROM t1;
+--error ER_CANT_INITIALIZE_UDF
+SELECT Json_Array_Grp(TITLE, DATEPUB) FROM t1;
+SELECT Json_Array_Grp(TITLE) FROM t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (
+  SERIALNO CHAR(5) NOT NULL,
+  NAME VARCHAR(12) NOT NULL FLAG=6,
+  SEX SMALLINT(1) NOT NULL,
+  TITLE VARCHAR(15) NOT NULL FLAG=20,
+  MANAGER CHAR(5) DEFAULT NULL,
+  DEPARTMENT CHAr(4) NOT NULL FLAG=41,
+  SECRETARY CHAR(5) DEFAULT NULL FLAG=46,
+  SALARY DOUBLE(8,2) NOT NULL FLAG=52
+) ENGINE=CONNECT TABLE_TYPE=FIX BLOCK_SIZE=8 FILE_NAME='employee.dat' ENDING=1;
+
+SELECT Json_Object(SERIALNO, NAME, TITLE, SALARY) FROM t1 WHERE NAME = 'MERCHANT';
+SELECT DEPARTMENT, Json_Array_Grp(NAME) FROM t1 GROUP BY DEPARTMENT;
+set connect_json_grp_size=30;
+SELECT Json_Array(DEPARTMENT, Json_Array_Grp(NAME)) FROM t1 GROUP BY DEPARTMENT;
+SELECT Json_Object(DEPARTMENT, Json_Array_Grp(NAME) json_NAMES) FROM t1 GROUP BY DEPARTMENT;
+SELECT Json_Object(DEPARTMENT, Json_Array_Grp(Json_Object(SERIALNO, NAME, TITLE, SALARY)) json_EMPLOYES) FROM t1 GROUP BY DEPARTMENT;
+SELECT Json_Object(DEPARTMENT, TITLE, Json_Array_Grp(Json_Object(SERIALNO, NAME, SALARY)) json_EMPLOYES) FROM t1 GROUP BY DEPARTMENT, TITLE;
+--error ER_CANT_INITIALIZE_UDF
+SELECT Json_Object_Grp(SALARY) FROM t1;
+SELECT Json_Object_Grp(SALARY, NAME) FROM t1;
+SELECT Json_Object(DEPARTMENT, Json_Object_Grp(SALARY, NAME) "Json_SALARIES") FROM t1 GROUP BY DEPARTMENT;
+SELECT Json_Array_Grp(NAME) from t1;
+DROP TABLE t1;
+
+DROP FUNCTION Json_Array;
+DROP FUNCTION Json_Array_Add;
+DROP FUNCTION Json_Object;
+DROP FUNCTION Json_Object_Nonull;
+DROP FUNCTION Json_Value;
+DROP FUNCTION Json_Array_Grp;
+DROP FUNCTION Json_Object_Grp;
+
+#
+# Clean up
+#
+--remove_file $MYSQLD_DATADIR/test/biblio.json
+--remove_file $MYSQLD_DATADIR/test/employee.dat

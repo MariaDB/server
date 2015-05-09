@@ -6,7 +6,7 @@
 /*                                                                     */
 /* COPYRIGHT:                                                          */
 /* ----------                                                          */
-/*  (C) Copyright to the author Olivier BERTRAND          1993-2014    */
+/*  (C) Copyright to the author Olivier BERTRAND          1993-2015    */
 /*                                                                     */
 /* WHAT THIS PROGRAM DOES:                                             */
 /* -----------------------                                             */
@@ -228,7 +228,6 @@ BOOL PlugIsAbsolutePath(LPCSTR path)
 #endif
 }
 
-
 /***********************************************************************/
 /*  Set the full path of a file relatively to a given path.            */
 /*  Note: this routine is not really implemented for Unix.             */
@@ -385,8 +384,7 @@ char *PlugReadMessage(PGLOBAL g, int mid, char *m)
  err:
   if (g) {
     // Called by STEP
-    msg = (char *)PlugSubAlloc(g, NULL, strlen(stmsg) + 1);
-    strcpy(msg, stmsg);
+    msg = PlugDup(g, stmsg);
   } else // Called by MSG or PlgGetErrorMsg
     msg =  stmsg;
 
@@ -421,8 +419,7 @@ char *PlugGetMessage(PGLOBAL g, int mid)
 
   if (g) {
     // Called by STEP
-    msg = (char *)PlugSubAlloc(g, NULL, strlen(stmsg) + 1);
-    strcpy(msg, stmsg);
+    msg = PlugDup(g, stmsg);
   } else // Called by MSG or PlgGetErrorMsg
     msg =  stmsg;
 
@@ -537,6 +534,22 @@ void *PlugSubAlloc(PGLOBAL g, void *memp, size_t size)
   } /* end of PlugSubAlloc */
 
 /***********************************************************************/
+/*  Program for sub-allocating and copying a string in a storage area. */
+/***********************************************************************/
+char *PlugDup(PGLOBAL g, const char *str)
+  {
+  if (str) {
+    char *sm = (char*)PlugSubAlloc(g, NULL, strlen(str) + 1);
+
+    strcpy(sm, str);
+    return sm;
+  } else
+    return NULL;
+
+  } // end of PlugDup 
+
+#if 0
+/***********************************************************************/
 /* This routine suballocate a copy of the passed string.               */
 /***********************************************************************/
 char *PlugDup(PGLOBAL g, const char *str)
@@ -552,6 +565,7 @@ char *PlugDup(PGLOBAL g, const char *str)
 
   return(buf);
   } /* end of PlugDup */
+#endif // 0
 
 /***********************************************************************/
 /* This routine makes a pointer from an offset to a memory pointer.    */

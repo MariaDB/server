@@ -5103,28 +5103,46 @@ void spider_oracle_handler::create_tmp_bka_table_name(
   int *tmp_table_name_length,
   int link_idx
 ) {
-  uint adjust_length =
-    oracle_share->db_nm_max_length -
-    oracle_share->db_names_str[spider->conn_link_idx[link_idx]].length() +
-    oracle_share->table_nm_max_length -
-    oracle_share->table_names_str[spider->conn_link_idx[link_idx]].length(),
-    length;
+  uint adjust_length, length;
   DBUG_ENTER("spider_oracle_handler::create_tmp_bka_table_name");
-  *tmp_table_name_length = oracle_share->db_nm_max_length +
-    oracle_share->table_nm_max_length;
-  memset(tmp_table_name, ' ', adjust_length);
-  tmp_table_name += adjust_length;
-  memcpy(tmp_table_name, oracle_share->db_names_str[link_idx].c_ptr(),
-    oracle_share->db_names_str[link_idx].length());
-  tmp_table_name += oracle_share->db_names_str[link_idx].length();
-  length = my_sprintf(tmp_table_name, (tmp_table_name,
-    "%s%s%p%s", SPIDER_SQL_DOT_STR, SPIDER_SQL_TMP_BKA_STR, spider,
-    SPIDER_SQL_UNDERSCORE_STR));
-  *tmp_table_name_length += length;
-  tmp_table_name += length;
-  memcpy(tmp_table_name,
-    oracle_share->table_names_str[spider->conn_link_idx[link_idx]].c_ptr(),
-    oracle_share->table_names_str[spider->conn_link_idx[link_idx]].length());
+  if (spider_param_bka_table_name_type(current_thd,
+    mysql_share->spider_share->
+      bka_table_name_types[spider->conn_link_idx[link_idx]]) == 1)
+  {
+    adjust_length =
+      oracle_share->db_nm_max_length -
+      oracle_share->db_names_str[spider->conn_link_idx[link_idx]].length() +
+      oracle_share->table_nm_max_length -
+      oracle_share->table_names_str[spider->conn_link_idx[link_idx]].length();
+    *tmp_table_name_length = oracle_share->db_nm_max_length +
+      oracle_share->table_nm_max_length;
+    memset(tmp_table_name, ' ', adjust_length);
+    tmp_table_name += adjust_length;
+    memcpy(tmp_table_name, oracle_share->db_names_str[link_idx].c_ptr(),
+      oracle_share->db_names_str[link_idx].length());
+    tmp_table_name += oracle_share->db_names_str[link_idx].length();
+    length = my_sprintf(tmp_table_name, (tmp_table_name,
+      "%s%s%p%s", SPIDER_SQL_DOT_STR, SPIDER_SQL_TMP_BKA_STR, spider,
+      SPIDER_SQL_UNDERSCORE_STR));
+    *tmp_table_name_length += length;
+    tmp_table_name += length;
+    memcpy(tmp_table_name,
+      oracle_share->table_names_str[spider->conn_link_idx[link_idx]].c_ptr(),
+      oracle_share->table_names_str[spider->conn_link_idx[link_idx]].length());
+  } else {
+    adjust_length =
+      oracle_share->db_nm_max_length -
+      oracle_share->db_names_str[spider->conn_link_idx[link_idx]].length();
+    *tmp_table_name_length = oracle_share->db_nm_max_length;
+    memset(tmp_table_name, ' ', adjust_length);
+    tmp_table_name += adjust_length;
+    memcpy(tmp_table_name, oracle_share->db_names_str[link_idx].c_ptr(),
+      oracle_share->db_names_str[link_idx].length());
+    tmp_table_name += oracle_share->db_names_str[link_idx].length();
+    length = my_sprintf(tmp_table_name, (tmp_table_name,
+      "%s%s%p", SPIDER_SQL_DOT_STR, SPIDER_SQL_TMP_BKA_STR, spider));
+    *tmp_table_name_length += length;
+  }
   DBUG_VOID_RETURN;
 }
 

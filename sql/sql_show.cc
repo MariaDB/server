@@ -2899,7 +2899,7 @@ void reset_status_vars()
   catch-all cleanup function, cleans up everything no matter what
 
   DESCRIPTION
-    This function is not strictly required if all add_to_status/
+    This function is not strictly required if all add_status_vars/
     remove_status_vars are properly paired, but it's a safety measure that
     deletes everything from the all_status_vars[] even if some
     remove_status_vars were forgotten

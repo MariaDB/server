@@ -1,6 +1,6 @@
 /*
-   Copyright (c) 2000, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2014, SkySQL Ab.
+   Copyright (c) 2000, 2015, Oracle and/or its affiliates.
+   Copyright (c) 2008, 2015, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1052,6 +1052,7 @@ THD::THD()
    stmt_depends_on_first_successful_insert_id_in_prev_stmt(FALSE),
    m_examined_row_count(0),
    accessed_rows_and_keys(0),
+   m_digest(NULL),
    m_statement_psi(NULL),
    m_idle_psi(NULL),
    thread_id(0),
@@ -1059,12 +1060,13 @@ THD::THD()
    failed_com_change_user(0),
    is_fatal_error(0),
    transaction_rollback_request(0),
-   is_fatal_sub_stmt_error(0),
+   is_fatal_sub_stmt_error(false),
    rand_used(0),
    time_zone_used(0),
    in_lock_tables(0),
    bootstrap(0),
    derived_tables_processing(FALSE),
+   waiting_on_group_commit(FALSE), has_waiter(FALSE),
    spcont(NULL),
 #ifdef WITH_WSREP
    wsrep_applier(is_applier),
@@ -1252,6 +1254,13 @@ THD::THD()
   wsrep_info[sizeof(wsrep_info) - 1] = '\0'; /* make sure it is 0-terminated */
 #endif /* WSREP_PROC_INFO */
 #endif /* WITH_WSREP */
+
+  m_token_array= NULL;
+  if (max_digest_length > 0)
+  {
+    m_token_array= (unsigned char*) my_malloc(max_digest_length,
+                                              MYF(MY_WME|MY_THREAD_SPECIFIC));
+  }
 
   m_internal_handler= NULL;
   m_binlog_invoker= INVOKER_NONE;
@@ -1752,6 +1761,7 @@ void THD::cleanup(void)
   mysql_ha_cleanup(this);
   locked_tables_list.unlock_locked_tables(this);
 
+  delete_dynamic(&user_var_events);
   close_temporary_tables(this);
 
   transaction.xid_state.xa_state= XA_NOTR;
@@ -1783,7 +1793,6 @@ void THD::cleanup(void)
   debug_sync_end_thread(this);
 #endif /* defined(ENABLED_DEBUG_SYNC) */
 
-  delete_dynamic(&user_var_events);
   my_hash_free(&user_vars);
   sp_cache_clear(&sp_proc_cache);
   sp_cache_clear(&sp_func_cache);
@@ -1864,6 +1873,7 @@ THD::~THD()
 #endif
 
   free_root(&main_mem_root, MYF(0));
+  my_free(m_token_array);
   main_da.free_memory();
   if (status_var.memory_used != 0)
   {
@@ -4502,6 +4512,8 @@ thd_need_wait_for(const MYSQL_THD thd)
 {
   rpl_group_info *rgi;
 
+  if (mysql_bin_log.is_open() && opt_binlog_commit_wait_count > 0)
+    return true;
   if (!thd)
     return false;
   rgi= thd->rgi_slave;
@@ -4536,13 +4548,14 @@ thd_need_wait_for(const MYSQL_THD thd)
   not harmful, but could lead to unnecessary kill and retry, so best avoided).
 */
 extern "C" void
-thd_report_wait_for(const MYSQL_THD thd, MYSQL_THD other_thd)
+thd_report_wait_for(MYSQL_THD thd, MYSQL_THD other_thd)
 {
   rpl_group_info *rgi;
   rpl_group_info *other_rgi;
 
   if (!thd || !other_thd)
     return;
+  binlog_report_wait_for(thd, other_thd);
   rgi= thd->rgi_slave;
   other_rgi= other_thd->rgi_slave;
   if (!rgi || !other_rgi)
@@ -4720,7 +4733,8 @@ extern "C" int thd_binlog_format(const MYSQL_THD thd)
 
 extern "C" void thd_mark_transaction_to_rollback(MYSQL_THD thd, bool all)
 {
-  mark_transaction_to_rollback(thd, all);
+  DBUG_ASSERT(thd);
+  thd->mark_transaction_to_rollback(all);
 }
 
 extern "C" bool thd_binlog_filter_ok(const MYSQL_THD thd)
@@ -4961,9 +4975,12 @@ void THD::restore_sub_statement_state(Sub_statement_state *backup)
     If we've left sub-statement mode, reset the fatal error flag.
     Otherwise keep the current value, to propagate it up the sub-statement
     stack.
+
+    NOTE: is_fatal_sub_stmt_error can be set only if we've been in the
+    sub-statement mode.
   */
   if (!in_sub_stmt)
-    is_fatal_sub_stmt_error= FALSE;
+    is_fatal_sub_stmt_error= false;
 
   if ((variables.option_bits & OPTION_BIN_LOG) && is_update_query(lex->sql_command) &&
        !is_current_stmt_binlog_format_row())
@@ -5205,17 +5222,18 @@ void THD::get_definer(LEX_USER *definer, bool role)
 /**
   Mark transaction to rollback and mark error as fatal to a sub-statement.
 
-  @param  thd   Thread handle
   @param  all   TRUE <=> rollback main transaction.
 */
 
-void mark_transaction_to_rollback(THD *thd, bool all)
+void THD::mark_transaction_to_rollback(bool all)
 {
-  if (thd)
-  {
-    thd->is_fatal_sub_stmt_error= TRUE;
-    thd->transaction_rollback_request= all;
-  }
+  /*
+    There is no point in setting is_fatal_sub_stmt_error unless
+    we are actually in_sub_stmt.
+  */
+  if (in_sub_stmt)
+    is_fatal_sub_stmt_error= true;
+  transaction_rollback_request= all;
 }
 /***************************************************************************
   Handling of XA id cacheing

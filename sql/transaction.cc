@@ -158,6 +158,8 @@ bool trans_begin(THD *thd, uint flags)
     when we come here.  We should at some point change this to an assert.
   */
   thd->transaction.all.modified_non_trans_table= FALSE;
+  thd->has_waiter= false;
+  thd->waiting_on_group_commit= false;
 
   if (res)
     DBUG_RETURN(TRUE);

@@ -2,6 +2,7 @@ module Groonga
   module Sharding
     class LogicalEnumerator
       attr_reader :target_range
+      attr_reader :logical_table
       attr_reader :shard_key_name
       def initialize(command_name, input)
         @command_name = command_name
@@ -9,12 +10,21 @@ module Groonga
         initialize_parameters
       end
 
-      def each
+      def each(&block)
+        each_internal(:ascending, &block)
+      end
+
+      def reverse_each(&block)
+        each_internal(:descending, &block)
+      end
+
+      private
+      def each_internal(order)
         prefix = "#{@logical_table}_"
         context = Context.instance
         context.database.each_table(:prefix => prefix,
                                     :order_by => :key,
-                                    :order => :ascending) do |table|
+                                    :order => order) do |table|
           shard_range_raw = table.name[prefix.size..-1]
 
           next unless /\A(\d{4})(\d{2})(\d{2})\z/ =~ shard_range_raw
@@ -142,10 +152,10 @@ module Groonga
 
           return true if @min_border == :exclude
 
-          @min.hour != 0 and
-            @min.min != 0 and
-            @min.sec != 0 and
-            @min.usec != 0
+          not (@min.hour == 0 and
+               @min.min  == 0 and
+               @min.sec  == 0 and
+               @min.usec == 0)
         end
 
         def in_max?(shard_range)

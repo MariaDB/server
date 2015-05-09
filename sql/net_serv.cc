@@ -917,7 +917,7 @@ my_real_read(NET *net, size_t *complen,
 		    my_progname,vio_errno(net->vio));
 	  }
 #ifndef MYSQL_SERVER
-	  if (vio_errno(net->vio) == SOCKET_EINTR)
+	  if (length != 0 && vio_errno(net->vio) == SOCKET_EINTR)
 	  {
 	    DBUG_PRINT("warning",("Interrupted read. Retrying..."));
 	    continue;

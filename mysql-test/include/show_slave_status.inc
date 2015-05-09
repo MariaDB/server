@@ -67,12 +67,41 @@
 #
 #       --let $slave_sql_mode= NO_BACKSLASH_ESCAPES
 #
-
+#   $all_slaves_status
+#     If set, use SHOW ALL SLAVES STATUS instead of SHOW SLAVE STATUS
+#     and get the column values from all rows. Example:
+#
+#       --let $all_slaves_status= 1
+#
+#   $slave_name
+#     If set, use SHOW SLAVE '<slave_name>' STATUS instead of SHOW SLAVE STATUS.
+#     The name must be quoted (can be a quoted empty string).
+#     Example:
+#
+#       --let $slave_name= 'm1'
+#
+#   Note: $all_slaves_status and $slave_name are mutually exclusive.
+#
 
 --let $_show_slave_status_items=$status_items
 if (!$status_items)
 {
   --die Bug in test case: The mysqltest variable $status_items is not set.
+}
+
+--let $_show_query=SHOW SLAVE STATUS
+
+if ($all_slaves_status)
+{
+  if ($slave_name)
+  {
+    --die Bug in test case: Both $all_slaves_status and $slave_name are set.
+  }
+  --let $_show_query=SHOW ALL SLAVES STATUS
+}
+if ($slave_name)
+{
+  --let $_show_query=SHOW SLAVE $slave_name STATUS
 }
 
 
@@ -86,18 +115,27 @@ if ($slave_sql_mode)
 eval SET sql_mode= '$_slave_sql_mode';
 --enable_query_log
 
+--let $_slave_field_result_replace= /[\\\\]/\// $slave_field_result_replace
 
 while ($_show_slave_status_items) 
 {
   --let $_show_slave_status_name= `SELECT SUBSTRING_INDEX('$_show_slave_status_items', ',', 1)`
   --let $_show_slave_status_items= `SELECT LTRIM(SUBSTRING('$_show_slave_status_items', LENGTH('$_show_slave_status_name') + 2))`
 
-  --replace_regex /\.[\\\/]master/master/
-  --let $_show_slave_status_value= query_get_value(SHOW SLAVE STATUS, $_show_slave_status_name, 1)
-  --let $_slave_field_result_replace= /[\\\\]/\// $slave_field_result_replace
-  --replace_regex $_slave_field_result_replace
-  --let $_show_slave_status_value= `SELECT REPLACE("$_show_slave_status_value", '$MYSQL_TEST_DIR', 'MYSQL_TEST_DIR')`
-  --echo $_show_slave_status_name = '$_show_slave_status_value'
+  --let $num= 1
+  --let $_show_slave_status_value=
+  while ($_show_slave_status_value != 'No such row')
+  {
+    --replace_regex /\.[\\\/]master/master/
+    --let $_show_slave_status_value= query_get_value($_show_query, $_show_slave_status_name, $num)
+    if ($_show_slave_status_value != 'No such row')
+    {
+      --replace_regex $_slave_field_result_replace
+      --let $_show_slave_status_value= `SELECT REPLACE("$_show_slave_status_value", '$MYSQL_TEST_DIR', 'MYSQL_TEST_DIR')`
+      --echo $_show_slave_status_name = '$_show_slave_status_value'
+      --inc $num
+    }
+  }
 }
 
 

@@ -290,6 +290,34 @@ bool STRING::Set(char *s, uint n)
 } // end of Set
 
 /***********************************************************************/
+/*  Append a char* to a STRING.                                          */
+/***********************************************************************/
+bool STRING::Append(const char *s, uint ln)
+{
+  if (!s)
+    return false;
+
+  uint len = Length + ln + 1;
+
+  if (len > Size) {
+    char *p = Realloc(len);
+    
+    if (!p)
+      return true;
+    else if (p != Strp) {
+      strcpy(p, Strp);
+      Strp = p;
+      } // endif p
+
+    } // endif n
+
+  strncpy(Strp + Length, s, ln);
+  Length = len - 1;
+  Strp[Length] = 0;
+  return false;
+} // end of Append
+
+/***********************************************************************/
 /*  Append a PSZ to a STRING.                                          */
 /***********************************************************************/
 bool STRING::Append(PSZ s)

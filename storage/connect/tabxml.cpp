@@ -1,9 +1,9 @@
 /************* Tabxml C++ Program Source Code File (.CPP) **************/
 /* PROGRAM NAME: TABXML                                                */
 /* -------------                                                       */
-/*  Version 2.7                                                        */
+/*  Version 2.8                                                        */
 /*                                                                     */
-/*  Author Olivier BERTRAND          2007 - 2014                       */
+/*  Author Olivier BERTRAND          2007 - 2015                       */
 /*                                                                     */
 /*  This program are the XML tables classes using MS-DOM or libxml2.   */
 /***********************************************************************/
@@ -29,6 +29,7 @@
 #include "osutil.h"
 #define _O_RDONLY O_RDONLY
 #endif  // !WIN32
+#include "resource.h"                        // for IDS_COLUMNS
 
 #define INCLUDE_TDBXML
 #define NODE_TYPE_LIST
@@ -44,6 +45,7 @@
 #include "reldef.h"
 #include "xtable.h"
 #include "colblk.h"
+#include "mycat.h"
 #include "xindex.h"
 #include "plgxml.h"
 #include "tabxml.h"
@@ -56,6 +58,336 @@ extern "C" char version[];
 #else   // !WIN32
 #define XMLSUP "libxml2"
 #endif  // !WIN32
+
+#define TYPE_UNKNOWN     12        /* Must be greater than other types */
+
+/***********************************************************************/
+/* Class and structure used by XMLColumns.                             */
+/***********************************************************************/
+typedef class XMCOL *PXCL;
+
+class XMCOL : public BLOCK {
+ public:
+  // Constructors
+  XMCOL(void) {Next = NULL; 
+               Name[0] = 0; 
+               Fmt = NULL; 
+               Type = 1;
+               Len = Scale = 0;
+               Cbn = false; 
+               Found = true;}
+  XMCOL(PGLOBAL g, PXCL xp, char *fmt, int i) {
+               Next = NULL; 
+               strcpy(Name, xp->Name);
+               Fmt = (*fmt) ? PlugDup(g, fmt) : NULL; 
+               Type = xp->Type;
+               Len = xp->Len;
+               Scale = xp->Scale;
+               Cbn = (xp->Cbn || i > 1); 
+               Found = true;}
+
+  // Members
+  PXCL  Next;
+  char  Name[64];
+  char *Fmt;
+  int   Type;
+  int   Len;
+  int   Scale;
+  bool  Cbn;
+  bool  Found;
+}; // end of class XMCOL
+
+typedef struct LVL {
+  PXNODE  pn;
+  PXLIST  nl;
+  PXATTR  atp;
+  bool    b;
+  long    k;
+  int     m, n;
+} *PLVL;
+
+/***********************************************************************/
+/* XMLColumns: construct the result blocks containing the description  */
+/* of all the columns of a table contained inside an XML file.         */
+/***********************************************************************/
+PQRYRES XMLColumns(PGLOBAL g, char *dp, char *tab, PTOS topt, bool info)
+{
+  static int  buftyp[] = {TYPE_STRING, TYPE_SHORT, TYPE_STRING, TYPE_INT, 
+                          TYPE_INT, TYPE_SHORT, TYPE_SHORT, TYPE_STRING};
+  static XFLD fldtyp[] = {FLD_NAME, FLD_TYPE, FLD_TYPENAME, FLD_PREC, 
+                          FLD_LENGTH, FLD_SCALE, FLD_NULL, FLD_FORMAT};
+  static unsigned int length[] = {0, 6, 8, 10, 10, 6, 6, 0};
+  char   *op, colname[65], fmt[129], buf[512];
+  int     i, j, lvl, rc, n = 0;
+  int     ncol = sizeof(buftyp) / sizeof(int);
+  bool    ok = true;
+  PXCL    xcol, xcp, fxcp = NULL, pxcp = NULL;
+  PLVL   *lvlp, vp;
+  PXNODE  node = NULL;
+  PXMLDEF tdp;
+  PTDBXML txmp;
+  PQRYRES qrp;
+  PCOLRES crp;
+
+  if (info) {
+    length[0] = 128;
+    length[7] = 256;
+    goto skipit;
+    } // endif info
+
+  /*********************************************************************/
+  /*  Open the input file.                                             */
+  /*********************************************************************/
+  if (!topt->filename) {
+    strcpy(g->Message, MSG(MISSING_FNAME));
+    return NULL;
+  } else
+    lvl = atoi(GetListOption(g, "Level", topt->oplist, "0"));
+
+  if (trace)
+    htrc("File %s lvl=%d\n", topt->filename, lvl);
+
+  tdp = new(g) XMLDEF;
+  tdp->Database = dp;
+  tdp->Fn = (char*)topt->filename;
+  tdp->Tabname = tab;
+
+  if (!(op = GetListOption(g, "Xmlsup", topt->oplist, NULL)))
+#if defined(WIN32)
+    tdp->Usedom = true;
+#else   // !WIN32
+    tdp->Usedom = false;
+#endif  // !WIN32
+  else
+    tdp->Usedom = (toupper(*op) == 'M' || toupper(*op) == 'D');
+
+  txmp = new(g) TDBXML(tdp);
+
+  if (txmp->Initialize(g))
+    return NULL;
+
+  xcol = new(g) XMCOL;
+  colname[64] = 0;
+  fmt[128] = 0;
+  lvlp = (PLVL*)PlugSubAlloc(g, NULL, sizeof(PLVL) * (lvl + 1));
+
+  for (j = 0; j <= lvl; j++)
+    lvlp[j] = (PLVL)PlugSubAlloc(g, NULL, sizeof(LVL));
+
+  /*********************************************************************/
+  /*  Analyse the XML tree and define columns.                         */
+  /*********************************************************************/
+  for (i = 1; ; i++) {
+    // Get next row
+    switch (txmp->ReadDB(g)) {
+      case RC_EF:
+        vp = NULL;
+        break;
+      case RC_FX:
+        goto err;
+      default:
+        vp = lvlp[0];
+        vp->pn = txmp->RowNode;
+        vp->atp = vp->pn->GetAttribute(g, NULL);
+        vp->nl = vp->pn->GetChildElements(g);
+        vp->b = true;
+        vp->k = 0;
+        vp->m = vp->n = 0;
+        j = 0;
+      } // endswitch ReadDB
+
+    if (!vp)
+      break;
+
+    while (true) {
+      if (!vp->atp &&
+          !(node = (vp->nl) ? vp->nl->GetItem(g, vp->k++, node) : NULL))
+        if (j) {
+          vp = lvlp[--j];
+
+          if (!tdp->Usedom)    // nl was destroyed
+            vp->nl = vp->pn->GetChildElements(g);
+
+          if (!lvlp[j+1]->b) {
+            vp->k--;
+            ok = false;
+            } // endif b
+
+          continue;
+        } else
+          break;
+
+      xcol->Name[vp->n] = 0;
+      fmt[vp->m] = 0;
+
+     more:
+      if (vp->atp) {
+        strncpy(colname, vp->atp->GetName(g), sizeof(colname));
+        strncat(xcol->Name, colname, 64);
+        rc = vp->atp->GetText(g, buf, sizeof(buf));
+        strncat(fmt, "@", sizeof(fmt));
+
+        if (j)
+          strncat(fmt, colname, sizeof(fmt));
+
+      } else {
+        if (tdp->Usedom && node->GetType() != 1)
+          continue;
+
+        strncpy(colname, node->GetName(g), sizeof(colname));
+        strncat(xcol->Name, colname, 64);
+
+        if (j)
+          strncat(fmt, colname, sizeof(fmt));
+
+        if (j < lvl && ok) {
+          vp = lvlp[j+1];
+          vp->k = 0;
+          vp->atp = node->GetAttribute(g, NULL);
+          vp->nl = node->GetChildElements(g);
+
+          if (tdp->Usedom && vp->nl->GetLength() == 1) {
+            node = vp->nl->GetItem(g, 0, node);
+            vp->b = (node->GetType() == 1);   // Must be ab element
+          } else
+            vp->b = (vp->nl && vp->nl->GetLength());
+
+          if (vp->atp || vp->b) {
+            if (!vp->atp)
+              node = vp->nl->GetItem(g, vp->k++, node);
+
+            strncat(strncat(fmt, colname, 125), "/", 125);
+            strncat(xcol->Name, "_", 64);
+            j++;
+            vp->n = (int)strlen(xcol->Name);
+            vp->m = (int)strlen(fmt);
+            goto more;
+          } else {
+            vp = lvlp[j];
+
+            if (!tdp->Usedom)    // nl was destroyed
+              vp->nl = vp->pn->GetChildElements(g);
+
+          } // endif vp
+
+        } else
+          ok = true;
+
+        rc = node->GetContent(g, buf, sizeof(buf));
+      } // endif atp;
+
+      xcol->Len = strlen(buf);
+
+      // Check whether this column was already found
+      for (xcp = fxcp; xcp; xcp = xcp->Next)
+        if (!strcmp(xcol->Name, xcp->Name))
+          break;
+  
+      if (xcp) {
+        if (xcp->Type != xcol->Type)
+          xcp->Type = TYPE_STRING;
+
+        if (*fmt && (!xcp->Fmt || strlen(xcp->Fmt) < strlen(fmt))) {
+          xcp->Fmt = PlugDup(g, fmt);
+          length[7] = MY_MAX(length[7], strlen(fmt));
+          } // endif *fmt
+
+        xcp->Len = MY_MAX(xcp->Len, xcol->Len);
+        xcp->Scale = MY_MAX(xcp->Scale, xcol->Scale);
+        xcp->Cbn |= xcol->Cbn;
+        xcp->Found = true;
+      } else {
+        // New column
+        xcp = new(g) XMCOL(g, xcol, fmt, i);
+        length[0] = MY_MAX(length[0], strlen(xcol->Name));
+        length[7] = MY_MAX(length[7], strlen(fmt));
+  
+        if (pxcp) {
+          xcp->Next = pxcp->Next;
+          pxcp->Next = xcp;
+        } else
+          fxcp = xcp;
+
+        n++;
+      } // endif xcp
+
+      pxcp = xcp;
+
+//    for (j = lvl - 1; j >= 0; j--)
+//      if (jrp[j] && (jrp[j] = jrp[j]->GetNext()))
+//        goto more;
+
+      if (vp->atp)
+        vp->atp = vp->atp->GetNext(g);
+
+      } // endwhile
+
+    // Missing column can be null
+    for (xcp = fxcp; xcp; xcp = xcp->Next) {
+      xcp->Cbn |= !xcp->Found;
+      xcp->Found = false;
+      } // endfor xcp
+
+    } // endor i
+
+  txmp->CloseDB(g);
+
+ skipit:
+  if (trace)
+    htrc("CSVColumns: n=%d len=%d\n", n, length[0]);
+
+  /*********************************************************************/
+  /*  Allocate the structures used to refer to the result set.         */
+  /*********************************************************************/
+  qrp = PlgAllocResult(g, ncol, n, IDS_COLUMNS + 3,
+                          buftyp, fldtyp, length, false, false);
+
+  crp = qrp->Colresp->Next->Next->Next->Next->Next->Next;
+  crp->Name = "Nullable";
+  crp->Next->Name = "Xpath";
+
+  if (info || !qrp)
+    return qrp;
+
+  qrp->Nblin = n;
+
+  /*********************************************************************/
+  /*  Now get the results into blocks.                                 */
+  /*********************************************************************/
+  for (i = 0, xcp = fxcp; xcp; i++, xcp = xcp->Next) {
+    if (xcp->Type == TYPE_UNKNOWN)            // Void column
+      xcp->Type = TYPE_STRING;
+
+    crp = qrp->Colresp;                    // Column Name
+    crp->Kdata->SetValue(xcp->Name, i);
+    crp = crp->Next;                       // Data Type
+    crp->Kdata->SetValue(xcp->Type, i);
+    crp = crp->Next;                       // Type Name
+    crp->Kdata->SetValue(GetTypeName(xcp->Type), i);
+    crp = crp->Next;                       // Precision
+    crp->Kdata->SetValue(xcp->Len, i);
+    crp = crp->Next;                       // Length
+    crp->Kdata->SetValue(xcp->Len, i);
+    crp = crp->Next;                       // Scale (precision)
+    crp->Kdata->SetValue(xcp->Scale, i);
+    crp = crp->Next;                       // Nullable
+    crp->Kdata->SetValue(xcp->Cbn ? 1 : 0, i);
+    crp = crp->Next;                       // Field format
+
+    if (crp->Kdata)
+      crp->Kdata->SetValue(xcp->Fmt, i);
+
+    } // endfor i
+
+  /*********************************************************************/
+  /*  Return the result pointer.                                       */
+  /*********************************************************************/
+  return qrp;
+
+err:
+  txmp->CloseDB(g);
+  return NULL;
+  } // end of XMLColumns
 
 /* -------------- Implementation of the XMLDEF class  ---------------- */
 
@@ -176,6 +508,9 @@ bool XMLDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
 /***********************************************************************/
 PTDB XMLDEF::GetTable(PGLOBAL g, MODE m)
   {
+  if (Catfunc == FNC_COL)
+    return new(g) TDBXCT(this);
+
   PTDBASE tdbp = new(g) TDBXML(this);
 
   if (Multiple)
@@ -229,14 +564,14 @@ TDBXML::TDBXML(PXMLDEF tdp) : TDBASE(tdp)
   Xfile = tdp->Fn;
   Enc = tdp->Encoding;
   Tabname = tdp->Tabname;
-  Rowname = (*tdp->Rowname) ? tdp->Rowname : NULL;
-  Colname = (*tdp->Colname) ? tdp->Colname : NULL;
-  Mulnode = (*tdp->Mulnode) ? tdp->Mulnode : NULL;
-  XmlDB = (*tdp->XmlDB) ? tdp->XmlDB : NULL;
-  Nslist = (*tdp->Nslist) ? tdp->Nslist : NULL;
-  DefNs = (*tdp->DefNs) ? tdp->DefNs : NULL;
-  Attrib = (*tdp->Attrib) ? tdp->Attrib : NULL;
-  Hdattr = (*tdp->Hdattr) ? tdp->Hdattr : NULL;
+  Rowname = (tdp->Rowname && *tdp->Rowname) ? tdp->Rowname : NULL;
+  Colname = (tdp->Colname && *tdp->Colname) ? tdp->Colname : NULL;
+  Mulnode = (tdp->Mulnode && *tdp->Mulnode) ? tdp->Mulnode : NULL;
+  XmlDB = (tdp->XmlDB && *tdp->XmlDB) ? tdp->XmlDB : NULL;
+  Nslist = (tdp->Nslist && *tdp->Nslist) ? tdp->Nslist : NULL;
+  DefNs = (tdp->DefNs && *tdp->DefNs) ? tdp->DefNs : NULL;
+  Attrib = (tdp->Attrib && *tdp->Attrib) ? tdp->Attrib : NULL;
+  Hdattr = (tdp->Hdattr && *tdp->Hdattr) ? tdp->Hdattr : NULL;
   Coltype = tdp->Coltype;
   Limit = tdp->Limit;
   Xpand = tdp->Xpand;
@@ -771,7 +1106,6 @@ bool TDBXML::OpenDB(PGLOBAL g)
   NewRow = (Mode == MODE_INSERT);
   Nsub = 0;
   Use = USE_OPEN;       // Do it now in case we are recursively called
-
   return false;
   } // end of OpenDB
 
@@ -1171,8 +1505,9 @@ bool XMLCOL::ParseXpath(PGLOBAL g, bool mode)
   } else if (Type == 2) {
     // HTML like table, columns are retrieved by position
     new(this) XPOSCOL(Value);        // Change the class of this column
-    Tdbp->Hasnod = true;
-    return false;
+    Inod = -1;
+//  Tdbp->Hasnod = true;
+//  return false;
   } else if (Type == 0 && !mode) {
     strcat(strcat(pbuf, "@"), Name);
   } else {                           // Type == 1
@@ -1846,5 +2181,25 @@ void XPOSCOL::WriteColumn(PGLOBAL g)
     ValNode->SetContent(g, Valbuf, Long);
 
   } // end of WriteColumn
+
+/* ---------------------------TDBXCT class --------------------------- */
+
+/***********************************************************************/
+/*  TDBXCT class constructor.                                          */
+/***********************************************************************/
+TDBXCT::TDBXCT(PXMLDEF tdp) : TDBCAT(tdp)
+  {
+  Topt = tdp->GetTopt();
+  Dp = tdp->GetPath();
+  Tabn = tdp->Tabname;
+  } // end of TDBXCT constructor
+
+/***********************************************************************/
+/*  GetResult: Get the list the JSON file columns.                     */
+/***********************************************************************/
+PQRYRES TDBXCT::GetResult(PGLOBAL g)
+  {
+  return XMLColumns(g, Dp, Tabn, Topt, false);
+  } // end of GetResult
 
 /* ------------------------ End of Tabxml ---------------------------- */

@@ -1,0 +1,52 @@
+[
+  {
+    "WHO": "Joe",
+    "WEEK": 5,
+    "EXPENSE": [
+      {
+        "WHAT": "Beer",
+        "AMOUNT": 14.00
+      },
+      {
+        "WHAT": "Food",
+        "AMOUNT": 12.00
+      }
+    ]
+  },
+  {
+    "WHO": "Beth",
+    "WEEK": 5,
+    "EXPENSE": [
+      {
+        "WHAT": "Food",
+        "AMOUNT": 12.00
+      },
+      {
+        "WHAT": "Beer",
+        "AMOUNT": 20.00
+      }
+    ]
+  },
+  {
+    "WHO": "Janet",
+    "WEEK": 5,
+    "EXPENSE": [
+      {
+        "WHAT": "Beer",
+        "AMOUNT": 14.00
+      },
+      {
+        "WHAT": "Car",
+        "AMOUNT": 12.00
+      },
+      {
+        "WHAT": "Beer",
+        "AMOUNT": 19.00
+      },
+      {
+        "WHAT": "Food",
+        "AMOUNT": 12.00
+      }
+    ]
+  }
+]

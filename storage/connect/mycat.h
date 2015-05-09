@@ -24,6 +24,46 @@
 #include "block.h"
 #include "catalog.h"
 
+typedef struct ha_table_option_struct TOS, *PTOS;
+
+/**
+  structure for CREATE TABLE options (table options)
+
+  These can be specified in the CREATE TABLE:
+  CREATE TABLE ( ... ) {...here...}
+*/
+struct ha_table_option_struct {
+  const char *type;
+  const char *filename;
+  const char *optname;
+  const char *tabname;
+  const char *tablist;
+  const char *dbname;
+  const char *separator;
+//const char *connect;
+  const char *qchar;
+  const char *module;
+  const char *subtype;
+  const char *catfunc;
+  const char *srcdef;
+  const char *colist;
+  const char *oplist;
+  const char *data_charset;
+  ulonglong lrecl;
+  ulonglong elements;
+//ulonglong estimate;
+  ulonglong multiple;
+  ulonglong header;
+  ulonglong quoted;
+  ulonglong ending;
+  ulonglong compressed;
+  bool mapped;
+  bool huge;
+  bool split;
+  bool readonly;
+  bool sepindex;
+  };
+
 // Possible value for catalog functions
 #define FNC_NO      (1 << 0)    // Not a catalog table         
 #define FNC_COL     (1 << 1)    // Column catalog function     

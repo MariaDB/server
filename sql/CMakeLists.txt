@@ -33,8 +33,26 @@ ${CMAKE_CURRENT_BINARY_DIR}/sql_yacc.h
 ${CMAKE_CURRENT_BINARY_DIR}/sql_yacc.cc
 ${CMAKE_CURRENT_BINARY_DIR}/lex_hash.h 
 )
+SET(GEN_DIGEST_SOURCES
+  ${CMAKE_CURRENT_BINARY_DIR}/lex_token.h 
+)
 
-SET_SOURCE_FILES_PROPERTIES(${GEN_SOURCES} PROPERTIES GENERATED 1)
+SET_SOURCE_FILES_PROPERTIES(${GEN_SOURCES}
+                            ${GEN_DIGEST_SOURCES}
+                            PROPERTIES GENERATED 1)
+
+# Gen_lex_token
+# Make sure sql_yacc.h is generated before compiling gen_lex_token
+IF(NOT CMAKE_CROSSCOMPILING)
+  ADD_EXECUTABLE(gen_lex_token gen_lex_token.cc)
+  ADD_DEPENDENCIES(gen_lex_token GenServerSource)
+ENDIF()
+
+ADD_CUSTOM_COMMAND(
+  OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/lex_token.h
+  COMMAND gen_lex_token > lex_token.h
+  DEPENDS gen_lex_token
+)
 
 ADD_DEFINITIONS(-DMYSQL_SERVER -DHAVE_EVENT_SCHEDULER) 
 
@@ -81,7 +99,8 @@ SET (SQL_SOURCE
                slave.cc sp.cc sp_cache.cc sp_head.cc sp_pcontext.cc 
                sp_rcontext.cc spatial.cc sql_acl.cc sql_analyse.cc sql_base.cc 
                sql_cache.cc sql_class.cc sql_client.cc sql_crypt.cc sql_crypt.h 
-               sql_cursor.cc sql_db.cc sql_delete.cc sql_derived.cc sql_do.cc 
+               sql_cursor.cc sql_db.cc sql_delete.cc sql_derived.cc
+               sql_digest.cc sql_do.cc 
                sql_error.cc sql_handler.cc sql_get_diagnostics.cc
                sql_help.cc sql_insert.cc sql_lex.cc 
                sql_list.cc sql_load.cc sql_manager.cc
@@ -118,7 +137,9 @@ SET (SQL_SOURCE
                table_cache.cc
                ${CMAKE_CURRENT_BINARY_DIR}/sql_builtin.cc
                ${GEN_SOURCES}
-               ${MYSYS_LIBWRAP_SOURCE})
+               ${GEN_DIGEST_SOURCES}
+               ${MYSYS_LIBWRAP_SOURCE}
+			   )
   
 IF (CMAKE_SYSTEM_NAME MATCHES "Linux" OR
     CMAKE_SYSTEM_NAME MATCHES "Windows" OR
@@ -137,6 +158,7 @@ RECOMPILE_FOR_EMBEDDED)
 
 ADD_LIBRARY(sql STATIC ${SQL_SOURCE})
 ADD_DEPENDENCIES(sql GenServerSource)
+ADD_DEPENDENCIES(sql GenDigestServerSource)
 DTRACE_INSTRUMENT(sql)
 TARGET_LINK_LIBRARIES(sql ${MYSQLD_STATIC_PLUGIN_LIBS} 
   mysys mysys_ssl dbug strings vio pcre ${LIBJEMALLOC}
@@ -265,6 +287,11 @@ TARGET_LINK_LIBRARIES(mysql_tzinfo_to_sql mysys mysys_ssl)
 ADD_CUSTOM_TARGET( 
         GenServerSource
         DEPENDS ${GEN_SOURCES}
+)
+
+ADD_CUSTOM_TARGET( 
+        GenDigestServerSource
+        DEPENDS ${GEN_DIGEST_SOURCES}
 )
 
 #Need this only for embedded

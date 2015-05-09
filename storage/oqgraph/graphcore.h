@@ -126,6 +126,9 @@ namespace open_query
     static oqgraph* create(oqgraph_share*) throw();
     static oqgraph_share *create(TABLE*,Field*,Field*,Field*) throw();
 
+    THD* get_thd();
+    void set_thd(THD*);
+
     static void free(oqgraph*) throw();
     static void free(oqgraph_share*) throw();
 

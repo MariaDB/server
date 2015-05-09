@@ -514,6 +514,9 @@ class MYSQL_BIN_LOG: public TC_LOG, private MYSQL_LOG
   ulonglong num_commits;
   /* Number of group commits done. */
   ulonglong num_group_commits;
+  /* The reason why the group commit was grouped */
+  ulonglong group_commit_trigger_count, group_commit_trigger_timeout;
+  ulonglong group_commit_trigger_lock_wait;
 
   /* pointer to the sync period variable, for binlog this will be
      sync_binlog_period, for relay log this will be
@@ -689,6 +692,7 @@ public:
   void set_max_size(ulong max_size_arg);
   void signal_update();
   void wait_for_sufficient_commits();
+  void binlog_trigger_immediate_group_commit();
   void wait_for_update_relay_log(THD* thd);
   int  wait_for_update_bin_log(THD* thd, const struct timespec * timeout);
   void init(ulong max_size);
@@ -1021,6 +1025,7 @@ bool general_log_print(THD *thd, enum enum_server_command command,
 bool general_log_write(THD *thd, enum enum_server_command command,
                        const char *query, uint query_length);
 
+void binlog_report_wait_for(THD *thd, THD *other_thd);
 void sql_perror(const char *message);
 bool flush_error_log();
 

@@ -2,7 +2,7 @@
 #define SQL_SELECT_INCLUDED
 
 /* Copyright (c) 2000, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2013, Monty Program Ab.
+   Copyright (c) 2008, 2015, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -825,7 +825,12 @@ typedef struct st_position :public Sql_alloc
   */
   uint n_sj_tables;
 
-  table_map prefix_dups_producing_tables;
+  /*
+    Bitmap of semi-join inner tables that are in the join prefix and for
+    which there's no provision for how to eliminate semi-join duplicates
+    they produce.
+  */
+  table_map dups_producing_tables;
 
   table_map inner_tables_handled_with_other_sjs;
    
@@ -1045,13 +1050,6 @@ public:
     nests that have their tables both in and outside of the join prefix.
   */
   table_map cur_sj_inner_tables;
-  
-  /*
-    Bitmap of semi-join inner tables that are in the join prefix and for
-    which there's no provision for how to eliminate semi-join duplicates
-    they produce.
-  */
-  table_map cur_dups_producing_tables;
   
   /* We also maintain a stack of join optimization states in * join->positions[] */
 /******* Join optimization state members end *******/
@@ -1788,10 +1786,6 @@ Field *create_tmp_field(THD *thd, TABLE *table,Item *item, Item::Type type,
 			bool table_cant_handle_bit_fields,
                         bool make_copy_field,
                         uint convert_blob_length);
-bool create_internal_tmp_table(TABLE *table, KEY *keyinfo, 
-                               TMP_ENGINE_COLUMNDEF *start_recinfo,
-                               TMP_ENGINE_COLUMNDEF **recinfo, 
-                               ulonglong options, my_bool big_tables);
 
 /*
   General routine to change field->ptr of a NULL-terminated array of Field

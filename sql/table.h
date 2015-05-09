@@ -1340,7 +1340,7 @@ public:
   bool add_tmp_key(uint key, uint key_parts,
                    uint (*next_field_no) (uchar *), uchar *arg,
                    bool unique);
-  void create_key_part_by_field(KEY *keyinfo, KEY_PART_INFO *key_part_info,
+  void create_key_part_by_field(KEY_PART_INFO *key_part_info,
                                 Field *field, uint fieldnr);
   void use_index(int key_to_save);
   void set_table_map(table_map map_arg, uint tablenr_arg)
@@ -1374,6 +1374,10 @@ public:
   }
 
   bool update_const_key_parts(COND *conds);
+
+  my_ptrdiff_t default_values_offset() const
+  { return (my_ptrdiff_t) (s->default_values - record[0]); }
+
   uint actual_n_key_parts(KEY *keyinfo);
   ulong actual_key_flags(KEY *keyinfo);
   int update_default_fields();

@@ -1,5 +1,5 @@
 /******************************************************************/
-/*  Dual XML implementation  base classes defines.                  */
+/*  Dual XML implementation base classes defines.                 */
 /******************************************************************/
 #if !defined(BASE_BUFFER_SIZE)
 enum ElementType {               // libxml2
@@ -43,7 +43,7 @@ enum NodeType {                   // MS DOM
      NODE_NOTATION                = 12};
 #endif   // !NODE_TYPE_LIST
 
-typedef class XMLDOCUMENT  *PXDOC;        // Document
+typedef class XMLDOCUMENT  *PXDOC;         // Document
 typedef class XMLNODE      *PXNODE;        // Node (Element)
 typedef class XMLNODELIST  *PXLIST;        // Node list
 typedef class XMLATTRIBUTE *PXATTR;        // Attribute
@@ -93,9 +93,9 @@ class XMLDOCUMENT : public BLOCK {
   bool  MakeNSlist(PGLOBAL g);
 
   // Members
-  PNS   Namespaces;                       /* To the namespaces     */
+  PNS   Namespaces;                      /* To the namespaces     */
   char *Encoding;                        /* The document encoding */
-  char *Nslist;                           /* Namespace list        */
+  char *Nslist;                          /* Namespace list        */
   char *DefNs;                           /* Default namespace     */
 }; // end of class XMLDOCUMENT
 
@@ -109,6 +109,7 @@ class XMLNODE : public BLOCK {
   virtual int    GetType(void) = 0;
   virtual PXNODE GetNext(PGLOBAL) = 0;
   virtual PXNODE GetChild(PGLOBAL) = 0;
+  virtual int    GetLen(void) {return Len;}
 
   // Methods
   virtual RCODE  GetContent(PGLOBAL, char *, int) = 0;
@@ -163,10 +164,12 @@ class XMLNODELIST : public BLOCK {
 class XMLATTRIBUTE : public BLOCK {
  public:
   // Properties
-//virtual char *GetText(void) = 0;
+  virtual char  *GetName(PGLOBAL) = 0;
+  virtual PXATTR GetNext(PGLOBAL) = 0;
 
   // Methods
-  virtual bool  SetText(PGLOBAL, char *, int) = 0;
+  virtual RCODE  GetText(PGLOBAL, char *, int) = 0;
+  virtual bool   SetText(PGLOBAL, char *, int) = 0;
 
  protected:
   // Constructor

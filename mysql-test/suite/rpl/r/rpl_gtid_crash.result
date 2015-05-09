@@ -267,5 +267,55 @@ a
 24
 26
 27
+*** MDEV-6391: GTID binlog state not recovered if mariadb-bin.state is removed ***
+include/stop_slave.inc
+INSERT INTO t1 VALUES (30);
+SET @old_server_id= @@server_id;
+SET @old_domain_id= @@gtid_domain_id;
+SET SESSION server_id= 10;
+INSERT INTO t1 VALUES (31);
+INSERT INTO t1 VALUES (32);
+SET SESSION gtid_domain_id= 1;
+SET SESSION server_id=11;
+INSERT INTO t1 VALUES (33);
+SET SESSION gtid_domain_id= 2;
+INSERT INTO t1 VALUES (34);
+SET SESSION server_id= 10;
+INSERT INTO t1 VALUES (35);
+INSERT INTO t1 VALUES (36);
+SET SESSION gtid_domain_id= 0;
+SET SESSION server_id= 12;
+INSERT INTO t1 VALUES (37);
+SET SESSION gtid_domain_id= @old_domain_id;
+SET SESSION server_id= @old_server_id;
+INSERT INTO t1 VALUES (38);
+INSERT INTO t1 VALUES (39);
+SELECT * FROM t1 WHERE a >= 30 ORDER BY a;
+a
+30
+31
+32
+33
+34
+35
+36
+37
+38
+39
+include/save_master_gtid.inc
+include/start_slave.inc
+include/sync_with_master_gtid.inc
+SELECT * FROM t1 WHERE a >= 30 ORDER BY a;
+a
+30
+31
+32
+33
+34
+35
+36
+37
+38
+39
 DROP TABLE t1;
 include/rpl_end.inc

@@ -18,6 +18,7 @@
   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 */
 
+#include <mrn_mysql.h>
 #include <mrn_err.h>
 #include "mrn_encoding.hpp"
 

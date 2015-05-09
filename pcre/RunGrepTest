@@ -506,6 +506,11 @@ echo "---------------------------- Test 106 -----------------------------" >>tes
 (cd $srcdir; echo "a" | $valgrind $pcregrep -M "|a" ) >>testtrygrep 2>&1
 echo "RC=$?" >>testtrygrep
 
+echo "---------------------------- Test 107 -----------------------------" >>testtrygrep
+echo "a" >testtemp1grep
+echo "aaaaa" >>testtemp1grep
+(cd $srcdir; $valgrind $pcregrep  --line-offsets '(?<=\Ka)' $builddir/testtemp1grep) >>testtrygrep 2>&1
+echo "RC=$?" >>testtrygrep
 
 # Now compare the results.
 

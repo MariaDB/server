@@ -37,14 +37,20 @@ static void my_md5_hash(char *digest, const char *buf, int len)
 }
 
 #elif defined(HAVE_OPENSSL)
-#include <openssl/md5.h>
+#include <openssl/evp.h>
 
-static void my_md5_hash(unsigned char* digest, unsigned const char *buf, int len)
+static void my_md5_hash(uchar* digest, const uchar *buf, uint len)
 {
-  MD5_CTX ctx;
-  MD5_Init (&ctx);
-  MD5_Update (&ctx, buf, len);
-  MD5_Final (digest, &ctx);
+  EVP_MD_CTX ctx;
+  EVP_MD_CTX_init(&ctx);
+#ifdef EVP_MD_CTX_FLAG_NON_FIPS_ALLOW
+  /* Ok to ignore FIPS: MD5 is not used for crypto here */
+  EVP_MD_CTX_set_flags(&ctx, EVP_MD_CTX_FLAG_NON_FIPS_ALLOW);
+#endif
+  EVP_DigestInit_ex(&ctx, EVP_md5(), NULL);
+  EVP_DigestUpdate(&ctx, buf, len);
+  EVP_DigestFinal(&ctx, digest, &len);
+  EVP_MD_CTX_cleanup(&ctx);
 }
 
 #endif /* HAVE_YASSL */
