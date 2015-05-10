@@ -1,7 +1,7 @@
 /*************** Xindex H Declares Source Code File (.H) ***************/
 /*  Name: XINDEX.H    Version 3.5                                      */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          2004 - 2013  */
+/*  (C) Copyright to the author Olivier BERTRAND          2004 - 2015  */
 /*                                                                     */
 /*  This file contains the XINDEX class declares.                      */
 /***********************************************************************/
@@ -205,12 +205,11 @@ class DllExport XXBASE : public CSORT, public BLOCK {
 #endif   // XMAP
   virtual int  MaxRange(void) {return 1;}
   virtual int  Fetch(PGLOBAL g) = 0;
-  virtual bool NextVal(bool eq) {return true;}
+  virtual bool NextVal(bool) {return true;}
   virtual bool PrevVal(void) {return true;}
-  virtual int  FastFind(int nk) = 0;
-  virtual bool Reorder(PGLOBAL g) {return true;}
-  virtual int  Range(PGLOBAL g, int limit = 0, bool incl = true)
-                {return -1;}    // Means error
+  virtual int  FastFind(void) = 0;
+  virtual bool Reorder(PGLOBAL) {return true;}
+  virtual int  Range(PGLOBAL, int = 0, bool = true) {return -1;} // Means error
   virtual int  Qcompare(int *, int *) = 0;
   virtual int  GroupSize(void) {return 1;}
   virtual void Close(void) = 0;
@@ -266,7 +265,7 @@ class DllExport XINDEX : public XXBASE {
 #endif   // XMAP
   virtual int  Qcompare(int *, int *);
   virtual int  Fetch(PGLOBAL g);
-  virtual int  FastFind(int nk);
+  virtual int  FastFind(void);
   virtual int  GroupSize(void);
   virtual int  Range(PGLOBAL g, int limit = 0, bool incl = true);
   virtual int  MaxRange(void) {return MaxSame;}
@@ -280,7 +279,7 @@ class DllExport XINDEX : public XXBASE {
           bool GetAllSizes(PGLOBAL g,/* int &ndif,*/ int &numk);
 
  protected:
-          bool AddColumns(PIXDEF xdp);
+          bool AddColumns(void);
           bool NextValDif(void);
 
   // Members
@@ -312,7 +311,7 @@ class DllExport XINDXS : public XINDEX {
   // Methods
   virtual int  Qcompare(int *, int *);
   virtual int  Fetch(PGLOBAL g);
-  virtual int  FastFind(int nk);
+  virtual int  FastFind(void);
   virtual bool NextVal(bool eq);
   virtual bool PrevVal(void);
   virtual int  Range(PGLOBAL g, int limit = 0, bool incl = true);
@@ -421,14 +420,14 @@ class DllExport XXROW : public XXBASE {
   // Methods
   virtual bool Init(PGLOBAL g);
 #if defined(XMAP)
-  virtual bool MapInit(PGLOBAL g) {return true;}
+  virtual bool MapInit(PGLOBAL) {return true;}
 #endif   // XMAP
   virtual int  Fetch(PGLOBAL g);
-  virtual int  FastFind(int nk);
+  virtual int  FastFind(void);
   virtual int  MaxRange(void) {return 1;}
   virtual int  Range(PGLOBAL g, int limit = 0, bool incl = true);
   virtual int  Qcompare(int *, int *) {assert(false); return 0;}
-  virtual bool Make(PGLOBAL g, PIXDEF sxp) {return false;}
+  virtual bool Make(PGLOBAL, PIXDEF) {return false;}
   virtual void Close(void) {}
 
  protected:

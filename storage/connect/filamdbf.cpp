@@ -1,11 +1,11 @@
 /*********** File AM Dbf C++ Program Source Code File (.CPP) ****************/
 /* PROGRAM NAME: FILAMDBF                                                   */
 /* -------------                                                            */
-/*  Version 1.7                                                             */
+/*  Version 1.8                                                             */
 /*                                                                          */
 /* COPYRIGHT:                                                               */
 /* ----------                                                               */
-/*  (C) Copyright to the author Olivier BERTRAND          2005-2014         */
+/*  (C) Copyright to the author Olivier BERTRAND          2005-2015         */
 /*                                                                          */
 /* WHAT THIS PROGRAM DOES:                                                  */
 /* -----------------------                                                  */
@@ -1011,7 +1011,7 @@ int DBMFAM::ReadBuffer(PGLOBAL g)
 /*  Data Base delete line routine for DBF access methods.                   */
 /*  Deleted lines are just flagged in the first buffer character.           */
 /****************************************************************************/
-int DBMFAM::DeleteRecords(PGLOBAL g, int irc)
+int DBMFAM::DeleteRecords(PGLOBAL, int irc)
   {
   if (irc == RC_OK)
     *Fpos = '*';

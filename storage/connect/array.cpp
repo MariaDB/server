@@ -1,7 +1,7 @@
 /************* Array C++ Functions Source Code File (.CPP) *************/
 /*  Name: ARRAY.CPP  Version 2.3                                       */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          2005-2014    */
+/*  (C) Copyright to the author Olivier BERTRAND          2005-2015    */
 /*                                                                     */
 /*  This file contains the XOBJECT derived class ARRAY functions.      */
 /*  ARRAY is used for elaborate type of processing, such as sorting    */
@@ -848,7 +848,7 @@ void *ARRAY::GetSortIndex(PGLOBAL g)
 /*  the indication of whether the Find will be always true, always not */
 /*  true or other.                                                     */
 /***********************************************************************/
-int ARRAY::BlockTest(PGLOBAL g, int opc, int opm,
+int ARRAY::BlockTest(PGLOBAL, int opc, int opm,
                      void *minp, void *maxp, bool s)
   {
   bool bin, bax, pin, pax, veq, all = (opm == 2);
@@ -1038,7 +1038,7 @@ void ARRAY::Print(PGLOBAL g, FILE *f, uint n)
 /***********************************************************************/
 /*  Make string output of ARRAY  contents.                             */
 /***********************************************************************/
-void ARRAY::Print(PGLOBAL g, char *ps, uint z)
+void ARRAY::Print(PGLOBAL, char *ps, uint z)
   {
   if (z < 16)
     return;

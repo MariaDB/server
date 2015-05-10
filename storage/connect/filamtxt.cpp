@@ -436,7 +436,7 @@ err:
 /*  The purpose of this function is to deal with access methods that   */
 /*  are not coherent regarding the use of SetPos and GetPos.           */
 /***********************************************************************/
-int TXTFAM::InitDelete(PGLOBAL g, int fpos, int spos)
+int TXTFAM::InitDelete(PGLOBAL g, int, int)
   {
   strcpy(g->Message, "InitDelete should not be used by this table type");
   return RC_FX;
@@ -519,7 +519,7 @@ int DOSFAM::Cardinality(PGLOBAL g)
 /*  Use BlockTest to reduce the table estimated size.                  */
 /*  Note: This function is not really implemented yet.                 */
 /***********************************************************************/
-int DOSFAM::MaxBlkSize(PGLOBAL g, int s)
+int DOSFAM::MaxBlkSize(PGLOBAL, int s)
   {
   return s;
   } // end of MaxBlkSize
@@ -1272,7 +1272,7 @@ int BLKFAM::Cardinality(PGLOBAL g)
 /***********************************************************************/
 /*  Use BlockTest to reduce the table estimated size.                  */
 /***********************************************************************/
-int BLKFAM::MaxBlkSize(PGLOBAL g, int s)
+int BLKFAM::MaxBlkSize(PGLOBAL g, int)
   {
   int rc = RC_OK, savcur = CurBlk;
   int size;
@@ -1343,7 +1343,7 @@ int BLKFAM::GetNextPos(void)
 /***********************************************************************/
 /*  SetPos: Replace the table at the specified position.               */
 /***********************************************************************/
-bool BLKFAM::SetPos(PGLOBAL g, int pos)
+bool BLKFAM::SetPos(PGLOBAL g, int)
   {
   strcpy(g->Message, "Blocked variable tables cannot be used indexed");
   return true;
@@ -1353,7 +1353,7 @@ bool BLKFAM::SetPos(PGLOBAL g, int pos)
 /*  Record file position in case of UPDATE or DELETE.                  */
 /*  Not used yet for blocked tables.                                   */
 /***********************************************************************/
-bool BLKFAM::RecordPos(PGLOBAL g)
+bool BLKFAM::RecordPos(PGLOBAL)
   {
   Fpos = (CurNum + Nrec * CurBlk);          // Computed file index
   return false;
@@ -1362,7 +1362,7 @@ bool BLKFAM::RecordPos(PGLOBAL g)
 /***********************************************************************/
 /*  Skip one record in file.                                           */
 /***********************************************************************/
-int BLKFAM::SkipRecord(PGLOBAL g, bool header)
+int BLKFAM::SkipRecord(PGLOBAL, bool header)
   {
   if (header) {
     // For Delete

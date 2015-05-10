@@ -646,7 +646,7 @@ PCOL TDBXML::MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n)
 /***********************************************************************/
 /*  InsertSpecialColumn: Put a special column ahead of the column list.*/
 /***********************************************************************/
-PCOL TDBXML::InsertSpecialColumn(PGLOBAL g, PCOL colp)
+PCOL TDBXML::InsertSpecialColumn(PCOL colp)
   {
   if (!colp->IsSpecial())
     return NULL;

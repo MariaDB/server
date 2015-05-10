@@ -78,10 +78,12 @@ PQRYRES JSONColumns(PGLOBAL g, char *dp, const char *fn, char *objn,
   PJVAL   jvp;
   PJOB    row;
   PJDEF   tdp;
-  TDBJSN *tjnp;
-  PJTDB   tjsp;
+  TDBJSN *tjnp = NULL;
+  PJTDB   tjsp = NULL;
   PQRYRES qrp;
   PCOLRES crp;
+
+  jcol.Name = jcol.Fmt = NULL;
 
   if (info) {
     length[0] = 128;
@@ -362,7 +364,7 @@ JSONDEF::JSONDEF(void)
 /***********************************************************************/
 /*  DefineAM: define specific AM block values.                         */
 /***********************************************************************/
-bool JSONDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
+bool JSONDEF::DefineAM(PGLOBAL g, LPCSTR, int poff)
 {
   Jmode = (JMODE)GetIntCatInfo("Jmode", MODE_OBJECT);
   Objname = GetStringCatInfo(g, "Object", NULL);
@@ -506,7 +508,7 @@ PCOL TDBJSN::MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n)
 /***********************************************************************/
 /*  InsertSpecialColumn: Put a special column ahead of the column list.*/
 /***********************************************************************/
-PCOL TDBJSN::InsertSpecialColumn(PGLOBAL g, PCOL colp)
+PCOL TDBJSN::InsertSpecialColumn(PCOL colp)
   {
   if (!colp->IsSpecial())
     return NULL;
@@ -1486,7 +1488,7 @@ int TDBJSON::MakeNewDoc(PGLOBAL g)
 /***********************************************************************/
 int TDBJSON::MakeDocument(PGLOBAL g)
   {
-  char   *p, *memory, *objpath, *key;
+  char   *p, *memory, *objpath, *key = NULL;
   int     len, i = 0;
   MODE    mode = Mode;
   PJSON   jsp;
@@ -1646,7 +1648,7 @@ void TDBJSON::ResetSize(void)
 /***********************************************************************/
 /*  TDBJSON is not indexable.                                          */
 /***********************************************************************/
-int TDBJSON::MakeIndex(PGLOBAL g, PIXDEF pxdf, bool add)
+int TDBJSON::MakeIndex(PGLOBAL g, PIXDEF pxdf, bool)
   {
   if (pxdf) {
     strcpy(g->Message, "JSON not indexable when pretty = 2");
@@ -1677,7 +1679,7 @@ int TDBJSON::GetRecpos(void)
 /***********************************************************************/
 /*  Set the position in the table.                                  */
 /***********************************************************************/
-bool TDBJSON::SetRecpos(PGLOBAL g, int recpos)
+bool TDBJSON::SetRecpos(PGLOBAL, int recpos)
   {
 #if 0
   union {
@@ -1739,7 +1741,7 @@ bool TDBJSON::OpenDB(PGLOBAL g)
 /***********************************************************************/
 /*  ReadDB: Data Base read routine for JSON access method.             */
 /***********************************************************************/
-int TDBJSON::ReadDB(PGLOBAL g)
+int TDBJSON::ReadDB(PGLOBAL)
   {
   int rc;
 

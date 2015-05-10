@@ -548,7 +548,7 @@ bool OEMDEF::DeleteTableFile(PGLOBAL g)
 /***********************************************************************/
 /*  Define: initialize the table definition block from XDB file.       */
 /***********************************************************************/
-bool OEMDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
+bool OEMDEF::DefineAM(PGLOBAL g, LPCSTR, int)
   {
   Module = GetStringCatInfo(g, "Module", "");
   Subtype = GetStringCatInfo(g, "Subtype", Module);
@@ -715,7 +715,7 @@ COLDEF::COLDEF(void) : COLCRT()
 /***********************************************************************/
 /*  Define: initialize a column definition from a COLINFO structure.   */
 /***********************************************************************/
-int COLDEF::Define(PGLOBAL g, void *memp, PCOLINFO cfp, int poff)
+int COLDEF::Define(PGLOBAL g, void *, PCOLINFO cfp, int poff)
   {
   Name = (PSZ)PlugDup(g, cfp->Name);
 

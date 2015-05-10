@@ -1,7 +1,7 @@
 /***************** Xindex C++ Class Xindex Code (.CPP) *****************/
 /*  Name: XINDEX.CPP  Version 2.9                                      */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          2004-2014    */
+/*  (C) Copyright to the author Olivier BERTRAND          2004-2015    */
 /*                                                                     */
 /*  This file contains the class XINDEX implementation code.           */
 /***********************************************************************/
@@ -179,7 +179,7 @@ XXBASE::XXBASE(PTDBDOS tbxp, bool b) : CSORT(b),
 /***********************************************************************/
 /*  Make file output of XINDEX contents.                               */
 /***********************************************************************/
-void XXBASE::Print(PGLOBAL g, FILE *f, uint n)
+void XXBASE::Print(PGLOBAL, FILE *f, uint n)
   {
   char m[64];
 
@@ -191,7 +191,7 @@ void XXBASE::Print(PGLOBAL g, FILE *f, uint n)
 /***********************************************************************/
 /*  Make string output of XINDEX contents.                             */
 /***********************************************************************/
-void XXBASE::Print(PGLOBAL g, char *ps, uint z)
+void XXBASE::Print(PGLOBAL, char *ps, uint z)
   {
   *ps = '\0';
   strncat(ps, "Xindex", z);
@@ -287,7 +287,7 @@ int XINDEX::Qcompare(int *i1, int *i2)
 /*  Sure enough, it is done while records are read and permit to avoid */
 /*  reading the table while doing the join (Dynamic index only)        */
 /***********************************************************************/
-bool XINDEX::AddColumns(PIXDEF xdp)
+bool XINDEX::AddColumns(void)
   {
   if (!Dynamic)
     return false;     // Not applying to static index
@@ -377,7 +377,7 @@ bool XINDEX::Make(PGLOBAL g, PIXDEF sxp)
 
   To_LastCol = prev;
 
-  if (AddColumns(sxp)) {
+  if (AddColumns()) {
     PCOL kolp = To_Cols[0];    // Temporary while imposing Nk = 1
 
     i = 0;
@@ -733,7 +733,7 @@ int XINDEX::ColMaxSame(PXCOL kp)
 /*  Reorder: use the sort index to reorder the data in storage so      */
 /*  it will be physically sorted and sort index can be removed.        */
 /***********************************************************************/
-bool XINDEX::Reorder(PGLOBAL g)
+bool XINDEX::Reorder(PGLOBAL g __attribute__((unused)))
   {
   register int i, j, k, n;
   bool          sorted = true;
@@ -1585,7 +1585,7 @@ int XINDEX::Range(PGLOBAL g, int limit, bool incl)
       if (++i == Nval) break;
       } // endfor kp
 
-    if ((k = FastFind(Nval)) < Num_K)
+    if ((k = FastFind()) < Num_K)
       n = k;
 //      if (limit)
 //        n = (Mul) ? k : kp->Val_K;
@@ -1826,7 +1826,7 @@ int XINDEX::Fetch(PGLOBAL g)
         if (trace > 1)
           htrc("Fetch: Looking for new value\n");
 
-        Cur_K = FastFind(Nval);
+        Cur_K = FastFind();
 
         if (Cur_K >= Num_K)
           /*************************************************************/
@@ -1857,12 +1857,12 @@ int XINDEX::Fetch(PGLOBAL g)
 /*  FastFind: Returns the index of matching record in a join using an  */
 /*  optimized algorithm based on dichotomie and optimized comparing.   */
 /***********************************************************************/
-int XINDEX::FastFind(int nv)
+int XINDEX::FastFind(void)
   {
   register int  curk, sup, inf, i= 0, k, n = 2;
   register PXCOL kp, kcp;
 
-  assert((int)nv == Nval);
+//assert((int)nv == Nval);
 
   if (Nblk && Op == OP_EQ) {
     // Look in block values to find in which block to search
@@ -2018,7 +2018,7 @@ int XINDXS::Range(PGLOBAL g, int limit, bool incl)
   /*********************************************************************/
   if (xp->GetType() == TYPE_CONST) {
     kp->Valp->SetValue_pval(xp->GetValue(), !kp->Prefix);
-    k = FastFind(Nval);
+    k = FastFind();
 
     if (k < Num_K || Op != OP_EQ)
       if (limit)
@@ -2162,7 +2162,7 @@ int XINDXS::Fetch(PGLOBAL g)
       if (trace > 1)
         htrc("Fetch: Looking for new value\n");
 
-      Cur_K = FastFind(1);
+      Cur_K = FastFind();
 
       if (Cur_K >= Num_K)
         // Rank not whithin index table, signal record not found
@@ -2190,7 +2190,7 @@ int XINDXS::Fetch(PGLOBAL g)
 /*  FastFind: Returns the index of matching indexed record using an    */
 /*  optimized algorithm based on dichotomie and optimized comparing.   */
 /***********************************************************************/
-int XINDXS::FastFind(int nk)
+int XINDXS::FastFind(void)
   {
   register int  sup, inf, i= 0, n = 2;
   register PXCOL kcp = To_KeyCol;
@@ -2360,7 +2360,8 @@ bool XFILE::Open(PGLOBAL g, char *filename, int id, MODE mode)
 /***********************************************************************/
 /*  Move into an index file.                                           */
 /***********************************************************************/
-bool XFILE::Seek(PGLOBAL g, int low, int high, int origin)
+bool XFILE::Seek(PGLOBAL g, int low, int high __attribute__((unused)),
+                            int origin)
   {
 #if defined(_DEBUG)
   assert(high == 0);
@@ -2371,7 +2372,6 @@ bool XFILE::Seek(PGLOBAL g, int low, int high, int origin)
     return true;
     } // endif
 
-//ftell(Xfile);
   return false;
   } // end of Seek
 
@@ -2819,7 +2819,7 @@ void XHUGE::Close(char *fn, int id)
 /***********************************************************************/
 /*  Don't know whether this is possible for huge files.                */
 /***********************************************************************/
-void *XHUGE::FileView(PGLOBAL g, char *fn)
+void *XHUGE::FileView(PGLOBAL g, char *)
   {
   strcpy(g->Message, MSG(NO_PART_MAP));
   return NULL;
@@ -2879,7 +2879,7 @@ bool XXROW::Init(PGLOBAL g)
 /***********************************************************************/
 /*  RANGE: Tell how many record exist in a given value range.          */
 /***********************************************************************/
-int XXROW::Range(PGLOBAL g, int limit, bool incl)
+int XXROW::Range(PGLOBAL, int limit, bool incl)
   {
   int  n = Valp->GetIntValue();
 
@@ -2895,7 +2895,7 @@ int XXROW::Range(PGLOBAL g, int limit, bool incl)
 /***********************************************************************/
 /*  XXROW: Fetch a physical or logical record.                         */
 /***********************************************************************/
-int XXROW::Fetch(PGLOBAL g)
+int XXROW::Fetch(PGLOBAL)
   {
   if (Num_K == 0)
     return -1;       // means end of file
@@ -2904,7 +2904,7 @@ int XXROW::Fetch(PGLOBAL g)
   /*  Look for a key equal to the link column of previous table,       */
   /*  and return its rank whithin the index table.                     */
   /*********************************************************************/
-  Cur_K = FastFind(1);
+  Cur_K = FastFind();
 
   if (Cur_K >= Num_K)
     /*******************************************************************/
@@ -2926,7 +2926,7 @@ int XXROW::Fetch(PGLOBAL g)
 /***********************************************************************/
 /*  FastFind: Returns the index of matching record in a join.          */
 /***********************************************************************/
-int XXROW::FastFind(int nk)
+int XXROW::FastFind(void)
   {
   int n = Valp->GetIntValue();
 

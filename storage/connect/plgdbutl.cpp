@@ -888,7 +888,7 @@ FILE *PlugReopenFile(PGLOBAL g, PFBLOCK fp, LPCSTR md)
 /*  Close file routine: the purpose of this routine is to avoid        */
 /*  double closing that freeze the system on some Unix platforms.      */
 /***********************************************************************/
-int PlugCloseFile(PGLOBAL g, PFBLOCK fp, bool all)
+int PlugCloseFile(PGLOBAL g __attribute__((unused)), PFBLOCK fp, bool all)
   {
   int rc = 0;
 

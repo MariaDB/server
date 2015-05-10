@@ -85,7 +85,7 @@ class XCLCOL : public PRXCOL {
   friend class TDBXCL;
  public:
   // Constructors
-  XCLCOL(PGLOBAL g, PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i);
+  XCLCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i);
 
   // Methods
   using PRXCOL::Init;

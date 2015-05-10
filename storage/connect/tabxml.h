@@ -84,7 +84,7 @@ class DllExport TDBXML : public TDBASE {
 
   // Database routines
   virtual PCOL  MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n);
-  virtual PCOL  InsertSpecialColumn(PGLOBAL g, PCOL colp);
+  virtual PCOL  InsertSpecialColumn(PCOL colp);
 //virtual int   GetMaxSame(PGLOBAL g) {return (Xpand) ? Limit : 1;}
   virtual int   Cardinality(PGLOBAL g);
   virtual int   GetMaxSize(PGLOBAL g);

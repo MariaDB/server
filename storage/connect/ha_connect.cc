@@ -193,7 +193,7 @@ extern "C" {
 /*  Utility functions.                                                 */
 /***********************************************************************/
 PQRYRES OEMColumns(PGLOBAL g, PTOS topt, char *tab, char *db, bool info);
-PQRYRES VirColumns(PGLOBAL g, char *tab, char *db, bool info);
+PQRYRES VirColumns(PGLOBAL g, bool info);
 PQRYRES JSONColumns(PGLOBAL g, char *dp, const char *fn, char *objn,
                     int pretty, int lvl, int mxr, bool info);
 PQRYRES XMLColumns(PGLOBAL g, char *dp, char *tab, PTOS topt, bool info);
@@ -5337,7 +5337,7 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
         break;
 #endif   // PIVOT_SUPPORT
       case TAB_VIR:
-        qrp= VirColumns(g, tab, (char*)db, fnc == FNC_COL);
+        qrp= VirColumns(g, fnc == FNC_COL);
         break;
       case TAB_JSON:
         qrp= JSONColumns(g, (char*)db, fn, objn, pty, lrecl, lvl, fnc == FNC_COL);
