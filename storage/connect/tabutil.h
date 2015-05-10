@@ -59,12 +59,12 @@ class DllExport TDBPRX : public TDBASE {
  public:
   // Constructors
   TDBPRX(PPRXDEF tdp);
-  TDBPRX(PGLOBAL g, PTDBPRX tdbp);
+  TDBPRX(PTDBPRX tdbp);
 
   // Implementation
   virtual AMT   GetAmType(void) {return TYPE_AM_PRX;}
   virtual PTDB  Duplicate(PGLOBAL g)
-                {return (PTDB)new(g) TDBPRX(g, this);}
+                {return (PTDB)new(g) TDBPRX(this);}
 
   // Methods
   virtual PTDB  CopyOne(PTABS t);

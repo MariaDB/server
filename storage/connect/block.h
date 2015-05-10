@@ -50,7 +50,7 @@ class DllExport BLOCK {
 #if !defined(__BORLANDC__)
   // Avoid warning C4291 by defining a matching dummy delete operator
   void operator delete(void *, PGLOBAL, void *) {}
-  void operator delete(void *ptr,size_t size) {}
+  void operator delete(void *, size_t) {}
 #endif
   virtual ~BLOCK() {}
 

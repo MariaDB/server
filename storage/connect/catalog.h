@@ -1,7 +1,7 @@
 /*************** Catalog H Declares Source Code File (.H) **************/
 /*  Name: CATALOG.H  Version 3.3                                       */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          2000-2014    */
+/*  (C) Copyright to the author Olivier BERTRAND          2000-2015    */
 /*                                                                     */
 /*  This file contains the CATALOG PlugDB classes definitions.         */
 /***********************************************************************/
@@ -73,33 +73,29 @@ class DllExport CATALOG {
   // Methods
   virtual void    Reset(void) {}
 //virtual void    SetDataPath(PGLOBAL g, const char *path) {}
-  virtual bool    CheckName(PGLOBAL g, char *name) {return true;}
-  virtual bool    ClearName(PGLOBAL g, PSZ name) {return true;}
-  virtual PRELDEF MakeOneTableDesc(PGLOBAL g, LPCSTR name, LPCSTR am) {return NULL;}
-  virtual PRELDEF GetTableDescEx(PGLOBAL g, PTABLE tablep) {return NULL;}
-  virtual PRELDEF GetTableDesc(PGLOBAL g, LPCSTR name, LPCSTR type,
-                                          PRELDEF *prp = NULL) {return NULL;}
-  virtual PRELDEF GetFirstTable(PGLOBAL g) {return NULL;}
-  virtual PRELDEF GetNextTable(PGLOBAL g) {return NULL;}
-  virtual bool    TestCond(PGLOBAL g, const char *name, const char *type)
-                                {return true;}
-  virtual bool    DropTable(PGLOBAL g, PSZ name, bool erase) {return true;}
-  virtual PTDB    GetTable(PGLOBAL g, PTABLE tablep,
-                           MODE mode = MODE_READ, LPCSTR type = NULL)
-                                {return NULL;}
-  virtual void    TableNames(PGLOBAL g, char *buffer, int maxbuf, int info[]) {}
-  virtual void    ColumnNames(PGLOBAL g, char *tabname, char *buffer,
-                                         int maxbuf, int info[]) {}
-  virtual void    ColumnDefs(PGLOBAL g, char *tabname, char *buffer,
-                                        int maxbuf, int info[]) {}
-  virtual void   *DecodeValues(PGLOBAL g, char *tabname, char *colname,
-                                  char *buffer, int maxbuf, int info[]) {return NULL;}
-  virtual int     ColumnType(PGLOBAL g, char *tabname, char *colname) {return 0;}
-  virtual void    ClearDB(PGLOBAL g) {}
+  virtual bool    CheckName(PGLOBAL, char*) {return true;}
+  virtual bool    ClearName(PGLOBAL, PSZ) {return true;}
+  virtual PRELDEF MakeOneTableDesc(PGLOBAL, LPCSTR, LPCSTR) {return NULL;}
+  virtual PRELDEF GetTableDescEx(PGLOBAL, PTABLE) {return NULL;}
+  virtual PRELDEF GetTableDesc(PGLOBAL, LPCSTR, LPCSTR,
+                                        PRELDEF* = NULL) {return NULL;}
+  virtual PRELDEF GetFirstTable(PGLOBAL) {return NULL;}
+  virtual PRELDEF GetNextTable(PGLOBAL) {return NULL;}
+  virtual bool    TestCond(PGLOBAL, const char*, const char*) {return true;}
+  virtual bool    DropTable(PGLOBAL, PSZ, bool) {return true;}
+  virtual PTDB    GetTable(PGLOBAL, PTABLE,
+                           MODE = MODE_READ, LPCSTR = NULL) {return NULL;}
+  virtual void    TableNames(PGLOBAL, char*, int, int[]) {}
+  virtual void    ColumnNames(PGLOBAL, char*, char*, int, int[]) {}
+  virtual void    ColumnDefs(PGLOBAL, char*, char*, int, int[]) {}
+  virtual void   *DecodeValues(PGLOBAL, char*, char*, char*,
+                                        int, int[]) {return NULL;}
+  virtual int     ColumnType(PGLOBAL, char*, char*) {return 0;}
+  virtual void    ClearDB(PGLOBAL) {}
 
  protected:
-  virtual bool    ClearSection(PGLOBAL g, const char *key, const char *section) {return true;}
-  virtual PRELDEF MakeTableDesc(PGLOBAL g, LPCSTR name, LPCSTR am) {return NULL;}
+  virtual bool    ClearSection(PGLOBAL, const char*, const char*) {return true;}
+  virtual PRELDEF MakeTableDesc(PGLOBAL, LPCSTR, LPCSTR) {return NULL;}
 
   // Members
   char   *Cbuf;                        /* Buffer used for col section  */

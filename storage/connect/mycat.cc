@@ -1,4 +1,4 @@
-/* Copyright (C) Olivier Bertrand 2004 - 2014
+/* Copyright (C) Olivier Bertrand 2004 - 2015
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -18,7 +18,7 @@
 /* -------------                                                       */
 /*  Version 1.4                                                        */
 /*                                                                     */
-/*  Author: Olivier Bertrand                       2012 - 2014         */
+/*  Author: Olivier Bertrand                       2012 - 2015         */
 /*                                                                     */
 /* WHAT THIS PROGRAM DOES:                                             */
 /* -----------------------                                             */
@@ -478,7 +478,7 @@ void MYCAT::SetPath(PGLOBAL g, LPCSTR *datapath, const char *path)
 /*  Look for a table descriptor matching the name and type.            */
 /***********************************************************************/
 PRELDEF MYCAT::GetTableDesc(PGLOBAL g, LPCSTR name,
-                                       LPCSTR type, PRELDEF *prp)
+                                       LPCSTR type, PRELDEF *)
   {
 	if (trace)
 		printf("GetTableDesc: name=%s am=%s\n", name, SVP(type));
@@ -589,7 +589,7 @@ PTDB MYCAT::GetTable(PGLOBAL g, PTABLE tablep, MODE mode, LPCSTR type)
 /***********************************************************************/
 /*  ClearDB: Terminates Database usage.                                */
 /***********************************************************************/
-void MYCAT::ClearDB(PGLOBAL g)
+void MYCAT::ClearDB(PGLOBAL)
   {
   } // end of ClearDB
 

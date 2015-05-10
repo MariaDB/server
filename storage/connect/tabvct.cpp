@@ -5,7 +5,7 @@
 /*                                                                     */
 /* COPYRIGHT:                                                          */
 /* ----------                                                          */
-/*  (C) Copyright to the author Olivier BERTRAND          1999-2014    */
+/*  (C) Copyright to the author Olivier BERTRAND          1999-2015    */
 /*                                                                     */
 /* WHAT THIS PROGRAM DOES:                                             */
 /* -----------------------                                             */
@@ -94,7 +94,7 @@ PVBLK AllocValBlock(PGLOBAL, void *, int, int, int, int,
 /***********************************************************************/
 /*  DefineAM: define specific AM block values from XDB file.           */
 /***********************************************************************/
-bool VCTDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
+bool VCTDEF::DefineAM(PGLOBAL g, LPCSTR, int poff)
   {
   DOSDEF::DefineAM(g, "BIN", poff);
 
@@ -290,7 +290,7 @@ PCOL TDBVCT::MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n)
 /***********************************************************************/
 /*  VEC tables are not ready yet to use temporary files.               */
 /***********************************************************************/
-bool TDBVCT::IsUsingTemp(PGLOBAL g)
+bool TDBVCT::IsUsingTemp(PGLOBAL)
   {
   // For developpers
   return (UseTemp() == TMP_TEST);
@@ -570,7 +570,7 @@ void VCTCOL::ReadColumn(PGLOBAL g)
 /*  On each change of block the buffer is written back to file and     */
 /*  in mode Insert the buffer is filled with the block to update.      */
 /***********************************************************************/
-void VCTCOL::WriteColumn(PGLOBAL g)
+void VCTCOL::WriteColumn(PGLOBAL)
   {
   PTXF txfp = ((PTDBVCT)To_Tdb)->Txfp;;
 

@@ -5,7 +5,7 @@
 /*                                                                     */
 /* COPYRIGHT:                                                          */
 /* ----------                                                          */
-/*  (C) Copyright to the author Olivier BERTRAND          2001 - 2014  */
+/*  (C) Copyright to the author Olivier BERTRAND          2001 - 2015  */
 /*                                                                     */
 /* WHAT THIS PROGRAM DOES:                                             */
 /* -----------------------                                             */
@@ -625,7 +625,7 @@ bool TDBCSV::CheckErr(void)
 /***********************************************************************/
 /*  CSV EstimatedLength. Returns an estimated minimum line length.     */
 /***********************************************************************/
-int TDBCSV::EstimatedLength(PGLOBAL g)
+int TDBCSV::EstimatedLength(void)
   {
   int     n = 0;
   PCOLDEF cdp;
@@ -1118,7 +1118,7 @@ PCOL TDBFMT::MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n)
 /*  FMT EstimatedLength. Returns an estimated minimum line length.     */
 /*  The big problem here is how can we astimated that minimum ?        */
 /***********************************************************************/
-int TDBFMT::EstimatedLength(PGLOBAL g)
+int TDBFMT::EstimatedLength(void)
   {
   // This is rather stupid !!!
   return ((PDOSDEF)To_Def)->GetEnding() + (int)((Lrecl / 10) + 1);

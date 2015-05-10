@@ -1,4 +1,4 @@
-/* Copyright (C) Olivier Bertrand 2004 - 2012
+/* Copyright (C) Olivier Bertrand 2004 - 2015
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -237,7 +237,7 @@ PTDB CntGetTDB(PGLOBAL g, LPCSTR name, MODE mode, PHC h)
 /*  OPENTAB: Open a Table.                                             */
 /***********************************************************************/
 bool CntOpenTable(PGLOBAL g, PTDB tdbp, MODE mode, char *c1, char *c2,
-                                        bool del, PHC h)
+                                        bool del, PHC)
   {
   char   *p;
   int     i, n, rc;

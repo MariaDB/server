@@ -5,7 +5,7 @@
 /*                                                                      */
 /* COPYRIGHT:                                                           */
 /* ----------                                                           */
-/*  (C) Copyright to the author Olivier BERTRAND          2007-2014     */
+/*  (C) Copyright to the author Olivier BERTRAND          2007-2015     */
 /*                                                                      */
 /* WHAT THIS PROGRAM DOES:                                              */
 /* -----------------------                                              */
@@ -720,7 +720,7 @@ int MYSQLC::ExecSQL(PGLOBAL g, const char *query, int *w)
 /***********************************************************************/
 /*  Get table size by executing "select count(*) from table_name".     */
 /***********************************************************************/
-int MYSQLC::GetTableSize(PGLOBAL g, PSZ query)
+int MYSQLC::GetTableSize(PGLOBAL g __attribute__((unused)), PSZ query)
   {
   if (mysql_real_query(m_DB, query, strlen(query))) {
 #if defined(_DEBUG)
