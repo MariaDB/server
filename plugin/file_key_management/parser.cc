@@ -173,6 +173,7 @@ bool Parser::read_filekey(const char *filekey, char *secret)
   my_close(f, MYF(MY_WME));
   if (len <= 0)
     return 1;
+  while (secret[len - 1] == '\r' || secret[len - 1] == '\n') len--;
   secret[len]= '\0';
   return 0;
 }
