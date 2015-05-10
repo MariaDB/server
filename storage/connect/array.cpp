@@ -186,7 +186,7 @@ ARRAY::ARRAY(PGLOBAL g, int type, int size, int length, int prec)
     // The error message was built by PlgDBalloc
     Type = TYPE_ERROR;
   else if (type != TYPE_PCHAR)
-    Value = AllocateValue(g, type, Len, prec, NULL);
+    Value = AllocateValue(g, type, Len, prec);
 
   Constant = TRUE;
   } // end of ARRAY constructor
@@ -610,7 +610,7 @@ int ARRAY::Convert(PGLOBAL g, int k, PVAL vp)
     // The error message was built by PlgDBalloc
     return TYPE_ERROR;
   else
-    Value = AllocateValue(g, Type, Len, prec, NULL);
+    Value = AllocateValue(g, Type, Len, prec);
 
   /*********************************************************************/
   /*  Converting STRING to DATE can be done according to date format.  */
