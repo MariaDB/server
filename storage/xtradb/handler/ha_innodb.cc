@@ -3633,6 +3633,13 @@ innobase_init(
 	}
 #endif
 
+	if ((srv_encrypt_tables || srv_encrypt_log)
+	     && !encryption_key_id_exists(FIL_DEFAULT_ENCRYPTION_KEY)) {
+		sql_print_error("InnoDB: cannot enable encryption, "
+				"encryption plugin is not available");
+		goto error;
+	}
+
 	os_innodb_umask = (ulint) my_umask;
 
 	/* First calculate the default path for innodb_data_home_dir etc.,
