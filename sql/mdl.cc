@@ -1449,7 +1449,7 @@ MDL_wait::timed_wait(MDL_context_owner *owner, struct timespec *abs_timeout,
       wait_result= mysql_cond_wait(&m_COND_wait_status, &m_LOCK_wait_status);
     }
     else
-#endif
+#endif /* WITH_WSREP */
     wait_result= mysql_cond_timedwait(&m_COND_wait_status, &m_LOCK_wait_status,
                                       abs_timeout);
   }
@@ -3381,10 +3381,7 @@ bool MDL_context::wsrep_has_explicit_locks()
 
   while ((ticket = it++))
   {
-    if (ticket->m_type == MDL_EXCLUSIVE)
-    {
-      return true;
-    }
+    return true;
   }
 
   return false;
