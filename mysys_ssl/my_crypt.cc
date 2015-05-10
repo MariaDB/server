@@ -42,7 +42,7 @@ static const Dir CRYPT_DECRYPT = 0;
 typedef const EVP_CIPHER *CipherMode;
 
 #define make_aes_dispatcher(mode)                               \
-  static inline CipherMode aes_ ## mode(uint key_length)       \
+  static inline CipherMode aes_ ## mode(uint key_length)        \
   {                                                             \
     switch (key_length) {                                       \
     case 16: return EVP_aes_128_ ## mode();                     \
@@ -54,9 +54,6 @@ typedef const EVP_CIPHER *CipherMode;
 
 make_aes_dispatcher(ecb)
 make_aes_dispatcher(cbc)
-#ifdef HAVE_EncryptAes128Ctr
-make_aes_dispatcher(ctr)
-#endif
 
 typedef uchar KeyByte;
 
@@ -66,11 +63,11 @@ struct MyCTX : EVP_CIPHER_CTX {
 };
 #endif
 
-static int do_crypt(CipherMode cipher, Dir dir,
-                    const uchar* source, uint source_length,
-                    uchar* dest, uint* dest_length,
-                    const KeyByte *key, uint key_length,
-                    const KeyByte *iv, uint iv_length, int no_padding)
+static int block_crypt(CipherMode cipher, Dir dir,
+                       const uchar* source, uint source_length,
+                       uchar* dest, uint* dest_length,
+                       const KeyByte *key, uint key_length,
+                       const KeyByte *iv, uint iv_length, int no_padding)
 {
   int tail= source_length % MY_AES_BLOCK_SIZE;
 
@@ -125,7 +122,7 @@ static int do_crypt(CipherMode cipher, Dir dir,
 
   DBUG_ASSERT(EVP_CIPHER_CTX_key_length(&ctx) == (int)key_length);
   DBUG_ASSERT(EVP_CIPHER_CTX_iv_length(&ctx) == (int)iv_length);
-  DBUG_ASSERT(EVP_CIPHER_CTX_block_size(&ctx) == MY_AES_BLOCK_SIZE || !no_padding);
+  DBUG_ASSERT(EVP_CIPHER_CTX_block_size(&ctx) == MY_AES_BLOCK_SIZE);
 
   /* use built-in OpenSSL padding, if possible */
   if (!EVP_CipherUpdate(&ctx, dest, (int*)dest_length,
@@ -163,27 +160,39 @@ static int do_crypt(CipherMode cipher, Dir dir,
 C_MODE_START
 
 #ifdef HAVE_EncryptAes128Ctr
+make_aes_dispatcher(ctr)
 
+/*
+  special simplified implementation for CTR, because it's a stream cipher
+  (doesn't need padding, always encrypts the specified number of bytes), and
+  because encrypting and decrypting code is exactly the same (courtesy of XOR)
+*/
 int my_aes_encrypt_ctr(const uchar* source, uint source_length,
                        uchar* dest, uint* dest_length,
                        const uchar* key, uint key_length,
-                       const uchar* iv, uint iv_length,
-                       int no_padding)
+                       const uchar* iv, uint iv_length)
 {
-  /* CTR is a stream cipher mode, it needs no special padding code */
-  return do_crypt(aes_ctr(key_length), CRYPT_ENCRYPT, source, source_length,
-                  dest, dest_length, key, key_length, iv, iv_length, 0);
-}
+  CipherMode cipher= aes_ctr(key_length);
+  struct MyCTX ctx;
+  int fin __attribute__((unused));
 
+  if (unlikely(!cipher))
+    return MY_AES_BAD_KEYSIZE;
 
-int my_aes_decrypt_ctr(const uchar* source, uint source_length,
-                       uchar* dest, uint* dest_length,
-                       const uchar* key, uint key_length,
-                       const uchar* iv, uint iv_length,
-                       int no_padding)
-{
-  return do_crypt(aes_ctr(key_length), CRYPT_DECRYPT, source, source_length,
-                  dest, dest_length, key, key_length, iv, iv_length, 0);
+  if (!EVP_CipherInit_ex(&ctx, cipher, NULL, key, iv, CRYPT_ENCRYPT))
+    return MY_AES_OPENSSL_ERROR;
+
+  DBUG_ASSERT(EVP_CIPHER_CTX_key_length(&ctx) == (int)key_length);
+  DBUG_ASSERT(EVP_CIPHER_CTX_iv_length(&ctx) == (int)iv_length);
+  DBUG_ASSERT(EVP_CIPHER_CTX_block_size(&ctx) == 1);
+
+  if (!EVP_CipherUpdate(&ctx, dest, (int*)dest_length, source, source_length))
+    return MY_AES_OPENSSL_ERROR;
+
+  DBUG_ASSERT(EVP_CipherFinal_ex(&ctx, dest + *dest_length, &fin));
+  DBUG_ASSERT(fin == 0);
+
+  return MY_AES_OK;
 }
 
 #endif /* HAVE_EncryptAes128Ctr */
@@ -194,8 +203,8 @@ int my_aes_encrypt_ecb(const uchar* source, uint source_length,
                        const uchar* iv, uint iv_length,
                        int no_padding)
 {
-  return do_crypt(aes_ecb(key_length), CRYPT_ENCRYPT, source, source_length,
-                        dest, dest_length, key, key_length, 0, 0, no_padding);
+  return block_crypt(aes_ecb(key_length), CRYPT_ENCRYPT, source, source_length,
+                     dest, dest_length, key, key_length, 0, 0, no_padding);
 }
 
 int my_aes_decrypt_ecb(const uchar* source, uint source_length,
@@ -204,8 +213,8 @@ int my_aes_decrypt_ecb(const uchar* source, uint source_length,
                        const uchar* iv, uint iv_length,
                        int no_padding)
 {
-  return do_crypt(aes_ecb(key_length), CRYPT_DECRYPT, source, source_length,
-                        dest, dest_length, key, key_length, 0, 0, no_padding);
+  return block_crypt(aes_ecb(key_length), CRYPT_DECRYPT, source, source_length,
+                     dest, dest_length, key, key_length, 0, 0, no_padding);
 }
 
 int my_aes_encrypt_cbc(const uchar* source, uint source_length,
@@ -214,8 +223,8 @@ int my_aes_encrypt_cbc(const uchar* source, uint source_length,
                        const uchar* iv, uint iv_length,
                        int no_padding)
 {
-  return do_crypt(aes_cbc(key_length), CRYPT_ENCRYPT, source, source_length,
-                        dest, dest_length, key, key_length, iv, iv_length, no_padding);
+  return block_crypt(aes_cbc(key_length), CRYPT_ENCRYPT, source, source_length,
+                     dest, dest_length, key, key_length, iv, iv_length, no_padding);
 }
 
 int my_aes_decrypt_cbc(const uchar* source, uint source_length,
@@ -224,8 +233,8 @@ int my_aes_decrypt_cbc(const uchar* source, uint source_length,
                        const uchar* iv, uint iv_length,
                        int no_padding)
 {
-  return do_crypt(aes_cbc(key_length), CRYPT_DECRYPT, source, source_length,
-                        dest, dest_length, key, key_length, iv, iv_length, no_padding);
+  return block_crypt(aes_cbc(key_length), CRYPT_DECRYPT, source, source_length,
+                     dest, dest_length, key, key_length, iv, iv_length, no_padding);
 }
 
 C_MODE_END

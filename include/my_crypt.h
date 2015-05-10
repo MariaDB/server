@@ -41,14 +41,9 @@ extern "C" {
 int my_aes_encrypt_ctr(const uchar* source, uint source_length,
                                 uchar* dest, uint* dest_length,
                                 const uchar* key, uint key_length,
-                                const uchar* iv, uint iv_length,
-                                int no_padding);
+                                const uchar* iv, uint iv_length);
 
-int my_aes_decrypt_ctr(const uchar* source, uint source_length,
-                                uchar* dest, uint* dest_length,
-                                const uchar* key, uint key_length,
-                                const uchar* iv, uint iv_length,
-                                int no_padding);
+#define my_aes_decrypt_ctr my_aes_encrypt_ctr
 
 #endif
 
