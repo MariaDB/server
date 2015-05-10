@@ -71,84 +71,94 @@ static int block_crypt(CipherMode cipher, Dir dir,
 {
   int tail= source_length % MY_AES_BLOCK_SIZE;
 
+  DBUG_ASSERT(source_length);
+
+  if (likely(source_length >= MY_AES_BLOCK_SIZE || !no_padding))
+  {
 #ifdef HAVE_YASSL
-  TaoCrypt::AES ctx(dir, cipher);
+    TaoCrypt::AES ctx(dir, cipher);
 
-  if (unlikely(key_length != 16 && key_length != 24 && key_length != 32))
-    return MY_AES_BAD_KEYSIZE;
+    if (unlikely(key_length != 16 && key_length != 24 && key_length != 32))
+      return MY_AES_BAD_KEYSIZE;
 
-  ctx.SetKey(key, key_length);
-  if (iv)
-  {
-    ctx.SetIV(iv);
-    DBUG_ASSERT(TaoCrypt::AES::BLOCK_SIZE == iv_length);
-  }
-  DBUG_ASSERT(TaoCrypt::AES::BLOCK_SIZE == MY_AES_BLOCK_SIZE);
-
-  ctx.Process(dest, source, source_length - tail);
-  *dest_length= source_length - tail;
-
-  /* unlike OpenSSL, YaSSL doesn't support PKCS#7 padding */
-  if (!no_padding)
-  {
-    if (dir == CRYPT_ENCRYPT)
+    ctx.SetKey(key, key_length);
+    if (iv)
     {
-      uchar buf[MY_AES_BLOCK_SIZE];
-      memcpy(buf, source + source_length - tail, tail);
-      memset(buf + tail, MY_AES_BLOCK_SIZE - tail, MY_AES_BLOCK_SIZE - tail);
-      ctx.Process(dest + *dest_length, buf, MY_AES_BLOCK_SIZE);
-      *dest_length+= MY_AES_BLOCK_SIZE;
+      ctx.SetIV(iv);
+      DBUG_ASSERT(TaoCrypt::AES::BLOCK_SIZE <= iv_length);
     }
-    else
+    DBUG_ASSERT(TaoCrypt::AES::BLOCK_SIZE == MY_AES_BLOCK_SIZE);
+
+    ctx.Process(dest, source, source_length - tail);
+    *dest_length= source_length - tail;
+
+    /* unlike OpenSSL, YaSSL doesn't support PKCS#7 padding */
+    if (!no_padding)
     {
-      int n= dest[source_length - 1];
-      if (tail || n == 0 || n > MY_AES_BLOCK_SIZE)
-        return MY_AES_BAD_DATA;
-      *dest_length-= n;
+      if (dir == CRYPT_ENCRYPT)
+      {
+        uchar buf[MY_AES_BLOCK_SIZE];
+        memcpy(buf, source + source_length - tail, tail);
+        memset(buf + tail, MY_AES_BLOCK_SIZE - tail, MY_AES_BLOCK_SIZE - tail);
+        ctx.Process(dest + *dest_length, buf, MY_AES_BLOCK_SIZE);
+        *dest_length+= MY_AES_BLOCK_SIZE;
+      }
+      else
+      {
+        int n= dest[source_length - 1];
+        if (tail || n == 0 || n > MY_AES_BLOCK_SIZE)
+          return MY_AES_BAD_DATA;
+        *dest_length-= n;
+      }
     }
-  }
 
 #else // HAVE_OPENSSL
-  int fin;
-  struct MyCTX ctx;
+    int fin;
+    struct MyCTX ctx;
 
-  if (unlikely(!cipher))
-    return MY_AES_BAD_KEYSIZE;
+    if (unlikely(!cipher))
+      return MY_AES_BAD_KEYSIZE;
 
-  if (!EVP_CipherInit_ex(&ctx, cipher, NULL, key, iv, dir))
-    return MY_AES_OPENSSL_ERROR;
+    if (!EVP_CipherInit_ex(&ctx, cipher, NULL, key, iv, dir))
+      return MY_AES_OPENSSL_ERROR;
 
-  EVP_CIPHER_CTX_set_padding(&ctx, !no_padding);
+    EVP_CIPHER_CTX_set_padding(&ctx, !no_padding);
 
-  DBUG_ASSERT(EVP_CIPHER_CTX_key_length(&ctx) == (int)key_length);
-  DBUG_ASSERT(EVP_CIPHER_CTX_iv_length(&ctx) == (int)iv_length);
-  DBUG_ASSERT(EVP_CIPHER_CTX_block_size(&ctx) == MY_AES_BLOCK_SIZE);
+    DBUG_ASSERT(EVP_CIPHER_CTX_key_length(&ctx) == (int)key_length);
+    DBUG_ASSERT(EVP_CIPHER_CTX_iv_length(&ctx) <= (int)iv_length);
+    DBUG_ASSERT(EVP_CIPHER_CTX_block_size(&ctx) == MY_AES_BLOCK_SIZE);
 
-  /* use built-in OpenSSL padding, if possible */
-  if (!EVP_CipherUpdate(&ctx, dest, (int*)dest_length,
-                        source, source_length - (no_padding ? tail : 0)))
-    return MY_AES_OPENSSL_ERROR;
-  if (!EVP_CipherFinal_ex(&ctx, dest + *dest_length, &fin))
-    return MY_AES_BAD_DATA;
-  *dest_length += fin;
+    /* use built-in OpenSSL padding, if possible */
+    if (!EVP_CipherUpdate(&ctx, dest, (int*)dest_length,
+                          source, source_length - (no_padding ? tail : 0)))
+      return MY_AES_OPENSSL_ERROR;
+    if (!EVP_CipherFinal_ex(&ctx, dest + *dest_length, &fin))
+      return MY_AES_BAD_DATA;
+    *dest_length += fin;
 
 #endif
+  }
 
   if (no_padding && tail)
   {
     /*
       Not much we can do, block ciphers cannot encrypt data that aren't
       a multiple of the block length. At least not without padding.
-      What we do here, we XOR the tail with the previous encrypted block.
+      Let's do something CTR-like for the last partial block.
     */
 
-    if (unlikely(source_length < MY_AES_BLOCK_SIZE))
-      return MY_AES_BAD_DATA;
+    uchar mask[MY_AES_BLOCK_SIZE];
+    uint mlen;
+
+    DBUG_ASSERT(iv_length >= sizeof(mask));
+    my_aes_encrypt_ecb(iv, sizeof(mask), mask, &mlen,
+                       key, key_length, 0, 0, 1);
+    DBUG_ASSERT(mlen == sizeof(mask));
 
     const uchar *s= source + source_length - tail;
     const uchar *e= source + source_length;
     uchar *d= dest + source_length - tail;
-    const uchar *m= (dir == CRYPT_ENCRYPT ? d : s) - MY_AES_BLOCK_SIZE;
+    const uchar *m= mask;
     while (s < e)
       *d++ = *s++ ^ *m++;
     *dest_length= source_length;
@@ -204,7 +214,7 @@ int my_aes_encrypt_ecb(const uchar* source, uint source_length,
                        int no_padding)
 {
   return block_crypt(aes_ecb(key_length), CRYPT_ENCRYPT, source, source_length,
-                     dest, dest_length, key, key_length, 0, 0, no_padding);
+                     dest, dest_length, key, key_length, iv, iv_length, no_padding);
 }
 
 int my_aes_decrypt_ecb(const uchar* source, uint source_length,
@@ -214,7 +224,7 @@ int my_aes_decrypt_ecb(const uchar* source, uint source_length,
                        int no_padding)
 {
   return block_crypt(aes_ecb(key_length), CRYPT_DECRYPT, source, source_length,
-                     dest, dest_length, key, key_length, 0, 0, no_padding);
+                     dest, dest_length, key, key_length, iv, iv_length, no_padding);
 }
 
 int my_aes_encrypt_cbc(const uchar* source, uint source_length,
