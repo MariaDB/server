@@ -279,7 +279,7 @@ bool VCTFAM::SetBlockInfo(PGLOBAL g)
 /***********************************************************************/
 /*  Use BlockTest to reduce the table estimated size.                  */
 /***********************************************************************/
-int VCTFAM::MaxBlkSize(PGLOBAL g, int s)
+int VCTFAM::MaxBlkSize(PGLOBAL g, int)
   {
   int rc = RC_OK, savcur = CurBlk;
   int size;
@@ -1716,7 +1716,7 @@ int VCMFAM::DeleteRecords(PGLOBAL g, int irc)
 /***********************************************************************/
 /*  Move intermediate deleted or updated lines.                        */
 /***********************************************************************/
-bool VCMFAM::MoveIntermediateLines(PGLOBAL g, bool *b)
+bool VCMFAM::MoveIntermediateLines(PGLOBAL, bool *)
   {
   int i, m, n;
 
@@ -1765,7 +1765,7 @@ bool VCMFAM::MoveIntermediateLines(PGLOBAL g, bool *b)
 /***********************************************************************/
 /*  Data Base close routine for VMP access method.                     */
 /***********************************************************************/
-void VCMFAM::CloseTableFile(PGLOBAL g, bool abort)
+void VCMFAM::CloseTableFile(PGLOBAL g, bool)
   {
   int  wrc = RC_OK;
   MODE mode = Tdbp->GetMode();
@@ -1800,7 +1800,7 @@ void VCMFAM::CloseTableFile(PGLOBAL g, bool abort)
 /***********************************************************************/
 /*  ReadBlock: Read column values from current block.                  */
 /***********************************************************************/
-bool VCMFAM::ReadBlock(PGLOBAL g, PVCTCOL colp)
+bool VCMFAM::ReadBlock(PGLOBAL, PVCTCOL colp)
   {
   char *mempos;
   int   i = colp->Index - 1;
@@ -1830,7 +1830,7 @@ bool VCMFAM::ReadBlock(PGLOBAL g, PVCTCOL colp)
 /*  the mapped file, except when checking for Update but in this case  */
 /*  we do not want to write back the modifications either.             */
 /***********************************************************************/
-bool VCMFAM::WriteBlock(PGLOBAL g, PVCTCOL colp)
+bool VCMFAM::WriteBlock(PGLOBAL, PVCTCOL colp __attribute__((unused)))
   {
 #if defined(_DEBUG)
   char *mempos;
@@ -2124,7 +2124,7 @@ bool VECFAM::AllocateBuffer(PGLOBAL g)
 /***********************************************************************/
 /*  Do initial action when inserting.                                  */
 /***********************************************************************/
-bool VECFAM::InitInsert(PGLOBAL g)
+bool VECFAM::InitInsert(PGLOBAL)
   {
   // We come here in MODE_INSERT only
   CurBlk = 0;
@@ -2365,7 +2365,7 @@ bool VECFAM::MoveLines(PGLOBAL g)
 /***********************************************************************/
 /*  Move intermediate deleted or updated lines.                        */
 /***********************************************************************/
-bool VECFAM::MoveIntermediateLines(PGLOBAL g, bool *bn)
+bool VECFAM::MoveIntermediateLines(PGLOBAL g, bool *)
   {
   int    i, n;
   bool   b = false;
@@ -3009,7 +3009,7 @@ int VMPFAM::DeleteRecords(PGLOBAL g, int irc)
 /***********************************************************************/
 /*  Data Base close routine for VMP access method.                     */
 /***********************************************************************/
-void VMPFAM::CloseTableFile(PGLOBAL g, bool abort)
+void VMPFAM::CloseTableFile(PGLOBAL g, bool)
   {
   if (Tdbp->GetMode() == MODE_DELETE) {
     // Set Block and Nrec values for TDBVCT::MakeBlockValues

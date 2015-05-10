@@ -1,7 +1,7 @@
 /************* Value C++ Functions Source Code File (.CPP) *************/
 /*  Name: VALUE.CPP  Version 2.5                                       */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          2001-2014    */
+/*  (C) Copyright to the author Olivier BERTRAND          2001-2015    */
 /*                                                                     */
 /*  This file contains the VALUE and derived classes family functions. */
 /*  These classes contain values of different types. They are used so  */
@@ -475,7 +475,7 @@ PVAL AllocateValue(PGLOBAL g, PVAL valp, int newtype, int uns)
 
       break;
     case TYPE_DATE:
-      vp = new(g) DTVAL(g, valp->GetIntValue());
+      vp = new(g) DTVAL(valp->GetIntValue());
       break;
     case TYPE_DOUBLE:
       vp = new(g) TYPVAL<double>(valp->GetFloatValue(), TYPE_DOUBLE,
@@ -551,7 +551,7 @@ BYTE VALUE::TestValue(PVAL vp)
 /***********************************************************************/
 /*  Compute a function on a string.                                    */
 /***********************************************************************/
-bool VALUE::Compute(PGLOBAL g, PVAL *vp, int np, OPVAL op)
+bool VALUE::Compute(PGLOBAL g, PVAL *, int, OPVAL)
   {
   strcpy(g->Message, "Compute not implemented for this value type");
   return true;
@@ -976,7 +976,7 @@ ulonglong TYPVAL<ulonglong>::MinMaxVal(bool b)
   {return (b) ? 0xFFFFFFFFFFFFFFFFLL : 0;}
 
 template <>
-double TYPVAL<double>::MinMaxVal(bool b)
+double TYPVAL<double>::MinMaxVal(bool)
   {assert(false); return 0.0;}
 
 template <>
@@ -1566,7 +1566,7 @@ bool TYPVAL<PSZ>::GetBinValue(void *buf, int buflen, bool go)
 /***********************************************************************/
 /*  STRING ShowValue: get string representation of a char value.       */
 /***********************************************************************/
-char *TYPVAL<PSZ>::ShowValue(char *buf, int len)
+char *TYPVAL<PSZ>::ShowValue(char *, int)
   {
   return Strp;
   } // end of ShowValue
@@ -1574,7 +1574,7 @@ char *TYPVAL<PSZ>::ShowValue(char *buf, int len)
 /***********************************************************************/
 /*  STRING GetCharString: get string representation of a char value.   */
 /***********************************************************************/
-char *TYPVAL<PSZ>::GetCharString(char *p)
+char *TYPVAL<PSZ>::GetCharString(char *)
   {
   return Strp;
   } // end of GetCharString
@@ -1681,7 +1681,7 @@ bool TYPVAL<PSZ>::FormatValue(PVAL vp, char *fmt)
 /***********************************************************************/
 /*  STRING SetFormat function (used to set SELECT output format).      */
 /***********************************************************************/
-bool TYPVAL<PSZ>::SetConstFormat(PGLOBAL g, FORMAT& fmt)
+bool TYPVAL<PSZ>::SetConstFormat(PGLOBAL, FORMAT& fmt)
   {
   fmt.Type[0] = 'C';
   fmt.Length = Len;
@@ -2300,7 +2300,7 @@ char *BINVAL::ShowValue(char *buf, int len)
 /***********************************************************************/
 /*  BINVAL GetCharString: get string representation of a binary value. */
 /***********************************************************************/
-char *BINVAL::GetCharString(char *p)
+char *BINVAL::GetCharString(char *)
   {
   if (!Chrp)
     Chrp = (char*)PlugSubAlloc(Global, NULL, Clen * 2 + 1);
@@ -2349,7 +2349,7 @@ bool BINVAL::FormatValue(PVAL vp, char *fmt)
 /***********************************************************************/
 /*  BINVAL SetFormat function (used to set SELECT output format).      */
 /***********************************************************************/
-bool BINVAL::SetConstFormat(PGLOBAL g, FORMAT& fmt)
+bool BINVAL::SetConstFormat(PGLOBAL, FORMAT& fmt)
   {
   fmt.Type[0] = 'B';
   fmt.Length = Clen;
@@ -2379,7 +2379,7 @@ DTVAL::DTVAL(PGLOBAL g, int n, int prec, PSZ fmt)
 /***********************************************************************/
 /*  DTVAL  public constructor from int.                                */
 /***********************************************************************/
-DTVAL::DTVAL(PGLOBAL g, int n) : TYPVAL<int>(n, TYPE_DATE)
+DTVAL::DTVAL(int n) : TYPVAL<int>(n, TYPE_DATE)
   {
   Pdtp = NULL;
   Len = 19;

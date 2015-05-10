@@ -25,7 +25,8 @@ typedef struct _jnode {
   PVAL  CncVal;                 // To cont value used for OP_CNC
   PVAL  Valp;                   // The internal array VALUE
   int   Rank;                   // The rank in array
-  int   Nx;                     // Same row number
+  int   Rx;                     // Read row number
+  int   Nx;                     // Next to read row number
 } JNODE, *PJNODE;
 
 /***********************************************************************/
@@ -81,7 +82,7 @@ class TDBJSN : public TDBDOS {
   // Methods
   virtual PTDB  CopyOne(PTABS t);
   virtual PCOL  MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n);
-  virtual PCOL  InsertSpecialColumn(PGLOBAL g, PCOL colp);
+  virtual PCOL  InsertSpecialColumn(PCOL colp);
   virtual int   RowNumber(PGLOBAL g, bool b = FALSE)
                  {return (b) ? N : Fpos + 1;}
 

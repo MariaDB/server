@@ -266,7 +266,7 @@ bool OCCURDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
 /***********************************************************************/
 /*  GetTable: makes a new TDB of the proper type.                      */
 /***********************************************************************/
-PTDB OCCURDEF::GetTable(PGLOBAL g, MODE m)
+PTDB OCCURDEF::GetTable(PGLOBAL g, MODE)
   {
   if (Catfunc != FNC_COL)
   	return new(g) TDBOCCUR(this);
@@ -432,7 +432,7 @@ int TDBOCCUR::GetMaxSize(PGLOBAL g)
 /*  In this sample, ROWID will be the (virtual) row number,            */
 /*  while ROWNUM will be the occurence rank in the multiple column.    */
 /***********************************************************************/
-int TDBOCCUR::RowNumber(PGLOBAL g, bool b)
+int TDBOCCUR::RowNumber(PGLOBAL, bool b)
 	{
 	return (b) ? M : N;
 	} // end of RowNumber
@@ -567,7 +567,7 @@ void OCCURCOL::ReadColumn(PGLOBAL g)
 /*  ReadColumn: what this routine does is to access the Mth columns of */
 /*  list, extract its name and set to it the rank column value.        */
 /***********************************************************************/
-void RANKCOL::ReadColumn(PGLOBAL g)
+void RANKCOL::ReadColumn(PGLOBAL)
   {
 	PTDBOCCUR tdbp = (PTDBOCCUR)To_Tdb;
 	PCOL     *col = tdbp->Col;

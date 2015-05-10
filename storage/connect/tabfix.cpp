@@ -5,7 +5,7 @@
 /*                                                                     */
 /* COPYRIGHT:                                                          */
 /* ----------                                                          */
-/*  (C) Copyright to the author Olivier BERTRAND          1998-2014    */
+/*  (C) Copyright to the author Olivier BERTRAND          1998-2015    */
 /*                                                                     */
 /* WHAT THIS PROGRAM DOES:                                             */
 /* -----------------------                                             */
@@ -271,7 +271,7 @@ int TDBFIX::RowNumber(PGLOBAL g, bool b)
 /***********************************************************************/
 /*  FIX tables don't use temporary files except if specified as do it. */
 /***********************************************************************/
-bool TDBFIX::IsUsingTemp(PGLOBAL g)
+bool TDBFIX::IsUsingTemp(PGLOBAL)
   {
   // Not ready yet to handle using a temporary file with mapping
   // or while deleting from DBF files.

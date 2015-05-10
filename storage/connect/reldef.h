@@ -1,7 +1,7 @@
 /*************** RelDef H Declares Source Code File (.H) ***************/
 /*  Name: RELDEF.H  Version 1.5                                        */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          2004-2014    */
+/*  (C) Copyright to the author Olivier BERTRAND          2004-2015    */
 /*                                                                     */
 /*  This file contains the DEF classes definitions.                    */
 /***********************************************************************/
@@ -89,7 +89,7 @@ class DllExport TABDEF : public RELDEF {   /* Logical table descriptor */
   bool    IsReadOnly(void) {return Read_Only;}
   virtual AMT    GetDefType(void) {return TYPE_AM_TAB;}
   virtual PIXDEF GetIndx(void) {return NULL;}
-  virtual void   SetIndx(PIXDEF xp) {}
+  virtual void   SetIndx(PIXDEF) {}
   virtual bool   IsHuge(void) {return false;}
   const CHARSET_INFO *data_charset() {return m_data_charset;}
 

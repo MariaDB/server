@@ -168,35 +168,21 @@
 #define JSONMAX      10             // JSON Default max grp size
 
 extern "C" {
-       char  version[]= "Version 1.03.0006 April 12, 2015";
-
+       char  version[]= "Version 1.03.0007 April 30, 2015";
 #if defined(WIN32)
-       char  compver[]= "Version 1.03.0006 " __DATE__ " "  __TIME__;
+       char  compver[]= "Version 1.03.0007 " __DATE__ " "  __TIME__;
        char slash= '\\';
 #else   // !WIN32
        char slash= '/';
 #endif  // !WIN32
-
-//     int   trace= 0;             // The general trace value
-//     ulong xconv= 0;             // The type conversion option
-//     int   zconv= 0;             // The text conversion size
 } // extern "C"
 
 #if defined(XMAP)
        my_bool xmap= false;
 #endif   // XMAP
 
-//     uint worksize= 0;
 ulong  ha_connect::num= 0;
-//int  DTVAL::Shift= 0;
 
-/* CONNECT system variables */
-//atic int     conv_size= 0;
-//atic uint    work_size= 0;
-//atic ulong   type_conv= 0;
-#if defined(XMAP)
-//atic my_bool indx_map= 0;
-#endif   // XMAP
 #if defined(XMSG)
 extern "C" {
        char *msg_path;
@@ -207,7 +193,7 @@ extern "C" {
 /*  Utility functions.                                                 */
 /***********************************************************************/
 PQRYRES OEMColumns(PGLOBAL g, PTOS topt, char *tab, char *db, bool info);
-PQRYRES VirColumns(PGLOBAL g, char *tab, char *db, bool info);
+PQRYRES VirColumns(PGLOBAL g, bool info);
 PQRYRES JSONColumns(PGLOBAL g, char *dp, const char *fn, char *objn,
                     int pretty, int lvl, int mxr, bool info);
 PQRYRES XMLColumns(PGLOBAL g, char *dp, char *tab, PTOS topt, bool info);
@@ -363,7 +349,7 @@ int GetConvSize(void) {return THDVAR(current_thd, conv_size);}
 TYPCONV GetTypeConv(void) {return (TYPCONV)THDVAR(current_thd, type_conv);}
 uint GetJsonGrpSize(void) {return THDVAR(current_thd, json_grp_size);}
 uint GetWorkSize(void) {return THDVAR(current_thd, work_size);}
-void SetWorkSize(uint n) 
+void SetWorkSize(uint) 
 {
   // Changing the session variable value seems to be impossible here
   // and should be done in a check function 
@@ -613,9 +599,9 @@ DllExport LPCSTR PlugSetPath(LPSTR to, LPCSTR name, LPCSTR dir)
   delete_table method in handler.cc
 */
 static const char *ha_connect_exts[]= {
-  ".dos", ".fix", ".csv", ".bin", ".fmt", ".dbf", ".xml", ".ini", ".vec",
-  ".dnx", ".fnx", ".bnx", ".vnx", ".dbx", ".dop", ".fop", ".bop", ".vop",
-  NULL};
+  ".dos", ".fix", ".csv", ".bin", ".fmt", ".dbf", ".xml", ".json", ".ini",
+  ".vec", ".dnx", ".fnx", ".bnx", ".vnx", ".dbx", ".dop", ".fop", ".bop",
+  ".vop", NULL};
 
 /**
   @brief
@@ -678,7 +664,7 @@ static int connect_init_func(void *p)
   @brief
   Plugin clean up
 */
-static int connect_done_func(void *p)
+static int connect_done_func(void *)
 {
   int error= 0;
   PCONNECT pc, pn;
@@ -836,8 +822,6 @@ ha_connect::~ha_connect(void)
 /****************************************************************************/
 static PCONNECT GetUser(THD *thd, PCONNECT xp)
 {
-  const char *dbn= NULL;
-
   if (!thd)
     return NULL;
 
@@ -849,7 +833,7 @@ static PCONNECT GetUser(THD *thd, PCONNECT xp)
       break;
 
   if (!xp) {
-    xp= new user_connect(thd, dbn);
+    xp= new user_connect(thd);
 
     if (xp->user_init()) {
       delete xp;
@@ -922,7 +906,8 @@ const char *ha_connect::index_type(uint inx)
   If all_parts is set, MySQL wants to know the flags for the combined
   index, up to and including 'part'.
 */
-ulong ha_connect::index_flags(uint inx, uint part, bool all_parts) const
+//ong ha_connect::index_flags(uint inx, uint part, bool all_parts) const
+ulong ha_connect::index_flags(uint, uint, bool) const
 {
   ulong       flags= HA_READ_NEXT | HA_READ_RANGE |
                      HA_KEYREAD_ONLY | HA_KEY_SCAN_NOT_ROR;
@@ -2022,7 +2007,7 @@ int ha_connect::MakeRecord(char *buf)
 /***********************************************************************/
 /*  Set row values from a MySQL pseudo record. Specific to MySQL.      */
 /***********************************************************************/
-int ha_connect::ScanRecord(PGLOBAL g, uchar *buf)
+int ha_connect::ScanRecord(PGLOBAL g, uchar *)
 {
   char    attr_buffer[1024];
   char    data_buffer[1024];
@@ -2164,7 +2149,7 @@ int ha_connect::ScanRecord(PGLOBAL g, uchar *buf)
 /*  Check change in index column. Specific to MySQL.                   */
 /*  Should be elaborated to check for real changes.                    */
 /***********************************************************************/
-int ha_connect::CheckRecord(PGLOBAL g, const uchar *oldbuf, uchar *newbuf)
+int ha_connect::CheckRecord(PGLOBAL g, const uchar *, uchar *newbuf)
 {
   return ScanRecord(g, newbuf);
 } // end of dummy CheckRecord
@@ -2937,7 +2922,7 @@ bool ha_connect::get_error_message(int error, String* buf)
                                &dummy_errors);
 
     if (trace)
-      htrc("GEM(%u): %s\n", len, g->Message);
+      htrc("GEM(%d): len=%u %s\n", error, len, g->Message);
 
     msg[len]= '\0';
     buf->copy(msg, (uint)strlen(msg), system_charset_info);
@@ -3033,7 +3018,7 @@ int ha_connect::open(const char *name, int mode, uint test_if_locked)
   @brief
   Make the indexes for this table
 */
-int ha_connect::optimize(THD* thd, HA_CHECK_OPT* check_opt)
+int ha_connect::optimize(THD* thd, HA_CHECK_OPT*)
 {
   int      rc= 0;
   PGLOBAL& g= xp->g;
@@ -3237,7 +3222,7 @@ int ha_connect::update_row(const uchar *old_data, uchar *new_data)
   @see
   sql_acl.cc, sql_udf.cc, sql_delete.cc, sql_insert.cc and sql_select.cc
 */
-int ha_connect::delete_row(const uchar *buf)
+int ha_connect::delete_row(const uchar *)
 {
   int rc= 0;
   DBUG_ENTER("ha_connect::delete_row");
@@ -3517,7 +3502,8 @@ int ha_connect::index_last(uchar *buf)
 /****************************************************************************/
 /*  This is called to get more rows having the same index value.            */
 /****************************************************************************/
-int ha_connect::index_next_same(uchar *buf, const uchar *key, uint keylen)
+//t ha_connect::index_next_same(uchar *buf, const uchar *key, uint keylen)
+int ha_connect::index_next_same(uchar *buf, const uchar *, uint)
 {
   int rc;
   DBUG_ENTER("ha_connect::index_next_same");
@@ -3707,7 +3693,7 @@ int ha_connect::rnd_next(uchar *buf)
     @see
   filesort.cc, sql_select.cc, sql_delete.cc and sql_update.cc
 */
-void ha_connect::position(const uchar *record)
+void ha_connect::position(const uchar *)
 {
   DBUG_ENTER("ha_connect::position");
 //if (((PTDBASE)tdbp)->GetDef()->Indexable())
@@ -3890,7 +3876,7 @@ int ha_connect::info(uint flag)
   @see
   ha_innodb.cc
 */
-int ha_connect::extra(enum ha_extra_function operation)
+int ha_connect::extra(enum ha_extra_function /*operation*/)
 {
   DBUG_ENTER("ha_connect::extra");
   DBUG_RETURN(0);
@@ -4498,7 +4484,7 @@ int ha_connect::external_lock(THD *thd, int lock_type)
     @see
   get_lock_data() in lock.cc
 */
-THR_LOCK_DATA **ha_connect::store_lock(THD *thd,
+THR_LOCK_DATA **ha_connect::store_lock(THD *,
                                        THR_LOCK_DATA **to,
                                        enum thr_lock_type lock_type)
 {
@@ -4646,8 +4632,13 @@ int ha_connect::delete_or_rename_table(const char *name, const char *to)
 
         } // endif pos
 
-    } else       // Avoid infamous DBUG_ASSERT
-      thd->get_stmt_da()->reset_diagnostics_area();
+      } // endif open_table_def
+
+//  This below was done to avoid DBUG_ASSERT in some case that
+//  we don't know anymore what they were. It was suppressed because
+//  it did cause assertion in other cases (see MDEV-7935)
+//  } else       // Avoid infamous DBUG_ASSERT
+//    thd->get_stmt_da()->reset_diagnostics_area();
 
     free_table_share(share);
   } else              // Temporary file
@@ -4729,6 +4720,25 @@ ha_rows ha_connect::records_in_range(uint inx, key_range *min_key,
 
   DBUG_RETURN(rows);
 } // end of records_in_range
+
+// Used to check whether a MYSQL table is created on itself
+bool CheckSelf(PGLOBAL g, TABLE_SHARE *s, const char *host,
+                      const char *db, char *tab, const char *src, int port)
+{
+  if (src)
+    return false;
+  else if (host && stricmp(host, "localhost") && strcmp(host, "127.0.0.1"))
+    return false;
+  else if (db && stricmp(db, s->db.str))
+    return false;
+  else if (tab && stricmp(tab, s->table_name.str))
+    return false;
+  else if (port && port != (signed)GetDefaultPort())
+    return false;
+
+  strcpy(g->Message, "This MySQL table is defined on itself");
+  return true;
+} // end of CheckSelf
 
 /**
   Convert an ISO-8859-1 column name to UTF-8
@@ -4891,7 +4901,7 @@ static int init_table_share(THD* thd,
           oom|= sql->append(' ');
           oom|= sql->append(opt->name);
           oom|= sql->append('=');
-          oom|= sql->append(vull ? "ON" : "OFF");
+          oom|= sql->append(vull ? "YES" : "NO");
           } // endif vull
 
         break;
@@ -4933,25 +4943,6 @@ static int init_table_share(THD* thd,
                                                  sql->ptr(), sql->length());
 } // end of init_table_share
 
-// Used to check whether a MYSQL table is created on itself
-bool CheckSelf(PGLOBAL g, TABLE_SHARE *s, const char *host,
-                      const char *db, char *tab, const char *src, int port)
-{
-  if (src)
-    return false;
-  else if (host && stricmp(host, "localhost") && strcmp(host, "127.0.0.1"))
-    return false;
-  else if (db && stricmp(db, s->db.str))
-    return false;
-  else if (tab && stricmp(tab, s->table_name.str))
-    return false;
-  else if (port && port != (signed)GetDefaultPort())
-    return false;
-
-  strcpy(g->Message, "This MySQL table is defined on itself");
-  return true;
-} // end of CheckSelf
-
 /**
   @brief
   connect_assisted_discovery() is called when creating a table with no columns.
@@ -4964,7 +4955,7 @@ bool CheckSelf(PGLOBAL g, TABLE_SHARE *s, const char *host,
   @note
   this function is no more called in case of CREATE .. SELECT
 */
-static int connect_assisted_discovery(handlerton *hton, THD* thd,
+static int connect_assisted_discovery(handlerton *, THD* thd,
                                       TABLE_SHARE *table_s,
                                       HA_CREATE_INFO *create_info)
 {
@@ -4976,8 +4967,8 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
 #if defined(WIN32)
   char       *nsp= NULL, *cls= NULL;
 #endif   // WIN32
-  int         port= 0, hdr= 0, mxr __attribute__((unused))= 0, mxe= 0, rc= 0;
-  int         cop __attribute__((unused))= 0, pty= 2, lrecl= 0, lvl= 0;
+  int         port= 0, hdr= 0, mxr= 0, mxe= 0, rc= 0, lvl= 0;
+  int         cop __attribute__((unused))= 0, pty= 2, lrecl= 0;
 #if defined(ODBC_SUPPORT)
   POPARM      sop = NULL;
   char       *ucnc = NULL;
@@ -5346,7 +5337,7 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
         break;
 #endif   // PIVOT_SUPPORT
       case TAB_VIR:
-        qrp= VirColumns(g, tab, (char*)db, fnc == FNC_COL);
+        qrp= VirColumns(g, fnc == FNC_COL);
         break;
       case TAB_JSON:
         qrp= JSONColumns(g, (char*)db, fn, objn, pty, lrecl, lvl, fnc == FNC_COL);
@@ -6473,8 +6464,7 @@ fin:
   @note: This function is no more called by check_if_supported_inplace_alter
 */
 
-bool ha_connect::check_if_incompatible_data(HA_CREATE_INFO *info,
-                                        uint table_changes)
+bool ha_connect::check_if_incompatible_data(HA_CREATE_INFO *, uint)
 {
   DBUG_ENTER("ha_connect::check_if_incompatible_data");
   // TO DO: really implement and check it.

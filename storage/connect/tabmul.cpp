@@ -171,8 +171,10 @@ bool TDBMUL::InitFileNames(PGLOBAL g)
       } // endif hSearch
 
     while (n < PFNZ) {
-      strcat(strcat(strcpy(filename, drive), direc), FileData.cFileName);
-      pfn[n++] = PlugDup(g, filename);
+      if (!(FileData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)) {
+        strcat(strcat(strcpy(filename, drive), direc), FileData.cFileName);
+        pfn[n++] = PlugDup(g, filename);
+        } // endif dwFileAttributes
 
       if (!FindNextFile(hSearch, &FileData)) {
         rc = GetLastError();
@@ -559,7 +561,7 @@ int TDBMUL::WriteDB(PGLOBAL g)
 /***********************************************************************/
 /*  Data Base delete line routine for MUL access method.               */
 /***********************************************************************/
-int TDBMUL::DeleteDB(PGLOBAL g, int irc)
+int TDBMUL::DeleteDB(PGLOBAL g, int)
   {
   // When implementing DELETE_MODE InitFileNames must be updated to
   // eliminate CRLF under Windows if the file is read in binary.
@@ -584,7 +586,7 @@ void TDBMUL::CloseDB(PGLOBAL g)
 /***********************************************************************/
 /*  DefineAM: define specific AM block values from XDB file.           */
 /***********************************************************************/
-bool DIRDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
+bool DIRDEF::DefineAM(PGLOBAL g, LPCSTR, int)
   {
   Desc = Fn = GetStringCatInfo(g, "Filename", NULL);
   Incl = (GetIntCatInfo("Subdir", 0) != 0);
@@ -595,7 +597,7 @@ bool DIRDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
 /***********************************************************************/
 /*  GetTable: makes a new Table Description Block.                     */
 /***********************************************************************/
-PTDB DIRDEF::GetTable(PGLOBAL g, MODE m)
+PTDB DIRDEF::GetTable(PGLOBAL g, MODE)
   {
 #if 0
   if (Huge)
@@ -863,7 +865,7 @@ int TDBDIR::WriteDB(PGLOBAL g)
 /***********************************************************************/
 /*  Data Base delete line routine for DIR access method.               */
 /***********************************************************************/
-int TDBDIR::DeleteDB(PGLOBAL g, int irc)
+int TDBDIR::DeleteDB(PGLOBAL g, int)
   {
   strcpy(g->Message, MSG(TABDIR_READONLY));
   return RC_FX;                                      // NIY
@@ -872,7 +874,7 @@ int TDBDIR::DeleteDB(PGLOBAL g, int irc)
 /***********************************************************************/
 /*  Data Base close routine for MUL access method.                     */
 /***********************************************************************/
-void TDBDIR::CloseDB(PGLOBAL g)
+void TDBDIR::CloseDB(PGLOBAL)
   {
 #if defined(WIN32)
   // Close the search handle.
@@ -893,7 +895,7 @@ void TDBDIR::CloseDB(PGLOBAL g)
 /***********************************************************************/
 /*  DIRCOL public constructor.                                         */
 /***********************************************************************/
-DIRCOL::DIRCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PSZ am)
+DIRCOL::DIRCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PSZ)
   : COLBLK(cdp, tdbp, i)
   {
   if (cprec) {
