@@ -315,8 +315,7 @@ void ma_crypt_set_data_pagecache_callbacks(PAGECACHE_FILE *file,
                                            __attribute__((unused)))
 {
   /* Only use encryption if we have defined it */
-  if (encryption_key_get_latest_version(HARD_CODED_ENCRYPTION_KEY_ID) !=
-      ENCRYPTION_KEY_VERSION_INVALID)
+  if (encryption_key_id_exists(HARD_CODED_ENCRYPTION_KEY_ID))
   {
     file->pre_read_hook= ma_crypt_pre_read_hook;
     file->post_read_hook= ma_crypt_data_post_read_hook;

@@ -1994,9 +1994,8 @@ fil_read_first_page(
 	if ((cdata && cdata->encryption == FIL_SPACE_ENCRYPTION_ON) ||
 		(srv_encrypt_tables &&
 			cdata && cdata->encryption == FIL_SPACE_ENCRYPTION_DEFAULT)) {
-		uint rc = encryption_key_get_latest_version(cdata->key_id);
 
-		if (rc == ENCRYPTION_KEY_VERSION_INVALID) {
+		if (!encryption_key_id_exists(cdata->key_id)) {
 			ib_logf(IB_LOG_LEVEL_FATAL,
 				"Tablespace id %ld encrypted but encryption service"
 				" not available. Can't continue opening tablespace.\n",
