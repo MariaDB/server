@@ -5106,7 +5106,7 @@ void spider_oracle_handler::create_tmp_bka_table_name(
   uint adjust_length, length;
   DBUG_ENTER("spider_oracle_handler::create_tmp_bka_table_name");
   if (spider_param_bka_table_name_type(current_thd,
-    mysql_share->spider_share->
+    oracle_share->spider_share->
       bka_table_name_types[spider->conn_link_idx[link_idx]]) == 1)
   {
     adjust_length =
