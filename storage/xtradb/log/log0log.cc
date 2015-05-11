@@ -342,7 +342,7 @@ log_open(
 	log_t*	log			= log_sys;
 	ulint	len_upper_limit;
 #ifdef UNIV_LOG_ARCHIVE
-	ulint	archived_lsn_age;
+	lsn_t	archived_lsn_age;
 	ulint	dummy;
 #endif /* UNIV_LOG_ARCHIVE */
 	ulint	count			= 0;

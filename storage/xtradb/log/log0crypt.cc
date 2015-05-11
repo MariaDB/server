@@ -61,7 +61,7 @@ static const byte redo_log_purpose_byte = 0x02;
 static const size_t kMaxSavedKeys = LOG_CRYPT_MAX_ENTRIES;
 
 struct crypt_info_t {
-	ulong           checkpoint_no; /*!< checkpoint no */
+	ib_uint64_t     checkpoint_no; /*!< checkpoint no */
 	uint		key_version;   /*!< mysqld key version */
 	byte            crypt_msg[MY_AES_BLOCK_SIZE];
 	byte		crypt_key[MY_AES_BLOCK_SIZE];
@@ -129,14 +129,14 @@ log_blocks_crypt(
 {
 	byte *log_block = (byte*)block;
 	Crypt_result rc = MY_AES_OK;
-	uint32 dst_len;
+	uint dst_len;
 	byte aes_ctr_counter[MY_AES_BLOCK_SIZE];
-	ulint lsn = is_encrypt ? log_sys->lsn : srv_start_lsn;
+	lsn_t lsn = is_encrypt ? log_sys->lsn : srv_start_lsn;
 
-	const int src_len = OS_FILE_LOG_BLOCK_SIZE - LOG_BLOCK_HDR_SIZE;
+	const uint src_len = OS_FILE_LOG_BLOCK_SIZE - LOG_BLOCK_HDR_SIZE;
 	for (ulint i = 0; i < size ; i += OS_FILE_LOG_BLOCK_SIZE) {
 		ulint log_block_no = log_block_get_hdr_no(log_block);
-		ulint log_block_start_lsn = log_block_get_start_lsn(
+		lsn_t log_block_start_lsn = log_block_get_start_lsn(
 			lsn, log_block_no);
 
 		const crypt_info_t* info = get_crypt_info(log_block);
@@ -442,7 +442,7 @@ log_crypt_write_checkpoint_buf(
 #else
 	(void)checkpoint_no; // unused variable
 #endif
-        ut_a((buf - save) <= OS_FILE_LOG_BLOCK_SIZE);
+        ut_a((ulint)(buf - save) <= OS_FILE_LOG_BLOCK_SIZE);
 }
 
 /*********************************************************************//**
