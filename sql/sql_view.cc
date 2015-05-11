@@ -858,7 +858,7 @@ int mariadb_fix_view(THD *thd, TABLE_LIST *view, bool wrong_checksum,
                     view->db, view->table_name);
     DBUG_RETURN(HA_ADMIN_INTERNAL_ERROR);
   }
-  sql_print_information("View %`s.%`s: the version is set to %llu%s%s",
+  sql_print_information("View %s.%s: the version is set to %llu%s%s",
                         view->db, view->table_name, view->mariadb_version,
                         (wrong_checksum ? ", checksum corrected" : ""),
                         (swap_alg ?
