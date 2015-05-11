@@ -104,6 +104,13 @@ UNIV_INTERN mysql_pfs_key_t fil_crypt_stat_mutex_key;
 UNIV_INTERN mysql_pfs_key_t fil_crypt_data_mutex_key;
 #endif
 
+static bool
+fil_crypt_needs_rotation(
+/*=====================*/
+	uint			key_version,		/*!< in: Key version */
+	uint			latest_key_version,	/*!< in: Latest key version */
+	uint			rotate_key_age);	/*!< in: When to rotate */
+
 /**
 * Magic pattern in start of crypt data on page 0
 */
@@ -219,6 +226,24 @@ fil_crypt_get_key(
 }
 
 /******************************************************************
+Get the latest(key-version), waking the encrypt thread, if needed */
+static inline
+uint
+fil_crypt_get_latest_key_version(
+/*=====================*/
+	fil_space_crypt_t* crypt_data) 	/*!< in: crypt data */
+{
+	uint rc = encryption_key_get_latest_version(crypt_data->key_id);
+
+	if (fil_crypt_needs_rotation(crypt_data->min_key_version,
+				rc, srv_fil_crypt_rotate_key_age)) {
+		os_event_set(fil_crypt_threads_event);
+	}
+
+	return rc;
+}
+
+/******************************************************************
 Get key bytes for a space/latest(key-version) */
 static inline
 void
@@ -230,7 +255,7 @@ fil_crypt_get_latest_key(
 	uint*		version)	/*!< in: Key version */
 {
         // used for key rotation - get the next key id from the key provider
-	uint rc = *version = encryption_key_get_latest_version(crypt_data->key_id);
+	uint rc = *version = fil_crypt_get_latest_key_version(crypt_data);
 
 	if (rc == ENCRYPTION_KEY_VERSION_INVALID) {
 		ib_logf(IB_LOG_LEVEL_FATAL,
@@ -964,12 +989,13 @@ fil_space_verify_crypt_checksum(
 
 /** A copy of global key state */
 struct key_state_t {
-	key_state_t() : key_version(0),
+	key_state_t() : key_id(0), key_version(0),
 			rotate_key_age(srv_fil_crypt_rotate_key_age) {}
 	bool operator==(const key_state_t& other) const {
 		return key_version == other.key_version &&
 			rotate_key_age == other.rotate_key_age;
 	}
+	uint key_id;
 	uint key_version;
 	uint rotate_key_age;
 };
@@ -983,7 +1009,7 @@ fil_crypt_get_key_state(
 {
 	if (srv_encrypt_tables) {
 		new_state->key_version =
-			encryption_key_get_latest_version(FIL_DEFAULT_ENCRYPTION_KEY);
+			encryption_key_get_latest_version(new_state->key_id);
 		new_state->rotate_key_age = srv_fil_crypt_rotate_key_age;
 		ut_a(new_state->key_version != ENCRYPTION_KEY_VERSION_INVALID);
 		ut_a(new_state->key_version != ENCRYPTION_KEY_NOT_ENCRYPTED);
@@ -999,25 +1025,27 @@ Check if a key needs rotation given a key_state
 static bool
 fil_crypt_needs_rotation(
 /*=====================*/
-	uint			key_version,	/*!< in: Key version */
-	const key_state_t*	key_state)	/*!< in: Key state */
+	uint			key_version,		/*!< in: Key version */
+	uint			latest_key_version,	/*!< in: Latest key version */
+	uint			rotate_key_age)		/*!< in: When to rotate */
 {
-	// TODO(jonaso): Add support for rotating encrypted => unencrypted
+	if (key_version == ENCRYPTION_KEY_VERSION_INVALID)
+		return false;
 
-	if (key_version == 0 && key_state->key_version != 0) {
+	if (key_version == 0 && latest_key_version != 0) {
 		/* this is rotation unencrypted => encrypted
 		* ignore rotate_key_age */
 		return true;
 	}
 
-	if (key_state->key_version == 0 && key_version != 0) {
+	if (latest_key_version == 0 && key_version != 0) {
 		/* this is rotation encrypted => unencrypted */
 		return true;
 	}
 
 	/* this is rotation encrypted => encrypted,
 	* only reencrypt if key is sufficiently old */
-	if (key_version + key_state->rotate_key_age < key_state->key_version) {
+	if (key_version + rotate_key_age < latest_key_version) {
 		return true;
 	}
 
@@ -1216,7 +1244,7 @@ static
 bool
 fil_crypt_space_needs_rotation(
 	uint			space,		/*!< in: FIL space id */
-	const key_state_t*	key_state,	/*!< in: Key state */
+	key_state_t*		key_state,	/*!< in: Key state */
 	bool*			recheck)	/*!< out: needs recheck ? */
 {
 	if (fil_space_get_type(space) != FIL_TABLESPACE) {
@@ -1274,8 +1302,14 @@ fil_crypt_space_needs_rotation(
 			break;
 		}
 
+		if (crypt_data->key_id != key_state->key_id) {
+			key_state->key_id= crypt_data->key_id;
+			fil_crypt_get_key_state(key_state);
+		}
+
 		bool need_key_rotation = fil_crypt_needs_rotation(
-			crypt_data->min_key_version, key_state);
+			crypt_data->min_key_version,
+			key_state->key_version, key_state->rotate_key_age);
 
 		time_t diff = time(0) - crypt_data->rotate_state.scrubbing.
 			last_scrub_completed;
@@ -1522,7 +1556,7 @@ UNIV_INTERN
 bool
 fil_crypt_find_space_to_rotate(
 /*===========================*/
-	const key_state_t*	key_state,	/*!< in: Key state */
+	key_state_t*		key_state,	/*!< in: Key state */
 	rotate_thread_t*	state,		/*!< in: Key rotation state */
 	bool*			recheck)	/*!< out: true if recheck
 						needed */
@@ -1547,6 +1581,7 @@ fil_crypt_find_space_to_rotate(
 
 		ulint space = state->space;
 		if (fil_crypt_space_needs_rotation(space, key_state, recheck)) {
+			ut_ad(key_state->key_id);
 			/* init state->min_key_version_found before
 			* starting on a space */
 			state->min_key_version_found = key_state->key_version;
@@ -1576,6 +1611,7 @@ fil_crypt_start_rotate_space(
 	fil_space_crypt_t *crypt_data = fil_space_get_crypt_data(space);
 
 	mutex_enter(&crypt_data->mutex);
+	ut_ad(key_state->key_id == crypt_data->key_id);
 
 	if (crypt_data->rotate_state.active_threads == 0) {
 		/* only first thread needs to init */
@@ -1621,6 +1657,7 @@ fil_crypt_find_page_to_rotate(
 	fil_space_crypt_t *crypt_data = fil_space_get_crypt_data(space);
 
 	mutex_enter(&crypt_data->mutex);
+	ut_ad(key_state->key_id == crypt_data->key_id);
 
 	if (crypt_data->closing == false &&
 	    crypt_data->rotate_state.next_offset <
@@ -1842,7 +1879,8 @@ fil_crypt_rotate_page(
 		if (kv == 0 &&
 		    fil_crypt_is_page_uninitialized(frame, zip_size)) {
 			;
-		} else if (fil_crypt_needs_rotation(kv, key_state)) {
+		} else if (fil_crypt_needs_rotation(kv, key_state->key_version,
+						key_state->rotate_key_age)) {
 
 			/* page can be "fresh" i.e never written in case
 			* kv == 0 or it should have a key version at least
@@ -2144,30 +2182,21 @@ DECLARE_THREAD(fil_crypt_thread)(
 	/* if we find a space that is starting, skip over it and recheck it later */
 	bool recheck = false;
 
-	key_state_t key_state;
-	fil_crypt_get_key_state(&key_state);
-
-	/* make sure that thread always checks all tablespace when starting.
-	*
-	* by decreasing key_version, loop that waits for change in key-state
-	* should exit immediately causing thread to check all spaces when starting */
-	key_state.key_version--;
-
 	while (!thr.should_shutdown()) {
 
 		key_state_t new_state;
-		fil_crypt_get_key_state(&new_state);
 
 		time_t wait_start = time(0);
 
-		while (!thr.should_shutdown() && key_state == new_state) {
+		while (!thr.should_shutdown()) {
 
 			/* wait for key state changes
 			* i.e either new key version of change or
 			* new rotate_key_age */
 			os_event_reset(fil_crypt_threads_event);
-			os_event_wait_time(fil_crypt_threads_event, 1000000);
-			fil_crypt_get_key_state(&new_state);
+			if (os_event_wait_time(fil_crypt_threads_event, 1000000) == 0) {
+				break;
+			}
 
 			if (recheck) {
 				/* check recheck here, after sleep, so
@@ -2185,7 +2214,6 @@ DECLARE_THREAD(fil_crypt_thread)(
 
 		recheck = false;
 		thr.first = true;      // restart from first tablespace
-		key_state = new_state; // save for next loop
 
 		/* iterate all spaces searching for those needing rotation */
 		while (!thr.should_shutdown() &&
@@ -2215,8 +2243,8 @@ DECLARE_THREAD(fil_crypt_thread)(
 			/* complete rotation */
 			fil_crypt_complete_rotate_space(&new_state, &thr);
 
-			/* refresh key state */
-			fil_crypt_get_key_state(&new_state);
+			/* force key state refresh */
+			new_state.key_id= 0;
 
 			/* return iops */
 			fil_crypt_return_iops(&thr);
@@ -2448,14 +2476,17 @@ fil_space_crypt_get_status(
 		}
 		mutex_exit(&crypt_data->mutex);
 
-		if (srv_encrypt_tables) {
+		if (srv_encrypt_tables || crypt_data->min_key_version) {
 			status->current_key_version =
-				encryption_key_get_latest_version(crypt_data->key_id);
+				fil_crypt_get_latest_key_version(crypt_data);
 		} else {
 			status->current_key_version = 0;
 		}
 	} else {
 		memset(status, 0, sizeof(*status));
+		if (srv_encrypt_tables) {
+			os_event_set(fil_crypt_threads_event);
+		}
 	}
 
 	return crypt_data == NULL ? 1 : 0;
