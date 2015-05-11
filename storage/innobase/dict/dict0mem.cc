@@ -285,7 +285,7 @@ dict_mem_table_add_col(
 		if (UNIV_UNLIKELY(table->n_def == table->n_cols)) {
 			heap = table->heap;
 		}
-		if (UNIV_LIKELY(i) && UNIV_UNLIKELY(!table->col_names)) {
+		if (UNIV_LIKELY(i != 0) && UNIV_UNLIKELY(table->col_names == NULL)) {
 			/* All preceding column names are empty. */
 			char* s = static_cast<char*>(
 				mem_heap_zalloc(heap, table->n_def));
