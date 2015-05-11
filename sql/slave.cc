@@ -4406,7 +4406,9 @@ pthread_handler_t handle_slave_sql(void *arg)
   my_thread_init();
   DBUG_ENTER("handle_slave_sql");
 
+#ifdef WITH_WSREP
  wsrep_restart_point:
+#endif
 
   serial_rgi= new rpl_group_info(rli);
   thd = new THD; // note that contructor of THD uses DBUG_ !

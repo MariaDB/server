@@ -1482,7 +1482,9 @@ end:
 
       WSREP_TO_ISOLATION_END;
 
+#ifdef WITH_WSREP
   error:
+#endif
       thd->tx_read_only= save_tx_read_only;
       thd->security_ctx->master_access= saved_master_access;
     }

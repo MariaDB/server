@@ -5730,7 +5730,9 @@ int mysqld_main(int argc, char **argv)
     }
   }
   else
+  {
     wsrep_init_startup (false);
+  }
 
  if (opt_bootstrap)
   {
