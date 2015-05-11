@@ -21,8 +21,6 @@
   different pages in the same tablespace encrypted with different keys
   and what the background re-encryption thread does.
 
-  It does not support different key ids, for all ids the key will be the same.
-
   THIS IS AN EXAMPLE ONLY! ENCRYPTION KEYS ARE HARD-CODED AND *NOT* SECRET!
   DO NOT USE THIS PLUGIN IN PRODUCTION! EVER!
 */
@@ -71,7 +69,8 @@ get_key(unsigned int key_id, unsigned int version,
   if (!dstbuf)
     return 0;
 
-  my_md5(dstbuf, (const char*)&version, sizeof(version));
+  my_md5_multi(dstbuf, (const char*)&key_id, sizeof(key_id),
+                       (const char*)&version, sizeof(version), NULL);
 
   return 0;
 }
