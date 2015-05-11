@@ -2,7 +2,7 @@
 --source include/have_innodb.inc
 
 #
-# Test that a local LOCK TABLE will NOT be broken by an incoming remote transaction against that table
+# Test that a local FLUSH TABLES FOR BACKUP will NOT be broken by an incoming remote transaction against that table
 #
 
 CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
@@ -10,12 +10,13 @@ CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
 --connection node_2
 SET AUTOCOMMIT=OFF;
 --let $wsrep_local_bf_aborts_before = `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_bf_aborts'`
-LOCK TABLE t1 WRITE;
+FLUSH TABLES t1 FOR EXPORT;
 
 --connection node_1
 INSERT INTO t1 VALUES (2);
 
 --connection node_2
+SET SESSION wsrep_sync_wait = 0;
 --let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND STATE = 'Waiting for table metadata lock'
 --source include/wait_condition.inc
 
