@@ -2299,6 +2299,11 @@ rpl_parallel::do_event(rpl_group_info *serial_rgi, Log_event *ev,
       }
       gco->flags= flags;
     }
+    else
+    {
+      if (gtid_flags & Gtid_log_event::FL_DDL)
+        force_switch_flag= group_commit_orderer::FORCE_SWITCH;
+    }
     rgi->speculation= speculation;
 
     if (gtid_flags & Gtid_log_event::FL_GROUP_COMMIT_ID)

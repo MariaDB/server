@@ -455,6 +455,47 @@ a	b
 include/stop_slave.inc
 SET GLOBAL debug_dbug= @old_debug;
 include/start_slave.inc
+*** MDEV-8113: ALTER TABLE causes slave hang in optimistic parallel replication ***
+include/stop_slave.inc
+ALTER TABLE t2 ADD c INT;
+INSERT INTO t2 (a,b) VALUES (50, 0);
+INSERT INTO t2 (a,b) VALUES (51, 1);
+INSERT INTO t2 (a,b) VALUES (52, 2);
+INSERT INTO t2 (a,b) VALUES (53, 3);
+INSERT INTO t2 (a,b) VALUES (54, 4);
+INSERT INTO t2 (a,b) VALUES (55, 5);
+INSERT INTO t2 (a,b) VALUES (56, 6);
+INSERT INTO t2 (a,b) VALUES (57, 7);
+INSERT INTO t2 (a,b) VALUES (58, 8);
+INSERT INTO t2 (a,b) VALUES (59, 9);
+ALTER TABLE t2 DROP COLUMN c;
+SELECT * FROM t2 WHERE a >= 50 ORDER BY a;
+a	b
+50	0
+51	1
+52	2
+53	3
+54	4
+55	5
+56	6
+57	7
+58	8
+59	9
+include/save_master_gtid.inc
+include/start_slave.inc
+include/sync_with_master_gtid.inc
+SELECT * FROM t2 WHERE a >= 50 ORDER BY a;
+a	b
+50	0
+51	1
+52	2
+53	3
+54	4
+55	5
+56	6
+57	7
+58	8
+59	9
 include/stop_slave.inc
 SET GLOBAL slave_parallel_mode=@old_parallel_mode;
 SET GLOBAL slave_parallel_threads=@old_parallel_threads;
