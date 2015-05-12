@@ -373,6 +373,23 @@ static int get_geometry_column_record(THD *thd, TABLE_LIST *tables,
   Field **ptr, *field;
   DBUG_ENTER("get_geometry_column_record");
 
+  if (res)
+  {
+    if (thd->lex->sql_command != SQLCOM_SHOW_FIELDS)
+    {
+      /*
+        I.e. we are in SELECT FROM INFORMATION_SCHEMA.COLUMS
+        rather than in SHOW COLUMNS
+      */
+      push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
+                   thd->get_stmt_da()->sql_errno(),
+                   thd->get_stmt_da()->message());
+      thd->clear_error();
+      res= 0;
+    }
+    DBUG_RETURN(res);
+  }
+
   if (tables->schema_table)
     goto exit;
   show_table= tables->table;
