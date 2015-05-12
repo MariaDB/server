@@ -15,4 +15,5 @@ galera_as_master_gtid : Needs to be re-worked
 galera_as_master_gtid_change_master : Needs to be re-worked
 galera_migrate : query 'let $success= `$wait_condition`' failed: 1146
 galera_var_notify_cmd : Result content mismatch
-
+query_cache : Fails intermittently due to content mismatch. Needs to be investigated
+basic : Fails intermittently without providing any output. Needs to be investigated

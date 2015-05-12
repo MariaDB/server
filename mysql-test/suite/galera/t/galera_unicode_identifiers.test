@@ -22,7 +22,7 @@ CREATE TABLE `table with space` (
 	`second column with space` INTEGER,
 	UNIQUE `index name with space` (`second column with space`)
 );
-INSERT INTO `table with space` VALUES (DEFAULT, 1);
+INSERT INTO `table with space` VALUES (1, 1);
 
 # Unicode identifiers
 

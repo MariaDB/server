@@ -50,6 +50,7 @@ ORDER BY VARIABLE_NAME;
 	$wsrep_provider_options =~ s/gcache\.dir = .*?;/<GCACHE_DIR>;/sgio;
 	$wsrep_provider_options =~ s/gcache\.name = .*?;/<GCACHE_NAME>;/sgio;
 	$wsrep_provider_options =~ s/gmcast\.listen_addr = .*?;/<GMCAST_LISTEN_ADDR>;/sgio;
+	$wsrep_provider_options =~ s/gcs\.recv_q_hard_limit = .*?;/<GCS_RECV_Q_HARD_LIMIT>;/sgio;
 	$wsrep_provider_options =~ s/ist\.recv_addr = .*?;/<IST_RECV_ADDR>;/sgio;
 	$wsrep_provider_options =~ s/evs\.evict = .*?;/<EVS_EVICT>;/sgio;
 	$wsrep_provider_options =~ s/signal = .*?;\s*//sgio;

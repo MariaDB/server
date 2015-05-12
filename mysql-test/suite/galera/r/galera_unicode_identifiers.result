@@ -7,7 +7,7 @@ CREATE TABLE `table with space` (
 `second column with space` INTEGER,
 UNIQUE `index name with space` (`second column with space`)
 );
-INSERT INTO `table with space` VALUES (DEFAULT, 1);
+INSERT INTO `table with space` VALUES (1, 1);
 CREATE DATABASE `база`;
 USE `база`;
 CREATE TABLE `таблица` (

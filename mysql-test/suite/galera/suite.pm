@@ -44,6 +44,7 @@ push @::global_suppressions,
      qr(WSREP: Member .* requested state transfer from .* but it is impossible to select State Transfer donor: Resource temporarily unavailable),
      qr(WSREP: user message in state LEAVING),
      qr(WSREP: .* sending install message failed: Transport endpoint is not connected),
+     qr(WSREP: .* sending install message failed: Resource temporarily unavailable),
      qr(WSREP: Maximum writeset size exceeded by .*),
      qr(WSREP: transaction size exceeded.*),
      qr(WSREP: RBR event .*),
@@ -59,6 +60,8 @@ push @::global_suppressions,
      qr(WSREP: .*Failed to open channel 'my_wsrep_cluster' at .*),
      qr(WSREP: gcs connect failed: Connection timed out),
      qr|WSREP: wsrep::connect\(\) failed: 7|,
+     qr(WSREP: SYNC message from member .* in non-primary configuration. Ignored.),
+     qr(WSREP: Could not find peer:),
    );
 
 
