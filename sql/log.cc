@@ -5954,10 +5954,22 @@ bool MYSQL_BIN_LOG::write(Log_event *event_info, my_bool *with_annotate)
   binlog_cache_data *cache_data= 0;
   bool is_trans_cache= FALSE;
   bool using_trans= event_info->use_trans_cache();
-  bool direct= event_info->use_direct_logging();
+  bool direct;
   ulong prev_binlog_id;
   DBUG_ENTER("MYSQL_BIN_LOG::write(Log_event *)");
   LINT_INIT(prev_binlog_id);
+
+#ifdef WITH_WSREP
+  /*
+    When binary logging is not enabled (--log-bin=0), wsrep-patch partially
+    enables it without opening the binlog file (MSQL_BIN_LOG::open().
+    So, avoid writing directly to binlog file.
+  */
+  if (wsrep_emulate_bin_log)
+    direct= false;
+  else
+#endif /* WITH_WSREP */
+    direct= event_info->use_direct_logging();
 
   if (thd->variables.option_bits & OPTION_GTID_BEGIN)
   {
@@ -6910,6 +6922,10 @@ MYSQL_BIN_LOG::write_transaction_to_binlog(THD *thd,
   DBUG_ENTER("MYSQL_BIN_LOG::write_transaction_to_binlog");
 
 #ifdef WITH_WSREP
+  /*
+    Control should not be allowed beyond this point in wsrep_emulate_bin_log
+    mode.
+  */
   if (wsrep_emulate_bin_log) DBUG_RETURN(0);
 #endif /* WITH_WSREP */
   entry.thd= thd;

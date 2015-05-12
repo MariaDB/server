@@ -124,6 +124,32 @@ else
     MY_PRINT_DEFAULTS=$(which my_print_defaults)
 fi
 
+# try to use my_print_defaults, mysql and mysqldump that come with the sources
+# (for MTR suite)
+SCRIPTS_DIR="$(cd $(dirname "$0"); pwd -P)"
+EXTRA_DIR="$SCRIPTS_DIR/../extra"
+CLIENT_DIR="$SCRIPTS_DIR/../client"
+
+if [ -x "$CLIENT_DIR/mysql" ]; then
+    MYSQL_CLIENT="$CLIENT_DIR/mysql"
+else
+    MYSQL_CLIENT=$(which mysql)
+fi
+
+if [ -x "$CLIENT_DIR/mysqldump" ]; then
+    MYSQLDUMP="$CLIENT_DIR/mysqldump"
+else
+    MYSQLDUMP=$(which mysqldump)
+fi
+
+if [ -x "$SCRIPTS_DIR/my_print_defaults" ]; then
+    MY_PRINT_DEFAULTS="$SCRIPTS_DIR/my_print_defaults"
+elif [ -x "$EXTRA_DIR/my_print_defaults" ]; then
+    MY_PRINT_DEFAULTS="$EXTRA_DIR/my_print_defaults"
+else
+    MY_PRINT_DEFAULTS=$(which my_print_defaults)
+fi
+
 # For Bug:1200727
 if $MY_PRINT_DEFAULTS -c $WSREP_SST_OPT_CONF sst | grep -q "wsrep_sst_auth";then
     if [ -z "$WSREP_SST_OPT_AUTH" -o "$WSREP_SST_OPT_AUTH" = "(null)" ];then

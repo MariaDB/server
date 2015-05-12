@@ -18,4 +18,3 @@ SELECT COUNT(*) FROM `information_schema`.`INNODB_SYS_INDEXES` ;
 drop table test.t1;
 SHOW TABLE STATUS FROM `information_schema` LIKE 'INNODB\_SYS\_INDEXES%' ;
 --enable_result_log
-
