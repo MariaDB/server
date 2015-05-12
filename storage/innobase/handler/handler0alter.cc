@@ -267,7 +267,7 @@ ha_innobase::check_if_supported_inplace_alter(
 	/* Change on engine specific table options require rebuild of the
 	table */
 	if (ha_alter_info->handler_flags
-		== Alter_inplace_info::CHANGE_CREATE_OPTION) {
+		& Alter_inplace_info::CHANGE_CREATE_OPTION) {
 		ha_table_option_struct *new_options= ha_alter_info->create_info->option_struct;
 		ha_table_option_struct *old_options= table->s->option_struct;
 
