@@ -54,6 +54,7 @@
 extern int num_read, num_there, num_eq[2];               // Statistics
 static const longlong M2G = 0x80000000;
 static const longlong M4G = (longlong)2 * M2G;
+char BINCOL::Endian = 'H';
 
 /***********************************************************************/
 /*  External function.                                                 */
@@ -373,17 +374,87 @@ int TDBFIX::WriteDB(PGLOBAL g)
 BINCOL::BINCOL(PGLOBAL g, PCOLDEF cdp, PTDB tp, PCOL cp, int i, PSZ am)
   : DOSCOL(g, cdp, tp, cp, i, am)
   {
-  Fmt = (cdp->GetFmt()) ? toupper(*cdp->GetFmt()) : 'X';
+  char *fmt = cdp->GetFmt();
+
+  Buff = NULL;
+  M = GetTypeSize(Buf_Type, Long);
+  Lim = M;
+
+  if (fmt) {
+    Fmt = 'H';
+
+    for (N = 0, i = 0; fmt[i]; i++)
+      if (isdigit(fmt[i]))
+        N = (N * 10 + (fmt[i] - 48));
+      else
+        Fmt = toupper(fmt[i]);
+
+    if (N == GetTypeSize(Buf_Type, -1) && (Fmt == 'H' || Fmt == Endian)) {
+      // New format is a no op
+      N = 0;
+      Fmt = 'X';
+    } else if (Fmt == 'L' || Fmt == 'B' || Fmt == 'H') {
+      // This is a new format
+      if (!N)
+        N = GetTypeSize(Buf_Type, 0);
+
+      if (Fmt == 'H')
+        Fmt = Endian;
+
+      Buff = (char*)PlugSubAlloc(g, NULL, M);
+      memset(Buff, 0, M);
+      Lim = MY_MIN(N, M);
+    } // endif Fmt
+
+  } else {
+    N = 0;
+    Fmt = 'X';
+  } // endif fmt
+
   } // end of BINCOL constructor
 
 /***********************************************************************/
-/*  FIXCOL constructor used for copying columns.                       */
+/*  BINCOL constructor used for copying columns.                       */
 /*  tdbp is the pointer to the new table descriptor.                   */
 /***********************************************************************/
 BINCOL::BINCOL(BINCOL *col1, PTDB tdbp) : DOSCOL(col1, tdbp)
   {
   Fmt = col1->Fmt;
+  N = col1->N;
+  M = col1->M;
+  Lim = col1->Lim;
   } // end of BINCOL copy constructor
+
+/***********************************************************************/
+/*  Set Endian according to the host setting.                          */
+/***********************************************************************/
+void BINCOL::SetEndian(void)
+  {
+  union {
+    short S;
+    char  C[sizeof(short)];
+    };
+
+  S = 1;
+  Endian = (C[0] == 1) ? 'L' : 'B';
+  } // end of SetEndian
+
+/***********************************************************************/
+/*  Copy according to Endian settings and sizes.                       */
+/***********************************************************************/
+void BINCOL::NumCpy(char *from, char *to)
+  {
+  for (int i = 0; i < Lim; i++)
+    if (Fmt == 'B' && Endian == 'L')
+      to[i] = from[N - i - 1];
+    else if (Fmt == 'L' && Endian == 'B')
+      to[N - i - 1] = from[i];
+    else if (Endian == 'B')
+      to[M - i - 1] = from[N - i - 1];
+    else
+      to[i] = from[i];
+
+  } // end of NumCpy
 
 /***********************************************************************/
 /*  ReadColumn: what this routine does is to access the last line      */
@@ -416,19 +487,22 @@ void BINCOL::ReadColumn(PGLOBAL g)
   /*********************************************************************/
   /*  Set Value from the line field.                                   */
   /*********************************************************************/
-  switch (Fmt) {
+  if (N) {
+    NumCpy(p, Buff);
+    Value->SetBinValue(Buff);
+  } else switch (Fmt) {
     case 'X':                 // Standard not converted values
       Value->SetBinValue(p);
       break;
     case 'S':                 // Short integer
-      Value->SetValue((int)*(short*)p);
+      Value->SetValue(*(short*)p);
       break;
     case 'T':                 // Tiny integer
-      Value->SetValue((int)*p);
+      Value->SetValue(*p);
       break;
-    case 'L':                 // Long Integer
-      strcpy(g->Message, "Format L is deprecated, use I");
-      longjmp(g->jumper[g->jump_level], 11);
+//  case 'L':                 // Long Integer
+//    strcpy(g->Message, "Format L is deprecated, use I");
+//    longjmp(g->jumper[g->jump_level], 11);
     case 'I':                 // Integer
       Value->SetValue(*(int*)p);
       break;
@@ -490,14 +564,24 @@ void BINCOL::WriteColumn(PGLOBAL g)
   /*  Updating will be done only during the second pass (Status=true)  */
   /*  Conversion occurs if the external format Fmt is specified.       */
   /*********************************************************************/
-  switch (Fmt) {
+  if (N) {
+    if (Value->GetBinValue(Buff, M, Status)) {
+      sprintf(g->Message, MSG(BIN_F_TOO_LONG),
+                          Name, Value->GetSize(), M);
+      longjmp(g->jumper[g->jump_level], 31);
+      } // endif Buff
+
+    if (Status)
+      NumCpy(Buff, p);
+
+  } else switch (Fmt) {
     case 'X':
       // Standard not converted values
       if (Value->GetBinValue(p, Long, Status)) {
         sprintf(g->Message, MSG(BIN_F_TOO_LONG),
                             Name, Value->GetSize(), Long);
         longjmp(g->jumper[g->jump_level], 31);
-        } // endif Fmt
+        } // endif p
 
       break;
     case 'S':                 // Short integer

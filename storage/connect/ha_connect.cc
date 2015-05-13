@@ -153,6 +153,7 @@
 #endif   // LIBXML2_SUPPORT
 #include "taboccur.h"
 #include "tabpivot.h"
+#include "tabfix.h"
 
 #define my_strupr(p)    my_caseup_str(default_charset_info, (p));
 #define my_strlwr(p)    my_casedn_str(default_charset_info, (p));
@@ -656,6 +657,7 @@ static int connect_init_func(void *p)
     sql_print_information("connect_init: hton=%p", p);
 
   DTVAL::SetTimeShift();      // Initialize time zone shift once for all
+  BINCOL::SetEndian();        // Initialize host endian setting
   DBUG_RETURN(0);
 } // end of connect_init_func
 

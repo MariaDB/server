@@ -74,11 +74,20 @@ class DllExport BINCOL : public DOSCOL {
   virtual void   ReadColumn(PGLOBAL g);
   virtual void   WriteColumn(PGLOBAL g);
 
+  // Static
+  static  void   SetEndian(void); 
+
  protected:
+          void   NumCpy(char *from, char *to);
   BINCOL(void) {}    // Default constructor not to be used
 
   // Members
-  char Fmt;                   // The column numeric format
+  static char Endian;         // The host endian setting (L or B)
+  char *Buff;                 // Utility buffer
+  char  Fmt;                  // The file endian setting or old format
+  int   N;                    // The number of bytes in the file
+  int   M;                    // The column type size
+  int   Lim;                  // Used in NumCpy
   }; // end of class BINCOL
 
 /***********************************************************************/
