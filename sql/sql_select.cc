@@ -12776,7 +12776,8 @@ bool Item_func_eq::check_equality(THD *thd, COND_EQUAL *cond_equal,
 
 COND *Item_cond_and::build_equal_items(THD *thd,
                                        COND_EQUAL *inherited,
-                                       bool link_item_fields)
+                                       bool link_item_fields,
+                                       COND_EQUAL **cond_equal_ref)
 {
   Item_equal *item_equal;
   COND_EQUAL cond_equal;
@@ -12788,6 +12789,7 @@ COND *Item_cond_and::build_equal_items(THD *thd,
   List_iterator<Item> li(*args);
   Item *item;
 
+  DBUG_ASSERT(!cond_equal_ref || !cond_equal_ref[0]);
   /*
      Retrieve all conjuncts of this level detecting the equality
      that are subject to substitution by multiple equality items and
@@ -12812,7 +12814,7 @@ COND *Item_cond_and::build_equal_items(THD *thd,
   if (!args->elements && 
       !cond_equal.current_level.elements && 
       !eq_list.elements)
-    return new Item_int((longlong) 1, 1);
+    return new (thd->mem_root) Item_int((longlong) 1, 1);
 
   List_iterator_fast<Item_equal> it(cond_equal.current_level);
   while ((item_equal= it++))
@@ -12836,7 +12838,7 @@ COND *Item_cond_and::build_equal_items(THD *thd,
   while ((item= li++))
   { 
     Item *new_item;
-    if ((new_item= item->build_equal_items(thd, inherited, FALSE))
+    if ((new_item= item->build_equal_items(thd, inherited, false, NULL))
         != item)
     {
       /* This replacement happens only for standalone equalities */
@@ -12851,19 +12853,23 @@ COND *Item_cond_and::build_equal_items(THD *thd,
   args->append(&eq_list);
   args->append((List<Item> *)&cond_equal.current_level);
   update_used_tables();
+  if (cond_equal_ref)
+    *cond_equal_ref= &m_cond_equal;
   return this;
 }
 
 
 COND *Item_cond::build_equal_items(THD *thd,
                                    COND_EQUAL *inherited,
-                                   bool link_item_fields)
+                                   bool link_item_fields,
+                                   COND_EQUAL **cond_equal_ref)
 {
   List<Item> *args= argument_list();
   
   List_iterator<Item> li(*args);
   Item *item;
 
+  DBUG_ASSERT(!cond_equal_ref || !cond_equal_ref[0]);
   /*
      Make replacement of equality predicates for lower levels
      of the condition expression.
@@ -12873,7 +12879,7 @@ COND *Item_cond::build_equal_items(THD *thd,
   while ((item= li++))
   { 
     Item *new_item;
-    if ((new_item= item->build_equal_items(thd, inherited, FALSE))
+    if ((new_item= item->build_equal_items(thd, inherited, false, NULL))
         != item)
     {
       /* This replacement happens only for standalone equalities */
@@ -12892,11 +12898,14 @@ COND *Item_cond::build_equal_items(THD *thd,
 
 COND *Item_func_eq::build_equal_items(THD *thd,
                                       COND_EQUAL *inherited,
-                                      bool link_item_fields)
+                                      bool link_item_fields,
+                                      COND_EQUAL **cond_equal_ref)
 {
   COND_EQUAL cond_equal;
   cond_equal.upper_levels= inherited;
   List<Item> eq_list;
+
+  DBUG_ASSERT(!cond_equal_ref || !cond_equal_ref[0]);
   /*
     If an equality predicate forms the whole and level,
     we call it standalone equality and it's processed here.
@@ -12912,7 +12921,7 @@ COND *Item_func_eq::build_equal_items(THD *thd,
     Item_equal *item_equal;
     int n= cond_equal.current_level.elements + eq_list.elements;
     if (n == 0)
-      return new Item_int((longlong) 1,1);
+      return new (thd->mem_root) Item_int((longlong) 1,1);
     else if (n == 1)
     {
       if ((item_equal= cond_equal.current_level.pop()))
@@ -12922,10 +12931,14 @@ COND *Item_func_eq::build_equal_items(THD *thd,
         set_if_bigger(thd->lex->current_select->max_equal_elems,
                       item_equal->n_field_items());  
         item_equal->upper_levels= inherited;
+        if (cond_equal_ref)
+          *cond_equal_ref= new (thd->mem_root) COND_EQUAL(item_equal,
+                                                          thd->mem_root);
         return item_equal;
       }
       Item *res= eq_list.pop();
       res->update_used_tables();
+      DBUG_ASSERT(res->type() == FUNC_ITEM);
       return res;
     }
     else
@@ -12949,15 +12962,19 @@ COND *Item_func_eq::build_equal_items(THD *thd,
       cond_equal.current_level= and_cond->m_cond_equal.current_level;
       args->append((List<Item> *)&cond_equal.current_level);
       and_cond->update_used_tables();
+      if (cond_equal_ref)
+        *cond_equal_ref= &and_cond->m_cond_equal;
       return and_cond;
     }
   }
-  return Item_func::build_equal_items(thd, inherited, link_item_fields);
+  return Item_func::build_equal_items(thd, inherited, link_item_fields,
+                                      cond_equal_ref);
 }
 
 
 COND *Item_func::build_equal_items(THD *thd, COND_EQUAL *inherited,
-                                   bool link_item_fields)
+                                   bool link_item_fields,
+                                   COND_EQUAL **cond_equal_ref)
 {
   /* 
     For each field reference in cond, not from equal item predicates,
@@ -12971,6 +12988,20 @@ COND *Item_func::build_equal_items(THD *thd, COND_EQUAL *inherited,
                       &Item::equal_fields_propagator,
                       (uchar *) inherited);
   cond->update_used_tables();
+  DBUG_ASSERT(cond == this);
+  DBUG_ASSERT(!cond_equal_ref || !cond_equal_ref[0]);
+  return cond;
+}
+
+
+COND *Item_equal::build_equal_items(THD *thd, COND_EQUAL *inherited,
+                                    bool link_item_fields,
+                                    COND_EQUAL **cond_equal_ref)
+{
+  COND *cond= Item_func::build_equal_items(thd, inherited, link_item_fields,
+                                           cond_equal_ref);
+  if (cond_equal_ref)
+    *cond_equal_ref= new (thd->mem_root) COND_EQUAL(this, thd->mem_root);
   return cond;
 }
 
@@ -13052,28 +13083,19 @@ static COND *build_equal_items(JOIN *join, COND *cond,
                                bool link_equal_fields)
 {
   THD *thd= join->thd;
-  COND_EQUAL *cond_equal= 0;
+
+  *cond_equal_ref= NULL;
 
   if (cond) 
   {
-    cond= cond->build_equal_items(thd, inherited, link_equal_fields);
-    if (cond->type() == Item::COND_ITEM &&
-        ((Item_cond*) cond)->functype() == Item_func::COND_AND_FUNC)
-      cond_equal= &((Item_cond_and*) cond)->m_cond_equal;
-
-    else if (cond->type() == Item::FUNC_ITEM &&
-             ((Item_cond*) cond)->functype() == Item_func::MULT_EQUAL_FUNC)
+    cond= cond->build_equal_items(thd, inherited, link_equal_fields,
+                                  cond_equal_ref);
+    if (*cond_equal_ref)
     {
-      cond_equal= new (thd->mem_root) COND_EQUAL;
-      cond_equal->current_level.push_back((Item_equal *) cond, thd->mem_root);
+      (*cond_equal_ref)->upper_levels= inherited;
+      inherited= *cond_equal_ref;
     }
   }
-  if (cond_equal)
-  {
-    cond_equal->upper_levels= inherited;
-    inherited= cond_equal;
-  }
-  *cond_equal_ref= cond_equal;
 
   if (join_list && !ignore_on_conds)
   {

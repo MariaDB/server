@@ -563,7 +563,8 @@ public:
   const char *func_name() const { return "="; }
   Item *negated_item();
   COND *build_equal_items(THD *thd, COND_EQUAL *inherited,
-                          bool link_item_fields);
+                          bool link_item_fields,
+                          COND_EQUAL **cond_equal_ref);
   bool check_equality(THD *thd, COND_EQUAL *cond, List<Item> *eq_list);
   /* 
     - If this equality is created from the subquery's IN-equality:
@@ -1772,7 +1773,8 @@ public:
     used_tables_and_const_cache_update_and_join(list);
   }
   COND *build_equal_items(THD *thd, COND_EQUAL *inherited,
-                          bool link_item_fields);
+                          bool link_item_fields,
+                          COND_EQUAL **cond_equal_ref);
   virtual void print(String *str, enum_query_type query_type);
   void split_sum_func(THD *thd, Item **ref_pointer_array, List<Item> &fields);
   friend int setup_conds(THD *thd, TABLE_LIST *tables, TABLE_LIST *leaves,
@@ -1960,6 +1962,9 @@ public:
   void fix_length_and_dec();
   bool fix_fields(THD *thd, Item **ref);
   void update_used_tables();
+  COND *build_equal_items(THD *thd, COND_EQUAL *inherited,
+                          bool link_item_fields,
+                          COND_EQUAL **cond_equal_ref);
   bool walk(Item_processor processor, bool walk_subquery, uchar *arg);
   Item *transform(Item_transformer transformer, uchar *arg);
   virtual void print(String *str, enum_query_type query_type);
@@ -1988,6 +1993,11 @@ public:
   COND_EQUAL()
   { 
     upper_levels= 0;
+  }
+  COND_EQUAL(Item_equal *item, MEM_ROOT *mem_root)
+   :upper_levels(0)
+  {
+    current_level.push_back(item, mem_root);
   }
   void copy(COND_EQUAL &cond_equal)
   {
@@ -2107,7 +2117,8 @@ public:
   virtual uint exists2in_reserved_items() { return list.elements; };
   bool walk_top_and(Item_processor processor, uchar *arg);
   COND *build_equal_items(THD *thd, COND_EQUAL *inherited,
-                          bool link_item_fields);
+                          bool link_item_fields,
+                          COND_EQUAL **cond_equal_ref);
 };
 
 inline bool is_cond_and(Item *item)

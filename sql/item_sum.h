@@ -445,7 +445,8 @@ public:
   table_map used_tables() const { return used_tables_cache; }
   void update_used_tables ();
   COND *build_equal_items(THD *thd, COND_EQUAL *inherited,
-                          bool link_item_fields)
+                          bool link_item_fields,
+                          COND_EQUAL **cond_equal_ref)
   {
     /*
       Item_sum (and derivants) of the original WHERE/HAVING clauses
@@ -453,7 +454,8 @@ public:
       build_equal_items() is called. See Item::split_sum_func2().
     */
     DBUG_ASSERT(0);
-    return Item::build_equal_items(thd, inherited, link_item_fields);
+    return Item::build_equal_items(thd, inherited, link_item_fields,
+                                   cond_equal_ref);
   }
   bool is_null() { return null_value; }
   void make_const () 
