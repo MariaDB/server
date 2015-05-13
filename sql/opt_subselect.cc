@@ -1570,8 +1570,9 @@ static bool convert_subq_to_sj(JOIN *parent_join, Item_in_subselect *subq_pred)
     DBUG_RETURN(TRUE);
   thd->lex->current_select=save_lex;
 
-  sj_nest->nested_join->sj_corr_tables= subq_pred->used_tables();
-  sj_nest->nested_join->sj_depends_on=  subq_pred->used_tables() |
+  table_map subq_pred_used_tables= subq_pred->used_tables();
+  sj_nest->nested_join->sj_corr_tables= subq_pred_used_tables;
+  sj_nest->nested_join->sj_depends_on=  subq_pred_used_tables |
                                         subq_pred->left_expr->used_tables();
   sj_nest->sj_on_expr= subq_lex->join->conds;
 

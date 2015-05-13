@@ -7585,8 +7585,10 @@ Item_bool_func::get_mm_parts(RANGE_OPT_PARAM *param, Field *field,
   KEY_PART *key_part = param->key_parts;
   KEY_PART *end = param->key_parts_end;
   SEL_TREE *tree=0;
+  table_map value_used_tables= 0;
   if (value &&
-      value->used_tables() & ~(param->prev_tables | param->read_tables))
+      (value_used_tables= value->used_tables()) &
+      ~(param->prev_tables | param->read_tables))
     DBUG_RETURN(0);
   for (; key_part != end ; key_part++)
   {
@@ -7595,7 +7597,7 @@ Item_bool_func::get_mm_parts(RANGE_OPT_PARAM *param, Field *field,
       SEL_ARG *sel_arg=0;
       if (!tree && !(tree=new (param->thd->mem_root) SEL_TREE()))
 	DBUG_RETURN(0);				// OOM
-      if (!value || !(value->used_tables() & ~param->read_tables))
+      if (!value || !(value_used_tables & ~param->read_tables))
       {
         /*
           We need to restore the runtime mem_root of the thread in this

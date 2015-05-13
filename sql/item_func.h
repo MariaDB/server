@@ -1348,7 +1348,7 @@ public:
   const char *func_name() const { return "sleep"; }
   table_map used_tables() const
   {
-    return Item_int_func::used_tables() | RAND_TABLE_BIT;
+    return used_tables_cache | RAND_TABLE_BIT;
   }
   bool is_expensive() { return 1; }
   longlong val_int();
@@ -1610,7 +1610,7 @@ class Item_func_get_lock :public Item_int_func
   void fix_length_and_dec() { max_length=1; maybe_null=1;}
   table_map used_tables() const
   {
-    return Item_int_func::used_tables() | RAND_TABLE_BIT;
+    return used_tables_cache | RAND_TABLE_BIT;
   }
   bool const_item() const { return 0; }
   bool is_expensive() { return 1; }
@@ -1630,7 +1630,7 @@ public:
   void fix_length_and_dec() { max_length= 1; maybe_null= 1;}
   table_map used_tables() const
   {
-    return Item_int_func::used_tables() | RAND_TABLE_BIT;
+    return used_tables_cache | RAND_TABLE_BIT;
   }
   bool const_item() const { return 0; }
   bool is_expensive() { return 1; }
@@ -1767,7 +1767,7 @@ public:
   }
   table_map used_tables() const
   {
-    return Item_func::used_tables() | RAND_TABLE_BIT;
+    return used_tables_cache | RAND_TABLE_BIT;
   }
   bool const_item() const { return 0; }
   bool is_expensive() { return 1; }

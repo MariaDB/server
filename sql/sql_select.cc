@@ -4530,8 +4530,9 @@ add_key_field(JOIN *join,
     bool optimizable=0;
     for (uint i=0; i<num_values; i++)
     {
-      used_tables|=(value[i])->used_tables();
-      if (!((value[i])->used_tables() & (field->table->map | RAND_TABLE_BIT)))
+      table_map value_used_tables= (value[i])->used_tables();
+      used_tables|= value_used_tables;
+      if (!(value_used_tables & (field->table->map | RAND_TABLE_BIT)))
         optimizable=1;
     }
     if (!optimizable)
@@ -14440,7 +14441,8 @@ simplify_joins(JOIN *join, List<TABLE_LIST> *join_list, COND *conds, bool top,
     */ 
     if (table->on_expr)
     {
-      table->dep_tables|= table->on_expr->used_tables(); 
+      table_map table_on_expr_used_tables= table->on_expr->used_tables();
+      table->dep_tables|= table_on_expr_used_tables;
       if (table->embedding)
       {
         table->dep_tables&= ~table->embedding->nested_join->used_tables;   
@@ -14448,7 +14450,7 @@ simplify_joins(JOIN *join, List<TABLE_LIST> *join_list, COND *conds, bool top,
            Embedding table depends on tables used
            in embedded on expressions. 
         */
-        table->embedding->on_expr_dep_tables|= table->on_expr->used_tables();
+        table->embedding->on_expr_dep_tables|= table_on_expr_used_tables;
       }
       else
         table->dep_tables&= ~table->get_map();
@@ -20160,10 +20162,13 @@ make_cond_after_sjm(THD *thd, Item *root_cond, Item *cond, table_map tables,
     We assume that conditions that refer to only join prefix tables or 
     sjm_tables have already been checked.
   */
-  if (!inside_or_clause && 
-      (!(cond->used_tables() & ~tables) || 
-       !(cond->used_tables() & ~sjm_tables)))
-    return (COND*) 0;				// Already checked
+  if (!inside_or_clause)
+  {
+    table_map cond_used_tables= cond->used_tables();
+    if((!(cond_used_tables & ~tables) ||
+       !(cond_used_tables & ~sjm_tables)))
+      return (COND*) 0;				// Already checked
+  }
 
   /* AND/OR recursive descent */
   if (cond->type() == Item::COND_ITEM)
