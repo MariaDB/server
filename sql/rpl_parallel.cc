@@ -533,7 +533,7 @@ do_retry:
           if (retries < 2)
           {
             /* Simulate that we get deadlock killed during open_binlog(). */
-            mysql_reset_thd_for_next_command(thd);
+            thd->reset_for_next_command();
             rgi->killed_for_retry= true;
             mysql_mutex_lock(&thd->LOCK_thd_data);
             thd->killed= KILL_CONNECTION;
