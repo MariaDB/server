@@ -150,82 +150,6 @@ fil_space_crypt_cleanup()
 }
 
 /******************************************************************
-Get key bytes for a space/key-version */
-static
-void
-fil_crypt_get_key(
-/*==============*/
-	byte*		dst,		/*<! out: Key */
-	uint*		key_length,	/*<! out: Key length */
-	fil_space_crypt_t* crypt_data,	/*<! in: crypt data */
-	uint 		version)	/*<! in: Key version */
-{
-        unsigned char keybuf[MY_AES_MAX_KEY_LENGTH];
-
-	mutex_enter(&crypt_data->mutex);
-
-	// Check if we already have key
-	for (uint i = 0; i < crypt_data->key_count; i++) {
-		if (crypt_data->keys[i].key_version == version) {
-			memcpy(dst, crypt_data->keys[i].key,
-			       crypt_data->keys[i].key_length);
-			*key_length = crypt_data->keys[i].key_length;
-			mutex_exit(&crypt_data->mutex);
-			return;
-		}
-	}
-
-	// Not found!
-	crypt_data->keyserver_requests++;
-
-	// Rotate keys to make room for a new
-	for (uint i = 1; i < array_elements(crypt_data->keys); i++) {
-		crypt_data->keys[i] = crypt_data->keys[i - 1];
-	}
-
-	*key_length = sizeof(keybuf);
-	uint rc = encryption_key_get(crypt_data->key_id, version, keybuf, key_length);
-	if (rc) {
-		ib_logf(IB_LOG_LEVEL_FATAL,
-			"Key id %u version %u can not be found. Reason=%u",
-			crypt_data->key_id, version, rc);
-		ut_error;
-	}
-
-	/* Now compute L by encrypting IV using this key. Note
-	that we use random IV from crypt data. */
-	const unsigned char* src = crypt_data->iv;
-	const int srclen = crypt_data->iv_length;
-	unsigned char* buf = crypt_data->keys[0].key;
-	uint32 buflen = CRYPT_SCHEME_1_IV_LEN;
-
-	/* We use AES_ECB to encrypt IV */
-	rc = my_aes_encrypt_ecb(src, srclen, buf, &buflen,
-				keybuf, *key_length, NULL, 0, 1);
-
-	if (rc != MY_AES_OK) {
-		ib_logf(IB_LOG_LEVEL_FATAL,
-			"Unable to encrypt key-block "
-			" src: %p srclen: %d buf: %p buflen: %d."
-			" return-code: %d. Can't continue!\n",
-			src, srclen, buf, buflen, rc);
-		ut_error;
-	}
-
-	crypt_data->keys[0].key_version = version;
-	crypt_data->key_count++;
-	*key_length = buflen;
-	crypt_data->keys[0].key_length = buflen;
-
-	if (crypt_data->key_count > array_elements(crypt_data->keys)) {
-		crypt_data->key_count = array_elements(crypt_data->keys);
-	}
-
-	memcpy(dst, buf, buflen);
-	mutex_exit(&crypt_data->mutex);
-}
-
-/******************************************************************
 Get the latest(key-version), waking the encrypt thread, if needed */
 static inline
 uint
@@ -244,27 +168,17 @@ fil_crypt_get_latest_key_version(
 }
 
 /******************************************************************
-Get key bytes for a space/latest(key-version) */
-static inline
-void
-fil_crypt_get_latest_key(
-/*=====================*/
-	byte*		dst,		/*!< out: Key */
-	uint*		key_length,	/*!< out: Key length */
-	fil_space_crypt_t* crypt_data, 	/*!< in: crypt data */
-	uint*		version)	/*!< in: Key version */
+Mutex helper for crypt_data->scheme */
+static void crypt_data_scheme_locker(st_encryption_scheme *scheme, int exit)
 {
-        // used for key rotation - get the next key id from the key provider
-	uint rc = *version = fil_crypt_get_latest_key_version(crypt_data);
+	fil_space_crypt_t* crypt_data =
+		static_cast<fil_space_crypt_t*>(scheme);
 
-	if (rc == ENCRYPTION_KEY_VERSION_INVALID) {
-		ib_logf(IB_LOG_LEVEL_FATAL,
-			"Unknown key id %u. Can't continue!\n",
-                        crypt_data->key_id);
-		ut_error;
+	if (exit) {
+		mutex_exit(&crypt_data->mutex);
+	} else {
+		mutex_enter(&crypt_data->mutex);
 	}
-
-	return fil_crypt_get_key(dst, key_length, crypt_data, *version);
 }
 
 /******************************************************************
@@ -277,8 +191,7 @@ fil_space_create_crypt_data(
 	fil_encryption_t	encrypt_mode,	/*!< in: encryption mode */
 	uint			key_id)		/*!< in: encryption key id */
 {
-	const uint iv_length = CRYPT_SCHEME_1_IV_LEN;
-	const uint sz = sizeof(fil_space_crypt_t) + iv_length;
+	const uint sz = sizeof(fil_space_crypt_t);
 	fil_space_crypt_t* crypt_data =
 		static_cast<fil_space_crypt_t*>(malloc(sz));
 
@@ -290,14 +203,14 @@ fil_space_create_crypt_data(
 		crypt_data->min_key_version = 0;
 	} else {
 		crypt_data->type = CRYPT_SCHEME_1;
-                crypt_data->key_id = key_id;
+		crypt_data->key_id = key_id;
 		crypt_data->min_key_version = encryption_key_get_latest_version(key_id);
 	}
 
 	mutex_create(fil_crypt_data_mutex_key,
 		&crypt_data->mutex, SYNC_NO_ORDER_CHECK);
-	crypt_data->iv_length = iv_length;
-	my_random_bytes(crypt_data->iv, iv_length);
+	crypt_data->locker = crypt_data_scheme_locker;
+	my_random_bytes(crypt_data->iv, sizeof(crypt_data->iv));
 	crypt_data->encryption = FIL_SPACE_ENCRYPTION_DEFAULT;
 	return crypt_data;
 }
@@ -317,12 +230,9 @@ fil_space_crypt_compare(
 	ut_a(crypt_data2->type == CRYPT_SCHEME_UNENCRYPTED ||
 	     crypt_data2->type == CRYPT_SCHEME_1);
 
-	ut_a(crypt_data1->iv_length == CRYPT_SCHEME_1_IV_LEN);
-	ut_a(crypt_data2->iv_length == CRYPT_SCHEME_1_IV_LEN);
-
 	/* no support for changing iv (yet?) */
 	ut_a(memcmp(crypt_data1->iv, crypt_data2->iv,
-		    crypt_data1->iv_length) == 0);
+		    sizeof(crypt_data1->iv)) == 0);
 
 	return 0;
 }
@@ -378,9 +288,10 @@ fil_space_read_crypt_data(
 		ut_error;
 	}
 
+	fil_space_crypt_t* crypt_data;
 	ulint iv_length = mach_read_from_1(page + offset + MAGIC_SZ + 1);
 
-	if (! (iv_length == CRYPT_SCHEME_1_IV_LEN)) {
+	if (! (iv_length == sizeof(crypt_data->iv))) {
 		ib_logf(IB_LOG_LEVEL_ERROR,
 			"Found non sensible iv length: %lu for space %lu "
 			" offset: %lu type: %lu bytes: "
@@ -405,8 +316,7 @@ fil_space_read_crypt_data(
 		page + offset + MAGIC_SZ + 2 + iv_length + 8);
 
 	const uint sz = sizeof(fil_space_crypt_t) + iv_length;
-	fil_space_crypt_t* crypt_data = static_cast<fil_space_crypt_t*>(
-		malloc(sz));
+	crypt_data = static_cast<fil_space_crypt_t*>(malloc(sz));
 	memset(crypt_data, 0, sz);
 
 	crypt_data->type = type;
@@ -416,7 +326,7 @@ fil_space_read_crypt_data(
 	crypt_data->encryption = encryption;
 	mutex_create(fil_crypt_data_mutex_key,
 		     &crypt_data->mutex, SYNC_NO_ORDER_CHECK);
-	crypt_data->iv_length = iv_length;
+	crypt_data->locker = crypt_data_scheme_locker;
 	memcpy(crypt_data->iv, page + offset + MAGIC_SZ + 2, iv_length);
 
 	return crypt_data;
@@ -453,7 +363,7 @@ fil_space_write_crypt_data_low(
 	ut_a(offset > 0 && offset < UNIV_PAGE_SIZE);
 	ulint space_id = mach_read_from_4(
 		page + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID);
-	const uint len = crypt_data->iv_length;
+	const uint len = sizeof(crypt_data->iv);
 	const uint min_key_version = crypt_data->min_key_version;
 	const uint key_id = crypt_data->key_id;
 	const fil_encryption_t encryption = crypt_data->encryption;
@@ -662,9 +572,6 @@ fil_space_encrypt(
 	fil_space_crypt_t* crypt_data = NULL;
 	ulint page_size = (zip_size) ? zip_size : UNIV_PAGE_SIZE;
 	uint key_version;
-	unsigned char key[MY_AES_MAX_KEY_LENGTH];
-	uint key_length = MY_AES_MAX_KEY_LENGTH;
-	unsigned char iv[MY_AES_BLOCK_SIZE];
 
 	ulint orig_page_type = mach_read_from_2(src_frame+FIL_PAGE_TYPE);
 
@@ -686,12 +593,14 @@ fil_space_encrypt(
 		return;
 	}
 
-	fil_crypt_get_latest_key(key, &key_length, crypt_data, &key_version);
+	key_version = fil_crypt_get_latest_key_version(crypt_data);
 
-	/* create iv/counter */
-	mach_write_to_4(iv + 0, space);
-	mach_write_to_4(iv + 4, offset);
-	mach_write_to_8(iv + 8, lsn);
+	if (key_version == ENCRYPTION_KEY_VERSION_INVALID) {
+		ib_logf(IB_LOG_LEVEL_FATAL,
+			"Unknown key id %u. Can't continue!\n",
+			crypt_data->key_id);
+		ut_error;
+	}
 
 	ibool page_compressed = (mach_read_from_2(src_frame+FIL_PAGE_TYPE) == FIL_PAGE_PAGE_COMPRESSED);
 
@@ -719,9 +628,9 @@ fil_space_encrypt(
 		dst+=2;
 	}
 
-	int rc = encryption_encrypt(src, srclen, dst, &dstlen,
-	                      key, key_length, iv, sizeof(iv), 1,
-                              crypt_data->key_id, key_version);
+	int rc = encryption_scheme_encrypt(src, srclen, dst, &dstlen,
+					   crypt_data, key_version,
+					   space, offset, lsn);
 
 	if (! ((rc == MY_AES_OK) && ((ulint) dstlen == srclen))) {
 		ib_logf(IB_LOG_LEVEL_FATAL,
@@ -837,17 +746,6 @@ fil_space_decrypt(
 	/* Copy FIL page header, it is not encrypted */
 	memcpy(dst_frame, src_frame, FIL_PAGE_DATA);
 
-	/* Get key */
-	byte key[MY_AES_MAX_KEY_LENGTH];
-	uint key_length;
-	unsigned char iv[MY_AES_BLOCK_SIZE];
-	fil_crypt_get_key(key, &key_length, crypt_data, key_version);
-
-	/* create iv/counter */
-	mach_write_to_4(iv + 0, space);
-	mach_write_to_4(iv + 4, offset);
-	mach_write_to_8(iv + 8, lsn);
-
 	/* Calculate the offset where decryption starts */
 	const byte* src = src_frame + FIL_PAGE_DATA;
 	byte* dst = dst_frame + FIL_PAGE_DATA;
@@ -865,9 +763,9 @@ fil_space_decrypt(
 		srclen = compressed_len;
 	}
 
-	int rc = encryption_decrypt(src, srclen, dst, &dstlen, key, key_length,
-				    iv, sizeof(iv), 1,
-                                    crypt_data->key_id, key_version);
+	int rc = encryption_scheme_decrypt(src, srclen, dst, &dstlen,
+					   crypt_data, key_version,
+					   space, offset, lsn);
 
 	if (! ((rc == MY_AES_OK) && ((ulint) dstlen == srclen))) {
 		ib_logf(IB_LOG_LEVEL_FATAL,

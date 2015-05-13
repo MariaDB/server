@@ -213,6 +213,43 @@ struct encryption_service_st {
   encrypt_decrypt_func encryption_decrypt_func;
 };
 extern struct encryption_service_st encryption_handler;
+#include <mysql/service_encryption_scheme.h>
+struct st_encryption_scheme_key {
+  unsigned int version;
+  unsigned char key[16];
+};
+struct st_encryption_scheme {
+  unsigned char iv[16];
+  struct st_encryption_scheme_key key[3];
+  unsigned int keyserver_requests;
+  unsigned int key_id;
+  unsigned int type;
+  void (*locker)(struct st_encryption_scheme *self, int release);
+};
+extern struct encryption_scheme_service_st {
+  int (*encryption_scheme_encrypt_func)
+                               (const unsigned char* src, unsigned int slen,
+                                unsigned char* dst, unsigned int* dlen,
+                                struct st_encryption_scheme *scheme,
+                                unsigned int key_version, unsigned int i32_1,
+                                unsigned int i32_2, unsigned long long i64);
+  int (*encryption_scheme_decrypt_func)
+                               (const unsigned char* src, unsigned int slen,
+                                unsigned char* dst, unsigned int* dlen,
+                                struct st_encryption_scheme *scheme,
+                                unsigned int key_version, unsigned int i32_1,
+                                unsigned int i32_2, unsigned long long i64);
+} *encryption_scheme_service;
+int encryption_scheme_encrypt(const unsigned char* src, unsigned int slen,
+                              unsigned char* dst, unsigned int* dlen,
+                              struct st_encryption_scheme *scheme,
+                              unsigned int key_version, unsigned int i32_1,
+                              unsigned int i32_2, unsigned long long i64);
+int encryption_scheme_decrypt(const unsigned char* src, unsigned int slen,
+                              unsigned char* dst, unsigned int* dlen,
+                              struct st_encryption_scheme *scheme,
+                              unsigned int key_version, unsigned int i32_1,
+                              unsigned int i32_2, unsigned long long i64);
 struct st_mysql_xid {
   long formatID;
   long gtrid_length;

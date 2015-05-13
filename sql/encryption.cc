@@ -103,3 +103,110 @@ int finalize_encryption_plugin(st_plugin_int *plugin)
   return 0;
 }
 
+/******************************************************************
+  Encryption Scheme service
+******************************************************************/
+static uint scheme_get_key(st_encryption_scheme *scheme,
+                           st_encryption_scheme_key *key)
+{
+  if (scheme->locker)
+    scheme->locker(scheme, 0);
+
+  // Check if we already have key
+  for (uint i = 0; i < array_elements(scheme->key); i++)
+  {
+    if (scheme->key[i].version == 0) // no more keys
+      break;
+
+    if (scheme->key[i].version == key->version)
+    {
+      *key= scheme->key[i];
+      if (scheme->locker)
+        scheme->locker(scheme, 1);
+      return 0;
+    }
+  }
+
+  // Not found!
+  scheme->keyserver_requests++;
+
+  uchar global_key[MY_AES_MAX_KEY_LENGTH];
+  uint  global_key_len= sizeof(global_key), key_len;
+
+  uint rc = encryption_key_get(scheme->key_id, key->version,
+                              global_key, & global_key_len);
+  if (rc)
+    goto ret;
+
+  /* Now generate the local key by encrypting IV using the global key */
+  rc = my_aes_encrypt_ecb(scheme->iv, sizeof(scheme->iv), key->key, &key_len,
+                          global_key, global_key_len, NULL, 0, 1);
+
+  DBUG_ASSERT(key_len == sizeof(key->key));
+
+  if (rc)
+    goto ret;
+
+  // Rotate keys to make room for a new
+  for (uint i = array_elements(scheme->key) - 1; i; i--)
+    scheme->key[i] = scheme->key[i - 1];
+
+  scheme->key[0]= *key;
+
+ret:
+  if (scheme->locker)
+    scheme->locker(scheme, 1);
+  return rc;
+}
+
+int do_crypt(const unsigned char* src, unsigned int slen,
+             unsigned char* dst, unsigned int* dlen,
+             struct st_encryption_scheme *scheme,
+             unsigned int key_version, unsigned int i32_1,
+             unsigned int i32_2, unsigned long long i64,
+             encrypt_decrypt_func crypt)
+{
+  compile_time_assert(ENCRYPTION_SCHEME_KEY_INVALID ==
+                      (int)ENCRYPTION_KEY_VERSION_INVALID);
+
+  DBUG_ASSERT(scheme->type == 1);
+
+  if (key_version == ENCRYPTION_KEY_VERSION_INVALID ||
+      key_version == ENCRYPTION_KEY_NOT_ENCRYPTED)
+    return ENCRYPTION_SCHEME_KEY_INVALID;
+
+  st_encryption_scheme_key key;
+  key.version= key_version;
+  uint rc= scheme_get_key(scheme, &key);
+  if (rc)
+    return (int)rc;
+
+  unsigned char iv[4 + 4 + 8];
+  int4store(iv + 0, i32_1);
+  int4store(iv + 4, i32_2);
+  int8store(iv + 8, i64);
+
+  return crypt(src, slen, dst, dlen, key.key, sizeof(key.key),
+               iv, sizeof(iv), 1, scheme->key_id, key_version);
+}
+
+int encryption_scheme_encrypt(const unsigned char* src, unsigned int slen,
+                              unsigned char* dst, unsigned int* dlen,
+                              struct st_encryption_scheme *scheme,
+                              unsigned int key_version, unsigned int i32_1,
+                              unsigned int i32_2, unsigned long long i64)
+{
+  return do_crypt(src, slen, dst, dlen, scheme, key_version, i32_1,
+                  i32_2, i64, encryption_handler.encryption_encrypt_func);
+}
+
+
+int encryption_scheme_decrypt(const unsigned char* src, unsigned int slen,
+                              unsigned char* dst, unsigned int* dlen,
+                              struct st_encryption_scheme *scheme,
+                              unsigned int key_version, unsigned int i32_1,
+                              unsigned int i32_2, unsigned long long i64)
+{
+  return do_crypt(src, slen, dst, dlen, scheme, key_version, i32_1,
+                  i32_2, i64, encryption_handler.encryption_decrypt_func);
+}

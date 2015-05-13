@@ -39,14 +39,9 @@ struct st_crypt_key
 
 struct st_maria_crypt_data
 {
-  uchar type;
-  uint  keyid;
+  struct st_encryption_scheme scheme;
+  uint space;
   mysql_mutex_t lock;          /* protecting keys */
-  uint keyserver_requests;     /* # of key requests to key server */
-  uint key_count;              /* # of initalized key-structs */
-  struct st_crypt_key keys[3]; /* cached L = AES_ECB(KEY, IV) */
-  uchar iv_length;
-  uchar iv[1];                 /* variable size */
 };
 
 uint
@@ -77,19 +72,27 @@ ma_crypt_get_file_length()
   return 2 + CRYPT_SCHEME_1_IV_LEN + CRYPT_SCHEME_1_ID_LEN;
 }
 
+static void crypt_data_scheme_locker(struct st_encryption_scheme *scheme,
+                                     int unlock)
+{
+  MARIA_CRYPT_DATA *crypt_data = (MARIA_CRYPT_DATA*)scheme;
+  if (unlock)
+    mysql_mutex_unlock(&crypt_data->lock);
+  else
+    mysql_mutex_lock(&crypt_data->lock);
+}
+
 int
 ma_crypt_create(MARIA_SHARE* share)
 {
-  const uint iv_length= CRYPT_SCHEME_1_IV_LEN + CRYPT_SCHEME_1_ID_LEN;
-  const uint sz= sizeof(MARIA_CRYPT_DATA) + iv_length;
-  MARIA_CRYPT_DATA *crypt_data= (MARIA_CRYPT_DATA*)my_malloc(sz, MYF(0));
-  bzero(crypt_data, sz);
-  crypt_data->type= CRYPT_SCHEME_1;
-  crypt_data->key_count= 0;
+  MARIA_CRYPT_DATA *crypt_data=
+    (MARIA_CRYPT_DATA*)my_malloc(sizeof(MARIA_CRYPT_DATA), MYF(MY_ZEROFILL));
+  crypt_data->scheme.type= CRYPT_SCHEME_1;
+  crypt_data->scheme.locker= crypt_data_scheme_locker;
   mysql_mutex_init(key_CRYPT_DATA_lock, &crypt_data->lock, MY_MUTEX_INIT_FAST);
-  crypt_data->keyid= HARD_CODED_ENCRYPTION_KEY_ID;
-  crypt_data->iv_length= iv_length;
-  my_random_bytes(crypt_data->iv, iv_length);
+  crypt_data->scheme.key_id= HARD_CODED_ENCRYPTION_KEY_ID;
+  my_random_bytes(crypt_data->scheme.iv, sizeof(crypt_data->scheme.iv));
+  my_random_bytes((uchar*)&crypt_data->space, sizeof(crypt_data->space));
   share->crypt_data= crypt_data;
   share->crypt_page_header_space= CRYPT_SCHEME_1_KEY_VERSION_SIZE;
   return 0;
@@ -109,19 +112,18 @@ ma_crypt_free(MARIA_SHARE* share)
 int
 ma_crypt_write(MARIA_SHARE* share, File file)
 {
-  uchar buff[2];
   MARIA_CRYPT_DATA *crypt_data= share->crypt_data;
+  uchar buff[2 + 4 + sizeof(crypt_data->scheme.iv)];
   if (crypt_data == 0)
     return 0;
 
-  buff[0]= crypt_data->type;
-  buff[1]= crypt_data->iv_length;
+  buff[0]= crypt_data->scheme.type;
+  buff[1]= sizeof(buff) - 2;
 
-  if (mysql_file_write(file, buff, 2, MYF(MY_NABP)))
-    return 1;
+  int4store(buff + 2, crypt_data->space);
+  memcpy(buff + 6, crypt_data->scheme.iv, sizeof(crypt_data->scheme.iv));
 
-  if (mysql_file_write(file, crypt_data->iv, crypt_data->iv_length,
-                       MYF(MY_NABP)))
+  if (mysql_file_write(file, buff, sizeof(buff), MYF(MY_NABP)))
     return 1;
 
   return 0;
@@ -132,35 +134,32 @@ ma_crypt_read(MARIA_SHARE* share, uchar *buff)
 {
   uchar type= buff[0];
   uchar iv_length= buff[1];
-  if (share->crypt_data == NULL)
-  {
-    /* opening a table */
-    const uint sz= sizeof(MARIA_CRYPT_DATA) + iv_length;
-    MARIA_CRYPT_DATA *crypt_data= (MARIA_CRYPT_DATA*)my_malloc(sz, MYF(0));
 
-    crypt_data->type= type;
-    crypt_data->key_count= 0;
-    mysql_mutex_init(key_CRYPT_DATA_lock, &crypt_data->lock,
-                     MY_MUTEX_INIT_FAST);
-    crypt_data->keyid= HARD_CODED_ENCRYPTION_KEY_ID;
-    crypt_data->iv_length= iv_length;
-    memcpy(crypt_data->iv, buff + 2, iv_length);
-    share->crypt_data= crypt_data;
-  }
-  else
-  {
-    /* creating a table */
-    assert(type == share->crypt_data->type);
-    assert(iv_length == share->crypt_data->iv_length);
-  }
   /* currently only supported type */
-  if (type != CRYPT_SCHEME_1)
+  if (type != CRYPT_SCHEME_1 ||
+      iv_length != sizeof(((MARIA_CRYPT_DATA*)1)->scheme.iv) + 4)
   {
     my_printf_error(HA_ERR_UNSUPPORTED,
              "Unsupported crypt scheme! type: %d iv_length: %d\n",
              MYF(ME_FATALERROR|ME_NOREFRESH),
              type, iv_length);
     return 0;
+  }
+
+  if (share->crypt_data == NULL)
+  {
+    /* opening a table */
+    MARIA_CRYPT_DATA *crypt_data=
+      (MARIA_CRYPT_DATA*)my_malloc(sizeof(MARIA_CRYPT_DATA), MYF(MY_ZEROFILL));
+
+    crypt_data->scheme.type= type;
+    mysql_mutex_init(key_CRYPT_DATA_lock, &crypt_data->lock,
+                     MY_MUTEX_INIT_FAST);
+    crypt_data->scheme.locker= crypt_data_scheme_locker;
+    crypt_data->scheme.key_id= HARD_CODED_ENCRYPTION_KEY_ID;
+    crypt_data->space= uint4korr(buff + 2);
+    memcpy(crypt_data->scheme.iv, buff + 6, sizeof(crypt_data->scheme.iv));
+    share->crypt_data= crypt_data;
   }
 
   share->crypt_page_header_space= CRYPT_SCHEME_1_KEY_VERSION_SIZE;
@@ -425,100 +424,6 @@ void ma_crypt_set_index_pagecache_callbacks(PAGECACHE_FILE *file,
   file->post_write_hook= ma_crypt_post_write_hook;
 }
 
-/**
-  get key bytes for a table and key-version
-*/
-static int ma_crypt_get_key(uchar *dst, uint dstlen,
-                            MARIA_CRYPT_DATA *crypt_data, uint version)
-{
-  int rc;
-  uint i;
-  uchar keybuf[CRYPT_SCHEME_1_IV_LEN];
-  uint keylen= sizeof(keybuf);
-
-  DBUG_ASSERT(dstlen == sizeof(crypt_data->keys[0].key));
-
-  mysql_mutex_lock(&crypt_data->lock);
-
-  /* Check if we already have key */
-  for (i= 0; i < crypt_data->key_count; i++)
-  {
-    if (crypt_data->keys[i].key_version == version)
-    {
-      memcpy(dst, crypt_data->keys[i].key, sizeof(crypt_data->keys[i].key));
-      mysql_mutex_unlock(&crypt_data->lock);
-      return 0;
-    }
-  }
-
-  /* Not found! */
-  crypt_data->keyserver_requests++;
-
-  /* Rotate keys to make room for a new */
-  for (i= 1; i < array_elements(crypt_data->keys); i++)
-    crypt_data->keys[i]= crypt_data->keys[i - 1];
-
-  /* Get new key from key server */
-  rc= encryption_key_get(crypt_data->keyid, version, keybuf, &keylen);
-  if (rc != 0)
-  {
-    my_printf_error(HA_ERR_GENERIC,
-                    "Key id %u version %u can not be found. Reason=%u",
-                    MYF(ME_FATALERROR|ME_NOREFRESH),
-                    crypt_data->keyid, version, rc );
-    return 1;
-  }
-
-  /* Now compute L by encrypting IV using this key */
-  {
-    const uchar* src= crypt_data->iv;
-    const int srclen= CRYPT_SCHEME_1_IV_LEN;
-    uchar* buf= crypt_data->keys[0].key;
-    uint buflen= sizeof(crypt_data->keys[0].key);
-    rc = my_aes_encrypt_ecb(src, srclen, buf, &buflen,
-                            keybuf, keylen, NULL, 0, 1);
-    if (rc != MY_AES_OK)
-    {
-      my_printf_error(HA_ERR_GENERIC,
-                      "Unable to encrypt key-block "
-                      " src: %p srclen: %d buf: %p buflen: %d."
-                      " return-code: %d. Can't continue!",
-                      MYF(ME_FATALERROR|ME_NOREFRESH),
-                      src, srclen, buf, buflen, rc);
-      return 1;
-    }
-  }
-
-  crypt_data->keys[0].key_version= version;
-  crypt_data->key_count++;
-
-  if (crypt_data->key_count > array_elements(crypt_data->keys))
-    crypt_data->key_count= array_elements(crypt_data->keys);
-
-  memcpy(dst, crypt_data->keys[0].key, sizeof(crypt_data->keys[0].key));
-  mysql_mutex_unlock(&crypt_data->lock);
-  return 0;
-}
-
-/******************************************************************
-Get key bytes for a table and latest key-version */
-static int ma_crypt_get_latest_key(uchar *dst, uint dstlen,
-                                   MARIA_CRYPT_DATA* crypt_data, uint *version)
-{
-  uint rc = *version = encryption_key_get_latest_version(crypt_data->keyid);
-  if (rc == ENCRYPTION_KEY_VERSION_INVALID)
-  {
-        my_printf_error(HA_ERR_GENERIC,
-                        "Unknown key id %u. Can't continue!",
-                        MYF(ME_FATALERROR|ME_NOREFRESH),
-                        crypt_data->keyid);
-          return 1;
-  }
-  return ma_crypt_get_key(dst, dstlen, crypt_data, *version);
-}
-
-#define COUNTER_LEN MY_AES_BLOCK_SIZE
-
 static int ma_encrypt(MARIA_CRYPT_DATA *crypt_data,
                        const uchar *src, uchar *dst, uint size,
                        uint pageno, LSN lsn,
@@ -526,22 +431,18 @@ static int ma_encrypt(MARIA_CRYPT_DATA *crypt_data,
 {
   int rc;
   uint32 dstlen;
-  uchar counter[COUNTER_LEN];
-  uchar key[CRYPT_SCHEME_1_IV_LEN];
 
-  // get key (L) and key_version
-  if (ma_crypt_get_latest_key(key, sizeof(key), crypt_data, key_version))
+  *key_version = encryption_key_get_latest_version(crypt_data->scheme.key_id);
+  if (*key_version == ENCRYPTION_KEY_VERSION_INVALID)
+  {
+    my_printf_error(HA_ERR_GENERIC, "Unknown key id %u. Can't continue!",
+                    MYF(ME_FATALERROR|ME_NOREFRESH), crypt_data->scheme.key_id);
     return 1;
+  }
 
-  /* create counter block */
-  memcpy(counter + 0, crypt_data->iv + CRYPT_SCHEME_1_IV_LEN, 4);
-  int4store(counter + 4, pageno);
-  int8store(counter + 8, lsn);
-
-  rc= encryption_encrypt(src, size, dst, &dstlen,
-                         crypt_data->iv, CRYPT_SCHEME_1_IV_LEN,
-                         counter, sizeof(counter), 1,
-                         crypt_data->keyid, *key_version);
+  rc= encryption_scheme_encrypt(src, size, dst, &dstlen,
+                                &crypt_data->scheme, *key_version,
+                                crypt_data->space, pageno, lsn);
 
   DBUG_ASSERT(rc == MY_AES_OK);
   DBUG_ASSERT(dstlen == size);
@@ -564,22 +465,10 @@ static int ma_decrypt(MARIA_CRYPT_DATA *crypt_data,
 {
   int rc;
   uint32 dstlen;
-  uchar counter[COUNTER_LEN];
-  uchar key[CRYPT_SCHEME_1_IV_LEN];
 
-  // get key (L) and key_version
-  if (ma_crypt_get_key(key, sizeof(key), crypt_data, key_version))
-    return 1;
-
-  /* create counter block */
-  memcpy(counter + 0, crypt_data->iv + CRYPT_SCHEME_1_IV_LEN, 4);
-  int4store(counter + 4, pageno);
-  int8store(counter + 8, lsn);
-
-  rc =encryption_decrypt(src, size, dst, &dstlen,
-                         crypt_data->iv, CRYPT_SCHEME_1_IV_LEN,
-                         counter, sizeof(counter), 1, crypt_data->keyid,
-                         key_version);
+  rc= encryption_scheme_decrypt(src, size, dst, &dstlen,
+                                &crypt_data->scheme, key_version,
+                                crypt_data->space, pageno, lsn);
 
   DBUG_ASSERT(rc == MY_AES_OK);
   DBUG_ASSERT(dstlen == size);

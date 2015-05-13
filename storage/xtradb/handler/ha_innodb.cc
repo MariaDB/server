@@ -12242,8 +12242,7 @@ ha_innobase::create(
 
 		/* If there is old crypt data, copy IV */
 		if (old_crypt_data) {
-			memcpy(crypt_data->iv, old_crypt_data->iv, old_crypt_data->iv_length);
-			crypt_data->iv_length = old_crypt_data->iv_length;
+			memcpy(crypt_data->iv, old_crypt_data->iv, sizeof(crypt_data->iv));
 		}
 
 		mtr_t mtr;

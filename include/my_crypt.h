@@ -25,10 +25,10 @@ extern "C" {
 #endif
 
 /* return values from my_aes_encrypt/my_aes_decrypt functions */
-#define MY_AES_OK 0
-#define MY_AES_BAD_DATA  -1
-#define MY_AES_OPENSSL_ERROR -2
-#define MY_AES_BAD_KEYSIZE -3
+#define MY_AES_OK               0
+#define MY_AES_BAD_DATA         -100
+#define MY_AES_OPENSSL_ERROR    -101
+#define MY_AES_BAD_KEYSIZE      -102
 
 /* The block size for all supported algorithms */
 #define MY_AES_BLOCK_SIZE 16

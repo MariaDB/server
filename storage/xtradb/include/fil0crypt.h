@@ -80,13 +80,8 @@ struct fil_space_rotate_state_t
 	} scrubbing;
 };
 
-struct fil_space_crypt_struct
+struct fil_space_crypt_struct : st_encryption_scheme
 {
-	ulint type;	    // CRYPT_SCHEME
-	uint keyserver_requests; // no of key requests to key server
-	uint key_count;	    // No of initalized key-structs
-	uint key_id;	    // Key id for this space
-	key_struct keys[3]; // cached L = AES_ECB(KEY, IV)
 	uint min_key_version; // min key version for this space
 	ulint page0_offset;   // byte offset on page 0 for crypt data
 	fil_encryption_t encryption; // Encryption setup
@@ -94,9 +89,6 @@ struct fil_space_crypt_struct
 	ib_mutex_t mutex;   // mutex protecting following variables
 	bool closing;	    // is tablespace being closed
 	fil_space_rotate_state_t rotate_state;
-
-	uint iv_length;	    // length of IV
-	byte iv[1];	    // IV-data
 };
 
 /* structure containing encryption specification */
