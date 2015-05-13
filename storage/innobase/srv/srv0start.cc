@@ -1120,7 +1120,7 @@ check_first_page:
 
 			*sum_of_new_sizes += srv_data_file_sizes[i];
 
-			crypt_data = fil_space_create_crypt_data(FIL_DEFAULT_ENCRYPTION_KEY);
+			crypt_data = fil_space_create_crypt_data(FIL_SPACE_ENCRYPTION_DEFAULT, FIL_DEFAULT_ENCRYPTION_KEY);
 		}
 
 		ret = os_file_close(files[i]);

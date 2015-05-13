@@ -5701,6 +5701,10 @@ buf_page_encrypt_before_write(
 	fil_space_crypt_t* crypt_data = fil_space_get_crypt_data(space_id);
 	bpage->real_size = UNIV_PAGE_SIZE;
 
+#ifdef UNIV_DEBUG
+	fil_page_type_validate(src_frame);
+#endif
+
 	if (crypt_data != NULL && crypt_data->encryption == FIL_SPACE_ENCRYPTION_OFF) {
 		/* Encryption is disabled */
 		return const_cast<byte*>(src_frame);
@@ -5754,6 +5758,11 @@ buf_page_encrypt_before_write(
 		ut_ad(key_version == 0 || key_version >= bpage->key_version);
 		bpage->key_version = key_version;
 		bpage->real_size = page_size;
+
+#ifdef UNIV_DEBUG
+		fil_page_type_validate(dst_frame);
+#endif
+
 	} else {
 		/* First we compress the page content */
 		ulint out_len = 0;
@@ -5775,6 +5784,10 @@ buf_page_encrypt_before_write(
 
 		bpage->real_size = out_len;
 
+#ifdef UNIV_DEBUG
+		fil_page_type_validate(tmp);
+#endif
+
 		/* And then we encrypt the page content */
 		fil_space_encrypt(bpage->space,
 				bpage->offset,
@@ -5783,6 +5796,10 @@ buf_page_encrypt_before_write(
 				zip_size,
 				dst_frame);
 	}
+
+#ifdef UNIV_DEBUG
+	fil_page_type_validate(dst_frame);
+#endif
 
 	// return dst_frame which will be written
 	return dst_frame;
@@ -5822,6 +5839,10 @@ buf_page_decrypt_after_read(
 			/* Find free slot from temporary memory array */
 			buf_tmp_buffer_t* slot = buf_pool_reserve_tmp_slot(buf_pool, page_compressed);
 
+#ifdef UNIV_DEBUG
+			fil_page_type_validate(dst_frame);
+#endif
+
 			fil_decompress_page(slot->comp_buf,
 					dst_frame,
 					size,
@@ -5830,6 +5851,10 @@ buf_page_decrypt_after_read(
 			/* Mark this slot as free */
 			slot->reserved = false;
 		}
+
+#ifdef UNIV_DEBUG
+		fil_page_type_validate(dst_frame);
+#endif
 	} else {
 		/* the page we read is encrypted */
 		/* Find free slot from temporary memory array */
@@ -5837,11 +5862,21 @@ buf_page_decrypt_after_read(
 
 		memcpy(slot->crypt_buf, dst_frame, size);
 
+#ifdef UNIV_DEBUG
+		fil_page_type_validate(dst_frame);
+		fil_page_type_validate(slot->crypt_buf);
+#endif
+
 		/* decrypt from crypt_buf to dst_frame */
 		fil_space_decrypt(bpage->space,
 				  slot->crypt_buf,
 				  size,
 				  dst_frame);
+
+#ifdef UNIV_DEBUG
+		fil_page_type_validate(dst_frame);
+		fil_page_type_validate(slot->crypt_buf);
+#endif
 
 		/* decompress from dst_frame to comp_buf and then copy to
 		buffer pool */
@@ -5851,6 +5886,10 @@ buf_page_decrypt_after_read(
 					size,
 					&bpage->write_size);
 		}
+
+#ifdef UNIV_DEBUG
+		fil_page_type_validate(dst_frame);
+#endif
 
 		/* Mark this slot as free */
 		slot->reserved = false;

@@ -12231,12 +12231,12 @@ ha_innobase::create(
 	/* If user has requested that table should be encrypted or table
 	should remain as unencrypted store crypt data */
 	if (encrypt != FIL_SPACE_ENCRYPTION_DEFAULT) {
-		ulint maxsize;
+		ulint maxsize=0;
 		ulint zip_size = fil_space_get_zip_size(innobase_table->space);
 		fil_space_crypt_t* old_crypt_data = fil_space_get_crypt_data(innobase_table->space);
 		fil_space_crypt_t* crypt_data;
 
-		crypt_data = fil_space_create_crypt_data(key_id);
+		crypt_data = fil_space_create_crypt_data(encrypt, key_id);
 		crypt_data->page0_offset = fsp_header_get_crypt_offset(zip_size, &maxsize);
 		crypt_data->encryption = encrypt;
 
@@ -12246,7 +12246,29 @@ ha_innobase::create(
 			crypt_data->iv_length = old_crypt_data->iv_length;
 		}
 
+		mtr_t mtr;
+		mtr_start(&mtr);
+		/* Get page 0*/
+		ulint offset = 0;
+		buf_block_t* block = buf_page_get_gen(innobase_table->space,
+						      zip_size,
+						      offset,
+						      RW_X_LATCH,
+						      NULL,
+						      BUF_GET,
+						      __FILE__, __LINE__,
+						      &mtr);
+
+		/* Set up new crypt data */
 		fil_space_set_crypt_data(innobase_table->space, crypt_data);
+
+		/* Compute location to store crypt data */
+		byte* frame = buf_block_get_frame(block);
+
+		/* Write crypt data to page 0 */
+		fil_space_write_crypt_data(innobase_table->space, frame, crypt_data->page0_offset, maxsize, &mtr);
+
+		mtr_commit(&mtr);
 	}
 
 	innobase_copy_frm_flags_from_create_info(innobase_table, create_info);

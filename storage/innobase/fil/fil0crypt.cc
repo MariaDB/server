@@ -272,8 +272,10 @@ Create a fil_space_crypt_t object
 @return crypt object */
 UNIV_INTERN
 fil_space_crypt_t*
-fil_space_create_crypt_data(uint key_id)
-/*=========================*/
+fil_space_create_crypt_data(
+/*========================*/
+	fil_encryption_t	encrypt_mode,	/*!< in: encryption mode */
+	uint			key_id)		/*!< in: encryption key id */
 {
 	const uint iv_length = CRYPT_SCHEME_1_IV_LEN;
 	const uint sz = sizeof(fil_space_crypt_t) + iv_length;
@@ -282,7 +284,8 @@ fil_space_create_crypt_data(uint key_id)
 
 	memset(crypt_data, 0, sz);
 
-	if (!srv_encrypt_tables) {
+	if (encrypt_mode == FIL_SPACE_ENCRYPTION_OFF ||
+		(!srv_encrypt_tables && encrypt_mode == FIL_SPACE_ENCRYPTION_DEFAULT)) {
 		crypt_data->type = CRYPT_SCHEME_UNENCRYPTED;
 		crypt_data->min_key_version = 0;
 	} else {
@@ -515,10 +518,15 @@ fil_space_write_crypt_data(
 {
 	fil_space_crypt_t* crypt_data = fil_space_get_crypt_data(space);
 
-	/* If no crypt data is stored on memory cache for this space
-	or space is not encrypted and encryption is not enabled, then
-	do not continue writing crypt data to page 0. */
-	if (crypt_data == NULL || !srv_encrypt_tables) {
+	/* If no crypt data is stored on memory cache for this space,
+	then do not continue writing crypt data to page 0. */
+	if (crypt_data == NULL) {
+		return;
+	}
+
+	/* If tablespace encryption is disabled and encryption mode is
+	DEFAULT, then do not continue writing crypt data to page 0. */
+	if (!srv_encrypt_tables && crypt_data->encryption == FIL_SPACE_ENCRYPTION_DEFAULT) {
 		return;
 	}
 
@@ -577,7 +585,7 @@ fil_parse_write_crypt_data(
 		return NULL;
 	}
 
-	fil_space_crypt_t* crypt_data = fil_space_create_crypt_data(key_id);
+	fil_space_crypt_t* crypt_data = fil_space_create_crypt_data(encryption, key_id);
 	crypt_data->page0_offset = offset;
 	crypt_data->min_key_version = min_key_version;
 	crypt_data->encryption = encryption;
@@ -1112,7 +1120,7 @@ fil_crypt_start_encrypting_space(
 	* crypt data in page 0 */
 
 	/* 1 - create crypt data */
-	crypt_data = fil_space_create_crypt_data(FIL_DEFAULT_ENCRYPTION_KEY);
+	crypt_data = fil_space_create_crypt_data(FIL_SPACE_ENCRYPTION_DEFAULT, FIL_DEFAULT_ENCRYPTION_KEY);
 	if (crypt_data == NULL) {
 		mutex_exit(&fil_crypt_threads_mutex);
 		return pending_op;
