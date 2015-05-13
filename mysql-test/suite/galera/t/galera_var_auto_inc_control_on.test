@@ -13,7 +13,7 @@ CREATE TABLE t1 (f1 INTEGER AUTO_INCREMENT PRIMARY KEY, node VARCHAR(10)) ENGINE
 # auto_increment_offset is equal to the ID of the node
 
 SELECT @@auto_increment_increment = (SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size');
-SELECT @@auto_increment_offset = (SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_index') + 1;
+SELECT @@global.auto_increment_offset = (SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_index') + 1;
 
 # Expect no conflicts
 --send INSERT INTO t1 VALUES (DEFAULT, 'node1');
@@ -28,7 +28,7 @@ SELECT @@auto_increment_offset = (SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.
 --reap
 
 SELECT @@auto_increment_increment = (SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size');
-SELECT @@auto_increment_offset = (SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_index') + 1;
+SELECT @@global.auto_increment_offset = (SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_index') + 1;
 
 # Expect no conflicts
 --send INSERT INTO t1 VALUES (DEFAULT, 'node2'), (DEFAULT, 'node2'), (DEFAULT, 'node2'), (DEFAULT, 'node2'), (DEFAULT, 'node2'), (DEFAULT, 'node2'), (DEFAULT, 'node2'), (DEFAULT, 'node2'), (DEFAULT, 'node2'), (DEFAULT, 'node2');

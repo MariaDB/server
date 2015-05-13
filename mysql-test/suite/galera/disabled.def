@@ -5,8 +5,6 @@ galera_toi_ddl_fk_insert : qa#39 galera_toi_ddl_fk_insert fails sporadically
 galera_binlog_row_image : MDEV-7471 - Enable binlog_row_image parameter in MariaDB
 galera_binlog_rows_query_log_events : Unknown system variable 'binlog_rows_query_log_events' (see annotate_rows_log_event)
 
-galera_sbr : MDEV-7995 - DMLs not getting replicated with log-bin=OFF & binlog-format != ROW
-galera_create_trigger : MDEV-7996 - CURRENT_USER definer does not replicate for triggers
 galera_ist_mysqldump : Lost connection to MySQL server during query
 galera_ist_xtrabackup-v2 : mysqltest failed but provided no output
 galera_ist_innodb_flush_logs : mysqltest failed but provided no output
