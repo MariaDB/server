@@ -1143,16 +1143,51 @@ fil_crypt_start_encrypting_space(
 	return pending_op;
 }
 
+/** State of a rotation thread */
+struct rotate_thread_t {
+	explicit rotate_thread_t(uint no) {
+		memset(this, 0, sizeof(* this));
+		thread_no = no;
+		first = true;
+		estimated_max_iops = 20;
+	}
+
+	uint thread_no;
+	bool first;		    /*!< is position before first space */
+	ulint space;		    /*!< current space */
+	ulint offset;		    /*!< current offset */
+	ulint batch;		    /*!< #pages to rotate */
+	uint  min_key_version_found;/*!< min key version found but not rotated */
+	lsn_t end_lsn;		    /*!< max lsn when rotating this space */
+
+	uint estimated_max_iops;   /*!< estimation of max iops */
+	uint allocated_iops;	   /*!< allocated iops */
+	uint cnt_waited;	   /*!< #times waited during this slot */
+	uint sum_waited_us;	   /*!< wait time during this slot */
+
+	fil_crypt_stat_t crypt_stat; // statistics
+
+	btr_scrub_t scrub_data;      /* thread local data used by btr_scrub-functions
+				     * when iterating pages of tablespace */
+
+	/* check if this thread should shutdown */
+	bool should_shutdown() const {
+		return ! (srv_shutdown_state == SRV_SHUTDOWN_NONE &&
+			  thread_no < srv_n_fil_crypt_threads);
+	}
+};
+
 /***********************************************************************
 Check if space needs rotation given a key_state
 @return true if space needs key rotation */
 static
 bool
 fil_crypt_space_needs_rotation(
-	uint			space,		/*!< in: FIL space id */
+	rotate_thread_t*	state,		/*!< in: Key rotation state */
 	key_state_t*		key_state,	/*!< in: Key state */
 	bool*			recheck)	/*!< out: needs recheck ? */
 {
+	ulint space = state->space;
 	if (fil_space_get_type(space) != FIL_TABLESPACE) {
 		return false;
 	}
@@ -1217,10 +1252,14 @@ fil_crypt_space_needs_rotation(
 			crypt_data->min_key_version,
 			key_state->key_version, key_state->rotate_key_age);
 
+		crypt_data->rotate_state.scrubbing.is_active =
+			btr_scrub_start_space(space, &state->scrub_data);
+
 		time_t diff = time(0) - crypt_data->rotate_state.scrubbing.
 			last_scrub_completed;
 		bool need_scrubbing =
-			diff >= srv_background_scrub_data_interval;
+			crypt_data->rotate_state.scrubbing.is_active
+			&& diff >= srv_background_scrub_data_interval;
 
 		if (need_key_rotation == false && need_scrubbing == false)
 			break;
@@ -1238,40 +1277,6 @@ fil_crypt_space_needs_rotation(
 
 	return false;
 }
-
-/** State of a rotation thread */
-struct rotate_thread_t {
-	explicit rotate_thread_t(uint no) {
-		memset(this, 0, sizeof(* this));
-		thread_no = no;
-		first = true;
-		estimated_max_iops = 20;
-	}
-
-	uint thread_no;
-	bool first;		    /*!< is position before first space */
-	ulint space;		    /*!< current space */
-	ulint offset;		    /*!< current offset */
-	ulint batch;		    /*!< #pages to rotate */
-	uint  min_key_version_found;/*!< min key version found but not rotated */
-	lsn_t end_lsn;		    /*!< max lsn when rotating this space */
-
-	uint estimated_max_iops;   /*!< estimation of max iops */
-	uint allocated_iops;	   /*!< allocated iops */
-	uint cnt_waited;	   /*!< #times waited during this slot */
-	uint sum_waited_us;	   /*!< wait time during this slot */
-
-	fil_crypt_stat_t crypt_stat; // statistics
-
-	btr_scrub_t scrub_data;      /* thread local data used by btr_scrub-functions
-				     * when iterating pages of tablespace */
-
-	/* check if this thread should shutdown */
-	bool should_shutdown() const {
-		return ! (srv_shutdown_state == SRV_SHUTDOWN_NONE &&
-			  thread_no < srv_n_fil_crypt_threads);
-	}
-};
 
 /***********************************************************************
 Update global statistics with thread statistics */
@@ -1485,8 +1490,7 @@ fil_crypt_find_space_to_rotate(
 
 	while (!state->should_shutdown() && state->space != ULINT_UNDEFINED) {
 
-		ulint space = state->space;
-		if (fil_crypt_space_needs_rotation(space, key_state, recheck)) {
+		if (fil_crypt_space_needs_rotation(state, key_state, recheck)) {
 			ut_ad(key_state->key_id);
 			/* init state->min_key_version_found before
 			* starting on a space */
@@ -1494,7 +1498,7 @@ fil_crypt_find_space_to_rotate(
 			return true;
 		}
 
-		state->space = fil_get_next_space(space);
+		state->space = fil_get_next_space(state->space);
 	}
 
 	/* if we didn't find any space return iops */
@@ -1540,10 +1544,6 @@ fil_crypt_start_rotate_space(
 	state->end_lsn = crypt_data->rotate_state.end_lsn;
 	state->min_key_version_found =
 		crypt_data->rotate_state.min_key_version_found;
-
-	/* inform scrubbing */
-	crypt_data->rotate_state.scrubbing.is_active =
-		btr_scrub_start_space(space, &state->scrub_data);
 
 	mutex_exit(&crypt_data->mutex);
 }
