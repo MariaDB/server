@@ -203,7 +203,6 @@ fil_space_create_crypt_data(
 		crypt_data->min_key_version = 0;
 	} else {
 		crypt_data->type = CRYPT_SCHEME_1;
-		crypt_data->key_id = key_id;
 		crypt_data->min_key_version = encryption_key_get_latest_version(key_id);
 	}
 
@@ -212,6 +211,7 @@ fil_space_create_crypt_data(
 	crypt_data->locker = crypt_data_scheme_locker;
 	my_random_bytes(crypt_data->iv, sizeof(crypt_data->iv));
 	crypt_data->encryption = FIL_SPACE_ENCRYPTION_DEFAULT;
+	crypt_data->key_id = key_id;
 	return crypt_data;
 }
 
