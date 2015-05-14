@@ -377,7 +377,7 @@ int mysql_update(THD *thd,
   if (conds)
   {
     Item::cond_result cond_value;
-    conds= remove_eq_conds(thd, conds, &cond_value);
+    conds= conds->remove_eq_conds(thd, &cond_value, true);
     if (cond_value == Item::COND_FALSE)
     {
       limit= 0;                                   // Impossible WHERE

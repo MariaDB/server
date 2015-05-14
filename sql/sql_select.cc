@@ -3862,7 +3862,7 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
     COND_EQUAL *orig_cond_equal = join->cond_equal;
 
     conds->update_used_tables();
-    conds= remove_eq_conds(join->thd, conds, &join->cond_value);
+    conds= conds->remove_eq_conds(join->thd, &join->cond_value, true);
     if (conds && conds->type() == Item::COND_ITEM &&
         ((Item_cond*) conds)->functype() == Item_func::COND_AND_FUNC)
       join->cond_equal= &((Item_cond_and*) conds)->m_cond_equal;
@@ -14708,7 +14708,7 @@ optimize_cond(JOIN *join, COND *conds,
       Remove all and-levels where CONST item != CONST item
     */
     DBUG_EXECUTE("where",print_where(conds,"after const change", QT_ORDINARY););
-    conds= remove_eq_conds(thd, conds, cond_value);
+    conds= conds->remove_eq_conds(thd, cond_value, true);
     if (conds && conds->type() == Item::COND_ITEM &&
         ((Item_cond*) conds)->functype() == Item_func::COND_AND_FUNC)
       *cond_equal= &((Item_cond_and*) conds)->m_cond_equal;
@@ -14945,295 +14945,267 @@ bool cond_is_datetime_is_null(Item *cond)
  =>  SELECT * FROM t1 WHERE (b = 5) AND (a = 5)                            
 */
 
-static COND *
-internal_remove_eq_conds(THD *thd, COND *cond, Item::cond_result *cond_value)
+
+COND *
+Item_cond::remove_eq_conds(THD *thd, Item::cond_result *cond_value,
+                           bool top_level)
 {
-  if (cond->type() == Item::COND_ITEM)
+  bool and_level= functype() == Item_func::COND_AND_FUNC;
+  List<Item> *cond_arg_list= argument_list();
+
+  if (and_level)
   {
-    bool and_level= ((Item_cond*) cond)->functype()
-      == Item_func::COND_AND_FUNC;
-    List<Item> *cond_arg_list= ((Item_cond*) cond)->argument_list();
+    /*
+      Remove multiple equalities that became always true (e.g. after
+      constant row substitution).
+      They would be removed later in the function anyway, but the list of
+      them cond_equal.current_level also  must be adjusted correspondingly.
+      So it's easier  to do it at one pass through the list of the equalities.
+    */
+     List<Item_equal> *cond_equalities=
+      &((Item_cond_and *) this)->m_cond_equal.current_level;
+     cond_arg_list->disjoin((List<Item> *) cond_equalities);
+     List_iterator<Item_equal> it(*cond_equalities);
+     Item_equal *eq_item;
+     while ((eq_item= it++))
+     {
+       if (eq_item->const_item() && eq_item->val_int())
+         it.remove();
+     }
+     cond_arg_list->append((List<Item> *) cond_equalities);
+  }
 
-    if (and_level)
+  List<Item_equal> new_equalities;
+  List_iterator<Item> li(*cond_arg_list);
+  bool should_fix_fields= 0;
+  Item::cond_result tmp_cond_value;
+  Item *item;
+
+  /*
+    If the list cond_arg_list became empty then it consisted only
+    of always true multiple equalities.
+  */
+  *cond_value= cond_arg_list->elements ? Item::COND_UNDEF : Item::COND_TRUE;
+
+  while ((item=li++))
+  {
+    Item *new_item= item->remove_eq_conds(thd, &tmp_cond_value, false);
+    if (!new_item)
     {
-      /* 
-        Remove multiple equalities that became always true (e.g. after
-        constant row substitution).
-        They would be removed later in the function anyway, but the list of
-        them cond_equal.current_level also  must be adjusted correspondingly.
-        So it's easier  to do it at one pass through the list of the equalities.
-      */ 
-       List<Item_equal> *cond_equalities=
-        &((Item_cond_and *) cond)->m_cond_equal.current_level;
-       cond_arg_list->disjoin((List<Item> *) cond_equalities);
-       List_iterator<Item_equal> it(*cond_equalities);
-       Item_equal *eq_item;
-       while ((eq_item= it++))
-       {
-         if (eq_item->const_item() && eq_item->val_int())
-           it.remove();
-       }  
-       cond_arg_list->append((List<Item> *) cond_equalities);
+      /* This can happen only when item is converted to TRUE or FALSE */
+      li.remove();
     }
-
-    List<Item_equal> new_equalities;
-    List_iterator<Item> li(*cond_arg_list);
-    bool should_fix_fields= 0;
-    Item::cond_result tmp_cond_value;
-    Item *item;
-
-    /* 
-      If the list cond_arg_list became empty then it consisted only
-      of always true multiple equalities.
-    */ 
-    *cond_value= cond_arg_list->elements ? Item::COND_UNDEF : Item::COND_TRUE;
-
-    while ((item=li++))
+    else if (item != new_item)
     {
-      Item *new_item=internal_remove_eq_conds(thd, item, &tmp_cond_value);
-      if (!new_item)
+      /*
+        This can happen when:
+        - item was an OR formula converted to one disjunct
+        - item was an AND formula converted to one conjunct
+        In these cases the disjunct/conjunct must be merged into the
+        argument list of cond.
+      */
+      if (new_item->type() == Item::COND_ITEM &&
+          item->type() == Item::COND_ITEM)
       {
-        /* This can happen only when item is converted to TRUE or FALSE */
-	li.remove();
-      }
-      else if (item != new_item)
-      {
-        /* 
-          This can happen when:
-          - item was an OR formula converted to one disjunct
-          - item was an AND formula converted to one conjunct
-          In these cases the disjunct/conjunct must be merged into the
-          argument list of cond.
-	*/
-        if (new_item->type() == Item::COND_ITEM &&
-            item->type() == Item::COND_ITEM)
+        DBUG_ASSERT(functype() == ((Item_cond *) new_item)->functype());
+        List<Item> *new_item_arg_list=
+          ((Item_cond *) new_item)->argument_list();
+        if (and_level)
         {
-          DBUG_ASSERT(((Item_cond *) cond)->functype() == 
-                      ((Item_cond *) new_item)->functype());          
-	  List<Item> *new_item_arg_list=
-            ((Item_cond *) new_item)->argument_list();
-          if (and_level)
-	  {
+          /*
+            If new_item is an AND formula then multiple equalities
+            of new_item_arg_list must merged into multiple equalities
+            of cond_arg_list.
+          */
+          List<Item_equal> *new_item_equalities=
+            &((Item_cond_and *) new_item)->m_cond_equal.current_level;
+          if (!new_item_equalities->is_empty())
+          {
             /*
-              If new_item is an AND formula then multiple equalities
-              of new_item_arg_list must merged into multiple equalities
-              of cond_arg_list. 
-	    */
-            List<Item_equal> *new_item_equalities=
-              &((Item_cond_and *) new_item)->m_cond_equal.current_level;
-            if (!new_item_equalities->is_empty())
-	    {
-              /*
-                Cut the multiple equalities from the new_item_arg_list and
-                append them on the list new_equalities. Later the equalities
-                from this list will be merged into the multiple equalities
-                of cond_arg_list all together.
-	      */
-              new_item_arg_list->disjoin((List<Item> *) new_item_equalities);
-              new_equalities.append(new_item_equalities);
-            }
-          }
-          if (new_item_arg_list->is_empty())
-	    li.remove();
-	  else
-	  {
-            uint cnt= new_item_arg_list->elements;
-            li.replace(*new_item_arg_list);
-            /* Make iterator li ignore new items */
-            for (cnt--; cnt; cnt--)
-              li++;
-            should_fix_fields= 1;
+              Cut the multiple equalities from the new_item_arg_list and
+              append them on the list new_equalities. Later the equalities
+              from this list will be merged into the multiple equalities
+              of cond_arg_list all together.
+            */
+            new_item_arg_list->disjoin((List<Item> *) new_item_equalities);
+            new_equalities.append(new_item_equalities);
           }
         }
-        else if (and_level && 
-                 new_item->type() == Item::FUNC_ITEM && 
-                 ((Item_cond*) new_item)->functype() ==
-                  Item_func::MULT_EQUAL_FUNC)
-	{
+        if (new_item_arg_list->is_empty())
           li.remove();
-          new_equalities.push_back((Item_equal *) new_item);
+        else
+        {
+          uint cnt= new_item_arg_list->elements;
+          li.replace(*new_item_arg_list);
+          /* Make iterator li ignore new items */
+          for (cnt--; cnt; cnt--)
+            li++;
+          should_fix_fields= 1;
+        }
+      }
+      else if (and_level &&
+               new_item->type() == Item::FUNC_ITEM &&
+               ((Item_cond*) new_item)->functype() ==
+                Item_func::MULT_EQUAL_FUNC)
+      {
+        li.remove();
+        new_equalities.push_back((Item_equal *) new_item);
+      }
+      else
+      {
+        if (new_item->type() == Item::COND_ITEM &&
+            ((Item_cond*) new_item)->functype() ==  functype())
+        {
+          List<Item> *new_item_arg_list=
+            ((Item_cond *) new_item)->argument_list();
+          uint cnt= new_item_arg_list->elements;
+          li.replace(*new_item_arg_list);
+          /* Make iterator li ignore new items */
+          for (cnt--; cnt; cnt--)
+            li++;
         }
         else
-	{
-          if (new_item->type() == Item::COND_ITEM &&
-              ((Item_cond*) new_item)->functype() == 
-              ((Item_cond*) cond)->functype())
-	  {
-	    List<Item> *new_item_arg_list=
-              ((Item_cond *) new_item)->argument_list();
-            uint cnt= new_item_arg_list->elements;
-            li.replace(*new_item_arg_list);
-            /* Make iterator li ignore new items */
-            for (cnt--; cnt; cnt--)
-              li++;
-          }
-          else
-            li.replace(new_item);
-          should_fix_fields= 1;
-        } 
-      }   
-      if (*cond_value == Item::COND_UNDEF)
-	*cond_value=tmp_cond_value;
-      switch (tmp_cond_value) {
-      case Item::COND_OK:			// Not TRUE or FALSE
-	if (and_level || *cond_value == Item::COND_FALSE)
-	  *cond_value=tmp_cond_value;
-	break;
-      case Item::COND_FALSE:
-	if (and_level)
-	{
-	  *cond_value=tmp_cond_value;
-	  return (COND*) 0;			// Always false
-	}
-	break;
-      case Item::COND_TRUE:
-	if (!and_level)
-	{
-	  *cond_value= tmp_cond_value;
-	  return (COND*) 0;			// Always true
-	}
-	break;
-      case Item::COND_UNDEF:			// Impossible
-	break; /* purecov: deadcode */
+          li.replace(new_item);
+        should_fix_fields= 1;
       }
     }
-    if (!new_equalities.is_empty())
-    {
-      DBUG_ASSERT(and_level);
-      /* 
-        Merge multiple equalities that were cut from the results of 
-        simplification of OR formulas converted into AND formulas.
-        These multiple equalities are to be merged into the
-        multiple equalities of  cond_arg_list.
-      */
-      COND_EQUAL *cond_equal= &((Item_cond_and *) cond)->m_cond_equal;
-      List<Item_equal> *cond_equalities= &cond_equal->current_level;
-      cond_arg_list->disjoin((List<Item> *) cond_equalities);
-      Item_equal *equality;
-      List_iterator_fast<Item_equal> it(new_equalities);
-      while ((equality= it++))
+    if (*cond_value == Item::COND_UNDEF)
+      *cond_value= tmp_cond_value;
+    switch (tmp_cond_value) {
+    case Item::COND_OK:                        // Not TRUE or FALSE
+      if (and_level || *cond_value == Item::COND_FALSE)
+        *cond_value=tmp_cond_value;
+      break;
+    case Item::COND_FALSE:
+      if (and_level)
       {
-	equality->upper_levels= cond_equal->upper_levels;
-        equality->merge_into_list(thd, cond_equalities, false, false);
-        List_iterator_fast<Item_equal> ei(*cond_equalities);
-        while ((equality= ei++))
-	{
-          if (equality->const_item() && !equality->val_int())
-	  {
-            *cond_value= Item::COND_FALSE;
-            return (COND*) 0;
-          }
+        *cond_value= tmp_cond_value;
+        return (COND*) 0;                        // Always false
+      }
+      break;
+    case Item::COND_TRUE:
+      if (!and_level)
+      {
+        *cond_value= tmp_cond_value;
+        return (COND*) 0;                        // Always true
+      }
+      break;
+    case Item::COND_UNDEF:                        // Impossible
+      break; /* purecov: deadcode */
+    }
+  }
+  COND *cond= this;
+  if (!new_equalities.is_empty())
+  {
+    DBUG_ASSERT(and_level);
+    /*
+      Merge multiple equalities that were cut from the results of
+      simplification of OR formulas converted into AND formulas.
+      These multiple equalities are to be merged into the
+      multiple equalities of  cond_arg_list.
+    */
+    COND_EQUAL *cond_equal= &((Item_cond_and *) this)->m_cond_equal;
+    List<Item_equal> *cond_equalities= &cond_equal->current_level;
+    cond_arg_list->disjoin((List<Item> *) cond_equalities);
+    Item_equal *equality;
+    List_iterator_fast<Item_equal> it(new_equalities);
+    while ((equality= it++))
+    {
+      equality->upper_levels= cond_equal->upper_levels;
+      equality->merge_into_list(thd, cond_equalities, false, false);
+      List_iterator_fast<Item_equal> ei(*cond_equalities);
+      while ((equality= ei++))
+      {
+        if (equality->const_item() && !equality->val_int())
+        {
+          *cond_value= Item::COND_FALSE;
+          return (COND*) 0;
         }
       }
-      cond_arg_list->append((List<Item> *) cond_equalities);
-      /* 
-        Propagate the newly formed multiple equalities to
-        the all AND/OR levels of cond 
-      */
-      bool is_simplifiable_cond= false;
-      propagate_new_equalities(thd, cond, cond_equalities,
-                               cond_equal->upper_levels,
-                               &is_simplifiable_cond);
-      /*
-        If the above propagation of multiple equalities brings us
-        to multiple equalities that are always FALSE then try to
-        simplify the condition with remove_eq_cond() again.
-      */ 
-      if (is_simplifiable_cond)
-      {
-        if (!(cond= internal_remove_eq_conds(thd, cond, cond_value)))
-          return cond;
-      } 
-      should_fix_fields= 1;
     }
-    if (should_fix_fields)
-      cond->update_used_tables();
-
-    if (!((Item_cond*) cond)->argument_list()->elements ||
-	*cond_value != Item::COND_OK)
-      return (COND*) 0;
-    if (((Item_cond*) cond)->argument_list()->elements == 1)
-    {						// Remove list
-      item= ((Item_cond*) cond)->argument_list()->head();
-      ((Item_cond*) cond)->argument_list()->empty();
-      return item;
-    }
-  }
-  else if (cond_is_datetime_is_null(cond))
-  {
-    /* fix to replace 'NULL' dates with '0' (shreeve@uci.edu) */
+    cond_arg_list->append((List<Item> *) cond_equalities);
     /*
-      See BUG#12594011
-      Documentation says that
-      SELECT datetime_notnull d FROM t1 WHERE d IS NULL
-      shall return rows where d=='0000-00-00'
-
-      Thus, for DATE and DATETIME columns defined as NOT NULL,
-      "date_notnull IS NULL" has to be modified to
-      "date_notnull IS NULL OR date_notnull == 0" (if outer join)
-      "date_notnull == 0"                         (otherwise)
-
+      Propagate the newly formed multiple equalities to
+      the all AND/OR levels of cond
     */
-    Item **args= ((Item_func_isnull*) cond)->arguments();
-    Field *field=((Item_field*) args[0])->field;
-
-    Item *item0= new(thd->mem_root) Item_int((longlong)0, 1);
-    Item *eq_cond= new(thd->mem_root) Item_func_eq(args[0], item0);
-    if (!eq_cond)
-      return cond;
-
-        if (field->table->pos_in_table_list->is_inner_table_of_outer_join())
+    bool is_simplifiable_cond= false;
+    propagate_new_equalities(thd, this, cond_equalities,
+                             cond_equal->upper_levels,
+                             &is_simplifiable_cond);
+    /*
+      If the above propagation of multiple equalities brings us
+      to multiple equalities that are always FALSE then try to
+      simplify the condition with remove_eq_cond() again.
+    */
+    if (is_simplifiable_cond)
     {
-      // outer join: transform "col IS NULL" to "col IS NULL or col=0"
-      Item *or_cond= new(thd->mem_root) Item_cond_or(eq_cond, cond);
-      if (!or_cond)
+      if (!(cond= cond->remove_eq_conds(thd, cond_value, false)))
         return cond;
-      cond= or_cond;
     }
-    else
-    {
-      // not outer join: transform "col IS NULL" to "col=0"
-      cond= eq_cond;
-    }
-
-    cond->fix_fields(thd, &cond);
-
-    if (cond->const_item() && !cond->is_expensive())
-    {
-      *cond_value= eval_const_cond(cond) ? Item::COND_TRUE : Item::COND_FALSE;
-      return (COND*) 0;
-    }
+    should_fix_fields= 1;
   }
-  else if (cond->const_item() && !cond->is_expensive())
+  if (should_fix_fields)
+    cond->update_used_tables();
+
+  if (!((Item_cond*) cond)->argument_list()->elements ||
+      *cond_value != Item::COND_OK)
+    return (COND*) 0;
+  if (((Item_cond*) cond)->argument_list()->elements == 1)
+  {                                                // Remove list
+    item= ((Item_cond*) cond)->argument_list()->head();
+    ((Item_cond*) cond)->argument_list()->empty();
+    return item;
+  }
+  *cond_value= Item::COND_OK;
+  return cond;
+}
+
+
+COND *
+Item::remove_eq_conds(THD *thd, Item::cond_result *cond_value, bool top_level)
+{
+  if (const_item() && !is_expensive())
   {
-    *cond_value= eval_const_cond(cond) ? Item::COND_TRUE : Item::COND_FALSE;
+    *cond_value= eval_const_cond(this) ? Item::COND_TRUE : Item::COND_FALSE;
     return (COND*) 0;
   }
-  else if ((*cond_value= cond->eq_cmp_result()) != Item::COND_OK)
-  {						// boolan compare function
-    Item *left_item=	((Item_func*) cond)->arguments()[0];
-    Item *right_item= ((Item_func*) cond)->arguments()[1];
-    if (left_item->eq(right_item,1))
+  *cond_value= Item::COND_OK;
+  return this;                                        // Point at next and level
+}
+
+
+COND *
+Item_bool_func2::remove_eq_conds(THD *thd, Item::cond_result *cond_value,
+                                 bool top_level)
+{
+  if (const_item() && !is_expensive())
+  {
+    *cond_value= eval_const_cond(this) ? Item::COND_TRUE : Item::COND_FALSE;
+    return (COND*) 0;
+  }
+  if ((*cond_value= eq_cmp_result()) != Item::COND_OK)
+  {
+    if (args[0]->eq(args[1], true))
     {
-      if (!left_item->maybe_null ||
-	  ((Item_func*) cond)->functype() == Item_func::EQUAL_FUNC)
-	return (COND*) 0;			// Compare of identical items
+      if (!args[0]->maybe_null || functype() == Item_func::EQUAL_FUNC)
+        return (COND*) 0;                       // Compare of identical items
     }
   }
-  *cond_value=Item::COND_OK;
-  return cond;					// Point at next and level
+  *cond_value= Item::COND_OK;
+  return this;                                  // Point at next and level
 }
+
 
 /**
   Remove const and eq items. Return new item, or NULL if no condition
   cond_value is set to according:
   COND_OK    query is possible (field = constant)
-  COND_TRUE  always true	( 1 = 1 )
-  COND_FALSE always false	( 1 = 2 )
+  COND_TRUE  always true       ( 1 = 1 )
+  COND_FALSE always false      ( 1 = 2 )
 
   SYNPOSIS
     remove_eq_conds()
-    thd 			THD environment
+    thd                         THD environment
     cond                        the condition to handle
     cond_value                  the resulting value of the condition
 
@@ -15245,11 +15217,66 @@ internal_remove_eq_conds(THD *thd, COND *cond, Item::cond_result *cond_value)
 */
 
 COND *
-remove_eq_conds(THD *thd, COND *cond, Item::cond_result *cond_value)
+Item_func_isnull::remove_eq_conds(THD *thd, Item::cond_result *cond_value,
+                                  bool top_level)
 {
-  if (cond->type() == Item::FUNC_ITEM &&
-      ((Item_func*) cond)->functype() == Item_func::ISNULL_FUNC)
+  if (args[0]->type() == Item::FIELD_ITEM)
   {
+    Field *field= ((Item_field*) args[0])->field;
+
+    if (((field->type() == MYSQL_TYPE_DATE) ||
+         (field->type() == MYSQL_TYPE_DATETIME)) &&
+         (field->flags & NOT_NULL_FLAG))
+    {
+      /* fix to replace 'NULL' dates with '0' (shreeve@uci.edu) */
+      /*
+        See BUG#12594011
+        Documentation says that
+        SELECT datetime_notnull d FROM t1 WHERE d IS NULL
+        shall return rows where d=='0000-00-00'
+
+        Thus, for DATE and DATETIME columns defined as NOT NULL,
+        "date_notnull IS NULL" has to be modified to
+        "date_notnull IS NULL OR date_notnull == 0" (if outer join)
+        "date_notnull == 0"                         (otherwise)
+
+      */
+
+      Item *item0= new(thd->mem_root) Item_int((longlong)0, 1);
+      Item *eq_cond= new(thd->mem_root) Item_func_eq(args[0], item0);
+      if (!eq_cond)
+        return this;
+
+      COND *cond= this;
+      if (field->table->pos_in_table_list->is_inner_table_of_outer_join())
+      {
+        // outer join: transform "col IS NULL" to "col IS NULL or col=0"
+        Item *or_cond= new(thd->mem_root) Item_cond_or(eq_cond, this);
+        if (!or_cond)
+          return this;
+        cond= or_cond;
+      }
+      else
+      {
+        // not outer join: transform "col IS NULL" to "col=0"
+        cond= eq_cond;
+      }
+
+      cond->fix_fields(thd, &cond);
+      /*
+        Note: although args[0] is a field, cond can still be a constant
+        (in case field is a part of a dependent subquery).
+
+        Note: we call cond->Item::remove_eq_conds() non-virtually (statically)
+        for performance purpose.
+        A non-qualified call, i.e. just cond->remove_eq_conds(),
+        would call Item_bool_func2::remove_eq_conds() instead, which would
+        try to do some extra job to detect if args[0] and args[1] are
+        equivalent items. We know they are not (we have field=0 here).
+      */
+      return cond->Item::remove_eq_conds(thd, cond_value, false);
+    }
+
     /*
       Handles this special case for some ODBC applications:
       The are requesting the row that was just updated with a auto_increment
@@ -15258,35 +15285,37 @@ remove_eq_conds(THD *thd, COND *cond, Item::cond_result *cond_value)
       SELECT * from table_name where auto_increment_column IS NULL
       This will be changed to:
       SELECT * from table_name where auto_increment_column = LAST_INSERT_ID
+
+      Note, this substitution is done if the NULL test is the only condition!
+      If the NULL test is a part of a more complex condition, it is not
+      substituted and is treated normally:
+        WHERE auto_increment IS NULL AND something_else
     */
 
-    Item_func_isnull *func=(Item_func_isnull*) cond;
-    Item **args= func->arguments();
-    if (args[0]->type() == Item::FIELD_ITEM)
+    if (top_level) // "auto_increment_column IS NULL" is the only condition
     {
-      Field *field=((Item_field*) args[0])->field;
       if (field->flags & AUTO_INCREMENT_FLAG && !field->table->maybe_null &&
-	  (thd->variables.option_bits & OPTION_AUTO_IS_NULL) &&
-	  (thd->first_successful_insert_id_in_prev_stmt > 0 &&
+          (thd->variables.option_bits & OPTION_AUTO_IS_NULL) &&
+          (thd->first_successful_insert_id_in_prev_stmt > 0 &&
            thd->substitute_null_with_insert_id))
       {
-#ifdef HAVE_QUERY_CACHE
-	query_cache_abort(&thd->query_cache_tls);
-#endif
-	COND *new_cond;
-	if ((new_cond= new Item_func_eq(args[0],
-					new Item_int("last_insert_id()",
+  #ifdef HAVE_QUERY_CACHE
+        query_cache_abort(&thd->query_cache_tls);
+  #endif
+        COND *new_cond, *cond= this;
+        if ((new_cond= new Item_func_eq(args[0],
+                                        new Item_int("last_insert_id()",
                                                      thd->read_first_successful_insert_id_in_prev_stmt(),
                                                      MY_INT64_NUM_DECIMAL_DIGITS))))
-	{
-	  cond=new_cond;
+        {
+          cond= new_cond;
           /*
             Item_func_eq can't be fixed after creation so we do not check
             cond->fixed, also it do not need tables so we use 0 as second
             argument.
           */
-	  cond->fix_fields(thd, &cond);
-	}
+          cond->fix_fields(thd, &cond);
+        }
         /*
           IS NULL should be mapped to LAST_INSERT_ID only for first row, so
           clear for next row
@@ -15298,7 +15327,7 @@ remove_eq_conds(THD *thd, COND *cond, Item::cond_result *cond_value)
       }
     }
   }
-  return internal_remove_eq_conds(thd, cond, cond_value); // Scan all the condition
+  return Item::remove_eq_conds(thd, cond_value, top_level);
 }
 
 

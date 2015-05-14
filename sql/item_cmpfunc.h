@@ -409,6 +409,8 @@ public:
     Item_bool_func::cleanup();
     cmp.cleanup();
   }
+  COND *remove_eq_conds(THD *thd, Item::cond_result *cond_value,
+                        bool top_level);
 
   friend class  Arg_comparator;
 };
@@ -1467,6 +1469,8 @@ public:
       const_item_cache= args[0]->const_item();
     }
   }
+  COND *remove_eq_conds(THD *thd, Item::cond_result *cond_value,
+                        bool top_level);
   table_map not_null_tables() const { return 0; }
   Item *neg_transformer(THD *thd);
 };
@@ -1775,6 +1779,8 @@ public:
   COND *build_equal_items(THD *thd, COND_EQUAL *inherited,
                           bool link_item_fields,
                           COND_EQUAL **cond_equal_ref);
+  COND *remove_eq_conds(THD *thd, Item::cond_result *cond_value,
+                        bool top_level);
   virtual void print(String *str, enum_query_type query_type);
   void split_sum_func(THD *thd, Item **ref_pointer_array, List<Item> &fields);
   friend int setup_conds(THD *thd, TABLE_LIST *tables, TABLE_LIST *leaves,

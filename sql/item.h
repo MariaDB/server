@@ -1135,6 +1135,8 @@ public:
     DBUG_ASSERT(!cond_equal_ref || !cond_equal_ref[0]);
     return this;
   }
+  virtual COND *remove_eq_conds(THD *thd, Item::cond_result *cond_value,
+                                bool top_level);
   /*
     Checks whether the item is:
     - a simple equality (field=field_item or field=constant_item), or
