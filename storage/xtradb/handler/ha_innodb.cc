@@ -612,6 +612,10 @@ ib_cb_t innodb_api_cb[] = {
 	(ib_cb_t) ib_cursor_stmt_begin
 };
 
+
+static void innodb_remember_check_sysvar_funcs();
+mysql_var_check_func check_sysvar_enum;
+
 static MYSQL_THDVAR_UINT(default_encryption_key_id, PLUGIN_VAR_RQCMDARG,
 			 "Default encryption key id used for table encryption.",
 			 NULL, NULL,
@@ -719,6 +723,17 @@ Check for a valid value of innobase_compression_algorithm.
 static
 int
 innodb_compression_algorithm_validate(
+/*==================================*/
+	THD*				thd,	/*!< in: thread handle */
+	struct st_mysql_sys_var*	var,	/*!< in: pointer to system
+						variable */
+	void*				save,	/*!< out: immediate result
+						for update function */
+	struct st_mysql_value*		value);	/*!< in: incoming string */
+
+static
+int
+innodb_encrypt_tables_validate(
 /*==================================*/
 	THD*				thd,	/*!< in: thread handle */
 	struct st_mysql_sys_var*	var,	/*!< in: pointer to system
@@ -3502,6 +3517,8 @@ innobase_init(
         innobase_hton->get_checkpoint=innobase_wsrep_get_checkpoint;
         innobase_hton->fake_trx_id=wsrep_fake_trx_id;
 #endif /* WITH_WSREP */
+
+	innodb_remember_check_sysvar_funcs();
 
 	ut_a(DATA_MYSQL_TRUE_VARCHAR == (ulint)MYSQL_TYPE_VARCHAR);
 
@@ -20347,8 +20364,9 @@ static TYPELIB srv_encrypt_tables_typelib = {
 static MYSQL_SYSVAR_ENUM(encrypt_tables, srv_encrypt_tables,
 			 PLUGIN_VAR_OPCMDARG,
 			 "Enable encryption for tables. "
-                         "Don't forget to enable --innodb-encrypt-log too",
-			 NULL, NULL, 0, &srv_encrypt_tables_typelib);
+			 "Don't forget to enable --innodb-encrypt-log too",
+			 innodb_encrypt_tables_validate, NULL, 0,
+			 &srv_encrypt_tables_typelib);
 
 static MYSQL_SYSVAR_UINT(encryption_threads, srv_n_fil_crypt_threads,
 			 PLUGIN_VAR_RQCMDARG,
@@ -21326,4 +21344,38 @@ innodb_compression_algorithm_validate(
 	}
 #endif
 	DBUG_RETURN(0);
+}
+
+static
+int
+innodb_encrypt_tables_validate(
+/*=================================*/
+	THD*				thd,	/*!< in: thread handle */
+	struct st_mysql_sys_var*	var,	/*!< in: pointer to system
+						variable */
+	void*				save,	/*!< out: immediate result
+						for update function */
+	struct st_mysql_value*		value)	/*!< in: incoming string */
+{
+	if (check_sysvar_enum(thd, var, save, value))
+		return 1;
+
+	long encrypt_tables = *(long*)save;
+
+	if (encrypt_tables
+	    && !encryption_key_id_exists(FIL_DEFAULT_ENCRYPTION_KEY)) {
+		push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+				    HA_ERR_UNSUPPORTED,
+				    "InnoDB: cannot enable encryption, "
+		                    "encryption plugin is not available");
+		return 1;
+	}
+	return 0;
+}
+
+static void innodb_remember_check_sysvar_funcs()
+{
+	/* remember build-in sysvar check functions */
+	ut_ad((MYSQL_SYSVAR_NAME(checksum_algorithm).flags & 0x1FF) == PLUGIN_VAR_ENUM);
+	check_sysvar_enum = MYSQL_SYSVAR_NAME(checksum_algorithm).check;
 }
