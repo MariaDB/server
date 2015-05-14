@@ -71,8 +71,6 @@ static int block_crypt(CipherMode cipher, Dir dir,
 {
   int tail= source_length % MY_AES_BLOCK_SIZE;
 
-  DBUG_ASSERT(source_length);
-
   if (likely(source_length >= MY_AES_BLOCK_SIZE || !no_padding))
   {
 #ifdef HAVE_YASSL
@@ -139,28 +137,31 @@ static int block_crypt(CipherMode cipher, Dir dir,
 #endif
   }
 
-  if (no_padding && tail)
+  if (no_padding)
   {
-    /*
-      Not much we can do, block ciphers cannot encrypt data that aren't
-      a multiple of the block length. At least not without padding.
-      Let's do something CTR-like for the last partial block.
-    */
+    if (tail)
+    {
+      /*
+        Not much we can do, block ciphers cannot encrypt data that aren't
+        a multiple of the block length. At least not without padding.
+        Let's do something CTR-like for the last partial block.
+      */
 
-    uchar mask[MY_AES_BLOCK_SIZE];
-    uint mlen;
+      uchar mask[MY_AES_BLOCK_SIZE];
+      uint mlen;
 
-    DBUG_ASSERT(iv_length >= sizeof(mask));
-    my_aes_encrypt_ecb(iv, sizeof(mask), mask, &mlen,
-                       key, key_length, 0, 0, 1);
-    DBUG_ASSERT(mlen == sizeof(mask));
+      DBUG_ASSERT(iv_length >= sizeof(mask));
+      my_aes_encrypt_ecb(iv, sizeof(mask), mask, &mlen,
+                         key, key_length, 0, 0, 1);
+      DBUG_ASSERT(mlen == sizeof(mask));
 
-    const uchar *s= source + source_length - tail;
-    const uchar *e= source + source_length;
-    uchar *d= dest + source_length - tail;
-    const uchar *m= mask;
-    while (s < e)
-      *d++ = *s++ ^ *m++;
+      const uchar *s= source + source_length - tail;
+      const uchar *e= source + source_length;
+      uchar *d= dest + source_length - tail;
+      const uchar *m= mask;
+      while (s < e)
+        *d++ = *s++ ^ *m++;
+    }
     *dest_length= source_length;
   }
 
