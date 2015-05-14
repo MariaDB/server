@@ -21261,33 +21261,11 @@ innodb_compression_algorithm_validate(
 	long		compression_algorithm;
 	DBUG_ENTER("innobase_compression_algorithm_validate");
 
-	if (value->value_type(value) == MYSQL_VALUE_TYPE_STRING) {
-		char buff[STRING_BUFFER_USUAL_SIZE];
-		const char *str;
-		int length= sizeof(buff);
-
-		if (!(str= value->val_str(value, buff, &length))) {
-			DBUG_RETURN(1);
-		}
-
-		if ((compression_algorithm= (long)find_type(str, &page_compression_algorithms_typelib, 0) - 1) < 0) {
-			DBUG_RETURN(1);
-		}
-	} else {
-		long long tmp;
-
-		if (value->val_int(value, &tmp)) {
-			DBUG_RETURN(1);
-		}
-
-		if (tmp < 0 || tmp >= page_compression_algorithms_typelib.count) {
-			DBUG_RETURN(1);
-		}
-
-		compression_algorithm= (long) tmp;
+	if (check_sysvar_enum(thd, var, save, value)) {
+		DBUG_RETURN(1);
 	}
 
-	*reinterpret_cast<ulong*>(save) = compression_algorithm;
+	compression_algorithm = *reinterpret_cast<ulong*>(save);
 
 #ifndef HAVE_LZ4
 	if (compression_algorithm == PAGE_LZ4_ALGORITHM) {
