@@ -141,13 +141,12 @@ fil_space_set_crypt_data(
 	fil_space_crypt_t* crypt_data); /*!< in: crypt data to set */
 
 /*********************************************************************
-Compare crypt data*/
-UNIV_INTERN
-int
-fil_space_crypt_compare(
+Merge crypt data */
+void
+fil_space_merge_crypt_data(
 /*======================*/
-	const fil_space_crypt_t* crypt_data1,  /*!< in: crypt data */
-	const fil_space_crypt_t* crypt_data2); /*!< in: crypt data */
+	fil_space_crypt_t* dst_crypt_data,  /*!< in: crypt_data */
+	const fil_space_crypt_t* src_crypt_data); /*!< in: crypt data */
 
 /*********************************************************************
 Read crypt data from buffer page */

@@ -6862,7 +6862,7 @@ fil_space_set_crypt_data(
 	fil_space_crypt_t* crypt_data) /*!< in: crypt data */
 {
 	fil_space_t*	space;
-	fil_space_crypt_t* old_crypt_data = NULL;
+	fil_space_crypt_t* free_crypt_data = NULL;
 
 	ut_ad(fil_system);
 
@@ -6872,24 +6872,24 @@ fil_space_set_crypt_data(
 
 	if (space != NULL) {
 		if (space->crypt_data != NULL) {
-			ut_a(!fil_space_crypt_compare(crypt_data,
-						      space->crypt_data));
-			old_crypt_data = space->crypt_data;
+			fil_space_merge_crypt_data(space->crypt_data,
+						   crypt_data);
+			free_crypt_data = crypt_data;
+		} else {
+			space->crypt_data = crypt_data;
 		}
-
-		space->crypt_data = crypt_data;
 	} else {
 		/* there is a small risk that tablespace has been deleted */
-		old_crypt_data = crypt_data;
+		free_crypt_data = crypt_data;
 	}
 
 	mutex_exit(&fil_system->mutex);
 
-	if (old_crypt_data != NULL) {
-		/* first assign space->crypt_data
-		* then destroy old_crypt_data when no new references to
-		* it can be created.
+	if (free_crypt_data != NULL) {
+		/* there was already crypt data present and the new crypt
+		* data provided as argument to this function has been merged
+		* into that => free new crypt data
 		*/
-		fil_space_destroy_crypt_data(&old_crypt_data);
+		fil_space_destroy_crypt_data(&free_crypt_data);
 	}
 }

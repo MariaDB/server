@@ -216,25 +216,31 @@ fil_space_create_crypt_data(
 }
 
 /******************************************************************
-Compare two crypt objects */
+Merge fil_space_crypt_t object */
 UNIV_INTERN
-int
-fil_space_crypt_compare(
+void
+fil_space_merge_crypt_data(
 /*====================*/
-	const fil_space_crypt_t* crypt_data1,/*!< in: Crypt data */
-	const fil_space_crypt_t* crypt_data2)/*!< in: Crypt data */
+	fil_space_crypt_t* dst,/*!< out: Crypt data */
+	const fil_space_crypt_t* src)/*!< in: Crypt data */
 {
-	ut_a(crypt_data1->type == CRYPT_SCHEME_UNENCRYPTED ||
-	     crypt_data1->type == CRYPT_SCHEME_1);
+	mutex_enter(&dst->mutex);
 
-	ut_a(crypt_data2->type == CRYPT_SCHEME_UNENCRYPTED ||
-	     crypt_data2->type == CRYPT_SCHEME_1);
+	/* validate that they are mergeable */
+	ut_a(src->type == CRYPT_SCHEME_UNENCRYPTED ||
+	     src->type == CRYPT_SCHEME_1);
+
+	ut_a(dst->type == CRYPT_SCHEME_UNENCRYPTED ||
+	     dst->type == CRYPT_SCHEME_1);
 
 	/* no support for changing iv (yet?) */
-	ut_a(memcmp(crypt_data1->iv, crypt_data2->iv,
-		    sizeof(crypt_data1->iv)) == 0);
+	ut_a(memcmp(src->iv, dst->iv, sizeof(src->iv)) == 0);
 
-	return 0;
+	dst->type = src->type;
+	dst->min_key_version = src->min_key_version;
+	dst->keyserver_requests += src->keyserver_requests;
+
+	mutex_exit(&dst->mutex);
 }
 
 /******************************************************************
