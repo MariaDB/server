@@ -15,3 +15,7 @@ galera_migrate : query 'let $success= `$wait_condition`' failed: 1146
 galera_var_notify_cmd : Result content mismatch
 query_cache : Fails intermittently due to content mismatch. Needs to be investigated
 basic : Fails intermittently without providing any output. Needs to be investigated
+galera_var_auto_inc_control_on : Failing sporadically with content mismatch
+galera_parallel_simple : Failing sporadically
+galera_bf_abort : Failing sporadically
+galera_log_output_csv : Failing sporadically

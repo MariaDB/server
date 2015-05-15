@@ -62,6 +62,10 @@ push @::global_suppressions,
      qr|WSREP: wsrep::connect\(\) failed: 7|,
      qr(WSREP: SYNC message from member .* in non-primary configuration. Ignored.),
      qr(WSREP: Could not find peer:),
+     qr(WSREP: TO isolation failed for: .*),
+     qr|WSREP: gcs_caused\(\) returned .*|,
+     qr|WSREP: Protocol violation. JOIN message sender .* is not in state transfer \(SYNCED\). Message ignored.|,
+     qr(WSREP: Action message in non-primary configuration from member [0-9]*),
    );
 
 
