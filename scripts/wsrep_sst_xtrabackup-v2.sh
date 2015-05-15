@@ -550,7 +550,7 @@ setup_ports
 get_stream
 get_transfer
 
-if ${INNOBACKUPEX_BIN} /tmp --help  | grep -q -- '--version-check'; then 
+if ${INNOBACKUPEX_BIN} /tmp --help  | grep -- '--version-check' >/dev/null ; then 
     disver="--no-version-check"
 fi
 
