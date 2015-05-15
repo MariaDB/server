@@ -322,7 +322,7 @@ int TABDEF::GetColCatInfo(PGLOBAL g)
 
     if ((nof= cdp->Define(g, NULL, pcf, poff)) < 0)
       return -1;						 // Error, probably unhandled type
-		else if (nof)
+		else
 			loff= cdp->GetOffset();
 
 		switch (tc) {
@@ -334,15 +334,23 @@ int TABDEF::GetColCatInfo(PGLOBAL g)
 					// Field width is the internal representation width
 					// that can also depend on the column format
 					switch (cdp->Fmt ? *cdp->Fmt : 'X') {
+						case 'X':  nof= cdp->Clen;
 						case 'C':         break;
 						case 'R':
 						case 'F':
-						case 'L':
+//					case 'L':
 						case 'I':	nof= 4; break;
 						case 'D':	nof= 8; break;
 						case 'S':	nof= 2; break;
 						case 'T':	nof= 1; break;
-						default:  nof= cdp->Clen;
+						default:  /* New format */
+              for (nof= 0, i= 0; cdp->Fmt[i]; i++)
+                if (isdigit(cdp->Fmt[i]))
+                  nof= (nof * 10 + (cdp->Fmt[i] - 48));
+
+              if (!nof)
+                nof= cdp->Clen;
+
 						} // endswitch Fmt
 
       default:
@@ -745,7 +753,8 @@ int COLDEF::Define(PGLOBAL g, void *, PCOLINFO cfp, int poff)
     if (cfp->Datefmt)
       Decode = (PSZ)PlugDup(g, cfp->Datefmt);
 
-    } // endif special
+  } else
+    Offset = poff;
 
   if (cfp->Fieldfmt)
     Fmt = (PSZ)PlugDup(g, cfp->Fieldfmt);

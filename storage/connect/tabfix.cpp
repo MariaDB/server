@@ -377,8 +377,8 @@ BINCOL::BINCOL(PGLOBAL g, PCOLDEF cdp, PTDB tp, PCOL cp, int i, PSZ am)
   char *fmt = cdp->GetFmt();
 
   Buff = NULL;
-  M = GetTypeSize(Buf_Type, Long);
-  Lim = M;
+  M = GetTypeSize(Buf_Type, sizeof(longlong));
+  Lim = 0;
 
   if (fmt) {
     Fmt = 'H';
@@ -396,7 +396,7 @@ BINCOL::BINCOL(PGLOBAL g, PCOLDEF cdp, PTDB tp, PCOL cp, int i, PSZ am)
     } else if (Fmt == 'L' || Fmt == 'B' || Fmt == 'H') {
       // This is a new format
       if (!N)
-        N = GetTypeSize(Buf_Type, 0);
+        N = GetTypeSize(Buf_Type, Long);
 
       if (Fmt == 'H')
         Fmt = Endian;
@@ -440,23 +440,6 @@ void BINCOL::SetEndian(void)
   } // end of SetEndian
 
 /***********************************************************************/
-/*  Copy according to Endian settings and sizes.                       */
-/***********************************************************************/
-void BINCOL::NumCpy(char *from, char *to)
-  {
-  for (int i = 0; i < Lim; i++)
-    if (Fmt == 'B' && Endian == 'L')
-      to[i] = from[N - i - 1];
-    else if (Fmt == 'L' && Endian == 'B')
-      to[N - i - 1] = from[i];
-    else if (Endian == 'B')
-      to[M - i - 1] = from[N - i - 1];
-    else
-      to[i] = from[i];
-
-  } // end of NumCpy
-
-/***********************************************************************/
 /*  ReadColumn: what this routine does is to access the last line      */
 /*  read from the corresponding table and extract from it the field    */
 /*  corresponding to this column.                                      */
@@ -488,8 +471,21 @@ void BINCOL::ReadColumn(PGLOBAL g)
   /*  Set Value from the line field.                                   */
   /*********************************************************************/
   if (N) {
-    NumCpy(p, Buff);
-    Value->SetBinValue(Buff);
+    for (int i = 0; i < Lim; i++)
+      if (Fmt == 'B' && Endian == 'L')
+        Buff[i] = p[N - i - 1];
+      else if (Fmt == 'L' && Endian == 'B')
+        Buff[M - i - 1] = p[i];
+      else if (Endian == 'B')
+        Buff[M - i - 1] = p[N - i - 1];
+      else
+        Buff[i] = p[i];
+
+    if (IsTypeChar(Buf_Type))
+      Value->SetValue(*(longlong*)Buff);
+    else
+      Value->SetBinValue(Buff);
+
   } else switch (Fmt) {
     case 'X':                 // Standard not converted values
       Value->SetBinValue(p);
@@ -565,14 +561,24 @@ void BINCOL::WriteColumn(PGLOBAL g)
   /*  Conversion occurs if the external format Fmt is specified.       */
   /*********************************************************************/
   if (N) {
-    if (Value->GetBinValue(Buff, M, Status)) {
+    if (IsTypeChar(Buf_Type))
+      *(longlong *)Buff = Value->GetBigintValue();
+    else if (Value->GetBinValue(Buff, M, Status)) {
       sprintf(g->Message, MSG(BIN_F_TOO_LONG),
                           Name, Value->GetSize(), M);
       longjmp(g->jumper[g->jump_level], 31);
       } // endif Buff
 
     if (Status)
-      NumCpy(Buff, p);
+      for (int i = 0; i < Lim; i++)
+        if (Fmt == 'B' && Endian == 'L')
+          p[N - i - 1] = Buff[i];
+        else if (Fmt == 'L' && Endian == 'B')
+          p[i] = Buff[M - i - 1];
+        else if (Endian == 'B')
+          p[N - i - 1] = Buff[M - i - 1];
+        else
+          p[i] = Buff[i];
 
   } else switch (Fmt) {
     case 'X':
@@ -619,7 +625,7 @@ void BINCOL::WriteColumn(PGLOBAL g)
       break;
     case 'B':                 // Large (big) integer
       if (Status)
-        *(longlong *)p = (longlong)Value->GetBigintValue();
+        *(longlong *)p = Value->GetBigintValue();
 
       break;
     case 'F':                 // Float

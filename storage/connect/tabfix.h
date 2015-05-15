@@ -1,7 +1,7 @@
 /*************** TabDos H Declares Source Code File (.H) ***************/
-/*  Name: TABFIX.H    Version 2.3                                      */
+/*  Name: TABFIX.H    Version 2.4                                      */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          1999-2012    */
+/*  (C) Copyright to the author Olivier BERTRAND          1999-2015    */
 /*                                                                     */
 /*  This file contains the TDBFIX and (FIX/BIN)COL classes declares.   */
 /***********************************************************************/
@@ -12,7 +12,7 @@
 
 typedef class FIXCOL *PFIXCOL;
 typedef class BINCOL *PBINCOL;
-typedef class TXTFAM      *PTXF;
+typedef class TXTFAM *PTXF;
 
 /***********************************************************************/
 /*  This is the DOS/UNIX Access Method class declaration for files     */
@@ -68,17 +68,19 @@ class DllExport BINCOL : public DOSCOL {
   BINCOL(BINCOL *colp, PTDB tdbp);  // Constructor used in copy process
 
   // Implementation
-  virtual int    GetAmType(void) {return TYPE_AM_BIN;}
+  virtual int  GetAmType(void) {return TYPE_AM_BIN;}
+          int  GetDeplac(void) {return Deplac;}
+          int  GetFileSize(void) 
+               {return N ? N : GetTypeSize(Buf_Type, Long);}
 
   // Methods
-  virtual void   ReadColumn(PGLOBAL g);
-  virtual void   WriteColumn(PGLOBAL g);
+  virtual void ReadColumn(PGLOBAL g);
+  virtual void WriteColumn(PGLOBAL g);
 
   // Static
-  static  void   SetEndian(void); 
+  static  void SetEndian(void); 
 
  protected:
-          void   NumCpy(char *from, char *to);
   BINCOL(void) {}    // Default constructor not to be used
 
   // Members
@@ -86,8 +88,8 @@ class DllExport BINCOL : public DOSCOL {
   char *Buff;                 // Utility buffer
   char  Fmt;                  // The file endian setting or old format
   int   N;                    // The number of bytes in the file
-  int   M;                    // The column type size
-  int   Lim;                  // Used in NumCpy
+  int   M;                    // The buffer type size
+  int   Lim;                  // Min(N,M)
   }; // end of class BINCOL
 
 /***********************************************************************/
