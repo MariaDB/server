@@ -2917,17 +2917,10 @@ case SQLCOM_PREPARE:
         if (create_info.options & HA_LEX_CREATE_TMP_TABLE)
           thd->variables.option_bits|= OPTION_KEEP_LOG;
 
-#ifdef WITH_WSREP
-        if (WSREP(thd) &&
-            (!thd->is_current_stmt_binlog_format_row() ||
-             !(create_info.options & HA_LEX_CREATE_TMP_TABLE)))
-          WSREP_TO_ISOLATION_BEGIN(create_table->db, create_table->table_name,
-                                   NULL)
-#endif
-
         /*
           select_create is currently not re-execution friendly and
           needs to be created for every execution of a PS/SP.
+          Note: In wsrep-patch, CTAS is handled like a regular transaction.
         */
         if ((result= new select_create(create_table,
                                        &create_info,
