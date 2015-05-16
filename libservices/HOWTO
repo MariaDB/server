@@ -67,6 +67,8 @@ it should also declare all the accompanying data structures, as necessary
 3. add the new file to include/mysql/services.h
 4. increase the minor plugin ABI version in include/mysql/plugin.h
    (MARIA_PLUGIN_INTERFACE_VERSION = MARIA_PLUGIN_INTERFACE_VERSION+1)
+   don't forget to update test result! e.g. use something like
+   grep '\s\<1\.11\>' -r mysql-test
 5. add the version of your service to include/service_versions.h:
 ==================================================================
     #define VERSION_foo 0x0100
