@@ -364,7 +364,6 @@ typedef struct st_dynamic_string
 } DYNAMIC_STRING;
 
 struct st_io_cache;
-typedef int (*IO_CACHE_CALLBACK)(struct st_io_cache*);
 
 typedef struct st_io_cache_share
 {
@@ -461,22 +460,11 @@ typedef struct st_io_cache		/* Used when cacheing files */
   */
   enum cache_type type;
   /*
-    Callbacks when the actual read I/O happens. These were added and
-    are currently used for binary logging of LOAD DATA INFILE - when a
-    block is read from the file, we create a block create/append event, and
-    when IO_CACHE is closed, we create an end event. These functions could,
-    of course be used for other things
-  */
-  IO_CACHE_CALLBACK pre_read;
-  IO_CACHE_CALLBACK post_read;
-  IO_CACHE_CALLBACK pre_close;
-  /*
     Counts the number of times, when we were forced to use disk. We use it to
     increase the binlog_cache_disk_use and binlog_stmt_cache_disk_use status
     variables.
   */
   ulong disk_writes;
-  void* arg;				/* for use by pre/post_read */
   char *file_name;			/* if used with 'open_cached_file' */
   const char *dir;
   char prefix[3];

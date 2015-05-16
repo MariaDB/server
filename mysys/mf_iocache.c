@@ -1,5 +1,6 @@
 /*
    Copyright (c) 2000, 2011, Oracle and/or its affiliates
+   Copyright (c) 2010, 2015, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -157,8 +158,6 @@ int init_io_cache(IO_CACHE *info, File file, size_t cachesize,
   info->file= file;
   info->type= TYPE_NOT_SET;	    /* Don't set it until mutex are created */
   info->pos_in_file= seek_offset;
-  info->pre_close = info->pre_read = info->post_read = 0;
-  info->arg = 0;
   info->alloced_buffer = 0;
   info->buffer=0;
   info->seek_not_done= 0;
@@ -1500,13 +1499,8 @@ int _my_b_async_read(register IO_CACHE *info, uchar *Buffer, size_t Count)
 int _my_b_get(IO_CACHE *info)
 {
   uchar buff;
-  IO_CACHE_CALLBACK pre_read,post_read;
-  if ((pre_read = info->pre_read))
-    (*pre_read)(info);
   if ((*(info)->read_function)(info,&buff,1))
     return my_b_EOF;
-  if ((post_read = info->post_read))
-    (*post_read)(info);
   return (int) (uchar) buff;
 }
 
@@ -1821,7 +1815,6 @@ int my_b_flush_io_cache(IO_CACHE *info,
 int end_io_cache(IO_CACHE *info)
 {
   int error=0;
-  IO_CACHE_CALLBACK pre_close;
   DBUG_ENTER("end_io_cache");
   DBUG_PRINT("enter",("cache: 0x%lx", (ulong) info));
 
@@ -1831,11 +1824,6 @@ int end_io_cache(IO_CACHE *info)
   */
   DBUG_ASSERT(!info->share || !info->share->total_threads);
 
-  if ((pre_close=info->pre_close))
-  {
-    (*pre_close)(info);
-    info->pre_close= 0;
-  }
   if (info->alloced_buffer)
   {
     info->alloced_buffer=0;

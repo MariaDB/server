@@ -4119,20 +4119,20 @@ err:
    @retval 0 success
    @retval 1 failure
 */
-int log_loaded_block(IO_CACHE* file)
+int log_loaded_block(IO_CACHE* file, uchar *Buffer, size_t Count)
 {
   DBUG_ENTER("log_loaded_block");
-  LOAD_FILE_INFO *lf_info;
+  LOAD_FILE_IO_CACHE *lf_info= static_cast<LOAD_FILE_IO_CACHE*>(file);
   uint block_len;
   /* buffer contains position where we started last read */
   uchar* buffer= (uchar*) my_b_get_buffer_start(file);
-  uint max_event_size= current_thd->variables.max_allowed_packet;
-  lf_info= (LOAD_FILE_INFO*) file->arg;
+  uint max_event_size= lf_info->thd->variables.max_allowed_packet;
+
   if (lf_info->thd->is_current_stmt_binlog_format_row())
-    DBUG_RETURN(0);
+    goto ret;
   if (lf_info->last_pos_in_file != HA_POS_ERROR &&
       lf_info->last_pos_in_file >= my_b_get_pos_in_file(file))
-    DBUG_RETURN(0);
+    goto ret;
   
   for (block_len= (uint) (my_b_get_bytes_in_buffer(file)); block_len > 0;
        buffer += MY_MIN(block_len, max_event_size),
@@ -4158,7 +4158,9 @@ int log_loaded_block(IO_CACHE* file)
       lf_info->wrote_create_file= 1;
     }
   }
-  DBUG_RETURN(0);
+ret:
+  int res= Buffer ? lf_info->real_read_function(file, Buffer, Count) : 0;
+  DBUG_RETURN(res);
 }
 
 
