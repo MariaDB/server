@@ -30,6 +30,8 @@ SET GLOBAL innodb_simulate_comp_failures = 25;
 --disable_result_log
 
 let $num_inserts_ind = $num_inserts;
+let $commit_iterations=50;
+
 while ($num_inserts_ind)
 {
   let $repeat = `select floor(rand() * 10)`;
@@ -49,6 +51,9 @@ SELECT COUNT(*) FROM t1;
 
 # do random ops, making sure that some pages will get fragmented and reorganized.
 let $num_ops_ind = $num_ops;
+let $commit_count= $commit_iterations;
+
+BEGIN;
 
 while($num_ops_ind)
 {
@@ -133,8 +138,18 @@ while($num_ops_ind)
     }
   }
 
+  dec $commit_count;
+  if (!$commit_count)
+  {
+    let $commit_count= $commit_iterations;
+    COMMIT;
+    BEGIN;
+  }
+
   dec $num_ops_ind;
 }
+
+COMMIT;
 
 # final cleanup
 DROP TABLE t1;

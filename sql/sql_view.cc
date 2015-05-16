@@ -1283,6 +1283,11 @@ bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *table,
   */
   table->open_type= OT_BASE_ONLY;
 
+  /*
+    Clear old variables in the TABLE_LIST that could be left from an old view
+  */
+  table->merged_for_insert= FALSE;
+
   /*TODO: md5 test here and warning if it is differ */
 
 
