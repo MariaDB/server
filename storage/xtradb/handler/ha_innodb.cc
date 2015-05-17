@@ -3604,7 +3604,7 @@ innobase_init(
 			goto error;
 		}
 	}
-	
+
 #ifndef HAVE_LZ4
 	if (innodb_compression_algorithm == PAGE_LZ4_ALGORITHM) {
 		sql_print_error("InnoDB: innodb_compression_algorithm = %lu unsupported.\n"
@@ -18746,6 +18746,7 @@ which control InnoDB "status monitor" output to the error log.
 static
 void
 innodb_status_output_update(
+/*========================*/
 	THD*				thd __attribute__((unused)),
 	struct st_mysql_sys_var*	var __attribute__((unused)),
 	void*				var_ptr __attribute__((unused)),
@@ -18761,7 +18762,7 @@ Update the system variable innodb_encryption_threads */
 static
 void
 innodb_encryption_threads_update(
-/*=========================*/
+/*=============================*/
 	THD*				thd,	/*!< in: thread handle */
 	struct st_mysql_sys_var*	var,	/*!< in: pointer to
 						system variable */
@@ -18778,7 +18779,7 @@ Update the system variable innodb_encryption_rotate_key_age */
 static
 void
 innodb_encryption_rotate_key_age_update(
-/*=========================*/
+/*====================================*/
 	THD*				thd,	/*!< in: thread handle */
 	struct st_mysql_sys_var*	var,	/*!< in: pointer to
 						system variable */
@@ -18795,7 +18796,7 @@ Update the system variable innodb_encryption_rotation_iops */
 static
 void
 innodb_encryption_rotation_iops_update(
-/*=========================*/
+/*===================================*/
 	THD*				thd,	/*!< in: thread handle */
 	struct st_mysql_sys_var*	var,	/*!< in: pointer to
 						system variable */
@@ -18805,6 +18806,23 @@ innodb_encryption_rotation_iops_update(
 						from check function */
 {
 	fil_crypt_set_rotation_iops(*static_cast<const uint*>(save));
+}
+
+/******************************************************************
+Update the system variable innodb_encrypt_tables*/
+static
+void
+innodb_encrypt_tables_update(
+/*=========================*/
+	THD*                            thd,    /*!< in: thread handle */
+	struct st_mysql_sys_var*        var,    /*!< in: pointer to
+						system variable */
+	void*                           var_ptr,/*!< out: where the
+						formal string goes */
+	const void*                     save)   /*!< in: immediate result
+						from check function */
+{
+	fil_crypt_set_encrypt_tables(*static_cast<const uint*>(save));
 }
 
 static SHOW_VAR innodb_status_variables_export[]= {
@@ -20365,7 +20383,9 @@ static MYSQL_SYSVAR_ENUM(encrypt_tables, srv_encrypt_tables,
 			 PLUGIN_VAR_OPCMDARG,
 			 "Enable encryption for tables. "
 			 "Don't forget to enable --innodb-encrypt-log too",
-			 innodb_encrypt_tables_validate, NULL, 0,
+			 NULL,
+			 innodb_encrypt_tables_update,
+			 0,
 			 &srv_encrypt_tables_typelib);
 
 static MYSQL_SYSVAR_UINT(encryption_threads, srv_n_fil_crypt_threads,

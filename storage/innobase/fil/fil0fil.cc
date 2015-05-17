@@ -6857,7 +6857,7 @@ Get crypt data for a tablespace */
 UNIV_INTERN
 void
 fil_space_set_crypt_data(
-/*==================*/
+/*=====================*/
 	ulint id, 	               /*!< in: space id */
 	fil_space_crypt_t* crypt_data) /*!< in: crypt data */
 {
@@ -6872,18 +6872,25 @@ fil_space_set_crypt_data(
 
 	if (space != NULL) {
 		if (space->crypt_data != NULL) {
+			/* Here we need to release fil_system mutex to
+			avoid mutex deadlock assertion. Here we would
+			taje mutexes in order fil_system, crypt_data and
+			in fil_crypt_start_encrypting_space we would
+			take them in order crypt_data, fil_system
+			at fil_space_get_flags -> fil_space_get_space */
+			mutex_exit(&fil_system->mutex);
 			fil_space_merge_crypt_data(space->crypt_data,
 						   crypt_data);
 			free_crypt_data = crypt_data;
 		} else {
 			space->crypt_data = crypt_data;
+			mutex_exit(&fil_system->mutex);
 		}
 	} else {
 		/* there is a small risk that tablespace has been deleted */
 		free_crypt_data = crypt_data;
+		mutex_exit(&fil_system->mutex);
 	}
-
-	mutex_exit(&fil_system->mutex);
 
 	if (free_crypt_data != NULL) {
 		/* there was already crypt data present and the new crypt

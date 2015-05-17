@@ -4225,6 +4225,7 @@ buf_page_io_complete(
 	buf_pool_t*	buf_pool = buf_pool_from_bpage(bpage);
 	const ibool	uncompressed = (buf_page_get_state(bpage)
 					== BUF_BLOCK_FILE_PAGE);
+	fil_space_t*	space = NULL;
 
 	ut_a(buf_page_in_file(bpage));
 
@@ -4323,12 +4324,18 @@ buf_page_io_complete(
 				goto page_not_corrupt;
 				;);
 corrupt:
+			fil_system_enter();
+			space = fil_space_get_by_id(bpage->space);
+			fil_system_exit();
+
 			fprintf(stderr,
 				"InnoDB: Database page corruption on disk"
 				" or a failed\n"
-				"InnoDB: file read of page %lu.\n"
+				"InnoDB: space %lu file %s read of page %lu.\n"
 				"InnoDB: You may have to recover"
 				" from a backup.\n",
+				bpage->space,
+				space ? space->name : "NULL",
 				(ulong) bpage->offset);
 			buf_page_print(frame, buf_page_get_zip_size(bpage),
 				       BUF_PAGE_PRINT_NO_CRASH);

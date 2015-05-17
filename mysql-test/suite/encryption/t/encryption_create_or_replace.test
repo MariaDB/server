@@ -1,0 +1,25 @@
+--source include/have_innodb.inc
+
+#
+# MDEV-8164: Server crashes in pfs_mutex_enter_func after fil_crypt_is_closing or alike
+#
+SET default_storage_engine = InnoDB;
+
+CREATE TABLE t1 (pk INT PRIMARY KEY, c VARCHAR(256));
+CREATE TABLE t2 AS SELECT * FROM t1;
+
+let $i = 40;
+while ($i)
+{
+SET GLOBAL innodb_encrypt_tables = ON;
+SET GLOBAL innodb_encryption_threads = 1;
+CREATE OR REPLACE TABLE t1 AS SELECT * FROM t2;
+CREATE OR REPLACE TABLE t2 AS SELECT * FROM t1;
+SET GLOBAL innodb_encryption_rotation_iops = 100;
+SET GLOBAL innodb_encrypt_tables = OFF;
+CREATE OR REPLACE TABLE t2 AS SELECT * FROM t1;
+CREATE OR REPLACE TABLE t1 AS SELECT * FROM t2;
+dec $i;
+}
+drop table t1,t2;
+SET GLOBAL innodb_encryption_threads = 0;
