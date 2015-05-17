@@ -551,7 +551,7 @@ static int parse_input_file(const char *file_name, struct errors **top_error,
       tail_error= &current_error->next_error;
       continue;
     }
-    if (*str == '#' || *str == '\n')
+    if (*str == '#' || *str == '\n' || *str == '\r')
       continue;                      	/* skip comment or empty lines */
 
     fprintf(stderr, "Wrong input file format. Stop!\nLine: %s\n", str);
