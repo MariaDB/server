@@ -333,7 +333,7 @@ int TABDEF::GetColCatInfo(PGLOBAL g)
 				if (nof)
 					// Field width is the internal representation width
 					// that can also depend on the column format
-					switch (cdp->Fmt ? *cdp->Fmt : 'X') {
+          switch (cdp->Fmt ? *cdp->Fmt : cdp->Decode ? 'C' : 'X') {
 						case 'X':  nof= cdp->Clen;
 						case 'C':         break;
 						case 'R':
@@ -346,7 +346,7 @@ int TABDEF::GetColCatInfo(PGLOBAL g)
 						default:  /* New format */
               for (nof= 0, i= 0; cdp->Fmt[i]; i++)
                 if (isdigit(cdp->Fmt[i]))
-                  nof= (nof * 10 + (cdp->Fmt[i] - 48));
+                  nof= (nof * 10 + (cdp->Fmt[i] - '0'));
 
               if (!nof)
                 nof= cdp->Clen;
@@ -377,20 +377,16 @@ int TABDEF::GetColCatInfo(PGLOBAL g)
 		// not specified (for instance if quoted is specified)
 //	if ((ending= Hc->GetIntegerOption("Ending")) < 0) {
 		if ((ending= Hc->GetIntegerOption("Ending")) <= 0) {
-#if defined(WIN32)
-			ending= 2;
-#else
-			ending= 1;
-#endif
+      ending= (tc == TAB_BIN || tc == TAB_VEC) ? 0 : CRLF;
 			Hc->SetIntegerOption("Ending", ending);
 			} // endif ending
 
 		// Calculate the default record size
 		switch (tc) {
       case TAB_FIX:
+      case TAB_BIN:
         recln= nlg + ending;     // + length of line ending
         break;
-      case TAB_BIN:
       case TAB_VEC:
         recln= nlg;
 	

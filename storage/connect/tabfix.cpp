@@ -385,7 +385,7 @@ BINCOL::BINCOL(PGLOBAL g, PCOLDEF cdp, PTDB tp, PCOL cp, int i, PSZ am)
 
     for (N = 0, i = 0; fmt[i]; i++)
       if (isdigit(fmt[i]))
-        N = (N * 10 + (fmt[i] - 48));
+        N = (N * 10 + (fmt[i] - '0'));
       else
         Fmt = toupper(fmt[i]);
 
@@ -408,7 +408,7 @@ BINCOL::BINCOL(PGLOBAL g, PCOLDEF cdp, PTDB tp, PCOL cp, int i, PSZ am)
 
   } else {
     N = 0;
-    Fmt = 'X';
+    Fmt = GetDomain() ? 'C' : 'X';
   } // endif fmt
 
   } // end of BINCOL constructor

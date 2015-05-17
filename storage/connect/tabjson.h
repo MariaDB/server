@@ -57,6 +57,7 @@ class JSONDEF : public DOSDEF {                   /* Table description */
   int   Limit;                  /* Limit of multiple values            */
   int   Pretty;                 /* Depends on file structure           */
   int   Level;                  /* Used for catalog table              */
+  int   Base;                   /* Tne array index base                */
   bool  Strict;                 /* Strict syntax checking              */
   }; // end of JSONDEF
 
@@ -84,7 +85,7 @@ class TDBJSN : public TDBDOS {
   virtual PCOL  MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n);
   virtual PCOL  InsertSpecialColumn(PCOL colp);
   virtual int   RowNumber(PGLOBAL g, bool b = FALSE)
-                 {return (b) ? N : Fpos + 1;}
+                 {return (b) ? M : N;}
 
   // Database routines
   virtual int   Cardinality(PGLOBAL g);
@@ -106,13 +107,14 @@ class TDBJSN : public TDBDOS {
   char *Objname;                   // The table object name
   char *Xcol;                      // Name of expandable column
   int   Fpos;                      // The current row index
-//int   Spos;                      // DELETE start index
   int   N;                         // The current Rownum
+  int   M;                         // Index of multiple value
 	int   Limit;		    				     // Limit of multiple values
   int   Pretty;                    // Depends on file structure
   int   NextSame;                  // Same next row
   int   SameRow;                   // Same row nb
   int   Xval;                      // Index of expandable array
+  int   B;                         // Array index base
   bool  Strict;                    // Strict syntax checking
   bool  Comma;                     // Row has final comma
   }; // end of class TDBJSN
