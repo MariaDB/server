@@ -863,7 +863,7 @@ bool JSONCOL::SetArrayOptions(PGLOBAL g, char *p, int i, PSZ nm)
     else if (jnp->Op != OP_EXP) {
       if (b) {
         // Return 1st value (B is the index base)
-        jnp->Rank = 1 - Tjp->B;
+        jnp->Rank = Tjp->B;
         jnp->Op = OP_EQ;
       } else if (!Value->IsTypeNum()) {
         jnp->CncVal = AllocateValue(g, (void*)", ", TYPE_STRING);
