@@ -2667,7 +2667,7 @@ void var_query_set(VAR *var, const char *query, const char** query_end)
     report_or_die("Query '%s' didn't return a result set", ds_query.str);
     dynstr_free(&ds_query);
     eval_expr(var, "", 0);
-    return;
+    DBUG_VOID_RETURN;
   }
   dynstr_free(&ds_query);
 

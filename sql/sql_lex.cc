@@ -524,13 +524,14 @@ void lex_start(THD *thd)
   lex->allow_sum_func= 0;
   lex->in_sum_func= NULL;
 
-  lex->is_lex_started= TRUE;
   lex->used_tables= 0;
   lex->reset_slave_info.all= false;
   lex->limit_rows_examined= 0;
   lex->limit_rows_examined_cnt= ULONGLONG_MAX;
   lex->var_list.empty();
   lex->stmt_var_list.empty();
+
+  lex->is_lex_started= TRUE;
   DBUG_VOID_RETURN;
 }
 
@@ -2642,7 +2643,7 @@ void Query_tables_list::destroy_query_tables_list()
 LEX::LEX()
   : explain(NULL),
     result(0), arena_for_set_stmt(0), mem_root_for_set_stmt(0),
-    option_type(OPT_DEFAULT), sphead(0),
+    option_type(OPT_DEFAULT), context_analysis_only(0), sphead(0),
     is_lex_started(0), limit_rows_examined_cnt(ULONGLONG_MAX)
 {
 
