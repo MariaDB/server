@@ -42,6 +42,8 @@
 #include "sql_derived.h"
 #include "sql_show.h"
 
+extern "C" int _my_b_net_read(IO_CACHE *info, uchar *Buffer, size_t Count);
+
 class XML_TAG {
 public:
   int level;

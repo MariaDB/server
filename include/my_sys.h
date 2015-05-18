@@ -285,7 +285,7 @@ enum cache_type
 {
   TYPE_NOT_SET= 0, READ_CACHE, WRITE_CACHE,
   SEQ_READ_APPEND		/* sequential read or append */,
-  READ_FIFO, READ_NET,WRITE_NET};
+  READ_FIFO, READ_NET};
 
 enum flush_type
 {
@@ -517,14 +517,12 @@ extern my_error_reporter my_charset_error_reporter;
 #define my_b_read(info,Buffer,Count) \
   ((info)->read_pos + (Count) <= (info)->read_end ?\
    (memcpy(Buffer,(info)->read_pos,(size_t) (Count)), \
-    ((info)->read_pos+=(Count)),0) :\
-   (*(info)->read_function)((info),Buffer,Count))
+    ((info)->read_pos+=(Count)), 0) : _my_b_read((info), (Buffer), (Count)))
 
 #define my_b_write(info,Buffer,Count) \
  ((info)->write_pos + (Count) <=(info)->write_end ?\
   (memcpy((info)->write_pos, (Buffer), (size_t)(Count)),\
-   ((info)->write_pos+=(Count)),0) : \
-   (*(info)->write_function)((info),(uchar *)(Buffer),(Count)))
+   ((info)->write_pos+=(Count)), 0) : _my_b_write((info), (Buffer), (Count)))
 
 #define my_b_get(info) \
   ((info)->read_pos != (info)->read_end ?\
@@ -535,10 +533,7 @@ extern my_error_reporter my_charset_error_reporter;
 #define my_b_write_byte(info,chr) \
   (((info)->write_pos < (info)->write_end) ?\
    ((*(info)->write_pos++)=(chr)) :\
-   (_my_b_write(info,0,0) , ((*(info)->write_pos++)=(chr))))
-
-#define my_b_fill_cache(info) \
-  (((info)->read_end=(info)->read_pos),(*(info)->read_function)(info,0,0))
+   ((my_b_flush_io_cache(info, 1)), ((*(info)->write_pos++)=(chr))))
 
 #define my_b_tell(info) ((info)->pos_in_file + \
 			 (size_t) (*(info)->current_pos - (info)->request_pos))
@@ -741,18 +736,15 @@ void my_store_ptr(uchar *buff, size_t pack_length, my_off_t pos);
 my_off_t my_get_ptr(uchar *ptr, size_t pack_length);
 extern int init_io_cache(IO_CACHE *info,File file,size_t cachesize,
 			 enum cache_type type,my_off_t seek_offset,
-			 pbool use_async_io, myf cache_myflags);
+			 my_bool use_async_io, myf cache_myflags);
 extern my_bool reinit_io_cache(IO_CACHE *info,enum cache_type type,
-			       my_off_t seek_offset,pbool use_async_io,
-			       pbool clear_cache);
+			       my_off_t seek_offset, my_bool use_async_io,
+			       my_bool clear_cache);
 extern void setup_io_cache(IO_CACHE* info);
 extern int _my_b_read(IO_CACHE *info,uchar *Buffer,size_t Count);
-extern int _my_b_read_r(IO_CACHE *info,uchar *Buffer,size_t Count);
 extern void init_io_cache_share(IO_CACHE *read_cache, IO_CACHE_SHARE *cshare,
                                 IO_CACHE *write_cache, uint num_threads);
 extern void remove_io_thread(IO_CACHE *info);
-extern int _my_b_seq_read(IO_CACHE *info,uchar *Buffer,size_t Count);
-extern int _my_b_net_read(IO_CACHE *info,uchar *Buffer,size_t Count);
 extern int _my_b_get(IO_CACHE *info);
 extern int _my_b_async_read(IO_CACHE *info,uchar *Buffer,size_t Count);
 extern int _my_b_write(IO_CACHE *info,const uchar *Buffer,size_t Count);

@@ -53,7 +53,7 @@ int unique_write_to_file(uchar* key, element_count count, Unique *unique)
 int unique_write_to_file_with_count(uchar* key, element_count count, Unique *unique)
 {
   return my_b_write(&unique->file, key, unique->size) ||
-         my_b_write(&unique->file, &count, sizeof(element_count)) ? 1 : 0;
+         my_b_write(&unique->file, (uchar*)&count, sizeof(element_count)) ? 1 : 0;
 }
 
 int unique_write_to_ptrs(uchar* key, element_count count, Unique *unique)
@@ -694,7 +694,6 @@ bool Unique::merge(TABLE *table, uchar *buff, bool without_last_merge)
        open_cached_file(outfile,mysql_tmpdir,TEMP_PREFIX,READ_RECORD_BUFFER,
                         MYF(MY_WME))))
     return 1;
-  reinit_io_cache(outfile,WRITE_CACHE,0L,0,0);
 
   Sort_param sort_param; 
   bzero((char*) &sort_param,sizeof(sort_param));

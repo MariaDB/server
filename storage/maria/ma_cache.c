@@ -81,7 +81,7 @@ my_bool _ma_read_cache(MARIA_HA *handler, IO_CACHE *info, uchar *buff,
     }
     else
       info->read_pos=info->read_end;			/* All block used */
-    if (!(*info->read_function)(info,buff,length))
+    if (!_my_b_read(info,buff,length))
       DBUG_RETURN(0);
     read_length=info->error;
   }

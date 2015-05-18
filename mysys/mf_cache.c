@@ -20,11 +20,12 @@
 #include "my_static.h"
 #include "mysys_err.h"
 
-	/*
-	  Remove an open tempfile so that it doesn't survive
-	  if we crash;	If the operating system doesn't support
-	  this, just remember the file name for later removal
-	*/
+/**
+  Remove an open tempfile so that it doesn't survive if we crash
+
+  If the operating system doesn't support this, just remember
+  the file name for later removal
+*/
 
 static my_bool cache_remove_open_tmp(IO_CACHE *cache __attribute__((unused)),
 				     const char *name)
@@ -49,14 +50,14 @@ static my_bool cache_remove_open_tmp(IO_CACHE *cache __attribute__((unused)),
   return 0;
 }
 
-	/*
-	** Open tempfile cached by IO_CACHE
-	** Should be used when no seeks are done (only reinit_io_buff)
-	** Return 0 if cache is inited ok
-	** The actual file is created when the IO_CACHE buffer gets filled
-	** If dir is not given, use TMPDIR.
-	*/
+/**
+  Open tempfile cached by IO_CACHE
 
+  Should be used when no seeks are done (only reinit_io_buff)
+  Return 0 if cache is inited ok
+  The actual file is created when the IO_CACHE buffer gets filled
+  If dir is not given, use TMPDIR.
+*/
 my_bool open_cached_file(IO_CACHE *cache, const char* dir, const char *prefix,
                          size_t cache_size, myf cache_myflags)
 {
@@ -71,7 +72,7 @@ my_bool open_cached_file(IO_CACHE *cache, const char* dir, const char *prefix,
     cache->prefix[0]= 0;
   cache->file_name=0;
   cache->buffer=0;				/* Mark that not open */
-  if (!init_io_cache(cache,-1,cache_size,WRITE_CACHE,0L,0,
+  if (!init_io_cache(cache, -1, cache_size, WRITE_CACHE, 0L, 0,
 		     MYF(cache_myflags | MY_NABP)))
   {
     DBUG_RETURN(0);
@@ -79,8 +80,9 @@ my_bool open_cached_file(IO_CACHE *cache, const char* dir, const char *prefix,
   DBUG_RETURN(1);
 }
 
-	/* Create the temporary file */
-
+/**
+  Create the temporary file
+*/
 my_bool real_open_cached_file(IO_CACHE *cache)
 {
   char name_buff[FN_REFLEN];

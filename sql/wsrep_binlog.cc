@@ -458,7 +458,7 @@ void wsrep_dump_rbr_buf_with_header(THD *thd, const void *rbr_buf,
     goto cleanup2;
   }
 
-  if (ev->write(&cache) || my_b_write(&cache, rbr_buf, buf_len) ||
+  if (ev->write(&cache) || my_b_write(&cache, (uchar*)rbr_buf, buf_len) ||
       flush_io_cache(&cache))
   {
     WSREP_ERROR("Failed to write to '%s'.", filename);

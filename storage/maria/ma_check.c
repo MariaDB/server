@@ -4021,8 +4021,9 @@ int maria_repair_by_sort(HA_CHECK *param, register MARIA_HA *info,
       share->state.state.data_file_length=sort_param.max_pos;
 
     param->read_cache.file= info->dfile.file;	/* re-init read cache */
-    reinit_io_cache(&param->read_cache,READ_CACHE,share->pack.header_length,
-                    1,1);
+    if (share->data_file_type != BLOCK_RECORD)
+      reinit_io_cache(&param->read_cache, READ_CACHE,
+                      share->pack.header_length, 1, 1);
   }
 
   if (param->testflag & T_WRITE_LOOP)

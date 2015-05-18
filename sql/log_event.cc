@@ -51,7 +51,7 @@
 #include "rpl_utility.h"
 #include "sql_digest.h"
 
-#define my_b_write_string(A, B) my_b_write((A), (B), (uint) (sizeof(B) - 1))
+#define my_b_write_string(A, B) my_b_write((A), (uchar*)(B), (uint) (sizeof(B) - 1))
 
 using std::max;
 
@@ -353,13 +353,13 @@ static void pretty_print_str(IO_CACHE* cache, const char* str, int len)
   {
     char c;
     switch ((c=*str++)) {
-    case '\n': my_b_write(cache, "\\n", 2); break;
-    case '\r': my_b_write(cache, "\\r", 2); break;
-    case '\\': my_b_write(cache, "\\\\", 2); break;
-    case '\b': my_b_write(cache, "\\b", 2); break;
-    case '\t': my_b_write(cache, "\\t", 2); break;
-    case '\'': my_b_write(cache, "\\'", 2); break;
-    case 0   : my_b_write(cache, "\\0", 2); break;
+    case '\n': my_b_write(cache, (uchar*)"\\n", 2); break;
+    case '\r': my_b_write(cache, (uchar*)"\\r", 2); break;
+    case '\\': my_b_write(cache, (uchar*)"\\\\", 2); break;
+    case '\b': my_b_write(cache, (uchar*)"\\b", 2); break;
+    case '\t': my_b_write(cache, (uchar*)"\\t", 2); break;
+    case '\'': my_b_write(cache, (uchar*)"\\'", 2); break;
+    case 0   : my_b_write(cache, (uchar*)"\\0", 2); break;
     default:
       my_b_write_byte(cache, c);
       break;
@@ -755,7 +755,7 @@ static void print_set_option(IO_CACHE* file, uint32 bits_changed,
   if (bits_changed & option)
   {
     if (*need_comma)
-      my_b_write(file, ", ", 2);
+      my_b_write(file, (uchar*)", ", 2);
     my_b_printf(file, "%s=%d", name, MY_TEST(flags & option));
     *need_comma= 1;
   }
@@ -1797,7 +1797,7 @@ static void hexdump_minimal_header_to_io_cache(IO_CACHE *file,
 
   DBUG_ASSERT(static_cast<size_t>(emit_buf_written) < sizeof(emit_buf));
   my_b_write(file, reinterpret_cast<uchar*>(emit_buf), emit_buf_written);
-  my_b_write(file, "#\n", 2);
+  my_b_write(file, (uchar*)"#\n", 2);
 }
 
 
@@ -1913,7 +1913,7 @@ static void hexdump_data_to_io_cache(IO_CACHE *file,
     my_b_write(file, reinterpret_cast<uchar*>(emit_buffer),
                c - emit_buffer);
   }
-  my_b_write(file, "#\n", 2);
+  my_b_write(file, (uchar*)"#\n", 2);
 }
 
 /*
@@ -1970,7 +1970,7 @@ void Log_event::print_header(IO_CACHE* file,
       Prefix the next line so that the output from print_helper()
       will appear as a comment.
     */
-    my_b_write(file, "# Event: ", 9);
+    my_b_write(file, (uchar*)"# Event: ", 9);
   }
   DBUG_VOID_RETURN;
 }
@@ -1996,9 +1996,9 @@ my_b_write_quoted(IO_CACHE *file, const uchar *ptr, uint length)
     if (*s > 0x1F)
       my_b_write_byte(file, *s);
     else if (*s == '\'')
-      my_b_write(file, "\\'", 2);
+      my_b_write(file, (uchar*)"\\'", 2);
     else if (*s == '\\')
-      my_b_write(file, "\\\\", 2);
+      my_b_write(file, (uchar*)"\\\\", 2);
     else
     {
       uchar hex[10];
@@ -2021,7 +2021,7 @@ static void
 my_b_write_bit(IO_CACHE *file, const uchar *ptr, uint nbits)
 {
   uint bitnum, nbits8= ((nbits + 7) / 8) * 8, skip_bits= nbits8 - nbits;
-  my_b_write(file, "b'", 2);
+  my_b_write(file, (uchar*)"b'", 2);
   for (bitnum= skip_bits ; bitnum < nbits8; bitnum++)
   {
     int is_set= (ptr[(bitnum) / 8] >> (7 - bitnum % 8))  & 0x01;
@@ -2158,7 +2158,7 @@ log_event_print_value(IO_CACHE *file, const uchar *ptr,
       size_t length;
       longlong si= sint8korr(ptr);
       length= (longlong10_to_str(si, tmp, -10) - tmp);
-      my_b_write(file, tmp, length);
+      my_b_write(file, (uchar*)tmp, length);
       if (si < 0)
       {
         ulonglong ui= uint8korr(ptr);
@@ -2187,7 +2187,7 @@ log_event_print_value(IO_CACHE *file, const uchar *ptr,
         pos+= sprintf(pos, "%09d.", dec.buf[i]);
       pos+= sprintf(pos, "%09d", dec.buf[i]);
       length= (uint) (pos - buff);
-      my_b_write(file, buff, length);
+      my_b_write(file, (uchar*)buff, length);
       my_snprintf(typestr, typestr_length, "DECIMAL(%d,%d)",
                   precision, decimals);
       return bin_size;
@@ -2239,7 +2239,7 @@ log_event_print_value(IO_CACHE *file, const uchar *ptr,
       struct timeval tm;
       my_timestamp_from_binary(&tm, ptr, meta);
       int buflen= my_timeval_to_str(&tm, buf, meta);
-      my_b_write(file, buf, buflen);
+      my_b_write(file, (uchar*)buf, buflen);
       my_snprintf(typestr, typestr_length, "TIMESTAMP(%d)", meta);
       return my_timestamp_binary_length(meta);
     }
@@ -2477,7 +2477,7 @@ Rows_log_event::print_verbose_one_row(IO_CACHE *file, table_def *td,
 
     if (print_event_info->verbose > 1)
     {
-      my_b_write(file, " /* ", 4);
+      my_b_write(file, (uchar*)" /* ", 4);
 
       if (typestr[0])
         my_b_printf(file, "%s ", typestr);
@@ -2487,7 +2487,7 @@ Rows_log_event::print_verbose_one_row(IO_CACHE *file, table_def *td,
       my_b_printf(file, "meta=%d nullable=%d is_null=%d ",
                   td->field_metadata(i),
                   td->maybe_null(i), is_null);
-      my_b_write(file, "*/", 2);
+      my_b_write(file, (uchar*)"*/", 2);
     }
     
     my_b_write_byte(file, '\n');

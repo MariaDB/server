@@ -294,7 +294,7 @@ sql_create_definition_file(const LEX_STRING *dir, const LEX_STRING *file_name,
   if (my_b_append(&file, (const uchar *)STRING_WITH_LEN("TYPE=")) ||
       my_b_append(&file, (const uchar *)type->str, type->length) ||
       my_b_append(&file, (const uchar *)STRING_WITH_LEN("\n")))
-    goto err_w_file;
+    goto err_w_cache;
 
   // write parameters to temporary file
   for (param= parameters; param->name.str; param++)
