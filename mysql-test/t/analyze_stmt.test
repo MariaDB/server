@@ -258,3 +258,18 @@ insert into t2 values (0),(1);
 analyze select * from t1 straight_join t2 force index(a) where t2.a=t1.a;
 
 drop table t1,t2;
+
+--echo #
+--echo # MDEV-8063: Unconditional ANALYZE DELETE does not delete rows
+--echo #
+
+create table t1 (i int);
+insert into t1 values (1),(2);
+analyze delete from t1;
+select * from t1;
+
+insert into t1 values (1),(2);
+explain delete from t1;
+select * from t1;
+
+drop table t1;

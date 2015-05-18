@@ -347,8 +347,6 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
     DBUG_PRINT("debug", ("Trying to use delete_all_rows()"));
 
     query_plan.set_delete_all_rows(maybe_deleted);
-    if (thd->lex->describe || thd->lex->analyze_stmt)
-      goto produce_explain_and_leave;
 
     if (!(error=table->file->ha_delete_all_rows()))
     {
@@ -359,6 +357,7 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
       query_type= THD::STMT_QUERY_TYPE;
       error= -1;
       deleted= maybe_deleted;
+      query_plan.save_explain_delete_data(thd->mem_root, thd);
       goto cleanup;
     }
     if (error != HA_ERR_WRONG_COMMAND)
@@ -698,9 +697,8 @@ cleanup:
   if (error < 0 || 
       (thd->lex->ignore && !thd->is_error() && !thd->is_fatal_error))
   {
-    if (thd->lex->analyze_stmt)
+    if (thd->lex->describe || thd->lex->analyze_stmt)
     {
-      error= 0;
       goto send_nothing_and_leave;
     }
 
