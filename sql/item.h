@@ -59,6 +59,9 @@ struct TABLE_LIST;
 void item_init(void);			/* Init item functions */
 class Item_field;
 class user_var_entry;
+class JOIN;
+struct KEY_FIELD;
+struct SARGABLE_PARAM;
 
 
 static inline uint32
@@ -1137,6 +1140,13 @@ public:
   }
   virtual COND *remove_eq_conds(THD *thd, Item::cond_result *cond_value,
                                 bool top_level);
+  virtual void add_key_fields(JOIN *join, KEY_FIELD **key_fields,
+                              uint *and_level,
+                              table_map usable_tables,
+                              SARGABLE_PARAM **sargables)
+  {
+    return;
+  }
   /*
     Checks whether the item is:
     - a simple equality (field=field_item or field=constant_item), or

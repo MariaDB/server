@@ -122,6 +122,10 @@ public:
 
 class Item_bool_func :public Item_int_func
 {
+protected:
+  void add_key_fields_optimize_op(JOIN *join, KEY_FIELD **key_fields,
+                                  uint *and_level, table_map usable_tables,
+                                  SARGABLE_PARAM **sargables, bool equal_func);
 public:
   Item_bool_func() :Item_int_func() {}
   Item_bool_func(Item *a) :Item_int_func(a) {}
@@ -434,6 +438,13 @@ public:
     return min_max_arg_item->field->can_optimize_group_min_max(this,
                                                                const_item);
   }
+  void add_key_fields(JOIN *join, KEY_FIELD **key_fields,
+                      uint *and_level, table_map usable_tables,
+                      SARGABLE_PARAM **sargables)
+  {
+    return add_key_fields_optimize_op(join, key_fields, and_level,
+                                      usable_tables, sargables, false);
+  }
 };
 
 /**
@@ -512,6 +523,9 @@ public:
   const char *func_name() const { return "trigcond"; };
   bool const_item() const { return FALSE; }
   bool *get_trig_var() { return trig_var; }
+  void add_key_fields(JOIN *join, KEY_FIELD **key_fields,
+                      uint *and_level, table_map usable_tables,
+                      SARGABLE_PARAM **sargables);
 };
 
 class Item_func_not_all :public Item_func_not
@@ -567,6 +581,13 @@ public:
   COND *build_equal_items(THD *thd, COND_EQUAL *inherited,
                           bool link_item_fields,
                           COND_EQUAL **cond_equal_ref);
+  void add_key_fields(JOIN *join, KEY_FIELD **key_fields,
+                      uint *and_level, table_map usable_tables,
+                      SARGABLE_PARAM **sargables)
+  {
+    return add_key_fields_optimize_op(join, key_fields, and_level,
+                                      usable_tables, sargables, true);
+  }
   bool check_equality(THD *thd, COND_EQUAL *cond, List<Item> *eq_list);
   /* 
     - If this equality is created from the subquery's IN-equality:
@@ -591,6 +612,13 @@ public:
   cond_result eq_cmp_result() const { return COND_TRUE; }
   const char *func_name() const { return "<=>"; }
   Item *neg_transformer(THD *thd) { return 0; }
+  void add_key_fields(JOIN *join, KEY_FIELD **key_fields,
+                      uint *and_level, table_map usable_tables,
+                      SARGABLE_PARAM **sargables)
+  {
+    return add_key_fields_optimize_op(join, key_fields, and_level,
+                                      usable_tables, sargables, true);
+  }
 };
 
 
@@ -656,6 +684,8 @@ public:
   optimize_type select_optimize() const { return OPTIMIZE_KEY; } 
   const char *func_name() const { return "<>"; }
   Item *negated_item();
+  void add_key_fields(JOIN *join, KEY_FIELD **key_fields, uint *and_level,
+                      table_map usable_tables, SARGABLE_PARAM **sargables);
 };
 
 
@@ -712,6 +742,9 @@ public:
   bool eval_not_null_tables(uchar *opt_arg);
   void fix_after_pullout(st_select_lex *new_parent, Item **ref);
   bool count_sargable_conds(uchar *arg);
+  void add_key_fields(JOIN *join, KEY_FIELD **key_fields,
+                      uint *and_level, table_map usable_tables,
+                      SARGABLE_PARAM **sargables);
 };
 
 
@@ -1392,6 +1425,8 @@ public:
   }
   optimize_type select_optimize() const
     { return OPTIMIZE_KEY; }
+  void add_key_fields(JOIN *join, KEY_FIELD **key_fields, uint *and_level,
+                      table_map usable_tables, SARGABLE_PARAM **sargables);
   virtual void print(String *str, enum_query_type query_type);
   enum Functype functype() const { return IN_FUNC; }
   const char *func_name() const { return " IN "; }
@@ -1436,6 +1471,8 @@ class Item_func_null_predicate :public Item_bool_func
 public:
   Item_func_null_predicate(Item *a) :Item_bool_func(a) { sargable= true; }
   optimize_type select_optimize() const { return OPTIMIZE_NULL; }
+  void add_key_fields(JOIN *join, KEY_FIELD **key_fields, uint *and_level,
+                      table_map usable_tables, SARGABLE_PARAM **sargables);
   CHARSET_INFO *compare_collation() const
   { return args[0]->collation.collation; }
   void fix_length_and_dec() { decimals=0; max_length=1; maybe_null=0; }
@@ -1587,6 +1624,8 @@ public:
     */
     return compare_collation() == &my_charset_bin ? COND_TRUE : COND_OK;
   }
+  void add_key_fields(JOIN *join, KEY_FIELD **key_fields, uint *and_level,
+                      table_map usable_tables, SARGABLE_PARAM **sargables);
   const char *func_name() const { return "like"; }
   bool fix_fields(THD *thd, Item **ref);
   void cleanup();
@@ -1781,6 +1820,9 @@ public:
                           COND_EQUAL **cond_equal_ref);
   COND *remove_eq_conds(THD *thd, Item::cond_result *cond_value,
                         bool top_level);
+  void add_key_fields(JOIN *join, KEY_FIELD **key_fields,
+                      uint *and_level, table_map usable_tables,
+                      SARGABLE_PARAM **sargables);
   virtual void print(String *str, enum_query_type query_type);
   void split_sum_func(THD *thd, Item **ref_pointer_array, List<Item> &fields);
   friend int setup_conds(THD *thd, TABLE_LIST *tables, TABLE_LIST *leaves,
@@ -1971,6 +2013,9 @@ public:
   COND *build_equal_items(THD *thd, COND_EQUAL *inherited,
                           bool link_item_fields,
                           COND_EQUAL **cond_equal_ref);
+  void add_key_fields(JOIN *join, KEY_FIELD **key_fields,
+                      uint *and_level, table_map usable_tables,
+                      SARGABLE_PARAM **sargables);
   bool walk(Item_processor processor, bool walk_subquery, uchar *arg);
   Item *transform(Item_transformer transformer, uchar *arg);
   virtual void print(String *str, enum_query_type query_type);
@@ -2125,6 +2170,8 @@ public:
   COND *build_equal_items(THD *thd, COND_EQUAL *inherited,
                           bool link_item_fields,
                           COND_EQUAL **cond_equal_ref);
+  void add_key_fields(JOIN *join, KEY_FIELD **key_fields, uint *and_level,
+                      table_map usable_tables, SARGABLE_PARAM **sargables);
 };
 
 inline bool is_cond_and(Item *item)

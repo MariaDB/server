@@ -288,6 +288,13 @@ public:
   enum Functype rev_functype() const { return spatial_rel; }
   bool is_null() { (void) val_int(); return null_value; }
   optimize_type select_optimize() const { return OPTIMIZE_OP; }
+  void add_key_fields(JOIN *join, KEY_FIELD **key_fields,
+                      uint *and_level, table_map usable_tables,
+                      SARGABLE_PARAM **sargables)
+  {
+    return add_key_fields_optimize_op(join, key_fields, and_level,
+                                      usable_tables, sargables, false);
+  }
 };
 
 
@@ -404,7 +411,6 @@ class Item_func_isempty: public Item_bool_func
 public:
   Item_func_isempty(Item *a): Item_bool_func(a) {}
   longlong val_int();
-  optimize_type select_optimize() const { return OPTIMIZE_NONE; }
   const char *func_name() const { return "st_isempty"; }
   void fix_length_and_dec() { maybe_null= 1; }
 };
@@ -418,7 +424,6 @@ class Item_func_issimple: public Item_bool_func
 public:
   Item_func_issimple(Item *a): Item_bool_func(a) {}
   longlong val_int();
-  optimize_type select_optimize() const { return OPTIMIZE_NONE; }
   const char *func_name() const { return "st_issimple"; }
   void fix_length_and_dec() { maybe_null= 1; }
 };
@@ -428,7 +433,6 @@ class Item_func_isclosed: public Item_bool_func
 public:
   Item_func_isclosed(Item *a): Item_bool_func(a) {}
   longlong val_int();
-  optimize_type select_optimize() const { return OPTIMIZE_NONE; }
   const char *func_name() const { return "st_isclosed"; }
   void fix_length_and_dec() { maybe_null= 1; }
 };

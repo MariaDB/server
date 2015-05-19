@@ -75,7 +75,7 @@ static bool update_ref_and_keys(THD *thd, DYNAMIC_ARRAY *keyuse,
                                 JOIN_TAB *join_tab,
                                 uint tables, COND *conds,
                                 table_map table_map, SELECT_LEX *select_lex,
-                                st_sargable_param **sargables);
+                                SARGABLE_PARAM **sargables);
 static bool sort_and_filter_keyuse(THD *thd, DYNAMIC_ARRAY *keyuse,
                                    bool skip_unprefixed_keyparts);
 static int sort_keyuse(KEYUSE *a,KEYUSE *b);
@@ -3381,12 +3381,12 @@ static ha_rows get_quick_record_count(THD *thd, SQL_SELECT *select,
    We form a bitmap of indexes that can be used for sargable predicates.
    Only such indexes are involved in range analysis.
 */
-typedef struct st_sargable_param
+struct SARGABLE_PARAM
 {
   Field *field;              /* field against which to check sargability */
   Item **arg_value;          /* values of potential keys for lookups     */
   uint num_values;           /* number of values in the above array      */
-} SARGABLE_PARAM;  
+};
 
 
 /**
@@ -4127,7 +4127,7 @@ error:
 *****************************************************************************/
 
 /// Used when finding key fields
-typedef struct key_field_t {
+struct KEY_FIELD {
   Field		*field;
   Item_func     *cond;
   Item		*val;			///< May be empty if diff constant
@@ -4141,7 +4141,8 @@ typedef struct key_field_t {
   bool          null_rejecting; 
   bool         *cond_guard; /* See KEYUSE::cond_guard */
   uint          sj_pred_no; /* See KEYUSE::sj_pred_no */
-} KEY_FIELD;
+};
+
 
 /**
   Merge new key definitions to old ones, remove those not used in both.
@@ -4602,240 +4603,269 @@ is_local_field (Item *field)
   operation
 */
 
-static void
-add_key_fields(JOIN *join, KEY_FIELD **key_fields, uint *and_level,
-               COND *cond, table_map usable_tables,
-               SARGABLE_PARAM **sargables)
+
+void
+Item_cond_and::add_key_fields(JOIN *join, KEY_FIELD **key_fields,
+                              uint *and_level, table_map usable_tables,
+                              SARGABLE_PARAM **sargables)
 {
-  if (cond->type() == Item_func::COND_ITEM)
+  List_iterator_fast<Item> li(*argument_list());
+  KEY_FIELD *org_key_fields= *key_fields;
+
+  Item *item;
+  while ((item=li++))
+    item->add_key_fields(join, key_fields, and_level, usable_tables,
+                         sargables);
+  for (; org_key_fields != *key_fields ; org_key_fields++)
+    org_key_fields->level= *and_level;
+}
+
+
+void
+Item_cond::add_key_fields(JOIN *join, KEY_FIELD **key_fields,
+                          uint *and_level, table_map usable_tables,
+                          SARGABLE_PARAM **sargables)
+{
+  List_iterator_fast<Item> li(*argument_list());
+  KEY_FIELD *org_key_fields= *key_fields;
+
+  (*and_level)++;
+  (li++)->add_key_fields(join, key_fields, and_level, usable_tables,
+                         sargables);
+  Item *item;
+  while ((item=li++))
   {
-    List_iterator_fast<Item> li(*((Item_cond*) cond)->argument_list());
-    KEY_FIELD *org_key_fields= *key_fields;
-
-    if (((Item_cond*) cond)->functype() == Item_func::COND_AND_FUNC)
-    {
-      Item *item;
-      while ((item=li++))
-        add_key_fields(join, key_fields, and_level, item, usable_tables,
-                       sargables);
-      for (; org_key_fields != *key_fields ; org_key_fields++)
-	org_key_fields->level= *and_level;
-    }
-    else
-    {
-      (*and_level)++;
-      add_key_fields(join, key_fields, and_level, li++, usable_tables,
-                     sargables);
-      Item *item;
-      while ((item=li++))
-      {
-	KEY_FIELD *start_key_fields= *key_fields;
-	(*and_level)++;
-        add_key_fields(join, key_fields, and_level, item, usable_tables,
-                       sargables);
-	*key_fields=merge_key_fields(org_key_fields,start_key_fields,
-				     *key_fields,++(*and_level));
-      }
-    }
-    return;
+    KEY_FIELD *start_key_fields= *key_fields;
+    (*and_level)++;
+    item->add_key_fields(join, key_fields, and_level, usable_tables,
+                         sargables);
+    *key_fields= merge_key_fields(org_key_fields,start_key_fields,
+                                  *key_fields, ++(*and_level));
   }
+}
 
+
+void
+Item_func_trig_cond::add_key_fields(JOIN *join, KEY_FIELD **key_fields,
+                                    uint *and_level, table_map usable_tables,
+                                    SARGABLE_PARAM **sargables)
+{
   /* 
     Subquery optimization: Conditions that are pushed down into subqueries
     are wrapped into Item_func_trig_cond. We process the wrapped condition
     but need to set cond_guard for KEYUSE elements generated from it.
   */
+  if (!join->group_list && !join->order &&
+      join->unit->item && 
+      join->unit->item->substype() == Item_subselect::IN_SUBS &&
+      !join->unit->is_union())
   {
-    if (cond->type() == Item::FUNC_ITEM &&
-        ((Item_func*)cond)->functype() == Item_func::TRIG_COND_FUNC)
-    {
-      Item *cond_arg= ((Item_func*)cond)->arguments()[0];
-      if (!join->group_list && !join->order &&
-          join->unit->item && 
-          join->unit->item->substype() == Item_subselect::IN_SUBS &&
-          !join->unit->is_union())
-      {
-        KEY_FIELD *save= *key_fields;
-        add_key_fields(join, key_fields, and_level, cond_arg, usable_tables,
-                       sargables);
-        // Indicate that this ref access candidate is for subquery lookup:
-        for (; save != *key_fields; save++)
-          save->cond_guard= ((Item_func_trig_cond*)cond)->get_trig_var();
-      }
-      return;
-    }
+    KEY_FIELD *save= *key_fields;
+    args[0]->add_key_fields(join, key_fields, and_level, usable_tables,
+                            sargables);
+    // Indicate that this ref access candidate is for subquery lookup:
+    for (; save != *key_fields; save++)
+      save->cond_guard= get_trig_var();
+  }
+}
+
+
+void
+Item_func_between::add_key_fields(JOIN *join, KEY_FIELD **key_fields,
+                                  uint *and_level, table_map usable_tables,
+                                  SARGABLE_PARAM **sargables)
+{
+  /*
+    Build list of possible keys for 'a BETWEEN low AND high'.
+    It is handled similar to the equivalent condition 
+    'a >= low AND a <= high':
+  */
+  Item_field *field_item;
+  bool equal_func= false;
+  uint num_values= 2;
+
+  bool binary_cmp= (args[0]->real_item()->type() == Item::FIELD_ITEM)
+        ? ((Item_field*) args[0]->real_item())->field->binary()
+        : true;
+  /*
+    Additional optimization: If 'low = high':
+    Handle as if the condition was "t.key = low".
+  */
+  if (!negated && args[1]->eq(args[2], binary_cmp))
+  {
+    equal_func= true;
+    num_values= 1;
   }
 
-  /* If item is of type 'field op field/constant' add it to key_fields */
-  if (cond->type() != Item::FUNC_ITEM)
-    return;
-  Item_func *cond_func= (Item_func*) cond;
-  switch (cond_func->select_optimize()) {
-  case Item_func::OPTIMIZE_NONE:
-    break;
-  case Item_func::OPTIMIZE_KEY:
+  /*
+    Append keys for 'field <cmp> value[]' if the
+    condition is of the form::
+    '<field> BETWEEN value[1] AND value[2]'
+  */
+  if (is_local_field(args[0]))
   {
-    Item **values;
+    field_item= (Item_field *) (args[0]->real_item());
+    add_key_equal_fields(join, key_fields, *and_level, this,
+                         field_item, equal_func, &args[1],
+                         num_values, usable_tables, sargables);
+  }
+  /*
+    Append keys for 'value[0] <cmp> field' if the
+    condition is of the form:
+    'value[0] BETWEEN field1 AND field2'
+  */
+  for (uint i= 1; i <= num_values; i++)
+  {
+    if (is_local_field(args[i]))
+    {
+      field_item= (Item_field *) (args[i]->real_item());
+      add_key_equal_fields(join, key_fields, *and_level, this,
+                           field_item, equal_func, args,
+                           1, usable_tables, sargables);
+    }
+  }
+}
+
+
+void
+Item_func_in::add_key_fields(JOIN *join, KEY_FIELD **key_fields,
+                             uint *and_level, table_map usable_tables,
+                             SARGABLE_PARAM **sargables)
+{
+  if (is_local_field(args[0]) && !(used_tables() & OUTER_REF_TABLE_BIT))
+  {
+    DBUG_ASSERT(arg_count != 2);
+    add_key_equal_fields(join, key_fields, *and_level, this,
+                         (Item_field*) (args[0]->real_item()), false,
+                         args + 1, arg_count - 1, usable_tables, sargables);
+  }
+}
+
+
+void
+Item_func_ne::add_key_fields(JOIN *join, KEY_FIELD **key_fields,
+                             uint *and_level, table_map usable_tables,
+                             SARGABLE_PARAM **sargables)
+{
+  if (is_local_field(args[0]) && !(used_tables() & OUTER_REF_TABLE_BIT))
+  {
+    Item **values= is_local_field(args[1]) ? args : args + 1;
+    add_key_equal_fields(join, key_fields, *and_level, this,
+                         (Item_field*) (args[0]->real_item()), false,
+                         values, 1, usable_tables, sargables);
+  }
+}
+
+
+void
+Item_func_like::add_key_fields(JOIN *join, KEY_FIELD **key_fields,
+                               uint *and_level, table_map usable_tables,
+                               SARGABLE_PARAM **sargables)
+{
+  if (is_local_field(args[0]) &&
+      Item_func_like::select_optimize() == OPTIMIZE_OP)
+  {
     /*
-      Build list of possible keys for 'a BETWEEN low AND high'.
-      It is handled similar to the equivalent condition 
-      'a >= low AND a <= high':
+      SELECT * FROM t1 WHERE field LIKE const_pattern
+      const_pattern starts with a non-wildcard character
     */
-    if (cond_func->functype() == Item_func::BETWEEN)
-    {
-      Item_field *field_item;
-      bool equal_func= FALSE;
-      uint num_values= 2;
-      values= cond_func->arguments();
-
-      bool binary_cmp= (values[0]->real_item()->type() == Item::FIELD_ITEM)
-            ? ((Item_field*)values[0]->real_item())->field->binary()
-            : TRUE;
-
-      /*
-        Additional optimization: If 'low = high':
-        Handle as if the condition was "t.key = low".
-      */
-      if (!((Item_func_between*)cond_func)->negated &&
-          values[1]->eq(values[2], binary_cmp))
-      {
-        equal_func= TRUE;
-        num_values= 1;
-      }
-
-      /*
-        Append keys for 'field <cmp> value[]' if the
-        condition is of the form::
-        '<field> BETWEEN value[1] AND value[2]'
-      */
-      if (is_local_field(values[0]))
-      {
-        field_item= (Item_field *) (values[0]->real_item());
-        add_key_equal_fields(join, key_fields, *and_level, cond_func,
-                             field_item, equal_func, &values[1],
-                             num_values, usable_tables, sargables);
-      }
-      /*
-        Append keys for 'value[0] <cmp> field' if the
-        condition is of the form:
-        'value[0] BETWEEN field1 AND field2'
-      */
-      for (uint i= 1; i <= num_values; i++)
-      {
-        if (is_local_field(values[i]))
-        {
-          field_item= (Item_field *) (values[i]->real_item());
-          add_key_equal_fields(join, key_fields, *and_level, cond_func,
-                               field_item, equal_func, values,
-                               1, usable_tables, sargables);
-        }
-      }
-    } // if ( ... Item_func::BETWEEN)
-
-    // IN, NE
-    else if (is_local_field (cond_func->key_item()) &&
-            !(cond_func->used_tables() & OUTER_REF_TABLE_BIT))
-    {
-      values= cond_func->arguments()+1;
-      if (cond_func->functype() == Item_func::NE_FUNC &&
-        is_local_field (cond_func->arguments()[1]))
-        values--;
-      DBUG_ASSERT(cond_func->functype() != Item_func::IN_FUNC ||
-                  cond_func->argument_count() != 2);
-      add_key_equal_fields(join, key_fields, *and_level, cond_func,
-                           (Item_field*) (cond_func->key_item()->real_item()),
-                           0, values, 
-                           cond_func->argument_count()-1,
-                           usable_tables, sargables);
-    }
-    break;
+    add_key_equal_fields(join, key_fields, *and_level, this,
+                         (Item_field*) args[0]->real_item(), false,
+                         args + 1, 1, usable_tables, sargables);
   }
-  case Item_func::OPTIMIZE_OP:
+}
+
+
+void
+Item_bool_func::add_key_fields_optimize_op(JOIN *join, KEY_FIELD **key_fields,
+                                           uint *and_level,
+                                           table_map usable_tables,
+                                           SARGABLE_PARAM **sargables,
+                                           bool equal_func)
+{
+  /* If item is of type 'field op field/constant' add it to key_fields */
+  if (is_local_field(args[0]))
   {
-    bool equal_func=(cond_func->functype() == Item_func::EQ_FUNC ||
-		     cond_func->functype() == Item_func::EQUAL_FUNC);
-
-    if (is_local_field (cond_func->arguments()[0]))
-    {
-      add_key_equal_fields(join, key_fields, *and_level, cond_func,
-                           (Item_field*) (cond_func->arguments()[0])->
-                           real_item(),
-		           equal_func,
-                           cond_func->arguments()+1, 1, usable_tables,
-                           sargables);
-    }
-    if (is_local_field (cond_func->arguments()[1]) &&
-	cond_func->functype() != Item_func::LIKE_FUNC)
-    {
-      add_key_equal_fields(join, key_fields, *and_level, cond_func, 
-                           (Item_field*) (cond_func->arguments()[1])->
-                           real_item(),
-		           equal_func,
-                           cond_func->arguments(),1,usable_tables,
-                           sargables);
-    }
-    break;
+    add_key_equal_fields(join, key_fields, *and_level, this,
+                         (Item_field*) args[0]->real_item(), equal_func,
+                         args + 1, 1, usable_tables, sargables);
   }
-  case Item_func::OPTIMIZE_NULL:
-    /* column_name IS [NOT] NULL */
-    if (is_local_field (cond_func->arguments()[0]) &&
-	!(cond_func->used_tables() & OUTER_REF_TABLE_BIT))
+  if (is_local_field(args[1]))
+  {
+    add_key_equal_fields(join, key_fields, *and_level, this, 
+                         (Item_field*) args[1]->real_item(), equal_func,
+                         args, 1, usable_tables, sargables);
+  }
+}
+
+
+void
+Item_func_null_predicate::add_key_fields(JOIN *join, KEY_FIELD **key_fields,
+                                         uint *and_level,
+                                         table_map usable_tables,
+                                         SARGABLE_PARAM **sargables)
+{
+  /* column_name IS [NOT] NULL */
+  if (is_local_field(args[0]) && !(used_tables() & OUTER_REF_TABLE_BIT))
+  {
+    Item *tmp= new Item_null;
+    if (unlikely(!tmp))                       // Should never be true
+      return;
+    add_key_equal_fields(join, key_fields, *and_level, this,
+                         (Item_field*) args[0]->real_item(),
+                         functype() == Item_func::ISNULL_FUNC,
+                         &tmp, 1, usable_tables, sargables);
+  }
+}
+
+
+void
+Item_equal::add_key_fields(JOIN *join, KEY_FIELD **key_fields,
+                           uint *and_level, table_map usable_tables,
+                           SARGABLE_PARAM **sargables)
+{
+  Item *const_item= get_const();
+  Item_equal_fields_iterator it(*this);
+  if (const_item)
+  {
+    
+    /*
+      For each field field1 from item_equal consider the equality 
+      field1=const_item as a condition allowing an index access of the table
+      with field1 by the keys value of field1.
+    */   
+    while (it++)
     {
-      Item *tmp=new Item_null;
-      if (unlikely(!tmp))                       // Should never be true
-	return;
-      add_key_equal_fields(join, key_fields, *and_level, cond_func,
-                           (Item_field*) (cond_func->arguments()[0])->
-                           real_item(),
-                           cond_func->functype() == Item_func::ISNULL_FUNC,
-			   &tmp, 1, usable_tables, sargables);
+      Field *equal_field= it.get_curr_field();
+      add_key_field(join, key_fields, *and_level, this, equal_field,
+                    TRUE, &const_item, 1, usable_tables, sargables);
     }
-    break;
-  case Item_func::OPTIMIZE_EQUAL:
-    Item_equal *item_equal= (Item_equal *) cond;
-    Item *const_item= item_equal->get_const();
-    Item_equal_fields_iterator it(*item_equal);
-    if (const_item)
+  }
+  else 
+  {
+    /*
+      Consider all pairs of different fields included into item_equal.
+      For each of them (field1, field1) consider the equality 
+      field1=field2 as a condition allowing an index access of the table
+      with field1 by the keys value of field2.
+    */   
+    Item_equal_fields_iterator fi(*this);
+    while (fi++)
     {
-      /*
-        For each field field1 from item_equal consider the equality 
-        field1=const_item as a condition allowing an index access of the table
-        with field1 by the keys value of field1.
-      */   
-      while (it++)
+      Field *field= fi.get_curr_field();
+      Item *item;
+      while ((item= it++))
       {
         Field *equal_field= it.get_curr_field();
-        add_key_field(join, key_fields, *and_level, cond_func, equal_field,
-                      TRUE, &const_item, 1, usable_tables, sargables);
-      }
-    }
-    else 
-    {
-      /*
-        Consider all pairs of different fields included into item_equal.
-        For each of them (field1, field1) consider the equality 
-        field1=field2 as a condition allowing an index access of the table
-        with field1 by the keys value of field2.
-      */   
-      Item_equal_fields_iterator fi(*item_equal);
-      while (fi++)
-      {
-        Field *field= fi.get_curr_field();
-        Item *item;
-        while ((item= it++))
+        if (!field->eq(equal_field))
         {
-          Field *equal_field= it.get_curr_field();
-          if (!field->eq(equal_field))
-          {
-            add_key_field(join, key_fields, *and_level, cond_func, field,
-                          TRUE, &item, 1, usable_tables,
-                          sargables);
-          }
+          add_key_field(join, key_fields, *and_level, this, field,
+                        TRUE, &item, 1, usable_tables,
+                        sargables);
         }
-        it.rewind();
       }
+      it.rewind();
     }
-    break;
   }
 }
 
@@ -5120,8 +5150,8 @@ static void add_key_fields_for_nj(JOIN *join, TABLE_LIST *nested_join_table,
         tables |= table->table->map;
   }
   if (nested_join_table->on_expr)
-    add_key_fields(join, end, and_level, nested_join_table->on_expr, tables,
-                   sargables);
+    nested_join_table->on_expr->add_key_fields(join, end, and_level, tables,
+                                               sargables);
 }
 
 
@@ -5244,8 +5274,8 @@ update_ref_and_keys(THD *thd, DYNAMIC_ARRAY *keyuse,JOIN_TAB *join_tab,
   if (cond)
   {
     KEY_FIELD *saved_field= field;
-    add_key_fields(join_tab->join, &end, &and_level, cond, normal_tables,
-                   sargables);
+    cond->add_key_fields(join_tab->join, &end, &and_level, normal_tables,
+                         sargables);
     for (; field != end ; field++)
     {
 
@@ -5268,9 +5298,10 @@ update_ref_and_keys(THD *thd, DYNAMIC_ARRAY *keyuse,JOIN_TAB *join_tab,
       into account as well.
     */ 
     if (*join_tab[i].on_expr_ref)
-      add_key_fields(join_tab->join, &end, &and_level, 
-                     *join_tab[i].on_expr_ref,
-                     join_tab[i].table->map, sargables);
+      (*join_tab[i].on_expr_ref)->add_key_fields(join_tab->join, &end,
+                                                 &and_level, 
+                                                 join_tab[i].table->map,
+                                                 sargables);
   }
 
   /* Process ON conditions for the nested joins */
