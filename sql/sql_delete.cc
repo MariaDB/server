@@ -347,6 +347,8 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
     DBUG_PRINT("debug", ("Trying to use delete_all_rows()"));
 
     query_plan.set_delete_all_rows(maybe_deleted);
+    if (thd->lex->describe)
+      goto produce_explain_and_leave;
 
     if (!(error=table->file->ha_delete_all_rows()))
     {
@@ -697,10 +699,8 @@ cleanup:
   if (error < 0 || 
       (thd->lex->ignore && !thd->is_error() && !thd->is_fatal_error))
   {
-    if (thd->lex->describe || thd->lex->analyze_stmt)
-    {
+    if (thd->lex->analyze_stmt)
       goto send_nothing_and_leave;
-    }
 
     if (with_select)
       result->send_eof();
