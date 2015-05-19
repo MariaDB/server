@@ -1693,8 +1693,10 @@ INSERT INTO tm1 VALUES (1,1,1), (2,2,2);
 INSERT INTO tm2 VALUES (1,1,1), (2,2,2);
 ALTER TABLE ti1;
 affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
 ALTER TABLE tm1;
 affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
 ALTER TABLE ti1 ADD COLUMN d VARCHAR(200);
 affected rows: 0
 info: Records: 0  Duplicates: 0  Warnings: 0

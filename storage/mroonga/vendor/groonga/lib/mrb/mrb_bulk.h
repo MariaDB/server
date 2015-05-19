@@ -32,6 +32,10 @@ mrb_value grn_mrb_value_from_bulk(mrb_state *mrb, grn_obj *bulk);
 grn_obj  *grn_mrb_value_to_bulk(mrb_state *mrb,
                                 mrb_value mrb_value_,
                                 grn_obj *bulk);
+grn_bool grn_mrb_bulk_cast(mrb_state *mrb,
+                           grn_obj *from,
+                           grn_obj *to,
+                           grn_id domain_id);
 
 #ifdef __cplusplus
 }

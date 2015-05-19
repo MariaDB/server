@@ -24,6 +24,7 @@
 #elif defined(HAVE_OPENSSL)
 #include <openssl/aes.h>
 #include <openssl/evp.h>
+#include <openssl/err.h>
 
 // Wrap C struct, to ensure resources are released.
 struct MyCipherCtx
@@ -165,14 +166,17 @@ int my_aes_encrypt(const char* source, int source_length, char* dest,
 #elif defined(HAVE_OPENSSL)
   if (! EVP_EncryptInit(&ctx.ctx, EVP_aes_128_ecb(),
                         (const unsigned char *) rkey, NULL))
-    return AES_BAD_DATA;                        /* Error */
+    goto err;
   if (! EVP_EncryptUpdate(&ctx.ctx, (unsigned char *) dest, &u_len,
                           (unsigned const char *) source, source_length))
-    return AES_BAD_DATA;                        /* Error */
+    goto err;
   if (! EVP_EncryptFinal(&ctx.ctx, (unsigned char *) dest + u_len, &f_len))
-    return AES_BAD_DATA;                        /* Error */
+    goto err;
 
   return u_len + f_len;
+err:
+  ERR_remove_state(0);
+  return AES_BAD_DATA;
 #endif
 }
 
@@ -248,13 +252,16 @@ int my_aes_decrypt(const char *source, int source_length, char *dest,
 #elif defined(HAVE_OPENSSL)
   if (! EVP_DecryptInit(&ctx.ctx, EVP_aes_128_ecb(),
                         (const unsigned char *) rkey, NULL))
-    return AES_BAD_DATA;                        /* Error */
+    goto err;
   if (! EVP_DecryptUpdate(&ctx.ctx, (unsigned char *) dest, &u_len,
                           (unsigned const char *) source, source_length))
-    return AES_BAD_DATA;                        /* Error */
+    goto err;
   if (! EVP_DecryptFinal(&ctx.ctx, (unsigned char *) dest + u_len, &f_len))
-    return AES_BAD_DATA;                        /* Error */
+    goto err;
   return u_len + f_len;
+err:
+  ERR_remove_state(0);
+  return AES_BAD_DATA;
 #endif
 }
 

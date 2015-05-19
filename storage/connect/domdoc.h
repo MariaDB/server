@@ -122,15 +122,24 @@ class DOMATTR : public XMLATTRIBUTE {
   friend class DOMDOC;
   friend class DOMNODE;
  public:
+  // Properties
+  virtual char  *GetName(PGLOBAL g);
+  virtual PXATTR GetNext(PGLOBAL);
+
   // Methods
-  virtual bool  SetText(PGLOBAL g, char *txtp, int len);
+  virtual RCODE  GetText(PGLOBAL g, char *bufp, int len);
+  virtual bool   SetText(PGLOBAL g, char *txtp, int len);
 
  protected:
   // Constructor
-  DOMATTR(PXDOC dp, MSXML2::IXMLDOMAttributePtr ap);
+  DOMATTR(PXDOC dp, MSXML2::IXMLDOMAttributePtr ap,
+                    MSXML2::IXMLDOMNamedNodeMapPtr nmp = NULL);
 
   // Members
-  MSXML2::IXMLDOMAttributePtr Atrp;
-  WCHAR              *Ws;
-  int                 Len;
+  MSXML2::IXMLDOMAttributePtr    Atrp;
+  MSXML2::IXMLDOMNamedNodeMapPtr Nmp;
+  char               Name[64];
+  WCHAR             *Ws;
+  int                Len;
+  long               K;
 }; // end of class DOMATTR

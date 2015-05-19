@@ -58,6 +58,10 @@ ctx_array_reference(mrb_state *mrb, mrb_value self)
 
   mrb_get_args(mrb, "o", &mrb_id_or_name);
 
+  if (mrb_nil_p(mrb_id_or_name)) {
+    return mrb_nil_value();
+  }
+
   if (mrb_fixnum_p(mrb_id_or_name)) {
     grn_id id = mrb_fixnum(mrb_id_or_name);
     object = grn_ctx_at(ctx, id);
@@ -220,449 +224,449 @@ grn_mrb_ctx_check(mrb_state *mrb)
     return;
   case GRN_END_OF_DATA:
     error_class = mrb_class_get_under(mrb, module, "EndOfData");
-    snprintf(message, MESSAGE_SIZE,
-             "end of data: <%s>(%d)",
-             ctx->errbuf, ctx->rc);
+    grn_snprintf(message, MESSAGE_SIZE, MESSAGE_SIZE,
+                 "end of data: <%s>(%d)",
+                 ctx->errbuf, ctx->rc);
     break;
   case GRN_UNKNOWN_ERROR:
     error_class = mrb_class_get_under(mrb, module, "UnknownError");
-    snprintf(message, MESSAGE_SIZE,
-             "unknown error: <%s>(%d)",
-             ctx->errbuf, ctx->rc);
+    grn_snprintf(message, MESSAGE_SIZE, MESSAGE_SIZE,
+                 "unknown error: <%s>(%d)",
+                 ctx->errbuf, ctx->rc);
     break;
   case GRN_OPERATION_NOT_PERMITTED:
     error_class = mrb_class_get_under(mrb, module, "OperationNotPermitted");
-    snprintf(message, MESSAGE_SIZE,
-             "operation not permitted: <%s>(%d)",
-             ctx->errbuf, ctx->rc);
+    grn_snprintf(message, MESSAGE_SIZE, MESSAGE_SIZE,
+                 "operation not permitted: <%s>(%d)",
+                 ctx->errbuf, ctx->rc);
     break;
   case GRN_NO_SUCH_FILE_OR_DIRECTORY:
     error_class = mrb_class_get_under(mrb, module, "NoSuchFileOrDirectory");
-    snprintf(message, MESSAGE_SIZE,
-             "no such file or directory: <%s>(%d)",
-             ctx->errbuf, ctx->rc);
+    grn_snprintf(message, MESSAGE_SIZE, MESSAGE_SIZE,
+                 "no such file or directory: <%s>(%d)",
+                 ctx->errbuf, ctx->rc);
     break;
   case GRN_NO_SUCH_PROCESS:
     error_class = mrb_class_get_under(mrb, module, "NoSuchProcess");
-    snprintf(message, MESSAGE_SIZE,
-             "no such process: <%s>(%d)",
-             ctx->errbuf, ctx->rc);
+    grn_snprintf(message, MESSAGE_SIZE, MESSAGE_SIZE,
+                 "no such process: <%s>(%d)",
+                 ctx->errbuf, ctx->rc);
     break;
   case GRN_INTERRUPTED_FUNCTION_CALL:
     error_class = mrb_class_get_under(mrb, module, "InterruptedFunctionCall");
-    snprintf(message, MESSAGE_SIZE,
-             "interrupted function call: <%s>(%d)",
-             ctx->errbuf, ctx->rc);
+    grn_snprintf(message, MESSAGE_SIZE, MESSAGE_SIZE,
+                 "interrupted function call: <%s>(%d)",
+                 ctx->errbuf, ctx->rc);
     break;
   case GRN_INPUT_OUTPUT_ERROR:
     error_class = mrb_class_get_under(mrb, module, "InputOutputError");
-    snprintf(message, MESSAGE_SIZE,
-             "input output error: <%s>(%d)",
-             ctx->errbuf, ctx->rc);
+    grn_snprintf(message, MESSAGE_SIZE, MESSAGE_SIZE,
+                 "input output error: <%s>(%d)",
+                 ctx->errbuf, ctx->rc);
     break;
   case GRN_NO_SUCH_DEVICE_OR_ADDRESS:
     error_class = mrb_class_get_under(mrb, module, "NoSuchDeviceOrAddress");
-    snprintf(message, MESSAGE_SIZE,
-             "no such device or address: <%s>(%d)",
-             ctx->errbuf, ctx->rc);
+    grn_snprintf(message, MESSAGE_SIZE, MESSAGE_SIZE,
+                 "no such device or address: <%s>(%d)",
+                 ctx->errbuf, ctx->rc);
     break;
   case GRN_ARG_LIST_TOO_LONG:
     error_class = mrb_class_get_under(mrb, module, "ArgListTooLong");
-    snprintf(message, MESSAGE_SIZE,
-             "arg list too long: <%s>(%d)",
-             ctx->errbuf, ctx->rc);
+    grn_snprintf(message, MESSAGE_SIZE, MESSAGE_SIZE,
+                 "arg list too long: <%s>(%d)",
+                 ctx->errbuf, ctx->rc);
     break;
   case GRN_EXEC_FORMAT_ERROR:
     error_class = mrb_class_get_under(mrb, module, "ExecFormatError");
-    snprintf(message, MESSAGE_SIZE,
-             "exec format error: <%s>(%d)",
-             ctx->errbuf, ctx->rc);
+    grn_snprintf(message, MESSAGE_SIZE, MESSAGE_SIZE,
+                 "exec format error: <%s>(%d)",
+                 ctx->errbuf, ctx->rc);
     break;
   case GRN_BAD_FILE_DESCRIPTOR:
     error_class = mrb_class_get_under(mrb, module, "BadFileDescriptor");
-    snprintf(message, MESSAGE_SIZE,
-             "bad file descriptor: <%s>(%d)",
-             ctx->errbuf, ctx->rc);
+    grn_snprintf(message, MESSAGE_SIZE, MESSAGE_SIZE,
+                 "bad file descriptor: <%s>(%d)",
+                 ctx->errbuf, ctx->rc);
     break;
   case GRN_NO_CHILD_PROCESSES:
     error_class = mrb_class_get_under(mrb, module, "NoChildProcesses");
-    snprintf(message, MESSAGE_SIZE,
-             "no child processes: <%s>(%d)",
-             ctx->errbuf, ctx->rc);
+    grn_snprintf(message, MESSAGE_SIZE, MESSAGE_SIZE,
+                 "no child processes: <%s>(%d)",
+                 ctx->errbuf, ctx->rc);
     break;
   case GRN_RESOURCE_TEMPORARILY_UNAVAILABLE:
     error_class = mrb_class_get_under(mrb, module,
                                       "ResourceTemporarilyUnavailable");
-    snprintf(message, MESSAGE_SIZE,
-             "resource temporarily unavailable: <%s>(%d)",
-             ctx->errbuf, ctx->rc);
+    grn_snprintf(message, MESSAGE_SIZE, MESSAGE_SIZE,
+                 "resource temporarily unavailable: <%s>(%d)",
+                 ctx->errbuf, ctx->rc);
     break;
   case GRN_NOT_ENOUGH_SPACE:
     error_class = mrb_class_get_under(mrb, module, "NotEnoughSpace");
-    snprintf(message, MESSAGE_SIZE,
-             "not enough space: <%s>(%d)",
-             ctx->errbuf, ctx->rc);
+    grn_snprintf(message, MESSAGE_SIZE, MESSAGE_SIZE,
+                 "not enough space: <%s>(%d)",
+                 ctx->errbuf, ctx->rc);
     break;
   case GRN_PERMISSION_DENIED:
     error_class = mrb_class_get_under(mrb, module, "PermissionDenied");
-    snprintf(message, MESSAGE_SIZE,
-             "permission denied: <%s>(%d)",
-             ctx->errbuf, ctx->rc);
+    grn_snprintf(message, MESSAGE_SIZE, MESSAGE_SIZE,
+                 "permission denied: <%s>(%d)",
+                 ctx->errbuf, ctx->rc);
     break;
   case GRN_BAD_ADDRESS:
     error_class = mrb_class_get_under(mrb, module, "BadAddress");
-    snprintf(message, MESSAGE_SIZE,
-             "bad address: <%s>(%d)",
-             ctx->errbuf, ctx->rc);
+    grn_snprintf(message, MESSAGE_SIZE, MESSAGE_SIZE,
+                 "bad address: <%s>(%d)",
+                 ctx->errbuf, ctx->rc);
     break;
   case GRN_RESOURCE_BUSY:
     error_class = mrb_class_get_under(mrb, module, "ResourceBusy");
-    snprintf(message, MESSAGE_SIZE,
-             "resource busy: <%s>(%d)",
-             ctx->errbuf, ctx->rc);
+    grn_snprintf(message, MESSAGE_SIZE, MESSAGE_SIZE,
+                 "resource busy: <%s>(%d)",
+                 ctx->errbuf, ctx->rc);
     break;
   case GRN_FILE_EXISTS:
     error_class = mrb_class_get_under(mrb, module, "FileExists");
-    snprintf(message, MESSAGE_SIZE,
-             "file exists: <%s>(%d)",
-             ctx->errbuf, ctx->rc);
+    grn_snprintf(message, MESSAGE_SIZE, MESSAGE_SIZE,
+                 "file exists: <%s>(%d)",
+                 ctx->errbuf, ctx->rc);
     break;
   case GRN_IMPROPER_LINK:
     error_class = mrb_class_get_under(mrb, module, "ImproperLink");
-    snprintf(message, MESSAGE_SIZE,
-             "improper link: <%s>(%d)",
-             ctx->errbuf, ctx->rc);
+    grn_snprintf(message, MESSAGE_SIZE, MESSAGE_SIZE,
+                 "improper link: <%s>(%d)",
+                 ctx->errbuf, ctx->rc);
     break;
   case GRN_NO_SUCH_DEVICE:
     error_class = mrb_class_get_under(mrb, module, "NoSuchDevice");
-    snprintf(message, MESSAGE_SIZE,
-             "no such device: <%s>(%d)",
-             ctx->errbuf, ctx->rc);
+    grn_snprintf(message, MESSAGE_SIZE, MESSAGE_SIZE,
+                 "no such device: <%s>(%d)",
+                 ctx->errbuf, ctx->rc);
     break;
   case GRN_NOT_A_DIRECTORY:
     error_class = mrb_class_get_under(mrb, module, "NotDirectory");
-    snprintf(message, MESSAGE_SIZE,
-             "not directory: <%s>(%d)",
-             ctx->errbuf, ctx->rc);
+    grn_snprintf(message, MESSAGE_SIZE, MESSAGE_SIZE,
+                 "not directory: <%s>(%d)",
+                 ctx->errbuf, ctx->rc);
     break;
   case GRN_IS_A_DIRECTORY:
     error_class = mrb_class_get_under(mrb, module, "IsDirectory");
-    snprintf(message, MESSAGE_SIZE,
-             "is directory: <%s>(%d)",
-             ctx->errbuf, ctx->rc);
+    grn_snprintf(message, MESSAGE_SIZE, MESSAGE_SIZE,
+                 "is directory: <%s>(%d)",
+                 ctx->errbuf, ctx->rc);
     break;
   case GRN_INVALID_ARGUMENT:
     error_class = mrb_class_get_under(mrb, module, "InvalidArgument");
-    snprintf(message, MESSAGE_SIZE,
-             "invalid argument: <%s>(%d)",
-             ctx->errbuf, ctx->rc);
+    grn_snprintf(message, MESSAGE_SIZE, MESSAGE_SIZE,
+                 "invalid argument: <%s>(%d)",
+                 ctx->errbuf, ctx->rc);
     break;
   case GRN_TOO_MANY_OPEN_FILES_IN_SYSTEM:
     error_class = mrb_class_get_under(mrb, module, "TooManyOpenFilesInSystem");
-    snprintf(message, MESSAGE_SIZE,
-             "too many open files in system: <%s>(%d)",
-             ctx->errbuf, ctx->rc);
+    grn_snprintf(message, MESSAGE_SIZE, MESSAGE_SIZE,
+                 "too many open files in system: <%s>(%d)",
+                 ctx->errbuf, ctx->rc);
     break;
   case GRN_TOO_MANY_OPEN_FILES:
     error_class = mrb_class_get_under(mrb, module, "TooManyOpenFiles");
-    snprintf(message, MESSAGE_SIZE,
-             "too many open files: <%s>(%d)",
-             ctx->errbuf, ctx->rc);
+    grn_snprintf(message, MESSAGE_SIZE, MESSAGE_SIZE,
+                 "too many open files: <%s>(%d)",
+                 ctx->errbuf, ctx->rc);
     break;
   case GRN_INAPPROPRIATE_I_O_CONTROL_OPERATION:
     error_class = mrb_class_get_under(mrb, module,
                                       "InappropriateIOControlOperation");
-    snprintf(message, MESSAGE_SIZE,
-             "inappropriate IO control operation: <%s>(%d)",
-             ctx->errbuf, ctx->rc);
+    grn_snprintf(message, MESSAGE_SIZE, MESSAGE_SIZE,
+                 "inappropriate IO control operation: <%s>(%d)",
+                 ctx->errbuf, ctx->rc);
     break;
   case GRN_FILE_TOO_LARGE:
     error_class = mrb_class_get_under(mrb, module, "FileTooLarge");
-    snprintf(message, MESSAGE_SIZE,
-             "file too large: <%s>(%d)",
-             ctx->errbuf, ctx->rc);
+    grn_snprintf(message, MESSAGE_SIZE, MESSAGE_SIZE,
+                 "file too large: <%s>(%d)",
+                 ctx->errbuf, ctx->rc);
     break;
   case GRN_NO_SPACE_LEFT_ON_DEVICE:
     error_class = mrb_class_get_under(mrb, module, "NoSpaceLeftOnDevice");
-    snprintf(message, MESSAGE_SIZE,
-             "no space left on device: <%s>(%d)",
-             ctx->errbuf, ctx->rc);
+    grn_snprintf(message, MESSAGE_SIZE, MESSAGE_SIZE,
+                 "no space left on device: <%s>(%d)",
+                 ctx->errbuf, ctx->rc);
     break;
   case GRN_INVALID_SEEK:
     error_class = mrb_class_get_under(mrb, module, "InvalidSeek");
-    snprintf(message, MESSAGE_SIZE,
-             "invalid seek: <%s>(%d)",
-             ctx->errbuf, ctx->rc);
+    grn_snprintf(message, MESSAGE_SIZE, MESSAGE_SIZE,
+                 "invalid seek: <%s>(%d)",
+                 ctx->errbuf, ctx->rc);
     break;
   case GRN_READ_ONLY_FILE_SYSTEM:
     error_class = mrb_class_get_under(mrb, module, "ReadOnlyFileSystem");
-    snprintf(message, MESSAGE_SIZE,
-             "read only file system: <%s>(%d)",
-             ctx->errbuf, ctx->rc);
+    grn_snprintf(message, MESSAGE_SIZE, MESSAGE_SIZE,
+                 "read only file system: <%s>(%d)",
+                 ctx->errbuf, ctx->rc);
     break;
   case GRN_TOO_MANY_LINKS:
     error_class = mrb_class_get_under(mrb, module, "TooManyLinks");
-    snprintf(message, MESSAGE_SIZE,
-             "too many links: <%s>(%d)",
-             ctx->errbuf, ctx->rc);
+    grn_snprintf(message, MESSAGE_SIZE, MESSAGE_SIZE,
+                 "too many links: <%s>(%d)",
+                 ctx->errbuf, ctx->rc);
     break;
   case GRN_BROKEN_PIPE:
     error_class = mrb_class_get_under(mrb, module, "BrokenPipe");
-    snprintf(message, MESSAGE_SIZE,
-             "broken pipe: <%s>(%d)",
-             ctx->errbuf, ctx->rc);
+    grn_snprintf(message, MESSAGE_SIZE, MESSAGE_SIZE,
+                 "broken pipe: <%s>(%d)",
+                 ctx->errbuf, ctx->rc);
     break;
   case GRN_DOMAIN_ERROR:
     error_class = mrb_class_get_under(mrb, module, "DomainError");
-    snprintf(message, MESSAGE_SIZE,
-             "domain error: <%s>(%d)",
-             ctx->errbuf, ctx->rc);
+    grn_snprintf(message, MESSAGE_SIZE, MESSAGE_SIZE,
+                 "domain error: <%s>(%d)",
+                 ctx->errbuf, ctx->rc);
     break;
   case GRN_RESULT_TOO_LARGE:
     error_class = mrb_class_get_under(mrb, module, "ResultTooLarge");
-    snprintf(message, MESSAGE_SIZE,
-             "result too large: <%s>(%d)",
-             ctx->errbuf, ctx->rc);
+    grn_snprintf(message, MESSAGE_SIZE, MESSAGE_SIZE,
+                 "result too large: <%s>(%d)",
+                 ctx->errbuf, ctx->rc);
     break;
   case GRN_RESOURCE_DEADLOCK_AVOIDED:
     error_class = mrb_class_get_under(mrb, module, "ResourceDeadlockAvoided");
-    snprintf(message, MESSAGE_SIZE,
-             "resource deadlock avoided: <%s>(%d)",
-             ctx->errbuf, ctx->rc);
+    grn_snprintf(message, MESSAGE_SIZE, MESSAGE_SIZE,
+                 "resource deadlock avoided: <%s>(%d)",
+                 ctx->errbuf, ctx->rc);
     break;
   case GRN_NO_MEMORY_AVAILABLE:
     error_class = mrb_class_get_under(mrb, module, "NoMemoryAvailable");
-    snprintf(message, MESSAGE_SIZE,
-             "no memory available: <%s>(%d)",
-             ctx->errbuf, ctx->rc);
+    grn_snprintf(message, MESSAGE_SIZE, MESSAGE_SIZE,
+                 "no memory available: <%s>(%d)",
+                 ctx->errbuf, ctx->rc);
     break;
   case GRN_FILENAME_TOO_LONG:
     error_class = mrb_class_get_under(mrb, module, "FilenameTooLong");
-    snprintf(message, MESSAGE_SIZE,
-             "filename too long: <%s>(%d)",
-             ctx->errbuf, ctx->rc);
+    grn_snprintf(message, MESSAGE_SIZE, MESSAGE_SIZE,
+                 "filename too long: <%s>(%d)",
+                 ctx->errbuf, ctx->rc);
     break;
   case GRN_NO_LOCKS_AVAILABLE:
     error_class = mrb_class_get_under(mrb, module, "NoLocksAvailable");
-    snprintf(message, MESSAGE_SIZE,
-             "no locks available: <%s>(%d)",
-             ctx->errbuf, ctx->rc);
+    grn_snprintf(message, MESSAGE_SIZE, MESSAGE_SIZE,
+                 "no locks available: <%s>(%d)",
+                 ctx->errbuf, ctx->rc);
     break;
   case GRN_FUNCTION_NOT_IMPLEMENTED:
     error_class = mrb_class_get_under(mrb, module, "FunctionNotImplemented");
-    snprintf(message, MESSAGE_SIZE,
-             "function not implemented: <%s>(%d)",
-             ctx->errbuf, ctx->rc);
+    grn_snprintf(message, MESSAGE_SIZE, MESSAGE_SIZE,
+                 "function not implemented: <%s>(%d)",
+                 ctx->errbuf, ctx->rc);
     break;
   case GRN_DIRECTORY_NOT_EMPTY:
     error_class = mrb_class_get_under(mrb, module, "DirectoryNotEmpty");
-    snprintf(message, MESSAGE_SIZE,
-             "directory not empty: <%s>(%d)",
-             ctx->errbuf, ctx->rc);
+    grn_snprintf(message, MESSAGE_SIZE, MESSAGE_SIZE,
+                 "directory not empty: <%s>(%d)",
+                 ctx->errbuf, ctx->rc);
     break;
   case GRN_ILLEGAL_BYTE_SEQUENCE:
     error_class = mrb_class_get_under(mrb, module, "IllegalByteSequence");
-    snprintf(message, MESSAGE_SIZE,
-             "illegal byte sequence: <%s>(%d)",
-             ctx->errbuf, ctx->rc);
+    grn_snprintf(message, MESSAGE_SIZE, MESSAGE_SIZE,
+                 "illegal byte sequence: <%s>(%d)",
+                 ctx->errbuf, ctx->rc);
     break;
   case GRN_SOCKET_NOT_INITIALIZED:
     error_class = mrb_class_get_under(mrb, module, "SocketNotInitialized");
-    snprintf(message, MESSAGE_SIZE,
-             "socket not initialized: <%s>(%d)",
-             ctx->errbuf, ctx->rc);
+    grn_snprintf(message, MESSAGE_SIZE, MESSAGE_SIZE,
+                 "socket not initialized: <%s>(%d)",
+                 ctx->errbuf, ctx->rc);
     break;
   case GRN_OPERATION_WOULD_BLOCK:
     error_class = mrb_class_get_under(mrb, module, "OperationWouldBlock");
-    snprintf(message, MESSAGE_SIZE,
-             "operation would block: <%s>(%d)",
-             ctx->errbuf, ctx->rc);
+    grn_snprintf(message, MESSAGE_SIZE, MESSAGE_SIZE,
+                 "operation would block: <%s>(%d)",
+                 ctx->errbuf, ctx->rc);
     break;
   case GRN_ADDRESS_IS_NOT_AVAILABLE:
     error_class = mrb_class_get_under(mrb, module, "AddressIsNotAvailable");
-    snprintf(message, MESSAGE_SIZE,
-             "address is not available: <%s>(%d)",
-             ctx->errbuf, ctx->rc);
+    grn_snprintf(message, MESSAGE_SIZE, MESSAGE_SIZE,
+                 "address is not available: <%s>(%d)",
+                 ctx->errbuf, ctx->rc);
     break;
   case GRN_NETWORK_IS_DOWN:
     error_class = mrb_class_get_under(mrb, module, "NetworkIsDown");
-    snprintf(message, MESSAGE_SIZE,
-             "network is down: <%s>(%d)",
-             ctx->errbuf, ctx->rc);
+    grn_snprintf(message, MESSAGE_SIZE, MESSAGE_SIZE,
+                 "network is down: <%s>(%d)",
+                 ctx->errbuf, ctx->rc);
     break;
   case GRN_NO_BUFFER:
     error_class = mrb_class_get_under(mrb, module, "NoBuffer");
-    snprintf(message, MESSAGE_SIZE,
-             "no buffer: <%s>(%d)",
-             ctx->errbuf, ctx->rc);
+    grn_snprintf(message, MESSAGE_SIZE, MESSAGE_SIZE,
+                 "no buffer: <%s>(%d)",
+                 ctx->errbuf, ctx->rc);
     break;
   case GRN_SOCKET_IS_ALREADY_CONNECTED:
     error_class = mrb_class_get_under(mrb, module, "SocketIsAlreadyConnected");
-    snprintf(message, MESSAGE_SIZE,
-             "socket is already connected: <%s>(%d)",
-             ctx->errbuf, ctx->rc);
+    grn_snprintf(message, MESSAGE_SIZE, MESSAGE_SIZE,
+                 "socket is already connected: <%s>(%d)",
+                 ctx->errbuf, ctx->rc);
     break;
   case GRN_SOCKET_IS_NOT_CONNECTED:
     error_class = mrb_class_get_under(mrb, module, "SocketIsNotConnected");
-    snprintf(message, MESSAGE_SIZE,
-             "socket is not connected: <%s>(%d)",
-             ctx->errbuf, ctx->rc);
+    grn_snprintf(message, MESSAGE_SIZE, MESSAGE_SIZE,
+                 "socket is not connected: <%s>(%d)",
+                 ctx->errbuf, ctx->rc);
     break;
   case GRN_SOCKET_IS_ALREADY_SHUTDOWNED:
     error_class = mrb_class_get_under(mrb, module, "SocketIsAlreadyShutdowned");
-    snprintf(message, MESSAGE_SIZE,
-             "socket is already shutdowned: <%s>(%d)",
-             ctx->errbuf, ctx->rc);
+    grn_snprintf(message, MESSAGE_SIZE, MESSAGE_SIZE,
+                 "socket is already shutdowned: <%s>(%d)",
+                 ctx->errbuf, ctx->rc);
     break;
   case GRN_OPERATION_TIMEOUT:
     error_class = mrb_class_get_under(mrb, module, "OperationTimeout");
-    snprintf(message, MESSAGE_SIZE,
-             "operation timeout: <%s>(%d)",
-             ctx->errbuf, ctx->rc);
+    grn_snprintf(message, MESSAGE_SIZE, MESSAGE_SIZE,
+                 "operation timeout: <%s>(%d)",
+                 ctx->errbuf, ctx->rc);
     break;
   case GRN_CONNECTION_REFUSED:
     error_class = mrb_class_get_under(mrb, module, "ConnectionRefused");
-    snprintf(message, MESSAGE_SIZE,
-             "connection refused: <%s>(%d)",
-             ctx->errbuf, ctx->rc);
+    grn_snprintf(message, MESSAGE_SIZE, MESSAGE_SIZE,
+                 "connection refused: <%s>(%d)",
+                 ctx->errbuf, ctx->rc);
     break;
   case GRN_RANGE_ERROR:
     error_class = mrb_class_get_under(mrb, module, "RangeError");
-    snprintf(message, MESSAGE_SIZE,
-             "range error: <%s>(%d)",
-             ctx->errbuf, ctx->rc);
+    grn_snprintf(message, MESSAGE_SIZE, MESSAGE_SIZE,
+                 "range error: <%s>(%d)",
+                 ctx->errbuf, ctx->rc);
     break;
   case GRN_TOKENIZER_ERROR:
     error_class = mrb_class_get_under(mrb, module, "TokenizerError");
-    snprintf(message, MESSAGE_SIZE,
-             "tokenizer error: <%s>(%d)",
-             ctx->errbuf, ctx->rc);
+    grn_snprintf(message, MESSAGE_SIZE, MESSAGE_SIZE,
+                 "tokenizer error: <%s>(%d)",
+                 ctx->errbuf, ctx->rc);
     break;
   case GRN_FILE_CORRUPT:
     error_class = mrb_class_get_under(mrb, module, "FileCorrupt");
-    snprintf(message, MESSAGE_SIZE,
-             "file corrupt: <%s>(%d)",
-             ctx->errbuf, ctx->rc);
+    grn_snprintf(message, MESSAGE_SIZE, MESSAGE_SIZE,
+                 "file corrupt: <%s>(%d)",
+                 ctx->errbuf, ctx->rc);
     break;
   case GRN_INVALID_FORMAT:
     error_class = mrb_class_get_under(mrb, module, "InvalidFormat");
-    snprintf(message, MESSAGE_SIZE,
-             "invalid format: <%s>(%d)",
-             ctx->errbuf, ctx->rc);
+    grn_snprintf(message, MESSAGE_SIZE, MESSAGE_SIZE,
+                 "invalid format: <%s>(%d)",
+                 ctx->errbuf, ctx->rc);
     break;
   case GRN_OBJECT_CORRUPT:
     error_class = mrb_class_get_under(mrb, module, "ObjectCorrupt");
-    snprintf(message, MESSAGE_SIZE,
-             "object corrupt: <%s>(%d)",
-             ctx->errbuf, ctx->rc);
+    grn_snprintf(message, MESSAGE_SIZE, MESSAGE_SIZE,
+                 "object corrupt: <%s>(%d)",
+                 ctx->errbuf, ctx->rc);
     break;
   case GRN_TOO_MANY_SYMBOLIC_LINKS:
     error_class = mrb_class_get_under(mrb, module, "TooManySymbolicLinks");
-    snprintf(message, MESSAGE_SIZE,
-             "too many symbolic links: <%s>(%d)",
-             ctx->errbuf, ctx->rc);
+    grn_snprintf(message, MESSAGE_SIZE, MESSAGE_SIZE,
+                 "too many symbolic links: <%s>(%d)",
+                 ctx->errbuf, ctx->rc);
     break;
   case GRN_NOT_SOCKET:
     error_class = mrb_class_get_under(mrb, module, "NotSocket");
-    snprintf(message, MESSAGE_SIZE,
-             "not socket: <%s>(%d)",
-             ctx->errbuf, ctx->rc);
+    grn_snprintf(message, MESSAGE_SIZE, MESSAGE_SIZE,
+                 "not socket: <%s>(%d)",
+                 ctx->errbuf, ctx->rc);
     break;
   case GRN_OPERATION_NOT_SUPPORTED:
     error_class = mrb_class_get_under(mrb, module, "OperationNotSupported");
-    snprintf(message, MESSAGE_SIZE,
-             "operation not supported: <%s>(%d)",
-             ctx->errbuf, ctx->rc);
+    grn_snprintf(message, MESSAGE_SIZE, MESSAGE_SIZE,
+                 "operation not supported: <%s>(%d)",
+                 ctx->errbuf, ctx->rc);
     break;
   case GRN_ADDRESS_IS_IN_USE:
     error_class = mrb_class_get_under(mrb, module, "AddressIsInUse");
-    snprintf(message, MESSAGE_SIZE,
-             "address is in use: <%s>(%d)",
-             ctx->errbuf, ctx->rc);
+    grn_snprintf(message, MESSAGE_SIZE, MESSAGE_SIZE,
+                 "address is in use: <%s>(%d)",
+                 ctx->errbuf, ctx->rc);
     break;
   case GRN_ZLIB_ERROR:
     error_class = mrb_class_get_under(mrb, module, "ZlibError");
-    snprintf(message, MESSAGE_SIZE,
-             "zlib error: <%s>(%d)",
-             ctx->errbuf, ctx->rc);
+    grn_snprintf(message, MESSAGE_SIZE, MESSAGE_SIZE,
+                 "zlib error: <%s>(%d)",
+                 ctx->errbuf, ctx->rc);
     break;
   case GRN_LZ4_ERROR:
     error_class = mrb_class_get_under(mrb, module, "LZ4Error");
-    snprintf(message, MESSAGE_SIZE,
-             "LZ4 error: <%s>(%d)",
-             ctx->errbuf, ctx->rc);
+    grn_snprintf(message, MESSAGE_SIZE, MESSAGE_SIZE,
+                 "LZ4 error: <%s>(%d)",
+                 ctx->errbuf, ctx->rc);
     break;
   case GRN_STACK_OVER_FLOW:
     error_class = mrb_class_get_under(mrb, module, "StackOverFlow");
-    snprintf(message, MESSAGE_SIZE,
-             "stack over flow: <%s>(%d)",
-             ctx->errbuf, ctx->rc);
+    grn_snprintf(message, MESSAGE_SIZE, MESSAGE_SIZE,
+                 "stack over flow: <%s>(%d)",
+                 ctx->errbuf, ctx->rc);
     break;
   case GRN_SYNTAX_ERROR:
     error_class = mrb_class_get_under(mrb, module, "SyntaxError");
-    snprintf(message, MESSAGE_SIZE,
-             "syntax error: <%s>(%d)",
-             ctx->errbuf, ctx->rc);
+    grn_snprintf(message, MESSAGE_SIZE, MESSAGE_SIZE,
+                 "syntax error: <%s>(%d)",
+                 ctx->errbuf, ctx->rc);
     break;
   case GRN_RETRY_MAX:
     error_class = mrb_class_get_under(mrb, module, "RetryMax");
-    snprintf(message, MESSAGE_SIZE,
-             "retry max: <%s>(%d)",
-             ctx->errbuf, ctx->rc);
+    grn_snprintf(message, MESSAGE_SIZE, MESSAGE_SIZE,
+                 "retry max: <%s>(%d)",
+                 ctx->errbuf, ctx->rc);
     break;
   case GRN_INCOMPATIBLE_FILE_FORMAT:
     error_class = mrb_class_get_under(mrb, module, "IncompatibleFileFormat");
-    snprintf(message, MESSAGE_SIZE,
-             "incompatible file format: <%s>(%d)",
-             ctx->errbuf, ctx->rc);
+    grn_snprintf(message, MESSAGE_SIZE, MESSAGE_SIZE,
+                 "incompatible file format: <%s>(%d)",
+                 ctx->errbuf, ctx->rc);
     break;
   case GRN_UPDATE_NOT_ALLOWED:
     error_class = mrb_class_get_under(mrb, module, "UpdateNotAllowed");
-    snprintf(message, MESSAGE_SIZE,
-             "update not allowed: <%s>(%d)",
-             ctx->errbuf, ctx->rc);
+    grn_snprintf(message, MESSAGE_SIZE, MESSAGE_SIZE,
+                 "update not allowed: <%s>(%d)",
+                 ctx->errbuf, ctx->rc);
     break;
   case GRN_TOO_SMALL_OFFSET:
     error_class = mrb_class_get_under(mrb, module, "TooSmallOffset");
-    snprintf(message, MESSAGE_SIZE,
-             "too small offset: <%s>(%d)",
-             ctx->errbuf, ctx->rc);
+    grn_snprintf(message, MESSAGE_SIZE, MESSAGE_SIZE,
+                 "too small offset: <%s>(%d)",
+                 ctx->errbuf, ctx->rc);
     break;
   case GRN_TOO_LARGE_OFFSET:
     error_class = mrb_class_get_under(mrb, module, "TooLargeOffset");
-    snprintf(message, MESSAGE_SIZE,
-             "too large offset: <%s>(%d)",
-             ctx->errbuf, ctx->rc);
+    grn_snprintf(message, MESSAGE_SIZE, MESSAGE_SIZE,
+                 "too large offset: <%s>(%d)",
+                 ctx->errbuf, ctx->rc);
     break;
   case GRN_TOO_SMALL_LIMIT:
     error_class = mrb_class_get_under(mrb, module, "TooSmallLimit");
-    snprintf(message, MESSAGE_SIZE,
-             "too small limit: <%s>(%d)",
-             ctx->errbuf, ctx->rc);
+    grn_snprintf(message, MESSAGE_SIZE, MESSAGE_SIZE,
+                 "too small limit: <%s>(%d)",
+                 ctx->errbuf, ctx->rc);
     break;
   case GRN_CAS_ERROR:
     error_class = mrb_class_get_under(mrb, module, "CASError");
-    snprintf(message, MESSAGE_SIZE,
-             "CAS error: <%s>(%d)",
-             ctx->errbuf, ctx->rc);
+    grn_snprintf(message, MESSAGE_SIZE, MESSAGE_SIZE,
+                 "CAS error: <%s>(%d)",
+                 ctx->errbuf, ctx->rc);
     break;
   case GRN_UNSUPPORTED_COMMAND_VERSION:
     error_class = mrb_class_get_under(mrb, module, "UnsupportedCommandVersion");
-    snprintf(message, MESSAGE_SIZE,
-             "unsupported command version: <%s>(%d)",
-             ctx->errbuf, ctx->rc);
+    grn_snprintf(message, MESSAGE_SIZE, MESSAGE_SIZE,
+                 "unsupported command version: <%s>(%d)",
+                 ctx->errbuf, ctx->rc);
     break;
   case GRN_NORMALIZER_ERROR:
     error_class = mrb_class_get_under(mrb, module, "NormalizerError");
-    snprintf(message, MESSAGE_SIZE,
-             "normalizer error: <%s>(%d)",
-             ctx->errbuf, ctx->rc);
+    grn_snprintf(message, MESSAGE_SIZE, MESSAGE_SIZE,
+                 "normalizer error: <%s>(%d)",
+                 ctx->errbuf, ctx->rc);
     break;
   default:
     error_class = mrb_class_get_under(mrb, module, "Error");
-    snprintf(message, MESSAGE_SIZE,
-             "unsupported error: <%s>(%d)",
-             ctx->errbuf, ctx->rc);
+    grn_snprintf(message, MESSAGE_SIZE, MESSAGE_SIZE,
+                 "unsupported error: <%s>(%d)",
+                 ctx->errbuf, ctx->rc);
     break;
   }
 #undef MESSAGE_SIZE

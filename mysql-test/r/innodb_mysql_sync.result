@@ -528,6 +528,7 @@ SET DEBUG_SYNC= 'RESET';
 # This should not do anything
 ALTER TABLE t1;
 affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
 SET DEBUG_SYNC = 'row_log_table_apply1_before SIGNAL rebuild';
 # Check that we rebuild the table
 ALTER TABLE t1 engine=innodb;

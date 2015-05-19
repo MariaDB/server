@@ -39,7 +39,12 @@ sum(n)
 show status like 'Slave_open_temp_tables';
 Variable_name	Value
 Slave_open_temp_tables	0
+*** MDEV-8016: Replication aborts on DROP /*!40005 TEMPORARY */ TABLE IF EXISTS ***
+INSERT INTO t2 VALUES (2000), (2001);
+CREATE FUNCTION f() RETURNS INTEGER RETURN 1;
+CREATE TEMPORARY TABLE t3 AS SELECT f() AS col FROM t2;
 drop table if exists t1,t2;
 Warnings:
 Note	1051	Unknown table 'test.t1'
+drop function f;
 include/rpl_end.inc

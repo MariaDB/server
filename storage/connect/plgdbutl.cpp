@@ -5,7 +5,7 @@
 /*                                                                     */
 /* COPYRIGHT:                                                          */
 /* ----------                                                          */
-/*  (C) Copyright to the author Olivier BERTRAND          1998-2014    */
+/*  (C) Copyright to the author Olivier BERTRAND          1998-2015    */
 /*                                                                     */
 /* WHAT THIS PROGRAM DOES:                                             */
 /* -----------------------                                             */
@@ -294,8 +294,7 @@ PQRYRES PlgAllocResult(PGLOBAL g, int ncol, int maxres, int ids,
 #else   // !XMSG
       GetRcString(ids + crp->Ncol, cname, sizeof(cname));
 #endif  // !XMSG
-      crp->Name = (PSZ)PlugSubAlloc(g, NULL, strlen(cname) + 1);
-      strcpy(crp->Name, cname);
+      crp->Name = (PSZ)PlugDup(g, cname);
     } else
       crp->Name = NULL;           // Will be set by caller
 
@@ -853,8 +852,7 @@ FILE *PlugOpenFile(PGLOBAL g, LPCSTR fname, LPCSTR ftype)
       htrc(" fp=%p\n", fp);
 
     // fname may be in volatile memory such as stack
-    fp->Fname = (char*)PlugSubAlloc(g, NULL, strlen(fname) + 1);
-    strcpy((char*)fp->Fname, fname);
+    fp->Fname = PlugDup(g, fname);
     fp->Count = 1;
     fp->Type = TYPE_FB_FILE;
     fp->File = fop;
@@ -1399,6 +1397,23 @@ void *PlgDBSubAlloc(PGLOBAL g, void *memp, size_t size)
 
   return (memp);
   } // end of PlgDBSubAlloc
+
+/***********************************************************************/
+/*  Program for sub-allocating and copying a string in a storage area. */
+/***********************************************************************/
+char *PlgDBDup(PGLOBAL g, const char *str)
+  {
+  if (str) {
+    char *sm = (char*)PlgDBSubAlloc(g, NULL, strlen(str) + 1);
+
+    if (sm)
+      strcpy(sm, str);
+
+    return sm;
+  } else
+    return NULL;
+
+  } // end of PlgDBDup
 
 /***********************************************************************/
 /*  PUTOUT: Plug DB object typing routine.                             */

@@ -101,6 +101,35 @@ if (!$annotate)
 {
   --echo # No Annotate_rows events should appear below
 }
+
+
+
+--echo ########################################################################
+--echo # Ensure that a replication failure doesn't segfault - MDEV-7864
+--echo ########################################################################
+DELETE FROM t3 WHERE a=2;
+connection master;
+INSERT INTO t5 (a) SELECT a.a*10000+b.a*1000+c.a*100+d.a*10 FROM t5 a, t5 b, t5 c, t5 d;
+INSERT INTO t3 (a) SELECT a FROM t5 WHERE a > 10;
+DELETE t3 FROM t3 INNER JOIN t5 ON t3.a=t5.a;
+connection slave;
+--echo ---- Wait until slave stops with an error ----
+# Wait until the slave tries to run the query, fails with key not
+# found error, and stops the SQL thread.
+let $slave_sql_errno= 1032; # Can't find record
+source include/wait_for_slave_sql_error.inc;
+--let $err= query_get_value("SHOW SLAVE STATUS", Last_SQL_Error, 1)
+--replace_regex /end_log_pos [0-9]+/end_log_pos END_LOG_POS/
+--disable_query_log
+--eval SELECT "$err" as 'Last_SQL_Error (expected "Delete_rows_v1 event on table test1.t3; Can\'t find record in \'t3\'" error)'
+--enable_query_log
+call mtr.add_suppression("Slave: Can't find record in 't3' Error_code: 1032");
+
+SET GLOBAL sql_slave_skip_counter=1;
+START SLAVE;
+connection master;
+sync_slave_with_master;
+
 --echo ########################################################################
 FLUSH LOGS;
 

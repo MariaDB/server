@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2000, 2014, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2000, 2015, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, 2009 Google Inc.
 Copyright (c) 2009, Percona Inc.
 Copyright (c) 2012, Facebook Inc.
@@ -2760,19 +2760,6 @@ trx_is_strict(
 	return(trx && trx->mysql_thd && THDVAR(trx->mysql_thd, strict_mode));
 }
 
-/**********************************************************************//**
-Determines if the current MySQL thread is running in strict mode.
-If thd==NULL, THDVAR returns the global value of innodb-strict-mode.
-@return	TRUE if strict */
-UNIV_INLINE
-ibool
-thd_is_strict(
-/*==========*/
-	THD*	thd)	/*!< in: MySQL thread descriptor */
-{
-	return(THDVAR(thd, strict_mode));
-}
-
 /**************************************************************//**
 Resets some fields of a prebuilt struct. The template is used in fast
 retrieval of just those column values MySQL needs in its processing. */
@@ -4116,7 +4103,10 @@ innobase_release_savepoint(
 	DBUG_ASSERT(hton == innodb_hton_ptr);
 
 	trx = check_trx_exists(thd);
-	trx_start_if_not_started(trx);
+
+	if (trx->state == TRX_STATE_NOT_STARTED) {
+		trx_start_if_not_started(trx);
+	}
 
 	/* TODO: use provided savepoint data area to store savepoint data */
 

@@ -83,6 +83,8 @@
 #include "rpl_handler.h"
 #include "rpl_mi.h"
 
+#include "sql_digest.h"
+
 #include "sp_head.h"
 #include "sp.h"
 #include "sp_cache.h"
@@ -949,6 +951,7 @@ bool do_command(THD *thd)
     /* Mark the statement completed. */
     MYSQL_END_STATEMENT(thd->m_statement_psi, thd->get_stmt_da());
     thd->m_statement_psi= NULL;
+    thd->m_digest= NULL;
 
     if (net->error != 3)
     {
@@ -998,6 +1001,7 @@ bool do_command(THD *thd)
 
 out:
   /* The statement instrumentation must be closed in all cases. */
+  DBUG_ASSERT(thd->m_digest == NULL);
   DBUG_ASSERT(thd->m_statement_psi == NULL);
   DBUG_RETURN(return_value);
 }
@@ -1278,6 +1282,10 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
   }
   case COM_QUERY:
   {
+    DBUG_ASSERT(thd->m_digest == NULL);
+    thd->m_digest= & thd->m_digest_state;
+    thd->m_digest->reset(thd->m_token_array, max_digest_length);
+
     if (alloc_query(thd, packet, packet_length))
       break;					// fatal error is set
     MYSQL_QUERY_START(thd->query(), thd->thread_id,
@@ -1337,6 +1345,7 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
       /* PSI end */
       MYSQL_END_STATEMENT(thd->m_statement_psi, thd->get_stmt_da());
       thd->m_statement_psi= NULL;
+      thd->m_digest= NULL;
 
       /* DTRACE end */
       if (MYSQL_QUERY_DONE_ENABLED())
@@ -1357,6 +1366,8 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
                         (char *) thd->security_ctx->host_or_ip);
 
       /* PSI begin */
+      thd->m_digest= & thd->m_digest_state;
+
       thd->m_statement_psi= MYSQL_START_STATEMENT(&thd->m_statement_state,
                                                   com_statement_info[command].m_key,
                                                   thd->db, thd->db_length,
@@ -1741,6 +1752,7 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
   /* Performance Schema Interface instrumentation, end */
   MYSQL_END_STATEMENT(thd->m_statement_psi, thd->get_stmt_da());
   thd->m_statement_psi= NULL;
+  thd->m_digest= NULL;
 
   thd->set_time();
   dec_thread_running();
@@ -8551,11 +8563,27 @@ bool parse_sql(THD *thd, Parser_state *parser_state,
 
   thd->m_parser_state= parser_state;
 
-#ifdef HAVE_PSI_STATEMENT_DIGEST_INTERFACE
-  /* Start Digest */
-  thd->m_parser_state->m_lip.m_digest_psi=
-    MYSQL_DIGEST_START(do_pfs_digest ? thd->m_statement_psi : NULL);
-#endif
+  parser_state->m_digest_psi= NULL;
+  parser_state->m_lip.m_digest= NULL;
+
+  if (do_pfs_digest)
+  {
+    /* Start Digest */
+    parser_state->m_digest_psi= MYSQL_DIGEST_START(thd->m_statement_psi);
+
+    if (parser_state->m_input.m_compute_digest ||
+       (parser_state->m_digest_psi != NULL))
+    {
+      /*
+        If either:
+        - the caller wants to compute a digest
+        - the performance schema wants to compute a digest
+        set the digest listener in the lexer.
+      */
+      parser_state->m_lip.m_digest= thd->m_digest;
+      parser_state->m_lip.m_digest->m_digest_storage.m_charset_number= thd->charset()->number;
+    }
+  }
 
   /* Parse the query. */
 
@@ -8588,6 +8616,18 @@ bool parse_sql(THD *thd, Parser_state *parser_state,
   /* That's it. */
 
   ret_value= mysql_parse_status || thd->is_fatal_error;
+
+  if ((ret_value == 0) && (parser_state->m_digest_psi != NULL))
+  {
+    /*
+      On parsing success, record the digest in the performance schema.
+    */
+    DBUG_ASSERT(do_pfs_digest);
+    DBUG_ASSERT(thd->m_digest != NULL);
+    MYSQL_DIGEST_END(parser_state->m_digest_psi,
+                     & thd->m_digest->m_digest_storage);
+  }
+
   MYSQL_QUERY_PARSE_DONE(ret_value);
   DBUG_RETURN(ret_value);
 }

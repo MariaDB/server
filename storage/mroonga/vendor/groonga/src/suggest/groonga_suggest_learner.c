@@ -1,5 +1,5 @@
 /* -*- c-basic-offset: 2 -*- */
-/* Copyright(C) 2010-2014 Brazil
+/* Copyright(C) 2010-2015 Brazil
 
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -17,12 +17,12 @@
 
 /* for grn_str_getopt() */
 #include <grn_str.h>
+#include <grn_msgpack.h>
 
 #include "zmq_compatible.h"
 #include <stdio.h>
 #include <signal.h>
 #include <unistd.h>
-#include <msgpack.h>
 #include <pthread.h>
 #include <groonga.h>
 #include <inttypes.h>
@@ -142,14 +142,14 @@ load_to_multi_targets(grn_ctx *ctx,
   int _k_len; \
   char _k_buf[GRN_TABLE_MAX_KEY_SIZE]; \
   _k_len = grn_table_get_key(ctx, ref_table, (id), _k_buf, GRN_TABLE_MAX_KEY_SIZE); \
-  msgpack_pack_raw(&pk, _k_len); \
-  msgpack_pack_raw_body(&pk, _k_buf, _k_len); \
+  msgpack_pack_str(&pk, _k_len); \
+  msgpack_pack_str_body(&pk, _k_buf, _k_len); \
 } while (0)
 
 #define PACK_MAP_ITEM(col_name) do { \
   grn_obj _v; \
-  msgpack_pack_raw(&pk, sizeof(#col_name) - 1); \
-  msgpack_pack_raw_body(&pk, CONST_STR_LEN(#col_name)); \
+  msgpack_pack_str(&pk, sizeof(#col_name) - 1); \
+  msgpack_pack_str_body(&pk, #col_name, sizeof(#col_name) - 1); \
   switch (col_##col_name->header.type) { \
   case GRN_COLUMN_FIX_SIZE: \
     GRN_VALUE_FIX_SIZE_INIT(&_v, 0, grn_obj_get_range(ctx, col_##col_name)); \
@@ -168,8 +168,8 @@ load_to_multi_targets(grn_ctx *ctx,
   case GRN_BULK: \
     switch (_v.header.domain) { \
     case GRN_DB_SHORT_TEXT: \
-      msgpack_pack_raw(&pk, GRN_TEXT_LEN(&_v)); \
-      msgpack_pack_raw_body(&pk, GRN_TEXT_VALUE(&_v), GRN_TEXT_LEN(&_v)); \
+      msgpack_pack_str(&pk, GRN_TEXT_LEN(&_v)); \
+      msgpack_pack_str_body(&pk, GRN_TEXT_VALUE(&_v), GRN_TEXT_LEN(&_v)); \
       break; \
     case GRN_DB_INT32: \
       msgpack_pack_int32(&pk, GRN_INT32_VALUE(&_v)); \
@@ -268,18 +268,18 @@ send_handler(void *zmq_send_sock, grn_ctx *ctx)
                 msgpack_pack_map(&pk, 8);
 
                 /* ["_key","ShortText"],["last","Time"],["kana","kana"],["freq2","Int32"],["freq","Int32"],["co","pair_all"],["buzz","Int32"],["boost","Int32"] */
-                msgpack_pack_raw(&pk, 6);
-                msgpack_pack_raw_body(&pk, CONST_STR_LEN("target"));
-                msgpack_pack_raw(&pk, name_len);
-                msgpack_pack_raw_body(&pk, name_buf, name_len);
+                msgpack_pack_str(&pk, 6);
+                msgpack_pack_str_body(&pk, "target", strlen("target"));
+                msgpack_pack_str(&pk, name_len);
+                msgpack_pack_str_body(&pk, name_buf, name_len);
 
-                msgpack_pack_raw(&pk, 4);
-                msgpack_pack_raw_body(&pk,
+                msgpack_pack_str(&pk, 4);
+                msgpack_pack_str_body(&pk,
                                       GRN_COLUMN_NAME_KEY,
                                       GRN_COLUMN_NAME_KEY_LEN);
                 key_len = grn_table_cursor_get_key(ctx, tc, (void **)&key);
-                msgpack_pack_raw(&pk, key_len);
-                msgpack_pack_raw_body(&pk, key, key_len);
+                msgpack_pack_str(&pk, key_len);
+                msgpack_pack_str_body(&pk, key, key_len);
 
                 PACK_MAP_ITEM(last);
                 PACK_MAP_ITEM(kana);
@@ -339,13 +339,13 @@ send_handler(void *zmq_send_sock, grn_ctx *ctx)
                 msgpack_pack_map(&pk, 7);
                 /* ["_key","UInt64"],["pre","item_all"],["post","item_all"],["freq2","Int32"],["freq1","Int32"],["freq0","Int32"] */
 
-                msgpack_pack_raw(&pk, 6);
-                msgpack_pack_raw_body(&pk, CONST_STR_LEN("target"));
-                msgpack_pack_raw(&pk, name_len);
-                msgpack_pack_raw_body(&pk, name_buf, name_len);
+                msgpack_pack_str(&pk, 6);
+                msgpack_pack_str_body(&pk, "target", strlen("target"));
+                msgpack_pack_str(&pk, name_len);
+                msgpack_pack_str_body(&pk, name_buf, name_len);
 
-                msgpack_pack_raw(&pk, 4);
-                msgpack_pack_raw_body(&pk,
+                msgpack_pack_str(&pk, 4);
+                msgpack_pack_str_body(&pk,
                                       GRN_COLUMN_NAME_KEY,
                                       GRN_COLUMN_NAME_KEY_LEN);
                 grn_table_cursor_get_key(ctx, tc, (void **)&key);
@@ -419,25 +419,29 @@ handle_msg(msgpack_object *obj, grn_ctx *ctx, grn_obj *buf)
     int i;
     for (i = 0; i < obj->via.map.size; i++) {
       msgpack_object_kv *kv;
+      msgpack_object *key;
+      msgpack_object *value;
       kv = &(obj->via.map.ptr[i]);
-      if (kv->key.type == MSGPACK_OBJECT_RAW && kv->key.via.raw.size) {
-        switch (kv->key.via.raw.ptr[0]) {
+      key = &(kv->key);
+      value = &(kv->val);
+      if (key->type == MSGPACK_OBJECT_STR && MSGPACK_OBJECT_STR_SIZE(key) > 0) {
+        switch (MSGPACK_OBJECT_STR_PTR(key)[0]) {
         case 'i':
-          if (kv->val.type == MSGPACK_OBJECT_RAW) {
-            client_id_len = kv->val.via.raw.size;
-            client_id = kv->val.via.raw.ptr;
+          if (value->type == MSGPACK_OBJECT_STR) {
+            client_id_len = MSGPACK_OBJECT_STR_SIZE(value);
+            client_id = MSGPACK_OBJECT_STR_PTR(value);
           }
           break;
         case 'q':
-          if (kv->val.type == MSGPACK_OBJECT_RAW) {
-            query_len = kv->val.via.raw.size;
-            query = kv->val.via.raw.ptr;
+          if (value->type == MSGPACK_OBJECT_STR) {
+            query_len = MSGPACK_OBJECT_STR_SIZE(value);
+            query = MSGPACK_OBJECT_STR_PTR(value);
           }
           break;
         case 'l':
-          if (kv->val.type == MSGPACK_OBJECT_RAW) {
-            learn_target_names_len = kv->val.via.raw.size;
-            learn_target_names = kv->val.via.raw.ptr;
+          if (value->type == MSGPACK_OBJECT_STR) {
+            learn_target_names_len = MSGPACK_OBJECT_STR_SIZE(value);
+            learn_target_names = MSGPACK_OBJECT_STR_PTR(value);
           }
           break;
         case 's':

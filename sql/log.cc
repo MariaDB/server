@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2014, SkySQL Ab.
+   Copyright (c) 2009, 2015, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -95,6 +95,9 @@ mysql_mutex_t LOCK_commit_ordered;
 
 static ulonglong binlog_status_var_num_commits;
 static ulonglong binlog_status_var_num_group_commits;
+static ulonglong binlog_status_group_commit_trigger_count;
+static ulonglong binlog_status_group_commit_trigger_lock_wait;
+static ulonglong binlog_status_group_commit_trigger_timeout;
 static char binlog_snapshot_file[FN_REFLEN];
 static ulonglong binlog_snapshot_position;
 
@@ -104,6 +107,12 @@ static SHOW_VAR binlog_status_vars_detail[]=
     (char *)&binlog_status_var_num_commits, SHOW_LONGLONG},
   {"group_commits",
     (char *)&binlog_status_var_num_group_commits, SHOW_LONGLONG},
+  {"group_commit_trigger_count",
+    (char *)&binlog_status_group_commit_trigger_count, SHOW_LONGLONG},
+  {"group_commit_trigger_lock_wait",
+    (char *)&binlog_status_group_commit_trigger_lock_wait, SHOW_LONGLONG},
+  {"group_commit_trigger_timeout",
+    (char *)&binlog_status_group_commit_trigger_timeout, SHOW_LONGLONG},
   {"snapshot_file",
     (char *)&binlog_snapshot_file, SHOW_CHAR},
   {"snapshot_position",
@@ -2484,6 +2493,8 @@ bool MYSQL_LOG::open(
   char buff[FN_REFLEN];
   MY_STAT f_stat;
   File file= -1;
+  my_off_t seek_offset;
+  bool is_fifo = false;
   int open_flags= O_CREAT | O_BINARY;
   DBUG_ENTER("MYSQL_LOG::open");
   DBUG_PRINT("enter", ("log_type: %d", (int) log_type_arg));
@@ -2500,14 +2511,16 @@ bool MYSQL_LOG::open(
                                  log_type_arg, io_cache_type_arg))
     goto err;
 
-  /* File is regular writable file */
-  if (my_stat(log_file_name, &f_stat, MYF(0)) && !MY_S_ISREG(f_stat.st_mode))
-    goto err;
+  is_fifo = my_stat(log_file_name, &f_stat, MYF(0)) &&
+            MY_S_ISFIFO(f_stat.st_mode);
 
   if (io_cache_type == SEQ_READ_APPEND)
     open_flags |= O_RDWR | O_APPEND;
   else
     open_flags |= O_WRONLY | (log_type == LOG_BIN ? 0 : O_APPEND);
+
+  if (is_fifo)
+    open_flags |= O_NONBLOCK;
 
   db[0]= 0;
 
@@ -2516,11 +2529,16 @@ bool MYSQL_LOG::open(
   m_log_file_key= log_file_key;
 #endif
 
-  if ((file= mysql_file_open(log_file_key,
-                             log_file_name, open_flags,
-                             MYF(MY_WME | ME_WAITTANG))) < 0 ||
-      init_io_cache(&log_file, file, IO_SIZE, io_cache_type,
-                    mysql_file_tell(file, MYF(MY_WME)), 0,
+  if ((file= mysql_file_open(log_file_key, log_file_name, open_flags,
+                             MYF(MY_WME | ME_WAITTANG))) < 0)
+    goto err;
+
+  if (is_fifo)
+    seek_offset= 0;
+  else if ((seek_offset= mysql_file_tell(file, MYF(MY_WME))))
+    goto err;
+
+  if (init_io_cache(&log_file, file, IO_SIZE, io_cache_type, seek_offset, 0,
                     MYF(MY_WME | MY_NABP |
                         ((log_type == LOG_BIN) ? MY_WAIT_IF_FULL : 0))))
     goto err;
@@ -2609,17 +2627,17 @@ void MYSQL_LOG::close(uint exiting)
   {
     end_io_cache(&log_file);
 
-    if (mysql_file_sync(log_file.file, MYF(MY_WME)) && ! write_error)
+    if (log_type == LOG_BIN && mysql_file_sync(log_file.file, MYF(MY_WME)) && ! write_error)
     {
       write_error= 1;
-      sql_print_error(ER(ER_ERROR_ON_WRITE), name, errno);
+      sql_print_error(ER_THD_OR_DEFAULT(current_thd, ER_ERROR_ON_WRITE), name, errno);
     }
 
     if (!(exiting & LOG_CLOSE_DELAYED_CLOSE) &&
         mysql_file_close(log_file.file, MYF(MY_WME)) && ! write_error)
     {
       write_error= 1;
-      sql_print_error(ER(ER_ERROR_ON_WRITE), name, errno);
+      sql_print_error(ER_THD_OR_DEFAULT(current_thd, ER_ERROR_ON_WRITE), name, errno);
     }
   }
 
@@ -3035,6 +3053,8 @@ MYSQL_BIN_LOG::MYSQL_BIN_LOG(uint *sync_period)
    bytes_written(0), file_id(1), open_count(1),
    group_commit_queue(0), group_commit_queue_busy(FALSE),
    num_commits(0), num_group_commits(0),
+   group_commit_trigger_count(0), group_commit_trigger_timeout(0),
+   group_commit_trigger_lock_wait(0),
    sync_period_ptr(sync_period), sync_counter(0),
    state_file_deleted(false), binlog_state_recover_done(false),
    is_relay_log(0), signal_cnt(0),
@@ -5857,6 +5877,7 @@ bool MYSQL_BIN_LOG::write(Log_event *event_info, my_bool *with_annotate)
     if (direct)
     {
       int res;
+      uint64 commit_id= 0;
       DBUG_PRINT("info", ("direct is set"));
       if ((res= thd->wait_for_prior_commit()))
         DBUG_RETURN(res);
@@ -5864,7 +5885,16 @@ bool MYSQL_BIN_LOG::write(Log_event *event_info, my_bool *with_annotate)
       my_org_b_tell= my_b_tell(file);
       mysql_mutex_lock(&LOCK_log);
       prev_binlog_id= current_binlog_id;
-      if (write_gtid_event(thd, true, using_trans, 0))
+      DBUG_EXECUTE_IF("binlog_force_commit_id",
+        {
+          const LEX_STRING name= { C_STRING_WITH_LEN("commit_id") };
+          bool null_value;
+          user_var_entry *entry=
+            (user_var_entry*) my_hash_search(&thd->user_vars,
+                                             (uchar*) name.str, name.length);
+          commit_id= entry->val_int(&null_value);
+        });
+      if (write_gtid_event(thd, true, using_trans, commit_id))
         goto err;
     }
     else
@@ -6643,6 +6673,10 @@ bool MYSQL_BIN_LOG::write_incident(THD *thd)
 
     if (check_purge)
       checkpoint_and_purge(prev_binlog_id);
+  }
+  else
+  {
+    mysql_mutex_unlock(&LOCK_log);
   }
 
   DBUG_RETURN(error);
@@ -7552,8 +7586,18 @@ MYSQL_BIN_LOG::wait_for_sufficient_commits()
   mysql_mutex_assert_owner(&LOCK_prepare_ordered);
 
   for (e= last_head= group_commit_queue, count= 0; e; e= e->next)
-    if (++count >= opt_binlog_commit_wait_count || unlikely(e->thd->has_waiter))
+  {
+    if (++count >= opt_binlog_commit_wait_count)
+    {
+      group_commit_trigger_count++;
       return;
+    }
+    if (unlikely(e->thd->has_waiter))
+    {
+      group_commit_trigger_lock_wait++;
+      return;
+    }
+  }
 
   mysql_mutex_unlock(&LOCK_log);
   set_timespec_nsec(wait_until, (ulonglong)1000*opt_binlog_commit_wait_usec);
@@ -7566,18 +7610,30 @@ MYSQL_BIN_LOG::wait_for_sufficient_commits()
     err= mysql_cond_timedwait(&COND_prepare_ordered, &LOCK_prepare_ordered,
                               &wait_until);
     if (err == ETIMEDOUT)
+    {
+      group_commit_trigger_timeout++;
       break;
+    }
     if (unlikely(last_head->thd->has_waiter))
+    {
+      group_commit_trigger_lock_wait++;
       break;
+    }
     head= group_commit_queue;
     for (e= head; e && e != last_head; e= e->next)
     {
       ++count;
       if (unlikely(e->thd->has_waiter))
+      {
+        group_commit_trigger_lock_wait++;
         goto after_loop;
+      }
     }
     if (count >= opt_binlog_commit_wait_count)
+    {
+      group_commit_trigger_count++;
       break;
+    }
     last_head= head;
   }
 after_loop:
@@ -9761,6 +9817,11 @@ TC_LOG_BINLOG::set_status_variables(THD *thd)
     binlog_snapshot_position= last_commit_pos_offset;
   }
   mysql_mutex_unlock(&LOCK_commit_ordered);
+  mysql_mutex_lock(&LOCK_prepare_ordered);
+  binlog_status_group_commit_trigger_count= this->group_commit_trigger_count;
+  binlog_status_group_commit_trigger_timeout= this->group_commit_trigger_timeout;
+  binlog_status_group_commit_trigger_lock_wait= this->group_commit_trigger_lock_wait;
+  mysql_mutex_unlock(&LOCK_prepare_ordered);
 
   if (have_snapshot)
   {

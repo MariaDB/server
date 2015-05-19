@@ -50,27 +50,6 @@ Created 9/5/1995 Heikki Tuuri
 
 #include <vector>
 
-/* There is a bug in Visual Studio 2010.
-Visual Studio has a feature "Checked Iterators". In a debug build, every
-iterator operation is checked at runtime for errors, e.g., out of range.
-Because of bug there is runtime error on following code
-for (std::vector<sync_level_t>::iterator it = array->elems.begin(); it !=
-array->elems.end(); ++it) and runtime check fails on comparison
-it != array->elems.end() that is correct and standard way to do end
-of range comparison.
-Disable this "Checked Iterators" for Windows and Debug if defined.
-*/
-#ifdef UNIV_DEBUG
-#ifdef __WIN__
-#ifdef _ITERATOR_DEBUG_LEVEL
-#undef  _ITERATOR_DEBUG_LEVEL
-#define _ITERATOR_DEBUG_LEVEL 0
-#endif /* _ITERATOR_DEBUG_LEVEL */
-#endif /* __WIN__*/
-#endif /* UNIV_DEBUG */
-
-#include <vector>
-
 /*
 	REASONS FOR IMPLEMENTING THE SPIN LOCK MUTEX
 	============================================
@@ -251,11 +230,8 @@ UNIV_INTERN ibool	sync_order_checks_on	= FALSE;
 static const ulint SYNC_THREAD_N_LEVELS = 10000;
 
 /** Array for tracking sync levels per thread. */
-struct sync_arr_t {
-	ulint		n_elems;	/*!< Number of elements in the array */
+typedef std::vector<sync_level_t> sync_arr_t;
 
-	std::vector<sync_level_t>	elems;		/*!< Vector of elements */
-};
 
 /** Mutexes or rw-locks held by a thread */
 struct sync_thread_t{
@@ -972,10 +948,10 @@ sync_thread_levels_g(
 {
 	ulint		i;
 
-	for (i = 0; i < arr->n_elems; i++) {
+	for (i = 0; i < arr->size(); i++) {
 		const sync_level_t*	slot;
 
-		slot = &arr->elems[i];
+		slot = (const sync_level_t*)&(arr->at(i));
 
 		if (slot->latch != NULL && slot->level <= limit) {
 			if (warn) {
@@ -1007,10 +983,10 @@ sync_thread_levels_contain(
 {
 	ulint		i;
 
-	for (i = 0; i < arr->n_elems; i++) {
+	for (i = 0; i < arr->size(); i++) {
 		const sync_level_t*	slot;
 
-		slot = &arr->elems[i];
+		slot = (const sync_level_t*)&(arr->at(i));
 
 		if (slot->latch != NULL && slot->level == level) {
 
@@ -1054,10 +1030,10 @@ sync_thread_levels_contains(
 
 	arr = thread_slot->levels;
 
-	for (i = 0; i < arr->n_elems; i++) {
+	for (i = 0; i < arr->size(); i++) {
 		sync_level_t*	slot;
 
-		slot = &arr->elems[i];
+		slot = (sync_level_t*)&(arr->at(i));
 
 		if (slot->latch != NULL && slot->level == level) {
 
@@ -1103,10 +1079,10 @@ sync_thread_levels_nonempty_gen(
 
 	arr = thread_slot->levels;
 
-	for (i = 0; i < arr->n_elems; ++i) {
+	for (i = 0; i < arr->size(); ++i) {
 		const sync_level_t*	slot;
 
-		slot = &arr->elems[i];
+		slot = (const sync_level_t*)&(arr->at(i));
 
 		if (slot->latch != NULL
 		    && (!dict_mutex_allowed
@@ -1163,10 +1139,10 @@ sync_thread_levels_nonempty_trx(
 
 	arr = thread_slot->levels;
 
-	for (i = 0; i < arr->n_elems; ++i) {
+	for (i = 0; i < arr->size(); ++i) {
 		const sync_level_t*	slot;
 
-		slot = &arr->elems[i];
+		slot = (const sync_level_t*)&(arr->at(i));
 
 		if (slot->latch != NULL
 		    && (!has_search_latch
@@ -1226,7 +1202,7 @@ sync_thread_add_level(
 	if (thread_slot == NULL) {
 
 		/* We have to allocate the level array for a new thread */
-		array = static_cast<sync_arr_t*>(calloc(1, sizeof(sync_arr_t)));
+		array = new sync_arr_t();
 		ut_a(array != NULL);
 		thread_slot = sync_thread_level_arrays_find_free();
 		thread_slot->levels = array;
@@ -1456,10 +1432,9 @@ sync_thread_add_level(
 
 levels_ok:
 
-	array->n_elems++;
 	sync_level.latch = latch;
 	sync_level.level = level;
-	array->elems.push_back(sync_level);
+	array->push_back(sync_level);
 
 	mutex_exit(&sync_thread_mutex);
 }
@@ -1505,15 +1480,14 @@ sync_thread_reset_level(
 
 	array = thread_slot->levels;
 
-	for (std::vector<sync_level_t>::iterator it = array->elems.begin(); it != array->elems.end(); ++it) {
+	for (std::vector<sync_level_t>::iterator it = array->begin(); it != array->end(); ++it) {
 		sync_level_t level = *it;
 
 		if (level.latch != latch) {
 			continue;
 		}
 
-		array->elems.erase(it);
-		array->n_elems--;
+		array->erase(it);
 		mutex_exit(&sync_thread_mutex);
 		return(TRUE);
 	}
@@ -1601,9 +1575,7 @@ sync_thread_level_arrays_free(void)
 
 		/* If this slot was allocated then free the slot memory too. */
 		if (slot->levels != NULL) {
-			slot->levels->elems.erase(slot->levels->elems.begin(),slot->levels->elems.end());
-			free(slot->levels);
-			slot->levels = NULL;
+			delete slot->levels;
 		}
 	}
 

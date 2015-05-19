@@ -74,16 +74,28 @@ typedef struct _dbfheader {
 //uchar  Dbfox :4;                  /*  FoxPro if equal to 3                */
   uchar  Version;                   /*  Version information flags           */
   char   Filedate[3];               /*  date, YYMMDD, binary. YY=year-1900  */
-  uint   Records;                   /*  records in the file                 */
-  ushort Headlen;                   /*  bytes in the header                 */
-  ushort Reclen;                    /*  bytes in a record                   */
-  ushort Fields;                    /*  Reserved but used to store fields   */
+private:
+  /* The following four members are stored in little-endian format on disk */
+  char   m_RecordsBuf[4];           /*  records in the file                 */
+  char   m_HeadlenBuf[2];           /*  bytes in the header                 */
+  char   m_ReclenBuf[2];            /*  bytes in a record                   */
+  char   m_FieldsBuf[2];            /*  Reserved but used to store fields   */
+public:
   char   Incompleteflag;            /*  01 if incomplete, else 00           */
   char   Encryptflag;               /*  01 if encrypted, else 00            */
   char   Reserved2[12];             /*  for LAN use                         */
   char   Mdxflag;                   /*  01 if production .mdx, else 00      */
   char   Language;                  /*  Codepage                            */
   char   Reserved3[2];
+  
+  uint Records() const { return uint4korr(m_RecordsBuf); }
+  ushort Headlen() const { return uint2korr(m_HeadlenBuf); }
+  ushort Reclen() const { return uint2korr(m_ReclenBuf); }
+  ushort Fields() const { return uint2korr(m_FieldsBuf); }
+  
+  void SetHeadlen(ushort num) { int2store(m_HeadlenBuf, num); }
+  void SetReclen(ushort num) { int2store(m_ReclenBuf, num); }
+  void SetFields(ushort num) { int2store(m_FieldsBuf, num); }
   } DBFHEADER;
 
 /****************************************************************************/
@@ -143,7 +155,7 @@ static int dbfhead(PGLOBAL g, FILE *file, PSZ fn, DBFHEADER *buf)
     strcpy(g->Message, MSG(DBASE_FILE));
 
   // Check last byte(s) of header
-  if (fseek(file, buf->Headlen - dbc, SEEK_SET) != 0) {
+  if (fseek(file, buf->Headlen() - dbc, SEEK_SET) != 0) {
     sprintf(g->Message, MSG(BAD_HEADER), fn);
     return RC_FX;
     } // endif fseek
@@ -163,7 +175,7 @@ static int dbfhead(PGLOBAL g, FILE *file, PSZ fn, DBFHEADER *buf)
     } // endif endmark
 
   // Calculate here the number of fields while we have the dbc info
-  buf->Fields = (buf->Headlen - dbc - 1) / 32;
+  buf->SetFields((buf->Headlen() - dbc - 1) / 32);
   fseek(file, HEADLEN, SEEK_SET);
   return rc;
   } // end of dbfhead
@@ -219,7 +231,7 @@ PQRYRES DBFColumns(PGLOBAL g, char *dp, const char *fn, bool info)
     /************************************************************************/
     /*  Allocate the structures used to refer to the result set.            */
     /************************************************************************/
-    fields = mainhead.Fields;
+    fields = mainhead.Fields();
   } else
     fields = 0;
 
@@ -236,11 +248,11 @@ PQRYRES DBFColumns(PGLOBAL g, char *dp, const char *fn, bool info)
   if (trace) {
     htrc("Structure of %s\n", filename);
     htrc("headlen=%hd reclen=%hd degree=%d\n",
-          mainhead.Headlen, mainhead.Reclen, fields);
+          mainhead.Headlen(), mainhead.Reclen(), fields);
     htrc("flags(iem)=%d,%d,%d cp=%d\n", mainhead.Incompleteflag,
           mainhead.Encryptflag, mainhead.Mdxflag, mainhead.Language);
     htrc("%hd records, last changed %02d/%02d/%d\n",
-          mainhead.Records, mainhead.Filedate[1], mainhead.Filedate[2],
+          mainhead.Records(), mainhead.Filedate[1], mainhead.Filedate[2],
           mainhead.Filedate[0] + (mainhead.Filedate[0] <= 30) ? 2000 : 1900);
     htrc("Field    Type  Offset  Len  Dec  Set  Mdx\n");
     } // endif trace
@@ -398,13 +410,13 @@ int DBFBASE::ScanHeader(PGLOBAL g, PSZ fname, int lrecl, char *defpath)
   } else if (rc == RC_FX)
     return -1;
 
-  if ((int)header.Reclen != lrecl) {
-    sprintf(g->Message, MSG(BAD_LRECL), lrecl, header.Reclen);
+  if ((int) header.Reclen() != lrecl) {
+    sprintf(g->Message, MSG(BAD_LRECL), lrecl, header.Reclen());
     return -1;
     } // endif Lrecl
 
-  Records = (int)header.Records;
-  return (int)header.Headlen;
+  Records = (int) header.Records();
+  return (int) header.Headlen();
   } // end of ScanHeader
 
 /* ---------------------------- Class DBFFAM ------------------------------ */
@@ -565,8 +577,8 @@ bool DBFFAM::AllocateBuffer(PGLOBAL g)
       header->Filedate[0] = datm->tm_year - 100;
       header->Filedate[1] = datm->tm_mon + 1;
       header->Filedate[2] = datm->tm_mday;
-      header->Headlen = (ushort)hlen;
-      header->Reclen = (ushort)reclen;
+      header->SetHeadlen((ushort) hlen);
+      header->SetReclen((ushort) reclen);
       descp = (DESCRIPTOR*)header;
 
       // Currently only standard Xbase types are supported
@@ -627,13 +639,13 @@ bool DBFFAM::AllocateBuffer(PGLOBAL g)
     DBFHEADER header;
 
     if ((rc = dbfhead(g, Stream, Tdbp->GetFile(g), &header)) == RC_OK) {
-      if (Lrecl != (int)header.Reclen) {
-        sprintf(g->Message, MSG(BAD_LRECL), Lrecl, header.Reclen);
+      if (Lrecl != (int) header.Reclen()) {
+        sprintf(g->Message, MSG(BAD_LRECL), Lrecl, header.Reclen());
         return true;
         } // endif Lrecl
 
-      Records = (int)header.Records;
-      Headlen = (int)header.Headlen;
+      Records = (int) header.Records();
+      Headlen = (int) header.Headlen();
     } else if (rc == RC_NF) {
       Records = 0;
       Headlen = 0;
@@ -868,8 +880,10 @@ void DBFFAM::CloseTableFile(PGLOBAL g, bool abort)
         PlugSetPath(filename, To_File, Tdbp->GetPath());
         if ((Stream= global_fopen(g, MSGID_OPEN_MODE_STRERROR, filename, "r+b")))
         {
+          char nRecords[4];
+          int4store(&nRecords, n);
           fseek(Stream, 4, SEEK_SET);     // Get header.Records position
-          fwrite(&n, sizeof(int), 1, Stream);
+          fwrite(&nRecords, sizeof(nRecords), 1, Stream);
           fclose(Stream);
           Stream= NULL;
           Records= n;                    // Update Records value
@@ -944,13 +958,13 @@ bool DBMFAM::AllocateBuffer(PGLOBAL g)
     /************************************************************************/
     DBFHEADER *hp = (DBFHEADER*)Memory;
 
-    if (Lrecl != (int)hp->Reclen) {
-      sprintf(g->Message, MSG(BAD_LRECL), Lrecl, hp->Reclen);
+    if (Lrecl != (int) hp->Reclen()) {
+      sprintf(g->Message, MSG(BAD_LRECL), Lrecl, hp->Reclen());
       return true;
       } // endif Lrecl
 
-    Records = (int)hp->Records;
-    Headlen = (int)hp->Headlen;
+    Records = (int) hp->Records();
+    Headlen = (int) hp->Headlen();
     } // endif Headlen
 
   /**************************************************************************/

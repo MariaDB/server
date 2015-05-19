@@ -383,3 +383,7 @@ int spider_param_delete_all_rows_type(
   THD *thd,
   int delete_all_rows_type
 );
+int spider_param_bka_table_name_type(
+  THD *thd,
+  int bka_table_name_type
+);

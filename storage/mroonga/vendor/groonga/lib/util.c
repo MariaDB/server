@@ -20,9 +20,18 @@
 #include "grn_ii.h"
 #include "grn_util.h"
 #include "grn_string.h"
+#include "grn_expr.h"
 
 #include <string.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <fcntl.h>
+#include <sys/stat.h>
+
+#ifdef WIN32
+# include <io.h>
+# include <share.h>
+#endif /* WIN32 */
 
 grn_rc
 grn_normalize_offset_and_limit(grn_ctx *ctx, int size, int *p_offset, int *p_limit)
@@ -211,8 +220,13 @@ grn_inspect_type(grn_ctx *ctx, grn_obj *buf, unsigned char type)
     break;
   default:
     {
-      char type_in_hex[5]; /* "0xXX" */
-      sprintf(type_in_hex, "%#02x", type);
+#define TYPE_IN_HEX_SIZE 5 /* "0xXX" */
+      char type_in_hex[TYPE_IN_HEX_SIZE];
+      grn_snprintf(type_in_hex,
+                   TYPE_IN_HEX_SIZE,
+                   TYPE_IN_HEX_SIZE,
+                   "%#02x", type);
+#undef TYPE_IN_HEX_SIZE
       GRN_TEXT_PUTS(ctx, buf, "(unknown: ");
       GRN_TEXT_PUTS(ctx, buf, type_in_hex);
       GRN_TEXT_PUTS(ctx, buf, ")");
@@ -279,6 +293,36 @@ grn_proc_inspect(grn_ctx *ctx, grn_obj *buf, grn_obj *obj)
 }
 
 grn_rc
+grn_expr_code_inspect_indented(grn_ctx *ctx,
+                               grn_obj *buffer,
+                               grn_expr_code *code,
+                               const char *indent)
+{
+  if (!code) {
+    GRN_TEXT_PUTS(ctx, buffer, "(NULL)");
+    return GRN_SUCCESS;
+  }
+
+  GRN_TEXT_PUTS(ctx, buffer, "<");
+  GRN_TEXT_PUTS(ctx, buffer, grn_operator_to_string(code->op));
+  GRN_TEXT_PUTS(ctx, buffer, " ");
+  GRN_TEXT_PUTS(ctx, buffer, "n_args:");
+  grn_text_itoa(ctx, buffer, code->nargs);
+  GRN_TEXT_PUTS(ctx, buffer, ", ");
+  GRN_TEXT_PUTS(ctx, buffer, "flags:");
+  grn_text_itoh(ctx, buffer, code->flags, 1);
+  GRN_TEXT_PUTS(ctx, buffer, ", ");
+  GRN_TEXT_PUTS(ctx, buffer, "modify:");
+  grn_text_itoa(ctx, buffer, code->modify);
+  GRN_TEXT_PUTS(ctx, buffer, ", ");
+  GRN_TEXT_PUTS(ctx, buffer, "value:");
+  grn_inspect_indented(ctx, buffer, code->value, "      ");
+  GRN_TEXT_PUTS(ctx, buffer, ">");
+
+  return GRN_SUCCESS;
+}
+
+grn_rc
 grn_expr_inspect(grn_ctx *ctx, grn_obj *buffer, grn_obj *expr)
 {
   grn_expr *e = (grn_expr *)expr;
@@ -305,33 +349,15 @@ grn_expr_inspect(grn_ctx *ctx, grn_obj *buffer, grn_obj *expr)
   }
 
   {
-    uint32_t i, j;
-    grn_expr_var *var;
+    uint32_t i;
     grn_expr_code *code;
     GRN_TEXT_PUTS(ctx, buffer, "\n  codes:{");
-    for (j = 0, code = e->codes; j < e->codes_curr; j++, code++) {
-      if (j) { GRN_TEXT_PUTC(ctx, buffer, ','); }
+    for (i = 0, code = e->codes; i < e->codes_curr; i++, code++) {
+      if (i) { GRN_TEXT_PUTC(ctx, buffer, ','); }
       GRN_TEXT_PUTS(ctx, buffer, "\n    ");
-      grn_text_itoa(ctx, buffer, j);
-      GRN_TEXT_PUTS(ctx, buffer, ":<");
-      GRN_TEXT_PUTS(ctx, buffer, grn_operator_to_string(code->op));
-      GRN_TEXT_PUTS(ctx, buffer, "(");
-      for (i = 0, var = e->vars; i < e->nvars; i++, var++) {
-        if (i) { GRN_TEXT_PUTC(ctx, buffer, ','); }
-        GRN_TEXT_PUTC(ctx, buffer, '?');
-        if (var->name_size) {
-          GRN_TEXT_PUT(ctx, buffer, var->name, var->name_size);
-        } else {
-          grn_text_itoa(ctx, buffer, (int)i);
-        }
-      }
-      GRN_TEXT_PUTS(ctx, buffer, "), ");
-      GRN_TEXT_PUTS(ctx, buffer, "modify:");
-      grn_text_itoa(ctx, buffer, code->modify);
-      GRN_TEXT_PUTS(ctx, buffer, ", ");
-      GRN_TEXT_PUTS(ctx, buffer, "value:");
-      grn_inspect_indented(ctx, buffer, code->value, "      ");
-      GRN_TEXT_PUTS(ctx, buffer, ">");
+      grn_text_itoa(ctx, buffer, i);
+      GRN_TEXT_PUTS(ctx, buffer, ":");
+      grn_expr_code_inspect_indented(ctx, buffer, code, "      ");
     }
     GRN_TEXT_PUTS(ctx, buffer, "\n  }");
   }
@@ -1256,6 +1282,17 @@ grn_p_ii_values(grn_ctx *ctx, grn_obj *ii)
   grn_obj_unlink(ctx, &buffer);
 }
 
+void
+grn_p_expr_code(grn_ctx *ctx, grn_expr_code *code)
+{
+  grn_obj buffer;
+
+  GRN_TEXT_INIT(&buffer, 0);
+  grn_expr_code_inspect_indented(ctx, &buffer, code, "");
+  printf("%.*s\n", (int)GRN_TEXT_LEN(&buffer), GRN_TEXT_VALUE(&buffer));
+  grn_obj_unlink(ctx, &buffer);
+}
+
 #ifdef WIN32
 static char *win32_base_dir = NULL;
 const char *
@@ -1271,7 +1308,7 @@ grn_win32_base_dir(void)
                                                     absolute_dll_filename,
                                                     MAX_PATH);
     if (absolute_dll_filename_size == 0) {
-      win32_base_dir = strdup(".");
+      win32_base_dir = grn_strdup_raw(".");
     } else {
       DWORD ansi_dll_filename_size;
       ansi_dll_filename_size =
@@ -1279,7 +1316,7 @@ grn_win32_base_dir(void)
                             absolute_dll_filename, absolute_dll_filename_size,
                             NULL, 0, NULL, NULL);
       if (ansi_dll_filename_size == 0) {
-        win32_base_dir = strdup(".");
+        win32_base_dir = grn_strdup_raw(".");
       } else {
         char *path;
         win32_base_dir = malloc(ansi_dll_filename_size + 1);
@@ -1310,3 +1347,41 @@ grn_win32_base_dir(void)
   return win32_base_dir;
 }
 #endif
+
+#ifdef WIN32
+int
+grn_mkstemp(char *path_template)
+{
+  errno_t error;
+  size_t path_template_size;
+  int fd;
+
+  path_template_size = strlen(path_template) + 1;
+  error = _mktemp_s(path_template, path_template_size);
+  if (error != 0) {
+    return -1;
+  }
+
+  error = _sopen_s(&fd,
+                   path_template,
+                   _O_RDWR | _O_CREAT | _O_EXCL | _O_BINARY,
+                   _SH_DENYNO,
+                   _S_IREAD | _S_IWRITE);
+  if (error != 0) {
+    return -1;
+  }
+
+  return fd;
+}
+#else /* WIN32 */
+int
+grn_mkstemp(char *path_template)
+{
+# ifdef HAVE_MKSTEMP
+  return mkstemp(path_template);
+# else /* HAVE_MKSTEMP */
+  mktemp(path_template);
+  return open(path_template, O_RDWR | O_CREAT | O_EXCL, S_IRUSR | S_IWUSR);
+# endif /* HAVE_MKSTEMP */
+}
+#endif /* WIN32 */
