@@ -449,7 +449,7 @@ TDBJSN::TDBJSN(PJDEF tdp, PTXF txfp) : TDBDOS(tdp, txfp)
     Xcol = NULL;
     Limit = 1;
     Pretty = 0;
-    B = 1;
+    B = 0;
     Strict = false;
   } // endif tdp
 
@@ -477,6 +477,7 @@ TDBJSN::TDBJSN(TDBJSN *tdbp) : TDBDOS(NULL, tdbp)
   NextSame = tdbp->NextSame;
   SameRow = tdbp->SameRow;
   Xval = tdbp->Xval;
+  B = tdbp->B;
   Pretty = tdbp->Pretty;
   Strict = tdbp->Strict;
   Comma = tdbp->Comma;

@@ -100,6 +100,26 @@ extern "C" HINSTANCE s_hModule;           // Saved module handle
 PQRYRES OEMColumns(PGLOBAL g, PTOS topt, char *tab, char *db, bool info);
 
 /***********************************************************************/
+/*  Get the plugin directory.                                          */
+/***********************************************************************/
+char *GetPluginDir(void)
+{
+  char *plugin_dir;
+
+#if defined(_WIN64)
+  plugin_dir = (char *)GetProcAddress(GetModuleHandle(NULL),
+    "?opt_plugin_dir@@3PADEA");
+#elif defined(_WIN32)
+  plugin_dir = (char*)GetProcAddress(GetModuleHandle(NULL),
+    "?opt_plugin_dir@@3PADA");
+#else
+  plugin_dir = opt_plugin_dir;
+#endif
+
+  return plugin_dir;
+} // end of GetPluginDir
+
+/***********************************************************************/
 /*  Get a unique enum table type ID.                                   */
 /***********************************************************************/
 TABTYPE GetTypeID(const char *type)
@@ -328,7 +348,7 @@ PQRYRES OEMColumns(PGLOBAL g, PTOS topt, char *tab, char *db, bool info)
   {
   typedef PQRYRES (__stdcall *XCOLDEF) (PGLOBAL, void*, char*, char*, bool);
   const char *module, *subtype;
-  char    c, getname[40] = "Col";
+  char    c, soname[_MAX_PATH], getname[40] = "Col";
 #if defined(WIN32)
   HANDLE  hdll;               /* Handle to the external DLL            */
 #else   // !WIN32
@@ -343,6 +363,17 @@ PQRYRES OEMColumns(PGLOBAL g, PTOS topt, char *tab, char *db, bool info)
   if (!module || !subtype)
     return NULL;
 
+  /*********************************************************************/
+  /*  Ensure that the .dll doesn't have a path.                        */
+  /*  This is done to ensure that only approved dll from the system    */
+  /*  directories are used (to make this even remotely secure).        */
+  /*********************************************************************/
+  if (check_valid_path(module, strlen(module))) {
+    strcpy(g->Message, "Module cannot contain a path");
+    return NULL;
+  } else
+    PlugSetPath(soname, module, GetPluginDir());
+    
   // The exported name is always in uppercase
   for (int i = 0; ; i++) {
     c = subtype[i];
@@ -352,11 +383,11 @@ PQRYRES OEMColumns(PGLOBAL g, PTOS topt, char *tab, char *db, bool info)
 
 #if defined(WIN32)
   // Load the Dll implementing the table
-  if (!(hdll = LoadLibrary(module))) {
+  if (!(hdll = LoadLibrary(soname))) {
     char  buf[256];
     DWORD rc = GetLastError();
 
-    sprintf(g->Message, MSG(DLL_LOAD_ERROR), rc, module);
+    sprintf(g->Message, MSG(DLL_LOAD_ERROR), rc, soname);
     FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM |
                   FORMAT_MESSAGE_IGNORE_INSERTS, NULL, rc, 0,
                   (LPTSTR)buf, sizeof(buf), NULL);
@@ -374,9 +405,9 @@ PQRYRES OEMColumns(PGLOBAL g, PTOS topt, char *tab, char *db, bool info)
   const char *error = NULL;
 
   // Load the desired shared library
-  if (!(hdll = dlopen(module, RTLD_LAZY))) {
+  if (!(hdll = dlopen(soname, RTLD_LAZY))) {
     error = dlerror();
-    sprintf(g->Message, MSG(SHARED_LIB_ERR), module, SVP(error));
+    sprintf(g->Message, MSG(SHARED_LIB_ERR), soname, SVP(error));
     return NULL;
     } // endif Hdll
 

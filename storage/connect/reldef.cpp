@@ -56,6 +56,7 @@ extern handlerton *connect_hton;
 /*  External function.                                                 */
 /***********************************************************************/
 USETEMP UseTemp(void);
+char   *GetPluginDir(void);
 
 /* --------------------------- Class RELDEF -------------------------- */
 
@@ -437,20 +438,31 @@ void TABDEF::SetIndexInfo(void)
 PTABDEF OEMDEF::GetXdef(PGLOBAL g)
   {
   typedef PTABDEF (__stdcall *XGETDEF) (PGLOBAL, void *);
-  char    c, getname[40] = "Get";
+  char    c, soname[_MAX_PATH], getname[40] = "Get";
   PTABDEF xdefp;
   XGETDEF getdef = NULL;
   PCATLG  cat = Cat;
 
+  /*********************************************************************/
+  /*  Ensure that the .dll doesn't have a path.                        */
+  /*  This is done to ensure that only approved dll from the system    */
+  /*  directories are used (to make this even remotely secure).        */
+  /*********************************************************************/
+  if (check_valid_path(Module, strlen(Module))) {
+    strcpy(g->Message, "Module cannot contain a path");
+    return NULL;
+  } else
+    PlugSetPath(soname, Module, GetPluginDir());
+    
 #if defined(WIN32)
   // Is the DLL already loaded?
-  if (!Hdll && !(Hdll = GetModuleHandle(Module)))
+  if (!Hdll && !(Hdll = GetModuleHandle(soname)))
     // No, load the Dll implementing the function
-    if (!(Hdll = LoadLibrary(Module))) {
+    if (!(Hdll = LoadLibrary(soname))) {
       char  buf[256];
       DWORD rc = GetLastError();
 
-      sprintf(g->Message, MSG(DLL_LOAD_ERROR), rc, Module);
+      sprintf(g->Message, MSG(DLL_LOAD_ERROR), rc, soname);
       FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM |
                     FORMAT_MESSAGE_IGNORE_INSERTS, NULL, rc, 0,
                     (LPTSTR)buf, sizeof(buf), NULL);
@@ -474,7 +486,8 @@ PTABDEF OEMDEF::GetXdef(PGLOBAL g)
 #else   // !WIN32
   const char *error = NULL;
   Dl_info dl_info;
-  
+    
+#if 0  // Don't know what all this stuff does
   // The OEM lib must retrieve exported CONNECT variables
   if (dladdr(&connect_hton, &dl_info)) {
     if (dlopen(dl_info.dli_fname, RTLD_NOLOAD | RTLD_NOW | RTLD_GLOBAL) == 0) {
@@ -488,15 +501,16 @@ PTABDEF OEMDEF::GetXdef(PGLOBAL g)
     sprintf(g->Message, "dladdr failed: %s, OEM not supported", SVP(error));
     return NULL;
   } // endif dladdr
+#endif // 0
 
   // Is the library already loaded?
-//  if (!Hdll && !(Hdll = ???))
-  // Load the desired shared library
-  if (!(Hdll = dlopen(Module, RTLD_LAZY))) {
-    error = dlerror();
-    sprintf(g->Message, MSG(SHARED_LIB_ERR), Module, SVP(error));
-    return NULL;
-    } // endif Hdll
+  if (!Hdll && !(Hdll = dlopen(soname, RTLD_NOLOAD)))
+    // Load the desired shared library
+    if (!(Hdll = dlopen(soname, RTLD_LAZY))) {
+      error = dlerror();
+      sprintf(g->Message, MSG(SHARED_LIB_ERR), soname, SVP(error));
+      return NULL;
+      } // endif Hdll
 
   // The exported name is always in uppercase
   for (int i = 0; ; i++) {
