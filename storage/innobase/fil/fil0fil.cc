@@ -6855,7 +6855,7 @@ fil_space_get_crypt_data(
 /******************************************************************
 Get crypt data for a tablespace */
 UNIV_INTERN
-void
+fil_space_crypt_t*
 fil_space_set_crypt_data(
 /*=====================*/
 	ulint id, 	               /*!< in: space id */
@@ -6863,6 +6863,7 @@ fil_space_set_crypt_data(
 {
 	fil_space_t*	space;
 	fil_space_crypt_t* free_crypt_data = NULL;
+	fil_space_crypt_t* ret_crypt_data = NULL;
 
 	ut_ad(fil_system);
 
@@ -6881,9 +6882,11 @@ fil_space_set_crypt_data(
 			mutex_exit(&fil_system->mutex);
 			fil_space_merge_crypt_data(space->crypt_data,
 						   crypt_data);
+			ret_crypt_data = space->crypt_data;
 			free_crypt_data = crypt_data;
 		} else {
 			space->crypt_data = crypt_data;
+			ret_crypt_data = space->crypt_data;
 			mutex_exit(&fil_system->mutex);
 		}
 	} else {
@@ -6899,4 +6902,6 @@ fil_space_set_crypt_data(
 		*/
 		fil_space_destroy_crypt_data(&free_crypt_data);
 	}
+
+	return ret_crypt_data;
 }

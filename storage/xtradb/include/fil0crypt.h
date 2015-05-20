@@ -134,7 +134,7 @@ fil_space_get_crypt_data(
 /*********************************************************************
 Set crypt data for a space*/
 UNIV_INTERN
-void
+fil_space_crypt_t*
 fil_space_set_crypt_data(
 /*=====================*/
 	ulint space,                    /*!< in: tablespace id */

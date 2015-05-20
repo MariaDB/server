@@ -169,7 +169,13 @@ int do_crypt(const unsigned char* src, unsigned int slen,
   compile_time_assert(ENCRYPTION_SCHEME_KEY_INVALID ==
                       (int)ENCRYPTION_KEY_VERSION_INVALID);
 
-  DBUG_ASSERT(scheme->type == 1);
+  // Maybe temporal solution for MDEV-8173
+  // Rationale: scheme->type is currently global/object
+  // and when used here might not represent actual state
+  // of smaller granularity objects e.g. InnoDB page state
+  // as type is stored to tablespace (FIL) and could represent
+  // state where key rotation is trying to reach
+  //DBUG_ASSERT(scheme->type == 1);
 
   if (key_version == ENCRYPTION_KEY_VERSION_INVALID ||
       key_version == ENCRYPTION_KEY_NOT_ENCRYPTED)

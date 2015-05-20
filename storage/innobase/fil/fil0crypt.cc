@@ -266,13 +266,8 @@ fil_space_read_crypt_data(
 	ulint		offset)	/*!< in: offset */
 {
 	if (memcmp(page + offset, EMPTY_PATTERN, MAGIC_SZ) == 0) {
-		/* crypt is not stored but create memory cache for
-		not system tablespace */
-		if (space != 0) {
-			return fil_space_create_crypt_data(FIL_SPACE_ENCRYPTION_DEFAULT, FIL_DEFAULT_ENCRYPTION_KEY);
-		} else {
-			return NULL;
-		}
+		/* Crypt data is not stored. */
+		return NULL;
 	}
 
 	if (memcmp(page + offset, CRYPT_MAGIC, MAGIC_SZ) != 0) {
@@ -288,12 +283,8 @@ fil_space_read_crypt_data(
 			page[offset + 3],
 			page[offset + 4],
 			page[offset + 5]);
-		/* Create memory cache for not system tablespace */
-		if (space != 0) {
-			return fil_space_create_crypt_data(FIL_SPACE_ENCRYPTION_DEFAULT, FIL_DEFAULT_ENCRYPTION_KEY);
-		} else {
-			return NULL;
-		}
+		/* Create data is not stored. */
+		return NULL;
 	}
 
 	ulint type = mach_read_from_1(page + offset + MAGIC_SZ + 0);
@@ -458,12 +449,6 @@ fil_space_write_crypt_data(
 	/* If no crypt data is stored on memory cache for this space,
 	then do not continue writing crypt data to page 0. */
 	if (crypt_data == NULL) {
-		return;
-	}
-
-	/* If tablespace encryption is disabled and encryption mode is
-	DEFAULT, then do not continue writing crypt data to page 0. */
-	if (!srv_encrypt_tables && crypt_data->encryption == FIL_SPACE_ENCRYPTION_DEFAULT) {
 		return;
 	}
 
@@ -1073,7 +1058,7 @@ fil_crypt_start_encrypting_space(
 	crypt_data->rotate_state.active_threads = 1;
 
 	mutex_enter(&crypt_data->mutex);
-	fil_space_set_crypt_data(space, crypt_data);
+	crypt_data = fil_space_set_crypt_data(space, crypt_data);
 	mutex_exit(&crypt_data->mutex);
 
 	fil_crypt_start_converting = true;
@@ -1108,6 +1093,7 @@ fil_crypt_start_encrypting_space(
 		/* 3 - compute location to store crypt data */
 		byte* frame = buf_block_get_frame(block);
 		ulint maxsize;
+		ut_ad(crypt_data);
 		crypt_data->page0_offset =
 			fsp_header_get_crypt_offset(zip_size, &maxsize);
 
@@ -1160,6 +1146,7 @@ fil_crypt_start_encrypting_space(
 
 		/* 5 - publish crypt data */
 		mutex_enter(&fil_crypt_threads_mutex);
+		ut_ad(crypt_data);
 		mutex_enter(&crypt_data->mutex);
 		crypt_data->type = CRYPT_SCHEME_1;
 		ut_a(crypt_data->rotate_state.active_threads == 1);
@@ -1173,6 +1160,7 @@ fil_crypt_start_encrypting_space(
 		return pending_op;
 	} while (0);
 
+	ut_ad(crypt_data);
 	mutex_enter(&crypt_data->mutex);
 	ut_a(crypt_data->rotate_state.active_threads == 1);
 	crypt_data->rotate_state.active_threads = 0;

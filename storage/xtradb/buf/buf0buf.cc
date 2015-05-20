@@ -4414,7 +4414,7 @@ corrupt:
 				"InnoDB: space %lu file %s read of page %lu.\n"
 				"InnoDB: You may have to recover"
 				" from a backup.\n",
-				bpage->space,
+				(ulint)bpage->space,
 				space ? space->name : "NULL",
 				(ulong) bpage->offset);
 
