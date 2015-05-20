@@ -1264,13 +1264,31 @@ Get id of first tablespace or ULINT_UNDEFINED if none */
 UNIV_INTERN
 ulint
 fil_get_first_space();
+/*=================*/
 
 /******************************************************************
 Get id of next tablespace or ULINT_UNDEFINED if none */
 UNIV_INTERN
 ulint
 fil_get_next_space(
+/*===============*/
 	ulint id);      /*!< in: space id */
+
+/******************************************************************
+Get id of first tablespace that has node or ULINT_UNDEFINED if none */
+UNIV_INTERN
+ulint
+fil_get_first_space_safe();
+/*======================*/
+
+/******************************************************************
+Get id of next tablespace that has node or ULINT_UNDEFINED if none */
+UNIV_INTERN
+ulint
+fil_get_next_space_safe(
+/*====================*/
+	ulint	id);	/*!< in: previous space id */
+#endif /*  UNIV_INNOCHECKSUM */
 
 /*******************************************************************//**
 Returns the block size of the file space

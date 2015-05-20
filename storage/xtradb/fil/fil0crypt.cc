@@ -1510,9 +1510,9 @@ fil_crypt_find_space_to_rotate(
 
 	if (state->first) {
 		state->first = false;
-		state->space = fil_get_first_space();
+		state->space = fil_get_first_space_safe();
 	} else {
-		state->space = fil_get_next_space(state->space);
+		state->space = fil_get_next_space_safe(state->space);
 	}
 
 	while (!state->should_shutdown() && state->space != ULINT_UNDEFINED) {
@@ -1525,7 +1525,7 @@ fil_crypt_find_space_to_rotate(
 			return true;
 		}
 
-		state->space = fil_get_next_space(state->space);
+		state->space = fil_get_next_space_safe(state->space);
 	}
 
 	/* if we didn't find any space return iops */
@@ -2047,7 +2047,6 @@ fil_crypt_complete_rotate_space(
 
 	/* Space might already be dropped */
 	if (crypt_data) {
-		ut_ad(crypt_data);
 		mutex_enter(&crypt_data->mutex);
 
 		/**
@@ -2096,6 +2095,7 @@ fil_crypt_complete_rotate_space(
 		if (btr_scrub_complete_space(&state->scrub_data) == true) {
 			if (should_flush) {
 				/* only last thread updates last_scrub_completed */
+				ut_ad(crypt_data);
 				mutex_enter(&crypt_data->mutex);
 				crypt_data->rotate_state.scrubbing.
 					last_scrub_completed = time(0);
@@ -2106,6 +2106,7 @@ fil_crypt_complete_rotate_space(
 		if (should_flush) {
 			fil_crypt_flush_space(state, space);
 
+			ut_ad(crypt_data);
 			mutex_enter(&crypt_data->mutex);
 			crypt_data->rotate_state.flushing = false;
 			mutex_exit(&crypt_data->mutex);
