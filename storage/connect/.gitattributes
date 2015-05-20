@@ -1,0 +1,25 @@
+# Set the default behavior, in case people don't have core.autocrlf set.
+* text=auto
+
+# Explicitly declare text files you want to always be normalized and converted
+# to native line endings on checkout.
+*.c text
+*.cc text
+*.cpp text
+*.h text
+*.test text
+
+# Declare files that will always have LF line endings on checkout.
+*.result text eol=lf
+mysql-test/connect/std_data/*.txt text eol=lf
+mysql-test/connect/std_data/*.dat text eol=lf
+
+# Denote all files that are truly binary and should not be modified.
+*.png binary
+*.jpg binary
+
+*.c     diff=cpp
+*.h     diff=cpp
+*.cc    diff=cpp
+*.ic    diff=cpp
+*.cpp   diff=cpp

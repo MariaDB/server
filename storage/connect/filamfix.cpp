@@ -46,6 +46,7 @@
 #include "plgdbsem.h"
 #include "filamfix.h"
 #include "tabdos.h"
+#include "tabfix.h"
 #include "osutil.h"
 
 #ifndef INVALID_SET_FILE_POINTER
@@ -133,18 +134,35 @@ bool FIXFAM::AllocateBuffer(PGLOBAL g)
     if (Tdbp->GetFtype() == RECFM_BIN) {
       // The buffer must be prepared depending on column types
       int     n = 0;
+      bool    b = false;
       PDOSDEF defp = (PDOSDEF)Tdbp->GetDef();
-      PCOLDEF cdp;
+//    PCOLDEF cdp;
+      PBINCOL colp;
 
       // Prepare the first line of the buffer
       memset(To_Buf, 0, Buflen);
 
+#if 0
       for (cdp = defp->GetCols(); cdp; cdp = cdp->GetNext()) {
-        if (IsTypeNum(cdp->GetType()))
-          memset(To_Buf + cdp->GetOffset(), ' ', cdp->GetClen());
+        if (!IsTypeNum(cdp->GetType())) {
+          memset(To_Buf + cdp->GetOffset(), ' ', cdp->GetClen()); 
+          b = true;
+          } // endif not num
 
-        n = MY_MAX(n, cdp->GetPoff() + cdp->GetClen());
+        n = MY_MAX(n, cdp->GetOffset() + cdp->GetClen());
         } // endfor cdp
+#endif // 0
+
+      for (colp = (PBINCOL)Tdbp->GetColumns(); colp; 
+           colp = (PBINCOL)colp->GetNext())
+        if (!colp->IsSpecial()) {
+          if (!IsTypeNum(colp->GetResultType())) {
+            memset(To_Buf + colp->GetDeplac(), ' ', colp->GetLength()); 
+            b = true;
+            } // endif not num
+      
+          n = MY_MAX(n, colp->GetDeplac() + colp->GetFileSize());
+          } // endif !special
 
       // We do this for binary table because the lrecl can have been
       // specified with additional space to include line ending.
@@ -156,9 +174,10 @@ bool FIXFAM::AllocateBuffer(PGLOBAL g)
 
         } // endif n
 
-      // Now repeat this for the whole buffer
-      for (int len = Lrecl; len <= Buflen - Lrecl; len += Lrecl)
-        memcpy(To_Buf + len, To_Buf, Lrecl);
+      if (b)
+        // Now repeat this for the whole buffer
+        for (int len = Lrecl; len <= Buflen - Lrecl; len += Lrecl)
+          memcpy(To_Buf + len, To_Buf, Lrecl);
 
     } else {
       memset(To_Buf, ' ', Buflen);

@@ -372,6 +372,7 @@ bool JSONDEF::DefineAM(PGLOBAL g, LPCSTR, int poff)
   Pretty = GetIntCatInfo("Pretty", 2);
   Level = GetIntCatInfo("Level", 0);
   Limit = GetIntCatInfo("Limit", 10);
+  Base = GetIntCatInfo("Base", 0);
   return DOSDEF::DefineAM(g, "DOS", poff);
 } // end of DefineAM
 
@@ -440,6 +441,7 @@ TDBJSN::TDBJSN(PJDEF tdp, PTXF txfp) : TDBDOS(tdp, txfp)
     Xcol = tdp->Xcol;
     Limit = tdp->Limit;
     Pretty = tdp->Pretty;
+    B = tdp->Base ? 1 : 0;
     Strict = tdp->Strict;
   } else {
     Jmode = MODE_OBJECT;
@@ -447,11 +449,12 @@ TDBJSN::TDBJSN(PJDEF tdp, PTXF txfp) : TDBDOS(tdp, txfp)
     Xcol = NULL;
     Limit = 1;
     Pretty = 0;
+    B = 0;
     Strict = false;
   } // endif tdp
 
   Fpos = -1;
-  N = 0;
+  N = M = 0;
   NextSame = 0;
   SameRow = 0;
   Xval = -1;
@@ -469,10 +472,12 @@ TDBJSN::TDBJSN(TDBJSN *tdbp) : TDBDOS(NULL, tdbp)
   Xcol = tdbp->Xcol;
   Fpos = tdbp->Fpos;
   N = tdbp->N;
+  M = tdbp->M;
   Limit = tdbp->Limit;
   NextSame = tdbp->NextSame;
   SameRow = tdbp->SameRow;
   Xval = tdbp->Xval;
+  B = tdbp->B;
   Pretty = tdbp->Pretty;
   Strict = tdbp->Strict;
   Comma = tdbp->Comma;
@@ -563,7 +568,7 @@ PJSON TDBJSN::FindRow(PGLOBAL g)
              jsp->GetObject()->GetValue(objpath) : NULL;
     } else if (objpath[strlen(objpath)-1] == ']') {
       val = (jsp->GetType() == TYPE_JAR) ?
-        jsp->GetArray()->GetValue(atoi(objpath+1) - 1) : NULL;
+        jsp->GetArray()->GetValue(atoi(objpath+1) - B) : NULL;
     } else
       val = NULL;
 
@@ -649,6 +654,7 @@ int TDBJSN::ReadDB(PGLOBAL g)
   if (NextSame) {
     SameRow = NextSame;
     NextSame = 0;
+    M++;
     return RC_OK;
   } else if ((rc = TDBDOS::ReadDB(g)) == RC_OK)
     if (!IsRead() && ((rc = ReadBuffer(g)) != RC_OK)) {
@@ -660,6 +666,7 @@ int TDBJSN::ReadDB(PGLOBAL g)
       Row = FindRow(g);
       SameRow = 0;
       Fpos++;
+      M = 1;
       rc = RC_OK;
     } // endif's
 
@@ -708,7 +715,7 @@ int TDBJSN::MakeTopTree(PGLOBAL g, PJSON jsp)
             val->SetValue(arp);
     
           val = new(g) JVALUE;
-          i = atoi(objpath+1) - 1;
+          i = atoi(objpath+1) - B;
           arp->SetValue(g, val, i);
           arp->InitArray(g);
         } else {
@@ -856,8 +863,8 @@ bool JSONCOL::SetArrayOptions(PGLOBAL g, char *p, int i, PSZ nm)
       return true;
     else if (jnp->Op != OP_EXP) {
       if (b) {
-        // Return 1st value
-        jnp->Rank = 1;
+        // Return 1st value (B is the index base)
+        jnp->Rank = Tjp->B;
         jnp->Op = OP_EQ;
       } else if (!Value->IsTypeNum()) {
         jnp->CncVal = AllocateValue(g, (void*)", ", TYPE_STRING);
@@ -868,13 +875,9 @@ bool JSONCOL::SetArrayOptions(PGLOBAL g, char *p, int i, PSZ nm)
       } // endif OP
 
   } else if (dg) {
-    if (atoi(p) > 0) {
-      // Return nth value
-      jnp->Rank = atoi(p);
-      jnp->Op = OP_EQ;
-    } else // Ignore array
-      jnp->Op = OP_NULL;
-
+    // Return nth value
+    jnp->Rank = atoi(p) - Tjp->B;
+    jnp->Op = OP_EQ;
   } else if (n == 1) {
     // Set the Op value;
     switch (*p) {
@@ -1118,16 +1121,12 @@ PVAL JSONCOL::GetColumnValue(PGLOBAL g, PJSON row, int i)
         arp = (PJAR)row;
 
         if (!Nodes[i].Key) {
-          if (Nodes[i].Op != OP_NULL) {
-            if (Nodes[i].Rank) {
-              val = arp->GetValue(Nodes[i].Rank - 1);
-            } else if (Nodes[i].Op == OP_EXP) {
-              return ExpandArray(g, arp, i);
-            } else
-              return CalculateArray(g, arp, i);
-
-          } else
-            val = NULL;
+          if (Nodes[i].Op == OP_EQ)
+            val = arp->GetValue(Nodes[i].Rank);
+          else if (Nodes[i].Op == OP_EXP)
+            return ExpandArray(g, arp, i);
+          else
+            return CalculateArray(g, arp, i);
 
         } else if (i < Nod-1) {
           strcpy(g->Message, "Unexpected array");
@@ -1289,16 +1288,12 @@ PJSON JSONCOL::GetRow(PGLOBAL g)
         break;
       case TYPE_JAR:
         if (!Nodes[i].Key) {
-          if (Nodes[i].Op != OP_NULL) {
-            arp = (PJAR)row;
+          arp = (PJAR)row;
 
-            if (Nodes[i].Rank)
-              val = arp->GetValue(Nodes[i].Rank - 1);
-            else
-              val = arp->GetValue(Nodes[i].Rx);
-
-          } else
-            val = NULL;
+          if (Nodes[i].Op == OP_EQ)
+            val = arp->GetValue(Nodes[i].Rank);
+          else
+            val = arp->GetValue(Nodes[i].Rx);
 
         } else {
           strcpy(g->Message, "Unexpected array");
@@ -1390,8 +1385,8 @@ void JSONCOL::WriteColumn(PGLOBAL g)
           } // endif jsp
 
         if (arp) {
-          if (Nod > 1 && Nodes[Nod-2].Rank)
-            arp->SetValue(g, new(g) JVALUE(jsp), Nodes[Nod-2].Rank-1);
+          if (Nod > 1 && Nodes[Nod-2].Op == OP_EQ)
+            arp->SetValue(g, new(g) JVALUE(jsp), Nodes[Nod-2].Rank);
           else
             arp->AddValue(g, new(g) JVALUE(jsp));
 
@@ -1411,8 +1406,8 @@ void JSONCOL::WriteColumn(PGLOBAL g)
     case TYPE_INT:
     case TYPE_DOUBLE:
       if (arp) {
-        if (Nodes[Nod-1].Rank)
-          arp->SetValue(g, new(g) JVALUE(g, Value), Nodes[Nod-1].Rank-1);
+        if (Nodes[Nod-1].Op == OP_EQ)
+          arp->SetValue(g, new(g) JVALUE(g, Value), Nodes[Nod-1].Rank);
         else
           arp->AddValue(g, new(g) JVALUE(g, Value));
 
@@ -1562,7 +1557,7 @@ int TDBJSON::MakeDocument(PGLOBAL g)
 
       arp = jsp->GetArray();
       objp = NULL;
-      i = atoi(objpath+1) - 1;
+      i = atoi(objpath+1) - B;
       val = arp->GetValue(i);
 
       if (!val) {
@@ -1750,6 +1745,7 @@ int TDBJSON::ReadDB(PGLOBAL)
   if (NextSame) {
     SameRow = NextSame;
     NextSame = false;
+    M++;
     rc = RC_OK;
   } else if (++Fpos < (signed)Doc->size()) {
     Row = Doc->GetValue(Fpos);
@@ -1758,6 +1754,7 @@ int TDBJSON::ReadDB(PGLOBAL)
       Row = ((PJVAL)Row)->GetJson();
 
     SameRow = 0;
+    M = 1;
     rc = RC_OK;
   } else
     rc = RC_EF;
