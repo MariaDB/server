@@ -3966,6 +3966,8 @@ public:
   void reset_query_timer()
   {
 #ifndef EMBEDDED_LIBRARY
+    if (spcont || in_sub_stmt || slave_thread)
+      return;
     if (!query_timer.expired)
       thr_timer_end(&query_timer);
 #endif
