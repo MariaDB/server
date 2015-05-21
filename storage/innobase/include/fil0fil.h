@@ -1288,7 +1288,7 @@ ulint
 fil_get_next_space_safe(
 /*====================*/
 	ulint	id);	/*!< in: previous space id */
-#endif /*  UNIV_INNOCHECKSUM */
+
 
 /*******************************************************************//**
 Returns the block size of the file space
@@ -1301,7 +1301,7 @@ fil_space_get_block_size(
 	ulint   offset, /*!< in: page offset */
 	ulint   len);	/*!< in: page len */
 
-#endif
+#endif /* UNIV_INNOCHECKSUM */
 
 #ifndef UNIV_INNOCHECKSUM
 #ifndef UNIV_NONINL
