@@ -1067,7 +1067,7 @@ fil_crypt_start_encrypting_space(
 	do
 	{
 		if (fil_crypt_is_closing(space) ||
-			fil_tablespace_is_being_deleted(space)) {
+			fil_space_found_by_id(space) == NULL) {
 			break;
 		}
 
@@ -1085,7 +1085,7 @@ fil_crypt_start_encrypting_space(
 						      &mtr);
 
 		if (fil_crypt_is_closing(space) ||
-		    fil_tablespace_is_being_deleted(space)) {
+		    fil_space_found_by_id(space) == NULL) {
 			mtr_commit(&mtr);
 			break;
 		}
@@ -1107,7 +1107,7 @@ fil_crypt_start_encrypting_space(
 		mtr_commit(&mtr);
 
 		if (fil_crypt_is_closing(space) ||
-		    fil_tablespace_is_being_deleted(space)) {
+		    fil_space_found_by_id(space) == NULL) {
 			break;
 		}
 
@@ -1129,7 +1129,7 @@ fil_crypt_start_encrypting_space(
 			sum_pages += n_pages;
 		} while (!success &&
 			 !fil_crypt_is_closing(space) &&
-			 !fil_tablespace_is_being_deleted(space));
+			 !fil_space_found_by_id(space));
 
 		/* try to reacquire pending op */
 		if (fil_inc_pending_ops(space, true)) {
@@ -1140,7 +1140,7 @@ fil_crypt_start_encrypting_space(
 		pending_op = true;
 
 		if (fil_crypt_is_closing(space) ||
-		    fil_tablespace_is_being_deleted(space)) {
+		    fil_space_found_by_id(space) == NULL) {
 			break;
 		}
 
@@ -1219,7 +1219,10 @@ fil_crypt_space_needs_rotation(
 	bool*			recheck)	/*!< out: needs recheck ? */
 {
 	ulint space = state->space;
-	if (fil_space_get_type(space) != FIL_TABLESPACE) {
+
+	/* Make sure that tablespace is found and it is normal tablespace */
+	if (fil_space_found_by_id(space) == NULL ||
+		fil_space_get_type(space) != FIL_TABLESPACE) {
 		return false;
 	}
 
@@ -1553,11 +1556,6 @@ fil_crypt_start_rotate_space(
 
 	if (crypt_data->rotate_state.active_threads == 0) {
 		/* only first thread needs to init */
-		if (crypt_data->encryption == FIL_SPACE_ENCRYPTION_OFF) {
-			crypt_data->type = CRYPT_SCHEME_UNENCRYPTED;
-		} else {
-			crypt_data->type = CRYPT_SCHEME_1;
-		}
 		crypt_data->rotate_state.next_offset = 1; // skip page 0
 		/* no need to rotate beyond current max
 		* if space extends, it will be encrypted with newer version */
@@ -1568,6 +1566,13 @@ fil_crypt_start_rotate_space(
 			key_state->key_version;
 
 		crypt_data->rotate_state.start_time = time(0);
+
+		if (crypt_data->type == CRYPT_SCHEME_UNENCRYPTED &&
+			crypt_data->encryption != FIL_SPACE_ENCRYPTION_OFF &&
+			key_state->key_version != 0) {
+			/* this is rotation unencrypted => encrypted */
+			crypt_data->type = CRYPT_SCHEME_1;
+		}
 	}
 
 	/* count active threads in space */
@@ -1688,6 +1693,14 @@ fil_crypt_get_page_throttle_func(
 		return block;
 	}
 
+	/* Before reading from tablespace we need to make sure that
+	tablespace exists and is not is just being dropped. */
+
+	if (fil_crypt_is_closing(space) ||
+		fil_space_found_by_id(space) == NULL) {
+		return NULL;
+	}
+
 	state->crypt_stat.pages_read_from_disk++;
 
 	ullint start = ut_time_us(NULL);
@@ -1795,7 +1808,7 @@ fil_crypt_rotate_page(
 	ulint sleeptime_ms = 0;
 
 	/* check if tablespace is closing before reading page */
-	if (fil_crypt_is_closing(space)) {
+	if (fil_crypt_is_closing(space) || fil_space_found_by_id(space) == NULL) {
 		return;
 	}
 
@@ -1811,125 +1824,131 @@ fil_crypt_rotate_page(
 							 offset, &mtr,
 							 &sleeptime_ms);
 
-	bool modified = false;
-	int needs_scrubbing = BTR_SCRUB_SKIP_PAGE;
-	lsn_t block_lsn = block->page.newest_modification;
-	uint kv =  block->page.key_version;
+	if (block) {
 
-	/* check if tablespace is closing after reading page */
-	if (!fil_crypt_is_closing(space)) {
-		byte* frame = buf_block_get_frame(block);
-		fil_space_crypt_t *crypt_data = fil_space_get_crypt_data(space);
+		bool modified = false;
+		int needs_scrubbing = BTR_SCRUB_SKIP_PAGE;
+		lsn_t block_lsn = block->page.newest_modification;
+		uint kv =  block->page.key_version;
 
-		if (kv == 0 &&
-		    fil_crypt_is_page_uninitialized(frame, zip_size)) {
-			;
-		} else if (fil_crypt_needs_rotation(
-				crypt_data->encryption,
-				kv, key_state->key_version,
-				key_state->rotate_key_age)) {
+		/* check if tablespace is closing after reading page */
+		if (!fil_crypt_is_closing(space)) {
+			byte* frame = buf_block_get_frame(block);
+			fil_space_crypt_t *crypt_data = fil_space_get_crypt_data(space);
 
-			/* page can be "fresh" i.e never written in case
-			* kv == 0 or it should have a key version at least
-			* as big as the space minimum key version*/
-			ut_a(kv == 0 || kv >= crypt_data->min_key_version);
+			if (kv == 0 &&
+				fil_crypt_is_page_uninitialized(frame, zip_size)) {
+				;
+			} else if (fil_crypt_needs_rotation(
+					crypt_data->encryption,
+					kv, key_state->key_version,
+					key_state->rotate_key_age)) {
 
-			modified = true;
+				/* page can be "fresh" i.e never written in case
+				* kv == 0 or it should have a key version at least
+				* as big as the space minimum key version*/
+				ut_a(kv == 0 || kv >= crypt_data->min_key_version);
 
-			/* force rotation by dummy updating page */
-			mlog_write_ulint(frame +
-					 FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID,
-					 space, MLOG_4BYTES, &mtr);
+				modified = true;
 
-			/* update block */
-			block->page.key_version = key_state->key_version;
+				/* force rotation by dummy updating page */
+				mlog_write_ulint(frame +
+					FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID,
+					space, MLOG_4BYTES, &mtr);
 
-			/* statistics */
-			state->crypt_stat.pages_modified++;
-		} else {
-			if (crypt_data->encryption !=  FIL_SPACE_ENCRYPTION_OFF) {
-				ut_a(kv >= crypt_data->min_key_version ||
-					(kv == 0 && key_state->key_version == 0));
+				/* update block */
+				block->page.key_version = key_state->key_version;
 
-				if (kv < state->min_key_version_found) {
-					state->min_key_version_found = kv;
+				/* statistics */
+				state->crypt_stat.pages_modified++;
+			} else {
+				if (crypt_data->encryption !=  FIL_SPACE_ENCRYPTION_OFF) {
+					ut_a(kv >= crypt_data->min_key_version ||
+						(kv == 0 && key_state->key_version == 0));
+
+					if (kv < state->min_key_version_found) {
+						state->min_key_version_found = kv;
+					}
 				}
 			}
+
+			needs_scrubbing = btr_page_needs_scrubbing(
+				&state->scrub_data, block,
+				BTR_SCRUB_PAGE_ALLOCATION_UNKNOWN);
 		}
 
-		needs_scrubbing = btr_page_needs_scrubbing(
-			&state->scrub_data, block,
-			BTR_SCRUB_PAGE_ALLOCATION_UNKNOWN);
-	}
-
-	mtr_commit(&mtr);
-	lsn_t end_lsn = mtr.end_lsn;
-
-	if (needs_scrubbing == BTR_SCRUB_PAGE) {
-		mtr_start(&mtr);
-		/*
-		* refetch page and allocation status
-		*/
-		btr_scrub_page_allocation_status_t allocated;
-		block = btr_scrub_get_block_and_allocation_status(
-			state, space, zip_size, offset, &mtr,
-			&allocated,
-			&sleeptime_ms);
-
-		/* get required table/index and index-locks */
-		needs_scrubbing = btr_scrub_recheck_page(
-			&state->scrub_data, block, allocated, &mtr);
+		mtr_commit(&mtr);
+		lsn_t end_lsn = mtr.end_lsn;
 
 		if (needs_scrubbing == BTR_SCRUB_PAGE) {
-			/* we need to refetch it once more now that we have
-			* index locked */
+			mtr_start(&mtr);
+			/*
+			* refetch page and allocation status
+			*/
+			btr_scrub_page_allocation_status_t allocated;
 			block = btr_scrub_get_block_and_allocation_status(
 				state, space, zip_size, offset, &mtr,
 				&allocated,
 				&sleeptime_ms);
 
-			needs_scrubbing = btr_scrub_page(&state->scrub_data,
-							 block, allocated,
-							 &mtr);
+			if (block) {
+
+				/* get required table/index and index-locks */
+				needs_scrubbing = btr_scrub_recheck_page(
+					&state->scrub_data, block, allocated, &mtr);
+
+				if (needs_scrubbing == BTR_SCRUB_PAGE) {
+					/* we need to refetch it once more now that we have
+					* index locked */
+					block = btr_scrub_get_block_and_allocation_status(
+						state, space, zip_size, offset, &mtr,
+						&allocated,
+						&sleeptime_ms);
+
+					needs_scrubbing = btr_scrub_page(&state->scrub_data,
+						block, allocated,
+						&mtr);
+				}
+
+				/* NOTE: mtr is committed inside btr_scrub_recheck_page()
+				* and/or btr_scrub_page. This is to make sure that
+				* locks & pages are latched in corrected order,
+				* the mtr is in some circumstances restarted.
+				* (mtr_commit() + mtr_start())
+				*/
+			}
 		}
 
-		/* NOTE: mtr is committed inside btr_scrub_recheck_page()
-		* and/or btr_scrub_page. This is to make sure that
-		* locks & pages are latched in corrected order,
-		* the mtr is in some circumstances restarted.
-		* (mtr_commit() + mtr_start())
-		*/
-	}
+		if (needs_scrubbing != BTR_SCRUB_PAGE) {
+			/* if page didn't need scrubbing it might be that cleanups
+			are needed. do those outside of any mtr to prevent deadlocks.
 
-	if (needs_scrubbing != BTR_SCRUB_PAGE) {
-		/* if page didn't need scrubbing it might be that cleanups
-		are needed. do those outside of any mtr to prevent deadlocks.
+			the information what kinds of cleanups that are needed are
+			encoded inside the needs_scrubbing, but this is opaque to
+			this function (except the value BTR_SCRUB_PAGE) */
+			btr_scrub_skip_page(&state->scrub_data, needs_scrubbing);
+		}
 
-		the information what kinds of cleanups that are needed are
-		encoded inside the needs_scrubbing, but this is opaque to
-		this function (except the value BTR_SCRUB_PAGE) */
-		btr_scrub_skip_page(&state->scrub_data, needs_scrubbing);
-	}
+		if (needs_scrubbing == BTR_SCRUB_TURNED_OFF) {
+			/* if we just detected that scrubbing was turned off
+			* update global state to reflect this */
+			fil_space_crypt_t *crypt_data = fil_space_get_crypt_data(space);
+			ut_ad(crypt_data);
+			mutex_enter(&crypt_data->mutex);
+			crypt_data->rotate_state.scrubbing.is_active = false;
+			mutex_exit(&crypt_data->mutex);
+		}
 
-	if (needs_scrubbing == BTR_SCRUB_TURNED_OFF) {
-		/* if we just detected that scrubbing was turned off
-		* update global state to reflect this */
-		fil_space_crypt_t *crypt_data = fil_space_get_crypt_data(space);
-		ut_ad(crypt_data);
-		mutex_enter(&crypt_data->mutex);
-		crypt_data->rotate_state.scrubbing.is_active = false;
-		mutex_exit(&crypt_data->mutex);
-	}
-
-	if (modified) {
-		/* if we modified page, we take lsn from mtr */
-		ut_a(end_lsn > state->end_lsn);
-		ut_a(end_lsn > block_lsn);
-		state->end_lsn = end_lsn;
-	} else {
-		/* if we did not modify page, check for max lsn */
-		if (block_lsn > state->end_lsn) {
-			state->end_lsn = block_lsn;
+		if (modified) {
+			/* if we modified page, we take lsn from mtr */
+			ut_a(end_lsn > state->end_lsn);
+			ut_a(end_lsn > block_lsn);
+			state->end_lsn = end_lsn;
+		} else {
+			/* if we did not modify page, check for max lsn */
+			if (block_lsn > state->end_lsn) {
+				state->end_lsn = block_lsn;
+			}
 		}
 	}
 

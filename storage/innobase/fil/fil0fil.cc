@@ -341,6 +341,26 @@ fil_space_get_by_id(
 	return(space);
 }
 
+/*******************************************************************//**
+Returns the table space by a given id, NULL if not found. */
+fil_space_t*
+fil_space_found_by_id(
+/*==================*/
+	ulint	id)	/*!< in: space id */
+{
+	fil_space_t* space = NULL;
+	mutex_enter(&fil_system->mutex);
+	space = fil_space_get_by_id(id);
+
+	/* Not found if space is being deleted */
+	if (space && space->stop_new_ops) {
+		space = NULL;
+	}
+
+	mutex_exit(&fil_system->mutex);
+	return space;
+}
+
 /****************************************************************//**
 Get space id from fil node */
 ulint
