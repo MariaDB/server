@@ -123,11 +123,7 @@ buf_dump_status(
 		sizeof(export_vars.innodb_buffer_pool_dump_status),
 		fmt, ap);
 
-	if (severity == STATUS_NOTICE || severity == STATUS_ERR) {
-		ut_print_timestamp(stderr);
-		fprintf(stderr, " InnoDB: %s\n",
-			export_vars.innodb_buffer_pool_dump_status);
-	}
+	ib_logf((ib_log_level_t) severity, export_vars.innodb_buffer_pool_dump_status);
 
 	va_end(ap);
 }
