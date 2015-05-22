@@ -61,7 +61,6 @@ my_b_copy_to_file(IO_CACHE *cache, FILE *file)
     if (my_fwrite(file, cache->read_pos, bytes_in_cache,
                   MYF(MY_WME | MY_NABP)) == (size_t) -1)
       DBUG_RETURN(1);
-    cache->read_pos= cache->read_end;
   } while ((bytes_in_cache= my_b_fill(cache)));
   if(cache->error == -1)
     DBUG_RETURN(1);
@@ -179,60 +178,6 @@ void my_b_seek(IO_CACHE *info,my_off_t pos)
   info->pos_in_file=pos;
   info->seek_not_done=1;
   DBUG_VOID_RETURN;
-}
-
-
-/*
-  Fill buffer of the cache.
-
-  NOTES
-    This assumes that you have already used all characters in the CACHE,
-    independent of the read_pos value!
-
-  RETURN
-  0  On error or EOF (info->error = -1 on error)
-  #  Number of characters
-*/
-
-
-size_t my_b_fill(IO_CACHE *info)
-{
-  my_off_t pos_in_file=(info->pos_in_file+
-			(size_t) (info->read_end - info->buffer));
-  size_t diff_length, length, max_length;
-
-  if (info->seek_not_done)
-  {					/* File touched, do seek */
-    if (mysql_file_seek(info->file, pos_in_file, MY_SEEK_SET, MYF(0)) ==
-	MY_FILEPOS_ERROR)
-    {
-      info->error= 0;
-      return 0;
-    }
-    info->seek_not_done=0;
-  }
-  diff_length=(size_t) (pos_in_file & (IO_SIZE-1));
-  max_length=(info->read_length-diff_length);
-  if (max_length >= (info->end_of_file - pos_in_file))
-    max_length= (size_t) (info->end_of_file - pos_in_file);
-
-  if (!max_length)
-  {
-    info->error= 0;
-    return 0;					/* EOF */
-  }
-  DBUG_EXECUTE_IF ("simulate_my_b_fill_error",
-                   {DBUG_SET("+d,simulate_file_read_error");});
-  if ((length= mysql_file_read(info->file, info->buffer, max_length,
-                       info->myflags)) == (size_t) -1)
-  {
-    info->error= -1;
-    return 0;
-  }
-  info->read_pos=info->buffer;
-  info->read_end=info->buffer+length;
-  info->pos_in_file=pos_in_file;
-  return length;
 }
 
 
