@@ -68,10 +68,12 @@ USETEMP UseTemp(void);
 /***********************************************************************/
 TDBFIX::TDBFIX(PDOSDEF tdp, PTXF txfp) : TDBDOS(tdp, txfp)
   {
+  Teds = tdp->Teds;              // For BIN tables
   } // end of TDBFIX standard constructor
 
 TDBFIX::TDBFIX(PGLOBAL g, PTDBFIX tdbp) : TDBDOS(g, tdbp)
   {
+  Teds = tdbp->Teds;
   } // end of TDBFIX copy constructor
 
 // Method
@@ -374,42 +376,63 @@ int TDBFIX::WriteDB(PGLOBAL g)
 BINCOL::BINCOL(PGLOBAL g, PCOLDEF cdp, PTDB tp, PCOL cp, int i, PSZ am)
   : DOSCOL(g, cdp, tp, cp, i, am)
   {
-  char *fmt = cdp->GetFmt();
+  char c, *fmt = cdp->GetFmt();
 
+  Fmt = GetDomain() ? 'C' : 'X';
   Buff = NULL;
+  Eds = ((PTDBFIX)tp)->Teds;
+  N = 0;
   M = GetTypeSize(Buf_Type, sizeof(longlong));
   Lim = 0;
 
   if (fmt) {
-    Fmt = 'H';
+    for (N = 0, i = 0; fmt[i]; i++) {
+      c = toupper(fmt[i]);
 
-    for (N = 0, i = 0; fmt[i]; i++)
-      if (isdigit(fmt[i]))
-        N = (N * 10 + (fmt[i] - '0'));
+      if (isdigit(c))
+        N = (N * 10 + (c - '0'));
+      else if (c == 'L' || c == 'B' || c == 'H')
+        Eds = c;
       else
-        Fmt = toupper(fmt[i]);
+        Fmt = c;
 
-    if (N == GetTypeSize(Buf_Type, -1) && (Fmt == 'H' || Fmt == Endian)) {
-      // New format is a no op
-      N = 0;
-      Fmt = 'X';
-    } else if (Fmt == 'L' || Fmt == 'B' || Fmt == 'H') {
-      // This is a new format
-      if (!N)
-        N = GetTypeSize(Buf_Type, Long);
+      } // endfor i
 
-      if (Fmt == 'H')
-        Fmt = Endian;
+    // M is the size of the source value
+    switch (Fmt) {
+      case 'C': Eds = 0;              break;
+      case 'X':                       break;
+      case 'S': M = sizeof(short);    break;
+      case 'T': M = sizeof(char);     break;
+      case 'I': M = sizeof(int);      break;
+      case 'G': M = sizeof(longlong); break;
+      case 'R': // Real
+      case 'F': M = sizeof(float);    break;
+      case 'D': M = sizeof(double);   break;
+      default:
+        sprintf(g->Message, MSG(BAD_BIN_FMT), Fmt, Name);
+        longjmp(g->jumper[g->jump_level], 11);
+        } // endswitch Fmt
 
+  } else if (IsTypeChar(Buf_Type))
+    Eds = 0;
+
+  if (Eds) {
+    // This is a byte order specification
+    if (!N)
+      N = M;
+
+    if (Eds != 'L' && Eds != 'B')
+      Eds = Endian;
+
+    if (N != M || Eds != Endian || IsTypeChar(Buf_Type)) {
       Buff = (char*)PlugSubAlloc(g, NULL, M);
       memset(Buff, 0, M);
       Lim = MY_MIN(N, M);
-    } // endif Fmt
+    } else
+      Eds = 0;      // New format is a no op
 
-  } else {
-    N = 0;
-    Fmt = GetDomain() ? 'C' : 'X';
-  } // endif fmt
+    } // endif Eds
 
   } // end of BINCOL constructor
 
@@ -419,6 +442,7 @@ BINCOL::BINCOL(PGLOBAL g, PCOLDEF cdp, PTDB tp, PCOL cp, int i, PSZ am)
 /***********************************************************************/
 BINCOL::BINCOL(BINCOL *col1, PTDB tdbp) : DOSCOL(col1, tdbp)
   {
+  Eds = col1->Eds;
   Fmt = col1->Fmt;
   N = col1->N;
   M = col1->M;
@@ -470,25 +494,27 @@ void BINCOL::ReadColumn(PGLOBAL g)
   /*********************************************************************/
   /*  Set Value from the line field.                                   */
   /*********************************************************************/
-  if (N) {
+  if (Eds) {
     for (int i = 0; i < Lim; i++)
-      if (Fmt == 'B' && Endian == 'L')
+      if (Eds == 'B' && Endian == 'L')
         Buff[i] = p[N - i - 1];
-      else if (Fmt == 'L' && Endian == 'B')
+      else if (Eds == 'L' && Endian == 'B')
         Buff[M - i - 1] = p[i];
       else if (Endian == 'B')
         Buff[M - i - 1] = p[N - i - 1];
       else
         Buff[i] = p[i];
 
-    if (IsTypeChar(Buf_Type))
-      Value->SetValue(*(longlong*)Buff);
-    else
-      Value->SetBinValue(Buff);
+    p = Buff;
+    } // endif Eds
 
-  } else switch (Fmt) {
+  switch (Fmt) {
     case 'X':                 // Standard not converted values
-      Value->SetBinValue(p);
+      if (Eds && IsTypeChar(Buf_Type))
+        Value->SetValue(*(longlong*)p);
+      else
+        Value->SetBinValue(p);
+
       break;
     case 'S':                 // Short integer
       Value->SetValue(*(short*)p);
@@ -496,11 +522,11 @@ void BINCOL::ReadColumn(PGLOBAL g)
     case 'T':                 // Tiny integer
       Value->SetValue(*p);
       break;
-//  case 'L':                 // Long Integer
-//    strcpy(g->Message, "Format L is deprecated, use I");
-//    longjmp(g->jumper[g->jump_level], 11);
     case 'I':                 // Integer
       Value->SetValue(*(int*)p);
+      break;
+    case 'G':                 // Large (great) integer
+      Value->SetValue(*(longlong*)p);
       break;
     case 'F':                 // Float
     case 'R':                 // Real
@@ -553,41 +579,23 @@ void BINCOL::WriteColumn(PGLOBAL g)
   if (Value != To_Val)
     Value->SetValue_pval(To_Val, false);    // Convert the updated value
 
-  p = tdbp->To_Line + Deplac;
+  p = (Eds) ? Buff : tdbp->To_Line + Deplac;
 
   /*********************************************************************/
   /*  Check whether updating is Ok, meaning col value is not too long. */
   /*  Updating will be done only during the second pass (Status=true)  */
   /*  Conversion occurs if the external format Fmt is specified.       */
   /*********************************************************************/
-  if (N) {
-    if (IsTypeChar(Buf_Type))
-      *(longlong *)Buff = Value->GetBigintValue();
-    else if (Value->GetBinValue(Buff, M, Status)) {
-      sprintf(g->Message, MSG(BIN_F_TOO_LONG),
-                          Name, Value->GetSize(), M);
-      longjmp(g->jumper[g->jump_level], 31);
-      } // endif Buff
-
-    if (Status)
-      for (int i = 0; i < Lim; i++)
-        if (Fmt == 'B' && Endian == 'L')
-          p[N - i - 1] = Buff[i];
-        else if (Fmt == 'L' && Endian == 'B')
-          p[i] = Buff[M - i - 1];
-        else if (Endian == 'B')
-          p[N - i - 1] = Buff[M - i - 1];
-        else
-          p[i] = Buff[i];
-
-  } else switch (Fmt) {
+  switch (Fmt) {
     case 'X':
       // Standard not converted values
-      if (Value->GetBinValue(p, Long, Status)) {
+      if (Eds && IsTypeChar(Buf_Type))
+        *(longlong *)p = Value->GetBigintValue();
+      else if (Value->GetBinValue(p, Long, Status)) {
         sprintf(g->Message, MSG(BIN_F_TOO_LONG),
                             Name, Value->GetSize(), Long);
         longjmp(g->jumper[g->jump_level], 31);
-        } // endif p
+      } // endif p
 
       break;
     case 'S':                 // Short integer
@@ -610,9 +618,6 @@ void BINCOL::WriteColumn(PGLOBAL g)
         *p = (char)n;
 
       break;
-    case 'L':                 // Long Integer
-      strcpy(g->Message, "Format L is deprecated, use I");
-      longjmp(g->jumper[g->jump_level], 11);
     case 'I':                 // Integer
       n = Value->GetBigintValue();
 
@@ -623,7 +628,7 @@ void BINCOL::WriteColumn(PGLOBAL g)
         *(int *)p = Value->GetIntValue();
 
       break;
-    case 'B':                 // Large (big) integer
+    case 'G':                 // Large (great) integer
       if (Status)
         *(longlong *)p = Value->GetBigintValue();
 
@@ -656,6 +661,21 @@ void BINCOL::WriteColumn(PGLOBAL g)
       sprintf(g->Message, MSG(BAD_BIN_FMT), Fmt, Name);
       longjmp(g->jumper[g->jump_level], 11);
     } // endswitch Fmt
+
+  if (Eds && Status) {
+    p = tdbp->To_Line + Deplac;
+
+    for (int i = 0; i < Lim; i++)
+      if (Eds == 'B' && Endian == 'L')
+        p[N - i - 1] = Buff[i];
+      else if (Eds == 'L' && Endian == 'B')
+        p[i] = Buff[M - i - 1];
+      else if (Endian == 'B')
+        p[N - i - 1] = Buff[M - i - 1];
+      else
+        p[i] = Buff[i];
+
+    } // endif Eds
 
   } // end of WriteColumn
 

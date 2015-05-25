@@ -112,6 +112,7 @@ DOSDEF::DOSDEF(void)
   Maxerr = 0;
   ReadMode = 0;
   Ending = 0;
+  Teds = 0;
   } // end of DOSDEF constructor
 
 /***********************************************************************/
@@ -146,6 +147,7 @@ bool DOSDEF::DefineAM(PGLOBAL g, LPCSTR am, int)
     Padded = GetBoolCatInfo("Padded", false);
     Blksize = GetIntCatInfo("Blksize", 0);
     Eof = (GetIntCatInfo("EOF", 0) != 0);
+    Teds = toupper(*GetStringCatInfo(g, "Endian", ""));
   } else if (Recfm == RECFM_DBF) {
     Maxerr = GetIntCatInfo("Maxerr", 0);
     Accept = GetBoolCatInfo("Accept", false);

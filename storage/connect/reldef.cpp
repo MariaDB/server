@@ -247,7 +247,7 @@ bool TABDEF::Define(PGLOBAL g, PCATLG cat, LPCSTR name, LPCSTR am)
 /***********************************************************************/
 PSZ TABDEF::GetPath(void)
   {
-  return (Database) ? (PSZ)Database : Hc->GetDataPath();
+  return (Database) ? (PSZ)Database : (Hc) ? Hc->GetDataPath() : NULL;
   } // end of GetPath
 
 /***********************************************************************/
@@ -256,7 +256,8 @@ PSZ TABDEF::GetPath(void)
 int TABDEF::GetColCatInfo(PGLOBAL g)
 	{
 	char		*type= GetStringCatInfo(g, "Type", "*");
-	int      i, loff, poff, nof, nlg;
+  char     c, fty, eds;
+	int      i, n, loff, poff, nof, nlg;
 	void    *field= NULL;
   TABTYPE  tc;
   PCOLDEF  cdp, lcdp= NULL, tocols= NULL;
@@ -331,28 +332,52 @@ int TABDEF::GetColCatInfo(PGLOBAL g)
 				cdp->SetOffset(0);		 // Not to have shift
 			case TAB_BIN:
 				// BIN/VEC are packed by default
-				if (nof)
+        if (nof) {
 					// Field width is the internal representation width
 					// that can also depend on the column format
-          switch (cdp->Fmt ? *cdp->Fmt : cdp->Decode ? 'C' : 'X') {
-						case 'X':  nof= cdp->Clen;
-						case 'C':         break;
-						case 'R':
-						case 'F':
-//					case 'L':
-						case 'I':	nof= 4; break;
-						case 'D':	nof= 8; break;
-						case 'S':	nof= 2; break;
-						case 'T':	nof= 1; break;
-						default:  /* New format */
-              for (nof= 0, i= 0; cdp->Fmt[i]; i++)
-                if (isdigit(cdp->Fmt[i]))
-                  nof= (nof * 10 + (cdp->Fmt[i] - '0'));
+          fty = cdp->Decode ? 'C' : 'X';
+          eds = 0;
+          n = 0;
 
-              if (!nof)
+          if (cdp->Fmt && !cdp->Decode) {
+            for (i = 0; cdp->Fmt[i]; i++) {
+              c = toupper(cdp->Fmt[i]);
+
+              if (isdigit(c))
+                n = (n * 10 + (c - '0'));
+              else if (c == 'L' || c == 'B' || c == 'H')
+                eds = c;
+              else
+                fty = c;
+
+              } // endfor i
+
+          } // endif Fmt
+
+          if (n)
+            nof = n;
+          else switch (fty) {
+						case 'X':
+              if (eds && IsTypeChar(cdp->Buf_Type))
+                nof = sizeof(longlong);
+              else
                 nof= cdp->Clen;
 
-						} // endswitch Fmt
+              break;
+						case 'C':                         break;
+						case 'R':
+						case 'F': nof = sizeof(float);    break;
+						case 'I':	nof = sizeof(int);      break;
+						case 'D':	nof = sizeof(double);   break;
+						case 'S':	nof = sizeof(short);    break;
+						case 'T':	nof = sizeof(char);     break;
+						case 'G':	nof = sizeof(longlong); break;
+						default:  /* Wrong format */
+              sprintf(g->Message, "Invalid format %c", fty);
+              return -1;
+						} // endswitch fty
+
+          } // endif nof
 
       default:
 				break;

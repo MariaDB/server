@@ -59,16 +59,15 @@ typedef struct _jncol {
 /* JSONColumns: construct the result blocks containing the description */
 /* of all the columns of a table contained inside a JSON file.         */
 /***********************************************************************/
-PQRYRES JSONColumns(PGLOBAL g, char *dp, const char *fn, char *objn,
-                    int pretty, int lrecl, int lvl, bool info)
+PQRYRES JSONColumns(PGLOBAL g, char *db, PTOS topt, bool info)
 {
   static int  buftyp[] = {TYPE_STRING, TYPE_SHORT, TYPE_STRING, TYPE_INT, 
                           TYPE_INT, TYPE_SHORT, TYPE_SHORT, TYPE_STRING};
   static XFLD fldtyp[] = {FLD_NAME, FLD_TYPE, FLD_TYPENAME, FLD_PREC, 
                           FLD_LENGTH, FLD_SCALE, FLD_NULL, FLD_FORMAT};
   static unsigned int length[] = {0, 6, 8, 10, 10, 6, 6, 0};
-  char    filename[_MAX_PATH], colname[65], fmt[129];
-  int     i, j, n = 0;
+  char   *fn, colname[65], fmt[129];
+  int     i, j, lvl, n = 0;
   int     ncol = sizeof(buftyp) / sizeof(int);
   PVAL    valp;
   JCOL    jcol;
@@ -91,26 +90,29 @@ PQRYRES JSONColumns(PGLOBAL g, char *dp, const char *fn, char *objn,
     goto skipit;
     } // endif info
 
-  if (trace)
-    htrc("File %s pretty=%d lvl=%d lrecl=%d\n", 
-          SVP(fn), pretty, lvl, lrecl);
-
   /*********************************************************************/
   /*  Open the input file.                                             */
   /*********************************************************************/
-  if (!fn) {
+  if (!(fn = GetStringTableOption(g, topt, "Filename", NULL))) {
     strcpy(g->Message, MSG(MISSING_FNAME));
     return NULL;
-  } else
-    PlugSetPath(filename, fn, dp);
+  } else {
+    lvl = GetIntegerTableOption(g, topt, "Level", 0);
+    lvl = (lvl < 0) ? 0 : (lvl > 16) ? 16 : lvl;
+  } // endif fn
 
   tdp = new(g) JSONDEF;
-  tdp->Database = dp;
-  tdp->Fn = filename;
-  tdp->Objname = objn;
-  tdp->Pretty = pretty;
+  tdp->Fn = fn;
+  tdp->Database = SetPath(g, db);
+  tdp->Objname = GetStringTableOption(g, topt, "Object", NULL);
+  tdp->Base = GetIntegerTableOption(g, topt, "Base", 0) ? 1 : 0;
+  tdp->Pretty = GetIntegerTableOption(g, topt, "Pretty", 2);
 
-  if (pretty == 2) {
+  if (trace)
+    htrc("File %s objname=%s pretty=%d lvl=%d\n", 
+          tdp->Fn, tdp->Objname, tdp->Pretty, lvl);
+
+  if (tdp->Pretty == 2) {
     tjsp = new(g) TDBJSON(tdp, new(g) MAPFAM(tdp));
 
     if (tjsp->MakeDocument(g))
@@ -118,13 +120,12 @@ PQRYRES JSONColumns(PGLOBAL g, char *dp, const char *fn, char *objn,
 
     jsp = (tjsp->GetDoc()) ? tjsp->GetDoc()->GetValue(0) : NULL;
   } else {
-    if (!lrecl) {
-      sprintf(g->Message, "LRECL must be specified for pretty=%d", pretty);
+    if (!(tdp->Lrecl = GetIntegerTableOption(g, topt, "Lrecl", 0))) {
+      sprintf(g->Message, "LRECL must be specified for pretty=%d", tdp->Pretty);
       return NULL;
       } // endif lrecl
 
-    tdp->Lrecl = lrecl;
-    tdp->Ending = CRLF;
+    tdp->Ending = GetIntegerTableOption(g, topt, "Ending", CRLF);
     tjnp = new(g) TDBJSN(tdp, new(g) DOSFAM(tdp));
     tjnp->SetMode(MODE_READ);
 
@@ -265,7 +266,7 @@ PQRYRES JSONColumns(PGLOBAL g, char *dp, const char *fn, char *objn,
       jcp->Found = false;
       } // endfor jcp
 
-    if (pretty != 2) {
+    if (tdp->Pretty != 2) {
       // Read next record
       switch (tjnp->ReadDB(g)) {
         case RC_EF:
@@ -285,7 +286,7 @@ PQRYRES JSONColumns(PGLOBAL g, char *dp, const char *fn, char *objn,
 
     } // endor i
 
-  if (pretty != 2)
+  if (tdp->Pretty != 2)
     tjnp->CloseDB(g);
 
  skipit:
@@ -341,7 +342,7 @@ PQRYRES JSONColumns(PGLOBAL g, char *dp, const char *fn, char *objn,
   return qrp;
 
 err:
-  if (pretty != 2)
+  if (tdp->Pretty != 2)
     tjnp->CloseDB(g);
 
   return NULL;
@@ -356,8 +357,7 @@ JSONDEF::JSONDEF(void)
   Xcol = NULL;
   Pretty = 2;
   Limit = 1;
-  Level = 0;
-  ReadMode = 0;
+  Base = 0;
   Strict = false;
 } // end of JSONDEF constructor
 
@@ -370,9 +370,8 @@ bool JSONDEF::DefineAM(PGLOBAL g, LPCSTR, int poff)
   Objname = GetStringCatInfo(g, "Object", NULL);
   Xcol = GetStringCatInfo(g, "Expand", NULL);
   Pretty = GetIntCatInfo("Pretty", 2);
-  Level = GetIntCatInfo("Level", 0);
   Limit = GetIntCatInfo("Limit", 10);
-  Base = GetIntCatInfo("Base", 0);
+  Base = GetIntCatInfo("Base", 0) ? 1 : 0;
   return DOSDEF::DefineAM(g, "DOS", poff);
 } // end of DefineAM
 
@@ -1856,11 +1855,8 @@ void TDBJSON::CloseDB(PGLOBAL g)
 /***********************************************************************/
 TDBJCL::TDBJCL(PJDEF tdp) : TDBCAT(tdp)
   {
-  Fn  = tdp->GetFn();
-  Objn = tdp->Objname;
-  Pretty = tdp->Pretty;
-  Lrecl = tdp->Lrecl;
-  lvl = tdp->Level;
+  Topt = tdp->GetTopt();
+  Db = (char*)tdp->GetDB();
   } // end of TDBJCL constructor
 
 /***********************************************************************/
@@ -1868,8 +1864,7 @@ TDBJCL::TDBJCL(PJDEF tdp) : TDBCAT(tdp)
 /***********************************************************************/
 PQRYRES TDBJCL::GetResult(PGLOBAL g)
   {
-  return JSONColumns(g, ((PTABDEF)To_Def)->GetPath(), Fn, Objn, 
-                         Pretty, Lrecl, lvl, false);
+  return JSONColumns(g, Db, Topt, false);
   } // end of GetResult
 
 /* --------------------------- End of json --------------------------- */

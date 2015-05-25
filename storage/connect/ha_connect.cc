@@ -195,9 +195,8 @@ extern "C" {
 /***********************************************************************/
 PQRYRES OEMColumns(PGLOBAL g, PTOS topt, char *tab, char *db, bool info);
 PQRYRES VirColumns(PGLOBAL g, bool info);
-PQRYRES JSONColumns(PGLOBAL g, char *dp, const char *fn, char *objn,
-                    int pretty, int lvl, int mxr, bool info);
-PQRYRES XMLColumns(PGLOBAL g, char *dp, char *tab, PTOS topt, bool info);
+PQRYRES JSONColumns(PGLOBAL g, char *db, PTOS topt, bool info);
+PQRYRES XMLColumns(PGLOBAL g, char *db, char *tab, PTOS topt, bool info);
 void    PushWarning(PGLOBAL g, THD *thd, int level);
 bool    CheckSelf(PGLOBAL g, TABLE_SHARE *s, const char *host,
                   const char *db, char *tab, const char *src, int port);
@@ -1018,6 +1017,117 @@ char *GetListOption(PGLOBAL g, const char *opname,
 } // end of GetListOption
 
 /****************************************************************************/
+/*  Return the value of a string option or NULL if not specified.           */
+/****************************************************************************/
+char *GetStringTableOption(PGLOBAL g, PTOS options, char *opname, char *sdef)
+{
+  const char *opval= NULL;
+
+  if (!options)
+    return sdef;
+  else if (!stricmp(opname, "Type"))
+    opval= options->type;
+  else if (!stricmp(opname, "Filename"))
+    opval= options->filename;
+  else if (!stricmp(opname, "Optname"))
+    opval= options->optname;
+  else if (!stricmp(opname, "Tabname"))
+    opval= options->tabname;
+  else if (!stricmp(opname, "Tablist"))
+    opval= options->tablist;
+  else if (!stricmp(opname, "Database") ||
+           !stricmp(opname, "DBname"))
+    opval= options->dbname;
+  else if (!stricmp(opname, "Separator"))
+    opval= options->separator;
+  else if (!stricmp(opname, "Qchar"))
+    opval= options->qchar;
+  else if (!stricmp(opname, "Module"))
+    opval= options->module;
+  else if (!stricmp(opname, "Subtype"))
+    opval= options->subtype;
+  else if (!stricmp(opname, "Catfunc"))
+    opval= options->catfunc;
+  else if (!stricmp(opname, "Srcdef"))
+    opval= options->srcdef;
+  else if (!stricmp(opname, "Colist"))
+    opval= options->colist;
+  else if (!stricmp(opname, "Data_charset"))
+    opval= options->data_charset;
+
+  if (!opval && options && options->oplist)
+    opval= GetListOption(g, opname, options->oplist);
+
+  return opval ? (char*)opval : sdef;
+} // end of GetStringTableOption
+
+/****************************************************************************/
+/*  Return the value of a Boolean option or bdef if not specified.          */
+/****************************************************************************/
+bool GetBooleanTableOption(PGLOBAL g, PTOS options, char *opname, bool bdef)
+{
+  bool  opval= bdef;
+  char *pv;
+
+  if (!options)
+    return bdef;
+  else if (!stricmp(opname, "Mapped"))
+    opval= options->mapped;
+  else if (!stricmp(opname, "Huge"))
+    opval= options->huge;
+  else if (!stricmp(opname, "Split"))
+    opval= options->split;
+  else if (!stricmp(opname, "Readonly"))
+    opval= options->readonly;
+  else if (!stricmp(opname, "SepIndex"))
+    opval= options->sepindex;
+  else if (!stricmp(opname, "Header"))
+    opval= (options->header != 0);   // Is Boolean for some table types
+  else if (options->oplist)
+    if ((pv= GetListOption(g, opname, options->oplist)))
+      opval= (!*pv || *pv == 'y' || *pv == 'Y' || atoi(pv) != 0);
+
+  return opval;
+} // end of GetBooleanTableOption
+
+/****************************************************************************/
+/*  Return the value of an integer option or NO_IVAL if not specified.      */
+/****************************************************************************/
+int GetIntegerTableOption(PGLOBAL g, PTOS options, char *opname, int idef)
+{
+  ulonglong opval= NO_IVAL;
+
+  if (!options)
+    return idef;
+  else if (!stricmp(opname, "Lrecl"))
+    opval= options->lrecl;
+  else if (!stricmp(opname, "Elements"))
+    opval= options->elements;
+  else if (!stricmp(opname, "Multiple"))
+    opval= options->multiple;
+  else if (!stricmp(opname, "Header"))
+    opval= options->header;
+  else if (!stricmp(opname, "Quoted"))
+    opval= options->quoted;
+  else if (!stricmp(opname, "Ending"))
+    opval= options->ending;
+  else if (!stricmp(opname, "Compressed"))
+    opval= (options->compressed);
+
+  if (opval == NO_IVAL) {
+    char *pv;
+
+    if ((pv= GetListOption(g, opname, options->oplist)))
+      opval= CharToNumber(pv, strlen(pv), ULONGLONG_MAX, true);
+    else
+      return idef;
+
+    } // endif opval
+
+  return (int)opval;
+} // end of GetIntegerTableOption
+
+/****************************************************************************/
 /*  Return the table option structure.                                      */
 /****************************************************************************/
 PTOS ha_connect::GetTableOptionStruct(TABLE_SHARE *s)
@@ -1035,9 +1145,6 @@ char *ha_connect::GetRealString(const char *s)
   char *sv;
 
   if (IsPartitioned() && s) {
-//  sv= (char*)PlugSubAlloc(xp->g, NULL, strlen(s) + strlen(partname));
-    // With wrong string pattern, the size of the constructed string
-    // can be more than strlen(s) + strlen(partname)
     sv= (char*)PlugSubAlloc(xp->g, NULL, 0);
     sprintf(sv, s, partname);
     PlugSubAlloc(xp->g, NULL, strlen(sv) + 1);
@@ -1048,7 +1155,7 @@ char *ha_connect::GetRealString(const char *s)
 } // end of GetRealString
 
 /****************************************************************************/
-/*  Return the value of a string option or NULL if not specified.           */
+/*  Return the value of a string option or sdef if not specified.           */
 /****************************************************************************/
 char *ha_connect::GetStringOption(char *opname, char *sdef)
 {
@@ -1066,37 +1173,6 @@ char *ha_connect::GetStringOption(char *opname, char *sdef)
     opval= thd_query_string(table->in_use)->str;
   else if (!stricmp(opname, "Partname"))
     opval= partname;
-  else if (!options)
-    ;
-  else if (!stricmp(opname, "Type"))
-    opval= (char*)options->type;
-  else if (!stricmp(opname, "Filename"))
-    opval= GetRealString(options->filename);
-  else if (!stricmp(opname, "Optname"))
-    opval= (char*)options->optname;
-  else if (!stricmp(opname, "Tabname"))
-    opval= GetRealString(options->tabname);
-  else if (!stricmp(opname, "Tablist"))
-    opval= (char*)options->tablist;
-  else if (!stricmp(opname, "Database") ||
-           !stricmp(opname, "DBname"))
-    opval= (char*)options->dbname;
-  else if (!stricmp(opname, "Separator"))
-    opval= (char*)options->separator;
-  else if (!stricmp(opname, "Qchar"))
-    opval= (char*)options->qchar;
-  else if (!stricmp(opname, "Module"))
-    opval= (char*)options->module;
-  else if (!stricmp(opname, "Subtype"))
-    opval= (char*)options->subtype;
-  else if (!stricmp(opname, "Catfunc"))
-    opval= (char*)options->catfunc;
-  else if (!stricmp(opname, "Srcdef"))
-    opval= (char*)options->srcdef;
-  else if (!stricmp(opname, "Colist"))
-    opval= (char*)options->colist;
-  else if (!stricmp(opname, "Data_charset"))
-    opval= (char*)options->data_charset;
   else if (!stricmp(opname, "Table_charset")) {
     const CHARSET_INFO *chif= (tshp) ? tshp->table_charset 
                                      : table->s->table_charset;
@@ -1104,17 +1180,13 @@ char *ha_connect::GetStringOption(char *opname, char *sdef)
     if (chif)
       opval= (char*)chif->csname;
 
-  } // endif Table_charset
+  } else
+    opval= GetStringTableOption(xp->g, options, opname, NULL);
 
-  if (!opval && options && options->oplist) {
-    opval= GetListOption(xp->g, opname, options->oplist);
-
-    if (opval && (!stricmp(opname, "connect") 
-               || !stricmp(opname, "tabname") 
-               || !stricmp(opname, "filename")))
-      opval = GetRealString(opval);
-
-    } // endif opval
+  if (opval && (!stricmp(opname, "connect") 
+             || !stricmp(opname, "tabname") 
+             || !stricmp(opname, "filename")))
+    opval = GetRealString(opval);
 
   if (!opval) {
     if (sdef && !strcmp(sdef, "*")) {
@@ -1145,31 +1217,13 @@ char *ha_connect::GetStringOption(char *opname, char *sdef)
 /****************************************************************************/
 bool ha_connect::GetBooleanOption(char *opname, bool bdef)
 {
-  bool  opval= bdef;
-  char *pv;
+  bool  opval;
   PTOS  options= GetTableOptionStruct();
 
   if (!stricmp(opname, "View"))
     opval= (tshp) ? tshp->is_view : table_share->is_view;
-  else if (!options)
-    ;
-  else if (!stricmp(opname, "Mapped"))
-    opval= options->mapped;
-  else if (!stricmp(opname, "Huge"))
-    opval= options->huge;
-//else if (!stricmp(opname, "Compressed"))
-//  opval= options->compressed;
-  else if (!stricmp(opname, "Split"))
-    opval= options->split;
-  else if (!stricmp(opname, "Readonly"))
-    opval= options->readonly;
-  else if (!stricmp(opname, "SepIndex"))
-    opval= options->sepindex;
-  else if (!stricmp(opname, "Header"))
-    opval= (options->header != 0);   // Is Boolean for some table types
-  else if (options->oplist)
-    if ((pv= GetListOption(xp->g, opname, options->oplist)))
-      opval= (!*pv || *pv == 'y' || *pv == 'Y' || atoi(pv) != 0);
+  else
+    opval= GetBooleanTableOption(xp->g, options, opname, bdef);
 
   return opval;
 } // end of GetBooleanOption
@@ -1198,37 +1252,18 @@ bool ha_connect::SetBooleanOption(char *opname, bool b)
 /****************************************************************************/
 int ha_connect::GetIntegerOption(char *opname)
 {
-  ulonglong    opval= NO_IVAL;
-  char        *pv;
+  int          opval;
   PTOS         options= GetTableOptionStruct();
   TABLE_SHARE *tsp= (tshp) ? tshp : table_share;
 
   if (!stricmp(opname, "Avglen"))
-    opval= (ulonglong)tsp->avg_row_length;
+    opval= (int)tsp->avg_row_length;
   else if (!stricmp(opname, "Estimate"))
-    opval= (ulonglong)tsp->max_rows;
-  else if (!options)
-    ;
-  else if (!stricmp(opname, "Lrecl"))
-    opval= options->lrecl;
-  else if (!stricmp(opname, "Elements"))
-    opval= options->elements;
-  else if (!stricmp(opname, "Multiple"))
-    opval= options->multiple;
-  else if (!stricmp(opname, "Header"))
-    opval= options->header;
-  else if (!stricmp(opname, "Quoted"))
-    opval= options->quoted;
-  else if (!stricmp(opname, "Ending"))
-    opval= options->ending;
-  else if (!stricmp(opname, "Compressed"))
-    opval= (options->compressed);
+    opval= (int)tsp->max_rows;
+  else
+    opval= GetIntegerTableOption(xp->g, options, opname, NO_IVAL);
 
-  if (opval == (ulonglong)NO_IVAL && options && options->oplist)
-    if ((pv= GetListOption(xp->g, opname, options->oplist)))
-      opval= CharToNumber(pv, strlen(pv), ULONGLONG_MAX, true);
-
-  return (int)opval;
+  return opval;
 } // end of GetIntegerOption
 
 /****************************************************************************/
@@ -4965,12 +5000,12 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
   const char *fncn= "?";
   const char *user, *fn, *db, *host, *pwd, *sep, *tbl, *src;
   const char *col, *ocl, *rnk, *pic, *fcl, *skc;
-  char       *tab, *dsn, *shm, *dpath, *objn; 
+  char       *tab, *dsn, *shm, *dpath; 
 #if defined(WIN32)
   char       *nsp= NULL, *cls= NULL;
 #endif   // WIN32
-  int         port= 0, hdr= 0, mxr= 0, mxe= 0, rc= 0, lvl= 0;
-  int         cop __attribute__((unused))= 0, pty= 2, lrecl= 0;
+  int         port= 0, hdr= 0, mxr= 0, mxe= 0, rc= 0;
+  int         cop __attribute__((unused))= 0, lrecl= 0;
 #if defined(ODBC_SUPPORT)
   POPARM      sop = NULL;
   char       *ucnc = NULL;
@@ -5000,7 +5035,7 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
   if (!g)
     return HA_ERR_INTERNAL_ERROR;
 
-  user= host= pwd= tbl= src= col= ocl= pic= fcl= skc= rnk= dsn= objn= NULL;
+  user= host= pwd= tbl= src= col= ocl= pic= fcl= skc= rnk= dsn= NULL;
 
   // Get the useful create options
   ttp= GetTypeID(topt->type);
@@ -5031,7 +5066,6 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
     skc= GetListOption(g, "skipcol", topt->oplist, NULL);
     rnk= GetListOption(g, "rankcol", topt->oplist, NULL);
     pwd= GetListOption(g, "password", topt->oplist);
-    objn= GetListOption(g, "Object", topt->oplist, NULL);
 #if defined(WIN32)
     nsp= GetListOption(g, "namespace", topt->oplist);
     cls= GetListOption(g, "class", topt->oplist);
@@ -5049,8 +5083,6 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 #if defined(PROMPT_OK)
     cop= atoi(GetListOption(g, "checkdsn", topt->oplist, "0"));
 #endif   // PROMPT_OK
-    pty= atoi(GetListOption(g,"Pretty", topt->oplist, "2"));
-    lvl= atoi(GetListOption(g,"Level", topt->oplist, "0"));
   } else {
     host= "localhost";
     user= (ttp == TAB_ODBC ? NULL : "root");
@@ -5342,7 +5374,7 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
         qrp= VirColumns(g, fnc == FNC_COL);
         break;
       case TAB_JSON:
-        qrp= JSONColumns(g, (char*)db, fn, objn, pty, lrecl, lvl, fnc == FNC_COL);
+        qrp= JSONColumns(g, (char*)db, topt, fnc == FNC_COL);
         break;
 #if defined(LIBXML2_SUPPORT) || defined(DOMDOC_SUPPORT)
       case TAB_XML:
@@ -6608,7 +6640,7 @@ maria_declare_plugin(connect)
   0x0103,                                       /* version number (1.03) */
   NULL,                                         /* status variables */
   connect_system_variables,                     /* system variables */
-  "1.03.0006",                                  /* string version */
+  "1.03.0007",                                  /* string version */
   MariaDB_PLUGIN_MATURITY_BETA                  /* maturity */
 }
 maria_declare_plugin_end;
