@@ -1,0 +1,121 @@
+--disable_warnings
+DROP TABLE IF EXISTS graph_base;
+DROP TABLE IF EXISTS graph;
+--enable_warnings
+
+CREATE TABLE graph_base (
+    from_id INT UNSIGNED NOT NULL,
+    to_id INT UNSIGNED NOT NULL,
+    weight DOUBLE NOT NULL,
+    PRIMARY KEY (from_id,to_id),
+    INDEX (to_id)
+  ) ENGINE=MyISAM;
+
+# Since late June 2014 OQGraph supports 'assisted discovery' as per https://mariadb.atlassian.net/browse/MDEV-5871
+
+CREATE TABLE graph ENGINE=OQGRAPH DATA_TABLE='graph_base' ORIGID='from_id' DESTID='to_id';
+DESCRIBE graph;
+--disable_warnings
+DROP TABLE IF EXISTS graph;
+--enable_warnings
+
+CREATE TABLE graph ENGINE=OQGRAPH DATA_TABLE='graph_base' ORIGID='from_id' DESTID='to_id' WEIGHT='weight';
+DESCRIBE graph;
+--disable_warnings
+DROP TABLE IF EXISTS graph;
+--enable_warnings
+
+CREATE TABLE graph ENGINE=OQGRAPH DATA_TABLE='graph_base_xxx' ORIGID='from_id' DESTID='to_id_xxx' WEIGHT='weight';
+--echo # Expect 'Table 'test.graph_base_xxx' doesn't exist'
+--error 1146
+DESCRIBE graph;
+--disable_warnings
+DROP TABLE IF EXISTS graph;
+--enable_warnings
+
+CREATE TABLE graph ENGINE=OQGRAPH DATA_TABLE='graph_base' ORIGID='from_id' DESTID='to_id' WEIGHT='weight_xxx';
+--echo # Expect 'Invalid OQGRAPH backing store description ('graph.weight' attribute not set to a valid column of 'graph_base')'
+--error 1296
+DESCRIBE graph;
+--disable_warnings
+DROP TABLE IF EXISTS graph;
+--enable_warnings
+
+CREATE TABLE graph ENGINE=OQGRAPH DATA_TABLE='graph_base' ORIGID='from_id' DESTID='to_id_xxx' WEIGHT='weight';
+--echo # Expect 'Invalid OQGRAPH backing store description ('graph.destid' attribute not set to a valid column of 'graph_base')'
+--error 1296
+DESCRIBE graph;
+--disable_warnings
+DROP TABLE IF EXISTS graph;
+--enable_warnings
+
+CREATE TABLE graph ENGINE=OQGRAPH DATA_TABLE='graph_base' ORIGID='from_id_xxx' DESTID='to_id' WEIGHT='weight';
+--echo # Expect 'Invalid OQGRAPH backing store description ('graph.origid' attribute not set to a valid column of 'graph_base')'
+--error 1296
+DESCRIBE graph;
+--disable_warnings
+DROP TABLE IF EXISTS graph;
+--enable_warnings
+
+# The following combinations should be invalid
+CREATE TABLE graph ENGINE=OQGRAPH;
+--echo # Expect: 'Invalid OQGRAPH backing store description (unspecified or empty data_table attribute)'
+--error 1296
+DESCRIBE graph;
+--disable_warnings
+DROP TABLE IF EXISTS graph;
+--enable_warnings
+
+CREATE TABLE graph ENGINE=OQGRAPH DATA_TABLE='graph_base';
+--echo # Expect: 'Invalid OQGRAPH backing store description (unspecified or empty origid attribute)'
+--error 1296
+DESCRIBE graph;
+--disable_warnings
+DROP TABLE IF EXISTS graph;
+--enable_warnings
+
+CREATE TABLE graph ENGINE=OQGRAPH DATA_TABLE='graph_base' ORIGID='from_id';
+--echo # Expect: 'Invalid OQGRAPH backing store description (unspecified or empty destid attribute)'
+--error 1296
+DESCRIBE graph;
+--disable_warnings
+DROP TABLE IF EXISTS graph;
+--enable_warnings
+
+CREATE TABLE graph ENGINE=OQGRAPH DATA_TABLE='graph_base' DESTID='to_id';
+--echo # Expect: 'Invalid OQGRAPH backing store description (unspecified or empty origid attribute)'
+--error 1296
+DESCRIBE graph;
+--disable_warnings
+DROP TABLE IF EXISTS graph;
+--enable_warnings
+
+CREATE TABLE graph ENGINE=OQGRAPH ORIGID='from_id';
+--echo # Expect: 'Invalid OQGRAPH backing store description (unspecified or empty data_table attribute)'
+--error 1296
+DESCRIBE graph;
+--disable_warnings
+DROP TABLE IF EXISTS graph;
+--enable_warnings
+
+CREATE TABLE graph ENGINE=OQGRAPH DESTID='to_id';
+--echo # Expect: 'Invalid OQGRAPH backing store description (unspecified or empty data_table attribute)'
+--error 1296
+DESCRIBE graph;
+--disable_warnings
+DROP TABLE IF EXISTS graph;
+--enable_warnings
+
+CREATE TABLE graph ENGINE=OQGRAPH ORIGID='from_id', DESTID='to_id';
+--echo # Expect: 'Invalid OQGRAPH backing store description (unspecified or empty data_table attribute)'
+--error 1296
+DESCRIBE graph;
+--disable_warnings
+DROP TABLE IF EXISTS graph;
+--enable_warnings
+
+--disable_warnings
+DROP TABLE IF EXISTS graph;
+DROP TABLE IF EXISTS graph_base;
+--enable_warnings
+
