@@ -30,6 +30,8 @@ insert t3 values (repeat('dummy', 42));
 --let $wait_condition=SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION = 0
 --source include/wait_condition.inc
 
+--sleep 5
+
 --let SEARCH_PATTERN=foobar
 --echo # t1 yes on expecting NOT FOUND
 -- let SEARCH_FILE=$t1_IBD
@@ -55,6 +57,7 @@ SET GLOBAL innodb_encrypt_tables = off;
 --let $wait_timeout= 600
 --let $wait_condition=SELECT COUNT(*) = 2 FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0;
 --source include/wait_condition.inc
+--sleep 5
 
 --let SEARCH_PATTERN=foobar
 --echo # t1 yes on expecting NOT FOUND
@@ -81,6 +84,7 @@ SET GLOBAL innodb_encrypt_tables = on;
 --let $wait_timeout= 600
 --let $wait_condition=SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION = 0;
 --source include/wait_condition.inc
+--sleep 5
 
 --let SEARCH_PATTERN=foobar
 --echo # t1 yes on expecting NOT FOUND
