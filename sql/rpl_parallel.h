@@ -251,6 +251,12 @@ struct rpl_parallel_entry {
   */
   bool force_abort;
   /*
+    Set in wait_for_workers_idle() to show that it is waiting, so that
+    finish_event_group knows to signal it when last_committed_sub_id is
+    increased.
+  */
+  bool need_sub_id_signal;
+  /*
    At STOP SLAVE (force_abort=true), we do not want to process all events in
    the queue (which could unnecessarily delay stop, if a lot of events happen
    to be queued). The stop_count provides a safe point at which to stop, so
