@@ -8797,7 +8797,7 @@ bool_pri:
           }
         | bool_pri comp_op predicate %prec EQ
           {
-            $$= (*$2)(0)->create(thd, $1, $3);
+            $$= (*$2)(0)->create(thd->mem_root, $1, $3);
             if ($$ == NULL)
               MYSQL_YYABORT;
           }

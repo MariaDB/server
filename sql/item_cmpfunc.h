@@ -289,96 +289,6 @@ public:
   void reset_cache() { cache= NULL; }
 };
 
-class Comp_creator
-{
-public:
-  Comp_creator() {}                           /* Remove gcc warning */
-  virtual ~Comp_creator() {}                  /* Remove gcc warning */
-  /**
-    Create operation with given arguments.
-  */
-  virtual Item_bool_func2* create(THD *thd, Item *a, Item *b) const = 0;
-  /**
-    Create operation with given arguments in swap order.
-  */
-  virtual Item_bool_func2* create_swap(THD *thd, Item *a, Item *b) const = 0;
-  virtual const char* symbol(bool invert) const = 0;
-  virtual bool eqne_op() const = 0;
-  virtual bool l_op() const = 0;
-};
-
-class Eq_creator :public Comp_creator
-{
-public:
-  Eq_creator() {}                             /* Remove gcc warning */
-  virtual ~Eq_creator() {}                    /* Remove gcc warning */
-  virtual Item_bool_func2* create(THD *thd, Item *a, Item *b) const;
-  virtual Item_bool_func2* create_swap(THD *thd, Item *a, Item *b) const;
-  virtual const char* symbol(bool invert) const { return invert? "<>" : "="; }
-  virtual bool eqne_op() const { return 1; }
-  virtual bool l_op() const { return 0; }
-};
-
-class Ne_creator :public Comp_creator
-{
-public:
-  Ne_creator() {}                             /* Remove gcc warning */
-  virtual ~Ne_creator() {}                    /* Remove gcc warning */
-  virtual Item_bool_func2* create(THD *thd, Item *a, Item *b) const;
-  virtual Item_bool_func2* create_swap(THD *thd, Item *a, Item *b) const;
-  virtual const char* symbol(bool invert) const { return invert? "=" : "<>"; }
-  virtual bool eqne_op() const { return 1; }
-  virtual bool l_op() const { return 0; }
-};
-
-class Gt_creator :public Comp_creator
-{
-public:
-  Gt_creator() {}                             /* Remove gcc warning */
-  virtual ~Gt_creator() {}                    /* Remove gcc warning */
-  virtual Item_bool_func2* create(THD *thd, Item *a, Item *b) const;
-  virtual Item_bool_func2* create_swap(THD *thd, Item *a, Item *b) const;
-  virtual const char* symbol(bool invert) const { return invert? "<=" : ">"; }
-  virtual bool eqne_op() const { return 0; }
-  virtual bool l_op() const { return 0; }
-};
-
-class Lt_creator :public Comp_creator
-{
-public:
-  Lt_creator() {}                             /* Remove gcc warning */
-  virtual ~Lt_creator() {}                    /* Remove gcc warning */
-  virtual Item_bool_func2* create(THD *thd, Item *a, Item *b) const;
-  virtual Item_bool_func2* create_swap(THD *thd, Item *a, Item *b) const;
-  virtual const char* symbol(bool invert) const { return invert? ">=" : "<"; }
-  virtual bool eqne_op() const { return 0; }
-  virtual bool l_op() const { return 1; }
-};
-
-class Ge_creator :public Comp_creator
-{
-public:
-  Ge_creator() {}                             /* Remove gcc warning */
-  virtual ~Ge_creator() {}                    /* Remove gcc warning */
-  virtual Item_bool_func2* create(THD *thd, Item *a, Item *b) const;
-  virtual Item_bool_func2* create_swap(THD *thd, Item *a, Item *b) const;
-  virtual const char* symbol(bool invert) const { return invert? "<" : ">="; }
-  virtual bool eqne_op() const { return 0; }
-  virtual bool l_op() const { return 0; }
-};
-
-class Le_creator :public Comp_creator
-{
-public:
-  Le_creator() {}                             /* Remove gcc warning */
-  virtual ~Le_creator() {}                    /* Remove gcc warning */
-  virtual Item_bool_func2* create(THD *thd, Item *a, Item *b) const;
-  virtual Item_bool_func2* create_swap(THD *thd, Item *a, Item *b) const;
-  virtual const char* symbol(bool invert) const { return invert? ">" : "<="; }
-  virtual bool eqne_op() const { return 0; }
-  virtual bool l_op() const { return 1; }
-};
-
 class Item_bool_func2 :public Item_bool_func
 {						/* Bool with 2 string args */
 protected:
@@ -2247,6 +2157,135 @@ longlong get_datetime_value(THD *thd, Item ***item_arg, Item **cache_arg,
 
 bool get_mysql_time_from_str(THD *thd, String *str, timestamp_type warn_type,
                              const char *warn_name, MYSQL_TIME *l_time);
+
+
+class Comp_creator
+{
+public:
+  Comp_creator() {}                           /* Remove gcc warning */
+  virtual ~Comp_creator() {}                  /* Remove gcc warning */
+  /**
+    Create operation with given arguments.
+  */
+  virtual Item_bool_rowready_func2* create(MEM_ROOT *, Item *a, Item *b)
+                                           const = 0;
+  /**
+    Create operation with given arguments in swap order.
+  */
+  virtual Item_bool_rowready_func2* create_swap(MEM_ROOT *, Item *a, Item *b)
+                                                const = 0;
+  virtual const char* symbol(bool invert) const = 0;
+  virtual bool eqne_op() const = 0;
+  virtual bool l_op() const = 0;
+};
+
+class Eq_creator :public Comp_creator
+{
+public:
+  Eq_creator() {}                             /* Remove gcc warning */
+  virtual ~Eq_creator() {}                    /* Remove gcc warning */
+  Item_bool_rowready_func2* create(MEM_ROOT *root, Item *a, Item *b) const
+  {
+    return new(root) Item_func_eq(a, b);
+  }
+  Item_bool_rowready_func2* create_swap(MEM_ROOT *root, Item *a, Item *b) const
+  {
+    return new(root) Item_func_eq(b, a);
+  }
+  const char* symbol(bool invert) const { return invert? "<>" : "="; }
+  bool eqne_op() const { return 1; }
+  bool l_op() const { return 0; }
+};
+
+class Ne_creator :public Comp_creator
+{
+public:
+  Ne_creator() {}                             /* Remove gcc warning */
+  virtual ~Ne_creator() {}                    /* Remove gcc warning */
+  Item_bool_rowready_func2* create(MEM_ROOT *root, Item *a, Item *b) const
+  {
+    return new(root) Item_func_ne(a, b);
+  }
+  Item_bool_rowready_func2* create_swap(MEM_ROOT *root, Item *a, Item *b) const
+  {
+    return new(root) Item_func_ne(b, a);
+  }
+  const char* symbol(bool invert) const { return invert? "=" : "<>"; }
+  bool eqne_op() const { return 1; }
+  bool l_op() const { return 0; }
+};
+
+class Gt_creator :public Comp_creator
+{
+public:
+  Gt_creator() {}                             /* Remove gcc warning */
+  virtual ~Gt_creator() {}                    /* Remove gcc warning */
+  Item_bool_rowready_func2* create(MEM_ROOT *root, Item *a, Item *b) const
+  {
+    return new(root) Item_func_gt(a, b);
+  }
+  Item_bool_rowready_func2* create_swap(MEM_ROOT *root, Item *a, Item *b) const
+  {
+    return new(root) Item_func_lt(b, a);
+  }
+  const char* symbol(bool invert) const { return invert? "<=" : ">"; }
+  bool eqne_op() const { return 0; }
+  bool l_op() const { return 0; }
+};
+
+class Lt_creator :public Comp_creator
+{
+public:
+  Lt_creator() {}                             /* Remove gcc warning */
+  virtual ~Lt_creator() {}                    /* Remove gcc warning */
+  Item_bool_rowready_func2* create(MEM_ROOT *root, Item *a, Item *b) const
+  {
+    return new(root) Item_func_lt(a, b);
+  }
+  Item_bool_rowready_func2* create_swap(MEM_ROOT *root, Item *a, Item *b) const
+  {
+    return new(root) Item_func_gt(b, a);
+  }
+  const char* symbol(bool invert) const { return invert? ">=" : "<"; }
+  bool eqne_op() const { return 0; }
+  bool l_op() const { return 1; }
+};
+
+class Ge_creator :public Comp_creator
+{
+public:
+  Ge_creator() {}                             /* Remove gcc warning */
+  virtual ~Ge_creator() {}                    /* Remove gcc warning */
+  Item_bool_rowready_func2* create(MEM_ROOT *root, Item *a, Item *b) const
+  {
+    return new(root) Item_func_ge(a, b);
+  }
+  Item_bool_rowready_func2* create_swap(MEM_ROOT *root, Item *a, Item *b) const
+  {
+    return new(root) Item_func_le(b, a);
+  }
+  const char* symbol(bool invert) const { return invert? "<" : ">="; }
+  bool eqne_op() const { return 0; }
+  bool l_op() const { return 0; }
+};
+
+class Le_creator :public Comp_creator
+{
+public:
+  Le_creator() {}                             /* Remove gcc warning */
+  virtual ~Le_creator() {}                    /* Remove gcc warning */
+  Item_bool_rowready_func2* create(MEM_ROOT *root, Item *a, Item *b) const
+  {
+    return new(root) Item_func_le(a, b);
+  }
+  Item_bool_rowready_func2* create_swap(MEM_ROOT *root, Item *a, Item *b) const
+  {
+    return new(root) Item_func_ge(b, a);
+  }
+  const char* symbol(bool invert) const { return invert? ">" : "<="; }
+  bool eqne_op() const { return 0; }
+  bool l_op() const { return 1; }
+};
 
 /*
   These need definitions from this file but the variables are defined

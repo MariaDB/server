@@ -264,66 +264,6 @@ static void my_coll_agg_error(DTCollation &c1, DTCollation &c2,
 }
 
 
-Item_bool_func2* Eq_creator::create(THD *thd, Item *a, Item *b) const
-{
-  return new (thd->mem_root) Item_func_eq(a, b);
-}
-
-Item_bool_func2* Eq_creator::create_swap(THD *thd, Item *a, Item *b) const
-{
-  return new (thd->mem_root) Item_func_eq(b, a);
-}
-
-Item_bool_func2* Ne_creator::create(THD *thd, Item *a, Item *b) const
-{
-  return new (thd->mem_root) Item_func_ne(a, b);
-}
-
-Item_bool_func2* Ne_creator::create_swap(THD *thd, Item *a, Item *b) const
-{
-  return new (thd->mem_root) Item_func_ne(b, a);
-}
-
-Item_bool_func2* Gt_creator::create(THD *thd, Item *a, Item *b) const
-{
-  return new (thd->mem_root) Item_func_gt(a, b);
-}
-
-Item_bool_func2* Gt_creator::create_swap(THD *thd, Item *a, Item *b) const
-{
-  return new (thd->mem_root) Item_func_lt(b, a);
-}
-
-Item_bool_func2* Lt_creator::create(THD *thd, Item *a, Item *b) const
-{
-  return new (thd->mem_root) Item_func_lt(a, b);
-}
-
-Item_bool_func2* Lt_creator::create_swap(THD *thd, Item *a, Item *b) const
-{
-  return new (thd->mem_root) Item_func_gt(b, a);
-}
-
-Item_bool_func2* Ge_creator::create(THD *thd, Item *a, Item *b) const
-{
-  return new (thd->mem_root) Item_func_ge(a, b);
-}
-
-Item_bool_func2* Ge_creator::create_swap(THD *thd, Item *a, Item *b) const
-{
-  return new (thd->mem_root) Item_func_le(b, a);
-}
-
-Item_bool_func2* Le_creator::create(THD *thd, Item *a, Item *b) const
-{
-  return new (thd->mem_root) Item_func_le(a, b);
-}
-
-Item_bool_func2* Le_creator::create_swap(THD *thd, Item *a, Item *b) const
-{
-  return new (thd->mem_root) Item_func_ge(b, a);
-}
-
 /*
   Test functions
   Most of these  returns 0LL if false and 1LL if true and

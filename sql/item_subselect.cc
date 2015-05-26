@@ -1779,7 +1779,7 @@ Item_in_subselect::single_value_transformer(JOIN *join)
       of the statement. Thus one of 'substitution' arguments
       can be broken in case of PS.
     */ 
-    substitution= func->create(thd, left_expr, where_item);
+    substitution= func->create(thd->mem_root, left_expr, where_item);
     have_to_be_excluded= 1;
     if (thd->lex->describe)
     {
@@ -1948,7 +1948,7 @@ bool Item_allany_subselect::transform_into_max_min(JOIN *join)
     The swap is needed for expressions of type 'f1 < ALL ( SELECT ....)'
     where we want to evaluate the sub query even if f1 would be null.
   */
-  subs= func->create_swap(thd, *(optimizer->get_cache()), subs);
+  subs= func->create_swap(thd->mem_root, *(optimizer->get_cache()), subs);
   thd->change_item_tree(place, subs);
   if (subs->fix_fields(thd, &subs))
     DBUG_RETURN(true);
@@ -2040,7 +2040,7 @@ Item_in_subselect::create_single_in_to_exists_cond(JOIN * join,
   if (join_having || select_lex->with_sum_func ||
       select_lex->group_list.elements)
   {
-    Item *item= func->create(thd, expr,
+    Item *item= func->create(thd->mem_root, expr,
                              new (thd->mem_root) Item_ref_null_helper(
                                                       &select_lex->context,
                                                       this,
@@ -2072,7 +2072,7 @@ Item_in_subselect::create_single_in_to_exists_cond(JOIN * join,
       Item *having= item;
       Item *orig_item= item;
        
-      item= func->create(thd, expr, item);
+      item= func->create(thd->mem_root, expr, item);
       if (!abort_on_null && orig_item->maybe_null)
       {
 	having= new (thd->mem_root) Item_is_not_null_test(this, having);
@@ -2116,7 +2116,7 @@ Item_in_subselect::create_single_in_to_exists_cond(JOIN * join,
       if (select_lex->master_unit()->is_union())
       {
         Item *new_having=
-          func->create(thd, expr,
+          func->create(thd->mem_root, expr,
                        new (thd->mem_root) Item_ref_null_helper(
                                                   &select_lex->context,
                                                   this,
