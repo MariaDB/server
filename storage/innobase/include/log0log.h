@@ -52,22 +52,6 @@ typedef ulint (*log_checksum_func_t)(const byte* log_block);
 log_sys->mutex. */
 extern log_checksum_func_t log_checksum_algorithm_ptr;
 
-/*******************************************************************//**
-Calculates where in log files we find a specified lsn.
-@return log file number */
-ulint
-log_calc_where_lsn_is(
-/*==================*/
-	int64_t*	log_file_offset,	/*!< out: offset in that file
-						(including the header) */
-	ib_uint64_t	first_header_lsn,	/*!< in: first log file start
-						lsn */
-	ib_uint64_t	lsn,			/*!< in: lsn whose position to
-						determine */
-	ulint		n_log_files,		/*!< in: total number of log
-						files */
-	int64_t		log_file_size);		/*!< in: log file size
-						(including the header) */
 /** Append a string to the log.
 @param[in]	str		string
 @param[in]	len		string length
@@ -281,14 +265,6 @@ log_group_set_fields(
 	log_group_t*	group,	/*!< in/out: group */
 	lsn_t		lsn);	/*!< in: lsn for which the values should be
 				set */
-/******************************************************//**
-Calculates the data capacity of a log group, when the log file headers are not
-included.
-@return capacity in bytes */
-lsn_t
-log_group_get_capacity(
-/*===================*/
-	const log_group_t*	group);	/*!< in: log group */
 /************************************************************//**
 Gets a log block flush bit.
 @return TRUE if this block was the first to be written in a log flush */

@@ -93,6 +93,19 @@ extern "C" int thd_need_ordering_with(const MYSQL_THD thd, const MYSQL_THD other
 
 extern "C" int thd_deadlock_victim_preference(const MYSQL_THD thd1, const MYSQL_THD thd2);
 
+/** Print info of a table lock.
+@param[in,out]	file	output stream
+@param[in]	lock	table lock */
+static
+void
+lock_table_print(FILE* file, const lock_t* lock);
+
+/** Print info of a record lock.
+@param[in,out]	file	output stream
+@param[in]	lock	record lock */
+static
+void
+lock_rec_print(FILE* file, const lock_t* lock);
 
 /** Deadlock checker. */
 class DeadlockChecker {
@@ -3077,6 +3090,7 @@ lock_grant_and_move_on_page(
 Removes a record lock request, waiting or granted, from the queue and
 grants locks to other transactions in the queue if they now are entitled
 to a lock. NOTE: all record locks contained in in_lock are removed. */
+static
 void
 lock_rec_dequeue_from_page(
 /*=======================*/
@@ -3381,6 +3395,7 @@ lock_rec_inherit_to_gap_if_gap_lock(
 /*************************************************************//**
 Moves the locks of a record to another record and resets the lock bits of
 the donating record. */
+static
 void
 lock_rec_move_low(
 /*==============*/
@@ -3462,6 +3477,28 @@ lock_move_granted_locks_to_front(
 			lock = prev;
 		}
 	}
+}
+
+/*************************************************************//**
+Moves the locks of a record to another record and resets the lock bits of
+the donating record. */
+UNIV_INLINE
+void
+lock_rec_move(
+/*==========*/
+	const buf_block_t*	receiver,       /*!< in: buffer block containing
+						the receiving record */
+	const buf_block_t*	donator,        /*!< in: buffer block containing
+						the donating record */
+	ulint			receiver_heap_no,/*!< in: heap_no of the record
+						which gets the locks; there
+						must be no lock requests
+						on it! */
+	ulint			donator_heap_no)/*!< in: heap_no of the record
+                                                which gives the locks */
+{
+	lock_rec_move_low(lock_sys->rec_hash, receiver, donator,
+			  receiver_heap_no, donator_heap_no);
 }
 
 /*************************************************************//**
@@ -5187,7 +5224,6 @@ lock_release(
 
 	ut_ad(lock_mutex_own());
 	ut_ad(!trx_mutex_own(trx));
-	ut_ad(!trx->is_dd_trx);
 
 	for (lock = UT_LIST_GET_LAST(trx->lock.trx_locks);
 	     lock != NULL;
@@ -5482,13 +5518,12 @@ lock_remove_all_on_table(
 
 /*===================== VALIDATION AND DEBUGGING ====================*/
 
-/*********************************************************************//**
-Prints info of a table lock. */
+/** Print info of a table lock.
+@param[in,out]	file	output stream
+@param[in]	lock	table lock */
+static
 void
-lock_table_print(
-/*=============*/
-	FILE*		file,	/*!< in: file where to print */
-	const lock_t*	lock)	/*!< in: table type lock */
+lock_table_print(FILE* file, const lock_t* lock)
 {
 	ut_ad(lock_mutex_own());
 	ut_a(lock_get_type_low(lock) == LOCK_TABLE);
@@ -5522,13 +5557,12 @@ lock_table_print(
 	putc('\n', file);
 }
 
-/*********************************************************************//**
-Prints info of a record lock. */
+/** Print info of a record lock.
+@param[in,out]	file	output stream
+@param[in]	lock	record lock */
+static
 void
-lock_rec_print(
-/*===========*/
-	FILE*		file,	/*!< in: file where to print */
-	const lock_t*	lock)	/*!< in: record type lock */
+lock_rec_print(FILE* file, const lock_t* lock)
 {
 	ulint			space;
 	ulint			page_no;

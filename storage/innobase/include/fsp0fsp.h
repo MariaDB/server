@@ -669,16 +669,6 @@ fsp_parse_init_file_page(
 	byte*		ptr,	/*!< in: buffer */
 	byte*		end_ptr, /*!< in: buffer end */
 	buf_block_t*	block);	/*!< in: block or NULL */
-#ifdef UNIV_DEBUG
-/*******************************************************************//**
-Validates a segment.
-@return TRUE if ok */
-ibool
-fseg_validate(
-/*==========*/
-	fseg_header_t*	header, /*!< in: segment header */
-	mtr_t*		mtr);	/*!< in/out: mini-transaction */
-#endif /* UNIV_DEBUG */
 #ifdef UNIV_BTR_PRINT
 /*******************************************************************//**
 Writes info of a segment. */

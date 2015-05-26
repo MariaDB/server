@@ -472,14 +472,6 @@ dtuple_check_typed(
 /*===============*/
 	const dtuple_t*	tuple)	/*!< in: tuple */
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
-/**********************************************************//**
-Checks that a data tuple is typed.
-@return TRUE if ok */
-ibool
-dtuple_check_typed_no_assert(
-/*=========================*/
-	const dtuple_t*	tuple)	/*!< in: tuple */
-	MY_ATTRIBUTE((nonnull, warn_unused_result));
 #ifdef UNIV_DEBUG
 /**********************************************************//**
 Validates the consistency of a tuple which must be complete, i.e,

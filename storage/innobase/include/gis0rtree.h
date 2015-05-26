@@ -143,20 +143,6 @@ rtr_pcur_move_to_next(
 				/*!< in: current level */
 	mtr_t*		mtr);	/*!< in: mtr */
 
-/**************************************************************//**
-Restores the stored position of a persistent cursor bufferfixing the page */
-bool
-rtr_cur_restore_position_func(
-/*==========================*/
-	ulint		latch_mode,	/*!< in: BTR_SEARCH_LEAF, ... */
-	btr_cur_t*	cursor,		/*!< in: detached persistent cursor */
-	ulint		level,		/*!< in: index level */
-	const char*	file,		/*!< in: file name */
-	unsigned	line,		/*!< in: line where called */
-	mtr_t*		mtr);		/*!< in: mtr */
-#define rtr_cur_restore_position(l,cur,level,mtr)		\
-	rtr_cur_restore_position_func(l,cur,level,__FILE__,__LINE__,mtr)
-
 /****************************************************************//**
 Searches the right position in rtree for a page cursor. */
 bool
@@ -318,9 +304,6 @@ rtr_get_mbr_from_tuple(
 	const dtuple_t*	dtuple,	/*!< in: data tuple */
 	rtr_mbr*	mbr);	/*!< out: mbr to fill */
 
-#define rtr_page_get_father_node_ptr(of,heap,sea,cur,mtr)		\
-	rtr_page_get_father_node_ptr_func(of,heap,sea,cur,__FILE__,__LINE__,mtr)
-
 /* Get the rtree page father.
 @param[in]	offsets		work area for the return value
 @param[in]	index		rtree index
@@ -337,24 +320,6 @@ rtr_page_get_father(
 	mtr_t*		mtr,
 	btr_cur_t*	sea_cur,
 	btr_cur_t*	cursor);
-
-/************************************************************//**
-Returns the upper level node pointer to a R-Tree page. It is assumed
-that mtr holds an x-latch on the tree.
-@return rec_get_offsets() of the node pointer record */
-ulint*
-rtr_page_get_father_node_ptr_func(
-/*==============================*/
-	ulint*		offsets,/*!< in: work area for the return value */
-	mem_heap_t*	heap,	/*!< in: memory heap to use */
-	btr_cur_t*	sea_cur,/*!< in: search cursor */
-	btr_cur_t*	cursor,	/*!< in: cursor pointing to user record,
-				out: cursor on node pointer record,
-				its page x-latched */
-	const char*	file,	/*!< in: file name */
-	unsigned	line,	/*!< in: line where called */
-	mtr_t*		mtr);	/*!< in: mtr */
-
 
 /************************************************************//**
 Returns the father block to a page. It is assumed that mtr holds

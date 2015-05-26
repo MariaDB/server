@@ -666,6 +666,7 @@ trx_undo_rec_get_row_ref(
 /*******************************************************************//**
 Skips a row reference from an undo log record.
 @return pointer to remaining part of undo record */
+static
 byte*
 trx_undo_rec_skip_row_ref(
 /*======================*/

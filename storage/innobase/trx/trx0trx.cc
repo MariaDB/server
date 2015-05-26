@@ -173,10 +173,6 @@ trx_init(
 
 	trx->internal = false;
 
-#ifdef UNIV_DEBUG
-	trx->is_dd_trx  = false;
-#endif /* UNIV_DEBUG */
-
 	ut_d(trx->start_file = 0);
 
 	ut_d(trx->start_line = 0);
@@ -506,7 +502,6 @@ trx_free(trx_t*& trx)
 	trx->mod_tables.clear();
 
 	ut_ad(trx->read_view == NULL);
-	ut_ad(trx->is_dd_trx == false);
 
 	/* trx locking state should have been reset before returning trx
 	to pool */
@@ -1359,15 +1354,6 @@ trx_start_low(
 		trx->read_only = true;
 	}
 
-#ifdef UNIV_DEBUG
-	/* If the transaction is DD attachable trx, it should be AC-NL-RO-RC
-	(AutoCommit-NonLocking-ReadOnly-ReadCommited) trx */
-	if (trx->is_dd_trx) {
-		ut_ad(trx->read_only && trx->auto_commit
-		      && trx->isolation_level == TRX_ISO_READ_COMMITTED);
-	}
-#endif /* UNIV_DEBUG */
-
 #ifdef WITH_WSREP
 	memset(trx->xid, 0, sizeof(xid_t));
 	trx->xid->formatID = -1;
@@ -1528,6 +1514,7 @@ trx_serialise(trx_t* trx, trx_rseg_t* rseg)
 Assign the transaction its history serialisation number and write the
 update UNDO log record to the assigned rollback segment.
 @return true if a serialisation log was written */
+static
 bool
 trx_write_serialisation_history(
 /*============================*/

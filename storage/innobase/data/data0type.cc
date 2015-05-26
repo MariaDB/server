@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1996, 2014, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1996, 2015, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
@@ -157,12 +157,11 @@ dtype_validate(
 	return(TRUE);
 }
 
-/*********************************************************************//**
-Prints a data type structure. */
+#ifdef UNIV_DEBUG
+/** Print a data type structure.
+@param[in]	type	data type */
 void
-dtype_print(
-/*========*/
-	const dtype_t*	type)	/*!< in: type */
+dtype_print(const dtype_t* type)
 {
 	ulint	mtype;
 	ulint	prtype;
@@ -274,3 +273,4 @@ dtype_print(
 
 	fprintf(stderr, " len %lu", (ulong) len);
 }
+#endif /* UNIV_DEBUG */

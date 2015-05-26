@@ -222,6 +222,33 @@ sync_array_t::sync_array_t(ulint num_cells)
 	mutex_create(LATCH_ID_SYNC_ARRAY_MUTEX, &mutex);
 }
 
+/** Validate the integrity of the wait array. Check
+that the number of reserved cells equals the count variable.
+@param[in,out]	arr	sync wait array */
+static
+void
+sync_array_validate(sync_array_t* arr)
+{
+	ulint		i;
+	ulint		count		= 0;
+
+	sync_array_enter(arr);
+
+	for (i = 0; i < arr->n_cells; i++) {
+		sync_cell_t*	cell;
+
+		cell = sync_array_get_nth_cell(arr, i);
+
+		if (cell->latch.mutex != NULL) {
+			count++;
+		}
+	}
+
+	ut_a(count == arr->n_reserved);
+
+	sync_array_exit(arr);
+}
+
 /** Destructor */
 sync_array_t::~sync_array_t()
 	UNIV_NOTHROW
@@ -261,34 +288,6 @@ sync_array_free(
 	sync_array_t*	arr)	/*!< in, own: sync wait array */
 {
 	UT_DELETE(arr);
-}
-
-/********************************************************************//**
-Validates the integrity of the wait array. Checks
-that the number of reserved cells equals the count variable. */
-void
-sync_array_validate(
-/*================*/
-	sync_array_t*	arr)	/*!< in: sync wait array */
-{
-	ulint		i;
-	ulint		count		= 0;
-
-	sync_array_enter(arr);
-
-	for (i = 0; i < arr->n_cells; i++) {
-		sync_cell_t*	cell;
-
-		cell = sync_array_get_nth_cell(arr, i);
-
-		if (cell->latch.mutex != NULL) {
-			count++;
-		}
-	}
-
-	ut_a(count == arr->n_reserved);
-
-	sync_array_exit(arr);
 }
 
 /*******************************************************************//**
@@ -691,6 +690,7 @@ Report an error to stderr.
 @param lock		rw-lock instance
 @param debug		rw-lock debug information
 @param cell		thread context */
+static
 void
 sync_array_report_error(
 	rw_lock_t*		lock,

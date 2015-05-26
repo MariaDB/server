@@ -373,6 +373,7 @@ row_mysql_store_geometry(
 /*******************************************************************//**
 Read geometry data in the MySQL format.
 @return pointer to geometry data */
+static
 const byte*
 row_mysql_read_geometry(
 /*====================*/

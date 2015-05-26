@@ -66,16 +66,6 @@ lock_place_prdt_page_lock(
 	que_thr_t*	thr);	/*!< in: query thread */
 
 /*********************************************************************//**
-Checks two predicate locks are compatible with each other
-@return true if conflicts */
-bool
-lock_prdt_consistent(
-/*=================*/
-	lock_prdt_t*	prdt1,	/*!< in: Predicate for the lock */
-	lock_prdt_t*	prdt2,	/*!< in: Predicate for the lock */
-	ulint		op);	/*!< in: Predicate comparison operator */
-
-/*********************************************************************//**
 Initiate a Predicate lock from a MBR */
 void
 lock_init_prdt_from_mbr(

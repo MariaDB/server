@@ -117,15 +117,6 @@ trx_undo_rec_get_row_ref(
 	dtuple_t**	ref,	/*!< out, own: row reference */
 	mem_heap_t*	heap);	/*!< in: memory heap from which the memory
 				needed is allocated */
-/*******************************************************************//**
-Skips a row reference from an undo log record.
-@return pointer to remaining part of undo record */
-byte*
-trx_undo_rec_skip_row_ref(
-/*======================*/
-	byte*		ptr,	/*!< in: remaining part in update undo log
-				record, at the start of the row reference */
-	dict_index_t*	index);	/*!< in: clustered index */
 /**********************************************************************//**
 Reads from an undo log update record the system field values of the old
 version.

@@ -1833,6 +1833,7 @@ buf_pool_set_sizes(void)
 /********************************************************************//**
 Initialize a buffer pool instance.
 @return DB_SUCCESS if all goes well. */
+static
 ulint
 buf_pool_init_instance(
 /*===================*/
@@ -2692,6 +2693,7 @@ buf_pool_resize_chunk_make_null(buf_chunk_t** new_chunks)
 
 /** Resize the buffer pool based on srv_buf_pool_size from
 srv_buf_pool_old_size. */
+static
 void
 buf_pool_resize()
 {
@@ -3448,6 +3450,7 @@ hash_lock and reacquire it.
 @param[in]	page_id		page id
 @param[in,out]	hash_lock	hash_lock currently latched
 @return NULL if watch set, block if the page is in the buffer pool */
+static
 buf_page_t*
 buf_pool_watch_set(
 	const page_id_t&	page_id,
@@ -6283,6 +6286,17 @@ buf_all_freed_instance(
 	return(TRUE);
 }
 
+/** Refreshes the statistics used to print per-second averages.
+@param[in,out]	buf_pool	buffer pool instance */
+static
+void
+buf_refresh_io_stats(
+	buf_pool_t*	buf_pool)
+{
+	buf_pool->last_printout_time = ut_time();
+	buf_pool->old_stat = buf_pool->stat;
+}
+
 /*********************************************************************//**
 Invalidates file pages in one buffer pool instance */
 static
@@ -6726,6 +6740,7 @@ buf_print(void)
 /*********************************************************************//**
 Returns the number of latched pages in the buffer pool.
 @return number of latched pages */
+static
 ulint
 buf_get_latched_pages_number_instance(
 /*==================================*/
@@ -7070,6 +7085,7 @@ buf_stats_get_pool_info(
 
 /*********************************************************************//**
 Prints info of the buffer i/o. */
+static
 void
 buf_print_io_instance(
 /*==================*/
@@ -7221,17 +7237,6 @@ buf_print_io(
 	}
 
 	ut_free(pool_info);
-}
-
-/**********************************************************************//**
-Refreshes the statistics used to print per-second averages. */
-void
-buf_refresh_io_stats(
-/*=================*/
-	buf_pool_t*	buf_pool)	/*!< in: buffer pool instance */
-{
-	buf_pool->last_printout_time = ut_time();
-	buf_pool->old_stat = buf_pool->stat;
 }
 
 /**********************************************************************//**

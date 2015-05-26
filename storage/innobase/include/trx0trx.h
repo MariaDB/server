@@ -1271,12 +1271,6 @@ struct trx_t {
 					error, or empty. */
 	FlushObserver*	flush_observer;	/*!< flush observer */
 
-#ifdef UNIV_DEBUG
-	bool		is_dd_trx;	/*!< True if the transaction is used for
-					doing Non-locking Read-only Read
-					Committed on DD tables */
-#endif /* UNIV_DEBUG */
-
 	/* Lock wait statistics */
 	ulint		n_rec_lock_waits;
 					/*!< Number of record lock waits,

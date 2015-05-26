@@ -1043,6 +1043,7 @@ AIO::pending_io_count() const
 #ifdef UNIV_DEBUG
 /** Validates the consistency the aio system some of the time.
 @return true if ok or the check was skipped */
+static
 bool
 os_aio_validate_skip()
 {
@@ -2492,6 +2493,7 @@ os_file_fsync_posix(
 @param[out]	exists		true if the file exists
 @param[out]	type		Type of the file, if it exists
 @return true if call succeeded */
+static
 bool
 os_file_status_posix(
 	const char*	path,
@@ -3597,6 +3599,7 @@ os_file_punch_hole_win32(
 @param[out]	exists		true if the file exists
 @param[out]	type		Type of the file, if it exists
 @return true if call succeeded */
+static
 bool
 os_file_status_win32(
 	const char*	path,

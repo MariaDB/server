@@ -89,22 +89,116 @@ dict_load_table_one(
 	dict_err_ignore_t	ignore_err,
 	dict_names_t&		fk_tables);
 
-/** Loads a table definition from a SYS_TABLES record to dict_table_t.
-Does not load any columns or indexes.
+/** Load a table definition from a SYS_TABLES record to dict_table_t.
+Do not load any columns or indexes.
 @param[in]	name	Table name
 @param[in]	rec	SYS_TABLES record
-@param[out,own]	table	Table, or NULL
-@return error message, or NULL on success */
+@param[out,own]	table	table, or NULL
+@return	error message
+@retval	NULL on success */
 static
 const char*
-dict_load_table_low(
-	table_name_t&	name,
-	const rec_t*	rec,
-	dict_table_t**	table);
+dict_load_table_low(table_name_t& name, const rec_t* rec, dict_table_t** table)
+	MY_ATTRIBUTE((nonnull, warn_unused_result));
+
+/** Load an index definition from a SYS_INDEXES record to dict_index_t.
+If allocate=TRUE, we will create a dict_index_t structure and fill it
+accordingly. If allocated=FALSE, the dict_index_t will be supplied by
+the caller and filled with information read from the record.
+@return	error message
+@retval	NULL on success */
+static
+const char*
+dict_load_index_low(
+	byte*		table_id,	/*!< in/out: table id (8 bytes),
+					an "in" value if allocate=TRUE
+					and "out" when allocate=FALSE */
+	const char*	table_name,	/*!< in: table name */
+	mem_heap_t*	heap,		/*!< in/out: temporary memory heap */
+	const rec_t*	rec,		/*!< in: SYS_INDEXES record */
+	ibool		allocate,	/*!< in: TRUE=allocate *index,
+					FALSE=fill in a pre-allocated
+					*index */
+	dict_index_t**	index);		/*!< out,own: index, or NULL */
+
+/** Load a table column definition from a SYS_COLUMNS record to dict_table_t.
+@return	error message
+@retval	NULL on success */
+static
+const char*
+dict_load_column_low(
+	dict_table_t*	table,		/*!< in/out: table, could be NULL
+					if we just populate a dict_column_t
+					struct with information from
+					a SYS_COLUMNS record */
+	mem_heap_t*	heap,		/*!< in/out: memory heap
+					for temporary storage */
+	dict_col_t*	column,		/*!< out: dict_column_t to fill,
+					or NULL if table != NULL */
+	table_id_t*	table_id,	/*!< out: table id */
+	const char**	col_name,	/*!< out: column name */
+	const rec_t*	rec,		/*!< in: SYS_COLUMNS record */
+	ulint*		nth_v_col);	/*!< out: if not NULL, this
+					records the "n" of "nth" virtual
+					column */
+
+/** Load a virtual column "mapping" (to base columns) information
+from a SYS_VIRTUAL record
+@param[in,out]	table		table
+@param[in,out]	heap		memory heap
+@param[in,out]	column		mapped base column's dict_column_t
+@param[in,out]	table_id	table id
+@param[in,out]	pos		virtual column position
+@param[in,out]	base_pos	base column position
+@param[in]	rec		SYS_VIRTUAL record
+@return	error message
+@retval	NULL on success */
+static
+const char*
+dict_load_virtual_low(
+	dict_table_t*	table,
+	mem_heap_t*	heap,
+	dict_col_t**	column,
+	table_id_t*	table_id,
+	ulint*		pos,
+	ulint*		base_pos,
+	const rec_t*	rec);
+
+/** Load an index field definition from a SYS_FIELDS record to dict_index_t.
+@return	error message
+@retval	NULL on success */
+static
+const char*
+dict_load_field_low(
+	byte*		index_id,	/*!< in/out: index id (8 bytes)
+					an "in" value if index != NULL
+					and "out" if index == NULL */
+	dict_index_t*	index,		/*!< in/out: index, could be NULL
+					if we just populate a dict_field_t
+					struct with information from
+					a SYS_FIELDS record */
+	dict_field_t*	sys_field,	/*!< out: dict_field_t to be
+					filled */
+	ulint*		pos,		/*!< out: Field position */
+	byte*		last_index_id,	/*!< in: last index id */
+	mem_heap_t*	heap,		/*!< in/out: memory heap
+					for temporary storage */
+	const rec_t*	rec);		/*!< in: SYS_FIELDS record */
+
+/** Load a table definition from a SYS_TABLES record to dict_table_t.
+Do not load any columns or indexes.
+@param[in]	name	Table name
+@param[in]	rec	SYS_TABLES record
+@param[out,own]	table	table, or NULL
+@return	error message
+@retval	NULL on success */
+static
+const char*
+dict_load_table_low(table_name_t& name, const rec_t* rec, dict_table_t** table);
 
 /* If this flag is TRUE, then we will load the cluster index's (and tables')
 metadata even if it is marked as "corrupted". */
-my_bool     srv_load_corrupted = FALSE;
+my_bool     srv_load_corrupted;
 
 #ifdef UNIV_DEBUG
 /****************************************************************//**
@@ -424,6 +518,7 @@ dict_process_sys_virtual_rec(
 
 	return(err_msg);
 }
+
 /********************************************************************//**
 This function parses a SYS_FIELDS record and populates a dict_field_t
 structure with the information from the record.
@@ -1312,13 +1407,12 @@ dict_check_tablespaces_and_store_max_id(
 /** Error message for a delete-marked record in dict_load_column_low() */
 static const char* dict_load_column_del = "delete-marked record in SYS_COLUMN";
 
-/********************************************************************//**
-Loads a table column definition from a SYS_COLUMNS record to
-dict_table_t.
-@return error message, or NULL on success */
+/** Load a table column definition from a SYS_COLUMNS record to dict_table_t.
+@return	error message
+@retval	NULL on success */
+static
 const char*
 dict_load_column_low(
-/*=================*/
 	dict_table_t*	table,		/*!< in/out: table, could be NULL
 					if we just populate a dict_column_t
 					struct with information from
@@ -1481,7 +1575,7 @@ err_len:
 /** Error message for a delete-marked record in dict_load_virtual_low() */
 static const char* dict_load_virtual_del = "delete-marked record in SYS_VIRTUAL";
 
-/** Loads a virtual column "mapping" (to base columns) information
+/** Load a virtual column "mapping" (to base columns) information
 from a SYS_VIRTUAL record
 @param[in,out]	table		table
 @param[in,out]	heap		memory heap
@@ -1490,7 +1584,9 @@ from a SYS_VIRTUAL record
 @param[in,out]	pos		virtual column position
 @param[in,out]	base_pos	base column position
 @param[in]	rec		SYS_VIRTUAL record
-@return error message, or NULL on success */
+@return	error message
+@retval	NULL on success */
+static
 const char*
 dict_load_virtual_low(
 	dict_table_t*	table,
@@ -1566,6 +1662,7 @@ err_len:
 
 	return(NULL);
 }
+
 /********************************************************************//**
 Loads definitions for table columns. */
 static
@@ -1795,13 +1892,12 @@ dict_load_virtual(
 /** Error message for a delete-marked record in dict_load_field_low() */
 static const char* dict_load_field_del = "delete-marked record in SYS_FIELDS";
 
-/********************************************************************//**
-Loads an index field definition from a SYS_FIELDS record to
-dict_index_t.
-@return error message, or NULL on success */
+/** Load an index field definition from a SYS_FIELDS record to dict_index_t.
+@return	error message
+@retval	NULL on success */
+static
 const char*
 dict_load_field_low(
-/*================*/
 	byte*		index_id,	/*!< in/out: index id (8 bytes)
 					an "in" value if index != NULL
 					and "out" if index == NULL */
@@ -1996,15 +2092,15 @@ static const char* dict_load_index_del = "delete-marked record in SYS_INDEXES";
 /** Error message for table->id mismatch in dict_load_index_low() */
 static const char* dict_load_index_id_err = "SYS_INDEXES.TABLE_ID mismatch";
 
-/********************************************************************//**
-Loads an index definition from a SYS_INDEXES record to dict_index_t.
+/** Load an index definition from a SYS_INDEXES record to dict_index_t.
 If allocate=TRUE, we will create a dict_index_t structure and fill it
 accordingly. If allocated=FALSE, the dict_index_t will be supplied by
-the caller and filled with information read from the record.  @return
-error message, or NULL on success */
+the caller and filled with information read from the record.
+@return	error message
+@retval	NULL on success */
+static
 const char*
 dict_load_index_low(
-/*================*/
 	byte*		table_id,	/*!< in/out: table id (8 bytes),
 					an "in" value if allocate=TRUE
 					and "out" when allocate=FALSE */
@@ -2419,18 +2515,16 @@ func_exit:
 	return(error);
 }
 
-/** Loads a table definition from a SYS_TABLES record to dict_table_t.
-Does not load any columns or indexes.
+/** Load a table definition from a SYS_TABLES record to dict_table_t.
+Do not load any columns or indexes.
 @param[in]	name	Table name
 @param[in]	rec	SYS_TABLES record
 @param[out,own]	table	table, or NULL
-@return error message, or NULL on success */
+@return	error message
+@retval	NULL on success */
 static
 const char*
-dict_load_table_low(
-	table_name_t&	name,
-	const rec_t*	rec,
-	dict_table_t**	table)
+dict_load_table_low(table_name_t& name, const rec_t* rec, dict_table_t** table)
 {
 	table_id_t	table_id;
 	ulint		space_id;
@@ -2468,6 +2562,7 @@ table->data_dir_path and replace the 'databasename/tablename.ibd'
 portion with 'tablename'.
 This allows SHOW CREATE TABLE to return the correct DATA DIRECTORY path.
 Make this data directory path only if it has not yet been saved. */
+static
 void
 dict_save_data_dir_path(
 /*====================*/

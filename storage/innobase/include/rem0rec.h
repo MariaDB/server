@@ -941,16 +941,6 @@ rec_print_old(
 	const rec_t*	rec)	/*!< in: physical record */
 	MY_ATTRIBUTE((nonnull));
 /***************************************************************//**
-Prints a physical record in ROW_FORMAT=COMPACT.  Ignores the
-record header. */
-void
-rec_print_comp(
-/*===========*/
-	FILE*		file,	/*!< in: file where to print */
-	const rec_t*	rec,	/*!< in: physical record */
-	const ulint*	offsets)/*!< in: array returned by rec_get_offsets() */
-	MY_ATTRIBUTE((nonnull));
-/***************************************************************//**
 Prints a spatial index record. */
 void
 rec_print_mbr_rec(

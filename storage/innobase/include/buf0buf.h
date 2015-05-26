@@ -382,11 +382,6 @@ buf_frame_will_withdrawn(
 	buf_pool_t*	buf_pool,
 	const byte*	ptr);
 
-/** Resize the buffer pool based on srv_buf_pool_size from
-srv_buf_pool_old_size. */
-void
-buf_pool_resize();
-
 /** This is the thread for resizing buffer pool. It waits for an event and
 when waked up either performs a resizing and sleeps again.
 @return	this function does not return, calls os_thread_exit()
@@ -921,30 +916,18 @@ buf_stats_get_pool_info(
 	ulint			pool_id,	/*!< in: buffer pool ID */
 	buf_pool_info_t*	all_pool_info);	/*!< in/out: buffer pool info
 						to fill */
-/*********************************************************************//**
-Returns the ratio in percents of modified pages in the buffer pool /
+/** Return the ratio in percents of modified pages in the buffer pool /
 database pages in the buffer pool.
 @return modified page percentage ratio */
 double
 buf_get_modified_ratio_pct(void);
-/*============================*/
-/**********************************************************************//**
-Refreshes the statistics used to print per-second averages. */
-void
-buf_refresh_io_stats(
-/*=================*/
-	buf_pool_t*	buf_pool);	/*!< buffer pool instance */
-/**********************************************************************//**
-Refreshes the statistics used to print per-second averages. */
+/** Refresh the statistics used to print per-second averages. */
 void
 buf_refresh_io_stats_all(void);
-/*=================*/
-/*********************************************************************//**
-Asserts that all file pages in the buffer are in a replaceable state.
+/** Assert that all file pages in the buffer are in a replaceable state.
 @return TRUE */
 ibool
 buf_all_freed(void);
-/*===============*/
 /*********************************************************************//**
 Checks that there currently are no pending i/o-operations for the buffer
 pool.
@@ -1403,18 +1386,6 @@ buf_pool_watch_is_sentinel(
 	const buf_pool_t*	buf_pool,	/*!< buffer pool instance */
 	const buf_page_t*	bpage)		/*!< in: block */
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
-
-/** Add watch for the given page to be read in. Caller must have
-appropriate hash_lock for the bpage. This function may release the
-hash_lock and reacquire it.
-@param[in]	page_id		page id
-@param[in,out]	hash_lock	hash_lock currently latched
-@return NULL if watch set, block if the page is in the buffer pool */
-buf_page_t*
-buf_pool_watch_set(
-	const page_id_t&	page_id,
-	rw_lock_t**		hash_lock)
-MY_ATTRIBUTE((warn_unused_result));
 
 /** Stop watching if the page has been read in.
 buf_pool_watch_set(space,offset) must have returned NULL before.

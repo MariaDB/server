@@ -448,68 +448,6 @@ hash_lock_x_confirm(
 	ulint		fold);
 
 /************************************************************//**
-Reserves the mutex for a fold value in a hash table. */
-void
-hash_mutex_enter(
-/*=============*/
-	hash_table_t*	table,	/*!< in: hash table */
-	ulint		fold);	/*!< in: fold */
-/************************************************************//**
-Releases the mutex for a fold value in a hash table. */
-void
-hash_mutex_exit(
-/*============*/
-	hash_table_t*	table,	/*!< in: hash table */
-	ulint		fold);	/*!< in: fold */
-/************************************************************//**
-Reserves all the mutexes of a hash table, in an ascending order. */
-void
-hash_mutex_enter_all(
-/*=================*/
-	hash_table_t*	table);	/*!< in: hash table */
-/************************************************************//**
-Releases all the mutexes of a hash table. */
-void
-hash_mutex_exit_all(
-/*================*/
-	hash_table_t*	table);	/*!< in: hash table */
-/************************************************************//**
-Releases all but the passed in mutex of a hash table. */
-void
-hash_mutex_exit_all_but(
-/*====================*/
-	hash_table_t*	table,		/*!< in: hash table */
-	ib_mutex_t*	keep_mutex);	/*!< in: mutex to keep */
-/************************************************************//**
-s-lock a lock for a fold value in a hash table. */
-void
-hash_lock_s(
-/*========*/
-	hash_table_t*	table,	/*!< in: hash table */
-	ulint		fold);	/*!< in: fold */
-/************************************************************//**
-x-lock a lock for a fold value in a hash table. */
-void
-hash_lock_x(
-/*========*/
-	hash_table_t*	table,	/*!< in: hash table */
-	ulint		fold);	/*!< in: fold */
-/************************************************************//**
-unlock an s-lock for a fold value in a hash table. */
-void
-hash_unlock_s(
-/*==========*/
-
-	hash_table_t*	table,	/*!< in: hash table */
-	ulint		fold);	/*!< in: fold */
-/************************************************************//**
-unlock x-lock for a fold value in a hash table. */
-void
-hash_unlock_x(
-/*==========*/
-	hash_table_t*	table,	/*!< in: hash table */
-	ulint		fold);	/*!< in: fold */
-/************************************************************//**
 Reserves all the locks of a hash table, in an ascending order. */
 void
 hash_lock_x_all(

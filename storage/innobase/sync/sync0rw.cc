@@ -1171,41 +1171,6 @@ rw_lock_list_print_info(
 	mutex_exit(&rw_lock_list_mutex);
 }
 
-/***************************************************************//**
-Prints debug info of an rw-lock. */
-void
-rw_lock_print(
-/*==========*/
-	rw_lock_t*	lock)	/*!< in: rw-lock */
-{
-	rw_lock_debug_t* info;
-
-	fprintf(stderr,
-		"-------------\n"
-		"RW-LATCH INFO\n"
-		"RW-LATCH: %p ", (void*) lock);
-
-	if (lock->lock_word != X_LOCK_DECR) {
-
-		if (lock->waiters) {
-			fputs(" Waiters for the lock exist\n", stderr);
-		} else {
-			putc('\n', stderr);
-		}
-
-		rw_lock_debug_mutex_enter();
-
-		for (info = UT_LIST_GET_FIRST(lock->debug_list);
-		     info != NULL;
-		     info = UT_LIST_GET_NEXT(list, info)) {
-
-			rw_lock_debug_print(stderr, info);
-		}
-
-		rw_lock_debug_mutex_exit();
-	}
-}
-
 /*********************************************************************//**
 Prints info of a debug struct. */
 void
@@ -1243,32 +1208,6 @@ rw_lock_debug_print(
 	}
 
 	fprintf(f, "\n");
-}
-
-/***************************************************************//**
-Returns the number of currently locked rw-locks. Works only in the debug
-version.
-@return number of locked rw-locks */
-ulint
-rw_lock_n_locked(void)
-/*==================*/
-{
-	ulint		count = 0;
-
-	mutex_enter(&rw_lock_list_mutex);
-
-	for (const rw_lock_t* lock = UT_LIST_GET_FIRST(rw_lock_list);
-	     lock != NULL;
-	     lock = UT_LIST_GET_NEXT(list, lock)) {
-
-		if (lock->lock_word != X_LOCK_DECR) {
-			count++;
-		}
-	}
-
-	mutex_exit(&rw_lock_list_mutex);
-
-	return(count);
 }
 
 /** Print where it was locked from
