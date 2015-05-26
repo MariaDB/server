@@ -130,9 +130,8 @@ SET (SQL_SOURCE
                opt_index_cond_pushdown.cc opt_subselect.cc
                opt_table_elimination.cc sql_expression_cache.cc
                gcalc_slicescan.cc gcalc_tools.cc
-			   threadpool_common.cc 
-			   ../sql-common/mysql_async.c
-               my_apc.cc my_apc.h
+               threadpool_common.cc ../sql-common/mysql_async.c
+               my_apc.cc my_apc.h mf_iocache_encr.cc
                my_json_writer.cc my_json_writer.h
                rpl_gtid.cc rpl_parallel.cc
 	       ${WSREP_SOURCES}

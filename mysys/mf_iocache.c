@@ -70,6 +70,10 @@ static int _my_b_seq_read(IO_CACHE *info, uchar *Buffer, size_t Count);
 static int _my_b_cache_write(IO_CACHE *info, const uchar *Buffer, size_t Count);
 static int _my_b_cache_write_r(IO_CACHE *info, const uchar *Buffer, size_t Count);
 
+int (*_my_b_encr_read)(IO_CACHE *info,uchar *Buffer,size_t Count)= 0;
+int (*_my_b_encr_write)(IO_CACHE *info,const uchar *Buffer,size_t Count)= 0;
+
+
 /*
   Setup internal pointers inside IO_CACHE
 
@@ -114,18 +118,35 @@ init_functions(IO_CACHE* info)
       programs that link against mysys but know nothing about THD, such
       as myisamchk
     */
+    DBUG_ASSERT(!(info->myflags & MY_ENCRYPT));
     break;
   case SEQ_READ_APPEND:
     info->read_function = _my_b_seq_read;
+    DBUG_ASSERT(!(info->myflags & MY_ENCRYPT));
     break;
   case READ_CACHE:
+    if (info->myflags & MY_ENCRYPT)
+    {
+      DBUG_ASSERT(info->share == 0);
+      info->read_function = _my_b_encr_read;
+      break;
+    }
+    /* fall through */
   case WRITE_CACHE:
+    if (info->myflags & MY_ENCRYPT)
+    {
+      info->write_function = _my_b_encr_write;
+      break;
+    }
+    /* fall through */
   case READ_FIFO:
+    DBUG_ASSERT(!(info->myflags & MY_ENCRYPT));
     info->read_function = info->share ? _my_b_cache_read_r : _my_b_cache_read;
     info->write_function = info->share ? _my_b_cache_write_r : _my_b_cache_write;
     break;
   case TYPE_NOT_SET:
     DBUG_ASSERT(0);
+    break;
   }
 
   setup_io_cache(info);
@@ -175,6 +196,7 @@ int init_io_cache(IO_CACHE *info, File file, size_t cachesize,
 
   if (file >= 0)
   {
+    DBUG_ASSERT(!(cache_myflags & MY_ENCRYPT));
     pos= mysql_file_tell(file, MYF(0));
     if ((pos == (my_off_t) -1) && (my_errno == ESPIPE))
     {
@@ -191,6 +213,12 @@ int init_io_cache(IO_CACHE *info, File file, size_t cachesize,
     else
       info->seek_not_done= MY_TEST(seek_offset != pos);
   }
+  else
+    if (type == WRITE_CACHE && _my_b_encr_read)
+    {
+      cache_myflags|= MY_ENCRYPT;
+      DBUG_ASSERT(seek_offset == 0);
+    }
 
   info->disk_writes= 0;
   info->share=0;
@@ -200,6 +228,7 @@ int init_io_cache(IO_CACHE *info, File file, size_t cachesize,
   min_cache=use_async_io ? IO_SIZE*4 : IO_SIZE*2;
   if (type == READ_CACHE || type == SEQ_READ_APPEND)
   {						/* Assume file isn't growing */
+    DBUG_ASSERT(!(cache_myflags & MY_ENCRYPT));
     if (!(cache_myflags & MY_DONT_CHECK_FILESIZE))
     {
       /* Calculate end of file to avoid allocating oversized buffers */
@@ -235,6 +264,8 @@ int init_io_cache(IO_CACHE *info, File file, size_t cachesize,
       buffer_block= cachesize;
       if (type == SEQ_READ_APPEND)
 	buffer_block *= 2;
+      else if (cache_myflags & MY_ENCRYPT)
+        buffer_block= 2*(buffer_block + MY_AES_BLOCK_SIZE) + sizeof(IO_CACHE_CRYPT);
       if (cachesize == min_cache)
         flags|= (myf) MY_WME;
 
@@ -288,6 +319,7 @@ int init_io_cache(IO_CACHE *info, File file, size_t cachesize,
   if (use_async_io && ! my_disable_async_io)
   {
     DBUG_PRINT("info",("Using async io"));
+    DBUG_ASSERT(!(cache_myflags & MY_ENCRYPT));
     info->read_length/=2;
     info->read_function=_my_b_async_read;
   }
@@ -400,8 +432,22 @@ my_bool reinit_io_cache(IO_CACHE *info, enum cache_type type,
     }
     else
     {
-      info->write_end=(info->buffer + info->buffer_length -
-		       (seek_offset & (IO_SIZE-1)));
+      if (info->myflags & MY_ENCRYPT)
+      {
+        info->write_end = info->write_buffer + info->buffer_length;
+        if (seek_offset && info->file != -1)
+        {
+          info->read_end= info->buffer;
+          _my_b_encr_read(info, 0, 0); /* prefill the buffer */
+          info->write_pos= info->read_pos;
+          info->pos_in_file+= info->buffer_length;
+        }
+      }
+      else
+      {
+        info->write_end=(info->buffer + info->buffer_length -
+                         (seek_offset & (IO_SIZE-1)));
+      }
       info->end_of_file= ~(my_off_t) 0;
     }
   }
@@ -414,6 +460,7 @@ my_bool reinit_io_cache(IO_CACHE *info, enum cache_type type,
       ((ulong) info->buffer_length <
        (ulong) (info->end_of_file - seek_offset)))
   {
+    DBUG_ASSERT(!(cache_myflags & MY_ENCRYPT));
     info->read_length=info->buffer_length/2;
     info->read_function=_my_b_async_read;
   }
@@ -514,7 +561,7 @@ int _my_b_write(IO_CACHE *info, const uchar *Buffer, size_t Count)
              Otherwise info->error contains the number of bytes in Buffer.
 */
 
-static int _my_b_cache_read(IO_CACHE *info, uchar *Buffer, size_t Count)
+int _my_b_cache_read(IO_CACHE *info, uchar *Buffer, size_t Count)
 {
   size_t length, diff_length, left_length= 0, max_length;
   my_off_t pos_in_file;
@@ -1057,6 +1104,7 @@ static int _my_b_cache_read_r(IO_CACHE *cache, uchar *Buffer, size_t Count)
   size_t length, diff_length, left_length= 0;
   IO_CACHE_SHARE *cshare= cache->share;
   DBUG_ENTER("_my_b_cache_read_r");
+  DBUG_ASSERT(!(cache->myflags & MY_ENCRYPT));
 
   while (Count)
   {
@@ -1560,7 +1608,7 @@ int _my_b_get(IO_CACHE *info)
    -1 On error; my_errno contains error code.
 */
 
-static int _my_b_cache_write(IO_CACHE *info, const uchar *Buffer, size_t Count)
+int _my_b_cache_write(IO_CACHE *info, const uchar *Buffer, size_t Count)
 {
   if (Buffer != info->write_buffer)
   {
@@ -1611,6 +1659,7 @@ static int _my_b_cache_write_r(IO_CACHE *info, const uchar *Buffer, size_t Count
   if (res)
     return res;
 
+  DBUG_ASSERT(!(info->myflags & MY_ENCRYPT));
   DBUG_ASSERT(info->share);
   copy_to_read_buffer(info, Buffer, old_pos_in_file);
 
@@ -1633,6 +1682,7 @@ int my_b_append(IO_CACHE *info, const uchar *Buffer, size_t Count)
     day, we might need to add a call to copy_to_read_buffer().
   */
   DBUG_ASSERT(!info->share);
+  DBUG_ASSERT(!(info->myflags & MY_ENCRYPT));
 
   lock_append_buffer(info);
   rest_length= (size_t) (info->write_end - info->write_pos);
@@ -1699,6 +1749,7 @@ int my_block_write(IO_CACHE *info, const uchar *Buffer, size_t Count,
     day, we might need to add a call to copy_to_read_buffer().
   */
   DBUG_ASSERT(!info->share);
+  DBUG_ASSERT(!(info->myflags & MY_ENCRYPT));
 
   if (pos < info->pos_in_file)
   {

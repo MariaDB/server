@@ -5163,9 +5163,15 @@ static Sys_var_harows Sys_expensive_subquery_limit(
 
 static Sys_var_mybool Sys_encrypt_tmp_disk_tables(
        "encrypt_tmp_disk_tables",
-       "Encrypt tmp disk tables (created as part of query execution)",
+       "Encrypt temporary on-disk tables (created as part of query execution)",
        GLOBAL_VAR(encrypt_tmp_disk_tables),
        CMD_LINE(OPT_ARG), DEFAULT(FALSE));
+
+static Sys_var_mybool Sys_encrypt_tmp_files(
+       "encrypt_tmp_files",
+       "Encrypt temporary files (created for filesort, binary log cache, etc)",
+       READ_ONLY GLOBAL_VAR(encrypt_tmp_files),
+       CMD_LINE(OPT_ARG), DEFAULT(TRUE));
 
 static bool check_pseudo_slave_mode(sys_var *self, THD *thd, set_var *var)
 {

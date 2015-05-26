@@ -254,7 +254,7 @@ extern ulong connection_errors_internal;
 extern ulong connection_errors_max_connection;
 extern ulong connection_errors_peer_addr;
 extern ulong log_warnings;
-extern my_bool encrypt_tmp_disk_tables;
+extern my_bool encrypt_tmp_disk_tables, encrypt_tmp_files;
 extern ulong encryption_algorithm;
 extern const char *encryption_algorithm_names[];
 

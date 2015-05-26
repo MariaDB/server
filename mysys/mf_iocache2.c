@@ -182,6 +182,13 @@ void my_b_seek(IO_CACHE *info,my_off_t pos)
 
 int my_b_pread(IO_CACHE *info, uchar *Buffer, size_t Count, my_off_t pos)
 {
+  if (info->myflags & MY_ENCRYPT)
+  {
+    my_b_seek(info, pos);
+    return my_b_read(info, Buffer, Count);
+  }
+
+  /* backward compatibility behavior. XXX remove it? */
   if (mysql_file_pread(info->file, Buffer, Count, pos, info->myflags | MY_NABP))
     return info->error= -1;
   return 0;

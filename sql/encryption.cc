@@ -19,6 +19,8 @@
 #include "sql_plugin.h"
 #include <my_crypt.h>
 
+void init_io_cache_encryption();
+
 /* there can be only one encryption plugin enabled */
 static plugin_ref encryption_manager= 0;
 struct encryption_service_st encryption_handler;
@@ -79,6 +81,8 @@ int initialize_encryption_plugin(st_plugin_int *plugin)
   encryption_handler.encryption_key_get_latest_version_func=
     handle->get_latest_key_version; // must be the last
 
+  init_io_cache_encryption();
+
   return 0;
 }
 
@@ -100,6 +104,7 @@ int finalize_encryption_plugin(st_plugin_int *plugin)
   if (encryption_manager)
     plugin_unlock(NULL, encryption_manager);
   encryption_manager= 0;
+  init_io_cache_encryption();
   return 0;
 }
 

@@ -163,8 +163,11 @@ The following options may be given as the first argument:
  Precision of the result of '/' operator will be increased
  on that value
  --encrypt-tmp-disk-tables 
- Encrypt tmp disk tables (created as part of query
- execution)
+ Encrypt temporary on-disk tables (created as part of
+ query execution)
+ --encrypt-tmp-files Encrypt temporary files (created for filesort, binary log
+ cache, etc)
+ (Defaults to on; use --skip-encrypt-tmp-files to disable.)
  --enforce-storage-engine=name 
  Force the use of a storage engine for new tables
  --event-scheduler[=name] 
@@ -1149,6 +1152,7 @@ delayed-insert-timeout 300
 delayed-queue-size 1000
 div-precision-increment 4
 encrypt-tmp-disk-tables FALSE
+encrypt-tmp-files TRUE
 enforce-storage-engine (No default value)
 event-scheduler OFF
 expensive-subquery-limit 100
