@@ -180,6 +180,12 @@ void my_b_seek(IO_CACHE *info,my_off_t pos)
   DBUG_VOID_RETURN;
 }
 
+int my_b_pread(IO_CACHE *info, uchar *Buffer, size_t Count, my_off_t pos)
+{
+  if (mysql_file_pread(info->file, Buffer, Count, pos, info->myflags | MY_NABP))
+    return info->error= -1;
+  return 0;
+}
 
 /*
   Read a string ended by '\n' into a buffer of 'max_length' size.

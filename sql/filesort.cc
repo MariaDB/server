@@ -1483,10 +1483,9 @@ uint read_to_buffer(IO_CACHE *fromfile, BUFFPEK *buffpek,
 
   if ((count=(uint) MY_MIN((ha_rows) buffpek->max_keys,buffpek->count)))
   {
-    if (mysql_file_pread(fromfile->file, (uchar*) buffpek->base,
-                         (length= rec_length*count),
-                         buffpek->file_pos, MYF_RW))
-      return((uint) -1);			/* purecov: inspected */
+    if (my_b_pread(fromfile, (uchar*) buffpek->base,
+                   (length= rec_length*count), buffpek->file_pos))
+      return ((uint) -1);
     buffpek->key=buffpek->base;
     buffpek->file_pos+= length;			/* New filepos */
     buffpek->count-=	count;

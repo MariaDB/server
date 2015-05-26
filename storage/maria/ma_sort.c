@@ -929,9 +929,8 @@ static my_off_t read_to_buffer(IO_CACHE *fromfile, BUFFPEK *buffpek,
 
   if ((count= (ha_keys) MY_MIN((ha_rows) buffpek->max_keys,buffpek->count)))
   {
-    if (mysql_file_pread(fromfile->file, (uchar*) buffpek->base,
-                         (length= sort_length * count),
-                         buffpek->file_pos, MYF_RW))
+    if (my_b_pread(fromfile, (uchar*) buffpek->base,
+                   (length= sort_length * count), buffpek->file_pos))
       return(HA_OFFSET_ERROR);               /* purecov: inspected */
     buffpek->key=buffpek->base;
     buffpek->file_pos+= length;                 /* New filepos */
@@ -956,12 +955,12 @@ static my_off_t read_to_buffer_varlen(IO_CACHE *fromfile, BUFFPEK *buffpek,
     for (idx=1;idx<=count;idx++)
     {
       uint16 length_of_key;
-      if (mysql_file_pread(fromfile->file,(uchar*)&length_of_key,sizeof(length_of_key),
-                   buffpek->file_pos,MYF_RW))
+      if (my_b_pread(fromfile, (uchar*)&length_of_key,
+                     sizeof(length_of_key), buffpek->file_pos))
         return(HA_OFFSET_ERROR);
       buffpek->file_pos+=sizeof(length_of_key);
-      if (mysql_file_pread(fromfile->file, buffp, length_of_key,
-                   buffpek->file_pos,MYF_RW))
+      if (my_b_pread(fromfile, (uchar*) buffp,
+                     length_of_key, buffpek->file_pos))
         return((uint) -1);
       buffpek->file_pos+=length_of_key;
       buffp = buffp + sort_length;
