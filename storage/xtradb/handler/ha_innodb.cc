@@ -12276,7 +12276,7 @@ ha_innobase::create(
 						      &mtr);
 
 		/* Set up new crypt data */
-		fil_space_set_crypt_data(innobase_table->space, crypt_data);
+		crypt_data = fil_space_set_crypt_data(innobase_table->space, crypt_data);
 
 		/* Compute location to store crypt data */
 		byte* frame = buf_block_get_frame(block);
