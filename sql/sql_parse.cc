@@ -7016,6 +7016,7 @@ static void wsrep_mysql_parse(THD *thd, char *rawbuf, uint length,
 	  /* Performance Schema Interface instrumentation, end */
 	  MYSQL_END_STATEMENT(thd->m_statement_psi, thd->get_stmt_da());
 	  thd->m_statement_psi= NULL;
+          thd->m_digest= NULL;
           close_thread_tables(thd);
 
           thd->wsrep_conflict_state= RETRY_AUTOCOMMIT;
