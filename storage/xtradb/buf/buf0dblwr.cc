@@ -743,6 +743,14 @@ buf_dblwr_check_page_lsn(
 /*=====================*/
 	const page_t*	page)		/*!< in: page to check */
 {
+	ibool page_compressed = (mach_read_from_2(page+FIL_PAGE_TYPE) == FIL_PAGE_PAGE_COMPRESSED);
+	uint key_version = mach_read_from_4(page + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION);
+
+	/* Ignore page compressed or encrypted pages */
+	if (page_compressed || key_version) {
+		return;
+	}
+
 	if (memcmp(page + (FIL_PAGE_LSN + 4),
 		   page + (UNIV_PAGE_SIZE
 			   - FIL_PAGE_END_LSN_OLD_CHKSUM + 4),

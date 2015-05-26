@@ -5623,17 +5623,19 @@ fil_space_get_block_size(
 	ulint	len)
 {
 	ulint block_size = 512;
+	ut_ad(!mutex_own(&fil_system->mutex));
+
+	mutex_enter(&fil_system->mutex);
 	fil_space_t* space = fil_space_get_space(space_id);
 
 	if (space) {
-		mutex_enter(&fil_system->mutex);
 		fil_node_t* node = fil_space_get_node(space, space_id, &block_offset, 0, len);
-		mutex_exit(&fil_system->mutex);
 
 		if (node) {
 			block_size = node->file_block_size;
 		}
 	}
+	mutex_exit(&fil_system->mutex);
 
 	return block_size;
 }

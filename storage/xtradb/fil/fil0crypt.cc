@@ -618,6 +618,7 @@ fil_space_encrypt(
 	}
 
 	ibool page_compressed = (mach_read_from_2(src_frame+FIL_PAGE_TYPE) == FIL_PAGE_PAGE_COMPRESSED);
+	ulint page_comp_method = mach_read_from_8(src_frame+FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION);
 
 	/* FIL page header is not encrypted */
 	memcpy(dst_frame, src_frame, FIL_PAGE_DATA);
@@ -698,6 +699,9 @@ fil_space_encrypt(
 		// store the post-encryption checksum after the key-version
 		mach_write_to_4(dst_frame + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION + 4,
 			        checksum);
+	} else {
+		mach_write_to_4(dst_frame + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION + 4,
+			page_comp_method);
 	}
 
 	srv_stats.pages_encrypted.inc();
@@ -744,6 +748,7 @@ fil_space_decrypt(
 	ulint page_type = mach_read_from_2(src_frame+FIL_PAGE_TYPE);
 	uint key_version = mach_read_from_4(src_frame + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION);
 	bool page_compressed = (page_type == FIL_PAGE_PAGE_COMPRESSED);
+	ulint page_comp_method = mach_read_from_4(src_frame + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION + 4);
 
 	if (key_version == ENCRYPTION_KEY_NOT_ENCRYPTED) {
 		//TODO: is this really needed ?
@@ -806,6 +811,8 @@ fil_space_decrypt(
 
 		// clear key-version & crypt-checksum from dst
 		memset(dst_frame + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION, 0, 8);
+	} else {
+		mach_write_to_8(dst_frame + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION, page_comp_method);
 	}
 
 	srv_stats.pages_decrypted.inc();
