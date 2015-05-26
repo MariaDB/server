@@ -6623,6 +6623,7 @@ wait_for_commit::wakeup_subsequent_commits2(int wakeup_error)
     a mutex), so no extra explicit barrier is needed here.
   */
   wakeup_subsequent_commits_running= false;
+  DBUG_EXECUTE_IF("inject_wakeup_subsequent_commits_sleep", my_sleep(21000););
 }
 
 
