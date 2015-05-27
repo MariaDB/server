@@ -1,7 +1,7 @@
 #
 # Various test cases for IO_CACHE tempfiles (file==-1) encryption
 #
-source include/have_example_key_management_plugin.inc;
+source include/have_file_key_management_plugin.inc;
 source include/have_sequence.inc;
 
 # Row binlog format to fill binlog cache faster
