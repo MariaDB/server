@@ -5887,7 +5887,8 @@ buf_page_encrypt_before_write(
 		return const_cast<byte*>(src_frame);
 	}
 
-	if (fil_space_check_encryption_write(bpage->space) == false) {
+	/* Is encryption needed? */
+	if (crypt_data->type == CRYPT_SCHEME_UNENCRYPTED) {
 		/* An unencrypted table */
 		bpage->key_version = 0;
 		return const_cast<byte*>(src_frame);

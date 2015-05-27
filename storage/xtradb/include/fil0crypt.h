@@ -199,14 +199,6 @@ fil_space_check_encryption_read(
 	ulint space);          /*!< in: tablespace id */
 
 /*********************************************************************
-Check if page shall be encrypted before write */
-UNIV_INTERN
-bool
-fil_space_check_encryption_write(
-/*=============================*/
-	ulint space);          /*!< in: tablespace id */
-
-/*********************************************************************
 Encrypt buffer page */
 UNIV_INTERN
 void

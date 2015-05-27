@@ -220,7 +220,7 @@ fil_space_create_crypt_data(
 		&crypt_data->mutex, SYNC_NO_ORDER_CHECK);
 	crypt_data->locker = crypt_data_scheme_locker;
 	my_random_bytes(crypt_data->iv, sizeof(crypt_data->iv));
-	crypt_data->encryption = FIL_SPACE_ENCRYPTION_DEFAULT;
+	crypt_data->encryption = encrypt_mode;
 	crypt_data->key_id = key_id;
 	return crypt_data;
 }
@@ -540,32 +540,6 @@ fil_space_clear_crypt_data(
 		4 +    // key id
 		1; // fil_encryption_t
 	memset(page + offset, 0, size);
-}
-
-/*********************************************************************
-Check if page shall be encrypted before write
-@return true if page should be encrypted, false if not */
-UNIV_INTERN
-bool
-fil_space_check_encryption_write(
-/*=============================*/
-	ulint	space)	/*!< in: tablespace id */
-{
-	if (!srv_encrypt_tables) {
-		return false;
-	}
-
-	fil_space_crypt_t* crypt_data = fil_space_get_crypt_data(space);
-
-	if (crypt_data == NULL) {
-		return false;
-	}
-
-	if (crypt_data->type == CRYPT_SCHEME_UNENCRYPTED) {
-		return false;
-	}
-
-	return true;
 }
 
 /******************************************************************
