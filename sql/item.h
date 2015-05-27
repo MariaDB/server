@@ -62,6 +62,8 @@ class user_var_entry;
 class JOIN;
 struct KEY_FIELD;
 struct SARGABLE_PARAM;
+class RANGE_OPT_PARAM;
+class SEL_TREE;
 
 
 static inline uint32
@@ -1147,6 +1149,15 @@ public:
   {
     return;
   }
+   /*
+     Make a select tree for all keys in a condition or a condition part
+     @param param         Context
+     @param cond_ptr[OUT] Store a replacement item here if the condition
+                          can be simplified, e.g.:
+                            WHERE part1 OR part2 OR part3
+                          with one of the partN evalutating to SEL_TREE::ALWAYS.
+   */
+   virtual SEL_TREE *get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr);
   /*
     Checks whether the item is:
     - a simple equality (field=field_item or field=constant_item), or

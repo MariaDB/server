@@ -952,7 +952,6 @@ static SEL_TREE * get_mm_parts(RANGE_OPT_PARAM *param,COND *cond_func,Field *fie
 static SEL_ARG *get_mm_leaf(RANGE_OPT_PARAM *param,COND *cond_func,Field *field,
 			    KEY_PART *key_part,
 			    Item_func::Functype type,Item *value);
-static SEL_TREE *get_mm_tree(RANGE_OPT_PARAM *param, Item **cond);
 
 static bool is_key_scan_ror(PARAM *param, uint keynr, uint8 nparts);
 static ha_rows check_quick_select(PARAM *param, uint idx, bool index_only,
@@ -3131,7 +3130,7 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
 
     if (cond)
     {
-      if ((tree= get_mm_tree(&param, &cond)))
+      if ((tree= cond->get_mm_tree(&param, &cond)))
       {
         if (tree->type == SEL_TREE::IMPOSSIBLE)
         {
@@ -3628,7 +3627,7 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item **cond)
 
     thd->no_errors=1;		    
 
-    tree= get_mm_tree(&param, cond);
+    tree= cond[0]->get_mm_tree(&param, cond);
 
     if (!tree)
       goto free_alloc;
@@ -4061,7 +4060,7 @@ bool prune_partitions(THD *thd, TABLE *table, Item *pprune_cond)
   SEL_TREE *tree;
   int res;
 
-  tree= get_mm_tree(range_par, &pprune_cond);
+  tree= pprune_cond->get_mm_tree(range_par, &pprune_cond);
   if (!tree)
     goto all_used;
 
@@ -7967,104 +7966,106 @@ static SEL_TREE *get_full_func_mm_tree(RANGE_OPT_PARAM *param,
     NULL     - Could not infer anything from condition cond.
     SEL_TREE with type=IMPOSSIBLE - condition can never be true.
 */
+SEL_TREE *Item_cond_and::get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr)
+{
+  DBUG_ENTER("Item_cond_and::get_mm_tree");
+  SEL_TREE *tree= NULL;
+  List_iterator<Item> li(*argument_list());
+  Item *item;
+  while ((item= li++))
+  {
+    SEL_TREE *new_tree= li.ref()[0]->get_mm_tree(param,li.ref());
+    if (param->statement_should_be_aborted())
+      DBUG_RETURN(NULL);
+    tree= tree_and(param, tree, new_tree);
+    if (tree && tree->type == SEL_TREE::IMPOSSIBLE)
+    {
+      /*
+        Do not remove 'item' from 'cond'. We return a SEL_TREE::IMPOSSIBLE
+        and that is sufficient for the caller to see that the whole
+        condition is never true.
+      */
+      break;
+    }
+  }
+  DBUG_RETURN(tree);
+}
 
-static SEL_TREE *get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr)
+
+SEL_TREE *Item_cond::get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr)
+{
+  DBUG_ENTER("Item_cond::get_mm_tree");
+  List_iterator<Item> li(*argument_list());
+  bool replace_cond= false;
+  Item *replacement_item= li++;
+  SEL_TREE *tree= li.ref()[0]->get_mm_tree(param, li.ref());
+  if (param->statement_should_be_aborted())
+    DBUG_RETURN(NULL);
+  if (tree)
+  {
+    if (tree->type == SEL_TREE::IMPOSSIBLE &&
+        param->remove_false_where_parts)
+    {
+      /* See the other li.remove() call below */
+      li.remove();
+      if (argument_list()->elements <= 1)
+        replace_cond= true;
+    }
+
+    Item *item;
+    while ((item= li++))
+    {
+      SEL_TREE *new_tree= li.ref()[0]->get_mm_tree(param, li.ref());
+      if (new_tree == NULL || param->statement_should_be_aborted())
+        DBUG_RETURN(NULL);
+      tree= tree_or(param, tree, new_tree);
+      if (tree == NULL || tree->type == SEL_TREE::ALWAYS)
+      {
+        replacement_item= *li.ref();
+        break;
+      }
+
+      if (new_tree && new_tree->type == SEL_TREE::IMPOSSIBLE &&
+          param->remove_false_where_parts)
+      {
+        /*
+          This is a condition in form
+
+            cond = item1 OR ... OR item_i OR ... itemN
+
+          and item_i produces SEL_TREE(IMPOSSIBLE). We should remove item_i
+          from cond.  This may cause 'cond' to become a degenerate,
+          one-way OR. In that case, we replace 'cond' with the remaining
+          item_i.
+        */
+        li.remove();
+        if (argument_list()->elements <= 1)
+          replace_cond= true;
+      }
+      else
+        replacement_item= *li.ref();
+    }
+
+    if (replace_cond)
+      *cond_ptr= replacement_item;
+  }
+  DBUG_RETURN(tree);
+}
+
+
+SEL_TREE *Item::get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr)
 {
   SEL_TREE *tree=0;
   SEL_TREE *ftree= 0;
   Item_field *field_item= 0;
   bool inv= FALSE;
   Item *value= 0;
-  Item *cond= *cond_ptr;
-  DBUG_ENTER("get_mm_tree");
+  DBUG_ENTER("Item::get_mm_tree");
 
-  if (cond->type() == Item::COND_ITEM)
-  {
-    List_iterator<Item> li(*((Item_cond*) cond)->argument_list());
-
-    if (((Item_cond*) cond)->functype() == Item_func::COND_AND_FUNC)
-    {
-      tree= NULL;
-      Item *item;
-      while ((item=li++))
-      {
-        SEL_TREE *new_tree= get_mm_tree(param,li.ref());
-        if (param->statement_should_be_aborted())
-          DBUG_RETURN(NULL);
-        tree= tree_and(param,tree,new_tree);
-        if (tree && tree->type == SEL_TREE::IMPOSSIBLE)
-        {
-          /* 
-            Do not remove 'item' from 'cond'. We return a SEL_TREE::IMPOSSIBLE 
-            and that is sufficient for the caller to see that the whole
-            condition is never true.
-          */
-          break;
-        }
-      }
-    }
-    else
-    {                                           // COND OR
-      bool replace_cond= false;
-      Item *replacement_item= li++;
-      tree= get_mm_tree(param, li.ref());
-      if (param->statement_should_be_aborted())
-        DBUG_RETURN(NULL);
-      if (tree)
-      {
-        if (tree->type == SEL_TREE::IMPOSSIBLE &&
-            param->remove_false_where_parts)
-        {
-          /* See the other li.remove() call below */
-          li.remove();
-          if (((Item_cond*)cond)->argument_list()->elements <= 1)
-            replace_cond= true;
-        }
-
-        Item *item;
-        while ((item=li++))
-        {
-          SEL_TREE *new_tree=get_mm_tree(param,li.ref());
-          if (new_tree == NULL || param->statement_should_be_aborted())
-            DBUG_RETURN(NULL);
-          tree= tree_or(param,tree,new_tree);
-          if (tree == NULL || tree->type == SEL_TREE::ALWAYS)
-          {
-            replacement_item= *li.ref();
-            break;
-          }
-
-          if (new_tree && new_tree->type == SEL_TREE::IMPOSSIBLE &&
-              param->remove_false_where_parts)
-          {
-            /*
-              This is a condition in form
-
-                cond = item1 OR ... OR item_i OR ... itemN
-
-              and item_i produces SEL_TREE(IMPOSSIBLE). We should remove item_i 
-              from cond.  This may cause 'cond' to become a degenerate,
-              one-way OR. In that case, we replace 'cond' with the remaining
-              item_i.
-            */
-            li.remove();
-            if (((Item_cond*)cond)->argument_list()->elements <= 1)
-              replace_cond= true;
-          }
-          else
-            replacement_item= *li.ref();
-        }
-
-        if (replace_cond)
-          *cond_ptr= replacement_item;
-      }
-    }
-    DBUG_RETURN(tree);
-  }
   /* Here when simple cond */
-  if (cond->const_item())
+  if (const_item())
   {
-    if (cond->is_expensive())
+    if (is_expensive())
       DBUG_RETURN(0);
     /*
       During the cond->val_int() evaluation we can come across a subselect 
@@ -8074,8 +8075,8 @@ static SEL_TREE *get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr)
     */
     MEM_ROOT *tmp_root= param->mem_root;
     param->thd->mem_root= param->old_root;
-    tree= cond->val_int() ? new(tmp_root) SEL_TREE(SEL_TREE::ALWAYS) :
-                            new(tmp_root) SEL_TREE(SEL_TREE::IMPOSSIBLE);
+    tree= val_int() ? new(tmp_root) SEL_TREE(SEL_TREE::ALWAYS) :
+                      new(tmp_root) SEL_TREE(SEL_TREE::IMPOSSIBLE);
     param->thd->mem_root= tmp_root;
     DBUG_RETURN(tree);
   }
@@ -8083,23 +8084,23 @@ static SEL_TREE *get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr)
   table_map ref_tables= 0;
   table_map param_comp= ~(param->prev_tables | param->read_tables |
 		          param->current_table);
-  if (cond->type() != Item::FUNC_ITEM)
+  if (type() != Item::FUNC_ITEM)
   {						// Should be a field
-    ref_tables= cond->used_tables();
+    ref_tables= used_tables();
     if ((ref_tables & param->current_table) ||
 	(ref_tables & ~(param->prev_tables | param->read_tables)))
       DBUG_RETURN(0);
     DBUG_RETURN(new SEL_TREE(SEL_TREE::MAYBE));
   }
 
-  Item_func *cond_func= (Item_func*) cond;
+  Item_func *cond_func= (Item_func*) this;
   if (cond_func->functype() == Item_func::BETWEEN ||
       cond_func->functype() == Item_func::IN_FUNC)
     inv= ((Item_func_opt_neg *) cond_func)->negated;
   else if (cond_func->select_optimize() == Item_func::OPTIMIZE_NONE)
     DBUG_RETURN(0);			       
 
-  param->cond= cond;
+  param->cond= this;
 
   switch (cond_func->functype()) {
   case Item_func::BETWEEN:
@@ -8149,7 +8150,7 @@ static SEL_TREE *get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr)
   }
   case Item_func::MULT_EQUAL_FUNC:
   {
-    Item_equal *item_equal= (Item_equal *) cond;    
+    Item_equal *item_equal= (Item_equal *) this;
     if (!(value= item_equal->get_const()) || value->is_expensive())
       DBUG_RETURN(0);
     Item_equal_fields_iterator it(*item_equal);
@@ -8160,7 +8161,7 @@ static SEL_TREE *get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr)
       Item_result cmp_type= field->cmp_type();
       if (!((ref_tables | field->table->map) & param_comp))
       {
-        tree= get_mm_parts(param, cond, field, Item_func::EQ_FUNC,
+        tree= get_mm_parts(param, this, field, Item_func::EQ_FUNC,
 		           value,cmp_type);
         ftree= !ftree ? tree : tree_and(param, ftree, tree);
       }
