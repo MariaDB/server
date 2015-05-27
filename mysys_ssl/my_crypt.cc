@@ -292,16 +292,18 @@ C_MODE_END
 /**
   Get size of buffer which will be large enough for encrypted data
 
-  SYNOPSIS
-    my_aes_get_size()
-    @param source_length  [in] Length of data to be encrypted
+  The buffer should be sufficiently large to fit encrypted data
+  independently from the encryption algorithm and mode. With padding up to
+  MY_AES_BLOCK_SIZE bytes can be added. With GCM, exactly MY_AES_BLOCK_SIZE
+  bytes are added.
 
-  @return
-    Size of buffer required to store encrypted data
+  The actual length of the encrypted data is returned from the encryption
+  function (e.g. from my_aes_encrypt_cbc).
+
+  @return required buffer size
 */
 
-int my_aes_get_size(int source_length)
+uint my_aes_get_size(uint source_length)
 {
-  return MY_AES_BLOCK_SIZE * (source_length / MY_AES_BLOCK_SIZE)
-    + MY_AES_BLOCK_SIZE;
+  return source_length + MY_AES_BLOCK_SIZE;
 }

@@ -265,7 +265,7 @@ int init_io_cache(IO_CACHE *info, File file, size_t cachesize,
       if (type == SEQ_READ_APPEND)
 	buffer_block *= 2;
       else if (cache_myflags & MY_ENCRYPT)
-        buffer_block= 2*(buffer_block + MY_AES_BLOCK_SIZE) + sizeof(IO_CACHE_CRYPT);
+        buffer_block= 2*my_aes_get_size(buffer_block) + sizeof(IO_CACHE_CRYPT);
       if (cachesize == min_cache)
         flags|= (myf) MY_WME;
 

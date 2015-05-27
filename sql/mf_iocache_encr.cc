@@ -191,7 +191,7 @@ static int my_b_encr_write(IO_CACHE *info, const uchar *Buffer, size_t Count)
         buffer_length bytes should *always* produce block_length bytes
       */
       DBUG_ASSERT(crypt_data->block_length == 0 || crypt_data->block_length == wlength);
-      DBUG_ASSERT(elength <= length + MY_AES_BLOCK_SIZE);
+      DBUG_ASSERT(elength <= my_aes_get_size(length));
       crypt_data->block_length= wlength;
     }
     else

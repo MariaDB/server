@@ -73,7 +73,7 @@ int my_aes_decrypt_ecb(const uchar* source, uint source_length,
 
 int my_random_bytes(uchar* buf, int num);
 
-int my_aes_get_size(int source_length);
+uint my_aes_get_size(uint source_length);
 
 #ifdef __cplusplus
 }
