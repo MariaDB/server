@@ -297,16 +297,6 @@ ulong	srv_read_ahead_threshold	= 56;
 of the buffer pool. */
 uint	srv_change_buffer_max_size = CHANGE_BUFFER_DEFAULT_SIZE;
 
-/* This parameter is used to throttle the number of insert buffers that are
-merged in a batch. By increasing this parameter on a faster disk you can
-possibly reduce the number of I/O operations performed to complete the
-merge operation. The value of this parameter is used as is by the
-background loop when the system is idle (low load), on a busy system
-the parameter is scaled down by a factor of 4, this is to avoid putting
-a heavier load on the I/O sub system. */
-
-ulong	srv_insert_buffer_batch_size = 20;
-
 char*	srv_file_flush_method_str = NULL;
 
 
@@ -461,7 +451,7 @@ i/o handler thread */
 const char* srv_io_thread_op_info[SRV_MAX_N_IO_THREADS];
 const char* srv_io_thread_function[SRV_MAX_N_IO_THREADS];
 
-time_t	srv_last_monitor_time;
+static time_t	srv_last_monitor_time;
 
 static ib_mutex_t	srv_innodb_monitor_mutex;
 
@@ -486,8 +476,8 @@ ib_mutex_t	srv_misc_tmpfile_mutex;
 /** Temporary file for miscellanous diagnostic output */
 FILE*	srv_misc_tmpfile;
 
-ulint	srv_main_thread_process_no	= 0;
-ulint	srv_main_thread_id		= 0;
+static ulint	srv_main_thread_process_no	= 0;
+static ulint	srv_main_thread_id		= 0;
 
 /* The following counts are used by the srv_master_thread. */
 

@@ -18837,8 +18837,8 @@ innodb_change_buffer_max_size_update(
 }
 
 #ifdef UNIV_DEBUG
-ulong srv_fil_make_page_dirty_debug = 0;
-ulong srv_saved_page_number_debug = 0;
+static ulong srv_fil_make_page_dirty_debug = 0;
+static ulong srv_saved_page_number_debug = 0;
 
 /****************************************************************//**
 Save an InnoDB page number. */
