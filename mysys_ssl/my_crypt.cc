@@ -195,7 +195,7 @@ int my_aes_encrypt_ctr(const uchar* source, uint source_length,
     return MY_AES_OPENSSL_ERROR;
 
   DBUG_ASSERT(EVP_CIPHER_CTX_key_length(&ctx) == (int)key_length);
-  DBUG_ASSERT(EVP_CIPHER_CTX_iv_length(&ctx) == (int)iv_length);
+  DBUG_ASSERT(EVP_CIPHER_CTX_iv_length(&ctx) <= (int)iv_length);
   DBUG_ASSERT(EVP_CIPHER_CTX_block_size(&ctx) == 1);
 
   if (!EVP_CipherUpdate(&ctx, dest, (int*)dest_length, source, source_length))
@@ -208,6 +208,90 @@ int my_aes_encrypt_ctr(const uchar* source, uint source_length,
 }
 
 #endif /* HAVE_EncryptAes128Ctr */
+
+#ifdef HAVE_EncryptAes128Gcm
+make_aes_dispatcher(gcm)
+
+/*
+  special implementation for GCM; to fit OpenSSL AES-GCM into the
+  existing my_aes_* API it does the following:
+    - IV tail (over 12 bytes) goes to AAD
+    - the tag is appended to the ciphertext
+*/
+int do_gcm(const uchar* source, uint source_length,
+           uchar* dest, uint* dest_length,
+           const uchar* key, uint key_length,
+           const uchar* iv, uint iv_length, Dir dir)
+{
+  CipherMode cipher= aes_gcm(key_length);
+  struct MyCTX ctx;
+  int fin;
+  uint real_iv_length;
+
+  if (unlikely(!cipher))
+    return MY_AES_BAD_KEYSIZE;
+
+  if (!EVP_CipherInit_ex(&ctx, cipher, NULL, key, iv, dir))
+    return MY_AES_OPENSSL_ERROR;
+
+  real_iv_length= EVP_CIPHER_CTX_iv_length(&ctx);
+
+  DBUG_ASSERT(EVP_CIPHER_CTX_key_length(&ctx) == (int)key_length);
+  DBUG_ASSERT(real_iv_length <= iv_length);
+  DBUG_ASSERT(EVP_CIPHER_CTX_block_size(&ctx) == 1);
+
+  if (dir == CRYPT_DECRYPT)
+  {
+    source_length-= MY_AES_BLOCK_SIZE;
+    if(!EVP_CIPHER_CTX_ctrl(&ctx, EVP_CTRL_GCM_SET_TAG, MY_AES_BLOCK_SIZE,
+                            (void*)(source + source_length)))
+      return MY_AES_OPENSSL_ERROR;
+  }
+
+  if (real_iv_length < iv_length)
+  {
+    if (!EVP_CipherUpdate(&ctx, NULL, &fin,
+                          iv + real_iv_length, iv_length - real_iv_length))
+      return MY_AES_OPENSSL_ERROR;
+  }
+
+  if (!EVP_CipherUpdate(&ctx, dest, (int*)dest_length, source, source_length))
+    return MY_AES_OPENSSL_ERROR;
+
+  if (!EVP_CipherFinal_ex(&ctx, dest + *dest_length, &fin))
+    return MY_AES_BAD_DATA;
+  DBUG_ASSERT(fin == 0);
+
+  if (dir == CRYPT_ENCRYPT)
+  {
+    if(!EVP_CIPHER_CTX_ctrl(&ctx, EVP_CTRL_GCM_GET_TAG, MY_AES_BLOCK_SIZE,
+                            dest + *dest_length))
+      return MY_AES_OPENSSL_ERROR;
+    *dest_length+= MY_AES_BLOCK_SIZE;
+  }
+
+  return MY_AES_OK;
+}
+
+int my_aes_encrypt_gcm(const uchar* source, uint source_length,
+                       uchar* dest, uint* dest_length,
+                       const uchar* key, uint key_length,
+                       const uchar* iv, uint iv_length)
+{
+  return do_gcm(source, source_length, dest, dest_length,
+                key, key_length, iv, iv_length, CRYPT_ENCRYPT);
+}
+
+int my_aes_decrypt_gcm(const uchar* source, uint source_length,
+                       uchar* dest, uint* dest_length,
+                       const uchar* key, uint key_length,
+                       const uchar* iv, uint iv_length)
+{
+  return do_gcm(source, source_length, dest, dest_length,
+                key, key_length, iv, iv_length, CRYPT_DECRYPT);
+}
+
+#endif
 
 int my_aes_encrypt_ecb(const uchar* source, uint source_length,
                        uchar* dest, uint* dest_length,

@@ -47,6 +47,19 @@ int my_aes_encrypt_ctr(const uchar* source, uint source_length,
 
 #endif
 
+#ifdef HAVE_EncryptAes128Gcm
+
+int my_aes_encrypt_gcm(const uchar* source, uint source_length,
+                                uchar* dest, uint* dest_length,
+                                const uchar* key, uint key_length,
+                                const uchar* iv, uint iv_length);
+
+int my_aes_decrypt_gcm(const uchar* source, uint source_length,
+                                uchar* dest, uint* dest_length,
+                                const uchar* key, uint key_length,
+                                const uchar* iv, uint iv_length);
+#endif
+
 int my_aes_encrypt_cbc(const uchar* source, uint source_length,
                                 uchar* dest, uint* dest_length,
                                 const uchar* key, uint key_length,

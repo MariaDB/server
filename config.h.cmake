@@ -591,7 +591,7 @@
 #cmakedefine HAVE_UCA_COLLATIONS 1
 #cmakedefine HAVE_COMPRESS 1
 #cmakedefine HAVE_EncryptAes128Ctr 1
-
+#cmakedefine HAVE_EncryptAes128Gcm 1
 
 /*
   Stuff that always need to be defined (compile breaks without it)
