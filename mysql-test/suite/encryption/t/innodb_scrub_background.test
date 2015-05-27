@@ -129,16 +129,10 @@ if (!$success)
     SHOW STATUS LIKE 'innodb_%scrub%';
     -- die Timeout waiting for background threads
 }
+
 -- echo # Success!
 -- echo # stop scrubbing threads
 SET GLOBAL innodb_encryption_threads=0;
-
--- echo # verify that this test have caused background scrubbing
---sorted_result
-select sum(gs.variable_value - ss.variable_value) > 0 as should_be_1
-from snapshot_status ss,
-     information_schema.global_status gs
-where ss.variable_name = gs.variable_name;
 
 -- echo # restart mysqld so that all pages are flushed
 -- source include/restart_mysqld.inc

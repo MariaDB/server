@@ -55,13 +55,6 @@ SET GLOBAL innodb_encryption_threads=5;
 # Success!
 # stop scrubbing threads
 SET GLOBAL innodb_encryption_threads=0;
-# verify that this test have caused background scrubbing
-select sum(gs.variable_value - ss.variable_value) > 0 as should_be_1
-from snapshot_status ss,
-information_schema.global_status gs
-where ss.variable_name = gs.variable_name;
-should_be_1
-1
 # restart mysqld so that all pages are flushed
 # read all rows from table
 select * from t1;

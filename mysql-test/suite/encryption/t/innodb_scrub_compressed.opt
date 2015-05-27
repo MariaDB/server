@@ -4,10 +4,6 @@
 --innodb-background-scrub-data-uncompressed=ON
 --innodb-background-scrub-data-compressed=ON
 --loose-innodb-debug-force-scrubbing=ON
---encrypt-tmp-disk-tables=ON
---aria-encrypt-tables=ON
---innodb-encryption-threads=4
---innodb-encryption-rotate-key-age=15
---innodb-encrypt-tables=ON
---innodb-encrypt-log=ON
+--innodb-encrypt-tables=OFF
+--innodb-encrypt-log=OFF
 --innodb-tablespaces-scrubbing
