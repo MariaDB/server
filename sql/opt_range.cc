@@ -8102,7 +8102,7 @@ SEL_TREE *Item::get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr)
 SEL_TREE *
 Item_func_between::get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr)
 {
-  DBUG_ENTER("Item::get_mm_tree");
+  DBUG_ENTER("Item_func_between::get_mm_tree");
   if (const_item())
     DBUG_RETURN(get_mm_tree_for_const(param, this));
 
@@ -8202,7 +8202,7 @@ SEL_TREE *Item_equal::get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr)
 
 SEL_TREE *Item_func::get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr)
 {
-  DBUG_ENTER("Item::get_mm_tree");
+  DBUG_ENTER("Item_func::get_mm_tree");
   if (const_item())
     DBUG_RETURN(get_mm_tree_for_const(param, this));
 
