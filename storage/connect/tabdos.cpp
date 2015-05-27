@@ -17,7 +17,7 @@
 /*  Include relevant sections of the System header files.              */
 /***********************************************************************/
 #include "my_global.h"
-#if defined(WIN32)
+#if defined(__WIN__)
 #include <io.h>
 #include <sys\timeb.h>                   // For testing only
 #include <fcntl.h>
@@ -26,7 +26,7 @@
 #define __MFC_COMPAT__                   // To define min/max as macro
 #endif   // __BORLANDC__
 //#include <windows.h>
-#else   // !WIN32
+#else   // !__WIN__
 #if defined(UNIX)
 #include <errno.h>
 #include <unistd.h>
@@ -34,7 +34,7 @@
 #include <io.h>
 #endif  // !UNIX
 #include <fcntl.h>
-#endif  // !WIN32
+#endif  // !__WIN__
 
 /***********************************************************************/
 /*  Include application header files:                                  */
@@ -208,11 +208,11 @@ void DOSDEF::RemoveOptValues(PGLOBAL g)
 
   // Delete any eventually ill formed non matching optimization file
   if (!GetOptFileName(g, filename))
-#if defined(WIN32)
+#if defined(__WIN__)
     DeleteFile(filename);
 #else    // UNIX
     remove(filename);
-#endif   // WIN32
+#endif   // __WIN__
 
   Optimized = 0;
   } // end of RemoveOptValues
@@ -253,7 +253,7 @@ bool DOSDEF::DeleteIndexFile(PGLOBAL g, PIXDEF pxdf)
   /*********************************************************************/
   if (sep) {
     // Indexes are save in separate files
-#if !defined(UNIX)
+#if defined(__WIN__)
     char drive[_MAX_DRIVE];
 #else
     char *drive = NULL;
@@ -270,7 +270,7 @@ bool DOSDEF::DeleteIndexFile(PGLOBAL g, PIXDEF pxdf)
       strcat(strcat(fname, "_"), pxdf->GetName());
       _makepath(filename, drive, direc, fname, ftype);
       PlugSetPath(filename, filename, GetPath());
-#if defined(WIN32)
+#if defined(__WIN__)
       if (!DeleteFile(filename))
         rc |= (GetLastError() != ERROR_FILE_NOT_FOUND);
 #else    // UNIX
@@ -287,7 +287,7 @@ bool DOSDEF::DeleteIndexFile(PGLOBAL g, PIXDEF pxdf)
     // Drop all indexes, delete the common file
     PlugSetPath(filename, Ofn, GetPath());
     strcat(PlugRemoveType(filename, filename), ftype);
-#if defined(WIN32)
+#if defined(__WIN__)
     if (!DeleteFile(filename))
       rc = (GetLastError() != ERROR_FILE_NOT_FOUND);
 #else    // UNIX
@@ -956,7 +956,7 @@ bool TDBDOS::GetBlockValues(PGLOBAL g)
 #if 0
   if (Mode == MODE_INSERT && Txfp->GetAmType() == TYPE_AM_DOS)
     return false;
-#endif   // WIN32
+#endif   // __WIN__
 
   if (defp->Optimized)
     return false;                   // Already done or to be redone

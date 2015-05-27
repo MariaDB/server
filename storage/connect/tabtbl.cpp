@@ -39,7 +39,7 @@
 //#include "sql_base.h"
 #include "my_global.h"
 #include "table.h"       // MySQL table definitions
-#if defined(WIN32)
+#if defined(__WIN__)
 #include <stdlib.h>
 #include <stdio.h>
 #if defined(__BORLANDC__)
@@ -73,15 +73,15 @@
 #include "tabmysql.h"
 #include "ha_connect.h"
 
-#if defined(WIN32)
+#if defined(__WIN__)
 #if defined(__BORLANDC__)
 #define SYSEXIT void _USERENTRY
 #else
 #define SYSEXIT void
 #endif
-#else   // !WIN32
+#else   // !__WIN__
 #define SYSEXIT void *
-#endif  // !WIN32
+#endif  // !__WIN__
 
 /* ---------------------------- Class TBLDEF ---------------------------- */
 

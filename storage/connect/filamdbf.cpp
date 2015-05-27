@@ -22,12 +22,12 @@
 /*  Include relevant sections of the System header files.              */
 /***********************************************************************/
 #include "my_global.h"
-#if defined(WIN32)
+#if defined(__WIN__)
 #include <io.h>
 #include <fcntl.h>
 //#include <errno.h>
 //#include <windows.h>
-#else   // !WIN32
+#else   // !__WIN__
 #if defined(UNIX)
 #include <errno.h>
 #include <unistd.h>
@@ -35,7 +35,7 @@
 //#include <io.h>
 #endif  // !UNIX
 //#include <fcntl.h>
-#endif  // !WIN32
+#endif  // !__WIN__
 #include <ctype.h>
 #include <stdio.h>
 #include <string.h>
@@ -528,7 +528,7 @@ bool DBFFAM::AllocateBuffer(PGLOBAL g)
   To_Buf = (char*)PlugSubAlloc(g, NULL, Buflen);
 
   if (mode == MODE_INSERT) {
-#if defined(WIN32)
+#if defined(__WIN__)
     /************************************************************************/
     /*  Now we can revert to binary mode in particular because the eventual */
     /*  writing of a new header must be done in binary mode to avoid        */
@@ -538,7 +538,7 @@ bool DBFFAM::AllocateBuffer(PGLOBAL g)
       sprintf(g->Message, MSG(BIN_MODE_FAIL), strerror(errno));
       return true;
       } // endif setmode
-#endif   // WIN32
+#endif   // __WIN__
 
     /************************************************************************/
     /*  If this is a new file, the header must be generated.                */

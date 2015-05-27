@@ -24,11 +24,11 @@
 #if !defined(BLOCK_DEFINED)
 #define      BLOCK_DEFINED
 
-#if defined(WIN32) && !defined(NOEX)
+#if defined(__WIN__) && !defined(NOEX)
 #define DllExport  __declspec( dllexport )
-#else   // !WIN32
+#else   // !__WIN__
 #define DllExport
-#endif  // !WIN32
+#endif  // !__WIN__
 
 /***********************************************************************/
 /*  Definition of class BLOCK with its method function new.            */

@@ -30,7 +30,7 @@
 /***********************************************************************/
 #include <my_config.h>
 
-#if defined(WIN32)
+#if defined(__WIN__)
 //#include <windows.h>
 //#include <sqlext.h>
 #elif defined(UNIX)
@@ -66,10 +66,10 @@
 #include "tabfmt.h"
 #include "tabvct.h"
 #include "tabsys.h"
-#if defined(WIN32)
+#if defined(__WIN__)
 #include "tabmac.h"
 #include "tabwmi.h"
-#endif   // WIN32
+#endif   // __WIN__
 //#include "tabtbl.h"
 #include "tabxcl.h"
 #include "tabtbl.h"
@@ -93,9 +93,9 @@
 /***********************************************************************/
 /*  Extern static variables.                                           */
 /***********************************************************************/
-#if defined(WIN32)
+#if defined(__WIN__)
 extern "C" HINSTANCE s_hModule;           // Saved module handle
-#endif  // !WIN32
+#endif  // !__WIN__
 
 PQRYRES OEMColumns(PGLOBAL g, PTOS topt, char *tab, char *db, bool info);
 
@@ -142,7 +142,7 @@ TABTYPE GetTypeID(const char *type)
                  : (!stricmp(type, "MYSQL")) ? TAB_MYSQL
                  : (!stricmp(type, "MYPRX")) ? TAB_MYSQL
                  : (!stricmp(type, "DIR"))   ? TAB_DIR
-#ifdef WIN32
+#ifdef __WIN__
 	               : (!stricmp(type, "MAC"))   ? TAB_MAC
 	               : (!stricmp(type, "WMI"))   ? TAB_WMI
 #endif
@@ -349,11 +349,11 @@ PQRYRES OEMColumns(PGLOBAL g, PTOS topt, char *tab, char *db, bool info)
   typedef PQRYRES (__stdcall *XCOLDEF) (PGLOBAL, void*, char*, char*, bool);
   const char *module, *subtype;
   char    c, soname[_MAX_PATH], getname[40] = "Col";
-#if defined(WIN32)
+#if defined(__WIN__)
   HANDLE  hdll;               /* Handle to the external DLL            */
-#else   // !WIN32
+#else   // !__WIN__
   void   *hdll;               /* Handle for the loaded shared library  */
-#endif  // !WIN32
+#endif  // !__WIN__
   XCOLDEF coldef = NULL;
   PQRYRES qrp = NULL;
 
@@ -381,7 +381,7 @@ PQRYRES OEMColumns(PGLOBAL g, PTOS topt, char *tab, char *db, bool info)
     if (!c) break;
     } // endfor i
 
-#if defined(WIN32)
+#if defined(__WIN__)
   // Load the Dll implementing the table
   if (!(hdll = LoadLibrary(soname))) {
     char  buf[256];
@@ -401,7 +401,7 @@ PQRYRES OEMColumns(PGLOBAL g, PTOS topt, char *tab, char *db, bool info)
     FreeLibrary((HMODULE)hdll);
     return NULL;
     } // endif coldef
-#else   // !WIN32
+#else   // !__WIN__
   const char *error = NULL;
 
   // Load the desired shared library
@@ -418,7 +418,7 @@ PQRYRES OEMColumns(PGLOBAL g, PTOS topt, char *tab, char *db, bool info)
     dlclose(hdll);
     return NULL;
     } // endif coldef
-#endif  // !WIN32
+#endif  // !__WIN__
 
   // Just in case the external Get function does not set error messages
   sprintf(g->Message, "Error getting column info from %s", subtype);
@@ -426,11 +426,11 @@ PQRYRES OEMColumns(PGLOBAL g, PTOS topt, char *tab, char *db, bool info)
   // Get the table column definition
   qrp = coldef(g, topt, tab, db, info);
 
-#if defined(WIN32)
+#if defined(__WIN__)
   FreeLibrary((HMODULE)hdll);
-#else   // !WIN32
+#else   // !__WIN__
   dlclose(hdll);
-#endif  // !WIN32
+#endif  // !__WIN__
 
   return qrp;
   } // end of OEMColumns
@@ -442,11 +442,11 @@ PQRYRES OEMColumns(PGLOBAL g, PTOS topt, char *tab, char *db, bool info)
 /***********************************************************************/
 CATALOG::CATALOG(void)
   {
-#if defined(WIN32)
+#if defined(__WIN__)
 //DataPath= ".\\";
-#else   // !WIN32
+#else   // !__WIN__
 //DataPath= "./";
-#endif  // !WIN32
+#endif  // !__WIN__
   memset(&Ctb, 0, sizeof(CURTAB));
   Cbuf= NULL;
   Cblen= 0;
@@ -489,11 +489,11 @@ void MYCAT::SetPath(PGLOBAL g, LPCSTR *datapath, const char *path)
 		}
 
 		if (*path != '.') {
-#if defined(WIN32)
+#if defined(__WIN__)
 			char *s= "\\";
-#else   // !WIN32
+#else   // !__WIN__
 			char *s= "/";
-#endif  // !WIN32
+#endif  // !__WIN__
 			strcat(strcat(strcat(strcpy(buf, "."), s), path), s);
 		} else
 			strcpy(buf, path);
@@ -554,10 +554,10 @@ PRELDEF MYCAT::MakeTableDesc(PGLOBAL g, LPCSTR name, LPCSTR am)
 #if defined(ODBC_SUPPORT)
     case TAB_ODBC: tdp= new(g) ODBCDEF; break;
 #endif   // ODBC_SUPPORT
-#if defined(WIN32)
+#if defined(__WIN__)
     case TAB_MAC: tdp= new(g) MACDEF;   break;
     case TAB_WMI: tdp= new(g) WMIDEF;   break;
-#endif   // WIN32
+#endif   // __WIN__
     case TAB_OEM: tdp= new(g) OEMDEF;   break;
 	  case TAB_TBL: tdp= new(g) TBLDEF;   break;
 	  case TAB_XCL: tdp= new(g) XCLDEF;   break;

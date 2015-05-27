@@ -15,12 +15,12 @@
 #include <stdio.h>
 #include <fcntl.h>
 #include <errno.h>
-#if defined(WIN32)
+#if defined(__WIN__)
 #include <io.h>
 #include <winsock2.h>
 //#include <windows.h>
 #include <comdef.h>
-#else   // !WIN32
+#else   // !__WIN__
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -28,7 +28,7 @@
 //#include <ctype.h>
 #include "osutil.h"
 #define _O_RDONLY O_RDONLY
-#endif  // !WIN32
+#endif  // !__WIN__
 #include "resource.h"                        // for IDS_COLUMNS
 
 #define INCLUDE_TDBXML
@@ -53,11 +53,11 @@
 
 extern "C" char version[];
 
-#if defined(WIN32) && defined(DOMDOC_SUPPORT)
+#if defined(__WIN__) && defined(DOMDOC_SUPPORT)
 #define XMLSUP "MS-DOM"
-#else   // !WIN32
+#else   // !__WIN__
 #define XMLSUP "libxml2"
-#endif  // !WIN32
+#endif  // !__WIN__
 
 #define TYPE_UNKNOWN     12        /* Must be greater than other types */
 
@@ -155,11 +155,11 @@ PQRYRES XMLColumns(PGLOBAL g, char *db, char *tab, PTOS topt, bool info)
   tdp->Tabname = tab;
 
   if (!(op = GetStringTableOption(g, topt, "Xmlsup", NULL)))
-#if defined(WIN32)
+#if defined(__WIN__)
     tdp->Usedom = true;
-#else   // !WIN32
+#else   // !__WIN__
     tdp->Usedom = false;
-#endif  // !WIN32
+#endif  // !__WIN__
   else
     tdp->Usedom = (toupper(*op) == 'M' || toupper(*op) == 'D');
 
@@ -494,11 +494,11 @@ bool XMLDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
   // Note that if no support is specified, the default is MS-DOM
   // on Windows and libxml2 otherwise
   if (*buf == '*')
-#if defined(WIN32)
+#if defined(__WIN__)
     Usedom = true;
-#else   // !WIN32
+#else   // !__WIN__
     Usedom = false;
-#endif  // !WIN32
+#endif  // !__WIN__
   else
     Usedom = (toupper(*buf) == 'M' || toupper(*buf) == 'D');
 
@@ -878,7 +878,7 @@ bool TDBXML::Initialize(PGLOBAL g)
       Nlist = TabNode->GetChildElements(g);
 
     Docp->SetNofree(true);       // For libxml2
-#if defined(WIN32)
+#if defined(__WIN__)
   } catch(_com_error e) {
     // We come here if a DOM command threw an error
     char   buf[128];
@@ -892,7 +892,7 @@ bool TDBXML::Initialize(PGLOBAL g)
       sprintf(g->Message, "%s hr=%p", MSG(COM_ERROR), e.Error());
 
     goto error;
-#endif   // WIN32
+#endif   // __WIN__
 #if !defined(UNIX)
   } catch(...) {
     // Other errors

@@ -623,11 +623,11 @@ bool TDBJSN::SkipHeader(PGLOBAL g)
     return true;
 #endif   // _DEBUG
 
-#if defined(WIN32)
+#if defined(__WIN__)
 #define  Ending  2
-#else   // !WIN32
+#else   // !__WIN__
 #define  Ending  1
-#endif  // !WIN32
+#endif  // !__WIN__
 
   if (Pretty == 1) {
     if (Mode == MODE_INSERT || Mode == MODE_DELETE) {

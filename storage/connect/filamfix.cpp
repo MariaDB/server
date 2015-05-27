@@ -17,7 +17,7 @@
 /*  Include relevant sections of the System header files.              */
 /***********************************************************************/
 #include "my_global.h"
-#if defined(WIN32)
+#if defined(__WIN__)
 #include <io.h>
 #include <fcntl.h>
 #include <errno.h>
@@ -25,7 +25,7 @@
 #define __MFC_COMPAT__                   // To define min/max as macro
 #endif   // __BORLANDC__
 //#include <windows.h>
-#else   // !WIN32
+#else   // !__WIN__
 #if defined(UNIX)
 #include <errno.h>
 #include <unistd.h>
@@ -34,7 +34,7 @@
 #endif  // !UNIX
 #include <sys/stat.h>
 #include <fcntl.h>
-#endif  // !WIN32
+#endif  // !__WIN__
 
 /***********************************************************************/
 /*  Include application header files:                                  */
@@ -338,10 +338,10 @@ int FIXFAM::ReadBuffer(PGLOBAL g)
   } else if (feof(Stream)) {
     rc = RC_EF;
   } else {
-#if defined(UNIX)
-    sprintf(g->Message, MSG(READ_ERROR), To_File, strerror(errno));
-#else
+#if defined(__WIN__)
     sprintf(g->Message, MSG(READ_ERROR), To_File, _strerror(NULL));
+#else
+    sprintf(g->Message, MSG(READ_ERROR), To_File, strerror(errno));
 #endif
 
     if (trace)
@@ -678,7 +678,7 @@ BGXFAM::BGXFAM(PBGXFAM txfp) : FIXFAM(txfp)
 /***********************************************************************/
 bool BGXFAM::BigSeek(PGLOBAL g, HANDLE h, BIGINT pos, int org)
   {
-#if defined(WIN32)
+#if defined(__WIN__)
   char          buf[256];
   DWORD         drc;
   LARGE_INTEGER of;
@@ -694,14 +694,14 @@ bool BGXFAM::BigSeek(PGLOBAL g, HANDLE h, BIGINT pos, int org)
     sprintf(g->Message, MSG(SFP_ERROR), buf);
     return true;
     } // endif
-#else   // !WIN32
+#else   // !__WIN__
   if (lseek64(h, pos, org) < 0) {
 //  sprintf(g->Message, MSG(ERROR_IN_LSK), errno);
     sprintf(g->Message, "lseek64: %s", strerror(errno));
     printf("%s\n", g->Message);
     return true;
     } // endif
-#endif  // !WIN32
+#endif  // !__WIN__
 
   return false;
   } // end of BigSeek
@@ -714,7 +714,7 @@ int BGXFAM::BigRead(PGLOBAL g __attribute__((unused)),
   {
   int rc;
 
-#if defined(WIN32)
+#if defined(__WIN__)
   DWORD nbr, drc, len = (DWORD)req;
   bool  brc = ReadFile(h, inbuf, len, &nbr, NULL);
 
@@ -736,12 +736,12 @@ int BGXFAM::BigRead(PGLOBAL g __attribute__((unused)),
     rc = -1;
   } else
     rc = (int)nbr;
-#else   // !WIN32
+#else   // !__WIN__
   size_t  len = (size_t)req;
   ssize_t nbr = read(h, inbuf, len);
 
   rc = (int)nbr;
-#endif  // !WIN32
+#endif  // !__WIN__
 
   return rc;
   } // end of BigRead
@@ -753,7 +753,7 @@ bool BGXFAM::BigWrite(PGLOBAL g, HANDLE h, void *inbuf, int req)
   {
   bool rc = false;
 
-#if defined(WIN32)
+#if defined(__WIN__)
   DWORD nbw, drc, len = (DWORD)req;
   bool  brc = WriteFile(h, inbuf, len, &nbw, NULL);
 
@@ -780,7 +780,7 @@ bool BGXFAM::BigWrite(PGLOBAL g, HANDLE h, void *inbuf, int req)
 
     rc = true;
     } // endif brc || nbw
-#else   // !WIN32
+#else   // !__WIN__
   size_t  len = (size_t)req;
   ssize_t nbw = write(h, inbuf, len);
 
@@ -795,7 +795,7 @@ bool BGXFAM::BigWrite(PGLOBAL g, HANDLE h, void *inbuf, int req)
 
     rc = true;
     } // endif nbr
-#endif  // !WIN32
+#endif  // !__WIN__
 
   return rc;
   } // end of BigWrite
@@ -830,7 +830,7 @@ bool BGXFAM::OpenTableFile(PGLOBAL g)
   if (trace)
     htrc("OpenTableFile: filename=%s mode=%d\n", filename, mode);
 
-#if defined(WIN32)
+#if defined(__WIN__)
   DWORD rc, access, creation, share = 0;
 
   /*********************************************************************/
@@ -987,7 +987,7 @@ int BGXFAM::Cardinality(PGLOBAL g)
 
     PlugSetPath(filename, To_File, Tdbp->GetPath());
 
-#if defined(WIN32)  // OB
+#if defined(__WIN__)  // OB
     LARGE_INTEGER len;
     DWORD         rc = 0;
 
@@ -1346,7 +1346,7 @@ int BGXFAM::DeleteRecords(PGLOBAL g, int irc)
       /*****************************************************************/
       /*  Remove extra records.                                        */
       /*****************************************************************/
-#if defined(WIN32)
+#if defined(__WIN__)
       if (BigSeek(g, Hfile, (BIGINT)Tpos * (BIGINT)Lrecl))
         return RC_FX;
 
@@ -1356,12 +1356,12 @@ int BGXFAM::DeleteRecords(PGLOBAL g, int irc)
         sprintf(g->Message, MSG(SETEOF_ERROR), drc);
         return RC_FX;
         } // endif error
-#else   // !WIN32
+#else   // !__WIN__
       if (ftruncate64(Hfile, (BIGINT)(Tpos * Lrecl))) {
         sprintf(g->Message, MSG(TRUNCATE_ERROR), strerror(errno));
         return RC_FX;
         } // endif
-#endif  // !WIN32
+#endif  // !__WIN__
 
     } // endif UseTemp
 
@@ -1386,7 +1386,7 @@ bool BGXFAM::OpenTempFile(PGLOBAL g)
   strcat(PlugRemoveType(tempname, tempname), ".t");
   remove(tempname);       // Be sure it does not exist yet
 
-#if defined(WIN32)
+#if defined(__WIN__)
   Tfile = CreateFile(tempname, GENERIC_WRITE, 0, NULL,
                      CREATE_NEW, FILE_ATTRIBUTE_NORMAL, NULL);
 
@@ -1526,7 +1526,7 @@ void BGXFAM::CloseTableFile(PGLOBAL g, bool abort)
 void BGXFAM::Rewind(void)
   {
 #if 0    // This is probably unuseful because file is accessed directly
-#if defined(WIN32)  //OB
+#if defined(__WIN__)  //OB
   SetFilePointer(Hfile, 0, NULL, FILE_BEGIN);
 #else    // UNIX
   lseek64(Hfile, 0, SEEK_SET);

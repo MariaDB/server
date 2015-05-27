@@ -17,7 +17,7 @@
 /*  Include relevant MariaDB header file.                              */
 /***********************************************************************/
 #include "my_global.h"
-#if defined(WIN32)
+#if defined(__WIN__)
 #include <sqlext.h>
 #else
 #include <dlfcn.h>          // dlopen(), dlclose(), dlsym() ...
@@ -48,9 +48,9 @@
 #include "tabmul.h"
 #include "ha_connect.h"
 
-#if !defined(WIN32)
+#if !defined(__WIN__)
 extern handlerton *connect_hton;
-#endif   // !WIN32
+#endif   // !__WIN__
 
 /***********************************************************************/
 /*  External function.                                                 */
@@ -479,7 +479,7 @@ PTABDEF OEMDEF::GetXdef(PGLOBAL g)
   } else
     PlugSetPath(soname, Module, GetPluginDir());
     
-#if defined(WIN32)
+#if defined(__WIN__)
   // Is the DLL already loaded?
   if (!Hdll && !(Hdll = GetModuleHandle(soname)))
     // No, load the Dll implementing the function
@@ -508,7 +508,7 @@ PTABDEF OEMDEF::GetXdef(PGLOBAL g)
     FreeLibrary((HMODULE)Hdll);
     return NULL;
     } // endif getdef
-#else   // !WIN32
+#else   // !__WIN__
   const char *error = NULL;
   Dl_info dl_info;
     
@@ -551,7 +551,7 @@ PTABDEF OEMDEF::GetXdef(PGLOBAL g)
     dlclose(Hdll);
     return NULL;
     } // endif getdef
-#endif  // !WIN32
+#endif  // !__WIN__
 
   // Just in case the external Get function does not set error messages
   sprintf(g->Message, MSG(DEF_ALLOC_ERROR), Subtype);

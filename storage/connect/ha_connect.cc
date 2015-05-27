@@ -138,10 +138,10 @@
 #include "reldef.h"
 #include "tabcol.h"
 #include "xindex.h"
-#if defined(WIN32)
+#if defined(__WIN__)
 #include <io.h>
 #include "tabwmi.h"
-#endif   // WIN32
+#endif   // __WIN__
 #include "connect.h"
 #include "user_connect.h"
 #include "ha_connect.h"
@@ -170,12 +170,12 @@
 
 extern "C" {
        char  version[]= "Version 1.03.0007 April 30, 2015";
-#if defined(WIN32)
+#if defined(__WIN__)
        char  compver[]= "Version 1.03.0007 " __DATE__ " "  __TIME__;
        char slash= '\\';
-#else   // !WIN32
+#else   // !__WIN__
        char slash= '/';
-#endif  // !WIN32
+#endif  // !__WIN__
 } // extern "C"
 
 #if defined(XMAP)
@@ -629,11 +629,11 @@ static int connect_init_func(void *p)
   }
 #endif   // 0 (LINUX)
 
-#if defined(WIN32)
+#if defined(__WIN__)
   sql_print_information("CONNECT: %s", compver);
-#else   // !WIN32
+#else   // !__WIN__
   sql_print_information("CONNECT: %s", version);
-#endif  // !WIN32
+#endif  // !__WIN__
 
 #ifdef LIBXML2_SUPPORT
   XmlInitParserLib();
@@ -675,9 +675,9 @@ static int connect_done_func(void *)
   XmlCleanupParserLib();
 #endif   // LIBXML2_SUPPORT
 
-#if !defined(WIN32)
+#if !defined(__WIN__)
 //PROFILE_End();                Causes signal 11
-#endif   // !WIN32
+#endif   // !__WIN__
 
   for (pc= user_connect::to_users; pc; pc= pn) {
     if (pc->g)
@@ -744,11 +744,11 @@ ha_connect::ha_connect(handlerton *hton, TABLE_SHARE *table_arg)
   xp= (table) ? GetUser(ha_thd(), NULL) : NULL;
   if (xp)
     xp->SetHandler(this);
-#if defined(WIN32)
+#if defined(__WIN__)
   datapath= ".\\";
-#else   // !WIN32
+#else   // !__WIN__
   datapath= "./";
-#endif  // !WIN32
+#endif  // !__WIN__
   tdbp= NULL;
   sdvalin1= sdvalin2= sdvalin3= sdvalin4= NULL;
   sdvalout= NULL;
@@ -3992,11 +3992,11 @@ bool ha_connect::check_privileges(THD *thd, PTOS options, char *dbn)
     case TAB_JSON:
       if (options->filename && *options->filename) {
         char *s, path[FN_REFLEN], dbpath[FN_REFLEN];
-#if defined(WIN32)
+#if defined(__WIN__)
         s= "\\";
-#else   // !WIN32
+#else   // !__WIN__
         s= "/";
-#endif  // !WIN32
+#endif  // !__WIN__
         strcpy(dbpath, mysql_real_data_home);
 
         if (db)
@@ -5001,9 +5001,9 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
   const char *user, *fn, *db, *host, *pwd, *sep, *tbl, *src;
   const char *col, *ocl, *rnk, *pic, *fcl, *skc;
   char       *tab, *dsn, *shm, *dpath; 
-#if defined(WIN32)
+#if defined(__WIN__)
   char       *nsp= NULL, *cls= NULL;
-#endif   // WIN32
+#endif   // __WIN__
   int         port= 0, hdr= 0, mxr= 0, mxe= 0, rc= 0;
   int         cop __attribute__((unused))= 0, lrecl= 0;
 #if defined(ODBC_SUPPORT)
@@ -5066,10 +5066,10 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
     skc= GetListOption(g, "skipcol", topt->oplist, NULL);
     rnk= GetListOption(g, "rankcol", topt->oplist, NULL);
     pwd= GetListOption(g, "password", topt->oplist);
-#if defined(WIN32)
+#if defined(__WIN__)
     nsp= GetListOption(g, "namespace", topt->oplist);
     cls= GetListOption(g, "class", topt->oplist);
-#endif   // WIN32
+#endif   // __WIN__
     port= atoi(GetListOption(g, "port", topt->oplist, "0"));
 #if defined(ODBC_SUPPORT)
     mxr= atoi(GetListOption(g,"maxres", topt->oplist, "0"));
@@ -5226,11 +5226,11 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
         ok= false;
 
       break;
-#if defined(WIN32)
+#if defined(__WIN__)
     case TAB_WMI:
       ok= true;
       break;
-#endif   // WIN32
+#endif   // __WIN__
 #if defined(PIVOT_SUPPORT)
     case TAB_PIVOT:
       supfnc= FNC_NO;
@@ -5343,11 +5343,11 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
       case TAB_CSV:
         qrp= CSVColumns(g, dpath, fn, spc, qch, hdr, mxe, fnc == FNC_COL);
         break;
-#if defined(WIN32)
+#if defined(__WIN__)
       case TAB_WMI:
         qrp= WMIColumns(g, nsp, cls, fnc == FNC_COL);
         break;
-#endif   // WIN32
+#endif   // __WIN__
       case TAB_PRX:
       case TAB_TBL:
       case TAB_XCL:
@@ -5801,11 +5801,11 @@ int ha_connect::create(const char *name, TABLE *table_arg,
     // on Windows and libxml2 otherwise
     switch (*xsup) {
       case '*':
-#if defined(WIN32)
+#if defined(__WIN__)
         dom= true;
-#else   // !WIN32
+#else   // !__WIN__
         dom= false;
-#endif  // !WIN32
+#endif  // !__WIN__
         break;
       case 'M':
       case 'D':
@@ -6152,11 +6152,11 @@ bool ha_connect::FileExists(const char *fn, bool bf)
                      NULL, NULL, 0, 0))
       return true;
 
-#if defined(WIN32)
+#if defined(__WIN__)
     s= "\\";
-#else   // !WIN32
+#else   // !__WIN__
     s= "/";
-#endif  // !WIN32
+#endif  // !__WIN__
     if (IsPartitioned()) {
       sprintf(tfn, fn, GetPartName());
 

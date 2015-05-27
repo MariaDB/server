@@ -544,11 +544,11 @@ typedef  struct _colres {
   char    Var;                     /* Type added information           */
   } COLRES;
 
-#if defined(WIN32) && !defined(NOEX)
+#if defined(__WIN__) && !defined(NOEX)
 #define DllExport  __declspec( dllexport )
-#else   // !WIN32
+#else   // !__WIN__
 #define DllExport
-#endif  // !WIN32
+#endif  // !__WIN__
 
 /***********************************************************************/
 /*  Utility routines.                                                  */

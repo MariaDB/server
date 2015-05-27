@@ -17,7 +17,7 @@
 /*  Include relevant sections of the System header files.              */
 /***********************************************************************/
 #include "my_global.h"
-#if defined(WIN32)
+#if defined(__WIN__)
 #include <io.h>
 #include <fcntl.h>
 #include <errno.h>
@@ -25,7 +25,7 @@
 #define __MFC_COMPAT__                   // To define min/max as macro
 #endif   // __BORLANDC__
 //#include <windows.h>
-#else   // !WIN32
+#else   // !__WIN__
 #if defined(UNIX) || defined(UNIV_LINUX)
 #include <errno.h>
 #include <unistd.h>
@@ -36,7 +36,7 @@
 #include <io.h>
 #endif  // !UNIX
 #include <fcntl.h>
-#endif  // !WIN32
+#endif  // !__WIN__
 
 /***********************************************************************/
 /*  Include application header files:                                  */
@@ -716,10 +716,10 @@ int DOSFAM::SkipRecord(PGLOBAL g, bool header)
     if (feof(Stream))
       return RC_EF;
 
-#if defined(UNIX) || defined(UNIV_LINUX)
-    sprintf(g->Message, MSG(READ_ERROR), To_File, strerror(0));
-#else
+#if defined(__WIN__)
     sprintf(g->Message, MSG(READ_ERROR), To_File, _strerror(NULL));
+#else
+    sprintf(g->Message, MSG(READ_ERROR), To_File, strerror(0));
 #endif
     return RC_FX;
     } // endif fgets
@@ -799,12 +799,12 @@ int DOSFAM::ReadBuffer(PGLOBAL g)
     if (trace > 1)
       htrc(" Read: To_Buf=%p p=%c\n", To_Buf, To_Buf, p);
 
-#if defined(UNIX)
-    if (true) {
-      // Data files can be imported from Windows (having CRLF)
-#else
+#if defined(__WIN__)
     if (Bin) {
       // Data file is read in binary so CRLF remains
+#else
+    if (true) {
+      // Data files can be imported from Windows (having CRLF)
 #endif
       if (*p == '\n' || *p == '\r') {
         // is this enough for Unix ???
@@ -833,10 +833,10 @@ int DOSFAM::ReadBuffer(PGLOBAL g)
   } else if (feof(Stream)) {
     rc = RC_EF;
   } else {
-#if defined(UNIX)
-    sprintf(g->Message, MSG(READ_ERROR), To_File, strerror(0));
-#else
+#if defined(__WIN__)
     sprintf(g->Message, MSG(READ_ERROR), To_File, _strerror(NULL));
+#else
+    sprintf(g->Message, MSG(READ_ERROR), To_File, strerror(0));
 #endif
 
     if (trace)
@@ -1028,15 +1028,15 @@ int DOSFAM::DeleteRecords(PGLOBAL g, int irc)
       /*****************************************************************/
       /*  Remove extra records.                                        */
       /*****************************************************************/
-#if defined(UNIX)
-      if (ftruncate(h, (off_t)Tpos)) {
-        sprintf(g->Message, MSG(TRUNCATE_ERROR), strerror(errno));
+#if defined(__WIN__)
+      if (chsize(h, Tpos)) {
+        sprintf(g->Message, MSG(CHSIZE_ERROR), strerror(errno));
         close(h);
         return RC_FX;
         } // endif
 #else
-      if (chsize(h, Tpos)) {
-        sprintf(g->Message, MSG(CHSIZE_ERROR), strerror(errno));
+      if (ftruncate(h, (off_t)Tpos)) {
+        sprintf(g->Message, MSG(TRUNCATE_ERROR), strerror(errno));
         close(h);
         return RC_FX;
         } // endif
@@ -1466,10 +1466,10 @@ int BLKFAM::ReadBuffer(PGLOBAL g)
   } else if (feof(Stream)) {
     rc = RC_EF;
   } else {
-#if defined(UNIX)
-    sprintf(g->Message, MSG(READ_ERROR), To_File, strerror(errno));
-#else
+#if defined(__WIN__)
     sprintf(g->Message, MSG(READ_ERROR), To_File, _strerror(NULL));
+#else
+    sprintf(g->Message, MSG(READ_ERROR), To_File, strerror(errno));
 #endif
 
     if (trace)
@@ -1551,11 +1551,11 @@ int BLKFAM::WriteBuffer(PGLOBAL g)
       Spos = GetNextPos();                     // New start position
 
       // Prepare the output buffer
-#if defined(WIN32)
+#if defined(__WIN__)
       crlf = "\r\n";
 #else
       crlf = "\n";
-#endif   // WIN32
+#endif   // __WIN__
       strcat(strcpy(OutBuf, Tdbp->GetLine()), crlf);
       len = strlen(OutBuf);
     } else {
