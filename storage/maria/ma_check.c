@@ -4267,20 +4267,14 @@ int maria_repair_parallel(HA_CHECK *param, register MARIA_HA *info,
 
   if (!(sort_info.key_block=
 	alloc_key_blocks(param, (uint) param->sort_key_blocks,
-			 share->base.max_key_block_length)) ||
-      init_io_cache(&param->read_cache, info->dfile.file,
-                    (uint) param->read_buffer_length,
-                    READ_CACHE, share->pack.header_length, 1, MYF(MY_WME)) ||
-      (!rep_quick &&
-       (init_io_cache(&info->rec_cache, info->dfile.file,
-                      (uint) param->write_buffer_length,
-                      WRITE_CACHE, new_header_length, 1,
-                      MYF(MY_WME | MY_WAIT_IF_FULL) & param->myf_rw) ||
-        init_io_cache(&new_data_cache, -1,
-                      (uint) param->write_buffer_length,
-                      READ_CACHE, new_header_length, 1,
-                      MYF(MY_WME | MY_DONT_CHECK_FILESIZE)))))
+			 share->base.max_key_block_length)))
     goto err;
+
+  if (init_io_cache(&param->read_cache, info->dfile.file,
+                    (uint) param->read_buffer_length,
+                    READ_CACHE, share->pack.header_length, 1, MYF(MY_WME)))
+    goto err;
+
   sort_info.key_block_end=sort_info.key_block+param->sort_key_blocks;
   info->opt_flag|=WRITE_CACHE_USED;
   info->rec_cache.file= info->dfile.file;         /* for sort_delete_record */
@@ -4307,7 +4301,19 @@ int maria_repair_parallel(HA_CHECK *param, register MARIA_HA *info,
     if (param->testflag & T_UNPACK)
       restore_data_file_type(share);
     share->state.dellink= HA_OFFSET_ERROR;
-    info->rec_cache.file=new_file;
+
+    if (init_io_cache(&new_data_cache, -1,
+                        (uint) param->write_buffer_length,
+                        READ_CACHE, new_header_length, 1,
+                        MYF(MY_WME | MY_DONT_CHECK_FILESIZE)))
+      goto err;
+
+    if (init_io_cache(&info->rec_cache, new_file,
+                        (uint) param->write_buffer_length,
+                        WRITE_CACHE, new_header_length, 1,
+                        MYF(MY_WME | MY_WAIT_IF_FULL) & param->myf_rw))
+      goto err;
+
   }
 
   /* Optionally drop indexes and optionally modify the key_map. */
