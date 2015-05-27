@@ -94,3 +94,16 @@ install soname 'file_key_management';
 source filekeys_badtest.inc;
 let SEARCH_PATTERN=Syntax error;
 source filekeys_badtest.inc;
+#
+# no key id 1
+#
+remove_file $MYSQL_TMP_DIR/keys.txt;
+write_file $MYSQL_TMP_DIR/keys.txt;
+3;22222222222222222222222222222222
+EOF
+--replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR
+--error 2
+install soname 'file_key_management';
+source filekeys_badtest.inc;
+let SEARCH_PATTERN=System key id 1;
+source filekeys_badtest.inc;

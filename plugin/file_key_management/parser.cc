@@ -218,8 +218,14 @@ bool Parser::parse_file(Dynamic_array<keyentry> *keys, const char *secret)
   }
 
   keys->sort(sort_keys);
-
   my_free(buffer);
+
+  if (keys->at(0).id != 1)
+  {
+    report_error("System key id 1 is missing", 0);
+    return 1;
+  }
+
   return 0;
 }
 
