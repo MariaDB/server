@@ -655,6 +655,7 @@ public:
   void add_key_fields(JOIN *join, KEY_FIELD **key_fields,
                       uint *and_level, table_map usable_tables,
                       SARGABLE_PARAM **sargables);
+  SEL_TREE *get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr);
 };
 
 
@@ -1337,6 +1338,7 @@ public:
     { return OPTIMIZE_KEY; }
   void add_key_fields(JOIN *join, KEY_FIELD **key_fields, uint *and_level,
                       table_map usable_tables, SARGABLE_PARAM **sargables);
+  SEL_TREE *get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr);
   virtual void print(String *str, enum_query_type query_type);
   enum Functype functype() const { return IN_FUNC; }
   const char *func_name() const { return " IN "; }
@@ -1927,6 +1929,7 @@ public:
   void add_key_fields(JOIN *join, KEY_FIELD **key_fields,
                       uint *and_level, table_map usable_tables,
                       SARGABLE_PARAM **sargables);
+  SEL_TREE *get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr);
   bool walk(Item_processor processor, bool walk_subquery, uchar *arg);
   Item *transform(Item_transformer transformer, uchar *arg);
   virtual void print(String *str, enum_query_type query_type);

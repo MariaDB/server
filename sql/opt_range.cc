@@ -8053,160 +8053,199 @@ SEL_TREE *Item_cond::get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr)
 }
 
 
+static SEL_TREE *get_mm_tree_for_const(RANGE_OPT_PARAM *param, Item *cond)
+{
+  DBUG_ENTER("get_mm_tree_for_const");
+  if (cond->is_expensive())
+    DBUG_RETURN(0);
+  /*
+    During the cond->val_int() evaluation we can come across a subselect
+    item which may allocate memory on the thd->mem_root and assumes
+    all the memory allocated has the same life span as the subselect
+    item itself. So we have to restore the thread's mem_root here.
+  */
+  MEM_ROOT *tmp_root= param->mem_root;
+  param->thd->mem_root= param->old_root;
+  SEL_TREE *tree;
+  tree= cond->val_int() ? new(tmp_root) SEL_TREE(SEL_TREE::ALWAYS) :
+                          new(tmp_root) SEL_TREE(SEL_TREE::IMPOSSIBLE);
+  param->thd->mem_root= tmp_root;
+  DBUG_RETURN(tree);
+}
+
+
 SEL_TREE *Item::get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr)
 {
-  SEL_TREE *tree=0;
-  SEL_TREE *ftree= 0;
-  Item_field *field_item= 0;
-  bool inv= FALSE;
-  Item *value= 0;
   DBUG_ENTER("Item::get_mm_tree");
-
-  /* Here when simple cond */
   if (const_item())
-  {
-    if (is_expensive())
-      DBUG_RETURN(0);
-    /*
-      During the cond->val_int() evaluation we can come across a subselect 
-      item which may allocate memory on the thd->mem_root and assumes 
-      all the memory allocated has the same life span as the subselect 
-      item itself. So we have to restore the thread's mem_root here.
-    */
-    MEM_ROOT *tmp_root= param->mem_root;
-    param->thd->mem_root= param->old_root;
-    tree= val_int() ? new(tmp_root) SEL_TREE(SEL_TREE::ALWAYS) :
-                      new(tmp_root) SEL_TREE(SEL_TREE::IMPOSSIBLE);
-    param->thd->mem_root= tmp_root;
-    DBUG_RETURN(tree);
-  }
+    DBUG_RETURN(get_mm_tree_for_const(param, this));
 
-  table_map ref_tables= 0;
-  table_map param_comp= ~(param->prev_tables | param->read_tables |
-		          param->current_table);
-  if (type() != Item::FUNC_ITEM)
-  {						// Should be a field
-    ref_tables= used_tables();
-    if ((ref_tables & param->current_table) ||
-	(ref_tables & ~(param->prev_tables | param->read_tables)))
-      DBUG_RETURN(0);
-    DBUG_RETURN(new SEL_TREE(SEL_TREE::MAYBE));
-  }
+  /*
+    Here we have a not-constant non-function Item.
 
-  Item_func *cond_func= (Item_func*) this;
-  if (cond_func->functype() == Item_func::BETWEEN ||
-      cond_func->functype() == Item_func::IN_FUNC)
-    inv= ((Item_func_opt_neg *) cond_func)->negated;
-  else if (cond_func->select_optimize() == Item_func::OPTIMIZE_NONE)
-    DBUG_RETURN(0);			       
+    Item_field should not appear, as normalize_cond() replaces
+    "WHERE field" to "WHERE field<>0".
+
+    Item_exists_subselect is possible, e.g. in this query:
+    SELECT id, st FROM t1
+    WHERE st IN ('GA','FL') AND EXISTS (SELECT 1 FROM t2 WHERE t2.id=t1.id)
+    GROUP BY id;
+  */
+  table_map ref_tables= used_tables();
+  if ((ref_tables & param->current_table) ||
+      (ref_tables & ~(param->prev_tables | param->read_tables)))
+    DBUG_RETURN(0);
+  DBUG_RETURN(new SEL_TREE(SEL_TREE::MAYBE));
+}
+
+
+SEL_TREE *
+Item_func_between::get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr)
+{
+  DBUG_ENTER("Item::get_mm_tree");
+  if (const_item())
+    DBUG_RETURN(get_mm_tree_for_const(param, this));
 
   param->cond= this;
 
-  switch (cond_func->functype()) {
-  case Item_func::BETWEEN:
-    if (cond_func->arguments()[0]->real_item()->type() == Item::FIELD_ITEM)
-    {
-      field_item= (Item_field*) (cond_func->arguments()[0]->real_item());
-      ftree= get_full_func_mm_tree(param, cond_func, field_item, NULL, inv);
-    }
+  SEL_TREE *tree= 0;
+  SEL_TREE *ftree= 0;
 
-    /*
-      Concerning the code below see the NOTES section in
-      the comments for the function get_full_func_mm_tree()
-    */
-    for (uint i= 1 ; i < cond_func->arg_count ; i++)
-    {
-      if (cond_func->arguments()[i]->real_item()->type() == Item::FIELD_ITEM)
-      {
-        field_item= (Item_field*) (cond_func->arguments()[i]->real_item());
-        SEL_TREE *tmp= get_full_func_mm_tree(param, cond_func, 
-                                    field_item, (Item*)(intptr)i, inv);
-        if (inv)
-        {
-          tree= !tree ? tmp : tree_or(param, tree, tmp);
-          if (tree == NULL)
-            break;
-        }
-        else 
-          tree= tree_and(param, tree, tmp);
-      }
-      else if (inv)
-      { 
-        tree= 0;
-        break;
-      }
-    }
-
-    ftree = tree_and(param, ftree, tree);
-    break;
-  case Item_func::IN_FUNC:
+  if (arguments()[0]->real_item()->type() == Item::FIELD_ITEM)
   {
-    Item_func_in *func=(Item_func_in*) cond_func;
-    if (func->key_item()->real_item()->type() != Item::FIELD_ITEM)
-      DBUG_RETURN(0);
-    field_item= (Item_field*) (func->key_item()->real_item());
-    ftree= get_full_func_mm_tree(param, cond_func, field_item, NULL, inv);
-    break;
+    Item_field *field_item= (Item_field*) (arguments()[0]->real_item());
+    ftree= get_full_func_mm_tree(param, this, field_item, NULL, negated);
   }
-  case Item_func::MULT_EQUAL_FUNC:
+
+  /*
+    Concerning the code below see the NOTES section in
+    the comments for the function get_full_func_mm_tree()
+  */
+  for (uint i= 1 ; i < arg_count ; i++)
   {
-    Item_equal *item_equal= (Item_equal *) this;
-    if (!(value= item_equal->get_const()) || value->is_expensive())
-      DBUG_RETURN(0);
-    Item_equal_fields_iterator it(*item_equal);
-    ref_tables= value->used_tables();
-    while (it++)
+    if (arguments()[i]->real_item()->type() == Item::FIELD_ITEM)
     {
-      Field *field= it.get_curr_field();
-      Item_result cmp_type= field->cmp_type();
-      if (!((ref_tables | field->table->map) & param_comp))
+      Item_field *field_item= (Item_field*) (arguments()[i]->real_item());
+      SEL_TREE *tmp= get_full_func_mm_tree(param, this, field_item,
+                                           (Item*)(intptr) i, negated);
+      if (negated)
       {
-        tree= get_mm_parts(param, this, field, Item_func::EQ_FUNC,
-		           value,cmp_type);
-        ftree= !ftree ? tree : tree_and(param, ftree, tree);
+        tree= !tree ? tmp : tree_or(param, tree, tmp);
+        if (tree == NULL)
+          break;
       }
+      else
+        tree= tree_and(param, tree, tmp);
     }
-    
-    DBUG_RETURN(ftree);
+    else if (negated)
+    {
+      tree= 0;
+      break;
+    }
   }
-  default:
 
-    DBUG_ASSERT (!ftree);
-    if (cond_func->arguments()[0]->real_item()->type() == Item::FIELD_ITEM)
+  ftree= tree_and(param, ftree, tree);
+  DBUG_RETURN(ftree);
+}
+
+
+SEL_TREE *Item_func_in::get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr)
+{
+  DBUG_ENTER("Item_func_in::get_mm_tree");
+  if (const_item())
+    DBUG_RETURN(get_mm_tree_for_const(param, this));
+
+  param->cond= this;
+
+  if (key_item()->real_item()->type() != Item::FIELD_ITEM)
+    DBUG_RETURN(0);
+  Item_field *field= (Item_field*) (key_item()->real_item());
+  SEL_TREE *tree= get_full_func_mm_tree(param, this, field, NULL, negated);
+  DBUG_RETURN(tree);
+}
+
+
+SEL_TREE *Item_equal::get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr)
+{
+  DBUG_ENTER("Item_equal::get_mm_tree");
+  if (const_item())
+    DBUG_RETURN(get_mm_tree_for_const(param, this));
+
+  param->cond= this;
+
+  SEL_TREE *tree= 0;
+  SEL_TREE *ftree= 0;
+
+  Item *value;
+  if (!(value= get_const()) || value->is_expensive())
+    DBUG_RETURN(0);
+
+  Item_equal_fields_iterator it(*this);
+  table_map ref_tables= value->used_tables();
+  table_map param_comp= ~(param->prev_tables | param->read_tables |
+		          param->current_table);
+  while (it++)
+  {
+    Field *field= it.get_curr_field();
+    Item_result cmp_type= field->cmp_type();
+    if (!((ref_tables | field->table->map) & param_comp))
     {
-      field_item= (Item_field*) (cond_func->arguments()[0]->real_item());
-      value= cond_func->arg_count > 1 ? cond_func->arguments()[1] : NULL;
-      if (value && value->is_expensive())
-        DBUG_RETURN(0);
-      if (!cond_func->arguments()[0]->real_item()->const_item())
-        ftree= get_full_func_mm_tree(param, cond_func, field_item, value, inv);
+      tree= get_mm_parts(param, this, field, Item_func::EQ_FUNC,
+                         value, cmp_type);
+      ftree= !ftree ? tree : tree_and(param, ftree, tree);
     }
-    /*
-      Even if get_full_func_mm_tree() was executed above and did not
-      return a range predicate it may still be possible to create one
-      by reversing the order of the operands. Note that this only
-      applies to predicates where both operands are fields. Example: A
-      query of the form
+  }
 
-         WHERE t1.a OP t2.b
+  DBUG_RETURN(ftree);
+}
 
-      In this case, arguments()[0] == t1.a and arguments()[1] == t2.b.
-      When creating range predicates for t2, get_full_func_mm_tree()
-      above will return NULL because 'field' belongs to t1 and only
-      predicates that applies to t2 are of interest. In this case a
-      call to get_full_func_mm_tree() with reversed operands (see
-      below) may succeed.
-    */
-    if (!ftree && cond_func->have_rev_func() &&
-        cond_func->arguments()[1]->real_item()->type() == Item::FIELD_ITEM)
-    {
-      field_item= (Item_field*) (cond_func->arguments()[1]->real_item());
-      value= cond_func->arguments()[0];
-      if (value && value->is_expensive())
-        DBUG_RETURN(0);
-      if (!cond_func->arguments()[1]->real_item()->const_item())
-        ftree= get_full_func_mm_tree(param, cond_func, field_item, value, inv);
-    }
+
+SEL_TREE *Item_func::get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr)
+{
+  DBUG_ENTER("Item::get_mm_tree");
+  if (const_item())
+    DBUG_RETURN(get_mm_tree_for_const(param, this));
+
+  if (select_optimize() == Item_func::OPTIMIZE_NONE)
+    DBUG_RETURN(0);
+
+  param->cond= this;
+
+  SEL_TREE *ftree= 0;
+  if (arguments()[0]->real_item()->type() == Item::FIELD_ITEM)
+  {
+    Item_field *field_item= (Item_field*) (arguments()[0]->real_item());
+    Item *value= arg_count > 1 ? arguments()[1] : NULL;
+    if (value && value->is_expensive())
+      DBUG_RETURN(0);
+    if (!arguments()[0]->real_item()->const_item())
+      ftree= get_full_func_mm_tree(param, this, field_item, value, false);
+  }
+  /*
+    Even if get_full_func_mm_tree() was executed above and did not
+    return a range predicate it may still be possible to create one
+    by reversing the order of the operands. Note that this only
+    applies to predicates where both operands are fields. Example: A
+    query of the form
+
+       WHERE t1.a OP t2.b
+
+    In this case, arguments()[0] == t1.a and arguments()[1] == t2.b.
+    When creating range predicates for t2, get_full_func_mm_tree()
+    above will return NULL because 'field' belongs to t1 and only
+    predicates that applies to t2 are of interest. In this case a
+    call to get_full_func_mm_tree() with reversed operands (see
+    below) may succeed.
+  */
+  if (!ftree && have_rev_func() &&
+      arguments()[1]->real_item()->type() == Item::FIELD_ITEM)
+  {
+    Item_field *field_item= (Item_field*) (arguments()[1]->real_item());
+    Item *value= arguments()[0];
+    if (value && value->is_expensive())
+      DBUG_RETURN(0);
+    if (!arguments()[1]->real_item()->const_item())
+      ftree= get_full_func_mm_tree(param, this, field_item, value, false);
   }
 
   DBUG_RETURN(ftree);

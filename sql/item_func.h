@@ -134,6 +134,7 @@ public:
   COND *build_equal_items(THD *thd, COND_EQUAL *inherited,
                           bool link_item_fields,
                           COND_EQUAL **cond_equal_ref);
+  SEL_TREE *get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr);
   bool eq(const Item *item, bool binary_cmp) const;
   virtual optimize_type select_optimize() const { return OPTIMIZE_NONE; }
   virtual bool have_rev_func() const { return 0; }
