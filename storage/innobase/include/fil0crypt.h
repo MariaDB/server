@@ -27,7 +27,7 @@ Created 04/01/2015 Jan Lindström
 #define fil0crypt_h
 
 /* This key will be used if nothing else is given */
-#define FIL_DEFAULT_ENCRYPTION_KEY 1
+#define FIL_DEFAULT_ENCRYPTION_KEY ENCRYPTION_KEY_SYSTEM_DATA
 
 /** Enum values for encryption table option */
 typedef enum {

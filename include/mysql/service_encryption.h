@@ -32,6 +32,9 @@ extern "C" {
 #define ENCRYPTION_KEY_VERSION_INVALID        (~(unsigned int)0)
 #define ENCRYPTION_KEY_NOT_ENCRYPTED          (0)
 
+#define ENCRYPTION_KEY_SYSTEM_DATA             1
+#define ENCRYPTION_KEY_TEMPORARY_DATA          2
+
 /* returned from encryption_key_get()  */
 #define ENCRYPTION_KEY_BUFFER_TOO_SMALL    (100)
 

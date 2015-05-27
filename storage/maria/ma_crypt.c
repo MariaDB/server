@@ -20,8 +20,6 @@
 #include "ma_blockrec.h"
 #include <my_crypt.h>
 
-#define HARD_CODED_ENCRYPTION_KEY_ID 1
-
 #define CRYPT_SCHEME_1         1
 #define CRYPT_SCHEME_1_ID_LEN  4 /* 4 bytes for counter-block */
 #define CRYPT_SCHEME_1_IV_LEN           16
@@ -43,6 +41,24 @@ struct st_maria_crypt_data
   uint space;
   mysql_mutex_t lock;          /* protecting keys */
 };
+
+/**
+  determine what key id to use for Aria encryption
+
+  Same logic as for tempfiles: if key id 2 exists - use it,
+  otherwise use key id 1.
+
+  Key id 1 is system, it always exists. Key id 2 is optional,
+  it allows to specify fast low-grade encryption for temporary data.
+*/
+static uint get_encryption_key_id(MARIA_SHARE *share)
+{
+  if (share->options & HA_OPTION_TMP_TABLE &&
+      encryption_key_id_exists(ENCRYPTION_KEY_TEMPORARY_DATA))
+    return ENCRYPTION_KEY_TEMPORARY_DATA;
+  else
+    return ENCRYPTION_KEY_SYSTEM_DATA;
+}
 
 uint
 ma_crypt_get_data_page_header_space()
@@ -90,7 +106,7 @@ ma_crypt_create(MARIA_SHARE* share)
   crypt_data->scheme.type= CRYPT_SCHEME_1;
   crypt_data->scheme.locker= crypt_data_scheme_locker;
   mysql_mutex_init(key_CRYPT_DATA_lock, &crypt_data->lock, MY_MUTEX_INIT_FAST);
-  crypt_data->scheme.key_id= HARD_CODED_ENCRYPTION_KEY_ID;
+  crypt_data->scheme.key_id= get_encryption_key_id(share);
   my_random_bytes(crypt_data->scheme.iv, sizeof(crypt_data->scheme.iv));
   my_random_bytes((uchar*)&crypt_data->space, sizeof(crypt_data->space));
   share->crypt_data= crypt_data;
@@ -156,7 +172,7 @@ ma_crypt_read(MARIA_SHARE* share, uchar *buff)
     mysql_mutex_init(key_CRYPT_DATA_lock, &crypt_data->lock,
                      MY_MUTEX_INIT_FAST);
     crypt_data->scheme.locker= crypt_data_scheme_locker;
-    crypt_data->scheme.key_id= HARD_CODED_ENCRYPTION_KEY_ID;
+    crypt_data->scheme.key_id= get_encryption_key_id(share);
     crypt_data->space= uint4korr(buff + 2);
     memcpy(crypt_data->scheme.iv, buff + 6, sizeof(crypt_data->scheme.iv));
     share->crypt_data= crypt_data;
@@ -314,7 +330,7 @@ void ma_crypt_set_data_pagecache_callbacks(PAGECACHE_FILE *file,
                                            __attribute__((unused)))
 {
   /* Only use encryption if we have defined it */
-  if (encryption_key_id_exists(HARD_CODED_ENCRYPTION_KEY_ID))
+  if (encryption_key_id_exists(get_encryption_key_id(share)))
   {
     file->pre_read_hook= ma_crypt_pre_read_hook;
     file->post_read_hook= ma_crypt_data_post_read_hook;

@@ -232,9 +232,13 @@ void init_io_cache_encryption()
 {
   if (encrypt_tmp_files)
   {
-    keyver= encryption_key_get_latest_version(keyid= 2);
+    keyid= ENCRYPTION_KEY_TEMPORARY_DATA;
+    keyver= encryption_key_get_latest_version(keyid);
     if (keyver == ENCRYPTION_KEY_VERSION_INVALID)
-      keyver= encryption_key_get_latest_version(keyid= 1);
+    {
+      keyid= ENCRYPTION_KEY_SYSTEM_DATA;
+      keyver= encryption_key_get_latest_version(keyid);
+    }
   }
   else
     keyver= ENCRYPTION_KEY_VERSION_INVALID;
