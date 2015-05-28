@@ -19,17 +19,23 @@ where variable_name='innodb_encrypt_tables';
 VARIABLE_NAME	VARIABLE_VALUE
 INNODB_ENCRYPT_TABLES	OFF
 set global innodb_encrypt_tables=ON;
+ERROR 42000: Variable 'innodb_encrypt_tables' can't be set to the value of 'ON'
+show warnings;
+Level	Code	Message
+Warning	138	InnoDB: cannot enable encryption, encryption plugin is not available
+Error	1231	Variable 'innodb_encrypt_tables' can't be set to the value of 'ON'
 select @@global.innodb_encrypt_tables;
 @@global.innodb_encrypt_tables
-ON
+OFF
 set global innodb_encrypt_tables=OFF;
 select @@global.innodb_encrypt_tables;
 @@global.innodb_encrypt_tables
 OFF
 set global innodb_encrypt_tables=1;
+ERROR 42000: Variable 'innodb_encrypt_tables' can't be set to the value of '1'
 select @@global.innodb_encrypt_tables;
 @@global.innodb_encrypt_tables
-ON
+OFF
 set session innodb_encrypt_tables=1;
 ERROR HY000: Variable 'innodb_encrypt_tables' is a GLOBAL variable and should be set with SET GLOBAL
 set global innodb_encrypt_tables=1.1;

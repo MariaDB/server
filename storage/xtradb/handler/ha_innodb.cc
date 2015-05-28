@@ -20383,7 +20383,7 @@ static MYSQL_SYSVAR_ENUM(encrypt_tables, srv_encrypt_tables,
 			 PLUGIN_VAR_OPCMDARG,
 			 "Enable encryption for tables. "
 			 "Don't forget to enable --innodb-encrypt-log too",
-			 NULL,
+			 innodb_encrypt_tables_validate,
 			 innodb_encrypt_tables_update,
 			 0,
 			 &srv_encrypt_tables_typelib);
