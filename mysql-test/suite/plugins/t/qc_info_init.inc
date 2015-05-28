@@ -22,7 +22,9 @@ select @@autocommit into @autocommit;
 select @@group_concat_max_len into @group_concat_max_len;
 select Name into @new_time_zone from mysql.time_zone_name limit 1;
 set time_zone=@new_time_zone,default_week_format=4,character_set_client='binary',character_set_results='utf32',collation_connection='utf32_bin',sql_mode='STRICT_ALL_TABLES',div_precision_increment=7,lc_time_names='ar_SD',autocommit=0, group_concat_max_len=513, max_sort_length=1011;
+--disable_result_log
 select * from t1;
+--enable_result_log
 set time_zone= @time_zone, default_week_format= @default_week_format, character_set_client= @character_set_client,character_set_results= @character_set_results, sql_mode= @sql_mode, div_precision_increment= @div_precision_increment, lc_time_names= @lc_time_names, autocommit= @autocommit, group_concat_max_len= @group_concat_max_len, max_sort_length= @max_sort_length;
 
 select * from information_schema.query_cache_info;
