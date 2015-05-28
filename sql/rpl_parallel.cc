@@ -275,6 +275,74 @@ register_wait_for_prior_event_group_commit(rpl_group_info *rgi,
 }
 
 
+/*
+  Do not start parallel execution of this event group until all prior groups
+  have reached the commit phase that are not safe to run in parallel with.
+*/
+static bool
+do_gco_wait(rpl_group_info *rgi, group_commit_orderer *gco,
+            bool *did_enter_cond, PSI_stage_info *old_stage)
+{
+  THD *thd= rgi->thd;
+  rpl_parallel_entry *entry= rgi->parallel_entry;
+  uint64 wait_count;
+
+  if (!gco->installed)
+  {
+    group_commit_orderer *prev_gco= gco->prev_gco;
+    if (prev_gco)
+    {
+      prev_gco->last_sub_id= gco->prior_sub_id;
+      prev_gco->next_gco= gco;
+    }
+    gco->installed= true;
+  }
+  wait_count= gco->wait_count;
+  if (wait_count > entry->count_committing_event_groups)
+  {
+    DEBUG_SYNC(thd, "rpl_parallel_start_waiting_for_prior");
+    thd->ENTER_COND(&gco->COND_group_commit_orderer,
+                    &entry->LOCK_parallel_entry,
+                    &stage_waiting_for_prior_transaction_to_start_commit,
+                    old_stage);
+    *did_enter_cond= true;
+    do
+    {
+      if (thd->check_killed() && !rgi->worker_error)
+      {
+        DEBUG_SYNC(thd, "rpl_parallel_start_waiting_for_prior_killed");
+        thd->clear_error();
+        thd->get_stmt_da()->reset_diagnostics_area();
+        thd->send_kill_message();
+        slave_output_error_info(rgi, thd);
+        signal_error_to_sql_driver_thread(thd, rgi, 1);
+        /*
+          Even though we were killed, we need to continue waiting for the
+          prior event groups to signal that we can continue. Otherwise we
+          mess up the accounting for ordering. However, now that we have
+          marked the error, events will just be skipped rather than
+          executed, and things will progress quickly towards stop.
+        */
+      }
+      mysql_cond_wait(&gco->COND_group_commit_orderer,
+                      &entry->LOCK_parallel_entry);
+    } while (wait_count > entry->count_committing_event_groups);
+  }
+
+  if (entry->force_abort && wait_count > entry->stop_count)
+  {
+    /*
+      We are stopping (STOP SLAVE), and this event group is beyond the point
+      where we can safely stop. So return a flag that will cause us to skip,
+      rather than execute, the following events.
+    */
+    return true;
+  }
+  else
+    return false;
+}
+
+
 #ifndef DBUG_OFF
 static int
 dbug_simulate_tmp_error(rpl_group_info *rgi, THD *thd)
@@ -768,7 +836,6 @@ handle_rpl_parallel_thread(void *arg)
       {
         bool did_enter_cond= false;
         PSI_stage_info old_stage;
-        uint64 wait_count;
 
         DBUG_EXECUTE_IF("rpl_parallel_scheduled_gtid_0_x_100", {
             if (rgi->current_gtid.domain_id == 0 &&
@@ -806,72 +873,19 @@ handle_rpl_parallel_thread(void *arg)
         event_gtid_sub_id= rgi->gtid_sub_id;
         rgi->thd= thd;
 
+        mysql_mutex_lock(&entry->LOCK_parallel_entry);
+        skip_event_group= do_gco_wait(rgi, gco, &did_enter_cond, &old_stage);
+
+        if (unlikely(entry->stop_on_error_sub_id <= rgi->wait_commit_sub_id))
+          skip_event_group= true;
+        if (likely(!skip_event_group))
+          do_ftwrl_wait(rgi, &did_enter_cond, &old_stage);
+
         /*
           Register ourself to wait for the previous commit, if we need to do
           such registration _and_ that previous commit has not already
           occured.
-
-          Also do not start parallel execution of this event group until all
-          prior groups have reached the commit phase that are not safe to run
-          in parallel with.
         */
-        mysql_mutex_lock(&entry->LOCK_parallel_entry);
-        if (!gco->installed)
-        {
-          group_commit_orderer *prev_gco= gco->prev_gco;
-          if (prev_gco)
-          {
-            prev_gco->last_sub_id= gco->prior_sub_id;
-            prev_gco->next_gco= gco;
-          }
-          gco->installed= true;
-        }
-        wait_count= gco->wait_count;
-        if (wait_count > entry->count_committing_event_groups)
-        {
-          DEBUG_SYNC(thd, "rpl_parallel_start_waiting_for_prior");
-          thd->ENTER_COND(&gco->COND_group_commit_orderer,
-                          &entry->LOCK_parallel_entry,
-                          &stage_waiting_for_prior_transaction_to_start_commit,
-                          &old_stage);
-          did_enter_cond= true;
-          do
-          {
-            if (thd->check_killed() && !rgi->worker_error)
-            {
-              DEBUG_SYNC(thd, "rpl_parallel_start_waiting_for_prior_killed");
-              thd->clear_error();
-              thd->get_stmt_da()->reset_diagnostics_area();
-              thd->send_kill_message();
-              slave_output_error_info(rgi, thd);
-              signal_error_to_sql_driver_thread(thd, rgi, 1);
-              /*
-                Even though we were killed, we need to continue waiting for the
-                prior event groups to signal that we can continue. Otherwise we
-                mess up the accounting for ordering. However, now that we have
-                marked the error, events will just be skipped rather than
-                executed, and things will progress quickly towards stop.
-              */
-            }
-            mysql_cond_wait(&gco->COND_group_commit_orderer,
-                            &entry->LOCK_parallel_entry);
-          } while (wait_count > entry->count_committing_event_groups);
-        }
-
-        if (entry->force_abort && wait_count > entry->stop_count)
-        {
-          /*
-            We are stopping (STOP SLAVE), and this event group is beyond the
-            point where we can safely stop. So set a flag that will cause us
-            to skip, rather than execute, the following events.
-          */
-          skip_event_group= true;
-        }
-        else
-          skip_event_group= false;
-
-        if (unlikely(entry->stop_on_error_sub_id <= rgi->wait_commit_sub_id))
-          skip_event_group= true;
         register_wait_for_prior_event_group_commit(rgi, entry);
 
         unlock_or_exit_cond(thd, &entry->LOCK_parallel_entry,
