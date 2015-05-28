@@ -293,12 +293,10 @@ class Item_bool_func2 :public Item_bool_func
 {						/* Bool with 2 string args */
 protected:
   Arg_comparator cmp;
-  bool abort_on_null;
 
 public:
   Item_bool_func2(Item *a,Item *b)
-    :Item_bool_func(a,b), cmp(tmp_arg, tmp_arg+1),
-     abort_on_null(FALSE) { sargable= TRUE; }
+    :Item_bool_func(a,b), cmp(tmp_arg, tmp_arg+1) { sargable= TRUE; }
   void fix_length_and_dec();
   int set_cmp_func()
   {
@@ -316,7 +314,6 @@ public:
   bool is_null() { return MY_TEST(args[0]->is_null() || args[1]->is_null()); }
   CHARSET_INFO *compare_collation() const
   { return cmp.cmp_collation.collation; }
-  void top_level_item() { abort_on_null= TRUE; }
   Arg_comparator *get_comparator() { return &cmp; }
   void cleanup()
   {
@@ -326,7 +323,6 @@ public:
   COND *remove_eq_conds(THD *thd, Item::cond_result *cond_value,
                         bool top_level);
 
-  friend class  Arg_comparator;
 };
 
 class Item_bool_rowready_func2 :public Item_bool_func2
@@ -369,7 +365,6 @@ public:
   enum Functype functype() const { return XOR_FUNC; }
   const char *func_name() const { return "xor"; }
   longlong val_int();
-  void top_level_item() {}
   Item *neg_transformer(THD *thd);
   bool subst_argument_checker(uchar **arg)
   {
@@ -478,15 +473,18 @@ public:
 
 class Item_func_eq :public Item_bool_rowready_func2
 {
+  bool abort_on_null;
 public:
   Item_func_eq(Item *a,Item *b) :
-    Item_bool_rowready_func2(a,b), in_equality_no(UINT_MAX)
+    Item_bool_rowready_func2(a,b),
+    abort_on_null(false), in_equality_no(UINT_MAX)
   {}
   longlong val_int();
   enum Functype functype() const { return EQ_FUNC; }
   enum Functype rev_functype() const { return EQ_FUNC; }
   cond_result eq_cmp_result() const { return COND_TRUE; }
   const char *func_name() const { return "="; }
+  void top_level_item() { abort_on_null= true; }
   Item *negated_item();
   COND *build_equal_items(THD *thd, COND_EQUAL *inherited,
                           bool link_item_fields,
@@ -508,6 +506,7 @@ public:
   */
   uint in_equality_no;
   virtual uint exists2in_reserved_items() { return 1; };
+  friend class  Arg_comparator;
 };
 
 class Item_func_equal :public Item_bool_rowready_func2

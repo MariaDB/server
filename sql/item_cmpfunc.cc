@@ -1281,9 +1281,13 @@ int Arg_comparator::compare_row()
       case Item_func::GT_FUNC:
       case Item_func::GE_FUNC:
         return -1; // <, <=, > and >= always fail on NULL
-      default: // EQ_FUNC
-        if (((Item_bool_func2*)owner)->abort_on_null)
+      case Item_func::EQ_FUNC:
+        if (((Item_func_eq*)owner)->abort_on_null)
           return -1; // We do not need correct NULL returning
+        break;
+      default:
+        DBUG_ASSERT(0);
+        break;
       }
       was_null= 1;
       owner->null_value= 0;
