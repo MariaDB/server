@@ -1,4 +1,4 @@
-# Restart mysqld --loose-file-key-management-filename=/home/jan/mysql/10.1-bugs/mysql-test/std_data/keys2.txt
+# Restart mysqld --loose-file-key-management-filename=keys2.txt
 SET GLOBAL innodb_file_format = `Barracuda`;
 SET GLOBAL innodb_file_per_table = ON;
 create table innodb_normal(c1 bigint not null, b char(200)) engine=innodb;
@@ -57,7 +57,7 @@ variable_value >= 0
 SELECT variable_value >= 0 FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_num_pages_decrypted';
 variable_value >= 0
 1
-# Restart mysqld --loose-file-key-management-filename=/home/jan/mysql/10.1-bugs/mysql-test/std_data/keys3.txt
+# Restart mysqld --loose-file-key-management-filename=keys3.txt
 select * from innodb_normal;
 c1	b
 1	test1
