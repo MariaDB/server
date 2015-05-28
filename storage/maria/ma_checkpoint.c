@@ -340,7 +340,6 @@ int ma_checkpoint_init(ulong interval)
     {
       /* thread lives, will have to be killed */
       checkpoint_control.status= THREAD_RUNNING;
-      pthread_detach(th);
     }
   }
   DBUG_RETURN(res);
@@ -573,6 +572,8 @@ pthread_handler_t ma_checkpoint_background(void *arg)
   */
   sleeps= 1;
   pages_to_flush_before_next_checkpoint= 0;
+
+  pthread_detach_this_thread();
 
   for(;;) /* iterations of checkpoints and dirty page flushing */
   {
