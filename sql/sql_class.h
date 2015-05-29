@@ -2132,7 +2132,7 @@ public:
                         const uchar *buf);
   int binlog_update_row(TABLE* table, bool is_transactional,
                         const uchar *old_data, const uchar *new_data);
-  void binlog_prepare_row_images(TABLE* table);
+  static void binlog_prepare_row_images(TABLE* table);
 
   void set_server_id(uint32 sid) { variables.server_id = sid; }
 

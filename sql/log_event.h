@@ -4409,20 +4409,23 @@ protected:
   int find_row(rpl_group_info *);
   int write_row(rpl_group_info *, const bool);
 
-  // Unpack the current row into m_table->record[0]
+  // Unpack the current row into m_table->record[0], but with
+  // a different columns bitmap.
   int unpack_current_row(rpl_group_info *rgi, MY_BITMAP const *cols)
   {
     DBUG_ASSERT(m_table);
 
-    ASSERT_OR_RETURN_ERROR(m_curr_row < m_rows_end, HA_ERR_CORRUPT_EVENT);
+    ASSERT_OR_RETURN_ERROR(m_curr_row <= m_rows_end, HA_ERR_CORRUPT_EVENT);
     return ::unpack_row(rgi, m_table, m_width, m_curr_row, cols,
                                    &m_curr_row_end, &m_master_reclength, m_rows_end);
   }
+
+  // Unpack the current row into m_table->record[0]
   int unpack_current_row(rpl_group_info *rgi)
   {
     DBUG_ASSERT(m_table);
 
-    ASSERT_OR_RETURN_ERROR(m_curr_row < m_rows_end, HA_ERR_CORRUPT_EVENT);
+    ASSERT_OR_RETURN_ERROR(m_curr_row <= m_rows_end, HA_ERR_CORRUPT_EVENT);
     return ::unpack_row(rgi, m_table, m_width, m_curr_row, &m_cols,
                                    &m_curr_row_end, &m_master_reclength, m_rows_end);
   }

@@ -5975,7 +5975,7 @@ void TABLE::mark_columns_needed_for_insert()
   the read_set at binlogging time (for those cases that
   we only want to log a PK and we needed other fields for
   execution).
- */
+*/
 void TABLE::mark_columns_per_binlog_row_image()
 {
   DBUG_ENTER("mark_columns_per_binlog_row_image");

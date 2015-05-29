@@ -9907,7 +9907,7 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
     rgi->set_row_stmt_start_timestamp();
 
     THD_STAGE_INFO(thd, stage_executing);
-    while (error == 0 && m_curr_row < m_rows_end)
+    do
     {
       /* in_use can have been set to NULL in close_tables_for_reopen */
       THD* old_thd= table->in_use;
@@ -9955,18 +9955,14 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
 
       if (!m_curr_row_end && !error)
         error= unpack_current_row(rgi);
-  
-      // at this moment m_curr_row_end should be set
-      DBUG_ASSERT(error || m_curr_row_end != NULL); 
-      DBUG_ASSERT(error || m_curr_row < m_curr_row_end);
-      DBUG_ASSERT(error || m_curr_row_end <= m_rows_end);
-  
+
       m_curr_row= m_curr_row_end;
  
       if (error == 0 && !transactional_table)
         thd->transaction.all.modified_non_trans_table=
           thd->transaction.stmt.modified_non_trans_table= TRUE;
     } // row processing loop
+    while (error == 0 && (m_curr_row != m_rows_end));
 
     /*
       Restore the sql_mode after the rows event is processed.
@@ -11395,7 +11391,16 @@ Rows_log_event::write_row(rpl_group_info *rgi,
        the size of the first row and use that value to initialize
        storage engine for bulk insertion.
     */
-    ulong estimated_rows= (m_rows_end - m_curr_row) / (m_curr_row_end - m_curr_row);
+    /* this is the first row to be inserted, we estimate the rows with
+       the size of the first row and use that value to initialize
+       storage engine for bulk insertion */
+    DBUG_ASSERT(!(m_curr_row > m_curr_row_end));
+    ulong estimated_rows= 0;
+    if (m_curr_row < m_curr_row_end)
+      estimated_rows= (m_rows_end - m_curr_row) / (m_curr_row_end - m_curr_row);
+    else if (m_curr_row == m_curr_row_end)
+      estimated_rows= 1;
+
     table->file->ha_start_bulk_insert(estimated_rows);
   }
 
