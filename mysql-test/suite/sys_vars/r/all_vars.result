@@ -12,5 +12,6 @@ left join t1 on variable_name=test_name where test_name is null;
 there should be *no* variables listed below:
 innodb_default_encryption_key_id
 strict_password_validation
+wsrep_patch_version
 drop table t1;
 drop table t2;
