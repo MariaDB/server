@@ -28,29 +28,17 @@ OPTION(WITH_WSREP "WSREP replication API (to use, e.g. Galera Replication librar
 # Set the patch version
 SET(WSREP_PATCH_VERSION "10")
 
-# MariaDB addition: Revision number of the last revision merged from
-# codership branch visible in @@version_comment.
-# Branch : codership-mysql/5.6
-SET(WSREP_PATCH_REVNO "4144")  # Should be updated on every merge.
+# Obtain wsrep API version
+FILE(STRINGS "${MySQL_SOURCE_DIR}/wsrep/wsrep_api.h" WSREP_API_VERSION
+     LIMIT_COUNT 1 REGEX "WSREP_INTERFACE_VERSION")
+STRING(REGEX MATCH "([0-9]+)" WSREP_API_VERSION "${WSREP_API_VERSION}")
 
-# MariaDB addition: Revision number of the last revision merged from
-# Branch : lp:maria/maria-10.0-galera
-SET(WSREP_PATCH_REVNO2 "3919")  # Should be updated on every merge.
-
-# MariaDB: Obtain patch revision number:
-# Update WSREP_PATCH_REVNO if WSREP_REV environment variable is set.
-IF (DEFINED ENV{WSREP_REV})
-  SET(WSREP_PATCH_REVNO $ENV{WSREP_REV})
-ENDIF()
-
-SET(WSREP_INTERFACE_VERSION 25)
-
-SET(WSREP_VERSION
-    "${WSREP_INTERFACE_VERSION}.${WSREP_PATCH_VERSION}.r${WSREP_PATCH_REVNO}")
+SET(WSREP_VERSION "${WSREP_API_VERSION}.${WSREP_PATCH_VERSION}"
+    CACHE INTERNAL "WSREP version")
 
 SET(WSREP_PROC_INFO ${WITH_WSREP})
 
 IF(WITH_WSREP)
-  SET(COMPILATION_COMMENT "${COMPILATION_COMMENT}, wsrep_${WSREP_VERSION}")
+  SET(WSREP_PATCH_VERSION "wsrep_${WSREP_VERSION}")
 ENDIF()
 

@@ -1900,13 +1900,15 @@ static void __cdecl kill_server(int sig_ptr)
   }
 #endif
 
-  if (WSREP_ON)
-    wsrep_stop_replication(NULL);
+  /* Stop wsrep threads in case they are running. */
+  wsrep_stop_replication(NULL);
 
   close_connections();
 
   if (wsrep_inited == 1)
     wsrep_deinit(true);
+
+  wsrep_thr_deinit();
 
   if (sig != MYSQL_KILL_SIGNAL &&
       sig != 0)
@@ -4974,13 +4976,20 @@ a file name for --log-bin-index option", opt_binlog_index_name);
       opt_bin_logname= my_once_strdup(buf, MYF(MY_WME));
   }
 
-    /*
-      Wsrep initialization must happen at this point, because:
-      - opt_bin_logname must be known when starting replication
-        since SST may need it
-      - SST may modify binlog index file, so it must be opened
-        after SST has happened
-     */
+  /*
+    Wsrep initialization must happen at this point, because:
+    - opt_bin_logname must be known when starting replication
+      since SST may need it
+    - SST may modify binlog index file, so it must be opened
+      after SST has happened
+
+    We also (unconditionally) initialize wsrep LOCKs and CONDs.
+    It is because they are used while accessing wsrep system
+    variables even when a wsrep provider is not loaded.
+  */
+
+  wsrep_thr_init();
+
   if (WSREP_ON && !wsrep_recovery && !opt_abort) /* WSREP BEFORE SE */
   {
     if (opt_bootstrap) // bootsrap option given - disable wsrep functionality
@@ -9424,9 +9433,6 @@ void set_server_version(void)
                      MYSQL_SERVER_SUFFIX_STR, NullS);
 #ifdef EMBEDDED_LIBRARY
   end= strmov(end, "-embedded");
-#endif
-#ifdef WITH_WSREP
-  end= strmov(end, "-wsrep");
 #endif
 #ifndef DBUG_OFF
   if (!strstr(MYSQL_SERVER_SUFFIX_STR, "-debug"))

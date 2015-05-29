@@ -118,6 +118,12 @@ int  wsrep_show_status(THD *thd, SHOW_VAR *var, char *buff,
                        enum enum_var_type scope);
 int  wsrep_init();
 void wsrep_deinit(bool free_options);
+
+/* Initialize wsrep thread LOCKs and CONDs */
+void wsrep_thr_init();
+/* Destroy wsrep thread LOCKs and CONDs */
+void wsrep_thr_deinit();
+
 void wsrep_recover();
 bool wsrep_before_SE(); // initialize wsrep before storage
                         // engines (true) or after (false)
@@ -338,6 +344,8 @@ int wsrep_create_trigger_query(THD *thd, uchar** buf, size_t* buf_len);
 #define wsrep_recover() do { } while(0)
 #define wsrep_slave_threads (1)
 #define wsrep_replicate_myisam (0)
+#define wsrep_thr_init() do {} while(0)
+#define wsrep_thr_deinit() do {} while(0)
 
 #endif /* WITH_WSREP */
 #endif /* WSREP_MYSQLD_H */

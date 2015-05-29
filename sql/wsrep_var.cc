@@ -295,6 +295,8 @@ bool wsrep_provider_options_check(sys_var *self, THD* thd, set_var* var)
 
 bool wsrep_provider_options_update(sys_var *self, THD* thd, enum_var_type type)
 {
+  DBUG_ASSERT(wsrep != NULL);
+
   wsrep_status_t ret= wsrep->options_set(wsrep, wsrep_provider_options);
   if (ret != WSREP_OK)
   {
@@ -495,6 +497,8 @@ bool wsrep_desync_check (sys_var *self, THD* thd, set_var* var)
 
 bool wsrep_desync_update (sys_var *self, THD* thd, enum_var_type type)
 {
+  DBUG_ASSERT(wsrep != NULL);
+
   wsrep_status_t ret(WSREP_WARNING);
   if (wsrep_desync) {
     ret = wsrep->desync (wsrep);
@@ -548,6 +552,7 @@ int wsrep_show_status (THD *thd, SHOW_VAR *var, char *buff,
     *v++= wsrep_status_vars[i];
 
   DBUG_ASSERT(i < maxi);
+  DBUG_ASSERT(wsrep != NULL);
 
   wsrep_stats_var* stats= wsrep->stats_get(wsrep);
   for (wsrep_stats_var *sv= stats; i < maxi && sv && sv->name; i++, sv++, v++)

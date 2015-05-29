@@ -20,6 +20,7 @@ mysqld_ld_preload=
 mysqld_ld_library_path=
 flush_caches=0
 numa_interleave=0
+wsrep_on=0
 
 # Initial logging status: error log is not open, and not using syslog
 logging=init
@@ -319,6 +320,15 @@ parse_arguments() {
       --timezone=*) TZ="$val"; export TZ; ;;
       --flush[-_]caches) flush_caches=1 ;;
       --numa[-_]interleave) numa_interleave=1 ;;
+      --wsrep[-_]on) wsrep_on=1 ;;
+      --skip[-_]wsrep[-_]on) wsrep_on=0 ;;
+      --wsrep[-_]on=*)
+        if echo $val | grep -iq '\(ON\|1\)'; then
+          wsrep_on=1
+        else
+          wsrep_on=0
+        fi
+        ;;
       --wsrep[-_]urls=*) wsrep_urls="$val"; ;;
       --wsrep[-_]provider=*)
         if test -n "$val" && test "$val" != "none"
@@ -968,18 +978,24 @@ do
 
   start_time=`date +%M%S`
 
-  # this sets wsrep_start_position_opt
-  wsrep_recover_position "$cmd"
-
-  [ $? -ne 0 ] && exit 1 #
-
-  [ -n "$wsrep_urls" ] && url=`wsrep_pick_url $wsrep_urls` # check connect address
-
-  if [ -z "$url" ]
+  # Perform wsrep position recovery if wsrep_on=1, skip otherwise.
+  if test $wsrep_on -eq 1
   then
-    eval_log_error "$cmd $wsrep_start_position_opt"
+    # this sets wsrep_start_position_opt
+    wsrep_recover_position "$cmd"
+
+    [ $? -ne 0 ] && exit 1 #
+
+    [ -n "$wsrep_urls" ] && url=`wsrep_pick_url $wsrep_urls` # check connect address
+
+    if [ -z "$url" ]
+    then
+      eval_log_error "$cmd $wsrep_start_position_opt"
+    else
+      eval_log_error "$cmd $wsrep_start_position_opt --wsrep_cluster_address=$url"
+    fi
   else
-    eval_log_error "$cmd $wsrep_start_position_opt --wsrep_cluster_address=$url"
+    eval_log_error "$cmd"
   fi
 
   if [ $want_syslog -eq 0 -a ! -f "$err_log" ]; then

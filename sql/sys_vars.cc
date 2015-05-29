@@ -4857,6 +4857,12 @@ static Sys_var_mybool Sys_wsrep_gtid_mode(
        "ignored (backward compatibility).",
        GLOBAL_VAR(wsrep_gtid_mode), CMD_LINE(OPT_ARG), DEFAULT(FALSE));
 
+static char *wsrep_patch_version_ptr;
+static Sys_var_charptr Sys_wsrep_patch_version(
+       "wsrep_patch_version", "wsrep patch version",
+       READ_ONLY GLOBAL_VAR(wsrep_patch_version_ptr), CMD_LINE_HELP_ONLY,
+       IN_SYSTEM_CHARSET, DEFAULT(WSREP_PATCH_VERSION));
+
 #endif /* WITH_WSREP */
 
 static bool fix_host_cache_size(sys_var *, THD *, enum_var_type)
