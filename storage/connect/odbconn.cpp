@@ -116,16 +116,24 @@ static int GetSQLCType(int type)
 /***********************************************************************/
 /*  TranslateSQLType: translate a SQL Type to a PLG type.              */
 /***********************************************************************/
-int TranslateSQLType(int stp, int prec, int& len, char& v)
+int TranslateSQLType(int stp, int prec, int& len, char& v, bool& w)
   {
   int type;
 
   switch (stp) {
+    case SQL_WVARCHAR:                      //  (-9)
+      w = true;
     case SQL_VARCHAR:                       //   12
       v = 'V';
+      type = TYPE_STRING;
+      break;
+    case SQL_WCHAR:                         //  (-8)
+      w = true;
     case SQL_CHAR:                          //    1
       type = TYPE_STRING;
       break;
+    case SQL_WLONGVARCHAR:                  // (-10)
+      w = true;
     case SQL_LONGVARCHAR:                   //  (-1)
       v = 'V';
       type = TYPE_STRING;
@@ -180,7 +188,6 @@ int TranslateSQLType(int stp, int prec, int& len, char& v)
     case SQL_BINARY:                        //  (-2)
     case SQL_VARBINARY:                     //  (-3)
     case SQL_LONGVARBINARY:                 //  (-4)
-//  case SQL_BIT:                           //  (-7)
     case SQL_GUID:                          // (-11)
     default:
       type = TYPE_ERROR;
@@ -410,6 +417,7 @@ PQRYRES ODBCSrcCols(PGLOBAL g, char *dsn, char *src, POPARM sop)
 PQRYRES MyODBCCols(PGLOBAL g, char *dsn, char *tab, bool info)
   {
 //  int      i, type, len, prec;
+  bool     w = false;
 //  PCOLRES  crp, crpt, crpl, crpp;
   PQRYRES  qrp;
   ODBConn *ocp;
@@ -455,7 +463,7 @@ PQRYRES MyODBCCols(PGLOBAL g, char *dsn, char *tab, bool info)
     type = crpt->Kdata->GetIntValue(i);
     len  = crpl->Kdata->GetIntValue(i);
     prec = crpp->Kdata->GetIntValue(i);
-    type = TranslateSQLType(type, prec, len);
+    type = TranslateSQLType(type, prec, len, w);
     crpt->Kdata->SetValue(type, i);
 
     // Some data sources do not count prec in length

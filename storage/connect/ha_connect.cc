@@ -4755,6 +4755,9 @@ ha_rows ha_connect::records_in_range(uint inx, key_range *min_key,
   else
     rows= HA_POS_ERROR;
 
+  if (trace)
+    htrc("records_in_range: rows=%llu\n", rows);
+
   DBUG_RETURN(rows);
 } // end of records_in_range
 
@@ -5523,10 +5526,11 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 
 #if defined(ODBC_SUPPORT)
         if (ttp == TAB_ODBC) {
-          int plgtyp;
+          int  plgtyp;
+          bool w= false;            // Wide character type
 
           // typ must be PLG type, not SQL type
-          if (!(plgtyp= TranslateSQLType(typ, dec, prec, v))) {
+          if (!(plgtyp= TranslateSQLType(typ, dec, prec, v, w))) {
             if (GetTypeConv() == TPC_SKIP) {
               // Skip this column
               sprintf(g->Message, "Column %s skipped (unsupported type %d)",
@@ -5543,6 +5547,13 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
             typ= plgtyp;
 
           switch (typ) {
+            case TYPE_STRING:
+              if (w) {
+                sprintf(g->Message, "Column %s is wide characters", cnm);
+                push_warning(thd, Sql_condition::WARN_LEVEL_NOTE, 0, g->Message);
+                } // endif w
+
+              break;
             case TYPE_DOUBLE:
               // Some data sources do not count dec in length (prec)
               prec += (dec + 2);        // To be safe

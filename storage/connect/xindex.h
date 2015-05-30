@@ -462,7 +462,7 @@ class KXYCOL: public BLOCK {
   virtual void FreeData(void);
   virtual void FillValue(PVAL valp);
   virtual int  CompVal(int i);
-          void InitBinFind(void *vp);
+//        void InitBinFind(void *vp);
           bool MakeBlockArray(PGLOBAL g, int nb, int size);
           int  Compare(int i1, int i2);
           int  CompBval(int i);

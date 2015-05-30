@@ -502,7 +502,7 @@ void *PlugSubAlloc(PGLOBAL g, void *memp, size_t size)
   size = ((size + 7) / 8) * 8;       /* Round up size to multiple of 8 */
   pph = (PPOOLHEADER)memp;
 
-  if (trace > 2)
+  if (trace > 3)
     htrc("SubAlloc in %p size=%d used=%d free=%d\n",
           memp, size, pph->To_Free, pph->FreeBlk);
 
@@ -526,7 +526,7 @@ void *PlugSubAlloc(PGLOBAL g, void *memp, size_t size)
   pph->To_Free += size;               /* New offset of pool free block */
   pph->FreeBlk -= size;               /* New size   of pool free block */
 
-  if (trace > 2)
+  if (trace > 3)
     htrc("Done memp=%p used=%d free=%d\n",
           memp, pph->To_Free, pph->FreeBlk);
 

@@ -340,6 +340,9 @@ bool XINDEX::Make(PGLOBAL g, PIXDEF sxp)
 
     } // endif n
 
+  if (trace)
+    htrc("XINDEX Make: n=%d\n", n);
+
   // File position must be stored
   Record.Size = n * sizeof(int);
 
@@ -476,6 +479,9 @@ bool XINDEX::Make(PGLOBAL g, PIXDEF sxp)
       return true;
     } else
       To_Rec[nkey] = Tdbp->GetRecpos();
+
+    if (trace > 1)
+      htrc("Make: To_Rec[%d]=%d\n", nkey, To_Rec[nkey]); 
 
     /*******************************************************************/
     /*  Get the keys and place them in the key blocks.                 */
@@ -1759,6 +1765,9 @@ int XINDEX::Fetch(PGLOBAL g)
   if (Num_K == 0)
     return -1;                   // means end of file
 
+  if (trace > 1)
+    htrc("XINDEX Fetch: Op=%d\n", Op);
+
   /*********************************************************************/
   /*  Table read through a sorted index.                               */
   /*********************************************************************/
@@ -1776,9 +1785,6 @@ int XINDEX::Fetch(PGLOBAL g)
       break;
     case OP_SAME:                 // Read next same
       // Logically the key values should be the same as before
-      if (trace > 1)
-        htrc("looking for next same value\n");
-
       if (NextVal(true)) {
         Op = OP_EQ;
         return -2;                // no more equal values
@@ -1824,7 +1830,7 @@ int XINDEX::Fetch(PGLOBAL g)
         Nth++;
 
         if (trace > 1)
-          htrc("Fetch: Looking for new value\n");
+          htrc("Fetch: Looking for new value Nth=%d\n", Nth);
 
         Cur_K = FastFind();
 
@@ -1895,6 +1901,10 @@ int XINDEX::FastFind(void)
     inf = -1;
     sup = To_KeyCol->Ndf;
   } // endif Nblk
+
+  if (trace > 2)
+    htrc("XINDEX FastFind: Nblk=%d Op=%d inf=%d sup=%d\n",
+                           Nblk, Op, inf, sup); 
 
   for (k = 0, kcp = To_KeyCol; kcp; kcp = kcp->Next) {
     while (sup - inf > 1) {
@@ -1970,6 +1980,9 @@ int XINDEX::FastFind(void)
     curk = (kcp->Kof) ? kcp->Kof[kcp->Val_K] : kcp->Val_K;
     } // endfor kcp
 
+  if (trace > 2)
+    htrc("XINDEX FastFind: curk=%d\n", curk);
+
   return curk;
   } // end of FastFind
 
@@ -2043,8 +2056,7 @@ int XINDXS::GroupSize(void)
 #if defined(_DEBUG)
   assert(To_KeyCol->Val_K >= 0 && To_KeyCol->Val_K < Ndif);
 #endif   // _DEBUG
-  return (Pof) ? Pof[To_KeyCol->Val_K + 1] - Pof[To_KeyCol->Val_K]
-               : 1;
+  return (Pof) ? Pof[To_KeyCol->Val_K + 1] - Pof[To_KeyCol->Val_K] : 1;
   } // end of GroupSize
 
 /***********************************************************************/
@@ -2106,6 +2118,9 @@ int XINDXS::Fetch(PGLOBAL g)
   if (Num_K == 0)
     return -1;                   // means end of file
 
+  if (trace > 1)
+    htrc("XINDXS Fetch: Op=%d\n", Op);
+
   /*********************************************************************/
   /*  Table read through a sorted index.                               */
   /*********************************************************************/
@@ -2120,9 +2135,6 @@ int XINDXS::Fetch(PGLOBAL g)
       Op = OP_NEXT;
       break;
     case OP_SAME:                 // Read next same
-      if (trace > 1)
-        htrc("looking for next same value\n");
-
       if (!Mul || NextVal(true)) {
         Op = OP_EQ;
         return -2;               // No more equal values
@@ -2160,7 +2172,7 @@ int XINDXS::Fetch(PGLOBAL g)
         Nth++;
 
       if (trace > 1)
-        htrc("Fetch: Looking for new value\n");
+        htrc("Fetch: Looking for new value Nth=%d\n", Nth);
 
       Cur_K = FastFind();
 
@@ -2192,7 +2204,7 @@ int XINDXS::Fetch(PGLOBAL g)
 /***********************************************************************/
 int XINDXS::FastFind(void)
   {
-  register int  sup, inf, i= 0, n = 2;
+  register int   sup, inf, i= 0, n = 2;
   register PXCOL kcp = To_KeyCol;
 
   if (Nblk && Op == OP_EQ) {
@@ -2215,7 +2227,6 @@ int XINDXS::FastFind(void)
     if (inf < 0)
       return Num_K;
 
-//  i = inf;
     inf *= Sblk;
 
     if ((sup = inf + Sblk) > Ndif)
@@ -2226,6 +2237,10 @@ int XINDXS::FastFind(void)
     inf = -1;
     sup = Ndif;
   } // endif Nblk
+
+  if (trace > 2)
+    htrc("XINDXS FastFind: Nblk=%d Op=%d inf=%d sup=%d\n",
+                           Nblk, Op, inf, sup); 
 
   while (sup - inf > 1) {
     i = (inf + sup) >> 1;
@@ -2248,6 +2263,9 @@ int XINDXS::FastFind(void)
     i = sup;
     n = 0;
   } // endif sup
+
+  if (trace > 2)
+    htrc("XINDXS FastFind: n=%d i=%d\n", n, i);
 
   // Loop on kcp because of dynamic indexing
   for (; kcp; kcp = kcp->Next)
@@ -2330,6 +2348,10 @@ bool XFILE::Open(PGLOBAL g, char *filename, int id, MODE mode)
       } // endif
 
     NewOff.Low = (int)ftell(Xfile);
+
+    if (trace)
+      htrc("XFILE Open: NewOff.Low=%d\n", NewOff.Low);
+
   } else if (mode == MODE_WRITE) {
     if (id >= 0) {
       // New not sep index file. Write the header.
@@ -2337,6 +2359,10 @@ bool XFILE::Open(PGLOBAL g, char *filename, int id, MODE mode)
       Write(g, noff, sizeof(IOFF), MAX_INDX, rc);
       fseek(Xfile, 0, SEEK_END);
       NewOff.Low = (int)ftell(Xfile);
+
+      if (trace)
+        htrc("XFILE Open: NewOff.Low=%d\n", NewOff.Low);
+
       } // endif id
 
   } else if (mode == MODE_READ && id >= 0) {
@@ -2345,6 +2371,9 @@ bool XFILE::Open(PGLOBAL g, char *filename, int id, MODE mode)
       sprintf(g->Message, MSG(XFILE_READERR), errno);
       return true;
       } // endif MAX_INDX
+
+      if (trace)
+        htrc("XFILE Open: noff[%d].Low=%d\n", id, noff[id].Low);
 
     // Position the cursor at the offset of this index
     if (fseek(Xfile, noff[id].Low, SEEK_SET)) {
@@ -3158,12 +3187,18 @@ bool KXYCOL::InitFind(PGLOBAL g, PXOB xp)
     xp->Reset();
     xp->Eval(g);
     Valp->SetValue_pval(xp->GetValue(), false);
-//  Valp->SetValue_pval(xp->GetValue(), !Prefix);
   } // endif Type
+
+  if (trace > 1) {
+    char buf[32];
+
+    htrc("KCOL InitFind: value=%s\n", Valp->GetCharString(buf));
+    } // endif trace
 
   return false;
   } // end of InitFind
 
+#if 0
 /***********************************************************************/
 /*  InitBinFind: initialize Value to the value pointed by vp.          */
 /***********************************************************************/
@@ -3171,6 +3206,7 @@ void KXYCOL::InitBinFind(void *vp)
   {
   Valp->SetBinValue(vp);
   } // end of InitBinFind
+#endif // 0
 
 /***********************************************************************/
 /*  KXYCOL FillValue: called by COLBLK::Eval when a column value is    */
