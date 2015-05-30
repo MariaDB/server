@@ -64,7 +64,7 @@ sub skip_combinations {
 
   $skip{'t/openssl_6975.test'} = 'no or too old openssl'
     unless $::mysqld_variables{'version-ssl-library'} =~ /OpenSSL (\S+)/
-       and $1 ge "1.0.1";
+       and $1 ge "1.0.1d";
 
   %skip;
 }
