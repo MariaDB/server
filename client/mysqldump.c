@@ -2630,6 +2630,7 @@ static uint get_table_structure(char *table, char *db, char *table_type,
   const char *insert_option;
   char	     name_buff[NAME_LEN+3],table_buff[NAME_LEN*2+3];
   char       table_buff2[NAME_LEN*2+3], query_buff[QUERY_LENGTH];
+  char       temp_buff[NAME_LEN*2 + 3], temp_buff2[NAME_LEN*2 + 3];
   const char *show_fields_stmt= "SELECT `COLUMN_NAME` AS `Field`, "
                                 "`COLUMN_TYPE` AS `Type`, "
                                 "`IS_NULLABLE` AS `Null`, "
@@ -2638,7 +2639,7 @@ static uint get_table_structure(char *table, char *db, char *table_type,
                                 "`EXTRA` AS `Extra`, "
                                 "`COLUMN_COMMENT` AS `Comment` "
                                 "FROM `INFORMATION_SCHEMA`.`COLUMNS` WHERE "
-                                "TABLE_SCHEMA = '%s' AND TABLE_NAME = '%s'";
+                                "TABLE_SCHEMA = %s AND TABLE_NAME = %s";
   FILE       *sql_file= md_result_file;
   int        len;
   my_bool    is_log_table;
@@ -2944,7 +2945,9 @@ static uint get_table_structure(char *table, char *db, char *table_type,
     verbose_msg("%s: Warning: Can't set SQL_QUOTE_SHOW_CREATE option (%s)\n",
                 my_progname_short, mysql_error(mysql));
 
-    my_snprintf(query_buff, sizeof(query_buff), show_fields_stmt, db, table);
+    my_snprintf(query_buff, sizeof(query_buff), show_fields_stmt,
+                quote_for_equal(db, temp_buff),
+                quote_for_equal(table, temp_buff2));
 
     if (mysql_query_with_error_report(mysql, &result, query_buff))
       DBUG_RETURN(0);
