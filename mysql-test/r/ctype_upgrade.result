@@ -6,7 +6,7 @@ call mtr.add_suppression("Table rebuild required");
 # Copying maria050313_utf8_croatian_ci.* to MYSQLD_DATADIR
 CHECK TABLE maria050313_utf8_croatian_ci FOR UPGRADE;
 Table	Op	Msg_type	Msg_text
-test.maria050313_utf8_croatian_ci	check	error	Table upgrade required. Please do "REPAIR TABLE `maria050313_utf8_croatian_ci`" or dump/reload to fix it!
+test.maria050313_utf8_croatian_ci	check	error	Upgrade required. Please do "REPAIR TABLE `maria050313_utf8_croatian_ci`" or dump/reload to fix it!
 SHOW CREATE TABLE maria050313_utf8_croatian_ci;
 ERROR HY000: Table rebuild required. Please do "ALTER TABLE `test.maria050313_utf8_croatian_c` FORCE" or dump/reload to fix it!
 REPAIR TABLE maria050313_utf8_croatian_ci;
@@ -43,7 +43,7 @@ DROP TABLE maria050313_utf8_croatian_ci;
 # Copying maria050313_ucs2_croatian_ci.* to MYSQLD_DATADIR
 CHECK TABLE maria050313_ucs2_croatian_ci_def FOR UPGRADE;
 Table	Op	Msg_type	Msg_text
-test.maria050313_ucs2_croatian_ci_def	check	error	Table upgrade required. Please do "REPAIR TABLE `maria050313_ucs2_croatian_ci_def`" or dump/reload to fix it!
+test.maria050313_ucs2_croatian_ci_def	check	error	Upgrade required. Please do "REPAIR TABLE `maria050313_ucs2_croatian_ci_def`" or dump/reload to fix it!
 SELECT count(*) FROM maria050313_ucs2_croatian_ci_def;
 ERROR HY000: Table rebuild required. Please do "ALTER TABLE `test.maria050313_ucs2_croatian_c` FORCE" or dump/reload to fix it!
 REPAIR TABLE maria050313_ucs2_croatian_ci_def;
@@ -58,7 +58,7 @@ DROP TABLE maria050313_ucs2_croatian_ci_def;
 # Copying maria050313_ucs2_croatian_ci.* to MYSQLD_DATADIR
 CHECK TABLE maria050313_ucs2_croatian_ci_def;
 Table	Op	Msg_type	Msg_text
-test.maria050313_ucs2_croatian_ci_def	check	error	Table upgrade required. Please do "REPAIR TABLE `maria050313_ucs2_croatian_ci_def`" or dump/reload to fix it!
+test.maria050313_ucs2_croatian_ci_def	check	error	Upgrade required. Please do "REPAIR TABLE `maria050313_ucs2_croatian_ci_def`" or dump/reload to fix it!
 REPAIR TABLE maria050313_ucs2_croatian_ci_def;
 Table	Op	Msg_type	Msg_text
 test.maria050313_ucs2_croatian_ci_def	repair	status	OK
@@ -84,7 +84,7 @@ DROP TABLE maria050313_ucs2_croatian_ci_def;
 # Copying maria050533_xxx_croatian_ci.* to MYSQLD_DATADIR
 CHECK TABLE maria050533_xxx_croatian_ci FOR UPGRADE;
 Table	Op	Msg_type	Msg_text
-test.maria050533_xxx_croatian_ci	check	error	Table upgrade required. Please do "REPAIR TABLE `maria050533_xxx_croatian_ci`" or dump/reload to fix it!
+test.maria050533_xxx_croatian_ci	check	error	Upgrade required. Please do "REPAIR TABLE `maria050533_xxx_croatian_ci`" or dump/reload to fix it!
 REPAIR TABLE maria050533_xxx_croatian_ci;
 Table	Op	Msg_type	Msg_text
 test.maria050533_xxx_croatian_ci	repair	status	OK
@@ -141,7 +141,7 @@ DROP TABLE maria050533_xxx_croatian_ci;
 # Copying maria100004_xxx_croatian_ci.* to MYSQLD_DATADIR
 CHECK TABLE maria100004_xxx_croatian_ci FOR UPGRADE;
 Table	Op	Msg_type	Msg_text
-test.maria100004_xxx_croatian_ci	check	error	Table upgrade required. Please do "REPAIR TABLE `maria100004_xxx_croatian_ci`" or dump/reload to fix it!
+test.maria100004_xxx_croatian_ci	check	error	Upgrade required. Please do "REPAIR TABLE `maria100004_xxx_croatian_ci`" or dump/reload to fix it!
 SELECT count(*) FROM maria100004_xxx_croatian_ci;
 ERROR HY000: Table rebuild required. Please do "ALTER TABLE `test.maria100004_xxx_croatian_ci` FORCE" or dump/reload to fix it!
 REPAIR TABLE maria100004_xxx_croatian_ci;

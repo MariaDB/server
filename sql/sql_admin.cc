@@ -978,11 +978,13 @@ send_result_message:
     {
       char buf[MYSQL_ERRMSG_SIZE];
       size_t length;
+      const char *what_to_upgrade= table->view ? "VIEW" :
+          table->table->file->ha_table_flags() & HA_CAN_REPAIR ? "TABLE" : 0;
 
       protocol->store(STRING_WITH_LEN("error"), system_charset_info);
-      if (table->table->file->ha_table_flags() & HA_CAN_REPAIR)
+      if (what_to_upgrade)
         length= my_snprintf(buf, sizeof(buf), ER(ER_TABLE_NEEDS_UPGRADE),
-                            table->table_name);
+                            what_to_upgrade, table->table_name);
       else
         length= my_snprintf(buf, sizeof(buf), ER(ER_TABLE_NEEDS_REBUILD),
                             table->table_name);
