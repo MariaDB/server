@@ -3107,6 +3107,9 @@ void plugin_thdvar_init(THD *thd)
     if (global_system_variables.tmp_table_plugin)
       thd->variables.tmp_table_plugin=
             intern_plugin_lock(NULL, global_system_variables.tmp_table_plugin);
+    if (global_system_variables.enforced_table_plugin)
+      thd->variables.enforced_table_plugin=
+            intern_plugin_lock(NULL, global_system_variables.enforced_table_plugin);
     intern_plugin_unlock(NULL, old_table_plugin);
     intern_plugin_unlock(NULL, old_tmp_table_plugin);
     intern_plugin_unlock(NULL, old_enforced_table_plugin);
