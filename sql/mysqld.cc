@@ -520,7 +520,7 @@ ulong binlog_cache_use= 0, binlog_cache_disk_use= 0;
 ulong binlog_stmt_cache_use= 0, binlog_stmt_cache_disk_use= 0;
 ulong max_connections, max_connect_errors;
 ulong extra_max_connections;
-ulong max_digest_length= 0;
+uint max_digest_length= 0;
 ulong slave_retried_transactions;
 ulonglong slave_skipped_errors;
 ulong feature_files_opened_with_delayed_keys;
