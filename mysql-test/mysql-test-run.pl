@@ -4372,6 +4372,8 @@ sub extract_warning_lines ($$) {
      qr/InnoDB: Warning: a long semaphore wait:/,
      qr/InnoDB: Disabling redo log encryption/,
      qr/InnoDB: Redo log crypto: Can't initialize to key version -1u/,
+     qr/InnoDB: Dumping buffer pool.*/,
+     qr/InnoDB: Buffer pool.*/,
      qr/Slave: Unknown table 't1' .* 1051/,
      qr/Slave SQL:.*(Internal MariaDB error code: [[:digit:]]+|Query:.*)/,
      qr/slave SQL thread aborted/,

@@ -522,7 +522,8 @@ DECLARE_THREAD(io_handler_thread)(
 	os_thread_set_priority(srv_io_tids[tid_i], srv_sched_priority_io);
 
 #ifdef UNIV_DEBUG_THREAD_CREATION
-	fprintf(stderr, "Io handler thread %lu starts, id %lu\n", segment,
+	ib_logf(IB_LOG_LEVEL_INFO,
+		"Io handler thread %lu starts, id %lu\n", segment,
 		os_thread_pf(os_thread_get_curr_id()));
 #endif
 
@@ -1698,53 +1699,45 @@ innobase_start_or_create_for_mysql(void)
 	}
 
 #ifdef UNIV_DEBUG
-	ut_print_timestamp(stderr);
-	fprintf(stderr,
-		" InnoDB: !!!!!!!! UNIV_DEBUG switched on !!!!!!!!!\n");
+	ib_logf(IB_LOG_LEVEL_INFO,
+		" InnoDB: !!!!!!!! UNIV_DEBUG switched on !!!!!!!!!");
 #endif
 
 #ifdef UNIV_IBUF_DEBUG
-	ut_print_timestamp(stderr);
-	fprintf(stderr,
-		" InnoDB: !!!!!!!! UNIV_IBUF_DEBUG switched on !!!!!!!!!\n");
+	ib_logf(IB_LOG_LEVEL_INFO,
+		" InnoDB: !!!!!!!! UNIV_IBUF_DEBUG switched on !!!!!!!!!");
 # ifdef UNIV_IBUF_COUNT_DEBUG
-	ut_print_timestamp(stderr);
-	fprintf(stderr,
+	ib_logf(IB_LOG_LEVEL_INFO,
 		" InnoDB: !!!!!!!! UNIV_IBUF_COUNT_DEBUG switched on "
-		"!!!!!!!!!\n");
-	ut_print_timestamp(stderr);
-	fprintf(stderr,
-		" InnoDB: Crash recovery will fail with UNIV_IBUF_COUNT_DEBUG\n");
+		"!!!!!!!!!");
+	ib_logf(IB_LOG_LEVEL_INFO,
+		" InnoDB: Crash recovery will fail with UNIV_IBUF_COUNT_DEBUG");
 # endif
 #endif
 
 #ifdef UNIV_BLOB_DEBUG
-	fprintf(stderr,
+	ib_logf(IB_LOG_LEVEL_INFO,
 		"InnoDB: !!!!!!!! UNIV_BLOB_DEBUG switched on !!!!!!!!!\n"
-		"InnoDB: Server restart may fail with UNIV_BLOB_DEBUG\n");
+		"InnoDB: Server restart may fail with UNIV_BLOB_DEBUG");
 #endif /* UNIV_BLOB_DEBUG */
 
 #ifdef UNIV_SYNC_DEBUG
-	ut_print_timestamp(stderr);
-	fprintf(stderr,
-		" InnoDB: !!!!!!!! UNIV_SYNC_DEBUG switched on !!!!!!!!!\n");
+	ib_logf(IB_LOG_LEVEL_INFO,
+		" InnoDB: !!!!!!!! UNIV_SYNC_DEBUG switched on !!!!!!!!!");
 #endif
 
 #ifdef UNIV_SEARCH_DEBUG
-	ut_print_timestamp(stderr);
-	fprintf(stderr,
-		" InnoDB: !!!!!!!! UNIV_SEARCH_DEBUG switched on !!!!!!!!!\n");
+	ib_logf(IB_LOG_LEVEL_INFO,
+		" InnoDB: !!!!!!!! UNIV_SEARCH_DEBUG switched on !!!!!!!!!");
 #endif
 
 #ifdef UNIV_LOG_LSN_DEBUG
-	ut_print_timestamp(stderr);
-	fprintf(stderr,
-		" InnoDB: !!!!!!!! UNIV_LOG_LSN_DEBUG switched on !!!!!!!!!\n");
+	ib_logf(IB_LOG_LEVEL_INFO,
+		" InnoDB: !!!!!!!! UNIV_LOG_LSN_DEBUG switched on !!!!!!!!!");
 #endif /* UNIV_LOG_LSN_DEBUG */
 #ifdef UNIV_MEM_DEBUG
-	ut_print_timestamp(stderr);
-	fprintf(stderr,
-		" InnoDB: !!!!!!!! UNIV_MEM_DEBUG switched on !!!!!!!!!\n");
+	ib_logf(IB_LOG_LEVEL_INFO,
+		" InnoDB: !!!!!!!! UNIV_MEM_DEBUG switched on !!!!!!!!!");
 #endif
 
 	if (srv_use_sys_malloc) {
