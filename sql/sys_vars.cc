@@ -3386,8 +3386,8 @@ static Sys_var_charptr Sys_malloc_library(
 #include <openssl/ssl.h>
 #define SSL_LIBRARY "YaSSL " YASSL_VERSION
 #elif HAVE_OPENSSL
-#include <openssl/opensslv.h>
-#define SSL_LIBRARY OPENSSL_VERSION_TEXT
+#include <openssl/crypto.h>
+#define SSL_LIBRARY SSLeay_version(SSLEAY_VERSION)
 #else
 #error No SSL?
 #endif
