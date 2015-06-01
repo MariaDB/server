@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2014, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2014, Monty Program Ab.
+   Copyright (c) 2010, 2015, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -7837,6 +7837,7 @@ bool Item_direct_view_ref::fix_fields(THD *thd, Item **reference)
     return TRUE;
   if (view->table && view->table->maybe_null)
     maybe_null= TRUE;
+  set_null_ref_table();
   return FALSE;
 }
 
@@ -9681,13 +9682,30 @@ void Item_ref::update_used_tables()
     (*ref)->update_used_tables();
 }
 
+void Item_direct_view_ref::update_used_tables()
+{
+  set_null_ref_table();
+  Item_direct_ref::update_used_tables();
+}
+
+
 table_map Item_direct_view_ref::used_tables() const
 {
-  return get_depended_from() ?
-         OUTER_REF_TABLE_BIT :
-         ((view->is_merged_derived() || view->merged || !view->table) ?
-          (*ref)->used_tables() :
-          view->table->map);
+  DBUG_ASSERT(null_ref_table);
+
+  if (get_depended_from())
+    return OUTER_REF_TABLE_BIT;
+
+  if (view->is_merged_derived() || view->merged || !view->table)
+  {
+    table_map used= (*ref)->used_tables();
+    return (used ?
+            used :
+            ((null_ref_table != NO_NULL_TABLE) ?
+             null_ref_table->map :
+             (table_map)0 ));
+  }
+  return view->table->map;
 }
 
 table_map Item_direct_view_ref::not_null_tables() const

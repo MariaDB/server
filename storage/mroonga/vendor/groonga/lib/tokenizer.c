@@ -167,7 +167,7 @@ grn_tokenizer_query_open(grn_ctx *ctx, int num_args, grn_obj **args,
           return NULL;
         }
         query->normalized_query = normalized_query;
-        memcpy(query_buf, GRN_TEXT_VALUE(query_str), query_length);
+        grn_memcpy(query_buf, GRN_TEXT_VALUE(query_str), query_length);
         query_buf[query_length] = '\0';
         query->query_buf = query_buf;
         query->ptr = query_buf;

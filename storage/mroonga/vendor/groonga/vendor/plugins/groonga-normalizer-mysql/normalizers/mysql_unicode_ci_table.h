@@ -1,5 +1,5 @@
 /*
-  Copyright(C) 2013  Kouhei Sutou <kou@clear-code.com>
+  Copyright(C) 2013-2015  Kouhei Sutou <kou@clear-code.com>
 
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Library General Public
@@ -17,10 +17,10 @@
   MA 02110-1301, USA
 
   This file uses normalization table defined in
-  mysql-5.5.29/strings/ctype-uca.c.
+  mysql-5.6.23/strings/ctype-uca.c.
   The following is the header of the file:
 
-    Copyright (c) 2004, 2011, Oracle and/or its affiliates. All rights reserved.
+    Copyright (c) 2004, 2014, Oracle and/or its affiliates. All rights reserved.
 
     This library is free software; you can redistribute it and/or
     modify it under the terms of the GNU Library General Public

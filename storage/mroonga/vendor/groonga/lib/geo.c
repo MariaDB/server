@@ -91,18 +91,18 @@ compute_min_and_max_key(uint8_t *key_base, int diff_bit,
   diff_bit_mask = 0xff >> (diff_bit % 8);
 
   if (diff_byte == sizeof(grn_geo_point)) {
-    if (key_min) { memcpy(key_min, key_base, diff_byte); }
-    if (key_max) { memcpy(key_max, key_base, diff_byte); }
+    if (key_min) { grn_memcpy(key_min, key_base, diff_byte); }
+    if (key_max) { grn_memcpy(key_max, key_base, diff_byte); }
   } else {
     if (key_min) {
-      memcpy(key_min, key_base, diff_byte + 1);
+      grn_memcpy(key_min, key_base, diff_byte + 1);
       key_min[diff_byte] &= ~diff_bit_mask;
       memset(key_min + diff_byte + 1, 0,
              sizeof(grn_geo_point) - diff_byte - 1);
     }
 
     if (key_max) {
-      memcpy(key_max, key_base, diff_byte + 1);
+      grn_memcpy(key_max, key_base, diff_byte + 1);
       key_max[diff_byte] |= diff_bit_mask;
       memset(key_max + diff_byte + 1, 0xff,
              sizeof(grn_geo_point) - diff_byte - 1);
@@ -274,7 +274,7 @@ grn_geo_table_sort_detect_far_point(grn_ctx *ctx, grn_obj *table, grn_obj *index
   grn_gton(geo_key_curr, base_point, sizeof(grn_geo_point));
   *diff_bit = sizeof(grn_geo_point) * 8;
   diff_bit_current = sizeof(grn_geo_point) * 8;
-  memcpy(&point, base_point, sizeof(grn_geo_point));
+  grn_memcpy(&point, base_point, sizeof(grn_geo_point));
   ep = entries;
   inspect_mesh(ctx, &point, *diff_bit, -1);
   while ((tid = grn_pat_cursor_next(ctx, pc))) {
@@ -862,7 +862,7 @@ grn_geo_select_in_circle(grn_ctx *ctx, grn_obj *index,
       name_size = grn_obj_name(ctx, domain_object, name, GRN_TABLE_MAX_KEY_SIZE);
       grn_obj_unlink(ctx, domain_object);
     } else {
-      strcpy(name, "(null)");
+      grn_strcpy(name, GRN_TABLE_MAX_KEY_SIZE, "(null)");
       name_size = strlen(name);
     }
     ERR(GRN_INVALID_ARGUMENT,
@@ -1034,7 +1034,7 @@ in_rectangle_data_fill(grn_ctx *ctx, grn_obj *index,
       name_size = grn_obj_name(ctx, domain_object, name, GRN_TABLE_MAX_KEY_SIZE);
       grn_obj_unlink(ctx, domain_object);
     } else {
-      strcpy(name, "(null)");
+      grn_strcpy(name, GRN_TABLE_MAX_KEY_SIZE, "(null)");
       name_size = strlen(name);
     }
     ERR(GRN_INVALID_ARGUMENT,
@@ -1419,8 +1419,8 @@ grn_geo_cursor_area_init(grn_ctx *ctx,
   }
 
   area->current_entry = 0;
-  memcpy(&(area->top_left), &area_top_left, sizeof(grn_geo_point));
-  memcpy(&(area->bottom_right), &area_bottom_right, sizeof(grn_geo_point));
+  grn_memcpy(&(area->top_left), &area_top_left, sizeof(grn_geo_point));
+  grn_memcpy(&(area->bottom_right), &area_bottom_right, sizeof(grn_geo_point));
   grn_gton(area->top_left_key, &area_top_left, sizeof(grn_geo_point));
   grn_gton(area->bottom_right_key, &area_bottom_right, sizeof(grn_geo_point));
 
@@ -1430,7 +1430,7 @@ grn_geo_cursor_area_init(grn_ctx *ctx,
                                  &area_bottom_right,
                                  &data);
   entry->target_bit = data.rectangle_common_bit;
-  memcpy(entry->key, data.rectangle_common_key, sizeof(grn_geo_point));
+  grn_memcpy(entry->key, data.rectangle_common_key, sizeof(grn_geo_point));
   entry->status_flags =
     GRN_GEO_CURSOR_ENTRY_STATUS_TOP_INCLUDED |
     GRN_GEO_CURSOR_ENTRY_STATUS_BOTTOM_INCLUDED |
@@ -1474,8 +1474,8 @@ grn_geo_cursor_open_in_rectangle(grn_ctx *ctx,
 
   cursor->pat = data.pat;
   cursor->index = index;
-  memcpy(&(cursor->top_left), data.top_left, sizeof(grn_geo_point));
-  memcpy(&(cursor->bottom_right), data.bottom_right, sizeof(grn_geo_point));
+  grn_memcpy(&(cursor->top_left), data.top_left, sizeof(grn_geo_point));
+  grn_memcpy(&(cursor->bottom_right), data.bottom_right, sizeof(grn_geo_point));
   cursor->pat_cursor = NULL;
   cursor->ii_cursor = NULL;
   cursor->offset = offset;
@@ -1494,10 +1494,12 @@ grn_geo_cursor_open_in_rectangle(grn_ctx *ctx,
     }
   }
   {
-    const char *minimum_reduce_bit_env;
+    char minimum_reduce_bit_env[GRN_ENV_BUFFER_SIZE];
     cursor->minimum_reduce_bit = 0;
-    minimum_reduce_bit_env = getenv("GRN_GEO_IN_RECTANGLE_MINIMUM_REDUCE_BIT");
-    if (minimum_reduce_bit_env) {
+    grn_getenv("GRN_GEO_IN_RECTANGLE_MINIMUM_REDUCE_BIT",
+               minimum_reduce_bit_env,
+               GRN_ENV_BUFFER_SIZE);
+    if (minimum_reduce_bit_env[0]) {
       cursor->minimum_reduce_bit = atoi(minimum_reduce_bit_env);
     }
     if (cursor->minimum_reduce_bit < 1) {
@@ -1544,7 +1546,7 @@ grn_geo_cursor_entry_next_push(grn_ctx *ctx,
       grn_geo_cursor_area *area;
       area = &(cursor->areas[cursor->current_area]);
       next_entry = &(area->entries[++area->current_entry]);
-      memcpy(next_entry, entry, sizeof(grn_geo_cursor_entry));
+      grn_memcpy(next_entry, entry, sizeof(grn_geo_cursor_entry));
       pushed = GRN_TRUE;
     }
     grn_table_cursor_close(ctx, pat_cursor);
@@ -1578,9 +1580,9 @@ grn_geo_cursor_entry_next(grn_ctx *ctx,
 
   top_left_key = area->top_left_key;
   bottom_right_key = area->bottom_right_key;
-  memcpy(entry,
-         &(area->entries[area->current_entry--]),
-         sizeof(grn_geo_cursor_entry));
+  grn_memcpy(entry,
+             &(area->entries[area->current_entry--]),
+             sizeof(grn_geo_cursor_entry));
   while (GRN_TRUE) {
     grn_geo_cursor_entry next_entry0, next_entry1;
     grn_bool pushed = GRN_FALSE;
@@ -1663,9 +1665,9 @@ grn_geo_cursor_entry_next(grn_ctx *ctx,
       break;
     }
 
-    memcpy(&next_entry0, entry, sizeof(grn_geo_cursor_entry));
+    grn_memcpy(&next_entry0, entry, sizeof(grn_geo_cursor_entry));
     next_entry0.target_bit++;
-    memcpy(&next_entry1, entry, sizeof(grn_geo_cursor_entry));
+    grn_memcpy(&next_entry1, entry, sizeof(grn_geo_cursor_entry));
     next_entry1.target_bit++;
     SET_N_BIT(next_entry1.key, next_entry1.target_bit);
 
@@ -1767,9 +1769,9 @@ grn_geo_cursor_entry_next(grn_ctx *ctx,
         print_key_mark(ctx, stack_entry->target_bit);
       }
 #endif
-      memcpy(entry,
-             &(area->entries[area->current_entry--]),
-             sizeof(grn_geo_cursor_entry));
+      grn_memcpy(entry,
+                 &(area->entries[area->current_entry--]),
+                 sizeof(grn_geo_cursor_entry));
 #ifdef GEO_DEBUG
       printf("%d: pop entry\n", entry->target_bit);
 #endif
@@ -1979,7 +1981,7 @@ geo_point_get(grn_ctx *ctx, grn_obj *pat, int flags, grn_geo_point *geo_point)
     void *key;
     int key_size;
     key_size = grn_table_cursor_get_key(ctx, cursor, &key);
-    memcpy(geo_point, key, key_size);
+    grn_memcpy(geo_point, key, key_size);
   }
 
 exit:

@@ -36,9 +36,9 @@ Master_info::Master_info(LEX_STRING *connection_name_arg,
    rli(is_slave_recovery), port(MYSQL_PORT),
    checksum_alg_before_fd(BINLOG_CHECKSUM_ALG_UNDEF),
    connect_retry(DEFAULT_CONNECT_RETRY), inited(0), abort_slave(0),
-   slave_running(0), slave_run_id(0), sync_counter(0),
-   heartbeat_period(0), received_heartbeats(0), master_id(0),
-   prev_master_id(0),
+   slave_running(0), slave_run_id(0), clock_diff_with_master(0),
+   sync_counter(0), heartbeat_period(0), received_heartbeats(0),
+   master_id(0), prev_master_id(0),
    using_gtid(USE_GTID_NO), events_queued_since_last_gtid(0),
    gtid_reconnect_event_skip_count(0), gtid_event_seen(false)
 {

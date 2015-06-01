@@ -16,6 +16,7 @@
 
 --source include/have_innodb.inc
 --source include/have_geometry.inc
+--source ../../include/mroonga/have_version_56_or_later.inc
 --source ../../include/mroonga/have_mroonga.inc
 
 --disable_warnings
@@ -32,18 +33,18 @@ show create table shops;
 
 insert into shops (name, location)
            values ('sazare',
-                   GeomFromText('POINT(139.685043 35.714653)'));
-select id, name, AsText(location) as location_text from shops
-  where MBRContains(GeomFromText('LineString(139.68466 35.71592, 139.68804 35.71411)'), location);
-select id, name, AsText(location) as location_text from shops
-  where MBRContains(GeomFromText('LineString(139.65659 35.57903, 139.66489 35.57262)'), location);
+                   ST_GeomFromText('POINT(139.685043 35.714653)'));
+select id, name, ST_AsText(location) as location_text from shops
+  where MBRContains(ST_GeomFromText('LineString(139.68466 35.71592, 139.68804 35.71411)'), location);
+select id, name, ST_AsText(location) as location_text from shops
+  where MBRContains(ST_GeomFromText('LineString(139.65659 35.57903, 139.66489 35.57262)'), location);
 
-update shops set location = GeomFromText('POINT(139.66116 35.57566)')
+update shops set location = ST_GeomFromText('POINT(139.66116 35.57566)')
              where name = 'sazare';
-select id, name, AsText(location) as location_text from shops
-  where MBRContains(GeomFromText('LineString(139.68466 35.71592, 139.68804 35.71411)'), location);
-select id, name, AsText(location) as location_text from shops
-  where MBRContains(GeomFromText('LineString(139.65659 35.57903, 139.66489 35.57262)'), location);
+select id, name, ST_AsText(location) as location_text from shops
+  where MBRContains(ST_GeomFromText('LineString(139.68466 35.71592, 139.68804 35.71411)'), location);
+select id, name, ST_AsText(location) as location_text from shops
+  where MBRContains(ST_GeomFromText('LineString(139.65659 35.57903, 139.66489 35.57262)'), location);
 
 drop table shops;
 

@@ -1,7 +1,7 @@
 /************* Value C++ Functions Source Code File (.CPP) *************/
 /*  Name: VALUE.CPP  Version 2.5                                       */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          2001-2014    */
+/*  (C) Copyright to the author Olivier BERTRAND          2001-2015    */
 /*                                                                     */
 /*  This file contains the VALUE and derived classes family functions. */
 /*  These classes contain values of different types. They are used so  */
@@ -627,13 +627,16 @@ int TYPVAL<double>::GetValLen(void)
 template <class TYPE>
 bool TYPVAL<TYPE>::SetValue_pval(PVAL valp, bool chktype)
   {
-  if (chktype && Type != valp->GetType())
-    return true;
+  if (valp != this) {
+    if (chktype && Type != valp->GetType())
+      return true;
 
-  if (!(Null = valp->IsNull() && Nullable))
-    Tval = GetTypedValue(valp);
-  else
-    Reset();
+    if (!(Null = valp->IsNull() && Nullable))
+      Tval = GetTypedValue(valp);
+    else
+      Reset();
+
+    } // endif valp
 
   return false;
   } // end of SetValue
@@ -1319,15 +1322,18 @@ ulonglong TYPVAL<PSZ>::GetUBigintValue(void)
 /***********************************************************************/
 bool TYPVAL<PSZ>::SetValue_pval(PVAL valp, bool chktype)
   {
-  if (chktype && (valp->GetType() != Type || valp->GetSize() > Len))
-    return true;
+  if (valp != this) {
+    if (chktype && (valp->GetType() != Type || valp->GetSize() > Len))
+      return true;
 
-  char buf[64];
+    char buf[64];
 
-  if (!(Null = valp->IsNull() && Nullable))
-    strncpy(Strp, valp->GetCharString(buf), Len);
-  else
-    Reset();
+    if (!(Null = valp->IsNull() && Nullable))
+      strncpy(Strp, valp->GetCharString(buf), Len);
+    else
+      Reset();
+
+    } // endif valp
 
   return false;
   } // end of SetValue_pval
@@ -2063,18 +2069,21 @@ double BINVAL::GetFloatValue(void)
 /***********************************************************************/
 bool BINVAL::SetValue_pval(PVAL valp, bool chktype)
   {
-  if (chktype && (valp->GetType() != Type || valp->GetSize() > Clen))
-    return true;
-
   bool rc = false;
-    
-  if (!(Null = valp->IsNull() && Nullable)) {
-    if ((rc = (Len = valp->GetSize()) > Clen))
-      Len = Clen;
+      
+  if (valp != this) {
+    if (chktype && (valp->GetType() != Type || valp->GetSize() > Clen))
+      return true;
 
-    memcpy(Binp, valp->GetTo_Val(), Len);
-  } else
-    Reset();
+    if (!(Null = valp->IsNull() && Nullable)) {
+      if ((rc = (Len = valp->GetSize()) > Clen))
+        Len = Clen;
+
+      memcpy(Binp, valp->GetTo_Val(), Len);
+    } else
+      Reset();
+
+    } // endif valp
 
   return rc;
   } // end of SetValue_pval
@@ -2629,21 +2638,24 @@ bool DTVAL::MakeDate(PGLOBAL g, int *val, int nval)
 /***********************************************************************/
 bool DTVAL::SetValue_pval(PVAL valp, bool chktype)
   {
-  if (chktype && Type != valp->GetType())
-    return true;
+  if (valp != this) {
+    if (chktype && Type != valp->GetType())
+      return true;
 
-  if (!(Null = valp->IsNull() && Nullable)) {
-    if (Pdtp && !valp->IsTypeNum()) {
-      int   ndv;
-      int  dval[6];
+    if (!(Null = valp->IsNull() && Nullable)) {
+      if (Pdtp && !valp->IsTypeNum()) {
+        int   ndv;
+        int  dval[6];
 
-      ndv = ExtractDate(valp->GetCharValue(), Pdtp, DefYear, dval);
-      MakeDate(NULL, dval, ndv);
+        ndv = ExtractDate(valp->GetCharValue(), Pdtp, DefYear, dval);
+        MakeDate(NULL, dval, ndv);
+      } else
+        Tval = valp->GetIntValue();
+
     } else
-      Tval = valp->GetIntValue();
+      Reset();
 
-  } else
-    Reset();
+    } // endif valp
 
   return false;
   } // end of SetValue

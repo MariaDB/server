@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2000, 2014, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2000, 2015, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, 2009 Google Inc.
 Copyright (c) 2009, Percona Inc.
 Copyright (c) 2012, Facebook Inc.
@@ -3000,19 +3000,6 @@ trx_is_strict(
 	trx_t*	trx)	/*!< in: transaction */
 {
 	return(trx && trx->mysql_thd && THDVAR(trx->mysql_thd, strict_mode));
-}
-
-/**********************************************************************//**
-Determines if the current MySQL thread is running in strict mode.
-If thd==NULL, THDVAR returns the global value of innodb-strict-mode.
-@return	TRUE if strict */
-UNIV_INLINE
-ibool
-thd_is_strict(
-/*==========*/
-	THD*	thd)	/*!< in: MySQL thread descriptor */
-{
-	return(THDVAR(thd, strict_mode));
 }
 
 /**************************************************************//**
@@ -10045,9 +10032,6 @@ wsrep_append_key(
 	}
 	DBUG_RETURN(0);
 }
-
-extern void compute_md5_hash(char *digest, const char *buf, int len);
-#define MD5_HASH compute_md5_hash
 
 int
 ha_innobase::wsrep_append_keys(

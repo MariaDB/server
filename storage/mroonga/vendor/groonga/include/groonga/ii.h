@@ -28,6 +28,13 @@ typedef struct _grn_ii grn_ii;
 typedef struct _grn_ii_buffer grn_ii_buffer;
 
 GRN_API unsigned int grn_ii_estimate_size(grn_ctx *ctx, grn_ii *ii, grn_id tid);
+GRN_API unsigned int grn_ii_estimate_size_for_query(grn_ctx *ctx, grn_ii *ii,
+                                                    const char *query,
+                                                    unsigned int query_len,
+                                                    grn_search_optarg *optarg);
+GRN_API unsigned int grn_ii_estimate_size_for_lexicon_cursor(grn_ctx *ctx,
+                                                             grn_ii *ii,
+                                                             grn_table_cursor *lexicon_cursor);
 
 GRN_API grn_ii_buffer *grn_ii_buffer_open(grn_ctx *ctx, grn_ii *ii,
                                           long long unsigned int update_buffer_size);

@@ -587,6 +587,10 @@ CATCOL::CATCOL(PCOLDEF cdp, PTDB tdbp, int n)
 void CATCOL::ReadColumn(PGLOBAL g)
   {
   // Get the value of the Name or Description property
-  Value->SetValue_pvblk(Crp->Kdata, Tdbp->N);
+  if (Crp->Kdata)
+    Value->SetValue_pvblk(Crp->Kdata, Tdbp->N);
+  else
+    Value->Reset();
+
   } // end of ReadColumn
 

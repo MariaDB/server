@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1996, 2014, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1996, 2015, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
 
 This program is free software; you can redistribute it and/or modify it under
@@ -118,8 +118,7 @@ dict_mem_table_create(
 	table->autoinc_lock = static_cast<ib_lock_t*>(
 		mem_heap_alloc(heap, lock_get_size()));
 
-	mutex_create(autoinc_mutex_key,
-		     &table->autoinc_mutex, SYNC_DICT_AUTOINC_MUTEX);
+	dict_table_autoinc_create_lazy(table);
 
 	table->autoinc = 0;
 
@@ -199,7 +198,7 @@ dict_mem_table_free(
 		}
 	}
 #ifndef UNIV_HOTBACKUP
-	mutex_free(&(table->autoinc_mutex));
+	dict_table_autoinc_destroy(table);
 #endif /* UNIV_HOTBACKUP */
 
 	dict_table_stats_latch_destroy(table);
@@ -564,8 +563,7 @@ dict_mem_index_create(
 	dict_mem_fill_index_struct(index, heap, table_name, index_name,
 				   space, type, n_fields);
 
-	os_fast_mutex_init(zip_pad_mutex_key, &index->zip_pad.mutex);
-
+	dict_index_zip_pad_mutex_create_lazy(index);
 	return(index);
 }
 
@@ -698,7 +696,7 @@ dict_mem_index_free(
 	}
 #endif /* UNIV_BLOB_DEBUG */
 
-	os_fast_mutex_free(&index->zip_pad.mutex);
+	dict_index_zip_pad_mutex_destroy(index);
 
 	mem_heap_free(index->heap);
 }
@@ -772,7 +770,7 @@ dict_foreign_set_validate(
 {
 	dict_foreign_not_exists	not_exists(fk_set);
 
-	dict_foreign_set::iterator it = std::find_if(
+	dict_foreign_set::const_iterator it = std::find_if(
 		fk_set.begin(), fk_set.end(), not_exists);
 
 	if (it == fk_set.end()) {

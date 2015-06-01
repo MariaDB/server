@@ -98,6 +98,7 @@ public:
 int mysql_open_cursor(THD *thd, select_result *result,
                       Server_side_cursor **pcursor)
 {
+  sql_digest_state *parent_digest;
   PSI_statement_locker *parent_locker;
   select_result *save_result;
   Select_materialize *result_materialize;
@@ -117,12 +118,15 @@ int mysql_open_cursor(THD *thd, select_result *result,
                          &thd->security_ctx->priv_user[0],
                          (char *) thd->security_ctx->host_or_ip,
                          2);
+  parent_digest= thd->m_digest;
   parent_locker= thd->m_statement_psi;
+  thd->m_digest= NULL;
   thd->m_statement_psi= NULL;
   /* Mark that we can't use query cache with cursors */
   thd->query_cache_is_applicable= 0;
   rc= mysql_execute_command(thd);
   thd->lex->restore_set_statement_var();
+  thd->m_digest= parent_digest;
   thd->m_statement_psi= parent_locker;
   MYSQL_QUERY_EXEC_DONE(rc);
 

@@ -1,5 +1,6 @@
 /*
    Copyright (c) 2000, 2010, Oracle and/or its affiliates.
+   Copyright (c) 2010, 2015, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -892,7 +893,7 @@ int mysql_multi_delete_prepare(THD *thd)
   */
   lex->select_lex.exclude_from_table_unique_test= FALSE;
   
-  if (lex->select_lex.save_prep_leaf_tables(thd))
+  if (lex->save_prep_leaf_tables())
     DBUG_RETURN(TRUE);
   
   DBUG_RETURN(FALSE);

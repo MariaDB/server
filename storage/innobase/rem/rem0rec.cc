@@ -845,8 +845,7 @@ rec_get_converted_size_comp_prefix_low(
 		}
 
 		ut_ad(len <= col->len || col->mtype == DATA_BLOB
-			|| col->mtype == DATA_VARMYSQL
-			|| (col->len == 0 && col->mtype == DATA_VARCHAR));
+		      || (col->len == 0 && col->mtype == DATA_VARCHAR));
 
 		fixed_len = field->fixed_len;
 		if (temp && fixed_len
@@ -1275,7 +1274,6 @@ rec_convert_dtuple_to_rec_comp(
 		} else {
 			ut_ad(len <= dtype_get_len(type)
 			      || dtype_get_mtype(type) == DATA_BLOB
-			      || dtype_get_mtype(type) == DATA_VARMYSQL
 			      || !strcmp(index->name,
 					 FTS_INDEX_TABLE_IND_NAME));
 			if (len < 128

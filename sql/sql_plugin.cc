@@ -2102,14 +2102,8 @@ bool mysql_install_plugin(THD *thd, const LEX_STRING *name,
   char **argv=orig_argv;
   DBUG_ENTER("mysql_install_plugin");
 
-  if (opt_noacl)
-  {
-    my_error(ER_OPTION_PREVENTS_STATEMENT, MYF(0), "--skip-grant-tables");
-    DBUG_RETURN(TRUE);
-  }
-
   tables.init_one_table("mysql", 5, "plugin", 6, "plugin", TL_WRITE);
-  if (check_table_access(thd, INSERT_ACL, &tables, FALSE, 1, FALSE))
+  if (!opt_noacl && check_table_access(thd, INSERT_ACL, &tables, FALSE, 1, FALSE))
     DBUG_RETURN(TRUE);
 
   /* need to open before acquiring LOCK_plugin or it will deadlock */
@@ -2244,15 +2238,9 @@ bool mysql_uninstall_plugin(THD *thd, const LEX_STRING *name,
   bool error= false;
   DBUG_ENTER("mysql_uninstall_plugin");
 
-  if (opt_noacl)
-  {
-    my_error(ER_OPTION_PREVENTS_STATEMENT, MYF(0), "--skip-grant-tables");
-    DBUG_RETURN(TRUE);
-  }
-
   tables.init_one_table("mysql", 5, "plugin", 6, "plugin", TL_WRITE);
 
-  if (check_table_access(thd, DELETE_ACL, &tables, FALSE, 1, FALSE))
+  if (!opt_noacl && check_table_access(thd, DELETE_ACL, &tables, FALSE, 1, FALSE))
     DBUG_RETURN(TRUE);
 
   /* need to open before acquiring LOCK_plugin or it will deadlock */

@@ -1,5 +1,5 @@
-/* Copyright (c) 2000, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2014, SkySQL Ab.
+/* Copyright (c) 2000, 2015, Oracle and/or its affiliates.
+   Copyright (c) 2008, 2015, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -149,26 +149,18 @@ static int process_io_create_file(Master_info* mi, Create_file_log_event* cev);
 static bool wait_for_relay_log_space(Relay_log_info* rli);
 static bool io_slave_killed(Master_info* mi);
 static bool sql_slave_killed(rpl_group_info *rgi);
-static int init_slave_thread(THD* thd, Master_info *mi,
-                             SLAVE_THD_TYPE thd_type);
+static int init_slave_thread(THD*, Master_info *, SLAVE_THD_TYPE);
 static void print_slave_skip_errors(void);
 static int safe_connect(THD* thd, MYSQL* mysql, Master_info* mi);
-static int safe_reconnect(THD* thd, MYSQL* mysql, Master_info* mi,
-                          bool suppress_warnings);
-static int connect_to_master(THD* thd, MYSQL* mysql, Master_info* mi,
-                             bool reconnect, bool suppress_warnings);
+static int safe_reconnect(THD*, MYSQL*, Master_info*, bool);
+static int connect_to_master(THD*, MYSQL*, Master_info*, bool, bool);
 static Log_event* next_event(rpl_group_info* rgi, ulonglong *event_size);
 static int queue_event(Master_info* mi,const char* buf,ulong event_len);
-static int terminate_slave_thread(THD *thd,
-                                  mysql_mutex_t *term_lock,
-                                  mysql_cond_t *term_cond,
-                                  volatile uint *slave_running,
-                                  bool skip_lock);
+static int terminate_slave_thread(THD *, mysql_mutex_t *, mysql_cond_t *,
+                                  volatile uint *, bool);
 static bool check_io_slave_killed(Master_info *mi, const char *info);
-static bool send_show_master_info_header(THD *thd, bool full,
-                                         size_t gtid_pos_length);
-static bool send_show_master_info_data(THD *thd, Master_info *mi, bool full,
-                                       String *gtid_pos);
+static bool send_show_master_info_header(THD *, bool, size_t);
+static bool send_show_master_info_data(THD *, Master_info *, bool, String *);
 /*
   Function to set the slave's max_allowed_packet based on the value
   of slave_max_allowed_packet.
@@ -3477,6 +3469,21 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
     Log_event_type typ= ev->get_type_code();
 
     /*
+      Even if we don't execute this event, we keep the master timestamp,
+      so that seconds behind master shows correct delta (there are events
+      that are not replayed, so we keep falling behind).
+
+      If it is an artificial event, or a relay log event (IO thread generated
+      event) or ev->when is set to 0, we don't update the
+      last_master_timestamp.
+     */
+    if (!(ev->is_artificial_event() || ev->is_relay_log_event() || (ev->when == 0)))
+    {
+      rli->last_master_timestamp= ev->when + (time_t) ev->exec_time;
+      DBUG_ASSERT(rli->last_master_timestamp >= 0);
+    }
+
+    /*
       This tests if the position of the beginning of the current event
       hits the UNTIL barrier.
     */
@@ -6126,7 +6133,23 @@ static int connect_to_master(THD* thd, MYSQL* mysql, Master_info* mi,
   }
 #endif
 
-  mysql_options(mysql, MYSQL_SET_CHARSET_NAME, default_charset_info->csname);
+  /*
+    If server's default charset is not supported (like utf16, utf32) as client
+    charset, then set client charset to 'latin1' (default client charset).
+  */
+  if (is_supported_parser_charset(default_charset_info))
+    mysql_options(mysql, MYSQL_SET_CHARSET_NAME, default_charset_info->csname);
+  else
+  {
+    sql_print_information("'%s' can not be used as client character set. "
+                          "'%s' will be used as default client character set "
+                          "while connecting to master.",
+                          default_charset_info->csname,
+                          default_client_charset_info->csname);
+    mysql_options(mysql, MYSQL_SET_CHARSET_NAME,
+                  default_client_charset_info->csname);
+  }
+
   /* This one is not strictly needed but we have it here for completeness */
   mysql_options(mysql, MYSQL_SET_CHARSET_DIR, (char *) charsets_dir);
 

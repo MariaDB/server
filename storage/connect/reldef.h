@@ -12,6 +12,7 @@
 #include "block.h"
 #include "catalog.h"
 #include "my_sys.h"
+#include "mycat.h"
 
 typedef class  INDEXDEF *PIXDEF;
 typedef class  ha_connect *PHC;
@@ -40,6 +41,7 @@ class DllExport RELDEF : public BLOCK {      // Relation definition block
   void    SetCat(PCATLG cat) { Cat=cat; }
 
   // Methods
+  PTOS    GetTopt(void);
   bool    GetBoolCatInfo(PSZ what, bool bdef);
   bool    SetIntCatInfo(PSZ what, int ival);
   bool    Partitioned(void);

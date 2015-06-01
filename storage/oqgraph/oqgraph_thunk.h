@@ -146,6 +146,9 @@ namespace oqgraph3
     ::Field* _target;
     ::Field* _weight;
 
+    ::THD* get_table_thd();
+    void set_table_thd(::THD* thd);
+
     graph(
         ::TABLE* table,
         ::Field* source,

@@ -34,6 +34,7 @@ typedef TaoCrypt::byte KeyByte;
 #else
 #include <openssl/evp.h>
 #include <openssl/aes.h>
+#include <openssl/err.h>
 
 typedef int Dir;
 static const Dir CRYPT_ENCRYPT = 1;
@@ -59,7 +60,7 @@ typedef uchar KeyByte;
 
 struct MyCTX : EVP_CIPHER_CTX {
   MyCTX()  { EVP_CIPHER_CTX_init(this); }
-  ~MyCTX() { EVP_CIPHER_CTX_cleanup(this); }
+  ~MyCTX() { EVP_CIPHER_CTX_cleanup(this); ERR_remove_state(0); }
 };
 #endif
 

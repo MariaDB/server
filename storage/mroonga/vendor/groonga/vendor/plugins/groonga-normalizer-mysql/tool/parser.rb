@@ -80,7 +80,8 @@ end
 
 class CTypeUCAParser
   attr_reader :pages
-  def initialize
+  def initialize(version=nil)
+    @version = version
     @pages = {}
     @lengths = []
   end
@@ -108,22 +109,43 @@ class CTypeUCAParser
     end
   end
 
+  def n_pages
+    @lengths.size
+  end
+
   private
+  def page_data_pattern
+    if @version == "520"
+      / uca520_p([\da-fA-F]{3})\[\]=/
+    else
+      / page([\da-fA-F]{3})data\[\]=/
+    end
+  end
+
+  def length_pattern
+    if @version == "520"
+      / uca520_length\[4352\]=/
+    else
+      / uca_length\[256\]=/
+    end
+  end
+
   def parse_ctype_uca(input)
     current_page = nil
     in_length = false
     input.each_line do |line|
       case line
-      when / page([\da-fA-F]{3})data\[\]=/
+      when page_data_pattern
         current_page = $1.to_i(16)
         @pages[current_page] = []
-      when /^\s*0x(?:[\da-z]+)(?:,\s*0x(?:[\da-z]+))*,?$/i
+      when /^\s*(0x(?:[\da-z]+)(?:,\s*0x(?:[\da-z]+))*),?(?: \/\*.+\*\/)?$/i
+        weight_values = $1
         next if current_page.nil?
-        weights = line.chomp.split(/,\s*/).collect do |component|
+        weights = weight_values.split(/,\s*/).collect do |component|
           Integer(component)
         end
         @pages[current_page].concat(weights)
-      when / uca_length\[256\]=/
+      when length_pattern
         in_length = true
       when /^\d+(?:,\d+)*,?$/
         next unless in_length

@@ -13,5 +13,5 @@ id
 1
 DROP TABLE counts;
 DROP DATABASE clean_test;
-USE test;
 SET GLOBAL mroonga_database_path_prefix = NULL;
+USE test;

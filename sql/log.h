@@ -1056,9 +1056,8 @@ uint purge_log_get_error_code(int res);
 
 int vprint_msg_to_log(enum loglevel level, const char *format, va_list args);
 void sql_print_error(const char *format, ...);
-void sql_print_warning(const char *format, ...) ATTRIBUTE_FORMAT(printf, 1, 2);
-void sql_print_information(const char *format, ...)
-  ATTRIBUTE_FORMAT(printf, 1, 2);
+void sql_print_warning(const char *format, ...);
+void sql_print_information(const char *format, ...);
 typedef void (*sql_print_message_func)(const char *format, ...)
   ATTRIBUTE_FORMAT_FPTR(printf, 1, 2);
 extern sql_print_message_func sql_print_message_handlers[];

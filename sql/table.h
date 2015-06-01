@@ -1365,6 +1365,10 @@ public:
   }
 
   bool update_const_key_parts(COND *conds);
+
+  my_ptrdiff_t default_values_offset() const
+  { return (my_ptrdiff_t) (s->default_values - record[0]); }
+
   uint actual_n_key_parts(KEY *keyinfo);
   ulong actual_key_flags(KEY *keyinfo);
   int update_default_fields();

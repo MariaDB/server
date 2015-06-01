@@ -1,0 +1,197 @@
+call mtr.add_suppression("password and an authentication plugin");
+#
+# Create a user with mysql_native_password plugin.
+# The user has no password or auth_string set.
+#
+create user u1;
+GRANT SELECT ON mysql.* to u1 IDENTIFIED VIA mysql_native_password;
+select user, host, password, plugin, authentication_string from mysql.user where user = 'u1';
+user	host	password	plugin	authentication_string
+u1	%			
+#
+# The user's grants should show no password at all.
+#
+show grants for u1;
+Grants for u1@%
+GRANT USAGE ON *.* TO 'u1'@'%'
+GRANT SELECT ON `mysql`.* TO 'u1'@'%'
+#
+# Test to see if connecting with no password is succesful.
+#
+connect  con1, localhost, u1,,;
+show grants;
+Grants for u1@%
+GRANT USAGE ON *.* TO 'u1'@'%'
+GRANT SELECT ON `mysql`.* TO 'u1'@'%'
+disconnect con1;
+connection default;
+#
+# Test after flushing privileges.
+#
+flush privileges;
+connect  con1, localhost, u1,,;
+show grants;
+Grants for u1@%
+GRANT USAGE ON *.* TO 'u1'@'%'
+GRANT SELECT ON `mysql`.* TO 'u1'@'%'
+disconnect con1;
+connection default;
+#
+# Now add a mysql_native password string in authentication_string.
+#
+GRANT SELECT ON mysql.* to u1 IDENTIFIED VIA mysql_native_password
+USING '*7AFEFD08B6B720E781FB000CAA418F54FA662626';
+select user, host, password, plugin, authentication_string from mysql.user where user = 'u1';
+user	host	password	plugin	authentication_string
+u1	%	*7AFEFD08B6B720E781FB000CAA418F54FA662626		
+#
+# Test to see if connecting with password is succesful.
+#
+connect  con1, localhost, u1,'SOMETHING',;
+show grants;
+Grants for u1@%
+GRANT USAGE ON *.* TO 'u1'@'%' IDENTIFIED BY PASSWORD '*7AFEFD08B6B720E781FB000CAA418F54FA662626'
+GRANT SELECT ON `mysql`.* TO 'u1'@'%'
+disconnect con1;
+connection default;
+#
+# Test after flushing privileges.
+#
+flush privileges;
+connect  con1, localhost, u1,'SOMETHING',;
+show grants;
+Grants for u1@%
+GRANT USAGE ON *.* TO 'u1'@'%' IDENTIFIED BY PASSWORD '*7AFEFD08B6B720E781FB000CAA418F54FA662626'
+GRANT SELECT ON `mysql`.* TO 'u1'@'%'
+disconnect con1;
+connection default;
+#
+# Now we also set a password for the user.
+#
+set password for u1 = PASSWORD('SOMETHINGELSE');
+select user, host, password, plugin, authentication_string from mysql.user where user = 'u1';
+user	host	password	plugin	authentication_string
+u1	%	*054B7BBD2B9A553DA560520DCD3F76DA2D81B7C6		
+#
+# Here we should use the password field, as that primes over
+# the authentication_string field.
+#
+show grants for u1;
+Grants for u1@%
+GRANT USAGE ON *.* TO 'u1'@'%' IDENTIFIED BY PASSWORD '*054B7BBD2B9A553DA560520DCD3F76DA2D81B7C6'
+GRANT SELECT ON `mysql`.* TO 'u1'@'%'
+#
+# Logging in with the user's password should work.
+#
+connect  con1, localhost, u1,'SOMETHINGELSE',;
+show grants;
+Grants for u1@%
+GRANT USAGE ON *.* TO 'u1'@'%' IDENTIFIED BY PASSWORD '*054B7BBD2B9A553DA560520DCD3F76DA2D81B7C6'
+GRANT SELECT ON `mysql`.* TO 'u1'@'%'
+disconnect con1;
+connection default;
+#
+# Reload privileges and test logging in again.
+#
+flush privileges;
+show grants for u1;
+Grants for u1@%
+GRANT USAGE ON *.* TO 'u1'@'%' IDENTIFIED BY PASSWORD '*054B7BBD2B9A553DA560520DCD3F76DA2D81B7C6'
+GRANT SELECT ON `mysql`.* TO 'u1'@'%'
+#
+# Here we connect via the user's password again.
+#
+connect  con1, localhost, u1,'SOMETHINGELSE',;
+show grants;
+Grants for u1@%
+GRANT USAGE ON *.* TO 'u1'@'%' IDENTIFIED BY PASSWORD '*054B7BBD2B9A553DA560520DCD3F76DA2D81B7C6'
+GRANT SELECT ON `mysql`.* TO 'u1'@'%'
+disconnect con1;
+connection default;
+#
+# Now we remove the authentication plugin password, flush privileges and
+# try again.
+#
+update mysql.user set authentication_string = '' where user='u1';
+select user, host, password, plugin, authentication_string from mysql.user where user = 'u1';
+user	host	password	plugin	authentication_string
+u1	%	*054B7BBD2B9A553DA560520DCD3F76DA2D81B7C6		
+flush privileges;
+show grants for u1;
+Grants for u1@%
+GRANT USAGE ON *.* TO 'u1'@'%' IDENTIFIED BY PASSWORD '*054B7BBD2B9A553DA560520DCD3F76DA2D81B7C6'
+GRANT SELECT ON `mysql`.* TO 'u1'@'%'
+#
+# Here we connect via the user's password.
+#
+connect  con1, localhost, u1,'SOMETHINGELSE',;
+select user, host, password, plugin, authentication_string from mysql.user where user = 'u1';
+user	host	password	plugin	authentication_string
+u1	%	*054B7BBD2B9A553DA560520DCD3F76DA2D81B7C6		
+disconnect con1;
+connection default;
+#
+# Try and set a wrong auth_string password, with mysql_native_password.
+# Make sure it fails.
+#
+GRANT USAGE ON *.* TO u1 IDENTIFIED VIA mysql_native_password USING 'asd';
+ERROR HY000: Password hash should be a 41-digit hexadecimal number
+#
+# Now set a correct password.
+#
+GRANT SELECT ON mysql.* to u1 IDENTIFIED VIA mysql_native_password
+USING '*7AFEFD08B6B720E781FB000CAA418F54FA662626';
+show grants for u1;
+Grants for u1@%
+GRANT USAGE ON *.* TO 'u1'@'%' IDENTIFIED BY PASSWORD '*7AFEFD08B6B720E781FB000CAA418F54FA662626'
+GRANT SELECT ON `mysql`.* TO 'u1'@'%'
+#
+# Test if the user can now use that password instead.
+#
+connect  con1, localhost, u1,'SOMETHING',;
+show grants;
+Grants for u1@%
+GRANT USAGE ON *.* TO 'u1'@'%' IDENTIFIED BY PASSWORD '*7AFEFD08B6B720E781FB000CAA418F54FA662626'
+GRANT SELECT ON `mysql`.* TO 'u1'@'%'
+disconnect con1;
+#
+# Test if the user can now use that password instead, after flushing privileges;
+#
+connection default;
+flush privileges;
+connect  con1, localhost, u1,'SOMETHING',;
+show grants;
+Grants for u1@%
+GRANT USAGE ON *.* TO 'u1'@'%' IDENTIFIED BY PASSWORD '*7AFEFD08B6B720E781FB000CAA418F54FA662626'
+GRANT SELECT ON `mysql`.* TO 'u1'@'%'
+disconnect con1;
+connection default;
+#
+# Clear all passwords from the user.
+#
+set password for u1 = '';
+select user, host, password, plugin, authentication_string from mysql.user where user = 'u1';
+user	host	password	plugin	authentication_string
+u1	%			
+#
+# Test no password connect.
+#
+connect  con1, localhost, u1,,;
+show grants;
+Grants for u1@%
+GRANT USAGE ON *.* TO 'u1'@'%'
+GRANT SELECT ON `mysql`.* TO 'u1'@'%'
+disconnect con1;
+connection default;
+#
+# Test no password connect, after flushing privileges.
+#
+flush privileges;
+connect  con1, localhost, u1,,;
+show grants;
+Grants for u1@%
+GRANT USAGE ON *.* TO 'u1'@'%'
+GRANT SELECT ON `mysql`.* TO 'u1'@'%'
+disconnect con1;
+connection default;
+drop user u1;

@@ -11,6 +11,10 @@ alter online table t1 comment "new comment";
 ERROR 0A000: LOCK=NONE/SHARED is not supported for this operation. Try LOCK=EXCLUSIVE.
 alter online table t1 rename to t2;
 ERROR 0A000: LOCK=NONE/SHARED is not supported for this operation. Try LOCK=EXCLUSIVE.
+alter online table t1 algorithm=INPLACE, lock=NONE;
+alter online table t1;
+alter table t1 algorithm=INPLACE;
+alter table t1 lock=NONE;
 drop table t1;
 create temporary table t1 (a int not null primary key, b int, c varchar(80), e enum('a','b'));
 insert into t1 (a) values (1),(2),(3);

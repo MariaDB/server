@@ -29,16 +29,17 @@ namespace mrn {
   char *PathMapper::default_path_prefix = NULL;
   char *PathMapper::default_mysql_data_home_path = NULL;
 
-  PathMapper::PathMapper(const char *mysql_path,
+  PathMapper::PathMapper(const char *original_mysql_path,
                          const char *path_prefix,
                          const char *mysql_data_home_path)
-    : mysql_path_(mysql_path),
+    : original_mysql_path_(original_mysql_path),
       path_prefix_(path_prefix),
       mysql_data_home_path_(mysql_data_home_path) {
     db_path_[0] = '\0';
     db_name_[0] = '\0';
     table_name_[0] = '\0';
     mysql_table_name_[0] = '\0';
+    mysql_path_[0] = '\0';
   }
 
   /**
@@ -52,22 +53,25 @@ namespace mrn {
       return db_path_;
     }
 
-    if (mysql_path_[0] == FN_CURLIB && mysql_path_[1] == FN_LIBCHAR) {
+    if (original_mysql_path_[0] == FN_CURLIB &&
+        original_mysql_path_[1] == FN_LIBCHAR) {
       if (path_prefix_) {
         strcpy(db_path_, path_prefix_);
       }
 
       int i = 2, j = strlen(db_path_), len;
-      len = strlen(mysql_path_);
-      while (mysql_path_[i] != FN_LIBCHAR && i < len) {
-        db_path_[j++] = mysql_path_[i++];
+      len = strlen(original_mysql_path_);
+      while (original_mysql_path_[i] != FN_LIBCHAR && i < len) {
+        db_path_[j++] = original_mysql_path_[i++];
       }
       db_path_[j] = '\0';
     } else if (mysql_data_home_path_) {
-      int len = strlen(mysql_path_);
+      int len = strlen(original_mysql_path_);
       int mysql_data_home_len = strlen(mysql_data_home_path_);
       if (len > mysql_data_home_len &&
-          !strncmp(mysql_path_, mysql_data_home_path_, mysql_data_home_len)) {
+          !strncmp(original_mysql_path_,
+                   mysql_data_home_path_,
+                   mysql_data_home_len)) {
         int i = mysql_data_home_len, j;
         if (path_prefix_ && path_prefix_[0] == FN_LIBCHAR) {
           strcpy(db_path_, path_prefix_);
@@ -87,19 +91,19 @@ namespace mrn {
           }
         }
 
-        while (mysql_path_[i] != FN_LIBCHAR && i < len) {
-          db_path_[j++] = mysql_path_[i++];
+        while (original_mysql_path_[i] != FN_LIBCHAR && i < len) {
+          db_path_[j++] = original_mysql_path_[i++];
         }
         if (i == len) {
-          memcpy(db_path_, mysql_path_, len);
+          memcpy(db_path_, original_mysql_path_, len);
         } else {
           db_path_[j] = '\0';
         }
       } else {
-        strcpy(db_path_, mysql_path_);
+        strcpy(db_path_, original_mysql_path_);
       }
     } else {
-      strcpy(db_path_, mysql_path_);
+      strcpy(db_path_, original_mysql_path_);
     }
     strcat(db_path_, MRN_DB_FILE_SUFFIX);
     return db_path_;
@@ -116,32 +120,35 @@ namespace mrn {
       return db_name_;
     }
 
-    if (mysql_path_[0] == FN_CURLIB && mysql_path_[1] == FN_LIBCHAR) {
+    if (original_mysql_path_[0] == FN_CURLIB &&
+        original_mysql_path_[1] == FN_LIBCHAR) {
       int i = 2, j = 0, len;
-      len = strlen(mysql_path_);
-      while (mysql_path_[i] != FN_LIBCHAR && i < len) {
-        db_name_[j++] = mysql_path_[i++];
+      len = strlen(original_mysql_path_);
+      while (original_mysql_path_[i] != FN_LIBCHAR && i < len) {
+        db_name_[j++] = original_mysql_path_[i++];
       }
       db_name_[j] = '\0';
     } else if (mysql_data_home_path_) {
-      int len = strlen(mysql_path_);
+      int len = strlen(original_mysql_path_);
       int mysql_data_home_len = strlen(mysql_data_home_path_);
       if (len > mysql_data_home_len &&
-          !strncmp(mysql_path_, mysql_data_home_path_, mysql_data_home_len)) {
+          !strncmp(original_mysql_path_,
+                   mysql_data_home_path_,
+                   mysql_data_home_len)) {
         int i = mysql_data_home_len, j = 0;
-        while (mysql_path_[i] != FN_LIBCHAR && i < len) {
-          db_name_[j++] = mysql_path_[i++];
+        while (original_mysql_path_[i] != FN_LIBCHAR && i < len) {
+          db_name_[j++] = original_mysql_path_[i++];
         }
         if (i == len) {
-          memcpy(db_name_, mysql_path_, len);
+          memcpy(db_name_, original_mysql_path_, len);
         } else {
           db_name_[j] = '\0';
         }
       } else {
-        strcpy(db_name_, mysql_path_);
+        strcpy(db_name_, original_mysql_path_);
       }
     } else {
-      strcpy(db_name_, mysql_path_);
+      strcpy(db_name_, original_mysql_path_);
     }
     return db_name_;
   }
@@ -154,10 +161,10 @@ namespace mrn {
       return table_name_;
     }
 
-    int len = strlen(mysql_path_);
+    int len = strlen(original_mysql_path_);
     int i = len, j = 0;
-    for (; mysql_path_[--i] != FN_LIBCHAR ;) {}
-    if (mysql_path_[i + 1] == '_') {
+    for (; original_mysql_path_[--i] != FN_LIBCHAR ;) {}
+    if (original_mysql_path_[i + 1] == '_') {
       table_name_[j++] = '@';
       table_name_[j++] = '0';
       table_name_[j++] = '0';
@@ -166,7 +173,7 @@ namespace mrn {
       i++;
     }
     for (; i < len ;) {
-      table_name_[j++] = mysql_path_[++i];
+      table_name_[j++] = original_mysql_path_[++i];
     }
     table_name_[j] = '\0';
     return table_name_;
@@ -180,16 +187,39 @@ namespace mrn {
       return mysql_table_name_;
     }
 
-    int len = strlen(mysql_path_);
+    int len = strlen(original_mysql_path_);
     int i = len, j = 0;
-    for (; mysql_path_[--i] != FN_LIBCHAR ;) {}
+    for (; original_mysql_path_[--i] != FN_LIBCHAR ;) {}
     for (; i < len ;) {
-      if (len - i - 1 >= 3 && strncmp(mysql_path_ + i + 1, "#P#", 3) == 0) {
+      if (len - i - 1 >= 3 &&
+          strncmp(original_mysql_path_ + i + 1, "#P#", 3) == 0) {
         break;
       }
-      mysql_table_name_[j++] = mysql_path_[++i];
+      mysql_table_name_[j++] = original_mysql_path_[++i];
     }
     mysql_table_name_[j] = '\0';
     return mysql_table_name_;
+  }
+
+  /**
+   * "./${db}/${table}"       ==> "./${db}/${table}"
+   * "./${db}/${table}#P#xxx" ==> "./${db}/${table}"
+   */
+  const char *PathMapper::mysql_path() {
+    if (mysql_path_[0] != '\0') {
+      return mysql_path_;
+    }
+
+    int i;
+    int len = strlen(original_mysql_path_);
+    for (i = 0; i < len; i++) {
+      if (len - i >= 3 &&
+          strncmp(original_mysql_path_ + i, "#P#", 3) == 0) {
+        break;
+      }
+      mysql_path_[i] = original_mysql_path_[i];
+    }
+    mysql_path_[i] = '\0';
+    return mysql_path_;
   }
 }

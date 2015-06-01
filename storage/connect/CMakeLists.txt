@@ -21,18 +21,18 @@ ha_connect.cc connect.cc user_connect.cc mycat.cc
 fmdlex.c osutil.c plugutil.c rcmsg.c rcmsg.h
 array.cpp blkfil.cpp colblk.cpp csort.cpp
 filamap.cpp filamdbf.cpp filamfix.cpp filamtxt.cpp filamvct.cpp filamzip.cpp
-filter.cpp json.cpp jsonudf.cpp maputil.cpp myutil.cpp plgdbutl.cpp reldef.cpp
-tabcol.cpp tabdos.cpp tabfix.cpp tabfmt.cpp tabjson.cpp table.cpp tabmul.cpp
-taboccur.cpp tabpivot.cpp tabsys.cpp tabtbl.cpp tabutil.cpp tabvct.cpp tabvir.cpp
-tabxcl.cpp valblk.cpp value.cpp xindex.cpp xobject.cpp
+filter.cpp json.cpp jsonudf.cpp maputil.cpp myconn.cpp myutil.cpp plgdbutl.cpp
+reldef.cpp tabcol.cpp tabdos.cpp tabfix.cpp tabfmt.cpp tabjson.cpp table.cpp
+tabmul.cpp tabmysql.cpp taboccur.cpp tabpivot.cpp tabsys.cpp tabtbl.cpp tabutil.cpp
+tabvct.cpp tabvir.cpp tabxcl.cpp valblk.cpp value.cpp xindex.cpp xobject.cpp
 
 array.h blkfil.h block.h catalog.h checklvl.h colblk.h connect.h csort.h
 engmsg.h filamap.h filamdbf.h filamfix.h filamtxt.h filamvct.h filamzip.h
 filter.h global.h ha_connect.h inihandl.h json.h maputil.h msgid.h mycat.h
-myutil.h os.h osutil.h plgcnx.h plgdbsem.h preparse.h reldef.h resource.h
-tabcol.h tabdos.h tabfix.h tabfmt.h tabjson.h tabmul.h taboccur.h tabpivot.h
-tabsys.h tabtbl.h tabutil.h tabvct.h tabvir.h tabxcl.h user_connect.h
-valblk.h value.h xindex.h xobject.h xtable.h)
+myconn.h myutil.h os.h osutil.h plgcnx.h plgdbsem.h preparse.h reldef.h
+resource.h tabcol.h tabdos.h tabfix.h tabfmt.h tabjson.h tabmul.h tabmysql.h
+taboccur.h tabpivot.h tabsys.h tabtbl.h tabutil.h tabvct.h tabvir.h tabxcl.h
+user_connect.h valblk.h value.h xindex.h xobject.h xtable.h)
 
 #
 # Definitions that are shared for all OSes
@@ -166,24 +166,15 @@ IF(LIBXML2_FOUND OR MSXML_FOUND)
 ENDIF()
 
 #
-# MySQL
+# MySQL is now included unconditionnally
 #
 
-OPTION(CONNECT_WITH_MYSQL
-       "Compile CONNECT storage engine with remote MySQL connection support"
-       ON)
-
-IF(CONNECT_WITH_MYSQL)
-  SET(CONNECT_SOURCES ${CONNECT_SOURCES}
-  myconn.cpp myconn.h tabmysql.cpp tabmysql.h)
-  add_definitions(-DMYSQL_SUPPORT)
-  IF(NOT UNIX)
-    #
-    # TODO: remove this
-    # change to use "#include "../../include/mysql.h" in the sources.
-    INCLUDE_DIRECTORIES("../../include/mysql")
-  ENDIF(NOT UNIX)
-ENDIF(CONNECT_WITH_MYSQL)
+IF(NOT UNIX)
+  #
+  # TODO: remove this
+  # change to use "#include "../../include/mysql.h" in the sources.
+  INCLUDE_DIRECTORIES("../../include/mysql")
+ENDIF(NOT UNIX)
 
 
 #

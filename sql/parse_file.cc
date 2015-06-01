@@ -282,7 +282,7 @@ sql_create_definition_file(const LEX_STRING *dir, const LEX_STRING *file_name,
   path[path_end+1]= '\0';
   if ((handler= mysql_file_create(key_file_fileparser,
                                   path, CREATE_MODE, O_RDWR | O_TRUNC,
-                                  MYF(MY_WME))) <= 0)
+                                  MYF(MY_WME))) < 0)
   {
     DBUG_RETURN(TRUE);
   }

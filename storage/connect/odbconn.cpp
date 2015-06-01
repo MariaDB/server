@@ -1,5 +1,5 @@
 /************ Odbconn C++ Functions Source Code File (.CPP) ************/
-/*  Name: ODBCONN.CPP  Version 2.1                                     */
+/*  Name: ODBCONN.CPP  Version 2.2                                     */
 /*                                                                     */
 /*  (C) Copyright to the author Olivier BERTRAND          1998-2015    */
 /*                                                                     */
@@ -867,8 +867,7 @@ bool DBX::BuildErrorMessage(ODBConn* pdb, HSTMT hstmt)
       for (int i = 0; i < MAX_NUM_OF_MSG
               && (rc == SQL_SUCCESS || rc == SQL_SUCCESS_WITH_INFO)
               && strcmp((char*)state, "00000"); i++) {
-        m_ErrMsg[i] = (PSZ)PlugSubAlloc(g, NULL, strlen((char*)msg) + 1);
-        strcpy(m_ErrMsg[i], (char*)msg);
+        m_ErrMsg[i] = (PSZ)PlugDup(g, (char*)msg);
 
         if (trace)
           htrc("%s: %s, Native=%d\n", state, msg, native);
@@ -882,8 +881,7 @@ bool DBX::BuildErrorMessage(ODBConn* pdb, HSTMT hstmt)
     } else {
       snprintf((char*)msg, SQL_MAX_MESSAGE_LENGTH + 1, "%s: %s", m_Msg,
                MSG(BAD_HANDLE_VAL));
-      m_ErrMsg[0] = (PSZ)PlugSubAlloc(g, NULL, strlen((char*)msg) + 1);
-      strcpy(m_ErrMsg[0], (char*)msg);
+      m_ErrMsg[0] = (PSZ)PlugDup(g, (char*)msg);
 
       if (trace)
         htrc("%s: rc=%hd\n", SVP(m_ErrMsg[0]), m_RC); 
@@ -1012,8 +1010,7 @@ PSZ ODBConn::GetStringInfo(ushort infotype)
 //  *buffer = '\0';
     } // endif rc
 
-  p = (char *)PlugSubAlloc(m_G, NULL, strlen(buffer) + 1);
-  strcpy(p, buffer);
+  p = PlugDup(m_G, buffer);
   return p;
   } // end of GetStringInfo
 

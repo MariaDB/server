@@ -1,5 +1,6 @@
-/* Copyright (c) 2000, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2013, Monty Program Ab.
+/*
+   Copyright (c) 2000, 2015, Oracle and/or its affiliates.
+   Copyright (c) 2009, 2015, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -19,7 +20,7 @@
 
 /* Classes in mysql */
 
-#include "my_global.h"                          /* NO_EMBEDDED_ACCESS_CHECKS */
+#include "my_global.h"      /* NO_EMBEDDED_ACCESS_CHECKS */
 #ifdef MYSQL_SERVER
 #include "unireg.h"                    // REQUIRED: for other includes
 #endif
@@ -30,14 +31,16 @@
 #include "rpl_tblmap.h"
 #include "mdl.h"
 #include "probes_mysql.h"
-#include "sql_locale.h"                         /* my_locale_st */
-#include "sql_profile.h"                   /* PROFILING */
-#include "scheduler.h"                     /* thd_scheduler */
-#include "protocol.h"             /* Protocol_text, Protocol_binary */
-#include "violite.h"              /* vio_is_connected */
-#include "thr_lock.h"             /* thr_lock_type, THR_LOCK_DATA,
-                                     THR_LOCK_INFO */
+#include "sql_locale.h"     /* my_locale_st */
+#include "sql_profile.h"    /* PROFILING */
+#include "scheduler.h"      /* thd_scheduler */
+#include "protocol.h"       /* Protocol_text, Protocol_binary */
+#include "violite.h"        /* vio_is_connected */
+#include "thr_lock.h"       /* thr_lock_type, THR_LOCK_DATA, THR_LOCK_INFO */
 #include "thr_timer.h"
+
+#include "sql_digest_stream.h"            // sql_digest_state
+
 #include <mysql/psi/mysql_stage.h>
 #include <mysql/psi/mysql_statement.h>
 #include <mysql/psi/mysql_idle.h>
@@ -799,9 +802,6 @@ void add_to_status(STATUS_VAR *to_var, STATUS_VAR *from_var);
 
 void add_diff_to_status(STATUS_VAR *to_var, STATUS_VAR *from_var,
                         STATUS_VAR *dec_var);
-
-void mark_transaction_to_rollback(THD *thd, bool all);
-
 
 /**
   Get collation by name, send error to client on failure.
@@ -2570,6 +2570,13 @@ public:
   PROFILING  profiling;
 #endif
 
+  /** Current statement digest. */
+  sql_digest_state *m_digest;
+  /** Current statement digest token array. */
+  unsigned char *m_token_array;
+  /** Top level statement digest. */
+  sql_digest_state m_digest_state;
+
   /** Current statement instrumentation. */
   PSI_statement_locker *m_statement_psi;
 #ifdef HAVE_PSI_STATEMENT_INTERFACE
@@ -3226,6 +3233,8 @@ public:
     if (get_stmt_da()->is_error())
       get_stmt_da()->reset_diagnostics_area();
     is_slave_error= 0;
+    if (killed == KILL_BAD_DATA)
+      killed= NOT_KILLED; // KILL_BAD_DATA can be reset w/o a mutex
     DBUG_VOID_RETURN;
   }
 #ifndef EMBEDDED_LIBRARY
@@ -3817,6 +3826,7 @@ public:
     wait_for_commit_ptr= suspended;
   }
 
+  void mark_transaction_to_rollback(bool all);
 private:
 
   /** The current internal error handler for this thread, or NULL. */
@@ -5259,8 +5269,6 @@ public:
   Do not check that wsrep snapshot is ready before allowing this command
 */
 #define CF_SKIP_WSREP_CHECK     (1U << 2)
-
-void mark_transaction_to_rollback(THD *thd, bool all);
 
 /* Inline functions */
 

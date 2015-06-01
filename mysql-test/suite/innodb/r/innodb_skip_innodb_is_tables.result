@@ -224,7 +224,7 @@ index_page_reorg_attempts	index	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL
 index_page_reorg_successful	index	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	disabled	counter	Number of successful index page reorganizations
 index_page_discards	index	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	disabled	counter	Number of index pages discarded
 adaptive_hash_searches	adaptive_hash_index	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	disabled	status_counter	Number of successful searches using Adaptive Hash Index
-adaptive_hash_searches_btree	adaptive_hash_index	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	disabled	counter	Number of searches using B-tree on an index search
+adaptive_hash_searches_btree	adaptive_hash_index	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	disabled	status_counter	Number of searches using B-tree on an index search
 adaptive_hash_pages_added	adaptive_hash_index	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	disabled	counter	Number of index pages on which the Adaptive Hash Index is built
 adaptive_hash_pages_removed	adaptive_hash_index	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	disabled	counter	Number of index pages whose corresponding Adaptive Hash Index entries were removed
 adaptive_hash_rows_added	adaptive_hash_index	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	disabled	counter	Number of Adaptive Hash Index rows added

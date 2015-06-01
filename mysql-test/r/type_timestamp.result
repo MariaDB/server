@@ -690,6 +690,47 @@ drop table t1;
 drop function f1;
 set timestamp=0;
 SET time_zone=DEFAULT;
+#
+# MDEV-7778 impossible create copy of table, if table contain default value for timestamp field
+#
+SET sql_mode="NO_ZERO_DATE";
+CREATE TABLE t1 (
+ts timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE t2 AS SELECT * from t1 LIMIT 0;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `ts` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `ts` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1,t2;
+SET sql_mode=DEFAULT;
+#
+# MDEV-8082 ON UPDATE is not preserved by CREATE TABLE .. SELECT
+#
+CREATE TABLE t1 (
+vc VARCHAR(10) NOT NULL DEFAULT 'test',
+ts timestamp NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP
+);
+CREATE TABLE t2 AS SELECT * FROM t1 LIMIT 0;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `vc` varchar(10) NOT NULL DEFAULT 'test',
+  `ts` timestamp NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `vc` varchar(10) NOT NULL DEFAULT 'test',
+  `ts` timestamp NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1,t2;
 End of 10.0 tests
 #
 # Start of 10.1 tests

@@ -30,11 +30,11 @@
 #if defined(HAVE_YASSL)
 #include "md5.hpp"
 
-typedef TaoCrypt::MD5 MD5_CTX;
+typedef TaoCrypt::MD5 MD5_CONTEXT;
 
-static void md5_init(MD5_CTX *context)
+static void md5_init(MD5_CONTEXT *context)
 {
-  context= new(context) MD5_CTX;
+  context= new(context) MD5_CONTEXT;
   context->Init();
 }
 
@@ -42,41 +42,48 @@ static void md5_init(MD5_CTX *context)
   this is a variant of md5_init to be used in this file only.
   does nothing for yassl, because the context's constructor was called automatically.
 */
-static void md5_init_fast(MD5_CTX *context)
+static void md5_init_fast(MD5_CONTEXT *context)
 {
 }
 
-static void md5_input(MD5_CTX *context, const uchar *buf, unsigned len)
+static void md5_input(MD5_CONTEXT *context, const uchar *buf, unsigned len)
 {
   context->Update((const TaoCrypt::byte *) buf, len);
 }
 
-static void md5_result(MD5_CTX *context, uchar digest[MD5_HASH_SIZE])
+static void md5_result(MD5_CONTEXT *context, uchar digest[MD5_HASH_SIZE])
 {
     context->Final((TaoCrypt::byte *) digest);
 }
 
 #elif defined(HAVE_OPENSSL)
-#include <openssl/md5.h>
+#include <openssl/evp.h>
+typedef EVP_MD_CTX MD5_CONTEXT;
 
-static void md5_init(MD5_CTX *context)
+static void md5_init(MD5_CONTEXT *context)
 {
-  MD5_Init(context);
+  EVP_MD_CTX_init(context);
+#ifdef EVP_MD_CTX_FLAG_NON_FIPS_ALLOW
+  /* Ok to ignore FIPS: MD5 is not used for crypto here */
+  EVP_MD_CTX_set_flags(context, EVP_MD_CTX_FLAG_NON_FIPS_ALLOW);
+#endif
+  EVP_DigestInit_ex(context, EVP_md5(), NULL);
 }
 
-static void md5_init_fast(MD5_CTX *context)
+static void md5_init_fast(MD5_CONTEXT *context)
 {
   md5_init(context);
 }
 
-static void md5_input(MD5_CTX *context, const uchar *buf, unsigned len)
+static void md5_input(MD5_CONTEXT *context, const uchar *buf, unsigned len)
 {
-  MD5_Update(context, buf, len);
+  EVP_DigestUpdate(context, buf, len);
 }
 
-static void md5_result(MD5_CTX *context, uchar digest[MD5_HASH_SIZE])
+static void md5_result(MD5_CONTEXT *context, uchar digest[MD5_HASH_SIZE])
 {
-  MD5_Final(digest, context);
+  EVP_DigestFinal_ex(context, digest, NULL);
+  EVP_MD_CTX_cleanup(context);
 }
 
 #endif /* HAVE_YASSL */
@@ -92,7 +99,7 @@ static void md5_result(MD5_CTX *context, uchar digest[MD5_HASH_SIZE])
 */
 void my_md5(uchar *digest, const char *buf, size_t len)
 {
-  MD5_CTX md5_context;
+  MD5_CONTEXT md5_context;
 
   md5_init_fast(&md5_context);
   md5_input(&md5_context, (const uchar *)buf, len);
@@ -117,7 +124,7 @@ void my_md5_multi(uchar *digest, ...)
   va_list args;
   va_start(args, digest);
 
-  MD5_CTX md5_context;
+  MD5_CONTEXT md5_context;
   const uchar *str;
 
   md5_init_fast(&md5_context);
@@ -130,20 +137,20 @@ void my_md5_multi(uchar *digest, ...)
 
 size_t my_md5_context_size()
 {
-  return sizeof(MD5_CTX);
+  return sizeof(MD5_CONTEXT);
 }
 
 void my_md5_init(void *context)
 {
-  md5_init((MD5_CTX *)context);
+  md5_init((MD5_CONTEXT *)context);
 }
 
 void my_md5_input(void *context, const uchar *buf, size_t len)
 {
-  md5_input((MD5_CTX *)context, buf, len);
+  md5_input((MD5_CONTEXT *)context, buf, len);
 }
 
 void my_md5_result(void *context, uchar *digest)
 {
-  md5_result((MD5_CTX *)context, digest);
+  md5_result((MD5_CONTEXT *)context, digest);
 }
