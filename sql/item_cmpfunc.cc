@@ -503,15 +503,15 @@ bool Item_func::setup_args_and_comparator(THD *thd, Arg_comparator *cmp)
   args[0]->cmp_context= args[1]->cmp_context=
     item_cmp_type(args[0]->result_type(), args[1]->result_type());
 
-  //  Convert constants when compared to int/year field, unless this is LIKE
-  if (functype() != LIKE_FUNC)
-    convert_const_compared_to_int_field(thd);
+  //  Convert constants when compared to int/year field
+  DBUG_ASSERT(functype() != LIKE_FUNC);
+  convert_const_compared_to_int_field(thd);
 
   return cmp->set_cmp_func(this, tmp_arg, tmp_arg + 1, true);
 }
 
 
-void Item_bool_func2::fix_length_and_dec()
+void Item_bool_rowready_func2::fix_length_and_dec()
 {
   max_length= 1;				     // Function returns 0 or 1
 
@@ -1881,7 +1881,7 @@ longlong Item_func_eq::val_int()
 
 void Item_func_equal::fix_length_and_dec()
 {
-  Item_bool_func2::fix_length_and_dec();
+  Item_bool_rowready_func2::fix_length_and_dec();
   maybe_null=null_value=0;
 }
 
@@ -4784,13 +4784,13 @@ void Item_func_isnotnull::print(String *str, enum_query_type query_type)
 longlong Item_func_like::val_int()
 {
   DBUG_ASSERT(fixed == 1);
-  String* res = args[0]->val_str(&cmp.value1);
+  String* res= args[0]->val_str(&cmp_value1);
   if (args[0]->null_value)
   {
     null_value=1;
     return 0;
   }
-  String* res2 = args[1]->val_str(&cmp.value2);
+  String* res2= args[1]->val_str(&cmp_value2);
   if (args[1]->null_value)
   {
     null_value=1;
@@ -4799,7 +4799,7 @@ longlong Item_func_like::val_int()
   null_value=0;
   if (canDoTurboBM)
     return turboBM_matches(res->ptr(), res->length()) ? 1 : 0;
-  return my_wildcmp(cmp.cmp_collation.collation,
+  return my_wildcmp(cmp_collation.collation,
 		    res->ptr(),res->ptr()+res->length(),
 		    res2->ptr(),res2->ptr()+res2->length(),
 		    escape,wild_one,wild_many) ? 0 : 1;
@@ -4815,7 +4815,7 @@ Item_func::optimize_type Item_func_like::select_optimize() const
   if (!args[1]->const_item() || args[1]->is_expensive())
     return OPTIMIZE_NONE;
 
-  String* res2= args[1]->val_str((String *)&cmp.value2);
+  String* res2= args[1]->val_str((String *) &cmp_value2);
   if (!res2)
     return OPTIMIZE_NONE;
 
@@ -4845,7 +4845,7 @@ bool Item_func_like::fix_fields(THD *thd, Item **ref)
   if (escape_item->const_item())
   {
     /* If we are on execution stage */
-    String *escape_str= escape_item->val_str(&cmp.value1);
+    String *escape_str= escape_item->val_str(&cmp_value1);
     if (escape_str)
     {
       const char *escape_str_ptr= escape_str->ptr();
@@ -4858,7 +4858,7 @@ bool Item_func_like::fix_fields(THD *thd, Item **ref)
         return TRUE;
       }
 
-      if (use_mb(cmp.cmp_collation.collation))
+      if (use_mb(cmp_collation.collation))
       {
         CHARSET_INFO *cs= escape_str->charset();
         my_wc_t wc;
@@ -4875,7 +4875,7 @@ bool Item_func_like::fix_fields(THD *thd, Item **ref)
           code instead of Unicode code as "escape" argument.
           Convert to "cs" if charset of escape differs.
         */
-        CHARSET_INFO *cs= cmp.cmp_collation.collation;
+        CHARSET_INFO *cs= cmp_collation.collation;
         uint32 unused;
         if (escape_str->needs_conversion(escape_str->length(),
                                          escape_str->charset(), cs, &unused))
@@ -4901,7 +4901,7 @@ bool Item_func_like::fix_fields(THD *thd, Item **ref)
     if (args[1]->const_item() && !use_strnxfrm(collation.collation) &&
         !args[1]->is_expensive())
     {
-      String* res2 = args[1]->val_str(&cmp.value2);
+      String* res2= args[1]->val_str(&cmp_value2);
       if (!res2)
         return FALSE;				// Null argument
       
@@ -5182,7 +5182,7 @@ void Item_func_like::turboBM_compute_suffixes(int *suff)
   int            f = 0;
   int            g = plm1;
   int *const splm1 = suff + plm1;
-  CHARSET_INFO	*cs= cmp.cmp_collation.collation;
+  CHARSET_INFO	*cs= cmp_collation.collation;
 
   *splm1 = pattern_len;
 
@@ -5282,7 +5282,7 @@ void Item_func_like::turboBM_compute_bad_character_shifts()
   int *end = bmBc + alphabet_size;
   int j;
   const int plm1 = pattern_len - 1;
-  CHARSET_INFO	*cs= cmp.cmp_collation.collation;
+  CHARSET_INFO	*cs= cmp_collation.collation;
 
   for (i = bmBc; i < end; i++)
     *i = pattern_len;
@@ -5314,7 +5314,7 @@ bool Item_func_like::turboBM_matches(const char* text, int text_len) const
   int shift = pattern_len;
   int j     = 0;
   int u     = 0;
-  CHARSET_INFO	*cs= cmp.cmp_collation.collation;
+  CHARSET_INFO	*cs= cmp_collation.collation;
 
   const int plm1=  pattern_len - 1;
   const int tlmpl= text_len - pattern_len;

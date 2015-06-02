@@ -290,18 +290,10 @@ public:
 };
 
 class Item_bool_func2 :public Item_bool_func
-{						/* Bool with 2 string args */
-protected:
-  Arg_comparator cmp;
-
+{                                              /* Bool with 2 string args */
 public:
   Item_bool_func2(Item *a,Item *b)
-    :Item_bool_func(a,b), cmp(tmp_arg, tmp_arg+1) { sargable= TRUE; }
-  void fix_length_and_dec();
-  int set_cmp_func()
-  {
-    return cmp.set_cmp_func(this, tmp_arg, tmp_arg+1, TRUE);
-  }
+    :Item_bool_func(a,b) { sargable= TRUE; }
   optimize_type select_optimize() const { return OPTIMIZE_OP; }
   virtual enum Functype rev_functype() const { return UNKNOWN_FUNC; }
   bool have_rev_func() const { return rev_functype() != UNKNOWN_FUNC; }
@@ -312,14 +304,6 @@ public:
   }
 
   bool is_null() { return MY_TEST(args[0]->is_null() || args[1]->is_null()); }
-  CHARSET_INFO *compare_collation() const
-  { return cmp.cmp_collation.collation; }
-  Arg_comparator *get_comparator() { return &cmp; }
-  void cleanup()
-  {
-    Item_bool_func::cleanup();
-    cmp.cleanup();
-  }
   COND *remove_eq_conds(THD *thd, Item::cond_result *cond_value,
                         bool top_level);
 
@@ -327,8 +311,11 @@ public:
 
 class Item_bool_rowready_func2 :public Item_bool_func2
 {
+protected:
+  Arg_comparator cmp;
 public:
-  Item_bool_rowready_func2(Item *a, Item *b) :Item_bool_func2(a, b)
+  Item_bool_rowready_func2(Item *a, Item *b)
+    :Item_bool_func2(a, b), cmp(tmp_arg, tmp_arg+1) 
   {
     allowed_arg_cols= 0;  // Fetch this value from first argument
   }
@@ -337,6 +324,19 @@ public:
   bool subst_argument_checker(uchar **arg)
   {
     return (*arg != NULL);     
+  }
+  void fix_length_and_dec();
+  int set_cmp_func()
+  {
+    return cmp.set_cmp_func(this, tmp_arg, tmp_arg + 1, true);
+  }
+  CHARSET_INFO *compare_collation() const
+  { return cmp.cmp_collation.collation; }
+  Arg_comparator *get_comparator() { return &cmp; }
+  void cleanup()
+  {
+    Item_bool_func2::cleanup();
+    cmp.cleanup();
   }
   bool can_optimize_group_min_max(Item_field *min_max_arg_item,
                                   const Item *const_item) const
@@ -1490,6 +1490,8 @@ class Item_func_like :public Item_bool_func2
   bool escape_used_in_parsing;
   bool use_sampling;
 
+  DTCollation cmp_collation;
+  String cmp_value1, cmp_value2;
 public:
   int escape;
 
@@ -1500,6 +1502,8 @@ public:
   longlong val_int();
   enum Functype functype() const { return LIKE_FUNC; }
   optimize_type select_optimize() const;
+  CHARSET_INFO *compare_collation() const
+  { return cmp_collation.collation; }
   cond_result eq_cmp_result() const
   {
     /**
@@ -1539,6 +1543,12 @@ public:
                       table_map usable_tables, SARGABLE_PARAM **sargables);
   const char *func_name() const { return "like"; }
   bool fix_fields(THD *thd, Item **ref);
+  void fix_length_and_dec()
+  {
+    max_length= 1;
+    args[0]->cmp_context= args[1]->cmp_context= STRING_RESULT;
+    agg_arg_charsets_for_comparison(cmp_collation, args, 2);
+  }
   void cleanup();
 
   bool find_selective_predicates_list_processor(uchar *arg);

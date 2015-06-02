@@ -13884,7 +13884,16 @@ change_cond_ref_to_const(THD *thd, I_List<COND_CMP> *save_list,
 	if ((tmp2=new COND_CMP(and_father,func)))
 	  save_list->push_back(tmp2);
       }
-      func->set_cmp_func();
+      /*
+        LIKE can be optimized for BINARY/VARBINARY/BLOB columns, e.g.:
+
+        from: WHERE CONCAT(c1)='const1' AND CONCAT(c1) LIKE 'const2'
+          to: WHERE CONCAT(c1)='const1' AND 'const1' LIKE 'const2'
+
+        So make sure to use set_cmp_func() only for non-LIKE operators.
+      */
+      if (functype != Item_func::LIKE_FUNC)
+        ((Item_bool_rowready_func2*) func)->set_cmp_func();
     }
   }
   else if (can_change_cond_ref_to_const(func, left_item, right_item,
@@ -13907,7 +13916,8 @@ change_cond_ref_to_const(THD *thd, I_List<COND_CMP> *save_list,
 	if ((tmp2=new COND_CMP(and_father,func)))
 	  save_list->push_back(tmp2);
       }
-      func->set_cmp_func();
+      if (functype != Item_func::LIKE_FUNC)
+        ((Item_bool_rowready_func2*) func)->set_cmp_func();
     }
   }
 }
