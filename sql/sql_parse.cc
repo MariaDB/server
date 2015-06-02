@@ -3301,17 +3301,10 @@ case SQLCOM_PREPARE:
         /* Store reference to table in case of LOCK TABLES */
         create_info.table= create_table->table;
 
-#ifdef WITH_WSREP
-        if (WSREP(thd) &&
-            (!thd->is_current_stmt_binlog_format_row() ||
-             !(create_info.tmp_table())))
-          WSREP_TO_ISOLATION_BEGIN(create_table->db, create_table->table_name,
-                                   NULL)
-#endif
-
         /*
           select_create is currently not re-execution friendly and
           needs to be created for every execution of a PS/SP.
+          Note: In wsrep-patch, CTAS is handled like a regular transaction.
         */
         if ((result= new select_create(create_table,
                                        &create_info,
