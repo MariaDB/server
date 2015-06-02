@@ -1268,6 +1268,10 @@ void ODBCCOL::ReadColumn(PGLOBAL g)
 
   } // endif Buf_Type
 
+  // Handle null values
+  if (Value->IsZero())
+    Value->SetNull(Nullable);
+
   if (trace) {
     char buf[64];
 
@@ -1393,7 +1397,7 @@ void ODBCCOL::WriteColumn(PGLOBAL g)
 /* -------------------------- Class TDBXDBC -------------------------- */
 
 /***********************************************************************/
-/*  Implementation of the TDBODBC class.                               */
+/*  Implementation of the TDBXDBC class.                               */
 /***********************************************************************/
 TDBXDBC::TDBXDBC(PODEF tdp) : TDBODBC(tdp)
 {
