@@ -105,7 +105,6 @@ fil_node_get_block_size(
 	return (node->file_block_size);
 }
 
-#ifdef UNIV_DEBUG
 /****************************************************************//**
 Validate page type.
 @return true if valid, false if not */
@@ -114,6 +113,7 @@ bool
 fil_page_type_validate(
 	const byte*	page)	/*!< in: page */
 {
+#ifdef UNIV_DEBUG
 	ulint page_type = mach_read_from_2(page + FIL_PAGE_TYPE);
 #ifdef UNIV_ENCRYPTION_EXTRA_DEBUG
 	uint key_version = mach_read_from_4(page + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION);
@@ -168,8 +168,8 @@ fil_page_type_validate(
 		return false;
 	}
 
+#endif /* UNIV_DEBUG */
 	return true;
 }
-#endif /* UNIV_DEBUG */
 
 #endif /* fil0fil_ic */
