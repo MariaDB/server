@@ -2232,12 +2232,6 @@ bool st_select_lex::test_limit()
 
 
 
-st_select_lex_unit* st_select_lex_unit::master_unit()
-{
-    return this;
-}
-
-
 st_select_lex* st_select_lex_unit::outer_select()
 {
   return (st_select_lex*) master;
@@ -2342,12 +2336,6 @@ bool st_select_lex::add_group_to_list(THD *thd, Item *item, bool asc)
 bool st_select_lex::add_ftfunc_to_list(Item_func_match *func)
 {
   return !func || ftfunc_list->push_back(func); // end of memory?
-}
-
-
-st_select_lex_unit* st_select_lex::master_unit()
-{
-  return (st_select_lex_unit*) master;
 }
 
 

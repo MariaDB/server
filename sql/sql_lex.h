@@ -526,7 +526,6 @@ public:
   void exclude();
   void exclude_from_tree();
 
-  virtual st_select_lex_unit* master_unit()= 0;
   virtual st_select_lex* outer_select()= 0;
   virtual st_select_lex* return_after_parsing()= 0;
 
@@ -668,7 +667,6 @@ public:
   TABLE *insert_table_with_stored_vcol;
 
   void init_query();
-  st_select_lex_unit* master_unit();
   st_select_lex* outer_select();
   st_select_lex* first_select()
   {
@@ -898,7 +896,7 @@ public:
 
   void init_query();
   void init_select();
-  st_select_lex_unit* master_unit();
+  st_select_lex_unit* master_unit() { return (st_select_lex_unit*) master; }
   st_select_lex_unit* first_inner_unit() 
   { 
     return (st_select_lex_unit*) slave; 
