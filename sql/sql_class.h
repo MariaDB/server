@@ -3704,7 +3704,16 @@ public:
   {
     set_query(CSET_STRING(query_arg, query_length_arg, charset()));
   }
-  void set_query(const CSET_STRING &str); /* Mutex protected */
+  void set_query(const CSET_STRING &string_arg)
+  {
+    mysql_mutex_lock(&LOCK_thd_data);
+    set_query_inner(string_arg);
+    mysql_mutex_unlock(&LOCK_thd_data);
+
+#ifdef HAVE_PSI_THREAD_INTERFACE
+    PSI_THREAD_CALL(set_thread_info)(query(), query_length());
+#endif
+  }
   void reset_query()               /* Mutex protected */
   { set_query(CSET_STRING()); }
   void set_query_and_id(char *query_arg, uint32 query_length_arg,
