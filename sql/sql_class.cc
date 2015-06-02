@@ -5056,14 +5056,6 @@ void THD::set_status_no_good_index_used()
 #endif
 }
 
-void THD::set_command(enum enum_server_command command)
-{
-  m_command= command;
-#ifdef HAVE_PSI_THREAD_INTERFACE
-  PSI_STATEMENT_CALL(set_thread_command)(m_command);
-#endif
-}
-
 /** Assign a new value to thd->query and thd->query_id.  */
 
 void THD::set_query_and_id(char *query_arg, uint32 query_length_arg,

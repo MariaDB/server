@@ -3687,7 +3687,13 @@ private:
 public:
   /** Overloaded to guard query/query_length fields */
   virtual void set_statement(Statement *stmt);
-  void set_command(enum enum_server_command command);
+  void set_command(enum enum_server_command command)
+  {
+    m_command= command;
+#ifdef HAVE_PSI_THREAD_INTERFACE
+    PSI_STATEMENT_CALL(set_thread_command)(m_command);
+#endif
+  }
   inline enum enum_server_command get_command() const
   { return m_command; }
 
