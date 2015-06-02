@@ -17,21 +17,21 @@
 /*  Include relevant MariaDB header file.                  */
 /***********************************************************************/
 #include "my_global.h"
-#if defined(WIN32)
+#if defined(__WIN__)
 #include <io.h>
 #include <fcntl.h>
 #if defined(__BORLANDC__)
 #define __MFC_COMPAT__                   // To define min/max as macro
 #endif
 //#include <windows.h>
-#else   // !WIN32
+#else   // !__WIN__
 #if defined(UNIX)
 #include <errno.h>
 #else   // !UNIX
 #include <io.h>
 #endif
 #include <fcntl.h>
-#endif  // !WIN32
+#endif  // !__WIN__
 
 /***********************************************************************/
 /*  Include application header files:                                  */
@@ -89,11 +89,11 @@ int ZIPFAM::Zerror(PGLOBAL g)
   strcpy(g->Message, gzerror(Zfile, &errnum));
 
   if (errnum == Z_ERRNO)
-#if defined(WIN32)
+#if defined(__WIN__)
     sprintf(g->Message, MSG(READ_ERROR), To_File, strerror(NULL));
-#else   // !WIN32
+#else   // !__WIN__
     sprintf(g->Message, MSG(READ_ERROR), To_File, strerror(errno));
-#endif  // !WIN32
+#endif  // !__WIN__
 
     return (errnum == Z_STREAM_END) ? RC_EF : RC_FX;
   } // end of Zerror
@@ -764,9 +764,9 @@ bool ZIXFAM::AllocateBuffer(PGLOBAL g)
     if (Tdbp->GetFtype() < 2)
       // if not binary, the file is physically a text file
       for (int len = Lrecl; len <= Buflen; len += Lrecl) {
-#if defined(WIN32)
+#if defined(__WIN__)
         To_Buf[len - 2] = '\r';
-#endif   // WIN32
+#endif   // __WIN__
         To_Buf[len - 1] = '\n';
         } // endfor len
 

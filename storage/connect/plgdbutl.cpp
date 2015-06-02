@@ -38,12 +38,12 @@
 /*  Include relevant MariaDB header file.                              */
 /***********************************************************************/
 #include "my_global.h"
-#if defined(WIN32)
+#if defined(__WIN__)
 #include <io.h>
 #include <fcntl.h>
 #include <errno.h>
 #define BIGMEM         1048576            // 1 Megabyte
-#else     // !WIN32
+#else     // !__WIN__
 #include <unistd.h>
 #include <fcntl.h>
 #if defined(THREAD)
@@ -51,7 +51,7 @@
 #endif   // THREAD
 #include <stdarg.h>
 #define BIGMEM      2147483647            // Max int value
-#endif    // !WIN32
+#endif    // !__WIN__
 #include <locale.h>
 
 /***********************************************************************/
@@ -73,11 +73,11 @@
 /*  Macro or external routine definition                               */
 /***********************************************************************/
 #if defined(THREAD)
-#if defined(WIN32)
+#if defined(__WIN__)
 extern CRITICAL_SECTION parsec;      // Used calling the Flex parser
-#else   // !WIN32
+#else   // !__WIN__
 extern pthread_mutex_t parmut;
-#endif  // !WIN32
+#endif  // !__WIN__
 #endif  //  THREAD
 
 /***********************************************************************/
@@ -403,11 +403,11 @@ char *SetPath(PGLOBAL g, const char *path)
 		  } // endif path
 
 		if (*path != '.') {
-#if defined(WIN32)
+#if defined(__WIN__)
 			char *s= "\\";
-#else   // !WIN32
+#else   // !__WIN__
 			char *s= "/";
-#endif  // !WIN32
+#endif  // !__WIN__
 			strcat(strcat(strcat(strcpy(buf, "."), s), path), s);
 		} else
 			strcpy(buf, path);
@@ -426,7 +426,7 @@ char *ExtractFromPath(PGLOBAL g, char *pBuff, char *FileName, OPVAL op)
   char *drive = NULL, *direc = NULL, *fname = NULL, *ftype = NULL;
 
   switch (op) {           // Determine which part to extract
-#if !defined(UNIX)
+#if defined(__WIN__)
     case OP_FDISK: drive = pBuff; break;
 #endif   // !UNIX
     case OP_FPATH: direc = pBuff; break;
@@ -702,19 +702,19 @@ PDTP MakeDateFormat(PGLOBAL g, PSZ dfmt, bool in, bool out, int flag)
   /* instruction is included in an Enter/LeaveCriticalSection bracket. */
   /*********************************************************************/
 #if defined(THREAD)
-#if defined(WIN32)
+#if defined(__WIN__)
   EnterCriticalSection((LPCRITICAL_SECTION)&parsec);
-#else   // !WIN32
+#else   // !__WIN__
   pthread_mutex_lock(&parmut);
-#endif  // !WIN32
+#endif  // !__WIN__
 #endif  //  THREAD
   /*int rc =*/ fmdflex(pdp);
 #if defined(THREAD)
-#if defined(WIN32)
+#if defined(__WIN__)
   LeaveCriticalSection((LPCRITICAL_SECTION)&parsec);
-#else   // !WIN32
+#else   // !__WIN__
   pthread_mutex_unlock(&parmut);
-#endif  // !WIN32
+#endif  // !__WIN__
 #endif  //  THREAD
 
   if (trace)
@@ -1109,7 +1109,7 @@ char *GetAmName(PGLOBAL g, AMT am, void *memp)
   return amn;
   } // end of GetAmName
 
-#if defined(WIN32) && !defined(NOCATCH)
+#if defined(__WIN__) && !defined(NOCATCH)
 /***********************************************************************/
 /*  GetExceptionDesc: return the description of an exception code.     */
 /***********************************************************************/
@@ -1197,7 +1197,7 @@ char *GetExceptionDesc(PGLOBAL g, unsigned int e)
 
   return p;
   } // end of GetExceptionDesc
-#endif   // WIN32 && !NOCATCH
+#endif   // __WIN__ && !NOCATCH
 
 /***********************************************************************/
 /*  PlgDBalloc: allocates or suballocates memory conditionally.        */
@@ -1239,7 +1239,7 @@ void *PlgDBalloc(PGLOBAL g, void *area, MBLOCK& mp)
   if (!mp.Sub) {
     // For allocations greater than one fourth of remaining storage
     // in the area, do allocate from virtual storage.
-#if defined(WIN32)
+#if defined(__WIN__)
     if (mp.Size >= BIGMEM)
       mp.Memp = VirtualAlloc(NULL, mp.Size, MEM_COMMIT, PAGE_READWRITE);
     else
@@ -1336,7 +1336,7 @@ void PlgDBfree(MBLOCK& mp)
     htrc("PlgDBfree: %p sub=%d size=%d\n", mp.Memp, mp.Sub, mp.Size);
 
   if (!mp.Sub && mp.Memp)
-#if defined(WIN32)
+#if defined(__WIN__)
     if (mp.Size >= BIGMEM)
       VirtualFree(mp.Memp, 0, MEM_RELEASE);
     else
@@ -1532,11 +1532,11 @@ int FileComp(PGLOBAL g, char *file1, char *file2)
   bp[0] = buff1; bp[1] = buff2;
 
   for (i = 0; i < 2; i++) {
-#if defined(WIN32)
+#if defined(__WIN__)
     h[i]= global_open(g, MSGID_NONE, fn[i], _O_RDONLY | _O_BINARY);
-#else   // !WIN32
+#else   // !__WIN__
     h[i]= global_open(g, MSGOD_NONE, fn[i], O_RDONLY);
-#endif  // !WIN32
+#endif  // !__WIN__
 
     if (h[i] == -1) {
 //      if (errno != ENOENT) {

@@ -53,7 +53,8 @@ class DllExport TDBFIX : public TDBDOS {
  protected:
   virtual bool PrepareWriting(PGLOBAL g) {return false;}
 
-  // Members are inherited from TDBDOS
+  // Members
+  char Teds;                  /* Binary table default endian setting   */
   }; // end of class TDBFIX
 
 /***********************************************************************/
@@ -86,7 +87,8 @@ class DllExport BINCOL : public DOSCOL {
   // Members
   static char Endian;         // The host endian setting (L or B)
   char *Buff;                 // Utility buffer
-  char  Fmt;                  // The file endian setting or old format
+  char  Eds;                  // The file endian setting
+  char  Fmt;                  // The converted value format
   int   N;                    // The number of bytes in the file
   int   M;                    // The buffer type size
   int   Lim;                  // Min(N,M)

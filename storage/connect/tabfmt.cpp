@@ -20,7 +20,7 @@
 /***********************************************************************/
 #include "my_global.h"
 
-#if defined(WIN32)
+#if defined(__WIN__)
 #include <io.h>
 #include <fcntl.h>
 #include <errno.h>
@@ -102,14 +102,14 @@ PQRYRES CSVColumns(PGLOBAL g, char *dp, const char *fn, char sep,
     } // endif info
 
 //      num_max = atoi(p+1);             // Max num of record to test
-#if defined(WIN32)
+#if defined(__WIN__)
   if (sep == ',' || strnicmp(setlocale(LC_NUMERIC, NULL), "French", 6))
     dechar = '.';
   else
     dechar = ',';
-#else   // !WIN32
+#else   // !__WIN__
   dechar = '.';
-#endif  // !WIN32
+#endif  // !__WIN__
 
   if (trace)
     htrc("File %s sep=%c q=%c hdr=%d mxr=%d\n",
@@ -147,7 +147,7 @@ PQRYRES CSVColumns(PGLOBAL g, char *dp, const char *fn, char sep,
     if (fgets(buf, sizeof(buf), infile)) {
       n = strlen(buf) + 1;
       buf[n - 2] = '\0';
-#if defined(UNIX)
+#if !defined(__WIN__)
       // The file can be imported from Windows
       if (buf[n - 3] == '\r')
         buf[n - 3] = 0;
@@ -204,7 +204,7 @@ PQRYRES CSVColumns(PGLOBAL g, char *dp, const char *fn, char sep,
     if (fgets(buf, sizeof(buf), infile)) {
       n = strlen(buf);
       buf[n - 1] = '\0';
-#if defined(UNIX)
+#if !defined(__WIN__)
       // The file can be imported from Windows
       if (buf[n - 2] == '\r')
         buf[n - 2] = 0;

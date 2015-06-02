@@ -91,6 +91,7 @@ class DllExport DOSDEF : public TABDEF {  /* Logical table description */
   int     Maxerr;             /* Maximum number of bad records (DBF)   */
   int     ReadMode;           /* Specific to DBF                       */
   int     Ending;             /* Length of end of lines                */
+  int     Teds;               /* Binary table default endian setting   */
   }; // end of DOSDEF
 
 /***********************************************************************/

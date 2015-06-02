@@ -36,8 +36,7 @@ class JSONDEF : public DOSDEF {                   /* Table description */
   friend class TDBJSON;
   friend class TDBJSN;
   friend class TDBJCL;
-  friend PQRYRES JSONColumns(PGLOBAL, char *, const char *, char *,
-                             int, int, int, bool);
+  friend PQRYRES JSONColumns(PGLOBAL, char*, PTOS, bool);
  public:
   // Constructor
   JSONDEF(void);
@@ -226,11 +225,6 @@ class TDBJCL : public TDBCAT {
   virtual PQRYRES GetResult(PGLOBAL g);
 
   // Members
-//char *Dp;
-  const char *Fn;
-  char *Objn;
-  int   Pretty;
-  int   Lrecl;
-  int   lvl;
+  PTOS  Topt;
+  char *Db;
   }; // end of class TDBJCL
-

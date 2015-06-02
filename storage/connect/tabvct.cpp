@@ -35,7 +35,7 @@
 /*  Include relevant MariaDB header file.                              */
 /***********************************************************************/
 #include "my_global.h"
-#if defined(WIN32)
+#if defined(__WIN__)
 #include <io.h>
 #include <fcntl.h>
 #if defined(__BORLANDC__)
@@ -146,7 +146,7 @@ bool VCTDEF::Erase(char *filename)
 
     for (i = 1, cdp = To_Cols; cdp; i++, cdp = cdp->GetNext()) {
       sprintf(filename, fpat, i);
-//#if defined(WIN32)
+//#if defined(__WIN__)
 //      rc |= !DeleteFile(filename);
 //#else    // UNIX
       rc |= remove(filename);
@@ -175,7 +175,7 @@ bool VCTDEF::Erase(char *filename)
 int VCTDEF::MakeFnPattern(char *fpat)
   {
   char    pat[8];
-#if !defined(UNIX)
+#if defined(__WIN__)
   char    drive[_MAX_DRIVE];
 #else
   char    *drive = NULL;
