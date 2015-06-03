@@ -925,8 +925,8 @@ int CntIndexRange(PGLOBAL g, PTDB ptdb, const uchar* *key, uint *len,
           if (!valp->IsTypeNum()) {
             if (colp->GetColUse(U_VAR)) {
 #if defined(WORDS_BIGENDIAN)
-              ((char*)&lg)[0]= ((char*)kp)[1];
-              ((char*)&lg)[1]= ((char*)kp)[0];
+              ((char*)&lg)[0]= ((char*)p)[1];
+              ((char*)&lg)[1]= ((char*)p)[0];
 #else   // !WORDS_BIGENDIAN
               lg= *(short*)p;
 #endif   //!WORDS_BIGENDIAN
