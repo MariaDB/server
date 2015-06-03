@@ -709,7 +709,7 @@ int CntIndexInit(PGLOBAL g, PTDB ptdb, int id, bool sorted)
   return (tdbp->To_Kindex->IsMul()) ? 2 : 1;
   } // end of CntIndexInit
 
-#if defined(BIG_ENDIAN_ORDER)
+#if defined(WORDS_BIGENDIAN)
 /***********************************************************************/
 /*  Swap bytes of the key that are written in little endian order.     */
 /***********************************************************************/
@@ -729,7 +729,7 @@ static void SetSwapValue(PVAL valp, char *kp)
     valp->SetBinValue((void*)kp);
 
 } // end of SetSwapValue
-#endif //LITTLE ENDIAN
+#endif   // WORDS_BIGENDIAN
 
 /***********************************************************************/
 /*  IndexRead: fetch a record having the index value.                  */
@@ -819,11 +819,11 @@ RCODE CntIndexRead(PGLOBAL g, PTDB ptdb, OPVAL op,
           } // endif b
 
       } else
-#if defined(BIG_ENDIAN_ORDER)
+#if defined(WORDS_BIGENDIAN)
         SetSwapValue(valp, kp);
-#else // LITTLE ENDIAN
+#else   // !WORDS_BIGENDIAN
         valp->SetBinValue((void*)kp);
-#endif //LITTLE ENDIAN
+#endif   //!WORDS_BIGENDIAN
 
       kp+= valp->GetClen();
 
@@ -938,11 +938,11 @@ int CntIndexRange(PGLOBAL g, PTDB ptdb, const uchar* *key, uint *len,
             } // endif b
 
           } else
-#if defined(BIG_ENDIAN_ORDER)
+#if defined(WORDS_BIGENDIAN)
             SetSwapValue(valp, (char*)kp);
-#else // LITTLE ENDIAN
+#else   // !WORDS_BIGENDIAN
             valp->SetBinValue((void*)kp);
-#endif //LITTLE ENDIAN
+#endif  // !WORDS_BIGENDIAN
 
           if (trace) {
             char bf[32];
