@@ -65,7 +65,11 @@ typedef struct index_def : public BLOCK {
 
 typedef struct index_off {
   union {
+#if defined(WORDS_BIGENDIAN)
+    struct {int High; int Low;};
+#else   // !WORDS_BIGENDIAN
     struct {int Low; int High;};
+#endif   //!WORDS_BIGENDIAN
     longlong Val;                 // File position
     }; // end of union
   } IOFF;
