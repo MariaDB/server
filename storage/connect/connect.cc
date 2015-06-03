@@ -15,7 +15,7 @@
    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
 
 /***********************************************************************/
-/*  Author Olivier BERTRAND  bertrandop@gmail.com         2004-2012    */
+/*  Author Olivier BERTRAND  bertrandop@gmail.com         2004-2015    */
 /*                                                                     */
 /* WHAT THIS PROGRAM DOES:                                             */
 /* -----------------------                                             */
@@ -949,9 +949,9 @@ int CntIndexRange(PGLOBAL g, PTDB ptdb, const uchar* *key, uint *len,
 
           } else
 #if defined(WORDS_BIGENDIAN)
-            SetSwapValue(valp, (char*)kp);
+            SetSwapValue(valp, (char*)p);
 #else   // !WORDS_BIGENDIAN
-            valp->SetBinValue((void*)kp);
+            valp->SetBinValue((void*)p);
 #endif  // !WORDS_BIGENDIAN
 
           if (trace) {
