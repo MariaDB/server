@@ -20042,6 +20042,7 @@ innodb_compression_algorithm_validate(
 	}
 
 	compression_algorithm = *reinterpret_cast<ulong*>(save);
+	(void)compression_algorithm;
 
 #ifndef HAVE_LZ4
 	if (compression_algorithm == PAGE_LZ4_ALGORITHM) {

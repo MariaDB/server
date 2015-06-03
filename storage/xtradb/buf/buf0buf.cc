@@ -2,7 +2,7 @@
 
 Copyright (c) 1995, 2014, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, Google Inc.
-Copyright (c) 2013, SkySQL Ab. All Rights Reserved.
+Copyright (c) 2013, 2015, MariaDB Corporation. All Rights Reserved.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -2449,12 +2449,25 @@ buf_block_align_instance(
 				ut_ad(page_get_page_no(page_align(ptr))
 				      == 0xffffffff);
 				break;
-			case BUF_BLOCK_FILE_PAGE:
+			case BUF_BLOCK_FILE_PAGE: {
+				ulint space =  page_get_space_id(page_align(ptr));
+				ulint offset = page_get_page_no(page_align(ptr));
+
+				if (block->page.space != space ||
+					block->page.offset != offset) {
+					ib_logf(IB_LOG_LEVEL_ERROR,
+						"Corruption: Block space_id %lu != page space_id %lu or "
+						"Block offset %lu != page offset %lu",
+						(ulint)block->page.space, space,
+						(ulint)block->page.offset, offset);
+				}
+
 				ut_ad(block->page.space
-				      == page_get_space_id(page_align(ptr)));
+					== page_get_space_id(page_align(ptr)));
 				ut_ad(block->page.offset
 				      == page_get_page_no(page_align(ptr)));
 				break;
+			}
 			}
 
 			mutex_exit(&block->mutex);
@@ -5865,49 +5878,54 @@ buf_page_encrypt_before_write(
 	ulint space_id) /*!< in: space id */
 {
 	fil_space_crypt_t* crypt_data = fil_space_get_crypt_data(space_id);
-	bpage->real_size = UNIV_PAGE_SIZE;
-
-	fil_page_type_validate(src_frame);
-
-	if (crypt_data != NULL && crypt_data->encryption == FIL_SPACE_ENCRYPTION_OFF) {
-		/* Encryption is disabled */
-		return const_cast<byte*>(src_frame);
-	}
-
-	if (!srv_encrypt_tables && (crypt_data == NULL || crypt_data->encryption == FIL_SPACE_ENCRYPTION_DEFAULT)) {
-		/* Encryption is disabled */
-		return const_cast<byte*>(src_frame);
-	}
-
-	if (bpage->offset == 0) {
-		/* Page 0 of a tablespace is not encrypted */
-		ut_ad(bpage->key_version == 0);
-		return const_cast<byte*>(src_frame);
-	}
-
-	/* Is encryption needed? */
-	if (crypt_data->type == CRYPT_SCHEME_UNENCRYPTED) {
-		/* An unencrypted table */
-		bpage->key_version = 0;
-		return const_cast<byte*>(src_frame);
-	}
-
-	if (bpage->space == TRX_SYS_SPACE && bpage->offset == TRX_SYS_PAGE_NO) {
-		/* don't encrypt page as it contains address to dblwr buffer */
-		bpage->key_version = 0;
-		return const_cast<byte*>(src_frame);
-	}
-
 	ulint zip_size = buf_page_get_zip_size(bpage);
 	ulint page_size = (zip_size) ? zip_size : UNIV_PAGE_SIZE;
 	buf_pool_t* buf_pool = buf_pool_from_bpage(bpage);
 	bool page_compressed = fil_space_is_page_compressed(bpage->space);
+	bpage->real_size = UNIV_PAGE_SIZE;
+	bool encrypted = true;
+
+	fil_page_type_validate(src_frame);
+
+	if (bpage->offset == 0) {
+		/* Page 0 of a tablespace is not encrypted/compressed */
+		ut_ad(bpage->key_version == 0);
+		return const_cast<byte*>(src_frame);
+	}
+
+	if (bpage->space == TRX_SYS_SPACE && bpage->offset == TRX_SYS_PAGE_NO) {
+		/* don't encrypt/compress page as it contains address to dblwr buffer */
+		bpage->key_version = 0;
+		return const_cast<byte*>(src_frame);
+	}
+
+	if (crypt_data != NULL && crypt_data->encryption == FIL_SPACE_ENCRYPTION_OFF) {
+		/* Encryption is disabled */
+		encrypted = false;
+	}
+
+	if (!srv_encrypt_tables && (crypt_data == NULL || crypt_data->encryption == FIL_SPACE_ENCRYPTION_DEFAULT)) {
+		/* Encryption is disabled */
+		encrypted = false;
+	}
+
+	/* Is encryption needed? */
+	if (crypt_data == NULL || crypt_data->type == CRYPT_SCHEME_UNENCRYPTED) {
+		/* An unencrypted table */
+		bpage->key_version = 0;
+		encrypted = false;
+	}
+
+	if (!encrypted && !page_compressed) {
+		/* No need to encrypt or page compress the page */
+		return const_cast<byte*>(src_frame);
+	}
 
 	/* Find free slot from temporary memory array */
 	buf_tmp_buffer_t* slot = buf_pool_reserve_tmp_slot(buf_pool, page_compressed);
 	bpage->slot = slot;
 
-	byte *dst_frame = slot->crypt_buf;
+	byte *dst_frame = bpage->slot->out_buf = slot->crypt_buf;
 
 	if (!page_compressed) {
 		/* Encrypt page content */
@@ -5937,6 +5955,7 @@ buf_page_encrypt_before_write(
 					page_size,
 					fil_space_get_page_compression_level(bpage->space),
 					block_size,
+					encrypted,
 					&out_len,
 					IF_LZO(slot->lzo_mem, NULL)
 					);
@@ -5944,14 +5963,18 @@ buf_page_encrypt_before_write(
 		bpage->real_size = out_len;
 
 		fil_page_type_validate(tmp);
+		if(encrypted) {
 
-		/* And then we encrypt the page content */
-		fil_space_encrypt(bpage->space,
+			/* And then we encrypt the page content */
+			fil_space_encrypt(bpage->space,
 				bpage->offset,
 				bpage->newest_modification,
 		        	tmp,
 				zip_size,
 				dst_frame);
+		} else {
+			bpage->slot->out_buf = dst_frame = tmp;
+		}
 	}
 
 	fil_page_type_validate(dst_frame);
@@ -5968,13 +5991,6 @@ buf_page_decrypt_after_read(
 /*========================*/
 	buf_page_t* bpage) /*!< in/out: buffer page read from disk */
 {
-	ut_ad(bpage->key_version == 0);
-
-	if (bpage->offset == 0) {
-		/* File header pages are not encrypted */
-		return (TRUE);
-	}
-
 	ulint zip_size = buf_page_get_zip_size(bpage);
 	ulint size = (zip_size) ? zip_size : UNIV_PAGE_SIZE;
 
@@ -5983,54 +5999,72 @@ buf_page_decrypt_after_read(
 	unsigned key_version =
 		mach_read_from_4(dst_frame + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION);
 	bool page_compressed = fil_page_is_compressed(dst_frame);
+	bool page_compressed_encrypted = fil_page_is_compressed_encrypted(dst_frame);
 	buf_pool_t* buf_pool = buf_pool_from_bpage(bpage);
 
-	if (key_version == 0) {
+	ut_ad(bpage->key_version == 0);
+
+	if (bpage->offset == 0) {
+		/* File header pages are not encrypted/compressed */
+		return (TRUE);
+	}
+
+	if (page_compressed) {
 		/* the page we read is unencrypted */
-		if (page_compressed) {
-			/* Find free slot from temporary memory array */
-			buf_tmp_buffer_t* slot = buf_pool_reserve_tmp_slot(buf_pool, page_compressed);
-
-			fil_page_type_validate(dst_frame);
-
-			fil_decompress_page(slot->comp_buf,
-					dst_frame,
-					size,
-					&bpage->write_size);
-
-			/* Mark this slot as free */
-			slot->reserved = false;
- 		}
-
-		fil_page_type_validate(dst_frame);
-	} else {
 		/* Find free slot from temporary memory array */
 		buf_tmp_buffer_t* slot = buf_pool_reserve_tmp_slot(buf_pool, page_compressed);
-		memcpy(slot->crypt_buf, dst_frame, size);
 
 		fil_page_type_validate(dst_frame);
-		fil_page_type_validate(slot->crypt_buf);
 
-		/* decrypt from crypt_buf to dst_frame */
- 		fil_space_decrypt(bpage->space,
-				  slot->crypt_buf,
-				  size,
-				  dst_frame);
-
-		fil_page_type_validate(dst_frame);
-		fil_page_type_validate(slot->crypt_buf);
-
-		if (page_compressed) {
-			fil_decompress_page(slot->comp_buf,
-					dst_frame,
-					size,
-					&bpage->write_size);
-
-		fil_page_type_validate(dst_frame);
- 		}
+		fil_decompress_page(slot->comp_buf,
+			dst_frame,
+			size,
+			&bpage->write_size);
 
 		/* Mark this slot as free */
 		slot->reserved = false;
+		key_version = 0;
+
+		fil_page_type_validate(dst_frame);
+	} else {
+		buf_tmp_buffer_t* slot = NULL;
+
+		if (key_version) {
+			/* Find free slot from temporary memory array */
+			slot = buf_pool_reserve_tmp_slot(buf_pool, page_compressed);
+			memcpy(slot->crypt_buf, dst_frame, size);
+
+			fil_page_type_validate(dst_frame);
+			fil_page_type_validate(slot->crypt_buf);
+			/* decrypt from crypt_buf to dst_frame */
+			fil_space_decrypt(bpage->space,
+				slot->crypt_buf,
+				size,
+				dst_frame);
+			fil_page_type_validate(dst_frame);
+			fil_page_type_validate(slot->crypt_buf);
+		}
+
+		if (page_compressed_encrypted) {
+			if (!slot) {
+				slot = buf_pool_reserve_tmp_slot(buf_pool, page_compressed);
+			}
+
+#ifdef UNIV_DEBUG
+			fil_page_type_validate(dst_frame);
+#endif
+			fil_decompress_page(slot->comp_buf,
+					dst_frame,
+					size,
+					&bpage->write_size);
+		}
+
+		fil_page_type_validate(dst_frame);
+
+		/* Mark this slot as free */
+		if (slot) {
+			slot->reserved = false;
+		}
 	}
 
 	bpage->key_version = key_version;

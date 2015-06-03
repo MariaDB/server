@@ -1506,6 +1506,9 @@ typedef struct {
 					can be read while it's being flushed */
 	byte*		comp_buf_free;	/*!< for compression, allocated
 					buffer that is then alligned */
+	byte*		out_buf;	/*!< resulting buffer after
+					encryption/compression. This is a
+					pointer and not allocated. */
 } buf_tmp_buffer_t;
 
 /** The common buffer control block structure

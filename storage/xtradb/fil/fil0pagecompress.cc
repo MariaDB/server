@@ -87,28 +87,34 @@ static ulint srv_data_read, srv_data_written;
 For page compressed pages compress the page before actual write
 operation.
 @return compressed page to be written*/
+UNIV_INTERN
 byte*
 fil_compress_page(
 /*==============*/
-	ulint		space_id,      /*!< in: tablespace id of the
-				       table. */
-	byte*           buf,           /*!< in: buffer from which to write; in aio
-				       this must be appropriately aligned */
-        byte*           out_buf,       /*!< out: compressed buffer */
-        ulint           len,           /*!< in: length of input buffer.*/
-        ulint           compression_level, /* in: compression level */
-	ulint           block_size,    /*!< in: block size */
-	ulint*          out_len,       /*!< out: actual length of compressed
-				       page */
-	byte*		lzo_mem)       /*!< in: temporal memory used by LZO */
+	ulint	space_id,	/*!< in: tablespace id of the
+				table. */
+	byte*	buf,		/*!< in: buffer from which to write; in aio
+				this must be appropriately aligned */
+	byte*	out_buf,	/*!< out: compressed buffer */
+	ulint	len,		/*!< in: length of input buffer.*/
+	ulint	level,		/* in: compression level */
+	ulint	block_size,	/*!< in: block size */
+	bool	encrypted,	/*!< in: is page also encrypted */
+	ulint*	out_len,	/*!< out: actual length of compressed
+				page */
+	byte*	lzo_mem)	/*!< in: temporal memory used by LZO */
 {
-        int err = Z_OK;
-        int level = compression_level;
-        ulint header_len = FIL_PAGE_DATA + FIL_PAGE_COMPRESSED_SIZE;
+	int err = Z_OK;
+	int comp_level = level;
+	ulint header_len = FIL_PAGE_DATA + FIL_PAGE_COMPRESSED_SIZE;
 	ulint write_size=0;
 	/* Cache to avoid change during function execution */
 	ulint comp_method = innodb_compression_algorithm;
 	ulint orig_page_type;
+
+	if (encrypted) {
+		header_len += FIL_PAGE_COMPRESSION_METHOD_SIZE;
+	}
 
 	ut_ad(buf);
 	ut_ad(out_buf);
@@ -134,8 +140,8 @@ fil_compress_page(
 
 	/* If no compression level was provided to this table, use system
 	default level */
-	if (level == 0) {
-		level = page_zip_level;
+	if (comp_level == 0) {
+		comp_level = page_zip_level;
 	}
 
 #ifdef UNIV_PAGECOMPRESS_DEBUG
@@ -156,13 +162,16 @@ fil_compress_page(
 		if (err == 0) {
 			/* If error we leave the actual page as it was */
 
+#ifndef UNIV_PAGECOMPRESS_DEBUG
 			if (space->printed_compression_failure == false) {
+#endif
 				ib_logf(IB_LOG_LEVEL_WARN,
 					"Compression failed for space %lu name %s len %lu rt %d write %lu.",
 					space_id, fil_space_name(space), len, err, write_size);
 				space->printed_compression_failure = true;
+#ifndef UNIV_PAGECOMPRESS_DEBUG
 			}
-
+#endif
 			srv_stats.pages_page_compression_error.inc();
 			*out_len = len;
 			return (buf);
@@ -193,7 +202,7 @@ fil_compress_page(
 		size_t out_pos=0;
 
 		err = lzma_easy_buffer_encode(
-			compression_level,
+			comp_level,
 			LZMA_CHECK_NONE,
 			NULL, 	/* No custom allocator, use malloc/free */
 			reinterpret_cast<uint8_t*>(buf),
@@ -270,7 +279,7 @@ fil_compress_page(
 #endif /* HAVE_SNAPPY */
 
 	case PAGE_ZLIB_ALGORITHM:
-		err = compress2(out_buf+header_len, (ulong*)&write_size, buf, len, level);
+		err = compress2(out_buf+header_len, (ulong*)&write_size, buf, len, comp_level);
 
 		if (err != Z_OK) {
 			/* If error we leave the actual page as it was */
@@ -301,19 +310,29 @@ fil_compress_page(
 	memcpy(out_buf, buf, FIL_PAGE_DATA);
 	/* Set up the checksum */
 	mach_write_to_4(out_buf+FIL_PAGE_SPACE_OR_CHKSUM, BUF_NO_CHECKSUM_MAGIC);
-	/* Set up the correct page type */
-	mach_write_to_2(out_buf+FIL_PAGE_TYPE, FIL_PAGE_PAGE_COMPRESSED);
-	/* Set up the flush lsn to be compression algorithm */
+
+	/* Set up the compression algorithm */
 	mach_write_to_8(out_buf+FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION, comp_method);
+
+	if (encrypted) {
+		/* Set up the correct page type */
+		mach_write_to_2(out_buf+FIL_PAGE_TYPE, FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED);
+		mach_write_to_2(out_buf+FIL_PAGE_DATA+FIL_PAGE_COMPRESSED_SIZE, comp_method);
+	} else {
+		/* Set up the correct page type */
+		mach_write_to_2(out_buf+FIL_PAGE_TYPE, FIL_PAGE_PAGE_COMPRESSED);
+	}
+
 	/* Set up the actual payload lenght */
 	mach_write_to_2(out_buf+FIL_PAGE_DATA, write_size);
 
 #ifdef UNIV_DEBUG
 	/* Verify */
-	ut_ad(fil_page_is_compressed(out_buf));
+	ut_ad(fil_page_is_compressed(out_buf) || fil_page_is_compressed_encrypted(out_buf));
 	ut_ad(mach_read_from_4(out_buf+FIL_PAGE_SPACE_OR_CHKSUM) == BUF_NO_CHECKSUM_MAGIC);
 	ut_ad(mach_read_from_2(out_buf+FIL_PAGE_DATA) == write_size);
-	ut_ad(mach_read_from_8(out_buf+FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION) == (ulint)comp_method);
+	ut_ad(mach_read_from_8(out_buf+FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION) == (ulint)comp_method ||
+		mach_read_from_2(out_buf+FIL_PAGE_DATA+FIL_PAGE_COMPRESSED_SIZE) == (ulint)comp_method);
 
 	/* Verify that page can be decompressed */
 	{
@@ -373,29 +392,37 @@ fil_compress_page(
 /****************************************************************//**
 For page compressed pages decompress the page after actual read
 operation. */
+UNIV_INTERN
 void
 fil_decompress_page(
 /*================*/
-	byte*           page_buf,      /*!< in: preallocated buffer or NULL */
-	byte*           buf,           /*!< out: buffer from which to read; in aio
-				       this must be appropriately aligned */
-        ulong           len,           /*!< in: length of output buffer.*/
-	ulint*		write_size)    /*!< in/out: Actual payload size of
-				       the compressed data. */
+	byte*	page_buf,	/*!< in: preallocated buffer or NULL */
+	byte*	buf,		/*!< out: buffer from which to read; in aio
+				this must be appropriately aligned */
+	ulong	len,		/*!< in: length of output buffer.*/
+	ulint*	write_size)	/*!< in/out: Actual payload size of
+				the compressed data. */
 {
-        int err = 0;
-        ulint actual_size = 0;
+	int err = 0;
+	ulint actual_size = 0;
 	ulint compression_alg = 0;
 	byte *in_buf;
 	ulint ptype;
+	ulint header_len = FIL_PAGE_DATA + FIL_PAGE_COMPRESSED_SIZE;
 
 	ut_ad(buf);
 	ut_ad(len);
 
 	ptype = mach_read_from_2(buf+FIL_PAGE_TYPE);
 
+	if (ptype == FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED) {
+		header_len += FIL_PAGE_COMPRESSION_METHOD_SIZE;
+	}
+
 	/* Do not try to uncompressed pages that are not compressed */
-	if (ptype !=  FIL_PAGE_PAGE_COMPRESSED && ptype != FIL_PAGE_TYPE_COMPRESSED) {
+	if (ptype !=  FIL_PAGE_PAGE_COMPRESSED &&
+		ptype != FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED &&
+		ptype != FIL_PAGE_TYPE_COMPRESSED) {
 		return;
 	}
 
@@ -409,7 +436,8 @@ fil_decompress_page(
 	/* Before actual decompress, make sure that page type is correct */
 
 	if (mach_read_from_4(buf+FIL_PAGE_SPACE_OR_CHKSUM) != BUF_NO_CHECKSUM_MAGIC ||
-		mach_read_from_2(buf+FIL_PAGE_TYPE) != FIL_PAGE_PAGE_COMPRESSED) {
+		(ptype != FIL_PAGE_PAGE_COMPRESSED &&
+		 ptype != FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED)) {
 		ib_logf(IB_LOG_LEVEL_ERROR,
 			"Corruption: We try to uncompress corrupted page"
 			" CRC %lu type %lu len %lu.",
@@ -421,7 +449,11 @@ fil_decompress_page(
 	}
 
 	/* Get compression algorithm */
-	compression_alg = mach_read_from_8(buf+FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION);
+	if (ptype == FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED) {
+		compression_alg = mach_read_from_2(buf+FIL_PAGE_DATA+FIL_PAGE_COMPRESSED_SIZE);
+	} else {
+		compression_alg = mach_read_from_8(buf+FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION);
+	}
 
 	/* Get the actual size of compressed page */
 	actual_size = mach_read_from_2(buf+FIL_PAGE_DATA);
@@ -450,7 +482,7 @@ fil_decompress_page(
 
 	switch(compression_alg) {
 	case PAGE_ZLIB_ALGORITHM:
-		err= uncompress(in_buf, &len, buf+FIL_PAGE_DATA+FIL_PAGE_COMPRESSED_SIZE, (unsigned long)actual_size);
+		err= uncompress(in_buf, &len, buf+header_len, (unsigned long)actual_size);
 
 		/* If uncompress fails it means that page is corrupted */
 		if (err != Z_OK) {
@@ -469,7 +501,7 @@ fil_decompress_page(
 
 #ifdef HAVE_LZ4
 	case PAGE_LZ4_ALGORITHM:
-		err = LZ4_decompress_fast((const char *)buf+FIL_PAGE_DATA+FIL_PAGE_COMPRESSED_SIZE, (char *)in_buf, len);
+		err = LZ4_decompress_fast((const char *)buf+header_len, (char *)in_buf, len);
 
 		if (err != (int)actual_size) {
 			ib_logf(IB_LOG_LEVEL_ERROR,
@@ -486,7 +518,7 @@ fil_decompress_page(
 #ifdef HAVE_LZO
 	case PAGE_LZO_ALGORITHM: {
                	ulint olen=0;
-		err = lzo1x_decompress((const unsigned char *)buf+FIL_PAGE_DATA+FIL_PAGE_COMPRESSED_SIZE,
+		err = lzo1x_decompress((const unsigned char *)buf+header_len,
 			actual_size,(unsigned char *)in_buf, &olen, NULL);
 
 		if (err != LZO_E_OK || (olen == 0 || olen > UNIV_PAGE_SIZE)) {
@@ -514,7 +546,7 @@ fil_decompress_page(
 			&memlimit,
 			0,
 			NULL,
-			buf+FIL_PAGE_DATA+FIL_PAGE_COMPRESSED_SIZE,
+			buf+header_len,
 			&src_pos,
 			actual_size,
 			in_buf,
@@ -543,7 +575,7 @@ fil_decompress_page(
 		err = BZ2_bzBuffToBuffDecompress(
 			(char *)in_buf,
 			&dst_pos,
-			(char *)(buf+FIL_PAGE_DATA+FIL_PAGE_COMPRESSED_SIZE),
+			(char *)(buf+header_len),
 			actual_size,
 			1,
 			0);
@@ -568,7 +600,7 @@ fil_decompress_page(
 		ulint olen = 0;
 
 		cstatus = snappy_uncompress(
-			(const char *)(buf+FIL_PAGE_DATA+FIL_PAGE_COMPRESSED_SIZE),
+			(const char *)(buf+header_len),
 			actual_size,
 			(char *)in_buf,
 			&olen);

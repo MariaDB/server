@@ -118,6 +118,7 @@ fil_page_type_validate(
 #ifdef UNIV_ENCRYPTION_EXTRA_DEBUG
 	uint key_version = mach_read_from_4(page + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION);
 	bool page_compressed = (page_type == FIL_PAGE_PAGE_COMPRESSED);
+	bool page_compressed_encrypted = (page_type == FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED);
 	ulint space = mach_read_from_4(page + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID);
 	ulint offset = mach_read_from_4(page + FIL_PAGE_OFFSET);
 	ib_uint64_t lsn = mach_read_from_8(page + FIL_PAGE_LSN);
@@ -137,6 +138,7 @@ fil_page_type_validate(
 
 	/* Validate page type */
 	if (!((page_type == FIL_PAGE_PAGE_COMPRESSED ||
+		page_type == FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED ||
 		page_type == FIL_PAGE_INDEX ||
 		page_type == FIL_PAGE_UNDO_LOG ||
 		page_type == FIL_PAGE_INODE ||
@@ -152,6 +154,7 @@ fil_page_type_validate(
 		page_type == FIL_PAGE_TYPE_COMPRESSED))) {
 
 		ut_ad(page_type == FIL_PAGE_PAGE_COMPRESSED ||
+			page_type == FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED ||
 			page_type == FIL_PAGE_INDEX ||
 			page_type == FIL_PAGE_UNDO_LOG ||
 			page_type == FIL_PAGE_INODE ||

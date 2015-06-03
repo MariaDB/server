@@ -2,6 +2,7 @@
 
 Copyright (c) 1995, 2014, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, Google Inc.
+Copyright (c) 2014, 2015, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -926,8 +927,10 @@ buf_page_get_frame(
 /*===============*/
 	const buf_page_t*	bpage) /*!< in: buffer pool page */
 {
-	if (bpage->slot && bpage->slot->crypt_buf) {
-		return bpage->slot->crypt_buf;
+	/* In encryption/compression buffer pool page may contain extra
+	buffer where result is stored. */
+	if (bpage->slot && bpage->slot->out_buf) {
+		return bpage->slot->out_buf;
 	} else if (bpage->zip.data) {
 		return bpage->zip.data;
 	} else {

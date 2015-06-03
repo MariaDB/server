@@ -6,6 +6,7 @@
 let $innodb_compression_algorithm_orig=`SELECT @@innodb_compression_algorithm`;
 let $innodb_file_format_orig = `SELECT @@innodb_file_format`;
 let $innodb_file_per_table_orig = `SELECT @@innodb_file_per_table`;
+let $encryption = `SELECT @@innodb_encrypt_tables`;
 --enable_query_log
 
 SET GLOBAL innodb_file_format = `Barracuda`;
@@ -124,4 +125,5 @@ drop table innodb_dynamic;
 EVAL SET GLOBAL innodb_compression_algorithm = $innodb_compression_algorithm_orig;
 EVAL SET GLOBAL innodb_file_per_table = $innodb_file_per_table_orig;
 EVAL SET GLOBAL innodb_file_format = $innodb_file_format_orig;
+EVAL SET GLOBAL innodb_encrypt_tables = $encryption;
 --enable_query_log

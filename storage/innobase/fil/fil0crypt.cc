@@ -591,8 +591,7 @@ fil_space_encrypt(
 		ut_error;
 	}
 
-	ibool page_compressed = (mach_read_from_2(src_frame+FIL_PAGE_TYPE) == FIL_PAGE_PAGE_COMPRESSED);
-	ulint page_comp_method = mach_read_from_8(src_frame+FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION);
+	ibool page_compressed = (orig_page_type == FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED);
 
 	/* FIL page header is not encrypted */
 	memcpy(dst_frame, src_frame, FIL_PAGE_DATA);
@@ -606,17 +605,6 @@ fil_space_encrypt(
 	const byte* src = src_frame + FIL_PAGE_DATA;
 	byte* dst = dst_frame + FIL_PAGE_DATA;
 	uint32 dstlen = 0;
-
-	/* For page compressed tables we encrypt only the actual compressed
-	payload. Note that first two bytes of page data is actual payload
-	size and that should not be encrypted. */
-	if (page_compressed) {
-		ulint payload = mach_read_from_2(src_frame +  FIL_PAGE_DATA);
-		mach_write_to_2(dst_frame +  FIL_PAGE_DATA, payload);
-		srclen = payload;
-		src+=2;
-		dst+=2;
-	}
 
 	int rc = encryption_scheme_encrypt(src, srclen, dst, &dstlen,
 					   crypt_data, key_version,
@@ -641,42 +629,38 @@ fil_space_encrypt(
 		memcpy(dst_frame + page_size - FIL_PAGE_DATA_END,
 			src_frame + page_size - FIL_PAGE_DATA_END,
 			FIL_PAGE_DATA_END);
+	}
 
-		/* handle post encryption checksum */
-		ib_uint32_t checksum = 0;
-		srv_checksum_algorithm_t algorithm =
+	/* handle post encryption checksum */
+	ib_uint32_t checksum = 0;
+	srv_checksum_algorithm_t algorithm =
 			static_cast<srv_checksum_algorithm_t>(srv_checksum_algorithm);
 
-		if (zip_size == 0) {
-			switch (algorithm) {
-			case SRV_CHECKSUM_ALGORITHM_CRC32:
-			case SRV_CHECKSUM_ALGORITHM_STRICT_CRC32:
-				checksum = buf_calc_page_crc32(dst_frame);
-				break;
-			case SRV_CHECKSUM_ALGORITHM_INNODB:
-			case SRV_CHECKSUM_ALGORITHM_STRICT_INNODB:
-				checksum = (ib_uint32_t) buf_calc_page_new_checksum(
-					dst_frame);
-				break;
-			case SRV_CHECKSUM_ALGORITHM_NONE:
-			case SRV_CHECKSUM_ALGORITHM_STRICT_NONE:
-				checksum = BUF_NO_CHECKSUM_MAGIC;
-				break;
-				/* no default so the compiler will emit a warning
-				* if new enum is added and not handled here */
-			}
-		} else {
-			checksum = page_zip_calc_checksum(dst_frame, zip_size,
-				                          algorithm);
+	if (zip_size == 0) {
+		switch (algorithm) {
+		case SRV_CHECKSUM_ALGORITHM_CRC32:
+		case SRV_CHECKSUM_ALGORITHM_STRICT_CRC32:
+			checksum = buf_calc_page_crc32(dst_frame);
+			break;
+		case SRV_CHECKSUM_ALGORITHM_INNODB:
+		case SRV_CHECKSUM_ALGORITHM_STRICT_INNODB:
+			checksum = (ib_uint32_t) buf_calc_page_new_checksum(
+				dst_frame);
+			break;
+		case SRV_CHECKSUM_ALGORITHM_NONE:
+		case SRV_CHECKSUM_ALGORITHM_STRICT_NONE:
+			checksum = BUF_NO_CHECKSUM_MAGIC;
+			break;
+			/* no default so the compiler will emit a warning
+			* if new enum is added and not handled here */
 		}
-
-		// store the post-encryption checksum after the key-version
-		mach_write_to_4(dst_frame + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION + 4,
-			        checksum);
 	} else {
-		mach_write_to_4(dst_frame + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION + 4,
-			page_comp_method);
+		checksum = page_zip_calc_checksum(dst_frame, zip_size,
+				                          algorithm);
 	}
+
+	// store the post-encryption checksum after the key-version
+	mach_write_to_4(dst_frame + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION + 4, checksum);
 
 	srv_stats.pages_encrypted.inc();
 }
@@ -721,8 +705,7 @@ fil_space_decrypt(
 {
 	ulint page_type = mach_read_from_2(src_frame+FIL_PAGE_TYPE);
 	uint key_version = mach_read_from_4(src_frame + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION);
-	bool page_compressed = (page_type == FIL_PAGE_PAGE_COMPRESSED);
-	ulint page_comp_method = mach_read_from_4(src_frame + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION + 4);
+	bool page_compressed = (page_type == FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED);
 
 	if (key_version == ENCRYPTION_KEY_NOT_ENCRYPTED) {
 		//TODO: is this really needed ?
@@ -747,17 +730,6 @@ fil_space_decrypt(
 	byte* dst = dst_frame + FIL_PAGE_DATA;
 	uint32 dstlen = 0;
 	ulint srclen = page_size - (FIL_PAGE_DATA + FIL_PAGE_DATA_END);
-
-	/* For page compressed tables we decrypt only the actual compressed
-	payload. Note that first two bytes of page data is actual payload
-	size and that should not be decrypted. */
-	if (page_compressed) {
-		ulint compressed_len = mach_read_from_2(src_frame + FIL_PAGE_DATA);
-		src+=2;
-		dst+=2;
-		mach_write_to_2(dst_frame + FIL_PAGE_DATA, compressed_len);
-		srclen = compressed_len;
-	}
 
 	int rc = encryption_scheme_decrypt(src, srclen, dst, &dstlen,
 					   crypt_data, key_version,
@@ -785,8 +757,6 @@ fil_space_decrypt(
 
 		// clear key-version & crypt-checksum from dst
 		memset(dst_frame + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION, 0, 8);
-	} else {
-		mach_write_to_8(dst_frame + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION, page_comp_method);
 	}
 
 	srv_stats.pages_decrypted.inc();
