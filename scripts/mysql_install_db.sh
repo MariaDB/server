@@ -50,8 +50,8 @@ Usage: $0 [OPTIONS]
                        Read this file after the global files are read.
   --defaults-file=name Only read default options from the given file name.
   --force              Causes mysql_install_db to run even if DNS does not
-                       work.  In that case, grant table entries that normally
-                       use hostnames will use IP addresses.
+                       work.  In that case, grant table entries that
+                       normally use hostnames will use IP addresses.
   --help               Display this help and exit.                     
   --ldata=path         The path to the MariaDB data directory. Same as
                        --datadir.
@@ -307,8 +307,9 @@ fill_help_tables="$pkgdatadir/fill_help_tables.sql"
 create_system_tables="$pkgdatadir/mysql_system_tables.sql"
 create_system_tables2="$pkgdatadir/mysql_performance_tables.sql"
 fill_system_tables="$pkgdatadir/mysql_system_tables_data.sql"
+maria_add_gis_sp="$pkgdatadir/maria_add_gis_sp_bootstrap.sql"
 
-for f in "$fill_help_tables" "$create_system_tables" "$create_system_tables2" "$fill_system_tables"
+for f in "$fill_help_tables" "$create_system_tables" "$create_system_tables2" "$fill_system_tables" "$maria_add_gis_sp"
 do
   if test ! -f "$f"
   then
@@ -468,6 +469,17 @@ else
   echo "WARNING: HELP FILES ARE NOT COMPLETELY INSTALLED!"
   echo "The \"HELP\" command might not work properly."
 fi
+
+s_echo "Creating OpenGIS required SP-s..."
+if { echo "use test;"; cat "$maria_add_gis_sp"; } | mysqld_install_cmd_line > /dev/null
+then
+  s_echo "OK"
+else
+  echo
+  echo "WARNING: OPENGIS REQUIRED SP-S WERE NOT COMPLETELY INSTALLED!"
+  echo "GIS extentions might not work properly."
+fi
+
 
 # Don't output verbose information if running inside bootstrap or using
 # --srcdir for testing.  In such cases, there's no end user looking at

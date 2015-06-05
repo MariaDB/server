@@ -26,6 +26,7 @@
 #include "sql_cmd.h"
 #include <my_rnd.h>
 #include "my_pthread.h"
+#include "my_rdtsc.h"
 
 class THD;
 struct handlerton;
@@ -59,6 +60,8 @@ typedef Bitmap<((MAX_INDEXES+7)/8*8)> key_map; /* Used for finding keys */
 #define OPT_DEFAULT SHOW_OPT_DEFAULT
 #define OPT_SESSION SHOW_OPT_SESSION
 #define OPT_GLOBAL SHOW_OPT_GLOBAL
+
+extern MY_TIMER_INFO sys_timer_info;
 
 /*
   Values for --slave-parallel-mode
@@ -138,6 +141,7 @@ extern ulong opt_replicate_events_marked_for_skip;
 extern char *default_tz_name;
 extern Time_zone *default_tz;
 extern char *default_storage_engine, *default_tmp_storage_engine;
+extern char *enforced_storage_engine;
 extern bool opt_endinfo, using_udf_functions;
 extern my_bool locked_in_memory;
 extern bool opt_using_transactions;
@@ -183,6 +187,7 @@ extern ulong query_cache_limit;
 extern ulong query_cache_min_res_unit;
 extern ulong slow_launch_threads, slow_launch_time;
 extern MYSQL_PLUGIN_IMPORT ulong max_connections;
+extern uint max_digest_length;
 extern ulong max_connect_errors, connect_timeout;
 extern my_bool slave_allow_batching;
 extern my_bool allow_slave_start;
@@ -249,7 +254,7 @@ extern ulong connection_errors_internal;
 extern ulong connection_errors_max_connection;
 extern ulong connection_errors_peer_addr;
 extern ulong log_warnings;
-extern my_bool encrypt_tmp_disk_tables;
+extern my_bool encrypt_tmp_disk_tables, encrypt_tmp_files;
 extern ulong encryption_algorithm;
 extern const char *encryption_algorithm_names[];
 
@@ -476,6 +481,7 @@ extern PSI_stage_info stage_waiting_for_work_from_sql_thread;
 extern PSI_stage_info stage_waiting_for_prior_transaction_to_commit;
 extern PSI_stage_info stage_waiting_for_prior_transaction_to_start_commit;
 extern PSI_stage_info stage_waiting_for_room_in_worker_thread;
+extern PSI_stage_info stage_waiting_for_workers_idle;
 extern PSI_stage_info stage_master_gtid_wait_primary;
 extern PSI_stage_info stage_master_gtid_wait;
 extern PSI_stage_info stage_gtid_wait_other_connection;

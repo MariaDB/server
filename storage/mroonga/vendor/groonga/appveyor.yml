@@ -1,0 +1,19 @@
+version: "{build}"
+clone_depth: 10
+build_script:
+  - git submodule update --init
+  - cmake . -G "Visual Studio 12 2013 Win64"
+  - cmake --build . --config Debug
+
+notifications:
+  - provider: Email
+    to:
+      - kou@clear-code.com
+      - groonga-commit@lists.sourceforge.jp
+    on_build_status_changed: true
+
+test: off
+# before_test:
+#   - gem install grntest
+# test_script:
+#   - grntest --groonga src\groonga.exe --base-directory test\command test\command\suite

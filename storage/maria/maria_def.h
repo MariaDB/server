@@ -946,6 +946,8 @@ extern PSI_mutex_key key_SHARE_BITMAP_lock, key_SORT_INFO_mutex,
                      key_SERVICE_THREAD_CONTROL_lock,
                      key_PAGECACHE_cache_lock;
 
+extern PSI_mutex_key key_CRYPT_DATA_lock;
+
 extern PSI_cond_key key_SHARE_key_del_cond, key_SERVICE_THREAD_CONTROL_cond,
                     key_SORT_INFO_cond, key_SHARE_BITMAP_cond,
                     key_COND_soft_sync, key_TRANSLOG_BUFFER_waiting_filling_buffer,

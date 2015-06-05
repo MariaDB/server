@@ -432,7 +432,7 @@ void tdc_init(void)
                &my_charset_bin);
   tdc_hash.alloc.constructor= TDC_element::lf_alloc_constructor;
   tdc_hash.alloc.destructor= TDC_element::lf_alloc_destructor;
-  tdc_hash.element_size= offsetof(TDC_element, version);
+  tdc_hash.initializer= (lf_hash_initializer) TDC_element::lf_hash_initializer;
   DBUG_VOID_RETURN;
 }
 
@@ -616,7 +616,7 @@ retry:
   while (!(element= (TDC_element*) lf_hash_search_using_hash_value(&tdc_hash,
                     thd->tdc_hash_pins, hash_value, (uchar*) key, key_length)))
   {
-    TDC_element tmp(key, key_length);
+    LEX_STRING tmp= { const_cast<char*>(key), key_length };
     int res= lf_hash_insert(&tdc_hash, thd->tdc_hash_pins, (uchar*) &tmp);
 
     if (res == -1)
@@ -628,7 +628,6 @@ retry:
              thd->tdc_hash_pins, hash_value, (uchar*) key, key_length);
     lf_hash_search_unpin(thd->tdc_hash_pins);
     DBUG_ASSERT(element);
-    element->assert_clean_share();
 
     if (!(share= alloc_table_share(db, table_name, key, key_length)))
     {

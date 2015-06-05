@@ -1,0 +1,50 @@
+--source include/master-slave.inc
+
+--echo *** MDEV-6403: Temporary tables lost at STOP SLAVE in GTID mode if master has not rotated binlog since restart ***
+
+--connection master
+CREATE TABLE t1 (a INT PRIMARY KEY);
+--sync_slave_with_master
+
+--connection slave
+--source include/stop_slave.inc
+# Inject a duplicate key error that will make the slave stop in the middle of
+# a sequence of transactions that use a temporary table.
+SET sql_log_bin= 0;
+INSERT INTO t1 VALUES (1);
+SET sql_log_bin= 1;
+CHANGE MASTER TO master_use_gtid= current_pos;
+
+--connection master
+
+# Make some queries that use a temporary table.
+CREATE TEMPORARY TABLE t2 LIKE t1;
+INSERT INTO t2 VALUE (1);
+INSERT INTO t1 SELECT * FROM t2;
+DROP TEMPORARY TABLE t2;
+--save_master_pos
+
+--connection slave
+START SLAVE;
+--let $slave_sql_errno=1062
+--source include/wait_for_slave_sql_error.inc
+
+# Restart the slave.
+# The bug was that the IO thread would receive again the restart
+# format_description event at the start of the master's binlog, and this
+# event would cause the SQL thread to discard all active temporary tables.
+
+STOP SLAVE IO_THREAD;
+
+SET sql_log_bin= 0;
+DELETE FROM t1 WHERE a=1;
+SET sql_log_bin= 1;
+
+--source include/start_slave.inc
+--sync_with_master
+SELECT * FROM t1 ORDER BY a;
+
+--connection master
+DROP TABLE t1;
+
+--source include/rpl_end.inc

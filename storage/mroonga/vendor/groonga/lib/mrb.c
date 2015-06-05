@@ -1,6 +1,6 @@
 /* -*- c-basic-offset: 2 -*- */
 /*
-  Copyright(C) 2013 Brazil
+  Copyright(C) 2013-2015 Brazil
 
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -16,8 +16,9 @@
   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 */
 
-#include "mrb.h"
-#include "ctx_impl.h"
+#include "grn_mrb.h"
+#include "grn_ctx_impl.h"
+#include "grn_util.h"
 
 #ifdef GRN_WITH_MRUBY
 # include <mruby/proc.h>
@@ -25,58 +26,94 @@
 # include <mruby/string.h>
 #endif
 
+#include <ctype.h>
+
+#ifdef WIN32
+# include <share.h>
+#endif /* WIN32 */
+
 #define BUFFER_SIZE 2048
+#define E_LOAD_ERROR (mrb_class_get(mrb, "LoadError"))
 
 #ifdef GRN_WITH_MRUBY
-#ifdef WIN32
+# ifdef WIN32
 static char *win32_ruby_scripts_dir = NULL;
 static char win32_ruby_scripts_dir_buffer[PATH_MAX];
 static const char *
-grn_mrb_get_system_ruby_scripts_dir(void)
+grn_mrb_get_default_system_ruby_scripts_dir(void)
 {
   if (!win32_ruby_scripts_dir) {
     const char *base_dir;
     const char *relative_path = GRN_RELATIVE_RUBY_SCRIPTS_DIR;
-    char *path;
     size_t base_dir_length;
 
     base_dir = grn_win32_base_dir();
     base_dir_length = strlen(base_dir);
-    strcpy(win32_ruby_scripts_dir_buffer, base_dir);
-    strcat(win32_ruby_scripts_dir_buffer, "/");
-    strcat(win32_ruby_scripts_dir_buffer, relative_path);
+    grn_strcpy(win32_ruby_scripts_dir_buffer, PATH_MAX, base_dir);
+    grn_strcat(win32_ruby_scripts_dir_buffer, PATH_MAX, "/");
+    grn_strcat(win32_ruby_scripts_dir_buffer, PATH_MAX, relative_path);
     win32_ruby_scripts_dir = win32_ruby_scripts_dir_buffer;
   }
   return win32_ruby_scripts_dir;
 }
 
-#else /* WIN32 */
+# else /* WIN32 */
 static const char *
-grn_mrb_get_system_ruby_scripts_dir(void)
+grn_mrb_get_default_system_ruby_scripts_dir(void)
 {
   return GRN_RUBY_SCRIPTS_DIR;
 }
-#endif /* WIN32 */
+# endif /* WIN32 */
+
+const char *
+grn_mrb_get_system_ruby_scripts_dir(grn_ctx *ctx)
+{
+  static char ruby_scripts_dir[GRN_ENV_BUFFER_SIZE];
+
+  grn_getenv("GRN_RUBY_SCRIPTS_DIR",
+             ruby_scripts_dir,
+             GRN_ENV_BUFFER_SIZE);
+  if (ruby_scripts_dir[0]) {
+    return ruby_scripts_dir;
+  } else {
+    return grn_mrb_get_default_system_ruby_scripts_dir();
+  }
+}
 
 static grn_bool
-grn_mrb_expand_script_path(grn_ctx *ctx, const char *path, char *expanded_path)
+grn_mrb_is_absolute_path(const char *path)
+{
+  if (path[0] == '/') {
+    return GRN_TRUE;
+  }
+
+  if (isalpha(path[0]) && path[1] == ':' && path[2] == '/') {
+    return GRN_TRUE;
+  }
+
+  return GRN_FALSE;
+}
+
+static grn_bool
+grn_mrb_expand_script_path(grn_ctx *ctx, const char *path,
+                           char *expanded_path, size_t expanded_path_size)
 {
   const char *ruby_scripts_dir;
   char dir_last_char;
   int path_length, max_path_length;
 
-  if (path[0] == '/') {
+  if (grn_mrb_is_absolute_path(path)) {
     expanded_path[0] = '\0';
+  } else if (path[0] == '.' && path[1] == '/') {
+    grn_strcpy(expanded_path, expanded_path_size, ctx->impl->mrb.base_directory);
+    grn_strcat(expanded_path, expanded_path_size, "/");
   } else {
-    ruby_scripts_dir = getenv("GRN_RUBY_SCRIPTS_DIR");
-    if (!ruby_scripts_dir) {
-      ruby_scripts_dir = grn_mrb_get_system_ruby_scripts_dir();
-    }
-    strcpy(expanded_path, ruby_scripts_dir);
+    ruby_scripts_dir = grn_mrb_get_system_ruby_scripts_dir(ctx);
+    grn_strcpy(expanded_path, expanded_path_size, ruby_scripts_dir);
 
     dir_last_char = ruby_scripts_dir[strlen(expanded_path) - 1];
     if (dir_last_char != '/') {
-      strcat(expanded_path, "/");
+      grn_strcat(expanded_path, expanded_path_size, "/");
     }
   }
 
@@ -90,7 +127,7 @@ grn_mrb_expand_script_path(grn_ctx *ctx, const char *path, char *expanded_path)
     return GRN_FALSE;
   }
 
-  strcat(expanded_path, path);
+  grn_strcat(expanded_path, expanded_path_size, path);
 
   return GRN_TRUE;
 }
@@ -109,36 +146,51 @@ grn_mrb_load(grn_ctx *ctx, const char *path)
     return mrb_nil_value();
   }
 
-  if (!grn_mrb_expand_script_path(ctx, path, expanded_path)) {
+  if (!grn_mrb_expand_script_path(ctx, path, expanded_path, PATH_MAX)) {
     return mrb_nil_value();
   }
 
-  file = fopen(expanded_path, "r");
+  file = grn_fopen(expanded_path, "r");
   if (!file) {
     char message[BUFFER_SIZE];
     mrb_value exception;
-    snprintf(message, BUFFER_SIZE - 1,
-             "fopen: failed to open mruby script file: <%s>", expanded_path);
+    grn_snprintf(message, BUFFER_SIZE, BUFFER_SIZE,
+                 "fopen: failed to open mruby script file: <%s>",
+                 expanded_path);
     SERR(message);
-    exception = mrb_exc_new(mrb, E_ARGUMENT_ERROR,
+    exception = mrb_exc_new(mrb, E_LOAD_ERROR,
                             ctx->errbuf, strlen(ctx->errbuf));
     mrb->exc = mrb_obj_ptr(exception);
     return mrb_nil_value();
   }
 
-  parser = mrb_parser_new(mrb);
-  mrb_parser_set_filename(parser, expanded_path);
-  parser->s = parser->send = NULL;
-  parser->f = file;
-  mrb_parser_parse(parser, NULL);
-  fclose(file);
-
   {
-    struct RProc *proc;
-    proc = mrb_generate_code(mrb, parser);
-    result = mrb_toplevel_run(mrb, proc);
+    char current_base_directory[PATH_MAX];
+    char *last_directory;
+
+    grn_strcpy(current_base_directory, PATH_MAX, data->base_directory);
+    grn_strcpy(data->base_directory, PATH_MAX, expanded_path);
+    last_directory = strrchr(data->base_directory, '/');
+    if (last_directory) {
+      last_directory[0] = '\0';
+    }
+
+    parser = mrb_parser_new(mrb);
+    mrb_parser_set_filename(parser, expanded_path);
+    parser->s = parser->send = NULL;
+    parser->f = file;
+    mrb_parser_parse(parser, NULL);
+    fclose(file);
+
+    {
+      struct RProc *proc;
+      proc = mrb_generate_code(mrb, parser);
+      result = mrb_toplevel_run(mrb, proc);
+    }
+    mrb_parser_free(parser);
+
+    grn_strcpy(data->base_directory, PATH_MAX, current_base_directory);
   }
-  mrb_parser_free(parser);
 
   return result;
 }

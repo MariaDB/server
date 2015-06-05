@@ -316,16 +316,9 @@ static MYSQL_THDVAR_BOOL(disable_slow_upsert,
 );
 #endif
 
-static MYSQL_THDVAR_UINT(analyze_time,
-    0,
-    "analyze time",
-    NULL, 
-    NULL, 
-    5, // default
-    0,  // min
-    ~0U,   // max
-    1      // blocksize
-);
+static MYSQL_THDVAR_UINT(analyze_time, 0, "analyze time (seconds)", NULL /*check*/, NULL /*update*/, 5 /*default*/, 0 /*min*/, ~0U /*max*/, 1 /*blocksize*/);
+
+static MYSQL_THDVAR_DOUBLE(analyze_delete_fraction, 0, "fraction of rows allowed to be deleted", NULL /*check*/, NULL /*update*/, 1.0 /*def*/, 0 /*min*/, 1.0 /*max*/, 1);
 
 static void tokudb_checkpoint_lock(THD * thd);
 static void tokudb_checkpoint_unlock(THD * thd);
@@ -430,7 +423,7 @@ static int tokudb_killed_callback(void) {
     return thd_killed(thd);
 }
 
-static bool tokudb_killed_thd_callback(void *extra) {
+static bool tokudb_killed_thd_callback(void *extra, uint64_t deleted_rows) {
     THD *thd = static_cast<THD *>(extra);
     return thd_killed(thd) != 0;
 }
@@ -490,6 +483,15 @@ static MYSQL_THDVAR_BOOL(rpl_lookup_rows, PLUGIN_VAR_THDLOCAL, "lookup a row on 
 
 static MYSQL_THDVAR_ULONGLONG(rpl_lookup_rows_delay, PLUGIN_VAR_THDLOCAL, "time in milliseconds to add to lookups on replication slave",
                               NULL, NULL, 0 /*default*/, 0 /*min*/, ~0ULL /*max*/, 1 /*blocksize*/);
+
+static MYSQL_THDVAR_BOOL(rpl_check_readonly, PLUGIN_VAR_THDLOCAL, "check if the slave is read only",
+                         NULL /*check*/, NULL /*update*/, true /*default*/);
+
+static MYSQL_THDVAR_STR(optimize_index_name, PLUGIN_VAR_THDLOCAL + PLUGIN_VAR_MEMALLOC, "optimize index name (default all indexes)", NULL /*check*/, NULL /*update*/, NULL /*default*/);
+
+static MYSQL_THDVAR_DOUBLE(optimize_index_fraction, 0, "optimize index fraction (default 1.0 all)", NULL /*check*/, NULL /*update*/, 1.0 /*def*/, 0 /*min*/, 1.0 /*max*/, 1);
+
+static MYSQL_THDVAR_ULONGLONG(optimize_throttle, 0, "optimize throttle (default no throttle)", NULL /*check*/, NULL /*update*/, 0 /*def*/, 0 /*min*/, ~0ULL /*max*/, 1);
 
 extern HASH tokudb_open_tables;
 extern pthread_mutex_t tokudb_mutex;

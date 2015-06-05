@@ -14,7 +14,6 @@
   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
 
 #define MYSQL_SERVER 1
-#include <my_global.h>
 #include "mysql_version.h"
 #if MYSQL_VERSION_ID < 50500
 #include "mysql_priv.h"
@@ -5385,28 +5384,46 @@ void spider_mysql_handler::create_tmp_bka_table_name(
   int *tmp_table_name_length,
   int link_idx
 ) {
-  uint adjust_length =
-    mysql_share->db_nm_max_length -
-    mysql_share->db_names_str[spider->conn_link_idx[link_idx]].length() +
-    mysql_share->table_nm_max_length -
-    mysql_share->table_names_str[spider->conn_link_idx[link_idx]].length(),
-    length;
+  uint adjust_length, length;
   DBUG_ENTER("spider_mysql_handler::create_tmp_bka_table_name");
-  *tmp_table_name_length = mysql_share->db_nm_max_length +
-    mysql_share->table_nm_max_length;
-  memset(tmp_table_name, ' ', adjust_length);
-  tmp_table_name += adjust_length;
-  memcpy(tmp_table_name, mysql_share->db_names_str[link_idx].c_ptr(),
-    mysql_share->db_names_str[link_idx].length());
-  tmp_table_name += mysql_share->db_names_str[link_idx].length();
-  length = my_sprintf(tmp_table_name, (tmp_table_name,
-    "%s%s%p%s", SPIDER_SQL_DOT_STR, SPIDER_SQL_TMP_BKA_STR, spider,
-    SPIDER_SQL_UNDERSCORE_STR));
-  *tmp_table_name_length += length;
-  tmp_table_name += length;
-  memcpy(tmp_table_name,
-    mysql_share->table_names_str[spider->conn_link_idx[link_idx]].c_ptr(),
-    mysql_share->table_names_str[spider->conn_link_idx[link_idx]].length());
+  if (spider_param_bka_table_name_type(current_thd,
+    mysql_share->spider_share->
+      bka_table_name_types[spider->conn_link_idx[link_idx]]) == 1)
+  {
+    adjust_length =
+      mysql_share->db_nm_max_length -
+      mysql_share->db_names_str[spider->conn_link_idx[link_idx]].length() +
+      mysql_share->table_nm_max_length -
+      mysql_share->table_names_str[spider->conn_link_idx[link_idx]].length();
+    *tmp_table_name_length = mysql_share->db_nm_max_length +
+      mysql_share->table_nm_max_length;
+    memset(tmp_table_name, ' ', adjust_length);
+    tmp_table_name += adjust_length;
+    memcpy(tmp_table_name, mysql_share->db_names_str[link_idx].c_ptr(),
+      mysql_share->db_names_str[link_idx].length());
+    tmp_table_name += mysql_share->db_names_str[link_idx].length();
+    length = my_sprintf(tmp_table_name, (tmp_table_name,
+      "%s%s%p%s", SPIDER_SQL_DOT_STR, SPIDER_SQL_TMP_BKA_STR, spider,
+      SPIDER_SQL_UNDERSCORE_STR));
+    *tmp_table_name_length += length;
+    tmp_table_name += length;
+    memcpy(tmp_table_name,
+      mysql_share->table_names_str[spider->conn_link_idx[link_idx]].c_ptr(),
+      mysql_share->table_names_str[spider->conn_link_idx[link_idx]].length());
+  } else {
+    adjust_length =
+      mysql_share->db_nm_max_length -
+      mysql_share->db_names_str[spider->conn_link_idx[link_idx]].length();
+    *tmp_table_name_length = mysql_share->db_nm_max_length;
+    memset(tmp_table_name, ' ', adjust_length);
+    tmp_table_name += adjust_length;
+    memcpy(tmp_table_name, mysql_share->db_names_str[link_idx].c_ptr(),
+      mysql_share->db_names_str[link_idx].length());
+    tmp_table_name += mysql_share->db_names_str[link_idx].length();
+    length = my_sprintf(tmp_table_name, (tmp_table_name,
+      "%s%s%p", SPIDER_SQL_DOT_STR, SPIDER_SQL_TMP_BKA_STR, spider));
+    *tmp_table_name_length += length;
+  }
   DBUG_VOID_RETURN;
 }
 
@@ -7269,11 +7286,16 @@ int spider_mysql_handler::append_update_where(
   Field **field;
   SPIDER_SHARE *share = spider->share;
   DBUG_ENTER("spider_mysql_handler::append_update_where");
+  DBUG_PRINT("info", ("spider table->s->primary_key=%s",
+    table->s->primary_key != MAX_KEY ? "TRUE" : "FALSE"));
   if (str->reserve(SPIDER_SQL_WHERE_LEN))
     DBUG_RETURN(HA_ERR_OUT_OF_MEM);
   str->q_append(SPIDER_SQL_WHERE_STR, SPIDER_SQL_WHERE_LEN);
   for (field = table->field; *field; field++)
   {
+    DBUG_PRINT("info", ("spider bitmap=%s",
+      bitmap_is_set(table->read_set, (*field)->field_index) ?
+      "TRUE" : "FALSE"));
     if (
       table->s->primary_key == MAX_KEY ||
       bitmap_is_set(table->read_set, (*field)->field_index)
@@ -11444,7 +11466,7 @@ void spider_mysql_handler::minimum_select_bitmap_create()
   DBUG_PRINT("info",("spider this=%p", this));
   memset(minimum_select_bitmap, 0, no_bytes_in_map(table->read_set));
   if (
-    spider->has_clone_for_merge ||
+    spider->use_index_merge ||
 #ifdef HA_CAN_BULK_ACCESS
     (spider->is_clone && !spider->is_bulk_access_clone)
 #else

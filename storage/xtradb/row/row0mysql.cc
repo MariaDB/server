@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2000, 2014, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2000, 2015, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -57,6 +57,7 @@ Created 9/17/2000 Heikki Tuuri
 #include "btr0sea.h"
 #include "btr0defragment.h"
 #include "fil0fil.h"
+#include "fil0crypt.h"
 #include "ibuf0ibuf.h"
 #include "fts0fts.h"
 #include "fts0types.h"
@@ -610,6 +611,7 @@ handle_new_error:
 	case DB_DUPLICATE_KEY:
 	case DB_FOREIGN_DUPLICATE_KEY:
 	case DB_TOO_BIG_RECORD:
+	case DB_TOO_BIG_FOR_REDO:
 	case DB_UNDO_RECORD_TOO_BIG:
 	case DB_ROW_IS_REFERENCED:
 	case DB_NO_REFERENCED_ROW:
@@ -1454,6 +1456,11 @@ error_exit:
 			srv_stats.n_system_rows_inserted.add((size_t)trx->id, 1);
 		} else {
 			srv_stats.n_rows_inserted.add((size_t)trx->id, 1);
+		}
+
+		if (prebuilt->clust_index_was_generated) {
+			/* set row id to prebuilt */
+			ut_memcpy(prebuilt->row_id, node->row_id_buf, DATA_ROW_ID_LEN);
 		}
 
 		/* Not protected by dict_table_stats_lock() for performance
@@ -4428,6 +4435,7 @@ row_drop_table_for_mysql(
 	case DB_OUT_OF_FILE_SPACE:
 		err = DB_MUST_GET_MORE_FILE_SPACE;
 
+		trx->error_state = err;
 		row_mysql_handle_errors(&err, trx, NULL, NULL);
 
 		/* raise error */

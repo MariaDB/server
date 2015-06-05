@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1997, 2014, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1997, 2015, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
 Copyright (c) 2013, SkySQL Ab. All Rights Reserved.
 
@@ -49,6 +49,7 @@ Created 9/20/1997 Heikki Tuuri
 #include "trx0undo.h"
 #include "trx0rec.h"
 #include "fil0fil.h"
+#include "fil0crypt.h"
 #ifndef UNIV_HOTBACKUP
 # include "buf0rea.h"
 # include "srv0srv.h"
@@ -804,6 +805,7 @@ recv_find_max_checkpoint(
 				buf + LOG_CHECKPOINT_OFFSET_HIGH32)) << 32;
 			checkpoint_no = mach_read_from_8(
 				buf + LOG_CHECKPOINT_NO);
+			log_crypt_read_checkpoint_buf(buf);
 
 #ifdef UNIV_DEBUG
 			if (log_debug_writes) {
@@ -933,6 +935,12 @@ log_block_checksum_is_ok_or_old_format(
 #endif
 		return(TRUE);
 	}
+
+	fprintf(stderr, "BROKEN: block: %lu checkpoint: %lu %.8lx %.8lx\n",
+		log_block_get_hdr_no(block),
+		log_block_get_checkpoint_no(block),
+		log_block_calc_checksum(block),
+		log_block_get_checksum(block));
 
 	return(FALSE);
 }
@@ -1872,7 +1880,7 @@ loop:
 		goto loop;
 	}
 
-	ut_ad(!allow_ibuf == mutex_own(&log_sys->mutex));
+	ut_ad((!allow_ibuf) == mutex_own(&log_sys->mutex));
 
 	if (!allow_ibuf) {
 		recv_no_ibuf_operations = TRUE;
@@ -2745,6 +2753,13 @@ recv_scan_log_recs(
 
 			finished = TRUE;
 
+			/* Crash if we encounter a garbage log block */
+			if (!srv_force_recovery) {
+				fputs("InnoDB: Set innodb_force_recovery"
+				      " to ignore this error.\n", stderr);
+				ut_error;
+			}
+
 			break;
 		}
 
@@ -3027,7 +3042,6 @@ recv_recovery_from_checkpoint_start_func(
 	ulint		max_cp_field;
 	lsn_t		checkpoint_lsn;
 	ib_uint64_t	checkpoint_no;
-	uint		recv_crypt_ver;
 	lsn_t		group_scanned_lsn = 0;
 	lsn_t		contiguous_lsn;
 #ifdef UNIV_LOG_ARCHIVE
@@ -3087,21 +3101,13 @@ recv_recovery_from_checkpoint_start_func(
 #ifdef UNIV_LOG_ARCHIVE
 	archived_lsn = mach_read_from_8(buf + LOG_CHECKPOINT_ARCHIVED_LSN);
 #endif /* UNIV_LOG_ARCHIVE */
-	recv_crypt_ver = mach_read_from_4(buf + LOG_CRYPT_VER);
-	if (recv_crypt_ver == UNENCRYPTED_KEY_VER)
-	{
-		log_init_crypt_msg_and_nonce();
-	} else {
-		ut_memcpy(redo_log_crypt_msg, buf + LOG_CRYPT_MSG, MY_AES_BLOCK_SIZE);
-		ut_memcpy(aes_ctr_nonce, buf + LOG_CRYPT_IV, MY_AES_BLOCK_SIZE);
-	}
 
 	/* Read the first log file header to print a note if this is
 	a recovery from a restored InnoDB Hot Backup */
 
 	fil_io(OS_FILE_READ | OS_FILE_LOG, true, max_cp_group->space_id, 0,
 	       0, 0, LOG_FILE_HDR_SIZE,
-		log_hdr_buf, max_cp_group, 0, 0, false);
+		log_hdr_buf, max_cp_group, 0);
 
 	if (0 == ut_memcmp(log_hdr_buf + LOG_FILE_WAS_CREATED_BY_HOT_BACKUP,
 			   (byte*)"ibbackup", (sizeof "ibbackup") - 1)) {
@@ -3132,7 +3138,7 @@ recv_recovery_from_checkpoint_start_func(
 		fil_io(OS_FILE_WRITE | OS_FILE_LOG, true,
 		       max_cp_group->space_id, 0,
 		       0, 0, OS_FILE_LOG_BLOCK_SIZE,
-			log_hdr_buf, max_cp_group, 0, 0, false);
+			log_hdr_buf, max_cp_group, 0);
 	}
 
 #ifdef UNIV_LOG_ARCHIVE
@@ -3151,15 +3157,10 @@ recv_recovery_from_checkpoint_start_func(
 		/* Start reading the log groups from the checkpoint lsn up. The
 		variable contiguous_lsn contains an lsn up to which the log is
 		known to be contiguously written to all log groups. */
-
 		recv_sys->parse_start_lsn = checkpoint_lsn;
 		recv_sys->scanned_lsn = checkpoint_lsn;
 		recv_sys->scanned_checkpoint_no = 0;
 		recv_sys->recovered_lsn = checkpoint_lsn;
-		recv_sys->recv_log_crypt_ver = recv_crypt_ver;
-		log_init_crypt_key(redo_log_crypt_msg,
-				   recv_sys->recv_log_crypt_ver,
-				   recv_sys->recv_log_crypt_key);
 		srv_start_lsn = checkpoint_lsn;
 	}
 
@@ -3329,8 +3330,9 @@ recv_recovery_from_checkpoint_start_func(
 
 	log_sys->next_checkpoint_lsn = checkpoint_lsn;
 	log_sys->next_checkpoint_no = checkpoint_no + 1;
-	log_crypt_set_ver_and_key(log_sys->redo_log_crypt_ver,
-				  log_sys->redo_log_crypt_key);
+	/* here the checkpoint info is written without any redo logging ongoing
+	* and next_checkpoint_no is updated directly hence no +1 */
+	log_crypt_set_ver_and_key(log_sys->next_checkpoint_no);
 
 #ifdef UNIV_LOG_ARCHIVE
 	log_sys->archived_lsn = archived_lsn;
@@ -3361,8 +3363,7 @@ recv_recovery_from_checkpoint_start_func(
 		    log_sys->lsn - log_sys->last_checkpoint_lsn);
 
 	log_sys->next_checkpoint_no = checkpoint_no + 1;
-	log_crypt_set_ver_and_key(log_sys->redo_log_crypt_ver,
-				  log_sys->redo_log_crypt_key);
+	log_crypt_set_ver_and_key(log_sys->next_checkpoint_no);
 
 #ifdef UNIV_LOG_ARCHIVE
 	if (archived_lsn == LSN_MAX) {
@@ -3511,6 +3512,7 @@ recv_recovery_rollback_active(void)
 		/* Rollback the uncommitted transactions which have no user
 		session */
 
+		trx_rollback_or_clean_is_active = true;
 		os_thread_create(trx_rollback_or_clean_all_recovered, 0, 0);
 	}
 }
@@ -3564,16 +3566,6 @@ recv_reset_logs(
 
 	log_sys->next_checkpoint_no = 0;
 	log_sys->last_checkpoint_lsn = 0;
-	/* redo_log_crypt_ver will be set by log_checkpoint() to the
-	latest key version. */
-	log_sys->redo_log_crypt_ver = UNENCRYPTED_KEY_VER;
-	/*
-	  Note: flags (srv_encrypt_log and debug_use_static_keys)
-	  haven't been read and set yet!
-	  So don't use condition such as:
-	  if (srv_encrypt_log && debug_use_static_keys)
-	*/
-	log_init_crypt_msg_and_nonce();
 
 #ifdef UNIV_LOG_ARCHIVE
 	log_sys->archived_lsn = log_sys->lsn;

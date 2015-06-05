@@ -307,17 +307,23 @@ static inline const uchar* hash_key(const LF_HASH *hash,
   @note, that the hash value is limited to 2^31, because we need one
   bit to distinguish between normal and dummy nodes.
 */
-static inline uint calc_hash(LF_HASH *hash, const uchar *key, uint keylen)
+static inline my_hash_value_type calc_hash(const CHARSET_INFO *cs,
+                                           const uchar *key,
+                                           size_t keylen)
 {
   ulong nr1= 1, nr2= 4;
-  hash->charset->coll->hash_sort(hash->charset, (uchar*) key, keylen,
-                                 &nr1, &nr2);
-  return nr1 & INT_MAX32;
+  cs->coll->hash_sort(cs, (uchar*) key, keylen, &nr1, &nr2);
+  return nr1;
 }
 
 #define MAX_LOAD 1.0    /* average number of elements in a bucket */
 
 static int initialize_bucket(LF_HASH *, LF_SLIST * volatile*, uint, LF_PINS *);
+
+static void default_initializer(LF_HASH *hash, void *dst, const void *src)
+{
+  memcpy(dst, src, hash->element_size);
+}
 
 /*
   Initializes lf_hash, the arguments are compatible with hash_init
@@ -330,7 +336,9 @@ static int initialize_bucket(LF_HASH *, LF_SLIST * volatile*, uint, LF_PINS *);
   is expensive to initialize - for example if there is a mutex or
   DYNAMIC_ARRAY. In this case they should be initialize in the
   LF_ALLOCATOR::constructor, and lf_hash_insert should not overwrite them.
-  See wt_init() for example.
+
+  The above works well with PODS. For more complex cases (e.g. C++ classes
+  with private members) use initializer function.
 */
 void lf_hash_init(LF_HASH *hash, uint element_size, uint flags,
                   uint key_offset, uint key_length, my_hash_get_key get_key,
@@ -347,6 +355,8 @@ void lf_hash_init(LF_HASH *hash, uint element_size, uint flags,
   hash->key_offset= key_offset;
   hash->key_length= key_length;
   hash->get_key= get_key;
+  hash->initializer= default_initializer;
+  hash->hash_function= calc_hash;
   DBUG_ASSERT(get_key ? !key_offset && !key_length : key_length);
 }
 
@@ -392,9 +402,9 @@ int lf_hash_insert(LF_HASH *hash, LF_PINS *pins, const void *data)
   node= (LF_SLIST *)lf_alloc_new(pins);
   if (unlikely(!node))
     return -1;
-  memcpy(node+1, data, hash->element_size);
+  hash->initializer(hash, node + 1, data);
   node->key= hash_key(hash, (uchar *)(node+1), &node->keylen);
-  hashnr= calc_hash(hash, node->key, node->keylen);
+  hashnr= hash->hash_function(hash->charset, node->key, node->keylen) & INT_MAX32;
   bucket= hashnr % hash->size;
   el= lf_dynarray_lvalue(&hash->array, bucket);
   if (unlikely(!el))
@@ -427,7 +437,9 @@ int lf_hash_insert(LF_HASH *hash, LF_PINS *pins, const void *data)
 int lf_hash_delete(LF_HASH *hash, LF_PINS *pins, const void *key, uint keylen)
 {
   LF_SLIST * volatile *el;
-  uint bucket, hashnr= calc_hash(hash, (uchar *)key, keylen);
+  uint bucket, hashnr;
+
+  hashnr= hash->hash_function(hash->charset, (uchar *)key, keylen) & INT_MAX32;
 
   /* hide OOM errors - if we cannot initalize a bucket, try the previous one */
   for (bucket= hashnr % hash->size; ;bucket= my_clear_highest_bit(bucket))
@@ -513,7 +525,9 @@ int lf_hash_iterate(LF_HASH *hash, LF_PINS *pins,
 void *lf_hash_search(LF_HASH *hash, LF_PINS *pins, const void *key, uint keylen)
 {
   return lf_hash_search_using_hash_value(hash, pins,
-                                         calc_hash(hash, (uchar*) key, keylen),
+                                         hash->hash_function(hash->charset,
+                                                             (uchar*) key,
+                                                             keylen) & INT_MAX32,
                                          key, keylen);
 }
 

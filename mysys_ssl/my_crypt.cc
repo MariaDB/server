@@ -1,336 +1,339 @@
 /*
-  TODO: add support for YASSL
-*/
+ Copyright (c) 2014 Google Inc.
+ Copyright (c) 2014, 2015 MariaDB Corporation
+
+ This program is free software; you can redistribute it and/or modify
+ it under the terms of the GNU General Public License as published by
+ the Free Software Foundation; version 2 of the License.
+
+ This program is distributed in the hope that it will be useful,
+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ GNU General Public License for more details.
+
+ You should have received a copy of the GNU General Public License
+ along with this program; if not, write to the Free Software
+ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
 
 #include <my_global.h>
 #include <my_crypt.h>
 
-/* YASSL doesn't support EVP_CIPHER_CTX */
-#ifdef HAVE_EncryptAes128Ctr
+#ifdef HAVE_YASSL
+#include "aes.hpp"
 
-#include "mysql.h"
+typedef TaoCrypt::CipherDir Dir;
+static const Dir CRYPT_ENCRYPT = TaoCrypt::ENCRYPTION;
+static const Dir CRYPT_DECRYPT = TaoCrypt::DECRYPTION;
+
+typedef TaoCrypt::Mode CipherMode;
+static inline CipherMode aes_ecb(uint) { return TaoCrypt::ECB; }
+static inline CipherMode aes_cbc(uint) { return TaoCrypt::CBC; }
+
+typedef TaoCrypt::byte KeyByte;
+
+#else
 #include <openssl/evp.h>
 #include <openssl/aes.h>
+#include <openssl/err.h>
 
-static const int CRYPT_ENCRYPT = 1;
-static const int CRYPT_DECRYPT = 0;
+typedef int Dir;
+static const Dir CRYPT_ENCRYPT = 1;
+static const Dir CRYPT_DECRYPT = 0;
 
-class Encrypter {
- public:
-  virtual ~Encrypter() {}
+typedef const EVP_CIPHER *CipherMode;
 
-  virtual Crypt_result Encrypt(const uchar* plaintext,
-                               int plaintext_size,
-                               uchar* ciphertext,
-                               int* ciphertext_used) = 0;
-  virtual Crypt_result GetTag(uchar* tag, int tag_size) = 0;
+#define make_aes_dispatcher(mode)                               \
+  static inline CipherMode aes_ ## mode(uint key_length)        \
+  {                                                             \
+    switch (key_length) {                                       \
+    case 16: return EVP_aes_128_ ## mode();                     \
+    case 24: return EVP_aes_192_ ## mode();                     \
+    case 32: return EVP_aes_256_ ## mode();                     \
+    default: return 0;                                          \
+    }                                                           \
+  }
+
+make_aes_dispatcher(ecb)
+make_aes_dispatcher(cbc)
+
+typedef uchar KeyByte;
+
+struct MyCTX : EVP_CIPHER_CTX {
+  MyCTX()  { EVP_CIPHER_CTX_init(this); }
+  ~MyCTX() { EVP_CIPHER_CTX_cleanup(this); ERR_remove_state(0); }
 };
+#endif
 
-class Decrypter {
- public:
-  virtual ~Decrypter() {}
+static int block_crypt(CipherMode cipher, Dir dir,
+                       const uchar* source, uint source_length,
+                       uchar* dest, uint* dest_length,
+                       const KeyByte *key, uint key_length,
+                       const KeyByte *iv, uint iv_length, int no_padding)
+{
+  int tail= source_length % MY_AES_BLOCK_SIZE;
 
-  virtual Crypt_result SetTag(const uchar* tag, int tag_size) = 0;
-  virtual Crypt_result Decrypt(const uchar* ciphertext,
-                               int ciphertext_size,
-                               uchar* plaintext,
-                               int* plaintext_used) = 0;
-  virtual Crypt_result CheckTag() = 0;
-};
+  if (likely(source_length >= MY_AES_BLOCK_SIZE || !no_padding))
+  {
+#ifdef HAVE_YASSL
+    TaoCrypt::AES ctx(dir, cipher);
 
-class Crypto {
- public:
-  virtual ~Crypto();
+    if (unlikely(key_length != 16 && key_length != 24 && key_length != 32))
+      return MY_AES_BAD_KEYSIZE;
 
-  Crypt_result Crypt(const uchar* input, int input_size,
-                     uchar* output, int* output_used);
+    ctx.SetKey(key, key_length);
+    if (iv)
+    {
+      ctx.SetIV(iv);
+      DBUG_ASSERT(TaoCrypt::AES::BLOCK_SIZE <= iv_length);
+    }
+    DBUG_ASSERT(TaoCrypt::AES::BLOCK_SIZE == MY_AES_BLOCK_SIZE);
 
- protected:
-  Crypto();
+    ctx.Process(dest, source, source_length - tail);
+    *dest_length= source_length - tail;
 
-  EVP_CIPHER_CTX ctx;
-};
+    /* unlike OpenSSL, YaSSL doesn't support PKCS#7 padding */
+    if (!no_padding)
+    {
+      if (dir == CRYPT_ENCRYPT)
+      {
+        uchar buf[MY_AES_BLOCK_SIZE];
+        memcpy(buf, source + source_length - tail, tail);
+        memset(buf + tail, MY_AES_BLOCK_SIZE - tail, MY_AES_BLOCK_SIZE - tail);
+        ctx.Process(dest + *dest_length, buf, MY_AES_BLOCK_SIZE);
+        *dest_length+= MY_AES_BLOCK_SIZE;
+      }
+      else
+      {
+        int n= dest[source_length - 1];
+        if (tail || n == 0 || n > MY_AES_BLOCK_SIZE)
+          return MY_AES_BAD_DATA;
+        *dest_length-= n;
+      }
+    }
 
+#else // HAVE_OPENSSL
+    int fin;
+    struct MyCTX ctx;
 
-/* Various crypto implementations */
+    if (unlikely(!cipher))
+      return MY_AES_BAD_KEYSIZE;
 
-class Aes128CtrCrypto : public Crypto {
- public:
-  virtual Crypt_result Init(const uchar* key, const uchar* iv,
-                            int iv_size);
+    if (!EVP_CipherInit_ex(&ctx, cipher, NULL, key, iv, dir))
+      return MY_AES_OPENSSL_ERROR;
 
- protected:
-  Aes128CtrCrypto() {}
+    EVP_CIPHER_CTX_set_padding(&ctx, !no_padding);
 
-  virtual int mode() = 0;
-};
+    DBUG_ASSERT(EVP_CIPHER_CTX_key_length(&ctx) == (int)key_length);
+    DBUG_ASSERT(EVP_CIPHER_CTX_iv_length(&ctx) <= (int)iv_length);
+    DBUG_ASSERT(EVP_CIPHER_CTX_block_size(&ctx) == MY_AES_BLOCK_SIZE);
 
-class Aes128CtrEncrypter : public Aes128CtrCrypto, public Encrypter {
- public:
-  Aes128CtrEncrypter() {}
-  virtual Crypt_result Encrypt(const uchar* plaintext,
-                               int plaintext_size,
-                               uchar* ciphertext,
-                               int* ciphertext_used);
+    /* use built-in OpenSSL padding, if possible */
+    if (!EVP_CipherUpdate(&ctx, dest, (int*)dest_length,
+                          source, source_length - (no_padding ? tail : 0)))
+      return MY_AES_OPENSSL_ERROR;
+    if (!EVP_CipherFinal_ex(&ctx, dest + *dest_length, &fin))
+      return MY_AES_BAD_DATA;
+    *dest_length += fin;
 
-  virtual Crypt_result GetTag(uchar* tag, int tag_size) {
-    DBUG_ASSERT(false);
-    return AES_INVALID;
+#endif
   }
 
- protected:
-  virtual int mode() {
-    return CRYPT_ENCRYPT;
+  if (no_padding)
+  {
+    if (tail)
+    {
+      /*
+        Not much we can do, block ciphers cannot encrypt data that aren't
+        a multiple of the block length. At least not without padding.
+        Let's do something CTR-like for the last partial block.
+      */
+
+      uchar mask[MY_AES_BLOCK_SIZE];
+      uint mlen;
+
+      DBUG_ASSERT(iv_length >= sizeof(mask));
+      my_aes_encrypt_ecb(iv, sizeof(mask), mask, &mlen,
+                         key, key_length, 0, 0, 1);
+      DBUG_ASSERT(mlen == sizeof(mask));
+
+      const uchar *s= source + source_length - tail;
+      const uchar *e= source + source_length;
+      uchar *d= dest + source_length - tail;
+      const uchar *m= mask;
+      while (s < e)
+        *d++ = *s++ ^ *m++;
+    }
+    *dest_length= source_length;
   }
 
- private:
-  Aes128CtrEncrypter(const Aes128CtrEncrypter& o);
-  Aes128CtrEncrypter& operator=(const Aes128CtrEncrypter& o);
-};
-
-class Aes128CtrDecrypter : public Aes128CtrCrypto, public Decrypter {
- public:
-  Aes128CtrDecrypter() {}
-  virtual Crypt_result Decrypt(const uchar* ciphertext,
-                               int ciphertext_size,
-                               uchar* plaintext,
-                               int* plaintext_used);
-
-  virtual Crypt_result SetTag(const uchar* tag, int tag_size) {
-    DBUG_ASSERT(false);
-    return AES_INVALID;
-  }
-
-  virtual Crypt_result CheckTag() {
-    DBUG_ASSERT(false);
-    return AES_INVALID;
-  }
-
- protected:
-  virtual int mode() {
-    return CRYPT_DECRYPT;
-  }
-
- private:
-  Aes128CtrDecrypter(const Aes128CtrDecrypter& o);
-  Aes128CtrDecrypter& operator=(const Aes128CtrDecrypter& o);
-};
-
-class Aes128EcbCrypto : public Crypto {
- public:
-  virtual Crypt_result Init(const unsigned char* key);
-
- protected:
-  Aes128EcbCrypto() {}
-
-  virtual int mode() = 0;
-};
-
-class Aes128EcbEncrypter : public Aes128EcbCrypto, public Encrypter {
- public:
-  Aes128EcbEncrypter() {}
-  virtual Crypt_result Encrypt(const unsigned char* plaintext,
-                               int plaintext_size,
-                               unsigned char* ciphertext,
-                               int* ciphertext_used);
-
-  virtual Crypt_result GetTag(unsigned char* tag, int tag_size) {
-    DBUG_ASSERT(false);
-    return AES_INVALID;
-  }
-
- protected:
-  virtual int mode() {
-    return CRYPT_ENCRYPT;
-  }
-
- private:
-  Aes128EcbEncrypter(const Aes128EcbEncrypter& o);
-  Aes128EcbEncrypter& operator=(const Aes128EcbEncrypter& o);
-};
-
-class Aes128EcbDecrypter : public Aes128EcbCrypto, public Decrypter {
- public:
-  Aes128EcbDecrypter() {}
-  virtual Crypt_result Decrypt(const unsigned char* ciphertext,
-                              int ciphertext_size,
-                              unsigned char* plaintext,
-                              int* plaintext_used);
-
-  virtual Crypt_result SetTag(const unsigned char* tag, int tag_size) {
-    DBUG_ASSERT(false);
-    return AES_INVALID;
-  }
-
-  virtual Crypt_result CheckTag() {
-    DBUG_ASSERT(false);
-    return AES_INVALID;
-  }
-
- protected:
-  virtual int mode() {
-    return CRYPT_DECRYPT;
-  }
-
- private:
-  Aes128EcbDecrypter(const Aes128EcbDecrypter& o);
-  Aes128EcbDecrypter& operator=(const Aes128EcbDecrypter& o);
-};
-
-
-Crypto::~Crypto() {
-  EVP_CIPHER_CTX_cleanup(&ctx);
-}
-
-Crypto::Crypto() {
-  EVP_CIPHER_CTX_init(&ctx);
-}
-
-/*
-  WARNING: It is allowed to have output == NULL, for special cases like AAD
-  support in AES GCM. output_used however must never be NULL.
-*/
-
-Crypt_result Crypto::Crypt(const uchar* input, int input_size,
-                           uchar* output, int* output_used) {
-  DBUG_ASSERT(input != NULL);
-  DBUG_ASSERT(output_used != NULL);
-  if (!EVP_CipherUpdate(&ctx, output, output_used, input, input_size)) {
-    return AES_OPENSSL_ERROR;
-  }
-
-  return AES_OK;
-}
-
-Crypt_result Aes128CtrCrypto::Init(const uchar* key,
-                                   const uchar* iv,
-                                   int iv_size) {
-  if (iv_size != 16) {
-    DBUG_ASSERT(false);
-    return AES_BAD_IV;
-  }
-
-  if (!EVP_CipherInit_ex(&ctx, EVP_aes_128_ctr(), NULL, key, iv, mode())) {
-    return AES_OPENSSL_ERROR;
-  }
-
-  return AES_OK;
-}
-
-Crypt_result Aes128CtrEncrypter::Encrypt(const uchar* plaintext,
-                                         int plaintext_size,
-                                         uchar* ciphertext,
-                                         int* ciphertext_used) {
-  Crypt_result res = Crypt(plaintext, plaintext_size, ciphertext,
-                          ciphertext_used);
-  DBUG_ASSERT(*ciphertext_used == plaintext_size);
-  return res;
-}
-
-Crypt_result Aes128CtrDecrypter::Decrypt(const uchar* ciphertext,
-                                         int ciphertext_size,
-                                         uchar* plaintext,
-                                         int* plaintext_used) {
-  Crypt_result res = Crypt(ciphertext, ciphertext_size, plaintext,
-                           plaintext_used);
-  DBUG_ASSERT(*plaintext_used == ciphertext_size);
-  return res;
-}
-
-
-Crypt_result Aes128EcbCrypto::Init(const unsigned char* key) {
-  if (!EVP_CipherInit_ex(&ctx, EVP_aes_128_ecb(), NULL, key, NULL, mode())) {
-    return AES_OPENSSL_ERROR;
-  }
-
-  return AES_OK;
-}
-
-Crypt_result Aes128EcbEncrypter::Encrypt(const unsigned char* plaintext,
-                                        int plaintext_size,
-                                        unsigned char* ciphertext,
-                                        int* ciphertext_used) {
-  Crypt_result res = Crypt(plaintext, plaintext_size,
-                           ciphertext, ciphertext_used);
-  DBUG_ASSERT(*ciphertext_used == plaintext_size);
-  return res;
-}
-
-Crypt_result Aes128EcbDecrypter::Decrypt(const unsigned char* ciphertext,
-                                         int ciphertext_size,
-                                         unsigned char* plaintext,
-                                         int* plaintext_used) {
-  Crypt_result res = Crypt(ciphertext, ciphertext_size,
-                           plaintext, plaintext_used);
-  DBUG_ASSERT(*plaintext_used == ciphertext_size);
-  return res;
+  return MY_AES_OK;
 }
 
 C_MODE_START
 
+#ifdef HAVE_EncryptAes128Ctr
+make_aes_dispatcher(ctr)
 
-  /* Encrypt and decrypt according to Aes128Ctr */
-
-Crypt_result my_aes_encrypt_ctr(const uchar* source, uint32 source_length,
-                                uchar* dest, uint32* dest_length,
-                                const unsigned char* key, uint8 key_length,
-                                const unsigned char* iv, uint8 iv_length,
-                                uint noPadding)
+/*
+  special simplified implementation for CTR, because it's a stream cipher
+  (doesn't need padding, always encrypts the specified number of bytes), and
+  because encrypting and decrypting code is exactly the same (courtesy of XOR)
+*/
+int my_aes_encrypt_ctr(const uchar* source, uint source_length,
+                       uchar* dest, uint* dest_length,
+                       const uchar* key, uint key_length,
+                       const uchar* iv, uint iv_length)
 {
-  Aes128CtrEncrypter encrypter;
-  Crypt_result res = encrypter.Init(key, iv, iv_length);
-  if (res != AES_OK)
-    return res;
-  return encrypter.Encrypt(source, source_length, dest, (int*)dest_length);
+  CipherMode cipher= aes_ctr(key_length);
+  struct MyCTX ctx;
+  int fin __attribute__((unused));
+
+  if (unlikely(!cipher))
+    return MY_AES_BAD_KEYSIZE;
+
+  if (!EVP_CipherInit_ex(&ctx, cipher, NULL, key, iv, CRYPT_ENCRYPT))
+    return MY_AES_OPENSSL_ERROR;
+
+  DBUG_ASSERT(EVP_CIPHER_CTX_key_length(&ctx) == (int)key_length);
+  DBUG_ASSERT(EVP_CIPHER_CTX_iv_length(&ctx) <= (int)iv_length);
+  DBUG_ASSERT(EVP_CIPHER_CTX_block_size(&ctx) == 1);
+
+  if (!EVP_CipherUpdate(&ctx, dest, (int*)dest_length, source, source_length))
+    return MY_AES_OPENSSL_ERROR;
+
+  DBUG_ASSERT(EVP_CipherFinal_ex(&ctx, dest + *dest_length, &fin));
+  DBUG_ASSERT(fin == 0);
+
+  return MY_AES_OK;
 }
 
+#endif /* HAVE_EncryptAes128Ctr */
 
-Crypt_result my_aes_decrypt_ctr(const uchar* source, uint32 source_length,
-                                uchar* dest, uint32* dest_length,
-                                const unsigned char* key, uint8 key_length,
-                                const unsigned char* iv, uint8 iv_length,
-                                uint noPadding)
+#ifdef HAVE_EncryptAes128Gcm
+make_aes_dispatcher(gcm)
+
+/*
+  special implementation for GCM; to fit OpenSSL AES-GCM into the
+  existing my_aes_* API it does the following:
+    - IV tail (over 12 bytes) goes to AAD
+    - the tag is appended to the ciphertext
+*/
+int do_gcm(const uchar* source, uint source_length,
+           uchar* dest, uint* dest_length,
+           const uchar* key, uint key_length,
+           const uchar* iv, uint iv_length, Dir dir)
 {
-  Aes128CtrDecrypter decrypter;
+  CipherMode cipher= aes_gcm(key_length);
+  struct MyCTX ctx;
+  int fin;
+  uint real_iv_length;
 
-  Crypt_result res = decrypter.Init(key, iv, iv_length);
-  if (res != AES_OK)
-    return res;
-  return decrypter.Decrypt(source, source_length, dest, (int*)dest_length);
+  if (unlikely(!cipher))
+    return MY_AES_BAD_KEYSIZE;
+
+  if (!EVP_CipherInit_ex(&ctx, cipher, NULL, key, iv, dir))
+    return MY_AES_OPENSSL_ERROR;
+
+  real_iv_length= EVP_CIPHER_CTX_iv_length(&ctx);
+
+  DBUG_ASSERT(EVP_CIPHER_CTX_key_length(&ctx) == (int)key_length);
+  DBUG_ASSERT(real_iv_length <= iv_length);
+  DBUG_ASSERT(EVP_CIPHER_CTX_block_size(&ctx) == 1);
+
+  if (dir == CRYPT_DECRYPT)
+  {
+    source_length-= MY_AES_BLOCK_SIZE;
+    if(!EVP_CIPHER_CTX_ctrl(&ctx, EVP_CTRL_GCM_SET_TAG, MY_AES_BLOCK_SIZE,
+                            (void*)(source + source_length)))
+      return MY_AES_OPENSSL_ERROR;
+  }
+
+  if (real_iv_length < iv_length)
+  {
+    if (!EVP_CipherUpdate(&ctx, NULL, &fin,
+                          iv + real_iv_length, iv_length - real_iv_length))
+      return MY_AES_OPENSSL_ERROR;
+  }
+
+  if (!EVP_CipherUpdate(&ctx, dest, (int*)dest_length, source, source_length))
+    return MY_AES_OPENSSL_ERROR;
+
+  if (!EVP_CipherFinal_ex(&ctx, dest + *dest_length, &fin))
+    return MY_AES_BAD_DATA;
+  DBUG_ASSERT(fin == 0);
+
+  if (dir == CRYPT_ENCRYPT)
+  {
+    if(!EVP_CIPHER_CTX_ctrl(&ctx, EVP_CTRL_GCM_GET_TAG, MY_AES_BLOCK_SIZE,
+                            dest + *dest_length))
+      return MY_AES_OPENSSL_ERROR;
+    *dest_length+= MY_AES_BLOCK_SIZE;
+  }
+
+  return MY_AES_OK;
 }
 
-
-Crypt_result my_aes_encrypt_ecb(const uchar* source, uint32 source_length,
-                                uchar* dest, uint32* dest_length,
-                                const unsigned char* key, uint8 key_length,
-                                const unsigned char* iv, uint8 iv_length,
-                                uint noPadding)
+int my_aes_encrypt_gcm(const uchar* source, uint source_length,
+                       uchar* dest, uint* dest_length,
+                       const uchar* key, uint key_length,
+                       const uchar* iv, uint iv_length)
 {
-  Aes128EcbEncrypter encrypter;
-  Crypt_result res = encrypter.Init(key);
-  if (res != AES_OK)
-    return res;
-  return encrypter.Encrypt(source, source_length, dest, (int*)dest_length);
+  return do_gcm(source, source_length, dest, dest_length,
+                key, key_length, iv, iv_length, CRYPT_ENCRYPT);
 }
 
-Crypt_result my_aes_decrypt_ecb(const uchar* source, uint32 source_length,
-                                uchar* dest, uint32* dest_length,
-                                const unsigned char* key, uint8 key_length,
-                                const unsigned char* iv, uint8 iv_length,
-                                uint noPadding)
+int my_aes_decrypt_gcm(const uchar* source, uint source_length,
+                       uchar* dest, uint* dest_length,
+                       const uchar* key, uint key_length,
+                       const uchar* iv, uint iv_length)
 {
-  Aes128EcbDecrypter decrypter;
+  return do_gcm(source, source_length, dest, dest_length,
+                key, key_length, iv, iv_length, CRYPT_DECRYPT);
+}
 
-  Crypt_result res = decrypter.Init(key);
+#endif
 
-  if (res != AES_OK)
-    return res;
-  return decrypter.Decrypt(source, source_length, dest, (int*)dest_length);
+int my_aes_encrypt_ecb(const uchar* source, uint source_length,
+                       uchar* dest, uint* dest_length,
+                       const uchar* key, uint key_length,
+                       const uchar* iv, uint iv_length,
+                       int no_padding)
+{
+  return block_crypt(aes_ecb(key_length), CRYPT_ENCRYPT, source, source_length,
+                     dest, dest_length, key, key_length, iv, iv_length, no_padding);
+}
+
+int my_aes_decrypt_ecb(const uchar* source, uint source_length,
+                       uchar* dest, uint* dest_length,
+                       const uchar* key, uint key_length,
+                       const uchar* iv, uint iv_length,
+                       int no_padding)
+{
+  return block_crypt(aes_ecb(key_length), CRYPT_DECRYPT, source, source_length,
+                     dest, dest_length, key, key_length, iv, iv_length, no_padding);
+}
+
+int my_aes_encrypt_cbc(const uchar* source, uint source_length,
+                       uchar* dest, uint* dest_length,
+                       const uchar* key, uint key_length,
+                       const uchar* iv, uint iv_length,
+                       int no_padding)
+{
+  return block_crypt(aes_cbc(key_length), CRYPT_ENCRYPT, source, source_length,
+                     dest, dest_length, key, key_length, iv, iv_length, no_padding);
+}
+
+int my_aes_decrypt_cbc(const uchar* source, uint source_length,
+                       uchar* dest, uint* dest_length,
+                       const uchar* key, uint key_length,
+                       const uchar* iv, uint iv_length,
+                       int no_padding)
+{
+  return block_crypt(aes_cbc(key_length), CRYPT_DECRYPT, source, source_length,
+                     dest, dest_length, key, key_length, iv, iv_length, no_padding);
 }
 
 C_MODE_END
-
-#endif /* HAVE_EncryptAes128Ctr */
 
 #if defined(HAVE_YASSL)
 
@@ -338,11 +341,11 @@ C_MODE_END
 
 C_MODE_START
 
-Crypt_result my_random_bytes(uchar* buf, int num)
+int my_random_bytes(uchar* buf, int num)
 {
   TaoCrypt::RandomNumberGenerator rand;
   rand.GenerateBlock((TaoCrypt::byte*) buf, num);
-  return AES_OK;
+  return MY_AES_OK;
 }
 
 C_MODE_END
@@ -353,7 +356,7 @@ C_MODE_END
 
 C_MODE_START
 
-Crypt_result my_random_bytes(uchar* buf, int num)
+int my_random_bytes(uchar* buf, int num)
 {
   /*
     Unfortunately RAND_bytes manual page does not provide any guarantees
@@ -363,9 +366,28 @@ Crypt_result my_random_bytes(uchar* buf, int num)
   */
   RAND_METHOD* rand = RAND_SSLeay();
   if (rand == NULL || rand->bytes(buf, num) != 1)
-    return AES_OPENSSL_ERROR;
-  return AES_OK;
+    return MY_AES_OPENSSL_ERROR;
+  return MY_AES_OK;
 }
 
 C_MODE_END
 #endif /* HAVE_YASSL */
+
+/**
+  Get size of buffer which will be large enough for encrypted data
+
+  The buffer should be sufficiently large to fit encrypted data
+  independently from the encryption algorithm and mode. With padding up to
+  MY_AES_BLOCK_SIZE bytes can be added. With GCM, exactly MY_AES_BLOCK_SIZE
+  bytes are added.
+
+  The actual length of the encrypted data is returned from the encryption
+  function (e.g. from my_aes_encrypt_cbc).
+
+  @return required buffer size
+*/
+
+uint my_aes_get_size(uint source_length)
+{
+  return source_length + MY_AES_BLOCK_SIZE;
+}

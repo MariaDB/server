@@ -14,7 +14,6 @@
   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
 
 #define MYSQL_SERVER 1
-#include <my_global.h>
 #include "mysql_version.h"
 #if MYSQL_VERSION_ID < 50500
 #include "mysql_priv.h"
@@ -515,6 +514,7 @@ int spider_db_before_query(
   int *need_mon
 ) {
   int error_num;
+  bool tmp_mta_conn_mutex_lock_already;
   DBUG_ENTER("spider_db_before_query");
   DBUG_ASSERT(need_mon);
 #ifndef WITHOUT_SPIDER_BG_SEARCH
@@ -529,11 +529,15 @@ int spider_db_before_query(
     conn->need_mon = need_mon;
   }
   DBUG_ASSERT(conn->mta_conn_mutex_file_pos.file_name);
+  tmp_mta_conn_mutex_lock_already = conn->mta_conn_mutex_lock_already;
+  conn->mta_conn_mutex_lock_already = TRUE;
   if ((error_num = spider_db_conn_queue_action(conn)))
   {
     conn->in_before_query = FALSE;
+    conn->mta_conn_mutex_lock_already = tmp_mta_conn_mutex_lock_already;
     DBUG_RETURN(error_num);
   }
+  conn->mta_conn_mutex_lock_already = tmp_mta_conn_mutex_lock_already;
   if (conn->server_lost)
   {
     conn->in_before_query = FALSE;
@@ -2564,7 +2568,11 @@ int spider_db_fetch_for_item_sum_func(
         {
           Item *free_list = thd->free_list;
           spider->direct_aggregate_item_current->item =
+#ifdef SPIDER_ITEM_STRING_WITHOUT_SET_STR_WITH_COPY
+            new Item_string("", 0, share->access_charset);
+#else
             new Item_string(share->access_charset);
+#endif
           if (!spider->direct_aggregate_item_current->item)
             DBUG_RETURN(HA_ERR_OUT_OF_MEM);
           thd->free_list = free_list;
@@ -2575,7 +2583,12 @@ int spider_db_fetch_for_item_sum_func(
           (Item_string *) spider->direct_aggregate_item_current->item;
         if (row->is_null())
         {
+#ifdef SPIDER_ITEM_STRING_WITHOUT_SET_STR_WITH_COPY
+          item->val_str(NULL)->length(0);
+          item->append(NULL, 0);
+#else
           item->set_str_with_copy(NULL, 0);
+#endif
           item->null_value = TRUE;
         } else {
           char buf[MAX_FIELD_WIDTH];
@@ -2584,7 +2597,12 @@ int spider_db_fetch_for_item_sum_func(
           tmp_str.length(0);
           if ((error_num = row->append_to_str(&tmp_str)))
             DBUG_RETURN(error_num);
+#ifdef SPIDER_ITEM_STRING_WITHOUT_SET_STR_WITH_COPY
+          item->val_str(NULL)->length(0);
+          item->append((char *) tmp_str.ptr(), tmp_str.length());
+#else
           item->set_str_with_copy(tmp_str.ptr(), tmp_str.length());
+#endif
           item->null_value = FALSE;
         }
         item_hybrid->direct_add(item);
@@ -3279,8 +3297,11 @@ void spider_db_free_one_result(
         if (result->result)
         {
           result->result->free_result();
-          delete result->result;
-          result->result = NULL;
+          if (!result->tmp_tbl_use_position)
+          {
+            delete result->result;
+            result->result = NULL;
+          }
         }
         if (!result->tmp_tbl_use_position)
         {
@@ -4964,11 +4985,14 @@ int spider_db_seek_tmp_table(
 
   DBUG_PRINT("info", ("spider row=%p", row));
 #ifdef HANDLER_HAS_DIRECT_AGGREGATE
-  DBUG_PRINT("info", ("spider direct_aggregate=%s",
-    pos->direct_aggregate ? "TRUE" : "FALSE"));
-  spider->result_list.snap_mrr_with_cnt = pos->mrr_with_cnt;
-  spider->result_list.snap_direct_aggregate = pos->direct_aggregate;
-  spider->result_list.snap_row = row;
+  if (!spider->result_list.in_cmp_ref)
+  {
+    DBUG_PRINT("info", ("spider direct_aggregate=%s",
+      pos->direct_aggregate ? "TRUE" : "FALSE"));
+    spider->result_list.snap_mrr_with_cnt = pos->mrr_with_cnt;
+    spider->result_list.snap_direct_aggregate = pos->direct_aggregate;
+    spider->result_list.snap_row = row;
+  }
 #endif
 
   /* for mrr */
@@ -5052,11 +5076,14 @@ int spider_db_seek_tmp_key(
 
   DBUG_PRINT("info", ("spider row=%p", row));
 #ifdef HANDLER_HAS_DIRECT_AGGREGATE
-  DBUG_PRINT("info", ("spider direct_aggregate=%s",
-    pos->direct_aggregate ? "TRUE" : "FALSE"));
-  spider->result_list.snap_mrr_with_cnt = pos->mrr_with_cnt;
-  spider->result_list.snap_direct_aggregate = pos->direct_aggregate;
-  spider->result_list.snap_row = row;
+  if (!spider->result_list.in_cmp_ref)
+  {
+    DBUG_PRINT("info", ("spider direct_aggregate=%s",
+      pos->direct_aggregate ? "TRUE" : "FALSE"));
+    spider->result_list.snap_mrr_with_cnt = pos->mrr_with_cnt;
+    spider->result_list.snap_direct_aggregate = pos->direct_aggregate;
+    spider->result_list.snap_row = row;
+  }
 #endif
 
   /* for mrr */
@@ -5133,11 +5160,14 @@ int spider_db_seek_tmp_minimum_columns(
 
   DBUG_PRINT("info", ("spider row=%p", row));
 #ifdef HANDLER_HAS_DIRECT_AGGREGATE
-  DBUG_PRINT("info", ("spider direct_aggregate=%s",
-    pos->direct_aggregate ? "TRUE" : "FALSE"));
-  spider->result_list.snap_mrr_with_cnt = pos->mrr_with_cnt;
-  spider->result_list.snap_direct_aggregate = pos->direct_aggregate;
-  spider->result_list.snap_row = row;
+  if (!spider->result_list.in_cmp_ref)
+  {
+    DBUG_PRINT("info", ("spider direct_aggregate=%s",
+      pos->direct_aggregate ? "TRUE" : "FALSE"));
+    spider->result_list.snap_mrr_with_cnt = pos->mrr_with_cnt;
+    spider->result_list.snap_direct_aggregate = pos->direct_aggregate;
+    spider->result_list.snap_row = row;
+  }
 #endif
 
   /* for mrr */
@@ -8088,19 +8118,24 @@ int spider_db_open_item_string(
     spider_string tmp_str(tmp_buf, MAX_FIELD_WIDTH, str->charset());
     String *tmp_str2;
     tmp_str.init_calc_mem(126);
-    if (
-      !(tmp_str2 = item->val_str(tmp_str.get_str())) ||
-      str->reserve(SPIDER_SQL_VALUE_QUOTE_LEN * 2 + tmp_str2->length() * 2)
-    )
-      DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-    tmp_str.mem_calc();
-    str->q_append(SPIDER_SQL_VALUE_QUOTE_STR, SPIDER_SQL_VALUE_QUOTE_LEN);
-    if (
-      str->append_for_single_quote(tmp_str2) ||
-      str->reserve(SPIDER_SQL_VALUE_QUOTE_LEN)
-    )
-      DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-    str->q_append(SPIDER_SQL_VALUE_QUOTE_STR, SPIDER_SQL_VALUE_QUOTE_LEN);
+    if (!(tmp_str2 = item->val_str(tmp_str.get_str())))
+    {
+      if (str->reserve(SPIDER_SQL_NULL_LEN))
+        DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+      str->q_append(SPIDER_SQL_NULL_STR, SPIDER_SQL_NULL_LEN);
+    } else {
+      if (str->reserve(SPIDER_SQL_VALUE_QUOTE_LEN * 2 +
+        tmp_str2->length() * 2))
+        DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+      tmp_str.mem_calc();
+      str->q_append(SPIDER_SQL_VALUE_QUOTE_STR, SPIDER_SQL_VALUE_QUOTE_LEN);
+      if (
+        str->append_for_single_quote(tmp_str2) ||
+        str->reserve(SPIDER_SQL_VALUE_QUOTE_LEN)
+      )
+        DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+      str->q_append(SPIDER_SQL_VALUE_QUOTE_STR, SPIDER_SQL_VALUE_QUOTE_LEN);
+    }
   }
   DBUG_RETURN(0);
 }

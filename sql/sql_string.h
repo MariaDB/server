@@ -43,20 +43,30 @@ inline uint32 copy_and_convert(char *to, uint32 to_length,
 }
 
 
-class String_copier: private MY_STRCOPY_STATUS
+class String_copier: private MY_STRCONV_STATUS
 {
-  const char *m_cannot_convert_error_pos;
 public:
   const char *source_end_pos() const
-  { return m_source_end_pos; }
+  { return m_native_copy_status.m_source_end_pos; }
   const char *well_formed_error_pos() const
-  { return m_well_formed_error_pos; }
+  { return m_native_copy_status.m_well_formed_error_pos; }
   const char *cannot_convert_error_pos() const
   { return m_cannot_convert_error_pos; }
   const char *most_important_error_pos() const
   {
     return well_formed_error_pos() ? well_formed_error_pos() :
                                      cannot_convert_error_pos();
+  }
+  /*
+    Convert a string between character sets.
+    "dstcs" and "srccs" cannot be &my_charset_bin.
+  */
+  uint convert_fix(CHARSET_INFO *dstcs, char *dst, uint dst_length,
+                   CHARSET_INFO *srccs, const char *src, uint src_length,
+                   uint nchars)
+  {
+    return my_convert_fix(dstcs, dst, dst_length,
+                          srccs, src, src_length, nchars, this);
   }
   /*
      Copy a string. Fix bad bytes/characters one Unicode conversion,
@@ -190,6 +200,7 @@ public:
   inline bool is_empty() const { return (str_length == 0); }
   inline void mark_as_const() { Alloced_length= 0;}
   inline const char *ptr() const { return Ptr; }
+  inline const char *end() const { return Ptr + str_length; }
   inline char *c_ptr()
   {
     DBUG_ASSERT(!alloced || !Ptr || !Alloced_length || 
@@ -412,6 +423,17 @@ public:
   bool copy(const String *str, CHARSET_INFO *tocs, uint *errors)
   {
     return copy(str->ptr(), str->length(), str->charset(), tocs, errors);
+  }
+  bool copy(CHARSET_INFO *tocs,
+            CHARSET_INFO *fromcs, const char *src, uint32 src_length,
+            uint32 nchars, String_copier *copier)
+  {
+    if (alloc(tocs->mbmaxlen * src_length))
+      return true;
+    str_length= copier->well_formed_copy(tocs, Ptr, Alloced_length,
+                                         fromcs, src, src_length, nchars);
+    str_charset= tocs;
+    return false;
   }
   void move(String &s)
   {

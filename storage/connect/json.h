@@ -267,4 +267,3 @@ class JVALUE : public JSON {
   PJVAL Next;     // Next value in array
   bool  Del;      // True when deleted
 }; // end of class JVALUE
-

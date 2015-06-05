@@ -1,4 +1,4 @@
-# Copyright(C) 2013  Kouhei Sutou <kou@clear-code.com>
+# Copyright(C) 2013-2015  Kouhei Sutou <kou@clear-code.com>
 #
 # This library is free software; you can redistribute it and/or
 # modify it under the terms of the GNU Library General Public
@@ -17,11 +17,15 @@
 
 set(NORMALIZERS_DIR "${GROONGA_PLUGINS_DIR}/normalizers")
 read_file_list(${CMAKE_CURRENT_SOURCE_DIR}/mysql_sources.am MYSQL_SOURCES)
-add_library(mysql_normalizer MODULE ${MYSQL_SOURCES})
-set_target_properties(mysql_normalizer PROPERTIES
-  PREFIX ""
-  OUTPUT_NAME "mysql")
-target_link_libraries(mysql_normalizer ${GROONGA_LIBRARIES})
-if(NOT MRN_GROONGA_BUNDLED)
+if(GROONGA_NORMALIZER_MYSQL_EMBED)
+  add_convenience_library(mysql_normalizer ${MYSQL_SOURCES})
+  set_property(TARGET mysql_normalizer APPEND PROPERTY
+    COMPILE_DEFINITIONS "GROONGA_NORMALIZER_MYSQL_EMBED")
+else()
+  add_library(mysql_normalizer MODULE ${MYSQL_SOURCES})
+  set_target_properties(mysql_normalizer PROPERTIES
+    PREFIX ""
+    OUTPUT_NAME "mysql")
   install(TARGETS mysql_normalizer DESTINATION "${NORMALIZERS_DIR}")
 endif()
+target_link_libraries(mysql_normalizer ${GROONGA_LIBRARIES})

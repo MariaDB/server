@@ -1,4 +1,4 @@
-# Copyright(C) 2012-2013 Kouhei Sutou <kou@clear-code.com>
+# Copyright(C) 2012-2015 Kouhei Sutou <kou@clear-code.com>
 #
 # This library is free software; you can redistribute it and/or
 # modify it under the terms of the GNU Lesser General Public
@@ -20,9 +20,11 @@ let $version_major_minor =
 
 let $version_55            = `SELECT $version_major_minor = 5.5`;
 let $version_56            = `SELECT $version_major_minor = 5.6`;
+let $version_57            = `SELECT $version_major_minor = 5.7`;
 let $version_100           = `SELECT $version_major_minor = 10.0`;
 
 let $version_55_or_later   = `SELECT $version_major_minor >= 5.5`;
 let $version_56_or_later   = `SELECT $version_major_minor >= 5.6`;
+let $version_57_or_later   = `SELECT $version_major_minor >= 5.7`;
 let $version_100_or_later  = `SELECT $version_major_minor >= 10.0`;
 --enable_query_log

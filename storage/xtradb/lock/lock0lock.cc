@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2014, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2014, 2015, MariaDB Corporation
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -2053,6 +2054,9 @@ lock_rec_create(
 	/* Set the bit corresponding to rec */
 	lock_rec_set_nth_bit(lock, heap_no);
 
+	lock->requested_time = ut_time();
+	lock->wait_time = 0;
+
 	index->table->n_rec_locks++;
 
 	ut_ad(index->table->n_ref_count > 0 || !index->table->can_be_evicted);
@@ -2295,6 +2299,8 @@ lock_rec_enqueue_waiting(
 
 	MONITOR_INC(MONITOR_LOCKREC_WAIT);
 
+	trx->n_rec_lock_waits++;
+
 	return(DB_LOCK_WAIT);
 }
 
@@ -2327,7 +2333,8 @@ lock_rec_add_to_queue(
 
 	ut_ad(lock_mutex_own());
 	ut_ad(caller_owns_trx_mutex == trx_mutex_own(trx));
-	ut_ad(dict_index_is_clust(index) || !dict_index_is_online_ddl(index));
+	ut_ad(dict_index_is_clust(index)
+	      || dict_index_get_online_status(index) != ONLINE_INDEX_CREATION);
 #ifdef UNIV_DEBUG
 	switch (type_mode & LOCK_MODE_MASK) {
 	case LOCK_X:
@@ -2769,6 +2776,17 @@ lock_grant(
 			lock_wait_release_thread_if_suspended(thr);
 		}
 	}
+
+	/* Cumulate total lock wait time for statistics */
+	if (lock_get_type_low(lock) & LOCK_TABLE) {
+		lock->trx->total_table_lock_wait_time +=
+			(ulint)difftime(ut_time(), lock->trx->lock.wait_started);
+	} else {
+		lock->trx->total_rec_lock_wait_time +=
+			(ulint)difftime(ut_time(), lock->trx->lock.wait_started);
+	}
+
+	lock->wait_time = (ulint)difftime(ut_time(), lock->requested_time);
 
 	trx_mutex_exit(lock->trx);
 }
@@ -4612,6 +4630,8 @@ lock_table_create(
 
 	lock->type_mode = type_mode | LOCK_TABLE;
 	lock->trx = trx;
+	lock->requested_time = ut_time();
+	lock->wait_time = 0;
 
 	lock->un_member.tab_lock.table = table;
 
@@ -4919,6 +4939,7 @@ lock_table_enqueue_waiting(
 
 	trx->lock.wait_started = ut_time();
 	trx->lock.was_chosen_as_deadlock_victim = FALSE;
+	trx->n_table_lock_waits++;
 
 	if (UNIV_UNLIKELY(trx->take_stats)) {
 		ut_usectime(&sec, &ms);
@@ -5638,6 +5659,10 @@ lock_table_print(
 		fputs(" waiting", file);
 	}
 
+	fprintf(file, " lock hold time %lu wait time before grant %lu ",
+		(ulint)difftime(ut_time(), lock->requested_time),
+		lock->wait_time);
+
 	putc('\n', file);
 }
 
@@ -5669,7 +5694,14 @@ lock_rec_print(
 	fprintf(file, "RECORD LOCKS space id %lu page no %lu n bits %lu ",
 		(ulong) space, (ulong) page_no,
 		(ulong) lock_rec_get_n_bits(lock));
+
 	dict_index_name_print(file, lock->trx, lock->index);
+
+	/* Print number of table locks */
+	fprintf(file, " trx table locks %lu total table locks %lu ",
+		ib_vector_size(lock->trx->lock.table_locks),
+		UT_LIST_GET_LEN(lock->index->table->locks));
+
 	fprintf(file, " trx id " TRX_ID_FMT, lock->trx->id);
 
 	if (lock_get_mode(lock) == LOCK_S) {
@@ -5697,6 +5729,10 @@ lock_rec_print(
 	}
 
 	mtr_start(&mtr);
+
+	fprintf(file, " lock hold time %lu wait time before grant %lu ",
+		(ulint)difftime(ut_time(), lock->requested_time),
+		lock->wait_time);
 
 	putc('\n', file);
 
@@ -5958,6 +5994,14 @@ loop:
 				trx->read_view->up_limit_id);
 		}
 
+		/* Total trx lock waits and times */
+		fprintf(file, "Trx #rec lock waits %lu #table lock waits %lu\n",
+			trx->n_rec_lock_waits, trx->n_table_lock_waits);
+		fprintf(file, "Trx total rec lock wait time %lu SEC\n",
+			trx->total_rec_lock_wait_time);
+		fprintf(file, "Trx total table lock wait time %lu SEC\n",
+			trx->total_table_lock_wait_time);
+
 		if (trx->lock.que_state == TRX_QUE_LOCK_WAIT) {
 
 			fprintf(file,
@@ -5976,7 +6020,7 @@ loop:
 		}
 	}
 
-        if (!srv_print_innodb_lock_monitor && !srv_show_locks_held) {
+	if (!srv_print_innodb_lock_monitor || !srv_show_locks_held) {
 		nth_trx++;
 		goto loop;
 	}

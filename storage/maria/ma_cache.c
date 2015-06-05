@@ -42,6 +42,7 @@ my_bool _ma_read_cache(MARIA_HA *handler, IO_CACHE *info, uchar *buff,
   my_off_t offset;
   uchar *in_buff_pos;
   DBUG_ENTER("_ma_read_cache");
+  DBUG_ASSERT(!(info->myflags & MY_ENCRYPT));
 
   if (pos < info->pos_in_file)
   {
@@ -81,7 +82,7 @@ my_bool _ma_read_cache(MARIA_HA *handler, IO_CACHE *info, uchar *buff,
     }
     else
       info->read_pos=info->read_end;			/* All block used */
-    if (!(*info->read_function)(info,buff,length))
+    if (!_my_b_read(info,buff,length))
       DBUG_RETURN(0);
     read_length=info->error;
   }

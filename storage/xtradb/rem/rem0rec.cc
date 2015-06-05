@@ -845,7 +845,7 @@ rec_get_converted_size_comp_prefix_low(
 		}
 
 		ut_ad(len <= col->len || col->mtype == DATA_BLOB
-		      || (col->len == 0 && col->mtype == DATA_VARCHAR));
+			|| (col->len == 0 && col->mtype == DATA_VARCHAR));
 
 		fixed_len = field->fixed_len;
 		if (temp && fixed_len

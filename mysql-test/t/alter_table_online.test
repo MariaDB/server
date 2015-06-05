@@ -7,7 +7,7 @@
 drop table if exists t1,t2,t3;
 --enable_warnings
 #
-# Test of things that can be done online
+# Test of things that can not be done online
 #
 
 create table t1 (a int not null primary key, b int, c varchar(80), e enum('a','b'));
@@ -23,6 +23,13 @@ alter online table t1 modify e enum('a','b','c');
 alter online table t1 comment "new comment";
 --error ER_ALTER_OPERATION_NOT_SUPPORTED
 alter online table t1 rename to t2;
+
+# No OPs
+
+alter online table t1 algorithm=INPLACE, lock=NONE;
+alter online table t1;
+alter table t1 algorithm=INPLACE;
+alter table t1 lock=NONE;
 
 drop table t1;
 

@@ -224,12 +224,15 @@ ut_2_power_up(
 	ulint	n)	/*!< in: number != 0 */
 	__attribute__((const));
 
+#endif /* !UNIV_INNOCHECKSUM */
+
 /** Determine how many bytes (groups of 8 bits) are needed to
 store the given number of bits.
 @param b	in: bits
 @return		number of bytes (octets) needed to represent b */
 #define UT_BITS_IN_BYTES(b) (((b) + 7) / 8)
 
+#ifndef UNIV_INNOCHECKSUM
 /**********************************************************//**
 Returns system time. We do not specify the format of the time returned:
 the only way to manipulate it is to use the function ut_difftime.

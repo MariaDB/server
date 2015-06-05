@@ -98,7 +98,13 @@ extern "C" {
 #  define MRN_TABLE_LIST_INIT_REQUIRE_ALIAS
 #endif
 
-#ifdef BIG_TABLES
+#if MYSQL_VERSION_ID >= 50706 && !defined(MRN_MARIADB_P)
+#  define MRN_BIG_TABLES
+#elif defined(BIG_TABLES)
+#  define MRN_BIG_TABLES
+#endif
+
+#ifdef MRN_BIG_TABLES
 #  define MRN_HA_ROWS_FORMAT "llu"
 #else
 #  define MRN_HA_ROWS_FORMAT "lu"
@@ -145,6 +151,14 @@ extern "C" {
 #  define MRN_HAVE_TL_WRITE_ALLOW_READ
 #endif
 
+#if MYSQL_VERSION_ID < 50706 || defined(MRN_MARIADB_P)
+#  define MRN_HAVE_TL_WRITE_DELAYED
+#endif
+
+#if MYSQL_VERSION_ID >= 50706 && !defined(MRN_MARIADB_P)
+#  define MRN_HAVE_TL_WRITE_CONCURRENT_DEFAULT
+#endif
+
 #if (defined(MRN_MARIADB_P) && \
      ((MYSQL_VERSION_ID >= 50306 && MYSQL_VERSION_ID < 50500) || \
       MYSQL_VERSION_ID >= 50523))
@@ -177,6 +191,44 @@ extern "C" {
 
 #if (defined(MRN_MARIADB_P) && MYSQL_VERSION_ID >= 100010)
 #  define MRN_HAVE_TDC_LOCK_TABLE_SHARE
+#endif
+
+#ifdef MRN_MARIADB_P
+#  if MYSQL_VERSION_ID >= 50542 && MYSQL_VERSION_ID < 100000
+#    define MRN_SUPPORT_THDVAR_SET
+#  elif MYSQL_VERSION_ID >= 100017
+#    define MRN_SUPPORT_THDVAR_SET
+#  endif
+#else
+#  define MRN_SUPPORT_THDVAR_SET
+#endif
+
+#ifdef MRN_MARIADB_P
+#  if MYSQL_VERSION_ID < 100000
+#    define MRN_SUPPORT_PARTITION
+#  endif
+#else
+#  define MRN_SUPPORT_PARTITION
+#endif
+
+#if MYSQL_VERSION_ID >= 50706 && !defined(MRN_MARIADB_P)
+#  define MRN_FLUSH_LOGS_HAVE_BINLOG_GROUP_FLUSH
+#endif
+
+#if MYSQL_VERSION_ID < 50706 || defined(MRN_MARIADB_P)
+#  define MRN_HAVE_HTON_ALTER_TABLE_FLAGS
+#endif
+
+#if MYSQL_VERSION_ID >= 50706 && !defined(MRN_MARIADB_P)
+#  define MRN_FOREIGN_KEY_USE_CONST_STRING
+#endif
+
+#if MYSQL_VERSION_ID < 50706 || defined(MRN_MARIADB_P)
+#  define MRN_HANDLER_IS_FATAL_ERROR_HAVE_FLAGS
+#endif
+
+#if MYSQL_VERSION_ID < 50706 || defined(MRN_MARIADB_P)
+#  define MRN_HANDLER_HAVE_RESET_AUTO_INCREMENT
 #endif
 
 class ha_mroonga;
@@ -263,7 +315,6 @@ private:
   grn_obj **grn_column_ranges;
   grn_obj **grn_index_tables;
   grn_obj **grn_index_columns;
-  bool grn_table_is_referenced;
 
   // buffers
   grn_obj  encoded_key_buffer;
@@ -349,7 +400,7 @@ public:
 
   uint max_supported_record_length()   const;
   uint max_supported_keys()            const;
-  uint max_supported_key_parts();
+  uint max_supported_key_parts()       const;
   uint max_supported_key_length()      const;
   uint max_supported_key_part_length() const;
 
@@ -449,7 +500,7 @@ public:
   bool check_and_repair(THD *thd);
   int analyze(THD* thd, HA_CHECK_OPT* check_opt);
   int optimize(THD* thd, HA_CHECK_OPT* check_opt);
-  bool is_fatal_error(int error_num, uint flags);
+  bool is_fatal_error(int error_num, uint flags=0);
   bool check_if_incompatible_data(HA_CREATE_INFO *create_info,
                                   uint table_changes);
 #ifdef MRN_HANDLER_HAVE_CHECK_IF_SUPPORTED_INPLACE_ALTER
@@ -475,7 +526,9 @@ public:
   void restore_auto_increment(ulonglong prev_insert_id);
   void release_auto_increment();
   int check_for_upgrade(HA_CHECK_OPT *check_opt);
+#ifdef MRN_HANDLER_HAVE_RESET_AUTO_INCREMENT
   int reset_auto_increment(ulonglong value);
+#endif
   bool was_semi_consistent_read();
   void try_semi_consistent_read(bool yes);
   void unlock_row();
@@ -557,6 +610,7 @@ private:
   int drop_index(MRN_SHARE *target_share, uint key_index);
   grn_obj *find_tokenizer(const char *name, int name_length);
   grn_obj *find_normalizer(KEY *key_info);
+  bool find_index_column_flags(KEY *key_info, grn_obj_flags *index_column_flags);
   bool find_token_filters(KEY *key_info, grn_obj *token_filters);
   bool find_token_filters_put(grn_obj *token_filters,
                               const char *token_filter_name,
@@ -580,6 +634,7 @@ private:
   void check_count_skip(key_part_map start_key_part_map,
                         key_part_map end_key_part_map, bool fulltext);
   bool is_grn_zero_column_value(grn_obj *column, grn_obj *value);
+  bool is_primary_key_field(Field *field) const;
   void check_fast_order_limit(grn_table_sort_key **sort_keys, int *n_sort_keys,
                               longlong *limit);
 
@@ -641,7 +696,7 @@ private:
   void storage_store_field_geometry(Field *field,
                                     const char *value, uint value_length);
   void storage_store_field(Field *field, const char *value, uint value_length);
-  void storage_store_field_column(Field *field,
+  void storage_store_field_column(Field *field, bool is_primary_key,
                                   int nth_column, grn_id record_id);
   void storage_store_fields(uchar *buf, grn_id record_id);
   void storage_store_fields_for_prep_update(const uchar *old_data,
@@ -742,7 +797,6 @@ private:
   int wrapper_open(const char *name, int mode, uint test_if_locked);
   int wrapper_open_indexes(const char *name);
   int storage_open(const char *name, int mode, uint test_if_locked);
-  void update_grn_table_is_referenced();
   int open_table(const char *name);
   int storage_open_columns(void);
   int storage_open_indexes(const char *name);
@@ -785,7 +839,9 @@ private:
                                               grn_obj *index_column);
   int storage_write_row_multiple_column_indexes(uchar *buf, grn_id record_id);
   int storage_write_row_unique_index(uchar *buf,
-                                     KEY *key_info, grn_obj *index_table,
+                                     KEY *key_info,
+                                     grn_obj *index_table,
+                                     grn_obj *index_column,
                                      grn_id *key_id);
   int storage_write_row_unique_indexes(uchar *buf);
   int wrapper_get_record_id(uchar *data, grn_id *record_id, const char *context);
@@ -812,8 +868,8 @@ private:
   uint storage_max_supported_record_length() const;
   uint wrapper_max_supported_keys() const;
   uint storage_max_supported_keys() const;
-  uint wrapper_max_supported_key_parts();
-  uint storage_max_supported_key_parts();
+  uint wrapper_max_supported_key_parts() const;
+  uint storage_max_supported_key_parts() const;
   uint wrapper_max_supported_key_length() const;
   uint storage_max_supported_key_length() const;
   uint wrapper_max_supported_key_part_length() const;
@@ -904,6 +960,7 @@ private:
                                           grn_obj *match_columns,
                                           uint *consumed_keyword_length,
                                           grn_obj *tmp_objects);
+  grn_expr_flags expr_flags_in_boolean_mode();
   grn_rc generic_ft_init_ext_prepare_expression_in_boolean_mode(
     struct st_mrn_ft_info *info,
     String *key,
@@ -1029,6 +1086,7 @@ private:
   bool storage_is_crashed() const;
   bool wrapper_auto_repair(int error) const;
   bool storage_auto_repair(int error) const;
+  int generic_disable_index(int i, KEY *key_info);
   int wrapper_disable_indexes(uint mode);
   int storage_disable_indexes(uint mode);
   int wrapper_enable_indexes(uint mode);
@@ -1038,6 +1096,7 @@ private:
   int wrapper_fill_indexes(THD *thd, KEY *key_info,
                            grn_obj **index_columns, uint n_keys);
   int wrapper_recreate_indexes(THD *thd);
+  int storage_recreate_indexes(THD *thd);
   int wrapper_repair(THD* thd, HA_CHECK_OPT* check_opt);
   int storage_repair(THD* thd, HA_CHECK_OPT* check_opt);
   bool wrapper_check_and_repair(THD *thd);
@@ -1129,8 +1188,10 @@ private:
   void storage_release_auto_increment();
   int wrapper_check_for_upgrade(HA_CHECK_OPT *check_opt);
   int storage_check_for_upgrade(HA_CHECK_OPT *check_opt);
+#ifdef MRN_HANDLER_HAVE_RESET_AUTO_INCREMENT
   int wrapper_reset_auto_increment(ulonglong value);
   int storage_reset_auto_increment(ulonglong value);
+#endif
   bool wrapper_was_semi_consistent_read();
   bool storage_was_semi_consistent_read();
   void wrapper_try_semi_consistent_read(bool yes);

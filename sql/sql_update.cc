@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2011, 2014, Monty Program Ab.
+   Copyright (c) 2011, 2015, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -377,7 +377,7 @@ int mysql_update(THD *thd,
   if (conds)
   {
     Item::cond_result cond_value;
-    conds= remove_eq_conds(thd, conds, &cond_value);
+    conds= conds->remove_eq_conds(thd, &cond_value, true);
     if (cond_value == Item::COND_FALSE)
     {
       limit= 0;                                   // Impossible WHERE
@@ -517,7 +517,9 @@ int mysql_update(THD *thd,
   */
   if (thd->lex->describe)
     goto produce_explain_and_leave;
-  query_plan.save_explain_data(thd->mem_root, thd->lex->explain);
+  explain= query_plan.save_explain_update_data(query_plan.mem_root, thd);
+
+  ANALYZE_START_TRACKING(&explain->command_tracker);
 
   DBUG_EXECUTE_IF("show_explain_probe_update_exec_start", 
                   dbug_serve_apcs(thd, 1););
@@ -552,11 +554,15 @@ int mysql_update(THD *thd,
       table->sort.io_cache = (IO_CACHE *) my_malloc(sizeof(IO_CACHE),
 						    MYF(MY_FAE | MY_ZEROFILL |
                                                         MY_THREAD_SPECIFIC));
-      if (!(sortorder=make_unireg_sortorder(order, &length, NULL)) ||
+      Filesort_tracker *fs_tracker= 
+        thd->lex->explain->get_upd_del_plan()->filesort_tracker;
+
+      if (!(sortorder=make_unireg_sortorder(thd, order, &length, NULL)) ||
           (table->sort.found_records= filesort(thd, table, sortorder, length,
                                                select, limit,
                                                true,
-                                               &examined_rows, &found_rows))
+                                               &examined_rows, &found_rows,
+                                               fs_tracker))
           == HA_POS_ERROR)
       {
 	goto err;
@@ -576,7 +582,7 @@ int mysql_update(THD *thd,
 	we go trough the matching rows, save a pointer to them and
 	update these in a separate loop based on the pointer.
       */
-
+      explain->buf_tracker.on_scan_init();
       IO_CACHE tempfile;
       if (open_cached_file(&tempfile, mysql_tmpdir,TEMP_PREFIX,
 			   DISK_BUFFER_SIZE, MYF(MY_WME)))
@@ -617,6 +623,7 @@ int mysql_update(THD *thd,
 
       while (!(error=info.read_record(&info)) && !thd->killed)
       {
+        explain->buf_tracker.on_record_read();
         if (table->vfield)
           update_virtual_fields(thd, table,
                                 table->triggers ? VCOL_UPDATE_ALL :
@@ -627,6 +634,7 @@ int mysql_update(THD *thd,
           if (table->file->was_semi_consistent_read())
 	    continue;  /* repeat the read of the same row if it still exists */
 
+          explain->buf_tracker.on_record_after_where();
 	  table->file->position(table->record[0]);
 	  if (my_b_write(&tempfile,table->file->ref,
 			 table->file->ref_length))
@@ -721,7 +729,6 @@ int mysql_update(THD *thd,
   if (table->file->ha_table_flags() & HA_PARTIAL_COLUMN_READ)
     table->prepare_for_position();
 
-  explain= thd->lex->explain->get_upd_del_plan();
   table->reset_default_fields();
 
   /*
@@ -907,6 +914,7 @@ int mysql_update(THD *thd,
       break;
     }
   }
+  ANALYZE_STOP_TRACKING(&explain->command_tracker);
   table->auto_increment_field_not_null= FALSE;
   dup_key_found= 0;
   /*
@@ -1044,7 +1052,7 @@ produce_explain_and_leave:
     We come here for various "degenerate" query plans: impossible WHERE,
     no-partitions-used, impossible-range, etc.
   */
-  query_plan.save_explain_data(thd->mem_root, thd->lex->explain);
+  query_plan.save_explain_update_data(query_plan.mem_root, thd);
 
 emit_explain_and_leave:
   int err2= thd->lex->explain->send_explain(thd);
@@ -1537,7 +1545,7 @@ int mysql_multi_update_prepare(THD *thd)
   */
   lex->select_lex.exclude_from_table_unique_test= FALSE;
 
-  if (lex->select_lex.save_prep_leaf_tables(thd))
+  if (lex->save_prep_leaf_tables())
     DBUG_RETURN(TRUE);
  
   DBUG_RETURN (FALSE);
@@ -1563,7 +1571,7 @@ bool mysql_multi_update(THD *thd,
   bool res;
   DBUG_ENTER("mysql_multi_update");
   
-  if (!(*result= new multi_update(table_list,
+  if (!(*result= new (thd->mem_root) multi_update(thd, table_list,
                                  &thd->lex->select_lex.leaf_tables,
                                  fields, values,
                                  handle_duplicates, ignore)))
@@ -1597,12 +1605,13 @@ bool mysql_multi_update(THD *thd,
 }
 
 
-multi_update::multi_update(TABLE_LIST *table_list,
+multi_update::multi_update(THD *thd_arg, TABLE_LIST *table_list,
                            List<TABLE_LIST> *leaves_list,
 			   List<Item> *field_list, List<Item> *value_list,
 			   enum enum_duplicates handle_duplicates_arg,
-                           bool ignore_arg)
-  :all_tables(table_list), leaves(leaves_list), update_tables(0),
+                           bool ignore_arg):
+   select_result_interceptor(thd_arg),
+   all_tables(table_list), leaves(leaves_list), update_tables(0),
    tmp_tables(0), updated(0), found(0), fields(field_list),
    values(value_list), table_count(0), copy_field(0),
    handle_duplicates(handle_duplicates_arg), do_update(1), trans_safe(1),

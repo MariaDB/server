@@ -253,11 +253,7 @@ struct st_wt_resource {
 #ifndef DBUG_OFF
   mysql_mutex_t  *cond_mutex; /* a mutex for the 'cond' below */
 #endif
-  /*
-    before the 'lock' all elements are mutable, after (and including) -
-    immutable in the sense that lf_hash_insert() won't memcpy() over them.
-    See wt_init().
-  */
+
 #ifdef WT_RWLOCKS_USE_MUTEXES
   /*
     we need a special rwlock-like 'lock' to allow readers bypass
@@ -389,10 +385,10 @@ static LF_HASH      reshash;
   It's called from lf_hash and takes a pointer to an LF_SLIST instance.
   WT_RESOURCE is located at arg+sizeof(LF_SLIST)
 */
-static void wt_resource_init(uchar *arg)
+static void wt_resource_create(uchar *arg)
 {
   WT_RESOURCE *rc= (WT_RESOURCE*)(arg+LF_HASH_OVERHEAD);
-  DBUG_ENTER("wt_resource_init");
+  DBUG_ENTER("wt_resource_create");
 
   bzero(rc, sizeof(*rc));
   rc_rwlock_init(rc);
@@ -419,25 +415,37 @@ static void wt_resource_destroy(uchar *arg)
   DBUG_VOID_RETURN;
 }
 
+/**
+  WT_RESOURCE initializer
+
+  It's called from lf_hash when an element is inserted.
+*/
+static void wt_resource_init(LF_HASH *hash __attribute__((unused)),
+                             WT_RESOURCE *rc, WT_RESOURCE_ID *id)
+{
+  DBUG_ENTER("wt_resource_init");
+  rc->id= *id;
+  rc->waiter_count= 0;
+  rc->state= ACTIVE;
+#ifndef DBUG_OFF
+  rc->cond_mutex= 0;
+#endif
+  DBUG_VOID_RETURN;
+}
+
 static int wt_init_done;
 
 void wt_init()
 {
   DBUG_ENTER("wt_init");
-  DBUG_ASSERT(reshash.alloc.constructor != wt_resource_init);
+  DBUG_ASSERT(reshash.alloc.constructor != wt_resource_create);
 
   lf_hash_init(&reshash, sizeof(WT_RESOURCE), LF_HASH_UNIQUE, 0,
                sizeof_WT_RESOURCE_ID, 0, 0);
-  reshash.alloc.constructor= wt_resource_init;
+  reshash.alloc.constructor= wt_resource_create;
   reshash.alloc.destructor= wt_resource_destroy;
-  /*
-    Note a trick: we initialize the hash with the real element size,
-    but fix it later to a shortened element size. This way
-    the allocator will allocate elements correctly, but
-    lf_hash_insert() will only overwrite part of the element with memcpy().
-    lock, condition, and dynamic array will be intact.
-  */
-  reshash.element_size= offsetof(WT_RESOURCE, lock);
+  reshash.initializer= (lf_hash_initializer) wt_resource_init;
+
   bzero(wt_wait_stats, sizeof(wt_wait_stats));
   bzero(wt_cycle_stats, sizeof(wt_cycle_stats));
   wt_success_stats= 0;
@@ -930,14 +938,9 @@ int wt_thd_will_wait_for(WT_THD *thd, WT_THD *blocker,
 retry:
     while ((rc= lf_hash_search(&reshash, thd->pins, key, keylen)) == 0)
     {
-      WT_RESOURCE tmp;
-
       DBUG_PRINT("wt", ("failed to find rc in hash, inserting"));
-      bzero(&tmp, sizeof(tmp));
-      tmp.id= *resid;
-      tmp.state= ACTIVE;
 
-      if (lf_hash_insert(&reshash, thd->pins, &tmp) == -1) /* if OOM */
+      if (lf_hash_insert(&reshash, thd->pins, resid) == -1) /* if OOM */
         DBUG_RETURN(WT_DEADLOCK);
       /*
         Two cases: either lf_hash_insert() failed - because another thread

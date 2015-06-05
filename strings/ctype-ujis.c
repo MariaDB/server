@@ -179,10 +179,26 @@ static const uchar sort_order_ujis[]=
 };
 
 
-#define isujis(c)     ((0xa1<=((c)&0xff) && ((c)&0xff)<=0xfe))
-#define iskata(c)     ((0xa1<=((c)&0xff) && ((c)&0xff)<=0xdf))
-#define isujis_ss2(c) (((c)&0xff) == 0x8e)
-#define isujis_ss3(c) (((c)&0xff) == 0x8f)
+/*
+  EUC-JP encoding subcomponents:
+  [x00-x7F]                        # ASCII/JIS-Roman (one-byte/character)  
+  [x8E][xA1-xDF]                   # half-width katakana (two bytes/char)  
+  [x8F][xA1-xFE][xA1-xFE]          # JIS X 0212-1990 (three bytes/char)  
+  [xA1-xFE][xA1-xFE]               # JIS X 0208:1997 (two bytes/char)
+*/
+
+#define isujis(c)             (0xa1 <= (uchar) (c) && (uchar) (c) <= 0xfe)
+#define iskata(c)             (0xa1 <= (uchar) (c) && (uchar) (c) <= 0xdf)
+#define isujis_ss2(c)         ((uchar) (c) == 0x8e)
+#define isujis_ss3(c)         ((uchar) (c) == 0x8f)
+
+#define MY_FUNCTION_NAME(x)   my_ ## x ## _ujis
+#define IS_MB2_JIS(x,y)       (isujis(x)        && isujis(y))
+#define IS_MB2_KATA(x,y)      (isujis_ss2(x)    && iskata(y))
+#define IS_MB2_CHAR(x, y)     (IS_MB2_KATA(x,y) || IS_MB2_JIS(x,y))
+#define IS_MB3_CHAR(x, y, z)  (isujis_ss3(x)    && IS_MB2_JIS(y,z))
+#define DEFINE_ASIAN_ROUTINES
+#include "ctype-mb.ic"
 
 
 static uint ismbchar_ujis(CHARSET_INFO *cs __attribute__((unused)),
@@ -198,63 +214,6 @@ static uint ismbchar_ujis(CHARSET_INFO *cs __attribute__((unused)),
 static uint mbcharlen_ujis(CHARSET_INFO *cs __attribute__((unused)),uint c)
 {
   return (isujis(c)? 2: isujis_ss2(c)? 2: isujis_ss3(c)? 3: 1);
-}
-
-
-/*
-  EUC-JP encoding subcomponents:
-  [x00-x7F]                        # ASCII/JIS-Roman (one-byte/character)  
-  [x8E][xA1-xDF]                   # half-width katakana (two bytes/char)  
-  [x8F][xA1-xFE][xA1-xFE]          # JIS X 0212-1990 (three bytes/char)  
-  [xA1-xFE][xA1-xFE]               # JIS X 0208:1997 (two bytes/char)
-*/
-
-static
-size_t my_well_formed_len_ujis(CHARSET_INFO *cs __attribute__((unused)),
-                               const char *beg, const char *end,
-                               size_t pos, int *error)
-{
-  const uchar *b= (uchar *) beg;
-  
-  for ( *error= 0 ; pos && b < (uchar*) end; pos--, b++)
-  {
-    char *chbeg;
-    uint ch= *b;
-    
-    if (ch <= 0x7F)                 /* one byte */
-      continue;
-    
-    chbeg= (char *) b++;
-    if (b >= (uchar *) end)         /* need more bytes */
-    {
-      *error= 1;
-      return (size_t) (chbeg - beg);            /* unexpected EOL  */ 
-    }
-    
-    if (isujis_ss2(ch))            /* [x8E][xA1-xDF] */
-    {
-      if (iskata(*b))
-        continue;
-      *error= 1;
-      return (size_t) (chbeg - beg);  /* invalid sequence */
-    }
-    
-    if (isujis_ss3(ch))           /* [x8F][xA1-xFE][xA1-xFE] */
-    {
-      ch= *b++;
-      if (b >= (uchar*) end)
-      {
-        *error= 1;
-        return (size_t) (chbeg - beg); /* unexpected EOL */
-      }
-    }
-    
-    if (isujis(ch) && isujis(*b)) /* [xA1-xFE][xA1-xFE] */
-      continue;
-    *error= 1;
-    return (size_t) (chbeg - beg);    /* invalid sequence */
-  }
-  return (size_t) (b - (uchar *) beg);
 }
 
 
@@ -67296,7 +67255,9 @@ static MY_CHARSET_HANDLER my_charset_handler=
     my_strtoll10_8bit,
     my_strntoull10rnd_8bit,
     my_scan_8bit,
-    my_copy_abort_mb,
+    my_charlen_ujis,
+    my_well_formed_char_length_ujis,
+    my_copy_fix_mb,
 };
 
 

@@ -139,21 +139,18 @@ static struct wsrep_service_st wsrep_handler = {
   wsrep_unlock_rollback
 };
 
-static struct encryption_keys_service_st encryption_keys_handler=
-{
-  get_latest_encryption_key_version,
-  has_encryption_key,
-  get_encryption_key_size,
-  get_encryption_key,
-  get_encryption_iv
-};
-
 static struct thd_specifics_service_st thd_specifics_handler=
 {
   thd_key_create,
   thd_key_delete,
   thd_getspecific,
   thd_setspecific
+};
+
+static struct encryption_scheme_service_st encryption_scheme_handler=
+{
+ encryption_scheme_encrypt,
+ encryption_scheme_decrypt
 };
 
 static struct st_service_ref list_of_services[]=
@@ -170,7 +167,8 @@ static struct st_service_ref list_of_services[]=
   { "logger_service",              VERSION_logger,              &logger_service_handler },
   { "thd_autoinc_service",         VERSION_thd_autoinc,         &thd_autoinc_handler },
   { "wsrep_service",               VERSION_wsrep,               &wsrep_handler },
-  { "encryption_keys_service",     VERSION_encryption_keys,     &encryption_keys_handler },
+  { "encryption_service",          VERSION_encryption,          &encryption_handler },
+  { "encryption_scheme_service",   VERSION_encryption_scheme,   &encryption_scheme_handler },
   { "thd_specifics_service",       VERSION_thd_specifics,       &thd_specifics_handler },
   { "thd_error_context_service",   VERSION_thd_error_context,   &thd_error_conext_handler },
 };

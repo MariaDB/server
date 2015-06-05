@@ -859,12 +859,11 @@ mysql_list_fields(MYSQL *mysql, const char *table, const char *wild)
 MYSQL_RES * STDCALL
 mysql_list_processes(MYSQL *mysql)
 {
-  MYSQL_DATA *fields;
+  MYSQL_DATA *UNINIT_VAR(fields);
   uint field_count;
   uchar *pos;
   DBUG_ENTER("mysql_list_processes");
 
-  LINT_INIT(fields);
   if (simple_command(mysql,COM_PROCESS_INFO,0,0,0))
     DBUG_RETURN(0);
   free_old_query(mysql);
@@ -4899,5 +4898,18 @@ MYSQL_RES * STDCALL mysql_use_result(MYSQL *mysql)
 my_bool STDCALL mysql_read_query_result(MYSQL *mysql)
 {
   return (*mysql->methods->read_query_result)(mysql);
+}
+
+/********************************************************************
+  mysql_net_ functions - low-level API to MySQL protocol
+*********************************************************************/
+ulong STDCALL mysql_net_read_packet(MYSQL *mysql)
+{
+  return cli_safe_read(mysql);
+}
+
+ulong STDCALL mysql_net_field_length(uchar **packet)
+{
+  return net_field_length(packet);
 }
 

@@ -1,7 +1,8 @@
 #ifndef LEX_INCLUDED
 #define LEX_INCLUDED
 
-/* Copyright (c) 2000, 2010, Oracle and/or its affiliates. All rights reserved.
+/* Copyright (c) 2000, 2010, Oracle and/or its affiliates.
+   Copyright (c) 2009, 2015, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -392,6 +393,7 @@ static SYMBOL symbols[] = {
   { "MULTIPOINT",	SYM(MULTIPOINT)},
   { "MULTIPOLYGON",	SYM(MULTIPOLYGON)},
   { "MUTEX",  SYM(MUTEX_SYM)},
+  { "MYSQL",            SYM(MYSQL_SYM)},
   { "MYSQL_ERRNO",      SYM(MYSQL_ERRNO_SYM)},
   { "NAME",             SYM(NAME_SYM)},
   { "NAMES",		SYM(NAMES_SYM)},

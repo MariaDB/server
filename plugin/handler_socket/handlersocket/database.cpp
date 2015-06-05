@@ -1016,7 +1016,7 @@ dbcontext::cmd_open(dbcallback_i& cb, const cmd_open_args& arg)
     tables.mdl_request.init(MDL_key::TABLE, arg.dbn, arg.tbl,
       for_write_flag ? MDL_SHARED_WRITE : MDL_SHARED_READ, MDL_TRANSACTION);
     Open_table_context ot_act(thd, 0);
-    if (!open_table(thd, &tables, thd->mem_root, &ot_act)) {
+    if (!open_table(thd, &tables, &ot_act)) {
       table = tables.table;
     }
     #else

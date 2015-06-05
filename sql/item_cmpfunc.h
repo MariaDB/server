@@ -40,7 +40,7 @@ class Arg_comparator: public Sql_alloc
 {
   Item **a, **b;
   arg_cmp_func func;
-  Item_result_field *owner;
+  Item_func_or_sum *owner;
   bool set_null;                   // TRUE <=> set owner->null_value
   Arg_comparator *comparators;   // used only for compare_row()
   double precision;
@@ -48,8 +48,8 @@ class Arg_comparator: public Sql_alloc
   THD *thd;
   Item *a_cache, *b_cache;         // Cached values of a and b items
                                    //   when one of arguments is NULL.
-  int set_compare_func(Item_result_field *owner, Item_result type);
-  inline int set_compare_func(Item_result_field *owner_arg)
+  int set_compare_func(Item_func_or_sum *owner, Item_result type);
+  inline int set_compare_func(Item_func_or_sum *owner_arg)
   {
     return set_compare_func(owner_arg, item_cmp_type((*a)->result_type(),
                                                      (*b)->result_type()));
@@ -66,11 +66,12 @@ public:
   Arg_comparator(Item **a1, Item **a2): a(a1), b(a2),  set_null(TRUE),
     comparators(0), thd(0), a_cache(0), b_cache(0) {};
 
-  int set_cmp_func(Item_result_field *owner_arg,
+private:
+  int set_cmp_func(Item_func_or_sum *owner_arg,
 			  Item **a1, Item **a2,
 			  Item_result type);
-
-  inline int set_cmp_func(Item_result_field *owner_arg,
+public:
+  inline int set_cmp_func(Item_func_or_sum *owner_arg,
 			  Item **a1, Item **a2, bool set_null_arg)
   {
     set_null= set_null_arg;
@@ -103,7 +104,8 @@ public:
 
   Item** cache_converted_constant(THD *thd, Item **value, Item **cache,
                                   Item_result type);
-  void set_datetime_cmp_func(Item_result_field *owner_arg, Item **a1, Item **b1);
+  void set_datetime_cmp_func(Item_func_or_sum *owner_arg,
+                             Item **a1, Item **b1);
   static arg_cmp_func comparator_matrix [6][2];
   inline bool is_owner_equal_func()
   {
@@ -120,6 +122,10 @@ public:
 
 class Item_bool_func :public Item_int_func
 {
+protected:
+  void add_key_fields_optimize_op(JOIN *join, KEY_FIELD **key_fields,
+                                  uint *and_level, table_map usable_tables,
+                                  SARGABLE_PARAM **sargables, bool equal_func);
 public:
   Item_bool_func() :Item_int_func() {}
   Item_bool_func(Item *a) :Item_int_func(a) {}
@@ -127,9 +133,14 @@ public:
   Item_bool_func(Item *a, Item *b, Item *c) :Item_int_func(a, b, c) {}
   Item_bool_func(List<Item> &list) :Item_int_func(list) { }
   Item_bool_func(THD *thd, Item_bool_func *item) :Item_int_func(thd, item) {}
-  bool is_bool_func() { return 1; }
+  bool is_bool_type() { return true; }
   void fix_length_and_dec() { decimals=0; max_length=1; }
   uint decimal_precision() const { return 1; }
+  virtual bool can_optimize_group_min_max(Item_field *min_max_arg_item,
+                                          const Item *const_item) const
+  {
+    return false;
+  }
 };
 
 
@@ -278,111 +289,11 @@ public:
   void reset_cache() { cache= NULL; }
 };
 
-class Comp_creator
-{
-public:
-  Comp_creator() {}                           /* Remove gcc warning */
-  virtual ~Comp_creator() {}                  /* Remove gcc warning */
-  /**
-    Create operation with given arguments.
-  */
-  virtual Item_bool_func2* create(Item *a, Item *b) const = 0;
-  /**
-    Create operation with given arguments in swap order.
-  */
-  virtual Item_bool_func2* create_swap(Item *a, Item *b) const = 0;
-  virtual const char* symbol(bool invert) const = 0;
-  virtual bool eqne_op() const = 0;
-  virtual bool l_op() const = 0;
-};
-
-class Eq_creator :public Comp_creator
-{
-public:
-  Eq_creator() {}                             /* Remove gcc warning */
-  virtual ~Eq_creator() {}                    /* Remove gcc warning */
-  virtual Item_bool_func2* create(Item *a, Item *b) const;
-  virtual Item_bool_func2* create_swap(Item *a, Item *b) const;
-  virtual const char* symbol(bool invert) const { return invert? "<>" : "="; }
-  virtual bool eqne_op() const { return 1; }
-  virtual bool l_op() const { return 0; }
-};
-
-class Ne_creator :public Comp_creator
-{
-public:
-  Ne_creator() {}                             /* Remove gcc warning */
-  virtual ~Ne_creator() {}                    /* Remove gcc warning */
-  virtual Item_bool_func2* create(Item *a, Item *b) const;
-  virtual Item_bool_func2* create_swap(Item *a, Item *b) const;
-  virtual const char* symbol(bool invert) const { return invert? "=" : "<>"; }
-  virtual bool eqne_op() const { return 1; }
-  virtual bool l_op() const { return 0; }
-};
-
-class Gt_creator :public Comp_creator
-{
-public:
-  Gt_creator() {}                             /* Remove gcc warning */
-  virtual ~Gt_creator() {}                    /* Remove gcc warning */
-  virtual Item_bool_func2* create(Item *a, Item *b) const;
-  virtual Item_bool_func2* create_swap(Item *a, Item *b) const;
-  virtual const char* symbol(bool invert) const { return invert? "<=" : ">"; }
-  virtual bool eqne_op() const { return 0; }
-  virtual bool l_op() const { return 0; }
-};
-
-class Lt_creator :public Comp_creator
-{
-public:
-  Lt_creator() {}                             /* Remove gcc warning */
-  virtual ~Lt_creator() {}                    /* Remove gcc warning */
-  virtual Item_bool_func2* create(Item *a, Item *b) const;
-  virtual Item_bool_func2* create_swap(Item *a, Item *b) const;
-  virtual const char* symbol(bool invert) const { return invert? ">=" : "<"; }
-  virtual bool eqne_op() const { return 0; }
-  virtual bool l_op() const { return 1; }
-};
-
-class Ge_creator :public Comp_creator
-{
-public:
-  Ge_creator() {}                             /* Remove gcc warning */
-  virtual ~Ge_creator() {}                    /* Remove gcc warning */
-  virtual Item_bool_func2* create(Item *a, Item *b) const;
-  virtual Item_bool_func2* create_swap(Item *a, Item *b) const;
-  virtual const char* symbol(bool invert) const { return invert? "<" : ">="; }
-  virtual bool eqne_op() const { return 0; }
-  virtual bool l_op() const { return 0; }
-};
-
-class Le_creator :public Comp_creator
-{
-public:
-  Le_creator() {}                             /* Remove gcc warning */
-  virtual ~Le_creator() {}                    /* Remove gcc warning */
-  virtual Item_bool_func2* create(Item *a, Item *b) const;
-  virtual Item_bool_func2* create_swap(Item *a, Item *b) const;
-  virtual const char* symbol(bool invert) const { return invert? ">" : "<="; }
-  virtual bool eqne_op() const { return 0; }
-  virtual bool l_op() const { return 1; }
-};
-
 class Item_bool_func2 :public Item_bool_func
-{						/* Bool with 2 string args */
-protected:
-  Arg_comparator cmp;
-  bool abort_on_null;
-
+{                                              /* Bool with 2 string args */
 public:
   Item_bool_func2(Item *a,Item *b)
-    :Item_bool_func(a,b), cmp(tmp_arg, tmp_arg+1),
-     abort_on_null(FALSE) { sargable= TRUE; }
-  void fix_length_and_dec();
-  int set_cmp_func()
-  {
-    return cmp.set_cmp_func(this, tmp_arg, tmp_arg+1, TRUE);
-  }
+    :Item_bool_func(a,b) { sargable= TRUE; }
   optimize_type select_optimize() const { return OPTIMIZE_OP; }
   virtual enum Functype rev_functype() const { return UNKNOWN_FUNC; }
   bool have_rev_func() const { return rev_functype() != UNKNOWN_FUNC; }
@@ -393,22 +304,18 @@ public:
   }
 
   bool is_null() { return MY_TEST(args[0]->is_null() || args[1]->is_null()); }
-  CHARSET_INFO *compare_collation() { return cmp.cmp_collation.collation; }
-  void top_level_item() { abort_on_null= TRUE; }
-  Arg_comparator *get_comparator() { return &cmp; }
-  void cleanup()
-  {
-    Item_bool_func::cleanup();
-    cmp.cleanup();
-  }
+  COND *remove_eq_conds(THD *thd, Item::cond_result *cond_value,
+                        bool top_level);
 
-  friend class  Arg_comparator;
 };
 
 class Item_bool_rowready_func2 :public Item_bool_func2
 {
+protected:
+  Arg_comparator cmp;
 public:
-  Item_bool_rowready_func2(Item *a, Item *b) :Item_bool_func2(a, b)
+  Item_bool_rowready_func2(Item *a, Item *b)
+    :Item_bool_func2(a, b), cmp(tmp_arg, tmp_arg+1) 
   {
     allowed_arg_cols= 0;  // Fetch this value from first argument
   }
@@ -417,6 +324,32 @@ public:
   bool subst_argument_checker(uchar **arg)
   {
     return (*arg != NULL);     
+  }
+  void fix_length_and_dec();
+  int set_cmp_func()
+  {
+    return cmp.set_cmp_func(this, tmp_arg, tmp_arg + 1, true);
+  }
+  CHARSET_INFO *compare_collation() const
+  { return cmp.cmp_collation.collation; }
+  Arg_comparator *get_comparator() { return &cmp; }
+  void cleanup()
+  {
+    Item_bool_func2::cleanup();
+    cmp.cleanup();
+  }
+  bool can_optimize_group_min_max(Item_field *min_max_arg_item,
+                                  const Item *const_item) const
+  {
+    return min_max_arg_item->field->can_optimize_group_min_max(this,
+                                                               const_item);
+  }
+  void add_key_fields(JOIN *join, KEY_FIELD **key_fields,
+                      uint *and_level, table_map usable_tables,
+                      SARGABLE_PARAM **sargables)
+  {
+    return add_key_fields_optimize_op(join, key_fields, and_level,
+                                      usable_tables, sargables, false);
   }
 };
 
@@ -432,7 +365,6 @@ public:
   enum Functype functype() const { return XOR_FUNC; }
   const char *func_name() const { return "xor"; }
   longlong val_int();
-  void top_level_item() {}
   Item *neg_transformer(THD *thd);
   bool subst_argument_checker(uchar **arg)
   {
@@ -496,6 +428,9 @@ public:
   const char *func_name() const { return "trigcond"; };
   bool const_item() const { return FALSE; }
   bool *get_trig_var() { return trig_var; }
+  void add_key_fields(JOIN *join, KEY_FIELD **key_fields,
+                      uint *and_level, table_map usable_tables,
+                      SARGABLE_PARAM **sargables);
 };
 
 class Item_func_not_all :public Item_func_not
@@ -538,16 +473,30 @@ public:
 
 class Item_func_eq :public Item_bool_rowready_func2
 {
+  bool abort_on_null;
 public:
   Item_func_eq(Item *a,Item *b) :
-    Item_bool_rowready_func2(a,b), in_equality_no(UINT_MAX)
+    Item_bool_rowready_func2(a,b),
+    abort_on_null(false), in_equality_no(UINT_MAX)
   {}
   longlong val_int();
   enum Functype functype() const { return EQ_FUNC; }
   enum Functype rev_functype() const { return EQ_FUNC; }
   cond_result eq_cmp_result() const { return COND_TRUE; }
   const char *func_name() const { return "="; }
+  void top_level_item() { abort_on_null= true; }
   Item *negated_item();
+  COND *build_equal_items(THD *thd, COND_EQUAL *inherited,
+                          bool link_item_fields,
+                          COND_EQUAL **cond_equal_ref);
+  void add_key_fields(JOIN *join, KEY_FIELD **key_fields,
+                      uint *and_level, table_map usable_tables,
+                      SARGABLE_PARAM **sargables)
+  {
+    return add_key_fields_optimize_op(join, key_fields, and_level,
+                                      usable_tables, sargables, true);
+  }
+  bool check_equality(THD *thd, COND_EQUAL *cond, List<Item> *eq_list);
   /* 
     - If this equality is created from the subquery's IN-equality:
       number of the item it was created from, e.g. for
@@ -557,6 +506,7 @@ public:
   */
   uint in_equality_no;
   virtual uint exists2in_reserved_items() { return 1; };
+  friend class  Arg_comparator;
 };
 
 class Item_func_equal :public Item_bool_rowready_func2
@@ -571,6 +521,13 @@ public:
   cond_result eq_cmp_result() const { return COND_TRUE; }
   const char *func_name() const { return "<=>"; }
   Item *neg_transformer(THD *thd) { return 0; }
+  void add_key_fields(JOIN *join, KEY_FIELD **key_fields,
+                      uint *and_level, table_map usable_tables,
+                      SARGABLE_PARAM **sargables)
+  {
+    return add_key_fields_optimize_op(join, key_fields, and_level,
+                                      usable_tables, sargables, true);
+  }
 };
 
 
@@ -636,6 +593,8 @@ public:
   optimize_type select_optimize() const { return OPTIMIZE_KEY; } 
   const char *func_name() const { return "<>"; }
   Item *negated_item();
+  void add_key_fields(JOIN *join, KEY_FIELD **key_fields, uint *and_level,
+                      table_map usable_tables, SARGABLE_PARAM **sargables);
 };
 
 
@@ -688,10 +647,14 @@ public:
   bool fix_fields(THD *, Item **);
   void fix_length_and_dec();
   virtual void print(String *str, enum_query_type query_type);
-  CHARSET_INFO *compare_collation() { return cmp_collation.collation; }
+  CHARSET_INFO *compare_collation() const { return cmp_collation.collation; }
   bool eval_not_null_tables(uchar *opt_arg);
   void fix_after_pullout(st_select_lex *new_parent, Item **ref);
   bool count_sargable_conds(uchar *arg);
+  void add_key_fields(JOIN *join, KEY_FIELD **key_fields,
+                      uint *and_level, table_map usable_tables,
+                      SARGABLE_PARAM **sargables);
+  SEL_TREE *get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr);
 };
 
 
@@ -734,6 +697,11 @@ public:
   void fix_length_and_dec();
   const char *func_name() const { return "interval"; }
   uint decimal_precision() const { return 2; }
+  void print(String *str, enum_query_type query_type)
+  {
+    str->append(func_name());
+    print_args(str, 0, query_type);
+  }
 };
 
 
@@ -841,7 +809,6 @@ public:
   longlong int_op();
   String *str_op(String *str);
   my_decimal *decimal_op(my_decimal *);
-  bool is_bool_func() { return false; }
   void fix_length_and_dec();
   uint decimal_precision() const { return m_args0_copy->decimal_precision(); }
   const char *func_name() const { return "nullif"; }
@@ -1303,7 +1270,7 @@ public:
   const char *func_name() const { return "case"; }
   virtual void print(String *str, enum_query_type query_type);
   Item *find_item(String *str);
-  CHARSET_INFO *compare_collation() { return cmp_collation.collation; }
+  CHARSET_INFO *compare_collation() const { return cmp_collation.collation; }
   void cleanup();
   void agg_str_lengths(Item *arg);
   void agg_num_lengths(Item *arg);
@@ -1368,11 +1335,14 @@ public:
   }
   optimize_type select_optimize() const
     { return OPTIMIZE_KEY; }
+  void add_key_fields(JOIN *join, KEY_FIELD **key_fields, uint *and_level,
+                      table_map usable_tables, SARGABLE_PARAM **sargables);
+  SEL_TREE *get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr);
   virtual void print(String *str, enum_query_type query_type);
   enum Functype functype() const { return IN_FUNC; }
   const char *func_name() const { return " IN "; }
   bool nulls_in_row();
-  CHARSET_INFO *compare_collation() { return cmp_collation.collation; }
+  CHARSET_INFO *compare_collation() const { return cmp_collation.collation; }
   bool eval_not_null_tables(uchar *opt_arg);
   void fix_after_pullout(st_select_lex *new_parent, Item **ref);
 };
@@ -1407,16 +1377,28 @@ public:
 };
 
 /* Functions used by where clause */
-
-class Item_func_isnull :public Item_bool_func
+class Item_func_null_predicate :public Item_bool_func
 {
 public:
-  Item_func_isnull(Item *a) :Item_bool_func(a) { sargable= TRUE; }
+  Item_func_null_predicate(Item *a) :Item_bool_func(a) { sargable= true; }
+  optimize_type select_optimize() const { return OPTIMIZE_NULL; }
+  void add_key_fields(JOIN *join, KEY_FIELD **key_fields, uint *and_level,
+                      table_map usable_tables, SARGABLE_PARAM **sargables);
+  CHARSET_INFO *compare_collation() const
+  { return args[0]->collation.collation; }
+  void fix_length_and_dec() { decimals=0; max_length=1; maybe_null=0; }
+};
+
+
+class Item_func_isnull :public Item_func_null_predicate
+{
+public:
+  Item_func_isnull(Item *a) :Item_func_null_predicate(a) {}
   longlong val_int();
   enum Functype functype() const { return ISNULL_FUNC; }
   void fix_length_and_dec()
   {
-    decimals=0; max_length=1; maybe_null=0;
+    Item_func_null_predicate::fix_length_and_dec();
     update_used_tables();
   }
   const char *func_name() const { return "isnull"; }
@@ -1435,10 +1417,10 @@ public:
       const_item_cache= args[0]->const_item();
     }
   }
+  COND *remove_eq_conds(THD *thd, Item::cond_result *cond_value,
+                        bool top_level);
   table_map not_null_tables() const { return 0; }
-  optimize_type select_optimize() const { return OPTIMIZE_NULL; }
   Item *neg_transformer(THD *thd);
-  CHARSET_INFO *compare_collation() { return args[0]->collation.collation; }
 };
 
 /* Functions used by HAVING for rewriting IN subquery */
@@ -1469,25 +1451,19 @@ public:
 };
 
 
-class Item_func_isnotnull :public Item_bool_func
+class Item_func_isnotnull :public Item_func_null_predicate
 {
   bool abort_on_null;
 public:
-  Item_func_isnotnull(Item *a) :Item_bool_func(a), abort_on_null(0)
-  { sargable= TRUE; }
+  Item_func_isnotnull(Item *a) :Item_func_null_predicate(a), abort_on_null(0)
+  { }
   longlong val_int();
   enum Functype functype() const { return ISNOTNULL_FUNC; }
-  void fix_length_and_dec()
-  {
-    decimals=0; max_length=1; maybe_null=0;
-  }
   const char *func_name() const { return "isnotnull"; }
-  optimize_type select_optimize() const { return OPTIMIZE_NULL; }
   table_map not_null_tables() const
   { return abort_on_null ? not_null_tables_cache : 0; }
   Item *neg_transformer(THD *thd);
   virtual void print(String *str, enum_query_type query_type);
-  CHARSET_INFO *compare_collation() { return args[0]->collation.collation; }
   void top_level_item() { abort_on_null=1; }
 };
 
@@ -1514,6 +1490,8 @@ class Item_func_like :public Item_bool_func2
   bool escape_used_in_parsing;
   bool use_sampling;
 
+  DTCollation cmp_collation;
+  String cmp_value1, cmp_value2;
 public:
   int escape;
 
@@ -1524,6 +1502,8 @@ public:
   longlong val_int();
   enum Functype functype() const { return LIKE_FUNC; }
   optimize_type select_optimize() const;
+  CHARSET_INFO *compare_collation() const
+  { return cmp_collation.collation; }
   cond_result eq_cmp_result() const
   {
     /**
@@ -1557,11 +1537,18 @@ public:
       in case of a "PAD SPACE" collation, but only if "expr2" has '%'
       at the end.         
     */
-    return ((Item_func_like *)this)->compare_collation() == &my_charset_bin ?
-           COND_TRUE : COND_OK;
+    return compare_collation() == &my_charset_bin ? COND_TRUE : COND_OK;
   }
+  void add_key_fields(JOIN *join, KEY_FIELD **key_fields, uint *and_level,
+                      table_map usable_tables, SARGABLE_PARAM **sargables);
   const char *func_name() const { return "like"; }
   bool fix_fields(THD *thd, Item **ref);
+  void fix_length_and_dec()
+  {
+    max_length= 1;
+    args[0]->cmp_context= args[1]->cmp_context= STRING_RESULT;
+    agg_arg_charsets_for_comparison(cmp_collation, args, 2);
+  }
   void cleanup();
 
   bool find_selective_predicates_list_processor(uchar *arg);
@@ -1672,7 +1659,7 @@ public:
     print_op(str, query_type);
   }
 
-  CHARSET_INFO *compare_collation() { return cmp_collation.collation; }
+  CHARSET_INFO *compare_collation() const { return cmp_collation.collation; }
 };
 
 
@@ -1744,7 +1731,20 @@ public:
   enum Type type() const { return COND_ITEM; }
   List<Item>* argument_list() { return &list; }
   table_map used_tables() const;
-  void update_used_tables();
+  void update_used_tables()
+  {
+    used_tables_and_const_cache_init();
+    used_tables_and_const_cache_update_and_join(list);
+  }
+  COND *build_equal_items(THD *thd, COND_EQUAL *inherited,
+                          bool link_item_fields,
+                          COND_EQUAL **cond_equal_ref);
+  COND *remove_eq_conds(THD *thd, Item::cond_result *cond_value,
+                        bool top_level);
+  void add_key_fields(JOIN *join, KEY_FIELD **key_fields,
+                      uint *and_level, table_map usable_tables,
+                      SARGABLE_PARAM **sargables);
+  SEL_TREE *get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr);
   virtual void print(String *str, enum_query_type query_type);
   void split_sum_func(THD *thd, Item **ref_pointer_array, List<Item> &fields);
   friend int setup_conds(THD *thd, TABLE_LIST *tables, TABLE_LIST *leaves,
@@ -1912,18 +1912,18 @@ public:
   Item_equal(Item_equal *item_equal);
   /* Currently the const item is always the first in the list of equal items */
   inline Item* get_const() { return with_const ? equal_items.head() : NULL; }
-  void add_const(Item *c, Item *f = NULL);
+  void add_const(THD *thd, Item *c, Item *f = NULL);
   /** Add a non-constant item to the multiple equality */
   void add(Item *f) { equal_items.push_back(f); }
   bool contains(Field *field);
   Item* get_first(struct st_join_table *context, Item *field);
   /** Get number of field items / references to field items in this object */   
   uint n_field_items() { return equal_items.elements - MY_TEST(with_const); }
-  void merge(Item_equal *item);
-  bool merge_with_check(Item_equal *equal_item, bool save_merged);
-  void merge_into_list(List<Item_equal> *list, bool save_merged,
+  void merge(THD *thd, Item_equal *item);
+  bool merge_with_check(THD *thd, Item_equal *equal_item, bool save_merged);
+  void merge_into_list(THD *thd, List<Item_equal> *list, bool save_merged,
                       bool only_intersected);
-  void update_const();
+  void update_const(THD *thd);
   enum Functype functype() const { return MULT_EQUAL_FUNC; }
   longlong val_int(); 
   const char *func_name() const { return "multiple equal"; }
@@ -1932,10 +1932,17 @@ public:
   void fix_length_and_dec();
   bool fix_fields(THD *thd, Item **ref);
   void update_used_tables();
+  COND *build_equal_items(THD *thd, COND_EQUAL *inherited,
+                          bool link_item_fields,
+                          COND_EQUAL **cond_equal_ref);
+  void add_key_fields(JOIN *join, KEY_FIELD **key_fields,
+                      uint *and_level, table_map usable_tables,
+                      SARGABLE_PARAM **sargables);
+  SEL_TREE *get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr);
   bool walk(Item_processor processor, bool walk_subquery, uchar *arg);
   Item *transform(Item_transformer transformer, uchar *arg);
   virtual void print(String *str, enum_query_type query_type);
-  CHARSET_INFO *compare_collation();
+  CHARSET_INFO *compare_collation() const;
 
   void set_context_field(Item_field *ctx_field) { context_field= ctx_field; }
   void set_link_equal_fields(bool flag) { link_equal_fields= flag; }
@@ -1960,6 +1967,11 @@ public:
   COND_EQUAL()
   { 
     upper_levels= 0;
+  }
+  COND_EQUAL(Item_equal *item, MEM_ROOT *mem_root)
+   :upper_levels(0)
+  {
+    current_level.push_back(item, mem_root);
   }
   void copy(COND_EQUAL &cond_equal)
   {
@@ -2055,9 +2067,9 @@ public:
 class Item_cond_and :public Item_cond
 {
 public:
-  COND_EQUAL cond_equal;  /* contains list of Item_equal objects for 
-                             the current and level and reference
-                             to multiple equalities of upper and levels */  
+  COND_EQUAL m_cond_equal;  /* contains list of Item_equal objects for 
+                               the current and level and reference
+                               to multiple equalities of upper and levels */  
   Item_cond_and() :Item_cond() {}
   Item_cond_and(Item *i1,Item *i2) :Item_cond(i1,i2) {}
   Item_cond_and(THD *thd, Item_cond_and *item) :Item_cond(thd, item) {}
@@ -2078,6 +2090,12 @@ public:
   void mark_as_condition_AND_part(TABLE_LIST *embedding);
   virtual uint exists2in_reserved_items() { return list.elements; };
   bool walk_top_and(Item_processor processor, uchar *arg);
+  COND *build_equal_items(THD *thd, COND_EQUAL *inherited,
+                          bool link_item_fields,
+                          COND_EQUAL **cond_equal_ref);
+  void add_key_fields(JOIN *join, KEY_FIELD **key_fields, uint *and_level,
+                      table_map usable_tables, SARGABLE_PARAM **sargables);
+  SEL_TREE *get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr);
 };
 
 inline bool is_cond_and(Item *item)
@@ -2153,6 +2171,135 @@ longlong get_datetime_value(THD *thd, Item ***item_arg, Item **cache_arg,
 
 bool get_mysql_time_from_str(THD *thd, String *str, timestamp_type warn_type,
                              const char *warn_name, MYSQL_TIME *l_time);
+
+
+class Comp_creator
+{
+public:
+  Comp_creator() {}                           /* Remove gcc warning */
+  virtual ~Comp_creator() {}                  /* Remove gcc warning */
+  /**
+    Create operation with given arguments.
+  */
+  virtual Item_bool_rowready_func2* create(MEM_ROOT *, Item *a, Item *b)
+                                           const = 0;
+  /**
+    Create operation with given arguments in swap order.
+  */
+  virtual Item_bool_rowready_func2* create_swap(MEM_ROOT *, Item *a, Item *b)
+                                                const = 0;
+  virtual const char* symbol(bool invert) const = 0;
+  virtual bool eqne_op() const = 0;
+  virtual bool l_op() const = 0;
+};
+
+class Eq_creator :public Comp_creator
+{
+public:
+  Eq_creator() {}                             /* Remove gcc warning */
+  virtual ~Eq_creator() {}                    /* Remove gcc warning */
+  Item_bool_rowready_func2* create(MEM_ROOT *root, Item *a, Item *b) const
+  {
+    return new(root) Item_func_eq(a, b);
+  }
+  Item_bool_rowready_func2* create_swap(MEM_ROOT *root, Item *a, Item *b) const
+  {
+    return new(root) Item_func_eq(b, a);
+  }
+  const char* symbol(bool invert) const { return invert? "<>" : "="; }
+  bool eqne_op() const { return 1; }
+  bool l_op() const { return 0; }
+};
+
+class Ne_creator :public Comp_creator
+{
+public:
+  Ne_creator() {}                             /* Remove gcc warning */
+  virtual ~Ne_creator() {}                    /* Remove gcc warning */
+  Item_bool_rowready_func2* create(MEM_ROOT *root, Item *a, Item *b) const
+  {
+    return new(root) Item_func_ne(a, b);
+  }
+  Item_bool_rowready_func2* create_swap(MEM_ROOT *root, Item *a, Item *b) const
+  {
+    return new(root) Item_func_ne(b, a);
+  }
+  const char* symbol(bool invert) const { return invert? "=" : "<>"; }
+  bool eqne_op() const { return 1; }
+  bool l_op() const { return 0; }
+};
+
+class Gt_creator :public Comp_creator
+{
+public:
+  Gt_creator() {}                             /* Remove gcc warning */
+  virtual ~Gt_creator() {}                    /* Remove gcc warning */
+  Item_bool_rowready_func2* create(MEM_ROOT *root, Item *a, Item *b) const
+  {
+    return new(root) Item_func_gt(a, b);
+  }
+  Item_bool_rowready_func2* create_swap(MEM_ROOT *root, Item *a, Item *b) const
+  {
+    return new(root) Item_func_lt(b, a);
+  }
+  const char* symbol(bool invert) const { return invert? "<=" : ">"; }
+  bool eqne_op() const { return 0; }
+  bool l_op() const { return 0; }
+};
+
+class Lt_creator :public Comp_creator
+{
+public:
+  Lt_creator() {}                             /* Remove gcc warning */
+  virtual ~Lt_creator() {}                    /* Remove gcc warning */
+  Item_bool_rowready_func2* create(MEM_ROOT *root, Item *a, Item *b) const
+  {
+    return new(root) Item_func_lt(a, b);
+  }
+  Item_bool_rowready_func2* create_swap(MEM_ROOT *root, Item *a, Item *b) const
+  {
+    return new(root) Item_func_gt(b, a);
+  }
+  const char* symbol(bool invert) const { return invert? ">=" : "<"; }
+  bool eqne_op() const { return 0; }
+  bool l_op() const { return 1; }
+};
+
+class Ge_creator :public Comp_creator
+{
+public:
+  Ge_creator() {}                             /* Remove gcc warning */
+  virtual ~Ge_creator() {}                    /* Remove gcc warning */
+  Item_bool_rowready_func2* create(MEM_ROOT *root, Item *a, Item *b) const
+  {
+    return new(root) Item_func_ge(a, b);
+  }
+  Item_bool_rowready_func2* create_swap(MEM_ROOT *root, Item *a, Item *b) const
+  {
+    return new(root) Item_func_le(b, a);
+  }
+  const char* symbol(bool invert) const { return invert? "<" : ">="; }
+  bool eqne_op() const { return 0; }
+  bool l_op() const { return 0; }
+};
+
+class Le_creator :public Comp_creator
+{
+public:
+  Le_creator() {}                             /* Remove gcc warning */
+  virtual ~Le_creator() {}                    /* Remove gcc warning */
+  Item_bool_rowready_func2* create(MEM_ROOT *root, Item *a, Item *b) const
+  {
+    return new(root) Item_func_le(a, b);
+  }
+  Item_bool_rowready_func2* create_swap(MEM_ROOT *root, Item *a, Item *b) const
+  {
+    return new(root) Item_func_ge(b, a);
+  }
+  const char* symbol(bool invert) const { return invert? ">" : "<="; }
+  bool eqne_op() const { return 0; }
+  bool l_op() const { return 1; }
+};
 
 /*
   These need definitions from this file but the variables are defined

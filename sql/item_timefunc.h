@@ -886,6 +886,11 @@ class Item_char_typecast :public Item_str_func
   CHARSET_INFO *cast_cs, *from_cs;
   bool charset_conversion;
   String tmp_value;
+  bool has_explicit_length() const { return cast_length != ~0U; }
+  String *reuse(String *src, uint32 length);
+  String *copy(String *src, CHARSET_INFO *cs);
+  uint adjusted_length_with_warn(uint length);
+  void check_truncation_with_warn(String *src, uint dstlen);
 public:
   Item_char_typecast(Item *a, uint length_arg, CHARSET_INFO *cs_arg)
     :Item_str_func(a), cast_length(length_arg), cast_cs(cs_arg) {}

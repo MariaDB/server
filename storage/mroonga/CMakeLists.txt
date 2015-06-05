@@ -1,6 +1,6 @@
 # -*- indent-tabs-mode: nil -*-
 #
-# Copyright(C) 2012-2014 Kouhei Sutou <kou@clear-code.com>
+# Copyright(C) 2012-2015 Kouhei Sutou <kou@clear-code.com>
 # Copyright(C) 2013 Kentoku SHIBA
 #
 # This library is free software; you can redistribute it and/or
@@ -20,24 +20,40 @@
 cmake_minimum_required(VERSION 2.6)
 project(mroonga)
 
-include(TestBigEndian)
-test_big_endian(BIG_ENDIAN)
-if(BIG_ENDIAN)
-  message(STATUS "Mroonga is not supported on big-endian")
-  return()
-endif()
-
-if(MSVC)
-  if(MSVC_VERSION LESS 1600)
-    message(STATUS "Mroonga supports only MSVC 2010 or later")
-    return()
-  endif()
-endif()
-
 if("${CMAKE_SOURCE_DIR}" STREQUAL "${CMAKE_CURRENT_SOURCE_DIR}")
   set(MRN_BUNDLED FALSE)
 else()
   set(MRN_BUNDLED TRUE)
+endif()
+
+include(TestBigEndian)
+test_big_endian(BIG_ENDIAN)
+if(BIG_ENDIAN)
+  set(MRN_BIG_ENDIAN_NOT_SUPPORTED_MESSAGE
+    "Mroonga doesn't support on big-endian")
+  if(MRN_BUNDLED)
+    message(STATUS ${MRN_BIG_ENDIAN_NOT_SUPPORTED_MESSAGE})
+    return()
+  else()
+    message(FATAL_ERROR ${MRN_BIG_ENDIAN_NOT_SUPPORTED_MESSAGE})
+  endif()
+endif()
+
+if(CMAKE_SYSTEM_NAME STREQUAL "SunOS")
+  message(STATUS "Mroonga is not supported on Solaris")
+  return()
+endif()
+
+if(MSVC)
+  if(MSVC_VERSION LESS 1800)
+    set(MRN_OLD_MSVC_MESSAGE "Mroonga supports only MSVC 2013 or later")
+    if(MRN_BUNDLED)
+      message(STATUS ${MRN_OLD_MSVC_MESSAGE})
+      return()
+    else()
+      message(FATAL_ERROR ${MRN_OLD_MSVC_MESSAGE})
+    endif()
+  endif()
 endif()
 
 if(MRN_BUNDLED)
@@ -75,6 +91,28 @@ file(READ ${MRN_SOURCE_DIR}/version_in_hex MRN_VERSION_IN_HEX)
 file(READ ${MRN_SOURCE_DIR}/plugin_version MRN_PLUGIN_VERSION)
 
 if(MRN_GROONGA_BUNDLED)
+  option(MRN_GROONGA_EMBED
+    "Embed libgroonga"
+    ON)
+  if(MRN_GROONGA_EMBED)
+    set(GRN_EMBED ON)
+  endif()
+
+  set(MRN_BUNDLED_GROONGA_NORMALIZER_MYSQL_DIR
+    "${MRN_BUNDLED_GROONGA_DIR}/vendor/plugins/groonga-normalizer-mysql")
+  option(MRN_GROONGA_NORMALIZER_MYSQL_EMBED
+    "Embed groonga-normalizer-mysql Groonga plugin"
+    ON)
+  if(EXISTS ${MRN_BUNDLED_GROONGA_NORMALIZER_MYSQL_DIR})
+    set(GROONGA_NORMALIZER_MYSQL_FOUND ON)
+  else()
+    set(GROONGA_NORMALIZER_MYSQL_FOUND OFF)
+    set(MRN_GROONGA_NORMALIZER_MYSQL_EMBED OFF)
+  endif()
+  if(MRN_GROONGA_NORMALIZER_MYSQL_EMBED)
+    set(GROONGA_NORMALIZER_MYSQL_EMBED ON)
+  endif()
+
   add_subdirectory("${MRN_BUNDLED_GROONGA_RELATIVE_DIR}")
 else()
   file(READ ${MRN_SOURCE_DIR}/required_groonga_version REQUIRED_GROONGA_VERSION)
@@ -98,15 +136,21 @@ set(MRN_C_COMPILE_FLAGS "")
 set(MRN_CXX_COMPILE_FLAGS "")
 
 macro(mrn_check_cflag flag)
-  check_c_compiler_flag(${flag} "HAVE_C_${flag}")
-  if(HAVE_C_${flag})
+  string(REGEX REPLACE "[-=]" "_" temporary_variable_name ${flag})
+  string(TOUPPER "${temporary_variable_name}" temporary_variable_name)
+  set(temporary_variable_name "CFLAG${temporary_variable_name}")
+  check_c_compiler_flag(${flag} ${temporary_variable_name})
+  if(${temporary_variable_name})
     set(MRN_C_COMPILE_FLAGS "${MRN_C_COMPILE_FLAGS} ${flag}")
   endif()
 endmacro()
 
 macro(mrn_check_cxxflag flag)
-  check_cxx_compiler_flag(${flag} "HAVE_CXX_${flag}")
-  if(HAVE_CXX_${flag})
+  string(REGEX REPLACE "[-=]" "_" temporary_variable_name ${flag})
+  string(TOUPPER "${temporary_variable_name}" temporary_variable_name)
+  set(temporary_variable_name "CXXFLAG${temporary_variable_name}")
+  check_cxx_compiler_flag(${flag} ${temporary_variable_name})
+  if(${temporary_variable_name})
     set(MRN_CXX_COMPILE_FLAGS "${MRN_CXX_COMPILE_FLAGS} ${flag}")
   endif()
 endmacro()
@@ -122,7 +166,7 @@ else()
   set(MRN_RELATIVE_DIR_PREFIX "")
 endif()
 
-read_file_list(${CMAKE_CURRENT_SOURCE_DIR}/sources.am MROONGA_SOURCES)
+read_file_list(${CMAKE_CURRENT_SOURCE_DIR}/sources.am MRN_SOURCES)
 read_file_list(${CMAKE_CURRENT_SOURCE_DIR}/lib/libmrn_no_mysql_sources.am
   LIBMRN_NO_MYSQL_SOURCES)
 string(REGEX REPLACE "([^;]+)" "${MRN_RELATIVE_DIR_PREFIX}lib/\\1"
@@ -151,10 +195,32 @@ else()
 endif()
 find_path(MYSQL_CONFIG "${MYSQL_CONFIG}")
 
+if(EXISTS "${MYSQL_SOURCE_DIR}/storage/maria")
+  set(MYSQL_VARIANT "MariaDB")
+else()
+  set(MYSQL_VARIANT "MySQL")
+endif()
+
 if(EXISTS "${MYSQL_SOURCE_DIR}/pcre")
   set(MYSQL_REGEX_INCLUDE_DIR "${MYSQL_SOURCE_DIR}/pcre")
 else()
   set(MYSQL_REGEX_INCLUDE_DIR "${MYSQL_SOURCE_DIR}/regex")
+endif()
+
+if(EXISTS "${MYSQL_SOURCE_DIR}/extra/rapidjson")
+  set(MYSQL_RAPIDJSON_INCLUDE_DIR "${MYSQL_SOURCE_DIR}/extra/rapidjson/include")
+else()
+  set(MYSQL_RAPIDJSON_INCLUDE_DIR)
+endif()
+
+if(EXISTS "${MYSQL_SOURCE_DIR}/libbinlogevents")
+  set(MYSQL_LIBBINLOGEVENTS_EXPORT_DIR
+    "${MYSQL_SOURCE_DIR}/libbinlogevents/export")
+  set(MYSQL_LIBBINLOGEVENTS_INCLUDE_DIR
+    "${MYSQL_SOURCE_DIR}/libbinlogevents/include")
+else()
+  set(MYSQL_LIBBINLOGEVENTS_EXPORT_DIR)
+  set(MYSQL_LIBBINLOGEVENTS_INCLUDE_DIR)
 endif()
 
 set(MYSQL_INCLUDE_DIRS
@@ -162,6 +228,9 @@ set(MYSQL_INCLUDE_DIRS
   "${MYSQL_SOURCE_DIR}/sql"
   "${MYSQL_SOURCE_DIR}/include"
   "${MYSQL_REGEX_INCLUDE_DIR}"
+  "${MYSQL_RAPIDJSON_INCLUDE_DIR}"
+  "${MYSQL_LIBBINLOGEVENTS_EXPORT_DIR}"
+  "${MYSQL_LIBBINLOGEVENTS_INCLUDE_DIR}"
   "${MYSQL_SOURCE_DIR}")
 
 if(MRN_BUNDLED)
@@ -190,6 +259,12 @@ else()
   set_mysql_config_value("--version" MYSQL_VERSION)
 endif()
 
+if(${MYSQL_VERSION} VERSION_LESS "5.5.0")
+  message(FATAL_ERROR
+    "Mroonga doesn't support MySQL < 5.5.0: <${MYSQL_VERSION}>")
+  return()
+endif()
+
 if(${MYSQL_VERSION} VERSION_GREATER "10.0.0" AND
    ${MYSQL_VERSION} VERSION_LESS "10.0.9")
   message(FATAL_ERROR
@@ -201,22 +276,23 @@ if(MRN_GROONGA_BUNDLED)
   set(GROONGA_INCLUDE_DIRS "${MRN_BUNDLED_GROONGA_DIR}/include")
   set(GROONGA_LIBRARY_DIRS "${MRN_BUNDLED_GROONGA_DIR}/lib")
   set(GROONGA_LIBRARIES "libgroonga")
-  if(EXISTS "${MRN_BUNDLED_GROONGA_DIR}/vendor/plugins/groonga-normalizer-mysql")
-    set(GROONGA_NORMALIZER_MYSQL_FOUND TRUE)
-  else()
-    set(GROONGA_NORMALIZER_MYSQL_FOUND FALSE)
+
+  set(MRN_LIBRARY_DIRS ${GROONGA_LIBRARY_DIRS})
+  set(MRN_LIBRARIES ${GROONGA_LIBRARIES})
+  if(MRN_GROONGA_NORMALIZER_MYSQL_EMBED)
+    set(MRN_LIBRARY_DIRS
+      ${MRN_LIBRARY_DIRS}
+      "${MRN_BUNDLED_GROONGA_NORMALIZER_MYSQL_DIR}/normalizers")
+    set(MRN_LIBRARIES ${MRN_LIBRARIES} mysql_normalizer)
   endif()
 else()
   include(FindPkgConfig)
   pkg_check_modules(GROONGA REQUIRED "groonga >= ${REQUIRED_GROONGA_VERSION}")
   pkg_check_modules(GROONGA_NORMALIZER_MYSQL
     "groonga-normalizer-mysql >= ${REQUIRED_GROONGA_NORMALIZER_MYSQL_VERSION}")
-endif()
-
-if(GROONGA_NORMALIZER_MYSQL_FOUND AND MRN_GROONGA_BUNDLED)
-  read_file_list(${MRN_BUNDLED_GROONGA_DIR}/vendor/plugins/groonga-normalizer-mysql/normalizers/mysql_sources.am MRN_GRN_NORMALIZER_MYSQL_SOURCES)
-  string(REGEX REPLACE "([^;]+)" "${MRN_BUNDLED_GROONGA_DIR}/vendor/plugins/groonga-normalizer-mysql/normalizers/\\1"
-    MRN_GRN_NORMALIZER_MYSQL_SOURCES "${MRN_GRN_NORMALIZER_MYSQL_SOURCES}")
+  set(MRN_LIBRARY_DIRS
+    ${MRN_LIBRARY_DIRS}
+    ${GROONGA_LIBRARY_DIRS})
 endif()
 
 include_directories(
@@ -235,57 +311,51 @@ else()
     "${MYSQL_SERVICES_LIB_DIR}")
 endif()
 link_directories(
-  ${GROONGA_LIBRARY_DIRS}
+  ${MRN_LIBRARY_DIRS}
   ${MYSQL_LIBRARY_DIRS})
 
+set(MRN_ALL_SOURCES
+  ${MRN_SOURCES}
+  ${MRN_UDF_SOURCES}
+  ${LIBMRN_NO_MYSQL_SOURCES}
+  ${LIBMRN_NEED_MYSQL_SOURCES})
+
 if(MRN_BUNDLED)
-  if(GROONGA_NORMALIZER_MYSQL_FOUND AND MRN_GROONGA_BUNDLED)
-    set(sources "${MROONGA_SOURCES};${MRN_UDF_SOURCES};${MRN_GRN_NORMALIZER_MYSQL_SOURCES};${LIBMRN_NEED_MYSQL_SOURCES};${LIBMRN_NO_MYSQL_SOURCES}")
-  else()
-    set(sources "${MROONGA_SOURCES};${MRN_UDF_SOURCES};${LIBMRN_NEED_MYSQL_SOURCES};${LIBMRN_NO_MYSQL_SOURCES}")
-  endif()
-  mysql_add_plugin(mroonga ${sources} STORAGE_ENGINE MODULE_ONLY LINK_LIBRARIES ${GROONGA_LIBRARIES}
-    DISABLED)
- else()
+  mysql_add_plugin(mroonga
+    ${MRN_ALL_SOURCES}
+    STORAGE_ENGINE MODULE_ONLY DISABLED # see MDEV-7246
+    RECOMPILE_FOR_EMBEDDED
+    LINK_LIBRARIES ${MRN_LIBRARIES})
 else()
-  add_library(mroonga MODULE
-    ${MROONGA_SOURCES}
-    ${MRN_UDF_SOURCES}
-    ${LIBMRN_NO_MYSQL_SOURCES}
-    ${LIBMRN_NEED_MYSQL_SOURCES})
+  add_library(mroonga MODULE ${MRN_ALL_SOURCES})
 
   set(MYSQL_LIBRARIES "mysqlservices")
   target_link_libraries(mroonga ${GROONGA_LIBRARIES} ${MYSQL_LIBRARIES})
 
   option(WITH_DEBUG "Enable debug options" OFF)
   if(WITH_DEBUG)
-    set_property(TARGET mroonga APPEND PROPERTY
-      COMPILE_DEFINITIONS "SAFE_MUTEX")
+    add_definitions("-DSAFE_MUTEX")
     if(CMAKE_COMPILER_IS_GNUCXX)
       set(MRN_C_COMPILE_FLAGS "${MRN_C_COMPILE_FLAGS} -g3 -O0")
       set(MRN_CXX_COMPILE_FLAGS "${MRN_CXX_COMPILE_FLAGS} -g3 -O0")
     endif()
   else()
-    set_property(TARGET mroonga APPEND PROPERTY
-      COMPILE_DEFINITIONS "DBUG_OFF")
+    add_definitions("-DDBUG_OFF")
   endif()
 
   option(WITH_DEBUG_FULL "Enable full debug options" OFF)
   if(WITH_DEBUG_FULL)
-    set_property(TARGET mroonga APPEND PROPERTY
-      COMPILE_DEFINITIONS "SAFE_MUTEX" "SAFEMALLOC")
+    add_definitions("-DSAFE_MUTEX" "SAFEMALLOC")
   endif()
 
   option(DISABLE_FAST_MUTEXES "Force disabling fast mutex" OFF)
   if(DISABLE_FAST_MUTEXES)
-    set_property(TARGET mroonga APPEND PROPERTY
-      COMPILE_DEFINITIONS "FORCE_FAST_MUTEX_DISABLED=1")
+    add_definitions("-DFORCE_FAST_MUTEX_DISABLED=1")
   endif()
 
   option(WITH_FAST_MUTEXES "Enable fast mutex" OFF)
   if(WITH_FAST_MUTEXES)
-    set_property(TARGET mroonga APPEND PROPERTY
-      COMPILE_DEFINITIONS "MY_PTHREAD_FASTMUTEX")
+    add_definitions("-DMY_PTHREAD_FASTMUTEX")
   endif()
 
   if(CMAKE_COMPILER_IS_GNUCXX)
@@ -295,20 +365,23 @@ else()
     mrn_build_flag("-Wno-strict-aliasing")
     mrn_build_flag("-Wno-deprecated")
     mrn_check_cxxflag("-fno-implicit-templates")
-    mrn_check_cxxflag("-fno-exceptions")
-    mrn_check_cxxflag("-fno-rtti")
+    if(("${MYSQL_VARIANT}" STREQUAL "MariaDB") OR
+        ("${MYSQL_VARIANT}" STREQUAL "MySQL" AND
+         ${MYSQL_VERSION} VERSION_LESS "5.7.0"))
+      mrn_check_cxxflag("-fno-exceptions")
+      mrn_check_cxxflag("-fno-rtti")
+    endif()
     mrn_check_cxxflag("-felide-constructors")
   endif()
-  set_source_files_properties(${MROONGA_SOURCES} PROPERTIES
+  set_source_files_properties(${MRN_SOURCES} PROPERTIES
     COMPILE_FLAGS "${MYSQL_CFLAGS} ${MRN_CXX_COMPILE_FLAGS}")
   set_source_files_properties(${LIBMRN_NEED_MYSQL_SOURCES} PROPERTIES
     COMPILE_FLAGS "${MYSQL_CFLAGS} ${MRN_CXX_COMPILE_FLAGS}")
   set_source_files_properties(${MRN_UDF_SOURCES} PROPERTIES
-    COMPILE_FLAGS "${MRN_C_COMPILE_FLAGS}")
+    COMPILE_FLAGS "${MRN_CXX_COMPILE_FLAGS}")
   set_source_files_properties(${LIBMRN_NO_MYSQL_SOURCES} PROPERTIES
-    COMPILE_FLAGS "${MRN_C_COMPILE_FLAGS}")
-  set_property(TARGET mroonga APPEND PROPERTY
-    COMPILE_DEFINITIONS "MYSQL_DYNAMIC_PLUGIN")
+    COMPILE_FLAGS "${MRN_CXX_COMPILE_FLAGS}")
+  add_definitions("-DMYSQL_DYNAMIC_PLUGIN")
   set_target_properties(mroonga PROPERTIES
     PREFIX ""
     OUTPUT_NAME "ha_mroonga")
@@ -317,19 +390,16 @@ else()
 endif()
 
 if(GROONGA_NORMALIZER_MYSQL_FOUND)
-  set(WITH_GROONGA_NORMALIZER_MYSQL 1)
-  ADD_DEFINITIONS(-DWITH_GROONGA_NORMALIZER_MYSQL=1)
-  if(MRN_GROONGA_BUNDLED)
-    ADD_DEFINITIONS(-DGROONGA_NORMALIZER_MYSQL_PLUGIN_IS_BUNDLED_STATIC=1)
+  add_definitions("-DWITH_GROONGA_NORMALIZER_MYSQL=1")
+  if(MRN_GROONGA_NORMALIZER_MYSQL_EMBED)
+    add_definitions("-DMRN_GROONGA_NORMALIZER_MYSQL_EMBED")
   else()
-    set(GROONGA_NORMALIZER_MYSQL_PLUGIN_NAME \"normalizers/mysql\")
-    set_property(TARGET mroonga APPEND PROPERTY
-      COMPILE_DEFINITIONS "GROONGA_NORMALIZER_MYSQL_PLUGIN_NAME=\"normalizers/mysql\"")
+    add_definitions("-DGROONGA_NORMALIZER_MYSQL_PLUGIN_NAME=\"normalizers/mysql\"")
   endif()
 endif()
 
 set(MRN_DEFAULT_PARSER "TokenBigram" CACHE STRING "The default fulltext parser")
-ADD_DEFINITIONS(-DMRN_PARSER_DEFAULT="${MRN_DEFAULT_PARSER}")
+add_definitions("-DMRN_PARSER_DEFAULT=\"${MRN_DEFAULT_PARSER}\"")
 
 configure_file(
   "${PROJECT_SOURCE_DIR}/mrn_version.h.in"

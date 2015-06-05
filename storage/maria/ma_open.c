@@ -280,7 +280,7 @@ MARIA_HA *maria_open(const char *name, int mode, uint open_flags)
   char name_buff[FN_REFLEN], org_name[FN_REFLEN], index_name[FN_REFLEN],
        data_name[FN_REFLEN];
   uchar *disk_cache, *disk_pos, *end_pos;
-  MARIA_HA info,*m_info,*old_info;
+  MARIA_HA info, *UNINIT_VAR(m_info), *old_info;
   MARIA_SHARE share_buff,*share;
   double *rec_per_key_part;
   ulong  *nulls_per_key_part;
@@ -290,7 +290,6 @@ MARIA_HA *maria_open(const char *name, int mode, uint open_flags)
   File data_file= -1;
   DBUG_ENTER("maria_open");
 
-  LINT_INIT(m_info);
   kfile= -1;
   errpos= 0;
   head_length=sizeof(share_buff.state.header);
@@ -838,7 +837,8 @@ MARIA_HA *maria_open(const char *name, int mode, uint open_flags)
 
     if (MY_TEST(share->base.extra_options & MA_EXTRA_OPTIONS_ENCRYPTED))
     {
-      disk_pos= ma_crypt_read(share, disk_pos);
+      if (!(disk_pos= ma_crypt_read(share, disk_pos)))
+        goto err;
     }
 
     if ((share->data_file_type == BLOCK_RECORD ||

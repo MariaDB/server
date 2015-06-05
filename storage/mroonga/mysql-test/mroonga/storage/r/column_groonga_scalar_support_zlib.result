@@ -1,0 +1,10 @@
+DROP TABLE IF EXISTS entries;
+CREATE TABLE entries (
+id INT UNSIGNED PRIMARY KEY,
+content TEXT COMMENT 'flags "COLUMN_SCALAR|COMPRESS_ZLIB"'
+) DEFAULT CHARSET=utf8;
+INSERT INTO entries (id, content) VALUES (1, "I found Mroonga that is a MySQL storage engine to use Groonga!");
+SELECT * FROM entries;
+id	content
+1	I found Mroonga that is a MySQL storage engine to use Groonga!
+DROP TABLE entries;

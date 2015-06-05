@@ -126,7 +126,7 @@ id
 # Run CHECK TABLE, it should indicate table need a REPAIR TABLE
 CHECK TABLE t1 FOR UPGRADE;
 Table	Op	Msg_type	Msg_text
-test.t1	check	error	Table upgrade required. Please do "REPAIR TABLE `t1`" or dump/reload to fix it!
+test.t1	check	error	Upgrade required. Please do "REPAIR TABLE `t1`" or dump/reload to fix it!
 # REPAIR old table USE_FRM should fail
 REPAIR TABLE t1 USE_FRM;
 Table	Op	Msg_type	Msg_text
@@ -206,4 +206,11 @@ count(*)
 check table t1;
 Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK
+drop table t1;
+create table t1 (a blob);
+create view v1 as select * from t1;
+repair view v1;
+Table	Op	Msg_type	Msg_text
+test.v1	repair	status	OK
+drop view v1;
 drop table t1;

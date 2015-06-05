@@ -1,0 +1,15 @@
+--source include/not_embedded.inc
+--source include/have_perfschema.inc
+
+--echo #
+--echo # MDEV-7922 - ERROR 1939 (HY000): Engine PERFORMANCE_SCHEMA failed to
+--echo #             discover table
+--echo #
+FLUSH TABLES;
+CREATE DATABASE test_drop;
+USE test_drop;
+DROP DATABASE test_drop;
+--disable_result_log
+SELECT TABLE_NAME, TABLE_ROWS FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='performance_schema';
+--enable_result_log
+SELECT @@warning_count;

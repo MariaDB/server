@@ -1,0 +1,7 @@
+create table t1 (i int) engine=innodb;
+set global innodb_encryption_threads = 1;
+set global innodb_encryption_rotate_key_age = 2;
+insert t1 values (1);
+drop table t1;
+set global innodb_encryption_threads = 0;
+set global innodb_encryption_rotate_key_age = 1;

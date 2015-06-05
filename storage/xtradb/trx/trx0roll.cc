@@ -55,6 +55,9 @@ Created 3/26/1996 Heikki Tuuri
 rollback */
 #define TRX_ROLL_TRUNC_THRESHOLD	1
 
+/** true if trx_rollback_or_clean_all_recovered() thread is active */
+bool			trx_rollback_or_clean_is_active;
+
 /** In crash recovery, the current trx to be rolled back; NULL otherwise */
 static const trx_t*	trx_roll_crash_recv_trx	= NULL;
 
@@ -504,7 +507,7 @@ trx_release_savepoint_for_mysql(
 {
 	trx_named_savept_t*	savep;
 
-	ut_ad(trx_state_eq(trx, TRX_STATE_ACTIVE));
+	ut_ad(trx_state_eq(trx, TRX_STATE_ACTIVE) || trx_state_eq(trx, TRX_STATE_PREPARED));
 	ut_ad(trx->in_mysql_trx_list);
 
 	savep = trx_savepoint_find(trx, savepoint_name);
@@ -816,6 +819,8 @@ DECLARE_THREAD(trx_rollback_or_clean_all_recovered)(
 #endif /* UNIV_PFS_THREAD */
 
 	trx_rollback_or_clean_recovered(TRUE);
+
+	trx_rollback_or_clean_is_active = false;
 
 	/* We count the number of threads in os_thread_exit(). A created
 	thread should always use that to exit and not use return() to exit. */

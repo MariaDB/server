@@ -6,21 +6,31 @@ groonga-normalizer-mysql
 
 ## Description
 
-Groonga-normalizer-mysql is a groonga plugin. It provides MySQL
-compatible normalizers and a custom normalizer to groonga.
+Groonga-normalizer-mysql is a Groonga plugin. It provides MySQL
+compatible normalizers and a custom normalizers to Groonga.
 
-MySQL compatible normalizers are `NormalizerMySQLGeneralCI` and
-`NormalizerMySQLUnicodeCI`. `NormalizerMySQLGeneralCI` corresponds to
-`utf8mb4_general_ci`.  `NormalizerMySQLUnicodeCI` corresponds to
-`utf8mb4_unicode_ci`.
+Here are MySQL compatible normalizers:
 
-A custom normalizer is
-`NormalizerMySQLUnicodeCIExceptKanaCIKanaWithVoicedSoundMark`. It is
-self-descriptive name but long. It is a variant normalizer of
-`NormalizerMySQLUnicode`. It has different behaviors. The followings
-are the different behaviors.
+* `NormalizerMySQLGeneralCI` for `utf8mb4_general_ci`
+* `NormalizerMySQLUnicodeCI` for `utf8mb4_unicode_ci`
+* `NormalizerMySQLUnicode520CI` for `utf8mb4_unicode_520_ci`
 
-* `NormalizerMySQLUnicode` normalizes all small Hiragana such as `ぁ`,
+Here are custom normalizers:
+
+* `NormalizerMySQLUnicodeCIExceptKanaCIKanaWithVoicedSoundMark`
+   * It's based on `NormalizerMySQLUnicodeCI`
+* `NormalizerMySQLUnicode520CIExceptKanaCIKanaWithVoicedSoundMark`
+   * It's based on `NormalizerMySQLUnicode520CI`
+
+They are self-descriptive name but long. They are variant normalizers
+of `NormalizerMySQLUnicodeCI` and `NormalizerMySQLUnicode520CI`. They
+have different behaviors. The followings are the different
+behaviors. They describes with
+`NormalizerMySQLUnicodeCIExceptKanaCIKanaWithVoicedSoundMark` but they
+are true for
+`NormalizerMySQLUnicode520CIExceptKanaCIKanaWithVoicedSoundMark`.
+
+* `NormalizerMySQLUnicodeCI` normalizes all small Hiragana such as `ぁ`,
   `っ` to Hiragana such as `あ`, `つ`.
   `NormalizerMySQLUnicodeCIExceptKanaCIKanaWithVoicedSoundMark`
   doesn't normalize `ぁ` to `あ` nor `っ` to `つ`. `ぁ` and `あ` are
@@ -51,29 +61,29 @@ are the different behaviors.
   normalizes all halfwidth Katakana with voided sound mark such as `ｶﾞ`
   to fullwidth Katakana with voiced sound mark such as `ガ`.
 
-`NormalizerMySQLUnicodeCIExceptKanaCIKanaWithVoicedSoundMark` is MySQL
-incompatible normalizer but it is useful for Japanese text. For
-example, `ふらつく` and `ブラック` has different
-means. `NormalizerMySQLUnicodeCI` identifies `ふらつく` with `ブラック
-` but `NormalizerMySQLUnicodeCIExceptKanaCIKanaWithVoicedSoundMark
+`NormalizerMySQLUnicodeCIExceptKanaCIKanaWithVoicedSoundMark` and
+`NormalizerMySQLUnicode520CIExceptKanaCIKanaWithVoicedSoundMark` and
+are MySQL incompatible normalizers but they are useful for Japanese
+text. For example, `ふらつく` and `ブラック` has different
+means. `NormalizerMySQLUnicodeCI` identifies `ふらつく` with `ブラック`
+but `NormalizerMySQLUnicodeCIExceptKanaCIKanaWithVoicedSoundMark`
 doesn't identify them.
 
 ## Install
 
 ### Debian GNU/Linux
 
-[Add apt-line for the groonga deb package repository](http://groonga.org/docs/install/debian.html)
+[Add apt-line for the Groonga deb package repository](http://groonga.org/docs/install/debian.html)
 and install `groonga-normalizer-mysql` package:
 
-    % sudo aptitude -V -D -y install groonga-normalizer-mysql
+    % sudo apt-get -y install groonga-normalizer-mysql
 
 ### Ubuntu
 
-[Add apt-line for the groonga deb package repository](http://groonga.org/docs/install/ubuntu.html)
+[Add apt-line for the Groonga deb package repository](http://groonga.org/docs/install/ubuntu.html)
 and install `groonga-normalizer-mysql` package:
 
-    % sudo aptitude -V -D -y install groonga-normalizer-mysql
-
+    % sudo apt-get -y install groonga-normalizer-mysql
 
 ### CentOS
 
@@ -114,18 +124,18 @@ Install the following build tools:
 * [Microsoft Visual Studio 2010 Express](http://www.microsoft.com/japan/msdn/vstudio/express/): 2012 isn't tested yet.
 * [CMake](http://www.cmake.org/)
 
-#### Build groonga
+#### Build Groonga
 
-Download the latest groonga source from [packages.groonga.org](http://packages.groonga.org/source/groonga/). Source file name is formatted as `groonga-X.Y.Z.zip`.
+Download the latest Groonga source from [packages.groonga.org](http://packages.groonga.org/source/groonga/). Source file name is formatted as `groonga-X.Y.Z.zip`.
 
 Extract the source and move to the source folder:
 
     > cd ...\groonga-X.Y.Z
     groonga-X.Y.Z>
 
-Run CMake. Here is a command line to install groonga to `C:\groonga` folder:
+Run CMake. Here is a command line to install Groonga to `C:\groonga` folder:
 
-    groonga-X.Y.Z> cmake . -G "Visual Studio 10 Win64" -DCMAKE_INSTALL_PREFIX=C:\groonga
+    groonga-X.Y.Z> cmake . -G "Visual Studio 12 Win64" -DCMAKE_INSTALL_PREFIX=C:\groonga
 
 Build:
 
@@ -148,9 +158,9 @@ IMPORTANT!!!: Set `PKG_CONFIG_PATH` environment variable:
 
     groonga-normalizer-mysql-X.Y.Z> set PKG_CONFIG_PATH=C:\groongalocal\lib\pkgconfig
 
-Run CMake. Here is a command line to install groonga to `C:\groonga` folder:
+Run CMake. Here is a command line to install Groonga to `C:\groonga` folder:
 
-    groonga-normalizer-mysql-X.Y.Z> cmake . -G "Visual Studio 10 Win64" -DCMAKE_INSTALL_PREFIX=C:\groonga
+    groonga-normalizer-mysql-X.Y.Z> cmake . -G "Visual Studio 12 Win64" -DCMAKE_INSTALL_PREFIX=C:\groonga
 
 Build:
 
@@ -173,7 +183,7 @@ Then, you can use `NormalizerMySQLGeneralCI` and
 
 ## Dependencies
 
-* groonga >= 3.0.3
+* Groonga >= 3.0.3
 
 ## Mailing list
 

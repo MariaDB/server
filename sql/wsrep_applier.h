@@ -18,6 +18,9 @@
 
 #include <sys/types.h>
 
+void wsrep_set_apply_format(THD* thd, Format_description_log_event* ev);
+Format_description_log_event* wsrep_get_apply_format(THD* thd);
+
 /* wsrep callback prototypes */
 
 wsrep_cb_status_t wsrep_apply_cb(void *ctx,

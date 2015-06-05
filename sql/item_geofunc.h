@@ -2,7 +2,7 @@
 #define ITEM_GEOFUNC_INCLUDED
 
 /* Copyright (c) 2000, 2010 Oracle and/or its affiliates.
-   Copyright (C) 2011 Monty Program Ab.
+   Copyright (C) 2011, 2015 MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -181,7 +181,7 @@ class Item_func_point: public Item_geometry_func
 public:
   Item_func_point(Item *a, Item *b): Item_geometry_func(a, b) {}
   Item_func_point(Item *a, Item *b, Item *srid): Item_geometry_func(a, b, srid) {}
-  const char *func_name() const { return "st_point"; }
+  const char *func_name() const { return "point"; }
   String *val_str(String *);
   Field::geometry_type get_geometry_type() const;
 };
@@ -272,56 +272,58 @@ public:
   Spatial relations
 */
 
-class Item_func_spatial_mbr_rel: public Item_bool_func2
+class Item_func_spatial_rel: public Item_bool_func
 {
+protected:
   enum Functype spatial_rel;
+  String tmp_value1, tmp_value2;
 public:
-  Item_func_spatial_mbr_rel(Item *a,Item *b, enum Functype sp_rel) :
-    Item_bool_func2(a,b) { spatial_rel = sp_rel; }
-  longlong val_int();
-  enum Functype functype() const 
-  { 
-    return spatial_rel;
-  }
+  Item_func_spatial_rel(Item *a, Item *b, enum Functype sp_rel)
+   :Item_bool_func(a, b), spatial_rel(sp_rel)
+  { }
+  Item_func_spatial_rel(Item *a, Item *b, Item *c, enum Functype sp_rel)
+   :Item_bool_func(a, b, c), spatial_rel(sp_rel)
+  { }
+  enum Functype functype() const { return spatial_rel; }
   enum Functype rev_functype() const { return spatial_rel; }
-  const char *func_name() const;
-  virtual inline void print(String *str, enum_query_type query_type)
-  {
-    Item_func::print(str, query_type);
-  }
-  void fix_length_and_dec() { maybe_null= 1; }
   bool is_null() { (void) val_int(); return null_value; }
+  optimize_type select_optimize() const { return OPTIMIZE_OP; }
+  void add_key_fields(JOIN *join, KEY_FIELD **key_fields,
+                      uint *and_level, table_map usable_tables,
+                      SARGABLE_PARAM **sargables)
+  {
+    return add_key_fields_optimize_op(join, key_fields, and_level,
+                                      usable_tables, sargables, false);
+  }
 };
 
 
-class Item_func_spatial_rel: public Item_int_func
+class Item_func_spatial_mbr_rel: public Item_func_spatial_rel
 {
-  enum Functype spatial_rel;
+public:
+  Item_func_spatial_mbr_rel(Item *a, Item *b, enum Functype sp_rel)
+   :Item_func_spatial_rel(a, b, sp_rel)
+  { }
+  longlong val_int();
+  const char *func_name() const;
+};
+
+
+class Item_func_spatial_precise_rel: public Item_func_spatial_rel
+{
   Gcalc_heap collector;
   Gcalc_scan_iterator scan_it;
   Gcalc_function func;
-  String tmp_value1,tmp_value2, tmp_matrix;
+  String tmp_matrix;
 public:
-  Item_func_spatial_rel(Item *a,Item *b, enum Functype sp_rel);
-  Item_func_spatial_rel(Item *a, Item *b, Item *matrix);
-  virtual ~Item_func_spatial_rel();
+  Item_func_spatial_precise_rel(Item *a, Item *b, enum Functype sp_rel)
+   :Item_func_spatial_rel(a, b, sp_rel), collector()
+  { }
+  Item_func_spatial_precise_rel(Item *a, Item *b, Item *matrix)
+   :Item_func_spatial_rel(a, b, matrix, SP_RELATE_FUNC)
+  { }
   longlong val_int();
-  enum Functype functype() const 
-  { 
-    return spatial_rel;
-  }
-  enum Functype rev_functype() const { return spatial_rel; }
   const char *func_name() const;
-  virtual inline void print(String *str, enum_query_type query_type)
-  {
-    Item_func::print(str, query_type);
-  }
-
-  void fix_length_and_dec() { maybe_null= 1; }
-  bool is_null() { (void) val_int(); return null_value; }
-  bool is_bool_func() { return 1; }
-  uint decimal_precision() const { return 1; }
-  optimize_type select_optimize() const { return OPTIMIZE_OP; }
 };
 
 
@@ -409,7 +411,6 @@ class Item_func_isempty: public Item_bool_func
 public:
   Item_func_isempty(Item *a): Item_bool_func(a) {}
   longlong val_int();
-  optimize_type select_optimize() const { return OPTIMIZE_NONE; }
   const char *func_name() const { return "st_isempty"; }
   void fix_length_and_dec() { maybe_null= 1; }
 };
@@ -423,7 +424,6 @@ class Item_func_issimple: public Item_bool_func
 public:
   Item_func_issimple(Item *a): Item_bool_func(a) {}
   longlong val_int();
-  optimize_type select_optimize() const { return OPTIMIZE_NONE; }
   const char *func_name() const { return "st_issimple"; }
   void fix_length_and_dec() { maybe_null= 1; }
 };
@@ -433,7 +433,6 @@ class Item_func_isclosed: public Item_bool_func
 public:
   Item_func_isclosed(Item *a): Item_bool_func(a) {}
   longlong val_int();
-  optimize_type select_optimize() const { return OPTIMIZE_NONE; }
   const char *func_name() const { return "st_isclosed"; }
   void fix_length_and_dec() { maybe_null= 1; }
 };

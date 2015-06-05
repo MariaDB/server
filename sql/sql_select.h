@@ -2,7 +2,7 @@
 #define SQL_SELECT_INCLUDED
 
 /* Copyright (c) 2000, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2013, Monty Program Ab.
+   Copyright (c) 2008, 2015, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -252,6 +252,7 @@ typedef struct st_join_table {
   enum explain_extra_tag info;
   
   Table_access_tracker *tracker;
+
   Table_access_tracker *jbuf_tracker;
   /* 
     Bitmap of TAB_INFO_* bits that encodes special line for EXPLAIN 'Extra'
@@ -361,7 +362,12 @@ typedef struct st_join_table {
   SJ_TMP_TABLE  *check_weed_out_table;
   /* for EXPLAIN only: */
   SJ_TMP_TABLE  *first_weedout_table;
-  
+
+  /**
+    reference to saved plan and execution statistics
+  */
+  Explain_table_access *explain_plan;
+
   /*
     If set, means we should stop join enumeration after we've got the first
     match and return to the specified join tab. May point to
@@ -762,7 +768,7 @@ public:
   void set_empty()
   {
     sjm_scan_need_tables= 0;
-    LINT_INIT(sjm_scan_last_inner);
+    LINT_INIT_STRUCT(sjm_scan_last_inner);
     is_used= FALSE;
   }
   void set_from_prev(struct st_position *prev);
@@ -847,7 +853,12 @@ typedef struct st_position
   */
   uint n_sj_tables;
 
-  table_map prefix_dups_producing_tables;
+  /*
+    Bitmap of semi-join inner tables that are in the join prefix and for
+    which there's no provision for how to eliminate semi-join duplicates
+    they produce.
+  */
+  table_map dups_producing_tables;
 
   table_map inner_tables_handled_with_other_sjs;
    
@@ -1038,7 +1049,20 @@ public:
   table_map outer_join;
   /* Bitmap of tables used in the select list items */
   table_map select_list_used_tables;
-  ha_rows  send_records,found_records,examined_rows,row_limit, select_limit;
+  ha_rows  send_records,found_records,examined_rows;
+
+  /*
+    LIMIT for the JOIN operation. When not using aggregation or DISITNCT, this 
+    is the same as select's LIMIT clause specifies.
+    Note that this doesn't take sql_calc_found_rows into account.
+  */
+  ha_rows row_limit;
+
+  /*
+    How many output rows should be produced after GROUP BY.
+    (if sql_calc_found_rows is used, LIMIT is ignored)
+  */
+  ha_rows select_limit;
   /**
     Used to fetch no more than given amount of rows per one
     fetch operation of server side cursor.
@@ -1047,8 +1071,10 @@ public:
       - fetch_limit= HA_POS_ERROR if there is no cursor.
       - when we open a cursor, we set fetch_limit to 0,
       - on each fetch iteration we add num_rows to fetch to fetch_limit
+    NOTE: currently always HA_POS_ERROR.
   */
   ha_rows  fetch_limit;
+
   /* Finally picked QEP. This is result of join optimization */
   POSITION *best_positions;
 
@@ -1074,13 +1100,6 @@ public:
     nests that have their tables both in and outside of the join prefix.
   */
   table_map cur_sj_inner_tables;
-  
-  /*
-    Bitmap of semi-join inner tables that are in the join prefix and for
-    which there's no provision for how to eliminate semi-join duplicates
-    they produce.
-  */
-  table_map cur_dups_producing_tables;
   
   /* We also maintain a stack of join optimization states in * join->positions[] */
 /******* Join optimization state members end *******/
@@ -1204,7 +1223,8 @@ public:
   /** Is set if we have a GROUP BY and we have ORDER BY on a constant. */
   bool          skip_sort_order;
 
-  bool need_tmp, hidden_group_fields;
+  bool need_tmp; 
+  bool hidden_group_fields;
   /* TRUE if there was full cleunap of the JOIN */
   bool cleaned;
   DYNAMIC_ARRAY keyuse;
@@ -1260,6 +1280,8 @@ public:
                                  OPTIMIZATION_DONE=2};
   bool optimized; ///< flag to avoid double optimization in EXPLAIN
   bool initialized; ///< flag to avoid double init_execution calls
+
+  Explain_select *explain;
   
   enum { QEP_NOT_PRESENT_YET, QEP_AVAILABLE, QEP_DELETED} have_query_plan;
 
@@ -1353,6 +1375,8 @@ public:
     group_optimized_away= 0;
     no_rows_in_result_called= 0;
     positions= best_positions= 0;
+
+    explain= NULL;
 
     all_fields= fields_arg;
     if (&fields_list != &fields_arg)      /* Avoid valgrind-warning */
@@ -1777,9 +1801,8 @@ bool cp_buffer_from_ref(THD *thd, TABLE *table, TABLE_REF *ref);
 bool error_if_full_join(JOIN *join);
 int report_error(TABLE *table, int error);
 int safe_index_read(JOIN_TAB *tab);
-COND *remove_eq_conds(THD *thd, COND *cond, Item::cond_result *cond_value);
 int get_quick_record(SQL_SELECT *select);
-SORT_FIELD * make_unireg_sortorder(ORDER *order, uint *length,
+SORT_FIELD * make_unireg_sortorder(THD *thd, ORDER *order, uint *length,
                                   SORT_FIELD *sortorder);
 int setup_order(THD *thd, Item **ref_pointer_array, TABLE_LIST *tables,
 		List<Item> &fields, List <Item> &all_fields, ORDER *order);
@@ -1809,10 +1832,6 @@ Field *create_tmp_field(THD *thd, TABLE *table,Item *item, Item::Type type,
 			bool table_cant_handle_bit_fields,
                         bool make_copy_field,
                         uint convert_blob_length);
-bool create_internal_tmp_table(TABLE *table, KEY *keyinfo, 
-                               TMP_ENGINE_COLUMNDEF *start_recinfo,
-                               TMP_ENGINE_COLUMNDEF **recinfo, 
-                               ulonglong options, my_bool big_tables);
 
 /*
   General routine to change field->ptr of a NULL-terminated array of Field

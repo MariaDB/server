@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2011, 2014, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2011, 2015, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1389,6 +1389,27 @@ blob_done:
 			dfield_set_data(dfield, data, len);
 		}
 
+		if (len != UNIV_SQL_NULL && col->mtype == DATA_MYSQL
+		    && col->len != len && !dict_table_is_comp(log->table)) {
+
+			ut_ad(col->len >= len);
+			if (dict_table_is_comp(index->table)) {
+				byte*	buf = (byte*) mem_heap_alloc(heap,
+								     col->len);
+				memcpy(buf, dfield->data, len);
+				memset(buf + len, 0x20, col->len - len);
+
+				dfield_set_data(dfield, buf, col->len);
+			} else {
+				/* field length mismatch should not happen
+				when rebuilding the redundant row format
+				table. */
+				ut_ad(0);
+				*error = DB_CORRUPTION;
+				return(NULL);
+			}
+		}
+
 		/* See if any columns were changed to NULL or NOT NULL. */
 		const dict_col_t*	new_col
 			= dict_table_get_nth_col(log->table, col_no);
@@ -2554,7 +2575,7 @@ all_done:
 		success = os_file_read_no_error_handling(
 			OS_FILE_FROM_FD(index->online_log->fd),
 			index->online_log->head.block, ofs,
-			srv_sort_buf_size, FALSE);
+			srv_sort_buf_size);
 
 		if (!success) {
 			fprintf(stderr, "InnoDB: unable to read temporary file"
@@ -3385,7 +3406,7 @@ all_done:
 		success = os_file_read_no_error_handling(
 			OS_FILE_FROM_FD(index->online_log->fd),
 			index->online_log->head.block, ofs,
-			srv_sort_buf_size, FALSE);
+			srv_sort_buf_size);
 
 		if (!success) {
 			fprintf(stderr, "InnoDB: unable to read temporary file"

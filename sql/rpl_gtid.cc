@@ -517,6 +517,7 @@ rpl_slave_state::record_gtid(THD *thd, const rpl_gtid *gtid, uint64 sub_id,
   element *elem;
   ulonglong thd_saved_option= thd->variables.option_bits;
   Query_tables_list lex_backup;
+  wait_for_commit* suspended_wfc;
   DBUG_ENTER("record_gtid");
 
   if (unlikely(!loaded))
@@ -532,7 +533,7 @@ rpl_slave_state::record_gtid(THD *thd, const rpl_gtid *gtid, uint64 sub_id,
   }
 
   if (!in_statement)
-    mysql_reset_thd_for_next_command(thd);
+    thd->reset_for_next_command();
 
   DBUG_EXECUTE_IF("gtid_inject_record_gtid",
                   {
@@ -540,6 +541,28 @@ rpl_slave_state::record_gtid(THD *thd, const rpl_gtid *gtid, uint64 sub_id,
                     DBUG_RETURN(1);
                   } );
 
+  /*
+    If we are applying a non-transactional event group, we will be committing
+    here a transaction, but that does not imply that the event group has
+    completed or has been binlogged. So we should not trigger
+    wakeup_subsequent_commits() here.
+
+    Note: An alternative here could be to put a call to mark_start_commit() in
+    stmt_done() before the call to record_and_update_gtid(). This would
+    prevent later calling mark_start_commit() after we have run
+    wakeup_subsequent_commits() from committing the GTID update transaction
+    (which must be avoided to avoid accessing freed group_commit_orderer
+    object). It would also allow following event groups to start slightly
+    earlier. And in the cases where record_gtid() is called without an active
+    transaction, the current statement should have been binlogged already, so
+    binlog order is preserved.
+
+    But this is rather subtle, and potentially fragile. And it does not really
+    seem worth it; non-transactional loads are unlikely to benefit much from
+    parallel replication in any case. So for now, we go with the simple
+    suspend/resume of wakeup_subsequent_commits() here in record_gtid().
+  */
+  suspended_wfc= thd->suspend_subsequent_commits();
   thd->lex->reset_n_backup_query_tables_list(&lex_backup);
   tlist.init_one_table(STRING_WITH_LEN("mysql"),
                        rpl_gtid_slave_state_table_name.str,
@@ -691,6 +714,12 @@ end:
   }
   thd->lex->restore_backup_query_tables_list(&lex_backup);
   thd->variables.option_bits= thd_saved_option;
+  thd->resume_subsequent_commits(suspended_wfc);
+  DBUG_EXECUTE_IF("inject_record_gtid_serverid_100_sleep",
+    {
+      if (gtid->server_id == 100)
+        my_sleep(500000);
+    });
   DBUG_RETURN(err);
 }
 
@@ -1159,6 +1188,27 @@ rpl_binlog_state::load(struct rpl_gtid *list, uint32 count)
       break;
     }
   }
+  mysql_mutex_unlock(&LOCK_binlog_state);
+  return res;
+}
+
+
+static int rpl_binlog_state_load_cb(rpl_gtid *gtid, void *data)
+{
+  rpl_binlog_state *self= (rpl_binlog_state *)data;
+  return self->update_nolock(gtid, false);
+}
+
+
+bool
+rpl_binlog_state::load(rpl_slave_state *slave_pos)
+{
+  bool res= false;
+
+  mysql_mutex_lock(&LOCK_binlog_state);
+  reset_nolock();
+  if (slave_pos->iterate(rpl_binlog_state_load_cb, this, NULL, 0, false))
+    res= true;
   mysql_mutex_unlock(&LOCK_binlog_state);
   return res;
 }
@@ -1933,6 +1983,31 @@ slave_connection_state::get_gtid_list(rpl_gtid *gtid_list, uint32 list_size)
 
 
 /*
+  Check if the GTID position has been reached, for mysql_binlog_send().
+
+  The position has not been reached if we have anything in the state, unless
+  it has either the START_ON_EMPTY_DOMAIN flag set (which means it does not
+  belong to this master at all), or the START_OWN_SLAVE_POS (which means that
+  we start on an old position from when the server was a slave with
+  --log-slave-updates=0).
+*/
+bool
+slave_connection_state::is_pos_reached()
+{
+  uint32 i;
+
+  for (i= 0; i < hash.records; ++i)
+  {
+    entry *e= (entry *)my_hash_element(&hash, i);
+    if (!(e->flags & (START_OWN_SLAVE_POS|START_ON_EMPTY_DOMAIN)))
+      return false;
+  }
+
+  return true;
+}
+
+
+/*
   Execute a MASTER_GTID_WAIT().
   The position to wait for is in gtid_str in string form.
   The timeout in microseconds is in timeout_us, zero means no timeout.
@@ -1949,10 +2024,14 @@ gtid_waiting::wait_for_pos(THD *thd, String *gtid_str, longlong timeout_us)
   rpl_gtid *wait_pos;
   uint32 count, i;
   struct timespec wait_until, *wait_until_ptr;
+  ulonglong before;
 
   /* Wait for the empty position returns immediately. */
   if (gtid_str->length() == 0)
+  {
+    status_var_increment(thd->status_var.master_gtid_wait_count);
     return 0;
+  }
 
   if (!(wait_pos= gtid_parse_string_to_list(gtid_str->ptr(), gtid_str->length(),
                                             &count)))
@@ -1960,6 +2039,8 @@ gtid_waiting::wait_for_pos(THD *thd, String *gtid_str, longlong timeout_us)
     my_error(ER_INCORRECT_GTID_STATE, MYF(0));
     return 1;
   }
+  status_var_increment(thd->status_var.master_gtid_wait_count);
+  before= microsecond_interval_timer();
 
   if (timeout_us >= 0)
   {
@@ -1973,6 +2054,15 @@ gtid_waiting::wait_for_pos(THD *thd, String *gtid_str, longlong timeout_us)
   {
     if ((err= wait_for_gtid(thd, &wait_pos[i], wait_until_ptr)))
       break;
+  }
+  switch (err)
+  {
+    case -1:
+      status_var_increment(thd->status_var.master_gtid_wait_timeouts);
+      /* Deliberate fall through. */
+    case 0:
+      status_var_add(thd->status_var.master_gtid_wait_time,
+                     microsecond_interval_timer() - before);
   }
   my_free(wait_pos);
   return err;

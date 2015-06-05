@@ -1,7 +1,0 @@
---aria-encrypt-tables=ON
---encrypt-tmp-disk-tables=ON
---innodb-encrypt-tables=ON
---innodb-encryption-rotate-key-age=15
---innodb-encryption-threads=4
---innodb-tablespaces-encryption
---encryption-algorithm=aes_ctr

@@ -1,7 +1,7 @@
 #ifndef FIELD_INCLUDED
 #define FIELD_INCLUDED
 /* Copyright (c) 2000, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2014, SkySQL Ab.
+   Copyright (c) 2008, 2015, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -39,6 +39,8 @@ class Relay_log_info;
 class Field;
 class Column_statistics;
 class Column_statistics_collected;
+class Item_func;
+class Item_bool_func2;
 
 enum enum_check_fields
 {
@@ -115,6 +117,20 @@ inline bool is_temporal_type_with_date(enum_field_types type)
   default:
     return false;
   }
+}
+
+
+/**
+  Tests if a field real type can have "DEFAULT CURRENT_TIMESTAMP"
+
+  @param type    Field type, as returned by field->real_type().
+  @retval true   If field real type can have "DEFAULT CURRENT_TIMESTAMP".
+  @retval false  If field real type can not have "DEFAULT CURRENT_TIMESTAMP".
+*/
+inline bool real_type_with_now_as_default(enum_field_types type)
+{
+  return type == MYSQL_TYPE_TIMESTAMP || type == MYSQL_TYPE_TIMESTAMP2 ||
+    type == MYSQL_TYPE_DATETIME || type == MYSQL_TYPE_DATETIME2;
 }
 
 
@@ -963,6 +979,21 @@ public:
     return (double) 0.5; 
   }
 
+  virtual bool can_optimize_keypart_ref(const Item_func *cond,
+                                        const Item *item) const;
+  virtual bool can_optimize_hash_join(const Item_func *cond,
+                                      const Item *item) const
+  {
+    return can_optimize_keypart_ref(cond, item);
+  }
+  virtual bool can_optimize_group_min_max(const Item_bool_func2 *cond,
+                                          const Item *const_item) const;
+  bool can_optimize_outer_join_table_elimination(const Item_func *cond,
+                                                 const Item *item) const
+  {
+    // Exactly the same rules with REF access
+    return can_optimize_keypart_ref(cond, item);
+  }
   friend int cre_myisam(char * name, register TABLE *form, uint options,
 			ulonglong auto_increment_value);
   friend class Copy_field;
@@ -1143,6 +1174,10 @@ protected:
     return report_if_important_data(copier->source_end_pos(),
                                     end, count_spaces);
   }
+  bool cmp_to_string_with_same_collation(const Item_func *cond,
+                                         const Item *item) const;
+  bool cmp_to_string_with_stricter_collation(const Item_func *cond,
+                                             const Item *item) const;
 public:
   Field_longstr(uchar *ptr_arg, uint32 len_arg, uchar *null_ptr_arg,
                 uchar null_bit_arg, utype unireg_check_arg,
@@ -1154,6 +1189,10 @@ public:
   int store_decimal(const my_decimal *d);
   uint32 max_data_length() const;
   bool match_collation_to_optimize_range() const { return true; }
+  bool can_optimize_keypart_ref(const Item_func *cond, const Item *item) const;
+  bool can_optimize_hash_join(const Item_func *cond, const Item *item) const;
+  bool can_optimize_group_min_max(const Item_bool_func2 *cond,
+                                  const Item *const_item) const;
 };
 
 /* base class for float and double and decimal (old one) */
@@ -1581,6 +1620,17 @@ public:
   uint size_of() const { return sizeof(*this); }
   uint32 max_display_length() { return 4; }
   void move_field_offset(my_ptrdiff_t ptr_diff) {}
+  bool can_optimize_keypart_ref(const Item_func *cond, const Item *item) const
+  {
+    DBUG_ASSERT(0);
+    return false;
+  }
+  bool can_optimize_group_min_max(const Item_bool_func2 *cond,
+                                  const Item *const_item) const
+  {
+    DBUG_ASSERT(0);
+    return false;
+  }
 };
 
 
@@ -1613,6 +1663,9 @@ public:
   {
     return pos_in_interval_val_real(min, max);
   }
+  bool can_optimize_keypart_ref(const Item_func *cond, const Item *item) const;
+  bool can_optimize_group_min_max(const Item_bool_func2 *cond,
+                                  const Item *const_item) const;
 };
 
 
@@ -2583,6 +2636,14 @@ public:
   int  store(longlong nr, bool unsigned_val);
   int  store_decimal(const my_decimal *);
   uint size_of() const { return sizeof(*this); }
+  /**
+   Key length is provided only to support hash joins. (compared byte for byte)
+   Ex: SELECT .. FROM t1,t2 WHERE t1.field_geom1=t2.field_geom2.
+
+   The comparison is not very relevant, as identical geometry might be
+   represented differently, but we need to support it either way.
+  */
+  uint32 key_length() const { return packlength; }
 
   /**
     Non-nullable GEOMETRY types cannot have defaults,
@@ -2650,6 +2711,19 @@ public:
   virtual const uchar *unpack(uchar *to, const uchar *from,
                               const uchar *from_end, uint param_data);
 
+  bool can_optimize_keypart_ref(const Item_func *cond, const Item *item) const;
+  bool can_optimize_group_min_max(const Item_bool_func2 *cond,
+                                  const Item *const_item) const
+  {
+    /*
+      Can't use GROUP_MIN_MAX optimization for ENUM and SET,
+      because the values are stored as numbers in index,
+      while MIN() and MAX() work as strings.
+      It would return the records with min and max enum numeric indexes.
+     "Bug#45300 MAX() and ENUM type" should be fixed first.
+    */
+    return false;
+  }
 private:
   int do_save_field_metadata(uchar *first_byte);
   uint is_equal(Create_field *new_field);
@@ -2848,6 +2922,7 @@ public:
 };
 
 
+extern const LEX_STRING null_lex_str;
 /*
   Create field class for CREATE TABLE
 */
@@ -2902,9 +2977,13 @@ public:
   */
   bool stored_in_db;
 
-  Create_field() :after(0), pack_length(0), key_length(0), interval(0),
-                  srid(0), field(0), option_list(NULL), option_struct(NULL),
-                  create_if_not_exists(false), stored_in_db(true)
+  Create_field() :change(0), after(0), comment(null_lex_str),
+                  def(0), on_update(0), sql_type(MYSQL_TYPE_NULL),
+                  flags(0), pack_length(0), key_length(0), interval(0),
+                  srid(0), geom_type(Field::GEOM_GEOMETRY),
+                  field(0), option_list(NULL), option_struct(NULL),
+                  create_if_not_exists(false), vcol_info(0),
+                  stored_in_db(true)
   {
     interval_list.empty();
   }

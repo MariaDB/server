@@ -240,7 +240,7 @@ where table_schema = 'mysqltest' and table_name = 'v1';
 table_name	column_name	privileges
 v1	c	select
 explain select * from v1;
-ERROR HY000: EXPLAIN/SHOW can not be issued; lacking privileges for underlying table
+ERROR HY000: ANALYZE/EXPLAIN/SHOW can not be issued; lacking privileges for underlying table
 drop view v1, mysqltest.v1;
 drop tables mysqltest.t4, mysqltest.t1, t2, t3, t5;
 drop database mysqltest;
@@ -785,6 +785,7 @@ Database	Table	In_use	Name_locked
 mysql	user	0	0
 show status where variable_name like "%database%";
 Variable_name	Value
+Acl_database_grants	2
 Com_show_databases	3
 show variables where variable_name like "skip_show_databas";
 Variable_name	Value
@@ -2009,6 +2010,21 @@ drop view v1;
 #
 # Clean-up.
 drop database mysqltest;
+#
+# Test for bug #16869534 - "QUERYING SUBSET OF COLUMNS DOESN'T USE TABLE
+#                           CACHE; OPENED_TABLES INCREASES"
+#
+SELECT * FROM INFORMATION_SCHEMA.TABLES;
+SELECT VARIABLE_VALUE INTO @val1 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE
+VARIABLE_NAME LIKE 'Opened_tables';
+SELECT ENGINE FROM INFORMATION_SCHEMA.TABLES;
+# The below SELECT query should give same output as above SELECT query.
+SELECT VARIABLE_VALUE INTO @val2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE
+VARIABLE_NAME LIKE 'Opened_tables';
+# The below select should return '1'
+SELECT @val1 = @val2;
+@val1 = @val2
+1
 #
 # End of 5.5 tests
 #

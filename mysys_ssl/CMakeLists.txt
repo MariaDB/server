@@ -33,7 +33,6 @@ IF(WITH_SSL STREQUAL "bundled" AND HAVE_VISIBILITY_HIDDEN)
 ENDIF()
 
 SET(MYSYS_SSL_SOURCES
-    my_aes.cc
     my_sha1.cc
     my_sha2.cc
     my_md5.cc

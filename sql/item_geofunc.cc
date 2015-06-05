@@ -957,8 +957,8 @@ const char *Item_func_spatial_mbr_rel::func_name() const
 longlong Item_func_spatial_mbr_rel::val_int()
 {
   DBUG_ASSERT(fixed == 1);
-  String *res1= args[0]->val_str(&cmp.value1);
-  String *res2= args[1]->val_str(&cmp.value2);
+  String *res1= args[0]->val_str(&tmp_value1);
+  String *res2= args[1]->val_str(&tmp_value2);
   Geometry_buffer buffer1, buffer2;
   Geometry *g1, *g2;
   MBR mbr1, mbr2;
@@ -999,25 +999,7 @@ longlong Item_func_spatial_mbr_rel::val_int()
 }
 
 
-Item_func_spatial_rel::Item_func_spatial_rel(Item *a,Item *b,
-                                             enum Functype sp_rel) :
-    Item_int_func(a,b), collector()
-{
-  spatial_rel = sp_rel;
-}
-
-
-Item_func_spatial_rel::Item_func_spatial_rel(Item *a,Item *b, Item *mask) :
-    Item_int_func(a,b,mask), spatial_rel(SP_RELATE_FUNC)
-{}
-
-
-Item_func_spatial_rel::~Item_func_spatial_rel()
-{
-}
-
-
-const char *Item_func_spatial_rel::func_name() const 
+const char *Item_func_spatial_precise_rel::func_name() const 
 { 
   switch (spatial_rel) {
     case SP_CONTAINS_FUNC:
@@ -1081,9 +1063,9 @@ static Gcalc_function::op_type op_matrix(int n)
   switch (n)
   {
     case 0:
-      return Gcalc_function::op_border;
-    case 1:
       return Gcalc_function::op_internals;
+    case 1:
+      return Gcalc_function::op_border;
     case 2:
       return (Gcalc_function::op_type)
         ((int) Gcalc_function::op_not | (int) Gcalc_function::op_union);
@@ -1103,6 +1085,8 @@ static int setup_relate_func(Geometry *g1, Geometry *g2,
   int last_shape_pos;
 
   last_shape_pos= func->get_next_expression_pos();
+  if (func->reserve_op_buffer(1))
+    return 1;
   func->add_operation(Gcalc_function::op_intersection, 0);
   for (int nc=0; nc<9; nc++)
   {
@@ -1120,11 +1104,11 @@ static int setup_relate_func(Geometry *g1, Geometry *g2,
         cur_op|= Gcalc_function::v_find_t;
         break;
       case 'F':
-        cur_op|= Gcalc_function::v_find_f;
+        cur_op|= (Gcalc_function::op_not | Gcalc_function::v_find_t);
         break;
     };
     ++n_operands;
-    if (func->reserve_op_buffer(1))
+    if (func->reserve_op_buffer(3))
       return 1;
     func->add_operation(cur_op, 2);
 
@@ -1156,9 +1140,9 @@ static int setup_relate_func(Geometry *g1, Geometry *g2,
 
 #define GIS_ZERO 0.00000000001
 
-longlong Item_func_spatial_rel::val_int()
+longlong Item_func_spatial_precise_rel::val_int()
 {
-  DBUG_ENTER("Item_func_spatial_rel::val_int");
+  DBUG_ENTER("Item_func_spatial_precise_rel::val_int");
   DBUG_ASSERT(fixed == 1);
   String *res1;
   String *res2;
@@ -1793,6 +1777,13 @@ String *Item_func_buffer::val_str(String *str_value)
 
   if (dist > 0.0)
     mbr.buffer(dist);
+  else
+  {
+    /* This happens when dist is too far negative. */
+    if (mbr.xmax + dist < mbr.xmin || mbr.ymax + dist < mbr.ymin)
+      goto return_empty_result;
+  }
+
   collector.set_extent(mbr.xmin, mbr.xmax, mbr.ymin, mbr.ymax);
   /*
     If the distance given is 0, the Buffer function is in fact NOOP,
@@ -1820,6 +1811,7 @@ String *Item_func_buffer::val_str(String *str_value)
     goto mem_error;
 
 
+return_empty_result:
   str_value->set_charset(&my_charset_bin);
   if (str_value->reserve(SRID_SIZE, 512))
     goto mem_error;
@@ -1859,7 +1851,6 @@ longlong Item_func_issimple::val_int()
   Gcalc_operation_transporter trn(&func, &collector);
   Geometry *g;
   int result= 1;
-  const Gcalc_scan_iterator::event_point *ev;
   MBR mbr;
   const char *c_end;
 
@@ -1884,6 +1875,8 @@ longlong Item_func_issimple::val_int()
 
   while (scan_it.more_points())
   {
+    const Gcalc_scan_iterator::event_point *ev, *next_ev;
+
     if (scan_it.step())
       goto mem_error;
 
@@ -1891,11 +1884,18 @@ longlong Item_func_issimple::val_int()
     if (ev->simple_event())
       continue;
 
-    if ((ev->event == scev_thread || ev->event == scev_single_point) &&
-        !ev->get_next())
+    next_ev= ev->get_next();
+    if ((ev->event & (scev_thread | scev_single_point)) && !next_ev)
       continue;
 
-    if (ev->event == scev_two_threads && !ev->get_next()->get_next())
+    if ((ev->event == scev_two_threads) && !next_ev->get_next())
+      continue;
+
+    /* If the first and last points of a curve coincide - that is     */
+    /* an exception to the rule and the line is considered as simple. */
+    if ((next_ev && !next_ev->get_next()) &&
+        (ev->event & (scev_thread | scev_end)) &&
+        (next_ev->event & (scev_thread | scev_end)))
       continue;
 
     result= 0;

@@ -305,7 +305,6 @@ static int d_search(register MI_INFO *info, register MI_KEYDEF *keyinfo,
     }
   }
   leaf_buff=0;
-  LINT_INIT(leaf_page);
   if (nod_flag)
   {
     leaf_page=_mi_kpos(nod_flag,keypos);

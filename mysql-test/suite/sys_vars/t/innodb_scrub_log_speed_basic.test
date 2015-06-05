@@ -1,0 +1,55 @@
+--source include/have_innodb.inc
+
+# Display default value
+SELECT @@GLOBAL.innodb_scrub_log_speed;
+--echo 200 Expected
+
+# Check if value can be set
+SET @@GLOBAL.innodb_scrub_log_speed=100;
+--echo 1 Expected
+
+SELECT @@GLOBAL.innodb_scrub_log_speed;
+--echo 100 Expected
+
+SET @@GLOBAL.innodb_scrub_log_speed=DEFAULT;
+--echo 1 Expected
+
+SELECT @@GLOBAL.innodb_scrub_log_speed;
+--echo 200 Expected
+
+# Check if the value in GLOBAL TABLE matches value in variable
+SELECT @@GLOBAL.innodb_scrub_log_speed = VARIABLE_VALUE
+FROM INFORMATION_SCHEMA.GLOBAL_VARIABLES
+WHERE VARIABLE_NAME='innodb_scrub_log_speed';
+--echo 1 Expected
+
+SELECT @@GLOBAL.innodb_scrub_log_speed;
+--echo 200 Expected
+
+SELECT VARIABLE_VALUE
+FROM INFORMATION_SCHEMA.GLOBAL_VARIABLES 
+WHERE VARIABLE_NAME='innodb_scrub_log_speed';
+--echo 200 Expected
+
+# Check if accessing variable with and without GLOBAL point to same variable
+SELECT @@innodb_scrub_log_speed = @@GLOBAL.innodb_scrub_log_speed;
+--echo 1 Expected
+
+# Check if innodb_scrub_log_speed can be accessed with and without @@ sign
+SELECT @@innodb_scrub_log_speed;
+--echo 200 Expected
+
+--Error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SELECT @@local.innodb_scrub_log_speed;
+--echo Expected error 'Variable is a GLOBAL variable'
+
+--Error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SELECT @@SESSION.innodb_scrub_log_speed;
+--echo Expected error 'Variable is a GLOBAL variable'
+
+SELECT @@GLOBAL.innodb_scrub_log_speed;
+--echo 200 Expected
+
+--Error ER_BAD_FIELD_ERROR
+SELECT innodb_scrub_log_speed;
+--echo Expected error 'Unknow column in field list'

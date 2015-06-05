@@ -411,7 +411,7 @@ public:
   {
     return sel_cmp(field,max_value, arg->min_value, max_flag, arg->min_flag);
   }
-  SEL_ARG *clone_and(SEL_ARG* arg)
+  SEL_ARG *clone_and(THD *thd, SEL_ARG* arg)
   {						// Get overlapping range
     uchar *new_min,*new_max;
     uint8 flag_min,flag_max;
@@ -431,8 +431,9 @@ public:
     {
       new_max=arg->max_value; flag_max=arg->max_flag;
     }
-    return new SEL_ARG(field, part, new_min, new_max, flag_min, flag_max,
-                       MY_TEST(maybe_flag && arg->maybe_flag));
+    return new (thd->mem_root) SEL_ARG(field, part, new_min, new_max, flag_min,
+                                       flag_max,
+                                       MY_TEST(maybe_flag && arg->maybe_flag));
   }
   SEL_ARG *clone_first(SEL_ARG *arg)
   {						// min <= X < arg->min
@@ -951,7 +952,6 @@ static SEL_TREE * get_mm_parts(RANGE_OPT_PARAM *param,COND *cond_func,Field *fie
 static SEL_ARG *get_mm_leaf(RANGE_OPT_PARAM *param,COND *cond_func,Field *field,
 			    KEY_PART *key_part,
 			    Item_func::Functype type,Item *value);
-static SEL_TREE *get_mm_tree(RANGE_OPT_PARAM *param, Item **cond);
 
 static bool is_key_scan_ror(PARAM *param, uint keynr, uint8 nparts);
 static ha_rows check_quick_select(PARAM *param, uint idx, bool index_only,
@@ -1772,7 +1772,7 @@ SQL_SELECT *make_select(TABLE *head, table_map const_tables,
 
   if (!conds && !allow_null_cond)
     DBUG_RETURN(0);
-  if (!(select= new SQL_SELECT))
+  if (!(select= new (head->in_use->mem_root) SQL_SELECT))
   {
     *error= 1;			// out of memory
     DBUG_RETURN(0);		/* purecov: inspected */
@@ -3130,7 +3130,7 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
 
     if (cond)
     {
-      if ((tree= get_mm_tree(&param, &cond)))
+      if ((tree= cond->get_mm_tree(&param, &cond)))
       {
         if (tree->type == SEL_TREE::IMPOSSIBLE)
         {
@@ -3235,8 +3235,8 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
       {
         /* Try creating index_merge/ROR-union scan. */
         SEL_IMERGE *imerge;
-        TABLE_READ_PLAN *best_conj_trp= NULL, *new_conj_trp;
-        LINT_INIT(new_conj_trp); /* no empty index_merge lists possible */
+        TABLE_READ_PLAN *best_conj_trp= NULL,
+          *UNINIT_VAR(new_conj_trp); /* no empty index_merge lists possible */
         DBUG_PRINT("info",("No range reads possible,"
                            " trying to construct index_merge"));
         List_iterator_fast<SEL_IMERGE> it(tree->merges);
@@ -3627,7 +3627,7 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item **cond)
 
     thd->no_errors=1;		    
 
-    tree= get_mm_tree(&param, cond);
+    tree= cond[0]->get_mm_tree(&param, cond);
 
     if (!tree)
       goto free_alloc;
@@ -4060,7 +4060,7 @@ bool prune_partitions(THD *thd, TABLE *table, Item *pprune_cond)
   SEL_TREE *tree;
   int res;
 
-  tree= get_mm_tree(range_par, &pprune_cond);
+  tree= pprune_cond->get_mm_tree(range_par, &pprune_cond);
   if (!tree)
     goto all_used;
 
@@ -7966,245 +7966,286 @@ static SEL_TREE *get_full_func_mm_tree(RANGE_OPT_PARAM *param,
     NULL     - Could not infer anything from condition cond.
     SEL_TREE with type=IMPOSSIBLE - condition can never be true.
 */
-
-static SEL_TREE *get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr)
+SEL_TREE *Item_cond_and::get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr)
 {
-  SEL_TREE *tree=0;
-  SEL_TREE *ftree= 0;
-  Item_field *field_item= 0;
-  bool inv= FALSE;
-  Item *value= 0;
-  Item *cond= *cond_ptr;
-  DBUG_ENTER("get_mm_tree");
-
-  if (cond->type() == Item::COND_ITEM)
+  DBUG_ENTER("Item_cond_and::get_mm_tree");
+  SEL_TREE *tree= NULL;
+  List_iterator<Item> li(*argument_list());
+  Item *item;
+  while ((item= li++))
   {
-    List_iterator<Item> li(*((Item_cond*) cond)->argument_list());
-
-    if (((Item_cond*) cond)->functype() == Item_func::COND_AND_FUNC)
+    SEL_TREE *new_tree= li.ref()[0]->get_mm_tree(param,li.ref());
+    if (param->statement_should_be_aborted())
+      DBUG_RETURN(NULL);
+    tree= tree_and(param, tree, new_tree);
+    if (tree && tree->type == SEL_TREE::IMPOSSIBLE)
     {
-      tree= NULL;
-      Item *item;
-      while ((item=li++))
-      {
-        SEL_TREE *new_tree= get_mm_tree(param,li.ref());
-        if (param->statement_should_be_aborted())
-          DBUG_RETURN(NULL);
-        tree= tree_and(param,tree,new_tree);
-        if (tree && tree->type == SEL_TREE::IMPOSSIBLE)
-        {
-          /* 
-            Do not remove 'item' from 'cond'. We return a SEL_TREE::IMPOSSIBLE 
-            and that is sufficient for the caller to see that the whole
-            condition is never true.
-          */
-          break;
-        }
-      }
+      /*
+        Do not remove 'item' from 'cond'. We return a SEL_TREE::IMPOSSIBLE
+        and that is sufficient for the caller to see that the whole
+        condition is never true.
+      */
+      break;
     }
-    else
-    {                                           // COND OR
-      bool replace_cond= false;
-      Item *replacement_item= li++;
-      tree= get_mm_tree(param, li.ref());
-      if (param->statement_should_be_aborted())
+  }
+  DBUG_RETURN(tree);
+}
+
+
+SEL_TREE *Item_cond::get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr)
+{
+  DBUG_ENTER("Item_cond::get_mm_tree");
+  List_iterator<Item> li(*argument_list());
+  bool replace_cond= false;
+  Item *replacement_item= li++;
+  SEL_TREE *tree= li.ref()[0]->get_mm_tree(param, li.ref());
+  if (param->statement_should_be_aborted())
+    DBUG_RETURN(NULL);
+  if (tree)
+  {
+    if (tree->type == SEL_TREE::IMPOSSIBLE &&
+        param->remove_false_where_parts)
+    {
+      /* See the other li.remove() call below */
+      li.remove();
+      if (argument_list()->elements <= 1)
+        replace_cond= true;
+    }
+
+    Item *item;
+    while ((item= li++))
+    {
+      SEL_TREE *new_tree= li.ref()[0]->get_mm_tree(param, li.ref());
+      if (new_tree == NULL || param->statement_should_be_aborted())
         DBUG_RETURN(NULL);
-      if (tree)
+      tree= tree_or(param, tree, new_tree);
+      if (tree == NULL || tree->type == SEL_TREE::ALWAYS)
       {
-        if (tree->type == SEL_TREE::IMPOSSIBLE &&
-            param->remove_false_where_parts)
-        {
-          /* See the other li.remove() call below */
-          li.remove();
-          if (((Item_cond*)cond)->argument_list()->elements <= 1)
-            replace_cond= true;
-        }
-
-        Item *item;
-        while ((item=li++))
-        {
-          SEL_TREE *new_tree=get_mm_tree(param,li.ref());
-          if (new_tree == NULL || param->statement_should_be_aborted())
-            DBUG_RETURN(NULL);
-          tree= tree_or(param,tree,new_tree);
-          if (tree == NULL || tree->type == SEL_TREE::ALWAYS)
-          {
-            replacement_item= *li.ref();
-            break;
-          }
-
-          if (new_tree && new_tree->type == SEL_TREE::IMPOSSIBLE &&
-              param->remove_false_where_parts)
-          {
-            /*
-              This is a condition in form
-
-                cond = item1 OR ... OR item_i OR ... itemN
-
-              and item_i produces SEL_TREE(IMPOSSIBLE). We should remove item_i 
-              from cond.  This may cause 'cond' to become a degenerate,
-              one-way OR. In that case, we replace 'cond' with the remaining
-              item_i.
-            */
-            li.remove();
-            if (((Item_cond*)cond)->argument_list()->elements <= 1)
-              replace_cond= true;
-          }
-          else
-            replacement_item= *li.ref();
-        }
-
-        if (replace_cond)
-          *cond_ptr= replacement_item;
-      }
-    }
-    DBUG_RETURN(tree);
-  }
-  /* Here when simple cond */
-  if (cond->const_item())
-  {
-    if (cond->is_expensive())
-      DBUG_RETURN(0);
-    /*
-      During the cond->val_int() evaluation we can come across a subselect 
-      item which may allocate memory on the thd->mem_root and assumes 
-      all the memory allocated has the same life span as the subselect 
-      item itself. So we have to restore the thread's mem_root here.
-    */
-    MEM_ROOT *tmp_root= param->mem_root;
-    param->thd->mem_root= param->old_root;
-    tree= cond->val_int() ? new(tmp_root) SEL_TREE(SEL_TREE::ALWAYS) :
-                            new(tmp_root) SEL_TREE(SEL_TREE::IMPOSSIBLE);
-    param->thd->mem_root= tmp_root;
-    DBUG_RETURN(tree);
-  }
-
-  table_map ref_tables= 0;
-  table_map param_comp= ~(param->prev_tables | param->read_tables |
-		          param->current_table);
-  if (cond->type() != Item::FUNC_ITEM)
-  {						// Should be a field
-    ref_tables= cond->used_tables();
-    if ((ref_tables & param->current_table) ||
-	(ref_tables & ~(param->prev_tables | param->read_tables)))
-      DBUG_RETURN(0);
-    DBUG_RETURN(new SEL_TREE(SEL_TREE::MAYBE));
-  }
-
-  Item_func *cond_func= (Item_func*) cond;
-  if (cond_func->functype() == Item_func::BETWEEN ||
-      cond_func->functype() == Item_func::IN_FUNC)
-    inv= ((Item_func_opt_neg *) cond_func)->negated;
-  else if (cond_func->select_optimize() == Item_func::OPTIMIZE_NONE)
-    DBUG_RETURN(0);			       
-
-  param->cond= cond;
-
-  switch (cond_func->functype()) {
-  case Item_func::BETWEEN:
-    if (cond_func->arguments()[0]->real_item()->type() == Item::FIELD_ITEM)
-    {
-      field_item= (Item_field*) (cond_func->arguments()[0]->real_item());
-      ftree= get_full_func_mm_tree(param, cond_func, field_item, NULL, inv);
-    }
-
-    /*
-      Concerning the code below see the NOTES section in
-      the comments for the function get_full_func_mm_tree()
-    */
-    for (uint i= 1 ; i < cond_func->arg_count ; i++)
-    {
-      if (cond_func->arguments()[i]->real_item()->type() == Item::FIELD_ITEM)
-      {
-        field_item= (Item_field*) (cond_func->arguments()[i]->real_item());
-        SEL_TREE *tmp= get_full_func_mm_tree(param, cond_func, 
-                                    field_item, (Item*)(intptr)i, inv);
-        if (inv)
-        {
-          tree= !tree ? tmp : tree_or(param, tree, tmp);
-          if (tree == NULL)
-            break;
-        }
-        else 
-          tree= tree_and(param, tree, tmp);
-      }
-      else if (inv)
-      { 
-        tree= 0;
+        replacement_item= *li.ref();
         break;
       }
-    }
 
-    ftree = tree_and(param, ftree, tree);
-    break;
-  case Item_func::IN_FUNC:
-  {
-    Item_func_in *func=(Item_func_in*) cond_func;
-    if (func->key_item()->real_item()->type() != Item::FIELD_ITEM)
-      DBUG_RETURN(0);
-    field_item= (Item_field*) (func->key_item()->real_item());
-    ftree= get_full_func_mm_tree(param, cond_func, field_item, NULL, inv);
-    break;
-  }
-  case Item_func::MULT_EQUAL_FUNC:
-  {
-    Item_equal *item_equal= (Item_equal *) cond;    
-    if (!(value= item_equal->get_const()) || value->is_expensive())
-      DBUG_RETURN(0);
-    Item_equal_fields_iterator it(*item_equal);
-    ref_tables= value->used_tables();
-    while (it++)
-    {
-      Field *field= it.get_curr_field();
-      Item_result cmp_type= field->cmp_type();
-      if (!((ref_tables | field->table->map) & param_comp))
+      if (new_tree && new_tree->type == SEL_TREE::IMPOSSIBLE &&
+          param->remove_false_where_parts)
       {
-        tree= get_mm_parts(param, cond, field, Item_func::EQ_FUNC,
-		           value,cmp_type);
-        ftree= !ftree ? tree : tree_and(param, ftree, tree);
+        /*
+          This is a condition in form
+
+            cond = item1 OR ... OR item_i OR ... itemN
+
+          and item_i produces SEL_TREE(IMPOSSIBLE). We should remove item_i
+          from cond.  This may cause 'cond' to become a degenerate,
+          one-way OR. In that case, we replace 'cond' with the remaining
+          item_i.
+        */
+        li.remove();
+        if (argument_list()->elements <= 1)
+          replace_cond= true;
       }
+      else
+        replacement_item= *li.ref();
     }
-    
-    DBUG_RETURN(ftree);
+
+    if (replace_cond)
+      *cond_ptr= replacement_item;
   }
-  default:
+  DBUG_RETURN(tree);
+}
 
-    DBUG_ASSERT (!ftree);
-    if (cond_func->arguments()[0]->real_item()->type() == Item::FIELD_ITEM)
+
+static SEL_TREE *get_mm_tree_for_const(RANGE_OPT_PARAM *param, Item *cond)
+{
+  DBUG_ENTER("get_mm_tree_for_const");
+  if (cond->is_expensive())
+    DBUG_RETURN(0);
+  /*
+    During the cond->val_int() evaluation we can come across a subselect
+    item which may allocate memory on the thd->mem_root and assumes
+    all the memory allocated has the same life span as the subselect
+    item itself. So we have to restore the thread's mem_root here.
+  */
+  MEM_ROOT *tmp_root= param->mem_root;
+  param->thd->mem_root= param->old_root;
+  SEL_TREE *tree;
+  tree= cond->val_int() ? new(tmp_root) SEL_TREE(SEL_TREE::ALWAYS) :
+                          new(tmp_root) SEL_TREE(SEL_TREE::IMPOSSIBLE);
+  param->thd->mem_root= tmp_root;
+  DBUG_RETURN(tree);
+}
+
+
+SEL_TREE *Item::get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr)
+{
+  DBUG_ENTER("Item::get_mm_tree");
+  if (const_item())
+    DBUG_RETURN(get_mm_tree_for_const(param, this));
+
+  /*
+    Here we have a not-constant non-function Item.
+
+    Item_field should not appear, as normalize_cond() replaces
+    "WHERE field" to "WHERE field<>0".
+
+    Item_exists_subselect is possible, e.g. in this query:
+    SELECT id, st FROM t1
+    WHERE st IN ('GA','FL') AND EXISTS (SELECT 1 FROM t2 WHERE t2.id=t1.id)
+    GROUP BY id;
+  */
+  table_map ref_tables= used_tables();
+  if ((ref_tables & param->current_table) ||
+      (ref_tables & ~(param->prev_tables | param->read_tables)))
+    DBUG_RETURN(0);
+  DBUG_RETURN(new SEL_TREE(SEL_TREE::MAYBE));
+}
+
+
+SEL_TREE *
+Item_func_between::get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr)
+{
+  DBUG_ENTER("Item_func_between::get_mm_tree");
+  if (const_item())
+    DBUG_RETURN(get_mm_tree_for_const(param, this));
+
+  param->cond= this;
+
+  SEL_TREE *tree= 0;
+  SEL_TREE *ftree= 0;
+
+  if (arguments()[0]->real_item()->type() == Item::FIELD_ITEM)
+  {
+    Item_field *field_item= (Item_field*) (arguments()[0]->real_item());
+    ftree= get_full_func_mm_tree(param, this, field_item, NULL, negated);
+  }
+
+  /*
+    Concerning the code below see the NOTES section in
+    the comments for the function get_full_func_mm_tree()
+  */
+  for (uint i= 1 ; i < arg_count ; i++)
+  {
+    if (arguments()[i]->real_item()->type() == Item::FIELD_ITEM)
     {
-      field_item= (Item_field*) (cond_func->arguments()[0]->real_item());
-      value= cond_func->arg_count > 1 ? cond_func->arguments()[1] : NULL;
-      if (value && value->is_expensive())
-        DBUG_RETURN(0);
-      if (!cond_func->arguments()[0]->real_item()->const_item())
-        ftree= get_full_func_mm_tree(param, cond_func, field_item, value, inv);
+      Item_field *field_item= (Item_field*) (arguments()[i]->real_item());
+      SEL_TREE *tmp= get_full_func_mm_tree(param, this, field_item,
+                                           (Item*)(intptr) i, negated);
+      if (negated)
+      {
+        tree= !tree ? tmp : tree_or(param, tree, tmp);
+        if (tree == NULL)
+          break;
+      }
+      else
+        tree= tree_and(param, tree, tmp);
     }
-    /*
-      Even if get_full_func_mm_tree() was executed above and did not
-      return a range predicate it may still be possible to create one
-      by reversing the order of the operands. Note that this only
-      applies to predicates where both operands are fields. Example: A
-      query of the form
-
-         WHERE t1.a OP t2.b
-
-      In this case, arguments()[0] == t1.a and arguments()[1] == t2.b.
-      When creating range predicates for t2, get_full_func_mm_tree()
-      above will return NULL because 'field' belongs to t1 and only
-      predicates that applies to t2 are of interest. In this case a
-      call to get_full_func_mm_tree() with reversed operands (see
-      below) may succeed.
-    */
-    if (!ftree && cond_func->have_rev_func() &&
-        cond_func->arguments()[1]->real_item()->type() == Item::FIELD_ITEM)
+    else if (negated)
     {
-      field_item= (Item_field*) (cond_func->arguments()[1]->real_item());
-      value= cond_func->arguments()[0];
-      if (value && value->is_expensive())
-        DBUG_RETURN(0);
-      if (!cond_func->arguments()[1]->real_item()->const_item())
-        ftree= get_full_func_mm_tree(param, cond_func, field_item, value, inv);
+      tree= 0;
+      break;
     }
+  }
+
+  ftree= tree_and(param, ftree, tree);
+  DBUG_RETURN(ftree);
+}
+
+
+SEL_TREE *Item_func_in::get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr)
+{
+  DBUG_ENTER("Item_func_in::get_mm_tree");
+  if (const_item())
+    DBUG_RETURN(get_mm_tree_for_const(param, this));
+
+  param->cond= this;
+
+  if (key_item()->real_item()->type() != Item::FIELD_ITEM)
+    DBUG_RETURN(0);
+  Item_field *field= (Item_field*) (key_item()->real_item());
+  SEL_TREE *tree= get_full_func_mm_tree(param, this, field, NULL, negated);
+  DBUG_RETURN(tree);
+}
+
+
+SEL_TREE *Item_equal::get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr)
+{
+  DBUG_ENTER("Item_equal::get_mm_tree");
+  if (const_item())
+    DBUG_RETURN(get_mm_tree_for_const(param, this));
+
+  param->cond= this;
+
+  SEL_TREE *tree= 0;
+  SEL_TREE *ftree= 0;
+
+  Item *value;
+  if (!(value= get_const()) || value->is_expensive())
+    DBUG_RETURN(0);
+
+  Item_equal_fields_iterator it(*this);
+  table_map ref_tables= value->used_tables();
+  table_map param_comp= ~(param->prev_tables | param->read_tables |
+		          param->current_table);
+  while (it++)
+  {
+    Field *field= it.get_curr_field();
+    Item_result cmp_type= field->cmp_type();
+    if (!((ref_tables | field->table->map) & param_comp))
+    {
+      tree= get_mm_parts(param, this, field, Item_func::EQ_FUNC,
+                         value, cmp_type);
+      ftree= !ftree ? tree : tree_and(param, ftree, tree);
+    }
+  }
+
+  DBUG_RETURN(ftree);
+}
+
+
+SEL_TREE *Item_func::get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr)
+{
+  DBUG_ENTER("Item_func::get_mm_tree");
+  if (const_item())
+    DBUG_RETURN(get_mm_tree_for_const(param, this));
+
+  if (select_optimize() == Item_func::OPTIMIZE_NONE)
+    DBUG_RETURN(0);
+
+  param->cond= this;
+
+  SEL_TREE *ftree= 0;
+  if (arguments()[0]->real_item()->type() == Item::FIELD_ITEM)
+  {
+    Item_field *field_item= (Item_field*) (arguments()[0]->real_item());
+    Item *value= arg_count > 1 ? arguments()[1] : NULL;
+    if (value && value->is_expensive())
+      DBUG_RETURN(0);
+    if (!arguments()[0]->real_item()->const_item())
+      ftree= get_full_func_mm_tree(param, this, field_item, value, false);
+  }
+  /*
+    Even if get_full_func_mm_tree() was executed above and did not
+    return a range predicate it may still be possible to create one
+    by reversing the order of the operands. Note that this only
+    applies to predicates where both operands are fields. Example: A
+    query of the form
+
+       WHERE t1.a OP t2.b
+
+    In this case, arguments()[0] == t1.a and arguments()[1] == t2.b.
+    When creating range predicates for t2, get_full_func_mm_tree()
+    above will return NULL because 'field' belongs to t1 and only
+    predicates that applies to t2 are of interest. In this case a
+    call to get_full_func_mm_tree() with reversed operands (see
+    below) may succeed.
+  */
+  if (!ftree && have_rev_func() &&
+      arguments()[1]->real_item()->type() == Item::FIELD_ITEM)
+  {
+    Item_field *field_item= (Item_field*) (arguments()[1]->real_item());
+    Item *value= arguments()[0];
+    if (value && value->is_expensive())
+      DBUG_RETURN(0);
+    if (!arguments()[1]->real_item()->const_item())
+      ftree= get_full_func_mm_tree(param, this, field_item, value, false);
   }
 
   DBUG_RETURN(ftree);
@@ -8231,7 +8272,7 @@ get_mm_parts(RANGE_OPT_PARAM *param, COND *cond_func, Field *field,
     if (field->eq(key_part->field))
     {
       SEL_ARG *sel_arg=0;
-      if (!tree && !(tree=new SEL_TREE()))
+      if (!tree && !(tree=new (param->thd->mem_root) SEL_TREE()))
 	DBUG_RETURN(0);				// OOM
       if (!value || !(value->used_tables() & ~param->read_tables))
       {
@@ -9482,7 +9523,7 @@ key_and(RANGE_OPT_PARAM *param, SEL_ARG *key1, SEL_ARG *key2, uint clone_flag)
     e2->incr_refs();
     if (!next || next->type != SEL_ARG::IMPOSSIBLE)
     {
-      SEL_ARG *new_arg= e1->clone_and(e2);
+      SEL_ARG *new_arg= e1->clone_and(param->thd, e2);
       if (!new_arg)
 	return &null_element;			// End of memory
       new_arg->next_key_part=next;
@@ -11053,7 +11094,9 @@ get_quick_keys(PARAM *param,QUICK_RANGE_SELECT *quick,KEY_PART *key,
   }
 
   /* Get range for retrieving rows in QUICK_SELECT::get_next */
-  if (!(range= new QUICK_RANGE(param->min_key,
+  if (!(range= new (param->thd->mem_root) QUICK_RANGE(
+                               param->thd,
+                               param->min_key,
 			       (uint) (tmp_min_key - param->min_key),
                                min_part >=0 ? make_keypart_map(min_part) : 0,
 			       param->max_key,
@@ -11271,7 +11314,7 @@ QUICK_RANGE_SELECT *get_quick_select_for_ref(THD *thd, TABLE *table,
 
     *ref->null_ref_key= 1;		// Set null byte then create a range
     if (!(null_range= new (alloc)
-          QUICK_RANGE(ref->key_buff, ref->key_length,
+          QUICK_RANGE(thd, ref->key_buff, ref->key_length,
                       make_prev_keypart_map(ref->key_parts),
                       ref->key_buff, ref->key_length,
                       make_prev_keypart_map(ref->key_parts), EQ_RANGE)))
@@ -13412,39 +13455,13 @@ check_group_min_max_predicates(Item *cond, Item_field *min_max_arg_item,
         if (!simple_pred(pred, args, &inv))
           DBUG_RETURN(FALSE);
 
-        /* Check for compatible string comparisons - similar to get_mm_leaf. */
         if (args[0] && args[1] && !args[2]) // this is a binary function
         {
-          if (args[1]->cmp_type() == TIME_RESULT &&
-              min_max_arg_item->field->cmp_type() != TIME_RESULT)
+          DBUG_ASSERT(pred->is_bool_type());
+          Item_bool_func *bool_func= (Item_bool_func*) pred;
+          if (!bool_func->can_optimize_group_min_max(min_max_arg_item,
+                                                     args[1]))
             DBUG_RETURN(FALSE);
-
-          /*
-            Can't use GROUP_MIN_MAX optimization for ENUM and SET,
-            because the values are stored as numbers in index,
-            while MIN() and MAX() work as strings.
-            It would return the records with min and max enum numeric indexes.
-           "Bug#45300 MAX() and ENUM type" should be fixed first.
-          */
-          if (min_max_arg_item->field->real_type() == MYSQL_TYPE_ENUM ||
-              min_max_arg_item->field->real_type() == MYSQL_TYPE_SET)
-            DBUG_RETURN(FALSE);
-
-          if (min_max_arg_item->result_type() == STRING_RESULT &&
-              /*
-                Don't use an index when comparing strings of different collations.
-              */
-              ((args[1]->result_type() == STRING_RESULT &&
-                image_type == Field::itRAW &&
-                min_max_arg_item->field->charset() !=
-                pred->compare_collation()) ||
-             /*
-               We can't always use indexes when comparing a string index to a
-               number.
-             */
-             (args[1]->result_type() != STRING_RESULT &&
-              min_max_arg_item->field->cmp_type() != args[1]->result_type())))
-          DBUG_RETURN(FALSE);
         }
       }
       else
@@ -14219,7 +14236,7 @@ bool QUICK_GROUP_MIN_MAX_SELECT::add_range(SEL_ARG *sel_range)
                     min_max_arg_len) == 0)
       range_flag|= EQ_RANGE;  /* equality condition */
   }
-  range= new QUICK_RANGE(sel_range->min_value, min_max_arg_len,
+  range= new QUICK_RANGE(join->thd, sel_range->min_value, min_max_arg_len,
                          make_keypart_map(sel_range->part),
                          sel_range->max_value, min_max_arg_len,
                          make_keypart_map(sel_range->part),
@@ -14723,6 +14740,36 @@ int QUICK_GROUP_MIN_MAX_SELECT::next_prefix()
 }
 
 
+/**
+  Allocate a temporary buffer, populate the buffer using the group prefix key
+  and the min/max field key, and compare the result to the current key pointed
+  by index_info.
+  
+  @param key    - the min or max field key
+  @param length - length of "key"
+*/
+int
+QUICK_GROUP_MIN_MAX_SELECT::cmp_min_max_key(const uchar *key, uint16 length)
+{
+  /*
+    Allocate a buffer.
+    Note, we allocate one extra byte, because some of Field_xxx::cmp(),
+    e.g. Field_newdate::cmp(), use uint3korr() which actually read four bytes
+    and then bit-and the read value with 0xFFFFFF.
+    See "MDEV-7920 main.group_min_max fails ... with valgrind" for details.
+  */
+  uchar *buffer= (uchar*) my_alloca(real_prefix_len + min_max_arg_len + 1);
+  /* Concatenate the group prefix key and the min/max field key */
+  memcpy(buffer, group_prefix, real_prefix_len);
+  memcpy(buffer + real_prefix_len, key, length);
+  /* Compare the key pointed by key_info to the created key */
+  int cmp_res= key_cmp(index_info->key_part, buffer,
+                       real_prefix_len + min_max_arg_len);
+  my_afree(buffer);
+  return cmp_res;
+}
+
+
 /*
   Find the minimal key in a group that satisfies some range conditions for the
   min/max argument field.
@@ -14824,15 +14871,7 @@ int QUICK_GROUP_MIN_MAX_SELECT::next_min_in_range()
     /* If there is an upper limit, check if the found key is in the range. */
     if ( !(cur_range->flag & NO_MAX_RANGE) )
     {
-      /* Compose the MAX key for the range. */
-      uchar *max_key= (uchar*) my_alloca(real_prefix_len + min_max_arg_len);
-      memcpy(max_key, group_prefix, real_prefix_len);
-      memcpy(max_key + real_prefix_len, cur_range->max_key,
-             cur_range->max_length);
-      /* Compare the found key with max_key. */
-      int cmp_res= key_cmp(index_info->key_part, max_key,
-                           real_prefix_len + min_max_arg_len);
-      my_afree(max_key);
+      int cmp_res= cmp_min_max_key(cur_range->max_key, cur_range->max_length);
       /*
         The key is outside of the range if: 
         the interval is open and the key is equal to the maximum boundry
@@ -14950,15 +14989,7 @@ int QUICK_GROUP_MIN_MAX_SELECT::next_max_in_range()
     /* If there is a lower limit, check if the found key is in the range. */
     if ( !(cur_range->flag & NO_MIN_RANGE) )
     {
-      /* Compose the MIN key for the range. */
-      uchar *min_key= (uchar*) my_alloca(real_prefix_len + min_max_arg_len);
-      memcpy(min_key, group_prefix, real_prefix_len);
-      memcpy(min_key + real_prefix_len, cur_range->min_key,
-             cur_range->min_length);
-      /* Compare the found key with min_key. */
-      int cmp_res= key_cmp(index_info->key_part, min_key,
-                           real_prefix_len + min_max_arg_len);
-      my_afree(min_key);
+      int cmp_res= cmp_min_max_key(cur_range->min_key, cur_range->min_length);
       /*
         The key is outside of the range if: 
         the interval is open and the key is equal to the minimum boundry

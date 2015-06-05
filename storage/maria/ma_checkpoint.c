@@ -573,6 +573,8 @@ pthread_handler_t ma_checkpoint_background(void *arg)
   sleeps= 1;
   pages_to_flush_before_next_checkpoint= 0;
 
+  pthread_detach_this_thread();
+
   for(;;) /* iterations of checkpoints and dirty page flushing */
   {
 #if 0 /* good for testing, to do a lot of checkpoints, finds a lot of bugs */

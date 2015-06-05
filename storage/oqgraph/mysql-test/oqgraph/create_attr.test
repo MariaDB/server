@@ -27,7 +27,7 @@ CREATE TABLE backing (
 
 # oqgraph v2 create table should fail (missing attributes)
 CREATE TABLE oqtable ( latch varchar(32) NULL, origid BIGINT UNSIGNED NULL, destid BIGINT UNSIGNED NULL, weight DOUBLE NULL, seq BIGINT UNSIGNED NULL, linkid BIGINT UNSIGNED NULL, KEY (latch, origid, destid) USING HASH, KEY (latch, destid, origid) USING HASH ) ENGINE=OQGRAPH;
---echo # Expect: 'Invalid OQGRAPH backing store (unspecified or empty data_table attribute)'
+--echo # Expect: 'Invalid OQGRAPH backing store description (unspecified or empty data_table attribute)'
 --error 1296
 DESCRIBE oqtable;
 
@@ -37,7 +37,7 @@ DESCRIBE oqtable;
 DROP TABLE IF EXISTS oqtable;
 --enable_warnings
 CREATE TABLE oqtable ( latch varchar(32) NULL, origid BIGINT UNSIGNED NULL, destid BIGINT UNSIGNED NULL, weight DOUBLE NULL, seq BIGINT UNSIGNED NULL, linkid BIGINT UNSIGNED NULL, KEY (latch, origid, destid) USING HASH, KEY (latch, destid, origid) USING HASH ) ENGINE=OQGRAPH, ORIGID='id', DESTID='id2';
---echo # Expect: 'Invalid OQGRAPH backing store (unspecified or empty data_table attribute)'
+--echo # Expect: 'Invalid OQGRAPH backing store description (unspecified or empty data_table attribute)'
 --error 1296
 DESCRIBE oqtable;
 
@@ -46,7 +46,7 @@ DESCRIBE oqtable;
 DROP TABLE IF EXISTS oqtable;
 --enable_warnings
 CREATE TABLE oqtable ( latch varchar(32) NULL, origid BIGINT UNSIGNED NULL, destid BIGINT UNSIGNED NULL, weight DOUBLE NULL, seq BIGINT UNSIGNED NULL, linkid BIGINT UNSIGNED NULL, KEY (latch, origid, destid) USING HASH, KEY (latch, destid, origid) USING HASH ) ENGINE=OQGRAPH, DATA_TABLE='', ORIGID='id', DESTID='id2';
---echo # Expect: 'Invalid OQGRAPH backing store (unspecified or empty data_table attribute)'
+--echo # Expect: 'Invalid OQGRAPH backing store description (unspecified or empty data_table attribute)'
 --error 1296
 DESCRIBE oqtable;
 
@@ -55,7 +55,7 @@ DESCRIBE oqtable;
 DROP TABLE IF EXISTS oqtable;
 --enable_warnings
 CREATE TABLE oqtable ( latch varchar(32) NULL, origid BIGINT UNSIGNED NULL, destid BIGINT UNSIGNED NULL, weight DOUBLE NULL, seq BIGINT UNSIGNED NULL, linkid BIGINT UNSIGNED NULL, KEY (latch, origid, destid) USING HASH, KEY (latch, destid, origid) USING HASH ) ENGINE=OQGRAPH, DATA_TABLE='', ORIGID='id';
---echo # Expect: 'Invalid OQGRAPH backing store (unspecified or empty data_table attribute)'
+--echo # Expect: 'Invalid OQGRAPH backing store description (unspecified or empty data_table attribute)'
 --error 1296
 DESCRIBE oqtable;
 
@@ -65,7 +65,7 @@ DESCRIBE oqtable;
 DROP TABLE IF EXISTS oqtable;
 --enable_warnings
 CREATE TABLE oqtable ( latch varchar(32) NULL, origid BIGINT UNSIGNED NULL, destid BIGINT UNSIGNED NULL, weight DOUBLE NULL, seq BIGINT UNSIGNED NULL, linkid BIGINT UNSIGNED NULL, KEY (latch, origid, destid) USING HASH, KEY (latch, destid, origid) USING HASH ) ENGINE=OQGRAPH, DATA_TABLE='', DESTID='id2';
---echo # Expect: 'Invalid OQGRAPH backing store (unspecified or empty data_table attribute)'
+--echo # Expect: 'Invalid OQGRAPH backing store description (unspecified or empty data_table attribute)'
 --error 1296
 DESCRIBE oqtable;
 
@@ -85,7 +85,7 @@ DESCRIBE oqtable;
 DROP TABLE IF EXISTS oqtable;
 --enable_warnings
 CREATE TABLE oqtable ( latch varchar(32) NULL, origid BIGINT UNSIGNED NULL, destid BIGINT UNSIGNED NULL, weight DOUBLE NULL, seq BIGINT UNSIGNED NULL, linkid BIGINT UNSIGNED NULL, KEY (latch, origid, destid) USING HASH, KEY (latch, destid, origid) USING HASH ) ENGINE=OQGRAPH, DATA_TABLE='not_backing';
---echo # Expect 'Invalid OQGRAPH backing store (unspecified or empty origid attribute)'
+--echo # Expect 'Invalid OQGRAPH backing store description (unspecified or empty origid attribute)'
 --error 1296
 DESCRIBE oqtable;
 
@@ -94,7 +94,7 @@ DESCRIBE oqtable;
 DROP TABLE IF EXISTS oqtable;
 --enable_warnings
 CREATE TABLE oqtable ( latch varchar(32) NULL, origid BIGINT UNSIGNED NULL, destid BIGINT UNSIGNED NULL, weight DOUBLE NULL, seq BIGINT UNSIGNED NULL, linkid BIGINT UNSIGNED NULL, KEY (latch, origid, destid) USING HASH, KEY (latch, destid, origid) USING HASH ) ENGINE=OQGRAPH, DATA_TABLE='backing', DESTID='id2';
---echo # Expect 'Invalid OQGRAPH backing store (unspecified or empty origid attribute)'
+--echo # Expect 'Invalid OQGRAPH backing store description (unspecified or empty origid attribute)'
 --error 1296
 DESCRIBE oqtable;
 
@@ -103,7 +103,7 @@ DESCRIBE oqtable;
 DROP TABLE IF EXISTS oqtable;
 --enable_warnings
 CREATE TABLE oqtable ( latch varchar(32) NULL, origid BIGINT UNSIGNED NULL, destid BIGINT UNSIGNED NULL, weight DOUBLE NULL, seq BIGINT UNSIGNED NULL, linkid BIGINT UNSIGNED NULL, KEY (latch, origid, destid) USING HASH, KEY (latch, destid, origid) USING HASH ) ENGINE=OQGRAPH, DATA_TABLE='backing',ORIGID='', DESTID='id2';
---echo # Expect 'Invalid OQGRAPH backing store (unspecified or empty origid attribute)'
+--echo # Expect 'Invalid OQGRAPH backing store description (unspecified or empty origid attribute)'
 --error 1296
 DESCRIBE oqtable;
 
@@ -130,7 +130,7 @@ DESCRIBE oqtable;
 DROP TABLE IF EXISTS oqtable;
 --enable_warnings
 CREATE TABLE oqtable ( latch varchar(32) NULL, origid BIGINT UNSIGNED NULL, destid BIGINT UNSIGNED NULL, weight DOUBLE NULL, seq BIGINT UNSIGNED NULL, linkid BIGINT UNSIGNED NULL, KEY (latch, origid, destid) USING HASH, KEY (latch, destid, origid) USING HASH ) ENGINE=OQGRAPH, DATA_TABLE='backing',ORIGID='id';
---echo # Expect 'Invalid OQGRAPH backing store (unspecified or empty destid attribute)'
+--echo # Expect 'Invalid OQGRAPH backing store description (unspecified or empty destid attribute)'
 --error 1296
 DESCRIBE oqtable;
 
@@ -139,7 +139,7 @@ DESCRIBE oqtable;
 DROP TABLE IF EXISTS oqtable;
 --enable_warnings
 CREATE TABLE oqtable ( latch varchar(32) NULL, origid BIGINT UNSIGNED NULL, destid BIGINT UNSIGNED NULL, weight DOUBLE NULL, seq BIGINT UNSIGNED NULL, linkid BIGINT UNSIGNED NULL, KEY (latch, origid, destid) USING HASH, KEY (latch, destid, origid) USING HASH ) ENGINE=OQGRAPH, DATA_TABLE='backing',ORIGID='id',DESTID='';
---echo # Expect 'Invalid OQGRAPH backing store (unspecified or empty destid attribute)'
+--echo # Expect 'Invalid OQGRAPH backing store description (unspecified or empty destid attribute)'
 --error 1296
 DESCRIBE oqtable;
 

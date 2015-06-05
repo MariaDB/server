@@ -1,7 +1,7 @@
 /* -*- c-basic-offset: 2 -*- */
 /*
   Copyright(C) 2011-2013 Kentoku SHIBA
-  Copyright(C) 2011-2014 Kouhei Sutou <kou@clear-code.com>
+  Copyright(C) 2011-2015 Kouhei Sutou <kou@clear-code.com>
 
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -24,15 +24,27 @@
 #  include <sql_servers.h>
 #  include <sql_base.h>
 #endif
+#ifdef WITH_PARTITION_STORAGE_ENGINE
+#  include <partition_info.h>
+#endif
+#include <sql_plugin.h>
+
 #include "mrn_err.h"
 #include "mrn_table.hpp"
 #include "mrn_mysql_compat.h"
+#include "mrn_variables.hpp"
 #include <mrn_lock.hpp>
 
 #if MYSQL_VERSION_ID >= 50603
 #  define MRN_HA_RESOLVE_BY_NAME(name) ha_resolve_by_name(NULL, (name), TRUE)
 #else
 #  define MRN_HA_RESOLVE_BY_NAME(name) ha_resolve_by_name(NULL, (name))
+#endif
+
+#if MYSQL_VERSION_ID >= 50706 && !defined(MRN_MARIADB_P)
+#  define MRN_PLUGIN_DATA(plugin, type) plugin_data<type>(plugin)
+#else
+#  define MRN_PLUGIN_DATA(plugin, type) plugin_data(plugin, type)
 #endif
 
 #define LEX_STRING_IS_EMPTY(string)                                     \
@@ -47,28 +59,32 @@
 extern HASH *mrn_table_def_cache;
 #endif
 
-#ifdef WIN32
-#  ifdef MRN_TABLE_SHARE_HAVE_LOCK_SHARE
-extern PSI_mutex_key *mrn_table_share_lock_share;
-#  endif
-#  ifdef MRN_TABLE_SHARE_HAVE_LOCK_HA_DATA
-extern PSI_mutex_key *mrn_table_share_lock_ha_data;
-#  endif
-#endif
-
 #ifdef __cplusplus
 extern "C" {
 #endif
 
+#ifdef HAVE_PSI_INTERFACE
+#  ifdef WIN32
+#    ifdef MRN_TABLE_SHARE_HAVE_LOCK_SHARE
+extern PSI_mutex_key *mrn_table_share_lock_share;
+#    endif
+#    ifdef MRN_TABLE_SHARE_HAVE_LOCK_HA_DATA
+extern PSI_mutex_key *mrn_table_share_lock_ha_data;
+#    endif
+#  endif
+extern PSI_mutex_key mrn_share_mutex_key;
+extern PSI_mutex_key mrn_long_term_share_auto_inc_mutex_key;
+#endif
+
 extern HASH mrn_open_tables;
-extern pthread_mutex_t mrn_open_tables_mutex;
+extern mysql_mutex_t mrn_open_tables_mutex;
 extern HASH mrn_long_term_share;
-extern pthread_mutex_t mrn_long_term_share_mutex;
+extern mysql_mutex_t mrn_long_term_share_mutex;
 extern char *mrn_default_parser;
 extern char *mrn_default_wrapper_engine;
 extern handlerton *mrn_hton_ptr;
 extern HASH mrn_allocated_thds;
-extern pthread_mutex_t mrn_allocated_thds_mutex;
+extern mysql_mutex_t mrn_allocated_thds_mutex;
 
 static char *mrn_get_string_between_quote(const char *ptr)
 {
@@ -131,7 +147,7 @@ static char *mrn_get_string_between_quote(const char *ptr)
     DBUG_RETURN(NULL);
 
   size_t length = end_ptr - start_ptr;
-  char *extracted_string = (char *)my_malloc(length + 1, MYF(MY_WME));
+  char *extracted_string = (char *)mrn_my_malloc(length + 1, MYF(MY_WME));
   if (esc_flg) {
     size_t extracted_index = 0;
     const char *current_ptr = start_ptr;
@@ -368,9 +384,9 @@ int mrn_parse_table_param(MRN_SHARE *share, TABLE *table)
     }
 
     {
-      params_string = my_strndup(params_string_value,
-                                 params_string_length,
-                                 MYF(MY_WME));
+      params_string = mrn_my_strndup(params_string_value,
+                                     params_string_length,
+                                     MYF(MY_WME));
       if (!params_string) {
         error = HA_ERR_OUT_OF_MEM;
         goto error;
@@ -424,7 +440,7 @@ int mrn_parse_table_param(MRN_SHARE *share, TABLE *table)
         }
       }
 
-      my_free(params_string, MYF(0));
+      my_free(params_string);
       params_string = NULL;
     }
   }
@@ -433,9 +449,9 @@ int mrn_parse_table_param(MRN_SHARE *share, TABLE *table)
   {
     share->engine_length = strlen(mrn_default_wrapper_engine);
     if (
-      !(share->engine = my_strndup(mrn_default_wrapper_engine,
-                                   share->engine_length,
-                                   MYF(MY_WME)))
+      !(share->engine = mrn_my_strndup(mrn_default_wrapper_engine,
+                                       share->engine_length,
+                                       MYF(MY_WME)))
     ) {
       error = HA_ERR_OUT_OF_MEM;
       goto error;
@@ -455,7 +471,7 @@ int mrn_parse_table_param(MRN_SHARE *share, TABLE *table)
         !strncasecmp(share->engine, MRN_GROONGA_STR, MRN_GROONGA_LEN)
       )
     ) {
-      my_free(share->engine, MYF(0));
+      my_free(share->engine);
       share->engine = NULL;
       share->engine_length = 0;
     } else {
@@ -467,14 +483,14 @@ int mrn_parse_table_param(MRN_SHARE *share, TABLE *table)
         error = ER_UNKNOWN_STORAGE_ENGINE;
         goto error;
       }
-      share->hton = plugin_data(share->plugin, handlerton *);
+      share->hton = MRN_PLUGIN_DATA(share->plugin, handlerton *);
       share->wrapper_mode = TRUE;
     }
   }
 
 error:
   if (params_string)
-    my_free(params_string, MYF(0));
+    my_free(params_string);
   DBUG_RETURN(error);
 }
 
@@ -500,10 +516,10 @@ int mrn_add_index_param(MRN_SHARE *share, KEY *key_info, int i)
   if (key_info->comment.length == 0)
   {
     if (share->key_parser[i]) {
-      my_free(share->key_parser[i], MYF(0));
+      my_free(share->key_parser[i]);
     }
     if (
-      !(share->key_parser[i] = my_strdup(mrn_default_parser, MYF(MY_WME)))
+      !(share->key_parser[i] = mrn_my_strdup(mrn_default_parser, MYF(MY_WME)))
     ) {
       error = HA_ERR_OUT_OF_MEM;
       goto error;
@@ -513,9 +529,9 @@ int mrn_add_index_param(MRN_SHARE *share, KEY *key_info, int i)
   }
   DBUG_PRINT("info", ("mroonga create comment string"));
   if (
-    !(param_string = my_strndup(key_info->comment.str,
-                                key_info->comment.length,
-                                MYF(MY_WME)))
+    !(param_string = mrn_my_strndup(key_info->comment.str,
+                                    key_info->comment.length,
+                                    MYF(MY_WME)))
   ) {
     error = HA_ERR_OUT_OF_MEM;
     goto error_alloc_param_string;
@@ -565,7 +581,7 @@ int mrn_add_index_param(MRN_SHARE *share, KEY *key_info, int i)
 #endif
   if (!share->key_parser[i]) {
     if (
-      !(share->key_parser[i] = my_strdup(mrn_default_parser, MYF(MY_WME)))
+      !(share->key_parser[i] = mrn_my_strdup(mrn_default_parser, MYF(MY_WME)))
     ) {
       error = HA_ERR_OUT_OF_MEM;
       goto error;
@@ -574,12 +590,12 @@ int mrn_add_index_param(MRN_SHARE *share, KEY *key_info, int i)
   }
 
   if (param_string)
-    my_free(param_string, MYF(0));
+    my_free(param_string);
   DBUG_RETURN(0);
 
 error:
   if (param_string)
-    my_free(param_string, MYF(0));
+    my_free(param_string);
 #if MYSQL_VERSION_ID >= 50500
 error_alloc_param_string:
 #endif
@@ -626,9 +642,9 @@ int mrn_add_column_param(MRN_SHARE *share, Field *field, int i)
 
   DBUG_PRINT("info", ("mroonga create comment string"));
   if (
-    !(param_string = my_strndup(field->comment.str,
-                                field->comment.length,
-                                MYF(MY_WME)))
+    !(param_string = mrn_my_strndup(field->comment.str,
+                                    field->comment.length,
+                                    MYF(MY_WME)))
   ) {
     error = HA_ERR_OUT_OF_MEM;
     goto error_alloc_param_string;
@@ -677,12 +693,12 @@ int mrn_add_column_param(MRN_SHARE *share, Field *field, int i)
   }
 
   if (param_string)
-    my_free(param_string, MYF(0));
+    my_free(param_string);
   DBUG_RETURN(0);
 
 error:
   if (param_string)
-    my_free(param_string, MYF(0));
+    my_free(param_string);
 error_alloc_param_string:
   DBUG_RETURN(error);
 }
@@ -714,26 +730,26 @@ int mrn_free_share_alloc(
   uint i;
   MRN_DBUG_ENTER_FUNCTION();
   if (share->engine)
-    my_free(share->engine, MYF(0));
+    my_free(share->engine);
   if (share->default_tokenizer)
-    my_free(share->default_tokenizer, MYF(0));
+    my_free(share->default_tokenizer);
   if (share->normalizer)
-    my_free(share->normalizer, MYF(0));
+    my_free(share->normalizer);
   if (share->token_filters)
-    my_free(share->token_filters, MYF(0));
+    my_free(share->token_filters);
   for (i = 0; i < share->table_share->keys; i++)
   {
     if (share->index_table && share->index_table[i])
-      my_free(share->index_table[i], MYF(0));
+      my_free(share->index_table[i]);
     if (share->key_parser[i])
-      my_free(share->key_parser[i], MYF(0));
+      my_free(share->key_parser[i]);
   }
   for (i = 0; i < share->table_share->fields; i++)
   {
     if (share->col_flags && share->col_flags[i])
-      my_free(share->col_flags[i], MYF(0));
+      my_free(share->col_flags[i]);
     if (share->col_type && share->col_type[i])
-      my_free(share->col_type[i], MYF(0));
+      my_free(share->col_type[i]);
   }
   DBUG_RETURN(0);
 }
@@ -745,8 +761,8 @@ void mrn_free_long_term_share(MRN_LONG_TERM_SHARE *long_term_share)
     mrn::Lock lock(&mrn_long_term_share_mutex);
     my_hash_delete(&mrn_long_term_share, (uchar*) long_term_share);
   }
-  pthread_mutex_destroy(&long_term_share->auto_inc_mutex);
-  my_free(long_term_share, MYF(0));
+  mysql_mutex_destroy(&long_term_share->auto_inc_mutex);
+  my_free(long_term_share);
   DBUG_VOID_RETURN;
 }
 
@@ -764,7 +780,7 @@ MRN_LONG_TERM_SHARE *mrn_get_long_term_share(const char *table_name,
                    table_name_length)))
   {
     if (!(long_term_share = (MRN_LONG_TERM_SHARE *)
-      my_multi_malloc(MYF(MY_WME | MY_ZEROFILL),
+      mrn_my_multi_malloc(MYF(MY_WME | MY_ZEROFILL),
         &long_term_share, sizeof(*long_term_share),
         &tmp_name, table_name_length + 1,
         NullS))
@@ -775,8 +791,9 @@ MRN_LONG_TERM_SHARE *mrn_get_long_term_share(const char *table_name,
     long_term_share->table_name = tmp_name;
     long_term_share->table_name_length = table_name_length;
     memcpy(long_term_share->table_name, table_name, table_name_length);
-    if (pthread_mutex_init(&long_term_share->auto_inc_mutex,
-                           MY_MUTEX_INIT_FAST))
+    if (mysql_mutex_init(mrn_long_term_share_auto_inc_mutex_key,
+                         &long_term_share->auto_inc_mutex,
+                         MY_MUTEX_INIT_FAST) != 0)
     {
       *error = HA_ERR_OUT_OF_MEM;
       goto error_init_auto_inc_mutex;
@@ -790,9 +807,9 @@ MRN_LONG_TERM_SHARE *mrn_get_long_term_share(const char *table_name,
   DBUG_RETURN(long_term_share);
 
 error_hash_insert:
-  pthread_mutex_destroy(&long_term_share->auto_inc_mutex);
+  mysql_mutex_destroy(&long_term_share->auto_inc_mutex);
 error_init_auto_inc_mutex:
-  my_free(long_term_share, MYF(0));
+  my_free(long_term_share);
 error_alloc_long_term_share:
   DBUG_RETURN(NULL);
 }
@@ -812,7 +829,7 @@ MRN_SHARE *mrn_get_share(const char *table_name, TABLE *table, int *error)
     (uchar*) table_name, length)))
   {
     if (!(share = (MRN_SHARE *)
-      my_multi_malloc(MYF(MY_WME | MY_ZEROFILL),
+      mrn_my_multi_malloc(MYF(MY_WME | MY_ZEROFILL),
         &share, sizeof(*share),
         &tmp_name, length + 1,
         &index_table, sizeof(char *) * table->s->keys,
@@ -842,7 +859,7 @@ MRN_SHARE *mrn_get_share(const char *table_name, TABLE *table, int *error)
     share->col_flags_length = col_flags_length;
     share->col_type = col_type;
     share->col_type_length = col_type_length;
-    strmov(share->table_name, table_name);
+    mrn_my_stpmov(share->table_name, table_name);
     share->table_share = table->s;
 
     if (
@@ -912,7 +929,9 @@ MRN_SHARE *mrn_get_share(const char *table_name, TABLE *table, int *error)
       share->wrap_table_share = wrap_table_share;
     }
 
-    if (pthread_mutex_init(&share->mutex, MY_MUTEX_INIT_FAST))
+    if (mysql_mutex_init(mrn_share_mutex_key,
+                         &share->mutex,
+                         MY_MUTEX_INIT_FAST) != 0)
     {
       *error = HA_ERR_OUT_OF_MEM;
       goto error_init_mutex;
@@ -934,11 +953,11 @@ MRN_SHARE *mrn_get_share(const char *table_name, TABLE *table, int *error)
 
 error_hash_insert:
 error_get_long_term_share:
-  pthread_mutex_destroy(&share->mutex);
+  mysql_mutex_destroy(&share->mutex);
 error_init_mutex:
 error_parse_table_param:
   mrn_free_share_alloc(share);
-  my_free(share, MYF(0));
+  my_free(share);
 error_alloc_share:
   DBUG_RETURN(NULL);
 }
@@ -954,7 +973,7 @@ int mrn_free_share(MRN_SHARE *share)
       plugin_unlock(NULL, share->plugin);
     mrn_free_share_alloc(share);
     thr_lock_delete(&share->lock);
-    pthread_mutex_destroy(&share->mutex);
+    mysql_mutex_destroy(&share->mutex);
     if (share->wrapper_mode) {
 #ifdef MRN_TABLE_SHARE_HAVE_LOCK_SHARE
       mysql_mutex_destroy(&(share->wrap_table_share->LOCK_share));
@@ -963,7 +982,7 @@ int mrn_free_share(MRN_SHARE *share)
       mysql_mutex_destroy(&(share->wrap_table_share->LOCK_ha_data));
 #endif
     }
-    my_free(share, MYF(0));
+    my_free(share);
   }
   DBUG_RETURN(0);
 }
@@ -1025,9 +1044,9 @@ TABLE_SHARE *mrn_create_tmp_table_share(TABLE_LIST *table_list, const char *path
   }
   share->tmp_table = INTERNAL_TMP_TABLE; // TODO: is this right?
   share->path.str = (char *) path;
-  share->path.length = strlen(path);
-  share->normalized_path.str = share->path.str;
-  share->normalized_path.length = share->path.length;
+  share->path.length = strlen(share->path.str);
+  share->normalized_path.str = mrn_my_strdup(path, MYF(MY_WME));
+  share->normalized_path.length = strlen(share->normalized_path.str);
   if (open_table_def(thd, share, GTS_TABLE))
   {
     *error = ER_CANT_OPEN_FILE;
@@ -1039,7 +1058,9 @@ TABLE_SHARE *mrn_create_tmp_table_share(TABLE_LIST *table_list, const char *path
 void mrn_free_tmp_table_share(TABLE_SHARE *tmp_table_share)
 {
   MRN_DBUG_ENTER_FUNCTION();
+  char *normalized_path = tmp_table_share->normalized_path.str;
   free_table_share(tmp_table_share);
+  my_free(normalized_path);
   DBUG_VOID_RETURN;
 }
 
@@ -1051,7 +1072,7 @@ KEY *mrn_create_key_info_for_table(MRN_SHARE *share, TABLE *table, int *error)
   if (share->wrap_keys)
   {
     if (!(wrap_key_info = (KEY *)
-      my_multi_malloc(MYF(MY_WME | MY_ZEROFILL),
+      mrn_my_multi_malloc(MYF(MY_WME | MY_ZEROFILL),
         &wrap_key_info, sizeof(*wrap_key_info) * share->wrap_keys,
         NullS))
     ) {
@@ -1131,11 +1152,11 @@ void mrn_clear_alter_share(THD *thd)
     slot_data->alter_create_info = NULL;
     slot_data->disable_keys_create_info = NULL;
     if (slot_data->alter_connect_string) {
-      my_free(slot_data->alter_connect_string, MYF(0));
+      my_free(slot_data->alter_connect_string);
       slot_data->alter_connect_string = NULL;
     }
     if (slot_data->alter_comment) {
-      my_free(slot_data->alter_comment, MYF(0));
+      my_free(slot_data->alter_comment);
       slot_data->alter_comment = NULL;
     }
   }

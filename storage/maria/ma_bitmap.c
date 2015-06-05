@@ -1721,11 +1721,10 @@ static my_bool find_blob(MARIA_HA *info, ulong length)
   uint full_page_size= FULL_PAGE_SIZE(info->s);
   ulong pages;
   uint rest_length, used;
-  uint first_block_pos;
+  uint UNINIT_VAR(first_block_pos);
   MARIA_BITMAP_BLOCK *first_block= 0;
   DBUG_ENTER("find_blob");
   DBUG_PRINT("enter", ("length: %lu", length));
-  LINT_INIT(first_block_pos);
 
   pages= length / full_page_size;
   rest_length= (uint) (length - pages * full_page_size);

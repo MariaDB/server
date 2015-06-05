@@ -1310,7 +1310,12 @@ sp_head::execute(THD *thd, bool merge_da_on_success)
     if (thd->locked_tables_mode <= LTM_LOCK_TABLES)
       thd->user_var_events_alloc= thd->mem_root;
 
+    sql_digest_state *parent_digest= thd->m_digest;
+    thd->m_digest= NULL;
+
     err_status= i->execute(thd, &ip);
+
+    thd->m_digest= parent_digest;
 
     if (i->free_list)
       cleanup_items(i->free_list);
@@ -1695,7 +1700,7 @@ bool
 sp_head::execute_function(THD *thd, Item **argp, uint argcount,
                           Field *return_value_fld)
 {
-  ulonglong binlog_save_options;
+  ulonglong UNINIT_VAR(binlog_save_options);
   bool need_binlog_call= FALSE;
   uint arg_no;
   sp_rcontext *octx = thd->spcont;
@@ -1708,8 +1713,6 @@ sp_head::execute_function(THD *thd, Item **argp, uint argcount,
   Query_arena backup_arena;
   DBUG_ENTER("sp_head::execute_function");
   DBUG_PRINT("info", ("function %s", m_name.str));
-
-  LINT_INIT(binlog_save_options);
 
   /*
     Check that the function is called with all specified arguments.
@@ -2975,6 +2978,7 @@ sp_lex_keeper::reset_lex_and_exec_core(THD *thd, uint *nextp,
 
     cleanup_items() is called in sp_head::execute()
   */
+  thd->lex->restore_set_statement_var();
   DBUG_RETURN(res || thd->is_error());
 }
 
@@ -3614,7 +3618,7 @@ sp_instr_cpush::execute(THD *thd, uint *nextp)
 {
   DBUG_ENTER("sp_instr_cpush::execute");
 
-  int ret= thd->spcont->push_cursor(&m_lex_keeper, this);
+  int ret= thd->spcont->push_cursor(thd, &m_lex_keeper, this);
 
   *nextp= m_ip+1;
 

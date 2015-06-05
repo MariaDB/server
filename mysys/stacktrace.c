@@ -315,12 +315,11 @@ inline uint32* find_prev_pc(uint32* pc, uchar** fp)
 
 void my_print_stacktrace(uchar* stack_bottom, ulong thread_stack)
 {
-  uchar** fp;
+  uchar** UNINIT_VAR(fp);
   uint frame_count = 0, sigreturn_frame_count;
 #if defined(__alpha__) && defined(__GNUC__)
   uint32* pc;
 #endif
-  LINT_INIT(fp);
 
 
 #ifdef __i386__

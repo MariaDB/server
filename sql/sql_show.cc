@@ -28,6 +28,7 @@
 #include "sql_table.h"                        // filename_to_tablename,
                                               // primary_key_name,
                                               // build_table_filename
+#include "sql_view.h"
 #include "repl_failsafe.h"
 #include "sql_parse.h"             // check_access, check_table_access
 #include "sql_partition.h"         // partition_element
@@ -371,6 +372,23 @@ static int get_geometry_column_record(THD *thd, TABLE_LIST *tables,
   TABLE *show_table;
   Field **ptr, *field;
   DBUG_ENTER("get_geometry_column_record");
+
+  if (res)
+  {
+    if (thd->lex->sql_command != SQLCOM_SHOW_FIELDS)
+    {
+      /*
+        I.e. we are in SELECT FROM INFORMATION_SCHEMA.COLUMS
+        rather than in SHOW COLUMNS
+      */
+      push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
+                   thd->get_stmt_da()->sql_errno(),
+                   thd->get_stmt_da()->message());
+      thd->clear_error();
+      res= 0;
+    }
+    DBUG_RETURN(res);
+  }
 
   if (tables->schema_table)
     goto exit;
@@ -2832,6 +2850,15 @@ int fill_schema_processlist(THD* thd, TABLE_LIST* tables, COND* cond)
       /* QUERY_ID */
       table->field[14]->store(tmp->query_id, TRUE);
 
+      /* INFO_BINARY */
+      if (tmp->query())
+      {
+        table->field[15]->store(tmp->query(),
+                                MY_MIN(PROCESS_LIST_INFO_WIDTH,
+                                tmp->query_length()), &my_charset_bin);
+        table->field[15]->set_notnull();
+      }
+
       if (schema_table_store_record(thd, table))
       {
         mysql_mutex_unlock(&LOCK_thread_count);
@@ -2951,7 +2978,7 @@ void reset_status_vars()
   catch-all cleanup function, cleans up everything no matter what
 
   DESCRIPTION
-    This function is not strictly required if all add_to_status/
+    This function is not strictly required if all add_status_vars/
     remove_status_vars are properly paired, but it's a safety measure that
     deletes everything from the all_status_vars[] even if some
     remove_status_vars were forgotten
@@ -3132,15 +3159,15 @@ static bool show_status_array(THD *thd, const char *wild,
                                                  name_buffer, wild))) &&
           (!cond || cond->val_int()))
       {
-        char *value=var->value;
+        void *value=var->value;
         const char *pos, *end;                  // We assign a lot of const's
 
         if (show_type == SHOW_SYS)
         {
-          sys_var *var= ((sys_var *) value);
+          sys_var *var= (sys_var *) value;
           show_type= var->show_type();
           mysql_mutex_lock(&LOCK_global_system_variables);
-          value= (char*) var->value_ptr(thd, scope, &null_lex_str);
+          value= var->value_ptr(thd, scope, &null_lex_str);
           charset= var->charset(thd);
         }
 
@@ -3200,7 +3227,7 @@ static bool show_status_array(THD *thd, const char *wild,
         }
         case SHOW_CHAR:
         {
-          if (!(pos= value))
+          if (!(pos= (char*)value))
             pos= "";
           end= strend(pos);
           break;
@@ -4371,12 +4398,7 @@ static int fill_schema_table_from_frm(THD *thd, TABLE_LIST *tables,
       goto end_share;
     }
 
-    if (open_new_frm(thd, share, table_name->str,
-                     (uint) (HA_OPEN_KEYFILE | HA_OPEN_RNDFILE |
-                             HA_GET_INDEX | HA_TRY_READ_ONLY),
-                     READ_KEYINFO | COMPUTE_TYPES | EXTRA_RECORD |
-                     OPEN_VIEW_NO_PARSE,
-                     thd->open_options, &tbl, &table_list, thd->mem_root))
+    if (mysql_make_view(thd, share, &table_list, true))
       goto end_share;
     table_list.view= (LEX*) share->is_view;
     res= schema_table->process_table(thd, &table_list, table,
@@ -7869,9 +7891,9 @@ bool get_schema_tables_result(JOIN *join,
 
   Warnings_only_error_handler err_handler;
   thd->push_internal_handler(&err_handler);
-  thd->enter_stage(&stage_filling_schema_table, &org_stage, __func__, __FILE__,
-                   __LINE__);
-  
+  thd->backup_stage(&org_stage);
+  THD_STAGE_INFO(thd, stage_filling_schema_table);
+
   JOIN_TAB *tab;
   for (tab= first_linear_tab(join, WITHOUT_BUSH_ROOTS, WITH_CONST_TABLES);
        tab; 
@@ -8624,6 +8646,8 @@ ST_FIELD_INFO processlist_fields_info[]=
   {"MEMORY_USED", 7, MYSQL_TYPE_LONG, 0, 0, "Memory_used", SKIP_OPEN_TABLE},
   {"EXAMINED_ROWS", 7, MYSQL_TYPE_LONG, 0, 0, "Examined_rows", SKIP_OPEN_TABLE},
   {"QUERY_ID", 4, MYSQL_TYPE_LONGLONG, 0, 0, 0, SKIP_OPEN_TABLE},
+  {"INFO_BINARY", PROCESS_LIST_INFO_WIDTH, MYSQL_TYPE_BLOB, 0, 1,
+   "Info_binary", SKIP_OPEN_TABLE},
   {0, 0, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE}
 };
 

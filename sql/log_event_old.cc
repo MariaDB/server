@@ -24,7 +24,6 @@
 #include "sql_base.h"                       // close_tables_for_reopen
 #include "key.h"                            // key_copy
 #include "lock.h"                           // mysql_unlock_tables
-#include "sql_parse.h"             // mysql_reset_thd_for_next_command
 #include "rpl_rli.h"
 #include "rpl_utility.h"
 #endif
@@ -82,14 +81,14 @@ Old_rows_log_event::do_apply_event(Old_rows_log_event *ev, rpl_group_info *rgi)
       Lock_tables() reads the contents of ev_thd->lex, so they must be
       initialized.
 
-      We also call the mysql_reset_thd_for_next_command(), since this
+      We also call the THD::reset_for_next_command(), since this
       is the logical start of the next "statement". Note that this
       call might reset the value of current_stmt_binlog_format, so
       we need to do any changes to that value after this function.
     */
     delete_explain_query(thd->lex);
     lex_start(ev_thd);
-    mysql_reset_thd_for_next_command(ev_thd);
+    ev_thd->reset_for_next_command();
 
     /*
       This is a row injection, so we flag the "statement" as
@@ -1733,7 +1732,7 @@ Old_rows_log_event::do_update_pos(rpl_group_info *rgi)
       Step the group log position if we are not in a transaction,
       otherwise increase the event log position.
      */
-    rli->stmt_done(log_pos, when, thd, rgi);
+    rli->stmt_done(log_pos, thd, rgi);
     /*
       Clear any errors in thd->net.last_err*. It is not known if this is
       needed or not. It is believed that any errors that may exist in

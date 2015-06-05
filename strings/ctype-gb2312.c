@@ -165,6 +165,12 @@ static const uchar sort_order_gb2312[]=
 #define isgb2312tail(c) (0xa1<=(uchar)(c) && (uchar)(c)<=0xfe)
 
 
+#define MY_FUNCTION_NAME(x)   my_ ## x ## _gb2312
+#define IS_MB2_CHAR(x,y)      (isgb2312head(x) && isgb2312tail(y))
+#define DEFINE_ASIAN_ROUTINES
+#include "ctype-mb.ic"
+
+
 static uint ismbchar_gb2312(CHARSET_INFO *cs __attribute__((unused)),
 		    const char* p, const char *e)
 {
@@ -6324,46 +6330,14 @@ my_mb_wc_gb2312(CHARSET_INFO *cs  __attribute__((unused)),
   
   if (s+2>e)
     return MY_CS_TOOSMALL2;
-  
+
+  if (!IS_MB2_CHAR(hi, s[1]))  
+    return MY_CS_ILSEQ;
+
   if (!(pwc[0]=func_gb2312_uni_onechar(((hi<<8)+s[1])&0x7F7F)))
     return -2;
   
   return 2;
-}
-
-
-/*
-  Returns well formed length of a EUC-KR string.
-*/
-static size_t
-my_well_formed_len_gb2312(CHARSET_INFO *cs __attribute__((unused)),
-                          const char *b, const char *e,
-                          size_t pos, int *error)
-{
-  const char *b0= b;
-  const char *emb= e - 1; /* Last possible end of an MB character */
-
-  *error= 0;
-  while (pos-- && b < e)
-  {
-    if ((uchar) b[0] < 128)
-    {
-      /* Single byte ascii character */
-      b++;
-    }
-    else  if (b < emb && isgb2312head(*b) && isgb2312tail(b[1]))
-    {
-      /* Double byte character */
-      b+= 2;
-    }
-    else
-    {
-      /* Wrong byte sequence */
-      *error= 1;
-      break;
-    }
-  }
-  return (size_t) (b - b0);
 }
 
 
@@ -6411,7 +6385,9 @@ static MY_CHARSET_HANDLER my_charset_handler=
   my_strtoll10_8bit,
   my_strntoull10rnd_8bit,
   my_scan_8bit,
-  my_copy_abort_mb,
+  my_charlen_gb2312,
+  my_well_formed_char_length_gb2312,
+  my_copy_fix_mb,
 };
 
 

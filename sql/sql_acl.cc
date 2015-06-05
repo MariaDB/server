@@ -8975,10 +8975,30 @@ static int handle_grant_struct(enum enum_acl_lists struct_no, bool drop,
     if (struct_no == ROLES_MAPPINGS_HASH)
     {
       const char* role= role_grant_pair->r_uname? role_grant_pair->r_uname: "";
-      if (user_from->is_role() ? strcmp(user_from->user.str, role) :
-          (strcmp(user_from->user.str, user) ||
-           my_strcasecmp(system_charset_info, user_from->host.str, host)))
-        continue;
+      if (user_from->is_role())
+      {
+        /* When searching for roles within the ROLES_MAPPINGS_HASH, we have
+           to check both the user field as well as the role field for a match.
+
+           It is possible to have a role granted to a role. If we are going
+           to modify the mapping entry, it needs to be done on either on the
+           "user" end (here represented by a role) or the "role" end. At least
+           one part must match.
+
+           If the "user" end has a not-empty host string, it can never match
+           as we are searching for a role here. A role always has an empty host
+           string.
+        */
+        if ((*host || strcmp(user_from->user.str, user)) &&
+            strcmp(user_from->user.str, role))
+          continue;
+      }
+      else
+      {
+        if (strcmp(user_from->user.str, user) ||
+            my_strcasecmp(system_charset_info, user_from->host.str, host))
+          continue;
+      }
     }
     else
     {
@@ -10079,7 +10099,6 @@ bool sp_grant_privileges(THD *thd, const char *sp_db, const char *sp_name,
   List<LEX_USER> user_list;
   bool result;
   ACL_USER *au;
-  char passwd_buff[SCRAMBLED_PASSWORD_CHAR_LENGTH+1];
   Dummy_error_handler error_handler;
   DBUG_ENTER("sp_grant_privileges");
 
@@ -10120,33 +10139,10 @@ bool sp_grant_privileges(THD *thd, const char *sp_db, const char *sp_name,
 
   if(au)
   {
-    if (au->salt_len)
-    {
-      if (au->salt_len == SCRAMBLE_LENGTH)
-      {
-        make_password_from_salt(passwd_buff, au->salt);
-        combo->auth.length= SCRAMBLED_PASSWORD_CHAR_LENGTH;
-      }
-      else if (au->salt_len == SCRAMBLE_LENGTH_323)
-      {
-        make_password_from_salt_323(passwd_buff, (ulong *) au->salt);
-        combo->auth.length= SCRAMBLED_PASSWORD_CHAR_LENGTH_323;
-      }
-      else
-      {
-        push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN, ER_PASSWD_LENGTH,
-                            ER(ER_PASSWD_LENGTH), SCRAMBLED_PASSWORD_CHAR_LENGTH);
-        return TRUE;
-      }
-      combo->auth.str= passwd_buff;
-    }
-
     if (au->plugin.str != native_password_plugin_name.str &&
         au->plugin.str != old_password_plugin_name.str)
-    {
       combo->plugin= au->plugin;
-      combo->auth= au->auth_string;
-    }
+    combo->auth= au->auth_string;
   }
 
   if (user_list.push_back(combo))
@@ -10364,12 +10360,61 @@ applicable_roles_insert(ACL_USER_BASE *grantee, ACL_ROLE *role, void *ptr)
   return 0;
 }
 
+/**
+  Hash iterate function to count the number of total column privileges granted.
+*/
+static my_bool count_column_grants(void *grant_table,
+                                       void *current_count)
+{
+  HASH hash_columns = ((GRANT_TABLE *)grant_table)->hash_columns;
+  *(ulong *)current_count+= hash_columns.records;
+  return 0;
+}
+
+/**
+  SHOW function that computes the number of column grants.
+
+  This must be performed under the mutex in order to make sure the
+  iteration does not fail.
+*/
+static int show_column_grants(THD *thd, SHOW_VAR *var, char *buff,
+                              enum enum_var_type scope)
+{
+  var->type= SHOW_ULONG;
+  var->value= buff;
+  *(ulong *)buff= 0;
+  mysql_rwlock_rdlock(&LOCK_grant);
+  mysql_mutex_lock(&acl_cache->lock);
+  my_hash_iterate(&column_priv_hash, count_column_grants, buff);
+  mysql_mutex_unlock(&acl_cache->lock);
+  mysql_rwlock_unlock(&LOCK_grant);
+  return 0;
+}
+
+
 #else
 bool check_grant(THD *, ulong, TABLE_LIST *, bool, uint, bool)
 {
   return 0;
 }
 #endif /*NO_EMBEDDED_ACCESS_CHECKS */
+
+
+SHOW_VAR acl_statistics[] = {
+#ifndef NO_EMBEDDED_ACCESS_CHECKS
+  {"column_grants",    (char*)show_column_grants,          SHOW_SIMPLE_FUNC},
+  {"database_grants",  (char*)&acl_dbs.elements,           SHOW_UINT},
+  {"function_grants",  (char*)&func_priv_hash.records,     SHOW_ULONG},
+  {"procedure_grants", (char*)&proc_priv_hash.records,     SHOW_ULONG},
+  {"proxy_users",      (char*)&acl_proxy_users.elements,   SHOW_UINT},
+  {"role_grants",      (char*)&acl_roles_mappings.records, SHOW_ULONG},
+  {"roles",            (char*)&acl_roles.records,          SHOW_ULONG},
+  {"table_grants",     (char*)&column_priv_hash.records,   SHOW_ULONG},
+  {"users",            (char*)&acl_users.elements,         SHOW_UINT},
+#endif
+  {NullS, NullS, SHOW_LONG},
+};
+
 
 int fill_schema_enabled_roles(THD *thd, TABLE_LIST *tables, COND *cond)
 {
@@ -11725,7 +11770,6 @@ static ulong parse_client_handshake_packet(MPVIO_EXT *mpvio,
   char *passwd= strend(user)+1;
   uint user_len= passwd - user - 1, db_len;
   char *db= passwd;
-  char db_buff[SAFE_NAME_LEN + 1];      // buffer to store db in utf8
   char user_buff[USERNAME_LENGTH + 1];	// buffer to store user in utf8
   uint dummy_errors;
 
@@ -11762,12 +11806,9 @@ static ulong parse_client_handshake_packet(MPVIO_EXT *mpvio,
   char *client_plugin= next_field= passwd + passwd_len + (db ? db_len + 1 : 0);
 
   /* Since 4.1 all database names are stored in utf8 */
-  if (db)
-  {
-    db_len= copy_and_convert(db_buff, sizeof(db_buff) - 1, system_charset_info,
-                             db, db_len, thd->charset(), &dummy_errors);
-    db= db_buff;
-  }
+  if (thd->copy_with_error(system_charset_info, &mpvio->db,
+                           thd->charset(), db, db_len))
+    return packet_error;
 
   user_len= copy_and_convert(user_buff, sizeof(user_buff) - 1,
                              system_charset_info, user, user_len,
@@ -11797,8 +11838,6 @@ static ulong parse_client_handshake_packet(MPVIO_EXT *mpvio,
 
   Security_context *sctx= thd->security_ctx;
 
-  if (thd->make_lex_string(&mpvio->db, db, db_len) == 0)
-    return packet_error; /* The error is set by make_lex_string(). */
   my_free(sctx->user);
   if (!(sctx->user= my_strndup(user, user_len, MYF(MY_WME))))
     return packet_error; /* The error is set by my_strdup(). */

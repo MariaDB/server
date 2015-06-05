@@ -30,6 +30,7 @@
 #include "mysql_com.h"              /* enum_field_types */
 #include "thr_lock.h"                  /* thr_lock_type */
 #include "filesort_utils.h"
+#include "parse_file.h"
 
 /* Structs that defines the TABLE */
 
@@ -730,6 +731,13 @@ struct TABLE_SHARE
   */
   ulong incompatible_version;
 
+  /**
+    For shares representing views File_parser object with view
+    definition read from .FRM file.
+  */
+  const File_parser *view_def;
+
+
   /*
     Cache for row-based replication table share checks that does not
     need to be repeated. Possible values are: -1 when cache value is
@@ -1323,7 +1331,7 @@ public:
   bool add_tmp_key(uint key, uint key_parts,
                    uint (*next_field_no) (uchar *), uchar *arg,
                    bool unique);
-  void create_key_part_by_field(KEY *keyinfo, KEY_PART_INFO *key_part_info,
+  void create_key_part_by_field(KEY_PART_INFO *key_part_info,
                                 Field *field, uint fieldnr);
   void use_index(int key_to_save);
   void set_table_map(table_map map_arg, uint tablenr_arg)
@@ -1357,6 +1365,10 @@ public:
   }
 
   bool update_const_key_parts(COND *conds);
+
+  my_ptrdiff_t default_values_offset() const
+  { return (my_ptrdiff_t) (s->default_values - record[0]); }
+
   uint actual_n_key_parts(KEY *keyinfo);
   ulong actual_key_flags(KEY *keyinfo);
   int update_default_fields();
@@ -2074,6 +2086,24 @@ struct TABLE_LIST
   TABLE_LIST *find_underlying_table(TABLE *table);
   TABLE_LIST *first_leaf_for_name_resolution();
   TABLE_LIST *last_leaf_for_name_resolution();
+  /**
+     @brief
+       Find the bottom in the chain of embedded table VIEWs.
+
+     @detail
+       This is used for single-table UPDATE/DELETE when they are modifying a
+       single-table VIEW.
+  */
+  TABLE_LIST *find_table_for_update()
+  {
+    TABLE_LIST *tbl= this;
+    while(!tbl->is_multitable() && tbl->single_table_updatable() &&
+        tbl->merge_underlying_list)
+    {
+      tbl= tbl->merge_underlying_list;
+    }
+    return tbl;
+  }
   TABLE *get_real_join_table();
   bool is_leaf_for_name_resolution();
   inline TABLE_LIST *top_table()

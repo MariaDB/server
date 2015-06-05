@@ -2837,6 +2837,14 @@ ibuf_contract_in_background(
 		mutex_exit(&ibuf_mutex);
 	}
 
+#if defined UNIV_DEBUG || defined UNIV_IBUF_DEBUG
+	if (ibuf_debug) {
+		return(0);
+	}
+#endif /* UNIV_DEBUG || UNIV_IBUF_DEBUG */
+
+
+
 	while (sum_pages < n_pages) {
 		ulint	n_bytes;
 
@@ -3885,7 +3893,7 @@ check_watch:
 	{
 		buf_page_t*	bpage;
 		buf_pool_t*	buf_pool = buf_pool_get(space, page_no);
-		bpage = buf_page_hash_get(buf_pool, space, page_no);
+		bpage = buf_page_get_also_watch(buf_pool, space, page_no);
 
 		if (UNIV_LIKELY_NULL(bpage)) {
 			/* A buffer pool watch has been set or the

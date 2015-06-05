@@ -1,6 +1,6 @@
 /***********************************************************************
 
-Copyright (c) 1995, 2013, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1995, 2014, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2009, Percona Inc.
 Copyright (c) 2013, 2015, MariaDB Corporation.
 
@@ -45,7 +45,6 @@ Created 10/21/1995 Heikki Tuuri
 #include "fil0fil.h"
 #include "fsp0fsp.h"
 #include "fil0pagecompress.h"
-#include "fil0pageencryption.h"
 #include "buf0buf.h"
 #include "btr0types.h"
 #include "trx0trx.h"
@@ -239,21 +238,6 @@ struct os_aio_slot_t{
 					completed */
 	ulint           bitmap;
 
-	byte*           page_compression_page; /*!< Memory allocated for
-					       page compressed page and
-					       freed after the write
-					       has been completed */
-
-	byte*           page_encryption_page; /*!< Memory allocated for
-					      page encrypted page and
-					      freed after the write
-					      has been completed */
-
-	ibool           page_compression;
-	ulint           page_compression_level;
-
-	ibool           page_encryption;
-	ulint           page_encryption_key;
 
 	ulint*          write_size;     /*!< Actual write size initialized
 					after fist successfull trim
@@ -261,31 +245,13 @@ struct os_aio_slot_t{
 					initialized we do not trim again if
 					actual page size does not decrease. */
 
-	byte*           page_buf;       /*!< Actual page buffer for
-					page compressed pages, do not
-					free this */
-
-	byte*           page_buf2;       /*!< Actual page buffer for
-					 page encrypted pages, do not
-					 free this */
-	byte*           tmp_encryption_buf; /*!< a temporal buffer used by page encryption */
-
-	ibool           page_compression_success;
-	/*!< TRUE if page compression was successfull, false if not */
-	ibool           page_encryption_success;
-	/*!< TRUE if page encryption was successfull, false if not */
-
-	lsn_t           lsn;       /* lsn of the newest modification */
-
 	ulint           file_block_size;/*!< file block size */
-	bool            encrypt_later;	/*!< should we encrypt the page */
 
 #ifdef LINUX_NATIVE_AIO
 	struct iocb	control;	/* Linux control block for aio */
 	int		n_bytes;	/* bytes written/read. */
 	int		ret;		/* AIO return code */
 #endif /* WIN_ASYNC_IO */
-	byte		*lzo_mem;	/* Temporal memory used by LZO */
 };
 
 /** The asynchronous i/o array structure */
@@ -402,39 +368,6 @@ os_file_trim(
 /*=========*/
 	os_aio_slot_t*	slot); /*!< in: slot structure     */
 
-/**********************************************************************//**
-Allocate memory for temporal buffer used for page compression. This
-buffer is freed later. */
-UNIV_INTERN
-void
-os_slot_alloc_page_buf(
-/*===================*/
-	os_aio_slot_t*	slot); /*!< in: slot structure     */
-
-#ifdef HAVE_LZO
-/**********************************************************************//**
-Allocate memory for temporal memory used for page compression when
-LZO compression method is used */
-UNIV_INTERN
-void
-os_slot_alloc_lzo_mem(
-/*===================*/
-	os_aio_slot_t*   slot); /*!< in: slot structure     */
-#endif
-
-/**********************************************************************//**
-Allocate memory for temporal buffer used for page encryption. This
-buffer is freed later. */
-UNIV_INTERN
-void
-os_slot_alloc_page_buf2(
-	os_aio_slot_t*	slot); /*!< in: slot structure */
-/**********************************************************************//**
-Allocate memory for temporal buffer used for page encryption. */
-UNIV_INTERN
-void
-os_slot_alloc_tmp_encryption_buf(
-	os_aio_slot_t* slot); /*!< in: slot structure */
 /****************************************************************//**
 Does error handling when a file operation fails.
 @return	TRUE if we should retry the operation */
@@ -908,6 +841,7 @@ os_file_handle_error_cond_exit(
 
 		fflush(stderr);
 
+		ut_error;
 		return(FALSE);
 
 	case OS_FILE_AIO_RESOURCES_RESERVED:
@@ -3115,9 +3049,7 @@ os_file_read_func(
 	void*		buf,	/*!< in: buffer where to read */
 	os_offset_t	offset,	/*!< in: file offset where to read */
 	ulint		n,	/*!< in: number of bytes to read */
-	trx_t*		trx,
-	ibool		compressed) /*!< in: is this file space
-				    compressed ? */
+	trx_t*		trx)
 {
 #ifdef __WIN__
 	BOOL		ret;
@@ -3172,11 +3104,17 @@ try_again:
 
 	if ((ulint) ret == n) {
 		return(TRUE);
+	} else if (ret == -1) {
+                ib_logf(IB_LOG_LEVEL_ERROR,
+			"Error in system call pread(). The operating"
+			" system error number is %lu.",(ulint) errno);
+        } else {
+		/* Partial read occured */
+		ib_logf(IB_LOG_LEVEL_ERROR,
+			"Tried to read " ULINTPF " bytes at offset "
+			UINT64PF ". Was only able to read %ld.",
+			n, offset, (lint) ret);
 	}
-
-	ib_logf(IB_LOG_LEVEL_ERROR,
-		"Tried to read " ULINTPF " bytes at offset " UINT64PF ". "
-		"Was only able to read %ld.", n, offset, (lint) ret);
 #endif /* __WIN__ */
 	retry = os_file_handle_error(NULL, "read", __FILE__, __LINE__);
 
@@ -3213,9 +3151,7 @@ os_file_read_no_error_handling_func(
 	os_file_t	file,	/*!< in: handle to a file */
 	void*		buf,	/*!< in: buffer where to read */
 	os_offset_t	offset,	/*!< in: file offset where to read */
-	ulint		n,	/*!< in: number of bytes to read */
-	ibool		compressed) /*!< in: is this file space
-				     compressed ? */
+	ulint		n)	/*!< in: number of bytes to read */
 {
 #ifdef __WIN__
 	BOOL		ret;
@@ -3272,6 +3208,16 @@ try_again:
 
 	if ((ulint) ret == n) {
 		return(TRUE);
+	} else if (ret == -1) {
+                ib_logf(IB_LOG_LEVEL_ERROR,
+			"Error in system call pread(). The operating"
+			" system error number is %lu.",(ulint) errno);
+        } else {
+		/* Partial read occured */
+		ib_logf(IB_LOG_LEVEL_ERROR,
+			"Tried to read " ULINTPF " bytes at offset "
+			UINT64PF ". Was only able to read %ld.",
+			n, offset, (lint) ret);
 	}
 #endif /* __WIN__ */
 	retry = os_file_handle_error_no_exit(NULL, "read", FALSE, __FILE__, __LINE__);
@@ -3453,18 +3399,26 @@ retry:
 
 		ut_print_timestamp(stderr);
 
-		fprintf(stderr,
-			" InnoDB: Error: Write to file %s failed"
-			" at offset " UINT64PF ".\n"
-			"InnoDB: %lu bytes should have been written,"
-			" only %ld were written.\n"
-			"InnoDB: Operating system error number %lu.\n"
-			"InnoDB: Check that your OS and file system"
-			" support files of this size.\n"
-			"InnoDB: Check also that the disk is not full"
-			" or a disk quota exceeded.\n",
-			name, offset, n, (lint) ret,
-			(ulint) errno);
+		if(ret == -1) {
+			ib_logf(IB_LOG_LEVEL_ERROR,
+				"Failure of system call pwrite(). Operating"
+				" system error number is %lu.",
+				(ulint) errno);
+		} else {
+			fprintf(stderr,
+				" InnoDB: Error: Write to file %s failed"
+				" at offset " UINT64PF ".\n"
+				"InnoDB: %lu bytes should have been written,"
+				" only %ld were written.\n"
+				"InnoDB: Operating system error number %lu.\n"
+				"InnoDB: Check that your OS and file system"
+				" support files of this size.\n"
+				"InnoDB: Check also that the disk is not full"
+				" or a disk quota exceeded.\n",
+				name, offset, n, (lint) ret,
+				(ulint) errno);
+		}
+
 		if (strerror(errno) != NULL) {
 			fprintf(stderr,
 				"InnoDB: Error number %d means '%s'.\n",
@@ -4276,8 +4230,6 @@ os_aio_array_free(
 /*==============*/
 	os_aio_array_t*& array)	/*!< in, own: array to free */
 {
-	ulint	i;
-
 	os_mutex_free(array->mutex);
 	os_event_free(array->not_full);
 	os_event_free(array->is_empty);
@@ -4288,31 +4240,6 @@ os_aio_array_free(
 		ut_free(array->aio_ctx);
 	}
 #endif /* LINUX_NATIVE_AIO */
-
-	for (i = 0; i < array->n_slots; i++) {
-		os_aio_slot_t* slot = os_aio_array_get_nth_slot(array, i);
-
-		if (slot->page_compression_page) {
-			ut_free(slot->page_compression_page);
-			slot->page_compression_page = NULL;
-		}
-
-		if (slot->lzo_mem) {
-			ut_free(slot->lzo_mem);
-			slot->lzo_mem = NULL;
-		}
-
-		if (slot->page_encryption_page) {
-			ut_free(slot->page_encryption_page);
-			slot->page_encryption_page = NULL;
-		}
-
-		if (slot->tmp_encryption_buf) {
-			ut_free(slot->tmp_encryption_buf);
-			slot->tmp_encryption_buf = NULL;
-		}
-	}
-
 
 	ut_free(array->slots);
 	ut_free(array);
@@ -4659,22 +4586,11 @@ os_aio_array_reserve_slot(
 	os_offset_t	offset,	/*!< in: file offset */
 	ulint		len,	/*!< in: length of the block to read or write */
 	ulint		space_id,
-	ibool		page_compression, /*!< in: is page compression used
-					  on this file space */
-	ulint		page_compression_level, /*!< page compression
-						 level to be used */
-	ibool		page_encryption, /*!< in: is page encryption used
-					  on this file space */
-	ulint		page_encryption_key, /*!< page encryption key
-						 to be used */
-	ulint*		write_size,/*!< in/out: Actual write size initialized
+	ulint*		write_size)/*!< in/out: Actual write size initialized
 			       after first successfull trim
 			       operation for this page and if
 			       initialized we do not trim again if
 			       actual page size does not decrease. */
-	lsn_t		lsn,		/*!< in: lsn of the newest
-					modification */
-	bool		encrypt_later)  /*!< in: should we encrypt the page */
 {
 	os_aio_slot_t*	slot = NULL;
 #ifdef WIN_ASYNC_IO
@@ -4763,94 +4679,11 @@ found:
 	slot->type     = type;
 	slot->buf      = static_cast<byte*>(buf);
 	slot->offset   = offset;
-	slot->lsn      = lsn;
 	slot->io_already_done = FALSE;
 	slot->space_id = space_id;
-	slot->page_compression_success = FALSE;
-	slot->page_encryption_success = FALSE;
-	slot->write_size = write_size;
-	slot->page_compression_level = page_compression_level;
-	slot->page_compression = page_compression;
-	slot->page_encryption_key = page_encryption_key;
-	slot->page_encryption = page_encryption;
-	slot->encrypt_later = encrypt_later;
 
 	if (message1) {
 		slot->file_block_size = fil_node_get_block_size(message1);
-	}
-
-
-	/* If the space is page compressed and this is write operation
-	   then we encrypt the page */
-	if (message1 && type == OS_FILE_WRITE && page_compression) {
-		ulint           real_len = len;
-		byte*           tmp = NULL;
-
-		/* Release the array mutex while encrypting */
-		os_mutex_exit(array->mutex);
-
-		// We allocate memory for page compressed buffer if and only
-		// if it is not yet allocated.
-		os_slot_alloc_page_buf(slot);
-
-#ifdef HAVE_LZO
-		if (innodb_compression_algorithm == 3) {
-			os_slot_alloc_lzo_mem(slot);
-		}
-#endif
-
-		/* Call page compression */
-		tmp = fil_compress_page(
-                        fil_node_get_space_id(slot->message1),
-			(byte *)buf,
-			slot->page_buf,
-			len,
-			page_compression_level,
-			fil_node_get_block_size(slot->message1),
-			&real_len,
-			slot->lzo_mem
-		);
-
-		/* If compression succeeded, set up the length and buffer */
-		if (tmp != buf) {
-			len = real_len;
-			buf = slot->page_buf;
-			slot->len = real_len;
-			slot->page_compression_success = TRUE;
-		} else {
-			slot->page_compression_success = FALSE;
-		}
-
-		/* Take array mutex back, not sure if this is really needed
-		below */
-		os_mutex_enter(array->mutex);
-
-	}
-
-	/* If the space is page encryption and this is write operation
-	   then we encrypt the page */
-	if (message1 && type == OS_FILE_WRITE && (page_encryption || encrypt_later)) {
-		/* Release the array mutex while encrypting */
-		os_mutex_exit(array->mutex);
-
-		// We allocate memory for page encrypted buffer if and only
-		// if it is not yet allocated.
-		os_slot_alloc_page_buf2(slot);
-
-		fil_space_encrypt(
-			fil_node_get_space_id(slot->message1),
-			slot->offset,
-			slot->lsn,
-			(byte *)buf,
-			slot->len,
-			slot->page_buf2,
-			slot->page_encryption_key);
-
-		slot->page_encryption_success = TRUE;
-		buf = slot->page_buf2;
-
-		/* Take array mutex back */
-		os_mutex_enter(array->mutex);
 	}
 
 	slot->buf = (byte *)buf;
@@ -5131,22 +4964,11 @@ os_aio_func(
 				OS_AIO_SYNC */
 	ulint		space_id,
 	trx_t*		trx,
-	ibool		page_compression, /*!< in: is page compression used
-					  on this file space */
-	ulint		page_compression_level, /*!< page compression
-						 level to be used */
-	ulint*		write_size,/*!< in/out: Actual write size initialized
+	ulint*		write_size)/*!< in/out: Actual write size initialized
 			       after fist successfull trim
 			       operation for this page and if
 			       initialized we do not trim again if
 			       actual page size does not decrease. */
-   	ibool		page_encryption, /*!< in: is page encryption used
-					  on this file space */
-	ulint		page_encryption_key, /*!< in: page encryption key
-						 to be used */
-	lsn_t		lsn,		/*!< in: lsn of the newest modification */
-	bool		encrypt_later)  /*!< in: should we encrypt before
-					writing the page */
 {
 	os_aio_array_t*	array;
 	os_aio_slot_t*	slot;
@@ -5171,7 +4993,7 @@ os_aio_func(
 	mode = mode & (~OS_AIO_SIMULATED_WAKE_LATER);
 
 	DBUG_EXECUTE_IF("ib_os_aio_func_io_failure_28",
-			mode = OS_AIO_SYNC;);
+		mode = OS_AIO_SYNC; os_has_said_disk_full = FALSE;);
 
 	if (mode == OS_AIO_SYNC) {
 		ibool ret;
@@ -5179,20 +5001,20 @@ os_aio_func(
 		no need to use an i/o-handler thread */
 
 		if (type == OS_FILE_READ) {
-			ret = os_file_read_func(file, buf, offset, n, trx,
-				                page_compression);
+			ret = os_file_read_func(file, buf, offset, n, trx);
 		} else {
 			ut_ad(!srv_read_only_mode);
 			ut_a(type == OS_FILE_WRITE);
 
 			ret = os_file_write(name, file, buf, offset, n);
-		}
 
-		if (type == OS_FILE_WRITE) {
 			DBUG_EXECUTE_IF("ib_os_aio_func_io_failure_28",
-				os_has_said_disk_full = FALSE;
-				ret = 0;
-				errno = 28;);
+				os_has_said_disk_full = FALSE; ret = 0; errno = 28;);
+
+			if (!ret) {
+				os_file_handle_error_cond_exit(name, "os_file_write_func", TRUE, FALSE,
+							       __FILE__, __LINE__);
+			}
 		}
 
 		if (!ret) {
@@ -5252,9 +5074,7 @@ try_again:
 
 	slot = os_aio_array_reserve_slot(type, array, message1, message2, file,
 					 name, buf, offset, n, space_id,
-					 page_compression, page_compression_level,
-		                         page_encryption, page_encryption_key,
-		                         write_size, lsn, encrypt_later);
+		                         write_size);
 
 	if (type == OS_FILE_READ) {
 		if (srv_use_native_aio) {
@@ -5283,15 +5103,8 @@ try_again:
 		if (srv_use_native_aio) {
 			os_n_file_writes++;
 #ifdef WIN_ASYNC_IO
-			if (page_encryption && slot->page_encryption_success) {
-				buffer = slot->page_buf2;
-				n = slot->len;
-			} else if (page_compression && slot->page_compression_success) {
-                                buffer = slot->page_buf;
-                                n = slot->len;
-			} else {
-                                buffer = buf;
-                        }
+			n = slot->len;
+			buffer = buf;
 			ret = WriteFile(file, buffer, (DWORD) n, &len,
 					&(slot->control));
 
@@ -5450,22 +5263,12 @@ os_aio_windows_handle(
 
 		switch (slot->type) {
 		case OS_FILE_WRITE:
-			if (slot->message1 && slot->page_encryption && slot->page_encryption_success) {
-				ret_val = os_file_write(slot->name, slot->file, slot->page_buf2,
- 					                slot->offset, slot->len);
- 			} else {
-                          	if (slot->message1 && slot->page_compression && slot->page_compression_success) {
-                                  ret_val = os_file_write(slot->name, slot->file, slot->page_buf,
+			ret_val = os_file_write(slot->name, slot->file, slot->buf,
                                                           slot->offset, slot->len);
-                                } else {
-                                  ret_val = os_file_write(slot->name, slot->file, slot->buf,
-                                                          slot->offset, slot->len);
-                                }
-                        }
 			break;
 		case OS_FILE_READ:
 			ret_val = os_file_read(slot->file, slot->buf,
-				               slot->offset, slot->len, slot->page_compression);
+				               slot->offset, slot->len);
 			break;
 		default:
 			ut_error;
@@ -5490,45 +5293,10 @@ os_aio_windows_handle(
 		ret_val = ret && len == slot->len;
 	}
 
-	if (slot->type == OS_FILE_READ) {
-		if (fil_page_is_compressed_encrypted(slot->buf) ||
-			fil_page_is_encrypted(slot->buf)) {
-			ut_ad(slot->message1 != NULL);
-			os_slot_alloc_page_buf2(slot);
-			os_slot_alloc_tmp_encryption_buf(slot);
-
-			// Decrypt the data
-			fil_space_decrypt(
-				fil_node_get_space_id(slot->message1),
-				slot->buf,
-				slot->len,
-				slot->page_buf2);
-			// Copy decrypted buffer back to buf
-			memcpy(slot->buf, slot->page_buf2, slot->len);
-		}
-
-		if (fil_page_is_compressed(slot->buf)) {
-			/* We allocate memory for page compressed buffer if
-                           and only if it is not yet allocated. */
-			os_slot_alloc_page_buf(slot);
-
-#ifdef HAVE_LZO
-			if (fil_page_is_lzo_compressed(slot->buf)) {
-				os_slot_alloc_lzo_mem(slot);
-			}
-#endif
-			fil_decompress_page(slot->page_buf, slot->buf,
-                                            slot->len, slot->write_size);
-		}
-	} else {
-		/* OS_FILE_WRITE */
-		if (slot->page_compression_success &&
-			(fil_page_is_compressed(slot->page_buf) ||
-			 fil_page_is_compressed_encrypted(slot->buf))) {
-			if (srv_use_trim && os_fallocate_failed == FALSE) {
-				// Deallocate unused blocks from file system
-				os_file_trim(slot);
-			}
+	if (slot->type == OS_FILE_WRITE) {
+		if (srv_use_trim && os_fallocate_failed == FALSE) {
+			// Deallocate unused blocks from file system
+			os_file_trim(slot);
 		}
 	}
 
@@ -5621,48 +5389,10 @@ retry:
 			/* We have not overstepped to next segment. */
 			ut_a(slot->pos < end_pos);
 
-			if (slot->type == OS_FILE_READ) {
-				/* If the page is page encrypted we decrypt */
-				if (fil_page_is_compressed_encrypted(slot->buf) ||
-					fil_page_is_encrypted(slot->buf)) {
-					os_slot_alloc_page_buf2(slot);
-					os_slot_alloc_tmp_encryption_buf(slot);
-					ut_ad(slot->message1 != NULL);
-
-					// Decrypt the data
-					fil_space_decrypt(fil_node_get_space_id(slot->message1),
-                                                          slot->buf,
-                                                          slot->len,
-                                                          slot->page_buf2);
-					// Copy decrypted buffer back to buf
-					memcpy(slot->buf, slot->page_buf2, slot->len);
- 				}
-
-				/* If the table is page compressed and this
-                                   is read, we decompress before we announce
-                                   the read is complete. For writes, we free
-                                   the compressed page. */
-				if (fil_page_is_compressed(slot->buf)) {
-					// We allocate memory for page compressed buffer if and only
-					// if it is not yet allocated.
-					os_slot_alloc_page_buf(slot);
-#ifdef HAVE_LZO
-					if (fil_page_is_lzo_compressed(slot->buf)) {
-						os_slot_alloc_lzo_mem(slot);
-					}
-#endif
-					fil_decompress_page(slot->page_buf, slot->buf, slot->len, slot->write_size);
-				}
-			} else {
-				/* OS_FILE_WRITE */
-				if (slot->page_compression_success &&
-					(fil_page_is_compressed(slot->page_buf) ||
-					 fil_page_is_compressed_encrypted(slot->buf))) {
-					ut_ad(slot->page_compression_page);
-					if (srv_use_trim && os_fallocate_failed == FALSE) {
-						// Deallocate unused blocks from file system
-						os_file_trim(slot);
-					}
+			if (slot->type == OS_FILE_WRITE) {
+				if (srv_use_trim && os_fallocate_failed == FALSE) {
+					// Deallocate unused blocks from file system
+					os_file_trim(slot);
 				}
 			}
 
@@ -6139,16 +5869,19 @@ consecutive_loop:
 		ret = os_file_write(
 			aio_slot->name, aio_slot->file, combined_buf,
 			aio_slot->offset, total_len);
+
+		DBUG_EXECUTE_IF("ib_os_aio_func_io_failure_28",
+			os_has_said_disk_full = FALSE; ret = 0; errno = 28;);
+
+		if (!ret) {
+			os_file_handle_error_cond_exit(aio_slot->name, "os_file_write_func", TRUE, FALSE,
+						       __FILE__, __LINE__);
+		}
+
 	} else {
 		ret = os_file_read(
 			aio_slot->file, combined_buf,
-			aio_slot->offset, total_len,
-			aio_slot->page_compression);
-	}
-
-	if (aio_slot->type == OS_FILE_WRITE) {
-		DBUG_EXECUTE_IF("ib_os_aio_func_io_failure_28_2",
-			os_has_said_disk_full = FALSE; ret = 0; errno = 28;);
+			aio_slot->offset, total_len);
 	}
 
 	srv_set_io_thread_op_info(global_segment, "file i/o done");
@@ -6719,91 +6452,6 @@ os_file_trim(
 
 	return (TRUE);
 
-}
-
-/**********************************************************************//**
-Allocate memory for temporal buffer used for page encryption. This
-buffer is freed later. */
-UNIV_INTERN
-void
-os_slot_alloc_page_buf2(
-/*===================*/
-	os_aio_slot_t*   slot) /*!< in: slot structure     */
-{
-	ut_a(slot != NULL);
-
-	if(slot->page_buf2 == NULL) {
-		byte*           cbuf2;
-		byte*           cbuf;
-
-		cbuf2 = static_cast<byte *>(ut_malloc(UNIV_PAGE_SIZE*2));
-		cbuf = static_cast<byte *>(ut_align(cbuf2, UNIV_PAGE_SIZE));
-		slot->page_encryption_page = static_cast<byte *>(cbuf2);
-		slot->page_buf2 = static_cast<byte *>(cbuf);
-		memset(slot->page_encryption_page, 0, UNIV_PAGE_SIZE*2);
-	}
-}
-
-/**********************************************************************//**
-Allocate memory for temporal buffer used for page compression. This
-buffer is freed later. */
-UNIV_INTERN
-void
-os_slot_alloc_page_buf(
-/*===================*/
-	os_aio_slot_t*   slot) /*!< in: slot structure     */
-{
-	ut_a(slot != NULL);
-	if (slot->page_buf == NULL) {
-		byte*           cbuf2;
-		byte*           cbuf;
-		ulint           asize = UNIV_PAGE_SIZE;
-#ifdef HAVE_SNAPPY
-		asize += snappy_max_compressed_length(asize) - UNIV_PAGE_SIZE;
-#endif
-		/* We allocate extra to avoid memory overwrite on
-                   compression */
-		cbuf2 = static_cast<byte *>(ut_malloc(asize*2));
-		cbuf = static_cast<byte *>(ut_align(cbuf2, UNIV_PAGE_SIZE));
-		slot->page_compression_page = static_cast<byte *>(cbuf2);
-		slot->page_buf = static_cast<byte *>(cbuf);
-		ut_a(slot->page_buf != NULL);
-		memset(slot->page_compression_page, 0, asize*2);
-	}
-}
-
-#ifdef HAVE_LZO
-/**********************************************************************//**
-Allocate memory for temporal memory used for page compression when
-LZO compression method is used */
-UNIV_INTERN
-void
-os_slot_alloc_lzo_mem(
-/*===================*/
-	os_aio_slot_t*   slot) /*!< in: slot structure     */
-{
-	ut_a(slot != NULL);
-	if(slot->lzo_mem == NULL) {
-		slot->lzo_mem = static_cast<byte *>(ut_malloc(LZO1X_1_15_MEM_COMPRESS));
-		ut_a(slot->lzo_mem != NULL);
-		memset(slot->lzo_mem, 0, LZO1X_1_15_MEM_COMPRESS);
-	}
-}
-#endif
-
-/**********************************************************************//**
-Allocate memory for temporal buffer used for page encryption. */
-UNIV_INTERN
-void
-os_slot_alloc_tmp_encryption_buf(
-/*=============================*/
-	os_aio_slot_t* slot) /*!< in: slot structure */
-{
-	ut_a(slot != NULL);
-	if (slot->tmp_encryption_buf == NULL) {
-		slot->tmp_encryption_buf = static_cast<byte *>(ut_malloc(64));
-		memset(slot->tmp_encryption_buf, 0, 64);
-	}
 }
 
 /***********************************************************************//**

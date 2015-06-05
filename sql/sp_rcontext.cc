@@ -155,14 +155,14 @@ bool sp_rcontext::set_return_value(THD *thd, Item **return_value_item)
 }
 
 
-bool sp_rcontext::push_cursor(sp_lex_keeper *lex_keeper,
+bool sp_rcontext::push_cursor(THD *thd, sp_lex_keeper *lex_keeper,
                               sp_instr_cpush *i)
 {
   /*
     We should create cursors in the callers arena, as
     it could be (and usually is) used in several instructions.
   */
-  sp_cursor *c= new (callers_arena->mem_root) sp_cursor(lex_keeper, i);
+  sp_cursor *c= new (callers_arena->mem_root) sp_cursor(thd, lex_keeper, i);
 
   if (c == NULL)
     return true;
@@ -421,8 +421,9 @@ bool sp_rcontext::set_case_expr(THD *thd, int case_expr_id,
 ///////////////////////////////////////////////////////////////////////////
 
 
-sp_cursor::sp_cursor(sp_lex_keeper *lex_keeper, sp_instr_cpush *i)
-  :m_lex_keeper(lex_keeper),
+sp_cursor::sp_cursor(THD *thd_arg, sp_lex_keeper *lex_keeper, sp_instr_cpush *i):
+   result(thd_arg),
+   m_lex_keeper(lex_keeper),
    server_side_cursor(NULL),
    m_i(i)
 {

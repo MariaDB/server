@@ -97,7 +97,7 @@ DROP PREPARE stmt;"
 SET_START_POSITION="SET GLOBAL wsrep_start_position='$WSREP_SST_OPT_GTID';"
 
 SET_WSREP_GTID_DOMAIN_ID=""
-if [ -n WSREP_SST_OPT_GTID_DOMAIN_ID]
+if [ -n $WSREP_SST_OPT_GTID_DOMAIN_ID ]
 then
   SET_WSREP_GTID_DOMAIN_ID="
   SET @val = (SELECT GLOBAL_VALUE FROM INFORMATION_SCHEMA.SYSTEM_VARIABLES WHERE VARIABLE_NAME = 'WSREP_GTID_STRICT_MODE' AND GLOBAL_VALUE > 0);
@@ -129,7 +129,7 @@ SET_GTID_BINLOG_STATE=""
 SQL_LOG_BIN_OFF=""
 
 # Safety check
-if echo $SERVER_VERSION | grep '^10.0' > /dev/null
+if echo $SERVER_VERSION | grep '^10.1' > /dev/null
 then
   # If binary logging is enabled on the joiner node, we need to copy donor's
   # gtid_binlog_state to joiner. In order to do that, a RESET MASTER must be

@@ -1337,7 +1337,7 @@ Event_job_data::execute(THD *thd, bool drop)
 
   DBUG_ENTER("Event_job_data::execute");
 
-  mysql_reset_thd_for_next_command(thd);
+  thd->reset_for_next_command();
 
   /*
     MySQL parser currently assumes that current database is either
@@ -1482,7 +1482,9 @@ end:
 
       WSREP_TO_ISOLATION_END;
 
+#ifdef WITH_WSREP
   error:
+#endif
       thd->tx_read_only= save_tx_read_only;
       thd->security_ctx->master_access= saved_master_access;
     }

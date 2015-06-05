@@ -2047,8 +2047,7 @@ bool partition_info::set_up_charset_field_preps()
     i= 0;
     while ((field= *(ptr++)))
     {
-      uchar *field_buf;
-      LINT_INIT(field_buf);
+      uchar *UNINIT_VAR(field_buf);
 
       if (!field_is_partition_charset(field))
         continue;

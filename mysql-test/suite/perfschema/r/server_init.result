@@ -120,10 +120,6 @@ where name like "wait/synch/mutex/sql/LOCK_audit_mask";
 count(name)
 1
 select count(name) from mutex_instances
-where name like "wait/synch/mutex/sql/LOCK_xid_cache";
-count(name)
-1
-select count(name) from mutex_instances
 where name like "wait/synch/mutex/sql/LOCK_plugin";
 count(name)
 1

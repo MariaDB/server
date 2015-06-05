@@ -1,13 +1,23 @@
 RUBY_SCRIPT_FILES =				\
 	backtrace_entry.rb			\
+	command.rb				\
 	context.rb				\
-	context/error_level.rb			\
-	context/rc.rb				\
+	database.rb				\
+	error.rb				\
 	eval_context.rb				\
 	expression.rb				\
+	expression_size_estimator.rb		\
+	index_column.rb				\
+	index_cursor.rb				\
 	index_info.rb				\
 	logger.rb				\
-	logger/level.rb				\
+	object.rb				\
+	operator.rb				\
+	plugin_loader.rb			\
+	require.rb				\
 	scan_info.rb				\
 	scan_info_builder.rb			\
-	scan_info_data.rb
+	scan_info_data.rb			\
+	scan_info_search_index.rb		\
+	table_cursor.rb				\
+	writer.rb

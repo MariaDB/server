@@ -635,7 +635,7 @@ int ReplSemiSyncMaster::commitTrx(const char* trx_wait_binlog_name,
                             (int)is_on());
     }
 
-    while (is_on() && !thd_killed(NULL))
+    while (is_on() && !thd_killed(current_thd))
     {
       if (reply_file_name_inited_)
       {
@@ -747,7 +747,7 @@ int ReplSemiSyncMaster::commitTrx(const char* trx_wait_binlog_name,
       At this point, the binlog file and position of this transaction
       must have been removed from ActiveTranx.
     */
-    assert(thd_killed(NULL) ||
+    assert(thd_killed(current_thd) ||
            !active_tranxs_->is_tranx_end_pos(trx_wait_binlog_name,
                                              trx_wait_binlog_pos));
     
@@ -1048,8 +1048,6 @@ int ReplSemiSyncMaster::readSlaveReply(NET *net, uint32 server_id,
   int      result = -1;
   struct timespec start_ts;
   ulong trc_level = trace_level_;
-  LINT_INIT_STRUCT(start_ts);
-
   LINT_INIT_STRUCT(start_ts);
 
   function_enter(kWho);

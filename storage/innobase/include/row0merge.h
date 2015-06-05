@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2005, 2013, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2005, 2014, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -107,6 +107,7 @@ struct index_field_t {
 	ulint		col_no;		/*!< column offset */
 	ulint		prefix_len;	/*!< column prefix length, or 0
 					if indexing the whole column */
+	const char*	col_name;	/*!< column name or NULL */
 };
 
 /** Definition of an index being created */

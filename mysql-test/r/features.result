@@ -120,6 +120,9 @@ drop trigger trg;
 drop table t1;
 show status like "%trigger%";
 Variable_name	Value
+Binlog_group_commit_trigger_count	0
+Binlog_group_commit_trigger_lock_wait	0
+Binlog_group_commit_trigger_timeout	0
 Com_create_trigger	1
 Com_drop_trigger	1
 Com_show_create_trigger	0

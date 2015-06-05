@@ -26,10 +26,10 @@
 namespace mrn {
   class Lock {
   public:
-    Lock(pthread_mutex_t *mutex);
+    Lock(mysql_mutex_t *mutex);
     ~Lock();
   private:
-    pthread_mutex_t *mutex_;
+    mysql_mutex_t *mutex_;
   };
 }
 

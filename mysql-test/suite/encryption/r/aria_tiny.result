@@ -1,0 +1,5 @@
+set global aria_encrypt_tables = 1;
+create table t1 (i int, key(i)) engine=aria;
+insert into t1 values (1);
+drop table t1;
+set global aria_encrypt_tables = 0;

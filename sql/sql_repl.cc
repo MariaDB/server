@@ -1013,7 +1013,7 @@ give_error_start_pos_missing_in_binlog(int *err, const char **errormsg,
       binlog_gtid.seq_no >= error_gtid->seq_no)
   {
     *errormsg= "Requested slave GTID state not found in binlog. The slave has "
-      "probably diverged due to executing errorneous transactions";
+      "probably diverged due to executing erroneous transactions";
     *err= ER_GTID_POSITION_NOT_FOUND_IN_BINLOG2;
   }
   else
@@ -2320,6 +2320,30 @@ static int send_format_descriptor_event(binlog_send_info *info,
         info->current_checksum_alg != BINLOG_CHECKSUM_ALG_UNDEF)
         fix_checksum(packet, ev_offset);
     }
+    else if (info->using_gtid_state)
+    {
+      /*
+        If this event has the field `created' set, then it will cause the
+        slave to delete all active temporary tables. This must not happen
+        if the slave received any later GTIDs in a previous connect, as
+        those GTIDs might have created new temporary tables that are still
+        needed.
+
+        So here, we check if the starting GTID position was already
+        reached before this format description event. If not, we clear the
+        `created' flag to preserve temporary tables on the slave. (If the
+        slave connects at a position past this event, it means that it
+        already received and handled it in a previous connect).
+      */
+      if (!info->gtid_state.is_pos_reached())
+      {
+        int4store((char*) packet->ptr()+LOG_EVENT_MINIMAL_HEADER_LEN+
+                  ST_CREATED_OFFSET+ev_offset, (ulong) 0);
+        if (info->current_checksum_alg != BINLOG_CHECKSUM_ALG_OFF &&
+            info->current_checksum_alg != BINLOG_CHECKSUM_ALG_UNDEF)
+          fix_checksum(packet, ev_offset);
+      }
+    }
 
     /* send it */
     if (my_net_write(info->net, (uchar*) packet->ptr(), packet->length()))
@@ -2884,7 +2908,7 @@ err:
                 "%u-%u-%llu, which is not in the master's binlog. Since the "
                 "master's binlog contains GTIDs with higher sequence numbers, "
                 "it probably means that the slave has diverged due to "
-                "executing extra errorneous transactions",
+                "executing extra erroneous transactions",
                 info->error_gtid.domain_id,
                 info->error_gtid.server_id,
                 info->error_gtid.seq_no);
@@ -4095,20 +4119,20 @@ err:
    @retval 0 success
    @retval 1 failure
 */
-int log_loaded_block(IO_CACHE* file)
+int log_loaded_block(IO_CACHE* file, uchar *Buffer, size_t Count)
 {
   DBUG_ENTER("log_loaded_block");
-  LOAD_FILE_INFO *lf_info;
+  LOAD_FILE_IO_CACHE *lf_info= static_cast<LOAD_FILE_IO_CACHE*>(file);
   uint block_len;
   /* buffer contains position where we started last read */
   uchar* buffer= (uchar*) my_b_get_buffer_start(file);
-  uint max_event_size= current_thd->variables.max_allowed_packet;
-  lf_info= (LOAD_FILE_INFO*) file->arg;
+  uint max_event_size= lf_info->thd->variables.max_allowed_packet;
+
   if (lf_info->thd->is_current_stmt_binlog_format_row())
-    DBUG_RETURN(0);
+    goto ret;
   if (lf_info->last_pos_in_file != HA_POS_ERROR &&
       lf_info->last_pos_in_file >= my_b_get_pos_in_file(file))
-    DBUG_RETURN(0);
+    goto ret;
   
   for (block_len= (uint) (my_b_get_bytes_in_buffer(file)); block_len > 0;
        buffer += MY_MIN(block_len, max_event_size),
@@ -4134,7 +4158,9 @@ int log_loaded_block(IO_CACHE* file)
       lf_info->wrote_create_file= 1;
     }
   }
-  DBUG_RETURN(0);
+ret:
+  int res= Buffer ? lf_info->real_read_function(file, Buffer, Count) : 0;
+  DBUG_RETURN(res);
 }
 
 

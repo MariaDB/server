@@ -1159,4 +1159,3 @@ bool JVALUE::IsNull(void)
 {
   return (Jsp) ? Jsp->IsNull() : (Value) ? Value->IsZero() : true;
 } // end of IsNull
-

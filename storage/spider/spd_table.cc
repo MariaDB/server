@@ -1,4 +1,4 @@
-/* Copyright (C) 2008-2014 Kentoku Shiba
+/* Copyright (C) 2008-2015 Kentoku Shiba
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -14,7 +14,6 @@
   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
 
 #define MYSQL_SERVER 1
-#include <my_global.h>
 #include "mysql_version.h"
 #if MYSQL_VERSION_ID < 50500
 #include "mysql_priv.h"
@@ -42,11 +41,13 @@
 #include "spd_malloc.h"
 
 ulong *spd_db_att_thread_id;
+#if MYSQL_VERSION_ID < 100103
 #ifdef XID_CACHE_IS_SPLITTED
 uint *spd_db_att_xid_cache_split_num;
 #endif
 pthread_mutex_t *spd_db_att_LOCK_xid_cache;
 HASH *spd_db_att_xid_cache;
+#endif
 struct charset_info_st *spd_charset_utf8_bin;
 const char **spd_defaults_extra_file;
 const char **spd_defaults_file;
@@ -772,6 +773,8 @@ int spider_free_share_alloc(
     spider_free(spider_current_trx, share->net_write_timeouts, MYF(0));
   if (share->access_balances)
     spider_free(spider_current_trx, share->access_balances, MYF(0));
+  if (share->bka_table_name_types)
+    spider_free(spider_current_trx, share->bka_table_name_types, MYF(0));
 #ifndef WITHOUT_SPIDER_BG_SEARCH
   if (share->monitoring_bg_interval)
     spider_free(spider_current_trx, share->monitoring_bg_interval, MYF(0));
@@ -1988,6 +1991,8 @@ int spider_parse_connect_info(
           SPIDER_PARAM_STR("bke", bka_engine);
           SPIDER_PARAM_INT_WITH_MAX("bkm", bka_mode, 0, 2);
           SPIDER_PARAM_INT("bsz", bulk_size, 0);
+          SPIDER_PARAM_LONG_LIST_WITH_MAX("btt", bka_table_name_types,
+            0, 1);
           SPIDER_PARAM_INT_WITH_MAX("bum", bulk_update_mode, 0, 2);
           SPIDER_PARAM_INT("bus", bulk_update_size, 0);
 #ifndef WITHOUT_SPIDER_BG_SEARCH
@@ -2336,6 +2341,8 @@ int spider_parse_connect_info(
 #if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
           SPIDER_PARAM_LONGLONG("hs_result_free_size", hs_result_free_size, 0);
 #endif
+          SPIDER_PARAM_LONG_LIST_WITH_MAX("bka_table_name_type",
+            bka_table_name_types, 0, 1);
           error_num = ER_SPIDER_INVALID_CONNECT_INFO_NUM;
           my_printf_error(error_num, ER_SPIDER_INVALID_CONNECT_INFO_STR,
             MYF(0), tmp_ptr);
@@ -2483,6 +2490,8 @@ int spider_parse_connect_info(
     share->all_link_count = share->net_write_timeouts_length;
   if (share->all_link_count < share->access_balances_length)
     share->all_link_count = share->access_balances_length;
+  if (share->all_link_count < share->bka_table_name_types_length)
+    share->all_link_count = share->bka_table_name_types_length;
   if ((error_num = spider_increase_string_list(
     &share->server_names,
     &share->server_names_lengths,
@@ -2710,6 +2719,11 @@ int spider_parse_connect_info(
   if ((error_num = spider_increase_long_list(
     &share->access_balances,
     &share->access_balances_length,
+    share->all_link_count)))
+    goto error;
+  if ((error_num = spider_increase_long_list(
+    &share->bka_table_name_types,
+    &share->bka_table_name_types_length,
     share->all_link_count)))
     goto error;
 
@@ -3401,6 +3415,8 @@ int spider_set_connect_info_default(
       share->net_write_timeouts[roop_count] = 600;
     if (share->access_balances[roop_count] == -1)
       share->access_balances[roop_count] = 100;
+    if (share->bka_table_name_types[roop_count] == -1)
+      share->bka_table_name_types[roop_count] = 0;
   }
 
 #ifndef WITHOUT_SPIDER_BG_SEARCH
@@ -6264,7 +6280,7 @@ int spider_db_init(
       "?LOCK_xid_cache@@3PAUst_mysql_mutex@@A"));
   spd_db_att_xid_cache = *((HASH **)
     GetProcAddress(current_module, "?xid_cache@@3PAUst_hash@@A"));
-#else
+#elif MYSQL_VERSION_ID < 100103
   spd_db_att_LOCK_xid_cache = (pthread_mutex_t *)
 #if MYSQL_VERSION_ID < 50500
     GetProcAddress(current_module,
@@ -6290,7 +6306,7 @@ int spider_db_init(
   spd_db_att_xid_cache_split_num = &opt_xid_cache_split_num;
   spd_db_att_LOCK_xid_cache = LOCK_xid_cache;
   spd_db_att_xid_cache = xid_cache;
-#else
+#elif MYSQL_VERSION_ID < 100103
   spd_db_att_LOCK_xid_cache = &LOCK_xid_cache;
   spd_db_att_xid_cache = &xid_cache;
 #endif
@@ -7495,6 +7511,7 @@ void spider_set_tmp_share_pointer(
   tmp_share->net_write_timeouts = &tmp_long[13];
   tmp_long[13] = -1;
   tmp_share->access_balances = &tmp_long[14];
+  tmp_share->bka_table_name_types = &tmp_long[15];
   tmp_share->monitoring_limit = &tmp_longlong[0];
   tmp_share->monitoring_sid = &tmp_longlong[1];
 #ifndef WITHOUT_SPIDER_BG_SEARCH
@@ -7564,6 +7581,7 @@ void spider_set_tmp_share_pointer(
   tmp_share->net_read_timeouts_length = 1;
   tmp_share->net_write_timeouts_length = 1;
   tmp_share->access_balances_length = 1;
+  tmp_share->bka_table_name_types_length = 1;
 
 #ifndef WITHOUT_SPIDER_BG_SEARCH
   tmp_share->monitoring_bg_kind[0] = -1;
@@ -7730,6 +7748,7 @@ longlong spider_split_read_param(
     DBUG_RETURN(result_list->semi_split_read_base);
   }
   spider_get_select_limit(spider, &select_lex, &select_limit, &offset_limit);
+  DBUG_PRINT("info",("spider result_list->set_split_read=%s", result_list->set_split_read ? "TRUE" : "FALSE"));
   if (!result_list->set_split_read)
   {
     int bulk_update_mode = spider_param_bulk_update_mode(thd,
@@ -7803,6 +7822,7 @@ longlong spider_split_read_param(
       result_list->set_split_read = TRUE;
       DBUG_RETURN(9223372036854775807LL);
     }
+#ifdef SPIDER_HAS_EXPLAIN_QUERY
     Explain_query *explain = thd->lex->explain;
     bool filesort = FALSE;
     if (explain)
@@ -7827,18 +7847,23 @@ longlong spider_split_read_param(
         }
       }
     }
+#endif
     result_list->split_read_base =
       spider_param_split_read(thd, share->split_read);
+#ifdef SPIDER_HAS_EXPLAIN_QUERY
     if (filesort)
     {
       result_list->semi_split_read = 0;
       result_list->semi_split_read_limit = 9223372036854775807LL;
     } else {
+#endif
       result_list->semi_split_read =
         spider_param_semi_split_read(thd, share->semi_split_read);
       result_list->semi_split_read_limit =
         spider_param_semi_split_read_limit(thd, share->semi_split_read_limit);
+#ifdef SPIDER_HAS_EXPLAIN_QUERY
     }
+#endif
     result_list->first_read =
       spider_param_first_read(thd, share->first_read);
     result_list->second_read =
@@ -7846,6 +7871,11 @@ longlong spider_split_read_param(
     result_list->semi_split_read_base = 0;
     result_list->set_split_read = TRUE;
   }
+  DBUG_PRINT("info",("spider result_list->semi_split_read=%f", result_list->semi_split_read));
+  DBUG_PRINT("info",("spider select_lex->explicit_limit=%d", select_lex ? select_lex->explicit_limit : 0));
+  DBUG_PRINT("info",("spider OPTION_FOUND_ROWS=%s", select_lex && (select_lex->options & OPTION_FOUND_ROWS) ? "TRUE" : "FALSE"));
+  DBUG_PRINT("info",("spider select_lex->group_list.elements=%u", select_lex ? select_lex->group_list.elements : 0));
+  DBUG_PRINT("info",("spider select_lex->with_sum_func=%s", select_lex && select_lex->with_sum_func ? "TRUE" : "FALSE"));
   if (
     result_list->semi_split_read > 0 &&
     select_lex && select_lex->explicit_limit &&
@@ -7932,12 +7962,18 @@ bool spider_check_direct_order_limit(
   longlong select_limit;
   longlong offset_limit;
   DBUG_ENTER("spider_check_direct_order_limit");
+  if (spider_check_index_merge(spider->get_top_table(),
+    spider_get_select_lex(spider)))
+  {
+    DBUG_PRINT("info",("spider set use_index_merge"));
+    spider->use_index_merge = TRUE;
+  }
   DBUG_PRINT("info",("spider SQLCOM_HA_READ=%s",
     (spider->sql_command == SQLCOM_HA_READ) ? "TRUE" : "FALSE"));
   DBUG_PRINT("info",("spider sql_kinds with SPIDER_SQL_KIND_HANDLER=%s",
     (spider->sql_kinds & SPIDER_SQL_KIND_HANDLER) ? "TRUE" : "FALSE"));
-  DBUG_PRINT("info",("spider has_clone_for_merge=%s",
-    spider->has_clone_for_merge ? "TRUE" : "FALSE"));
+  DBUG_PRINT("info",("spider use_index_merge=%s",
+    spider->use_index_merge ? "TRUE" : "FALSE"));
   DBUG_PRINT("info",("spider is_clone=%s",
     spider->is_clone ? "TRUE" : "FALSE"));
 #ifdef HA_CAN_BULK_ACCESS
@@ -7946,7 +7982,7 @@ bool spider_check_direct_order_limit(
 #endif
   if (
     spider->sql_command != SQLCOM_HA_READ &&
-    !spider->has_clone_for_merge &&
+    !spider->use_index_merge &&
 #ifdef HA_CAN_BULK_ACCESS
     (!spider->is_clone || spider->is_bulk_access_clone)
 #else
@@ -7958,10 +7994,10 @@ bool spider_check_direct_order_limit(
     DBUG_PRINT("info",("spider select_lex=%p", select_lex));
 #if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100000
     DBUG_PRINT("info",("spider leaf_tables.elements=%u",
-      select_lex->leaf_tables.elements));
+      select_lex ? select_lex->leaf_tables.elements : 0));
 #endif
 
-    if (select_lex->options & SELECT_DISTINCT)
+    if (select_lex && (select_lex->options & SELECT_DISTINCT))
     {
       DBUG_PRINT("info",("spider with distinct"));
       spider->result_list.direct_distinct = TRUE;
@@ -7972,6 +8008,9 @@ bool spider_check_direct_order_limit(
     DBUG_PRINT("info",("spider select_limit=%lld", select_limit));
     DBUG_PRINT("info",("spider offset_limit=%lld", offset_limit));
     if (
+#ifdef SPIDER_NEED_CHECK_CONDITION_AT_CHECKING_DIRECT_ORDER_LIMIT
+      !spider->condition ||
+#endif
       !select_lex ||
 #if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100000
       select_lex->leaf_tables.elements != 1 ||
@@ -8038,19 +8077,19 @@ bool spider_check_direct_order_limit(
       DBUG_PRINT("info",("spider first_check=%s",
         first_check ? "TRUE" : "FALSE"));
       DBUG_PRINT("info",("spider (select_lex->options & OPTION_FOUND_ROWS)=%s",
-        (select_lex->options & OPTION_FOUND_ROWS) ? "TRUE" : "FALSE"));
+        select_lex && (select_lex->options & OPTION_FOUND_ROWS) ? "TRUE" : "FALSE"));
 #ifdef HANDLER_HAS_DIRECT_AGGREGATE
       DBUG_PRINT("info",("spider direct_aggregate=%s",
         spider->result_list.direct_aggregate ? "TRUE" : "FALSE"));
 #endif
       DBUG_PRINT("info",("spider select_lex->group_list.elements=%u",
-        select_lex->group_list.elements));
+        select_lex ? select_lex->group_list.elements : 0));
       DBUG_PRINT("info",("spider select_lex->with_sum_func=%s",
-        select_lex->with_sum_func ? "TRUE" : "FALSE"));
+        select_lex && select_lex->with_sum_func ? "TRUE" : "FALSE"));
       DBUG_PRINT("info",("spider select_lex->having=%s",
-        select_lex->having ? "TRUE" : "FALSE"));
+        select_lex && select_lex->having ? "TRUE" : "FALSE"));
       DBUG_PRINT("info",("spider select_lex->order_list.elements=%u",
-        select_lex->order_list.elements));
+        select_lex ? select_lex->order_list.elements : 0));
       if (
         !first_check ||
         !select_lex->explicit_limit ||
@@ -8089,6 +8128,68 @@ bool spider_check_direct_order_limit(
     }
   }
   DBUG_PRINT("info",("spider FALSE by parameter"));
+  DBUG_RETURN(FALSE);
+}
+
+bool spider_check_index_merge(
+  TABLE *table,
+  st_select_lex *select_lex
+) {
+  uint roop_count;
+  JOIN *join;
+  DBUG_ENTER("spider_check_index_merge");
+  if (!select_lex)
+  {
+    DBUG_PRINT("info",("spider select_lex is null"));
+    DBUG_RETURN(FALSE);
+  }
+  join = select_lex->join;
+  if (!join)
+  {
+    DBUG_PRINT("info",("spider join is null"));
+    DBUG_RETURN(FALSE);
+  }
+  if (!join->join_tab)
+  {
+    DBUG_PRINT("info",("spider join->join_tab is null"));
+    DBUG_RETURN(FALSE);
+  }
+  for (roop_count = 0; roop_count < spider_join_table_count(join); ++roop_count)
+  {
+    JOIN_TAB *join_tab = &join->join_tab[roop_count];
+    if (join_tab->table == table)
+    {
+      DBUG_PRINT("info",("spider join_tab->type=%u", join_tab->type));
+      if (
+#ifdef SPIDER_HAS_JT_HASH_INDEX_MERGE
+        join_tab->type == JT_HASH_INDEX_MERGE ||
+#endif
+        join_tab->type == JT_INDEX_MERGE
+      ) {
+        DBUG_RETURN(TRUE);
+      }
+/*
+      DBUG_PRINT("info",("spider join_tab->quick->get_type()=%u",
+        join_tab->quick ? join_tab->quick->get_type() : 0));
+      if (
+        join_tab->quick &&
+        join_tab->quick->get_type() == QUICK_SELECT_I::QS_TYPE_INDEX_MERGE
+      ) {
+        DBUG_RETURN(TRUE);
+      }
+*/
+      DBUG_PRINT("info",("spider join_tab->select->quick->get_type()=%u",
+        join_tab->select && join_tab->select->quick ? join_tab->select->quick->get_type() : 0));
+      if (
+        join_tab->select &&
+        join_tab->select->quick &&
+        join_tab->select->quick->get_type() == QUICK_SELECT_I::QS_TYPE_INDEX_MERGE
+      ) {
+        DBUG_RETURN(TRUE);
+      }
+      break;
+    }
+  }
   DBUG_RETURN(FALSE);
 }
 

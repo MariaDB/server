@@ -19,7 +19,11 @@ add_definitions(
 
 include_directories(
   ${CMAKE_CURRENT_SOURCE_DIR}/dat
-  ${MRUBY_INCLUDE_DIRS})
+  ${ONIGMO_INCLUDE_DIRS}
+  ${MRUBY_INCLUDE_DIRS}
+  ${LIBLZ4_INCLUDE_DIRS})
+link_directories(
+  ${LIBLZ4_LIBRARY_DIRS})
 
 read_file_list(${CMAKE_CURRENT_SOURCE_DIR}/sources.am LIBGROONGA_SOURCES)
 read_file_list(${CMAKE_CURRENT_SOURCE_DIR}/dat/sources.am LIBGRNDAT_SOURCES)
@@ -36,44 +40,43 @@ set_source_files_properties(dat.cpp ${LIBGRNDAT_SOURCES}
   PROPERTIES
   COMPILE_FLAGS "${GRN_CXX_COMPILE_FLAGS}")
 
-if(MRN_GROONGA_BUNDLED)
-  add_library(libgroonga STATIC
-    ${LIBGROONGA_SOURCES}
-    ${LIBGRNDAT_SOURCES}
-    ${LIBGRNMRB_SOURCES}
-    ${MRUBY_LIBS})
+set(GRN_ALL_SOURCES
+  ${LIBGROONGA_SOURCES}
+  ${LIBGRNDAT_SOURCES}
+  ${LIBGRNMRB_SOURCES})
+if(GRN_EMBED)
+  add_library(libgroonga STATIC ${GRN_ALL_SOURCES})
+  set_target_properties(
+    libgroonga
+    PROPERTIES
+    POSITION_INDEPENDENT_CODE ON)
 else()
-  add_library(libgroonga SHARED
-    ${LIBGROONGA_SOURCES}
-    ${LIBGRNDAT_SOURCES}
-    ${LIBGRNMRB_SOURCES}
-    ${MRUBY_LIBS})
+  add_library(libgroonga SHARED ${GRN_ALL_SOURCES})
 endif()
 set_target_properties(libgroonga PROPERTIES OUTPUT_NAME "groonga")
-if(NOT MRN_GROONGA_BUNDLED)
-  target_link_libraries(libgroonga
+
+set(GRN_ALL_LIBRARIES
     ${EXECINFO_LIBS}
     ${RT_LIBS}
     ${PTHREAD_LIBS}
     ${Z_LIBS}
-    ${LZO2_LIBS}
+    ${LIBLZ4_LIBRARIES}
     ${DL_LIBS}
-    ${WS2_32_LIBS})
+    ${M_LIBS}
+    ${WS2_32_LIBS}
+    ${MRUBY_LIBS}
+    ${ONIGMO_LIBS})
+if(GRN_EMBED)
+  target_link_libraries(libgroonga
+    ${GRN_ALL_LIBRARIES}
+    ${STDCPP_LIBS})
+else()
+  target_link_libraries(libgroonga
+    ${GRN_ALL_LIBRARIES})
   install(TARGETS libgroonga
     ARCHIVE DESTINATION "${LIB_DIR}"
     LIBRARY DESTINATION "${LIB_DIR}"
     RUNTIME DESTINATION "${BIN_DIR}")
-else()
-  target_link_libraries(libgroonga
-    ${EXECINFO_LIBS}
-    ${RT_LIBS}
-    ${PTHREAD_LIBS}
-    ${Z_LIBS}
-    ${LZO2_LIBS}
-    ${DL_LIBS}
-    ${M_LIBS}
-    ${STDCPP_LIBS}
-    ${WS2_32_LIBS})
 endif()
 
 if(GRN_WITH_MRUBY)
@@ -81,9 +84,39 @@ if(GRN_WITH_MRUBY)
     RUBY_SCRIPTS)
   string(REGEX REPLACE "([^;]+)" "mrb/scripts/\\1"
     RUBY_SCRIPTS "${RUBY_SCRIPTS}")
-  if(NOT MRN_GROONGA_BUNDLED)
-    install(
-      FILES ${RUBY_SCRIPTS}
-      DESTINATION "${GRN_RELATIVE_RUBY_SCRIPTS_DIR}")
-  endif()
+  install(
+    FILES ${RUBY_SCRIPTS}
+    DESTINATION "${GRN_RELATIVE_RUBY_SCRIPTS_DIR}")
+
+  read_file_list(${CMAKE_CURRENT_SOURCE_DIR}/mrb/scripts/command_line/sources.am
+    COMMANE_LINE_RUBY_SCRIPTS)
+  string(REGEX REPLACE "([^;]+)" "mrb/scripts/command_line/\\1"
+    COMMANE_LINE_RUBY_SCRIPTS "${COMMANE_LINE_RUBY_SCRIPTS}")
+  install(
+    FILES ${COMMANE_LINE_RUBY_SCRIPTS}
+    DESTINATION "${GRN_RELATIVE_RUBY_SCRIPTS_DIR}/command_line")
+
+  read_file_list(${CMAKE_CURRENT_SOURCE_DIR}/mrb/scripts/context/sources.am
+    CONTEXT_RUBY_SCRIPTS)
+  string(REGEX REPLACE "([^;]+)" "mrb/scripts/context/\\1"
+    CONTEXT_RUBY_SCRIPTS "${CONTEXT_RUBY_SCRIPTS}")
+  install(
+    FILES ${CONTEXT_RUBY_SCRIPTS}
+    DESTINATION "${GRN_RELATIVE_RUBY_SCRIPTS_DIR}/context")
+
+  read_file_list(${CMAKE_CURRENT_SOURCE_DIR}/mrb/scripts/initialize/sources.am
+    INITIALIZE_RUBY_SCRIPTS)
+  string(REGEX REPLACE "([^;]+)" "mrb/scripts/initialize/\\1"
+    INITIALIZE_RUBY_SCRIPTS "${INITIALIZE_RUBY_SCRIPTS}")
+  install(
+    FILES ${INITIALIZE_RUBY_SCRIPTS}
+    DESTINATION "${GRN_RELATIVE_RUBY_SCRIPTS_DIR}/initialize")
+
+  read_file_list(${CMAKE_CURRENT_SOURCE_DIR}/mrb/scripts/logger/sources.am
+    LOGGER_RUBY_SCRIPTS)
+  string(REGEX REPLACE "([^;]+)" "mrb/scripts/logger/\\1"
+    LOGGER_RUBY_SCRIPTS "${LOGGER_RUBY_SCRIPTS}")
+  install(
+    FILES ${LOGGER_RUBY_SCRIPTS}
+    DESTINATION "${GRN_RELATIVE_RUBY_SCRIPTS_DIR}/logger")
 endif()

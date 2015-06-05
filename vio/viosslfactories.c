@@ -1,4 +1,5 @@
-/* Copyright (c) 2000, 2013, Oracle and/or its affiliates. All rights reserved.
+/* Copyright (c) 2000, 2015, Oracle and/or its affiliates.
+   Copyright (c) 2011, 2015, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -20,33 +21,33 @@
 static my_bool     ssl_algorithms_added    = FALSE;
 static my_bool     ssl_error_strings_loaded= FALSE;
 
-static unsigned char dh512_p[]=
+/* the function below was generated with "openssl dhparam -2 -C 1024" */
+static
+DH *get_dh1024()
 {
-  0xDA,0x58,0x3C,0x16,0xD9,0x85,0x22,0x89,0xD0,0xE4,0xAF,0x75,
-  0x6F,0x4C,0xCA,0x92,0xDD,0x4B,0xE5,0x33,0xB8,0x04,0xFB,0x0F,
-  0xED,0x94,0xEF,0x9C,0x8A,0x44,0x03,0xED,0x57,0x46,0x50,0xD3,
-  0x69,0x99,0xDB,0x29,0xD7,0x76,0x27,0x6B,0xA2,0xD3,0xD4,0x12,
-  0xE2,0x18,0xF4,0xDD,0x1E,0x08,0x4C,0xF6,0xD8,0x00,0x3E,0x7C,
-  0x47,0x74,0xE8,0x33,
-};
-
-static unsigned char dh512_g[]={
-  0x02,
-};
-
-static DH *get_dh512(void)
-{
+  static unsigned char dh1024_p[]={
+    0xEC,0x46,0x7E,0xF9,0x4E,0x10,0x29,0xDC,0x44,0x97,0x71,0xFD,
+    0x71,0xC6,0x9F,0x0D,0xD1,0x09,0xF6,0x58,0x6F,0xAD,0xCA,0xF4,
+    0x37,0xD5,0xC3,0xBD,0xC3,0x9A,0x51,0x66,0x2C,0x58,0xBD,0x02,
+    0xBD,0xBA,0xBA,0xFC,0xE7,0x0E,0x5A,0xE5,0x97,0x81,0xC3,0xF3,
+    0x28,0x2D,0xAD,0x00,0x91,0xEF,0xF8,0xF0,0x5D,0xE9,0xE7,0x18,
+    0xE2,0xAD,0xC4,0x70,0xC5,0x3C,0x12,0x8A,0x80,0x6A,0x9F,0x3B,
+    0x00,0xA2,0x8F,0xA9,0x26,0xB0,0x0E,0x7F,0xED,0xF6,0xC2,0x03,
+    0x81,0xB5,0xC5,0x41,0xD0,0x00,0x2B,0x21,0xD4,0x4B,0x74,0xA6,
+    0xD7,0x1A,0x0E,0x82,0xC8,0xEE,0xD4,0xB1,0x6F,0xB4,0x79,0x01,
+    0x8A,0xF1,0x12,0xD7,0x3C,0xFD,0xCB,0x9B,0xAE,0x1C,0xA9,0x0F,
+    0x3D,0x0F,0xF8,0xD6,0x7D,0xDE,0xD6,0x0B,
+  };
+  static unsigned char dh1024_g[]={
+    0x02,
+  };
   DH *dh;
-  if ((dh=DH_new()))
-  {
-    dh->p=BN_bin2bn(dh512_p,sizeof(dh512_p),NULL);
-    dh->g=BN_bin2bn(dh512_g,sizeof(dh512_g),NULL);
-    if (! dh->p || ! dh->g)
-    {
-      DH_free(dh);
-      dh=0;
-    }
-  }
+
+  if ((dh=DH_new()) == NULL) return(NULL);
+  dh->p=BN_bin2bn(dh1024_p,sizeof(dh1024_p),NULL);
+  dh->g=BN_bin2bn(dh1024_g,sizeof(dh1024_g),NULL);
+  if ((dh->p == NULL) || (dh->g == NULL))
+  { DH_free(dh); return(NULL); }
   return(dh);
 }
 
@@ -60,7 +61,8 @@ ssl_error_string[] =
   "Private key does not match the certificate public key",
   "SSL_CTX_set_default_verify_paths failed",
   "Failed to set ciphers to use",
-  "SSL_CTX_new failed"
+  "SSL_CTX_new failed",
+  "SSL_CTX_set_tmp_dh failed"
 };
 
 const char*
@@ -153,6 +155,7 @@ new_VioSSLFd(const char *key_file, const char *cert_file,
 {
   DH *dh;
   struct st_VioSSLFd *ssl_fd;
+  long ssl_ctx_options= SSL_OP_NO_SSLv2 | SSL_OP_NO_SSLv3;
   DBUG_ENTER("new_VioSSLFd");
   DBUG_PRINT("enter",
              ("key_file: '%s'  cert_file: '%s'  ca_file: '%s'  ca_path: '%s'  "
@@ -169,19 +172,17 @@ new_VioSSLFd(const char *key_file, const char *cert_file,
 
   if (!(ssl_fd= ((struct st_VioSSLFd*)
                  my_malloc(sizeof(struct st_VioSSLFd),MYF(0)))))
-    DBUG_RETURN(0);
-
+    goto err0;
   if (!(ssl_fd->ssl_context= SSL_CTX_new(is_client_method ? 
                                          SSLv23_client_method() :
                                          SSLv23_server_method())))
   {
     *error= SSL_INITERR_MEMFAIL;
     DBUG_PRINT("error", ("%s", sslGetErrString(*error)));
-    my_free(ssl_fd);
-    DBUG_RETURN(0);
+    goto err1;
   }
 
-  SSL_CTX_set_options(ssl_fd->ssl_context, SSL_OP_NO_SSLv2 | SSL_OP_NO_SSLv3);
+  SSL_CTX_set_options(ssl_fd->ssl_context, ssl_ctx_options);
 
   /*
     Set the ciphers that can be used
@@ -193,9 +194,7 @@ new_VioSSLFd(const char *key_file, const char *cert_file,
   {
     *error= SSL_INITERR_CIPHERS;
     DBUG_PRINT("error", ("%s", sslGetErrString(*error)));
-    SSL_CTX_free(ssl_fd->ssl_context);
-    my_free(ssl_fd);
-    DBUG_RETURN(0);
+    goto err2;
   }
 
   /* Load certs from the trusted ca */
@@ -209,9 +208,7 @@ new_VioSSLFd(const char *key_file, const char *cert_file,
       *error= SSL_INITERR_BAD_PATHS;
       DBUG_PRINT("error", ("SSL_CTX_load_verify_locations failed : %s", 
                  sslGetErrString(*error)));
-      SSL_CTX_free(ssl_fd->ssl_context);
-      my_free(ssl_fd);
-      DBUG_RETURN(0);
+      goto err2;
     }
 
     /* otherwise go use the defaults */
@@ -219,9 +216,7 @@ new_VioSSLFd(const char *key_file, const char *cert_file,
     {
       *error= SSL_INITERR_BAD_PATHS;
       DBUG_PRINT("error", ("%s", sslGetErrString(*error)));
-      SSL_CTX_free(ssl_fd->ssl_context);
-      my_free(ssl_fd);
-      DBUG_RETURN(0);
+      goto err2;
     }
   }
 
@@ -241,9 +236,7 @@ new_VioSSLFd(const char *key_file, const char *cert_file,
       DBUG_PRINT("warning", ("X509_STORE_load_locations for CRL failed"));
       *error= SSL_INITERR_BAD_PATHS;
       DBUG_PRINT("error", ("%s", sslGetErrString(*error)));
-      SSL_CTX_free(ssl_fd->ssl_context);
-      my_free(ssl_fd);
-      DBUG_RETURN(0);
+      goto err2;
     }
 #endif
   }
@@ -251,19 +244,32 @@ new_VioSSLFd(const char *key_file, const char *cert_file,
   if (vio_set_cert_stuff(ssl_fd->ssl_context, cert_file, key_file, error))
   {
     DBUG_PRINT("error", ("vio_set_cert_stuff failed"));
-    SSL_CTX_free(ssl_fd->ssl_context);
-    my_free(ssl_fd);
-    DBUG_RETURN(0);
+    goto err2;
   }
 
   /* DH stuff */
-  dh=get_dh512();
-  SSL_CTX_set_tmp_dh(ssl_fd->ssl_context, dh);
+  dh=get_dh1024();
+  if (!SSL_CTX_set_tmp_dh(ssl_fd->ssl_context, dh))
+  {
+    *error= SSL_INITERR_DH;
+    goto err3;
+  }
+
   DH_free(dh);
 
   DBUG_PRINT("exit", ("OK 1"));
 
   DBUG_RETURN(ssl_fd);
+
+err3:
+  DH_free(dh);
+err2:
+  SSL_CTX_free(ssl_fd->ssl_context);
+err1:
+  my_free(ssl_fd);
+err0:
+  DBUG_EXECUTE("error", ERR_print_errors_fp(DBUG_FILE););
+  DBUG_RETURN(0);
 }
 
 

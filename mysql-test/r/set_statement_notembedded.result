@@ -16,7 +16,3 @@ Max_statement_time_exceeded	1
 SELECT @@MAX_STATEMENT_TIME;
 @@MAX_STATEMENT_TIME
 0.000000
-set statement default_master_connection=default for select 1;
-ERROR 42000: The system variable default_master_connection cannot be set in SET STATEMENT.
-set statement default_master_connection=default for select 1;
-ERROR 42000: The system variable default_master_connection cannot be set in SET STATEMENT.

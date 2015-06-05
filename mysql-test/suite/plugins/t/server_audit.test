@@ -8,12 +8,15 @@ if (!$SERVER_AUDIT_SO) {
 install plugin server_audit soname 'server_audit';
 
 show variables like 'server_audit%';
+set global server_audit_file_path=null;
+set global server_audit_incl_users=null;
 set global server_audit_file_path='server_audit.log';
 set global server_audit_output_type=file;
 set global server_audit_logging=on;
 connect (con1,localhost,root,,mysql);
 connection default;
 disconnect con1;
+--sleep 2
 --sleep 2
 --replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
 --error ER_ACCESS_DENIED_ERROR
@@ -46,6 +49,8 @@ create database sa_db;
 --sleep 2
 connect (con1,localhost,root,,test);
 connection con1;
+--sleep 2
+--sleep 2
 create table t1 (id2 int);
 insert into t1 values (1), (2);
 select * from t1;
@@ -57,8 +62,62 @@ drop table sa_t1;
 drop database sa_db;
 connection default;
 disconnect con1;
-
 --sleep 2
+--sleep 2
+create database sa_db;
+use sa_db;
+CREATE USER u1 IDENTIFIED BY 'pwd-123';
+GRANT ALL ON sa_db TO u2 IDENTIFIED BY "pwd-321";
+SET PASSWORD FOR u1 = PASSWORD('pwd 098');
+CREATE USER u3 IDENTIFIED BY '';
+drop user u1, u2, u3;
+
+set global server_audit_events='query_ddl';
+create table t1(id int);
+insert into t1 values (1), (2);
+select * from t1;
+select 2;
+(select 2);
+/*! select 2*/;
+/*comment*/ select 2;
+drop table t1;
+set global server_audit_events='query_ddl,query_dml';
+create table t1(id int);
+insert into t1 values (1), (2);
+select * from t1;
+select 2;
+drop table t1;
+set global server_audit_events='query_dml';
+create table t1(id int);
+insert into t1 values (1), (2);
+select * from t1;
+select 2;
+(select 2);
+/*! select 2*/;
+/*comment*/ select 2;
+drop table t1;
+set global server_audit_events='query_dcl';
+create table t1(id int);
+insert into t1 values (1), (2);
+select * from t1;
+CREATE USER u1 IDENTIFIED BY 'pwd-123';
+GRANT ALL ON sa_db TO u2 IDENTIFIED BY "pwd-321";
+SET PASSWORD FOR u1 = PASSWORD('pwd 098');
+CREATE USER u3 IDENTIFIED BY '';
+drop user u1, u2, u3;
+select 2;
+(select 2);
+/*! select 2*/;
+/*comment*/ select 2;
+drop table t1;
+set global server_audit_events='';
+
+set global server_audit_query_log_limit= 15;
+select (1), (2), (3), (4);
+select 'A', 'B', 'C', 'D';
+set global server_audit_query_log_limit= 1024;
+drop database sa_db;
+
 set global server_audit_file_path='.';
 --replace_regex /\.[\\\/]/HOME_DIR\//
 show status like 'server_audit_current_log';

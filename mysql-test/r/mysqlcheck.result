@@ -329,7 +329,7 @@ DROP TABLE bug47205;
 # Should indicate that REPAIR TABLE is needed
 CHECK TABLE bug47205 FOR UPGRADE;
 Table	Op	Msg_type	Msg_text
-test.bug47205	check	error	Table upgrade required. Please do "REPAIR TABLE `bug47205`" or dump/reload to fix it!
+test.bug47205	check	error	Upgrade required. Please do "REPAIR TABLE `bug47205`" or dump/reload to fix it!
 # Running mysqlcheck to check and upgrade
 test.bug47205                                      Needs upgrade
 

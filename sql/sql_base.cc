@@ -1,5 +1,5 @@
-/* Copyright (c) 2000, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2013 Monty Program Ab
+/* Copyright (c) 2000, 2015, Oracle and/or its affiliates.
+   Copyright (c) 2010, 2015, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -27,7 +27,6 @@
                          // mysql_lock_have_duplicate
 #include "sql_show.h"    // append_identifier
 #include "strfunc.h"     // find_type
-#include "parse_file.h"  // sql_parse_prepare, File_parser
 #include "sql_view.h"    // mysql_make_view, VIEW_ANY_ACL
 #include "sql_parse.h"   // check_table_access
 #include "sql_insert.h"  // kill_delayed_threads
@@ -697,6 +696,7 @@ bool close_cached_connection_tables(THD *thd, LEX_STRING *connection)
 
 static void mark_temp_tables_as_free_for_reuse(THD *thd)
 {
+  rpl_group_info *rgi_slave;
   DBUG_ENTER("mark_temp_tables_as_free_for_reuse");
 
   if (thd->query_id == 0)
@@ -705,20 +705,25 @@ static void mark_temp_tables_as_free_for_reuse(THD *thd)
     DBUG_VOID_RETURN;
   }
   
-  thd->lock_temporary_tables();
-  for (TABLE *table= thd->temporary_tables ; table ; table= table->next)
+  rgi_slave=thd->rgi_slave;
+  if ((!rgi_slave && thd->temporary_tables) ||
+      (rgi_slave && unlikely(rgi_slave->rli->save_temporary_tables)))
   {
-    if ((table->query_id == thd->query_id) && ! table->open_by_handler)
-      mark_tmp_table_for_reuse(table);
-  }
-  thd->unlock_temporary_tables();
-  if (thd->rgi_slave)
-  {
-    /*
-      Temporary tables are shared with other by sql execution threads.
-      As a safety messure, clear the pointer to the common area.
-    */
-    thd->temporary_tables= 0;
+    thd->lock_temporary_tables();
+    for (TABLE *table= thd->temporary_tables ; table ; table= table->next)
+    {
+      if ((table->query_id == thd->query_id) && ! table->open_by_handler)
+        mark_tmp_table_for_reuse(table);
+    }
+    thd->unlock_temporary_tables();
+    if (rgi_slave)
+    {
+      /*
+        Temporary tables are shared with other by sql execution threads.
+        As a safety messure, clear the pointer to the common area.
+      */
+      thd->temporary_tables= 0;
+    }
   }
   DBUG_VOID_RETURN;
 }
@@ -1478,6 +1483,9 @@ unique_table(THD *thd, TABLE_LIST *table, TABLE_LIST *table_list,
              bool check_alias)
 {
   TABLE_LIST *dup;
+
+  table= table->find_table_for_update();
+
   if (table->table && table->table->file->ht->db_type == DB_TYPE_MRG_MYISAM)
   {
     TABLE_LIST *child;
@@ -1588,6 +1596,69 @@ TABLE *find_temporary_table(THD *thd, const TABLE_LIST *tl)
 }
 
 
+static bool
+use_temporary_table(THD *thd, TABLE *table, TABLE **out_table)
+{
+  *out_table= table;
+  if (!table)
+    return false;
+  /*
+    Temporary tables are not safe for parallel replication. They were
+    designed to be visible to one thread only, so have no table locking.
+    Thus there is no protection against two conflicting transactions
+    committing in parallel and things like that.
+
+    So for now, anything that uses temporary tables will be serialised
+    with anything before it, when using parallel replication.
+
+    ToDo: We might be able to introduce a reference count or something
+    on temp tables, and have slave worker threads wait for it to reach
+    zero before being allowed to use the temp table. Might not be worth
+    it though, as statement-based replication using temporary tables is
+    in any case rather fragile.
+  */
+  if (thd->rgi_slave && thd->rgi_slave->is_parallel_exec &&
+      thd->wait_for_prior_commit())
+    return true;
+  /*
+    We need to set the THD as it may be different in case of
+    parallel replication
+  */
+  if (table->in_use != thd)
+  {
+    table->in_use= thd;
+#ifdef REMOVE_AFTER_MERGE_WITH_10
+    if (thd->rgi_slave)
+    {
+      /*
+        We may be stealing an opened temporary tables from one slave
+        thread to another, we need to let the performance schema know that,
+        for aggregates per thread to work properly.
+      */
+      table->file->unbind_psi();
+      table->file->rebind_psi();
+    }
+#endif
+  }
+  return false;
+}
+
+bool
+find_and_use_temporary_table(THD *thd, const char *db, const char *table_name,
+                             TABLE **out_table)
+{
+  return use_temporary_table(thd, find_temporary_table(thd, db, table_name),
+                             out_table);
+}
+
+
+bool
+find_and_use_temporary_table(THD *thd, const TABLE_LIST *tl, TABLE **out_table)
+{
+  return use_temporary_table(thd, find_temporary_table(thd, tl), out_table);
+}
+
+
 /**
   Find a temporary table specified by a key in the THD::temporary_tables list.
 
@@ -1608,26 +1679,6 @@ TABLE *find_temporary_table(THD *thd,
     if (table->s->table_cache_key.length == table_key_length &&
         !memcmp(table->s->table_cache_key.str, table_key, table_key_length))
     {
-      /*
-        We need to set the THD as it may be different in case of
-        parallel replication
-      */
-      if (table->in_use != thd)
-      {
-        table->in_use= thd;
-#ifdef REMOVE_AFTER_MERGE_WITH_10
-        if (thd->rgi_slave)
-        {
-          /*
-            We may be stealing an opened temporary tables from one slave
-            thread to another, we need to let the performance schema know that,
-            for aggregates per thread to work properly.
-          */
-          table->file->unbind_psi();
-          table->file->rebind_psi();
-        }
-#endif
-      }
       result= table;
       break;
     }
@@ -2072,8 +2123,6 @@ open_table_get_mdl_lock(THD *thd, Open_table_context *ot_ctx,
 
   @param thd            Thread context.
   @param table_list     Open first table in list.
-  @param mem_root       Temporary MEM_ROOT to be used for
-                        parsing .FRMs for views.
   @param ot_ctx         Context with flags which modify how open works
                         and which is used to recover from a failed
                         open_table() attempt.
@@ -2102,8 +2151,7 @@ open_table_get_mdl_lock(THD *thd, Open_table_context *ot_ctx,
                 TABLE_LIST::view is set for views).
 */
 
-bool open_table(THD *thd, TABLE_LIST *table_list, MEM_ROOT *mem_root,
-                Open_table_context *ot_ctx)
+bool open_table(THD *thd, TABLE_LIST *table_list, Open_table_context *ot_ctx)
 {
   TABLE *table;
   const char *key;
@@ -2239,7 +2287,7 @@ bool open_table(THD *thd, TABLE_LIST *table_list, MEM_ROOT *mem_root,
       if (dd_frm_is_view(thd, path))
       {
         if (!tdc_open_view(thd, table_list, alias, key, key_length,
-                           mem_root, CHECK_METADATA_VERSION))
+                           CHECK_METADATA_VERSION))
         {
           DBUG_ASSERT(table_list->view != 0);
           DBUG_RETURN(FALSE); // VIEW
@@ -2413,13 +2461,9 @@ retry_share:
       goto err_lock;
 
     /* Open view */
-    if (open_new_frm(thd, share, alias,
-                     (uint) (HA_OPEN_KEYFILE | HA_OPEN_RNDFILE |
-                             HA_GET_INDEX | HA_TRY_READ_ONLY),
-                     READ_KEYINFO | COMPUTE_TYPES | EXTRA_RECORD,
-                     thd->open_options,
-                     0, table_list, mem_root))
+    if (mysql_make_view(thd, share, table_list, false))
       goto err_lock;
+
 
     /* TODO: Don't free this */
     tdc_release_share(share);
@@ -2978,7 +3022,7 @@ Locked_tables_list::reopen_tables(THD *thd)
       continue;
 
     /* Links into thd->open_tables upon success */
-    if (open_table(thd, table_list, thd->mem_root, &ot_ctx))
+    if (open_table(thd, table_list, &ot_ctx))
     {
       unlink_all_closed_tables(thd, 0, reopen_count);
       DBUG_RETURN(TRUE);
@@ -3217,7 +3261,6 @@ check_and_update_routine_version(THD *thd, Sroutine_hash_entry *rt,
    @param alias             Alias name
    @param cache_key         Key for table definition cache
    @param cache_key_length  Length of cache_key
-   @param mem_root          Memory to be used for .frm parsing.
    @param flags             Flags which modify how we open the view
 
    @todo This function is needed for special handling of views under
@@ -3228,7 +3271,7 @@ check_and_update_routine_version(THD *thd, Sroutine_hash_entry *rt,
 
 bool tdc_open_view(THD *thd, TABLE_LIST *table_list, const char *alias,
                    const char *cache_key, uint cache_key_length,
-                   MEM_ROOT *mem_root, uint flags)
+                   uint flags)
 {
   TABLE not_used;
   TABLE_SHARE *share;
@@ -3255,12 +3298,7 @@ bool tdc_open_view(THD *thd, TABLE_LIST *table_list, const char *alias,
       goto ret;
   }
 
-  err= open_new_frm(thd, share, alias,
-                    (HA_OPEN_KEYFILE | HA_OPEN_RNDFILE |
-                     HA_GET_INDEX | HA_TRY_READ_ONLY),
-                    READ_KEYINFO | COMPUTE_TYPES | EXTRA_RECORD | flags,
-                    thd->open_options, &not_used, table_list, mem_root);
-
+  err= mysql_make_view(thd, share, table_list, (flags & OPEN_VIEW_NO_PARSE));
 ret:
   tdc_release_share(share);
 
@@ -3448,7 +3486,7 @@ request_backoff_action(enum_open_table_action action_arg,
   if (action_arg != OT_REOPEN_TABLES && m_has_locks)
   {
     my_error(ER_LOCK_DEADLOCK, MYF(0));
-    mark_transaction_to_rollback(m_thd, true);
+    m_thd->mark_transaction_to_rollback(true);
     return TRUE;
   }
   /*
@@ -3797,8 +3835,6 @@ open_and_process_routine(THD *thd, Query_tables_list *prelocking_ctx,
                                       this statement has already been built.
   @param[in]     ot_ctx               Context used to recover from a failed
                                       open_table() attempt.
-  @param[in]     new_frm_mem          Temporary MEM_ROOT to be used for
-                                      parsing .FRMs for views.
 
   @retval  FALSE  Success.
   @retval  TRUE   Error, reported unless there is a chance to recover from it.
@@ -3809,8 +3845,7 @@ open_and_process_table(THD *thd, LEX *lex, TABLE_LIST *tables,
                        uint *counter, uint flags,
                        Prelocking_strategy *prelocking_strategy,
                        bool has_prelocking_list,
-                       Open_table_context *ot_ctx,
-                       MEM_ROOT *new_frm_mem)
+                       Open_table_context *ot_ctx)
 {
   bool error= FALSE;
   bool safe_to_ignore_table= FALSE;
@@ -3942,7 +3977,7 @@ open_and_process_table(THD *thd, LEX *lex, TABLE_LIST *tables,
     error= open_temporary_table(thd, tables);
 
     if (!error && !tables->table)
-      error= open_table(thd, tables, new_frm_mem, ot_ctx);
+      error= open_table(thd, tables, ot_ctx);
 
     thd->pop_internal_handler();
     safe_to_ignore_table= no_such_table_handler.safely_trapped_errors();
@@ -3960,7 +3995,7 @@ open_and_process_table(THD *thd, LEX *lex, TABLE_LIST *tables,
 
     error= open_temporary_table(thd, tables);
     if (!error && !tables->table)
-      error= open_table(thd, tables, new_frm_mem, ot_ctx);
+      error= open_table(thd, tables, ot_ctx);
 
     thd->pop_internal_handler();
     safe_to_ignore_table= repair_mrg_table_handler.safely_trapped_errors();
@@ -3978,10 +4013,8 @@ open_and_process_table(THD *thd, LEX *lex, TABLE_LIST *tables,
     }
 
     if (!error && !tables->table)
-      error= open_table(thd, tables, new_frm_mem, ot_ctx);
+      error= open_table(thd, tables, ot_ctx);
   }
-
-  free_root(new_frm_mem, MYF(MY_KEEP_PREALLOC));
 
   if (error)
   {
@@ -4141,12 +4174,6 @@ end:
   DBUG_RETURN(error);
 }
 
-extern "C" uchar *schema_set_get_key(const TABLE_LIST *table, size_t *length,
-                                     my_bool not_used __attribute__((unused)))
-{
-  *length= table->db_length;
-  return (uchar*) table->db;
-}
 
 /**
   Acquire upgradable (SNW, SNRW) metadata locks on tables used by
@@ -4184,7 +4211,6 @@ lock_table_names(THD *thd, const DDL_options_st &options,
   MDL_request_list mdl_requests;
   TABLE_LIST *table;
   MDL_request global_request;
-  Hash_set<TABLE_LIST> schema_set(schema_set_get_key);
   ulong org_lock_wait_timeout= lock_wait_timeout;
   /* Check if we are using CREATE TABLE ... IF NOT EXISTS */
   bool create_table;
@@ -4210,9 +4236,17 @@ lock_table_names(THD *thd, const DDL_options_st &options,
       DBUG_RETURN(true);
     }
 
-    if (! (flags & MYSQL_OPEN_SKIP_SCOPED_MDL_LOCK) &&
-        schema_set.insert(table))
-      DBUG_RETURN(TRUE);
+    /* Scoped locks: Take intention exclusive locks on all involved schemas. */
+    if (!(flags & MYSQL_OPEN_SKIP_SCOPED_MDL_LOCK))
+    {
+      MDL_request *schema_request= new (thd->mem_root) MDL_request;
+      if (schema_request == NULL)
+        DBUG_RETURN(TRUE);
+      schema_request->init(MDL_key::SCHEMA, table->db, "",
+                           MDL_INTENTION_EXCLUSIVE,
+                           MDL_TRANSACTION);
+      mdl_requests.push_front(schema_request);
+    }
 
     mdl_requests.push_front(&table->mdl_request);
   }
@@ -4226,22 +4260,6 @@ lock_table_names(THD *thd, const DDL_options_st &options,
 
   if (!(flags & MYSQL_OPEN_SKIP_SCOPED_MDL_LOCK))
   {
-    /*
-      Scoped locks: Take intention exclusive locks on all involved
-      schemas.
-    */
-    Hash_set<TABLE_LIST>::Iterator it(schema_set);
-    while ((table= it++))
-    {
-      MDL_request *schema_request= new (thd->mem_root) MDL_request;
-      if (schema_request == NULL)
-        DBUG_RETURN(TRUE);
-      schema_request->init(MDL_key::SCHEMA, table->db, "",
-                           MDL_INTENTION_EXCLUSIVE,
-                           MDL_TRANSACTION);
-      mdl_requests.push_front(schema_request);
-    }
-
     /*
       Protect this statement against concurrent global read lock
       by acquiring global intention exclusive lock with statement
@@ -4406,7 +4424,6 @@ bool open_tables(THD *thd, const DDL_options_st &options,
   TABLE_LIST *tables;
   Open_table_context ot_ctx(thd, flags);
   bool error= FALSE;
-  MEM_ROOT new_frm_mem;
   bool some_routine_modifies_data= FALSE;
   bool has_prelocking_list;
   DBUG_ENTER("open_tables");
@@ -4418,13 +4435,6 @@ bool open_tables(THD *thd, const DDL_options_st &options,
     my_error(ER_XAER_RMFAIL, MYF(0), xa_state_names[xa_state]);
     DBUG_RETURN(true);
   }
-
-  /*
-    Initialize temporary MEM_ROOT for new .FRM parsing. Do not alloctaate
-    anything yet, to avoid penalty for statements which don't use views
-    and thus new .FRM format.
-  */
-  init_sql_alloc(&new_frm_mem, 8024, 0, MYF(0));
 
   thd->current_tablenr= 0;
 restart:
@@ -4513,8 +4523,7 @@ restart:
     {
       error= open_and_process_table(thd, thd->lex, tables, counter,
                                     flags, prelocking_strategy,
-                                    has_prelocking_list, &ot_ctx,
-                                    &new_frm_mem);
+                                    has_prelocking_list, &ot_ctx);
 
       if (error)
       {
@@ -4680,8 +4689,6 @@ restart:
 error:
   THD_STAGE_INFO(thd, stage_after_opening_tables);
   thd_proc_info(thd, 0);
-
-  free_root(&new_frm_mem, MYF(0));              // Free pre-alloced block
 
   if (error && *table_to_open)
   {
@@ -5076,7 +5083,7 @@ TABLE *open_ltable(THD *thd, TABLE_LIST *table_list, thr_lock_type lock_type,
   /* This function can't properly handle requests for such metadata locks. */
   DBUG_ASSERT(table_list->mdl_request.type < MDL_SHARED_UPGRADABLE);
 
-  while ((error= open_table(thd, table_list, thd->mem_root, &ot_ctx)) &&
+  while ((error= open_table(thd, table_list, &ot_ctx)) &&
          ot_ctx.can_recover_from_failed_open())
   {
     /*
@@ -5649,6 +5656,14 @@ TABLE *open_table_uncached(THD *thd, handlerton *hton,
               (uint) thd->variables.server_id,
               (ulong) thd->variables.pseudo_thread_id));
 
+  if (add_to_temporary_tables_list)
+  {
+    /* Temporary tables are not safe for parallel replication. */
+    if (thd->rgi_slave && thd->rgi_slave->is_parallel_exec &&
+        thd->wait_for_prior_commit())
+      DBUG_RETURN(NULL);
+  }
+
   /* Create the cache_key for temporary tables */
   key_length= create_tmp_table_def_key(thd, cache_key, db, table_name);
 
@@ -5884,7 +5899,9 @@ bool open_temporary_table(THD *thd, TABLE_LIST *tl)
     DBUG_RETURN(FALSE);
   }
 
-  if (!(table= find_temporary_table(thd, tl)))
+  if (find_and_use_temporary_table(thd, tl, &table))
+    DBUG_RETURN(TRUE);
+  if (!table)
   {
     if (tl->open_type == OT_TEMPORARY_ONLY &&
         tl->open_strategy == TABLE_LIST::OPEN_NORMAL)
@@ -5894,6 +5911,25 @@ bool open_temporary_table(THD *thd, TABLE_LIST *tl)
     }
     DBUG_RETURN(FALSE);
   }
+
+  /*
+    Temporary tables are not safe for parallel replication. They were
+    designed to be visible to one thread only, so have no table locking.
+    Thus there is no protection against two conflicting transactions
+    committing in parallel and things like that.
+
+    So for now, anything that uses temporary tables will be serialised
+    with anything before it, when using parallel replication.
+
+    ToDo: We might be able to introduce a reference count or something
+    on temp tables, and have slave worker threads wait for it to reach
+    zero before being allowed to use the temp table. Might not be worth
+    it though, as statement-based replication using temporary tables is
+    in any case rather fragile.
+  */
+  if (thd->rgi_slave && thd->rgi_slave->is_parallel_exec &&
+      thd->wait_for_prior_commit())
+    DBUG_RETURN(true);
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   if (tl->partition_names)
@@ -6098,16 +6134,13 @@ find_field_in_natural_join(THD *thd, TABLE_LIST *table_ref, const char *name,
   List_iterator_fast<Natural_join_column>
     field_it(*(table_ref->join_columns));
   Natural_join_column *nj_col, *curr_nj_col;
-  Field *found_field;
-  Query_arena *arena, backup;
+  Field *UNINIT_VAR(found_field);
+  Query_arena *UNINIT_VAR(arena), backup;
   DBUG_ENTER("find_field_in_natural_join");
   DBUG_PRINT("enter", ("field name: '%s', ref 0x%lx",
 		       name, (ulong) ref));
   DBUG_ASSERT(table_ref->is_natural_join && table_ref->join_columns);
   DBUG_ASSERT(*actual_table == NULL);
-
-  LINT_INIT(arena);
-  LINT_INIT(found_field);
 
   for (nj_col= NULL, curr_nj_col= field_it++; curr_nj_col; 
        curr_nj_col= field_it++)
@@ -6128,7 +6161,6 @@ find_field_in_natural_join(THD *thd, TABLE_LIST *table_ref, const char *name,
   if (nj_col->view_field)
   {
     Item *item;
-    LINT_INIT(arena);
     if (register_tree_change)
       arena= thd->activate_stmt_arena_if_needed(&backup);
     /*
@@ -6980,7 +7012,7 @@ find_item_in_list(Item *find, List<Item> &items, uint *counter,
         Item_field for tables.
       */
       Item_ident *item_ref= (Item_ident *) item;
-      if (item_ref->name && item_ref->table_name &&
+      if (field_name && item_ref->name && item_ref->table_name &&
           !my_strcasecmp(system_charset_info, item_ref->name, field_name) &&
           !my_strcasecmp(table_alias_charset, item_ref->table_name,
                          table_name) &&
@@ -7930,7 +7962,7 @@ bool setup_fields(THD *thd, Item **ref_pointer_array,
   RETURN pointer on pointer to next_leaf of last element
 */
 
-void make_leaves_list(List<TABLE_LIST> &list, TABLE_LIST *tables,
+void make_leaves_list(THD *thd, List<TABLE_LIST> &list, TABLE_LIST *tables,
                       bool full_table_list, TABLE_LIST *boundary)
  
 {
@@ -7946,12 +7978,12 @@ void make_leaves_list(List<TABLE_LIST> &list, TABLE_LIST *tables,
         tables/views were already prepared and has their leaf_tables
         set properly.
       */
-      make_leaves_list(list, select_lex->get_table_list(),
+      make_leaves_list(thd, list, select_lex->get_table_list(),
       full_table_list, boundary);
     }
     else
     {
-      list.push_back(table);
+      list.push_back(table, thd->mem_root);
     }
   }
 }
@@ -8012,7 +8044,7 @@ bool setup_tables(THD *thd, Name_resolution_context *context,
     leaves.empty();
     if (!select_lex->is_prep_leaf_list_saved)
     {
-      make_leaves_list(leaves, tables, full_table_list, first_select_table);
+      make_leaves_list(thd, leaves, tables, full_table_list, first_select_table);
       select_lex->leaf_tables_exec.empty();
     }
     else
@@ -9144,72 +9176,6 @@ int init_ftfuncs(THD *thd, SELECT_LEX *select_lex, bool no_order)
       ifm->init_search(no_order);
   }
   return 0;
-}
-
-
-/*
-  open new .frm format table
-
-  SYNOPSIS
-    open_new_frm()
-    THD		  thread handler
-    path	  path to .frm file (without extension)
-    alias	  alias for table
-    db            database
-    table_name    name of table
-    db_stat	  open flags (for example ->OPEN_KEYFILE|HA_OPEN_RNDFILE..)
-		  can be 0 (example in ha_example_table)
-    prgflag	  READ_ALL etc..
-    ha_open_flags HA_OPEN_ABORT_IF_LOCKED etc..
-    outparam	  result table
-    table_desc	  TABLE_LIST descriptor
-    mem_root	  temporary MEM_ROOT for parsing
-*/
-
-bool
-open_new_frm(THD *thd, TABLE_SHARE *share, const char *alias,
-             uint db_stat, uint prgflag,
-	     uint ha_open_flags, TABLE *outparam, TABLE_LIST *table_desc,
-	     MEM_ROOT *mem_root)
-{
-  LEX_STRING pathstr;
-  File_parser *parser;
-  char path[FN_REFLEN+1];
-  DBUG_ENTER("open_new_frm");
-
-  /* Create path with extension */
-  pathstr.length= (uint) (strxnmov(path, sizeof(path) - 1,
-                                   share->normalized_path.str,
-                                   reg_ext,
-                                   NullS) - path);
-  pathstr.str=    path;
-
-  if ((parser= sql_parse_prepare(&pathstr, mem_root, 1)))
-  {
-    if (is_equal(&view_type, parser->type()))
-    {
-      if (table_desc == 0 || table_desc->required_type == FRMTYPE_TABLE)
-      {
-        my_error(ER_WRONG_OBJECT, MYF(0), share->db.str, share->table_name.str,
-                 "BASE TABLE");
-        goto err;
-      }
-      if (mysql_make_view(thd, parser, table_desc,
-                          (prgflag & OPEN_VIEW_NO_PARSE)))
-        goto err;
-      status_var_increment(thd->status_var.opened_views);
-    }
-    else
-    {
-      /* only VIEWs are supported now */
-      my_error(ER_FRM_UNKNOWN_TYPE, MYF(0), share->path.str,  parser->type()->str);
-      goto err;
-    }
-    DBUG_RETURN(0);
-  }
- 
-err:
-  DBUG_RETURN(1);
 }
 
 

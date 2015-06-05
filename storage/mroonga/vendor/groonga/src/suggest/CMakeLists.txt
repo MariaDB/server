@@ -25,11 +25,9 @@ set_source_files_properties(${GROONGA_SUGGEST_CREATE_DATASET_SOURCES}
   PROPERTIES
   COMPILE_FLAGS "${GRN_C_COMPILE_FLAGS}")
 target_link_libraries(groonga-suggest-create-dataset libgroonga)
-if(NOT MRN_GROONGA_BUNDLED)
-  install(
-    TARGETS groonga-suggest-create-dataset
-    DESTINATION ${BIN_DIR})
-endif()
+install(
+  TARGETS groonga-suggest-create-dataset
+  DESTINATION ${BIN_DIR})
 
 if(GRN_WITH_LIBEVENT AND GRN_WITH_ZEROMQ AND GRN_WITH_MESSAGE_PACK)
   set(GRN_WITH_SUGGEST_LEARNER TRUE)
@@ -82,9 +80,7 @@ if(GRN_WITH_SUGGEST_LEARNER)
     ${ZEROMQ_LIBRARIES}
     ${MESSAGE_PACK_LIBRARIES})
 
-  if(NOT MRN_GROONGA_BUNDLED)
-    install(
-      TARGETS groonga-suggest-learner groonga-suggest-httpd
-      DESTINATION ${BIN_DIR})
-  endif()
+  install(
+    TARGETS groonga-suggest-learner groonga-suggest-httpd
+    DESTINATION ${BIN_DIR})
 endif()

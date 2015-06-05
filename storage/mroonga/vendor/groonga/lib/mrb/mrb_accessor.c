@@ -1,6 +1,6 @@
 /* -*- c-basic-offset: 2 -*- */
 /*
-  Copyright(C) 2013-2014 Brazil
+  Copyright(C) 2013-2015 Brazil
 
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -16,7 +16,7 @@
   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 */
 
-#include "../ctx_impl.h"
+#include "../grn_ctx_impl.h"
 
 #ifdef GRN_WITH_MRUBY
 #include <mruby.h>
@@ -24,8 +24,9 @@
 #include <mruby/variable.h>
 #include <mruby/data.h>
 
-#include "../db.h"
+#include "../grn_db.h"
 #include "mrb_accessor.h"
+#include "mrb_converter.h"
 
 static struct mrb_data_type mrb_grn_accessor_type = {
   "Groonga::Accessor",
@@ -49,8 +50,25 @@ mrb_grn_accessor_next(mrb_state *mrb, mrb_value self)
   grn_accessor *accessor;
 
   accessor = DATA_PTR(self);
-  if (!accessor->next) { return mrb_nil_value(); }
-  return mrb_cptr_value(mrb, accessor->next);
+  return grn_mrb_value_from_grn_obj(mrb, (grn_obj *)(accessor->next));
+}
+
+static mrb_value
+mrb_grn_accessor_have_next_p(mrb_state *mrb, mrb_value self)
+{
+  grn_accessor *accessor;
+
+  accessor = DATA_PTR(self);
+  return mrb_bool_value(accessor->next != NULL);
+}
+
+static mrb_value
+mrb_grn_accessor_object(mrb_state *mrb, mrb_value self)
+{
+  grn_accessor *accessor;
+
+  accessor = DATA_PTR(self);
+  return grn_mrb_value_from_grn_obj(mrb, accessor->obj);
 }
 
 void
@@ -67,5 +85,9 @@ grn_mrb_accessor_init(grn_ctx *ctx)
                     mrb_grn_accessor_initialize, MRB_ARGS_REQ(1));
   mrb_define_method(mrb, klass, "next",
                     mrb_grn_accessor_next, MRB_ARGS_NONE());
+  mrb_define_method(mrb, klass, "have_next?",
+                    mrb_grn_accessor_have_next_p, MRB_ARGS_NONE());
+  mrb_define_method(mrb, klass, "object",
+                    mrb_grn_accessor_object, MRB_ARGS_NONE());
 }
 #endif

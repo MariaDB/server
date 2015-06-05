@@ -49,8 +49,9 @@ const char *exists_outer_expr_name= "<exists outer expr>";
 int check_and_do_in_subquery_rewrites(JOIN *join);
 
 Item_subselect::Item_subselect():
-  Item_result_field(), value_assigned(0), own_engine(0), thd(0), old_engine(0), 
-  used_tables_cache(0), have_to_be_excluded(0), const_item_cache(1),
+  Item_result_field(), Used_tables_and_const_cache(),
+  value_assigned(0), own_engine(0), thd(0), old_engine(0), 
+  have_to_be_excluded(0),
   inside_first_fix_fields(0), done_first_fix_fields(FALSE), 
   expr_cache(0), forced_const(FALSE), substitution(0), engine(0), eliminated(FALSE),
   changed(0), is_correlated(FALSE)
@@ -921,11 +922,12 @@ void Item_subselect::print(String *str, enum_query_type query_type)
 }
 
 
-Item_singlerow_subselect::Item_singlerow_subselect(st_select_lex *select_lex)
+Item_singlerow_subselect::Item_singlerow_subselect(THD *thd_arg, st_select_lex *select_lex)
   :Item_subselect(), value(0)
 {
   DBUG_ENTER("Item_singlerow_subselect::Item_singlerow_subselect");
-  init(select_lex, new select_singlerow_subselect(this));
+  init(select_lex, new (thd_arg->mem_root) select_singlerow_subselect(thd_arg,
+                                                                      this));
   maybe_null= 1;
   max_columns= UINT_MAX;
   DBUG_VOID_RETURN;
@@ -960,9 +962,8 @@ Item_maxmin_subselect::Item_maxmin_subselect(THD *thd_param,
   DBUG_ENTER("Item_maxmin_subselect::Item_maxmin_subselect");
   max= max_arg;
   init(select_lex,
-       new select_max_min_finder_subselect(this, max_arg,
-                                           parent->substype() ==
-                                           Item_subselect::ALL_SUBS));
+       new (thd_param->mem_root) select_max_min_finder_subselect(thd_param,
+             this, max_arg, parent->substype() == Item_subselect::ALL_SUBS));
   max_columns= 1;
   maybe_null= 1;
   max_columns= 1;
@@ -1344,12 +1345,13 @@ bool Item_singlerow_subselect::get_date(MYSQL_TIME *ltime,ulonglong fuzzydate)
 }
 
 
-Item_exists_subselect::Item_exists_subselect(st_select_lex *select_lex):
+Item_exists_subselect::Item_exists_subselect(THD *thd_arg,
+                                             st_select_lex *select_lex):
   Item_subselect(), upper_not(NULL), abort_on_null(0),
   emb_on_expr_nest(NULL), optimizer(0), exists_transformed(0)
 {
   DBUG_ENTER("Item_exists_subselect::Item_exists_subselect");
-  init(select_lex, new select_exists_subselect(this));
+  init(select_lex, new (thd_arg->mem_root) select_exists_subselect(thd_arg, this));
   max_columns= UINT_MAX;
   null_value= FALSE; //can't be NULL
   maybe_null= 0; //can't be NULL
@@ -1380,7 +1382,7 @@ bool Item_in_subselect::test_limit(st_select_lex_unit *unit_arg)
   return(0);
 }
 
-Item_in_subselect::Item_in_subselect(Item * left_exp,
+Item_in_subselect::Item_in_subselect(THD *thd_arg, Item * left_exp,
 				     st_select_lex *select_lex):
   Item_exists_subselect(), left_expr_cache(0), first_execution(TRUE),
   in_strategy(SUBS_NOT_TRANSFORMED),
@@ -1392,7 +1394,8 @@ Item_in_subselect::Item_in_subselect(Item * left_exp,
   DBUG_PRINT("info", ("in_strategy: %u", (uint)in_strategy));
   left_expr= left_exp;
   func= &eq_creator;
-  init(select_lex, new select_exists_subselect(this));
+  init(select_lex, new (thd_arg->mem_root) select_exists_subselect(thd_arg,
+                                                                   this));
   max_columns= UINT_MAX;
   maybe_null= 1;
   reset();
@@ -1406,7 +1409,7 @@ int Item_in_subselect::get_identifier()
   return engine->get_identifier();
 }
 
-Item_allany_subselect::Item_allany_subselect(Item * left_exp,
+Item_allany_subselect::Item_allany_subselect(THD *thd_arg, Item * left_exp,
                                              chooser_compare_func_creator fc,
 					     st_select_lex *select_lex,
 					     bool all_arg)
@@ -1415,7 +1418,8 @@ Item_allany_subselect::Item_allany_subselect(Item * left_exp,
   DBUG_ENTER("Item_allany_subselect::Item_allany_subselect");
   left_expr= left_exp;
   func= func_creator(all_arg);
-  init(select_lex, new select_exists_subselect(this));
+  init(select_lex, new (thd_arg->mem_root) select_exists_subselect(thd_arg,
+                                                                   this));
   max_columns= 1;
   abort_on_null= 0;
   reset();
@@ -1775,7 +1779,7 @@ Item_in_subselect::single_value_transformer(JOIN *join)
       of the statement. Thus one of 'substitution' arguments
       can be broken in case of PS.
     */ 
-    substitution= func->create(left_expr, where_item);
+    substitution= func->create(thd->mem_root, left_expr, where_item);
     have_to_be_excluded= 1;
     if (thd->lex->describe)
     {
@@ -1920,7 +1924,7 @@ bool Item_allany_subselect::transform_into_max_min(JOIN *join)
                       0);
     if (join->prepare_stage2())
       DBUG_RETURN(true);
-    subs= new Item_singlerow_subselect(select_lex);
+    subs= new (thd->mem_root) Item_singlerow_subselect(thd, select_lex);
 
     /*
       Remove other strategies if any (we already changed the query and
@@ -1944,7 +1948,7 @@ bool Item_allany_subselect::transform_into_max_min(JOIN *join)
     The swap is needed for expressions of type 'f1 < ALL ( SELECT ....)'
     where we want to evaluate the sub query even if f1 would be null.
   */
-  subs= func->create_swap(*(optimizer->get_cache()), subs);
+  subs= func->create_swap(thd->mem_root, *(optimizer->get_cache()), subs);
   thd->change_item_tree(place, subs);
   if (subs->fix_fields(thd, &subs))
     DBUG_RETURN(true);
@@ -2036,8 +2040,9 @@ Item_in_subselect::create_single_in_to_exists_cond(JOIN * join,
   if (join_having || select_lex->with_sum_func ||
       select_lex->group_list.elements)
   {
-    Item *item= func->create(expr,
-                             new Item_ref_null_helper(&select_lex->context,
+    Item *item= func->create(thd->mem_root, expr,
+                             new (thd->mem_root) Item_ref_null_helper(
+                                                      &select_lex->context,
                                                       this,
                                                       select_lex->
                                                       ref_pointer_array,
@@ -2067,14 +2072,14 @@ Item_in_subselect::create_single_in_to_exists_cond(JOIN * join,
       Item *having= item;
       Item *orig_item= item;
        
-      item= func->create(expr, item);
+      item= func->create(thd->mem_root, expr, item);
       if (!abort_on_null && orig_item->maybe_null)
       {
-	having= new Item_is_not_null_test(this, having);
+	having= new (thd->mem_root) Item_is_not_null_test(this, having);
         if (left_expr->maybe_null)
         {
-          if (!(having= new Item_func_trig_cond(having,
-                                                get_cond_guard(0))))
+          if (!(having= new (thd->mem_root) Item_func_trig_cond(having,
+                                                            get_cond_guard(0))))
             DBUG_RETURN(true);
         }
         having->name= (char*) in_having_cond;
@@ -2082,8 +2087,8 @@ Item_in_subselect::create_single_in_to_exists_cond(JOIN * join,
           DBUG_RETURN(true);
         *having_item= having;
 
-	item= new Item_cond_or(item,
-			       new Item_func_isnull(orig_item));
+	item= new (thd->mem_root) Item_cond_or(item,
+                               new (thd->mem_root) Item_func_isnull(orig_item));
       }
       /* 
         If we may encounter NULL IN (SELECT ...) and care whether subquery
@@ -2091,7 +2096,8 @@ Item_in_subselect::create_single_in_to_exists_cond(JOIN * join,
       */
       if (!abort_on_null && left_expr->maybe_null)
       {
-        if (!(item= new Item_func_trig_cond(item, get_cond_guard(0))))
+        if (!(item= new (thd->mem_root) Item_func_trig_cond(item,
+                                                            get_cond_guard(0))))
           DBUG_RETURN(true);
       }
 
@@ -2110,15 +2116,17 @@ Item_in_subselect::create_single_in_to_exists_cond(JOIN * join,
       if (select_lex->master_unit()->is_union())
       {
         Item *new_having=
-          func->create(expr,
-                       new Item_ref_null_helper(&select_lex->context, this,
-                                            select_lex->ref_pointer_array,
-                                            (char *)"<no matter>",
-                                            (char *)"<result>"));
+          func->create(thd->mem_root, expr,
+                       new (thd->mem_root) Item_ref_null_helper(
+                                                  &select_lex->context,
+                                                  this,
+                                                  select_lex->ref_pointer_array,
+                                                  (char *)"<no matter>",
+                                                  (char *)"<result>"));
         if (!abort_on_null && left_expr->maybe_null)
         {
-          if (!(new_having= new Item_func_trig_cond(new_having,
-                                                    get_cond_guard(0))))
+          if (!(new_having= new (thd->mem_root) Item_func_trig_cond(new_having,
+                                                            get_cond_guard(0))))
             DBUG_RETURN(true);
         }
 
@@ -2841,7 +2849,8 @@ bool Item_exists_subselect::exists2in_processor(uchar *opt_arg)
   set_exists_transformed();
 
   first_select->select_limit= NULL;
-  if (!(in_subs= new Item_in_subselect(left_exp, first_select)))
+  if (!(in_subs= new (thd->mem_root) Item_in_subselect(thd, left_exp,
+                                                       first_select)))
   {
     res= TRUE;
     goto out;
@@ -4769,7 +4778,7 @@ bool subselect_hash_sj_engine::init(List<Item> *tmp_columns, uint subquery_id)
     DBUG_RETURN(TRUE);
   }
 */
-  if (!(result_sink= new select_materialize_with_stats))
+  if (!(result_sink= new (thd->mem_root) select_materialize_with_stats(thd)))
     DBUG_RETURN(TRUE);
     
   char buf[32];

@@ -618,7 +618,7 @@ sub make_combinations($$@)
     if (My::Options::is_set($test->{master_opt}, $comb->{comb_opt}) &&
         My::Options::is_set($test->{slave_opt}, $comb->{comb_opt}) ){
 
-      delete $test_combs->{$comb->{name}};
+      $test_combs->{$comb->{name}} = 2;
 
       # Add combination name short name
       push @{$test->{combinations}}, $comb->{name};
@@ -627,8 +627,9 @@ sub make_combinations($$@)
     }
 
     # Skip all other combinations, if this combination is forced
-    if (delete $test_combs->{$comb->{name}}) {
+    if ($test_combs->{$comb->{name}}) {
       @combinations = ($comb); # run the loop below only for this combination
+      $test_combs->{$comb->{name}} = 2;
       last;
     }
   }
@@ -858,9 +859,10 @@ sub collect_one_test_case {
   {
     @cases = map make_combinations($_, \%test_combs, @{$comb}), @cases;
   }
-  if (keys %test_combs) {
+  my @no_combs = grep { $test_combs{$_} == 1 } keys %test_combs;
+  if (@no_combs) {
     mtr_error("Could not run $name with '".(
-        join(',', sort keys %test_combs))."' combination(s)");
+        join(',', sort @no_combs))."' combination(s)");
   }
 
   for $tinfo (@cases) {

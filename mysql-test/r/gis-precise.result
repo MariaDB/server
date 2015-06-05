@@ -175,10 +175,10 @@ st_touches(geomfromtext('point(0 0)'), geomfromtext('point(1 1)'))
 0
 select st_touches(geomfromtext('point(1 1)'), geomfromtext('point(1 1)'));
 st_touches(geomfromtext('point(1 1)'), geomfromtext('point(1 1)'))
-1
+0
 select st_touches(geomfromtext('polygon((0 0, 2 2, 0 4, 0 0))'), geomfromtext('point(1 1)'));
 st_touches(geomfromtext('polygon((0 0, 2 2, 0 4, 0 0))'), geomfromtext('point(1 1)'))
-1
+0
 select st_touches(geomfromtext('polygon((0 0, 2 2, 0 4, 0 0))'), geomfromtext('point(1 0)'));
 st_touches(geomfromtext('polygon((0 0, 2 2, 0 4, 0 0))'), geomfromtext('point(1 0)'))
 0
@@ -437,7 +437,7 @@ ST_WITHIN( POLYGONFROMTEXT(' POLYGON( (0 5, 3 5, 3 4, 2 0 , 1 0, 2 4 , 0 4, 0 5)
 0
 SELECT ST_WITHIN( POINTFROMTEXT(' POINT(1 2 ) ') , MULTIPOLYGONFROMTEXT(' MULTIPOLYGON( ( (0 5, 3 5, 3 0, 0 0, 0 5), ( 1 1 , 2 1 , 2 4, 1 4, 1 1 ) ) ) '));
 ST_WITHIN( POINTFROMTEXT(' POINT(1 2 ) ') , MULTIPOLYGONFROMTEXT(' MULTIPOLYGON( ( (0 5, 3 5, 3 0, 0 0, 0 5), ( 1 1 , 2 1 , 2 4, 1 4, 1 1 ) ) ) '))
-1
+0
 select ST_ASTEXT(envelope(ST_GEOMCOLLFROMTEXT('GEOMETRYCOLLECTION EMPTY')));
 ST_ASTEXT(envelope(ST_GEOMCOLLFROMTEXT('GEOMETRYCOLLECTION EMPTY')))
 GEOMETRYCOLLECTION EMPTY

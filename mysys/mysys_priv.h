@@ -13,8 +13,14 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
 
+#ifndef MYSYS_PRIV_INCLUDED
+#define MYSYS_PRIV_INCLUDED
+
 #include <my_global.h>
 #include <my_sys.h>
+#include <my_crypt.h>
+
+C_MODE_START
 
 #ifdef USE_SYSTEM_WRAPPERS
 #include "system_wrappers.h"
@@ -71,6 +77,16 @@ extern PSI_file_key key_file_proc_meminfo;
 extern PSI_file_key key_file_charset, key_file_cnf;
 #endif /* HAVE_PSI_INTERFACE */
 
+typedef struct {
+  ulonglong counter;
+  uint block_length, last_block_length;
+  uchar key[MY_AES_BLOCK_SIZE];
+  ulonglong inbuf_counter;
+} IO_CACHE_CRYPT;
+
+extern int (*_my_b_encr_read)(IO_CACHE *info,uchar *Buffer,size_t Count);
+extern int (*_my_b_encr_write)(IO_CACHE *info,const uchar *Buffer,size_t Count);
+
 #ifdef SAFEMALLOC
 void *sf_malloc(size_t size, myf my_flags);
 void *sf_realloc(void *ptr, size_t size, myf my_flags);
@@ -115,4 +131,8 @@ extern int      my_win_fsync(File fd);
 extern File     my_win_dup(File fd);
 extern File     my_win_sopen(const char *path, int oflag, int shflag, int perm);
 extern File     my_open_osfhandle(HANDLE handle, int oflag);
+#endif
+
+C_MODE_END
+
 #endif

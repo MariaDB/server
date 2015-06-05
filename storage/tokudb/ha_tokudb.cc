@@ -172,6 +172,31 @@ static inline uint32_t get_len_of_offsets(KEY_AND_COL_INFO* kc_info, TABLE_SHARE
 }
 
 
+static int get_thread_query_string(my_thread_id id, String &qs) {
+  mysql_mutex_lock(&LOCK_thread_count);
+  I_List_iterator<THD> it(threads);
+  THD* tmp;
+  while ((tmp= it++))
+  {
+    /* ID */
+    if (tmp->thread_id == id)
+    {
+      /* Lock THD mutex that protects its data when looking at it. */
+      mysql_mutex_lock(&tmp->LOCK_thd_data);
+
+      /* INFO */
+      if (tmp->query())
+      {
+        qs = String(tmp->query(), tmp->query_length(), system_charset_info);
+      }
+      mysql_mutex_unlock(&tmp->LOCK_thd_data);
+      break;
+    }
+  }
+  mysql_mutex_unlock(&LOCK_thread_count);
+  return 0;
+}
+
 static int allocate_key_and_col_info ( TABLE_SHARE* table_share, KEY_AND_COL_INFO* kc_info) {
     int error;
     //
@@ -3247,7 +3272,7 @@ void ha_tokudb::start_bulk_insert(ha_rows rows) {
     lock_count = 0;
     
     if ((rows == 0 || rows > 1) && share->try_table_lock) {
-        if (get_prelock_empty(thd) && may_table_be_empty(transaction)) {
+        if (get_prelock_empty(thd) && may_table_be_empty(transaction) && transaction != NULL) {
             if (using_ignore || is_insert_ignore(thd) || thd->lex->duplicates != DUP_ERROR
                 || table->s->next_number_key_offset) {
                 acquire_table_lock(transaction, lock_write);
@@ -3557,8 +3582,12 @@ static void maybe_do_unique_checks_delay(THD *thd) {
     }
 }
 
+static bool need_read_only(THD *thd) {
+    return opt_readonly || !THDVAR(thd, rpl_check_readonly);
+}        
+
 static bool do_unique_checks(THD *thd, bool do_rpl_event) {
-    if (do_rpl_event && thd->slave_thread && opt_readonly && !THDVAR(thd, rpl_unique_checks))
+    if (do_rpl_event && thd->slave_thread && need_read_only(thd) && !THDVAR(thd, rpl_unique_checks))
         return false;
     else
         return !thd_test_options(thd, OPTION_RELAXED_UNIQUE_CHECKS);
@@ -3934,13 +3963,13 @@ int ha_tokudb::write_row(uchar * record) {
             goto cleanup;
         }
     }
-    
     txn = create_sub_trans ? sub_trans : transaction;
-
+    if (tokudb_debug & TOKUDB_DEBUG_TXN) {
+        TOKUDB_HANDLER_TRACE("txn %p", txn);
+    }
     if (tokudb_debug & TOKUDB_DEBUG_CHECK_KEY) {
         test_row_packing(record,&prim_key,&row);
     }
-
     if (loader) {
         error = loader->put(loader, &prim_key, &row);
         if (error) {
@@ -4035,7 +4064,7 @@ bool ha_tokudb::key_changed(uint keynr, const uchar * old_row, const uchar * new
 int ha_tokudb::update_row(const uchar * old_row, uchar * new_row) {
     TOKUDB_HANDLER_DBUG_ENTER("");
     DBT prim_key, old_prim_key, prim_row, old_prim_row;
-    int error;
+    int UNINIT_VAR(error);
     bool has_null;
     THD* thd = ha_thd();
     DB_TXN* sub_trans = NULL;
@@ -4043,7 +4072,6 @@ int ha_tokudb::update_row(const uchar * old_row, uchar * new_row) {
     tokudb_trx_data* trx = (tokudb_trx_data *) thd_get_ha_data(thd, tokudb_hton);
     uint curr_num_DBs;
 
-    LINT_INIT(error);
     memset((void *) &prim_key, 0, sizeof(prim_key));
     memset((void *) &old_prim_key, 0, sizeof(old_prim_key));
     memset((void *) &prim_row, 0, sizeof(prim_row));
@@ -4214,7 +4242,7 @@ int ha_tokudb::delete_row(const uchar * record) {
     bool has_null;
     THD* thd = ha_thd();
     uint curr_num_DBs;
-    tokudb_trx_data* trx = (tokudb_trx_data *) thd_get_ha_data(thd, tokudb_hton);;
+    tokudb_trx_data* trx = (tokudb_trx_data *) thd_get_ha_data(thd, tokudb_hton);
 
     ha_statistic_increment(&SSV::ha_delete_count);
 
@@ -4239,10 +4267,14 @@ int ha_tokudb::delete_row(const uchar * record) {
         goto cleanup;
     }
 
+    if (tokudb_debug & TOKUDB_DEBUG_TXN) {
+        TOKUDB_HANDLER_TRACE("all %p stmt %p sub_sp_level %p transaction %p", trx->all, trx->stmt, trx->sub_sp_level, transaction);
+    }
+
     error = db_env->del_multiple(
         db_env, 
         share->key_file[primary_key], 
-        transaction, 
+        transaction,
         &prim_key, 
         &row,
         curr_num_DBs, 
@@ -5375,9 +5407,12 @@ int ha_tokudb::get_next(uchar* buf, int direction, DBT* key_to_compare, bool do_
     }
 
     if (!error) {
-        tokudb_trx_data* trx = (tokudb_trx_data *) thd_get_ha_data(ha_thd(), tokudb_hton);
+        THD *thd = ha_thd();
+        tokudb_trx_data* trx = (tokudb_trx_data *) thd_get_ha_data(thd, tokudb_hton);
         trx->stmt_progress.queried++;
-        track_progress(ha_thd());
+        track_progress(thd);
+        if (thd_killed(thd))
+            error = ER_ABORTING_CONNECTION;
     }
 cleanup:
     return error;
@@ -7149,12 +7184,15 @@ To rename the table, make sure no transactions touch the table.", from, to);
 double ha_tokudb::scan_time() {
     TOKUDB_HANDLER_DBUG_ENTER("");
     double ret_val = (double)stats.records / 3;
+    if (tokudb_debug & TOKUDB_DEBUG_RETURN) {
+        TOKUDB_HANDLER_TRACE("return %" PRIu64 " %f", (uint64_t) stats.records, ret_val);
+    }
     DBUG_RETURN(ret_val);
 }
 
 double ha_tokudb::keyread_time(uint index, uint ranges, ha_rows rows)
 {
-    TOKUDB_HANDLER_DBUG_ENTER("");
+    TOKUDB_HANDLER_DBUG_ENTER("%u %u %" PRIu64, index, ranges, (uint64_t) rows);
     double ret_val;
     if (index == primary_key || key_is_clustering(&table->key_info[index])) {
         ret_val = read_time(index, ranges, rows);
@@ -7172,6 +7210,9 @@ double ha_tokudb::keyread_time(uint index, uint ranges, ha_rows rows)
                             (table->key_info[index].key_length +
                              ref_length) + 1);
     ret_val = (rows + keys_per_block - 1)/ keys_per_block;
+    if (tokudb_debug & TOKUDB_DEBUG_RETURN) {
+        TOKUDB_HANDLER_TRACE("return %f", ret_val);
+    }
     DBUG_RETURN(ret_val);
 }
 
@@ -7192,7 +7233,7 @@ double ha_tokudb::read_time(
     ha_rows rows
     )
 {
-    TOKUDB_HANDLER_DBUG_ENTER("");
+    TOKUDB_HANDLER_DBUG_ENTER("%u %u %" PRIu64, index, ranges, (uint64_t) rows);
     double total_scan;
     double ret_val; 
     bool is_primary = (index == primary_key);
@@ -7234,12 +7275,18 @@ double ha_tokudb::read_time(
     ret_val = is_clustering ? ret_val + 0.00001 : ret_val;
     
 cleanup:
+    if (tokudb_debug & TOKUDB_DEBUG_RETURN) {
+        TOKUDB_HANDLER_TRACE("return %f", ret_val);
+    }
     DBUG_RETURN(ret_val);
 }
 
 double ha_tokudb::index_only_read_time(uint keynr, double records) {
-    TOKUDB_HANDLER_DBUG_ENTER("");
+    TOKUDB_HANDLER_DBUG_ENTER("%u %f", keynr, records);
     double ret_val = keyread_time(keynr, 1, (ha_rows)records);
+    if (tokudb_debug & TOKUDB_DEBUG_RETURN) {
+        TOKUDB_HANDLER_TRACE("return %f", ret_val);
+    }
     DBUG_RETURN(ret_val);
 }
 
@@ -7257,7 +7304,7 @@ double ha_tokudb::index_only_read_time(uint keynr, double records) {
 //      HA_POS_ERROR - Something is wrong with the index tree
 //
 ha_rows ha_tokudb::records_in_range(uint keynr, key_range* start_key, key_range* end_key) {
-    TOKUDB_HANDLER_DBUG_ENTER("");
+    TOKUDB_HANDLER_DBUG_ENTER("%d %p %p", keynr, start_key, end_key);
     DBT *pleft_key, *pright_key;
     DBT left_key, right_key;
     ha_rows ret_val = HA_TOKUDB_RANGE_COUNT;
@@ -7313,6 +7360,9 @@ ha_rows ha_tokudb::records_in_range(uint keynr, key_range* start_key, key_range*
     ret_val = (ha_rows) (rows <= 1 ? 1 : rows);
 
 cleanup:
+    if (tokudb_debug & TOKUDB_DEBUG_RETURN) {
+        TOKUDB_HANDLER_TRACE("return %" PRIu64 " %" PRIu64, (uint64_t) ret_val, rows);
+    }
     DBUG_RETURN(ret_val);
 }
 

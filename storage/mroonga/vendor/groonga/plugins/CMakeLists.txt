@@ -1,4 +1,4 @@
-# Copyright(C) 2012-2014 Brazil
+# Copyright(C) 2012-2015 Brazil
 #
 # This library is free software; you can redistribute it and/or
 # modify it under the terms of the GNU Lesser General Public
@@ -19,3 +19,11 @@ add_subdirectory(table)
 add_subdirectory(query_expanders)
 add_subdirectory(ruby)
 add_subdirectory(token_filters)
+add_subdirectory(sharding)
+add_subdirectory(functions)
+
+if(GRN_WITH_MRUBY)
+  read_file_list(${CMAKE_CURRENT_SOURCE_DIR}/ruby_scripts.am RUBY_SCRIPTS)
+  install(FILES ${RUBY_SCRIPTS}
+    DESTINATION "${GRN_RELATIVE_PLUGINS_DIR}")
+endif()

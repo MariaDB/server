@@ -1,4 +1,4 @@
-/* Copyright (C) 2008-2014 Kentoku Shiba
+/* Copyright (C) 2008-2015 Kentoku Shiba
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -18,7 +18,6 @@
 #endif
 
 #define MYSQL_SERVER 1
-#include <my_global.h>
 #include "mysql_version.h"
 #if MYSQL_VERSION_ID < 50500
 #include "mysql_priv.h"
@@ -28,6 +27,9 @@
 #include "probes_mysql.h"
 #include "sql_class.h"
 #include "key.h"
+#ifdef HANDLER_HAS_DIRECT_AGGREGATE
+#include "sql_select.h"
+#endif
 #endif
 #include "ha_partition.h"
 #include "spd_param.h"
@@ -92,7 +94,7 @@ ha_spider::ha_spider(
   mrr_key_buff = NULL;
 #endif
   append_tblnm_alias = NULL;
-  has_clone_for_merge = FALSE;
+  use_index_merge = FALSE;
   is_clone = FALSE;
   clone_bitmap_init = FALSE;
   pt_clone_source_handler = NULL;
@@ -162,6 +164,7 @@ ha_spider::ha_spider(
   result_list.direct_distinct = FALSE;
   result_list.casual_read = NULL;
   result_list.use_both_key = FALSE;
+  result_list.in_cmp_ref = FALSE;
   DBUG_VOID_RETURN;
 }
 
@@ -199,7 +202,7 @@ ha_spider::ha_spider(
   mrr_key_buff = NULL;
 #endif
   append_tblnm_alias = NULL;
-  has_clone_for_merge = FALSE;
+  use_index_merge = FALSE;
   is_clone = FALSE;
   clone_bitmap_init = FALSE;
   pt_clone_source_handler = NULL;
@@ -269,6 +272,7 @@ ha_spider::ha_spider(
   result_list.direct_distinct = FALSE;
   result_list.casual_read = NULL;
   result_list.use_both_key = FALSE;
+  result_list.in_cmp_ref = FALSE;
   ref_length = sizeof(SPIDER_POSITION);
   DBUG_VOID_RETURN;
 }
@@ -300,7 +304,7 @@ handler *ha_spider::clone(
     HA_OPEN_IGNORE_IF_LOCKED))
     DBUG_RETURN(NULL);
   spider->sync_from_clone_source_base(this);
-  has_clone_for_merge = TRUE;
+  use_index_merge = TRUE;
 
   DBUG_RETURN((handler *) spider);
 }
@@ -1735,7 +1739,8 @@ int ha_spider::reset()
   result_list.use_both_key = FALSE;
   pt_clone_last_searcher = NULL;
   conn_kinds = SPIDER_CONN_KIND_MYSQL;
-  has_clone_for_merge = FALSE;
+  use_index_merge = FALSE;
+  init_rnd_handler = FALSE;
   while (condition)
   {
     tmp_cond = condition->next;
@@ -1852,6 +1857,35 @@ int ha_spider::extra(
       DBUG_PRINT("info",("spider HA_EXTRA_ADD_CHILDREN_LIST"));
       if (!(trx = spider_get_trx(ha_thd(), TRUE, &error_num)))
         DBUG_RETURN(error_num);
+      break;
+#endif
+#ifdef HA_EXTRA_HAS_HA_EXTRA_USE_CMP_REF
+    case HA_EXTRA_USE_CMP_REF:
+      DBUG_PRINT("info",("spider HA_EXTRA_USE_CMP_REF"));
+      if (table_share->primary_key != MAX_KEY)
+      {
+        DBUG_PRINT("info",("spider need primary key columns"));
+        KEY *key_info = &table->key_info[table->s->primary_key];
+        KEY_PART_INFO *key_part;
+        uint part_num;
+        for (
+          key_part = key_info->key_part, part_num = 0;
+          part_num < spider_user_defined_key_parts(key_info);
+          key_part++, part_num++
+        ) {
+          spider_set_bit(searched_bitmap, key_part->field->field_index);
+        }
+      } else {
+        DBUG_PRINT("info",("spider need all columns"));
+        Field **field;
+        for (
+          field = table->field;
+          *field;
+          field++
+        ) {
+          spider_set_bit(searched_bitmap, (*field)->field_index);
+        }
+      }
       break;
 #endif
     default:
@@ -4437,6 +4471,7 @@ int ha_spider::read_multi_range_first_internal(
       result_list.keyread = TRUE;
     else
       result_list.keyread = FALSE;
+    mrr_with_cnt = FALSE;
     if (
       (error_num = spider_db_append_select(this)) ||
       (error_num = spider_db_append_select_columns(this))
@@ -7649,6 +7684,7 @@ int ha_spider::cmp_ref(
   DBUG_PRINT("info",("spider this=%p", this));
   DBUG_PRINT("info",("spider ref1=%p", ref1));
   DBUG_PRINT("info",("spider ref2=%p", ref2));
+  result_list.in_cmp_ref = TRUE;
   if (table_share->primary_key < MAX_KEY)
   {
     uchar table_key[MAX_KEY_LENGTH];
@@ -7680,6 +7716,7 @@ int ha_spider::cmp_ref(
       }
     }
   }
+  result_list.in_cmp_ref = FALSE;
   DBUG_PRINT("info",("spider ret=%d", ret));
   DBUG_RETURN(ret);
 }
@@ -8492,12 +8529,16 @@ int ha_spider::info(
         } else if (tmp_auto_increment_mode == 1 &&
           !share->lgtm_tblhnd_share->auto_increment_init)
         {
+          DBUG_PRINT("info",("spider auto_increment_value=%llu",
+            share->lgtm_tblhnd_share->auto_increment_value));
           share->lgtm_tblhnd_share->auto_increment_lclval =
             share->lgtm_tblhnd_share->auto_increment_value;
           share->lgtm_tblhnd_share->auto_increment_init = TRUE;
           stats.auto_increment_value =
             share->lgtm_tblhnd_share->auto_increment_value;
         } else {
+          DBUG_PRINT("info",("spider auto_increment_value=%llu",
+            share->lgtm_tblhnd_share->auto_increment_value));
           stats.auto_increment_value =
             share->lgtm_tblhnd_share->auto_increment_value;
         }
@@ -8685,7 +8726,7 @@ ha_rows ha_spider::records_in_range(
     key_part_map end_key_part_map;
     key_part_map tgt_key_part_map;
     KEY_PART_INFO *key_part;
-    Field *field;
+    Field *field = NULL;
     double rows = (double) share->records;
     double weight, rate;
     DBUG_PRINT("info",("spider rows1=%f", rows));
@@ -9161,12 +9202,18 @@ bool ha_spider::need_info_for_auto_inc()
   DBUG_ENTER("ha_spider::need_info_for_auto_inc");
   DBUG_PRINT("info",("spider this=%p", this));
   DBUG_PRINT("info",("spider return=%s", (
-    !spider_param_auto_increment_mode(thd, share->auto_increment_mode) &&
-    !info_auto_called
+    !share->lgtm_tblhnd_share->auto_increment_init ||
+    (
+      !spider_param_auto_increment_mode(thd, share->auto_increment_mode) &&
+      !info_auto_called
+    )
   ) ? "TRUE" : "FALSE"));
   DBUG_RETURN((
-    !spider_param_auto_increment_mode(thd, share->auto_increment_mode) &&
-    !info_auto_called
+    !share->lgtm_tblhnd_share->auto_increment_init ||
+    (
+      !spider_param_auto_increment_mode(thd, share->auto_increment_mode) &&
+      !info_auto_called
+    )
   ));
 }
 #endif
@@ -9208,6 +9255,10 @@ int ha_spider::update_auto_increment()
     DBUG_PRINT("info",("spider force_auto_increment=FALSE"));
   }
 */
+  DBUG_PRINT("info",("spider auto_increment_mode=%d",
+    auto_increment_mode));
+  DBUG_PRINT("info",("spider next_number_field=%lld",
+    table->next_number_field->val_int()));
   if (
     auto_increment_mode == 1 &&
     !(
@@ -9219,6 +9270,8 @@ int ha_spider::update_auto_increment()
     lock_here = TRUE;
     pthread_mutex_lock(&share->lgtm_tblhnd_share->auto_increment_mutex);
     next_insert_id = share->lgtm_tblhnd_share->auto_increment_value;
+    DBUG_PRINT("info",("spider auto_increment_value=%llu",
+      share->lgtm_tblhnd_share->auto_increment_value));
   }
   if ((error_num = handler::update_auto_increment()))
   {
@@ -10806,6 +10859,9 @@ int ha_spider::rename_table(
       pthread_mutex_unlock(&spider_lgtm_tblhnd_share_mutex);
       goto error;
     }
+    DBUG_PRINT("info",
+      ("spider auto_increment_init=%s",
+        from_lgtm_tblhnd_share->auto_increment_init ? "TRUE" : "FALSE"));
     to_lgtm_tblhnd_share->auto_increment_init =
       from_lgtm_tblhnd_share->auto_increment_init;
     to_lgtm_tblhnd_share->auto_increment_lclval =
@@ -10967,7 +11023,11 @@ bool ha_spider::is_crashed() const
   DBUG_RETURN(FALSE);
 }
 
+#ifdef SPIDER_HANDLER_AUTO_REPAIR_HAS_ERROR
+bool ha_spider::auto_repair(int error) const
+#else
 bool ha_spider::auto_repair() const
+#endif
 {
   DBUG_ENTER("ha_spider::auto_repair");
   DBUG_PRINT("info",("spider this=%p", this));
@@ -11449,6 +11509,16 @@ void ha_spider::return_record_by_parent()
 TABLE *ha_spider::get_table()
 {
   DBUG_ENTER("ha_spider::get_table");
+  DBUG_RETURN(table);
+}
+
+TABLE *ha_spider::get_top_table()
+{
+  DBUG_ENTER("ha_spider::get_top_table");
+#ifdef HANDLER_HAS_TOP_TABLE_FIELDS
+  if (set_top_table_fields)
+    DBUG_RETURN(top_table);
+#endif
   DBUG_RETURN(table);
 }
 
@@ -13819,6 +13889,18 @@ int ha_spider::append_key_order_for_merge_with_alias_sql_part(
   uint roop_count, dbton_id;
   spider_db_handler *dbton_hdl;
   DBUG_ENTER("ha_spider::append_key_order_for_merge_with_alias_sql_part");
+#ifdef HANDLER_HAS_DIRECT_AGGREGATE
+  if (result_list.direct_aggregate)
+  {
+    st_select_lex *select_lex = spider_get_select_lex(this);
+    ORDER *group = (ORDER *) select_lex->group_list.first;
+    if (!group && *(select_lex->join->sum_funcs))
+    {
+      DBUG_PRINT("info",("spider skip order by"));
+      DBUG_RETURN(0);
+    }
+  }
+#endif
   for (roop_count = 0; roop_count < share->use_sql_dbton_count; roop_count++)
   {
     dbton_id = share->use_sql_dbton_ids[roop_count];
@@ -13868,6 +13950,18 @@ int ha_spider::append_key_order_with_alias_sql_part(
   uint roop_count, dbton_id;
   spider_db_handler *dbton_hdl;
   DBUG_ENTER("ha_spider::append_key_order_with_alias_sql_part");
+#ifdef HANDLER_HAS_DIRECT_AGGREGATE
+  if (result_list.direct_aggregate)
+  {
+    st_select_lex *select_lex = spider_get_select_lex(this);
+    ORDER *group = (ORDER *) select_lex->group_list.first;
+    if (!group && *(select_lex->join->sum_funcs))
+    {
+      DBUG_PRINT("info",("spider skip order by"));
+      DBUG_RETURN(0);
+    }
+  }
+#endif
   for (roop_count = 0; roop_count < share->use_sql_dbton_count; roop_count++)
   {
     dbton_id = share->use_sql_dbton_ids[roop_count];

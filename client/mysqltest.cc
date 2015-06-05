@@ -2617,12 +2617,11 @@ void var_query_set(VAR *var, const char *query, const char** query_end)
 {
   char *end = (char*)((query_end && *query_end) ?
 		      *query_end : query + strlen(query));
-  MYSQL_RES *res;
+  MYSQL_RES *UNINIT_VAR(res);
   MYSQL_ROW row;
   MYSQL* mysql = cur_con->mysql;
   DYNAMIC_STRING ds_query;
   DBUG_ENTER("var_query_set");
-  LINT_INIT(res);
 
   if (!mysql)
   {
@@ -2668,7 +2667,7 @@ void var_query_set(VAR *var, const char *query, const char** query_end)
     report_or_die("Query '%s' didn't return a result set", ds_query.str);
     dynstr_free(&ds_query);
     eval_expr(var, "", 0);
-    return;
+    DBUG_VOID_RETURN;
   }
   dynstr_free(&ds_query);
 
@@ -2801,7 +2800,7 @@ void var_set_query_get_value(struct st_command *command, VAR *var)
 {
   long row_no;
   int col_no= -1;
-  MYSQL_RES* res;
+  MYSQL_RES* UNINIT_VAR(res);
   MYSQL* mysql= cur_con->mysql;
 
   static DYNAMIC_STRING ds_query;
@@ -2814,7 +2813,6 @@ void var_set_query_get_value(struct st_command *command, VAR *var)
   };
 
   DBUG_ENTER("var_set_query_get_value");
-  LINT_INIT(res);
 
   if (!mysql)
   {
@@ -5770,6 +5768,8 @@ void do_connect(struct st_command *command)
   my_bool con_ssl= 0, con_compress= 0;
   my_bool con_pipe= 0;
   my_bool con_shm __attribute__ ((unused))= 0;
+  int read_timeout= 0;
+  int write_timeout= 0;
   struct st_connection* con_slot;
 
   static DYNAMIC_STRING ds_connection_name;
@@ -5866,6 +5866,16 @@ void do_connect(struct st_command *command)
       con_pipe= 1;
     else if (length == 3 && !strncmp(con_options, "SHM", 3))
       con_shm= 1;
+    else if (strncasecmp(con_options, "read_timeout=",
+                         sizeof("read_timeout=")-1) == 0)
+    {
+      read_timeout= atoi(con_options + sizeof("read_timeout=")-1);
+    }
+    else if (strncasecmp(con_options, "write_timeout=",
+                         sizeof("write_timeout=")-1) == 0)
+    {
+      write_timeout= atoi(con_options + sizeof("write_timeout=")-1);
+    }
     else
       die("Illegal option to connect: %.*s", 
           (int) (end - con_options), con_options);
@@ -5937,6 +5947,18 @@ void do_connect(struct st_command *command)
 
   if (opt_protocol)
     mysql_options(con_slot->mysql, MYSQL_OPT_PROTOCOL, (char*) &opt_protocol);
+
+  if (read_timeout)
+  {
+    mysql_options(con_slot->mysql, MYSQL_OPT_READ_TIMEOUT,
+                  (char*)&read_timeout);
+  }
+
+  if (write_timeout)
+  {
+    mysql_options(con_slot->mysql, MYSQL_OPT_WRITE_TIMEOUT,
+                  (char*)&write_timeout);
+  }
 
 #ifdef HAVE_SMEM
   if (con_shm)

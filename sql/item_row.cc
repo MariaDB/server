@@ -24,39 +24,6 @@
 #include "sql_class.h"                          // THD, set_var.h: THD
 #include "set_var.h"
 
-/**
-  Row items used for comparing rows and IN operations on rows:
-
-  @verbatim
-  (a, b, c) > (10, 10, 30)
-  (a, b, c) = (select c, d, e, from t1 where x=12)
-  (a, b, c) IN ((1,2,2), (3,4,5), (6,7,8)
-  (a, b, c) IN (select c, d, e, from t1)
-  @endverbatim
-
-  @todo
-    think placing 2-3 component items in item (as it done for function
-*/
-
-Item_row::Item_row(List<Item> &arg):
-  Item(), used_tables_cache(0), not_null_tables_cache(0),
-  const_item_cache(1), with_null(0)
-{
-
-  //TODO: think placing 2-3 component items in item (as it done for function)
-  if ((arg_count= arg.elements))
-    items= (Item**) sql_alloc(sizeof(Item*)*arg_count);
-  else
-    items= 0;
-  List_iterator_fast<Item> li(arg);
-  uint i= 0;
-  Item *item;
-  while ((item= li++))
-  {
-    items[i]= item;
-    i++;
-  }
-}
 
 void Item_row::illegal_method_call(const char *method)
 {
@@ -73,7 +40,7 @@ bool Item_row::fix_fields(THD *thd, Item **ref)
   null_value= 0;
   maybe_null= 0;
   Item **arg, **arg_end;
-  for (arg= items, arg_end= items+arg_count; arg != arg_end ; arg++)
+  for (arg= args, arg_end= args + arg_count; arg != arg_end ; arg++)
   {
     if (!(*arg)->fixed &&
         (*arg)->fix_fields(thd, arg))
@@ -111,7 +78,7 @@ Item_row::eval_not_null_tables(uchar *opt_arg)
   not_null_tables_cache= 0;
   if (arg_count)
   {		
-    for (arg= items, arg_end= items+arg_count; arg != arg_end ; arg++)
+    for (arg= args, arg_end= args + arg_count; arg != arg_end ; arg++)
     {
       not_null_tables_cache|= (*arg)->not_null_tables();
     }
@@ -126,8 +93,7 @@ void Item_row::cleanup()
 
   Item::cleanup();
   /* Reset to the original values */
-  used_tables_cache= 0;
-  const_item_cache= 1;
+  used_tables_and_const_cache_init();
   with_null= 0;
 
   DBUG_VOID_RETURN;
@@ -138,35 +104,20 @@ void Item_row::split_sum_func(THD *thd, Item **ref_pointer_array,
                               List<Item> &fields)
 {
   Item **arg, **arg_end;
-  for (arg= items, arg_end= items+arg_count; arg != arg_end ; arg++)
+  for (arg= args, arg_end= args + arg_count; arg != arg_end ; arg++)
     (*arg)->split_sum_func2(thd, ref_pointer_array, fields, arg, TRUE);
-}
-
-
-void Item_row::update_used_tables()
-{
-  used_tables_cache= 0;
-  const_item_cache= 1;
-  for (uint i= 0; i < arg_count; i++)
-  {
-    items[i]->update_used_tables();
-    used_tables_cache|= items[i]->used_tables();
-    const_item_cache&= items[i]->const_item();
-  }
 }
 
 
 void Item_row::fix_after_pullout(st_select_lex *new_parent, Item **ref)
 {
-  used_tables_cache= 0;
-  const_item_cache= 1;
+  used_tables_and_const_cache_init();
   not_null_tables_cache= 0;
   for (uint i= 0; i < arg_count; i++)
   {
-    items[i]->fix_after_pullout(new_parent, &items[i]);
-    used_tables_cache|= items[i]->used_tables();
-    const_item_cache&= items[i]->const_item();
-    not_null_tables_cache|= items[i]->not_null_tables();
+    args[i]->fix_after_pullout(new_parent, &args[i]);
+    used_tables_and_const_cache_join(args[i]);
+    not_null_tables_cache|= args[i]->not_null_tables();
   }
 }
 
@@ -188,20 +139,9 @@ void Item_row::print(String *str, enum_query_type query_type)
   {
     if (i)
       str->append(',');
-    items[i]->print(str, query_type);
+    args[i]->print(str, query_type);
   }
   str->append(')');
-}
-
-
-bool Item_row::walk(Item_processor processor, bool walk_subquery, uchar *arg)
-{
-  for (uint i= 0; i < arg_count; i++)
-  {
-    if (items[i]->walk(processor, walk_subquery, arg))
-      return 1;
-  }
-  return (this->*processor)(arg);
 }
 
 
@@ -209,26 +149,13 @@ Item *Item_row::transform(Item_transformer transformer, uchar *arg)
 {
   DBUG_ASSERT(!current_thd->stmt_arena->is_stmt_prepare());
 
-  for (uint i= 0; i < arg_count; i++)
-  {
-    Item *new_item= items[i]->transform(transformer, arg);
-    if (!new_item)
-      return 0;
-
-    /*
-      THD::change_item_tree() should be called only if the tree was
-      really transformed, i.e. when a new item has been created.
-      Otherwise we'll be allocating a lot of unnecessary memory for
-      change records at each execution.
-    */
-    if (items[i] != new_item)
-      current_thd->change_item_tree(&items[i], new_item);
-  }
+  if (transform_args(transformer, arg))
+    return 0;
   return (this->*transformer)(arg);
 }
 
 void Item_row::bring_value()
 {
   for (uint i= 0; i < arg_count; i++)
-    items[i]->bring_value();
+    args[i]->bring_value();
 }

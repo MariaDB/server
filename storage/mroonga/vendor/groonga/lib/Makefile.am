@@ -10,8 +10,17 @@ AM_CFLAGS =					\
 	$(COVERAGE_CFLAGS)			\
 	$(GRN_CFLAGS)				\
 	$(MESSAGE_PACK_CFLAGS)			\
-	$(MRUBY_CFLAGS)
-DEFAULT_INCLUDES = -I$(top_builddir) -I$(top_srcdir)/include
+	$(LIBLZ4_CFLAGS)
+
+BUNDLED_LIBRARIES_CFLAGS =			\
+	$(MRUBY_CFLAGS)				\
+	$(ONIGMO_CFLAGS)
+
+DEFAULT_INCLUDES =				\
+	-I$(top_builddir)			\
+	-I$(top_srcdir)/include			\
+	$(BUNDLED_LIBRARIES_CFLAGS)
+
 DEFS += -D_REENTRANT $(GRN_DEFS) -DGRN_DAT_EXPORT
 
 include sources.am
@@ -24,12 +33,20 @@ libgroonga_la_LDFLAGS =				\
 libgroonga_la_LIBADD =				\
 	dat/libgrndat.la			\
 	mrb/libgrnmrb.la			\
-	$(MESSAGE_PACK_LIBS)			\
-	$(MRUBY_LIBS)
+	$(MESSAGE_PACK_LIBS)
+
+if WITH_MRUBY
+libgroonga_la_LIBADD +=				\
+	../vendor/mruby/libmruby.la
+endif
+
+libgroonga_la_LIBADD +=				\
+	$(ONIGMO_LIBS)				\
+	$(LIBLZ4_LIBS)
 
 if WITH_LEMON
 BUILT_SOURCES =					\
-	ecmascript.c
+	grn_ecmascript.c
 
 SUFFIXES = .lemon .c
 
@@ -38,9 +55,9 @@ SUFFIXES = .lemon .c
 endif
 
 EXTRA_DIST =					\
-	ecmascript.c				\
-	ecmascript.h				\
-	ecmascript.lemon			\
+	grn_ecmascript.c			\
+	grn_ecmascript.h			\
+	grn_ecmascript.lemon			\
 	CMakeLists.txt
 
 CLEANFILES = *.gcno *.gcda

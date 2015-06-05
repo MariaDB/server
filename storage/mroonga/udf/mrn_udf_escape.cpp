@@ -1,6 +1,6 @@
 /* -*- c-basic-offset: 2; indent-tabs-mode: nil -*- */
 /*
-  Copyright(C) 2013 Kouhei Sutou <kou@clear-code.com>
+  Copyright(C) 2013-2015 Kouhei Sutou <kou@clear-code.com>
 
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -22,6 +22,7 @@
 #include <mrn_path_mapper.hpp>
 #include <mrn_windows.hpp>
 #include <mrn_macro.hpp>
+#include <mrn_variables.hpp>
 
 MRN_BEGIN_DECLS
 
@@ -62,8 +63,8 @@ MRN_API my_bool mroonga_escape_init(UDF_INIT *initid, UDF_ARGS *args,
   initid->maybe_null = 1;
   initid->const_item = 1;
 
-  info = (EscapeInfo *)my_malloc(sizeof(EscapeInfo),
-                                  MYF(MY_WME | MY_ZEROFILL));
+  info = (EscapeInfo *)mrn_my_malloc(sizeof(EscapeInfo),
+                                     MYF(MY_WME | MY_ZEROFILL));
   if (!info) {
     strcpy(message, "mroonga_escape(): out of memory");
     goto error;
@@ -81,7 +82,7 @@ MRN_API my_bool mroonga_escape_init(UDF_INIT *initid, UDF_ARGS *args,
 error:
   if (info) {
     grn_ctx_fin(&(info->ctx));
-    my_free(info, MYF(0));
+    my_free(info);
   }
   return TRUE;
 }
@@ -147,7 +148,7 @@ MRN_API void mroonga_escape_deinit(UDF_INIT *initid)
     grn_obj_unlink(&(info->ctx), &(info->target_characters));
     grn_obj_unlink(&(info->ctx), &(info->escaped_query));
     grn_ctx_fin(&(info->ctx));
-    my_free(info, MYF(0));
+    my_free(info);
   }
 }
 

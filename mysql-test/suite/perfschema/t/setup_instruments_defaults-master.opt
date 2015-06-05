@@ -12,7 +12,7 @@
 --loose-performance-schema-instrument='wait/synch/mutex/sql/LOCK_thread_count=OFF'
 --loose-performance-schema-instrument=' wait/synch/mutex/sql/LOCK_user_conn    = COUNTED'
 --loose-performance-schema-instrument='wait%/synch/mutex/sql/LOCK_uu%_genera%/= COUNTED'
---loose-performance-schema-instrument='%%wait/synch/mutex/sql/LOCK_xid_cache=COUNTED'
+--loose-performance-schema-instrument='%%wait/synch/mutex/sql/LOCK_plugin=COUNTED'
 --loose-performance-schema-instrument='%=FOO'
 --loose-performance-schema-instrument='%=%'
 --loose-performance-schema-instrument='%'

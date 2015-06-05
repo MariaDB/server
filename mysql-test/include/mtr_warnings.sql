@@ -223,6 +223,12 @@ INSERT INTO global_suppressions VALUES
  ("Slave I/O: Notifying master by SET @master_binlog_checksum= @@global.binlog_checksum failed with error.*"),
  ("Slave I/O: Setting master-side filtering of @@skip_replication failed with error:.*"),
  ("Slave I/O: Setting @mariadb_slave_capability failed with error:.*"),
+ ("Slave I/O: Get master @@GLOBAL.gtid_domain_id failed with error.*"),
+ ("Slave I/O: Setting @slave_connect_state failed with error.*"),
+ ("Slave I/O: Setting @slave_gtid_strict_mode failed with error.*"),
+ ("Slave I/O: Setting @slave_gtid_ignore_duplicates failed with error.*"),
+ ("Slave I/O: Setting @slave_until_gtid failed with error.*"),
+ ("Slave I/O: Get master GTID position failed with error.*"),
  ("THE_LAST_SUPPRESSION")||
 
 

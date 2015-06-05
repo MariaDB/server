@@ -5874,4 +5874,17 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	11	Using where
 set join_buffer_space_limit=default;
 drop table t1;
+#
+# MDEV-6687: Assertion `0' failed in Protocol::end_statement on query
+#
+SET join_cache_level = 3;
+# The following should have 
+#  - table order PROFILING,user,  
+#  - table user accessed with hash_ALL:
+explain
+SELECT * FROM INFORMATION_SCHEMA.PROFILING, mysql.user WHERE password_expired = PAGE_FAULTS_MINOR;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	PROFILING	ALL	NULL	NULL	NULL	NULL	NULL	Using where
+1	SIMPLE	user	hash_ALL	NULL	#hash#$hj	1	information_schema.PROFILING.PAGE_FAULTS_MINOR	4	Using where; Using join buffer (flat, BNLH join)
+set join_cache_level=default;
 set @@optimizer_switch=@save_optimizer_switch;

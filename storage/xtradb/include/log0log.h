@@ -747,19 +747,15 @@ extern log_t*	log_sys;
 #endif
 #define LOG_CHECKPOINT_OFFSET_HIGH32	(16 + LOG_CHECKPOINT_ARRAY_END)
 #define LOG_CRYPT_VER			(20 + LOG_CHECKPOINT_ARRAY_END)
-					/*!< 32-bit key version. Corresponding
-					key has been used for log records with                                        
-					lsn <= the checkpoint' lsn */
-#define LOG_CRYPT_MSG			(24 + LOG_CHECKPOINT_ARRAY_END)
-					/*!< a 128-bit value used to
-					derive cryto key for redo log.
-					It is generated via the concatenation
-					of 1 purpose byte T (0x02) and a
-					15-byte random number.*/
-#define LOG_CRYPT_IV			(40 + LOG_CHECKPOINT_ARRAY_END)
-					/*!< a 128-bit random number used as
-					AES-CTR iv/nonce for redo log */
-#define LOG_CHECKPOINT_SIZE		(56 + LOG_CHECKPOINT_ARRAY_END)
+
+#define LOG_CRYPT_MAX_ENTRIES           (5)
+#define LOG_CRYPT_ENTRY_SIZE            (4 + 4 + 2 * MY_AES_BLOCK_SIZE)
+#define LOG_CRYPT_SIZE                  (1 + 1 +			\
+					 (LOG_CRYPT_MAX_ENTRIES *	\
+					  LOG_CRYPT_ENTRY_SIZE))
+
+#define LOG_CHECKPOINT_SIZE		(20 + LOG_CHECKPOINT_ARRAY_END + \
+					 LOG_CRYPT_SIZE)
 
 /* Offsets of a log file header */
 #define LOG_GROUP_ID		0	/* log group number */
@@ -867,10 +863,6 @@ struct log_t{
 	lsn_t		lsn;		/*!< log sequence number */
 	ulint		buf_free;	/*!< first free offset within the log
 					buffer */
-	uint		redo_log_crypt_ver;
-					/*!< 32-bit crypto ver */
-	byte		redo_log_crypt_key[MY_AES_BLOCK_SIZE];
-					/*!< crypto key to encrypt redo log */
 #ifndef UNIV_HOTBACKUP
 	ib_prio_mutex_t		mutex;		/*!< mutex protecting the log */
 
@@ -1101,8 +1093,8 @@ struct log_t{
 #endif /* UNIV_LOG_ARCHIVE */
 
 extern os_event_t log_scrub_event;
-/* log scrubbing interval in ms */
-extern ulonglong innodb_scrub_log_interval;
+/* log scrubbing speed, in bytes/sec */
+extern ulonglong innodb_scrub_log_speed;
 
 /*****************************************************************//**
 This is the main thread for log scrub. It waits for an event and

@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2014, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2014, Monty Program Ab.
+   Copyright (c) 2009, 2015, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -281,7 +281,6 @@ void
 Lex_input_stream::reset(char *buffer, unsigned int length)
 {
   yylineno= 1;
-  yytoklen= 0;
   yylval= NULL;
   lookahead_token= -1;
   lookahead_yylval= NULL;
@@ -436,6 +435,21 @@ void Lex_input_stream::body_utf8_append_literal(THD *thd,
   m_cpp_utf8_processed_ptr= end_ptr;
 }
 
+void Lex_input_stream::add_digest_token(uint token, LEX_YYSTYPE yylval)
+{
+  if (m_digest != NULL)
+  {
+    m_digest= digest_add_token(m_digest, token, yylval);
+  }
+}
+
+void Lex_input_stream::reduce_digest_token(uint token_left, uint token_right)
+{
+  if (m_digest != NULL)
+  {
+    m_digest= digest_reduce_token(m_digest, token_left, token_right);
+  }
+}
 
 /*
   This is called before every query that is to be parsed.
@@ -525,13 +539,14 @@ void lex_start(THD *thd)
   lex->allow_sum_func= 0;
   lex->in_sum_func= NULL;
 
-  lex->is_lex_started= TRUE;
   lex->used_tables= 0;
   lex->reset_slave_info.all= false;
   lex->limit_rows_examined= 0;
   lex->limit_rows_examined_cnt= ULONGLONG_MAX;
   lex->var_list.empty();
   lex->stmt_var_list.empty();
+
+  lex->is_lex_started= TRUE;
   DBUG_VOID_RETURN;
 }
 
@@ -563,7 +578,7 @@ void lex_end(LEX *lex)
     lex->sphead= NULL;
   }
 
-  lex->mi.reset();
+  lex->mi.reset(lex->sql_command == SQLCOM_CHANGE_MASTER);
 
   DBUG_VOID_RETURN;
 }
@@ -641,7 +656,7 @@ static LEX_STRING get_token(Lex_input_stream *lip, uint skip, uint length)
 {
   LEX_STRING tmp;
   lip->yyUnget();                       // ptr points now after last token char
-  tmp.length=lip->yytoklen=length;
+  tmp.length= length;
   tmp.str= lip->m_thd->strmake(lip->get_tok_start() + skip, tmp.length);
 
   lip->m_cpp_text_start= lip->get_cpp_tok_start() + skip;
@@ -665,7 +680,7 @@ static LEX_STRING get_quoted_token(Lex_input_stream *lip,
   const char *from, *end;
   char *to;
   lip->yyUnget();                       // ptr points now after last token char
-  tmp.length= lip->yytoklen=length;
+  tmp.length= length;
   tmp.str=(char*) lip->m_thd->alloc(tmp.length+1);
   from= lip->get_tok_start() + skip;
   to= tmp.str;
@@ -687,135 +702,152 @@ static LEX_STRING get_quoted_token(Lex_input_stream *lip,
 }
 
 
+static size_t
+my_unescape(CHARSET_INFO *cs, char *to, const char *str, const char *end,
+            int sep, bool backslash_escapes)
+{
+  char *start= to;
+  for ( ; str != end ; str++)
+  {
+#ifdef USE_MB
+    int l;
+    if (use_mb(cs) && (l= my_ismbchar(cs, str, end)))
+    {
+      while (l--)
+        *to++ = *str++;
+      str--;
+      continue;
+    }
+#endif
+    if (backslash_escapes && *str == '\\' && str + 1 != end)
+    {
+      switch(*++str) {
+      case 'n':
+        *to++='\n';
+        break;
+      case 't':
+        *to++= '\t';
+        break;
+      case 'r':
+        *to++ = '\r';
+        break;
+      case 'b':
+        *to++ = '\b';
+        break;
+      case '0':
+        *to++= 0;                      // Ascii null
+        break;
+      case 'Z':                        // ^Z must be escaped on Win32
+        *to++='\032';
+        break;
+      case '_':
+      case '%':
+        *to++= '\\';                   // remember prefix for wildcard
+        /* Fall through */
+      default:
+        *to++= *str;
+        break;
+      }
+    }
+    else if (*str == sep)
+      *to++= *str++;                // Two ' or "
+    else
+      *to++ = *str;
+  }
+  *to= 0;
+  return to - start;
+}
+
+
+size_t
+Lex_input_stream::unescape(CHARSET_INFO *cs, char *to,
+                           const char *str, const char *end,
+                           int sep)
+{
+  return my_unescape(cs, to, str, end, sep, m_thd->backslash_escapes());
+}
+
+
 /*
   Return an unescaped text literal without quotes
   Fix sometimes to do only one scan of the string
 */
 
-static char *get_text(Lex_input_stream *lip, int pre_skip, int post_skip)
+bool Lex_input_stream::get_text(LEX_STRING *dst, int pre_skip, int post_skip)
 {
   reg1 uchar c,sep;
   uint found_escape=0;
-  CHARSET_INFO *cs= lip->m_thd->charset();
+  CHARSET_INFO *cs= m_thd->charset();
 
-  lip->tok_bitmap= 0;
-  sep= lip->yyGetLast();                        // String should end with this
-  while (! lip->eof())
+  tok_bitmap= 0;
+  sep= yyGetLast();                        // String should end with this
+  while (! eof())
   {
-    c= lip->yyGet();
-    lip->tok_bitmap|= c;
+    c= yyGet();
+    tok_bitmap|= c;
 #ifdef USE_MB
     {
       int l;
       if (use_mb(cs) &&
           (l = my_ismbchar(cs,
-                           lip->get_ptr() -1,
-                           lip->get_end_of_query()))) {
-        lip->skip_binary(l-1);
+                           get_ptr() -1,
+                           get_end_of_query()))) {
+        skip_binary(l-1);
         continue;
       }
     }
 #endif
     if (c == '\\' &&
-        !(lip->m_thd->variables.sql_mode & MODE_NO_BACKSLASH_ESCAPES))
+        !(m_thd->variables.sql_mode & MODE_NO_BACKSLASH_ESCAPES))
     {					// Escaped character
       found_escape=1;
-      if (lip->eof())
-	return 0;
-      lip->yySkip();
+      if (eof())
+	return true;
+      yySkip();
     }
     else if (c == sep)
     {
-      if (c == lip->yyGet())            // Check if two separators in a row
+      if (c == yyGet())                 // Check if two separators in a row
       {
         found_escape=1;                 // duplicate. Remember for delete
 	continue;
       }
       else
-        lip->yyUnget();
+        yyUnget();
 
       /* Found end. Unescape and return string */
       const char *str, *end;
-      char *start;
 
-      str= lip->get_tok_start();
-      end= lip->get_ptr();
+      str= get_tok_start();
+      end= get_ptr();
       /* Extract the text from the token */
       str += pre_skip;
       end -= post_skip;
       DBUG_ASSERT(end >= str);
 
-      if (!(start= (char*) lip->m_thd->alloc((uint) (end-str)+1)))
-	return (char*) "";		// Sql_alloc has set error flag
+      if (!(dst->str= (char*) m_thd->alloc((uint) (end - str) + 1)))
+      {
+        dst->str= (char*) "";        // Sql_alloc has set error flag
+        dst->length= 0;
+        return true;
+      }
 
-      lip->m_cpp_text_start= lip->get_cpp_tok_start() + pre_skip;
-      lip->m_cpp_text_end= lip->get_cpp_ptr() - post_skip;
+      m_cpp_text_start= get_cpp_tok_start() + pre_skip;
+      m_cpp_text_end= get_cpp_ptr() - post_skip;
 
       if (!found_escape)
       {
-	lip->yytoklen=(uint) (end-str);
-	memcpy(start,str,lip->yytoklen);
-	start[lip->yytoklen]=0;
+        memcpy(dst->str, str, dst->length= (end - str));
+        dst->str[dst->length]= 0;
       }
       else
       {
-        char *to;
-
-	for (to=start ; str != end ; str++)
-	{
-#ifdef USE_MB
-	  int l;
-	  if (use_mb(cs) &&
-              (l = my_ismbchar(cs, str, end))) {
-	      while (l--)
-		  *to++ = *str++;
-	      str--;
-	      continue;
-	  }
-#endif
-	  if (!(lip->m_thd->variables.sql_mode & MODE_NO_BACKSLASH_ESCAPES) &&
-              *str == '\\' && str+1 != end)
-	  {
-	    switch(*++str) {
-	    case 'n':
-	      *to++='\n';
-	      break;
-	    case 't':
-	      *to++= '\t';
-	      break;
-	    case 'r':
-	      *to++ = '\r';
-	      break;
-	    case 'b':
-	      *to++ = '\b';
-	      break;
-	    case '0':
-	      *to++= 0;			// Ascii null
-	      break;
-	    case 'Z':			// ^Z must be escaped on Win32
-	      *to++='\032';
-	      break;
-	    case '_':
-	    case '%':
-	      *to++= '\\';		// remember prefix for wildcard
-	      /* Fall through */
-	    default:
-              *to++= *str;
-	      break;
-	    }
-	  }
-	  else if (*str == sep)
-	    *to++= *str++;		// Two ' or "
-	  else
-	    *to++ = *str;
-	}
-	*to=0;
-	lip->yytoklen=(uint) (to-start);
+        dst->length= unescape(cs, dst->str, str, end, sep);
       }
-      return start;
+      return false;
     }
   }
-  return 0;					// unexpected end of query
+  return true;                         // unexpected end of query
 }
 
 
@@ -982,7 +1014,7 @@ int MYSQLlex(YYSTYPE *yylval, THD *thd)
     lip->lookahead_token= -1;
     *yylval= *(lip->lookahead_yylval);
     lip->lookahead_yylval= NULL;
-    lip->m_digest_psi= MYSQL_ADD_TOKEN(lip->m_digest_psi, token, yylval);
+    lip->add_digest_token(token, yylval);
     return token;
   }
 
@@ -1000,12 +1032,10 @@ int MYSQLlex(YYSTYPE *yylval, THD *thd)
     token= lex_one_token(yylval, thd);
     switch(token) {
     case CUBE_SYM:
-      lip->m_digest_psi= MYSQL_ADD_TOKEN(lip->m_digest_psi, WITH_CUBE_SYM,
-                                         yylval);
+      lip->add_digest_token(WITH_CUBE_SYM, yylval);
       return WITH_CUBE_SYM;
     case ROLLUP_SYM:
-      lip->m_digest_psi= MYSQL_ADD_TOKEN(lip->m_digest_psi, WITH_ROLLUP_SYM,
-                                         yylval);
+      lip->add_digest_token(WITH_ROLLUP_SYM, yylval);
       return WITH_ROLLUP_SYM;
     default:
       /*
@@ -1014,7 +1044,7 @@ int MYSQLlex(YYSTYPE *yylval, THD *thd)
       lip->lookahead_yylval= lip->yylval;
       lip->yylval= NULL;
       lip->lookahead_token= token;
-      lip->m_digest_psi= MYSQL_ADD_TOKEN(lip->m_digest_psi, WITH, yylval);
+      lip->add_digest_token(WITH, yylval);
       return WITH;
     }
     break;
@@ -1022,13 +1052,13 @@ int MYSQLlex(YYSTYPE *yylval, THD *thd)
     break;
   }
 
-  lip->m_digest_psi= MYSQL_ADD_TOKEN(lip->m_digest_psi, token, yylval);
+  lip->add_digest_token(token, yylval);
   return token;
 }
 
 static int lex_one_token(YYSTYPE *yylval, THD *thd)
 {
-  reg1	uchar c;
+  reg1	uchar UNINIT_VAR(c);
   bool comment_closed;
   int	tokval, result_state;
   uint length;
@@ -1039,7 +1069,6 @@ static int lex_one_token(YYSTYPE *yylval, THD *thd)
   const uchar *const state_map= cs->state_map;
   const uchar *const ident_map= cs->ident_map;
 
-  LINT_INIT(c);
   lip->yylval=yylval;			// The global state
 
   lip->start_token();
@@ -1123,12 +1152,11 @@ static int lex_one_token(YYSTYPE *yylval, THD *thd)
       }
       /* Found N'string' */
       lip->yySkip();                         // Skip '
-      if (!(yylval->lex_str.str = get_text(lip, 2, 1)))
+      if (lip->get_text(&yylval->lex_str, 2, 1))
       {
 	state= MY_LEX_CHAR;             // Read char by char
 	break;
       }
-      yylval->lex_str.length= lip->yytoklen;
       lex->text_string_is_7bit= (lip->tok_bitmap & 0x80) ? 0 : 1;
       return(NCHAR_STRING);
 
@@ -1489,12 +1517,11 @@ static int lex_one_token(YYSTYPE *yylval, THD *thd)
       }
       /* " used for strings */
     case MY_LEX_STRING:			// Incomplete text string
-      if (!(yylval->lex_str.str = get_text(lip, 1, 1)))
+      if (lip->get_text(&yylval->lex_str, 1, 1))
       {
 	state= MY_LEX_CHAR;		// Read char by char
 	break;
       }
-      yylval->lex_str.length=lip->yytoklen;
 
       lip->body_utf8_append(lip->m_cpp_text_start);
 
@@ -1852,7 +1879,7 @@ void st_select_lex::init_query()
     thus push_context should be moved to a place where query
     initialization is checked for failure.
   */
-  parent_lex->push_context(&context);
+  parent_lex->push_context(&context, parent_lex->thd->mem_root);
   cond_count= between_count= with_wild= 0;
   max_equal_elems= 0;
   ref_pointer_array= 0;
@@ -2205,12 +2232,6 @@ bool st_select_lex::test_limit()
 
 
 
-st_select_lex_unit* st_select_lex_unit::master_unit()
-{
-    return this;
-}
-
-
 st_select_lex* st_select_lex_unit::outer_select()
 {
   return (st_select_lex*) master;
@@ -2302,7 +2323,7 @@ bool st_select_lex::add_item_to_list(THD *thd, Item *item)
 {
   DBUG_ENTER("st_select_lex::add_item_to_list");
   DBUG_PRINT("info", ("Item: 0x%lx", (long) item));
-  DBUG_RETURN(item_list.push_back(item));
+  DBUG_RETURN(item_list.push_back(item, thd->mem_root));
 }
 
 
@@ -2315,12 +2336,6 @@ bool st_select_lex::add_group_to_list(THD *thd, Item *item, bool asc)
 bool st_select_lex::add_ftfunc_to_list(Item_func_match *func)
 {
   return !func || ftfunc_list->push_back(func); // end of memory?
-}
-
-
-st_select_lex_unit* st_select_lex::master_unit()
-{
-  return (st_select_lex_unit*) master;
 }
 
 
@@ -2628,7 +2643,8 @@ void Query_tables_list::destroy_query_tables_list()
 
 LEX::LEX()
   : explain(NULL),
-    result(0), option_type(OPT_DEFAULT), sphead(0),
+    result(0), arena_for_set_stmt(0), mem_root_for_set_stmt(0),
+    option_type(OPT_DEFAULT), context_analysis_only(0), sphead(0),
     is_lex_started(0), limit_rows_examined_cnt(ULONGLONG_MAX)
 {
 
@@ -3445,7 +3461,7 @@ bool st_select_lex::add_index_hint (THD *thd, char *str, uint length)
   return index_hints->push_front (new (thd->mem_root) 
                                  Index_hint(current_index_hint_type,
                                             current_index_hint_clause,
-                                            str, length));
+                                            str, length), thd->mem_root);
 }
 
 
@@ -4121,7 +4137,7 @@ bool st_select_lex::save_leaf_tables(THD *thd)
   TABLE_LIST *table;
   while ((table= li++))
   {
-    if (leaf_tables_exec.push_back(table))
+    if (leaf_tables_exec.push_back(table, thd->mem_root))
       return 1;
     table->tablenr_exec= table->get_tablenr();
     table->map_exec= table->get_map();
@@ -4137,27 +4153,48 @@ bool st_select_lex::save_leaf_tables(THD *thd)
 }
 
 
-bool st_select_lex::save_prep_leaf_tables(THD *thd)
+bool LEX::save_prep_leaf_tables()
 {
   if (!thd->save_prep_leaf_list)
-    return 0;
+    return FALSE;
 
   Query_arena *arena= thd->stmt_arena, backup;
   arena= thd->activate_stmt_arena_if_needed(&backup);
+  //It is used for DETETE/UPDATE so top level has only one SELECT
+  DBUG_ASSERT(select_lex.next_select() == NULL);
+  bool res= select_lex.save_prep_leaf_tables(thd);
 
+  if (arena)
+    thd->restore_active_arena(arena, &backup);
+
+  if (res)
+    return TRUE;
+
+  thd->save_prep_leaf_list= FALSE;
+  return FALSE;
+}
+
+
+bool st_select_lex::save_prep_leaf_tables(THD *thd)
+{
   List_iterator_fast<TABLE_LIST> li(leaf_tables);
   TABLE_LIST *table;
   while ((table= li++))
   {
     if (leaf_tables_prep.push_back(table))
-      return 1;
+      return TRUE;
   }
-  thd->lex->select_lex.is_prep_leaf_list_saved= TRUE; 
-  thd->save_prep_leaf_list= FALSE;
-  if (arena)
-    thd->restore_active_arena(arena, &backup);
+  is_prep_leaf_list_saved= TRUE;
+  for (SELECT_LEX_UNIT *u= first_inner_unit(); u; u= u->next_unit())
+  {
+    for (SELECT_LEX *sl= u->first_select(); sl; sl= sl->next_select())
+    {
+      if (sl->save_prep_leaf_tables(thd))
+        return TRUE;
+    }
+  }
 
-  return 0;
+  return FALSE;
 }
 
 
@@ -4223,6 +4260,67 @@ int LEX::print_explain(select_result_sink *output, uint8 explain_flags,
   return res;
 }
 
+
+/**
+  Allocates and set arena for SET STATEMENT old values.
+
+  @param backup          where to save backup of arena.
+
+  @retval 1 Error
+  @retval 0 OK
+*/
+
+bool LEX::set_arena_for_set_stmt(Query_arena *backup)
+{
+  DBUG_ENTER("LEX::set_arena_for_set_stmt");
+  DBUG_ASSERT(arena_for_set_stmt== 0);
+  if (!mem_root_for_set_stmt)
+  {
+    mem_root_for_set_stmt= new MEM_ROOT();
+    if (!(mem_root_for_set_stmt))
+      DBUG_RETURN(1);
+    init_sql_alloc(mem_root_for_set_stmt, ALLOC_ROOT_SET, ALLOC_ROOT_SET,
+                   MYF(MY_THREAD_SPECIFIC));
+  }
+  if (!(arena_for_set_stmt= new(mem_root_for_set_stmt)
+        Query_arena_memroot(mem_root_for_set_stmt,
+                            Query_arena::STMT_INITIALIZED)))
+    DBUG_RETURN(1);
+  DBUG_PRINT("info", ("mem_root: 0x%lx  arena: 0x%lx",
+                      (ulong) mem_root_for_set_stmt,
+                      (ulong) arena_for_set_stmt));
+  thd->set_n_backup_active_arena(arena_for_set_stmt, backup);
+  DBUG_RETURN(0);
+}
+
+
+void LEX::reset_arena_for_set_stmt(Query_arena *backup)
+{
+  DBUG_ENTER("LEX::reset_arena_for_set_stmt");
+  DBUG_ASSERT(arena_for_set_stmt);
+  thd->restore_active_arena(arena_for_set_stmt, backup);
+  DBUG_PRINT("info", ("mem_root: 0x%lx  arena: 0x%lx",
+                      (ulong) arena_for_set_stmt->mem_root,
+                      (ulong) arena_for_set_stmt));
+  DBUG_VOID_RETURN;
+}
+
+
+void LEX::free_arena_for_set_stmt()
+{
+  DBUG_ENTER("LEX::free_arena_for_set_stmt");
+  if (!arena_for_set_stmt)
+    return;
+  DBUG_PRINT("info", ("mem_root: 0x%lx  arena: 0x%lx",
+                      (ulong) arena_for_set_stmt->mem_root,
+                      (ulong) arena_for_set_stmt));
+  arena_for_set_stmt->free_items();
+  delete(arena_for_set_stmt);
+  free_root(mem_root_for_set_stmt, MYF(MY_KEEP_PREALLOC));
+  arena_for_set_stmt= 0;
+  DBUG_VOID_RETURN;
+}
+
 void LEX::restore_set_statement_var()
 {
   DBUG_ENTER("LEX::restore_set_statement_var");
@@ -4231,7 +4329,9 @@ void LEX::restore_set_statement_var()
     DBUG_PRINT("info", ("vars: %d", old_var_list.elements));
     sql_set_variables(thd, &old_var_list, false);
     old_var_list.empty();
+    free_arena_for_set_stmt();
   }
+  DBUG_ASSERT(!is_arena_for_set_stmt());
   DBUG_VOID_RETURN;
 }
 
@@ -4254,7 +4354,9 @@ void LEX::restore_set_statement_var()
 int st_select_lex_unit::save_union_explain(Explain_query *output)
 {
   SELECT_LEX *first= first_select();
-  Explain_union *eu= new (output->mem_root) Explain_union(output->mem_root);
+  Explain_union *eu= 
+    new (output->mem_root) Explain_union(output->mem_root, 
+                                         thd->lex->analyze_stmt);
 
   if (derived)
     eu->connection_type= Explain_node::EXPLAIN_NODE_DERIVED;
@@ -4297,6 +4399,7 @@ int st_select_lex_unit::save_union_explain_part2(Explain_query *output)
         eu->add_child(unit->first_select()->select_number);
       }
     }
+    fake_select_lex->join->explain= &eu->fake_select_lex_explain;
   }
   return 0;
 }

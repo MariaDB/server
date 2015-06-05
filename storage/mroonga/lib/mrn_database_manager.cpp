@@ -26,6 +26,8 @@
 #include "mrn_lock.hpp"
 #include "mrn_path_mapper.hpp"
 
+#include <groonga/plugin.h>
+
 // for debug
 #define MRN_CLASS_NAME "mrn::DatabaseManager"
 
@@ -38,19 +40,19 @@
 #  define MRN_MKDIR(pathname, mode) mkdir((pathname), (mode))
 #endif
 
+extern "C" {
+  grn_rc GRN_PLUGIN_IMPL_NAME_TAGGED(init, normalizers_mysql)(grn_ctx *ctx);
+  grn_rc GRN_PLUGIN_IMPL_NAME_TAGGED(register, normalizers_mysql)(grn_ctx *ctx);
+}
+
 namespace mrn {
-  DatabaseManager::DatabaseManager(grn_ctx *ctx)
+  DatabaseManager::DatabaseManager(grn_ctx *ctx, mysql_mutex_t *mutex)
     : ctx_(ctx),
       cache_(NULL),
-      mutex_(),
-      mutex_initialized_(false) {
+      mutex_(mutex) {
   }
 
   DatabaseManager::~DatabaseManager(void) {
-    if (mutex_initialized_) {
-      pthread_mutex_destroy(&mutex_);
-    }
-
     if (cache_) {
       void *db_address;
       GRN_HASH_EACH(ctx_, cache_, id, NULL, 0, &db_address, {
@@ -75,13 +77,6 @@ namespace mrn {
       DBUG_RETURN(false);
     }
 
-    if (pthread_mutex_init(&mutex_, NULL) != 0) {
-      GRN_LOG(ctx_, GRN_LOG_ERROR,
-              "failed to initialize mutex for opened database cache hash table");
-      DBUG_RETURN(false);
-    }
-
-    mutex_initialized_ = true;
     DBUG_RETURN(true);
   }
 
@@ -92,7 +87,7 @@ namespace mrn {
     *db = NULL;
 
     mrn::PathMapper mapper(path);
-    mrn::Lock lock(&mutex_);
+    mrn::Lock lock(mutex_);
 
     error = mrn::encoding::set(ctx_, system_charset_info);
     if (error) {
@@ -145,7 +140,7 @@ namespace mrn {
     MRN_DBUG_ENTER_METHOD();
 
     mrn::PathMapper mapper(path);
-    mrn::Lock lock(&mutex_);
+    mrn::Lock lock(mutex_);
 
     grn_id id;
     void *db_address;
@@ -171,7 +166,7 @@ namespace mrn {
     MRN_DBUG_ENTER_METHOD();
 
     mrn::PathMapper mapper(path);
-    mrn::Lock lock(&mutex_);
+    mrn::Lock lock(mutex_);
 
     grn_id id;
     void *db_address;
@@ -211,7 +206,7 @@ namespace mrn {
 
     int error = 0;
 
-    mrn::Lock lock(&mutex_);
+    mrn::Lock lock(mutex_);
 
     grn_hash_cursor *cursor;
     cursor = grn_hash_cursor_open(ctx_, cache_,
@@ -323,15 +318,12 @@ namespace mrn {
       if (mysql_normalizer) {
         grn_obj_unlink(ctx_, mysql_normalizer);
       } else {
-#ifdef GROONGA_NORMALIZER_MYSQL_PLUGIN_IS_BUNDLED_STATIC
-        char ref_path[FN_REFLEN + 1], *tmp;
-        tmp = strmov(ref_path, opt_plugin_dir);
-        tmp = strmov(tmp, "/ha_mroonga");
-        strcpy(tmp, SO_EXT);
-        grn_plugin_register_by_path(ctx_, ref_path);
-#else
+#  ifdef MRN_GROONGA_NORMALIZER_MYSQL_EMBED
+        GRN_PLUGIN_IMPL_NAME_TAGGED(init, normalizers_mysql)(ctx_);
+        GRN_PLUGIN_IMPL_NAME_TAGGED(register, normalizers_mysql)(ctx_);
+#  else
         grn_plugin_register(ctx_, GROONGA_NORMALIZER_MYSQL_PLUGIN_NAME);
-#endif
+#  endif
       }
     }
 #endif
