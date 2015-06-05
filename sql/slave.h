@@ -131,6 +131,8 @@ extern char *opt_slave_skip_errors;
 extern my_bool opt_replicate_annotate_row_events;
 extern ulonglong relay_log_space_limit;
 extern ulonglong slave_skipped_errors;
+extern const char *relay_log_index;
+extern const char *relay_log_basename;
 
 /*
   3 possible values for Master_info::slave_running and

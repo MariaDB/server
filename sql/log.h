@@ -1087,6 +1087,8 @@ void binlog_reset_cache(THD *thd);
 extern MYSQL_PLUGIN_IMPORT MYSQL_BIN_LOG mysql_bin_log;
 extern LOGGER logger;
 
+extern const char *log_bin_index;
+extern const char *log_bin_basename;
 
 /**
   Turns a relative log binary log path into a full path, based on the

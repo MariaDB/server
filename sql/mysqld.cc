@@ -2162,6 +2162,12 @@ void clean_up(bool print_message)
   mysql_cond_broadcast(&COND_thread_count);
   mysql_mutex_unlock(&LOCK_thread_count);
 
+  my_free(const_cast<char*>(log_bin_basename));
+  my_free(const_cast<char*>(log_bin_index));
+#ifndef EMBEDDED_LIBRARY
+  my_free(const_cast<char*>(relay_log_basename));
+  my_free(const_cast<char*>(relay_log_index));
+#endif
   free_list(opt_plugin_load_list_ptr);
 
   if (THR_THD)
@@ -3999,6 +4005,42 @@ static void my_malloc_size_cb_func(long long size, my_bool is_thread_specific)
 }
 }
 
+/**
+  Create a replication file name or base for file names.
+
+  @param[in] opt Value of option, or NULL
+  @param[in] def Default value if option value is not set.
+  @param[in] ext Extension to use for the path
+
+  @returns Pointer to string containing the full file path, or NULL if
+  it was not possible to create the path.
+ */
+static inline const char *
+rpl_make_log_name(const char *opt,
+                  const char *def,
+                  const char *ext)
+{
+  DBUG_ENTER("rpl_make_log_name");
+  DBUG_PRINT("enter", ("opt: %s, def: %s, ext: %s", opt, def, ext));
+  char buff[FN_REFLEN];
+  const char *base= opt ? opt : def;
+  unsigned int options=
+    MY_REPLACE_EXT | MY_UNPACK_FILENAME | MY_SAFE_PATH;
+
+  /* mysql_real_data_home_ptr  may be null if no value of datadir has been
+     specified through command-line or througha cnf file. If that is the
+     case we make mysql_real_data_home_ptr point to mysql_real_data_home
+     which, in that case holds the default path for data-dir.
+  */
+  if(mysql_real_data_home_ptr == NULL)
+    mysql_real_data_home_ptr= mysql_real_data_home;
+
+  if (fn_format(buff, base, mysql_real_data_home_ptr, ext, options))
+    DBUG_RETURN(my_strdup(buff, MYF(MY_WME)));
+  else
+    DBUG_RETURN(NULL);
+}
+
 static int init_common_variables()
 {
   umask(((~my_umask) & 0666));
@@ -5048,6 +5090,45 @@ static int init_server_components()
       unireg_abort(1);
     }
   }
+
+  if (opt_bin_log)
+  {
+    log_bin_basename=
+      rpl_make_log_name(opt_bin_logname, pidfile_name,
+                        opt_bin_logname ? "" : "-bin");
+    log_bin_index=
+      rpl_make_log_name(opt_binlog_index_name, log_bin_basename, ".index");
+    if (log_bin_basename == NULL || log_bin_index == NULL)
+    {
+      sql_print_error("Unable to create replication path names:"
+                      " out of memory or path names too long"
+                      " (path name exceeds " STRINGIFY_ARG(FN_REFLEN)
+                      " or file name exceeds " STRINGIFY_ARG(FN_LEN) ").");
+      unireg_abort(1);
+    }
+  }
+
+#ifndef EMBEDDED_LIBRARY
+  DBUG_PRINT("debug",
+             ("opt_bin_logname: %s, opt_relay_logname: %s, pidfile_name: %s",
+              opt_bin_logname, opt_relay_logname, pidfile_name));
+  if (opt_relay_logname)
+  {
+    relay_log_basename=
+      rpl_make_log_name(opt_relay_logname, pidfile_name,
+                        opt_relay_logname ? "" : "-relay-bin");
+    relay_log_index=
+      rpl_make_log_name(opt_relaylog_index_name, relay_log_basename, ".index");
+    if (relay_log_basename == NULL || relay_log_index == NULL)
+    {
+      sql_print_error("Unable to create replication path names:"
+                      " out of memory or path names too long"
+                      " (path name exceeds " STRINGIFY_ARG(FN_REFLEN)
+                      " or file name exceeds " STRINGIFY_ARG(FN_LEN) ").");
+      unireg_abort(1);
+    }
+  }
+#endif /* !EMBEDDED_LIBRARY */
 
   /* call ha_init_key_cache() on all key caches to init them */
   process_key_caches(&ha_init_key_cache, 0);
@@ -7233,6 +7314,11 @@ struct my_option my_long_options[]=
    "File that holds the names for last binary log files.",
    &opt_binlog_index_name, &opt_binlog_index_name, 0, GET_STR,
    REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+  {"relay-log-index", 0,
+   "The location and name to use for the file that keeps a list of the last "
+   "relay logs",
+   &opt_relaylog_index_name, &opt_relaylog_index_name, 0, GET_STR,
+   REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"log-isam", OPT_ISAM_LOG, "Log all MyISAM changes to file.",
    &myisam_log_filename, &myisam_log_filename, 0, GET_STR,
    OPT_ARG, 0, 0, 0, 0, 0, 0},
@@ -8585,6 +8671,8 @@ static int mysql_init_variables(void)
   report_user= report_password = report_host= 0;	/* TO BE DELETED */
   opt_relay_logname= opt_relaylog_index_name= 0;
   slave_retried_transactions= 0;
+  log_bin_basename= NULL;
+  log_bin_index= NULL;
 
   /* Variables in libraries */
   charsets_dir= 0;
@@ -8807,9 +8895,13 @@ mysqld_get_one_option(int optid, const struct my_option *opt, char *argument)
     if (log_error_file_ptr != disabled_my_option)
       SYSVAR_AUTOSIZE(log_error_file_ptr, opt_log_basename);
 
+    /* General log file */
     make_default_log_name(&opt_logname, ".log", false);
+    /* Slow query log file */
     make_default_log_name(&opt_slow_logname, "-slow.log", false);
+    /* Binary log file */
     make_default_log_name(&opt_bin_logname, "-bin", true);
+    /* Binary log index file */
     make_default_log_name(&opt_binlog_index_name, "-bin.index", true);
     mark_sys_var_value_origin(&opt_logname, sys_var::AUTO);
     mark_sys_var_value_origin(&opt_slow_logname, sys_var::AUTO);
@@ -8818,15 +8910,17 @@ mysqld_get_one_option(int optid, const struct my_option *opt, char *argument)
       return 1;
 
 #ifdef HAVE_REPLICATION
+    /* Relay log file */
     make_default_log_name(&opt_relay_logname, "-relay-bin", true);
+    /* Relay log index file */
     make_default_log_name(&opt_relaylog_index_name, "-relay-bin.index", true);
     mark_sys_var_value_origin(&opt_relay_logname, sys_var::AUTO);
-    mark_sys_var_value_origin(&opt_relaylog_index_name, sys_var::AUTO);
     if (!opt_relay_logname || !opt_relaylog_index_name)
       return 1;
 #endif
 
     SYSVAR_AUTOSIZE(pidfile_name_ptr, pidfile_name);
+    /* PID file */
     strmake(pidfile_name, argument, sizeof(pidfile_name)-5);
     strmov(fn_ext(pidfile_name),".pid");
 

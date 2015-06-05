@@ -77,6 +77,10 @@ Master_info *active_mi= 0;
 Master_info_index *master_info_index;
 my_bool replicate_same_server_id;
 ulonglong relay_log_space_limit = 0;
+
+const char *relay_log_index= 0;
+const char *relay_log_basename= 0;
+
 LEX_STRING default_master_connection_name= { (char*) "", 0 };
 
 /*
