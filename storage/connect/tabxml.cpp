@@ -1482,11 +1482,6 @@ bool XMLCOL::ParseXpath(PGLOBAL g, bool mode)
     // HTML like table, columns are retrieved by position
     new(this) XPOSCOL(Value);        // Change the class of this column
     Inod = -1;
-<<<<<<< HEAD
-=======
-//  Tdbp->Hasnod = true;
-//  return false;
->>>>>>> MariaDB/10.0
   } else if (Type == 0 && !mode) {
     strcat(strcat(pbuf, "@"), Name);
   } else {                           // Type == 1

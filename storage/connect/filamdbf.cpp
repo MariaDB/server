@@ -74,28 +74,19 @@ typedef struct _dbfheader {
 //uchar  Dbfox :4;                  /*  FoxPro if equal to 3                */
   uchar  Version;                   /*  Version information flags           */
   char   Filedate[3];               /*  date, YYMMDD, binary. YY=year-1900  */
-<<<<<<< HEAD
  private:
-=======
-private:
->>>>>>> MariaDB/10.0
   /* The following four members are stored in little-endian format on disk */
   char   m_RecordsBuf[4];           /*  records in the file                 */
   char   m_HeadlenBuf[2];           /*  bytes in the header                 */
   char   m_ReclenBuf[2];            /*  bytes in a record                   */
   char   m_FieldsBuf[2];            /*  Reserved but used to store fields   */
-<<<<<<< HEAD
  public:
-=======
-public:
->>>>>>> MariaDB/10.0
   char   Incompleteflag;            /*  01 if incomplete, else 00           */
   char   Encryptflag;               /*  01 if encrypted, else 00            */
   char   Reserved2[12];             /*  for LAN use                         */
   char   Mdxflag;                   /*  01 if production .mdx, else 00      */
   char   Language;                  /*  Codepage                            */
   char   Reserved3[2];
-<<<<<<< HEAD
 
   uint   Records(void) const {return uint4korr(m_RecordsBuf);}
   ushort Headlen(void) const {return uint2korr(m_HeadlenBuf);}
@@ -105,17 +96,6 @@ public:
   void   SetHeadlen(ushort num) {int2store(m_HeadlenBuf, num);}
   void   SetReclen(ushort num)  {int2store(m_ReclenBuf, num);}
   void   SetFields(ushort num)  {int2store(m_FieldsBuf, num);}
-=======
-  
-  uint Records() const { return uint4korr(m_RecordsBuf); }
-  ushort Headlen() const { return uint2korr(m_HeadlenBuf); }
-  ushort Reclen() const { return uint2korr(m_ReclenBuf); }
-  ushort Fields() const { return uint2korr(m_FieldsBuf); }
-  
-  void SetHeadlen(ushort num) { int2store(m_HeadlenBuf, num); }
-  void SetReclen(ushort num) { int2store(m_ReclenBuf, num); }
-  void SetFields(ushort num) { int2store(m_FieldsBuf, num); }
->>>>>>> MariaDB/10.0
   } DBFHEADER;
 
 /****************************************************************************/
@@ -430,22 +410,13 @@ int DBFBASE::ScanHeader(PGLOBAL g, PSZ fname, int lrecl, char *defpath)
   } else if (rc == RC_FX)
     return -1;
 
-<<<<<<< HEAD
   if ((int)header.Reclen() != lrecl) {
-=======
-  if ((int) header.Reclen() != lrecl) {
->>>>>>> MariaDB/10.0
     sprintf(g->Message, MSG(BAD_LRECL), lrecl, header.Reclen());
     return -1;
     } // endif Lrecl
 
-<<<<<<< HEAD
   Records = (int)header.Records();
   return (int)header.Headlen();
-=======
-  Records = (int) header.Records();
-  return (int) header.Headlen();
->>>>>>> MariaDB/10.0
   } // end of ScanHeader
 
 /* ---------------------------- Class DBFFAM ------------------------------ */
@@ -606,13 +577,8 @@ bool DBFFAM::AllocateBuffer(PGLOBAL g)
       header->Filedate[0] = datm->tm_year - 100;
       header->Filedate[1] = datm->tm_mon + 1;
       header->Filedate[2] = datm->tm_mday;
-<<<<<<< HEAD
       header->SetHeadlen((ushort)hlen);
       header->SetReclen((ushort)reclen);
-=======
-      header->SetHeadlen((ushort) hlen);
-      header->SetReclen((ushort) reclen);
->>>>>>> MariaDB/10.0
       descp = (DESCRIPTOR*)header;
 
       // Currently only standard Xbase types are supported
@@ -673,22 +639,13 @@ bool DBFFAM::AllocateBuffer(PGLOBAL g)
     DBFHEADER header;
 
     if ((rc = dbfhead(g, Stream, Tdbp->GetFile(g), &header)) == RC_OK) {
-<<<<<<< HEAD
       if (Lrecl != (int)header.Reclen()) {
-=======
-      if (Lrecl != (int) header.Reclen()) {
->>>>>>> MariaDB/10.0
         sprintf(g->Message, MSG(BAD_LRECL), Lrecl, header.Reclen());
         return true;
         } // endif Lrecl
 
-<<<<<<< HEAD
       Records = (int)header.Records();
       Headlen = (int)header.Headlen();
-=======
-      Records = (int) header.Records();
-      Headlen = (int) header.Headlen();
->>>>>>> MariaDB/10.0
     } else if (rc == RC_NF) {
       Records = 0;
       Headlen = 0;
@@ -924,16 +881,10 @@ void DBFFAM::CloseTableFile(PGLOBAL g, bool abort)
         if ((Stream= global_fopen(g, MSGID_OPEN_MODE_STRERROR, filename, "r+b")))
         {
           char nRecords[4];
-<<<<<<< HEAD
           int4store(nRecords, n);
 
           fseek(Stream, 4, SEEK_SET);     // Get header.Records position
           fwrite(nRecords, sizeof(nRecords), 1, Stream);
-=======
-          int4store(&nRecords, n);
-          fseek(Stream, 4, SEEK_SET);     // Get header.Records position
-          fwrite(&nRecords, sizeof(nRecords), 1, Stream);
->>>>>>> MariaDB/10.0
           fclose(Stream);
           Stream= NULL;
           Records= n;                    // Update Records value
@@ -1008,22 +959,13 @@ bool DBMFAM::AllocateBuffer(PGLOBAL g)
     /************************************************************************/
     DBFHEADER *hp = (DBFHEADER*)Memory;
 
-<<<<<<< HEAD
     if (Lrecl != (int)hp->Reclen()) {
-=======
-    if (Lrecl != (int) hp->Reclen()) {
->>>>>>> MariaDB/10.0
       sprintf(g->Message, MSG(BAD_LRECL), Lrecl, hp->Reclen());
       return true;
       } // endif Lrecl
 
-<<<<<<< HEAD
     Records = (int)hp->Records();
     Headlen = (int)hp->Headlen();
-=======
-    Records = (int) hp->Records();
-    Headlen = (int) hp->Headlen();
->>>>>>> MariaDB/10.0
     } // endif Headlen
 
   /**************************************************************************/

@@ -410,11 +410,7 @@ void Json_Array_Add_deinit(UDF_INIT* initid)
 } // end of Json_Array_Add_deinit
 
 /***********************************************************************/
-<<<<<<< HEAD
 /*  Delete a value from a Json array.                                  */
-=======
-/*  Add values to a Json array.                                        */
->>>>>>> MariaDB/10.0
 /***********************************************************************/
 my_bool Json_Array_Delete_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 {
@@ -433,11 +429,7 @@ my_bool Json_Array_Delete_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 } // end of Json_Array_Delete_init
 
 char *Json_Array_Delete(UDF_INIT *initid, UDF_ARGS *args, char *result, 
-<<<<<<< HEAD
                 unsigned long *res_length, char *, char *)
-=======
-                unsigned long *res_length, char *is_null, char *error)
->>>>>>> MariaDB/10.0
 {
   char   *str;
   int     n;
@@ -459,11 +451,7 @@ char *Json_Array_Delete(UDF_INIT *initid, UDF_ARGS *args, char *result,
   } else {
     n = *(int*)args->args[1];
     arp = jvp->GetArray();
-<<<<<<< HEAD
     arp->DeleteValue(n);
-=======
-    arp->DeleteValue(n - 1);
->>>>>>> MariaDB/10.0
     arp->InitArray(g);
 
     if (!(str = Serialize(g, arp, NULL, 0))) {

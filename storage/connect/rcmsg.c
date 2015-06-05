@@ -21,15 +21,9 @@
 #include "msgid.h"
 #endif   // NEWMSG
 
-<<<<<<< HEAD
 #if !defined(__WIN__)
 #define stricmp  strcasecmp
 #endif   // !__WIN__
-=======
-#if !defined(WIN32)
-#define stricmp  strcasecmp
-#endif   // !WIN32
->>>>>>> MariaDB/10.0
 
 char *msglang(void);
 
