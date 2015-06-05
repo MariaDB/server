@@ -19,6 +19,8 @@
 set -u
 
 WSREP_SST_OPT_BYPASS=0
+WSREP_SST_OPT_BINLOG=""
+WSREP_SST_OPT_CONF_SUFFIX=""
 WSREP_SST_OPT_DATA=""
 WSREP_SST_OPT_AUTH=${WSREP_SST_OPT_AUTH:-}
 WSREP_SST_OPT_USER=${WSREP_SST_OPT_USER:-}
@@ -39,6 +41,10 @@ case "$1" in
         ;;
     '--defaults-file')
         readonly WSREP_SST_OPT_CONF="$2"
+        shift
+        ;;
+    '--defaults-group-suffix')
+        WSREP_SST_OPT_CONF_SUFFIX="$2"
         shift
         ;;
     '--host')
@@ -77,6 +83,10 @@ case "$1" in
         readonly WSREP_SST_OPT_GTID="$2"
         shift
         ;;
+    '--binlog')
+        WSREP_SST_OPT_BINLOG="$2"
+        shift
+        ;;
     *) # must be command
        # usage
        # exit 1
@@ -85,6 +95,8 @@ esac
 shift
 done
 readonly WSREP_SST_OPT_BYPASS
+readonly WSREP_SST_OPT_BINLOG
+readonly WSREP_SST_OPT_CONF_SUFFIX
 
 # try to use my_print_defaults, mysql and mysqldump that come with the sources
 # (for MTR suite)
