@@ -1,4 +1,4 @@
-# Copyright (C) 2012-2014 Codership Oy
+# Copyright (C) 2012-2015 Codership Oy
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -20,16 +20,14 @@ set -u
 
 WSREP_SST_OPT_BYPASS=0
 WSREP_SST_OPT_DATA=""
-WSREP_SST_OPT_AUTH=""
+WSREP_SST_OPT_AUTH=${WSREP_SST_OPT_AUTH:-}
+WSREP_SST_OPT_USER=${WSREP_SST_OPT_USER:-}
+WSREP_SST_OPT_PSWD=${WSREP_SST_OPT_PSWD:-}
 
 while [ $# -gt 0 ]; do
 case "$1" in
     '--address')
         readonly WSREP_SST_OPT_ADDR="$2"
-        shift
-        ;;
-    '--auth')
-        WSREP_SST_OPT_AUTH="$2"
         shift
         ;;
     '--bypass')
@@ -114,12 +112,30 @@ else
     MY_PRINT_DEFAULTS=$(which my_print_defaults)
 fi
 
+wsrep_auth_not_set()
+{
+    [ -z "$WSREP_SST_OPT_AUTH" -o "$WSREP_SST_OPT_AUTH" = "(null)" ]
+}
+
 # For Bug:1200727
-if $MY_PRINT_DEFAULTS -c $WSREP_SST_OPT_CONF sst | grep -q "wsrep_sst_auth";then
-    if [ -z "$WSREP_SST_OPT_AUTH" -o "$WSREP_SST_OPT_AUTH" = "(null)" ];then
-            WSREP_SST_OPT_AUTH=$(my_print_defaults -c $WSREP_SST_OPT_CONF sst | grep -- "--wsrep_sst_auth" | cut -d= -f2)
+if $MY_PRINT_DEFAULTS -c $WSREP_SST_OPT_CONF sst | grep -q "wsrep_sst_auth"
+then
+    if wsrep_auth_not_set
+    then
+        WSREP_SST_OPT_AUTH=$(MY_PRINT_DEFAULTS -c $WSREP_SST_OPT_CONF sst | grep -- "--wsrep_sst_auth" | cut -d= -f2)
     fi
 fi
+readonly WSREP_SST_OPT_AUTH
+
+# Splitting AUTH into potential user:password pair
+if ! wsrep_auth_not_set
+then
+    readonly AUTH_VEC=(${WSREP_SST_OPT_AUTH//:/ })
+    [ -n "${AUTH_VEC[0]}" ] && WSREP_SST_OPT_USER="${AUTH_VEC[0]}"
+    [ -n "${AUTH_VEC[1]}" ] && WSREP_SST_OPT_PSWD="${AUTH_VEC[1]}"
+fi
+readonly WSREP_SST_OPT_USER
+readonly WSREP_SST_OPT_PSWD
 
 if [ -n "${WSREP_SST_OPT_DATA:-}" ]
 then
@@ -127,7 +143,6 @@ then
 else
     SST_PROGRESS_FILE=""
 fi
-
 
 wsrep_log()
 {

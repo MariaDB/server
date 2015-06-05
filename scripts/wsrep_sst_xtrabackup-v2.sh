@@ -77,7 +77,6 @@ pcmd="pv $pvopts"
 declare -a RC
 
 INNOBACKUPEX_BIN=innobackupex
-readonly AUTH=(${WSREP_SST_OPT_AUTH//:/ })
 DATA="${WSREP_SST_OPT_DATA}"
 INFO_FILE="xtrabackup_galera_info"
 IST_FILE="xtrabackup_ist"
@@ -576,13 +575,14 @@ then
         itmpdir=$(mktemp -d)
         wsrep_log_info "Using $itmpdir as innobackupex temporary directory"
 
-        if [ "${AUTH[0]}" != "(null)" ]; then
-           INNOEXTRA+=" --user=${AUTH[0]}"
-       fi
+        if [ "$WSREP_SST_OPT_USER" != "(null)" ]; then
+           INNOEXTRA+=" --user=$WSREP_SST_OPT_USER"
+        fi
 
-        if [ ${#AUTH[*]} -eq 2 ]; then
-           INNOEXTRA+=" --password=${AUTH[1]}"
-        elif [ "${AUTH[0]}" != "(null)" ]; then
+        if [ -n "$WSREP_SST_OPT_PSWD" ]; then
+#           INNOEXTRA+=" --password=$WSREP_SST_OPT_PSWD"
+           export MYSQL_PWD="$WSREP_SST_OPT_PSWD"
+        else
            # Empty password, used for testing, debugging etc.
            INNOEXTRA+=" --password="
         fi
