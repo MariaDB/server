@@ -495,7 +495,7 @@ trx_release_savepoint_for_mysql(
 {
 	trx_named_savept_t*	savep;
 
-	ut_ad(trx_state_eq(trx, TRX_STATE_ACTIVE));
+	ut_ad(trx_state_eq(trx, TRX_STATE_ACTIVE) || trx_state_eq(trx, TRX_STATE_PREPARED));
 	ut_ad(trx->in_mysql_trx_list);
 
 	savep = trx_savepoint_find(trx, savepoint_name);

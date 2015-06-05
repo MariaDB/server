@@ -65,7 +65,11 @@ typedef struct index_def : public BLOCK {
 
 typedef struct index_off {
   union {
+#if defined(WORDS_BIGENDIAN)
+    struct {int High; int Low;};
+#else   // !WORDS_BIGENDIAN
     struct {int Low; int High;};
+#endif   //!WORDS_BIGENDIAN
     longlong Val;                 // File position
     }; // end of union
   } IOFF;
@@ -346,7 +350,7 @@ class DllExport XLOAD : public BLOCK {
 
  protected:
   // Members
-#if defined(WIN32)
+#if defined(__WIN__)
   HANDLE  Hfile;                // Handle to file or map
 #else    // UNIX
   int     Hfile;                // Descriptor to file or map
@@ -462,7 +466,7 @@ class KXYCOL: public BLOCK {
   virtual void FreeData(void);
   virtual void FillValue(PVAL valp);
   virtual int  CompVal(int i);
-          void InitBinFind(void *vp);
+//        void InitBinFind(void *vp);
           bool MakeBlockArray(PGLOBAL g, int nb, int size);
           int  Compare(int i1, int i2);
           int  CompBval(int i);

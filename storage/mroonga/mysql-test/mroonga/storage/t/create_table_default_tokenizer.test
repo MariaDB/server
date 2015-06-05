@@ -30,7 +30,7 @@ CREATE TABLE tags (
   COLLATE=utf8_bin
   COMMENT='default_tokenizer "TokenDelimit"';
 
-SELECT mroonga_command("dump");
+SELECT mroonga_command("dump --dump_plugins no");
 
 DROP TABLE tags;
 

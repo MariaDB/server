@@ -24,7 +24,7 @@
 #include "block.h"
 #include "catalog.h"
 
-typedef struct ha_table_option_struct TOS, *PTOS;
+//typedef struct ha_table_option_struct TOS, *PTOS;
 
 /**
   structure for CREATE TABLE options (table options)

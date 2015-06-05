@@ -18,6 +18,7 @@
 #ifndef GROONGA_H
 #define GROONGA_H
 
+#include "groonga/portability.h"
 #include "groonga/groonga.h"
 #include "groonga/obj.h"
 #include "groonga/ii.h"

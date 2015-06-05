@@ -1,6 +1,6 @@
 /*
-   Copyright (c) 2000, 2014, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2014, SkySQL Ab.
+   Copyright (c) 2000, 2015, Oracle and/or its affiliates.
+   Copyright (c) 2010, 2015, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -28,7 +28,6 @@
 #include "sql_base.h"   // open_table_uncached, lock_table_names
 #include "lock.h"       // mysql_unlock_tables
 #include "strfunc.h"    // find_type2, find_set
-#include "sql_view.h" // view_checksum 
 #include "sql_truncate.h"                       // regenerate_locked_table 
 #include "sql_partition.h"                      // mem_alloc_error,
                                                 // generate_partition_syntax,
@@ -4687,7 +4686,9 @@ int create_table_impl(THD *thd,
   if (create_info->tmp_table())
   {
     TABLE *tmp_table;
-    if ((tmp_table= find_temporary_table(thd, db, table_name)))
+    if (find_and_use_temporary_table(thd, db, table_name, &tmp_table))
+      goto err;
+    if (tmp_table)
     {
       bool table_creation_was_logged= tmp_table->s->table_creation_was_logged;
       if (create_info->options & HA_LEX_CREATE_REPLACE)
@@ -8427,6 +8428,23 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
     mysql_audit_alter_table(thd, table_list);
 
   THD_STAGE_INFO(thd, stage_setup);
+
+  handle_if_exists_options(thd, table, alter_info);
+
+  /*
+    Look if we have to do anything at all.
+    ALTER can become NOOP after handling
+    the IF (NOT) EXISTS options.
+  */
+  if (alter_info->flags == 0)
+  {
+    my_snprintf(alter_ctx.tmp_name, sizeof(alter_ctx.tmp_name),
+                ER(ER_INSERT_INFO), 0L, 0L,
+                thd->get_stmt_da()->current_statement_warn_count());
+    my_ok(thd, 0L, 0L, alter_ctx.tmp_name);
+    DBUG_RETURN(false);
+  }
+
   if (!(alter_info->flags & ~(Alter_info::ALTER_RENAME |
                               Alter_info::ALTER_KEYS_ONOFF)) &&
       alter_info->requested_algorithm !=
@@ -8445,22 +8463,6 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
                                             alter_info->keys_onoff,
                                             &alter_ctx);
     DBUG_RETURN(res);
-  }
-
-  handle_if_exists_options(thd, table, alter_info);
-
-  /*
-    Look if we have to do anything at all.
-    Normally ALTER can become NOOP only after handling
-    the IF (NOT) EXISTS options.
-  */
-  if (alter_info->flags == 0)
-  {
-    my_snprintf(alter_ctx.tmp_name, sizeof(alter_ctx.tmp_name),
-                ER(ER_INSERT_INFO), 0L, 0L,
-                thd->get_stmt_da()->current_statement_warn_count());
-    my_ok(thd, 0L, 0L, alter_ctx.tmp_name);
-    DBUG_RETURN(false);
   }
 
   /* We have to do full alter table. */

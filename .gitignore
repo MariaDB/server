@@ -1,15 +1,8 @@
-# Edited by Olivier Bertrand
 *-t
-*.a
 *.ctest
-*.o
 *.reject
-*.so
-*.so.*
 *.spec
-*~
 *.bak
-*.log
 .*.swp
 *.ninja
 .ninja_*
@@ -19,7 +12,6 @@ typescript
 CMakeCache.txt
 CMakeFiles/
 MakeFile
-cmake_install.cmake
 install_manifest.txt
 CPackConfig.cmake
 CPackSourceConfig.cmake
@@ -144,6 +136,8 @@ sql-bench/test-select
 sql-bench/test-table-elimination
 sql-bench/test-transactions
 sql-bench/test-wisconsin
+sql/lex_token.h
+sql/gen_lex_token
 sql/gen_lex_hash
 sql/lex_hash.h
 sql/mysql_tzinfo_to_sql
@@ -151,6 +145,7 @@ sql/mysqld
 sql/sql_builtin.cc
 sql/sql_yacc.cc
 sql/sql_yacc.h
+storage/connect/.*
 storage/heap/hp_test1
 storage/heap/hp_test2
 storage/maria/aria_chk
@@ -172,8 +167,6 @@ storage/myisam/myisamlog
 storage/myisam/myisampack
 storage/myisam/rt_test
 storage/myisam/sp_test
-storage/perfschema/gen_pfs_lex_token
-storage/perfschema/pfs_lex_token.h
 storage/tokudb/ft-index/buildheader/db.h
 storage/tokudb/ft-index/buildheader/make_tdb
 storage/tokudb/ft-index/buildheader/runcat.sh
@@ -199,10 +192,6 @@ storage/tokudb/ft-index/tools/tokudb_dump
 storage/tokudb/ft-index/tools/tokudb_gen
 storage/tokudb/ft-index/tools/tokudb_load
 storage/tokudb/ft-index/tools/tokuftdump
-storage/tokudb/ft-index/ft/ftverify
-storage/tokudb/ft-index/ft/tdb-recover
-storage/tokudb/ft-index/ft/tdb_logprint
-storage/tokudb/ft-index/ft/tokuftdump
 storage/tokudb/ft-index/xz/
 support-files/MySQL-shared-compat.spec
 support-files/binary-configure
@@ -236,11 +225,12 @@ storage/mroonga/vendor/groonga/src/grnslap
 storage/mroonga/vendor/groonga/src/groonga
 storage/mroonga/vendor/groonga/src/groonga-benchmark
 storage/mroonga/vendor/groonga/src/suggest/groonga-suggest-create-dataset
+storage/mroonga/mysql-test/mroonga/storage/r/information_schema_plugins.result
+storage/mroonga/mysql-test/mroonga/storage/r/variable_version.result
 # C and C++
 
 # Compiled Object files
 *.slo
-*.lo
 *.o
 *.ko
 *.obj
@@ -285,7 +275,6 @@ storage/mroonga/vendor/groonga/src/suggest/groonga-suggest-create-dataset
 *.user
 *.userosscache
 *.sln.docstates
-*.ncb
 *.sln
 
 *.vcproj
@@ -326,8 +315,6 @@ dlldata.c
 *_i.h
 *.ilk
 *.meta
-*.obj
-*.pch
 *.pdb
 *.pgc
 *.pgd

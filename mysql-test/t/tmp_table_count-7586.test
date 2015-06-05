@@ -1,6 +1,7 @@
 # MDEV-7586 regression test.
 # Test if created_tmp_tables status variable is correctly incremented.
 --source include/have_perfschema.inc
+--source include/not_embedded.inc
 
 create table t2 (a int);
 insert into t2 values (1),(2),(3);
@@ -21,6 +22,8 @@ explain select * from (select * from t2) T1;
 drop view v2;
 drop table t2;
 
+
+--disable_ps_protocol
 
 CREATE TABLE t1(a int);
 INSERT INTO t1 values(1),(2);

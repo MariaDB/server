@@ -17,9 +17,6 @@ case "${BUILD_TOOL}" in
     if [ "$ENABLE_MRUBY" = "yes" ]; then
       configure_args="${configure_args} --with-ruby --enable-mruby"
     fi
-    if [ "$ENABLE_JEMALLOC" = "yes" ]; then
-      configure_args="${configure_args} --with-jemalloc"
-    fi
 
     ./configure --prefix=${prefix} --with-ruby ${configure_args}
     ;;

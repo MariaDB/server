@@ -1,5 +1,5 @@
 /* -*- c-basic-offset: 2 -*- */
-/* Copyright(C) 2010-2013 Brazil
+/* Copyright(C) 2010-2015 Brazil
 
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -17,6 +17,7 @@
 
 /* groonga origin headers */
 #include <grn_str.h>
+#include <grn_msgpack.h>
 
 #include <stdio.h>
 #include <signal.h>
@@ -38,7 +39,6 @@
 #include "zmq_compatible.h"
 #include <event.h>
 #include <evhttp.h>
-#include <msgpack.h>
 #include <groonga.h>
 #include <pthread.h>
 
@@ -177,35 +177,35 @@ log_send(struct evkeyvalq *output_headers, struct evbuffer *res_buf,
     msgpack_pack_map(&pk, cnt);
 
     c = 'i';
-    msgpack_pack_raw(&pk, 1);
-    msgpack_pack_raw_body(&pk, &c, 1);
+    msgpack_pack_str(&pk, 1);
+    msgpack_pack_str_body(&pk, &c, 1);
     l = strlen(client_id);
-    msgpack_pack_raw(&pk, l);
-    msgpack_pack_raw_body(&pk, client_id, l);
+    msgpack_pack_str(&pk, l);
+    msgpack_pack_str_body(&pk, client_id, l);
 
     c = 'q';
-    msgpack_pack_raw(&pk, 1);
-    msgpack_pack_raw_body(&pk, &c, 1);
+    msgpack_pack_str(&pk, 1);
+    msgpack_pack_str_body(&pk, &c, 1);
     l = strlen(query);
-    msgpack_pack_raw(&pk, l);
-    msgpack_pack_raw_body(&pk, query, l);
+    msgpack_pack_str(&pk, l);
+    msgpack_pack_str_body(&pk, query, l);
 
     c = 's';
-    msgpack_pack_raw(&pk, 1);
-    msgpack_pack_raw_body(&pk, &c, 1);
+    msgpack_pack_str(&pk, 1);
+    msgpack_pack_str_body(&pk, &c, 1);
     msgpack_pack_uint64(&pk, millisec);
 
     c = 'l';
-    msgpack_pack_raw(&pk, 1);
-    msgpack_pack_raw_body(&pk, &c, 1);
+    msgpack_pack_str(&pk, 1);
+    msgpack_pack_str_body(&pk, &c, 1);
     l = strlen(learn_target_name);
-    msgpack_pack_raw(&pk, l);
-    msgpack_pack_raw_body(&pk, learn_target_name, l);
+    msgpack_pack_str(&pk, l);
+    msgpack_pack_str_body(&pk, learn_target_name, l);
 
     if (submit_flag) {
       c = 't';
-      msgpack_pack_raw(&pk, 1);
-      msgpack_pack_raw_body(&pk, &c, 1);
+      msgpack_pack_str(&pk, 1);
+      msgpack_pack_str_body(&pk, &c, 1);
       msgpack_pack_true(&pk);
     }
     {
@@ -249,9 +249,11 @@ log_send(struct evkeyvalq *output_headers, struct evbuffer *res_buf,
                                       &(thd->pass_through_parameters));
     }
     if (content_length >= 0) {
-      char num_buf[16];
-      snprintf(num_buf, 16, "%d", content_length);
+#define NUM_BUF_SIZE 16
+      char num_buf[NUM_BUF_SIZE];
+      grn_snprintf(num_buf, NUM_BUF_SIZE, NUM_BUF_SIZE, "%d", content_length);
       evhttp_add_header(output_headers, "Content-Length", num_buf);
+#undef NUM_BUF_SIZE
     }
   }
 }
@@ -321,10 +323,18 @@ generic_handler(struct evhttp_request *req, void *arg)
           time(&n);
           t_st = localtime(&n);
 
-          snprintf(p, PATH_MAX, "%s%04d%02d%02d%02d%02d%02d-%02d",
-            thd->log_base_path,
-            t_st->tm_year + 1900, t_st->tm_mon + 1, t_st->tm_mday,
-            t_st->tm_hour, t_st->tm_min, t_st->tm_sec, thd->thread_id);
+          grn_snprintf(p,
+                       PATH_MAX,
+                       PATH_MAX,
+                       "%s%04d%02d%02d%02d%02d%02d-%02d",
+                       thd->log_base_path,
+                       t_st->tm_year + 1900,
+                       t_st->tm_mon + 1,
+                       t_st->tm_mday,
+                       t_st->tm_hour,
+                       t_st->tm_min,
+                       t_st->tm_sec,
+                       thd->thread_id);
 
           if (!(thd->log_file = fopen(p, "a"))) {
             print_error("cannot open log_file %s.", p);
@@ -420,8 +430,10 @@ msgpack2json(msgpack_object *o, grn_ctx *ctx, grn_obj *buf)
   case MSGPACK_OBJECT_POSITIVE_INTEGER:
     grn_text_ulltoa(ctx, buf, o->via.u64);
     break;
-  case MSGPACK_OBJECT_RAW:
-    grn_text_esc(ctx, buf, o->via.raw.ptr, o->via.raw.size);
+  case MSGPACK_OBJECT_STR:
+    grn_text_esc(ctx, buf,
+                 MSGPACK_OBJECT_STR_PTR(o),
+                 MSGPACK_OBJECT_STR_SIZE(o));
     break;
   case MSGPACK_OBJECT_ARRAY:
     GRN_TEXT_PUTC(ctx, buf, '[');
@@ -433,8 +445,8 @@ msgpack2json(msgpack_object *o, grn_ctx *ctx, grn_obj *buf)
     }
     GRN_TEXT_PUTC(ctx, buf, ']');
     break;
-  case MSGPACK_OBJECT_DOUBLE:
-    grn_text_ftoa(ctx, buf, o->via.dec);
+  case MSGPACK_OBJECT_FLOAT:
+    grn_text_ftoa(ctx, buf, MSGPACK_OBJECT_FLOAT_VALUE(o));
     break;
   default:
     print_error("cannot handle this msgpack type.");
@@ -446,19 +458,25 @@ load_from_learner(msgpack_object *o, grn_ctx *ctx, grn_obj *cmd_buf)
 {
   if (o->type == MSGPACK_OBJECT_MAP && o->via.map.size) {
     msgpack_object_kv *kv;
+    msgpack_object *key;
+    msgpack_object *value;
     kv = &(o->via.map.ptr[0]);
-    if (kv->key.type == MSGPACK_OBJECT_RAW && kv->key.via.raw.size == 6 &&
-        !memcmp(kv->key.via.raw.ptr, CONST_STR_LEN("target"))) {
-      if (kv->val.type == MSGPACK_OBJECT_RAW) {
+    key = &(kv->key);
+    value = &(kv->val);
+    if (key->type == MSGPACK_OBJECT_STR && MSGPACK_OBJECT_STR_SIZE(key) == 6 &&
+        !memcmp(MSGPACK_OBJECT_STR_PTR(key), CONST_STR_LEN("target"))) {
+      if (value->type == MSGPACK_OBJECT_STR) {
         int i;
         GRN_BULK_REWIND(cmd_buf);
         GRN_TEXT_PUTS(ctx, cmd_buf, "load --table ");
-        GRN_TEXT_PUT(ctx, cmd_buf, kv->val.via.raw.ptr, kv->val.via.raw.size);
+        GRN_TEXT_PUT(ctx, cmd_buf,
+                     MSGPACK_OBJECT_STR_PTR(value),
+                     MSGPACK_OBJECT_STR_SIZE(value));
         grn_ctx_send(ctx, GRN_TEXT_VALUE(cmd_buf), GRN_TEXT_LEN(cmd_buf), GRN_CTX_MORE);
         grn_ctx_send(ctx, CONST_STR_LEN("["), GRN_CTX_MORE);
-        if (kv->val.via.raw.size > 5) {
-          if (!memcmp(kv->val.via.raw.ptr, CONST_STR_LEN("item_")) ||
-              !memcmp(kv->val.via.raw.ptr, CONST_STR_LEN("pair_"))) {
+        if (MSGPACK_OBJECT_STR_SIZE(value) > 5) {
+          if (!memcmp(MSGPACK_OBJECT_STR_PTR(value), CONST_STR_LEN("item_")) ||
+              !memcmp(MSGPACK_OBJECT_STR_PTR(value), CONST_STR_LEN("pair_"))) {
             char delim = '{';
             GRN_BULK_REWIND(cmd_buf);
             for (i = 1; i < o->via.map.size; i++) {

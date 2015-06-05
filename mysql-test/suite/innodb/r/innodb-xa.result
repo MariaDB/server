@@ -1,0 +1,17 @@
+xa rollback 'xid2';
+ERROR XAE04: XAER_NOTA: Unknown XID
+drop table if exists t1;
+Warnings:
+Note	1051	Unknown table 'test.t1'
+create table t1(a int)engine=innodb;
+rollback;
+xa start 'xid2';
+insert into `t1` values (1);
+savepoint `sv1`;
+xa end 'xid2';
+start transaction;
+ERROR XAE07: XAER_RMFAIL: The command cannot be executed when global transaction is in the  IDLE state
+xa prepare 'xid2';
+release savepoint `sv1`;
+xa commit 'xid2';
+drop table t1;

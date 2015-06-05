@@ -21,9 +21,9 @@
 #include "msgid.h"
 #endif   // NEWMSG
 
-#if !defined(WIN32)
+#if !defined(__WIN__)
 #define stricmp  strcasecmp
-#endif   // !WIN32
+#endif   // !__WIN__
 
 char *msglang(void);
 

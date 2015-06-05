@@ -1,5 +1,5 @@
-/* Copyright (c) 2000, 2014, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2014, SkySQL Ab.
+/* Copyright (c) 2000, 2015, Oracle and/or its affiliates.
+   Copyright (c) 2008, 2015, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -515,6 +515,7 @@ ulong binlog_cache_use= 0, binlog_cache_disk_use= 0;
 ulong binlog_stmt_cache_use= 0, binlog_stmt_cache_disk_use= 0;
 ulong max_connections, max_connect_errors;
 ulong extra_max_connections;
+ulong max_digest_length= 0;
 ulong slave_retried_transactions;
 ulong feature_files_opened_with_delayed_keys;
 ulonglong denied_connections;
@@ -2251,7 +2252,8 @@ static struct passwd *check_user(const char *user)
   {
     if (!opt_bootstrap && !opt_help)
     {
-      sql_print_error("Fatal error: Please read \"Security\" section of the manual to find out how to run mysqld as root!\n");
+      sql_print_error("Fatal error: Please consult the Knowledge Base "
+                      "to find out how to run mysqld as root!\n");
       unireg_abort(1);
     }
     return NULL;
@@ -4068,6 +4070,10 @@ static int init_common_variables()
     return 1;
   set_server_version();
 
+  if (!opt_help)
+    sql_print_information("%s (mysqld %s) starting as process %lu ...",
+                          my_progname, server_version, (ulong) getpid());
+
 #ifndef EMBEDDED_LIBRARY
   if (opt_abort && !opt_verbose)
     unireg_abort(0);
@@ -4338,11 +4344,12 @@ static int init_common_variables()
     if (lower_case_table_names_used)
     {
       if (global_system_variables.log_warnings)
-	sql_print_warning("\
-You have forced lower_case_table_names to 0 through a command-line \
-option, even though your file system '%s' is case insensitive.  This means \
-that you can corrupt a MyISAM table by accessing it with different cases. \
-You should consider changing lower_case_table_names to 1 or 2",
+        sql_print_warning("You have forced lower_case_table_names to 0 through "
+                          "a command-line option, even though your file system "
+                          "'%s' is case insensitive.  This means that you can "
+                          "corrupt a MyISAM table by accessing it with "
+                          "different cases.  You should consider changing "
+                          "lower_case_table_names to 1 or 2",
 			mysql_real_data_home);
     }
     else
@@ -4556,7 +4563,6 @@ static void init_ssl()
 					  opt_ssl_cipher, &error,
                                           opt_ssl_crl, opt_ssl_crlpath);
     DBUG_PRINT("info",("ssl_acceptor_fd: 0x%lx", (long) ssl_acceptor_fd));
-    ERR_remove_state(0);
     if (!ssl_acceptor_fd)
     {
       sql_print_warning("Failed to setup SSL");
@@ -4564,6 +4570,14 @@ static void init_ssl()
       opt_use_ssl = 0;
       have_ssl= SHOW_OPTION_DISABLED;
     }
+    if (global_system_variables.log_warnings > 0)
+    {
+      ulong err;
+      while ((err= ERR_get_error()))
+        sql_print_warning("SSL error: %s", ERR_error_string(err, NULL));
+    }
+    else
+      ERR_remove_state(0);
   }
   else
   {
@@ -4738,15 +4752,16 @@ static int init_server_components()
   {
     if (opt_bin_log)
     {
-      sql_print_error("using --replicate-same-server-id in conjunction with \
---log-slave-updates is impossible, it would lead to infinite loops in this \
-server.");
+      sql_print_error("using --replicate-same-server-id in conjunction with "
+                      "--log-slave-updates is impossible, it would lead to "
+                      "infinite loops in this server.");
       unireg_abort(1);
     }
     else
-      sql_print_warning("using --replicate-same-server-id in conjunction with \
---log-slave-updates would lead to infinite loops in this server. However this \
-will be ignored as the --log-bin option is not defined.");
+      sql_print_warning("using --replicate-same-server-id in conjunction with "
+                        "--log-slave-updates would lead to infinite loops in "
+                        "this server. However this will be ignored as the "
+                        "--log-bin option is not defined.");
   }
 #endif
 
@@ -4759,8 +4774,8 @@ will be ignored as the --log-bin option is not defined.");
     if (opt_bin_logname[0] && 
         opt_bin_logname[strlen(opt_bin_logname) - 1] == FN_LIBCHAR)
     {
-      sql_print_error("Path '%s' is a directory name, please specify \
-a file name for --log-bin option", opt_bin_logname);
+      sql_print_error("Path '%s' is a directory name, please specify "
+                      "a file name for --log-bin option", opt_bin_logname);
       unireg_abort(1);
     }
 
@@ -4770,8 +4785,9 @@ a file name for --log-bin option", opt_bin_logname);
         opt_binlog_index_name[strlen(opt_binlog_index_name) - 1] 
         == FN_LIBCHAR)
     {
-      sql_print_error("Path '%s' is a directory name, please specify \
-a file name for --log-bin-index option", opt_binlog_index_name);
+      sql_print_error("Path '%s' is a directory name, please specify "
+                      "a file name for --log-bin-index option",
+                      opt_binlog_index_name);
       unireg_abort(1);
     }
 
@@ -5010,6 +5026,7 @@ a file name for --log-bin-index option", opt_binlog_index_name);
   init_global_client_stats();
   if (!opt_bootstrap)
     servers_init(0);
+  init_status_vars();
   DBUG_RETURN(0);
 }
 
@@ -5258,6 +5275,8 @@ int mysqld_main(int argc, char **argv)
       pfs_param.m_hints.m_table_open_cache= tc_size;
       pfs_param.m_hints.m_max_connections= max_connections;
       pfs_param.m_hints.m_open_files_limit= open_files_limit;
+      /* the performance schema digest size is the same as the SQL layer */
+      pfs_param.m_max_digest_length= max_digest_length;
       PSI_hook= initialize_performance_schema(&pfs_param);
       if (PSI_hook == NULL)
       {
@@ -5458,7 +5477,6 @@ int mysqld_main(int argc, char **argv)
 #endif
   }
 
-  init_status_vars();
   if (opt_bootstrap) /* If running with bootstrap, do not start replication. */
     opt_skip_slave_start= 1;
 
@@ -8080,16 +8098,15 @@ static void usage(void)
   else
   {
 #ifdef __WIN__
-  puts("NT and Win32 specific options:\n\
-  --install                     Install the default service (NT).\n\
-  --install-manual              Install the default service started manually (NT).\n\
-  --install service_name        Install an optional service (NT).\n\
-  --install-manual service_name Install an optional service started manually (NT).\n\
-  --remove                      Remove the default service from the service list (NT).\n\
-  --remove service_name         Remove the service_name from the service list (NT).\n\
-  --enable-named-pipe           Only to be used for the default server (NT).\n\
-  --standalone                  Dummy option to start as a standalone server (NT).\
-");
+  puts("NT and Win32 specific options:\n"
+       "  --install                     Install the default service (NT).\n"
+       "  --install-manual              Install the default service started manually (NT).\n"
+       "  --install service_name        Install an optional service (NT).\n"
+       "  --install-manual service_name Install an optional service started manually (NT).\n"
+       "  --remove                      Remove the default service from the service list (NT).\n"
+       "  --remove service_name         Remove the service_name from the service list (NT).\n"
+       "  --enable-named-pipe           Only to be used for the default server (NT).\n"
+       "  --standalone                  Dummy option to start as a standalone server (NT).");
   puts("");
 #endif
   print_defaults(MYSQL_CONFIG_NAME,load_default_groups);
@@ -8101,14 +8118,12 @@ static void usage(void)
 
   if (! plugins_are_initialized)
   {
-    puts("\n\
-Plugins have parameters that are not reflected in this list\n\
-because execution stopped before plugins were initialized.");
+    puts("\nPlugins have parameters that are not reflected in this list"
+         "\nbecause execution stopped before plugins were initialized.");
   }
 
-  puts("\n\
-To see what values a running MySQL server is using, type\n\
-'mysqladmin variables' instead of 'mysqld --verbose --help'.");
+  puts("\nTo see what values a running MySQL server is using, type"
+       "\n'mysqladmin variables' instead of 'mysqld --verbose --help'.");
   }
   DBUG_VOID_RETURN;
 }
@@ -9498,6 +9513,7 @@ PSI_stage_info stage_waiting_for_work_from_sql_thread= { 0, "Waiting for work fr
 PSI_stage_info stage_waiting_for_prior_transaction_to_commit= { 0, "Waiting for prior transaction to commit", 0};
 PSI_stage_info stage_waiting_for_prior_transaction_to_start_commit= { 0, "Waiting for prior transaction to start commit before starting next transaction", 0};
 PSI_stage_info stage_waiting_for_room_in_worker_thread= { 0, "Waiting for room in worker thread event queue", 0};
+PSI_stage_info stage_waiting_for_workers_idle= { 0, "Waiting for worker threads to be idle", 0};
 PSI_stage_info stage_master_gtid_wait_primary= { 0, "Waiting in MASTER_GTID_WAIT() (primary waiter)", 0};
 PSI_stage_info stage_master_gtid_wait= { 0, "Waiting in MASTER_GTID_WAIT()", 0};
 PSI_stage_info stage_gtid_wait_other_connection= { 0, "Waiting for other master connection to process GTID received on multiple master connections", 0};

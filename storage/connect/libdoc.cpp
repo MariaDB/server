@@ -533,8 +533,8 @@ int LIBXMLDOC::DumpDoc(PGLOBAL g, char *ofn)
   // This function does not crash (
   if (xmlSaveFormatFileEnc((const char *)ofn, Docp, Encoding, 0) < 0) {
     xmlErrorPtr err = xmlGetLastError();
-
     strcpy(g->Message, (err) ? err->message : "Error saving XML doc");
+    xmlResetError(Xerr);
     rc = -1;
     } // endif Save
 //  rc = xmlDocDump(of, Docp);
@@ -569,6 +569,7 @@ void LIBXMLDOC::CloseDoc(PGLOBAL g, PFBLOCK xp)
     htrc("CloseDoc: xp=%p count=%d\n", xp, (xp) ? xp->Count : 0);
 
 //if (xp && xp->Count == 1) {
+  if (xp) {
     if (Nlist) {
       xmlXPathFreeNodeSet(Nlist);
 
@@ -605,7 +606,7 @@ void LIBXMLDOC::CloseDoc(PGLOBAL g, PFBLOCK xp)
       Ctxp = NULL;
       } // endif Ctxp
 
-//  } // endif Count
+    } // endif xp
 
   CloseXML2File(g, xp, false);
   } // end of Close

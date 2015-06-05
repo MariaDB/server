@@ -100,6 +100,61 @@ grn_scorer_matched_record_get_weight(grn_ctx *ctx,
   return record->weight;
 }
 
+grn_obj *
+grn_scorer_matched_record_get_arg(grn_ctx *ctx,
+                                  grn_scorer_matched_record *record,
+                                  unsigned int i)
+{
+  grn_expr *expr;
+  grn_expr_code *codes_original;
+  uint32_t codes_curr_original;
+  grn_obj *arg;
+
+  if (!record->args_expr) {
+    return NULL;
+  }
+
+  expr = (grn_expr *)(record->args_expr);
+  /* TODO: support getting column value */
+  codes_original = expr->codes;
+  codes_curr_original = expr->codes_curr;
+  expr->codes += record->args_expr_offset;
+  expr->codes_curr = 1; /* TODO: support 1 or more codes */
+  arg = grn_expr_exec(ctx, (grn_obj *)expr, 0);
+  expr->codes_curr = codes_curr_original;
+  expr->codes = codes_original;
+
+  return arg;
+}
+
+unsigned int
+grn_scorer_matched_record_get_n_args(grn_ctx *ctx,
+                                     grn_scorer_matched_record *record)
+{
+  grn_expr *expr;
+  grn_expr_code *codes;
+  unsigned int n_args = 0;
+
+  if (!record->args_expr) {
+    return 0;
+  }
+
+  expr = (grn_expr *)(record->args_expr);
+  codes = expr->codes + record->args_expr_offset;
+  if (codes[0].op == GRN_OP_CALL) {
+    return 0;
+  }
+
+  n_args++;
+  for (; codes[0].op != GRN_OP_CALL; codes++) {
+    if (codes[0].op == GRN_OP_COMMA) {
+      n_args++;
+    }
+  }
+
+  return n_args;
+}
+
 grn_rc
 grn_scorer_register(grn_ctx *ctx,
                     const char *plugin_name_ptr,

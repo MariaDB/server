@@ -59,16 +59,15 @@ typedef struct _jncol {
 /* JSONColumns: construct the result blocks containing the description */
 /* of all the columns of a table contained inside a JSON file.         */
 /***********************************************************************/
-PQRYRES JSONColumns(PGLOBAL g, char *dp, const char *fn, char *objn,
-                    int pretty, int lrecl, int lvl, bool info)
+PQRYRES JSONColumns(PGLOBAL g, char *db, PTOS topt, bool info)
 {
   static int  buftyp[] = {TYPE_STRING, TYPE_SHORT, TYPE_STRING, TYPE_INT, 
                           TYPE_INT, TYPE_SHORT, TYPE_SHORT, TYPE_STRING};
   static XFLD fldtyp[] = {FLD_NAME, FLD_TYPE, FLD_TYPENAME, FLD_PREC, 
                           FLD_LENGTH, FLD_SCALE, FLD_NULL, FLD_FORMAT};
   static unsigned int length[] = {0, 6, 8, 10, 10, 6, 6, 0};
-  char    filename[_MAX_PATH], colname[65], fmt[129];
-  int     i, j, n = 0;
+  char   *fn, colname[65], fmt[129];
+  int     i, j, lvl, n = 0;
   int     ncol = sizeof(buftyp) / sizeof(int);
   PVAL    valp;
   JCOL    jcol;
@@ -91,26 +90,29 @@ PQRYRES JSONColumns(PGLOBAL g, char *dp, const char *fn, char *objn,
     goto skipit;
     } // endif info
 
-  if (trace)
-    htrc("File %s pretty=%d lvl=%d lrecl=%d\n", 
-          SVP(fn), pretty, lvl, lrecl);
-
   /*********************************************************************/
   /*  Open the input file.                                             */
   /*********************************************************************/
-  if (!fn) {
+  if (!(fn = GetStringTableOption(g, topt, "Filename", NULL))) {
     strcpy(g->Message, MSG(MISSING_FNAME));
     return NULL;
-  } else
-    PlugSetPath(filename, fn, dp);
+  } else {
+    lvl = GetIntegerTableOption(g, topt, "Level", 0);
+    lvl = (lvl < 0) ? 0 : (lvl > 16) ? 16 : lvl;
+  } // endif fn
 
   tdp = new(g) JSONDEF;
-  tdp->Database = dp;
-  tdp->Fn = filename;
-  tdp->Objname = objn;
-  tdp->Pretty = pretty;
+  tdp->Fn = fn;
+  tdp->Database = SetPath(g, db);
+  tdp->Objname = GetStringTableOption(g, topt, "Object", NULL);
+  tdp->Base = GetIntegerTableOption(g, topt, "Base", 0) ? 1 : 0;
+  tdp->Pretty = GetIntegerTableOption(g, topt, "Pretty", 2);
 
-  if (pretty == 2) {
+  if (trace)
+    htrc("File %s objname=%s pretty=%d lvl=%d\n", 
+          tdp->Fn, tdp->Objname, tdp->Pretty, lvl);
+
+  if (tdp->Pretty == 2) {
     tjsp = new(g) TDBJSON(tdp, new(g) MAPFAM(tdp));
 
     if (tjsp->MakeDocument(g))
@@ -118,13 +120,12 @@ PQRYRES JSONColumns(PGLOBAL g, char *dp, const char *fn, char *objn,
 
     jsp = (tjsp->GetDoc()) ? tjsp->GetDoc()->GetValue(0) : NULL;
   } else {
-    if (!lrecl) {
-      sprintf(g->Message, "LRECL must be specified for pretty=%d", pretty);
+    if (!(tdp->Lrecl = GetIntegerTableOption(g, topt, "Lrecl", 0))) {
+      sprintf(g->Message, "LRECL must be specified for pretty=%d", tdp->Pretty);
       return NULL;
       } // endif lrecl
 
-    tdp->Lrecl = lrecl;
-    tdp->Ending = CRLF;
+    tdp->Ending = GetIntegerTableOption(g, topt, "Ending", CRLF);
     tjnp = new(g) TDBJSN(tdp, new(g) DOSFAM(tdp));
     tjnp->SetMode(MODE_READ);
 
@@ -265,7 +266,7 @@ PQRYRES JSONColumns(PGLOBAL g, char *dp, const char *fn, char *objn,
       jcp->Found = false;
       } // endfor jcp
 
-    if (pretty != 2) {
+    if (tdp->Pretty != 2) {
       // Read next record
       switch (tjnp->ReadDB(g)) {
         case RC_EF:
@@ -285,7 +286,7 @@ PQRYRES JSONColumns(PGLOBAL g, char *dp, const char *fn, char *objn,
 
     } // endor i
 
-  if (pretty != 2)
+  if (tdp->Pretty != 2)
     tjnp->CloseDB(g);
 
  skipit:
@@ -341,7 +342,7 @@ PQRYRES JSONColumns(PGLOBAL g, char *dp, const char *fn, char *objn,
   return qrp;
 
 err:
-  if (pretty != 2)
+  if (tdp->Pretty != 2)
     tjnp->CloseDB(g);
 
   return NULL;
@@ -356,8 +357,7 @@ JSONDEF::JSONDEF(void)
   Xcol = NULL;
   Pretty = 2;
   Limit = 1;
-  Level = 0;
-  ReadMode = 0;
+  Base = 0;
   Strict = false;
 } // end of JSONDEF constructor
 
@@ -370,8 +370,8 @@ bool JSONDEF::DefineAM(PGLOBAL g, LPCSTR, int poff)
   Objname = GetStringCatInfo(g, "Object", NULL);
   Xcol = GetStringCatInfo(g, "Expand", NULL);
   Pretty = GetIntCatInfo("Pretty", 2);
-  Level = GetIntCatInfo("Level", 0);
   Limit = GetIntCatInfo("Limit", 10);
+  Base = GetIntCatInfo("Base", 0) ? 1 : 0;
   return DOSDEF::DefineAM(g, "DOS", poff);
 } // end of DefineAM
 
@@ -440,6 +440,7 @@ TDBJSN::TDBJSN(PJDEF tdp, PTXF txfp) : TDBDOS(tdp, txfp)
     Xcol = tdp->Xcol;
     Limit = tdp->Limit;
     Pretty = tdp->Pretty;
+    B = tdp->Base ? 1 : 0;
     Strict = tdp->Strict;
   } else {
     Jmode = MODE_OBJECT;
@@ -447,11 +448,12 @@ TDBJSN::TDBJSN(PJDEF tdp, PTXF txfp) : TDBDOS(tdp, txfp)
     Xcol = NULL;
     Limit = 1;
     Pretty = 0;
+    B = 0;
     Strict = false;
   } // endif tdp
 
   Fpos = -1;
-  N = 0;
+  N = M = 0;
   NextSame = 0;
   SameRow = 0;
   Xval = -1;
@@ -469,10 +471,12 @@ TDBJSN::TDBJSN(TDBJSN *tdbp) : TDBDOS(NULL, tdbp)
   Xcol = tdbp->Xcol;
   Fpos = tdbp->Fpos;
   N = tdbp->N;
+  M = tdbp->M;
   Limit = tdbp->Limit;
   NextSame = tdbp->NextSame;
   SameRow = tdbp->SameRow;
   Xval = tdbp->Xval;
+  B = tdbp->B;
   Pretty = tdbp->Pretty;
   Strict = tdbp->Strict;
   Comma = tdbp->Comma;
@@ -563,7 +567,7 @@ PJSON TDBJSN::FindRow(PGLOBAL g)
              jsp->GetObject()->GetValue(objpath) : NULL;
     } else if (objpath[strlen(objpath)-1] == ']') {
       val = (jsp->GetType() == TYPE_JAR) ?
-        jsp->GetArray()->GetValue(atoi(objpath+1) - 1) : NULL;
+        jsp->GetArray()->GetValue(atoi(objpath+1) - B) : NULL;
     } else
       val = NULL;
 
@@ -619,11 +623,11 @@ bool TDBJSN::SkipHeader(PGLOBAL g)
     return true;
 #endif   // _DEBUG
 
-#if defined(WIN32)
+#if defined(__WIN__)
 #define  Ending  2
-#else   // !WIN32
+#else   // !__WIN__
 #define  Ending  1
-#endif  // !WIN32
+#endif  // !__WIN__
 
   if (Pretty == 1) {
     if (Mode == MODE_INSERT || Mode == MODE_DELETE) {
@@ -649,6 +653,7 @@ int TDBJSN::ReadDB(PGLOBAL g)
   if (NextSame) {
     SameRow = NextSame;
     NextSame = 0;
+    M++;
     return RC_OK;
   } else if ((rc = TDBDOS::ReadDB(g)) == RC_OK)
     if (!IsRead() && ((rc = ReadBuffer(g)) != RC_OK)) {
@@ -660,6 +665,7 @@ int TDBJSN::ReadDB(PGLOBAL g)
       Row = FindRow(g);
       SameRow = 0;
       Fpos++;
+      M = 1;
       rc = RC_OK;
     } // endif's
 
@@ -708,7 +714,7 @@ int TDBJSN::MakeTopTree(PGLOBAL g, PJSON jsp)
             val->SetValue(arp);
     
           val = new(g) JVALUE;
-          i = atoi(objpath+1) - 1;
+          i = atoi(objpath+1) - B;
           arp->SetValue(g, val, i);
           arp->InitArray(g);
         } else {
@@ -856,8 +862,8 @@ bool JSONCOL::SetArrayOptions(PGLOBAL g, char *p, int i, PSZ nm)
       return true;
     else if (jnp->Op != OP_EXP) {
       if (b) {
-        // Return 1st value
-        jnp->Rank = 1;
+        // Return 1st value (B is the index base)
+        jnp->Rank = Tjp->B;
         jnp->Op = OP_EQ;
       } else if (!Value->IsTypeNum()) {
         jnp->CncVal = AllocateValue(g, (void*)", ", TYPE_STRING);
@@ -868,13 +874,9 @@ bool JSONCOL::SetArrayOptions(PGLOBAL g, char *p, int i, PSZ nm)
       } // endif OP
 
   } else if (dg) {
-    if (atoi(p) > 0) {
-      // Return nth value
-      jnp->Rank = atoi(p);
-      jnp->Op = OP_EQ;
-    } else // Ignore array
-      jnp->Op = OP_NULL;
-
+    // Return nth value
+    jnp->Rank = atoi(p) - Tjp->B;
+    jnp->Op = OP_EQ;
   } else if (n == 1) {
     // Set the Op value;
     switch (*p) {
@@ -1118,16 +1120,12 @@ PVAL JSONCOL::GetColumnValue(PGLOBAL g, PJSON row, int i)
         arp = (PJAR)row;
 
         if (!Nodes[i].Key) {
-          if (Nodes[i].Op != OP_NULL) {
-            if (Nodes[i].Rank) {
-              val = arp->GetValue(Nodes[i].Rank - 1);
-            } else if (Nodes[i].Op == OP_EXP) {
-              return ExpandArray(g, arp, i);
-            } else
-              return CalculateArray(g, arp, i);
-
-          } else
-            val = NULL;
+          if (Nodes[i].Op == OP_EQ)
+            val = arp->GetValue(Nodes[i].Rank);
+          else if (Nodes[i].Op == OP_EXP)
+            return ExpandArray(g, arp, i);
+          else
+            return CalculateArray(g, arp, i);
 
         } else if (i < Nod-1) {
           strcpy(g->Message, "Unexpected array");
@@ -1289,16 +1287,12 @@ PJSON JSONCOL::GetRow(PGLOBAL g)
         break;
       case TYPE_JAR:
         if (!Nodes[i].Key) {
-          if (Nodes[i].Op != OP_NULL) {
-            arp = (PJAR)row;
+          arp = (PJAR)row;
 
-            if (Nodes[i].Rank)
-              val = arp->GetValue(Nodes[i].Rank - 1);
-            else
-              val = arp->GetValue(Nodes[i].Rx);
-
-          } else
-            val = NULL;
+          if (Nodes[i].Op == OP_EQ)
+            val = arp->GetValue(Nodes[i].Rank);
+          else
+            val = arp->GetValue(Nodes[i].Rx);
 
         } else {
           strcpy(g->Message, "Unexpected array");
@@ -1390,8 +1384,8 @@ void JSONCOL::WriteColumn(PGLOBAL g)
           } // endif jsp
 
         if (arp) {
-          if (Nod > 1 && Nodes[Nod-2].Rank)
-            arp->SetValue(g, new(g) JVALUE(jsp), Nodes[Nod-2].Rank-1);
+          if (Nod > 1 && Nodes[Nod-2].Op == OP_EQ)
+            arp->SetValue(g, new(g) JVALUE(jsp), Nodes[Nod-2].Rank);
           else
             arp->AddValue(g, new(g) JVALUE(jsp));
 
@@ -1411,8 +1405,8 @@ void JSONCOL::WriteColumn(PGLOBAL g)
     case TYPE_INT:
     case TYPE_DOUBLE:
       if (arp) {
-        if (Nodes[Nod-1].Rank)
-          arp->SetValue(g, new(g) JVALUE(g, Value), Nodes[Nod-1].Rank-1);
+        if (Nodes[Nod-1].Op == OP_EQ)
+          arp->SetValue(g, new(g) JVALUE(g, Value), Nodes[Nod-1].Rank);
         else
           arp->AddValue(g, new(g) JVALUE(g, Value));
 
@@ -1562,7 +1556,7 @@ int TDBJSON::MakeDocument(PGLOBAL g)
 
       arp = jsp->GetArray();
       objp = NULL;
-      i = atoi(objpath+1) - 1;
+      i = atoi(objpath+1) - B;
       val = arp->GetValue(i);
 
       if (!val) {
@@ -1750,6 +1744,7 @@ int TDBJSON::ReadDB(PGLOBAL)
   if (NextSame) {
     SameRow = NextSame;
     NextSame = false;
+    M++;
     rc = RC_OK;
   } else if (++Fpos < (signed)Doc->size()) {
     Row = Doc->GetValue(Fpos);
@@ -1758,6 +1753,7 @@ int TDBJSON::ReadDB(PGLOBAL)
       Row = ((PJVAL)Row)->GetJson();
 
     SameRow = 0;
+    M = 1;
     rc = RC_OK;
   } else
     rc = RC_EF;
@@ -1859,11 +1855,8 @@ void TDBJSON::CloseDB(PGLOBAL g)
 /***********************************************************************/
 TDBJCL::TDBJCL(PJDEF tdp) : TDBCAT(tdp)
   {
-  Fn  = tdp->GetFn();
-  Objn = tdp->Objname;
-  Pretty = tdp->Pretty;
-  Lrecl = tdp->Lrecl;
-  lvl = tdp->Level;
+  Topt = tdp->GetTopt();
+  Db = (char*)tdp->GetDB();
   } // end of TDBJCL constructor
 
 /***********************************************************************/
@@ -1871,8 +1864,7 @@ TDBJCL::TDBJCL(PJDEF tdp) : TDBCAT(tdp)
 /***********************************************************************/
 PQRYRES TDBJCL::GetResult(PGLOBAL g)
   {
-  return JSONColumns(g, ((PTABDEF)To_Def)->GetPath(), Fn, Objn, 
-                         Pretty, Lrecl, lvl, false);
+  return JSONColumns(g, Db, Topt, false);
   } // end of GetResult
 
 /* --------------------------- End of json --------------------------- */

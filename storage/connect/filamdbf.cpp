@@ -22,12 +22,12 @@
 /*  Include relevant sections of the System header files.              */
 /***********************************************************************/
 #include "my_global.h"
-#if defined(WIN32)
+#if defined(__WIN__)
 #include <io.h>
 #include <fcntl.h>
 //#include <errno.h>
 //#include <windows.h>
-#else   // !WIN32
+#else   // !__WIN__
 #if defined(UNIX)
 #include <errno.h>
 #include <unistd.h>
@@ -35,7 +35,7 @@
 //#include <io.h>
 #endif  // !UNIX
 //#include <fcntl.h>
-#endif  // !WIN32
+#endif  // !__WIN__
 #include <ctype.h>
 #include <stdio.h>
 #include <string.h>
@@ -74,16 +74,28 @@ typedef struct _dbfheader {
 //uchar  Dbfox :4;                  /*  FoxPro if equal to 3                */
   uchar  Version;                   /*  Version information flags           */
   char   Filedate[3];               /*  date, YYMMDD, binary. YY=year-1900  */
-  uint   Records;                   /*  records in the file                 */
-  ushort Headlen;                   /*  bytes in the header                 */
-  ushort Reclen;                    /*  bytes in a record                   */
-  ushort Fields;                    /*  Reserved but used to store fields   */
+ private:
+  /* The following four members are stored in little-endian format on disk */
+  char   m_RecordsBuf[4];           /*  records in the file                 */
+  char   m_HeadlenBuf[2];           /*  bytes in the header                 */
+  char   m_ReclenBuf[2];            /*  bytes in a record                   */
+  char   m_FieldsBuf[2];            /*  Reserved but used to store fields   */
+ public:
   char   Incompleteflag;            /*  01 if incomplete, else 00           */
   char   Encryptflag;               /*  01 if encrypted, else 00            */
   char   Reserved2[12];             /*  for LAN use                         */
   char   Mdxflag;                   /*  01 if production .mdx, else 00      */
   char   Language;                  /*  Codepage                            */
   char   Reserved3[2];
+
+  uint   Records(void) const {return uint4korr(m_RecordsBuf);}
+  ushort Headlen(void) const {return uint2korr(m_HeadlenBuf);}
+  ushort Reclen(void)  const {return uint2korr(m_ReclenBuf);}
+  ushort Fields(void)  const {return uint2korr(m_FieldsBuf);}
+
+  void   SetHeadlen(ushort num) {int2store(m_HeadlenBuf, num);}
+  void   SetReclen(ushort num)  {int2store(m_ReclenBuf, num);}
+  void   SetFields(ushort num)  {int2store(m_FieldsBuf, num);}
   } DBFHEADER;
 
 /****************************************************************************/
@@ -115,7 +127,6 @@ typedef struct _descriptor {
 /*  Side effects:                                                           */
 /*      Moves file pointer to byte 32; fills buffer at buf with             */
 /*  first 32 bytes of file.                                                 */
-/*  Converts numeric values to platform byte ordering (LE in file)          */
 /****************************************************************************/
 static int dbfhead(PGLOBAL g, FILE *file, PSZ fn, DBFHEADER *buf)
   {
@@ -143,13 +154,8 @@ static int dbfhead(PGLOBAL g, FILE *file, PSZ fn, DBFHEADER *buf)
   } else
     strcpy(g->Message, MSG(DBASE_FILE));
 
-  // Convert numeric fields to have them in platform byte ordering
-  buf->Records = uint4korr(&buf->Records);
-  buf->Headlen = uint2korr(&buf->Headlen);
-  buf->Reclen = uint2korr(&buf->Reclen);
-
   // Check last byte(s) of header
-  if (fseek(file, buf->Headlen - dbc, SEEK_SET) != 0) {
+  if (fseek(file, buf->Headlen() - dbc, SEEK_SET) != 0) {
     sprintf(g->Message, MSG(BAD_HEADER), fn);
     return RC_FX;
     } // endif fseek
@@ -169,7 +175,7 @@ static int dbfhead(PGLOBAL g, FILE *file, PSZ fn, DBFHEADER *buf)
     } // endif endmark
 
   // Calculate here the number of fields while we have the dbc info
-  buf->Fields = (buf->Headlen - dbc - 1) / 32;
+  buf->SetFields((buf->Headlen() - dbc - 1) / 32);
   fseek(file, HEADLEN, SEEK_SET);
   return rc;
   } // end of dbfhead
@@ -225,7 +231,7 @@ PQRYRES DBFColumns(PGLOBAL g, char *dp, const char *fn, bool info)
     /************************************************************************/
     /*  Allocate the structures used to refer to the result set.            */
     /************************************************************************/
-    fields = mainhead.Fields;
+    fields = mainhead.Fields();
   } else
     fields = 0;
 
@@ -242,11 +248,11 @@ PQRYRES DBFColumns(PGLOBAL g, char *dp, const char *fn, bool info)
   if (trace) {
     htrc("Structure of %s\n", filename);
     htrc("headlen=%hd reclen=%hd degree=%d\n",
-          mainhead.Headlen, mainhead.Reclen, fields);
+          mainhead.Headlen(), mainhead.Reclen(), fields);
     htrc("flags(iem)=%d,%d,%d cp=%d\n", mainhead.Incompleteflag,
           mainhead.Encryptflag, mainhead.Mdxflag, mainhead.Language);
     htrc("%hd records, last changed %02d/%02d/%d\n",
-          mainhead.Records, mainhead.Filedate[1], mainhead.Filedate[2],
+          mainhead.Records(), mainhead.Filedate[1], mainhead.Filedate[2],
           mainhead.Filedate[0] + (mainhead.Filedate[0] <= 30) ? 2000 : 1900);
     htrc("Field    Type  Offset  Len  Dec  Set  Mdx\n");
     } // endif trace
@@ -404,13 +410,13 @@ int DBFBASE::ScanHeader(PGLOBAL g, PSZ fname, int lrecl, char *defpath)
   } else if (rc == RC_FX)
     return -1;
 
-  if ((int)header.Reclen != lrecl) {
-    sprintf(g->Message, MSG(BAD_LRECL), lrecl, header.Reclen);
+  if ((int)header.Reclen() != lrecl) {
+    sprintf(g->Message, MSG(BAD_LRECL), lrecl, header.Reclen());
     return -1;
     } // endif Lrecl
 
-  Records = (int)header.Records;
-  return (int)header.Headlen;
+  Records = (int)header.Records();
+  return (int)header.Headlen();
   } // end of ScanHeader
 
 /* ---------------------------- Class DBFFAM ------------------------------ */
@@ -522,7 +528,7 @@ bool DBFFAM::AllocateBuffer(PGLOBAL g)
   To_Buf = (char*)PlugSubAlloc(g, NULL, Buflen);
 
   if (mode == MODE_INSERT) {
-#if defined(WIN32)
+#if defined(__WIN__)
     /************************************************************************/
     /*  Now we can revert to binary mode in particular because the eventual */
     /*  writing of a new header must be done in binary mode to avoid        */
@@ -532,7 +538,7 @@ bool DBFFAM::AllocateBuffer(PGLOBAL g)
       sprintf(g->Message, MSG(BIN_MODE_FAIL), strerror(errno));
       return true;
       } // endif setmode
-#endif   // WIN32
+#endif   // __WIN__
 
     /************************************************************************/
     /*  If this is a new file, the header must be generated.                */
@@ -571,8 +577,8 @@ bool DBFFAM::AllocateBuffer(PGLOBAL g)
       header->Filedate[0] = datm->tm_year - 100;
       header->Filedate[1] = datm->tm_mon + 1;
       header->Filedate[2] = datm->tm_mday;
-      int2store(&header->Headlen, hlen);
-      int2store(&header->Reclen, reclen);
+      header->SetHeadlen((ushort)hlen);
+      header->SetReclen((ushort)reclen);
       descp = (DESCRIPTOR*)header;
 
       // Currently only standard Xbase types are supported
@@ -633,13 +639,13 @@ bool DBFFAM::AllocateBuffer(PGLOBAL g)
     DBFHEADER header;
 
     if ((rc = dbfhead(g, Stream, Tdbp->GetFile(g), &header)) == RC_OK) {
-      if (Lrecl != (int)header.Reclen) {
-        sprintf(g->Message, MSG(BAD_LRECL), Lrecl, header.Reclen);
+      if (Lrecl != (int)header.Reclen()) {
+        sprintf(g->Message, MSG(BAD_LRECL), Lrecl, header.Reclen());
         return true;
         } // endif Lrecl
 
-      Records = (int)header.Records;
-      Headlen = (int)header.Headlen;
+      Records = (int)header.Records();
+      Headlen = (int)header.Headlen();
     } else if (rc == RC_NF) {
       Records = 0;
       Headlen = 0;
@@ -735,7 +741,7 @@ bool DBFFAM::CopyHeader(PGLOBAL g)
   if (Headlen) {
     void  *hdr = PlugSubAlloc(g, NULL, Headlen);
     size_t n, hlen = (size_t)Headlen;
-    int    pos = ftell(Stream);
+    int   pos = ftell(Stream);
 
     if (fseek(Stream, 0, SEEK_SET))
       strcpy(g->Message, "Seek error in CopyHeader");
@@ -869,12 +875,14 @@ void DBFFAM::CloseTableFile(PGLOBAL g, bool abort)
 
       if (n > Records) {
         // Update the number of rows in the file header
-        char filename[_MAX_PATH], nRecords[4];
+        char filename[_MAX_PATH];
 
-        int4store(&nRecords, n);
         PlugSetPath(filename, To_File, Tdbp->GetPath());
         if ((Stream= global_fopen(g, MSGID_OPEN_MODE_STRERROR, filename, "r+b")))
         {
+          char nRecords[4];
+          int4store(nRecords, n);
+
           fseek(Stream, 4, SEEK_SET);     // Get header.Records position
           fwrite(nRecords, sizeof(nRecords), 1, Stream);
           fclose(Stream);
@@ -951,13 +959,13 @@ bool DBMFAM::AllocateBuffer(PGLOBAL g)
     /************************************************************************/
     DBFHEADER *hp = (DBFHEADER*)Memory;
 
-    if (Lrecl != (int)uint2korr(&hp->Reclen)) {
-      sprintf(g->Message, MSG(BAD_LRECL), Lrecl, uint2korr(&hp->Reclen));
+    if (Lrecl != (int)hp->Reclen()) {
+      sprintf(g->Message, MSG(BAD_LRECL), Lrecl, hp->Reclen());
       return true;
       } // endif Lrecl
 
-    Records = (int)uint4korr(&hp->Records);
-    Headlen = (int)uint2korr(&hp->Headlen);
+    Records = (int)hp->Records();
+    Headlen = (int)hp->Headlen();
     } // endif Headlen
 
   /**************************************************************************/
@@ -1011,7 +1019,7 @@ int DBMFAM::ReadBuffer(PGLOBAL g)
 /*  Data Base delete line routine for DBF access methods.                   */
 /*  Deleted lines are just flagged in the first buffer character.           */
 /****************************************************************************/
-int DBMFAM::DeleteRecords(PGLOBAL, int irc)
+int DBMFAM::DeleteRecords(PGLOBAL g, int irc)
   {
   if (irc == RC_OK)
     *Fpos = '*';

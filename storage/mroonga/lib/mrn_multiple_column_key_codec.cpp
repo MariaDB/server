@@ -1,6 +1,6 @@
 /* -*- c-basic-offset: 2 -*- */
 /*
-  Copyright(C) 2012-2014 Kouhei Sutou <kou@clear-code.com>
+  Copyright(C) 2012-2015 Kouhei Sutou <kou@clear-code.com>
   Copyright(C) 2013 Kentoku SHIBA
 
   This library is free software; you can redistribute it and/or
@@ -23,6 +23,7 @@
 #include "mrn_multiple_column_key_codec.hpp"
 #include "mrn_field_normalizer.hpp"
 #include "mrn_smart_grn_obj.hpp"
+#include "mrn_value_decoder.hpp"
 
 // for debug
 #define MRN_CLASS_NAME "mrn::MultipleColumnKeyCodec"
@@ -121,14 +122,14 @@ namespace mrn {
       case TYPE_FLOAT:
         {
           float value;
-          float4get(value, current_mysql_key);
+          value_decoder::decode(&value, current_mysql_key);
           encode_float(value, data_size, current_grn_key);
         }
         break;
       case TYPE_DOUBLE:
         {
           double value;
-          float8get(value, current_mysql_key);
+          value_decoder::decode(&value, current_mysql_key);
           encode_double(value, data_size, current_grn_key);
         }
         break;
@@ -523,7 +524,7 @@ namespace mrn {
         new_blob_data_length = normalized_length;
       } else {
         push_warning_printf(thread_,
-                            Sql_condition::WARN_LEVEL_WARN,
+                            MRN_SEVERITY_WARNING,
                             WARN_DATA_TRUNCATED,
                             "normalized data truncated "
                             "for multiple column index: "

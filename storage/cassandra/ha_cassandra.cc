@@ -887,7 +887,7 @@ bool cassandra_to_dyncol_intLong(const char *cass_data,
 {
   value->type= DYN_COL_INT;
 #ifdef WORDS_BIGENDIAN
-  value->x.long_value= (longlong *)*cass_data;
+  value->x.long_value= (longlong)*cass_data;
 #else
   flip64(cass_data, (char *)&value->x.long_value);
 #endif

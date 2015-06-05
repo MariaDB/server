@@ -6,6 +6,10 @@
 
 --echo "General cleanup"
 
+# MDEV-7187 - test fails sporadically in buildbot
+set @aria_checkpoint_interval_save= @@global.aria_checkpoint_interval;
+set @@global.aria_checkpoint_interval= 0;
+
 --disable_warnings
 drop table if exists t1;
 --enable_warnings
@@ -188,3 +192,6 @@ update performance_schema.setup_instruments
   set enabled = 'YES', timed = 'YES';
 
 drop table test.t1;
+
+set @@global.aria_checkpoint_interval= @aria_checkpoint_interval_save;
+

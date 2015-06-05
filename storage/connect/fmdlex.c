@@ -20,11 +20,12 @@
  */
 
 #define FLEX_SCANNER
-#if WIN32
+#ifdef __WIN__
 #define __STDC__ 1
+#define isatty  _isatty
 #endif
 #include <stdio.h>
-#ifndef WIN32
+#ifndef __WIN__
 #include <unistd.h>
 #endif
 

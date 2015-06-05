@@ -73,19 +73,29 @@ SELECT * FROM t1 ORDER BY a;
 
 # Test showing the UNTIL condition in SHOW SLAVE STATUS.
 --source include/stop_slave.inc
-START SLAVE UNTIL master_gtid_pos = "1-10-100,2-20-200";
+START SLAVE UNTIL master_gtid_pos = "1-10-100,2-20-200,0-1-300";
 --source include/wait_for_slave_to_start.inc
 --let $status_items= Using_Gtid,Until_Condition
 --source include/show_slave_status.inc
 
 # Clear the UNTIL condition.
+# Note that we need to wait for a transaction to get through from the master.
+# Otherwise the IO thread may still be in get_master_version_and_clock()
+# (wait_for_slave_to_start.inc returns as soon as the IO thread is connected),
+# and we can get test failures from warnings in the log about IO thread being
+# killed in the middle of setting @@gtid_strict_mode or similar (MDEV-7940).
+--connection server_1
+INSERT INTO t1 VALUES (3);
+DELETE FROM t1 WHERE a=3;
+--save_master_pos
+
+--connection server_2
+--sync_with_master
 --source include/stop_slave.inc
---source include/start_slave.inc
 
 
 --echo *** Test UNTIL condition in an earlier binlog than the start GTID. ***
 --connection server_2
---source include/stop_slave.inc
 
 --connection server_1
 SET gtid_domain_id = 1;

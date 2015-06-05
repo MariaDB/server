@@ -35,11 +35,12 @@ CREATE TABLE memos (
   FULLTEXT INDEX content_index (content) COMMENT 'table "terms"'
 ) DEFAULT CHARSET=utf8;
 
-SELECT mroonga_command("dump");
+SELECT mroonga_command("dump --dump_plugins no");
 ALTER TABLE memos DISABLE KEYS;
-SELECT mroonga_command("dump");
+SELECT mroonga_command("dump --dump_plugins no");
 
-DROP TABLE memos, terms;
+DROP TABLE memos;
+DROP TABLE terms;
 
 --source ../../include/mroonga/unload_mroonga_functions.inc
 --source ../../include/mroonga/have_mroonga_deinit.inc

@@ -367,7 +367,7 @@ reap;
 reap;
 
 
---echo *** Test sql_gtid_slave_pos when used with GTID ***
+--echo *** Test gtid_slave_pos when used with GTID ***
 
 --connection server_2
 --source include/stop_slave.inc
@@ -481,6 +481,55 @@ SELECT IF(LOCATE("2-1-1040", @@GLOBAL.gtid_slave_pos)>0, "Ok", CONCAT("ERROR! ex
 
 SET GLOBAL slave_ddl_exec_mode= @saved_mode;
 
+
+--echo *** Test GTID-connecting to a master with out-of-order sequence numbers in the binlog. ***
+
+# Create an out-of-order binlog on server 2.
+# Let server 3 replicate to an out-of-order point, stop it, restart it,
+# and check that it replicates correctly despite the out-of-order.
+
+--connection server_1
+SET gtid_domain_id= @@GLOBAL.gtid_domain_id;
+INSERT INTO t1 VALUES (31);
+--save_master_pos
+
+--connection server_2
+--sync_with_master
+SET gtid_domain_id= @@GLOBAL.gtid_domain_id;
+INSERT INTO t1 VALUES (32);
+
+--connection server_1
+INSERT INTO t1 VALUES (33);
+--save_master_pos
+
+--connection server_2
+--sync_with_master
+--save_master_pos
+
+--connection server_3
+--sync_with_master
+--source include/stop_slave.inc
+
+--connection server_1
+INSERT INTO t1 VALUES (34);
+--save_master_pos
+
+--connection server_2
+--sync_with_master
+--save_master_pos
+
+--connection server_3
+--source include/start_slave.inc
+--sync_with_master
+SELECT * FROM t1 WHERE a >= 30 ORDER BY a;
+--save_master_pos
+
+--connection server_4
+--sync_with_master
+SELECT * FROM t1 WHERE a >= 30 ORDER BY a;
+
+
+# Clean up.
 --connection server_1
 DROP TABLE t1;
 

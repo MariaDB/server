@@ -1,4 +1,4 @@
-/* Copyright (C) 2008-2014 Kentoku Shiba
+/* Copyright (C) 2008-2015 Kentoku Shiba
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -13,7 +13,7 @@
   along with this program; if not, write to the Free Software
   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
 
-#define SPIDER_DETAIL_VERSION "3.2.18"
+#define SPIDER_DETAIL_VERSION "3.2.21"
 #define SPIDER_HEX_VERSION 0x0302
 
 #if MYSQL_VERSION_ID < 50500
@@ -141,7 +141,7 @@
 
 #define SPIDER_TMP_SHARE_CHAR_PTR_COUNT     19
 #define SPIDER_TMP_SHARE_UINT_COUNT         17
-#define SPIDER_TMP_SHARE_LONG_COUNT         15
+#define SPIDER_TMP_SHARE_LONG_COUNT         16
 #define SPIDER_TMP_SHARE_LONGLONG_COUNT      3
 
 #define SPIDER_MEM_CALC_LIST_NUM           247
@@ -864,6 +864,7 @@ typedef struct st_spider_share
   long               *net_read_timeouts;
   long               *net_write_timeouts;
   long               *access_balances;
+  long               *bka_table_name_types;
 
   uint               *server_names_lengths;
   uint               *tgt_table_names_lengths;
@@ -967,6 +968,7 @@ typedef struct st_spider_share
   uint               net_read_timeouts_length;
   uint               net_write_timeouts_length;
   uint               access_balances_length;
+  uint               bka_table_name_types_length;
 
   /* for dbton */
   uchar              dbton_bitmap[spider_bitmap_size(SPIDER_DBTON_SIZE)];

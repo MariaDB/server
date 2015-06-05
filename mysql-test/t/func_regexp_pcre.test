@@ -402,3 +402,27 @@ SET default_regex_flags=DEFAULT;
 --echo # MDEV-6965 non-captured group \2 in regexp_replace
 --echo #
 SELECT REGEXP_REPLACE('1 foo and bar', '(\\d+) foo and (\\d+ )?bar', '\\1 this and \\2that');
+
+--echo #
+--echo # MDEV-8102 REGEXP function fails to match hex values when expression is stored as a variable
+--echo #
+
+--echo # Testing a warning
+SET NAMES latin1;
+SET @regCheck= '\\xE0\\x01';
+SELECT 0xE001 REGEXP @regCheck;
+
+--echo # Testing workaround N1: This makes the pattern to be a binary string:
+SET NAMES latin1;
+SET @regCheck= X'E001';
+SELECT 0xE001 REGEXP @regCheck;
+
+--echo # Testing workaround N2: This also makes the pattern to be a binary string, using a different syntax:
+SET NAMES latin1;
+SET @regCheck= _binary '\\xE0\\x01';
+SELECT 0xE001 REGEXP @regCheck;
+
+--echo # Testing workarond N3: This makes derivation of the subject string stronger (IMLICIT instead of COERCIBLE)
+SET NAMES latin1;
+SET @regCheck= '\\xE0\\x01';
+SELECT CAST(0xE001 AS BINARY) REGEXP @regCheck;

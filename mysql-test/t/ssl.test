@@ -25,11 +25,14 @@ SHOW STATUS LIKE 'Ssl_server_not_after';
 --replace_result DHE-RSA-AES256-GCM-SHA384 DHE-RSA-AES256-SHA
 SHOW STATUS LIKE 'Ssl_cipher';
 
+#
+# MDEV-7697 Client reports ERROR 2006 (MySQL server has gone away) or ERROR 2013 (Lost connection to MySQL server during query) while executing AES* functions under SSL
+#
+select aes_decrypt('MySQL','adf');
+select 'still connected?';
+
 connection default;
 disconnect ssl_con;
 
 # Wait till all disconnects are completed
 --source include/wait_until_count_sessions.inc
-
-##  This test file is for testing encrypted communication only, not other
-##  encryption routines that the SSL library happens to provide!

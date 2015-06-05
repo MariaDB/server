@@ -197,4 +197,14 @@ select 'OK';
 drop function f1;
 drop table t1;
 
+--echo #
+--echo # MDEV-7038: Assertion `status_var.memory_used == 0' failed in THD::~THD()
+--echo #            on disconnect after executing EXPLAIN for multi-table UPDATE
+--echo #
 
+CREATE TABLE t1 (a INT);
+CREATE VIEW v1 AS SELECT * FROM t1;
+INSERT INTO t1 VALUES (1),(2);
+EXPLAIN UPDATE v1, mysql.user SET v1.a = v1.a + 1;
+DROP TABLE t1;
+DROP VIEW v1;

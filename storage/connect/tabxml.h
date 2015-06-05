@@ -1,7 +1,7 @@
 /*************** Tabxml H Declares Source Code File (.H) ***************/
 /*  Name: TABXML.H    Version 1.6                                      */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          2007-2013    */
+/*  (C) Copyright to the author Olivier BERTRAND          2007-2015    */
 /*                                                                     */
 /*  This file contains the XML table classes declares.                 */
 /***********************************************************************/
@@ -255,8 +255,7 @@ class TDBXCT : public TDBCAT {
 
   // Members
   PTOS  Topt;
-  char *Dp;
-//const char *Fn;
+  char *Db;
   char *Tabn;
   }; // end of class TDBXCT
 

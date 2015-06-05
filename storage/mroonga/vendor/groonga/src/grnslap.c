@@ -54,7 +54,7 @@ lprint(grn_ctx *ctx, const char *fmt, ...)
   int len;
   va_list argp;
   grn_timeval_now(ctx, &tv);
-  grn_timeval2str(ctx, &tv, buf);
+  grn_timeval2str(ctx, &tv, buf, 1024);
   len = strlen(buf);
   buf[len++] = '|';
   va_start(argp, fmt);

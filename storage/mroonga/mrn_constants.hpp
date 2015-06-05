@@ -22,6 +22,8 @@
 #ifndef MRN_CONSTANTS_HPP_
 #define MRN_CONSTANTS_HPP_
 
+#include <limits.h>
+
 #include <groonga.h>
 
 #define MRN_BUFFER_SIZE 1024
