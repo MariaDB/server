@@ -1,5 +1,6 @@
 /*
    Copyright (c) 2002, 2011, Oracle and/or its affiliates.
+   Copyright (c) 2010, 2015, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -169,7 +170,9 @@ mysql_handle_single_derived(LEX *lex, TABLE_LIST *derived, uint phases)
   uint8 allowed_phases= (derived->is_merged_derived() ? DT_PHASES_MERGE :
                          DT_PHASES_MATERIALIZE);
   DBUG_ENTER("mysql_handle_single_derived");
-  DBUG_PRINT("enter", ("phases: 0x%x  allowed: 0x%x", phases, allowed_phases));
+  DBUG_PRINT("enter", ("phases: 0x%x  allowed: 0x%x  alias: '%s'",
+                       phases, allowed_phases,
+                       (derived->alias ? derived->alias : "<NULL>")));
   if (!lex->derived_tables)
     DBUG_RETURN(FALSE);
 

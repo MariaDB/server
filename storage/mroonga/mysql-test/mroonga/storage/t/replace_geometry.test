@@ -14,6 +14,8 @@
 # License along with this library; if not, write to the Free Software
 # Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
+--source include/have_geometry.inc
+--source ../../include/mroonga/have_version_56_or_later.inc
 --source ../../include/mroonga/have_mroonga.inc
 
 --disable_warnings
@@ -26,13 +28,13 @@ CREATE TABLE geo_replace (
   PRIMARY KEY(id)
 ) DEFAULT CHARSET=utf8;
 INSERT INTO geo_replace VALUES(1, POINT(100,100));
-SELECT id, ASTEXT(geo) FROM geo_replace;
+SELECT id, ST_AsText(geo) FROM geo_replace;
 REPLACE INTO geo_replace VALUES(1, POINT(100,200));
-SELECT id, ASTEXT(geo) FROM geo_replace;
+SELECT id, ST_AsText(geo) FROM geo_replace;
 INSERT INTO geo_replace VALUES(1, POINT(200,200)) ON DUPLICATE KEY UPDATE geo = POINT(200,200);
-SELECT id, ASTEXT(geo) FROM geo_replace;
+SELECT id, ST_AsText(geo) FROM geo_replace;
 UPDATE geo_replace SET geo = POINT(200,300);
-SELECT id, ASTEXT(geo) FROM geo_replace;
+SELECT id, ST_AsText(geo) FROM geo_replace;
 
 DROP TABLE geo_replace;
 

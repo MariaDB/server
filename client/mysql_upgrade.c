@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2006, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2013, Monty Program Ab.
+   Copyright (c) 2010, 2015, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -36,6 +36,8 @@
 # endif
 #endif
 
+static int phase = 0;
+static int phases_total = 6;
 static char mysql_path[FN_REFLEN];
 static char mysqlcheck_path[FN_REFLEN];
 
@@ -44,6 +46,8 @@ static my_bool opt_force, opt_verbose, debug_info_flag, debug_check_flag,
 static my_bool opt_not_used, opt_silent;
 static uint my_end_arg= 0;
 static char *opt_user= (char*)"root";
+
+static my_bool upgrade_from_mysql;
 
 static DYNAMIC_STRING ds_args;
 static DYNAMIC_STRING conn_args;
@@ -206,12 +210,12 @@ static void die(const char *fmt, ...)
 }
 
 
-static int verbose(const char *fmt, ...)
+static void verbose(const char *fmt, ...)
 {
   va_list args;
 
   if (opt_silent)
-    return 0;
+    return;
 
   /* Print the verbose message */
   va_start(args, fmt);
@@ -222,7 +226,6 @@ static int verbose(const char *fmt, ...)
     fflush(stdout);
   }
   va_end(args);
-  return 0;
 }
 
 
@@ -740,10 +743,21 @@ static void print_conn_args(const char *tool_name)
   in the server using "mysqlcheck --check-upgrade .."
 */
 
-static int run_mysqlcheck_upgrade(const char *arg1, const char *arg2)
+static int run_mysqlcheck_upgrade(my_bool mysql_db_only)
 {
+  const char *what= mysql_db_only ? "mysql database" : "tables";
+  const char *arg1= mysql_db_only ? "--databases" : "--all-databases";
+  const char *arg2= mysql_db_only ? "mysql" : "--skip-database=mysql";
+  int retch;
+  if (opt_systables_only && !mysql_db_only)
+  {
+    verbose("Phase %d/%d: Checking and upgrading %s... Skipped",
+            ++phase, phases_total, what);
+    return 0;
+  }
+  verbose("Phase %d/%d: Checking and upgrading %s", ++phase, phases_total, what);
   print_conn_args("mysqlcheck");
-  return run_tool(mysqlcheck_path,
+  retch= run_tool(mysqlcheck_path,
                   NULL, /* Send output from mysqlcheck directly to screen */
                   "--no-defaults",
                   ds_args.str,
@@ -757,12 +771,77 @@ static int run_mysqlcheck_upgrade(const char *arg1, const char *arg2)
                   arg1, arg2,
                   "2>&1",
                   NULL);
+  return retch;
 }
 
+#define EVENTS_STRUCT_LEN 7000
+
+static my_bool is_mysql()
+{
+  my_bool ret= TRUE;
+  DYNAMIC_STRING ds_events_struct;
+
+  if (init_dynamic_string(&ds_events_struct, NULL,
+                          EVENTS_STRUCT_LEN, EVENTS_STRUCT_LEN))
+    die("Out of memory");
+
+  if (run_query("show create table mysql.event",
+                &ds_events_struct, FALSE) ||
+      strstr(ds_events_struct.str, "IGNORE_BAD_TABLE_OPTIONS") != NULL)
+    ret= FALSE;
+  else
+    verbose("MySQL upgrade detected");
+
+  dynstr_free(&ds_events_struct);
+  return(ret);
+}
+
+static int run_mysqlcheck_views(void)
+{
+  const char *upgrade_views="--process-views=YES";
+  if (upgrade_from_mysql)
+  {
+    /*
+      this has to ignore opt_systables_only, because upgrade_from_mysql
+      is determined by analyzing systables. if we honor opt_systables_only
+      here, views won't be fixed by subsequent mysql_upgrade runs
+    */
+    upgrade_views="--process-views=UPGRADE_FROM_MYSQL";
+    verbose("Phase %d/%d: Fixing views from mysql", ++phase, phases_total);
+  }
+  else if (opt_systables_only)
+  {
+    verbose("Phase %d/%d: Fixing views... Skipped", ++phase, phases_total);
+    return 0;
+  }
+  else
+    verbose("Phase %d/%d: Fixing views", ++phase, phases_total);
+
+  print_conn_args("mysqlcheck");
+  return run_tool(mysqlcheck_path,
+                  NULL, /* Send output from mysqlcheck directly to screen */
+                  "--no-defaults",
+                  ds_args.str,
+                  "--all-databases", "--repair",
+                  upgrade_views,
+                  "--skip-process-tables",
+                  opt_verbose ? "--verbose": "",
+                  opt_silent ? "--silent": "",
+                  opt_write_binlog ? "--write-binlog" : "--skip-write-binlog",
+                  "2>&1",
+                  NULL);
+}
 
 static int run_mysqlcheck_fixnames(void)
 {
-  verbose("Phase 3/5: Fixing table and database names");
+  if (opt_systables_only)
+  {
+    verbose("Phase %d/%d: Fixing table and database names ... Skipped",
+            ++phase, phases_total);
+    return 0;
+  }
+  verbose("Phase %d/%d: Fixing table and database names",
+          ++phase, phases_total);
   print_conn_args("mysqlcheck");
   return run_tool(mysqlcheck_path,
                   NULL, /* Send output from mysqlcheck directly to screen */
@@ -849,6 +928,9 @@ static int run_sql_fix_privilege_tables(void)
 
   if (init_dynamic_string(&ds_result, "", 512, 512))
     die("Out of memory");
+
+  verbose("Phase %d/%d: Running 'mysql_fix_privilege_tables'",
+          ++phase, phases_total);
 
   /*
     Individual queries can not be executed independently by invoking
@@ -1019,23 +1101,19 @@ int main(int argc, char **argv)
   if (opt_version_check && check_version_match())
     die("Upgrade failed");
 
+  upgrade_from_mysql= is_mysql();
+
   /*
     Run "mysqlcheck" and "mysql_fix_privilege_tables.sql"
   */
-  verbose("Phase 1/5: Checking mysql database");
-  if (run_mysqlcheck_upgrade("--databases", "mysql"))
-    die("Upgrade failed" );
-  verbose("Phase 2/5: Running 'mysql_fix_privilege_tables'...");
-  if (run_sql_fix_privilege_tables())
-    die("Upgrade failed" );
-
-  if (!opt_systables_only &&
-      (run_mysqlcheck_fixnames() ||
-       verbose("Phase 4/5: Checking and upgrading tables") ||
-       run_mysqlcheck_upgrade("--all-databases","--skip-database=mysql")))
+  if (run_mysqlcheck_upgrade(TRUE) ||
+      run_mysqlcheck_views() ||
+      run_sql_fix_privilege_tables() ||
+      run_mysqlcheck_fixnames() ||
+      run_mysqlcheck_upgrade(FALSE))
     die("Upgrade failed" );
 
-  verbose("Phase 5/5: Running 'FLUSH PRIVILEGES'...");
+  verbose("Phase %d/%d: Running 'FLUSH PRIVILEGES'", ++phase, phases_total);
   if (run_query("FLUSH PRIVILEGES", NULL, TRUE))
     die("Upgrade failed" );
 
@@ -1043,6 +1121,8 @@ int main(int argc, char **argv)
 
   /* Create a file indicating upgrade has been performed */
   create_mysql_upgrade_info_file();
+
+  DBUG_ASSERT(phase == phases_total);
 
   free_used_memory();
   my_end(my_end_arg);

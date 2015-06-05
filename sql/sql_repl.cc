@@ -943,7 +943,7 @@ give_error_start_pos_missing_in_binlog(int *err, const char **errormsg,
       binlog_gtid.seq_no >= error_gtid->seq_no)
   {
     *errormsg= "Requested slave GTID state not found in binlog. The slave has "
-      "probably diverged due to executing errorneous transactions";
+      "probably diverged due to executing erroneous transactions";
     *err= ER_GTID_POSITION_NOT_FOUND_IN_BINLOG2;
   }
   else
@@ -2377,6 +2377,31 @@ impossible position";
         info.fdev= tmp;
 
         (*packet)[FLAGS_OFFSET+ev_offset] &= ~LOG_EVENT_BINLOG_IN_USE_F;
+
+        if (info.using_gtid_state)
+        {
+          /*
+            If this event has the field `created' set, then it will cause the
+            slave to delete all active temporary tables. This must not happen
+            if the slave received any later GTIDs in a previous connect, as
+            those GTIDs might have created new temporary tables that are still
+            needed.
+
+            So here, we check if the starting GTID position was already
+            reached before this format description event. If not, we clear the
+            `created' flag to preserve temporary tables on the slave. (If the
+            slave connects at a position past this event, it means that it
+            already received and handled it in a previous connect).
+          */
+          if (!info.gtid_state.is_pos_reached())
+          {
+            int4store((char*) packet->ptr()+LOG_EVENT_MINIMAL_HEADER_LEN+
+                      ST_CREATED_OFFSET+ev_offset, (ulong) 0);
+            if (info.current_checksum_alg != BINLOG_CHECKSUM_ALG_OFF &&
+                info.current_checksum_alg != BINLOG_CHECKSUM_ALG_UNDEF)
+              fix_checksum(packet, ev_offset);
+          }
+        }
       }
 
 #ifndef DBUG_OFF
@@ -2726,7 +2751,7 @@ err:
                 "%u-%u-%llu, which is not in the master's binlog. Since the "
                 "master's binlog contains GTIDs with higher sequence numbers, "
                 "it probably means that the slave has diverged due to "
-                "executing extra errorneous transactions",
+                "executing extra erroneous transactions",
                 error_gtid.domain_id, error_gtid.server_id, error_gtid.seq_no);
     /* Use this error code so slave will know not to try reconnect. */
     my_errno = ER_MASTER_FATAL_ERROR_READING_BINLOG;

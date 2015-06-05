@@ -26,6 +26,11 @@
 extern "C" {
 #endif
 
+#define GRN_TOKENIZER_BEGIN_MARK_UTF8     "\xEF\xBF\xAF"
+#define GRN_TOKENIZER_BEGIN_MARK_UTF8_LEN 3
+#define GRN_TOKENIZER_END_MARK_UTF8       "\xEF\xBF\xB0"
+#define GRN_TOKENIZER_END_MARK_UTF8_LEN   3
+
 typedef enum {
   GRN_TOKEN_CURSOR_DOING = 0,
   GRN_TOKEN_CURSOR_DONE,

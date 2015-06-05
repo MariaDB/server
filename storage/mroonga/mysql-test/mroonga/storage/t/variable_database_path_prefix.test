@@ -1,4 +1,4 @@
-# Copyright(C) 2012 Kouhei Sutou <kou@clear-code.com>
+# Copyright(C) 2012-2015 Kouhei Sutou <kou@clear-code.com>
 #
 # This library is free software; you can redistribute it and/or
 # modify it under the terms of the GNU Lesser General Public
@@ -35,8 +35,10 @@ SELECT * FROM counts;
 
 DROP TABLE counts;
 DROP DATABASE clean_test;
+SET GLOBAL mroonga_database_path_prefix = NULL;
+
 USE test;
 
-SET GLOBAL mroonga_database_path_prefix = NULL;
+--rmdir $MYSQLD_DATADIR/test/mroonga.data
 
 --source ../../include/mroonga/have_mroonga_deinit.inc

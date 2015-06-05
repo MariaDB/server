@@ -16,6 +16,8 @@
   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 */
 
+#include "grn_db.h"
+
 #include <groonga/scorer.h>
 
 #include <math.h>
@@ -49,9 +51,46 @@ scorer_tf_idf(grn_ctx *ctx, grn_scorer_matched_record *record)
   }
 }
 
+static double
+scorer_tf_at_most(grn_ctx *ctx, grn_scorer_matched_record *record)
+{
+  double tf;
+  double max;
+  grn_obj *max_raw;
+
+  tf = grn_scorer_matched_record_get_n_occurrences(ctx, record) +
+    grn_scorer_matched_record_get_total_term_weights(ctx, record);
+  max_raw = grn_scorer_matched_record_get_arg(ctx, record, 0);
+
+  if (!max_raw) {
+    return tf;
+  }
+
+  if (max_raw->header.type != GRN_BULK) {
+    return tf;
+  }
+
+  if (max_raw->header.domain == GRN_DB_FLOAT) {
+    max = GRN_FLOAT_VALUE(max_raw);
+  } else {
+    grn_obj casted_max_raw;
+    GRN_FLOAT_INIT(&casted_max_raw, 0);
+    if (grn_obj_cast(ctx, max_raw, &casted_max_raw, GRN_FALSE) != GRN_SUCCESS) {
+      GRN_OBJ_FIN(ctx, &casted_max_raw);
+      return tf;
+    } else {
+      max = GRN_FLOAT_VALUE(&casted_max_raw);
+    }
+    GRN_OBJ_FIN(ctx, &casted_max_raw);
+  }
+
+  return fmin(tf, max);
+}
+
 grn_rc
 grn_db_init_builtin_scorers(grn_ctx *ctx)
 {
   grn_scorer_register(ctx, "scorer_tf_idf", -1, scorer_tf_idf);
+  grn_scorer_register(ctx, "scorer_tf_at_most", -1, scorer_tf_at_most);
   return GRN_SUCCESS;
 }

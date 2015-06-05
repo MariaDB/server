@@ -561,7 +561,7 @@ Failed: assertion expected after (?( at offset 3
 Failed: reference to non-existent subpattern at offset 7
 
 /(?(?<ab))/
-Failed: syntax error in subpattern name (missing terminator) at offset 7
+Failed: assertion expected after (?( at offset 3
 
 /((?s)blah)\s+\1/I
 Capturing subpattern count = 1
@@ -1566,30 +1566,35 @@ Need char = 'b'
 
 /a(?(1)b)(.)/I
 Capturing subpattern count = 1
+Max back reference = 1
 No options
 First char = 'a'
 No need char
 
 /a(?(1)bag|big)(.)/I
 Capturing subpattern count = 1
+Max back reference = 1
 No options
 First char = 'a'
 Need char = 'g'
 
 /a(?(1)bag|big)*(.)/I
 Capturing subpattern count = 1
+Max back reference = 1
 No options
 First char = 'a'
 No need char
 
 /a(?(1)bag|big)+(.)/I
 Capturing subpattern count = 1
+Max back reference = 1
 No options
 First char = 'a'
 Need char = 'g'
 
 /a(?(1)b..|b..)(.)/I
 Capturing subpattern count = 1
+Max back reference = 1
 No options
 First char = 'a'
 Need char = 'b'
@@ -3379,24 +3384,28 @@ Need char = 'a'
 
 /(?(1)ab|ac)(.)/I
 Capturing subpattern count = 1
+Max back reference = 1
 No options
 First char = 'a'
 No need char
 
 /(?(1)abz|acz)(.)/I
 Capturing subpattern count = 1
+Max back reference = 1
 No options
 First char = 'a'
 Need char = 'z'
 
 /(?(1)abz)(.)/I
 Capturing subpattern count = 1
+Max back reference = 1
 No options
 No first char
 No need char
 
 /(?(1)abz)(1)23/I
 Capturing subpattern count = 1
+Max back reference = 1
 No options
 No first char
 Need char = '3'
@@ -5605,6 +5614,10 @@ No match
     123456\P
 No match
 
+//KF>/dev/null
+Compiled pattern written to /dev/null
+Study data written to /dev/null
+
 /abc/IS>testsavedregex
 Capturing subpattern count = 0
 No options
@@ -6336,6 +6349,7 @@ No need char
 
 /^(?P<A>a)?(?(A)a|b)/I
 Capturing subpattern count = 1
+Max back reference = 1
 Named capturing subpatterns:
   A   1
 Options: anchored
@@ -6353,6 +6367,7 @@ No match
 
 /(?:(?(ZZ)a|b)(?P<ZZ>X))+/I
 Capturing subpattern count = 1
+Max back reference = 1
 Named capturing subpatterns:
   ZZ   1
 No options
@@ -6370,6 +6385,7 @@ Failed: reference to non-existent subpattern at offset 9
 
 /(?:(?(ZZ)a|b)(?(ZZ)a|b)(?P<ZZ>X))+/I
 Capturing subpattern count = 1
+Max back reference = 1
 Named capturing subpatterns:
   ZZ   1
 No options
@@ -6381,6 +6397,7 @@ Need char = 'X'
 
 /(?:(?(ZZ)a|\(b\))\\(?P<ZZ>X))+/I
 Capturing subpattern count = 1
+Max back reference = 1
 Named capturing subpatterns:
   ZZ   1
 No options
@@ -10226,6 +10243,7 @@ No starting char list
   (?(1)|.)                    # check that there was an empty component
   /xiIS
 Capturing subpattern count = 1
+Max back reference = 1
 Options: anchored caseless extended
 No first char
 Need char = ':'
@@ -10255,6 +10273,7 @@ Failed: different names for subpatterns of the same number are not allowed at of
     b(?<quote> (?<apostrophe>')|(?<realquote>")) ) 
     (?('quote')[a-z]+|[0-9]+)/JIx
 Capturing subpattern count = 6
+Max back reference = 1
 Named capturing subpatterns:
   apostrophe   2
   apostrophe   5
@@ -10317,6 +10336,7 @@ No match
         End
 ------------------------------------------------------------------
 Capturing subpattern count = 4
+Max back reference = 4
 Named capturing subpatterns:
   D   4
   D   1
@@ -10364,6 +10384,7 @@ No match
         End
 ------------------------------------------------------------------
 Capturing subpattern count = 4
+Max back reference = 1
 Named capturing subpatterns:
   A   1
   A   4
@@ -10486,6 +10507,7 @@ No starting char list
     
 /()i(?(1)a)/SI 
 Capturing subpattern count = 1
+Max back reference = 1
 No options
 No first char
 Need char = 'i'
@@ -14205,5 +14227,200 @@ Failed: digits missing in \x{} or \o{} at offset 3
 
 /\x{whatever}/
 Failed: non-hex character in \x{} (closing brace missing?) at offset 3
+
+"((?=(?(?=(?(?=(?(?=()))))))))"
+    a
+ 0: 
+ 1: 
+ 2: 
+
+"(?(?=)==)(((((((((?=)))))))))"
+    a
+No match
+
+/^(?:(a)|b)(?(1)A|B)/I
+Capturing subpattern count = 1
+Max back reference = 1
+Options: anchored
+No first char
+No need char
+    aA123\O3
+Matched, but too many substrings
+ 0: aA
+    aA123\O6
+ 0: aA
+ 1: a
+
+'^(?:(?<AA>a)|b)(?(<AA>)A|B)'
+    aA123\O3
+Matched, but too many substrings
+ 0: aA
+    aA123\O6
+ 0: aA
+ 1: a
+
+'^(?<AA>)(?:(?<AA>a)|b)(?(<AA>)A|B)'J
+    aA123\O3
+Matched, but too many substrings
+ 0: aA
+    aA123\O6
+Matched, but too many substrings
+ 0: aA
+ 1: 
+
+'^(?:(?<AA>X)|)(?:(?<AA>a)|b)\k{AA}'J
+    aa123\O3
+Matched, but too many substrings
+ 0: aa
+    aa123\O6
+Matched, but too many substrings
+ 0: aa
+ 1: <unset>
+
+/(?<N111>(?J)(?<N111>1(111111)11|)1|1|)(?(<N111>)1)/
+
+/(?(?=0)?)+/
+Failed: nothing to repeat at offset 7
+
+/(?(?=0)(?=00)?00765)/
+     00765
+ 0: 00765
+
+/(?(?=0)(?=00)?00765|(?!3).56)/
+     00765
+ 0: 00765
+     456
+ 0: 456
+     ** Failers
+No match
+     356   
+No match
+
+'^(a)*+(\w)'
+    g
+ 0: g
+ 1: <unset>
+ 2: g
+    g\O3
+Matched, but too many substrings
+ 0: g
+
+'^(?:a)*+(\w)'
+    g
+ 0: g
+ 1: g
+    g\O3
+Matched, but too many substrings
+ 0: g
+
+//C
+    \O\C+
+Callout 255: last capture = -1
+--->
+ +0 ^    
+Matched, but too many substrings
+
+"((?2){0,1999}())?"
+
+/((?+1)(\1))/BZ
+------------------------------------------------------------------
+        Bra
+        Once
+        CBra 1
+        Recurse
+        CBra 2
+        \1
+        Ket
+        Ket
+        Ket
+        Ket
+        End
+------------------------------------------------------------------
+
+/(?(?!)a|b)/
+    bbb
+ 0: b
+    aaa 
+No match
+
+"((?2)+)((?1))"
+
+"(?(?<E>.*!.*)?)"
+Failed: assertion expected after (?( at offset 3
+
+"X((?2)()*+){2}+"BZ
+------------------------------------------------------------------
+        Bra
+        X
+        Once
+        CBra 1
+        Recurse
+        Braposzero
+        SCBraPos 2
+        KetRpos
+        Ket
+        CBra 1
+        Recurse
+        Braposzero
+        SCBraPos 2
+        KetRpos
+        Ket
+        Ket
+        Ket
+        End
+------------------------------------------------------------------
+
+"X((?2)()*+){2}"BZ
+------------------------------------------------------------------
+        Bra
+        X
+        CBra 1
+        Recurse
+        Braposzero
+        SCBraPos 2
+        KetRpos
+        Ket
+        CBra 1
+        Recurse
+        Braposzero
+        SCBraPos 2
+        KetRpos
+        Ket
+        Ket
+        End
+------------------------------------------------------------------
+
+"(?<=((?2))((?1)))"
+Failed: lookbehind assertion is not fixed length at offset 17
+
+/(?<=\Ka)/g+
+    aaaaa
+ 0: a
+ 0+ aaaa
+ 0: a
+ 0+ aaaa
+ 0: a
+ 0+ aaa
+ 0: a
+ 0+ aa
+ 0: a
+ 0+ a
+ 0: a
+ 0+ 
+
+/(?<=\Ka)/G+
+    aaaaa
+ 0: a
+ 0+ aaaa
+ 0: a
+ 0+ aaa
+ 0: a
+ 0+ aa
+ 0: a
+ 0+ a
+ 0: a
+ 0+ 
+
+/((?2){73}(?2))((?1))/
 
 /-- End of testinput2 --/

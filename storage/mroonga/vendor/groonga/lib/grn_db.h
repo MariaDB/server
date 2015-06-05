@@ -26,6 +26,8 @@
 #include <groonga/token_filter.h>
 #include <groonga/scorer.h>
 
+#include <float.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif

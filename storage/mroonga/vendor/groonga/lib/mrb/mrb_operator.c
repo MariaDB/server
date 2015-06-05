@@ -1,6 +1,6 @@
 /* -*- c-basic-offset: 2 -*- */
 /*
-  Copyright(C) 2014 Brazil
+  Copyright(C) 2014-2015 Brazil
 
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -23,168 +23,132 @@
 
 #include "mrb_operator.h"
 
+mrb_value
+grn_mrb_value_from_operator(mrb_state *mrb, grn_operator op)
+{
+  grn_ctx *ctx = (grn_ctx *)(mrb->ud);
+  grn_mrb_data *data = &(ctx->impl->mrb);
+  mrb_value mrb_op_raw;
+  mrb_value mrb_op;
+
+  mrb_op_raw = mrb_fixnum_value(op);
+  mrb_op = mrb_funcall(mrb, mrb_obj_value(data->groonga.operator_class),
+                       "find", 1, mrb_op_raw);
+  if (mrb_nil_p(mrb_op)) {
+    return mrb_op_raw;
+  } else {
+    return mrb_op;
+  }
+}
+
+grn_operator
+grn_mrb_value_to_operator(mrb_state *mrb, mrb_value mrb_op)
+{
+  if (!mrb_fixnum_p(mrb_op)) {
+    mrb_op = mrb_funcall(mrb, mrb_op, "value", 0);
+  }
+
+  return mrb_fixnum(mrb_op);
+}
+
 void
 grn_mrb_operator_init(grn_ctx *ctx)
 {
-  mrb_state *mrb = ctx->impl->mrb.state;
+  grn_mrb_data *data = &(ctx->impl->mrb);
+  mrb_state *mrb = data->state;
   struct RClass *module = ctx->impl->mrb.module;
-  struct RClass *operator_module;
+  struct RClass *klass;
+  mrb_value klass_obj;
 
-  operator_module = mrb_define_module_under(mrb, module, "Operator");
+  klass = mrb_class_get_under(mrb, module, "Operator");
+  data->groonga.operator_class = klass;
 
-  mrb_define_const(mrb, operator_module, "PUSH",
-                   mrb_fixnum_value(GRN_OP_PUSH));
-  mrb_define_const(mrb, operator_module, "POP",
-                   mrb_fixnum_value(GRN_OP_POP));
-  mrb_define_const(mrb, operator_module, "NOP",
-                   mrb_fixnum_value(GRN_OP_NOP));
-  mrb_define_const(mrb, operator_module, "CALL",
-                   mrb_fixnum_value(GRN_OP_CALL));
-  mrb_define_const(mrb, operator_module, "INTERN",
-                   mrb_fixnum_value(GRN_OP_INTERN));
-  mrb_define_const(mrb, operator_module, "GET_REF",
-                   mrb_fixnum_value(GRN_OP_GET_REF));
-  mrb_define_const(mrb, operator_module, "GET_VALUE",
-                   mrb_fixnum_value(GRN_OP_GET_VALUE));
-  mrb_define_const(mrb, operator_module, "AND",
-                   mrb_fixnum_value(GRN_OP_AND));
-  mrb_define_const(mrb, operator_module, "AND_NOT",
-                   mrb_fixnum_value(GRN_OP_AND_NOT));
-  mrb_define_const(mrb, operator_module, "OR",
-                   mrb_fixnum_value(GRN_OP_OR));
-  mrb_define_const(mrb, operator_module, "ASSIGN",
-                   mrb_fixnum_value(GRN_OP_ASSIGN));
-  mrb_define_const(mrb, operator_module, "STAR_ASSIGN",
-                   mrb_fixnum_value(GRN_OP_STAR_ASSIGN));
-  mrb_define_const(mrb, operator_module, "SLASH_ASSIGN",
-                   mrb_fixnum_value(GRN_OP_SLASH_ASSIGN));
-  mrb_define_const(mrb, operator_module, "MOD_ASSIGN",
-                   mrb_fixnum_value(GRN_OP_MOD_ASSIGN));
-  mrb_define_const(mrb, operator_module, "PLUS_ASSIGN",
-                   mrb_fixnum_value(GRN_OP_PLUS_ASSIGN));
-  mrb_define_const(mrb, operator_module, "MINUS_ASSIGN",
-                   mrb_fixnum_value(GRN_OP_MINUS_ASSIGN));
-  mrb_define_const(mrb, operator_module, "SHIFTL_ASSIGN",
-                   mrb_fixnum_value(GRN_OP_SHIFTL_ASSIGN));
-  mrb_define_const(mrb, operator_module, "SHIFTR_ASSIGN",
-                   mrb_fixnum_value(GRN_OP_SHIFTR_ASSIGN));
-  mrb_define_const(mrb, operator_module, "SHIFTRR_ASSIGN",
-                   mrb_fixnum_value(GRN_OP_SHIFTRR_ASSIGN));
-  mrb_define_const(mrb, operator_module, "AND_ASSIGN",
-                   mrb_fixnum_value(GRN_OP_AND_ASSIGN));
-  mrb_define_const(mrb, operator_module, "XOR_ASSIGN",
-                   mrb_fixnum_value(GRN_OP_XOR_ASSIGN));
-  mrb_define_const(mrb, operator_module, "OR_ASSIGN",
-                   mrb_fixnum_value(GRN_OP_OR_ASSIGN));
-  mrb_define_const(mrb, operator_module, "JUMP",
-                   mrb_fixnum_value(GRN_OP_JUMP));
-  mrb_define_const(mrb, operator_module, "CJUMP",
-                   mrb_fixnum_value(GRN_OP_CJUMP));
-  mrb_define_const(mrb, operator_module, "COMMA",
-                   mrb_fixnum_value(GRN_OP_COMMA));
-  mrb_define_const(mrb, operator_module, "BITWISE_OR",
-                   mrb_fixnum_value(GRN_OP_BITWISE_OR));
-  mrb_define_const(mrb, operator_module, "BITWISE_XOR",
-                   mrb_fixnum_value(GRN_OP_BITWISE_XOR));
-  mrb_define_const(mrb, operator_module, "BITWISE_AND",
-                   mrb_fixnum_value(GRN_OP_BITWISE_AND));
-  mrb_define_const(mrb, operator_module, "BITWISE_NOT",
-                   mrb_fixnum_value(GRN_OP_BITWISE_NOT));
-  mrb_define_const(mrb, operator_module, "EQUAL",
-                   mrb_fixnum_value(GRN_OP_EQUAL));
-  mrb_define_const(mrb, operator_module, "NOT_EQUAL",
-                   mrb_fixnum_value(GRN_OP_NOT_EQUAL));
-  mrb_define_const(mrb, operator_module, "LESS",
-                   mrb_fixnum_value(GRN_OP_LESS));
-  mrb_define_const(mrb, operator_module, "GREATER",
-                   mrb_fixnum_value(GRN_OP_GREATER));
-  mrb_define_const(mrb, operator_module, "LESS_EQUAL",
-                   mrb_fixnum_value(GRN_OP_LESS_EQUAL));
-  mrb_define_const(mrb, operator_module, "GREATER_EQUAL",
-                   mrb_fixnum_value(GRN_OP_GREATER_EQUAL));
-  mrb_define_const(mrb, operator_module, "IN",
-                   mrb_fixnum_value(GRN_OP_IN));
-  mrb_define_const(mrb, operator_module, "MATCH",
-                   mrb_fixnum_value(GRN_OP_MATCH));
-  mrb_define_const(mrb, operator_module, "NEAR",
-                   mrb_fixnum_value(GRN_OP_NEAR));
-  mrb_define_const(mrb, operator_module, "NEAR2",
-                   mrb_fixnum_value(GRN_OP_NEAR2));
-  mrb_define_const(mrb, operator_module, "SIMILAR",
-                   mrb_fixnum_value(GRN_OP_SIMILAR));
-  mrb_define_const(mrb, operator_module, "TERM_EXTRACT",
-                   mrb_fixnum_value(GRN_OP_TERM_EXTRACT));
-  mrb_define_const(mrb, operator_module, "SHIFTL",
-                   mrb_fixnum_value(GRN_OP_SHIFTL));
-  mrb_define_const(mrb, operator_module, "SHIFTR",
-                   mrb_fixnum_value(GRN_OP_SHIFTR));
-  mrb_define_const(mrb, operator_module, "SHIFTRR",
-                   mrb_fixnum_value(GRN_OP_SHIFTRR));
-  mrb_define_const(mrb, operator_module, "PLUS",
-                   mrb_fixnum_value(GRN_OP_PLUS));
-  mrb_define_const(mrb, operator_module, "MINUS",
-                   mrb_fixnum_value(GRN_OP_MINUS));
-  mrb_define_const(mrb, operator_module, "STAR",
-                   mrb_fixnum_value(GRN_OP_STAR));
-  mrb_define_const(mrb, operator_module, "SLASH",
-                   mrb_fixnum_value(GRN_OP_SLASH));
-  mrb_define_const(mrb, operator_module, "MOD",
-                   mrb_fixnum_value(GRN_OP_MOD));
-  mrb_define_const(mrb, operator_module, "DELETE",
-                   mrb_fixnum_value(GRN_OP_DELETE));
-  mrb_define_const(mrb, operator_module, "INCR",
-                   mrb_fixnum_value(GRN_OP_INCR));
-  mrb_define_const(mrb, operator_module, "DECR",
-                   mrb_fixnum_value(GRN_OP_DECR));
-  mrb_define_const(mrb, operator_module, "INCR_POST",
-                   mrb_fixnum_value(GRN_OP_INCR_POST));
-  mrb_define_const(mrb, operator_module, "DECR_POST",
-                   mrb_fixnum_value(GRN_OP_DECR_POST));
-  mrb_define_const(mrb, operator_module, "NOT",
-                   mrb_fixnum_value(GRN_OP_NOT));
-  mrb_define_const(mrb, operator_module, "ADJUST",
-                   mrb_fixnum_value(GRN_OP_ADJUST));
-  mrb_define_const(mrb, operator_module, "EXACT",
-                   mrb_fixnum_value(GRN_OP_EXACT));
-  mrb_define_const(mrb, operator_module, "LCP",
-                   mrb_fixnum_value(GRN_OP_LCP));
-  mrb_define_const(mrb, operator_module, "PARTIAL",
-                   mrb_fixnum_value(GRN_OP_PARTIAL));
-  mrb_define_const(mrb, operator_module, "UNSPLIT",
-                   mrb_fixnum_value(GRN_OP_UNSPLIT));
-  mrb_define_const(mrb, operator_module, "PREFIX",
-                   mrb_fixnum_value(GRN_OP_PREFIX));
-  mrb_define_const(mrb, operator_module, "SUFFIX",
-                   mrb_fixnum_value(GRN_OP_SUFFIX));
-  mrb_define_const(mrb, operator_module, "GEO_DISTANCE1",
-                   mrb_fixnum_value(GRN_OP_GEO_DISTANCE1));
-  mrb_define_const(mrb, operator_module, "GEO_DISTANCE2",
-                   mrb_fixnum_value(GRN_OP_GEO_DISTANCE2));
-  mrb_define_const(mrb, operator_module, "GEO_DISTANCE3",
-                   mrb_fixnum_value(GRN_OP_GEO_DISTANCE3));
-  mrb_define_const(mrb, operator_module, "GEO_DISTANCE4",
-                   mrb_fixnum_value(GRN_OP_GEO_DISTANCE4));
-  mrb_define_const(mrb, operator_module, "GEO_WITHINP5",
-                   mrb_fixnum_value(GRN_OP_GEO_WITHINP5));
-  mrb_define_const(mrb, operator_module, "GEO_WITHINP6",
-                   mrb_fixnum_value(GRN_OP_GEO_WITHINP6));
-  mrb_define_const(mrb, operator_module, "GEO_WITHINP8",
-                   mrb_fixnum_value(GRN_OP_GEO_WITHINP8));
-  mrb_define_const(mrb, operator_module, "OBJ_SEARCH",
-                   mrb_fixnum_value(GRN_OP_OBJ_SEARCH));
-  mrb_define_const(mrb, operator_module, "EXPR_GET_VAR",
-                   mrb_fixnum_value(GRN_OP_EXPR_GET_VAR));
-  mrb_define_const(mrb, operator_module, "TABLE_CREATE",
-                   mrb_fixnum_value(GRN_OP_TABLE_CREATE));
-  mrb_define_const(mrb, operator_module, "TABLE_SELECT",
-                   mrb_fixnum_value(GRN_OP_TABLE_SELECT));
-  mrb_define_const(mrb, operator_module, "TABLE_SORT",
-                   mrb_fixnum_value(GRN_OP_TABLE_SORT));
-  mrb_define_const(mrb, operator_module, "TABLE_GROUP",
-                   mrb_fixnum_value(GRN_OP_TABLE_GROUP));
-  mrb_define_const(mrb, operator_module, "JSON_PUT",
-                   mrb_fixnum_value(GRN_OP_JSON_PUT));
-  mrb_define_const(mrb, operator_module, "GET_MEMBER",
-                   mrb_fixnum_value(GRN_OP_GET_MEMBER));
+  klass_obj = mrb_obj_value(klass);
+#define DEFINE_OPERATOR(name)                                   \
+  mrb_funcall(mrb, klass_obj, "register", 1,                    \
+              mrb_funcall(mrb, klass_obj, "new", 2,             \
+                          mrb_str_new_lit(mrb, #name),          \
+                          mrb_fixnum_value(GRN_OP_ ## name)))
+
+  DEFINE_OPERATOR(PUSH);
+  DEFINE_OPERATOR(POP);
+  DEFINE_OPERATOR(NOP);
+  DEFINE_OPERATOR(CALL);
+  DEFINE_OPERATOR(INTERN);
+  DEFINE_OPERATOR(GET_REF);
+  DEFINE_OPERATOR(GET_VALUE);
+  DEFINE_OPERATOR(AND);
+  DEFINE_OPERATOR(AND_NOT);
+  DEFINE_OPERATOR(OR);
+  DEFINE_OPERATOR(ASSIGN);
+  DEFINE_OPERATOR(STAR_ASSIGN);
+  DEFINE_OPERATOR(SLASH_ASSIGN);
+  DEFINE_OPERATOR(MOD_ASSIGN);
+  DEFINE_OPERATOR(PLUS_ASSIGN);
+  DEFINE_OPERATOR(MINUS_ASSIGN);
+  DEFINE_OPERATOR(SHIFTL_ASSIGN);
+  DEFINE_OPERATOR(SHIFTR_ASSIGN);
+  DEFINE_OPERATOR(SHIFTRR_ASSIGN);
+  DEFINE_OPERATOR(AND_ASSIGN);
+  DEFINE_OPERATOR(XOR_ASSIGN);
+  DEFINE_OPERATOR(OR_ASSIGN);
+  DEFINE_OPERATOR(JUMP);
+  DEFINE_OPERATOR(CJUMP);
+  DEFINE_OPERATOR(COMMA);
+  DEFINE_OPERATOR(BITWISE_OR);
+  DEFINE_OPERATOR(BITWISE_XOR);
+  DEFINE_OPERATOR(BITWISE_AND);
+  DEFINE_OPERATOR(BITWISE_NOT);
+  DEFINE_OPERATOR(EQUAL);
+  DEFINE_OPERATOR(NOT_EQUAL);
+  DEFINE_OPERATOR(LESS);
+  DEFINE_OPERATOR(GREATER);
+  DEFINE_OPERATOR(LESS_EQUAL);
+  DEFINE_OPERATOR(GREATER_EQUAL);
+  DEFINE_OPERATOR(IN);
+  DEFINE_OPERATOR(MATCH);
+  DEFINE_OPERATOR(NEAR);
+  DEFINE_OPERATOR(NEAR2);
+  DEFINE_OPERATOR(SIMILAR);
+  DEFINE_OPERATOR(TERM_EXTRACT);
+  DEFINE_OPERATOR(SHIFTL);
+  DEFINE_OPERATOR(SHIFTR);
+  DEFINE_OPERATOR(SHIFTRR);
+  DEFINE_OPERATOR(PLUS);
+  DEFINE_OPERATOR(MINUS);
+  DEFINE_OPERATOR(STAR);
+  DEFINE_OPERATOR(SLASH);
+  DEFINE_OPERATOR(MOD);
+  DEFINE_OPERATOR(DELETE);
+  DEFINE_OPERATOR(INCR);
+  DEFINE_OPERATOR(DECR);
+  DEFINE_OPERATOR(INCR_POST);
+  DEFINE_OPERATOR(DECR_POST);
+  DEFINE_OPERATOR(NOT);
+  DEFINE_OPERATOR(ADJUST);
+  DEFINE_OPERATOR(EXACT);
+  DEFINE_OPERATOR(LCP);
+  DEFINE_OPERATOR(PARTIAL);
+  DEFINE_OPERATOR(UNSPLIT);
+  DEFINE_OPERATOR(PREFIX);
+  DEFINE_OPERATOR(SUFFIX);
+  DEFINE_OPERATOR(GEO_DISTANCE1);
+  DEFINE_OPERATOR(GEO_DISTANCE2);
+  DEFINE_OPERATOR(GEO_DISTANCE3);
+  DEFINE_OPERATOR(GEO_DISTANCE4);
+  DEFINE_OPERATOR(GEO_WITHINP5);
+  DEFINE_OPERATOR(GEO_WITHINP6);
+  DEFINE_OPERATOR(GEO_WITHINP8);
+  DEFINE_OPERATOR(OBJ_SEARCH);
+  DEFINE_OPERATOR(EXPR_GET_VAR);
+  DEFINE_OPERATOR(TABLE_CREATE);
+  DEFINE_OPERATOR(TABLE_SELECT);
+  DEFINE_OPERATOR(TABLE_SORT);
+  DEFINE_OPERATOR(TABLE_GROUP);
+  DEFINE_OPERATOR(JSON_PUT);
+  DEFINE_OPERATOR(GET_MEMBER);
+  DEFINE_OPERATOR(REGEXP);
+
+#undef DEFINE_OPERATOR
 }
 #endif

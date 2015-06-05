@@ -1,5 +1,6 @@
-/* Copyright (c) 2000, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2013, Monty Program Ab.
+/*
+   Copyright (c) 2000, 2015, Oracle and/or its affiliates.
+   Copyright (c) 2009, 2015, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -37,6 +38,8 @@
 #include "violite.h"              /* vio_is_connected */
 #include "thr_lock.h"             /* thr_lock_type, THR_LOCK_DATA,
                                      THR_LOCK_INFO */
+#include "sql_digest_stream.h"            // sql_digest_state
+
 #include <mysql/psi/mysql_stage.h>
 #include <mysql/psi/mysql_statement.h>
 #include <mysql/psi/mysql_idle.h>
@@ -772,9 +775,6 @@ void add_to_status(STATUS_VAR *to_var, STATUS_VAR *from_var);
 void add_diff_to_status(STATUS_VAR *to_var, STATUS_VAR *from_var,
                         STATUS_VAR *dec_var);
 
-void mark_transaction_to_rollback(THD *thd, bool all);
-
-
 /**
   Get collation by name, send error to client on failure.
   @param name     Collation name
@@ -801,7 +801,6 @@ mysqld_collation_get_by_name(const char *name,
   }
   return cs;
 }
-
 
 #ifdef MYSQL_SERVER
 
@@ -2508,6 +2507,13 @@ public:
   PROFILING  profiling;
 #endif
 
+  /** Current statement digest. */
+  sql_digest_state *m_digest;
+  /** Current statement digest token array. */
+  unsigned char *m_token_array;
+  /** Top level statement digest. */
+  sql_digest_state m_digest_state;
+
   /** Current statement instrumentation. */
   PSI_statement_locker *m_statement_psi;
 #ifdef HAVE_PSI_STATEMENT_INTERFACE
@@ -2674,6 +2680,18 @@ public:
     it returned an error on master, and this is OK on the slave.
   */
   bool       is_slave_error;
+  /*
+    True when a transaction is queued up for binlog group commit.
+    Used so that if another transaction needs to wait for a row lock held by
+    this transaction, it can signal to trigger the group commit immediately,
+    skipping the normal --binlog-commit-wait-count wait.
+  */
+  bool waiting_on_group_commit;
+  /*
+    Set true when another transaction goes to wait on a row lock held by this
+    transaction. Used together with waiting_on_group_commit.
+  */
+  bool has_waiter;
   /*
     In case of a slave, set to the error code the master got when executing
     the query. 0 if no error on the master.
@@ -3101,6 +3119,8 @@ public:
     if (get_stmt_da()->is_error())
       get_stmt_da()->reset_diagnostics_area();
     is_slave_error= 0;
+    if (killed == KILL_BAD_DATA)
+      killed= NOT_KILLED; // KILL_BAD_DATA can be reset w/o a mutex
     DBUG_VOID_RETURN;
   }
 #ifndef EMBEDDED_LIBRARY
@@ -3682,7 +3702,17 @@ public:
     if (wait_for_commit_ptr)
       wait_for_commit_ptr->wakeup_subsequent_commits(wakeup_error);
   }
+  wait_for_commit *suspend_subsequent_commits() {
+    wait_for_commit *suspended= wait_for_commit_ptr;
+    wait_for_commit_ptr= NULL;
+    return suspended;
+  }
+  void resume_subsequent_commits(wait_for_commit *suspended) {
+    DBUG_ASSERT(!wait_for_commit_ptr);
+    wait_for_commit_ptr= suspended;
+  }
 
+  void mark_transaction_to_rollback(bool all);
 private:
 
   /** The current internal error handler for this thread, or NULL. */
@@ -4863,8 +4893,6 @@ public:
   sent by the user (ie: stored procedure).
 */
 #define CF_SKIP_QUESTIONS       (1U << 1)
-
-void mark_transaction_to_rollback(THD *thd, bool all);
 
 /* Inline functions */
 

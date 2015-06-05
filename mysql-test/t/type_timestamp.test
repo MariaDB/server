@@ -492,4 +492,31 @@ drop function f1;
 set timestamp=0;
 SET time_zone=DEFAULT;
 
+--echo #
+--echo # MDEV-7778 impossible create copy of table, if table contain default value for timestamp field
+--echo #
+
+SET sql_mode="NO_ZERO_DATE";
+CREATE TABLE t1 (
+  ts timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE t2 AS SELECT * from t1 LIMIT 0;
+SHOW CREATE TABLE t1;
+SHOW CREATE TABLE t2;
+DROP TABLE t1,t2;
+SET sql_mode=DEFAULT;
+
+--echo #
+--echo # MDEV-8082 ON UPDATE is not preserved by CREATE TABLE .. SELECT
+--echo #
+CREATE TABLE t1 (
+  vc VARCHAR(10) NOT NULL DEFAULT 'test',
+  ts timestamp NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP
+);
+CREATE TABLE t2 AS SELECT * FROM t1 LIMIT 0;
+SHOW CREATE TABLE t1;
+SHOW CREATE TABLE t2;
+DROP TABLE t1,t2;
+
+
 --echo End of 10.0 tests

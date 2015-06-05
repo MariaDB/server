@@ -1,6 +1,6 @@
 /* -*- c-basic-offset: 2 -*- */
 /*
-  Copyright(C) 2014 Brazil
+  Copyright(C) 2014-2015 Brazil
 
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -127,6 +127,13 @@ grn_mrb_value_from_bulk(mrb_state *mrb, grn_obj *bulk)
                                mrb_fixnum_value(usec));
     }
     break;
+  case GRN_DB_SHORT_TEXT :
+  case GRN_DB_TEXT :
+  case GRN_DB_LONG_TEXT :
+    mrb_value_ = mrb_str_new_static(mrb,
+                                    GRN_TEXT_VALUE(bulk),
+                                    GRN_TEXT_LEN(bulk));
+    break;
   default :
     {
 #define MESSAGE_SIZE 4096
@@ -141,14 +148,14 @@ grn_mrb_value_from_bulk(mrb_state *mrb, grn_obj *bulk)
                                         domain_name, GRN_TABLE_MAX_KEY_SIZE);
         grn_obj_unlink(ctx, domain);
       } else {
-        strcpy(domain_name, "unknown");
+        grn_strcpy(domain_name, GRN_TABLE_MAX_KEY_SIZE, "unknown");
         domain_name_size = strlen(domain_name);
       }
-      snprintf(message, MESSAGE_SIZE,
-               "unsupported bulk value type: <%d>(%.*s)",
-               bulk->header.domain,
-               domain_name_size,
-               domain_name);
+      grn_snprintf(message, MESSAGE_SIZE, MESSAGE_SIZE,
+                   "unsupported bulk value type: <%d>(%.*s)",
+                   bulk->header.domain,
+                   domain_name_size,
+                   domain_name);
       mrb_raise(mrb, E_RANGE_ERROR, message);
 #undef MESSAGE_SIZE
     }
@@ -156,6 +163,17 @@ grn_mrb_value_from_bulk(mrb_state *mrb, grn_obj *bulk)
   }
 
   return mrb_value_;
+}
+
+grn_bool
+grn_mrb_bulk_cast(mrb_state *mrb, grn_obj *from, grn_obj *to, grn_id domain_id)
+{
+  grn_ctx *ctx = (grn_ctx *)mrb->ud;
+  grn_rc rc;
+
+  grn_obj_reinit(ctx, to, domain_id, 0);
+  rc = grn_obj_cast(ctx, from, to, GRN_FALSE);
+  return rc == GRN_SUCCESS;
 }
 
 static mrb_value

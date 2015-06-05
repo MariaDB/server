@@ -375,7 +375,7 @@ struct lock_stack_t {
 	ulint		heap_no;		/*!< heap number if rec lock */
 };
 
-extern "C" void thd_report_wait_for(const MYSQL_THD thd, MYSQL_THD other_thd);
+extern "C" void thd_report_wait_for(MYSQL_THD thd, MYSQL_THD other_thd);
 extern "C" int thd_need_wait_for(const MYSQL_THD thd);
 extern "C"
 int thd_need_ordering_with(const MYSQL_THD thd, const MYSQL_THD other_thd);
@@ -2093,7 +2093,8 @@ lock_rec_add_to_queue(
 
 	ut_ad(lock_mutex_own());
 	ut_ad(caller_owns_trx_mutex == trx_mutex_own(trx));
-	ut_ad(dict_index_is_clust(index) || !dict_index_is_online_ddl(index));
+	ut_ad(dict_index_is_clust(index)
+	      || dict_index_get_online_status(index) != ONLINE_INDEX_CREATION);
 #ifdef UNIV_DEBUG
 	switch (type_mode & LOCK_MODE_MASK) {
 	case LOCK_X:
@@ -5549,7 +5550,7 @@ loop:
 		}
 	}
 
-        if (!srv_print_innodb_lock_monitor && !srv_show_locks_held) {
+	if (!srv_print_innodb_lock_monitor || !srv_show_locks_held) {
 		nth_trx++;
 		goto loop;
 	}

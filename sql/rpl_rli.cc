@@ -62,7 +62,7 @@ Relay_log_info::Relay_log_info(bool is_slave_recovery)
    group_master_log_pos(0), log_space_total(0), ignore_log_space_limit(0),
    last_master_timestamp(0), sql_thread_caught_up(true), slave_skip_counter(0),
    abort_pos_wait(0), slave_run_id(0), sql_driver_thd(),
-   inited(0), abort_slave(0), stop_for_until(0),
+   gtid_skip_flag(GTID_SKIP_NOT), inited(0), abort_slave(0), stop_for_until(0),
    slave_running(0), until_condition(UNTIL_NONE),
    until_log_pos(0), retried_trans(0), executed_entries(0),
    m_flags(0)
@@ -100,18 +100,9 @@ Relay_log_info::Relay_log_info(bool is_slave_recovery)
 
 Relay_log_info::~Relay_log_info()
 {
-  inuse_relaylog *cur;
   DBUG_ENTER("Relay_log_info::~Relay_log_info");
 
-  cur= inuse_relaylog_list;
-  while (cur)
-  {
-    DBUG_ASSERT(cur->queued_count == cur->dequeued_count);
-    inuse_relaylog *next= cur->next;
-    my_atomic_rwlock_destroy(&cur->inuse_relaylog_atomic_lock);
-    my_free(cur);
-    cur= next;
-  }
+  reset_inuse_relaylog();
   mysql_mutex_destroy(&run_lock);
   mysql_mutex_destroy(&data_lock);
   mysql_mutex_destroy(&log_space_lock);
@@ -1299,13 +1290,9 @@ bool Relay_log_info::is_until_satisfied(THD *thd, Log_event *ev)
 }
 
 
-void Relay_log_info::stmt_done(my_off_t event_master_log_pos,
-                               time_t event_creation_time, THD *thd,
+void Relay_log_info::stmt_done(my_off_t event_master_log_pos, THD *thd,
                                rpl_group_info *rgi)
 {
-#ifndef DBUG_OFF
-  extern uint debug_not_change_ts_if_art_event;
-#endif
   DBUG_ENTER("Relay_log_info::stmt_done");
 
   DBUG_ASSERT(rgi->rli == this);
@@ -1359,22 +1346,6 @@ void Relay_log_info::stmt_done(my_off_t event_master_log_pos,
     if (mi->using_gtid == Master_info::USE_GTID_NO)
       flush_relay_log_info(this);
     DBUG_EXECUTE_IF("inject_crash_after_flush_rli", DBUG_SUICIDE(););
-    /*
-      Note that Rotate_log_event::do_apply_event() does not call this
-      function, so there is no chance that a fake rotate event resets
-      last_master_timestamp.  Note that we update without mutex
-      (probably ok - except in some very rare cases, only consequence
-      is that value may take some time to display in
-      Seconds_Behind_Master - not critical).
-
-      In parallel replication, we take care to not set last_master_timestamp
-      backwards, in case of out-of-order calls here.
-    */
-    if (!(event_creation_time == 0 &&
-          IF_DBUG(debug_not_change_ts_if_art_event > 0, 1)) &&
-        !(rgi->is_parallel_exec && event_creation_time <= last_master_timestamp)
-        )
-        last_master_timestamp= event_creation_time;
   }
   DBUG_VOID_RETURN;
 }
@@ -1384,14 +1355,34 @@ int
 Relay_log_info::alloc_inuse_relaylog(const char *name)
 {
   inuse_relaylog *ir;
+  uint32 gtid_count;
+  rpl_gtid *gtid_list;
 
   if (!(ir= (inuse_relaylog *)my_malloc(sizeof(*ir), MYF(MY_WME|MY_ZEROFILL))))
   {
     my_error(ER_OUTOFMEMORY, MYF(0), (int)sizeof(*ir));
     return 1;
   }
+  gtid_count= relay_log_state.count();
+  if (!(gtid_list= (rpl_gtid *)my_malloc(sizeof(*gtid_list)*gtid_count,
+                                         MYF(MY_WME))))
+  {
+    my_free(ir);
+    my_error(ER_OUTOFMEMORY, MYF(0), (int)sizeof(*gtid_list)*gtid_count);
+    return 1;
+  }
+  if (relay_log_state.get_gtid_list(gtid_list, gtid_count))
+  {
+    my_free(gtid_list);
+    my_free(ir);
+    DBUG_ASSERT(0 /* Should not be possible as we allocated correct length */);
+    my_error(ER_OUT_OF_RESOURCES, MYF(0));
+    return 1;
+  }
   ir->rli= this;
   strmake_buf(ir->name, name);
+  ir->relay_log_state= gtid_list;
+  ir->relay_log_state_count= gtid_count;
 
   if (!inuse_relaylog_list)
     inuse_relaylog_list= ir;
@@ -1404,6 +1395,45 @@ Relay_log_info::alloc_inuse_relaylog(const char *name)
   my_atomic_rwlock_init(&ir->inuse_relaylog_atomic_lock);
 
   return 0;
+}
+
+
+void
+Relay_log_info::free_inuse_relaylog(inuse_relaylog *ir)
+{
+  my_free(ir->relay_log_state);
+  my_atomic_rwlock_destroy(&ir->inuse_relaylog_atomic_lock);
+  my_free(ir);
+}
+
+
+void
+Relay_log_info::reset_inuse_relaylog()
+{
+  inuse_relaylog *cur= inuse_relaylog_list;
+  while (cur)
+  {
+    DBUG_ASSERT(cur->queued_count == cur->dequeued_count);
+    inuse_relaylog *next= cur->next;
+    free_inuse_relaylog(cur);
+    cur= next;
+  }
+  inuse_relaylog_list= last_inuse_relaylog= NULL;
+}
+
+
+int
+Relay_log_info::update_relay_log_state(rpl_gtid *gtid_list, uint32 count)
+{
+  int res= 0;
+  while (count)
+  {
+    if (relay_log_state.update_nolock(gtid_list, false))
+      res= 1;
+    ++gtid_list;
+    --count;
+  }
+  return res;
 }
 
 
@@ -1719,7 +1749,7 @@ void rpl_group_info::cleanup_context(THD *thd, bool error)
     trans_rollback(thd);      // if a "real transaction"
     /*
       Now that we have rolled back the transaction, make sure we do not
-      errorneously update the GTID position.
+      erroneously update the GTID position.
     */
     gtid_pending= false;
   }

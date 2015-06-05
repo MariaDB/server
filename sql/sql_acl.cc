@@ -863,32 +863,30 @@ static char *fix_plugin_ptr(char *name)
 }
 
 /**
-  Fix ACL::plugin pointer to point to a hard-coded string, if appropriate
+  Fix a LEX_STRING *plugin pointer to point to a hard-coded string,
+  if appropriate
 
   Make sure that if ACL_USER's plugin is a built-in, then it points
   to a hard coded string, not to an allocated copy. Run-time, for
   authentication, we want to be able to detect built-ins by comparing
   pointers, not strings.
 
-  Additionally - update the salt if the plugin is built-in.
-
   @retval 0 the pointers were fixed
   @retval 1 this ACL_USER uses a not built-in plugin
 */
-static bool fix_user_plugin_ptr(ACL_USER *user)
+static bool fix_user_plugin_ptr(LEX_STRING *plugin_ptr)
 {
-  if (my_strcasecmp(system_charset_info, user->plugin.str,
+  DBUG_ASSERT(plugin_ptr);
+  if (my_strcasecmp(system_charset_info, plugin_ptr->str,
                     native_password_plugin_name.str) == 0)
-    user->plugin= native_password_plugin_name;
+    *plugin_ptr= native_password_plugin_name;
   else
-  if (my_strcasecmp(system_charset_info, user->plugin.str,
+  if (my_strcasecmp(system_charset_info, plugin_ptr->str,
                     old_password_plugin_name.str) == 0)
-    user->plugin= old_password_plugin_name;
+    *plugin_ptr= old_password_plugin_name;
   else
     return true;
 
-  if (user->auth_string.length)
-    set_user_salt(user, user->auth_string.str, user->auth_string.length);
   return false;
 }
 
@@ -964,6 +962,23 @@ my_bool acl_init(bool dont_read_acl_tables)
   /* Remember that we don't have a THD */
   set_current_thd(0);
   DBUG_RETURN(return_val);
+}
+
+/**
+  Check if the password length provided matches supported native formats.
+*/
+static bool password_length_valid(int password_length)
+{
+  switch (password_length)
+  {
+  case 0: /* no password */
+  case SCRAMBLED_PASSWORD_CHAR_LENGTH:
+    return TRUE;
+  case SCRAMBLED_PASSWORD_CHAR_LENGTH_323:
+    return TRUE;
+  default:
+    return FALSE;
+  }
 }
 
 /**
@@ -1257,22 +1272,43 @@ static my_bool acl_load(THD *thd, TABLE_LIST *tables)
           char *tmpstr= get_field(&acl_memroot, table->field[next_field++]);
           if (tmpstr)
           {
+            LEX_STRING auth;
+            auth.str = safe_str(get_field(&acl_memroot, table->field[next_field++]));
+            auth.length = strlen(auth.str);
             user.plugin.str= tmpstr;
             user.plugin.length= strlen(user.plugin.str);
-            user.auth_string.str=
-              safe_str(get_field(&acl_memroot, table->field[next_field++]));
-            user.auth_string.length= strlen(user.auth_string.str);
-
-            if (user.auth_string.length && password_len)
+            if (fix_user_plugin_ptr(&user.plugin)) // Non native plugin.
             {
-              sql_print_warning("'user' entry '%s@%s' has both a password "
-                                "and an authentication plugin specified. The "
-                                "password will be ignored.",
-                                safe_str(user.user.str),
-                                safe_str(user.host.hostname));
+              user.auth_string= auth;
+              if (password_len)
+              {
+                sql_print_warning("'user' entry '%s@%s' has both a password "
+                    "and an authentication plugin specified. The "
+                    "password will be ignored.",
+                    safe_str(user.user.str),
+                    safe_str(user.host.hostname));
+              }
             }
-
-            fix_user_plugin_ptr(&user);
+            else // Native plugin.
+            {
+              /*
+                Password field, if not empty, has precedence over
+                authentication_string field, only for native plugins.
+                See MDEV-6253 and MDEV-7985 for reasoning.
+              */
+              if (!password_len)
+              {
+                user.auth_string = auth;
+                if (!password_length_valid(auth.length))
+                {
+                  sql_print_warning("Found invalid password for user: '%s@%s';"
+                                    " Ignoring user", safe_str(user.user.str),
+                                    safe_str(user.host.hostname));
+                  continue;
+                }
+                set_user_salt(&user, auth.str, auth.length);
+              }
+            }
           }
         }
       }
@@ -1971,8 +2007,13 @@ static void acl_update_user(const char *user, const char *host,
         acl_user->auth_string.str= auth->str ?
           strmake_root(&acl_memroot, auth->str, auth->length) : const_cast<char*>("");
         acl_user->auth_string.length= auth->length;
-        if (fix_user_plugin_ptr(acl_user))
+        if (acl_user->plugin.str != native_password_plugin_name.str &&
+            acl_user->plugin.str != old_password_plugin_name.str)
           acl_user->plugin.str= strmake_root(&acl_memroot, plugin->str, plugin->length);
+        else
+          set_user_salt(acl_user, acl_user->auth_string.str,
+                                  acl_user->auth_string.length);
+
       }
       else
         if (password[0])
@@ -2047,8 +2088,12 @@ static void acl_insert_user(const char *user, const char *host,
     acl_user.auth_string.str= auth->str ?
       strmake_root(&acl_memroot, auth->str, auth->length) : const_cast<char*>("");
     acl_user.auth_string.length= auth->length;
-    if (fix_user_plugin_ptr(&acl_user))
+    if (acl_user.plugin.str != native_password_plugin_name.str &&
+        acl_user.plugin.str != old_password_plugin_name.str)
       acl_user.plugin.str= strmake_root(&acl_memroot, plugin->str, plugin->length);
+    else
+      set_user_salt(&acl_user, acl_user.auth_string.str,
+                               acl_user.auth_string.length);
   }
   else
   {
@@ -3014,17 +3059,20 @@ static int replace_user_table(THD *thd, TABLE *table, LEX_USER &combo,
 
   mysql_mutex_assert_owner(&acl_cache->lock);
 
+  size_t length_to_check = 0;
+  combo.password = combo.password.str ? combo.password : empty_lex_str;
   if (combo.password.str && combo.password.str[0])
+    length_to_check = combo.password.length;
+  else if (!fix_user_plugin_ptr(&combo.plugin))
   {
-    if (combo.password.length != SCRAMBLED_PASSWORD_CHAR_LENGTH &&
-        combo.password.length != SCRAMBLED_PASSWORD_CHAR_LENGTH_323)
-    {
+    length_to_check = combo.auth.length;
+  }
+
+  if (!password_length_valid(length_to_check))
+  {
       my_error(ER_PASSWD_LENGTH, MYF(0), SCRAMBLED_PASSWORD_CHAR_LENGTH);
       DBUG_RETURN(-1);
-    }
   }
-  else
-    combo.password= empty_lex_str;
 
   /* if the user table is not up to date, we can't handle role updates */
   if (table->s->fields <= ROLE_ASSIGN_COLUMN_IDX && handle_as_role)
@@ -8802,10 +8850,30 @@ static int handle_grant_struct(enum enum_acl_lists struct_no, bool drop,
     if (struct_no == ROLES_MAPPINGS_HASH)
     {
       const char* role= role_grant_pair->r_uname? role_grant_pair->r_uname: "";
-      if (user_from->is_role() ? strcmp(user_from->user.str, role) :
-          (strcmp(user_from->user.str, user) ||
-           my_strcasecmp(system_charset_info, user_from->host.str, host)))
-        continue;
+      if (user_from->is_role())
+      {
+        /* When searching for roles within the ROLES_MAPPINGS_HASH, we have
+           to check both the user field as well as the role field for a match.
+
+           It is possible to have a role granted to a role. If we are going
+           to modify the mapping entry, it needs to be done on either on the
+           "user" end (here represented by a role) or the "role" end. At least
+           one part must match.
+
+           If the "user" end has a not-empty host string, it can never match
+           as we are searching for a role here. A role always has an empty host
+           string.
+        */
+        if ((*host || strcmp(user_from->user.str, user)) &&
+            strcmp(user_from->user.str, role))
+          continue;
+      }
+      else
+      {
+        if (strcmp(user_from->user.str, user) ||
+            my_strcasecmp(system_charset_info, user_from->host.str, host))
+          continue;
+      }
     }
     else
     {

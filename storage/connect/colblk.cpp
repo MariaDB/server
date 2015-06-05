@@ -1,7 +1,11 @@
 /************* Colblk C++ Functions Source Code File (.CPP) ************/
 /*  Name: COLBLK.CPP  Version 2.1                                      */
 /*                                                                     */
+<<<<<<< HEAD
 /*  (C) Copyright to the author Olivier BERTRAND          1998-2015    */
+=======
+/*  (C) Copyright to the author Olivier BERTRAND          1998-2014    */
+>>>>>>> MariaDB/10.0
 /*                                                                     */
 /*  This file contains the COLBLK class functions.                     */
 /***********************************************************************/
@@ -111,7 +115,11 @@ bool COLBLK::Compare(PXOB xp)
 /***********************************************************************/
 /*  SetFormat: function used to set SELECT output format.              */
 /***********************************************************************/
+<<<<<<< HEAD
 bool COLBLK::SetFormat(PGLOBAL, FORMAT& fmt)
+=======
+bool COLBLK::SetFormat(PGLOBAL g, FORMAT& fmt)
+>>>>>>> MariaDB/10.0
   {
   fmt = Format;
 
@@ -175,7 +183,11 @@ bool COLBLK::InitValue(PGLOBAL g)
 /***********************************************************************/
 /*  SetBuffer: prepare a column block for write operation.             */
 /***********************************************************************/
+<<<<<<< HEAD
 bool COLBLK::SetBuffer(PGLOBAL g, PVAL, bool, bool)
+=======
+bool COLBLK::SetBuffer(PGLOBAL g, PVAL value, bool ok, bool check)
+>>>>>>> MariaDB/10.0
   {
   sprintf(g->Message, MSG(UNDEFINED_AM), "SetBuffer");
   return true;
@@ -214,7 +226,11 @@ void COLBLK::WriteColumn(PGLOBAL g)
 /***********************************************************************/
 /*  Make file output of a column descriptor block.                     */
 /***********************************************************************/
+<<<<<<< HEAD
 void COLBLK::Print(PGLOBAL, FILE *f, uint n)
+=======
+void COLBLK::Print(PGLOBAL g, FILE *f, uint n)
+>>>>>>> MariaDB/10.0
   {
   char m[64];
   int  i;
@@ -237,7 +253,11 @@ void COLBLK::Print(PGLOBAL, FILE *f, uint n)
 /***********************************************************************/
 /*  Make string output of a column descriptor block.                   */
 /***********************************************************************/
+<<<<<<< HEAD
 void COLBLK::Print(PGLOBAL, char *ps, uint)
+=======
+void COLBLK::Print(PGLOBAL g, char *ps, uint z)
+>>>>>>> MariaDB/10.0
   {
   sprintf(ps, "R%d.%s", To_Tdb->GetTdb_No(), Name);
   } // end of Print
@@ -297,9 +317,15 @@ FIDBLK::FIDBLK(PCOLUMN cp, OPVAL op) : SPCBLK(cp), Op(op)
   Buf_Type = TYPE_STRING;
   *Format.Type = 'C';
   Format.Length = Long;
+<<<<<<< HEAD
 #if defined(__WIN__)
   Format.Prec = 1;          // Case insensitive
 #endif   // __WIN__
+=======
+#if defined(WIN32)
+  Format.Prec = 1;          // Case insensitive
+#endif   // WIN32
+>>>>>>> MariaDB/10.0
   Constant = (!((PTDBASE)To_Tdb)->GetDef()->GetMultiple() &&
               To_Tdb->GetAmType() != TYPE_AM_PLG &&
               To_Tdb->GetAmType() != TYPE_AM_PLM);
@@ -347,7 +373,11 @@ TIDBLK::TIDBLK(PCOLUMN cp) : SPCBLK(cp)
 /***********************************************************************/
 /*  ReadColumn: what this routine does is to return the table ID.      */
 /***********************************************************************/
+<<<<<<< HEAD
 void TIDBLK::ReadColumn(PGLOBAL)
+=======
+void TIDBLK::ReadColumn(PGLOBAL g)
+>>>>>>> MariaDB/10.0
   {
   if (Tname == NULL) {
     Tname = (char*)To_Tdb->GetName();
@@ -406,7 +436,11 @@ SIDBLK::SIDBLK(PCOLUMN cp) : SPCBLK(cp)
 /***********************************************************************/
 /*  ReadColumn: what this routine does is to return the server ID.     */
 /***********************************************************************/
+<<<<<<< HEAD
 void SIDBLK::ReadColumn(PGLOBAL)
+=======
+void SIDBLK::ReadColumn(PGLOBAL g)
+>>>>>>> MariaDB/10.0
   {
 //if (Sname == NULL) {
     Sname = (char*)To_Tdb->GetServer();

@@ -19,13 +19,8 @@
 --source ../../include/mroonga/have_mroonga.inc
 --source ../../include/mroonga/have_mroonga_helper.inc
 
---disable_warnings
-DROP DATABASE IF EXISTS repair_test;
 CREATE DATABASE repair_test;
 USE repair_test;
-
-DROP TABLE IF EXISTS diaries;
---enable_warnings
 
 CREATE TABLE diaries (
   id INT PRIMARY KEY AUTO_INCREMENT,
@@ -44,10 +39,10 @@ SELECT * FROM diaries WHERE MATCH(body) AGAINST("starting");
 --remove_file $MYSQLD_DATADIR/repair_test.mrn
 --remove_file $MYSQLD_DATADIR/repair_test.mrn.001
 --remove_file $MYSQLD_DATADIR/repair_test.mrn.0000000
---remove_file $MYSQLD_DATADIR/repair_test.mrn.0000103
---remove_file $MYSQLD_DATADIR/repair_test.mrn.0000104
 --remove_file $MYSQLD_DATADIR/repair_test.mrn.0000105
---remove_file $MYSQLD_DATADIR/repair_test.mrn.0000105.c
+--remove_file $MYSQLD_DATADIR/repair_test.mrn.0000106
+--remove_file $MYSQLD_DATADIR/repair_test.mrn.0000107
+--remove_file $MYSQLD_DATADIR/repair_test.mrn.0000107.c
 
 FLUSH TABLES;
 

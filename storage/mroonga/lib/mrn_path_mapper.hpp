@@ -2,7 +2,7 @@
 /*
   Copyright(C) 2010 Tetsuro IKEDA
   Copyright(C) 2010-2013 Kentoku SHIBA
-  Copyright(C) 2011-2012 Kouhei Sutou <kou@clear-code.com>
+  Copyright(C) 2011-2015 Kouhei Sutou <kou@clear-code.com>
 
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -30,21 +30,23 @@ namespace mrn {
     static char *default_path_prefix;
     static char *default_mysql_data_home_path;
 
-    PathMapper(const char *mysql_path,
+    PathMapper(const char *original_mysql_path,
                const char *path_prefix=default_path_prefix,
                const char *mysql_data_home_path=default_mysql_data_home_path);
     const char *db_path();
     const char *db_name();
     const char *table_name();
     const char *mysql_table_name();
+    const char *mysql_path();
   private:
-    const char *mysql_path_;
+    const char *original_mysql_path_;
     const char *path_prefix_;
     const char *mysql_data_home_path_;
     char db_path_[MRN_MAX_PATH_SIZE];
     char db_name_[MRN_MAX_PATH_SIZE];
     char table_name_[MRN_MAX_PATH_SIZE];
     char mysql_table_name_[MRN_MAX_PATH_SIZE];
+    char mysql_path_[MRN_MAX_PATH_SIZE];
   };
 }
 

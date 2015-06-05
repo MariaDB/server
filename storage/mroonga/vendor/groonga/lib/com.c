@@ -328,10 +328,10 @@ grn_com_event_fin(grn_ctx *ctx, grn_com_event *ev)
 #ifndef USE_SELECT
   if (ev->events) { GRN_FREE(ev->events); }
 # ifdef USE_EPOLL
-  GRN_CLOSE(ev->epfd);
+  grn_close(ev->epfd);
 # endif /* USE_EPOLL */
 # ifdef USE_KQUEUE
-  GRN_CLOSE(ev->kqfd);
+  grn_close(ev->kqfd);
 # endif /* USE_KQUEUE*/
 #endif /* USE_SELECT */
   return GRN_SUCCESS;
@@ -528,7 +528,7 @@ grn_com_receiver(grn_ctx *ctx, grn_com *com)
     grn_msg *msg = (grn_msg *)grn_msg_open(ctx, com, &ev->recv_old);
     grn_com_recv(ctx, msg->u.peer, &msg->header, (grn_obj *)msg);
     if (msg->u.peer /* is_edge_request(msg)*/) {
-      memcpy(&msg->edge_id, &ev->curr_edge_id, sizeof(grn_com_addr));
+      grn_memcpy(&msg->edge_id, &ev->curr_edge_id, sizeof(grn_com_addr));
       if (!com->has_sid) {
         com->has_sid = 1;
         com->sid = ev->curr_edge_id.sid++;
@@ -560,11 +560,26 @@ grn_com_event_poll(grn_ctx *ctx, grn_com_event *ev, int timeout)
   FD_ZERO(&wfds);
   ctx->errlvl = GRN_OK;
   ctx->rc = GRN_SUCCESS;
-  GRN_HASH_EACH(ctx, ev->hash, eh, &pfd, &dummy, &com, {
-    if ((com->events & GRN_COM_POLLIN)) { FD_SET(*pfd, &rfds); }
-    if ((com->events & GRN_COM_POLLOUT)) { FD_SET(*pfd, &wfds); }
-    if (*pfd > nfds) { nfds = *pfd; }
-  });
+  {
+    grn_hash_cursor *cursor;
+    cursor = grn_hash_cursor_open(ctx, ev->hash, NULL, 0, NULL, 0, 0, -1, 0);
+    if (cursor) {
+      grn_id id;
+      while ((id = grn_hash_cursor_next(ctx, cursor))) {
+        grn_hash_cursor_get_key_value(ctx,
+                                      cursor,
+                                      (void **)(&pfd),
+                                      &dummy,
+                                      (void **)(&com));
+        if ((com->events & GRN_COM_POLLIN)) { FD_SET(*pfd, &rfds); }
+        if ((com->events & GRN_COM_POLLOUT)) { FD_SET(*pfd, &wfds); }
+# ifndef WIN32
+        if (*pfd > nfds) { nfds = *pfd; }
+# endif /* WIN32 */
+      }
+      grn_hash_cursor_close(ctx, cursor);
+    }
+  }
   nevents = select(nfds + 1, &rfds, &wfds, NULL, (timeout >= 0) ? &tv : NULL);
   if (nevents < 0) {
     SOERR("select");
@@ -926,7 +941,8 @@ grn_com_copen(grn_ctx *ctx, grn_com_event *ev, const char *dest, int port)
 #ifdef AI_NUMERICSERV
   hints.ai_flags = AI_NUMERICSERV;
 #endif
-  snprintf(port_string, sizeof(port_string), "%d", port);
+  grn_snprintf(port_string, sizeof(port_string), sizeof(port_string),
+               "%d", port);
 
   getaddrinfo_result = getaddrinfo(dest, port_string, &hints, &addrinfo_list);
   if (getaddrinfo_result != 0) {
@@ -1034,7 +1050,8 @@ grn_com_sopen(grn_ctx *ctx, grn_com_event *ev,
   if (!bind_address) {
     bind_address = "0.0.0.0";
   }
-  snprintf(port_string, sizeof(port_string), "%d", port);
+  grn_snprintf(port_string, sizeof(port_string), sizeof(port_string),
+               "%d", port);
   memset(&hints, 0, sizeof(struct addrinfo));
   hints.ai_family = PF_UNSPEC;
   hints.ai_socktype = SOCK_STREAM;
@@ -1069,7 +1086,7 @@ grn_com_sopen(grn_ctx *ctx, grn_com_event *ev,
     SOERR("socket");
     goto exit;
   }
-  memcpy(&ev->curr_edge_id.addr, he->h_addr, he->h_length);
+  grn_memcpy(&ev->curr_edge_id.addr, he->h_addr, he->h_length);
   ev->curr_edge_id.port = htons(port);
   ev->curr_edge_id.sid = 0;
   {

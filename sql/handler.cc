@@ -1545,7 +1545,10 @@ commit_one_phase_2(THD *thd, bool all, THD_TRANS *trans, bool is_real_trans)
   }
   /* Free resources and perform other cleanup even for 'empty' transactions. */
   if (is_real_trans)
+  {
+    thd->has_waiter= false;
     thd->transaction.cleanup();
+  }
 
   DBUG_RETURN(error);
 }
@@ -1626,7 +1629,10 @@ int ha_rollback_trans(THD *thd, bool all)
 
   /* Always cleanup. Even if nht==0. There may be savepoints. */
   if (is_real_trans)
+  {
+    thd->has_waiter= false;
     thd->transaction.cleanup();
+  }
   if (all)
     thd->transaction_rollback_request= FALSE;
 
@@ -6296,3 +6302,22 @@ fl_create_iterator(enum handler_iterator_type type,
   }
 }
 #endif /*TRANS_LOG_MGM_EXAMPLE_CODE*/
+
+
+bool HA_CREATE_INFO::check_conflicting_charset_declarations(CHARSET_INFO *cs)
+{
+  if ((used_fields & HA_CREATE_USED_DEFAULT_CHARSET) &&
+      /* DEFAULT vs explicit, or explicit vs DEFAULT */
+      (((default_table_charset == NULL) != (cs == NULL)) ||
+      /* Two different explicit character sets */
+       (default_table_charset && cs &&
+        !my_charset_same(default_table_charset, cs))))
+  {
+    my_error(ER_CONFLICTING_DECLARATIONS, MYF(0),
+             "CHARACTER SET ", default_table_charset ?
+                               default_table_charset->csname : "DEFAULT",
+             "CHARACTER SET ", cs ? cs->csname : "DEFAULT");
+    return true;
+  }
+  return false;
+}
