@@ -65,7 +65,7 @@ sub searchd_start {
   # First we must run the indexer to create the data.
   my $sphinx_data_dir= "$::opt_vardir/" . $sphinx->name();
   mkpath($sphinx_data_dir);
-  my $sphinx_log= $sphinx->value('#log-error');
+  my $sphinx_log= $sphinx->value('log');
   my $sphinx_config= "$::opt_vardir/my_sphinx.conf";
   my $cmd= "\"$exe_sphinx_indexer\" --config \"$sphinx_config\" test1 > \"$sphinx_log\" 2>&1";
   &::mtr_verbose("cmd: $cmd");
@@ -77,6 +77,8 @@ sub searchd_start {
   &::mtr_add_arg($args, "--config");
   &::mtr_add_arg($args, $sphinx_config);
   &::mtr_add_arg($args, "--console");
+  &::mtr_add_arg($args, "--port");
+  &::mtr_add_arg($args, $ENV{SPHINXSEARCH_PORT});
   &::mtr_add_arg($args, "--pidfile");
 
   $sphinx->{'proc'}= My::SafeProcess->new
