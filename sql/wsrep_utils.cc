@@ -165,9 +165,10 @@ env::append(const char* val)
             ++len_;
             env_[len_] = NULL;
         }
-        else errno_ = errno;
     }
-    else errno_ = errno;
+
+    /* if either realloc() or strdup() failed, errno had been set */
+    errno_ = errno;
 
     return errno_;
 }

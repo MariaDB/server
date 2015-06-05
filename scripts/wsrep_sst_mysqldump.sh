@@ -76,6 +76,17 @@ fi
 # word, it is arguably more secure than passing password on the command line.
 [ -n "$WSREP_SST_OPT_PSWD" ] && export MYSQL_PWD="$WSREP_SST_OPT_PSWD"
 
+# Refs https://github.com/codership/mysql-wsrep/issues/141
+# Passing password in MYSQL_PWD environment variable is considered
+# "extremely insecure" by MySQL Guidelines for Password Security
+# (https://dev.mysql.com/doc/refman/5.6/en/password-security-user.html)
+# that is even less secure than passing it on a command line! It is doubtful:
+# the whole command line is easily observable by any unprivileged user via ps,
+# whereas (at least on Linux) unprivileged user can't see process environment
+# that he does not own. So while it may be not secure in the NSA sense of the
+# word, it is arguably more secure than passing password on the command line.
+[ -n "$WSREP_SST_OPT_PSWD" ] && export MYSQL_PWD="$WSREP_SST_OPT_PSWD"
+
 STOP_WSREP="SET wsrep_on=OFF;"
 
 # mysqldump cannot restore CSV tables, fix this issue
