@@ -203,6 +203,10 @@ ANALYZE
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
     "filesort": {
+      "r_loops": 1,
+      "r_limit": 4,
+      "r_used_priority_queue": true,
+      "r_output_rows": 4,
       "temporary_table": {
         "table": {
           "table_name": "t0",
@@ -314,6 +318,47 @@ ANALYZE
       "r_total_time_ms": "REPLACED",
       "filtered": 100,
       "r_filtered": 100
+    }
+  }
+}
+drop table t2;
+create table t2 (
+a int,
+b int,
+c int
+);
+insert into t2 
+select 
+a.a+10*b.a+100*c.a, 
+b.a+10*c.a, 
+c.a
+from t0 a, t0 b, t0 c;
+analyze format=json 
+select MAX(b) from t2 where mod(a,2)=0 group by c;
+ANALYZE
+{
+  "query_block": {
+    "select_id": 1,
+    "r_loops": 1,
+    "r_total_time_ms": "REPLACED",
+    "filesort": {
+      "r_loops": 1,
+      "r_used_priority_queue": false,
+      "r_output_rows": 10,
+      "r_buffer_size": "REPLACED",
+      "temporary_table": {
+        "table": {
+          "table_name": "t2",
+          "access_type": "ALL",
+          "r_loops": 1,
+          "rows": 1000,
+          "r_rows": 1000,
+          "r_total_time_ms": "REPLACED",
+          "filtered": 100,
+          "r_filtered": 50,
+          "attached_condition": "((t2.a % 2) = 0)"
+        }
+      }
     }
   }
 }

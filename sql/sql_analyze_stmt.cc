@@ -23,7 +23,7 @@
 #include "sql_select.h"
 #include "my_json_writer.h"
 
-void Filesort_tracker::print_json(Json_writer *writer)
+void Filesort_tracker::print_json_members(Json_writer *writer)
 {
   const char *varied_str= "(varied across executions)";
   writer->add_member("r_loops").add_ll(r_loops);
@@ -58,5 +58,58 @@ void Filesort_tracker::print_json(Json_writer *writer)
     else
       writer->add_size(sort_buffer_size);
   }
+}
+
+
+/* 
+  Report that we are doing a filesort. 
+    @return 
+      Tracker object to be used with filesort
+*/
+
+Filesort_tracker *Sort_and_group_tracker::report_sorting()
+{
+  DBUG_ASSERT(cur_action < MAX_QEP_ACTIONS);
+
+  if (total_actions)
+  {
+    /* This is not the first execution. Check */
+    if (qep_actions[cur_action] != EXPL_ACTION_FILESORT)
+    {
+      varied_executions= true;
+      cur_action++;
+      if (!dummy_fsort_tracker)
+        dummy_fsort_tracker= new (current_thd->mem_root) Filesort_tracker();
+      return dummy_fsort_tracker;
+    }
+    return qep_actions_data[cur_action++].filesort_tracker;
+  }
+
+  Filesort_tracker *fs_tracker= new(current_thd->mem_root)Filesort_tracker();
+  qep_actions_data[cur_action].filesort_tracker= fs_tracker;
+  qep_actions[cur_action++]= EXPL_ACTION_FILESORT;
+
+  return fs_tracker;
+}
+
+
+void Sort_and_group_tracker::report_tmp_table(TABLE *tbl)
+{
+  DBUG_ASSERT(cur_action < MAX_QEP_ACTIONS);
+  if (total_actions)
+  {
+    /* This is not the first execution. Check if the steps match.  */
+    // todo: should also check that tmp.table kinds are the same.
+    if (qep_actions[cur_action] != EXPL_ACTION_TEMPTABLE)
+      varied_executions= true;
+  }
+
+  if (!varied_executions)
+  {
+    qep_actions[cur_action]= EXPL_ACTION_TEMPTABLE;
+    // qep_actions_data[cur_action]= ....
+  }
+  
+  cur_action++;
 }
 

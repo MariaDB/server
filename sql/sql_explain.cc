@@ -770,47 +770,62 @@ void Explain_select::print_explain_json(Explain_query *query,
     }
      
     Filesort_tracker *first_table_sort= NULL;
+    bool first_table_sort_used= false;
     int started_objects= 0;
 
     if (is_analyze)
     {
       /* ANALYZE has collected this part of query plan independently */
-      for (int i= ops_tracker.n_actions-1; i >= 0; i--)
+      if (ops_tracker.had_varied_executions())
       {
-        if (ops_tracker.qep_actions[i] == EXPL_ACTION_FILESORT)
+        writer->add_member("varied-sort-and-tmp").start_object();
+        started_objects++;
+      }
+      else
+      {
+        Sort_and_group_tracker::Iterator iter(&ops_tracker);
+        enum_qep_action action;
+        Filesort_tracker *fs_tracker;
+
+        while ((action= iter.get_next(&fs_tracker)) != EXPL_ACTION_EOF)
         {
-          if (i == 0)
+          if (action == EXPL_ACTION_FILESORT)
           {
-            /* filesort operation was the first in the pipeline */
-            first_table_sort= &ops_tracker.filesort_tracker[0];
-            break;
+            if (iter.is_last_element())
+            {
+              first_table_sort= fs_tracker;
+              break;
+            }
+            writer->add_member("filesort").start_object();
+            started_objects++;
+            fs_tracker->print_json_members(writer);
           }
-          writer->add_member("filesort").start_object();
-          started_objects++;
-        }
-        else if (ops_tracker.qep_actions[i] == EXPL_ACTION_TEMPTABLE)
-        {
-          writer->add_member("temporary_table").start_object();
-          started_objects++;
-          /*
-          if (tmp == EXPL_TMP_TABLE_BUFFER)
-            func= "buffer";
-          else if (tmp == EXPL_TMP_TABLE_GROUP)
-            func= "group-by";
+          else if (action == EXPL_ACTION_TEMPTABLE)
+          {
+            writer->add_member("temporary_table").start_object();
+            started_objects++;
+            /*
+            if (tmp == EXPL_TMP_TABLE_BUFFER)
+              func= "buffer";
+            else if (tmp == EXPL_TMP_TABLE_GROUP)
+              func= "group-by";
+            else
+              func= "distinct";
+            writer->add_member("function").add_str(func);
+           */
+          }
+          else if (action == EXPL_ACTION_REMOVE_DUPS)
+          {
+            writer->add_member("duplicate_removal").start_object();
+            started_objects++;
+          }
           else
-            func= "distinct";
-          writer->add_member("function").add_str(func);
-         */
+            DBUG_ASSERT(0);
         }
-        else if (ops_tracker.qep_actions[i] == EXPL_ACTION_REMOVE_DUPS)
-        {
-          writer->add_member("duplicate_removal").start_object();
-          started_objects++;
-        }
-        else
-          DBUG_ASSERT(0);
       }
 
+      if (first_table_sort)
+        first_table_sort_used= true;
     }
     else
     {
@@ -828,13 +843,15 @@ void Explain_select::print_explain_json(Explain_query *query,
       }
       else
       {
+        fprintf(stderr, "Weird!\n");
         if (using_filesort)
-          first_table_sort= &ops_tracker.filesort_tracker[0];
+          first_table_sort_used= true;
       }
     }
-      
+    
     Explain_basic_join::print_explain_json_interns(query, writer, is_analyze,
-                                                   first_table_sort);
+                                                   first_table_sort,
+                                                   first_table_sort_used);
 
     for (;started_objects; started_objects--)
       writer->end_object();
@@ -852,7 +869,7 @@ void Explain_basic_join::print_explain_json(Explain_query *query,
   writer->add_member("query_block").start_object();
   writer->add_member("select_id").add_ll(select_id);
   
-  print_explain_json_interns(query, writer, is_analyze, NULL);
+  print_explain_json_interns(query, writer, is_analyze, NULL, false);
 
   writer->end_object();
 }
@@ -862,7 +879,8 @@ void Explain_basic_join::
 print_explain_json_interns(Explain_query *query, 
                            Json_writer *writer, 
                            bool is_analyze,
-                           Filesort_tracker *first_table_sort)
+                           Filesort_tracker *first_table_sort,
+                           bool first_table_sort_used)
 {
   Json_writer_nesting_guard guard(writer);
   for (uint i=0; i< n_join_tabs; i++)
@@ -871,7 +889,11 @@ print_explain_json_interns(Explain_query *query,
       writer->add_member("duplicates_removal").start_object();
 
     join_tabs[i]->print_explain_json(query, writer, is_analyze,
-                                     (i==0)? first_table_sort : NULL);
+                                     first_table_sort,
+                                     first_table_sort_used);
+
+    first_table_sort= NULL;
+    first_table_sort_used= false;
 
     if (join_tabs[i]->end_dups_weedout)
       writer->end_object();
@@ -1314,11 +1336,12 @@ void add_json_keyset(Json_writer *writer, const char *elem_name,
 void Explain_table_access::print_explain_json(Explain_query *query,
                                               Json_writer *writer,
                                               bool is_analyze,
-                                              Filesort_tracker *fs_tracker)
+                                              Filesort_tracker *fs_tracker,
+                                              bool first_table_sort_used)
 {
   Json_writer_nesting_guard guard(writer);
   
-  if (fs_tracker)
+  if (first_table_sort_used)
   {
     /* filesort was invoked on this join tab before doing the join with the rest */
     writer->add_member("read_sorted_file").start_object();
@@ -1346,7 +1369,7 @@ void Explain_table_access::print_explain_json(Explain_query *query,
     }
     writer->add_member("filesort").start_object();
     if (is_analyze)
-      fs_tracker->print_json(writer);
+      fs_tracker->print_json_members(writer);
   }
 
   if (bka_type.is_using_jbuf())
@@ -1537,7 +1560,7 @@ void Explain_table_access::print_explain_json(Explain_query *query,
     writer->end_object();
   }
 
-  if (fs_tracker)
+  if (first_table_sort_used)
   {
     writer->end_object(); // filesort
     writer->end_object(); // read_sorted_file
@@ -1976,7 +1999,7 @@ void Explain_update::print_explain_json(Explain_query *query,
   {
     writer->add_member("filesort").start_object();
     if (is_analyze)
-      filesort_tracker->print_json(writer);
+      filesort_tracker->print_json_members(writer);
     doing_buffering= true;
   }
 

@@ -171,7 +171,8 @@ public:
 
   void print_explain_json_interns(Explain_query *query, Json_writer *writer,
                                   bool is_analyze, 
-                                  Filesort_tracker *first_table_sort);
+                                  Filesort_tracker *first_table_sort,
+                                  bool first_table_sort_used);
 
   /* A flat array of Explain structs for tables. */
   Explain_table_access** join_tabs;
@@ -704,7 +705,9 @@ public:
                     uint select_id, const char *select_type,
                     bool using_temporary, bool using_filesort);
   void print_explain_json(Explain_query *query, Json_writer *writer,
-                          bool is_analyze, Filesort_tracker *fs_tracker);
+                          bool is_analyze, 
+                          Filesort_tracker *fs_tracker,
+                          bool first_table_sort_used);
 
 private:
   void append_tag_name(String *str, enum explain_extra_tag tag);
