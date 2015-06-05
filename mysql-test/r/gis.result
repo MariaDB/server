@@ -1,4 +1,3 @@
-DROP TABLE IF EXISTS t1, gis_point, gis_line, gis_polygon, gis_multi_point, gis_multi_line, gis_multi_polygon, gis_geometrycollection, gis_geometry;
 CREATE TABLE gis_point  (fid INTEGER NOT NULL PRIMARY KEY, g POINT);
 CREATE TABLE gis_line  (fid INTEGER NOT NULL PRIMARY KEY, g LINESTRING);
 CREATE TABLE gis_polygon   (fid INTEGER NOT NULL PRIMARY KEY, g POLYGON);
@@ -404,7 +403,7 @@ Equals(g1.g, g2.g) as e, Disjoint(g1.g, g2.g) as d, Touches(g1.g, g2.g) as t,
 Intersects(g1.g, g2.g) as i, Crosses(g1.g, g2.g) as r
 FROM gis_geometrycollection g1, gis_geometrycollection g2 ORDER BY first, second;
 first	second	w	c	o	e	d	t	i	r
-120	120	1	1	0	1	0	1	1	0
+120	120	1	1	0	1	0	0	1	0
 120	121	0	0	1	0	0	0	1	0
 120	122	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
 120	123	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
@@ -489,7 +488,7 @@ explain extended select issimple(MultiPoint(Point(3, 6), Point(4, 10))), issimpl
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
-Note	1003	select st_issimple(st_multipoint(st_point(3,6),st_point(4,10))) AS `issimple(MultiPoint(Point(3, 6), Point(4, 10)))`,st_issimple(st_point(3,6)) AS `issimple(Point(3, 6))`
+Note	1003	select st_issimple(st_multipoint(point(3,6),point(4,10))) AS `issimple(MultiPoint(Point(3, 6), Point(4, 10)))`,st_issimple(point(3,6)) AS `issimple(Point(3, 6))`
 create table t1 (a geometry not null);
 insert into t1 values (GeomFromText('Point(1 2)'));
 insert into t1 values ('Garbage');
@@ -1378,7 +1377,7 @@ SELECT IsRing(LineFromWKB(AsBinary(Boundary(boundary)),SRID(boundary)))
 FROM named_places 
 WHERE name = 'Goose Island';
 IsRing(LineFromWKB(AsBinary(Boundary(boundary)),SRID(boundary)))
-0
+1
 # Conformance Item T21 
 SELECT GLength(centerline) 
 FROM road_segments 
@@ -1619,11 +1618,16 @@ insert into t1 values(geomfromtext("POINT(0 9.2233720368548e18)"));
 select equals(`a`,convert(`a` using utf8)) from `t1`;
 equals(`a`,convert(`a` using utf8))
 1
-NULL
-NULL
+0
+0
 Warnings:
-Warning	1300	Invalid utf8 character string: 'E043'
-Warning	1300	Invalid utf8 character string: 'E043'
+Warning	1300	Invalid utf8 character string: '\xE0C'
+Warning	1300	Invalid utf8 character string: '\xE0C'
+select equals(`a`,left(`a`,23)) from `t1`;
+equals(`a`,left(`a`,23))
+NULL
+NULL
+NULL
 drop table t1;
 #
 # MDEV-6883 ST_WITHIN crashes server if (0,0) is matched to POLYGON((0 0))
@@ -1686,6 +1690,17 @@ create table t1 (pt point);
 insert into t1 values(Geomfromtext('POLYGON((1 1, 2 2, 2 1, 1 1))'));
 ERROR 22007: Incorrect POINT value: 'POLYGON' for column 'pt' at row 1
 drop table t1;
+SELECT st_astext(ST_Buffer(ST_PolygonFromText('POLYGON((3 5, 2 4, 2 5, 3 5))'), -100));
+st_astext(ST_Buffer(ST_PolygonFromText('POLYGON((3 5, 2 4, 2 5, 3 5))'), -100))
+GEOMETRYCOLLECTION EMPTY
+CREATE VIEW v1 AS SELECT POINT(1,1) AS p;
+SHOW CREATE VIEW v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select point(1,1) AS `p`	latin1	latin1_swedish_ci
+SELECT ASTEXT(p) FROM v1;
+ASTEXT(p)
+POINT(1 1)
+DROP VIEW v1;
 End of 5.5 tests
 SHOW CREATE TABLE information_schema.geometry_columns;
 Table	Create Table
@@ -1729,3 +1744,69 @@ SRID
 0
 102
 drop table t1;
+# Expect an int(1) column to be created
+CREATE TABLE t1 AS SELECT CONTAINS(NULL, NULL);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `CONTAINS(NULL, NULL)` int(1) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+#
+# MDEV-7334 valgrind warning "unitialized bytes" in 10.1.
+#
+CREATE TABLE t1 (
+gp  point,
+ln  linestring,
+pg  polygon,
+mp  multipoint,
+mln multilinestring,
+mpg multipolygon,
+gc  geometrycollection,
+gm  geometry
+);
+ALTER TABLE t1 ADD fid INT NOT NULL;
+select SRID from information_schema.geometry_columns where F_TABLE_NAME='t1';
+SRID
+0
+0
+0
+0
+0
+0
+0
+0
+drop table t1;
+#
+# MDEV-7510 GIS: IsRing returns false for a primitive triangle.
+#
+select ST_IsRing(ST_LineFromText('LINESTRING(0 0,0 10,10 10,0 0)'));
+ST_IsRing(ST_LineFromText('LINESTRING(0 0,0 10,10 10,0 0)'))
+1
+select ST_IsRing(ST_LineFromText('LINESTRING(0 0,0 10,10 10,-10 -10, 0 -10, 0 0)'));
+ST_IsRing(ST_LineFromText('LINESTRING(0 0,0 10,10 10,-10 -10, 0 -10, 0 0)'))
+0
+#
+# MDEV-7514 GIS: PointOnSurface returns NULL instead of the point.
+#
+SELECT ST_GEOMETRYTYPE(ST_PointOnSurface(ST_PolyFromText('POLYGON((-70.916 42.1002,-70.9468 42.0946,-70.9754 42.0875,-70.9749 42.0879,-70.9759 42.0897,-70.916 42.1002))')));
+ST_GEOMETRYTYPE(ST_PointOnSurface(ST_PolyFromText('POLYGON((-70.916 42.1002,-70.9468 42.0946,-70.9754 42.0875,-70.9749 42.0879,-70.9759 42.0897,-70.916 42.1002))')))
+NULL
+#
+# MDEV-7529 GIS: ST_Relate returns unexpected results for POINT relations
+#
+select ST_Relate(ST_PointFromText('POINT(0 0)'),ST_PointFromText('POINT(0 0)'),'T*F**FFF*') AS equals;
+equals
+1
+select ST_Relate(ST_PointFromText('POINT(0 0)'),ST_PointFromText('POINT(0 0)'),'T*****FF*') AS contains;
+contains
+1
+select ST_Relate(ST_PointFromText('POINT(0 0)'),ST_PointFromText('POINT(0 0)'),'T*F**F***') AS within;
+within
+1
+select ST_Relate(ST_PointFromText('POINT(0 0)'),ST_PointFromText('POINT(1 1)'),'FF*FF****') as disjoint;
+disjoint
+1
+select ST_Relate(ST_PointFromText('POINT(0 0)'),ST_PointFromText('POINT(0 0)'),'FF*FF****') as disjoint;
+disjoint
+0

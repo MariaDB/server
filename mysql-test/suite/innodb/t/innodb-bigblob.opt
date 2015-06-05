@@ -1,0 +1,2 @@
+--max-allowed-packet=128M
+--innodb-log-file-size=210M

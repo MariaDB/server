@@ -2356,105 +2356,121 @@ void Item_char_typecast::print(String *str, enum_query_type query_type)
   str->append(')');
 }
 
+
+void Item_char_typecast::check_truncation_with_warn(String *src, uint dstlen)
+{
+  if (dstlen < src->length())
+  {
+    char char_type[40];
+    my_snprintf(char_type, sizeof(char_type), "%s(%lu)",
+                cast_cs == &my_charset_bin ? "BINARY" : "CHAR",
+                (ulong) cast_length);
+    ErrConvString err(src);
+    push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
+                        ER_TRUNCATED_WRONG_VALUE,
+                        ER(ER_TRUNCATED_WRONG_VALUE), char_type,
+                        err.ptr());
+  }
+}
+
+
+String *Item_char_typecast::reuse(String *src, uint32 length)
+{
+  DBUG_ASSERT(length <= src->length());
+  check_truncation_with_warn(src, length);
+  tmp_value.set(src->ptr(), length, cast_cs);
+  return &tmp_value;
+}
+
+
+/*
+  Make a copy, to handle conversion or fix bad bytes.
+*/
+String *Item_char_typecast::copy(String *str, CHARSET_INFO *strcs)
+{
+  String_copier_for_item copier(current_thd);
+  if (copier.copy_with_warn(cast_cs, &tmp_value, strcs,
+                            str->ptr(), str->length(), cast_length))
+  {
+    null_value= 1; // In strict mode: malformed data or could not convert
+    return 0;
+  }
+  check_truncation_with_warn(str, copier.source_end_pos() - str->ptr());
+  return &tmp_value;
+}
+
+
+uint Item_char_typecast::adjusted_length_with_warn(uint length)
+{
+  if (length <= current_thd->variables.max_allowed_packet)
+    return length;
+  push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
+                      ER_WARN_ALLOWED_PACKET_OVERFLOWED,
+                      ER(ER_WARN_ALLOWED_PACKET_OVERFLOWED),
+                      cast_cs == &my_charset_bin ?
+                      "cast_as_binary" : func_name(),
+                      current_thd->variables.max_allowed_packet);
+  return current_thd->variables.max_allowed_packet;
+}
+
+
 String *Item_char_typecast::val_str(String *str)
 {
   DBUG_ASSERT(fixed == 1);
   String *res;
-  uint32 length;
 
-  if (cast_length != ~0U &&
-      cast_length > current_thd->variables.max_allowed_packet)
+  if (has_explicit_length())
+    cast_length= adjusted_length_with_warn(cast_length);
+
+  if (!(res= args[0]->val_str(str)))
   {
-    push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
-			ER_WARN_ALLOWED_PACKET_OVERFLOWED,
-			ER(ER_WARN_ALLOWED_PACKET_OVERFLOWED),
-			cast_cs == &my_charset_bin ?
-                        "cast_as_binary" : func_name(),
-                        current_thd->variables.max_allowed_packet);
-    cast_length= current_thd->variables.max_allowed_packet;
+    null_value= 1;
+    return 0;
   }
 
-  if (!charset_conversion)
+  if (cast_cs == &my_charset_bin &&
+      has_explicit_length() &&
+      cast_length > res->length())
   {
-    if (!(res= args[0]->val_str(str)))
+    // Special case: pad binary value with trailing 0x00
+    DBUG_ASSERT(cast_length <= current_thd->variables.max_allowed_packet);
+    if (res->alloced_length() < cast_length)
     {
-      null_value= 1;
-      return 0;
+      str_value.alloc(cast_length);
+      str_value.copy(*res);
+      res= &str_value;
     }
+    bzero((char*) res->ptr() + res->length(), cast_length - res->length());
+    res->length(cast_length);
+    res->set_charset(&my_charset_bin);
   }
   else
   {
     /*
-      Convert character set if differ
       from_cs is 0 in the case where the result set may vary between calls,
       for example with dynamic columns.
     */
-    uint dummy_errors;
-    if (!(res= args[0]->val_str(str)) ||
-        tmp_value.copy(res->ptr(), res->length(),
-                       from_cs ? from_cs  : res->charset(),
-                       cast_cs, &dummy_errors))
+    CHARSET_INFO *cs= from_cs ? from_cs : res->charset();
+    if (!charset_conversion)
     {
-      null_value= 1;
-      return 0;
-    }
-    res= &tmp_value;
-  }
-
-  res->set_charset(cast_cs);
-
-  /*
-    Cut the tail if cast with length
-    and the result is longer than cast length, e.g.
-    CAST('string' AS CHAR(1))
-  */
-  if (cast_length != ~0U)
-  {
-    if (res->length() > (length= (uint32) res->charpos(cast_length)))
-    {                                           // Safe even if const arg
-      char char_type[40];
-      my_snprintf(char_type, sizeof(char_type), "%s(%lu)",
-                  cast_cs == &my_charset_bin ? "BINARY" : "CHAR",
-                  (ulong) length);
-
-      if (!res->alloced_length())
-      {                                         // Don't change const str
-        str_value= *res;                        // Not malloced string
-        res= &str_value;
-      }
-      ErrConvString err(res);
-      push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
-                          ER_TRUNCATED_WRONG_VALUE,
-                          ER(ER_TRUNCATED_WRONG_VALUE), char_type,
-                          err.ptr());
-      res->length((uint) length);
-    }
-    else if (cast_cs == &my_charset_bin && res->length() < cast_length)
-    {
-      if (res->alloced_length() < cast_length)
+      // Try to reuse the original string (if well formed).
+      MY_STRCOPY_STATUS status;
+      cs->cset->well_formed_char_length(cs, res->ptr(), res->end(),
+                                        cast_length, &status);
+      if (!status.m_well_formed_error_pos)
       {
-        str_value.alloc(cast_length);
-        str_value.copy(*res);
-        res= &str_value;
+        res= reuse(res, status.m_source_end_pos - res->ptr());
       }
-      bzero((char*) res->ptr() + res->length(), cast_length - res->length());
-      res->length(cast_length);
+      goto end;
     }
+    // Character set conversion, or bad bytes were found.
+    if (!(res= copy(res, cs)))
+      return 0;
   }
-  null_value= 0;
 
-  if (res->length() > current_thd->variables.max_allowed_packet)
-  {
-    push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
-			ER_WARN_ALLOWED_PACKET_OVERFLOWED,
-			ER(ER_WARN_ALLOWED_PACKET_OVERFLOWED),
-			cast_cs == &my_charset_bin ?
-                        "cast_as_binary" : func_name(),
-                        current_thd->variables.max_allowed_packet);
-    null_value= 1;
-    return 0;
-  }
-  return res;
+end:
+  return ((null_value= (res->length() >
+                        adjusted_length_with_warn(res->length())))) ? 0 : res;
 }
 
 

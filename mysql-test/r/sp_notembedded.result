@@ -284,4 +284,23 @@ DROP EVENT teste_bug11763507;
 # ------------------------------------------------------------------
 # -- End of 5.1 tests
 # ------------------------------------------------------------------
+grant create routine on test.* to foo1@localhost identified by 'foo';
+update mysql.user set password = replace(password, '*', '-') where user='foo1';
+show grants;
+Grants for foo1@localhost
+GRANT USAGE ON *.* TO 'foo1'@'localhost' IDENTIFIED BY PASSWORD '*F3A2A51A9B0F2BE2468926B4132313728C250DBF'
+GRANT CREATE ROUTINE ON `test`.* TO 'foo1'@'localhost'
+flush privileges;
+show grants;
+Grants for foo1@localhost
+GRANT USAGE ON *.* TO 'foo1'@'localhost' IDENTIFIED BY PASSWORD '-F3A2A51A9B0F2BE2468926B4132313728C250DBF'
+GRANT CREATE ROUTINE ON `test`.* TO 'foo1'@'localhost'
+create procedure spfoo() select 1;
+show grants;
+Grants for foo1@localhost
+GRANT USAGE ON *.* TO 'foo1'@'localhost' IDENTIFIED BY PASSWORD '-F3A2A51A9B0F2BE2468926B4132313728C250DBF'
+GRANT CREATE ROUTINE ON `test`.* TO 'foo1'@'localhost'
+GRANT EXECUTE, ALTER ROUTINE ON PROCEDURE `test`.`spfoo` TO 'foo1'@'localhost'
+drop procedure spfoo;
+drop user foo1@localhost;
 set @@global.concurrent_insert= @old_concurrent_insert;

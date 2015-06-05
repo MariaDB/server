@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1995, 2013, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1995, 2014, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, 2009 Google Inc.
 Copyright (c) 2009, Percona Inc.
 Copyright (c) 2013, 2015, MariaDB Corporation.
@@ -75,10 +75,10 @@ Created 10/8/1995 Heikki Tuuri
 #include "mysql/plugin.h"
 #include "mysql/service_thd_wait.h"
 #include "fil0fil.h"
+#include "fil0crypt.h"
 #include "fil0pagecompress.h"
 #include <my_rdtsc.h>
 #include "btr0scrub.h"
-#include "fil0pageencryption.h"
 
 /* prototypes of new functions added to ha_innodb.cc for kill_idle_transaction */
 ibool		innobase_thd_is_idle(const void* thd);
@@ -669,9 +669,6 @@ time when the last flush of log file has happened. The master
 thread ensures that we flush the log files at least once per
 second. */
 static time_t	srv_last_log_flush_time;
-
-/** Default encryption key used for page encryption */
-UNIV_INTERN uint	srv_default_page_encryption_key = DEFAULT_ENCRYPTION_KEY;
 
 /** Enable semaphore request instrumentation */
 UNIV_INTERN my_bool 	srv_instrument_semaphores = FALSE;
@@ -1990,9 +1987,8 @@ srv_export_innodb_status(void)
 	export_vars.innodb_page_compressed_trim_op_saved = srv_stats.page_compressed_trim_op_saved;
 	export_vars.innodb_pages_page_decompressed = srv_stats.pages_page_decompressed;
 	export_vars.innodb_pages_page_compression_error = srv_stats.pages_page_compression_error;
-	export_vars.innodb_pages_page_decrypted = srv_stats.pages_page_decrypted;
-	export_vars.innodb_pages_page_encrypted = srv_stats.pages_page_encrypted;
-	export_vars.innodb_pages_page_encryption_error = srv_stats.pages_page_encryption_error;
+	export_vars.innodb_pages_decrypted = srv_stats.pages_decrypted;
+	export_vars.innodb_pages_encrypted = srv_stats.pages_encrypted;
 
 	export_vars.innodb_defragment_compression_failures =
 		btr_defragment_compression_failures;
@@ -3435,7 +3431,9 @@ srv_do_purge(
 
 		*n_total_purged += n_pages_purged;
 
-	} while (!srv_purge_should_exit(n_pages_purged) && n_pages_purged > 0);
+	} while (!srv_purge_should_exit(n_pages_purged)
+		 && n_pages_purged > 0
+		 && purge_sys->state == PURGE_STATE_RUN);
 
 	return(rseg_history_len);
 }

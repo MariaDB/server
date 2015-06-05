@@ -20,6 +20,7 @@ mysqld_ld_preload=
 mysqld_ld_library_path=
 flush_caches=0
 numa_interleave=0
+wsrep_on=0
 
 # Initial logging status: error log is not open, and not using syslog
 logging=init
@@ -28,6 +29,7 @@ syslog_tag=
 user='@MYSQLD_USER@'
 pid_file=
 err_log=
+err_log_base=
 
 syslog_tag_mysqld=mysqld
 syslog_tag_mysqld_safe=mysqld_safe
@@ -285,7 +287,7 @@ parse_arguments() {
       --user=*) user="$val"; SET_USER=1 ;;
       --log[-_]basename=*|--hostname=*|--loose[-_]log[-_]basename=*)
         pid_file="$val.pid";
-	err_log="$val.err";
+	err_log_base="$val";
 	;;
 
       # these might have been set in a [mysqld_safe] section of my.cnf
@@ -318,6 +320,15 @@ parse_arguments() {
       --timezone=*) TZ="$val"; export TZ; ;;
       --flush[-_]caches) flush_caches=1 ;;
       --numa[-_]interleave) numa_interleave=1 ;;
+      --wsrep[-_]on) wsrep_on=1 ;;
+      --skip[-_]wsrep[-_]on) wsrep_on=0 ;;
+      --wsrep[-_]on=*)
+        if echo $val | grep -iq '\(ON\|1\)'; then
+          wsrep_on=1
+        else
+          wsrep_on=0
+        fi
+        ;;
       --wsrep[-_]urls=*) wsrep_urls="$val"; ;;
       --wsrep[-_]provider=*)
         if test -n "$val" && test "$val" != "none"
@@ -611,7 +622,7 @@ if [ -n "${PLUGIN_DIR}" ]; then
   plugin_dir="${PLUGIN_DIR}"
 else
   # Try to find plugin dir relative to basedir
-  for dir in lib/mysql/plugin lib/plugin
+  for dir in lib64/mysql/plugin lib64/plugin lib/mysql/plugin lib/plugin
   do
     if [ -d "${MY_BASEDIR_VERSION}/${dir}" ]; then
       plugin_dir="${MY_BASEDIR_VERSION}/${dir}"
@@ -661,7 +672,16 @@ then
       * ) err_log="$DATADIR/$err_log" ;;
     esac
   else
-    err_log=$DATADIR/`@HOSTNAME@`.err
+    if [ -n "$err_log_base" ]
+    then
+      err_log=$err_log_base.err
+      case "$err_log" in
+        /* ) ;;
+        * ) err_log="$DATADIR/$err_log" ;;
+      esac
+    else
+      err_log=$DATADIR/`@HOSTNAME@`.err
+    fi
   fi
 
   append_arg_to_args "--log-error=$err_log"
@@ -958,18 +978,24 @@ do
 
   start_time=`date +%M%S`
 
-  # this sets wsrep_start_position_opt
-  wsrep_recover_position "$cmd"
-
-  [ $? -ne 0 ] && exit 1 #
-
-  [ -n "$wsrep_urls" ] && url=`wsrep_pick_url $wsrep_urls` # check connect address
-
-  if [ -z "$url" ]
+  # Perform wsrep position recovery if wsrep_on=1, skip otherwise.
+  if test $wsrep_on -eq 1
   then
-    eval_log_error "$cmd $wsrep_start_position_opt"
+    # this sets wsrep_start_position_opt
+    wsrep_recover_position "$cmd"
+
+    [ $? -ne 0 ] && exit 1 #
+
+    [ -n "$wsrep_urls" ] && url=`wsrep_pick_url $wsrep_urls` # check connect address
+
+    if [ -z "$url" ]
+    then
+      eval_log_error "$cmd $wsrep_start_position_opt"
+    else
+      eval_log_error "$cmd $wsrep_start_position_opt --wsrep_cluster_address=$url"
+    fi
   else
-    eval_log_error "$cmd $wsrep_start_position_opt --wsrep_cluster_address=$url"
+    eval_log_error "$cmd"
   fi
 
   if [ $want_syslog -eq 0 -a ! -f "$err_log" ]; then

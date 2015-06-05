@@ -86,6 +86,7 @@ Warnings:
 Note	1449	The user specified as a definer ('role4'@'') does not exist
 select * from test.v5;
 ERROR HY000: The user specified as a definer ('role4'@'') does not exist
+flush tables;
 show create view test.v5;
 View	Create View	character_set_client	collation_connection
 v5	CREATE ALGORITHM=UNDEFINED DEFINER=`role4`@`%` SQL SECURITY DEFINER VIEW `test`.`v5` AS select (`mysqltest1`.`t1`.`a` + `mysqltest1`.`t1`.`b`) AS `a+b`,`mysqltest1`.`t1`.`c` AS `c` from `mysqltest1`.`t1`	latin1	latin1_swedish_ci

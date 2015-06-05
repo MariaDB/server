@@ -28,7 +28,7 @@
 #include <my_sys.h>
 #include <m_string.h>
 #include <mysql_com.h>
-#include <hash.h>
+#include <lf.h>
 
 #include <algorithm>
 
@@ -917,6 +917,7 @@ private:
     readily available to the wait-for graph iterator.
    */
   MDL_wait_for_subgraph *m_waiting_for;
+  LF_PINS *m_pins;
 private:
   MDL_ticket *find_ticket(MDL_request *mdl_req,
                           enum_mdl_duration *duration);
@@ -924,6 +925,7 @@ private:
   void release_lock(enum_mdl_duration duration, MDL_ticket *ticket);
   bool try_acquire_lock_impl(MDL_request *mdl_request,
                              MDL_ticket **out_ticket);
+  bool fix_pins();
 
 public:
   THD *get_thd() const { return m_owner->get_thd(); }
@@ -980,21 +982,6 @@ extern "C" unsigned long thd_get_thread_id(const MYSQL_THD thd);
 */
 extern "C" int thd_is_connected(MYSQL_THD thd);
 
-
-/*
-  Start-up parameter for the maximum size of the unused MDL_lock objects cache
-  and a constant for its default value.
-*/
-extern ulong mdl_locks_cache_size;
-static const ulong MDL_LOCKS_CACHE_SIZE_DEFAULT = 1024;
-
-/*
-  Start-up parameter for the number of partitions of the hash
-  containing all the MDL_lock objects and a constant for
-  its default value.
-*/
-extern ulong mdl_locks_hash_partitions;
-static const ulong MDL_LOCKS_HASH_PARTITIONS_DEFAULT = 8;
 
 /*
   Metadata locking subsystem tries not to grant more than

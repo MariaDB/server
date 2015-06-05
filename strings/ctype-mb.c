@@ -424,25 +424,95 @@ size_t my_well_formed_len_mb(CHARSET_INFO *cs, const char *b, const char *e,
 
 
 /*
-  Copy a multi-byte string. Abort if a bad byte sequence was found.
-  Note more than "nchars" characters are copied.
+  Append a badly formed piece of string.
+  Bad bytes are fixed to '?'.
+  
+  @param to        The destination string
+  @param to_end    The end of the destination string
+  @param from      The source string
+  @param from_end  The end of the source string
+  @param nchars    Write not more than "nchars" characters.
+  @param status    Copying status, must be previously initialized,
+                   e.g. using well_formed_char_length() on the original
+                   full source string.
 */
-size_t
-my_copy_abort_mb(CHARSET_INFO *cs,
-                 char *dst, size_t dst_length,
-                 const char *src, size_t src_length,
-                 size_t nchars, MY_STRCOPY_STATUS *status)
+static size_t
+my_append_fix_badly_formed_tail(CHARSET_INFO *cs,
+                                char *to, char *to_end,
+                                const char *from, const char *from_end,
+                                size_t nchars,
+                                MY_STRCOPY_STATUS *status)
 {
-  int well_formed_error;
-  size_t res;
+  char *to0= to;
+
+  for ( ; nchars; nchars--)
+  {
+    int chlen;
+    if ((chlen= cs->cset->charlen(cs, (const uchar*) from,
+                                      (const uchar *) from_end)) > 0)
+    {
+      /* Found a valid character */         /* chlen == 1..MBMAXLEN  */
+      DBUG_ASSERT(chlen <= (int) cs->mbmaxlen);
+      if (to + chlen > to_end)
+        goto end;                           /* Does not fit to "to" */
+      memcpy(to, from, (size_t) chlen);
+      from+= chlen;
+      to+= chlen;
+      continue;
+    }
+    if (chlen == MY_CS_ILSEQ)              /* chlen == 0 */
+    {
+      DBUG_ASSERT(from < from_end);  /* Shouldn't get MY_CS_ILSEQ if empty */
+      goto bad;
+    }
+    /* Got an incomplete character */       /* chlen == MY_CS_TOOSMALLXXX  */
+    DBUG_ASSERT(chlen >= MY_CS_TOOSMALL6); 
+    DBUG_ASSERT(chlen <= MY_CS_TOOSMALL);
+    if (from >= from_end)                   
+      break;                                /* End of the source string    */
+bad:
+    /* Bad byte sequence, or incomplete character found */
+    if (!status->m_well_formed_error_pos)
+      status->m_well_formed_error_pos= from;
+
+    if ((chlen= cs->cset->wc_mb(cs, '?', (uchar*) to, (uchar *) to_end)) <= 0)
+      break; /* Question mark does not fit into the destination */
+    to+= chlen;
+    from++;
+  }
+end:
+  status->m_source_end_pos= from;
+  return to - to0;
+}
+
+
+size_t
+my_copy_fix_mb(CHARSET_INFO *cs,
+               char *dst, size_t dst_length,
+               const char *src, size_t src_length,
+               size_t nchars, MY_STRCOPY_STATUS *status)
+{
+  size_t well_formed_nchars;
+  size_t well_formed_length;
+  size_t fixed_length;
 
   set_if_smaller(src_length, dst_length);
-  res= cs->cset->well_formed_len(cs, src, src + src_length,
-                                 nchars, &well_formed_error);
-  memmove(dst, src, res);
-  status->m_source_end_pos= src + res;
-  status->m_well_formed_error_pos= well_formed_error ? src + res : NULL;
-  return res;
+  well_formed_nchars= cs->cset->well_formed_char_length(cs,
+                                                        src, src + src_length,
+                                                        nchars, status);
+  DBUG_ASSERT(well_formed_nchars <= nchars);
+  memmove(dst, src, (well_formed_length= status->m_source_end_pos - src));
+  if (!status->m_well_formed_error_pos)
+    return well_formed_length;
+
+  fixed_length= my_append_fix_badly_formed_tail(cs,
+                                                dst + well_formed_length,
+                                                dst + dst_length,
+                                                src + well_formed_length,
+                                                src + src_length,
+                                                nchars - well_formed_nchars,
+                                                status);
+  return well_formed_length + fixed_length;
 }
 
 

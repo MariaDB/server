@@ -36,10 +36,6 @@ select * from t1 where c1>3 order by c1 desc;
 select * from t2 where c1>3 order by c1 asc;
 select * from t1 where c2>"s" order by c2 desc;
 select * from t2 where c2>"s" order by c1 asc;
-select * from t1 where match(c2) against("ii") order by match(c2) against("ii") desc;
-select * from t2 where match(c2) against("ii") order by match(c2) against("ii") asc;
-select c1,c2,match(c2) against("ii") from t1 where match(c2) against("ii");
-select c1,c2,match(c2) against("ii") from t2 where match(c2) against("ii");
 drop table t1,t2;
 
 --source ../../include/mroonga/have_mroonga_deinit.inc

@@ -163,12 +163,13 @@ The following options may be given as the first argument:
  Precision of the result of '/' operator will be increased
  on that value
  --encrypt-tmp-disk-tables 
- Encrypt tmp disk tables (created as part of query
- execution)
- --encryption-algorithm=name 
- Which encryption algorithm to use for table encryption.
- aes_cbc is the recommended one.. One of: none, aes_ecb, 
- aes_cbc, aes_ctr
+ Encrypt temporary on-disk tables (created as part of
+ query execution)
+ --encrypt-tmp-files Encrypt temporary files (created for filesort, binary log
+ cache, etc)
+ (Defaults to on; use --skip-encrypt-tmp-files to disable.)
+ --enforce-storage-engine=name 
+ Force the use of a storage engine for new tables
  --event-scheduler[=name] 
  Enable the event scheduler. Possible values are ON, OFF,
  and DISABLED (keep the event scheduler completely
@@ -413,6 +414,8 @@ The following options may be given as the first argument:
  Don't start more than this number of threads to handle
  INSERT DELAYED statements. If set to zero INSERT DELAYED
  will be not used
+ --max-digest-length=# 
+ Maximum length considered for digest text.
  --max-error-count=# Max number of errors/warnings to store for a statement
  --max-heap-table-size=# 
  Don't allow creation of heap tables bigger than this
@@ -452,9 +455,9 @@ The following options may be given as the first argument:
  in between
  --memlock           Lock mysqld in memory.
  --metadata-locks-cache-size=# 
- Size of unused metadata locks cache
+ Unused
  --metadata-locks-hash-instances=# 
- Number of metadata locks hash instances
+ Unused
  --min-examined-row-limit=# 
  Don't write queries to slow log that examine fewer rows
  than that
@@ -1149,7 +1152,8 @@ delayed-insert-timeout 300
 delayed-queue-size 1000
 div-precision-increment 4
 encrypt-tmp-disk-tables FALSE
-encryption-algorithm none
+encrypt-tmp-files TRUE
+enforce-storage-engine (No default value)
 event-scheduler OFF
 expensive-subquery-limit 100
 expire-logs-days 0
@@ -1226,6 +1230,7 @@ max-binlog-stmt-cache-size 18446744073709547520
 max-connect-errors 100
 max-connections 151
 max-delayed-threads 20
+max-digest-length 1024
 max-error-count 64
 max-heap-table-size 16777216
 max-join-size 18446744073709551615

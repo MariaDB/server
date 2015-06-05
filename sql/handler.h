@@ -34,6 +34,8 @@
 #include "sql_array.h"          /* Dynamic_array<> */
 #include "mdl.h"
 
+#include "sql_analyze_stmt.h" // for Exec_time_tracker 
+
 #include <my_compare.h>
 #include <ft_global.h>
 #include <keycache.h>
@@ -612,11 +614,11 @@ struct xid_t {
     return sizeof(formatID)+sizeof(gtrid_length)+sizeof(bqual_length)+
            gtrid_length+bqual_length;
   }
-  uchar *key()
+  uchar *key() const
   {
     return (uchar *)&gtrid_length;
   }
-  uint key_length()
+  uint key_length() const
   {
     return sizeof(gtrid_length)+sizeof(bqual_length)+gtrid_length+bqual_length;
   }
@@ -1695,6 +1697,33 @@ struct HA_CREATE_INFO: public Table_scope_and_contents_source_st,
     Table_scope_and_contents_source_st::init();
     Schema_specification_st::init();
   }
+  bool check_conflicting_charset_declarations(CHARSET_INFO *cs);
+  bool add_table_option_default_charset(CHARSET_INFO *cs)
+  {
+    // cs can be NULL, e.g.:  CREATE TABLE t1 (..) CHARACTER SET DEFAULT;
+    if (check_conflicting_charset_declarations(cs))
+      return true;
+    default_table_charset= cs;
+    used_fields|= HA_CREATE_USED_DEFAULT_CHARSET;
+    return false;
+  }
+  bool add_alter_list_item_convert_to_charset(CHARSET_INFO *cs)
+  {
+    /* 
+      cs cannot be NULL, as sql_yacc.yy translates
+         CONVERT TO CHARACTER SET DEFAULT
+      to
+         CONVERT TO CHARACTER SET <character-set-of-the-current-database>
+      TODO: Should't we postpone resolution of DEFAULT until the
+      character set of the table owner database is loaded from its db.opt?
+    */
+    DBUG_ASSERT(cs);
+    if (check_conflicting_charset_declarations(cs))
+      return true;
+    table_charset= default_table_charset= cs;
+    used_fields|= (HA_CREATE_USED_CHARSET | HA_CREATE_USED_DEFAULT_CHARSET);  
+    return false;
+  }
 };
 
 
@@ -2595,6 +2624,13 @@ public:
   /* One bigger than needed to avoid to test if key == MAX_KEY */
   ulonglong index_rows_read[MAX_KEY+1];
 
+private:
+  /* ANALYZE time tracker, if present */
+  Exec_time_tracker *tracker;
+public:
+  void set_time_tracker(Exec_time_tracker *tracker_arg) { tracker=tracker_arg;}
+
+
   Item *pushed_idx_cond;
   uint pushed_idx_cond_keyno;  /* The index which the above condition is for */
 
@@ -2648,6 +2684,7 @@ public:
     ft_handler(0), inited(NONE),
     implicit_emptied(0),
     pushed_cond(0), next_insert_id(0), insert_id_for_cur_row(0),
+    tracker(NULL),
     pushed_idx_cond(NULL),
     pushed_idx_cond_keyno(MAX_KEY),
     auto_inc_intervals_count(0),
@@ -4200,6 +4237,19 @@ inline const char *table_case_name(HA_CREATE_INFO *info, const char *name)
 {
   return ((lower_case_table_names == 2 && info->alias) ? info->alias : name);
 }
+
+
+#define TABLE_IO_WAIT(TRACKER, PSI, OP, INDEX, FLAGS, PAYLOAD) \
+  { \
+    Exec_time_tracker *this_tracker; \
+    if (unlikely((this_tracker= tracker))) \
+      tracker->start_tracking(); \
+    \
+    MYSQL_TABLE_IO_WAIT(PSI, OP, INDEX, FLAGS, PAYLOAD); \
+    \
+    if (unlikely(this_tracker)) \
+      tracker->stop_tracking(); \
+  }
 
 void print_keydup_error(TABLE *table, KEY *key, const char *msg, myf errflag);
 void print_keydup_error(TABLE *table, KEY *key, myf errflag);

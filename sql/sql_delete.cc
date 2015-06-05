@@ -1,5 +1,6 @@
 /*
    Copyright (c) 2000, 2010, Oracle and/or its affiliates.
+   Copyright (c) 2010, 2015, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -52,9 +53,11 @@
     invoked on a running DELETE statement.
 */
 
-void Delete_plan::save_explain_data(MEM_ROOT *mem_root, Explain_query *query)
+Explain_delete* Delete_plan::save_explain_delete_data(MEM_ROOT *mem_root, THD *thd)
 {
-  Explain_delete *explain= new (mem_root) Explain_delete(mem_root);
+  Explain_query *query= thd->lex->explain;
+  Explain_delete *explain= 
+     new (mem_root) Explain_delete(mem_root, thd->lex->analyze_stmt);
 
   if (deleting_all_rows)
   {
@@ -65,24 +68,30 @@ void Delete_plan::save_explain_data(MEM_ROOT *mem_root, Explain_query *query)
   else
   {
     explain->deleting_all_rows= false;
-    Update_plan::save_explain_data_intern(mem_root, query, explain);
+    Update_plan::save_explain_data_intern(mem_root, explain, 
+                                          thd->lex->analyze_stmt);
   }
  
   query->add_upd_del_plan(explain);
+  return explain;
 }
 
 
-void Update_plan::save_explain_data(MEM_ROOT *mem_root, Explain_query *query)
+Explain_update* 
+Update_plan::save_explain_update_data(MEM_ROOT *mem_root, THD *thd)
 {
-  Explain_update* explain= new (mem_root) Explain_update(mem_root);
-  save_explain_data_intern(mem_root, query, explain);
+  Explain_query *query= thd->lex->explain;
+  Explain_update* explain= 
+    new (mem_root) Explain_update(mem_root, thd->lex->analyze_stmt);
+  save_explain_data_intern(mem_root, explain, thd->lex->analyze_stmt);
   query->add_upd_del_plan(explain);
+  return explain;
 }
 
 
 void Update_plan::save_explain_data_intern(MEM_ROOT *mem_root,
-                                           Explain_query *query, 
-                                           Explain_update *explain)
+                                           Explain_update *explain,
+                                           bool is_analyze)
 {
   explain->select_type= "SIMPLE";
   explain->table_name.append(table->pos_in_table_list->alias);
@@ -102,6 +111,9 @@ void Update_plan::save_explain_data_intern(MEM_ROOT *mem_root,
     return;
   }
   
+  if (is_analyze)
+    table->file->set_time_tracker(&explain->table_tracker);
+
   select_lex->set_explain_type(TRUE);
   explain->select_type= select_lex->type;
   /* Partitions */
@@ -110,7 +122,8 @@ void Update_plan::save_explain_data_intern(MEM_ROOT *mem_root,
     partition_info *part_info;
     if ((part_info= table->part_info))
     {          
-      make_used_partitions_str(part_info, &explain->used_partitions);
+      make_used_partitions_str(mem_root, part_info, &explain->used_partitions,
+                               explain->used_partitions_list);
       explain->used_partitions_set= true;
     }
     else
@@ -144,7 +157,9 @@ void Update_plan::save_explain_data_intern(MEM_ROOT *mem_root,
 
   explain->using_where= MY_TEST(select && select->cond);
   explain->where_cond= select? select->cond: NULL;
-  explain->using_filesort= using_filesort;
+
+  if (using_filesort)
+    explain->filesort_tracker= new (mem_root) Filesort_tracker;
   explain->using_io_buffer= using_io_buffer;
 
   append_possible_keys(mem_root, explain->possible_keys, table, 
@@ -333,7 +348,7 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
     DBUG_PRINT("debug", ("Trying to use delete_all_rows()"));
 
     query_plan.set_delete_all_rows(maybe_deleted);
-    if (thd->lex->describe || thd->lex->analyze_stmt)
+    if (thd->lex->describe)
       goto produce_explain_and_leave;
 
     if (!(error=table->file->ha_delete_all_rows()))
@@ -345,6 +360,7 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
       query_type= THD::STMT_QUERY_TYPE;
       error= -1;
       deleted= maybe_deleted;
+      query_plan.save_explain_delete_data(thd->mem_root, thd);
       goto cleanup;
     }
     if (error != HA_ERR_WRONG_COMMAND)
@@ -358,7 +374,7 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
   if (conds)
   {
     Item::cond_result result;
-    conds= remove_eq_conds(thd, conds, &result);
+    conds= conds->remove_eq_conds(thd, &result, true);
     if (result == Item::COND_FALSE)             // Impossible where
     {
       limit= 0;
@@ -461,7 +477,8 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
   if (thd->lex->describe)
     goto produce_explain_and_leave;
   
-  query_plan.save_explain_data(thd->mem_root, thd->lex->explain);
+  explain= query_plan.save_explain_delete_data(thd->mem_root, thd);
+  ANALYZE_START_TRACKING(&explain->command_tracker);
 
   DBUG_EXECUTE_IF("show_explain_probe_delete_exec_start", 
                   dbug_serve_apcs(thd, 1););
@@ -478,13 +495,16 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
       table->sort.io_cache= (IO_CACHE *) my_malloc(sizeof(IO_CACHE),
                                                    MYF(MY_FAE | MY_ZEROFILL |
                                                        MY_THREAD_SPECIFIC));
-    
-      if (!(sortorder= make_unireg_sortorder(order, &length, NULL)) ||
+      Filesort_tracker *fs_tracker= 
+        thd->lex->explain->get_upd_del_plan()->filesort_tracker;
+
+      if (!(sortorder= make_unireg_sortorder(thd, order, &length, NULL)) ||
 	  (table->sort.found_records= filesort(thd, table, sortorder, length,
                                                select, HA_POS_ERROR,
                                                true,
-                                               &examined_rows, &found_rows))
-	  == HA_POS_ERROR)
+                                               &examined_rows, &found_rows,
+                                               fs_tracker))
+	    == HA_POS_ERROR)
       {
         delete select;
         free_underlaid_joins(thd, &thd->lex->select_lex);
@@ -619,6 +639,7 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
   end_read_record(&info);
   if (options & OPTION_QUICK)
     (void) table->file->extra(HA_EXTRA_NORMAL);
+  ANALYZE_STOP_TRACKING(&explain->command_tracker);
 
 cleanup:
   /*
@@ -680,10 +701,7 @@ cleanup:
       (thd->lex->ignore && !thd->is_error() && !thd->is_fatal_error))
   {
     if (thd->lex->analyze_stmt)
-    {
-      error= 0;
       goto send_nothing_and_leave;
-    }
 
     if (with_select)
       result->send_eof();
@@ -699,7 +717,7 @@ produce_explain_and_leave:
     We come here for various "degenerate" query plans: impossible WHERE,
     no-partitions-used, impossible-range, etc.
   */
-  query_plan.save_explain_data(thd->mem_root, thd->lex->explain);
+  query_plan.save_explain_delete_data(thd->mem_root, thd);
 
 send_nothing_and_leave:
   /* 
@@ -875,15 +893,15 @@ int mysql_multi_delete_prepare(THD *thd)
   */
   lex->select_lex.exclude_from_table_unique_test= FALSE;
   
-  if (lex->select_lex.save_prep_leaf_tables(thd))
+  if (lex->save_prep_leaf_tables())
     DBUG_RETURN(TRUE);
   
   DBUG_RETURN(FALSE);
 }
 
 
-multi_delete::multi_delete(TABLE_LIST *dt, uint num_of_tables_arg)
-  : delete_tables(dt), deleted(0), found(0),
+multi_delete::multi_delete(THD *thd_arg, TABLE_LIST *dt, uint num_of_tables_arg):
+    select_result_interceptor(thd_arg), delete_tables(dt), deleted(0), found(0),
     num_of_tables(num_of_tables_arg), error(0),
     do_delete(0), transactional_tables(0), normal_tables(0), error_handled(0)
 {
@@ -922,9 +940,10 @@ multi_delete::initialize_tables(JOIN *join)
   delete_while_scanning= 1;
   for (walk= delete_tables; walk; walk= walk->next_local)
   {
-    tables_to_delete_from|= walk->table->map;
+    TABLE_LIST *tbl= walk->correspondent_table->find_table_for_update();
+    tables_to_delete_from|= tbl->table->map;
     if (delete_while_scanning &&
-        unique_table(thd, walk, join->tables_list, false))
+        unique_table(thd, tbl, join->tables_list, false))
     {
       /*
         If the table we are going to delete from appears

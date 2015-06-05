@@ -36,6 +36,7 @@ Created 2011/12/19
 #include "srv0srv.h"
 #include "page0zip.h"
 #include "trx0sys.h"
+#include "fil0crypt.h"
 
 #ifndef UNIV_HOTBACKUP
 
@@ -385,7 +386,7 @@ buf_dblwr_init_or_load_pages(
 	/* Read the trx sys header to check if we are using the doublewrite
 	buffer */
 	off_t  trx_sys_page = TRX_SYS_PAGE_NO * UNIV_PAGE_SIZE;
-	os_file_read(file, read_buf, trx_sys_page, UNIV_PAGE_SIZE, FALSE);
+	os_file_read(file, read_buf, trx_sys_page, UNIV_PAGE_SIZE);
 
 	doublewrite = read_buf + TRX_SYS_DOUBLEWRITE;
 
@@ -430,9 +431,9 @@ buf_dblwr_init_or_load_pages(
 
         block_bytes = TRX_SYS_DOUBLEWRITE_BLOCK_SIZE * UNIV_PAGE_SIZE;
 
-	os_file_read(file, buf, block1 * UNIV_PAGE_SIZE, block_bytes, FALSE);
+	os_file_read(file, buf, block1 * UNIV_PAGE_SIZE, block_bytes);
 	os_file_read(file, buf + block_bytes, block2 * UNIV_PAGE_SIZE,
-		     block_bytes, FALSE);
+		     block_bytes);
 
 	/* Check if any of these pages is half-written in data files, in the
 	intended position */
@@ -530,9 +531,7 @@ buf_dblwr_process()
 				zip_size ? zip_size : UNIV_PAGE_SIZE,
 				read_buf,
 				NULL,
-				0,
-				0,
-				false);
+				0);
 
 			if (fil_space_verify_crypt_checksum(read_buf, zip_size)) {
 				/* page is encrypted and checksum is OK */
@@ -593,9 +592,7 @@ buf_dblwr_process()
 					zip_size ? zip_size : UNIV_PAGE_SIZE,
 					page,
 					NULL,
-					0,
-					0,
-					false);
+					0);
 
 				ib_logf(IB_LOG_LEVEL_INFO,
 					"Recovered the page from"
@@ -620,9 +617,7 @@ buf_dblwr_process()
 						zip_size ? zip_size : UNIV_PAGE_SIZE,
 						page,
 						NULL,
-						0,
-						0,
-						false);
+						0);
 				}
 			}
 		}
@@ -631,10 +626,6 @@ buf_dblwr_process()
 	fil_flush_file_spaces(FIL_TABLESPACE);
 
         {
-		fprintf(stderr,
-			"Clear dblwr buffer after completing "
-			"processing of it...\n");
-
 		size_t bytes = TRX_SYS_DOUBLEWRITE_BLOCK_SIZE * UNIV_PAGE_SIZE;
 		byte *unaligned_buf = static_cast<byte*>(
 			ut_malloc(bytes + UNIV_PAGE_SIZE - 1));
@@ -644,9 +635,9 @@ buf_dblwr_process()
 		memset(buf, 0, bytes);
 
 		fil_io(OS_FILE_WRITE, true, TRX_SYS_SPACE, 0,
-			buf_dblwr->block1, 0, bytes, buf, NULL, NULL, 0, false);
+			buf_dblwr->block1, 0, bytes, buf, NULL, NULL);
 		fil_io(OS_FILE_WRITE, true, TRX_SYS_SPACE, 0,
-			buf_dblwr->block2, 0, bytes, buf, NULL, NULL, 0, false);
+			buf_dblwr->block2, 0, bytes, buf, NULL, NULL);
 
 		ut_free(unaligned_buf);
         }
@@ -753,6 +744,14 @@ buf_dblwr_check_page_lsn(
 /*=====================*/
 	const page_t*	page)		/*!< in: page to check */
 {
+	ibool page_compressed = (mach_read_from_2(page+FIL_PAGE_TYPE) == FIL_PAGE_PAGE_COMPRESSED);
+	uint key_version = mach_read_from_4(page + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION);
+
+	/* Ignore page compressed or encrypted pages */
+	if (page_compressed || key_version) {
+		return;
+	}
+
 	if (memcmp(page + (FIL_PAGE_LSN + 4),
 		   page + (UNIV_PAGE_SIZE
 			   - FIL_PAGE_END_LSN_OLD_CHKSUM + 4),
@@ -860,9 +859,7 @@ buf_dblwr_write_block_to_datafile(
 			buf_page_get_zip_size(bpage),
 			frame,
 			(void*) bpage,
-			0,
-			bpage->newest_modification,
-			bpage->encrypt_later);
+			0);
 
 		return;
 	}
@@ -878,12 +875,10 @@ buf_dblwr_write_block_to_datafile(
 		0,
 		buf_block_get_page_no(block),
 		0,
-		UNIV_PAGE_SIZE,
+		bpage->real_size,
 		frame,
 		(void*) block,
-		(ulint *)&bpage->write_size,
-		bpage->newest_modification,
-		bpage->encrypt_later);
+		(ulint *)&bpage->write_size);
 }
 
 /********************************************************************//**
@@ -977,7 +972,7 @@ try_again:
 
 	fil_io(OS_FILE_WRITE, true, TRX_SYS_SPACE, 0,
 	       buf_dblwr->block1, 0, len,
-		(void*) write_buf, NULL, 0, 0, false);
+		(void*) write_buf, NULL, 0);
 
 	if (buf_dblwr->first_free <= TRX_SYS_DOUBLEWRITE_BLOCK_SIZE) {
 		/* No unwritten pages in the second block. */
@@ -993,7 +988,7 @@ try_again:
 
 	fil_io(OS_FILE_WRITE, true, TRX_SYS_SPACE, 0,
 	       buf_dblwr->block2, 0, len,
-		(void*) write_buf, NULL, 0, 0, false);
+		(void*) write_buf, NULL, 0);
 
 flush:
 	/* increment the doublewrite flushed pages counter */
@@ -1230,9 +1225,7 @@ retry:
 			UNIV_PAGE_SIZE,
 			(void*) (buf_dblwr->write_buf + UNIV_PAGE_SIZE * i),
 			NULL,
-			0,
-			bpage->newest_modification,
-			bpage->encrypt_later);
+			0);
 	} else {
 		/* It is a regular page. Write it directly to the
 		doublewrite buffer */
@@ -1241,12 +1234,10 @@ retry:
 			TRX_SYS_SPACE, 0,
 			offset,
 			0,
-			UNIV_PAGE_SIZE,
+			bpage->real_size,
 			frame,
 			NULL,
-			0,
-			bpage->newest_modification,
-			bpage->encrypt_later);
+			0);
 	}
 
 	/* Now flush the doublewrite buffer data to disk */

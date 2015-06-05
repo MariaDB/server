@@ -331,8 +331,7 @@ static int check_update_fields(THD *thd, TABLE_LIST *insert_table_list,
                                table_map *map)
 {
   TABLE *table= insert_table_list->table;
-  my_bool autoinc_mark;
-  LINT_INIT(autoinc_mark);
+  my_bool UNINIT_VAR(autoinc_mark);
 
   table->next_number_field_updated= FALSE;
 
@@ -3349,15 +3348,17 @@ bool mysql_insert_select_prepare(THD *thd)
 }
 
 
-select_insert::select_insert(TABLE_LIST *table_list_par, TABLE *table_par,
+select_insert::select_insert(THD *thd_arg, TABLE_LIST *table_list_par,
+                             TABLE *table_par,
                              List<Item> *fields_par,
                              List<Item> *update_fields,
                              List<Item> *update_values,
                              enum_duplicates duplic,
-                             bool ignore_check_option_errors)
-  :table_list(table_list_par), table(table_par), fields(fields_par),
-   autoinc_value_of_last_inserted_row(0),
-   insert_into_view(table_list_par && table_list_par->view != 0)
+                             bool ignore_check_option_errors):
+  select_result_interceptor(thd_arg),
+  table_list(table_list_par), table(table_par), fields(fields_par),
+  autoinc_value_of_last_inserted_row(0),
+  insert_into_view(table_list_par && table_list_par->view != 0)
 {
   bzero((char*) &info,sizeof(info));
   info.handle_duplicates= duplic;
@@ -3966,7 +3967,7 @@ static TABLE *create_table_from_items(THD *thd,
         Here we open the destination table, on which we already have
         an exclusive metadata lock.
       */
-      if (open_table(thd, create_table, thd->mem_root, &ot_ctx))
+      if (open_table(thd, create_table, &ot_ctx))
       {
         quick_rm_table(thd, create_info->db_type, create_table->db,
                        table_case_name(create_info, create_table->table_name),

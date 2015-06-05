@@ -1,0 +1,321 @@
+create table t0(a int);
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table t1(a int);
+insert into t1 select A.a + B.a* 10 + C.a * 100 from t0 A, t0 B, t0 C;
+create table t2 (
+a int, 
+b int, 
+key (a)
+);
+insert into t2 select A.a*1000 + B.a, A.a*1000 + B.a from t0 A, t1 B;
+#
+# Try an UPDATE that uses filesort:
+#
+explain 
+update t2 set b=b+1 order by b limit 5;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	10000	Using filesort
+explain format=json
+update t2 set b=b+1 order by b limit 5;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "filesort": {
+      "table": {
+        "update": 1,
+        "table_name": "t2",
+        "access_type": "ALL",
+        "rows": 10000
+      }
+    }
+  }
+}
+analyze format=json
+update t2 set b=b+1 order by b limit 5;
+ANALYZE
+{
+  "query_block": {
+    "select_id": 1,
+    "r_total_time_ms": "REPLACED",
+    "filesort": {
+      "r_loops": 1,
+      "r_limit": 5,
+      "r_used_priority_queue": true,
+      "r_output_rows": 6,
+      "table": {
+        "update": 1,
+        "table_name": "t2",
+        "access_type": "ALL",
+        "rows": 10000,
+        "r_rows": 10000,
+        "r_filtered": 100,
+        "r_total_time_ms": "REPLACED"
+      }
+    }
+  }
+}
+#
+# Try an UPDATE that uses buffering:
+#
+explain
+update t2 set a=a+1 where a<10;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	range	a	a	5	NULL	8	Using where; Using buffer
+explain format=json
+update t2 set a=a+1 where a<10;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "buffer": {
+      "table": {
+        "update": 1,
+        "table_name": "t2",
+        "access_type": "range",
+        "possible_keys": ["a"],
+        "key": "a",
+        "key_length": "5",
+        "used_key_parts": ["a"],
+        "rows": 8,
+        "attached_condition": "(t2.a < 10)"
+      }
+    }
+  }
+}
+analyze format=json
+update t2 set a=a+1 where a<10;
+ANALYZE
+{
+  "query_block": {
+    "select_id": 1,
+    "r_total_time_ms": "REPLACED",
+    "buffer": {
+      "table": {
+        "update": 1,
+        "table_name": "t2",
+        "access_type": "range",
+        "possible_keys": ["a"],
+        "key": "a",
+        "key_length": "5",
+        "used_key_parts": ["a"],
+        "rows": 8,
+        "r_rows": 10,
+        "r_filtered": 100,
+        "r_total_time_ms": "REPLACED",
+        "attached_condition": "(t2.a < 10)"
+      }
+    }
+  }
+}
+#
+# Try a DELETE that uses filesort:
+#
+explain 
+delete from t2 order by b limit 5;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	10000	Using filesort
+explain format=json
+delete from t2 order by b limit 5;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "filesort": {
+      "table": {
+        "delete": 1,
+        "table_name": "t2",
+        "access_type": "ALL",
+        "rows": 10000
+      }
+    }
+  }
+}
+analyze format=json
+delete from t2 order by b limit 5;
+ANALYZE
+{
+  "query_block": {
+    "select_id": 1,
+    "r_total_time_ms": "REPLACED",
+    "filesort": {
+      "r_loops": 1,
+      "r_used_priority_queue": false,
+      "r_output_rows": 10000,
+      "r_buffer_size": "REPLACED",
+      "table": {
+        "delete": 1,
+        "table_name": "t2",
+        "access_type": "ALL",
+        "rows": 10000,
+        "r_rows": 10000,
+        "r_filtered": 100,
+        "r_total_time_ms": "REPLACED"
+      }
+    }
+  }
+}
+#
+# Try a SELECT with QEP in form: filesort { tmp_table { join } } 
+#
+explain
+select * from t0,t2 where t2.a=t0.a order by t2.b limit 4;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t0	ALL	NULL	NULL	NULL	NULL	10	Using where; Using temporary; Using filesort
+1	SIMPLE	t2	ref	a	a	5	test.t0.a	1	
+explain format=json
+select * from t0,t2 where t2.a=t0.a order by t2.b limit 4;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "filesort": {
+      "temporary_table": {
+        "function": "buffer",
+        "table": {
+          "table_name": "t0",
+          "access_type": "ALL",
+          "rows": 10,
+          "filtered": 100,
+          "attached_condition": "(t0.a is not null)"
+        },
+        "table": {
+          "table_name": "t2",
+          "access_type": "ref",
+          "possible_keys": ["a"],
+          "key": "a",
+          "key_length": "5",
+          "used_key_parts": ["a"],
+          "ref": ["test.t0.a"],
+          "rows": 1,
+          "filtered": 100
+        }
+      }
+    }
+  }
+}
+analyze format=json
+select * from t0,t2 where t2.a=t0.a order by t2.b limit 4;
+ANALYZE
+{
+  "query_block": {
+    "select_id": 1,
+    "r_loops": 1,
+    "r_total_time_ms": "REPLACED",
+    "filesort": {
+      "temporary_table": {
+        "table": {
+          "table_name": "t0",
+          "access_type": "ALL",
+          "r_loops": 1,
+          "rows": 10,
+          "r_rows": 10,
+          "r_total_time_ms": "REPLACED",
+          "filtered": 100,
+          "r_filtered": 100,
+          "attached_condition": "(t0.a is not null)"
+        },
+        "table": {
+          "table_name": "t2",
+          "access_type": "ref",
+          "possible_keys": ["a"],
+          "key": "a",
+          "key_length": "5",
+          "used_key_parts": ["a"],
+          "ref": ["test.t0.a"],
+          "r_loops": 10,
+          "rows": 1,
+          "r_rows": 0.4,
+          "r_total_time_ms": "REPLACED",
+          "filtered": 100,
+          "r_filtered": 100
+        }
+      }
+    }
+  }
+}
+#
+# Try a SELECT with QEP in form: join { filesort { table0 }, table2 }
+#
+explain
+select * from t0,t2 where t2.a=t0.a order by t0.a limit 4;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t0	ALL	NULL	NULL	NULL	NULL	10	Using where; Using filesort
+1	SIMPLE	t2	ref	a	a	5	test.t0.a	1	
+explain format=json
+select * from t0,t2 where t2.a=t0.a order by t0.a limit 4;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "read_sorted_file": {
+      "filesort": {
+        "table": {
+          "table_name": "t0",
+          "access_type": "ALL",
+          "rows": 10,
+          "filtered": 100,
+          "attached_condition": "(t0.a is not null)"
+        }
+      }
+    },
+    "table": {
+      "table_name": "t2",
+      "access_type": "ref",
+      "possible_keys": ["a"],
+      "key": "a",
+      "key_length": "5",
+      "used_key_parts": ["a"],
+      "ref": ["test.t0.a"],
+      "rows": 1,
+      "filtered": 100
+    }
+  }
+}
+analyze format=json 
+select * from t0,t2 where t2.a=t0.a order by t0.a limit 4;
+ANALYZE
+{
+  "query_block": {
+    "select_id": 1,
+    "r_loops": 1,
+    "r_total_time_ms": "REPLACED",
+    "read_sorted_file": {
+      "r_rows": 10,
+      "filesort": {
+        "r_loops": 1,
+        "r_used_priority_queue": false,
+        "r_output_rows": 10,
+        "r_buffer_size": "REPLACED",
+        "table": {
+          "table_name": "t0",
+          "access_type": "ALL",
+          "r_loops": 1,
+          "rows": 10,
+          "r_rows": 10,
+          "r_total_time_ms": "REPLACED",
+          "filtered": 100,
+          "r_filtered": 1,
+          "attached_condition": "(t0.a is not null)"
+        }
+      }
+    },
+    "table": {
+      "table_name": "t2",
+      "access_type": "ref",
+      "possible_keys": ["a"],
+      "key": "a",
+      "key_length": "5",
+      "used_key_parts": ["a"],
+      "ref": ["test.t0.a"],
+      "r_loops": 10,
+      "rows": 1,
+      "r_rows": 0.4,
+      "r_total_time_ms": "REPLACED",
+      "filtered": 100,
+      "r_filtered": 100
+    }
+  }
+}
+drop table t2;
+drop table t0, t1;

@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2014, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2014, Monty Program Ab.
+   Copyright (c) 2010, 2015, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -47,6 +47,9 @@ class sys_var;
 class Item_func_match;
 class File_parser;
 class Key_part_spec;
+struct sql_digest_state;
+
+#define ALLOC_ROOT_SET 1024
 
 #ifdef MYSQL_SERVER
 /*
@@ -258,12 +261,15 @@ struct LEX_MASTER_INFO
     my_init_dynamic_array(&repl_ignore_domain_ids,
                           sizeof(ulong), 0, 16, MYF(0));
   }
-  void reset()
+  void reset(bool is_change_master)
   {
-    delete_dynamic(&repl_ignore_server_ids);
-    /* Free all the array elements. */
-    delete_dynamic(&repl_do_domain_ids);
-    delete_dynamic(&repl_ignore_domain_ids);
+    if (unlikely(is_change_master))
+    {
+      delete_dynamic(&repl_ignore_server_ids);
+      /* Free all the array elements. */
+      delete_dynamic(&repl_do_domain_ids);
+      delete_dynamic(&repl_ignore_domain_ids);
+    }
 
     host= user= password= log_file_name= ssl_key= ssl_cert= ssl_ca=
       ssl_capath= ssl_cipher= relay_log_name= 0;
@@ -520,7 +526,6 @@ public:
   void exclude();
   void exclude_from_tree();
 
-  virtual st_select_lex_unit* master_unit()= 0;
   virtual st_select_lex* outer_select()= 0;
   virtual st_select_lex* return_after_parsing()= 0;
 
@@ -542,8 +547,8 @@ public:
 
   friend class st_select_lex_unit;
   friend bool mysql_new_select(LEX *lex, bool move_down);
-  friend bool mysql_make_view(THD *thd, File_parser *parser,
-                              TABLE_LIST *table, uint flags);
+  friend bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *table,
+                              bool open_view_no_parse);
   friend bool mysql_derived_prepare(THD *thd, LEX *lex,
                                   TABLE_LIST *orig_table_list);
   friend bool mysql_derived_merge(THD *thd, LEX *lex,
@@ -662,7 +667,6 @@ public:
   TABLE *insert_table_with_stored_vcol;
 
   void init_query();
-  st_select_lex_unit* master_unit();
   st_select_lex* outer_select();
   st_select_lex* first_select()
   {
@@ -892,7 +896,7 @@ public:
 
   void init_query();
   void init_select();
-  st_select_lex_unit* master_unit();
+  st_select_lex_unit* master_unit() { return (st_select_lex_unit*) master; }
   st_select_lex_unit* first_inner_unit() 
   { 
     return (st_select_lex_unit*) slave; 
@@ -1802,6 +1806,8 @@ enum enum_comment_state
 
 class Lex_input_stream
 {
+  size_t unescape(CHARSET_INFO *cs, char *to,
+                  const char *str, const char *end, int sep);
 public:
   Lex_input_stream()
   {
@@ -2086,9 +2092,6 @@ public:
   /** Current line number. */
   uint yylineno;
 
-  /** Length of the last token parsed. */
-  uint yytoklen;
-
   /** Interface with bison, value of the last token parsed. */
   LEX_YYSTYPE yylval;
 
@@ -2102,6 +2105,12 @@ public:
 
   /** LALR(2) resolution, value of the look ahead token.*/
   LEX_YYSTYPE lookahead_yylval;
+
+  bool get_text(LEX_STRING *to, int pre_skip, int post_skip);
+
+  void add_digest_token(uint token, LEX_YYSTYPE yylval);
+
+  void reduce_digest_token(uint token_left, uint token_right);
 
 private:
   /** Pointer to the current position in the raw input stream. */
@@ -2222,7 +2231,7 @@ public:
   /**
     Current statement digest instrumentation. 
   */
-  PSI_digest_locker* m_digest_psi;
+  sql_digest_state* m_digest;
 };
 
 /**
@@ -2288,6 +2297,7 @@ class SQL_SELECT;
 
 class Explain_query;
 class Explain_update;
+class Explain_delete;
 
 /* 
   Query plan of a single-table UPDATE.
@@ -2330,10 +2340,10 @@ public:
   void set_impossible_where() { impossible_where= true; }
   void set_no_partitions() { no_partitions= true; }
 
-  void save_explain_data(MEM_ROOT *mem_root, Explain_query *query);
-  void save_explain_data_intern(MEM_ROOT *mem_root, Explain_query *query,
-                                Explain_update *eu);
-
+  Explain_update* save_explain_update_data(MEM_ROOT *mem_root, THD *thd);
+protected:
+  void save_explain_data_intern(MEM_ROOT *mem_root, Explain_update *eu, bool is_analyze);
+public:
   virtual ~Update_plan() {}
 
   Update_plan(MEM_ROOT *mem_root_arg) : 
@@ -2363,10 +2373,11 @@ public:
     scanned_rows= rows_arg;
   }
 
-  void save_explain_data(MEM_ROOT *mem_root, Explain_query *query);
+  Explain_delete* save_explain_delete_data(MEM_ROOT *mem_root, THD *thd);
 };
 
 
+class Query_arena_memroot;
 /* The state of the lex parsing. This is saved in the THD struct */
 
 struct LEX: public Query_tables_list
@@ -2421,7 +2432,6 @@ struct LEX: public Query_tables_list
   */
   LEX_USER *definer;
 
-  List<Key_part_spec> col_list;
   List<Key_part_spec> ref_list;
   List<LEX_USER>      users_list;
   List<LEX_COLUMN>    columns;
@@ -2430,6 +2440,16 @@ struct LEX: public Query_tables_list
   List<set_var_base>  var_list;
   List<set_var_base>  stmt_var_list; //SET_STATEMENT values
   List<set_var_base>  old_var_list; // SET STATEMENT old values
+private:
+  Query_arena_memroot *arena_for_set_stmt;
+  MEM_ROOT *mem_root_for_set_stmt;
+  void parse_error();
+public:
+  inline bool is_arena_for_set_stmt() {return arena_for_set_stmt != 0;}
+  bool set_arena_for_set_stmt(Query_arena *backup);
+  void reset_arena_for_set_stmt(Query_arena *backup);
+  void free_arena_for_set_stmt();
+
   List<Item_func_set_user_var> set_var_list; // in-query assignment list
   List<Item_param>    param_list;
   List<LEX_STRING>    view_list; // view list (list of field names in view)
@@ -2457,7 +2477,7 @@ struct LEX: public Query_tables_list
   udf_func udf;
   HA_CHECK_OPT   check_opt;			// check/repair options
   Table_specification_st create_info;
-  KEY_CREATE_INFO key_create_info;
+  Key *last_key;
   LEX_MASTER_INFO mi;				// used by CHANGE MASTER
   LEX_SERVER_OPTIONS server_options;
   LEX_STRING relay_log_connection_name;
@@ -2677,10 +2697,23 @@ struct LEX: public Query_tables_list
       limit_rows_examined_cnt= ULONGLONG_MAX;
   }
 
+
+  inline void free_set_stmt_mem_root()
+  {
+    DBUG_ASSERT(!is_arena_for_set_stmt());
+    if (mem_root_for_set_stmt)
+    {
+      free_root(mem_root_for_set_stmt, MYF(0));
+      delete mem_root_for_set_stmt;
+      mem_root_for_set_stmt= 0;
+    }
+  }
+
   LEX();
 
   virtual ~LEX()
   {
+    free_set_stmt_mem_root();
     destroy_query_tables_list();
     plugin_unlock_list(NULL, (plugin_ref *)plugins.buffer, plugins.elements);
     delete_dynamic(&plugins);
@@ -2761,9 +2794,9 @@ struct LEX: public Query_tables_list
 
   void cleanup_after_one_table_open();
 
-  bool push_context(Name_resolution_context *context)
+  bool push_context(Name_resolution_context *context, MEM_ROOT *mem_root)
   {
-    return context_stack.push_front(context);
+    return context_stack.push_front(context, mem_root);
   }
 
   void pop_context()
@@ -2810,6 +2843,8 @@ struct LEX: public Query_tables_list
     return FALSE;
   }
 
+  bool save_prep_leaf_tables();
+
   int print_explain(select_result_sink *output, uint8 explain_flags,
                     bool is_analyze, bool *printed_anything);
   void restore_set_statement_var();
@@ -2817,6 +2852,36 @@ struct LEX: public Query_tables_list
   void init_last_field(Create_field *field, const char *name, CHARSET_INFO *cs);
   void set_last_field_type(enum enum_field_types type);
   bool set_bincmp(CHARSET_INFO *cs, bool bin);
+  // Check if "KEY IF NOT EXISTS name" used outside of ALTER context
+  bool check_add_key(DDL_options_st ddl)
+  {
+    if (ddl.if_not_exists() && sql_command != SQLCOM_ALTER_TABLE)
+    {
+      parse_error();
+      return true;
+    }
+    return false;
+  }
+  // Add a key as a part of CREATE TABLE or ALTER TABLE
+  bool add_key(Key::Keytype type, const LEX_STRING &name,
+               ha_key_alg algorithm, DDL_options_st ddl)
+  {
+    if (check_add_key(ddl) ||
+        !(last_key= new Key(type, name, algorithm, false, ddl)))
+      return true;
+    alter_info.key_list.push_back(last_key);
+    return false;
+  }
+  // Add a key for a CREATE INDEX statement
+  bool add_create_index(Key::Keytype type, const LEX_STRING &name,
+                        ha_key_alg algorithm, DDL_options_st ddl)
+  {
+    if (check_create_options(ddl) ||
+       !(last_key= new Key(type, name, algorithm, false, ddl)))
+      return true;
+    alter_info.key_list.push_back(last_key);
+    return false;
+  }
   void set_command(enum_sql_command command,
                    DDL_options_st options)
   {
@@ -2980,6 +3045,18 @@ public:
 };
 
 /**
+  Input parameters to the parser.
+*/
+struct Parser_input
+{
+  bool m_compute_digest;
+
+  Parser_input()
+    : m_compute_digest(false)
+  {}
+};
+
+/**
   Internal state of the parser.
   The complete state consist of:
   - state data used during lexical parsing,
@@ -3006,8 +3083,14 @@ public:
   ~Parser_state()
   {}
 
+  Parser_input m_input;
   Lex_input_stream m_lip;
   Yacc_state m_yacc;
+
+  /**
+    Current performance digest instrumentation. 
+  */
+  PSI_digest_locker* m_digest_psi;
 
   void reset(char *found_semicolon, unsigned int length)
   {
@@ -3016,6 +3099,11 @@ public:
   }
 };
 
+extern sql_digest_state *
+digest_add_token(sql_digest_state *state, uint token, LEX_YYSTYPE yylval);
+
+extern sql_digest_state *
+digest_reduce_token(sql_digest_state *state, uint token_left, uint token_right);
 
 struct st_lex_local: public LEX, public Sql_alloc
 {

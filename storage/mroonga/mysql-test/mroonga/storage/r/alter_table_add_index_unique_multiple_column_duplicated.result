@@ -1,0 +1,19 @@
+DROP TABLE IF EXISTS ids;
+CREATE TABLE ids (
+id1 INT,
+id2 INT
+) DEFAULT CHARSET=utf8mb4;
+INSERT INTO ids (id1, id2) values (1, 2), (1, 2);
+ALTER TABLE ids ADD UNIQUE INDEX (id1, id2);
+ERROR 23000: Can't write, because of unique constraint, to table 'ids'
+SHOW CREATE TABLE ids;
+Table	Create Table
+ids	CREATE TABLE `ids` (
+  `id1` int(11) DEFAULT NULL,
+  `id2` int(11) DEFAULT NULL
+) ENGINE=Mroonga DEFAULT CHARSET=utf8mb4
+SELECT * FROM ids;
+id1	id2
+1	2
+1	2
+DROP TABLE ids;

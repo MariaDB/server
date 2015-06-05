@@ -545,8 +545,7 @@ bool parse_date_time_format(timestamp_type format_type,
   {
     if (*ptr == '%' && ptr+1 != end)
     {
-      uint position;
-      LINT_INIT(position);
+      uint UNINIT_VAR(position);
       switch (*++ptr) {
       case 'y':					// Year
       case 'Y':

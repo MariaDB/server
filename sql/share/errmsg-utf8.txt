@@ -5194,10 +5194,10 @@ ER_FPARSER_EOF_IN_UNKNOWN_PARAMETER
         rus "Неожиданный конец файла при пропуске неизвестного параметра '%-.192s'"
         ukr "Несподіванний кінець файлу у спробі проминути невідомий параметр '%-.192s'"
 ER_VIEW_NO_EXPLAIN  
-        eng "EXPLAIN/SHOW can not be issued; lacking privileges for underlying table"
-        ger "EXPLAIN/SHOW kann nicht verlangt werden. Rechte für zugrunde liegende Tabelle fehlen"
-        rus "EXPLAIN/SHOW не может быть выполнено; недостаточно прав на таблицы запроса"
-        ukr "EXPLAIN/SHOW не може бути виконано; немає прав на таблиці запиту"
+        eng "ANALYZE/EXPLAIN/SHOW can not be issued; lacking privileges for underlying table"
+        ger "ANALYZE/EXPLAIN/SHOW kann nicht verlangt werden. Rechte für zugrunde liegende Tabelle fehlen"
+        rus "ANALYZE/EXPLAIN/SHOW не может быть выполнено; недостаточно прав на таблицы запроса"
+        ukr "ANALYZE/EXPLAIN/SHOW не може бути виконано; немає прав на таблиці запиту"
 ER_FRM_UNKNOWN_TYPE  
         eng "File '%-.192s' has unknown type '%-.64s' in its header"
         ger "Datei '%-.192s' hat unbekannten Typ '%-.64s' im Header"
@@ -5571,8 +5571,8 @@ ER_SP_WRONG_NAME 42000
         eng "Incorrect routine name '%-.192s'"
         ger "Ungültiger Routinenname '%-.192s'"
 ER_TABLE_NEEDS_UPGRADE
-        eng "Table upgrade required. Please do \"REPAIR TABLE `%-.32s`\" or dump/reload to fix it!"
-        ger "Tabellenaktualisierung erforderlich. Bitte zum Reparieren \"REPAIR TABLE `%-.32s`\" eingeben!"
+        eng "Upgrade required. Please do \"REPAIR %s %`s\" or dump/reload to fix it!"
+        ger "Aktualisierung erforderlich. Bitte zum Reparieren \"REPAIR %s %`s\" eingeben!"
 ER_SP_NO_AGGREGATE 42000
         eng "AGGREGATE is not supported for stored functions"
         ger "AGGREGATE wird bei gespeicherten Funktionen nicht unterstützt"
@@ -7078,7 +7078,7 @@ ER_INSIDE_TRANSACTION_PREVENTS_SWITCH_GTID_DOMAIN_ID_SEQ_NO
 ER_STORED_FUNCTION_PREVENTS_SWITCH_GTID_DOMAIN_ID_SEQ_NO
         eng "Cannot modify @@session.gtid_domain_id or @@session.gtid_seq_no inside a stored function or trigger"
 ER_GTID_POSITION_NOT_FOUND_IN_BINLOG2
-	eng "Connecting slave requested to start from GTID %u-%u-%llu, which is not in the master's binlog. Since the master's binlog contains GTIDs with higher sequence numbers, it probably means that the slave has diverged due to executing extra errorneous transactions"
+	eng "Connecting slave requested to start from GTID %u-%u-%llu, which is not in the master's binlog. Since the master's binlog contains GTIDs with higher sequence numbers, it probably means that the slave has diverged due to executing extra erroneous transactions"
 ER_BINLOG_MUST_BE_EMPTY
 	eng "This operation is not allowed if any GTID has been logged to the binary log. Run RESET MASTER first to erase the log"
 ER_NO_SUCH_QUERY
@@ -7125,3 +7125,5 @@ ER_ROLE_CREATE_EXISTS
         eng "Can't create role '%-.64s'; it already exists"
 ER_ROLE_DROP_EXISTS
         eng "Can't drop role '%-.64s'; it doesn't exist"
+ER_CANNOT_CONVERT_CHARACTER
+        eng "Cannot convert '%s' character 0x%-.64s to '%s'"

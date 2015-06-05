@@ -30,10 +30,11 @@ extern "C"				/* Bug in BSDI include file */
 }
 #endif
 
-class Item_func :public Item_result_field
+
+class Item_func :public Item_func_or_sum, public Used_tables_and_const_cache
 {
+  void sync_with_sum_func_and_with_field(List<Item> &list);
 protected:
-  Item **args, *tmp_arg[2];
   /*
     Allowed numbers of columns in result (usually 1, which means scalar value)
     0 means get this number from first argument
@@ -41,16 +42,8 @@ protected:
   uint allowed_arg_cols;
   String *val_str_from_val_str_ascii(String *str, String *str2);
 public:
-  uint arg_count;
-  /*
-    In some cases used_tables_cache is not what used_tables() return
-    so the method should be used where one need used tables bit map 
-    (even internally in Item_func_* code).
-  */
-  table_map used_tables_cache;
   table_map not_null_tables_cache;
 
-  bool const_item_cache;
   enum Functype { UNKNOWN_FUNC,EQ_FUNC,EQUAL_FUNC,NE_FUNC,LT_FUNC,LE_FUNC,
 		  GE_FUNC,GT_FUNC,FT_FUNC,
 		  LIKE_FUNC,ISNULL_FUNC,ISNOTNULL_FUNC,
@@ -72,84 +65,88 @@ public:
   enum Type type() const { return FUNC_ITEM; }
   virtual enum Functype functype() const   { return UNKNOWN_FUNC; }
   Item_func(void):
-    allowed_arg_cols(1), arg_count(0)
+    Item_func_or_sum(), allowed_arg_cols(1)
   {
     with_sum_func= 0;
     with_field= 0;
   }
   Item_func(Item *a):
-    allowed_arg_cols(1), arg_count(1)
+    Item_func_or_sum(a), allowed_arg_cols(1)
   {
-    args= tmp_arg;
-    args[0]= a;
     with_sum_func= a->with_sum_func;
     with_field= a->with_field;
   }
   Item_func(Item *a,Item *b):
-    allowed_arg_cols(1), arg_count(2)
+    Item_func_or_sum(a, b), allowed_arg_cols(1)
   {
-    args= tmp_arg;
-    args[0]= a; args[1]= b;
     with_sum_func= a->with_sum_func || b->with_sum_func;
     with_field= a->with_field || b->with_field;
   }
   Item_func(Item *a,Item *b,Item *c):
-    allowed_arg_cols(1)
+    Item_func_or_sum(a, b, c), allowed_arg_cols(1)
   {
-    arg_count= 0;
-    if ((args= (Item**) sql_alloc(sizeof(Item*)*3)))
-    {
-      arg_count= 3;
-      args[0]= a; args[1]= b; args[2]= c;
-      with_sum_func= a->with_sum_func || b->with_sum_func || c->with_sum_func;
-      with_field= a->with_field || b->with_field || c->with_field;
-    }
+    with_sum_func= a->with_sum_func || b->with_sum_func || c->with_sum_func;
+    with_field= a->with_field || b->with_field || c->with_field;
   }
   Item_func(Item *a,Item *b,Item *c,Item *d):
-    allowed_arg_cols(1)
+    Item_func_or_sum(a, b, c, d), allowed_arg_cols(1)
   {
-    arg_count= 0;
-    if ((args= (Item**) sql_alloc(sizeof(Item*)*4)))
-    {
-      arg_count= 4;
-      args[0]= a; args[1]= b; args[2]= c; args[3]= d;
-      with_sum_func= a->with_sum_func || b->with_sum_func ||
-	c->with_sum_func || d->with_sum_func;
-      with_field= a->with_field || b->with_field ||
-        c->with_field || d->with_field;
-    }
+    with_sum_func= a->with_sum_func || b->with_sum_func ||
+                   c->with_sum_func || d->with_sum_func;
+    with_field= a->with_field || b->with_field ||
+                c->with_field || d->with_field;
   }
   Item_func(Item *a,Item *b,Item *c,Item *d,Item* e):
-    allowed_arg_cols(1)
+    Item_func_or_sum(a, b, c, d, e), allowed_arg_cols(1)
   {
-    arg_count= 5;
-    if ((args= (Item**) sql_alloc(sizeof(Item*)*5)))
-    {
-      args[0]= a; args[1]= b; args[2]= c; args[3]= d; args[4]= e;
-      with_sum_func= a->with_sum_func || b->with_sum_func ||
-	c->with_sum_func || d->with_sum_func || e->with_sum_func ;
-      with_field= a->with_field || b->with_field ||
-        c->with_field || d->with_field || e->with_field;
-    }
+    with_sum_func= a->with_sum_func || b->with_sum_func ||
+                   c->with_sum_func || d->with_sum_func || e->with_sum_func;
+    with_field= a->with_field || b->with_field ||
+                c->with_field || d->with_field || e->with_field;
   }
-  Item_func(List<Item> &list);
+  Item_func(List<Item> &list)
+    :Item_func_or_sum(list), allowed_arg_cols(1)
+  {
+    set_arguments(list);
+  }
   // Constructor used for Item_cond_and/or (see Item comment)
-  Item_func(THD *thd, Item_func *item);
+  Item_func(THD *thd, Item_func *item)
+   :Item_func_or_sum(thd, item), Used_tables_and_const_cache(item),
+    allowed_arg_cols(item->allowed_arg_cols),
+    not_null_tables_cache(item->not_null_tables_cache)
+  {
+  }
   bool fix_fields(THD *, Item **ref);
+  void cleanup()
+  {
+    Item_func_or_sum::cleanup();
+    used_tables_and_const_cache_init();
+  }
   void fix_after_pullout(st_select_lex *new_parent, Item **ref);
   void quick_fix_field();
   table_map used_tables() const;
   table_map not_null_tables() const;
-  void update_used_tables();
+  void update_used_tables()
+  {
+    used_tables_and_const_cache_init();
+    used_tables_and_const_cache_update_and_join(arg_count, args);
+  }
+  COND *build_equal_items(THD *thd, COND_EQUAL *inherited,
+                          bool link_item_fields,
+                          COND_EQUAL **cond_equal_ref);
+  SEL_TREE *get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr);
   bool eq(const Item *item, bool binary_cmp) const;
   virtual optimize_type select_optimize() const { return OPTIMIZE_NONE; }
   virtual bool have_rev_func() const { return 0; }
   virtual Item *key_item() const { return args[0]; }
   virtual bool const_item() const { return const_item_cache; }
-  inline Item **arguments() const { return args; }
-  void set_arguments(List<Item> &list);
-  inline uint argument_count() const { return arg_count; }
-  inline void remove_arguments() { arg_count=0; }
+  void set_arguments(List<Item> &list)
+  {
+    allowed_arg_cols= 1;
+    Item_args::set_arguments(list);
+    sync_with_sum_func_and_with_field(list);
+    list.empty();                                     // Fields are used
+  }
   void split_sum_func(THD *thd, Item **ref_pointer_array, List<Item> &fields);
   virtual void print(String *str, enum_query_type query_type);
   void print_op(String *str, enum_query_type query_type);
@@ -239,7 +236,6 @@ public:
                                                                items, nitems,
                                                                item_sep);
   }
-  bool walk(Item_processor processor, bool walk_subquery, uchar *arg);
   Item *transform(Item_transformer transformer, uchar *arg);
   Item* compile(Item_analyzer analyzer, uchar **arg_p,
                 Item_transformer transformer, uchar *arg_t);
@@ -398,6 +394,15 @@ public:
     walk(&Item::call_bool_func_processor, FALSE, (uchar*) &info);
   }
   void convert_const_compared_to_int_field(THD *thd);
+  /**
+    Prepare arguments and setup a comparator.
+    Used in Item_func_xxx with two arguments and a comparator,
+    e.g. Item_bool_func2 and Item_func_nullif.
+    args[0] or args[1] can be modified:
+    - converted to character set and collation of the operation
+    - or replaced to an Item_int_with_ref
+  */
+  bool setup_args_and_comparator(THD *thd, Arg_comparator *cmp);
 };
 
 
@@ -1365,8 +1370,7 @@ public:
   {
     DBUG_ASSERT(fixed == 0);
     bool res= udf.fix_fields(thd, this, arg_count, args);
-    used_tables_cache= udf.used_tables_cache;
-    const_item_cache= udf.const_item_cache;
+    used_tables_and_const_cache_copy(&udf);
     fixed= 1;
     return res;
   }

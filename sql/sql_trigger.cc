@@ -286,8 +286,8 @@ public:
   Handle_old_incorrect_sql_modes_hook(char *file_path)
     :path(file_path)
   {};
-  virtual bool process_unknown_string(char *&unknown_key, uchar* base,
-                                      MEM_ROOT *mem_root, char *end);
+  virtual bool process_unknown_string(const char *&unknown_key, uchar* base,
+                                      MEM_ROOT *mem_root, const char *end);
 };
 
 
@@ -298,8 +298,8 @@ public:
                                           LEX_STRING *trigger_table_arg)
     :path(file_path), trigger_table_value(trigger_table_arg)
   {};
-  virtual bool process_unknown_string(char *&unknown_key, uchar* base,
-                                      MEM_ROOT *mem_root, char *end);
+  virtual bool process_unknown_string(const char *&unknown_key, uchar* base,
+                                      MEM_ROOT *mem_root, const char *end);
 private:
   char *path;
   LEX_STRING *trigger_table_value;
@@ -608,6 +608,63 @@ end:
   DBUG_RETURN(result);
 }
 
+/**
+  Build stmt_query to write it in the bin-log
+  and get the trigger definer.
+
+  @param thd           current thread context (including trigger definition in
+                       LEX)
+  @param tables        table list containing one open table for which the
+                       trigger is created.
+  @param[out] stmt_query    after successful return, this string contains
+                            well-formed statement for creation this trigger.
+
+  @param[out] trg_definer         The triggger definer.
+  @param[out] trg_definer_holder  Used as a buffer for definer.
+
+  @note
+    - Assumes that trigger name is fully qualified.
+    - NULL-string means the following LEX_STRING instance:
+    { str = 0; length = 0 }.
+    - In other words, definer_user and definer_host should contain
+    simultaneously NULL-strings (non-SUID/old trigger) or valid strings
+    (SUID/new trigger).
+*/
+static void build_trig_stmt_query(THD *thd, TABLE_LIST *tables,
+                                  String *stmt_query,
+                                  LEX_STRING *trg_definer,
+                                  char trg_definer_holder[])
+{
+  LEX *lex= thd->lex;
+
+  /*
+    Create a query with the full trigger definition.
+    The original query is not appropriate, as it can miss the DEFINER=XXX part.
+  */
+  stmt_query->append(STRING_WITH_LEN("CREATE "));
+
+  if (lex->create_info.or_replace())
+    stmt_query->append(STRING_WITH_LEN("OR REPLACE "));
+
+  if (lex->sphead->m_chistics->suid != SP_IS_NOT_SUID)
+  {
+    /* SUID trigger */
+    lex->definer->set_lex_string(trg_definer, trg_definer_holder);
+    append_definer(thd, stmt_query, &lex->definer->user, &lex->definer->host);
+  }
+  else
+  {
+    *trg_definer= empty_lex_str;
+  }
+
+  LEX_STRING stmt_definition;
+  stmt_definition.str= (char*) thd->lex->stmt_definition_begin;
+  stmt_definition.length= thd->lex->stmt_definition_end -
+                          thd->lex->stmt_definition_begin;
+  trim_whitespace(thd->charset(), &stmt_definition);
+  stmt_query->append(stmt_definition.str, stmt_definition.length);
+}
+
 
 /**
   Create trigger for table.
@@ -640,8 +697,6 @@ bool Table_triggers_list::create_trigger(THD *thd, TABLE_LIST *tables,
   char file_buff[FN_REFLEN], trigname_buff[FN_REFLEN];
   LEX_STRING file, trigname_file;
   LEX_STRING *trg_def;
-  LEX_STRING definer_user;
-  LEX_STRING definer_host;
   ulonglong *trg_sql_mode;
   char trg_definer_holder[USER_HOST_BUFF_SIZE];
   LEX_STRING *trg_definer;
@@ -650,6 +705,8 @@ bool Table_triggers_list::create_trigger(THD *thd, TABLE_LIST *tables,
   LEX_STRING *trg_client_cs_name;
   LEX_STRING *trg_connection_cl_name;
   LEX_STRING *trg_db_cl_name;
+  sp_head *trg_body= bodies[lex->trg_chistics.event]
+                           [lex->trg_chistics.action_time];
 
   if (check_for_broken_triggers())
     return true;
@@ -659,20 +716,31 @@ bool Table_triggers_list::create_trigger(THD *thd, TABLE_LIST *tables,
                     lex->spname->m_db.str))
   {
     my_error(ER_TRG_IN_WRONG_SCHEMA, MYF(0));
-    return 1;
+    return true;
   }
 
-  /* We don't allow creation of several triggers of the same type yet */
-  if (bodies[lex->trg_chistics.event][lex->trg_chistics.action_time] != 0)
+  /*
+    We don't allow creation of several triggers of the same type yet.
+    If a trigger with the same type already exists:
+    a. Throw a ER_NOT_SUPPORTED_YET error,
+       if the old and the new trigger names are different;     
+    b. Or continue, if the old and the new trigger names are the same:
+       - either to recreate the trigger on "CREATE OR REPLACE"
+       - or send a "already exists" warning on "CREATE IF NOT EXISTS"
+       - or send an "alredy exists" error on normal CREATE.
+  */
+  if (trg_body != 0 &&
+      my_strcasecmp(table_alias_charset,
+                    trg_body->m_name.str, lex->spname->m_name.str))
   {
     my_error(ER_NOT_SUPPORTED_YET, MYF(0),
              "multiple triggers with the same action time"
              " and event for one table");
-    return 1;
+    return true;
   }
 
   if (sp_process_definer(thd))
-    return 1;
+    return true;
 
   /*
     Let us check if all references to fields in old/new versions of row in
@@ -701,7 +769,7 @@ bool Table_triggers_list::create_trigger(THD *thd, TABLE_LIST *tables,
 
     if (!trg_field->fixed &&
         trg_field->fix_fields(thd, (Item **)0))
-      return 1;
+      return true;
   }
 
   /*
@@ -722,8 +790,29 @@ bool Table_triggers_list::create_trigger(THD *thd, TABLE_LIST *tables,
   /* Use the filesystem to enforce trigger namespace constraints. */
   if (!access(trigname_buff, F_OK))
   {
-    my_error(ER_TRG_ALREADY_EXISTS, MYF(0));
-    return 1;
+    if (lex->create_info.or_replace())
+    {
+      String drop_trg_query;
+      drop_trg_query.append("DROP TRIGGER ");
+      drop_trg_query.append(lex->spname->m_name.str);
+      if (drop_trigger(thd, tables, &drop_trg_query))
+        return 1;
+    }
+    else if (lex->create_info.if_not_exists())
+    {
+      push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
+                          ER_TRG_ALREADY_EXISTS, ER(ER_TRG_ALREADY_EXISTS),
+                          trigname_buff);
+      LEX_STRING trg_definer_tmp;
+      build_trig_stmt_query(thd, tables, stmt_query,
+                            &trg_definer_tmp, trg_definer_holder);
+      return false;
+    }
+    else
+    {
+      my_error(ER_TRG_ALREADY_EXISTS, MYF(0));
+      return true;
+    }
   }
 
   trigname.trigger_table.str= tables->table_name;
@@ -731,7 +820,7 @@ bool Table_triggers_list::create_trigger(THD *thd, TABLE_LIST *tables,
 
   if (sql_create_definition_file(NULL, &trigname_file, &trigname_file_type,
                                  (uchar*)&trigname, trigname_file_parameters))
-    return 1;
+    return true;
 
   /*
     Soon we will invalidate table object and thus Table_triggers_list object
@@ -764,29 +853,6 @@ bool Table_triggers_list::create_trigger(THD *thd, TABLE_LIST *tables,
 
   *trg_sql_mode= thd->variables.sql_mode;
 
-  if (lex->sphead->m_chistics->suid != SP_IS_NOT_SUID)
-  {
-    /* SUID trigger. */
-
-    definer_user= lex->definer->user;
-    definer_host= lex->definer->host;
-
-    lex->definer->set_lex_string(trg_definer, trg_definer_holder);
-  }
-  else
-  {
-    /* non-SUID trigger. */
-
-    definer_user.str= 0;
-    definer_user.length= 0;
-
-    definer_host.str= 0;
-    definer_host.length= 0;
-
-    trg_definer->str= (char*) "";
-    trg_definer->length= 0;
-  }
-
   /*
     Fill character set information:
       - client character set contains charset info only;
@@ -802,30 +868,8 @@ bool Table_triggers_list::create_trigger(THD *thd, TABLE_LIST *tables,
   lex_string_set(trg_db_cl_name,
                  get_default_db_collation(thd, tables->db)->name);
 
-  /*
-    Create well-formed trigger definition query. Original query is not
-    appropriated, because definer-clause can be not truncated.
-  */
-
-  stmt_query->append(STRING_WITH_LEN("CREATE "));
-
-  if (lex->sphead->m_chistics->suid != SP_IS_NOT_SUID)
-  {
-    /*
-      Append definer-clause if the trigger is SUID (a usual trigger in
-      new MySQL versions).
-    */
-
-    append_definer(thd, stmt_query, &definer_user, &definer_host);
-  }
-
-  LEX_STRING stmt_definition;
-  stmt_definition.str= (char*) thd->lex->stmt_definition_begin;
-  stmt_definition.length= thd->lex->stmt_definition_end
-    - thd->lex->stmt_definition_begin;
-  trim_whitespace(thd->charset(), & stmt_definition);
-
-  stmt_query->append(stmt_definition.str, stmt_definition.length);
+  build_trig_stmt_query(thd, tables, stmt_query,
+                        trg_definer, trg_definer_holder);
 
   trg_def->str= stmt_query->c_ptr_safe();
   trg_def->length= stmt_query->length();
@@ -834,11 +878,11 @@ bool Table_triggers_list::create_trigger(THD *thd, TABLE_LIST *tables,
 
   if (!sql_create_definition_file(NULL, &file, &triggers_file_type,
                                   (uchar*)this, triggers_file_parameters))
-    return 0;
+    return false;
 
 err_with_cleanup:
   mysql_file_delete(key_file_trn, trigname_buff, MYF(MY_WME));
-  return 1;
+  return true;
 }
 
 
@@ -2272,10 +2316,9 @@ void Table_triggers_list::set_parse_error_message(char *error_message)
 #define INVALID_SQL_MODES_LENGTH 13
 
 bool
-Handle_old_incorrect_sql_modes_hook::process_unknown_string(char *&unknown_key,
-                                                            uchar* base,
-                                                            MEM_ROOT *mem_root,
-                                                            char *end)
+Handle_old_incorrect_sql_modes_hook::
+process_unknown_string(const char *&unknown_key, uchar* base,
+                       MEM_ROOT *mem_root, const char *end)
 {
   DBUG_ENTER("Handle_old_incorrect_sql_modes_hook::process_unknown_string");
   DBUG_PRINT("info", ("unknown key: %60s", unknown_key));
@@ -2284,7 +2327,7 @@ Handle_old_incorrect_sql_modes_hook::process_unknown_string(char *&unknown_key,
       unknown_key[INVALID_SQL_MODES_LENGTH] == '=' &&
       !memcmp(unknown_key, STRING_WITH_LEN("sql_modes")))
   {
-    char *ptr= unknown_key + INVALID_SQL_MODES_LENGTH + 1;
+    const char *ptr= unknown_key + INVALID_SQL_MODES_LENGTH + 1;
 
     DBUG_PRINT("info", ("sql_modes affected by BUG#14090 detected"));
     push_warning_printf(current_thd,
@@ -2315,8 +2358,8 @@ Handle_old_incorrect_sql_modes_hook::process_unknown_string(char *&unknown_key,
 */
 bool
 Handle_old_incorrect_trigger_table_hook::
-process_unknown_string(char *&unknown_key, uchar* base, MEM_ROOT *mem_root,
-                       char *end)
+process_unknown_string(const char *&unknown_key, uchar* base,
+                       MEM_ROOT *mem_root, const char *end)
 {
   DBUG_ENTER("Handle_old_incorrect_trigger_table_hook::process_unknown_string");
   DBUG_PRINT("info", ("unknown key: %60s", unknown_key));
@@ -2325,7 +2368,7 @@ process_unknown_string(char *&unknown_key, uchar* base, MEM_ROOT *mem_root,
       unknown_key[INVALID_TRIGGER_TABLE_LENGTH] == '=' &&
       !memcmp(unknown_key, STRING_WITH_LEN("trigger_table")))
   {
-    char *ptr= unknown_key + INVALID_TRIGGER_TABLE_LENGTH + 1;
+    const char *ptr= unknown_key + INVALID_TRIGGER_TABLE_LENGTH + 1;
 
     DBUG_PRINT("info", ("trigger_table affected by BUG#15921 detected"));
     push_warning_printf(current_thd,

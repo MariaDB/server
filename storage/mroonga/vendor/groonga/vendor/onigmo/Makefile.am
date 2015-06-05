@@ -1,18 +1,16 @@
 EXTRA_DIST =					\
-	configure
+	configure				\
+	CMakeLists.txt
 
 CONFIGURE_DEPENDENCIES =			\
 	configure
 
-ALL_DEPEND_TARGETS =
-INSTALL_DEPEND_TARGETS =
-CLEAN_DEPEND_TARGETS =
-if WITH_MRUBY
-ALL_DEPEND_TARGETS += onigmo-all
+ALL_DEPEND_TARGETS = onigmo-all
+CLEAN_DEPEND_TARGETS = onigmo-clean
+
+INSTALL_DEPEND_TARGETS = onigmo-all
 if WITH_SHARED_ONIGMO
 INSTALL_DEPEND_TARGETS += onigmo-install
-endif
-CLEAN_DEPEND_TARGETS += onigmo-clean
 endif
 
 onigmo-all:

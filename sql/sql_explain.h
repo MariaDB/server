@@ -14,57 +14,53 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
 
+/*
+
+== EXPLAIN/ANALYZE architecture ==
+
+=== [SHOW] EXPLAIN data ===
+Query optimization produces two data structures:
+1. execution data structures themselves (eg. JOINs, JOIN_TAB, etc, etc)
+2. Explain data structures.
+
+#2 are self contained set of data structures that has sufficient info to
+produce output of SHOW EXPLAIN, EXPLAIN [FORMAT=JSON], or 
+ANALYZE [FORMAT=JSON], without accessing the execution data structures.
+
+(the only exception is that Explain data structures keep Item* pointers,
+and we require that one might call item->print(QT_EXPLAIN) when printing
+FORMAT=JSON output)
+
+=== ANALYZE data ===
+EXPLAIN data structures have embedded ANALYZE data structures. These are 
+objects that are used to track how the parts of query plan were executed:
+how many times each part of query plan was invoked, how many rows were
+read/returned, etc.
+
+Each execution data structure keeps a direct pointer to its ANALYZE data
+structure. It is needed so that execution code can quickly increment the
+counters.
+
+(note that this increases the set of data that is frequently accessed 
+during the execution. What is the impact of this?)
+
+Since ANALYZE/EXPLAIN data structures are separated from execution data
+structures, it is easy to have them survive until the end of the query,
+where we can return ANALYZE [FORMAT=JSON] output to the user, or print 
+it into the slow query log.
+
+*/
+
+#ifndef SQL_EXPLAIN_INCLUDED
+#define SQL_EXPLAIN_INCLUDED
 
 class String_list: public List<char>
 {
 public:
-  bool append_str(MEM_ROOT *mem_root, const char *str);
+  const char *append_str(MEM_ROOT *mem_root, const char *str);
 };
 
-
-/*
-  A class for collecting read statistics.
-  
-  The idea is that we run several scans. Each scans gets rows, and then filters
-  some of them out.  We count scans, rows, and rows left after filtering.
-*/
-
-class Table_access_tracker 
-{
-public:
-  Table_access_tracker() :
-    r_scans(0), r_rows(0), /*r_rows_after_table_cond(0),*/
-    r_rows_after_where(0)
-  {}
-
-  ha_rows r_scans; /* How many scans were ran on this join_tab */
-  ha_rows r_rows; /* How many rows we've got after that */
-//  ha_rows r_rows_after_table_cond; /* Rows after applying the table condition */
-  ha_rows r_rows_after_where; /* Rows after applying attached part of WHERE */
-
-  bool has_scans() { return (r_scans != 0); }
-  ha_rows get_loops() { return r_scans; }
-  ha_rows get_avg_rows()
-  {
-    return r_scans ? (ha_rows)rint((double) r_rows / r_scans): 0;
-  }
-
-  double get_filtered_after_where()
-  {
-    double r_filtered;
-    if (r_rows > 0)
-      r_filtered= (double)r_rows_after_where / r_rows;
-    else
-      r_filtered= 1.0;
-
-    return r_filtered;
-  }
-  
-  inline void on_scan_init() { r_scans++; }
-  inline void on_record_read() { r_rows++; }
-  inline void on_record_after_where() { r_rows_after_where++; }
-};
-
+class Json_writer;
 
 /**************************************************************************************
  
@@ -82,16 +78,15 @@ const int FAKE_SELECT_LEX_ID= (int)UINT_MAX;
 
 class Explain_query;
 
-class Json_writer;
-
 /* 
   A node can be either a SELECT, or a UNION.
 */
 class Explain_node : public Sql_alloc
 {
 public:
-  Explain_node(MEM_ROOT *root)
-    :children(root)
+  Explain_node(MEM_ROOT *root) : 
+     connection_type(EXPLAIN_NODE_OTHER),
+     children(root)
   {}
   /* A type specifying what kind of node this is */
   enum explain_node_type 
@@ -111,7 +106,6 @@ public:
     EXPLAIN_NODE_NON_MERGED_SJ /* aka JTBM semi-join */
   };
 
-  Explain_node() : connection_type(EXPLAIN_NODE_OTHER) {}
 
   virtual enum explain_node_type get_type()= 0;
   virtual int get_select_id()= 0;
@@ -176,7 +170,8 @@ public:
                           bool is_analyze);
 
   void print_explain_json_interns(Explain_query *query, Json_writer *writer,
-                                  bool is_analyze);
+                                  bool is_analyze, 
+                                  Filesort_tracker *first_table_sort);
 
   /* A flat array of Explain structs for tables. */
   Explain_table_access** join_tabs;
@@ -204,10 +199,11 @@ class Explain_select : public Explain_basic_join
 public:
   enum explain_node_type get_type() { return EXPLAIN_SELECT; }
 
-  Explain_select(MEM_ROOT *root) : 
+  Explain_select(MEM_ROOT *root, bool is_analyze) : 
   Explain_basic_join(root),
     message(NULL),
-    using_temporary(false), using_filesort(false)
+    using_temporary(false), using_filesort(false),
+    time_tracker(is_analyze)
   {}
 
   /*
@@ -231,6 +227,11 @@ public:
   /* Global join attributes. In tabular form, they are printed on the first row */
   bool using_temporary;
   bool using_filesort;
+
+  /* ANALYZE members */
+  Time_and_counter_tracker time_tracker;
+
+  Sort_and_group_tracker  ops_tracker;
   
   int print_explain(Explain_query *query, select_result_sink *output, 
                     uint8 explain_flags, bool is_analyze);
@@ -255,8 +256,9 @@ private:
 class Explain_union : public Explain_node
 {
 public:
-  Explain_union(MEM_ROOT *root) : 
-  Explain_node(root)
+  Explain_union(MEM_ROOT *root, bool is_analyze) : 
+    Explain_node(root),
+    fake_select_lex_explain(root, is_analyze)
   {}
 
   enum explain_node_type get_type() { return EXPLAIN_UNION; }
@@ -291,6 +293,13 @@ public:
   const char *fake_select_type;
   bool using_filesort;
   bool using_tmp;
+  
+  /*
+    Explain data structure for "fake_select_lex" (i.e. for the degenerate
+    SELECT that reads UNION result).
+    It doesn't have a query plan, but we still need execution tracker, etc.
+  */
+  Explain_select fake_select_lex_explain;
 
   Table_access_tracker *get_fake_select_lex_tracker()
   {
@@ -465,6 +474,8 @@ class EXPLAIN_BKA_TYPE
 public:
   EXPLAIN_BKA_TYPE() : join_alg(NULL) {}
 
+  size_t join_buffer_size;
+
   bool incremental;
 
   /* 
@@ -549,11 +560,29 @@ private:
   It's a set of keys, tabular explain prints hex bitmap, json prints key names.
 */
 
+typedef const char* NAME;
+
 class Explain_range_checked_fer : public Sql_alloc
 {
 public:
   String_list key_set;
   key_map keys_map;
+private:
+  ha_rows full_scan, index_merge;
+  ha_rows *keys_stat;
+  NAME *keys_stat_names;
+  uint keys;
+
+public:
+  Explain_range_checked_fer()
+    :Sql_alloc(), full_scan(0), index_merge(0),
+    keys_stat(0), keys_stat_names(0), keys(0)
+  {}
+
+  int append_possible_keys_stat(MEM_ROOT *alloc,
+                                TABLE *table, key_map possible_keys);
+  void collect_data(QUICK_SELECT_I *quick);
+  void print_json(Json_writer *writer, bool is_analyze);
 };
 
 /*
@@ -585,6 +614,7 @@ public:
   /* id and 'select_type' are cared-of by the parent Explain_select */
   StringBuffer<32> table_name;
   StringBuffer<32> used_partitions;
+  String_list used_partitions_list;
   // valid with ET_USING_MRR
   StringBuffer<32> mrr_type;
   StringBuffer<32> firstmatch_table_name;
@@ -639,7 +669,7 @@ public:
   // Valid if ET_USING tag is present
   Explain_quick_select *quick_info;
   
-  /* Non-NULL values means this tab uses "range checked for each record" */
+  /* Non-NULL value means this tab uses "range checked for each record" */
   Explain_range_checked_fer *range_checked_fer;
  
   bool full_scan_on_null_key;
@@ -666,14 +696,15 @@ public:
 
   /* Tracker for reading the table */
   Table_access_tracker tracker;
+  Exec_time_tracker op_tracker;
   Table_access_tracker jbuf_tracker;
-
+  
   int print_explain(select_result_sink *output, uint8 explain_flags, 
                     bool is_analyze,
                     uint select_id, const char *select_type,
                     bool using_temporary, bool using_filesort);
   void print_explain_json(Explain_query *query, Json_writer *writer,
-                          bool is_analyze);
+                          bool is_analyze, Filesort_tracker *fs_tracker);
 
 private:
   void append_tag_name(String *str, enum explain_extra_tag tag);
@@ -695,8 +726,10 @@ class Explain_update : public Explain_node
 {
 public:
 
-  Explain_update(MEM_ROOT *root) : 
-  Explain_node(root)
+  Explain_update(MEM_ROOT *root, bool is_analyze) : 
+    Explain_node(root),
+    filesort_tracker(NULL),
+    command_tracker(is_analyze)
   {}
 
   virtual enum explain_node_type get_type() { return EXPLAIN_UPDATE; }
@@ -705,6 +738,7 @@ public:
   const char *select_type;
 
   StringBuffer<32> used_partitions;
+  String_list used_partitions_list;
   bool used_partitions_set;
 
   bool impossible_where;
@@ -730,11 +764,30 @@ public:
 
   ha_rows rows;
 
-  bool using_filesort;
   bool using_io_buffer;
+
+  /* Tracker for doing reads when filling the buffer */
+  Table_access_tracker buf_tracker;
+  
+  bool is_using_filesort() { return filesort_tracker? true: false; }
+  /*
+    Non-null value of filesort_tracker means "using filesort"
+
+    if we are using filesort, then table_tracker is for the io done inside
+    filesort.
+    
+    'tracker' is for tracking post-filesort reads.
+  */
+  Filesort_tracker *filesort_tracker;
 
   /* ANALYZE members and methods */
   Table_access_tracker tracker;
+
+  /* This tracks execution of the whole command */
+  Time_and_counter_tracker command_tracker;
+  
+  /* TODO: This tracks time to read rows from the table */
+  Exec_time_tracker table_tracker;
 
   virtual int print_explain(Explain_query *query, select_result_sink *output, 
                             uint8 explain_flags, bool is_analyze);
@@ -776,8 +829,8 @@ public:
 class Explain_delete: public Explain_update
 {
 public:
-  Explain_delete(MEM_ROOT *root) : 
-  Explain_update(root)
+  Explain_delete(MEM_ROOT *root, bool is_analyze) : 
+  Explain_update(root, is_analyze)
   {}
 
   /*
@@ -796,3 +849,4 @@ public:
 };
 
 
+#endif //SQL_EXPLAIN_INCLUDED

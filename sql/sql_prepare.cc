@@ -1516,7 +1516,7 @@ static int mysql_test_select(Prepared_statement *stmt,
   else if (check_access(thd, privilege, any_db, NULL, NULL, 0, 0))
     goto error;
 
-  if (!lex->result && !(lex->result= new (stmt->mem_root) select_send))
+  if (!lex->result && !(lex->result= new (stmt->mem_root) select_send(thd)))
   {
     my_error(ER_OUTOFMEMORY, MYF(ME_FATALERROR), 
              static_cast<int>(sizeof(select_send)));
@@ -2024,7 +2024,7 @@ static int mysql_test_handler_read(Prepared_statement *stmt,
 
   if (!stmt->is_sql_prepare())
   {
-    if (!lex->result && !(lex->result= new (stmt->mem_root) select_send))
+    if (!lex->result && !(lex->result= new (stmt->mem_root) select_send(thd)))
     {
       my_error(ER_OUTOFMEMORY, MYF(0), sizeof(select_send));
       DBUG_RETURN(1);
@@ -2309,7 +2309,7 @@ void mysqld_stmt_prepare(THD *thd, const char *packet, uint packet_length)
   DBUG_PRINT("prep_query", ("%s", packet));
 
   /* First of all clear possible warnings from the previous command */
-  mysql_reset_thd_for_next_command(thd);
+  thd->reset_for_next_command();
 
   if (! (stmt= new Prepared_statement(thd)))
     goto end;           /* out of memory: error is set in Sql_alloc */
@@ -2700,7 +2700,7 @@ void mysqld_stmt_execute(THD *thd, char *packet_arg, uint packet_length)
   packet+= 9;                               /* stmt_id + 5 bytes of flags */
 
   /* First of all clear possible warnings from the previous command */
-  mysql_reset_thd_for_next_command(thd);
+  thd->reset_for_next_command();
 
   if (!(stmt= find_prepared_statement(thd, stmt_id)))
   {
@@ -2775,7 +2775,7 @@ void mysql_sql_stmt_execute(THD *thd)
   DBUG_PRINT("info",("stmt: 0x%lx", (long) stmt));
 
   (void) stmt->execute_loop(&expanded_query, FALSE, NULL, NULL);
-
+  stmt->lex->restore_set_statement_var();
   DBUG_VOID_RETURN;
 }
 
@@ -2799,7 +2799,7 @@ void mysqld_stmt_fetch(THD *thd, char *packet, uint packet_length)
   DBUG_ENTER("mysqld_stmt_fetch");
 
   /* First of all clear possible warnings from the previous command */
-  mysql_reset_thd_for_next_command(thd);
+  thd->reset_for_next_command();
 
   status_var_increment(thd->status_var.com_stmt_fetch);
   if (!(stmt= find_prepared_statement(thd, stmt_id)))
@@ -2859,7 +2859,7 @@ void mysqld_stmt_reset(THD *thd, char *packet)
   DBUG_ENTER("mysqld_stmt_reset");
 
   /* First of all clear possible warnings from the previous command */
-  mysql_reset_thd_for_next_command(thd);
+  thd->reset_for_next_command();
 
   status_var_increment(thd->status_var.com_stmt_reset);
   if (!(stmt= find_prepared_statement(thd, stmt_id)))
@@ -3035,8 +3035,8 @@ void mysql_stmt_get_longdata(THD *thd, char *packet, ulong packet_length)
  Select_fetch_protocol_binary
 ****************************************************************************/
 
-Select_fetch_protocol_binary::Select_fetch_protocol_binary(THD *thd_arg)
-  :protocol(thd_arg)
+Select_fetch_protocol_binary::Select_fetch_protocol_binary(THD *thd_arg):
+  select_send(thd_arg), protocol(thd_arg)
 {}
 
 bool Select_fetch_protocol_binary::send_result_set_metadata(List<Item> &list, uint flags)
@@ -3165,6 +3165,7 @@ Execute_sql_statement::execute_server_code(THD *thd)
                       thd->query(), thd->query_length());
 
 end:
+  thd->lex->restore_set_statement_var();
   lex_end(thd->lex);
 
   return error;
@@ -4085,6 +4086,7 @@ bool Prepared_statement::execute(String *expanded_query, bool open_cursor)
     general_log_write(thd, COM_STMT_EXECUTE, thd->query(), thd->query_length());
 
 error:
+  thd->lex->restore_set_statement_var();
   flags&= ~ (uint) IS_IN_USE;
   return error;
 }

@@ -152,13 +152,11 @@ bool read_texts(const char *file_name, const char *language,
   File file;
   char name[FN_REFLEN];
   char lang_path[FN_REFLEN];
-  uchar *buff;
+  uchar *UNINIT_VAR(buff);
   uchar head[32],*pos;
   DBUG_ENTER("read_texts");
 
   *point= 0;
-
-  LINT_INIT(buff);
   funktpos=0;
   convert_dirname(lang_path, language, NullS);
   (void) my_load_path(lang_path, lang_path, lc_messages_dir);

@@ -25,7 +25,7 @@ eval create table t1 (id integer, x integer) engine = InnoDB;
 insert into t1 values(0, 0);
 
 # Enable the debug injection.
-set @@debug_dbug="d,fatal-semaphore-timeout";
+set DEBUG_DBUG='+d,fatal-semaphore-timeout';
 set autocommit=0;
 
 # The following query will hang for an hour since the debug injection
@@ -82,8 +82,8 @@ exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect;
 
 # It will take 20 seconds to detect the long semaphore and mysqld to abort.
 # This test will be treated as pass as long as mysqld crash/restart is dectected
-# in 60 seconds.
-let $counter= 60;
+# in 80 seconds.
+let $counter= 80;
 let $mysql_errno= 0;
 while (!$mysql_errno)
 {

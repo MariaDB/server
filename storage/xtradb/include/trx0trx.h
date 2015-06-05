@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2013, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2015, MariaDB Corporation
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1061,6 +1062,20 @@ struct trx_t{
 #define	DPAH_SIZE	8192
 	byte*		distinct_page_access_hash;
 	ibool		take_stats;
+
+	/* Lock wait statistics */
+	ulint		n_rec_lock_waits;
+					/*!< Number of record lock waits,
+					might not be exactly correct. */
+	ulint		n_table_lock_waits;
+					/*!< Number of table lock waits,
+					might not be exactly correct. */
+	ulint		total_rec_lock_wait_time;
+					/*!< Total rec lock wait time up
+					to this moment. */
+	ulint		total_table_lock_wait_time;
+					/*!< Total table lock wait time
+					up to this moment. */
 };
 
 /* Transaction isolation levels (trx->isolation_level) */

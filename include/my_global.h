@@ -457,19 +457,6 @@ extern "C" int madvise(void *addr, size_t len, int behav);
 #define STDERR_FILENO 2
 #endif
 
-/*
-  Deprecated workaround for false-positive uninitialized variables
-  warnings. Those should be silenced using tool-specific heuristics.
-
-  Enabled by default for g++ due to the bug referenced below.
-*/
-#if defined(_lint) || defined(FORCE_INIT_OF_VARS) || \
-    (defined(__GNUC__) && defined(__cplusplus))
-#define LINT_INIT(var) var= 0
-#else
-#define LINT_INIT(var)
-#endif
-
 #ifndef SO_EXT
 #ifdef _WIN32
 #define SO_EXT ".dll"

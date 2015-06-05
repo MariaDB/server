@@ -38,7 +38,7 @@ SELECT * FROM diaries WHERE MATCH (tags) AGAINST ("install" IN BOOLEAN MODE);
 
 SELECT * FROM diaries WHERE MATCH (tags) AGAINST ("gr" IN BOOLEAN MODE);
 
-# MySQL <= 5.5 reports wrong a warning. :<
+# MySQL <= 5.5 reports a wrong warning. :<
 # It has been fixed in MySQL >= 5.6 and MariaDB >= 5.3.
 --disable_warnings
 SET mroonga_match_escalation_threshold = -1;

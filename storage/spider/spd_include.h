@@ -1,4 +1,4 @@
-/* Copyright (C) 2008-2014 Kentoku Shiba
+/* Copyright (C) 2008-2015 Kentoku Shiba
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -13,7 +13,7 @@
   along with this program; if not, write to the Free Software
   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
 
-#define SPIDER_DETAIL_VERSION "3.2.11"
+#define SPIDER_DETAIL_VERSION "3.2.21"
 #define SPIDER_HEX_VERSION 0x0302
 
 #if MYSQL_VERSION_ID < 50500
@@ -70,6 +70,7 @@
 #define spider_stmt_da_message(A) thd_get_error_message(A)
 #define spider_stmt_da_sql_errno(A) thd_get_error_number(A)
 #define spider_user_defined_key_parts(A) (A)->user_defined_key_parts
+#define spider_join_table_count(A) (A)->table_count
 #define SPIDER_CAN_BG_UPDATE (1LL << 39)
 #define SPIDER_ALTER_ADD_PARTITION        Alter_info::ALTER_ADD_PARTITION
 #define SPIDER_ALTER_DROP_PARTITION       Alter_info::ALTER_DROP_PARTITION
@@ -94,6 +95,7 @@
 #endif
 #endif
 #define spider_user_defined_key_parts(A) (A)->key_parts
+#define spider_join_table_count(A) (A)->tables
 #define SPIDER_ALTER_ADD_PARTITION        ALTER_ADD_PARTITION
 #define SPIDER_ALTER_DROP_PARTITION       ALTER_DROP_PARTITION
 #define SPIDER_ALTER_COALESCE_PARTITION   ALTER_COALESCE_PARTITION
@@ -103,6 +105,10 @@
 #define SPIDER_WARN_LEVEL_WARN            MYSQL_ERROR::WARN_LEVEL_WARN
 #define SPIDER_WARN_LEVEL_NOTE            MYSQL_ERROR::WARN_LEVEL_NOTE
 #define SPIDER_THD_KILL_CONNECTION        THD::KILL_CONNECTION
+#endif
+
+#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100005
+#define SPIDER_HAS_EXPLAIN_QUERY
 #endif
 
 #if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100009
@@ -135,7 +141,7 @@
 
 #define SPIDER_TMP_SHARE_CHAR_PTR_COUNT     19
 #define SPIDER_TMP_SHARE_UINT_COUNT         17
-#define SPIDER_TMP_SHARE_LONG_COUNT         15
+#define SPIDER_TMP_SHARE_LONG_COUNT         16
 #define SPIDER_TMP_SHARE_LONGLONG_COUNT      3
 
 #define SPIDER_MEM_CALC_LIST_NUM           247
@@ -858,6 +864,7 @@ typedef struct st_spider_share
   long               *net_read_timeouts;
   long               *net_write_timeouts;
   long               *access_balances;
+  long               *bka_table_name_types;
 
   uint               *server_names_lengths;
   uint               *tgt_table_names_lengths;
@@ -961,6 +968,7 @@ typedef struct st_spider_share
   uint               net_read_timeouts_length;
   uint               net_write_timeouts_length;
   uint               access_balances_length;
+  uint               bka_table_name_types_length;
 
   /* for dbton */
   uchar              dbton_bitmap[spider_bitmap_size(SPIDER_DBTON_SIZE)];

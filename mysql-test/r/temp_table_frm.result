@@ -7,7 +7,7 @@ variable_name	session_status.variable_value - t1.variable_value
 OPENED_FILES	0
 OPENED_PLUGIN_LIBRARIES	0
 OPENED_TABLE_DEFINITIONS	2
-OPENED_TABLES	2
+OPENED_TABLES	1
 OPENED_VIEWS	0
 truncate table t2;
 select variable_name, session_status.variable_value - t1.variable_value
@@ -16,6 +16,6 @@ variable_name	session_status.variable_value - t1.variable_value
 OPENED_FILES	0
 OPENED_PLUGIN_LIBRARIES	0
 OPENED_TABLE_DEFINITIONS	2
-OPENED_TABLES	2
+OPENED_TABLES	1
 OPENED_VIEWS	0
 drop table t1;

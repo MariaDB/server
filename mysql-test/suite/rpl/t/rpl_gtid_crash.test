@@ -587,6 +587,77 @@ eval SELECT IF(INSTR(@@gtid_current_pos, '$saved_gtid'), "Current pos ok", CONCA
 SELECT * from t1 WHERE a > 10 ORDER BY a;
 
 
+--echo *** MDEV-6391: GTID binlog state not recovered if mariadb-bin.state is removed ***
+
+--connection server_2
+--source include/stop_slave.inc
+
+# Do some misc. transactions, stop the master, drop the master-bin.state file.
+# Start the master back up, check that binlog state is correct.
+
+--connection server_1
+
+INSERT INTO t1 VALUES (30);
+SET @old_server_id= @@server_id;
+SET @old_domain_id= @@gtid_domain_id;
+
+SET SESSION server_id= 10;
+INSERT INTO t1 VALUES (31);
+INSERT INTO t1 VALUES (32);
+SET SESSION gtid_domain_id= 1;
+SET SESSION server_id=11;
+INSERT INTO t1 VALUES (33);
+SET SESSION gtid_domain_id= 2;
+INSERT INTO t1 VALUES (34);
+SET SESSION server_id= 10;
+INSERT INTO t1 VALUES (35);
+INSERT INTO t1 VALUES (36);
+SET SESSION gtid_domain_id= 0;
+SET SESSION server_id= 12;
+INSERT INTO t1 VALUES (37);
+SET SESSION gtid_domain_id= @old_domain_id;
+SET SESSION server_id= @old_server_id;
+INSERT INTO t1 VALUES (38);
+INSERT INTO t1 VALUES (39);
+SELECT * FROM t1 WHERE a >= 30 ORDER BY a;
+--source include/save_master_gtid.inc
+
+--let OLD_STATE= `SELECT @@gtid_binlog_state`
+
+--let $datadir= `SELECT @@datadir`
+
+--write_file $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+wait
+EOF
+shutdown_server 10;
+--source include/wait_until_disconnected.inc
+
+--remove_file $datadir/master-bin.state
+
+--append_file $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+restart
+EOF
+--enable_reconnect
+--source include/wait_until_connected_again.inc
+
+--let NEW_STATE= `SELECT @@gtid_binlog_state`
+
+--perl
+my $old= $ENV{'OLD_STATE'};
+my $new= $ENV{'NEW_STATE'};
+# Make them order-independent, for easy comparison.
+$old= join(",", sort(split(",", $old)));
+$new= join(",", sort(split(",", $new)));
+die "ERROR: new binlog state '$new' differs from old '$old'\n"
+  unless $old eq $new;
+EOF
+
+--connection server_2
+--source include/start_slave.inc
+--source include/sync_with_master_gtid.inc
+SELECT * FROM t1 WHERE a >= 30 ORDER BY a;
+
+
 --connection server_1
 DROP TABLE t1;
 

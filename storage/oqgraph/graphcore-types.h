@@ -34,7 +34,9 @@ namespace open_query
 }
 
 
+// Forward defs from mariadb itself!
 class Field;
 typedef struct TABLE TABLE;
+class THD;
 
 #endif

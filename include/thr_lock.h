@@ -166,7 +166,6 @@ void thr_set_lock_wait_callback(void (*before_wait)(void),
                                 void (*after_wait)(void));
 
 #ifdef WITH_WSREP
-#include <my_sys.h>
   typedef my_bool (* wsrep_thd_is_brute_force_fun)(void *, my_bool);
   typedef int (* wsrep_abort_thd_fun)(void *, void *, my_bool);
   typedef int (* wsrep_on_fun)(void *);

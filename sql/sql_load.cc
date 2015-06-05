@@ -42,6 +42,8 @@
 #include "sql_derived.h"
 #include "sql_show.h"
 
+extern "C" int _my_b_net_read(IO_CACHE *info, uchar *Buffer, size_t Count);
+
 class XML_TAG {
 public:
   int level;
@@ -74,8 +76,6 @@ class READ_INFO {
   int	field_term_char,line_term_char,enclosed_char,escape_char;
   int	*stack,*stack_pos;
   bool	found_end_of_line,start_of_line,eof;
-  bool  need_end_io_cache;
-  IO_CACHE cache;
   NET *io_net;
   int level; /* for load xml */
 
@@ -84,6 +84,7 @@ public:
   uchar	*row_start,			/* Found row starts here */
 	*row_end;			/* Found row ends here */
   CHARSET_INFO *read_charset;
+  LOAD_FILE_IO_CACHE cache;
 
   READ_INFO(File file,uint tot_length,CHARSET_INFO *cs,
 	    String &field_term,String &line_start,String &line_term,
@@ -101,24 +102,8 @@ public:
   int read_xml();
   int clear_level(int level);
 
-  /*
-    We need to force cache close before destructor is invoked to log
-    the last read block
-  */
-  void end_io_cache()
-  {
-    ::end_io_cache(&cache);
-    need_end_io_cache = 0;
-  }
   my_off_t file_length() { return cache.end_of_file; }
   my_off_t position()    { return my_b_tell(&cache); }
-
-  /*
-    Either this method, or we need to make cache public
-    Arg must be set from mysql_load() since constructor does not see
-    either the table or THD value
-  */
-  void set_io_cache_arg(void* arg) { cache.arg = arg; }
 
   /**
     skip all data till the eof.
@@ -187,7 +172,6 @@ int mysql_load(THD *thd,sql_exchange *ex,TABLE_LIST *table_list,
   String *enclosed=ex->enclosed;
   bool is_fifo=0;
 #ifndef EMBEDDED_LIBRARY
-  LOAD_FILE_INFO lf_info;
   killed_state killed_status;
   bool is_concurrent;
 #endif
@@ -453,11 +437,10 @@ int mysql_load(THD *thd,sql_exchange *ex,TABLE_LIST *table_list,
 #ifndef EMBEDDED_LIBRARY
   if (mysql_bin_log.is_open())
   {
-    lf_info.thd = thd;
-    lf_info.wrote_create_file = 0;
-    lf_info.last_pos_in_file = HA_POS_ERROR;
-    lf_info.log_delayed= transactional_table;
-    read_info.set_io_cache_arg((void*) &lf_info);
+    read_info.cache.thd = thd;
+    read_info.cache.wrote_create_file = 0;
+    read_info.cache.last_pos_in_file = HA_POS_ERROR;
+    read_info.cache.log_delayed= transactional_table;
   }
 #endif /*!EMBEDDED_LIBRARY*/
 
@@ -553,30 +536,12 @@ int mysql_load(THD *thd,sql_exchange *ex,TABLE_LIST *table_list,
     {
       {
 	/*
-	  Make sure last block (the one which caused the error) gets
-	  logged.  This is needed because otherwise after write of (to
-	  the binlog, not to read_info (which is a cache))
-	  Delete_file_log_event the bad block will remain in read_info
-	  (because pre_read is not called at the end of the last
-	  block; remember pre_read is called whenever a new block is
-	  read from disk).  At the end of mysql_load(), the destructor
-	  of read_info will call end_io_cache() which will flush
-	  read_info, so we will finally have this in the binlog:
-
-	  Append_block # The last successfull block
-	  Delete_file
-	  Append_block # The failing block
-	  which is nonsense.
-	  Or could also be (for a small file)
-	  Create_file  # The failing block
-	  which is nonsense (Delete_file is not written in this case, because:
-	  Create_file has not been written, so Delete_file is not written, then
-	  when read_info is destroyed end_io_cache() is called which writes
-	  Create_file.
+          Make sure last block (the one which caused the error) gets
+          logged.
 	*/
-	read_info.end_io_cache();
+        log_loaded_block(&read_info.cache, 0, 0);
 	/* If the file was not empty, wrote_create_file is true */
-	if (lf_info.wrote_create_file)
+        if (read_info.cache.wrote_create_file)
 	{
           int errcode= query_error_code(thd, killed_status == NOT_KILLED);
           
@@ -626,12 +591,11 @@ int mysql_load(THD *thd,sql_exchange *ex,TABLE_LIST *table_list,
     else
     {
       /*
-        As already explained above, we need to call end_io_cache() or the last
-        block will be logged only after Execute_load_query_log_event (which is
-        wrong), when read_info is destroyed.
+        As already explained above, we need to call log_loaded_block() to have
+        the last block logged
       */
-      read_info.end_io_cache();
-      if (lf_info.wrote_create_file)
+      log_loaded_block(&read_info.cache, 0, 0);
+      if (read_info.cache.wrote_create_file)
       {
         int errcode= query_error_code(thd, killed_status == NOT_KILLED);
         error= write_execute_load_query_log_event(thd, ex,
@@ -1350,7 +1314,7 @@ READ_INFO::READ_INFO(File file_par, uint tot_length, CHARSET_INFO *cs,
 		     String &enclosed_par, int escape, bool get_it_from_net,
 		     bool is_fifo)
   :file(file_par), buffer(NULL), buff_length(tot_length), escape_char(escape),
-   found_end_of_line(false), eof(false), need_end_io_cache(false),
+   found_end_of_line(false), eof(false),
    error(false), line_cuted(false), found_null(false), read_charset(cs)
 {
   /*
@@ -1410,20 +1374,15 @@ READ_INFO::READ_INFO(File file_par, uint tot_length, CHARSET_INFO *cs,
     }
     else
     {
-      /*
-	init_io_cache() will not initialize read_function member
-	if the cache is READ_NET. So we work around the problem with a
-	manual assignment
-      */
-      need_end_io_cache = 1;
-
 #ifndef EMBEDDED_LIBRARY
       if (get_it_from_net)
 	cache.read_function = _my_b_net_read;
 
       if (mysql_bin_log.is_open())
-	cache.pre_read = cache.pre_close =
-	  (IO_CACHE_CALLBACK) log_loaded_block;
+      {
+        cache.real_read_function= cache.read_function;
+        cache.read_function= log_loaded_block;
+      }
 #endif
     }
   }
@@ -1432,8 +1391,7 @@ READ_INFO::READ_INFO(File file_par, uint tot_length, CHARSET_INFO *cs,
 
 READ_INFO::~READ_INFO()
 {
-  if (need_end_io_cache)
-    ::end_io_cache(&cache);
+  ::end_io_cache(&cache);
   my_free(buffer);
   List_iterator<XML_TAG> xmlit(taglist);
   XML_TAG *t;

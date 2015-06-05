@@ -75,7 +75,7 @@ typedef struct st_mysql_xid MYSQL_XID;
 #define MYSQL_PLUGIN_INTERFACE_VERSION 0x0104
 
 /* MariaDB plugin interface version */
-#define MARIA_PLUGIN_INTERFACE_VERSION 0x010a
+#define MARIA_PLUGIN_INTERFACE_VERSION 0x010b
 
 /*
   The allowable types of plugins
@@ -92,7 +92,7 @@ typedef struct st_mysql_xid MYSQL_XID;
 
 /* MariaDB plugin types */
 #define MariaDB_PASSWORD_VALIDATION_PLUGIN  8
-#define MariaDB_ENCRYPTION_KEY_MANAGEMENT_PLUGIN 9
+#define MariaDB_ENCRYPTION_PLUGIN 9
 
 /* We use the following strings to define licenses for plugins */
 #define PLUGIN_LICENSE_PROPRIETARY 0
@@ -190,12 +190,12 @@ enum enum_var_type
 
 struct st_mysql_show_var {
   const char *name;
-  char *value;
+  void *value;
   enum enum_mysql_show_type type;
 };
 
 #define SHOW_VAR_FUNC_BUFF_SIZE (256 * sizeof(void*))
-typedef int (*mysql_show_var_func)(MYSQL_THD, struct st_mysql_show_var*, char *, enum enum_var_type);
+typedef int (*mysql_show_var_func)(MYSQL_THD, struct st_mysql_show_var*, void *, enum enum_var_type);
 
 
 /*

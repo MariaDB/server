@@ -4,7 +4,7 @@ drop table if exists t1;
 # Switch to connection con1
 create table t1 (id integer, x integer) engine = InnoDB;
 insert into t1 values(0, 0);
-set @@debug_dbug="d,fatal-semaphore-timeout";
+set DEBUG_DBUG='+d,fatal-semaphore-timeout';
 set autocommit=0;
 # Sending query on con1,
 # the session will hold lock table mutex and sleep

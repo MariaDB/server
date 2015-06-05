@@ -20,12 +20,12 @@
 #include "mrn_lock.hpp"
 
 namespace mrn {
-  Lock::Lock(pthread_mutex_t *mutex)
+  Lock::Lock(mysql_mutex_t *mutex)
     : mutex_(mutex) {
-    pthread_mutex_lock(mutex_);
+    mysql_mutex_lock(mutex_);
   }
 
   Lock::~Lock() {
-    pthread_mutex_unlock(mutex_);
+    mysql_mutex_unlock(mutex_);
   }
 }

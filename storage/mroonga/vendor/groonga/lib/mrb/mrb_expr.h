@@ -1,6 +1,6 @@
 /* -*- c-basic-offset: 2 -*- */
 /*
-  Copyright(C) 2013 Brazil
+  Copyright(C) 2013-2015 Brazil
 
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -19,8 +19,8 @@
 #ifndef GRN_MRB_EXPR_H
 #define GRN_MRB_EXPR_H
 
-#include "../ctx.h"
-#include "../expr.h"
+#include "../grn_ctx.h"
+#include "../grn_expr.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -28,6 +28,9 @@ extern "C" {
 
 void grn_mrb_expr_init(grn_ctx *ctx);
 scan_info **grn_mrb_scan_info_build(grn_ctx *ctx, grn_obj *expr, int *n, grn_operator op, uint32_t size);
+unsigned int grn_mrb_expr_estimate_size(grn_ctx *ctx,
+                                        grn_obj *expr,
+                                        grn_obj *table);
 
 #ifdef __cplusplus
 }

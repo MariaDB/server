@@ -18,8 +18,8 @@
 
 #include <string.h>
 
-#include "normalizer_in.h"
-#include "string_in.h"
+#include "grn_normalizer.h"
+#include "grn_string.h"
 #include <groonga/normalizer.h>
 #include <groonga/tokenizer.h>
 
@@ -728,7 +728,7 @@ utf8_normalize(grn_ctx *ctx, grn_string *nstr)
             nstr->ctypes = ctypes;
           }
         }
-        memcpy(d, p, lp);
+        grn_memcpy(d, p, lp);
         d_ = d;
         d += lp;
         length++;

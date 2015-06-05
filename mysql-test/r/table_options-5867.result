@@ -14,7 +14,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL `complex`='c,f,f,f' `invalid`=3
-) ENGINE=EXAMPLE DEFAULT CHARSET=latin1 `ull`=10000 `str`='dskj' `one_or_two`='one' `yesno`=0 `foobar`=barfoo `VAROPT`='5'
+) ENGINE=EXAMPLE DEFAULT CHARSET=latin1 `ull`=10000 `str`='dskj' `one_or_two`='one' `yesno`=0 `foobar`=barfoo
 show create table t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
@@ -26,7 +26,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL `complex`='c,f,f,f' /* `invalid`=3 */
-) ENGINE=EXAMPLE DEFAULT CHARSET=latin1 `ull`=10000 `str`='dskj' `one_or_two`='one' `yesno`=0 /* `foobar`=barfoo */ `VAROPT`='5'
+) ENGINE=EXAMPLE DEFAULT CHARSET=latin1 `ull`=10000 `str`='dskj' `one_or_two`='one' `yesno`=0 /* `foobar`=barfoo */
 show create table t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (

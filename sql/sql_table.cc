@@ -1,6 +1,6 @@
 /*
-   Copyright (c) 2000, 2014, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2014, SkySQL Ab.
+   Copyright (c) 2000, 2015, Oracle and/or its affiliates.
+   Copyright (c) 2010, 2015, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -28,7 +28,6 @@
 #include "sql_base.h"   // open_table_uncached, lock_table_names
 #include "lock.h"       // mysql_unlock_tables
 #include "strfunc.h"    // find_type2, find_set
-#include "sql_view.h" // view_checksum 
 #include "sql_truncate.h"                       // regenerate_locked_table 
 #include "sql_partition.h"                      // mem_alloc_error,
                                                 // generate_partition_syntax,
@@ -4656,7 +4655,9 @@ int create_table_impl(THD *thd,
   if (create_info->tmp_table())
   {
     TABLE *tmp_table;
-    if ((tmp_table= find_temporary_table(thd, db, table_name)))
+    if (find_and_use_temporary_table(thd, db, table_name, &tmp_table))
+      goto err;
+    if (tmp_table)
     {
       bool table_creation_was_logged= tmp_table->s->table_creation_was_logged;
       if (options.or_replace())
@@ -5436,7 +5437,7 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table,
             lock on this table. The table will be closed by
             close_thread_table() at the end of this branch.
           */
-          open_res= open_table(thd, table, thd->mem_root, &ot_ctx);
+          open_res= open_table(thd, table, &ot_ctx);
           /* Restore */
           table->open_strategy= save_open_strategy;
           if (open_res)
@@ -5830,7 +5831,7 @@ drop_create_field:
     const char *keyname;
     while ((key=key_it++))
     {
-      if (!key->create_if_not_exists)
+      if (!key->if_not_exists() && !key->or_replace())
         continue;
       /* If the name of the key is not specified,     */
       /* let us check the name of the first key part. */
@@ -5891,17 +5892,32 @@ drop_create_field:
       continue;
 
 remove_key:
-      push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
-          ER_DUP_KEYNAME, ER(ER_DUP_KEYNAME), keyname);
-      key_it.remove();
-      if (key->type == Key::FOREIGN_KEY)
+      if (key->if_not_exists())
       {
-        /* ADD FOREIGN KEY appends two items. */
+        push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
+            ER_DUP_KEYNAME, ER(ER_DUP_KEYNAME), keyname);
         key_it.remove();
+        if (key->type == Key::FOREIGN_KEY)
+        {
+          /* ADD FOREIGN KEY appends two items. */
+          key_it.remove();
+        }
+        if (alter_info->key_list.is_empty())
+          alter_info->flags&= ~(Alter_info::ALTER_ADD_INDEX |
+              Alter_info::ADD_FOREIGN_KEY);
       }
-      if (alter_info->key_list.is_empty())
-        alter_info->flags&= ~(Alter_info::ALTER_ADD_INDEX |
-            Alter_info::ADD_FOREIGN_KEY);
+      else if (key->or_replace())
+      {
+        Alter_drop::drop_type type= (key->type == Key::FOREIGN_KEY) ?
+          Alter_drop::FOREIGN_KEY : Alter_drop::KEY;
+        Alter_drop *ad= new Alter_drop(type, key->name.str, FALSE);
+        if (ad != NULL)
+        {
+          // Adding the index into the drop list for replacing
+          alter_info->flags |= Alter_info::ALTER_DROP_INDEX;
+          alter_info->drop_list.push_back(ad);
+        }
+      }
     }
   }
   
@@ -6368,6 +6384,14 @@ static bool fill_alter_inplace_info(THD *thd,
           new_field->field->field_index != key_part->fieldnr - 1)
         goto index_changed;
     }
+
+    /* Check that key comment is not changed. */
+    if (table_key->comment.length != new_key->comment.length ||
+        (table_key->comment.length &&
+         memcmp(table_key->comment.str, new_key->comment.str,
+                table_key->comment.length) != 0))
+      goto index_changed;
+
     continue;
 
   index_changed:
@@ -7059,7 +7083,7 @@ static bool mysql_inplace_alter_table(THD *thd,
   }
 
   table_list->mdl_request.ticket= mdl_ticket;
-  if (open_table(thd, table_list, thd->mem_root, &ot_ctx))
+  if (open_table(thd, table_list, &ot_ctx))
     DBUG_RETURN(true);
 
   /*
@@ -7627,7 +7651,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
       key= new Key(key_type, key_name, strlen(key_name),
                    &key_create_info,
                    MY_TEST(key_info->flags & HA_GENERATED_KEY),
-                   key_parts, key_info->option_list, FALSE);
+                   key_parts, key_info->option_list, DDL_options());
       new_key_list.push_back(key);
     }
   }
@@ -8408,6 +8432,23 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
     mysql_audit_alter_table(thd, table_list);
 
   THD_STAGE_INFO(thd, stage_setup);
+
+  handle_if_exists_options(thd, table, alter_info);
+
+  /*
+    Look if we have to do anything at all.
+    ALTER can become NOOP after handling
+    the IF (NOT) EXISTS options.
+  */
+  if (alter_info->flags == 0)
+  {
+    my_snprintf(alter_ctx.tmp_name, sizeof(alter_ctx.tmp_name),
+                ER(ER_INSERT_INFO), 0L, 0L,
+                thd->get_stmt_da()->current_statement_warn_count());
+    my_ok(thd, 0L, 0L, alter_ctx.tmp_name);
+    DBUG_RETURN(false);
+  }
+
   if (!(alter_info->flags & ~(Alter_info::ALTER_RENAME |
                               Alter_info::ALTER_KEYS_ONOFF)) &&
       alter_info->requested_algorithm !=
@@ -8426,22 +8467,6 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
                                             alter_info->keys_onoff,
                                             &alter_ctx);
     DBUG_RETURN(res);
-  }
-
-  handle_if_exists_options(thd, table, alter_info);
-
-  /*
-    Look if we have to do anything at all.
-    Normally ALTER can become NOOP only after handling
-    the IF (NOT) EXISTS options.
-  */
-  if (alter_info->flags == 0)
-  {
-    my_snprintf(alter_ctx.tmp_name, sizeof(alter_ctx.tmp_name),
-                ER(ER_INSERT_INFO), 0L, 0L,
-                thd->get_stmt_da()->current_statement_warn_count());
-    my_ok(thd, 0L, 0L, alter_ctx.tmp_name);
-    DBUG_RETURN(false);
   }
 
   /* We have to do full alter table. */
@@ -9325,14 +9350,16 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
       tables.db= from->s->db.str;
 
       THD_STAGE_INFO(thd, stage_sorting);
+      Filesort_tracker dummy_tracker;
       if (thd->lex->select_lex.setup_ref_array(thd, order_num) ||
           setup_order(thd, thd->lex->select_lex.ref_pointer_array,
                       &tables, fields, all_fields, order) ||
-          !(sortorder= make_unireg_sortorder(order, &length, NULL)) ||
+          !(sortorder= make_unireg_sortorder(thd, order, &length, NULL)) ||
           (from->sort.found_records= filesort(thd, from, sortorder, length,
                                               NULL, HA_POS_ERROR,
                                               true,
-                                              &examined_rows, &found_rows)) ==
+                                              &examined_rows, &found_rows,
+                                              &dummy_tracker)) ==
           HA_POS_ERROR)
         goto err;
     }
@@ -9745,11 +9772,23 @@ static bool check_engine(THD *thd, const char *db_name,
   DBUG_ENTER("check_engine");
   handlerton **new_engine= &create_info->db_type;
   handlerton *req_engine= *new_engine;
+  handlerton *enf_engine= thd->variables.enforced_table_plugin ?  plugin_hton(thd->variables.enforced_table_plugin) : NULL;
   bool no_substitution= thd->variables.sql_mode & MODE_NO_ENGINE_SUBSTITUTION;
   *new_engine= ha_checktype(thd, req_engine, no_substitution);
   DBUG_ASSERT(*new_engine);
   if (!*new_engine)
     DBUG_RETURN(true);
+
+  if (enf_engine && enf_engine != *new_engine)
+  {
+    if (no_substitution)
+    {
+      const char *engine_name= ha_resolve_storage_engine_name(req_engine);
+      my_error(ER_UNKNOWN_STORAGE_ENGINE, MYF(0), engine_name, engine_name);
+      DBUG_RETURN(TRUE);
+    }
+    *new_engine= enf_engine;
+  }
 
   if (req_engine && req_engine != *new_engine)
   {

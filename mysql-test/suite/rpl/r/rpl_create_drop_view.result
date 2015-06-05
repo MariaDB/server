@@ -30,7 +30,7 @@ CREATE VIEW v1 AS SELECT * FROM t1 WHERE id>10;
 ERROR 42S01: Table 'v1' already exists
 CREATE VIEW IF NOT EXISTS v1 AS SELECT * FROM t1 WHERE id>10;
 Warnings:
-Note	1050	Table 'test' already exists
+Note	1050	Table 'v1' already exists
 CREATE OR REPLACE VIEW IF NOT EXISTS v1 AS SELECT * FROM t1 WHERE id>10;
 ERROR HY000: Incorrect usage of OR REPLACE and IF NOT EXISTS
 # Syncing slave with master

@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1995, 2013, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1995, 2015, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, Google Inc.
 
 Portions of this file contain modifications contributed and copyrighted by
@@ -46,6 +46,8 @@ Created 9/5/1995 Heikki Tuuri
 #endif /* UNIV_SYNC_DEBUG */
 #include "ha_prototypes.h"
 #include "my_cpu.h"
+
+#include <vector>
 
 /*
 	REASONS FOR IMPLEMENTING THE SPIN LOCK MUTEX
@@ -224,14 +226,8 @@ UNIV_INTERN ibool	sync_order_checks_on	= FALSE;
 static const ulint SYNC_THREAD_N_LEVELS = 10000;
 
 /** Array for tracking sync levels per thread. */
-struct sync_arr_t {
-	ulint		in_use;		/*!< Number of active cells */
-	ulint		n_elems;	/*!< Number of elements in the array */
-	ulint		max_elems;	/*!< Maximum elements */
-	ulint		next_free;	/*!< ULINT_UNDEFINED or index of next
-					free slot */
-	sync_level_t*	elems;		/*!< Array elements */
-};
+typedef std::vector<sync_level_t> sync_arr_t;
+
 
 /** Mutexes or rw-locks held by a thread */
 struct sync_thread_t{
@@ -294,15 +290,16 @@ mutex_create_func(
 	mutex->cfile_name = cfile_name;
 	mutex->cline = cline;
 	mutex->count_os_wait = 0;
+        mutex->cmutex_name = cmutex_name;
 
 	/* Check that lock_word is aligned; this is important on Intel */
 	ut_ad(((ulint)(&(mutex->lock_word))) % 4 == 0);
 
 	/* NOTE! The very first mutexes are not put to the mutex list */
 
-	if ((mutex == &mutex_list_mutex)
+	if (mutex == &mutex_list_mutex
 #ifdef UNIV_SYNC_DEBUG
-	    || (mutex == &sync_thread_mutex)
+	    || mutex == &sync_thread_mutex
 #endif /* UNIV_SYNC_DEBUG */
 	    ) {
 
@@ -858,10 +855,10 @@ sync_thread_levels_g(
 {
 	ulint		i;
 
-	for (i = 0; i < arr->n_elems; i++) {
+	for (i = 0; i < arr->size(); i++) {
 		const sync_level_t*	slot;
 
-		slot = &arr->elems[i];
+		slot = (const sync_level_t*)&(arr->at(i));
 
 		if (slot->latch != NULL && slot->level <= limit) {
 			if (warn) {
@@ -893,10 +890,10 @@ sync_thread_levels_contain(
 {
 	ulint		i;
 
-	for (i = 0; i < arr->n_elems; i++) {
+	for (i = 0; i < arr->size(); i++) {
 		const sync_level_t*	slot;
 
-		slot = &arr->elems[i];
+		slot = (const sync_level_t*)&(arr->at(i));
 
 		if (slot->latch != NULL && slot->level == level) {
 
@@ -940,10 +937,10 @@ sync_thread_levels_contains(
 
 	arr = thread_slot->levels;
 
-	for (i = 0; i < arr->n_elems; i++) {
+	for (i = 0; i < arr->size(); i++) {
 		sync_level_t*	slot;
 
-		slot = &arr->elems[i];
+		slot = (sync_level_t*)&(arr->at(i));
 
 		if (slot->latch != NULL && slot->level == level) {
 
@@ -989,10 +986,10 @@ sync_thread_levels_nonempty_gen(
 
 	arr = thread_slot->levels;
 
-	for (i = 0; i < arr->n_elems; ++i) {
+	for (i = 0; i < arr->size(); ++i) {
 		const sync_level_t*	slot;
 
-		slot = &arr->elems[i];
+		slot = (const sync_level_t*)&(arr->at(i));
 
 		if (slot->latch != NULL
 		    && (!dict_mutex_allowed
@@ -1049,10 +1046,10 @@ sync_thread_levels_nonempty_trx(
 
 	arr = thread_slot->levels;
 
-	for (i = 0; i < arr->n_elems; ++i) {
+	for (i = 0; i < arr->size(); ++i) {
 		const sync_level_t*	slot;
 
-		slot = &arr->elems[i];
+		slot = (const sync_level_t*)&(arr->at(i));
 
 		if (slot->latch != NULL
 		    && (!has_search_latch
@@ -1083,10 +1080,9 @@ sync_thread_add_level(
 			SYNC_LEVEL_VARYING, nothing is done */
 	ibool	relock)	/*!< in: TRUE if re-entering an x-lock */
 {
-	ulint		i;
-	sync_level_t*	slot;
 	sync_arr_t*	array;
 	sync_thread_t*	thread_slot;
+	sync_level_t	sync_level;
 
 	if (!sync_order_checks_on) {
 
@@ -1111,21 +1107,11 @@ sync_thread_add_level(
 	thread_slot = sync_thread_level_arrays_find_slot();
 
 	if (thread_slot == NULL) {
-		ulint	sz;
-
-		sz = sizeof(*array)
-		   + (sizeof(*array->elems) * SYNC_THREAD_N_LEVELS);
 
 		/* We have to allocate the level array for a new thread */
-		array = static_cast<sync_arr_t*>(calloc(sz, sizeof(char)));
+		array = new sync_arr_t();
 		ut_a(array != NULL);
-
-		array->next_free = ULINT_UNDEFINED;
-		array->max_elems = SYNC_THREAD_N_LEVELS;
-		array->elems = (sync_level_t*) &array[1];
-
 		thread_slot = sync_thread_level_arrays_find_free();
-
 		thread_slot->levels = array;
 		thread_slot->id = os_thread_get_curr_id();
 	}
@@ -1336,26 +1322,10 @@ sync_thread_add_level(
 	}
 
 levels_ok:
-	if (array->next_free == ULINT_UNDEFINED) {
-		ut_a(array->n_elems < array->max_elems);
 
-		i = array->n_elems++;
-	} else {
-		i = array->next_free;
-		array->next_free = array->elems[i].level;
-	}
-
-	ut_a(i < array->n_elems);
-	ut_a(i != ULINT_UNDEFINED);
-
-	++array->in_use;
-
-	slot = &array->elems[i];
-
-	ut_a(slot->latch == NULL);
-
-	slot->latch = latch;
-	slot->level = level;
+	sync_level.latch = latch;
+	sync_level.level = level;
+	array->push_back(sync_level);
 
 	mutex_exit(&sync_thread_mutex);
 }
@@ -1373,7 +1343,6 @@ sync_thread_reset_level(
 {
 	sync_arr_t*	array;
 	sync_thread_t*	thread_slot;
-	ulint		i;
 
 	if (!sync_order_checks_on) {
 
@@ -1402,36 +1371,15 @@ sync_thread_reset_level(
 
 	array = thread_slot->levels;
 
-	for (i = 0; i < array->n_elems; i++) {
-		sync_level_t*	slot;
+	for (std::vector<sync_level_t>::iterator it = array->begin(); it != array->end(); ++it) {
+		sync_level_t level = *it;
 
-		slot = &array->elems[i];
-
-		if (slot->latch != latch) {
+		if (level.latch != latch) {
 			continue;
 		}
 
-		slot->latch = NULL;
-
-		/* Update the free slot list. See comment in sync_level_t
-		for the level field. */
-		slot->level = array->next_free;
-		array->next_free = i;
-
-		ut_a(array->in_use >= 1);
-		--array->in_use;
-
-		/* If all cells are idle then reset the free
-		list. The assumption is that this will save
-		time when we need to scan up to n_elems. */
-
-		if (array->in_use == 0) {
-			array->n_elems = 0;
-			array->next_free = ULINT_UNDEFINED;
-		}
-
+		array->erase(it);
 		mutex_exit(&sync_thread_mutex);
-
 		return(TRUE);
 	}
 
@@ -1517,8 +1465,7 @@ sync_thread_level_arrays_free(void)
 
 		/* If this slot was allocated then free the slot memory too. */
 		if (slot->levels != NULL) {
-			free(slot->levels);
-			slot->levels = NULL;
+			delete slot->levels;
 		}
 	}
 

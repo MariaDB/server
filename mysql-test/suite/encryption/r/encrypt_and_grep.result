@@ -1,0 +1,42 @@
+SET GLOBAL innodb_file_per_table = ON;
+create table t1 (a varchar(255)) engine=innodb encrypted=yes;
+create table t2 (a varchar(255)) engine=innodb;
+create table t3 (a varchar(255)) engine=innodb encrypted=no;
+insert t1 values (repeat('foobar', 42));
+insert t2 values (repeat('temp', 42));
+insert t3 values (repeat('dummy', 42));
+# Wait max 10 min for key encryption threads to encrypt all spaces
+# t1 yes on expecting NOT FOUND
+NOT FOUND /foobar/ in t1.ibd
+# t2 ... on expecting NOT FOUND
+NOT FOUND /temp/ in t2.ibd
+# t3 no  on expecting FOUND
+FOUND /dummy/ in t3.ibd
+# ibdata1 expecting NOT FOUND
+NOT FOUND /foobar/ in ibdata1
+# Now turn off encryption and wait for threads to decrypt everything
+SET GLOBAL innodb_encryption_threads = 4;
+SET GLOBAL innodb_encrypt_tables = off;
+# Wait max 10 min for key encryption threads to decrypt all spaces
+# t1 yes on expecting NOT FOUND
+NOT FOUND /foobar/ in t1.ibd
+# t2 ... on expecting FOUND
+FOUND /temp/ in t2.ibd
+# t3 no  on expecting FOUND
+FOUND /dummy/ in t3.ibd
+# ibdata1 expecting NOT FOUND
+NOT FOUND /foobar/ in ibdata1
+# Now turn on encryption and wait for threads to encrypt all spaces
+SET GLOBAL innodb_encryption_threads = 4;
+SET GLOBAL innodb_encrypt_tables = on;
+# Wait max 10 min for key encryption threads to encrypt all spaces
+# t1 yes on expecting NOT FOUND
+NOT FOUND /foobar/ in t1.ibd
+# t2 ... on expecting NOT FOUND
+NOT FOUND /temp/ in t2.ibd
+# t3 no  on expecting FOUND
+FOUND /dummy/ in t3.ibd
+# ibdata1 expecting NOT FOUND
+NOT FOUND /foobar/ in ibdata1
+# TODO: add shutdown + grep tests
+drop table t1, t2, t3;

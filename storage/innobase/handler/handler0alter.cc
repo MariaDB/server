@@ -129,6 +129,7 @@ my_error_innodb(
 		break;
 	case DB_OUT_OF_FILE_SPACE:
 		my_error(ER_RECORD_FILE_FULL, MYF(0), table);
+		ut_error;
 		break;
 	case DB_TEMP_FILE_WRITE_FAILURE:
 		my_error(ER_GET_ERRMSG, MYF(0),
@@ -266,7 +267,7 @@ ha_innobase::check_if_supported_inplace_alter(
 	/* Change on engine specific table options require rebuild of the
 	table */
 	if (ha_alter_info->handler_flags
-		== Alter_inplace_info::CHANGE_CREATE_OPTION) {
+		& Alter_inplace_info::CHANGE_CREATE_OPTION) {
 		ha_table_option_struct *new_options= ha_alter_info->create_info->option_struct;
 		ha_table_option_struct *old_options= table->s->option_struct;
 
@@ -278,8 +279,8 @@ ha_innobase::check_if_supported_inplace_alter(
 			DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
 		}
 
-		if (new_options->page_encryption != old_options->page_encryption ||
-			new_options->page_encryption_key != old_options->page_encryption_key) {
+		if (new_options->encryption != old_options->encryption ||
+			new_options->encryption_key_id != old_options->encryption_key_id) {
 			ha_alter_info->unsupported_reason = innobase_get_err_msg(
 				ER_ALTER_OPERATION_NOT_SUPPORTED_REASON);
 			DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
@@ -1466,8 +1467,9 @@ innobase_create_index_field_def(
 						if a new clustered index is
 						not being created */
 	const KEY_PART_INFO*	key_part,	/*!< in: MySQL key definition */
-	index_field_t*		index_field)	/*!< out: index field
+	index_field_t*		index_field,	/*!< out: index field
 						definition for key_part */
+	const Field**		fields)		/*!< in: MySQL table fields */
 {
 	const Field*	field;
 	ibool		is_unsigned;
@@ -1484,6 +1486,7 @@ innobase_create_index_field_def(
 	ut_a(field);
 
 	index_field->col_no = key_part->fieldnr;
+	index_field->col_name = altered_table ? field->field_name : fields[key_part->fieldnr]->field_name;
 
 	col_type = get_innobase_type_from_mysql_type(&is_unsigned, field);
 
@@ -1518,8 +1521,9 @@ innobase_create_index_def(
 	bool			key_clustered,	/*!< in: true if this is
 						the new clustered index */
 	index_def_t*		index,		/*!< out: index definition */
-	mem_heap_t*		heap)		/*!< in: heap where memory
+	mem_heap_t*		heap,		/*!< in: heap where memory
 						is allocated */
+	const Field**		fields)		/*!z in: MySQL table fields */
 {
 	const KEY*	key = &keys[key_number];
 	ulint		i;
@@ -1532,6 +1536,7 @@ innobase_create_index_def(
 
 	index->fields = static_cast<index_field_t*>(
 		mem_heap_alloc(heap, n_fields * sizeof *index->fields));
+	memset(index->fields, 0, n_fields * sizeof *index->fields);
 
 	index->ind_type = 0;
 	index->key_number = key_number;
@@ -1569,7 +1574,7 @@ innobase_create_index_def(
 
 	for (i = 0; i < n_fields; i++) {
 		innobase_create_index_field_def(
-			altered_table, &key->key_part[i], &index->fields[i]);
+			altered_table, &key->key_part[i], &index->fields[i], fields);
 	}
 
 	DBUG_VOID_RETURN;
@@ -1900,7 +1905,7 @@ innobase_create_key_defs(
 		/* Create the PRIMARY key index definition */
 		innobase_create_index_def(
 			altered_table, key_info, primary_key_number,
-			TRUE, TRUE, indexdef++, heap);
+			TRUE, TRUE, indexdef++, heap, (const Field **)altered_table->field);
 
 created_clustered:
 		n_add = 1;
@@ -1912,7 +1917,7 @@ created_clustered:
 			/* Copy the index definitions. */
 			innobase_create_index_def(
 				altered_table, key_info, i, TRUE, FALSE,
-				indexdef, heap);
+				indexdef, heap, (const Field **)altered_table->field);
 
 			if (indexdef->ind_type & DICT_FTS) {
 				n_fts_add++;
@@ -1957,7 +1962,7 @@ created_clustered:
 		for (ulint i = 0; i < n_add; i++) {
 			innobase_create_index_def(
 				altered_table, key_info, add[i], FALSE, FALSE,
-				indexdef, heap);
+				indexdef, heap, (const Field **)altered_table->field);
 
 			if (indexdef->ind_type & DICT_FTS) {
 				n_fts_add++;
@@ -1974,6 +1979,7 @@ created_clustered:
 
 		index->fields = static_cast<index_field_t*>(
 			mem_heap_alloc(heap, sizeof *index->fields));
+		memset(index->fields, 0, sizeof *index->fields);
 		index->n_fields = 1;
 		index->fields->col_no = fts_doc_id_col;
 		index->fields->prefix_len = 0;
@@ -4482,11 +4488,15 @@ err_exit:
 rename_foreign:
 	trx->op_info = "renaming column in SYS_FOREIGN_COLS";
 
+	std::list<dict_foreign_t*>	fk_evict;
+	bool		foreign_modified;
+
 	for (dict_foreign_set::const_iterator it = user_table->foreign_set.begin();
 	     it != user_table->foreign_set.end();
 	     ++it) {
 
 		dict_foreign_t*	foreign = *it;
+		foreign_modified = false;
 
 		for (unsigned i = 0; i < foreign->n_fields; i++) {
 			if (strcmp(foreign->foreign_col_names[i], from)) {
@@ -4514,6 +4524,11 @@ rename_foreign:
 			if (error != DB_SUCCESS) {
 				goto err_exit;
 			}
+			foreign_modified = true;
+		}
+
+		if (foreign_modified) {
+			fk_evict.push_back(foreign);
 		}
 	}
 
@@ -4522,7 +4537,9 @@ rename_foreign:
 	     it != user_table->referenced_set.end();
 	     ++it) {
 
+		foreign_modified = false;
 		dict_foreign_t*	foreign = *it;
+
 		for (unsigned i = 0; i < foreign->n_fields; i++) {
 			if (strcmp(foreign->referenced_col_names[i], from)) {
 				continue;
@@ -4549,7 +4566,17 @@ rename_foreign:
 			if (error != DB_SUCCESS) {
 				goto err_exit;
 			}
+			foreign_modified = true;
 		}
+
+		if (foreign_modified) {
+			fk_evict.push_back(foreign);
+		}
+	}
+
+	if (new_clustered) {
+		std::for_each(fk_evict.begin(), fk_evict.end(),
+			      dict_foreign_remove_from_cache);
 	}
 
 	trx->op_info = "";

@@ -16,8 +16,8 @@
   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 */
 
-#include "lib/com.h"
-#include "lib/ctx_impl.h"
+#include <grn_com.h>
+#include <grn_ctx_impl.h>
 #include <string.h>
 #include <stdio.h>
 #ifdef HAVE_SYS_WAIT_H
@@ -54,7 +54,7 @@ lprint(grn_ctx *ctx, const char *fmt, ...)
   int len;
   va_list argp;
   grn_timeval_now(ctx, &tv);
-  grn_timeval2str(ctx, &tv, buf);
+  grn_timeval2str(ctx, &tv, buf, 1024);
   len = strlen(buf);
   buf[len++] = '|';
   va_start(argp, fmt);
@@ -196,7 +196,7 @@ msg_handler(grn_ctx *ctx, grn_obj *msg)
   grn_msg_close(ctx, msg);
 }
 
-static void * CALLBACK
+static grn_thread_func_result CALLBACK
 receiver(void *arg)
 {
   grn_ctx ctx_, *ctx = &ctx_;
@@ -213,7 +213,7 @@ receiver(void *arg)
     */
   }
   grn_ctx_fin(ctx);
-  return NULL;
+  return GRN_THREAD_FUNC_RETURN_VALUE;
 }
 
 static int

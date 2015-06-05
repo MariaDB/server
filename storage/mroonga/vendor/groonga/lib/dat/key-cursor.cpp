@@ -133,7 +133,7 @@ void KeyCursor::ascending_init(const String &min_str, const String &max_str) {
   if (max_str.ptr() != NULL) {
     if (max_str.length() != 0) {
       end_buf_ = new UInt8[max_str.length()];
-      std::memcpy(end_buf_, max_str.ptr(), max_str.length());
+      grn_memcpy(end_buf_, max_str.ptr(), max_str.length());
       end_str_.assign(end_buf_, max_str.length());
     }
   }
@@ -206,7 +206,7 @@ void KeyCursor::descending_init(const String &min_str, const String &max_str) {
   if (min_str.ptr() != NULL) {
     if (min_str.length() != 0) {
       end_buf_ = new UInt8[min_str.length()];
-      std::memcpy(end_buf_, min_str.ptr(), min_str.length());
+      grn_memcpy(end_buf_, min_str.ptr(), min_str.length());
       end_str_.assign(end_buf_, min_str.length());
     }
   }

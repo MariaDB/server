@@ -23,6 +23,10 @@
 #define MYSQL_CONFIG_NAME		"my"
 #define MYSQL_COMPILATION_COMMENT	"@COMPILATION_COMMENT@"
 
+#ifdef WITH_WSREP
+#define WSREP_PATCH_VERSION             "@WSREP_PATCH_VERSION@"
+#endif
+
 /* mysqld compile time options */
 #endif /* _CUSTOMCONFIG_ */
 

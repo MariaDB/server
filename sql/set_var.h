@@ -88,7 +88,6 @@ protected:
   on_update_function on_update;
   const char *const deprecation_substitute;
   bool is_os_charset; ///< true if the value is in character_set_filesystem
-  bool default_val;
 
 public:
   sys_var(sys_var_chain *chain, const char *name_arg, const char *comment,
@@ -194,8 +193,15 @@ public:
     return insert_dynamic(array, (uchar*)&option);
   }
   void do_deprecated_warning(THD *thd);
-  bool is_default() { return default_val; }
-  void set_is_default(bool def) { default_val= def; }
+  /**
+    whether session value of a sysvar is a default one.
+
+    in this simple implementation we don't distinguish between default
+    and non-default values. for most variables it's ok, they don't treat
+    default values specially. this method is overwritten in descendant
+    classes as necessary.
+  */
+  virtual bool session_is_default(THD *thd) { return false; }
 
   virtual uchar *default_value_ptr(THD *thd)
   { return (uchar*)&option.def_value; }

@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1995, 2013, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1995, 2014, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2009, Google Inc.
 
 Portions of this file contain modifications contributed and copyrighted by
@@ -55,6 +55,7 @@ Created 12/9/1995 Heikki Tuuri
 #include "srv0start.h"
 #include "trx0sys.h"
 #include "trx0trx.h"
+#include "trx0roll.h"
 #include "srv0mon.h"
 
 /*
@@ -342,7 +343,7 @@ log_open(
 	log_t*	log			= log_sys;
 	ulint	len_upper_limit;
 #ifdef UNIV_LOG_ARCHIVE
-	ulint	archived_lsn_age;
+	lsn_t	archived_lsn_age;
 	ulint	dummy;
 #endif /* UNIV_LOG_ARCHIVE */
 	ulint	count			= 0;
@@ -1005,7 +1006,6 @@ log_init(void)
 	/*----------------------------*/
 
 	log_sys->next_checkpoint_no = 0;
-	log_sys->redo_log_crypt_ver = UNENCRYPTED_KEY_VER;
 	log_sys->last_checkpoint_lsn = log_sys->lsn;
 	log_sys->n_pending_checkpoint_writes = 0;
 
@@ -1384,7 +1384,7 @@ log_group_file_header_flush(
 		       (ulint) (dest_offset / UNIV_PAGE_SIZE),
 		       (ulint) (dest_offset % UNIV_PAGE_SIZE),
 		       OS_FILE_LOG_BLOCK_SIZE,
-		       buf, group, 0, 0, false);
+		       buf, group, 0);
 
 		srv_stats.os_log_pending_writes.dec();
 	}
@@ -1401,36 +1401,6 @@ log_block_store_checksum(
 	byte*	block)	/*!< in/out: pointer to a log block */
 {
 	log_block_set_checksum(block, log_block_calc_checksum(block));
-}
-
-/******************************************************//**
-Encrypt one or more log block before it is flushed to disk
-@return true if encryption succeeds. */
-static
-bool
-log_group_encrypt_before_write(
-/*===========================*/
-	const log_group_t* group,	/*!< in: log group to be flushed */
-	byte* block,			/*!< in/out: pointer to a log block */
-	const ulint size)		/*!< in: size of log blocks */
-
-{
-	Crypt_result result = AES_OK;
-
-	ut_ad(size % OS_FILE_LOG_BLOCK_SIZE == 0);
-	byte* dst_frame = (byte*)malloc(size);
-
-	//encrypt log blocks content
-	result = log_blocks_encrypt(block, size, dst_frame);
-
-	if (result == AES_OK)
-	{
-		ut_ad(block[0] == dst_frame[0]);
-		memcpy(block, dst_frame, size);
-	}
-	free(dst_frame);
-
-	return (result == AES_OK);
 }
 
 /******************************************************//**
@@ -1539,19 +1509,13 @@ loop:
 
 		ut_a(next_offset / UNIV_PAGE_SIZE <= ULINT_MAX);
 
-		if (srv_encrypt_log &&
-		    log_sys->redo_log_crypt_ver != UNENCRYPTED_KEY_VER &&
-		    !log_group_encrypt_before_write(group, buf, write_len))
-		{
-			fprintf(stderr,
-				"\nInnodb redo log encryption failed.\n");
-			abort();
-		}
+		log_encrypt_before_write(log_sys->next_checkpoint_no,
+					 buf, write_len);
 
 		fil_io(OS_FILE_WRITE | OS_FILE_LOG, true, group->space_id, 0,
 		       (ulint) (next_offset / UNIV_PAGE_SIZE),
 		       (ulint) (next_offset % UNIV_PAGE_SIZE), write_len, buf,
-		       group, 0, 0, false);
+		       group, 0);
 
 		srv_stats.os_log_pending_writes.dec();
 
@@ -2144,7 +2108,7 @@ log_group_checkpoint(
 		       write_offset / UNIV_PAGE_SIZE,
 		       write_offset % UNIV_PAGE_SIZE,
 		       OS_FILE_LOG_BLOCK_SIZE,
-		       buf, ((byte*) group + 1), 0, 0, false);
+		       buf, ((byte*) group + 1), 0);
 
 		ut_ad(((ulint) group & 0x1UL) == 0);
 	}
@@ -2226,7 +2190,7 @@ log_group_read_checkpoint_info(
 
 	fil_io(OS_FILE_READ | OS_FILE_LOG, true, group->space_id, 0,
 	       field / UNIV_PAGE_SIZE, field % UNIV_PAGE_SIZE,
-	       OS_FILE_LOG_BLOCK_SIZE, log_sys->checkpoint_buf, NULL, 0, 0, false);
+	       OS_FILE_LOG_BLOCK_SIZE, log_sys->checkpoint_buf, NULL, 0);
 }
 
 /******************************************************//**
@@ -2350,11 +2314,14 @@ log_checkpoint(
 	}
 #endif /* UNIV_DEBUG */
 
+	/* generate key version and key used to encrypt future blocks,
+	*
+	* NOTE: the +1 is as the next_checkpoint_no will be updated once
+	* the checkpoint info has been written and THEN blocks will be encrypted
+	* with new key
+	*/
+	log_crypt_set_ver_and_key(log_sys->next_checkpoint_no + 1);
 	log_groups_write_checkpoint_info();
-
-	/* generate key version and key used to encrypt next log block */
-	log_crypt_set_ver_and_key(log_sys->redo_log_crypt_ver,
-				  log_sys->redo_log_crypt_key);
 
 	MONITOR_INC(MONITOR_NUM_CHECKPOINT);
 
@@ -2555,33 +2522,6 @@ loop:
 }
 
 /******************************************************//**
-Decrypt a specified log segment after they are read from a log file to a buffer.
-@return true if decryption succeeds. */
-static
-bool
-log_group_decrypt_after_read(
-/*==========================*/
-	const log_group_t* group,	/*!< in: log group to be read from */
-	byte* frame,	/*!< in/out: log segment */
-	const ulint size)	/*!< in: log segment size */
-{
-	Crypt_result result;
-	ut_ad(size % OS_FILE_LOG_BLOCK_SIZE == 0);
-	byte* dst_frame = (byte*)malloc(size);
-
-	// decrypt log blocks content
-	result = log_blocks_decrypt(frame, size, dst_frame);
-
-	if (result == AES_OK)
-	{
-		memcpy(frame, dst_frame, size);
-	}
-	free(dst_frame);
-
-	return (result == AES_OK);
-}
-
-/******************************************************//**
 Reads a specified log segment to a buffer.  Optionally releases the log mutex
 before the I/O.  */
 UNIV_INTERN
@@ -2639,14 +2579,9 @@ loop:
 	fil_io(OS_FILE_READ | OS_FILE_LOG, sync, group->space_id, 0,
 	       (ulint) (source_offset / UNIV_PAGE_SIZE),
 	       (ulint) (source_offset % UNIV_PAGE_SIZE),
-	       len, buf, (type == LOG_ARCHIVE) ? &log_archive_io : NULL, 0, 0, false);
+	       len, buf, (type == LOG_ARCHIVE) ? &log_archive_io : NULL, 0);
 
-	if (recv_sys->recv_log_crypt_ver != UNENCRYPTED_KEY_VER &&
-	    !log_group_decrypt_after_read(group, buf, len))
-	{
-		fprintf(stderr, "Innodb redo log decryption failed.\n");
-		abort();
-	}
+	log_decrypt_after_read(buf, len);
 
 	start_lsn += len;
 	buf += len;
@@ -2771,7 +2706,7 @@ log_group_archive_file_header_write(
 	       dest_offset / UNIV_PAGE_SIZE,
 	       dest_offset % UNIV_PAGE_SIZE,
 	       2 * OS_FILE_LOG_BLOCK_SIZE,
-	       buf, &log_archive_io, 0, 0, false);
+	       buf, &log_archive_io, 0);
 }
 
 /******************************************************//**
@@ -2808,7 +2743,7 @@ log_group_archive_completed_header_write(
 	       dest_offset % UNIV_PAGE_SIZE,
 	       OS_FILE_LOG_BLOCK_SIZE,
 	       buf + LOG_FILE_ARCH_COMPLETED,
-	       &log_archive_io, 0, 0, false);
+	       &log_archive_io, 0);
 }
 
 /******************************************************//**
@@ -2940,20 +2875,15 @@ loop:
 
 	MONITOR_INC(MONITOR_LOG_IO);
 
-	if (srv_encrypt_log &&
-	    log_sys->redo_log_crypt_ver != UNENCRYPTED_KEY_VER &&
-	    !log_group_encrypt_before_write(group, buf, len))
-	{
-		fprintf(stderr, "Innodb redo log encryption failed.\n");
-		abort();
-	}
+	//TODO (jonaso): This must be dead code??
+	log_encrypt_before_write(log_sys->next_checkpoint_no, buf, len);
 
 	fil_io(OS_FILE_WRITE | OS_FILE_LOG, false, group->archive_space_id,
 	       0,
 	       (ulint) (next_offset / UNIV_PAGE_SIZE),
 	       (ulint) (next_offset % UNIV_PAGE_SIZE),
 	       ut_calc_align(len, OS_FILE_LOG_BLOCK_SIZE), buf,
-	       &log_archive_io, 0, 0, false);
+	       &log_archive_io, 0);
 
 	start_lsn += len;
 	next_offset += len;
@@ -3605,6 +3535,12 @@ logs_empty_and_mark_files_at_shutdown(void)
 	if (log_disable_checkpoint_active)
 		log_enable_checkpoint();
 
+	while (srv_fast_shutdown == 0 && trx_rollback_or_clean_is_active) {
+		/* we should wait until rollback after recovery end
+		for slow shutdown */
+		os_thread_sleep(100000);
+	}
+
 	/* Wait until the master thread and all other operations are idle: our
 	algorithm only works if the server is idle at shutdown */
 
@@ -4187,8 +4123,8 @@ log_scrub()
 	next_lbn_to_pad = log_block_convert_lsn_to_no(log_sys->lsn);
 }
 
-/* log scrubbing interval in ms. */
-UNIV_INTERN ulonglong innodb_scrub_log_interval;
+/* log scrubbing speed, in bytes/sec */
+UNIV_INTERN ulonglong innodb_scrub_log_speed;
 
 /*****************************************************************//**
 This is the main thread for log scrub. It waits for an event and
@@ -4208,7 +4144,10 @@ DECLARE_THREAD(log_scrub_thread)(
 
 	while(srv_shutdown_state == SRV_SHUTDOWN_NONE)
 	{
-		os_event_wait_time(log_scrub_event, innodb_scrub_log_interval * 1000);
+		/* log scrubbing interval in µs. */
+		ulonglong interval = 1000*1000*512/innodb_scrub_log_speed;
+
+		os_event_wait_time(log_scrub_event, interval);
 
 		log_scrub();
 

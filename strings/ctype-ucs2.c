@@ -92,62 +92,107 @@ my_strcasecmp_mb2_or_mb4(CHARSET_INFO *cs __attribute__((unused)),
 }
 
 
-/*
-  Copy an UCS2/UTF16/UTF32 string.
-  Not more that "nchars" characters are copied.
+typedef enum
+{
+  MY_CHAR_COPY_OK=       0, /* The character was Okey */
+  MY_CHAR_COPY_ERROR=    1, /* The character was not Ok, and could not fix */
+  MY_CHAR_COPY_FIXED=    2  /* The character was not Ok, was fixed to '?' */
+} my_char_copy_status_t;
 
-  UCS2/UTF16/UTF32 may need to prepend zero some bytes,
-  e.g. when copying from a BINARY source:
-  INSERT INTO t1 (ucs2_column) VALUES (0x01);
-  0x01 -> 0x0001
+
+/*
+  Copies an incomplete character, lef-padding it with 0x00 bytes.
+  
+  @param cs           Character set
+  @param dst          The destination string
+  @param dst_length   Space available in dst
+  @param src          The source string
+  @param src_length   Length of src
+  @param nchars       Copy not more than nchars characters.
+                      The "nchars" parameter of the caller.
+                      Only 0 and non-0 are important here.
+  @param fix          What to do if after zero-padding didn't get a valid 
+                      character:
+                      - FALSE - exit with error.
+                      - TRUE  - try to put '?' instead.
+  
+  @return  MY_CHAR_COPY_OK     if after zero-padding got a valid character.
+                               cs->mbmaxlen bytes were written to "dst".
+  @return  MY_CHAR_COPY_FIXED  if after zero-padding did not get a valid
+                               character, but wrote '?' to the destination
+                               string instead.
+                               cs->mbminlen bytes were written to "dst".
+  @return  MY_CHAR_COPY_ERROR  If failed and nothing was written to "dst".
+                               Possible reasons:
+                               - dst_length was too short
+                               - nchars was 0
+                               - the character after padding appeared not
+                                 to be valid, and could not fix it to '?'.
+*/
+static my_char_copy_status_t
+my_copy_incomplete_char(CHARSET_INFO *cs,
+                        char *dst, size_t dst_length,
+                        const char *src, size_t src_length,
+                        size_t nchars, my_bool fix)
+{
+  size_t pad_length;
+  size_t src_offset= src_length % cs->mbminlen;
+  if (dst_length < cs->mbminlen || !nchars)
+    return MY_CHAR_COPY_ERROR;
+
+  pad_length= cs->mbminlen - src_offset;
+  bzero(dst, pad_length);
+  memmove(dst + pad_length, src, src_offset);
+  /*
+    In some cases left zero-padding can create an incorrect character.
+    For example:
+      INSERT INTO t1 (utf32_column) VALUES (0x110000);
+    We'll pad the value to 0x00110000, which is a wrong UTF32 sequence!
+    The valid characters range is limited to 0x00000000..0x0010FFFF.
+    
+    Make sure we didn't pad to an incorrect character.
+  */
+  if (cs->cset->charlen(cs, (uchar *) dst, (uchar *) dst + cs->mbminlen) ==
+      (int) cs->mbminlen)
+    return MY_CHAR_COPY_OK;
+
+  if (fix &&
+      cs->cset->wc_mb(cs, '?', (uchar *) dst, (uchar *) dst + cs->mbminlen) ==
+      (int) cs->mbminlen)
+    return MY_CHAR_COPY_FIXED;
+
+  return MY_CHAR_COPY_ERROR;
+}
+
+
+/*
+  Copy an UCS2/UTF16/UTF32 string, fix bad characters.
 */
 static size_t
-my_copy_abort_mb2_or_mb4(CHARSET_INFO *cs,
-                         char *dst, size_t dst_length,
-                         const char *src, size_t src_length,
-                         size_t nchars, MY_STRCOPY_STATUS *status)
+my_copy_fix_mb2_or_mb4(CHARSET_INFO *cs,
+                       char *dst, size_t dst_length,
+                       const char *src, size_t src_length,
+                       size_t nchars, MY_STRCOPY_STATUS *status)
 {
-  size_t src_offset;
-
-  if ((src_offset= (src_length % cs->mbminlen)))
+  size_t length2, src_offset= src_length % cs->mbminlen;
+  my_char_copy_status_t padstatus;
+  
+  if (!src_offset)
+    return  my_copy_fix_mb(cs, dst, dst_length,
+                               src, src_length, nchars, status);
+  if ((padstatus= my_copy_incomplete_char(cs, dst, dst_length,
+                                          src, src_length, nchars, TRUE)) ==
+      MY_CHAR_COPY_ERROR)
   {
-    int well_formed_error;
-    size_t pad_length;
-    if (dst_length < cs->mbminlen || !nchars)
-    {
-      status->m_source_end_pos= status->m_well_formed_error_pos= src;
-      return 0;
-    }
-
-    pad_length= cs->mbminlen - src_offset;
-    bzero(dst, pad_length);
-    memmove(dst + pad_length, src, src_offset);
-    /*
-      In some cases left zero-padding can create an incorrect character.
-      For example:
-        INSERT INTO t1 (utf32_column) VALUES (0x110000);
-      We'll pad the value to 0x00110000, which is a wrong UTF32 sequence!
-      The valid characters range is limited to 0x00000000..0x0010FFFF.
-      
-      Make sure we didn't pad to an incorrect character.
-    */
-    if (cs->cset->well_formed_len(cs,
-                                  dst, dst + cs->mbminlen, 1,
-                                  &well_formed_error) != cs->mbminlen)
-    {
-      status->m_source_end_pos= status->m_well_formed_error_pos= src;
-      return 0;
-    }
-    nchars--;
-    src+= src_offset;
-    src_length-= src_offset;
-    dst+= cs->mbminlen;
-    dst_length-= cs->mbminlen;
-    return
-      cs->mbminlen /* The left-padded character */ +
-      my_copy_abort_mb(cs, dst, dst_length, src, src_length, nchars, status);
+    status->m_source_end_pos= status->m_well_formed_error_pos= src;
+    return 0;
   }
-  return  my_copy_abort_mb(cs, dst, dst_length, src, src_length, nchars, status);
+  length2= my_copy_fix_mb(cs, dst + cs->mbminlen, dst_length - cs->mbminlen,
+                          src + src_offset, src_length - src_offset,
+                          nchars - 1, status);
+  if (padstatus == MY_CHAR_COPY_FIXED)
+    status->m_well_formed_error_pos= src;
+  return cs->mbminlen /* The left-padded character */ + length2;
 }
 
 
@@ -1475,6 +1520,24 @@ my_ismbchar_utf16(CHARSET_INFO *cs, const char *b, const char *e)
 }
 
 
+static int
+my_charlen_utf16(CHARSET_INFO *cs, const uchar *str, const uchar *end)
+{
+  my_wc_t wc;
+  return cs->cset->mb_wc(cs, &wc, str, end);
+}
+
+
+#define MY_FUNCTION_NAME(x)       my_ ## x ## _utf16
+#define CHARLEN(cs,str,end)       my_charlen_utf16(cs,str,end)
+#define DEFINE_WELL_FORMED_CHAR_LENGTH_USING_CHARLEN
+#include "ctype-mb.ic"
+#undef MY_FUNCTION_NAME
+#undef CHARLEN
+#undef DEFINE_WELL_FORMED_CHAR_LENGTH_USING_CHARLEN
+/* Defines my_well_formed_char_length_utf16 */
+
+
 static uint
 my_mbcharlen_utf16(CHARSET_INFO *cs  __attribute__((unused)),
                    uint c __attribute__((unused)))
@@ -1742,7 +1805,9 @@ MY_CHARSET_HANDLER my_charset_utf16_handler=
   my_strtoll10_mb2,
   my_strntoull10rnd_mb2_or_mb4,
   my_scan_mb2,
-  my_copy_abort_mb2_or_mb4,
+  my_charlen_utf16,
+  my_well_formed_char_length_utf16,
+  my_copy_fix_mb2_or_mb4,
 };
 
 
@@ -1912,7 +1977,9 @@ static MY_CHARSET_HANDLER my_charset_utf16le_handler=
   my_strtoll10_mb2,
   my_strntoull10rnd_mb2_or_mb4,
   my_scan_mb2,
-  my_copy_abort_mb2_or_mb4,
+  my_charlen_utf16,
+  my_well_formed_char_length_utf16,
+  my_copy_fix_mb2_or_mb4,
 };
 
 
@@ -1987,6 +2054,13 @@ struct charset_info_st my_charset_utf16le_bin=
 
 #ifdef HAVE_CHARSET_utf32
 
+/*
+  Check is b0 and b1 start a valid UTF32 four-byte sequence.
+  Don't accept characters greater than U+10FFFF.
+*/
+#define IS_UTF32_MBHEAD4(b0,b1) (!(b0) && ((uchar) (b1) <= 0x10))
+
+
 static int
 my_utf32_uni(CHARSET_INFO *cs __attribute__((unused)),
              my_wc_t *pwc, const uchar *s, const uchar *e)
@@ -1994,7 +2068,7 @@ my_utf32_uni(CHARSET_INFO *cs __attribute__((unused)),
   if (s + 4 > e)
     return MY_CS_TOOSMALL4;
   *pwc= (s[0] << 24) + (s[1] << 16) + (s[2] << 8) + (s[3]);
-  return 4;
+  return *pwc > 0x10FFFF ? MY_CS_ILSEQ : 4;
 }
 
 
@@ -2004,7 +2078,10 @@ my_uni_utf32(CHARSET_INFO *cs __attribute__((unused)),
 {
   if (s + 4 > e) 
     return MY_CS_TOOSMALL4;
-  
+
+  if (wc > 0x10FFFF)  
+    return MY_CS_ILUNI;
+
   s[0]= (uchar) (wc >> 24);
   s[1]= (uchar) (wc >> 16) & 0xFF;
   s[2]= (uchar) (wc >> 8)  & 0xFF;
@@ -2263,8 +2340,27 @@ my_ismbchar_utf32(CHARSET_INFO *cs __attribute__((unused)),
                   const char *b,
                   const char *e)
 {
-  return b + 4 > e ? 0 : 4;
+  return b + 4 > e || !IS_UTF32_MBHEAD4(b[0], b[1]) ? 0 : 4;
 }
+
+
+static int
+my_charlen_utf32(CHARSET_INFO *cs __attribute__((unused)),
+                 const uchar *b, const uchar *e)
+{
+  return b + 4 > e ? MY_CS_TOOSMALL4 :
+         IS_UTF32_MBHEAD4(b[0], b[1]) ? 4 : MY_CS_ILSEQ;
+}
+
+
+#define MY_FUNCTION_NAME(x)       my_ ## x ## _utf32
+#define CHARLEN(cs,str,end)       my_charlen_utf32(cs,str,end)
+#define DEFINE_WELL_FORMED_CHAR_LENGTH_USING_CHARLEN
+#include "ctype-mb.ic"
+#undef MY_FUNCTION_NAME
+#undef CHARLEN
+#undef DEFINE_WELL_FORMED_CHAR_LENGTH_USING_CHARLEN
+/* Defines my_well_formed_char_length_utf32 */
 
 
 static uint
@@ -2579,8 +2675,7 @@ my_well_formed_len_utf32(CHARSET_INFO *cs __attribute__((unused)),
   }
   for (; b < e; b+= 4)
   {
-    /* Don't accept characters greater than U+10FFFF */
-    if (b[0] || (uchar) b[1] > 0x10)
+    if (!IS_UTF32_MBHEAD4(b[0], b[1]))
     {
       *error= 1;
       return b - b0;
@@ -2827,7 +2922,9 @@ MY_CHARSET_HANDLER my_charset_utf32_handler=
   my_strtoll10_utf32,
   my_strntoull10rnd_mb2_or_mb4,
   my_scan_utf32,
-  my_copy_abort_mb2_or_mb4,
+  my_charlen_utf32,
+  my_well_formed_char_length_utf32,
+  my_copy_fix_mb2_or_mb4,
 };
 
 
@@ -2959,6 +3056,14 @@ static const uchar to_upper_ucs2[] = {
   224,225,226,227,228,229,230,231,232,233,234,235,236,237,238,239,
   240,241,242,243,244,245,246,247,248,249,250,251,252,253,254,255
 };
+
+
+static int
+my_charlen_ucs2(CHARSET_INFO *cs __attribute__((unused)),
+		const uchar *s, const uchar *e)
+{
+  return s + 2 > e ? MY_CS_TOOSMALLN(2) : 2;
+}
 
 
 static int my_ucs2_uni(CHARSET_INFO *cs __attribute__((unused)),
@@ -3264,6 +3369,31 @@ size_t my_well_formed_len_ucs2(CHARSET_INFO *cs __attribute__((unused)),
 }
 
 
+static size_t
+my_well_formed_char_length_ucs2(CHARSET_INFO *cs __attribute__((unused)),
+                                const char *b, const char *e,
+                                size_t nchars, MY_STRCOPY_STATUS *status)
+{
+  size_t length= e - b;
+  if (nchars * 2 <= length)
+  {
+    status->m_well_formed_error_pos= NULL;
+    status->m_source_end_pos= b + (nchars * 2);
+    return nchars;
+  }
+  if (length % 2)
+  {
+    status->m_well_formed_error_pos= status->m_source_end_pos= e - 1;
+  }
+  else
+  {
+    status->m_well_formed_error_pos= NULL;
+    status->m_source_end_pos= e;
+  }
+  return length / 2;
+}
+
+
 static
 int my_wildcmp_ucs2_ci(CHARSET_INFO *cs,
 		    const char *str,const char *str_end,
@@ -3446,7 +3576,9 @@ MY_CHARSET_HANDLER my_charset_ucs2_handler=
     my_strtoll10_mb2,
     my_strntoull10rnd_mb2_or_mb4,
     my_scan_mb2,
-    my_copy_abort_mb2_or_mb4,
+    my_charlen_ucs2,
+    my_well_formed_char_length_ucs2,
+    my_copy_fix_mb2_or_mb4,
 };
 
 

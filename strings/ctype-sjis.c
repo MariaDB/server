@@ -176,10 +176,19 @@ static const uchar sort_order_sjis[]=
   (uchar) '\370',(uchar) '\371',(uchar) '\372',(uchar) '\373',(uchar) '\374',(uchar) '\375',(uchar) '\376',(uchar) '\377'
 };
 
-#define issjishead(c) ((0x81<=(c) && (c)<=0x9f) || \
-                       ((0xe0<=(c)) && (c)<=0xfc))
-#define issjistail(c) ((0x40<=(c) && (c)<=0x7e) || \
-                       (0x80<=(c) && (c)<=0xfc))
+#define issjishead(c) ((0x81 <= (uchar) (c) && (uchar) (c) <= 0x9f) || \
+                       (0xe0 <= (uchar) (c) && (uchar) (c) <= 0xfc))
+#define issjistail(c) ((0x40 <= (uchar) (c) && (uchar) (c) <= 0x7e) || \
+                       (0x80 <= (uchar) (c) && (uchar) (c) <= 0xfc))
+
+#define issjiskata(c) ((0xA1 <= (uchar) (c) && (uchar) (c) <= 0xDF))
+
+
+#define MY_FUNCTION_NAME(x)   my_ ## x ## _sjis
+#define IS_8BIT_CHAR(x)       issjiskata(x)
+#define IS_MB2_CHAR(x,y)      (issjishead(x) && issjistail(y))
+#define DEFINE_ASIAN_ROUTINES
+#include "ctype-mb.ic"
 
 
 static uint ismbchar_sjis(CHARSET_INFO *cs __attribute__((unused)),
@@ -34089,44 +34098,6 @@ size_t my_numcells_sjis(CHARSET_INFO *cs __attribute__((unused)),
   return clen;
 }
 
-/*
-  Returns a well formed length of a SJIS string.
-  CP932 additional characters are also accepted.
-*/
-static
-size_t my_well_formed_len_sjis(CHARSET_INFO *cs __attribute__((unused)),
-                               const char *b, const char *e,
-                               size_t pos, int *error)
-{
-  const char *b0= b;
-  *error= 0;
-  while (pos-- && b < e)
-  {
-    if ((uchar) b[0] < 128)
-    {
-      /* Single byte ascii character */
-      b++;
-    }
-    else  if (issjishead((uchar)*b) && (e-b)>1 && issjistail((uchar)b[1]))
-    {
-      /* Double byte character */
-      b+= 2;
-    }
-    else if (((uchar)*b) >= 0xA1 && ((uchar)*b) <= 0xDF)
-    {
-      /* Half width kana */
-      b++;
-    }
-    else
-    {
-      /* Wrong byte sequence */
-      *error= 1;
-      break;
-    }
-  }
-  return (size_t) (b - b0);
-}
-
 
 static MY_COLLATION_HANDLER my_collation_ci_handler =
 {
@@ -34173,7 +34144,9 @@ static MY_CHARSET_HANDLER my_charset_handler=
   my_strtoll10_8bit,
   my_strntoull10rnd_8bit,
   my_scan_8bit,
-  my_copy_abort_mb,
+  my_charlen_sjis,
+  my_well_formed_char_length_sjis,
+  my_copy_fix_mb,
 };
 
 

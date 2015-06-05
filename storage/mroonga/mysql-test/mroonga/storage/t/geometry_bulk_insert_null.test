@@ -15,6 +15,8 @@
 # Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
 --source include/have_geometry.inc
+--source ../../include/mroonga/have_version_56_or_later.inc
+--source ../../include/mroonga/skip_mysql_57.inc
 --source ../../include/mroonga/have_mroonga.inc
 
 --disable_warnings
@@ -27,7 +29,7 @@ CREATE TABLE shops (
 
 INSERT INTO shops VALUES (NULL), (NULL);
 
-SELECT AsText(location) FROM shops;
+SELECT ST_AsText(location) FROM shops;
 
 DROP TABLE shops;
 

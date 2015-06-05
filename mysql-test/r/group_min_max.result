@@ -3727,3 +3727,57 @@ DROP TABLE t1;
 #
 # End of 10.0 tests
 #
+#
+# Start of 10.1 tests
+#
+#
+# MDEV-6990 GROUP_MIN_MAX optimization is not applied in some cases when it could
+#
+CREATE TABLE t1 (id INT NOT NULL, a DATE, KEY(id,a)) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1,'2001-01-01');
+INSERT INTO t1 VALUES (1,'2001-01-02');
+INSERT INTO t1 VALUES (1,'2001-01-03');
+INSERT INTO t1 VALUES (1,'2001-01-04');
+INSERT INTO t1 VALUES (2,'2001-01-01');
+INSERT INTO t1 VALUES (2,'2001-01-02');
+INSERT INTO t1 VALUES (2,'2001-01-03');
+INSERT INTO t1 VALUES (2,'2001-01-04');
+INSERT INTO t1 VALUES (3,'2001-01-01');
+INSERT INTO t1 VALUES (3,'2001-01-02');
+INSERT INTO t1 VALUES (3,'2001-01-03');
+INSERT INTO t1 VALUES (3,'2001-01-04');
+INSERT INTO t1 VALUES (4,'2001-01-01');
+INSERT INTO t1 VALUES (4,'2001-01-02');
+INSERT INTO t1 VALUES (4,'2001-01-03');
+INSERT INTO t1 VALUES (4,'2001-01-04');
+EXPLAIN SELECT id,MIN(a),MAX(a) FROM t1 WHERE a>='2001-01-04' GROUP BY id;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	NULL	id	8	NULL	9	Using where; Using index for group-by
+EXPLAIN SELECT id,MIN(a),MAX(a) FROM t1 WHERE a>=20010104.0 GROUP BY id;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	NULL	id	8	NULL	9	Using where; Using index for group-by
+EXPLAIN SELECT id,MIN(a),MAX(a) FROM t1 WHERE a>=20010104e0 GROUP BY id;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	NULL	id	8	NULL	9	Using where; Using index for group-by
+SELECT id,MIN(a),MAX(a) FROM t1 WHERE a>='2001-01-04' GROUP BY id;
+id	MIN(a)	MAX(a)
+1	2001-01-04	2001-01-04
+2	2001-01-04	2001-01-04
+3	2001-01-04	2001-01-04
+4	2001-01-04	2001-01-04
+SELECT id,MIN(a),MAX(a) FROM t1 WHERE a>=20010104.0 GROUP BY id;
+id	MIN(a)	MAX(a)
+1	2001-01-04	2001-01-04
+2	2001-01-04	2001-01-04
+3	2001-01-04	2001-01-04
+4	2001-01-04	2001-01-04
+SELECT id,MIN(a),MAX(a) FROM t1 WHERE a>=20010104e0 GROUP BY id;
+id	MIN(a)	MAX(a)
+1	2001-01-04	2001-01-04
+2	2001-01-04	2001-01-04
+3	2001-01-04	2001-01-04
+4	2001-01-04	2001-01-04
+DROP TABLE t1;
+#
+# End of 10.1 tests
+#

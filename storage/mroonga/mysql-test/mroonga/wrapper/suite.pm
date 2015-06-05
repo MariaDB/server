@@ -4,6 +4,11 @@ package My::Suite::Mroonga;
 
 return "No Mroonga engine" unless $ENV{HA_MROONGA_SO} or
                                   $::mysqld_variables{'mroonga'} eq "ON";
+#
+# RECOMPILE_FOR_EMBEDDED also means that a plugin
+# cannot be dynamically loaded into embedded
+return "Not run for embedded server" if $::opt_embedded_server and
+                                        $ENV{HA_MROONGA_SO};
 
 sub is_default { 1 }
 

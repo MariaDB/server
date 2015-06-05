@@ -197,19 +197,59 @@ int thd_key_create(MYSQL_THD_KEY_T *key);
 void thd_key_delete(MYSQL_THD_KEY_T *key);
 void* thd_getspecific(void* thd, MYSQL_THD_KEY_T key);
 int thd_setspecific(void* thd, MYSQL_THD_KEY_T key, void *value);
-#include <mysql/service_encryption_keys.h>
-extern struct encryption_keys_service_st {
-  unsigned int (*get_latest_encryption_key_version_func)();
-  unsigned int (*has_encryption_key_func)(unsigned int);
-  unsigned int (*get_encryption_key_size_func)(unsigned int);
-  int (*get_encryption_key_func)(unsigned int, unsigned char*, unsigned int);
-  int (*get_encryption_iv_func)(unsigned int, unsigned char*, unsigned int);
-} *encryption_keys_service;
-unsigned int get_latest_encryption_key_version();
-unsigned int has_encryption_key(unsigned int version);
-unsigned int get_encryption_key_size(unsigned int version);
-int get_encryption_key(unsigned int version, unsigned char* key, unsigned int keybufsize);
-int get_encryption_iv(unsigned int version, unsigned char* iv, unsigned int ivbufsize);
+#include <mysql/service_encryption.h>
+typedef int (*encrypt_decrypt_func)(const unsigned char* src, unsigned int slen,
+                                    unsigned char* dst, unsigned int* dlen,
+                                    const unsigned char* key, unsigned int klen,
+                                    const unsigned char* iv, unsigned int ivlen,
+                                    int no_padding, unsigned int key_id,
+                                    unsigned int key_version);
+struct encryption_service_st {
+  unsigned int (*encryption_key_get_latest_version_func)(unsigned int);
+  unsigned int (*encryption_key_id_exists_func)(unsigned int);
+  unsigned int (*encryption_key_version_exists_func)(unsigned int, unsigned int);
+  unsigned int (*encryption_key_get_func)(unsigned int, unsigned int, unsigned char*, unsigned int*);
+  encrypt_decrypt_func encryption_encrypt_func;
+  encrypt_decrypt_func encryption_decrypt_func;
+};
+extern struct encryption_service_st encryption_handler;
+#include <mysql/service_encryption_scheme.h>
+struct st_encryption_scheme_key {
+  unsigned int version;
+  unsigned char key[16];
+};
+struct st_encryption_scheme {
+  unsigned char iv[16];
+  struct st_encryption_scheme_key key[3];
+  unsigned int keyserver_requests;
+  unsigned int key_id;
+  unsigned int type;
+  void (*locker)(struct st_encryption_scheme *self, int release);
+};
+extern struct encryption_scheme_service_st {
+  int (*encryption_scheme_encrypt_func)
+                               (const unsigned char* src, unsigned int slen,
+                                unsigned char* dst, unsigned int* dlen,
+                                struct st_encryption_scheme *scheme,
+                                unsigned int key_version, unsigned int i32_1,
+                                unsigned int i32_2, unsigned long long i64);
+  int (*encryption_scheme_decrypt_func)
+                               (const unsigned char* src, unsigned int slen,
+                                unsigned char* dst, unsigned int* dlen,
+                                struct st_encryption_scheme *scheme,
+                                unsigned int key_version, unsigned int i32_1,
+                                unsigned int i32_2, unsigned long long i64);
+} *encryption_scheme_service;
+int encryption_scheme_encrypt(const unsigned char* src, unsigned int slen,
+                              unsigned char* dst, unsigned int* dlen,
+                              struct st_encryption_scheme *scheme,
+                              unsigned int key_version, unsigned int i32_1,
+                              unsigned int i32_2, unsigned long long i64);
+int encryption_scheme_decrypt(const unsigned char* src, unsigned int slen,
+                              unsigned char* dst, unsigned int* dlen,
+                              struct st_encryption_scheme *scheme,
+                              unsigned int key_version, unsigned int i32_1,
+                              unsigned int i32_2, unsigned long long i64);
 struct st_mysql_xid {
   long formatID;
   long gtrid_length;
@@ -231,10 +271,10 @@ enum enum_var_type
 };
 struct st_mysql_show_var {
   const char *name;
-  char *value;
+  void *value;
   enum enum_mysql_show_type type;
 };
-typedef int (*mysql_show_var_func)(void*, struct st_mysql_show_var*, char *, enum enum_var_type);
+typedef int (*mysql_show_var_func)(void*, struct st_mysql_show_var*, void *, enum enum_var_type);
 struct st_mysql_sys_var;
 struct st_mysql_value;
 typedef int (*mysql_var_check_func)(void* thd,

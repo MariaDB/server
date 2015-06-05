@@ -1,3 +1,9 @@
+SUBDIRS =					\
+	command_line				\
+	context					\
+	initialize				\
+	logger
+
 include sources.am
 
 EXTRA_DIST =					\
@@ -5,5 +11,5 @@ EXTRA_DIST =					\
 	$(RUBY_SCRIPT_FILES)
 
 if WITH_MRUBY
-nobase_ruby_scripts_DATA = $(RUBY_SCRIPT_FILES)
+ruby_scripts_DATA = $(RUBY_SCRIPT_FILES)
 endif

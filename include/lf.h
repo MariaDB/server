@@ -117,7 +117,12 @@ uint lf_alloc_pool_count(LF_ALLOCATOR *allocator);
 #define lf_alloc_free(PINS, PTR)       lf_pinbox_free((PINS), (PTR))
 #define lf_alloc_get_pins(A)           lf_pinbox_get_pins(&(A)->pinbox)
 #define lf_alloc_put_pins(PINS)        lf_pinbox_put_pins(PINS)
-#define lf_alloc_direct_free(ALLOC, ADDR) my_free((ADDR))
+#define lf_alloc_direct_free(ALLOC, ADDR) \
+  do {                                    \
+    if ((ALLOC)->destructor)              \
+      (ALLOC)->destructor((uchar*) ADDR); \
+    my_free(ADDR);                        \
+  } while(0)
 
 void *lf_alloc_new(LF_PINS *pins);
 
@@ -130,22 +135,27 @@ C_MODE_END
 
 C_MODE_START
 
+typedef struct st_lf_hash LF_HASH;
+typedef void (*lf_hash_initializer)(LF_HASH *hash, void *dst, const void *src);
+
 #define LF_HASH_UNIQUE 1
 
 /* lf_hash overhead per element (that is, sizeof(LF_SLIST) */
 extern const int LF_HASH_OVERHEAD;
 
-typedef struct {
+struct st_lf_hash {
   LF_DYNARRAY array;                    /* hash itself */
   LF_ALLOCATOR alloc;                   /* allocator for elements */
   my_hash_get_key get_key;              /* see HASH */
+  lf_hash_initializer initializer;      /* called when an element is inserted */
+  my_hash_function hash_function;       /* see HASH */
   CHARSET_INFO *charset;                /* see HASH */
   uint key_offset, key_length;          /* see HASH */
   uint element_size;                    /* size of memcpy'ed area on insert */
   uint flags;                           /* LF_HASH_UNIQUE, etc */
   int32 volatile size;                  /* size of array */
   int32 volatile count;                 /* number of elements in the hash */
-} LF_HASH;
+};
 
 void lf_hash_init(LF_HASH *hash, uint element_size, uint flags,
                   uint key_offset, uint key_length, my_hash_get_key get_key,

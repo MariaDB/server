@@ -1,6 +1,6 @@
 /***********************************************************************
 
-Copyright (c) 1995, 2013, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1995, 2014, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2009, Percona Inc.
 Copyright (c) 2013, 2015, MariaDB Corporation.
 
@@ -323,24 +323,21 @@ The wrapper functions have the prefix of "innodb_". */
 
 # define os_aio(type, mode, name, file, buf, offset,			\
 	n, message1, message2, space_id, 				\
-	trx, page_compressed, page_compression_level, write_size,	\
-	page_encryption, page_encryption_key, lsn, encrypt)		\
+	trx, write_size) 					 	\
 	pfs_os_aio_func(type, mode, name, file, buf, offset,		\
-		n, message1, message2, space_id, trx,			\
-		page_compressed, page_compression_level, write_size,	\
-		page_encryption, page_encryption_key, lsn, encrypt,	\
+		n, message1, message2, space_id, trx, write_size,	\
 		__FILE__, __LINE__)
 
-# define os_file_read(file, buf, offset, n, compressed)			\
-	pfs_os_file_read_func(file, buf, offset, n, NULL, compressed,	\
+# define os_file_read(file, buf, offset, n)				\
+	pfs_os_file_read_func(file, buf, offset, n, NULL,		\
 			      __FILE__, __LINE__)
 
-# define os_file_read_trx(file, buf, offset, n, trx, compressed)	\
-	pfs_os_file_read_func(file, buf, offset, n, trx, compressed,	\
+# define os_file_read_trx(file, buf, offset, n, trx)			\
+	pfs_os_file_read_func(file, buf, offset, n, trx,		\
 			      __FILE__, __LINE__)
 
-# define os_file_read_no_error_handling(file, buf, offset, n, compressed) \
-	pfs_os_file_read_no_error_handling_func(file, buf, offset, n, compressed, \
+# define os_file_read_no_error_handling(file, buf, offset, n)		\
+	pfs_os_file_read_no_error_handling_func(file, buf, offset, n,	\
 						__FILE__, __LINE__)
 
 # define os_file_write(name, file, buf, offset, n)			\
@@ -376,22 +373,18 @@ to original un-instrumented file I/O APIs */
 # define os_file_close(file)	os_file_close_func(file)
 
 # define os_aio(type, mode, name, file, buf, offset, n, message1,	\
-		message2, space_id, trx,				\
-		page_compressed, page_compression_level, write_size,	\
-	page_encryption, page_encryption_key, lsn, encrypt)		\
+	message2, space_id, trx, write_size)				\
 	os_aio_func(type, mode, name, file, buf, offset, n,		\
-		message1, message2, space_id, trx,			\
-		page_compressed, page_compression_level, write_size,	\
-		page_encryption, page_encryption_key, lsn, encrypt)
+		message1, message2, space_id, trx, write_size)
 
-# define os_file_read(file, buf, offset, n, compressed)			\
-	os_file_read_func(file, buf, offset, n, NULL, compressed)
+# define os_file_read(file, buf, offset, n)				\
+	os_file_read_func(file, buf, offset, n, NULL)
 
-# define os_file_read_trx(file, buf, offset, n, trx, compressed)	\
-	os_file_read_func(file, buf, offset, n, trx, compressed)
+# define os_file_read_trx(file, buf, offset, n, trx)			\
+	os_file_read_func(file, buf, offset, n, trx)
 
-# define os_file_read_no_error_handling(file, buf, offset, n, compressed) \
-	os_file_read_no_error_handling_func(file, buf, offset, n, compressed)
+# define os_file_read_no_error_handling(file, buf, offset, n)		\
+	os_file_read_no_error_handling_func(file, buf, offset, n)
 
 # define os_file_write(name, file, buf, offset, n)			\
 	os_file_write_func(name, file, buf, offset, n)
@@ -747,8 +740,6 @@ pfs_os_file_read_func(
 	os_offset_t	offset,	/*!< in: file offset where to read */
 	ulint		n,	/*!< in: number of bytes to read */
 	trx_t*		trx,	/*!< in: trx */
-	ibool		compressed, /*!< in: is this file space
-				    compressed ? */
 	const char*	src_file,/*!< in: file name where func invoked */
 	ulint		src_line);/*!< in: line where the func invoked */
 
@@ -767,8 +758,6 @@ pfs_os_file_read_no_error_handling_func(
 	void*		buf,	/*!< in: buffer where to read */
 	os_offset_t	offset,	/*!< in: file offset where to read */
 	ulint		n,	/*!< in: number of bytes to read */
-	ibool		compressed, /*!< in: is this file space
-				    compressed ? */
 	const char*	src_file,/*!< in: file name where func invoked */
 	ulint		src_line);/*!< in: line where the func invoked */
 
@@ -801,21 +790,11 @@ pfs_os_aio_func(
                                 OS_AIO_SYNC */
 	ulint		space_id,
 	trx_t*		trx,
-	ibool		page_compression, /*!< in: is page compression used
-					  on this file space */
-	ulint		page_compression_level, /*!< page compression
-						 level to be used */
 	ulint*		write_size,/*!< in/out: Actual write size initialized
 			       after fist successfull trim
 			       operation for this page and if
 			       initialized we do not trim again if
 			       actual page size does not decrease. */
-	ibool		page_encryption, /*!< in: is page encryption used
-	                              on this file space */
-	ulint		page_encryption_key, /*!< in: page encryption
-	                                 key to be used */
-	lsn_t		lsn,		/*!< in: lsn of the newest modification */
-	bool		encrypt_later,  /*!< in: should we encrypt ? */
 	const char*	src_file,/*!< in: file name where func invoked */
 	ulint		src_line);/*!< in: line where the func invoked */
 /*******************************************************************//**
@@ -979,9 +958,7 @@ os_file_read_func(
 	void*		buf,	/*!< in: buffer where to read */
 	os_offset_t	offset,	/*!< in: file offset where to read */
 	ulint		n,	/*!< in: number of bytes to read */
-	trx_t*		trx,	/*!< in: trx */
-	ibool		compressed); /*!< in: is this file space
-				     compressed ? */
+	trx_t*		trx);	/*!< in: trx */
 /*******************************************************************//**
 Rewind file to its start, read at most size - 1 bytes from it to str, and
 NUL-terminate str. All errors are silently ignored. This function is
@@ -1006,9 +983,7 @@ os_file_read_no_error_handling_func(
 	os_file_t	file,	/*!< in: handle to a file */
 	void*		buf,	/*!< in: buffer where to read */
 	os_offset_t	offset,	/*!< in: file offset where to read */
-	ulint		n,	/*!< in: number of bytes to read */
-	ibool		compressed); /*!< in: is this file space
-				     compressed ? */
+	ulint		n);	/*!< in: number of bytes to read */
 
 /*******************************************************************//**
 NOTE! Use the corresponding macro os_file_write(), not directly this
@@ -1194,21 +1169,11 @@ os_aio_func(
 				OS_AIO_SYNC */
 	ulint		space_id,
 	trx_t*		trx,
-	ibool		page_compression, /*!< in: is page compression used
-					  on this file space */
-	ulint		page_compression_level, /*!< page compression
-						 level to be used */
-	ulint*		write_size,/*!< in/out: Actual write size initialized
+	ulint*		write_size);/*!< in/out: Actual write size initialized
 			       after fist successfull trim
 			       operation for this page and if
 			       initialized we do not trim again if
 			       actual page size does not decrease. */
-	ibool		page_encryption, /*!< in: is page encryption used
-					  on this file space */
-	ulint		page_encryption_key, /*!< in: page encryption key
-						 to be used */
-	lsn_t		lsn,		/*!< in: lsn of the newest modification */
-	bool		encrypt_later); /*!< in: should we encrypt ? */
 /************************************************************************//**
 Wakes up all async i/o threads so that they know to exit themselves in
 shutdown. */

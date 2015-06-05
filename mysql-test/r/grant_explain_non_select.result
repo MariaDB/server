@@ -140,7 +140,7 @@ REVOKE ALL PRIVILEGES ON privtest_db.t1 FROM 'privtest'@'localhost';
 CREATE VIEW privtest_db.v1 (a) AS SELECT a FROM privtest_db.t1;
 GRANT SELECT, INSERT, UPDATE, DELETE ON privtest_db.v1 TO 'privtest'@'localhost';
 EXPLAIN SELECT * FROM v1;
-ERROR HY000: EXPLAIN/SHOW can not be issued; lacking privileges for underlying table
+ERROR HY000: ANALYZE/EXPLAIN/SHOW can not be issued; lacking privileges for underlying table
 SELECT * FROM v1;
 a
 11
@@ -150,28 +150,28 @@ a
 4
 4
 EXPLAIN INSERT INTO v1 VALUES (10);
-ERROR HY000: EXPLAIN/SHOW can not be issued; lacking privileges for underlying table
+ERROR HY000: ANALYZE/EXPLAIN/SHOW can not be issued; lacking privileges for underlying table
 INSERT INTO v1 VALUES (10);
 EXPLAIN INSERT INTO v1 SELECT * FROM t2;
-ERROR HY000: EXPLAIN/SHOW can not be issued; lacking privileges for underlying table
+ERROR HY000: ANALYZE/EXPLAIN/SHOW can not be issued; lacking privileges for underlying table
 INSERT INTO v1 SELECT * FROM t2;
 EXPLAIN REPLACE  INTO v1 VALUES (10);
-ERROR HY000: EXPLAIN/SHOW can not be issued; lacking privileges for underlying table
+ERROR HY000: ANALYZE/EXPLAIN/SHOW can not be issued; lacking privileges for underlying table
 REPLACE  INTO v1 VALUES (10);
 EXPLAIN REPLACE INTO v1 SELECT * FROM t2;
-ERROR HY000: EXPLAIN/SHOW can not be issued; lacking privileges for underlying table
+ERROR HY000: ANALYZE/EXPLAIN/SHOW can not be issued; lacking privileges for underlying table
 REPLACE INTO v1 SELECT * FROM t2;
 EXPLAIN UPDATE v1 SET a = a + 1;
-ERROR HY000: EXPLAIN/SHOW can not be issued; lacking privileges for underlying table
+ERROR HY000: ANALYZE/EXPLAIN/SHOW can not be issued; lacking privileges for underlying table
 UPDATE v1 SET a = a + 1;
 EXPLAIN UPDATE v1, t2 SET v1.a = v1.a + 1 WHERE v1.a = t2.a;
-ERROR HY000: EXPLAIN/SHOW can not be issued; lacking privileges for underlying table
+ERROR HY000: ANALYZE/EXPLAIN/SHOW can not be issued; lacking privileges for underlying table
 UPDATE v1, t2 SET v1.a = v1.a + 1 WHERE v1.a = t2.a;
 EXPLAIN DELETE FROM v1 WHERE a = 10;
-ERROR HY000: EXPLAIN/SHOW can not be issued; lacking privileges for underlying table
+ERROR HY000: ANALYZE/EXPLAIN/SHOW can not be issued; lacking privileges for underlying table
 DELETE FROM v1 WHERE a = 10;
 EXPLAIN DELETE FROM v1 USING v1, t2 WHERE v1.a = t2.a;
-ERROR HY000: EXPLAIN/SHOW can not be issued; lacking privileges for underlying table
+ERROR HY000: ANALYZE/EXPLAIN/SHOW can not be issued; lacking privileges for underlying table
 DELETE FROM v1 USING v1, t2 WHERE v1.a = t2.a;
 DROP USER 'privtest'@localhost;
 USE test;

@@ -156,6 +156,8 @@ bool trans_begin(THD *thd, uint flags)
   */
   thd->transaction.all.modified_non_trans_table= FALSE;
   thd->transaction.all.m_unsafe_rollback_flags&= ~THD_TRANS::DID_WAIT;
+  thd->has_waiter= false;
+  thd->waiting_on_group_commit= false;
 
   if (res)
     DBUG_RETURN(TRUE);
@@ -738,7 +740,7 @@ bool trans_xa_start(THD *thd)
     thd->transaction.xid_state.xa_state= XA_ACTIVE;
     thd->transaction.xid_state.rm_error= 0;
     thd->transaction.xid_state.xid.set(thd->lex->xid);
-    if (xid_cache_insert(&thd->transaction.xid_state))
+    if (xid_cache_insert(thd, &thd->transaction.xid_state))
     {
       thd->transaction.xid_state.xa_state= XA_NOTR;
       thd->transaction.xid_state.xid.null();
@@ -801,7 +803,7 @@ bool trans_xa_prepare(THD *thd)
     my_error(ER_XAER_NOTA, MYF(0));
   else if (ha_prepare(thd))
   {
-    xid_cache_delete(&thd->transaction.xid_state);
+    xid_cache_delete(thd, &thd->transaction.xid_state);
     thd->transaction.xid_state.xa_state= XA_NOTR;
     my_error(ER_XA_RBROLLBACK, MYF(0));
   }
@@ -830,25 +832,21 @@ bool trans_xa_commit(THD *thd)
 
   if (!thd->transaction.xid_state.xid.eq(thd->lex->xid))
   {
-    /*
-      xid_state.in_thd is always true beside of xa recovery procedure.
-      Note, that there is no race condition here between xid_cache_search
-      and xid_cache_delete, since we always delete our own XID
-      (thd->lex->xid == thd->transaction.xid_state.xid).
-      The only case when thd->lex->xid != thd->transaction.xid_state.xid
-      and xid_state->in_thd == 0 is in the function
-      xa_cache_insert(XID, xa_states), which is called before starting
-      client connections, and thus is always single-threaded.
-    */
-    XID_STATE *xs= xid_cache_search(thd->lex->xid);
-    res= !xs || xs->in_thd;
+    if (thd->fix_xid_hash_pins())
+    {
+      my_error(ER_OUT_OF_RESOURCES, MYF(0));
+      DBUG_RETURN(TRUE);
+    }
+
+    XID_STATE *xs= xid_cache_search(thd, thd->lex->xid);
+    res= !xs;
     if (res)
       my_error(ER_XAER_NOTA, MYF(0));
     else
     {
       res= xa_trans_rolled_back(xs);
       ha_commit_or_rollback_by_xid(thd->lex->xid, !res);
-      xid_cache_delete(xs);
+      xid_cache_delete(thd, xs);
     }
     DBUG_RETURN(res);
   }
@@ -911,7 +909,7 @@ bool trans_xa_commit(THD *thd)
   thd->server_status&=
     ~(SERVER_STATUS_IN_TRANS | SERVER_STATUS_IN_TRANS_READONLY);
   DBUG_PRINT("info", ("clearing SERVER_STATUS_IN_TRANS"));
-  xid_cache_delete(&thd->transaction.xid_state);
+  xid_cache_delete(thd, &thd->transaction.xid_state);
   thd->transaction.xid_state.xa_state= XA_NOTR;
 
   DBUG_RETURN(res);
@@ -935,14 +933,20 @@ bool trans_xa_rollback(THD *thd)
 
   if (!thd->transaction.xid_state.xid.eq(thd->lex->xid))
   {
-    XID_STATE *xs= xid_cache_search(thd->lex->xid);
-    if (!xs || xs->in_thd)
+    if (thd->fix_xid_hash_pins())
+    {
+      my_error(ER_OUT_OF_RESOURCES, MYF(0));
+      DBUG_RETURN(TRUE);
+    }
+
+    XID_STATE *xs= xid_cache_search(thd, thd->lex->xid);
+    if (!xs)
       my_error(ER_XAER_NOTA, MYF(0));
     else
     {
       xa_trans_rolled_back(xs);
       ha_commit_or_rollback_by_xid(thd->lex->xid, 0);
-      xid_cache_delete(xs);
+      xid_cache_delete(thd, xs);
     }
     DBUG_RETURN(thd->get_stmt_da()->is_error());
   }
@@ -961,7 +965,7 @@ bool trans_xa_rollback(THD *thd)
   thd->server_status&=
     ~(SERVER_STATUS_IN_TRANS | SERVER_STATUS_IN_TRANS_READONLY);
   DBUG_PRINT("info", ("clearing SERVER_STATUS_IN_TRANS"));
-  xid_cache_delete(&thd->transaction.xid_state);
+  xid_cache_delete(thd, &thd->transaction.xid_state);
   thd->transaction.xid_state.xa_state= XA_NOTR;
 
   DBUG_RETURN(res);

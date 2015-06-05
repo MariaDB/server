@@ -239,9 +239,9 @@ PQRYRES DBFColumns(PGLOBAL g, char *dp, const char *fn, bool info)
                           buftyp, fldtyp, length, true, false);
 
   if (info || !qrp) {
-  	if (infile)
+    if (infile)
       fclose(infile);
-      
+
     return qrp;
     } // endif info
 
@@ -498,7 +498,7 @@ bool DBFFAM::OpenTableFile(PGLOBAL g)
   if (!(Stream = PlugOpenFile(g, filename, opmode))) {
     if (trace)
       htrc("%s\n", g->Message);
-    
+
     return (mode == MODE_READ && errno == ENOENT)
             ? PushWarning(g, Tdbp) : true;
     } // endif Stream
@@ -585,7 +585,7 @@ bool DBFFAM::AllocateBuffer(PGLOBAL g)
       for (cdp = tdp->GetCols(); cdp; cdp = cdp->GetNext())
         if (!(cdp->Flags & U_SPECIAL)) {
           descp++;
-      
+
           switch ((c = *GetFormatType(cdp->GetType()))) {
             case 'S':           // Short integer
             case 'L':           // Large (big) integer
@@ -602,7 +602,7 @@ bool DBFFAM::AllocateBuffer(PGLOBAL g)
                                   c, cdp->GetName());
               return true;
             } // endswitch c
-      
+
           strncpy(descp->Name, cdp->GetName(), 11);
           descp->Type = c;
           descp->Length = (uchar)cdp->GetLong();
@@ -785,7 +785,7 @@ int DBFFAM::InitDelete(PGLOBAL g, int fpos, int spos)
   else if (fwrite(To_Buf, 1, lrecl, Stream) != lrecl)
     sprintf(g->Message, MSG(FWRITE_ERROR), strerror(errno));
   else
-    rc = RC_NF;     // Ok, Nothing else to do 
+    rc = RC_NF;     // Ok, Nothing else to do
 
   return rc;
   } // end of InitDelete
@@ -853,7 +853,7 @@ void DBFFAM::CloseTableFile(PGLOBAL g, bool abort)
       if (!Abort) {
         // Copy any remaining lines
         bool b;
-    
+
         Fpos = Tdbp->Cardinality(g);
         Abort = MoveIntermediateLines(g, &b) != RC_OK;
         } // endif Abort

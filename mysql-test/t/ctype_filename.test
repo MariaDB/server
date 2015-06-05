@@ -19,3 +19,9 @@ drop table com1;
 
 create table `clock$` (a int);
 drop table `clock$`;
+
+--echo #
+--echo # MDEV-7677 my_charset_handler_filename has a wrong "ismbchar" member
+--echo #
+SET NAMES utf8;
+SELECT @a:=CONVERT('aя' USING filename) AS `@a`, BINARY @a, REVERSE(@a), HEX(@a), HEX(REVERSE(@a));

@@ -117,7 +117,11 @@ PQRYRES XMLColumns(PGLOBAL g, char *db, char *tab, PTOS topt, bool info)
   static XFLD fldtyp[] = {FLD_NAME, FLD_TYPE, FLD_TYPENAME, FLD_PREC, 
                           FLD_LENGTH, FLD_SCALE, FLD_NULL, FLD_FORMAT};
   static unsigned int length[] = {0, 6, 8, 10, 10, 6, 6, 0};
+<<<<<<< HEAD
   char   *fn, *op, colname[65], fmt[129], buf[512];
+=======
+  char   *op, colname[65], fmt[129], buf[512];
+>>>>>>> ob-10.1
   int     i, j, lvl, n = 0;
   int     ncol = sizeof(buftyp) / sizeof(int);
   bool    ok = true;
@@ -434,7 +438,11 @@ XMLDEF::XMLDEF(void)
 /***********************************************************************/
 bool XMLDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
   {
+<<<<<<< HEAD
   char *defrow, *defcol, buf[10];
+=======
+  char  *defrow, *defcol, buf[10];
+>>>>>>> ob-10.1
 
   Fn = GetStringCatInfo(g, "Filename", NULL);
   Encoding = GetStringCatInfo(g, "Encoding", "UTF-8");
@@ -503,8 +511,13 @@ bool XMLDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
     Usedom = (toupper(*buf) == 'M' || toupper(*buf) == 'D');
 
   // Get eventual table node attribute
+<<<<<<< HEAD
   Attrib = GetStringCatInfo(g, "Attribute", NULL);
   Hdattr = GetStringCatInfo(g, "HeadAttr", NULL);
+=======
+  Attrib = GetStringCatInfo(g, "Attribute", "");
+  Hdattr = GetStringCatInfo(g, "HeadAttr", "");
+>>>>>>> ob-10.1
   return false;
   } // end of DefineAM
 
@@ -1258,7 +1271,11 @@ void TDBXML::CloseDB(PGLOBAL g)
   {
   if (Docp) {
     if (Changed) {
+<<<<<<< HEAD
       char filename[_MAX_PATH];
+=======
+      char    filename[_MAX_PATH];
+>>>>>>> ob-10.1
 
       // We used the file name relative to recorded datapath
       PlugSetPath(filename, Xfile, GetPath());

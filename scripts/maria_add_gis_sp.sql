@@ -13,9 +13,11 @@
 -- along with this program; if not, write to the Free Software
 -- Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA
 
-# This part created stored procedures required by the OpenGIS standards.
 
-# Proc privilege is needed to run it.
+-- This part creates stored procedures required by the OpenGIS standards.
+-- Proc privilege is needed to run it.
+-- To use this file, load its contents into the mysql database like that:
+--     mysql -u root -p mysql < scripts/maria_add_gis_sp.sql
 
 SET sql_mode='';
 

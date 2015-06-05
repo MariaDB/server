@@ -65,8 +65,8 @@ Usage: $0 [OPTIONS]
                        Read this file after the global files are read.
   --defaults-file=name Only read default options from the given file name.
   --force              Causes mysql_install_db to run even if DNS does not
-                       work.  In that case, grant table entries that normally
-                       use hostnames will use IP addresses.
+                       work.  In that case, grant table entries that
+                       normally use hostnames will use IP addresses.
   --help               Display this help and exit.                     
   --ldata=path         The path to the MySQL data directory. Same as --datadir.
   --no-defaults        Don't read default options from any option file.
@@ -348,8 +348,9 @@ if ( $opt->{srcdir} )
 my $fill_help_tables     = "$pkgdatadir/fill_help_tables.sql";
 my $create_system_tables = "$pkgdatadir/mysql_system_tables.sql";
 my $fill_system_tables   = "$pkgdatadir/mysql_system_tables_data.sql";
+my $maria_add_gis_sp     = "$pkgdatadir/maria_add_gis_sp_bootstrap.sql";
 
-foreach my $f ( $fill_help_tables,$create_system_tables,$fill_system_tables )
+foreach my $f ( $fill_help_tables,$create_system_tables,$fill_system_tables,$maria_add_gis_sp )
 {
   -f $f or cannot_find_file($f);
 }
@@ -494,6 +495,32 @@ if ( open(PIPE, "| $mysqld_install_cmd_line") )
   {
     warning($opt,"HELP FILES ARE NOT COMPLETELY INSTALLED!",
                  "The \"HELP\" command might not work properly");
+  }
+
+  # ----------------------------------------------------------------------
+  # Pipe maria_add_gis_sp.sql to "mysqld --bootstrap"
+  # ----------------------------------------------------------------------
+
+  report_verbose_wait($opt,"Creating OpenGIS required SP-s...");
+  open(SQL, $maria_add_gis_sp)
+    or error($opt,"can't open $maria_add_gis_sp for reading: $!");
+  # FIXME  > /dev/null ?
+  if ( open(PIPE, "| $mysqld_install_cmd_line") )
+  {
+    print PIPE "use test;\n";
+    while ( <SQL> )
+    {
+      print PIPE $_;
+    }
+    close PIPE;
+    close SQL;
+
+    report_verbose($opt,"OK");
+  }
+  else
+  {
+    warning($opt,"OPENGIS REQUIRED SP-S WERE NOT COMPLETELY INSTALLED!",
+                 "GIS extentions might not work properly");
   }
 
   report_verbose($opt,"To start mysqld at boot time you have to copy",

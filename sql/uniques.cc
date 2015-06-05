@@ -1,4 +1,5 @@
-/* Copyright (c) 2001, 2010, Oracle and/or its affiliates. All rights reserved.
+/* Copyright (c) 2001, 2010, Oracle and/or its affiliates.
+   Copyright (c) 2010, 2015, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -52,7 +53,7 @@ int unique_write_to_file(uchar* key, element_count count, Unique *unique)
 int unique_write_to_file_with_count(uchar* key, element_count count, Unique *unique)
 {
   return my_b_write(&unique->file, key, unique->size) ||
-         my_b_write(&unique->file, &count, sizeof(element_count)) ? 1 : 0;
+         my_b_write(&unique->file, (uchar*)&count, sizeof(element_count)) ? 1 : 0;
 }
 
 int unique_write_to_ptrs(uchar* key, element_count count, Unique *unique)
@@ -100,7 +101,7 @@ Unique::Unique(qsort_cmp2 comp_func, void * comp_func_fixed_arg,
   max_elements= (ulong) (max_in_memory_size /
                          ALIGN_SIZE(sizeof(TREE_ELEMENT)+size));
   (void) open_cached_file(&file, mysql_tmpdir,TEMP_PREFIX, DISK_BUFFER_SIZE,
-		   MYF(MY_WME));
+                          MYF(MY_WME));
 }
 
 
@@ -641,8 +642,8 @@ bool Unique::walk(TABLE *table, tree_walk_action action, void *walk_action_arg)
     return 1;
   if (flush_io_cache(&file) || reinit_io_cache(&file, READ_CACHE, 0L, 0, 0))
     return 1;
-  ulong buff_sz= (max_in_memory_size / full_size + 1) * full_size;
-  if (!(merge_buffer= (uchar *) my_malloc(buff_sz, MYF(MY_THREAD_SPECIFIC))))
+  size_t buff_sz= (max_in_memory_size / full_size + 1) * full_size;
+  if (!(merge_buffer = (uchar *)my_malloc(buff_sz, MYF(MY_THREAD_SPECIFIC|MY_WME))))
     return 1;
   if (buff_sz < full_size * (file_ptrs.elements + 1UL))
     res= merge(table, merge_buffer, buff_sz >= full_size * MERGEBUFF2) ;
@@ -693,7 +694,6 @@ bool Unique::merge(TABLE *table, uchar *buff, bool without_last_merge)
        open_cached_file(outfile,mysql_tmpdir,TEMP_PREFIX,READ_RECORD_BUFFER,
                         MYF(MY_WME))))
     return 1;
-  reinit_io_cache(outfile,WRITE_CACHE,0L,0,0);
 
   Sort_param sort_param; 
   bzero((char*) &sort_param,sizeof(sort_param));
@@ -773,9 +773,8 @@ bool Unique::get(TABLE *table)
   /* Not enough memory; Save the result to file && free memory used by tree */
   if (flush())
     return 1;
-  
-  ulong buff_sz= (max_in_memory_size / full_size + 1) * full_size;
-  if (!(sort_buffer= (uchar*) my_malloc(buff_sz, MYF(MY_THREAD_SPECIFIC))))
+  size_t buff_sz= (max_in_memory_size / full_size + 1) * full_size;
+  if (!(sort_buffer= (uchar*) my_malloc(buff_sz, MYF(MY_THREAD_SPECIFIC|MY_WME))))
     return 1;
 
   if (merge(table, sort_buffer, FALSE))

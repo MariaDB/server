@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2005, 2013, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2005, 2015, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -244,22 +244,86 @@ row_merge_buf_free(
 	mem_heap_free(buf->heap);
 }
 
-/******************************************************//**
-Insert a data tuple into a sort buffer.
-@return	number of rows added, 0 if out of space */
+/** Convert the field data from compact to redundant format.
+@param[in]	row_field	field to copy from
+@param[out]	field		field to copy to
+@param[in]	len		length of the field data
+@param[in]	zip_size	compressed BLOB page size,
+				zero for uncompressed BLOBs
+@param[in,out]	heap		memory heap where to allocate data when
+				converting to ROW_FORMAT=REDUNDANT, or NULL
+				when not to invoke
+				row_merge_buf_redundant_convert(). */
+static
+void
+row_merge_buf_redundant_convert(
+	const dfield_t*		row_field,
+	dfield_t*		field,
+	ulint			len,
+	ulint			zip_size,
+	mem_heap_t*		heap)
+{
+	ut_ad(DATA_MBMINLEN(field->type.mbminmaxlen) == 1);
+	ut_ad(DATA_MBMAXLEN(field->type.mbminmaxlen) > 1);
+
+	byte*		buf = (byte*) mem_heap_alloc(heap, len);
+	ulint		field_len = row_field->len;
+	ut_ad(field_len <= len);
+
+	if (row_field->ext) {
+		const byte*	field_data = static_cast<byte*>(
+			dfield_get_data(row_field));
+		ulint		ext_len;
+
+		ut_a(field_len >= BTR_EXTERN_FIELD_REF_SIZE);
+		ut_a(memcmp(field_data + field_len - BTR_EXTERN_FIELD_REF_SIZE,
+			    field_ref_zero, BTR_EXTERN_FIELD_REF_SIZE));
+
+		byte*	data = btr_copy_externally_stored_field(
+			&ext_len, field_data, zip_size, field_len, heap, NULL);
+
+		ut_ad(ext_len < len);
+
+		memcpy(buf, data, ext_len);
+		field_len = ext_len;
+	} else {
+		memcpy(buf, row_field->data, field_len);
+	}
+
+	memset(buf + field_len, 0x20, len - field_len);
+
+	dfield_set_data(field, buf, len);
+}
+
+/** Insert a data tuple into a sort buffer.
+@param[in,out]	buf		sort buffer
+@param[in]	fts_index	fts index to be created
+@param[in]	old_table	original table
+@param[in,out]	psort_info	parallel sort info
+@param[in]	row		table row
+@param[in]	ext		cache of externally stored
+				column prefixes, or NULL
+@param[in,out]	doc_id		Doc ID if we are creating
+				FTS index
+@param[in,out]	conv_heap	memory heap where to allocate data when
+				converting to ROW_FORMAT=REDUNDANT, or NULL
+				when not to invoke
+				row_merge_buf_redundant_convert()
+@param[in,out]	exceed_page	set if the record size exceeds the page size
+				when converting to ROW_FORMAT=REDUNDANT
+@return number of rows added, 0 if out of space */
 static
 ulint
 row_merge_buf_add(
-/*==============*/
-	row_merge_buf_t*	buf,	/*!< in/out: sort buffer */
-	dict_index_t*		fts_index,/*!< in: fts index to be created */
-	const dict_table_t*	old_table,/*!< in: original table */
-	fts_psort_t*		psort_info, /*!< in: parallel sort info */
-	const dtuple_t*		row,	/*!< in: table row */
-	const row_ext_t*	ext,	/*!< in: cache of externally stored
-					column prefixes, or NULL */
-	doc_id_t*		doc_id)	/*!< in/out: Doc ID if we are
-					creating FTS index */
+	row_merge_buf_t*	buf,
+	dict_index_t*		fts_index,
+	const dict_table_t*	old_table,
+	fts_psort_t*		psort_info,
+	const dtuple_t*		row,
+	const row_ext_t*	ext,
+	doc_id_t*		doc_id,
+	mem_heap_t*		conv_heap,
+	bool*			exceed_page)
 {
 	ulint			i;
 	const dict_index_t*	index;
@@ -409,6 +473,23 @@ row_merge_buf_add(
 				n_row_added = 1;
 				continue;
 			}
+
+			if (field->len != UNIV_SQL_NULL
+			    && col->mtype == DATA_MYSQL
+			    && col->len != field->len) {
+
+				if (conv_heap != NULL) {
+					row_merge_buf_redundant_convert(
+						row_field, field, col->len,
+						dict_table_zip_size(old_table),
+						conv_heap);
+				} else {
+					/* Field length mismatch should not
+					happen when rebuilding redundant row
+					format table. */
+					ut_ad(dict_table_is_comp(index->table));
+				}
+			}
 		}
 
 		len = dfield_get_len(field);
@@ -517,6 +598,14 @@ row_merge_buf_add(
 	of extra_size. */
 	data_size += (extra_size + 1) + ((extra_size + 1) >= 0x80);
 
+	/* Record size can exceed page size while converting to
+	redundant row format. But there is assert
+	ut_ad(size < UNIV_PAGE_SIZE) in rec_offs_data_size().
+	It may hit the assert before attempting to insert the row. */
+	if (conv_heap != NULL && data_size > UNIV_PAGE_SIZE) {
+		*exceed_page = true;
+	}
+
 	ut_ad(data_size < srv_sort_buf_size);
 
 	/* Reserve one byte for the end marker of row_merge_block_t. */
@@ -535,6 +624,10 @@ row_merge_buf_add(
 	do {
 		dfield_dup(field++, buf->heap);
 	} while (--n_fields);
+
+	if (conv_heap != NULL) {
+		mem_heap_empty(conv_heap);
+	}
 
 	DBUG_RETURN(n_row_added);
 }
@@ -786,7 +879,7 @@ row_merge_read(
 #endif /* UNIV_DEBUG */
 
 	success = os_file_read_no_error_handling(OS_FILE_FROM_FD(fd), buf,
-		                                 ofs, srv_sort_buf_size, FALSE);
+		                                 ofs, srv_sort_buf_size);
 
 #ifdef POSIX_FADV_DONTNEED
 	/* Each block is read exactly once.  Free up the file cache. */
@@ -1219,6 +1312,7 @@ row_merge_read_clustered_index(
 	os_event_t		fts_parallel_sort_event = NULL;
 	ibool			fts_pll_sort = FALSE;
 	ib_int64_t		sig_count = 0;
+	mem_heap_t*		conv_heap = NULL;
 
 	float 			curr_progress;
 	ib_int64_t		read_rows = 0;
@@ -1323,6 +1417,11 @@ row_merge_read_clustered_index(
 	}
 
 	row_heap = mem_heap_create(sizeof(mrec_buf_t));
+
+	if (dict_table_is_comp(old_table)
+	    && !dict_table_is_comp(new_table)) {
+		conv_heap = mem_heap_create(sizeof(mrec_buf_t));
+	}
 
 	/* Scan the clustered index. */
 	for (;;) {
@@ -1602,16 +1701,24 @@ write_buffers:
 			row_merge_buf_t*	buf	= merge_buf[i];
 			merge_file_t*		file	= &files[i];
 			ulint			rows_added = 0;
+			bool			exceed_page = false;
 
 			if (UNIV_LIKELY
 			    (row && (rows_added = row_merge_buf_add(
 					buf, fts_index, old_table,
-					psort_info, row, ext, &doc_id)))) {
+					psort_info, row, ext, &doc_id,
+					conv_heap, &exceed_page)))) {
 
 				/* If we are creating FTS index,
 				a single row can generate more
 				records for tokenized word */
 				file->n_rec += rows_added;
+
+				if (exceed_page) {
+					err = DB_TOO_BIG_RECORD;
+					break;
+				}
+
 				if (doc_id > max_doc_id) {
 					max_doc_id = doc_id;
 				}
@@ -1712,10 +1819,16 @@ write_buffers:
 				    (!(rows_added = row_merge_buf_add(
 						buf, fts_index, old_table,
 						psort_info, row, ext,
-						&doc_id)))) {
+						&doc_id, conv_heap,
+						&exceed_page)))) {
 					/* An empty buffer should have enough
 					room for at least one record. */
 					ut_error;
+				}
+
+				if (exceed_page) {
+					err = DB_TOO_BIG_RECORD;
+					break;
 				}
 
 				file->n_rec += rows_added;
@@ -1753,6 +1866,10 @@ func_exit:
 	}
 
 all_done:
+	if (conv_heap != NULL) {
+		mem_heap_free(conv_heap);
+	}
+
 #ifdef FTS_INTERNAL_DIAG_PRINT
 	DEBUG_FTS_SORT_PRINT("FTS_SORT: Complete Scan Table\n");
 #endif
@@ -3429,9 +3546,13 @@ row_merge_create_index(
 
 	for (i = 0; i < n_fields; i++) {
 		index_field_t*	ifield = &index_def->fields[i];
+		const char * col_name = ifield->col_name ?
+			dict_table_get_col_name_for_mysql(table, ifield->col_name) :
+			dict_table_get_col_name(table, ifield->col_no);
 
 		dict_mem_index_add_field(
-			index, dict_table_get_col_name(table, ifield->col_no),
+			index,
+			col_name,
 			ifield->prefix_len);
 	}
 
@@ -3730,6 +3851,8 @@ wait_again:
 			DEBUG_FTS_SORT_PRINT("FTS_SORT: Complete Insert\n");
 #endif
 		} else {
+			char		buf[3 * NAME_LEN];
+			char		*bufend;
 			row_merge_dup_t	dup = {
 				sort_idx, table, col_map, 0};
 
@@ -3739,9 +3862,16 @@ wait_again:
 				(total_static_cost + total_dynamic_cost)
 				* PCT_COST_MERGESORT_INDEX * 100;
 
+			bufend = innobase_convert_name(buf, sizeof buf,
+				indexes[i]->name, strlen(indexes[i]->name),
+				trx ? trx->mysql_thd : NULL,
+				FALSE);
+
+			buf[bufend - buf]='\0';
+
 			sql_print_information("InnoDB: Online DDL : Start merge-sorting"
 				" index %s (%lu / %lu), estimated cost : %2.4f",
-				indexes[i]->name, (i+1), n_indexes, pct_cost);
+				buf, (i+1), n_indexes, pct_cost);
 
 			error = row_merge_sort(
 				trx, &dup, &merge_files[i],
@@ -3751,7 +3881,7 @@ wait_again:
 
 			sql_print_information("InnoDB: Online DDL : End of "
 				" merge-sorting index %s (%lu / %lu)",
-				indexes[i]->name, (i+1), n_indexes);
+				buf, (i+1), n_indexes);
 
 			if (error == DB_SUCCESS) {
 				pct_cost = (COST_BUILD_INDEX_STATIC +
@@ -3762,7 +3892,7 @@ wait_again:
 
 				sql_print_information("InnoDB: Online DDL : Start "
 					"building index %s (%lu / %lu), estimated "
-					"cost : %2.4f", indexes[i]->name, (i+1),
+					"cost : %2.4f", buf, (i+1),
 					n_indexes, pct_cost);
 
 				error = row_merge_insert_index_tuples(
@@ -3773,7 +3903,7 @@ wait_again:
 
 				sql_print_information("InnoDB: Online DDL : "
 					"End of building index %s (%lu / %lu)",
-					indexes[i]->name, (i+1), n_indexes);
+					buf, (i+1), n_indexes);
 			}
 		}
 

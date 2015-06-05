@@ -13,13 +13,24 @@ from the original man page. If there is any nonsense in it, please consult the
 man page, in case the conversion went wrong.
 <br>
 <ul>
-<li><a name="TOC1" href="#SEC1">INTRODUCTION</a>
-<li><a name="TOC2" href="#SEC2">SECURITY CONSIDERATIONS</a>
-<li><a name="TOC3" href="#SEC3">USER DOCUMENTATION</a>
-<li><a name="TOC4" href="#SEC4">AUTHOR</a>
-<li><a name="TOC5" href="#SEC5">REVISION</a>
+<li><a name="TOC1" href="#SEC1">PLEASE TAKE NOTE</a>
+<li><a name="TOC2" href="#SEC2">INTRODUCTION</a>
+<li><a name="TOC3" href="#SEC3">SECURITY CONSIDERATIONS</a>
+<li><a name="TOC4" href="#SEC4">USER DOCUMENTATION</a>
+<li><a name="TOC5" href="#SEC5">AUTHOR</a>
+<li><a name="TOC6" href="#SEC6">REVISION</a>
 </ul>
-<br><a name="SEC1" href="#TOC1">INTRODUCTION</a><br>
+<br><a name="SEC1" href="#TOC1">PLEASE TAKE NOTE</a><br>
+<P>
+This document relates to PCRE releases that use the original API,
+with library names libpcre, libpcre16, and libpcre32. January 2015 saw the
+first release of a new API, known as PCRE2, with release numbers starting at
+10.00 and library names libpcre2-8, libpcre2-16, and libpcre2-32. The old
+libraries (now called PCRE1) are still being maintained for bug fixes, but
+there will be no new development. New projects are advised to use the new PCRE2
+libraries.
+</P>
+<br><a name="SEC2" href="#TOC1">INTRODUCTION</a><br>
 <P>
 The PCRE library is a set of functions that implement regular expression
 pattern matching using the same syntax and semantics as Perl, with just a few
@@ -115,7 +126,7 @@ clashes. In some environments, it is possible to control which external symbols
 are exported when a shared library is built, and in these cases the
 undocumented symbols are not exported.
 </P>
-<br><a name="SEC2" href="#TOC1">SECURITY CONSIDERATIONS</a><br>
+<br><a name="SEC3" href="#TOC1">SECURITY CONSIDERATIONS</a><br>
 <P>
 If you are using PCRE in a non-UTF application that permits users to supply
 arbitrary patterns for compilation, you should be aware of a feature that
@@ -149,7 +160,7 @@ against this: see the PCRE_EXTRA_MATCH_LIMIT feature in the
 <a href="pcreapi.html"><b>pcreapi</b></a>
 page.
 </P>
-<br><a name="SEC3" href="#TOC1">USER DOCUMENTATION</a><br>
+<br><a name="SEC4" href="#TOC1">USER DOCUMENTATION</a><br>
 <P>
 The user documentation for PCRE comprises a number of different sections. In
 the "man" format, each of these is a separate "man page". In the HTML format,
@@ -188,7 +199,7 @@ follows:
 In the "man" and HTML formats, there is also a short page for each C library
 function, listing its arguments and results.
 </P>
-<br><a name="SEC4" href="#TOC1">AUTHOR</a><br>
+<br><a name="SEC5" href="#TOC1">AUTHOR</a><br>
 <P>
 Philip Hazel
 <br>
@@ -202,11 +213,11 @@ Putting an actual email address here seems to have been a spam magnet, so I've
 taken it away. If you want to email me, use my two initials, followed by the
 two digits 10, at the domain cam.ac.uk.
 </P>
-<br><a name="SEC5" href="#TOC1">REVISION</a><br>
+<br><a name="SEC6" href="#TOC1">REVISION</a><br>
 <P>
-Last updated: 08 January 2014
+Last updated: 10 February 2015
 <br>
-Copyright &copy; 1997-2014 University of Cambridge.
+Copyright &copy; 1997-2015 University of Cambridge.
 <br>
 <p>
 Return to the <a href="index.html">PCRE index page</a>.

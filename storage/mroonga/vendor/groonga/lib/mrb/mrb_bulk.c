@@ -1,6 +1,6 @@
 /* -*- c-basic-offset: 2 -*- */
 /*
-  Copyright(C) 2014 Brazil
+  Copyright(C) 2014-2015 Brazil
 
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -16,7 +16,7 @@
   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 */
 
-#include "../ctx_impl.h"
+#include "../grn_ctx_impl.h"
 
 #ifdef GRN_WITH_MRUBY
 #include <mruby.h>
@@ -24,14 +24,157 @@
 #include <mruby/variable.h>
 #include <mruby/data.h>
 #include <mruby/numeric.h>
+#include <mruby/string.h>
 
-#include "../db.h"
+#include "../grn_db.h"
 #include "mrb_bulk.h"
 
 static struct mrb_data_type mrb_grn_bulk_type = {
   "Groonga::Bulk",
   NULL
 };
+
+grn_obj *
+grn_mrb_value_to_bulk(mrb_state *mrb, mrb_value mrb_value_, grn_obj *bulk)
+{
+  grn_ctx *ctx = (grn_ctx *)mrb->ud;
+
+  switch (mrb_type(mrb_value_)) {
+  case MRB_TT_FALSE :
+    if (mrb_nil_p(mrb_value_)) {
+      grn_obj_reinit(ctx, bulk, GRN_DB_VOID, 0);
+    } else {
+      grn_obj_reinit(ctx, bulk, GRN_DB_BOOL, 0);
+      GRN_BOOL_SET(ctx, bulk, GRN_FALSE);
+    }
+    break;
+  case MRB_TT_TRUE :
+    grn_obj_reinit(ctx, bulk, GRN_DB_BOOL, 0);
+    GRN_BOOL_SET(ctx, bulk, GRN_TRUE);
+    break;
+  case MRB_TT_FIXNUM :
+    grn_obj_reinit(ctx, bulk, GRN_DB_INT64, 0);
+    GRN_INT64_SET(ctx, bulk, mrb_fixnum(mrb_value_));
+    break;
+  case MRB_TT_SYMBOL :
+    {
+      const char *name;
+      mrb_int name_length;
+
+      grn_obj_reinit(ctx, bulk, GRN_DB_TEXT, 0);
+      name = mrb_sym2name_len(mrb, mrb_symbol(mrb_value_), &name_length);
+      GRN_TEXT_SET(ctx, bulk, name, name_length);
+    }
+    break;
+  case MRB_TT_FLOAT :
+    grn_obj_reinit(ctx, bulk, GRN_DB_FLOAT, 0);
+    GRN_FLOAT_SET(ctx, bulk, mrb_float(mrb_value_));
+    break;
+  case MRB_TT_STRING :
+    grn_obj_reinit(ctx, bulk, GRN_DB_TEXT, 0);
+    GRN_TEXT_SET(ctx, bulk, RSTRING_PTR(mrb_value_), RSTRING_LEN(mrb_value_));
+    break;
+  default :
+    mrb_raisef(mrb, E_ARGUMENT_ERROR,
+               "unsupported object to convert to bulk: %S",
+               mrb_value_);
+    break;
+  }
+
+  return bulk;
+}
+
+mrb_value
+grn_mrb_value_from_bulk(mrb_state *mrb, grn_obj *bulk)
+{
+  mrb_value mrb_value_;
+  grn_ctx *ctx = (grn_ctx *)mrb->ud;
+
+  switch (bulk->header.domain) {
+  case GRN_DB_INT32 :
+    {
+      int32_t value;
+      value = GRN_INT32_VALUE(bulk);
+      mrb_value_ = mrb_fixnum_value(value);
+    }
+    break;
+  case GRN_DB_UINT32 :
+    {
+      int64_t value;
+      value = GRN_UINT32_VALUE(bulk);
+      if (!FIXABLE(value)) {
+        mrb_raisef(mrb, E_RANGE_ERROR,
+                   "can't handle large number: <%S>: max: <%S>",
+                   mrb_fixnum_value(value), /* TODO: This will cause overflow */
+                   mrb_fixnum_value(MRB_INT_MAX));
+      }
+      mrb_value_ = mrb_fixnum_value(value);
+    }
+    break;
+  case GRN_DB_TIME :
+    {
+      int64_t value;
+      int32_t sec;
+      int32_t usec;
+
+      value = GRN_TIME_VALUE(bulk);
+      GRN_TIME_UNPACK(value, sec, usec);
+      mrb_value_ = mrb_funcall(mrb,
+                               mrb_obj_value(ctx->impl->mrb.builtin.time_class),
+                               "at",
+                               2,
+                               mrb_fixnum_value(sec),
+                               mrb_fixnum_value(usec));
+    }
+    break;
+  case GRN_DB_SHORT_TEXT :
+  case GRN_DB_TEXT :
+  case GRN_DB_LONG_TEXT :
+    mrb_value_ = mrb_str_new_static(mrb,
+                                    GRN_TEXT_VALUE(bulk),
+                                    GRN_TEXT_LEN(bulk));
+    break;
+  default :
+    {
+#define MESSAGE_SIZE 4096
+      char message[MESSAGE_SIZE];
+      grn_obj *domain;
+      char domain_name[GRN_TABLE_MAX_KEY_SIZE];
+      int domain_name_size;
+
+      domain = grn_ctx_at(ctx, bulk->header.domain);
+      if (domain) {
+        domain_name_size = grn_obj_name(ctx, domain,
+                                        domain_name, GRN_TABLE_MAX_KEY_SIZE);
+        grn_obj_unlink(ctx, domain);
+      } else {
+        grn_strcpy(domain_name, GRN_TABLE_MAX_KEY_SIZE, "unknown");
+        domain_name_size = strlen(domain_name);
+      }
+      grn_snprintf(message, MESSAGE_SIZE, MESSAGE_SIZE,
+                   "unsupported bulk value type: <%d>(%.*s)",
+                   bulk->header.domain,
+                   domain_name_size,
+                   domain_name);
+      mrb_raise(mrb, E_RANGE_ERROR, message);
+#undef MESSAGE_SIZE
+    }
+    break;
+  }
+
+  return mrb_value_;
+}
+
+grn_bool
+grn_mrb_bulk_cast(mrb_state *mrb, grn_obj *from, grn_obj *to, grn_id domain_id)
+{
+  grn_ctx *ctx = (grn_ctx *)mrb->ud;
+  grn_rc rc;
+
+  grn_obj_reinit(ctx, to, domain_id, 0);
+  rc = grn_obj_cast(ctx, from, to, GRN_FALSE);
+  return rc == GRN_SUCCESS;
+}
 
 static mrb_value
 mrb_grn_bulk_initialize(mrb_state *mrb, mrb_value self)
@@ -56,61 +199,7 @@ mrb_grn_bulk_get_domain(mrb_state *mrb, mrb_value self)
 static mrb_value
 mrb_grn_bulk_get_value(mrb_state *mrb, mrb_value self)
 {
-  grn_obj *bulk;
-  mrb_value mrb_value_;
-
-  bulk = DATA_PTR(self);
-  switch (bulk->header.domain) {
-  case GRN_DB_INT32 :
-    {
-      int32_t value;
-      value = GRN_INT32_VALUE(bulk);
-      mrb_value_ = mrb_fixnum_value(value);
-    }
-    break;
-  case GRN_DB_UINT32 :
-    {
-      int64_t value;
-      value = GRN_UINT32_VALUE(bulk);
-      if (!FIXABLE(value)) {
-        mrb_raisef(mrb, E_RANGE_ERROR,
-                   "can't handle large number: <%S>: max: <%S>",
-                   mrb_fixnum_value(value), /* TODO: This will cause overflow */
-                   mrb_fixnum_value(MRB_INT_MAX));
-      }
-      mrb_value_ = mrb_fixnum_value(value);
-    }
-    break;
-  default :
-    {
-#define MESSAGE_SIZE 4096
-      char message[MESSAGE_SIZE];
-      grn_ctx *ctx = (grn_ctx *)mrb->ud;
-      grn_obj *domain;
-      char domain_name[GRN_TABLE_MAX_KEY_SIZE];
-      int domain_name_size;
-
-      domain = grn_ctx_at(ctx, bulk->header.domain);
-      if (domain) {
-        domain_name_size = grn_obj_name(ctx, domain,
-                                        domain_name, GRN_TABLE_MAX_KEY_SIZE);
-        grn_obj_unlink(ctx, domain);
-      } else {
-        strcpy(domain_name, "unknown");
-        domain_name_size = strlen(domain_name);
-      }
-      snprintf(message, MESSAGE_SIZE,
-               "unsupported bulk value type: <%d>(%.*s)",
-               bulk->header.domain,
-               domain_name_size,
-               domain_name);
-      mrb_raise(mrb, E_RANGE_ERROR, message);
-#undef MESSAGE_SIZE
-    }
-    break;
-  }
-
-  return mrb_value_;
+  return grn_mrb_value_from_bulk(mrb, DATA_PTR(self));
 }
 
 static mrb_value

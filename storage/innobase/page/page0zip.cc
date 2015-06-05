@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2005, 2014, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2005, 2015, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
 
 This program is free software; you can redistribute it and/or modify it under
@@ -923,7 +923,7 @@ page_zip_compress_sec(
 			rec - REC_N_NEW_EXTRA_BYTES
 			- c_stream->next_in);
 
-		if (UNIV_LIKELY(c_stream->avail_in)) {
+		if (UNIV_LIKELY(c_stream->avail_in != 0)) {
 			UNIV_MEM_ASSERT_RW(c_stream->next_in,
 					   c_stream->avail_in);
 			err = deflate(c_stream, Z_NO_FLUSH);
@@ -1018,7 +1018,7 @@ page_zip_compress_clust_ext(
 
 			c_stream->avail_in = static_cast<uInt>(
 				src - c_stream->next_in);
-			if (UNIV_LIKELY(c_stream->avail_in)) {
+			if (UNIV_LIKELY(c_stream->avail_in != 0)) {
 				err = deflate(c_stream, Z_NO_FLUSH);
 				if (UNIV_UNLIKELY(err != Z_OK)) {
 
@@ -1608,7 +1608,7 @@ page_zip_fields_free(
 {
 	if (index) {
 		dict_table_t*	table = index->table;
-		os_fast_mutex_free(&index->zip_pad.mutex);
+		dict_index_zip_pad_mutex_destroy(index);
 		mem_heap_free(index->heap);
 
 		dict_mem_table_free(table);

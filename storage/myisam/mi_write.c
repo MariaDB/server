@@ -595,11 +595,10 @@ int _mi_split_page(register MI_INFO *info, register MI_KEYDEF *keyinfo,
 		   my_bool insert_last_key)
 {
   uint length,a_length,key_ref_length,t_length,nod_flag,key_length;
-  uchar *key_pos,*pos, *after_key;
+  uchar *key_pos,*pos, *UNINIT_VAR(after_key);
   my_off_t new_pos;
   MI_KEY_PARAM s_temp;
   DBUG_ENTER("mi_split_page");
-  LINT_INIT(after_key);
   DBUG_DUMP("buff",(uchar*) buff,mi_getint(buff));
 
   if (info->s->keyinfo+info->lastinx == keyinfo)
@@ -710,12 +709,10 @@ static uchar *_mi_find_last_pos(MI_KEYDEF *keyinfo, uchar *page,
 				uchar *key, uint *return_key_length,
 				uchar **after_key)
 {
-  uint keys,length,last_length,key_ref_length;
+  uint keys, length, UNINIT_VAR(last_length), key_ref_length;
   uchar *end,*lastpos,*prevpos;
   uchar key_buff[HA_MAX_KEY_BUFF];
   DBUG_ENTER("_mi_find_last_pos");
-
-  LINT_INIT(last_length);
 
   key_ref_length=2;
   length=mi_getint(page)-key_ref_length;

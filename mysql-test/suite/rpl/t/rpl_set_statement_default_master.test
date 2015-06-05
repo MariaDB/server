@@ -1,0 +1,34 @@
+--source include/master-slave.inc
+
+--connection slave
+
+--source include/stop_slave.inc
+RESET SLAVE ALL;
+
+--echo # Does not work for CHANGE MASTER:
+--replace_result $MASTER_MYPORT MASTER_MYPORT
+eval SET STATEMENT default_master_connection = 'm1' FOR 
+  CHANGE MASTER TO MASTER_HOST='127.0.0.1', MASTER_PORT=$MASTER_MYPORT, MASTER_USER='root';
+
+
+--echo #
+--echo # The first field, Connection_name, should say 'm1'...
+--echo #
+--let $status_items= Connection_name
+--source include/show_all_slaves_status.inc
+#query_vertical SHOW ALL SLAVES STATUS;
+
+
+RESET SLAVE ALL;
+
+--replace_result $MASTER_MYPORT MASTER_MYPORT
+eval CHANGE MASTER 'm1' TO MASTER_HOST='127.0.0.1', MASTER_PORT=$MASTER_MYPORT, MASTER_USER='root';
+SET STATEMENT default_master_connection = 'm1' FOR START SLAVE;
+
+set default_master_connection = 'm1';
+stop slave;
+--source include/wait_for_slave_to_stop.inc
+reset slave all;
+set default_master_connection = '';
+--disconnect slave
+--connection default

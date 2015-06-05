@@ -1,6 +1,6 @@
 /*
-   Copyright (c) 2000, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2014, SkySQL Ab.
+   Copyright (c) 2000, 2015, Oracle and/or its affiliates.
+   Copyright (c) 2008, 2015, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -112,13 +112,12 @@ bool Key_part_spec::operator==(const Key_part_spec& other) const
 */
 
 Key::Key(const Key &rhs, MEM_ROOT *mem_root)
-  :type(rhs.type),
+  :DDL_options(rhs),type(rhs.type),
   key_create_info(rhs.key_create_info),
   columns(rhs.columns, mem_root),
   name(rhs.name),
   option_list(rhs.option_list),
-  generated(rhs.generated),
-  create_if_not_exists(rhs.create_if_not_exists)
+  generated(rhs.generated)
 {
   list_copy_and_replace_each_value(columns, mem_root);
 }
@@ -558,40 +557,11 @@ void set_thd_stage_info(void *thd_arg,
   if (thd == NULL)
     thd= current_thd;
 
-  thd->enter_stage(new_stage, old_stage, calling_func, calling_file,
-                   calling_line);
-}
+  if (old_stage)
+    thd->backup_stage(old_stage);
 
-void THD::enter_stage(const PSI_stage_info *new_stage,
-                      PSI_stage_info *old_stage,
-                      const char *calling_func,
-                      const char *calling_file,
-                      const unsigned int calling_line)
-{
-  DBUG_PRINT("THD::enter_stage", ("%s:%d", calling_file, calling_line));
-
-  if (old_stage != NULL)
-  {
-    old_stage->m_key= m_current_stage_key;
-    old_stage->m_name= proc_info;
-  }
-
-  if (new_stage != NULL)
-  {
-    const char *msg= new_stage->m_name;
-
-#if defined(ENABLED_PROFILING)
-    profiling.status_change(msg, calling_func, calling_file, calling_line);
-#endif
-
-    m_current_stage_key= new_stage->m_key;
-    proc_info= msg;
-
-#ifdef HAVE_PSI_THREAD_INTERFACE
-    MYSQL_SET_STAGE(m_current_stage_key, calling_file, calling_line);
-#endif
-  }
-  return;
+  if (new_stage)
+    thd->enter_stage(new_stage, calling_func, calling_file, calling_line);
 }
 
 void thd_enter_cond(MYSQL_THD thd, mysql_cond_t *cond, mysql_mutex_t *mutex,
@@ -893,6 +863,7 @@ THD::THD(bool is_wsrep_applier)
    stmt_depends_on_first_successful_insert_id_in_prev_stmt(FALSE),
    m_examined_row_count(0),
    accessed_rows_and_keys(0),
+   m_digest(NULL),
    m_statement_psi(NULL),
    m_idle_psi(NULL),
    thread_id(0),
@@ -900,12 +871,13 @@ THD::THD(bool is_wsrep_applier)
    failed_com_change_user(0),
    is_fatal_error(0),
    transaction_rollback_request(0),
-   is_fatal_sub_stmt_error(0),
+   is_fatal_sub_stmt_error(false),
    rand_used(0),
    time_zone_used(0),
    in_lock_tables(0),
    bootstrap(0),
    derived_tables_processing(FALSE),
+   waiting_on_group_commit(FALSE), has_waiter(FALSE),
    spcont(NULL),
    m_parser_state(NULL),
 #if defined(ENABLED_DEBUG_SYNC)
@@ -914,7 +886,8 @@ THD::THD(bool is_wsrep_applier)
    wait_for_commit_ptr(0),
    main_da(0, false, false),
    m_stmt_da(&main_da),
-   tdc_hash_pins(0)
+   tdc_hash_pins(0),
+   xid_hash_pins(0)
 #ifdef WITH_WSREP
   ,
    wsrep_applier(is_wsrep_applier),
@@ -1090,6 +1063,13 @@ THD::THD(bool is_wsrep_applier)
   substitute_null_with_insert_id = FALSE;
   thr_lock_info_init(&lock_info); /* safety: will be reset after start */
   lock_info.mysql_thd= (void *)this;
+
+  m_token_array= NULL;
+  if (max_digest_length > 0)
+  {
+    m_token_array= (unsigned char*) my_malloc(max_digest_length,
+                                              MYF(MY_WME|MY_THREAD_SPECIFIC));
+  }
 
   m_internal_handler= NULL;
   m_binlog_invoker= INVOKER_NONE;
@@ -1539,7 +1519,6 @@ void THD::init_for_queries()
                       variables.trans_alloc_block_size,
                       variables.trans_prealloc_size);
   transaction.xid_state.xid.null();
-  transaction.xid_state.in_thd=1;
 }
 
 
@@ -1589,11 +1568,12 @@ void THD::cleanup(void)
   mysql_ha_cleanup(this);
   locked_tables_list.unlock_locked_tables(this);
 
+  delete_dynamic(&user_var_events);
   close_temporary_tables(this);
 
   transaction.xid_state.xa_state= XA_NOTR;
   trans_rollback(this);
-  xid_cache_delete(&transaction.xid_state);
+  xid_cache_delete(this, &transaction.xid_state);
 
   DBUG_ASSERT(open_tables == NULL);
   /*
@@ -1620,7 +1600,6 @@ void THD::cleanup(void)
   debug_sync_end_thread(this);
 #endif /* defined(ENABLED_DEBUG_SYNC) */
 
-  delete_dynamic(&user_var_events);
   my_hash_free(&user_vars);
   sp_cache_clear(&sp_proc_cache);
   sp_cache_clear(&sp_func_cache);
@@ -1699,11 +1678,14 @@ THD::~THD()
   if (rgi_slave)
     rgi_slave->cleanup_after_session();
 #endif
-
+  main_lex.free_set_stmt_mem_root();
   free_root(&main_mem_root, MYF(0));
+  my_free(m_token_array);
   main_da.free_memory();
   if (tdc_hash_pins)
     lf_hash_put_pins(tdc_hash_pins);
+  if (xid_hash_pins)
+    lf_hash_put_pins(xid_hash_pins);
   /* Ensure everything is freed */
   if (status_var.local_memory_used != 0)
   {
@@ -2228,18 +2210,88 @@ bool THD::convert_string(LEX_STRING *to, CHARSET_INFO *to_cs,
 			 const char *from, uint from_length,
 			 CHARSET_INFO *from_cs)
 {
-  DBUG_ENTER("convert_string");
+  DBUG_ENTER("THD::convert_string");
   size_t new_length= to_cs->mbmaxlen * from_length;
   uint dummy_errors;
-  if (!(to->str= (char*) alloc(new_length+1)))
-  {
-    to->length= 0;				// Safety fix
-    DBUG_RETURN(1);				// EOM
-  }
+  if (alloc_lex_string(to, new_length + 1))
+    DBUG_RETURN(true);                          // EOM
   to->length= copy_and_convert((char*) to->str, new_length, to_cs,
 			       from, from_length, from_cs, &dummy_errors);
-  to->str[to->length]=0;			// Safety
-  DBUG_RETURN(0);
+  to->str[to->length]= 0;                       // Safety
+  DBUG_RETURN(false);
+}
+
+
+/*
+  Convert a string between two character sets.
+  dstcs and srccs cannot be &my_charset_bin.
+*/
+bool THD::convert_fix(CHARSET_INFO *dstcs, LEX_STRING *dst,
+                      CHARSET_INFO *srccs, const char *src, uint src_length,
+                      String_copier *status)
+{
+  DBUG_ENTER("THD::convert_fix");
+  size_t dst_length= dstcs->mbmaxlen * src_length;
+  if (alloc_lex_string(dst, dst_length + 1))
+    DBUG_RETURN(true);                           // EOM
+  dst->length= status->convert_fix(dstcs, (char*) dst->str, dst_length,
+                                   srccs, src, src_length, src_length);
+  dst->str[dst->length]= 0;                      // Safety
+  DBUG_RETURN(false);
+}
+
+
+/*
+  Copy or convert a string.
+*/
+bool THD::copy_fix(CHARSET_INFO *dstcs, LEX_STRING *dst,
+                   CHARSET_INFO *srccs, const char *src, uint src_length,
+                   String_copier *status)
+{
+  DBUG_ENTER("THD::copy_fix");
+  size_t dst_length= dstcs->mbmaxlen * src_length;
+  if (alloc_lex_string(dst, dst_length + 1))
+    DBUG_RETURN(true);                          // EOM
+  dst->length= status->well_formed_copy(dstcs, dst->str, dst_length,
+                                        srccs, src, src_length, src_length);
+  dst->str[dst->length]= '\0';
+  DBUG_RETURN(false);
+}
+
+
+class String_copier_with_error: public String_copier
+{
+public:
+  bool check_errors(CHARSET_INFO *srccs, const char *src, uint src_length)
+  {
+    if (most_important_error_pos())
+    {
+      ErrConvString err(src, src_length, &my_charset_bin);
+      my_error(ER_INVALID_CHARACTER_STRING, MYF(0), srccs->csname, err.ptr());
+      return true;
+    }
+    return false;
+  }
+};
+
+
+bool THD::convert_with_error(CHARSET_INFO *dstcs, LEX_STRING *dst,
+                             CHARSET_INFO *srccs,
+                             const char *src, uint src_length)
+{
+  String_copier_with_error status;
+  return convert_fix(dstcs, dst, srccs, src, src_length, &status) ||
+         status.check_errors(srccs, src, src_length);
+}
+
+
+bool THD::copy_with_error(CHARSET_INFO *dstcs, LEX_STRING *dst,
+                          CHARSET_INFO *srccs,
+                          const char *src, uint src_length)
+{
+  String_copier_with_error status;
+  return copy_fix(dstcs, dst, srccs, src, src_length, &status) ||
+         status.check_errors(srccs, src, src_length);
 }
 
 
@@ -2392,7 +2444,7 @@ int THD::send_explain_fields(select_result *result, uint8 explain_flags, bool is
 {
   List<Item> field_list;
   if (lex->explain_json)
-    make_explain_json_field_list(field_list);
+    make_explain_json_field_list(field_list, is_analyze);
   else
     make_explain_field_list(field_list, explain_flags, is_analyze);
 
@@ -2403,9 +2455,12 @@ int THD::send_explain_fields(select_result *result, uint8 explain_flags, bool is
 }
 
 
-void THD::make_explain_json_field_list(List<Item> &field_list)
+void THD::make_explain_json_field_list(List<Item> &field_list, bool is_analyze)
 {
-  Item *item= new Item_empty_string("EXPLAIN", 78, system_charset_info);
+  Item *item= new Item_empty_string((is_analyze ?
+                                     "ANALYZE" :
+                                     "EXPLAIN"),
+                                    78, system_charset_info);
   field_list.push_back(item);
 }
 
@@ -2454,8 +2509,7 @@ void THD::make_explain_field_list(List<Item> &field_list, uint8 explain_flags,
                                                  MYSQL_TYPE_LONGLONG));
   if (is_analyze)
   {
-    field_list.push_back(item= new Item_return_int("r_rows", 10,
-                                                   MYSQL_TYPE_LONGLONG));
+    field_list.push_back(item= new Item_float("r_rows", 0.1234, 10, 4));
     item->maybe_null=1;
   }
 
@@ -2582,11 +2636,6 @@ void THD::rollback_item_tree_changes()
 /*****************************************************************************
 ** Functions to provide a interface to select results
 *****************************************************************************/
-
-select_result::select_result()
-{
-  thd=current_thd;
-}
 
 void select_result::cleanup()
 {
@@ -3242,12 +3291,6 @@ int select_dump::send_data(List<Item> &items)
   DBUG_RETURN(0);
 err:
   DBUG_RETURN(1);
-}
-
-
-select_subselect::select_subselect(Item_subselect *item_arg)
-{
-  item= item_arg;
 }
 
 
@@ -4171,23 +4214,30 @@ extern "C" int thd_killed(const MYSQL_THD thd)
 /*
   return thd->killed status to the client,
   mapped to the API enum thd_kill_levels values.
+
+  @note Since this function is called quite frequently thd_kill_level(NULL) is
+  forbidden for performance reasons (saves one conditional branch). If your ever
+  need to call thd_kill_level() when THD is not available, you options are (most
+  to least preferred):
+  - try to pass THD through to thd_kill_level()
+  - add current_thd to some service and use thd_killed(current_thd)
+  - add thd_killed_current() function to kill statement service
+  - add if (!thd) thd= current_thd here
 */
 extern "C" enum thd_kill_levels thd_kill_level(const MYSQL_THD thd)
 {
-  THD* current= current_thd;
-
-  if (!thd)
-    thd= current;
-
-  if (thd == current)
-  {
-    Apc_target *apc_target= (Apc_target*)&thd->apc_target;
-    if (apc_target->have_apc_requests())
-        apc_target->process_apc_requests(); 
-  }
+  DBUG_ASSERT(thd);
 
   if (likely(thd->killed == NOT_KILLED))
+  {
+    Apc_target *apc_target= (Apc_target*) &thd->apc_target;
+    if (unlikely(apc_target->have_apc_requests()))
+    {
+      if (thd == current_thd)
+        apc_target->process_apc_requests();
+    }
     return THD_IS_NOT_KILLED;
+  }
 
   return thd->killed & KILL_HARD_BIT ? THD_ABORT_ASAP : THD_ABORT_SOFTLY;
 }
@@ -4434,6 +4484,7 @@ thd_report_wait_for(MYSQL_THD thd, MYSQL_THD other_thd)
   thd->transaction.stmt.mark_trans_did_wait();
   if (!other_thd)
     return;
+  binlog_report_wait_for(thd, other_thd);
   rgi= thd->rgi_slave;
   other_rgi= other_thd->rgi_slave;
   if (!rgi || !other_rgi)
@@ -4607,7 +4658,8 @@ extern "C" int thd_binlog_format(const MYSQL_THD thd)
 
 extern "C" void thd_mark_transaction_to_rollback(MYSQL_THD thd, bool all)
 {
-  mark_transaction_to_rollback(thd, all);
+  DBUG_ASSERT(thd);
+  thd->mark_transaction_to_rollback(all);
 }
 
 extern "C" bool thd_binlog_filter_ok(const MYSQL_THD thd)
@@ -4848,9 +4900,12 @@ void THD::restore_sub_statement_state(Sub_statement_state *backup)
     If we've left sub-statement mode, reset the fatal error flag.
     Otherwise keep the current value, to propagate it up the sub-statement
     stack.
+
+    NOTE: is_fatal_sub_stmt_error can be set only if we've been in the
+    sub-statement mode.
   */
   if (!in_sub_stmt)
-    is_fatal_sub_stmt_error= FALSE;
+    is_fatal_sub_stmt_error= false;
 
   if ((variables.option_bits & OPTION_BIN_LOG) && is_update_query(lex->sql_command) &&
        !is_current_stmt_binlog_format_row())
@@ -5001,27 +5056,6 @@ void THD::set_status_no_good_index_used()
 #endif
 }
 
-void THD::set_command(enum enum_server_command command)
-{
-  m_command= command;
-#ifdef HAVE_PSI_THREAD_INTERFACE
-  PSI_STATEMENT_CALL(set_thread_command)(m_command);
-#endif
-}
-
-/** Assign a new value to thd->query.  */
-
-void THD::set_query(const CSET_STRING &string_arg)
-{
-  mysql_mutex_lock(&LOCK_thd_data);
-  set_query_inner(string_arg);
-  mysql_mutex_unlock(&LOCK_thd_data);
-
-#ifdef HAVE_PSI_THREAD_INTERFACE
-  PSI_THREAD_CALL(set_thread_info)(query(), query_length());
-#endif
-}
-
 /** Assign a new value to thd->query and thd->query_id.  */
 
 void THD::set_query_and_id(char *query_arg, uint32 query_length_arg,
@@ -5092,135 +5126,274 @@ void THD::get_definer(LEX_USER *definer, bool role)
 /**
   Mark transaction to rollback and mark error as fatal to a sub-statement.
 
-  @param  thd   Thread handle
   @param  all   TRUE <=> rollback main transaction.
 */
 
-void mark_transaction_to_rollback(THD *thd, bool all)
+void THD::mark_transaction_to_rollback(bool all)
 {
-  if (thd)
-  {
-    thd->is_fatal_sub_stmt_error= TRUE;
-    thd->transaction_rollback_request= all;
-  }
+  /*
+    There is no point in setting is_fatal_sub_stmt_error unless
+    we are actually in_sub_stmt.
+  */
+  if (in_sub_stmt)
+    is_fatal_sub_stmt_error= true;
+  transaction_rollback_request= all;
 }
 /***************************************************************************
   Handling of XA id cacheing
 ***************************************************************************/
-
-mysql_mutex_t LOCK_xid_cache;
-HASH xid_cache;
-
-extern "C" uchar *xid_get_hash_key(const uchar *, size_t *, my_bool);
-extern "C" void xid_free_hash(void *);
-
-uchar *xid_get_hash_key(const uchar *ptr, size_t *length,
-                                  my_bool not_used __attribute__((unused)))
+class XID_cache_element
 {
-  *length=((XID_STATE*)ptr)->xid.key_length();
-  return ((XID_STATE*)ptr)->xid.key();
-}
+  /*
+    m_state is used to prevent elements from being deleted while XA RECOVER
+    iterates xid cache and to prevent recovered elments from being acquired by
+    multiple threads.
 
-void xid_free_hash(void *ptr)
-{
-  if (!((XID_STATE*)ptr)->in_thd)
-    my_free(ptr);
-}
+    bits 1..29 are reference counter
+    bit 30 is RECOVERED flag
+    bit 31 is ACQUIRED flag (thread owns this xid)
+    bit 32 is unused
 
-#ifdef HAVE_PSI_INTERFACE
-static PSI_mutex_key key_LOCK_xid_cache;
+    Newly allocated and deleted elements have m_state set to 0.
 
-static PSI_mutex_info all_xid_mutexes[]=
-{
-  { &key_LOCK_xid_cache, "LOCK_xid_cache", PSI_FLAG_GLOBAL}
+    On lock() m_state is atomically incremented. It also creates load-ACQUIRE
+    memory barrier to make sure m_state is actually updated before furhter
+    memory accesses. Attempting to lock an element that has neither ACQUIRED
+    nor RECOVERED flag set returns failure and further accesses to element
+    memory are forbidden.
+
+    On unlock() m_state is decremented. It also creates store-RELEASE memory
+    barrier to make sure m_state is actually updated after preceding memory
+    accesses.
+
+    ACQUIRED flag is set when thread registers it's xid or when thread acquires
+    recovered xid.
+
+    RECOVERED flag is set for elements found during crash recovery.
+
+    ACQUIRED and RECOVERED flags are cleared before element is deleted from
+    hash in a spin loop, after last reference is released.
+  */
+  int32 m_state;
+public:
+  static const int32 ACQUIRED= 1 << 30;
+  static const int32 RECOVERED= 1 << 29;
+  XID_STATE *m_xid_state;
+  bool is_set(int32 flag)
+  { return my_atomic_load32_explicit(&m_state, MY_MEMORY_ORDER_RELAXED) & flag; }
+  void set(int32 flag)
+  {
+    DBUG_ASSERT(!is_set(ACQUIRED | RECOVERED));
+    my_atomic_add32_explicit(&m_state, flag, MY_MEMORY_ORDER_RELAXED);
+  }
+  bool lock()
+  {
+    int32 old= my_atomic_add32_explicit(&m_state, 1, MY_MEMORY_ORDER_ACQUIRE);
+    if (old & (ACQUIRED | RECOVERED))
+      return true;
+    unlock();
+    return false;
+  }
+  void unlock()
+  { my_atomic_add32_explicit(&m_state, -1, MY_MEMORY_ORDER_RELEASE); }
+  void mark_uninitialized()
+  {
+    int32 old= ACQUIRED;
+    while (!my_atomic_cas32_weak_explicit(&m_state, &old, 0,
+                                          MY_MEMORY_ORDER_RELAXED,
+                                          MY_MEMORY_ORDER_RELAXED))
+    {
+      old&= ACQUIRED | RECOVERED;
+      (void) LF_BACKOFF;
+    }
+  }
+  bool acquire_recovered()
+  {
+    int32 old= RECOVERED;
+    while (!my_atomic_cas32_weak_explicit(&m_state, &old, ACQUIRED | RECOVERED,
+                                          MY_MEMORY_ORDER_RELAXED,
+                                          MY_MEMORY_ORDER_RELAXED))
+    {
+      if (!(old & RECOVERED) || (old & ACQUIRED))
+        return false;
+      old= RECOVERED;
+      (void) LF_BACKOFF;
+    }
+    return true;
+  }
+  static void lf_hash_initializer(LF_HASH *hash __attribute__((unused)),
+                                  XID_cache_element *element,
+                                  XID_STATE *xid_state)
+  {
+    DBUG_ASSERT(!element->is_set(ACQUIRED | RECOVERED));
+    element->m_xid_state= xid_state;
+    xid_state->xid_cache_element= element;
+  }
+  static void lf_alloc_constructor(uchar *ptr)
+  {
+    XID_cache_element *element= (XID_cache_element*) (ptr + LF_HASH_OVERHEAD);
+    element->m_state= 0;
+  }
+  static void lf_alloc_destructor(uchar *ptr)
+  {
+    XID_cache_element *element= (XID_cache_element*) (ptr + LF_HASH_OVERHEAD);
+    DBUG_ASSERT(!element->is_set(ACQUIRED));
+    if (element->is_set(RECOVERED))
+      my_free(element->m_xid_state);
+  }
+  static uchar *key(const XID_cache_element *element, size_t *length,
+                    my_bool not_used __attribute__((unused)))
+  {
+    *length= element->m_xid_state->xid.key_length();
+    return element->m_xid_state->xid.key();
+  }
 };
 
-static void init_xid_psi_keys(void)
+
+static LF_HASH xid_cache;
+static bool xid_cache_inited;
+
+
+bool THD::fix_xid_hash_pins()
 {
-  const char* category= "sql";
-  int count;
-
-  if (PSI_server == NULL)
-    return;
-
-  count= array_elements(all_xid_mutexes);
-  PSI_server->register_mutex(category, all_xid_mutexes, count);
+  if (!xid_hash_pins)
+    xid_hash_pins= lf_hash_get_pins(&xid_cache);
+  return !xid_hash_pins;
 }
-#endif /* HAVE_PSI_INTERFACE */
 
-bool xid_cache_init()
+
+void xid_cache_init()
 {
-#ifdef HAVE_PSI_INTERFACE
-  init_xid_psi_keys();
-#endif
-
-  mysql_mutex_init(key_LOCK_xid_cache, &LOCK_xid_cache, MY_MUTEX_INIT_FAST);
-  return my_hash_init(&xid_cache, &my_charset_bin, 100, 0, 0,
-                      xid_get_hash_key, xid_free_hash, 0) != 0;
+  xid_cache_inited= true;
+  lf_hash_init(&xid_cache, sizeof(XID_cache_element), LF_HASH_UNIQUE, 0, 0,
+               (my_hash_get_key) XID_cache_element::key, &my_charset_bin);
+  xid_cache.alloc.constructor= XID_cache_element::lf_alloc_constructor;
+  xid_cache.alloc.destructor= XID_cache_element::lf_alloc_destructor;
+  xid_cache.initializer=
+    (lf_hash_initializer) XID_cache_element::lf_hash_initializer;
 }
+
 
 void xid_cache_free()
 {
-  if (my_hash_inited(&xid_cache))
+  if (xid_cache_inited)
   {
-    my_hash_free(&xid_cache);
-    mysql_mutex_destroy(&LOCK_xid_cache);
+    lf_hash_destroy(&xid_cache);
+    xid_cache_inited= false;
   }
 }
 
-XID_STATE *xid_cache_search(XID *xid)
+
+/**
+  Find recovered XA transaction by XID.
+*/
+
+XID_STATE *xid_cache_search(THD *thd, XID *xid)
 {
-  mysql_mutex_lock(&LOCK_xid_cache);
-  XID_STATE *res=(XID_STATE *)my_hash_search(&xid_cache, xid->key(),
-                                             xid->key_length());
-  mysql_mutex_unlock(&LOCK_xid_cache);
-  return res;
+  XID_STATE *xs= 0;
+  DBUG_ASSERT(thd->xid_hash_pins);
+  XID_cache_element *element=
+    (XID_cache_element*) lf_hash_search(&xid_cache, thd->xid_hash_pins,
+                                        xid->key(), xid->key_length());
+  if (element)
+  {
+    if (element->acquire_recovered())
+      xs= element->m_xid_state;
+    lf_hash_search_unpin(thd->xid_hash_pins);
+    DEBUG_SYNC(thd, "xa_after_search");
+  }
+  return xs;
 }
 
 
 bool xid_cache_insert(XID *xid, enum xa_states xa_state)
 {
   XID_STATE *xs;
-  my_bool res;
-  mysql_mutex_lock(&LOCK_xid_cache);
-  if (my_hash_search(&xid_cache, xid->key(), xid->key_length()))
-    res=0;
-  else if (!(xs=(XID_STATE *)my_malloc(sizeof(*xs), MYF(MY_WME))))
-    res=1;
-  else
+  LF_PINS *pins;
+  int res= 1;
+
+  if (!(pins= lf_hash_get_pins(&xid_cache)))
+    return true;
+
+  if ((xs= (XID_STATE*) my_malloc(sizeof(*xs), MYF(MY_WME))))
   {
     xs->xa_state=xa_state;
     xs->xid.set(xid);
-    xs->in_thd=0;
     xs->rm_error=0;
-    res=my_hash_insert(&xid_cache, (uchar*)xs);
+
+    if ((res= lf_hash_insert(&xid_cache, pins, xs)))
+      my_free(xs);
+    else
+      xs->xid_cache_element->set(XID_cache_element::RECOVERED);
+    if (res == 1)
+      res= 0;
   }
-  mysql_mutex_unlock(&LOCK_xid_cache);
+  lf_hash_put_pins(pins);
   return res;
 }
 
 
-bool xid_cache_insert(XID_STATE *xid_state)
+bool xid_cache_insert(THD *thd, XID_STATE *xid_state)
 {
-  mysql_mutex_lock(&LOCK_xid_cache);
-  if (my_hash_search(&xid_cache, xid_state->xid.key(),
-      xid_state->xid.key_length()))
-  {
-    mysql_mutex_unlock(&LOCK_xid_cache);
-    my_error(ER_XAER_DUPID, MYF(0));
+  if (thd->fix_xid_hash_pins())
     return true;
+
+  int res= lf_hash_insert(&xid_cache, thd->xid_hash_pins, xid_state);
+  switch (res)
+  {
+  case 0:
+    xid_state->xid_cache_element->set(XID_cache_element::ACQUIRED);
+    break;
+  case 1:
+    my_error(ER_XAER_DUPID, MYF(0));
+  default:
+    xid_state->xid_cache_element= 0;
   }
-  bool res= my_hash_insert(&xid_cache, (uchar*)xid_state);
-  mysql_mutex_unlock(&LOCK_xid_cache);
   return res;
 }
 
 
-void xid_cache_delete(XID_STATE *xid_state)
+void xid_cache_delete(THD *thd, XID_STATE *xid_state)
 {
-  mysql_mutex_lock(&LOCK_xid_cache);
-  my_hash_delete(&xid_cache, (uchar *)xid_state);
-  mysql_mutex_unlock(&LOCK_xid_cache);
+  if (xid_state->xid_cache_element)
+  {
+    bool recovered= xid_state->xid_cache_element->is_set(XID_cache_element::RECOVERED);
+    DBUG_ASSERT(thd->xid_hash_pins);
+    xid_state->xid_cache_element->mark_uninitialized();
+    lf_hash_delete(&xid_cache, thd->xid_hash_pins,
+                   xid_state->xid.key(), xid_state->xid.key_length());
+    xid_state->xid_cache_element= 0;
+    if (recovered)
+      my_free(xid_state);
+  }
+}
+
+
+struct xid_cache_iterate_arg
+{
+  my_hash_walk_action action;
+  void *argument;
+};
+
+static my_bool xid_cache_iterate_callback(XID_cache_element *element,
+                                          xid_cache_iterate_arg *arg)
+{
+  my_bool res= FALSE;
+  if (element->lock())
+  {
+    res= arg->action(element->m_xid_state, arg->argument);
+    element->unlock();
+  }
+  return res;
+}
+
+int xid_cache_iterate(THD *thd, my_hash_walk_action action, void *arg)
+{
+  xid_cache_iterate_arg argument= { action, arg };
+  return thd->fix_xid_hash_pins() ? -1 :
+         lf_hash_iterate(&xid_cache, thd->xid_hash_pins,
+                         (my_hash_walk_action) xid_cache_iterate_callback,
+                         &argument);
 }
 
 
@@ -6781,6 +6954,7 @@ wait_for_commit::wakeup_subsequent_commits2(int wakeup_error)
     a mutex), so no extra explicit barrier is needed here.
   */
   wakeup_subsequent_commits_running= false;
+  DBUG_EXECUTE_IF("inject_wakeup_subsequent_commits_sleep", my_sleep(21000););
 }
 
 

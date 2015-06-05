@@ -2146,6 +2146,57 @@ drop database mysqltest2;
 drop database mysqltest3;
 drop database mysqltest4;
 # End of 5.5 tests
+#
+# MDEV-7220: Materialization strategy is not used for REPLACE ... SELECT
+#
+create table t0(a int);
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table t1 (a int, b int, c int);
+insert into t1 
+select A.a+B.a*10+C.a*100, A.a+B.a*10+C.a*100, A.a+B.a*10+C.a*100
+from t0 A, t0 B, t0 C;
+create table t2 (a int, b int, c int);
+insert into t2 select A.a, A.a, A.a from t1 A;
+insert into t2 select * from t2;
+insert into t2 select * from t2;
+create table t3 as select * from t2 limit 1;
+# The testcase only makes sense if the following uses Materialization:
+explain
+select * from t1 where (a,b) in (select max(a),b from t2 group by b);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	1000	Using where
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	8	test.t1.a,test.t1.b	1	
+2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	4000	Using temporary
+flush status;
+replace into t3 
+select * from t1 where (a,b) in (select max(a),b from t2 group by b);
+#  Sequential reads:
+#    1K is read from t1
+#    4K is read from t2
+#    1K groups is read from the tmp. table
+#
+#  Lookups:
+#    4K lookups in group by table
+#    1K lookups in temp.table
+#
+#  Writes:
+#    2x 1K writes to temporary tables (grouping table and subquery materialization table
+#
+#  The point is that neither counter should be in the millions (this
+#     will happen if Materialization is not used 
+show status where Variable_name like 'Handler_read%' or  Variable_name like 'Handler_%write%';
+Variable_name	Value
+Handler_read_first	0
+Handler_read_key	5000
+Handler_read_last	0
+Handler_read_next	0
+Handler_read_prev	0
+Handler_read_rnd	0
+Handler_read_rnd_deleted	0
+Handler_read_rnd_next	6003
+Handler_tmp_write	2000
+Handler_write	1000
+drop table t0,t1,t2,t3;
 set @subselect_mat_test_optimizer_switch_value=null;
 set @@optimizer_switch='materialization=on,in_to_exists=off,semijoin=off';
 set optimizer_switch='mrr=on,mrr_sort_keys=on,index_condition_pushdown=on';

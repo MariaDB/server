@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2000, 2014, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2000, 2015, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -57,6 +57,7 @@ Created 9/17/2000 Heikki Tuuri
 #include "btr0sea.h"
 #include "btr0defragment.h"
 #include "fil0fil.h"
+#include "fil0crypt.h"
 #include "ibuf0ibuf.h"
 #include "fts0fts.h"
 #include "fts0types.h"
@@ -611,6 +612,7 @@ handle_new_error:
 	case DB_DUPLICATE_KEY:
 	case DB_FOREIGN_DUPLICATE_KEY:
 	case DB_TOO_BIG_RECORD:
+	case DB_TOO_BIG_FOR_REDO:
 	case DB_UNDO_RECORD_TOO_BIG:
 	case DB_ROW_IS_REFERENCED:
 	case DB_NO_REFERENCED_ROW:
@@ -1460,6 +1462,11 @@ error_exit:
 	just an estimate anyway) than protecting the following code
 	with a latch. */
 	dict_table_n_rows_inc(table);
+
+	if (prebuilt->clust_index_was_generated) {
+		/* set row id to prebuilt */
+		ut_memcpy(prebuilt->row_id, node->row_id_buf, DATA_ROW_ID_LEN);
+	}
 
 	row_update_statistics_if_needed(table);
 	trx->op_info = "";
@@ -3474,12 +3481,10 @@ row_truncate_table_for_mysql(
 		goto funct_exit;
 	}
 
-	if (table->space && !table->dir_path_of_temp_table) {
+	if (table->space && !DICT_TF2_FLAG_IS_SET(table, DICT_TF2_TEMPORARY)) {
 		/* Discard and create the single-table tablespace. */
 		ulint	space	= table->space;
 		ulint	flags	= fil_space_get_flags(space);
-
-		ut_a(!DICT_TF2_FLAG_IS_SET(table, DICT_TF2_TEMPORARY));
 
 		dict_get_and_save_data_dir_path(table, true);
 
@@ -4285,8 +4290,9 @@ row_drop_table_for_mysql(
 		is_temp = DICT_TF2_FLAG_IS_SET(table, DICT_TF2_TEMPORARY);
 
 		/* If there is a temp path then the temp flag is set.
-		However, during recovery, we might have a temp flag but
-		not know the temp path */
+		However, during recovery or reloading the table object
+		after eviction from data dictionary cache, we might
+		have a temp flag but not know the temp path */
 		ut_a(table->dir_path_of_temp_table == NULL || is_temp);
 		if (dict_table_is_discarded(table)
 		    || table->ibd_file_missing) {
@@ -4414,7 +4420,7 @@ row_drop_table_for_mysql(
 
 	case DB_OUT_OF_FILE_SPACE:
 		err = DB_MUST_GET_MORE_FILE_SPACE;
-
+		trx->error_state = err;
 		row_mysql_handle_errors(&err, trx, NULL, NULL);
 
 		/* raise error */
@@ -4854,6 +4860,7 @@ row_rename_table_for_mysql(
 	ibool		old_is_tmp, new_is_tmp;
 	pars_info_t*	info			= NULL;
 	int		retry;
+	bool		aux_fts_rename		= false;
 
 	ut_a(old_name != NULL);
 	ut_a(new_name != NULL);
@@ -5140,34 +5147,8 @@ row_rename_table_for_mysql(
 	if (dict_table_has_fts_index(table)
 	    && !dict_tables_have_same_db(old_name, new_name)) {
 		err = fts_rename_aux_tables(table, new_name, trx);
-
-		if (err != DB_SUCCESS && (table->space != 0)) {
-			char*	orig_name = table->name;
-			trx_t*	trx_bg = trx_allocate_for_background();
-
-			/* If the first fts_rename fails, the trx would
-			be rolled back and committed, we can't use it any more,
-			so we have to start a new background trx here. */
-			ut_a(trx_state_eq(trx, TRX_STATE_NOT_STARTED));
-			trx_bg->op_info = "Revert the failing rename "
-					  "for fts aux tables";
-			trx_bg->dict_operation_lock_mode = RW_X_LATCH;
-			trx_start_for_ddl(trx_bg, TRX_DICT_OP_TABLE);
-
-			/* If rename fails and table has its own tablespace,
-			we need to call fts_rename_aux_tables again to
-			revert the ibd file rename, which is not under the
-			control of trx. Also notice the parent table name
-			in cache is not changed yet. If the reverting fails,
-			the ibd data may be left in the new database, which
-			can be fixed only manually. */
-			table->name = const_cast<char*>(new_name);
-			fts_rename_aux_tables(table, old_name, trx_bg);
-			table->name = orig_name;
-
-			trx_bg->dict_operation_lock_mode = 0;
-			trx_commit_for_mysql(trx_bg);
-			trx_free_for_background(trx_bg);
+		if (err != DB_TABLE_NOT_FOUND) {
+			aux_fts_rename = true;
 		}
 	}
 
@@ -5268,6 +5249,37 @@ end:
 	}
 
 funct_exit:
+	if (aux_fts_rename && err != DB_SUCCESS
+	    && table != NULL && (table->space != 0)) {
+
+		char*	orig_name = table->name;
+		trx_t*	trx_bg = trx_allocate_for_background();
+
+		/* If the first fts_rename fails, the trx would
+		be rolled back and committed, we can't use it any more,
+		so we have to start a new background trx here. */
+		ut_a(trx_state_eq(trx_bg, TRX_STATE_NOT_STARTED));
+		trx_bg->op_info = "Revert the failing rename "
+				  "for fts aux tables";
+		trx_bg->dict_operation_lock_mode = RW_X_LATCH;
+		trx_start_for_ddl(trx_bg, TRX_DICT_OP_TABLE);
+
+		/* If rename fails and table has its own tablespace,
+		we need to call fts_rename_aux_tables again to
+		revert the ibd file rename, which is not under the
+		control of trx. Also notice the parent table name
+		in cache is not changed yet. If the reverting fails,
+		the ibd data may be left in the new database, which
+		can be fixed only manually. */
+		table->name = const_cast<char*>(new_name);
+		fts_rename_aux_tables(table, old_name, trx_bg);
+		table->name = orig_name;
+
+		trx_bg->dict_operation_lock_mode = 0;
+		trx_commit_for_mysql(trx_bg);
+		trx_free_for_background(trx_bg);
+	}
+
 	if (table != NULL) {
 		dict_table_close(table, dict_locked, FALSE);
 	}

@@ -12812,7 +12812,7 @@ a	b	c	d	e
 2	text	varchar	blob1	blob2
 CHECK TABLE t1;
 Table	Op	Msg_type	Msg_text
-test.t1	check	error	Table upgrade required. Please do "REPAIR TABLE `t1`" or dump/reload to fix it!
+test.t1	check	error	Upgrade required. Please do "REPAIR TABLE `t1`" or dump/reload to fix it!
 SELECT * FROM t1;
 a	b	c	d	e
 1	text	varchar	blob1	blob2

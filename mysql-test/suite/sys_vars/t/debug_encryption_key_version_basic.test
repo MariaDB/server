@@ -1,3 +1,0 @@
---source include/have_debug.inc
-# This is just to satisfy all_vars
-select 1;

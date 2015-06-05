@@ -1,4 +1,4 @@
-# Copyright (c) 2009, 2013, Oracle and/or its affiliates. All rights reserved.
+# Copyright (c) 2009, 2015, Oracle and/or its affiliates. All rights reserved.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -23,5 +23,10 @@ INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/include
 
 ADD_DEFINITIONS(-DMYSQL_SERVER ${SSL_DEFINES})
 
-MY_ADD_TESTS(pfs_instr_class pfs_instr_class-oom pfs_instr pfs_instr-oom  pfs_account-oom pfs_host-oom pfs_timer pfs_user-oom pfs
-  EXT "cc" LINK_LIBRARIES perfschema mysys mysys_ssl)
+ADD_CONVENIENCE_LIBRARY(pfs_server_stubs pfs_server_stubs.cc)
+
+ADD_DEPENDENCIES(pfs_server_stubs GenError)
+
+MY_ADD_TESTS(pfs_instr_class pfs_instr_class-oom pfs_instr pfs_instr-oom
+             pfs_account-oom pfs_host-oom pfs_timer pfs_user-oom pfs
+  EXT "cc" LINK_LIBRARIES perfschema mysys pfs_server_stubs)

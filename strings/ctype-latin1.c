@@ -422,6 +422,8 @@ static MY_CHARSET_HANDLER my_charset_handler=
     my_strtoll10_8bit,
     my_strntoull10rnd_8bit,
     my_scan_8bit,
+    my_charlen_8bit,
+    my_well_formed_char_length_8bit,
     my_copy_8bit,
 };
 

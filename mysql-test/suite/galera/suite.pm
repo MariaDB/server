@@ -33,6 +33,8 @@ push @::global_suppressions,
      qr(WSREP: last inactive check more than .* skipping check),
      qr(WSREP: SQL statement was ineffective),
      qr(WSREP: Releasing seqno [0-9]* before [0-9]* was assigned.),
+     qr|WSREP: access file\(gvwstate.dat\) failed\(No such file or directory\)|,
+     qr(WSREP: SYNC message from member [0-9]* in non-primary configuration. Ignored.),
    );
 
 

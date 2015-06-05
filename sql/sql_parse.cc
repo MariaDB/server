@@ -83,6 +83,8 @@
 #include "rpl_handler.h"
 #include "rpl_mi.h"
 
+#include "sql_digest.h"
+
 #include "sp_head.h"
 #include "sp.h"
 #include "sp_cache.h"
@@ -799,6 +801,7 @@ static void handle_bootstrap_impl(THD *thd)
 
     free_root(thd->mem_root,MYF(MY_KEEP_PREALLOC));
     free_root(&thd->transaction.mem_root,MYF(MY_KEEP_PREALLOC));
+    thd->lex->restore_set_statement_var();
   }
 
   DBUG_VOID_RETURN;
@@ -1034,6 +1037,7 @@ bool do_command(THD *thd)
     /* Mark the statement completed. */
     MYSQL_END_STATEMENT(thd->m_statement_psi, thd->get_stmt_da());
     thd->m_statement_psi= NULL;
+    thd->m_digest= NULL;
 
     if (net->error != 3)
     {
@@ -1120,7 +1124,9 @@ bool do_command(THD *thd)
   DBUG_ASSERT(!thd->apc_target.is_enabled());
 
 out:
+  thd->lex->restore_set_statement_var();
   /* The statement instrumentation must be closed in all cases. */
+  DBUG_ASSERT(thd->m_digest == NULL);
   DBUG_ASSERT(thd->m_statement_psi == NULL);
   DBUG_RETURN(return_value);
 }
@@ -1318,8 +1324,9 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
   {
     LEX_STRING tmp;
     status_var_increment(thd->status_var.com_stat[SQLCOM_CHANGE_DB]);
-    thd->convert_string(&tmp, system_charset_info,
-			packet, packet_length, thd->charset());
+    if (thd->copy_with_error(system_charset_info, &tmp,
+                             thd->charset(), packet, packet_length))
+      break;
     if (!mysql_change_db(thd, &tmp, FALSE))
     {
       general_log_write(thd, command, thd->db, thd->db_length);
@@ -1434,6 +1441,10 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
   }
   case COM_QUERY:
   {
+    DBUG_ASSERT(thd->m_digest == NULL);
+    thd->m_digest= & thd->m_digest_state;
+    thd->m_digest->reset(thd->m_token_array, max_digest_length);
+
     if (alloc_query(thd, packet, packet_length))
       break;					// fatal error is set
     MYSQL_QUERY_START(thd->query(), thd->thread_id,
@@ -1496,6 +1507,7 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
       /* PSI end */
       MYSQL_END_STATEMENT(thd->m_statement_psi, thd->get_stmt_da());
       thd->m_statement_psi= NULL;
+      thd->m_digest= NULL;
 
       /* DTRACE end */
       if (MYSQL_QUERY_DONE_ENABLED())
@@ -1516,6 +1528,8 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
                         (char *) thd->security_ctx->host_or_ip);
 
       /* PSI begin */
+      thd->m_digest= & thd->m_digest_state;
+
       thd->m_statement_psi= MYSQL_START_STATEMENT(&thd->m_statement_state,
                                                   com_statement_info[command].m_key,
                                                   thd->db, thd->db_length,
@@ -1590,7 +1604,7 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
       break;
     }
     packet= arg_end + 1;
-    mysql_reset_thd_for_next_command(thd);
+    thd->reset_for_next_command();
     lex_start(thd);
     /* Must be before we init the table list. */
     if (lower_case_table_names)
@@ -1927,6 +1941,7 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
   /* Performance Schema Interface instrumentation, end */
   MYSQL_END_STATEMENT(thd->m_statement_psi, thd->get_stmt_da());
   thd->m_statement_psi= NULL;
+  thd->m_digest= NULL;
 
   thd->set_time();
   dec_thread_running();
@@ -1950,6 +1965,7 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
 
   /* Check that some variables are reset properly */
   DBUG_ASSERT(thd->abort_on_warning == 0);
+  thd->lex->restore_set_statement_var();
   DBUG_RETURN(error);
 }
 
@@ -2491,11 +2507,15 @@ mysql_execute_command(THD *thd)
           according to slave filtering rules.
           Returning success without producing any errors in this case.
         */
-        DBUG_RETURN(0);
+        if (!thd->lex->create_info.if_exists())
+          DBUG_RETURN(0);
+        /*
+          DROP TRIGGER IF NOT EXISTS will return without an error later
+          after possibly writing the query to a binlog
+        */
       }
-      
-      // force searching in slave.cc:tables_ok() 
-      all_tables->updating= 1;
+      else // force searching in slave.cc:tables_ok()
+        all_tables->updating= 1;
     }
 
     /*
@@ -2633,21 +2653,29 @@ mysql_execute_command(THD *thd)
 
   if (!lex->stmt_var_list.is_empty() && !thd->slave_thread)
   {
+    Query_arena backup;
     DBUG_PRINT("info", ("SET STATEMENT %d vars", lex->stmt_var_list.elements));
 
     lex->old_var_list.empty();
     List_iterator_fast<set_var_base> it(lex->stmt_var_list);
     set_var_base *var;
-    while ((var=it++))
+
+    if (lex->set_arena_for_set_stmt(&backup))
+      goto error;
+
+    while ((var= it++))
     {
       DBUG_ASSERT(var->is_system());
       set_var *o= NULL, *v= (set_var*)var;
       if (!v->var->is_set_stmt_ok())
       {
         my_error(ER_SET_STATEMENT_NOT_SUPPORTED, MYF(0), v->var->name.str);
+        lex->reset_arena_for_set_stmt(&backup);
+        lex->old_var_list.empty();
+        lex->free_arena_for_set_stmt();
         goto error;
       }
-      if (v->var->is_default())
+      if (v->var->session_is_default(thd))
           o= new set_var(v->type, v->var, &v->base, NULL);
       else
       {
@@ -2717,14 +2745,33 @@ mysql_execute_command(THD *thd)
       DBUG_ASSERT(o);
       lex->old_var_list.push_back(o);
     }
+    lex->reset_arena_for_set_stmt(&backup);
+    if (lex->old_var_list.is_empty())
+      lex->free_arena_for_set_stmt();
     if (thd->is_error() ||
         (res= sql_set_variables(thd, &lex->stmt_var_list, false)))
     {
       if (!thd->is_error())
         my_error(ER_WRONG_ARGUMENTS, MYF(0), "SET");
+      lex->restore_set_statement_var();
       goto error;
     }
+    /*
+      The value of last_insert_id is remembered in THD to be written to binlog
+      when it's used *the first time* in the statement. But SET STATEMENT
+      must read the old value of last_insert_id to be able to restore it at
+      the end. This should not count at "reading of last_insert_id" and
+      should not remember last_insert_id for binlog. That is, it should clear
+      stmt_depends_on_first_successful_insert_id_in_prev_stmt flag.
+    */
+    if (!thd->in_sub_stmt)
+    {
+      thd->stmt_depends_on_first_successful_insert_id_in_prev_stmt= 0;
+    }
   }
+
+  if (thd->lex->mi.connection_name.str == NULL)
+      thd->lex->mi.connection_name= thd->variables.default_master_connection;
 
   /*
     Force statement logging for DDL commands to allow us to update
@@ -3329,13 +3376,13 @@ mysql_execute_command(THD *thd)
           select_create is currently not re-execution friendly and
           needs to be created for every execution of a PS/SP.
         */
-        if ((result= new select_create(create_table,
-                                       &create_info,
-                                       &alter_info,
-                                       select_lex->item_list,
-                                       lex->duplicates,
-                                       lex->ignore,
-                                       select_tables)))
+        if ((result= new (thd->mem_root) select_create(thd, create_table,
+                                                       &create_info,
+                                                       &alter_info,
+                                                       select_lex->item_list,
+                                                       lex->duplicates,
+                                                       lex->ignore,
+                                                       select_tables)))
         {
           /*
             CREATE from SELECT give its SELECT_LEX for SELECT,
@@ -3899,13 +3946,14 @@ end_with_restore_list:
       select_lex->context.table_list= 
         select_lex->context.first_name_resolution_table= second_table;
       res= mysql_insert_select_prepare(thd);
-      if (!res && (sel_result= new select_insert(first_table,
-                                                 first_table->table,
-                                                 &lex->field_list,
-                                                 &lex->update_list,
-                                                 &lex->value_list,
-                                                 lex->duplicates,
-                                                 lex->ignore)))
+      if (!res && (sel_result= new (thd->mem_root) select_insert(thd,
+                                                             first_table,
+                                                             first_table->table,
+                                                             &lex->field_list,
+                                                             &lex->update_list,
+                                                             &lex->value_list,
+                                                             lex->duplicates,
+                                                             lex->ignore)))
       {
         if (lex->analyze_stmt)
           ((select_result_interceptor*)sel_result)->disable_my_ok_calls();
@@ -3974,14 +4022,15 @@ end_with_restore_list:
           Actually, it is ANALYZE .. DELETE .. RETURNING. We need to produce
           output and then discard it.
         */
-        sel_result= new select_send_analyze();
+        sel_result= new (thd->mem_root) select_send_analyze(thd);
         replaced_protocol= true;
         save_protocol= thd->protocol;
         thd->protocol= new Protocol_discard(thd);
       }
       else
       {
-        if (!(sel_result= lex->result) && !(sel_result= new select_send()))
+        if (!(sel_result= lex->result) &&
+            !(sel_result= new (thd->mem_root) select_send(thd)))
           return 1;
       }
     }
@@ -4038,7 +4087,8 @@ end_with_restore_list:
 
     if (!thd->is_fatal_error)
     {
-      result= new multi_delete(aux_tables, lex->table_count);
+      result= new (thd->mem_root) multi_delete(thd, aux_tables,
+                                               lex->table_count);
       if (result)
       {
         res= mysql_select(thd, &select_lex->ref_pointer_array,
@@ -5545,7 +5595,6 @@ finish:
                thd->in_multi_stmt_transaction_mode());
 
 
-  lex->restore_set_statement_var();
   lex->unit.cleanup();
 
   if (! thd->in_sub_stmt)
@@ -5664,7 +5713,7 @@ static bool execute_sqlcom_select(THD *thd, TABLE_LIST *all_tables)
     SELECT_LEX *param= lex->unit.global_parameters();
     if (!param->explicit_limit)
       param->select_limit=
-        new Item_int((ulonglong) thd->variables.select_limit);
+        new (thd->mem_root) Item_int((ulonglong) thd->variables.select_limit);
   }
   if (!(res= open_and_lock_tables(thd, all_tables, TRUE, 0)))
   {
@@ -5676,7 +5725,7 @@ static bool execute_sqlcom_select(THD *thd, TABLE_LIST *all_tables)
         to prepend EXPLAIN to any query and receive output for it,
         even if the query itself redirects the output.
       */
-      if (!(result= new select_send()))
+      if (!(result= new (thd->mem_root) select_send(thd)))
         return 1;                               /* purecov: inspected */
       thd->send_explain_fields(result, lex->describe, lex->analyze_stmt);
         
@@ -5734,14 +5783,14 @@ static bool execute_sqlcom_select(THD *thd, TABLE_LIST *all_tables)
         else 
         {
           DBUG_ASSERT(thd->protocol);
-          result= new select_send_analyze();
+          result= new (thd->mem_root) select_send_analyze(thd);
           save_protocol= thd->protocol;
           thd->protocol= new Protocol_discard(thd);
         }
       }
       else
       {
-        if (!result && !(result= new select_send()))
+        if (!result && !(result= new (thd->mem_root) select_send(thd)))
           return 1;                               /* purecov: inspected */
       }
       query_cache_store_query(thd, all_tables);
@@ -6689,15 +6738,8 @@ bool my_yyoverflow(short **yyss, YYSTYPE **yyvs, ulong *yystacksize)
   (prepared or conventional).  It is not called by substatements of
   routines.
 
-  @todo Remove mysql_reset_thd_for_next_command and only use the
-  member function.
-
   @todo Call it after we use THD for queries, not before.
 */
-void mysql_reset_thd_for_next_command(THD *thd)
-{
-  thd->reset_for_next_command();
-}
 
 void THD::reset_for_next_command()
 {
@@ -6971,7 +7013,7 @@ static void wsrep_mysql_parse(THD *thd, char *rawbuf, uint length,
       if (thd->wsrep_conflict_state == ABORTED ||
           thd->wsrep_conflict_state == CERT_FAILURE)
       {
-        mysql_reset_thd_for_next_command(thd);
+        thd->reset_for_next_command();
         thd->killed= NOT_KILLED;
         if (is_autocommit                           &&
             thd->lex->sql_command != SQLCOM_SELECT  &&
@@ -7067,13 +7109,13 @@ void mysql_parse(THD *thd, char *rawbuf, uint length,
     of (among others) lex->safe_to_cache_query and thd->server_status,
     which are reset respectively in
     - lex_start()
-    - mysql_reset_thd_for_next_command()
+    - THD::reset_for_next_command()
     So, initializing the lexical analyser *before* using the query cache
     is required for the cache to work properly.
     FIXME: cleanup the dependencies in the code to simplify this.
   */
   lex_start(thd);
-  mysql_reset_thd_for_next_command(thd);
+  thd->reset_for_next_command();
 
   if (query_cache_send_result_to_client(thd, rawbuf, length) <= 0)
   {
@@ -7187,7 +7229,7 @@ bool mysql_test_parse_for_slave(THD *thd, char *rawbuf, uint length)
   if (!(error= parser_state.init(thd, rawbuf, length)))
   {
     lex_start(thd);
-    mysql_reset_thd_for_next_command(thd);
+    thd->reset_for_next_command();
 
     if (!parse_sql(thd, & parser_state, NULL, true) &&
         all_tables_not_ok(thd, lex->select_lex.table_list.first))
@@ -7277,11 +7319,10 @@ TABLE_LIST *st_select_lex::add_table_to_list(THD *thd,
                                              LEX_STRING *option)
 {
   register TABLE_LIST *ptr;
-  TABLE_LIST *previous_table_ref; /* The table preceding the current one. */
+  TABLE_LIST *UNINIT_VAR(previous_table_ref); /* The table preceding the current one. */
   char *alias_str;
   LEX *lex= thd->lex;
   DBUG_ENTER("add_table_to_list");
-  LINT_INIT(previous_table_ref);
 
   if (!table)
     DBUG_RETURN(0);				// End of memory
@@ -7604,7 +7645,7 @@ TABLE_LIST *st_select_lex::nest_last_join(THD *thd)
 void st_select_lex::add_joined_table(TABLE_LIST *table)
 {
   DBUG_ENTER("add_joined_table");
-  join_list->push_front(table);
+  join_list->push_front(table, parent_lex->thd->mem_root);
   table->join_list= join_list;
   table->embedding= embedding;
   DBUG_VOID_RETURN;
@@ -7782,7 +7823,7 @@ push_new_name_resolution_context(THD *thd,
     left_op->first_leaf_for_name_resolution();
   on_context->last_name_resolution_table=
     right_op->last_leaf_for_name_resolution();
-  return thd->lex->push_context(on_context);
+  return thd->lex->push_context(on_context, thd->mem_root);
 }
 
 
@@ -8196,23 +8237,25 @@ Comp_creator *comp_ne_creator(bool invert)
   @return
     constructed Item (or 0 if out of memory)
 */
-Item * all_any_subquery_creator(Item *left_expr,
+Item * all_any_subquery_creator(THD *thd, Item *left_expr,
 				chooser_compare_func_creator cmp,
 				bool all,
 				SELECT_LEX *select_lex)
 {
   if ((cmp == &comp_eq_creator) && !all)       //  = ANY <=> IN
-    return new Item_in_subselect(left_expr, select_lex);
+    return new (thd->mem_root) Item_in_subselect(thd, left_expr, select_lex);
 
   if ((cmp == &comp_ne_creator) && all)        // <> ALL <=> NOT IN
-    return new Item_func_not(new Item_in_subselect(left_expr, select_lex));
+    return new (thd->mem_root) Item_func_not(
+             new (thd->mem_root) Item_in_subselect(thd, left_expr, select_lex));
 
   Item_allany_subselect *it=
-    new Item_allany_subselect(left_expr, cmp, select_lex, all);
+    new (thd->mem_root) Item_allany_subselect(thd, left_expr, cmp, select_lex,
+                                              all);
   if (all)
-    return it->upper_item= new Item_func_not_all(it);	/* ALL */
+    return it->upper_item= new (thd->mem_root) Item_func_not_all(it); /* ALL */
 
-  return it->upper_item= new Item_func_nop_all(it);      /* ANY/SOME */
+  return it->upper_item= new (thd->mem_root) Item_func_nop_all(it);   /* ANY/SOME */
 }
 
 
@@ -8734,7 +8777,7 @@ Item *negate_expression(THD *thd, Item *expr)
     /* it is NOT(NOT( ... )) */
     Item *arg= ((Item_func *) expr)->arguments()[0];
     enum_parsing_place place= thd->lex->current_select->parsing_place;
-    if (arg->is_bool_func() || place == IN_WHERE || place == IN_HAVING)
+    if (arg->is_bool_type() || place == IN_WHERE || place == IN_HAVING)
       return arg;
     /*
       if it is not boolean function then we have to emulate value of
@@ -9059,11 +9102,27 @@ bool parse_sql(THD *thd, Parser_state *parser_state,
 
   thd->m_parser_state= parser_state;
 
-#ifdef HAVE_PSI_STATEMENT_DIGEST_INTERFACE
-  /* Start Digest */
-  thd->m_parser_state->m_lip.m_digest_psi=
-    MYSQL_DIGEST_START(do_pfs_digest ? thd->m_statement_psi : NULL);
-#endif
+  parser_state->m_digest_psi= NULL;
+  parser_state->m_lip.m_digest= NULL;
+
+  if (do_pfs_digest)
+  {
+    /* Start Digest */
+    parser_state->m_digest_psi= MYSQL_DIGEST_START(thd->m_statement_psi);
+
+    if (parser_state->m_input.m_compute_digest ||
+       (parser_state->m_digest_psi != NULL))
+    {
+      /*
+        If either:
+        - the caller wants to compute a digest
+        - the performance schema wants to compute a digest
+        set the digest listener in the lexer.
+      */
+      parser_state->m_lip.m_digest= thd->m_digest;
+      parser_state->m_lip.m_digest->m_digest_storage.m_charset_number= thd->charset()->number;
+    }
+  }
 
   /* Parse the query. */
 
@@ -9096,6 +9155,18 @@ bool parse_sql(THD *thd, Parser_state *parser_state,
   /* That's it. */
 
   ret_value= mysql_parse_status || thd->is_fatal_error;
+
+  if ((ret_value == 0) && (parser_state->m_digest_psi != NULL))
+  {
+    /*
+      On parsing success, record the digest in the performance schema.
+    */
+    DBUG_ASSERT(do_pfs_digest);
+    DBUG_ASSERT(thd->m_digest != NULL);
+    MYSQL_DIGEST_END(parser_state->m_digest_psi,
+                     & thd->m_digest->m_digest_storage);
+  }
+
   MYSQL_QUERY_PARSE_DONE(ret_value);
   DBUG_RETURN(ret_value);
 }

@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2010, 2013, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2010, 2014, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
 Copyright (c) 2013, 2014, MariaDB Corporation
 
@@ -985,20 +985,15 @@ static monitor_info_t	innodb_counter_info[] =
 	 MONITOR_NONE,
 	 MONITOR_DEFAULT_START, MONITOR_OVLD_PAGES_PAGE_COMPRESSION_ERROR},
 
-	{"compress_pages_page_encrypted", "compression",
-	 "Number of pages encrypted by page encryption",
+	{"compress_pages_encrypted", "compression",
+	 "Number of pages encrypted",
 	 MONITOR_NONE,
-	 MONITOR_DEFAULT_START, MONITOR_OVLD_PAGES_PAGE_ENCRYPTED},
+	 MONITOR_DEFAULT_START, MONITOR_OVLD_PAGES_ENCRYPTED},
 
-	{"compress_pages_page_decrypted", "compression",
-	 "Number of pages decrypted by page encryption",
+	{"compress_pages_decrypted", "compression",
+	 "Number of pages decrypted",
 	 MONITOR_NONE,
-	 MONITOR_DEFAULT_START, MONITOR_OVLD_PAGES_PAGE_DECRYPTED},
-
-	{"compress_pages_page_encryption_error", "compression",
-	 "Number of page encryption errors ",
-	 MONITOR_NONE,
-	 MONITOR_DEFAULT_START, MONITOR_OVLD_PAGES_PAGE_ENCRYPTION_ERROR},
+	 MONITOR_DEFAULT_START, MONITOR_OVLD_PAGES_DECRYPTED},
 
 	/* ========== Counters for Index ========== */
 	{"module_index", "index", "Index Manager",
@@ -1046,7 +1041,8 @@ static monitor_info_t	innodb_counter_info[] =
 
 	{"adaptive_hash_searches_btree", "adaptive_hash_index",
 	 "Number of searches using B-tree on an index search",
-	 MONITOR_NONE,
+	 static_cast<monitor_type_t>(
+	 MONITOR_EXISTING | MONITOR_DEFAULT_ON),
 	 MONITOR_DEFAULT_START, MONITOR_OVLD_ADAPTIVE_HASH_SEARCH_BTREE},
 
 	{"adaptive_hash_pages_added", "adaptive_hash_index",
@@ -2013,14 +2009,11 @@ srv_mon_process_existing_counter(
         case MONITOR_OVLD_PAGES_PAGE_COMPRESSION_ERROR:
 		value = srv_stats.pages_page_compression_error;
 		break;
-        case MONITOR_OVLD_PAGES_PAGE_ENCRYPTED:
-		value = srv_stats.pages_page_encrypted;
+        case MONITOR_OVLD_PAGES_ENCRYPTED:
+		value = srv_stats.pages_encrypted;
 		break;
-        case MONITOR_OVLD_PAGES_PAGE_DECRYPTED:
-		value = srv_stats.pages_page_decrypted;
-		break;
-        case MONITOR_OVLD_PAGES_PAGE_ENCRYPTION_ERROR:
-		value = srv_stats.pages_page_encryption_error;
+        case MONITOR_OVLD_PAGES_DECRYPTED:
+		value = srv_stats.pages_decrypted;
 		break;
 
 	default:

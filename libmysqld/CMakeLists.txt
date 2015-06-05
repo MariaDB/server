@@ -43,7 +43,7 @@ SET(SQL_EMBEDDED_SOURCES emb_qcache.cc libmysqld.c lib_sql.cc
            ../sql-common/client_plugin.c ../sql-common/mysql_async.c
            ../sql/password.c ../sql/discover.cc ../sql/derror.cc 
            ../sql/field.cc ../sql/field_conv.cc
-           ../sql/filesort_utils.cc
+           ../sql/filesort_utils.cc ../sql/sql_digest.cc
            ../sql/filesort.cc ../sql/gstream.cc ../sql/slave.cc
            ../sql/signal_handler.cc
            ../sql/handler.cc ../sql/hash_filo.cc ../sql/hostname.cc 
@@ -102,10 +102,11 @@ SET(SQL_EMBEDDED_SOURCES emb_qcache.cc libmysqld.c lib_sql.cc
            ../sql/my_json_writer.cc ../sql/my_json_writer.h
 	   ../sql/rpl_gtid.cc
            ../sql/sql_explain.cc ../sql/sql_explain.h
+           ../sql/sql_analyze_stmt.cc ../sql/sql_analyze_stmt.h
            ../sql/compat56.cc
-           ../sql/table_cache.cc
+           ../sql/table_cache.cc ../sql/mf_iocache_encr.cc
            ../sql/item_inetfunc.cc
-           ../sql/wsrep_dummy.cc ../sql/encryption_keys.cc
+           ../sql/wsrep_dummy.cc ../sql/encryption.cc
            ${GEN_SOURCES}
            ${MYSYS_LIBWRAP_SOURCE}
 )

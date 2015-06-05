@@ -22,8 +22,13 @@ module Groonga
       data.args.each do |arg|
         push_arg(arg)
       end
-      data.indexes.each do |index, section_id, weight|
-        put_index(index, section_id, weight)
+      data.search_indexes.each do |search_index|
+        put_index(search_index.index_column,
+                  search_index.section_id,
+                  search_index.weight,
+                  search_index.scorer,
+                  search_index.scorer_args_expr,
+                  search_index.scorer_args_expr_offset || 0)
       end
     end
   end

@@ -77,6 +77,7 @@ typedef struct st_key_part_info {	/* Info about a key part */
   */
   uint16 store_length;
   uint16 key_type;
+  /* Fieldnr begins counting from 1 */
   uint16 fieldnr;			/* Fieldnum in UNIREG */
   uint16 key_part_flag;			/* 0 or HA_REVERSE_SORT */
   uint8 type;
@@ -476,7 +477,7 @@ public:
   DDL options:
   - CREATE IF NOT EXISTS
   - DROP IF EXISTS
-  - CRESTE LIKE
+  - CREATE LIKE
   - REPLACE
 */
 struct DDL_options_st
@@ -543,6 +544,9 @@ class DDL_options: public DDL_options_st
 {
 public:
   DDL_options() { init(); }
+  DDL_options(Options options) { init(options); }
+  DDL_options(const DDL_options_st &options)
+  { DDL_options_st::operator=(options); }
 };
 
 

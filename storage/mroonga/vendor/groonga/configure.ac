@@ -75,7 +75,8 @@ AC_MSG_RESULT([$solaris])
 AC_C_BIGENDIAN
 AC_PROG_CXX
 AC_PROG_CC
-AC_PROG_CC_C99
+m4_ifdef([AC_PROG_CC_C99],
+         [AC_PROG_CC_C99])
 AM_PROG_CC_C_O
 m4_ifdef([PKG_PROG_PKG_CONFIG],
          [PKG_PROG_PKG_CONFIG([0.19])
@@ -140,6 +141,7 @@ AC_DEFUN([REMOVE_CXXFLAG], [
 TEST_CFLAGS=""
 TEST_CXXFLAGS=""
 NO_STRICT_ALIASING_CFLAGS=""
+NO_FLOAT_EQUAL_CFLAGS=""
 if test "$GCC" = "yes"; then
   CHECK_BUILD_FLAG([-Wall])
   CHECK_BUILD_FLAG([-Wextra])
@@ -159,8 +161,10 @@ if test "$GCC" = "yes"; then
   fi
   CHECK_BUILD_FLAG([-Wdisabled-optimization])
   CHECK_BUILD_FLAG([-Wfloat-equal])
+  if test "x$check_cflag" = "xyes"; then
+    NO_FLOAT_EQUAL_CFLAGS="-Wno-float-equal"
+  fi
   CHECK_BUILD_FLAG([-Wpointer-arith])
-  CHECK_CFLAG([-Wdeclaration-after-statement])
   CHECK_CFLAG([-Wbad-function-cast])
   if test "$CLANG" = "no"; then
     CHECK_BUILD_FLAG([-Wcast-align])
@@ -192,6 +196,7 @@ fi
 AC_SUBST(TEST_CFLAGS)
 AC_SUBST(TEST_CXXFLAGS)
 AC_SUBST(NO_STRICT_ALIASING_CFLAGS)
+AC_SUBST(NO_FLOAT_EQUAL_CFLAGS)
 
 AC_LIBTOOL_WIN32_DLL
 AM_PROG_LIBTOOL
@@ -210,7 +215,7 @@ GRN_DLL_FILENAME="libgroonga-\$(LT_CURRENT).dll"
 AC_SUBST(GRN_DLL_FILENAME)
 
 if test "$srcdir/version.sh"; then
-  source "$srcdir/version.sh"
+  . "$srcdir/version.sh"
   AC_SUBST(GRN_VERSION)
   AC_DEFINE_UNQUOTED(GRN_VERSION, ["$GRN_VERSION"], [groonga version])
 fi
@@ -226,6 +231,10 @@ AC_CONFIG_FILES([
   lib/dat/Makefile
   lib/mrb/Makefile
   lib/mrb/scripts/Makefile
+  lib/mrb/scripts/command_line/Makefile
+  lib/mrb/scripts/context/Makefile
+  lib/mrb/scripts/initialize/Makefile
+  lib/mrb/scripts/logger/Makefile
   include/Makefile
   include/groonga/Makefile
   plugins/Makefile
@@ -235,6 +244,8 @@ AC_CONFIG_FILES([
   plugins/query_expanders/Makefile
   plugins/ruby/Makefile
   plugins/token_filters/Makefile
+  plugins/sharding/Makefile
+  plugins/functions/Makefile
   examples/Makefile
   examples/dictionary/Makefile
   examples/dictionary/edict/Makefile
@@ -246,7 +257,6 @@ AC_CONFIG_FILES([
   packages/ubuntu/Makefile
   packages/rpm/Makefile
   packages/rpm/centos/Makefile
-  packages/rpm/fedora/Makefile
   packages/yum/Makefile
   packages/source/Makefile
   packages/windows/Makefile
@@ -684,6 +694,10 @@ AC_SUBST(GROONGA_BENCHMARK)
 GROONGA_SUGGEST_CREATE_DATASET="${ac_pwd}/src/suggest/groonga-suggest-create-dataset"
 AC_SUBST(GROONGA_SUGGEST_CREATE_DATASET)
 
+# groonga-mruby binary path
+GROONGA_MRUBY="${ac_pwd}/src/groonga-mruby"
+AC_SUBST(GROONGA_MRUBY)
+
 # check Cutter with GLib support if available
 REQUIRED_MINIMUM_CUTTER_VERSION=1.1.6
 REQUIRED_MINIMUM_CPPCUTTER_VERSION=1.2.0
@@ -867,28 +881,64 @@ fi
 # zlib
 AC_ARG_WITH(zlib,
   [AS_HELP_STRING([--with-zlib],
-    [use zlib for data compression. [default=no]])],
+    [Support data compression by zlib. [default=auto]])],
   [with_zlib="$withval"],
-  [with_zlib="no"])
+  [with_zlib="auto"])
 GRN_WITH_ZLIB=no
-if test "x$with_zlib" = "xyes"; then
-  AC_DEFINE(GRN_WITH_ZLIB, [1], [with zlib])
-  AC_SEARCH_LIBS(compress, z, [GRN_WITH_ZLIB=yes],
-                 [AC_MSG_ERROR("No libz found")])
-else
-  AC_SEARCH_LIBS(compress, z, [GRN_WITH_ZLIB=yes], [])
+if test "x$with_zlib" != "xno"; then
+  # TODO: Support custom zlib include and lib directory by --with-zlib.
+  AC_SEARCH_LIBS(compress, z,
+                 [
+                   GRN_WITH_ZLIB=yes
+                   AC_DEFINE(GRN_WITH_ZLIB, [1],
+                             [Support data compression by zlib.])
+                 ],
+                 [
+                   if test "x$with_zlib" != "xauto"; then
+                     AC_MSG_ERROR("No libz found")
+                   fi
+                 ])
 fi
 AC_SUBST(GRN_WITH_ZLIB)
 
-# LZO
-AC_ARG_WITH(lzo,
-  [AS_HELP_STRING([--with-lzo],
-    [use LZO for data compression. [default=no]])],
-  [with_lzo="$withval"],
-  [with_lzo="no"])
-if test "x$with_lzo" = "xyes"; then
-  AC_DEFINE(GRN_WITH_LZO, [1], [with lzo])
-  AC_SEARCH_LIBS(lzo1_compress, lzo2, [], [AC_MSG_ERROR("No liblzo2 found")])
+# LZ4
+AC_ARG_WITH(lz4,
+  [AS_HELP_STRING([--with-lz4],
+    [Support data compression by LZ4. [default=auto]])],
+  [with_lz4="$withval"],
+  [with_lz4="auto"])
+if test "x$with_lz4" != "xno"; then
+  m4_ifdef([PKG_CHECK_MODULES], [
+    PKG_CHECK_MODULES([LIBLZ4],
+                      [liblz4],
+                      [GRN_WITH_LZ4=yes],
+                      [GRN_WITH_LZ4=no])
+  ],
+  [GRN_WITH_LZ4=no])
+  if test "$GRN_WITH_LZ4" = "yes"; then
+    AC_DEFINE(GRN_WITH_LZ4, [1],
+              [Support data compression by LZ4.])
+  else
+    if test "x$with_lz4" != "xauto"; then
+      AC_MSG_ERROR("No liblz4 found")
+    fi
+  fi
+fi
+
+# jemalloc
+AC_ARG_WITH(jemalloc,
+  [AS_HELP_STRING([--with-jemalloc],
+    [Use jemalloc for memory allocation. [default=no]])],
+  [with_jemalloc="$withval"],
+  [with_jemalloc="no"])
+jemalloc_available="no"
+if test "x$with_jemalloc" != "xno"; then
+  if test "x$with_jemalloc" != "xyes"; then
+    LDFLAGS="-L$with_jemalloc $LDFLAGS"
+  fi
+  AC_SEARCH_LIBS(malloc_conf, jemalloc,
+                 [jemalloc_available="yes"],
+                 [AC_MSG_ERROR("No libjemalloc found")])
 fi
 
 # MeCab
@@ -972,6 +1022,63 @@ if test "x$with_kytea" = "xyes"; then
   AC_DEFINE(GRN_WITH_KYTEA, [1], [use KyTea])
 fi
 AM_CONDITIONAL(WITH_KYTEA, test "x$with_kytea" = "xyes")
+
+# libstemmer
+AC_ARG_WITH(libstemmer,
+  [AS_HELP_STRING([--with-libstemmer],
+    [use libstemmer for stemming. [default=auto]])],
+  [with_libstemmer="$withval"],
+  [with_libstemmer="auto"])
+AC_ARG_WITH(libstemmer-include,
+  [AS_HELP_STRING([--with-libstemmer-include],
+    [path to libstemmer.h. [default=auto]])])
+AC_ARG_WITH(libstemmer-lib,
+  [AS_HELP_STRING([--with-libstemmer-lib],
+    [path to libstemmer.so. [default=auto]])])
+AC_MSG_CHECKING([whether enable libstemmer])
+AC_MSG_RESULT($with_libstemmer)
+if test "x$with_libstemmer" != "xno"; then
+  LIBSTEMMER_CFLAGS=""
+  LIBSTEMMER_LDFLAGS=""
+  LIBSTEMMER_LIBS=""
+
+  CFLAGS_save="${CFLAGS}"
+  LDFLAGS_save="${LDFLAGS}"
+  if test "x$with_libstemmer" != "xauto"; then
+    if test -z "${with_libstemmer_include}"; then
+      with_libstemmer_include="${with_libstemmer}/include"
+    fi
+    LIBSTEMMER_CFLAGS="-I${with_libstemmer_include}"
+    if test -z "${with_libstemmer_lib}"; then
+      with_libstemmer_lib="${with_libstemmer}/lib"
+    fi
+    LIBSTEMMER_LDFLAGS="-L${with_libstemmer_lib}"
+    CFLAGS="${CFLAGS} ${LIBSTEMMER_CFLAGS}"
+    LDFLAGS="${LDFLAGS} ${LIBSTEMMER_LDFLAGS}"
+  fi
+  AC_CHECK_HEADERS(libstemmer.h,
+                   [libstemmer_exists=yes],
+                   [libstemmer_exists=no])
+  if test "$libstemmer_exists" = "yes"; then
+    AC_CHECK_LIB(stemmer, sb_stemmer_list,
+                 [LIBSTEMMER_LIBS="-lstemmer"],
+                 [libstemmer_exists=no])
+  fi
+  CFLAGS="${CFLAGS_save}"
+  LDFLAGS="${LDFLAGS_save}"
+
+  if test "$libstemmer_exists" = "no" -a "x$with_libstemmer" != "xauto"; then
+    AC_MSG_ERROR("No libstemmer found at ${with_libstemmer_include} and ${with_libstemmer_lib}.")
+  fi
+  with_libstemmer="$libstemmer_exists"
+fi
+if test "x$with_libstemmer" = "xyes"; then
+  AC_SUBST(LIBSTEMMER_CFLAGS)
+  AC_SUBST(LIBSTEMMER_LDFLAGS)
+  AC_SUBST(LIBSTEMMER_LIBS)
+  AC_DEFINE(GRN_WITH_LIBSTEMMER, [1], [use libstemmer])
+fi
+AM_CONDITIONAL(WITH_LIBSTEMMER, test "x$with_libstemmer" = "xyes")
 
 # futex check
 AC_ARG_ENABLE(futex,
@@ -1063,30 +1170,48 @@ AC_SUBST(LIBEVENT_CFLAGS)
 AC_SUBST(LIBEVENT_LIBS)
 
 # MessagePack
-AC_ARG_WITH(message-pack,
-  [AS_HELP_STRING([--without-message-pack],
-    [Disable MessagePack used for suggestion. [default=/usr]])],
-  [with_message_pack="$withval"],
-  [with_message_pack="/usr"])
-if test "x$with_message_pack" != "xno"; then
-  _SAVE_CFLAGS="$CFLAGS"
-  _SAVE_LDFLAGS="$LDFLAGS"
-  _SAVE_LIBS="$LIBS"
-  CFLAGS="$CFLAGS -I$with_message_pack/include"
-  LDFLAGS="$LDFLAGS -L$with_message_pack/lib"
-  AC_SEARCH_LIBS(msgpack_version, msgpack,
-                 [message_pack_available=yes],
-                 [message_pack_available=no])
-  CFLAGS="$_SAVE_CFLAGS"
-  LDFLAGS="$_SAVE_LDFLAGS"
-  LIBS="$_SAVE_LIBS"
+AC_ARG_ENABLE(message-pack,
+  [AS_HELP_STRING([--disable-message-pack],
+    [Disable MessagePack support. [default=auto-detect]])],
+  [enable_message_pack="$enableval"],
+  [enable_message_pack="auto"])
+if test "x$enable_message_pack" != "xno"; then
+  m4_ifdef([PKG_CHECK_MODULES], [
+    PKG_CHECK_MODULES([MESSAGE_PACK], [msgpack],
+      [message_pack_available=yes],
+      [message_pack_available=no])
+    ],
+    [message_pack_vailable=no])
+
+  if test "$message_pack_available" = "no"; then
+    AC_ARG_WITH(message-pack,
+      [AS_HELP_STRING([--with-message-pack],
+        [Specify prefix where MessagePack is installed. [default=/usr]])],
+      [with_message_pack="$withval"],
+      [with_message_pack="/usr"])
+    _SAVE_CFLAGS="$CFLAGS"
+    _SAVE_LDFLAGS="$LDFLAGS"
+    _SAVE_LIBS="$LIBS"
+    CFLAGS="$CFLAGS -I$with_message_pack/include"
+    LDFLAGS="$LDFLAGS -L$with_message_pack/lib"
+    AC_SEARCH_LIBS(msgpack_version, msgpack,
+                   [message_pack_available=yes],
+                   [message_pack_available=no])
+    CFLAGS="$_SAVE_CFLAGS"
+    LDFLAGS="$_SAVE_LDFLAGS"
+    LIBS="$_SAVE_LIBS"
+
+    if test "x$message_pack_available" = "xyes"; then
+      MESSAGE_PACK_CFLAGS="-I$with_message_pack/include"
+      MESSAGE_PACK_LIBS="-L$with_message_pack/lib -lmsgpack"
+    fi
+  fi
+
   if test "x$message_pack_available" = "xyes"; then
     AC_DEFINE(GRN_WITH_MESSAGE_PACK, [1],
               [Define to 1 if MessagePack is available.])
-    MESSAGE_PACK_CFLAGS="-I$with_message_pack/include"
-    MESSAGE_PACK_LIBS="-L$with_message_pack/lib -lmsgpack"
   else
-    if test "x$with_message_pack" = "xyes"; then
+    if test "x$enable_message_pack" = "xyes"; then
       AC_MSG_ERROR("No MessagePack found")
     fi
   fi
@@ -1136,15 +1261,15 @@ Install it and try again.
 How to install sphinx-build:
 
 For Debian GNU/Linux based system like Ubuntu:
-  % sudo apt-get install -y python-pip
-  % sudo pip install sphinx
+  % sudo apt-get install -y python-sphinx
 
 For Red Hat based system like CentOS:
   % sudo yum install -y python-pip
   % sudo pip install sphinx
 
 For OS X with Homebrew:
-  % brew install pip
+  % brew install python
+  % brew install gettext
   % export PATH="`brew --prefix gettext`/bin:\$PATH"
   % pip install sphinx])
     fi
@@ -1246,6 +1371,12 @@ AC_SUBST(ruby_pluginsdir)
 
 token_filter_pluginsdir="\${pluginsdir}/token_filters"
 AC_SUBST(token_filter_pluginsdir)
+
+sharding_pluginsdir="\${pluginsdir}/sharding"
+AC_SUBST(sharding_pluginsdir)
+
+function_pluginsdir="\${pluginsdir}/functions"
+AC_SUBST(function_pluginsdir)
 
 AC_MSG_CHECKING(for the suffix of plugin shared libraries)
 shrext_cmds=$(./libtool --config | grep '^shrext_cmds=')
@@ -1355,21 +1486,16 @@ fi
 AC_MSG_RESULT($enable_mruby)
 
 if test "$enable_mruby" = "yes"; then
-  if test ! -f "$srcdir/vendor/mruby/mruby-build.timestamp" -a \
+  if test ! -f "$srcdir/vendor/mruby/mruby_build.timestamp" -a \
           "$ac_cv_ruby_available" != "yes"; then
-    AC_MSG_ERROR(--enable-ruby requires --with-ruby)
+    AC_MSG_ERROR(--enable-mruby requires --with-ruby)
   fi
   AC_DEFINE(GRN_WITH_MRUBY, [1], [Define to 1 if mruby is enabled.])
   MRUBY_CFLAGS="-I\$(top_srcdir)/vendor/mruby-source/include"
-  MRUBY_LIBS="\$(top_builddir)/vendor/mruby/libmruby.la"
-  MRUBY_LIBS="${MRUBY_LIBS} \$(top_builddir)/vendor/onigmo-source/libonig.la"
-  AC_CONFIG_SUBDIRS([vendor/onigmo])
 else
-  MRUBY_CFLAGS=
-  MRUBY_LIBS=
+  MRUBY_CFLAGS=""
 fi
 AC_SUBST(MRUBY_CFLAGS)
-AC_SUBST(MRUBY_LIBS)
 AM_CONDITIONAL(WITH_MRUBY, test "$enable_mruby" = "yes")
 
 # This option is used in vendor/onigmo/configure
@@ -1380,12 +1506,21 @@ AC_ARG_ENABLE(shared-onigmo,
   [enable_shared_onigmo="no"])
 AM_CONDITIONAL(WITH_SHARED_ONIGMO, test "$enable_shared_onigmo" = "yes")
 
+# TODO: Support using system Onigmo instead of bundled Onigmo.
+AC_DEFINE(GRN_WITH_ONIGMO, [1], [Use Onigmo.])
+AC_CONFIG_SUBDIRS([vendor/onigmo])
+
+ONIGMO_CFLAGS="-I\$(top_srcdir)/vendor/onigmo-source"
+ONIGMO_LIBS="\$(top_builddir)/vendor/onigmo-source/libonig.la"
+AC_SUBST(ONIGMO_CFLAGS)
+AC_SUBST(ONIGMO_LIBS)
+
 # PCRE
 GRN_WITH_PCRE=no
 AC_ARG_WITH(pcre,
   [AS_HELP_STRING([--without-pcre],
-    [use PCRE for groonga-httpd. [default=auto-detect]])],
-  [with_pcre="$witheval"],
+    [Don't use PCRE for groonga-httpd. [default=auto-detect]])],
+  [with_pcre="$withval"],
   [with_pcre="auto"])
 if test "x$with_pcre" != "xno"; then
   m4_ifdef([PKG_CHECK_MODULES], [
@@ -1446,7 +1581,6 @@ AC_SUBST(GROONGA_HTTPD_DEFAULT_DATABASE_PATH)
 
 AC_OUTPUT([
   packages/rpm/centos/groonga.spec
-  packages/rpm/fedora/groonga.spec
   packages/apt/debian/groonga-keyring.postrm
   packages/apt/env.sh
   packages/yum/env.sh
@@ -1489,6 +1623,14 @@ if test "x$with_kytea" = "xyes"; then
 fi
 echo
 
+echo "Token filters:"
+echo "  libstemmer:            $with_libstemmer"
+if test "x$with_libstemmer" = "xyes"; then
+  echo "    CFLAGS:              $LIBSTEMMER_CFLAGS"
+  echo "    LIBS:                $LIBSTEMMER_LIBS"
+fi
+echo
+
 echo "Libraries:"
 echo "  ZeroMQ:                $zeromq_available"
 if test "x$zeromq_available" = "xyes"; then
@@ -1506,6 +1648,7 @@ if test "x$message_pack_available" = "xyes"; then
   echo "    LIBS:                ${MESSAGE_PACK_LIBS}"
 fi
 echo "  mruby:                 $enable_mruby"
+echo "  jemalloc:              $jemalloc_available"
 echo
 
 echo "groonga-httpd:"

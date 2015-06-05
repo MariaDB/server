@@ -87,4 +87,12 @@ and a couple of things that are different with JIT. --/
 /^12345678abcd/mS++
     12345678abcd
 
+/-- Test pattern compilation --/ 
+
+/(?:a|b|c|d|e)(?R)/S++
+
+/(?:a|b|c|d|e)(?R)(?R)/S++
+
+/(a(?:a|b|c|d|e)b){8,16}/S++
+
 /-- End of testinput12 --/

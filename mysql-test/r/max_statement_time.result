@@ -87,6 +87,8 @@ SLEEP(2)
 1
 SHOW STATUS LIKE '%timeout%';
 Variable_name	Value
+Binlog_group_commit_trigger_timeout	0
+Master_gtid_wait_timeouts	0
 Ssl_default_timeout	0
 Ssl_session_cache_timeouts	0
 SET @@max_statement_time=0;
@@ -145,3 +147,33 @@ SELECT RELEASE_LOCK('lock');
 RELEASE_LOCK('lock')
 1
 DROP TABLE t1;
+#
+# MDEV-7011:MAX_STATEMENT_TIME has no effect in a procedure after
+# a previous successful statement
+#
+create table t1 (i int);
+insert into t1 values (1),(2),(3),(4);
+insert into t1 select a.* from t1 a, t1 b, t1 c, t1 d, t1 e, t1 f, t1 g;
+create procedure pr()
+begin
+select 1;
+select sql_no_cache * from t1 where i > 5;
+select sql_no_cache * from t1 where i > 5;
+end |
+set max_statement_time = 0.001;
+call pr();
+1
+1
+ERROR 70100: Query execution was interrupted (max_statement_time exceeded)
+drop procedure pr;
+create procedure pr()
+begin
+select sql_no_cache * from t1 where i > 5;
+select sql_no_cache * from t1 where i > 5;
+end |
+set max_statement_time = 0.001;
+call pr();
+ERROR 70100: Query execution was interrupted (max_statement_time exceeded)
+set max_statement_time = 0;
+drop procedure pr;
+drop table t1;

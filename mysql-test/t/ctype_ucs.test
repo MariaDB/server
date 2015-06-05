@@ -925,5 +925,13 @@ select collation(cast("a" as char(10) unicode binary));
 select collation(cast("a" as char(10) binary unicode));
 
 --echo #
+--echo # MDEV-8222 "string_field LIKE int_const" returns a wrong result in case of UCS2
+--echo #
+CREATE TABLE t1 (a VARCHAR(10) CHARSET ucs2);
+INSERT INTO t1 VALUES ('1');
+SELECT * FROM t1 WHERE a LIKE 1;
+DROP TABLE t1;
+
+--echo #
 --echo # End of 10.1 tests
 --echo #

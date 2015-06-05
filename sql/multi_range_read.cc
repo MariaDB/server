@@ -817,12 +817,11 @@ int DsMrr_impl::dsmrr_init(handler *h_arg, RANGE_SEQ_IF *seq_funcs,
   THD *thd= current_thd;
   int res;
   Key_parameters keypar;
-  uint key_buff_elem_size;
+  uint UNINIT_VAR(key_buff_elem_size); /* set/used when do_sort_keys==TRUE */
   handler *h_idx;
   Mrr_ordered_rndpos_reader *disk_strategy= NULL;
   bool do_sort_keys= FALSE;
   DBUG_ENTER("DsMrr_impl::dsmrr_init");
-  LINT_INIT(key_buff_elem_size); /* set/used when do_sort_keys==TRUE */
   /*
     index_merge may invoke a scan on an object for which dsmrr_info[_const]
     has not been called, so set the owner handler here as well.

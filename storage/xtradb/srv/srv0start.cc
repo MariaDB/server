@@ -3,7 +3,7 @@
 Copyright (c) 1996, 2014, Oracle and/or its affiliates. All rights reserved.
 Copyright (c) 2008, Google Inc.
 Copyright (c) 2009, Percona Inc.
-Copyright (c) 2013, 2014, SkySQL Ab. All Rights Reserved.
+Copyright (c) 2013, 2015, MariaDB Corporation
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -52,6 +52,7 @@ Created 2/16/1996 Heikki Tuuri
 #include "os0file.h"
 #include "os0thread.h"
 #include "fil0fil.h"
+#include "fil0crypt.h"
 #include "fsp0fsp.h"
 #include "rem0rec.h"
 #include "mtr0mtr.h"
@@ -136,23 +137,33 @@ UNIV_INTERN enum srv_shutdown_state	srv_shutdown_state = SRV_SHUTDOWN_NONE;
 static os_file_t	files[1000];
 
 /** io_handler_thread parameters for thread identification */
-static ulint		n[SRV_MAX_N_IO_THREADS + 6];
-/** io_handler_thread identifiers, 32 is the maximum number of purge threads  */
-/** 6 is the ? */
-#define	START_OLD_THREAD_CNT	(SRV_MAX_N_IO_THREADS + 6 + SRV_MAX_N_PURGE_THREADS)
-static os_thread_id_t	thread_ids[SRV_MAX_N_IO_THREADS + 6 + SRV_MAX_N_PURGE_THREADS + MTFLUSH_MAX_WORKER];
+static ulint		n[SRV_MAX_N_IO_THREADS];
+/** io_handler_thread identifiers, 32 is the maximum number of purge threads.
+The extra elements at the end are allocated as follows:
+SRV_MAX_N_IO_THREADS + 1: srv_master_thread
+SRV_MAX_N_IO_THREADS + 2: lock_wait_timeout_thread
+SRV_MAX_N_IO_THREADS + 3: srv_error_monitor_thread
+SRV_MAX_N_IO_THREADS + 4: srv_monitor_thread
+SRV_MAX_N_IO_THREADS + 5: srv_redo_log_follow_thread
+SRV_MAX_N_IO_THREADS + 6: srv_purge_coordinator_thread
+SRV_MAX_N_IO_THREADS + 7: srv_worker_thread
+...
+SRV_MAX_N_IO_THREADS + 7 + srv_n_purge_threads - 1: srv_worker_thread */
+static os_thread_id_t	thread_ids[SRV_MAX_N_IO_THREADS + 7
+				   + SRV_MAX_N_PURGE_THREADS
+				   + MTFLUSH_MAX_WORKER];
 /* Thread contex data for multi-threaded flush */
 void *mtflush_ctx=NULL;
 
 /** Thead handles */
-static os_thread_t	thread_handles[SRV_MAX_N_IO_THREADS + 6 + SRV_MAX_N_PURGE_THREADS];
+static os_thread_t	thread_handles[SRV_MAX_N_IO_THREADS + 7 + SRV_MAX_N_PURGE_THREADS];
 static os_thread_t	buf_flush_page_cleaner_thread_handle;
 static os_thread_t	buf_dump_thread_handle;
 static os_thread_t	dict_stats_thread_handle;
 static os_thread_t	buf_flush_lru_manager_thread_handle;
 static os_thread_t	srv_redo_log_follow_thread_handle;
 /** Status variables, is thread started ?*/
-static bool		thread_started[SRV_MAX_N_IO_THREADS + 6 + SRV_MAX_N_PURGE_THREADS] = {false};
+static bool		thread_started[SRV_MAX_N_IO_THREADS + 7 + SRV_MAX_N_PURGE_THREADS] = {false};
 static bool		buf_flush_page_cleaner_thread_started = false;
 static bool		buf_dump_thread_started = false;
 static bool		dict_stats_thread_started = false;
@@ -511,7 +522,8 @@ DECLARE_THREAD(io_handler_thread)(
 	os_thread_set_priority(srv_io_tids[tid_i], srv_sched_priority_io);
 
 #ifdef UNIV_DEBUG_THREAD_CREATION
-	fprintf(stderr, "Io handler thread %lu starts, id %lu\n", segment,
+	ib_logf(IB_LOG_LEVEL_INFO,
+		"Io handler thread %lu starts, id %lu\n", segment,
 		os_thread_pf(os_thread_get_curr_id()));
 #endif
 
@@ -1143,7 +1155,7 @@ check_first_page:
 
 			*sum_of_new_sizes += srv_data_file_sizes[i];
 
-			crypt_data = fil_space_create_crypt_data();
+			crypt_data = fil_space_create_crypt_data(FIL_SPACE_ENCRYPTION_DEFAULT, FIL_DEFAULT_ENCRYPTION_KEY);
 		}
 
 		ret = os_file_close(files[i]);
@@ -1687,53 +1699,45 @@ innobase_start_or_create_for_mysql(void)
 	}
 
 #ifdef UNIV_DEBUG
-	ut_print_timestamp(stderr);
-	fprintf(stderr,
-		" InnoDB: !!!!!!!! UNIV_DEBUG switched on !!!!!!!!!\n");
+	ib_logf(IB_LOG_LEVEL_INFO,
+		" InnoDB: !!!!!!!! UNIV_DEBUG switched on !!!!!!!!!");
 #endif
 
 #ifdef UNIV_IBUF_DEBUG
-	ut_print_timestamp(stderr);
-	fprintf(stderr,
-		" InnoDB: !!!!!!!! UNIV_IBUF_DEBUG switched on !!!!!!!!!\n");
+	ib_logf(IB_LOG_LEVEL_INFO,
+		" InnoDB: !!!!!!!! UNIV_IBUF_DEBUG switched on !!!!!!!!!");
 # ifdef UNIV_IBUF_COUNT_DEBUG
-	ut_print_timestamp(stderr);
-	fprintf(stderr,
+	ib_logf(IB_LOG_LEVEL_INFO,
 		" InnoDB: !!!!!!!! UNIV_IBUF_COUNT_DEBUG switched on "
-		"!!!!!!!!!\n");
-	ut_print_timestamp(stderr);
-	fprintf(stderr,
-		" InnoDB: Crash recovery will fail with UNIV_IBUF_COUNT_DEBUG\n");
+		"!!!!!!!!!");
+	ib_logf(IB_LOG_LEVEL_INFO,
+		" InnoDB: Crash recovery will fail with UNIV_IBUF_COUNT_DEBUG");
 # endif
 #endif
 
 #ifdef UNIV_BLOB_DEBUG
-	fprintf(stderr,
+	ib_logf(IB_LOG_LEVEL_INFO,
 		"InnoDB: !!!!!!!! UNIV_BLOB_DEBUG switched on !!!!!!!!!\n"
-		"InnoDB: Server restart may fail with UNIV_BLOB_DEBUG\n");
+		"InnoDB: Server restart may fail with UNIV_BLOB_DEBUG");
 #endif /* UNIV_BLOB_DEBUG */
 
 #ifdef UNIV_SYNC_DEBUG
-	ut_print_timestamp(stderr);
-	fprintf(stderr,
-		" InnoDB: !!!!!!!! UNIV_SYNC_DEBUG switched on !!!!!!!!!\n");
+	ib_logf(IB_LOG_LEVEL_INFO,
+		" InnoDB: !!!!!!!! UNIV_SYNC_DEBUG switched on !!!!!!!!!");
 #endif
 
 #ifdef UNIV_SEARCH_DEBUG
-	ut_print_timestamp(stderr);
-	fprintf(stderr,
-		" InnoDB: !!!!!!!! UNIV_SEARCH_DEBUG switched on !!!!!!!!!\n");
+	ib_logf(IB_LOG_LEVEL_INFO,
+		" InnoDB: !!!!!!!! UNIV_SEARCH_DEBUG switched on !!!!!!!!!");
 #endif
 
 #ifdef UNIV_LOG_LSN_DEBUG
-	ut_print_timestamp(stderr);
-	fprintf(stderr,
-		" InnoDB: !!!!!!!! UNIV_LOG_LSN_DEBUG switched on !!!!!!!!!\n");
+	ib_logf(IB_LOG_LEVEL_INFO,
+		" InnoDB: !!!!!!!! UNIV_LOG_LSN_DEBUG switched on !!!!!!!!!");
 #endif /* UNIV_LOG_LSN_DEBUG */
 #ifdef UNIV_MEM_DEBUG
-	ut_print_timestamp(stderr);
-	fprintf(stderr,
-		" InnoDB: !!!!!!!! UNIV_MEM_DEBUG switched on !!!!!!!!!\n");
+	ib_logf(IB_LOG_LEVEL_INFO,
+		" InnoDB: !!!!!!!! UNIV_MEM_DEBUG switched on !!!!!!!!!");
 #endif
 
 	if (srv_use_sys_malloc) {
@@ -1904,6 +1908,7 @@ innobase_start_or_create_for_mysql(void)
 			    + 1 /* srv_error_monitor_thread */
 			    + 1 /* srv_monitor_thread */
 			    + 1 /* srv_master_thread */
+			    + 1 /* srv_redo_log_follow_thread */
 			    + 1 /* srv_purge_coordinator_thread */
 			    + 1 /* buf_dump_thread */
 			    + 1 /* dict_stats_thread */
@@ -2817,21 +2822,21 @@ files_checked:
 	if (!srv_read_only_mode
 	    && srv_force_recovery < SRV_FORCE_NO_BACKGROUND) {
 
-		thread_handles[5 + SRV_MAX_N_IO_THREADS] = os_thread_create(
+		thread_handles[6 + SRV_MAX_N_IO_THREADS] = os_thread_create(
 			srv_purge_coordinator_thread,
-			NULL, thread_ids + 5 + SRV_MAX_N_IO_THREADS);
+			NULL, thread_ids + 6 + SRV_MAX_N_IO_THREADS);
 
-		thread_started[5 + SRV_MAX_N_IO_THREADS] = true;
+		thread_started[6 + SRV_MAX_N_IO_THREADS] = true;
 
 		ut_a(UT_ARR_SIZE(thread_ids)
-		     > 5 + srv_n_purge_threads + SRV_MAX_N_IO_THREADS);
+		     > 6 + srv_n_purge_threads + SRV_MAX_N_IO_THREADS);
 
 		/* We've already created the purge coordinator thread above. */
 		for (i = 1; i < srv_n_purge_threads; ++i) {
-			thread_handles[5 + i + SRV_MAX_N_IO_THREADS] = os_thread_create(
+			thread_handles[6 + i + SRV_MAX_N_IO_THREADS] = os_thread_create(
 				srv_worker_thread, NULL,
-				thread_ids + 5 + i + SRV_MAX_N_IO_THREADS);
-			thread_started[5 + i + SRV_MAX_N_IO_THREADS] = true;
+				thread_ids + 6 + i + SRV_MAX_N_IO_THREADS);
+			thread_started[6 + i + SRV_MAX_N_IO_THREADS] = true;
 		}
 
 		srv_start_wait_for_purge_to_start();
@@ -2999,6 +3004,15 @@ files_checked:
 		ib_logf(IB_LOG_LEVEL_INFO,
 			"!!! innodb_force_recovery is set to %lu !!!",
 			(ulong) srv_force_recovery);
+	}
+
+	if (!srv_read_only_mode) {
+		/*
+		  Create a checkpoint before logging anything new, so that
+		  the current encryption key in use is definitely logged
+		  before any log blocks encrypted with that key.
+		*/
+		log_make_checkpoint_at(LSN_MAX, TRUE);
 	}
 
 	if (srv_force_recovery == 0) {
