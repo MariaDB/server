@@ -1449,9 +1449,9 @@ UNIV_INTERN
 byte*
 buf_page_encrypt_before_write(
 /*==========================*/
-	buf_page_t* page, /*!< in/out: buffer page to be flushed */
-	const byte* frame,
-	ulint space_id);
+	buf_page_t*	page,		/*!< in/out: buffer page to be flushed */
+	byte*		frame,		/*!< in: src frame */
+	ulint		space_id);	/*!< in: space id */
 
 /**********************************************************************
 The hook that is called after page is written to disk.

@@ -545,13 +545,13 @@ fil_space_clear_crypt_data(
 /******************************************************************
 Encrypt a page */
 UNIV_INTERN
-void
+byte*
 fil_space_encrypt(
 /*==============*/
 	ulint		space,		/*!< in: Space id */
 	ulint		offset,		/*!< in: Page offset */
 	lsn_t		lsn,		/*!< in: lsn */
-	const byte*	src_frame,	/*!< in: Source page to be encrypted */
+	byte*		src_frame,	/*!< in: Source page to be encrypted */
 	ulint		zip_size,	/*!< in: compressed size if
 					row_format compressed */
 	byte*		dst_frame)	/*!< in: outbut buffer */
@@ -566,18 +566,14 @@ fil_space_encrypt(
 		|| orig_page_type==FIL_PAGE_TYPE_XDES) {
 		/* File space header or extent descriptor do not need to be
 		encrypted. */
-		//TODO: is this really needed ?
-		memcpy(dst_frame, src_frame, page_size);
-		return;
+		return src_frame;
 	}
 
 	/* Get crypt data from file space */
 	crypt_data = fil_space_get_crypt_data(space);
 
 	if (crypt_data == NULL) {
-		//TODO: Is this really needed ?
-		memcpy(dst_frame, src_frame, page_size);
-		return;
+		return src_frame;
 	}
 
 	ut_ad(crypt_data->encryption != FIL_SPACE_ENCRYPTION_OFF);
@@ -663,6 +659,8 @@ fil_space_encrypt(
 	mach_write_to_4(dst_frame + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION + 4, checksum);
 
 	srv_stats.pages_encrypted.inc();
+
+	return dst_frame;
 }
 
 /*********************************************************************
@@ -693,24 +691,22 @@ fil_space_check_encryption_read(
 
 /******************************************************************
 Decrypt a page
-@return true if page was encrypted */
+@return true if page decrypted, false if not.*/
 UNIV_INTERN
 bool
 fil_space_decrypt(
 /*==============*/
 	fil_space_crypt_t*	crypt_data,	/*!< in: crypt data */
-	const byte*		src_frame,	/*!< in: input buffer */
+	byte*			tmp_frame,	/*!< in: temporary buffer */
 	ulint			page_size,	/*!< in: page size */
-	byte*			dst_frame)	/*!< out: output buffer */
+	byte*			src_frame)	/*!< in:out: page buffer */
 {
 	ulint page_type = mach_read_from_2(src_frame+FIL_PAGE_TYPE);
 	uint key_version = mach_read_from_4(src_frame + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION);
 	bool page_compressed = (page_type == FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED);
 
 	if (key_version == ENCRYPTION_KEY_NOT_ENCRYPTED) {
-		//TODO: is this really needed ?
-		memcpy(dst_frame, src_frame, page_size);
-		return false; /* page not decrypted */
+		return false;
 	}
 
 	ut_ad(crypt_data->encryption != FIL_SPACE_ENCRYPTION_OFF);
@@ -723,11 +719,11 @@ fil_space_decrypt(
 	ib_uint64_t lsn = mach_read_from_8(src_frame + FIL_PAGE_LSN);
 
 	/* Copy FIL page header, it is not encrypted */
-	memcpy(dst_frame, src_frame, FIL_PAGE_DATA);
+	memcpy(tmp_frame, src_frame, FIL_PAGE_DATA);
 
 	/* Calculate the offset where decryption starts */
 	const byte* src = src_frame + FIL_PAGE_DATA;
-	byte* dst = dst_frame + FIL_PAGE_DATA;
+	byte* dst = tmp_frame + FIL_PAGE_DATA;
 	uint32 dstlen = 0;
 	ulint srclen = page_size - (FIL_PAGE_DATA + FIL_PAGE_DATA_END);
 
@@ -751,12 +747,12 @@ fil_space_decrypt(
 	to sector boundary is written. */
 	if (!page_compressed) {
 		/* Copy FIL trailer */
-		memcpy(dst_frame + page_size - FIL_PAGE_DATA_END,
+		memcpy(tmp_frame + page_size - FIL_PAGE_DATA_END,
 		       src_frame + page_size - FIL_PAGE_DATA_END,
 		       FIL_PAGE_DATA_END);
 
 		// clear key-version & crypt-checksum from dst
-		memset(dst_frame + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION, 0, 8);
+		memset(tmp_frame + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION, 0, 8);
 	}
 
 	srv_stats.pages_decrypted.inc();
@@ -765,18 +761,31 @@ fil_space_decrypt(
 }
 
 /******************************************************************
-Decrypt a page */
+Decrypt a page
+@return encrypted page, or original not encrypted page if encryption is
+not needed. */
 UNIV_INTERN
-void
+byte*
 fil_space_decrypt(
 /*==============*/
 	ulint		space,		/*!< in: Fil space id */
-	const byte*	src_frame,	/*!< in: input buffer */
+	byte*		tmp_frame,	/*!< in: temporary buffer */
 	ulint		page_size,	/*!< in: page size */
-	byte*		dst_frame)	/*!< out: output buffer */
+	byte*		src_frame)	/*!< in/out: page buffer */
 {
-	fil_space_decrypt(fil_space_get_crypt_data(space),
-			  src_frame, page_size, dst_frame);
+	bool encrypted = fil_space_decrypt(
+				fil_space_get_crypt_data(space),
+				tmp_frame,
+				page_size,
+				src_frame);
+
+	if (encrypted) {
+		/* Copy the decrypted page back to page buffer, not
+		really any other options. */
+		memcpy(src_frame, tmp_frame, page_size);
+	}
+
+	return src_frame;
 }
 
 /*********************************************************************

@@ -1,5 +1,5 @@
 /*****************************************************************************
-
+Copyright (C) 2013, 2015, Google Inc. All Rights Reserved.
 Copyright (c) 2015, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
@@ -197,43 +197,45 @@ bool
 fil_space_check_encryption_read(
 /*============================*/
 	ulint space);          /*!< in: tablespace id */
-
-/*********************************************************************
-Encrypt buffer page */
-UNIV_INTERN
-void
-fil_space_encrypt(
-/*==============*/
-	ulint space,          /*!< in: tablespace id */
-	ulint offset,         /*!< in: page no */
-	lsn_t lsn,            /*!< in: page lsn */
-	const byte* src_frame,/*!< in: page frame */
-	ulint size,           /*!< in: size of data to encrypt */
-	byte* dst_frame);      /*!< in: where to encrypt to */
-
-/*********************************************************************
-Decrypt buffer page */
-UNIV_INTERN
-void
-fil_space_decrypt(
-/*==============*/
-	ulint space,          /*!< in: tablespace id */
-	const byte* src_frame,/*!< in: page frame */
-	ulint page_size,      /*!< in: size of data to encrypt */
-	byte* dst_frame);     /*!< in: where to decrypt to */
-
-
-/*********************************************************************
-Decrypt buffer page
-@return true if page was encrypted */
+/******************************************************************
+Decrypt a page
+@return true if page is decrypted, false if not. */
 UNIV_INTERN
 bool
 fil_space_decrypt(
 /*==============*/
-	fil_space_crypt_t* crypt_data, /*!< in: crypt data */
-	const byte* src_frame,/*!< in: page frame */
-	ulint page_size,      /*!< in: page size */
-	byte* dst_frame);     /*!< in: where to decrypt to */
+	fil_space_crypt_t*	crypt_data,	/*!< in: crypt data */
+	byte*			tmp_frame,	/*!< in: temporary buffer */
+	ulint			page_size,	/*!< in: page size */
+	byte*			src_frame);	/*!< in:out: page buffer */
+
+/*********************************************************************
+Encrypt buffer page
+@return encrypted page, or original not encrypted page if encrypt
+is not needed. */
+UNIV_INTERN
+byte*
+fil_space_encrypt(
+/*==============*/
+	ulint	space,		/*!< in: tablespace id */
+	ulint	offset,		/*!< in: page no */
+	lsn_t	lsn,		/*!< in: page lsn */
+	byte*	src_frame,	/*!< in: page frame */
+	ulint	size,		/*!< in: size of data to encrypt */
+	byte*	dst_frame);	/*!< in: where to encrypt to */
+
+/*********************************************************************
+Decrypt buffer page
+@return decrypted page, or original not encrypted page if decrypt is
+not needed.*/
+UNIV_INTERN
+byte*
+fil_space_decrypt(
+/*==============*/
+	ulint	space,		/*!< in: tablespace id */
+	byte*	src_frame,	/*!< in: page frame */
+	ulint	page_size,	/*!< in: size of data to encrypt */
+	byte*	dst_frame);	/*!< in: where to decrypt to */
 
 /*********************************************************************
 fil_space_verify_crypt_checksum

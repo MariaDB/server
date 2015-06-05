@@ -6410,14 +6410,19 @@ fil_iterate(
 		for (ulint i = 0; i < n_pages_read; ++i) {
 
 			if (iter.crypt_data != NULL) {
+				ulint size = iter.page_size;
 				bool decrypted = fil_space_decrypt(
-					iter.crypt_data,
-					readptr + i * iter.page_size,    // src
-					iter.page_size,
-					io_buffer + i * iter.page_size); // dst
+							iter.crypt_data,
+							io_buffer + i * size, //dst
+							iter.page_size,
+							readptr + i * size); // src
+
 				if (decrypted) {
 					/* write back unencrypted page */
 					updated = true;
+				} else {
+					/* TODO: remove unnecessary memcpy's */
+					memcpy(io_buffer + i * size, readptr + i * size, size);
 				}
 			}
 
