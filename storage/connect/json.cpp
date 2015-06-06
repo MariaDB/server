@@ -23,11 +23,7 @@
 
 #define ARGS       MY_MIN(24,len-i),s+MY_MAX(i-3,0)
 
-<<<<<<< HEAD
 #if defined(__WIN__)
-=======
-#if defined(WIN32)
->>>>>>> ob-10.1
 #define EL  "\r\n"
 #else
 #define EL  "\n"
@@ -1163,7 +1159,4 @@ bool JVALUE::IsNull(void)
 {
   return (Jsp) ? Jsp->IsNull() : (Value) ? Value->IsZero() : true;
 } // end of IsNull
-<<<<<<< HEAD
 
-=======
->>>>>>> ob-10.1

@@ -1287,17 +1287,7 @@ PJSON JSONCOL::GetRow(PGLOBAL g)
         break;
       case TYPE_JAR:
         if (!Nodes[i].Key) {
-<<<<<<< HEAD
           arp = (PJAR)row;
-=======
-          if (Nodes[i].Op != OP_NULL) {
-            arp = (PJAR)row;
-
-            if (Nodes[i].Rank)
-              val = arp->GetValue(Nodes[i].Rank - 1);
-            else
-              val = arp->GetValue(Nodes[i].Rx);
->>>>>>> ob-10.1
 
           if (Nodes[i].Op == OP_EQ)
             val = arp->GetValue(Nodes[i].Rank);

@@ -106,11 +106,7 @@ class FILTERX : public FILTER {
 
   // Fake operator new used to change a filter into a derived filter
   void * operator new(size_t, PFIL filp) {return filp;}
-<<<<<<< HEAD
 #if defined(__WIN__)
-=======
-#if defined(WIN32)
->>>>>>> ob-10.1
   // Avoid warning C4291 by defining a matching dummy delete operator
   void operator delete(void *, PFIL) {}
 #else

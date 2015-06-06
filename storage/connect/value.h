@@ -360,15 +360,7 @@ class DllExport DTVAL : public TYPVAL<int> {
  public:
   // Constructors
   DTVAL(PGLOBAL g, int n, int p, PSZ fmt);
-<<<<<<< HEAD
   DTVAL(int n);
-=======
-//DTVAL(PGLOBAL g, PSZ s, int n);
-//DTVAL(PGLOBAL g, short i);
-  DTVAL(int n);
-//DTVAL(PGLOBAL g, longlong n);
-//DTVAL(PGLOBAL g, double f);
->>>>>>> ob-10.1
 
   // Implementation
   virtual bool   SetValue_pval(PVAL valp, bool chktype);

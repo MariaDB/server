@@ -12,8 +12,10 @@
 
 # Declare files that will always have LF line endings on checkout.
 *.result text eol=lf
-storage/connect/mysql-test/connect/std_data/*.txt text eol=lf
-storage/connect/mysql-test/connect/std_data/*.dat text eol=lf
+
+# Denote the files that should not be modified.
+storage/connect/mysql-test/connect/std_data/*.txt binary
+storage/connect/mysql-test/connect/std_data/*.dat binary
 
 # Denote all files that are truly binary and should not be modified.
 *.png binary

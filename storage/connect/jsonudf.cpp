@@ -410,11 +410,7 @@ void Json_Array_Add_deinit(UDF_INIT* initid)
 } // end of Json_Array_Add_deinit
 
 /***********************************************************************/
-<<<<<<< HEAD
 /*  Delete a value from a Json array.                                  */
-=======
-/*  Add values to a Json array.                                        */
->>>>>>> ob-10.1
 /***********************************************************************/
 my_bool Json_Array_Delete_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 {
@@ -455,11 +451,7 @@ char *Json_Array_Delete(UDF_INIT *initid, UDF_ARGS *args, char *result,
   } else {
     n = *(int*)args->args[1];
     arp = jvp->GetArray();
-<<<<<<< HEAD
     arp->DeleteValue(n);
-=======
-    arp->DeleteValue(n - 1);
->>>>>>> ob-10.1
     arp->InitArray(g);
 
     if (!(str = Serialize(g, arp, NULL, 0))) {

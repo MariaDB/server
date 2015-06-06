@@ -169,22 +169,13 @@
 #define JSONMAX      10             // JSON Default max grp size
 
 extern "C" {
-<<<<<<< HEAD
        char  version[]= "Version 1.03.0007 June 03, 2015";
 #if defined(__WIN__)
-=======
-       char  version[]= "Version 1.03.0007 April 30, 2015";
-#if defined(WIN32)
->>>>>>> ob-10.1
        char  compver[]= "Version 1.03.0007 " __DATE__ " "  __TIME__;
        char slash= '\\';
 #else   // !__WIN__
        char slash= '/';
-<<<<<<< HEAD
 #endif  // !__WIN__
-=======
-#endif  // !WIN32
->>>>>>> ob-10.1
 } // extern "C"
 
 #if defined(XMAP)
@@ -204,14 +195,8 @@ extern "C" {
 /***********************************************************************/
 PQRYRES OEMColumns(PGLOBAL g, PTOS topt, char *tab, char *db, bool info);
 PQRYRES VirColumns(PGLOBAL g, bool info);
-<<<<<<< HEAD
 PQRYRES JSONColumns(PGLOBAL g, char *db, PTOS topt, bool info);
 PQRYRES XMLColumns(PGLOBAL g, char *db, char *tab, PTOS topt, bool info);
-=======
-PQRYRES JSONColumns(PGLOBAL g, char *dp, const char *fn, char *objn,
-                    int pretty, int lvl, int mxr, bool info);
-PQRYRES XMLColumns(PGLOBAL g, char *dp, char *tab, PTOS topt, bool info);
->>>>>>> ob-10.1
 void    PushWarning(PGLOBAL g, THD *thd, int level);
 bool    CheckSelf(PGLOBAL g, TABLE_SHARE *s, const char *host,
                   const char *db, char *tab, const char *src, int port);
@@ -5021,15 +5006,9 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
   char       *tab, *dsn, *shm, *dpath; 
 #if defined(__WIN__)
   char       *nsp= NULL, *cls= NULL;
-<<<<<<< HEAD
 #endif   // __WIN__
   int         port= 0, hdr= 0, mxr= 0, mxe= 0, rc= 0;
   int         cop __attribute__((unused))= 0, lrecl= 0;
-=======
-#endif   // WIN32
-  int         port= 0, hdr= 0, mxr= 0, mxe= 0, rc= 0, lvl= 0;
-  int         cop __attribute__((unused))= 0, pty= 2, lrecl= 0;
->>>>>>> ob-10.1
 #if defined(ODBC_SUPPORT)
   POPARM      sop = NULL;
   char       *ucnc = NULL;
