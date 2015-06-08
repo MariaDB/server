@@ -1,4 +1,4 @@
-/* Copyright 2010 Codership Oy <http://www.codership.com>
+/* Copyright 2010-2015 Codership Oy <http://www.codership.com>
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -165,10 +165,9 @@ env::append(const char* val)
             ++len_;
             env_[len_] = NULL;
         }
+        else errno_ = errno;
     }
-
-    /* if either realloc() or strdup() failed, errno had been set */
-    errno_ = errno;
+    else errno_ = errno;
 
     return errno_;
 }
