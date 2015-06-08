@@ -1421,23 +1421,30 @@ buf_pool_free_instance(
 	hash_table_free(buf_pool->zip_hash);
 
 	/* Free all used temporary slots */
-	for(ulint i = 0; i < buf_pool->tmp_arr->n_slots; i++) {
-		buf_tmp_buffer_t* slot = &buf_pool->tmp_arr->slots[i];
+	if (buf_pool->tmp_arr) {
+		for(ulint i = 0; i < buf_pool->tmp_arr->n_slots; i++) {
+			buf_tmp_buffer_t* slot = &(buf_pool->tmp_arr->slots[i]);
 #ifdef HAVE_LZO
-		if (slot->lzo_mem) {
-			ut_free(slot->lzo_mem);
-		}
+			if (slot && slot->lzo_mem) {
+				ut_free(slot->lzo_mem);
+				slot->lzo_mem = NULL;
+			}
 #endif
-		if (slot->crypt_buf_free) {
-			ut_free(slot->crypt_buf_free);
-		}
-		if (slot->comp_buf_free) {
-			ut_free(slot->comp_buf_free);
+			if (slot && slot->crypt_buf_free) {
+				ut_free(slot->crypt_buf_free);
+				slot->crypt_buf_free = NULL;
+			}
+
+			if (slot && slot->comp_buf_free) {
+				ut_free(slot->comp_buf_free);
+				slot->comp_buf_free = NULL;
+			}
 		}
 	}
 
 	mem_free(buf_pool->tmp_arr->slots);
 	mem_free(buf_pool->tmp_arr);
+	buf_pool->tmp_arr = NULL;
 }
 
 /********************************************************************//**

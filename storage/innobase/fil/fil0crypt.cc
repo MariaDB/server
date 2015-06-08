@@ -588,19 +588,28 @@ fil_space_encrypt(
 	}
 
 	ibool page_compressed = (orig_page_type == FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED);
+	ulint header_len = FIL_PAGE_DATA;
+
+	if (page_compressed) {
+		header_len += (FIL_PAGE_COMPRESSED_SIZE + FIL_PAGE_COMPRESSION_METHOD_SIZE);
+	}
 
 	/* FIL page header is not encrypted */
-	memcpy(dst_frame, src_frame, FIL_PAGE_DATA);
+	memcpy(dst_frame, src_frame, header_len);
 
 	/* Store key version */
 	mach_write_to_4(dst_frame + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION, key_version);
 
 	/* Calculate the start offset in a page */
-	ulint unencrypted_bytes = FIL_PAGE_DATA + FIL_PAGE_DATA_END;
+	ulint unencrypted_bytes = header_len + FIL_PAGE_DATA_END;
 	ulint srclen = page_size - unencrypted_bytes;
-	const byte* src = src_frame + FIL_PAGE_DATA;
-	byte* dst = dst_frame + FIL_PAGE_DATA;
+	const byte* src = src_frame + header_len;
+	byte* dst = dst_frame + header_len;
 	uint32 dstlen = 0;
+
+	if (page_compressed) {
+		srclen = mach_read_from_2(src_frame + FIL_PAGE_DATA);
+	}
 
 	int rc = encryption_scheme_encrypt(src, srclen, dst, &dstlen,
 					   crypt_data, key_version,
@@ -717,15 +726,24 @@ fil_space_decrypt(
 	ulint offset = mach_read_from_4(
 		src_frame + FIL_PAGE_OFFSET);
 	ib_uint64_t lsn = mach_read_from_8(src_frame + FIL_PAGE_LSN);
+	ulint header_len = FIL_PAGE_DATA;
+
+	if (page_compressed) {
+		header_len += (FIL_PAGE_COMPRESSED_SIZE + FIL_PAGE_COMPRESSION_METHOD_SIZE);
+	}
 
 	/* Copy FIL page header, it is not encrypted */
-	memcpy(tmp_frame, src_frame, FIL_PAGE_DATA);
+	memcpy(tmp_frame, src_frame, header_len);
 
 	/* Calculate the offset where decryption starts */
-	const byte* src = src_frame + FIL_PAGE_DATA;
-	byte* dst = tmp_frame + FIL_PAGE_DATA;
+	const byte* src = src_frame + header_len;
+	byte* dst = tmp_frame + header_len;
 	uint32 dstlen = 0;
-	ulint srclen = page_size - (FIL_PAGE_DATA + FIL_PAGE_DATA_END);
+	ulint srclen = page_size - (header_len + FIL_PAGE_DATA_END);
+
+	if (page_compressed) {
+		srclen = mach_read_from_2(src_frame + FIL_PAGE_DATA);
+	}
 
 	int rc = encryption_scheme_decrypt(src, srclen, dst, &dstlen,
 					   crypt_data, key_version,
