@@ -144,7 +144,7 @@ if ! wsrep_auth_not_set
 then
     readonly AUTH_VEC=(${WSREP_SST_OPT_AUTH//:/ })
     [ -n "${AUTH_VEC[0]}" ] && WSREP_SST_OPT_USER="${AUTH_VEC[0]}"
-    [ -n "${AUTH_VEC[1]}" ] && WSREP_SST_OPT_PSWD="${AUTH_VEC[1]}"
+    [ -n "${AUTH_VEC[1]:-}" ] && WSREP_SST_OPT_PSWD="${AUTH_VEC[1]:-}"
 fi
 readonly WSREP_SST_OPT_USER
 readonly WSREP_SST_OPT_PSWD
