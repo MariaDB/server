@@ -27,7 +27,6 @@
 #cmakedefine HAVE_BSEARCH 1
 #cmakedefine HAVE_CRYPT_H 1
 #cmakedefine HAVE_CURSES_H 1
-#cmakedefine HAVE_CXXABI_H 1
 #cmakedefine HAVE_BFD_H 1
 #cmakedefine HAVE_NCURSES_H 1
 #cmakedefine HAVE_NDIR_H 1
@@ -471,6 +470,7 @@
 #cmakedefine MY_ATOMIC_MODE_DUMMY 1
 #cmakedefine MY_ATOMIC_MODE_RWLOCKS 1
 #cmakedefine HAVE_GCC_ATOMIC_BUILTINS 1
+#cmakedefine HAVE_GCC_C11_ATOMICS 1
 #cmakedefine HAVE_SOLARIS_ATOMIC 1
 #cmakedefine HAVE_DECL_SHM_HUGETLB 1
 #cmakedefine HAVE_LARGE_PAGES 1
