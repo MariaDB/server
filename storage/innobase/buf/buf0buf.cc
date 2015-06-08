@@ -63,10 +63,6 @@ Created 11/5/1995 Heikki Tuuri
 #include "lzo/lzo1x.h"
 #endif
 
-/* Number of temporary slots used for encryption/compression
-memory allocation before/after I/O operations */
-#define BUF_MAX_TMP_SLOTS 200
-
 /*
 		IMPLEMENTATION OF THE BUFFER POOL
 		=================================
@@ -1368,8 +1364,9 @@ buf_pool_init_instance(
 
 	/* Initialize the temporal memory array and slots */
 	buf_pool->tmp_arr = (buf_tmp_array_t *)mem_zalloc(sizeof(buf_tmp_array_t));
-	buf_pool->tmp_arr->n_slots = BUF_MAX_TMP_SLOTS;
-	buf_pool->tmp_arr->slots = (buf_tmp_buffer_t*)mem_zalloc(sizeof(buf_tmp_buffer_t) * BUF_MAX_TMP_SLOTS);
+	ulint n_slots = srv_n_read_io_threads * srv_n_write_io_threads * (8 * OS_AIO_N_PENDING_IOS_PER_THREAD);
+	buf_pool->tmp_arr->n_slots = n_slots;
+	buf_pool->tmp_arr->slots = (buf_tmp_buffer_t*)mem_zalloc(sizeof(buf_tmp_buffer_t) * n_slots);
 
 	buf_pool_mutex_exit(buf_pool);
 
