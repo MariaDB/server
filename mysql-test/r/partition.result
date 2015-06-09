@@ -2628,3 +2628,16 @@ alter table t1 drop partition if exists p5;
 Warnings:
 Note	1507	Error in list of partitions to DROP
 DROP TABLE t1;
+#
+# Start of 10.1 tests
+#
+#
+# MDEV-8283 crash in get_mm_leaf with xor on binary col
+#
+CREATE TABLE t1(a BINARY(80)) PARTITION BY KEY(a) PARTITIONS 3;
+SELECT 1 FROM t1 WHERE a XOR 'a';
+1
+DROP TABLE t1;
+#
+# End of 10.1 tests
+#

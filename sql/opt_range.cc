@@ -8370,8 +8370,8 @@ get_mm_leaf(RANGE_OPT_PARAM *param, COND *conf_func, Field *field,
       value->result_type() == STRING_RESULT &&
       key_part->image_type == Field::itRAW &&
       field->charset() != conf_func->compare_collation() &&
-      !(conf_func->compare_collation()->state & MY_CS_BINSORT &&
-        (type == Item_func::EQUAL_FUNC || type == Item_func::EQ_FUNC)))
+      !((type == Item_func::EQUAL_FUNC || type == Item_func::EQ_FUNC) &&
+        conf_func->compare_collation()->state & MY_CS_BINSORT))
     goto end;
   if (value->cmp_type() == TIME_RESULT && field->cmp_type() != TIME_RESULT)
     goto end;

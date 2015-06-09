@@ -2884,3 +2884,17 @@ alter table t1 drop partition if exists p5;
 
 DROP TABLE t1;
 
+--echo #
+--echo # Start of 10.1 tests
+--echo #
+
+--echo #
+--echo # MDEV-8283 crash in get_mm_leaf with xor on binary col
+--echo #
+CREATE TABLE t1(a BINARY(80)) PARTITION BY KEY(a) PARTITIONS 3;
+SELECT 1 FROM t1 WHERE a XOR 'a';
+DROP TABLE t1;
+
+--echo #
+--echo # End of 10.1 tests
+--echo #
