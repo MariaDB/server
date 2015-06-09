@@ -1070,14 +1070,14 @@ wsrep_cb_status_t wsrep_sst_donate_cb (void* app_ctx, void* recv_ctx,
   wsp::env env(NULL);
   if (env.error())
   {
-    WSREP_ERROR("sst_donate_other(): env var ctor failed: %d", -env.error());
+    WSREP_ERROR("wsrep_sst_donate_cb(): env var ctor failed: %d", -env.error());
     return WSREP_CB_FAILURE;
   }
 
   int ret;
   if ((ret= sst_append_auth_env(env, sst_auth_real)))
   {
-    WSREP_ERROR("sst_donate_other(): appending auth env failed: %d", ret);
+    WSREP_ERROR("wsrep_sst_donate_cb(): appending auth env failed: %d", ret);
     return WSREP_CB_FAILURE;
   }
 
