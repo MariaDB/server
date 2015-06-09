@@ -13573,3 +13573,15 @@ DROP TABLE t1;
 #
 # End of MariaDB-10.0 tests
 #
+#
+# Start of MariaDB-10.1 tests
+#
+#
+# MDEV-6973 XOR aggregates argument collations
+#
+SELECT '10' COLLATE utf8_general_ci XOR '20' COLLATE utf8_unicode_ci;
+'10' COLLATE utf8_general_ci XOR '20' COLLATE utf8_unicode_ci
+0
+#
+# End of MariaDB-10.1 tests
+#
