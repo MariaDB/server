@@ -1092,7 +1092,7 @@ wsrep_cb_status_t wsrep_sst_donate_cb (void* app_ctx, void* recv_ctx,
                            current_gtid->seqno, bypass, env());
   }
 
-  return (ret > 0 ? WSREP_CB_SUCCESS : WSREP_CB_FAILURE);
+  return (ret >= 0 ? WSREP_CB_SUCCESS : WSREP_CB_FAILURE);
 }
 
 void wsrep_SE_init_grab()
