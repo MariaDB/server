@@ -648,11 +648,10 @@ int terminate_slave_threads(Master_info* mi,int thread_mask,bool skip_lock)
       DBUG_RETURN(ER_ERROR_DURING_FLUSH_LOGS);
 
     mysql_mutex_unlock(log_lock);
-
-    if (opt_slave_parallel_threads > 0 &&
-        !master_info_index->any_slave_sql_running())
-      rpl_parallel_inactivate_pool(&global_rpl_thread_pool);
   }
+  if (opt_slave_parallel_threads > 0 &&
+      !master_info_index->any_slave_sql_running())
+    rpl_parallel_inactivate_pool(&global_rpl_thread_pool);
   if (thread_mask & (SLAVE_IO|SLAVE_FORCE_ALL))
   {
     DBUG_PRINT("info",("Terminating IO thread"));
@@ -4819,10 +4818,8 @@ err_during_init:
   THD_CHECK_SENTRY(thd);
   rli->sql_driver_thd= 0;
   mysql_mutex_lock(&LOCK_thread_count);
-  THD_CHECK_SENTRY(thd);
   thd->rgi_fake= thd->rgi_slave= NULL;
   delete serial_rgi;
-  delete thd;
   mysql_mutex_unlock(&LOCK_thread_count);
 #ifdef WITH_WSREP
   /* if slave stopped due to node going non primary, we set global flag to
@@ -4853,6 +4850,22 @@ err_during_init:
   mysql_cond_broadcast(&rli->stop_cond);
   DBUG_EXECUTE_IF("simulate_slave_delay_at_terminate_bug38694", sleep(5););
   mysql_mutex_unlock(&rli->run_lock);  // tell the world we are done
+
+  /*
+    Deactivate the parallel replication thread pool, if there are now no more
+    SQL threads running. Do this here, when we have released all locks, but
+    while our THD (and current_thd) is still valid.
+  */
+  mysql_mutex_lock(&LOCK_active_mi);
+  if (opt_slave_parallel_threads > 0 &&
+      !master_info_index->any_slave_sql_running())
+    rpl_parallel_inactivate_pool(&global_rpl_thread_pool);
+  mysql_mutex_unlock(&LOCK_active_mi);
+
+  mysql_mutex_lock(&LOCK_thread_count);
+  THD_CHECK_SENTRY(thd);
+  delete thd;
+  mysql_mutex_unlock(&LOCK_thread_count);
 
   DBUG_LEAVE;                                   // Must match DBUG_ENTER()
   my_thread_end();
