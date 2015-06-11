@@ -67,13 +67,14 @@ FOREACH(file ${ABI_HEADERS})
                 -e "/^[	]*$/d"
                 -e "/^#pragma GCC set_debug_pwd/d"
                 -e "/^#ident/d"
+                -e "/^#include/d"
     RESULT_VARIABLE result OUTPUT_FILE ${abi_check_out} INPUT_FILE ${tmpfile})
   IF(NOT ${result} EQUAL 0)
     MESSAGE(FATAL_ERROR "sed returned error ${result}")
   ENDIF()
   FILE(REMOVE ${tmpfile})
   EXECUTE_PROCESS(
-    COMMAND diff -w ${file}.pp ${abi_check_out} RESULT_VARIABLE result)
+    COMMAND diff -I "^#include" -w ${file}.pp ${abi_check_out} RESULT_VARIABLE result)
   IF(NOT ${result} EQUAL 0)
     IF(ABI_UPDATE)
       EXECUTE_PROCESS(COMMAND mv -v ${abi_check_out} ${file}.pp)
