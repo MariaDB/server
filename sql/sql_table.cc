@@ -5478,7 +5478,7 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table,
         if (!table->view)
         {
           int result __attribute__((unused))=
-            show_create_table(thd, table, &query, create_info, WITHOUT_DB_NAME);
+            show_create_table(thd, table, &query, create_info, WITH_DB_NAME);
 
           DBUG_ASSERT(result == 0); // show_create_table() always return 0
           do_logging= FALSE;
