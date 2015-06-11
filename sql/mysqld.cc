@@ -2510,10 +2510,17 @@ static MYSQL_SOCKET activate_tcp_port(uint port)
 
     if (mysql_socket_getfd(ip_sock) == INVALID_SOCKET)
     {
-      sql_print_error("Failed to create a socket for %s '%s': errno: %d.",
-                      (a->ai_family == AF_INET) ? "IPv4" : "IPv6",
-                      (const char *) ip_addr,
-                      (int) socket_errno);
+      /*
+        Do not throw an error if a wildcard address is being used, but IPv6 is
+        not available, i.e. an attempt to create an AF_INET6 socket fails.
+      */
+      if (!real_bind_addr_str && ai->ai_family == AF_INET6)
+        sql_print_information("IPv6 is not available.");
+      else
+        sql_print_error("Failed to create a socket for %s '%s': errno: %d.",
+                        (a->ai_family == AF_INET) ? "IPv4" : "IPv6",
+                        (const char *) ip_addr,
+                        (int) socket_errno);
     }
     else 
     {
