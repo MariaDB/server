@@ -8187,6 +8187,11 @@ ha_innobase::general_fetch(
 
 	DBUG_ENTER("general_fetch");
 
+	/* If transaction is not startted do not continue, instead return a error code. */
+	if(!(prebuilt->sql_stat_start || (prebuilt->trx && prebuilt->trx->state == 1))) {
+		DBUG_RETURN(HA_ERR_END_OF_FILE);
+	}
+
 	ut_a(prebuilt->trx == thd_to_trx(user_thd));
 
 	innobase_srv_conc_enter_innodb(prebuilt->trx);

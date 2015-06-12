@@ -175,7 +175,6 @@ storage/tokudb/ft-index/ft/log_print.cc
 storage/tokudb/ft-index/ft/logformat
 storage/tokudb/ft-index/ft/ftverify
 storage/tokudb/ft-index/ft/tdb-recover
-storage/tokudb/ft-index/ft/tdb_logprint
 storage/tokudb/ft-index/ft/tokuftdump
 storage/tokudb/ft-index/portability/merge_archives_tokuportability_static.cmake
 storage/tokudb/ft-index/portability/toku_config.h
@@ -186,11 +185,11 @@ storage/tokudb/ft-index/toku_include/toku_config.h
 storage/tokudb/ft-index/tools/ba_replay
 storage/tokudb/ft-index/tools/ftverify
 storage/tokudb/ft-index/tools/tdb-recover
-storage/tokudb/ft-index/tools/tdb_logprint
 storage/tokudb/ft-index/tools/tokudb_dump
 storage/tokudb/ft-index/tools/tokudb_gen
 storage/tokudb/ft-index/tools/tokudb_load
 storage/tokudb/ft-index/tools/tokuftdump
+storage/tokudb/ft-index/tools/tokuft_logprint
 storage/tokudb/ft-index/xz/
 support-files/MySQL-shared-compat.spec
 support-files/binary-configure
