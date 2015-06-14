@@ -5859,12 +5859,17 @@ drop_create_field:
       /* let us check the name of the first key part. */
       if ((keyname= key->name.str) == NULL)
       {
-        List_iterator<Key_part_spec> part_it(key->columns);
-        Key_part_spec *kp;
-        if ((kp= part_it++))
-          keyname= kp->field_name.str;
-        if (keyname == NULL)
-          continue;
+        if (key->type == Key::PRIMARY)
+          keyname= primary_key_name;
+        else
+        {
+          List_iterator<Key_part_spec> part_it(key->columns);
+          Key_part_spec *kp;
+          if ((kp= part_it++))
+            keyname= kp->field_name.str;
+          if (keyname == NULL)
+            continue;
+        }
       }
       if (key->type != Key::FOREIGN_KEY)
       {
