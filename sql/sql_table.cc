@@ -5149,6 +5149,7 @@ mysql_rename_table(handlerton *base, const char *old_db,
   ulonglong save_bits= thd->variables.option_bits;
   int length;
   DBUG_ENTER("mysql_rename_table");
+  DBUG_ASSERT(base);
   DBUG_PRINT("enter", ("old: '%s'.'%s'  new: '%s'.'%s'",
                        old_db, old_name, new_db, new_name));
 
@@ -5156,8 +5157,7 @@ mysql_rename_table(handlerton *base, const char *old_db,
   if (flags & NO_FK_CHECKS) 
     thd->variables.option_bits|= OPTION_NO_FOREIGN_KEY_CHECKS;
 
-  file= (base == NULL ? 0 :
-         get_new_handler((TABLE_SHARE*) 0, thd->mem_root, base));
+  file= get_new_handler((TABLE_SHARE*) 0, thd->mem_root, base);
 
   build_table_filename(from, sizeof(from) - 1, old_db, old_name, "",
                        flags & FN_FROM_IS_TMP);
