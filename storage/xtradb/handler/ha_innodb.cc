@@ -7902,7 +7902,8 @@ calc_row_difference(
 				}
 			}
 		}
-		innodb_idx++;
+		if (field->stored_in_db)
+			innodb_idx++;
 	}
 
 	/* If the update changes a column with an FTS index on it, we
@@ -9600,18 +9601,18 @@ create_table_def(
 	if (flags2 & DICT_TF2_FTS) {
 		/* Adjust for the FTS hidden field */
 		if (!has_doc_id_col) {
-			table = dict_mem_table_create(table_name, 0, n_cols + 1,
+			table = dict_mem_table_create(table_name, 0, s_cols + 1,
 						      flags, flags2);
 
 			/* Set the hidden doc_id column. */
 			table->fts->doc_col = s_cols;
 		} else {
-			table = dict_mem_table_create(table_name, 0, n_cols,
+			table = dict_mem_table_create(table_name, 0, s_cols,
 						      flags, flags2);
 			table->fts->doc_col = doc_id_col;
 		}
 	} else {
-		table = dict_mem_table_create(table_name, 0, n_cols,
+		table = dict_mem_table_create(table_name, 0, s_cols,
 					      flags, flags2);
 	}
 
