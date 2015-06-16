@@ -432,8 +432,7 @@ srv_parse_data_file_paths_and_sizes(
 		    && *(str + 2) == 'w') {
 			str += 3;
 			/* Initialize new raw device only during bootstrap */
-			(srv_data_file_is_raw_partition)[i] =
-			opt_bootstrap ? SRV_NEW_RAW : SRV_OLD_RAW;
+			(srv_data_file_is_raw_partition)[i] = SRV_NEW_RAW;
 		}
 
 		if (*str == 'r' && *(str + 1) == 'a' && *(str + 2) == 'w') {
@@ -441,8 +440,7 @@ srv_parse_data_file_paths_and_sizes(
 
 			/* Initialize new raw device only during bootstrap */
 			if ((srv_data_file_is_raw_partition)[i] == 0) {
-				(srv_data_file_is_raw_partition)[i] =
-				opt_bootstrap ? SRV_NEW_RAW : SRV_OLD_RAW;
+				(srv_data_file_is_raw_partition)[i] = SRV_NEW_RAW;
 			}
 		}
 

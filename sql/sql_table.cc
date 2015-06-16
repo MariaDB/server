@@ -1672,6 +1672,7 @@ void execute_ddl_log_recovery()
   (void) mysql_file_delete(key_file_global_ddl_log, file_name, MYF(0));
   global_ddl_log.recovery_phase= FALSE;
   mysql_mutex_unlock(&LOCK_gdl);
+  thd->reset_query();
   delete thd;
   /* Remember that we don't have a THD */
   set_current_thd(0);
