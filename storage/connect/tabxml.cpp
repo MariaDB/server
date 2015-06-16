@@ -15,12 +15,12 @@
 #include <stdio.h>
 #include <fcntl.h>
 #include <errno.h>
-#if defined(WIN32)
+#if defined(__WIN__)
 #include <io.h>
 #include <winsock2.h>
 //#include <windows.h>
 #include <comdef.h>
-#else   // !WIN32
+#else   // !__WIN__
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -28,7 +28,7 @@
 //#include <ctype.h>
 #include "osutil.h"
 #define _O_RDONLY O_RDONLY
-#endif  // !WIN32
+#endif  // !__WIN__
 #include "resource.h"                        // for IDS_COLUMNS
 
 #define INCLUDE_TDBXML
@@ -53,11 +53,11 @@
 
 extern "C" char version[];
 
-#if defined(WIN32) && defined(DOMDOC_SUPPORT)
+#if defined(__WIN__) && defined(DOMDOC_SUPPORT)
 #define XMLSUP "MS-DOM"
-#else   // !WIN32
+#else   // !__WIN__
 #define XMLSUP "libxml2"
-#endif  // !WIN32
+#endif  // !__WIN__
 
 #define TYPE_UNKNOWN     12        /* Must be greater than other types */
 
@@ -110,15 +110,15 @@ typedef struct LVL {
 /* XMLColumns: construct the result blocks containing the description  */
 /* of all the columns of a table contained inside an XML file.         */
 /***********************************************************************/
-PQRYRES XMLColumns(PGLOBAL g, char *dp, char *tab, PTOS topt, bool info)
+PQRYRES XMLColumns(PGLOBAL g, char *db, char *tab, PTOS topt, bool info)
 {
   static int  buftyp[] = {TYPE_STRING, TYPE_SHORT, TYPE_STRING, TYPE_INT, 
                           TYPE_INT, TYPE_SHORT, TYPE_SHORT, TYPE_STRING};
   static XFLD fldtyp[] = {FLD_NAME, FLD_TYPE, FLD_TYPENAME, FLD_PREC, 
                           FLD_LENGTH, FLD_SCALE, FLD_NULL, FLD_FORMAT};
   static unsigned int length[] = {0, 6, 8, 10, 10, 6, 6, 0};
-  char   *op, colname[65], fmt[129], buf[512];
-  int     i, j, lvl, rc, n = 0;
+  char   *fn, *op, colname[65], fmt[129], buf[512];
+  int     i, j, lvl, n = 0;
   int     ncol = sizeof(buftyp) / sizeof(int);
   bool    ok = true;
   PXCL    xcol, xcp, fxcp = NULL, pxcp = NULL;
@@ -138,33 +138,35 @@ PQRYRES XMLColumns(PGLOBAL g, char *dp, char *tab, PTOS topt, bool info)
   /*********************************************************************/
   /*  Open the input file.                                             */
   /*********************************************************************/
-  if (!topt->filename) {
+  if (!(fn = GetStringTableOption(g, topt, "Filename", NULL))) {
     strcpy(g->Message, MSG(MISSING_FNAME));
     return NULL;
-  } else
-    lvl = atoi(GetListOption(g, "Level", topt->oplist, "0"));
+  } else {
+    lvl = GetIntegerTableOption(g, topt, "Level", 0);
+    lvl = (lvl < 0) ? 0 : (lvl > 16) ? 16 : lvl;
+  } // endif fn
 
   if (trace)
     htrc("File %s lvl=%d\n", topt->filename, lvl);
 
   tdp = new(g) XMLDEF;
-  tdp->Database = dp;
-  tdp->Fn = (char*)topt->filename;
+  tdp->Fn = fn;
+  tdp->Database = SetPath(g, db);
   tdp->Tabname = tab;
 
-  if (!(op = GetListOption(g, "Xmlsup", topt->oplist, NULL)))
-#if defined(WIN32)
+  if (!(op = GetStringTableOption(g, topt, "Xmlsup", NULL)))
+#if defined(__WIN__)
     tdp->Usedom = true;
-#else   // !WIN32
+#else   // !__WIN__
     tdp->Usedom = false;
-#endif  // !WIN32
+#endif  // !__WIN__
   else
     tdp->Usedom = (toupper(*op) == 'M' || toupper(*op) == 'D');
 
   txmp = new(g) TDBXML(tdp);
 
   if (txmp->Initialize(g))
-    return NULL;
+    goto err;
 
   xcol = new(g) XMCOL;
   colname[64] = 0;
@@ -224,8 +226,16 @@ PQRYRES XMLColumns(PGLOBAL g, char *dp, char *tab, PTOS topt, bool info)
       if (vp->atp) {
         strncpy(colname, vp->atp->GetName(g), sizeof(colname));
         strncat(xcol->Name, colname, 64);
-        rc = vp->atp->GetText(g, buf, sizeof(buf));
-        strncat(fmt, "@", sizeof(fmt));
+
+        switch (vp->atp->GetText(g, buf, sizeof(buf))) {
+          case RC_INFO:
+            PushWarning(g, txmp);
+          case RC_OK:
+            strncat(fmt, "@", sizeof(fmt));
+            break;
+          default:
+            goto err;
+          } // enswitch rc
 
         if (j)
           strncat(fmt, colname, sizeof(fmt));
@@ -273,7 +283,15 @@ PQRYRES XMLColumns(PGLOBAL g, char *dp, char *tab, PTOS topt, bool info)
         } else
           ok = true;
 
-        rc = node->GetContent(g, buf, sizeof(buf));
+        switch (node->GetContent(g, buf, sizeof(buf))) {
+          case RC_INFO:
+            PushWarning(g, txmp);
+          case RC_OK:
+            break;
+          default:
+            goto err;
+          } // enswitch rc
+
       } // endif atp;
 
       xcol->Len = strlen(buf);
@@ -312,10 +330,6 @@ PQRYRES XMLColumns(PGLOBAL g, char *dp, char *tab, PTOS topt, bool info)
       } // endif xcp
 
       pxcp = xcp;
-
-//    for (j = lvl - 1; j >= 0; j--)
-//      if (jrp[j] && (jrp[j] = jrp[j]->GetNext()))
-//        goto more;
 
       if (vp->atp)
         vp->atp = vp->atp->GetNext(g);
@@ -420,9 +434,7 @@ XMLDEF::XMLDEF(void)
 /***********************************************************************/
 bool XMLDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
   {
-  char  *defrow, *defcol, buf[10];
-//void  *memp = Cat->GetDescp();
-//PSZ    dbfile = Cat->GetDescFile();
+  char *defrow, *defcol, buf[10];
 
   Fn = GetStringCatInfo(g, "Filename", NULL);
   Encoding = GetStringCatInfo(g, "Encoding", "UTF-8");
@@ -437,7 +449,7 @@ bool XMLDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
     return true;
     } // endif flag
 
-  defrow = defcol = "";
+  defrow = defcol = NULL;
   GetCharCatInfo("Coltype", "", buf, sizeof(buf));
 
   switch (toupper(*buf)) {
@@ -470,36 +482,29 @@ bool XMLDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
   Tabname = GetStringCatInfo(g, "Tabname", Tabname);
   Rowname = GetStringCatInfo(g, "Rownode", defrow);
   Colname = GetStringCatInfo(g, "Colnode", defcol);
-  Mulnode = GetStringCatInfo(g, "Mulnode", "");
-  XmlDB = GetStringCatInfo(g, "XmlDB", "");
-  Nslist = GetStringCatInfo(g, "Nslist", "");
-  DefNs = GetStringCatInfo(g, "DefNs", "");
+  Mulnode = GetStringCatInfo(g, "Mulnode", NULL);
+  XmlDB = GetStringCatInfo(g, "XmlDB", NULL);
+  Nslist = GetStringCatInfo(g, "Nslist", NULL);
+  DefNs = GetStringCatInfo(g, "DefNs", NULL);
   Limit = GetIntCatInfo("Limit", 10);
-  Xpand = (GetIntCatInfo("Expand", 0) != 0);
+  Xpand = GetBoolCatInfo("Expand", false);
   Header = GetIntCatInfo("Header", 0);
   GetCharCatInfo("Xmlsup", "*", buf, sizeof(buf));
-
-//if (*buf == '*')           // Try the old (deprecated) option
-//  GetCharCatInfo("Method", "*", buf, sizeof(buf));
-
-//if (*buf == '*')           // Is there a default for the database?
-//  GetCharCatInfo("Defxml", XMLSUP, buf, sizeof(buf));
 
   // Note that if no support is specified, the default is MS-DOM
   // on Windows and libxml2 otherwise
   if (*buf == '*')
-#if defined(WIN32)
+#if defined(__WIN__)
     Usedom = true;
-#else   // !WIN32
+#else   // !__WIN__
     Usedom = false;
-#endif  // !WIN32
+#endif  // !__WIN__
   else
     Usedom = (toupper(*buf) == 'M' || toupper(*buf) == 'D');
 
   // Get eventual table node attribute
-  Attrib = GetStringCatInfo(g, "Attribute", "");
-  Hdattr = GetStringCatInfo(g, "HeadAttr", "");
-
+  Attrib = GetStringCatInfo(g, "Attribute", NULL);
+  Hdattr = GetStringCatInfo(g, "HeadAttr", NULL);
   return false;
   } // end of DefineAM
 
@@ -518,30 +523,6 @@ PTDB XMLDEF::GetTable(PGLOBAL g, MODE m)
 
   return tdbp;
   } // end of GetTable
-
-#if 0
-/***********************************************************************/
-/*  DeleteTableFile: Delete XML table files using platform API.        */
-/***********************************************************************/
-bool XMLDEF::DeleteTableFile(PGLOBAL g)
-  {
-  char    filename[_MAX_PATH];
-  bool    rc;
-
-  // Delete the XML table file if not protected
-  if (!IsReadOnly()) {
-    PlugSetPath(filename, Fn, GetPath());
-#if defined(WIN32)
-    rc = !DeleteFile(filename);
-#else    // UNIX
-    rc = remove(filename);
-#endif   // UNIX
-  } else
-    rc =true;
-
-  return rc;                                  // Return true if error
-  } // end of DeleteTableFile
-#endif // 0
 
 /* ------------------------- TDBXML Class ---------------------------- */
 
@@ -564,14 +545,14 @@ TDBXML::TDBXML(PXMLDEF tdp) : TDBASE(tdp)
   Xfile = tdp->Fn;
   Enc = tdp->Encoding;
   Tabname = tdp->Tabname;
-  Rowname = (tdp->Rowname && *tdp->Rowname) ? tdp->Rowname : NULL;
-  Colname = (tdp->Colname && *tdp->Colname) ? tdp->Colname : NULL;
-  Mulnode = (tdp->Mulnode && *tdp->Mulnode) ? tdp->Mulnode : NULL;
-  XmlDB = (tdp->XmlDB && *tdp->XmlDB) ? tdp->XmlDB : NULL;
-  Nslist = (tdp->Nslist && *tdp->Nslist) ? tdp->Nslist : NULL;
-  DefNs = (tdp->DefNs && *tdp->DefNs) ? tdp->DefNs : NULL;
-  Attrib = (tdp->Attrib && *tdp->Attrib) ? tdp->Attrib : NULL;
-  Hdattr = (tdp->Hdattr && *tdp->Hdattr) ? tdp->Hdattr : NULL;
+  Rowname = (tdp->Rowname) ? tdp->Rowname : NULL;
+  Colname = (tdp->Colname) ? tdp->Colname : NULL;
+  Mulnode = (tdp->Mulnode) ? tdp->Mulnode : NULL;
+  XmlDB = (tdp->XmlDB) ? tdp->XmlDB : NULL;
+  Nslist = (tdp->Nslist) ? tdp->Nslist : NULL;
+  DefNs = (tdp->DefNs) ? tdp->DefNs : NULL;
+  Attrib = (tdp->Attrib) ? tdp->Attrib : NULL;
+  Hdattr = (tdp->Hdattr) ? tdp->Hdattr : NULL;
   Coltype = tdp->Coltype;
   Limit = tdp->Limit;
   Xpand = tdp->Xpand;
@@ -667,7 +648,7 @@ PCOL TDBXML::MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n)
 /***********************************************************************/
 /*  InsertSpecialColumn: Put a special column ahead of the column list.*/
 /***********************************************************************/
-PCOL TDBXML::InsertSpecialColumn(PGLOBAL g, PCOL colp)
+PCOL TDBXML::InsertSpecialColumn(PCOL colp)
   {
   if (!colp->IsSpecial())
     return NULL;
@@ -854,7 +835,6 @@ bool TDBXML::Initialize(PGLOBAL g)
         To_Xb = Docp->LinkXblock(g, Mode, rc, filename);
 
         // Add a CONNECT comment node
-//      sprintf(buf, " Created by CONNECT %s ", version);
         strcpy(buf, " Created by the MariaDB CONNECT Storage Engine");
         Docp->AddComment(g, buf);
 
@@ -898,7 +878,7 @@ bool TDBXML::Initialize(PGLOBAL g)
       Nlist = TabNode->GetChildElements(g);
 
     Docp->SetNofree(true);       // For libxml2
-#if defined(WIN32)
+#if defined(__WIN__)
   } catch(_com_error e) {
     // We come here if a DOM command threw an error
     char   buf[128];
@@ -912,7 +892,7 @@ bool TDBXML::Initialize(PGLOBAL g)
       sprintf(g->Message, "%s hr=%p", MSG(COM_ERROR), e.Error());
 
     goto error;
-#endif   // WIN32
+#endif   // __WIN__
 #if !defined(UNIX)
   } catch(...) {
     // Other errors
@@ -1037,7 +1017,7 @@ int TDBXML::GetMaxSize(PGLOBAL g)
     else
       MaxSize = 10;
 
-  } // endif MaxSize
+    } // endif MaxSize
 
   return MaxSize;
   } // end of GetMaxSize
@@ -1278,8 +1258,7 @@ void TDBXML::CloseDB(PGLOBAL g)
   {
   if (Docp) {
     if (Changed) {
-      char    filename[_MAX_PATH];
-//    PDBUSER dup = (PDBUSER)g->Activityp->Aptr;
+      char filename[_MAX_PATH];
 
       // We used the file name relative to recorded datapath
       PlugSetPath(filename, Xfile, GetPath());
@@ -1321,7 +1300,6 @@ void TDBXML::CloseDB(PGLOBAL g)
     NewRow = false;
     Hasnod = false;
     Write = false;
-//  Bufdone = false;
     Nodedone = false;
     Void = false;
     Nrow = -1;
@@ -1413,8 +1391,6 @@ bool XMLCOL::AllocBuf(PGLOBAL g, bool mode)
   if (Valbuf)
     return false;                       // Already done
 
-//Valbuf = (char*)PlugSubAlloc(g, NULL, Long + 1);
-//Valbuf[Long] = '\0';
   return ParseXpath(g, mode);
   } // end of AllocBuf
 
@@ -1506,8 +1482,6 @@ bool XMLCOL::ParseXpath(PGLOBAL g, bool mode)
     // HTML like table, columns are retrieved by position
     new(this) XPOSCOL(Value);        // Change the class of this column
     Inod = -1;
-//  Tdbp->Hasnod = true;
-//  return false;
   } else if (Type == 0 && !mode) {
     strcat(strcat(pbuf, "@"), Name);
   } else {                           // Type == 1
@@ -1657,7 +1631,6 @@ void XMLCOL::WriteColumn(PGLOBAL g)
   int    done = 0;
   int   i, n, k = 0;
   PXNODE TopNode = NULL;
-//PXATTR AttNode = NULL;
 
   if (trace > 1)
     htrc("XML WriteColumn: col %s R%d coluse=%.4X status=%.4X\n",
@@ -1689,7 +1662,7 @@ void XMLCOL::WriteColumn(PGLOBAL g)
   /*********************************************************************/
   /*  Null values are represented by no node.                          */
   /*********************************************************************/
-  if (Value->IsNull())
+	if (Value->IsNull())
     return;
 
   /*********************************************************************/
@@ -1892,7 +1865,6 @@ void XMULCOL::WriteColumn(PGLOBAL g)
   int    done = 0;
   int   i, n, len, k = 0;
   PXNODE TopNode = NULL;
-//PXATTR AttNode = NULL;
 
   if (trace)
     htrc("XML WriteColumn: col %s R%d coluse=%.4X status=%.4X\n",
@@ -2190,7 +2162,7 @@ void XPOSCOL::WriteColumn(PGLOBAL g)
 TDBXCT::TDBXCT(PXMLDEF tdp) : TDBCAT(tdp)
   {
   Topt = tdp->GetTopt();
-  Dp = tdp->GetPath();
+  Db = (char*)tdp->GetDB();
   Tabn = tdp->Tabname;
   } // end of TDBXCT constructor
 
@@ -2199,7 +2171,7 @@ TDBXCT::TDBXCT(PXMLDEF tdp) : TDBCAT(tdp)
 /***********************************************************************/
 PQRYRES TDBXCT::GetResult(PGLOBAL g)
   {
-  return XMLColumns(g, Dp, Tabn, Topt, false);
+  return XMLColumns(g, Db, Tabn, Topt, false);
   } // end of GetResult
 
 /* ------------------------ End of Tabxml ---------------------------- */

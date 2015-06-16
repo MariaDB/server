@@ -24,11 +24,11 @@
 #if !defined(BLOCK_DEFINED)
 #define      BLOCK_DEFINED
 
-#if defined(WIN32) && !defined(NOEX)
+#if defined(__WIN__) && !defined(NOEX)
 #define DllExport  __declspec( dllexport )
-#else   // !WIN32
+#else   // !__WIN__
 #define DllExport
-#endif  // !WIN32
+#endif  // !__WIN__
 
 /***********************************************************************/
 /*  Definition of class BLOCK with its method function new.            */
@@ -38,7 +38,7 @@ typedef class BLOCK *PBLOCK;
 class DllExport BLOCK {
  public:
   void * operator new(size_t size, PGLOBAL g, void *p = NULL) {
-//  if (trace > 2)
+//  if (trace > 3)
 //    htrc("New BLOCK: size=%d g=%p p=%p\n", size, g, p);
 
     return (PlugSubAlloc(g, p, size));
@@ -50,7 +50,7 @@ class DllExport BLOCK {
 #if !defined(__BORLANDC__)
   // Avoid warning C4291 by defining a matching dummy delete operator
   void operator delete(void *, PGLOBAL, void *) {}
-  void operator delete(void *ptr,size_t size) {}
+  void operator delete(void *, size_t) {}
 #endif
   virtual ~BLOCK() {}
 

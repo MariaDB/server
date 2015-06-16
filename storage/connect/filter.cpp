@@ -13,13 +13,13 @@
 #include "sql_class.h"
 //#include "sql_time.h"
 
-#if defined(WIN32)
+#if defined(__WIN__)
 //#include <windows.h>
-#else   // !WIN32
+#else   // !__WIN__
 #include <string.h>
 #include <sys/types.h>
 #include <sys/stat.h>
-#endif  // !WIN32
+#endif  // !__WIN__
 
 
 /***********************************************************************/

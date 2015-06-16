@@ -1,4 +1,4 @@
-/* Copyright (C) Olivier Bertrand 2004 - 2012
+/* Copyright (C) Olivier Bertrand 2004 - 2015
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -15,7 +15,7 @@
    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
 
 /***********************************************************************/
-/*  Author Olivier BERTRAND  bertrandop@gmail.com         2004-2012    */
+/*  Author Olivier BERTRAND  bertrandop@gmail.com         2004-2015    */
 /*                                                                     */
 /* WHAT THIS PROGRAM DOES:                                             */
 /* -----------------------                                             */
@@ -237,7 +237,7 @@ PTDB CntGetTDB(PGLOBAL g, LPCSTR name, MODE mode, PHC h)
 /*  OPENTAB: Open a Table.                                             */
 /***********************************************************************/
 bool CntOpenTable(PGLOBAL g, PTDB tdbp, MODE mode, char *c1, char *c2,
-                                        bool del, PHC h)
+                                        bool del, PHC)
   {
   char   *p;
   int     i, n, rc;
@@ -709,6 +709,28 @@ int CntIndexInit(PGLOBAL g, PTDB ptdb, int id, bool sorted)
   return (tdbp->To_Kindex->IsMul()) ? 2 : 1;
   } // end of CntIndexInit
 
+#if defined(WORDS_BIGENDIAN)
+/***********************************************************************/
+/*  Swap bytes of the key that are written in little endian order.     */
+/***********************************************************************/
+static void SetSwapValue(PVAL valp, char *kp)
+{
+  if (valp->IsTypeNum() && valp->GetType() != TYPE_DECIM) {
+    uchar buf[8];
+    int   i, k= valp->GetClen();
+
+    for (i = 0; k > 0;)
+      buf[i++]= kp[--k];
+
+
+
+    valp->SetBinValue((void*)buf);
+  } else
+    valp->SetBinValue((void*)kp);
+
+} // end of SetSwapValue
+#endif   // WORDS_BIGENDIAN
+
 /***********************************************************************/
 /*  IndexRead: fetch a record having the index value.                  */
 /***********************************************************************/
@@ -779,7 +801,12 @@ RCODE CntIndexRead(PGLOBAL g, PTDB ptdb, OPVAL op,
 
       if (!valp->IsTypeNum()) {
         if (colp->GetColUse(U_VAR)) {
+#if defined(WORDS_BIGENDIAN)
+          ((char*)&lg)[0]= ((char*)kp)[1];
+          ((char*)&lg)[1]= ((char*)kp)[0];
+#else   // !WORDS_BIGENDIAN
           lg= *(short*)kp;
+#endif   //!WORDS_BIGENDIAN
           kp+= sizeof(short);
           rcb= valp->SetValue_char(kp, (int)lg);
         } else
@@ -797,7 +824,11 @@ RCODE CntIndexRead(PGLOBAL g, PTDB ptdb, OPVAL op,
           } // endif b
 
       } else
+#if defined(WORDS_BIGENDIAN)
+        SetSwapValue(valp, kp);
+#else   // !WORDS_BIGENDIAN
         valp->SetBinValue((void*)kp);
+#endif   //!WORDS_BIGENDIAN
 
       kp+= valp->GetClen();
 
@@ -893,7 +924,12 @@ int CntIndexRange(PGLOBAL g, PTDB ptdb, const uchar* *key, uint *len,
 
           if (!valp->IsTypeNum()) {
             if (colp->GetColUse(U_VAR)) {
+#if defined(WORDS_BIGENDIAN)
+              ((char*)&lg)[0]= ((char*)p)[1];
+              ((char*)&lg)[1]= ((char*)p)[0];
+#else   // !WORDS_BIGENDIAN
               lg= *(short*)p;
+#endif   //!WORDS_BIGENDIAN
               p+= sizeof(short);
               rcb= valp->SetValue_char((char*)p, (int)lg);
             } else
@@ -912,7 +948,11 @@ int CntIndexRange(PGLOBAL g, PTDB ptdb, const uchar* *key, uint *len,
             } // endif b
 
           } else
+#if defined(WORDS_BIGENDIAN)
+            SetSwapValue(valp, (char*)p);
+#else   // !WORDS_BIGENDIAN
             valp->SetBinValue((void*)p);
+#endif  // !WORDS_BIGENDIAN
 
           if (trace) {
             char bf[32];

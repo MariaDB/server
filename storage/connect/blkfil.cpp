@@ -5,7 +5,7 @@
 /*                                                                     */
 /* COPYRIGHT:                                                          */
 /* ----------                                                          */
-/*  (C) Copyright to the author Olivier BERTRAND          2004-2014    */
+/*  (C) Copyright to the author Olivier BERTRAND          2004-2015    */
 /*                                                                     */
 /* WHAT THIS PROGRAM DOES:                                             */
 /* -----------------------                                             */
@@ -20,13 +20,13 @@
 #include "sql_class.h"
 //#include "sql_time.h"
 
-#if defined(WIN32)
+#if defined(__WIN__)
 //#include <windows.h>
-#else   // !WIN32
+#else   // !__WIN__
 #include <string.h>
 #include <sys/types.h>
 #include <sys/stat.h>
-#endif  // !WIN32
+#endif  // !__WIN__
 
 /***********************************************************************/
 /*  Include application header files:                                  */
@@ -56,7 +56,7 @@ BLOCKFILTER::BLOCKFILTER(PTDBDOS tdbp, int op)
 /***********************************************************************/
 /*  Make file output of BLOCKFILTER contents.                          */
 /***********************************************************************/
-void BLOCKFILTER::Print(PGLOBAL g, FILE *f, uint n)
+void BLOCKFILTER::Print(PGLOBAL, FILE *f, uint n)
   {
   char m[64];
 
@@ -70,7 +70,7 @@ void BLOCKFILTER::Print(PGLOBAL g, FILE *f, uint n)
 /***********************************************************************/
 /*  Make string output of BLOCKFILTER contents.                        */
 /***********************************************************************/
-void BLOCKFILTER::Print(PGLOBAL g, char *ps, uint z)
+void BLOCKFILTER::Print(PGLOBAL, char *ps, uint z)
   {
   strncat(ps, "BlockFilter(s)", z);
   } // end of Print
@@ -186,7 +186,7 @@ void BLKFILARI::Reset(PGLOBAL g)
 /***********************************************************************/
 /*  Evaluate block filter for arithmetic operators.                    */
 /***********************************************************************/
-int BLKFILARI::BlockEval(PGLOBAL g)
+int BLKFILARI::BlockEval(PGLOBAL)
   {
   int mincmp, maxcmp, n;
 
@@ -306,7 +306,7 @@ void BLKFILAR2::MakeValueBitmap(void)
 /***********************************************************************/
 /*  Evaluate XDB2 block filter for arithmetic operators.               */
 /***********************************************************************/
-int BLKFILAR2::BlockEval(PGLOBAL g)
+int BLKFILAR2::BlockEval(PGLOBAL)
   {
 #if defined(_DEBUG)
   assert (Colp->IsClustered());
@@ -428,7 +428,7 @@ void BLKFILMR2::MakeValueBitmap(void)
 /***********************************************************************/
 /*  Evaluate XDB2 block filter for arithmetic operators.               */
 /***********************************************************************/
-int BLKFILMR2::BlockEval(PGLOBAL g)
+int BLKFILMR2::BlockEval(PGLOBAL)
   {
 #if defined(_DEBUG)
   assert (Colp->IsClustered());
@@ -514,7 +514,7 @@ void BLKSPCARI::Reset(PGLOBAL g)
 /***********************************************************************/
 /*  Evaluate block filter for arithmetic operators (ROWID)             */
 /***********************************************************************/
-int BLKSPCARI::BlockEval(PGLOBAL g)
+int BLKSPCARI::BlockEval(PGLOBAL)
   {
   int mincmp, maxcmp, n, m;
 
@@ -605,7 +605,7 @@ BLKFILIN::BLKFILIN(PGLOBAL g, PTDBDOS tdbp, int op, int opm, PXOB *xp)
 /***********************************************************************/
 /*  Reset: have the sorted array reset its Bot value to -1 (bottom).   */
 /***********************************************************************/
-void BLKFILIN::Reset(PGLOBAL g)
+void BLKFILIN::Reset(PGLOBAL)
   {
   Arap->Reset();
 //  MakeValueBitmap();      // Does nothing for class BLKFILIN
@@ -736,7 +736,7 @@ void BLKFILIN2::MakeValueBitmap(void)
 /*  ended string in case of string argument. This is because the ARRAY */
 /*  can have a different width than the char column.                   */
 /***********************************************************************/
-int BLKFILIN2::BlockEval(PGLOBAL g)
+int BLKFILIN2::BlockEval(PGLOBAL)
   {
   if (N < 0)
     return Result;                  // Was set in MakeValueBitmap
@@ -909,7 +909,7 @@ int BLKFILIN2::BlockEval(PGLOBAL g)
 /***********************************************************************/
 /*  BLKSPCIN constructor.                                              */
 /***********************************************************************/
-BLKSPCIN::BLKSPCIN(PGLOBAL g, PTDBDOS tdbp, int op, int opm,
+BLKSPCIN::BLKSPCIN(PGLOBAL, PTDBDOS tdbp, int op, int opm,
                    PXOB *xp, int bsize)
         : BLOCKFILTER(tdbp, op)
   {
@@ -930,7 +930,7 @@ BLKSPCIN::BLKSPCIN(PGLOBAL g, PTDBDOS tdbp, int op, int opm,
 /***********************************************************************/
 /*  Reset: have the sorted array reset its Bot value to -1 (bottom).   */
 /***********************************************************************/
-void BLKSPCIN::Reset(PGLOBAL g)
+void BLKSPCIN::Reset(PGLOBAL)
   {
   Arap->Reset();
   } // end of Reset
