@@ -2740,7 +2740,7 @@ prepare_inplace_alter_table_dict(
 
 		/* The initial space id 0 may be overridden later. */
 		ctx->new_table = dict_mem_table_create(
-			new_table_name, 0, n_cols, flags, flags2, false);
+			new_table_name, 0, n_cols, flags, flags2);
 		/* The rebuilt indexed_table will use the renamed
 		column names. */
 		ctx->col_names = NULL;

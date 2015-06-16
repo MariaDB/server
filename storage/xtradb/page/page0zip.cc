@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2005, 2014, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2005, 2015, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
 
 This program is free software; you can redistribute it and/or modify it under
@@ -1576,7 +1576,7 @@ page_zip_fields_free(
 {
 	if (index) {
 		dict_table_t*	table = index->table;
-		os_fast_mutex_free(&index->zip_pad.mutex);
+		dict_index_zip_pad_mutex_destroy(index);
 		mem_heap_free(index->heap);
 
 		dict_mem_table_free(table);
@@ -1627,7 +1627,7 @@ page_zip_fields_decode(
 	}
 
 	table = dict_mem_table_create("ZIP_DUMMY", DICT_HDR_SPACE, n,
-				      DICT_TF_COMPACT, 0, true);
+				      DICT_TF_COMPACT, 0);
 	index = dict_mem_index_create("ZIP_DUMMY", "ZIP_DUMMY",
 				      DICT_HDR_SPACE, 0, n);
 	index->table = table;
