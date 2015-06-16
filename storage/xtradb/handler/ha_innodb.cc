@@ -10550,7 +10550,7 @@ ha_innobase::create(
 	DBUG_ASSERT(thd != NULL);
 	DBUG_ASSERT(create_info != NULL);
 
-	if (form->s->fields > REC_MAX_N_USER_FIELDS) {
+	if (form->s->stored_fields > REC_MAX_N_USER_FIELDS) {
 		DBUG_RETURN(HA_ERR_TOO_MANY_FIELDS);
 	} else if (srv_read_only_mode) {
 		DBUG_RETURN(HA_ERR_TABLE_READONLY);
@@ -11931,18 +11931,6 @@ ha_innobase::info_low(
 			prebuilt->trx->op_info =
 				"returning various info to MySQL";
 		}
-
-		my_snprintf(path, sizeof(path), "%s/%s%s",
-			    mysql_data_home, ib_table->name, reg_ext);
-
-		unpack_filename(path,path);
-
-		/* Note that we do not know the access time of the table,
-		nor the CHECK TABLE time, nor the UPDATE or INSERT time. */
-
-		if (os_file_get_status(path, &stat_info, false) == DB_SUCCESS) {
-			stats.create_time = (ulong) stat_info.ctime;
-		}
 	}
 
 	if (flag & HA_STATUS_VARIABLE) {
@@ -12227,6 +12215,20 @@ ha_innobase::info_low(
 
 		if (!(flag & HA_STATUS_NO_LOCK)) {
 			dict_table_stats_unlock(ib_table, RW_S_LATCH);
+		}
+
+		my_snprintf(path, sizeof(path), "%s/%s%s",
+			    mysql_data_home,
+			    table->s->normalized_path.str,
+			    reg_ext);
+
+		unpack_filename(path,path);
+
+		/* Note that we do not know the access time of the table,
+		nor the CHECK TABLE time, nor the UPDATE or INSERT time. */
+
+		if (os_file_get_status(path, &stat_info, false) == DB_SUCCESS) {
+			stats.create_time = (ulong) stat_info.ctime;
 		}
 	}
 
