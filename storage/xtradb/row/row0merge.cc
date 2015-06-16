@@ -252,7 +252,8 @@ row_merge_buf_redundant_convert(
 	dfield_t*		field,
 	ulint			len,
 	ulint			zip_size,
-	mem_heap_t*		heap)
+	mem_heap_t*		heap,
+        trx_t*			trx)
 {
 	ut_ad(DATA_MBMINLEN(field->type.mbminmaxlen) == 1);
 	ut_ad(DATA_MBMAXLEN(field->type.mbminmaxlen) > 1);
@@ -271,7 +272,7 @@ row_merge_buf_redundant_convert(
 			    field_ref_zero, BTR_EXTERN_FIELD_REF_SIZE));
 
 		byte*	data = btr_copy_externally_stored_field(
-			&ext_len, field_data, zip_size, field_len, heap);
+			&ext_len, field_data, zip_size, field_len, heap, trx);
 
 		ut_ad(ext_len < len);
 
@@ -314,7 +315,8 @@ row_merge_buf_add(
 	const row_ext_t*	ext,
 	doc_id_t*		doc_id,
 	mem_heap_t*		conv_heap,
-	bool*			exceed_page)
+	bool*			exceed_page,
+	trx_t*			trx)
 {
 	ulint			i;
 	const dict_index_t*	index;
@@ -473,7 +475,7 @@ row_merge_buf_add(
 					row_merge_buf_redundant_convert(
 						row_field, field, col->len,
 						dict_table_zip_size(old_table),
-						conv_heap);
+						conv_heap, trx);
 				} else {
 					/* Field length mismatch should not
 					happen when rebuilding redundant row
@@ -1692,7 +1694,7 @@ write_buffers:
 			    (row && (rows_added = row_merge_buf_add(
 					buf, fts_index, old_table,
 					psort_info, row, ext, &doc_id,
-					conv_heap, &exceed_page)))) {
+					conv_heap, &exceed_page, trx)))) {
 
 				/* If we are creating FTS index,
 				a single row can generate more
@@ -1805,7 +1807,7 @@ write_buffers:
 						buf, fts_index, old_table,
 						psort_info, row, ext,
 						&doc_id, conv_heap,
-						&exceed_page)))) {
+						&exceed_page, trx)))) {
 					/* An empty buffer should have enough
 					room for at least one record. */
 					ut_error;

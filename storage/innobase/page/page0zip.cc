@@ -47,6 +47,8 @@ using namespace std;
 #include "btr0cur.h"
 #include "page0types.h"
 #include "log0recv.h"
+#else
+#define page_warn_strict_checksum(A,B,C,D)
 #endif /* !UNIV_INNOCHECKSUM */
 #include "zlib.h"
 #ifndef UNIV_HOTBACKUP
