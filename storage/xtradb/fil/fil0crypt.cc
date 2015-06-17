@@ -271,6 +271,7 @@ fil_space_read_crypt_data(
 	}
 
 	if (memcmp(page + offset, CRYPT_MAGIC, MAGIC_SZ) != 0) {
+#ifdef UNIV_DEBUG
 		ib_logf(IB_LOG_LEVEL_WARN,
 			"Found potentially bogus bytes on "
 			"page 0 offset %lu for space %lu : "
@@ -283,6 +284,7 @@ fil_space_read_crypt_data(
 			page[offset + 3],
 			page[offset + 4],
 			page[offset + 5]);
+#endif
 		/* Crypt data is not stored. */
 		return NULL;
 	}
