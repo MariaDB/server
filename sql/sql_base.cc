@@ -1100,7 +1100,7 @@ void close_thread_table(THD *thd, TABLE **table_ptr)
     critical section.
   */
   if (table->file != NULL)
-    table->file->unbind_psi();
+    MYSQL_UNBIND_TABLE(table->file);
 
   tc_release_table(table);
   DBUG_VOID_RETURN;
@@ -1635,8 +1635,8 @@ use_temporary_table(THD *thd, TABLE *table, TABLE **out_table)
         thread to another, we need to let the performance schema know that,
         for aggregates per thread to work properly.
       */
-      table->file->unbind_psi();
-      table->file->rebind_psi();
+      MYSQL_UNBIND_TABLE(table->file);
+      MYSQL_REBIND_TABLE(table->file);
     }
 #endif
   }
@@ -2530,7 +2530,7 @@ retry_share:
   if (table)
   {
     DBUG_ASSERT(table->file != NULL);
-    table->file->rebind_psi();
+    MYSQL_REBIND_TABLE(table->file);
   }
   else
   {

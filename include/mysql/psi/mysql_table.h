@@ -30,6 +30,9 @@
 */
 
 #ifdef HAVE_PSI_TABLE_INTERFACE
+#define MYSQL_UNBIND_TABLE(handler) (handler)->unbind_psi()
+#define MYSQL_REBIND_TABLE(handler) (handler)->rebind_psi()
+
 #define PSI_CALL_unbind_table           PSI_TABLE_CALL(unbind_table)
 #define PSI_CALL_rebind_table           PSI_TABLE_CALL(rebind_table)
 #define PSI_CALL_open_table             PSI_TABLE_CALL(open_table)
@@ -38,6 +41,9 @@
 #define PSI_CALL_release_table_share    PSI_TABLE_CALL(release_table_share)
 #define PSI_CALL_drop_table_share       PSI_TABLE_CALL(drop_table_share)
 #else
+#define MYSQL_UNBIND_TABLE(handler)                     /* no-op */
+#define MYSQL_REBIND_TABLE(handler)                     /* no-op */
+
 #define PSI_CALL_unbind_table(A1)                       /* no-op */
 #define PSI_CALL_rebind_table(A1,A2,A3)                 NULL
 #define PSI_CALL_close_table(A1)                        /* no-op */
