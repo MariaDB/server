@@ -327,6 +327,9 @@ plugin_name
 #
 INSTALL PLUGIN example SONAME 'ha_example';
 CREATE TABLE t1(a INT) ENGINE=EXAMPLE;
+SELECT * FROM t1;
+a
+FLUSH TABLES;
 UNINSTALL PLUGIN example;
 RENAME TABLE t1 TO t2;
 ERROR 42S02: Table 'test.t1' doesn't exist

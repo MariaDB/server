@@ -259,6 +259,8 @@ select plugin_name from information_schema.plugins where plugin_library like 'ha
 --echo #
 INSTALL PLUGIN example SONAME 'ha_example';
 CREATE TABLE t1(a INT) ENGINE=EXAMPLE;
+SELECT * FROM t1;
+FLUSH TABLES;
 UNINSTALL PLUGIN example;
 --error ER_NO_SUCH_TABLE
 RENAME TABLE t1 TO t2;
