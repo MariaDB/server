@@ -21,7 +21,9 @@ Architecture: any
 Depends: mariadb-common, libmysqlclient18 (= ${source:Version}), ${shlibs:Depends}, ${misc:Depends}
 Conflicts: mariadb-server-10.0 (<< 10.0.5), mariadb-galera-server-10.0 (<< 10.0.5),
            mariadb-server-5.5 (<< 5.5.33), mariadb-galera-server-5.5 (<< 5.5.33),
-           mariadb-server-5.1, mariadb-server-5.2, mariadb-server-5.3
+           mariadb-server-5.1,
+           mariadb-server-5.2,
+           mariadb-server-5.3
 Description: MariaDB database client library
  MariaDB is a fast, stable and true multi-user, multi-threaded SQL database
  server. SQL (Structured Query Language) is the most popular database query
@@ -110,13 +112,15 @@ Conflicts: mysql-client (<< 5.0.51), mysql-client-5.0,
     mysql-client-core-5.1, mysql-client-core-5.5,
     mariadb-client-5.1, mariadb-client-core-5.1,
     mariadb-client-5.2, mariadb-client-core-5.2,
-    mariadb-client-5.3, mariadb-client-core-5.3
+    mariadb-client-5.3, mariadb-client-core-5.3,
+    mariadb-client-5.5, mariadb-client-core-5.5
 Replaces: mysql-client (<< 5.0.51), mysql-client-5.0,
     mysql-client-5.1, mysql-client-5.5,
     mysql-client-core-5.1, mysql-client-core-5.5,
     mariadb-client-5.1, mariadb-client-core-5.1,
     mariadb-client-5.2, mariadb-client-core-5.2,
-    mariadb-client-5.3, mariadb-client-core-5.3
+    mariadb-client-5.3, mariadb-client-core-5.3,
+    mariadb-client-5.5, mariadb-client-core-5.5
 Description: MariaDB database core client binaries
  MariaDB is a fast, stable and true multi-user, multi-threaded SQL database
  server. SQL (Structured Query Language) is the most popular database query
@@ -136,11 +140,16 @@ Provides: virtual-mysql-client, mysql-client,
     mysql-client-4.1, mysql-client-5.1, mysql-client-5.5
 Conflicts: mysql-client (<< 5.0.51), mysql-client-5.0, mysql-client-5.1,
     mariadb-client (<< ${source:Version}),
-    mariadb-client-5.1, mariadb-client-5.2, mariadb-client-5.3, mysql-client-5.5
+    mariadb-client-5.1,
+    mariadb-client-5.2,
+    mariadb-client-5.3,
+    mariadb-client-5.5, mysql-client-5.5
 Replaces: mysql-client (<< 5.0.51), mysql-client-5.0, mysql-client-5.1,
-    mysql-client-5.5,
     mariadb-client (<< ${source:Version}),
-    mariadb-client-5.1, mariadb-client-5.2, mariadb-client-5.3
+    mariadb-client-5.1,
+    mariadb-client-5.2,
+    mariadb-client-5.3,
+    mariadb-client-5.5, mysql-client-5.5
 Description: MariaDB database client binaries
  MariaDB is a fast, stable and true multi-user, multi-threaded SQL database
  server. SQL (Structured Query Language) is the most popular database query
@@ -154,12 +163,16 @@ Package: mariadb-server-core-10.0
 Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends}, libmariadbclient18 (>= ${binary:Version})
 Provides: mysql-server-core, mysql-server-core-5.1, mysql-server-core-5.5
-Conflicts: mysql-server-5.0,
-    mysql-server-core-5.0, mysql-server-core-5.1, mysql-server-core-5.5,
-    mariadb-server-core-5.1, mariadb-server-core-5.2, mariadb-server-core-5.5
-Replaces: mysql-server-5.0,
-    mysql-server-core-5.0, mysql-server-core-5.1, mysql-server-core-5.5,
-    mariadb-server-core-5.1, mariadb-server-core-5.2, mariadb-server-core-5.5
+Conflicts: mysql-server-5.0, mysql-server-core-5.0,
+    mariadb-server-core-5.1, mysql-server-core-5.1,
+    mariadb-server-core-5.2,
+    mariadb-server-core-5.3,
+    mariadb-server-core-5.5, mysql-server-core-5.5
+Replaces: mysql-server-5.0, mysql-server-core-5.0,
+    mariadb-server-core-5.1, mysql-server-core-5.1,
+    mariadb-server-core-5.2,
+    mariadb-server-core-5.3,
+    mariadb-server-core-5.5, mysql-server-core-5.5
 Description: MariaDB database core server files
  MariaDB is a fast, stable and true multi-user, multi-threaded SQL database
  server. SQL (Structured Query Language) is the most popular database query
@@ -197,12 +210,18 @@ Depends: mariadb-client-10.0 (>= ${source:Version}), libdbi-perl,
          mariadb-server-core-10.0 (>= ${binary:Version})
 Provides: mariadb-server, mysql-server, virtual-mysql-server
 Conflicts: mariadb-server (<< ${source:Version}), mysql-server (<< ${source:Version}),
-    mysql-server-4.1, mysql-server-5.0, mysql-server-5.1, mysql-server-5.5,
-    mariadb-server-5.1, mariadb-server-5.2, mariadb-server-5.3,
+    mysql-server-4.1, mysql-server-5.0,
+    mariadb-server-5.1, mysql-server-5.1,
+    mariadb-server-5.2,
+    mariadb-server-5.3,
+    mariadb-server-5.5, mysql-server-5.5,
     mariadb-tokudb-engine-5.5, mariadb-tokudb-engine-10.0
 Replaces: mariadb-server (<< ${source:Version}), mysql-server (<< ${source:Version}),
-    mysql-server-4.1, mysql-server-5.0, mysql-server-5.1, mysql-server-5.5,
-    mariadb-server-5.1, mariadb-server-5.2, mariadb-server-5.3,
+    mysql-server-4.1, mysql-server-5.0,
+    mariadb-server-5.1, mysql-server-5.1,
+    mariadb-server-5.2,
+    mariadb-server-5.3,
+    mariadb-server-5.5, mysql-server-5.5,
     libmariadbclient16 (<< 5.3.4), libmariadbclient-dev (<< 5.5.0),
     mariadb-tokudb-engine-5.5, mariadb-tokudb-engine-10.0
 Description: MariaDB database server binaries
