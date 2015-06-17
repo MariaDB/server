@@ -947,7 +947,7 @@ THD::THD(bool is_wsrep_applier)
   // Must be reset to handle error with THD's created for init of mysqld
   lex->current_select= 0;
   user_time.val= start_time= start_time_sec_part= 0;
-  start_utime= prior_thr_create_utime= 0L;
+  start_utime= utime_after_query= prior_thr_create_utime= 0L;
   utime_after_lock= 0L;
   progress.arena= 0;
   progress.report_to_client= 0;

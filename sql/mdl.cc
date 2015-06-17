@@ -1972,13 +1972,9 @@ MDL_context::acquire_lock(MDL_request *mdl_request, double lock_wait_timeout)
 {
   MDL_lock *lock;
   MDL_ticket *ticket;
-  struct timespec abs_timeout;
   MDL_wait::enum_wait_status wait_status;
   DBUG_ENTER("MDL_context::acquire_lock");
   DBUG_PRINT("enter", ("lock_type: %d", mdl_request->type));
-
-  /* Do some work outside the critical section. */
-  set_timespec(abs_timeout, lock_wait_timeout);
 
   if (try_acquire_lock_impl(mdl_request, &ticket))
     DBUG_RETURN(TRUE);
@@ -2028,7 +2024,8 @@ MDL_context::acquire_lock(MDL_request *mdl_request, double lock_wait_timeout)
 
   find_deadlock();
 
-  struct timespec abs_shortwait;
+  struct timespec abs_timeout, abs_shortwait;
+  set_timespec(abs_timeout, lock_wait_timeout);
   set_timespec(abs_shortwait, 1);
   wait_status= MDL_wait::EMPTY;
 

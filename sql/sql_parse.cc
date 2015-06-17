@@ -1943,7 +1943,6 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
   thd->m_statement_psi= NULL;
   thd->m_digest= NULL;
 
-  thd->set_time();
   dec_thread_running();
   thd->packet.shrink(thd->variables.net_buffer_length);	// Reclaim some memory
   free_root(thd->mem_root,MYF(MY_KEEP_PREALLOC));

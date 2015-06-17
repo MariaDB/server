@@ -2301,7 +2301,7 @@ public:
   { TRASH(ptr, size); }
 
   ulong thread_id;
-  time_t start_time;
+  ulonglong start_time;
   uint   command;
   const char *user,*host,*db,*proc_info,*state_info;
   CSET_STRING query_string;
@@ -2432,7 +2432,10 @@ void mysqld_list_processes(THD *thd,const char *user, bool verbose)
       }
       else
         thd_info->progress= 0.0;
-      thd_info->start_time= tmp->start_time;
+      thd_info->start_time= tmp->start_utime;
+      ulonglong utime_after_query_snapshot= tmp->utime_after_query;
+      if (thd_info->start_time < utime_after_query_snapshot)
+        thd_info->start_time= utime_after_query_snapshot; // COM_SLEEP
       mysql_mutex_unlock(&tmp->LOCK_thd_data);
       thread_infos.append(thd_info);
     }
@@ -2440,7 +2443,7 @@ void mysqld_list_processes(THD *thd,const char *user, bool verbose)
   mysql_mutex_unlock(&LOCK_thread_count);
 
   thread_info *thd_info;
-  time_t now= my_time(0);
+  ulonglong now= microsecond_interval_timer();
   char buff[20];                                // For progress
   String store_buffer(buff, sizeof(buff), system_charset_info);
 
@@ -2455,8 +2458,8 @@ void mysqld_list_processes(THD *thd,const char *user, bool verbose)
       protocol->store(thd_info->proc_info, system_charset_info);
     else
       protocol->store(command_name[thd_info->command].str, system_charset_info);
-    if (thd_info->start_time)
-      protocol->store_long ((longlong) (now - thd_info->start_time));
+    if (thd_info->start_time && now > thd_info->start_time)
+      protocol->store_long(now - thd_info->start_time);
     else
       protocol->store_null();
     protocol->store(thd_info->state_info, system_charset_info);
@@ -2730,7 +2733,7 @@ int fill_schema_processlist(THD* thd, TABLE_LIST* tables, COND* cond)
   TABLE *table= tables->table;
   CHARSET_INFO *cs= system_charset_info;
   char *user;
-  my_hrtime_t unow= my_hrtime();
+  ulonglong unow= microsecond_interval_timer();
   DBUG_ENTER("fill_schema_processlist");
 
   DEBUG_SYNC(thd,"fill_schema_processlist_after_unow");
@@ -2793,9 +2796,12 @@ int fill_schema_processlist(THD* thd, TABLE_LIST* tables, COND* cond)
         table->field[4]->store(command_name[tmp->get_command()].str,
                                command_name[tmp->get_command()].length, cs);
       /* MYSQL_TIME */
-      ulonglong start_utime= tmp->start_time * HRTIME_RESOLUTION + tmp->start_time_sec_part;
-      ulonglong utime= start_utime && start_utime < unow.val
-                       ? unow.val - start_utime : 0;
+      ulonglong utime= tmp->start_utime;
+      ulonglong utime_after_query_snapshot= tmp->utime_after_query;
+      if (utime < utime_after_query_snapshot)
+        utime= utime_after_query_snapshot; // COM_SLEEP
+      utime= utime && utime < unow ? unow - utime : 0;
+
       table->field[5]->store(utime / HRTIME_RESOLUTION, TRUE);
       /* STATE */
       if ((val= thread_state_info(tmp)))
