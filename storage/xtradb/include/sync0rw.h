@@ -163,7 +163,7 @@ defined, the rwlock are instrumented with performance schema probes. */
 #  endif/* UNIV_SYNC_DEBUG */
 # else /* UNIV_DEBUG */
 #  define rw_lock_create(K, L, level)				\
-	rw_lock_create_func((L), __FILE__, __LINE__)
+	rw_lock_create_func((L), #L, __FILE__, __LINE__)
 # endif	/* UNIV_DEBUG */
 
 /**************************************************************//**

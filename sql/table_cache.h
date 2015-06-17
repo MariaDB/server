@@ -16,8 +16,10 @@
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
 
 
+#ifdef HAVE_PSI_INTERFACE
 extern PSI_mutex_key key_TABLE_SHARE_LOCK_table_share;
 extern PSI_cond_key key_TABLE_SHARE_COND_release;
+#endif
 
 class TDC_element
 {

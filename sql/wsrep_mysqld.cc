@@ -164,10 +164,6 @@ static PSI_file_info wsrep_files[]=
 {
   { &key_file_wsrep_gra_log, "wsrep_gra_log", 0}
 };
-
-#else
-#define mysql_mutex_register(X,Y,Z)
-#define mysql_cond_register(X,Y,Z)
 #endif
 
 my_bool wsrep_inited                   = 0; // initialized ?
@@ -811,8 +807,11 @@ int wsrep_init()
 /* Initialize wsrep thread LOCKs and CONDs */
 void wsrep_thr_init()
 {
+#ifdef HAVE_PSI_INTERFACE
   mysql_mutex_register("sql", wsrep_mutexes, array_elements(wsrep_mutexes));
   mysql_cond_register("sql", wsrep_conds, array_elements(wsrep_conds));
+  mysql_file_register("sql", wsrep_files, array_elements(wsrep_files));
+#endif
 
   mysql_mutex_init(key_LOCK_wsrep_ready, &LOCK_wsrep_ready, MY_MUTEX_INIT_FAST);
   mysql_cond_init(key_COND_wsrep_ready, &COND_wsrep_ready, NULL);
@@ -827,8 +826,6 @@ void wsrep_thr_init()
   mysql_mutex_init(key_LOCK_wsrep_slave_threads, &LOCK_wsrep_slave_threads, MY_MUTEX_INIT_FAST);
   mysql_mutex_init(key_LOCK_wsrep_desync, &LOCK_wsrep_desync, MY_MUTEX_INIT_FAST);
   mysql_mutex_init(key_LOCK_wsrep_config_state, &LOCK_wsrep_config_state, MY_MUTEX_INIT_FAST);
-
-  mysql_file_register("sql", wsrep_files, array_elements(wsrep_files));
 }
 
 
