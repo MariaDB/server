@@ -93,7 +93,7 @@ static bool init_fields(THD *thd, TABLE_LIST *tables,
   for (; count-- ; find_fields++)
   {
     /* We have to use 'new' here as field will be re_linked on free */
-    Item_field *field= new Item_field(context,
+    Item_field *field= new Item_field(thd, context,
                                       "mysql", find_fields->table_name,
                                       find_fields->field_name);
     if (!(find_fields->field= find_field_in_tables(thd, field, tables, NULL,

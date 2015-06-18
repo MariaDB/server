@@ -5719,7 +5719,7 @@ void Load_log_event::set_fields(const char* affected_db,
   const char* field = fields;
   for (i= 0; i < num_fields; i++)
   {
-    field_list.push_back(new Item_field(context,
+    field_list.push_back(new Item_field(thd, context,
                                         affected_db, table_name, field));
     field+= field_lens[i]  + 1;
   }

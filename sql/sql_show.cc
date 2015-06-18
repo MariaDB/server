@@ -7443,7 +7443,7 @@ static int make_old_format(THD *thd, ST_SCHEMA_TABLE *schema_table)
   {
     if (field_info->old_name)
     {
-      Item_field *field= new Item_field(context,
+      Item_field *field= new Item_field(thd, context,
                                         NullS, NullS, field_info->field_name);
       if (field)
       {
@@ -7470,7 +7470,7 @@ int make_schemata_old_format(THD *thd, ST_SCHEMA_TABLE *schema_table)
   {
     ST_FIELD_INFO *field_info= &schema_table->fields_info[1];
     String buffer(tmp,sizeof(tmp), system_charset_info);
-    Item_field *field= new Item_field(context,
+    Item_field *field= new Item_field(thd, context,
                                       NullS, NullS, field_info->field_name);
     if (!field || add_item_to_list(thd, field))
       return 1;
@@ -7505,7 +7505,7 @@ int make_table_names_old_format(THD *thd, ST_SCHEMA_TABLE *schema_table)
     buffer.append(lex->wild->ptr());
     buffer.append(')');
   }
-  Item_field *field= new Item_field(context,
+  Item_field *field= new Item_field(thd, context,
                                     NullS, NullS, field_info->field_name);
   if (add_item_to_list(thd, field))
     return 1;
@@ -7514,7 +7514,7 @@ int make_table_names_old_format(THD *thd, ST_SCHEMA_TABLE *schema_table)
   {
     field->set_name(buffer.ptr(), buffer.length(), system_charset_info);
     field_info= &schema_table->fields_info[3];
-    field= new Item_field(context, NullS, NullS, field_info->field_name);
+    field= new Item_field(thd, context, NullS, NullS, field_info->field_name);
     if (add_item_to_list(thd, field))
       return 1;
     field->set_name(field_info->old_name, strlen(field_info->old_name),
@@ -7538,7 +7538,7 @@ int make_columns_old_format(THD *thd, ST_SCHEMA_TABLE *schema_table)
                                *field_num == 18 ||
                                *field_num == 19))
       continue;
-    Item_field *field= new Item_field(context,
+    Item_field *field= new Item_field(thd, context,
                                       NullS, NullS, field_info->field_name);
     if (field)
     {
@@ -7563,7 +7563,7 @@ int make_character_sets_old_format(THD *thd, ST_SCHEMA_TABLE *schema_table)
   for (; *field_num >= 0; field_num++)
   {
     field_info= &schema_table->fields_info[*field_num];
-    Item_field *field= new Item_field(context,
+    Item_field *field= new Item_field(thd, context,
                                       NullS, NullS, field_info->field_name);
     if (field)
     {
@@ -7588,7 +7588,7 @@ int make_proc_old_format(THD *thd, ST_SCHEMA_TABLE *schema_table)
   for (; *field_num >= 0; field_num++)
   {
     field_info= &schema_table->fields_info[*field_num];
-    Item_field *field= new Item_field(context,
+    Item_field *field= new Item_field(thd, context,
                                       NullS, NullS, field_info->field_name);
     if (field)
     {

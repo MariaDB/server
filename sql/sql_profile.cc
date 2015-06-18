@@ -121,7 +121,7 @@ int make_profile_table_for_show(THD *thd, ST_SCHEMA_TABLE *schema_table)
       continue;
 
     field_info= &schema_table->fields_info[i];
-    Item_field *field= new Item_field(context,
+    Item_field *field= new Item_field(thd, context,
                                       NullS, NullS, field_info->field_name);
     if (field)
     {

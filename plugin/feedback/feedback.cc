@@ -105,7 +105,7 @@ static COND* make_cond(THD *thd, TABLE_LIST *tables, LEX_STRING *filter)
 
   for (; filter->str; filter++)
   {
-    Item_field  *fld= new Item_field(&nrc, db, table, field);
+    Item_field  *fld= new Item_field(thd, &nrc, db, table, field);
     Item_string *pattern= new Item_string(filter->str, filter->length, cs);
     Item_string *escape= new Item_string("\\", 1, cs);
 

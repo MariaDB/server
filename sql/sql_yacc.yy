@@ -481,7 +481,7 @@ set_trigger_new_row(THD *thd, LEX_STRING *name, Item *val)
                lex->trg_chistics.event == TRG_EVENT_UPDATE));
 
   trg_fld= new (thd->mem_root)
-            Item_trigger_field(lex->current_context(),
+            Item_trigger_field(thd, lex->current_context(),
                                Item_trigger_field::NEW_ROW,
                                name->str, UPDATE_ACL, FALSE);
 
@@ -8567,7 +8567,7 @@ select_item_list:
         | '*'
           {
             Item *item= new (thd->mem_root)
-                          Item_field(&thd->lex->current_select->context,
+                          Item_field(thd, &thd->lex->current_select->context,
                                      NULL, NULL, "*");
             if (item == NULL)
               MYSQL_YYABORT;
@@ -9341,14 +9341,14 @@ simple_expr:
               my_error(ER_WRONG_COLUMN_NAME, MYF(0), il->my_name()->str);
               MYSQL_YYABORT;
             }
-            $$= new (thd->mem_root) Item_default_value(Lex->current_context(),
+            $$= new (thd->mem_root) Item_default_value(thd, Lex->current_context(),
                                                          $3);
             if ($$ == NULL)
               MYSQL_YYABORT;
           }
         | VALUES '(' simple_ident_nospvar ')'
           {
-            $$= new (thd->mem_root) Item_insert_value(Lex->current_context(),
+            $$= new (thd->mem_root) Item_insert_value(thd, Lex->current_context(),
                                                         $3);
             if ($$ == NULL)
               MYSQL_YYABORT;
@@ -11610,7 +11610,7 @@ procedure_clause:
             lex->proc_list.first=0;
             lex->proc_list.next= &lex->proc_list.first;
             Item_field *item= new (thd->mem_root)
-                                Item_field(&lex->current_select->context,
+                                Item_field(thd, &lex->current_select->context,
                                            NULL, NULL, $2.str);
             if (item == NULL)
               MYSQL_YYABORT;
@@ -12145,7 +12145,7 @@ expr_or_default:
           expr { $$= $1;}
         | DEFAULT
           {
-            $$= new (thd->mem_root) Item_default_value(Lex->current_context());
+            $$= new (thd->mem_root) Item_default_value(thd, Lex->current_context());
             if ($$ == NULL)
               MYSQL_YYABORT;
           }
@@ -13635,7 +13635,7 @@ table_wild:
           ident '.' '*'
           {
             SELECT_LEX *sel= Select;
-            $$= new (thd->mem_root) Item_field(Lex->current_context(),
+            $$= new (thd->mem_root) Item_field(thd, Lex->current_context(),
                                                  NullS, $1.str, "*");
             if ($$ == NULL)
               MYSQL_YYABORT;
@@ -13646,7 +13646,7 @@ table_wild:
             SELECT_LEX *sel= Select;
             const char* schema= thd->client_capabilities & CLIENT_NO_SCHEMA ?
                                   NullS : $1.str;
-            $$= new (thd->mem_root) Item_field(Lex->current_context(),
+            $$= new (thd->mem_root) Item_field(thd, Lex->current_context(),
                                                schema,
                                                $3.str,"*");
             if ($$ == NULL)
@@ -13694,7 +13694,7 @@ simple_ident:
               if ((sel->parsing_place != IN_HAVING) ||
                   (sel->get_in_sum_expr() > 0))
               {
-                $$= new (thd->mem_root) Item_field(Lex->current_context(),
+                $$= new (thd->mem_root) Item_field(thd, Lex->current_context(),
                                                    NullS, NullS, $1.str);
               }
               else
@@ -13716,7 +13716,7 @@ simple_ident_nospvar:
             if ((sel->parsing_place != IN_HAVING) ||
                 (sel->get_in_sum_expr() > 0))
             {
-              $$= new (thd->mem_root) Item_field(Lex->current_context(),
+              $$= new (thd->mem_root) Item_field(thd, Lex->current_context(),
                                                  NullS, NullS, $1.str);
             }
             else
@@ -13767,7 +13767,7 @@ simple_ident_q:
               const bool read_only=
                 !(new_row && lex->trg_chistics.action_time == TRG_ACTION_BEFORE);
               trg_fld= new (thd->mem_root)
-                         Item_trigger_field(Lex->current_context(),
+                         Item_trigger_field(thd, Lex->current_context(),
                                             new_row ?
                                               Item_trigger_field::NEW_ROW:
                                               Item_trigger_field::OLD_ROW,
@@ -13797,7 +13797,7 @@ simple_ident_q:
               if ((sel->parsing_place != IN_HAVING) ||
                   (sel->get_in_sum_expr() > 0))
               {
-                $$= new (thd->mem_root) Item_field(Lex->current_context(),
+                $$= new (thd->mem_root) Item_field(thd, Lex->current_context(),
                                                    NullS, $1.str, $3.str);
               }
               else
@@ -13821,7 +13821,7 @@ simple_ident_q:
             if ((sel->parsing_place != IN_HAVING) ||
                 (sel->get_in_sum_expr() > 0))
             {
-              $$= new (thd->mem_root) Item_field(Lex->current_context(),
+              $$= new (thd->mem_root) Item_field(thd, Lex->current_context(),
                                                  NullS, $2.str, $4.str);
 
             }
@@ -13847,7 +13847,7 @@ simple_ident_q:
             if ((sel->parsing_place != IN_HAVING) ||
                 (sel->get_in_sum_expr() > 0))
             {
-              $$= new (thd->mem_root) Item_field(Lex->current_context(),
+              $$= new (thd->mem_root) Item_field(thd, Lex->current_context(),
                                                  schema,
                                                  $3.str, $5.str);
             }

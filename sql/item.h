@@ -2275,7 +2275,7 @@ public:
   uint have_privileges;
   /* field need any privileges (for VIEW creation) */
   bool any_privileges;
-  Item_field(Name_resolution_context *context_arg,
+  Item_field(THD *thd, Name_resolution_context *context_arg,
              const char *db_arg,const char *table_name_arg,
 	     const char *field_name_arg);
   /*
@@ -4510,12 +4510,12 @@ class Item_default_value : public Item_field
 {
 public:
   Item *arg;
-  Item_default_value(Name_resolution_context *context_arg)
-    :Item_field(context_arg, (const char *)NULL, (const char *)NULL,
+  Item_default_value(THD *thd, Name_resolution_context *context_arg)
+    :Item_field(thd, context_arg, (const char *)NULL, (const char *)NULL,
                (const char *)NULL),
      arg(NULL) {}
-  Item_default_value(Name_resolution_context *context_arg, Item *a)
-    :Item_field(context_arg, (const char *)NULL, (const char *)NULL,
+  Item_default_value(THD *thd, Name_resolution_context *context_arg, Item *a)
+    :Item_field(thd, context_arg, (const char *)NULL, (const char *)NULL,
                 (const char *)NULL),
      arg(a) {}
   enum Type type() const { return DEFAULT_VALUE_ITEM; }
@@ -4548,8 +4548,8 @@ class Item_insert_value : public Item_field
 {
 public:
   Item *arg;
-  Item_insert_value(Name_resolution_context *context_arg, Item *a)
-    :Item_field(context_arg, (const char *)NULL, (const char *)NULL,
+  Item_insert_value(THD *thd, Name_resolution_context *context_arg, Item *a)
+    :Item_field(thd, context_arg, (const char *)NULL, (const char *)NULL,
                (const char *)NULL),
      arg(a) {}
   bool eq(const Item *item, bool binary_cmp) const;
@@ -4606,11 +4606,11 @@ public:
   /* Pointer to Table_trigger_list object for table of this trigger */
   Table_triggers_list *triggers;
 
-  Item_trigger_field(Name_resolution_context *context_arg,
+  Item_trigger_field(THD *thd, Name_resolution_context *context_arg,
                      row_version_type row_ver_arg,
                      const char *field_name_arg,
                      ulong priv, const bool ro)
-    :Item_field(context_arg,
+    :Item_field(thd, context_arg,
                (const char *)NULL, (const char *)NULL, field_name_arg),
      row_version(row_ver_arg), field_idx((uint)-1), original_privilege(priv),
      want_privilege(priv), table_grants(NULL), read_only (ro)
