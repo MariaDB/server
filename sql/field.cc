@@ -10210,6 +10210,7 @@ Field::set_warning(Sql_condition::enum_warning_level level, uint code,
 void Field::set_datetime_warning(Sql_condition::enum_warning_level level,
                                  uint code, const ErrConv *str,
                                  timestamp_type ts_type, int cuted_increment)
+                                 const
 {
   THD *thd= get_thd();
   if (thd->really_abort_on_warning() && level >= Sql_condition::WARN_LEVEL_WARN)

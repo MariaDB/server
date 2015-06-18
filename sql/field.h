@@ -727,7 +727,7 @@ public:
     null_bit= p_null_bit;
   }
 
-  inline THD *get_thd() { return table ? table->in_use : current_thd; }
+  inline THD *get_thd() const { return table ? table->in_use : current_thd; }
 
   enum {
     LAST_NULL_BYTE_UNDEF= 0
@@ -897,7 +897,7 @@ public:
                    int cuted_increment) const;
   void set_datetime_warning(Sql_condition::enum_warning_level, uint code, 
                             const ErrConv *str, timestamp_type ts_type,
-                            int cuted_increment);
+                            int cuted_increment) const;
   inline bool check_overflow(int op_result)
   {
     return (op_result == E_DEC_OVERFLOW);
@@ -1682,7 +1682,7 @@ protected:
                               int was_cut, int have_smth_to_conv);
   virtual void store_TIME(MYSQL_TIME *ltime) = 0;
   bool validate_for_get_date(bool not_zero_date, const MYSQL_TIME *ltime,
-                             ulonglong fuzzydate)
+                             ulonglong fuzzydate) const
   {
     if (!not_zero_date)
       return fuzzydate & TIME_NO_ZERO_DATE;
