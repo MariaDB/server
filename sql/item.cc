@@ -9740,7 +9740,15 @@ const char *dbug_print_item(Item *item)
   str.length(0);
   if (!item)
     return "(Item*)NULL";
-  item->print(&str ,QT_ORDINARY);
+  
+  THD *thd= current_thd;
+  ulonglong save_option_bits= thd->variables.option_bits;
+  thd->variables.option_bits &= ~OPTION_QUOTE_SHOW_CREATE;
+
+  item->print(&str ,QT_EXPLAIN);
+
+  thd->variables.option_bits= save_option_bits;
+
   if (str.c_ptr() == buf)
     return buf;
   else
