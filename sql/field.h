@@ -1681,6 +1681,15 @@ protected:
   int store_TIME_with_warning(MYSQL_TIME *ltime, const ErrConv *str,
                               int was_cut, int have_smth_to_conv);
   virtual void store_TIME(MYSQL_TIME *ltime) = 0;
+  bool validate_for_get_date(bool not_zero_date, const MYSQL_TIME *ltime,
+                             ulonglong fuzzydate)
+  {
+    if (!not_zero_date)
+      return fuzzydate & TIME_NO_ZERO_DATE;
+    if (!ltime->month || !ltime->day)
+      return fuzzydate & TIME_NO_ZERO_IN_DATE;
+    return false;
+  }
 public:
   Field_temporal_with_date(uchar *ptr_arg, uint32 len_arg,
                            uchar *null_ptr_arg, uchar null_bit_arg,
