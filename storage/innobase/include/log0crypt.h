@@ -40,7 +40,7 @@ Read the crypto (version, msg and iv) info, which has been used for
 log blocks with lsn <= this checkpoint's lsn, from a log header's
 checkpoint buf. */
 UNIV_INTERN
-void
+bool
 log_crypt_read_checkpoint_buf(
 /*===========================*/
 	const byte*	buf);			/*!< in: checkpoint buffer */

@@ -810,7 +810,10 @@ recv_find_max_checkpoint(
 				buf + LOG_CHECKPOINT_OFFSET_HIGH32)) << 32;
 			checkpoint_no = mach_read_from_8(
 				buf + LOG_CHECKPOINT_NO);
-			log_crypt_read_checkpoint_buf(buf);
+
+			if (!log_crypt_read_checkpoint_buf(buf)) {
+				return DB_ERROR;
+			}
 
 #ifdef UNIV_DEBUG
 			if (log_debug_writes) {

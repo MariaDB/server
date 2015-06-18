@@ -195,9 +195,10 @@ next:
 }
 
 /*********************************************************************//**
-Generate crypt key from crypt msg. */
+Generate crypt key from crypt msg.
+@return true if successfull, false if not. */
 static
-void
+bool
 init_crypt_key(
 /*===========*/
 	crypt_info_t* info)		/*< in/out: crypt info */
@@ -206,7 +207,7 @@ init_crypt_key(
 		memset(info->crypt_key, 0, sizeof(info->crypt_key));
 		memset(info->crypt_msg, 0, sizeof(info->crypt_msg));
 		memset(info->crypt_nonce, 0, sizeof(info->crypt_nonce));
-		return;
+		return true;
 	}
 
 	byte mysqld_key[MY_AES_BLOCK_SIZE] = {0};
@@ -216,8 +217,10 @@ init_crypt_key(
 	{
 		ib_logf(IB_LOG_LEVEL_ERROR,
 			"Redo log crypto: getting mysqld crypto key "
-			"from key version failed.");
-		ut_error;
+			"from key version failed. Reason could be that requested"
+			" key_version %lu is not found or required encryption "
+			" key management is not found.", info->key_version);
+		return false;
 	}
 
 	uint dst_len;
@@ -230,8 +233,10 @@ init_crypt_key(
 		fprintf(stderr,
 			"\nInnodb redo log crypto: getting redo log crypto key "
 			"failed.\n");
-		ut_error;
+		return false;
 	}
+
+	return true;
 }
 
 static bool mysort(const crypt_info_t& i,
@@ -248,10 +253,13 @@ bool add_crypt_info(crypt_info_t* info)
 
 	if (get_crypt_info(info->checkpoint_no) != NULL) {
 		// already present...
+		return true;
+	}
+
+	if (!init_crypt_key(info)) {
 		return false;
 	}
 
-	init_crypt_key(info);
 	crypt_info.push_back(*info);
 
 	/* a log block only stores 4-bytes of checkpoint no */
@@ -450,7 +458,7 @@ Read the crypto (version, msg and iv) info, which has been used for
 log blocks with lsn <= this checkpoint's lsn, from a log header's
 checkpoint buf. */
 UNIV_INTERN
-void
+bool
 log_crypt_read_checkpoint_buf(
 /*===========================*/
 	const byte*	buf) {			/*!< in: checkpoint buffer */
@@ -459,7 +467,7 @@ log_crypt_read_checkpoint_buf(
 
 	byte scheme = buf[0];
 	if (scheme != redo_log_purpose_byte) {
-		return;
+		return true;
 	}
 	buf++;
 	size_t n = buf[0];
@@ -471,7 +479,10 @@ log_crypt_read_checkpoint_buf(
 		info.key_version = mach_read_from_4(buf + 4);
 		memcpy(info.crypt_msg, buf + 8, MY_AES_BLOCK_SIZE);
 		memcpy(info.crypt_nonce, buf + 24, MY_AES_BLOCK_SIZE);
-		add_crypt_info(&info);
+
+		if (!add_crypt_info(&info)) {
+			return false;
+		}
 		buf += LOG_CRYPT_ENTRY_SIZE;
 	}
 
@@ -485,5 +496,6 @@ log_crypt_read_checkpoint_buf(
 	}
 	fprintf(stderr, "\n");
 #endif
+	return true;
 }
 
