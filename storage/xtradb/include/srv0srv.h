@@ -706,6 +706,9 @@ extern ulong	srv_fatal_semaphore_wait_threshold;
 /** Enable semaphore request instrumentation */
 extern my_bool srv_instrument_semaphores;
 
+/** Buffer pool dump status frequence in percentages */
+extern ulong srv_buf_dump_status_frequency;
+
 # ifdef UNIV_PFS_THREAD
 /* Keys to register InnoDB threads with performance schema */
 extern mysql_pfs_key_t	buf_page_cleaner_thread_key;

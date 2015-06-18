@@ -20151,6 +20151,14 @@ static MYSQL_SYSVAR_BOOL(disable_background_merge,
   NULL, NULL, FALSE);
 #endif /* UNIV_DEBUG || UNIV_IBUF_DEBUG */
 
+static MYSQL_SYSVAR_ULONG(buf_dump_status_frequency, srv_buf_dump_status_frequency,
+  PLUGIN_VAR_RQCMDARG,
+  "A number between [0, 100] that tells how oftern buffer pool dump status "
+  "in percentages should be printed. E.g. 10 means that buffer pool dump "
+  "status is printed when every 10% of number of buffer pool pages are "
+  "dumped. Default is 0 (only start and end status is printed).",
+  NULL, NULL, 0, 0, 100, 0);
+
 #ifdef WITH_INNODB_DISALLOW_WRITES
 /*******************************************************
  *    innobase_disallow_writes variable definition     *
@@ -20728,6 +20736,7 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(debug_force_scrubbing),
 #endif
   MYSQL_SYSVAR(instrument_semaphores),
+  MYSQL_SYSVAR(buf_dump_status_frequency),
   NULL
 };
 

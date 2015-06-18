@@ -544,6 +544,9 @@ current_time % 5 != 0. */
 /** Simulate compression failures. */
 UNIV_INTERN uint srv_simulate_comp_failures = 0;
 
+/** Buffer pool dump status frequence in percentages */
+UNIV_INTERN ulong srv_buf_dump_status_frequency = 0;
+
 /** Acquire the system_mutex. */
 #define srv_sys_mutex_enter() do {			\
 	mutex_enter(&srv_sys->mutex);			\
