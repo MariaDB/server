@@ -370,6 +370,7 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
       goto cleanup;
     }
     /* Handler didn't support fast delete; Delete rows one by one */
+    query_plan.cancel_delete_all_rows();
   }
   if (conds)
   {

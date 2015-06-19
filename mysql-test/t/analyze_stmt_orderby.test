@@ -1,4 +1,6 @@
 
+--source include/have_innodb.inc
+
 create table t0(a int);
 insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
 
@@ -90,4 +92,21 @@ select MAX(b) from t2 where mod(a,2)=0 group by c;
 
 drop table t2;
 drop table t0, t1;
+
+--echo #
+--echo #  MDEV-8282: crash in filesort() with simple ordered delete
+--echo #
+create table t1(a int) engine=innodb;
+delete from t1 order by a;
+
+--echo # EXPLAIN thinks it will use delete_all_rows():
+explain
+delete from t1 order by a;
+
+--echo # ANALYZE shows that delete_all_rows() didn't work and we deleted rows
+--echo # one-by-one:
+analyze
+delete from t1 order by a;
+
+drop table t1;
 

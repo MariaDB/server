@@ -364,3 +364,20 @@ ANALYZE
 }
 drop table t2;
 drop table t0, t1;
+#
+#  MDEV-8282: crash in filesort() with simple ordered delete
+#
+create table t1(a int) engine=innodb;
+delete from t1 order by a;
+# EXPLAIN thinks it will use delete_all_rows():
+explain
+delete from t1 order by a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	1	Deleting all rows
+# ANALYZE shows that delete_all_rows() didn't work and we deleted rows
+# one-by-one:
+analyze
+delete from t1 order by a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	1	0.00	100.00	100.00	Using filesort
+drop table t1;

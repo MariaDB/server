@@ -2372,6 +2372,10 @@ public:
     deleting_all_rows= true;
     scanned_rows= rows_arg;
   }
+  void cancel_delete_all_rows()
+  {
+    deleting_all_rows= false;
+  }
 
   Explain_delete* save_explain_delete_data(MEM_ROOT *mem_root, THD *thd);
 };
