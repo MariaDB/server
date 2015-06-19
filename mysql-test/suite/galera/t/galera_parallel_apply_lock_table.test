@@ -44,7 +44,7 @@ UNLOCK TABLES;
 --eval SET SESSION wsrep_sync_wait = $wsrep_sync_wait_orig;
 SELECT COUNT(*) = 1 FROM t1;
 SELECT COUNT(*) = 1 FROM t2;
-SELECT COUNT(*) = 2  FROM INFORMATION_SCHEMA.PROCESSLIST WHERE STATE LIKE 'closing tables';
+SELECT COUNT(*) = 2  FROM INFORMATION_SCHEMA.PROCESSLIST WHERE STATE LIKE 'committed%';
 
 --eval SET GLOBAL wsrep_slave_threads = $wsrep_slave_threads_orig;
 DROP TABLE t1;

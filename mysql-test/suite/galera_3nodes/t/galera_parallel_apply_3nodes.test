@@ -31,7 +31,7 @@ SET GLOBAL wsrep_slave_threads = 2;
 
 --connection node_3
 SELECT f1 = 111 FROM t1;
-SELECT COUNT(*) IN (1, 2) FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND STATE LIKE 'closing tables';
+SELECT COUNT(*) IN (1, 2) FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND STATE LIKE 'committed%';
 
 --eval SET GLOBAL wsrep_slave_threads = $wsrep_slave_threads_orig;
 

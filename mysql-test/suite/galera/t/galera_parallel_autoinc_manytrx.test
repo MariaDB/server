@@ -41,7 +41,7 @@ while ($count)
 
 SELECT COUNT(*) = 20000 FROM t1;
 SELECT COUNT(DISTINCT f1) = 20000 FROM t1;
-SELECT COUNT(*) = 4 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND STATE LIKE 'closing tables';
+SELECT COUNT(*) = 4 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND STATE LIKE 'committed%';
 
 --disable_query_log
 --eval SET GLOBAL wsrep_slave_threads = $wsrep_slave_threads_orig;

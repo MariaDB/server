@@ -295,14 +295,6 @@ static wsrep_cb_status_t wsrep_commit(THD* const thd,
   wsrep_cb_status_t const rcode(trans_commit(thd) ?
                                 WSREP_CB_FAILURE : WSREP_CB_SUCCESS);
 
-#ifdef WSREP_PROC_INFO
-  snprintf(thd->wsrep_info, sizeof(thd->wsrep_info) - 1,
-           "committed %lld", (long long)wsrep_thd_trx_seqno(thd));
-  thd_proc_info(thd, thd->wsrep_info);
-#else
-  thd_proc_info(thd, "committed");
-#endif /* WSREP_PROC_INFO */
-
   if (WSREP_CB_SUCCESS == rcode)
   {
     thd->wsrep_rgi->cleanup_context(thd, false);
@@ -311,6 +303,14 @@ static wsrep_cb_status_t wsrep_commit(THD* const thd,
 #endif /* GTID_SUPPORT */
     // TODO: mark snapshot with global_seqno.
   }
+
+#ifdef WSREP_PROC_INFO
+  snprintf(thd->wsrep_info, sizeof(thd->wsrep_info) - 1,
+           "committed %lld", (long long) wsrep_thd_trx_seqno(thd));
+  thd_proc_info(thd, thd->wsrep_info);
+#else
+  thd_proc_info(thd, "committed");
+#endif /* WSREP_PROC_INFO */
 
   return rcode;
 }
