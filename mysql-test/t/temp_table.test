@@ -319,3 +319,9 @@ INSERT INTO t3 VALUES (101), (102), (103);
 REPAIR TABLE t1, t2, t3;
 
 DROP TABLES t1, t2, t3;
+
+#
+# CREATE TEMPORARY TEMPORARY TABLE
+#
+--error ER_PARSE_ERROR
+create temporary temporary table t1 (a int);

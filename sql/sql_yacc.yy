@@ -1717,8 +1717,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 
 %type <num>
         order_dir lock_option
-        udf_type opt_local opt_table_options table_options
-        table_option opt_no_write_to_binlog
+        udf_type opt_local opt_no_write_to_binlog
         opt_temporary all_or_any opt_distinct
         opt_ignore_leaves fulltext_options union_option
         opt_not opt_union_order_or_limit
@@ -2444,7 +2443,7 @@ connection_name:
 /* create a table */
 
 create:
-          create_or_replace opt_table_options TABLE_SYM opt_if_not_exists table_ident
+          create_or_replace opt_temporary TABLE_SYM opt_if_not_exists table_ident
           {
             LEX *lex= thd->lex;
             lex->create_info.init();
@@ -5576,20 +5575,6 @@ create_database_options:
 create_database_option:
           default_collation {}
         | default_charset {}
-        ;
-
-opt_table_options:
-          /* empty */ { $$= 0; }
-        | table_options  { $$= $1;}
-        ;
-
-table_options:
-          table_option { $$=$1; }
-        | table_option table_options { $$= $1 | $2; }
-        ;
-
-table_option:
-          TEMPORARY { $$=HA_LEX_CREATE_TMP_TABLE; }
         ;
 
 opt_if_not_exists_table_element:
@@ -11960,7 +11945,7 @@ opt_if_exists:
 
 opt_temporary:
           /* empty */ { $$= 0; }
-        | TEMPORARY { $$= HA_LEX_CREATE_TMP_TABLE;; }
+        | TEMPORARY { $$= HA_LEX_CREATE_TMP_TABLE; }
         ;
 /*
 ** Insert : add new data to table

@@ -291,3 +291,5 @@ test.t1	repair	status	OK
 test.t2	repair	status	OK
 test.t3	repair	status	OK
 DROP TABLES t1, t2, t3;
+create temporary temporary table t1 (a int);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'temporary table t1 (a int)' at line 1
