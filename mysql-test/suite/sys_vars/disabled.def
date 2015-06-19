@@ -12,3 +12,4 @@
 
 innodb_flush_checkpoint_debug_basic: removed from XtraDB-26.0
 table_open_cache_instances_basic: no such variable in MariaDB
+all_vars: obsolete, see sysvars_* tests
