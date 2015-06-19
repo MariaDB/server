@@ -67,7 +67,7 @@ void Filesort_tracker::print_json_members(Json_writer *writer)
       Tracker object to be used with filesort
 */
 
-Filesort_tracker *Sort_and_group_tracker::report_sorting()
+Filesort_tracker *Sort_and_group_tracker::report_sorting(THD *thd)
 {
   DBUG_ASSERT(cur_action < MAX_QEP_ACTIONS);
 
@@ -79,13 +79,13 @@ Filesort_tracker *Sort_and_group_tracker::report_sorting()
       varied_executions= true;
       cur_action++;
       if (!dummy_fsort_tracker)
-        dummy_fsort_tracker= new (current_thd->mem_root) Filesort_tracker();
+        dummy_fsort_tracker= new (thd->mem_root) Filesort_tracker();
       return dummy_fsort_tracker;
     }
     return qep_actions_data[cur_action++].filesort_tracker;
   }
 
-  Filesort_tracker *fs_tracker= new(current_thd->mem_root)Filesort_tracker();
+  Filesort_tracker *fs_tracker= new(thd->mem_root)Filesort_tracker();
   qep_actions_data[cur_action].filesort_tracker= fs_tracker;
   qep_actions[cur_action++]= EXPL_ACTION_FILESORT;
 

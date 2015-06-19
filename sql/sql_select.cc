@@ -21058,7 +21058,7 @@ create_sort_index(THD *thd, JOIN *join, ORDER *order,
   filesort_retval= filesort(thd, table, join->sortorder, length,
                             select, filesort_limit, 0,
                             &examined_rows, &found_rows, 
-                            join->explain->ops_tracker.report_sorting());
+                            join->explain->ops_tracker.report_sorting(thd));
   table->sort.found_records= filesort_retval;
   tab->records= found_rows;                     // For SQL_CALC_ROWS
 

@@ -396,7 +396,7 @@ public:
       @return 
         Tracker object to be used with filesort
   */
-  Filesort_tracker *report_sorting();
+  Filesort_tracker *report_sorting(THD *thd);
   
   friend class Iterator;
   /*************** Statistics retrieval interface ***************/
