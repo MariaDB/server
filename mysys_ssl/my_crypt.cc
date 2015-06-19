@@ -104,7 +104,7 @@ static int block_crypt(CipherMode cipher, Dir dir,
       }
       else
       {
-        int n= dest[source_length - 1];
+        int n= source_length ? dest[source_length - 1] : 0;
         if (tail || n == 0 || n > MY_AES_BLOCK_SIZE)
           return MY_AES_BAD_DATA;
         *dest_length-= n;
