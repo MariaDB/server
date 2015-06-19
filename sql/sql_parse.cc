@@ -3176,6 +3176,12 @@ mysql_execute_command(THD *thd)
     TABLE_LIST *create_table= first_table;
     TABLE_LIST *select_tables= lex->create_last_non_select_table->next_global;
 
+    if (lex->tmp_table())
+    {
+      status_var_decrement(thd->status_var.com_stat[SQLCOM_CREATE_TABLE]);
+      status_var_increment(thd->status_var.com_create_tmp_table);
+    }
+
     /*
       Code below (especially in mysql_create_table() and select_create
       methods) may modify HA_CREATE_INFO structure in LEX, so we have to
@@ -4131,6 +4137,9 @@ end_with_restore_list:
     }
     else
     {
+      status_var_decrement(thd->status_var.com_stat[SQLCOM_DROP_TABLE]);
+      status_var_increment(thd->status_var.com_drop_tmp_table);
+
       /* So that DROP TEMPORARY TABLE gets to binlog at commit/rollback */
       thd->variables.option_bits|= OPTION_KEEP_LOG;
     }

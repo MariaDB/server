@@ -3756,6 +3756,7 @@ SHOW_VAR com_status_vars[]= {
   {"create_role",          STMT_STATUS(SQLCOM_CREATE_ROLE)},
   {"create_server",        STMT_STATUS(SQLCOM_CREATE_SERVER)},
   {"create_table",         STMT_STATUS(SQLCOM_CREATE_TABLE)},
+  {"create_temporary_table", COM_STATUS(com_create_tmp_table)},
   {"create_trigger",       STMT_STATUS(SQLCOM_CREATE_TRIGGER)},
   {"create_udf",           STMT_STATUS(SQLCOM_CREATE_FUNCTION)},
   {"create_user",          STMT_STATUS(SQLCOM_CREATE_USER)},
@@ -3772,6 +3773,7 @@ SHOW_VAR com_status_vars[]= {
   {"drop_role",            STMT_STATUS(SQLCOM_DROP_ROLE)},
   {"drop_server",          STMT_STATUS(SQLCOM_DROP_SERVER)},
   {"drop_table",           STMT_STATUS(SQLCOM_DROP_TABLE)},
+  {"drop_temporary_table", COM_STATUS(com_drop_tmp_table)},
   {"drop_trigger",         STMT_STATUS(SQLCOM_DROP_TRIGGER)},
   {"drop_user",            STMT_STATUS(SQLCOM_DROP_USER)},
   {"drop_view",            STMT_STATUS(SQLCOM_DROP_VIEW)},
@@ -4207,25 +4209,27 @@ static int init_common_variables()
     We have few debug-only commands in com_status_vars, only visible in debug
     builds. for simplicity we enable the assert only in debug builds
 
-    There are 8 Com_ variables which don't have corresponding SQLCOM_ values:
+    There are 10 Com_ variables which don't have corresponding SQLCOM_ values:
     (TODO strictly speaking they shouldn't be here, should not have Com_ prefix
     that is. Perhaps Stmt_ ? Comstmt_ ? Prepstmt_ ?)
 
-      Com_admin_commands       => com_other
-      Com_stmt_close           => com_stmt_close
-      Com_stmt_execute         => com_stmt_execute
-      Com_stmt_fetch           => com_stmt_fetch
-      Com_stmt_prepare         => com_stmt_prepare
-      Com_stmt_reprepare       => com_stmt_reprepare
-      Com_stmt_reset           => com_stmt_reset
-      Com_stmt_send_long_data  => com_stmt_send_long_data
+      Com_admin_commands         => com_other
+      Com_create_temporary_table => com_create_tmp_table
+      Com_drop_temporary_table   => com_drop_tmp_table
+      Com_stmt_close             => com_stmt_close
+      Com_stmt_execute           => com_stmt_execute
+      Com_stmt_fetch             => com_stmt_fetch
+      Com_stmt_prepare           => com_stmt_prepare
+      Com_stmt_reprepare         => com_stmt_reprepare
+      Com_stmt_reset             => com_stmt_reset
+      Com_stmt_send_long_data    => com_stmt_send_long_data
 
     With this correction the number of Com_ variables (number of elements in
     the array, excluding the last element - terminator) must match the number
     of SQLCOM_ constants.
   */
   compile_time_assert(sizeof(com_status_vars)/sizeof(com_status_vars[0]) - 1 ==
-                     SQLCOM_END + 8);
+                     SQLCOM_END + 10);
 #endif
 
   if (get_options(&remaining_argc, &remaining_argv))
