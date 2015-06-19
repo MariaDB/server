@@ -495,6 +495,17 @@ int wsrep_abort_thd(void *bf_thd_ptr, void *victim_thd_ptr, my_bool signal)
            bf_thd->wsrep_exec_mode == TOTAL_ORDER) )               &&
        victim_thd)
   {
+    if ((victim_thd->wsrep_conflict_state == MUST_ABORT) ||
+        (victim_thd->wsrep_conflict_state == ABORTED) ||
+        (victim_thd->wsrep_conflict_state == ABORTING))
+    {
+      WSREP_DEBUG("wsrep_abort_thd called by %llu with victim %llu already "
+                  "aborted. Ignoring.",
+                  (bf_thd) ? (long long)bf_thd->real_id : 0,
+                  (long long)victim_thd->real_id);
+      DBUG_RETURN(1);
+    }
+
     WSREP_DEBUG("wsrep_abort_thd, by: %llu, victim: %llu", (bf_thd) ?
                 (long long)bf_thd->real_id : 0, (long long)victim_thd->real_id);
     ha_wsrep_abort_transaction(bf_thd, victim_thd, signal);

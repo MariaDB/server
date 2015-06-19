@@ -3650,14 +3650,14 @@ void select_insert::send_error(uint errcode,const char *err)
 }
 
 
-bool select_insert::send_eof()
+bool select_insert::prepare_eof()
 {
   int error;
   bool const trans_table= table->file->has_transactions();
-  ulonglong id, row_count;
   bool changed;
   killed_state killed_status= thd->killed;
-  DBUG_ENTER("select_insert::send_eof");
+
+  DBUG_ENTER("select_insert::prepare_eof");
   DBUG_PRINT("enter", ("trans_table=%d, table_type='%s'",
                        trans_table, table->file->table_type()));
 
@@ -3699,11 +3699,10 @@ bool select_insert::send_eof()
   */
 #ifdef WITH_WSREP
   if ((WSREP_EMULATE_BINLOG(thd) || mysql_bin_log.is_open()) &&
-      (!error || thd->transaction.stmt.modified_non_trans_table))
 #else
   if (mysql_bin_log.is_open() &&
-      (!error || thd->transaction.stmt.modified_non_trans_table))
 #endif
+      (!error || thd->transaction.stmt.modified_non_trans_table))
   {
     int errcode= 0;
     if (!error)
@@ -3715,7 +3714,7 @@ bool select_insert::send_eof()
                       trans_table, FALSE, FALSE, errcode))
     {
       table->file->ha_release_auto_increment();
-      DBUG_RETURN(1);
+      DBUG_RETURN(true);
     }
   }
   table->file->ha_release_auto_increment();
@@ -3723,27 +3722,49 @@ bool select_insert::send_eof()
   if (error)
   {
     table->file->print_error(error,MYF(0));
-    DBUG_RETURN(1);
+    DBUG_RETURN(true);
   }
-  char buff[160];
+
+  DBUG_RETURN(false);
+}
+
+bool select_insert::send_ok_packet() {
+  char  message[160];                           /* status message */
+  ulong row_count;                              /* rows affected */
+  ulong id;                                     /* last insert-id */
+
+  DBUG_ENTER("select_insert::send_ok_packet");
+
   if (info.ignore)
-    sprintf(buff, ER(ER_INSERT_INFO), (ulong) info.records,
-	    (ulong) (info.records - info.copied),
-            (ulong) thd->warning_info->statement_warn_count());
+    my_snprintf(message, sizeof(message), ER(ER_INSERT_INFO),
+                (ulong) info.records, (ulong) (info.records - info.copied),
+                (ulong) thd->warning_info->statement_warn_count());
   else
-    sprintf(buff, ER(ER_INSERT_INFO), (ulong) info.records,
-	    (ulong) (info.deleted+info.updated),
-            (ulong) thd->warning_info->statement_warn_count());
+    my_snprintf(message, sizeof(message), ER(ER_INSERT_INFO),
+                (ulong) info.records, (ulong) (info.deleted + info.updated),
+                (ulong) thd->warning_info->statement_warn_count());
+
   row_count= info.copied + info.deleted +
-             ((thd->client_capabilities & CLIENT_FOUND_ROWS) ?
-              info.touched : info.updated);
+    ((thd->client_capabilities & CLIENT_FOUND_ROWS) ?
+     info.touched : info.updated);
+
   id= (thd->first_successful_insert_id_in_cur_stmt > 0) ?
     thd->first_successful_insert_id_in_cur_stmt :
     (thd->arg_of_last_insert_id_function ?
      thd->first_successful_insert_id_in_prev_stmt :
      (info.copied ? autoinc_value_of_last_inserted_row : 0));
-  ::my_ok(thd, row_count, id, buff);
-  DBUG_RETURN(0);
+
+  ::my_ok(thd, row_count, id, message);
+
+  DBUG_RETURN(false);
+}
+
+bool select_insert::send_eof()
+{
+  bool res;
+  DBUG_ENTER("select_insert::send_eof");
+  res= (prepare_eof() || send_ok_packet());
+  DBUG_RETURN(res);
 }
 
 void select_insert::abort_result_set() {
@@ -4240,9 +4261,12 @@ void select_create::send_error(uint errcode,const char *err)
 
 bool select_create::send_eof()
 {
-  bool tmp=select_insert::send_eof();
-  if (tmp)
+  DBUG_ENTER("select_create::send_eof");
+  if (prepare_eof())
+  {
     abort_result_set();
+    DBUG_RETURN(true);
+  }
   else
   {
     /*
@@ -4262,7 +4286,7 @@ bool select_create::send_eof()
                     thd->thread_id, thd->wsrep_conflict_state, thd->query());
         mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
         abort_result_set();
-	return TRUE;
+        DBUG_RETURN(true);
       }
       mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
 #endif /* WITH_WSREP */
@@ -4270,6 +4294,9 @@ bool select_create::send_eof()
 
     table->file->extra(HA_EXTRA_NO_IGNORE_DUP_KEY);
     table->file->extra(HA_EXTRA_WRITE_CANNOT_REPLACE);
+
+    send_ok_packet();
+
     if (m_plock)
     {
       mysql_unlock_tables(thd, *m_plock);
@@ -4277,7 +4304,7 @@ bool select_create::send_eof()
       m_plock= NULL;
     }
   }
-  return tmp;
+  DBUG_RETURN(false);
 }
 
 
