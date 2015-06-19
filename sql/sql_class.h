@@ -674,8 +674,17 @@ typedef struct system_variables
 
 typedef struct system_status_var
 {
-  ulong com_other;
   ulong com_stat[(uint) SQLCOM_END];
+  ulong com_other;
+
+  ulong com_stmt_prepare;
+  ulong com_stmt_reprepare;
+  ulong com_stmt_execute;
+  ulong com_stmt_send_long_data;
+  ulong com_stmt_fetch;
+  ulong com_stmt_reset;
+  ulong com_stmt_close;
+
   ulong created_tmp_disk_tables_;
   ulong created_tmp_tables_;
   ulong ha_commit_count;
@@ -728,14 +737,6 @@ typedef struct system_status_var
   ulong filesort_rows_;
   ulong filesort_scan_count_;
   ulong filesort_pq_sorts_;
-  /* Prepared statements and binary protocol */
-  ulong com_stmt_prepare;
-  ulong com_stmt_reprepare;
-  ulong com_stmt_execute;
-  ulong com_stmt_send_long_data;
-  ulong com_stmt_fetch;
-  ulong com_stmt_reset;
-  ulong com_stmt_close;
 
   /* Features used */
   ulong feature_dynamic_columns;    /* +1 when creating a dynamic column */

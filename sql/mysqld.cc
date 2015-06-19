@@ -3919,7 +3919,7 @@ void init_sql_statement_info()
   while (var->name != NULL)
   {
     ptr= (size_t)(var->value);
-    if ((first_com <= ptr) && (ptr <= last_com))
+    if ((first_com <= ptr) && (ptr < last_com))
     {
       com_index= ((int)(ptr - first_com))/record_size;
       DBUG_ASSERT(com_index < (uint) SQLCOM_END);
