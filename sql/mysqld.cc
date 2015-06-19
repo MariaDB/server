@@ -5430,41 +5430,6 @@ void decrement_handler_count()
 
 #ifndef EMBEDDED_LIBRARY
 
-LEX_STRING sql_statement_names[(uint) SQLCOM_END + 1];
-
-static void init_sql_statement_names()
-{
-  size_t first_com= offsetof(STATUS_VAR, com_stat[0]);
-  size_t last_com= offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_END]);
-  int record_size= offsetof(STATUS_VAR, com_stat[1])
-                   - offsetof(STATUS_VAR, com_stat[0]);
-  size_t ptr;
-  uint i;
-  uint com_index;
-
-  for (i= 0; i < ((uint) SQLCOM_END + 1); i++)
-    sql_statement_names[i]= empty_lex_str;
-
-  SHOW_VAR *var= &com_status_vars[0];
-  while (var->name != NULL)
-  {
-    ptr= (size_t)(var->value);
-    if ((first_com <= ptr) && (ptr <= last_com))
-    {
-      com_index= ((int)(ptr - first_com))/record_size;
-      DBUG_ASSERT(com_index < (uint) SQLCOM_END);
-      sql_statement_names[com_index].str= const_cast<char *>(var->name);
-      sql_statement_names[com_index].length= strlen(var->name);
-    }
-    var++;
-  }
-
-  DBUG_ASSERT(strcmp(sql_statement_names[(uint) SQLCOM_SELECT].str, "select") == 0);
-  DBUG_ASSERT(strcmp(sql_statement_names[(uint) SQLCOM_SIGNAL].str, "signal") == 0);
-
-  sql_statement_names[(uint) SQLCOM_END].str= const_cast<char*>("error");
-}
-
 #ifndef DBUG_OFF
 /*
   Debugging helper function to keep the locale database
@@ -5543,7 +5508,6 @@ int mysqld_main(int argc, char **argv)
   /* Must be initialized early for comparison of options name */
   system_charset_info= &my_charset_utf8_general_ci;
 
-  init_sql_statement_names();
   sys_var_init();
 
 #ifdef WITH_PERFSCHEMA_STORAGE_ENGINE

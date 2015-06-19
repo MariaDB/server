@@ -487,7 +487,6 @@ enum killed_type
 
 #include "sql_lex.h"				/* Must be here */
 
-extern LEX_STRING sql_statement_names[(uint) SQLCOM_END + 1];
 class Delayed_insert;
 class select_result;
 class Time_zone;
