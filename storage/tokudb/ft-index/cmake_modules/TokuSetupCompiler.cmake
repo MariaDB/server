@@ -181,8 +181,8 @@ if (NOT CMAKE_CXX_COMPILER_ID STREQUAL Clang)
 endif ()
 
 ## always want these
-set(CMAKE_C_FLAGS "-Wall -Werror ${CMAKE_C_FLAGS}")
-set(CMAKE_CXX_FLAGS "-Wall -Werror ${CMAKE_CXX_FLAGS}")
+set(CMAKE_C_FLAGS "-Wall ${CMAKE_C_FLAGS}")
+set(CMAKE_CXX_FLAGS "-Wall ${CMAKE_CXX_FLAGS}")
 
 ## need to set -stdlib=libc++ to get real c++11 support on darwin
 if (APPLE)
