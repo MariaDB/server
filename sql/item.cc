@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2014, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2014, Monty Program Ab.
+   Copyright (c) 2010, 2015, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1175,6 +1175,42 @@ Item *Item::safe_charset_converter(CHARSET_INFO *tocs)
     return this;
   Item_func_conv_charset *conv= new Item_func_conv_charset(this, tocs, 1);
   return conv->safe ? conv : NULL;
+}
+
+
+/**
+  Some pieces of the code do not support changing of
+  Item_cache to other Item types.
+
+  Example:
+  Item_singlerow_subselect has "Item_cache **row".
+  Creating of Item_func_conv_charset followed by THD::change_item_tree()
+  should not change row[i] from Item_cache directly to Item_func_conv_charset, because Item_singlerow_subselect
+  because Item_singlerow_subselect later calls Item_cache-specific methods,
+  e.g. row[i]->store() and row[i]->cache_value().
+
+  Let's wrap Item_func_conv_charset in a new Item_cache,
+  so the Item_cache-specific methods can still be used for
+  Item_singlerow_subselect::row[i] safely.
+
+  As a bonus we cache the converted value, instead of converting every time
+
+  TODO: we should eventually check all other use cases of change_item_tree().
+  Perhaps some more potentially dangerous substitution examples exist.
+*/
+Item *Item_cache::safe_charset_converter(CHARSET_INFO *tocs)
+{
+  if (!example)
+    return Item::safe_charset_converter(tocs);
+  Item *conv= example->safe_charset_converter(tocs);
+  if (conv == example)
+    return this;
+  Item_cache *cache;
+  if (!conv || !(cache= new Item_cache_str(conv)))
+    return NULL; // Safe conversion is not possible, or OEM
+  cache->setup(conv);
+  cache->fixed= false; // Make Item::fix_fields() happy
+  return cache;
 }
 
 
@@ -7931,6 +7967,7 @@ bool Item_direct_view_ref::fix_fields(THD *thd, Item **reference)
     return TRUE;
   if (view->table && view->table->maybe_null)
     maybe_null= TRUE;
+  set_null_ref_table();
   return FALSE;
 }
 
@@ -9470,6 +9507,11 @@ bool Item_type_holder::join_types(THD *thd, Item *item)
       item_decimals= 0;
     decimals= MY_MAX(decimals, item_decimals);
   }
+
+  if (fld_type == FIELD_TYPE_GEOMETRY)
+    geometry_type=
+      Field_geom::geometry_type_merge(geometry_type, item->get_geometry_type());
+
   if (Field::result_merge_type(fld_type) == DECIMAL_RESULT)
   {
     decimals= MY_MIN(MY_MAX(decimals, item->decimals), DECIMAL_MAX_SCALE);
@@ -9775,13 +9817,30 @@ void Item_ref::update_used_tables()
     (*ref)->update_used_tables();
 }
 
+void Item_direct_view_ref::update_used_tables()
+{
+  set_null_ref_table();
+  Item_direct_ref::update_used_tables();
+}
+
+
 table_map Item_direct_view_ref::used_tables() const
 {
-  return get_depended_from() ?
-         OUTER_REF_TABLE_BIT :
-         ((view->is_merged_derived() || view->merged || !view->table) ?
-          (*ref)->used_tables() :
-          view->table->map);
+  DBUG_ASSERT(null_ref_table);
+
+  if (get_depended_from())
+    return OUTER_REF_TABLE_BIT;
+
+  if (view->is_merged_derived() || view->merged || !view->table)
+  {
+    table_map used= (*ref)->used_tables();
+    return (used ?
+            used :
+            ((null_ref_table != NO_NULL_TABLE) ?
+             null_ref_table->map :
+             (table_map)0 ));
+  }
+  return view->table->map;
 }
 
 table_map Item_direct_view_ref::not_null_tables() const

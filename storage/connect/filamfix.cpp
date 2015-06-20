@@ -5,7 +5,7 @@
 /*                                                                     */
 /* COPYRIGHT:                                                          */
 /* ----------                                                          */
-/*  (C) Copyright to the author Olivier BERTRAND          2005-2014    */
+/*  (C) Copyright to the author Olivier BERTRAND          2005-2015    */
 /*                                                                     */
 /* WHAT THIS PROGRAM DOES:                                             */
 /* -----------------------                                             */
@@ -17,7 +17,7 @@
 /*  Include relevant sections of the System header files.              */
 /***********************************************************************/
 #include "my_global.h"
-#if defined(WIN32)
+#if defined(__WIN__)
 #include <io.h>
 #include <fcntl.h>
 #include <errno.h>
@@ -25,7 +25,7 @@
 #define __MFC_COMPAT__                   // To define min/max as macro
 #endif   // __BORLANDC__
 //#include <windows.h>
-#else   // !WIN32
+#else   // !__WIN__
 #if defined(UNIX)
 #include <errno.h>
 #include <unistd.h>
@@ -34,7 +34,7 @@
 #endif  // !UNIX
 #include <sys/stat.h>
 #include <fcntl.h>
-#endif  // !WIN32
+#endif  // !__WIN__
 
 /***********************************************************************/
 /*  Include application header files:                                  */
@@ -46,6 +46,7 @@
 #include "plgdbsem.h"
 #include "filamfix.h"
 #include "tabdos.h"
+#include "tabfix.h"
 #include "osutil.h"
 
 #ifndef INVALID_SET_FILE_POINTER
@@ -102,7 +103,7 @@ bool FIXFAM::SetPos(PGLOBAL g, int pos)
 /***********************************************************************/
 /*  Initialize CurBlk and CurNum for indexed DELETE.                   */
 /***********************************************************************/
-int FIXFAM::InitDelete(PGLOBAL g, int fpos, int spos)
+int FIXFAM::InitDelete(PGLOBAL, int fpos, int)
   {
   CurBlk = fpos / Nrec;
   CurNum = fpos % Nrec;
@@ -133,18 +134,35 @@ bool FIXFAM::AllocateBuffer(PGLOBAL g)
     if (Tdbp->GetFtype() == RECFM_BIN) {
       // The buffer must be prepared depending on column types
       int     n = 0;
+      bool    b = false;
       PDOSDEF defp = (PDOSDEF)Tdbp->GetDef();
-      PCOLDEF cdp;
+//    PCOLDEF cdp;
+      PBINCOL colp;
 
       // Prepare the first line of the buffer
       memset(To_Buf, 0, Buflen);
 
+#if 0
       for (cdp = defp->GetCols(); cdp; cdp = cdp->GetNext()) {
-        if (IsTypeNum(cdp->GetType()))
-          memset(To_Buf + cdp->GetOffset(), ' ', cdp->GetClen());
+        if (!IsTypeNum(cdp->GetType())) {
+          memset(To_Buf + cdp->GetOffset(), ' ', cdp->GetClen()); 
+          b = true;
+          } // endif not num
 
-        n = MY_MAX(n, cdp->GetPoff() + cdp->GetClen());
+        n = MY_MAX(n, cdp->GetOffset() + cdp->GetClen());
         } // endfor cdp
+#endif // 0
+
+      for (colp = (PBINCOL)Tdbp->GetColumns(); colp; 
+           colp = (PBINCOL)colp->GetNext())
+        if (!colp->IsSpecial()) {
+          if (!IsTypeNum(colp->GetResultType())) {
+            memset(To_Buf + colp->GetDeplac(), ' ', colp->GetLength()); 
+            b = true;
+            } // endif not num
+      
+          n = MY_MAX(n, colp->GetDeplac() + colp->GetFileSize());
+          } // endif !special
 
       // We do this for binary table because the lrecl can have been
       // specified with additional space to include line ending.
@@ -156,9 +174,10 @@ bool FIXFAM::AllocateBuffer(PGLOBAL g)
 
         } // endif n
 
-      // Now repeat this for the whole buffer
-      for (int len = Lrecl; len <= Buflen - Lrecl; len += Lrecl)
-        memcpy(To_Buf + len, To_Buf, Lrecl);
+      if (b)
+        // Now repeat this for the whole buffer
+        for (int len = Lrecl; len <= Buflen - Lrecl; len += Lrecl)
+          memcpy(To_Buf + len, To_Buf, Lrecl);
 
     } else {
       memset(To_Buf, ' ', Buflen);
@@ -319,10 +338,10 @@ int FIXFAM::ReadBuffer(PGLOBAL g)
   } else if (feof(Stream)) {
     rc = RC_EF;
   } else {
-#if defined(UNIX)
-    sprintf(g->Message, MSG(READ_ERROR), To_File, strerror(errno));
-#else
+#if defined(__WIN__)
     sprintf(g->Message, MSG(READ_ERROR), To_File, _strerror(NULL));
+#else
+    sprintf(g->Message, MSG(READ_ERROR), To_File, strerror(errno));
 #endif
 
     if (trace)
@@ -659,7 +678,7 @@ BGXFAM::BGXFAM(PBGXFAM txfp) : FIXFAM(txfp)
 /***********************************************************************/
 bool BGXFAM::BigSeek(PGLOBAL g, HANDLE h, BIGINT pos, int org)
   {
-#if defined(WIN32)
+#if defined(__WIN__)
   char          buf[256];
   DWORD         drc;
   LARGE_INTEGER of;
@@ -675,14 +694,14 @@ bool BGXFAM::BigSeek(PGLOBAL g, HANDLE h, BIGINT pos, int org)
     sprintf(g->Message, MSG(SFP_ERROR), buf);
     return true;
     } // endif
-#else   // !WIN32
+#else   // !__WIN__
   if (lseek64(h, pos, org) < 0) {
 //  sprintf(g->Message, MSG(ERROR_IN_LSK), errno);
     sprintf(g->Message, "lseek64: %s", strerror(errno));
     printf("%s\n", g->Message);
     return true;
     } // endif
-#endif  // !WIN32
+#endif  // !__WIN__
 
   return false;
   } // end of BigSeek
@@ -690,11 +709,12 @@ bool BGXFAM::BigSeek(PGLOBAL g, HANDLE h, BIGINT pos, int org)
 /***********************************************************************/
 /*  Read from a big file.                                              */
 /***********************************************************************/
-int BGXFAM::BigRead(PGLOBAL g, HANDLE h, void *inbuf, int req)
+int BGXFAM::BigRead(PGLOBAL g __attribute__((unused)), 
+                    HANDLE h, void *inbuf, int req)
   {
   int rc;
 
-#if defined(WIN32)
+#if defined(__WIN__)
   DWORD nbr, drc, len = (DWORD)req;
   bool  brc = ReadFile(h, inbuf, len, &nbr, NULL);
 
@@ -716,12 +736,12 @@ int BGXFAM::BigRead(PGLOBAL g, HANDLE h, void *inbuf, int req)
     rc = -1;
   } else
     rc = (int)nbr;
-#else   // !WIN32
+#else   // !__WIN__
   size_t  len = (size_t)req;
   ssize_t nbr = read(h, inbuf, len);
 
   rc = (int)nbr;
-#endif  // !WIN32
+#endif  // !__WIN__
 
   return rc;
   } // end of BigRead
@@ -733,7 +753,7 @@ bool BGXFAM::BigWrite(PGLOBAL g, HANDLE h, void *inbuf, int req)
   {
   bool rc = false;
 
-#if defined(WIN32)
+#if defined(__WIN__)
   DWORD nbw, drc, len = (DWORD)req;
   bool  brc = WriteFile(h, inbuf, len, &nbw, NULL);
 
@@ -760,7 +780,7 @@ bool BGXFAM::BigWrite(PGLOBAL g, HANDLE h, void *inbuf, int req)
 
     rc = true;
     } // endif brc || nbw
-#else   // !WIN32
+#else   // !__WIN__
   size_t  len = (size_t)req;
   ssize_t nbw = write(h, inbuf, len);
 
@@ -775,7 +795,7 @@ bool BGXFAM::BigWrite(PGLOBAL g, HANDLE h, void *inbuf, int req)
 
     rc = true;
     } // endif nbr
-#endif  // !WIN32
+#endif  // !__WIN__
 
   return rc;
   } // end of BigWrite
@@ -810,7 +830,7 @@ bool BGXFAM::OpenTableFile(PGLOBAL g)
   if (trace)
     htrc("OpenTableFile: filename=%s mode=%d\n", filename, mode);
 
-#if defined(WIN32)
+#if defined(__WIN__)
   DWORD rc, access, creation, share = 0;
 
   /*********************************************************************/
@@ -967,7 +987,7 @@ int BGXFAM::Cardinality(PGLOBAL g)
 
     PlugSetPath(filename, To_File, Tdbp->GetPath());
 
-#if defined(WIN32)  // OB
+#if defined(__WIN__)  // OB
     LARGE_INTEGER len;
     DWORD         rc = 0;
 
@@ -1326,7 +1346,7 @@ int BGXFAM::DeleteRecords(PGLOBAL g, int irc)
       /*****************************************************************/
       /*  Remove extra records.                                        */
       /*****************************************************************/
-#if defined(WIN32)
+#if defined(__WIN__)
       if (BigSeek(g, Hfile, (BIGINT)Tpos * (BIGINT)Lrecl))
         return RC_FX;
 
@@ -1336,12 +1356,12 @@ int BGXFAM::DeleteRecords(PGLOBAL g, int irc)
         sprintf(g->Message, MSG(SETEOF_ERROR), drc);
         return RC_FX;
         } // endif error
-#else   // !WIN32
+#else   // !__WIN__
       if (ftruncate64(Hfile, (BIGINT)(Tpos * Lrecl))) {
         sprintf(g->Message, MSG(TRUNCATE_ERROR), strerror(errno));
         return RC_FX;
         } // endif
-#endif  // !WIN32
+#endif  // !__WIN__
 
     } // endif UseTemp
 
@@ -1366,7 +1386,7 @@ bool BGXFAM::OpenTempFile(PGLOBAL g)
   strcat(PlugRemoveType(tempname, tempname), ".t");
   remove(tempname);       // Be sure it does not exist yet
 
-#if defined(WIN32)
+#if defined(__WIN__)
   Tfile = CreateFile(tempname, GENERIC_WRITE, 0, NULL,
                      CREATE_NEW, FILE_ATTRIBUTE_NORMAL, NULL);
 
@@ -1506,7 +1526,7 @@ void BGXFAM::CloseTableFile(PGLOBAL g, bool abort)
 void BGXFAM::Rewind(void)
   {
 #if 0    // This is probably unuseful because file is accessed directly
-#if defined(WIN32)  //OB
+#if defined(__WIN__)  //OB
   SetFilePointer(Hfile, 0, NULL, FILE_BEGIN);
 #else    // UNIX
   lseek64(Hfile, 0, SEEK_SET);

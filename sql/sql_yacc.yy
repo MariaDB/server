@@ -1,6 +1,6 @@
 /*
-   Copyright (c) 2000, 2014, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2014, Monty Program Ab.
+   Copyright (c) 2000, 2015, Oracle and/or its affiliates.
+   Copyright (c) 2010, 2015, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -63,6 +63,7 @@
 #include "keycaches.h"
 #include "set_var.h"
 #include "rpl_mi.h"
+#include "lex_token.h"
 
 /* this is to get the bison compilation windows warnings out */
 #ifdef _MSC_VER
@@ -1331,6 +1332,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  MULTIPOINT
 %token  MULTIPOLYGON
 %token  MUTEX_SYM
+%token  MYSQL_SYM
 %token  MYSQL_ERRNO_SYM
 %token  NAMES_SYM                     /* SQL-2003-N */
 %token  NAME_SYM                      /* SQL-2003-N */
@@ -5803,18 +5805,8 @@ create_table_option:
 default_charset:
           opt_default charset opt_equal charset_name_or_default
           {
-            HA_CREATE_INFO *cinfo= &Lex->create_info;
-            if ((cinfo->used_fields & HA_CREATE_USED_DEFAULT_CHARSET) &&
-                 cinfo->default_table_charset && $4 &&
-                 !my_charset_same(cinfo->default_table_charset,$4))
-            {
-              my_error(ER_CONFLICTING_DECLARATIONS, MYF(0),
-                       "CHARACTER SET ", cinfo->default_table_charset->csname,
-                       "CHARACTER SET ", $4->csname);
+            if (Lex->create_info.add_table_option_default_charset($4))
               MYSQL_YYABORT;
-            }
-            Lex->create_info.default_table_charset= $4;
-            Lex->create_info.used_fields|= HA_CREATE_USED_DEFAULT_CHARSET;
           }
         ;
 
@@ -7028,6 +7020,7 @@ alter:
           {
             Lex->name.str= 0;
             Lex->name.length= 0;
+            Lex->only_view= FALSE;
             Lex->sql_command= SQLCOM_ALTER_TABLE;
             Lex->duplicates= DUP_ERROR; 
             Lex->col_list.empty();
@@ -7149,7 +7142,7 @@ alter:
               my_error(ER_SP_BADSTATEMENT, MYF(0), "ALTER VIEW");
               MYSQL_YYABORT;
             }
-            lex->create_view_algorithm= DTYPE_ALGORITHM_UNDEFINED;
+            lex->create_view_algorithm= VIEW_ALGORITHM_INHERIT;
             lex->create_view_mode= VIEW_ALTER;
           }
           view_tail
@@ -7646,10 +7639,8 @@ alter_list_item:
               MYSQL_YYABORT;
             }
             LEX *lex= Lex;
-            lex->create_info.table_charset=
-            lex->create_info.default_table_charset= $5;
-            lex->create_info.used_fields|= (HA_CREATE_USED_CHARSET |
-              HA_CREATE_USED_DEFAULT_CHARSET);
+            if (lex->create_info.add_alter_list_item_convert_to_charset($5))
+              MYSQL_YYABORT;
             lex->alter_info.flags|= Alter_info::ALTER_CONVERT;
           }
         | create_table_options_space_separated
@@ -7921,8 +7912,13 @@ opt_checksum_type:
         | EXTENDED_SYM  { Lex->check_opt.flags= T_EXTEND; }
         ;
 
+repair_table_or_view:
+          table_or_tables table_list opt_mi_repair_type
+        | VIEW_SYM { Lex->only_view= TRUE; } table_list opt_view_repair_type
+        ;
+
 repair:
-          REPAIR opt_no_write_to_binlog table_or_tables
+          REPAIR opt_no_write_to_binlog
           {
             LEX *lex=Lex;
             lex->sql_command = SQLCOM_REPAIR;
@@ -7932,7 +7928,7 @@ repair:
             /* Will be overriden during execution. */
             YYPS->m_lock_type= TL_UNLOCK;
           }
-          table_list opt_mi_repair_type
+          repair_table_or_view
           {
             LEX* lex= thd->lex;
             DBUG_ASSERT(!lex->m_sql_cmd);
@@ -7956,6 +7952,11 @@ mi_repair_type:
           QUICK        { Lex->check_opt.flags|= T_QUICK; }
         | EXTENDED_SYM { Lex->check_opt.flags|= T_EXTEND; }
         | USE_FRM      { Lex->check_opt.sql_flags|= TT_USEFRM; }
+        ;
+
+opt_view_repair_type:
+          /* empty */    { }
+        | FROM MYSQL_SYM { Lex->check_opt.sql_flags|= TT_FROM_MYSQL; }
         ;
 
 analyze:
@@ -8074,25 +8075,29 @@ binlog_base64_event:
           }
         ;
 
-check:
-          CHECK_SYM table_or_tables
+check_view_or_table:
+          table_or_tables table_list opt_mi_check_type
+        | VIEW_SYM { Lex->only_view= TRUE; } table_list opt_view_check_type
+        ;
+
+check:    CHECK_SYM
           {
             LEX *lex=Lex;
 
-            if (lex->sphead)
-            {
-              my_error(ER_SP_BADSTATEMENT, MYF(0), "CHECK");
-              MYSQL_YYABORT;
-            }
             lex->sql_command = SQLCOM_CHECK;
             lex->check_opt.init();
             lex->alter_info.reset();
             /* Will be overriden during execution. */
             YYPS->m_lock_type= TL_UNLOCK;
           }
-          table_list opt_mi_check_type
+          check_view_or_table
           {
             LEX* lex= thd->lex;
+            if (lex->sphead)
+            {
+              my_error(ER_SP_BADSTATEMENT, MYF(0), "CHECK");
+              MYSQL_YYABORT;
+            }
             DBUG_ASSERT(!lex->m_sql_cmd);
             lex->m_sql_cmd= new (thd->mem_root) Sql_cmd_check_table();
             if (lex->m_sql_cmd == NULL)
@@ -8116,6 +8121,11 @@ mi_check_type:
         | MEDIUM_SYM          { Lex->check_opt.flags|= T_MEDIUM; }
         | EXTENDED_SYM        { Lex->check_opt.flags|= T_EXTEND; }
         | CHANGED             { Lex->check_opt.flags|= T_CHECK_ONLY_CHANGED; }
+        | FOR_SYM UPGRADE_SYM { Lex->check_opt.sql_flags|= TT_FOR_UPGRADE; }
+        ;
+
+opt_view_check_type:
+          /* empty */         { }
         | FOR_SYM UPGRADE_SYM { Lex->check_opt.sql_flags|= TT_FOR_UPGRADE; }
         ;
 
@@ -10105,7 +10115,8 @@ udf_expr:
                parse it out. If we hijack the input stream with
                remember_name we may get quoted or escaped names.
             */
-            else if ($2->type() != Item::FIELD_ITEM)
+            else if ($2->type() != Item::FIELD_ITEM &&
+                     $2->type() != Item::REF_ITEM /* For HAVING */ )
               $2->set_name($1, (uint) ($3 - $1), thd->charset());
             $$= $2;
           }
@@ -12529,7 +12540,6 @@ show_param:
             lex->sql_command = SQLCOM_SHOW_CREATE;
             if (!lex->select_lex.add_table_to_list(thd, $3, NULL,0))
               MYSQL_YYABORT;
-            lex->only_view= 0;
             lex->create_info.storage_media= HA_SM_DEFAULT;
           }
         | CREATE VIEW_SYM table_ident
@@ -13360,6 +13370,13 @@ literal:
         | temporal_literal { $$= $1; }
         | NULL_SYM
           {
+            /*
+              For the digest computation, in this context only,
+              NULL is considered a literal, hence reduced to '?'
+              REDUCE:
+                TOK_GENERIC_VALUE := NULL_SYM
+            */
+            YYLIP->reduce_digest_token(TOK_GENERIC_VALUE, NULL_SYM);
             $$ = new (thd->mem_root) Item_null();
             if ($$ == NULL)
               MYSQL_YYABORT;
@@ -14211,6 +14228,7 @@ keyword_sp:
         | MULTIPOINT               {}
         | MULTIPOLYGON             {}
         | MUTEX_SYM                {}
+        | MYSQL_SYM                {}
         | MYSQL_ERRNO_SYM          {}
         | NAME_SYM                 {}
         | NAMES_SYM                {}
@@ -14839,8 +14857,8 @@ lock:
         ;
 
 table_or_tables:
-          TABLE_SYM {}
-        | TABLES {}
+          TABLE_SYM        { }
+        | TABLES           { }
         ;
 
 table_lock_list:
@@ -15744,6 +15762,13 @@ subselect_end:
             */
             lex->current_select->select_n_where_fields+=
             child->select_n_where_fields;
+
+            /*
+              Aggregate functions in having clause may add fields to an outer
+              select. Count them also.
+            */
+            lex->current_select->select_n_having_items+=
+            child->select_n_having_items;
           }
         ;
 

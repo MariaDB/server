@@ -71,8 +71,6 @@ void *grn_ra_ref_cache(grn_ctx *ctx, grn_ra *ra, grn_id id, grn_ra_cache *cache)
 
 /**** variable sized elements ****/
 
-extern grn_bool grn_ja_skip_same_value_put;
-
 typedef struct _grn_ja grn_ja;
 
 struct _grn_ja {

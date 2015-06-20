@@ -5,7 +5,7 @@
 /*                                                                     */
 /* COPYRIGHT:                                                          */
 /* ----------                                                          */
-/*  (C) Copyright to the author Olivier BERTRAND          2005-2014    */
+/*  (C) Copyright to the author Olivier BERTRAND          2005-2015    */
 /*                                                                     */
 /* WHAT THIS PROGRAM DOES:                                             */
 /* -----------------------                                             */
@@ -21,7 +21,7 @@
 /*  Include relevant MariaDB header file.                              */
 /***********************************************************************/
 #include "my_global.h"
-#if defined(WIN32)
+#if defined(__WIN__)
 #include <io.h>
 #include <fcntl.h>
 #if defined(__BORLANDC__)
@@ -29,7 +29,7 @@
 #endif   // __BORLAND__
 //#include <windows.h>
 #include <sys/stat.h>
-#else   // !WIN32
+#else   // !__WIN__
 #if defined(UNIX)
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -40,7 +40,7 @@
 #include <io.h>
 #endif  // !UNIX
 #include <fcntl.h>
-#endif  // !WIN32
+#endif  // !__WIN__
 
 /***********************************************************************/
 /*  Include application header files:                                  */
@@ -49,7 +49,7 @@
 /*  tabdos.h    is header containing the TABDOS class declarations.    */
 /***********************************************************************/
 #include "global.h"
-#include "osutil.h"            // Unuseful for WIN32
+#include "osutil.h"            // Unuseful for WINDOWS
 #include "plgdbsem.h"
 #include "valblk.h"
 #include "filamfix.h"
@@ -279,7 +279,7 @@ bool VCTFAM::SetBlockInfo(PGLOBAL g)
 /***********************************************************************/
 /*  Use BlockTest to reduce the table estimated size.                  */
 /***********************************************************************/
-int VCTFAM::MaxBlkSize(PGLOBAL g, int s)
+int VCTFAM::MaxBlkSize(PGLOBAL g, int)
   {
   int rc = RC_OK, savcur = CurBlk;
   int size;
@@ -376,11 +376,11 @@ bool VCTFAM::MakeEmptyFile(PGLOBAL g, char *fn)
   int  h, n;
 
   PlugSetPath(filename, fn, Tdbp->GetPath());
-#if defined(WIN32)
+#if defined(__WIN__)
   h= global_open(g, MSGID_OPEN_EMPTY_FILE, filename, _O_CREAT | _O_WRONLY, S_IREAD | S_IWRITE);
-#else   // !WIN32
+#else   // !__WIN__
   h= global_open(g, MSGID_OPEN_EMPTY_FILE, filename,  O_CREAT |  O_WRONLY, S_IREAD | S_IWRITE);
-#endif  // !WIN32
+#endif  // !__WIN__
 
   if (h == -1)
     return true;
@@ -1451,8 +1451,7 @@ bool VCMFAM::OpenTableFile(PGLOBAL g)
     /*******************************************************************/
     fp = (PFBLOCK)PlugSubAlloc(g, NULL, sizeof(FBLOCK));
     fp->Type = TYPE_FB_MAP;
-    fp->Fname = (char*)PlugSubAlloc(g, NULL, strlen(filename) + 1);
-    strcpy((char*)fp->Fname, filename);
+    fp->Fname = PlugDup(g, filename);
     fp->Next = dbuserp->Openlist;
     dbuserp->Openlist = fp;
     fp->Count = 1;
@@ -1670,7 +1669,7 @@ int VCMFAM::DeleteRecords(PGLOBAL g, int irc)
       // Remove extra blocks
       n = Block * Blksize;
 
-#if defined(WIN32)
+#if defined(__WIN__)
       DWORD drc = SetFilePointer(fp->Handle, n, NULL, FILE_BEGIN);
 
       if (drc == 0xFFFFFFFF) {
@@ -1717,7 +1716,7 @@ int VCMFAM::DeleteRecords(PGLOBAL g, int irc)
 /***********************************************************************/
 /*  Move intermediate deleted or updated lines.                        */
 /***********************************************************************/
-bool VCMFAM::MoveIntermediateLines(PGLOBAL g, bool *b)
+bool VCMFAM::MoveIntermediateLines(PGLOBAL, bool *)
   {
   int i, m, n;
 
@@ -1766,7 +1765,7 @@ bool VCMFAM::MoveIntermediateLines(PGLOBAL g, bool *b)
 /***********************************************************************/
 /*  Data Base close routine for VMP access method.                     */
 /***********************************************************************/
-void VCMFAM::CloseTableFile(PGLOBAL g, bool abort)
+void VCMFAM::CloseTableFile(PGLOBAL g, bool)
   {
   int  wrc = RC_OK;
   MODE mode = Tdbp->GetMode();
@@ -1801,7 +1800,7 @@ void VCMFAM::CloseTableFile(PGLOBAL g, bool abort)
 /***********************************************************************/
 /*  ReadBlock: Read column values from current block.                  */
 /***********************************************************************/
-bool VCMFAM::ReadBlock(PGLOBAL g, PVCTCOL colp)
+bool VCMFAM::ReadBlock(PGLOBAL, PVCTCOL colp)
   {
   char *mempos;
   int   i = colp->Index - 1;
@@ -1831,7 +1830,7 @@ bool VCMFAM::ReadBlock(PGLOBAL g, PVCTCOL colp)
 /*  the mapped file, except when checking for Update but in this case  */
 /*  we do not want to write back the modifications either.             */
 /***********************************************************************/
-bool VCMFAM::WriteBlock(PGLOBAL g, PVCTCOL colp)
+bool VCMFAM::WriteBlock(PGLOBAL, PVCTCOL colp __attribute__((unused)))
   {
 #if defined(_DEBUG)
   char *mempos;
@@ -2125,7 +2124,7 @@ bool VECFAM::AllocateBuffer(PGLOBAL g)
 /***********************************************************************/
 /*  Do initial action when inserting.                                  */
 /***********************************************************************/
-bool VECFAM::InitInsert(PGLOBAL g)
+bool VECFAM::InitInsert(PGLOBAL)
   {
   // We come here in MODE_INSERT only
   CurBlk = 0;
@@ -2366,7 +2365,7 @@ bool VECFAM::MoveLines(PGLOBAL g)
 /***********************************************************************/
 /*  Move intermediate deleted or updated lines.                        */
 /***********************************************************************/
-bool VECFAM::MoveIntermediateLines(PGLOBAL g, bool *bn)
+bool VECFAM::MoveIntermediateLines(PGLOBAL g, bool *)
   {
   int    i, n;
   bool   b = false;
@@ -2575,11 +2574,11 @@ bool VECFAM::ReadBlock(PGLOBAL g, PVCTCOL colp)
     char fn[_MAX_PATH];
 
     sprintf(fn, Colfn, colp->Index);
-#if defined(WIN32)
+#if defined(__WIN__)
     if (feof(Streams[i]))
-#else   // !WIN32
+#else   // !__WIN__
     if (errno == NO_ERROR)
-#endif  // !WIN32
+#endif  // !__WIN__
       sprintf(g->Message, MSG(BAD_READ_NUMBER), (int) n, fn);
     else
       sprintf(g->Message, MSG(READ_ERROR),
@@ -2844,8 +2843,7 @@ bool VMPFAM::MapColumnFile(PGLOBAL g, MODE mode, int i)
     /*******************************************************************/
     fp = (PFBLOCK)PlugSubAlloc(g, NULL, sizeof(FBLOCK));
     fp->Type = TYPE_FB_MAP;
-    fp->Fname = (char*)PlugSubAlloc(g, NULL, strlen(filename) + 1);
-    strcpy((char*)fp->Fname, filename);
+    fp->Fname = PlugDup(g, filename);
     fp->Next = dup->Openlist;
     dup->Openlist = fp;
     fp->Count = 1;
@@ -2971,7 +2969,7 @@ int VMPFAM::DeleteRecords(PGLOBAL g, int irc)
       /*****************************************************************/
       n = Tpos * Clens[i];
 
-#if defined(WIN32)
+#if defined(__WIN__)
       DWORD drc = SetFilePointer(fp->Handle, n, NULL, FILE_BEGIN);
 
       if (drc == 0xFFFFFFFF) {
@@ -3011,7 +3009,7 @@ int VMPFAM::DeleteRecords(PGLOBAL g, int irc)
 /***********************************************************************/
 /*  Data Base close routine for VMP access method.                     */
 /***********************************************************************/
-void VMPFAM::CloseTableFile(PGLOBAL g, bool abort)
+void VMPFAM::CloseTableFile(PGLOBAL g, bool)
   {
   if (Tdbp->GetMode() == MODE_DELETE) {
     // Set Block and Nrec values for TDBVCT::MakeBlockValues
@@ -3051,7 +3049,7 @@ BGVFAM::BGVFAM(PBGVFAM txfp) : VCTFAM(txfp)
 /***********************************************************************/
 bool BGVFAM::BigSeek(PGLOBAL g, HANDLE h, BIGINT pos, bool b)
   {
-#if defined(WIN32)
+#if defined(__WIN__)
   char          buf[256];
   DWORD         drc, m = (b) ? FILE_END : FILE_BEGIN;
   LARGE_INTEGER of;
@@ -3067,12 +3065,12 @@ bool BGVFAM::BigSeek(PGLOBAL g, HANDLE h, BIGINT pos, bool b)
     sprintf(g->Message, MSG(SFP_ERROR), buf);
     return true;
     } // endif
-#else   // !WIN32
+#else   // !__WIN__
   if (lseek64(h, pos, (b) ? SEEK_END : SEEK_SET) < 0) {
     sprintf(g->Message, MSG(ERROR_IN_LSK), errno);
     return true;
     } // endif
-#endif  // !WIN32
+#endif  // !__WIN__
 
   return false;
   } // end of BigSeek
@@ -3084,7 +3082,7 @@ bool BGVFAM::BigRead(PGLOBAL g, HANDLE h, void *inbuf, int req)
   {
   bool rc = false;
 
-#if defined(WIN32)
+#if defined(__WIN__)
   DWORD nbr, drc, len = (DWORD)req;
   bool  brc = ReadFile(h, inbuf, len, &nbr, NULL);
 
@@ -3110,7 +3108,7 @@ bool BGVFAM::BigRead(PGLOBAL g, HANDLE h, void *inbuf, int req)
 
     rc = true;
     } // endif brc || nbr
-#else   // !WIN32
+#else   // !__WIN__
   size_t  len = (size_t)req;
   ssize_t nbr = read(h, inbuf, len);
 
@@ -3125,7 +3123,7 @@ bool BGVFAM::BigRead(PGLOBAL g, HANDLE h, void *inbuf, int req)
 
     rc = true;
     } // endif nbr
-#endif  // !WIN32
+#endif  // !__WIN__
 
   return rc;
   } // end of BigRead
@@ -3137,7 +3135,7 @@ bool BGVFAM::BigWrite(PGLOBAL g, HANDLE h, void *inbuf, int req)
   {
   bool rc = false;
 
-#if defined(WIN32)
+#if defined(__WIN__)
   DWORD nbw, drc, len = (DWORD)req;
   bool  brc = WriteFile(h, inbuf, len, &nbw, NULL);
 
@@ -3164,7 +3162,7 @@ bool BGVFAM::BigWrite(PGLOBAL g, HANDLE h, void *inbuf, int req)
 
     rc = true;
     } // endif brc || nbw
-#else   // !WIN32
+#else   // !__WIN__
   size_t  len = (size_t)req;
   ssize_t nbw = write(h, inbuf, len);
 
@@ -3179,7 +3177,7 @@ bool BGVFAM::BigWrite(PGLOBAL g, HANDLE h, void *inbuf, int req)
 
     rc = true;
     } // endif nbr
-#endif  // !WIN32
+#endif  // !__WIN__
 
   return rc;
   } // end of BigWrite
@@ -3205,7 +3203,7 @@ int BGVFAM::GetBlockInfo(PGLOBAL g)
   if (Header == 2)
     strcat(PlugRemoveType(filename, filename), ".blk");
 
-#if defined(WIN32)
+#if defined(__WIN__)
   LARGE_INTEGER len;
 
   h = CreateFile(filename, GENERIC_READ, FILE_SHARE_READ, NULL,
@@ -3217,11 +3215,11 @@ int BGVFAM::GetBlockInfo(PGLOBAL g)
     } // endif h
 
   if (h == INVALID_HANDLE_VALUE || !len.QuadPart) {
-#else   // !WIN32
+#else   // !__WIN__
   h = open64(filename, O_RDONLY, 0);
 
   if (h == INVALID_HANDLE_VALUE || !_filelength(h)) {
-#endif  // !WIN32
+#endif  // !__WIN__
     // Consider this is a void table
     if (trace)
       htrc("Void table h=%d\n", h);
@@ -3282,17 +3280,17 @@ bool BGVFAM::SetBlockInfo(PGLOBAL g)
     strcat(PlugRemoveType(filename, filename), ".blk");
 
   if (h == INVALID_HANDLE_VALUE) {
-#if defined(WIN32)
+#if defined(__WIN__)
     DWORD creation = (b) ? OPEN_EXISTING : TRUNCATE_EXISTING;
 
     h = CreateFile(filename, GENERIC_READ | GENERIC_WRITE, 0,
                    NULL, creation, FILE_ATTRIBUTE_NORMAL, NULL);
 
-#else   // !WIN32
+#else   // !__WIN__
     int oflag = (b) ?  O_RDWR : O_RDWR | O_TRUNC;
 
     h = open64(filename, oflag, 0);
-#endif  // !WIN32
+#endif  // !__WIN__
 
     if (h == INVALID_HANDLE_VALUE) {
       sprintf(g->Message, "Error opening header file %s", filename);
@@ -3330,7 +3328,7 @@ bool BGVFAM::MakeEmptyFile(PGLOBAL g, char *fn)
 
   PlugSetPath(filename, fn, Tdbp->GetPath());
 
-#if defined(WIN32)
+#if defined(__WIN__)
   char         *p;
   DWORD         rc;
   bool          brc;
@@ -3382,7 +3380,7 @@ bool BGVFAM::MakeEmptyFile(PGLOBAL g, char *fn)
     CloseHandle(h);
 
   return true;
-#else   // !WIN32
+#else   // !__WIN__
   int    h;
   BIGINT pos;
 
@@ -3411,7 +3409,7 @@ bool BGVFAM::MakeEmptyFile(PGLOBAL g, char *fn)
   sprintf(g->Message, MSG(MAKE_EMPTY_FILE), To_File, strerror(errno));
   close(h);
   return true;
-#endif  // !WIN32
+#endif  // !__WIN__
   } // end of MakeEmptyFile
 
 /***********************************************************************/
@@ -3442,7 +3440,7 @@ bool BGVFAM::OpenTableFile(PGLOBAL g)
     htrc("OpenTableFile: filename=%s mode=%d Last=%d\n",
                          filename, mode, Last);
 
-#if defined(WIN32)
+#if defined(__WIN__)
   DWORD access, creation, share = 0, rc = 0;
 
   /*********************************************************************/
@@ -3768,7 +3766,7 @@ int BGVFAM::WriteBuffer(PGLOBAL g)
 
         if (!Closing && !MaxBlk) {
           // Close the VCT file and reopen it in mode Insert
-//#if defined(WIN32)  //OB
+//#if defined(__WIN__)  //OB
 //          CloseHandle(Hfile);
 //#else    // UNIX
 //          close(Hfile);
@@ -3895,7 +3893,7 @@ int BGVFAM::DeleteRecords(PGLOBAL g, int irc)
         /***************************************************************/
         /*  Remove extra records.                                      */
         /***************************************************************/
-#if defined(WIN32)
+#if defined(__WIN__)
         BIGINT pos = (BIGINT)Block * (BIGINT)Blksize;
 
         if (BigSeek(g, Hfile, pos))
@@ -3907,12 +3905,12 @@ int BGVFAM::DeleteRecords(PGLOBAL g, int irc)
           sprintf(g->Message, MSG(SETEOF_ERROR), drc);
           return RC_FX;
           } // endif error
-#else   // !WIN32
+#else   // !__WIN__
         if (ftruncate64(Hfile, (BIGINT)(Tpos * Lrecl))) {
           sprintf(g->Message, MSG(TRUNCATE_ERROR), strerror(errno));
           return RC_FX;
           } // endif
-#endif  // !WIN32
+#endif  // !__WIN__
       } else // MaxBlk
         // Clean the unused space in the file, this is required when
         // inserting again with a partial column list.
@@ -3949,7 +3947,7 @@ bool BGVFAM::OpenTempFile(PGLOBAL g)
   else if (MakeEmptyFile(g, tempname))
     return true;
 
-#if defined(WIN32)
+#if defined(__WIN__)
   DWORD access = (MaxBlk) ? OPEN_EXISTING : CREATE_NEW;
 
   Tfile = CreateFile(tempname, GENERIC_WRITE, 0, NULL,
@@ -4220,7 +4218,7 @@ void BGVFAM::Rewind(void)
   CurNum = Nrec - 1;
 
 #if 0 // This is probably unuseful as the file is directly accessed
-#if defined(WIN32)  //OB
+#if defined(__WIN__)  //OB
   SetFilePointer(Hfile, 0, NULL, FILE_BEGIN);
 #else    // UNIX
   lseek64(Hfile, 0, SEEK_SET);

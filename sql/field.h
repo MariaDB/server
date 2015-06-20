@@ -1,7 +1,7 @@
 #ifndef FIELD_INCLUDED
 #define FIELD_INCLUDED
 /* Copyright (c) 2000, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2014, SkySQL Ab.
+   Copyright (c) 2008, 2015, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -115,6 +115,20 @@ inline bool is_temporal_type_with_date(enum_field_types type)
   default:
     return false;
   }
+}
+
+
+/**
+  Tests if a field real type can have "DEFAULT CURRENT_TIMESTAMP"
+
+  @param type    Field type, as returned by field->real_type().
+  @retval true   If field real type can have "DEFAULT CURRENT_TIMESTAMP".
+  @retval false  If field real type can not have "DEFAULT CURRENT_TIMESTAMP".
+*/
+inline bool real_type_with_now_as_default(enum_field_types type)
+{
+  return type == MYSQL_TYPE_TIMESTAMP || type == MYSQL_TYPE_TIMESTAMP2 ||
+    type == MYSQL_TYPE_DATETIME || type == MYSQL_TYPE_DATETIME2;
 }
 
 
@@ -871,14 +885,32 @@ public:
   virtual int set_time() { return 1; }
   bool set_warning(Sql_condition::enum_warning_level, unsigned int code,
                    int cuted_increment) const;
+protected:
+  bool set_warning(unsigned int code, int cuted_increment) const
+  {
+    return set_warning(Sql_condition::WARN_LEVEL_WARN, code, cuted_increment);
+  }
+  bool set_note(unsigned int code, int cuted_increment) const
+  {
+    return set_warning(Sql_condition::WARN_LEVEL_NOTE, code, cuted_increment);
+  }
   void set_datetime_warning(Sql_condition::enum_warning_level, uint code, 
                             const ErrConv *str, timestamp_type ts_type,
                             int cuted_increment);
+  void set_datetime_warning(uint code,
+                            const ErrConv *str, timestamp_type ts_type,
+                            int cuted_increment)
+  {
+    set_datetime_warning(Sql_condition::WARN_LEVEL_WARN, code, str, ts_type,
+                         cuted_increment);
+  }
+  void set_warning_truncated_wrong_value(const char *type, const char *value);
   inline bool check_overflow(int op_result)
   {
     return (op_result == E_DEC_OVERFLOW);
   }
   int warn_if_overflow(int op_result);
+public:
   void set_table_name(String *alias)
   {
     table_name= &alias->Ptr;
@@ -1125,6 +1157,10 @@ class Field_longstr :public Field_str
 protected:
   int report_if_important_data(const char *ptr, const char *end,
                                bool count_spaces);
+  bool check_string_copy_error(const char *well_formed_error_pos,
+                               const char *cannot_convert_error_pos,
+                               const char *end,
+                               CHARSET_INFO *cs);
 public:
   Field_longstr(uchar *ptr_arg, uint32 len_arg, uchar *null_ptr_arg,
                 uchar null_bit_arg, utype unireg_check_arg,
@@ -2561,6 +2597,14 @@ public:
   int  store(longlong nr, bool unsigned_val);
   int  store_decimal(const my_decimal *);
   uint size_of() const { return sizeof(*this); }
+  /**
+   Key length is provided only to support hash joins. (compared byte for byte)
+   Ex: SELECT .. FROM t1,t2 WHERE t1.field_geom1=t2.field_geom2.
+
+   The comparison is not very relevant, as identical geometry might be
+   represented differently, but we need to support it either way.
+  */
+  uint32 key_length() const { return packlength; }
 
   /**
     Non-nullable GEOMETRY types cannot have defaults,
@@ -2569,6 +2613,7 @@ public:
   int reset(void) { return Field_blob::reset() || !maybe_null(); }
 
   geometry_type get_geometry_type() { return geom_type; };
+  static geometry_type geometry_type_merge(geometry_type, geometry_type);
 };
 #endif /*HAVE_SPATIAL*/
 

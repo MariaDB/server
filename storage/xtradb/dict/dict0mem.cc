@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1996, 2014, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1996, 2015, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
 
 This program is free software; you can redistribute it and/or modify it under
@@ -79,10 +79,7 @@ dict_mem_table_create(
 				the table is placed */
 	ulint		n_cols,	/*!< in: number of columns */
 	ulint		flags,	/*!< in: table flags */
-	ulint		flags2,	/*!< in: table flags2 */
-	bool		nonshared)/*!< in: whether the table object is a dummy
-				one that does not need the initialization of
-				locking-related fields. */
+	ulint		flags2)	/*!< in: table flags2 */
 {
 	dict_table_t*	table;
 	mem_heap_t*	heap;
@@ -118,18 +115,10 @@ dict_mem_table_create(
 	dict_table_stats_latch_create(table, true);
 
 #ifndef UNIV_HOTBACKUP
+	table->autoinc_lock = static_cast<ib_lock_t*>(
+		mem_heap_alloc(heap, lock_get_size()));
 
-	if (!nonshared) {
-
-		table->autoinc_lock = static_cast<ib_lock_t*>(
-			mem_heap_alloc(heap, lock_get_size()));
-
-		mutex_create(autoinc_mutex_key,
-			     &table->autoinc_mutex, SYNC_DICT_AUTOINC_MUTEX);
-	} else {
-
-		table->autoinc_lock = NULL;
-	}
+	dict_table_autoinc_create_lazy(table);
 
 	table->autoinc = 0;
 
@@ -212,10 +201,7 @@ dict_mem_table_free(
 		}
 	}
 #ifndef UNIV_HOTBACKUP
-	if (table->autoinc_lock) {
-
-		mutex_free(&(table->autoinc_mutex));
-	}
+	dict_table_autoinc_destroy(table);
 #endif /* UNIV_HOTBACKUP */
 
 	dict_table_stats_latch_destroy(table);
@@ -335,6 +321,9 @@ dict_mem_table_col_rename_low(
 	ut_ad(from_len <= NAME_LEN);
 	ut_ad(to_len <= NAME_LEN);
 
+	char from[NAME_LEN];
+	strncpy(from, s, NAME_LEN);
+
 	if (from_len == to_len) {
 		/* The easy case: simply replace the column name in
 		table->col_names. */
@@ -402,14 +391,53 @@ dict_mem_table_col_rename_low(
 
 		foreign = *it;
 
-		for (unsigned f = 0; f < foreign->n_fields; f++) {
-			/* These can point straight to
-			table->col_names, because the foreign key
-			constraints will be freed at the same time
-			when the table object is freed. */
-			foreign->foreign_col_names[f]
-				= dict_index_get_nth_field(
-					foreign->foreign_index, f)->name;
+		if (foreign->foreign_index == NULL) {
+			/* We may go here when we set foreign_key_checks to 0,
+			and then try to rename a column and modify the
+			corresponding foreign key constraint. The index
+			would have been dropped, we have to find an equivalent
+			one */
+			for (unsigned f = 0; f < foreign->n_fields; f++) {
+				if (strcmp(foreign->foreign_col_names[f], from)
+				    == 0) {
+
+					char** rc = const_cast<char**>(
+						foreign->foreign_col_names
+						+ f);
+
+					if (to_len <= strlen(*rc)) {
+						memcpy(*rc, to, to_len + 1);
+					} else {
+						*rc = static_cast<char*>(
+							mem_heap_dup(
+								foreign->heap,
+								to,
+								to_len + 1));
+					}
+				}
+			}
+
+			dict_index_t* new_index = dict_foreign_find_index(
+				foreign->foreign_table, NULL,
+				foreign->foreign_col_names,
+				foreign->n_fields, NULL, true, false);
+			/* There must be an equivalent index in this case. */
+			ut_ad(new_index != NULL);
+
+			foreign->foreign_index = new_index;
+
+		} else {
+
+			for (unsigned f = 0; f < foreign->n_fields; f++) {
+				/* These can point straight to
+				table->col_names, because the foreign key
+				constraints will be freed at the same time
+				when the table object is freed. */
+				foreign->foreign_col_names[f]
+					= dict_index_get_nth_field(
+						foreign->foreign_index,
+						f)->name;
+			}
 		}
 	}
 
@@ -418,6 +446,8 @@ dict_mem_table_col_rename_low(
 	     ++it) {
 
 		foreign = *it;
+
+		ut_ad(foreign->referenced_index != NULL);
 
 		for (unsigned f = 0; f < foreign->n_fields; f++) {
 			/* foreign->referenced_col_names[] need to be
@@ -536,8 +566,7 @@ dict_mem_index_create(
 	dict_mem_fill_index_struct(index, heap, table_name, index_name,
 				   space, type, n_fields);
 
-	os_fast_mutex_init(zip_pad_mutex_key, &index->zip_pad.mutex);
-
+	dict_index_zip_pad_mutex_create_lazy(index);
 	return(index);
 }
 
@@ -670,7 +699,7 @@ dict_mem_index_free(
 	}
 #endif /* UNIV_BLOB_DEBUG */
 
-	os_fast_mutex_free(&index->zip_pad.mutex);
+	dict_index_zip_pad_mutex_destroy(index);
 
 	mem_heap_free(index->heap);
 }
@@ -744,7 +773,7 @@ dict_foreign_set_validate(
 {
 	dict_foreign_not_exists	not_exists(fk_set);
 
-	dict_foreign_set::iterator it = std::find_if(
+	dict_foreign_set::const_iterator it = std::find_if(
 		fk_set.begin(), fk_set.end(), not_exists);
 
 	if (it == fk_set.end()) {

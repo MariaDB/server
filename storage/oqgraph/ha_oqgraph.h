@@ -78,6 +78,9 @@ public:
   double read_time(uint index, uint ranges, ha_rows rows)
   { return 1; }
 
+  // Doesn't make sense to change the engine on a virtual table.
+  virtual bool can_switch_engines() { return false; }
+
   int open(const char *name, int mode, uint test_if_locked);
   int close(void);
   int write_row(byte * buf);
@@ -130,8 +133,10 @@ public:
   }
 
 private:
-  int oqgraph_check_table_structure (TABLE *table_arg);
 
+  // Various helper functions
+  int oqgraph_check_table_structure (TABLE *table_arg); 
+  bool validate_oqgraph_table_options();
   void update_key_stats();
   String error_message;
 };

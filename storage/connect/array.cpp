@@ -1,7 +1,7 @@
 /************* Array C++ Functions Source Code File (.CPP) *************/
 /*  Name: ARRAY.CPP  Version 2.3                                       */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          2005-2014    */
+/*  (C) Copyright to the author Olivier BERTRAND          2005-2015    */
 /*                                                                     */
 /*  This file contains the XOBJECT derived class ARRAY functions.      */
 /*  ARRAY is used for elaborate type of processing, such as sorting    */
@@ -19,14 +19,14 @@
 #include "sql_class.h"
 //#include "sql_time.h"
 
-#if defined(WIN32)
+#if defined(__WIN__)
 //#include <windows.h>
-#else   // !WIN32
+#else   // !__WIN__
 #include <string.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <stdint.h>      // for uintprt_h
-#endif  // !WIN32
+#endif  // !__WIN__
 
 /***********************************************************************/
 /*  Include required application header files                          */
@@ -186,7 +186,7 @@ ARRAY::ARRAY(PGLOBAL g, int type, int size, int length, int prec)
     // The error message was built by PlgDBalloc
     Type = TYPE_ERROR;
   else if (type != TYPE_PCHAR)
-    Value = AllocateValue(g, type, Len, prec, NULL);
+    Value = AllocateValue(g, type, Len, prec);
 
   Constant = TRUE;
   } // end of ARRAY constructor
@@ -610,7 +610,7 @@ int ARRAY::Convert(PGLOBAL g, int k, PVAL vp)
     // The error message was built by PlgDBalloc
     return TYPE_ERROR;
   else
-    Value = AllocateValue(g, Type, Len, prec, NULL);
+    Value = AllocateValue(g, Type, Len, prec);
 
   /*********************************************************************/
   /*  Converting STRING to DATE can be done according to date format.  */
@@ -848,7 +848,7 @@ void *ARRAY::GetSortIndex(PGLOBAL g)
 /*  the indication of whether the Find will be always true, always not */
 /*  true or other.                                                     */
 /***********************************************************************/
-int ARRAY::BlockTest(PGLOBAL g, int opc, int opm,
+int ARRAY::BlockTest(PGLOBAL, int opc, int opm,
                      void *minp, void *maxp, bool s)
   {
   bool bin, bax, pin, pax, veq, all = (opm == 2);
@@ -1038,7 +1038,7 @@ void ARRAY::Print(PGLOBAL g, FILE *f, uint n)
 /***********************************************************************/
 /*  Make string output of ARRAY  contents.                             */
 /***********************************************************************/
-void ARRAY::Print(PGLOBAL g, char *ps, uint z)
+void ARRAY::Print(PGLOBAL, char *ps, uint z)
   {
   if (z < 16)
     return;

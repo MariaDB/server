@@ -1,6 +1,6 @@
 /* -*- c-basic-offset: 2 -*- */
 /*
-  Copyright(C) 2014 Brazil
+  Copyright(C) 2014-2015 Brazil
 
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -26,6 +26,8 @@ extern "C" {
 #endif
 
 void grn_mrb_operator_init(grn_ctx *ctx);
+mrb_value grn_mrb_value_from_operator(mrb_state *mrb, grn_operator op);
+grn_operator grn_mrb_value_to_operator(mrb_state *mrb, mrb_value mrb_op);
 
 #ifdef __cplusplus
 }

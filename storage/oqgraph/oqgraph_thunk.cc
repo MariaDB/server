@@ -547,6 +547,9 @@ bool oqgraph3::cursor::operator!=(const cursor& x) const
   return record_position() != x._position;
 }
 
+::THD* oqgraph3::graph::get_table_thd() { return _table->in_use; }
+void oqgraph3::graph::set_table_thd(::THD* thd) { _table->in_use = thd; }
+
 oqgraph3::graph::graph(
     ::TABLE* table,
     ::Field* source,

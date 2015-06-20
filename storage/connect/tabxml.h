@@ -1,7 +1,7 @@
 /*************** Tabxml H Declares Source Code File (.H) ***************/
 /*  Name: TABXML.H    Version 1.6                                      */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          2007-2013    */
+/*  (C) Copyright to the author Olivier BERTRAND          2007-2015    */
 /*                                                                     */
 /*  This file contains the XML table classes declares.                 */
 /***********************************************************************/
@@ -16,6 +16,8 @@ typedef class XMLCOL *PXMLCOL;
 /***********************************************************************/
 class DllExport XMLDEF : public TABDEF {  /* Logical table description */
   friend class TDBXML;
+  friend class TDBXCT;
+  friend PQRYRES XMLColumns(PGLOBAL, char*, char*, PTOS, bool);
  public:
   // Constructor
    XMLDEF(void);
@@ -55,6 +57,7 @@ class DllExport TDBXML : public TDBASE {
   friend class XMLCOL;
   friend class XMULCOL;
   friend class XPOSCOL;
+  friend PQRYRES XMLColumns(PGLOBAL, char*, char*, PTOS, bool);
  public:
   // Constructor
   TDBXML(PXMLDEF tdp);
@@ -81,7 +84,7 @@ class DllExport TDBXML : public TDBASE {
 
   // Database routines
   virtual PCOL  MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n);
-  virtual PCOL  InsertSpecialColumn(PGLOBAL g, PCOL colp);
+  virtual PCOL  InsertSpecialColumn(PCOL colp);
 //virtual int   GetMaxSame(PGLOBAL g) {return (Xpand) ? Limit : 1;}
   virtual int   Cardinality(PGLOBAL g);
   virtual int   GetMaxSize(PGLOBAL g);
@@ -237,4 +240,23 @@ class XPOSCOL : public XMLCOLX {
   virtual void ReadColumn(PGLOBAL g);
   virtual void WriteColumn(PGLOBAL g);
   }; // end of class XPOSCOL
+
+/***********************************************************************/
+/*  This is the class declaration for the XML catalog table.           */
+/***********************************************************************/
+class TDBXCT : public TDBCAT {
+ public:
+  // Constructor
+  TDBXCT(PXMLDEF tdp);
+
+ protected:
+  // Specific routines
+  virtual PQRYRES GetResult(PGLOBAL g);
+
+  // Members
+  PTOS  Topt;
+  char *Db;
+  char *Tabn;
+  }; // end of class TDBXCT
+
 #endif // INCLUDE_TDBXML

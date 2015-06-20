@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1996, 2014, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1996, 2015, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
 
 This program is free software; you can redistribute it and/or modify it under
@@ -648,7 +648,68 @@ dict_table_get_col_name(
 	return(s);
 }
 
+/**********************************************************************//**
+Returns a column's name.
+@return column name. NOTE: not guaranteed to stay valid if table is
+modified in any way (columns added, etc.). */
+UNIV_INTERN
+const char*
+dict_table_get_col_name_for_mysql(
+/*==============================*/
+	const dict_table_t*	table,	/*!< in: table */
+	const char*		col_name)/*! in: MySQL table column name */
+{
+	ulint		i;
+	const char*	s;
+
+	ut_ad(table);
+	ut_ad(col_name);
+	ut_ad(table->magic_n == DICT_TABLE_MAGIC_N);
+
+	s = table->col_names;
+	if (s) {
+		/* If we have many virtual columns MySQL key_part->fieldnr
+		could be larger than number of columns in InnoDB table
+		when creating new indexes. */
+		for (i = 0; i < table->n_def; i++) {
+
+			if (!innobase_strcasecmp(s, col_name)) {
+				break; /* Found */
+			}
+			s += strlen(s) + 1;
+		}
+	}
+
+	return(s);
+}
 #ifndef UNIV_HOTBACKUP
+/** Allocate and init the autoinc latch of a given table.
+This function must not be called concurrently on the same table object.
+@param[in,out]	table_void	table whose autoinc latch to create */
+void
+dict_table_autoinc_alloc(
+	void*	table_void)
+{
+	dict_table_t*	table = static_cast<dict_table_t*>(table_void);
+	table->autoinc_mutex = new (std::nothrow) ib_mutex_t();
+	ut_a(table->autoinc_mutex != NULL);
+	mutex_create(autoinc_mutex_key,
+		     table->autoinc_mutex, SYNC_DICT_AUTOINC_MUTEX);
+}
+
+/** Allocate and init the zip_pad_mutex of a given index.
+This function must not be called concurrently on the same index object.
+@param[in,out]	index_void	index whose zip_pad_mutex to create */
+void
+dict_index_zip_pad_alloc(
+	void*	index_void)
+{
+	dict_index_t*	index = static_cast<dict_index_t*>(index_void);
+	index->zip_pad.mutex = new (std::nothrow) os_fast_mutex_t;
+	ut_a(index->zip_pad.mutex != NULL);
+	os_fast_mutex_init(zip_pad_mutex_key, index->zip_pad.mutex);
+}
+
 /********************************************************************//**
 Acquire the autoinc lock. */
 UNIV_INTERN
@@ -657,7 +718,32 @@ dict_table_autoinc_lock(
 /*====================*/
 	dict_table_t*	table)	/*!< in/out: table */
 {
-	mutex_enter(&table->autoinc_mutex);
+#ifdef HAVE_ATOMIC_BUILTINS
+	os_once::do_or_wait_for_done(
+		&table->autoinc_mutex_created,
+		dict_table_autoinc_alloc, table);
+#else /* HAVE_ATOMIC_BUILTINS */
+	ut_ad(table->autoinc_mutex_created == os_once::DONE);
+#endif /* HAVE_ATOMIC_BUILTINS */
+
+	mutex_enter(table->autoinc_mutex);
+}
+
+/** Acquire the zip_pad_mutex latch.
+@param[in,out]	index	the index whose zip_pad_mutex to acquire.*/
+void
+dict_index_zip_pad_lock(
+	dict_index_t*	index)
+{
+#ifdef HAVE_ATOMIC_BUILTINS
+	os_once::do_or_wait_for_done(
+		&index->zip_pad.mutex_created,
+		dict_index_zip_pad_alloc, index);
+#else /* HAVE_ATOMIC_BUILTINS */
+	ut_ad(index->zip_pad.mutex_created == os_once::DONE);
+#endif /* HAVE_ATOMIC_BUILTINS */
+
+	os_fast_mutex_lock(index->zip_pad.mutex);
 }
 
 /********************************************************************//**
@@ -669,7 +755,7 @@ dict_table_autoinc_initialize(
 	dict_table_t*	table,	/*!< in/out: table */
 	ib_uint64_t	value)	/*!< in: next value to assign to a row */
 {
-	ut_ad(mutex_own(&table->autoinc_mutex));
+	ut_ad(dict_table_autoinc_own(table));
 
 	table->autoinc = value;
 }
@@ -711,7 +797,7 @@ dict_table_autoinc_read(
 /*====================*/
 	const dict_table_t*	table)	/*!< in: table */
 {
-	ut_ad(mutex_own(&table->autoinc_mutex));
+	ut_ad(dict_table_autoinc_own(table));
 
 	return(table->autoinc);
 }
@@ -727,7 +813,7 @@ dict_table_autoinc_update_if_greater(
 	dict_table_t*	table,	/*!< in/out: table */
 	ib_uint64_t	value)	/*!< in: value which was assigned to a row */
 {
-	ut_ad(mutex_own(&table->autoinc_mutex));
+	ut_ad(dict_table_autoinc_own(table));
 
 	if (value > table->autoinc) {
 
@@ -743,7 +829,7 @@ dict_table_autoinc_unlock(
 /*======================*/
 	dict_table_t*	table)	/*!< in/out: table */
 {
-	mutex_exit(&table->autoinc_mutex);
+	mutex_exit(table->autoinc_mutex);
 }
 #endif /* !UNIV_HOTBACKUP */
 
@@ -1582,15 +1668,18 @@ dict_table_rename_in_cache(
 	} else if (table->space != TRX_SYS_SPACE) {
 		char*	new_path = NULL;
 
-		if (table->dir_path_of_temp_table != NULL) {
+		if (DICT_TF2_FLAG_IS_SET(table, DICT_TF2_TEMPORARY)) {
 			ut_print_timestamp(stderr);
 			fputs("  InnoDB: Error: trying to rename a"
 			      " TEMPORARY TABLE ", stderr);
 			ut_print_name(stderr, NULL, TRUE, old_name);
-			fputs(" (", stderr);
-			ut_print_filename(stderr,
-					  table->dir_path_of_temp_table);
-			fputs(" )\n", stderr);
+			if (table->dir_path_of_temp_table != NULL) {
+				fputs(" (", stderr);
+				ut_print_filename(
+					stderr, table->dir_path_of_temp_table);
+				fputs(" )\n", stderr);
+			}
+
 			return(DB_ERROR);
 
 		} else if (DICT_TF_HAS_DATA_DIR(table->flags)) {
@@ -2427,10 +2516,10 @@ too_big:
 			dict_mem_index_free(new_index);
 			dict_mem_index_free(index);
 			return(DB_TOO_BIG_RECORD);
-		} else {
-
+		} else if (current_thd != NULL) {
+			/* Avoid the warning to be printed
+			during recovery. */
 			ib_warn_row_too_big(table);
-
 		}
 	}
 
@@ -4114,16 +4203,25 @@ dict_table_get_highest_foreign_id(
 	for (dict_foreign_set::iterator it = table->foreign_set.begin();
 	     it != table->foreign_set.end();
 	     ++it) {
+		char    fkid[MAX_TABLE_NAME_LEN+20];
 		foreign = *it;
 
-		if (ut_strlen(foreign->id) > ((sizeof dict_ibfk) - 1) + len
-		    && 0 == ut_memcmp(foreign->id, table->name, len)
-		    && 0 == ut_memcmp(foreign->id + len,
+		strcpy(fkid, foreign->id);
+		/* Convert foreign key identifier on dictionary memory
+		cache to filename charset. */
+		innobase_convert_to_filename_charset(
+				strchr(fkid, '/') + 1,
+				strchr(foreign->id, '/') + 1,
+				MAX_TABLE_NAME_LEN);
+
+		if (ut_strlen(fkid) > ((sizeof dict_ibfk) - 1) + len
+		    && 0 == ut_memcmp(fkid, table->name, len)
+		    && 0 == ut_memcmp(fkid + len,
 				      dict_ibfk, (sizeof dict_ibfk) - 1)
-		    && foreign->id[len + ((sizeof dict_ibfk) - 1)] != '0') {
+		    && fkid[len + ((sizeof dict_ibfk) - 1)] != '0') {
 			/* It is of the >= 4.0.18 format */
 
-			id = strtoul(foreign->id + len
+			id = strtoul(fkid + len
 				     + ((sizeof dict_ibfk) - 1),
 				     &endp, 10);
 			if (*endp == '\0') {
@@ -5863,8 +5961,7 @@ dict_ind_init(void)
 	dict_table_t*		table;
 
 	/* create dummy table and index for REDUNDANT infimum and supremum */
-	table = dict_mem_table_create("SYS_DUMMY1", DICT_HDR_SPACE, 1, 0, 0,
-				      true);
+	table = dict_mem_table_create("SYS_DUMMY1", DICT_HDR_SPACE, 1, 0, 0);
 	dict_mem_table_add_col(table, NULL, NULL, DATA_CHAR,
 			       DATA_ENGLISH | DATA_NOT_NULL, 8);
 
@@ -5877,7 +5974,7 @@ dict_ind_init(void)
 	/* create dummy table and index for COMPACT infimum and supremum */
 	table = dict_mem_table_create("SYS_DUMMY2",
 				      DICT_HDR_SPACE, 1,
-				      DICT_TF_COMPACT, 0, true);
+				      DICT_TF_COMPACT, 0);
 	dict_mem_table_add_col(table, NULL, NULL, DATA_CHAR,
 			       DATA_ENGLISH | DATA_NOT_NULL, 8);
 	dict_ind_compact = dict_mem_index_create("SYS_DUMMY2", "SYS_DUMMY2",
@@ -6713,10 +6810,10 @@ dict_index_zip_success(
 		return;
 	}
 
-	os_fast_mutex_lock(&index->zip_pad.mutex);
+	dict_index_zip_pad_lock(index);
 	++index->zip_pad.success;
 	dict_index_zip_pad_update(&index->zip_pad, zip_threshold);
-	os_fast_mutex_unlock(&index->zip_pad.mutex);
+	dict_index_zip_pad_unlock(index);
 }
 
 /*********************************************************************//**
@@ -6736,10 +6833,10 @@ dict_index_zip_failure(
 		return;
 	}
 
-	os_fast_mutex_lock(&index->zip_pad.mutex);
+	dict_index_zip_pad_lock(index);
 	++index->zip_pad.failure;
 	dict_index_zip_pad_update(&index->zip_pad, zip_threshold);
-	os_fast_mutex_unlock(&index->zip_pad.mutex);
+	dict_index_zip_pad_unlock(index);
 }
 
 
@@ -6771,9 +6868,9 @@ dict_index_zip_pad_optimal_page_size(
 #ifdef HAVE_ATOMIC_BUILTINS
 	pad = os_atomic_increment_ulint(&index->zip_pad.pad, 0);
 #else /* HAVE_ATOMIC_BUILTINS */
-	os_fast_mutex_lock(&index->zip_pad.mutex);
+	dict_index_zip_pad_lock(index);
 	pad = index->zip_pad.pad;
-	os_fast_mutex_unlock(&index->zip_pad.mutex);
+	dict_index_zip_pad_unlock(index);
 #endif /* HAVE_ATOMIC_BUILTINS */
 
 	ut_ad(pad < UNIV_PAGE_SIZE);

@@ -1290,13 +1290,9 @@ bool Relay_log_info::is_until_satisfied(THD *thd, Log_event *ev)
 }
 
 
-void Relay_log_info::stmt_done(my_off_t event_master_log_pos,
-                               time_t event_creation_time, THD *thd,
+void Relay_log_info::stmt_done(my_off_t event_master_log_pos, THD *thd,
                                rpl_group_info *rgi)
 {
-#ifndef DBUG_OFF
-  extern uint debug_not_change_ts_if_art_event;
-#endif
   DBUG_ENTER("Relay_log_info::stmt_done");
 
   DBUG_ASSERT(rgi->rli == this);
@@ -1350,22 +1346,6 @@ void Relay_log_info::stmt_done(my_off_t event_master_log_pos,
     if (mi->using_gtid == Master_info::USE_GTID_NO)
       flush_relay_log_info(this);
     DBUG_EXECUTE_IF("inject_crash_after_flush_rli", DBUG_SUICIDE(););
-    /*
-      Note that Rotate_log_event::do_apply_event() does not call this
-      function, so there is no chance that a fake rotate event resets
-      last_master_timestamp.  Note that we update without mutex
-      (probably ok - except in some very rare cases, only consequence
-      is that value may take some time to display in
-      Seconds_Behind_Master - not critical).
-
-      In parallel replication, we take care to not set last_master_timestamp
-      backwards, in case of out-of-order calls here.
-    */
-    if (!(event_creation_time == 0 &&
-          IF_DBUG(debug_not_change_ts_if_art_event > 0, 1)) &&
-        !(rgi->is_parallel_exec && event_creation_time <= last_master_timestamp)
-        )
-        last_master_timestamp= event_creation_time;
   }
   DBUG_VOID_RETURN;
 }
@@ -1769,7 +1749,7 @@ void rpl_group_info::cleanup_context(THD *thd, bool error)
     trans_rollback(thd);      // if a "real transaction"
     /*
       Now that we have rolled back the transaction, make sure we do not
-      errorneously update the GTID position.
+      erroneously update the GTID position.
     */
     gtid_pending= false;
   }

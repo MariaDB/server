@@ -1,5 +1,5 @@
-/* Copyright (c) 2000, 2014, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2014, SkySQL Ab.
+/* Copyright (c) 2000, 2015, Oracle and/or its affiliates.
+   Copyright (c) 2009, 2015, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -2301,7 +2301,8 @@ void mysqld_list_processes(THD *thd,const char *user, bool verbose)
     Security_context *tmp_sctx= tmp->security_ctx;
     struct st_my_thread_var *mysys_var;
     if ((tmp->vio_ok() || tmp->system_thread) &&
-        (!user || (tmp_sctx->user && !strcmp(tmp_sctx->user, user))))
+        (!user || (!tmp->system_thread &&
+                   tmp_sctx->user && !strcmp(tmp_sctx->user, user))))
     {
       thread_info *thd_info= new thread_info;
 
@@ -2679,7 +2680,8 @@ int fill_schema_processlist(THD* thd, TABLE_LIST* tables, COND* cond)
       ulonglong max_counter;
 
       if ((!tmp->vio_ok() && !tmp->system_thread) ||
-          (user && (!tmp_sctx->user || strcmp(tmp_sctx->user, user))))
+          (user && (tmp->system_thread || !tmp_sctx->user ||
+                    strcmp(tmp_sctx->user, user))))
         continue;
 
       restore_record(table, s->default_values);
@@ -2895,7 +2897,7 @@ void reset_status_vars()
   catch-all cleanup function, cleans up everything no matter what
 
   DESCRIPTION
-    This function is not strictly required if all add_to_status/
+    This function is not strictly required if all add_status_vars/
     remove_status_vars are properly paired, but it's a safety measure that
     deletes everything from the all_status_vars[] even if some
     remove_status_vars were forgotten
@@ -8099,15 +8101,20 @@ bool get_schema_tables_result(JOIN *join,
     TABLE_LIST *table_list= tab->table->pos_in_table_list;
     if (table_list->schema_table && thd->fill_information_schema_tables())
     {
+#if MYSQL_VERSION_ID > 100105
+#error I_S tables only need to be re-populated if make_cond_for_info_schema() will preserve outer fields
       bool is_subselect= (&lex->unit != lex->current_select->master_unit() &&
                           lex->current_select->master_unit()->item);
+#else
+#define is_subselect false
+#endif
 
       /* A value of 0 indicates a dummy implementation */
       if (table_list->schema_table->fill_table == 0)
         continue;
 
       /* skip I_S optimizations specific to get_all_tables */
-      if (thd->lex->describe &&
+      if (lex->describe &&
           (table_list->schema_table->fill_table != get_all_tables))
         continue;
 

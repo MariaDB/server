@@ -1,7 +1,7 @@
 /************** Table C++ Functions Source Code File (.CPP) ************/
 /*  Name: TABLE.CPP  Version 2.7                                       */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          1999-2014    */
+/*  (C) Copyright to the author Olivier BERTRAND          1999-2015    */
 /*                                                                     */
 /*  This file contains the TBX, TDB and OPJOIN classes functions.      */
 /***********************************************************************/
@@ -74,7 +74,7 @@ TDB::TDB(PTDB tdbp) : Tdb_No(++Tnum)
 /***********************************************************************/
 /*  RowNumber: returns the current row ordinal number.                 */
 /***********************************************************************/
-int TDB::RowNumber(PGLOBAL g, bool b)
+int TDB::RowNumber(PGLOBAL g, bool)
   {
   sprintf(g->Message, MSG(ROWID_NOT_IMPL), GetAmName(g, GetAmType()));
   return 0;
@@ -122,7 +122,7 @@ void TDB::Print(PGLOBAL g, FILE *f, uint n)
 
   } // end of Print
 
-void TDB::Print(PGLOBAL g, char *ps, uint z)
+void TDB::Print(PGLOBAL, char *ps, uint)
   {
   sprintf(ps, "R%d.%s", Tdb_No, Name);
   } // end of Print
@@ -263,7 +263,7 @@ PCOL TDBASE::ColDB(PGLOBAL g, PSZ name, int num)
 /***********************************************************************/
 /*  InsertSpecialColumn: Put a special column ahead of the column list.*/
 /***********************************************************************/
-PCOL TDBASE::InsertSpecialColumn(PGLOBAL g, PCOL colp)
+PCOL TDBASE::InsertSpecialColumn(PCOL colp)
   {
   if (!colp->IsSpecial())
     return NULL;
@@ -327,7 +327,7 @@ PCOL TDBASE::InsertSpcBlk(PGLOBAL g, PCOLDEF cdp)
     return NULL;
   } // endif's name
 
-  if (!(colp = InsertSpecialColumn(g, colp))) {
+  if (!(colp = InsertSpecialColumn(colp))) {
     sprintf(g->Message, MSG(BAD_SPECIAL_COL), name);
     return NULL;
     } // endif Insert
@@ -338,7 +338,7 @@ PCOL TDBASE::InsertSpcBlk(PGLOBAL g, PCOLDEF cdp)
 /***********************************************************************/
 /*  ResetTableOpt: Wrong for this table type.                          */
 /***********************************************************************/
-int TDBASE::ResetTableOpt(PGLOBAL g, bool dop, bool dox)
+int TDBASE::ResetTableOpt(PGLOBAL g, bool, bool)
 {
   strcpy(g->Message, "This table is not indexable");
   return RC_INFO;
@@ -365,7 +365,7 @@ void TDBASE::ResetKindex(PGLOBAL g, PKXBASE kxp)
 /***********************************************************************/
 /*  SetRecpos: Replace the table at the specified position.            */
 /***********************************************************************/
-bool TDBASE::SetRecpos(PGLOBAL g, int recpos)
+bool TDBASE::SetRecpos(PGLOBAL g, int)
   {
   strcpy(g->Message, MSG(SETRECPOS_NIY));
   return true;
@@ -386,7 +386,7 @@ void TDBASE::PrintAM(FILE *f, char *m)
 /*  Two questions here: exact meaning of U_J_INT ?                     */
 /*  Why is the eventual reference to To_Key_Col not marked U_J_EXT ?   */
 /***********************************************************************/
-void TDBASE::MarkDB(PGLOBAL g, PTDB tdb2)
+void TDBASE::MarkDB(PGLOBAL, PTDB tdb2)
   {
   if (trace)
     htrc("DOS MarkDB: tdbp=%p tdb2=%p\n", this, tdb2);
@@ -453,7 +453,7 @@ bool TDBCAT::Initialize(PGLOBAL g)
 /***********************************************************************/
 /*  CAT: Get the number of properties.                                 */
 /***********************************************************************/
-int TDBCAT::GetMaxSize(PGLOBAL g)
+int TDBCAT::GetMaxSize(PGLOBAL g __attribute__((unused)))
   {
   if (MaxSize < 0) {
 //  if (Initialize(g))
@@ -528,7 +528,7 @@ bool TDBCAT::InitCol(PGLOBAL g)
 /***********************************************************************/
 /*  SetRecpos: Replace the table at the specified position.            */
 /***********************************************************************/
-bool TDBCAT::SetRecpos(PGLOBAL g, int recpos)
+bool TDBCAT::SetRecpos(PGLOBAL, int recpos)
   {
   N = recpos - 1;
   return false;
@@ -537,7 +537,7 @@ bool TDBCAT::SetRecpos(PGLOBAL g, int recpos)
 /***********************************************************************/
 /*  Data Base read routine for CAT access method.                      */
 /***********************************************************************/
-int TDBCAT::ReadDB(PGLOBAL g)
+int TDBCAT::ReadDB(PGLOBAL)
   {
   return (++N < Qrp->Nblin) ? RC_OK : RC_EF;
   } // end of ReadDB
@@ -554,7 +554,7 @@ int TDBCAT::WriteDB(PGLOBAL g)
 /***********************************************************************/
 /*  Data Base delete line routine for CAT access methods.              */
 /***********************************************************************/
-int TDBCAT::DeleteDB(PGLOBAL g, int irc)
+int TDBCAT::DeleteDB(PGLOBAL g, int)
   {
   strcpy(g->Message, "Delete not enabled for CAT tables");
   return RC_FX;
@@ -563,7 +563,7 @@ int TDBCAT::DeleteDB(PGLOBAL g, int irc)
 /***********************************************************************/
 /*  Data Base close routine for WMI access method.                     */
 /***********************************************************************/
-void TDBCAT::CloseDB(PGLOBAL g)
+void TDBCAT::CloseDB(PGLOBAL)
   {
   // Nothing to do
   } // end of CloseDB
@@ -584,9 +584,13 @@ CATCOL::CATCOL(PCOLDEF cdp, PTDB tdbp, int n)
 /***********************************************************************/
 /*  Read the next Data Source elements.                                */
 /***********************************************************************/
-void CATCOL::ReadColumn(PGLOBAL g)
+void CATCOL::ReadColumn(PGLOBAL)
   {
   // Get the value of the Name or Description property
-  Value->SetValue_pvblk(Crp->Kdata, Tdbp->N);
+  if (Crp->Kdata)
+    Value->SetValue_pvblk(Crp->Kdata, Tdbp->N);
+  else
+    Value->Reset();
+
   } // end of ReadColumn
 

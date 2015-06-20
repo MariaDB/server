@@ -17,7 +17,7 @@
 /***********************************************************************/
 #include "my_global.h"
 #include "table.h"       // MySQL table definitions
-#if defined(WIN32)
+#if defined(__WIN__)
 #include <stdlib.h>
 #include <stdio.h>
 #if defined(__BORLANDC__)
@@ -51,11 +51,8 @@
 #include "tabcol.h"
 #include "tabxcl.h"
 #include "xtable.h"
-#if defined(MYSQL_SUPPORT)
 #include "tabmysql.h"
-#endif   // MYSQL_SUPPORT
 #include "ha_connect.h"
-#include "mycat.h"
 
 /* -------------- Implementation of the XCOL classes	---------------- */
 
@@ -86,7 +83,7 @@ bool XCLDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
 /***********************************************************************/
 /*  GetTable: makes a new TDB of the proper type.                      */
 /***********************************************************************/
-PTDB XCLDEF::GetTable(PGLOBAL g, MODE mode)
+PTDB XCLDEF::GetTable(PGLOBAL g, MODE)
   {
   if (Catfunc == FNC_COL)
     return new(g) TDBTBC(this);
@@ -120,7 +117,7 @@ PCOL TDBXCL::MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n)
   PCOL colp;
   
   if (!stricmp(cdp->GetName(), Xcolumn)) {
-		Xcolp = new(g) XCLCOL(g, cdp, this, cprec, n);
+		Xcolp = new(g) XCLCOL(cdp, this, cprec, n);
     colp = Xcolp;
   } else
     colp = new(g) PRXCOL(cdp, this, cprec, n);
@@ -147,7 +144,7 @@ int TDBXCL::GetMaxSize(PGLOBAL g)
 /*  For this table type, ROWID is the (virtual) row number,            */
 /*  while ROWNUM is be the occurence rank in the multiple column.      */
 /***********************************************************************/
-int TDBXCL::RowNumber(PGLOBAL g, bool b)
+int TDBXCL::RowNumber(PGLOBAL, bool b)
 	{
 	return (b) ? M : N;
 	} // end of RowNumber
@@ -235,7 +232,7 @@ int TDBXCL::ReadDB(PGLOBAL g)
 /***********************************************************************/
 /*  XCLCOL public constructor.                                         */
 /***********************************************************************/
-XCLCOL::XCLCOL(PGLOBAL g, PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i)
+XCLCOL::XCLCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i)
 			: PRXCOL(cdp, tdbp, cprec, i, "XCL")
   {
   // Set additional XXL access method information for column.

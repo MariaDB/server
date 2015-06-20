@@ -1,9 +1,9 @@
 /************* Tabxml C++ Program Source Code File (.CPP) **************/
 /* PROGRAM NAME: TABXML                                                */
 /* -------------                                                       */
-/*  Version 2.7                                                        */
+/*  Version 2.8                                                        */
 /*                                                                     */
-/*  Author Olivier BERTRAND          2007 - 2014                       */
+/*  Author Olivier BERTRAND          2007 - 2015                       */
 /*                                                                     */
 /*  This program are the XML tables classes using MS-DOM or libxml2.   */
 /***********************************************************************/
@@ -15,12 +15,12 @@
 #include <stdio.h>
 #include <fcntl.h>
 #include <errno.h>
-#if defined(WIN32)
+#if defined(__WIN__)
 #include <io.h>
 #include <winsock2.h>
 //#include <windows.h>
 #include <comdef.h>
-#else   // !WIN32
+#else   // !__WIN__
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -28,7 +28,8 @@
 //#include <ctype.h>
 #include "osutil.h"
 #define _O_RDONLY O_RDONLY
-#endif  // !WIN32
+#endif  // !__WIN__
+#include "resource.h"                        // for IDS_COLUMNS
 
 #define INCLUDE_TDBXML
 #define NODE_TYPE_LIST
@@ -44,6 +45,7 @@
 #include "reldef.h"
 #include "xtable.h"
 #include "colblk.h"
+#include "mycat.h"
 #include "xindex.h"
 #include "plgxml.h"
 #include "tabxml.h"
@@ -51,11 +53,355 @@
 
 extern "C" char version[];
 
-#if defined(WIN32) && defined(DOMDOC_SUPPORT)
+#if defined(__WIN__) && defined(DOMDOC_SUPPORT)
 #define XMLSUP "MS-DOM"
-#else   // !WIN32
+#else   // !__WIN__
 #define XMLSUP "libxml2"
-#endif  // !WIN32
+#endif  // !__WIN__
+
+#define TYPE_UNKNOWN     12        /* Must be greater than other types */
+
+/***********************************************************************/
+/* Class and structure used by XMLColumns.                             */
+/***********************************************************************/
+typedef class XMCOL *PXCL;
+
+class XMCOL : public BLOCK {
+ public:
+  // Constructors
+  XMCOL(void) {Next = NULL; 
+               Name[0] = 0; 
+               Fmt = NULL; 
+               Type = 1;
+               Len = Scale = 0;
+               Cbn = false; 
+               Found = true;}
+  XMCOL(PGLOBAL g, PXCL xp, char *fmt, int i) {
+               Next = NULL; 
+               strcpy(Name, xp->Name);
+               Fmt = (*fmt) ? PlugDup(g, fmt) : NULL; 
+               Type = xp->Type;
+               Len = xp->Len;
+               Scale = xp->Scale;
+               Cbn = (xp->Cbn || i > 1); 
+               Found = true;}
+
+  // Members
+  PXCL  Next;
+  char  Name[64];
+  char *Fmt;
+  int   Type;
+  int   Len;
+  int   Scale;
+  bool  Cbn;
+  bool  Found;
+}; // end of class XMCOL
+
+typedef struct LVL {
+  PXNODE  pn;
+  PXLIST  nl;
+  PXATTR  atp;
+  bool    b;
+  long    k;
+  int     m, n;
+} *PLVL;
+
+/***********************************************************************/
+/* XMLColumns: construct the result blocks containing the description  */
+/* of all the columns of a table contained inside an XML file.         */
+/***********************************************************************/
+PQRYRES XMLColumns(PGLOBAL g, char *db, char *tab, PTOS topt, bool info)
+{
+  static int  buftyp[] = {TYPE_STRING, TYPE_SHORT, TYPE_STRING, TYPE_INT, 
+                          TYPE_INT, TYPE_SHORT, TYPE_SHORT, TYPE_STRING};
+  static XFLD fldtyp[] = {FLD_NAME, FLD_TYPE, FLD_TYPENAME, FLD_PREC, 
+                          FLD_LENGTH, FLD_SCALE, FLD_NULL, FLD_FORMAT};
+  static unsigned int length[] = {0, 6, 8, 10, 10, 6, 6, 0};
+  char   *fn, *op, colname[65], fmt[129], buf[512];
+  int     i, j, lvl, n = 0;
+  int     ncol = sizeof(buftyp) / sizeof(int);
+  bool    ok = true;
+  PXCL    xcol, xcp, fxcp = NULL, pxcp = NULL;
+  PLVL   *lvlp, vp;
+  PXNODE  node = NULL;
+  PXMLDEF tdp;
+  PTDBXML txmp;
+  PQRYRES qrp;
+  PCOLRES crp;
+
+  if (info) {
+    length[0] = 128;
+    length[7] = 256;
+    goto skipit;
+    } // endif info
+
+  /*********************************************************************/
+  /*  Open the input file.                                             */
+  /*********************************************************************/
+  if (!(fn = GetStringTableOption(g, topt, "Filename", NULL))) {
+    strcpy(g->Message, MSG(MISSING_FNAME));
+    return NULL;
+  } else {
+    lvl = GetIntegerTableOption(g, topt, "Level", 0);
+    lvl = (lvl < 0) ? 0 : (lvl > 16) ? 16 : lvl;
+  } // endif fn
+
+  if (trace)
+    htrc("File %s lvl=%d\n", topt->filename, lvl);
+
+  tdp = new(g) XMLDEF;
+  tdp->Fn = fn;
+  tdp->Database = SetPath(g, db);
+  tdp->Tabname = tab;
+
+  if (!(op = GetStringTableOption(g, topt, "Xmlsup", NULL)))
+#if defined(__WIN__)
+    tdp->Usedom = true;
+#else   // !__WIN__
+    tdp->Usedom = false;
+#endif  // !__WIN__
+  else
+    tdp->Usedom = (toupper(*op) == 'M' || toupper(*op) == 'D');
+
+  txmp = new(g) TDBXML(tdp);
+
+  if (txmp->Initialize(g))
+    goto err;
+
+  xcol = new(g) XMCOL;
+  colname[64] = 0;
+  fmt[128] = 0;
+  lvlp = (PLVL*)PlugSubAlloc(g, NULL, sizeof(PLVL) * (lvl + 1));
+
+  for (j = 0; j <= lvl; j++)
+    lvlp[j] = (PLVL)PlugSubAlloc(g, NULL, sizeof(LVL));
+
+  /*********************************************************************/
+  /*  Analyse the XML tree and define columns.                         */
+  /*********************************************************************/
+  for (i = 1; ; i++) {
+    // Get next row
+    switch (txmp->ReadDB(g)) {
+      case RC_EF:
+        vp = NULL;
+        break;
+      case RC_FX:
+        goto err;
+      default:
+        vp = lvlp[0];
+        vp->pn = txmp->RowNode;
+        vp->atp = vp->pn->GetAttribute(g, NULL);
+        vp->nl = vp->pn->GetChildElements(g);
+        vp->b = true;
+        vp->k = 0;
+        vp->m = vp->n = 0;
+        j = 0;
+      } // endswitch ReadDB
+
+    if (!vp)
+      break;
+
+    while (true) {
+      if (!vp->atp &&
+          !(node = (vp->nl) ? vp->nl->GetItem(g, vp->k++, node) : NULL))
+        if (j) {
+          vp = lvlp[--j];
+
+          if (!tdp->Usedom)    // nl was destroyed
+            vp->nl = vp->pn->GetChildElements(g);
+
+          if (!lvlp[j+1]->b) {
+            vp->k--;
+            ok = false;
+            } // endif b
+
+          continue;
+        } else
+          break;
+
+      xcol->Name[vp->n] = 0;
+      fmt[vp->m] = 0;
+
+     more:
+      if (vp->atp) {
+        strncpy(colname, vp->atp->GetName(g), sizeof(colname));
+        strncat(xcol->Name, colname, 64);
+
+        switch (vp->atp->GetText(g, buf, sizeof(buf))) {
+          case RC_INFO:
+            PushWarning(g, txmp);
+          case RC_OK:
+            strncat(fmt, "@", sizeof(fmt));
+            break;
+          default:
+            goto err;
+          } // enswitch rc
+
+        if (j)
+          strncat(fmt, colname, sizeof(fmt));
+
+      } else {
+        if (tdp->Usedom && node->GetType() != 1)
+          continue;
+
+        strncpy(colname, node->GetName(g), sizeof(colname));
+        strncat(xcol->Name, colname, 64);
+
+        if (j)
+          strncat(fmt, colname, sizeof(fmt));
+
+        if (j < lvl && ok) {
+          vp = lvlp[j+1];
+          vp->k = 0;
+          vp->atp = node->GetAttribute(g, NULL);
+          vp->nl = node->GetChildElements(g);
+
+          if (tdp->Usedom && vp->nl->GetLength() == 1) {
+            node = vp->nl->GetItem(g, 0, node);
+            vp->b = (node->GetType() == 1);   // Must be ab element
+          } else
+            vp->b = (vp->nl && vp->nl->GetLength());
+
+          if (vp->atp || vp->b) {
+            if (!vp->atp)
+              node = vp->nl->GetItem(g, vp->k++, node);
+
+            strncat(strncat(fmt, colname, 125), "/", 125);
+            strncat(xcol->Name, "_", 64);
+            j++;
+            vp->n = (int)strlen(xcol->Name);
+            vp->m = (int)strlen(fmt);
+            goto more;
+          } else {
+            vp = lvlp[j];
+
+            if (!tdp->Usedom)    // nl was destroyed
+              vp->nl = vp->pn->GetChildElements(g);
+
+          } // endif vp
+
+        } else
+          ok = true;
+
+        switch (node->GetContent(g, buf, sizeof(buf))) {
+          case RC_INFO:
+            PushWarning(g, txmp);
+          case RC_OK:
+            break;
+          default:
+            goto err;
+          } // enswitch rc
+
+      } // endif atp;
+
+      xcol->Len = strlen(buf);
+
+      // Check whether this column was already found
+      for (xcp = fxcp; xcp; xcp = xcp->Next)
+        if (!strcmp(xcol->Name, xcp->Name))
+          break;
+  
+      if (xcp) {
+        if (xcp->Type != xcol->Type)
+          xcp->Type = TYPE_STRING;
+
+        if (*fmt && (!xcp->Fmt || strlen(xcp->Fmt) < strlen(fmt))) {
+          xcp->Fmt = PlugDup(g, fmt);
+          length[7] = MY_MAX(length[7], strlen(fmt));
+          } // endif *fmt
+
+        xcp->Len = MY_MAX(xcp->Len, xcol->Len);
+        xcp->Scale = MY_MAX(xcp->Scale, xcol->Scale);
+        xcp->Cbn |= xcol->Cbn;
+        xcp->Found = true;
+      } else {
+        // New column
+        xcp = new(g) XMCOL(g, xcol, fmt, i);
+        length[0] = MY_MAX(length[0], strlen(xcol->Name));
+        length[7] = MY_MAX(length[7], strlen(fmt));
+  
+        if (pxcp) {
+          xcp->Next = pxcp->Next;
+          pxcp->Next = xcp;
+        } else
+          fxcp = xcp;
+
+        n++;
+      } // endif xcp
+
+      pxcp = xcp;
+
+      if (vp->atp)
+        vp->atp = vp->atp->GetNext(g);
+
+      } // endwhile
+
+    // Missing column can be null
+    for (xcp = fxcp; xcp; xcp = xcp->Next) {
+      xcp->Cbn |= !xcp->Found;
+      xcp->Found = false;
+      } // endfor xcp
+
+    } // endor i
+
+  txmp->CloseDB(g);
+
+ skipit:
+  if (trace)
+    htrc("CSVColumns: n=%d len=%d\n", n, length[0]);
+
+  /*********************************************************************/
+  /*  Allocate the structures used to refer to the result set.         */
+  /*********************************************************************/
+  qrp = PlgAllocResult(g, ncol, n, IDS_COLUMNS + 3,
+                          buftyp, fldtyp, length, false, false);
+
+  crp = qrp->Colresp->Next->Next->Next->Next->Next->Next;
+  crp->Name = "Nullable";
+  crp->Next->Name = "Xpath";
+
+  if (info || !qrp)
+    return qrp;
+
+  qrp->Nblin = n;
+
+  /*********************************************************************/
+  /*  Now get the results into blocks.                                 */
+  /*********************************************************************/
+  for (i = 0, xcp = fxcp; xcp; i++, xcp = xcp->Next) {
+    if (xcp->Type == TYPE_UNKNOWN)            // Void column
+      xcp->Type = TYPE_STRING;
+
+    crp = qrp->Colresp;                    // Column Name
+    crp->Kdata->SetValue(xcp->Name, i);
+    crp = crp->Next;                       // Data Type
+    crp->Kdata->SetValue(xcp->Type, i);
+    crp = crp->Next;                       // Type Name
+    crp->Kdata->SetValue(GetTypeName(xcp->Type), i);
+    crp = crp->Next;                       // Precision
+    crp->Kdata->SetValue(xcp->Len, i);
+    crp = crp->Next;                       // Length
+    crp->Kdata->SetValue(xcp->Len, i);
+    crp = crp->Next;                       // Scale (precision)
+    crp->Kdata->SetValue(xcp->Scale, i);
+    crp = crp->Next;                       // Nullable
+    crp->Kdata->SetValue(xcp->Cbn ? 1 : 0, i);
+    crp = crp->Next;                       // Field format
+
+    if (crp->Kdata)
+      crp->Kdata->SetValue(xcp->Fmt, i);
+
+    } // endfor i
+
+  /*********************************************************************/
+  /*  Return the result pointer.                                       */
+  /*********************************************************************/
+  return qrp;
+
+err:
+  txmp->CloseDB(g);
+  return NULL;
+  } // end of XMLColumns
 
 /* -------------- Implementation of the XMLDEF class  ---------------- */
 
@@ -88,9 +434,7 @@ XMLDEF::XMLDEF(void)
 /***********************************************************************/
 bool XMLDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
   {
-  char  *defrow, *defcol, buf[10];
-//void  *memp = Cat->GetDescp();
-//PSZ    dbfile = Cat->GetDescFile();
+  char *defrow, *defcol, buf[10];
 
   Fn = GetStringCatInfo(g, "Filename", NULL);
   Encoding = GetStringCatInfo(g, "Encoding", "UTF-8");
@@ -105,7 +449,7 @@ bool XMLDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
     return true;
     } // endif flag
 
-  defrow = defcol = "";
+  defrow = defcol = NULL;
   GetCharCatInfo("Coltype", "", buf, sizeof(buf));
 
   switch (toupper(*buf)) {
@@ -138,36 +482,29 @@ bool XMLDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
   Tabname = GetStringCatInfo(g, "Tabname", Tabname);
   Rowname = GetStringCatInfo(g, "Rownode", defrow);
   Colname = GetStringCatInfo(g, "Colnode", defcol);
-  Mulnode = GetStringCatInfo(g, "Mulnode", "");
-  XmlDB = GetStringCatInfo(g, "XmlDB", "");
-  Nslist = GetStringCatInfo(g, "Nslist", "");
-  DefNs = GetStringCatInfo(g, "DefNs", "");
+  Mulnode = GetStringCatInfo(g, "Mulnode", NULL);
+  XmlDB = GetStringCatInfo(g, "XmlDB", NULL);
+  Nslist = GetStringCatInfo(g, "Nslist", NULL);
+  DefNs = GetStringCatInfo(g, "DefNs", NULL);
   Limit = GetIntCatInfo("Limit", 10);
-  Xpand = (GetIntCatInfo("Expand", 0) != 0);
+  Xpand = GetBoolCatInfo("Expand", false);
   Header = GetIntCatInfo("Header", 0);
   GetCharCatInfo("Xmlsup", "*", buf, sizeof(buf));
-
-//if (*buf == '*')           // Try the old (deprecated) option
-//  GetCharCatInfo("Method", "*", buf, sizeof(buf));
-
-//if (*buf == '*')           // Is there a default for the database?
-//  GetCharCatInfo("Defxml", XMLSUP, buf, sizeof(buf));
 
   // Note that if no support is specified, the default is MS-DOM
   // on Windows and libxml2 otherwise
   if (*buf == '*')
-#if defined(WIN32)
+#if defined(__WIN__)
     Usedom = true;
-#else   // !WIN32
+#else   // !__WIN__
     Usedom = false;
-#endif  // !WIN32
+#endif  // !__WIN__
   else
     Usedom = (toupper(*buf) == 'M' || toupper(*buf) == 'D');
 
   // Get eventual table node attribute
-  Attrib = GetStringCatInfo(g, "Attribute", "");
-  Hdattr = GetStringCatInfo(g, "HeadAttr", "");
-
+  Attrib = GetStringCatInfo(g, "Attribute", NULL);
+  Hdattr = GetStringCatInfo(g, "HeadAttr", NULL);
   return false;
   } // end of DefineAM
 
@@ -176,6 +513,9 @@ bool XMLDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
 /***********************************************************************/
 PTDB XMLDEF::GetTable(PGLOBAL g, MODE m)
   {
+  if (Catfunc == FNC_COL)
+    return new(g) TDBXCT(this);
+
   PTDBASE tdbp = new(g) TDBXML(this);
 
   if (Multiple)
@@ -183,30 +523,6 @@ PTDB XMLDEF::GetTable(PGLOBAL g, MODE m)
 
   return tdbp;
   } // end of GetTable
-
-#if 0
-/***********************************************************************/
-/*  DeleteTableFile: Delete XML table files using platform API.        */
-/***********************************************************************/
-bool XMLDEF::DeleteTableFile(PGLOBAL g)
-  {
-  char    filename[_MAX_PATH];
-  bool    rc;
-
-  // Delete the XML table file if not protected
-  if (!IsReadOnly()) {
-    PlugSetPath(filename, Fn, GetPath());
-#if defined(WIN32)
-    rc = !DeleteFile(filename);
-#else    // UNIX
-    rc = remove(filename);
-#endif   // UNIX
-  } else
-    rc =true;
-
-  return rc;                                  // Return true if error
-  } // end of DeleteTableFile
-#endif // 0
 
 /* ------------------------- TDBXML Class ---------------------------- */
 
@@ -229,14 +545,14 @@ TDBXML::TDBXML(PXMLDEF tdp) : TDBASE(tdp)
   Xfile = tdp->Fn;
   Enc = tdp->Encoding;
   Tabname = tdp->Tabname;
-  Rowname = (*tdp->Rowname) ? tdp->Rowname : NULL;
-  Colname = (*tdp->Colname) ? tdp->Colname : NULL;
-  Mulnode = (*tdp->Mulnode) ? tdp->Mulnode : NULL;
-  XmlDB = (*tdp->XmlDB) ? tdp->XmlDB : NULL;
-  Nslist = (*tdp->Nslist) ? tdp->Nslist : NULL;
-  DefNs = (*tdp->DefNs) ? tdp->DefNs : NULL;
-  Attrib = (*tdp->Attrib) ? tdp->Attrib : NULL;
-  Hdattr = (*tdp->Hdattr) ? tdp->Hdattr : NULL;
+  Rowname = (tdp->Rowname) ? tdp->Rowname : NULL;
+  Colname = (tdp->Colname) ? tdp->Colname : NULL;
+  Mulnode = (tdp->Mulnode) ? tdp->Mulnode : NULL;
+  XmlDB = (tdp->XmlDB) ? tdp->XmlDB : NULL;
+  Nslist = (tdp->Nslist) ? tdp->Nslist : NULL;
+  DefNs = (tdp->DefNs) ? tdp->DefNs : NULL;
+  Attrib = (tdp->Attrib) ? tdp->Attrib : NULL;
+  Hdattr = (tdp->Hdattr) ? tdp->Hdattr : NULL;
   Coltype = tdp->Coltype;
   Limit = tdp->Limit;
   Xpand = tdp->Xpand;
@@ -332,7 +648,7 @@ PCOL TDBXML::MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n)
 /***********************************************************************/
 /*  InsertSpecialColumn: Put a special column ahead of the column list.*/
 /***********************************************************************/
-PCOL TDBXML::InsertSpecialColumn(PGLOBAL g, PCOL colp)
+PCOL TDBXML::InsertSpecialColumn(PCOL colp)
   {
   if (!colp->IsSpecial())
     return NULL;
@@ -519,7 +835,6 @@ bool TDBXML::Initialize(PGLOBAL g)
         To_Xb = Docp->LinkXblock(g, Mode, rc, filename);
 
         // Add a CONNECT comment node
-//      sprintf(buf, " Created by CONNECT %s ", version);
         strcpy(buf, " Created by the MariaDB CONNECT Storage Engine");
         Docp->AddComment(g, buf);
 
@@ -563,7 +878,7 @@ bool TDBXML::Initialize(PGLOBAL g)
       Nlist = TabNode->GetChildElements(g);
 
     Docp->SetNofree(true);       // For libxml2
-#if defined(WIN32)
+#if defined(__WIN__)
   } catch(_com_error e) {
     // We come here if a DOM command threw an error
     char   buf[128];
@@ -577,7 +892,7 @@ bool TDBXML::Initialize(PGLOBAL g)
       sprintf(g->Message, "%s hr=%p", MSG(COM_ERROR), e.Error());
 
     goto error;
-#endif   // WIN32
+#endif   // __WIN__
 #if !defined(UNIX)
   } catch(...) {
     // Other errors
@@ -702,7 +1017,7 @@ int TDBXML::GetMaxSize(PGLOBAL g)
     else
       MaxSize = 10;
 
-  } // endif MaxSize
+    } // endif MaxSize
 
   return MaxSize;
   } // end of GetMaxSize
@@ -771,7 +1086,6 @@ bool TDBXML::OpenDB(PGLOBAL g)
   NewRow = (Mode == MODE_INSERT);
   Nsub = 0;
   Use = USE_OPEN;       // Do it now in case we are recursively called
-
   return false;
   } // end of OpenDB
 
@@ -944,8 +1258,7 @@ void TDBXML::CloseDB(PGLOBAL g)
   {
   if (Docp) {
     if (Changed) {
-      char    filename[_MAX_PATH];
-//    PDBUSER dup = (PDBUSER)g->Activityp->Aptr;
+      char filename[_MAX_PATH];
 
       // We used the file name relative to recorded datapath
       PlugSetPath(filename, Xfile, GetPath());
@@ -987,7 +1300,6 @@ void TDBXML::CloseDB(PGLOBAL g)
     NewRow = false;
     Hasnod = false;
     Write = false;
-//  Bufdone = false;
     Nodedone = false;
     Void = false;
     Nrow = -1;
@@ -1079,8 +1391,6 @@ bool XMLCOL::AllocBuf(PGLOBAL g, bool mode)
   if (Valbuf)
     return false;                       // Already done
 
-//Valbuf = (char*)PlugSubAlloc(g, NULL, Long + 1);
-//Valbuf[Long] = '\0';
   return ParseXpath(g, mode);
   } // end of AllocBuf
 
@@ -1171,8 +1481,7 @@ bool XMLCOL::ParseXpath(PGLOBAL g, bool mode)
   } else if (Type == 2) {
     // HTML like table, columns are retrieved by position
     new(this) XPOSCOL(Value);        // Change the class of this column
-    Tdbp->Hasnod = true;
-    return false;
+    Inod = -1;
   } else if (Type == 0 && !mode) {
     strcat(strcat(pbuf, "@"), Name);
   } else {                           // Type == 1
@@ -1322,7 +1631,6 @@ void XMLCOL::WriteColumn(PGLOBAL g)
   int    done = 0;
   int   i, n, k = 0;
   PXNODE TopNode = NULL;
-//PXATTR AttNode = NULL;
 
   if (trace > 1)
     htrc("XML WriteColumn: col %s R%d coluse=%.4X status=%.4X\n",
@@ -1354,7 +1662,7 @@ void XMLCOL::WriteColumn(PGLOBAL g)
   /*********************************************************************/
   /*  Null values are represented by no node.                          */
   /*********************************************************************/
-  if (Value->IsNull())
+	if (Value->IsNull())
     return;
 
   /*********************************************************************/
@@ -1557,7 +1865,6 @@ void XMULCOL::WriteColumn(PGLOBAL g)
   int    done = 0;
   int   i, n, len, k = 0;
   PXNODE TopNode = NULL;
-//PXATTR AttNode = NULL;
 
   if (trace)
     htrc("XML WriteColumn: col %s R%d coluse=%.4X status=%.4X\n",
@@ -1846,5 +2153,25 @@ void XPOSCOL::WriteColumn(PGLOBAL g)
     ValNode->SetContent(g, Valbuf, Long);
 
   } // end of WriteColumn
+
+/* ---------------------------TDBXCT class --------------------------- */
+
+/***********************************************************************/
+/*  TDBXCT class constructor.                                          */
+/***********************************************************************/
+TDBXCT::TDBXCT(PXMLDEF tdp) : TDBCAT(tdp)
+  {
+  Topt = tdp->GetTopt();
+  Db = (char*)tdp->GetDB();
+  Tabn = tdp->Tabname;
+  } // end of TDBXCT constructor
+
+/***********************************************************************/
+/*  GetResult: Get the list the JSON file columns.                     */
+/***********************************************************************/
+PQRYRES TDBXCT::GetResult(PGLOBAL g)
+  {
+  return XMLColumns(g, Db, Tabn, Topt, false);
+  } // end of GetResult
 
 /* ------------------------ End of Tabxml ---------------------------- */

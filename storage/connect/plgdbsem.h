@@ -1,7 +1,7 @@
 /************** PlgDBSem H Declares Source Code File (.H) **************/
 /*  Name: PLGDBSEM.H  Version 3.6                                      */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          1998-2014    */
+/*  (C) Copyright to the author Olivier BERTRAND          1998-2015    */
 /*                                                                     */
 /*  This file contains the PlugDB++ application type definitions.      */
 /***********************************************************************/
@@ -389,6 +389,7 @@ typedef struct _qryres   *PQRYRES;
 typedef struct _colres   *PCOLRES;
 typedef struct _datpar   *PDTP;
 typedef struct indx_used *PXUSED;
+typedef struct ha_table_option_struct TOS, *PTOS;
 
 /***********************************************************************/
 /*  Utility blocks for file and storage.                               */
@@ -504,9 +505,10 @@ enum XFLD {FLD_NO       =  0,         /* Not a field definition item   */
            FLD_EXTRA    = 13,         /* Field extra info              */
            FLD_PRIV     = 14,         /* Field priviledges             */
            FLD_DATEFMT  = 15,         /* Field date format             */
-           FLD_CAT      = 16,         /* Table catalog                 */
-           FLD_SCHEM    = 17,         /* Table schema                  */
-           FLD_TABNAME  = 18};        /* Column Table name             */
+           FLD_FORMAT   = 16,         /* Field format                  */
+           FLD_CAT      = 17,         /* Table catalog                 */
+           FLD_SCHEM    = 18,         /* Table schema                  */
+           FLD_TABNAME  = 19};        /* Column Table name             */
 
 /***********************************************************************/
 /*  Result of last SQL noconv query.                                   */
@@ -542,11 +544,11 @@ typedef  struct _colres {
   char    Var;                     /* Type added information           */
   } COLRES;
 
-#if defined(WIN32) && !defined(NOEX)
+#if defined(__WIN__) && !defined(NOEX)
 #define DllExport  __declspec( dllexport )
-#else   // !WIN32
+#else   // !__WIN__
 #define DllExport
-#endif  // !WIN32
+#endif  // !__WIN__
 
 /***********************************************************************/
 /*  Utility routines.                                                  */
@@ -584,6 +586,7 @@ DllExport PCATLG  PlgGetCatalog(PGLOBAL g, bool jump = true);
 DllExport bool    PlgSetXdbPath(PGLOBAL g, PSZ, PSZ, char *, int, char *, int);
 DllExport void    PlgDBfree(MBLOCK&);
 DllExport void   *PlgDBSubAlloc(PGLOBAL g, void *memp, size_t size);
+DllExport char   *PlgDBDup(PGLOBAL g, const char *str);
 DllExport void   *PlgDBalloc(PGLOBAL, void *, MBLOCK&);
 DllExport void   *PlgDBrealloc(PGLOBAL, void *, MBLOCK&, size_t);
 DllExport void    NewPointer(PTABS, void *, void *);
@@ -591,6 +594,9 @@ DllExport void    NewPointer(PTABS, void *, void *);
 DllExport void    SetTrc(void);
 DllExport char   *GetListOption(PGLOBAL, const char *, const char *,
                                          const char *def=NULL);
+DllExport char   *GetStringTableOption(PGLOBAL, PTOS, char *, char *);
+DllExport bool    GetBooleanTableOption(PGLOBAL, PTOS, char *, bool);
+DllExport int     GetIntegerTableOption(PGLOBAL, PTOS, char *, int);
 
 #define MSGID_NONE                         0
 #define MSGID_CANNOT_OPEN                  1

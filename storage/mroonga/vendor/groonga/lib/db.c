@@ -32,7 +32,6 @@
 #include "grn_normalizer.h"
 #include "grn_util.h"
 #include <string.h>
-#include <float.h>
 
 typedef struct {
   grn_id id;
@@ -90,7 +89,7 @@ inline static void
 gen_pathname(const char *path, char *buffer, int fno)
 {
   size_t len = strlen(path);
-  memcpy(buffer, path, len);
+  grn_memcpy(buffer, path, len);
   if (fno >= 0) {
     buffer[len] = '.';
     grn_itoh(fno, buffer + len + 1, 7);
@@ -156,11 +155,15 @@ grn_db_create(grn_ctx *ctx, const char *path, grn_db_create_optarg *optarg)
     if ((s = GRN_MALLOC(sizeof(grn_db)))) {
       grn_bool use_default_db_key = GRN_TRUE;
       grn_bool use_pat_as_db_keys = GRN_FALSE;
-      if (getenv("GRN_DB_KEY")) {
-        if (!strcmp(getenv("GRN_DB_KEY"), "pat")) {
+      char grn_db_key_env[GRN_ENV_BUFFER_SIZE];
+      grn_getenv("GRN_DB_KEY",
+                 grn_db_key_env,
+                 GRN_ENV_BUFFER_SIZE);
+      if (grn_db_key_env[0]) {
+        if (!strcmp(grn_db_key_env, "pat")) {
           use_default_db_key = GRN_FALSE;
           use_pat_as_db_keys = GRN_TRUE;
-        } else if (!strcmp(getenv("GRN_DB_KEY"), "dat")) {
+        } else if (!strcmp(grn_db_key_env, "dat")) {
           use_default_db_key = GRN_FALSE;
         }
       }
@@ -1919,9 +1922,11 @@ grn_table_truncate(grn_ctx *ctx, grn_obj *table)
       }
       grn_hash_close(ctx, cols);
     }
-    grn_table_get_info(ctx, table, NULL, NULL, &tokenizer, &normalizer, NULL);
-    GRN_PTR_INIT(&token_filters, GRN_OBJ_VECTOR, GRN_ID_NIL);
-    grn_obj_get_info(ctx, table, GRN_INFO_TOKEN_FILTERS, &token_filters);
+    if (table->header.type != GRN_TABLE_NO_KEY) {
+      grn_table_get_info(ctx, table, NULL, NULL, &tokenizer, &normalizer, NULL);
+      GRN_PTR_INIT(&token_filters, GRN_OBJ_VECTOR, GRN_ID_NIL);
+      grn_obj_get_info(ctx, table, GRN_INFO_TOKEN_FILTERS, &token_filters);
+    }
     switch (table->header.type) {
     case GRN_TABLE_PAT_KEY :
       for (hooks = DB_OBJ(table)->hooks[GRN_HOOK_INSERT]; hooks; hooks = hooks->next) {
@@ -1954,10 +1959,12 @@ grn_table_truncate(grn_ctx *ctx, grn_obj *table)
       rc = grn_array_truncate(ctx, (grn_array *)table);
       break;
     }
-    grn_obj_set_info(ctx, table, GRN_INFO_DEFAULT_TOKENIZER, tokenizer);
-    grn_obj_set_info(ctx, table, GRN_INFO_NORMALIZER, normalizer);
-    grn_obj_set_info(ctx, table, GRN_INFO_TOKEN_FILTERS, &token_filters);
-    GRN_OBJ_FIN(ctx, &token_filters);
+    if (table->header.type != GRN_TABLE_NO_KEY) {
+      grn_obj_set_info(ctx, table, GRN_INFO_DEFAULT_TOKENIZER, tokenizer);
+      grn_obj_set_info(ctx, table, GRN_INFO_NORMALIZER, normalizer);
+      grn_obj_set_info(ctx, table, GRN_INFO_TOKEN_FILTERS, &token_filters);
+      GRN_OBJ_FIN(ctx, &token_filters);
+    }
     if (rc == GRN_SUCCESS) {
       grn_obj_touch(ctx, table, NULL);
     }
@@ -2060,7 +2067,7 @@ subrecs_push(byte *subrecs, int size, int n_subrecs, double score, void *body, i
   }
   v = subrecs + n * (GRN_RSET_SCORE_SIZE + size);
   *((double *)v) = score;
-  memcpy(v + GRN_RSET_SCORE_SIZE, body, size);
+  grn_memcpy(v + GRN_RSET_SCORE_SIZE, body, size);
 }
 
 inline static void
@@ -2094,8 +2101,8 @@ subrecs_replace_min(byte *subrecs, int size, int n_subrecs, double score, void *
     }
   }
   v = subrecs + n * (GRN_RSET_SCORE_SIZE + size);
-  memcpy(v, &score, GRN_RSET_SCORE_SIZE);
-  memcpy(v + GRN_RSET_SCORE_SIZE, body, size);
+  grn_memcpy(v, &score, GRN_RSET_SCORE_SIZE);
+  grn_memcpy(v + GRN_RSET_SCORE_SIZE, body, size);
 }
 
 inline static void
@@ -2784,16 +2791,8 @@ grn_accessor_resolve(grn_ctx *ctx, grn_obj *accessor, int deep,
 
     {
       grn_id *tid;
-      grn_obj *domain;
       grn_obj *next_res;
-      grn_search_optarg next_optarg;
       grn_rset_recinfo *recinfo;
-      if (optarg) {
-        next_optarg = *optarg;
-        next_optarg.mode = GRN_OP_EXACT;
-      } else {
-        memset(&next_optarg, 0, sizeof(grn_search_optarg));
-      }
       {
         grn_obj *range = grn_ctx_at(ctx, DB_OBJ(index)->range);
         next_res = grn_table_create(ctx, NULL, 0, NULL,
@@ -2808,29 +2807,33 @@ grn_accessor_resolve(grn_ctx *ctx, grn_obj *accessor, int deep,
           break;
         }
       }
-      domain = grn_ctx_at(ctx, index->header.domain);
       GRN_HASH_EACH(ctx, (grn_hash *)current_res, id, &tid, NULL, &recinfo, {
-        next_optarg.weight_vector = NULL;
-        next_optarg.vector_size = recinfo->score;
-        if (domain->header.type == GRN_TABLE_NO_KEY) {
-          rc = grn_ii_sel(ctx, (grn_ii *)index,
-                          (const char *)tid, sizeof(grn_id),
-                          (grn_hash *)next_res, GRN_OP_OR,
-                          &next_optarg);
-        } else {
-          char key[GRN_TABLE_MAX_KEY_SIZE];
-          int key_len;
-          key_len = grn_table_get_key(ctx, domain, *tid,
-                                      key, GRN_TABLE_MAX_KEY_SIZE);
-          rc = grn_ii_sel(ctx, (grn_ii *)index, key, key_len,
-                          (grn_hash *)next_res, GRN_OP_OR,
-                          &next_optarg);
+        grn_ii *ii = (grn_ii *)index;
+        grn_ii_cursor *ii_cursor;
+        grn_ii_posting *posting;
+
+        ii_cursor = grn_ii_cursor_open(ctx, ii, *tid,
+                                       GRN_ID_NIL, GRN_ID_MAX,
+                                       ii->n_elements,
+                                       0);
+        if (!ii_cursor) {
+          continue;
         }
+
+        while ((posting = grn_ii_cursor_next(ctx, ii_cursor))) {
+          grn_ii_posting add_posting = *posting;
+          add_posting.weight += recinfo->score - 1;
+          grn_ii_posting_add(ctx,
+                             &add_posting,
+                             (grn_hash *)next_res,
+                             GRN_OP_OR);
+        }
+        grn_ii_cursor_close(ctx, ii_cursor);
+
         if (rc != GRN_SUCCESS) {
           break;
         }
       });
-      grn_obj_unlink(ctx, domain);
       if (current_res != base_res) {
         grn_obj_unlink(ctx, current_res);
       }
@@ -3789,7 +3792,7 @@ grn_table_setoperation(grn_ctx *ctx, grn_obj *table1, grn_obj *table2, grn_obj *
       GRN_TABLE_EACH(ctx, table2, 0, 0, id, &key, &key_size, &value2, {
         if (grn_table_add_v_inline(ctx, table1, key, key_size, &value1, &added)) {
           if (added) {
-            memcpy(value1, value2, value_size);
+            grn_memcpy(value1, value2, value_size);
           } else {
             grn_rset_recinfo *ri1 = value1;
             grn_rset_recinfo *ri2 = value2;
@@ -3800,7 +3803,7 @@ grn_table_setoperation(grn_ctx *ctx, grn_obj *table1, grn_obj *table2, grn_obj *
     } else {
       GRN_TABLE_EACH(ctx, table2, 0, 0, id, &key, &key_size, &value2, {
         if (grn_table_add_v_inline(ctx, table1, key, key_size, &value1, NULL)) {
-          memcpy(value1, value2, value_size);
+          grn_memcpy(value1, value2, value_size);
         }
       });
     }
@@ -3832,7 +3835,7 @@ grn_table_setoperation(grn_ctx *ctx, grn_obj *table1, grn_obj *table2, grn_obj *
   case GRN_OP_ADJUST :
     GRN_TABLE_EACH(ctx, table2, 0, 0, id, &key, &key_size, &value2, {
       if (grn_table_get_v(ctx, table1, key, key_size, &value1)) {
-        memcpy(value1, value2, value_size);
+        grn_memcpy(value1, value2, value_size);
       }
     });
     break;
@@ -3881,7 +3884,7 @@ grn_obj_column_(grn_ctx *ctx, grn_obj *table, const char *name, unsigned int nam
   if (len) {
     buf[len++] = GRN_DB_DELIMITER;
     if (len + name_size <= GRN_TABLE_MAX_KEY_SIZE) {
-      memcpy(buf + len, name, name_size);
+      grn_memcpy(buf + len, name, name_size);
       column = grn_ctx_get(ctx, buf, len + name_size);
     } else {
       ERR(GRN_INVALID_ARGUMENT, "name is too long");
@@ -4027,7 +4030,7 @@ grn_column_create(grn_ctx *ctx, grn_obj *table,
       goto exit;
     }
     fullname[len] = GRN_DB_DELIMITER;
-    memcpy(fullname + len + 1, name, name_size);
+    grn_memcpy(fullname + len + 1, name, name_size);
     name_size += len + 1;
   } else {
     ERR(GRN_FUNCTION_NOT_IMPLEMENTED,
@@ -4155,7 +4158,7 @@ grn_column_open(grn_ctx *ctx, grn_obj *table,
       goto exit;
     }
     fullname[len] = GRN_DB_DELIMITER;
-    memcpy(fullname + len + 1, name, name_size);
+    grn_memcpy(fullname + len + 1, name, name_size);
     name_size += len + 1;
   } else {
     ERR(GRN_INVALID_ARGUMENT, "todo : not supported yet");
@@ -4219,7 +4222,7 @@ default_column_set_value(grn_ctx *ctx, grn_proc_ctx *pctx, grn_obj *in, grn_obj 
           ERR(GRN_NO_MEMORY_AVAILABLE, "ra get failed");
           return GRN_NO_MEMORY_AVAILABLE;
         }
-        memcpy(v, in->u.p.ptr, value_size);
+        grn_memcpy(v, in->u.p.ptr, value_size);
         grn_ra_unref(ctx, (grn_ra *)pctx->obj, arg->id);
       }
       break;
@@ -5240,7 +5243,11 @@ grn_obj_is_persistent(grn_ctx *ctx, grn_obj *obj)
       if (GRN_BULK_VSIZE(p_key)) {\
         id = addp ? grn_table_add_by_key(ctx, table, p_key, NULL)\
                   : grn_table_get_by_key(ctx, table, p_key);\
-        if (id) { GRN_RECORD_SET(ctx, dest, id); }\
+        if (id) {\
+          GRN_RECORD_SET(ctx, dest, id);\
+        } else {\
+          rc = GRN_INVALID_ARGUMENT;\
+        }\
       } else {\
         GRN_RECORD_SET(ctx, dest, GRN_ID_NIL);\
       }\
@@ -5250,7 +5257,11 @@ grn_obj_is_persistent(grn_ctx *ctx, grn_obj *obj)
       GRN_UINT32_INIT(&record_id, 0);\
       grn_obj_cast(ctx, src, &record_id, GRN_TRUE);\
       id = GRN_UINT32_VALUE(&record_id);\
-      if (id) { GRN_RECORD_SET(ctx, dest, id); }\
+      if (id) {\
+        GRN_RECORD_SET(ctx, dest, id);\
+      } else {\
+        rc = GRN_INVALID_ARGUMENT;\
+      }\
     }\
   } else {\
     rc = GRN_FUNCTION_NOT_IMPLEMENTED;\
@@ -6605,13 +6616,13 @@ grn_obj_set_value_column_fix_size(grn_ctx *ctx, grn_obj *obj, grn_id id,
         } else {
           void *b;
           if ((b = GRN_CALLOC(element_size))) {
-            memcpy(b, v, s);
-            memcpy(p, b, element_size);
+            grn_memcpy(b, v, s);
+            grn_memcpy(p, b, element_size);
             GRN_FREE(b);
           }
         }
       } else {
-        memcpy(p, v, s);
+        grn_memcpy(p, v, s);
       }
       rc = GRN_SUCCESS;
       break;
@@ -7197,6 +7208,7 @@ build_index(grn_ctx *ctx, grn_obj *obj)
         break;
       default :
         use_grn_ii_build = GRN_FALSE;
+        break;
       }
       if ((ii->header->flags & GRN_OBJ_WITH_WEIGHT)) {
         use_grn_ii_build = GRN_FALSE;
@@ -7214,10 +7226,14 @@ build_index(grn_ctx *ctx, grn_obj *obj)
         }
         if (use_grn_ii_build) {
           uint64_t sparsity = 10;
-          if (getenv("GRN_INDEX_SPARSITY")) {
+          char grn_index_sparsity_env[GRN_ENV_BUFFER_SIZE];
+          grn_getenv("GRN_INDEX_SPARSITY",
+                     grn_index_sparsity_env,
+                     GRN_ENV_BUFFER_SIZE);
+          if (grn_index_sparsity_env[0]) {
             uint64_t v;
             errno = 0;
-            v = strtoull(getenv("GRN_INDEX_SPARSITY"), NULL, 0);
+            v = strtoull(grn_index_sparsity_env, NULL, 0);
             if (!errno) { sparsity = v; }
           }
           grn_ii_build(ctx, ii, sparsity);
@@ -7385,7 +7401,7 @@ grn_hook_unpack(grn_ctx *ctx, grn_db_obj *obj, const char *buf, uint32_t buf_siz
         new->proc = NULL;
       }
       if ((new->hld_size = hld_size)) {
-        memcpy(NEXT_ADDR(new), p, hld_size);
+        grn_memcpy(NEXT_ADDR(new), p, hld_size);
         p += hld_size;
       }
       *last = new;
@@ -7482,8 +7498,10 @@ grn_obj_set_info_source_validate_report_error(grn_ctx *ctx,
                                   source_name, GRN_TABLE_MAX_KEY_SIZE);
   if (GRN_OBJ_TABLEP(source)) {
     source_name[source_name_size] = '\0';
-    strncat(source_name, "._key",
-            GRN_TABLE_MAX_KEY_SIZE - source_name_size - 1);
+    grn_strncat(source_name,
+                GRN_TABLE_MAX_KEY_SIZE,
+                "._key",
+                GRN_TABLE_MAX_KEY_SIZE - source_name_size - 1);
     source_name_size = strlen(source_name);
   }
   table_domain_name_size = grn_obj_name(ctx, table_domain,
@@ -7496,7 +7514,10 @@ grn_obj_set_info_source_validate_report_error(grn_ctx *ctx,
                                          GRN_TABLE_MAX_KEY_SIZE);
     grn_obj_unlink(ctx, source_type);
   } else {
-    strncpy(source_type_name, "(nil)", GRN_TABLE_MAX_KEY_SIZE);
+    grn_strncpy(source_type_name,
+                GRN_TABLE_MAX_KEY_SIZE,
+                "(nil)",
+                GRN_TABLE_MAX_KEY_SIZE);
     source_type_name_size = strlen(source_type_name);
   }
   ERR(GRN_INVALID_ARGUMENT,
@@ -7619,7 +7640,7 @@ grn_obj_set_info_source_update(grn_ctx *ctx, grn_obj *obj, grn_obj *value)
     if (!v2) {
       return ctx->rc;
     }
-    memcpy(v2, v, s);
+    grn_memcpy(v2, v, s);
     if (DB_OBJ(obj)->source) { GRN_FREE(DB_OBJ(obj)->source); }
     DB_OBJ(obj)->source = v2;
     DB_OBJ(obj)->source_size = s;
@@ -7741,7 +7762,7 @@ grn_obj_set_info(grn_ctx *ctx, grn_obj *obj, grn_info_type type, grn_obj *value)
       switch (DB_OBJ(obj)->header.type) {
       case GRN_TABLE_HASH_KEY :
         ((grn_hash *)obj)->tokenizer = value;
-        ((grn_hash *)obj)->header->tokenizer = grn_obj_id(ctx, value);
+        ((grn_hash *)obj)->header.common->tokenizer = grn_obj_id(ctx, value);
         rc = GRN_SUCCESS;
         break;
       case GRN_TABLE_PAT_KEY :
@@ -7762,7 +7783,7 @@ grn_obj_set_info(grn_ctx *ctx, grn_obj *obj, grn_info_type type, grn_obj *value)
       switch (DB_OBJ(obj)->header.type) {
       case GRN_TABLE_HASH_KEY :
         ((grn_hash *)obj)->normalizer = value;
-        ((grn_hash *)obj)->header->normalizer = grn_obj_id(ctx, value);
+        ((grn_hash *)obj)->header.common->normalizer = grn_obj_id(ctx, value);
         rc = GRN_SUCCESS;
         break;
       case GRN_TABLE_PAT_KEY :
@@ -7839,7 +7860,7 @@ grn_obj_add_hook(grn_ctx *ctx, grn_obj *obj, grn_hook_entry entry,
     new->proc = (grn_proc *)proc;
     new->hld_size = hld_size;
     if (hld_size) {
-      memcpy(NEXT_ADDR(new), hld_value, hld_size);
+      grn_memcpy(NEXT_ADDR(new), hld_value, hld_size);
     }
     for (i = 0; i != offset && *last; i++) { last = &(*last)->next; }
     new->next = *last;
@@ -8347,7 +8368,8 @@ _grn_obj_remove(grn_ctx *ctx, grn_obj *obj)
     const char *n = _grn_table_key(ctx, ctx->impl->db, DB_OBJ(obj)->id, &s);
     GRN_LOG(ctx, GRN_LOG_NOTICE, "DDL:obj_remove %.*s", s, n);
   }
-  if ((io_path = grn_obj_path(ctx, obj)) && *io_path != '\0') {
+  if (obj->header.type != GRN_PROC &&
+      (io_path = grn_obj_path(ctx, obj)) && *io_path != '\0') {
     if (!(path = GRN_STRDUP(io_path))) {
       ERR(GRN_NO_MEMORY_AVAILABLE, "cannot duplicate path: <%s>", io_path);
       return;
@@ -8495,7 +8517,7 @@ grn_table_rename(grn_ctx *ctx, grn_obj *table, const char *name, unsigned int na
     if (!(rc = grn_obj_rename(ctx, table, name, name_size))) {
       grn_id *key;
       char fullname[GRN_TABLE_MAX_KEY_SIZE];
-      memcpy(fullname, name, name_size);
+      grn_memcpy(fullname, name, name_size);
       fullname[name_size] = GRN_DB_DELIMITER;
       GRN_HASH_EACH(ctx, cols, id, &key, NULL, NULL, {
         grn_obj *col = grn_ctx_at(ctx, *key);
@@ -8536,7 +8558,7 @@ grn_column_rename(grn_ctx *ctx, grn_obj *column, const char *name, unsigned int 
       goto exit;
     }
     fullname[len] = GRN_DB_DELIMITER;
-    memcpy(fullname + len + 1, name, name_size);
+    grn_memcpy(fullname + len + 1, name, name_size);
     name_size += len + 1;
     rc = grn_obj_rename(ctx, column, fullname, name_size);
   }
@@ -8678,7 +8700,7 @@ grn_db_obj_init(grn_ctx *ctx, grn_obj *db, grn_id id, grn_db_obj *obj)
                                                NULL,\
                                                NULL);\
     if (size > PATH_MAX) { ERR(GRN_FILENAME_TOO_LONG, "too long path"); }\
-    memcpy(buffer, path, size);\
+    grn_memcpy(buffer, path, size);\
     buffer[size] = '\0';\
   } else {\
     gen_pathname(grn_obj_io(s->keys)->path, buffer, id);  \
@@ -8700,7 +8722,7 @@ grn_db_obj_init(grn_ctx *ctx, grn_obj *db, grn_id id, grn_db_obj *obj)
                                   NULL);\
     if (size) {\
       if ((r->source = GRN_MALLOC(size))) {\
-        memcpy(r->source, p, size);\
+        grn_memcpy(r->source, p, size);\
         r->source_size = size;\
       }\
     }\
@@ -9308,7 +9330,7 @@ grn_column_name(grn_ctx *ctx, grn_obj *obj, char *namebuf, int buf_size)
         }
         len = pe - p0;
         if (len && len <= buf_size) {
-          memcpy(namebuf, p0, len);
+          grn_memcpy(namebuf, p0, len);
         }
       }
     }
@@ -9354,7 +9376,7 @@ grn_column_name(grn_ctx *ctx, grn_obj *obj, char *namebuf, int buf_size)
     if (name) {
       len = strlen(name);
       if (len <= buf_size) {
-        memcpy(namebuf, name, len);
+        grn_memcpy(namebuf, name, len);
       }
     }
   }
@@ -10450,18 +10472,24 @@ grn_db_init_builtin_types(grn_ctx *ctx)
 #define MULTI_COLUMN_INDEXP(i) (DB_OBJ(i)->source_size > sizeof(grn_id))
 
 static inline int
-grn_column_index_column_equal(grn_ctx *ctx, grn_obj *obj, grn_operator op,
-                              grn_obj **indexbuf, int buf_size, int *section)
+grn_column_find_index_data_column_equal(grn_ctx *ctx, grn_obj *obj,
+                                        grn_operator op,
+                                        grn_index_datum *index_data,
+                                        unsigned int n_index_data,
+                                        grn_obj **index_buf, int buf_size,
+                                        int *section_buf)
 {
   int n = 0;
-  grn_obj **ip = indexbuf;
+  grn_obj **ip = index_buf;
   grn_hook *hooks;
 
   for (hooks = DB_OBJ(obj)->hooks[GRN_HOOK_SET]; hooks; hooks = hooks->next) {
     default_set_value_hook_data *data = (void *)NEXT_ADDR(hooks);
     grn_obj *target = grn_ctx_at(ctx, data->target);
+    int section;
     if (target->header.type != GRN_COLUMN_INDEX) { continue; }
-    if (section) { *section = (MULTI_COLUMN_INDEXP(target)) ? data->section : 0; }
+    section = (MULTI_COLUMN_INDEXP(target)) ? data->section : 0;
+    if (section_buf) { *section_buf = section; }
     if (obj->header.type != GRN_COLUMN_FIX_SIZE) {
       grn_obj *tokenizer, *lexicon = grn_ctx_at(ctx, target->header.domain);
       if (!lexicon) { continue; }
@@ -10471,18 +10499,47 @@ grn_column_index_column_equal(grn_ctx *ctx, grn_obj *obj, grn_operator op,
     if (n < buf_size) {
       *ip++ = target;
     }
+    if (n < n_index_data) {
+      index_data[n].index = target;
+      index_data[n].section = section;
+    }
     n++;
   }
 
   return n;
 }
 
+static inline grn_bool
+is_valid_regexp_index(grn_ctx *ctx, grn_obj *index_column)
+{
+  grn_obj *tokenizer;
+  grn_obj *lexicon;
+
+  lexicon = grn_ctx_at(ctx, index_column->header.domain);
+  if (!lexicon) {
+    return GRN_FALSE;
+  }
+
+  grn_table_get_info(ctx, lexicon, NULL, NULL, &tokenizer, NULL, NULL);
+  grn_obj_unlink(ctx, lexicon);
+  if (!tokenizer) {
+    return GRN_FALSE;
+  }
+
+  /* TODO: Restrict to TokenRegexp? */
+  return GRN_TRUE;
+}
+
 static inline int
-grn_column_index_column_match(grn_ctx *ctx, grn_obj *obj, grn_operator op,
-                              grn_obj **indexbuf, int buf_size, int *section)
+grn_column_find_index_data_column_match(grn_ctx *ctx, grn_obj *obj,
+                                        grn_operator op,
+                                        grn_index_datum *index_data,
+                                        unsigned int n_index_data,
+                                        grn_obj **index_buf, int buf_size,
+                                        int *section_buf)
 {
   int n = 0;
-  grn_obj **ip = indexbuf;
+  grn_obj **ip = index_buf;
   grn_hook_entry hook_entry;
   grn_hook *hooks;
 
@@ -10501,10 +10558,19 @@ grn_column_index_column_match(grn_ctx *ctx, grn_obj *obj, grn_operator op,
   for (hooks = DB_OBJ(obj)->hooks[hook_entry]; hooks; hooks = hooks->next) {
     default_set_value_hook_data *data = (void *)NEXT_ADDR(hooks);
     grn_obj *target = grn_ctx_at(ctx, data->target);
+    int section;
     if (target->header.type != GRN_COLUMN_INDEX) { continue; }
-    if (section) { *section = (MULTI_COLUMN_INDEXP(target)) ? data->section : 0; }
+    if (op == GRN_OP_REGEXP && !is_valid_regexp_index(ctx, target)) {
+      continue;
+    }
+    section = (MULTI_COLUMN_INDEXP(target)) ? data->section : 0;
+    if (section_buf) { *section_buf = section; }
     if (n < buf_size) {
       *ip++ = target;
+    }
+    if (n < n_index_data) {
+      index_data[n].index = target;
+      index_data[n].section = section;
     }
     n++;
   }
@@ -10513,11 +10579,15 @@ grn_column_index_column_match(grn_ctx *ctx, grn_obj *obj, grn_operator op,
 }
 
 static inline int
-grn_column_index_column_range(grn_ctx *ctx, grn_obj *obj, grn_operator op,
-                              grn_obj **indexbuf, int buf_size, int *section)
+grn_column_find_index_data_column_range(grn_ctx *ctx, grn_obj *obj,
+                                        grn_operator op,
+                                        grn_index_datum *index_data,
+                                        unsigned int n_index_data,
+                                        grn_obj **index_buf, int buf_size,
+                                        int *section_buf)
 {
   int n = 0;
-  grn_obj **ip = indexbuf;
+  grn_obj **ip = index_buf;
   grn_hook_entry hook_entry;
   grn_hook *hooks;
 
@@ -10536,8 +10606,10 @@ grn_column_index_column_range(grn_ctx *ctx, grn_obj *obj, grn_operator op,
   for (hooks = DB_OBJ(obj)->hooks[hook_entry]; hooks; hooks = hooks->next) {
     default_set_value_hook_data *data = (void *)NEXT_ADDR(hooks);
     grn_obj *target = grn_ctx_at(ctx, data->target);
+    int section;
     if (target->header.type != GRN_COLUMN_INDEX) { continue; }
-    if (section) { *section = (MULTI_COLUMN_INDEXP(target)) ? data->section : 0; }
+    section = (MULTI_COLUMN_INDEXP(target)) ? data->section : 0;
+    if (section_buf) { *section_buf = section; }
     {
       grn_obj *tokenizer, *lexicon = grn_ctx_at(ctx, target->header.domain);
       if (!lexicon) { continue; }
@@ -10548,6 +10620,10 @@ grn_column_index_column_range(grn_ctx *ctx, grn_obj *obj, grn_operator op,
     }
     if (n < buf_size) {
       *ip++ = target;
+    }
+    if (n < n_index_data) {
+      index_data[n].index = target;
+      index_data[n].section = section;
     }
     n++;
   }
@@ -10599,6 +10675,9 @@ is_valid_index(grn_ctx *ctx, grn_obj *index_column, grn_operator op)
   case GRN_OP_CALL :
     return is_valid_range_index(ctx, index_column);
     break;
+  case GRN_OP_REGEXP :
+    return is_valid_regexp_index(ctx, index_column);
+    break;
   default :
     return GRN_FALSE;
     break;
@@ -10629,12 +10708,16 @@ find_section(grn_ctx *ctx, grn_obj *index_column, grn_obj *indexed_column)
 }
 
 static int
-grn_column_index_accessor_index_column(grn_ctx *ctx, grn_accessor *a,
-                                       grn_operator op,
-                                       grn_obj **indexbuf, int buf_size,
-                                       int *section)
+grn_column_find_index_data_accessor_index_column(grn_ctx *ctx, grn_accessor *a,
+                                                 grn_operator op,
+                                                 grn_index_datum *index_data,
+                                                 unsigned int n_index_data,
+                                                 grn_obj **index_buf,
+                                                 int buf_size,
+                                                 int *section_buf)
 {
   grn_obj *index_column = a->obj;
+  int section = 0;
 
   if (!is_valid_index(ctx, index_column, op)) {
     return 0;
@@ -10651,23 +10734,32 @@ grn_column_index_accessor_index_column(grn_ctx *ctx, grn_accessor *a,
     if (is_invalid_section) {
       return 0;
     }
-    if (section) {
-      *section = specified_section;
+    section = specified_section;
+    if (section_buf) {
+      *section_buf = section;
     }
   }
   if (buf_size > 0) {
-    *indexbuf = index_column;
+    *index_buf = index_column;
+  }
+  if (n_index_data > 0) {
+    index_data[0].index = index_column;
+    index_data[0].section = section;
   }
 
   return 1;
 }
 
 static inline int
-grn_column_index_accessor(grn_ctx *ctx, grn_obj *obj, grn_operator op,
-                          grn_obj **indexbuf, int buf_size, int *section)
+grn_column_find_index_data_accessor_match(grn_ctx *ctx, grn_obj *obj,
+                                          grn_operator op,
+                                          grn_index_datum *index_data,
+                                          unsigned n_index_data,
+                                          grn_obj **index_buf, int buf_size,
+                                          int *section_buf)
 {
   int n = 0;
-  grn_obj **ip = indexbuf;
+  grn_obj **ip = index_buf;
   grn_accessor *a = (grn_accessor *)obj;
 
   while (a) {
@@ -10677,8 +10769,12 @@ grn_column_index_accessor(grn_ctx *ctx, grn_obj *obj, grn_operator op,
 
     if (a->action == GRN_ACCESSOR_GET_COLUMN_VALUE &&
         GRN_OBJ_INDEX_COLUMNP(a->obj)) {
-      return grn_column_index_accessor_index_column(ctx, a, op, indexbuf,
-                                                    buf_size, section);
+      return grn_column_find_index_data_accessor_index_column(ctx, a, op,
+                                                              index_data,
+                                                              n_index_data,
+                                                              index_buf,
+                                                              buf_size,
+                                                              section_buf);
     }
 
     switch (a->action) {
@@ -10704,15 +10800,22 @@ grn_column_index_accessor(grn_ctx *ctx, grn_obj *obj, grn_operator op,
 
       found = GRN_TRUE;
       if (!a->next) {
+        int section;
+
         if (!is_valid_index(ctx, target, op)) {
           continue;
         }
 
-        if (section) {
-          *section = (MULTI_COLUMN_INDEXP(target)) ? data->section : 0;
+        section = (MULTI_COLUMN_INDEXP(target)) ? data->section : 0;
+        if (section_buf) {
+          *section_buf = section;
         }
         if (n < buf_size) {
           *ip++ = target;
+        }
+        if (n < n_index_data) {
+          index_data[n].index = target;
+          index_data[n].section = section;
         }
         n++;
       }
@@ -10727,17 +10830,102 @@ grn_column_index_accessor(grn_ctx *ctx, grn_obj *obj, grn_operator op,
   return n;
 }
 
+static inline int
+grn_column_find_index_data_accessor(grn_ctx *ctx, grn_obj *obj,
+                                    grn_operator op,
+                                    grn_index_datum *index_data,
+                                    unsigned n_index_data,
+                                    grn_obj **index_buf, int buf_size,
+                                    int *section_buf)
+{
+  int n = 0;
+
+  if (section_buf) {
+    *section_buf = 0;
+  }
+  switch (op) {
+  case GRN_OP_EQUAL :
+  case GRN_OP_TERM_EXTRACT :
+    if (buf_size > 0) {
+      index_buf[n] = obj;
+    }
+    if (n_index_data > 0) {
+      index_data[n].index = obj;
+      index_data[n].section = 0;
+    }
+    n++;
+    break;
+  case GRN_OP_PREFIX :
+    {
+      grn_accessor *a = (grn_accessor *)obj;
+      if (a->action == GRN_ACCESSOR_GET_KEY) {
+        if (a->obj->header.type == GRN_TABLE_PAT_KEY) {
+          if (buf_size > 0) {
+            index_buf[n] = obj;
+          }
+          if (n_index_data > 0) {
+            index_data[n].index = obj;
+            index_data[n].section = 0;
+          }
+          n++;
+        }
+        /* FIXME: GRN_TABLE_DAT_KEY should be supported */
+      }
+    }
+    break;
+  case GRN_OP_SUFFIX :
+    {
+      grn_accessor *a = (grn_accessor *)obj;
+      if (a->action == GRN_ACCESSOR_GET_KEY) {
+        if (a->obj->header.type == GRN_TABLE_PAT_KEY &&
+            a->obj->header.flags & GRN_OBJ_KEY_WITH_SIS) {
+          if (buf_size > 0) {
+            index_buf[n] = obj;
+          }
+          if (n_index_data > 0) {
+            index_data[n].index = obj;
+            index_data[n].section = 0;
+          }
+          n++;
+        }
+      }
+    }
+    break;
+  case GRN_OP_MATCH :
+  case GRN_OP_NEAR :
+  case GRN_OP_NEAR2 :
+  case GRN_OP_SIMILAR :
+  case GRN_OP_LESS :
+  case GRN_OP_GREATER :
+  case GRN_OP_LESS_EQUAL :
+  case GRN_OP_GREATER_EQUAL :
+  case GRN_OP_CALL :
+  case GRN_OP_REGEXP :
+    n = grn_column_find_index_data_accessor_match(ctx, obj, op,
+                                                  index_data, n_index_data,
+                                                  index_buf, buf_size,
+                                                  section_buf);
+    break;
+  default :
+    break;
+  }
+
+  return n;
+}
+
 int
 grn_column_index(grn_ctx *ctx, grn_obj *obj, grn_operator op,
-                 grn_obj **indexbuf, int buf_size, int *section)
+                 grn_obj **index_buf, int buf_size, int *section_buf)
 {
   int n = 0;
   GRN_API_ENTER;
   if (GRN_DB_OBJP(obj)) {
     switch (op) {
     case GRN_OP_EQUAL :
-      n = grn_column_index_column_equal(ctx, obj, op,
-                                        indexbuf, buf_size, section);
+      n = grn_column_find_index_data_column_equal(ctx, obj, op,
+                                                  NULL, 0,
+                                                  index_buf, buf_size,
+                                                  section_buf);
       break;
     case GRN_OP_PREFIX :
     case GRN_OP_SUFFIX :
@@ -10745,68 +10933,75 @@ grn_column_index(grn_ctx *ctx, grn_obj *obj, grn_operator op,
     case GRN_OP_NEAR :
     case GRN_OP_NEAR2 :
     case GRN_OP_SIMILAR :
-      n = grn_column_index_column_match(ctx, obj, op,
-                                        indexbuf, buf_size, section);
+    case GRN_OP_REGEXP :
+      n = grn_column_find_index_data_column_match(ctx, obj, op,
+                                                  NULL, 0,
+                                                  index_buf, buf_size,
+                                                  section_buf);
       break;
     case GRN_OP_LESS :
     case GRN_OP_GREATER :
     case GRN_OP_LESS_EQUAL :
     case GRN_OP_GREATER_EQUAL :
     case GRN_OP_CALL :
-      n = grn_column_index_column_range(ctx, obj, op,
-                                        indexbuf, buf_size, section);
+      n = grn_column_find_index_data_column_range(ctx, obj, op,
+                                                  NULL, 0,
+                                                  index_buf, buf_size,
+                                                  section_buf);
       break;
     default :
       break;
     }
   } else if (GRN_ACCESSORP(obj)) {
-    if (section) {
-      *section = 0;
-    }
+    n = grn_column_find_index_data_accessor(ctx, obj, op,
+                                            NULL, 0,
+                                            index_buf, buf_size,
+                                            section_buf);
+  }
+  GRN_API_RETURN(n);
+}
+
+unsigned int
+grn_column_find_index_data(grn_ctx *ctx, grn_obj *obj, grn_operator op,
+                           grn_index_datum *index_data,
+                           unsigned int n_index_data)
+{
+  unsigned int n = 0;
+  GRN_API_ENTER;
+  if (GRN_DB_OBJP(obj)) {
     switch (op) {
     case GRN_OP_EQUAL :
-    case GRN_OP_TERM_EXTRACT :
-      if (buf_size) { indexbuf[n] = obj; }
-      n++;
+      n = grn_column_find_index_data_column_equal(ctx, obj, op,
+                                                  index_data, n_index_data,
+                                                  NULL, 0, NULL);
       break;
     case GRN_OP_PREFIX :
-      {
-        grn_accessor *a = (grn_accessor *)obj;
-        if (a->action == GRN_ACCESSOR_GET_KEY) {
-          if (a->obj->header.type == GRN_TABLE_PAT_KEY) {
-            if (buf_size) { indexbuf[n] = obj; }
-            n++;
-          }
-          /* FIXME: GRN_TABLE_DAT_KEY should be supported */
-        }
-      }
-      break;
     case GRN_OP_SUFFIX :
-      {
-        grn_accessor *a = (grn_accessor *)obj;
-        if (a->action == GRN_ACCESSOR_GET_KEY) {
-          if (a->obj->header.type == GRN_TABLE_PAT_KEY &&
-              a->obj->header.flags & GRN_OBJ_KEY_WITH_SIS) {
-            if (buf_size) { indexbuf[n] = obj; }
-            n++;
-          }
-        }
-      }
-      break;
     case GRN_OP_MATCH :
     case GRN_OP_NEAR :
     case GRN_OP_NEAR2 :
     case GRN_OP_SIMILAR :
+    case GRN_OP_REGEXP :
+      n = grn_column_find_index_data_column_match(ctx, obj, op,
+                                                  index_data, n_index_data,
+                                                  NULL, 0, NULL);
+      break;
     case GRN_OP_LESS :
     case GRN_OP_GREATER :
     case GRN_OP_LESS_EQUAL :
     case GRN_OP_GREATER_EQUAL :
     case GRN_OP_CALL :
-      n = grn_column_index_accessor(ctx, obj, op, indexbuf, buf_size, section);
+      n = grn_column_find_index_data_column_range(ctx, obj, op,
+                                                  index_data, n_index_data,
+                                                  NULL, 0, NULL);
       break;
     default :
       break;
     }
+  } else if (GRN_ACCESSORP(obj)) {
+    n = grn_column_find_index_data_accessor(ctx, obj, op,
+                                            index_data, n_index_data,
+                                            NULL, 0, NULL);
   }
   GRN_API_RETURN(n);
 }
@@ -11659,7 +11854,6 @@ json_read(grn_ctx *ctx, grn_loader *loader, const char *str, unsigned int str_le
     case GRN_LOADER_BEGIN :
       if ((len = grn_isspace(str, ctx->encoding))) {
         str += len;
-        c = *str;
         continue;
       }
       switch (c) {
@@ -11679,7 +11873,6 @@ json_read(grn_ctx *ctx, grn_loader *loader, const char *str, unsigned int str_le
     case GRN_LOADER_TOKEN :
       if ((len = grn_isspace(str, ctx->encoding))) {
         str += len;
-        c = *str;
         continue;
       }
       switch (c) {
@@ -12073,6 +12266,7 @@ grn_load_(grn_ctx *ctx, grn_content_type input_type,
   case GRN_CONTENT_TSV :
   case GRN_CONTENT_XML :
   case GRN_CONTENT_MSGPACK :
+  case GRN_CONTENT_GROONGA_COMMAND_LIST :
     ERR(GRN_FUNCTION_NOT_IMPLEMENTED, "unsupported input_type");
     // todo
     break;

@@ -1,7 +1,7 @@
 /************ Valblk C++ Functions Source Code File (.CPP) *************/
 /*  Name: VALBLK.CPP  Version 2.1                                      */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          2005-2014    */
+/*  (C) Copyright to the author Olivier BERTRAND          2005-2015    */
 /*                                                                     */
 /*  This file contains the VALBLK and derived classes functions.       */
 /*  Second family is VALBLK, representing simple suballocated arrays   */
@@ -23,7 +23,7 @@
 /*  Include relevant MariaDB header file.                              */
 /***********************************************************************/
 #include "my_global.h"
-#if defined(WIN32)
+#if defined(__WIN__)
 //#include <windows.h>
 #else
 #include "osutil.h"
@@ -132,7 +132,7 @@ VALBLK::VALBLK(void *mp, int type, int nval, bool un)
 /***********************************************************************/
 /*  Raise error for numeric types.                                     */
 /***********************************************************************/
-PSZ VALBLK::GetCharValue(int n)
+PSZ VALBLK::GetCharValue(int)
   {
   PGLOBAL& g = Global;
 
@@ -145,7 +145,7 @@ PSZ VALBLK::GetCharValue(int n)
 /***********************************************************************/
 /*  Set format so formatted dates can be converted on input.           */
 /***********************************************************************/
-bool VALBLK::SetFormat(PGLOBAL g, PSZ fmt, int len, int year)
+bool VALBLK::SetFormat(PGLOBAL g, PSZ, int, int)
   {
   sprintf(g->Message, MSG(NO_DATE_FMT), Type);
   return true;
@@ -752,7 +752,7 @@ double CHRBLK::GetFloatValue(int n)
 /***********************************************************************/
 /*  STRING GetCharString: get string representation of a char value.   */
 /***********************************************************************/
-char *CHRBLK::GetCharString(char *p, int n)
+char *CHRBLK::GetCharString(char *, int n)
   {
   return (char *)GetValPtrEx(n);
   } // end of GetCharString
@@ -1155,10 +1155,9 @@ void STRBLK::SetValue(PVAL valp, int n)
 void STRBLK::SetValue(PSZ p, int n)
   {
   if (p) {
-    if (!Sorted || !n || !Strp[n-1] || strcmp(p, Strp[n-1])) {
-      Strp[n] = (PSZ)PlugSubAlloc(Global, NULL, strlen(p) + 1);
-      strcpy(Strp[n], p);
-    } else
+    if (!Sorted || !n || !Strp[n-1] || strcmp(p, Strp[n-1]))
+      Strp[n] = (PSZ)PlugDup(Global, p);
+    else
       Strp[n] = Strp[n-1];
 
   } else

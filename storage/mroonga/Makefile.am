@@ -40,7 +40,6 @@ SUBDIRS =					\
 EXTRA_DIST =					\
 	AUTHORS					\
 	gpg_uid					\
-	plug.in					\
 	CMakeLists.txt
 
 installcheck-local: install

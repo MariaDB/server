@@ -9,12 +9,13 @@ module Groonga
         message = "#{error.class}: #{error.message}"
       end
       backtrace = error.backtrace
-      first_raw_entry = backtrace.first
-      if first_raw_entry
-        first_entry = BacktraceEntry.parse(first_raw_entry)
-        file = first_entry.file
-        line = first_entry.line
-        method = first_entry.method
+      last_raw_entry = backtrace.last
+      if last_raw_entry
+        last_entry = BacktraceEntry.parse(last_raw_entry)
+        file = last_entry.file
+        line = last_entry.line
+        method = last_entry.method
+        # message = "#{file}:#{line}:#{method}: #{message}"
       else
         file = ""
         line = 0
@@ -22,8 +23,11 @@ module Groonga
       end
       log(log_level, file, line, method, message)
 
-      backtrace.each do |raw_entry|
+      backtrace.reverse_each.with_index do |raw_entry, i|
+        next if i == 0
         entry = BacktraceEntry.parse(raw_entry)
+        message = entry.message
+        message = raw_entry if message.empty?
         log(log_level, entry.file, entry.line, entry.method, raw_entry)
       end
     end

@@ -49,12 +49,28 @@ let $field= Slave_IO_State;
 let $condition= = 'Waiting for master to send event';
 --source include/wait_show_condition.inc
 
---replace_result $SERVER_MYPORT_1 MYPORT_1
-show slave 'master1' status;
---replace_result $SERVER_MYPORT_1 MYPORT_1
-show slave status;
---replace_result $SERVER_MYPORT_1 MYPORT_1
-show all slaves status;
+--echo #
+--echo # Checking SHOW SLAVE 'master1' STATUS
+--echo #
+--let $status_items= Master_Port, Relay_Log_File, Slave_IO_Running, Slave_SQL_Running, Last_Errno, Last_SQL_Errno
+--let $slave_field_result_replace= /$SERVER_MYPORT_1/MYPORT_1/
+--let $slave_name= 'master1'
+--source include/show_slave_status.inc
+--let $slave_name=
+
+--echo #
+--echo # Checking SHOW SLAVE STATUS
+--echo #
+--source include/show_slave_status.inc
+
+--echo #
+--echo # Checking SHOW ALL SLAVES STATUS
+--echo #
+--let $all_slaves_status= 1
+--let $status_items= Connection_name, Master_Port, Relay_Log_File, Slave_IO_Running, Slave_SQL_Running, Last_Errno, Last_SQL_Errno, Slave_heartbeat_period
+--source include/show_slave_status.inc
+--let $all_slaves_status=
+--echo #
 
 
 # Check that replication actually works
@@ -144,8 +160,15 @@ let $field= Slave_IO_State;
 let $condition= = 'Waiting for master to send event';
 --source include/wait_show_condition.inc
 
---replace_result $SERVER_MYPORT_1 MYPORT_1 $SERVER_MYPORT_2 MYPORT_2
-show all slaves status;
+--echo #
+--echo # Checking SHOW ALL SLAVES STATUS
+--echo #
+--let $all_slaves_status= 1
+--let $status_items= Connection_name, Master_Port, Relay_Log_File, Slave_IO_Running, Slave_SQL_Running, Last_Errno, Last_SQL_Errno, Slave_heartbeat_period
+--let $slave_field_result_replace= /$SERVER_MYPORT_1/MYPORT_1/ /$SERVER_MYPORT_2/MYPORT_2/
+--source include/show_slave_status.inc
+--let $all_slaves_status=
+--echo #
 
 # Check that replication from two servers actually works
 
@@ -214,8 +237,15 @@ let $field= Slave_IO_State;
 let $condition= = 'Waiting for master to send event';
 --source include/wait_show_condition.inc
 
---replace_result $SERVER_MYPORT_1 MYPORT_1 $SERVER_MYPORT_2 MYPORT_2
-show all slaves status;
+--echo #
+--echo # Checking SHOW ALL SLAVES STATUS
+--echo #
+--let $all_slaves_status= 1
+--let $status_items= Connection_name, Master_Port, Relay_Log_File, Slave_IO_Running, Slave_SQL_Running, Last_Errno, Last_SQL_Errno, Slave_heartbeat_period
+--let $slave_field_result_replace= /$SERVER_MYPORT_1/MYPORT_1/ /$SERVER_MYPORT_2/MYPORT_2/
+--source include/show_slave_status.inc
+--let $all_slaves_status=
+--echo #
 
 --sorted_result
 select * from db1.t1;

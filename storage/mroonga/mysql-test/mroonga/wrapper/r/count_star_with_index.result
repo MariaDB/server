@@ -1,5 +1,3 @@
-DROP TABLE IF EXISTS diaries_innodb;
-DROP TABLE IF EXISTS diaries_mroonga;
 CREATE TABLE diaries_innodb (
 id INT PRIMARY KEY AUTO_INCREMENT,
 body TEXT,

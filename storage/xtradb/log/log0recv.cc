@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1997, 2014, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1997, 2015, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
 
 This program is free software; you can redistribute it and/or modify it under
@@ -1938,7 +1938,7 @@ loop:
 		goto loop;
 	}
 
-	ut_ad(!allow_ibuf == mutex_own(&log_sys->mutex));
+	ut_ad((!allow_ibuf) == mutex_own(&log_sys->mutex));
 
 	if (!allow_ibuf) {
 		recv_no_ibuf_operations = TRUE;
@@ -3598,6 +3598,7 @@ recv_recovery_rollback_active(void)
 		/* Rollback the uncommitted transactions which have no user
 		session */
 
+		trx_rollback_or_clean_is_active = true;
 		os_thread_create(trx_rollback_or_clean_all_recovered, 0, 0);
 	}
 }

@@ -14,7 +14,7 @@
 #include "sql_class.h"
 #include "table.h"
 #include "field.h"
-#if defined(WIN32)
+#if defined(__WIN__)
 #include <stdlib.h>
 #include <stdio.h>
 #if defined(__BORLANDC__)
@@ -43,19 +43,15 @@
 #include "plgdbsem.h"
 #include "plgcnx.h"                       // For DB types
 #include "myutil.h"
-#include "mycat.h"
 #include "valblk.h"
 #include "resource.h"
 #include "reldef.h"
 #include "xtable.h"
-#if defined(MYSQL_SUPPORT)
 #include "tabmysql.h"
-#endif   // MYSQL_SUPPORT
 #include "tabcol.h"
 #include "tabutil.h"
 #include "ha_connect.h"
 
-//extern "C" int zconv;
 int GetConvSize(void);
 
 /************************************************************************/
@@ -75,11 +71,8 @@ TABLE_SHARE *GetTableShare(PGLOBAL g, THD *thd, const char *db,
 {
   char         key[256];
   uint         k;
-//TABLE_LIST   table_list;
   TABLE_SHARE *s;
 
-//table_list.init_one_table(db, strlen(db), name, strlen(name),
-//                          NULL, TL_IGNORE);
 	k = sprintf(key, "%s", db) + 1;
 	k += sprintf(key + k, "%s", name);
   key[++k] = 0;
@@ -89,24 +82,15 @@ TABLE_SHARE *GetTableShare(PGLOBAL g, THD *thd, const char *db,
     return NULL;
     } // endif s
 
-//        1           2          4            8 
-//flags = GTS_TABLE | GTS_VIEW | GTS_NOLOCK | GTS_FORCE_DISCOVERY;
-
   if (!open_table_def(thd, s, GTS_TABLE | GTS_VIEW)) {
     if (!s->is_view) {
-      if (stricmp(plugin_name(s->db_plugin)->str, "connect")) {
-#if defined(MYSQL_SUPPORT)
+      if (stricmp(plugin_name(s->db_plugin)->str, "connect"))
         mysql = true;
-#else   // !MYSQL_SUPPORT
-        sprintf(g->Message, "%s.%s is not a CONNECT table", db, name);
-        return NULL;
-#endif   // MYSQL_SUPPORT
-      } else
+      else
         mysql = false;
 
-    } else {
+    } else
       mysql = true;
-    } // endif is_view
 
   } else {
     if (thd->is_error())
@@ -308,7 +292,7 @@ PRXDEF::PRXDEF(void)
 /***********************************************************************/
 /*  DefineAM: define specific AM block values from XCOL file.          */
 /***********************************************************************/
-bool PRXDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
+bool PRXDEF::DefineAM(PGLOBAL g, LPCSTR, int)
   {
   char *pn, *db, *tab, *def = NULL;
 
@@ -338,7 +322,7 @@ bool PRXDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
 /***********************************************************************/
 /*  GetTable: makes a new TDB of the proper type.                      */
 /***********************************************************************/
-PTDB PRXDEF::GetTable(PGLOBAL g, MODE mode)
+PTDB PRXDEF::GetTable(PGLOBAL g, MODE)
   {
   if (Catfunc == FNC_COL)
     return new(g) TDBTBC(this);
@@ -357,7 +341,7 @@ TDBPRX::TDBPRX(PPRXDEF tdp) : TDBASE(tdp)
   Tdbp = NULL;                    // The object table
   } // end of TDBPRX constructor
 
-TDBPRX::TDBPRX(PGLOBAL g, PTDBPRX tdbp) : TDBASE(tdbp)
+TDBPRX::TDBPRX(PTDBPRX tdbp) : TDBASE(tdbp)
   {
   Tdbp = tdbp->Tdbp;
   } // end of TDBPRX copy constructor
@@ -369,7 +353,7 @@ PTDB TDBPRX::CopyOne(PTABS t)
   PPRXCOL cp1, cp2;
   PGLOBAL g = t->G;
 
-  tp = new(g) TDBPRX(g, this);
+  tp = new(g) TDBPRX(this);
 
   for (cp1 = (PPRXCOL)Columns; cp1; cp1 = (PPRXCOL)cp1->GetNext()) {
     cp2 = new(g) PRXCOL(cp1, tp);  // Make a copy
@@ -428,7 +412,6 @@ PTDBASE TDBPRX::GetSubTable(PGLOBAL g, PTABLE tabp, bool b)
   } // endif srcdef
 
   if (mysql) {
-#if defined(MYSQL_SUPPORT)
     // Access sub-table via MySQL API
     if (!(tdbp= cat->GetTable(g, tabp, Mode, "MYPRX"))) {
       char buf[MAX_STR];
@@ -445,11 +428,6 @@ PTDBASE TDBPRX::GetSubTable(PGLOBAL g, PTABLE tabp, bool b)
     if (Mode == MODE_UPDATE || Mode == MODE_DELETE)
       tdbp->SetName(Name);      // For Make_Command
 
-#else   // !MYSQL_SUPPORT
-      sprintf(g->Message, "%s.%s is not a CONNECT table",
-                          db, tblp->Name);
-      goto err;
-#endif   // MYSQL_SUPPORT
   } else {
     // Sub-table is a CONNECT table
     tabp->Next = To_Table;          // For loop checking

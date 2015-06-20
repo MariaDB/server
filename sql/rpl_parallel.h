@@ -53,7 +53,7 @@ struct group_commit_orderer {
   group_commit_orderer *prev_gco;
   group_commit_orderer *next_gco;
   /*
-    The sub_id of last event group in this the previous GCO.
+    The sub_id of last event group in the previous GCO.
     Only valid if prev_gco != NULL.
   */
   uint64 prior_sub_id;
@@ -204,7 +204,6 @@ struct rpl_parallel_thread_pool {
   struct rpl_parallel_thread *free_list;
   mysql_mutex_t LOCK_rpl_thread_pool;
   mysql_cond_t COND_rpl_thread_pool;
-  bool changing;
   bool inited;
 
   rpl_parallel_thread_pool();
@@ -228,6 +227,12 @@ struct rpl_parallel_entry {
     waiting for event groups to complete.
   */
   bool force_abort;
+  /*
+    Set in wait_for_workers_idle() to show that it is waiting, so that
+    finish_event_group knows to signal it when last_committed_sub_id is
+    increased.
+  */
+  bool need_sub_id_signal;
   /*
    At STOP SLAVE (force_abort=true), we do not want to process all events in
    the queue (which could unnecessarily delay stop, if a lot of events happen
@@ -314,9 +319,8 @@ struct rpl_parallel {
 extern struct rpl_parallel_thread_pool global_rpl_thread_pool;
 
 
-extern int rpl_parallel_change_thread_count(rpl_parallel_thread_pool *pool,
-                                            uint32 new_count,
-                                            bool skip_check= false);
+extern int rpl_parallel_activate_pool(rpl_parallel_thread_pool *pool);
+extern int rpl_parallel_inactivate_pool(rpl_parallel_thread_pool *pool);
 extern bool process_gtid_for_restart_pos(Relay_log_info *rli, rpl_gtid *gtid);
 
 #endif  /* RPL_PARALLEL_H */

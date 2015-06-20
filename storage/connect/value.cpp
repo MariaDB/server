@@ -1,7 +1,7 @@
 /************* Value C++ Functions Source Code File (.CPP) *************/
 /*  Name: VALUE.CPP  Version 2.5                                       */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          2001-2014    */
+/*  (C) Copyright to the author Olivier BERTRAND          2001-2015    */
 /*                                                                     */
 /*  This file contains the VALUE and derived classes family functions. */
 /*  These classes contain values of different types. They are used so  */
@@ -30,11 +30,11 @@
 #include "sql_class.h"
 #include "sql_time.h"
 
-#if defined(WIN32)
+#if defined(__WIN__)
 //#include <windows.h>
-#else   // !WIN32
+#else   // !__WIN__
 #include <string.h>
-#endif  // !WIN32
+#endif  // !__WIN__
 
 #include <math.h>
 
@@ -77,12 +77,12 @@ int DTVAL::Shift = 0;
 /***********************************************************************/
 bool PlugEvalLike(PGLOBAL, LPCSTR, LPCSTR, bool);
 
-#if !defined(WIN32)
+#if !defined(__WIN__)
 extern "C" {
 PSZ strupr(PSZ s);
 PSZ strlwr(PSZ s);
 }
-#endif   // !WIN32
+#endif   // !__WIN__
 
 /***********************************************************************/
 /*  Get a long long number from its character representation.          */
@@ -475,7 +475,7 @@ PVAL AllocateValue(PGLOBAL g, PVAL valp, int newtype, int uns)
 
       break;
     case TYPE_DATE:
-      vp = new(g) DTVAL(g, valp->GetIntValue());
+      vp = new(g) DTVAL(valp->GetIntValue());
       break;
     case TYPE_DOUBLE:
       vp = new(g) TYPVAL<double>(valp->GetFloatValue(), TYPE_DOUBLE,
@@ -551,7 +551,7 @@ BYTE VALUE::TestValue(PVAL vp)
 /***********************************************************************/
 /*  Compute a function on a string.                                    */
 /***********************************************************************/
-bool VALUE::Compute(PGLOBAL g, PVAL *vp, int np, OPVAL op)
+bool VALUE::Compute(PGLOBAL g, PVAL *, int, OPVAL)
   {
   strcpy(g->Message, "Compute not implemented for this value type");
   return true;
@@ -627,13 +627,16 @@ int TYPVAL<double>::GetValLen(void)
 template <class TYPE>
 bool TYPVAL<TYPE>::SetValue_pval(PVAL valp, bool chktype)
   {
-  if (chktype && Type != valp->GetType())
-    return true;
+  if (valp != this) {
+    if (chktype && Type != valp->GetType())
+      return true;
 
-  if (!(Null = valp->IsNull() && Nullable))
-    Tval = GetTypedValue(valp);
-  else
-    Reset();
+    if (!(Null = valp->IsNull() && Nullable))
+      Tval = GetTypedValue(valp);
+    else
+      Reset();
+
+    } // endif valp
 
   return false;
   } // end of SetValue
@@ -973,7 +976,7 @@ ulonglong TYPVAL<ulonglong>::MinMaxVal(bool b)
   {return (b) ? 0xFFFFFFFFFFFFFFFFLL : 0;}
 
 template <>
-double TYPVAL<double>::MinMaxVal(bool b)
+double TYPVAL<double>::MinMaxVal(bool)
   {assert(false); return 0.0;}
 
 template <>
@@ -1319,15 +1322,18 @@ ulonglong TYPVAL<PSZ>::GetUBigintValue(void)
 /***********************************************************************/
 bool TYPVAL<PSZ>::SetValue_pval(PVAL valp, bool chktype)
   {
-  if (chktype && (valp->GetType() != Type || valp->GetSize() > Len))
-    return true;
+  if (valp != this) {
+    if (chktype && (valp->GetType() != Type || valp->GetSize() > Len))
+      return true;
 
-  char buf[64];
+    char buf[64];
 
-  if (!(Null = valp->IsNull() && Nullable))
-    strncpy(Strp, valp->GetCharString(buf), Len);
-  else
-    Reset();
+    if (!(Null = valp->IsNull() && Nullable))
+      strncpy(Strp, valp->GetCharString(buf), Len);
+    else
+      Reset();
+
+    } // endif valp
 
   return false;
   } // end of SetValue_pval
@@ -1560,7 +1566,7 @@ bool TYPVAL<PSZ>::GetBinValue(void *buf, int buflen, bool go)
 /***********************************************************************/
 /*  STRING ShowValue: get string representation of a char value.       */
 /***********************************************************************/
-char *TYPVAL<PSZ>::ShowValue(char *buf, int len)
+char *TYPVAL<PSZ>::ShowValue(char *, int)
   {
   return Strp;
   } // end of ShowValue
@@ -1568,7 +1574,7 @@ char *TYPVAL<PSZ>::ShowValue(char *buf, int len)
 /***********************************************************************/
 /*  STRING GetCharString: get string representation of a char value.   */
 /***********************************************************************/
-char *TYPVAL<PSZ>::GetCharString(char *p)
+char *TYPVAL<PSZ>::GetCharString(char *)
   {
   return Strp;
   } // end of GetCharString
@@ -1612,10 +1618,10 @@ int TYPVAL<PSZ>::CompareValue(PVAL vp)
   else
     n = strcmp(Strp, vp->GetCharValue());
 
-#if defined(WIN32)
+#if defined(__WIN__)
   if (n == _NLSCMPERROR)
     return n;                        // Here we should raise an error
-#endif   // WIN32
+#endif   // __WIN__
 
   return (n > 0) ? 1 : (n < 0) ? -1 : 0;
   } // end of CompareValue
@@ -1675,7 +1681,7 @@ bool TYPVAL<PSZ>::FormatValue(PVAL vp, char *fmt)
 /***********************************************************************/
 /*  STRING SetFormat function (used to set SELECT output format).      */
 /***********************************************************************/
-bool TYPVAL<PSZ>::SetConstFormat(PGLOBAL g, FORMAT& fmt)
+bool TYPVAL<PSZ>::SetConstFormat(PGLOBAL, FORMAT& fmt)
   {
   fmt.Type[0] = 'C';
   fmt.Length = Len;
@@ -2063,18 +2069,21 @@ double BINVAL::GetFloatValue(void)
 /***********************************************************************/
 bool BINVAL::SetValue_pval(PVAL valp, bool chktype)
   {
-  if (chktype && (valp->GetType() != Type || valp->GetSize() > Clen))
-    return true;
-
   bool rc = false;
-    
-  if (!(Null = valp->IsNull() && Nullable)) {
-    if ((rc = (Len = valp->GetSize()) > Clen))
-      Len = Clen;
+      
+  if (valp != this) {
+    if (chktype && (valp->GetType() != Type || valp->GetSize() > Clen))
+      return true;
 
-    memcpy(Binp, valp->GetTo_Val(), Len);
-  } else
-    Reset();
+    if (!(Null = valp->IsNull() && Nullable)) {
+      if ((rc = (Len = valp->GetSize()) > Clen))
+        Len = Clen;
+
+      memcpy(Binp, valp->GetTo_Val(), Len);
+    } else
+      Reset();
+
+    } // endif valp
 
   return rc;
   } // end of SetValue_pval
@@ -2291,7 +2300,7 @@ char *BINVAL::ShowValue(char *buf, int len)
 /***********************************************************************/
 /*  BINVAL GetCharString: get string representation of a binary value. */
 /***********************************************************************/
-char *BINVAL::GetCharString(char *p)
+char *BINVAL::GetCharString(char *)
   {
   if (!Chrp)
     Chrp = (char*)PlugSubAlloc(Global, NULL, Clen * 2 + 1);
@@ -2340,7 +2349,7 @@ bool BINVAL::FormatValue(PVAL vp, char *fmt)
 /***********************************************************************/
 /*  BINVAL SetFormat function (used to set SELECT output format).      */
 /***********************************************************************/
-bool BINVAL::SetConstFormat(PGLOBAL g, FORMAT& fmt)
+bool BINVAL::SetConstFormat(PGLOBAL, FORMAT& fmt)
   {
   fmt.Type[0] = 'B';
   fmt.Length = Clen;
@@ -2370,7 +2379,7 @@ DTVAL::DTVAL(PGLOBAL g, int n, int prec, PSZ fmt)
 /***********************************************************************/
 /*  DTVAL  public constructor from int.                                */
 /***********************************************************************/
-DTVAL::DTVAL(PGLOBAL g, int n) : TYPVAL<int>(n, TYPE_DATE)
+DTVAL::DTVAL(int n) : TYPVAL<int>(n, TYPE_DATE)
   {
   Pdtp = NULL;
   Len = 19;
@@ -2629,21 +2638,24 @@ bool DTVAL::MakeDate(PGLOBAL g, int *val, int nval)
 /***********************************************************************/
 bool DTVAL::SetValue_pval(PVAL valp, bool chktype)
   {
-  if (chktype && Type != valp->GetType())
-    return true;
+  if (valp != this) {
+    if (chktype && Type != valp->GetType())
+      return true;
 
-  if (!(Null = valp->IsNull() && Nullable)) {
-    if (Pdtp && !valp->IsTypeNum()) {
-      int   ndv;
-      int  dval[6];
+    if (!(Null = valp->IsNull() && Nullable)) {
+      if (Pdtp && !valp->IsTypeNum()) {
+        int   ndv;
+        int  dval[6];
 
-      ndv = ExtractDate(valp->GetCharValue(), Pdtp, DefYear, dval);
-      MakeDate(NULL, dval, ndv);
+        ndv = ExtractDate(valp->GetCharValue(), Pdtp, DefYear, dval);
+        MakeDate(NULL, dval, ndv);
+      } else
+        Tval = valp->GetIntValue();
+
     } else
-      Tval = valp->GetIntValue();
+      Reset();
 
-  } else
-    Reset();
+    } // endif valp
 
   return false;
   } // end of SetValue

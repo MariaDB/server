@@ -1549,6 +1549,10 @@ class Regexp_processor_pcre
   int m_pcre_exec_rc;
   int m_SubStrVec[30];
   uint m_subpatterns_needed;
+  void pcre_exec_warn(int rc) const;
+  int pcre_exec_with_warn(const pcre *code, const pcre_extra *extra,
+                          const char *subject, int length, int startoffset,
+                          int options, int *ovector, int ovecsize);
 public:
   String *convert_if_needed(String *src, String *converter);
   String subject_converter;

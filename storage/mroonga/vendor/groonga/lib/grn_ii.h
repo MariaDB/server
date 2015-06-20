@@ -152,6 +152,8 @@ struct _grn_select_optarg {
   void *func_arg;
   int max_size;
   grn_obj *scorer;
+  grn_obj *scorer_args_expr;
+  unsigned int scorer_args_expr_offset;
 };
 
 GRN_API grn_rc grn_ii_column_update(grn_ctx *ctx, grn_ii *ii, grn_id id,

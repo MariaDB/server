@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2014, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2014, Monty Program Ab.
+   Copyright (c) 2009, 2015, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -436,6 +436,21 @@ void Lex_input_stream::body_utf8_append_literal(THD *thd,
   m_cpp_utf8_processed_ptr= end_ptr;
 }
 
+void Lex_input_stream::add_digest_token(uint token, LEX_YYSTYPE yylval)
+{
+  if (m_digest != NULL)
+  {
+    m_digest= digest_add_token(m_digest, token, yylval);
+  }
+}
+
+void Lex_input_stream::reduce_digest_token(uint token_left, uint token_right)
+{
+  if (m_digest != NULL)
+  {
+    m_digest= digest_reduce_token(m_digest, token_left, token_right);
+  }
+}
 
 /*
   This is called before every query that is to be parsed.
@@ -541,6 +556,7 @@ void lex_start(THD *thd)
 
   lex->is_lex_started= TRUE;
   lex->used_tables= 0;
+  lex->only_view= FALSE;
   lex->reset_slave_info.all= false;
   lex->limit_rows_examined= 0;
   lex->limit_rows_examined_cnt= ULONGLONG_MAX;
@@ -982,7 +998,7 @@ int MYSQLlex(YYSTYPE *yylval, THD *thd)
     lip->lookahead_token= -1;
     *yylval= *(lip->lookahead_yylval);
     lip->lookahead_yylval= NULL;
-    lip->m_digest_psi= MYSQL_ADD_TOKEN(lip->m_digest_psi, token, yylval);
+    lip->add_digest_token(token, yylval);
     return token;
   }
 
@@ -1000,12 +1016,10 @@ int MYSQLlex(YYSTYPE *yylval, THD *thd)
     token= lex_one_token(yylval, thd);
     switch(token) {
     case CUBE_SYM:
-      lip->m_digest_psi= MYSQL_ADD_TOKEN(lip->m_digest_psi, WITH_CUBE_SYM,
-                                         yylval);
+      lip->add_digest_token(WITH_CUBE_SYM, yylval);
       return WITH_CUBE_SYM;
     case ROLLUP_SYM:
-      lip->m_digest_psi= MYSQL_ADD_TOKEN(lip->m_digest_psi, WITH_ROLLUP_SYM,
-                                         yylval);
+      lip->add_digest_token(WITH_ROLLUP_SYM, yylval);
       return WITH_ROLLUP_SYM;
     default:
       /*
@@ -1014,7 +1028,7 @@ int MYSQLlex(YYSTYPE *yylval, THD *thd)
       lip->lookahead_yylval= lip->yylval;
       lip->yylval= NULL;
       lip->lookahead_token= token;
-      lip->m_digest_psi= MYSQL_ADD_TOKEN(lip->m_digest_psi, WITH, yylval);
+      lip->add_digest_token(WITH, yylval);
       return WITH;
     }
     break;
@@ -1022,7 +1036,7 @@ int MYSQLlex(YYSTYPE *yylval, THD *thd)
     break;
   }
 
-  lip->m_digest_psi= MYSQL_ADD_TOKEN(lip->m_digest_psi, token, yylval);
+  lip->add_digest_token(token, yylval);
   return token;
 }
 
@@ -1860,7 +1874,7 @@ void st_select_lex::init_query()
   exclude_from_table_unique_test= no_wrap_view_item= FALSE;
   nest_level= 0;
   link_next= 0;
-  is_prep_leaf_list_saved= FALSE;
+  prep_leaf_list_state= UNINIT;
   have_merged_subqueries= FALSE;
   bzero((char*) expr_cache_may_be_used, sizeof(expr_cache_may_be_used));
   m_non_agg_field_used= false;
@@ -4113,27 +4127,58 @@ bool st_select_lex::save_leaf_tables(THD *thd)
 }
 
 
-bool st_select_lex::save_prep_leaf_tables(THD *thd)
+bool LEX::save_prep_leaf_tables()
 {
   if (!thd->save_prep_leaf_list)
-    return 0;
+    return FALSE;
 
   Query_arena *arena= thd->stmt_arena, backup;
   arena= thd->activate_stmt_arena_if_needed(&backup);
+  //It is used for DETETE/UPDATE so top level has only one SELECT
+  DBUG_ASSERT(select_lex.next_select() == NULL);
+  bool res= select_lex.save_prep_leaf_tables(thd);
 
-  List_iterator_fast<TABLE_LIST> li(leaf_tables);
-  TABLE_LIST *table;
-  while ((table= li++))
-  {
-    if (leaf_tables_prep.push_back(table))
-      return 1;
-  }
-  thd->lex->select_lex.is_prep_leaf_list_saved= TRUE; 
-  thd->save_prep_leaf_list= FALSE;
   if (arena)
     thd->restore_active_arena(arena, &backup);
 
-  return 0;
+  if (res)
+    return TRUE;
+
+  thd->save_prep_leaf_list= FALSE;
+  return FALSE;
+}
+
+
+bool st_select_lex::save_prep_leaf_tables(THD *thd)
+{
+  List_iterator_fast<TABLE_LIST> li(leaf_tables);
+  TABLE_LIST *table;
+
+  /*
+    Check that the SELECT_LEX was really prepared and so tables are setup.
+
+    It can be subquery in SET clause of UPDATE which was not prepared yet, so
+    its tables are not yet setup and ready for storing.
+  */
+  if (prep_leaf_list_state != READY)
+    return FALSE;
+
+  while ((table= li++))
+  {
+    if (leaf_tables_prep.push_back(table))
+      return TRUE;
+  }
+  prep_leaf_list_state= SAVED;
+  for (SELECT_LEX_UNIT *u= first_inner_unit(); u; u= u->next_unit())
+  {
+    for (SELECT_LEX *sl= u->first_select(); sl; sl= sl->next_select())
+    {
+      if (sl->save_prep_leaf_tables(thd))
+        return TRUE;
+    }
+  }
+
+  return FALSE;
 }
 
 

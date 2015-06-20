@@ -525,8 +525,8 @@ SELECT * FROM t1 WHERE a >= 30 ORDER BY a;
 --save_master_pos
 
 --connection server_4
-SELECT * FROM t1 WHERE a >= 30 ORDER BY a;
 --sync_with_master
+SELECT * FROM t1 WHERE a >= 30 ORDER BY a;
 
 
 # Clean up.

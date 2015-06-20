@@ -21,11 +21,12 @@ SET(CPACK_COMPONENT_MANPAGESCLIENT_GROUP "client")
 SET(CPACK_COMPONENT_README_GROUP "server")
 SET(CPACK_COMPONENT_SHAREDLIBRARIES_GROUP "shared")
 SET(CPACK_COMPONENT_COMMON_GROUP "common")
+SET(CPACK_COMPONENT_CLIENTPLUGINS_GROUP "common")
 SET(CPACK_COMPONENT_COMPAT_GROUP "compat")
 SET(CPACK_COMPONENTS_ALL Server ManPagesServer IniFiles Server_Scripts
                          SupportFiles Development ManPagesDevelopment
                          ManPagesTest Readme ManPagesClient Test 
-                         Common Client SharedLibraries)
+                         Common Client SharedLibraries ClientPlugins)
 
 SET(CPACK_RPM_PACKAGE_NAME "MariaDB")
 SET(CPACK_PACKAGE_FILE_NAME "${CPACK_RPM_PACKAGE_NAME}-${VERSION}-${RPM}-${CMAKE_SYSTEM_PROCESSOR}")

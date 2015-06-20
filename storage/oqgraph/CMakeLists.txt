@@ -24,6 +24,7 @@ IF(MSVC)
 #  ENDIF()
 ELSE()
 # See if that works. On old gcc it'll fail because of -fno-rtti
+SET(CMAKE_REQUIRED_INCLUDES "${Boost_INCLUDE_DIRS}")
 CHECK_CXX_SOURCE_COMPILES(
 "
 #define BOOST_NO_RTTI 1

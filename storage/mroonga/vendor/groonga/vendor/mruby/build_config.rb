@@ -5,6 +5,11 @@ MRuby::Build.new do |conf|
     toolchain :gcc
   end
 
+  oniguruma_include_path = ENV["MRUBY_ONIGURUMA_INCLUDE_PATH"]
+  if oniguruma_include_path
+    conf.cc.include_paths << oniguruma_include_path
+  end
+
   enable_debug
 
   conf.gem :core => "mruby-sprintf"
@@ -30,6 +35,7 @@ MRuby::Build.new do |conf|
   conf.gem :core => "mruby-kernel-ext"
 
   conf.gem :github => "mattn/mruby-onig-regexp"
+  conf.gem :github => "iij/mruby-env"
   conf.gem :github => "iij/mruby-io"
   conf.gem :github => "kou/mruby-pp"
   conf.gem :github => "kou/mruby-slop"

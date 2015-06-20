@@ -1545,7 +1545,10 @@ commit_one_phase_2(THD *thd, bool all, THD_TRANS *trans, bool is_real_trans)
   }
   /* Free resources and perform other cleanup even for 'empty' transactions. */
   if (is_real_trans)
+  {
+    thd->has_waiter= false;
     thd->transaction.cleanup();
+  }
 
   DBUG_RETURN(error);
 }
@@ -1626,7 +1629,10 @@ int ha_rollback_trans(THD *thd, bool all)
 
   /* Always cleanup. Even if nht==0. There may be savepoints. */
   if (is_real_trans)
+  {
+    thd->has_waiter= false;
     thd->transaction.cleanup();
+  }
   if (all)
     thd->transaction_rollback_request= FALSE;
 
@@ -2292,9 +2298,11 @@ handle_condition(THD *,
 }
 
 
-/** @brief
-  This should return ENOENT if the file doesn't exists.
-  The .frm file will be deleted only if we return 0 or ENOENT
+/** delete a table in the engine
+
+  @note
+  ENOENT and HA_ERR_NO_SUCH_TABLE are not considered errors.
+  The .frm file will be deleted only if we return 0.
 */
 int ha_delete_table(THD *thd, handlerton *table_type, const char *path,
                     const char *db, const char *alias, bool generate_warning)
@@ -2309,47 +2317,66 @@ int ha_delete_table(THD *thd, handlerton *table_type, const char *path,
   /* table_type is NULL in ALTER TABLE when renaming only .frm files */
   if (table_type == NULL || table_type == view_pseudo_hton ||
       ! (file=get_new_handler((TABLE_SHARE*)0, thd->mem_root, table_type)))
-    DBUG_RETURN(HA_ERR_NO_SUCH_TABLE);
+    DBUG_RETURN(0);
 
   bzero((char*) &dummy_table, sizeof(dummy_table));
   bzero((char*) &dummy_share, sizeof(dummy_share));
   dummy_table.s= &dummy_share;
 
   path= get_canonical_filename(file, path, tmp_path);
-  if ((error= file->ha_delete_table(path)) && generate_warning)
+  if ((error= file->ha_delete_table(path)))
   {
     /*
-      Because file->print_error() use my_error() to generate the error message
-      we use an internal error handler to intercept it and store the text
-      in a temporary buffer. Later the message will be presented to user
-      as a warning.
+      it's not an error if the table doesn't exist in the engine.
+      warn the user, but still report DROP being a success
     */
-    Ha_delete_table_error_handler ha_delete_table_error_handler;
+    bool intercept= error == ENOENT || error == HA_ERR_NO_SUCH_TABLE;
 
-    /* Fill up strucutures that print_error may need */
-    dummy_share.path.str= (char*) path;
-    dummy_share.path.length= strlen(path);
-    dummy_share.normalized_path= dummy_share.path;
-    dummy_share.db.str= (char*) db;
-    dummy_share.db.length= strlen(db);
-    dummy_share.table_name.str= (char*) alias;
-    dummy_share.table_name.length= strlen(alias);
-    dummy_table.alias.set(alias, dummy_share.table_name.length,
-                          table_alias_charset);
+    if (!intercept || generate_warning)
+    {
+      /*
+        Because file->print_error() use my_error() to generate the error message
+        we use an internal error handler to intercept it and store the text
+        in a temporary buffer. Later the message will be presented to user
+        as a warning.
+      */
+      Ha_delete_table_error_handler ha_delete_table_error_handler;
 
-    file->change_table_ptr(&dummy_table, &dummy_share);
+      /* Fill up strucutures that print_error may need */
+      dummy_share.path.str= (char*) path;
+      dummy_share.path.length= strlen(path);
+      dummy_share.normalized_path= dummy_share.path;
+      dummy_share.db.str= (char*) db;
+      dummy_share.db.length= strlen(db);
+      dummy_share.table_name.str= (char*) alias;
+      dummy_share.table_name.length= strlen(alias);
+      dummy_table.alias.set(alias, dummy_share.table_name.length,
+                            table_alias_charset);
 
-    thd->push_internal_handler(&ha_delete_table_error_handler);
-    file->print_error(error, 0);
+      file->change_table_ptr(&dummy_table, &dummy_share);
 
-    thd->pop_internal_handler();
+#if MYSQL_VERSION_ID > 100105
+      // XXX as an ugly 10.0-only hack we intercept HA_ERR_ROW_IS_REFERENCED,
+      // to report it under the old historical error number.
+#error remove HA_ERR_ROW_IS_REFERENCED, use ME_JUST_WARNING instead of a handler
+#endif
+      if (intercept || error == HA_ERR_ROW_IS_REFERENCED)
+        thd->push_internal_handler(&ha_delete_table_error_handler);
 
-    /*
-      XXX: should we convert *all* errors to warnings here?
-      What if the error is fatal?
-    */
-    push_warning(thd, Sql_condition::WARN_LEVEL_WARN, error,
-                ha_delete_table_error_handler.buff);
+      file->print_error(error, 0);
+
+      if (intercept || error == HA_ERR_ROW_IS_REFERENCED)
+      {
+        thd->pop_internal_handler();
+        if (error == HA_ERR_ROW_IS_REFERENCED)
+          my_message(ER_ROW_IS_REFERENCED, ER(ER_ROW_IS_REFERENCED), MYF(0));
+        else
+          push_warning(thd, Sql_condition::WARN_LEVEL_WARN, error,
+                       ha_delete_table_error_handler.buff);
+      }
+    }
+    if (intercept)
+      error= 0;
   }
   delete file;
 
@@ -6296,3 +6323,22 @@ fl_create_iterator(enum handler_iterator_type type,
   }
 }
 #endif /*TRANS_LOG_MGM_EXAMPLE_CODE*/
+
+
+bool HA_CREATE_INFO::check_conflicting_charset_declarations(CHARSET_INFO *cs)
+{
+  if ((used_fields & HA_CREATE_USED_DEFAULT_CHARSET) &&
+      /* DEFAULT vs explicit, or explicit vs DEFAULT */
+      (((default_table_charset == NULL) != (cs == NULL)) ||
+      /* Two different explicit character sets */
+       (default_table_charset && cs &&
+        !my_charset_same(default_table_charset, cs))))
+  {
+    my_error(ER_CONFLICTING_DECLARATIONS, MYF(0),
+             "CHARACTER SET ", default_table_charset ?
+                               default_table_charset->csname : "DEFAULT",
+             "CHARACTER SET ", cs ? cs->csname : "DEFAULT");
+    return true;
+  }
+  return false;
+}

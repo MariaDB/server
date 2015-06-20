@@ -27,7 +27,6 @@
 #cmakedefine HAVE_BSEARCH 1
 #cmakedefine HAVE_CRYPT_H 1
 #cmakedefine HAVE_CURSES_H 1
-#cmakedefine HAVE_CXXABI_H 1
 #cmakedefine HAVE_BFD_H 1
 #cmakedefine HAVE_NCURSES_H 1
 #cmakedefine HAVE_NDIR_H 1
@@ -203,7 +202,7 @@
 #cmakedefine HAVE_MADVISE 1
 #cmakedefine HAVE_DECL_MADVISE 1
 #cmakedefine HAVE_DECL_TGOTO 1
-#cmakedefine HAVE_DECL_MHA_MAPSIZE_VA
+#cmakedefine HAVE_DECL_MHA_MAPSIZE_VA 1
 #cmakedefine HAVE_MALLINFO 1
 #cmakedefine HAVE_MEMCPY 1
 #cmakedefine HAVE_MEMMOVE 1
@@ -396,7 +395,7 @@
 
 #cmakedefine SOCKET_SIZE_TYPE @SOCKET_SIZE_TYPE@
 
-#cmakedefine HAVE_MBSTATE_T
+#cmakedefine HAVE_MBSTATE_T 1
 
 #define MAX_INDEXES 64
 
@@ -431,15 +430,15 @@
 #cmakedefine HAVE_WCTYPE_H 1
 #cmakedefine HAVE_WCHAR_H 1
 #cmakedefine HAVE_LANGINFO_H 1
-#cmakedefine HAVE_MBRLEN
-#cmakedefine HAVE_MBSCMP
-#cmakedefine HAVE_MBSRTOWCS
-#cmakedefine HAVE_WCRTOMB
-#cmakedefine HAVE_MBRTOWC
-#cmakedefine HAVE_WCSCOLL
-#cmakedefine HAVE_WCSDUP
-#cmakedefine HAVE_WCWIDTH
-#cmakedefine HAVE_WCTYPE
+#cmakedefine HAVE_MBRLEN 1
+#cmakedefine HAVE_MBSCMP 1
+#cmakedefine HAVE_MBSRTOWCS 1
+#cmakedefine HAVE_WCRTOMB 1
+#cmakedefine HAVE_MBRTOWC 1
+#cmakedefine HAVE_WCSCOLL 1
+#cmakedefine HAVE_WCSDUP 1
+#cmakedefine HAVE_WCWIDTH 1
+#cmakedefine HAVE_WCTYPE 1
 #cmakedefine HAVE_ISWLOWER 1
 #cmakedefine HAVE_ISWUPPER 1
 #cmakedefine HAVE_TOWLOWER 1
@@ -453,7 +452,7 @@
 #cmakedefine HAVE_STRCASECMP 1
 #cmakedefine HAVE_STRNCASECMP 1
 #cmakedefine HAVE_STRDUP 1
-#cmakedefine HAVE_LANGINFO_CODESET 
+#cmakedefine HAVE_LANGINFO_CODESET  1
 #cmakedefine HAVE_TCGETATTR 1
 #cmakedefine HAVE_FLOCKFILE 1
 
@@ -472,6 +471,7 @@
 #cmakedefine MY_ATOMIC_MODE_DUMMY 1
 #cmakedefine MY_ATOMIC_MODE_RWLOCKS 1
 #cmakedefine HAVE_GCC_ATOMIC_BUILTINS 1
+#cmakedefine HAVE_GCC_C11_ATOMICS 1
 #cmakedefine HAVE_SOLARIS_ATOMIC 1
 #cmakedefine HAVE_DECL_SHM_HUGETLB 1
 #cmakedefine HAVE_LARGE_PAGES 1

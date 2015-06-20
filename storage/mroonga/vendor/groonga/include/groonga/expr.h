@@ -101,6 +101,8 @@ GRN_API grn_rc grn_expr_snip_add_conditions(grn_ctx *ctx,
                                             const char **closetags,
                                             unsigned int *closetag_lens);
 
+GRN_API unsigned int grn_expr_estimate_size(grn_ctx *ctx, grn_obj *expr);
+
 #ifdef __cplusplus
 }
 #endif

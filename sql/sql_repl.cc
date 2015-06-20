@@ -943,7 +943,7 @@ give_error_start_pos_missing_in_binlog(int *err, const char **errormsg,
       binlog_gtid.seq_no >= error_gtid->seq_no)
   {
     *errormsg= "Requested slave GTID state not found in binlog. The slave has "
-      "probably diverged due to executing errorneous transactions";
+      "probably diverged due to executing erroneous transactions";
     *err= ER_GTID_POSITION_NOT_FOUND_IN_BINLOG2;
   }
   else
@@ -2751,7 +2751,7 @@ err:
                 "%u-%u-%llu, which is not in the master's binlog. Since the "
                 "master's binlog contains GTIDs with higher sequence numbers, "
                 "it probably means that the slave has diverged due to "
-                "executing extra errorneous transactions",
+                "executing extra erroneous transactions",
                 error_gtid.domain_id, error_gtid.server_id, error_gtid.seq_no);
     /* Use this error code so slave will know not to try reconnect. */
     my_errno = ER_MASTER_FATAL_ERROR_READING_BINLOG;

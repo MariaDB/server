@@ -151,3 +151,7 @@ void toku_scoped_malloc_init(void);
 
 void toku_scoped_malloc_destroy(void);
 
+void toku_scoped_malloc_destroy_set(void);
+
+void toku_scoped_malloc_destroy_key(void);
+

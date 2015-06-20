@@ -5,7 +5,7 @@
 /*                                                                     */
 /* COPYRIGHT:                                                          */
 /* ----------                                                          */
-/*  (C) Copyright to the author Olivier BERTRAND          2005-2014    */
+/*  (C) Copyright to the author Olivier BERTRAND          2005-2015    */
 /*                                                                     */
 /* WHAT THIS PROGRAM DOES:                                             */
 /* -----------------------                                             */
@@ -17,7 +17,7 @@
 /*  Include relevant sections of the System header files.              */
 /***********************************************************************/
 #include "my_global.h"
-#if defined(WIN32)
+#if defined(__WIN__)
 #include <io.h>
 #include <fcntl.h>
 #include <errno.h>
@@ -25,7 +25,7 @@
 #define __MFC_COMPAT__                   // To define min/max as macro
 #endif   // __BORLANDC__
 //#include <windows.h>
-#else   // !WIN32
+#else   // !__WIN__
 #if defined(UNIX) || defined(UNIV_LINUX)
 #include <errno.h>
 #include <unistd.h>
@@ -36,7 +36,7 @@
 #include <io.h>
 #endif  // !UNIX
 #include <fcntl.h>
-#endif  // !WIN32
+#endif  // !__WIN__
 
 /***********************************************************************/
 /*  Include application header files:                                  */
@@ -289,8 +289,7 @@ bool TXTFAM::AddListValue(PGLOBAL g, int type, void *val, PPARM *top)
       pp->Intval = *(int*)val;
       break;
 //  case TYPE_STRING:
-//    pp->Value = PlugSubAlloc(g, NULL, strlen((char*)val) + 1);
-//    strcpy((char*)pp->Value, (char*)val);
+//    pp->Value = PlugDup(g, (char*)val);
 //    break;
     case TYPE_PCHAR:
       pp->Value = val;
@@ -325,8 +324,7 @@ int TXTFAM::StoreValues(PGLOBAL g, bool upd)
     if (Tdbp->PrepareWriting(g))
       return RC_FX;
 
-    buf = (char*)PlugSubAlloc(g, NULL, strlen(Tdbp->GetLine()) + 1);
-    strcpy(buf, Tdbp->GetLine());
+    buf = PlugDup(g, Tdbp->GetLine());
     rc = AddListValue(g, TYPE_PCHAR, buf, &To_Upd);
     } // endif upd
 
@@ -438,7 +436,7 @@ err:
 /*  The purpose of this function is to deal with access methods that   */
 /*  are not coherent regarding the use of SetPos and GetPos.           */
 /***********************************************************************/
-int TXTFAM::InitDelete(PGLOBAL g, int fpos, int spos)
+int TXTFAM::InitDelete(PGLOBAL g, int, int)
   {
   strcpy(g->Message, "InitDelete should not be used by this table type");
   return RC_FX;
@@ -521,7 +519,7 @@ int DOSFAM::Cardinality(PGLOBAL g)
 /*  Use BlockTest to reduce the table estimated size.                  */
 /*  Note: This function is not really implemented yet.                 */
 /***********************************************************************/
-int DOSFAM::MaxBlkSize(PGLOBAL g, int s)
+int DOSFAM::MaxBlkSize(PGLOBAL, int s)
   {
   return s;
   } // end of MaxBlkSize
@@ -718,10 +716,10 @@ int DOSFAM::SkipRecord(PGLOBAL g, bool header)
     if (feof(Stream))
       return RC_EF;
 
-#if defined(UNIX) || defined(UNIV_LINUX)
-    sprintf(g->Message, MSG(READ_ERROR), To_File, strerror(0));
-#else
+#if defined(__WIN__)
     sprintf(g->Message, MSG(READ_ERROR), To_File, _strerror(NULL));
+#else
+    sprintf(g->Message, MSG(READ_ERROR), To_File, strerror(0));
 #endif
     return RC_FX;
     } // endif fgets
@@ -801,12 +799,12 @@ int DOSFAM::ReadBuffer(PGLOBAL g)
     if (trace > 1)
       htrc(" Read: To_Buf=%p p=%c\n", To_Buf, To_Buf, p);
 
-#if defined(UNIX)
-    if (true) {
-      // Data files can be imported from Windows (having CRLF)
-#else
+#if defined(__WIN__)
     if (Bin) {
       // Data file is read in binary so CRLF remains
+#else
+    if (true) {
+      // Data files can be imported from Windows (having CRLF)
 #endif
       if (*p == '\n' || *p == '\r') {
         // is this enough for Unix ???
@@ -835,10 +833,10 @@ int DOSFAM::ReadBuffer(PGLOBAL g)
   } else if (feof(Stream)) {
     rc = RC_EF;
   } else {
-#if defined(UNIX)
-    sprintf(g->Message, MSG(READ_ERROR), To_File, strerror(0));
-#else
+#if defined(__WIN__)
     sprintf(g->Message, MSG(READ_ERROR), To_File, _strerror(NULL));
+#else
+    sprintf(g->Message, MSG(READ_ERROR), To_File, strerror(0));
 #endif
 
     if (trace)
@@ -1030,15 +1028,15 @@ int DOSFAM::DeleteRecords(PGLOBAL g, int irc)
       /*****************************************************************/
       /*  Remove extra records.                                        */
       /*****************************************************************/
-#if defined(UNIX)
-      if (ftruncate(h, (off_t)Tpos)) {
-        sprintf(g->Message, MSG(TRUNCATE_ERROR), strerror(errno));
+#if defined(__WIN__)
+      if (chsize(h, Tpos)) {
+        sprintf(g->Message, MSG(CHSIZE_ERROR), strerror(errno));
         close(h);
         return RC_FX;
         } // endif
 #else
-      if (chsize(h, Tpos)) {
-        sprintf(g->Message, MSG(CHSIZE_ERROR), strerror(errno));
+      if (ftruncate(h, (off_t)Tpos)) {
+        sprintf(g->Message, MSG(TRUNCATE_ERROR), strerror(errno));
         close(h);
         return RC_FX;
         } // endif
@@ -1274,7 +1272,7 @@ int BLKFAM::Cardinality(PGLOBAL g)
 /***********************************************************************/
 /*  Use BlockTest to reduce the table estimated size.                  */
 /***********************************************************************/
-int BLKFAM::MaxBlkSize(PGLOBAL g, int s)
+int BLKFAM::MaxBlkSize(PGLOBAL g, int)
   {
   int rc = RC_OK, savcur = CurBlk;
   int size;
@@ -1345,7 +1343,7 @@ int BLKFAM::GetNextPos(void)
 /***********************************************************************/
 /*  SetPos: Replace the table at the specified position.               */
 /***********************************************************************/
-bool BLKFAM::SetPos(PGLOBAL g, int pos)
+bool BLKFAM::SetPos(PGLOBAL g, int)
   {
   strcpy(g->Message, "Blocked variable tables cannot be used indexed");
   return true;
@@ -1355,7 +1353,7 @@ bool BLKFAM::SetPos(PGLOBAL g, int pos)
 /*  Record file position in case of UPDATE or DELETE.                  */
 /*  Not used yet for blocked tables.                                   */
 /***********************************************************************/
-bool BLKFAM::RecordPos(PGLOBAL g)
+bool BLKFAM::RecordPos(PGLOBAL)
   {
   Fpos = (CurNum + Nrec * CurBlk);          // Computed file index
   return false;
@@ -1364,7 +1362,7 @@ bool BLKFAM::RecordPos(PGLOBAL g)
 /***********************************************************************/
 /*  Skip one record in file.                                           */
 /***********************************************************************/
-int BLKFAM::SkipRecord(PGLOBAL g, bool header)
+int BLKFAM::SkipRecord(PGLOBAL, bool header)
   {
   if (header) {
     // For Delete
@@ -1468,10 +1466,10 @@ int BLKFAM::ReadBuffer(PGLOBAL g)
   } else if (feof(Stream)) {
     rc = RC_EF;
   } else {
-#if defined(UNIX)
-    sprintf(g->Message, MSG(READ_ERROR), To_File, strerror(errno));
-#else
+#if defined(__WIN__)
     sprintf(g->Message, MSG(READ_ERROR), To_File, _strerror(NULL));
+#else
+    sprintf(g->Message, MSG(READ_ERROR), To_File, strerror(errno));
 #endif
 
     if (trace)
@@ -1553,11 +1551,11 @@ int BLKFAM::WriteBuffer(PGLOBAL g)
       Spos = GetNextPos();                     // New start position
 
       // Prepare the output buffer
-#if defined(WIN32)
+#if defined(__WIN__)
       crlf = "\r\n";
 #else
       crlf = "\n";
-#endif   // WIN32
+#endif   // __WIN__
       strcat(strcpy(OutBuf, Tdbp->GetLine()), crlf);
       len = strlen(OutBuf);
     } else {

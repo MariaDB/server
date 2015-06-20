@@ -28,6 +28,7 @@
 #include "../grn_output.h"
 #include "mrb_ctx.h"
 #include "mrb_writer.h"
+#include "mrb_options.h"
 
 static mrb_value
 writer_write(mrb_state *mrb, mrb_value self)
@@ -164,14 +165,12 @@ writer_write_table_records(mrb_state *mrb, mrb_value self)
     mrb_value mrb_offset;
     mrb_value mrb_limit;
 
-    mrb_offset = mrb_hash_get(mrb, mrb_options,
-                              mrb_symbol_value(mrb_intern_lit(mrb, "offset")));
+    mrb_offset = grn_mrb_options_get_lit(mrb, mrb_options, "offset");
     if (!mrb_nil_p(mrb_offset)) {
       offset = mrb_fixnum(mrb_offset);
     }
 
-    mrb_limit = mrb_hash_get(mrb, mrb_options,
-                             mrb_symbol_value(mrb_intern_lit(mrb, "limit")));
+    mrb_limit = grn_mrb_options_get_lit(mrb, mrb_options, "limit");
     if (!mrb_nil_p(mrb_limit)) {
       limit = mrb_fixnum(mrb_limit);
     }
@@ -191,6 +190,19 @@ writer_write_table_records(mrb_state *mrb, mrb_value self)
   }
   GRN_OUTPUT_TABLE_RECORDS(table, &format);
   GRN_OBJ_FORMAT_FIN(ctx, &format);
+
+  return mrb_nil_value();
+}
+
+static mrb_value
+writer_set_content_type(mrb_state *mrb, mrb_value self)
+{
+  grn_ctx *ctx = (grn_ctx *)mrb->ud;
+  grn_content_type content_type;
+
+  mrb_get_args(mrb, "i", &content_type);
+
+  grn_ctx_set_output_type(ctx, content_type);
 
   return mrb_nil_value();
 }
@@ -219,5 +231,8 @@ grn_mrb_writer_init(grn_ctx *ctx)
                     writer_write_table_columns, MRB_ARGS_REQ(2));
   mrb_define_method(mrb, klass, "write_table_records",
                     writer_write_table_records, MRB_ARGS_ARG(2, 1));
+
+  mrb_define_method(mrb, klass, "content_type=",
+                    writer_set_content_type, MRB_ARGS_REQ(1));
 }
 #endif

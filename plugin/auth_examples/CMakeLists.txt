@@ -30,4 +30,4 @@ MYSQL_ADD_PLUGIN(qa_auth_client qa_auth_client.c
 MYSQL_ADD_PLUGIN(auth_0x0100 auth_0x0100.c MODULE_ONLY COMPONENT Test)
 
 MYSQL_ADD_PLUGIN(mysql_clear_password clear_password_client.c
-  MODULE_ONLY COMPONENT SharedLibraries)
+  MODULE_ONLY COMPONENT ClientPlugins)

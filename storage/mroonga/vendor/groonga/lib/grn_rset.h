@@ -53,7 +53,7 @@ typedef struct {
 #define GRN_RSET_SUBRECS_NTH(subrecs,size,n) \
   ((double *)((byte *)subrecs + n * GRN_RSET_SUBREC_SIZE(size)))
 #define GRN_RSET_SUBRECS_COPY(subrecs,size,n,src) \
-  (memcpy(GRN_RSET_SUBRECS_NTH(subrecs, size, n), src, GRN_RSET_SUBREC_SIZE(size)))
+  (grn_memcpy(GRN_RSET_SUBRECS_NTH(subrecs, size, n), src, GRN_RSET_SUBREC_SIZE(size)))
 #define GRN_RSET_SUBRECS_SIZE(subrec_size,n) \
   (GRN_RSET_SUBREC_SIZE(subrec_size) * n)
 

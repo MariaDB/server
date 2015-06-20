@@ -37,6 +37,7 @@ typedef void * grn_dl_symbol;
 typedef struct _grn_plugin grn_plugin;
 
 struct _grn_plugin {
+  char path[PATH_MAX];
   grn_dl dl;
   grn_plugin_func init_func;
   grn_plugin_func register_func;

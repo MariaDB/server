@@ -5,7 +5,7 @@
 /*                                                                     */
 /* COPYRIGHT:                                                          */
 /* ----------                                                          */
-/*  (C) Copyright to the author Olivier BERTRAND          2005-2013    */
+/*  (C) Copyright to the author Olivier BERTRAND          2005-2015    */
 /*                                                                     */
 /* WHAT THIS PROGRAM DOES:                                             */
 /* -----------------------                                             */
@@ -17,7 +17,7 @@
 /***********************************************************************/
 #include "my_global.h"
 #include "table.h"       // MySQL table definitions
-#if defined(WIN32)
+#if defined(__WIN__)
 #if defined(__BORLANDC__)
 #define __MFC_COMPAT__                   // To define min/max as macro
 #endif
@@ -49,7 +49,6 @@
 #include "tabpivot.h"
 #include "valblk.h"
 #include "ha_connect.h"
-#include "mycat.h"       // For GetHandler
 
 /***********************************************************************/
 /*  Make the Pivot table column list.                                  */
@@ -150,10 +149,17 @@ PQRYRES PIVAID::MakePivotColumns(PGLOBAL g)
     query = Tabsrc;
 
   // Open a MySQL connection for this table
-  if (Myc.Open(g, Host, Database, User, Pwd, Port))
-    return NULL;
-  else
+  if (!Myc.Open(g, Host, Database, User, Pwd, Port)) {
     b = true;
+
+    // Returned values must be in their original character set
+    if (Myc.ExecSQL(g, "SET character_set_results=NULL", &w) == RC_FX)
+      goto err;
+    else
+      Myc.FreeResult();
+
+  } else
+    return NULL;
 
   // Send the source command to MySQL
   if (Myc.ExecSQL(g, query, &w) == RC_FX)
@@ -241,6 +247,10 @@ PQRYRES PIVAID::MakePivotColumns(PGLOBAL g)
 
   } else {
     // The query was limited, we must get pivot column values
+    // Returned values must be in their original character set
+//  if (Myc.ExecSQL(g, "SET character_set_results=NULL", &w) == RC_FX)
+//    goto err;
+
     query = (char*)PlugSubAlloc(g, NULL, 0);
     sprintf(query, "SELECT DISTINCT `%s` FROM `%s`", Picol, Tabname);
     PlugSubAlloc(g, NULL, strlen(query) + 1);
@@ -284,8 +294,7 @@ PQRYRES PIVAID::MakePivotColumns(PGLOBAL g)
       valp->SetValue_pvblk(Rblkp, i);
 
     colname = valp->GetCharString(buf);
-    crp->Name = (char*)PlugSubAlloc(g, NULL, strlen(colname) + 1);
-    strcpy(crp->Name, colname);
+    crp->Name = PlugDup(g, colname);
     crp->Flag = 1;
 
     // Add this column
@@ -367,7 +376,7 @@ bool PIVOTDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
 /***********************************************************************/
 /*  GetTable: makes a new TDB of the proper type.                      */
 /***********************************************************************/
-PTDB PIVOTDEF::GetTable(PGLOBAL g, MODE m)
+PTDB PIVOTDEF::GetTable(PGLOBAL g, MODE)
   {
   return new(g) TDBPIVOT(this);
   } // end of GetTable
@@ -625,7 +634,7 @@ bool TDBPIVOT::MakeViewColumns(PGLOBAL g)
 /***********************************************************************/
 /*  PIVOT GetMaxSize: returns the maximum number of rows in the table. */
 /***********************************************************************/
-int TDBPIVOT::GetMaxSize(PGLOBAL g)
+int TDBPIVOT::GetMaxSize(PGLOBAL g __attribute__((unused)))
   {     
 #if  0
   if (MaxSize < 0)
@@ -640,7 +649,7 @@ int TDBPIVOT::GetMaxSize(PGLOBAL g)
 /*  In this sample, ROWID will be the (virtual) row number,            */
 /*  while ROWNUM will be the occurence rank in the multiple column.    */
 /***********************************************************************/
-int TDBPIVOT::RowNumber(PGLOBAL g, bool b)
+int TDBPIVOT::RowNumber(PGLOBAL, bool b)
   {
   return (b) ? M : N;
   } // end of RowNumber
@@ -797,7 +806,7 @@ int TDBPIVOT::WriteDB(PGLOBAL g)
 /***********************************************************************/
 /*  Data Base delete line routine for PIVOT access methods.            */
 /***********************************************************************/
-int TDBPIVOT::DeleteDB(PGLOBAL g, int irc)
+int TDBPIVOT::DeleteDB(PGLOBAL g, int)
   {
   sprintf(g->Message, MSG(NO_TABLE_DEL), "PIVOT");
   return RC_FX;
