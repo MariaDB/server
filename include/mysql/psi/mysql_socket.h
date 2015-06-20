@@ -284,7 +284,7 @@ inline_mysql_socket_set_state(MYSQL_SOCKET socket, enum PSI_socket_state state)
 /**
   @def mysql_socket_fd(K, F)
   Create a socket.
-  @c mysql_socket_socket is a replacement for @c socket.
+  @c mysql_socket_fd is a replacement for @c socket.
   @param K PSI_socket_key for this instrumented socket
   @param F File descriptor
 */
