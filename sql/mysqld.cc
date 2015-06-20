@@ -105,8 +105,9 @@
 #include <poll.h>
 #endif
 
+#include <my_sdnotify.h>
+
 #ifdef HAVE_SYSTEMD
-#include <systemd/sd-daemon.h>
 #include <sys/un.h>
 union sockaddr_union {
   struct sockaddr sa;
@@ -121,9 +122,6 @@ union sockaddr_union {
 static int systemd_listen_cnt=0;
 #else /* HAVE_SYSTEMD */
 #define MAX_LISTEN_SOCKETS 3
-#define sd_listen_fds(X) 0
-#define sd_notify(X, Y, Z)
-static int sd_notifyf(int unset_environment, const char *format, ...) {}
 #endif
 
 #define mysqld_charset &my_charset_latin1

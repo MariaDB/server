@@ -50,9 +50,7 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include <io.h>
 #endif
 
-#ifdef HAVE_SYSTEMD
-#include <systemd/sd-daemon.h>
-#endif
+#include <my_sdnotify.h>
 
 /** @file ha_innodb.cc */
 
@@ -18816,27 +18814,17 @@ ib_logf(
 	switch(level) {
 	case IB_LOG_LEVEL_INFO:
 		sql_print_information("InnoDB: %s", str);
-#ifdef HAVE_SYSTEMD
-		sd_notifyf(0, "STATUS=InnoDB: Info: %s", str);
-#endif
 		break;
 	case IB_LOG_LEVEL_WARN:
 		sql_print_warning("InnoDB: %s", str);
-#ifdef HAVE_SYSTEMD
-		sd_notifyf(0, "STATUS=InnoDB: Warning: %s", str);
-#endif
 		break;
 	case IB_LOG_LEVEL_ERROR:
 		sql_print_error("InnoDB: %s", str);
-#ifdef HAVE_SYSTEMD
 		sd_notifyf(0, "STATUS=InnoDB: Error: %s", str);
-#endif
 		break;
 	case IB_LOG_LEVEL_FATAL:
 		sql_print_error("InnoDB: %s", str);
-#ifdef HAVE_SYSTEMD
 		sd_notifyf(0, "STATUS=InnoDB: Fatal: %s", str);
-#endif
 		break;
 	}
 
