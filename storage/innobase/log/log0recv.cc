@@ -29,9 +29,7 @@ Created 9/20/1997 Heikki Tuuri
 #include <stdio.h>                              // Solaris/x86 header file bug
 
 #include <vector>
-#ifdef HAVE_SYSTEMD
-#include <systemd/sd-daemon.h>
-#endif
+#include <my_sdnotify.h>
 
 #include "log0recv.h"
 
@@ -1929,10 +1927,8 @@ loop:
                         / hash_get_n_cells(recv_sys->addr_hash)) {
 
 			fprintf(stderr, "%lu ", progress);
-#ifdef HAVE_SYSTEMD
 			sd_notifyf(0, "STATUS=Applying batch of log records for Innodb: "
                     "Progress %lu", progress);
-#endif
 
 		}
 	}
@@ -1995,9 +1991,7 @@ loop:
 
 	if (has_printed) {
 		fprintf(stderr, "InnoDB: Apply batch completed\n");
-#ifdef HAVE_SYSTEMD
 		sd_notify(0, "STATUS=InnoDB: Apply batch completed");
-#endif
 	}
 
 	mutex_exit(&(recv_sys->mutex));
@@ -2145,15 +2139,11 @@ skip_this_recv_addr:
 			fprintf(stderr, "%lu ",
 				(ulong) ((100 * i) / n_hash_cells));
 			fflush(stderr);
-#ifdef HAVE_SYSTEMD
 			sd_notifyf(0, "STATUS=Applying batch of log records for backup Innodb: "
                     "Progress %lu", (ulong) (100 * i) / n_hash_cells);
-#endif
 		}
 	}
-#ifdef HAVE_SYSTEMD
 	sd_notify(0, "STATUS=InnoDB: Apply batch for backup completed");
-#endif
 
 	recv_sys_empty_hash();
 }

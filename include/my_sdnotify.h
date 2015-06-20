@@ -7,6 +7,8 @@
 
 #else
 
+#define sd_listen_fds(X) 0
+
 #define sd_notify(X, Y, Z)
 static int sd_notifyf(int unset_environment, const char *format, ...) {}
 
