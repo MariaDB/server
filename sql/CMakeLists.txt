@@ -201,13 +201,6 @@ IF(INTERFACE_LIBS)
   "${INTERFACE_LIBS}")
 ENDIF()
 
-IF(WITH_SYSTEMD)
-# Used for notify systemd's feature
-IF(HAVE_SYSTEMD_SD_DAEMON_H)
-  TARGET_LINK_LIBRARIES(mysqld systemd-daemon)
-ENDIF()
-ENDIF()
-
 # On Solaris, some extra effort is required in order to get dtrace probes
 # from static libraries
 DTRACE_INSTRUMENT_STATIC_LIBS(mysqld 
