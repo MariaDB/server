@@ -930,14 +930,25 @@ if [ -x sbin/restorecon ] ; then
   sbin/restorecon -R var/lib/mysql
 fi
 
+# create a systemd socket activation file based on current settings
+systemd_sockconf=etc/systemd/system/mariadb.socket.d/migrated-from-my.cnf-settings.conf
+if [ -x usr/bin/mariadb-socket-convert  -a ! -f "${systemd_sockconf}" ]; then
+	mkdir -p etc/systemd/system/mariadb.socket.d
+	usr/bin/mariadb-socket-convert > "${systemd_sockconf}"
+fi
+systemd_conf=etc/systemd/system/mariadb.service.d/migrated-from-my.cnf-settings.conf
+if [ -x usr/bin/mariadb-service-convert  -a ! -f "${systemd_conf}" ]; then
+	mkdir -p etc/systemd/system/mariadb.service.d
+	usr/bin/mariadb-service-convert > "${systemd_conf}"
+fi
+
 # Was the server running before the upgrade? If so, restart the new one.
 if [ "$SERVER_TO_START" = "true" ] ; then
 	# Restart in the same way that mysqld will be started normally.
-	if [ -x %{_sysconfdir}/init.d/mysql ] ; then
-		%{_sysconfdir}/init.d/mysql start
-		echo "Giving mysqld 5 seconds to start"
-		sleep 5
-	fi
+	systemctl start mariadb.socket
+	systemctl start mariadb.service
+	echo "Giving mysqld 5 seconds to start"
+	sleep 5
 fi
 
 # Collect an upgrade history ...
