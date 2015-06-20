@@ -398,6 +398,12 @@ public:
   */
   Filesort_tracker *report_sorting(THD *thd);
   
+  /*
+    Report that remove_duplicates() is invoked [on a temp. table].
+    We don't collect any statistics on this operation, yet.
+  */
+  void report_duplicate_removal();
+  
   friend class Iterator;
   /*************** Statistics retrieval interface ***************/
   bool had_varied_executions() { return varied_executions; }

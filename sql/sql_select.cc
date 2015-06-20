@@ -21179,6 +21179,7 @@ remove_duplicates(JOIN *join, TABLE *table, List<Item> &fields, Item *having)
   THD *thd= join->thd;
 
   DBUG_ENTER("remove_duplicates");
+  join->explain->ops_tracker.report_duplicate_removal();
 
   table->reginfo.lock_type=TL_WRITE;
 

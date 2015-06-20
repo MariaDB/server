@@ -113,3 +113,22 @@ void Sort_and_group_tracker::report_tmp_table(TABLE *tbl)
   cur_action++;
 }
 
+
+void Sort_and_group_tracker::report_duplicate_removal()
+{
+  DBUG_ASSERT(cur_action < MAX_QEP_ACTIONS);
+  if (total_actions)
+  {
+    /* This is not the first execution. Check if the steps match.  */
+    if (qep_actions[cur_action] != EXPL_ACTION_REMOVE_DUPS)
+      varied_executions= true;
+  }
+
+  if (!varied_executions)
+  {
+    qep_actions[cur_action]= EXPL_ACTION_REMOVE_DUPS;
+  }
+
+  cur_action++;
+}
+
