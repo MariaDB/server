@@ -122,6 +122,8 @@ static int systemd_listen_cnt=0;
 #else /* HAVE_SYSTEMD */
 #define MAX_LISTEN_SOCKETS 3
 #define sd_listen_fds(X) 0
+#define sd_notify(X, Y, Z)
+static int sd_notifyf(int unset_environment, const char *format, ...) {}
 #endif
 
 #define mysqld_charset &my_charset_latin1
@@ -1860,9 +1862,7 @@ static void __cdecl kill_server(int sig_ptr)
   else
     sql_print_error(ER_DEFAULT(ER_GOT_SIGNAL),my_progname,sig); /* purecov: inspected */
 
-#ifdef HAVE_SYSTEMD
   sd_notify(0, "STOPPING=1");
-#endif
 #ifdef HAVE_SMEM
   /*
     Send event to smem_event_connect_request for aborting
@@ -6125,17 +6125,12 @@ void handle_connections_sockets()
   int flags=0,retval;
   st_vio *vio_tmp;
   bool is_unix_sock;
+  int systemd_n=0, systemd_fd;
 #ifdef HAVE_SYSTEMD
-  int systemd_n, systemd_fd;
   union sockaddr_union socketpeer;
+#endif
   socklen_t socketpeer_len;
   char const *family;
-#ifndef HAVE_POLL
-  int  pfs_flags[MAX_LISTEN_SOCKETS];
-  // systemd wants these too
-  MYSQL_SOCKET  pfs_fds[MAX_LISTEN_SOCKETS]; // used for non-polling interfaces
-#endif
-#endif // HAVE_SYSTEMD
   int socket_count= 0;
   short fd_type[MAX_LISTEN_SOCKETS];
 #ifdef HAVE_POLL
@@ -6149,16 +6144,12 @@ void handle_connections_sockets()
     fd_type[socket_count]= T; \
     socket_count++
 #else
-#ifdef HAVE_SYSTEMD
+  int  pfs_flags[MAX_LISTEN_SOCKETS];
+  MYSQL_SOCKET  pfs_fds[MAX_LISTEN_SOCKETS]; // used for non-polling interfaces
 #define setup_fds(X,T)    FD_SET(mysql_socket_getfd(X),&clientFDs); \
   pfs_fds[socket_count]= (X);                   \
   fd_type[socket_count]= T; \
   socket_count++
-#else
-#define setup_fds(X,T)    FD_SET(mysql_socket_getfd(X),&clientFDs); \
-    fd_type[socket_count]= T; \
-    socket_count++
-#endif // HAVE_SYSTEMD
   fd_set readFDs,clientFDs;
   FD_ZERO(&clientFDs);
 #endif
@@ -6210,7 +6201,7 @@ void handle_connections_sockets()
       if (socketpeer.ss.ss_family == AF_INET ||
           socketpeer.ss.ss_family == AF_INET6)
       {
-        int port= ntohs(socketpeer.ss.ss_family == AF_INET ?
+        unsigned port= ntohs(socketpeer.ss.ss_family == AF_INET ?
                        socketpeer.in.sin_port : socketpeer.in6.sin6_port);
         if (port != 0 && port == mysqld_extra_port)
         {
@@ -6314,7 +6305,6 @@ void handle_connections_sockets()
     extra_ip_flags = fcntl(mysql_socket_getfd(extra_ip_sock), F_GETFL, 0);
   }
 
-#ifdef HAVE_SYSTEMD
 #ifdef HAVE_POLL
   if (systemd_listen_cnt == 0 && systemd_n>0)
   {
@@ -6329,7 +6319,6 @@ void handle_connections_sockets()
 #ifdef HAVE_POLL
   }
 #endif /* HAVE_POLL */
-#endif /* HAVE_SYSTEMD */
 
   DBUG_PRINT("general",("Waiting for connections."));
   MAYBE_BROKEN_SYSCALL;
@@ -6562,9 +6551,7 @@ void handle_connections_sockets()
     create_new_thread(thd);
     set_current_thd(0);
   }
-#ifdef HAVE_SYSTEMD
   sd_notify(0, "STOPPING=1");
-#endif
   DBUG_VOID_RETURN;
 }
 
