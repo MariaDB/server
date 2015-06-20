@@ -121,6 +121,7 @@ union sockaddr_union {
 static int systemd_listen_cnt=0;
 #else /* HAVE_SYSTEMD */
 #define MAX_LISTEN_SOCKETS 3
+#define sd_listen_fds(X) 0
 #endif
 
 #define mysqld_charset &my_charset_latin1
@@ -2544,10 +2545,8 @@ static void network_init(void)
   int systemd_n = 0;
   DBUG_ENTER("network_init");
 
-#ifdef HAVE_SYSTEMD
   systemd_n = sd_listen_fds(0);
   DBUG_PRINT("general",("Systemd listen_fds is %d",systemd_n));
-#endif
   if (MYSQL_CALLBACK_ELSE(thread_scheduler, init, (), 0))
     unireg_abort(1);			/* purecov: inspected */
 
@@ -6211,10 +6210,16 @@ void handle_connections_sockets()
       if (socketpeer.ss.ss_family == AF_INET ||
           socketpeer.ss.ss_family == AF_INET6)
       {
+        int port= ntohs(socketpeer.ss.ss_family == AF_INET ?
+                       socketpeer.in.sin_port : socketpeer.in6.sin6_port);
+        if (port != 0 && port == mysqld_extra_port)
+        {
+          /* extra_port was same as systemd socket so use it as such */
+          extra_ip_sock= mysql_socket_fd(all_systemd_key[systemd_listen_cnt], systemd_fd);
+          mysqld_extra_port= 0;
+        }
         sql_print_information("Listening on systemd family %s port %d.",
-              socketpeer.ss.ss_family == AF_INET ? "IPv4" : "IPv6",
-              ntohs(socketpeer.ss.ss_family == AF_INET ?
-                       socketpeer.in.sin_port : socketpeer.in6.sin6_port));
+              socketpeer.ss.ss_family == AF_INET ? "IPv4" : "IPv6", port);
         family= socketpeer.ss.ss_family == AF_INET ? "systemd_IPv4" :
                                                      "systemd_IPv6";
       }
@@ -6290,19 +6295,26 @@ void handle_connections_sockets()
       setup_fds(base_ip_sock, AF_INET);
       ip_flags = fcntl(mysql_socket_getfd(base_ip_sock), F_GETFL, 0);
     }
-    if (mysql_socket_getfd(extra_ip_sock) != INVALID_SOCKET)
-    {
-      setup_fds(extra_ip_sock, AF_INET);
-      extra_ip_flags = fcntl(mysql_socket_getfd(extra_ip_sock), F_GETFL, 0);
-    }
 #ifdef HAVE_SYS_UN_H
     setup_fds(unix_sock, AF_UNIX);
     socket_flags=fcntl(mysql_socket_getfd(unix_sock), F_GETFL, 0);
 #endif
-
-#ifdef HAVE_SYSTEMD
   }
 
+  /* here we active a extra port, even if socket activation was is used because the
+     extra port wasn't activated using socket activation */
+  if (!opt_disable_networking && !opt_bootstrap && mysqld_extra_port!=0 &&
+      mysql_socket_getfd(extra_ip_sock) != INVALID_SOCKET)
+  {
+    extra_ip_sock= activate_tcp_port(mysqld_extra_port);
+  }
+  if (mysql_socket_getfd(extra_ip_sock) != INVALID_SOCKET)
+  {
+    setup_fds(extra_ip_sock, AF_INET);
+    extra_ip_flags = fcntl(mysql_socket_getfd(extra_ip_sock), F_GETFL, 0);
+  }
+
+#ifdef HAVE_SYSTEMD
 #ifdef HAVE_POLL
   if (systemd_listen_cnt == 0 && systemd_n>0)
   {
