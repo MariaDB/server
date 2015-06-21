@@ -38,7 +38,8 @@ PermissionsStartOnly=true
 ExecStartPre=/usr/bin/mariadb-systemd-start
 
 # Start main service
-# skip-networking as its socket activation based
+# OPTIONS here is for users to set in /etc/systemd/system/mariadb.service.d/MY_SPECIAL.conf
+# Use the [service] section and Environment="OPTIONS=...".
 ExecStart=/usr/sbin/mysqld $OPTIONS
 
 KillMode=process
@@ -46,30 +47,35 @@ KillSignal=SIGTERM
 # Don't want to see an automated SIGKILL ever
 SendSIGKILL=no
 
+# Exit status 1 is a fatal config error. Restarting won't help.
 RestartPreventExitStatus=1
-Restart=on-fail
+Restart=on-failure
 RestartSec=5s
 
-PrivateTmp=true
 PrivateDevices=true
 
 UMask=077
 WorkingDirectory=/
-# To avoid mysql reading /root/.my.cnf which according to debian init script is
-# problematic
-Environment="HOME="
 
 ##############################################################################
 ## USERs can override
 ##
 ##
-## by creating a file in /etc/systemd/system/mariadb.server.d/MY_SPECIAL.conf
+## by creating a file in /etc/systemd/system/mariadb.service.d/MY_SPECIAL.conf
+## and adding/setting the following will override this file's settings.
 
 # Useful options not previously available in [mysqld_safe]
 
+# Kernels like killing mysqld when out of memory because its big.
+# Lets temper that preference a little.
 OOMScoreAdjust=-600
 
+# Explicitly start with high IO priority
 BlockIOWeight=1000
+
+# If you don't use the /tmp directory for SELECT ... OUTFILE and
+# LOAD DATA INFILE you can enable PrivateTmp=true for a little more security.
+PrivateTmp=false
 
 ##
 ## Options previously available to be set via [mysqld_safe]
