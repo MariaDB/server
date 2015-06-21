@@ -35,7 +35,7 @@ User=mysql
 PermissionsStartOnly=true
 
 # Needed to create system tables etc.
-# ExecStartPre=/usr/bin/mariadb-systemd-start
+# ExecStartPre=/usr/bin/mysql_install_db
 
 # Start main service
 # OPTIONS here is for users to set in /etc/systemd/system/mariadb.service.d/MY_SPECIAL.conf
