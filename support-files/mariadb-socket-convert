@@ -10,12 +10,12 @@
 
 print_ports()
 {
-if [ -n "${port}" ]; then
-  echo "ListenStream=${bind}${port}"
-fi
-if [ -n "${extraport}" ]; then
-  echo "ListenStream=${bind}${extraport}"
-fi
+  if [ -n "${port}" ]; then
+    echo "ListenStream=${bind}${port}"
+  fi
+  if [ -n "${extraport}" ]; then
+    echo "ListenStream=${bind}${extraport}"
+  fi
 }
 
 bindaddress=
@@ -95,9 +95,15 @@ if [ -n "${port}" -o \
   echo
   # if port isn't set it really needs to be to
   # fill out the details
-  [ -z "${port}" ] && port=3306
+  if [ -z "${port}" ]; then
+    port=3306
+    echo "Warning: using default port ${port}" >&2
+  fi
   # socket has a default value so ensure that is set
-  [ -z "${socket}" ] && socket=/var/lib/mysql/mysql.sock
+  if [ -z "${socket}" ]; then
+    socket=/var/lib/mysql/mysql.sock
+    echo "Warning: using default socket ${socket}" >&2
+  fi
 else
   exit 0
 fi
@@ -130,10 +136,12 @@ if [ -n "${bindaddress}" ]; then
     while read var; do
       if [[ "${var}"  = *IPv6\ address* ]]; then
         bind=[${var##* }]:
+        echo "Warning: using IP ${bind} for hostname ${bindaddress} specified in bindaddress" >&2
         print_ports
         break
       else
         bind=${var##* }:
+        echo "Warning: using IP ${bind} for hostname ${bindaddress} specified in bindaddress" >&2
         print_ports
       fi
     done < /dev/fd/${hosts[0]}
