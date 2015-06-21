@@ -7,6 +7,9 @@ Description=MariaDB database server
 After=network.target
 After=syslog.target
 Requires=%p.socket
+# OPTINSTANCE ConditionPathExists=/etc/mysql/my%I.cnf
+# OPTINSTANCE - install as mariadb@.service and install as mariadb@xxx.service where %I becomes xxx
+# from https://sources.gentoo.org/cgi-bin/viewvc.cgi/gentoo-x86/dev-db/mysql-init-scripts/files/mysqld_at.service?view=markup
 
 [Install]
 WantedBy=multi-user.target
@@ -41,6 +44,7 @@ PermissionsStartOnly=true
 # OPTIONS here is for users to set in /etc/systemd/system/mariadb.service.d/MY_SPECIAL.conf
 # Use the [service] section and Environment="OPTIONS=...".
 ExecStart=/usr/sbin/mysqld $OPTIONS
+# OPTINSTANCE   --defaults-file=/etc/mysql/my%I.cnf
 
 KillMode=process
 KillSignal=SIGTERM
