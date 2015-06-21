@@ -218,7 +218,7 @@ init_crypt_key(
 		ib_logf(IB_LOG_LEVEL_ERROR,
 			"Redo log crypto: getting mysqld crypto key "
 			"from key version failed. Reason could be that requested"
-			" key_version %lu is not found or required encryption "
+			" key_version %u is not found or required encryption "
 			" key management is not found.", info->key_version);
 		return false;
 	}
