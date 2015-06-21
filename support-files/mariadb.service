@@ -55,7 +55,6 @@ RestartSec=5s
 PrivateDevices=true
 
 UMask=077
-WorkingDirectory=/
 
 ##############################################################################
 ## USERs can override
