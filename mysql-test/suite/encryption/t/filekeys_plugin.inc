@@ -1,4 +1,4 @@
 if (!$FILE_KEY_MANAGEMENT_SO)
 {
-  --skip Needs file_key_management
+  --skip Needs dynamic file_key_management plugin
 }

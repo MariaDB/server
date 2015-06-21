@@ -85,10 +85,10 @@ select count(*) from innodb_page_compressed7 where c1 < 500000;
 select count(*) from innodb_page_compressed8 where c1 < 500000;
 select count(*) from innodb_page_compressed9 where c1 < 500000;
 
-SELECT variable_value >= 0 FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_num_pages_encrypted';
-SELECT variable_value >= 0 FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_num_pages_decrypted';
-SELECT variable_value >= 0 FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_num_pages_page_compressed';
-SELECT variable_value >= 0 FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_num_pages_page_decompressed';
+SELECT variable_value >= 0 FROM information_schema.global_status WHERE variable_name = 'innodb_num_pages_encrypted';
+SELECT variable_value >= 0 FROM information_schema.global_status WHERE variable_name = 'innodb_num_pages_decrypted';
+SELECT variable_value >= 0 FROM information_schema.global_status WHERE variable_name = 'innodb_num_pages_page_compressed';
+SELECT variable_value >= 0 FROM information_schema.global_status WHERE variable_name = 'innodb_num_pages_page_decompressed';
 
 
 --source include/restart_mysqld.inc
@@ -112,10 +112,10 @@ update innodb_page_compressed7 set c1 = c1 + 1;
 update innodb_page_compressed8 set c1 = c1 + 1;
 update innodb_page_compressed9 set c1 = c1 + 1;
 
-SELECT variable_value >= 0 FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_num_pages_encrypted';
-SELECT variable_value >= 0 FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_num_pages_decrypted';
-SELECT variable_value >= 0 FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_num_pages_page_compressed';
-SELECT variable_value >= 0 FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_num_pages_page_decompressed';
+SELECT variable_value >= 0 FROM information_schema.global_status WHERE variable_name = 'innodb_num_pages_encrypted';
+SELECT variable_value >= 0 FROM information_schema.global_status WHERE variable_name = 'innodb_num_pages_decrypted';
+SELECT variable_value >= 0 FROM information_schema.global_status WHERE variable_name = 'innodb_num_pages_page_compressed';
+SELECT variable_value >= 0 FROM information_schema.global_status WHERE variable_name = 'innodb_num_pages_page_decompressed';
 
 SET GLOBAL innodb_encryption_threads = 4;
 SET GLOBAL innodb_encrypt_tables = off;
@@ -139,10 +139,10 @@ update innodb_page_compressed7 set c1 = c1 + 1;
 update innodb_page_compressed8 set c1 = c1 + 1;
 update innodb_page_compressed9 set c1 = c1 + 1;
 
-SELECT variable_value >= 0 FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_num_pages_encrypted';
-SELECT variable_value >= 0 FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_num_pages_decrypted';
-SELECT variable_value >= 0 FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_num_pages_page_compressed';
-SELECT variable_value >= 0 FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_num_pages_page_decompressed';
+SELECT variable_value >= 0 FROM information_schema.global_status WHERE variable_name = 'innodb_num_pages_encrypted';
+SELECT variable_value >= 0 FROM information_schema.global_status WHERE variable_name = 'innodb_num_pages_decrypted';
+SELECT variable_value >= 0 FROM information_schema.global_status WHERE variable_name = 'innodb_num_pages_page_compressed';
+SELECT variable_value >= 0 FROM information_schema.global_status WHERE variable_name = 'innodb_num_pages_page_decompressed';
 
 drop procedure innodb_insert_proc;
 drop table innodb_normal;
