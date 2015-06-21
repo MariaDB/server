@@ -25,6 +25,8 @@ backlog=
 maxconnections=
 skip_networking=
 socket=
+default_port=3306
+default_socket=/var/lib/mysql/mysql.sock
 
 coproc mysqldefaults { /usr/bin/my_print_defaults --mysqld ; }
 while read var; do
@@ -93,16 +95,33 @@ if [ -n "${port}" -o \
   echo "# reset the ListenStream list to empty"
   echo "ListenStream="
   echo
+  coproc mysqld { /usr/sbin/mysqld --verbose --help; }
+  # skip preamble
+  preamble_finished=0
+  while read var; do
+    if [[ $var =~ ^------- ]]; then
+      preamble_finished=1
+    fi
+    [ $preamble_finished ] || continue
+    key=${var%% *}
+    val=${var##* }
+    case "${key}" in
+      socket)
+        default_socket=$val
+        ;;
+      port)
+        default_port=$val
+        ;;
+    esac
+  done < /dev/fd/${mysqld[0]}
   # if port isn't set it really needs to be to
   # fill out the details
   if [ -z "${port}" ]; then
-    port=3306
-    echo "Warning: using default port ${port}" >&2
+    port=${default_port}
   fi
   # socket has a default value so ensure that is set
   if [ -z "${socket}" ]; then
-    socket=/var/lib/mysql/mysql.sock
-    echo "Warning: using default socket ${socket}" >&2
+    socket=${default_socket}
   fi
 else
   exit 0
