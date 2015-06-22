@@ -1252,7 +1252,7 @@ static void plugin_del(struct st_plugin_int *plugin)
 
 static void reap_plugins(void)
 {
-  uint count, idx;
+  uint count;
   struct st_plugin_int *plugin, **reap, **list;
 
   mysql_mutex_assert_owner(&LOCK_plugin);
@@ -1265,14 +1265,18 @@ static void reap_plugins(void)
   reap= (struct st_plugin_int **)my_alloca(sizeof(plugin)*(count+1));
   *(reap++)= NULL;
 
-  for (idx= 0; idx < count; idx++)
+  for (uint i=0; i < MYSQL_MAX_PLUGIN_TYPE_NUM; i++)
   {
-    plugin= *dynamic_element(&plugin_array, idx, struct st_plugin_int **);
-    if (plugin->state == PLUGIN_IS_DELETED && !plugin->ref_count)
+    HASH *hash= plugin_hash + plugin_type_initialization_order[i];
+    for (uint j= 0; j < hash->records; j++)
     {
-      /* change the status flag to prevent reaping by another thread */
-      plugin->state= PLUGIN_IS_DYING;
-      *(reap++)= plugin;
+      plugin= (struct st_plugin_int *) my_hash_element(hash, j);
+      if (plugin->state == PLUGIN_IS_DELETED && !plugin->ref_count)
+      {
+        /* change the status flag to prevent reaping by another thread */
+        plugin->state= PLUGIN_IS_DYING;
+        *(reap++)= plugin;
+      }
     }
   }
 
@@ -3359,9 +3363,9 @@ bool sys_var_pluginvar::session_is_default(THD *thd)
     }
   case PLUGIN_VAR_DOUBLE:
     return getopt_ulonglong2double(option.def_value) == *(double*)value;
-  default:
-    DBUG_ASSERT(0);
   }
+  DBUG_ASSERT(0);
+  return 0;
 }
 
 
