@@ -10383,11 +10383,14 @@ static int show_column_grants(THD *thd, SHOW_VAR *var, char *buff,
   var->type= SHOW_ULONG;
   var->value= buff;
   *(ulong *)buff= 0;
-  mysql_rwlock_rdlock(&LOCK_grant);
-  mysql_mutex_lock(&acl_cache->lock);
-  my_hash_iterate(&column_priv_hash, count_column_grants, buff);
-  mysql_mutex_unlock(&acl_cache->lock);
-  mysql_rwlock_unlock(&LOCK_grant);
+  if (initialized)
+  {
+    mysql_rwlock_rdlock(&LOCK_grant);
+    mysql_mutex_lock(&acl_cache->lock);
+    my_hash_iterate(&column_priv_hash, count_column_grants, buff);
+    mysql_mutex_unlock(&acl_cache->lock);
+    mysql_rwlock_unlock(&LOCK_grant);
+  }
   return 0;
 }
 

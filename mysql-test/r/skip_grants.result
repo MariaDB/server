@@ -80,3 +80,14 @@ End of 5.0 tests
 select no_such_function(1);
 ERROR 42000: FUNCTION test.no_such_function does not exist
 End of 5.1 tests
+show global status like 'Acl%';
+Variable_name	Value
+Acl_column_grants	0
+Acl_database_grants	0
+Acl_function_grants	0
+Acl_procedure_grants	0
+Acl_proxy_users	0
+Acl_role_grants	0
+Acl_roles	0
+Acl_table_grants	0
+Acl_users	0
