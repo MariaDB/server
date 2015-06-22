@@ -271,13 +271,15 @@ public:
   { TRASH(ptr_arg, size); }
 
   sys_var_pluginvar(sys_var_chain *chain, const char *name_arg,
-                    struct st_mysql_sys_var *plugin_var_arg)
+                    struct st_mysql_sys_var *plugin_var_arg,
+                    struct st_plugin_int *plugin_arg)
     :sys_var(chain, name_arg, plugin_var_arg->comment,
              (plugin_var_arg->flags & PLUGIN_VAR_THDLOCAL ? SESSION : GLOBAL) |
              (plugin_var_arg->flags & PLUGIN_VAR_READONLY ? READONLY : 0),
              0, -1, NO_ARG, pluginvar_show_type(plugin_var_arg), 0, 0,
              VARIABLE_NOT_IN_BINLOG, NULL, NULL, NULL),
-    plugin_var(plugin_var_arg), orig_pluginvar_name(plugin_var_arg->name)
+    plugin(plugin_arg), plugin_var(plugin_var_arg),
+    orig_pluginvar_name(plugin_var_arg->name)
   { plugin_var->name= name_arg; }
   sys_var_pluginvar *cast_pluginvar() { return this; }
   bool check_update_type(Item_result type);
@@ -310,8 +312,6 @@ static void plugin_vars_free_values(sys_var *vars);
 static void restore_pluginvar_names(sys_var *first);
 static void plugin_opt_set_limits(struct my_option *,
                                   const struct st_mysql_sys_var *);
-#define my_intern_plugin_lock(A,B) intern_plugin_lock(A,B)
-#define my_intern_plugin_lock_ci(A,B) intern_plugin_lock(A,B)
 static plugin_ref intern_plugin_lock(LEX *lex, plugin_ref plugin);
 static void intern_plugin_unlock(LEX *lex, plugin_ref plugin);
 static void reap_plugins(void);
@@ -990,7 +990,7 @@ plugin_ref plugin_lock(THD *thd, plugin_ref ptr)
 #endif
   mysql_mutex_lock(&LOCK_plugin);
   plugin_ref_to_int(ptr)->locks_total++;
-  rc= my_intern_plugin_lock_ci(lex, ptr);
+  rc= intern_plugin_lock(lex, ptr);
   mysql_mutex_unlock(&LOCK_plugin);
   DBUG_RETURN(rc);
 }
@@ -1004,7 +1004,7 @@ plugin_ref plugin_lock_by_name(THD *thd, const LEX_STRING *name, int type)
   DBUG_ENTER("plugin_lock_by_name");
   mysql_mutex_lock(&LOCK_plugin);
   if ((plugin= plugin_find_internal(name, type)))
-    rc= my_intern_plugin_lock_ci(lex, plugin_int_to_ref(plugin));
+    rc= intern_plugin_lock(lex, plugin_int_to_ref(plugin));
   mysql_mutex_unlock(&LOCK_plugin);
   DBUG_RETURN(rc);
 }
@@ -1409,22 +1409,6 @@ static int plugin_initialize(MEM_ROOT *tmp_root, struct st_plugin_int *plugin,
 #endif /* FIX_LATER */
   }
 
-  /*
-    set the plugin attribute of plugin's sys vars so they are pointing
-    to the active plugin
-  */
-  if (plugin->system_vars)
-  {
-    sys_var_pluginvar *var= plugin->system_vars->cast_pluginvar();
-    for (;;)
-    {
-      var->plugin= plugin;
-      if (!var->next)
-        break;
-      var= var->next->cast_pluginvar();
-    }
-  }
-
   ret= 0;
 
 err:
@@ -1625,7 +1609,7 @@ int plugin_init(int *argc, char **argv, int flags)
       {
         DBUG_ASSERT(!global_system_variables.table_plugin);
         global_system_variables.table_plugin=
-          my_intern_plugin_lock(NULL, plugin_int_to_ref(plugin_ptr));
+          intern_plugin_lock(NULL, plugin_int_to_ref(plugin_ptr));
         DBUG_ASSERT(plugin_ptr->ref_count == 1);
       }
     }
@@ -2711,7 +2695,7 @@ sys_var *find_sys_var(THD *thd, const char *str, uint length)
   {
     mysql_rwlock_unlock(&LOCK_system_variables_hash);
     LEX *lex= thd ? thd->lex : 0;
-    if (!(plugin= my_intern_plugin_lock(lex, plugin_int_to_ref(pi->plugin))))
+    if (!(plugin= intern_plugin_lock(lex, plugin_int_to_ref(pi->plugin))))
       var= NULL; /* failed to lock it, it must be uninstalling */
     else
     if (!(plugin_state(plugin) & PLUGIN_IS_READY))
@@ -3049,7 +3033,7 @@ void plugin_thdvar_init(THD *thd)
 #endif
   mysql_mutex_lock(&LOCK_plugin);
   thd->variables.table_plugin=
-        my_intern_plugin_lock(NULL, global_system_variables.table_plugin);
+        intern_plugin_lock(NULL, global_system_variables.table_plugin);
   intern_plugin_unlock(NULL, old_table_plugin);
   mysql_mutex_unlock(&LOCK_plugin);
 #ifdef WITH_WSREP
@@ -3933,7 +3917,7 @@ static int test_plugin_options(MEM_ROOT *tmp_root, struct st_plugin_int *tmp,
     if (o->flags & PLUGIN_VAR_NOSYSVAR)
       continue;
     if ((var= find_bookmark(plugin_name.str, o->name, o->flags)))
-      v= new (mem_root) sys_var_pluginvar(&chain, var->key + 1, o);
+      v= new (mem_root) sys_var_pluginvar(&chain, var->key + 1, o, tmp);
     else
     {
       len= plugin_name.length + strlen(o->name) + 2;
@@ -3941,7 +3925,7 @@ static int test_plugin_options(MEM_ROOT *tmp_root, struct st_plugin_int *tmp,
       strxmov(varname, plugin_name.str, "-", o->name, NullS);
       my_casedn_str(&my_charset_latin1, varname);
       convert_dash_to_underscore(varname, len-1);
-      v= new (mem_root) sys_var_pluginvar(&chain, varname, o);
+      v= new (mem_root) sys_var_pluginvar(&chain, varname, o, tmp);
     }
     DBUG_ASSERT(v); /* check that an object was actually constructed */
   } /* end for */
