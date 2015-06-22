@@ -1321,8 +1321,6 @@ trx_sys_close(void)
 	/* Free the double write data structures. */
 	buf_dblwr_free();
 
-	mutex_enter(&trx_sys->mutex);
-
 	ut_a(UT_LIST_GET_LEN(trx_sys->ro_trx_list) == 0);
 
 	/* Only prepared transactions may be left in the system. Free them. */
@@ -1361,8 +1359,6 @@ trx_sys_close(void)
 	ut_a(UT_LIST_GET_LEN(trx_sys->ro_trx_list) == 0);
 	ut_a(UT_LIST_GET_LEN(trx_sys->rw_trx_list) == 0);
 	ut_a(UT_LIST_GET_LEN(trx_sys->mysql_trx_list) == 0);
-
-	mutex_exit(&trx_sys->mutex);
 
 	mutex_free(&trx_sys->mutex);
 

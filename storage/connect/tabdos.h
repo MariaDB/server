@@ -1,7 +1,7 @@
 /*************** TabDos H Declares Source Code File (.H) ***************/
 /*  Name: TABDOS.H    Version 3.3                                      */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          1999-2014    */
+/*  (C) Copyright to the author Olivier BERTRAND          1999-2015    */
 /*                                                                     */
 /*  This file contains the DOS classes declares.                       */
 /***********************************************************************/
@@ -91,6 +91,7 @@ class DllExport DOSDEF : public TABDEF {  /* Logical table description */
   int     Maxerr;             /* Maximum number of bad records (DBF)   */
   int     ReadMode;           /* Specific to DBF                       */
   int     Ending;             /* Length of end of lines                */
+  int     Teds;               /* Binary table default endian setting   */
   }; // end of DOSDEF
 
 /***********************************************************************/
@@ -123,11 +124,11 @@ class DllExport TDBDOS : public TDBASE {
 
   // Implementation
   virtual AMT   GetAmType(void) {return Txfp->GetAmType();}
-  virtual PSZ   GetFile(PGLOBAL g) {return Txfp->To_File;}
-  virtual void  SetFile(PGLOBAL g, PSZ fn) {Txfp->To_File = fn;}
+  virtual PSZ   GetFile(PGLOBAL) {return Txfp->To_File;}
+  virtual void  SetFile(PGLOBAL, PSZ fn) {Txfp->To_File = fn;}
   virtual void  SetAbort(bool b) {Abort = b;}
   virtual RECFM GetFtype(void) {return Ftype;}
-  virtual bool  SkipHeader(PGLOBAL g) {return false;}
+  virtual bool  SkipHeader(PGLOBAL) {return false;}
   virtual void  RestoreNrec(void) {Txfp->SetNrec(1);}
   virtual PTDB  Duplicate(PGLOBAL g)
                 {return (PTDB)new(g) TDBDOS(g, this);}
@@ -149,7 +150,7 @@ class DllExport TDBDOS : public TDBASE {
 
   // Database routines
   virtual PCOL  MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n);
-  virtual char *GetOpenMode(PGLOBAL g, char *opmode) {return NULL;}
+  virtual char *GetOpenMode(PGLOBAL, char*) {return NULL;}
   virtual int   GetFileLength(PGLOBAL g) {return Txfp->GetFileLength(g);}
   virtual int   GetProgMax(PGLOBAL g);
   virtual int   GetProgCur(void);
@@ -168,7 +169,7 @@ class DllExport TDBDOS : public TDBASE {
   virtual int   ReadBuffer(PGLOBAL g) {return Txfp->ReadBuffer(g);}
 
   // Specific routine
-  virtual int   EstimatedLength(PGLOBAL g);
+  virtual int   EstimatedLength(void);
 
   // Optimization routines
   virtual int   MakeIndex(PGLOBAL g, PIXDEF pxdf, bool add);

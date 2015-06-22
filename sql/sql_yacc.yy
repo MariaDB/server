@@ -7142,7 +7142,7 @@ alter:
               my_error(ER_SP_BADSTATEMENT, MYF(0), "ALTER VIEW");
               MYSQL_YYABORT;
             }
-            lex->create_view_algorithm= DTYPE_ALGORITHM_UNDEFINED;
+            lex->create_view_algorithm= VIEW_ALGORITHM_INHERIT;
             lex->create_view_mode= VIEW_ALTER;
           }
           view_tail
@@ -7918,8 +7918,13 @@ opt_checksum_type:
         | EXTENDED_SYM  { Lex->check_opt.flags= T_EXTEND; }
         ;
 
+repair_table_or_view:
+          table_or_tables table_list opt_mi_repair_type
+        | VIEW_SYM { Lex->only_view= TRUE; } table_list opt_view_repair_type
+        ;
+
 repair:
-          REPAIR opt_no_write_to_binlog table_or_view
+          REPAIR opt_no_write_to_binlog
           {
             LEX *lex=Lex;
             lex->sql_command = SQLCOM_REPAIR;
@@ -7929,18 +7934,9 @@ repair:
             /* Will be overriden during execution. */
             YYPS->m_lock_type= TL_UNLOCK;
           }
-          table_list opt_mi_repair_type
+          repair_table_or_view
           {
             LEX* lex= thd->lex;
-            if ((lex->only_view &&
-                 ((lex->check_opt.flags & (T_QUICK | T_EXTEND)) ||
-                   (lex->check_opt.sql_flags & TT_USEFRM))) ||
-                (!lex->only_view &&
-                 (lex->check_opt.sql_flags & TT_FROM_MYSQL)))
-            {
-              my_parse_error(ER(ER_SYNTAX_ERROR));
-              MYSQL_YYABORT;
-            }
             DBUG_ASSERT(!lex->m_sql_cmd);
             lex->m_sql_cmd= new (thd->mem_root) Sql_cmd_repair_table();
             if (lex->m_sql_cmd == NULL)
@@ -7962,6 +7958,10 @@ mi_repair_type:
           QUICK        { Lex->check_opt.flags|= T_QUICK; }
         | EXTENDED_SYM { Lex->check_opt.flags|= T_EXTEND; }
         | USE_FRM      { Lex->check_opt.sql_flags|= TT_USEFRM; }
+        ;
+
+opt_view_repair_type:
+          /* empty */    { }
         | FROM MYSQL_SYM { Lex->check_opt.sql_flags|= TT_FROM_MYSQL; }
         ;
 
@@ -8081,30 +8081,27 @@ binlog_base64_event:
           }
         ;
 
-check:
-          CHECK_SYM table_or_view
+check_view_or_table:
+          table_or_tables table_list opt_mi_check_type
+        | VIEW_SYM { Lex->only_view= TRUE; } table_list opt_view_check_type
+        ;
+
+check:    CHECK_SYM
           {
             LEX *lex=Lex;
 
-            if (lex->sphead)
-            {
-              my_error(ER_SP_BADSTATEMENT, MYF(0), "CHECK");
-              MYSQL_YYABORT;
-            }
             lex->sql_command = SQLCOM_CHECK;
             lex->check_opt.init();
             lex->alter_info.reset();
             /* Will be overriden during execution. */
             YYPS->m_lock_type= TL_UNLOCK;
           }
-          table_list opt_mi_check_type
+          check_view_or_table
           {
             LEX* lex= thd->lex;
-            if (lex->only_view &&
-                (lex->check_opt.flags & (T_QUICK | T_FAST | T_EXTEND |
-                                         T_CHECK_ONLY_CHANGED)))
+            if (lex->sphead)
             {
-              my_parse_error(ER(ER_SYNTAX_ERROR));
+              my_error(ER_SP_BADSTATEMENT, MYF(0), "CHECK");
               MYSQL_YYABORT;
             }
             DBUG_ASSERT(!lex->m_sql_cmd);
@@ -8130,6 +8127,11 @@ mi_check_type:
         | MEDIUM_SYM          { Lex->check_opt.flags|= T_MEDIUM; }
         | EXTENDED_SYM        { Lex->check_opt.flags|= T_EXTEND; }
         | CHANGED             { Lex->check_opt.flags|= T_CHECK_ONLY_CHANGED; }
+        | FOR_SYM UPGRADE_SYM { Lex->check_opt.sql_flags|= TT_FOR_UPGRADE; }
+        ;
+
+opt_view_check_type:
+          /* empty */         { }
         | FOR_SYM UPGRADE_SYM { Lex->check_opt.sql_flags|= TT_FOR_UPGRADE; }
         ;
 
@@ -8214,7 +8216,6 @@ keycache:
             LEX *lex=Lex;
             lex->sql_command= SQLCOM_ASSIGN_TO_KEYCACHE;
             lex->ident= $6;
-            lex->only_view= FALSE;
           }
         ;
 
@@ -8259,7 +8260,6 @@ preload:
             LEX *lex=Lex;
             lex->sql_command=SQLCOM_PRELOAD_KEYS;
             lex->alter_info.reset();
-            lex->only_view= FALSE;
           }
           preload_list_or_parts
           {}
@@ -12546,7 +12546,6 @@ show_param:
             lex->sql_command = SQLCOM_SHOW_CREATE;
             if (!lex->select_lex.add_table_to_list(thd, $3, NULL,0))
               MYSQL_YYABORT;
-            lex->only_view= 0;
             lex->create_info.storage_media= HA_SM_DEFAULT;
           }
         | CREATE VIEW_SYM table_ident
@@ -14864,13 +14863,8 @@ lock:
         ;
 
 table_or_tables:
-          TABLE_SYM        { Lex->only_view= FALSE; }
-        | TABLES           { Lex->only_view= FALSE; }
-        ;
-
-table_or_view:
-          table_or_tables
-        | VIEW_SYM         { Lex->only_view= TRUE;  }
+          TABLE_SYM        { }
+        | TABLES           { }
         ;
 
 table_lock_list:

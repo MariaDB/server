@@ -115,7 +115,6 @@ NULL
 delete from t1 where a < 20110101;
 select * from t1;
 a
-01:02:13.3332
 NULL
 create table t2 select * from t1;
 create table t3 like t1;
@@ -135,12 +134,11 @@ Warnings:
 Note	1265	Data truncated for column 'a' at row 1
 select a, a+0, a-1, a*1, a/2 from t1;
 a	a+0	a-1	a*1	a/2
-01:02:13.3332	10213.3332	10212.3332	10213.3332	5106.66660000
 NULL	NULL	NULL	NULL	NULL
 14:15:16.2222	141516.2222	141515.2222	141516.2222	70758.11110000
 select max(a), min(a), sum(a), avg(a) from t1;
 max(a)	min(a)	sum(a)	avg(a)
-14:15:16.2222	01:02:13.3332	151729.5554	75864.77770000
+14:15:16.2222	14:15:16.2222	141516.2222	141516.22220000
 create table t2 select a, a+0, a-1, a*1, a/2 from t1;
 create table t3 select max(a), min(a), sum(a), avg(a) from t1;
 show create table t2;

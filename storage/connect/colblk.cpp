@@ -1,7 +1,7 @@
 /************* Colblk C++ Functions Source Code File (.CPP) ************/
 /*  Name: COLBLK.CPP  Version 2.1                                      */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          1998-2014    */
+/*  (C) Copyright to the author Olivier BERTRAND          1998-2015    */
 /*                                                                     */
 /*  This file contains the COLBLK class functions.                     */
 /***********************************************************************/
@@ -111,7 +111,7 @@ bool COLBLK::Compare(PXOB xp)
 /***********************************************************************/
 /*  SetFormat: function used to set SELECT output format.              */
 /***********************************************************************/
-bool COLBLK::SetFormat(PGLOBAL g, FORMAT& fmt)
+bool COLBLK::SetFormat(PGLOBAL, FORMAT& fmt)
   {
   fmt = Format;
 
@@ -175,7 +175,7 @@ bool COLBLK::InitValue(PGLOBAL g)
 /***********************************************************************/
 /*  SetBuffer: prepare a column block for write operation.             */
 /***********************************************************************/
-bool COLBLK::SetBuffer(PGLOBAL g, PVAL value, bool ok, bool check)
+bool COLBLK::SetBuffer(PGLOBAL g, PVAL, bool, bool)
   {
   sprintf(g->Message, MSG(UNDEFINED_AM), "SetBuffer");
   return true;
@@ -214,7 +214,7 @@ void COLBLK::WriteColumn(PGLOBAL g)
 /***********************************************************************/
 /*  Make file output of a column descriptor block.                     */
 /***********************************************************************/
-void COLBLK::Print(PGLOBAL g, FILE *f, uint n)
+void COLBLK::Print(PGLOBAL, FILE *f, uint n)
   {
   char m[64];
   int  i;
@@ -237,7 +237,7 @@ void COLBLK::Print(PGLOBAL g, FILE *f, uint n)
 /***********************************************************************/
 /*  Make string output of a column descriptor block.                   */
 /***********************************************************************/
-void COLBLK::Print(PGLOBAL g, char *ps, uint z)
+void COLBLK::Print(PGLOBAL, char *ps, uint)
   {
   sprintf(ps, "R%d.%s", To_Tdb->GetTdb_No(), Name);
   } // end of Print
@@ -297,9 +297,9 @@ FIDBLK::FIDBLK(PCOLUMN cp, OPVAL op) : SPCBLK(cp), Op(op)
   Buf_Type = TYPE_STRING;
   *Format.Type = 'C';
   Format.Length = Long;
-#if defined(WIN32)
+#if defined(__WIN__)
   Format.Prec = 1;          // Case insensitive
-#endif   // WIN32
+#endif   // __WIN__
   Constant = (!((PTDBASE)To_Tdb)->GetDef()->GetMultiple() &&
               To_Tdb->GetAmType() != TYPE_AM_PLG &&
               To_Tdb->GetAmType() != TYPE_AM_PLM);
@@ -347,7 +347,7 @@ TIDBLK::TIDBLK(PCOLUMN cp) : SPCBLK(cp)
 /***********************************************************************/
 /*  ReadColumn: what this routine does is to return the table ID.      */
 /***********************************************************************/
-void TIDBLK::ReadColumn(PGLOBAL g)
+void TIDBLK::ReadColumn(PGLOBAL)
   {
   if (Tname == NULL) {
     Tname = (char*)To_Tdb->GetName();
@@ -406,7 +406,7 @@ SIDBLK::SIDBLK(PCOLUMN cp) : SPCBLK(cp)
 /***********************************************************************/
 /*  ReadColumn: what this routine does is to return the server ID.     */
 /***********************************************************************/
-void SIDBLK::ReadColumn(PGLOBAL g)
+void SIDBLK::ReadColumn(PGLOBAL)
   {
 //if (Sname == NULL) {
     Sname = (char*)To_Tdb->GetServer();

@@ -168,6 +168,8 @@ finish_event_group(rpl_parallel_thread *rpt, uint64 sub_id,
       done and also no longer need waiting for.
     */
     entry->last_committed_sub_id= sub_id;
+    if (entry->need_sub_id_signal)
+      mysql_cond_broadcast(&entry->COND_parallel_entry);
 
     /* Now free any GCOs in which all transactions have committed. */
     group_commit_orderer *tmp_gco= rgi->gco;
@@ -1894,26 +1896,29 @@ rpl_parallel::wait_for_workers_idle(THD *thd)
   max_i= domain_hash.records;
   for (i= 0; i < max_i; ++i)
   {
-    bool active;
-    wait_for_commit my_orderer;
+    PSI_stage_info old_stage;
     struct rpl_parallel_entry *e;
+    int err= 0;
 
     e= (struct rpl_parallel_entry *)my_hash_element(&domain_hash, i);
     mysql_mutex_lock(&e->LOCK_parallel_entry);
-    if ((active= (e->current_sub_id > e->last_committed_sub_id)))
+    e->need_sub_id_signal= true;
+    thd->ENTER_COND(&e->COND_parallel_entry, &e->LOCK_parallel_entry,
+                    &stage_waiting_for_workers_idle, &old_stage);
+    while (e->current_sub_id > e->last_committed_sub_id)
     {
-      wait_for_commit *waitee= &e->current_group_info->commit_orderer;
-      my_orderer.register_wait_for_prior_commit(waitee);
-      thd->wait_for_commit_ptr= &my_orderer;
+      if (thd->check_killed())
+      {
+        thd->send_kill_message();
+        err= 1;
+        break;
+      }
+      mysql_cond_wait(&e->COND_parallel_entry, &e->LOCK_parallel_entry);
     }
-    mysql_mutex_unlock(&e->LOCK_parallel_entry);
-    if (active)
-    {
-      int err= my_orderer.wait_for_prior_commit(thd);
-      thd->wait_for_commit_ptr= NULL;
-      if (err)
-        return err;
-    }
+    e->need_sub_id_signal= false;
+    thd->EXIT_COND(&old_stage);
+    if (err)
+      return err;
   }
   return 0;
 }

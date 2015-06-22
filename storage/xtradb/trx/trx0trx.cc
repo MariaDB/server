@@ -476,11 +476,12 @@ trx_free_prepared(
 /*==============*/
 	trx_t*	trx)	/*!< in, own: trx object */
 {
-	ut_ad(mutex_own(&trx_sys->mutex));
-
 	ut_a(trx_state_eq(trx, TRX_STATE_PREPARED));
 	ut_a(trx->magic_n == TRX_MAGIC_N);
 
+	mutex_exit(&trx_sys->mutex);
+	lock_trx_release_locks(trx);
+	mutex_enter(&trx_sys->mutex);
 	trx_undo_free_prepared(trx);
 
 	assert_trx_in_rw_list(trx);

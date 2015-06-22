@@ -389,6 +389,7 @@ typedef struct _qryres   *PQRYRES;
 typedef struct _colres   *PCOLRES;
 typedef struct _datpar   *PDTP;
 typedef struct indx_used *PXUSED;
+typedef struct ha_table_option_struct TOS, *PTOS;
 
 /***********************************************************************/
 /*  Utility blocks for file and storage.                               */
@@ -543,11 +544,11 @@ typedef  struct _colres {
   char    Var;                     /* Type added information           */
   } COLRES;
 
-#if defined(WIN32) && !defined(NOEX)
+#if defined(__WIN__) && !defined(NOEX)
 #define DllExport  __declspec( dllexport )
-#else   // !WIN32
+#else   // !__WIN__
 #define DllExport
-#endif  // !WIN32
+#endif  // !__WIN__
 
 /***********************************************************************/
 /*  Utility routines.                                                  */
@@ -593,6 +594,9 @@ DllExport void    NewPointer(PTABS, void *, void *);
 DllExport void    SetTrc(void);
 DllExport char   *GetListOption(PGLOBAL, const char *, const char *,
                                          const char *def=NULL);
+DllExport char   *GetStringTableOption(PGLOBAL, PTOS, char *, char *);
+DllExport bool    GetBooleanTableOption(PGLOBAL, PTOS, char *, bool);
+DllExport int     GetIntegerTableOption(PGLOBAL, PTOS, char *, int);
 
 #define MSGID_NONE                         0
 #define MSGID_CANNOT_OPEN                  1
