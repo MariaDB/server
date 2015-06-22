@@ -1104,8 +1104,10 @@ static int setup_relate_func(Geometry *g1, Geometry *g2,
         cur_op|= Gcalc_function::v_find_t;
         break;
       case 'F':
-        cur_op|= (Gcalc_function::op_not | Gcalc_function::v_find_t);
+        cur_op|= (Gcalc_function::op_not | Gcalc_function::v_find_f);
         break;
+      default:
+        return 1;
     };
     ++n_operands;
     if (func->reserve_op_buffer(3))
@@ -1150,7 +1152,6 @@ longlong Item_func_spatial_precise_rel::val_int()
   Geometry_buffer buffer1, buffer2;
   Geometry *g1, *g2;
   int result= 0;
-  int mask= 0;
   uint shape_a, shape_b;
   MBR umbr, mbr1, mbr2;
   const char *c_end;
@@ -1180,8 +1181,9 @@ longlong Item_func_spatial_precise_rel::val_int()
     case SP_CONTAINS_FUNC:
       if (!mbr1.contains(&mbr2))
         goto exit;
-      mask= 1;
-      func.add_operation(Gcalc_function::op_difference, 2);
+      func.add_operation(Gcalc_function::v_find_f |
+                         Gcalc_function::op_not |
+                         Gcalc_function::op_difference, 2);
       /* Mind the g2 goes first. */
       null_value= g2->store_shapes(&trn) || g1->store_shapes(&trn);
       break;
@@ -1189,32 +1191,36 @@ longlong Item_func_spatial_precise_rel::val_int()
       mbr2.buffer(2e-5);
       if (!mbr1.within(&mbr2))
         goto exit;
-      mask= 1;
-      func.add_operation(Gcalc_function::op_difference, 2);
+      func.add_operation(Gcalc_function::v_find_f |
+                         Gcalc_function::op_not |
+                         Gcalc_function::op_difference, 2);
       null_value= g1->store_shapes(&trn) || g2->store_shapes(&trn);
       break;
     case SP_EQUALS_FUNC:
       if (!mbr1.contains(&mbr2))
         goto exit;
-      mask= 1;
-      func.add_operation(Gcalc_function::op_symdifference, 2);
+      func.add_operation(Gcalc_function::v_find_f |
+                         Gcalc_function::op_not |
+                         Gcalc_function::op_symdifference, 2);
       null_value= g1->store_shapes(&trn) || g2->store_shapes(&trn);
       break;
     case SP_DISJOINT_FUNC:
-      mask= 1;
-      func.add_operation(Gcalc_function::op_intersection, 2);
+      func.add_operation(Gcalc_function::v_find_f |
+                         Gcalc_function::op_not |
+                         Gcalc_function::op_intersection, 2);
       null_value= g1->store_shapes(&trn) || g2->store_shapes(&trn);
       break;
     case SP_INTERSECTS_FUNC:
       if (!mbr1.intersects(&mbr2))
         goto exit;
-      func.add_operation(Gcalc_function::op_intersection, 2);
+      func.add_operation(Gcalc_function::v_find_t |
+                         Gcalc_function::op_intersection, 2);
       null_value= g1->store_shapes(&trn) || g2->store_shapes(&trn);
       break;
     case SP_OVERLAPS_FUNC:
     case SP_CROSSES_FUNC:
       func.add_operation(Gcalc_function::op_intersection, 2);
-      if (func.reserve_op_buffer(1))
+      if (func.reserve_op_buffer(3))
         break;
       func.add_operation(Gcalc_function::v_find_t |
                          Gcalc_function::op_intersection, 2);
@@ -1226,8 +1232,7 @@ longlong Item_func_spatial_precise_rel::val_int()
         break;
       if (func.reserve_op_buffer(7))
         break;
-      func.add_operation(Gcalc_function::v_find_t |
-                         Gcalc_function::op_intersection, 2);
+      func.add_operation(Gcalc_function::op_intersection, 2);
       func.add_operation(Gcalc_function::v_find_t |
                          Gcalc_function::op_difference, 2);
       func.repeat_expression(shape_a);
@@ -1238,7 +1243,7 @@ longlong Item_func_spatial_precise_rel::val_int()
       func.repeat_expression(shape_a);
       break;
     case SP_TOUCHES_FUNC:
-      if (func.reserve_op_buffer(2))
+      if (func.reserve_op_buffer(5))
         break;
       func.add_operation(Gcalc_function::op_intersection, 2);
       func.add_operation(Gcalc_function::v_find_f |
@@ -1254,9 +1259,7 @@ longlong Item_func_spatial_precise_rel::val_int()
         break;
       func.add_operation(Gcalc_function::v_find_t |
                          Gcalc_function::op_intersection, 2);
-      func.add_operation(Gcalc_function::op_border, 1);
       func.repeat_expression(shape_a);
-      func.add_operation(Gcalc_function::op_border, 1);
       func.repeat_expression(shape_b);
       break;
     case SP_RELATE_FUNC:
@@ -1281,7 +1284,7 @@ longlong Item_func_spatial_precise_rel::val_int()
   if (func.alloc_states())
     goto exit;
 
-  result= func.check_function(scan_it) ^ mask;
+  result= func.check_function(scan_it);
 
 exit:
   collector.reset();

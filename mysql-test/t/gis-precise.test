@@ -357,5 +357,10 @@ SELECT ST_NUMPOINTS(ST_EXTERIORRING(ST_BUFFER( POLYGONFROMTEXT( 'POLYGON( ( 0.0 
 # MDEV-5615 crash in Gcalc_function::add_operation
 select astext(buffer(st_linestringfromwkb(linestring(point(-1,1), point(-1,-2))),-1));
 
+# MDEV-7925  Inconsistent behavior of ST_Touches with a POINT as one of arguments
+select ST_Touches(ST_LineFromText('LINESTRING(0 0,5 5)'),ST_PointFromText('POINT(0 0)'));
+select ST_Touches(ST_PolygonFromText('POLYGON((0 0,0 5,5 5,5 0,0 0))'),ST_PointFromText('POINT(0 0)'));
+select ST_Touches(ST_PointFromText('POINT(0 0)'),ST_PointFromText('POINT(0 0)'));
+
 --source include/gis_debug.inc
 
