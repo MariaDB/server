@@ -1461,10 +1461,21 @@ void wsrep_to_isolation_end(THD *thd)
       gra->wsrep_exec_mode, gra->wsrep_query_state, gra->wsrep_conflict_state, \
       gra->get_command(), gra->lex->sql_command, gra->query());
 
+/**
+  Check if request for the metadata lock should be granted to the requester.
+
+  @param  requestor_ctx        The MDL context of the requestor
+  @param  ticket               MDL ticket for the requested lock
+
+  @retval TRUE   Lock request can be granted
+  @retval FALSE  Lock request cannot be granted
+*/
+
 bool
 wsrep_grant_mdl_exception(MDL_context *requestor_ctx,
                           MDL_ticket *ticket
 ) {
+  /* Fallback to the non-wsrep behaviour */
   if (!WSREP_ON) return FALSE;
 
   THD *request_thd  = requestor_ctx->wsrep_get_thd();

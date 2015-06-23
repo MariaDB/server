@@ -1443,6 +1443,13 @@ MDL_wait::timed_wait(MDL_context_owner *owner, struct timespec *abs_timeout,
   while (!m_wait_status && !owner->is_killed() &&
          wait_result != ETIMEDOUT && wait_result != ETIME)
   {
+#ifdef WITH_WSREP
+    if (wsrep_thd_is_BF(owner->get_thd(), true))
+    {
+      wait_result= mysql_cond_wait(&m_COND_wait_status, &m_LOCK_wait_status);
+    }
+    else
+#endif
     wait_result= mysql_cond_timedwait(&m_COND_wait_status, &m_LOCK_wait_status,
                                       abs_timeout);
   }
@@ -1527,12 +1534,15 @@ void MDL_lock::Ticket_list::add_ticket(MDL_ticket *ticket)
         WSREP_DEBUG("MDL add_ticket inserted before: %lu %s",
                     wsrep_thd_thread_id(waiting->get_ctx()->wsrep_get_thd()),
                     wsrep_thd_query(waiting->get_ctx()->wsrep_get_thd()));
+        /* Insert the ticket before the first non-BF waiting thd. */
         m_list.insert_after(prev, ticket);
         added= true;
       }
       prev= waiting;
     }
-    if (!added)   m_list.push_back(ticket);
+
+    /* Otherwise, insert the ticket at the back of the waiting list. */
+    if (!added) m_list.push_back(ticket);
 
     while ((granted= itg++))
     {
