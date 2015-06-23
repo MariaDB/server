@@ -1,0 +1,5 @@
+-- source include/have_xtradb.inc
+-- source include/not_embedded.inc
+
+FLUSH NO_WRITE_TO_BINLOG changed_page_bitmaps;
+select * from information_schema.changed_page_bitmaps;

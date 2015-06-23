@@ -9459,3 +9459,128 @@ UNIV_INTERN struct st_mysql_plugin	i_s_innodb_sys_semaphore_waits =
 	STRUCT_FLD(version_info, INNODB_VERSION_STR),
         STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_BETA),
 };
+
+static ST_FIELD_INFO	innodb_changed_page_bitmaps_fields_info[] =
+{
+	{STRUCT_FLD(field_name,		"dummy"),
+	 STRUCT_FLD(field_length,	MY_INT64_NUM_DECIMAL_DIGITS),
+	 STRUCT_FLD(field_type,		MYSQL_TYPE_LONGLONG),
+	 STRUCT_FLD(value,		0),
+	 STRUCT_FLD(field_flags,	MY_I_S_UNSIGNED),
+	 STRUCT_FLD(old_name,		""),
+	 STRUCT_FLD(open_method,	SKIP_OPEN_TABLE)},
+	END_OF_ST_FIELD_INFO
+};
+
+/*******************************************************************//**
+Function to populate INFORMATION_SCHEMA.CHANGED_PAGE_BITMAPS
+@return 0 on success */
+static
+int
+fill_changed_page_bitmaps_table(
+/*============================*/
+	THD*		thd,	/*!< in: thread */
+	TABLE_LIST*	tables,	/*!< in/out: tables to fill */
+	Item*		)	/*!< in: condition (not used) */
+{
+	Field**		fields = tables->table->field;
+	DBUG_ENTER("fill_changed_page_bitmaps");
+	RETURN_IF_INNODB_NOT_STARTED(tables->schema_table_name);
+
+	/* deny access to user without PROCESS_ACL privilege */
+	if (check_global_access(thd, PROCESS_ACL)) {
+		DBUG_RETURN(0);
+	}
+	OK(field_store_ulint(fields[0], 0));
+	OK(schema_table_store_record(thd, tables->table));
+
+	DBUG_RETURN(0);
+}
+
+/*******************************************************************//**
+Flush support for changed_page_bitmaps table.
+@return 0 on success */
+static
+int
+flush_changed_page_bitmaps()
+/*========================*/
+{
+	DBUG_ENTER("flush_changed_page_bitmaps");
+	if (srv_track_changed_pages) {
+		os_event_reset(srv_checkpoint_completed_event);
+		log_online_follow_redo_log();
+	}
+	DBUG_RETURN(0);
+}
+
+/*******************************************************************//**
+Bind the dynamic table INFORMATION_SCHEMA.CHANGED_PAGE_BITMAP
+@return 0 on success */
+static
+int
+innodb_changed_page_bitmaps_init(
+/*=============================*/
+	void*	p)	/*!< in/out: table schema object */
+{
+	ST_SCHEMA_TABLE*	schema;
+
+	DBUG_ENTER("innodb_changed_page_bitmaps_init");
+
+	schema = (ST_SCHEMA_TABLE*) p;
+
+	schema->fields_info = innodb_changed_page_bitmaps_fields_info;
+	schema->fill_table = fill_changed_page_bitmaps_table;
+	schema->reset_table= flush_changed_page_bitmaps;
+
+	DBUG_RETURN(0);
+}
+
+UNIV_INTERN struct st_mysql_plugin	i_s_innodb_changed_page_bitmaps =
+{
+	/* the plugin type (a MYSQL_XXX_PLUGIN value) */
+	/* int */
+	STRUCT_FLD(type, MYSQL_INFORMATION_SCHEMA_PLUGIN),
+
+	/* pointer to type-specific plugin descriptor */
+	/* void* */
+	STRUCT_FLD(info, &i_s_info),
+
+	/* plugin name */
+	/* const char* */
+	STRUCT_FLD(name, "CHANGED_PAGE_BITMAPS"),
+
+	/* plugin author (for SHOW PLUGINS) */
+	/* const char* */
+	STRUCT_FLD(author, maria_plugin_author),
+
+	/* general descriptive text (for SHOW PLUGINS) */
+	/* const char* */
+	STRUCT_FLD(descr, "XtraDB dummy changed_page_bitmaps table"),
+
+	/* the plugin license (PLUGIN_LICENSE_XXX) */
+	/* int */
+	STRUCT_FLD(license, PLUGIN_LICENSE_GPL),
+
+	/* the function to invoke when plugin is loaded */
+	/* int (*)(void*); */
+	STRUCT_FLD(init, innodb_changed_page_bitmaps_init),
+
+	/* the function to invoke when plugin is unloaded */
+	/* int (*)(void*); */
+	STRUCT_FLD(deinit, i_s_common_deinit),
+
+	/* plugin version (for SHOW PLUGINS) */
+	/* unsigned int */
+	STRUCT_FLD(version, INNODB_VERSION_SHORT),
+
+	/* struct st_mysql_show_var* */
+	STRUCT_FLD(status_vars, NULL),
+
+	/* struct st_mysql_sys_var** */
+	STRUCT_FLD(system_vars, NULL),
+
+        /* Maria extension */
+	STRUCT_FLD(version_info, INNODB_VERSION_STR),
+        STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_BETA),
+};
+

@@ -4240,7 +4240,6 @@ innobase_flush_logs(
 Synchronously read and parse the redo log up to the last
 checkpoint to write the changed page bitmap.
 @return 0 to indicate success.  Current implementation cannot fail. */
-static
 my_bool
 innobase_flush_changed_page_bitmaps()
 /*=================================*/
@@ -20791,7 +20790,8 @@ i_s_innodb_changed_pages,
 i_s_innodb_mutexes,
 i_s_innodb_sys_semaphore_waits,
 i_s_innodb_tablespaces_encryption,
-i_s_innodb_tablespaces_scrubbing
+i_s_innodb_tablespaces_scrubbing,
+i_s_innodb_changed_page_bitmaps
 maria_declare_plugin_end;
 
 /** @brief Initialize the default value of innodb_commit_concurrency.

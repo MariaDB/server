@@ -67,6 +67,7 @@ extern struct st_mysql_plugin	i_s_innodb_mutexes;
 extern struct st_maria_plugin	i_s_innodb_tablespaces_encryption;
 extern struct st_maria_plugin	i_s_innodb_tablespaces_scrubbing;
 extern struct st_mysql_plugin	i_s_innodb_sys_semaphore_waits;
+extern struct st_mysql_plugin	i_s_innodb_changed_page_bitmaps;
 
 /** maximum number of buffer page info we would cache. */
 #define MAX_BUF_INFO_CACHED		10000
