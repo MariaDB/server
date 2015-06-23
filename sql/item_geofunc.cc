@@ -1860,10 +1860,14 @@ longlong Item_func_issimple::val_int()
   DBUG_ENTER("Item_func_issimple::val_int");
   DBUG_ASSERT(fixed == 1);
   
-  if ((null_value= (args[0]->null_value ||
-          !(g= Geometry::construct(&buffer, swkb->ptr(), swkb->length())) ||
-          g->get_mbr(&mbr, &c_end))))
-    DBUG_RETURN(0);
+  null_value= 0;
+  if ((args[0]->null_value ||
+       !(g= Geometry::construct(&buffer, swkb->ptr(), swkb->length())) ||
+       g->get_mbr(&mbr, &c_end)))
+  {
+    /* We got NULL as an argument. Have to return -1 */
+    DBUG_RETURN(-1);
+  }
 
   collector.set_extent(mbr.xmin, mbr.xmax, mbr.ymin, mbr.ymax);
 
@@ -1924,11 +1928,15 @@ longlong Item_func_isclosed::val_int()
   Geometry *geom;
   int isclosed= 0;				// In case of error
 
-  null_value= (!swkb || 
-	       args[0]->null_value ||
-	       !(geom=
-		 Geometry::construct(&buffer, swkb->ptr(), swkb->length())) ||
-	       geom->is_closed(&isclosed));
+  null_value= 0;
+  if (!swkb || 
+      args[0]->null_value ||
+      !(geom= Geometry::construct(&buffer, swkb->ptr(), swkb->length())) ||
+      geom->is_closed(&isclosed))
+  {
+    /* IsClosed(NULL) should return -1 */
+    return -1;
+  }
 
   return (longlong) isclosed;
 }
@@ -1944,11 +1952,15 @@ longlong Item_func_isring::val_int()
   Geometry *geom;
   int isclosed= 0;				// In case of error
 
-  null_value= (!swkb || 
-	       args[0]->null_value ||
-	       !(geom=
-		 Geometry::construct(&buffer, swkb->ptr(), swkb->length())) ||
-	       geom->is_closed(&isclosed));
+  null_value= 0;
+  if (!swkb || 
+      args[0]->null_value ||
+      !(geom= Geometry::construct(&buffer, swkb->ptr(), swkb->length())) ||
+      geom->is_closed(&isclosed))
+  {
+    /* IsRing(NULL) should return -1 */
+    return -1;
+  }
 
   if (!isclosed)
     return 0;

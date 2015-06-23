@@ -1111,7 +1111,7 @@ DROP TABLE t0, t1, t2;
 #
 SELECT ISCLOSED(CONVERT(CONCAT('     ', 0x2), BINARY(20)));
 ISCLOSED(CONVERT(CONCAT('     ', 0x2), BINARY(20)))
-NULL
+-1
 #
 # BUG#12537203 - CRASH WHEN SUBSELECTING GLOBAL VARIABLES IN 
 # GEOMETRY FUNCTION ARGUMENTS
@@ -1810,3 +1810,9 @@ disjoint
 select ST_Relate(ST_PointFromText('POINT(0 0)'),ST_PointFromText('POINT(0 0)'),'FF*FF****') as disjoint;
 disjoint
 0
+#
+# MDEV-7528 GIS: Functions return NULL instead of specified -1 for NULL arguments.
+#
+select ST_IsRing(NULL);
+ST_IsRing(NULL)
+-1
