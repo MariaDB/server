@@ -1788,6 +1788,13 @@ void rpl_group_info::cleanup_context(THD *thd, bool error)
       rli->clear_flag(Relay_log_info::IN_STMT);
       rli->clear_flag(Relay_log_info::IN_TRANSACTION);
     }
+
+    /*
+      Ensure we always release the domain for others to process, when using
+      --gtid-ignore-duplicates.
+    */
+    if (gtid_ignore_duplicate_state != GTID_DUPLICATE_NULL)
+      rpl_global_gtid_slave_state.release_domain_owner(this);
   }
 
   /*
@@ -1797,19 +1804,17 @@ void rpl_group_info::cleanup_context(THD *thd, bool error)
   thd->variables.option_bits&= ~OPTION_RELAXED_UNIQUE_CHECKS;
 
   /*
-    Ensure we always release the domain for others to process, when using
-    --gtid-ignore-duplicates.
-  */
-  if (gtid_ignore_duplicate_state != GTID_DUPLICATE_NULL)
-    rpl_global_gtid_slave_state.release_domain_owner(this);
-
-  /*
     Reset state related to long_find_row notes in the error log:
     - timestamp
     - flag that decides whether the slave prints or not
   */
   reset_row_stmt_start_timestamp();
   unset_long_find_row_note_printed();
+
+  DBUG_EXECUTE_IF("inject_sleep_gtid_100_x_x", {
+      if (current_gtid.domain_id == 100)
+        my_sleep(50000);
+    };);
 
   DBUG_VOID_RETURN;
 }
