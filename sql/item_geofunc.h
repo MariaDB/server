@@ -425,7 +425,6 @@ public:
   Item_func_issimple(Item *a): Item_bool_func(a) {}
   longlong val_int();
   const char *func_name() const { return "st_issimple"; }
-  void fix_length_and_dec() { maybe_null= 1; }
 };
 
 class Item_func_isclosed: public Item_bool_func
@@ -434,7 +433,6 @@ public:
   Item_func_isclosed(Item *a): Item_bool_func(a) {}
   longlong val_int();
   const char *func_name() const { return "st_isclosed"; }
-  void fix_length_and_dec() { maybe_null= 1; }
 };
 
 class Item_func_isring: public Item_func_issimple
