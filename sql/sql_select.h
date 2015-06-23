@@ -1531,6 +1531,8 @@ public:
   int save_explain_data_intern(Explain_query *output, bool need_tmp_table,
                                bool need_order, bool distinct,
                                const char *message);
+  JOIN_TAB *first_breadth_first_optimization_tab() { return table_access_tabs; }
+  JOIN_TAB *first_breadth_first_execution_tab() { return join_tab; }
 private:
   /**
     TRUE if the query contains an aggregate function but has no GROUP

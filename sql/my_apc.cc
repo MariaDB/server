@@ -41,45 +41,6 @@ void Apc_target::init(mysql_mutex_t *target_mutex)
 }
 
 
-/* 
-  Destroy the target. The target must be disabled when this call is made.
-*/
-void Apc_target::destroy()
-{
-  DBUG_ASSERT(!enabled);
-}
-
-
-/* 
-  Enter ther state where the target is available for serving APC requests
-*/
-void Apc_target::enable()
-{
-  /* Ok to do without getting/releasing the mutex: */
-  enabled++;
-}
-
-
-/* 
-  Make the target unavailable for serving APC requests. 
-  
-  @note
-    This call will serve all requests that were already enqueued
-*/
-
-void Apc_target::disable()
-{
-  bool process= FALSE;
-  DBUG_ASSERT(enabled);
-  mysql_mutex_lock(LOCK_thd_data_ptr);
-  if (!(--enabled))
-    process= TRUE;
-  mysql_mutex_unlock(LOCK_thd_data_ptr);
-  if (process)
-    process_apc_requests();
-}
-
-
 /* [internal] Put request qe into the request list */
 
 void Apc_target::enqueue_request(Call_request *qe)

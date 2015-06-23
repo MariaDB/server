@@ -276,10 +276,8 @@ Item_equal *find_item_equal(COND_EQUAL *cond_equal, Field *field,
 JOIN_TAB *first_depth_first_tab(JOIN* join);
 JOIN_TAB *next_depth_first_tab(JOIN* join, JOIN_TAB* tab);
 
-enum enum_exec_or_opt {WALK_OPTIMIZATION_TABS , WALK_EXECUTION_TABS};
-JOIN_TAB *first_breadth_first_tab(JOIN *join, enum enum_exec_or_opt tabs_kind);
-JOIN_TAB *next_breadth_first_tab(JOIN *join, enum enum_exec_or_opt tabs_kind,
-                                 JOIN_TAB *tab);
+static JOIN_TAB *next_breadth_first_tab(JOIN_TAB *first_top_tab,
+                                        uint n_top_tabs_count, JOIN_TAB *tab);
 static double table_cond_selectivity(JOIN *join, uint idx, JOIN_TAB *s,
                                      table_map rem_tables);
 
@@ -7202,12 +7200,13 @@ double JOIN::get_examined_rows()
 {
   double examined_rows;
   double prev_fanout= 1;
-  JOIN_TAB *tab= first_breadth_first_tab(this, WALK_OPTIMIZATION_TABS);
+  JOIN_TAB *tab= first_breadth_first_optimization_tab();
   JOIN_TAB *prev_tab= tab;
 
   examined_rows= tab->get_examined_rows();
 
-  while ((tab= next_breadth_first_tab(this, WALK_OPTIMIZATION_TABS, tab)))
+  while ((tab= next_breadth_first_tab(first_breadth_first_optimization_tab(),
+                                      top_table_access_tabs_count, tab)))
   {
     prev_fanout *= prev_tab->records_read;
     examined_rows+= tab->get_examined_rows() * prev_fanout;
@@ -8201,21 +8200,9 @@ prev_record_reads(POSITION *positions, uint idx, table_map found_ref)
   Enumerate join tabs in breadth-first fashion, including const tables.
 */
 
-JOIN_TAB *first_breadth_first_tab(JOIN *join, enum enum_exec_or_opt tabs_kind)
+static JOIN_TAB *next_breadth_first_tab(JOIN_TAB *first_top_tab,
+                                        uint n_top_tabs_count, JOIN_TAB *tab)
 {
-  /* There's always one (i.e. first) table */
-  return (tabs_kind == WALK_EXECUTION_TABS)? join->join_tab:
-                                             join->table_access_tabs;
-}
-
-
-JOIN_TAB *next_breadth_first_tab(JOIN *join, enum enum_exec_or_opt tabs_kind,
-                                 JOIN_TAB *tab)
-{
-  JOIN_TAB* const first_top_tab= first_breadth_first_tab(join, tabs_kind);
-  const uint n_top_tabs_count= (tabs_kind == WALK_EXECUTION_TABS)? 
-                                  join->top_join_tab_count:
-                                  join->top_table_access_tabs_count;
   if (!tab->bush_root_tab)
   {
     /* We're at top level. Get the next top-level tab */
@@ -8307,7 +8294,8 @@ JOIN_TAB *first_top_level_tab(JOIN *join, enum enum_with_const_tables const_tbls
 
 JOIN_TAB *next_top_level_tab(JOIN *join, JOIN_TAB *tab)
 {
-  tab= next_breadth_first_tab(join, WALK_EXECUTION_TABS, tab);
+  tab= next_breadth_first_tab(join->first_breadth_first_execution_tab(),
+                              join->top_join_tab_count, tab);
   if (tab && tab->bush_root_tab)
     tab= NULL;
   return tab;
@@ -11800,27 +11788,21 @@ void JOIN::cleanup(bool full)
         w/o tables: they don't have some members initialized and
         WALK_OPTIMIZATION_TABS may not work correctly for them.
       */
-      enum enum_exec_or_opt tabs_kind;
-      if (first_breadth_first_tab(this, WALK_OPTIMIZATION_TABS))
-        tabs_kind= WALK_OPTIMIZATION_TABS;
-      else
-        tabs_kind= WALK_EXECUTION_TABS;
       if (table_count)
       {
-        for (tab= first_breadth_first_tab(this, tabs_kind); tab;
-             tab= next_breadth_first_tab(this, tabs_kind, tab))
-        {
+        for (tab= first_breadth_first_optimization_tab(); tab;
+             tab= next_breadth_first_tab(first_breadth_first_optimization_tab(),
+                                         top_table_access_tabs_count, tab))
           tab->cleanup();
-        }
 
-        if (tabs_kind == WALK_OPTIMIZATION_TABS && 
-            first_breadth_first_tab(this, WALK_OPTIMIZATION_TABS) != 
-            first_breadth_first_tab(this, WALK_EXECUTION_TABS))
+        /* We've walked optimization tabs, do execution ones too. */
+        if (first_breadth_first_execution_tab() !=
+            first_breadth_first_optimization_tab())
         {
-          JOIN_TAB *jt= first_breadth_first_tab(this, WALK_EXECUTION_TABS);
-          /* We've walked optimization tabs. do execution ones too */
-          if (jt)
-            jt->cleanup();
+          for (tab= first_breadth_first_execution_tab(); tab;
+               tab= next_breadth_first_tab(first_breadth_first_execution_tab(),
+                                           top_join_tab_count, tab))
+            tab->cleanup();
         }
       }
       cleaned= true;
@@ -23556,13 +23538,13 @@ int append_possible_keys(MEM_ROOT *alloc, String_list &list, TABLE *table,
 
 void JOIN_TAB::update_explain_data(uint idx)
 {
-  if (this == first_breadth_first_tab(join, WALK_OPTIMIZATION_TABS) + join->const_tables &&
+  if (this == join->first_breadth_first_optimization_tab() + join->const_tables &&
       join->select_lex->select_number != INT_MAX &&
       join->select_lex->select_number != UINT_MAX)
   {
     Explain_table_access *eta= new (join->thd->mem_root) Explain_table_access(join->thd->mem_root);
-    JOIN_TAB* const first_top_tab= first_breadth_first_tab(join, WALK_OPTIMIZATION_TABS);
-    save_explain_data(eta, join->const_table_map, join->select_distinct, first_top_tab);
+    save_explain_data(eta, join->const_table_map, join->select_distinct,
+                      join->first_breadth_first_optimization_tab());
 
     Explain_select *sel= join->thd->lex->explain->get_select(join->select_lex->select_number);
     idx -= my_count_bits(join->eliminated_tables);
@@ -24059,7 +24041,7 @@ int JOIN::save_explain_data_intern(Explain_query *output, bool need_tmp_table,
 
     xpl_sel->exec_const_cond= exec_const_cond;
 
-    JOIN_TAB* const first_top_tab= first_breadth_first_tab(join, WALK_OPTIMIZATION_TABS);
+    JOIN_TAB* const first_top_tab= join->first_breadth_first_optimization_tab();
     JOIN_TAB* prev_bush_root_tab= NULL;
 
     Explain_basic_join *cur_parent= xpl_sel;
