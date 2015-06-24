@@ -11336,7 +11336,6 @@ order_clause:
                */
                DBUG_ASSERT(sel->master_unit()->fake_select_lex);
                lex->current_select= sel->master_unit()->fake_select_lex;
-               lex->push_context(&lex->current_select->context, thd->mem_root);
              }
           }
           order_list
