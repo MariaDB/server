@@ -59,27 +59,27 @@ write_escaped_string(IO_CACHE *file, LEX_STRING *val_s)
     */
     switch(*ptr) {
     case '\\': // escape character
-      if (my_b_append(file, (const uchar *)STRING_WITH_LEN("\\\\")))
+      if (my_b_write(file, (const uchar *)STRING_WITH_LEN("\\\\")))
 	return TRUE;
       break;
     case '\n': // parameter value delimiter
-      if (my_b_append(file, (const uchar *)STRING_WITH_LEN("\\n")))
+      if (my_b_write(file, (const uchar *)STRING_WITH_LEN("\\n")))
 	return TRUE;
       break;
     case '\0': // problem for some string processing utilities
-      if (my_b_append(file, (const uchar *)STRING_WITH_LEN("\\0")))
+      if (my_b_write(file, (const uchar *)STRING_WITH_LEN("\\0")))
 	return TRUE;
       break;
     case 26: // problem for windows utilities (Ctrl-Z)
-      if (my_b_append(file, (const uchar *)STRING_WITH_LEN("\\z")))
+      if (my_b_write(file, (const uchar *)STRING_WITH_LEN("\\z")))
 	return TRUE;
       break;
     case '\'': // list of string delimiter
-      if (my_b_append(file, (const uchar *)STRING_WITH_LEN("\\\'")))
+      if (my_b_write(file, (const uchar *)STRING_WITH_LEN("\\\'")))
 	return TRUE;
       break;
     default:
-      if (my_b_append(file, (const uchar *)ptr, 1))
+      if (my_b_write(file, (const uchar *)ptr, 1))
 	return TRUE;
     }
   }
@@ -147,7 +147,7 @@ write_parameter(IO_CACHE *file, uchar* base, File_option *parameter)
   case FILE_OPTIONS_STRING:
   {
     LEX_STRING *val_s= (LEX_STRING *)(base + parameter->offset);
-    if (my_b_append(file, (const uchar *)val_s->str, val_s->length))
+    if (my_b_write(file, (const uchar *)val_s->str, val_s->length))
       DBUG_RETURN(TRUE);
     break;
   }
@@ -166,7 +166,7 @@ write_parameter(IO_CACHE *file, uchar* base, File_option *parameter)
       val= view_algo_to_frm(val);
 
     num.set(val, &my_charset_bin);
-    if (my_b_append(file, (const uchar *)num.ptr(), num.length()))
+    if (my_b_write(file, (const uchar *)num.ptr(), num.length()))
       DBUG_RETURN(TRUE);
     break;
   }
@@ -179,7 +179,7 @@ write_parameter(IO_CACHE *file, uchar* base, File_option *parameter)
     get_date(val_s->str, GETDATE_DATE_TIME|GETDATE_GMT|GETDATE_FIXEDLENGTH,
 	     tm);
     val_s->length= PARSE_FILE_TIMESTAMPLENGTH;
-    if (my_b_append(file, (const uchar *)val_s->str,
+    if (my_b_write(file, (const uchar *)val_s->str,
                     PARSE_FILE_TIMESTAMPLENGTH))
       DBUG_RETURN(TRUE);
     break;
@@ -193,10 +193,10 @@ write_parameter(IO_CACHE *file, uchar* base, File_option *parameter)
     while ((str= it++))
     {
       // We need ' ' after string to detect list continuation
-      if ((!first && my_b_append(file, (const uchar *)STRING_WITH_LEN(" "))) ||
-	  my_b_append(file, (const uchar *)STRING_WITH_LEN("\'")) ||
+      if ((!first && my_b_write(file, (const uchar *)STRING_WITH_LEN(" "))) ||
+	  my_b_write(file, (const uchar *)STRING_WITH_LEN("\'")) ||
           write_escaped_string(file, str) ||
-	  my_b_append(file, (const uchar *)STRING_WITH_LEN("\'")))
+	  my_b_write(file, (const uchar *)STRING_WITH_LEN("\'")))
       {
 	DBUG_RETURN(TRUE);
       }
@@ -214,8 +214,8 @@ write_parameter(IO_CACHE *file, uchar* base, File_option *parameter)
     {
       num.set(*val, &my_charset_bin);
       // We need ' ' after string to detect list continuation
-      if ((!first && my_b_append(file, (const uchar *)STRING_WITH_LEN(" "))) ||
-          my_b_append(file, (const uchar *)num.ptr(), num.length()))
+      if ((!first && my_b_write(file, (const uchar *)STRING_WITH_LEN(" "))) ||
+          my_b_write(file, (const uchar *)num.ptr(), num.length()))
       {
         DBUG_RETURN(TRUE);
       }
@@ -287,23 +287,23 @@ sql_create_definition_file(const LEX_STRING *dir, const LEX_STRING *file_name,
     DBUG_RETURN(TRUE);
   }
 
-  if (init_io_cache(&file, handler, 0, SEQ_READ_APPEND, 0L, 0, MYF(MY_WME)))
+  if (init_io_cache(&file, handler, 0, WRITE_CACHE, 0L, 0, MYF(MY_WME)))
     goto err_w_file;
 
   // write header (file signature)
-  if (my_b_append(&file, (const uchar *)STRING_WITH_LEN("TYPE=")) ||
-      my_b_append(&file, (const uchar *)type->str, type->length) ||
-      my_b_append(&file, (const uchar *)STRING_WITH_LEN("\n")))
+  if (my_b_write(&file, (const uchar *)STRING_WITH_LEN("TYPE=")) ||
+      my_b_write(&file, (const uchar *)type->str, type->length) ||
+      my_b_write(&file, (const uchar *)STRING_WITH_LEN("\n")))
     goto err_w_cache;
 
   // write parameters to temporary file
   for (param= parameters; param->name.str; param++)
   {
-    if (my_b_append(&file, (const uchar *)param->name.str,
+    if (my_b_write(&file, (const uchar *)param->name.str,
                     param->name.length) ||
-	my_b_append(&file, (const uchar *)STRING_WITH_LEN("=")) ||
+	my_b_write(&file, (const uchar *)STRING_WITH_LEN("=")) ||
 	write_parameter(&file, base, param) ||
-	my_b_append(&file, (const uchar *)STRING_WITH_LEN("\n")))
+	my_b_write(&file, (const uchar *)STRING_WITH_LEN("\n")))
       goto err_w_cache;
   }
 
