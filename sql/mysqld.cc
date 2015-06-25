@@ -6278,7 +6278,14 @@ int mysqld_main(int argc, char **argv)
                          (char*) "" : mysqld_unix_port),
                          mysqld_port,
                          MYSQL_COMPILATION_COMMENT);
-  fclose(stdin);
+
+  // try to keep fd=0 busy
+  if (!freopen(IF_WIN("NUL","/dev/null"), "r", stdin))
+  {
+    // fall back on failure
+    fclose(stdin);
+  }
+
 #if defined(_WIN32) && !defined(EMBEDDED_LIBRARY)
   Service.SetRunning();
 #endif
