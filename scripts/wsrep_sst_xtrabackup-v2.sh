@@ -785,6 +785,7 @@ then
                     wsrep_log_info "Cleaning the binlog directory $binlog_dir as well"
                     find $binlog_dir -maxdepth 1 -type f -regex $pattern -exec rm -fv {} 1>&2 \+
                     rm $binlog_dir/*.index || true
+                    rm $binlog_dir/*.state || true
                 fi
             fi
 
@@ -870,7 +871,7 @@ then
             mv $DATA/${BINLOG_FILENAME}.* $BINLOG_DIRNAME/ 2>/dev/null || true
 
             pushd $BINLOG_DIRNAME &>/dev/null
-            for bfiles in $(ls -1 ${BINLOG_FILENAME}.*);do
+            for bfiles in $(ls -1 ${BINLOG_FILENAME}.[0-9]*);do
                 echo ${BINLOG_DIRNAME}/${bfiles} >> ${BINLOG_FILENAME}.index
             done
             popd &> /dev/null
