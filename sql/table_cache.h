@@ -109,7 +109,7 @@ public:
 
   TABLE *free_tables_back()
   {
-    TABLE_list::Iterator it(share->tdc->free_tables);
+    TABLE_list::Iterator it(free_tables);
     TABLE *entry, *last= 0;
      while ((entry= it++))
        last= entry;
