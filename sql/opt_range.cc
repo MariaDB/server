@@ -13455,13 +13455,22 @@ check_group_min_max_predicates(Item *cond, Item_field *min_max_arg_item,
         if (!simple_pred(pred, args, &inv))
           DBUG_RETURN(FALSE);
 
-        if (args[0] && args[1] && !args[2]) // this is a binary function
+        if (args[0] && args[1]) // this is a binary function or BETWEEN
         {
           DBUG_ASSERT(pred->is_bool_type());
           Item_bool_func *bool_func= (Item_bool_func*) pred;
-          if (!bool_func->can_optimize_group_min_max(min_max_arg_item,
-                                                     args[1]))
-            DBUG_RETURN(FALSE);
+          Field *field= min_max_arg_item->field;
+          if (!args[2]) // this is a binary function
+          {
+            if (!field->can_optimize_group_min_max(bool_func, args[1]))
+              DBUG_RETURN(FALSE);
+          }
+          else // this is BETWEEN
+          {
+            if (!field->can_optimize_group_min_max(bool_func, args[1]) ||
+                !field->can_optimize_group_min_max(bool_func, args[2]))
+              DBUG_RETURN(FALSE);
+          }
         }
       }
       else

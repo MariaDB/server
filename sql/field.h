@@ -40,7 +40,7 @@ class Field;
 class Column_statistics;
 class Column_statistics_collected;
 class Item_func;
-class Item_bool_func2;
+class Item_bool_func;
 
 enum enum_check_fields
 {
@@ -986,7 +986,7 @@ public:
   {
     return can_optimize_keypart_ref(cond, item);
   }
-  virtual bool can_optimize_group_min_max(const Item_bool_func2 *cond,
+  virtual bool can_optimize_group_min_max(const Item_bool_func *cond,
                                           const Item *const_item) const;
   bool can_optimize_outer_join_table_elimination(const Item_func *cond,
                                                  const Item *item) const
@@ -1191,7 +1191,7 @@ public:
   bool match_collation_to_optimize_range() const { return true; }
   bool can_optimize_keypart_ref(const Item_func *cond, const Item *item) const;
   bool can_optimize_hash_join(const Item_func *cond, const Item *item) const;
-  bool can_optimize_group_min_max(const Item_bool_func2 *cond,
+  bool can_optimize_group_min_max(const Item_bool_func *cond,
                                   const Item *const_item) const;
 };
 
@@ -1625,7 +1625,7 @@ public:
     DBUG_ASSERT(0);
     return false;
   }
-  bool can_optimize_group_min_max(const Item_bool_func2 *cond,
+  bool can_optimize_group_min_max(const Item_bool_func *cond,
                                   const Item *const_item) const
   {
     DBUG_ASSERT(0);
@@ -1664,7 +1664,7 @@ public:
     return pos_in_interval_val_real(min, max);
   }
   bool can_optimize_keypart_ref(const Item_func *cond, const Item *item) const;
-  bool can_optimize_group_min_max(const Item_bool_func2 *cond,
+  bool can_optimize_group_min_max(const Item_bool_func *cond,
                                   const Item *const_item) const;
 };
 
@@ -2721,7 +2721,7 @@ public:
                               const uchar *from_end, uint param_data);
 
   bool can_optimize_keypart_ref(const Item_func *cond, const Item *item) const;
-  bool can_optimize_group_min_max(const Item_bool_func2 *cond,
+  bool can_optimize_group_min_max(const Item_bool_func *cond,
                                   const Item *const_item) const
   {
     /*

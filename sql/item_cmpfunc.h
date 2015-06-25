@@ -136,11 +136,6 @@ public:
   bool is_bool_type() { return true; }
   void fix_length_and_dec() { decimals=0; max_length=1; }
   uint decimal_precision() const { return 1; }
-  virtual bool can_optimize_group_min_max(Item_field *min_max_arg_item,
-                                          const Item *const_item) const
-  {
-    return false;
-  }
 };
 
 
@@ -337,12 +332,6 @@ public:
   {
     Item_bool_func2::cleanup();
     cmp.cleanup();
-  }
-  bool can_optimize_group_min_max(Item_field *min_max_arg_item,
-                                  const Item *const_item) const
-  {
-    return min_max_arg_item->field->can_optimize_group_min_max(this,
-                                                               const_item);
   }
   void add_key_fields(JOIN *join, KEY_FIELD **key_fields,
                       uint *and_level, table_map usable_tables,

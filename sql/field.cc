@@ -1261,7 +1261,7 @@ bool Field::can_optimize_keypart_ref(const Item_func *cond,
 /*
   This handles all numeric and BIT data types.
 */ 
-bool Field::can_optimize_group_min_max(const Item_bool_func2 *cond,
+bool Field::can_optimize_group_min_max(const Item_bool_func *cond,
                                        const Item *const_item) const
 {
   DBUG_ASSERT(cmp_type() != STRING_RESULT);
@@ -5289,7 +5289,7 @@ bool Field_temporal::can_optimize_keypart_ref(const Item_func *cond,
 }
 
 
-bool Field_temporal::can_optimize_group_min_max(const Item_bool_func2 *cond,
+bool Field_temporal::can_optimize_group_min_max(const Item_bool_func *cond,
                                                 const Item *const_item) const
 {
   return true; // Field is of TIME_RESULT, which supersedes everything else.
@@ -6506,7 +6506,7 @@ bool Field_longstr::can_optimize_hash_join(const Item_func *cond,
 }
 
 
-bool Field_longstr::can_optimize_group_min_max(const Item_bool_func2 *cond,
+bool Field_longstr::can_optimize_group_min_max(const Item_bool_func *cond,
                                                const Item *const_item) const
 {
   /*
