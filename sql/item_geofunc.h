@@ -415,24 +415,28 @@ public:
   void fix_length_and_dec() { maybe_null= 1; }
 };
 
-class Item_func_issimple: public Item_bool_func
+class Item_func_issimple: public Item_int_func
 {
   Gcalc_heap collector;
   Gcalc_function func;
   Gcalc_scan_iterator scan_it;
   String tmp;
 public:
-  Item_func_issimple(Item *a): Item_bool_func(a) {}
+  Item_func_issimple(Item *a): Item_int_func(a) {}
   longlong val_int();
   const char *func_name() const { return "st_issimple"; }
+  void fix_length_and_dec() { decimals=0; max_length=2; }
+  uint decimal_precision() const { return 1; }
 };
 
-class Item_func_isclosed: public Item_bool_func
+class Item_func_isclosed: public Item_int_func
 {
 public:
-  Item_func_isclosed(Item *a): Item_bool_func(a) {}
+  Item_func_isclosed(Item *a): Item_int_func(a) {}
   longlong val_int();
   const char *func_name() const { return "st_isclosed"; }
+  void fix_length_and_dec() { decimals=0; max_length=2; }
+  uint decimal_precision() const { return 1; }
 };
 
 class Item_func_isring: public Item_func_issimple
