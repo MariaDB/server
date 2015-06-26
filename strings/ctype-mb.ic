@@ -256,3 +256,5 @@ MY_FUNCTION_NAME(well_formed_char_length)(CHARSET_INFO *cs __attribute__((unused
   return nchars0 - nchars;
 }
 #endif /* DEFINE_WELL_FORMED_CHAR_LENGTH_USING_CHARLEN */
+
+#undef MY_FUNCTION_NAME
