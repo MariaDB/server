@@ -4427,7 +4427,7 @@ Create_func_relate Create_func_relate::s_singleton;
 Item*
 Create_func_relate::create_3_arg(THD *thd, Item *arg1, Item *arg2, Item *matrix)
 {
-  return new (thd->mem_root) Item_func_spatial_precise_rel(arg1, arg2, matrix);
+  return new (thd->mem_root) Item_func_spatial_relate(arg1, arg2, matrix);
 }
 
 

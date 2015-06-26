@@ -1018,8 +1018,6 @@ const char *Item_func_spatial_precise_rel::func_name() const
       return "st_crosses";
     case SP_OVERLAPS_FUNC:
       return "st_overlaps";
-    case SP_RELATE_FUNC:
-      return "st_relate";
     default:
       DBUG_ASSERT(0);  // Should never happened
       return "sp_unknown"; 
@@ -1142,80 +1140,122 @@ static int setup_relate_func(Geometry *g1, Geometry *g2,
 
 #define GIS_ZERO 0.00000000001
 
+class Geometry_ptr_with_buffer_and_mbr
+{
+public:
+  Geometry *geom;
+  Geometry_buffer buffer;
+  MBR mbr;
+  bool construct(Item *item, String *tmp_value)
+  {
+    const char *c_end;
+    String *res= item->val_str(tmp_value);
+    return
+      item->null_value ||
+      !(geom= Geometry::construct(&buffer, res->ptr(), res->length())) ||
+      geom->get_mbr(&mbr, &c_end) || !mbr.valid();
+  }
+  int store_shapes(Gcalc_shape_transporter *trn) const
+  { return geom->store_shapes(trn); }
+};
+
+
+longlong Item_func_spatial_relate::val_int()
+{
+  DBUG_ENTER("Item_func_spatial_relate::val_int");
+  DBUG_ASSERT(fixed == 1);
+  Geometry_ptr_with_buffer_and_mbr g1, g2;
+  int result= 0;
+
+  if ((null_value= (g1.construct(args[0], &tmp_value1) ||
+                    g2.construct(args[1], &tmp_value2) ||
+                    func.reserve_op_buffer(1))))
+    DBUG_RETURN(0);
+
+  MBR umbr(g1.mbr, g2.mbr);
+  collector.set_extent(umbr.xmin, umbr.xmax, umbr.ymin, umbr.ymax);
+  g1.mbr.buffer(1e-5);
+  Gcalc_operation_transporter trn(&func, &collector);
+
+  String *matrix= args[2]->val_str(&tmp_matrix);
+  if ((null_value= args[2]->null_value || matrix->length() != 9 ||
+                   setup_relate_func(g1.geom, g2.geom,
+                                     &trn, &func, matrix->ptr())))
+    goto exit;
+
+  collector.prepare_operation();
+  scan_it.init(&collector);
+  scan_it.killed= (int *) &(current_thd->killed);
+  if (!func.alloc_states())
+    result= func.check_function(scan_it);
+
+exit:
+  collector.reset();
+  func.reset();
+  scan_it.reset();
+  DBUG_RETURN(result);
+}
+
+
 longlong Item_func_spatial_precise_rel::val_int()
 {
   DBUG_ENTER("Item_func_spatial_precise_rel::val_int");
   DBUG_ASSERT(fixed == 1);
-  String *res1;
-  String *res2;
-  String *res3;
-  Geometry_buffer buffer1, buffer2;
-  Geometry *g1, *g2;
+  Geometry_ptr_with_buffer_and_mbr g1, g2;
   int result= 0;
   uint shape_a, shape_b;
-  MBR umbr, mbr1, mbr2;
-  const char *c_end;
 
-  res1= args[0]->val_str(&tmp_value1);
-  res2= args[1]->val_str(&tmp_value2);
-  Gcalc_operation_transporter trn(&func, &collector);
-
-  if (func.reserve_op_buffer(1))
+  if ((null_value= (g1.construct(args[0], &tmp_value1) ||
+                    g2.construct(args[1], &tmp_value2) ||
+                    func.reserve_op_buffer(1))))
     DBUG_RETURN(0);
 
-  if ((null_value=
-       (args[0]->null_value || args[1]->null_value ||
-	!(g1= Geometry::construct(&buffer1, res1->ptr(), res1->length())) ||
-	!(g2= Geometry::construct(&buffer2, res2->ptr(), res2->length())) ||
-        g1->get_mbr(&mbr1, &c_end) || !mbr1.valid() ||
-        g2->get_mbr(&mbr2, &c_end) || !mbr2.valid())))
-    goto exit;
+  Gcalc_operation_transporter trn(&func, &collector);
 
-  umbr= mbr1;
-  umbr.add_mbr(&mbr2);
+  MBR umbr(g1.mbr, g2.mbr);
   collector.set_extent(umbr.xmin, umbr.xmax, umbr.ymin, umbr.ymax);
 
-  mbr1.buffer(1e-5);
+  g1.mbr.buffer(1e-5);
 
   switch (spatial_rel) {
     case SP_CONTAINS_FUNC:
-      if (!mbr1.contains(&mbr2))
+      if (!g1.mbr.contains(&g2.mbr))
         goto exit;
       func.add_operation(Gcalc_function::v_find_f |
                          Gcalc_function::op_not |
                          Gcalc_function::op_difference, 2);
       /* Mind the g2 goes first. */
-      null_value= g2->store_shapes(&trn) || g1->store_shapes(&trn);
+      null_value= g2.store_shapes(&trn) || g1.store_shapes(&trn);
       break;
     case SP_WITHIN_FUNC:
-      mbr2.buffer(2e-5);
-      if (!mbr1.within(&mbr2))
+      g2.mbr.buffer(2e-5);
+      if (!g1.mbr.within(&g2.mbr))
         goto exit;
       func.add_operation(Gcalc_function::v_find_f |
                          Gcalc_function::op_not |
                          Gcalc_function::op_difference, 2);
-      null_value= g1->store_shapes(&trn) || g2->store_shapes(&trn);
+      null_value= g1.store_shapes(&trn) || g2.store_shapes(&trn);
       break;
     case SP_EQUALS_FUNC:
-      if (!mbr1.contains(&mbr2))
+      if (!g1.mbr.contains(&g2.mbr))
         goto exit;
       func.add_operation(Gcalc_function::v_find_f |
                          Gcalc_function::op_not |
                          Gcalc_function::op_symdifference, 2);
-      null_value= g1->store_shapes(&trn) || g2->store_shapes(&trn);
+      null_value= g1.store_shapes(&trn) || g2.store_shapes(&trn);
       break;
     case SP_DISJOINT_FUNC:
       func.add_operation(Gcalc_function::v_find_f |
                          Gcalc_function::op_not |
                          Gcalc_function::op_intersection, 2);
-      null_value= g1->store_shapes(&trn) || g2->store_shapes(&trn);
+      null_value= g1.store_shapes(&trn) || g2.store_shapes(&trn);
       break;
     case SP_INTERSECTS_FUNC:
-      if (!mbr1.intersects(&mbr2))
+      if (!g1.mbr.intersects(&g2.mbr))
         goto exit;
       func.add_operation(Gcalc_function::v_find_t |
                          Gcalc_function::op_intersection, 2);
-      null_value= g1->store_shapes(&trn) || g2->store_shapes(&trn);
+      null_value= g1.store_shapes(&trn) || g2.store_shapes(&trn);
       break;
     case SP_OVERLAPS_FUNC:
     case SP_CROSSES_FUNC:
@@ -1225,10 +1265,10 @@ longlong Item_func_spatial_precise_rel::val_int()
       func.add_operation(Gcalc_function::v_find_t |
                          Gcalc_function::op_intersection, 2);
       shape_a= func.get_next_expression_pos();
-      if ((null_value= g1->store_shapes(&trn)))
+      if ((null_value= g1.store_shapes(&trn)))
         break;
       shape_b= func.get_next_expression_pos();
-      if ((null_value= g2->store_shapes(&trn)))
+      if ((null_value= g2.store_shapes(&trn)))
         break;
       if (func.reserve_op_buffer(7))
         break;
@@ -1251,23 +1291,16 @@ longlong Item_func_spatial_precise_rel::val_int()
                          Gcalc_function::op_intersection, 2);
       func.add_operation(Gcalc_function::op_internals, 1);
       shape_a= func.get_next_expression_pos();
-      if ((null_value= g1->store_shapes(&trn)))
+      if ((null_value= g1.store_shapes(&trn)))
         break;
       func.add_operation(Gcalc_function::op_internals, 1);
       shape_b= func.get_next_expression_pos();
-      if ((null_value= g2->store_shapes(&trn)))
+      if ((null_value= g2.store_shapes(&trn)))
         break;
       func.add_operation(Gcalc_function::v_find_t |
                          Gcalc_function::op_intersection, 2);
       func.repeat_expression(shape_a);
       func.repeat_expression(shape_b);
-      break;
-    case SP_RELATE_FUNC:
-      res3= args[2]->val_str(&tmp_matrix);
-      if ((null_value= args[2]->null_value))
-        break;
-      null_value= (res3->length() != 9) ||
-        setup_relate_func(g1, g2, &trn, &func, res3->ptr());
       break;
     default:
       DBUG_ASSERT(FALSE);
@@ -1303,34 +1336,25 @@ String *Item_func_spatial_operation::val_str(String *str_value)
 {
   DBUG_ENTER("Item_func_spatial_operation::val_str");
   DBUG_ASSERT(fixed == 1);
-  String *res1= args[0]->val_str(&tmp_value1);
-  String *res2= args[1]->val_str(&tmp_value2);
-  Geometry_buffer buffer1, buffer2;
-  Geometry *g1, *g2;
+  Geometry_ptr_with_buffer_and_mbr g1, g2;
   uint32 srid= 0;
   Gcalc_operation_transporter trn(&func, &collector);
-  MBR mbr1, mbr2;
-  const char *c_end;
 
   if (func.reserve_op_buffer(1))
     DBUG_RETURN(0);
   func.add_operation(spatial_op, 2);
 
-  if ((null_value=
-       (args[0]->null_value || args[1]->null_value ||
-	!(g1= Geometry::construct(&buffer1, res1->ptr(), res1->length())) ||
-	!(g2= Geometry::construct(&buffer2, res2->ptr(), res2->length())) ||
-        g1->get_mbr(&mbr1, &c_end) || !mbr1.valid() ||
-        g2->get_mbr(&mbr2, &c_end) || !mbr2.valid())))
+  if ((null_value= (g1.construct(args[0], &tmp_value1) ||
+                    g2.construct(args[1], &tmp_value2))))
   {
     str_value= 0;
     goto exit;
   }
 
-  mbr1.add_mbr(&mbr2);
-  collector.set_extent(mbr1.xmin, mbr1.xmax, mbr1.ymin, mbr1.ymax);
+  g1.mbr.add_mbr(&g2.mbr);
+  collector.set_extent(g1.mbr.xmin, g1.mbr.xmax, g1.mbr.ymin, g1.mbr.ymax);
   
-  if ((null_value= g1->store_shapes(&trn) || g2->store_shapes(&trn)))
+  if ((null_value= g1.store_shapes(&trn) || g2.store_shapes(&trn)))
   {
     str_value= 0;
     goto exit;
@@ -1353,7 +1377,7 @@ String *Item_func_spatial_operation::val_str(String *str_value)
   str_value->length(0);
   str_value->q_append(srid);
 
-  if (!Geometry::create_from_opresult(&buffer1, str_value, res_receiver))
+  if (!Geometry::create_from_opresult(&g1.buffer, str_value, res_receiver))
     goto exit;
 
 exit:

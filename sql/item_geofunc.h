@@ -281,9 +281,6 @@ public:
   Item_func_spatial_rel(Item *a, Item *b, enum Functype sp_rel)
    :Item_bool_func(a, b), spatial_rel(sp_rel)
   { }
-  Item_func_spatial_rel(Item *a, Item *b, Item *c, enum Functype sp_rel)
-   :Item_bool_func(a, b, c), spatial_rel(sp_rel)
-  { }
   enum Functype functype() const { return spatial_rel; }
   enum Functype rev_functype() const { return spatial_rel; }
   bool is_null() { (void) val_int(); return null_value; }
@@ -314,16 +311,27 @@ class Item_func_spatial_precise_rel: public Item_func_spatial_rel
   Gcalc_heap collector;
   Gcalc_scan_iterator scan_it;
   Gcalc_function func;
-  String tmp_matrix;
 public:
   Item_func_spatial_precise_rel(Item *a, Item *b, enum Functype sp_rel)
    :Item_func_spatial_rel(a, b, sp_rel), collector()
   { }
-  Item_func_spatial_precise_rel(Item *a, Item *b, Item *matrix)
-   :Item_func_spatial_rel(a, b, matrix, SP_RELATE_FUNC)
-  { }
   longlong val_int();
   const char *func_name() const;
+};
+
+
+class Item_func_spatial_relate: public Item_bool_func
+{
+  Gcalc_heap collector;
+  Gcalc_scan_iterator scan_it;
+  Gcalc_function func;
+  String tmp_value1, tmp_value2, tmp_matrix;
+public:
+  Item_func_spatial_relate(Item *a, Item *b, Item *matrix)
+   :Item_bool_func(a, b, matrix)
+  { }
+  longlong val_int();
+  const char *func_name() const { return "st_relate"; }
 };
 
 
