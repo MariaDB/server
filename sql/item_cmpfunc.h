@@ -288,7 +288,7 @@ class Item_bool_func2 :public Item_bool_func
 {                                              /* Bool with 2 string args */
 public:
   Item_bool_func2(Item *a,Item *b)
-    :Item_bool_func(a,b) { sargable= TRUE; }
+    :Item_bool_func(a,b) { }
   optimize_type select_optimize() const { return OPTIMIZE_OP; }
   virtual enum Functype rev_functype() const { return UNKNOWN_FUNC; }
   bool have_rev_func() const { return rev_functype() != UNKNOWN_FUNC; }
@@ -301,7 +301,7 @@ public:
   bool is_null() { return MY_TEST(args[0]->is_null() || args[1]->is_null()); }
   COND *remove_eq_conds(THD *thd, Item::cond_result *cond_value,
                         bool top_level);
-
+  bool count_sargable_conds(uchar *arg);
 };
 
 class Item_bool_rowready_func2 :public Item_bool_func2
@@ -636,7 +636,7 @@ public:
   /* TRUE <=> arguments will be compared as dates. */
   Item *compare_as_dates;
   Item_func_between(Item *a, Item *b, Item *c)
-    :Item_func_opt_neg(a, b, c), compare_as_dates(FALSE) { sargable= TRUE; }
+    :Item_func_opt_neg(a, b, c), compare_as_dates(FALSE) { }
   longlong val_int();
   optimize_type select_optimize() const { return OPTIMIZE_KEY; }
   enum Functype functype() const   { return BETWEEN; }
@@ -1311,7 +1311,6 @@ public:
   {
     bzero(&cmp_items, sizeof(cmp_items));
     allowed_arg_cols= 0;  // Fetch this value from first argument
-    sargable= TRUE;
   }
   longlong val_int();
   bool fix_fields(THD *, Item **);
@@ -1342,6 +1341,7 @@ public:
   CHARSET_INFO *compare_collation() const { return cmp_collation.collation; }
   bool eval_not_null_tables(uchar *opt_arg);
   void fix_after_pullout(st_select_lex *new_parent, Item **ref);
+  bool count_sargable_conds(uchar *arg);
 };
 
 class cmp_item_row :public cmp_item
@@ -1377,13 +1377,14 @@ public:
 class Item_func_null_predicate :public Item_bool_func
 {
 public:
-  Item_func_null_predicate(Item *a) :Item_bool_func(a) { sargable= true; }
+  Item_func_null_predicate(Item *a) :Item_bool_func(a) { }
   optimize_type select_optimize() const { return OPTIMIZE_NULL; }
   void add_key_fields(JOIN *join, KEY_FIELD **key_fields, uint *and_level,
                       table_map usable_tables, SARGABLE_PARAM **sargables);
   CHARSET_INFO *compare_collation() const
   { return args[0]->collation.collation; }
   void fix_length_and_dec() { decimals=0; max_length=1; maybe_null=0; }
+  bool count_sargable_conds(uchar *arg);
 };
 
 

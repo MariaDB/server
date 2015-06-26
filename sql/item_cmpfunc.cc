@@ -3827,6 +3827,13 @@ cmp_item *cmp_item_datetime::make_same()
 }
 
 
+bool Item_func_in::count_sargable_conds(uchar *arg)
+{
+  ((SELECT_LEX*) arg)->cond_count++;
+  return 0;
+}
+
+
 bool Item_func_in::nulls_in_row()
 {
   Item **arg,**arg_end;
@@ -4729,6 +4736,13 @@ Item *and_expressions(Item *a, Item *b, Item **org_item)
 }
 
 
+bool Item_func_null_predicate::count_sargable_conds(uchar *arg)
+{
+  ((SELECT_LEX*) arg)->cond_count++;
+  return 0;
+}
+
+
 longlong Item_func_isnull::val_int()
 {
   DBUG_ASSERT(fixed == 1);
@@ -4778,6 +4792,13 @@ void Item_func_isnotnull::print(String *str, enum_query_type query_type)
   str->append('(');
   args[0]->print(str, query_type);
   str->append(STRING_WITH_LEN(" is not null)"));
+}
+
+
+bool Item_bool_func2::count_sargable_conds(uchar *arg)
+{
+  ((SELECT_LEX*) arg)->cond_count++;
+  return 0;
 }
 
 
@@ -5638,7 +5659,6 @@ Item_equal::Item_equal(THD *thd_arg, Item *f1, Item *f2, bool with_const_item)
   equal_items.push_back(f2, thd_arg->mem_root);
   compare_as_dates= with_const_item && f2->cmp_type() == TIME_RESULT;
   upper_levels= NULL;
-  sargable= TRUE; 
 }
 
 
@@ -5669,7 +5689,6 @@ Item_equal::Item_equal(THD *thd_arg, Item_equal *item_equal)
   compare_as_dates= item_equal->compare_as_dates;
   cond_false= item_equal->cond_false;
   upper_levels= item_equal->upper_levels;
-  sargable= TRUE;
 }
 
 
