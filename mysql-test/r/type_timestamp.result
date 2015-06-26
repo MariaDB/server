@@ -787,5 +787,18 @@ SET sql_mode=DEFAULT;
 # End of MDEV-7824 [Bug #68041] Zero date can be inserted in strict no-zero mode through a default value
 #
 #
+# MDEV-8373 Zero date can be inserted in strict no-zero mode through CREATE TABLE AS SELECT timestamp_field
+#
+SET sql_mode=DEFAULT;
+CREATE TABLE t1 (a TIMESTAMP);;
+INSERT INTO t1 VALUES (0);
+SET sql_mode='TRADITIONAL';
+CREATE TABLE t2 AS SELECT * FROM t1;
+ERROR 22007: Incorrect datetime value: '0000-00-00 00:00:00' for column 'a' at row 1
+DROP TABLE t1;
+#
+# End of MDEV-8373 Zero date can be inserted in strict no-zero mode through CREATE TABLE AS SELECT timestamp_field
+#
+#
 # End of 10.1 tests
 #
