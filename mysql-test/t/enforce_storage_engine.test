@@ -69,5 +69,18 @@ CREATE TABLE t1 (c1 INT PRIMARY KEY AUTO_INCREMENT, c2 VARCHAR(10));
 SHOW CREATE TABLE t1;
 DROP TABLE t1;
 
---error 1228
+SET GLOBAL enforce_storage_engine=Memory;
+SET SESSION sql_mode='';
+
+connect (con1,localhost,root,,);
+connection con1;
+select @@session.enforce_storage_engine;
+select @@global.enforce_storage_engine;
+CREATE TABLE t1 (c1 INT PRIMARY KEY AUTO_INCREMENT, c2 VARCHAR(10));
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+connection default;
+disconnect con1;
+
+SET SESSION enforce_storage_engine=NULL;
 SET GLOBAL enforce_storage_engine=NULL;

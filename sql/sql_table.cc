@@ -9772,7 +9772,8 @@ static bool check_engine(THD *thd, const char *db_name,
   DBUG_ENTER("check_engine");
   handlerton **new_engine= &create_info->db_type;
   handlerton *req_engine= *new_engine;
-  handlerton *enf_engine= thd->variables.enforced_table_plugin ?  plugin_hton(thd->variables.enforced_table_plugin) : NULL;
+  handlerton *enf_engine= thd->variables.enforced_table_plugin ?
+    plugin_hton(thd->variables.enforced_table_plugin) : NULL;
   bool no_substitution= thd->variables.sql_mode & MODE_NO_ENGINE_SUBSTITUTION;
   *new_engine= ha_checktype(thd, req_engine, no_substitution);
   DBUG_ASSERT(*new_engine);
