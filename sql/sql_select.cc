@@ -12566,7 +12566,7 @@ static bool check_simple_equality(THD *thd, Item *left_item, Item *right_item,
           Item_func_eq *eq_item;
           if (!(eq_item= new (thd->mem_root) Item_func_eq(orig_left_item,
                                                           orig_right_item)) ||
-              eq_item->set_cmp_func())
+              eq_item->set_cmp_func_and_arg_cmp_context())
             return FALSE;
           eq_item->quick_fix_field();
           item= eq_item;
@@ -12660,7 +12660,7 @@ static bool check_row_equality(THD *thd, Item *left_row, Item_row *right_row,
     {
       Item_func_eq *eq_item;
       if (!(eq_item= new Item_func_eq(left_item, right_item)) ||
-          eq_item->set_cmp_func())
+          eq_item->set_cmp_func_and_arg_cmp_context())
         return FALSE;
       eq_item->quick_fix_field();
       eq_list->push_back(eq_item);

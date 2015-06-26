@@ -325,6 +325,14 @@ public:
   {
     return cmp.set_cmp_func(this, tmp_arg, tmp_arg + 1, true);
   }
+  bool set_cmp_func_and_arg_cmp_context()
+  {
+    if (set_cmp_func())
+      return true;
+    tmp_arg[0]->cmp_context= tmp_arg[1]->cmp_context=
+      item_cmp_type(tmp_arg[0]->result_type(), tmp_arg[1]->result_type());
+    return false;
+  }
   CHARSET_INFO *compare_collation() const
   { return cmp.cmp_collation.collation; }
   Arg_comparator *get_comparator() { return &cmp; }
