@@ -4616,11 +4616,12 @@ Field_timestamp::Field_timestamp(uchar *ptr_arg, uint32 len_arg,
 }
 
 
-my_time_t Field_timestamp::get_timestamp(ulong *sec_part) const
+my_time_t Field_timestamp::get_timestamp(const uchar *pos,
+                                         ulong *sec_part) const
 {
   ASSERT_COLUMN_MARKED_FOR_READ;
   *sec_part= 0;
-  return sint4korr(ptr);
+  return sint4korr(pos);
 }
 
 
@@ -4832,6 +4833,16 @@ String *Field_timestamp::val_str(String *val_buffer, String *val_ptr)
 }
 
 
+bool
+Field_timestamp::validate_value_in_record(THD *thd, const uchar *record) const
+{
+  DBUG_ASSERT(!is_null_in_record(record));
+  ulong sec_part;
+  return !get_timestamp(ptr_in_record(record), &sec_part) && !sec_part &&
+         (sql_mode_for_dates(thd) & TIME_NO_ZERO_DATE) != 0;
+}
+
+
 bool Field_timestamp::get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
 {
   THD *thd= get_thd();
@@ -5014,11 +5025,12 @@ void Field_timestamp_hires::store_TIME(my_time_t timestamp, ulong sec_part)
   store_bigendian(sec_part_shift(sec_part, dec), ptr+4, sec_part_bytes[dec]);
 }
 
-my_time_t Field_timestamp_hires::get_timestamp(ulong *sec_part) const
+my_time_t Field_timestamp_hires::get_timestamp(const uchar *pos,
+                                               ulong *sec_part) const
 {
   ASSERT_COLUMN_MARKED_FOR_READ;
-  *sec_part= (long)sec_part_unshift(read_bigendian(ptr+4, sec_part_bytes[dec]), dec);
-  return mi_uint4korr(ptr);
+  *sec_part= (long)sec_part_unshift(read_bigendian(pos+4, sec_part_bytes[dec]), dec);
+  return mi_uint4korr(pos);
 }
 
 double Field_timestamp_with_dec::val_real(void)
@@ -5118,10 +5130,11 @@ void Field_timestampf::store_TIME(my_time_t timestamp, ulong sec_part)
 }
 
 
-my_time_t Field_timestampf::get_timestamp(ulong *sec_part) const
+my_time_t Field_timestampf::get_timestamp(const uchar *pos,
+                                          ulong *sec_part) const
 {
   struct timeval tm;
-  my_timestamp_from_binary(&tm, ptr, dec);
+  my_timestamp_from_binary(&tm, pos, dec);
   *sec_part= tm.tv_usec;
   return tm.tv_sec;
 }
@@ -5269,6 +5282,17 @@ int Field_temporal_with_date::store_time_dec(MYSQL_TIME *ltime, uint dec)
 store:
   return store_TIME_with_warning(&l_time, &str, error, have_smth_to_conv);
 }
+
+
+bool
+Field_temporal_with_date::validate_value_in_record(THD *thd,
+                                                   const uchar *record) const
+{
+  DBUG_ASSERT(!is_null_in_record(record));
+  MYSQL_TIME ltime;
+  return get_TIME(&ltime, ptr_in_record(record), sql_mode_for_dates(thd));
+}
+
 
 my_decimal *Field_temporal::val_decimal(my_decimal *d)
 {
@@ -5865,18 +5889,25 @@ longlong Field_date::val_int(void)
 }
 
 
+bool Field_date::get_TIME(MYSQL_TIME *ltime, const uchar *pos,
+                          ulonglong fuzzydate) const
+{
+  ASSERT_COLUMN_MARKED_FOR_READ;
+  int32 tmp= sint4korr(pos);
+  ltime->year= (int) ((uint32) tmp/10000L % 10000);
+  ltime->month= (int) ((uint32) tmp/100 % 100);
+  ltime->day= (int) ((uint32) tmp % 100);
+  ltime->time_type= MYSQL_TIMESTAMP_DATE;
+  ltime->hour= ltime->minute= ltime->second= ltime->second_part= ltime->neg= 0;
+  return validate_MMDD(tmp, ltime->month, ltime->day, fuzzydate);
+}
+
+
 String *Field_date::val_str(String *val_buffer,
 			    String *val_ptr __attribute__((unused)))
 {
-  ASSERT_COLUMN_MARKED_FOR_READ;
   MYSQL_TIME ltime;
-  int32 tmp;
-  tmp=sint4korr(ptr);
-  ltime.neg= 0;
-  ltime.year= (int) ((uint32) tmp/10000L % 10000);
-  ltime.month= (int) ((uint32) tmp/100 % 100);
-  ltime.day= (int) ((uint32) tmp % 100);
-
+  get_TIME(&ltime, ptr, 0);
   val_buffer->alloc(MAX_DATE_STRING_REP_LENGTH);
   uint length= (uint) my_date_to_str(&ltime,
                                      const_cast<char*>(val_buffer->ptr()));
@@ -5977,15 +6008,17 @@ String *Field_newdate::val_str(String *val_buffer,
 }
 
 
-bool Field_newdate::get_date(MYSQL_TIME *ltime,ulonglong fuzzydate)
+bool Field_newdate::get_TIME(MYSQL_TIME *ltime, const uchar *pos,
+                             ulonglong fuzzydate) const
 {
-  uint32 tmp=(uint32) uint3korr(ptr);
+  ASSERT_COLUMN_MARKED_FOR_READ;
+  uint32 tmp=(uint32) uint3korr(pos);
   ltime->day=   tmp & 31;
   ltime->month= (tmp >> 5) & 15;
   ltime->year=  (tmp >> 9);
   ltime->time_type= MYSQL_TIMESTAMP_DATE;
   ltime->hour= ltime->minute= ltime->second= ltime->second_part= ltime->neg= 0;
-  return validate_for_get_date(tmp, ltime, fuzzydate);
+  return validate_MMDD(tmp, ltime->month, ltime->day, fuzzydate);
 }
 
 
@@ -6093,9 +6126,11 @@ String *Field_datetime::val_str(String *val_buffer,
   return val_buffer;
 }
 
-bool Field_datetime::get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
+bool Field_datetime::get_TIME(MYSQL_TIME *ltime, const uchar *pos,
+                              ulonglong fuzzydate) const
 {
-  longlong tmp=Field_datetime::val_int();
+  ASSERT_COLUMN_MARKED_FOR_READ;
+  longlong tmp= sint8korr(pos);
   uint32 part1,part2;
   part1=(uint32) (tmp/1000000LL);
   part2=(uint32) (tmp - (ulonglong) part1*1000000LL);
@@ -6109,8 +6144,9 @@ bool Field_datetime::get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
   ltime->day=		(int) (part1%100);
   ltime->month= 	(int) (part1/100%100);
   ltime->year= 		(int) (part1/10000);
-  return validate_for_get_date(tmp, ltime, fuzzydate);
+  return validate_MMDD(tmp, ltime->month, ltime->day, fuzzydate);
 }
+
 
 int Field_datetime::cmp(const uchar *a_ptr, const uchar *b_ptr)
 {
@@ -6223,12 +6259,16 @@ String *Field_datetime_with_dec::val_str(String *str,
   return str;
 }
 
-bool Field_datetime_hires::get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
+
+bool Field_datetime_hires::get_TIME(MYSQL_TIME *ltime, const uchar *pos,
+                                    ulonglong fuzzydate) const
 {
-  ulonglong packed= read_bigendian(ptr, Field_datetime_hires::pack_length());
+  ASSERT_COLUMN_MARKED_FOR_READ;
+  ulonglong packed= read_bigendian(pos, Field_datetime_hires::pack_length());
   unpack_time(sec_part_unshift(packed, dec), ltime);
-  return validate_for_get_date(packed, ltime, fuzzydate);
+  return validate_MMDD(packed, ltime->month, ltime->day, fuzzydate);
 }
+
 
 uint32 Field_datetime_hires::pack_length() const
 {
@@ -6266,13 +6306,14 @@ void Field_datetimef::store_TIME(MYSQL_TIME *ltime)
   my_datetime_packed_to_binary(tmp, ptr, dec);
 }
 
-bool Field_datetimef::get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
+bool Field_datetimef::get_TIME(MYSQL_TIME *ltime, const uchar *pos,
+                               ulonglong fuzzydate) const
 {
-  longlong tmp= my_datetime_packed_from_binary(ptr, dec);
+  ASSERT_COLUMN_MARKED_FOR_READ;
+  longlong tmp= my_datetime_packed_from_binary(pos, dec);
   TIME_from_longlong_datetime_packed(ltime, tmp);
-  return validate_for_get_date(tmp, ltime, fuzzydate);
+  return validate_MMDD(tmp, ltime->month, ltime->day, fuzzydate);
 }
-
 
 /****************************************************************************
 ** string type
@@ -10267,4 +10308,23 @@ void Field::set_explicit_default(Item *value)
       !((Item_default_value*)value)->arg)
     return;
   set_has_explicit_value();
+}
+
+
+bool Field::validate_value_in_record_with_warn(THD *thd, const uchar *record)
+{
+  my_bitmap_map *old_map= dbug_tmp_use_all_columns(table, table->read_set);
+  bool rc;
+  if ((rc= validate_value_in_record(thd, record)))
+  {
+    // Get and report val_str() for the DEFAULT value
+    StringBuffer<MAX_FIELD_WIDTH> tmp;
+    val_str(&tmp, ptr_in_record(record));
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                        ER_INVALID_DEFAULT_VALUE_FOR_FIELD,
+                        ER(ER_INVALID_DEFAULT_VALUE_FOR_FIELD),
+                        ErrConvString(&tmp).ptr(), field_name);
+  }
+  dbug_tmp_restore_column_map(table->read_set, old_map);
+  return rc;
 }

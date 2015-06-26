@@ -872,10 +872,29 @@ bool mysql_insert(THD *thd,TABLE_LIST *table_list,
 
   table->reset_default_fields();
 
+  if (fields.elements || !value_count)
+  {
+    /*
+      There are possibly some default values:
+      INSERT INTO t1 (fields) VALUES ...
+      INSERT INTO t1 VALUES ()
+    */
+    if (table->validate_default_values_of_unset_fields(thd))
+    {
+      error= 1;
+      goto values_loop_end;
+    }
+  }
+
   while ((values= its++))
   {
     if (fields.elements || !value_count)
     {
+      /*
+        There are possibly some default values:
+        INSERT INTO t1 (fields) VALUES ...
+        INSERT INTO t1 VALUES ()
+      */
       restore_record(table,s->default_values);	// Get empty record
       if (fill_record_n_invoke_before_triggers(thd, table, fields, *values, 0,
                                                TRG_EVENT_INSERT))
@@ -896,6 +915,10 @@ bool mysql_insert(THD *thd,TABLE_LIST *table_list,
     }
     else
     {
+      /*
+        No field list, all fields are set explicitly:
+        INSERT INTO t1 VALUES (values)
+      */
       if (thd->lex->used_tables)		      // Column used in values()
 	restore_record(table,s->default_values);	// Get empty record
       else
@@ -967,6 +990,7 @@ bool mysql_insert(THD *thd,TABLE_LIST *table_list,
     thd->get_stmt_da()->inc_current_row_for_warning();
   }
 
+values_loop_end:
   free_underlaid_joins(thd, &thd->lex->select_lex);
   joins_freed= TRUE;
 
@@ -3555,6 +3579,8 @@ int select_insert::prepare2(void)
       thd->locked_tables_mode <= LTM_LOCK_TABLES &&
       !thd->lex->describe)
     table->file->ha_start_bulk_insert((ha_rows) 0);
+  if (table->validate_default_values_of_unset_fields(thd))
+    DBUG_RETURN(1);
   DBUG_RETURN(0);
 }
 

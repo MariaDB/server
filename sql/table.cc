@@ -6896,6 +6896,48 @@ bool TABLE::prepare_triggers_for_update_stmt_or_event()
   return FALSE;
 }
 
+
+/**
+  Validates default value of fields which are not specified in
+  the column list of INSERT/LOAD statement.
+
+  @Note s->default_values should be properly populated
+        before calling this function.
+
+  @param thd              thread context
+  @param record           the record to check values in
+
+  @return
+    @retval false Success.
+    @retval true  Failure.
+*/
+
+bool TABLE::validate_default_values_of_unset_fields(THD *thd) const
+{
+  DBUG_ENTER("TABLE::validate_default_values_of_unset_fields");
+  for (Field **fld= field; *fld; fld++)
+  {
+    if (!bitmap_is_set(write_set, (*fld)->field_index) &&
+        !((*fld)->flags & NO_DEFAULT_VALUE_FLAG))
+    {
+      if (!(*fld)->is_null_in_record(s->default_values) &&
+          (*fld)->validate_value_in_record_with_warn(thd, s->default_values) &&
+          thd->is_error())
+      {
+        /*
+          We're here if:
+          - validate_value_in_record_with_warn() failed and
+            strict mode converted WARN to ERROR
+          - or the connection was killed, or closed unexpectedly
+        */
+        DBUG_RETURN(true);
+      }
+    }
+  }
+  DBUG_RETURN(false);
+}
+
+
 /*
   @brief Reset const_table flag
 

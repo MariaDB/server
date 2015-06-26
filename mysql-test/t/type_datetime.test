@@ -613,3 +613,15 @@ DROP TABLE t1,t2;
 --echo #
 --echo # End of 5.5 tests
 --echo #
+
+--echo #
+--echo # Start of 10.1 tests
+--echo #
+
+let type=DATETIME;
+let defval='0000-00-00 00:00:00';
+--source include/type_temporal_zero_default.inc
+
+--echo #
+--echo # End of 10.1 tests
+--echo #

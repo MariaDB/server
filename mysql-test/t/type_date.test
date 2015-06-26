@@ -385,3 +385,14 @@ select 1 from t1 as t1_0 inner join t1 as t2 on (t1_0.a <=> now()) join t1 on 1;
 select 1 from t1 as t1_0 inner join t1 as t2 on (t1_0.a <=> now()) join t1 on 1;
 drop table t1;
 
+--echo #
+--echo # Start of 10.1 tests
+--echo #
+
+let type=DATE;
+let defval='0000-00-00';
+--source include/type_temporal_zero_default.inc
+
+--echo #
+--echo # End of 10.1 tests
+--echo #

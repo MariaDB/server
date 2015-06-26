@@ -7127,3 +7127,5 @@ ER_ROLE_DROP_EXISTS
         eng "Can't drop role '%-.64s'; it doesn't exist"
 ER_CANNOT_CONVERT_CHARACTER
         eng "Cannot convert '%s' character 0x%-.64s to '%s'"
+ER_INVALID_DEFAULT_VALUE_FOR_FIELD  22007
+        eng "Incorrect default value '%-.128s' for column '%.192s'"

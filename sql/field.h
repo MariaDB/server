@@ -518,6 +518,11 @@ public:
 
   virtual int reset(void) { bzero(ptr,pack_length()); return 0; }
   virtual void reset_fields() {}
+  const uchar *ptr_in_record(const uchar *record) const
+  {
+    my_ptrdiff_t l_offset= (my_ptrdiff_t) (record -  table->record[0]);
+    return ptr + l_offset;
+  }
   virtual void set_default()
   {
     my_ptrdiff_t l_offset= (my_ptrdiff_t) (table->s->default_values -
@@ -964,6 +969,15 @@ public:
     flags |= (column_format_arg << FIELD_FLAGS_COLUMN_FORMAT);
   }
 
+  /*
+    Validate a non-null field value stored in the given record
+    according to the current thread settings, e.g. sql_mode.
+    @param thd     - the thread
+    @param record  - the record to check in
+  */
+  virtual bool validate_value_in_record(THD *thd, const uchar *record) const
+  { return false; }
+  bool validate_value_in_record_with_warn(THD *thd, const uchar *record);
   key_map get_possible_keys();
 
   /* Hash value */
@@ -1681,12 +1695,14 @@ protected:
   int store_TIME_with_warning(MYSQL_TIME *ltime, const ErrConv *str,
                               int was_cut, int have_smth_to_conv);
   virtual void store_TIME(MYSQL_TIME *ltime) = 0;
-  bool validate_for_get_date(bool not_zero_date, const MYSQL_TIME *ltime,
-                             ulonglong fuzzydate) const
+  virtual bool get_TIME(MYSQL_TIME *ltime, const uchar *pos,
+                        ulonglong fuzzydate) const = 0;
+  bool validate_MMDD(bool not_zero_date, uint month, uint day,
+                     ulonglong fuzzydate) const
   {
     if (!not_zero_date)
       return fuzzydate & TIME_NO_ZERO_DATE;
-    if (!ltime->month || !ltime->day)
+    if (!month || !day)
       return fuzzydate & TIME_NO_ZERO_IN_DATE;
     return false;
   }
@@ -1703,6 +1719,7 @@ public:
   int  store(longlong nr, bool unsigned_val);
   int  store_time_dec(MYSQL_TIME *ltime, uint dec);
   int  store_decimal(const my_decimal *);
+  bool validate_value_in_record(THD *thd, const uchar *record) const;
 };
 
 
@@ -1755,7 +1772,11 @@ public:
     return res;
   }
   /* Get TIMESTAMP field value as seconds since begging of Unix Epoch */
-  virtual my_time_t get_timestamp(ulong *sec_part) const;
+  virtual my_time_t get_timestamp(const uchar *pos, ulong *sec_part) const;
+  my_time_t get_timestamp(ulong *sec_part) const
+  {
+    return get_timestamp(ptr, sec_part);
+  }
   virtual void store_TIME(my_time_t timestamp, ulong sec_part)
   {
     int4store(ptr,timestamp);
@@ -1771,6 +1792,7 @@ public:
   {
     return unpack_int32(to, from, from_end);
   }
+  bool validate_value_in_record(THD *thd, const uchar *record) const;
   uint size_of() const { return sizeof(*this); }
 };
 
@@ -1828,7 +1850,7 @@ public:
   {
     DBUG_ASSERT(dec);
   }
-  my_time_t get_timestamp(ulong *sec_part) const;
+  my_time_t get_timestamp(const uchar *pos, ulong *sec_part) const;
   void store_TIME(my_time_t timestamp, ulong sec_part);
   int cmp(const uchar *,const uchar *);
   uint32 pack_length() const;
@@ -1872,7 +1894,7 @@ public:
     return memcmp(a_ptr, b_ptr, pack_length());
   }
   void store_TIME(my_time_t timestamp, ulong sec_part);
-  my_time_t get_timestamp(ulong *sec_part) const;
+  my_time_t get_timestamp(const uchar *pos, ulong *sec_part) const;
   uint size_of() const { return sizeof(*this); }
 };
 
@@ -1902,6 +1924,7 @@ public:
 
 class Field_date :public Field_temporal_with_date {
   void store_TIME(MYSQL_TIME *ltime);
+  bool get_TIME(MYSQL_TIME *ltime, const uchar *pos, ulonglong fuzzydate) const;
 public:
   Field_date(uchar *ptr_arg, uchar *null_ptr_arg, uchar null_bit_arg,
 	     enum utype unireg_check_arg, const char *field_name_arg)
@@ -1910,6 +1933,8 @@ public:
   enum_field_types type() const { return MYSQL_TYPE_DATE;}
   enum ha_base_keytype key_type() const { return HA_KEYTYPE_ULONG_INT; }
   int reset(void) { ptr[0]=ptr[1]=ptr[2]=ptr[3]=0; return 0; }
+  bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
+  { return Field_date::get_TIME(ltime, ptr, fuzzydate); }
   double val_real(void);
   longlong val_int(void);
   String *val_str(String*,String *);
@@ -1934,6 +1959,7 @@ public:
 
 class Field_newdate :public Field_temporal_with_date {
   void store_TIME(MYSQL_TIME *ltime);
+  bool get_TIME(MYSQL_TIME *ltime, const uchar *pos, ulonglong fuzzydate) const;
 public:
   Field_newdate(uchar *ptr_arg, uchar *null_ptr_arg, uchar null_bit_arg,
 		enum utype unireg_check_arg, const char *field_name_arg)
@@ -1952,7 +1978,8 @@ public:
   void sort_string(uchar *buff,uint length);
   uint32 pack_length() const { return 3; }
   void sql_type(String &str) const;
-  bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate);
+  bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
+  { return Field_newdate::get_TIME(ltime, ptr, fuzzydate); }
   uint size_of() const { return sizeof(*this); }
 };
 
@@ -2103,6 +2130,7 @@ public:
 
 class Field_datetime :public Field_temporal_with_date {
   void store_TIME(MYSQL_TIME *ltime);
+  bool get_TIME(MYSQL_TIME *ltime, const uchar *pos, ulonglong fuzzydate) const;
 public:
   Field_datetime(uchar *ptr_arg, uint length_arg, uchar *null_ptr_arg,
                  uchar null_bit_arg, enum utype unireg_check_arg,
@@ -2120,7 +2148,8 @@ public:
   void sort_string(uchar *buff,uint length);
   uint32 pack_length() const { return 8; }
   void sql_type(String &str) const;
-  bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate);
+  bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
+  { return Field_datetime::get_TIME(ltime, ptr, fuzzydate); }
   virtual int set_time();
   virtual void set_default()
   {
@@ -2200,6 +2229,7 @@ public:
 */
 class Field_datetime_hires :public Field_datetime_with_dec {
   void store_TIME(MYSQL_TIME *ltime);
+  bool get_TIME(MYSQL_TIME *ltime, const uchar *pos, ulonglong fuzzydate) const;
 public:
   Field_datetime_hires(uchar *ptr_arg, uchar *null_ptr_arg,
                        uchar null_bit_arg, enum utype unireg_check_arg,
@@ -2211,7 +2241,8 @@ public:
   }
   int cmp(const uchar *,const uchar *);
   uint32 pack_length() const;
-  bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate);
+  bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
+  { return Field_datetime_hires::get_TIME(ltime, ptr, fuzzydate); }
   uint size_of() const { return sizeof(*this); }
 };
 
@@ -2221,6 +2252,7 @@ public:
 */
 class Field_datetimef :public Field_datetime_with_dec {
   void store_TIME(MYSQL_TIME *ltime);
+  bool get_TIME(MYSQL_TIME *ltime, const uchar *pos, ulonglong fuzzydate) const;
   int do_save_field_metadata(uchar *metadata_ptr)
   {
     *metadata_ptr= decimals();
@@ -2251,7 +2283,8 @@ public:
     return memcmp(a_ptr, b_ptr, pack_length());
   }
   int reset();
-  bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate);
+  bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
+  { return Field_datetimef::get_TIME(ltime, ptr, fuzzydate); }
   uint size_of() const { return sizeof(*this); }
 };
 

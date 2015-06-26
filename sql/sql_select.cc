@@ -2437,7 +2437,8 @@ void JOIN::exec_inner()
     }
     columns_list= &procedure_fields_list;
   }
-  (void) result->prepare2(); // Currently, this cannot fail.
+  if (result->prepare2())
+    DBUG_VOID_RETURN;
 
   if (!tables_list && (table_count || !select_lex->with_sum_func))
   {                                           // Only test of functions

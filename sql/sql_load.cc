@@ -477,7 +477,12 @@ int mysql_load(THD *thd,sql_exchange *ex,TABLE_LIST *table_list,
     thd->abort_on_warning= !ignore && thd->is_strict_mode();
 
     thd_progress_init(thd, 2);
-    if (ex->filetype == FILETYPE_XML) /* load xml */
+    if (table_list->table->validate_default_values_of_unset_fields(thd))
+    {
+      read_info.error= true;
+      error= 1;
+    }
+    else if (ex->filetype == FILETYPE_XML) /* load xml */
       error= read_xml_field(thd, info, table_list, fields_vars,
                             set_fields, set_values, read_info,
                             *(ex->line_term), skip_lines, ignore);

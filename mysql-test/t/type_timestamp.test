@@ -534,6 +534,10 @@ SELECT DATE_ADD(a, INTERVAL 10 SECOND) FROM t1;
 DROP TABLE t1;
 
 
+let type=TIMESTAMP;
+let defval='0000-00-00 00:00:00';
+--source include/type_temporal_zero_default.inc
+
 --echo #
 --echo # End of 10.1 tests
 --echo #

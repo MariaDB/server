@@ -747,5 +747,45 @@ Warnings:
 Warning	1292	Incorrect datetime value: '0000-00-00 00:00:00'
 DROP TABLE t1;
 #
+# MDEV-7824 [Bug #68041] Zero date can be inserted in strict no-zero mode through a default value
+#
+SET sql_mode=DEFAULT;
+CREATE TABLE t1 (a TIMESTAMP DEFAULT '0000-00-00 00:00:00');
+SET sql_mode=TRADITIONAL;
+INSERT INTO t1 VALUES ('0000-00-00 00:00:00');
+ERROR 22007: Incorrect datetime value: '0000-00-00 00:00:00' for column 'a' at row 1
+INSERT INTO t1 VALUES ();
+ERROR 22007: Incorrect default value '0000-00-00 00:00:00' for column 'a'
+INSERT INTO t1 VALUES (DEFAULT);
+ERROR 22007: Incorrect default value '0000-00-00 00:00:00' for column 'a'
+DROP TABLE t1;
+SET sql_mode=DEFAULT;
+CREATE TABLE t1 (a TIMESTAMP NOT NULL DEFAULT '0000-00-00 00:00:00', b TIMESTAMP NOT NULL DEFAULT '0000-00-00 00:00:00');
+CREATE TABLE t2 (a TIMESTAMP NOT NULL DEFAULT '0000-00-00 00:00:00');
+INSERT INTO t2 VALUES ('0000-00-00 00:00:00');
+SET sql_mode=TRADITIONAL;
+INSERT INTO t1 (a) SELECT a FROM t2;
+ERROR 22007: Incorrect default value '0000-00-00 00:00:00' for column 'b'
+DROP TABLE t1, t2;
+SET sql_mode=DEFAULT;
+CREATE TABLE t1 (a TIMESTAMP DEFAULT '0000-00-00 00:00:00', b TIMESTAMP DEFAULT '0000-00-00 00:00:00');
+INSERT INTO t1 VALUES (DEFAULT,DEFAULT);;
+SELECT a INTO OUTFILE 'MYSQLTEST_VARDIR/tmp/mdev-7824.txt' FROM t1;
+DELETE FROM t1;
+SET sql_mode=TRADITIONAL;
+LOAD DATA INFILE 'MYSQLTEST_VARDIR/tmp/mdev-7824.txt' INTO TABLE t1 (a);
+ERROR 22007: Incorrect default value '0000-00-00 00:00:00' for column 'b'
+DROP TABLE t1;
+SET sql_mode=DEFAULT;
+CREATE TABLE t1 (a TIMESTAMP DEFAULT '0000-00-00 00:00:00');;
+SET sql_mode='NO_ZERO_DATE';
+ALTER TABLE t1 ADD b INT NOT NULL;
+ERROR 42000: Invalid default value for 'a'
+DROP TABLE t1;
+SET sql_mode=DEFAULT;
+#
+# End of MDEV-7824 [Bug #68041] Zero date can be inserted in strict no-zero mode through a default value
+#
+#
 # End of 10.1 tests
 #

@@ -8184,7 +8184,12 @@ int Item_default_value::save_in_field(Field *field_arg, bool no_conversions)
       return 1;
     }
     field_arg->set_default();
-    return 0;
+    THD *thd= field_arg->table->in_use;
+    return
+      !field_arg->is_null_in_record(field_arg->table->s->default_values) &&
+       field_arg->validate_value_in_record_with_warn(thd,
+                                       field_arg->table->s->default_values) &&
+       thd->is_error() ? -1 : 0;
   }
   return Item_field::save_in_field(field_arg, no_conversions);
 }
