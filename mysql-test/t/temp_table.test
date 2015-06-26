@@ -14,6 +14,11 @@ drop view if exists v1;
 --echo # test basic creation of temporary tables together with normal table
 --echo #
 
+SELECT variable_value INTO @com_create_temp_table FROM information_schema.global_status
+WHERE variable_name = 'com_create_temp_table';
+SELECT variable_value INTO @com_drop_temp_table FROM information_schema.global_status
+WHERE variable_name = 'com_drop_temp_table';
+
 create table t1 (a int);
 create temporary table t1 AS SELECT 1;
 --error 1050
@@ -29,6 +34,13 @@ create temporary table t1 AS SELECT 1;
 --error 1050
 create temporary table t1 (a int);
 drop temporary table t1;
+
+# 6 create temp table
+SELECT variable_value - @com_create_temp_table FROM information_schema.global_status
+WHERE variable_name = 'com_create_temp_table';
+# 2 drop temp tables
+SELECT variable_value - @com_drop_temp_table FROM information_schema.global_status
+WHERE variable_name = 'com_drop_temp_table';
 
 --echo #
 --echo # Test with rename
@@ -157,11 +169,33 @@ CREATE TABLE t1 (i INT);
 LOCK TABLE t1 WRITE;
 
 connect (conn1, localhost, root,,);
+SELECT variable_value INTO @com_create_temp_table FROM information_schema.global_status
+WHERE variable_name = 'com_create_temp_table';
+SELECT variable_value INTO @com_drop_temp_table FROM information_schema.global_status
+WHERE variable_name = 'com_drop_temp_table';
+SELECT variable_value INTO @com_create_table FROM information_schema.global_status
+WHERE variable_name = 'com_create_table';
+SELECT variable_value INTO @com_drop_table FROM information_schema.global_status
+WHERE variable_name = 'com_drop_table';
 
 CREATE TEMPORARY TABLE t1 (i INT);
 
 --echo The following command should not block
 DROP TEMPORARY TABLE t1;
+
+# 1 create temp table
+SELECT variable_value - @com_create_temp_table FROM information_schema.global_status
+WHERE variable_name = 'com_create_temp_table';
+# 1 drop temporary table
+SELECT variable_value - @com_drop_temp_table FROM information_schema.global_status
+WHERE variable_name = 'com_drop_temp_table';
+# Check not counted twice
+# 0 create table
+SELECT variable_value - @com_create_table FROM information_schema.global_status
+WHERE variable_name = 'com_create_table';
+# 0 drop tables
+SELECT variable_value - @com_drop_table FROM information_schema.global_status
+WHERE variable_name = 'com_drop_table';
 
 disconnect conn1;
 connection default;
