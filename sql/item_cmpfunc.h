@@ -297,11 +297,6 @@ public:
   virtual enum Functype rev_functype() const { return UNKNOWN_FUNC; }
   bool have_rev_func() const { return rev_functype() != UNKNOWN_FUNC; }
 
-  virtual inline void print(String *str, enum_query_type query_type)
-  {
-    Item_func::print_op(str, query_type);
-  }
-
   bool is_null() { return MY_TEST(args[0]->is_null() || args[1]->is_null()); }
   COND *remove_eq_conds(THD *thd, Item::cond_result *cond_value,
                         bool top_level);
@@ -317,6 +312,10 @@ public:
     :Item_bool_func2(a, b), cmp(tmp_arg, tmp_arg+1) 
   {
     allowed_arg_cols= 0;  // Fetch this value from first argument
+  }
+  void print(String *str, enum_query_type query_type)
+  {
+    Item_func::print_op(str, query_type);
   }
   Item *neg_transformer(THD *thd);
   virtual Item *negated_item();
@@ -1505,6 +1504,10 @@ public:
      escape_used_in_parsing(escape_used), use_sampling(0) {}
   longlong val_int();
   enum Functype functype() const { return LIKE_FUNC; }
+  void print(String *str, enum_query_type query_type)
+  {
+    Item_func::print_op(str, query_type);
+  }
   optimize_type select_optimize() const;
   CHARSET_INFO *compare_collation() const
   { return cmp_collation.collation; }

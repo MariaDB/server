@@ -272,19 +272,18 @@ public:
   Spatial relations
 */
 
-class Item_func_spatial_rel: public Item_bool_func
+class Item_func_spatial_rel: public Item_bool_func2
 {
 protected:
   enum Functype spatial_rel;
   String tmp_value1, tmp_value2;
 public:
   Item_func_spatial_rel(Item *a, Item *b, enum Functype sp_rel)
-   :Item_bool_func(a, b), spatial_rel(sp_rel)
+   :Item_bool_func2(a, b), spatial_rel(sp_rel)
   { }
   enum Functype functype() const { return spatial_rel; }
   enum Functype rev_functype() const { return spatial_rel; }
   bool is_null() { (void) val_int(); return null_value; }
-  optimize_type select_optimize() const { return OPTIMIZE_OP; }
   void add_key_fields(JOIN *join, KEY_FIELD **key_fields,
                       uint *and_level, table_map usable_tables,
                       SARGABLE_PARAM **sargables)
