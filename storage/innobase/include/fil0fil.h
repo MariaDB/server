@@ -611,8 +611,6 @@ fil_read_first_page(
 						lsn values in data files */
 	lsn_t*		max_flushed_lsn,	/*!< out: max of flushed
 						lsn values in data files */
-	ulint		orig_space_id,		/*!< in: file space id or
-						ULINT_UNDEFINED */
 	fil_space_crypt_t** crypt_data)		/*!< out: crypt data */
 
 	__attribute__((warn_unused_result));

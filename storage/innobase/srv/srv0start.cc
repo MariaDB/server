@@ -1025,8 +1025,7 @@ check_first_page:
 #ifdef UNIV_LOG_ARCHIVE
 				min_arch_log_no, max_arch_log_no,
 #endif /* UNIV_LOG_ARCHIVE */
-				min_flushed_lsn, max_flushed_lsn,
-				ULINT_UNDEFINED, &crypt_data);
+				min_flushed_lsn, max_flushed_lsn, &crypt_data);
 
 			if (check_msg) {
 
