@@ -24,13 +24,14 @@ INSERT INTO t1 VALUES (4);
 # This query will hang because flow control will kick in
 --send
 INSERT INTO t1 VALUES (5);
---sleep 1
+--sleep 2
 
 --let $galera_connection_name = node_1a
 --let $galera_server_number = 1
 --source include/galera_connect.inc
 --connection node_1a
-SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE STATE = 'query end' AND INFO = 'INSERT INTO t1 VALUES (5)';
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE STATE = 'query end' AND INFO = 'INSERT INTO t1 VALUES (5)';
+--source include/wait_condition.inc
 
 --connection node_2
 # Unblock the slave applier thread
