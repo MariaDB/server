@@ -284,6 +284,10 @@ public:
   void reset_cache() { cache= NULL; }
 };
 
+
+/*
+  Functions and operators with two arguments that can use range optimizer.
+*/
 class Item_bool_func2 :public Item_bool_func
 {                                              /* Bool with 2 string args */
 public:
@@ -351,16 +355,18 @@ public:
 };
 
 /**
-  XOR inherits from Item_bool_func2 because it is not optimized yet.
+  XOR inherits from Item_bool_func because it is not optimized yet.
   Later, when XOR is optimized, it needs to inherit from
   Item_cond instead. See WL#5800. 
 */
-class Item_func_xor :public Item_bool_func2
+class Item_func_xor :public Item_bool_func
 {
 public:
-  Item_func_xor(Item *i1, Item *i2) :Item_bool_func2(i1, i2) {}
+  Item_func_xor(Item *i1, Item *i2) :Item_bool_func(i1, i2) {}
   enum Functype functype() const { return XOR_FUNC; }
   const char *func_name() const { return "xor"; }
+  void print(String *str, enum_query_type query_type)
+  { Item_func::print_op(str, query_type); }
   longlong val_int();
   Item *neg_transformer(THD *thd);
   bool subst_argument_checker(uchar **arg)
