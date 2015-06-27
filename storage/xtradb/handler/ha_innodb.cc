@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2000, 2014, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2000, 2015, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, 2009 Google Inc.
 Copyright (c) 2009, Percona Inc.
 Copyright (c) 2012, Facebook Inc.
@@ -3354,19 +3354,6 @@ trx_is_strict(
 	trx_t*	trx)	/*!< in: transaction */
 {
 	return(trx && trx->mysql_thd && THDVAR(trx->mysql_thd, strict_mode));
-}
-
-/**********************************************************************//**
-Determines if the current MySQL thread is running in strict mode.
-If thd==NULL, THDVAR returns the global value of innodb-strict-mode.
-@return	TRUE if strict */
-UNIV_INLINE
-ibool
-thd_is_strict(
-/*==========*/
-	THD*	thd)	/*!< in: MySQL thread descriptor */
-{
-	return(THDVAR(thd, strict_mode));
 }
 
 /**************************************************************//**
@@ -8695,7 +8682,8 @@ calc_row_difference(
 				}
 			}
 		}
-		innodb_idx++;
+		if (field->stored_in_db)
+			innodb_idx++;
 	}
 
 	/* If the update changes a column with an FTS index on it, we
@@ -9721,6 +9709,11 @@ ha_innobase::general_fetch(
 	int	error;
 
 	DBUG_ENTER("general_fetch");
+
+	/* If transaction is not startted do not continue, instead return a error code. */
+	if(!(prebuilt->sql_stat_start || (prebuilt->trx && prebuilt->trx->state == 1))) {
+		DBUG_RETURN(HA_ERR_END_OF_FILE);
+	}
 
 	if (UNIV_UNLIKELY(srv_pass_corrupt_table <= 1 && share
 			  && share->ib_table && share->ib_table->is_corrupt)) {
@@ -10889,18 +10882,18 @@ create_table_def(
 		/* Adjust for the FTS hidden field */
 		if (!has_doc_id_col) {
 			table = dict_mem_table_create(table_name, 0, s_cols + 1,
-						      flags, flags2, false);
+						      flags, flags2);
 
 			/* Set the hidden doc_id column. */
 			table->fts->doc_col = s_cols;
 		} else {
 			table = dict_mem_table_create(table_name, 0, s_cols,
-						      flags, flags2, false);
+						      flags, flags2);
 			table->fts->doc_col = doc_id_col;
 		}
 	} else {
 		table = dict_mem_table_create(table_name, 0, s_cols,
-					      flags, flags2, false);
+					      flags, flags2);
 	}
 
 	if (flags2 & DICT_TF2_TEMPORARY) {
@@ -12001,7 +11994,7 @@ ha_innobase::create(
 	DBUG_ASSERT(thd != NULL);
 	DBUG_ASSERT(create_info != NULL);
 
-	if (form->s->fields > REC_MAX_N_USER_FIELDS) {
+	if (form->s->stored_fields > REC_MAX_N_USER_FIELDS) {
 		DBUG_RETURN(HA_ERR_TOO_MANY_FIELDS);
 	} else if (srv_read_only_mode) {
 		DBUG_RETURN(HA_ERR_TABLE_READONLY);
@@ -13496,18 +13489,6 @@ ha_innobase::info_low(
 			prebuilt->trx->op_info =
 				"returning various info to MySQL";
 		}
-
-		my_snprintf(path, sizeof(path), "%s/%s%s",
-			    mysql_data_home, ib_table->name, reg_ext);
-
-		unpack_filename(path,path);
-
-		/* Note that we do not know the access time of the table,
-		nor the CHECK TABLE time, nor the UPDATE or INSERT time. */
-
-		if (os_file_get_status(path, &stat_info, false) == DB_SUCCESS) {
-			stats.create_time = (ulong) stat_info.ctime;
-		}
 	}
 
 	if (flag & HA_STATUS_VARIABLE) {
@@ -13792,6 +13773,20 @@ ha_innobase::info_low(
 
 		if (!(flag & HA_STATUS_NO_LOCK)) {
 			dict_table_stats_unlock(ib_table, RW_S_LATCH);
+		}
+
+		my_snprintf(path, sizeof(path), "%s/%s%s",
+			    mysql_data_home,
+			    table->s->normalized_path.str,
+			    reg_ext);
+
+		unpack_filename(path,path);
+
+		/* Note that we do not know the access time of the table,
+		nor the CHECK TABLE time, nor the UPDATE or INSERT time. */
+
+		if (os_file_get_status(path, &stat_info, false) == DB_SUCCESS) {
+			stats.create_time = (ulong) stat_info.ctime;
 		}
 	}
 

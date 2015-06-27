@@ -1,7 +1,7 @@
 /*************** Colblk H Declares Source Code File (.H) ***************/
 /*  Name: COLBLK.H    Version 1.7                                      */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          2005-2014    */
+/*  (C) Copyright to the author Olivier BERTRAND          2005-2015    */
 /*                                                                     */
 /*  This file contains the COLBLK and derived classes declares.        */
 /***********************************************************************/
@@ -23,7 +23,7 @@ class DllExport COLBLK : public XOBJECT {
   // Default constructors used by derived classes
   COLBLK(PCOLDEF cdp = NULL, PTDB tdbp = NULL, int i = 0);
   COLBLK(PCOL colp, PTDB tdbp = NULL);     // Used in copy process
-  COLBLK(int n) {}     // Used when changing a column class in TDBXML
+  COLBLK(int) {}       // Used when changing a column class in TDBXML
 
  public:
   // Implementation
@@ -69,7 +69,7 @@ class DllExport COLBLK : public XOBJECT {
   virtual bool    IsSpecial(void) {return false;}
   virtual bool    Eval(PGLOBAL g);
   virtual bool    SetBuffer(PGLOBAL g, PVAL value, bool ok, bool check);
-  virtual void    SetTo_Val(PVAL valp) {}
+  virtual void    SetTo_Val(PVAL) {}
   virtual void    ReadColumn(PGLOBAL g);
   virtual void    WriteColumn(PGLOBAL g);
   virtual void    Print(PGLOBAL g, FILE *, uint);

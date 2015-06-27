@@ -33,6 +33,7 @@ debug-no-sync
 
 # Retry bind as this may fail on busy server
 port-open-timeout=10
+bind-address=127.0.0.1
 
 log-bin-trust-function-creators=1
 key_buffer_size=            1M

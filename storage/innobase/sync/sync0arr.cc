@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1995, 2013, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1995, 2015, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, Google Inc.
 Copyright (c) 2013, 2015, MariaDB Corporation. All Rights Reserved.
 
@@ -1119,8 +1119,8 @@ sync_array_print_info_low(
 	os_thread_id_t	r = 0;
 
 	fprintf(file,
-		"OS WAIT ARRAY INFO: reservation count %ld\n",
-		(long) arr->res_count);
+		"OS WAIT ARRAY INFO: reservation count " ULINTPF "\n",
+		arr->res_count);
 
 	for (i = 0; count < arr->n_reserved; ++i) {
 		sync_cell_t*	cell;
@@ -1215,7 +1215,7 @@ sync_array_print(
 	}
 
 	fprintf(file,
-		"OS WAIT ARRAY INFO: signal count %ld\n", (long) sg_count);
+		"OS WAIT ARRAY INFO: signal count " ULINTPF "\n", sg_count);
 
 }
 

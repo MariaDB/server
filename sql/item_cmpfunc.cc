@@ -5072,10 +5072,65 @@ bool Regexp_processor_pcre::compile(Item *item, bool send_error)
 }
 
 
+/**
+  Send a warning explaining an error code returned by pcre_exec().
+*/
+void Regexp_processor_pcre::pcre_exec_warn(int rc) const
+{
+  char buf[64];
+  const char *errmsg= NULL;
+  /*
+    Make a descriptive message only for those pcre_exec() error codes
+    that can actually happen in MariaDB.
+  */
+  switch (rc)
+  {
+  case PCRE_ERROR_NOMEMORY:
+    errmsg= "pcre_exec: Out of memory";
+    break;
+  case PCRE_ERROR_BADUTF8:
+    errmsg= "pcre_exec: Invalid utf8 byte sequence in the subject string";
+    break;
+  case PCRE_ERROR_RECURSELOOP:
+    errmsg= "pcre_exec: Recursion loop detected";
+    break;
+  default:
+    /*
+      As other error codes should normally not happen,
+      we just report the error code without textual description
+      of the code.
+    */
+    my_snprintf(buf, sizeof(buf), "pcre_exec: Internal error (%d)", rc);
+    errmsg= buf;
+  }
+  push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
+                      ER_REGEXP_ERROR, ER(ER_REGEXP_ERROR), errmsg);
+}
+
+
+/**
+  Call pcre_exec() and send a warning if pcre_exec() returned with an error.
+*/
+int Regexp_processor_pcre::pcre_exec_with_warn(const pcre *code,
+                                               const pcre_extra *extra,
+                                               const char *subject,
+                                               int length, int startoffset,
+                                               int options, int *ovector,
+                                               int ovecsize)
+{
+  int rc= pcre_exec(code, extra, subject, length,
+                    startoffset, options, ovector, ovecsize);
+  DBUG_EXECUTE_IF("pcre_exec_error_123", rc= -123;);
+  if (rc < PCRE_ERROR_NOMATCH)
+    pcre_exec_warn(rc);
+  return rc;
+}
+
+
 bool Regexp_processor_pcre::exec(const char *str, int length, int offset)
 {
-  m_pcre_exec_rc= pcre_exec(m_pcre, NULL, str, length,
-                            offset, 0, m_SubStrVec, m_subpatterns_needed * 3);
+  m_pcre_exec_rc= pcre_exec_with_warn(m_pcre, NULL, str, length, offset, 0,
+                                      m_SubStrVec, m_subpatterns_needed * 3);
   return false;
 }
 
@@ -5085,8 +5140,10 @@ bool Regexp_processor_pcre::exec(String *str, int offset,
 {
   if (!(str= convert_if_needed(str, &subject_converter)))
     return true;
-  m_pcre_exec_rc= pcre_exec(m_pcre, NULL, str->c_ptr_safe(), str->length(),
-                            offset, 0, m_SubStrVec, m_subpatterns_needed * 3);
+  m_pcre_exec_rc= pcre_exec_with_warn(m_pcre, NULL,
+                                      str->c_ptr_safe(), str->length(),
+                                      offset, 0,
+                                      m_SubStrVec, m_subpatterns_needed * 3);
   if (m_pcre_exec_rc > 0)
   {
     uint i;
