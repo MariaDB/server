@@ -122,10 +122,6 @@ public:
 
 class Item_bool_func :public Item_int_func
 {
-protected:
-  void add_key_fields_optimize_op(JOIN *join, KEY_FIELD **key_fields,
-                                  uint *and_level, table_map usable_tables,
-                                  SARGABLE_PARAM **sargables, bool equal_func);
 public:
   Item_bool_func() :Item_int_func() {}
   Item_bool_func(Item *a) :Item_int_func(a) {}
@@ -291,6 +287,10 @@ public:
 class Item_bool_func2 :public Item_bool_func
 {                                              /* Bool with 2 string args */
   bool have_rev_func() const { return rev_functype() != UNKNOWN_FUNC; }
+protected:
+  void add_key_fields_optimize_op(JOIN *join, KEY_FIELD **key_fields,
+                                  uint *and_level, table_map usable_tables,
+                                  SARGABLE_PARAM **sargables, bool equal_func);
 public:
   Item_bool_func2(Item *a,Item *b)
     :Item_bool_func(a,b) { }

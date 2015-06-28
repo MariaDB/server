@@ -4773,11 +4773,11 @@ Item_func_like::add_key_fields(JOIN *join, KEY_FIELD **key_fields,
 
 
 void
-Item_bool_func::add_key_fields_optimize_op(JOIN *join, KEY_FIELD **key_fields,
-                                           uint *and_level,
-                                           table_map usable_tables,
-                                           SARGABLE_PARAM **sargables,
-                                           bool equal_func)
+Item_bool_func2::add_key_fields_optimize_op(JOIN *join, KEY_FIELD **key_fields,
+                                            uint *and_level,
+                                            table_map usable_tables,
+                                            SARGABLE_PARAM **sargables,
+                                            bool equal_func)
 {
   /* If item is of type 'field op field/constant' add it to key_fields */
   if (is_local_field(args[0]))
