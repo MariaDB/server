@@ -290,14 +290,14 @@ public:
 */
 class Item_bool_func2 :public Item_bool_func
 {                                              /* Bool with 2 string args */
+  bool have_rev_func() const { return rev_functype() != UNKNOWN_FUNC; }
 public:
   Item_bool_func2(Item *a,Item *b)
     :Item_bool_func(a,b) { }
-  optimize_type select_optimize() const { return OPTIMIZE_OP; }
   virtual enum Functype rev_functype() const { return UNKNOWN_FUNC; }
-  bool have_rev_func() const { return rev_functype() != UNKNOWN_FUNC; }
 
   bool is_null() { return MY_TEST(args[0]->is_null() || args[1]->is_null()); }
+  SEL_TREE *get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr);
   COND *remove_eq_conds(THD *thd, Item::cond_result *cond_value,
                         bool top_level);
   bool count_sargable_conds(uchar *arg);
@@ -592,7 +592,6 @@ public:
   longlong val_int();
   enum Functype functype() const { return NE_FUNC; }
   cond_result eq_cmp_result() const { return COND_FALSE; }
-  optimize_type select_optimize() const { return OPTIMIZE_KEY; } 
   const char *func_name() const { return "<>"; }
   Item *negated_item();
   void add_key_fields(JOIN *join, KEY_FIELD **key_fields, uint *and_level,
@@ -643,7 +642,6 @@ public:
   Item_func_between(Item *a, Item *b, Item *c)
     :Item_func_opt_neg(a, b, c), compare_as_dates(FALSE) { }
   longlong val_int();
-  optimize_type select_optimize() const { return OPTIMIZE_KEY; }
   enum Functype functype() const   { return BETWEEN; }
   const char *func_name() const { return "between"; }
   bool fix_fields(THD *, Item **);
@@ -1334,8 +1332,6 @@ public:
     }
     DBUG_VOID_RETURN;
   }
-  optimize_type select_optimize() const
-    { return OPTIMIZE_KEY; }
   void add_key_fields(JOIN *join, KEY_FIELD **key_fields, uint *and_level,
                       table_map usable_tables, SARGABLE_PARAM **sargables);
   SEL_TREE *get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr);
@@ -1383,9 +1379,9 @@ class Item_func_null_predicate :public Item_bool_func
 {
 public:
   Item_func_null_predicate(Item *a) :Item_bool_func(a) { }
-  optimize_type select_optimize() const { return OPTIMIZE_NULL; }
   void add_key_fields(JOIN *join, KEY_FIELD **key_fields, uint *and_level,
                       table_map usable_tables, SARGABLE_PARAM **sargables);
+  SEL_TREE *get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr);
   CHARSET_INFO *compare_collation() const
   { return args[0]->collation.collation; }
   void fix_length_and_dec() { decimals=0; max_length=1; maybe_null=0; }
@@ -1495,6 +1491,7 @@ class Item_func_like :public Item_bool_func2
 
   DTCollation cmp_collation;
   String cmp_value1, cmp_value2;
+  bool with_sargable_pattern() const;
 public:
   int escape;
 
@@ -1508,7 +1505,6 @@ public:
   {
     Item_func::print_op(str, query_type);
   }
-  optimize_type select_optimize() const;
   CHARSET_INFO *compare_collation() const
   { return cmp_collation.collation; }
   cond_result eq_cmp_result() const
@@ -1548,6 +1544,12 @@ public:
   }
   void add_key_fields(JOIN *join, KEY_FIELD **key_fields, uint *and_level,
                       table_map usable_tables, SARGABLE_PARAM **sargables);
+  SEL_TREE *get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr)
+  {
+    return with_sargable_pattern() ?
+           Item_bool_func2::get_mm_tree(param, cond_ptr) :
+           Item_func::get_mm_tree(param, cond_ptr);
+  }
   const char *func_name() const { return "like"; }
   bool fix_fields(THD *thd, Item **ref);
   void fix_length_and_dec()
@@ -1930,7 +1932,6 @@ public:
   enum Functype functype() const { return MULT_EQUAL_FUNC; }
   longlong val_int(); 
   const char *func_name() const { return "multiple equal"; }
-  optimize_type select_optimize() const { return OPTIMIZE_EQUAL; }
   void sort(Item_field_cmpfunc compare, void *arg);
   void fix_length_and_dec();
   bool fix_fields(THD *thd, Item **ref);

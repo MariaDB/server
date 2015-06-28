@@ -8203,19 +8203,41 @@ SEL_TREE *Item_equal::get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr)
 SEL_TREE *Item_func::get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr)
 {
   DBUG_ENTER("Item_func::get_mm_tree");
+  DBUG_RETURN(const_item() ? get_mm_tree_for_const(param, this) : NULL);
+}
+
+
+SEL_TREE *Item_func_null_predicate::get_mm_tree(RANGE_OPT_PARAM *param,
+                                                Item **cond_ptr)
+{
+  DBUG_ENTER("Item_func_null_predicate::get_mm_tree");
   if (const_item())
     DBUG_RETURN(get_mm_tree_for_const(param, this));
+  param->cond= this;
+  if (args[0]->real_item()->type() == Item::FIELD_ITEM)
+  {
+    Item_field *field_item= (Item_field*) args[0]->real_item();
+    if (!field_item->const_item())
+      DBUG_RETURN(get_full_func_mm_tree(param, this, field_item, NULL, false));
+  }
+  DBUG_RETURN(NULL);
+}
 
-  if (select_optimize() == Item_func::OPTIMIZE_NONE)
-    DBUG_RETURN(0);
+
+SEL_TREE *Item_bool_func2::get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr)
+{
+  DBUG_ENTER("Item_bool_func2::get_mm_tree");
+  if (const_item())
+    DBUG_RETURN(get_mm_tree_for_const(param, this));
 
   param->cond= this;
 
   SEL_TREE *ftree= 0;
+  DBUG_ASSERT(arg_count == 2);
   if (arguments()[0]->real_item()->type() == Item::FIELD_ITEM)
   {
     Item_field *field_item= (Item_field*) (arguments()[0]->real_item());
-    Item *value= arg_count > 1 ? arguments()[1] : NULL;
+    Item *value= arguments()[1];
     if (value && value->is_expensive())
       DBUG_RETURN(0);
     if (!arguments()[0]->real_item()->const_item())
