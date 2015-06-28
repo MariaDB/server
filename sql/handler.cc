@@ -2296,41 +2296,6 @@ const char *get_canonical_filename(handler *file, const char *path,
 }
 
 
-/**
-  An interceptor to hijack the text of the error message without
-  setting an error in the thread. We need the text to present it
-  in the form of a warning to the user.
-*/
-
-struct Ha_delete_table_error_handler: public Internal_error_handler
-{
-public:
-  virtual bool handle_condition(THD *thd,
-                                uint sql_errno,
-                                const char* sqlstate,
-                                Sql_condition::enum_warning_level level,
-                                const char* msg,
-                                Sql_condition ** cond_hdl);
-  char buff[MYSQL_ERRMSG_SIZE];
-};
-
-
-bool
-Ha_delete_table_error_handler::
-handle_condition(THD *,
-                 uint,
-                 const char*,
-                 Sql_condition::enum_warning_level,
-                 const char* msg,
-                 Sql_condition ** cond_hdl)
-{
-  *cond_hdl= NULL;
-  /* Grab the error message */
-  strmake_buf(buff, msg);
-  return TRUE;
-}
-
-
 /** delete a table in the engine
 
   @note
@@ -2367,14 +2332,6 @@ int ha_delete_table(THD *thd, handlerton *table_type, const char *path,
 
     if (!intercept || generate_warning)
     {
-      /*
-        Because file->print_error() use my_error() to generate the error message
-        we use an internal error handler to intercept it and store the text
-        in a temporary buffer. Later the message will be presented to user
-        as a warning.
-      */
-      Ha_delete_table_error_handler ha_delete_table_error_handler;
-
       /* Fill up strucutures that print_error may need */
       dummy_share.path.str= (char*) path;
       dummy_share.path.length= strlen(path);
@@ -2385,28 +2342,8 @@ int ha_delete_table(THD *thd, handlerton *table_type, const char *path,
       dummy_share.table_name.length= strlen(alias);
       dummy_table.alias.set(alias, dummy_share.table_name.length,
                             table_alias_charset);
-
       file->change_table_ptr(&dummy_table, &dummy_share);
-
-#if MYSQL_VERSION_ID > 100105
-      // XXX as an ugly 10.0-only hack we intercept HA_ERR_ROW_IS_REFERENCED,
-      // to report it under the old historical error number.
-#error remove HA_ERR_ROW_IS_REFERENCED, use ME_JUST_WARNING instead of a handler
-#endif
-      if (intercept || error == HA_ERR_ROW_IS_REFERENCED)
-        thd->push_internal_handler(&ha_delete_table_error_handler);
-
-      file->print_error(error, 0);
-
-      if (intercept || error == HA_ERR_ROW_IS_REFERENCED)
-      {
-        thd->pop_internal_handler();
-        if (error == HA_ERR_ROW_IS_REFERENCED)
-          my_message(ER_ROW_IS_REFERENCED, ER(ER_ROW_IS_REFERENCED), MYF(0));
-        else
-          push_warning(thd, Sql_condition::WARN_LEVEL_WARN, error,
-                       ha_delete_table_error_handler.buff);
-      }
+      file->print_error(error, MYF(intercept ? ME_JUST_WARNING : 0));
     }
     if (intercept)
       error= 0;
@@ -3528,14 +3465,18 @@ void handler::print_error(int error, myf errflag)
   {
     String str;
     get_error_message(error, &str);
-    my_error(ER_ROW_IS_REFERENCED_2, errflag, str.c_ptr_safe());
+    my_printf_error(ER_ROW_IS_REFERENCED_2,
+                    ER(str.length() ? ER_ROW_IS_REFERENCED_2 : ER_ROW_IS_REFERENCED),
+                    errflag, str.c_ptr_safe());
     DBUG_VOID_RETURN;
   }
   case HA_ERR_NO_REFERENCED_ROW:
   {
     String str;
     get_error_message(error, &str);
-    my_error(ER_NO_REFERENCED_ROW_2, errflag, str.c_ptr_safe());
+    my_printf_error(ER_NO_REFERENCED_ROW_2,
+                    ER(str.length() ? ER_NO_REFERENCED_ROW_2 : ER_NO_REFERENCED_ROW),
+                    errflag, str.c_ptr_safe());
     DBUG_VOID_RETURN;
   }
   case HA_ERR_TABLE_DEF_CHANGED:

@@ -17,7 +17,7 @@ OBJECT_TYPE	OBJECT_SCHEMA	OBJECT_NAME	ENABLED	TIMED
 insert into performance_schema.setup_objects
 set object_type='ILLEGAL', object_schema='FOO', object_name='BAR',
 enabled='YES', timed='YES';
-ERROR 23000: Cannot add or update a child row: a foreign key constraint fails ()
+ERROR 23000: Cannot add or update a child row: a foreign key constraint fails
 insert into performance_schema.setup_objects
 set object_type='TABLE', object_schema='FOO', object_name='BAR',
 enabled='YES', timed='YES';
