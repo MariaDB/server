@@ -215,7 +215,7 @@ static struct
 
 /* support for Services */
 
-#include "sql_plugin_services.h"
+#include "sql_plugin_services.ic"
 
 /*
   A mutex LOCK_plugin must be acquired before accessing the
