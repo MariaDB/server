@@ -90,7 +90,7 @@ ERROR HY000: Failed to read from the .par file
 # Note that it is currently impossible to drop a partitioned table
 # without the .par file
 DROP TABLE t1;
-ERROR 42S02: Unknown table 'test.t1'
+ERROR HY000: Got error 1 "Operation not permitted" from storage engine partition
 #
 # Bug#50392: insert_id is not reset for partitioned tables
 #            auto_increment on duplicate entry

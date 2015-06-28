@@ -41,16 +41,16 @@
 #define PSI_CALL_release_table_share    PSI_TABLE_CALL(release_table_share)
 #define PSI_CALL_drop_table_share       PSI_TABLE_CALL(drop_table_share)
 #else
-#define MYSQL_UNBIND_TABLE(handler)                     /* no-op */
-#define MYSQL_REBIND_TABLE(handler)                     /* no-op */
+#define MYSQL_UNBIND_TABLE(handler)                     do { } while(0)
+#define MYSQL_REBIND_TABLE(handler)                     do { } while(0)
 
-#define PSI_CALL_unbind_table(A1)                       /* no-op */
+#define PSI_CALL_unbind_table(A1)                       do { } while(0)
 #define PSI_CALL_rebind_table(A1,A2,A3)                 NULL
-#define PSI_CALL_close_table(A1)                        /* no-op */
+#define PSI_CALL_close_table(A1)                        do { } while(0)
 #define PSI_CALL_open_table(A1,A2)                      NULL
 #define PSI_CALL_get_table_share(A1,A2)                 NULL
-#define PSI_CALL_release_table_share(A1)                /* no-op */
-#define PSI_CALL_drop_table_share(A1,A2,A3,A4,A5)       /* no-op */
+#define PSI_CALL_release_table_share(A1)                do { } while(0)
+#define PSI_CALL_drop_table_share(A1,A2,A3,A4,A5)       do { } while(0)
 #endif
 
 /**

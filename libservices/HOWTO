@@ -84,7 +84,7 @@ it should also declare all the accompanying data structures, as necessary
 7. add the new file to libservices/CMakeLists.txt (MYSQLSERVICES_SOURCES)
 8. Add all new files to repository (bzr add)
 9. and finally, register your service for dynamic linking in
-    sql/sql_plugin_services.h as follows:
+    sql/sql_plugin_services.ic as follows:
 9.1 fill in the service structure:
 ==================================================================
   static struct foo_service_st foo_handler = {

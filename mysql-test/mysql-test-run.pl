@@ -3338,7 +3338,7 @@ sub do_before_run_mysqltest($)
     my $resdir= dirname($resfile);
     # we'll use a separate extension for generated result files
     # to be able to distinguish them from manually created
-    # version-controlled results, and to ignore them in bzr.
+    # version-controlled results, and to ignore them in git.
     my $dest = "$base_file$suites.result~";
     my @cmd = ($exe_patch, qw/--binary -r - -f -s -o/,
                $dest, $base_result, $resfile);

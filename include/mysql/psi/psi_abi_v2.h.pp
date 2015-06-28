@@ -1,4 +1,3 @@
-#include "mysql/psi/psi.h"
 C_MODE_START
 struct TABLE_SHARE;
 struct sql_digest_storage;

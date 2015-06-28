@@ -1,5 +1,5 @@
-/* Copyright (c) 2000, 2014, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2014, SkySQL Ab.
+/* Copyright (c) 2000, 2015, Oracle and/or its affiliates.
+   Copyright (c) 2009, 2015, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -2375,7 +2375,8 @@ void mysqld_list_processes(THD *thd,const char *user, bool verbose)
     Security_context *tmp_sctx= tmp->security_ctx;
     struct st_my_thread_var *mysys_var;
     if ((tmp->vio_ok() || tmp->system_thread) &&
-        (!user || (tmp_sctx->user && !strcmp(tmp_sctx->user, user))))
+        (!user || (!tmp->system_thread &&
+                   tmp_sctx->user && !strcmp(tmp_sctx->user, user))))
     {
       thread_info *thd_info= new thread_info;
 
@@ -2756,7 +2757,8 @@ int fill_schema_processlist(THD* thd, TABLE_LIST* tables, COND* cond)
       ulonglong max_counter;
 
       if ((!tmp->vio_ok() && !tmp->system_thread) ||
-          (user && (!tmp_sctx->user || strcmp(tmp_sctx->user, user))))
+          (user && (tmp->system_thread || !tmp_sctx->user ||
+                    strcmp(tmp_sctx->user, user))))
         continue;
 
       restore_record(table, s->default_values);
@@ -7911,15 +7913,28 @@ bool get_schema_tables_result(JOIN *join,
     TABLE_LIST *table_list= tab->table->pos_in_table_list;
     if (table_list->schema_table && thd->fill_information_schema_tables())
     {
-      bool is_subselect= (&lex->unit != lex->current_select->master_unit() &&
-                          lex->current_select->master_unit()->item);
+      /*
+        Note, currently I_S tables are filled once per query.
+        This needs to be changed if if make_cond_for_info_schema()
+        will preserve outer fields (and thus I_S content will depend on
+        the outer subquery) - in this new case I_S tables will need to
+        be re-populated here.
+
+        And in that case, get_all_tables() might be called O(N^2) times
+        (in self-join of TABLES, for example) and it will allocate
+        table names on THD::mem_root O(N^2) times. To fix it, get_all_tables
+        needs to be fixed to use a local memroot, that is reset or destroyed
+        between get_all_tables invocations. Or fixed not to allocate
+        table names on THD::memroot if these names don't satisfy lookup_field
+      */
+      const bool is_subselect= false;
 
       /* A value of 0 indicates a dummy implementation */
       if (table_list->schema_table->fill_table == 0)
         continue;
 
       /* skip I_S optimizations specific to get_all_tables */
-      if (thd->lex->describe &&
+      if (lex->describe &&
           (table_list->schema_table->fill_table != get_all_tables))
         continue;
 
@@ -7952,7 +7967,6 @@ bool get_schema_tables_result(JOIN *join,
       }
       else
         table_list->table->file->stats.records= 0;
-
   
       Item *cond= tab->select_cond;
       if (tab->cache_select && tab->cache_select->cond)

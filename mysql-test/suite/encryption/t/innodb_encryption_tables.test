@@ -66,10 +66,10 @@ t1.c1 = t2.c1 and t1.b = t2.b;
 select count(*) from innodb_redundant t1, innodb_normal t2 where
 t1.c1 = t2.c1 and t1.b = t2.b;
 
-SELECT variable_value >= 0 FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_num_pages_encrypted';
-SELECT variable_value >= 0 FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_num_pages_decrypted';
-SELECT variable_value >= 0 FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_num_pages_page_compressed';
-SELECT variable_value >= 0 FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_num_pages_page_decompressed';
+SELECT variable_value >= 0 FROM information_schema.global_status WHERE variable_name = 'innodb_num_pages_encrypted';
+SELECT variable_value >= 0 FROM information_schema.global_status WHERE variable_name = 'innodb_num_pages_decrypted';
+SELECT variable_value >= 0 FROM information_schema.global_status WHERE variable_name = 'innodb_num_pages_page_compressed';
+SELECT variable_value >= 0 FROM information_schema.global_status WHERE variable_name = 'innodb_num_pages_page_decompressed';
 
 --source include/restart_mysqld.inc
 
@@ -95,10 +95,10 @@ t1.c1 = t2.c1 and t1.b = t2.b;
 select count(*) from innodb_redundant t1, innodb_normal t2 where
 t1.c1 = t2.c1 and t1.b = t2.b;
 
-SELECT variable_value >= 0 FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_num_pages_encrypted';
-SELECT variable_value >= 0 FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_num_pages_decrypted';
-SELECT variable_value >= 0 FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_num_pages_page_compressed';
-SELECT variable_value >= 0 FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_num_pages_page_decompressed';
+SELECT variable_value >= 0 FROM information_schema.global_status WHERE variable_name = 'innodb_num_pages_encrypted';
+SELECT variable_value >= 0 FROM information_schema.global_status WHERE variable_name = 'innodb_num_pages_decrypted';
+SELECT variable_value >= 0 FROM information_schema.global_status WHERE variable_name = 'innodb_num_pages_page_compressed';
+SELECT variable_value >= 0 FROM information_schema.global_status WHERE variable_name = 'innodb_num_pages_page_decompressed';
 
 drop procedure innodb_insert_proc;
 drop table innodb_normal;

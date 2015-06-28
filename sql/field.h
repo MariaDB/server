@@ -900,14 +900,32 @@ public:
   virtual int set_time() { return 1; }
   bool set_warning(Sql_condition::enum_warning_level, unsigned int code,
                    int cuted_increment) const;
+protected:
+  bool set_warning(unsigned int code, int cuted_increment) const
+  {
+    return set_warning(Sql_condition::WARN_LEVEL_WARN, code, cuted_increment);
+  }
+  bool set_note(unsigned int code, int cuted_increment) const
+  {
+    return set_warning(Sql_condition::WARN_LEVEL_NOTE, code, cuted_increment);
+  }
   void set_datetime_warning(Sql_condition::enum_warning_level, uint code, 
                             const ErrConv *str, timestamp_type ts_type,
                             int cuted_increment) const;
+  void set_datetime_warning(uint code,
+                            const ErrConv *str, timestamp_type ts_type,
+                            int cuted_increment) const
+  {
+    set_datetime_warning(Sql_condition::WARN_LEVEL_WARN, code, str, ts_type,
+                         cuted_increment);
+  }
+  void set_warning_truncated_wrong_value(const char *type, const char *value);
   inline bool check_overflow(int op_result)
   {
     return (op_result == E_DEC_OVERFLOW);
   }
   int warn_if_overflow(int op_result);
+public:
   void set_table_name(String *alias)
   {
     table_name= &alias->Ptr;
@@ -2694,6 +2712,7 @@ public:
   int reset(void) { return Field_blob::reset() || !maybe_null(); }
 
   geometry_type get_geometry_type() { return geom_type; };
+  static geometry_type geometry_type_merge(geometry_type, geometry_type);
   uint get_srid() { return srid; }
 };
 

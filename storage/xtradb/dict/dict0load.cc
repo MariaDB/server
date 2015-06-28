@@ -2182,8 +2182,7 @@ err_len:
 
 	/* See if the tablespace is available. */
 	*table = dict_mem_table_create(
-		name, space, n_cols & ~DICT_N_COLS_COMPACT, flags, flags2,
-		false);
+		name, space, n_cols & ~DICT_N_COLS_COMPACT, flags, flags2);
 
 	field = rec_get_nth_field_old(rec, DICT_FLD__SYS_TABLES__ID, &len);
 	ut_ad(len == 8); /* this was checked earlier */

@@ -2510,10 +2510,11 @@ static MYSQL_SOCKET activate_tcp_port(uint port)
 
     if (mysql_socket_getfd(ip_sock) == INVALID_SOCKET)
     {
-      sql_print_error("Failed to create a socket for %s '%s': errno: %d.",
-                      (a->ai_family == AF_INET) ? "IPv4" : "IPv6",
-                      (const char *) ip_addr,
-                      (int) socket_errno);
+      sql_print_message_func func= real_bind_addr_str ? sql_print_error
+                                                      : sql_print_warning;
+      func("Failed to create a socket for %s '%s': errno: %d.",
+           (a->ai_family == AF_INET) ? "IPv4" : "IPv6",
+           (const char *) ip_addr, (int) socket_errno);
     }
     else 
     {
@@ -3756,6 +3757,7 @@ SHOW_VAR com_status_vars[]= {
   {"create_role",          STMT_STATUS(SQLCOM_CREATE_ROLE)},
   {"create_server",        STMT_STATUS(SQLCOM_CREATE_SERVER)},
   {"create_table",         STMT_STATUS(SQLCOM_CREATE_TABLE)},
+  {"create_temporary_table", COM_STATUS(com_create_tmp_table)},
   {"create_trigger",       STMT_STATUS(SQLCOM_CREATE_TRIGGER)},
   {"create_udf",           STMT_STATUS(SQLCOM_CREATE_FUNCTION)},
   {"create_user",          STMT_STATUS(SQLCOM_CREATE_USER)},
@@ -3772,6 +3774,7 @@ SHOW_VAR com_status_vars[]= {
   {"drop_role",            STMT_STATUS(SQLCOM_DROP_ROLE)},
   {"drop_server",          STMT_STATUS(SQLCOM_DROP_SERVER)},
   {"drop_table",           STMT_STATUS(SQLCOM_DROP_TABLE)},
+  {"drop_temporary_table", COM_STATUS(com_drop_tmp_table)},
   {"drop_trigger",         STMT_STATUS(SQLCOM_DROP_TRIGGER)},
   {"drop_user",            STMT_STATUS(SQLCOM_DROP_USER)},
   {"drop_view",            STMT_STATUS(SQLCOM_DROP_VIEW)},
@@ -3919,7 +3922,7 @@ void init_sql_statement_info()
   while (var->name != NULL)
   {
     ptr= (size_t)(var->value);
-    if ((first_com <= ptr) && (ptr <= last_com))
+    if ((first_com <= ptr) && (ptr < last_com))
     {
       com_index= ((int)(ptr - first_com))/record_size;
       DBUG_ASSERT(com_index < (uint) SQLCOM_END);
@@ -4207,25 +4210,27 @@ static int init_common_variables()
     We have few debug-only commands in com_status_vars, only visible in debug
     builds. for simplicity we enable the assert only in debug builds
 
-    There are 8 Com_ variables which don't have corresponding SQLCOM_ values:
+    There are 10 Com_ variables which don't have corresponding SQLCOM_ values:
     (TODO strictly speaking they shouldn't be here, should not have Com_ prefix
     that is. Perhaps Stmt_ ? Comstmt_ ? Prepstmt_ ?)
 
-      Com_admin_commands       => com_other
-      Com_stmt_close           => com_stmt_close
-      Com_stmt_execute         => com_stmt_execute
-      Com_stmt_fetch           => com_stmt_fetch
-      Com_stmt_prepare         => com_stmt_prepare
-      Com_stmt_reprepare       => com_stmt_reprepare
-      Com_stmt_reset           => com_stmt_reset
-      Com_stmt_send_long_data  => com_stmt_send_long_data
+      Com_admin_commands         => com_other
+      Com_create_temporary_table => com_create_tmp_table
+      Com_drop_temporary_table   => com_drop_tmp_table
+      Com_stmt_close             => com_stmt_close
+      Com_stmt_execute           => com_stmt_execute
+      Com_stmt_fetch             => com_stmt_fetch
+      Com_stmt_prepare           => com_stmt_prepare
+      Com_stmt_reprepare         => com_stmt_reprepare
+      Com_stmt_reset             => com_stmt_reset
+      Com_stmt_send_long_data    => com_stmt_send_long_data
 
     With this correction the number of Com_ variables (number of elements in
     the array, excluding the last element - terminator) must match the number
     of SQLCOM_ constants.
   */
   compile_time_assert(sizeof(com_status_vars)/sizeof(com_status_vars[0]) - 1 ==
-                     SQLCOM_END + 8);
+                     SQLCOM_END + 10);
 #endif
 
   if (get_options(&remaining_argc, &remaining_argv))
@@ -5430,41 +5435,6 @@ void decrement_handler_count()
 
 #ifndef EMBEDDED_LIBRARY
 
-LEX_STRING sql_statement_names[(uint) SQLCOM_END + 1];
-
-static void init_sql_statement_names()
-{
-  size_t first_com= offsetof(STATUS_VAR, com_stat[0]);
-  size_t last_com= offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_END]);
-  int record_size= offsetof(STATUS_VAR, com_stat[1])
-                   - offsetof(STATUS_VAR, com_stat[0]);
-  size_t ptr;
-  uint i;
-  uint com_index;
-
-  for (i= 0; i < ((uint) SQLCOM_END + 1); i++)
-    sql_statement_names[i]= empty_lex_str;
-
-  SHOW_VAR *var= &com_status_vars[0];
-  while (var->name != NULL)
-  {
-    ptr= (size_t)(var->value);
-    if ((first_com <= ptr) && (ptr <= last_com))
-    {
-      com_index= ((int)(ptr - first_com))/record_size;
-      DBUG_ASSERT(com_index < (uint) SQLCOM_END);
-      sql_statement_names[com_index].str= const_cast<char *>(var->name);
-      sql_statement_names[com_index].length= strlen(var->name);
-    }
-    var++;
-  }
-
-  DBUG_ASSERT(strcmp(sql_statement_names[(uint) SQLCOM_SELECT].str, "select") == 0);
-  DBUG_ASSERT(strcmp(sql_statement_names[(uint) SQLCOM_SIGNAL].str, "signal") == 0);
-
-  sql_statement_names[(uint) SQLCOM_END].str= const_cast<char*>("error");
-}
-
 #ifndef DBUG_OFF
 /*
   Debugging helper function to keep the locale database
@@ -5543,7 +5513,6 @@ int mysqld_main(int argc, char **argv)
   /* Must be initialized early for comparison of options name */
   system_charset_info= &my_charset_utf8_general_ci;
 
-  init_sql_statement_names();
   sys_var_init();
 
 #ifdef WITH_PERFSCHEMA_STORAGE_ENGINE
@@ -5896,6 +5865,8 @@ int mysqld_main(int argc, char **argv)
   mysqld_server_started= 1;
   mysql_cond_signal(&COND_server_started);
   mysql_mutex_unlock(&LOCK_server_started);
+
+  MYSQL_SET_STAGE(0 ,__FILE__, __LINE__);
 
 #if defined(_WIN32) || defined(HAVE_SMEM)
   handle_connections_methods();

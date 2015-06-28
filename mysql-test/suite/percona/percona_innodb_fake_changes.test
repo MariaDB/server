@@ -38,7 +38,7 @@ SET innodb_fake_changes=1;
 BEGIN;
 --error 1005
 CREATE TABLE t2 (a INT) ENGINE=InnoDB;
---error 1051
+--error 1031
 DROP TABLE t1;
 --error 1180
 TRUNCATE TABLE t1;

@@ -105,6 +105,7 @@ select aes_decrypt(NULL,"a");
 select aes_decrypt("a",NULL);
 select aes_decrypt("a","a");
 select aes_decrypt(aes_encrypt("","a"),"a");
+select aes_decrypt("", "a");
 select repeat('monty',5),concat('*',space(5),'*');
 select reverse('abc'),reverse('abcd');
 select rpad('a',4,'1'),rpad('a',4,'12'),rpad('abcd',3,'12'), rpad(11, 10 , 22), rpad("ab", 10, 22);

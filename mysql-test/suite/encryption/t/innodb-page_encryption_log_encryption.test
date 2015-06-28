@@ -67,8 +67,8 @@ select count(*) from innodb_redundant t1, innodb_normal t2 where
 t1.c1 = t2.c1 and t1.b = t2.b;
 
 # Note there that these variables are updated only when real I/O is done, thus they are not reliable
-SELECT variable_value >= 0 FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_num_pages_encrypted';
-SELECT variable_value >= 0 FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_num_pages_decrypted';
+SELECT variable_value >= 0 FROM information_schema.global_status WHERE variable_name = 'innodb_num_pages_encrypted';
+SELECT variable_value >= 0 FROM information_schema.global_status WHERE variable_name = 'innodb_num_pages_decrypted';
 
 --source include/restart_mysqld.inc
 
@@ -93,8 +93,8 @@ t1.c1 = t2.c1 and t1.b = t2.b;
 select count(*) from innodb_redundant t1, innodb_normal t2 where
 t1.c1 = t2.c1 and t1.b = t2.b;
 
-SELECT variable_value >= 0 FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_num_pages_encrypted';
-SELECT variable_value >= 0 FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_num_pages_decrypted';
+SELECT variable_value >= 0 FROM information_schema.global_status WHERE variable_name = 'innodb_num_pages_encrypted';
+SELECT variable_value >= 0 FROM information_schema.global_status WHERE variable_name = 'innodb_num_pages_decrypted';
 
 alter table innodb_compact engine=innodb encrypted=DEFAULT encryption_key_id=DEFAULT;
 show create table innodb_compact;
@@ -133,8 +133,8 @@ t1.c1 = t2.c1 and t1.b = t2.b;
 select count(*) from innodb_redundant t1, innodb_normal t2 where
 t1.c1 = t2.c1 and t1.b = t2.b;
 
-SELECT variable_value >= 0 FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_num_pages_encrypted';
-SELECT variable_value >= 0 FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_num_pages_decrypted';
+SELECT variable_value >= 0 FROM information_schema.global_status WHERE variable_name = 'innodb_num_pages_encrypted';
+SELECT variable_value >= 0 FROM information_schema.global_status WHERE variable_name = 'innodb_num_pages_decrypted';
 
 drop procedure innodb_insert_proc;
 drop table innodb_normal;

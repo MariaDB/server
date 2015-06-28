@@ -1058,8 +1058,7 @@ int vprint_msg_to_log(enum loglevel level, const char *format, va_list args);
 void sql_print_error(const char *format, ...);
 void sql_print_warning(const char *format, ...);
 void sql_print_information(const char *format, ...);
-typedef void (*sql_print_message_func)(const char *format, ...)
-  ATTRIBUTE_FORMAT_FPTR(printf, 1, 2);
+typedef void (*sql_print_message_func)(const char *format, ...);
 extern sql_print_message_func sql_print_message_handlers[];
 
 int error_log_print(enum loglevel level, const char *format,

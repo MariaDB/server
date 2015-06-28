@@ -28,8 +28,8 @@ insert into innodb_dynamic select * from innodb_normal;
 insert into innodb_redundant select * from innodb_normal;
 
 # Note there that these variables are updated only when real I/O is done, thus they are not reliable
-SELECT variable_value >= 0 FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_num_pages_encrypted';
-SELECT variable_value >= 0 FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_num_pages_decrypted';
+SELECT variable_value >= 0 FROM information_schema.global_status WHERE variable_name = 'innodb_num_pages_encrypted';
+SELECT variable_value >= 0 FROM information_schema.global_status WHERE variable_name = 'innodb_num_pages_decrypted';
 
 alter table innodb_compact engine=innodb encryption_key_id = 6;
 alter table innodb_compressed engine=innodb encryption_key_id = 6;
@@ -43,8 +43,8 @@ select * from innodb_dynamic;
 select * from innodb_redundant;
 
 # Note there that these variables are updated only when real I/O is done, thus they are not reliable
-SELECT variable_value >= 0 FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_num_pages_encrypted';
-SELECT variable_value >= 0 FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_num_pages_decrypted';
+SELECT variable_value >= 0 FROM information_schema.global_status WHERE variable_name = 'innodb_num_pages_encrypted';
+SELECT variable_value >= 0 FROM information_schema.global_status WHERE variable_name = 'innodb_num_pages_decrypted';
 
 --echo # Restart mysqld --loose-file-key-management-filename=keys3.txt
 -- let $restart_parameters=--loose-file-key-management-filename=$MYSQL_TEST_DIR/std_data/keys3.txt
@@ -57,8 +57,8 @@ select * from innodb_dynamic;
 select * from innodb_redundant;
 
 # Note there that these variables are updated only when real I/O is done, thus they are not reliable
-SELECT variable_value >= 0 FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_num_pages_encrypted';
-SELECT variable_value >= 0 FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_num_pages_decrypted';
+SELECT variable_value >= 0 FROM information_schema.global_status WHERE variable_name = 'innodb_num_pages_encrypted';
+SELECT variable_value >= 0 FROM information_schema.global_status WHERE variable_name = 'innodb_num_pages_decrypted';
 
 SET GLOBAL innodb_file_format = `Barracuda`;
 SET GLOBAL innodb_file_per_table = ON;
@@ -75,8 +75,8 @@ select * from innodb_dynamic;
 select * from innodb_redundant;
 
 # Note there that these variables are updated only when real I/O is done, thus they are not reliable
-SELECT variable_value >= 0 FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_num_pages_encrypted';
-SELECT variable_value >= 0 FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_num_pages_decrypted';
+SELECT variable_value >= 0 FROM information_schema.global_status WHERE variable_name = 'innodb_num_pages_encrypted';
+SELECT variable_value >= 0 FROM information_schema.global_status WHERE variable_name = 'innodb_num_pages_decrypted';
 
 drop table innodb_normal;
 drop table innodb_compact;

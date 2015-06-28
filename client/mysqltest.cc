@@ -839,6 +839,7 @@ static void handle_no_active_connection(struct st_command* command,
 #define EMB_END_CONNECTION 3
 #define EMB_PREPARE_STMT 4
 #define EMB_EXECUTE_STMT 5
+#define EMB_CLOSE_STMT 6
 
 /* workaround for MySQL BUG#57491 */
 #undef MY_WME
@@ -886,6 +887,9 @@ pthread_handler_t connection_thread(void *arg)
         break;
       case EMB_EXECUTE_STMT:
         cn->result= mysql_stmt_execute(cn->stmt);
+        break;
+      case EMB_CLOSE_STMT:
+        cn->result= mysql_stmt_close(cn->stmt);
         break;
       default:
         DBUG_ASSERT(0);
@@ -984,6 +988,17 @@ static int do_stmt_execute(struct st_connection *cn)
 }
 
 
+static int do_stmt_close(struct st_connection *cn)
+{
+  /* The cn->stmt is already set. */
+  if (!cn->has_thread)
+    return mysql_stmt_close(cn->stmt);
+  signal_connection_thd(cn, EMB_CLOSE_STMT);
+  wait_query_thread_done(cn);
+  return cn->result;
+}
+
+
 static void emb_close_connection(struct st_connection *cn)
 {
   if (!cn->has_thread)
@@ -1019,6 +1034,7 @@ static void init_connection_thd(struct st_connection *cn)
 #define do_read_query_result(cn) mysql_read_query_result(cn->mysql)
 #define do_stmt_prepare(cn, q, q_len) mysql_stmt_prepare(cn->stmt, q, q_len)
 #define do_stmt_execute(cn) mysql_stmt_execute(cn->stmt)
+#define do_stmt_close(cn) mysql_stmt_close(cn->stmt)
 
 #endif /*EMBEDDED_LIBRARY*/
 
@@ -1378,11 +1394,11 @@ void close_connections()
   DBUG_ENTER("close_connections");
   for (--next_con; next_con >= connections; --next_con)
   {
+    if (next_con->stmt)
+      do_stmt_close(next_con);
 #ifdef EMBEDDED_LIBRARY
     emb_close_connection(next_con);
 #endif
-    if (next_con->stmt)
-      mysql_stmt_close(next_con->stmt);
     next_con->stmt= 0;
     mysql_close(next_con->mysql);
     next_con->mysql= 0;
@@ -5491,7 +5507,11 @@ void do_close_connection(struct st_command *command)
       con->mysql->net.vio = 0;
     }
   }
-#else
+#endif /*!EMBEDDED_LIBRARY*/
+  if (con->stmt)
+    do_stmt_close(con);
+  con->stmt= 0;
+#ifdef EMBEDDED_LIBRARY
   /*
     As query could be still executed in a separate theread
     we need to check if the query's thread was finished and probably wait
@@ -5499,9 +5519,6 @@ void do_close_connection(struct st_command *command)
   */
   emb_close_connection(con);
 #endif /*EMBEDDED_LIBRARY*/
-  if (con->stmt)
-    mysql_stmt_close(con->stmt);
-  con->stmt= 0;
 
   mysql_close(con->mysql);
   con->mysql= 0;

@@ -5,7 +5,7 @@
 /*                                                                     */
 /* COPYRIGHT:                                                          */
 /* ----------                                                          */
-/*  (C) Copyright to the author Olivier BERTRAND          1999-2014    */
+/*  (C) Copyright to the author Olivier BERTRAND          1999-2015    */
 /*                                                                     */
 /* WHAT THIS PROGRAM DOES:                                             */
 /* -----------------------                                             */
@@ -35,7 +35,7 @@
 /*  Include relevant MariaDB header file.                              */
 /***********************************************************************/
 #include "my_global.h"
-#if defined(WIN32)
+#if defined(__WIN__)
 #include <io.h>
 #include <fcntl.h>
 #if defined(__BORLANDC__)
@@ -94,7 +94,7 @@ PVBLK AllocValBlock(PGLOBAL, void *, int, int, int, int,
 /***********************************************************************/
 /*  DefineAM: define specific AM block values from XDB file.           */
 /***********************************************************************/
-bool VCTDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
+bool VCTDEF::DefineAM(PGLOBAL g, LPCSTR, int poff)
   {
   DOSDEF::DefineAM(g, "BIN", poff);
 
@@ -146,7 +146,7 @@ bool VCTDEF::Erase(char *filename)
 
     for (i = 1, cdp = To_Cols; cdp; i++, cdp = cdp->GetNext()) {
       sprintf(filename, fpat, i);
-//#if defined(WIN32)
+//#if defined(__WIN__)
 //      rc |= !DeleteFile(filename);
 //#else    // UNIX
       rc |= remove(filename);
@@ -175,7 +175,7 @@ bool VCTDEF::Erase(char *filename)
 int VCTDEF::MakeFnPattern(char *fpat)
   {
   char    pat[8];
-#if !defined(UNIX)
+#if defined(__WIN__)
   char    drive[_MAX_DRIVE];
 #else
   char    *drive = NULL;
@@ -290,7 +290,7 @@ PCOL TDBVCT::MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n)
 /***********************************************************************/
 /*  VEC tables are not ready yet to use temporary files.               */
 /***********************************************************************/
-bool TDBVCT::IsUsingTemp(PGLOBAL g)
+bool TDBVCT::IsUsingTemp(PGLOBAL)
   {
   // For developpers
   return (UseTemp() == TMP_TEST);
@@ -570,7 +570,7 @@ void VCTCOL::ReadColumn(PGLOBAL g)
 /*  On each change of block the buffer is written back to file and     */
 /*  in mode Insert the buffer is filled with the block to update.      */
 /***********************************************************************/
-void VCTCOL::WriteColumn(PGLOBAL g)
+void VCTCOL::WriteColumn(PGLOBAL)
   {
   PTXF txfp = ((PTDBVCT)To_Tdb)->Txfp;;
 

@@ -4679,7 +4679,6 @@ class Item_cache: public Item_basic_constant
 {
 protected:
   Item *example;
-  table_map used_table_map;
   /**
     Field that this object will get value from. This is used by 
     index-based subquery engines to detect and remove the equality injected 
@@ -4697,7 +4696,7 @@ protected:
   bool value_cached;
 public:
   Item_cache():
-    example(0), used_table_map(0), cached_field(0),
+    example(0), cached_field(0),
     cached_field_type(MYSQL_TYPE_STRING),
     value_cached(0)
   {
@@ -4706,7 +4705,7 @@ public:
     null_value= 1;
   }
   Item_cache(enum_field_types field_type_arg):
-    example(0), used_table_map(0), cached_field(0),
+    example(0), cached_field(0),
     cached_field_type(field_type_arg),
     value_cached(0)
   {
@@ -4714,8 +4713,6 @@ public:
     maybe_null= 1;
     null_value= 1;
   }
-
-  void set_used_tables(table_map map) { used_table_map= map; }
 
   virtual bool allocate(uint i) { return 0; }
   virtual bool setup(Item *item)
@@ -4730,7 +4727,6 @@ public:
   enum_field_types field_type() const { return cached_field_type; }
   static Item_cache* get_cache(const Item *item);
   static Item_cache* get_cache(const Item* item, const Item_result type);
-  table_map used_tables() const { return used_table_map; }
   virtual void keep_array() {}
   virtual void print(String *str, enum_query_type query_type);
   bool eq_def(Field *field) 
@@ -4781,6 +4777,7 @@ public:
       return TRUE;
     return (this->*processor)(arg);
   }
+  virtual Item *safe_charset_converter(CHARSET_INFO *tocs);
 };
 
 

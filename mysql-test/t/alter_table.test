@@ -1326,6 +1326,14 @@ SHOW CREATE TABLE t2;
 DROP TABLE t2;
 DROP TABLE t1;
 
+CREATE TABLE t1 (
+    `transaction_id` int(11) NOT NULL DEFAULT '0', 
+    KEY `transaction_id` (`transaction_id`));
+ALTER TABLE t1 DROP KEY IF EXISTS transaction_id, ADD PRIMARY KEY IF NOT EXISTS (transaction_id);
+SHOW CREATE TABLE t1;
+
+DROP TABLE t1;
+
 --echo # Bug#11748057 (formerly known as 34972): ALTER TABLE statement doesn't
 --echo #                                         identify correct column name.
 --echo #

@@ -1,7 +1,7 @@
 /*************** Filter H Declares Source Code File (.H) ***************/
 /*  Name: FILTER.H    Version 1.2                                      */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          2010-2012    */
+/*  (C) Copyright to the author Olivier BERTRAND          2010-2015    */
 /*                                                                     */
 /*  This file contains the FILTER and derived classes declares.        */
 /***********************************************************************/
@@ -105,8 +105,8 @@ class FILTERX : public FILTER {
   virtual bool Eval(PGLOBAL) = 0; // just to prevent direct FILTERX use
 
   // Fake operator new used to change a filter into a derived filter
-  void * operator new(size_t size, PFIL filp) {return filp;}
-#if defined(WIN32)
+  void * operator new(size_t, PFIL filp) {return filp;}
+#if defined(__WIN__)
   // Avoid warning C4291 by defining a matching dummy delete operator
   void operator delete(void *, PFIL) {}
 #else

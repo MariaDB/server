@@ -634,7 +634,7 @@ ERROR 42S02: Table 'test.bug29807' doesn't exist in engine
 drop table t1;
 drop table bug29807;
 Warnings:
-Warning	155	Table 'test.bug29807' doesn't exist in engine
+Warning	1932	Table 'test.bug29807' doesn't exist in engine
 CREATE TABLE t1 (a INT) ENGINE=InnoDB;
 CREATE TABLE t2 (a INT) ENGINE=InnoDB;
 switch to connection c1

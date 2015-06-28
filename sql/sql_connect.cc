@@ -1080,7 +1080,7 @@ bool setup_connection_thread_globals(THD *thd)
 bool login_connection(THD *thd)
 {
   NET *net= &thd->net;
-  int error;
+  int error= 0;
   DBUG_ENTER("login_connection");
   DBUG_PRINT("info", ("login_connection called by thread %lu",
                       thd->thread_id));
@@ -1099,7 +1099,8 @@ bool login_connection(THD *thd)
       my_sleep(1000);				/* must wait after eof() */
 #endif
     statistic_increment(aborted_connects,&LOCK_status);
-    DBUG_RETURN(1);
+    error=1;
+    goto exit;
   }
   /* Connect completed, set read/write timeouts back to default */
   my_net_set_read_timeout(net, thd->variables.net_read_timeout);
@@ -1109,10 +1110,13 @@ bool login_connection(THD *thd)
   if (increment_connection_count(thd, TRUE))
   {
     my_error(ER_OUTOFMEMORY, MYF(0), 2*sizeof(USER_STATS));
-    DBUG_RETURN(1);
+    error= 1;
+    goto exit;
   }
 
-  DBUG_RETURN(0);
+exit:
+  mysql_audit_notify_connection_connect(thd);
+  DBUG_RETURN(error);
 }
 
 
@@ -1264,7 +1268,6 @@ bool thd_prepare_connection(THD *thd)
   bool rc;
   lex_start(thd);
   rc= login_connection(thd);
-  mysql_audit_notify_connection_connect(thd);
   if (rc)
     return rc;
 

@@ -77,21 +77,21 @@ class DllExport TDB: public BLOCK {     // Table Descriptor Block.
   virtual int    GetTdb_No(void) {return Tdb_No;}
   virtual PTDB   GetNext(void) {return Next;}
   virtual PCATLG GetCat(void) {return NULL;}
-  virtual void   SetAbort(bool b) {;}
+  virtual void   SetAbort(bool) {;}
 
   // Methods
   virtual bool   IsSame(PTDB tp) {return tp == this;}
   virtual bool   IsSpecial(PSZ name) = 0;
-  virtual bool   GetBlockValues(PGLOBAL g) {return false;}
-  virtual int    Cardinality(PGLOBAL g) {return 0;}
+  virtual bool   GetBlockValues(PGLOBAL) {return false;}
+  virtual int    Cardinality(PGLOBAL) {return 0;}
   virtual int    GetMaxSize(PGLOBAL) = 0;
   virtual int    GetProgMax(PGLOBAL) = 0;
   virtual int    GetProgCur(void) = 0;
   virtual int    RowNumber(PGLOBAL g, bool b = false);
   virtual bool   IsReadOnly(void) {return true;}
   virtual const CHARSET_INFO *data_charset() {return NULL;}
-  virtual PTDB   Duplicate(PGLOBAL g) {return NULL;}
-  virtual PTDB   CopyOne(PTABS t) {return this;}
+  virtual PTDB   Duplicate(PGLOBAL) {return NULL;}
+  virtual PTDB   CopyOne(PTABS) {return this;}
   virtual PTDB   Copy(PTABS t);
   virtual void   PrintAM(FILE *f, char *m)
                   {fprintf(f, "%s AM(%d)\n",  m, GetAmType());}
@@ -108,7 +108,7 @@ class DllExport TDB: public BLOCK {     // Table Descriptor Block.
   virtual int    WriteDB(PGLOBAL) = 0;
   virtual int    DeleteDB(PGLOBAL, int) = 0;
   virtual void   CloseDB(PGLOBAL) = 0;
-  virtual int    CheckWrite(PGLOBAL g) {return 0;}
+  virtual int    CheckWrite(PGLOBAL) {return 0;}
   virtual bool   ReadKey(PGLOBAL, OPVAL, const void *, int) = 0;
 
  protected:
@@ -155,7 +155,7 @@ class DllExport TDBASE : public TDB {
   PCOL    Key(int i) {return (To_Key_Col) ? To_Key_Col[i] : NULL;}
 
   // Methods
-  virtual bool   IsUsingTemp(PGLOBAL g) {return false;}
+  virtual bool   IsUsingTemp(PGLOBAL) {return false;}
   virtual bool   IsIndexed(void) {return false;}
   virtual bool   IsSpecial(PSZ name);
   virtual PCATLG GetCat(void);
@@ -170,9 +170,9 @@ class DllExport TDBASE : public TDB {
   virtual CHARSET_INFO *data_charset(void);
   virtual int    GetProgMax(PGLOBAL g) {return GetMaxSize(g);}
   virtual int    GetProgCur(void) {return GetRecpos();}
-  virtual PSZ    GetFile(PGLOBAL g) {return "Not a file";}
+  virtual PSZ    GetFile(PGLOBAL) {return "Not a file";}
   virtual int    GetRemote(void) {return 0;}
-  virtual void   SetFile(PGLOBAL g, PSZ fn) {}
+  virtual void   SetFile(PGLOBAL, PSZ) {}
   virtual void   ResetDB(void) {}
   virtual void   ResetSize(void) {MaxSize = -1;}
   virtual void   RestoreNrec(void) {}
@@ -183,12 +183,12 @@ class DllExport TDBASE : public TDB {
   virtual PCOL ColDB(PGLOBAL g, PSZ name, int num);
   virtual PCOL MakeCol(PGLOBAL, PCOLDEF, PCOL, int)
                       {assert(false); return NULL;}
-  virtual PCOL InsertSpecialColumn(PGLOBAL g, PCOL colp);
+  virtual PCOL InsertSpecialColumn(PCOL colp);
   virtual PCOL InsertSpcBlk(PGLOBAL g, PCOLDEF cdp);
   virtual void MarkDB(PGLOBAL g, PTDB tdb2);
-  virtual int  MakeIndex(PGLOBAL g, PIXDEF pxdf, bool add)
+  virtual int  MakeIndex(PGLOBAL g, PIXDEF, bool)
                 {strcpy(g->Message, "Remote index"); return RC_INFO;}
-  virtual bool ReadKey(PGLOBAL g, OPVAL op, const void *key, int len)
+  virtual bool ReadKey(PGLOBAL, OPVAL, const void *, int)
                       {assert(false); return true;}
 
  protected:
@@ -225,7 +225,7 @@ class DllExport TDBCAT : public TDBASE {
   // Methods
   virtual int  GetRecpos(void) {return N;}
   virtual int  GetProgCur(void) {return N;}
-  virtual int  RowNumber(PGLOBAL g, bool b = false) {return N + 1;}
+  virtual int  RowNumber(PGLOBAL, bool = false) {return N + 1;}
   virtual bool SetRecpos(PGLOBAL g, int recpos);
 
   // Database routines

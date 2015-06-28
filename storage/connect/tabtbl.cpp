@@ -39,7 +39,7 @@
 //#include "sql_base.h"
 #include "my_global.h"
 #include "table.h"       // MySQL table definitions
-#if defined(WIN32)
+#if defined(__WIN__)
 #include <stdlib.h>
 #include <stdio.h>
 #if defined(__BORLANDC__)
@@ -73,15 +73,15 @@
 #include "tabmysql.h"
 #include "ha_connect.h"
 
-#if defined(WIN32)
+#if defined(__WIN__)
 #if defined(__BORLANDC__)
 #define SYSEXIT void _USERENTRY
 #else
 #define SYSEXIT void
 #endif
-#else   // !WIN32
+#else   // !__WIN__
 #define SYSEXIT void *
-#endif  // !WIN32
+#endif  // !__WIN__
 
 /* ---------------------------- Class TBLDEF ---------------------------- */
 
@@ -101,7 +101,7 @@ TBLDEF::TBLDEF(void)
 /**************************************************************************/
 /*  DefineAM: define specific AM block values from XDB file.              */
 /**************************************************************************/
-bool TBLDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
+bool TBLDEF::DefineAM(PGLOBAL g, LPCSTR, int)
   {
   char   *tablist, *dbname, *def = NULL;
 
@@ -161,7 +161,7 @@ bool TBLDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
 /***********************************************************************/
 /*  GetTable: makes a new Table Description Block.                     */
 /***********************************************************************/
-PTDB TBLDEF::GetTable(PGLOBAL g, MODE m)
+PTDB TBLDEF::GetTable(PGLOBAL g, MODE)
   {
   if (Catfunc == FNC_COL)
     return new(g) TDBTBC(this);
@@ -202,7 +202,7 @@ PCOL TDBTBL::MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n)
 /***********************************************************************/
 /*  InsertSpecialColumn: Put a special column ahead of the column list.*/
 /***********************************************************************/
-PCOL TDBTBL::InsertSpecialColumn(PGLOBAL g, PCOL scp)
+PCOL TDBTBL::InsertSpecialColumn(PCOL scp)
   {
   PCOL colp;
 
@@ -548,7 +548,7 @@ int TDBTBL::ReadDB(PGLOBAL g)
 /***********************************************************************/
 /*  ReadColumn:                                                        */
 /***********************************************************************/
-void TBTBLK::ReadColumn(PGLOBAL g)
+void TBTBLK::ReadColumn(PGLOBAL)
   {
   if (trace)
     htrc("TBT ReadColumn: name=%s\n", Name);

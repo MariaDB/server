@@ -1060,7 +1060,7 @@ skip_size_check:
 check_first_page:
 			check_msg = fil_read_first_page(
 				files[i], one_opened, &flags, &space,
-				min_flushed_lsn, max_flushed_lsn, ULINT_UNDEFINED, &crypt_data);
+				min_flushed_lsn, max_flushed_lsn, &crypt_data);
 
 			if (check_msg) {
 
@@ -3277,9 +3277,9 @@ innobase_shutdown_for_mysql(void)
 
 	ibuf_close();
 	log_shutdown();
-	lock_sys_close();
 	trx_sys_file_format_close();
 	trx_sys_close();
+	lock_sys_close();
 
 	/* We don't create these mutexes in RO mode because we don't create
 	the temp files that the cover. */

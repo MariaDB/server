@@ -6,9 +6,7 @@ IF(WIN32)
 ENDIF()
 
 #Remove -fno-implicit-templates from compiler flags(handlersocket would not work  with  it)
-IF(CMAKE_COMPILER_IS_GNUCXX)
-  STRING(REPLACE "-fno-implicit-templates" "" CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS})
-ENDIF()
+STRING(REPLACE "-fno-implicit-templates" "" CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS})
 
 INCLUDE_DIRECTORIES(libhsclient)
 

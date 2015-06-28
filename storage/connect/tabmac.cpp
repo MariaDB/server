@@ -3,12 +3,12 @@
 /*  From the article and sample code by Khalid Shaikh.                 */
 /*  TABMAC: virtual table to get the list of MAC addresses.            */
 /***********************************************************************/
-#if defined(WIN32)
+#if defined(__WIN__)
 #include "my_global.h"
 //#include <iphlpapi.h>
-#else   // !WIN32
-#error This is a WIN32 only table type
-#endif  // !WIN32
+#else   // !__WIN__
+#error This is a WINDOWS only table type
+#endif  // !__WIN__
 #include "global.h"
 #include "plgdbsem.h"
 //#include "catalog.h"
