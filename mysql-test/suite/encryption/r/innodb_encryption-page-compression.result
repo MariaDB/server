@@ -262,5 +262,3 @@ drop table innodb_page_compressed6;
 drop table innodb_page_compressed7;
 drop table innodb_page_compressed8;
 drop table innodb_page_compressed9;
-SET GLOBAL innodb_encryption_threads = 4;
-SET GLOBAL innodb_encrypt_tables = on;
