@@ -8,7 +8,7 @@ SET GLOBAL wsrep_replicate_myisam = TRUE;
 INSERT INTO mysql.user VALUES('localhost','user1',PASSWORD('pass1'), 'Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','','','','',0,0,0,0,'mysql_native_password','','N','N');
 FLUSH PRIVILEGES;
 DELETE FROM mysql.user WHERE user = 'user1';
-SET GLOBAL wsrep_replicate_myisam = FALSE;
+SET SESSION wsrep_replicate_myisam = FALSE;
 FLUSH PRIVILEGES;
 FLUSH QUERY CACHE;
 wsrep_last_committed_diff
@@ -17,6 +17,13 @@ FLUSH STATUS;
 wsrep_last_committed_diff
 1
 FLUSH USER_RESOURCES;
+wsrep_last_committed_diff
+1
+FLUSH TABLES;
+wsrep_last_committed_diff
+1
+CREATE TABLE t2 (f1 INTEGER);
+FLUSH TABLES t2;
 wsrep_last_committed_diff
 1
 CREATE TABLE t1 (f1 INTEGER);
@@ -29,4 +36,19 @@ FLUSH TABLES t1 FOR EXPORT;
 UNLOCK TABLES;
 wsrep_last_committed_diff
 1
+LOCK TABLES t1 WRITE;
+FLUSH TABLES t1;
+UNLOCK TABLES;
+wsrep_last_committed_diff
+1
+LOCK TABLES t1 READ;
+FLUSH TABLES t1;
+ERROR HY000: Table 't1' was locked with a READ lock and can't be updated
+UNLOCK TABLES;
+wsrep_last_committed_diff
+1
+FLUSH TABLES t1;
+wsrep_last_committed_diff
+1
 DROP TABLE t1;
+DROP TABLE t2;
