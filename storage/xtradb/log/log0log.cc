@@ -2581,7 +2581,15 @@ loop:
 	       (ulint) (source_offset % UNIV_PAGE_SIZE),
 	       len, buf, (type == LOG_ARCHIVE) ? &log_archive_io : NULL, 0);
 
+	if (release_mutex) {
+		mutex_enter(&log_sys->mutex);
+	}
+
 	log_decrypt_after_read(buf, len);
+
+	if (release_mutex) {
+		mutex_exit(&log_sys->mutex);
+	}
 
 	start_lsn += len;
 	buf += len;
