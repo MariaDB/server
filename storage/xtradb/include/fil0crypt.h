@@ -88,6 +88,7 @@ struct fil_space_crypt_struct : st_encryption_scheme
 
 	ib_mutex_t mutex;   // mutex protecting following variables
 	bool closing;	    // is tablespace being closed
+	bool inited;
 	fil_space_rotate_state_t rotate_state;
 };
 

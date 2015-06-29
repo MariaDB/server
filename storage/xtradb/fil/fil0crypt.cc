@@ -222,6 +222,7 @@ fil_space_create_crypt_data(
 	my_random_bytes(crypt_data->iv, sizeof(crypt_data->iv));
 	crypt_data->encryption = encrypt_mode;
 	crypt_data->key_id = key_id;
+	crypt_data->inited = true;
 	return crypt_data;
 }
 
@@ -250,6 +251,7 @@ fil_space_merge_crypt_data(
 	dst->type = src->type;
 	dst->min_key_version = src->min_key_version;
 	dst->keyserver_requests += src->keyserver_requests;
+	dst->inited = src->inited;
 
 	mutex_exit(&dst->mutex);
 }
@@ -347,6 +349,7 @@ fil_space_read_crypt_data(
 	mutex_create(fil_crypt_data_mutex_key,
 		     &crypt_data->mutex, SYNC_NO_ORDER_CHECK);
 	crypt_data->locker = crypt_data_scheme_locker;
+	crypt_data->inited = true;
 	memcpy(crypt_data->iv, page + offset + MAGIC_SZ + 2, iv_length);
 
 	return crypt_data;
@@ -362,6 +365,7 @@ fil_space_destroy_crypt_data(
 {
 	if (crypt_data != NULL && (*crypt_data) != NULL) {
 		mutex_free(& (*crypt_data)->mutex);
+		memset(*crypt_data, 0, sizeof(fil_space_crypt_t));
 		free(*crypt_data);
 		(*crypt_data) = NULL;
 	}
@@ -2045,7 +2049,7 @@ fil_crypt_complete_rotate_space(
 	fil_space_crypt_t *crypt_data = fil_space_get_crypt_data(space);
 
 	/* Space might already be dropped */
-	if (crypt_data) {
+	if (crypt_data || !crypt_data->inited) {
 		mutex_enter(&crypt_data->mutex);
 
 		/**
@@ -2369,7 +2373,7 @@ fil_space_crypt_close_tablespace(
 
 	fil_space_crypt_t* crypt_data = fil_space_get_crypt_data(space);
 
-	if (crypt_data == NULL) {
+	if (crypt_data == NULL || !crypt_data->inited) {
 		mutex_exit(&fil_crypt_threads_mutex);
 		return;
 	}
