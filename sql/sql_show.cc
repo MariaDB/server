@@ -2460,7 +2460,7 @@ void mysqld_list_processes(THD *thd,const char *user, bool verbose)
     else
       protocol->store(command_name[thd_info->command].str, system_charset_info);
     if (thd_info->start_time && now > thd_info->start_time)
-      protocol->store_long(now - thd_info->start_time);
+      protocol->store_long((now - thd_info->start_time) / HRTIME_RESOLUTION);
     else
       protocol->store_null();
     protocol->store(thd_info->state_info, system_charset_info);
