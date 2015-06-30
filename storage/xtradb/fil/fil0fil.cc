@@ -5650,9 +5650,9 @@ _fil_io(
 
 	if (!ret) {
 		return(DB_OUT_OF_FILE_SPACE);
-	} else {
-		return(DB_SUCCESS);
 	}
+
+	return(DB_SUCCESS);
 }
 
 #ifndef UNIV_HOTBACKUP
