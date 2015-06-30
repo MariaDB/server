@@ -1777,3 +1777,24 @@ explain extended select * from t2 where (b > 25 and b < 15) or c < 44;
 explain extended select * from t2 where (b > 25 and b < 15) or (a>55 and a<44);
 
 drop table t1,t2;
+
+
+--echo #
+--echo # Start of 10.1 tests
+--echo #
+
+--echo #
+--echo # MDEV-8189 field<>const and const<>field are not symmetric
+--echo #
+CREATE TABLE t1 (a INT, b INT, KEY(a));
+INSERT INTO t1 (a) VALUES (10),(10),(10),(10),(10),(10),(10),(10),(10),(10),(70);
+EXPLAIN SELECT * FROM t1 WHERE a<>10;
+EXPLAIN SELECT * FROM t1 WHERE 10<>a;
+SELECT * FROM t1 WHERE a<>10;
+SELECT * FROM t1 WHERE 10<>a;
+DROP TABLE t1;
+
+
+--echo #
+--echo # End of 10.1 tests
+--echo #

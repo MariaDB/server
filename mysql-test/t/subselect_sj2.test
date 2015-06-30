@@ -1222,6 +1222,25 @@ WHERE alias3.d IN (
     AND ( alias5.b >= alias3.b OR alias5.c != alias3.c )
 );
 
+# MDEV-8189 field<>const and const<>field are not symmetric
+# Do the same EXPLAIN SELECT and SELECT
+# with "alias3.c != alias5.c" instead of "alias5.c != alias3.c"
+
+EXPLAIN
+SELECT COUNT(*) FROM t1 AS alias1, t1 AS alias2, t2 AS alias3
+WHERE alias3.d IN (
+  SELECT alias4.c FROM t2 AS alias4, t2 AS alias5
+  WHERE alias5.b = alias4.b
+    AND ( alias5.b >= alias3.b OR alias3.c != alias5.c )
+);
+
+SELECT COUNT(*) FROM t1 AS alias1, t1 AS alias2, t2 AS alias3
+WHERE alias3.d IN (
+  SELECT alias4.c FROM t2 AS alias4, t2 AS alias5
+  WHERE alias5.b = alias4.b
+    AND ( alias5.b >= alias3.b OR alias3.c != alias5.c )
+);
+
 set optimizer_prune_level=@tmp_951283;
 DROP TABLE t1,t2;
 
