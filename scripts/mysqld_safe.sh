@@ -29,6 +29,7 @@ user='@MYSQLD_USER@'
 pid_file=
 err_log=
 err_log_base=
+skip_err_log=0
 
 syslog_tag_mysqld=mysqld
 syslog_tag_mysqld_safe=mysqld_safe
@@ -208,7 +209,14 @@ parse_arguments() {
 
       # these might have been set in a [mysqld_safe] section of my.cnf
       # they are added to mysqld command line to override settings from my.cnf
-      --log[-_]error=*) err_log="$val" ;;
+      --skip[-_]log[-_]error)
+        err_log=;
+        skip_err_log=1;
+        ;;
+      --log[-_]error=*)
+        err_log="$val";
+        skip_err_log=0;
+        ;;
       --port=*) mysql_tcp_port="$val" ;;
       --socket=*) mysql_unix_port="$val" ;;
 
@@ -546,6 +554,11 @@ then
     log_error "--syslog requested, but no 'logger' program found.  Please ensure that 'logger' is in your PATH, or do not specify the --syslog option to mysqld_safe."
     exit 1
   fi
+fi
+
+if [ $skip_err_log -eq 1 ]
+then
+  append_arg_to_args "--skip-log-error"
 fi
 
 if [ -n "$err_log" -o $want_syslog -eq 0 ]
