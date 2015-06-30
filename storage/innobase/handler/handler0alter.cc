@@ -372,6 +372,35 @@ ha_innobase::check_if_supported_inplace_alter(
 		}
 	}
 
+	/* If we have column that has changed from NULL -> NOT NULL
+	and column default has changed we need to do additional
+	check. */
+	if ((ha_alter_info->handler_flags
+			& Alter_inplace_info::ALTER_COLUMN_NOT_NULLABLE) &&
+	    (ha_alter_info->handler_flags
+		    & Alter_inplace_info::ALTER_COLUMN_DEFAULT)) {
+		Alter_info *alter_info = ha_alter_info->alter_info;
+		List_iterator<Create_field> def_it(alter_info->create_list);
+		Create_field *def;
+		while ((def=def_it++)) {
+
+			/* If this is first column definition whose SQL type
+			is TIMESTAMP and it is defined as NOT NULL and
+			it has either constant default or function default
+			we must use "Copy" method. */
+			if (is_timestamp_type(def->sql_type)) {
+				if ((def->flags & NOT_NULL_FLAG) != 0 && // NOT NULL
+					(def->def != NULL || // constant default ?
+					 def->unireg_check != Field::NONE)) { // function default
+					ha_alter_info->unsupported_reason = innobase_get_err_msg(
+						ER_ALTER_OPERATION_NOT_SUPPORTED_REASON_NOT_NULL);
+					DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
+				}
+				break;
+			}
+		}
+	}
+
 	/* We should be able to do the operation in-place.
 	See if we can do it online (LOCK=NONE). */
 	bool	online = true;
