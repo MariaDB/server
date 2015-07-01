@@ -1202,7 +1202,7 @@ Item* Item_singlerow_subselect::expr_cache_insert_transformer(uchar *thd_arg)
   if (expr_cache_is_needed(thd) &&
       (expr_cache= set_expr_cache(thd)))
   {
-    set_expr_cache_stat(thd);
+    init_expr_cache_tracker(thd);
     DBUG_RETURN(expr_cache);
   }
   DBUG_RETURN(this);
@@ -1501,7 +1501,7 @@ Item* Item_exists_subselect::expr_cache_insert_transformer(uchar *thd_arg)
   if (substype() == EXISTS_SUBS && expr_cache_is_needed(thd) &&
       (expr_cache= set_expr_cache(thd)))
   {
-    set_expr_cache_stat(thd);
+    init_expr_cache_tracker(thd);
     DBUG_RETURN(expr_cache);
   }
   DBUG_RETURN(this);
@@ -6562,7 +6562,13 @@ void subselect_table_scan_engine::cleanup()
 {
 }
 
-void Item_subselect::set_expr_cache_stat(THD *thd)
+
+/*
+  Create an execution tracker for the expression cache we're using for this
+  subselect; add the tracker to the query plan.
+*/
+
+void Item_subselect::init_expr_cache_tracker(THD *thd)
 {
   if(!expr_cache)
     return;
@@ -6573,5 +6579,6 @@ void Item_subselect::set_expr_cache_stat(THD *thd)
   if (!node)
     return;
   DBUG_ASSERT(expr_cache->type() == Item::EXPR_CACHE_ITEM);
-  node->cache_stat= ((Item_cache_wrapper *)expr_cache)->set_stat(qw->mem_root);
+  node->cache_tracker= ((Item_cache_wrapper *)expr_cache)->init_tracker(qw->mem_root);
 }
+

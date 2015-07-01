@@ -521,6 +521,8 @@ void Explain_union::print_explain_json(Explain_query *query,
   Json_writer_nesting_guard guard(writer);
   char table_name_buffer[SAFE_NAME_LEN];
   
+  bool started_object= print_explain_json_cache(writer, is_analyze);
+
   writer->add_member("query_block").start_object();
   writer->add_member("union_result").start_object();
   // using_temporary_table
@@ -544,7 +546,6 @@ void Explain_union::print_explain_json(Explain_query *query,
       writer->add_null();
   }
 
-  print_explain_json_cache(writer, is_analyze);
   writer->add_member("query_specifications").start_array();
 
   for (int i= 0; i < (int) union_members.elements(); i++)
@@ -562,6 +563,9 @@ void Explain_union::print_explain_json(Explain_query *query,
 
   writer->end_object(); // union_result
   writer->end_object(); // query_block
+
+  if (started_object)
+    writer->end_object();
 }
 
 
@@ -642,27 +646,32 @@ void Explain_node::print_explain_json_for_children(Explain_query *query,
 }
 
 
-void Explain_node::print_explain_json_cache(Json_writer *writer,
+bool Explain_node::print_explain_json_cache(Json_writer *writer,
                                             bool is_analyze)
 {
-    if (cache_stat)
+  if (cache_tracker)
+  {
+    cache_tracker->fetch_current_stats();
+    writer->add_member("expression_cache").start_object();
+    if (cache_tracker->state != Expression_cache_tracker::OK)
     {
-      cache_stat->flush_stat();
-      writer->add_member("expression_cache").start_object();
       writer->add_member("state").
-        add_str(Expression_cache_stat::state_str[cache_stat->state]);
-      if (is_analyze)
-      {
-        writer->add_member("r_hit").add_ll(cache_stat->hit);
-        writer->add_member("r_miss").add_ll(cache_stat->miss);
-        writer->add_member("r_loops").add_ll(cache_stat->hit +
-                                             cache_stat->miss);
-        writer->add_member("r_hit_ratio").add_ll(((double)cache_stat->hit)/
-                                             ((double)(cache_stat->hit +
-                                             cache_stat->miss)) * 100.0);
-      }
-      writer->end_object();
+        add_str(Expression_cache_tracker::state_str[cache_tracker->state]);
     }
+
+    if (is_analyze)
+    {
+      longlong cache_reads= cache_tracker->hit + cache_tracker->miss;
+      writer->add_member("r_loops").add_ll(cache_reads);
+      if (cache_reads != 0) 
+      {
+        double hit_ratio= double(cache_tracker->hit) / cache_reads * 100.0;
+        writer->add_member("r_hit_ratio").add_double(hit_ratio);
+      }
+    }
+    return true;
+  }
+  return false;
 }
 
 
@@ -766,6 +775,8 @@ void Explain_select::print_explain_json(Explain_query *query,
                                         Json_writer *writer, bool is_analyze)
 {
   Json_writer_nesting_guard guard(writer);
+  
+  bool started_cache= print_explain_json_cache(writer, is_analyze);
 
   if (message)
   {
@@ -795,7 +806,6 @@ void Explain_select::print_explain_json(Explain_query *query,
       writer->add_member("const_condition");
       write_item(writer, exec_const_cond);
     }
-    print_explain_json_cache(writer, is_analyze);
      
     Filesort_tracker *first_table_sort= NULL;
     bool first_table_sort_used= false;
@@ -887,6 +897,8 @@ void Explain_select::print_explain_json(Explain_query *query,
     writer->end_object();
   }
 
+  if (started_cache)
+    writer->end_object();
 }
 
 

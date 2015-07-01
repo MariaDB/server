@@ -85,7 +85,7 @@ class Explain_node : public Sql_alloc
 {
 public:
   Explain_node(MEM_ROOT *root) :
-    cache_stat(NULL),
+    cache_tracker(NULL),
     connection_type(EXPLAIN_NODE_OTHER),
     children(root)
   {}
@@ -113,7 +113,7 @@ public:
   /**
     expression cache statistics
   */
-  Expression_cache_stat* cache_stat;
+  Expression_cache_tracker* cache_tracker;
 
   /*
     How this node is connected to its parent.
@@ -140,7 +140,7 @@ public:
                                  uint8 explain_flags, bool is_analyze);
   void print_explain_json_for_children(Explain_query *query,
                                        Json_writer *writer, bool is_analyze);
-  void print_explain_json_cache(Json_writer *writer, bool is_analyze);
+  bool print_explain_json_cache(Json_writer *writer, bool is_analyze);
   virtual ~Explain_node(){}
 };
 

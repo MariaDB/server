@@ -65,9 +65,9 @@ public:
   virtual void init()= 0;
 
   /**
-    Save this object's statistics into Expression_cache_stat object
+    Save this object's statistics into Expression_cache_tracker object
   */
-  virtual void flush_stat()= 0;
+  virtual void update_tracker()= 0;
 };
 
 struct st_table_ref;
@@ -75,11 +75,11 @@ struct st_join_table;
 class Item_field;
 
 
-class Expression_cache_stat :public Sql_alloc
+class Expression_cache_tracker :public Sql_alloc
 {
 public:
   enum expr_cache_state {UNINITED, STOPPED, OK};
-  Expression_cache_stat(Expression_cache *c) :
+  Expression_cache_tracker(Expression_cache *c) :
     cache(c), hit(0), miss(0), state(UNINITED)
   {}
 
@@ -91,10 +91,10 @@ public:
   void set(ulong h, ulong m, enum expr_cache_state s)
   {hit= h; miss= m; state= s;}
 
-  void flush_stat()
+  void fetch_current_stats()
   {
     if (cache)
-      cache->flush_stat();
+      cache->update_tracker();
   }
 };
 
@@ -115,18 +115,20 @@ public:
   bool is_inited() { return inited; };
   void init();
 
-  void set_stat(Expression_cache_stat *st)
+  void set_tracker(Expression_cache_tracker *st)
   {
-    stat= st;
-    flush_stat();
+    tracker= st;
+    update_tracker();
   }
-  virtual void flush_stat()
+  virtual void update_tracker()
   {
-    if (stat)
-      stat->set(hit, miss, (inited ? (cache_table ?
-                                      Expression_cache_stat::OK :
-                                      Expression_cache_stat::STOPPED) :
-                            Expression_cache_stat::UNINITED));
+    if (tracker)
+    {
+      tracker->set(hit, miss, (inited ? (cache_table ?
+                                         Expression_cache_tracker::OK :
+                                         Expression_cache_tracker::STOPPED) :
+                               Expression_cache_tracker::UNINITED));
+    }
   }
 
 private:
@@ -139,7 +141,7 @@ private:
   /* Thread handle for the temporary table */
   THD *table_thd;
   /* EXPALIN/ANALYZE statistics */
-  Expression_cache_stat *stat;
+  Expression_cache_tracker *tracker;
   /* TABLE_REF for index lookup */
   struct st_table_ref ref;
   /* Cached result */

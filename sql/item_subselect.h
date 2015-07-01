@@ -246,7 +246,7 @@ public:
     return TRUE;
   }
 
-  void set_expr_cache_stat(THD *thd);
+  void init_expr_cache_tracker(THD *thd);
 
 
   friend class select_result_interceptor;

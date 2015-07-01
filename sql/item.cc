@@ -7554,15 +7554,15 @@ bool Item_cache_wrapper::set_cache(THD *thd)
   DBUG_RETURN(expr_cache == NULL);
 }
 
-Expression_cache_stat* Item_cache_wrapper::set_stat(MEM_ROOT *mem_root)
+Expression_cache_tracker* Item_cache_wrapper::init_tracker(MEM_ROOT *mem_root)
 {
   if (expr_cache)
   {
-    Expression_cache_stat* stat=
-      new(mem_root) Expression_cache_stat(expr_cache);
-    if (stat)
-      ((Expression_cache_tmptable *)expr_cache)->set_stat(stat);
-    return stat;
+    Expression_cache_tracker* tracker=
+      new(mem_root) Expression_cache_tracker(expr_cache);
+    if (tracker)
+      ((Expression_cache_tmptable *)expr_cache)->set_tracker(tracker);
+    return tracker;
   }
   return NULL;
 }

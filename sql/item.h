@@ -3804,7 +3804,7 @@ public:
 
 class Item_cache;
 class Expression_cache;
-class Expression_cache_stat;
+class Expression_cache_tracker;
 
 /**
   The objects of this class can store its values in an expression cache.
@@ -3839,7 +3839,7 @@ public:
   enum Type real_type() const { return orig_item->type(); }
 
   bool set_cache(THD *thd);
-  Expression_cache_stat* set_stat(MEM_ROOT *mem_root);
+  Expression_cache_tracker* init_tracker(MEM_ROOT *mem_root);
 
   bool fix_fields(THD *thd, Item **it);
   void cleanup();
