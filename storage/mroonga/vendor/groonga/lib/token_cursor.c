@@ -245,7 +245,7 @@ grn_token_cursor_next(grn_ctx *ctx, grn_token_cursor *token_cursor)
             continue;
           }
         } else {
-          if (status & GRN_TOKEN_LAST) {
+          if (status & GRN_TOKEN_REACH_END) {
             token_cursor->force_prefix = GRN_TRUE;
           }
         }

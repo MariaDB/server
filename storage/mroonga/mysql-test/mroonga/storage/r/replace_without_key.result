@@ -6,5 +6,5 @@ content text,
 FULLTEXT INDEX (content)
 ) DEFAULT CHARSET=utf8;
 REPLACE INTO diaries(content) VALUES("Hello");
-ERROR HY000: primary key is empty
+Got one of the listed errors
 DROP TABLE diaries;

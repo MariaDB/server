@@ -1,6 +1,6 @@
 /* -*- c-basic-offset: 2 -*- */
 /*
-  Copyright(C) 2013 Kouhei Sutou <kou@clear-code.com>
+  Copyright(C) 2013-2015 Kouhei Sutou <kou@clear-code.com>
 
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -20,10 +20,10 @@
 #ifndef MRN_ENCODING_HPP_
 #define MRN_ENCODING_HPP_
 
-#include <groonga.h>
-
 #include <mrn_mysql.h>
 #include <mrn_mysql_compat.h>
+
+#include <groonga.h>
 
 namespace mrn {
   namespace encoding {

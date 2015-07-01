@@ -22,9 +22,17 @@ read_file_list(${CMAKE_CURRENT_SOURCE_DIR}/tsv_sources.am TSV_SOURCES)
 set_source_files_properties(${TSV_SOURCES}
   PROPERTIES
   COMPILE_FLAGS "${GRN_C_COMPILE_FLAGS}")
-add_library(tsv_query_expander MODULE ${TSV_SOURCES})
-set_target_properties(tsv_query_expander PROPERTIES
-  PREFIX ""
-  OUTPUT_NAME "tsv")
+if(GRN_EMBED)
+  add_library(tsv_query_expander STATIC ${TSV_SOURCES})
+  set_target_properties(
+    tsv_query_expander
+    PROPERTIES
+    POSITION_INDEPENDENT_CODE ON)
+else()
+  add_library(tsv_query_expander MODULE ${TSV_SOURCES})
+  set_target_properties(tsv_query_expander PROPERTIES
+    PREFIX ""
+    OUTPUT_NAME "tsv")
+  install(TARGETS tsv_query_expander DESTINATION "${QUERY_EXPANDERS_DIR}")
+endif()
 target_link_libraries(tsv_query_expander libgroonga)
-install(TARGETS tsv_query_expander DESTINATION "${QUERY_EXPANDERS_DIR}")

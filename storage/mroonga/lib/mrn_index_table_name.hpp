@@ -26,6 +26,13 @@
 namespace mrn {
   class IndexTableName {
   public:
+    static const char *SEPARATOR;
+
+    static bool is_custom_name(const char *table_name,
+                               size_t table_name_length,
+                               const char *index_table_name,
+                               size_t index_table_name_length);
+
     IndexTableName(const char *table_name, const char *mysql_index_name);
     const char *c_str();
     size_t length();

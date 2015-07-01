@@ -120,6 +120,8 @@ main(int argc, char **argv)
 {
   int exit_code = EXIT_SUCCESS;
 
+  grn_default_logger_set_path(GRN_LOG_PATH);
+
   if (grn_init() != GRN_SUCCESS) {
     return EXIT_FAILURE;
   }

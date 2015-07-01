@@ -1,6 +1,6 @@
 /* -*- c-basic-offset: 2 -*- */
 /*
-  Copyright(C) 2013  Kouhei Sutou <kou@clear-code.com>
+  Copyright(C) 2013-2015  Kouhei Sutou <kou@clear-code.com>
 
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -26,10 +26,11 @@
 namespace mrn {
   class Lock {
   public:
-    Lock(mysql_mutex_t *mutex);
+    Lock(mysql_mutex_t *mutex, bool execute=true);
     ~Lock();
   private:
     mysql_mutex_t *mutex_;
+    bool execute_;
   };
 }
 

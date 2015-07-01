@@ -153,7 +153,6 @@ GRN_API void grn_ctx_impl_set_current_error_message(grn_ctx *ctx);
 
 #ifdef WIN32
 
-#define SYSTEM_ERROR_MESSAGE_BUFFER_SIZE 1024
 #define SERR(str) do {\
   grn_rc rc;\
   const char *system_message;\
@@ -333,8 +332,8 @@ GRN_API void grn_ctx_impl_set_current_error_message(grn_ctx *ctx);
   grn_rc rc;\
   int errno_keep = errno;\
   grn_bool show_errno = GRN_FALSE;\
-  char system_message[SYSTEM_ERROR_MESSAGE_BUFFER_SIZE];\
-  strerror_s(system_message, SYSTEM_ERROR_MESSAGE_BUFFER_SIZE, errno);\
+  const char *system_message;\
+  system_message = grn_strerror(errno);\
   switch (errno_keep) {\
   case EPERM : rc = GRN_OPERATION_NOT_PERMITTED; break;\
   case ENOENT : rc = GRN_NO_SUCH_FILE_OR_DIRECTORY; break;\
