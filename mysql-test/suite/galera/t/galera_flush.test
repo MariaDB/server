@@ -39,7 +39,7 @@ FLUSH PRIVILEGES;
 --connect node_2a, 127.0.0.1, user1, pass1, test, $NODE_MYPORT_2
 --connection node_1
 DELETE FROM mysql.user WHERE user = 'user1';
-SET SESSION wsrep_replicate_myisam = FALSE;
+SET GLOBAL wsrep_replicate_myisam = FALSE;
 FLUSH PRIVILEGES;
 
 
