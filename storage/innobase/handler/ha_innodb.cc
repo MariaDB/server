@@ -11398,12 +11398,12 @@ ha_innobase::check_table_options(
 
 	if (encrypt == FIL_SPACE_ENCRYPTION_ON ||
             (encrypt == FIL_SPACE_ENCRYPTION_DEFAULT && srv_encrypt_tables)) {
-		if (!encryption_key_id_exists(options->encryption_key_id)) {
+		if (!encryption_key_id_exists((unsigned int)options->encryption_key_id)) {
 			push_warning_printf(
 				thd, Sql_condition::WARN_LEVEL_WARN,
 				HA_WRONG_CREATE_OPTION,
-				"InnoDB: ENCRYPTION_KEY_ID %lu not available",
-				options->encryption_key_id
+				"InnoDB: ENCRYPTION_KEY_ID %u not available",
+				(uint)options->encryption_key_id
 			);
 			return "ENCRYPTION_KEY_ID";
 		}
@@ -11469,7 +11469,7 @@ ha_innobase::create(
 	/* Cache table options */
 	ha_table_option_struct *options= form->s->option_struct;
 	fil_encryption_t encrypt = (fil_encryption_t)options->encryption;
-	ulint key_id = options->encryption_key_id;
+	uint		key_id = (uint)options->encryption_key_id;
 
 	DBUG_ENTER("ha_innobase::create");
 
