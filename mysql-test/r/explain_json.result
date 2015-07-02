@@ -293,14 +293,17 @@ EXPLAIN
     },
     "subqueries": [
       {
-        "query_block": {
-          "select_id": 2,
-          "table": {
-            "table_name": "t1",
-            "access_type": "ALL",
-            "rows": 10,
-            "filtered": 100,
-            "attached_condition": "(t1.b = t0.a)"
+        "expression_cache": {
+          "state": "uninitialized",
+          "query_block": {
+            "select_id": 2,
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "rows": 10,
+              "filtered": 100,
+              "attached_condition": "(t1.b = t0.a)"
+            }
           }
         }
       }
@@ -323,14 +326,17 @@ EXPLAIN
     },
     "subqueries": [
       {
-        "query_block": {
-          "select_id": 2,
-          "table": {
-            "table_name": "t1",
-            "access_type": "ALL",
-            "rows": 10,
-            "filtered": 100,
-            "attached_condition": "(t1.b = t0.a)"
+        "expression_cache": {
+          "state": "uninitialized",
+          "query_block": {
+            "select_id": 2,
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "rows": 10,
+              "filtered": 100,
+              "attached_condition": "(t1.b = t0.a)"
+            }
           }
         }
       }
