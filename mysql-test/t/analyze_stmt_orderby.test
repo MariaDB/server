@@ -147,6 +147,31 @@ select count(distinct t5.b) as sum from t5, t6
                      where t5.a=t6.a and t6.b > 0 and t5.a <= 5
                      group by t5.a order by sum limit 1;
 drop table t5,t6,t7;
-
 drop table t3;
+
+--echo # 
+--echo # Tabular ANALYZE must get its data from execution tracker (and not from
+--echo #   the query plan)
+--echo # 
+
+CREATE TABLE t2(
+ col1 int, 
+ col2 int, 
+ UNIQUE INDEX idx (col1, col2)) engine=myisam;
+
+INSERT INTO t2(col1, col2) VALUES
+   (1,20),(2,19),(3,18),(4,17),(5,16),(6,15),(7,14),(8,13),(9,12),(10,11),
+   (11,10),(12,9),(13,8),(14,7),(15,6),(16,5),(17,4),(18,3),(19,2),(20,1);
+
+flush status;
+explain
+select col1 f1, col2 f2, col1 f3 from t2 group by f1;
+analyze
+select col1 f1, col2 f2, col1 f3 from t2 group by f1;
+--replace_regex /"r_total_time_ms": [0-9]*[.]?[0-9]*/"r_total_time_ms": "REPLACED"/ /"r_buffer_size": "[^"]+"/"r_buffer_size": "REPLACED"/
+analyze format=json
+select col1 f1, col2 f2, col1 f3 from t2 group by f1;
+drop table t2;
+
+
 drop table t0,t1;

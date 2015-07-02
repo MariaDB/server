@@ -726,8 +726,36 @@ int Explain_select::print_explain(Explain_query *query,
   }
   else
   {
-    bool using_tmp= using_temporary;
-    bool using_fs= using_filesort;
+    bool using_tmp;
+    bool using_fs;
+
+    if (is_analyze)
+    {
+      /* 
+        Get the data about "Using temporary; Using filesort" from execution
+        tracking system.
+      */
+      using_tmp= false;
+      using_fs= false;
+      Sort_and_group_tracker::Iterator iter(&ops_tracker);
+      enum_qep_action action;
+      Filesort_tracker *dummy;
+
+      while ((action= iter.get_next(&dummy)) != EXPL_ACTION_EOF)
+      {
+        if (action == EXPL_ACTION_FILESORT)
+          using_fs= true;
+        else if (action == EXPL_ACTION_TEMPTABLE)
+          using_tmp= true;
+      }
+    }
+    else
+    {
+      /* Use imprecise "estimates" we got with the query plan */
+      using_tmp= using_temporary;
+      using_fs= using_filesort;
+    }
+
     for (uint i=0; i< n_join_tabs; i++)
     {
       join_tabs[i]->print_explain(output, explain_flags, is_analyze, select_id,
