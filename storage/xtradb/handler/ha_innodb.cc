@@ -18823,7 +18823,7 @@ innodb_encrypt_tables_update(
 	const void*                     save)   /*!< in: immediate result
 						from check function */
 {
-	fil_crypt_set_encrypt_tables(*static_cast<const uint*>(save));
+	fil_crypt_set_encrypt_tables(*static_cast<const ulong*>(save));
 }
 
 static SHOW_VAR innodb_status_variables_export[]= {
@@ -21370,7 +21370,7 @@ innodb_encrypt_tables_validate(
 	if (check_sysvar_enum(thd, var, save, value))
 		return 1;
 
-	long encrypt_tables = *(long*)save;
+	ulong encrypt_tables = *(ulong*)save;
 
 	if (encrypt_tables
 	    && !encryption_key_id_exists(FIL_DEFAULT_ENCRYPTION_KEY)) {
