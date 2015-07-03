@@ -65,7 +65,9 @@
 
   The including source file must define the following macros:
   IS_MB1_CHAR(x)
+  IS_MB1_MB2HEAD_GAP(x)  - optional, for better performance
   IS_MB2_CHAR(x,y)
+  IS_MB3_CHAR(x,y,z)     - for character sets with mbmaxlen>2
   WEIGHT_PAD_SPACE
   WEIGHT_MB1(x)
   WEIGHT_MB2(x,y)
@@ -85,6 +87,16 @@ MY_FUNCTION_NAME(scan_weight)(int *weight, const uchar *str, const uchar *end)
     *weight= WEIGHT_MB1(*str);           /* A valid single byte character*/
     return 1;
   }
+
+#ifdef IS_MB1_MBHEAD_UNUSED_GAP
+  /*
+    Quickly filter out unused bytes that are neither MB1 nor MBHEAD.
+    E.g. [0x80..0xC1] in utf8. This allows using simplified conditions
+    in IS_MB2_CHAR(), IS_MB3_CHAR(), etc.
+  */
+  if (IS_MB1_MBHEAD_UNUSED_GAP(*str))
+    goto bad;
+#endif
 
   if (str + 2 > end)                     /* The string ended unexpectedly */
     goto bad;                            /* Treat as a bad byte */

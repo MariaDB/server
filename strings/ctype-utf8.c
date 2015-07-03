@@ -26,8 +26,30 @@
 #define EILSEQ ENOENT
 #endif
 
-#define IS_CONTINUATION_BYTE(c) (((c) ^ 0x80) < 0x40)
+/* Detect special bytes and sequences */
+#define IS_CONTINUATION_BYTE(c)   (((uchar) (c) ^ 0x80) < 0x40)
 
+#define IS_UTF8MB2(b0,b1)         (((uchar) (b0) < 0xE0) && \
+                                  IS_CONTINUATION_BYTE((uchar) b1))
+#define IS_UTF8MB3(b0,b1,b2)      (((uchar) (b0) < 0xF0) && \
+                                   IS_CONTINUATION_BYTE(b1) && \
+                                   IS_CONTINUATION_BYTE(b2) && \
+                                   ((uchar) b0 >= 0xe1 || (uchar) b1 >= 0xa0))
+
+/* Convert individual bytes to Unicode code points */
+#define UTF8MB2_CODE(b0,b1)       (((my_wc_t) ((uchar) b0 & 0x1f) << 6)  |\
+                                   ((my_wc_t) ((uchar) b1 ^ 0x80)))
+#define UTF8MB3_CODE(b0,b1,b2)    (((my_wc_t) ((uchar) b0 & 0x0f) << 12) |\
+                                   ((my_wc_t) ((uchar) b1 ^ 0x80) << 6)  |\
+                                   ((my_wc_t) ((uchar) b2 ^ 0x80)))
+
+/* Definitions for strcoll.ic */
+#define IS_MB1_CHAR(x)              ((uchar) (x) < 0x80)
+#define IS_MB1_MBHEAD_UNUSED_GAP(x) ((uchar) (x) < 0xC2)
+#define IS_MB2_CHAR(x,y)            IS_UTF8MB2(x,y)
+#define IS_MB3_CHAR(x,y,z)          IS_UTF8MB3(x,y,z)
+
+/* Collation names */
 #define MY_UTF8MB3_GENERAL_CI MY_UTF8MB3 "_general_ci"
 #define MY_UTF8MB3_GENERAL_CS MY_UTF8MB3 "_general_cs"
 #define MY_UTF8MB3_BIN        MY_UTF8MB3 "_bin"
@@ -4848,7 +4870,7 @@ static int my_utf8_uni(CHARSET_INFO *cs __attribute__((unused)),
     if (!(IS_CONTINUATION_BYTE(s[1])))
       return MY_CS_ILSEQ;
 
-    *pwc = ((my_wc_t) (c & 0x1f) << 6) | (my_wc_t) (s[1] ^ 0x80);
+    *pwc= UTF8MB2_CODE(c, s[1]);
     return 2;
   }
   else if (c < 0xf0)
@@ -4860,10 +4882,7 @@ static int my_utf8_uni(CHARSET_INFO *cs __attribute__((unused)),
           (c >= 0xe1 || s[1] >= 0xa0)))
       return MY_CS_ILSEQ;
 
-    *pwc = ((my_wc_t) (c & 0x0f) << 12)   |
-           ((my_wc_t) (s[1] ^ 0x80) << 6) |
-            (my_wc_t) (s[2] ^ 0x80);
-
+    *pwc= UTF8MB3_CODE(c, s[1], s[2]);
     return 3;
   }
 #ifdef UNICODE_32BIT
@@ -4954,7 +4973,7 @@ static int my_utf8_uni_no_range(CHARSET_INFO *cs __attribute__((unused)),
     if (!((s[1] ^ 0x80) < 0x40))
       return MY_CS_ILSEQ;
 
-    *pwc = ((my_wc_t) (c & 0x1f) << 6) | (my_wc_t) (s[1] ^ 0x80);
+    *pwc= UTF8MB2_CODE(c, s[1]);
     return 2;
   }
 
@@ -4965,10 +4984,7 @@ static int my_utf8_uni_no_range(CHARSET_INFO *cs __attribute__((unused)),
           (c >= 0xe1 || s[1] >= 0xa0)))
       return MY_CS_ILSEQ;
 
-    *pwc= ((my_wc_t) (c & 0x0f) << 12)   |
-          ((my_wc_t) (s[1] ^ 0x80) << 6) |
-           (my_wc_t) (s[2] ^ 0x80);
-
+    *pwc= UTF8MB3_CODE(c, s[1], s[2]);
     return 3;
   }
   return MY_CS_ILSEQ;
@@ -5193,148 +5209,6 @@ static size_t my_casedn_str_utf8(CHARSET_INFO *cs, char *src)
 }
 
 
-static int my_strnncoll_utf8(CHARSET_INFO *cs,
-                             const uchar *s, size_t slen,
-                             const uchar *t, size_t tlen,
-                             my_bool t_is_prefix)
-{
-  int s_res,t_res;
-  my_wc_t UNINIT_VAR(s_wc), UNINIT_VAR(t_wc);
-  const uchar *se=s+slen;
-  const uchar *te=t+tlen;
-  MY_UNICASE_INFO *uni_plane= cs->caseinfo;
-
-  while ( s < se && t < te )
-  {
-    s_res=my_utf8_uni(cs,&s_wc, s, se);
-    t_res=my_utf8_uni(cs,&t_wc, t, te);
-
-    if ( s_res <= 0 || t_res <= 0 )
-    {
-      /* Incorrect string, compare byte by byte value */
-      return bincmp(s, se, t, te);
-    }
-
-    my_tosort_unicode(uni_plane, &s_wc, cs->state);
-    my_tosort_unicode(uni_plane, &t_wc, cs->state);
-
-    if ( s_wc != t_wc )
-    {
-      return  s_wc > t_wc ? 1 : -1;
-    }
-
-    s+=s_res;
-    t+=t_res;
-  }
-  return (int) (t_is_prefix ? t-te : ((se-s) - (te-t)));
-}
-
-
-
-/*
-  Compare strings, discarding end space
-
-  SYNOPSIS
-    my_strnncollsp_utf8()
-    cs                  character set handler
-    a                   First string to compare
-    a_length            Length of 'a'
-    b                   Second string to compare
-    b_length            Length of 'b'
-    diff_if_only_endspace_difference
-		        Set to 1 if the strings should be regarded as different
-                        if they only difference in end space
-
-  IMPLEMENTATION
-    If one string is shorter as the other, then we space extend the other
-    so that the strings have equal length.
-
-    This will ensure that the following things hold:
-
-    "a"  == "a "
-    "a\0" < "a"
-    "a\0" < "a "
-
-  RETURN
-    < 0  a <  b
-    = 0  a == b
-    > 0  a > b
-*/
-
-static int my_strnncollsp_utf8(CHARSET_INFO *cs,
-                               const uchar *s, size_t slen,
-                               const uchar *t, size_t tlen,
-                               my_bool diff_if_only_endspace_difference)
-{
-  int s_res, t_res, res;
-  my_wc_t UNINIT_VAR(s_wc), UNINIT_VAR(t_wc);
-  const uchar *se= s+slen, *te= t+tlen;
-  MY_UNICASE_INFO *uni_plane= cs->caseinfo;
-
-#ifndef VARCHAR_WITH_DIFF_ENDSPACE_ARE_DIFFERENT_FOR_UNIQUE
-  diff_if_only_endspace_difference= 0;
-#endif
-
-  while ( s < se && t < te )
-  {
-    s_res=my_utf8_uni(cs,&s_wc, s, se);
-    t_res=my_utf8_uni(cs,&t_wc, t, te);
-
-    if ( s_res <= 0 || t_res <= 0 )
-    {
-      /* Incorrect string, compare byte by byte value */
-      return bincmp(s, se, t, te);
-    }
-
-    my_tosort_unicode(uni_plane, &s_wc, cs->state);
-    my_tosort_unicode(uni_plane, &t_wc, cs->state);
-    
-    if ( s_wc != t_wc )
-    {
-      return  s_wc > t_wc ? 1 : -1;
-    }
-
-    s+=s_res;
-    t+=t_res;
-  }
-
-  slen= (size_t) (se-s);
-  tlen= (size_t) (te-t);
-  res= 0;
-
-  if (slen != tlen)
-  {
-    int swap= 1;
-    if (diff_if_only_endspace_difference)
-      res= 1;                                   /* Assume 'a' is bigger */
-    if (slen < tlen)
-    {
-      slen= tlen;
-      s= t;
-      se= te;
-      swap= -1;
-      res= -res;
-    }
-    /*
-      This following loop uses the fact that in UTF-8
-      all multibyte characters are greater than space,
-      and all multibyte head characters are greater than
-      space. It means if we meet a character greater
-      than space, it always means that the longer string
-      is greater. So we can reuse the same loop from the
-      8bit version, without having to process full multibute
-      sequences.
-    */
-    for ( ; s < se; s++)
-    {
-      if (*s != ' ')
-	return (*s < ' ') ? -swap : swap;
-    }
-  }
-  return res;
-}
-
-
 /*
   Compare 0-terminated UTF8 strings.
 
@@ -5535,6 +5409,75 @@ my_well_formed_len_utf8(CHARSET_INFO *cs, const char *b, const char *e,
 /* my_well_formed_char_length_utf8 */
 
 
+static inline int my_weight_mb1_utf8_general_ci(uchar b)
+{
+  return (int) plane00[b & 0xFF].sort;
+}
+
+
+static inline int my_weight_mb2_utf8_general_ci(uchar b0, uchar b1)
+{
+  my_wc_t wc= UTF8MB2_CODE(b0, b1);
+  MY_UNICASE_CHARACTER *page= my_unicase_pages_default[wc >> 8];
+  return (int) (page ? page[wc & 0xFF].sort : wc);
+}
+
+
+static inline int my_weight_mb3_utf8_general_ci(uchar b0, uchar b1, uchar b2)
+{
+  my_wc_t wc= UTF8MB3_CODE(b0, b1, b2);
+  MY_UNICASE_CHARACTER *page= my_unicase_pages_default[wc >> 8];
+  return (int) (page ? page[wc & 0xFF].sort : wc);
+}
+
+
+#define MY_FUNCTION_NAME(x)    my_ ## x ## _utf8_general_ci
+#define WEIGHT_ILSEQ(x)        (0xFF0000 + (uchar) (x))
+#define WEIGHT_MB1(x)          my_weight_mb1_utf8_general_ci(x)
+#define WEIGHT_MB2(x,y)        my_weight_mb2_utf8_general_ci(x,y)
+#define WEIGHT_MB3(x,y,z)      my_weight_mb3_utf8_general_ci(x,y,z)
+#include "strcoll.ic"
+
+
+static inline int my_weight_mb1_utf8_general_mysql500_ci(uchar b)
+{
+  return (int) plane00_mysql500[b & 0xFF].sort;
+}
+
+
+static inline int my_weight_mb2_utf8_general_mysql500_ci(uchar b0, uchar b1)
+{
+  my_wc_t wc= UTF8MB2_CODE(b0, b1);
+  MY_UNICASE_CHARACTER *page= my_unicase_pages_mysql500[wc >> 8];
+  return (int) (page ? page[wc & 0xFF].sort : wc);
+}
+
+
+static inline int
+my_weight_mb3_utf8_general_mysql500_ci(uchar b0, uchar b1, uchar b2)
+{
+  my_wc_t wc= UTF8MB3_CODE(b0, b1, b2);
+  MY_UNICASE_CHARACTER *page= my_unicase_pages_mysql500[wc >> 8];
+  return (int) (page ? page[wc & 0xFF].sort : wc);
+}
+
+
+#define MY_FUNCTION_NAME(x)    my_ ## x ## _utf8_general_mysql500_ci
+#define WEIGHT_ILSEQ(x)        (0xFF0000 + (uchar) (x))
+#define WEIGHT_MB1(x)          my_weight_mb1_utf8_general_mysql500_ci(x)
+#define WEIGHT_MB2(x,y)        my_weight_mb2_utf8_general_mysql500_ci(x,y)
+#define WEIGHT_MB3(x,y,z)      my_weight_mb3_utf8_general_mysql500_ci(x,y,z)
+#include "strcoll.ic"
+
+
+#define MY_FUNCTION_NAME(x)    my_ ## x ## _utf8_bin
+#define WEIGHT_ILSEQ(x)        (0xFF0000 + (uchar) (x))
+#define WEIGHT_MB1(x)          ((int) (uchar) (x))
+#define WEIGHT_MB2(x,y)        ((int) UTF8MB2_CODE(x,y))
+#define WEIGHT_MB3(x,y,z)      ((int) UTF8MB3_CODE(x,y,z))
+#include "strcoll.ic"
+
+
 static uint my_ismbchar_utf8(CHARSET_INFO *cs,const char *b, const char *e)
 {
   int  res= my_charlen_utf8(cs, (const uchar*) b, (const uchar*) e);
@@ -5567,8 +5510,24 @@ static uint my_mbcharlen_utf8(CHARSET_INFO *cs  __attribute__((unused)),
 static MY_COLLATION_HANDLER my_collation_utf8_general_ci_handler =
 {
     NULL,               /* init */
-    my_strnncoll_utf8,
-    my_strnncollsp_utf8,
+    my_strnncoll_utf8_general_ci,
+    my_strnncollsp_utf8_general_ci,
+    my_strnxfrm_unicode,
+    my_strnxfrmlen_unicode,
+    my_like_range_mb,
+    my_wildcmp_utf8,
+    my_strcasecmp_utf8,
+    my_instr_mb,
+    my_hash_sort_utf8,
+    my_propagate_complex
+};
+
+
+static MY_COLLATION_HANDLER my_collation_utf8_general_mysql500_ci_handler =
+{
+    NULL,               /* init */
+    my_strnncoll_utf8_general_mysql500_ci,
+    my_strnncollsp_utf8_general_mysql500_ci,
     my_strnxfrm_unicode,
     my_strnxfrmlen_unicode,
     my_like_range_mb,
@@ -5583,8 +5542,8 @@ static MY_COLLATION_HANDLER my_collation_utf8_general_ci_handler =
 static MY_COLLATION_HANDLER my_collation_utf8_bin_handler =
 {
     NULL,		/* init */
-    my_strnncoll_mb_bin,
-    my_strnncollsp_mb_bin,
+    my_strnncoll_utf8_bin,
+    my_strnncollsp_utf8_bin,
     my_strnxfrm_unicode,
     my_strnxfrmlen_unicode,
     my_like_range_mb,
@@ -5693,7 +5652,7 @@ struct charset_info_st my_charset_utf8_general_mysql500_ci=
   0,                          /* escape_with_backslash_is_dangerous */
   1,                                            /* levels_for_order   */
   &my_charset_utf8_handler,
-  &my_collation_utf8_general_ci_handler
+  &my_collation_utf8_general_mysql500_ci_handler
 };
 
 
@@ -7166,8 +7125,8 @@ my_ismbchar_filename(CHARSET_INFO *cs, const char *str, const char *end)
 static MY_COLLATION_HANDLER my_collation_filename_handler =
 {
     NULL,               /* init */
-    my_strnncoll_utf8,
-    my_strnncollsp_utf8,
+    my_strnncoll_simple,
+    my_strnncollsp_simple,
     my_strnxfrm_unicode,
     my_strnxfrmlen_unicode,
     my_like_range_mb,
@@ -7410,7 +7369,7 @@ my_mb_wc_utf8mb4(CHARSET_INFO *cs __attribute__((unused)),
     if (!(IS_CONTINUATION_BYTE(s[1])))
       return MY_CS_ILSEQ;
 
-    *pwc= ((my_wc_t) (c & 0x1f) << 6) | (my_wc_t) (s[1] ^ 0x80);
+    *pwc= UTF8MB2_CODE(c, s[1]);
     return 2;
   }
   else if (c < 0xf0)
@@ -7422,9 +7381,7 @@ my_mb_wc_utf8mb4(CHARSET_INFO *cs __attribute__((unused)),
           (c >= 0xe1 || s[1] >= 0xa0)))
       return MY_CS_ILSEQ;
 
-    *pwc= ((my_wc_t) (c & 0x0f) << 12)   |
-          ((my_wc_t) (s[1] ^ 0x80) << 6) |
-           (my_wc_t) (s[2] ^ 0x80);
+    *pwc= UTF8MB3_CODE(c, s[1], s[2]);
     return 3;
   }
   else if (c < 0xf5)
@@ -7492,7 +7449,7 @@ my_mb_wc_utf8mb4_no_range(CHARSET_INFO *cs __attribute__((unused)),
     if (!IS_CONTINUATION_BYTE(s[1]))
       return MY_CS_ILSEQ;
 
-    *pwc = ((my_wc_t) (c & 0x1f) << 6) | (my_wc_t) (s[1] ^ 0x80);
+    *pwc= UTF8MB2_CODE(c, s[1]);
     return 2;
   }
 
@@ -7502,10 +7459,7 @@ my_mb_wc_utf8mb4_no_range(CHARSET_INFO *cs __attribute__((unused)),
           IS_CONTINUATION_BYTE(s[2]) &&
           (c >= 0xe1 || s[1] >= 0xa0)))
       return MY_CS_ILSEQ;
-    *pwc= ((my_wc_t) (c & 0x0f) << 12)   |
-          ((my_wc_t) (s[1] ^ 0x80) << 6) |
-           (my_wc_t) (s[2] ^ 0x80);
-
+    *pwc= UTF8MB3_CODE(c, s[1], s[2]);
     return 3;
   }
   else if (c < 0xf5)
