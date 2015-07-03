@@ -351,7 +351,6 @@ struct my_collation_handler_st
   my_bool (*propagate)(CHARSET_INFO *cs, const uchar *str, size_t len);
 };
 
-extern MY_COLLATION_HANDLER my_collation_mb_bin_handler;
 extern MY_COLLATION_HANDLER my_collation_8bit_bin_handler;
 extern MY_COLLATION_HANDLER my_collation_8bit_simple_ci_handler;
 extern MY_COLLATION_HANDLER my_collation_ucs2_uca_handler;

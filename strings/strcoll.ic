@@ -95,6 +95,17 @@ MY_FUNCTION_NAME(scan_weight)(int *weight, const uchar *str, const uchar *end)
     return 2;                            /* A valid two-byte character */
   }
 
+#ifdef IS_MB3_CHAR
+  if (str + 3 > end)                     /* Incomplete three-byte character */
+    goto bad;
+
+  if (IS_MB3_CHAR(str[0], str[1], str[2]))
+  {
+    *weight= WEIGHT_MB3(str[0], str[1], str[2]);
+    return 3;                            /* A valid three-byte character */
+  }
+#endif
+
 bad:
   *weight= WEIGHT_ILSEQ(str[0]);         /* Bad byte */
   return 1;
@@ -228,4 +239,5 @@ MY_FUNCTION_NAME(strnncollsp)(CHARSET_INFO *cs __attribute__((unused)),
 #undef WEIGHT_ILSEQ
 #undef WEIGHT_MB1
 #undef WEIGHT_MB2
+#undef WEIGHT_MB3
 #undef WEIGHT_PAD_SPACE

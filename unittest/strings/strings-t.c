@@ -333,6 +333,20 @@ STRNNCOLL_PARAM strcoll_8181_A1_E0E0[]=
 };
 
 
+/*
+  A shared test for eucjpms and ujis.
+*/
+STRNNCOLL_PARAM strcoll_ujis[]=
+{
+  {CSTR("\x8E\xA1"), CSTR("\x8E"),     -1},     /* Good MB2 vs incomplete MB2 */
+  {CSTR("\x8E\xA1"), CSTR("\x8F\xA1"), -1},     /* Good MB2 vs incomplete MB3 */
+  {CSTR("\x8E\xA1"), CSTR("\x8F\xA1\xA1"), -1}, /* Good MB2 vs good MB3 */
+  {CSTR("\xA1\xA1"), CSTR("\x8F\xA1\xA1"),  1}, /* Good MB2 vs good MB3 */
+  {CSTR("\x8E"),     CSTR("\x8F\xA1"), -1}, /* Incomplete MB2 vs incomplete MB3 */
+  {NULL, 0, NULL, 0, 0}
+};
+
+
 static void
 str2hex(char *dst, size_t dstlen, const char *src, size_t srclen)
 {
@@ -415,6 +429,14 @@ test_strcollsp()
   failed+= strcollsp(&my_charset_cp932_japanese_ci, strcoll_8181_A1_E0E0);
   failed+= strcollsp(&my_charset_cp932_bin,         strcoll_8181_A1_E0E0);
 #endif
+#ifdef HAVE_CHARSET_eucjpms
+  failed+= strcollsp(&my_charset_eucjpms_japanese_ci, strcoll_mb2_common);
+  failed+= strcollsp(&my_charset_eucjpms_bin,         strcoll_mb2_common);
+  failed+= strcollsp(&my_charset_eucjpms_japanese_ci, strcoll_mb2_A1A1_mb2_F9FE);
+  failed+= strcollsp(&my_charset_eucjpms_bin,         strcoll_mb2_A1A1_mb2_F9FE);
+  failed+= strcollsp(&my_charset_eucjpms_japanese_ci, strcoll_ujis);
+  failed+= strcollsp(&my_charset_eucjpms_bin,         strcoll_ujis);
+#endif
 #ifdef HAVE_CHARSET_euckr
   failed+= strcollsp(&my_charset_euckr_korean_ci, strcoll_mb2_common);
   failed+= strcollsp(&my_charset_euckr_korean_ci, strcoll_mb2_A1A1_mb2_F9FE);
@@ -440,6 +462,14 @@ test_strcollsp()
   failed+= strcollsp(&my_charset_sjis_bin,         strcoll_mb1_A1_bad_F9FE);
   failed+= strcollsp(&my_charset_sjis_japanese_ci, strcoll_8181_A1_E0E0);
   failed+= strcollsp(&my_charset_sjis_bin,         strcoll_8181_A1_E0E0);
+#endif
+#ifdef HAVE_CHARSET_ujis
+  failed+= strcollsp(&my_charset_ujis_japanese_ci, strcoll_mb2_common);
+  failed+= strcollsp(&my_charset_ujis_bin,         strcoll_mb2_common);
+  failed+= strcollsp(&my_charset_ujis_japanese_ci, strcoll_mb2_A1A1_mb2_F9FE);
+  failed+= strcollsp(&my_charset_ujis_bin,         strcoll_mb2_A1A1_mb2_F9FE);
+  failed+= strcollsp(&my_charset_ujis_japanese_ci, strcoll_ujis);
+  failed+= strcollsp(&my_charset_ujis_bin,         strcoll_ujis);
 #endif
   return failed;
 }
