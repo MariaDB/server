@@ -84,7 +84,7 @@
                                        IS_CONTINUATION_BYTE(b2) && \
                                        IS_CONTINUATION_BYTE(b3) && \
                                        (b0 >= 0xf1 || b1 >= 0x90) && \
-                                       (b0 <= 0xf3 || s[1] <= 0x8F))
+                                       (b0 <= 0xf3 || b1 <= 0x8F))
 
 
 /* Convert individual bytes to Unicode code points */
