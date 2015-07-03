@@ -29,12 +29,63 @@
 /* Detect special bytes and sequences */
 #define IS_CONTINUATION_BYTE(c)   (((uchar) (c) ^ 0x80) < 0x40)
 
-#define IS_UTF8MB2(b0,b1)         (((uchar) (b0) < 0xE0) && \
-                                  IS_CONTINUATION_BYTE((uchar) b1))
-#define IS_UTF8MB3(b0,b1,b2)      (((uchar) (b0) < 0xF0) && \
-                                   IS_CONTINUATION_BYTE(b1) && \
-                                   IS_CONTINUATION_BYTE(b2) && \
-                                   ((uchar) b0 >= 0xe1 || (uchar) b1 >= 0xa0))
+/*
+  Check MB2 character assuming that b0 is alredy known to be >= 0xC2.
+  Use this macro if the caller already checked b0 for:
+  - an MB1 character
+  - an unused gap between MB1 and MB2HEAD
+*/
+#define IS_UTF8MB2_STEP2(b0,b1)     (((uchar) (b0) < 0xE0) && \
+                                     IS_CONTINUATION_BYTE((uchar) b1))
+
+/*
+  Check MB3 character assuming that b0 is already known to be
+  in the valid MB3HEAD range [0xE0..0xEF].
+*/
+#define IS_UTF8MB3_STEP2(b0,b1,b2) (IS_CONTINUATION_BYTE(b1) && \
+                                    IS_CONTINUATION_BYTE(b2) && \
+                                    ((uchar) b0 >= 0xe1 || (uchar) b1 >= 0xa0))
+
+/*
+  Check MB3 character assuming that b0 is already known to be >= 0xE0,
+  but is not checked for the high end 0xF0 yet.
+  Use this macro if the caller already checked b0 for:
+  - an MB1 character
+  - an unused gap between MB1 and MB2HEAD
+  - an MB2HEAD
+*/
+#define IS_UTF8MB3_STEP3(b0,b1,b2) (((uchar) (b0) < 0xF0) && \
+                                    IS_UTF8MB3_STEP2(b0,b1,b2))
+
+/*
+  UTF-8 quick four-byte mask:
+  11110xxx 10xxxxxx 10xxxxxx 10xxxxxx
+  Encoding allows to encode U+00010000..U+001FFFFF
+
+  The maximum character defined in the Unicode standard is U+0010FFFF.
+  Higher characters U+00110000..U+001FFFFF are not used.
+
+  11110000.10010000.10xxxxxx.10xxxxxx == F0.90.80.80 == U+00010000 (min)
+  11110100.10001111.10111111.10111111 == F4.8F.BF.BF == U+0010FFFF (max)
+
+  Valid codes:
+  [F0][90..BF][80..BF][80..BF]
+  [F1][80..BF][80..BF][80..BF]
+  [F2][80..BF][80..BF][80..BF]
+  [F3][80..BF][80..BF][80..BF]
+  [F4][80..8F][80..BF][80..BF]
+*/
+
+/*
+  Check MB4 character assuming that b0 is already
+  known to be in the range [0xF0..0xF4]
+*/
+#define IS_UTF8MB4_STEP2(b0,b1,b2,b3) (IS_CONTINUATION_BYTE(b1) && \
+                                       IS_CONTINUATION_BYTE(b2) && \
+                                       IS_CONTINUATION_BYTE(b3) && \
+                                       (b0 >= 0xf1 || b1 >= 0x90) && \
+                                       (b0 <= 0xf3 || s[1] <= 0x8F))
+
 
 /* Convert individual bytes to Unicode code points */
 #define UTF8MB2_CODE(b0,b1)       (((my_wc_t) ((uchar) b0 & 0x1f) << 6)  |\
@@ -42,12 +93,16 @@
 #define UTF8MB3_CODE(b0,b1,b2)    (((my_wc_t) ((uchar) b0 & 0x0f) << 12) |\
                                    ((my_wc_t) ((uchar) b1 ^ 0x80) << 6)  |\
                                    ((my_wc_t) ((uchar) b2 ^ 0x80)))
+#define UTF8MB4_CODE(b0,b1,b2,b3) (((my_wc_t) ((uchar) b0 & 0x07) << 18) |\
+                                   ((my_wc_t) ((uchar) b1 ^ 0x80) << 12) |\
+                                   ((my_wc_t) ((uchar) b2 ^ 0x80) << 6)  |\
+                                    (my_wc_t) ((uchar) b3 ^ 0x80))
 
 /* Definitions for strcoll.ic */
 #define IS_MB1_CHAR(x)              ((uchar) (x) < 0x80)
 #define IS_MB1_MBHEAD_UNUSED_GAP(x) ((uchar) (x) < 0xC2)
-#define IS_MB2_CHAR(x,y)            IS_UTF8MB2(x,y)
-#define IS_MB3_CHAR(x,y,z)          IS_UTF8MB3(x,y,z)
+#define IS_MB2_CHAR(x,y)            IS_UTF8MB2_STEP2(x,y)
+#define IS_MB3_CHAR(x,y,z)          IS_UTF8MB3_STEP3(x,y,z)
 
 /* Collation names */
 #define MY_UTF8MB3_GENERAL_CI MY_UTF8MB3 "_general_ci"
@@ -110,8 +165,7 @@ int my_valid_mbcharlen_utf8mb3(const uchar *s, const uchar *e)
   if (s+3 > e) /* We need 3 characters */
     return MY_CS_TOOSMALL3;
 
-  if (!(IS_CONTINUATION_BYTE(s[1]) && IS_CONTINUATION_BYTE(s[2]) &&
-          (c >= 0xe1 || s[1] >= 0xa0)))
+  if (!IS_UTF8MB3_STEP2(c, s[1], s[2]))
     return MY_CS_ILSEQ;
 
   return 3;
@@ -4878,8 +4932,7 @@ static int my_utf8_uni(CHARSET_INFO *cs __attribute__((unused)),
     if (s+3 > e) /* We need 3 characters */
       return MY_CS_TOOSMALL3;
 
-    if (!(IS_CONTINUATION_BYTE(s[1]) && IS_CONTINUATION_BYTE(s[2]) &&
-          (c >= 0xe1 || s[1] >= 0xa0)))
+    if (!IS_UTF8MB3_STEP2(c, s[1], s[2]))
       return MY_CS_ILSEQ;
 
     *pwc= UTF8MB3_CODE(c, s[1], s[2]);
@@ -4919,9 +4972,7 @@ static int my_utf8_uni_no_range(CHARSET_INFO *cs __attribute__((unused)),
 
   if (c < 0xf0)
   {
-    if (!(IS_CONTINUATION_BYTE(s[1]) &&
-          IS_CONTINUATION_BYTE(s[2]) &&
-          (c >= 0xe1 || s[1] >= 0xa0)))
+    if (!IS_UTF8MB3_STEP2(c, s[1], s[2]))
       return MY_CS_ILSEQ;
 
     *pwc= UTF8MB3_CODE(c, s[1], s[2]);
@@ -7265,8 +7316,7 @@ my_mb_wc_utf8mb4(CHARSET_INFO *cs __attribute__((unused)),
     if (s + 3 > e) /* We need 3 characters */
       return MY_CS_TOOSMALL3;
 
-    if (!(IS_CONTINUATION_BYTE(s[1]) && IS_CONTINUATION_BYTE(s[2]) &&
-          (c >= 0xe1 || s[1] >= 0xa0)))
+    if (!IS_UTF8MB3_STEP2(c, s[1], s[2]))
       return MY_CS_ILSEQ;
 
     *pwc= UTF8MB3_CODE(c, s[1], s[2]);
@@ -7277,35 +7327,9 @@ my_mb_wc_utf8mb4(CHARSET_INFO *cs __attribute__((unused)),
     if (s + 4 > e) /* We need 4 characters */
       return MY_CS_TOOSMALL4;
 
-    /*
-      UTF-8 quick four-byte mask:
-      11110xxx 10xxxxxx 10xxxxxx 10xxxxxx
-      Encoding allows to encode U+00010000..U+001FFFFF
-      
-      The maximum character defined in the Unicode standard is U+0010FFFF.
-      Higher characters U+00110000..U+001FFFFF are not used.
-      
-      11110000.10010000.10xxxxxx.10xxxxxx == F0.90.80.80 == U+00010000 (min)
-      11110100.10001111.10111111.10111111 == F4.8F.BF.BF == U+0010FFFF (max)
-      
-      Valid codes:
-      [F0][90..BF][80..BF][80..BF]
-      [F1][80..BF][80..BF][80..BF]
-      [F2][80..BF][80..BF][80..BF]
-      [F3][80..BF][80..BF][80..BF]
-      [F4][80..8F][80..BF][80..BF]
-    */
-
-    if (!(IS_CONTINUATION_BYTE(s[1]) &&
-          IS_CONTINUATION_BYTE(s[2]) &&
-          IS_CONTINUATION_BYTE(s[3]) &&
-          (c >= 0xf1 || s[1] >= 0x90) &&
-          (c <= 0xf3 || s[1] <= 0x8F)))
+    if (!IS_UTF8MB4_STEP2(c, s[1], s[2], s[3]))
       return MY_CS_ILSEQ;
-    *pwc = ((my_wc_t) (c & 0x07) << 18)    |
-           ((my_wc_t) (s[1] ^ 0x80) << 12) |
-           ((my_wc_t) (s[2] ^ 0x80) << 6)  |
-            (my_wc_t) (s[3] ^ 0x80);
+    *pwc= UTF8MB4_CODE(c, s[1], s[2], s[3]);
     return 4;
   }
   return MY_CS_ILSEQ;
@@ -7343,25 +7367,16 @@ my_mb_wc_utf8mb4_no_range(CHARSET_INFO *cs __attribute__((unused)),
 
   if (c < 0xf0)
   {
-    if (!(IS_CONTINUATION_BYTE(s[1]) &&
-          IS_CONTINUATION_BYTE(s[2]) &&
-          (c >= 0xe1 || s[1] >= 0xa0)))
+    if (!IS_UTF8MB3_STEP2(c, s[1], s[2]))
       return MY_CS_ILSEQ;
     *pwc= UTF8MB3_CODE(c, s[1], s[2]);
     return 3;
   }
   else if (c < 0xf5)
   {
-    if (!(IS_CONTINUATION_BYTE(s[1]) &&
-          IS_CONTINUATION_BYTE(s[2]) &&
-          IS_CONTINUATION_BYTE(s[3]) &&
-          (c >= 0xf1 || s[1] >= 0x90) &&
-          (c <= 0xf3 || s[1] <= 0x8F)))
+    if (!IS_UTF8MB4_STEP2(c, s[1], s[2], s[3]))
       return MY_CS_ILSEQ;
-    *pwc = ((my_wc_t) (c & 0x07) << 18)    |
-           ((my_wc_t) (s[1] ^ 0x80) << 12) |
-           ((my_wc_t) (s[2] ^ 0x80) << 6)  |
-            (my_wc_t) (s[3] ^ 0x80);
+    *pwc= UTF8MB4_CODE(c, s[1], s[2], s[3]);
     return 4;
   }
   return MY_CS_ILSEQ;
@@ -7849,30 +7864,7 @@ my_charlen_utf8mb4(CHARSET_INFO *cs __attribute__((unused)),
     if (s + 4 > e) /* We need 4 characters */
       return MY_CS_TOOSMALL4;
 
-    /*
-      UTF-8 quick four-byte mask:
-      11110xxx 10xxxxxx 10xxxxxx 10xxxxxx
-      Encoding allows to encode U+00010000..U+001FFFFF
-
-      The maximum character defined in the Unicode standard is U+0010FFFF.
-      Higher characters U+00110000..U+001FFFFF are not used.
-
-      11110000.10010000.10xxxxxx.10xxxxxx == F0.90.80.80 == U+00010000 (min)
-      11110100.10001111.10111111.10111111 == F4.8F.BF.BF == U+0010FFFF (max)
-
-      Valid codes:
-      [F0][90..BF][80..BF][80..BF]
-      [F1][80..BF][80..BF][80..BF]
-      [F2][80..BF][80..BF][80..BF]
-      [F3][80..BF][80..BF][80..BF]
-      [F4][80..8F][80..BF][80..BF]
-    */
-
-    if (!(IS_CONTINUATION_BYTE(s[1]) &&
-          IS_CONTINUATION_BYTE(s[2]) &&
-          IS_CONTINUATION_BYTE(s[3]) &&
-          (c >= 0xf1 || s[1] >= 0x90) &&
-          (c <= 0xf3 || s[1] <= 0x8F)))
+    if (!IS_UTF8MB4_STEP2(c, s[1], s[2], s[3]))
       return MY_CS_ILSEQ;
 
     return 4;
