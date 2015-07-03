@@ -4885,66 +4885,6 @@ static int my_utf8_uni(CHARSET_INFO *cs __attribute__((unused)),
     *pwc= UTF8MB3_CODE(c, s[1], s[2]);
     return 3;
   }
-#ifdef UNICODE_32BIT
-  else if (c < 0xf8 && sizeof(my_wc_t)*8 >= 32)
-  {
-    if (s+4 > e) /* We need 4 characters */
-      return MY_CS_TOOSMALL4;
-
-    if (!(IS_CONTINUATION_BYTE(s[1]) &&
-          IS_CONTINUATION_BYTE(s[2]) &&
-          IS_CONTINUATION_BYTE(s[3]) &&
-          (c >= 0xf1 || s[1] >= 0x90)))
-      return MY_CS_ILSEQ;
-
-    *pwc = ((my_wc_t) (c & 0x07) << 18)    |
-           ((my_wc_t) (s[1] ^ 0x80) << 12) |
-           ((my_wc_t) (s[2] ^ 0x80) << 6)  |
-            (my_wc_t) (s[3] ^ 0x80);
-
-    return 4;
-  }
-   else if (c < 0xfc && sizeof(my_wc_t)*8 >= 32)
-  {
-    if (s+5 >e) /* We need 5 characters */
-      return MY_CS_TOOSMALL5;
-
-    if (!(IS_CONTINUATION_BYTE(s[1]) &&
-          IS_CONTINUATION_BYTE(s[2]) &&
-          IS_CONTINUATION_BYTE(s[3]) &&
-          IS_CONTINUATION_BYTE(s[4]) &&
-          (c >= 0xf9 || s[1] >= 0x88)))
-      return MY_CS_ILSEQ;
-
-    *pwc = ((my_wc_t) (c & 0x03) << 24) |
-           ((my_wc_t) (s[1] ^ 0x80) << 18) |
-           ((my_wc_t) (s[2] ^ 0x80) << 12) |
-           ((my_wc_t) (s[3] ^ 0x80) << 6) |
-            (my_wc_t) (s[4] ^ 0x80);
-    return 5;
-  }
-  else if (c < 0xfe && sizeof(my_wc_t)*8 >= 32)
-  {
-    if ( s+6 >e ) /* We need 6 characters */
-      return MY_CS_TOOSMALL6;
-
-    if (!(IS_CONTINUATION_BYTE(s[1]) &&
-          IS_CONTINUATION_BYTE(s[2]) &&
-          IS_CONTINUATION_BYTE(s[3]) &&
-          IS_CONTINUATION_BYTE(s[4]) &&
-          IS_CONTINUATION_BYTE(s[5]) &&
-          (c >= 0xfd || s[1] >= 0x84)))
-      return MY_CS_ILSEQ;
-
-    *pwc = ((my_wc_t) (c & 0x01) << 30)
-      | ((my_wc_t) (s[1] ^ 0x80) << 24)
-      | ((my_wc_t) (s[2] ^ 0x80) << 18)
-      | ((my_wc_t) (s[3] ^ 0x80) << 12)
-      | ((my_wc_t) (s[4] ^ 0x80) << 6)
-      | (my_wc_t) (s[5] ^ 0x80);
-    return 6;
-  }
-#endif
   return MY_CS_ILSEQ;
 }
 
@@ -5330,50 +5270,6 @@ int my_charlen_utf8(CHARSET_INFO *cs __attribute__((unused)),
   if (c < 0xf0)
     return my_valid_mbcharlen_utf8mb3(s, e);
 
-#ifdef UNICODE_32BIT
-  if (c < 0xf8 && sizeof(my_wc_t)*8 >= 32)
-  {
-    if (s+4 > e) /* We need 4 characters */
-      return MY_CS_TOOSMALL4;
-
-    if (!(IS_CONTINUATION_BYTE(s[1]) &&
-          IS_CONTINUATION_BYTE(s[2]) &&
-          IS_CONTINUATION_BYTE(s[3]) &&
-          (c >= 0xf1 || s[1] >= 0x90)))
-      return MY_CS_ILSEQ;
-
-    return 4;
-  }
-  if (c < 0xfc && sizeof(my_wc_t)*8 >= 32)
-  {
-    if (s+5 >e) /* We need 5 characters */
-      return MY_CS_TOOSMALL5;
-
-    if (!(IS_CONTINUATION_BYTE(s[1]) &&
-          IS_CONTINUATION_BYTE(s[2]) &&
-          IS_CONTINUATION_BYTE(s[3]) &&
-          IS_CONTINUATION_BYTE(s[4]) &&
-          (c >= 0xf9 || s[1] >= 0x88)))
-      return MY_CS_ILSEQ;
-
-    return 5;
-  }
-  if (c < 0xfe && sizeof(my_wc_t)*8 >= 32)
-  {
-    if ( s+6 >e ) /* We need 6 characters */
-      return MY_CS_TOOSMALL6;
-
-    if (!(IS_CONTINUATION_BYTE(s[1]) &&
-          IS_CONTINUATION_BYTE(s[2]) &&
-          IS_CONTINUATION_BYTE(s[3]) &&
-          IS_CONTINUATION_BYTE(s[4]) &&
-          IS_CONTINUATION_BYTE(s[5]) &&
-          (c >= 0xfd || s[1] >= 0x84)))
-      return MY_CS_ILSEQ;
-
-    return 6;
-  }
-#endif
   return MY_CS_ILSEQ;
 }
 
@@ -5495,14 +5391,6 @@ static uint my_mbcharlen_utf8(CHARSET_INFO *cs  __attribute__((unused)),
     return 2;
   else if (c < 0xf0)
     return 3;
-#ifdef UNICODE_32BIT
-  else if (c < 0xf8)
-    return 4;
-  else if (c < 0xfc)
-    return 5;
-  else if (c < 0xfe)
-    return 6;
-#endif
   return 0; /* Illegal mb head */;
 }
 
