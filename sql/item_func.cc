@@ -419,11 +419,12 @@ Item *Item_func::compile(Item_analyzer analyzer, uchar **arg_p,
 */
 
 void Item_func::split_sum_func(THD *thd, Item **ref_pointer_array,
-                               List<Item> &fields)
+                               List<Item> &fields, uint flags)
 {
   Item **arg, **arg_end;
   for (arg= args, arg_end= args+arg_count; arg != arg_end ; arg++)
-    (*arg)->split_sum_func2(thd, ref_pointer_array, fields, arg, TRUE);
+    (*arg)->split_sum_func2(thd, ref_pointer_array, fields, arg,
+                            flags | SPLIT_SUM_SKIP_REGISTERED);
 }
 
 

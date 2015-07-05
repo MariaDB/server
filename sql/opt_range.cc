@@ -12811,6 +12811,7 @@ get_best_group_min_max(PARAM *param, SEL_TREE *tree, double read_time)
   uint key_infix_len= 0;          /* Length of key_infix. */
   TRP_GROUP_MIN_MAX *read_plan= NULL; /* The eventually constructed TRP. */
   uint key_part_nr;
+  uint elements_in_group;
   ORDER *tmp_group;
   Item *item;
   Item_field *item_field;
@@ -12892,10 +12893,12 @@ get_best_group_min_max(PARAM *param, SEL_TREE *tree, double read_time)
   }
 
   /* Check (GA4) - that there are no expressions among the group attributes. */
+  elements_in_group= 0;
   for (tmp_group= join->group_list; tmp_group; tmp_group= tmp_group->next)
   {
     if ((*tmp_group->item)->real_item()->type() != Item::FIELD_ITEM)
       DBUG_RETURN(NULL);
+    elements_in_group++;
   }
 
   /*
@@ -12944,8 +12947,16 @@ get_best_group_min_max(PARAM *param, SEL_TREE *tree, double read_time)
       there are cases Loose Scan over a multi-part index is useful).
     */
     if (!table->covering_keys.is_set(cur_index))
-      goto next_index;
-
+      continue;
+    
+    /*
+      This function is called on the precondition that the index is covering.
+      Therefore if the GROUP BY list contains more elements than the index,
+      these are duplicates. The GROUP BY list cannot be a prefix of the index.
+    */
+    if (elements_in_group > table->actual_n_key_parts(cur_index_info))
+      continue;
+    
     /*
       Unless extended keys can be used for cur_index:
       If the current storage manager is such that it appends the primary key to
@@ -13006,13 +13017,6 @@ get_best_group_min_max(PARAM *param, SEL_TREE *tree, double read_time)
         else
           goto next_index;
       }
-      /*
-        This function is called on the precondition that the index is covering.
-        Therefore if the GROUP BY list contains more elements than the index,
-        these are duplicates. The GROUP BY list cannot be a prefix of the index.
-      */
-      if (cur_part == end_part && tmp_group)
-        goto next_index;
     }
     /*
       Check (GA2) if this is a DISTINCT query.
@@ -13022,8 +13026,8 @@ get_best_group_min_max(PARAM *param, SEL_TREE *tree, double read_time)
       Later group_fields_array of ORDER objects is used to convert the query
       to a GROUP query.
     */
-    if ((!join->group_list && join->select_distinct) ||
-             is_agg_distinct)
+    if ((!join->group && join->select_distinct) ||
+        is_agg_distinct)
     {
       if (!is_agg_distinct)
       {

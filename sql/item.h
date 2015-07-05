@@ -74,6 +74,10 @@ char_to_byte_length_safe(uint32 char_length_arg, uint32 mbmaxlen_arg)
 }
 
 
+/* Bits for the split_sum_func() function */
+#define SPLIT_SUM_SKIP_REGISTERED 1     /* Skip registered funcs */
+#define SPLIT_SUM_SELECT 2		/* SELECT item; Split all parts */
+
 /*
    "Declared Type Collation"
    A combination of collation and its derivation.
@@ -1169,10 +1173,10 @@ public:
     return false;
   }
   virtual void split_sum_func(THD *thd, Item **ref_pointer_array,
-                              List<Item> &fields) {}
+                              List<Item> &fields, uint flags) {}
   /* Called for items that really have to be split */
   void split_sum_func2(THD *thd, Item **ref_pointer_array, List<Item> &fields,
-                       Item **ref, bool skip_registered);
+                       Item **ref, uint flags);
   virtual bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate);
   bool get_time(MYSQL_TIME *ltime)
   { return get_date(ltime, TIME_TIME_ONLY | TIME_INVALID_DATES); }

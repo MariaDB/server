@@ -75,7 +75,8 @@ public:
   bool fix_fields(THD *thd, Item **ref);
   void fix_after_pullout(st_select_lex *new_parent, Item **ref);
   void cleanup();
-  void split_sum_func(THD *thd, Item **ref_pointer_array, List<Item> &fields);
+  void split_sum_func(THD *thd, Item **ref_pointer_array, List<Item> &fields,
+                      uint flags);
   table_map used_tables() const { return used_tables_cache; };
   bool const_item() const { return const_item_cache; };
   enum Item_result result_type() const { return ROW_RESULT; }

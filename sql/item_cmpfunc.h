@@ -1759,7 +1759,8 @@ public:
                       SARGABLE_PARAM **sargables);
   SEL_TREE *get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr);
   virtual void print(String *str, enum_query_type query_type);
-  void split_sum_func(THD *thd, Item **ref_pointer_array, List<Item> &fields);
+  void split_sum_func(THD *thd, Item **ref_pointer_array, List<Item> &fields,
+                      uint flags);
   friend int setup_conds(THD *thd, TABLE_LIST *tables, TABLE_LIST *leaves,
                          COND **conds);
   void top_level_item() { abort_on_null=1; }

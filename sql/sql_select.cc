@@ -854,7 +854,7 @@ JOIN::prepare(Item ***rref_pointer_array,
         real_order= TRUE;
 
       if (item->with_sum_func && item->type() != Item::SUM_FUNC_ITEM)
-        item->split_sum_func(thd, ref_pointer_array, all_fields);
+        item->split_sum_func(thd, ref_pointer_array, all_fields, 0);
     }
     if (!real_order)
       order= NULL;
@@ -862,7 +862,7 @@ JOIN::prepare(Item ***rref_pointer_array,
 
   if (having && having->with_sum_func)
     having->split_sum_func2(thd, ref_pointer_array, all_fields,
-                            &having, TRUE);
+                            &having, SPLIT_SUM_SKIP_REGISTERED);
   if (select_lex->inner_sum_func_list)
   {
     Item_sum *end=select_lex->inner_sum_func_list;
@@ -871,7 +871,7 @@ JOIN::prepare(Item ***rref_pointer_array,
     { 
       item_sum= item_sum->next;
       item_sum->split_sum_func2(thd, ref_pointer_array,
-                                all_fields, item_sum->ref_by, FALSE);
+                                all_fields, item_sum->ref_by, 0);
     } while (item_sum != end);
   }
 
@@ -1334,6 +1334,24 @@ TODO: make view to decide if it is possible to write to WHERE directly or make S
   /* get_sort_by_table() call used to be here: */
   MEM_UNDEFINED(&sort_by_table, sizeof(sort_by_table));
 
+  /*
+    We have to remove constants and duplicates from group_list before
+    calling make_join_statistics() as this may call get_best_group_min_max()
+    which needs a simplfied group_list.
+  */
+  simple_group= 1;
+  if (group_list && table_count == 1)
+  {
+    group_list= remove_const(this, group_list, conds,
+                             rollup.state == ROLLUP::STATE_NONE,
+                             &simple_group);
+    if (thd->is_error())
+    {
+      error= 1;
+      DBUG_RETURN(1);
+    }
+  }
+  
   /* Calculate how to do the join */
   THD_STAGE_INFO(thd, stage_statistics);
   if (make_join_statistics(this, select_lex->leaf_tables, &keyuse) ||
@@ -1549,7 +1567,6 @@ TODO: make view to decide if it is possible to write to WHERE directly or make S
     if (thd->is_error())
     {
       error= 1;
-      DBUG_PRINT("error",("Error from remove_const"));
       DBUG_RETURN(1);
     }
 
@@ -1572,14 +1589,14 @@ TODO: make view to decide if it is possible to write to WHERE directly or make S
 
      The FROM clause must contain a single non-constant table.
   */
-  if (table_count - const_tables == 1 && (group_list || select_distinct) &&
+  if (table_count - const_tables == 1 && (group || select_distinct) &&
       !tmp_table_param.sum_func_count &&
       (!join_tab[const_tables].select ||
        !join_tab[const_tables].select->quick ||
        join_tab[const_tables].select->quick->get_type() != 
        QUICK_SELECT_I::QS_TYPE_GROUP_MIN_MAX))
   {
-    if (group_list && rollup.state == ROLLUP::STATE_NONE &&
+    if (group && rollup.state == ROLLUP::STATE_NONE &&
        list_contains_unique_index(join_tab[const_tables].table,
                                  find_field_in_order_list,
                                  (void *) group_list))
@@ -1625,7 +1642,7 @@ TODO: make view to decide if it is possible to write to WHERE directly or make S
       select_distinct= 0;
     }
   }
-  if (group_list || tmp_table_param.sum_func_count)
+  if (group || tmp_table_param.sum_func_count)
   {
     if (! hidden_group_fields && rollup.state == ROLLUP::STATE_NONE)
       select_distinct=0;
@@ -1690,32 +1707,29 @@ TODO: make view to decide if it is possible to write to WHERE directly or make S
     else if (thd->is_fatal_error)			// End of memory
       DBUG_RETURN(1);
   }
-  simple_group= 0;
+  if (group)
   {
-    ORDER *old_group_list;
-    group_list= remove_const(this, (old_group_list= group_list), conds,
+    /*
+      Update simple_group and group_list as we now have more information, like
+      which tables or columns are constant.
+    */
+    group_list= remove_const(this, group_list, conds,
                              rollup.state == ROLLUP::STATE_NONE,
-			     &simple_group);
+                             &simple_group);
     if (thd->is_error())
     {
       error= 1;
-      DBUG_PRINT("error",("Error from remove_const"));
       DBUG_RETURN(1);
     }
-    if (old_group_list && !group_list)
+    if (!group_list)
     {
-      DBUG_ASSERT(group);
+      /* The output has only one row */
+      order=0;
+      simple_order=1;
       select_distinct= 0;
+      group_optimized_away= 1;
     }
   }
-  if (!group_list && group)
-  {
-    order=0;					// The output has only one row
-    simple_order=1;
-    select_distinct= 0;                       // No need in distinct for 1 row
-    group_optimized_away= 1;
-  }
-
   calc_group_buffer(this, group_list);
   send_group_parts= tmp_table_param.group_parts; /* Save org parts */
   if (procedure && procedure->group)
@@ -1725,7 +1739,6 @@ TODO: make view to decide if it is possible to write to WHERE directly or make S
     if (thd->is_error())
     {
       error= 1;
-      DBUG_PRINT("error",("Error from remove_const"));
       DBUG_RETURN(1);
     }   
     calc_group_buffer(this, group_list);
@@ -1876,14 +1889,6 @@ TODO: make view to decide if it is possible to write to WHERE directly or make S
   if ((select_lex->options & OPTION_SCHEMA_TABLE))
     optimize_schema_tables_reads(this);
 
-  tmp_having= having;
-  if (select_options & SELECT_DESCRIBE)
-  {
-    error= 0;
-    goto derived_exit;
-  }
-  having= 0;
-
   /*
     The loose index scan access method guarantees that all grouping or
     duplicate row elimination (for distinct) is already performed
@@ -1906,6 +1911,11 @@ TODO: make view to decide if it is possible to write to WHERE directly or make S
   }
 
   error= 0;
+
+  tmp_having= having;
+  if (select_options & SELECT_DESCRIBE)
+    goto derived_exit;
+  having= 0;
 
   DBUG_RETURN(0);
 
@@ -1944,8 +1954,9 @@ int JOIN::init_execution()
   /*
     Enable LIMIT ROWS EXAMINED during query execution if:
     (1) This JOIN is the outermost query (not a subquery or derived table)
-        This ensures that the limit is enabled when actual execution begins, and
-        not if a subquery is evaluated during optimization of the outer query.
+        This ensures that the limit is enabled when actual execution begins,
+        and not if a subquery is evaluated during optimization of the outer
+        query.
     (2) This JOIN is not the result of a UNION. In this case do not apply the
         limit in order to produce the partial query result stored in the
         UNION temp table.
@@ -2561,19 +2572,26 @@ void JOIN::exec_inner()
       simple_order= simple_group;
       skip_sort_order= 0;
     }
-    bool made_call= false;
-    if (order && 
-        (order != group_list || !(select_options & SELECT_BIG_RESULT)) &&
-	(const_tables == table_count ||
- 	 ((simple_order || skip_sort_order) &&
-	  (made_call=true) &&
-          test_if_skip_sort_order(&join_tab[const_tables], order,
-				  select_limit, 0, 
-                                  &join_tab[const_tables].table->
+    if (order && join_tab)
+    {
+      bool made_call= false;
+      SQL_SELECT *select= join_tab[const_tables].select;
+      if ((order != group_list ||
+           !(select_options & SELECT_BIG_RESULT) ||
+           (select && select->quick &&
+            select->quick->get_type() ==
+            QUICK_SELECT_I::QS_TYPE_GROUP_MIN_MAX)) &&
+          (const_tables == table_count ||
+           ((simple_order || skip_sort_order) &&
+            (made_call=true) &&
+            test_if_skip_sort_order(&join_tab[const_tables], order,
+                                    select_limit, 0, 
+                                    &join_tab[const_tables].table->
                                     keys_in_use_for_query))))
-      order=0;
-    if (made_call)
-      join_tab[const_tables].update_explain_data(const_tables);
+        order=0;
+      if (made_call)
+        join_tab[const_tables].update_explain_data(const_tables);
+    }
     having= tmp_having;
     select_describe(this, need_tmp,
 		    order != 0 && !skip_sort_order,
@@ -12022,7 +12040,8 @@ static void update_depend_map_for_order(JOIN *join, ORDER *order)
     order->used= 0;
     // Not item_sum(), RAND() and no reference to table outside of sub select
     if (!(order->depend_map & (OUTER_REF_TABLE_BIT | RAND_TABLE_BIT))
-        && !order->item[0]->with_sum_func)
+        && !order->item[0]->with_sum_func &&
+        join->join_tab)
     {
       for (JOIN_TAB **tab=join->map2table;
 	   depend_map ;
@@ -12050,7 +12069,8 @@ static void update_depend_map_for_order(JOIN *join, ORDER *order)
   @param cond			WHERE statement
   @param change_list		Set to 1 if we should remove things from list.
                                 If this is not set, then only simple_order is
-                                calculated.
+                                calculated. This is not set when we
+                                are using ROLLUP
   @param simple_order		Set to 1 if we are only using simple
 				expressions.
 
@@ -12062,6 +12082,7 @@ static ORDER *
 remove_const(JOIN *join,ORDER *first_order, COND *cond,
              bool change_list, bool *simple_order)
 {
+  *simple_order= 1;
   if (join->table_count == join->const_tables)
     return change_list ? 0 : first_order;		// No need to sort
 
@@ -12072,23 +12093,37 @@ remove_const(JOIN *join,ORDER *first_order, COND *cond,
   bool first_is_base_table= FALSE;
   DBUG_ENTER("remove_const");
   
-  if (join->join_tab[join->const_tables].table)
-  {
-    first_table= join->join_tab[join->const_tables].table->map;
-    first_is_base_table= TRUE;
-  }
-  
   /*
-    Cleanup to avoid interference of calls of this function for
-    ORDER BY and GROUP BY
+    Join tab is set after make_join_statistics() has been called.
+    In case of one table with GROUP BY this function is called before
+    join_tab is set for the GROUP_BY expression
   */
-  for (JOIN_TAB *tab= join->join_tab + join->const_tables;
-       tab < join->join_tab + join->table_count;
-       tab++)
-    tab->cached_eq_ref_table= FALSE;
+  if (join->join_tab)
+  {
+    if (join->join_tab[join->const_tables].table)
+    {
+      first_table= join->join_tab[join->const_tables].table->map;
+      first_is_base_table= TRUE;
+    }
+  
+    /*
+      Cleanup to avoid interference of calls of this function for
+      ORDER BY and GROUP BY
+    */
+    for (JOIN_TAB *tab= join->join_tab + join->const_tables;
+         tab < join->join_tab + join->table_count;
+         tab++)
+      tab->cached_eq_ref_table= FALSE;
+
+    *simple_order= *join->join_tab[join->const_tables].on_expr_ref ? 0 : 1;
+  }
+  else
+  {
+    first_is_base_table= FALSE;
+    first_table= 0;                     // Not used, for gcc
+  }
 
   prev_ptr= &first_order;
-  *simple_order= *join->join_tab[join->const_tables].on_expr_ref ? 0 : 1;
 
   /* NOTE: A variable of not_const_tables ^ first_table; breaks gcc 2.7 */
 
@@ -12134,7 +12169,8 @@ remove_const(JOIN *join,ORDER *first_order, COND *cond,
 	  DBUG_PRINT("info",("removing: %s", order->item[0]->full_name()));
 	  continue;
 	}
-	if (first_is_base_table && (ref=order_tables & (not_const_tables ^ first_table)))
+	if (first_is_base_table &&
+            (ref=order_tables & (not_const_tables ^ first_table)))
 	{
 	  if (!(order_tables & first_table) &&
               only_eq_ref_tables(join,first_order, ref))
@@ -12165,6 +12201,10 @@ remove_const(JOIN *join,ORDER *first_order, COND *cond,
     *prev_ptr=0;
   if (prev_ptr == &first_order)			// Nothing to sort/group
     *simple_order=1;
+#ifndef DBUG_OFF
+  if (join->thd->is_error())
+    DBUG_PRINT("error",("Error from remove_const"));
+#endif
   DBUG_PRINT("exit",("simple_order: %d",(int) *simple_order));
   DBUG_RETURN(first_order);
 }
@@ -20985,6 +21025,8 @@ create_sort_index(THD *thd, JOIN *join, ORDER *order,
     and thus force sorting on disk unless a group min-max optimization
     is going to be used as it is applied now only for one table queries
     with covering indexes.
+    The expections is if we are already using the index for GROUP BY
+    (in which case sort would be free) or ORDER and GROUP BY are different.
   */
   if ((order != join->group_list || 
        !(join->select_options & SELECT_BIG_RESULT) ||

@@ -1705,69 +1705,98 @@ public:
 
   @param thd			Thread handler
   @param ref_pointer_array	Pointer to array of reference fields
-  @param fields		All fields in select
+  @param fields		        All fields in select
   @param ref			Pointer to item
-  @param skip_registered       <=> function be must skipped for registered
-                               SUM items
+  @param split_flags            Zero or more of the following flags
+	                        SPLIT_FUNC_SKIP_REGISTERED:
+                                Function be must skipped for registered SUM
+                                SUM items
+                                SPLIT_FUNC_SELECT
+                                We are called on the select level and have to
+                                register items operated on sum function
 
   @note
-    This is from split_sum_func2() for items that should be split
-
     All found SUM items are added FIRST in the fields list and
     we replace the item with a reference.
+
+    If this is an item in the SELECT list then we also have to split out
+    all arguments to functions used together with the sum function.
+    For example in case of SELECT A*sum(B) we have to split out both
+    A and sum(B).
+    This is not needed for ORDER BY, GROUP BY or HAVING as all references
+    to items in the select list are already of type REF
 
     thd->fatal_error() may be called if we are out of memory
 */
 
 void Item::split_sum_func2(THD *thd, Item **ref_pointer_array,
                            List<Item> &fields, Item **ref, 
-                           bool skip_registered)
+                           uint split_flags)
 {
-  /* An item of type Item_sum  is registered <=> ref_by != 0 */ 
-  if (type() == SUM_FUNC_ITEM && skip_registered && 
-      ((Item_sum *) this)->ref_by)
-    return;
-  if ((type() != SUM_FUNC_ITEM && with_sum_func) ||
-      (type() == FUNC_ITEM &&
-       (((Item_func *) this)->functype() == Item_func::ISNOTNULLTEST_FUNC ||
-        ((Item_func *) this)->functype() == Item_func::TRIG_COND_FUNC)))
+  if (unlikely(type() == SUM_FUNC_ITEM))
   {
-    /* Will split complicated items and ignore simple ones */
-    split_sum_func(thd, ref_pointer_array, fields);
+    /* An item of type Item_sum is registered if ref_by != 0 */
+    if ((split_flags & SPLIT_SUM_SKIP_REGISTERED) && 
+        ((Item_sum *) this)->ref_by)
+      return;
   }
-  else if ((type() == SUM_FUNC_ITEM || (used_tables() & ~PARAM_TABLE_BIT)) &&
-           type() != SUBSELECT_ITEM &&
-           (type() != REF_ITEM ||
-           ((Item_ref*)this)->ref_type() == Item_ref::VIEW_REF))
+  else
   {
-    /*
-      Replace item with a reference so that we can easily calculate
-      it (in case of sum functions) or copy it (in case of fields)
+    /* Not a SUM() function */
+    if (unlikely((!with_sum_func && !(split_flags & SPLIT_SUM_SELECT))))
+    {
+      /*
+        This is not a SUM function and there are no SUM functions inside.
+        Nothing more to do.
+      */
+      return;
+    }
+    if (likely(with_sum_func ||
+               (type() == FUNC_ITEM &&
+                (((Item_func *) this)->functype() ==
+                 Item_func::ISNOTNULLTEST_FUNC ||
+                 ((Item_func *) this)->functype() ==
+                 Item_func::TRIG_COND_FUNC))))
+    {
+      /* Will call split_sum_func2() for all items */
+      split_sum_func(thd, ref_pointer_array, fields, split_flags);
+      return;
+    }
 
-      The test above is to ensure we don't do a reference for things
-      that are constants (PARAM_TABLE_BIT is in effect a constant)
-      or already referenced (for example an item in HAVING)
-      Exception is Item_direct_view_ref which we need to convert to
-      Item_ref to allow fields from view being stored in tmp table.
-    */
-    Item_aggregate_ref *item_ref;
-    uint el= fields.elements;
-    /*
-      If this is an item_ref, get the original item
-      This is a safety measure if this is called for things that is
-      already a reference.
-    */
-    Item *real_itm= real_item();
-
-    ref_pointer_array[el]= real_itm;
-    if (!(item_ref= new Item_aggregate_ref(&thd->lex->current_select->context,
-                                           ref_pointer_array + el, 0, name)))
-      return;                                   // fatal_error is set
-    if (type() == SUM_FUNC_ITEM)
-      item_ref->depended_from= ((Item_sum *) this)->depended_from(); 
-    fields.push_front(real_itm);
-    thd->change_item_tree(ref, item_ref);
+    if (unlikely((!(used_tables() & ~PARAM_TABLE_BIT) ||
+                  type() == SUBSELECT_ITEM ||
+                  (type() == REF_ITEM &&
+                   ((Item_ref*)this)->ref_type() != Item_ref::VIEW_REF))))
+        return;
   }
+
+  /*
+    Replace item with a reference so that we can easily calculate
+    it (in case of sum functions) or copy it (in case of fields)
+
+    The test above is to ensure we don't do a reference for things
+    that are constants (PARAM_TABLE_BIT is in effect a constant)
+    or already referenced (for example an item in HAVING)
+    Exception is Item_direct_view_ref which we need to convert to
+    Item_ref to allow fields from view being stored in tmp table.
+  */
+  Item_aggregate_ref *item_ref;
+  uint el= fields.elements;
+  /*
+    If this is an item_ref, get the original item
+    This is a safety measure if this is called for things that is
+    already a reference.
+  */
+  Item *real_itm= real_item();
+
+  ref_pointer_array[el]= real_itm;
+  if (!(item_ref= new Item_aggregate_ref(&thd->lex->current_select->context,
+                                         ref_pointer_array + el, 0, name)))
+    return;                                   // fatal_error is set
+  if (type() == SUM_FUNC_ITEM)
+    item_ref->depended_from= ((Item_sum *) this)->depended_from(); 
+  fields.push_front(real_itm);
+  thd->change_item_tree(ref, item_ref);
 }
 
 

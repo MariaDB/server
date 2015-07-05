@@ -4575,12 +4575,13 @@ void Item_cond::traverse_cond(Cond_traverser traverser,
 */
 
 void Item_cond::split_sum_func(THD *thd, Item **ref_pointer_array,
-                               List<Item> &fields)
+                               List<Item> &fields, uint flags)
 {
   List_iterator<Item> li(list);
   Item *item;
   while ((item= li++))
-    item->split_sum_func2(thd, ref_pointer_array, fields, li.ref(), TRUE);
+    item->split_sum_func2(thd, ref_pointer_array, fields, li.ref(),
+                          flags | SPLIT_SUM_SKIP_REGISTERED);
 }
 
 

@@ -143,7 +143,8 @@ public:
     sync_with_sum_func_and_with_field(list);
     list.empty();                                     // Fields are used
   }
-  void split_sum_func(THD *thd, Item **ref_pointer_array, List<Item> &fields);
+  void split_sum_func(THD *thd, Item **ref_pointer_array, List<Item> &fields,
+                      uint flags);
   virtual void print(String *str, enum_query_type query_type);
   void print_op(String *str, enum_query_type query_type);
   void print_args(String *str, uint from, enum_query_type query_type);
