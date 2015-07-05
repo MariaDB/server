@@ -447,10 +447,11 @@ ha_rows filesort(THD *thd, TABLE *table, SORT_FIELD *sortorder, uint s_length,
 void filesort_free_buffers(TABLE *table, bool full)
 {
   DBUG_ENTER("filesort_free_buffers");
+
   my_free(table->sort.record_pointers);
   table->sort.record_pointers= NULL;
 
-  if (full)
+  if (unlikely(full))
   {
     table->sort.free_sort_buffer();
     my_free(table->sort.buffpek);
@@ -458,10 +459,14 @@ void filesort_free_buffers(TABLE *table, bool full)
     table->sort.buffpek_len= 0;
   }
 
-  my_free(table->sort.addon_buf);
-  my_free(table->sort.addon_field);
-  table->sort.addon_buf= NULL;
-  table->sort.addon_field= NULL;
+  /* addon_buf is only allocated if addon_field is set */
+  if (unlikely(table->sort.addon_field))
+  {
+    my_free(table->sort.addon_field);
+    my_free(table->sort.addon_buf);
+    table->sort.addon_buf= NULL;
+    table->sort.addon_field= NULL;
+  }
   DBUG_VOID_RETURN;
 }
 
