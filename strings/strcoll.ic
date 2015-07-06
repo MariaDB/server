@@ -64,13 +64,16 @@
   @return             - the number of bytes scanned
 
   The including source file must define the following macros:
-  IS_MB1_CHAR(x)
-  IS_MB1_MB2HEAD_GAP(x)  - optional, for better performance
-  IS_MB2_CHAR(x,y)
-  IS_MB3_CHAR(x,y,z)     - for character sets with mbmaxlen>2
+  IS_MB1_CHAR(b0)          - for character sets that have MB1 characters
+  IS_MB1_MB2HEAD_GAP(b0)   - optional, for better performance
+  IS_MB2_CHAR(b0,b1)       - for character sets that have MB2 characters
+  IS_MB3_CHAR(b0,b1,b2)    - for character sets that have MB3 characters
+  IS_MB4_CHAR(b0,b1,b2,b3) - for character sets with have MB4 characters
   WEIGHT_PAD_SPACE
-  WEIGHT_MB1(x)
-  WEIGHT_MB2(x,y)
+  WEIGHT_MB1(b0)           - for character sets that have MB1 characters
+  WEIGHT_MB2(b0,b1)        - for character sets that have MB2 characters
+  WEIGHT_MB3(b0,b1,b2)     - for character sets that have MB3 characters
+  WEIGHT_MB4(b0,b1,b2,b3)  - for character sets that have MB4 characters
   WEIGHT_ILSEQ(x)
 */
 static inline uint
@@ -82,11 +85,13 @@ MY_FUNCTION_NAME(scan_weight)(int *weight, const uchar *str, const uchar *end)
     return 0;
   }
 
+#ifdef IS_MB1_CHAR
   if (IS_MB1_CHAR(*str))
   {
     *weight= WEIGHT_MB1(*str);           /* A valid single byte character*/
     return 1;
   }
+#endif
 
 #ifdef IS_MB1_MBHEAD_UNUSED_GAP
   /*
@@ -98,6 +103,7 @@ MY_FUNCTION_NAME(scan_weight)(int *weight, const uchar *str, const uchar *end)
     goto bad;
 #endif
 
+#ifdef IS_MB2_CHAR
   if (str + 2 > end)                     /* The string ended unexpectedly */
     goto bad;                            /* Treat as a bad byte */
 
@@ -106,6 +112,7 @@ MY_FUNCTION_NAME(scan_weight)(int *weight, const uchar *str, const uchar *end)
     *weight= WEIGHT_MB2(str[0], str[1]);
     return 2;                            /* A valid two-byte character */
   }
+#endif
 
 #ifdef IS_MB3_CHAR
   if (str + 3 > end)                     /* Incomplete three-byte character */
