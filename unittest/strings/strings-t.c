@@ -369,6 +369,49 @@ STRNNCOLL_PARAM strcoll_utf8mb3_common[]=
 };
 
 
+STRNNCOLL_PARAM strcoll_utf8mb4_common[]=
+{
+  /* Minimum four-byte character: U+10000 == _utf8 0xF0908080 */
+  {CSTR("\xF0\x90\x80\x80"), CSTR("\xC0"),        -1},  /* MB4 vs unused byte */
+  {CSTR("\xF0\x90\x80\x80"), CSTR("\xC2"),        -1},  /* MB4 vs incomplete MB2 */
+  {CSTR("\xF0\x90\x80\x80"), CSTR("\xE0\xA0\x7F"),-1},  /* MB4 vs broken MB3 */
+  {CSTR("\xF0\x90\x80\x80"), CSTR("\xE0\xA0\xC0"),-1},  /* MB4 vs broken MB3 */
+  {CSTR("\xF0\x90\x80\x80"), CSTR("\xE0\xA0"),     -1}, /* MB4 vs incomplete MB3 */
+  {CSTR("\xF0\x90\x80\x80"), CSTR("\xF0\x90\x80"),-1},  /* MB4 vs incomplete MB4 */
+  {CSTR("\xF0\x90\x80\x80"), CSTR("\xF0\x90\x80\x7F"),-1},/* MB4 vs broken MB4 */
+  {CSTR("\xF0\x90\x80\x80"), CSTR("\xF0\x90\x80\xC0"),-1},/* MB4 vs broken MB4 */
+
+  /* Maximum four-byte character: U+10FFFF == _utf8 0xF48FBFBF */
+  {CSTR("\xF4\x8F\xBF\xBF"), CSTR("\xC0"),        -1},  /* MB4 vs unused byte */
+  {CSTR("\xF4\x8F\xBF\xBF"), CSTR("\xC2"),        -1},  /* MB4 vs incomplete MB2 */
+  {CSTR("\xF4\x8F\xBF\xBF"), CSTR("\xE0\xA0\x7F"),-1},  /* MB4 vs broken MB3 */
+  {CSTR("\xF4\x8F\xBF\xBF"), CSTR("\xE0\xA0\xC0"),-1},  /* MB4 vs broken MB3 */
+  {CSTR("\xF4\x8F\xBF\xBF"), CSTR("\xE0\xA0"),     -1}, /* MB4 vs incomplete MB3 */
+  {CSTR("\xF4\x8F\xBF\xBF"), CSTR("\xF0\x90\x80"),-1},  /* MB4 vs incomplete MB4 */
+  {CSTR("\xF4\x8F\xBF\xBF"), CSTR("\xF0\x90\x80\x7F"),-1},/* MB4 vs broken MB4 */
+  {CSTR("\xF4\x8F\xBF\xBF"), CSTR("\xF0\x90\x80\xC0"),-1},/* MB4 vs broken MB4 */
+
+  /* Broken MB4 vs incomplete/broken MB3 */
+  {CSTR("\xF0\x90\x80\x7F"), CSTR("\xE0\xA0"),    1},  /* Broken MB4 vs incomplete MB3 */
+  {CSTR("\xF0\x90\x80\x7F"), CSTR("\xE0\xA0\x7F"),1},  /* Broken MB4 vs broken MB3 */
+  {CSTR("\xF0\x90\x80\x7F"), CSTR("\xE0\xA0\xC0"),1},  /* Broken MB4 vs broken MB3 */
+
+  /*
+    Broken MB4 vs incomplete MB4:
+    The three leftmost bytes are compared binary, the fourth byte is compared
+    to auto-padded space.
+  */
+  {CSTR("\xF0\x90\x80\x1F"), CSTR("\xF0\x90\x80"),-1}, /* Broken MB4 vs incomplete MB4 */
+  {CSTR("\xF0\x90\x80\x7E"), CSTR("\xF0\x90\x80"),1},  /* Broken MB4 vs incomplete MB4 */
+
+  /* Broken MB4 vs broken MB4 */
+  {CSTR("\xF0\x90\x80\x7E"), CSTR("\xF0\x90\x80\x7F"),-1},/* Broken MB4 vs broken MB4 */
+  {CSTR("\xF0\x90\x80\x7E"), CSTR("\xF0\x90\x80\xC0"),-1},/* Broken MB4 vs broken MB4 */
+
+  {NULL, 0, NULL, 0, 0}
+};
+
+
 static void
 str2hex(char *dst, size_t dstlen, const char *src, size_t srclen)
 {
@@ -497,6 +540,12 @@ test_strcollsp()
   failed+= strcollsp(&my_charset_utf8_general_ci,          strcoll_utf8mb3_common);
   failed+= strcollsp(&my_charset_utf8_general_mysql500_ci, strcoll_utf8mb3_common);
   failed+= strcollsp(&my_charset_utf8_bin,                 strcoll_utf8mb3_common);
+#endif
+#ifdef HAVE_CHARSET_utf8mb4
+  failed+= strcollsp(&my_charset_utf8mb4_general_ci,          strcoll_utf8mb3_common);
+  failed+= strcollsp(&my_charset_utf8mb4_bin,                 strcoll_utf8mb3_common);
+  failed+= strcollsp(&my_charset_utf8mb4_general_ci,          strcoll_utf8mb4_common);
+  failed+= strcollsp(&my_charset_utf8mb4_bin,                 strcoll_utf8mb4_common);
 #endif
   return failed;
 }

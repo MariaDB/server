@@ -85,7 +85,8 @@
                                        IS_CONTINUATION_BYTE(b3) && \
                                        (b0 >= 0xf1 || b1 >= 0x90) && \
                                        (b0 <= 0xf3 || b1 <= 0x8F))
-
+#define IS_UTF8MB4_STEP3(b0,b1,b2,b3) (((uchar) (b0) < 0xF5) && \
+                                       IS_UTF8MB4_STEP2(b0,b1,b2,b3))
 
 /* Convert individual bytes to Unicode code points */
 #define UTF8MB2_CODE(b0,b1)       (((my_wc_t) ((uchar) b0 & 0x1f) << 6)  |\
@@ -7622,146 +7623,6 @@ my_casedn_str_utf8mb4(CHARSET_INFO *cs, char *src)
 }
 
 
-static int
-my_strnncoll_utf8mb4(CHARSET_INFO *cs,
-                     const uchar *s, size_t slen,
-                     const uchar *t, size_t tlen,
-                     my_bool t_is_prefix)
-{
-  my_wc_t UNINIT_VAR(s_wc), UNINIT_VAR(t_wc);
-  const uchar *se= s + slen;
-  const uchar *te= t + tlen;
-  MY_UNICASE_INFO *uni_plane= cs->caseinfo;
-
-  while ( s < se && t < te )
-  {
-    int s_res= my_mb_wc_utf8mb4(cs, &s_wc, s, se);
-    int t_res= my_mb_wc_utf8mb4(cs, &t_wc, t, te);
-
-    if ( s_res <= 0 || t_res <= 0 )
-    {
-      /* Incorrect string, compare bytewise */
-      return bincmp_utf8mb4(s, se, t, te);
-    }
-
-    my_tosort_unicode(uni_plane, &s_wc, cs->state);
-    my_tosort_unicode(uni_plane, &t_wc, cs->state);
-
-    if ( s_wc != t_wc )
-    {
-      return s_wc > t_wc ? 1 : -1;
-    }
-
-    s+= s_res;
-    t+= t_res;
-  }
-  return (int) (t_is_prefix ? (t - te) : ((se - s) - (te - t)));
-}
-
-
-/**
-  
-  Compare strings, discarding end space
-
-  If one string is shorter as the other, then we space extend the other
-  so that the strings have equal length.
-
-  This will ensure that the following things hold:
-
-    "a"  == "a "
-    "a\0" < "a"
-    "a\0" < "a "
-
-  @param  cs        Character set pinter.
-  @param  a         First string to compare.
-  @param  a_length  Length of 'a'.
-  @param  b         Second string to compare.
-  @param  b_length  Length of 'b'.
-  @param  diff_if_only_endspace_difference
-                    Set to 1 if the strings should be regarded as different
-                    if they only difference in end space
-
-  @return Comparison result.
-    @retval Negative number, if a less than b.
-    @retval 0, if a is equal to b
-    @retval Positive number, if a > b
-*/
-
-static int
-my_strnncollsp_utf8mb4(CHARSET_INFO *cs,
-                       const uchar *s, size_t slen,
-                       const uchar *t, size_t tlen,
-                       my_bool diff_if_only_endspace_difference)
-{
-  int res;
-  my_wc_t UNINIT_VAR(s_wc), UNINIT_VAR(t_wc);
-  const uchar *se= s + slen, *te= t + tlen;
-  MY_UNICASE_INFO *uni_plane= cs->caseinfo;
-
-#ifndef VARCHAR_WITH_DIFF_ENDSPACE_ARE_DIFFERENT_FOR_UNIQUE
-  diff_if_only_endspace_difference= FALSE;
-#endif
-
-  while ( s < se && t < te )
-  {
-    int s_res= my_mb_wc_utf8mb4(cs, &s_wc, s, se);
-    int t_res= my_mb_wc_utf8mb4(cs, &t_wc, t, te);
-
-    if ( s_res <= 0 || t_res <= 0 )
-    {
-      /* Incorrect string, compare bytewise */
-      return bincmp_utf8mb4(s, se, t, te);
-    }
-
-    my_tosort_unicode(uni_plane, &s_wc, cs->state);
-    my_tosort_unicode(uni_plane, &t_wc, cs->state);
-
-    if ( s_wc != t_wc )
-    {
-      return s_wc > t_wc ? 1 : -1;
-    }
-
-    s+=s_res;
-    t+=t_res;
-  }
-
-  slen= (size_t) (se-s);
-  tlen= (size_t) (te-t);
-  res= 0;
-
-  if (slen != tlen)
-  {
-    int swap= 1;
-    if (diff_if_only_endspace_difference)
-      res= 1;                                   /* Assume 'a' is bigger */
-    if (slen < tlen)
-    {
-      slen= tlen;
-      s= t;
-      se= te;
-      swap= -1;
-      res= -res;
-    }
-    /*
-      This following loop uses the fact that in UTF-8
-      all multibyte characters are greater than space,
-      and all multibyte head characters are greater than
-      space. It means if we meet a character greater
-      than space, it always means that the longer string
-      is greater. So we can reuse the same loop from the
-      8bit version, without having to process full multibute
-      sequences.
-    */
-    for ( ; s < se; s++)
-    {
-      if (*s != ' ')
-	return (*s < ' ') ? -swap : swap;
-    }
-  }
-  return res;
-}
-
-
 /**
   Compare 0-terminated UTF8 strings.
 
@@ -7906,6 +7767,30 @@ size_t my_well_formed_len_utf8mb4(CHARSET_INFO *cs,
 #undef DEFINE_WELL_FORMED_CHAR_LENGTH_USING_CHARLEN
 /* my_well_formed_char_length_utf8mb4 */
 
+
+#define MY_FUNCTION_NAME(x)      my_ ## x ## _utf8mb4_general_ci
+#define IS_MB4_CHAR(b0,b1,b2,b3) IS_UTF8MB4_STEP3(b0,b1,b2,b3)
+#define WEIGHT_ILSEQ(x)          (0xFF0000 + (uchar) (x))
+#define WEIGHT_MB1(b0)           my_weight_mb1_utf8_general_ci(b0)
+#define WEIGHT_MB2(b0,b1)        my_weight_mb2_utf8_general_ci(b0,b1)
+#define WEIGHT_MB3(b0,b1,b2)     my_weight_mb3_utf8_general_ci(b0,b1,b2)
+/*
+  There is no mapping between code point and weight for non-BMP characters
+  in utf8mb4_general_ci. Just using code point as weight.
+*/
+#define WEIGHT_MB4(b0,b1,b2,b3)  UTF8MB4_CODE(b0,b1,b2,b3)
+#include "strcoll.ic"
+
+
+#define MY_FUNCTION_NAME(x)      my_ ## x ## _utf8mb4_bin
+#define WEIGHT_ILSEQ(x)          (0xFF0000 + (uchar) (x))
+#define WEIGHT_MB1(b0)           ((int) (uchar) (b0))
+#define WEIGHT_MB2(b0,b1)        ((int) UTF8MB2_CODE(b0,b1))
+#define WEIGHT_MB3(b0,b1,b2)     ((int) UTF8MB3_CODE(b0,b1,b2))
+#define WEIGHT_MB4(b0,b1,b2,b3)  ((int) UTF8MB4_CODE(b0,b1,b2,b3))
+#include "strcoll.ic"
+
+
 static uint
 my_ismbchar_utf8mb4(CHARSET_INFO *cs, const char *b, const char *e)
 {
@@ -7934,8 +7819,8 @@ my_mbcharlen_utf8mb4(CHARSET_INFO *cs  __attribute__((unused)), uint c)
 static MY_COLLATION_HANDLER my_collation_utf8mb4_general_ci_handler=
 {
   NULL,               /* init */
-  my_strnncoll_utf8mb4,
-  my_strnncollsp_utf8mb4,
+  my_strnncoll_utf8mb4_general_ci,
+  my_strnncollsp_utf8mb4_general_ci,
   my_strnxfrm_unicode,
   my_strnxfrmlen_unicode,
   my_like_range_mb,
@@ -7950,8 +7835,8 @@ static MY_COLLATION_HANDLER my_collation_utf8mb4_general_ci_handler=
 static MY_COLLATION_HANDLER my_collation_utf8mb4_bin_handler =
 {
     NULL,		/* init */
-    my_strnncoll_mb_bin,
-    my_strnncollsp_mb_bin,
+    my_strnncoll_utf8mb4_bin,
+    my_strnncollsp_utf8mb4_bin,
     my_strnxfrm_unicode_full_bin,
     my_strnxfrmlen_unicode_full_bin,
     my_like_range_mb,

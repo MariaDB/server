@@ -118,6 +118,18 @@ MY_FUNCTION_NAME(scan_weight)(int *weight, const uchar *str, const uchar *end)
   }
 #endif
 
+#ifdef IS_MB4_CHAR
+  if (str + 4 > end)                     /* Incomplete four-byte character */
+    goto bad;
+
+  if (IS_MB4_CHAR(str[0], str[1], str[2], str[3]))
+  {
+    *weight= WEIGHT_MB4(str[0], str[1], str[2], str[3]);
+    return 4;                            /* A valid four-byte character */
+  }
+
+#endif
+
 bad:
   *weight= WEIGHT_ILSEQ(str[0]);         /* Bad byte */
   return 1;
@@ -252,4 +264,5 @@ MY_FUNCTION_NAME(strnncollsp)(CHARSET_INFO *cs __attribute__((unused)),
 #undef WEIGHT_MB1
 #undef WEIGHT_MB2
 #undef WEIGHT_MB3
+#undef WEIGHT_MB4
 #undef WEIGHT_PAD_SPACE
