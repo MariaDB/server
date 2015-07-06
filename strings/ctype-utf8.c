@@ -7775,10 +7775,9 @@ size_t my_well_formed_len_utf8mb4(CHARSET_INFO *cs,
 #define WEIGHT_MB2(b0,b1)        my_weight_mb2_utf8_general_ci(b0,b1)
 #define WEIGHT_MB3(b0,b1,b2)     my_weight_mb3_utf8_general_ci(b0,b1,b2)
 /*
-  There is no mapping between code point and weight for non-BMP characters
-  in utf8mb4_general_ci. Just using code point as weight.
+  All non-BMP characters have the same weight.
 */
-#define WEIGHT_MB4(b0,b1,b2,b3)  UTF8MB4_CODE(b0,b1,b2,b3)
+#define WEIGHT_MB4(b0,b1,b2,b3)  MY_CS_REPLACEMENT_CHARACTER
 #include "strcoll.ic"
 
 

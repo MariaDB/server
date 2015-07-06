@@ -412,6 +412,18 @@ static STRNNCOLL_PARAM strcoll_utf8mb4_common[]=
 };
 
 
+static STRNNCOLL_PARAM strcoll_utf8mb4_general_ci[]=
+{
+  /* All non-BMP characters are equal in utf8mb4_general_ci */
+  {CSTR("\xF0\x90\x80\x80"), CSTR("\xF0\x90\x80\x81"),0},/* Non-BMB MB4 vs non-BMP MB4 */
+  {CSTR("\xF0\x90\x80\x80"), CSTR("\xF4\x8F\xBF\xBF"),0},/* Non-BMB MB4 vs non-BMP MB4 */
+  {CSTR("\x00"),             CSTR("\xF0\x90\x80\x80"),-1},/* U+0000 vs non-BMP MB4 */
+  {CSTR("\x00"),             CSTR("\xF0\x90\x80\x81"),-1},/* U+0000 vs non-BMP MB4 */
+  {CSTR("\x00"),             CSTR("\xF4\x8F\xBF\xBF"),-1},/* U+0000 vs non-BMP MB4 */
+  {NULL, 0, NULL, 0, 0}
+};
+
+
 static STRNNCOLL_PARAM strcoll_ucs2_common[]=
 {
   {CSTR("\xC0"),     CSTR("\xC1"),        -1},    /* Incomlete MB2 vs incomplete MB2 */
@@ -474,9 +486,20 @@ static STRNNCOLL_PARAM strcoll_utf16_common[]=
   {CSTR("\xDB\xFF\xDF\xFF"), CSTR("\xDC\xFF\xDF"),    -1},/* MB4 vs incomplete MB4 */
 
   /* Broken MB4 vs broken MB4 */
-  {CSTR("\xD8\x00\xDC\x00"), CSTR("\xD8\x00\xDC\x01"),-1},/* Broken MB4 vs broken MB4 */
+  {CSTR("\xD8\x00\xDC\x00"), CSTR("\xD8\x00\xDB\x01"),-1},/* Broken MB4 vs broken MB4 */
   {CSTR("\xDB\xFF\xE0\xFE"), CSTR("\xDB\xFF\xE0\xFF"),-1},/* Broken MB4 vs broken MB4 */
 
+  {NULL, 0, NULL, 0, 0}
+};
+
+
+static STRNNCOLL_PARAM strcoll_utf16_general_ci[]=
+{
+  /* All non-BMP characters are compared as equal */
+  {CSTR("\xD8\x00\xDC\x00"), CSTR("\xD8\x00\xDC\x01"), 0},/* Non-BMP MB4 vs non-BMP MB4 */
+  {CSTR("\xD8\x00\xDC\x00"), CSTR("\xDB\xFF\xDF\xFF"), 0},/* Non-BMP MB4 vs non-BMP MB4 */
+  {CSTR("\x00\x00"),         CSTR("\xD8\x00\xDC\x01"),-1},/* U+0000 vs non-BMP MB4 */
+  {CSTR("\x00\x00"),         CSTR("\xDB\xFF\xDF\xFF"),-1},/* U+0000 vs non-BMP MB4 */
   {NULL, 0, NULL, 0, 0}
 };
 
@@ -500,9 +523,20 @@ static STRNNCOLL_PARAM strcoll_utf16le_common[]=
   {CSTR("\xFF\xDB\xFF\xDF"), CSTR("\xFF\xDC\x00"),    -1},/* MB4 vs incomplete MB4 */
 
   /* Broken MB4 vs broken MB4 */
-  {CSTR("\x00\xD8\x00\xDC"), CSTR("\x00\xD8\x01\xDC"),-1},/* Broken MB4 vs broken MB4 */
+  {CSTR("\x00\xD8\x00\xDC"), CSTR("\x00\xD8\x01\xDB"),-1},/* Broken MB4 vs broken MB4 */
   {CSTR("\xFF\xDB\xFE\xE0"), CSTR("\xFF\xDB\xFF\xE0"),-1},/* Broken MB4 vs broken MB4 */
 
+  {NULL, 0, NULL, 0, 0}
+};
+
+
+static STRNNCOLL_PARAM strcoll_utf16le_general_ci[]=
+{
+  /* All non-BMP characters are compared as equal */
+  {CSTR("\x00\xD8\x00\xDC"), CSTR("\x00\xD8\x01\xDC"), 0},/* Non-BMP MB4 vs non-BMP MB4 */
+  {CSTR("\x00\xD8\x00\xDC"), CSTR("\xFF\xDB\xFF\xDF"), 0},/* Non-BMP MB4 vs non-BMP MB4 */
+  {CSTR("\x00\x00"), CSTR("\x00\xD8\x01\xDC"),        -1},/* U+0000 vs non-BMP MB4 */
+  {CSTR("\x00\x00"), CSTR("\xFF\xDB\xFF\xDF"),        -1},/* U+0000 vs non-BMP MB4 */
   {NULL, 0, NULL, 0, 0}
 };
 
@@ -641,6 +675,7 @@ test_strcollsp()
   failed+= strcollsp(&my_charset_utf16_general_ci,  strcoll_ucs2_common);
   failed+= strcollsp(&my_charset_utf16_general_ci,  strcoll_ucs2_space);
   failed+= strcollsp(&my_charset_utf16_general_ci,  strcoll_utf16_common);
+  failed+= strcollsp(&my_charset_utf16_general_ci,  strcoll_utf16_general_ci);
   failed+= strcollsp(&my_charset_utf16_bin,         strcoll_ucs2_common);
   failed+= strcollsp(&my_charset_utf16_bin,         strcoll_ucs2_space);
   failed+= strcollsp(&my_charset_utf16_bin,         strcoll_utf16_common);
@@ -648,6 +683,7 @@ test_strcollsp()
   failed+= strcollsp(&my_charset_utf16le_general_ci,strcoll_ucs2_common);
   failed+= strcollsp(&my_charset_utf16le_general_ci,strcoll_utf16le_space);
   failed+= strcollsp(&my_charset_utf16le_general_ci,strcoll_utf16le_common);
+  failed+= strcollsp(&my_charset_utf16le_general_ci,strcoll_utf16le_general_ci);
   failed+= strcollsp(&my_charset_utf16le_bin,       strcoll_ucs2_common);
   failed+= strcollsp(&my_charset_utf16le_bin,       strcoll_utf16le_space);
   failed+= strcollsp(&my_charset_utf16le_bin,       strcoll_utf16le_common);
@@ -661,6 +697,7 @@ test_strcollsp()
   failed+= strcollsp(&my_charset_utf8mb4_general_ci,          strcoll_utf8mb3_common);
   failed+= strcollsp(&my_charset_utf8mb4_bin,                 strcoll_utf8mb3_common);
   failed+= strcollsp(&my_charset_utf8mb4_general_ci,          strcoll_utf8mb4_common);
+  failed+= strcollsp(&my_charset_utf8mb4_general_ci,          strcoll_utf8mb4_general_ci);
   failed+= strcollsp(&my_charset_utf8mb4_bin,                 strcoll_utf8mb4_common);
 #endif
   return failed;

@@ -1216,7 +1216,7 @@ static inline int my_weight_mb2_utf16mb2_general_ci(uchar b0, uchar b1)
 #define MY_FUNCTION_NAME(x)      my_ ## x ## _utf16_general_ci
 #define WEIGHT_ILSEQ(x)          (0xFF0000 + (uchar) (x))
 #define WEIGHT_MB2(b0,b1)        my_weight_mb2_utf16mb2_general_ci(b0,b1)
-#define WEIGHT_MB4(b0,b1,b2,b3)  ((int) MY_UTF16_WC4(b0, b1, b2, b3))
+#define WEIGHT_MB4(b0,b1,b2,b3)  MY_CS_REPLACEMENT_CHARACTER
 #include "strcoll.ic"
 
 #define MY_FUNCTION_NAME(x)      my_ ## x ## _utf16_bin
@@ -1665,7 +1665,7 @@ struct charset_info_st my_charset_utf16_bin=
 #define MY_FUNCTION_NAME(x)      my_ ## x ## _utf16le_general_ci
 #define WEIGHT_ILSEQ(x)          (0xFF0000 + (uchar) (x))
 #define WEIGHT_MB2(b0,b1)        my_weight_mb2_utf16mb2_general_ci(b1,b0)
-#define WEIGHT_MB4(b0,b1,b2,b3)  ((int) MY_UTF16_WC4(b1, b0, b3, b2))
+#define WEIGHT_MB4(b0,b1,b2,b3)  MY_CS_REPLACEMENT_CHARACTER
 #include "strcoll.ic"
 
 #define MY_FUNCTION_NAME(x)      my_ ## x ## _utf16le_bin
