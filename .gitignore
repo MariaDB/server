@@ -281,6 +281,10 @@ storage/mroonga/mysql-test/mroonga/storage/r/variable_version.result
 *.vcproj.*
 *.vcproj.*.*
 *.vcproj.*.*.*
+*.vcxproj
+*.vcxproj.*
+*.vcxproj.*.*
+*.vcxproj.*.*.*
 
 # Build results
 [Dd]ebug/

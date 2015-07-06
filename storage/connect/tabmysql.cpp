@@ -1059,27 +1059,35 @@ bool TDBMYSQL::ReadKey(PGLOBAL g, OPVAL op, const void *key, int len)
   bool oom;
   int  oldlen = Query->GetLength();
 
+  if (op == OP_FIRST) {
+#ifdef _DEBUG
+		assert(!key);
+#endif
+		key_range *end_key = &To_Def->GetHandler()->save_end_range;
+
+		key = end_key->key;
+		len = end_key->length;
+
+		switch (end_key->flag) {
+		  case HA_READ_BEFORE_KEY: op = OP_LT; break;
+		  case HA_READ_AFTER_KEY:  op = OP_LE; break;
+		  default: key = NULL;
+		  } // endswitch flag
+
+		} // endif OP_FIRST
+
   if (!key || op == OP_NEXT ||
         Mode == MODE_UPDATE || Mode == MODE_DELETE) {
+#if 0
     if (!key && Mode == MODE_READX) {
       // This is a false indexed read
       m_Rc = Myc.ExecSQL(g, Query->GetStr());
       Mode = MODE_READ;
       return (m_Rc == RC_FX) ? true : false;
       } // endif key
+#endif // 0
 
     return false;
-  } else if (op == OP_FIRST) {
-    if (To_CondFil) {
-      oom = Query->Append(" WHERE ");
-
-      if ((oom |= Query->Append(To_CondFil->Body))) {
-        strcpy(g->Message, "Readkey: Out of memory");
-        return true;
-        } // endif oom
-
-      } // endif To_Condfil
-
   } else {
     if (Myc.m_Res)
       Myc.FreeResult();
