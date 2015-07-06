@@ -226,13 +226,13 @@ public:
   }
   LEX_STRING lex_string() const
   {
-    LEX_STRING lex_string = { (char*) ptr(), length() };
-    return lex_string;
+    LEX_STRING str = { (char*) ptr(), length() };
+    return str;
   }
   LEX_CSTRING lex_cstring() const
   {
-    LEX_CSTRING lex_cstring = { ptr(), length() };
-    return lex_cstring;
+    LEX_CSTRING skr = { ptr(), length() };
+    return skr;
   }
 
   void set(String &str,uint32 offset,uint32 arg_length)
@@ -285,15 +285,15 @@ public:
   bool set_real(double num,uint decimals, CHARSET_INFO *cs);
 
   /* Move handling of buffer from some other object to String */
-  void reassociate(char *ptr, uint32 length, uint32 alloced_length,
+  void reassociate(char *ptr_arg, uint32 length_arg, uint32 alloced_length_arg,
                    CHARSET_INFO *cs)
   { 
     free();
-    Ptr= ptr;
-    str_length= length;
-    Alloced_length= alloced_length;
+    Ptr= ptr_arg;
+    str_length= length_arg;
+    Alloced_length= alloced_length_arg;
     str_charset= cs;
-    alloced= ptr != 0;
+    alloced= ptr_arg != 0;
   }
 
   /*
@@ -477,7 +477,7 @@ public:
   }
   bool append_hex(const char *src, uint32 srclen)
   {
-    for (const char *end= src + srclen ; src != end ; src++)
+    for (const char *src_end= src + srclen ; src != src_end ; src++)
     {
       if (append(_dig_vec_lower[((uchar) *src) >> 4]) ||
           append(_dig_vec_lower[((uchar) *src) & 0x0F]))
@@ -613,7 +613,7 @@ public:
       return TRUE;
     if (charset()->mbminlen > 1)
       return FALSE;
-    for (const char *c= ptr(), *end= c + length(); c < end; c++)
+    for (const char *c= ptr(), *c_end= c + length(); c < c_end; c++)
     {
       if (!my_isascii(*c))
         return FALSE;
@@ -655,10 +655,10 @@ public:
   {
     length(0);
   }
-  StringBuffer(const char *str, size_t length, CHARSET_INFO *cs)
+  StringBuffer(const char *str, size_t length_arg, CHARSET_INFO *cs)
     : String(buff, buff_sz, cs)
   {
-    set(str, length, cs);
+    set(str, length_arg, cs);
   }
 };
 

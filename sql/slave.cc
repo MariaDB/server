@@ -1111,14 +1111,14 @@ static bool sql_slave_killed(rpl_group_info *rgi)
         else
         {
           rli->report(ERROR_LEVEL, ER_SLAVE_FATAL_ERROR, rgi->gtid_info(),
-                      ER(ER_SLAVE_FATAL_ERROR), msg_stopped);
+                      ER_THD(thd, ER_SLAVE_FATAL_ERROR), msg_stopped);
         }
       }
       else
       {
         ret= TRUE;
         rli->report(ERROR_LEVEL, ER_SLAVE_FATAL_ERROR, rgi->gtid_info(),
-                    ER(ER_SLAVE_FATAL_ERROR),
+                    ER_THD(thd, ER_SLAVE_FATAL_ERROR),
                     msg_stopped);
       }
     }
@@ -1404,7 +1404,7 @@ static int get_master_version_and_clock(MYSQL* mysql, Master_info* mi)
              "Master reported unrecognized MySQL version: %s",
              mysql->server_version);
     err_code= ER_SLAVE_FATAL_ERROR;
-    sprintf(err_buff, ER(err_code), err_buff2);
+    sprintf(err_buff, ER_DEFAULT(err_code), err_buff2);
   }
   else
   {
@@ -1420,7 +1420,7 @@ static int get_master_version_and_clock(MYSQL* mysql, Master_info* mi)
                "Master reported unrecognized MySQL version: %s",
                mysql->server_version);
       err_code= ER_SLAVE_FATAL_ERROR;
-      sprintf(err_buff, ER(err_code), err_buff2);
+      sprintf(err_buff, ER_DEFAULT(err_code), err_buff2);
       break;
     case 3:
       mi->rli.relay_log.description_event_for_queue= new
@@ -1460,7 +1460,7 @@ static int get_master_version_and_clock(MYSQL* mysql, Master_info* mi)
   {
     errmsg= "default Format_description_log_event";
     err_code= ER_SLAVE_CREATE_EVENT_FAILURE;
-    sprintf(err_buff, ER(err_code), errmsg);
+    sprintf(err_buff, ER_DEFAULT(err_code), errmsg);
     goto err;
   }
 
@@ -1590,7 +1590,7 @@ MySQL server ids; these ids must be different for replication to work (or \
 the --replicate-same-server-id option must be used on slave but this does \
 not always make sense; please check the manual before using it).";
       err_code= ER_SLAVE_FATAL_ERROR;
-      sprintf(err_buff, ER(err_code), errmsg);
+      sprintf(err_buff, ER_DEFAULT(err_code), errmsg);
       goto err;
     }
   }
@@ -1626,7 +1626,7 @@ maybe it is a *VERY OLD MASTER*.");
   {
     errmsg= "Slave configured with server id filtering could not detect the master server id.";
     err_code= ER_SLAVE_FATAL_ERROR;
-    sprintf(err_buff, ER(err_code), errmsg);
+    sprintf(err_buff, ER_DEFAULT(err_code), errmsg);
     goto err;
   }
 
@@ -1665,7 +1665,7 @@ maybe it is a *VERY OLD MASTER*.");
 different values for the COLLATION_SERVER global variable. The values must \
 be equal for the Statement-format replication to work";
         err_code= ER_SLAVE_FATAL_ERROR;
-        sprintf(err_buff, ER(err_code), errmsg);
+        sprintf(err_buff, ER_DEFAULT(err_code), errmsg);
         goto err;
       }
     }
@@ -1728,7 +1728,7 @@ inconsistency if replicated data deals with collation.");
 different values for the TIME_ZONE global variable. The values must \
 be equal for the Statement-format replication to work";
         err_code= ER_SLAVE_FATAL_ERROR;
-        sprintf(err_buff, ER(err_code), errmsg);
+        sprintf(err_buff, ER_DEFAULT(err_code), errmsg);
         goto err;
       }
     }
@@ -2350,7 +2350,7 @@ static void write_ignored_events_info_to_relay_log(THD *thd, Master_info *mi)
       rli->ign_master_log_name_end[0]= 0;
       if (unlikely(!(bool)rev))
         mi->report(ERROR_LEVEL, ER_SLAVE_CREATE_EVENT_FAILURE, NULL,
-                   ER(ER_SLAVE_CREATE_EVENT_FAILURE),
+                   ER_THD(thd, ER_SLAVE_CREATE_EVENT_FAILURE),
                    "Rotate_event (out of memory?),"
                    " SHOW SLAVE STATUS may be inaccurate");
     }
@@ -2361,7 +2361,7 @@ static void write_ignored_events_info_to_relay_log(THD *thd, Master_info *mi)
       rli->ign_gtids.reset();
       if (unlikely(!(bool)glev))
         mi->report(ERROR_LEVEL, ER_SLAVE_CREATE_EVENT_FAILURE, NULL,
-                   ER(ER_SLAVE_CREATE_EVENT_FAILURE),
+                   ER_THD(thd, ER_SLAVE_CREATE_EVENT_FAILURE),
                    "Gtid_list_event (out of memory?),"
                    " gtid_slave_pos may be inaccurate");
     }
@@ -2374,7 +2374,7 @@ static void write_ignored_events_info_to_relay_log(THD *thd, Master_info *mi)
       rev->server_id= 0; // don't be ignored by slave SQL thread
       if (unlikely(rli->relay_log.append(rev)))
         mi->report(ERROR_LEVEL, ER_SLAVE_RELAY_LOG_WRITE_FAILURE, NULL,
-                   ER(ER_SLAVE_RELAY_LOG_WRITE_FAILURE),
+                   ER_THD(thd, ER_SLAVE_RELAY_LOG_WRITE_FAILURE),
                    "failed to write a Rotate event"
                    " to the relay log, SHOW SLAVE STATUS may be"
                    " inaccurate");
@@ -2387,7 +2387,7 @@ static void write_ignored_events_info_to_relay_log(THD *thd, Master_info *mi)
       glev->set_artificial_event(); // Don't mess up Exec_Master_Log_Pos
       if (unlikely(rli->relay_log.append(glev)))
         mi->report(ERROR_LEVEL, ER_SLAVE_RELAY_LOG_WRITE_FAILURE, NULL,
-                   ER(ER_SLAVE_RELAY_LOG_WRITE_FAILURE),
+                   ER_THD(thd, ER_SLAVE_RELAY_LOG_WRITE_FAILURE),
                    "failed to write a Gtid_list event to the relay log, "
                    "gtid_slave_pos may be inaccurate");
       delete glev;
@@ -2791,10 +2791,9 @@ static bool send_show_master_info_data(THD *thd, Master_info *mi, bool full,
     protocol->store(mi->using_gtid_astext(mi->using_gtid), &my_charset_bin);
     // Gtid_IO_Pos
     {
-      char buff[30];
-      String tmp(buff, sizeof(buff), system_charset_info);
-      mi->gtid_current_pos.to_string(&tmp);
-      protocol->store(tmp.ptr(), tmp.length(), &my_charset_bin);
+      String tmp2(buf, sizeof(buf), system_charset_info);
+      mi->gtid_current_pos.to_string(&tmp2);
+      protocol->store(tmp2.ptr(), tmp2.length(), &my_charset_bin);
     }
 
     // Replicate_Do_Domain_Ids & Replicate_Ignore_Domain_Ids
@@ -3672,7 +3671,7 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
   }
   mysql_mutex_unlock(&rli->data_lock);
   rli->report(ERROR_LEVEL, ER_SLAVE_RELAY_LOG_READ_FAILURE, NULL,
-              ER(ER_SLAVE_RELAY_LOG_READ_FAILURE), "\
+              ER_THD(thd, ER_SLAVE_RELAY_LOG_READ_FAILURE), "\
 Could not parse relay log event entry. The possible reasons are: the master's \
 binary log is corrupted (you can check this by running 'mysqlbinlog' on the \
 binary log), the slave's relay log is corrupted (you can check this by running \
@@ -3767,7 +3766,7 @@ static int try_to_reconnect(THD *thd, MYSQL *mysql, Master_info *mi,
     if (messages[SLAVE_RECON_MSG_COMMAND][0])
     {
       mi->report(WARNING_LEVEL, ER_SLAVE_MASTER_COM_FAILURE, NULL,
-                 ER(ER_SLAVE_MASTER_COM_FAILURE), 
+                 ER_THD(thd, ER_SLAVE_MASTER_COM_FAILURE), 
                  messages[SLAVE_RECON_MSG_COMMAND], buf);
     }
     else
@@ -3874,14 +3873,15 @@ pthread_handler_t handle_slave_io(void *arg)
   if (RUN_HOOK(binlog_relay_io, thread_start, (thd, mi)))
   {
     mi->report(ERROR_LEVEL, ER_SLAVE_FATAL_ERROR, NULL,
-               ER(ER_SLAVE_FATAL_ERROR), "Failed to run 'thread_start' hook");
+               ER_THD(thd, ER_SLAVE_FATAL_ERROR),
+               "Failed to run 'thread_start' hook");
     goto err;
   }
 
   if (!(mi->mysql = mysql = mysql_init(NULL)))
   {
     mi->report(ERROR_LEVEL, ER_SLAVE_FATAL_ERROR, NULL,
-               ER(ER_SLAVE_FATAL_ERROR), "error in mysql_init()");
+               ER_THD(thd, ER_SLAVE_FATAL_ERROR), "error in mysql_init()");
     goto err;
   }
 
@@ -4067,14 +4067,14 @@ slave_max_allowed_packet",
           goto err;
         case ER_MASTER_FATAL_ERROR_READING_BINLOG:
           mi->report(ERROR_LEVEL, ER_MASTER_FATAL_ERROR_READING_BINLOG, NULL,
-                     ER(ER_MASTER_FATAL_ERROR_READING_BINLOG),
+                     ER_THD(thd, ER_MASTER_FATAL_ERROR_READING_BINLOG),
                      mysql_error_number, mysql_error(mysql));
           goto err;
         case ER_OUT_OF_RESOURCES:
           sql_print_error("\
 Stopping slave I/O thread due to out-of-memory error from master");
           mi->report(ERROR_LEVEL, ER_OUT_OF_RESOURCES, NULL,
-                     "%s", ER(ER_OUT_OF_RESOURCES));
+                     "%s", ER_THD(thd, ER_OUT_OF_RESOURCES));
           goto err;
         }
         if (try_to_reconnect(thd, mysql, mi, &retry_count, suppress_warnings,
@@ -4091,7 +4091,7 @@ Stopping slave I/O thread due to out-of-memory error from master");
                     event_len, &event_buf, &event_len)))
       {
         mi->report(ERROR_LEVEL, ER_SLAVE_FATAL_ERROR, NULL,
-                   ER(ER_SLAVE_FATAL_ERROR),
+                   ER_THD(thd, ER_SLAVE_FATAL_ERROR),
                    "Failed to run 'after_read_event' hook");
         goto err;
       }
@@ -4102,7 +4102,7 @@ Stopping slave I/O thread due to out-of-memory error from master");
       if (queue_event(mi, event_buf, event_len))
       {
         mi->report(ERROR_LEVEL, ER_SLAVE_RELAY_LOG_WRITE_FAILURE, NULL,
-                   ER(ER_SLAVE_RELAY_LOG_WRITE_FAILURE),
+                   ER_THD(thd, ER_SLAVE_RELAY_LOG_WRITE_FAILURE),
                    "could not queue event from master");
         goto err;
       }
@@ -4111,7 +4111,7 @@ Stopping slave I/O thread due to out-of-memory error from master");
                    (thd, mi, event_buf, event_len, synced)))
       {
         mi->report(ERROR_LEVEL, ER_SLAVE_FATAL_ERROR, NULL,
-                   ER(ER_SLAVE_FATAL_ERROR),
+                   ER_THD(thd, ER_SLAVE_FATAL_ERROR),
                    "Failed to run 'after_queue_event' hook");
         goto err;
       }
@@ -4943,7 +4943,7 @@ static int process_io_create_file(Master_info* mi, Create_file_log_event* cev)
         if (unlikely(mi->rli.relay_log.append(&xev)))
         {
           mi->report(ERROR_LEVEL, ER_SLAVE_RELAY_LOG_WRITE_FAILURE, NULL,
-                     ER(ER_SLAVE_RELAY_LOG_WRITE_FAILURE),
+                     ER_THD(thd, ER_SLAVE_RELAY_LOG_WRITE_FAILURE),
                      "error writing Exec_load event to relay log");
           goto err;
         }
@@ -4957,7 +4957,7 @@ static int process_io_create_file(Master_info* mi, Create_file_log_event* cev)
         if (unlikely(mi->rli.relay_log.append(cev)))
         {
           mi->report(ERROR_LEVEL, ER_SLAVE_RELAY_LOG_WRITE_FAILURE, NULL,
-                     ER(ER_SLAVE_RELAY_LOG_WRITE_FAILURE),
+                     ER_THD(thd, ER_SLAVE_RELAY_LOG_WRITE_FAILURE),
                      "error writing Create_file event to relay log");
           goto err;
         }
@@ -4972,7 +4972,7 @@ static int process_io_create_file(Master_info* mi, Create_file_log_event* cev)
         if (unlikely(mi->rli.relay_log.append(&aev)))
         {
           mi->report(ERROR_LEVEL, ER_SLAVE_RELAY_LOG_WRITE_FAILURE, NULL,
-                     ER(ER_SLAVE_RELAY_LOG_WRITE_FAILURE),
+                     ER_THD(thd, ER_SLAVE_RELAY_LOG_WRITE_FAILURE),
                      "error writing Append_block event to relay log");
           goto err;
         }
@@ -6017,7 +6017,7 @@ err:
     handle_slave_io() prints it on return.
   */
   if (error && error != ER_SLAVE_RELAY_LOG_WRITE_FAILURE)
-    mi->report(ERROR_LEVEL, error, NULL, ER(error),
+    mi->report(ERROR_LEVEL, error, NULL, ER_DEFAULT(error),
                error_msg.ptr());
 
   DBUG_RETURN(error);
@@ -6178,7 +6178,7 @@ static int connect_to_master(THD* thd, MYSQL* mysql, Master_info* mi,
   if (mi->user == NULL || mi->user[0] == 0)
   {
     mi->report(ERROR_LEVEL, ER_SLAVE_FATAL_ERROR, NULL,
-               ER(ER_SLAVE_FATAL_ERROR),
+               ER_THD(thd, ER_SLAVE_FATAL_ERROR),
                "Invalid (empty) username when attempting to "
                "connect to the master server. Connection attempt "
                "terminated.");

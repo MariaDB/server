@@ -4160,10 +4160,10 @@ restart:
 
     if (! (type == FLUSH_KEEP || type == FLUSH_FORCE_WRITE))
     {
-      BLOCK_LINK *last_for_update= NULL;
       BLOCK_LINK *last_in_switch= NULL;
       uint total_found= 0;
       uint found;
+      last_for_update= NULL;
 
       /*
         Finally free all clean blocks for this file.

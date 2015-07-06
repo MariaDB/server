@@ -117,8 +117,8 @@ public:
       class table 
       {
       public:
-        table(TABLE *table, bool is_transactional) 
-            : m_table(table), m_is_transactional(is_transactional)
+        table(TABLE *table, bool is_transactional_arg)
+            : m_table(table), m_is_transactional(is_transactional_arg)
         { 
         }
 

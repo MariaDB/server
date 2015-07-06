@@ -1036,9 +1036,9 @@ public:
   Name_resolution_context *semi_join_conds_context;
 
 
-  subselect_hash_sj_engine(THD *thd, Item_subselect *in_predicate,
+  subselect_hash_sj_engine(THD *thd_arg, Item_subselect *in_predicate,
                            subselect_single_select_engine *old_engine)
-    : subselect_engine(thd, in_predicate, NULL), 
+    : subselect_engine(thd_arg, in_predicate, NULL), 
       tmp_table(NULL), is_materialized(FALSE), materialize_engine(old_engine),
       materialize_join(NULL),  semi_join_conds(NULL), lookup_engine(NULL),
       count_partial_match_columns(0), count_null_only_columns(0),

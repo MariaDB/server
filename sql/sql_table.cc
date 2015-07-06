@@ -2418,7 +2418,8 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
         tbl_name.append('.');
         tbl_name.append(table->table_name);
         push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
-                            ER_BAD_TABLE_ERROR, ER(ER_BAD_TABLE_ERROR),
+                            ER_BAD_TABLE_ERROR,
+                            ER_THD(thd, ER_BAD_TABLE_ERROR),
                             tbl_name.c_ptr_safe());
       }
       else
@@ -2514,7 +2515,7 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
 
     DBUG_EXECUTE_IF("bug43138",
                     my_printf_error(ER_BAD_TABLE_ERROR,
-                                    ER(ER_BAD_TABLE_ERROR), MYF(0),
+                                    ER_THD(thd, ER_BAD_TABLE_ERROR), MYF(0),
                                     table->table_name););
   }
   DEBUG_SYNC(thd, "rm_table_no_locks_before_binlog");
@@ -2526,10 +2527,11 @@ err:
   {
     DBUG_ASSERT(errors);
     if (errors == 1 && was_view)
-      my_printf_error(ER_IT_IS_A_VIEW, ER(ER_IT_IS_A_VIEW), MYF(0),
+      my_printf_error(ER_IT_IS_A_VIEW, ER_THD(thd, ER_IT_IS_A_VIEW), MYF(0),
                       wrong_tables.c_ptr_safe());
     else if (errors > 1 || !thd->is_error())
-      my_printf_error(ER_BAD_TABLE_ERROR, ER(ER_BAD_TABLE_ERROR), MYF(0),
+      my_printf_error(ER_BAD_TABLE_ERROR, ER_THD(thd, ER_BAD_TABLE_ERROR),
+                      MYF(0),
                       wrong_tables.c_ptr_safe());
     error= 1;
   }
@@ -2816,7 +2818,7 @@ bool check_duplicates_in_interval(const char *set_or_name,
       }
       push_warning_printf(thd,Sql_condition::WARN_LEVEL_NOTE,
                           ER_DUPLICATED_VALUE_IN_TYPE,
-                          ER(ER_DUPLICATED_VALUE_IN_TYPE),
+                          ER_THD(thd, ER_DUPLICATED_VALUE_IN_TYPE),
                           name, err.ptr(), set_or_name);
       (*dup_val_count)++;
     }
@@ -3163,7 +3165,7 @@ static void check_duplicate_key(THD *thd,
     if (all_columns_are_identical)
     {
       push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
-                          ER_DUP_INDEX, ER(ER_DUP_INDEX),
+                          ER_DUP_INDEX, ER_THD(thd, ER_DUP_INDEX),
                           key_info->name,
                           thd->lex->query_tables->db,
                           thd->lex->query_tables->table_name);
@@ -3521,7 +3523,7 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
   }
   if (auto_increment > 1)
   {
-    my_message(ER_WRONG_AUTO_KEY, ER(ER_WRONG_AUTO_KEY), MYF(0));
+    my_message(ER_WRONG_AUTO_KEY, ER_THD(thd, ER_WRONG_AUTO_KEY), MYF(0));
     DBUG_RETURN(TRUE);
   }
   if (auto_increment &&
@@ -3576,7 +3578,7 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
         my_error(ER_WRONG_FK_DEF, MYF(0),
                  (fk_key->name.str ? fk_key->name.str :
                                      "foreign key without name"),
-                 ER(ER_KEY_REF_DO_NOT_MATCH_TABLE_REF));
+                 ER_THD(thd, ER_KEY_REF_DO_NOT_MATCH_TABLE_REF));
 	DBUG_RETURN(TRUE);
       }
       continue;
@@ -3588,7 +3590,7 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
       my_error(ER_TOO_MANY_KEY_PARTS,MYF(0),tmp);
       DBUG_RETURN(TRUE);
     }
-    if (check_string_char_length(&key->name, "", NAME_CHAR_LEN,
+    if (check_string_char_length(&key->name, 0, NAME_CHAR_LEN,
                                  system_charset_info, 1))
     {
       my_error(ER_TOO_LONG_IDENT, MYF(0), key->name.str);
@@ -3789,7 +3791,7 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
 	     	           column->field_name.str, dup_column->field_name.str))
 	{
 	  my_printf_error(ER_DUP_FIELDNAME,
-			  ER(ER_DUP_FIELDNAME),MYF(0),
+			  ER_THD(thd, ER_DUP_FIELDNAME),MYF(0),
 			  column->field_name.str);
 	  DBUG_RETURN(TRUE);
 	}
@@ -3897,7 +3899,7 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
             if (key->type == Key::SPATIAL)
             {
               my_message(ER_SPATIAL_CANT_HAVE_NULL,
-                         ER(ER_SPATIAL_CANT_HAVE_NULL), MYF(0));
+                         ER_THD(thd, ER_SPATIAL_CANT_HAVE_NULL), MYF(0));
               DBUG_RETURN(TRUE);
             }
           }
@@ -3929,8 +3931,9 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
 	    {
 	      /* not a critical problem */
 	      push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-		           ER_TOO_LONG_KEY, ER(ER_TOO_LONG_KEY),
-		           key_part_length);
+                                  ER_TOO_LONG_KEY,
+                                  ER_THD(thd, ER_TOO_LONG_KEY),
+                                  key_part_length);
               /* Align key length to multibyte char boundary */
               key_part_length-= key_part_length % sql_field->charset->mbmaxlen;
 	    }
@@ -3956,7 +3959,7 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
                    // and is this a 'unique' key?
                    (key_info->flags & HA_NOSAME))))
         {
-	  my_message(ER_WRONG_SUB_KEY, ER(ER_WRONG_SUB_KEY), MYF(0));
+	  my_message(ER_WRONG_SUB_KEY, ER_THD(thd, ER_WRONG_SUB_KEY), MYF(0));
 	  DBUG_RETURN(TRUE);
 	}
 	else if (!(file->ha_table_flags() & HA_NO_PREFIX_CHAR_KEYS))
@@ -3976,8 +3979,8 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
 	{
 	  /* not a critical problem */
 	  push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-		       ER_TOO_LONG_KEY, ER(ER_TOO_LONG_KEY),
-		       key_part_length);
+                              ER_TOO_LONG_KEY, ER_THD(thd, ER_TOO_LONG_KEY),
+                              key_part_length);
           /* Align key length to multibyte char boundary */
           key_part_length-= key_part_length % sql_field->charset->mbmaxlen;
 	}
@@ -4016,7 +4019,7 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
 	{
 	  if (primary_key)
 	  {
-	    my_message(ER_MULTIPLE_PRI_KEY, ER(ER_MULTIPLE_PRI_KEY),
+	    my_message(ER_MULTIPLE_PRI_KEY, ER_THD(thd, ER_MULTIPLE_PRI_KEY),
                        MYF(0));
 	    DBUG_RETURN(TRUE);
 	  }
@@ -4069,12 +4072,13 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
   if (!unique_key && !primary_key &&
       (file->ha_table_flags() & HA_REQUIRE_PRIMARY_KEY))
   {
-    my_message(ER_REQUIRES_PRIMARY_KEY, ER(ER_REQUIRES_PRIMARY_KEY), MYF(0));
+    my_message(ER_REQUIRES_PRIMARY_KEY, ER_THD(thd, ER_REQUIRES_PRIMARY_KEY),
+               MYF(0));
     DBUG_RETURN(TRUE);
   }
   if (auto_increment > 0)
   {
-    my_message(ER_WRONG_AUTO_KEY, ER(ER_WRONG_AUTO_KEY), MYF(0));
+    my_message(ER_WRONG_AUTO_KEY, ER_THD(thd, ER_WRONG_AUTO_KEY), MYF(0));
     DBUG_RETURN(TRUE);
   }
   /* Sort keys in optimized order */
@@ -4121,7 +4125,7 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
     if (create_info->transactional)
       push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                           ER_ILLEGAL_HA_CREATE_OPTION,
-                          ER(ER_ILLEGAL_HA_CREATE_OPTION),
+                          ER_THD(thd, ER_ILLEGAL_HA_CREATE_OPTION),
                           file->engine_name()->str,
                           "TRANSACTIONAL=1");
 
@@ -4165,7 +4169,8 @@ bool validate_comment_length(THD *thd, LEX_STRING *comment, size_t max_len,
        DBUG_RETURN(true);
     }
     push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN, err_code,
-                        ER(err_code), name, static_cast<ulong>(max_len));
+                        ER_THD(thd, err_code), name,
+                        static_cast<ulong>(max_len));
     comment->length= tmp_len;
   }
   DBUG_RETURN(false);
@@ -4236,9 +4241,11 @@ static bool prepare_blob_field(THD *thd, Create_field *sql_field)
     }
     sql_field->sql_type= MYSQL_TYPE_BLOB;
     sql_field->flags|= BLOB_FLAG;
-    my_snprintf(warn_buff, sizeof(warn_buff), ER(ER_AUTO_CONVERT), sql_field->field_name,
-            (sql_field->charset == &my_charset_bin) ? "VARBINARY" : "VARCHAR",
-            (sql_field->charset == &my_charset_bin) ? "BLOB" : "TEXT");
+    my_snprintf(warn_buff, sizeof(warn_buff), ER_THD(thd, ER_AUTO_CONVERT),
+                sql_field->field_name,
+                (sql_field->charset == &my_charset_bin) ? "VARBINARY" :
+                "VARCHAR",
+                (sql_field->charset == &my_charset_bin) ? "BLOB" : "TEXT");
     push_warning(thd, Sql_condition::WARN_LEVEL_NOTE, ER_AUTO_CONVERT,
                  warn_buff);
   }
@@ -4626,11 +4633,13 @@ int create_table_impl(THD *thd,
   {
     if (create_info->data_file_name)
       push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-                          WARN_OPTION_IGNORED, ER(WARN_OPTION_IGNORED),
+                          WARN_OPTION_IGNORED,
+                          ER_THD(thd, WARN_OPTION_IGNORED),
                           "DATA DIRECTORY");
     if (create_info->index_file_name)
       push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-                          WARN_OPTION_IGNORED, ER(WARN_OPTION_IGNORED),
+                          WARN_OPTION_IGNORED,
+                          ER_THD(thd, WARN_OPTION_IGNORED),
                           "INDEX DIRECTORY");
     create_info->data_file_name= create_info->index_file_name= 0;
   }
@@ -4867,7 +4876,8 @@ err:
 warn:
   error= -1;
   push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
-                      ER_TABLE_EXISTS_ERROR, ER(ER_TABLE_EXISTS_ERROR),
+                      ER_TABLE_EXISTS_ERROR,
+                      ER_THD(thd, ER_TABLE_EXISTS_ERROR),
                       alias);
   goto err;
 }
@@ -5669,8 +5679,8 @@ handle_if_exists_options(THD *thd, TABLE *table, Alter_info *alter_info)
       continue;
 drop_create_field:
       push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
-          ER_DUP_FIELDNAME, ER(ER_DUP_FIELDNAME),
-          sql_field->field_name);
+                          ER_DUP_FIELDNAME, ER_THD(thd, ER_DUP_FIELDNAME),
+                          sql_field->field_name);
       it.remove();
       if (alter_info->create_list.is_empty())
       {
@@ -5706,8 +5716,9 @@ drop_create_field:
       if (*f_ptr == NULL)
       {
         push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
-            ER_BAD_FIELD_ERROR, ER(ER_BAD_FIELD_ERROR),
-            sql_field->change, table->s->table_name.str);
+                            ER_BAD_FIELD_ERROR,
+                            ER_THD(thd, ER_BAD_FIELD_ERROR),
+                            sql_field->change, table->s->table_name.str);
         it.remove();
         if (alter_info->create_list.is_empty())
         {
@@ -5801,8 +5812,9 @@ drop_create_field:
       if (remove_drop)
       {
         push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
-            ER_CANT_DROP_FIELD_OR_KEY, ER(ER_CANT_DROP_FIELD_OR_KEY),
-            drop->name);
+                            ER_CANT_DROP_FIELD_OR_KEY,
+                            ER_THD(thd, ER_CANT_DROP_FIELD_OR_KEY),
+                            drop->name);
         drop_it.remove();
         if (alter_info->drop_list.is_empty())
           alter_info->flags&= ~(Alter_info::ALTER_DROP_COLUMN |
@@ -5890,7 +5902,8 @@ remove_key:
       if (key->if_not_exists())
       {
         push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
-            ER_DUP_KEYNAME, ER(ER_DUP_KEYNAME), keyname);
+                            ER_DUP_KEYNAME, ER_THD(thd, ER_DUP_KEYNAME),
+                            keyname);
         key_it.remove();
         if (key->type == Key::FOREIGN_KEY)
         {
@@ -5934,8 +5947,9 @@ remove_key:
           if (!tab_part_info->has_unique_name(pe))
           {
             push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
-                ER_SAME_NAME_PARTITION, ER(ER_SAME_NAME_PARTITION),
-                pe->partition_name);
+                                ER_SAME_NAME_PARTITION,
+                                ER_THD(thd, ER_SAME_NAME_PARTITION),
+                                pe->partition_name);
             alter_info->flags&= ~Alter_info::ALTER_ADD_PARTITION;
             thd->lex->part_info= NULL;
             break;
@@ -5963,8 +5977,9 @@ remove_key:
         if (!part_elem)
         {
           push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
-              ER_DROP_PARTITION_NON_EXISTENT,
-              ER(ER_DROP_PARTITION_NON_EXISTENT), "DROP");
+                              ER_DROP_PARTITION_NON_EXISTENT,
+                              ER_THD(thd, ER_DROP_PARTITION_NON_EXISTENT),
+                              "DROP");
           names_it.remove();
         }
       }
@@ -6764,12 +6779,14 @@ bool alter_table_manage_keys(TABLE *table, int indexes_were_disabled,
 
   if (error == HA_ERR_WRONG_COMMAND)
   {
-    push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_NOTE,
-                        ER_ILLEGAL_HA, ER(ER_ILLEGAL_HA),
+    THD *thd= table->in_use;
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
+                        ER_ILLEGAL_HA, ER_THD(thd, ER_ILLEGAL_HA),
                         table->file->table_type(),
                         table->s->db.str, table->s->table_name.str);
     error= 0;
-  } else if (error)
+  }
+  else if (error)
     table->file->print_error(error, MYF(0));
 
   DBUG_RETURN(error);
@@ -7485,7 +7502,8 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
   }
   if (!new_create_list.elements)
   {
-    my_message(ER_CANT_REMOVE_ALL_FIELDS, ER(ER_CANT_REMOVE_ALL_FIELDS),
+    my_message(ER_CANT_REMOVE_ALL_FIELDS,
+               ER_THD(thd, ER_CANT_REMOVE_ALL_FIELDS),
                MYF(0));
     goto err;
   }
@@ -7963,7 +7981,7 @@ static bool fk_prepare_copy_alter_table(THD *thd, TABLE *table,
     case FK_COLUMN_RENAMED:
       my_error(ER_ALTER_OPERATION_NOT_SUPPORTED_REASON, MYF(0),
                "ALGORITHM=COPY",
-               ER(ER_ALTER_OPERATION_NOT_SUPPORTED_REASON_FK_RENAME),
+               ER_THD(thd, ER_ALTER_OPERATION_NOT_SUPPORTED_REASON_FK_RENAME),
                "ALGORITHM=INPLACE");
       DBUG_RETURN(true);
     case FK_COLUMN_DROPPED:
@@ -8029,7 +8047,7 @@ static bool fk_prepare_copy_alter_table(THD *thd, TABLE *table,
     case FK_COLUMN_RENAMED:
       my_error(ER_ALTER_OPERATION_NOT_SUPPORTED_REASON, MYF(0),
                "ALGORITHM=COPY",
-               ER(ER_ALTER_OPERATION_NOT_SUPPORTED_REASON_FK_RENAME),
+               ER_THD(thd, ER_ALTER_OPERATION_NOT_SUPPORTED_REASON_FK_RENAME),
                "ALGORITHM=INPLACE");
       DBUG_RETURN(true);
     case FK_COLUMN_DROPPED:
@@ -8438,7 +8456,7 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
   if (alter_info->flags == 0)
   {
     my_snprintf(alter_ctx.tmp_name, sizeof(alter_ctx.tmp_name),
-                ER(ER_INSERT_INFO), 0L, 0L,
+                ER_THD(thd, ER_INSERT_INFO), 0L, 0L,
                 thd->get_stmt_da()->current_statement_warn_count());
     my_ok(thd, 0L, 0L, alter_ctx.tmp_name);
     DBUG_RETURN(false);
@@ -8502,7 +8520,7 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
     {
       my_error(ER_ALTER_OPERATION_NOT_SUPPORTED_REASON, MYF(0),
                "LOCK=NONE/SHARED/EXCLUSIVE",
-               ER(ER_ALTER_OPERATION_NOT_SUPPORTED_REASON_PARTITION),
+               ER_THD(thd, ER_ALTER_OPERATION_NOT_SUPPORTED_REASON_PARTITION),
                "LOCK=DEFAULT");
       DBUG_RETURN(true);
     }
@@ -8511,7 +8529,7 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
     {
       my_error(ER_ALTER_OPERATION_NOT_SUPPORTED_REASON, MYF(0),
                "ALGORITHM=COPY/INPLACE",
-               ER(ER_ALTER_OPERATION_NOT_SUPPORTED_REASON_PARTITION),
+               ER_THD(thd, ER_ALTER_OPERATION_NOT_SUPPORTED_REASON_PARTITION),
                "ALGORITHM=DEFAULT");
       DBUG_RETURN(true);
     }
@@ -8840,7 +8858,7 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
     {
       my_error(ER_ALTER_OPERATION_NOT_SUPPORTED_REASON, MYF(0),
                "LOCK=NONE",
-               ER(ER_ALTER_OPERATION_NOT_SUPPORTED_REASON_COPY),
+               ER_THD(thd, ER_ALTER_OPERATION_NOT_SUPPORTED_REASON_COPY),
                "LOCK=SHARED");
       goto err_new_table_cleanup;
     }
@@ -9119,7 +9137,7 @@ end_inplace:
 
 end_temporary:
   my_snprintf(alter_ctx.tmp_name, sizeof(alter_ctx.tmp_name),
-              ER(ER_INSERT_INFO),
+              ER_THD(thd, ER_INSERT_INFO),
 	      (ulong) (copied + deleted), (ulong) deleted,
 	      (ulong) thd->get_stmt_da()->current_statement_warn_count());
   my_ok(thd, copied + deleted, 0L, alter_ctx.tmp_name);
@@ -9462,11 +9480,11 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
           uint key_nr= to->file->get_dup_key(error);
           if ((int) key_nr >= 0)
           {
-            const char *err_msg= ER(ER_DUP_ENTRY_WITH_KEY_NAME);
+            const char *err_msg= ER_THD(thd, ER_DUP_ENTRY_WITH_KEY_NAME);
             if (key_nr == 0 &&
                 (to->key_info[0].key_part[0].field->flags &
                  AUTO_INCREMENT_FLAG))
-              err_msg= ER(ER_DUP_ENTRY_AUTOINCREMENT_CASE);
+              err_msg= ER_THD(thd, ER_DUP_ENTRY_AUTOINCREMENT_CASE);
             print_keydup_error(to, key_nr == MAX_KEY ? NULL :
                                    &to->key_info[key_nr],
                                err_msg, MYF(0));
@@ -9790,7 +9808,7 @@ static bool check_engine(THD *thd, const char *db_name,
   {
     push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
                        ER_WARN_USING_OTHER_HANDLER,
-                       ER(ER_WARN_USING_OTHER_HANDLER),
+                        ER_THD(thd, ER_WARN_USING_OTHER_HANDLER),
                        ha_resolve_storage_engine_name(*new_engine),
                        table_name);
   }

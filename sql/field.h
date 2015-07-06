@@ -17,7 +17,7 @@
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
 
 /*
-  Because of the function new_field() all field classes that have static
+  Because of the function make_new_field() all field classes that have static
   variables must declare the size_of() member function.
 */
 
@@ -732,7 +732,8 @@ public:
     null_bit= p_null_bit;
   }
 
-  inline THD *get_thd() const { return table ? table->in_use : current_thd; }
+  inline THD *get_thd() const
+  { return likely(table) ? table->in_use : current_thd; }
 
   enum {
     LAST_NULL_BYTE_UNDEF= 0
@@ -765,8 +766,8 @@ public:
   virtual void sort_string(uchar *buff,uint length)=0;
   virtual bool optimize_range(uint idx, uint part);
   virtual void free() {}
-  virtual Field *new_field(MEM_ROOT *root, TABLE *new_table,
-                           bool keep_type);
+  virtual Field *make_new_field(MEM_ROOT *root, TABLE *new_table,
+                                bool keep_type);
   virtual Field *new_key_field(MEM_ROOT *root, TABLE *new_table,
                                uchar *new_ptr, uint32 length,
                                uchar *new_null_ptr, uint new_null_bit);
@@ -2415,7 +2416,7 @@ public:
   enum_field_types real_type() const { return MYSQL_TYPE_STRING; }
   bool has_charset(void) const
   { return charset() == &my_charset_bin ? FALSE : TRUE; }
-  Field *new_field(MEM_ROOT *root, TABLE *new_table, bool keep_type);
+  Field *make_new_field(MEM_ROOT *root, TABLE *new_table, bool keep_type);
   virtual uint get_key_image(uchar *buff,uint length, imagetype type);
 private:
   int do_save_field_metadata(uchar *first_byte);
@@ -2493,7 +2494,7 @@ public:
   enum_field_types real_type() const { return MYSQL_TYPE_VARCHAR; }
   bool has_charset(void) const
   { return charset() == &my_charset_bin ? FALSE : TRUE; }
-  Field *new_field(MEM_ROOT *root, TABLE *new_table, bool keep_type);
+  Field *make_new_field(MEM_ROOT *root, TABLE *new_table, bool keep_type);
   Field *new_key_field(MEM_ROOT *root, TABLE *new_table,
                        uchar *new_ptr, uint32 length,
                        uchar *new_null_ptr, uint new_null_bit);
@@ -2740,7 +2741,7 @@ public:
   {
       flags|=ENUM_FLAG;
   }
-  Field *new_field(MEM_ROOT *root, TABLE *new_table, bool keep_type);
+  Field *make_new_field(MEM_ROOT *root, TABLE *new_table, bool keep_type);
   enum_field_types type() const { return MYSQL_TYPE_STRING; }
   enum Item_result cmp_type () const { return INT_RESULT; }
   enum ha_base_keytype key_type() const;

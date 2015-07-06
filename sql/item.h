@@ -1758,9 +1758,9 @@ protected:
     {
       my_string_metadata_get(this, str->charset(), str->ptr(), str->length());
     }
-    Metadata(const String *str, uint repertoire)
+    Metadata(const String *str, uint repertoire_arg)
     {
-      MY_STRING_METADATA::repertoire= repertoire;
+      MY_STRING_METADATA::repertoire= repertoire_arg;
       MY_STRING_METADATA::char_length= str->numchars();
     }
     uint repertoire() const { return MY_STRING_METADATA::repertoire; }
@@ -2385,7 +2385,7 @@ public:
                                          cond_equal_ref);
   }
   bool is_result_field() { return false; }
-  void set_result_field(Field *field) {}
+  void set_result_field(Field *field_arg) {}
   void save_in_result_field(bool no_conversions) { }
   Item *get_tmp_table_item(THD *thd);
   bool collect_item_field_processor(uchar * arg);
@@ -2985,9 +2985,9 @@ public:
   Item_string_with_introducer(const char *str, uint length, CHARSET_INFO *cs)
     :Item_string(str, length, cs)
   { }
-  Item_string_with_introducer(const char *name,
+  Item_string_with_introducer(const char *name_arg,
                               const char *str, uint length, CHARSET_INFO *tocs)
-    :Item_string(name, str, length, tocs)
+    :Item_string(name_arg, str, length, tocs)
   { }
   virtual bool is_cs_specified() const
   {
@@ -4329,7 +4329,7 @@ public:
 class Item_copy_string : public Item_copy
 {
 public:
-  Item_copy_string (Item *item) : Item_copy(item) {}
+  Item_copy_string (Item *item_arg) : Item_copy(item_arg) {}
 
   String *val_str(String*);
   my_decimal *val_decimal(my_decimal *);
@@ -4365,7 +4365,7 @@ public:
 class Item_copy_uint : public Item_copy_int
 {
 public:
-  Item_copy_uint (Item *item) : Item_copy_int(item) 
+  Item_copy_uint (Item *item_arg) : Item_copy_int(item_arg) 
   {
     unsigned_flag= 1;
   }
@@ -4576,7 +4576,7 @@ public:
 	    (this->*processor)(args);
   }
   bool check_partition_func_processor(uchar *int_arg) {return TRUE;}
-  bool check_vcol_func_processor(uchar *arg) 
+  bool check_vcol_func_processor(uchar *arg_arg)
   {
     return trace_unsupported_by_check_vcol_func_processor("values");
   }

@@ -5079,6 +5079,8 @@ void Regexp_processor_pcre::pcre_exec_warn(int rc) const
 {
   char buf[64];
   const char *errmsg= NULL;
+  THD *thd= current_thd;
+
   /*
     Make a descriptive message only for those pcre_exec() error codes
     that can actually happen in MariaDB.
@@ -5103,8 +5105,8 @@ void Regexp_processor_pcre::pcre_exec_warn(int rc) const
     my_snprintf(buf, sizeof(buf), "pcre_exec: Internal error (%d)", rc);
     errmsg= buf;
   }
-  push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
-                      ER_REGEXP_ERROR, ER(ER_REGEXP_ERROR), errmsg);
+  push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                      ER_REGEXP_ERROR, ER_THD(thd, ER_REGEXP_ERROR), errmsg);
 }
 
 

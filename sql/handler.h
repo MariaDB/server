@@ -1740,10 +1740,10 @@ struct Table_specification_st: public HA_CREATE_INFO,
     HA_CREATE_INFO::init();
     DDL_options_st::init();
   }
-  void init(DDL_options_st::Options options)
+  void init(DDL_options_st::Options options_arg)
   {
     HA_CREATE_INFO::init();
-    DDL_options_st::init(options);
+    DDL_options_st::init(options_arg);
   }
   /*
     Quick initialization, for parser.

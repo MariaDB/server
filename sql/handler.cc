@@ -1192,7 +1192,7 @@ int ha_prepare(THD *thd)
       else
       {
         push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-                            ER_GET_ERRNO, ER(ER_GET_ERRNO),
+                            ER_GET_ERRNO, ER_THD(thd, ER_GET_ERRNO),
                             HA_ERR_WRONG_COMMAND,
                             ha_resolve_storage_engine_name(ht));
 
@@ -1306,7 +1306,7 @@ int ha_commit_trans(THD *thd, bool all)
   DBUG_EXECUTE_IF("warn_during_ha_commit_trans",
     push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
                  ER_WARNING_NOT_COMPLETE_ROLLBACK,
-                 ER(ER_WARNING_NOT_COMPLETE_ROLLBACK)););
+                 ER_THD(thd, ER_WARNING_NOT_COMPLETE_ROLLBACK)););
 
   DBUG_PRINT("info",
              ("all: %d  thd->in_sub_stmt: %d  ha_info: %p  is_real_trans: %d",
@@ -1685,7 +1685,7 @@ int ha_rollback_trans(THD *thd, bool all)
       !thd->slave_thread && thd->killed < KILL_CONNECTION)
     push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
                  ER_WARNING_NOT_COMPLETE_ROLLBACK,
-                 ER(ER_WARNING_NOT_COMPLETE_ROLLBACK));
+                 ER_THD(thd, ER_WARNING_NOT_COMPLETE_ROLLBACK));
   (void) RUN_HOOK(transaction, after_rollback, (thd, FALSE));
   DBUG_RETURN(error);
 }
@@ -3286,7 +3286,9 @@ void print_keydup_error(TABLE *table, KEY *key, const char *msg, myf errflag)
 
 void print_keydup_error(TABLE *table, KEY *key, myf errflag)
 {
-  print_keydup_error(table, key, ER(ER_DUP_ENTRY_WITH_KEY_NAME), errflag);
+  print_keydup_error(table, key,
+                     ER_THD(table->in_use, ER_DUP_ENTRY_WITH_KEY_NAME),
+                     errflag);
 }
 
 
@@ -4282,13 +4284,13 @@ handler::ha_drop_table(const char *name)
 */
 
 int
-handler::ha_create(const char *name, TABLE *form, HA_CREATE_INFO *info)
+handler::ha_create(const char *name, TABLE *form, HA_CREATE_INFO *info_arg)
 {
   DBUG_ASSERT(m_lock_type == F_UNLCK);
   mark_trx_read_write();
-  int error= create(name, form, info);
+  int error= create(name, form, info_arg);
   if (!error &&
-      !(info->options & (HA_LEX_CREATE_TMP_TABLE | HA_CREATE_TMP_ALTER)))
+      !(info_arg->options & (HA_LEX_CREATE_TMP_TABLE | HA_CREATE_TMP_ALTER)))
     mysql_audit_create_table(form);
   return error;
 }
@@ -4301,7 +4303,8 @@ handler::ha_create(const char *name, TABLE *form, HA_CREATE_INFO *info)
 */
 
 int
-handler::ha_create_partitioning_metadata(const char *name, const char *old_name,
+handler::ha_create_partitioning_metadata(const char *name,
+                                         const char *old_name,
                                          int action_flag)
 {
   /*
@@ -4325,12 +4328,13 @@ handler::ha_create_partitioning_metadata(const char *name, const char *old_name,
 
 int
 handler::ha_change_partitions(HA_CREATE_INFO *create_info,
-                     const char *path,
-                     ulonglong * const copied,
-                     ulonglong * const deleted,
-                     const uchar *pack_frm_data,
-                     size_t pack_frm_len)
-{  /*
+                              const char *path,
+                              ulonglong * const copied,
+                              ulonglong * const deleted,
+                              const uchar *pack_frm_data,
+                              size_t pack_frm_len)
+{
+  /*
     Must have at least RDLCK or be a TMP table. Read lock is needed to read
     from current partitions and write lock will be taken on new partitions.
   */

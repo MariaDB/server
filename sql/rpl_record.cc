@@ -290,9 +290,12 @@ unpack_row(rpl_group_info *rgi,
         }
         else
         {
+          THD *thd= f->table->in_use;
+
           f->set_default();
-          push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
-                              ER_BAD_NULL_ERROR, ER(ER_BAD_NULL_ERROR),
+          push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                              ER_BAD_NULL_ERROR,
+                              ER_THD(thd, ER_BAD_NULL_ERROR),
                               f->field_name);
         }
       }
@@ -465,11 +468,12 @@ int prepare_record(TABLE *const table, const uint skip, const bool check)
     if ((f->flags &  NO_DEFAULT_VALUE_FLAG) &&
         (f->real_type() != MYSQL_TYPE_ENUM))
     {
+      THD *thd= f->table->in_use;
       f->set_default();
-      push_warning_printf(current_thd,
+      push_warning_printf(thd,
                           Sql_condition::WARN_LEVEL_WARN,
                           ER_NO_DEFAULT_FOR_FIELD,
-                          ER(ER_NO_DEFAULT_FOR_FIELD),
+                          ER_THD(thd, ER_NO_DEFAULT_FOR_FIELD),
                           f->field_name);
     }
   }

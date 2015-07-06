@@ -495,7 +495,7 @@ bool st_select_lex_unit::prepare(THD *thd_arg, select_result *sel_result,
       if (types.elements != sl->item_list.elements)
       {
 	my_message(ER_WRONG_NUMBER_OF_COLUMNS_IN_SELECT,
-		   ER(ER_WRONG_NUMBER_OF_COLUMNS_IN_SELECT),MYF(0));
+		   ER_THD(thd, ER_WRONG_NUMBER_OF_COLUMNS_IN_SELECT),MYF(0));
 	goto err;
       }
       List_iterator_fast<Item> it(sl->item_list);
@@ -886,7 +886,7 @@ bool st_select_lex_unit::exec()
         */
         push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                             ER_QUERY_EXCEEDED_ROWS_EXAMINED_LIMIT,
-                            ER(ER_QUERY_EXCEEDED_ROWS_EXAMINED_LIMIT),
+                            ER_THD(thd, ER_QUERY_EXCEEDED_ROWS_EXAMINED_LIMIT),
                             thd->accessed_rows_and_keys,
                             thd->lex->limit_rows_examined->val_uint());
         thd->reset_killed();
@@ -985,7 +985,7 @@ bool st_select_lex_unit::exec()
         }
         else
         {
-          join->examined_rows= 0;
+          join->join_examined_rows= 0;
           saved_error= join->reinit();
           join->exec();
         }

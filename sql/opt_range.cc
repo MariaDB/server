@@ -2066,7 +2066,8 @@ int QUICK_ROR_INTERSECT_SELECT::init()
     1  error
 */
 
-int QUICK_RANGE_SELECT::init_ror_merged_scan(bool reuse_handler, MEM_ROOT *alloc)
+int QUICK_RANGE_SELECT::init_ror_merged_scan(bool reuse_handler,
+                                             MEM_ROOT *local_alloc)
 {
   handler *save_file= file, *org_file;
   my_bool org_key_read;
@@ -2094,7 +2095,7 @@ int QUICK_RANGE_SELECT::init_ror_merged_scan(bool reuse_handler, MEM_ROOT *alloc
     DBUG_RETURN(0);
   }
 
-  if (!(file= head->file->clone(head->s->normalized_path.str, alloc)))
+  if (!(file= head->file->clone(head->s->normalized_path.str, local_alloc)))
   {
     /* 
       Manually set the error flag. Note: there seems to be quite a few
@@ -2182,7 +2183,7 @@ failure:
     other error code
 */
 int QUICK_ROR_INTERSECT_SELECT::init_ror_merged_scan(bool reuse_handler, 
-                                                     MEM_ROOT *alloc)
+                                                     MEM_ROOT *local_alloc)
 {
   List_iterator_fast<QUICK_SELECT_WITH_RECORD> quick_it(quick_selects);
   QUICK_SELECT_WITH_RECORD *cur;
@@ -2199,7 +2200,7 @@ int QUICK_ROR_INTERSECT_SELECT::init_ror_merged_scan(bool reuse_handler,
       There is no use of this->file. Use it for the first of merged range
       selects.
     */
-    int error= quick->init_ror_merged_scan(TRUE, alloc);
+    int error= quick->init_ror_merged_scan(TRUE, local_alloc);
     if (error)
       DBUG_RETURN(error);
     quick->file->extra(HA_EXTRA_KEYREAD_PRESERVE_FIELDS);
@@ -2211,7 +2212,7 @@ int QUICK_ROR_INTERSECT_SELECT::init_ror_merged_scan(bool reuse_handler,
     const MY_BITMAP * const save_read_set= quick->head->read_set;
     const MY_BITMAP * const save_write_set= quick->head->write_set;
 #endif
-    if (quick->init_ror_merged_scan(FALSE, alloc))
+    if (quick->init_ror_merged_scan(FALSE, local_alloc))
       DBUG_RETURN(1);
     quick->file->extra(HA_EXTRA_KEYREAD_PRESERVE_FIELDS);
 
@@ -2273,11 +2274,13 @@ int QUICK_ROR_INTERSECT_SELECT::reset()
 */
 
 bool
-QUICK_ROR_INTERSECT_SELECT::push_quick_back(MEM_ROOT *alloc, QUICK_RANGE_SELECT *quick)
+QUICK_ROR_INTERSECT_SELECT::push_quick_back(MEM_ROOT *local_alloc,
+                                            QUICK_RANGE_SELECT *quick)
 {
   QUICK_SELECT_WITH_RECORD *qr;
   if (!(qr= new QUICK_SELECT_WITH_RECORD) || 
-      !(qr->key_tuple= (uchar*)alloc_root(alloc, quick->max_used_key_length)))
+      !(qr->key_tuple= (uchar*)alloc_root(local_alloc,
+                                          quick->max_used_key_length)))
     return TRUE;
   qr->quick= quick;
   return quick_selects.push_back(qr);
@@ -8187,11 +8190,10 @@ SEL_TREE *Item_equal::get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr)
   while (it++)
   {
     Field *field= it.get_curr_field();
-    Item_result cmp_type= field->cmp_type();
     if (!((ref_tables | field->table->map) & param_comp))
     {
       tree= get_mm_parts(param, this, field, Item_func::EQ_FUNC,
-                         value, cmp_type);
+                         value, field->cmp_type());
       ftree= !ftree ? tree : tree_and(param, ftree, tree);
     }
   }
@@ -11669,7 +11671,7 @@ int QUICK_ROR_INTERSECT_SELECT::get_next()
         if ((error= quick->get_next()))
         {
           /* On certain errors like deadlock, trx might be rolled back.*/
-          if (!current_thd->transaction_rollback_request)
+          if (!thd->transaction_rollback_request)
             quick_with_last_rowid->file->unlock_row();
           DBUG_RETURN(error);
         }
@@ -11697,7 +11699,7 @@ int QUICK_ROR_INTERSECT_SELECT::get_next()
             if ((error= quick->get_next()))
             {
               /* On certain errors like deadlock, trx might be rolled back.*/
-              if (!current_thd->transaction_rollback_request)
+              if (!thd->transaction_rollback_request)
                 quick_with_last_rowid->file->unlock_row();
               DBUG_RETURN(error);
             }
@@ -12330,28 +12332,30 @@ void QUICK_SELECT_I::add_key_name(String *str, bool *first)
 }
  
 
-Explain_quick_select* QUICK_RANGE_SELECT::get_explain(MEM_ROOT *alloc)
+Explain_quick_select* QUICK_RANGE_SELECT::get_explain(MEM_ROOT *local_alloc)
 {
   Explain_quick_select *res;
-  if ((res= new (alloc) Explain_quick_select(QS_TYPE_RANGE)))
-    res->range.set(alloc, &head->key_info[index], max_used_key_length);
+  if ((res= new (local_alloc) Explain_quick_select(QS_TYPE_RANGE)))
+    res->range.set(local_alloc, &head->key_info[index], max_used_key_length);
   return res;
 }
 
 
-Explain_quick_select* QUICK_GROUP_MIN_MAX_SELECT::get_explain(MEM_ROOT *alloc)
+Explain_quick_select*
+QUICK_GROUP_MIN_MAX_SELECT::get_explain(MEM_ROOT *local_alloc)
 {
   Explain_quick_select *res;
-  if ((res= new (alloc) Explain_quick_select(QS_TYPE_GROUP_MIN_MAX)))
-    res->range.set(alloc, &head->key_info[index], max_used_key_length);
+  if ((res= new (local_alloc) Explain_quick_select(QS_TYPE_GROUP_MIN_MAX)))
+    res->range.set(local_alloc, &head->key_info[index], max_used_key_length);
   return res;
 }
 
 
-Explain_quick_select* QUICK_INDEX_SORT_SELECT::get_explain(MEM_ROOT *alloc)
+Explain_quick_select*
+QUICK_INDEX_SORT_SELECT::get_explain(MEM_ROOT *local_alloc)
 {
   Explain_quick_select *res;
-  if (!(res= new (alloc) Explain_quick_select(get_type())))
+  if (!(res= new (local_alloc) Explain_quick_select(get_type())))
     return NULL;
 
   QUICK_RANGE_SELECT *quick;
@@ -12359,7 +12363,7 @@ Explain_quick_select* QUICK_INDEX_SORT_SELECT::get_explain(MEM_ROOT *alloc)
   List_iterator_fast<QUICK_RANGE_SELECT> it(quick_selects);
   while ((quick= it++))
   {
-    if ((child_explain= quick->get_explain(alloc)))
+    if ((child_explain= quick->get_explain(local_alloc)))
       res->children.push_back(child_explain);
     else
       return NULL;
@@ -12367,7 +12371,7 @@ Explain_quick_select* QUICK_INDEX_SORT_SELECT::get_explain(MEM_ROOT *alloc)
 
   if (pk_quick_select)
   {
-    if ((child_explain= pk_quick_select->get_explain(alloc)))
+    if ((child_explain= pk_quick_select->get_explain(local_alloc)))
       res->children.push_back(child_explain);
     else
       return NULL;
@@ -12381,17 +12385,18 @@ Explain_quick_select* QUICK_INDEX_SORT_SELECT::get_explain(MEM_ROOT *alloc)
   first
 */
 
-Explain_quick_select* QUICK_INDEX_INTERSECT_SELECT::get_explain(MEM_ROOT *alloc)
+Explain_quick_select*
+QUICK_INDEX_INTERSECT_SELECT::get_explain(MEM_ROOT *local_alloc)
 {
   Explain_quick_select *res;
   Explain_quick_select *child_explain;
 
-  if (!(res= new (alloc) Explain_quick_select(get_type())))
+  if (!(res= new (local_alloc) Explain_quick_select(get_type())))
     return NULL;
 
   if (pk_quick_select)
   {
-    if ((child_explain= pk_quick_select->get_explain(alloc)))
+    if ((child_explain= pk_quick_select->get_explain(local_alloc)))
       res->children.push_back(child_explain);
     else
       return NULL;
@@ -12401,7 +12406,7 @@ Explain_quick_select* QUICK_INDEX_INTERSECT_SELECT::get_explain(MEM_ROOT *alloc)
   List_iterator_fast<QUICK_RANGE_SELECT> it(quick_selects);
   while ((quick= it++))
   {
-    if ((child_explain= quick->get_explain(alloc)))
+    if ((child_explain= quick->get_explain(local_alloc)))
       res->children.push_back(child_explain);
     else
       return NULL;
@@ -12410,19 +12415,20 @@ Explain_quick_select* QUICK_INDEX_INTERSECT_SELECT::get_explain(MEM_ROOT *alloc)
 }
 
 
-Explain_quick_select* QUICK_ROR_INTERSECT_SELECT::get_explain(MEM_ROOT *alloc)
+Explain_quick_select*
+QUICK_ROR_INTERSECT_SELECT::get_explain(MEM_ROOT *local_alloc)
 {
   Explain_quick_select *res;
   Explain_quick_select *child_explain;
 
-  if (!(res= new (alloc) Explain_quick_select(get_type())))
+  if (!(res= new (local_alloc) Explain_quick_select(get_type())))
     return NULL;
 
   QUICK_SELECT_WITH_RECORD *qr;
   List_iterator_fast<QUICK_SELECT_WITH_RECORD> it(quick_selects);
   while ((qr= it++))
   {
-    if ((child_explain= qr->quick->get_explain(alloc)))
+    if ((child_explain= qr->quick->get_explain(local_alloc)))
       res->children.push_back(child_explain);
     else
       return NULL;
@@ -12430,7 +12436,7 @@ Explain_quick_select* QUICK_ROR_INTERSECT_SELECT::get_explain(MEM_ROOT *alloc)
 
   if (cpk_quick)
   {
-    if ((child_explain= cpk_quick->get_explain(alloc)))
+    if ((child_explain= cpk_quick->get_explain(local_alloc)))
       res->children.push_back(child_explain);
     else
       return NULL;
@@ -12439,19 +12445,20 @@ Explain_quick_select* QUICK_ROR_INTERSECT_SELECT::get_explain(MEM_ROOT *alloc)
 }
 
 
-Explain_quick_select* QUICK_ROR_UNION_SELECT::get_explain(MEM_ROOT *alloc)
+Explain_quick_select*
+QUICK_ROR_UNION_SELECT::get_explain(MEM_ROOT *local_alloc)
 {
   Explain_quick_select *res;
   Explain_quick_select *child_explain;
 
-  if (!(res= new (alloc) Explain_quick_select(get_type())))
+  if (!(res= new (local_alloc) Explain_quick_select(get_type())))
     return NULL;
 
   QUICK_SELECT_I *quick;
   List_iterator_fast<QUICK_SELECT_I> it(quick_selects);
   while ((quick= it++))
   {
-    if ((child_explain= quick->get_explain(alloc)))
+    if ((child_explain= quick->get_explain(local_alloc)))
       res->children.push_back(child_explain);
     else
       return NULL;

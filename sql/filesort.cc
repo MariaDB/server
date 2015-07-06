@@ -409,7 +409,7 @@ ha_rows filesort(THD *thd, TABLE *table, SORT_FIELD *sortorder, uint s_length,
                     "%s: %s",
                     MYF(0),
                     ER_THD(thd, ER_FILSORT_ABORT),
-                    kill_errno ? ER(kill_errno) :
+                    kill_errno ? ER_THD(thd, kill_errno) :
                     thd->killed == ABORT_QUERY ? "" :
                     thd->get_stmt_da()->message());
 

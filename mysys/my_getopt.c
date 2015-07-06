@@ -1278,7 +1278,8 @@ void my_cleanup_options(const struct my_option *options)
 
   SYNOPSIS
     init_variables()
-    options		Array of options
+    options              Array of options
+    func_init_one_value  Call this function to init the variable
 
   NOTES
     We will initialize the value that is pointed to by options->value.
@@ -1287,7 +1288,7 @@ void my_cleanup_options(const struct my_option *options)
 */
 
 static void init_variables(const struct my_option *options,
-                           init_func_p init_one_value)
+                           init_func_p func_init_one_value)
 {
   DBUG_ENTER("init_variables");
   for (; options->name; options++)
@@ -1300,11 +1301,11 @@ static void init_variables(const struct my_option *options,
       set the value to default value.
     */
     if (options->u_max_value)
-      init_one_value(options, options->u_max_value, options->max_value);
+      func_init_one_value(options, options->u_max_value, options->max_value);
     value= (options->var_type & GET_ASK_ADDR ?
 		  (*getopt_get_addr)("", 0, options, 0) : options->value);
     if (value)
-      init_one_value(options, value, options->def_value);
+      func_init_one_value(options, value, options->def_value);
   }
   DBUG_VOID_RETURN;
 }

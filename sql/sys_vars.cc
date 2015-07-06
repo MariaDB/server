@@ -1267,7 +1267,8 @@ static bool check_max_allowed_packet(sys_var *self, THD *thd,  set_var *var)
   if (val < (longlong) global_system_variables.net_buffer_length)
   {
     push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-                        WARN_OPTION_BELOW_LIMIT, ER(WARN_OPTION_BELOW_LIMIT),
+                        WARN_OPTION_BELOW_LIMIT,
+                        ER_THD(thd, WARN_OPTION_BELOW_LIMIT),
                         "max_allowed_packet", "net_buffer_length");
   }
   return false;
@@ -2171,7 +2172,8 @@ static bool check_net_buffer_length(sys_var *self, THD *thd,  set_var *var)
   if (val > (longlong) global_system_variables.max_allowed_packet)
   {
     push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-                        WARN_OPTION_BELOW_LIMIT, ER(WARN_OPTION_BELOW_LIMIT),
+                        WARN_OPTION_BELOW_LIMIT,
+                        ER_THD(thd, WARN_OPTION_BELOW_LIMIT),
                         "max_allowed_packet", "net_buffer_length");
   }
   return false;
@@ -2355,7 +2357,7 @@ static bool fix_optimizer_switch(sys_var *self, THD *thd,
   if (sv->optimizer_switch & deprecated_ENGINE_CONDITION_PUSHDOWN)
     push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
                         ER_WARN_DEPRECATED_SYNTAX_NO_REPLACEMENT,
-                        ER(ER_WARN_DEPRECATED_SYNTAX_NO_REPLACEMENT),
+                        ER_THD(thd, ER_WARN_DEPRECATED_SYNTAX_NO_REPLACEMENT),
                         "engine_condition_pushdown=on");
   return false;
 }
@@ -2702,7 +2704,7 @@ static bool fix_query_cache_size(sys_var *self, THD *thd, enum_var_type type)
   */
   if (query_cache_size != new_cache_size)
     push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
-                        ER_WARN_QC_RESIZE, ER(ER_WARN_QC_RESIZE),
+                        ER_WARN_QC_RESIZE, ER_THD(thd, ER_WARN_QC_RESIZE),
                         query_cache_size, new_cache_size);
 
   query_cache_size= new_cache_size;

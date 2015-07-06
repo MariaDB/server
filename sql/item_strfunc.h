@@ -520,8 +520,8 @@ private:
 protected:
   SQL_CRYPT sql_crypt;
 public:
-  Item_func_encode(Item *a, Item *seed):
-    Item_str_func(a, seed) {}
+  Item_func_encode(Item *a, Item *seed_arg):
+    Item_str_func(a, seed_arg) {}
   String *val_str(String *);
   void fix_length_and_dec();
   const char *func_name() const { return "encode"; }
@@ -536,7 +536,7 @@ private:
 class Item_func_decode :public Item_func_encode
 {
 public:
-  Item_func_decode(Item *a, Item *seed): Item_func_encode(a, seed) {}
+  Item_func_decode(Item *a, Item *seed_arg): Item_func_encode(a, seed_arg) {}
   const char *func_name() const { return "decode"; }
 protected:
   void crypto_transform(String *);
@@ -1176,8 +1176,8 @@ public:
 class Item_func_dyncol_add: public Item_func_dyncol_create
 {
 public:
-  Item_func_dyncol_add(List<Item> &args, DYNCALL_CREATE_DEF *dfs)
-    :Item_func_dyncol_create(args, dfs)
+  Item_func_dyncol_add(List<Item> &args_arg, DYNCALL_CREATE_DEF *dfs)
+    :Item_func_dyncol_create(args_arg, dfs)
   {}
   const char *func_name() const{ return "column_add"; }
   String *val_str(String *);

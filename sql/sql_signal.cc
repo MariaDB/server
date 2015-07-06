@@ -89,11 +89,11 @@ void Set_signal_information::clear()
   memset(m_item, 0, sizeof(m_item));
 }
 
-void Sql_cmd_common_signal::assign_defaults(
-                                    Sql_condition *cond,
-                                    bool set_level_code,
-                                    Sql_condition::enum_warning_level level,
-                                    int sqlcode)
+void
+Sql_cmd_common_signal::assign_defaults(Sql_condition *cond,
+                                       bool set_level_code,
+                                       Sql_condition::enum_warning_level level,
+                                       int sqlcode)
 {
   if (set_level_code)
   {

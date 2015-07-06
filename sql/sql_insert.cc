@@ -1149,12 +1149,12 @@ values_loop_end:
     ha_rows updated=((thd->client_capabilities & CLIENT_FOUND_ROWS) ?
                      info.touched : info.updated);
     if (ignore)
-      sprintf(buff, ER(ER_INSERT_INFO), (ulong) info.records,
+      sprintf(buff, ER_THD(thd, ER_INSERT_INFO), (ulong) info.records,
 	      (lock_type == TL_WRITE_DELAYED) ? (ulong) 0 :
 	      (ulong) (info.records - info.copied),
               (long) thd->get_stmt_da()->current_statement_warn_count());
     else
-      sprintf(buff, ER(ER_INSERT_INFO), (ulong) info.records,
+      sprintf(buff, ER_THD(thd, ER_INSERT_INFO), (ulong) info.records,
 	      (ulong) (info.deleted + updated),
               (long) thd->get_stmt_da()->current_statement_warn_count());
     ::my_ok(thd, info.copied + info.deleted + updated, id, buff);
@@ -1941,7 +1941,7 @@ int check_that_all_fields_are_given_values(THD *thd, TABLE *entry,
       {
         push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                             ER_NO_DEFAULT_FOR_VIEW_FIELD,
-                            ER(ER_NO_DEFAULT_FOR_VIEW_FIELD),
+                            ER_THD(thd, ER_NO_DEFAULT_FOR_VIEW_FIELD),
                             table_list->view_db.str,
                             table_list->view_name.str);
       }
@@ -1949,7 +1949,7 @@ int check_that_all_fields_are_given_values(THD *thd, TABLE *entry,
       {
         push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                             ER_NO_DEFAULT_FOR_FIELD,
-                            ER(ER_NO_DEFAULT_FOR_FIELD),
+                            ER_THD(thd, ER_NO_DEFAULT_FOR_FIELD),
                             (*field)->field_name);
       }
       err= 1;
@@ -2386,7 +2386,8 @@ TABLE *Delayed_insert::get_local_table(THD* client_thd)
         kill_delayed_threads_for_table().
       */
       if (!thd.is_error())
-        my_message(ER_QUERY_INTERRUPTED, ER(ER_QUERY_INTERRUPTED), MYF(0));
+        my_message(ER_QUERY_INTERRUPTED, ER_THD(&thd, ER_QUERY_INTERRUPTED),
+                   MYF(0));
       else
         my_message(thd.get_stmt_da()->sql_errno(),
                    thd.get_stmt_da()->message(), MYF(0));
@@ -2449,7 +2450,8 @@ TABLE *Delayed_insert::get_local_table(THD* client_thd)
   found_next_number_field= table->found_next_number_field;
   for (org_field= table->field; *org_field; org_field++, field++)
   {
-    if (!(*field= (*org_field)->new_field(client_thd->mem_root, copy, 1)))
+    if (!(*field= (*org_field)->make_new_field(client_thd->mem_root, copy,
+                                               1)))
       goto error;
     (*field)->orig_table= copy;			// Remove connection
     (*field)->move_field_offset(adjust_ptrs);	// Point at copy->record[0]
@@ -3763,11 +3765,11 @@ bool select_insert::send_eof()
 
   char buff[160];
   if (info.ignore)
-    sprintf(buff, ER(ER_INSERT_INFO), (ulong) info.records,
+    sprintf(buff, ER_THD(thd, ER_INSERT_INFO), (ulong) info.records,
 	    (ulong) (info.records - info.copied),
             (long) thd->get_stmt_da()->current_statement_warn_count());
   else
-    sprintf(buff, ER(ER_INSERT_INFO), (ulong) info.records,
+    sprintf(buff, ER_THD(thd, ER_INSERT_INFO), (ulong) info.records,
 	    (ulong) (info.deleted+info.updated),
             (long) thd->get_stmt_da()->current_statement_warn_count());
   row_count= info.copied + info.deleted +

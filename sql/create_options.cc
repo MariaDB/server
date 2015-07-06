@@ -88,7 +88,7 @@ static bool report_wrong_value(THD *thd, const char *name, const char *val,
   }
 
   push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN, ER_BAD_OPTION_VALUE,
-                      ER(ER_BAD_OPTION_VALUE), val, name);
+                      ER_THD(thd, ER_BAD_OPTION_VALUE), val, name);
   return 0;
 }
 
@@ -111,7 +111,8 @@ static bool report_unknown_option(THD *thd, engine_option_value *val,
   }
 
   push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-                      ER_UNKNOWN_OPTION, ER(ER_UNKNOWN_OPTION), val->name.str);
+                      ER_UNKNOWN_OPTION, ER_THD(thd, ER_UNKNOWN_OPTION),
+                      val->name.str);
   DBUG_RETURN(FALSE);
 }
 

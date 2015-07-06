@@ -49,6 +49,7 @@
 #define ER(X)         CURRENT_THD_ERRMSGS[(X) - ER_ERROR_FIRST]
 #define ER_DEFAULT(X) DEFAULT_ERRMSGS[(X) - ER_ERROR_FIRST]
 #define ER_SAFE(X) (((X) >= ER_ERROR_FIRST && (X) <= ER_ERROR_LAST) ? ER(X) : "Invalid error code")
+#define ER_SAFE_THD(T,X) (((X) >= ER_ERROR_FIRST && (X) <= ER_ERROR_LAST) ? ER_THD(T,X) : "Invalid error code")
 #define ER_THD(thd,X) ((thd)->variables.lc_messages->errmsgs->errmsgs[(X) - \
                        ER_ERROR_FIRST])
 #define ER_THD_OR_DEFAULT(thd,X) ((thd) ? ER_THD(thd, X) : ER_DEFAULT(X))

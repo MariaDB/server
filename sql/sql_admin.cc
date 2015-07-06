@@ -496,7 +496,7 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
             protocol->store(operator_name, system_charset_info);
             protocol->store(STRING_WITH_LEN("error"), system_charset_info);
             length= my_snprintf(buff, sizeof(buff),
-                                ER(ER_DROP_PARTITION_NON_EXISTENT),
+                                ER_THD(thd, ER_DROP_PARTITION_NON_EXISTENT),
                                 table_name);
             protocol->store(buff, length, system_charset_info);
             if(protocol->write())
@@ -545,12 +545,13 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
       DBUG_PRINT("admin", ("open table failed"));
       if (thd->get_stmt_da()->is_warning_info_empty())
         push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
-                     ER_CHECK_NO_SUCH_TABLE, ER(ER_CHECK_NO_SUCH_TABLE));
+                     ER_CHECK_NO_SUCH_TABLE,
+                     ER_THD(thd, ER_CHECK_NO_SUCH_TABLE));
       /* if it was a view will check md5 sum */
       if (table->view &&
           view_check(thd, table, check_opt) == HA_ADMIN_WRONG_CHECKSUM)
         push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
-                     ER_VIEW_CHECKSUM, ER(ER_VIEW_CHECKSUM));
+                     ER_VIEW_CHECKSUM, ER_THD(thd, ER_VIEW_CHECKSUM));
       if (thd->get_stmt_da()->is_error() &&
           table_not_corrupt_error(thd->get_stmt_da()->sql_errno()))
         result_code= HA_ADMIN_FAILED;
@@ -584,7 +585,7 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
       protocol->store(table_name, system_charset_info);
       protocol->store(operator_name, system_charset_info);
       protocol->store(STRING_WITH_LEN("error"), system_charset_info);
-      length= my_snprintf(buff, sizeof(buff), ER(ER_OPEN_AS_READONLY),
+      length= my_snprintf(buff, sizeof(buff), ER_THD(thd, ER_OPEN_AS_READONLY),
                           table_name);
       protocol->store(buff, length, system_charset_info);
       trans_commit_stmt(thd);
@@ -813,7 +814,8 @@ send_result_message:
       {
        char buf[MYSQL_ERRMSG_SIZE];
        size_t length=my_snprintf(buf, sizeof(buf),
-				ER(ER_CHECK_NOT_IMPLEMENTED), operator_name);
+                                 ER_THD(thd, ER_CHECK_NOT_IMPLEMENTED),
+                                 operator_name);
 	protocol->store(STRING_WITH_LEN("note"), system_charset_info);
 	protocol->store(buf, length, system_charset_info);
       }
@@ -823,7 +825,8 @@ send_result_message:
       {
         char buf[MYSQL_ERRMSG_SIZE];
         size_t length= my_snprintf(buf, sizeof(buf),
-                                 ER(ER_BAD_TABLE_ERROR), table_name);
+                                   ER_THD(thd, ER_BAD_TABLE_ERROR),
+                                   table_name);
         protocol->store(STRING_WITH_LEN("note"), system_charset_info);
         protocol->store(buf, length, system_charset_info);
       }
@@ -968,7 +971,8 @@ send_result_message:
     case HA_ADMIN_WRONG_CHECKSUM:
     {
       protocol->store(STRING_WITH_LEN("note"), system_charset_info);
-      protocol->store(ER(ER_VIEW_CHECKSUM), strlen(ER(ER_VIEW_CHECKSUM)),
+      protocol->store(ER_THD(thd, ER_VIEW_CHECKSUM),
+                      strlen(ER_THD(thd, ER_VIEW_CHECKSUM)),
                       system_charset_info);
       break;
     }
@@ -983,10 +987,12 @@ send_result_message:
 
       protocol->store(STRING_WITH_LEN("error"), system_charset_info);
       if (what_to_upgrade)
-        length= my_snprintf(buf, sizeof(buf), ER(ER_TABLE_NEEDS_UPGRADE),
+        length= my_snprintf(buf, sizeof(buf),
+                            ER_THD(thd, ER_TABLE_NEEDS_UPGRADE),
                             what_to_upgrade, table->table_name);
       else
-        length= my_snprintf(buf, sizeof(buf), ER(ER_TABLE_NEEDS_REBUILD),
+        length= my_snprintf(buf, sizeof(buf),
+                            ER_THD(thd, ER_TABLE_NEEDS_REBUILD),
                             table->table_name);
       protocol->store(buf, length, system_charset_info);
       fatal_error=1;

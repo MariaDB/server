@@ -1166,7 +1166,7 @@ void end_connection(THD *thd)
   }
 
   if (!thd->killed && (net->error && net->vio != 0))
-    thd->print_aborted_warning(1, ER(ER_UNKNOWN_ERROR));
+    thd->print_aborted_warning(1, ER_THD(thd, ER_UNKNOWN_ERROR));
 }
 
 

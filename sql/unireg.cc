@@ -501,7 +501,7 @@ static bool pack_header(THD *thd, uchar *forminfo,
 
   if (create_fields.elements > MAX_FIELDS)
   {
-    my_message(ER_TOO_MANY_FIELDS, ER(ER_TOO_MANY_FIELDS), MYF(0));
+    my_message(ER_TOO_MANY_FIELDS, ER_THD(thd, ER_TOO_MANY_FIELDS), MYF(0));
     DBUG_RETURN(1);
   }
 
@@ -631,7 +631,7 @@ static bool pack_header(THD *thd, uchar *forminfo,
       n_length+int_length+com_length+vcol_info_length > 65535L || 
       int_count > 255)
   {
-    my_message(ER_TOO_MANY_FIELDS, ER(ER_TOO_MANY_FIELDS), MYF(0));
+    my_message(ER_TOO_MANY_FIELDS, ER_THD(thd, ER_TOO_MANY_FIELDS), MYF(0));
     DBUG_RETURN(1);
   }
 
@@ -825,9 +825,11 @@ static bool pack_fields(uchar *buff, List<Create_field> &create_fields,
             }
           }
 
-          if(!sep)    /* disaster, enum uses all characters, none left as separator */
+          if (!sep)
           {
-            my_message(ER_WRONG_FIELD_TERMINATORS,ER(ER_WRONG_FIELD_TERMINATORS),
+            /* disaster, enum uses all characters, none left as separator */
+            my_message(ER_WRONG_FIELD_TERMINATORS,
+                       ER(ER_WRONG_FIELD_TERMINATORS),
                        MYF(0));
             DBUG_RETURN(1);
           }
@@ -974,9 +976,11 @@ static bool make_empty_rec(THD *thd, uchar *buff, uint table_options,
       regfield->store((longlong) 1, TRUE);
     }
     else if (type == Field::YES)		// Old unireg type
-      regfield->store(ER(ER_YES),(uint) strlen(ER(ER_YES)),system_charset_info);
+      regfield->store(ER_THD(thd, ER_YES),(uint) strlen(ER_THD(thd, ER_YES)),
+                      system_charset_info);
     else if (type == Field::NO)			// Old unireg type
-      regfield->store(ER(ER_NO), (uint) strlen(ER(ER_NO)),system_charset_info);
+      regfield->store(ER_THD(thd, ER_NO), (uint) strlen(ER_THD(thd, ER_NO)),
+                      system_charset_info);
     else
       regfield->reset();
   }

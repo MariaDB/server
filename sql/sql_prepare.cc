@@ -2144,7 +2144,7 @@ static bool check_prepared_statement(Prepared_statement *stmt)
   case SQLCOM_CREATE_VIEW:
     if (lex->create_view_mode == VIEW_ALTER)
     {
-      my_message(ER_UNSUPPORTED_PS, ER(ER_UNSUPPORTED_PS), MYF(0));
+      my_message(ER_UNSUPPORTED_PS, ER_THD(thd, ER_UNSUPPORTED_PS), MYF(0));
       goto error;
     }
     res= mysql_test_create_view(stmt);
@@ -2227,7 +2227,7 @@ static bool check_prepared_statement(Prepared_statement *stmt)
     if (!(sql_command_flags[sql_command] & CF_STATUS_COMMAND))
     {
       /* All other statements are not supported yet. */
-      my_message(ER_UNSUPPORTED_PS, ER(ER_UNSUPPORTED_PS), MYF(0));
+      my_message(ER_UNSUPPORTED_PS, ER_THD(thd, ER_UNSUPPORTED_PS), MYF(0));
       goto error;
     }
     break;
@@ -2253,7 +2253,8 @@ static bool init_param_array(Prepared_statement *stmt)
     if (stmt->param_count > (uint) UINT_MAX16)
     {
       /* Error code to be defined in 5.0 */
-      my_message(ER_PS_MANY_PARAM, ER(ER_PS_MANY_PARAM), MYF(0));
+      my_message(ER_PS_MANY_PARAM, ER_THD(stmt->thd, ER_PS_MANY_PARAM),
+                 MYF(0));
       return TRUE;
     }
     Item_param **to;
@@ -2999,7 +3000,7 @@ void mysql_stmt_get_longdata(THD *thd, char *packet, ulong packet_length)
     /* Error will be sent in execute call */
     stmt->state= Query_arena::STMT_ERROR;
     stmt->last_errno= ER_WRONG_ARGUMENTS;
-    sprintf(stmt->last_error, ER(ER_WRONG_ARGUMENTS),
+    sprintf(stmt->last_error, ER_THD(thd, ER_WRONG_ARGUMENTS),
             "mysqld_stmt_send_long_data");
     DBUG_VOID_RETURN;
   }

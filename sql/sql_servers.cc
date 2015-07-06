@@ -1007,7 +1007,7 @@ int create_server(THD *thd, LEX_SERVER_OPTIONS *server_options)
     {
       push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
                           ER_FOREIGN_SERVER_EXISTS,
-                          ER(ER_FOREIGN_SERVER_EXISTS),
+                          ER_THD(thd, ER_FOREIGN_SERVER_EXISTS),
                           server_options->server_name.str);
       error= 0;
       goto end;

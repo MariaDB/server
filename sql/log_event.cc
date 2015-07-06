@@ -1562,7 +1562,7 @@ Log_event* Log_event::read_log_event(const char* buf, uint event_len,
       DBUG_RETURN(NULL);
 #else
     *error= ER(ER_BINLOG_READ_EVENT_CHECKSUM_FAILURE);
-    sql_print_error("%s", ER(ER_BINLOG_READ_EVENT_CHECKSUM_FAILURE));
+    sql_print_error("%s", *error);
     DBUG_RETURN(NULL);
 #endif
   }
@@ -4355,15 +4355,15 @@ compare_errors:
         !ignored_error_code(expected_error))
     {
       rli->report(ERROR_LEVEL, 0, rgi->gtid_info(),
-                      "Query caused different errors on master and slave.     "
-                      "Error on master: message (format)='%s' error code=%d ; "
-                      "Error on slave: actual message='%s', error code=%d. "
-                      "Default database: '%s'. Query: '%s'",
-                      ER_SAFE(expected_error),
-                      expected_error,
-                      actual_error ? thd->get_stmt_da()->message() : "no error",
-                      actual_error,
-                      print_slave_db_safe(db), query_arg);
+                  "Query caused different errors on master and slave.     "
+                  "Error on master: message (format)='%s' error code=%d ; "
+                  "Error on slave: actual message='%s', error code=%d. "
+                  "Default database: '%s'. Query: '%s'",
+                  ER_SAFE_THD(thd, expected_error),
+                  expected_error,
+                  actual_error ? thd->get_stmt_da()->message() : "no error",
+                  actual_error,
+                  print_slave_db_safe(db), query_arg);
       thd->is_slave_error= 1;
     }
     /*
@@ -6006,7 +6006,7 @@ error:
     else
     {
       sql_errno=ER_UNKNOWN_ERROR;
-      err=ER(sql_errno);       
+      err= ER_THD(thd, sql_errno);
     }
     rli->report(ERROR_LEVEL, sql_errno, rgi->gtid_info(), "\
 Error '%s' running LOAD DATA INFILE on table '%s'. Default database: '%s'",
@@ -6026,7 +6026,7 @@ Error '%s' running LOAD DATA INFILE on table '%s'. Default database: '%s'",
                 print_slave_db_safe(remember_db));
 
     rli->report(ERROR_LEVEL, ER_SLAVE_FATAL_ERROR, rgi->gtid_info(),
-                ER(ER_SLAVE_FATAL_ERROR), buf);
+                ER_THD(thd, ER_SLAVE_FATAL_ERROR), buf);
     DBUG_RETURN(1);
   }
 
@@ -9090,7 +9090,7 @@ Execute_load_query_log_event::do_apply_event(rpl_group_info *rgi)
   if (buf == NULL)
   {
     rli->report(ERROR_LEVEL, ER_SLAVE_FATAL_ERROR, rgi->gtid_info(),
-                ER(ER_SLAVE_FATAL_ERROR), "Not enough memory");
+                ER_THD(rgi->thd, ER_SLAVE_FATAL_ERROR), "Not enough memory");
     return 1;
   }
 
@@ -10986,13 +10986,14 @@ int Table_map_log_event::do_apply_event(rpl_group_info *rgi)
 
       if (thd->slave_thread)
         rli->report(ERROR_LEVEL, ER_SLAVE_FATAL_ERROR, rgi->gtid_info(),
-                    ER(ER_SLAVE_FATAL_ERROR), buf);
+                    ER_THD(thd, ER_SLAVE_FATAL_ERROR), buf);
       else
         /* 
           For the cases in which a 'BINLOG' statement is set to 
           execute in a user session 
          */
-        my_printf_error(ER_SLAVE_FATAL_ERROR, ER(ER_SLAVE_FATAL_ERROR), 
+        my_printf_error(ER_SLAVE_FATAL_ERROR,
+                        ER_THD(thd, ER_SLAVE_FATAL_ERROR), 
                         MYF(0), buf);
     } 
     
@@ -12622,7 +12623,7 @@ Incident_log_event::do_apply_event(rpl_group_info *rgi)
   }
 
   rli->report(ERROR_LEVEL, ER_SLAVE_INCIDENT, NULL,
-              ER(ER_SLAVE_INCIDENT),
+              ER_THD(rgi->thd, ER_SLAVE_INCIDENT),
               description(),
               m_message.length > 0 ? m_message.str : "<none>");
   DBUG_RETURN(1);

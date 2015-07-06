@@ -540,7 +540,7 @@ check_routine_name(LEX_STRING *ident)
     my_error(ER_SP_WRONG_NAME, MYF(0), ident->str);
     return TRUE;
   }
-  if (check_string_char_length(ident, "", NAME_CHAR_LEN,
+  if (check_string_char_length(ident, 0, NAME_CHAR_LEN,
                                system_charset_info, 1))
   {
     my_error(ER_TOO_LONG_IDENT, MYF(0), ident->str);
@@ -3851,7 +3851,7 @@ sp_instr_error::execute(THD *thd, uint *nextp)
 {
   DBUG_ENTER("sp_instr_error::execute");
 
-  my_message(m_errcode, ER(m_errcode), MYF(0));
+  my_message(m_errcode, ER_THD(thd, m_errcode), MYF(0));
   *nextp= m_ip+1;
   DBUG_RETURN(-1);
 }

@@ -426,7 +426,8 @@ static bool extract_date_time(DATE_TIME_FORMAT *format,
     {
       if (!my_isspace(&my_charset_latin1,*val))
       {
-	make_truncated_value_warning(current_thd, Sql_condition::WARN_LEVEL_WARN,
+	make_truncated_value_warning(current_thd,
+                                     Sql_condition::WARN_LEVEL_WARN,
                                      val_begin, length,
 				     cached_timestamp_type, NullS);
 	break;
@@ -437,10 +438,12 @@ static bool extract_date_time(DATE_TIME_FORMAT *format,
 
 err:
   {
+    THD *thd= current_thd;
     char buff[128];
     strmake(buff, val_begin, MY_MIN(length, sizeof(buff)-1));
-    push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
-                        ER_WRONG_VALUE_FOR_TYPE, ER(ER_WRONG_VALUE_FOR_TYPE),
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                        ER_WRONG_VALUE_FOR_TYPE,
+                        ER_THD(thd, ER_WRONG_VALUE_FOR_TYPE),
                         date_time_type, buff, "str_to_date");
   }
   DBUG_RETURN(1);
@@ -1299,10 +1302,11 @@ bool get_interval_value(Item *args,interval_type int_type, INTERVAL *interval)
     interval->neg= my_decimal2seconds(val, &second, &second_part);
     if (second == LONGLONG_MAX)
     {
+      THD *thd= current_thd;
       ErrConvDecimal err(val);
-      push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
+      push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                           ER_TRUNCATED_WRONG_VALUE,
-                          ER(ER_TRUNCATED_WRONG_VALUE), "DECIMAL",
+                          ER_THD(thd, ER_TRUNCATED_WRONG_VALUE), "DECIMAL",
                           err.ptr());
       return true;
     }
@@ -2361,14 +2365,15 @@ void Item_char_typecast::check_truncation_with_warn(String *src, uint dstlen)
 {
   if (dstlen < src->length())
   {
+    THD *thd= current_thd;
     char char_type[40];
+    ErrConvString err(src);
     my_snprintf(char_type, sizeof(char_type), "%s(%lu)",
                 cast_cs == &my_charset_bin ? "BINARY" : "CHAR",
                 (ulong) cast_length);
-    ErrConvString err(src);
-    push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                         ER_TRUNCATED_WRONG_VALUE,
-                        ER(ER_TRUNCATED_WRONG_VALUE), char_type,
+                        ER_THD(thd, ER_TRUNCATED_WRONG_VALUE), char_type,
                         err.ptr());
   }
 }
@@ -2404,13 +2409,15 @@ uint Item_char_typecast::adjusted_length_with_warn(uint length)
 {
   if (length <= current_thd->variables.max_allowed_packet)
     return length;
-  push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
+
+  THD *thd= current_thd;
+  push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                       ER_WARN_ALLOWED_PACKET_OVERFLOWED,
-                      ER(ER_WARN_ALLOWED_PACKET_OVERFLOWED),
+                      ER_THD(thd, ER_WARN_ALLOWED_PACKET_OVERFLOWED),
                       cast_cs == &my_charset_bin ?
                       "cast_as_binary" : func_name(),
-                      current_thd->variables.max_allowed_packet);
-  return current_thd->variables.max_allowed_packet;
+                      thd->variables.max_allowed_packet);
+  return thd->variables.max_allowed_packet;
 }
 
 

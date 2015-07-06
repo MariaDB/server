@@ -908,10 +908,11 @@ String *Item_func_spatial_collection::val_str(String *str)
   }
   if (str->length() > current_thd->variables.max_allowed_packet)
   {
-    push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
+    THD *thd= current_thd;
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
 			ER_WARN_ALLOWED_PACKET_OVERFLOWED,
-			ER(ER_WARN_ALLOWED_PACKET_OVERFLOWED),
-			func_name(), current_thd->variables.max_allowed_packet);
+			ER_THD(thd, ER_WARN_ALLOWED_PACKET_OVERFLOWED),
+			func_name(), thd->variables.max_allowed_packet);
     goto err;
   }
 

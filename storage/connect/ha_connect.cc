@@ -1095,7 +1095,7 @@ bool GetBooleanTableOption(PGLOBAL g, PTOS options, char *opname, bool bdef)
 /****************************************************************************/
 int GetIntegerTableOption(PGLOBAL g, PTOS options, char *opname, int idef)
 {
-  ulonglong opval= NO_IVAL;
+  longlong opval= NO_IVAL;
 
   if (!options)
     return idef;
@@ -5005,7 +5005,7 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
   char       *nsp= NULL, *cls= NULL;
 #endif   // __WIN__
   int         port= 0, hdr= 0, mxr= 0, mxe= 0, rc= 0;
-  int         cop __attribute__((unused))= 0, lrecl= 0;
+  int         cop __attribute__((unused))= 0;
 #if defined(ODBC_SUPPORT)
   POPARM      sop = NULL;
   char       *ucnc = NULL;
@@ -5051,7 +5051,6 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
   hdr= (int)topt->header;
   tbl= topt->tablist;
   col= topt->colist;
-  lrecl= (int)topt->lrecl;
 
   if (topt->oplist) {
     host= GetListOption(g, "host", topt->oplist, "localhost");

@@ -2868,21 +2868,21 @@ public:
     return false;
   }
   // Add a key as a part of CREATE TABLE or ALTER TABLE
-  bool add_key(Key::Keytype type, const LEX_STRING &name,
+  bool add_key(Key::Keytype key_type, const LEX_STRING &key_name,
                ha_key_alg algorithm, DDL_options_st ddl)
   {
     if (check_add_key(ddl) ||
-        !(last_key= new Key(type, name, algorithm, false, ddl)))
+        !(last_key= new Key(key_type, key_name, algorithm, false, ddl)))
       return true;
     alter_info.key_list.push_back(last_key);
     return false;
   }
   // Add a key for a CREATE INDEX statement
-  bool add_create_index(Key::Keytype type, const LEX_STRING &name,
+  bool add_create_index(Key::Keytype key_type, const LEX_STRING &key_name,
                         ha_key_alg algorithm, DDL_options_st ddl)
   {
     if (check_create_options(ddl) ||
-       !(last_key= new Key(type, name, algorithm, false, ddl)))
+       !(last_key= new Key(key_type, key_name, algorithm, false, ddl)))
       return true;
     alter_info.key_list.push_back(last_key);
     return false;

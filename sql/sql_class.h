@@ -1786,7 +1786,7 @@ struct wait_for_commit
       return wakeup_error;
     }
   }
-  void wakeup_subsequent_commits(int wakeup_error)
+  void wakeup_subsequent_commits(int wakeup_error_arg)
   {
     /*
       Do the check inline, so only the wakeup case takes the cost of a function
@@ -1801,7 +1801,7 @@ struct wait_for_commit
       prevent a waiter from arriving just after releasing the lock.
     */
     if (subsequent_commits_list)
-      wakeup_subsequent_commits2(wakeup_error);
+      wakeup_subsequent_commits2(wakeup_error_arg);
   }
   void unregister_wait_for_prior_commit()
   {
@@ -3377,7 +3377,7 @@ public:
   {
     int err= killed_errno();
     if (err)
-      my_message(err, ER(err), MYF(0));
+      my_message(err, ER_THD(this, err), MYF(0));
   }
   /* return TRUE if we will abort query if we make a warning now */
   inline bool really_abort_on_warning()
@@ -4617,9 +4617,10 @@ private:
 public:
   /* Number of rows in the union */
   ha_rows send_records; 
-  select_union_direct(THD *thd_arg, select_result *result,
-                      SELECT_LEX *last_select_lex):
-    select_union(thd_arg), result(result), last_select_lex(last_select_lex),
+  select_union_direct(THD *thd_arg, select_result *result_arg,
+                      SELECT_LEX *last_select_lex_arg):
+  select_union(thd_arg), result(result_arg),
+    last_select_lex(last_select_lex_arg),
     done_send_result_set_metadata(false), done_initialize_tables(false),
     limit_found_rows(0)
     { send_records= 0; }

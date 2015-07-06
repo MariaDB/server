@@ -150,7 +150,7 @@ View_creation_ctx * View_creation_ctx::create(THD *thd,
   {
     push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
                         ER_VIEW_NO_CREATION_CTX,
-                        ER(ER_VIEW_NO_CREATION_CTX),
+                        ER_THD(thd, ER_VIEW_NO_CREATION_CTX),
                         (const char *) view->db,
                         (const char *) view->table_name);
 
@@ -184,7 +184,7 @@ View_creation_ctx * View_creation_ctx::create(THD *thd,
 
     push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
                         ER_VIEW_INVALID_CREATION_CTX,
-                        ER(ER_VIEW_INVALID_CREATION_CTX),
+                        ER_THD(thd, ER_VIEW_INVALID_CREATION_CTX),
                         (const char *) view->db,
                         (const char *) view->table_name);
   }
@@ -2740,8 +2740,8 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
             We are using only a prefix of the column as a key:
             Create a new field for the key part that matches the index
           */
-          field= key_part->field=field->new_field(&outparam->mem_root,
-                                                  outparam, 0);
+          field= key_part->field=field->make_new_field(&outparam->mem_root,
+                                                       outparam, 0);
           field->field_length= key_part->length;
         }
       }
@@ -3694,13 +3694,14 @@ Table_check_intact::check(TABLE *table, const TABLE_FIELD_DEF *table_def)
 
   if (table->s->fields != table_def->count)
   {
+    THD *thd= current_thd;
     DBUG_PRINT("info", ("Column count has changed, checking the definition"));
 
     /* previous MySQL version */
     if (MYSQL_VERSION_ID > table->s->mysql_version)
     {
       report_error(ER_COL_COUNT_DOESNT_MATCH_PLEASE_UPDATE,
-                   ER(ER_COL_COUNT_DOESNT_MATCH_PLEASE_UPDATE),
+                   ER_THD(thd, ER_COL_COUNT_DOESNT_MATCH_PLEASE_UPDATE),
                    table->alias.c_ptr(), table_def->count, table->s->fields,
                    static_cast<int>(table->s->mysql_version),
                    MYSQL_VERSION_ID);
@@ -3709,7 +3710,7 @@ Table_check_intact::check(TABLE *table, const TABLE_FIELD_DEF *table_def)
     else if (MYSQL_VERSION_ID == table->s->mysql_version)
     {
       report_error(ER_COL_COUNT_DOESNT_MATCH_CORRUPTED_V2,
-                   ER(ER_COL_COUNT_DOESNT_MATCH_CORRUPTED_V2),
+                   ER_THD(thd, ER_COL_COUNT_DOESNT_MATCH_CORRUPTED_V2),
                    table->s->db.str, table->s->table_name.str,
                    table_def->count, table->s->fields);
       DBUG_RETURN(TRUE);
@@ -4680,7 +4681,8 @@ int TABLE_LIST::view_check_option(THD *thd, bool ignore_failure)
     if (ignore_failure)
     {
       push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-                          ER_VIEW_CHECK_FAILED, ER(ER_VIEW_CHECK_FAILED),
+                          ER_VIEW_CHECK_FAILED,
+                          ER_THD(thd, ER_VIEW_CHECK_FAILED),
                           main_view->view_db.str, main_view->view_name.str);
       return(VIEW_CHECK_SKIP);
     }
@@ -4976,7 +4978,7 @@ bool TABLE_LIST::prepare_view_security_context(THD *thd)
       {
         push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE, 
                             ER_NO_SUCH_USER, 
-                            ER(ER_NO_SUCH_USER),
+                            ER_THD(thd, ER_NO_SUCH_USER),
                             definer.user.str, definer.host.str);
       }
       else
@@ -4996,7 +4998,8 @@ bool TABLE_LIST::prepare_view_security_context(THD *thd)
             my_error(ER_ACCESS_DENIED_ERROR, MYF(0),
                      thd->security_ctx->priv_user,
                      thd->security_ctx->priv_host,
-                     (thd->password ?  ER(ER_YES) : ER(ER_NO)));
+                     (thd->password ?  ER_THD(thd, ER_YES) :
+                      ER_THD(thd, ER_NO)));
         }
         DBUG_RETURN(TRUE);
       }

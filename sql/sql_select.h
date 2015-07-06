@@ -1049,7 +1049,7 @@ public:
   table_map outer_join;
   /* Bitmap of tables used in the select list items */
   table_map select_list_used_tables;
-  ha_rows  send_records,found_records,examined_rows;
+  ha_rows  send_records,found_records,join_examined_rows;
 
   /*
     LIMIT for the JOIN operation. When not using aggregation or DISITNCT, this 
@@ -1122,7 +1122,7 @@ public:
     reexecutions. This value is equal to the multiplication of all
     join->positions[i].records_read of a JOIN.
   */
-  double   record_count;
+  double   join_record_count;
   List<Item> *fields;
   List<Cached_item> group_fields, group_fields_cache;
   TABLE    *tmp_table;
@@ -1337,7 +1337,7 @@ public:
     send_records= 0;
     found_records= 0;
     fetch_limit= HA_POS_ERROR;
-    examined_rows= 0;
+    join_examined_rows= 0;
     exec_tmp_table1= 0;
     exec_tmp_table2= 0;
     sortorder= 0;

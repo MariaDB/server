@@ -1105,7 +1105,8 @@ Item_singlerow_subselect::select_transformer(JOIN *join)
     if (thd->lex->describe)
     {
       char warn_buff[MYSQL_ERRMSG_SIZE];
-      sprintf(warn_buff, ER(ER_SELECT_REDUCED), select_lex->select_number);
+      sprintf(warn_buff, ER_THD(thd, ER_SELECT_REDUCED),
+              select_lex->select_number);
       push_warning(thd, Sql_condition::WARN_LEVEL_NOTE,
 		   ER_SELECT_REDUCED, warn_buff);
     }
@@ -1193,14 +1194,16 @@ void Item_singlerow_subselect::fix_length_and_dec()
 
 Item* Item_singlerow_subselect::expr_cache_insert_transformer(uchar *thd_arg)
 {
-  THD *thd= (THD*) thd_arg;
+  THD *tmp_thd= (THD*) thd_arg;
   DBUG_ENTER("Item_singlerow_subselect::expr_cache_insert_transformer");
+
+  DBUG_ASSERT(thd == tmp_thd);
 
   if (expr_cache)
     DBUG_RETURN(expr_cache);
 
-  if (expr_cache_is_needed(thd) &&
-      (expr_cache= set_expr_cache(thd)))
+  if (expr_cache_is_needed(tmp_thd) &&
+      (expr_cache= set_expr_cache(tmp_thd)))
     DBUG_RETURN(expr_cache);
   DBUG_RETURN(this);
 }
@@ -1489,14 +1492,15 @@ void Item_in_subselect::fix_length_and_dec()
 
 Item* Item_exists_subselect::expr_cache_insert_transformer(uchar *thd_arg)
 {
-  THD *thd= (THD*) thd_arg;
+  THD *tmp_thd= (THD*) thd_arg;
   DBUG_ENTER("Item_exists_subselect::expr_cache_insert_transformer");
+  DBUG_ASSERT(thd == tmp_thd);
 
   if (expr_cache)
     DBUG_RETURN(expr_cache);
 
-  if (substype() == EXISTS_SUBS && expr_cache_is_needed(thd) &&
-      (expr_cache= set_expr_cache(thd)))
+  if (substype() == EXISTS_SUBS && expr_cache_is_needed(tmp_thd) &&
+      (expr_cache= set_expr_cache(tmp_thd)))
     DBUG_RETURN(expr_cache);
   DBUG_RETURN(this);
 }
@@ -1784,7 +1788,8 @@ Item_in_subselect::single_value_transformer(JOIN *join)
     if (thd->lex->describe)
     {
       char warn_buff[MYSQL_ERRMSG_SIZE];
-      sprintf(warn_buff, ER(ER_SELECT_REDUCED), select_lex->select_number);
+      sprintf(warn_buff, ER_THD(thd, ER_SELECT_REDUCED),
+              select_lex->select_number);
       push_warning(thd, Sql_condition::WARN_LEVEL_NOTE,
                    ER_SELECT_REDUCED, warn_buff);
     }
@@ -4581,7 +4586,7 @@ subselect_hash_sj_engine::get_strategy_using_data()
 void
 subselect_hash_sj_engine::choose_partial_match_strategy(
   bool has_non_null_key, bool has_covering_null_row,
-  MY_BITMAP *partial_match_key_parts)
+  MY_BITMAP *partial_match_key_parts_arg)
 {
   ulonglong pm_buff_size;
 
@@ -4632,7 +4637,7 @@ subselect_hash_sj_engine::choose_partial_match_strategy(
   {
     pm_buff_size= rowid_merge_buff_size(has_non_null_key,
                                         has_covering_null_row,
-                                        partial_match_key_parts);
+                                        partial_match_key_parts_arg);
     if (pm_buff_size > thd->variables.rowid_merge_buff_size)
       strategy= PARTIAL_MATCH_SCAN;
   }

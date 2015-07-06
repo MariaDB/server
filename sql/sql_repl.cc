@@ -559,7 +559,7 @@ bool purge_error_message(THD* thd, int res)
 
   if ((errcode= purge_log_get_error_code(res)) != 0)
   {
-    my_message(errcode, ER(errcode), MYF(0));
+    my_message(errcode, ER_THD(thd, errcode), MYF(0));
     return TRUE;
   }
   my_ok(thd);
@@ -3099,14 +3099,15 @@ int start_slave(THD* thd , Master_info* mi,  bool net_report)
           if (!opt_skip_slave_start)
             push_warning(thd, Sql_condition::WARN_LEVEL_NOTE,
                          ER_MISSING_SKIP_SLAVE,
-                         ER(ER_MISSING_SKIP_SLAVE));
+                         ER_THD(thd, ER_MISSING_SKIP_SLAVE));
         }
 
         mysql_mutex_unlock(&mi->rli.data_lock);
       }
       else if (thd->lex->mi.pos || thd->lex->mi.relay_log_pos)
-        push_warning(thd, Sql_condition::WARN_LEVEL_NOTE, ER_UNTIL_COND_IGNORED,
-                     ER(ER_UNTIL_COND_IGNORED));
+        push_warning(thd,
+                     Sql_condition::WARN_LEVEL_NOTE, ER_UNTIL_COND_IGNORED,
+                     ER_THD(thd, ER_UNTIL_COND_IGNORED));
 
       if (!slave_errno)
         slave_errno = start_slave_threads(0 /*no mutex */,
@@ -3123,7 +3124,7 @@ int start_slave(THD* thd , Master_info* mi,  bool net_report)
   {
     /* no error if all threads are already started, only a warning */
     push_warning(thd, Sql_condition::WARN_LEVEL_NOTE, ER_SLAVE_WAS_RUNNING,
-                 ER(ER_SLAVE_WAS_RUNNING));
+                 ER_THD(thd, ER_SLAVE_WAS_RUNNING));
   }
 
 err:
@@ -3190,14 +3191,14 @@ int stop_slave(THD* thd, Master_info* mi, bool net_report )
     //no error if both threads are already stopped, only a warning
     slave_errno= 0;
     push_warning(thd, Sql_condition::WARN_LEVEL_NOTE, ER_SLAVE_WAS_NOT_RUNNING,
-                 ER(ER_SLAVE_WAS_NOT_RUNNING));
+                 ER_THD(thd, ER_SLAVE_WAS_NOT_RUNNING));
   }
   unlock_slave_threads(mi);
 
   if (slave_errno)
   {
     if (net_report)
-      my_message(slave_errno, ER(slave_errno), MYF(0));
+      my_message(slave_errno, ER_THD(thd, slave_errno), MYF(0));
     DBUG_RETURN(1);
   }
 
@@ -3590,7 +3591,8 @@ bool change_master(THD* thd, Master_info* mi, bool *master_info_added)
       lex_mi->ssl_cert || lex_mi->ssl_cipher || lex_mi->ssl_key ||
       lex_mi->ssl_verify_server_cert || lex_mi->ssl_crl || lex_mi->ssl_crlpath)
     push_warning(thd, Sql_condition::WARN_LEVEL_NOTE,
-                 ER_SLAVE_IGNORED_SSL_PARAMS, ER(ER_SLAVE_IGNORED_SSL_PARAMS));
+                 ER_SLAVE_IGNORED_SSL_PARAMS,
+                 ER_THD(thd, ER_SLAVE_IGNORED_SSL_PARAMS));
 #endif
 
   if (lex_mi->relay_log_name)
@@ -3775,7 +3777,8 @@ int reset_master(THD* thd, rpl_gtid *init_state, uint32 init_state_len)
   if (!mysql_bin_log.is_open())
   {
     my_message(ER_FLUSH_MASTER_BINLOG_CLOSED,
-               ER(ER_FLUSH_MASTER_BINLOG_CLOSED), MYF(ME_BELL+ME_WAITTANG));
+               ER_THD(thd, ER_FLUSH_MASTER_BINLOG_CLOSED),
+               MYF(ME_BELL+ME_WAITTANG));
     return 1;
   }
 
@@ -4313,7 +4316,7 @@ rpl_gtid_pos_check(THD *thd, char *str, size_t len)
         {
           push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                               ER_MASTER_GTID_POS_MISSING_DOMAIN,
-                              ER(ER_MASTER_GTID_POS_MISSING_DOMAIN),
+                              ER_THD(thd, ER_MASTER_GTID_POS_MISSING_DOMAIN),
                               binlog_gtid->domain_id, binlog_gtid->domain_id,
                               binlog_gtid->server_id, binlog_gtid->seq_no);
           gave_missing_warning= true;
@@ -4333,7 +4336,7 @@ rpl_gtid_pos_check(THD *thd, char *str, size_t len)
         {
           push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                               ER_MASTER_GTID_POS_CONFLICTS_WITH_BINLOG,
-                              ER(ER_MASTER_GTID_POS_CONFLICTS_WITH_BINLOG),
+                              ER_THD(thd, ER_MASTER_GTID_POS_CONFLICTS_WITH_BINLOG),
                               slave_gtid->domain_id, slave_gtid->server_id,
                               slave_gtid->seq_no, binlog_gtid->domain_id,
                               binlog_gtid->server_id, binlog_gtid->seq_no);

@@ -533,7 +533,7 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
 
     if (lex->view_list.elements != select_lex->item_list.elements)
     {
-      my_message(ER_VIEW_WRONG_LIST, ER(ER_VIEW_WRONG_LIST), MYF(0));
+      my_message(ER_VIEW_WRONG_LIST, ER_THD(thd, ER_VIEW_WRONG_LIST), MYF(0));
       res= TRUE;
       goto err;
     }
@@ -939,7 +939,7 @@ static int mysql_register_view(THD *thd, TABLE_LIST *view,
       !lex->can_be_merged())
   {
     push_warning(thd, Sql_condition::WARN_LEVEL_WARN, ER_WARN_VIEW_MERGE,
-                 ER(ER_WARN_VIEW_MERGE));
+                 ER_THD(thd, ER_WARN_VIEW_MERGE));
     lex->create_view_algorithm= DTYPE_ALGORITHM_UNDEFINED;
   }
   view->algorithm= lex->create_view_algorithm;
@@ -1002,7 +1002,8 @@ loop_out:
       if (lex->create_info.if_not_exists())
       {
         push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
-                            ER_TABLE_EXISTS_ERROR, ER(ER_TABLE_EXISTS_ERROR),
+                            ER_TABLE_EXISTS_ERROR,
+                            ER_THD(thd, ER_TABLE_EXISTS_ERROR),
                             view->table_name);
         DBUG_RETURN(0);
       }
@@ -1232,7 +1233,7 @@ bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *table,
                 !table->definer.user.length &&
                 !table->definer.host.length);
     push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-                        ER_VIEW_FRM_NO_USER, ER(ER_VIEW_FRM_NO_USER),
+                        ER_VIEW_FRM_NO_USER, ER_THD(thd, ER_VIEW_FRM_NO_USER),
                         table->db, table->table_name);
     get_default_definer(thd, &table->definer, false);
   }
@@ -1413,7 +1414,8 @@ bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *table,
           check_table_access(thd, SHOW_VIEW_ACL, &view_no_suid,
                              FALSE, UINT_MAX, TRUE))
       {
-        my_message(ER_VIEW_NO_EXPLAIN, ER(ER_VIEW_NO_EXPLAIN), MYF(0));
+        my_message(ER_VIEW_NO_EXPLAIN, ER_THD(thd, ER_VIEW_NO_EXPLAIN),
+                   MYF(0));
         goto err;
       }
     }
@@ -1644,7 +1646,7 @@ bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *table,
         {
           push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
                               ER_VIEW_ORDERBY_IGNORED,
-                              ER(ER_VIEW_ORDERBY_IGNORED),
+                              ER_THD(thd, ER_VIEW_ORDERBY_IGNORED),
                               table->db, table->table_name);
         }
       }
@@ -1757,7 +1759,8 @@ bool mysql_drop_view(THD *thd, TABLE_LIST *views, enum_drop_mode drop_mode)
       if (thd->lex->if_exists())
       {
 	push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
-			    ER_BAD_TABLE_ERROR, ER(ER_BAD_TABLE_ERROR),
+			    ER_BAD_TABLE_ERROR,
+                            ER_THD(thd, ER_BAD_TABLE_ERROR),
 			    name);
 	continue;
       }
@@ -1937,7 +1940,8 @@ bool check_key_in_view(THD *thd, TABLE_LIST *view)
         {
           /* update allowed, but issue warning */
           push_warning(thd, Sql_condition::WARN_LEVEL_NOTE,
-                       ER_WARN_VIEW_WITHOUT_KEY, ER(ER_WARN_VIEW_WITHOUT_KEY));
+                       ER_WARN_VIEW_WITHOUT_KEY,
+                       ER_THD(thd, ER_WARN_VIEW_WITHOUT_KEY));
           DBUG_RETURN(FALSE);
         }
         /* prohibit update */

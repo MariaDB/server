@@ -2854,14 +2854,15 @@ bool Item_xml_str_func::XML::parse()
   /* Execute XML parser */
   if ((rc= my_xml_parse(&p, m_raw_ptr->ptr(), m_raw_ptr->length())) != MY_XML_OK)
   {
+    THD *thd= current_thd;
     char buf[128];
     my_snprintf(buf, sizeof(buf)-1, "parse error at line %d pos %lu: %s",
                 my_xml_error_lineno(&p) + 1,
                 (ulong) my_xml_error_pos(&p) + 1,
                 my_xml_error_string(&p));
-    push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                         ER_WRONG_VALUE,
-                        ER(ER_WRONG_VALUE), "XML", buf);
+                        ER_THD(thd, ER_WRONG_VALUE), "XML", buf);
     m_raw_ptr= (String *) 0;
   }
   my_xml_parser_free(&p);

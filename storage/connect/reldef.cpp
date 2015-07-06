@@ -47,6 +47,7 @@
 #include "valblk.h"
 #include "tabmul.h"
 #include "ha_connect.h"
+#include "mycat.h"
 
 #if !defined(__WIN__)
 extern handlerton *connect_hton;
@@ -56,7 +57,6 @@ extern handlerton *connect_hton;
 /*  External function.                                                 */
 /***********************************************************************/
 USETEMP UseTemp(void);
-char   *GetPluginDir(void);
 
 /* --------------------------- Class RELDEF -------------------------- */
 

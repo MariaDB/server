@@ -1572,11 +1572,13 @@ static void warn_if_dir_in_part_elem(THD *thd, partition_element *part_elem)
   {
     if (part_elem->data_file_name)
       push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-                          WARN_OPTION_IGNORED, ER(WARN_OPTION_IGNORED),
+                          WARN_OPTION_IGNORED,
+                          ER_THD(thd, WARN_OPTION_IGNORED),
                           "DATA DIRECTORY");
     if (part_elem->index_file_name)
       push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-                          WARN_OPTION_IGNORED, ER(WARN_OPTION_IGNORED),
+                          WARN_OPTION_IGNORED,
+                          ER_THD(thd, WARN_OPTION_IGNORED),
                           "INDEX DIRECTORY");
     part_elem->data_file_name= part_elem->index_file_name= NULL;
   }
@@ -1849,16 +1851,17 @@ void partition_info::print_no_partition_found(TABLE *table_arg, myf errflag)
   char buf[100];
   char *buf_ptr= (char*)&buf;
   TABLE_LIST table_list;
+  THD *thd= current_thd;
 
   bzero(&table_list, sizeof(table_list));
   table_list.db= table_arg->s->db.str;
   table_list.table_name= table_arg->s->table_name.str;
 
-  if (check_single_table_access(current_thd,
+  if (check_single_table_access(thd,
                                 SELECT_ACL, &table_list, TRUE))
   {
     my_message(ER_NO_PARTITION_FOR_GIVEN_VALUE,
-               ER(ER_NO_PARTITION_FOR_GIVEN_VALUE_SILENT), errflag);
+               ER_THD(thd, ER_NO_PARTITION_FOR_GIVEN_VALUE_SILENT), errflag);
   }
   else
   {

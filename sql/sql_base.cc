@@ -4297,7 +4297,8 @@ lock_table_names(THD *thd, const DDL_options_st &options,
       if (options.if_not_exists())
       {
         push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
-                            ER_TABLE_EXISTS_ERROR, ER(ER_TABLE_EXISTS_ERROR),
+                            ER_TABLE_EXISTS_ERROR,
+                            ER_THD(thd, ER_TABLE_EXISTS_ERROR),
                             tables_start->table_name);
       }
       else
@@ -8713,7 +8714,7 @@ err_no_arena:
 */
 
 bool
-fill_record(THD * thd, TABLE *table_arg, List<Item> &fields, List<Item> &values,
+fill_record(THD *thd, TABLE *table_arg, List<Item> &fields, List<Item> &values,
             bool ignore_errors)
 {
   List_iterator_fast<Item> f(fields),v(values);
@@ -8767,13 +8768,13 @@ fill_record(THD * thd, TABLE *table_arg, List<Item> &fields, List<Item> &values,
     {
       push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                           ER_WARNING_NON_DEFAULT_VALUE_FOR_VIRTUAL_COLUMN,
-                          ER(ER_WARNING_NON_DEFAULT_VALUE_FOR_VIRTUAL_COLUMN),
+                          ER_THD(thd, ER_WARNING_NON_DEFAULT_VALUE_FOR_VIRTUAL_COLUMN),
                           rfield->field_name, table->s->table_name.str);
     }
     if ((!rfield->vcol_info || rfield->stored_in_db) && 
         (value->save_in_field(rfield, 0)) < 0 && !ignore_errors)
     {
-      my_message(ER_UNKNOWN_ERROR, ER(ER_UNKNOWN_ERROR), MYF(0));
+      my_message(ER_UNKNOWN_ERROR, ER_THD(thd, ER_UNKNOWN_ERROR), MYF(0));
       goto err;
     }
     rfield->set_explicit_default(value);
@@ -8919,7 +8920,7 @@ fill_record(THD *thd, TABLE *table, Field **ptr, List<Item> &values,
     {
       push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                           ER_WARNING_NON_DEFAULT_VALUE_FOR_VIRTUAL_COLUMN,
-                          ER(ER_WARNING_NON_DEFAULT_VALUE_FOR_VIRTUAL_COLUMN),
+                          ER_THD(thd, ER_WARNING_NON_DEFAULT_VALUE_FOR_VIRTUAL_COLUMN),
                           field->field_name, table->s->table_name.str);
     }
 

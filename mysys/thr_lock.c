@@ -345,15 +345,14 @@ static void check_locks(THR_LOCK *lock, const char *where,
 		    "Warning at '%s': Write lock %d waiting while no exclusive read locks\n",where,(int) lock->write_wait.data->type);
             DBUG_PRINT("warning", ("Warning at '%s': Write lock %d waiting while no exclusive read locks",where,(int) lock->write_wait.data->type));
 	  }
-	}	      
+        }
       }
       else
       {
         /* We have at least one write lock */
         if (lock->write.data->type == TL_WRITE_CONCURRENT_INSERT)
         {
-          THR_LOCK_DATA *data;
-          uint count= 0;
+          count= 0;
           for (data=lock->write.data->next;
                data && count < MAX_LOCKS;
                data=data->next)
@@ -386,7 +385,6 @@ static void check_locks(THR_LOCK *lock, const char *where,
 	}
 	if (lock->read.data)
 	{
-          THR_LOCK_DATA *data;
           for (data=lock->read.data ; data ; data=data->next)
           {
             if (!thr_lock_owner_equal(lock->write.data->owner,

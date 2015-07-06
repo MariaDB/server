@@ -168,7 +168,7 @@ public:
   class Iterator : public Table_map_iterator
   {
   public:
-    Iterator(Bitmap<64> &bmp) : Table_map_iterator(bmp.map) {}
+    Iterator(Bitmap<64> &map2) : Table_map_iterator(map2.map) {}
   };
   uint bits_set()
   {

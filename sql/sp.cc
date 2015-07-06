@@ -317,7 +317,7 @@ Stored_routine_creation_ctx::load_from_db(THD *thd,
     push_warning_printf(thd,
                         Sql_condition::WARN_LEVEL_WARN,
                         ER_SR_INVALID_CREATION_CTX,
-                        ER(ER_SR_INVALID_CREATION_CTX),
+                        ER_THD(thd, ER_SR_INVALID_CREATION_CTX),
                         (const char *) db_name,
                         (const char *) sr_name);
   }
@@ -1063,10 +1063,11 @@ sp_create_routine(THD *thd, stored_procedure_type type, sp_head *sp)
       else if (lex->create_info.if_not_exists())
       {
         push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
-                              ER_SP_ALREADY_EXISTS, ER(ER_SP_ALREADY_EXISTS),
-                              type == TYPE_ENUM_FUNCTION ?
-                               "FUNCTION" : "PROCEDURE",
-                              lex->spname->m_name.str);
+                            ER_SP_ALREADY_EXISTS,
+                            ER_THD(thd, ER_SP_ALREADY_EXISTS),
+                            type == TYPE_ENUM_FUNCTION ?
+                            "FUNCTION" : "PROCEDURE",
+                            lex->spname->m_name.str);
 
         ret= SP_OK;
 
@@ -1193,7 +1194,7 @@ sp_create_routine(THD *thd, stored_procedure_type type, sp_head *sp)
 	    access == SP_MODIFIES_SQL_DATA)
 	{
 	  my_message(ER_BINLOG_UNSAFE_ROUTINE,
-		     ER(ER_BINLOG_UNSAFE_ROUTINE), MYF(0));
+		     ER_THD(thd, ER_BINLOG_UNSAFE_ROUTINE), MYF(0));
 	  ret= SP_INTERNAL_ERROR;
 	  goto done;
 	}
@@ -1201,7 +1202,7 @@ sp_create_routine(THD *thd, stored_procedure_type type, sp_head *sp)
       if (!(thd->security_ctx->master_access & SUPER_ACL))
       {
 	my_message(ER_BINLOG_CREATE_ROUTINE_NEED_SUPER,
-		   ER(ER_BINLOG_CREATE_ROUTINE_NEED_SUPER), MYF(0));
+		   ER_THD(thd, ER_BINLOG_CREATE_ROUTINE_NEED_SUPER), MYF(0));
 	ret= SP_INTERNAL_ERROR;
 	goto done;
       }
@@ -1401,7 +1402,7 @@ sp_update_routine(THD *thd, stored_procedure_type type, sp_name *name,
       if (!is_deterministic)
       {
         my_message(ER_BINLOG_UNSAFE_ROUTINE,
-                   ER(ER_BINLOG_UNSAFE_ROUTINE), MYF(0));
+                   ER_THD(thd, ER_BINLOG_UNSAFE_ROUTINE), MYF(0));
         ret= SP_INTERNAL_ERROR;
         goto err;
       }

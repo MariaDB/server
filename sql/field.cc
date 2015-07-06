@@ -1073,15 +1073,15 @@ static void push_numerical_conversion_warning(THD* thd, const char* str,
                                               const char* field_name="UNKNOWN",
                                               ulong row_num=0)
 {
-    char buf[MY_MAX(MY_MAX(DOUBLE_TO_STRING_CONVERSION_BUFFER_SIZE,
-      LONGLONG_TO_STRING_CONVERSION_BUFFER_SIZE), 
-      DECIMAL_TO_STRING_CONVERSION_BUFFER_SIZE)];
+  char buf[MY_MAX(MY_MAX(DOUBLE_TO_STRING_CONVERSION_BUFFER_SIZE,
+                         LONGLONG_TO_STRING_CONVERSION_BUFFER_SIZE), 
+                  DECIMAL_TO_STRING_CONVERSION_BUFFER_SIZE)];
 
-    String tmp(buf, sizeof(buf), cs);
-    tmp.copy(str, length, cs);
-    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-                        error, ER(error), typestr, tmp.c_ptr(),
-                        field_name, row_num);
+  String tmp(buf, sizeof(buf), cs);
+  tmp.copy(str, length, cs);
+  push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                      error, ER_THD(thd, error), typestr, tmp.c_ptr(),
+                      field_name, row_num);
 }
 
 
@@ -1958,8 +1958,8 @@ bool Field::optimize_range(uint idx, uint part)
 }
 
 
-Field *Field::new_field(MEM_ROOT *root, TABLE *new_table,
-                        bool keep_type __attribute__((unused)))
+Field *Field::make_new_field(MEM_ROOT *root, TABLE *new_table,
+                             bool keep_type __attribute__((unused)))
 {
   Field *tmp;
   if (!(tmp= (Field*) memdup_root(root,(char*) this,size_of())))
@@ -1988,7 +1988,7 @@ Field *Field::new_key_field(MEM_ROOT *root, TABLE *new_table,
                             uchar *new_null_ptr, uint new_null_bit)
 {
   Field *tmp;
-  if ((tmp= new_field(root, new_table, table == new_table)))
+  if ((tmp= make_new_field(root, new_table, table == new_table)))
   {
     tmp->ptr=      new_ptr;
     tmp->null_ptr= new_null_ptr;
@@ -2935,7 +2935,7 @@ int Field_new_decimal::store_decimal(const my_decimal *decimal_value)
 }
 
 
-int Field_new_decimal::store_time_dec(MYSQL_TIME *ltime, uint dec)
+int Field_new_decimal::store_time_dec(MYSQL_TIME *ltime, uint dec_arg)
 {
   my_decimal decimal_value;
   return store_value(date2my_decimal(ltime, &decimal_value));
@@ -3131,7 +3131,7 @@ Field_new_decimal::unpack(uchar* to, const uchar *from, const uchar *from_end,
   return from+len;
 }
 
-int Field_num::store_time_dec(MYSQL_TIME *ltime, uint dec)
+int Field_num::store_time_dec(MYSQL_TIME *ltime, uint dec_arg)
 {
   longlong v= TIME_to_ulonglong(ltime);
   if (ltime->neg == 0)
@@ -4396,7 +4396,7 @@ int Field_real::store_decimal(const my_decimal *dm)
   return store(dbl);
 }
 
-int Field_real::store_time_dec(MYSQL_TIME *ltime, uint dec)
+int Field_real::store_time_dec(MYSQL_TIME *ltime, uint dec_arg)
 {
   return store(TIME_to_double(ltime));
 }
@@ -4421,10 +4421,11 @@ longlong Field_double::val_int(void)
   res= double_to_longlong(j, 0, &error);
   if (error)
   {
+    THD *thd= get_thd();
     ErrConvDouble err(j);
-    push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                         ER_TRUNCATED_WRONG_VALUE,
-                        ER(ER_TRUNCATED_WRONG_VALUE), "INTEGER",
+                        ER_THD(thd, ER_TRUNCATED_WRONG_VALUE), "INTEGER",
                         err.ptr());
   }
   return res;
@@ -5495,7 +5496,7 @@ bool Field_time::check_zero_in_date_with_warn(ulonglong fuzzydate)
     THD *thd= get_thd();
     push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                         ER_WARN_DATA_OUT_OF_RANGE,
-                        ER(ER_WARN_DATA_OUT_OF_RANGE), field_name,
+                        ER_THD(thd, ER_WARN_DATA_OUT_OF_RANGE), field_name,
                         thd->get_stmt_da()->current_row_for_warning());
     return true;
   }
@@ -5760,7 +5761,7 @@ int Field_year::store(longlong nr, bool unsigned_val)
 }
 
 
-int Field_year::store_time_dec(MYSQL_TIME *ltime, uint dec)
+int Field_year::store_time_dec(MYSQL_TIME *ltime, uint dec_arg)
 {
   ErrConvTime str(ltime);
   if (Field_year::store(ltime->year, 0))
@@ -6540,17 +6541,18 @@ double Field_string::val_real(void)
   char *end;
   CHARSET_INFO *cs= charset();
   double result;
+  THD *thd= get_thd();
   
   result=  my_strntod(cs,(char*) ptr,field_length,&end,&error);
-  if (!get_thd()->no_errors &&
+  if (!thd->no_errors &&
       (error || (field_length != (uint32)(end - (char*) ptr) && 
                  !check_if_only_end_space(cs, end,
                                           (char*) ptr + field_length))))
   {
     ErrConvString err((char*) ptr, field_length, cs);
-    push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                         ER_TRUNCATED_WRONG_VALUE,
-                        ER(ER_TRUNCATED_WRONG_VALUE), "DOUBLE",
+                        ER_THD(thd, ER_TRUNCATED_WRONG_VALUE), "DOUBLE",
                         err.ptr());
   }
   return result;
@@ -6564,17 +6566,18 @@ longlong Field_string::val_int(void)
   char *end;
   CHARSET_INFO *cs= charset();
   longlong result;
+  THD *thd= get_thd();
 
   result= my_strntoll(cs, (char*) ptr,field_length,10,&end,&error);
-  if (!get_thd()->no_errors &&
+  if (!thd->no_errors &&
       (error || (field_length != (uint32)(end - (char*) ptr) && 
                  !check_if_only_end_space(cs, end,
                                           (char*) ptr + field_length))))
   {
     ErrConvString err((char*) ptr, field_length, cs);
-    push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                         ER_TRUNCATED_WRONG_VALUE, 
-                        ER(ER_TRUNCATED_WRONG_VALUE),
+                        ER_THD(thd, ER_TRUNCATED_WRONG_VALUE),
                         "INTEGER", err.ptr());
   }
   return result;
@@ -6603,14 +6606,15 @@ String *Field_string::val_str(String *val_buffer __attribute__((unused)),
 my_decimal *Field_string::val_decimal(my_decimal *decimal_value)
 {
   ASSERT_COLUMN_MARKED_FOR_READ;
+  THD *thd;
   int err= str2my_decimal(E_DEC_FATAL_ERROR, (char*) ptr, field_length,
                           charset(), decimal_value);
-  if (!get_thd()->no_errors && err)
+  if (err && !(thd= get_thd())->no_errors)
   {
     ErrConvString errmsg((char*) ptr, field_length, charset());
-    push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                         ER_TRUNCATED_WRONG_VALUE, 
-                        ER(ER_TRUNCATED_WRONG_VALUE),
+                        ER_THD(thd, ER_TRUNCATED_WRONG_VALUE),
                         "DECIMAL", errmsg.ptr());
   }
 
@@ -6877,12 +6881,12 @@ uint Field_string::get_key_image(uchar *buff, uint length, imagetype type_arg)
 }
 
 
-Field *Field_string::new_field(MEM_ROOT *root, TABLE *new_table,
-                               bool keep_type)
+Field *Field_string::make_new_field(MEM_ROOT *root, TABLE *new_table,
+                                    bool keep_type)
 {
   Field *field;
   if (type() != MYSQL_TYPE_VAR_STRING || keep_type)
-    field= Field::new_field(root, new_table, keep_type);
+    field= Field::make_new_field(root, new_table, keep_type);
   else if ((field= new Field_varstring(field_length, maybe_null(), field_name,
                                        new_table->s, charset())))
   {
@@ -6893,10 +6897,11 @@ Field *Field_string::new_field(MEM_ROOT *root, TABLE *new_table,
     */
     field->init(new_table);
     /*
-      Normally orig_table is different from table only if field was created
-      via ::new_field.  Here we alter the type of field, so ::new_field is
-      not applicable. But we still need to preserve the original field
-      metadata for the client-server protocol.
+      Normally orig_table is different from table only if field was
+      created via ::make_new_field.  Here we alter the type of field,
+      so ::make_new_field is not applicable. But we still need to
+      preserve the original field metadata for the client-server
+      protocol.
     */
     field->orig_table= orig_table;
   }
@@ -7262,7 +7267,8 @@ uint Field_varstring::max_packed_col_length(uint max_length)
   return (max_length > 255 ? 2 : 1)+max_length;
 }
 
-uint Field_varstring::get_key_image(uchar *buff, uint length, imagetype type)
+uint Field_varstring::get_key_image(uchar *buff, uint length,
+                                    imagetype type_arg)
 {
   uint f_length=  length_bytes == 1 ? (uint) *ptr : uint2korr(ptr);
   uint local_char_length= length / field_charset->mbmaxlen;
@@ -7316,11 +7322,12 @@ int Field_varstring::cmp_binary(const uchar *a_ptr, const uchar *b_ptr,
 }
 
 
-Field *Field_varstring::new_field(MEM_ROOT *root, TABLE *new_table,
-                                  bool keep_type)
+Field *Field_varstring::make_new_field(MEM_ROOT *root, TABLE *new_table,
+                                       bool keep_type)
 {
-  Field_varstring *res= (Field_varstring*) Field::new_field(root, new_table,
-                                                            keep_type);
+  Field_varstring *res= (Field_varstring*) Field::make_new_field(root,
+                                                                 new_table,
+                                                                 keep_type);
   if (res)
     res->length_bytes= length_bytes;
   return res;
@@ -7995,7 +8002,7 @@ void Field_geom::sql_type(String &res) const
 int Field_geom::store(double nr)
 {
   my_message(ER_CANT_CREATE_GEOMETRY_OBJECT,
-             ER(ER_CANT_CREATE_GEOMETRY_OBJECT), MYF(0));
+             ER_THD(get_thd(), ER_CANT_CREATE_GEOMETRY_OBJECT), MYF(0));
   return -1;
 }
 
@@ -8003,7 +8010,7 @@ int Field_geom::store(double nr)
 int Field_geom::store(longlong nr, bool unsigned_val)
 {
   my_message(ER_CANT_CREATE_GEOMETRY_OBJECT,
-             ER(ER_CANT_CREATE_GEOMETRY_OBJECT), MYF(0));
+             ER_THD(get_thd(), ER_CANT_CREATE_GEOMETRY_OBJECT), MYF(0));
   return -1;
 }
 
@@ -8011,7 +8018,7 @@ int Field_geom::store(longlong nr, bool unsigned_val)
 int Field_geom::store_decimal(const my_decimal *)
 {
   my_message(ER_CANT_CREATE_GEOMETRY_OBJECT,
-             ER(ER_CANT_CREATE_GEOMETRY_OBJECT), MYF(0));
+             ER_THD(get_thd(), ER_CANT_CREATE_GEOMETRY_OBJECT), MYF(0));
   return -1;
 }
 
@@ -8038,10 +8045,13 @@ int Field_geom::store(const char *from, uint length, CHARSET_INFO *cs)
         (uint32) geom_type != wkb_type)
     {
       my_printf_error(ER_TRUNCATED_WRONG_VALUE_FOR_FIELD, 
-          ER(ER_TRUNCATED_WRONG_VALUE_FOR_FIELD), MYF(0),
-          Geometry::ci_collection[geom_type]->m_name.str,
-          Geometry::ci_collection[wkb_type]->m_name.str, field_name,
-          (ulong) table->in_use->get_stmt_da()->current_row_for_warning());
+                      ER_THD(get_thd(), ER_TRUNCATED_WRONG_VALUE_FOR_FIELD),
+                      MYF(0),
+                      Geometry::ci_collection[geom_type]->m_name.str,
+                      Geometry::ci_collection[wkb_type]->m_name.str,
+                      field_name,
+                      (ulong) table->in_use->get_stmt_da()->
+                      current_row_for_warning());
       goto err_exit;
     }
 
@@ -8058,7 +8068,7 @@ int Field_geom::store(const char *from, uint length, CHARSET_INFO *cs)
 
 err:
   my_message(ER_CANT_CREATE_GEOMETRY_OBJECT,
-             ER(ER_CANT_CREATE_GEOMETRY_OBJECT), MYF(0));
+             ER_THD(get_thd(), ER_CANT_CREATE_GEOMETRY_OBJECT), MYF(0));
 err_exit:
   bzero(ptr, Field_blob::pack_length());  
   return -1;
@@ -8261,10 +8271,11 @@ void Field_enum::sql_type(String &res) const
 }
 
 
-Field *Field_enum::new_field(MEM_ROOT *root, TABLE *new_table,
-                             bool keep_type)
+Field *Field_enum::make_new_field(MEM_ROOT *root, TABLE *new_table,
+                                  bool keep_type)
 {
-  Field_enum *res= (Field_enum*) Field::new_field(root, new_table, keep_type);
+  Field_enum *res= (Field_enum*) Field::make_new_field(root, new_table,
+                                                       keep_type);
   if (res)
     res->typelib= copy_typelib(root, typelib);
   return res;
@@ -8889,9 +8900,9 @@ uint Field_bit::get_key_image(uchar *buff, uint length, imagetype type_arg)
     *buff++= bits;
     length--;
   }
-  uint data_length = MY_MIN(length, bytes_in_rec);
-  memcpy(buff, ptr, data_length);
-  return data_length + 1;
+  uint tmp_data_length = MY_MIN(length, bytes_in_rec);
+  memcpy(buff, ptr, tmp_data_length);
+  return tmp_data_length + 1;
 }
 
 
@@ -9107,8 +9118,8 @@ void Field_bit::set_default()
 {
   if (bit_len > 0)
   {
-    my_ptrdiff_t const offset= table->s->default_values - table->record[0];
-    uchar bits= get_rec_bits(bit_ptr + offset, bit_ofs, bit_len);
+    my_ptrdiff_t const col_offset= table->s->default_values - table->record[0];
+    uchar bits= get_rec_bits(bit_ptr + col_offset, bit_ofs, bit_len);
     set_rec_bits(bits, bit_ptr, bit_ofs, bit_len);
   }
   Field::set_default();
@@ -9544,7 +9555,7 @@ bool Create_field::check(THD *thd)
         */
         push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                             ER_BLOB_CANT_HAVE_DEFAULT,
-                            ER(ER_BLOB_CANT_HAVE_DEFAULT),
+                            ER_THD(thd, ER_BLOB_CANT_HAVE_DEFAULT),
                             field_name);
       }
       def= 0;
@@ -10026,11 +10037,12 @@ Create_field::Create_field(Field *old_field,Field *orig_field)
   case MYSQL_TYPE_YEAR:
     if (length != 4)
     {
+      THD *thd= current_thd;
       char buff[sizeof("YEAR()") + MY_INT64_NUM_DECIMAL_DIGITS + 1];
       my_snprintf(buff, sizeof(buff), "YEAR(%lu)", length);
-      push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_NOTE,
+      push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
                           ER_WARN_DEPRECATED_SYNTAX,
-                          ER(ER_WARN_DEPRECATED_SYNTAX),
+                          ER_THD(thd, ER_WARN_DEPRECATED_SYNTAX),
                           buff, "YEAR(4)");
     }
     break;
@@ -10076,9 +10088,6 @@ Create_field::Create_field(Field *old_field,Field *orig_field)
     }
     if (!default_now)                           // Give a constant default
     {
-      char buff[MAX_FIELD_WIDTH];
-      String tmp(buff,sizeof(buff), charset);
-
       /* Get the value from default_values */
       my_ptrdiff_t diff= orig_field->table->default_values_offset();
       orig_field->move_field_offset(diff);	// Points now at default_values
@@ -10200,11 +10209,11 @@ Field::set_warning(Sql_condition::enum_warning_level level, uint code,
     If this field was created only for type conversion purposes it
     will have table == NULL.
   */
-  THD *thd= table ? table->in_use : current_thd;
+  THD *thd= get_thd();
   if (thd->count_cuted_fields)
   {
     thd->cuted_fields+= cut_increment;
-    push_warning_printf(thd, level, code, ER(code), field_name,
+    push_warning_printf(thd, level, code, ER_THD(thd, code), field_name,
                         thd->get_stmt_da()->current_row_for_warning());
     return 0;
   }
@@ -10243,14 +10252,14 @@ void Field::set_datetime_warning(Sql_condition::enum_warning_level level,
 }
 
 
-void Field::set_warning_truncated_wrong_value(const char *type,
+void Field::set_warning_truncated_wrong_value(const char *type_arg,
                                               const char *value)
 {
   THD *thd= get_thd();
   push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                       ER_TRUNCATED_WRONG_VALUE_FOR_FIELD,
-                      ER(ER_TRUNCATED_WRONG_VALUE_FOR_FIELD),
-                      type, value, field_name,
+                      ER_THD(thd, ER_TRUNCATED_WRONG_VALUE_FOR_FIELD),
+                      type_arg, value, field_name,
                       static_cast<ulong>(thd->get_stmt_da()->
                       current_row_for_warning()));
 }
@@ -10317,7 +10326,7 @@ bool Field::validate_value_in_record_with_warn(THD *thd, const uchar *record)
     val_str(&tmp, ptr_in_record(record));
     push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                         ER_INVALID_DEFAULT_VALUE_FOR_FIELD,
-                        ER(ER_INVALID_DEFAULT_VALUE_FOR_FIELD),
+                        ER_THD(thd, ER_INVALID_DEFAULT_VALUE_FOR_FIELD),
                         ErrConvString(&tmp).ptr(), field_name);
   }
   dbug_tmp_restore_column_map(table->read_set, old_map);

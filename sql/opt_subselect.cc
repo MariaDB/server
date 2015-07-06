@@ -5494,7 +5494,7 @@ bool JOIN::choose_subquery_plan(table_map join_tables)
       unmodified, and with injected IN->EXISTS predicates.
     */
     inner_read_time_1= inner_join->best_read;
-    inner_record_count_1= inner_join->record_count;
+    inner_record_count_1= inner_join->join_record_count;
 
     if (in_to_exists_where && const_tables != table_count)
     {

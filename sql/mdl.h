@@ -334,24 +334,25 @@ public:
     @param  name          Name of of the object
     @param  key           Where to store the the MDL key.
   */
-  void mdl_key_init(enum_mdl_namespace mdl_namespace,
-                    const char *db, const char *name)
+  void mdl_key_init(enum_mdl_namespace mdl_namespace_arg,
+                    const char *db, const char *name_arg)
   {
-    m_ptr[0]= (char) mdl_namespace;
+    m_ptr[0]= (char) mdl_namespace_arg;
     /*
       It is responsibility of caller to ensure that db and object names
       are not longer than NAME_LEN. Still we play safe and try to avoid
       buffer overruns.
     */
     DBUG_ASSERT(strlen(db) <= NAME_LEN);
-    DBUG_ASSERT(strlen(name) <= NAME_LEN);
+    DBUG_ASSERT(strlen(name_arg) <= NAME_LEN);
     m_db_name_length= static_cast<uint16>(strmake(m_ptr + 1, db, NAME_LEN) -
                                           m_ptr - 1);
-    m_length= static_cast<uint16>(strmake(m_ptr + m_db_name_length + 2, name,
+    m_length= static_cast<uint16>(strmake(m_ptr + m_db_name_length + 2,
+                                          name_arg,
                                           NAME_LEN) - m_ptr + 1);
     m_hash_value= my_hash_sort(&my_charset_bin, (uchar*) m_ptr + 1,
                                m_length - 1);
-    DBUG_ASSERT(mdl_namespace == USER_LOCK || ok_for_lower_case_names(db));
+    DBUG_ASSERT(mdl_namespace_arg == USER_LOCK || ok_for_lower_case_names(db));
   }
   void mdl_key_init(const MDL_key *rhs)
   {

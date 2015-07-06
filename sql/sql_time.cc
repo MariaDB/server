@@ -877,18 +877,18 @@ void make_truncated_value_warning(THD *thd,
   }
   if (field_name)
     cs->cset->snprintf(cs, warn_buff, sizeof(warn_buff),
-                       ER(ER_TRUNCATED_WRONG_VALUE_FOR_FIELD),
+                       ER_THD(thd, ER_TRUNCATED_WRONG_VALUE_FOR_FIELD),
                        type_str, sval->ptr(), field_name,
                        (ulong) thd->get_stmt_da()->current_row_for_warning());
   else
   {
     if (time_type > MYSQL_TIMESTAMP_ERROR)
       cs->cset->snprintf(cs, warn_buff, sizeof(warn_buff),
-                         ER(ER_TRUNCATED_WRONG_VALUE),
+                         ER_THD(thd, ER_TRUNCATED_WRONG_VALUE),
                          type_str, sval->ptr());
     else
       cs->cset->snprintf(cs, warn_buff, sizeof(warn_buff),
-                         ER(ER_WRONG_VALUE), type_str, sval->ptr());
+                         ER_THD(thd, ER_WRONG_VALUE), type_str, sval->ptr());
   }
   push_warning(thd, level,
                ER_TRUNCATED_WRONG_VALUE, warn_buff);
@@ -1011,11 +1011,14 @@ bool date_add_interval(MYSQL_TIME *ltime, interval_type int_type,
     return 0;                                   // Ok
 
 invalid_date:
-  push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
-                      ER_DATETIME_FUNCTION_OVERFLOW,
-                      ER(ER_DATETIME_FUNCTION_OVERFLOW),
-                      ltime->time_type == MYSQL_TIMESTAMP_TIME ?
-                      "time" : "datetime");
+  {
+    THD *thd= current_thd;
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                        ER_DATETIME_FUNCTION_OVERFLOW,
+                        ER_THD(thd, ER_DATETIME_FUNCTION_OVERFLOW),
+                        ltime->time_type == MYSQL_TIMESTAMP_TIME ?
+                        "time" : "datetime");
+  }
 null_date:
   return 1;
 }

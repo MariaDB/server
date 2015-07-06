@@ -402,7 +402,7 @@ void sys_var::do_deprecated_warning(THD *thd)
       : ER_WARN_DEPRECATED_SYNTAX;
     if (thd)
       push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-                          ER_WARN_DEPRECATED_SYNTAX, ER(errmsg),
+                          ER_WARN_DEPRECATED_SYNTAX, ER_THD(thd, errmsg),
                           buf1, deprecation_substitute);
     else
       sql_print_warning(ER_DEFAULT(errmsg), buf1, deprecation_substitute);
@@ -440,7 +440,7 @@ bool throw_bounds_warning(THD *thd, const char *name,
     }
     push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                         ER_TRUNCATED_WRONG_VALUE,
-                        ER(ER_TRUNCATED_WRONG_VALUE), name, buf);
+                        ER_THD(thd, ER_TRUNCATED_WRONG_VALUE), name, buf);
   }
   return false;
 }
@@ -460,7 +460,7 @@ bool throw_bounds_warning(THD *thd, const char *name, bool fixed, double v)
     }
     push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                         ER_TRUNCATED_WRONG_VALUE,
-                        ER(ER_TRUNCATED_WRONG_VALUE), name, buf);
+                        ER_THD(thd, ER_TRUNCATED_WRONG_VALUE), name, buf);
   }
   return false;
 }
@@ -836,7 +836,8 @@ int set_var_user::update(THD *thd)
   if (user_var_item->update())
   {
     /* Give an error if it's not given already */
-    my_message(ER_SET_CONSTANTS_ONLY, ER(ER_SET_CONSTANTS_ONLY), MYF(0));
+    my_message(ER_SET_CONSTANTS_ONLY, ER_THD(thd, ER_SET_CONSTANTS_ONLY),
+               MYF(0));
     return -1;
   }
   return 0;

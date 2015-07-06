@@ -36,16 +36,16 @@ template <typename Element_type> class Bounds_checked_array
 public:
   Bounds_checked_array() : m_array(NULL), m_size(0) {}
 
-  Bounds_checked_array(Element_type *el, size_t size)
-    : m_array(el), m_size(size)
+  Bounds_checked_array(Element_type *el, size_t size_arg)
+    : m_array(el), m_size(size_arg)
   {}
 
   void reset() { m_array= NULL; m_size= 0; }
  
-  void reset(Element_type *array, size_t size)
+  void reset(Element_type *array_arg, size_t size_arg)
   {
-    m_array= array;
-    m_size= size;
+    m_array= array_arg;
+    m_size= size_arg;
   }
 
   /**

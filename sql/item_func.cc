@@ -693,12 +693,12 @@ void Item_func::count_real_length()
 
   @retval            False on success, true on error.
 */
-bool Item_func::count_string_result_length(enum_field_types field_type,
+bool Item_func::count_string_result_length(enum_field_types field_type_arg,
                                            Item **items, uint nitems)
 {
   if (agg_arg_charsets(collation, items, nitems, MY_COLL_ALLOW_CONV, 1))
     return true;
-  if (is_temporal_type(field_type))
+  if (is_temporal_type(field_type_arg))
     count_datetime_length(items, nitems);
   else
   {
@@ -714,7 +714,7 @@ void Item_func::signal_divide_by_null()
   THD *thd= current_thd;
   if (thd->variables.sql_mode & MODE_ERROR_FOR_DIVISION_BY_ZERO)
     push_warning(thd, Sql_condition::WARN_LEVEL_WARN, ER_DIVISION_BY_ZERO,
-                 ER(ER_DIVISION_BY_ZERO));
+                 ER_THD(thd, ER_DIVISION_BY_ZERO));
   null_value= 1;
 }
 
@@ -1149,10 +1149,11 @@ longlong Item_func_signed::val_int_from_str(int *error)
   value= cs->cset->strtoll10(cs, start, &end, error);
   if (*error > 0 || end != start+ length)
   {
+    THD *thd= current_thd;
     ErrConvString err(res);
-    push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                         ER_TRUNCATED_WRONG_VALUE,
-                        ER(ER_TRUNCATED_WRONG_VALUE), "INTEGER",
+                        ER_THD(thd, ER_TRUNCATED_WRONG_VALUE), "INTEGER",
                         err.ptr());
   }
   return value;
@@ -1311,9 +1312,10 @@ my_decimal *Item_decimal_typecast::val_decimal(my_decimal *dec)
   return dec;
 
 err:
-  push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
+  THD *thd= current_thd;
+  push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                       ER_WARN_DATA_OUT_OF_RANGE,
-                      ER(ER_WARN_DATA_OUT_OF_RANGE),
+                      ER_THD(thd, ER_WARN_DATA_OUT_OF_RANGE),
                       name, 1L);
   return dec;
 }
@@ -1352,10 +1354,11 @@ double Item_double_typecast::val_real()
 
   if ((error= truncate_double(&tmp, max_length, decimals, 0, DBL_MAX)))
   {
-    push_warning_printf(current_thd,
+    THD *thd= current_thd;
+    push_warning_printf(thd,
                         Sql_condition::WARN_LEVEL_WARN,
                         ER_WARN_DATA_OUT_OF_RANGE,
-                        ER(ER_WARN_DATA_OUT_OF_RANGE),
+                        ER_THD(thd, ER_WARN_DATA_OUT_OF_RANGE),
                         name, 1);
     if (error < 0)
     {
@@ -2912,8 +2915,9 @@ bool Item_func_min_max::get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date)
   for (uint i=0; i < arg_count ; i++)
   {
     Item **arg= args + i;
-    bool is_null;
-    longlong res= get_datetime_value(thd, &arg, 0, compare_as_dates, &is_null);
+    bool is_null_tmp;
+    longlong res= get_datetime_value(thd, &arg, 0, compare_as_dates,
+                                     &is_null_tmp);
 
     /* Check if we need to stop (because of error or KILL) and stop the loop */
     if (thd->is_error() || args[i]->null_value)
@@ -3614,7 +3618,7 @@ udf_handler::fix_fields(THD *thd, Item_func_or_sum *func,
   if (error)
   {
     my_error(ER_CANT_INITIALIZE_UDF, MYF(0),
-             u_d->name.str, ER(ER_UNKNOWN_ERROR));
+             u_d->name.str, ER_THD(thd, ER_UNKNOWN_ERROR));
     DBUG_RETURN(TRUE);
   }
   DBUG_RETURN(FALSE);
@@ -4446,7 +4450,7 @@ longlong Item_func_benchmark::val_int()
   char buff[MAX_FIELD_WIDTH];
   String tmp(buff,sizeof(buff), &my_charset_bin);
   my_decimal tmp_decimal;
-  THD *thd=current_thd;
+  THD *thd= current_thd;
   ulonglong loop_count;
 
   loop_count= (ulonglong) args[0]->val_int();
@@ -4458,8 +4462,9 @@ longlong Item_func_benchmark::val_int()
     {
       char buff[22];
       llstr(((longlong) loop_count), buff);
-      push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
-                          ER_WRONG_VALUE_FOR_TYPE, ER(ER_WRONG_VALUE_FOR_TYPE),
+      push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                          ER_WRONG_VALUE_FOR_TYPE,
+                          ER_THD(thd, ER_WRONG_VALUE_FOR_TYPE),
                           "count", buff, "benchmark");
     }
 
@@ -6482,8 +6487,9 @@ Item_func_sp::Item_func_sp(Name_resolution_context *context_arg, sp_name *name)
 
 
 Item_func_sp::Item_func_sp(Name_resolution_context *context_arg,
-                           sp_name *name, List<Item> &list)
-  :Item_func(list), context(context_arg), m_name(name), m_sp(NULL),sp_result_field(NULL)
+                           sp_name *name_arg, List<Item> &list)
+  :Item_func(list), context(context_arg), m_name(name_arg), m_sp(NULL),
+   sp_result_field(NULL)
 {
   maybe_null= 1;
   m_name->init_qname(current_thd);

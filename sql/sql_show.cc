@@ -1002,13 +1002,13 @@ public:
      failed is not available at this point. The only way for us to check is by
      reconstructing the actual error message and see if it's the same.
   */
-  char* get_view_access_denied_message() 
+  char* get_view_access_denied_message(THD *thd) 
   {
     if (!m_view_access_denied_message_ptr)
     {
       m_view_access_denied_message_ptr= m_view_access_denied_message;
       my_snprintf(m_view_access_denied_message, MYSQL_ERRMSG_SIZE,
-                  ER(ER_TABLEACCESS_DENIED_ERROR), "SHOW VIEW",
+                  ER_THD(thd, ER_TABLEACCESS_DENIED_ERROR), "SHOW VIEW",
                   m_sctx->priv_user,
                   m_sctx->host_or_ip, m_top_view->get_table_name());
     }
@@ -1033,7 +1033,7 @@ public:
     switch (sql_errno)
     {
     case ER_TABLEACCESS_DENIED_ERROR:
-      if (!strcmp(get_view_access_denied_message(), message))
+      if (!strcmp(get_view_access_denied_message(thd), message))
       {
         /* Access to top view is not granted, don't interfere. */
         is_handled= FALSE;
@@ -1053,7 +1053,7 @@ public:
          are missing. */
       push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN, 
                           ER_VIEW_INVALID,
-                          ER(ER_VIEW_INVALID),
+                          ER_THD(thd, ER_VIEW_INVALID),
                           m_top_view->get_db_name(),
                           m_top_view->get_table_name());
       is_handled= TRUE;
@@ -1228,7 +1228,7 @@ bool mysqld_show_create_db(THD *thd, LEX_STRING *dbname,
     status_var_increment(thd->status_var.access_denied_errors);
     my_error(ER_DBACCESS_DENIED_ERROR, MYF(0),
              sctx->priv_user, sctx->host_or_ip, dbname->str);
-    general_log_print(thd,COM_INIT_DB,ER(ER_DBACCESS_DENIED_ERROR),
+    general_log_print(thd,COM_INIT_DB,ER_THD(thd, ER_DBACCESS_DENIED_ERROR),
                       sctx->priv_user, sctx->host_or_ip, orig_dbname->str);
     DBUG_RETURN(TRUE);
   }
@@ -4361,7 +4361,7 @@ static int fill_schema_table_from_frm(THD *thd, TABLE_LIST *tables,
 
     push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                         ER_WARN_I_S_SKIPPED_TABLE,
-                        ER(ER_WARN_I_S_SKIPPED_TABLE),
+                        ER_THD(thd, ER_WARN_I_S_SKIPPED_TABLE),
                         table_list.db, table_list.table_name);
     return 0;
   }

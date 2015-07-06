@@ -1374,7 +1374,8 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
     */
     if (thd->failed_com_change_user >= 3)
     {
-      my_message(ER_UNKNOWN_COM_ERROR, ER(ER_UNKNOWN_COM_ERROR), MYF(0));
+      my_message(ER_UNKNOWN_COM_ERROR, ER_THD(thd,ER_UNKNOWN_COM_ERROR),
+                 MYF(0));
       auth_rc= 1;
     }
     else
@@ -1563,7 +1564,7 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
   }
   case COM_FIELD_LIST:				// This isn't actually needed
 #ifdef DONT_ALLOW_SHOW_COMMANDS
-    my_message(ER_NOT_ALLOWED_COMMAND, ER(ER_NOT_ALLOWED_COMMAND),
+    my_message(ER_NOT_ALLOWED_COMMAND, ER_THD(thd, ER_NOT_ALLOWED_COMMAND),
                MYF(0));	/* purecov: inspected */
     break;
 #else
@@ -1592,7 +1593,8 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
     /* Check given table name length. */
     if (packet_length - arg_length > NAME_LEN + 1 || arg_length > SAFE_NAME_LEN)
     {
-      my_message(ER_UNKNOWN_COM_ERROR, ER(ER_UNKNOWN_COM_ERROR), MYF(0));
+      my_message(ER_UNKNOWN_COM_ERROR, ER_THD(thd, ER_UNKNOWN_COM_ERROR),
+                 MYF(0));
       break;
     }
     thd->convert_string(&table_name, system_charset_info,
@@ -1869,7 +1871,8 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
       my_eof(thd);
       break;
     default:
-      my_message(ER_UNKNOWN_COM_ERROR, ER(ER_UNKNOWN_COM_ERROR), MYF(0));
+      my_message(ER_UNKNOWN_COM_ERROR, ER_THD(thd, ER_UNKNOWN_COM_ERROR),
+                 MYF(0));
       break;
     }
     break;
@@ -1888,7 +1891,8 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
   case COM_DELAYED_INSERT:
   case COM_END:
   default:
-    my_message(ER_UNKNOWN_COM_ERROR, ER(ER_UNKNOWN_COM_ERROR), MYF(0));
+    my_message(ER_UNKNOWN_COM_ERROR, ER_THD(thd, ER_UNKNOWN_COM_ERROR),
+               MYF(0));
     break;
   }
 
@@ -2055,7 +2059,7 @@ int prepare_schema_table(THD *thd, LEX *lex, Table_ident *table_ident,
   case SCH_SCHEMATA:
 #if defined(DONT_ALLOW_SHOW_COMMANDS)
     my_message(ER_NOT_ALLOWED_COMMAND,
-               ER(ER_NOT_ALLOWED_COMMAND), MYF(0));   /* purecov: inspected */
+               ER_THD(thd, ER_NOT_ALLOWED_COMMAND), MYF(0));
     DBUG_RETURN(1);
 #else
     break;
@@ -2068,7 +2072,7 @@ int prepare_schema_table(THD *thd, LEX *lex, Table_ident *table_ident,
   case SCH_EVENTS:
 #ifdef DONT_ALLOW_SHOW_COMMANDS
     my_message(ER_NOT_ALLOWED_COMMAND,
-               ER(ER_NOT_ALLOWED_COMMAND), MYF(0)); /* purecov: inspected */
+               ER_THD(thd, ER_NOT_ALLOWED_COMMAND), MYF(0));
     DBUG_RETURN(1);
 #else
     {
@@ -2097,7 +2101,7 @@ int prepare_schema_table(THD *thd, LEX *lex, Table_ident *table_ident,
   {
 #ifdef DONT_ALLOW_SHOW_COMMANDS
     my_message(ER_NOT_ALLOWED_COMMAND,
-               ER(ER_NOT_ALLOWED_COMMAND), MYF(0)); /* purecov: inspected */
+               ER_THD(thd, ER_NOT_ALLOWED_COMMAND), MYF(0));
     DBUG_RETURN(1);
 #else
     DBUG_ASSERT(table_ident);
@@ -2277,7 +2281,7 @@ bool sp_process_definer(THD *thd)
     push_warning_printf(thd,
                         Sql_condition::WARN_LEVEL_NOTE,
                         ER_NO_SUCH_USER,
-                        ER(ER_NO_SUCH_USER),
+                        ER_THD(thd, ER_NO_SUCH_USER),
                         lex->definer->user.str,
                         lex->definer->host.str);
   }
@@ -2549,7 +2553,8 @@ mysql_execute_command(THD *thd)
       if (all_tables_not_ok(thd, all_tables))
       {
         /* we warn the slave SQL thread */
-        my_message(ER_SLAVE_IGNORED_TABLE, ER(ER_SLAVE_IGNORED_TABLE), MYF(0));
+        my_message(ER_SLAVE_IGNORED_TABLE, ER_THD(thd, ER_SLAVE_IGNORED_TABLE),
+                   MYF(0));
       }
       
       for (table=all_tables; table; table=table->next_global)
@@ -2576,7 +2581,8 @@ mysql_execute_command(THD *thd)
         all_tables_not_ok(thd, all_tables))
     {
       /* we warn the slave SQL thread */
-      my_message(ER_SLAVE_IGNORED_TABLE, ER(ER_SLAVE_IGNORED_TABLE), MYF(0));
+      my_message(ER_SLAVE_IGNORED_TABLE, ER_THD(thd, ER_SLAVE_IGNORED_TABLE),
+                 MYF(0));
       DBUG_RETURN(0);
     }
     /* 
@@ -2880,7 +2886,7 @@ mysql_execute_command(THD *thd)
     */
     if (lex->sroutines.records || lex->query_tables->next_global)
     {
-      my_message(ER_SET_CONSTANTS_ONLY, ER(ER_SET_CONSTANTS_ONLY),
+      my_message(ER_SET_CONSTANTS_ONLY, ER_THD(thd, ER_SET_CONSTANTS_ONLY),
 		 MYF(0));
       goto error;
     }
@@ -2890,7 +2896,7 @@ mysql_execute_command(THD *thd)
         (!(*it)->fixed && (*it)->fix_fields(lex->thd, it)) || 
         (*it)->check_cols(1))
     {
-      my_message(ER_SET_CONSTANTS_ONLY, ER(ER_SET_CONSTANTS_ONLY),
+      my_message(ER_SET_CONSTANTS_ONLY, ER_THD(thd, ER_SET_CONSTANTS_ONLY),
 		 MYF(0));
       goto error;
     }
@@ -3535,7 +3541,7 @@ end_with_restore_list:
         thd->global_read_lock.is_acquired())
     {
       my_message(ER_LOCK_OR_ACTIVE_TRANSACTION,
-                 ER(ER_LOCK_OR_ACTIVE_TRANSACTION), MYF(0));
+                 ER_THD(thd, ER_LOCK_OR_ACTIVE_TRANSACTION), MYF(0));
       goto error;
     }
 
@@ -3564,7 +3570,7 @@ end_with_restore_list:
         thd->global_read_lock.is_acquired())
     {
       my_message(ER_LOCK_OR_ACTIVE_TRANSACTION,
-                 ER(ER_LOCK_OR_ACTIVE_TRANSACTION), MYF(0));
+                 ER_THD(thd, ER_LOCK_OR_ACTIVE_TRANSACTION), MYF(0));
       goto error;
     }
     mysql_mutex_lock(&LOCK_active_mi);
@@ -3584,7 +3590,7 @@ end_with_restore_list:
 #ifndef EMBEDDED_LIBRARY
   case SQLCOM_SHOW_BINLOGS:
 #ifdef DONT_ALLOW_SHOW_COMMANDS
-    my_message(ER_NOT_ALLOWED_COMMAND, ER(ER_NOT_ALLOWED_COMMAND),
+    my_message(ER_NOT_ALLOWED_COMMAND, ER_THD(thd, ER_NOT_ALLOWED_COMMAND),
                MYF(0)); /* purecov: inspected */
     goto error;
 #else
@@ -3600,7 +3606,7 @@ end_with_restore_list:
   {
     DBUG_ASSERT(first_table == all_tables && first_table != 0);
 #ifdef DONT_ALLOW_SHOW_COMMANDS
-    my_message(ER_NOT_ALLOWED_COMMAND, ER(ER_NOT_ALLOWED_COMMAND),
+    my_message(ER_NOT_ALLOWED_COMMAND, ER_THD(thd, ER_NOT_ALLOWED_COMMAND),
                MYF(0)); /* purecov: inspected */
     goto error;
 #else
@@ -4191,7 +4197,7 @@ end_with_restore_list:
     break;
   case SQLCOM_SHOW_ENGINE_LOGS:
 #ifdef DONT_ALLOW_SHOW_COMMANDS
-    my_message(ER_NOT_ALLOWED_COMMAND, ER(ER_NOT_ALLOWED_COMMAND),
+    my_message(ER_NOT_ALLOWED_COMMAND, ER_THD(thd, ER_NOT_ALLOWED_COMMAND),
                MYF(0));	/* purecov: inspected */
     goto error;
 #else
@@ -4224,7 +4230,7 @@ end_with_restore_list:
       if (!(thd->client_capabilities & CLIENT_LOCAL_FILES) ||
           !opt_local_infile)
       {
-	my_message(ER_NOT_ALLOWED_COMMAND, ER(ER_NOT_ALLOWED_COMMAND), MYF(0));
+	my_message(ER_NOT_ALLOWED_COMMAND, ER_THD(thd, ER_NOT_ALLOWED_COMMAND), MYF(0));
 	goto error;
       }
     }
@@ -4346,7 +4352,7 @@ end_with_restore_list:
       if (!rpl_filter->db_ok(lex->name.str) ||
           !rpl_filter->db_ok_with_wild_table(lex->name.str))
       {
-        my_message(ER_SLAVE_IGNORED_TABLE, ER(ER_SLAVE_IGNORED_TABLE), MYF(0));
+        my_message(ER_SLAVE_IGNORED_TABLE, ER_THD(thd, ER_SLAVE_IGNORED_TABLE), MYF(0));
         break;
       }
     }
@@ -4381,7 +4387,7 @@ end_with_restore_list:
       if (!rpl_filter->db_ok(lex->name.str) ||
           !rpl_filter->db_ok_with_wild_table(lex->name.str))
       {
-        my_message(ER_SLAVE_IGNORED_TABLE, ER(ER_SLAVE_IGNORED_TABLE), MYF(0));
+        my_message(ER_SLAVE_IGNORED_TABLE, ER_THD(thd, ER_SLAVE_IGNORED_TABLE), MYF(0));
         break;
       }
     }
@@ -4403,7 +4409,7 @@ end_with_restore_list:
           !rpl_filter->db_ok_with_wild_table(db->str))
       {
         res= 1;
-        my_message(ER_SLAVE_IGNORED_TABLE, ER(ER_SLAVE_IGNORED_TABLE), MYF(0));
+        my_message(ER_SLAVE_IGNORED_TABLE, ER_THD(thd, ER_SLAVE_IGNORED_TABLE), MYF(0));
         break;
       }
     }
@@ -4448,7 +4454,7 @@ end_with_restore_list:
       if (!rpl_filter->db_ok(db->str) ||
           !rpl_filter->db_ok_with_wild_table(db->str))
       {
-        my_message(ER_SLAVE_IGNORED_TABLE, ER(ER_SLAVE_IGNORED_TABLE), MYF(0));
+        my_message(ER_SLAVE_IGNORED_TABLE, ER_THD(thd, ER_SLAVE_IGNORED_TABLE), MYF(0));
         break;
       }
     }
@@ -4630,7 +4636,7 @@ end_with_restore_list:
             hostname_requires_resolving(user->host.str))
           push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                               ER_WARN_HOSTNAME_WONT_WORK,
-                              ER(ER_WARN_HOSTNAME_WONT_WORK));
+                              ER_THD(thd, ER_WARN_HOSTNAME_WONT_WORK));
 
         /*
           GRANT/REVOKE PROXY has the target user as a first entry in the list. 
@@ -4683,7 +4689,7 @@ end_with_restore_list:
     {
       if (lex->columns.elements || (lex->type && lex->type != TYPE_ENUM_PROXY))
       {
-	my_message(ER_ILLEGAL_GRANT_FOR_TABLE, ER(ER_ILLEGAL_GRANT_FOR_TABLE),
+	my_message(ER_ILLEGAL_GRANT_FOR_TABLE, ER_THD(thd, ER_ILLEGAL_GRANT_FOR_TABLE),
                    MYF(0));
         goto error;
       }
@@ -4793,7 +4799,7 @@ end_with_restore_list:
       Item *it= (Item *)lex->value_list.head();
       if ((!it->fixed && it->fix_fields(lex->thd, &it)) || it->check_cols(1))
       {
-        my_message(ER_SET_CONSTANTS_ONLY, ER(ER_SET_CONSTANTS_ONLY),
+        my_message(ER_SET_CONSTANTS_ONLY, ER_THD(thd, ER_SET_CONSTANTS_ONLY),
                    MYF(0));
         goto error;
       }
@@ -5092,7 +5098,7 @@ end_with_restore_list:
         if (sp_grant_privileges(thd, lex->sphead->m_db.str, name,
                                 lex->sql_command == SQLCOM_CREATE_PROCEDURE))
           push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
-                       ER_PROC_AUTO_GRANT_FAIL, ER(ER_PROC_AUTO_GRANT_FAIL));
+                       ER_PROC_AUTO_GRANT_FAIL, ER_THD(thd, ER_PROC_AUTO_GRANT_FAIL));
         thd->clear_error();
       }
 
@@ -5258,7 +5264,7 @@ create_sp_error:
           if (lex->if_exists())
           {
             push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
-                                ER_SP_DOES_NOT_EXIST, ER(ER_SP_DOES_NOT_EXIST),
+                                ER_SP_DOES_NOT_EXIST, ER_THD(thd, ER_SP_DOES_NOT_EXIST),
                                 "FUNCTION (UDF)", lex->spname->m_name.str);
             res= FALSE;
             my_ok(thd);
@@ -5313,7 +5319,7 @@ create_sp_error:
       {
         push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
                      ER_PROC_AUTO_REVOKE_FAIL,
-                     ER(ER_PROC_AUTO_REVOKE_FAIL));
+                     ER_THD(thd, ER_PROC_AUTO_REVOKE_FAIL));
         /* If this happens, an error should have been reported. */
         goto error;
       }
@@ -5329,7 +5335,7 @@ create_sp_error:
 	{
           res= write_bin_log(thd, TRUE, thd->query(), thd->query_length());
 	  push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
-			      ER_SP_DOES_NOT_EXIST, ER(ER_SP_DOES_NOT_EXIST),
+			      ER_SP_DOES_NOT_EXIST, ER_THD(thd, ER_SP_DOES_NOT_EXIST),
                               SP_COM_STRING(lex), lex->spname->m_qname.str);
           if (!res)
             my_ok(thd);
@@ -5511,7 +5517,6 @@ create_sp_error:
   }
   case SQLCOM_CREATE_SERVER:
   {
-    LEX *lex= thd->lex;
     DBUG_PRINT("info", ("case SQLCOM_CREATE_SERVER"));
 
     if (check_global_access(thd, SUPER_ACL))
@@ -5523,7 +5528,6 @@ create_sp_error:
   case SQLCOM_ALTER_SERVER:
   {
     int error;
-    LEX *lex= thd->lex;
     DBUG_PRINT("info", ("case SQLCOM_ALTER_SERVER"));
 
     if (check_global_access(thd, SUPER_ACL))
@@ -5542,7 +5546,6 @@ create_sp_error:
   case SQLCOM_DROP_SERVER:
   {
     int err_code;
-    LEX *lex= thd->lex;
     DBUG_PRINT("info", ("case SQLCOM_DROP_SERVER"));
 
     if (check_global_access(thd, SUPER_ACL))
@@ -5956,7 +5959,7 @@ check_access(THD *thd, ulong want_access, const char *db, ulong *save_priv,
   {
     DBUG_PRINT("error",("No database"));
     if (!no_errors)
-      my_message(ER_NO_DB_ERROR, ER(ER_NO_DB_ERROR),
+      my_message(ER_NO_DB_ERROR, ER_THD(thd, ER_NO_DB_ERROR),
                  MYF(0));                       /* purecov: tested */
     DBUG_RETURN(TRUE);				/* purecov: tested */
   }
@@ -6042,8 +6045,8 @@ check_access(THD *thd, ulong want_access, const char *db, ulong *save_priv,
                sctx->priv_user,
                sctx->priv_host,
                (thd->password ?
-                ER(ER_YES) :
-                ER(ER_NO)));                    /* purecov: tested */
+                ER_THD(thd, ER_YES) :
+                ER_THD(thd, ER_NO)));                    /* purecov: tested */
     }
     DBUG_RETURN(TRUE);				/* purecov: tested */
   }
@@ -6686,7 +6689,7 @@ bool check_stack_overrun(THD *thd, long margin,
     */
     char* ebuff= new char[MYSQL_ERRMSG_SIZE];
     if (ebuff) {
-      my_snprintf(ebuff, MYSQL_ERRMSG_SIZE, ER(ER_STACK_OVERRUN_NEED_MORE),
+      my_snprintf(ebuff, MYSQL_ERRMSG_SIZE, ER_THD(thd, ER_STACK_OVERRUN_NEED_MORE),
                   stack_used, my_thread_stack_size, margin);
       my_message(ER_STACK_OVERRUN_NEED_MORE, ebuff, MYF(ME_FATALERROR));
       delete [] ebuff;
@@ -7354,7 +7357,7 @@ TABLE_LIST *st_select_lex::add_table_to_list(THD *thd,
     if (table->sel)
     {
       my_message(ER_DERIVED_MUST_HAVE_ALIAS,
-                 ER(ER_DERIVED_MUST_HAVE_ALIAS), MYF(0));
+                 ER_THD(thd, ER_DERIVED_MUST_HAVE_ALIAS), MYF(0));
       DBUG_RETURN(0);
     }
     if (!(alias_str= (char*) thd->memdup(alias_str,table->table.length+1)))
@@ -8079,9 +8082,9 @@ static uint kill_threads_for_user(THD *thd, LEX_USER *user,
   mysql_mutex_unlock(&LOCK_thread_count);
   if (!threads_to_kill.is_empty())
   {
-    List_iterator_fast<THD> it(threads_to_kill);
+    List_iterator_fast<THD> it2(threads_to_kill);
     THD *next_ptr;
-    THD *ptr= it++;
+    THD *ptr= it2++;
     do
     {
       ptr->awake(kill_signal);
@@ -8093,7 +8096,7 @@ static uint kill_threads_for_user(THD *thd, LEX_USER *user,
         Since the operation "it++" dereferences the "next" pointer of the
         previous list node, we need to do this while holding LOCK_thd_data.
       */
-      next_ptr= it++;
+      next_ptr= it2++;
       mysql_mutex_unlock(&ptr->LOCK_thd_data);
       (*rows)++;
     } while ((ptr= next_ptr));
@@ -8289,7 +8292,7 @@ bool multi_update_precheck(THD *thd, TABLE_LIST *tables)
 
   if (select_lex->item_list.elements != lex->value_list.elements)
   {
-    my_message(ER_WRONG_VALUE_COUNT, ER(ER_WRONG_VALUE_COUNT), MYF(0));
+    my_message(ER_WRONG_VALUE_COUNT, ER_THD(thd, ER_WRONG_VALUE_COUNT), MYF(0));
     DBUG_RETURN(TRUE);
   }
   /*
@@ -8400,7 +8403,7 @@ bool multi_delete_precheck(THD *thd, TABLE_LIST *tables)
   if ((thd->variables.option_bits & OPTION_SAFE_UPDATES) && !select_lex->where)
   {
     my_message(ER_UPDATE_WITHOUT_KEY_IN_SAFE_MODE,
-               ER(ER_UPDATE_WITHOUT_KEY_IN_SAFE_MODE), MYF(0));
+               ER_THD(thd, ER_UPDATE_WITHOUT_KEY_IN_SAFE_MODE), MYF(0));
     DBUG_RETURN(TRUE);
   }
   DBUG_RETURN(FALSE);
@@ -8525,7 +8528,7 @@ bool update_precheck(THD *thd, TABLE_LIST *tables)
   DBUG_ENTER("update_precheck");
   if (thd->lex->select_lex.item_list.elements != thd->lex->value_list.elements)
   {
-    my_message(ER_WRONG_VALUE_COUNT, ER(ER_WRONG_VALUE_COUNT), MYF(0));
+    my_message(ER_WRONG_VALUE_COUNT, ER_THD(thd, ER_WRONG_VALUE_COUNT), MYF(0));
     DBUG_RETURN(TRUE);
   }
   DBUG_RETURN(check_one_table_access(thd, UPDATE_ACL, tables));
@@ -8585,7 +8588,7 @@ bool insert_precheck(THD *thd, TABLE_LIST *tables)
 
   if (lex->update_list.elements != lex->value_list.elements)
   {
-    my_message(ER_WRONG_VALUE_COUNT, ER(ER_WRONG_VALUE_COUNT), MYF(0));
+    my_message(ER_WRONG_VALUE_COUNT, ER_THD(thd, ER_WRONG_VALUE_COUNT), MYF(0));
     DBUG_RETURN(TRUE);
   }
   DBUG_RETURN(FALSE);
@@ -8894,7 +8897,8 @@ LEX_USER *create_definer(THD *thd, LEX_STRING *user_name, LEX_STRING *host_name)
   Check that byte length of a string does not exceed some limit.
 
   @param str         string to be checked
-  @param err_msg     error message to be displayed if the string is too long
+  @param err_msg     Number of error message to be displayed if the string
+		     is too long.  0 if empty error message.
   @param max_length  max length
 
   @retval
@@ -8906,13 +8910,14 @@ LEX_USER *create_definer(THD *thd, LEX_STRING *user_name, LEX_STRING *host_name)
     The function is not used in existing code but can be useful later?
 */
 
-bool check_string_byte_length(LEX_STRING *str, const char *err_msg,
+bool check_string_byte_length(LEX_STRING *str, uint err_msg,
                               uint max_byte_length)
 {
   if (str->length <= max_byte_length)
     return FALSE;
 
-  my_error(ER_WRONG_STRING_LENGTH, MYF(0), str->str, err_msg, max_byte_length);
+  my_error(ER_WRONG_STRING_LENGTH, MYF(0), str->str,
+           err_msg ? ER(err_msg) : "", max_byte_length);
 
   return TRUE;
 }
@@ -8924,7 +8929,8 @@ bool check_string_byte_length(LEX_STRING *str, const char *err_msg,
   SYNOPSIS
   check_string_char_length()
       str              string to be checked
-      err_msg          error message to be displayed if the string is too long
+      err_msg          Number of error message to be displayed if the string
+		       is too long.  0 if empty error message.
       max_char_length  max length in symbols
       cs               string charset
 
@@ -8934,7 +8940,7 @@ bool check_string_byte_length(LEX_STRING *str, const char *err_msg,
 */
 
 
-bool check_string_char_length(LEX_STRING *str, const char *err_msg,
+bool check_string_char_length(LEX_STRING *str, uint err_msg,
                               uint max_char_length, CHARSET_INFO *cs,
                               bool no_error)
 {
@@ -8942,13 +8948,15 @@ bool check_string_char_length(LEX_STRING *str, const char *err_msg,
   uint res= cs->cset->well_formed_len(cs, str->str, str->str + str->length,
                                       max_char_length, &well_formed_error);
 
-  if (!well_formed_error &&  str->length == res)
+  if (!well_formed_error && str->length == res)
     return FALSE;
 
   if (!no_error)
   {
     ErrConvString err(str->str, str->length, cs);
-    my_error(ER_WRONG_STRING_LENGTH, MYF(0), err.ptr(), err_msg, max_char_length);
+    my_error(ER_WRONG_STRING_LENGTH, MYF(0), err.ptr(),
+             err_msg ? ER(err_msg) : "",
+             max_char_length);
   }
   return TRUE;
 }
@@ -9056,7 +9064,7 @@ bool check_host_name(LEX_STRING *str)
 {
   const char *name= str->str;
   const char *end= str->str + str->length;
-  if (check_string_byte_length(str, ER(ER_HOSTNAME), HOSTNAME_LENGTH))
+  if (check_string_byte_length(str, ER_HOSTNAME, HOSTNAME_LENGTH))
     return TRUE;
 
   while (name != end)

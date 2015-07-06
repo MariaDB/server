@@ -1093,7 +1093,8 @@ bool Master_info_index::init_all_master_info()
       else
       {
         /* Master_info already in HASH */
-        sql_print_error(ER(ER_CONNECTION_ALREADY_EXISTS),
+        sql_print_error(ER_THD_OR_DEFAULT(current_thd,
+                                          ER_CONNECTION_ALREADY_EXISTS),
                         (int) connection_name.length, connection_name.str);
         unlock_slave_threads(mi);
         delete mi;
@@ -1110,7 +1111,8 @@ bool Master_info_index::init_all_master_info()
                                              Sql_condition::WARN_LEVEL_NOTE))
       {
         /* Master_info was already registered */
-        sql_print_error(ER(ER_CONNECTION_ALREADY_EXISTS),
+        sql_print_error(ER_THD_OR_DEFAULT(current_thd,
+                                          ER_CONNECTION_ALREADY_EXISTS),
                         (int) connection_name.length, connection_name.str);
         unlock_slave_threads(mi);
         delete mi;
@@ -1455,7 +1457,7 @@ bool Master_info_index::start_all_slaves(THD *thd)
       }
       else
         push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
-                            ER_SLAVE_STARTED, ER(ER_SLAVE_STARTED),
+                            ER_SLAVE_STARTED, ER_THD(thd, ER_SLAVE_STARTED),
                             (int) mi->connection_name.length,
                             mi->connection_name.str);
     }
@@ -1500,7 +1502,7 @@ bool Master_info_index::stop_all_slaves(THD *thd)
       }
       else
         push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
-                            ER_SLAVE_STOPPED, ER(ER_SLAVE_STOPPED),
+                            ER_SLAVE_STOPPED, ER_THD(thd, ER_SLAVE_STOPPED),
                             (int) mi->connection_name.length,
                             mi->connection_name.str);
     }

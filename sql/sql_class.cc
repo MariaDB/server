@@ -1137,7 +1137,7 @@ Internal_error_handler *THD::pop_internal_handler()
 
 void THD::raise_error(uint sql_errno)
 {
-  const char* msg= ER(sql_errno);
+  const char* msg= ER_THD(this, sql_errno);
   (void) raise_condition(sql_errno,
                          NULL,
                          Sql_condition::WARN_LEVEL_ERROR,
@@ -1150,7 +1150,7 @@ void THD::raise_error_printf(uint sql_errno, ...)
   char ebuff[MYSQL_ERRMSG_SIZE];
   DBUG_ENTER("THD::raise_error_printf");
   DBUG_PRINT("my", ("nr: %d  errno: %d", sql_errno, errno));
-  const char* format= ER(sql_errno);
+  const char* format= ER_THD(this, sql_errno);
   va_start(args, sql_errno);
   my_vsnprintf(ebuff, sizeof(ebuff), format, args);
   va_end(args);
@@ -1163,7 +1163,7 @@ void THD::raise_error_printf(uint sql_errno, ...)
 
 void THD::raise_warning(uint sql_errno)
 {
-  const char* msg= ER(sql_errno);
+  const char* msg= ER_THD(this, sql_errno);
   (void) raise_condition(sql_errno,
                          NULL,
                          Sql_condition::WARN_LEVEL_WARN,
@@ -1176,7 +1176,7 @@ void THD::raise_warning_printf(uint sql_errno, ...)
   char    ebuff[MYSQL_ERRMSG_SIZE];
   DBUG_ENTER("THD::raise_warning_printf");
   DBUG_PRINT("enter", ("warning: %u", sql_errno));
-  const char* format= ER(sql_errno);
+  const char* format= ER_THD(this, sql_errno);
   va_start(args, sql_errno);
   my_vsnprintf(ebuff, sizeof(ebuff), format, args);
   va_end(args);
@@ -1193,7 +1193,7 @@ void THD::raise_note(uint sql_errno)
   DBUG_PRINT("enter", ("code: %d", sql_errno));
   if (!(variables.option_bits & OPTION_SQL_NOTES))
     DBUG_VOID_RETURN;
-  const char* msg= ER(sql_errno);
+  const char* msg= ER_THD(this, sql_errno);
   (void) raise_condition(sql_errno,
                          NULL,
                          Sql_condition::WARN_LEVEL_NOTE,
@@ -1209,7 +1209,7 @@ void THD::raise_note_printf(uint sql_errno, ...)
   DBUG_PRINT("enter",("code: %u", sql_errno));
   if (!(variables.option_bits & OPTION_SQL_NOTES))
     DBUG_VOID_RETURN;
-  const char* format= ER(sql_errno);
+  const char* format= ER_THD(this, sql_errno);
   va_start(args, sql_errno);
   my_vsnprintf(ebuff, sizeof(ebuff), format, args);
   va_end(args);
@@ -1243,7 +1243,7 @@ Sql_condition* THD::raise_condition(uint sql_errno,
   if (sql_errno == 0)
     sql_errno= ER_UNKNOWN_ERROR;
   if (msg == NULL)
-    msg= ER(sql_errno);
+    msg= ER_THD(this, sql_errno);
   if (sqlstate == NULL)
    sqlstate= mysql_errno_to_sqlstate(sql_errno);
 
@@ -2954,7 +2954,7 @@ select_export::prepare(List<Item> &list, SELECT_LEX_UNIT *u)
     */
     push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
                  WARN_NON_ASCII_SEPARATOR_NOT_IMPLEMENTED,
-                 ER(WARN_NON_ASCII_SEPARATOR_NOT_IMPLEMENTED));
+                 ER_THD(thd, WARN_NON_ASCII_SEPARATOR_NOT_IMPLEMENTED));
   }
   field_term_length=exchange->field_term->length();
   field_term_char= field_term_length ?
@@ -2984,7 +2984,8 @@ select_export::prepare(List<Item> &list, SELECT_LEX_UNIT *u)
        field_term_length && strchr(NUMERIC_CHARS, field_term_char)))
   {
     push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
-                 ER_AMBIGUOUS_FIELD_TERM, ER(ER_AMBIGUOUS_FIELD_TERM));
+                 ER_AMBIGUOUS_FIELD_TERM,
+                 ER_THD(thd, ER_AMBIGUOUS_FIELD_TERM));
     is_ambiguous_field_term= TRUE;
   }
   else
@@ -3061,7 +3062,7 @@ int select_export::send_data(List<Item> &items)
                              res->charset(), 6);
         push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                             ER_TRUNCATED_WRONG_VALUE_FOR_FIELD,
-                            ER(ER_TRUNCATED_WRONG_VALUE_FOR_FIELD),
+                            ER_THD(thd, ER_TRUNCATED_WRONG_VALUE_FOR_FIELD),
                             "string", printable_buff,
                             item->name, static_cast<long>(row_count));
       }
@@ -3071,7 +3072,8 @@ int select_export::send_data(List<Item> &items)
           result is longer than UINT_MAX32 and doesn't fit into String
         */
         push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-                            WARN_DATA_TRUNCATED, ER(WARN_DATA_TRUNCATED),
+                            WARN_DATA_TRUNCATED,
+                            ER_THD(thd, WARN_DATA_TRUNCATED),
                             item->full_name(), static_cast<long>(row_count));
       }
       cvt_str.length(bytes);
@@ -3271,7 +3273,7 @@ int select_dump::send_data(List<Item> &items)
 
   if (row_count++ > 1) 
   {
-    my_message(ER_TOO_MANY_ROWS, ER(ER_TOO_MANY_ROWS), MYF(0));
+    my_message(ER_TOO_MANY_ROWS, ER_THD(thd, ER_TOO_MANY_ROWS), MYF(0));
     goto err;
   }
   while ((item=li++))
@@ -3300,7 +3302,7 @@ int select_singlerow_subselect::send_data(List<Item> &items)
   Item_singlerow_subselect *it= (Item_singlerow_subselect *)item;
   if (it->assigned())
   {
-    my_message(ER_SUBQUERY_NO_1_ROW, ER(ER_SUBQUERY_NO_1_ROW),
+    my_message(ER_SUBQUERY_NO_1_ROW, ER_THD(thd, ER_SUBQUERY_NO_1_ROW),
                MYF(current_thd->lex->ignore ? ME_JUST_WARNING : 0));
     DBUG_RETURN(1);
   }
@@ -3473,7 +3475,7 @@ int select_dumpvar::prepare(List<Item> &list, SELECT_LEX_UNIT *u)
   if (var_list.elements != list.elements)
   {
     my_message(ER_WRONG_NUMBER_OF_COLUMNS_IN_SELECT,
-               ER(ER_WRONG_NUMBER_OF_COLUMNS_IN_SELECT), MYF(0));
+               ER_THD(thd, ER_WRONG_NUMBER_OF_COLUMNS_IN_SELECT), MYF(0));
     return 1;
   }               
   return 0;
@@ -3827,7 +3829,7 @@ int select_dumpvar::send_data(List<Item> &items)
   }
   if (row_count++) 
   {
-    my_message(ER_TOO_MANY_ROWS, ER(ER_TOO_MANY_ROWS), MYF(0));
+    my_message(ER_TOO_MANY_ROWS, ER_THD(thd, ER_TOO_MANY_ROWS), MYF(0));
     DBUG_RETURN(1);
   }
   while ((mv= var_li++) && (item= it++))
@@ -3842,7 +3844,7 @@ bool select_dumpvar::send_eof()
 {
   if (! row_count)
     push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
-                 ER_SP_FETCH_NO_DATA, ER(ER_SP_FETCH_NO_DATA));
+                 ER_SP_FETCH_NO_DATA, ER_THD(thd, ER_SP_FETCH_NO_DATA));
   /*
     Don't send EOF if we're in error condition (which implies we've already
     sent or are sending an error)
@@ -5742,7 +5744,8 @@ int THD::decide_logging_format(TABLE_LIST *tables)
              unsafe_type++)
           if (unsafe_flags & (1 << unsafe_type))
             my_error((error= ER_BINLOG_UNSAFE_AND_STMT_ENGINE), MYF(0),
-                     ER(LEX::binlog_stmt_unsafe_errcode[unsafe_type]));
+                     ER_THD(this,
+                            LEX::binlog_stmt_unsafe_errcode[unsafe_type]));
       }
       /* log in statement format! */
     }
@@ -5782,7 +5785,7 @@ int THD::decide_logging_format(TABLE_LIST *tables)
 
           DBUG_PRINT("info", ("Scheduling warning to be issued by "
                               "binlog_query: '%s'",
-                              ER(ER_BINLOG_UNSAFE_STATEMENT)));
+                              ER_THD(this, ER_BINLOG_UNSAFE_STATEMENT)));
           DBUG_PRINT("info", ("binlog_unsafe_warning_flags: 0x%x",
                               binlog_unsafe_warning_flags));
         }
@@ -6349,13 +6352,13 @@ static void reset_binlog_unsafe_suppression(ulonglong now)
 /**
   Auxiliary function to print warning in the error log.
 */
-static void print_unsafe_warning_to_log(int unsafe_type, char* buf,
-                                 char* query)
+static void print_unsafe_warning_to_log(THD *thd, int unsafe_type, char* buf,
+                                        char* query)
 {
   DBUG_ENTER("print_unsafe_warning_in_log");
-  sprintf(buf, ER(ER_BINLOG_UNSAFE_STATEMENT),
-          ER(LEX::binlog_stmt_unsafe_errcode[unsafe_type]));
-  sql_print_warning(ER(ER_MESSAGE_AND_STATEMENT), buf, query);
+  sprintf(buf, ER_THD(thd, ER_BINLOG_UNSAFE_STATEMENT),
+          ER_THD(thd, LEX::binlog_stmt_unsafe_errcode[unsafe_type]));
+  sql_print_warning(ER_THD(thd, ER_MESSAGE_AND_STATEMENT), buf, query);
   DBUG_VOID_RETURN;
 }
 
@@ -6483,11 +6486,11 @@ void THD::issue_unsafe_warnings()
     {
       push_warning_printf(this, Sql_condition::WARN_LEVEL_NOTE,
                           ER_BINLOG_UNSAFE_STATEMENT,
-                          ER(ER_BINLOG_UNSAFE_STATEMENT),
-                          ER(LEX::binlog_stmt_unsafe_errcode[unsafe_type]));
+                          ER_THD(this, ER_BINLOG_UNSAFE_STATEMENT),
+                          ER_THD(this, LEX::binlog_stmt_unsafe_errcode[unsafe_type]));
       if (global_system_variables.log_warnings > 0 &&
           !protect_against_unsafe_warning_flood(unsafe_type))
-        print_unsafe_warning_to_log(unsafe_type, buf, query());
+        print_unsafe_warning_to_log(this, unsafe_type, buf, query());
     }
   }
   DBUG_VOID_RETURN;
@@ -6868,7 +6871,7 @@ wait_for_commit::wait_for_prior_commit2(THD *thd)
   wakeup_error= thd->killed_errno();
   if (!wakeup_error)
     wakeup_error= ER_QUERY_INTERRUPTED;
-  my_message(wakeup_error, ER(wakeup_error), MYF(0));
+  my_message(wakeup_error, ER_THD(thd, wakeup_error), MYF(0));
   thd->EXIT_COND(&old_stage);
   /*
     Must do the DEBUG_SYNC() _after_ exit_cond(), as DEBUG_SYNC is not safe to

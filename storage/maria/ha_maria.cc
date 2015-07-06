@@ -1614,7 +1614,7 @@ int ha_maria::repair(THD *thd, HA_CHECK *param, bool do_optimize)
     locking= 1;
     if (maria_lock_database(file, table->s->tmp_table ? F_EXTRA_LCK : F_WRLCK))
     {
-      _ma_check_print_error(param, ER(ER_CANT_LOCK), my_errno);
+      _ma_check_print_error(param, ER_THD(thd, ER_CANT_LOCK), my_errno);
       DBUG_RETURN(HA_ADMIN_FAILED);
     }
   }

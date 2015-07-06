@@ -665,8 +665,8 @@ protected:
   int read_keys_and_merge();
 
 public:
-  QUICK_INDEX_MERGE_SELECT(THD *thd, TABLE *table)
-    :QUICK_INDEX_SORT_SELECT(thd, table) {}
+  QUICK_INDEX_MERGE_SELECT(THD *thd_arg, TABLE *table)
+    :QUICK_INDEX_SORT_SELECT(thd_arg, table) {}
 
   int get_next();
   int get_type() { return QS_TYPE_INDEX_MERGE; }
@@ -679,8 +679,8 @@ protected:
   int read_keys_and_merge();
 
 public:
-  QUICK_INDEX_INTERSECT_SELECT(THD *thd, TABLE *table)
-    :QUICK_INDEX_SORT_SELECT(thd, table) {}
+  QUICK_INDEX_INTERSECT_SELECT(THD *thd_arg, TABLE *table)
+    :QUICK_INDEX_SORT_SELECT(thd_arg, table) {}
 
   key_map filtered_scans;
   int get_next();

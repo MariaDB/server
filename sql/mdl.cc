@@ -336,6 +336,7 @@ public:
     virtual bool needs_notification(const MDL_ticket *ticket) const = 0;
     virtual bool conflicting_locks(const MDL_ticket *ticket) const = 0;
     virtual bitmap_t hog_lock_types_bitmap() const = 0;
+    virtual ~MDL_lock_strategy() {}
   };
 
 
