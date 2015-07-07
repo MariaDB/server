@@ -537,6 +537,55 @@ static STRNNCOLL_PARAM strcoll_utf16le_general_ci[]=
   {CSTR("\x00\xD8\x00\xDC"), CSTR("\xFF\xDB\xFF\xDF"), 0},/* Non-BMP MB4 vs non-BMP MB4 */
   {CSTR("\x00\x00"), CSTR("\x00\xD8\x01\xDC"),        -1},/* U+0000 vs non-BMP MB4 */
   {CSTR("\x00\x00"), CSTR("\xFF\xDB\xFF\xDF"),        -1},/* U+0000 vs non-BMP MB4 */
+
+  {NULL, 0, NULL, 0, 0}
+};
+
+
+static STRNNCOLL_PARAM strcoll_utf32_common[]=
+{
+  /* Minimum character: U+0000 == _utf32 0x00000000 */
+  {CSTR("\x00\x00\x00\x00"), CSTR("\x00"),        -1},    /* MB4 vs incomplete MB4 */
+  {CSTR("\x00\x00\x00\x00"), CSTR("\xFF"),        -1},    /* MB4 vs incomplete MB4 */
+  {CSTR("\x00\x00\x00\x00"), CSTR("\x00\x00"),    -1},    /* MB4 vs incomplete MB4 */
+  {CSTR("\x00\x00\x00\x00"), CSTR("\x00\x00\x00"),-1},    /* MB4 vs incomplete MB4 */
+  {CSTR("\x00\x00\x00\x00"), CSTR("\x00\x20\x00\x00"),-1},/* MB4 vs broken MB4 */
+  {CSTR("\x00\x00\x00\x00"), CSTR("\xFF\xFF\xFF\xFF"),-1},/* MB4 vs broken MB4 */
+
+  /* Minimum non-BMP character: U+10000 == _utf32 0x00010000 */
+  {CSTR("\x00\x01\x00\x00"), CSTR("\x00"),        -1},    /* MB4 vs incomplete MB4 */
+  {CSTR("\x00\x01\x00\x00"), CSTR("\xFF"),        -1},    /* MB4 vs incomplete MB4 */
+  {CSTR("\x00\x01\x00\x00"), CSTR("\x00\x00"),    -1},    /* MB4 vs incomplete MB4 */
+  {CSTR("\x00\x01\x00\x00"), CSTR("\x00\x00\x00"),-1},    /* MB4 vs incomplete MB4 */
+  {CSTR("\x00\x01\x00\x00"), CSTR("\x00\x20\x00\x00"),-1},/* MB4 vs broken MB4 */
+  {CSTR("\x00\x01\x00\x00"), CSTR("\xFF\xFF\xFF\xFF"),-1},/* MB4 vs broken MB4 */
+
+  /* Maximum character: U+10FFFF == _utf32 0x0010FFFF */
+  {CSTR("\x00\x10\xFF\xFF"), CSTR("\x00"),         -1},   /* MB4 vs incomplete MB4 */
+  {CSTR("\x00\x10\xFF\xFF"), CSTR("\xFF"),         -1},   /* MB4 vs incomplete MB4 */
+  {CSTR("\x00\x10\xFF\xFF"), CSTR("\x00\x00"),     -1},   /* MB4 vs incomplete MB4 */
+  {CSTR("\x00\x10\xFF\xFF"), CSTR("\x00\x00\x00"), -1},   /* MB4 vs incomplete MB4 */
+  {CSTR("\x00\x10\xFF\xFF"), CSTR("\x20\x00\x00\x00"),-1},/* MB4 vs broken MB3 */
+  {CSTR("\x00\x10\xFF\xFF"), CSTR("\xFF\xFF\xFF\xFF"),-1},/* MB4 vs broken MB4 */
+
+
+  /* Broken MB4 vs incomplete/broken MB3 */
+  {CSTR("\x00\x20\x00\x00"), CSTR("\x00"),         1},    /* Broken MB4 vs incomplete MB4 */
+  {CSTR("\x00\x20\x00\x00"), CSTR("\x00\x00"),     1},    /* Broken MB4 vs incomplete MB4 */
+  {CSTR("\x00\x20\x00\x00"), CSTR("\x00\x00\x00"), 1},    /* Broken MB4 vs incomplete MB4 */
+  {CSTR("\x00\x20\x00\x00"), CSTR("\x00\x20\x00\x01"),-1},/* Broken MB4 vs broken MB4 */
+
+  {NULL, 0, NULL, 0, 0}
+};
+
+
+static STRNNCOLL_PARAM strcoll_utf32_general_ci[]=
+{
+  /* Two non-BMP characters are compared as equal */
+  {CSTR("\x00\x01\x00\x00"), CSTR("\x00\x01\x00\x01"),  0}, /* non-BMP MB4 vs non-BMP MB4 */
+  {CSTR("\x00\x00\x00\x00"), CSTR("\x00\x01\x00\x00"), -1}, /* U+0000 vs non-BMP MB4 */
+  {CSTR("\x00\x00\x00\x00"), CSTR("\x00\x01\x00\x01"), -1}, /* U+0000 vs non-BMP MB4 */
+
   {NULL, 0, NULL, 0, 0}
 };
 
@@ -687,6 +736,11 @@ test_strcollsp()
   failed+= strcollsp(&my_charset_utf16le_bin,       strcoll_ucs2_common);
   failed+= strcollsp(&my_charset_utf16le_bin,       strcoll_utf16le_space);
   failed+= strcollsp(&my_charset_utf16le_bin,       strcoll_utf16le_common);
+#endif
+#ifdef HAVE_CHARSET_utf32
+  failed+= strcollsp(&my_charset_utf32_general_ci,  strcoll_utf32_common);
+  failed+= strcollsp(&my_charset_utf32_general_ci,  strcoll_utf32_general_ci);
+  failed+= strcollsp(&my_charset_utf32_bin,         strcoll_utf32_common);
 #endif
 #ifdef HAVE_CHARSET_utf8
   failed+= strcollsp(&my_charset_utf8_general_ci,          strcoll_utf8mb3_common);
