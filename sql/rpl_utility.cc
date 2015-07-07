@@ -943,6 +943,18 @@ TABLE *table_def::create_conversion_table(THD *thd, rpl_group_info *rgi,
     conversion table.
   */
   uint const cols_to_create= MY_MIN(target_table->s->fields, size());
+
+  // Default value : treat all values signed
+  bool unsigned_flag= FALSE;
+
+  // Check if slave_type_conversions contains ALL_UNSIGNED
+  unsigned_flag= slave_type_conversions_options &
+                         (1ULL << SLAVE_TYPE_CONVERSIONS_ALL_UNSIGNED);
+
+  // Check if slave_type_conversions contains ALL_SIGNED
+  unsigned_flag= unsigned_flag && !(slave_type_conversions_options &
+                         (1ULL << SLAVE_TYPE_CONVERSIONS_ALL_SIGNED));
+
   for (uint col= 0 ; col < cols_to_create; ++col)
   {
     Create_field *field_def=
@@ -1008,7 +1020,7 @@ TABLE *table_def::create_conversion_table(THD *thd, rpl_group_info *rgi,
                                   max_length,
                                   decimals,
                                   TRUE,         // maybe_null
-                                  FALSE,        // unsigned_flag
+                                  unsigned_flag,        // unsigned_flag
                                   pack_length);
     field_def->charset= target_table->field[col]->charset();
     field_def->interval= interval;
