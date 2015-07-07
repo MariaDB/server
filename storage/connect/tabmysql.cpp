@@ -1058,12 +1058,13 @@ bool TDBMYSQL::ReadKey(PGLOBAL g, OPVAL op, const void *key, int len)
 {
   bool oom;
   int  oldlen = Query->GetLength();
+	PHC  hc = To_Def->GetHandler();
 
-  if (op == OP_FIRST) {
+  if (op == OP_FIRST && hc->end_range) {
 #ifdef _DEBUG
 		assert(!key);
 #endif
-		key_range *end_key = &To_Def->GetHandler()->save_end_range;
+		key_range *end_key = &hc->save_end_range;
 
 		key = end_key->key;
 		len = end_key->length;
@@ -1078,21 +1079,20 @@ bool TDBMYSQL::ReadKey(PGLOBAL g, OPVAL op, const void *key, int len)
 
   if (!key || op == OP_NEXT ||
         Mode == MODE_UPDATE || Mode == MODE_DELETE) {
-#if 0
     if (!key && Mode == MODE_READX) {
       // This is a false indexed read
       m_Rc = Myc.ExecSQL(g, Query->GetStr());
       Mode = MODE_READ;
       return (m_Rc == RC_FX) ? true : false;
       } // endif key
-#endif // 0
 
     return false;
   } else {
     if (Myc.m_Res)
       Myc.FreeResult();
 
-    To_Def->GetHandler()->MakeKeyWhere(g, Query, op, '`', key, len);
+		if (hc->MakeKeyWhere(g, Query, op, '`', key, len))
+			return true;
 
     if (To_CondFil) {
       oom = Query->Append(" AND (");
