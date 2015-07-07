@@ -4670,14 +4670,36 @@ end_with_restore_list:
 
 #ifdef WITH_WSREP
     if (lex->type & (
-            REFRESH_GRANT            |
-            REFRESH_HOSTS            |
-            REFRESH_DES_KEY_FILE     |
+    REFRESH_GRANT                           |
+    REFRESH_HOSTS                           |
+#ifdef HAVE_OPENSSL
+    REFRESH_DES_KEY_FILE                    |
+#endif
+    /*
+      Write all flush log statements except
+      FLUSH LOGS
+      FLUSH BINARY LOGS
+      Check reload_acl_and_cache for why.
+    */
+    REFRESH_RELAY_LOG                       |
+    REFRESH_SLOW_LOG                        |
+    REFRESH_GENERAL_LOG                     |
+    REFRESH_ENGINE_LOG                      |
+    REFRESH_ERROR_LOG                       |
 #ifdef HAVE_QUERY_CACHE
-            REFRESH_QUERY_CACHE_FREE |
+    REFRESH_QUERY_CACHE_FREE                |
 #endif /* HAVE_QUERY_CACHE */
-            REFRESH_STATUS           |
-            REFRESH_USER_RESOURCES))
+    REFRESH_STATUS                          |
+    REFRESH_USER_RESOURCES                  |
+    /*
+      Percona Server specific
+    */
+    REFRESH_FLUSH_PAGE_BITMAPS              |
+    REFRESH_TABLE_STATS                     |
+    REFRESH_INDEX_STATS                     |
+    REFRESH_USER_STATS                      |
+    REFRESH_CLIENT_STATS                    |
+    REFRESH_THREAD_STATS))
     {
       WSREP_TO_ISOLATION_BEGIN_WRTCHK(WSREP_MYSQL_DB, NULL, NULL)
     }
