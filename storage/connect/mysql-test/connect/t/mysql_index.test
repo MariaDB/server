@@ -1,0 +1,66 @@
+-- source include/not_embedded.inc
+
+#
+# TODO: consider a possibility to run this test
+# against some remote MySQL server
+#
+
+let $PORT= `select @@port`;
+
+--disable_query_log
+--replace_result $PORT PORT
+--error 0,ER_UNKNOWN_ERROR
+--eval CREATE TABLE t1 (a INT) ENGINE=CONNECT TABLE_TYPE=MYSQL TABNAME='tx1' OPTION_LIST='host=localhost,user=root,port=$PORT'
+if (!`SELECT count(*) FROM INFORMATION_SCHEMA.TABLES
+  WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t1'
+  AND ENGINE='CONNECT'
+  AND CREATE_OPTIONS LIKE '%`table_type`=MySQL%'`)
+{
+  Skip Need MySQL support;
+}
+DROP TABLE t1;
+--enable_query_log
+
+--echo #
+--echo # Make remote table
+--echo #
+CREATE TABLE t1 (
+  id int(11) NOT NULL,
+  msg char(100) DEFAULT NULL,
+  PRIMARY KEY (id)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1;
+INSERT INTO t1 VALUES(1,'Un'),(3,'Trois'),(5,'Cinq');
+INSERT INTO t1 VALUES(2,'Two'),(4,'Four'),(6,'Six');
+SELECT * FROM t1;
+
+--echo #
+--echo # Make local MYSQL table with indexed id column
+--echo #
+CREATE TABLE t2 (
+  id int(11) NOT NULL,
+  msg char(100) DEFAULT NULL,
+  PRIMARY KEY (id)
+) ENGINE=CONNECT DEFAULT CHARSET=latin1 TABLE_TYPE=MYSQL TABNAME=t1;
+
+--echo #
+--echo # Testing SELECT, etc.
+--echo #
+SELECT * FROM t2;
+SELECT * FROM t2 WHERE id = 3;
+SELECT * FROM t2 WHERE id IN (2,4);
+SELECT * FROM t2 WHERE id IN (2,4) AND msg = 'Two';
+SELECT * FROM t2 WHERE id > 3;
+SELECT * FROM t2 WHERE id >= 3;
+SELECT * FROM t2 WHERE id < 3;
+SELECT * FROM t2 WHERE id < 3 OR id > 4;
+SELECT * FROM t2 WHERE id <= 3;
+SELECT * FROM t2 WHERE id BETWEEN 3 AND 5;
+SELECT * FROM t2 WHERE id > 2 AND id < 6;
+SELECT * FROM t2 ORDER BY id;
+UPDATE t2 SET msg = 'Five' WHERE id = 5;
+SELECT * FROM t2;
+DELETE FROM t2 WHERE id = 4;
+SELECT * FROM t2;
+
+DROP TABLE t2;
+DROP TABLE t1;
