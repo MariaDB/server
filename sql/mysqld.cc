@@ -1902,7 +1902,10 @@ static void __cdecl kill_server(int sig_ptr)
 #endif
 
   /* Stop wsrep threads in case they are running. */
-  wsrep_stop_replication(NULL);
+  if (wsrep_running_threads > 0)
+  {
+    wsrep_stop_replication(NULL);
+  }
 
   close_connections();
 
@@ -5805,10 +5808,6 @@ int mysqld_main(int argc, char **argv)
 
       wsrep_create_appliers(wsrep_slave_threads - 1);
     }
-  }
-  else
-  {
-    wsrep_init_startup (false);
   }
 
  if (opt_bootstrap)

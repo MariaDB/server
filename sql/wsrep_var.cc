@@ -552,33 +552,34 @@ int wsrep_show_status (THD *thd, SHOW_VAR *var, char *buff,
     *v++= wsrep_status_vars[i];
 
   DBUG_ASSERT(i < maxi);
-  DBUG_ASSERT(wsrep != NULL);
 
-  wsrep_stats_var* stats= wsrep->stats_get(wsrep);
-  for (wsrep_stats_var *sv= stats; i < maxi && sv && sv->name; i++, sv++, v++)
-  {
-    v->name = thd->strdup(sv->name);
-    switch (sv->type) {
-    case WSREP_VAR_INT64:
-      v->value = (char*)thd->memdup(&sv->value._int64, sizeof(longlong));
-      v->type  = SHOW_LONGLONG;
-      break;
-    case WSREP_VAR_STRING:
-      v->value = thd->strdup(sv->value._string);
-      v->type  = SHOW_CHAR;
-      break;
-    case WSREP_VAR_DOUBLE:
-      v->value = (char*)thd->memdup(&sv->value._double, sizeof(double));
-      v->type  = SHOW_DOUBLE;
-      break;
+  if (wsrep != NULL) {
+    wsrep_stats_var* stats= wsrep->stats_get(wsrep);
+    for (wsrep_stats_var *sv= stats; i < maxi && sv && sv->name; i++, sv++, v++)
+    {
+      v->name = thd->strdup(sv->name);
+      switch (sv->type) {
+      case WSREP_VAR_INT64:
+        v->value = (char*)thd->memdup(&sv->value._int64, sizeof(longlong));
+        v->type  = SHOW_LONGLONG;
+        break;
+      case WSREP_VAR_STRING:
+        v->value = thd->strdup(sv->value._string);
+        v->type  = SHOW_CHAR;
+        break;
+      case WSREP_VAR_DOUBLE:
+        v->value = (char*)thd->memdup(&sv->value._double, sizeof(double));
+        v->type  = SHOW_DOUBLE;
+        break;
+      }
+      DBUG_ASSERT(i < maxi);
     }
-    DBUG_ASSERT(i < maxi);
+    wsrep->stats_free(wsrep, stats);
   }
-  wsrep->stats_free(wsrep, stats);
 
   my_qsort(buff, i, sizeof(*v), show_var_cmp);
 
-  v->name= 0; // terminator
+  v->name= 0;                                   // terminator
   return 0;
 }
 
