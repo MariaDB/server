@@ -149,7 +149,7 @@ static my_bool column_types_flag;
 static my_bool preserve_comments= 0;
 static my_bool in_com_source, aborted= 0;
 static ulong opt_max_allowed_packet, opt_net_buffer_length;
-static uint verbose=0,opt_silent=0,opt_mysql_port=0, opt_local_infile=0;
+static uint verbose=0,opt_silent=0,opt_tty=0,opt_mysql_port=0, opt_local_infile=0;
 static uint my_end_arg;
 static char * opt_mysql_unix_port=0;
 static int connect_flag=CLIENT_INTERACTIVE;
@@ -1147,7 +1147,7 @@ int main(int argc,char *argv[])
   }
   if (!isatty(0) || !isatty(1))
   {
-    status.batch=1; opt_silent=1;
+    status.batch=1; opt_tty=1;
     ignore_errors=0;
   }
   else
@@ -1883,6 +1883,9 @@ static int get_options(int argc, char **argv)
 
   if ((ho_error=handle_options(&argc, &argv, my_long_options, get_one_option)))
     return(ho_error);
+    
+  if (opt_tty=1 && opt_silent=0)
+    opt_silent=1;
 
   *mysql_params->p_max_allowed_packet= opt_max_allowed_packet;
   *mysql_params->p_net_buffer_length= opt_net_buffer_length;
