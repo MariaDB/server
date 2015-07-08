@@ -77,7 +77,8 @@ fi
 STOP_WSREP="SET wsrep_on=OFF;"
 
 # NOTE: we don't use --routines here because we're dumping mysql.proc table
-MYSQLDUMP="$MYSQLDUMP $AUTH -S$WSREP_SST_OPT_SOCKET \
+MYSQLDUMP="$MYSQLDUMP --defaults-extra-file=$WSREP_SST_OPT_CONF \
+$AUTH -S$WSREP_SST_OPT_SOCKET \
 --add-drop-database --add-drop-table --skip-add-locks --create-options \
 --disable-keys --extended-insert --skip-lock-tables --quick --set-charset \
 --skip-comments --flush-privileges --all-databases --events"
@@ -102,7 +103,8 @@ DROP PREPARE stmt;"
 
 SET_START_POSITION="SET GLOBAL wsrep_start_position='$WSREP_SST_OPT_GTID';"
 
-MYSQL="$MYSQL_CLIENT $AUTH -h$WSREP_SST_OPT_HOST -P$WSREP_SST_OPT_PORT "\
+MYSQL="$MYSQL_CLIENT --defaults-extra-file=$WSREP_SST_OPT_CONF "\
+"$AUTH -h$WSREP_SST_OPT_HOST -P$WSREP_SST_OPT_PORT "\
 "--disable-reconnect --connect_timeout=10"
 
 # need to disable logging when loading the dump
