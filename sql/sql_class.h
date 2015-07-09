@@ -644,6 +644,8 @@ typedef struct system_variables
 
   /* Error messages */
   MY_LOCALE *lc_messages;
+  const char **errmsgs;             /* lc_messages->errmsg->errmsgs */
+
   /* Locale Support */
   MY_LOCALE *lc_time_names;
 

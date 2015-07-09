@@ -4376,9 +4376,11 @@ static int init_common_variables()
     sql_print_error("Unknown locale: '%s'", lc_messages);
     return 1;
   }
-  global_system_variables.lc_messages= my_default_lc_messages;
+
   if (init_errmessage())	/* Read error messages from file */
     return 1;
+  global_system_variables.lc_messages= my_default_lc_messages;
+  global_system_variables.errmsgs= my_default_lc_messages->errmsgs->errmsgs;
   init_client_errs();
   mysql_library_init(unused,unused,unused); /* for replication */
   lex_init();

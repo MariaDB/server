@@ -4587,11 +4587,22 @@ static bool check_locale(sys_var *self, THD *thd, set_var *var)
   return false;
 }
 
+static bool update_locale(sys_var *self, THD* thd, enum_var_type type)
+{
+  /* Cache pointer to error messages */
+  if (type == OPT_SESSION)
+    thd->variables.errmsgs= thd->variables.lc_messages->errmsgs->errmsgs;
+  else
+    global_system_variables.errmsgs=
+      global_system_variables.lc_messages->errmsgs->errmsgs;
+  return false;
+}
+  
 static Sys_var_struct Sys_lc_messages(
        "lc_messages", "Set the language used for the error messages",
        SESSION_VAR(lc_messages), NO_CMD_LINE,
        my_offsetof(MY_LOCALE, name), DEFAULT(&my_default_lc_messages),
-       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(check_locale));
+       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(check_locale), ON_UPDATE(update_locale));
 
 static Sys_var_struct Sys_lc_time_names(
        "lc_time_names", "Set the language used for the month "
