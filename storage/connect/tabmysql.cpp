@@ -1058,6 +1058,24 @@ bool TDBMYSQL::ReadKey(PGLOBAL g, OPVAL op, const void *key, int len)
 {
   bool oom;
   int  oldlen = Query->GetLength();
+	PHC  hc = To_Def->GetHandler();
+
+  if (op == OP_FIRST && hc->end_range) {
+#ifdef _DEBUG
+		assert(!key);
+#endif
+		key_range *end_key = &hc->save_end_range;
+
+		key = end_key->key;
+		len = end_key->length;
+
+		switch (end_key->flag) {
+		  case HA_READ_BEFORE_KEY: op = OP_LT; break;
+		  case HA_READ_AFTER_KEY:  op = OP_LE; break;
+		  default: key = NULL;
+		  } // endswitch flag
+
+		} // endif OP_FIRST
 
   if (!key || op == OP_NEXT ||
         Mode == MODE_UPDATE || Mode == MODE_DELETE) {
@@ -1069,22 +1087,12 @@ bool TDBMYSQL::ReadKey(PGLOBAL g, OPVAL op, const void *key, int len)
       } // endif key
 
     return false;
-  } else if (op == OP_FIRST) {
-    if (To_CondFil) {
-      oom = Query->Append(" WHERE ");
-
-      if ((oom |= Query->Append(To_CondFil->Body))) {
-        strcpy(g->Message, "Readkey: Out of memory");
-        return true;
-        } // endif oom
-
-      } // endif To_Condfil
-
   } else {
     if (Myc.m_Res)
       Myc.FreeResult();
 
-    To_Def->GetHandler()->MakeKeyWhere(g, Query, op, '`', key, len);
+		if (hc->MakeKeyWhere(g, Query, op, '`', key, len))
+			return true;
 
     if (To_CondFil) {
       oom = Query->Append(" AND (");
