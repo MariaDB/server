@@ -1902,7 +1902,10 @@ static void __cdecl kill_server(int sig_ptr)
 #endif
 
   /* Stop wsrep threads in case they are running. */
-  wsrep_stop_replication(NULL);
+  if (wsrep_running_threads > 0)
+  {
+    wsrep_stop_replication(NULL);
+  }
 
   close_connections();
 
@@ -5808,10 +5811,6 @@ int mysqld_main(int argc, char **argv)
       wsrep_create_appliers(wsrep_slave_threads - 1);
     }
   }
-  else
-  {
-    wsrep_init_startup (false);
-  }
 
  if (opt_bootstrap)
   {
@@ -7523,7 +7522,6 @@ struct my_option my_long_options[]=
   MYSQL_COMPATIBILITY_OPTION("log-bin-use-v1-row-events"),
   MYSQL_TO_BE_IMPLEMENTED_OPTION("default-authentication-plugin"),
   MYSQL_COMPATIBILITY_OPTION("binlog-max-flush-queue-time"),
-  MYSQL_TO_BE_IMPLEMENTED_OPTION("binlog-row-image"),
   MYSQL_TO_BE_IMPLEMENTED_OPTION("explicit-defaults-for-timestamp"),
   MYSQL_COMPATIBILITY_OPTION("master-info-repository"),
   MYSQL_COMPATIBILITY_OPTION("relay-log-info-repository"),

@@ -531,4 +531,49 @@ EXPLAIN
 }
 drop table t5,t6,t7;
 drop table t3;
+# 
+# Tabular ANALYZE must get its data from execution tracker (and not from
+#   the query plan)
+# 
+CREATE TABLE t2(
+col1 int, 
+col2 int, 
+UNIQUE INDEX idx (col1, col2)) engine=myisam;
+INSERT INTO t2(col1, col2) VALUES
+(1,20),(2,19),(3,18),(4,17),(5,16),(6,15),(7,14),(8,13),(9,12),(10,11),
+(11,10),(12,9),(13,8),(14,7),(15,6),(16,5),(17,4),(18,3),(19,2),(20,1);
+flush status;
+explain
+select col1 f1, col2 f2, col1 f3 from t2 group by f1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	range	NULL	idx	5	NULL	7	Using index for group-by
+analyze
+select col1 f1, col2 f2, col1 f3 from t2 group by f1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t2	range	NULL	idx	5	NULL	7	20.00	100.00	100.00	Using index for group-by
+analyze format=json
+select col1 f1, col2 f2, col1 f3 from t2 group by f1;
+ANALYZE
+{
+  "query_block": {
+    "select_id": 1,
+    "r_loops": 1,
+    "r_total_time_ms": "REPLACED",
+    "table": {
+      "table_name": "t2",
+      "access_type": "range",
+      "key": "idx",
+      "key_length": "5",
+      "used_key_parts": ["col1"],
+      "r_loops": 1,
+      "rows": 7,
+      "r_rows": 20,
+      "r_total_time_ms": "REPLACED",
+      "filtered": 100,
+      "r_filtered": 100,
+      "using_index_for_group_by": true
+    }
+  }
+}
+drop table t2;
 drop table t0,t1;

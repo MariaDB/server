@@ -591,6 +591,7 @@ public:
   Item_func_ne(Item *a,Item *b) :Item_bool_rowready_func2(a,b) {}
   longlong val_int();
   enum Functype functype() const { return NE_FUNC; }
+  enum Functype rev_functype() const { return NE_FUNC; }
   cond_result eq_cmp_result() const { return COND_FALSE; }
   const char *func_name() const { return "<>"; }
   Item *negated_item();

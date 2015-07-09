@@ -143,11 +143,22 @@ extern DATE_TIME_FORMAT global_time_format;
 extern KNOWN_DATE_TIME_FORMAT known_date_time_formats[];
 extern LEX_STRING interval_type_to_name[];
 
-
+static inline bool
+non_zero_hhmmssuu(const MYSQL_TIME *ltime)
+{
+  return ltime->hour || ltime->minute || ltime->second || ltime->second_part;
+}
+static inline bool
+non_zero_YYMMDD(const MYSQL_TIME *ltime)
+{
+  return ltime->year || ltime->month || ltime->day;
+}
 static inline bool
 non_zero_date(const MYSQL_TIME *ltime)
 {
-  return ltime->year || ltime->month || ltime->day;
+  return non_zero_YYMMDD(ltime) ||
+         (ltime->time_type == MYSQL_TIMESTAMP_DATETIME &&
+          non_zero_hhmmssuu(ltime));
 }
 static inline bool
 check_date(const MYSQL_TIME *ltime, ulonglong flags, int *was_cut)

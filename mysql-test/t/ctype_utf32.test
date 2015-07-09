@@ -956,3 +956,20 @@ DEALLOCATE PREPARE stmt;
 --echo # End of 10.0 tests
 --echo #
 
+--echo #
+--echo # Start of 10.1 tests
+--echo #
+
+--echo #
+--echo # MDEV-8419 utf32: compare broken bytes as "greater than any non-broken character"
+--echo #
+# Make sure that all non-BMP characters are compared as equal
+CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET utf32, KEY(a));
+INSERT INTO t1 VALUES (0x10000),(0x10001),(0x10002);
+SELECT COUNT(DISTINCT a) FROM t1;
+DROP TABLE t1;
+SELECT _utf32 0x10001=_utf32 0x10002;
+
+--echo #
+--echo # End of 10.1 tests
+--echo #

@@ -10,12 +10,18 @@ SET GLOBAL innodb_file_format = `Barracuda`;
 SET GLOBAL innodb_file_per_table = ON;
 
 create table innodb_normal(c1 bigint not null, b char(200)) engine=innodb;
+show warnings;
 create table innodb_compact(c1 bigint not null, b char(200)) engine=innodb row_format=compact encrypted=yes encryption_key_id=1;
+show warnings;
 create table innodb_compressed(c1 bigint not null, b char(200)) engine=innodb row_format=compressed encrypted=yes encryption_key_id=2;
+show warnings;
 --error ER_CANT_CREATE_TABLE
 create table innodb_dynamic(c1 bigint not null, b char(200)) engine=innodb row_format=dynamic encrypted=yes encryption_key_id=3;
+show warnings;
 create table innodb_dynamic(c1 bigint not null, b char(200)) engine=innodb row_format=dynamic encrypted=yes encryption_key_id=33;
+show warnings;
 create table innodb_redundant(c1 bigint not null, b char(200))  engine=innodb row_format=redundant encrypted=yes encryption_key_id=4;
+show warnings;
 
 set innodb_default_encryption_key_id = 5;
 create table innodb_defkey(c1  bigint not null, b char(200))  engine=innodb encrypted=yes;

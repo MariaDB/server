@@ -5213,6 +5213,22 @@ static Sys_var_mybool Sys_encrypt_tmp_files(
        READ_ONLY GLOBAL_VAR(encrypt_tmp_files),
        CMD_LINE(OPT_ARG), DEFAULT(TRUE));
 
+static const char *binlog_row_image_names[]= {"MINIMAL", "NOBLOB", "FULL", NullS};
+static Sys_var_enum Sys_binlog_row_image(
+       "binlog_row_image",
+       "Controls whether rows should be logged in 'FULL', 'NOBLOB' or "
+       "'MINIMAL' formats. 'FULL', means that all columns in the before "
+       "and after image are logged. 'NOBLOB', means that mysqld avoids logging "
+       "blob columns whenever possible (eg, blob column was not changed or "
+       "is not part of primary key). 'MINIMAL', means that a PK equivalent (PK "
+       "columns or full row if there is no PK in the table) is logged in the "
+       "before image, and only changed columns are logged in the after image. "
+       "(Default: FULL).",
+       SESSION_VAR(binlog_row_image), CMD_LINE(REQUIRED_ARG),
+       binlog_row_image_names, DEFAULT(BINLOG_ROW_IMAGE_FULL),
+       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(NULL),
+       ON_UPDATE(NULL));
+
 static bool check_pseudo_slave_mode(sys_var *self, THD *thd, set_var *var)
 {
   longlong previous_val= thd->variables.pseudo_slave_mode;

@@ -15,7 +15,9 @@ SET GLOBAL innodb_file_per_table = ON;
 set global innodb_compression_algorithm = 1;
 
 create table innodb_normal(c1 bigint not null, b char(200)) engine=innodb page_compressed=1;
+show warnings;
 create table innodb_compact(c1 bigint not null, b char(200)) engine=innodb row_format=compact encrypted=yes encryption_key_id=1 page_compressed=1;
+show warnings;
 create table innodb_dynamic(c1 bigint not null, b char(200)) engine=innodb row_format=dynamic encrypted=yes encryption_key_id=2 page_compressed=1;
 show warnings;
 

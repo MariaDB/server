@@ -2049,7 +2049,7 @@ fil_crypt_complete_rotate_space(
 	fil_space_crypt_t *crypt_data = fil_space_get_crypt_data(space);
 
 	/* Space might already be dropped */
-	if (crypt_data || !crypt_data->inited) {
+	if (crypt_data != NULL && crypt_data->inited) {
 		mutex_enter(&crypt_data->mutex);
 
 		/**

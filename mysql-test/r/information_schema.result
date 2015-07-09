@@ -1633,9 +1633,7 @@ drop table if exists t1;drop table if exists t1;
 drop table if exists t1;drop table if exists t1;
 drop table if exists t1;drop table if exists t1;
 drop table if exists t1;drop table if exists t1;
-drop table if exists t1;drop table if exists
-Warnings:
-Warning	1265	Data truncated for column 'VARIABLE_VALUE' at row 1
+drop table if exists t1;drop table if exists t1;
 select * from information_schema.global_variables where variable_name like 'init%' order by variable_name;
 VARIABLE_NAME	VARIABLE_VALUE
 INIT_CONNECT	drop table if exists t1;drop table if exists t1;
@@ -1658,11 +1656,9 @@ drop table if exists t1;drop table if exists t1;
 drop table if exists t1;drop table if exists t1;
 drop table if exists t1;drop table if exists t1;
 drop table if exists t1;drop table if exists t1;
-drop table if exists t1;drop table if exists
+drop table if exists t1;drop table if exists t1;
 INIT_FILE	
 INIT_SLAVE	
-Warnings:
-Warning	1265	Data truncated for column 'VARIABLE_VALUE' at row #
 set global init_connect="";
 create table t0 select * from information_schema.global_status where VARIABLE_NAME='COM_SELECT';
 SELECT 1;

@@ -149,7 +149,7 @@ typedef struct
     A1A1 - MB2 or 8BIT+8BIT
     E0E0 - MB2
 */
-STRNNCOLL_PARAM strcoll_mb2_common[]=
+static STRNNCOLL_PARAM strcoll_mb2_common[]=
 {
   /* Compare two good sequences */
   {CSTR(""),         CSTR(""),           0},
@@ -210,7 +210,7 @@ STRNNCOLL_PARAM strcoll_mb2_common[]=
 /*
   For character sets that have good mb2 characters A1A1 and F9FE
 */
-STRNNCOLL_PARAM strcoll_mb2_A1A1_mb2_F9FE[]=
+static STRNNCOLL_PARAM strcoll_mb2_A1A1_mb2_F9FE[]=
 {
   /* Compare two good characters */
   {CSTR(""),         CSTR("\xF9\xFE"), -1},
@@ -246,7 +246,7 @@ STRNNCOLL_PARAM strcoll_mb2_A1A1_mb2_F9FE[]=
     A1A1 - a good mb2 character
     F9FE - a bad sequence
 */
-STRNNCOLL_PARAM strcoll_mb2_A1A1_bad_F9FE[]=
+static STRNNCOLL_PARAM strcoll_mb2_A1A1_bad_F9FE[]=
 {
   /* Compare a good character to an illegal or an incomplete sequence */
   {CSTR(""),         CSTR("\xF9\xFE"), -1},
@@ -283,7 +283,7 @@ STRNNCOLL_PARAM strcoll_mb2_A1A1_bad_F9FE[]=
     F9   - ILSEQ or H2
     F9FE - a bad sequence (ILSEQ+XX or H2+ILSEQ)
 */
-STRNNCOLL_PARAM strcoll_mb1_A1_bad_F9FE[]=
+static STRNNCOLL_PARAM strcoll_mb1_A1_bad_F9FE[]=
 {
   /* Compare two good characters */
   {CSTR(""),         CSTR("\xA1"),     -1},
@@ -323,11 +323,268 @@ STRNNCOLL_PARAM strcoll_mb1_A1_bad_F9FE[]=
   and sort in this order:
     8181 < A1 < E0E0
 */
-STRNNCOLL_PARAM strcoll_8181_A1_E0E0[]=
+static STRNNCOLL_PARAM strcoll_8181_A1_E0E0[]=
 {
   {CSTR("\x81\x81"), CSTR("\xA1"),     -1},
   {CSTR("\x81\x81"), CSTR("\xE0\xE0"), -1},
   {CSTR("\xA1"),     CSTR("\xE0\xE0"), -1},
+
+  {NULL, 0, NULL, 0, 0}
+};
+
+
+/*
+  A shared test for eucjpms and ujis.
+*/
+static STRNNCOLL_PARAM strcoll_ujis[]=
+{
+  {CSTR("\x8E\xA1"), CSTR("\x8E"),     -1},     /* Good MB2 vs incomplete MB2 */
+  {CSTR("\x8E\xA1"), CSTR("\x8F\xA1"), -1},     /* Good MB2 vs incomplete MB3 */
+  {CSTR("\x8E\xA1"), CSTR("\x8F\xA1\xA1"), -1}, /* Good MB2 vs good MB3 */
+  {CSTR("\xA1\xA1"), CSTR("\x8F\xA1\xA1"),  1}, /* Good MB2 vs good MB3 */
+  {CSTR("\x8E"),     CSTR("\x8F\xA1"), -1}, /* Incomplete MB2 vs incomplete MB3 */
+  {NULL, 0, NULL, 0, 0}
+};
+
+
+static STRNNCOLL_PARAM strcoll_utf8mb3_common[]=
+{
+  {CSTR("\xC0"),     CSTR("\xC1"),        -1},    /* Unused byte vs unused byte */
+  {CSTR("\xC0"),     CSTR("\xFF"),        -1},    /* Unused byte vs unused byte */
+  {CSTR("\xC2\xA1"), CSTR("\xC0"),        -1},    /* MB2 vs unused byte */
+  {CSTR("\xC2\xA1"), CSTR("\xC2"),        -1},    /* MB2 vs incomplete MB2 */
+  {CSTR("\xC2\xA1"), CSTR("\xC2\xA2"),    -1},    /* MB2 vs MB2 */
+  {CSTR("\xC2\xA1"), CSTR("\xE0\xA0\x7F"),-1},    /* MB2 vs broken MB3 */
+  {CSTR("\xC2\xA1"), CSTR("\xE0\xA0\x80"),-1},    /* MB2 vs MB3 */
+  {CSTR("\xC2\xA1"), CSTR("\xE0\xA0\xBF"),-1},    /* MB2 vs MB3 */
+  {CSTR("\xC2\xA1"), CSTR("\xE0\xA0\xC0"),-1},    /* MB2 vs broken MB3 */
+  {CSTR("\xC2\xA1"), CSTR("\xE0\xA0"),     -1},   /* MB2 vs incomplete MB3 */
+  {CSTR("\xE0\xA0\x7E"), CSTR("\xE0\xA0\x7F"),-1},/* Broken MB3 vs broken MB3 */
+  {CSTR("\xE0\xA0\x80"), CSTR("\xE0\xA0"),    -1},/* MB3 vs incomplete MB3 */
+  {CSTR("\xE0\xA0\x80"), CSTR("\xE0\xA0\x7F"),-1},/* MB3 vs broken MB3 */
+  {CSTR("\xE0\xA0\x80"), CSTR("\xE0\xA0\xBF"),-1},/* MB3 vs MB3 */
+  {CSTR("\xE0\xA0\x80"), CSTR("\xE0\xA0\xC0"),-1},/* MB3 vs broken MB3 */
+  {CSTR("\xE0\xA0\xC0"), CSTR("\xE0\xA0\xC1"),-1},/* Broken MB3 vs broken MB3 */
+  {NULL, 0, NULL, 0, 0}
+};
+
+
+static STRNNCOLL_PARAM strcoll_utf8mb4_common[]=
+{
+  /* Minimum four-byte character: U+10000 == _utf8 0xF0908080 */
+  {CSTR("\xF0\x90\x80\x80"), CSTR("\xC0"),        -1},  /* MB4 vs unused byte */
+  {CSTR("\xF0\x90\x80\x80"), CSTR("\xC2"),        -1},  /* MB4 vs incomplete MB2 */
+  {CSTR("\xF0\x90\x80\x80"), CSTR("\xE0\xA0\x7F"),-1},  /* MB4 vs broken MB3 */
+  {CSTR("\xF0\x90\x80\x80"), CSTR("\xE0\xA0\xC0"),-1},  /* MB4 vs broken MB3 */
+  {CSTR("\xF0\x90\x80\x80"), CSTR("\xE0\xA0"),     -1}, /* MB4 vs incomplete MB3 */
+  {CSTR("\xF0\x90\x80\x80"), CSTR("\xF0\x90\x80"),-1},  /* MB4 vs incomplete MB4 */
+  {CSTR("\xF0\x90\x80\x80"), CSTR("\xF0\x90\x80\x7F"),-1},/* MB4 vs broken MB4 */
+  {CSTR("\xF0\x90\x80\x80"), CSTR("\xF0\x90\x80\xC0"),-1},/* MB4 vs broken MB4 */
+
+  /* Maximum four-byte character: U+10FFFF == _utf8 0xF48FBFBF */
+  {CSTR("\xF4\x8F\xBF\xBF"), CSTR("\xC0"),        -1},  /* MB4 vs unused byte */
+  {CSTR("\xF4\x8F\xBF\xBF"), CSTR("\xC2"),        -1},  /* MB4 vs incomplete MB2 */
+  {CSTR("\xF4\x8F\xBF\xBF"), CSTR("\xE0\xA0\x7F"),-1},  /* MB4 vs broken MB3 */
+  {CSTR("\xF4\x8F\xBF\xBF"), CSTR("\xE0\xA0\xC0"),-1},  /* MB4 vs broken MB3 */
+  {CSTR("\xF4\x8F\xBF\xBF"), CSTR("\xE0\xA0"),     -1}, /* MB4 vs incomplete MB3 */
+  {CSTR("\xF4\x8F\xBF\xBF"), CSTR("\xF0\x90\x80"),-1},  /* MB4 vs incomplete MB4 */
+  {CSTR("\xF4\x8F\xBF\xBF"), CSTR("\xF0\x90\x80\x7F"),-1},/* MB4 vs broken MB4 */
+  {CSTR("\xF4\x8F\xBF\xBF"), CSTR("\xF0\x90\x80\xC0"),-1},/* MB4 vs broken MB4 */
+
+  /* Broken MB4 vs incomplete/broken MB3 */
+  {CSTR("\xF0\x90\x80\x7F"), CSTR("\xE0\xA0"),    1},  /* Broken MB4 vs incomplete MB3 */
+  {CSTR("\xF0\x90\x80\x7F"), CSTR("\xE0\xA0\x7F"),1},  /* Broken MB4 vs broken MB3 */
+  {CSTR("\xF0\x90\x80\x7F"), CSTR("\xE0\xA0\xC0"),1},  /* Broken MB4 vs broken MB3 */
+
+  /*
+    Broken MB4 vs incomplete MB4:
+    The three leftmost bytes are compared binary, the fourth byte is compared
+    to auto-padded space.
+  */
+  {CSTR("\xF0\x90\x80\x1F"), CSTR("\xF0\x90\x80"),-1}, /* Broken MB4 vs incomplete MB4 */
+  {CSTR("\xF0\x90\x80\x7E"), CSTR("\xF0\x90\x80"),1},  /* Broken MB4 vs incomplete MB4 */
+
+  /* Broken MB4 vs broken MB4 */
+  {CSTR("\xF0\x90\x80\x7E"), CSTR("\xF0\x90\x80\x7F"),-1},/* Broken MB4 vs broken MB4 */
+  {CSTR("\xF0\x90\x80\x7E"), CSTR("\xF0\x90\x80\xC0"),-1},/* Broken MB4 vs broken MB4 */
+
+  {NULL, 0, NULL, 0, 0}
+};
+
+
+static STRNNCOLL_PARAM strcoll_utf8mb4_general_ci[]=
+{
+  /* All non-BMP characters are equal in utf8mb4_general_ci */
+  {CSTR("\xF0\x90\x80\x80"), CSTR("\xF0\x90\x80\x81"),0},/* Non-BMB MB4 vs non-BMP MB4 */
+  {CSTR("\xF0\x90\x80\x80"), CSTR("\xF4\x8F\xBF\xBF"),0},/* Non-BMB MB4 vs non-BMP MB4 */
+  {CSTR("\x00"),             CSTR("\xF0\x90\x80\x80"),-1},/* U+0000 vs non-BMP MB4 */
+  {CSTR("\x00"),             CSTR("\xF0\x90\x80\x81"),-1},/* U+0000 vs non-BMP MB4 */
+  {CSTR("\x00"),             CSTR("\xF4\x8F\xBF\xBF"),-1},/* U+0000 vs non-BMP MB4 */
+  {NULL, 0, NULL, 0, 0}
+};
+
+
+static STRNNCOLL_PARAM strcoll_ucs2_common[]=
+{
+  {CSTR("\xC0"),     CSTR("\xC1"),        -1},    /* Incomlete MB2 vs incomplete MB2 */
+  {CSTR("\xC0"),     CSTR("\xFF"),        -1},    /* Incomlete MB2 vs incomplete MB2 */
+  {CSTR("\xC2\xA1"), CSTR("\xC0"),        -1},    /* MB2 vs incomplete MB2 */
+  {CSTR("\xC2\xA1"), CSTR("\xC2"),        -1},    /* MB2 vs incomplete MB2 */
+  {CSTR("\xC2\xA0"), CSTR("\xC2\xA1"),    -1},    /* MB2 vs MB2 */
+  {CSTR("\xC2\xA1"), CSTR("\xC2\xA2"),    -1},    /* MB2 vs MB2 */
+
+  {CSTR("\xFF\xFF"),         CSTR("\x00"),-1},        /* MB2  vs incomplete */
+  {CSTR("\xFF\xFF\xFF\xFF"), CSTR("\x00"),-1},        /* MB2+MB2 vs incomplete */
+  {CSTR("\xFF\xFF\xFF\xFF"), CSTR("\x00\x00\x00"), 1},/* MB2+MB2 vs MB2+incomplete */
+
+  {NULL, 0, NULL, 0, 0}
+};
+
+
+/* Tests that involve comparison to SPACE (explicit, or padded) */
+static STRNNCOLL_PARAM strcoll_ucs2_space[]=
+{
+  {CSTR("\x00\x1F"), CSTR("\x00\x20"),    -1},    /* MB2 vs MB2 */
+  {CSTR("\x00\x20"), CSTR("\x00\x21"),    -1},    /* MB2 vs MB2 */
+  {CSTR("\x00\x1F"), CSTR(""),            -1},    /* MB2 vs empty */
+  {CSTR("\x00\x20"), CSTR(""),             0},    /* MB2 vs empty */
+  {CSTR("\x00\x21"), CSTR(""),             1},    /* MB2 vs empty */
+
+  {NULL, 0, NULL, 0, 0}
+};
+
+
+/* Tests that involve comparison to SPACE (explicit, or padded) */
+static STRNNCOLL_PARAM strcoll_utf16le_space[]=
+{
+  {CSTR("\x1F\x00"), CSTR("\x20\x00"),  -1},    /* MB2 vs MB2 */
+  {CSTR("\x20\x00"), CSTR("\x21\x00"),  -1},    /* MB2 vs MB2 */
+  {CSTR("\x1F\x00"), CSTR(""),          -1},    /* MB2 vs empty */
+  {CSTR("\x20\x00"), CSTR(""),           0},    /* MB2 vs empty */
+  {CSTR("\x21\x00"), CSTR(""),           1},    /* MB2 vs empty */
+
+  {NULL, 0, NULL, 0, 0}
+};
+
+
+static STRNNCOLL_PARAM strcoll_utf16_common[]=
+{
+  /* Minimum four-byte character: U+10000 == _utf16 0xD800DC00 */
+  {CSTR("\xD8\x00\xDC\x00"), CSTR("\xC0"),            -1},/* MB4 vs incomplete MB2 */
+  {CSTR("\xD8\x00\xDC\x00"), CSTR("\xC2"),            -1},/* MB4 vs incomplete MB2 */
+  {CSTR("\xD8\x00\xDC\x00"), CSTR("\xD8\x00\xDB\x00"),-1},/* MB4 vs broken MB4 */
+  {CSTR("\xD8\x00\xDC\x00"), CSTR("\xD8\x00\xE0\x00"),-1},/* MB4 vs broken MB4 */
+  {CSTR("\xD8\x00\xDC\x00"), CSTR("\xDC\x00"),        -1},/* MB4 vs broken MB2 */
+  {CSTR("\xD8\x00\xDC\x00"), CSTR("\xD8\x00\xDC"),    -1},/* MB4 vs incomplete MB4 */
+
+  /* Maximum four-byte character: U+10FFFF == _utf8 0xF48FBFBF */
+  {CSTR("\xDB\xFF\xDF\xFF"), CSTR("\xC0"),            -1},/* MB4 vs incomplete MB2 */
+  {CSTR("\xDB\xFF\xDF\xFF"), CSTR("\xC2"),            -1},/* MB4 vs incomplete MB2 */
+  {CSTR("\xDB\xFF\xDF\xFF"), CSTR("\xD8\x00\xDB\x00"),-1},/* MB4 vs broken MB4 */
+  {CSTR("\xDB\xFF\xDF\xFF"), CSTR("\xD8\x00\xE0\x00"),-1},/* MB4 vs broken MB4 */
+  {CSTR("\xDB\xFF\xDF\xFF"), CSTR("\xDC\x00"),        -1},/* MB4 vs broken MB2 */
+  {CSTR("\xDB\xFF\xDF\xFF"), CSTR("\xDC\xFF\xDF"),    -1},/* MB4 vs incomplete MB4 */
+
+  /* Broken MB4 vs broken MB4 */
+  {CSTR("\xD8\x00\xDC\x00"), CSTR("\xD8\x00\xDB\x01"),-1},/* Broken MB4 vs broken MB4 */
+  {CSTR("\xDB\xFF\xE0\xFE"), CSTR("\xDB\xFF\xE0\xFF"),-1},/* Broken MB4 vs broken MB4 */
+
+  {NULL, 0, NULL, 0, 0}
+};
+
+
+static STRNNCOLL_PARAM strcoll_utf16_general_ci[]=
+{
+  /* All non-BMP characters are compared as equal */
+  {CSTR("\xD8\x00\xDC\x00"), CSTR("\xD8\x00\xDC\x01"), 0},/* Non-BMP MB4 vs non-BMP MB4 */
+  {CSTR("\xD8\x00\xDC\x00"), CSTR("\xDB\xFF\xDF\xFF"), 0},/* Non-BMP MB4 vs non-BMP MB4 */
+  {CSTR("\x00\x00"),         CSTR("\xD8\x00\xDC\x01"),-1},/* U+0000 vs non-BMP MB4 */
+  {CSTR("\x00\x00"),         CSTR("\xDB\xFF\xDF\xFF"),-1},/* U+0000 vs non-BMP MB4 */
+  {NULL, 0, NULL, 0, 0}
+};
+
+
+static STRNNCOLL_PARAM strcoll_utf16le_common[]=
+{
+  /* Minimum four-byte character: U+10000 == _utf16 0xD800DC00 */
+  {CSTR("\x00\xD8\x00\xDC"), CSTR("\xC0"),            -1},/* MB4 vs incomplete MB2 */
+  {CSTR("\x00\xD8\x00\xDC"), CSTR("\xC2"),            -1},/* MB4 vs incomplete MB2 */
+  {CSTR("\x00\xD8\x00\xDC"), CSTR("\x00\xD8\x00\xDB"),-1},/* MB4 vs broken MB4 */
+  {CSTR("\x00\xD8\x00\xDC"), CSTR("\x00\xD8\x00\xD0"),-1},/* MB4 vs broken MB4 */
+  {CSTR("\x00\xD8\x00\xDC"), CSTR("\x00\xDC"),        -1},/* MB4 vs broken MB2 */
+  {CSTR("\x00\xD8\x00\xDC"), CSTR("\x00\xD8\x00"),    -1},/* MB4 vs incomplete MB4 */
+
+  /* Maximum four-byte character: U+10FFFF == _utf8 0xF48FBFBF */
+  {CSTR("\xFF\xDB\xFF\xDF"), CSTR("\xC0"),            -1},/* MB4 vs incomplete MB2 */
+  {CSTR("\xFF\xDB\xFF\xDF"), CSTR("\xC2"),            -1},/* MB4 vs incomplete MB2 */
+  {CSTR("\xFF\xDB\xFF\xDF"), CSTR("\x00\xD8\x00\xDB"),-1},/* MB4 vs broken MB4 */
+  {CSTR("\xFF\xDB\xFF\xDF"), CSTR("\x00\xD8\x00\xE0"),-1},/* MB4 vs broken MB4 */
+  {CSTR("\xFF\xDB\xFF\xDF"), CSTR("\x00\xDC"),        -1},/* MB4 vs broken MB2 */
+  {CSTR("\xFF\xDB\xFF\xDF"), CSTR("\xFF\xDC\x00"),    -1},/* MB4 vs incomplete MB4 */
+
+  /* Broken MB4 vs broken MB4 */
+  {CSTR("\x00\xD8\x00\xDC"), CSTR("\x00\xD8\x01\xDB"),-1},/* Broken MB4 vs broken MB4 */
+  {CSTR("\xFF\xDB\xFE\xE0"), CSTR("\xFF\xDB\xFF\xE0"),-1},/* Broken MB4 vs broken MB4 */
+
+  {NULL, 0, NULL, 0, 0}
+};
+
+
+static STRNNCOLL_PARAM strcoll_utf16le_general_ci[]=
+{
+  /* All non-BMP characters are compared as equal */
+  {CSTR("\x00\xD8\x00\xDC"), CSTR("\x00\xD8\x01\xDC"), 0},/* Non-BMP MB4 vs non-BMP MB4 */
+  {CSTR("\x00\xD8\x00\xDC"), CSTR("\xFF\xDB\xFF\xDF"), 0},/* Non-BMP MB4 vs non-BMP MB4 */
+  {CSTR("\x00\x00"), CSTR("\x00\xD8\x01\xDC"),        -1},/* U+0000 vs non-BMP MB4 */
+  {CSTR("\x00\x00"), CSTR("\xFF\xDB\xFF\xDF"),        -1},/* U+0000 vs non-BMP MB4 */
+
+  {NULL, 0, NULL, 0, 0}
+};
+
+
+static STRNNCOLL_PARAM strcoll_utf32_common[]=
+{
+  /* Minimum character: U+0000 == _utf32 0x00000000 */
+  {CSTR("\x00\x00\x00\x00"), CSTR("\x00"),        -1},    /* MB4 vs incomplete MB4 */
+  {CSTR("\x00\x00\x00\x00"), CSTR("\xFF"),        -1},    /* MB4 vs incomplete MB4 */
+  {CSTR("\x00\x00\x00\x00"), CSTR("\x00\x00"),    -1},    /* MB4 vs incomplete MB4 */
+  {CSTR("\x00\x00\x00\x00"), CSTR("\x00\x00\x00"),-1},    /* MB4 vs incomplete MB4 */
+  {CSTR("\x00\x00\x00\x00"), CSTR("\x00\x20\x00\x00"),-1},/* MB4 vs broken MB4 */
+  {CSTR("\x00\x00\x00\x00"), CSTR("\xFF\xFF\xFF\xFF"),-1},/* MB4 vs broken MB4 */
+
+  /* Minimum non-BMP character: U+10000 == _utf32 0x00010000 */
+  {CSTR("\x00\x01\x00\x00"), CSTR("\x00"),        -1},    /* MB4 vs incomplete MB4 */
+  {CSTR("\x00\x01\x00\x00"), CSTR("\xFF"),        -1},    /* MB4 vs incomplete MB4 */
+  {CSTR("\x00\x01\x00\x00"), CSTR("\x00\x00"),    -1},    /* MB4 vs incomplete MB4 */
+  {CSTR("\x00\x01\x00\x00"), CSTR("\x00\x00\x00"),-1},    /* MB4 vs incomplete MB4 */
+  {CSTR("\x00\x01\x00\x00"), CSTR("\x00\x20\x00\x00"),-1},/* MB4 vs broken MB4 */
+  {CSTR("\x00\x01\x00\x00"), CSTR("\xFF\xFF\xFF\xFF"),-1},/* MB4 vs broken MB4 */
+
+  /* Maximum character: U+10FFFF == _utf32 0x0010FFFF */
+  {CSTR("\x00\x10\xFF\xFF"), CSTR("\x00"),         -1},   /* MB4 vs incomplete MB4 */
+  {CSTR("\x00\x10\xFF\xFF"), CSTR("\xFF"),         -1},   /* MB4 vs incomplete MB4 */
+  {CSTR("\x00\x10\xFF\xFF"), CSTR("\x00\x00"),     -1},   /* MB4 vs incomplete MB4 */
+  {CSTR("\x00\x10\xFF\xFF"), CSTR("\x00\x00\x00"), -1},   /* MB4 vs incomplete MB4 */
+  {CSTR("\x00\x10\xFF\xFF"), CSTR("\x20\x00\x00\x00"),-1},/* MB4 vs broken MB3 */
+  {CSTR("\x00\x10\xFF\xFF"), CSTR("\xFF\xFF\xFF\xFF"),-1},/* MB4 vs broken MB4 */
+
+
+  /* Broken MB4 vs incomplete/broken MB3 */
+  {CSTR("\x00\x20\x00\x00"), CSTR("\x00"),         1},    /* Broken MB4 vs incomplete MB4 */
+  {CSTR("\x00\x20\x00\x00"), CSTR("\x00\x00"),     1},    /* Broken MB4 vs incomplete MB4 */
+  {CSTR("\x00\x20\x00\x00"), CSTR("\x00\x00\x00"), 1},    /* Broken MB4 vs incomplete MB4 */
+  {CSTR("\x00\x20\x00\x00"), CSTR("\x00\x20\x00\x01"),-1},/* Broken MB4 vs broken MB4 */
+
+  {NULL, 0, NULL, 0, 0}
+};
+
+
+static STRNNCOLL_PARAM strcoll_utf32_general_ci[]=
+{
+  /* Two non-BMP characters are compared as equal */
+  {CSTR("\x00\x01\x00\x00"), CSTR("\x00\x01\x00\x01"),  0}, /* non-BMP MB4 vs non-BMP MB4 */
+  {CSTR("\x00\x00\x00\x00"), CSTR("\x00\x01\x00\x00"), -1}, /* U+0000 vs non-BMP MB4 */
+  {CSTR("\x00\x00\x00\x00"), CSTR("\x00\x01\x00\x01"), -1}, /* U+0000 vs non-BMP MB4 */
 
   {NULL, 0, NULL, 0, 0}
 };
@@ -415,6 +672,14 @@ test_strcollsp()
   failed+= strcollsp(&my_charset_cp932_japanese_ci, strcoll_8181_A1_E0E0);
   failed+= strcollsp(&my_charset_cp932_bin,         strcoll_8181_A1_E0E0);
 #endif
+#ifdef HAVE_CHARSET_eucjpms
+  failed+= strcollsp(&my_charset_eucjpms_japanese_ci, strcoll_mb2_common);
+  failed+= strcollsp(&my_charset_eucjpms_bin,         strcoll_mb2_common);
+  failed+= strcollsp(&my_charset_eucjpms_japanese_ci, strcoll_mb2_A1A1_mb2_F9FE);
+  failed+= strcollsp(&my_charset_eucjpms_bin,         strcoll_mb2_A1A1_mb2_F9FE);
+  failed+= strcollsp(&my_charset_eucjpms_japanese_ci, strcoll_ujis);
+  failed+= strcollsp(&my_charset_eucjpms_bin,         strcoll_ujis);
+#endif
 #ifdef HAVE_CHARSET_euckr
   failed+= strcollsp(&my_charset_euckr_korean_ci, strcoll_mb2_common);
   failed+= strcollsp(&my_charset_euckr_korean_ci, strcoll_mb2_A1A1_mb2_F9FE);
@@ -440,6 +705,54 @@ test_strcollsp()
   failed+= strcollsp(&my_charset_sjis_bin,         strcoll_mb1_A1_bad_F9FE);
   failed+= strcollsp(&my_charset_sjis_japanese_ci, strcoll_8181_A1_E0E0);
   failed+= strcollsp(&my_charset_sjis_bin,         strcoll_8181_A1_E0E0);
+#endif
+#ifdef HAVE_CHARSET_ucs2
+  failed+= strcollsp(&my_charset_ucs2_general_ci,  strcoll_ucs2_common);
+  failed+= strcollsp(&my_charset_ucs2_general_ci,  strcoll_ucs2_space);
+  failed+= strcollsp(&my_charset_ucs2_bin,         strcoll_ucs2_common);
+  failed+= strcollsp(&my_charset_ucs2_bin,         strcoll_ucs2_space);
+#endif
+#ifdef HAVE_CHARSET_ujis
+  failed+= strcollsp(&my_charset_ujis_japanese_ci, strcoll_mb2_common);
+  failed+= strcollsp(&my_charset_ujis_bin,         strcoll_mb2_common);
+  failed+= strcollsp(&my_charset_ujis_japanese_ci, strcoll_mb2_A1A1_mb2_F9FE);
+  failed+= strcollsp(&my_charset_ujis_bin,         strcoll_mb2_A1A1_mb2_F9FE);
+  failed+= strcollsp(&my_charset_ujis_japanese_ci, strcoll_ujis);
+  failed+= strcollsp(&my_charset_ujis_bin,         strcoll_ujis);
+#endif
+#ifdef HAVE_CHARSET_utf16
+  failed+= strcollsp(&my_charset_utf16_general_ci,  strcoll_ucs2_common);
+  failed+= strcollsp(&my_charset_utf16_general_ci,  strcoll_ucs2_space);
+  failed+= strcollsp(&my_charset_utf16_general_ci,  strcoll_utf16_common);
+  failed+= strcollsp(&my_charset_utf16_general_ci,  strcoll_utf16_general_ci);
+  failed+= strcollsp(&my_charset_utf16_bin,         strcoll_ucs2_common);
+  failed+= strcollsp(&my_charset_utf16_bin,         strcoll_ucs2_space);
+  failed+= strcollsp(&my_charset_utf16_bin,         strcoll_utf16_common);
+
+  failed+= strcollsp(&my_charset_utf16le_general_ci,strcoll_ucs2_common);
+  failed+= strcollsp(&my_charset_utf16le_general_ci,strcoll_utf16le_space);
+  failed+= strcollsp(&my_charset_utf16le_general_ci,strcoll_utf16le_common);
+  failed+= strcollsp(&my_charset_utf16le_general_ci,strcoll_utf16le_general_ci);
+  failed+= strcollsp(&my_charset_utf16le_bin,       strcoll_ucs2_common);
+  failed+= strcollsp(&my_charset_utf16le_bin,       strcoll_utf16le_space);
+  failed+= strcollsp(&my_charset_utf16le_bin,       strcoll_utf16le_common);
+#endif
+#ifdef HAVE_CHARSET_utf32
+  failed+= strcollsp(&my_charset_utf32_general_ci,  strcoll_utf32_common);
+  failed+= strcollsp(&my_charset_utf32_general_ci,  strcoll_utf32_general_ci);
+  failed+= strcollsp(&my_charset_utf32_bin,         strcoll_utf32_common);
+#endif
+#ifdef HAVE_CHARSET_utf8
+  failed+= strcollsp(&my_charset_utf8_general_ci,          strcoll_utf8mb3_common);
+  failed+= strcollsp(&my_charset_utf8_general_mysql500_ci, strcoll_utf8mb3_common);
+  failed+= strcollsp(&my_charset_utf8_bin,                 strcoll_utf8mb3_common);
+#endif
+#ifdef HAVE_CHARSET_utf8mb4
+  failed+= strcollsp(&my_charset_utf8mb4_general_ci,          strcoll_utf8mb3_common);
+  failed+= strcollsp(&my_charset_utf8mb4_bin,                 strcoll_utf8mb3_common);
+  failed+= strcollsp(&my_charset_utf8mb4_general_ci,          strcoll_utf8mb4_common);
+  failed+= strcollsp(&my_charset_utf8mb4_general_ci,          strcoll_utf8mb4_general_ci);
+  failed+= strcollsp(&my_charset_utf8mb4_bin,                 strcoll_utf8mb4_common);
 #endif
   return failed;
 }

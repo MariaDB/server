@@ -3505,6 +3505,8 @@ bool st_select_lex::optimize_unflattened_subqueries(bool const_only)
 
       bool empty_union_result= true;
       bool is_correlated_unit= false;
+      bool first= true;
+      bool union_plan_saved= false;
       /*
         If the subquery is a UNION, optimize all the subqueries in the UNION. If
         there is no UNION, then the loop will execute once for the subquery.
@@ -3512,6 +3514,17 @@ bool st_select_lex::optimize_unflattened_subqueries(bool const_only)
       for (SELECT_LEX *sl= un->first_select(); sl; sl= sl->next_select())
       {
         JOIN *inner_join= sl->join;
+        if (first)
+          first= false;
+        else
+        {
+          if (!union_plan_saved)
+          {
+            union_plan_saved= true;
+            if (un->save_union_explain(un->thd->lex->explain))
+              return true; /* Failure */
+          }
+        }
         if (!inner_join)
           continue;
         SELECT_LEX *save_select= un->thd->lex->current_select;
@@ -4365,9 +4378,14 @@ void LEX::restore_set_statement_var()
 int st_select_lex_unit::save_union_explain(Explain_query *output)
 {
   SELECT_LEX *first= first_select();
+
+  if (output->get_union(first->select_number))
+    return 0; /* Already added */
+    
   Explain_union *eu= 
     new (output->mem_root) Explain_union(output->mem_root, 
                                          thd->lex->analyze_stmt);
+
 
   if (derived)
     eu->connection_type= Explain_node::EXPLAIN_NODE_DERIVED;

@@ -23,6 +23,7 @@
 #include "sql_select.h"
 #include "my_json_writer.h"
 #include "opt_range.h"
+#include "sql_expression_cache.h"
 
 const char * STR_DELETING_ALL_ROWS= "Deleting all rows";
 const char * STR_IMPOSSIBLE_WHERE= "Impossible WHERE";
@@ -520,6 +521,8 @@ void Explain_union::print_explain_json(Explain_query *query,
   Json_writer_nesting_guard guard(writer);
   char table_name_buffer[SAFE_NAME_LEN];
   
+  bool started_object= print_explain_json_cache(writer, is_analyze);
+
   writer->add_member("query_block").start_object();
   writer->add_member("union_result").start_object();
   // using_temporary_table
@@ -560,6 +563,9 @@ void Explain_union::print_explain_json(Explain_query *query,
 
   writer->end_object(); // union_result
   writer->end_object(); // query_block
+
+  if (started_object)
+    writer->end_object();
 }
 
 
@@ -640,6 +646,35 @@ void Explain_node::print_explain_json_for_children(Explain_query *query,
 }
 
 
+bool Explain_node::print_explain_json_cache(Json_writer *writer,
+                                            bool is_analyze)
+{
+  if (cache_tracker)
+  {
+    cache_tracker->fetch_current_stats();
+    writer->add_member("expression_cache").start_object();
+    if (cache_tracker->state != Expression_cache_tracker::OK)
+    {
+      writer->add_member("state").
+        add_str(Expression_cache_tracker::state_str[cache_tracker->state]);
+    }
+
+    if (is_analyze)
+    {
+      longlong cache_reads= cache_tracker->hit + cache_tracker->miss;
+      writer->add_member("r_loops").add_ll(cache_reads);
+      if (cache_reads != 0) 
+      {
+        double hit_ratio= double(cache_tracker->hit) / cache_reads * 100.0;
+        writer->add_member("r_hit_ratio").add_double(hit_ratio);
+      }
+    }
+    return true;
+  }
+  return false;
+}
+
+
 void Explain_select::replace_table(uint idx, Explain_table_access *new_tab)
 {
   delete join_tabs[idx];
@@ -691,8 +726,36 @@ int Explain_select::print_explain(Explain_query *query,
   }
   else
   {
-    bool using_tmp= using_temporary;
-    bool using_fs= using_filesort;
+    bool using_tmp;
+    bool using_fs;
+
+    if (is_analyze)
+    {
+      /* 
+        Get the data about "Using temporary; Using filesort" from execution
+        tracking system.
+      */
+      using_tmp= false;
+      using_fs= false;
+      Sort_and_group_tracker::Iterator iter(&ops_tracker);
+      enum_qep_action action;
+      Filesort_tracker *dummy;
+
+      while ((action= iter.get_next(&dummy)) != EXPL_ACTION_EOF)
+      {
+        if (action == EXPL_ACTION_FILESORT)
+          using_fs= true;
+        else if (action == EXPL_ACTION_TEMPTABLE)
+          using_tmp= true;
+      }
+    }
+    else
+    {
+      /* Use imprecise "estimates" we got with the query plan */
+      using_tmp= using_temporary;
+      using_fs= using_filesort;
+    }
+
     for (uint i=0; i< n_join_tabs; i++)
     {
       join_tabs[i]->print_explain(output, explain_flags, is_analyze, select_id,
@@ -740,6 +803,8 @@ void Explain_select::print_explain_json(Explain_query *query,
                                         Json_writer *writer, bool is_analyze)
 {
   Json_writer_nesting_guard guard(writer);
+  
+  bool started_cache= print_explain_json_cache(writer, is_analyze);
 
   if (message)
   {
@@ -757,12 +822,13 @@ void Explain_select::print_explain_json(Explain_query *query,
   {
     writer->add_member("query_block").start_object();
     writer->add_member("select_id").add_ll(select_id);
-     
+
     if (is_analyze && time_tracker.get_loops())
     {
       writer->add_member("r_loops").add_ll(time_tracker.get_loops());
       writer->add_member("r_total_time_ms").add_double(time_tracker.get_time_ms());
     }
+
     if (exec_const_cond)
     {
       writer->add_member("const_condition");
@@ -859,6 +925,8 @@ void Explain_select::print_explain_json(Explain_query *query,
     writer->end_object();
   }
 
+  if (started_cache)
+    writer->end_object();
 }
 
 

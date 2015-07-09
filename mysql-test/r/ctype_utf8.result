@@ -5594,11 +5594,11 @@ a?z
 ab
 az
 aЀ
+aր
 SET @query=CONCAT('SELECT ch FROM t1 WHERE ch>''a', 0xD1,''' ORDER BY ch');
 PREPARE stmt FROM @query;
 EXECUTE stmt;
 ch
-aր
 z
 # 0xEA9A96 would be a good 3-byte character, 0xEA9A is an incomplete sequence
 SET @query=CONCAT('SELECT ch FROM t1 WHERE ch=''a', 0xEA9A,''' ORDER BY ch');
@@ -5802,11 +5802,11 @@ a?z
 ab
 az
 aЀ
+aր
 SET @query=CONCAT('SELECT ch FROM t1 WHERE ch>''a', 0xD1,''' ORDER BY ch');
 PREPARE stmt FROM @query;
 EXECUTE stmt;
 ch
-aր
 z
 # 0xEA9A96 would be a good 3-byte character, 0xEA9A is an incomplete sequence
 SET @query=CONCAT('SELECT ch FROM t1 WHERE ch=''a', 0xEA9A,''' ORDER BY ch');
@@ -6002,11 +6002,11 @@ a?z
 ab
 az
 aЀ
+aր
 SET @query=CONCAT('SELECT ch FROM t1 WHERE ch>''a', 0xD1,''' ORDER BY ch');
 PREPARE stmt FROM @query;
 EXECUTE stmt;
 ch
-aր
 z
 # 0xEA9A96 would be a good 3-byte character, 0xEA9A is an incomplete sequence
 SET @query=CONCAT('SELECT ch FROM t1 WHERE ch=''a', 0xEA9A,''' ORDER BY ch');

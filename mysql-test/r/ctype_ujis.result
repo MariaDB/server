@@ -26144,3 +26144,45 @@ ERROR HY000: Invalid ujis character string: '8EA0'
 #
 # End of 10.0 tests
 #
+#
+# Start of 10.1 tests
+#
+#
+# MDEV-8215 Asian MB3 charsets: compare broken bytes as "greater than any non-broken character"
+#
+CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET ujis, KEY(a));
+INSERT INTO t1 VALUES ('a'),(0x7F);
+INSERT INTO t1 VALUES (0x8EA1),(0x8EDF);
+INSERT INTO t1 VALUES (0x8FA1A1),(0x8FFEFE);
+INSERT INTO t1 VALUES (0xA1A1),(0xDEDE),(0xDFDF),(0xE0E0),(0xFEFE);
+SELECT HEX(a) FROM t1 ORDER BY a;
+HEX(a)
+61
+7F
+8EA1
+8EDF
+8FA1A1
+8FFEFE
+A1A1
+DEDE
+DFDF
+E0E0
+FEFE
+ALTER TABLE t1 MODIFY a VARCHAR(10) CHARACTER SET ujis COLLATE ujis_bin;
+SELECT HEX(a) FROM t1 ORDER BY a;
+HEX(a)
+61
+7F
+8EA1
+8EDF
+8FA1A1
+8FFEFE
+A1A1
+DEDE
+DFDF
+E0E0
+FEFE
+DROP TABLE t1;
+#
+# End of 10.1 tests
+#

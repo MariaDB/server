@@ -209,6 +209,16 @@ unpack_row(rpl_group_info *rgi,
   Field **field_ptr;
   Field **const end_ptr= begin_ptr + colcnt;
 
+  if (bitmap_is_clear_all(cols))
+  {
+    /**
+       There was no data sent from the master, so there is
+       nothing to unpack.
+     */
+    *current_row_end= pack_ptr;
+    *master_reclength= 0;
+    DBUG_RETURN(error);
+  }
   DBUG_ASSERT(null_ptr < row_data + master_null_byte_count);
 
   // Mask to mask out the correct bit among the null bits

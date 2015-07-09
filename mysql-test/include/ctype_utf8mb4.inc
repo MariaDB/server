@@ -1802,5 +1802,33 @@ DROP TABLE t1;
 --echo #
 
 --echo #
---echo # End of tests
+--echo # ctype_utf8mb4.inc: Start of 10.1 tests
+--echo #
+
+--echo #
+--echo # MDEV-8417 utf8mb4: compare broken bytes as "greater than any non-broken character"
+--echo #
+CREATE TABLE t1 (
+  id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  a VARCHAR(10) CHARACTER SET utf8mb4, KEY(a,id)
+);
+INSERT INTO t1 (a) VALUES (0x61);
+INSERT INTO t1 (a) VALUES (0xC280),(0xDFBF);
+INSERT INTO t1 (a) VALUES (0xE0A080),(0xEFBFBF);
+INSERT INTO t1 (a) VALUES (0xF0908080),(0xF48FBFBF);
+SELECT id,HEX(a) FROM t1 ORDER BY a,id;
+SELECT id,HEX(a) FROM t1 ORDER BY a DESC,id DESC;
+SELECT COUNT(DISTINCT a) FROM t1;
+ALTER TABLE t1 MODIFY a VARCHAR(10) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin;
+SELECT id,HEX(a) FROM t1 ORDER BY a;
+SELECT id,HEX(a) FROM t1 ORDER BY a DESC,id DESC;
+SELECT COUNT(DISTINCT a) FROM t1;
+DROP TABLE t1;
+
+--echo #
+--echo # ctype_utf8mb4.inc: End of 10.1 tests
+--echo #
+
+--echo #
+--echo # End of ctype_utf8mb4.inc
 --echo #

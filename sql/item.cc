@@ -1715,7 +1715,7 @@ public:
 	                        SPLIT_FUNC_SKIP_REGISTERED:
                                 Function be must skipped for registered SUM
                                 SUM items
-                                SPLIT_FUNC_SELECT
+                                SPLIT_SUM_SELECT
                                 We are called on the select level and have to
                                 register items operated on sum function
 
@@ -7591,6 +7591,19 @@ bool Item_cache_wrapper::set_cache(THD *thd)
   DBUG_ASSERT(expr_cache == 0);
   expr_cache= new Expression_cache_tmptable(thd, parameters, expr_value);
   DBUG_RETURN(expr_cache == NULL);
+}
+
+Expression_cache_tracker* Item_cache_wrapper::init_tracker(MEM_ROOT *mem_root)
+{
+  if (expr_cache)
+  {
+    Expression_cache_tracker* tracker=
+      new(mem_root) Expression_cache_tracker(expr_cache);
+    if (tracker)
+      ((Expression_cache_tmptable *)expr_cache)->set_tracker(tracker);
+    return tracker;
+  }
+  return NULL;
 }
 
 

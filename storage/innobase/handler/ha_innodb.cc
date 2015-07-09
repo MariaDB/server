@@ -11398,12 +11398,12 @@ ha_innobase::check_table_options(
 
 	if (encrypt == FIL_SPACE_ENCRYPTION_ON ||
             (encrypt == FIL_SPACE_ENCRYPTION_DEFAULT && srv_encrypt_tables)) {
-		if (!encryption_key_id_exists(options->encryption_key_id)) {
+		if (!encryption_key_id_exists((unsigned int)options->encryption_key_id)) {
 			push_warning_printf(
 				thd, Sql_condition::WARN_LEVEL_WARN,
 				HA_WRONG_CREATE_OPTION,
-				"InnoDB: ENCRYPTION_KEY_ID %lu not available",
-				options->encryption_key_id
+				"InnoDB: ENCRYPTION_KEY_ID %u not available",
+				(uint)options->encryption_key_id
 			);
 			return "ENCRYPTION_KEY_ID";
 		}
@@ -11469,7 +11469,7 @@ ha_innobase::create(
 	/* Cache table options */
 	ha_table_option_struct *options= form->s->option_struct;
 	fil_encryption_t encrypt = (fil_encryption_t)options->encryption;
-	ulint key_id = options->encryption_key_id;
+	uint		key_id = (uint)options->encryption_key_id;
 
 	DBUG_ENTER("ha_innobase::create");
 
@@ -17897,7 +17897,7 @@ innodb_encrypt_tables_update(
 	const void*                     save)   /*!< in: immediate result
 						from check function */
 {
-	fil_crypt_set_encrypt_tables(*static_cast<const uint*>(save));
+	fil_crypt_set_encrypt_tables(*static_cast<const ulong*>(save));
 }
 
 static SHOW_VAR innodb_status_variables_export[]= {
@@ -20140,7 +20140,7 @@ innodb_encrypt_tables_validate(
 	if (check_sysvar_enum(thd, var, save, value))
 		return 1;
 
-	long encrypt_tables = *(long*)save;
+	ulong encrypt_tables = *(ulong*)save;
 
 	if (encrypt_tables
 	    && !encryption_key_id_exists(FIL_DEFAULT_ENCRYPTION_KEY)) {
