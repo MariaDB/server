@@ -6,12 +6,13 @@
 
 --connection node_1
 # We need a user with a password to perform SST, otherwise we hit LP #1378253
-GRANT ALL PRIVILEGES ON *.* TO 'sst' IDENTIFIED BY 'sst';
+GRANT ALL PRIVILEGES ON *.* TO 'sst';
 
 --let $wsrep_sst_auth_orig = `SELECT @@wsrep_sst_auth`
-SET GLOBAL wsrep_sst_auth = 'sst:sst';
+SET GLOBAL wsrep_sst_auth = 'sst:';
 
 --connection node_2
+--source include/wait_until_connected_again.inc
 --let $wsrep_sst_method_orig = `SELECT @@wsrep_sst_method`
 --let $wsrep_sst_receive_address_orig = `SELECT @@wsrep_sst_receive_address`
 

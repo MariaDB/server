@@ -104,11 +104,11 @@ INSERT INTO t1 VALUES (6);
 
 --connection node_3
 # We need a user with a password for mysqldump SST
-GRANT ALL PRIVILEGES ON *.* TO 'sst' IDENTIFIED BY 'sst';
-SET GLOBAL wsrep_sst_auth = 'sst:sst';
+GRANT ALL PRIVILEGES ON *.* TO 'sst';
+SET GLOBAL wsrep_sst_auth = 'sst:';
 
 --connect node_4, 127.0.0.1, root, , test, $NODE_MYPORT_4
-GRANT ALL PRIVILEGES ON *.* TO 'sst' IDENTIFIED BY 'sst';
+GRANT ALL PRIVILEGES ON *.* TO 'sst';
 
 --disable_query_log
 --eval SET GLOBAL wsrep_sst_method = 'mysqldump';
