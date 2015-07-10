@@ -1596,6 +1596,17 @@ EXPLAIN SELECT id,MIN(a),MAX(a) FROM t1 WHERE a BETWEEN DATE'2001-01-04' AND    
 EXPLAIN SELECT id,MIN(a),MAX(a) FROM t1 WHERE a BETWEEN     '2001-01-04' AND DATE'2001-01-05' GROUP BY id;
 DROP TABLE t1;
 
+--echo #
+--echo # MIN() optimization didn't work correctly with BETWEEN when using too
+--echo # long strings.
+--echo #
+
+create table t1 (a varchar(10), key (a)) engine=myisam;
+insert into t1 values("bar"),("Cafe");
+explain select min(a) from t1 where a between "a" and "Cafe2";
+explain select min(a) from t1 where a between "a" and "Cafeeeeeeeeeeeeeeeeeeeeeeeeee";
+explain select min(a) from t1 where a between "abbbbbbbbbbbbbbbbbbbb" and "Cafe2";
+drop table t1;
 
 --echo #
 --echo # End of 10.1 tests

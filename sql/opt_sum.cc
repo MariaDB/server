@@ -578,7 +578,7 @@ bool simple_pred(Item_func *func_item, Item **args, bool *inv_order)
         if (!item->const_item())
           return 0;
         args[i]= item;
-        if (check_item1_shorter_item2(args[0], args[1]))
+        if (check_item1_shorter_item2(args[0], args[i]))
           return 0;
       }
     }
