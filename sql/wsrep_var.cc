@@ -295,7 +295,11 @@ bool wsrep_provider_options_check(sys_var *self, THD* thd, set_var* var)
 
 bool wsrep_provider_options_update(sys_var *self, THD* thd, enum_var_type type)
 {
-  DBUG_ASSERT(wsrep != NULL);
+  if (wsrep == NULL)
+  {
+    my_message(ER_WRONG_ARGUMENTS, "WSREP (galera) not started", MYF(0));
+    return true;
+  }
 
   wsrep_status_t ret= wsrep->options_set(wsrep, wsrep_provider_options);
   if (ret != WSREP_OK)
@@ -497,7 +501,11 @@ bool wsrep_desync_check (sys_var *self, THD* thd, set_var* var)
 
 bool wsrep_desync_update (sys_var *self, THD* thd, enum_var_type type)
 {
-  DBUG_ASSERT(wsrep != NULL);
+  if (wsrep == NULL)
+  {
+    my_message(ER_WRONG_ARGUMENTS, "WSREP (galera) not started", MYF(0));
+    return true;
+  }
 
   wsrep_status_t ret(WSREP_WARNING);
   if (wsrep_desync) {
@@ -553,9 +561,12 @@ int wsrep_show_status (THD *thd, SHOW_VAR *var, char *buff,
 
   DBUG_ASSERT(i < maxi);
 
-  if (wsrep != NULL) {
+  if (wsrep != NULL)
+  {
     wsrep_stats_var* stats= wsrep->stats_get(wsrep);
-    for (wsrep_stats_var *sv= stats; i < maxi && sv && sv->name; i++, sv++, v++)
+    for (wsrep_stats_var *sv= stats;
+         i < maxi && sv && sv->name; i++,
+           sv++, v++)
     {
       v->name = thd->strdup(sv->name);
       switch (sv->type) {
@@ -572,7 +583,6 @@ int wsrep_show_status (THD *thd, SHOW_VAR *var, char *buff,
         v->type  = SHOW_DOUBLE;
         break;
       }
-      DBUG_ASSERT(i < maxi);
     }
     wsrep->stats_free(wsrep, stats);
   }

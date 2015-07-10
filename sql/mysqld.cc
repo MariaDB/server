@@ -5812,7 +5812,7 @@ int mysqld_main(int argc, char **argv)
     }
   }
 
- if (opt_bootstrap)
+  if (opt_bootstrap)
   {
     select_thread_in_use= 0;                    // Allow 'kill' to work
     bootstrap(mysql_stdin);

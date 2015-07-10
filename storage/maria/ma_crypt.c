@@ -421,6 +421,10 @@ static my_bool ma_crypt_index_pre_write_hook(PAGECACHE_IO_HOOK_ARGS *args)
     memcpy(dst + block_size - tail, src + block_size - tail, tail);
     /* 4 - store key version */
     _ma_store_key_version(share, dst, key_version);
+#ifdef HAVE_valgrind
+    /* 5 - keep valgrind happy by zeroing not used bytes */
+    bzero(dst+head+size, block_size - size - tail - head);
+#endif
   }
 
   /* swap pointers to instead write out the encrypted block */

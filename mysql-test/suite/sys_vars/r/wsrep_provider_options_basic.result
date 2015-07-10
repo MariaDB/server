@@ -38,7 +38,7 @@ SELECT @@global.wsrep_provider_options;
 @@global.wsrep_provider_options
 
 SET @@global.wsrep_provider_options=NULL;
-ERROR HY000: Incorrect arguments to SET
+Got one of the listed errors
 SELECT @@global.wsrep_provider_options;
 @@global.wsrep_provider_options
 NULL
