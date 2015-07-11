@@ -1905,6 +1905,8 @@ static void __cdecl kill_server(int sig_ptr)
   else
     sql_print_error(ER_DEFAULT(ER_GOT_SIGNAL),my_progname,sig); /* purecov: inspected */
 
+  sd_notify(0, "STOPPING=1");
+
 #ifdef HAVE_SMEM
   /*
     Send event to smem_event_connect_request for aborting
