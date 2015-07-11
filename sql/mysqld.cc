@@ -110,6 +110,25 @@
 #include <poll.h>
 #endif
 
+#include <my_sdnotify.h>
+
+#ifdef HAVE_SYSTEMD
+#include <sys/un.h>
+union sockaddr_union {
+  struct sockaddr sa;
+  struct sockaddr_in in;
+  struct sockaddr_in6 in6;
+#ifdef HAVE_SYS_UN_H
+  struct sockaddr_un un;
+#endif
+  struct sockaddr_storage ss;
+};
+#define MAX_LISTEN_SOCKETS 10
+static int systemd_listen_cnt=0;
+#else /* HAVE_SYSTEMD */
+#define MAX_LISTEN_SOCKETS 3
+#endif
+
 #define mysqld_charset &my_charset_latin1
 
 /* We have HAVE_valgrind below as this speeds up the shutdown of MySQL */
@@ -2615,8 +2634,11 @@ static void network_init(void)
   struct sockaddr_un	UNIXaddr;
   int	arg;
 #endif
+  int systemd_n = 0;
   DBUG_ENTER("network_init");
 
+  systemd_n = sd_listen_fds(0);
+  DBUG_PRINT("general",("Systemd listen_fds is %d",systemd_n));
   if (MYSQL_CALLBACK_ELSE(thread_scheduler, init, (), 0))
     unireg_abort(1);			/* purecov: inspected */
 
@@ -2630,7 +2652,7 @@ static void network_init(void)
   if (!opt_disable_networking)
     DBUG_ASSERT(report_port != 0);
 #endif
-  if (!opt_disable_networking && !opt_bootstrap)
+  if (!opt_disable_networking && !opt_bootstrap && systemd_n==0)
   {
     if (mysqld_port)
       base_ip_sock= activate_tcp_port(mysqld_port);
@@ -2690,7 +2712,7 @@ static void network_init(void)
   /*
   ** Create the UNIX socket
   */
-  if (mysqld_unix_port[0] && !opt_bootstrap)
+  if (mysqld_unix_port[0] && !opt_bootstrap && systemd_n==0)
   {
     DBUG_PRINT("general",("UNIX Socket is %s",mysqld_unix_port));
 
@@ -6393,6 +6415,14 @@ inline void kill_broken_server()
 
 #ifndef EMBEDDED_LIBRARY
 
+#ifdef HAVE_SYSTEMD
+static MYSQL_SOCKET systemd_sock[MAX_LISTEN_SOCKETS];
+static PSI_socket_key all_systemd_key[MAX_LISTEN_SOCKETS];
+#ifdef HAVE_PSI_SOCKET_INTERFACE
+static PSI_socket_info all_systemd_sockets[MAX_LISTEN_SOCKETS+1];
+#endif
+#endif
+
 void handle_connections_sockets()
 {
   MYSQL_SOCKET sock= mysql_socket_invalid();
@@ -6406,38 +6436,200 @@ void handle_connections_sockets()
   int flags=0,retval;
   st_vio *vio_tmp;
   bool is_unix_sock;
-#ifdef HAVE_POLL
+  int systemd_n=0, systemd_fd;
+#ifdef HAVE_SYSTEMD
+  union sockaddr_union socketpeer;
+#endif
+  socklen_t socketpeer_len;
+  char const *family;
   int socket_count= 0;
-  struct pollfd fds[3]; // for ip_sock, unix_sock and extra_ip_sock
-  MYSQL_SOCKET  pfs_fds[3]; // for performance schema
-#define setup_fds(X)                    \
+  short fd_type[MAX_LISTEN_SOCKETS];
+#ifdef HAVE_POLL
+  struct pollfd fds[MAX_LISTEN_SOCKETS]; // for ip_sock, extra_ip_sock and unix_sock (could be any order for systemd)
+  MYSQL_SOCKET  pfs_fds[MAX_LISTEN_SOCKETS]; // for performance schema
+#define setup_fds(X,T)                    \
     mysql_socket_set_thread_owner(X);             \
     pfs_fds[socket_count]= (X);                   \
     fds[socket_count].fd= mysql_socket_getfd(X);  \
     fds[socket_count].events= POLLIN;   \
+    fd_type[socket_count]= T; \
     socket_count++
 #else
-#define setup_fds(X)    FD_SET(mysql_socket_getfd(X),&clientFDs)
+  int  pfs_flags[MAX_LISTEN_SOCKETS];
+  MYSQL_SOCKET  pfs_fds[MAX_LISTEN_SOCKETS]; // used for non-polling interfaces
+#define setup_fds(X,T)    FD_SET(mysql_socket_getfd(X),&clientFDs); \
+  pfs_fds[socket_count]= (X);                   \
+  fd_type[socket_count]= T; \
+  socket_count++
   fd_set readFDs,clientFDs;
   FD_ZERO(&clientFDs);
 #endif
 
   DBUG_ENTER("handle_connections_sockets");
 
-  if (mysql_socket_getfd(base_ip_sock) != INVALID_SOCKET)
+#ifdef HAVE_SYSTEMD
+  systemd_n = sd_listen_fds(1);
+  if (systemd_n < 0)
   {
-    setup_fds(base_ip_sock);
-    ip_flags = fcntl(mysql_socket_getfd(base_ip_sock), F_GETFL, 0);
+    my_error(ER_SYSTEMD_LISTEN_FDS, MYF(0), 0, -systemd_n);
+  }
+  else
+  if (systemd_n > 0)
+  {
+    systemd_fd = SD_LISTEN_FDS_START;
+    while (systemd_n-- && systemd_listen_cnt < MAX_LISTEN_SOCKETS)
+    {
+      /* grab socket info */
+      socketpeer_len = sizeof(socketpeer);
+      if (getsockname(systemd_fd, (struct sockaddr *) &socketpeer,
+          &socketpeer_len) < 0)
+      {
+        sql_print_error("getsockname for fd %d failed (errno= %d).",
+                        systemd_fd, errno);
+        sd_notifyf(0, "ERRNO=%d", errno);
+        systemd_fd++;
+        continue;
+      }
+      if (socketpeer_len >=sizeof(socketpeer))
+      {
+        sql_print_error("getsockname for fd %d unsufficient space", systemd_fd);
+        sd_notifyf(0, "ERRNO=%d", EINVAL);
+        systemd_fd++;
+        continue;
+      }
+
+      /* Get listening sockets from systemd library calls
+         and set them up the same as other sockets. */
+#ifdef HAVE_SYS_UN_H
+      if (socketpeer.ss.ss_family == AF_UNIX)
+      {
+        sql_print_information("Listening on systemd unix socket for %s.",
+                              socketpeer.un.sun_path);
+        family= "systemd_unix_socket";
+      }
+      else
+#endif
+      if (socketpeer.ss.ss_family == AF_INET ||
+          socketpeer.ss.ss_family == AF_INET6)
+      {
+        unsigned port= ntohs(socketpeer.ss.ss_family == AF_INET ?
+                       socketpeer.in.sin_port : socketpeer.in6.sin6_port);
+        if (port != 0 && port == mysqld_extra_port)
+        {
+          /* extra_port was same as systemd socket so use it as such */
+          extra_ip_sock= mysql_socket_fd(all_systemd_key[systemd_listen_cnt], systemd_fd);
+          mysqld_extra_port= 0;
+        }
+        sql_print_information("Listening on systemd family %s port %d.",
+              socketpeer.ss.ss_family == AF_INET ? "IPv4" : "IPv6", port);
+        family= socketpeer.ss.ss_family == AF_INET ? "systemd_IPv4" :
+                                                     "systemd_IPv6";
+      }
+      else
+      {
+        sql_print_error("Unrecognised socket family: %d.",
+                         socketpeer.ss.ss_family);
+        systemd_fd++;
+        continue;
+      }
+      systemd_sock[systemd_listen_cnt]= mysql_socket_fd(all_systemd_key[systemd_listen_cnt], systemd_fd);
+      mysql_socket_set_thread_owner(systemd_sock[systemd_listen_cnt]);
+#ifndef HAVE_POLL
+      pfs_flags[socket_count]=
+#endif
+          fcntl(systemd_fd, F_GETFL, 0);
+#ifdef HAVE_PSI_SOCKET_INTERFACE
+      all_systemd_sockets[systemd_listen_cnt]= (PSI_socket_info) { &all_systemd_key[systemd_listen_cnt], family, PSI_FLAG_GLOBAL };
+#endif
+      setup_fds(systemd_sock[systemd_listen_cnt], socketpeer.ss.ss_family);
+      systemd_fd++;
+      systemd_listen_cnt++;
+    }
+#ifdef HAVE_PSI_SOCKET_INTERFACE
+    all_systemd_sockets[systemd_listen_cnt]= (PSI_socket_info) { &key_socket_client_connection, "client_connection", 0};
+    mysql_socket_register("sql", all_systemd_sockets, systemd_listen_cnt + 1);
+#endif
+    /* print out unused ones */
+    while (systemd_n-- > 0)
+    {
+      socketpeer_len = sizeof(socketpeer);
+      if (getsockname(systemd_fd, (struct sockaddr *) &socketpeer,
+          &socketpeer_len) < 0)
+      {
+        sql_print_error("getsockname for fd %d failed (errno= %d).",
+                        systemd_fd, errno);
+        sd_notifyf(0, "ERRNO=%d", errno);
+        systemd_fd++;
+        continue;
+      }
+      if (socketpeer_len >=sizeof(socketpeer))
+      {
+        sql_print_error("getsockname for fd %d unsufficient space", systemd_fd);
+        sd_notifyf(0, "ERRNO=%d", EINVAL);
+        systemd_fd++;
+        continue;
+      }
+#ifdef HAVE_SYS_UN_H
+      if (socketpeer.ss.ss_family == AF_UNIX)
+      {
+        sql_print_error("Exceeded %d sockets NOT listening on systemd unix socket for %s.",
+                         MAX_LISTEN_SOCKETS, socketpeer.un.sun_path);
+      }
+      else
+#endif
+      if (socketpeer.ss.ss_family == AF_INET ||
+          socketpeer.ss.ss_family == AF_INET6)
+      {
+        sql_print_error("Exceeded %d sockets NOT listening on systemd family %s port %d.",
+              MAX_LISTEN_SOCKETS,
+              socketpeer.ss.ss_family == AF_INET ? "IPv4" : "IPv6",
+              ntohs(socketpeer.ss.ss_family == AF_INET ?
+                       socketpeer.in.sin_port : socketpeer.in6.sin6_port));
+      }
+      systemd_fd++;
+    }
+  }
+  else
+  {
+#endif /* HAVE_SYSTEMD */
+    if (mysql_socket_getfd(base_ip_sock) != INVALID_SOCKET)
+    {
+      setup_fds(base_ip_sock, AF_INET);
+      ip_flags = fcntl(mysql_socket_getfd(base_ip_sock), F_GETFL, 0);
+    }
+#ifdef HAVE_SYS_UN_H
+    setup_fds(unix_sock, AF_UNIX);
+    socket_flags=fcntl(mysql_socket_getfd(unix_sock), F_GETFL, 0);
+#endif
+  }
+
+  /* here we active a extra port, even if socket activation was is used because the
+     extra port wasn't activated using socket activation */
+  if (!opt_disable_networking && !opt_bootstrap && mysqld_extra_port!=0 &&
+      mysql_socket_getfd(extra_ip_sock) != INVALID_SOCKET)
+  {
+    extra_ip_sock= activate_tcp_port(mysqld_extra_port);
   }
   if (mysql_socket_getfd(extra_ip_sock) != INVALID_SOCKET)
   {
-    setup_fds(extra_ip_sock);
+    setup_fds(extra_ip_sock, AF_INET);
     extra_ip_flags = fcntl(mysql_socket_getfd(extra_ip_sock), F_GETFL, 0);
   }
-#ifdef HAVE_SYS_UN_H
-  setup_fds(unix_sock);
-  socket_flags=fcntl(mysql_socket_getfd(unix_sock), F_GETFL, 0);
+
+#ifdef HAVE_POLL
+  if (systemd_listen_cnt == 0 && systemd_n>0)
+  {
+    sd_notify(0, "STATUS=No listening sockets");
+    abort_loop=1;
+  }
+  else
+  {
 #endif
+    sd_notify(0, "READY=1\n"
+               "STATUS=Taking your SQL requests now...");
+#ifdef HAVE_POLL
+  }
+#endif /* HAVE_POLL */
 
   DBUG_PRINT("general",("Waiting for connections."));
   MAYBE_BROKEN_SYSCALL;
@@ -6481,6 +6673,7 @@ void handle_connections_sockets()
       {
         sock= pfs_fds[i];
         flags= fcntl(mysql_socket_getfd(sock), F_GETFL, 0);
+        is_unix_sock= fd_type[i] == AF_UNIX;
         break;
       }
     }
@@ -6489,18 +6682,39 @@ void handle_connections_sockets()
     {
       sock=  base_ip_sock;
       flags= ip_flags;
+      is_unix_sock= FALSE;
     }
     else
     if (FD_ISSET(mysql_socket_getfd(extra_ip_sock),&readFDs))
     {
       sock=  extra_ip_sock;
       flags= extra_ip_flags;
+      is_unix_sock= FALSE;
     }
+#ifdef HAVE_SYS_UN_H
     else
+    if (FD_ISSET(mysql_socket_getfd(unix_sock),&readFDs))
     {
       sock = unix_sock;
       flags= socket_flags;
+      is_unix_sock= TRUE;
     }
+#endif
+#ifdef HAVE_SYSTEMD
+    else
+    {
+      for (int i= 0; i < socket_count; ++i)
+      {
+        if (FD_ISSET(mysql_socket_getfd(pfs_fds[i]),&readFDs))
+        {
+          sock=  pfs_fds[i];
+          flags= pfs_flags[i];
+          is_unix_sock= fd_type[i] == AF_UNIX;
+          break;
+        }
+      }
+    }
+#endif // HAVE_SYSTEMD
 #endif // HAVE_POLL
 
 #if !defined(NO_FCNTL_NONBLOCK)
@@ -6615,9 +6829,6 @@ void handle_connections_sockets()
     /* Set to get io buffers to be part of THD */
     set_current_thd(thd);
 
-    is_unix_sock= (mysql_socket_getfd(sock) ==
-                   mysql_socket_getfd(unix_sock));
-
     if (!(vio_tmp=
           mysql_socket_vio_new(new_sock,
                                is_unix_sock ? VIO_TYPE_SOCKET : VIO_TYPE_TCPIP,
@@ -6653,6 +6864,7 @@ void handle_connections_sockets()
     create_new_thread(thd);
     set_current_thd(0);
   }
+  sd_notify(0, "STOPPING=1");
   DBUG_VOID_RETURN;
 }
 
@@ -10159,9 +10371,17 @@ void init_server_psi_keys(void)
 
   count= array_elements(all_server_stages);
   mysql_stage_register(category, all_server_stages, count);
-
-  count= array_elements(all_server_sockets);
-  mysql_socket_register(category, all_server_sockets, count);
+#ifdef HAVE_PSI_SOCKET_INTERFACE
+#ifdef HAVE_SYSTEMD
+  if (systemd_listen_cnt == 0)
+  {
+#endif
+    count= array_elements(all_server_sockets);
+    mysql_socket_register(category, all_server_sockets, count);
+#ifdef HAVE_SYSTEMD
+  }
+#endif
+#endif
 
 #ifdef HAVE_PSI_STATEMENT_INTERFACE
   init_sql_statement_info();

@@ -260,6 +260,19 @@ if [ "$1" = "configure" ]; then
                db_go
        fi
 
+       # create a systemd socket activation file based on current settings
+       systemd_sockconf=/etc/systemd/system/mariadb.socket.d/migrated-from-my.cnf-settings.conf
+       if [ -x /usr/bin/mariadb-socket-convert  -a ! -f "${systemd_sockconf}" ]; then
+               mkdir -p /etc/systemd/system/mariadb.socket.d
+               /usr/bin/mariadb-socket-convert > "${systemd_sockconf}"
+       fi
+       # copy out any mysqld_safe settings
+       systemd_conf=/etc/systemd/system/mariadb.service.d/migrated-from-my.cnf-settings.conf
+       if [ -x /usr/bin/mariadb-service-convert  -a ! -f "${systemd_conf}" ]; then
+              mkdir -p /etc/systemd/system/mariadb.service.d
+              /usr/bin/mariadb-service-convert > "${systemd_conf}"
+       fi
+
 fi
 
 db_stop # in case invoke failes

@@ -10,7 +10,8 @@ Build-Depends: procps | hurd, debhelper, libncurses5-dev (>= 5.0-6),
                libpam0g-dev, psmisc, po-debconf, chrpath,
                dpatch, gawk, bison, lsb-release, hardening-wrapper,
                cmake (>= 2.7), libaio-dev, ${MAYBE_LIBCRACK}
-               libjemalloc-dev (>= 3.0.0)
+               libjemalloc-dev (>= 3.0.0),
+               libsystemd-daemon-dev, dh-systemd
 Standards-Version: 3.8.3
 Homepage: http://mariadb.org/
 Vcs-Browser: https://github.com/MariaDB/server/tree/10.1/
@@ -162,7 +163,7 @@ Description: MariaDB database client binaries
 
 Package: mariadb-server-core-10.1
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}, libmariadbclient18 (>= ${binary:Version})
+Depends: ${shlibs:Depends}, ${misc:Depends}, libmariadbclient18 (>= ${binary:Version}), libsystemd-daemon0
 Provides: mysql-server-core, mysql-server-core-5.1, mysql-server-core-5.5
 Conflicts: mysql-server-5.0, mysql-server-core-5.0,
     mariadb-server-core-5.1, mysql-server-core-5.1,
