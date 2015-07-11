@@ -1,6 +1,18 @@
 
 # Make MySQL start/shutdown automatically when the machine does it.
 if [ $1 = 1 ] ; then
+  # create a systemd service/socket activation file based on current settings
+  systemd_sockconf=/etc/systemd/system/mariadb.socket.d/migrated-from-my.cnf-settings.conf
+  if [ -x /usr/bin/mariadb-socket-convert  -a ! -f "${systemd_sockconf}" ]; then
+   mkdir -p /etc/systemd/system/mariadb.socket.d
+   /usr/bin/mariadb-socket-convert > "${systemd_sockconf}"
+  fi
+  systemd_conf=/etc/systemd/system/mariadb.service.d/migrated-from-my.cnf-settings.conf
+  if [ -x /usr/bin/mariadb-service-convert  -a ! -f "${systemd_conf}" ]; then
+   mkdir -p /etc/systemd/system/mariadb.service.d
+   /usr/bin/mariadb-service-convert > "${systemd_conf}"
+  fi
+
   if [ -x /usr/bin/systemctl ] ; then
           /usr/bin/systemctl daemon-reload >/dev/null 2>&1
   fi
