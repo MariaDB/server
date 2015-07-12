@@ -1,0 +1,260 @@
+# vim ft=yaml
+# travis-ci.org definition
+
+# non-container builds don't have enough RAM to reliably compile
+sudo: false
+
+language: cpp
+compiler:
+  - gcc
+# MDEV-7398 for clang problems on 10.1 branch
+  - clang
+cache:
+  apt:
+  ccache:
+  directories:
+    - $HOME/binutils
+
+# Timing on build an test needs to be < 50 minutes. The compile is ~4-5minutes
+# so here we group the tests such that this happens.
+env:
+  matrix:
+    - TEST=main-,archive-,binlog-,csv-,federated-,funcs_1-,funcs_2-,handler-,heap-,maria-,percona-,perfschema-,plugins-
+# For 10.0+ add multi_source-,roles- to above
+    - TEST=optimizer_unfixed_bugs-,parts-,sys_vars-,unit-,vcol-,innodb-,innodb_zip-
+# For 10.0+ add innodb_fts- to above
+    - TEST=rpl-
+  global:
+#   - ENV vars to be kept private i.e. set in travis settings: https://travis-ci.org/MariaDB/server/settings/env_vars
+#   UPLOADSERVER - user@host where to upload test values/repos
+#
+#   - BUILD_TYPE=Debug
+#   - BUILD_TYPE=RelWithDebInfo
+#   # COVERALLS_PARALLEL because coveralls needs to collate multiple test runs
+    - COVERALLS_PARALLEL=true
+# GCC_VERSION - options 4.7, 4.8, 4.9 and 5. packages: needs to include gcc-${GCC_VERSION}, g++-${GCC_VERSION}
+# however this can't be scripted
+    - GCC_VERSION=4.8
+# 4.9 and 5 versions had linker trouble on   -DWITH_EMBEDDED_SERVER=ON
+
+addons:
+#  coverity_scan:
+#
+#    # GitHub project metadata
+#    project:
+#      - name: MariaDB/server
+#      - version: 5.5
+#      - description: MariaDB Server
+#
+#    # Where email notification of build analysis results will be sent
+#    notification_email: maria-developers@lists.launchpad.net
+#
+#    # Commands to prepare for build_command
+#    build_command_prepend: cmake .   -DCMAKE_C_COMPILER=${CC} -DCMAKE_CXX_COMPILER=${CXX} -DCMAKE_BUILD_TYPE=Debug -DSYSTEM_TYPE="debian-linux-gnu"
+#               -DWITH_SSL=system -DWITH_ZLIB=system
+#               -DWITH_EMBEDDED_SERVER=ON -DWITH_ARCHIVE_STORAGE_ENGINE=ON -DWITH_BLACKHOLE_STORAGE_ENGINE=ON
+#               -DWITH_FEDERATEDX_STORAGE_ENGINE=ON  -DWITH_PLUGIN_FEEDBACK=ON -DWITH_INNOBASE_STORAGE_ENGINE=ON
+#               -DWITH_PARTITION_STORAGE_ENGINE=ON -DWITHOUT_MROONGA_STORAGE_ENGINE=ON
+#   
+#    # The command that will be added as an argument to "cov-build" to compile your project for analysis,
+#    build_command: make
+#
+#    # Pattern to match selecting branches that will run analysis.
+#    # Take care in resource usage, and consider the build frequency allowances per
+#    #   https://scan.coverity.com/faq#frequency
+#    branch_pattern: coverity_scan-.*
+
+  apt:
+    sources:
+      - ubuntu-toolchain-r-test
+      - mariadb-10.0
+      - llvm-toolchain-precise
+      - llvm-toolchain-precise-3.7
+    packages:
+# ensure these match GCC_VERSION
+      - gcc-4.8
+      - g++-4.8
+      - clang-3.7
+#      - binutils - distro not new enough
+      - libjemalloc-dev
+      - hardening-wrapper
+      - zlib1g-dev
+      - libbz2-dev
+      - libsnappy-dev
+      - libtool
+      - libncurses5-dev
+      - perl
+      - libwrap0-dev
+      - zlib1g-dev
+      - libreadline-gplv2-dev
+      - libssl-dev
+      - libpam0g-dev
+      - psmisc
+      - po-debconf
+      - chrpath
+      - automake1.9
+      - doxygen
+      - texlive-latex-base
+      - ghostscript
+      - dpatch
+      - gawk
+      - bison
+      - lsb-release
+      - libaio-dev
+      - devscripts
+      - libevent-dev
+      - sphinxsearch
+      - rpm
+      - libboost-all-dev
+      - libjudy-dev
+      - lcov
+
+# ulimit -c to grab core dumps when tests fail would be nice.
+# https://github.com/travis-ci/travis-ci/issues/3754
+
+before_install:
+# Since we can't (until https://github.com/travis-ci/travis-ci/issues/3737)
+# pull binutil-2.23+ from trusty we use compiled it ourselves.
+# If sudo was allowed in containers this would be sufficient
+#  - sudo add-apt-repository -y 'deb http://archive.ubuntu.com/ubuntu trusty main'
+#  - sudo add-apt-repository -y 'deb http://archive.ubuntu.com/ubuntu trusty-security main'
+#  - sudo apt-key adv --keyserver keyserver.ubuntu.com --recv-keys 0x3B4FE6ACC0B21F32
+#  - sudo apt-get update -qq
+#  - sudo apt-get install -y -qq binutils
+#
+  - gem install coveralls-lcov
+  - if [ ${CC} == "clang" ]; then
+      export CC=/usr/bin/clang-3.7 CXX=/usr/bin/clang++-3.7;
+      C=clang;
+    else
+      export CC=/usr/bin/gcc-${GCC_VERSION} CXX=/usr/bin/g++-${GCC_VERSION} ;
+      C=gcc;
+    fi
+  - GCOV=/usr/bin/gcov-${GCC_VERSION} 
+
+# we are grabbing (and caching) a binutils-2.23+ version as Ubuntu Precise is old
+before_script:
+  - if [ ! -d "$HOME/binutils/bin" ]; then
+       wget http://ftp.gnu.org/gnu/binutils/binutils-2.25.tar.bz2 -O - | tar -jxf -;
+       cd binutils-2.25;
+       ./configure --prefix=${HOME}/binutils || cat config.log;
+       make -j 4;
+       make install;
+    fi
+  - export PATH=$PATH:${HOME}/binutils/bin
+
+script:
+  - ${CC} --version ; ${CXX} --version ; ${GCOV} --version
+# Useful to do a test run of LD_TYPE=RelWithDebInfo now and then
+# Chose coverity_scan* branch as a) its less often and b) with coverity_scan going there is less build time available (and Debug has more tests)
+  - if [[ "${TRAVIS_BRANCH}" == coveralls* ]]; then
+      BUILD_TYPE=RelWithDebInfo ;
+    fi
+# coveralls coverage can work with gcc and clang. We only choose one to reduce load and because it probably doesn't make much difference which on.
+# -DWITHOUT_MROONGA_STORAGE_ENGINE there because too many clang warnings
+# -DWITHOUT_OQGRAPH (needs to be added) because  MDEV-8051 - clang has OQgraph error - 10.0+ only?
+  - if [ "${C}" == "gcc" ]; then
+       CMAKE_EXTRA=-DENABLE_GCOV=ON ;
+    else
+       CMAKE_EXTRA="-DWITHOUT_MROONGA_STORAGE_ENGINE=ON -DWITHOUT_OQGRAPH=ON" ;
+    fi
+  - BDIR=${TRAVIS_BUILD_DIR}
+  - mkdir -p "${BDIR}"; cd "${BDIR}"
+  - cmake "${TRAVIS_BUILD_DIR}"   -DCMAKE_C_COMPILER=${CC} -DCMAKE_CXX_COMPILER=${CXX} -DCMAKE_BUILD_TYPE=${BUILD_TYPE:-Debug} -DSYSTEM_TYPE="debian-linux-gnu"
+               -DWITH_SSL=system -DWITH_ZLIB=system
+               -DWITH_ARCHIVE_STORAGE_ENGINE=ON -DWITH_BLACKHOLE_STORAGE_ENGINE=ON
+               -DWITH_FEDERATEDX_STORAGE_ENGINE=ON  -DWITH_PLUGIN_FEEDBACK=ON -DWITH_INNOBASE_STORAGE_ENGINE=ON
+               -DWITH_PARTITION_STORAGE_ENGINE=ON ${CMAKE_EXTRA}
+               -DWITH_EMBEDDED_SERVER=ON
+# WITH_EMBEDDED_SERVER fails on gcc 5.1 and 4.9
+# [ 65%] Building C object storage/xtradb/CMakeFiles/xtradb_embedded.dir/dict/dict0dict.c.o
+# /usr/bin/ld.bfd.real: duplicate version tag `libmysqlclient_18'
+# /usr/bin/ld.bfd.real: duplicate version tag `libmysqlclient_16'
+  - COMPILE_RESULT=0
+  - make -j 4 || COMPILE_RESULT=$?; expr ${COMPILE_RESULT} == 0
+  - cd "${BDIR}"/mysql-test
+  - export MTR_BINDIR=${BDIR}
+  - MTROPTS="--report-times --parallel=6 --force --fast --timer --retry-failure=2 --suite-timeout=60 --testcase-timeout=30 --big-test"
+  - TEST_RESULT=1
+# needs to be one big ugly line because of https://github.com/travis-ci/travis-ci/issues/3771
+  - if [ ${COMPILE_RESULT} -eq 0 ]; then ./mysql-test-run.pl ${MTROPTS} --suite=${TEST} --skip-test-list="${TRAVIS_BUILD_DIR}"/.travis-skip-tests; TEST_RESULT=$?; fi; expr ${TEST_RESULT} == 0
+  - cd "${TRAVIS_BUILD_DIR}"
+  - export MYSQL_BUILD_CC=${CC}
+  - export MYSQL_BUILD_CXX=${CXX}
+# shortest running test case we do a build of packages
+# if build time exceeds 10mins "travis_wait" need to be prepended to debian build command as debian build is intentionally outputless
+# autobake isn't building however its not breaking the travis build.
+  - PKG_RESULT=1
+  - if [[ "${TEST}" =~ percona ]] && [[ "${C}" -eq "gcc" ]] && [[ ${TEST_RESULT} -eq 0 ]]; then
+      rm CMakeCache.txt;
+      travis_wait env DEB_BUILD_OPTIONS="parallel=4" debian/autobake-deb.sh;
+      PKG_RESULT=$?;
+      find . -name \*.deb -ls;
+    fi
+# TODO much 'warning: File listed twice:' output - exceeds travis limit of 4Mb
+#      rm CMakeCache.txt;
+#      cmake .  -DBUILD_CONFIG=mysql_release -DRPM=centos6;
+#      make -j 4 package;
+#      find . -name \*.rpm -ls;
+#      find . -name rpmbuild-client.err -exec cat {} \;  ;
+#    fi
+
+# ssh upload
+# ssh-keygen -f .travis.id_rsa
+# .travis.known_hosts
+# ssh -o VerifyHostKeyDNS=yes -o UserKnownHostsFile=.travis.known_hosts -i .travis.id_rsa ${UPLOADSERVER}
+# gem install travis
+# travis encrypt-file .travis.id_rsa
+# adjust openssl command below
+after_failure:
+  - umask 0066
+  - alias sftp="echo upload disabled:"
+  - openssl aes-256-cbc -K $encrypted_de260eab5a53_key -iv $encrypted_de260eab5a53_iv -in .travis.id_rsa.enc -out .travis.id_rsa -d
+  - if [[ "${COMPILE_RESULT}" -gt 0 ]]; then
+      COMPILEFILE=travis-ci.org-${TRAVIS_REPO_SLUG/\//-}-jobs-${TRAVIS_JOB_ID}-${TRAVIS_JOB_NUMBER}-${TRAVIS_COMMIT}-compile-fail.tar.bz2;
+      tar --dereference -jcf "${COMPILEFILE}" Makefile storage/{innobase,xtradb,maria}/{*.i*,Makefile} storage/innobase/CMakeFiles  storage/xtradb/CMakeFiles  libmysqld/CMakeFiles storage/maria/CMakeFiles;
+      echo "put ${COMPILEFILE}" | sftp -b - -o UserKnownHostsFile="${TRAVIS_BUILD_DIR}"/.travis.known_hosts -i "${TRAVIS_BUILD_DIR}"/.travis.id_rsa ${UPLOADSERVER};
+    fi
+  - BUILDFAIL_TAR=1
+  - if [[ "${TEST_RESULT}" -gt 0 ]]; then
+      cd "${BDIR}"/mysql-test;
+      ABORTFILE=travis-ci.org-${TRAVIS_REPO_SLUG/\//-}-jobs-${TRAVIS_JOB_ID}#${TRAVIS_JOB_NUMBER}-${TRAVIS_COMMIT}-test-fail.tar.bz2;
+      tar --dereference -jcf "${ABORTFILE}" var "${TRAVIS_BUILD_DIR}"/sql/mysqld;
+      BUILDFAIL_TAR=$?;
+      echo "put ${COMPILEFILE}" | sftp -b - -o UserKnownHostsFile="${TRAVIS_BUILD_DIR}"/.travis.known_hosts -i "${TRAVIS_BUILD_DIR}"/.travis.id_rsa ${UPLOADSERVER};
+    fi
+  - if [[ "${TRAVIS_PULL_REQUEST}" = "false" && "${TRAVIS_REPO_SLUG}" = "MariaDB/server" && ${BUILDFAIL_TAR} -eq 0 ]] && [[ "${TRAVIS_BRANCH}" = '10.1' || "${TRAVIS_BRANCH}" = '10.0' ||  "${TRAVIS_BRANCH}"  = '5.5'  ]]; then
+      echo -e "\n\nTest failed - please report bug https://mariadb.atlassian.net/secure/RapidBoard.jspa?rapidView=24&projectKey=MDEV\nAnd reference file ${ABORTFILE} in private uploads\n\n";
+      curl -v --user anonymous:build@travis-ci.org -T "${ABORTFILE}"  ftp://ftp.askmonty.org/private/;
+    fi
+
+#  travis-lint fail: echo "Error in travis build: URL https://travis-ci.org/${TRAVIS_REPO_SLUG}/jobs/${TRAVIS_JOB_ID}" > var/README.txt;
+
+# note: lcov requires gcc's gcov until version 1.11 which isn't packaged yet.
+# 
+after_success:
+  - umask 0066
+  - cd "${TRAVIS_BUILD_DIR}"
+#  - coveralls  --exclude mysql-test --root="${TRAVIS_BUILD_DIR}"
+  - lcov --gcov-tool "${GCOV}" --directory . --capture --base-directory="${TRAVIS_BUILD_DIR}" --output-file coverage.info
+  - lcov --gcov-tool "${GCOV}" --remove coverage.info 'mysql-test/*' '/usr/*' --output-file coverage.info
+  - lcov --gcov-tool "${GCOV}" --list coverage.info
+  - coveralls-lcov --repo-token "${COVERALLS_REPO_TOKEN}" coverage.info
+# fails travis-lint ability to understand
+#  - if [[ "${PKG_RESULT}" -eq 0 ]]; then
+#
+# piping "..done | sftp" doesn't work yet: https://github.com/travis-ci/travis-ci/issues/3772
+#  - for PKGFILE in *.rpm debian/*.deb; do
+# TODO consider renaming file based on TRAVIS_ vars
+#        echo "put ${PKGFILE}" | sftp -b - -o UserKnownHostsFile="${TRAVIS_BUILD_DIR}"/.travis.known_hosts -i "${TRAVIS_BUILD_DIR}"/.travis.id_rsa ${UPLOADSERVER};
+#      done
+#    fi
+
+notifications:
+  irc:
+    channels:
+      - "chat.freenode.net#maria"
+    on_success: never # [always|never|change]
+    on_failure: never
+    template:
+      - "%{repository}/%{branch} (%{commit} - %{author}): %{build_url}: %{message}"
