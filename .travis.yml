@@ -206,7 +206,7 @@ script:
 # adjust openssl command below
 after_failure:
   - umask 0066
-  - alias sftp="echo 'upload disabled: '"
+  - alias sftp="echo upload disabled:"
   - openssl aes-256-cbc -K $encrypted_de260eab5a53_key -iv $encrypted_de260eab5a53_iv -in .travis.id_rsa.enc -out .travis.id_rsa -d
   - if [[ "${COMPILE_RESULT}" -gt 0 ]]; then
       COMPILEFILE=travis-ci.org-${TRAVIS_REPO_SLUG/\//-}-jobs-${TRAVIS_JOB_ID}-${TRAVIS_JOB_NUMBER}-${TRAVIS_COMMIT}-compile-fail.tar.bz2;
