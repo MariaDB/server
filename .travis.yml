@@ -183,19 +183,22 @@ script:
   - export MYSQL_BUILD_CC=${CC}
   - export MYSQL_BUILD_CXX=${CXX}
 # shortest running test case we do a build of packages
-# if build time exceeds 10mins "travis_wait" may need to be prepended to debian build command as debian build is intentionally outputless
+# if build time exceeds 10mins "travis_wait" need to be prepended to debian build command as debian build is intentionally outputless
 # autobake isn't building however its not breaking the travis build.
   - PKG_RESULT=1
   - if [[ "${TEST}" =~ percona ]] && [[ "${C}" -eq "gcc" ]] && [[ ${TEST_RESULT} -eq 0 ]]; then
-      env DEB_BUILD_OPTIONS="parallel=4" debian/autobake-deb.sh;
+      rm CMakeCache.txt;
+      travis_wait env DEB_BUILD_OPTIONS="parallel=4" debian/autobake-deb.sh;
       PKG_RESULT=$?;
       find . -name \*.deb -ls;
-      rm CMakeCache.txt;
-      cmake .  -DBUILD_CONFIG=mysql_release -DRPM=centos6;
-      make -j 4 package;
-      find . -name \*.rpm -ls;
-      find . -name rpmbuild-client.err -exec cat {} \;  ;
     fi
+# TODO much 'warning: File listed twice:' output - exceeds travis limit of 4Mb
+#      rm CMakeCache.txt;
+#      cmake .  -DBUILD_CONFIG=mysql_release -DRPM=centos6;
+#      make -j 4 package;
+#      find . -name \*.rpm -ls;
+#      find . -name rpmbuild-client.err -exec cat {} \;  ;
+#    fi
 
 # ssh upload
 # ssh-keygen -f .travis.id_rsa
