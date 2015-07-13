@@ -2151,17 +2151,6 @@ longlong Item_func_interval::val_int()
     1   got error
 */
 
-bool Item_func_between::fix_fields(THD *thd, Item **ref)
-{
-  if (Item_func_opt_neg::fix_fields(thd, ref))
-    return 1;
-
-  thd->lex->current_select->between_count++;
-
-
-  return 0;
-}
-
 
 bool Item_func_between::eval_not_null_tables(uchar *opt_arg)
 {
@@ -4344,7 +4333,6 @@ Item_cond::fix_fields(THD *thd, Item **ref)
     if (item->maybe_null)
       maybe_null=1;
   }
-  thd->lex->current_select->cond_count+= list.elements;
   fix_length_and_dec();
   fixed= 1;
   return FALSE;

@@ -645,7 +645,6 @@ public:
   longlong val_int();
   enum Functype functype() const   { return BETWEEN; }
   const char *func_name() const { return "between"; }
-  bool fix_fields(THD *, Item **);
   void fix_length_and_dec();
   virtual void print(String *str, enum_query_type query_type);
   CHARSET_INFO *compare_collation() const { return cmp_collation.collation; }
