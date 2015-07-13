@@ -108,7 +108,7 @@ addons:
       - rpm
       - libboost-all-dev
       - libjudy-dev
-#     - lcov  Waiting on travis-whitelist https://github.com/travis-ci/apt-package-whitelist/pull/14
+      - lcov
 
 # ulimit -c to grab core dumps when tests fail would be nice.
 # https://github.com/travis-ci/travis-ci/issues/3754
