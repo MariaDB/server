@@ -2253,7 +2253,9 @@ row_create_table_for_mysql(
 			" of the MyISAM type!\n",
 			table->name);
 
+#ifndef DBUG_OFF
 err_exit:
+#endif /* !DBUG_OFF */
 		dict_mem_table_free(table);
 
 		if (commit) {
