@@ -6026,9 +6026,17 @@ int ha_abort_transaction(THD *bf_thd, THD *victim_thd, my_bool signal)
   {
     handlerton *hton= ha_info->ht();
     if (!hton->abort_transaction)
-      WSREP_WARN("cannot abort transaction");
+    {
+      /* Skip warning for binlog SE */
+      if (hton->db_type != DB_TYPE_BINLOG)
+      {
+        WSREP_WARN("Cannot abort transaction.");
+      }
+    }
     else
+    {
       hton->abort_transaction(hton, bf_thd, victim_thd, signal);
+    }
     ha_info_next= ha_info->next();
   }
   DBUG_RETURN(0);
