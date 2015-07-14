@@ -251,7 +251,7 @@ srv_file_check_mode(
 
 		/* Note: stat.rw_perm is only valid of files */
 
-		if (stat.type == OS_FILE_TYPE_FILE {
+		if (stat.type == OS_FILE_TYPE_FILE) {
 
 			if (!stat.rw_perm) {
 
@@ -937,9 +937,6 @@ open_or_create_data_files(
 			const char*	check_msg;
 			check_msg = fil_read_first_page(
 				files[i], FALSE, &flags, &space,
-#ifdef UNIV_LOG_ARCHIVE
-				min_arch_log_no, max_arch_log_no,
-#endif /* UNIV_LOG_ARCHIVE */
 				min_flushed_lsn, max_flushed_lsn);
 
 			/* If first page is valid, don't overwrite DB.
