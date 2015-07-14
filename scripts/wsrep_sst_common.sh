@@ -105,13 +105,39 @@ done
 readonly WSREP_SST_OPT_BYPASS
 readonly WSREP_SST_OPT_BINLOG
 
+# try to use my_print_defaults, mysql and mysqldump that come with the sources
+# (for MTR suite)
+SCRIPTS_DIR="$(cd $(dirname "$0"); pwd -P)"
+EXTRA_DIR="$SCRIPTS_DIR/../extra"
+CLIENT_DIR="$SCRIPTS_DIR/../client"
+
+if [ -x "$CLIENT_DIR/mysql" ]; then
+    MYSQL_CLIENT="$CLIENT_DIR/mysql"
+else
+    MYSQL_CLIENT=$(which mysql)
+fi
+
+if [ -x "$CLIENT_DIR/mysqldump" ]; then
+    MYSQLDUMP="$CLIENT_DIR/mysqldump"
+else
+    MYSQLDUMP=$(which mysqldump)
+fi
+
+if [ -x "$SCRIPTS_DIR/my_print_defaults" ]; then
+    MY_PRINT_DEFAULTS="$SCRIPTS_DIR/my_print_defaults"
+elif [ -x "$EXTRA_DIR/my_print_defaults" ]; then
+    MY_PRINT_DEFAULTS="$EXTRA_DIR/my_print_defaults"
+else
+    MY_PRINT_DEFAULTS=$(which my_print_defaults)
+fi
+
 readonly WSREP_SST_OPT_CONF="$WSREP_SST_OPT_DEFAULT $WSREP_SST_OPT_EXTRA_DEFAULT"
-readonly my_print_defaults="my_print_defaults $WSREP_SST_OPT_CONF"
+MY_PRINT_DEFAULTS="$MY_PRINT_DEFAULTS $WSREP_SST_OPT_CONF"
 
 # State Snapshot Transfer authentication password was displayed in the ps output. Bug fixed #1200727.
-if $my_print_defaults sst | grep -q "wsrep_sst_auth";then
+if $MY_PRINT_DEFAULTS sst | grep -q "wsrep_sst_auth";then
     if [ -z "$WSREP_SST_OPT_AUTH" -o "$WSREP_SST_OPT_AUTH" = "(null)" ];then
-            WSREP_SST_OPT_AUTH=$($my_print_defaults sst | grep -- "--wsrep_sst_auth" | cut -d= -f2)
+            WSREP_SST_OPT_AUTH=$($MY_PRINT_DEFAULTS sst | grep -- "--wsrep_sst_auth" | cut -d= -f2)
     fi
 fi
 

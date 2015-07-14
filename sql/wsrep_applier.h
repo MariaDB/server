@@ -16,7 +16,8 @@
 #ifndef WSREP_APPLIER_H
 #define WSREP_APPLIER_H
 
-#include <sys/types.h>
+#include <my_config.h>
+#include "../wsrep/wsrep_api.h"
 
 void wsrep_set_apply_format(THD* thd, Format_description_log_event* ev);
 Format_description_log_event* wsrep_get_apply_format(THD* thd);

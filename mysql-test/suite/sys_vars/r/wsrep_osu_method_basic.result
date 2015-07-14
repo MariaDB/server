@@ -10,7 +10,8 @@ TOI
 
 # scope
 SELECT @@session.wsrep_osu_method;
-ERROR HY000: Variable 'wsrep_OSU_method' is a GLOBAL variable
+@@session.wsrep_osu_method
+TOI
 SET @@global.wsrep_osu_method=TOI;
 SELECT @@global.wsrep_osu_method;
 @@global.wsrep_osu_method

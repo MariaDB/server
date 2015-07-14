@@ -49,9 +49,13 @@ wsrep_local_commits	#
 wsrep_local_index	#
 wsrep_local_recv_queue	#
 wsrep_local_recv_queue_avg	#
+wsrep_local_recv_queue_max	#
+wsrep_local_recv_queue_min	#
 wsrep_local_replays	#
 wsrep_local_send_queue	#
 wsrep_local_send_queue_avg	#
+wsrep_local_send_queue_max	#
+wsrep_local_send_queue_min	#
 wsrep_local_state	#
 wsrep_local_state_comment	#
 wsrep_local_state_uuid	#
@@ -100,9 +104,13 @@ wsrep_local_commits	#
 wsrep_local_index	#
 wsrep_local_recv_queue	#
 wsrep_local_recv_queue_avg	#
+wsrep_local_recv_queue_max	#
+wsrep_local_recv_queue_min	#
 wsrep_local_replays	#
 wsrep_local_send_queue	#
 wsrep_local_send_queue_avg	#
+wsrep_local_send_queue_max	#
+wsrep_local_send_queue_min	#
 wsrep_local_state	#
 wsrep_local_state_comment	#
 wsrep_local_state_uuid	#

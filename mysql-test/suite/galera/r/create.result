@@ -6,6 +6,8 @@ SET @@GLOBAL.wsrep_forced_binlog_format=STATEMENT;
 SHOW VARIABLES LIKE '%log%bin%';
 Variable_name	Value
 log_bin	OFF
+log_bin_basename	
+log_bin_index	
 log_bin_trust_function_creators	ON
 sql_log_bin	ON
 USE test;
@@ -20,4 +22,40 @@ i
 1
 DROP TABLE t1;
 SET @@GLOBAL.wsrep_forced_binlog_format=@wsrep_forced_binlog_format_saved;
+#
+# MDEV-7673: CREATE TABLE SELECT fails on Galera cluster
+#
+CREATE TABLE t1 (i INT) ENGINE=INNODB DEFAULT CHARSET=utf8 SELECT 1 as i;
+SELECT * FROM t1;
+i
+1
+SELECT * FROM t1;
+i
+1
+DROP TABLE t1;
+#
+# MDEV-8166 : Adding index on new table from select crashes Galera
+# cluster
+#
+CREATE TABLE t1(i int(11) NOT NULL DEFAULT '0') ENGINE=InnoDB DEFAULT CHARSET=utf8;
+INSERT INTO t1(i) VALUES (1), (2), (3);
+CREATE TABLE t2 (i INT) SELECT i FROM t1;
+ALTER TABLE t2 ADD INDEX idx(i);
+SELECT * FROM t2;
+i
+1
+2
+3
+SELECT * FROM t2;
+i
+1
+2
+3
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `i` int(11) DEFAULT NULL,
+  KEY `idx` (`i`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+DROP TABLE t1, t2;
 # End of tests

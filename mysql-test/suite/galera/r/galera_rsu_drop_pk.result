@@ -1,0 +1,42 @@
+CREATE TABLE ten (f1 INTEGER);
+INSERT INTO ten VALUES (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) Engine=InnoDB;
+INSERT INTO t1 (f1) SELECT 000000 + (10000 * a1.f1) + (1000 * a2.f1) + (100 * a3.f1) + (10 * a4.f1) + a5.f1 FROM ten AS a1, ten AS a2, ten AS a3, ten AS a4, ten AS a5;
+INSERT INTO t1 (f1) SELECT 100000 + (10000 * a1.f1) + (1000 * a2.f1) + (100 * a3.f1) + (10 * a4.f1) + a5.f1 FROM ten AS a1, ten AS a2, ten AS a3, ten AS a4, ten AS a5;;
+SET SESSION wsrep_OSU_method = "RSU";
+ALTER TABLE t1 DROP PRIMARY KEY;
+SET SESSION wsrep_OSU_method = "TOI";
+INSERT INTO t1 (f1) SELECT 200000 + (10000 * a1.f1) + (1000 * a2.f1) + (100 * a3.f1) + (10 * a4.f1) + a5.f1 FROM ten AS a1, ten AS a2, ten AS a3, ten AS a4, ten AS a5;
+SELECT COUNT(*) = 300000 FROM t1;
+COUNT(*) = 300000
+1
+SELECT MAX(f1) =  299999 FROM t1;
+MAX(f1) =  299999
+1
+SELECT COUNT(*) = 300000 FROM t1;
+COUNT(*) = 300000
+1
+SELECT MAX(f1) =  299999 FROM t1;
+MAX(f1) =  299999
+1
+SET SESSION wsrep_OSU_method = "RSU";
+ALTER TABLE t1 DROP PRIMARY KEY;
+SET SESSION wsrep_OSU_method = "TOI";
+INSERT INTO t1 (f1) VALUES (1);
+INSERT INTO t1 (f1) VALUES (10);
+SELECT COUNT(*) = 2 FROM t1 WHERE f1 = 1;
+COUNT(*) = 2
+1
+SELECT COUNT(*) = 2 FROM t1 WHERE f1 = 10;
+COUNT(*) = 2
+1
+INSERT INTO t1 (f1) VALUES (100);
+INSERT INTO t1 (f1) VALUES (1000);
+SELECT COUNT(*) = 2 FROM t1 WHERE f1 = 100;
+COUNT(*) = 2
+1
+SELECT COUNT(*) = 2 FROM t1 WHERE f1 = 1000;
+COUNT(*) = 2
+1
+DROP TABLE t1;
+DROP TABLE ten;

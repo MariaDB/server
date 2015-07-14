@@ -57,9 +57,9 @@ then
 fi
 
 # Check client version
-if ! mysql --version | grep 'Distrib 10' >/dev/null
+if ! $MYSQL_CLIENT --version | grep 'Distrib 10.1' >/dev/null
 then
-    mysql --version >&2
+    $MYSQL_CLIENT --version >&2
     wsrep_log_error "this operation requires MySQL client version 10 or newer"
     exit $EINVAL
 fi
@@ -109,10 +109,10 @@ fi
 
 # Retrieve the donor's @@global.gtid_binlog_state.
 GTID_BINLOG_STATE=$(echo "SHOW GLOBAL VARIABLES LIKE 'gtid_binlog_state'" |\
-mysql $AUTH -S$WSREP_SST_OPT_SOCKET --disable-reconnect --connect_timeout=10 |\
+$MYSQL_CLIENT $AUTH -S$WSREP_SST_OPT_SOCKET --disable-reconnect --connect_timeout=10 |\
 tail -1 | awk -F ' ' '{ print $2 }')
 
-MYSQL="mysql $AUTH -h$WSREP_SST_OPT_HOST -P$WSREP_SST_OPT_PORT "\
+MYSQL="$MYSQL_CLIENT $AUTH -h$WSREP_SST_OPT_HOST -P$WSREP_SST_OPT_PORT "\
 "--disable-reconnect --connect_timeout=10"
 
 # Check if binary logging is enabled on the joiner node.
@@ -144,7 +144,7 @@ then
 fi
 
 # NOTE: we don't use --routines here because we're dumping mysql.proc table
-MYSQLDUMP="mysqldump $AUTH -S$WSREP_SST_OPT_SOCKET \
+MYSQLDUMP="$MYSQLDUMP $AUTH -S$WSREP_SST_OPT_SOCKET \
 --add-drop-database --add-drop-table --skip-add-locks --create-options \
 --disable-keys --extended-insert --skip-lock-tables --quick --set-charset \
 --skip-comments --flush-privileges --all-databases"

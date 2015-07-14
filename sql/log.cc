@@ -1659,15 +1659,36 @@ int binlog_init(void *p)
   return 0;
 }
 
+#ifdef WITH_WSREP
+#include "wsrep_binlog.h"
+#endif /* WITH_WSREP */
 static int binlog_close_connection(handlerton *hton, THD *thd)
 {
+  DBUG_ENTER("binlog_close_connection");
   binlog_cache_mngr *const cache_mngr=
     (binlog_cache_mngr*) thd_get_ha_data(thd, binlog_hton);
+#ifdef WITH_WSREP
+  if (cache_mngr && !cache_mngr->trx_cache.empty()) {
+    IO_CACHE* cache= get_trans_log(thd);
+    uchar *buf;
+    size_t len=0;
+    wsrep_write_cache_buf(cache, &buf, &len);
+    WSREP_WARN("binlog trx cache not empty (%lu bytes) @ connection close %lu",
+               len, thd->thread_id);
+    if (len > 0) wsrep_dump_rbr_buf(thd, buf, len);
+
+    cache = cache_mngr->get_binlog_cache_log(false);
+    wsrep_write_cache_buf(cache, &buf, &len);
+    WSREP_WARN("binlog stmt cache not empty (%lu bytes) @ connection close %lu",
+               len, thd->thread_id);
+    if (len > 0) wsrep_dump_rbr_buf(thd, buf, len);
+  }
+#endif /* WITH_WSREP */
   DBUG_ASSERT(cache_mngr->trx_cache.empty() && cache_mngr->stmt_cache.empty());
   thd_set_ha_data(thd, binlog_hton, NULL);
   cache_mngr->~binlog_cache_mngr();
   my_free(cache_mngr);
-  return 0;
+  DBUG_RETURN(0);
 }
 
 /*
@@ -5900,9 +5921,19 @@ bool MYSQL_BIN_LOG::write(Log_event *event_info, my_bool *with_annotate)
   binlog_cache_data *cache_data= 0;
   bool is_trans_cache= FALSE;
   bool using_trans= event_info->use_trans_cache();
-  bool direct= event_info->use_direct_logging();
+  bool direct;
   ulong UNINIT_VAR(prev_binlog_id);
   DBUG_ENTER("MYSQL_BIN_LOG::write(Log_event *)");
+
+  /*
+    When binary logging is not enabled (--log-bin=0), wsrep-patch partially
+    enables it without opening the binlog file (MSQL_BIN_LOG::open().
+    So, avoid writing directly to binlog file.
+  */
+  if (wsrep_emulate_bin_log)
+    direct= false;
+  else
+    direct= event_info->use_direct_logging();
 
   if (thd->variables.option_bits & OPTION_GTID_BEGIN)
   {
@@ -6891,8 +6922,11 @@ MYSQL_BIN_LOG::write_transaction_to_binlog(THD *thd,
   Ha_trx_info *ha_info;
   DBUG_ENTER("MYSQL_BIN_LOG::write_transaction_to_binlog");
 
-  if (wsrep_emulate_bin_log)
-    DBUG_RETURN(0);
+  /*
+    Control should not be allowed beyond this point in wsrep_emulate_bin_log
+    mode.
+  */
+  if (wsrep_emulate_bin_log) DBUG_RETURN(0);
 
   entry.thd= thd;
   entry.cache_mngr= cache_mngr;
@@ -10096,7 +10130,14 @@ void thd_binlog_trx_reset(THD * thd)
     binlog_cache_mngr *const cache_mngr=
       (binlog_cache_mngr*) thd_get_ha_data(thd, binlog_hton);
     if (cache_mngr)
+    {
       cache_mngr->reset(false, true);
+      if (!cache_mngr->stmt_cache.empty())
+      {
+        WSREP_DEBUG("pending events in stmt cache, sql: %s", thd->query());
+        cache_mngr->stmt_cache.reset();
+      }
+    }
   }
   thd->clear_binlog_table_maps();
 }

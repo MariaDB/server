@@ -4823,8 +4823,10 @@ static Sys_var_uint Sys_wsrep_sync_wait(
 static const char *wsrep_OSU_method_names[]= { "TOI", "RSU", NullS };
 static Sys_var_enum Sys_wsrep_OSU_method(
        "wsrep_OSU_method", "Method for Online Schema Upgrade",
-       GLOBAL_VAR(wsrep_OSU_method_options), CMD_LINE(OPT_ARG),
-       wsrep_OSU_method_names, DEFAULT(WSREP_OSU_TOI));
+       SESSION_VAR(wsrep_OSU_method), CMD_LINE(OPT_ARG),
+       wsrep_OSU_method_names, DEFAULT(WSREP_OSU_TOI),
+       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
+       ON_UPDATE(0));
 
 static PolyLock_mutex PLock_wsrep_desync(&LOCK_wsrep_desync);
 static Sys_var_mybool Sys_wsrep_desync (

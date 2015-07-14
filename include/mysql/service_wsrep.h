@@ -1,5 +1,5 @@
 #ifndef MYSQL_SERVICE_WSREP_INCLUDED
-/* Copyright (c) 2013, Monty Program Ab
+/* Copyright (c) 2015 MariaDB Corporation Ab
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -38,9 +38,16 @@ enum wsrep_conflict_state {
 };
 
 enum wsrep_exec_mode {
+    /* Transaction processing before replication. */
     LOCAL_STATE,
+    /* Slave thread applying write sets from other nodes or replaying thread. */
     REPL_RECV,
+    /* Total-order-isolation mode. */
     TOTAL_ORDER,
+    /*
+      Transaction procession after it has been replicated in prepare stage and
+      has passed certification.
+    */
     LOCAL_COMMIT
 };
 
@@ -69,6 +76,7 @@ extern struct wsrep_service_st {
   my_bool                     (*get_wsrep_certify_nonPK_func)();
   my_bool                     (*get_wsrep_debug_func)();
   my_bool                     (*get_wsrep_drupal_282555_workaround_func)();
+  my_bool                     (*get_wsrep_recovery_func)();
   my_bool                     (*get_wsrep_load_data_splitting_func)();
   my_bool                     (*get_wsrep_log_conflicts_func)();
   long                        (*get_wsrep_protocol_version_func)();
@@ -108,6 +116,7 @@ extern struct wsrep_service_st {
 #define get_wsrep_certify_nonPK() wsrep_service->get_wsrep_certify_nonPK_func()
 #define get_wsrep_debug() wsrep_service->get_wsrep_debug_func()
 #define get_wsrep_drupal_282555_workaround() wsrep_service->get_wsrep_drupal_282555_workaround_func()
+#define get_wsrep_recovery() wsrep_service->get_wsrep_recovery_func()
 #define get_wsrep_load_data_splitting() wsrep_service->get_wsrep_load_data_splitting_func()
 #define get_wsrep_log_conflicts() wsrep_service->get_wsrep_log_conflicts_func()
 #define get_wsrep_protocol_version() wsrep_service->get_wsrep_protocol_version_func()
@@ -146,6 +155,7 @@ extern struct wsrep_service_st {
 #define wsrep_certify_nonPK get_wsrep_certify_nonPK()
 #define wsrep_load_data_splitting get_wsrep_load_data_splitting()
 #define wsrep_drupal_282555_workaround get_wsrep_drupal_282555_workaround()
+#define wsrep_recovery get_wsrep_recovery()
 #define wsrep_protocol_version get_wsrep_protocol_version()
 
 #else
@@ -155,6 +165,7 @@ extern my_bool wsrep_log_conflicts;
 extern my_bool wsrep_certify_nonPK;
 extern my_bool wsrep_load_data_splitting;
 extern my_bool wsrep_drupal_282555_workaround;
+extern my_bool wsrep_recovery;
 extern long wsrep_protocol_version;
 
 bool wsrep_consistency_check(THD *thd);
@@ -178,6 +189,7 @@ long long wsrep_thd_trx_seqno(THD *thd);
 my_bool get_wsrep_certify_nonPK();
 my_bool get_wsrep_debug();
 my_bool get_wsrep_drupal_282555_workaround();
+my_bool get_wsrep_recovery();
 my_bool get_wsrep_load_data_splitting();
 my_bool get_wsrep_log_conflicts();
 my_bool wsrep_aborting_thd_contains(THD *thd);

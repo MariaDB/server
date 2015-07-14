@@ -1,0 +1,17 @@
+CREATE TABLE `r8kmb_redirect_links` (
+`id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+`old_url` varchar(255) DEFAULT NULL,
+`new_url` varchar(255) NOT NULL,
+`referer` varchar(150) NOT NULL,
+`comment` varchar(255) NOT NULL,
+`published` tinyint(4) NOT NULL,
+`created_date` datetime NOT NULL DEFAULT '0000-00-00 00:00:00',
+`modified_date` datetime NOT NULL DEFAULT '0000-00-00 00:00:00',
+PRIMARY KEY (`id`),
+UNIQUE KEY `idx_link_old` (`old_url`),
+KEY `idx_link_modifed` (`modified_date`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+INSERT INTO r8kmb_redirect_links VALUES (550,'http://mysite.com/images/download/ÃƒÂÃ…Â¸Ãƒâ€˜Ã†â€™ÃƒÂÃ‚Â±ÃƒÂÃ‚Â»Ãƒâ€˜Ã¢â‚¬â€œÃƒâ€˜Ã¢â‚¬Â¡ÃƒÂÃ‚Â½ÃƒÂÃ‚Â¸ÃƒÂÃ‚Â¹_ÃƒÂÃ‚Â´ÃƒÂÃ‚Â¾ÃƒÂÃ‚Â³ÃƒÂÃ‚Â¾ÃƒÂÃ‚Â²Ãƒâ€˜Ã¢â‚¬â€œÃƒâ€˜Ã¢â€šÂ¬_ÃƒÂÃ‚Â¾Ãƒâ€˜Ã¢â‚¬Å¾ÃƒÂÃ‚ÂµÃƒâ€˜.doc','','','',0,'2013-07-15 14:29:42','0000-00-00 00:00:00');
+Warnings:
+Warning	1265	Data truncated for column 'old_url' at row 1
+DROP TABLE r8kmb_redirect_links;

@@ -1,4 +1,4 @@
-/* Copyright 2010 Codership Oy <http://www.codership.com>
+/* Copyright 2010-2015 Codership Oy <http://www.codership.com>
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -150,7 +150,35 @@ process::process (const char* cmd, const char* type)
         goto cleanup_pipe;
     }
 
-    err_ = posix_spawnattr_setflags (&attr, POSIX_SPAWN_SETSIGDEF |
+    /* make sure that no signlas are masked in child process */
+    sigset_t sigmask_empty; sigemptyset(&sigmask_empty);
+    err_ = posix_spawnattr_setsigmask(&attr, &sigmask_empty);
+    if (err_)
+    {
+        WSREP_ERROR ("posix_spawnattr_setsigmask() failed: %d (%s)",
+                     err_, strerror(err_));
+        goto cleanup_attr;
+    }
+
+    /* make sure the following signals are not ignored in child process */
+    sigset_t default_signals; sigemptyset(&default_signals);
+    sigaddset(&default_signals, SIGHUP);
+    sigaddset(&default_signals, SIGINT);
+    sigaddset(&default_signals, SIGQUIT);
+    sigaddset(&default_signals, SIGPIPE);
+    sigaddset(&default_signals, SIGTERM);
+    sigaddset(&default_signals, SIGCHLD);
+    err_ = posix_spawnattr_setsigdefault(&attr, &default_signals);
+    if (err_)
+    {
+        WSREP_ERROR ("posix_spawnattr_setsigdefault() failed: %d (%s)",
+                     err_, strerror(err_));
+        goto cleanup_attr;
+    }
+
+    err_ = posix_spawnattr_setflags (&attr, POSIX_SPAWN_SETSIGDEF  |
+                                            POSIX_SPAWN_SETSIGMASK |
+            /* start a new process group */ POSIX_SPAWN_SETPGROUP  |
                                             POSIX_SPAWN_USEVFORK);
     if (err_)
     {
@@ -438,58 +466,4 @@ size_t wsrep_guess_ip (char* buf, size_t buf_len)
 #endif /* HAVE_GETIFADDRS */
 
   return 0;
-}
-
-/*
- * WSREPXid
- */
-
-#define WSREP_XID_PREFIX "WSREPXid"
-#define WSREP_XID_PREFIX_LEN MYSQL_XID_PREFIX_LEN
-#define WSREP_XID_UUID_OFFSET 8
-#define WSREP_XID_SEQNO_OFFSET (WSREP_XID_UUID_OFFSET + sizeof(wsrep_uuid_t))
-#define WSREP_XID_GTRID_LEN (WSREP_XID_SEQNO_OFFSET + sizeof(wsrep_seqno_t))
-
-void wsrep_xid_init(XID* xid, const wsrep_uuid_t* uuid, wsrep_seqno_t seqno)
-{
-  xid->formatID= 1;
-  xid->gtrid_length= WSREP_XID_GTRID_LEN;
-  xid->bqual_length= 0;
-  memset(xid->data, 0, sizeof(xid->data));
-  memcpy(xid->data, WSREP_XID_PREFIX, WSREP_XID_PREFIX_LEN);
-  memcpy(xid->data + WSREP_XID_UUID_OFFSET, uuid, sizeof(wsrep_uuid_t));
-  memcpy(xid->data + WSREP_XID_SEQNO_OFFSET, &seqno, sizeof(wsrep_seqno_t));
-}
-
-const wsrep_uuid_t* wsrep_xid_uuid(const XID* xid)
-{
-  if (wsrep_is_wsrep_xid(xid))
-    return reinterpret_cast<const wsrep_uuid_t*>(xid->data
-                                                 + WSREP_XID_UUID_OFFSET);
-  else
-    return &WSREP_UUID_UNDEFINED;
-}
-
-wsrep_seqno_t wsrep_xid_seqno(const XID* xid)
-{
-
-  if (wsrep_is_wsrep_xid(xid))
-  {
-    wsrep_seqno_t seqno;
-    memcpy(&seqno, xid->data + WSREP_XID_SEQNO_OFFSET, sizeof(wsrep_seqno_t));
-    return seqno;
-  }
-  else
-  {
-    return WSREP_SEQNO_UNDEFINED;
-  }
-}
-
-extern
-int wsrep_is_wsrep_xid(const XID* xid)
-{
-  return (xid->formatID      == 1                   &&
-          xid->gtrid_length  == WSREP_XID_GTRID_LEN &&
-          xid->bqual_length  == 0                   &&
-          !memcmp(xid->data, WSREP_XID_PREFIX, WSREP_XID_PREFIX_LEN));
 }

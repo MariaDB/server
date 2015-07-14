@@ -1427,12 +1427,10 @@ void THD::init(void)
   wsrep_trx_meta.depends_on= WSREP_SEQNO_UNDEFINED;
   wsrep_converted_lock_session= false;
   wsrep_retry_counter= 0;
-  wsrep_rli= NULL;
   wsrep_rgi= NULL;
   wsrep_PA_safe= true;
   wsrep_consistency_check = NO_CONSISTENCY_CHECK;
   wsrep_mysql_replicated  = 0;
-
   wsrep_TOI_pre_query     = NULL;
   wsrep_TOI_pre_query_len = 0;
 #endif
@@ -1634,7 +1632,6 @@ THD::~THD()
   mysql_mutex_lock(&LOCK_wsrep_thd);
   mysql_mutex_unlock(&LOCK_wsrep_thd);
   mysql_mutex_destroy(&LOCK_wsrep_thd);
-  if (wsrep_rli) delete wsrep_rli;
   if (wsrep_rgi) delete wsrep_rgi;
 #endif
   /* Close connection */
@@ -6712,14 +6709,6 @@ int THD::binlog_query(THD::enum_binlog_query_type qtype, char const *query_arg,
       The MYSQL_LOG::write() function will set the STMT_END_F flag and
       flush the pending rows event if necessary.
     */
-    /*
-      Even though wsrep only supports ROW binary log format, a user can set
-      binlog format to STATEMENT (wsrep_forced_binlog_format). In which case
-      the control might reach here even when binary logging (--log-bin) is
-      not enabled. This is possible because wsrep patch partially enables
-      binary logging by setting wsrep_emulate_binlog.
-    */
-    if (mysql_bin_log.is_open())
     {
       Query_log_event qinfo(this, query_arg, query_len, is_trans, direct,
                             suppress_use, errcode);

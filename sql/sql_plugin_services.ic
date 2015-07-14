@@ -105,6 +105,7 @@ static struct wsrep_service_st wsrep_handler = {
   get_wsrep_certify_nonPK,
   get_wsrep_debug,
   get_wsrep_drupal_282555_workaround,
+  get_wsrep_recovery,
   get_wsrep_load_data_splitting,
   get_wsrep_log_conflicts,
   get_wsrep_protocol_version,

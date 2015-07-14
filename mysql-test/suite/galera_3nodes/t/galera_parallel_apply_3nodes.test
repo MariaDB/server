@@ -1,0 +1,38 @@
+#
+# This test performs two dependent updates on two nodes and checks the results on the third where
+# parallel apply is enabled.
+#
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+--let $galera_connection_name = node_3
+--let $galera_server_number = 3
+--source include/galera_connect.inc
+
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+
+--connection node_3
+--let $wsrep_slave_threads_orig = `SELECT @@wsrep_slave_threads`
+SET GLOBAL wsrep_slave_threads = 2;
+
+--connection node_1
+--send UPDATE t1 SET f1 = f1 + 10;
+
+--connection node_2
+--send UPDATE t1 SET f1 = f1 + 100;
+
+--connection node_1
+--reap
+
+--connection node_2
+--reap
+
+--connection node_3
+SELECT f1 = 111 FROM t1;
+SELECT COUNT(*) IN (1, 2) FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND STATE LIKE 'committed%';
+
+--eval SET GLOBAL wsrep_slave_threads = $wsrep_slave_threads_orig;
+
+DROP TABLE t1;

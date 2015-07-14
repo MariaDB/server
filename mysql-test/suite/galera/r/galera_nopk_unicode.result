@@ -1,0 +1,24 @@
+CREATE TABLE t1 (
+f1 VARCHAR(255),
+KEY (f1)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+INSERT INTO t1 VALUES ('текст');
+SELECT f1 = 'текст' FROM t1;
+f1 = 'текст'
+1
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+UPDATE t1 SET f1 = 'текст2';
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+UPDATE t1 SET f1 = 'текст3';
+COMMIT;
+COMMIT;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+SELECT f1 = 'текст2' FROM t1;
+f1 = 'текст2'
+1
+SELECT f1 = 'текст2' FROM t1 WHERE f1 = 'текст2';
+f1 = 'текст2'
+1
+DROP TABLE t1;

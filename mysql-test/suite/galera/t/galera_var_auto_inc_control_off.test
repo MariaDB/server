@@ -88,6 +88,8 @@ SELECT * FROM t1;
 # Restore all variables as they were
 #
 
+--disable_query_log
+
 --connection node_1
 --eval SET GLOBAL wsrep_auto_increment_control = $auto_increment_control_orig
 --eval SET GLOBAL auto_increment_increment = $auto_increment_increment_node1
@@ -97,5 +99,7 @@ SELECT * FROM t1;
 --eval SET GLOBAL wsrep_auto_increment_control = $auto_increment_control_orig
 --eval SET GLOBAL auto_increment_increment = $auto_increment_increment_node2
 --eval SET GLOBAL auto_increment_offset = $auto_increment_offset_node2
+
+--enable_query_log
 
 DROP TABLE t1;

@@ -117,7 +117,7 @@ get_keys()
     fi
 
     if [[ $encrypt -eq 0 ]];then 
-        if $my_print_defaults xtrabackup | grep -q encrypt;then
+        if $MY_PRINT_DEFAULTS xtrabackup | grep -q encrypt;then
             wsrep_log_error "Unexpected option combination. SST may fail. Refer to http://www.percona.com/doc/percona-xtradb-cluster/manual/xtrabackup_sst.html "
         fi
         return
@@ -230,7 +230,7 @@ parse_cnf()
 {
     local group=$1
     local var=$2
-    reval=$($my_print_defaults $group | awk -F= '{if ($1 ~ /_/) { gsub(/_/,"-",$1); print $1"="$2 } else { print $0 }}' | grep -- "--$var=" | cut -d= -f2-)
+    reval=$($MY_PRINT_DEFAULTS $group | awk -F= '{if ($1 ~ /_/) { gsub(/_/,"-",$1); print $1"="$2 } else { print $0 }}' | grep -- "--$var=" | cut -d= -f2-)
     if [[ -z $reval ]];then 
         [[ -n $3 ]] && reval=$3
     fi
@@ -241,7 +241,7 @@ get_footprint()
 {
     pushd $WSREP_SST_OPT_DATA 1>/dev/null
     payload=$(find . -regex '.*\.ibd$\|.*\.MYI$\|.*\.MYD$\|.*ibdata1$' -type f -print0 | du --files0-from=- --block-size=1 -c | awk 'END { print $1 }')
-    if $my_print_defaults xtrabackup | grep -q -- "--compress";then 
+    if $MY_PRINT_DEFAULTS xtrabackup | grep -q -- "--compress";then 
         # QuickLZ has around 50% compression ratio
         # When compression/compaction used, the progress is only an approximate.
         payload=$(( payload*1/2 ))
@@ -282,7 +282,7 @@ read_cnf()
     progress=$(parse_cnf sst progress "")
     rebuild=$(parse_cnf sst rebuild 0)
     ttime=$(parse_cnf sst time 0)
-    cpat=$(parse_cnf sst cpat '.*galera\.cache$\|.*sst_in_progress$\|.*grastate\.dat$\|.*\.err$\|.*\.log$\|.*RPM_UPGRADE_MARKER$\|.*RPM_UPGRADE_HISTORY$')
+    cpat=$(parse_cnf sst cpat '.*galera\.cache$\|.*sst_in_progress$\|.*grastate\.dat$\|.*gvwstate\.dat$\|.*\.err$\|.*\.log$\|.*RPM_UPGRADE_MARKER$\|.*RPM_UPGRADE_HISTORY$')
     incremental=$(parse_cnf sst incremental 0)
     ealgo=$(parse_cnf xtrabackup encrypt "")
     ekey=$(parse_cnf xtrabackup encrypt-key "")
@@ -443,8 +443,8 @@ check_extra()
 {
     local use_socket=1
     if [[ $uextra -eq 1 ]];then 
-        if $my_print_defaults --mysqld | tr '_' '-' | grep -- "--thread-handling=" | grep -q 'pool-of-threads';then 
-            local eport=$($my_print_defaults --mysqld | tr '_' '-' | grep -- "--extra-port=" | cut -d= -f2)
+        if $MY_PRINT_DEFAULTS --mysqld | tr '_' '-' | grep -- "--thread-handling=" | grep -q 'pool-of-threads';then 
+            local eport=$($MY_PRINT_DEFAULTS --mysqld | tr '_' '-' | grep -- "--extra-port=" | cut -d= -f2)
             if [[ -n $eport ]];then 
                 # Xtrabackup works only locally.
                 # Hence, setting host to 127.0.0.1 unconditionally. 
@@ -550,7 +550,7 @@ setup_ports
 get_stream
 get_transfer
 
-if ${INNOBACKUPEX_BIN} /tmp --help  | grep -q -- '--version-check'; then 
+if ${INNOBACKUPEX_BIN} /tmp --help  | grep -- '--version-check' >/dev/null ; then 
     disver="--no-version-check"
 fi
 
@@ -790,6 +790,7 @@ then
                     wsrep_log_info "Cleaning the binlog directory $binlog_dir as well"
                     find $binlog_dir -maxdepth 1 -type f -regex $pattern -exec rm -fv {} 1>&2 \+
                     rm $binlog_dir/*.index || true
+                    rm $binlog_dir/*.state || true
                 fi
             fi
 
@@ -875,7 +876,7 @@ then
             mv $DATA/${BINLOG_FILENAME}.* $BINLOG_DIRNAME/ 2>/dev/null || true
 
             pushd $BINLOG_DIRNAME &>/dev/null
-            for bfiles in $(ls -1 ${BINLOG_FILENAME}.*);do
+            for bfiles in $(ls -1 ${BINLOG_FILENAME}.[0-9]*);do
                 echo ${BINLOG_DIRNAME}/${bfiles} >> ${BINLOG_FILENAME}.index
             done
             popd &> /dev/null

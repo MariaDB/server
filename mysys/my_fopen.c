@@ -42,7 +42,7 @@ static void make_ftype(char * to,int flag);
 FILE *my_fopen(const char *filename, int flags, myf MyFlags)
 {
   FILE *fd;
-  char type[5];
+  char type[10];
   DBUG_ENTER("my_fopen");
   DBUG_PRINT("my",("Name: '%s'  flags: %d  MyFlags: %lu",
 		   filename, flags, MyFlags));
@@ -350,9 +350,11 @@ static void make_ftype(register char * to, register int flag)
   else    
     *to++= 'r';
 
-#if FILE_BINARY            /* If we have binary-files */  
   if (flag & FILE_BINARY)    
     *to++='b';
-#endif  
+
+  if (O_CLOEXEC)
+    *to++= 'e';
+
   *to='\0';
 } /* make_ftype */

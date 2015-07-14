@@ -1,0 +1,33 @@
+#
+# This test checks that innodb_disallow_writes works as expected
+#
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+# Open a separate connection to be used to run SHOW PROCESSLIST
+--let $galera_connection_name = node_1a
+--let $galera_server_number = 1
+--source include/galera_connect.inc
+--connection node_1a
+SET SESSION wsrep_sync_wait = 0;
+
+--connection node_1
+CREATE TABLE t1 (f1 INTEGER) Engine=InnoDB;
+SET GLOBAL innodb_disallow_writes=ON;
+--send INSERT INTO t1 VALUES (1);
+
+--connection node_1a
+let $wait_condition = SELECT 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE INFO = 'INSERT INTO t1 VALUES (1)' AND State = 'query end';
+--source include/wait_condition.inc
+
+SET GLOBAL innodb_disallow_writes=OFF;
+
+--connection node_1
+--reap
+SELECT COUNT(*) = 1 FROM t1;
+
+--connection node_2
+SELECT COUNT(*) = 1 FROM t1;
+
+DROP TABLE t1;

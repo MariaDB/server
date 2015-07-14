@@ -1,0 +1,17 @@
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+#
+# Test ALTER ENGINE from InnoDB to InnoDB
+#
+
+CREATE TABLE t1 (f1 INTEGER) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+
+ALTER TABLE t1 ENGINE=InnoDB;
+
+--connection node_2
+SELECT ENGINE = 'InnoDB' FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't1';
+SELECT COUNT(*) = 1 FROM t1;
+
+DROP TABLE t1;

@@ -12,7 +12,6 @@ SELECT @@global.wsrep_osu_method;
 
 --echo
 --echo # scope
---error ER_INCORRECT_GLOBAL_LOCAL_VAR
 SELECT @@session.wsrep_osu_method;
 SET @@global.wsrep_osu_method=TOI;
 SELECT @@global.wsrep_osu_method;

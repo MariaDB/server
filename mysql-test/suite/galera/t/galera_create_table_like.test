@@ -1,0 +1,50 @@
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+#
+# Test the various forms of CREATE TABLE LIKE ... , since Galera has special handling
+# for them, especially when one of the tables is a temporary one.
+#
+
+CREATE SCHEMA schema1;
+CREATE SCHEMA schema2;
+
+USE schema1;
+CREATE TABLE real_table (f1 INTEGER) ENGINE=InnoDB;
+CREATE TEMPORARY TABLE temp_table (f1 INTEGER) ENGINE=InnoDB;
+CREATE TABLE myisam_table (f1 INTEGER) ENGINE=MyISAM;
+
+USE schema2;
+CREATE TABLE real_table1 LIKE schema1.real_table;
+CREATE TABLE real_table2 LIKE schema1.temp_table;
+CREATE TABLE real_table3 LIKE schema1.myisam_table;
+
+CREATE TEMPORARY TABLE temp_table1 LIKE schema1.real_table;
+CREATE TEMPORARY TABLE temp_table2 LIKE schema1.temp_table;
+CREATE TEMPORARY TABLE temp_table3 LIKE schema1.myisam_table;
+
+--connection node_2
+# Only the non-temporary tables are replicated, regardless of the type of table they are based on
+
+SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'real_table' AND TABLE_SCHEMA = 'schema1';
+SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'myisam_table' AND TABLE_SCHEMA = 'schema1';
+SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'temp_table' AND TABLE_SCHEMA = 'schema1';
+
+SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'real_table1' AND TABLE_SCHEMA = 'schema2';
+SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'real_table2' AND TABLE_SCHEMA = 'schema2';
+SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'real_table3' AND TABLE_SCHEMA = 'schema2';
+
+SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'temp_table1' AND TABLE_SCHEMA = 'schema2';
+SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'temp_table2' AND TABLE_SCHEMA = 'schema2';
+SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'temp_table3' AND TABLE_SCHEMA = 'schema2';
+
+--connection node_1
+DROP TABLE schema1.real_table;
+DROP TABLE schema1.myisam_table;
+
+DROP TABLE schema2.real_table1;
+DROP TABLE schema2.real_table2;
+DROP TABLE schema2.real_table3;
+
+DROP SCHEMA schema1;
+DROP SCHEMA schema2;

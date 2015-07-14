@@ -100,7 +100,7 @@ get_keys()
     fi
 
     if [[ $encrypt -eq 0 ]];then 
-        if $my_print_defaults xtrabackup | grep -q encrypt;then
+        if $MY_PRINT_DEFAULTS xtrabackup | grep -q encrypt;then
             wsrep_log_error "Unexpected option combination. SST may fail. Refer to http://www.percona.com/doc/percona-xtradb-cluster/manual/xtrabackup_sst.html "
         fi
         return
@@ -195,7 +195,7 @@ parse_cnf()
 {
     local group=$1
     local var=$2
-    reval=$($my_print_defaults $group | awk -F= '{if ($1 ~ /_/) { gsub(/_/,"-",$1); print $1"="$2 } else { print $0 }}' | grep -- "--$var=" | cut -d= -f2-)
+    reval=$($MY_PRINT_DEFAULTS $group | awk -F= '{if ($1 ~ /_/) { gsub(/_/,"-",$1); print $1"="$2 } else { print $0 }}' | grep -- "--$var=" | cut -d= -f2-)
     if [[ -z $reval ]];then 
         [[ -n $3 ]] && reval=$3
     fi
@@ -206,7 +206,7 @@ get_footprint()
 {
     pushd $WSREP_SST_OPT_DATA 1>/dev/null
     payload=$(find . -regex '.*\.ibd$\|.*\.MYI$\|.*\.MYD$\|.*ibdata1$' -type f -print0 | du --files0-from=- --block-size=1 -c | awk 'END { print $1 }')
-    if $my_print_defaults xtrabackup | grep -q -- "--compress";then 
+    if $MY_PRINT_DEFAULTS xtrabackup | grep -q -- "--compress";then 
         # QuickLZ has around 50% compression ratio
         # When compression/compaction used, the progress is only an approximate.
         payload=$(( payload*1/2 ))
@@ -385,8 +385,8 @@ check_extra()
 {
     local use_socket=1
     if [[ $uextra -eq 1 ]];then 
-        if $my_print_defaults --mysqld | tr '_' '-' | grep -- "--thread-handling=" | grep -q 'pool-of-threads';then 
-            local eport=$($my_print_defaults --mysqld | tr '_' '-' | grep -- "--extra-port=" | cut -d= -f2)
+        if $MY_PRINT_DEFAULTS --mysqld | tr '_' '-' | grep -- "--thread-handling=" | grep -q 'pool-of-threads';then 
+            local eport=$($MY_PRINT_DEFAULTS --mysqld | tr '_' '-' | grep -- "--extra-port=" | cut -d= -f2)
             if [[ -n $eport ]];then 
                 # Xtrabackup works only locally.
                 # Hence, setting host to 127.0.0.1 unconditionally. 

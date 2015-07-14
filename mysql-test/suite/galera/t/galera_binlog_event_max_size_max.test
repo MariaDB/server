@@ -1,0 +1,20 @@
+#
+# Test that replication works event with the maximum value of binlog-row-event-max-size - 4294967295 (on 32-bit platforms)
+#
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+CREATE TABLE ten (f1 INTEGER);
+INSERT INTO ten VALUES (1),(2),(3),(4),(5),(6),(7),(8),(9),(10);
+
+CREATE TABLE t1 (f1 VARCHAR(1000));
+
+# Insert 10K records, 1K bytes each
+INSERT INTO t1 SELECT REPEAT('x', 1000) FROM ten AS a1, ten AS a2, ten AS a3, ten AS a4;
+
+--connection node_2
+SELECT COUNT(*) = 10000 FROM t1;
+
+DROP TABLE t1;
+DROP TABLE ten;

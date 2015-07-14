@@ -71,6 +71,8 @@ Created 2/16/1996 Heikki Tuuri
 #include "srv0srv.h"
 #include "btr0defragment.h"
 
+#include <mysql/service_wsrep.h>
+
 #ifndef UNIV_HOTBACKUP
 # include "trx0rseg.h"
 # include "os0proc.h"
@@ -2943,9 +2945,24 @@ files_checked:
 	}
 
 	if (!srv_read_only_mode) {
+#ifdef WITH_WSREP
+		/*
+		  Create the dump/load thread only when not running with
+		  --wsrep-recover.
+		*/
+		if (!wsrep_recovery) {
+#endif /* WITH_WSREP */
 		/* Create the buffer pool dump/load thread */
-		buf_dump_thread_handle = os_thread_create(buf_dump_thread, NULL, NULL);
+		buf_dump_thread_handle=
+			os_thread_create(buf_dump_thread, NULL, NULL);
 		buf_dump_thread_started = true;
+#ifdef WITH_WSREP
+		} else {
+			ib_logf(IB_LOG_LEVEL_WARN,
+				"Skipping buffer pool dump/restore during "
+				"wsrep recovery.");
+		}
+#endif /* WITH_WSREP */
 
 		/* Create the dict stats gathering thread */
 		dict_stats_thread_handle = os_thread_create(dict_stats_thread, NULL, NULL);
