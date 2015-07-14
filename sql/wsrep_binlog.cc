@@ -71,7 +71,13 @@ int wsrep_write_cache_buf(IO_CACHE *cache, uchar **buf, size_t *buf_len)
 
       memcpy(*buf + *buf_len, cache->read_pos, length);
       *buf_len = total_length;
-  } while ((cache->file >= 0) && (length = my_b_fill(cache)));
+
+      if (cache->file < 0)
+      {
+        cache->read_pos= cache->read_end;
+        break;
+      }
+  } while ((length = my_b_fill(cache)));
 
   if (reinit_io_cache(cache, WRITE_CACHE, saved_pos, 0, 0))
   {
@@ -199,7 +205,12 @@ static int wsrep_write_cache_once(wsrep_t*  const wsrep,
 
         memcpy(buf + used, cache->read_pos, length);
         used = total_length;
-    } while ((cache->file >= 0) && (length = my_b_fill(cache)));
+        if (cache->file < 0)
+        {
+          cache->read_pos= cache->read_end;
+          break;
+        }
+    } while ((length = my_b_fill(cache)));
 
     if (used > 0)
         err = wsrep_append_data(wsrep, &thd->wsrep_ws_handle, buf, used);
@@ -268,7 +279,12 @@ static int wsrep_write_cache_inc(wsrep_t*  const wsrep,
                                               cache->read_pos, length)))
                 goto cleanup;
 
-    } while ((cache->file >= 0) && (length = my_b_fill(cache)));
+        if (cache->file < 0)
+        {
+          cache->read_pos= cache->read_end;
+          break;
+        }
+    } while ((length = my_b_fill(cache)));
 
     if (WSREP_OK == err) *len = total_length;
 
@@ -394,7 +410,13 @@ void wsrep_dump_rbr_direct(THD* thd, IO_CACHE* cache)
       WSREP_ERROR("Failed to write file '%s'", filename);
       goto cleanup;
     }
-  } while ((cache->file >= 0) && (bytes_in_cache= my_b_fill(cache)));
+
+    if (cache->file < 0)
+    {
+      cache->read_pos= cache->read_end;
+      break;
+    }
+  } while ((bytes_in_cache= my_b_fill(cache)));
   if(cache->error == -1)
   {
     WSREP_ERROR("RBR inconsistent");
