@@ -3798,7 +3798,7 @@ bool select_insert::send_eof()
 {
   bool res;
   DBUG_ENTER("select_insert::send_eof");
-  res= (prepare_eof() || send_ok_packet());
+  res= (prepare_eof() || (!suppress_my_ok && send_ok_packet()));
   DBUG_RETURN(res);
 }
 
