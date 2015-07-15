@@ -1715,7 +1715,7 @@ Sys_var_gtid_binlog_state::global_update(THD *thd, set_var *var)
   struct gtid_binlog_state_data *data=
     (struct gtid_binlog_state_data *)var->save_result.ptr;
   mysql_mutex_unlock(&LOCK_global_system_variables);
-  res= (0 != reset_master(thd, data->list, data->list_len));
+  res= (reset_master(thd, data->list, data->list_len, 0) != 0);
   mysql_mutex_lock(&LOCK_global_system_variables);
   my_free(data->list);
   my_free(data);

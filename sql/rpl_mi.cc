@@ -1127,12 +1127,13 @@ bool Master_info_index::init_all_master_info()
 
       if (!opt_skip_slave_start)
       {
-        if (start_slave_threads(1 /* need mutex */,
-              0 /* no wait for start*/,
-              mi,
-              buf_master_info_file,
-              buf_relay_log_info_file,
-              SLAVE_IO | SLAVE_SQL))
+        if (start_slave_threads(current_thd,
+                                1 /* need mutex */,
+                                0 /* no wait for start*/,
+                                mi,
+                                buf_master_info_file,
+                                buf_relay_log_info_file,
+                                SLAVE_IO | SLAVE_SQL))
         {
           sql_print_error("Failed to create slave threads for connection '%.*s'",
                           (int) connection_name.length,
@@ -1455,7 +1456,7 @@ bool Master_info_index::start_all_slaves(THD *thd)
         if (error < 0)                            // fatal error
           break;
       }
-      else
+      else if (thd)
         push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
                             ER_SLAVE_STARTED, ER_THD(thd, ER_SLAVE_STARTED),
                             (int) mi->connection_name.length,
@@ -1471,6 +1472,8 @@ bool Master_info_index::start_all_slaves(THD *thd)
 
    Start all slaves that was not running.
 
+   @param	thread id from user
+
    @return
    TRUE  	Error
    FALSE	Everything ok.
@@ -1481,6 +1484,7 @@ bool Master_info_index::stop_all_slaves(THD *thd)
   bool result= FALSE;
   DBUG_ENTER("warn_if_slave_running");
   mysql_mutex_assert_owner(&LOCK_active_mi);
+  DBUG_ASSERT(thd);
 
   for (uint i= 0; i< master_info_hash.records; ++i)
   {

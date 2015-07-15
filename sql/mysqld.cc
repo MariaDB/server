@@ -5292,7 +5292,7 @@ static int init_server_components()
      * but to be able to have mysql_mutex_assert_owner() in code,
      * we do it anyway */
     mysql_mutex_lock(mysql_bin_log.get_log_lock());
-    if (mysql_bin_log.open(opt_bin_logname, LOG_BIN, 0,
+    if (mysql_bin_log.open(opt_bin_logname, LOG_BIN, 0, 0,
                            WRITE_CACHE, max_binlog_size, 0, TRUE))
       unireg_abort(1);
     mysql_mutex_unlock(mysql_bin_log.get_log_lock());

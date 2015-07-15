@@ -3110,7 +3110,8 @@ int start_slave(THD* thd , Master_info* mi,  bool net_report)
                      ER_THD(thd, ER_UNTIL_COND_IGNORED));
 
       if (!slave_errno)
-        slave_errno = start_slave_threads(0 /*no mutex */,
+        slave_errno = start_slave_threads(thd,
+                                          0 /*no mutex */,
                                           1 /* wait for start */,
                                           mi,
                                           master_info_file_tmp,
@@ -3772,7 +3773,8 @@ err:
   @retval 0 success
   @retval 1 error
 */
-int reset_master(THD* thd, rpl_gtid *init_state, uint32 init_state_len)
+int reset_master(THD* thd, rpl_gtid *init_state, uint32 init_state_len,
+                 ulong next_log_number)
 {
   if (!mysql_bin_log.is_open())
   {
@@ -3782,7 +3784,8 @@ int reset_master(THD* thd, rpl_gtid *init_state, uint32 init_state_len)
     return 1;
   }
 
-  if (mysql_bin_log.reset_logs(thd, 1, init_state, init_state_len))
+  if (mysql_bin_log.reset_logs(thd, 1, init_state, init_state_len,
+                               next_log_number))
     return 1;
   RUN_HOOK(binlog_transmit, after_reset_master, (thd, 0 /* flags */));
   return 0;

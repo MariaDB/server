@@ -2489,6 +2489,7 @@ public:
   USER_RESOURCES mqh;
   LEX_RESET_SLAVE reset_slave_info;
   ulonglong type;
+  ulong next_binlog_file_number;
   /* The following is used by KILL */
   killed_state kill_signal;
   killed_type  kill_type;

@@ -299,11 +299,12 @@ public:
     incident= FALSE;
     before_stmt_pos= MY_OFF_T_UNDEF;
     /*
-      The truncate function calls reinit_io_cache that calls my_b_flush_io_cache
-      which may increase disk_writes. This breaks the disk_writes use by the
-      binary log which aims to compute the ratio between in-memory cache usage
-      and disk cache usage. To avoid this undesirable behavior, we reset the
-      variable after truncating the cache.
+      The truncate function calls reinit_io_cache that calls
+      my_b_flush_io_cache which may increase disk_writes. This breaks
+      the disk_writes use by the binary log which aims to compute the
+      ratio between in-memory cache usage and disk cache usage. To
+      avoid this undesirable behavior, we reset the variable after
+      truncating the cache.
     */
     cache_log.disk_writes= 0;
     DBUG_ASSERT(empty());
@@ -2407,13 +2408,13 @@ static void setup_windows_event_source()
     nonzero if not possible to get unique filename.
 */
 
-static int find_uniq_filename(char *name)
+static int find_uniq_filename(char *name, ulong next_log_number)
 {
   uint                  i;
   char                  buff[FN_REFLEN], ext_buf[FN_REFLEN];
   struct st_my_dir     *dir_info;
   reg1 struct fileinfo *file_info;
-  ulong                 max_found= 0, next= 0, number= 0;
+  ulong                 max_found, next, number;
   size_t		buf_length, length;
   char			*start, *end;
   int                   error= 0;
@@ -2433,6 +2434,7 @@ static int find_uniq_filename(char *name)
     DBUG_RETURN(1);
   }
   file_info= dir_info->dir_entry;
+  max_found= next_log_number ? next_log_number-1 : 0;
   for (i= dir_info->number_of_files ; i-- ; file_info++)
   {
     if (strncmp(file_info->name, start, length) == 0 &&
@@ -2444,7 +2446,7 @@ static int find_uniq_filename(char *name)
   my_dirend(dir_info);
 
   /* check if reached the maximum possible extension number */
-  if (max_found == MAX_LOG_UNIQUE_FN_EXT)
+  if (max_found >= MAX_LOG_UNIQUE_FN_EXT)
   {
     sql_print_error("Log filename extension number exhausted: %06lu. \
 Please fix this by archiving old logs and \
@@ -2505,14 +2507,18 @@ void MYSQL_LOG::init(enum_log_type log_type_arg,
 
 bool MYSQL_LOG::init_and_set_log_file_name(const char *log_name,
                                            const char *new_name,
+                                           ulong next_log_number,
                                            enum_log_type log_type_arg,
                                            enum cache_type io_cache_type_arg)
 {
   init(log_type_arg, io_cache_type_arg);
 
-  if (new_name && !strmov(log_file_name, new_name))
-    return TRUE;
-  else if (!new_name && generate_new_name(log_file_name, log_name))
+  if (new_name)
+  {
+    strmov(log_file_name, new_name);
+  }
+  else if (!new_name && generate_new_name(log_file_name, log_name,
+                                          next_log_number))
     return TRUE;
 
   return FALSE;
@@ -2545,7 +2551,8 @@ bool MYSQL_LOG::open(
                      PSI_file_key log_file_key,
 #endif
                      const char *log_name, enum_log_type log_type_arg,
-                     const char *new_name, enum cache_type io_cache_type_arg)
+                     const char *new_name, ulong next_log_number,
+                     enum cache_type io_cache_type_arg)
 {
   char buff[FN_REFLEN];
   MY_STAT f_stat;
@@ -2564,7 +2571,13 @@ bool MYSQL_LOG::open(
     goto err;
   }
 
-  if (init_and_set_log_file_name(name, new_name,
+  /*
+    log_type is LOG_UNKNOWN if we should not generate a new name
+    This is only used when called from MYSQL_BINARY_LOG::open, which
+    has already updated log_file_name.
+   */
+  if (log_type_arg != LOG_UNKNOWN &&
+      init_and_set_log_file_name(name, new_name, next_log_number,
                                  log_type_arg, io_cache_type_arg))
     goto err;
 
@@ -2719,7 +2732,8 @@ void MYSQL_LOG::cleanup()
 }
 
 
-int MYSQL_LOG::generate_new_name(char *new_name, const char *log_name)
+int MYSQL_LOG::generate_new_name(char *new_name, const char *log_name,
+                                 ulong next_log_number)
 {
   fn_format(new_name, log_name, mysql_data_home, "", 4);
   if (log_type == LOG_BIN)
@@ -2727,11 +2741,12 @@ int MYSQL_LOG::generate_new_name(char *new_name, const char *log_name)
     if (!fn_ext(log_name)[0])
     {
       if (DBUG_EVALUATE_IF("binlog_inject_new_name_error", TRUE, FALSE) ||
-          find_uniq_filename(new_name))
+          find_uniq_filename(new_name, next_log_number))
       {
         THD *thd= current_thd;
         if (thd)
-          my_printf_error(ER_NO_UNIQUE_LOGFILE, ER_THD(thd, ER_NO_UNIQUE_LOGFILE),
+          my_printf_error(ER_NO_UNIQUE_LOGFILE,
+                          ER_THD(thd, ER_NO_UNIQUE_LOGFILE),
                           MYF(ME_FATALERROR), log_name);
         sql_print_error(ER_DEFAULT(ER_NO_UNIQUE_LOGFILE), log_name);
 	return 1;
@@ -2779,7 +2794,7 @@ void MYSQL_QUERY_LOG::reopen_file()
 #ifdef HAVE_PSI_INTERFACE
        m_log_file_key,
 #endif
-       save_name, log_type, 0, io_cache_type);
+       save_name, log_type, 0, 0, io_cache_type);
   my_free(save_name);
 
   mysql_mutex_unlock(&LOCK_log);
@@ -3088,8 +3103,8 @@ bool MYSQL_QUERY_LOG::write(THD *thd, time_t current_time,
   first change fn_format() to cut the file name if it's too long.
 */
 const char *MYSQL_LOG::generate_name(const char *log_name,
-                                      const char *suffix,
-                                      bool strip_ext, char *buff)
+                                     const char *suffix,
+                                     bool strip_ext, char *buff)
 {
   if (!log_name || !log_name[0])
   {
@@ -3313,6 +3328,7 @@ bool MYSQL_BIN_LOG::open_index_file(const char *index_file_name_arg,
 bool MYSQL_BIN_LOG::open(const char *log_name,
                          enum_log_type log_type_arg,
                          const char *new_name,
+                         ulong next_log_number,
                          enum cache_type io_cache_type_arg,
                          ulong max_size_arg,
                          bool null_created_arg,
@@ -3320,7 +3336,6 @@ bool MYSQL_BIN_LOG::open(const char *log_name,
 {
   File file= -1;
   xid_count_per_binlog *new_xid_list_entry= NULL, *b;
-
   DBUG_ENTER("MYSQL_BIN_LOG::open");
   DBUG_PRINT("enter",("log_type: %d",(int) log_type_arg));
 
@@ -3338,8 +3353,9 @@ bool MYSQL_BIN_LOG::open(const char *log_name,
       DBUG_RETURN(1);
   }
 
-  if (init_and_set_log_file_name(log_name, new_name, log_type_arg,
-                                 io_cache_type_arg))
+  /* We need to calculate new log file name for purge to delete old */
+  if (init_and_set_log_file_name(log_name, new_name, next_log_number,
+                                 log_type_arg, io_cache_type_arg))
   {
     sql_print_error("MSYQL_BIN_LOG::open failed to generate new file name.");
     DBUG_RETURN(1);
@@ -3352,13 +3368,15 @@ bool MYSQL_BIN_LOG::open(const char *log_name,
       DBUG_EVALUATE_IF("fault_injection_registering_index", 1, 0))
   {
     /**
-        TODO: although this was introduced to appease valgrind
-              when injecting emulated faults using fault_injection_registering_index
-              it may be good to consider what actually happens when
-              open_purge_index_file succeeds but register or sync fails.
+        TODO:
+        Although this was introduced to appease valgrind when
+        injecting emulated faults using
+        fault_injection_registering_index it may be good to consider
+        what actually happens when open_purge_index_file succeeds but
+        register or sync fails.
 
-              Perhaps we might need the code below in MYSQL_LOG_BIN::cleanup
-              for "real life" purposes as well? 
+        Perhaps we might need the code below in MYSQL_LOG_BIN::cleanup
+        for "real life" purposes as well? 
      */
     DBUG_EXECUTE_IF("fault_injection_registering_index", {
       if (my_b_inited(&purge_index_file))
@@ -3381,7 +3399,9 @@ bool MYSQL_BIN_LOG::open(const char *log_name,
 #ifdef HAVE_PSI_INTERFACE
                       m_key_file_log,
 #endif
-                      log_name, log_type_arg, new_name, io_cache_type_arg))
+                      log_name,
+                      LOG_UNKNOWN, /* Don't generate new name */
+                      0, 0, io_cache_type_arg))
   {
 #ifdef HAVE_REPLICATION
     close_purge_index_file();
@@ -3823,7 +3843,10 @@ int MYSQL_BIN_LOG::find_log_pos(LOG_INFO *linfo, const char *log_name,
       error= !index_file.error ? LOG_INFO_EOF : LOG_INFO_IO;
       break;
     }
-
+    if (fname[length-1] != '\n')
+      continue;                                 // Not a log entry
+    fname[length-1]= 0;                         // Remove end \n
+    
     // extend relative paths and match against full path
     if (normalize_binlog_name(full_fname, fname, is_relay_log))
     {
@@ -3834,11 +3857,10 @@ int MYSQL_BIN_LOG::find_log_pos(LOG_INFO *linfo, const char *log_name,
 
     // if the log entry matches, null string matching anything
     if (!log_name ||
-	(log_name_len == fname_len-1 && full_fname[log_name_len] == '\n' &&
+        (log_name_len == fname_len &&
 	 !memcmp(full_fname, full_log_name, log_name_len)))
     {
       DBUG_PRINT("info", ("Found log file entry"));
-      full_fname[fname_len-1]= 0;			// remove last \n
       linfo->index_file_start_offset= offset;
       linfo->index_file_offset = my_b_tell(&index_file);
       break;
@@ -3923,8 +3945,10 @@ err:
 
   The new index file will only contain this file.
 
-  @param thd		  Thread
-  @param create_new_log  1 if we should start writing to a new log file
+  @param thd		  Thread id. This can be zero in case of resetting 
+                          relay logs
+  @param create_new_log   1 if we should start writing to a new log file
+  @param next_log_number  min number of next log file to use, if possible.
 
   @note
     If not called from slave thread, write start event to new log
@@ -3936,7 +3960,8 @@ err:
 */
 
 bool MYSQL_BIN_LOG::reset_logs(THD *thd, bool create_new_log,
-                               rpl_gtid *init_state, uint32 init_state_len)
+                               rpl_gtid *init_state, uint32 init_state_len,
+                               ulong next_log_number)
 {
   LOG_INFO linfo;
   bool error=0;
@@ -3969,7 +3994,7 @@ bool MYSQL_BIN_LOG::reset_logs(THD *thd, bool create_new_log,
     mysql_mutex_unlock(&LOCK_xid_list);
   }
 
-  DEBUG_SYNC(thd, "reset_logs_after_set_reset_master_pending");
+  DEBUG_SYNC_C_IF_THD(thd, "reset_logs_after_set_reset_master_pending");
   /*
     We need to get both locks to be sure that no one is trying to
     write to the index log file.
@@ -4052,7 +4077,7 @@ bool MYSQL_BIN_LOG::reset_logs(THD *thd, bool create_new_log,
   {
     uint errcode= purge_log_get_error_code(err);
     sql_print_error("Failed to locate old binlog or relay log files");
-    my_message(errcode, ER_THD(thd, errcode), MYF(0));
+    my_message(errcode, ER_THD_OR_DEFAULT(thd, errcode), MYF(0));
     error= 1;
     goto err;
   }
@@ -4063,10 +4088,12 @@ bool MYSQL_BIN_LOG::reset_logs(THD *thd, bool create_new_log,
     {
       if (my_errno == ENOENT) 
       {
-        push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-                            ER_LOG_PURGE_NO_FILE,
-                            ER_THD(thd, ER_LOG_PURGE_NO_FILE),
-                            linfo.log_file_name);
+        if (thd)
+          push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                              ER_LOG_PURGE_NO_FILE,
+                              ER_THD(thd, ER_LOG_PURGE_NO_FILE),
+                              linfo.log_file_name);
+
         sql_print_information("Failed to delete file '%s'",
                               linfo.log_file_name);
         my_errno= 0;
@@ -4074,13 +4101,14 @@ bool MYSQL_BIN_LOG::reset_logs(THD *thd, bool create_new_log,
       }
       else
       {
-        push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-                            ER_BINLOG_PURGE_FATAL_ERR,
-                            "a problem with deleting %s; "
-                            "consider examining correspondence "
-                            "of your binlog index file "
-                            "to the actual binlog files",
-                            linfo.log_file_name);
+        if (thd)
+          push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                              ER_BINLOG_PURGE_FATAL_ERR,
+                              "a problem with deleting %s; "
+                              "consider examining correspondence "
+                              "of your binlog index file "
+                              "to the actual binlog files",
+                              linfo.log_file_name);
         error= 1;
         goto err;
       }
@@ -4103,10 +4131,11 @@ bool MYSQL_BIN_LOG::reset_logs(THD *thd, bool create_new_log,
   {
     if (my_errno == ENOENT) 
     {
-      push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-                          ER_LOG_PURGE_NO_FILE,
-                          ER_THD(thd, ER_LOG_PURGE_NO_FILE),
-                          index_file_name);
+      if (thd)
+        push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                            ER_LOG_PURGE_NO_FILE,
+                            ER_THD(thd, ER_LOG_PURGE_NO_FILE),
+                            index_file_name);
       sql_print_information("Failed to delete file '%s'",
                             index_file_name);
       my_errno= 0;
@@ -4114,19 +4143,21 @@ bool MYSQL_BIN_LOG::reset_logs(THD *thd, bool create_new_log,
     }
     else
     {
-      push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-                          ER_BINLOG_PURGE_FATAL_ERR,
-                          "a problem with deleting %s; "
-                          "consider examining correspondence "
-                          "of your binlog index file "
-                          "to the actual binlog files",
-                          index_file_name);
+      if (thd)
+        push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                            ER_BINLOG_PURGE_FATAL_ERR,
+                            "a problem with deleting %s; "
+                            "consider examining correspondence "
+                            "of your binlog index file "
+                            "to the actual binlog files",
+                            index_file_name);
       error= 1;
       goto err;
     }
   }
   if (create_new_log && !open_index_file(index_file_name, 0, FALSE))
-    if ((error= open(save_name, log_type, 0, io_cache_type, max_size, 0, FALSE)))
+    if ((error= open(save_name, log_type, 0, next_log_number,
+                     io_cache_type, max_size, 0, FALSE)))
       goto err;
   my_free((void *) save_name);
 
@@ -4947,7 +4978,7 @@ int MYSQL_BIN_LOG::new_file_impl(bool need_lock)
     We have to do this here and not in open as we want to store the
     new file name in the current binary log file.
   */
-  if ((error= generate_new_name(new_name, name)))
+  if ((error= generate_new_name(new_name, name, 0)))
     goto end;
   new_name_ptr=new_name;
 
@@ -5009,14 +5040,15 @@ int MYSQL_BIN_LOG::new_file_impl(bool need_lock)
     binlog_checksum_options= checksum_alg_reset;
   }
   /*
-     Note that at this point, log_state != LOG_CLOSED (important for is_open()).
+     Note that at this point, log_state != LOG_CLOSED
+     (important for is_open()).
   */
 
   /*
      new_file() is only used for rotation (in FLUSH LOGS or because size >
      max_binlog_size or max_relay_log_size).
-     If this is a binary log, the Format_description_log_event at the beginning of
-     the new file should have created=0 (to distinguish with the
+     If this is a binary log, the Format_description_log_event at the
+     beginning of the new file should have created=0 (to distinguish with the
      Format_description_log_event written at server startup, which should
      trigger temp tables deletion on slaves.
   */
@@ -5028,7 +5060,7 @@ int MYSQL_BIN_LOG::new_file_impl(bool need_lock)
   {
     /* reopen the binary log file. */
     file_to_open= new_name_ptr;
-    error= open(old_name, log_type, new_name_ptr, io_cache_type,
+    error= open(old_name, log_type, new_name_ptr, 0, io_cache_type,
                 max_size, 1, FALSE);
   }
 
@@ -9192,7 +9224,7 @@ int TC_LOG_BINLOG::open(const char *opt_name)
   if (using_heuristic_recover())
   {
     /* generate a new binlog to mask a corrupted one */
-    open(opt_name, LOG_BIN, 0, WRITE_CACHE, max_binlog_size, 0, TRUE);
+    open(opt_name, LOG_BIN, 0, 0, WRITE_CACHE, max_binlog_size, 0, TRUE);
     cleanup();
     return 1;
   }
