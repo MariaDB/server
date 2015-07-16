@@ -42,7 +42,8 @@ class DllExport ODBCDEF : public TABDEF { /* Logical table description */
   int  GetOptions(void) {return Options;}
 
   // Methods
-  virtual bool DefineAM(PGLOBAL g, LPCSTR am, int poff);
+	virtual int  Indexable(void) {return 2;}
+	virtual bool DefineAM(PGLOBAL g, LPCSTR am, int poff);
   virtual PTDB GetTable(PGLOBAL g, MODE m);
 
  protected:
@@ -111,15 +112,14 @@ class TDBODBC : public TDBASE {
   virtual int  WriteDB(PGLOBAL g);
   virtual int  DeleteDB(PGLOBAL g, int irc);
   virtual void CloseDB(PGLOBAL g);
-  virtual bool ReadKey(PGLOBAL g, OPVAL op, const void *key, int len)
-                      {return true;}
+	virtual bool ReadKey(PGLOBAL g, OPVAL op, const key_range *kr);
 
  protected:
   // Internal functions
   int   Decode(char *utf, char *buf, size_t n);
-  char *MakeSQL(PGLOBAL g, bool cnt);
-  char *MakeInsert(PGLOBAL g);
-  char *MakeCommand(PGLOBAL g);
+  bool  MakeSQL(PGLOBAL g, bool cnt);
+  bool  MakeInsert(PGLOBAL g);
+  bool  MakeCommand(PGLOBAL g);
 //bool  MakeFilter(PGLOBAL g, bool c);
   bool  BindParameters(PGLOBAL g);
 //char *MakeUpdate(PGLOBAL g);
@@ -129,14 +129,14 @@ class TDBODBC : public TDBASE {
   ODBConn *Ocp;               // Points to an ODBC connection class
   ODBCCOL *Cnp;               // Points to count(*) column
   ODBCPARM Ops;               // Additional parameters
-  char    *Connect;           // Points to connection string
+	PSTRG    Query;             // Constructed SQL query
+	char    *Connect;           // Points to connection string
   char    *TableName;         // Points to ODBC table name
   char    *Schema;            // Points to ODBC table Schema
   char    *User;              // User connect info
   char    *Pwd;               // Password connect info
   char    *Catalog;           // Points to ODBC table Catalog
   char    *Srcdef;            // The source table SQL definition
-  char    *Query;             // Points to SQL statement
   char    *Count;             // Points to count(*) SQL statement
 //char    *Where;             // Points to local where clause
   char    *Quote;             // The identifier quoting character

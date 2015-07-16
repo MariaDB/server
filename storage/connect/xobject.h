@@ -134,7 +134,7 @@ class DllExport STRING : public BLOCK {
   inline void   Reset(void) {*Strp = 0;}
          bool   Set(PSZ s);
          bool   Set(char *s, uint n);
-         bool   Append(const char *s, uint ln);
+         bool   Append(const char *s, uint ln, bool nq = false);
          bool   Append(PSZ s);
          bool   Append(STRING &str);
          bool   Append(char c);

@@ -82,6 +82,10 @@ RelWithDebInfo/
 *.vcproj.*
 *.vcproj.*.*
 *.vcproj.*.*.*
+*.vcxproj
+*.vcxproj.*
+*.vcxproj.*.*
+*.vcxproj.*.*.*
 
 # Build results
 [Dd]ebug/

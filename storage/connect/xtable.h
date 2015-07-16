@@ -19,6 +19,7 @@
 #include "m_ctype.h"
 
 typedef class CMD *PCMD;
+typedef struct st_key_range key_range;
 
 // Commands executed by XDBC and MYX tables
 class CMD : public BLOCK {
@@ -32,12 +33,24 @@ class CMD : public BLOCK {
 }; // end of class CMD
 
 // Condition filter structure
-typedef struct _cond_filter {
-  char  *Body;
-  OPVAL  Op;
-  PCMD   Cmds;
-} CONDFIL, *PCFIL;
+class CONDFIL : public BLOCK {
+ public:
+	// Constructor
+	CONDFIL(const Item *cond, uint idx, AMT type) 
+	{
+		Cond = cond; Idx = idx; Type = type; Body = NULL; Op = OP_XX; Cmds = NULL;
+	}
 
+	// Members
+	const Item *Cond;
+	AMT   Type;
+	uint  Idx;
+	char *Body;
+  OPVAL Op;
+  PCMD  Cmds;
+}; // end of class CONDFIL
+
+typedef class CONDFIL *PCFIL;
 typedef class TDBCAT *PTDBCAT;
 typedef class CATCOL *PCATCOL;
 
@@ -109,7 +122,7 @@ class DllExport TDB: public BLOCK {     // Table Descriptor Block.
   virtual int    DeleteDB(PGLOBAL, int) = 0;
   virtual void   CloseDB(PGLOBAL) = 0;
   virtual int    CheckWrite(PGLOBAL) {return 0;}
-  virtual bool   ReadKey(PGLOBAL, OPVAL, const void *, int) = 0;
+  virtual bool   ReadKey(PGLOBAL, OPVAL, const key_range *) = 0;
 
  protected:
   // Members
@@ -188,7 +201,7 @@ class DllExport TDBASE : public TDB {
   virtual void MarkDB(PGLOBAL g, PTDB tdb2);
   virtual int  MakeIndex(PGLOBAL g, PIXDEF, bool)
                 {strcpy(g->Message, "Remote index"); return RC_INFO;}
-  virtual bool ReadKey(PGLOBAL, OPVAL, const void *, int)
+  virtual bool ReadKey(PGLOBAL, OPVAL, const key_range *)
                       {assert(false); return true;}
 
  protected:

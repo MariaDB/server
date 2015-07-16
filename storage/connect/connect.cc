@@ -735,17 +735,12 @@ static void SetSwapValue(PVAL valp, char *kp)
 /*  IndexRead: fetch a record having the index value.                  */
 /***********************************************************************/
 RCODE CntIndexRead(PGLOBAL g, PTDB ptdb, OPVAL op,
-                   const void *key, int len, bool mrr)
+                   const key_range *kr, bool mrr)
   {
-  char   *kp= (char*)key;
   int     n, x;
-  short   lg;
-  bool    rcb;
   RCODE   rc;
-  PVAL    valp;
-  PCOL    colp;
   XXBASE *xbp;
-  PTDBDOX tdbp;
+	PTDBDOX tdbp;
 
   if (!ptdb)
     return RC_FX;
@@ -757,13 +752,13 @@ RCODE CntIndexRead(PGLOBAL g, PTDB ptdb, OPVAL op,
     return RC_FX;
   } else if (x == 2) {
     // Remote index
-    if (ptdb->ReadKey(g, op, key, len))
+    if (ptdb->ReadKey(g, op, kr))
       return RC_FX;
 
     goto rnd;
   } else if (x == 3) {
-    if (key)
-      ((PTDBASE)ptdb)->SetRecpos(g, *(int*)key);
+    if (kr)
+      ((PTDBASE)ptdb)->SetRecpos(g, *(int*)kr->key);
 
     if (op == OP_SAME)
       return RC_NF;
@@ -790,7 +785,14 @@ RCODE CntIndexRead(PGLOBAL g, PTDB ptdb, OPVAL op,
 
   xbp= (XXBASE*)tdbp->To_Kindex;
 
-  if (key) {
+  if (kr) {
+		char   *kp= (char*)kr->key;
+		int     len= kr->length;
+		short   lg;
+		bool    rcb;
+		PVAL    valp;
+		PCOL    colp;
+
     for (n= 0; n < tdbp->Knum; n++) {
       colp= (PCOL)tdbp->To_Key_Col[n];
 
@@ -832,10 +834,10 @@ RCODE CntIndexRead(PGLOBAL g, PTDB ptdb, OPVAL op,
 
       kp+= valp->GetClen();
 
-      if (len == kp - (char*)key) {
+      if (len == kp - (char*)kr->key) {
         n++;
         break;
-      } else if (len < kp - (char*)key) {
+      } else if (len < kp - (char*)kr->key) {
         strcpy(g->Message, "Key buffer is too small");
         return RC_FX;
       } // endif len
