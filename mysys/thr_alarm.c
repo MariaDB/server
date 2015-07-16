@@ -694,7 +694,7 @@ static void *test_thread(void *arg)
   thread_count--;
   mysql_cond_signal(&COND_thread_count); /* Tell main we are ready */
   mysql_mutex_unlock(&LOCK_thread_count);
-  free((uchar*) arg);
+  my_thread_end();
   return 0;
 }
 
@@ -771,7 +771,7 @@ int main(int argc __attribute__((unused)),char **argv __attribute__((unused)))
 {
   pthread_t tid;
   pthread_attr_t thr_attr;
-  int i,*param,error;
+  int i, param[2], error;
   sigset_t set;
   ALARM_INFO alarm_info;
   MY_INIT(argv[0]);
@@ -815,12 +815,11 @@ int main(int argc __attribute__((unused)),char **argv __attribute__((unused)))
   printf("Main thread: %s\n",my_thread_name());
   for (i=0 ; i < 2 ; i++)
   {
-    param=(int*) malloc(sizeof(int));
-    *param= i;
+    param[i]= i;
     mysql_mutex_lock(&LOCK_thread_count);
     if ((error= mysql_thread_create(0,
                                     &tid, &thr_attr, test_thread,
-                                    (void*) param)))
+                                    (void*) &param[i])))
     {
       printf("Can't create thread %d, error: %d\n",i,error);
       exit(1);
@@ -851,6 +850,9 @@ int main(int argc __attribute__((unused)),char **argv __attribute__((unused)))
 	 alarm_info.active_alarms, alarm_info.max_used_alarms,
 	 alarm_info.next_alarm_time);
   printf("Test succeeded\n");
+  mysql_cond_destroy(&COND_thread_count);
+  mysql_mutex_destroy(&LOCK_thread_count);
+  my_end(MY_CHECK_ERROR);
   return 0;
 }
 
