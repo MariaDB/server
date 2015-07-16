@@ -480,7 +480,11 @@ bool Item_func::eq(const Item *item, bool binary_cmp) const
   /* Assume we don't have rtti */
   if (this == item)
     return 1;
-  if (item->type() != FUNC_ITEM)
+  /*
+    Ensure that we are comparing two functions and that the function
+    is deterministic.
+  */
+  if (item->type() != FUNC_ITEM || (used_tables() & RAND_TABLE_BIT))
     return 0;
   Item_func *item_func=(Item_func*) item;
   Item_func::Functype func_type;
