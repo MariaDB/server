@@ -146,3 +146,37 @@ hex(f2)	hex(f3)
 0000	
 drop table t1;
 End of 5.0 tests
+#
+# Start of 10.0 tests
+#
+#
+# MDEV-8472 BINARY, VARBINARY and BLOB return different warnings on CAST to DECIMAL
+#
+SET NAMES utf8;
+CREATE TABLE t1 (a BINARY(30));
+INSERT INTO t1 VALUES ('1äÖüß@µ*$');
+SELECT CAST(a AS DECIMAL) FROM t1;
+CAST(a AS DECIMAL)
+1
+Warnings:
+Warning	1292	Truncated incorrect DECIMAL value: '1\xC3\xA4\xC3\x96\xC3\xBC\xC3\x9F@\xC2\xB5*$\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
+DROP TABLE t1;
+CREATE TABLE t1 (a VARBINARY(30));
+INSERT INTO t1 VALUES ('1äÖüß@µ*$');
+SELECT CAST(a AS DECIMAL) FROM t1;
+CAST(a AS DECIMAL)
+1
+Warnings:
+Warning	1292	Truncated incorrect DECIMAL value: '1\xC3\xA4\xC3\x96\xC3\xBC\xC3\x9F@\xC2\xB5*$'
+DROP TABLE t1;
+CREATE TABLE t1 (a BLOB);
+INSERT INTO t1 VALUES ('1äÖüß@µ*$');
+SELECT CAST(a AS DECIMAL) FROM t1;
+CAST(a AS DECIMAL)
+1
+Warnings:
+Warning	1292	Truncated incorrect DECIMAL value: '1\xC3\xA4\xC3\x96\xC3\xBC\xC3\x9F@\xC2\xB5*$'
+DROP TABLE t1;
+#
+# End of 10.0 tests
+#

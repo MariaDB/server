@@ -6500,21 +6500,29 @@ String *Field_string::val_str(String *val_buffer __attribute__((unused)),
 }
 
 
-my_decimal *Field_string::val_decimal(my_decimal *decimal_value)
+my_decimal *Field_longstr::val_decimal_from_str(const char *str,
+                                                uint length,
+                                                CHARSET_INFO *cs,
+                                                my_decimal *decimal_value)
 {
-  ASSERT_COLUMN_MARKED_FOR_READ;
-  int err= str2my_decimal(E_DEC_FATAL_ERROR, (char*) ptr, field_length,
-                          charset(), decimal_value);
+  int err= str2my_decimal(E_DEC_FATAL_ERROR, str, length, cs, decimal_value);
   if (!get_thd()->no_errors && err)
   {
-    ErrConvString errmsg((char*) ptr, field_length, charset());
+    ErrConvString errmsg(str, length, cs);
     push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
                         ER_TRUNCATED_WRONG_VALUE, 
                         ER(ER_TRUNCATED_WRONG_VALUE),
                         "DECIMAL", errmsg.ptr());
   }
-
   return decimal_value;
+}
+
+
+my_decimal *Field_string::val_decimal(my_decimal *decimal_value)
+{
+  ASSERT_COLUMN_MARKED_FOR_READ;
+  return val_decimal_from_str((const char *) ptr, field_length,
+                              Field_string::charset(), decimal_value);
 }
 
 
@@ -6942,18 +6950,9 @@ String *Field_varstring::val_str(String *val_buffer __attribute__((unused)),
 my_decimal *Field_varstring::val_decimal(my_decimal *decimal_value)
 {
   ASSERT_COLUMN_MARKED_FOR_READ;
-  CHARSET_INFO *cs= charset();
   uint length= length_bytes == 1 ? (uint) *ptr : uint2korr(ptr);
-  int error= str2my_decimal(E_DEC_FATAL_ERROR, (char*) ptr+length_bytes, length,
-                 cs, decimal_value);
-
-  if (!get_thd()->no_errors && error)
-  {
-    push_numerical_conversion_warning(current_thd, (char*)ptr+length_bytes, 
-                                      length, cs, "DECIMAL", 
-                                      ER_TRUNCATED_WRONG_VALUE); 
-  }
-  return decimal_value;
+  return val_decimal_from_str((const char *) ptr + length_bytes, length,
+                              Field_varstring::charset(), decimal_value);
 }
 
 
@@ -7474,9 +7473,8 @@ my_decimal *Field_blob::val_decimal(my_decimal *decimal_value)
   else
     length= get_length(ptr);
 
-  str2my_decimal(E_DEC_FATAL_ERROR, blob, length, charset(),
-                 decimal_value);
-  return decimal_value;
+  return val_decimal_from_str(blob, length,
+                              Field_blob::charset(), decimal_value);
 }
 
 

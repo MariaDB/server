@@ -1161,6 +1161,9 @@ protected:
                                const char *cannot_convert_error_pos,
                                const char *end,
                                CHARSET_INFO *cs);
+  my_decimal *val_decimal_from_str(const char *str, uint length,
+                                   CHARSET_INFO *cs,
+                                   my_decimal *decimal_value);
 public:
   Field_longstr(uchar *ptr_arg, uint32 len_arg, uchar *null_ptr_arg,
                 uchar null_bit_arg, utype unireg_check_arg,
