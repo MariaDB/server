@@ -3313,7 +3313,8 @@ bool change_master(THD* thd, Master_info* mi, bool *master_info_added)
     *master_info_added= true;
   }
   if (global_system_variables.log_warnings > 1)
-    sql_print_information("Master: '%.*s'  Master_info_file: '%s'  "
+    sql_print_information("Master connection name: '%.*s'  "
+                          "Master_info_file: '%s'  "
                           "Relay_info_file: '%s'",
                           (int) mi->connection_name.length,
                           mi->connection_name.str,
