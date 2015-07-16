@@ -69,6 +69,17 @@ void wsrep_register_hton(THD* thd, bool all)
 {
   if (thd->wsrep_exec_mode != TOTAL_ORDER && !thd->wsrep_apply_toi)
   {
+    if (thd->wsrep_exec_mode == LOCAL_STATE      &&
+        (thd_sql_command(thd) == SQLCOM_OPTIMIZE ||
+        thd_sql_command(thd) == SQLCOM_ANALYZE   ||
+        thd_sql_command(thd) == SQLCOM_REPAIR)   &&
+            thd->lex->no_write_to_binlog == 1)
+    {
+        WSREP_DEBUG("Skipping wsrep_register_hton for LOCAL sql admin command : %s",
+                thd->query());
+        return;
+    }
+
     THD_TRANS *trans=all ? &thd->transaction.all : &thd->transaction.stmt;
     for (Ha_trx_info *i= trans->ha_list; WSREP(thd) && i; i = i->next())
     {

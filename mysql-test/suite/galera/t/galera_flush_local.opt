@@ -1,0 +1,1 @@
+--query_cache_type=1 --query_cache_size=1000000 --innodb_track_changed_pages=1 --userstat=1 --thread_statistics=1

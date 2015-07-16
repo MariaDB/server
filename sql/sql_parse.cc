@@ -4679,7 +4679,7 @@ end_with_restore_list:
             REFRESH_STATUS           |
             REFRESH_USER_RESOURCES))
     {
-      WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL)
+      WSREP_TO_ISOLATION_BEGIN_WRTCHK(WSREP_MYSQL_DB, NULL, NULL)
     }
 #endif /* WITH_WSREP*/
 
