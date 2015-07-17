@@ -22,5 +22,4 @@ repair table t2;
 drop table t2;
 
 --list_files $MYSQL_TMP_DIR foobar5543
---system rm $MYSQL_TMP_DIR/t1.TMD $MYSQL_TMP_DIR/t2.TMD
 
