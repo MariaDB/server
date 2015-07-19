@@ -381,6 +381,39 @@ a
 50
 SET GLOBAL slave_exec_mode=@old_slave_mode;
 SET GLOBAL gtid_strict_mode=@old_strict;
+*** MDEV-8496: gtid_ignore_duplicates treats gtid_seq_no as 32-bit ***
+SET @old_domain= @@SESSION.gtid_domain_id;
+SET SESSION gtid_domain_id=102;
+SET SESSION gtid_seq_no=4294967294;
+INSERT INTO t1 VALUES (60);
+INSERT INTO t1 VALUES (61);
+INSERT INTO t1 VALUES (62);
+SET SESSION gtid_domain_id= @old_domain;
+include/save_master_gtid.inc
+include/sync_with_master_gtid.inc
+SELECT * FROM t1 WHERE a >= 60 ORDER BY a;
+a
+60
+61
+62
+SET default_master_connection = "c2b";
+include/sync_with_master_gtid.inc
+SET default_master_connection = "a2b";
+include/sync_with_master_gtid.inc
+SELECT * FROM t1 WHERE a >= 60 ORDER BY a;
+a
+60
+61
+62
+SET default_master_connection = "b2c";
+include/sync_with_master_gtid.inc
+SET default_master_connection = "a2c";
+include/sync_with_master_gtid.inc
+SELECT * FROM t1 WHERE a >= 60 ORDER BY a;
+a
+60
+61
+62
 SET GLOBAL gtid_domain_id=0;
 STOP ALL SLAVES;
 Warnings:
