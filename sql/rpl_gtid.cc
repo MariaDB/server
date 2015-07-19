@@ -117,7 +117,7 @@ int
 rpl_slave_state::check_duplicate_gtid(rpl_gtid *gtid, rpl_group_info *rgi)
 {
   uint32 domain_id= gtid->domain_id;
-  uint32 seq_no= gtid->seq_no;
+  uint64 seq_no= gtid->seq_no;
   rpl_slave_state::element *elem;
   int res;
   bool did_enter_cond= false;
