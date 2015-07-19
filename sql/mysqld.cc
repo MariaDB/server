@@ -1901,11 +1901,13 @@ static void __cdecl kill_server(int sig_ptr)
   }
 #endif
 
+#ifdef WITH_WSREP
   /* Stop wsrep threads in case they are running. */
   if (wsrep_running_threads > 0)
   {
     wsrep_stop_replication(NULL);
   }
+#endif
 
   close_connections();
 
@@ -5730,6 +5732,7 @@ int mysqld_main(int argc, char **argv)
   }
 #endif
 
+#ifdef WITH_WSREP
   // Recover and exit.
   if (wsrep_recovery)
   {
@@ -5740,6 +5743,7 @@ int mysqld_main(int argc, char **argv)
       sql_print_information("WSREP: disabled, skipping position recovery");
     unireg_abort(0);
   }
+#endif
 
   /*
     init signals & alarm
