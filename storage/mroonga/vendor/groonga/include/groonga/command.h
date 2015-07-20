@@ -43,6 +43,8 @@ GRN_PLUGIN_EXPORT grn_obj *grn_command_input_get(grn_ctx *ctx,
 GRN_PLUGIN_EXPORT grn_obj *grn_command_input_at(grn_ctx *ctx,
                                                 grn_command_input *input,
                                                 unsigned int offset);
+GRN_PLUGIN_EXPORT grn_obj *grn_command_input_get_arguments(grn_ctx *ctx,
+                                                           grn_command_input *input);
 
 typedef void grn_command_run_func(grn_ctx *ctx,
                                   grn_obj *command,

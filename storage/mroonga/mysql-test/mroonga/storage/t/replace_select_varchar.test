@@ -57,7 +57,8 @@ REPLACE INTO videos_groonga
     FROM videos_master AS v
     WHERE v.video_id = (video_id);
 SELECT *, MATCH(description) AGAINST("my") FROM videos_groonga
-  WHERE MATCH(description) AGAINST("my");
+  WHERE MATCH(description) AGAINST("my")
+  ORDER BY id;
 
 DROP TABLE videos_master, videos_groonga;
 

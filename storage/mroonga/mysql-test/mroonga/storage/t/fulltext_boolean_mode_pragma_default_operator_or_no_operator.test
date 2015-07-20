@@ -1,4 +1,4 @@
-# Copyright(C) 2011-2013  Kouhei Sutou <kou@clear-code.com>
+# Copyright(C) 2011-2015  Kouhei Sutou <kou@clear-code.com>
 # Copyright(C) 2013  Kenji Maruyama <mmmaru777@gmail.com>
 #
 # This library is free software; you can redistribute it and/or
@@ -34,7 +34,8 @@ INSERT INTO memos VALUES ("Tomorrow will be fine.");
 INSERT INTO memos VALUES ("Yesterday was fine.");
 
 SELECT * FROM memos
-         WHERE MATCH (content) AGAINST ("*DOR today good" IN BOOLEAN MODE);
+         WHERE MATCH (content) AGAINST ("*DOR today good" IN BOOLEAN MODE)
+         ORDER BY content;
 
 DROP TABLE memos;
 

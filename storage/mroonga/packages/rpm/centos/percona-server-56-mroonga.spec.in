@@ -1,7 +1,7 @@
 %{!?centos_ver:%define centos_ver 6}
 
-%define mysql_version_default 5.6.23
-%define mysql_release_default rel72.1
+%define mysql_version_default 5.6.24
+%define mysql_release_default rel72.2
 %define mysql_dist_default    %{?dist}
 %define mysql_download_base_url_default http://repo.percona.com/centos/%{centos_ver}/SRPMS
 %define mysql_spec_file_default percona-server.spec
@@ -85,6 +85,13 @@ mv $RPM_BUILD_ROOT%{_datadir}/doc/mroonga/ mysql-mroonga-doc/
 rm -rf $RPM_BUILD_ROOT
 
 %post
+if ! /sbin/service mysql status > /dev/null; then
+  /sbin/service mysql start
+  stop_after_installation=1
+else
+  stop_after_installation=0
+fi
+
 mysql_command=`which mysql`
 password_option=""
 $mysql_command -u root -e "quit"
@@ -123,7 +130,18 @@ eval $command || \
 	(echo "run the following command to register Mroonga:"; \
 	 echo "  $command")
 
+if [ "$stop_after_installation" = "1" ]; then
+  /sbin/service mysql stop
+fi
+
 %preun
+if ! /sbin/service mysql status > /dev/null; then
+  /sbin/service mysql start
+  stop_after_uninstallation=1
+else
+  stop_after_uninstallation=0
+fi
+
 uninstall_sql=%{_datadir}/mroonga/uninstall.sql
 mysql_command=`which mysql`
 if $mysql_command -u root -e "quit"; then
@@ -137,6 +155,10 @@ if [ "$1" = 0 ]; then
     eval $command || \
 	(echo "run the following command to unregister Mroonga:"; \
 	 echo "  $command")
+fi
+
+if [ "$stop_after_uninstallation" = "1" ]; then
+  /sbin/service mysql stop
 fi
 
 %files

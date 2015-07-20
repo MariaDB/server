@@ -1,4 +1,4 @@
-# Copyright(C) 2011 Kouhei Sutou <kou@clear-code.com>
+# Copyright(C) 2011-2015 Kouhei Sutou <kou@clear-code.com>
 #
 # This library is free software; you can redistribute it and/or
 # modify it under the terms of the GNU Lesser General Public
@@ -4129,7 +4129,7 @@ insert into diaries values(4095, "2022-09-29");
 commit;
 set autocommit=1;
 
-select * from diaries where match(title) against("2022-09-0");
+select * from diaries where match(title) against("2022-09-0") order by id;
 
 drop table diaries;
 

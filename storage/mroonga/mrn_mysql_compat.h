@@ -33,18 +33,9 @@
 #endif
 
 #if defined(MRN_MARIADB_P)
-#  if MYSQL_VERSION_ID >= 50302 && MYSQL_VERSION_ID < 100000
+#  if MYSQL_VERSION_ID < 100000
      typedef COST_VECT Cost_estimate;
 #  endif
-#endif
-
-#if MYSQL_VERSION_ID >= 50516
-#  define MRN_PLUGIN_HAVE_FLAGS 1
-#endif
-
-// for MySQL < 5.5
-#ifndef MY_ALL_CHARSETS_SIZE
-#  define MY_ALL_CHARSETS_SIZE 256
 #endif
 
 #ifndef MRN_MARIADB_P
@@ -79,9 +70,11 @@
 #if MYSQL_VERSION_ID >= 50607
 #  if MYSQL_VERSION_ID >= 100007 && defined(MRN_MARIADB_P)
 #    define MRN_GET_ERROR_MESSAGE thd_get_error_message(current_thd)
+#    define MRN_GET_ERROR_NUMBER thd_get_error_number(current_thd)
 #    define MRN_GET_CURRENT_ROW_FOR_WARNING(thd) thd_get_error_row(thd)
 #  else
 #    define MRN_GET_ERROR_MESSAGE current_thd->get_stmt_da()->message()
+#    define MRN_GET_ERROR_NUMBER current_thd->get_stmt_da()->sql_errno()
 #    if MYSQL_VERSION_ID >= 50706
 #      define MRN_GET_CURRENT_ROW_FOR_WARNING(thd) \
   thd->get_stmt_da()->current_row_for_condition()
@@ -91,20 +84,16 @@
 #    endif
 #  endif
 #else
-#  if MYSQL_VERSION_ID >= 50500
-#    define MRN_GET_ERROR_MESSAGE current_thd->stmt_da->message()
-#    define MRN_GET_CURRENT_ROW_FOR_WARNING(thd) thd->warning_info->current_row_for_warning()
-#  else
-#    define MRN_GET_ERROR_MESSAGE current_thd->main_da.message()
-#    define MRN_GET_CURRENT_ROW_FOR_WARNING(thd) thd->row_count
-#  endif
+#  define MRN_GET_ERROR_MESSAGE current_thd->stmt_da->message()
+#  define MRN_GET_ERROR_NUMBER current_thd->stmt_da->sql_errno()
+#  define MRN_GET_CURRENT_ROW_FOR_WARNING(thd) thd->warning_info->current_row_for_warning()
 #endif
 
 #if MYSQL_VERSION_ID >= 50607 && !defined(MRN_MARIADB_P)
 #  define MRN_ITEM_HAVE_ITEM_NAME
 #endif
 
-#if MYSQL_VERSION_ID >= 50500 && MYSQL_VERSION_ID < 100000
+#if MYSQL_VERSION_ID < 100000
 #  define MRN_HAVE_TABLE_DEF_CACHE
 #endif
 
@@ -122,10 +111,6 @@
 
 #if defined(MRN_MARIADB_P) && MYSQL_VERSION_ID >= 100004
 #  define MRN_TABLE_SHARE_HAVE_LOCK_SHARE
-#endif
-
-#if MYSQL_VERSION_ID >= 50404
-#  define MRN_TABLE_SHARE_HAVE_LOCK_HA_DATA
 #endif
 
 #ifndef TIME_FUZZY_DATE
@@ -216,5 +201,43 @@
 #else
 #  define MRN_FORMAT_STRING_LENGTH "u"
 #endif
+
+#ifdef MRN_MARIADB_P
+#  define MRN_SUPPORT_CUSTOM_OPTIONS
+#endif
+
+#if defined(MRN_MARIADB_P) && MYSQL_VERSION_ID >= 100000
+#  if MYSQL_VERSION_ID >= 100104
+#    define mrn_init_sql_alloc(thd, mem_root)                           \
+  init_sql_alloc(mem_root,                                              \
+                 TABLE_ALLOC_BLOCK_SIZE,                                \
+                 0,                                                     \
+                 MYF(thd->slave_thread ? 0 : MY_THREAD_SPECIFIC))
+#  else
+#    define mrn_init_sql_alloc(thd, mem_root)           \
+  init_sql_alloc(mem_root,                              \
+                 TABLE_ALLOC_BLOCK_SIZE,                \
+                 0,                                     \
+                 MYF(0))
+#  endif
+#else
+#    define mrn_init_sql_alloc(thd, mem_root)           \
+  init_sql_alloc(mem_root,                              \
+                 TABLE_ALLOC_BLOCK_SIZE,                \
+                 0)
+#endif
+
+#ifdef MRN_MARIADB_P
+#  define MRN_ABORT_ON_WARNING(thd) thd->abort_on_warning
+#else
+#  if MYSQL_VERSION_ID >= 50706
+#    define MRN_ABORT_ON_WARNING(thd) false
+#  else
+#    define MRN_ABORT_ON_WARNING(thd) thd->abort_on_warning
+#  endif
+#endif
+
+#define MRN_ERROR_CODE_DATA_TRUNCATE(thd)                               \
+  (MRN_ABORT_ON_WARNING(thd) ? ER_WARN_DATA_OUT_OF_RANGE : WARN_DATA_TRUNCATED)
 
 #endif /* MRN_MYSQL_COMPAT_H_ */

@@ -21,22 +21,24 @@
 #include "grn_request_canceler.h"
 #include "grn_tokenizers.h"
 #include "grn_ctx_impl.h"
+#include "grn_ii.h"
 #include "grn_pat.h"
+#include "grn_proc.h"
 #include "grn_plugin.h"
 #include "grn_snip.h"
 #include "grn_output.h"
 #include "grn_normalizer.h"
+#include "grn_mrb.h"
 #include "grn_ctx_impl_mrb.h"
 #include "grn_logger.h"
 #include <stdio.h>
 #include <stdarg.h>
 #include <time.h>
-#ifdef HAVE_NETINET_IN_H
-# include <netinet/in.h>
-#endif /* HAVE_NETINET_IN_H */
 
 #ifdef WIN32
 # include <share.h>
+#else /* WIN32 */
+# include <netinet/in.h>
 #endif /* WIN32 */
 
 #if defined(HAVE__LOCALTIME64_S) && defined(__GNUC__)
@@ -73,6 +75,30 @@ int grn_lock_timeout = GRN_LOCK_TIMEOUT;
 #ifdef USE_UYIELD
 int grn_uyield_count = 0;
 #endif
+
+static grn_bool grn_ctx_per_db = GRN_FALSE;
+
+static void
+grn_init_from_env(void)
+{
+  {
+    char grn_ctx_per_db_env[GRN_ENV_BUFFER_SIZE];
+    grn_getenv("GRN_CTX_PER_DB",
+               grn_ctx_per_db_env,
+               GRN_ENV_BUFFER_SIZE);
+    if (grn_ctx_per_db_env[0] && strcmp(grn_ctx_per_db_env, "yes") == 0) {
+      grn_ctx_per_db = GRN_TRUE;
+    }
+  }
+
+  grn_mrb_init_from_env();
+  grn_ctx_impl_mrb_init_from_env();
+  grn_io_init_from_env();
+  grn_ii_init_from_env();
+  grn_db_init_from_env();
+  grn_proc_init_from_env();
+  grn_plugin_init_from_env();
+}
 
 void
 grn_sleep(uint32_t seconds)
@@ -621,14 +647,8 @@ grn_ctx_init_internal(grn_ctx *ctx, int flags)
   // if (ctx->stat != GRN_CTX_FIN) { return GRN_INVALID_ARGUMENT; }
   ERRCLR(ctx);
   ctx->flags = flags;
-  {
-    char grn_ctx_per_db_env[GRN_ENV_BUFFER_SIZE];
-    grn_getenv("GRN_CTX_PER_DB",
-               grn_ctx_per_db_env,
-               GRN_ENV_BUFFER_SIZE);
-    if (grn_ctx_per_db_env[0] && strcmp(grn_ctx_per_db_env, "yes") == 0) {
-      ctx->flags |= GRN_CTX_PER_DB;
-    }
+  if (grn_ctx_per_db) {
+    ctx->flags |= GRN_CTX_PER_DB;
   }
   if (ERRP(ctx, GRN_ERROR)) { return ctx->rc; }
   ctx->stat = GRN_CTX_INITED;
@@ -821,6 +841,7 @@ grn_init(void)
 {
   grn_rc rc;
   grn_ctx *ctx = &grn_gctx;
+  grn_init_from_env();
   grn_logger_init();
   grn_query_logger_init();
   CRITICAL_SECTION_INIT(grn_glock);
@@ -898,12 +919,8 @@ grn_init(void)
     return rc;
   }
   grn_ctx_impl_init(ctx);
-  if ((rc = grn_io_init())) {
-    GRN_LOG(ctx, GRN_LOG_ALERT, "io initialize failed (%d)", rc);
-    return rc;
-  }
   if ((rc = grn_plugins_init())) {
-    GRN_LOG(ctx, GRN_LOG_ALERT, "plugins initialize failed (%d)", rc);
+    GRN_LOG(ctx, GRN_LOG_ALERT, "grn_plugins_init failed (%d)", rc);
     return rc;
   }
   if ((rc = grn_normalizer_init())) {
@@ -1018,7 +1035,6 @@ grn_fin(void)
   grn_tokenizers_fin();
   grn_normalizer_fin();
   grn_plugins_fin();
-  grn_io_fin();
   grn_ctx_fin(ctx);
   grn_com_fin();
   GRN_LOG(ctx, GRN_LOG_NOTICE, "grn_fin (%d)", alloc_count);
@@ -1535,7 +1551,6 @@ grn_ctx_send(grn_ctx *ctx, const char *str, unsigned int str_len, int flags)
       goto exit;
     } else {
       grn_obj *expr = NULL;
-      if (comment_command_p(str, str_len)) { goto output; };
       if (ctx->impl->qe_next) {
         grn_obj *val;
         expr = ctx->impl->qe_next;
@@ -1546,6 +1561,7 @@ grn_ctx_send(grn_ctx *ctx, const char *str, unsigned int str_len, int flags)
         }
         grn_expr_exec(ctx, expr, 0);
       } else {
+        if (comment_command_p(str, str_len)) { goto output; };
         ctx->impl->mime_type = "application/json";
         ctx->impl->output_type = GRN_CONTENT_JSON;
         grn_timeval_now(ctx, &ctx->impl->tv);
@@ -2382,9 +2398,8 @@ grn_calloc_default(grn_ctx *ctx, size_t size, const char* file, int line, const 
       grn_alloc_info_add(res, file, line, func);
     } else {
       if (!(res = calloc(size, 1))) {
-        MERR("calloc fail (%" GRN_FMT_LLU ")=%p (%s:%d) <%" GRN_FMT_LLU ">",
-             (unsigned long long int)size, res, file, line,
-             (unsigned long long int)alloc_count);
+        MERR("calloc fail (%" GRN_FMT_SIZE ")=%p (%s:%d) <%d>",
+             size, res, file, line, alloc_count);
       } else {
         GRN_ADD_ALLOC_COUNT(1);
         grn_alloc_info_add(res, file, line, func);

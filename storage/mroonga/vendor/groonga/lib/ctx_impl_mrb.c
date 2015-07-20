@@ -18,9 +18,9 @@
 
 #include "grn_ctx_impl.h"
 
-#ifdef GRN_WITH_MRUBY
-# include <string.h>
+#include <string.h>
 
+#ifdef GRN_WITH_MRUBY
 # include "grn_ctx_impl_mrb.h"
 
 # include "grn_mrb.h"
@@ -40,6 +40,10 @@
 # include "mrb/mrb_hash_table.h"
 # include "mrb/mrb_patricia_trie.h"
 # include "mrb/mrb_double_array_trie.h"
+# include "mrb/mrb_table_group_flags.h"
+# include "mrb/mrb_table_group_result.h"
+# include "mrb/mrb_table_sort_flags.h"
+# include "mrb/mrb_table_sort_key.h"
 # include "mrb/mrb_column.h"
 # include "mrb/mrb_fixed_size_column.h"
 # include "mrb/mrb_variable_size_column.h"
@@ -59,6 +63,23 @@
 # include <mruby/array.h>
 # include <mruby/variable.h>
 #endif /* GRN_WITH_MRUBY */
+
+static grn_bool grn_ctx_impl_mrb_mruby_enabled = GRN_TRUE;
+
+void
+grn_ctx_impl_mrb_init_from_env(void)
+{
+  {
+    char grn_mruby_enabled_env[GRN_ENV_BUFFER_SIZE];
+    grn_getenv("GRN_MRUBY_ENABLED",
+               grn_mruby_enabled_env,
+               GRN_ENV_BUFFER_SIZE);
+    if (grn_mruby_enabled_env[0] &&
+        strcmp(grn_mruby_enabled_env, "no") == 0) {
+      grn_ctx_impl_mrb_mruby_enabled = GRN_FALSE;
+    }
+  }
+}
 
 #ifdef GRN_WITH_MRUBY
 static mrb_value
@@ -125,6 +146,10 @@ grn_ctx_impl_mrb_init_bindings(grn_ctx *ctx)
   grn_mrb_hash_table_init(ctx);
   grn_mrb_patricia_trie_init(ctx);
   grn_mrb_double_array_trie_init(ctx);
+  grn_mrb_table_group_flags_init(ctx);
+  grn_mrb_table_group_result_init(ctx);
+  grn_mrb_table_sort_flags_init(ctx);
+  grn_mrb_table_sort_key_init(ctx);
   grn_mrb_column_init(ctx);
   grn_mrb_fixed_size_column_init(ctx);
   grn_mrb_variable_size_column_init(ctx);
@@ -147,11 +172,7 @@ grn_ctx_impl_mrb_init_bindings(grn_ctx *ctx)
 void
 grn_ctx_impl_mrb_init(grn_ctx *ctx)
 {
-  char grn_mruby_enabled[GRN_ENV_BUFFER_SIZE];
-  grn_getenv("GRN_MRUBY_ENABLED",
-             grn_mruby_enabled,
-             GRN_ENV_BUFFER_SIZE);
-  if (grn_mruby_enabled[0] && strcmp(grn_mruby_enabled, "no") == 0) {
+  if (!grn_ctx_impl_mrb_mruby_enabled) {
     ctx->impl->mrb.state = NULL;
     ctx->impl->mrb.base_directory[0] = '\0';
     ctx->impl->mrb.module = NULL;
@@ -162,7 +183,6 @@ grn_ctx_impl_mrb_init(grn_ctx *ctx)
     ctx->impl->mrb.groonga.operator_class = NULL;
   } else {
     mrb_state *mrb;
-
     mrb = mrb_open();
     ctx->impl->mrb.state = mrb;
     ctx->impl->mrb.base_directory[0] = '\0';

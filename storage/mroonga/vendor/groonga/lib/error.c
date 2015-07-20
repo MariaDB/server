@@ -62,3 +62,17 @@ grn_current_error_message(void)
   return strerror(errno);
 }
 #endif
+
+const char *
+grn_strerror(int error_code)
+{
+#ifdef WIN32
+# define MESSAGE_BUFFER_SIZE 1024
+  static char message[MESSAGE_BUFFER_SIZE];
+  strerror_s(message, MESSAGE_BUFFER_SIZE, error_code);
+  return message;
+# undef MESSAGE_BUFFER_SIZE
+#else /* WIN32 */
+  return strerror(error_code);
+#endif /* WIN32 */
+}

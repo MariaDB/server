@@ -1,7 +1,7 @@
 SET NAMES utf8;
 CREATE TABLE memos (
 content VARCHAR(64) NOT NULL,
-FULLTEXT INDEX (content) COMMENT 'index_flags "NONE"'
+FULLTEXT INDEX (content) COMMENT 'flags "NONE"'
 ) DEFAULT CHARSET=utf8;
 SELECT mroonga_command("dump --dump_plugins no --dump_schema no");
 mroonga_command("dump --dump_plugins no --dump_schema no")

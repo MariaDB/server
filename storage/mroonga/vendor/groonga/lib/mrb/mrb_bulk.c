@@ -28,6 +28,7 @@
 
 #include "../grn_db.h"
 #include "mrb_bulk.h"
+#include "mrb_object.h"
 
 static struct mrb_data_type mrb_grn_bulk_type = {
   "Groonga::Bulk",
@@ -136,27 +137,47 @@ grn_mrb_value_from_bulk(mrb_state *mrb, grn_obj *bulk)
     break;
   default :
     {
-#define MESSAGE_SIZE 4096
-      char message[MESSAGE_SIZE];
       grn_obj *domain;
-      char domain_name[GRN_TABLE_MAX_KEY_SIZE];
-      int domain_name_size;
+      grn_bool is_record = GRN_FALSE;
 
       domain = grn_ctx_at(ctx, bulk->header.domain);
       if (domain) {
-        domain_name_size = grn_obj_name(ctx, domain,
-                                        domain_name, GRN_TABLE_MAX_KEY_SIZE);
+        switch (domain->header.type) {
+        case GRN_TABLE_HASH_KEY :
+        case GRN_TABLE_PAT_KEY :
+        case GRN_TABLE_DAT_KEY :
+        case GRN_TABLE_NO_KEY :
+          is_record = GRN_TRUE;
+          break;
+        default :
+          break;
+        }
+      }
+
+      if (is_record) {
+        mrb_value_ = mrb_fixnum_value(GRN_RECORD_VALUE(bulk));
         grn_obj_unlink(ctx, domain);
       } else {
-        grn_strcpy(domain_name, GRN_TABLE_MAX_KEY_SIZE, "unknown");
-        domain_name_size = strlen(domain_name);
+#define MESSAGE_SIZE 4096
+        char message[MESSAGE_SIZE];
+        char domain_name[GRN_TABLE_MAX_KEY_SIZE];
+        int domain_name_size;
+
+        if (domain) {
+          domain_name_size = grn_obj_name(ctx, domain,
+                                          domain_name, GRN_TABLE_MAX_KEY_SIZE);
+          grn_obj_unlink(ctx, domain);
+        } else {
+          grn_strcpy(domain_name, GRN_TABLE_MAX_KEY_SIZE, "unknown");
+          domain_name_size = strlen(domain_name);
+        }
+        grn_snprintf(message, MESSAGE_SIZE, MESSAGE_SIZE,
+                     "unsupported bulk value type: <%d>(%.*s)",
+                     bulk->header.domain,
+                     domain_name_size,
+                     domain_name);
+        mrb_raise(mrb, E_RANGE_ERROR, message);
       }
-      grn_snprintf(message, MESSAGE_SIZE, MESSAGE_SIZE,
-                   "unsupported bulk value type: <%d>(%.*s)",
-                   bulk->header.domain,
-                   domain_name_size,
-                   domain_name);
-      mrb_raise(mrb, E_RANGE_ERROR, message);
 #undef MESSAGE_SIZE
     }
     break;
@@ -234,5 +255,7 @@ grn_mrb_bulk_init(grn_ctx *ctx)
                     mrb_grn_bulk_get_value, MRB_ARGS_NONE());
   mrb_define_method(mrb, klass, "==",
                     mrb_grn_bulk_equal, MRB_ARGS_REQ(1));
+  mrb_define_method(mrb, klass, "inspect",
+                    grn_mrb_object_inspect, MRB_ARGS_NONE());
 }
 #endif

@@ -1,5 +1,5 @@
 /* -*- c-basic-offset: 2 -*- */
-/* Copyright(C) 2011 Brazil
+/* Copyright(C) 2011-2015 Brazil
 
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -188,6 +188,8 @@ class GRN_DAT_API Trie {
   void clear_status_flags() {
     header_->set_status_flags(status_flags() & ~CHANGING_MASK);
   }
+
+  void flush();
 
  private:
   File file_;

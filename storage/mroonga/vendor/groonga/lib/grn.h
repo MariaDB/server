@@ -31,17 +31,13 @@
 # define __STDC_LIMIT_MACROS
 #endif
 
-#ifdef HAVE_STDLIB_H
-# include <stdlib.h>
-#endif /* HAVE_STDLIB_H */
+#include <stdlib.h>
 
 #ifdef HAVE_STDINT_H
 # include <stdint.h>
 #endif /* HAVE_STDINT_H */
 
-#ifdef HAVE_SYS_TYPES_H
-# include <sys/types.h>
-#endif /* HAVE_SYS_TYPES_H */
+#include <sys/types.h>
 
 #ifdef HAVE_SYS_PARAM_H
 # include <sys/param.h>
