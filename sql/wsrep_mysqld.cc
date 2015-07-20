@@ -1193,7 +1193,7 @@ create_view_query(THD *thd, uchar** buf, size_t* buf_len)
     views->view_suid    = lex->create_view_suid;
     views->with_check   = lex->create_view_check;
 
-    view_store_options(thd, views, &buff);
+    view_store_options4(thd, views, &buff, true);
     buff.append(STRING_WITH_LEN("VIEW "));
     /* Test if user supplied a db (ie: we did not use thd->db) */
     if (views->db && views->db[0] &&

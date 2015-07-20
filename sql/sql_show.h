@@ -115,6 +115,8 @@ void free_status_vars();
 void reset_status_vars();
 bool show_create_trigger(THD *thd, const sp_name *trg_name);
 void view_store_options(THD *thd, TABLE_LIST *table, String *buff);
+void view_store_options4(THD *thd, TABLE_LIST *table, String *buff,
+                         bool check_inherit);
 
 void init_fill_schema_files_row(TABLE* table);
 bool schema_table_store_record(THD *thd, TABLE *table);

@@ -119,9 +119,6 @@ static void get_cs_converted_string_value(THD *thd,
                                           bool use_hex);
 #endif
 
-static void
-append_algorithm(TABLE_LIST *table, String *buff);
-
 static COND * make_cond_for_info_schema(COND *cond, TABLE_LIST *table);
 
 /***************************************************************************
@@ -1972,32 +1969,30 @@ static void store_key_options(THD *thd, String *packet, TABLE *table,
   }
 }
 
-
-void
-view_store_options(THD *thd, TABLE_LIST *table, String *buff)
-{
-  append_algorithm(table, buff);
-  append_definer(thd, buff, &table->definer.user, &table->definer.host);
-  if (table->view_suid)
-    buff->append(STRING_WITH_LEN("SQL SECURITY DEFINER "));
-  else
-    buff->append(STRING_WITH_LEN("SQL SECURITY INVOKER "));
-}
-
-
 /*
-  Append DEFINER clause to the given buffer.
+  Append ALGORITHM clause to the given buffer.
 
   SYNOPSIS
-    append_definer()
-    thd           [in] thread handle
-    buffer        [inout] buffer to hold DEFINER clause
-    definer_user  [in] user name part of definer
-    definer_host  [in] host name part of definer
+    append_algorithm()
+    table         [in]    table list
+    buff          [inout] buffer to hold the ALGORITHM clause
+    check_inherit [in]    if true, do nothing if algorithm is INHERIT
 */
 
-static void append_algorithm(TABLE_LIST *table, String *buff)
+static void append_algorithm(TABLE_LIST *table, String *buff,
+                             bool check_inherit)
 {
+  int16 algorithm= (int16) table->algorithm;
+
+  DBUG_ENTER("append_algorithm");
+
+  /*
+    Handle a special case when ALGORITHM is not specified, in which case we
+    simply return.
+  */
+  if (check_inherit && (algorithm == VIEW_ALGORITHM_INHERIT))
+    DBUG_VOID_RETURN;
+
   buff->append(STRING_WITH_LEN("ALGORITHM="));
   switch ((int16)table->algorithm) {
   case VIEW_ALGORITHM_UNDEFINED:
@@ -2012,6 +2007,8 @@ static void append_algorithm(TABLE_LIST *table, String *buff)
   default:
     DBUG_ASSERT(0); // never should happen
   }
+
+  DBUG_VOID_RETURN;
 }
 
 /*
@@ -2035,6 +2032,23 @@ void append_definer(THD *thd, String *buffer, const LEX_STRING *definer_user,
   buffer->append(' ');
 }
 
+void
+view_store_options4(THD *thd, TABLE_LIST *table, String *buff,
+                    bool check_inherit)
+{
+  append_algorithm(table, buff, check_inherit);
+  append_definer(thd, buff, &table->definer.user, &table->definer.host);
+  if (table->view_suid)
+    buff->append(STRING_WITH_LEN("SQL SECURITY DEFINER "));
+  else
+    buff->append(STRING_WITH_LEN("SQL SECURITY INVOKER "));
+}
+
+void
+view_store_options(THD *thd, TABLE_LIST *table, String *buff)
+{
+  view_store_options4(thd, table, buff, false);
+}
 
 int
 view_store_create_info(THD *thd, TABLE_LIST *table, String *buff)
