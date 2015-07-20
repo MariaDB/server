@@ -340,6 +340,7 @@ int wsrep_create_trigger_query(THD *thd, uchar** buf, size_t* buf_len);
 #define wsrep_replicate_myisam (0)
 #define wsrep_thr_init() do {} while(0)
 #define wsrep_thr_deinit() do {} while(0)
+#define wsrep_running_threads (0)
 
 #endif /* WITH_WSREP */
 #endif /* WSREP_MYSQLD_H */
