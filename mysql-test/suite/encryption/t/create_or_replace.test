@@ -1,6 +1,8 @@
 --source include/have_innodb.inc
 --source include/have_file_key_management_plugin.inc
 --source include/not_embedded.inc
+# This is needed for longer testcase timeout at least P7/P8
+--source include/big_test.inc
 
 #
 # MDEV-8164: Server crashes in pfs_mutex_enter_func after fil_crypt_is_closing or alike

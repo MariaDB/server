@@ -364,6 +364,12 @@ fil_space_destroy_crypt_data(
 	fil_space_crypt_t **crypt_data)	/*!< out: crypt data */
 {
 	if (crypt_data != NULL && (*crypt_data) != NULL) {
+		/* Make sure that this thread owns the crypt_data
+		and make it unawailable, this does not fully
+		avoid the race between drop table and crypt thread */
+		mutex_enter(&(*crypt_data)->mutex);
+		(*crypt_data)->inited = false;
+		mutex_exit(&(*crypt_data)->mutex);
 		mutex_free(& (*crypt_data)->mutex);
 		memset(*crypt_data, 0, sizeof(fil_space_crypt_t));
 		free(*crypt_data);
