@@ -2,7 +2,7 @@
 == MariaDB ==
 
 The Debian package of MySQL was first debianzed on 1997-04-12 by Christian
-Schwarz <schwarz@debian.org> and ist maintained since 1999-04-20 by 
+Schwarz <schwarz@debian.org> and ist maintained since 1999-04-20 by
 Christian Hammers <ch@debian.org>.
 
 The MariaDB packages were initally made by http://ourdelta.org/, and
@@ -17,22 +17,22 @@ According to the file "COPYING" all parts of this package are licenced
 under the terms of the GNU GPL Version 2 of which a copy is available
 in /usr/share/common-licenses.
 
-To allow free software with other licences than the GPL to link against the 
+To allow free software with other licences than the GPL to link against the
 shared library, special terms for "derived works" are granted in the README file of MySQL 5.5, as follows:
 
 > MySQL FOSS License Exception
 > We want free and open source software applications under certain
 > licenses to be able to use specified GPL-licensed MySQL client
 > libraries despite the fact that not all such FOSS licenses are
-> compatible with version 2 of the GNU General Public License.  
-> Therefore there are special exceptions to the terms and conditions 
-> of the GPLv2 as applied to these client libraries, which are 
-> identified and described in more detail in the FOSS License 
-> Exception at 
+> compatible with version 2 of the GNU General Public License.
+> Therefore there are special exceptions to the terms and conditions
+> of the GPLv2 as applied to these client libraries, which are
+> identified and described in more detail in the FOSS License
+> Exception at
 > <http://www.mysql.com/about/legal/licensing/foss-exception.html>.
 
 The manual had to be removed as it is not free in the sense of the
-Debian Free Software Guidelines (DFSG). 
+Debian Free Software Guidelines (DFSG).
 
 
 == innotop ==
