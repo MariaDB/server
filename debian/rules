@@ -183,12 +183,6 @@ install: build
 	# mariadb-test
 	mv $(TMP)/usr/mysql-test	$(TMP)/usr/share/mysql
 
-	# lintian overrides
-	mkdir -p $(TMP)/usr/share/lintian/overrides/
-	cp debian/mysql-common.lintian-overrides      $(TMP)/usr/share/lintian/overrides/mysql-common
-	cp debian/mariadb-server-10.1.lintian-overrides $(TMP)/usr/share/lintian/overrides/mariadb-server-10.1
-	cp debian/mariadb-client-10.1.lintian-overrides $(TMP)/usr/share/lintian/overrides/mariadb-client-10.1
-
 	# For 5.0 -> 10.1 transition
 	d=$(TMP)/usr/share/mysql-common/internal-use-only/; \
 	mkdir -p $$d; \
