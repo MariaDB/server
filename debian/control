@@ -8,12 +8,18 @@ Build-Depends: bison,
                chrpath,
                cmake (>= 2.7),
                debhelper,
+               dh-apparmor,
                dpatch,
                gawk,
                hardening-wrapper,
                libaio-dev,
-               libncurses5-dev (>= 5.0-6),
+               libboost-dev,
+               ${MAYBE_LIBCRACK}
+               libjemalloc-dev (>= 3.0.0~) [linux-any],
+               libjudy-dev,
+               libncurses5-dev (>= 5.0-6~),
                libpam0g-dev,
+               libreadline-gplv2-dev,
                libssl-dev,
                libwrap0-dev (>= 7.6-8.3),
                lsb-release,
@@ -21,10 +27,7 @@ Build-Depends: bison,
                po-debconf,
                procps | hurd,
                psmisc,
-               zlib1g-dev (>= 1:1.1.3-5),
-               libreadline-gplv2-dev,
-               ${MAYBE_LIBCRACK}
-               libjemalloc-dev (>= 3.0.0)
+               zlib1g-dev (>= 1:1.1.3-5~)
 Standards-Version: 3.8.2
 Homepage: http://mariadb.org/
 Vcs-Browser: http://bazaar.launchpad.net/~maria-captains/maria/10.1/files
