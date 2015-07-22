@@ -1,8 +1,7 @@
 Source: mariadb-10.1
-Section: misc
+Section: database
 Priority: optional
 Maintainer: MariaDB Developers <maria-developers@lists.launchpad.net>
-XSBC-Original-Maintainer: Maria Developers <maria-developers@lists.launchpad.net>
 Uploaders: MariaDB Developers <maria-developers@lists.launchpad.net>
 Build-Depends: bison,
                chrpath,
@@ -26,12 +25,12 @@ Build-Depends: bison,
                zlib1g-dev (>= 1:1.1.3-5~)
 Standards-Version: 3.8.2
 Homepage: http://mariadb.org/
-Vcs-Browser: http://bazaar.launchpad.net/~maria-captains/maria/10.1/files
-Vcs-Bzr: bzr://lp:maria
+Vcs-Bzr: https://github.com/MariaDB/server.git
+Vcs-Browser: https://github.com/MariaDB/server/
 
 Package: libmariadbclient18
-Section: libs
 Architecture: any
+Section: libs
 Depends: libmysqlclient18 (= ${source:Version}),
          mariadb-common,
          ${misc:Depends},
@@ -73,7 +72,7 @@ Depends: libmariadbclient-dev (>= ${source:Version}), ${misc:Depends}
 Provides: libmysqld-dev
 Conflicts: libmysqld-dev
 Replaces: libmysqld-dev
-Description: MariaDB embedded database development files
+Description: MariaDB embedded database, development files
  MariaDB is a fast, stable and true multi-user, multi-threaded SQL database
  server. SQL (Structured Query Language) is the most popular database query
  language in the world. The main goals of MariaDB are speed, robustness and
@@ -106,7 +105,6 @@ Description: MariaDB database development files
  This package includes development libraries and header files.
 
 Package: mysql-common
-Section: database
 Architecture: all
 Depends: ${misc:Depends}, ${shlibs:Depends}
 Description: MariaDB database common files (e.g. /etc/mysql/my.cnf)
@@ -119,7 +117,6 @@ Description: MariaDB database common files (e.g. /etc/mysql/my.cnf)
  (e.g. /etc/mysql/my.cnf).
 
 Package: mariadb-common
-Section: database
 Architecture: all
 Depends: mysql-common, ${misc:Depends}, ${shlibs:Depends}
 Description: MariaDB database common files (e.g. /etc/mysql/conf.d/mariadb.cnf)
@@ -249,7 +246,6 @@ Description: MariaDB database core server files
  This package includes the core server files, as used by Akonadi.
 
 Package: mariadb-test-10.1
-Section: database
 Architecture: any
 Depends: mariadb-client-10.1 (= ${source:Version}),
          mariadb-server-10.1 (= ${source:Version})
@@ -332,7 +328,6 @@ Description: MariaDB database server binaries
  This package includes the server binaries.
 
 Package: mariadb-server
-Section: database
 Architecture: all
 Depends: mariadb-server-10.1 (= ${source:Version}), ${misc:Depends}
 Description: MariaDB database server (metapackage depending on the latest version)
@@ -348,26 +343,23 @@ Description: MariaDB database server (metapackage depending on the latest versio
  ease of use.
 
 Package: mariadb-client
-Section: database
 Architecture: all
 Depends: mariadb-client-10.1 (= ${source:Version}), ${misc:Depends}
 Description: MariaDB database client (metapackage depending on the latest version)
  This is an empty package that depends on the current "best" version of
  mariadb-client (currently mariadb-client-10.1), as determined by the MariaDB
  maintainers.  Install this package if in doubt about which MariaDB version
- you want, as this is the one we consider to be in the best shape.
+ you want, as this is the one considered to be in the best shape.
 
 Package: mariadb-test
-Section: database
 Architecture: all
 Depends: mariadb-test-10.1 (= ${source:Version})
-Description: MariaDB database regression test suite (metapackage depending on the latest version)
+Description: MariaDB database regression test suite (metapackage for the latest version)
  This is an empty package that depends on the current "best" version of
  mariadb-test (currently mariadb-test-10.1), as determined by the MariaDB
  maintainers.
 
 Package: mariadb-connect-engine-10.1
-Section: database
 Architecture: any
 Depends: libxml2, mariadb-server-10.1, unixODBC
 Build-Depends: libxml2-dev, mariadb-server-10.1, unixODBC-dev
@@ -375,14 +367,15 @@ Description: Connect storage engine for MariaDB
  Connect engine supports a number of file formats (dbf, xml, txt, bin, etc),
  connections to ODBC tables and remote MySQL tables, as well as a number of
  other interesting features.
+ This package contains the Connect plugin for MariaDB.
 
 Package: mariadb-oqgraph-engine-10.1
-Section: database
 Architecture: any
 Depends: libjudydebian1, mariadb-server-10.1
-Description: Oqgraph storage engine for MariaDB
- The OQGRAPH engine is a computation engine plugin for handling hierarchies
+Description: OQGraph storage engine for MariaDB
+ The OQGraph engine is a computation engine plugin for handling hierarchies
  (trees) and graphs (friend-of-a-friend, etc) cleanly through standard SQL.
+ This package contains the OQGraph plugin for MariaDB.
 
 Package: mariadb-cracklib-password-check-10.1
 Section: database
