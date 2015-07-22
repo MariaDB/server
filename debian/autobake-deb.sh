@@ -54,8 +54,9 @@ dch -b -D ${CODENAME} -v "${UPSTREAM}${PATCHLEVEL}-${RELEASE_NAME}${RELEASE_EXTR
 echo "Creating package version ${UPSTREAM}${PATCHLEVEL}-${RELEASE_NAME}${RELEASE_EXTRA:+-${RELEASE_EXTRA}}1~${CODENAME} ... "
 
 # Build the package.
-#
-fakeroot dpkg-buildpackage -us -uc
+# Pass -I so that .git and other unnecessary temporary and source control files
+# will be ignored by dpkg-source when createing the tar.gz source package
+fakeroot dpkg-buildpackage -us -uc -I
 
 [ -e debian/autorm-file ] && rm -vf `cat debian/autorm-file`
 
