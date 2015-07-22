@@ -27,6 +27,15 @@
 #Servername=localhost
 #Port=5432
 #
+# 5. Allow user "mtr" to connect to the database "mtr"
+# Add this line into the begginning of pg_hba.conf
+# (usually /var/lib/pgsql/data/pg_hba.conf on Linux):
+#host    mtr             mtr             127.0.0.1/32            password
+#
+# 6. Restart the server:
+# sudo service postgresql restart
+#
+#
 
 SET NAMES utf8;
 
