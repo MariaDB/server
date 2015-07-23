@@ -39,9 +39,9 @@
 #ifdef HAVE_SYS_SOCKET_H
 # include <sys/socket.h>
 #endif /* HAVE_SYS_SOCKET_H */
-#ifdef HAVE_NETINET_IN_H
+#ifndef WIN32
 # include <netinet/in.h>
-#endif /* HAVE_NETINET_IN_H */
+#endif /* WIN32 */
 
 #ifdef HAVE_SYS_RESOURCE_H
 # include <sys/resource.h>
@@ -51,9 +51,12 @@
 # include <sys/sysctl.h>
 #endif /* HAVE_SYS_SYSCTL_H */
 
-#ifdef HAVE_IO_H
+#ifdef WIN32
 # include <io.h>
-#endif /* HAVE_IO_H */
+# include <direct.h>
+#else /* WIN32 */
+# include <sys/uio.h>
+#endif /* WIN32 */
 
 #ifdef HAVE__STRNICMP
 # ifdef strncasecmp
@@ -2656,7 +2659,7 @@ main(int argc, char **argv)
   const char *bind_address_arg = NULL;
   const char *hostname_arg = NULL;
   const char *protocol_arg = NULL;
-  const char *log_path_arg = NULL;
+  const char *log_path_arg = GRN_LOG_PATH;
   const char *log_rotate_threshold_size_arg = NULL;
   const char *query_log_path_arg = NULL;
   const char *query_log_rotate_threshold_size_arg = NULL;

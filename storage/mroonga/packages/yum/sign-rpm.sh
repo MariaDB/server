@@ -24,7 +24,7 @@ run()
 unsigned_rpms()
 {
     while read rpm; do
-	rpm --checksig "$rpm" | grep -v 'gpg OK' | cut -d":" -f1
+	rpm --checksig "$rpm" | grep -v 'gpg OK' | grep -v 'MISSING KEYS' | cut -d":" -f1
     done
 }
 

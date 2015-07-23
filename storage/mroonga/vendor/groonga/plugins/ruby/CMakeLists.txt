@@ -21,20 +21,40 @@ if(GRN_WITH_MRUBY)
   set(GRN_RELATIVE_RUBY_PLUGINS_DIR "${GRN_RELATIVE_PLUGINS_DIR}/ruby")
 
   read_file_list(${CMAKE_CURRENT_SOURCE_DIR}/eval_sources.am RUBY_EVAL_SOURCES)
-  add_library(eval MODULE ${RUBY_EVAL_SOURCES})
   set_source_files_properties(${RUBY_EVAL_SOURCES}
     PROPERTIES
     COMPILE_FLAGS "${GRN_C_COMPILE_FLAGS}")
-  set_target_properties(eval PROPERTIES PREFIX "")
-  target_link_libraries(eval libgroonga)
-  install(TARGETS eval DESTINATION "${GRN_RELATIVE_RUBY_PLUGINS_DIR}")
+  if(GRN_EMBED)
+    add_library(ruby_eval STATIC ${RUBY_EVAL_SOURCES})
+    set_target_properties(
+      ruby_eval
+      PROPERTIES
+      POSITION_INDEPENDENT_CODE ON)
+  else()
+    add_library(ruby_eval MODULE ${RUBY_EVAL_SOURCES})
+    set_target_properties(ruby_eval PROPERTIES
+      PREFIX ""
+      OUTPUT_NAME "eval")
+    install(TARGETS ruby_eval DESTINATION "${GRN_RELATIVE_RUBY_PLUGINS_DIR}")
+  endif()
+  target_link_libraries(ruby_eval libgroonga)
 
   read_file_list(${CMAKE_CURRENT_SOURCE_DIR}/load_sources.am RUBY_LOAD_SOURCES)
-  add_library(load MODULE ${RUBY_LOAD_SOURCES})
   set_source_files_properties(${RUBY_LOAD_SOURCES}
     PROPERTIES
     COMPILE_FLAGS "${GRN_C_COMPILE_FLAGS}")
-  set_target_properties(load PROPERTIES PREFIX "")
-  target_link_libraries(load libgroonga)
-  install(TARGETS load DESTINATION "${GRN_RELATIVE_RUBY_PLUGINS_DIR}")
+  if(GRN_EMBED)
+    add_library(ruby_load STATIC ${RUBY_LOAD_SOURCES})
+    set_target_properties(
+      ruby_load
+      PROPERTIES
+      POSITION_INDEPENDENT_CODE ON)
+  else()
+    add_library(ruby_load MODULE ${RUBY_LOAD_SOURCES})
+    set_target_properties(ruby_load PROPERTIES
+      PREFIX ""
+      OUTPUT_NAME "load")
+    install(TARGETS ruby_load DESTINATION "${GRN_RELATIVE_RUBY_PLUGINS_DIR}")
+  endif()
+  target_link_libraries(ruby_load libgroonga)
 endif()

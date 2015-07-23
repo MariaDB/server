@@ -130,7 +130,7 @@ grn_mrb_value_to_raw_data(mrb_state *mrb,
                "%S: failed to convert to %S: %S",
                mrb_str_new_static(mrb, context, strlen(context)),
                mrb_str_new_static(mrb, domain_name, domain_name_size),
-               mrb_value_);
+               mrb_funcall(mrb, mrb_value_, "inspect", 0));
   }
   *raw_value = GRN_BULK_HEAD(&(buffer->to));
   *raw_value_size = GRN_BULK_VSIZE(&(buffer->to));

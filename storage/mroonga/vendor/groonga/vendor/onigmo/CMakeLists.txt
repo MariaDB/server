@@ -34,12 +34,23 @@ if(GRN_WITH_ONIGMO)
   ac_check_sizeof(int)
   ac_check_sizeof(long)
 
+  add_definitions(-DHAVE_STDARG_H)
+  add_definitions(-DHAVE_STDINT_H)
+  add_definitions(-DHAVE_STDLIB_H)
+  add_definitions(-DHAVE_STRING_H)
+  add_definitions(-DHAVE_SYS_TYPES_H)
+
+  add_definitions(-DSTDC_HEADERS)
+
   if(MSVC)
     add_definitions(-Dinline=__inline)
     add_definitions(-D_CRT_SECURE_NO_WARNINGS)
+  else()
+    add_definitions(-DHAVE_INTTYPES_H)
   endif()
 
   include_directories(
+    BEFORE
     ${ONIGMO_BINARY_DIR}
     ${ONIGMO_SOURCE_DIR}
     )
@@ -107,4 +118,6 @@ if(GRN_WITH_ONIGMO)
     onigmo
     PROPERTIES
     POSITION_INDEPENDENT_CODE ON)
+
+  configure_file(config.h.cmake "${ONIGMO_BINARY_DIR}/config.h")
 endif()

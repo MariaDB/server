@@ -39,11 +39,6 @@ if(BIG_ENDIAN)
   endif()
 endif()
 
-if(CMAKE_SYSTEM_NAME STREQUAL "SunOS")
-  message(STATUS "Mroonga is not supported on Solaris")
-  return()
-endif()
-
 if(MSVC)
   if(MSVC_VERSION LESS 1800)
     set(MRN_OLD_MSVC_MESSAGE "Mroonga supports only MSVC 2013 or later")
@@ -115,6 +110,8 @@ if(MRN_GROONGA_BUNDLED)
 
   add_subdirectory("${MRN_BUNDLED_GROONGA_RELATIVE_DIR}")
 else()
+  set(MRN_GROONGA_EMBED OFF)
+
   file(READ ${MRN_SOURCE_DIR}/required_groonga_version REQUIRED_GROONGA_VERSION)
   string(STRIP "${REQUIRED_GROONGA_VERSION}" REQUIRED_GROONGA_VERSION)
 
@@ -323,8 +320,7 @@ set(MRN_ALL_SOURCES
 if(MRN_BUNDLED)
   mysql_add_plugin(mroonga
     ${MRN_ALL_SOURCES}
-    STORAGE_ENGINE MODULE_ONLY DISABLED # see MDEV-7246
-    RECOMPILE_FOR_EMBEDDED
+    STORAGE_ENGINE MODULE_ONLY
     LINK_LIBRARIES ${MRN_LIBRARIES})
 else()
   add_library(mroonga MODULE ${MRN_ALL_SOURCES})
@@ -334,28 +330,33 @@ else()
 
   option(WITH_DEBUG "Enable debug options" OFF)
   if(WITH_DEBUG)
-    add_definitions("-DSAFE_MUTEX")
+    set_property(TARGET mroonga APPEND PROPERTY
+      COMPILE_DEFINITIONS "SAFE_MUTEX")
     if(CMAKE_COMPILER_IS_GNUCXX)
       set(MRN_C_COMPILE_FLAGS "${MRN_C_COMPILE_FLAGS} -g3 -O0")
       set(MRN_CXX_COMPILE_FLAGS "${MRN_CXX_COMPILE_FLAGS} -g3 -O0")
     endif()
   else()
-    add_definitions("-DDBUG_OFF")
+    set_property(TARGET mroonga APPEND PROPERTY
+      COMPILE_DEFINITIONS "DBUG_OFF")
   endif()
 
   option(WITH_DEBUG_FULL "Enable full debug options" OFF)
   if(WITH_DEBUG_FULL)
-    add_definitions("-DSAFE_MUTEX" "SAFEMALLOC")
+    set_property(TARGET mroonga APPEND PROPERTY
+      COMPILE_DEFINITIONS "SAFE_MUTEX" "SAFEMALLOC")
   endif()
 
   option(DISABLE_FAST_MUTEXES "Force disabling fast mutex" OFF)
   if(DISABLE_FAST_MUTEXES)
-    add_definitions("-DFORCE_FAST_MUTEX_DISABLED=1")
+    set_property(TARGET mroonga APPEND PROPERTY
+      COMPILE_DEFINITIONS "FORCE_FAST_MUTEX_DISABLED=1")
   endif()
 
   option(WITH_FAST_MUTEXES "Enable fast mutex" OFF)
   if(WITH_FAST_MUTEXES)
-    add_definitions("-DMY_PTHREAD_FASTMUTEX")
+    set_property(TARGET mroonga APPEND PROPERTY
+      COMPILE_DEFINITIONS "MY_PTHREAD_FASTMUTEX")
   endif()
 
   if(CMAKE_COMPILER_IS_GNUCXX)
@@ -381,7 +382,8 @@ else()
     COMPILE_FLAGS "${MRN_CXX_COMPILE_FLAGS}")
   set_source_files_properties(${LIBMRN_NO_MYSQL_SOURCES} PROPERTIES
     COMPILE_FLAGS "${MRN_CXX_COMPILE_FLAGS}")
-  add_definitions("-DMYSQL_DYNAMIC_PLUGIN")
+  set_property(TARGET mroonga APPEND PROPERTY
+    COMPILE_DEFINITIONS "MYSQL_DYNAMIC_PLUGIN")
   set_target_properties(mroonga PROPERTIES
     PREFIX ""
     OUTPUT_NAME "ha_mroonga")
@@ -390,16 +392,33 @@ else()
 endif()
 
 if(GROONGA_NORMALIZER_MYSQL_FOUND)
-  add_definitions("-DWITH_GROONGA_NORMALIZER_MYSQL=1")
+  set_property(TARGET mroonga APPEND PROPERTY
+    COMPILE_DEFINITIONS "WITH_GROONGA_NORMALIZER_MYSQL=1")
   if(MRN_GROONGA_NORMALIZER_MYSQL_EMBED)
-    add_definitions("-DMRN_GROONGA_NORMALIZER_MYSQL_EMBED")
+    set_property(TARGET mroonga APPEND PROPERTY
+      COMPILE_DEFINITIONS "MRN_GROONGA_NORMALIZER_MYSQL_EMBEDDED")
   else()
-    add_definitions("-DGROONGA_NORMALIZER_MYSQL_PLUGIN_NAME=\"normalizers/mysql\"")
+    set_property(TARGET mroonga APPEND PROPERTY
+      COMPILE_DEFINITIONS "GROONGA_NORMALIZER_MYSQL_PLUGIN_NAME=\"normalizers/mysql\"")
   endif()
 endif()
 
-set(MRN_DEFAULT_PARSER "TokenBigram" CACHE STRING "The default fulltext parser")
-add_definitions("-DMRN_PARSER_DEFAULT=\"${MRN_DEFAULT_PARSER}\"")
+if(MRN_GROONGA_EMBED)
+  set_property(TARGET mroonga APPEND PROPERTY
+    COMPILE_DEFINITIONS "MRN_GROONGA_EMBEDDED")
+endif()
+
+set(MRN_DEFAULT_PARSER "" CACHE STRING
+  "The default fulltext parser (Deprecated. Use MRN_DEFAULT_TOKENIZER instead.)")
+set(MRN_DEFAULT_TOKENIZER "" CACHE STRING
+  "The default tokenizer for fulltext index")
+if(NOT ${MRN_DEFAULT_TOKENIZER} STREQUAL "")
+  set_property(TARGET mroonga APPEND PROPERTY
+    COMPILE_DEFINITIONS "MRN_DEFAULT_TOKENIZER=\"${MRN_DEFAULT_TOKENIZER}\"")
+elseif(NOT ${MRN_DEFAULT_PARSER} STREQUAL "")
+  set_property(TARGET mroonga APPEND PROPERTY
+    COMPILE_DEFINITIONS "MRN_DEFAULT_TOKENIZER=\"${MRN_DEFAULT_PARSER}\"")
+endif()
 
 configure_file(
   "${PROJECT_SOURCE_DIR}/mrn_version.h.in"

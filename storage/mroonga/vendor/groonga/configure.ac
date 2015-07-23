@@ -169,7 +169,7 @@ if test "$GCC" = "yes"; then
   if test "$CLANG" = "no"; then
     CHECK_BUILD_FLAG([-Wcast-align])
   fi
-  CHECK_BUILD_FLAG([-Wredundant-decls])
+#  CHECK_BUILD_FLAG([-Wredundant-decls])
 #  CHECK_BUILD_FLAG([-Wunsafe-loop-optimizations])
 #  CHECK_BUILD_FLAG([-Wunreachable-code])
 #  CHECK_BUILD_FLAG([-Wswitch-enum])
@@ -1508,6 +1508,8 @@ AM_CONDITIONAL(WITH_SHARED_ONIGMO, test "$enable_shared_onigmo" = "yes")
 
 # TODO: Support using system Onigmo instead of bundled Onigmo.
 AC_DEFINE(GRN_WITH_ONIGMO, [1], [Use Onigmo.])
+GRN_WITH_ONIGMO="yes"
+AC_SUBST(GRN_WITH_ONIGMO)
 AC_CONFIG_SUBDIRS([vendor/onigmo])
 
 ONIGMO_CFLAGS="-I\$(top_srcdir)/vendor/onigmo-source"

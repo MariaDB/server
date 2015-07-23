@@ -60,5 +60,16 @@ namespace mrn {
 #endif
       DBUG_VOID_RETURN;
     }
+    void decode(long long int *dest, const uchar *source) {
+      MRN_DBUG_ENTER_FUNCTION();
+#ifdef MRN_DEST_IS_POINTER
+      longlongget(dest, source);
+#else
+      long long int value;
+      longlongget(value, source);
+      *dest = value;
+#endif
+      DBUG_VOID_RETURN;
+    }
   }
 }

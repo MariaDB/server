@@ -10,7 +10,11 @@ if [ "$GROONGA_HTTPD_IN_TREE" = yes ]; then
   groonga_cflags="-I${GROONGA_HTTPD_IN_TREE_INCLUDE_PATH}"
   groonga_cflags="${groonga_cflags} -DNGX_HTTP_GROONGA_LOG_PATH=\\\"\"${GROONGA_HTTPD_GROONGA_LOG_PATH}\"\\\""
   groonga_cflags="${groonga_cflags} -DNGX_HTTP_GROONGA_QUERY_LOG_PATH=\\\"\"${GROONGA_HTTPD_GROONGA_QUERY_LOG_PATH}\"\\\""
-  groonga_libs="-L${GROONGA_HTTPD_IN_TREE_LINK_PATH} -lgroonga"
+  groonga_libs="-L${GROONGA_HTTPD_IN_TREE_LINK_PATH}"
+  if [ "${GROONGA_HTTPD_WITH_ONIGMO}" = "yes" ]; then
+  groonga_libs="$groonga_libs -L${GROONGA_HTTPD_ONIGMO_IN_TREE_LINK_PATH}"
+  fi
+  groonga_libs="$groonga_libs -lgroonga"
   if [ -n "${GROONGA_HTTPD_RPATH}" ]; then
     groonga_libs="$groonga_libs -Wl,-rpath -Wl,${GROONGA_HTTPD_RPATH}"
   fi
@@ -46,7 +50,7 @@ if [ $ngx_found = yes ]; then
   CORE_LIBS="$CORE_LIBS $groonga_libs"
 else
   cat << END
-$0: error: the groonga module requires the groonga library.
+$0: error: the groonga module requires the Groonga library.
 END
   exit 1
 fi

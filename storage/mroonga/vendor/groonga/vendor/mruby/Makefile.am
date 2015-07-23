@@ -3,10 +3,11 @@ EXTRA_DIST =					\
 	mruby_build.rb				\
 	mruby_build.timestamp
 
-DEFAULT_INCLUDES =				\
-	-I$(srcdir)/../mruby-source/include	\
-	-I$(srcdir)/../mruby-source/src		\
-	-Imruby-io/include			\
+DEFAULT_INCLUDES =						\
+	-I$(srcdir)/../mruby-source/include			\
+	-I$(srcdir)/../mruby-source/src				\
+	-I$(srcdir)/../mruby-source/mrbgems/mruby-compiler/core	\
+	-Imruby-io/include					\
 	-I$(srcdir)/mruby-io/include
 
 CFLAGS += $(NO_FLOAT_EQUAL_CFLAGS)
@@ -27,9 +28,9 @@ include sources.am
 include built_sources.am
 libmruby_la_SOURCES += $(BUILT_SOURCES)
 
-parse.c: mruby_build.timestamp
 mrblib.c: mruby_build.timestamp
 mrbgems_init.c: mruby_build.timestamp
+mruby-compiler/core/parse.c: mruby_build.timestamp
 mruby-onig-regexp/src/mruby_onig_regexp.c: mruby_build.timestamp
 mruby-env/src/env.c: mruby_build.timestamp
 mruby-io/include/mruby/ext/io.h: mruby_build.timestamp

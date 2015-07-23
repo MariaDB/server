@@ -129,6 +129,14 @@ grn_command_input_at(grn_ctx *ctx,
   GRN_API_RETURN(argument);
 }
 
+grn_obj *
+grn_command_input_get_arguments(grn_ctx *ctx,
+                                grn_command_input *input)
+{
+  GRN_API_ENTER;
+  GRN_API_RETURN((grn_obj *)(input->arguments));
+}
+
 grn_rc
 grn_command_register(grn_ctx *ctx,
                      const char *command_name,

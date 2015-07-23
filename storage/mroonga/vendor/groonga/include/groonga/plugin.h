@@ -55,6 +55,11 @@ GRN_PLUGIN_EXPORT grn_rc GRN_PLUGIN_INIT(grn_ctx *ctx);
 GRN_PLUGIN_EXPORT grn_rc GRN_PLUGIN_REGISTER(grn_ctx *ctx);
 GRN_PLUGIN_EXPORT grn_rc GRN_PLUGIN_FIN(grn_ctx *ctx);
 
+#define GRN_PLUGIN_DECLARE_FUNCTIONS(tag)                               \
+  extern grn_rc GRN_PLUGIN_IMPL_NAME_TAGGED(init, tag)(grn_ctx *ctx);   \
+  extern grn_rc GRN_PLUGIN_IMPL_NAME_TAGGED(register, tag)(grn_ctx *ctx); \
+  extern grn_rc GRN_PLUGIN_IMPL_NAME_TAGGED(fin, tag)(grn_ctx *ctx)
+
 /*
   Don't call these functions directly. Use GRN_PLUGIN_MALLOC(),
   GRN_PLUGIN_REALLOC() and GRN_PLUGIN_FREE() instead.

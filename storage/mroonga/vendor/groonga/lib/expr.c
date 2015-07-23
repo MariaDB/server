@@ -22,6 +22,7 @@
 #include "grn_ii.h"
 #include "grn_geo.h"
 #include "grn_expr.h"
+#include "grn_expr_code.h"
 #include "grn_util.h"
 #include "grn_mrb.h"
 #include "mrb/mrb_expr.h"
@@ -782,8 +783,9 @@ grn_expr_append_obj(grn_ctx *ctx, grn_obj *expr, grn_obj *obj, grn_operator op, 
           for (i = 0; i < nargs; i++) {
             int rest_n_codes = 1;
             while (rest_n_codes > 0) {
-              if (!code->value) {
-                rest_n_codes += code->nargs;
+              rest_n_codes += code->nargs;
+              if (code->value) {
+                rest_n_codes--;
               }
               rest_n_codes--;
               code--;
@@ -1274,7 +1276,10 @@ grn_proc_call(grn_ctx *ctx, grn_obj *proc, int nargs, grn_obj *caller)
 }
 
 #define PUSH1(v) do {\
-  if (EXPRVP(v)) { vp++; }\
+  if (EXPRVP(v)) {\
+    vp++;\
+    if (vp - e->values > e->values_tail) { e->values_tail = vp - e->values; }\
+  }\
   s1 = s0;\
   *sp++ = s0 = v;\
 } while (0)
@@ -1301,6 +1306,7 @@ grn_proc_call(grn_ctx *ctx, grn_obj *proc, int nargs, grn_obj *caller)
   } else {\
     if (sp < s_ + 1) { ERR(GRN_INVALID_ARGUMENT, "stack underflow"); goto exit; }\
     sp[-1] = s0 = value = vp++;\
+    if (vp - e->values > e->values_tail) { e->values_tail = vp - e->values; }\
     s0->header.impl_flags |= GRN_OBJ_EXPRVALUE;\
   }\
 } while (0)
@@ -1314,6 +1320,7 @@ grn_proc_call(grn_ctx *ctx, grn_obj *proc, int nargs, grn_obj *caller)
   if (sp < s_ + 1) { ERR(GRN_INVALID_ARGUMENT, "stack underflow"); goto exit; }\
   s1 = sp[-2];\
   sp[-1] = s0 = value = vp++;\
+  if (vp - e->values > e->values_tail) { e->values_tail = vp - e->values; }\
   s0->header.impl_flags |= GRN_OBJ_EXPRVALUE;\
 } while (0)
 
@@ -2226,11 +2233,11 @@ grn_proc_call(grn_ctx *ctx, grn_obj *proc, int nargs, grn_obj *caller)
 } while (0)
 
 inline static void
-grn_expr_exec_get_member(grn_ctx *ctx,
-                         grn_obj *expr,
-                         grn_obj *column_and_record_id,
-                         grn_obj *index,
-                         grn_obj *result)
+grn_expr_exec_get_member_vector(grn_ctx *ctx,
+                                grn_obj *expr,
+                                grn_obj *column_and_record_id,
+                                grn_obj *index,
+                                grn_obj *result)
 {
   grn_obj *column;
   grn_id record_id;
@@ -2266,6 +2273,34 @@ grn_expr_exec_get_member(grn_ctx *ctx,
   }
 
   GRN_OBJ_FIN(ctx, &values);
+}
+
+inline static void
+grn_expr_exec_get_member_table(grn_ctx *ctx,
+                               grn_obj *expr,
+                               grn_obj *table,
+                               grn_obj *key,
+                               grn_obj *result)
+{
+  grn_id id;
+
+  if (table->header.domain == key->header.domain) {
+    id = grn_table_get(ctx, table, GRN_BULK_HEAD(key), GRN_BULK_VSIZE(key));
+  } else {
+    grn_obj casted_key;
+    GRN_OBJ_INIT(&casted_key, GRN_BULK, 0, table->header.domain);
+    if (grn_obj_cast(ctx, key, &casted_key, GRN_FALSE) == GRN_SUCCESS) {
+      id = grn_table_get(ctx, table,
+                         GRN_BULK_HEAD(&casted_key),
+                         GRN_BULK_VSIZE(&casted_key));
+    } else {
+      id = GRN_ID_NIL;
+    }
+    GRN_OBJ_FIN(ctx, &casted_key);
+  }
+
+  grn_obj_reinit(ctx, result, DB_OBJ(table)->id, 0);
+  GRN_RECORD_SET(ctx, result, id);
 }
 
 static inline grn_bool
@@ -3045,16 +3080,16 @@ grn_expr_exec(grn_ctx *ctx, grn_obj *expr, int nargs)
         break;
       case GRN_OP_GEO_DISTANCE1 :
         {
-          grn_obj *e;
+          grn_obj *value;
           double lng1, lat1, lng2, lat2, x, y, d;
-          POP1(e);
-          lng1 = GEO_INT2RAD(GRN_INT32_VALUE(e));
-          POP1(e);
-          lat1 = GEO_INT2RAD(GRN_INT32_VALUE(e));
-          POP1(e);
-          lng2 = GEO_INT2RAD(GRN_INT32_VALUE(e));
-          POP1ALLOC1(e, res);
-          lat2 = GEO_INT2RAD(GRN_INT32_VALUE(e));
+          POP1(value);
+          lng1 = GEO_INT2RAD(GRN_INT32_VALUE(value));
+          POP1(value);
+          lat1 = GEO_INT2RAD(GRN_INT32_VALUE(value));
+          POP1(value);
+          lng2 = GEO_INT2RAD(GRN_INT32_VALUE(value));
+          POP1ALLOC1(value, res);
+          lat2 = GEO_INT2RAD(GRN_INT32_VALUE(value));
           x = (lng2 - lng1) * cos((lat1 + lat2) * 0.5);
           y = (lat2 - lat1);
           d = sqrt((x * x) + (y * y)) * GEO_RADIOUS;
@@ -3066,16 +3101,16 @@ grn_expr_exec(grn_ctx *ctx, grn_obj *expr, int nargs)
         break;
       case GRN_OP_GEO_DISTANCE2 :
         {
-          grn_obj *e;
+          grn_obj *value;
           double lng1, lat1, lng2, lat2, x, y, d;
-          POP1(e);
-          lng1 = GEO_INT2RAD(GRN_INT32_VALUE(e));
-          POP1(e);
-          lat1 = GEO_INT2RAD(GRN_INT32_VALUE(e));
-          POP1(e);
-          lng2 = GEO_INT2RAD(GRN_INT32_VALUE(e));
-          POP1ALLOC1(e, res);
-          lat2 = GEO_INT2RAD(GRN_INT32_VALUE(e));
+          POP1(value);
+          lng1 = GEO_INT2RAD(GRN_INT32_VALUE(value));
+          POP1(value);
+          lat1 = GEO_INT2RAD(GRN_INT32_VALUE(value));
+          POP1(value);
+          lng2 = GEO_INT2RAD(GRN_INT32_VALUE(value));
+          POP1ALLOC1(value, res);
+          lat2 = GEO_INT2RAD(GRN_INT32_VALUE(value));
           x = sin(fabs(lng2 - lng1) * 0.5);
           y = sin(fabs(lat2 - lat1) * 0.5);
           d = asin(sqrt((y * y) + cos(lat1) * cos(lat2) * x * x)) * 2 * GEO_RADIOUS;
@@ -3087,16 +3122,16 @@ grn_expr_exec(grn_ctx *ctx, grn_obj *expr, int nargs)
         break;
       case GRN_OP_GEO_DISTANCE3 :
         {
-          grn_obj *e;
+          grn_obj *value;
           double lng1, lat1, lng2, lat2, p, q, m, n, x, y, d;
-          POP1(e);
-          lng1 = GEO_INT2RAD(GRN_INT32_VALUE(e));
-          POP1(e);
-          lat1 = GEO_INT2RAD(GRN_INT32_VALUE(e));
-          POP1(e);
-          lng2 = GEO_INT2RAD(GRN_INT32_VALUE(e));
-          POP1ALLOC1(e, res);
-          lat2 = GEO_INT2RAD(GRN_INT32_VALUE(e));
+          POP1(value);
+          lng1 = GEO_INT2RAD(GRN_INT32_VALUE(value));
+          POP1(value);
+          lat1 = GEO_INT2RAD(GRN_INT32_VALUE(value));
+          POP1(value);
+          lng2 = GEO_INT2RAD(GRN_INT32_VALUE(value));
+          POP1ALLOC1(value, res);
+          lat2 = GEO_INT2RAD(GRN_INT32_VALUE(value));
           p = (lat1 + lat2) * 0.5;
           q = (1 - GEO_BES_C3 * sin(p) * sin(p));
           m = GEO_BES_C1 / sqrt(q * q * q);
@@ -3112,16 +3147,16 @@ grn_expr_exec(grn_ctx *ctx, grn_obj *expr, int nargs)
         break;
       case GRN_OP_GEO_DISTANCE4 :
         {
-          grn_obj *e;
+          grn_obj *value;
           double lng1, lat1, lng2, lat2, p, q, m, n, x, y, d;
-          POP1(e);
-          lng1 = GEO_INT2RAD(GRN_INT32_VALUE(e));
-          POP1(e);
-          lat1 = GEO_INT2RAD(GRN_INT32_VALUE(e));
-          POP1(e);
-          lng2 = GEO_INT2RAD(GRN_INT32_VALUE(e));
-          POP1ALLOC1(e, res);
-          lat2 = GEO_INT2RAD(GRN_INT32_VALUE(e));
+          POP1(value);
+          lng1 = GEO_INT2RAD(GRN_INT32_VALUE(value));
+          POP1(value);
+          lat1 = GEO_INT2RAD(GRN_INT32_VALUE(value));
+          POP1(value);
+          lng2 = GEO_INT2RAD(GRN_INT32_VALUE(value));
+          POP1ALLOC1(value, res);
+          lat2 = GEO_INT2RAD(GRN_INT32_VALUE(value));
           p = (lat1 + lat2) * 0.5;
           q = (1 - GEO_GRS_C3 * sin(p) * sin(p));
           m = GEO_GRS_C1 / sqrt(q * q * q);
@@ -3138,26 +3173,26 @@ grn_expr_exec(grn_ctx *ctx, grn_obj *expr, int nargs)
       case GRN_OP_GEO_WITHINP5 :
         {
           int r;
-          grn_obj *e;
+          grn_obj *value;
           double lng0, lat0, lng1, lat1, x, y, d;
-          POP1(e);
-          lng0 = GEO_INT2RAD(GRN_INT32_VALUE(e));
-          POP1(e);
-          lat0 = GEO_INT2RAD(GRN_INT32_VALUE(e));
-          POP1(e);
-          lng1 = GEO_INT2RAD(GRN_INT32_VALUE(e));
-          POP1(e);
-          lat1 = GEO_INT2RAD(GRN_INT32_VALUE(e));
-          POP1ALLOC1(e, res);
+          POP1(value);
+          lng0 = GEO_INT2RAD(GRN_INT32_VALUE(value));
+          POP1(value);
+          lat0 = GEO_INT2RAD(GRN_INT32_VALUE(value));
+          POP1(value);
+          lng1 = GEO_INT2RAD(GRN_INT32_VALUE(value));
+          POP1(value);
+          lat1 = GEO_INT2RAD(GRN_INT32_VALUE(value));
+          POP1ALLOC1(value, res);
           x = (lng1 - lng0) * cos((lat0 + lat1) * 0.5);
           y = (lat1 - lat0);
           d = sqrt((x * x) + (y * y)) * GEO_RADIOUS;
-          switch (e->header.domain) {
+          switch (value->header.domain) {
           case GRN_DB_INT32 :
-            r = d <= GRN_INT32_VALUE(e);
+            r = d <= GRN_INT32_VALUE(value);
             break;
           case GRN_DB_FLOAT :
-            r = d <= GRN_FLOAT_VALUE(e);
+            r = d <= GRN_FLOAT_VALUE(value);
             break;
           default :
             r = 0;
@@ -3172,20 +3207,20 @@ grn_expr_exec(grn_ctx *ctx, grn_obj *expr, int nargs)
       case GRN_OP_GEO_WITHINP6 :
         {
           int r;
-          grn_obj *e;
+          grn_obj *value;
           double lng0, lat0, lng1, lat1, lng2, lat2, x, y, d;
-          POP1(e);
-          lng0 = GEO_INT2RAD(GRN_INT32_VALUE(e));
-          POP1(e);
-          lat0 = GEO_INT2RAD(GRN_INT32_VALUE(e));
-          POP1(e);
-          lng1 = GEO_INT2RAD(GRN_INT32_VALUE(e));
-          POP1(e);
-          lat1 = GEO_INT2RAD(GRN_INT32_VALUE(e));
-          POP1(e);
-          lng2 = GEO_INT2RAD(GRN_INT32_VALUE(e));
-          POP1ALLOC1(e, res);
-          lat2 = GEO_INT2RAD(GRN_INT32_VALUE(e));
+          POP1(value);
+          lng0 = GEO_INT2RAD(GRN_INT32_VALUE(value));
+          POP1(value);
+          lat0 = GEO_INT2RAD(GRN_INT32_VALUE(value));
+          POP1(value);
+          lng1 = GEO_INT2RAD(GRN_INT32_VALUE(value));
+          POP1(value);
+          lat1 = GEO_INT2RAD(GRN_INT32_VALUE(value));
+          POP1(value);
+          lng2 = GEO_INT2RAD(GRN_INT32_VALUE(value));
+          POP1ALLOC1(value, res);
+          lat2 = GEO_INT2RAD(GRN_INT32_VALUE(value));
           x = (lng1 - lng0) * cos((lat0 + lat1) * 0.5);
           y = (lat1 - lat0);
           d = (x * x) + (y * y);
@@ -3201,24 +3236,24 @@ grn_expr_exec(grn_ctx *ctx, grn_obj *expr, int nargs)
       case GRN_OP_GEO_WITHINP8 :
         {
           int r;
-          grn_obj *e;
+          grn_obj *value;
           int64_t ln0, la0, ln1, la1, ln2, la2, ln3, la3;
-          POP1(e);
-          ln0 = GRN_INT32_VALUE(e);
-          POP1(e);
-          la0 = GRN_INT32_VALUE(e);
-          POP1(e);
-          ln1 = GRN_INT32_VALUE(e);
-          POP1(e);
-          la1 = GRN_INT32_VALUE(e);
-          POP1(e);
-          ln2 = GRN_INT32_VALUE(e);
-          POP1(e);
-          la2 = GRN_INT32_VALUE(e);
-          POP1(e);
-          ln3 = GRN_INT32_VALUE(e);
-          POP1ALLOC1(e, res);
-          la3 = GRN_INT32_VALUE(e);
+          POP1(value);
+          ln0 = GRN_INT32_VALUE(value);
+          POP1(value);
+          la0 = GRN_INT32_VALUE(value);
+          POP1(value);
+          ln1 = GRN_INT32_VALUE(value);
+          POP1(value);
+          la1 = GRN_INT32_VALUE(value);
+          POP1(value);
+          ln2 = GRN_INT32_VALUE(value);
+          POP1(value);
+          la2 = GRN_INT32_VALUE(value);
+          POP1(value);
+          ln3 = GRN_INT32_VALUE(value);
+          POP1ALLOC1(value, res);
+          la3 = GRN_INT32_VALUE(value);
           r = ((ln2 <= ln0) && (ln0 <= ln3) && (la2 <= la0) && (la0 <= la3));
           GRN_INT32_SET(ctx, res, r);
           res->header.type = GRN_BULK;
@@ -3458,9 +3493,15 @@ grn_expr_exec(grn_ctx *ctx, grn_obj *expr, int nargs)
         break;
       case GRN_OP_GET_MEMBER :
         {
-          grn_obj *column_and_record_id, *index;
-          POP2ALLOC1(column_and_record_id, index, res);
-          grn_expr_exec_get_member(ctx, expr, column_and_record_id, index, res);
+          grn_obj *receiver, *index_or_key;
+          POP2ALLOC1(receiver, index_or_key, res);
+          if (receiver->header.type == GRN_PTR) {
+            grn_obj *index = index_or_key;
+            grn_expr_exec_get_member_vector(ctx, expr, receiver, index, res);
+          } else {
+            grn_obj *key = index_or_key;
+            grn_expr_exec_get_member_table(ctx, expr, receiver, key, res);
+          }
           code++;
         }
         break;
@@ -5996,7 +6037,7 @@ resolve_top_level_name(grn_ctx *ctx, const char *name, unsigned int name_size)
 }
 
 static grn_rc
-get_identifier(grn_ctx *ctx, efs_info *q)
+get_identifier(grn_ctx *ctx, efs_info *q, grn_obj *name_resolve_context)
 {
   const char *s;
   unsigned int len;
@@ -6072,6 +6113,14 @@ done :
     grn_obj *obj;
     const char *name = q->cur;
     unsigned int name_size = s - q->cur;
+    if (name_resolve_context) {
+      if ((obj = grn_obj_column(ctx, name_resolve_context, name, name_size))) {
+        grn_expr_take_obj(ctx, q->e, obj);
+        PARSE(GRN_EXPR_TOKEN_IDENTIFIER);
+        grn_expr_append_obj(ctx, q->e, obj, GRN_OP_GET_VALUE, 2);
+        goto exit;
+      }
+    }
     if ((obj = grn_expr_get_var(ctx, q->e, name, name_size))) {
       PARSE(GRN_EXPR_TOKEN_IDENTIFIER);
       grn_expr_append_obj(ctx, q->e, obj, GRN_OP_PUSH, 1);
@@ -6108,11 +6157,59 @@ set_tos_minor_to_curr(grn_ctx *ctx, efs_info *q)
   yytos->minor.yy0 = ((grn_expr *)(q->e))->codes_curr;
 }
 
+static grn_obj *
+parse_script_extract_name_resolve_context(grn_ctx *ctx, efs_info *q)
+{
+  grn_expr *expr = (grn_expr *)(q->e);
+  grn_expr_code *code_start;
+  grn_expr_code *code_last;
+
+  if (expr->codes_curr == 0) {
+    return NULL;
+  }
+
+  code_start = expr->codes;
+  code_last = code_start + (expr->codes_curr - 1);
+  switch (code_last->op) {
+  case GRN_OP_GET_MEMBER :
+    {
+      unsigned int n_used_codes_for_key;
+      grn_expr_code *code_key;
+      grn_expr_code *code_receiver;
+
+      code_key = code_last - 1;
+      if (code_key < code_start) {
+        return NULL;
+      }
+
+      n_used_codes_for_key = grn_expr_code_n_used_codes(ctx,
+                                                        code_start,
+                                                        code_key);
+      if (n_used_codes_for_key == 0) {
+        return NULL;
+      }
+      code_receiver = code_key - n_used_codes_for_key;
+      if (code_receiver < code_start) {
+        return NULL;
+      }
+      return code_receiver->value;
+    }
+    break;
+  default :
+    /* TODO: Support other operators. */
+    return NULL;
+    break;
+  }
+}
+
 static grn_rc
 parse_script(grn_ctx *ctx, efs_info *q)
 {
   grn_rc rc = GRN_SUCCESS;
+  grn_obj *name_resolve_context = NULL;
   for (;;) {
+    grn_obj *current_name_resolve_context = name_resolve_context;
+    name_resolve_context = NULL;
     skip_space(ctx, q);
     if (q->cur >= q->str_end) { rc = GRN_END_OF_DATA; goto exit; }
     switch (*q->cur) {
@@ -6150,6 +6247,7 @@ parse_script(grn_ctx *ctx, efs_info *q)
       break;
     case '.' :
       PARSE(GRN_EXPR_TOKEN_DOT);
+      name_resolve_context = parse_script_extract_name_resolve_context(ctx, q);
       q->cur++;
       break;
     case ':' :
@@ -6538,7 +6636,9 @@ parse_script(grn_ctx *ctx, efs_info *q)
       }
       break;
     default :
-      if ((rc = get_identifier(ctx, q))) { goto exit; }
+      if ((rc = get_identifier(ctx, q, current_name_resolve_context))) {
+        goto exit;
+      }
       break;
     }
     if (ctx->rc) { rc = ctx->rc; break; }

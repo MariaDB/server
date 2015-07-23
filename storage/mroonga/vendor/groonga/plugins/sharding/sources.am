@@ -2,4 +2,6 @@ sharding_scripts =				\
 	logical_count.rb			\
 	logical_enumerator.rb			\
 	logical_range_filter.rb			\
+	logical_select.rb			\
+	logical_table_remove.rb			\
 	range_expression_builder.rb

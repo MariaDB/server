@@ -27,6 +27,7 @@ namespace mrn {
     void decode(uint16 *dest, const uchar *source);
     void decode(float *dest, const uchar *source);
     void decode(double *dest, const uchar *source);
+    void decode(long long int *dest, const uchar *source);
   }
 }
 

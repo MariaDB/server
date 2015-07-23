@@ -22,28 +22,44 @@ if(GRN_WITH_MECAB)
   read_file_list(${CMAKE_CURRENT_SOURCE_DIR}/mecab_sources.am MECAB_SOURCES)
   include_directories(${MECAB_INCLUDE_DIRS})
   link_directories(${MECAB_LIBRARY_DIRS})
-  add_library(mecab_tokenizer MODULE ${MECAB_SOURCES})
   set_source_files_properties(${MECAB_SOURCES}
     PROPERTIES
     COMPILE_FLAGS "${GRN_C_COMPILE_FLAGS}")
-  set_target_properties(mecab_tokenizer PROPERTIES
-    PREFIX ""
-    OUTPUT_NAME "mecab")
+  if(GRN_EMBED)
+    add_library(mecab_tokenizer STATIC ${MECAB_SOURCES})
+    set_target_properties(
+      mecab_tokenizer
+      PROPERTIES
+      POSITION_INDEPENDENT_CODE ON)
+  else()
+    add_library(mecab_tokenizer MODULE ${MECAB_SOURCES})
+    set_target_properties(mecab_tokenizer PROPERTIES
+      PREFIX ""
+      OUTPUT_NAME "mecab")
+    install(TARGETS mecab_tokenizer DESTINATION "${TOKENIZERS_DIR}")
+  endif()
   target_link_libraries(mecab_tokenizer libgroonga ${MECAB_LIBRARIES})
-  install(TARGETS mecab_tokenizer DESTINATION "${TOKENIZERS_DIR}")
 endif()
 
 if(GRN_WITH_KYTEA)
   read_file_list(${CMAKE_CURRENT_SOURCE_DIR}/kytea_sources.am KYTEA_SOURCES)
   include_directories(${KYTEA_INCLUDE_DIRS})
   link_directories(${KYTEA_LIBRARY_DIRS})
-  add_library(kytea_tokenizer MODULE ${KYTEA_SOURCES})
   set_source_files_properties(${KYTEA_SOURCES}
     PROPERTIES
     COMPILE_FLAGS "${GRN_CXX_COMPILE_FLAGS}")
-  set_target_properties(kytea_tokenizer PROPERTIES
-    PREFIX ""
-    OUTPUT_NAME "kytea")
+  if(GRN_EMBED)
+    add_library(kytea_tokenizer STATIC ${KYTEA_SOURCES})
+    set_target_properties(
+      kytea_tokenizer
+      PROPERTIES
+      POSITION_INDEPENDENT_CODE ON)
+  else()
+    add_library(kytea_tokenizer MODULE ${KYTEA_SOURCES})
+    set_target_properties(kytea_tokenizer PROPERTIES
+      PREFIX ""
+      OUTPUT_NAME "kytea")
+    install(TARGETS kytea_tokenizer DESTINATION "${TOKENIZERS_DIR}")
+  endif()
   target_link_libraries(kytea_tokenizer libgroonga ${KYTEA_LIBRARIES})
-  install(TARGETS kytea_tokenizer DESTINATION "${TOKENIZERS_DIR}")
 endif()
