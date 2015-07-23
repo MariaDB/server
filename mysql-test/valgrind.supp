@@ -1282,3 +1282,26 @@
   fun:_dlerror_run
   fun:dlopen@@GLIBC_2.2.5
 }
+
+{
+   GitHub codership/galera#306
+   Memcheck:Leak
+   match-leak-kinds: definite
+   fun:malloc
+   fun:strdup
+   fun:_Z16wsrep_get_paramsRKN6galera10ReplicatorE
+   fun:galera_parameters_get
+   fun:_ZL24refresh_provider_optionsv
+   fun:_Z29wsrep_provider_options_updateP7sys_varP3THD13enum_var_type
+   fun:_ZN7sys_var6updateEP3THDP7set_var
+   fun:_ZN7set_var6updateEP3THD
+   fun:_Z17sql_set_variablesP3THDP4ListI12set_var_baseE
+   fun:_Z21mysql_execute_commandP3THD
+   fun:_Z11mysql_parseP3THDPcjP12Parser_state
+   fun:_ZL17wsrep_mysql_parseP3THDPcjP12Parser_state
+   fun:_Z16dispatch_command19enum_server_commandP3THDPcj
+   fun:_Z10do_commandP3THD
+   fun:_Z24do_handle_one_connectionP3THD
+   fun:handle_one_connection
+}
+
