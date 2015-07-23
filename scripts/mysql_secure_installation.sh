@@ -204,7 +204,7 @@ prepare() {
 do_query() {
     echo "$1" >$command
     #sed 's,^,> ,' < $command  # Debugging
-    $mysql_command --defaults-file=$config <$command
+    $mysql_command --defaults-file=$config $args <$command
     return $?
 }
 
