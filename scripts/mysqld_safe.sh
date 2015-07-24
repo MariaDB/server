@@ -20,9 +20,11 @@ mysqld_ld_preload=
 mysqld_ld_library_path=
 flush_caches=0
 numa_interleave=0
+simulate=0
 
 # Initial logging status: error log is not open, and not using syslog
 logging=init
+mysqld_safe_logging=init
 want_syslog=0
 syslog_tag=
 user='@MYSQLD_USER@'
@@ -80,6 +82,7 @@ Usage: $0 [OPTIONS]
   --malloc-lib=LIB           Preload shared library LIB if available
   --mysqld=FILE              Use the specified file as mysqld
   --mysqld-version=VERSION   Use "mysqld-VERSION" as mysqld
+  --simulate                 Simulate the start to detect errors but don't start
   --nice=NICE                Set the scheduling priority of mysqld
   --no-auto-restart          Exit after starting mysqld
   --nowatch                  Exit after starting mysqld
@@ -135,7 +138,7 @@ log_generic () {
 
   msg="`date +'%y%m%d %H:%M:%S'` mysqld_safe $*"
   echo "$msg"
-  case $logging in
+  case $mysqld_safe_logging in
     init) ;;  # Just echo the message, don't save it anywhere
     file) echo "$msg" >> "$err_log" ;;
     syslog) logger -t "$syslog_tag_mysqld_safe" -p "$priority" "$*" ;;
@@ -234,6 +237,7 @@ parse_arguments() {
           MYSQLD="mysqld"
         fi
         ;;
+      --simulate) simulate=1 ;;
       --nice=*) niceness="$val" ;;
       --nowatch|--no[-_]watch|--no[-_]auto[-_]restart) nowatch=1 ;;
       --open[-_]files[-_]limit=*) open_files="$val" ;;
@@ -606,7 +610,11 @@ then
   fi
 
   # Log to err_log file
-  log_notice "Logging to '$err_log'."
+  if [ $simulate -eq 0 ]
+  then
+    log_notice "Logging to '$err_log'."
+    mysqld_safe_logging=file
+  fi
   logging=file
 
   if [ ! -f "$err_log" ]; then                  # if error log already exists,
@@ -622,7 +630,11 @@ else
     syslog_tag_mysqld_safe="${syslog_tag_mysqld_safe}-$syslog_tag"
     syslog_tag_mysqld="${syslog_tag_mysqld}-$syslog_tag"
   fi
-  log_notice "Logging to syslog."
+  if [ $simulate -eq 0 ]
+  then
+    log_notice "Logging to syslog."
+    mysqld_safe_logging=syslog
+  fi
   logging=syslog
 fi
 
@@ -634,7 +646,7 @@ then
     USER_OPTION="--user=$user"
   fi
   # Change the err log to the right user, if it is in use
-  if [ $want_syslog -eq 0 ]; then
+  if [ $simulate -eq 0 -a $want_syslog -eq 0 ]; then
     touch "$err_log"
     chown $user "$err_log"
   fi
@@ -652,7 +664,7 @@ fi
 safe_mysql_unix_port=${mysql_unix_port:-${MYSQL_UNIX_PORT:-@MYSQL_UNIX_ADDR@}}
 # Make sure that directory for $safe_mysql_unix_port exists
 mysql_unix_port_dir=`dirname $safe_mysql_unix_port`
-if [ ! -d $mysql_unix_port_dir ]
+if [ $simulate -eq 0 -a ! -d $mysql_unix_port_dir ]
 then
   if ! `mkdir -p $mysql_unix_port_dir`
   then
@@ -676,7 +688,7 @@ does not exist or is not executable. Please cd to the mysql installation
 directory and restart this script from there as follows:
 ./bin/mysqld_safe&
 See http://dev.mysql.com/doc/mysql/en/mysqld-safe.html for more information"
-  exit 1
+  [ $simulate -eq 0 ] && exit 1
 fi
 
 if test -z "$pid_file"
@@ -761,7 +773,7 @@ fi
 #
 # If there exists an old pid file, check if the daemon is already running
 # Note: The switches to 'ps' may depend on your operating system
-if test -f "$pid_file"
+if test -f "$pid_file" && [ $simulate -eq 0 ]
 then
   PID=`cat "$pid_file"`
   if @CHECK_PID@
@@ -807,7 +819,7 @@ then
     log_error "sysctl command not found, required for --flush-caches"
     exit 1
   # Purge page cache, dentries and inodes.
-  elif ! sysctl -q -w vm.drop_caches=3
+  elif [ $simulate -eq 0 ] && ! sysctl -q -w vm.drop_caches=3
   then
     log_error "sysctl failed, check the error message for details"
     exit 1
@@ -836,7 +848,12 @@ fi
 #  ulimit -n 256 > /dev/null 2>&1		# Fix for BSD and FreeBSD systems
 #fi
 
-cmd="`mysqld_ld_preload_text`$NOHUP_NICENESS"
+if [ $simulate -eq 0 ]
+then
+  cmd="`mysqld_ld_preload_text`$NOHUP_NICENESS"
+else
+  cmd=''
+fi
 
 #
 # Set mysqld's memory interleave policy.
@@ -856,7 +873,7 @@ then
   fi
 
   # Launch mysqld with numactl.
-  cmd="$cmd numactl --interleave=all"
+  [ $simulate -eq 0 ] && cmd="$cmd numactl --interleave=all"
 elif test $numa_interleave -eq 1
 then
   log_error "--numa-interleave is not supported on this platform"
@@ -870,9 +887,9 @@ do
 done
 cmd="$cmd $args"
 # Avoid 'nohup: ignoring input' warning
-test -n "$NOHUP_NICENESS" && cmd="$cmd < /dev/null"
+[ -n "$NOHUP_NICENESS" -a $simulate -eq 0 ] && cmd="$cmd < /dev/null"
 
-log_notice "Starting $MYSQLD daemon with databases from $DATADIR"
+[ $simulate -eq 0 ] && log_notice "Starting $MYSQLD daemon with databases from $DATADIR"
 
 # variable to track the current number of "fast" (a.k.a. subsecond) restarts
 fast_restart=0
@@ -883,13 +900,15 @@ have_sleep=1
 
 while true
 do
+  [ $simulate ] && break;
+
   rm -f "$pid_file"	# Some extra safety
 
   start_time=`date +%M%S`
 
   eval_log_error "$cmd"
 
-  if [ $want_syslog -eq 0 -a ! -f "$err_log" ]; then
+  if [ $simulate -eq 0 -a  $want_syslog -eq 0 -a ! -f "$err_log" ]; then
     touch "$err_log"                    # hypothetical: log was renamed but not
     chown $user "$err_log"              # flushed yet. we'd recreate it with
     chmod "$fmode" "$err_log"           # wrong owner next time we log, so set
@@ -965,5 +984,5 @@ do
   fi
 done
 
-log_notice "mysqld from pid file $pid_file ended"
+[ $simulate -eq 0 ] && log_notice "mysqld from pid file $pid_file ended"
 

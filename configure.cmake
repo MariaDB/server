@@ -161,6 +161,33 @@ IF(UNIX)
       SET(LIBWRAP "wrap")
     ENDIF()
   ENDIF()
+
+  SET(WITH_SYSTEMD "auto" CACHE STRING "Compile with systemd notification on ready")
+  IF(NOT ${WITH_SYSTEMD} MATCHES "[Nn][Oo]")
+    SET(CMAKE_REQUIRED_LIBRARIES ${CMAKE_REQUIRED_LIBRARIES} systemd-daemon)
+    CHECK_C_SOURCE_COMPILES(
+    "
+    #include <systemd/sd-daemon.h>
+    int main()
+    {
+      sd_listen_fds(0);
+    }"
+    HAVE_SYSTEMD)
+    CHECK_INCLUDE_FILES (systemd/sd-daemon.h HAVE_SYSTEMD_SD_DAEMON_H)
+    CHECK_FUNCTION_EXISTS (sd_listen_fds HAVE_SYSTEMD_SD_LISTEN_FDS)
+    CHECK_FUNCTION_EXISTS (sd_notify HAVE_SYSTEMD_SD_NOTIFY)
+    CHECK_FUNCTION_EXISTS (sd_notifyf HAVE_SYSTEMD_SD_NOTIFYF)
+    IF(HAVE_SYSTEMD AND HAVE_SYSTEMD_SD_DAEMON_H AND HAVE_SYSTEMD_SD_LISTEN_FDS
+       AND HAVE_SYSTEMD_SD_NOTIFY AND HAVE_SYSTEMD_SD_NOTIFYF)
+      SET(LIBSYSTEMD "systemd-daemon")
+      MESSAGE(STATUS "Systemd features enabled")
+    ELSE()
+      MESSAGE(STATUS "Systemd features not enabled")
+      IF(${WITH_SYSTEMD} MATCHES "[Yy][Ee][Ss]")
+        MESSAGE(FATAL_ERROR "Requested WITH_SYSTEMD=YES however no dependencies installed/found")
+      ENDIF()
+    ENDIF()
+  ENDIF()
 ENDIF()
 
 #

@@ -9,7 +9,8 @@ Build-Depends: procps | hurd, debhelper, libncurses5-dev (>= 5.0-6),
                zlib1g-dev (>= 1:1.1.3-5), ${LIBREADLINE_DEV},
                libssl-dev, libpam0g-dev, psmisc, po-debconf, chrpath,
                dpatch, gawk, bison, lsb-release, hardening-wrapper,
-               ${CMAKE_DEP}libaio-dev, libjemalloc-dev (>= 3.0.0)
+               ${CMAKE_DEP}libaio-dev, libjemalloc-dev (>= 3.0.0),
+               libsystemd-daemon-dev, dh-systemd
 Standards-Version: 3.8.2
 Homepage: http://mariadb.org/
 Vcs-Browser: http://bazaar.launchpad.net/~maria-captains/maria/10.0/files
@@ -162,6 +163,7 @@ Description: MariaDB database client binaries
 Package: mariadb-server-core-10.0
 Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends}, libmariadbclient18 (>= ${binary:Version})
+    libsystemd-daemon0
 Provides: mysql-server-core, mysql-server-core-5.1, mysql-server-core-5.5
 Conflicts: mysql-server-5.0, mysql-server-core-5.0,
     mariadb-server-core-5.1, mysql-server-core-5.1,
