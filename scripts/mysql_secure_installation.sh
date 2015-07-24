@@ -25,6 +25,9 @@ echo_n=
 echo_c=
 basedir=
 bindir=
+defaults_file=
+defaults_extra_file=
+no_defaults=
 
 parse_arg()
 {
@@ -47,8 +50,9 @@ parse_arguments()
   do
     case "$arg" in
       --basedir=*) basedir=`parse_arg "$arg"` ;;
-      --no-defaults|--defaults-file=*|--defaults-extra-file=*)
-        defaults="$arg" ;;
+      --defaults-file=*) defaults_file=`parse_arg "$arg"` ;;
+      --defaults-extra-file=*) defaults_extra_file="$arg" ;;
+      --no-defaults) no_defaults="$arg" ;;
       *)
         if test -n "$pick_args"
         then
@@ -204,7 +208,7 @@ prepare() {
 do_query() {
     echo "$1" >$command
     #sed 's,^,> ,' < $command  # Debugging
-    $mysql_command --defaults-file=$config $args <$command
+    $mysql_command --defaults-file=$config $defaults_extra_file $no_defaults $args <$command
     return $?
 }
 
@@ -235,6 +239,11 @@ make_config() {
     esc_pass=`basic_single_escape "$rootpass"`
     echo "password='$esc_pass'" >>$config
     #sed 's,^,> ,' < $config  # Debugging
+
+    if test -n "$defaults_file"
+    then
+        cat "$defaults_file" >>$config
+    fi
 }
 
 get_root_password() {
