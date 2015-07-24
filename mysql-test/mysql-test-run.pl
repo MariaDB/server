@@ -2686,15 +2686,18 @@ sub setup_vardir() {
   {
     $plugindir="$opt_vardir/plugins";
     mkpath($plugindir);
-    if (IS_WINDOWS && !$opt_embedded_server)
+    if (IS_WINDOWS)
     {
-      for (<$bindir/storage/*$opt_vs_config/*.dll>,
-           <$bindir/plugin/*$opt_vs_config/*.dll>,
-           <$bindir/sql$opt_vs_config/*.dll>)
+      if (!$opt_embedded_server)
       {
-        my $pname=basename($_);
-        copy rel2abs($_), "$plugindir/$pname";
-        set_plugin_var($pname);
+        for (<$bindir/storage/*$opt_vs_config/*.dll>,
+             <$bindir/plugin/*$opt_vs_config/*.dll>,
+             <$bindir/sql$opt_vs_config/*.dll>)
+        {
+          my $pname=basename($_);
+          copy rel2abs($_), "$plugindir/$pname";
+          set_plugin_var($pname);
+        }
       }
     }
     else
