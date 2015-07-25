@@ -5690,6 +5690,14 @@ int ha_connect::create(const char *name, TABLE *table_arg,
   PGLOBAL g= xp->g;
 
   DBUG_ENTER("ha_connect::create");
+  /*
+    This assignment fixes test failures if some
+    "ALTER TABLE t1 ADD KEY(a)" query exits on ER_ACCESS_DENIED_ERROR
+    (e.g. on missing FILE_ACL). All following "CREATE TABLE" failed with
+    "ERROR 1105: CONNECT index modification should be in-place"
+    TODO: check with Olivier.
+  */
+  g->Xchk= NULL;
   int  sqlcom= thd_sql_command(table_arg->in_use);
   PTOS options= GetTableOptionStruct(table_arg->s);
 
