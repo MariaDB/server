@@ -1114,7 +1114,7 @@ int GetIntegerTableOption(PGLOBAL g, PTOS options, char *opname, int idef)
   else if (!stricmp(opname, "Compressed"))
     opval= (options->compressed);
 
-  if (opval == NO_IVAL) {
+  if (opval == (ulonglong)NO_IVAL) {
     char *pv;
 
     if ((pv= GetListOption(g, opname, options->oplist)))
@@ -4427,14 +4427,15 @@ int ha_connect::external_lock(THD *thd, int lock_type)
     xmod= MODE_ANY;              // For info commands
     DBUG_RETURN(rc);
     } // endif MODE_ANY
-
-  DBUG_ASSERT(table && table->s);
-
+  else
   if (check_privileges(thd, options, table->s->db.str)) {
     strcpy(g->Message, "This operation requires the FILE privilege");
     htrc("%s\n", g->Message);
     DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
     } // endif check_privileges
+
+
+  DBUG_ASSERT(table && table->s);
 
   // Table mode depends on the query type
   newmode= CheckMode(g, thd, newmode, &xcheck, &cras);
@@ -5028,7 +5029,7 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
   char       *nsp= NULL, *cls= NULL;
 #endif   // __WIN__
   int         port= 0, hdr= 0, mxr= 0, mxe= 0, rc= 0;
-  int         cop __attribute__((unused))= 0, lrecl= 0;
+  int         cop __attribute__((unused))= 0;
 #if defined(ODBC_SUPPORT)
   POPARM      sop = NULL;
   char       *ucnc = NULL;
@@ -5074,7 +5075,6 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
   hdr= (int)topt->header;
   tbl= topt->tablist;
   col= topt->colist;
-  lrecl= (int)topt->lrecl;
 
   if (topt->oplist) {
     host= GetListOption(g, "host", topt->oplist, "localhost");
