@@ -50,7 +50,7 @@ parse_arguments()
   do
     case "$arg" in
       --basedir=*) basedir=`parse_arg "$arg"` ;;
-      --defaults-file=*) defaults_file=`parse_arg "$arg"` ;;
+      --defaults-file=*) defaults_file="$arg" ;;
       --defaults-extra-file=*) defaults_extra_file="$arg" ;;
       --no-defaults) no_defaults="$arg" ;;
       *)
@@ -171,7 +171,7 @@ fi
 
 # Now we can get arguments from the group [client] and [client-server]
 # in the my.cfg file, then re-run to merge with command line arguments.
-parse_arguments `$print_defaults $defaults client client-server client-mariadb`
+parse_arguments `$print_defaults $defaults_file $defaults_extra_file $no_defaults client client-server client-mariadb`
 parse_arguments PICK-ARGS-FROM-ARGV "$@"
 
 # Configure paths to support files
@@ -232,6 +232,10 @@ basic_single_escape () {
     echo "$1" | sed 's/\(['"'"'\]\)/\\\1/g'
 }
 
+#
+# create a simple my.cnf file to be able to pass the root password to the mysql
+# client without putting it on the command line
+#
 make_config() {
     echo "# mysql_secure_installation config file" >$config
     echo "[mysql]" >>$config
@@ -242,7 +246,8 @@ make_config() {
 
     if test -n "$defaults_file"
     then
-        cat "$defaults_file" >>$config
+        dfile=`parse_arg "$defaults_file"`
+        cat "$dfile" >>$config
     fi
 }
 
