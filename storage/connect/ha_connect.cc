@@ -4020,7 +4020,27 @@ bool ha_connect::check_privileges(THD *thd, PTOS options, char *dbn)
     case TAB_MAC:
     case TAB_WMI:
     case TAB_OEM:
-      return check_access(thd, FILE_ACL, db, NULL, NULL, 0, 0);
+#ifdef NO_EMBEDDED_ACCESS_CHECKS
+      return false;
+#endif
+      /*
+        If table or table->mdl_ticket is NULL - it's a DLL, e.g. CREATE TABLE.
+        if the table has an MDL_EXCLUSIVE lock - it's a DDL too, e.g. the
+        insert step of CREATE ... SELECT.
+
+        Otherwise it's a DML, the table was normally opened, locked,
+        privilege were already checked, and table->grant.privilege is set.
+        With SQL SECURITY DEFINER, table->grant.privilege has definer's privileges.
+      */
+      if (!table || !table->mdl_ticket || table->mdl_ticket->get_type() == MDL_EXCLUSIVE)
+        return check_access(thd, FILE_ACL, db, NULL, NULL, 0, 0);
+      if (table->grant.privilege & FILE_ACL)
+        return false;
+      status_var_increment(thd->status_var.access_denied_errors);
+      my_error(access_denied_error_code(thd->password), MYF(0),
+               thd->security_ctx->priv_user, thd->security_ctx->priv_host,
+               (thd->password ?  ER(ER_YES) : ER(ER_NO)));
+      return true;
 
     // This is temporary until a solution is found
     case TAB_TBL:
@@ -6158,10 +6178,6 @@ bool ha_connect::FileExists(const char *fn, bool bf)
     bool  b= false;
     int   n;
     struct stat info;
-
-    if (check_access(ha_thd(), FILE_ACL, table->s->db.str,
-                     NULL, NULL, 0, 0))
-      return true;
 
 #if defined(__WIN__)
     s= "\\";
