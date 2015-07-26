@@ -6384,9 +6384,10 @@ int MYSQL_BIN_LOG::write_cache(THD *thd, IO_CACHE *cache)
   long val;
   ulong end_log_pos_inc= 0; // each event processed adds BINLOG_CHECKSUM_LEN 2 t
   uchar header[LOG_EVENT_HEADER_LEN];
-  ha_checksum crc= 0, crc_0= 0; // assignments to keep compiler happy
+  ha_checksum crc= 0, crc_0= 0;
   my_bool do_checksum= (binlog_checksum_options != BINLOG_CHECKSUM_ALG_OFF);
   uchar buf[BINLOG_CHECKSUM_LEN];
+  DBUG_ENTER("MYSQL_BIN_LOG::write_cache");
 
   // while there is just one alg the following must hold:
   DBUG_ASSERT(!do_checksum ||
@@ -6408,9 +6409,7 @@ int MYSQL_BIN_LOG::write_cache(THD *thd, IO_CACHE *cache)
 
   group= (uint)my_b_tell(&log_file);
   hdr_offs= carry= 0;
-  if (do_checksum)
-    crc= crc_0= my_checksum(0L, NULL, 0);
-
+  
   do
   {
     /*
@@ -6439,7 +6438,7 @@ int MYSQL_BIN_LOG::write_cache(THD *thd, IO_CACHE *cache)
 
       /* write the first half of the split header */
       if (my_b_write(&log_file, header, carry))
-        return ER_ERROR_ON_WRITE;
+        DBUG_RETURN(ER_ERROR_ON_WRITE);
       status_var_add(thd->status_var.binlog_bytes_written, carry);
 
       /*
@@ -6483,12 +6482,12 @@ int MYSQL_BIN_LOG::write_cache(THD *thd, IO_CACHE *cache)
         crc= my_checksum(crc, cache->read_pos, length); 
         remains -= length;
         if (my_b_write(&log_file, cache->read_pos, length))
-          return ER_ERROR_ON_WRITE;
+          DBUG_RETURN(ER_ERROR_ON_WRITE);
         if (remains == 0)
         {
           int4store(buf, crc);
           if (my_b_write(&log_file, buf, BINLOG_CHECKSUM_LEN))
-            return ER_ERROR_ON_WRITE;
+            DBUG_RETURN(ER_ERROR_ON_WRITE);
           crc= crc_0;
         }
       }
@@ -6515,7 +6514,7 @@ int MYSQL_BIN_LOG::write_cache(THD *thd, IO_CACHE *cache)
             DBUG_ASSERT(remains == 0);
             if (my_b_write(&log_file, cache->read_pos, hdr_offs) ||
                 my_b_write(&log_file, buf, BINLOG_CHECKSUM_LEN))
-              return ER_ERROR_ON_WRITE;
+              DBUG_RETURN(ER_ERROR_ON_WRITE);
             crc= crc_0;
           }
         }
@@ -6547,12 +6546,12 @@ int MYSQL_BIN_LOG::write_cache(THD *thd, IO_CACHE *cache)
                                        length, &crc);
             if (my_b_write(&log_file, ev, 
                            remains == 0 ? event_len : length - hdr_offs))
-              return ER_ERROR_ON_WRITE;
+              DBUG_RETURN(ER_ERROR_ON_WRITE);
             if (remains == 0)
             {
               int4store(buf, crc);
               if (my_b_write(&log_file, buf, BINLOG_CHECKSUM_LEN))
-                return ER_ERROR_ON_WRITE;
+                DBUG_RETURN(ER_ERROR_ON_WRITE);
               crc= crc_0; // crc is complete
             }
           }
@@ -6577,10 +6576,10 @@ int MYSQL_BIN_LOG::write_cache(THD *thd, IO_CACHE *cache)
 
     /* Write data to the binary log file */
     DBUG_EXECUTE_IF("fail_binlog_write_1",
-                    errno= 28; return ER_ERROR_ON_WRITE;);
+                    errno= 28; DBUG_RETURN(ER_ERROR_ON_WRITE););
     if (!do_checksum)
       if (my_b_write(&log_file, cache->read_pos, length))
-        return ER_ERROR_ON_WRITE;
+        DBUG_RETURN(ER_ERROR_ON_WRITE);
     status_var_add(thd->status_var.binlog_bytes_written, length);
 
     cache->read_pos=cache->read_end;		// Mark buffer used up
@@ -6590,7 +6589,7 @@ int MYSQL_BIN_LOG::write_cache(THD *thd, IO_CACHE *cache)
   DBUG_ASSERT(!do_checksum || remains == 0);
   DBUG_ASSERT(!do_checksum || crc == crc_0);
 
-  return 0;                                     // All OK
+  DBUG_RETURN(0);                               // All OK
 }
 
 /*
