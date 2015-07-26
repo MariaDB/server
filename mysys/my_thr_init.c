@@ -372,6 +372,8 @@ void my_thread_end(void)
       mysql_cond_signal(&THR_COND_threads);
     mysql_mutex_unlock(&THR_LOCK_threads);
 
+    /* Trash variable so that we can detect false accesses to my_thread_var */
+    tmp->init= 2;
     TRASH(tmp, sizeof(*tmp));
     free(tmp);
   }
