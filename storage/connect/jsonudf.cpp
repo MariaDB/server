@@ -261,7 +261,7 @@ static PJVAL MakeValue(PGLOBAL g, UDF_ARGS *args, int i)
 
       break;
     case INT_RESULT:
-      jvp->SetInteger(g, *(int*)sap);
+      jvp->SetInteger(g, (int)*(long long*)sap);
       break;
     case REAL_RESULT:
       jvp->SetFloat(g, *(double*)sap);
