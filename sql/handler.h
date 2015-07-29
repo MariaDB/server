@@ -1233,13 +1233,7 @@ struct handlerton
    enum handler_create_iterator_result
      (*create_iterator)(handlerton *hton, enum handler_iterator_type type,
                         struct handler_iterator *fill_this_in);
-#ifdef WITH_WSREP
-   int (*wsrep_abort_transaction)(handlerton *hton, THD *bf_thd, 
-				  THD *victim_thd, my_bool signal);
-   int (*wsrep_set_checkpoint)(handlerton *hton, const XID* xid);
-   int (*wsrep_get_checkpoint)(handlerton *hton, XID* xid);
-   void (*wsrep_fake_trx_id)(handlerton *hton, THD *thd);
-#endif /* WITH_WSREP */
+
    /*
      Optional clauses in the CREATE/ALTER TABLE
    */
@@ -1352,6 +1346,14 @@ struct handlerton
    */
    int (*discover_table_structure)(handlerton *hton, THD* thd,
                                    TABLE_SHARE *share, HA_CREATE_INFO *info);
+
+#ifdef WITH_WSREP
+   int (*wsrep_abort_transaction)(handlerton *hton, THD *bf_thd,
+                                  THD *victim_thd, my_bool signal);
+   int (*wsrep_set_checkpoint)(handlerton *hton, const XID* xid);
+   int (*wsrep_get_checkpoint)(handlerton *hton, XID* xid);
+   void (*wsrep_fake_trx_id)(handlerton *hton, THD *thd);
+#endif /* WITH_WSREP */
 };
 
 
