@@ -1,5 +1,5 @@
 /* -*- c-basic-offset: 2 -*- */
-/* Copyright(C) 2012 Brazil
+/* Copyright(C) 2012-2015 Brazil
 
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -15,6 +15,10 @@
   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 */
 
+#ifdef GRN_EMBEDDED
+#  define GRN_PLUGIN_FUNCTION_TAG query_expanders_tsv
+#endif
+
 /* groonga's internal headers */
 /* for grn_text_fgets(): We don't want to require stdio.h for groonga.h.
    What should we do? Should we split header file such as groonga/stdio.h? */
@@ -24,6 +28,10 @@
 
 #include <stdio.h>
 #include <string.h>
+
+#ifdef WIN32
+# include <share.h>
+#endif /* WIN32 */
 
 #ifdef HAVE__STRNICMP
 # ifdef strncasecmp
@@ -37,24 +45,20 @@
 static grn_hash *synonyms = NULL;
 
 #ifdef WIN32
-static char *win32_synonyms_file = NULL;
+static char win32_synonyms_file[MAX_PATH] = "";
 const char *
 get_system_synonyms_file(void)
 {
-  if (!win32_synonyms_file) {
+  if (win32_synonyms_file[0] == '\0') {
     const char *base_dir;
     const char *relative_path = GRN_QUERY_EXPANDER_TSV_RELATIVE_SYNONYMS_FILE;
-    char *synonyms_file;
     size_t base_dir_length;
 
     base_dir = grn_plugin_win32_base_dir();
     base_dir_length = strlen(base_dir);
-    synonyms_file =
-      malloc(base_dir_length + strlen("/") + strlen(relative_path) + 1);
-    strcpy(synonyms_file, base_dir);
-    strcat(synonyms_file, "/");
-    strcat(synonyms_file, relative_path);
-    win32_synonyms_file = synonyms_file;
+    grn_strcpy(win32_synonyms_file, MAX_PATH, base_dir);
+    grn_strcat(win32_synonyms_file, MAX_PATH, "/");
+    grn_strcat(win32_synonyms_file, MAX_PATH, relative_path);
   }
   return win32_synonyms_file;
 }
@@ -182,26 +186,35 @@ parse_synonyms_file_line(grn_ctx *ctx, const char *line, int line_length,
       return;
     }
 
-    grn_bulk_truncate(ctx, value, MAX_SYNONYM_BYTES - 1);
-    GRN_TEXT_PUTC(ctx, value, '\0');
-    memcpy(value_location, GRN_TEXT_VALUE(value), MAX_SYNONYM_BYTES);
+    if (GRN_TEXT_LEN(value) <= MAX_SYNONYM_BYTES - 1) {
+      GRN_TEXT_PUTC(ctx, value, '\0');
+    } else {
+      grn_bulk_truncate(ctx, value, MAX_SYNONYM_BYTES - 1);
+      GRN_TEXT_PUTC(ctx, value, '\0');
+    }
+    grn_memcpy(value_location, GRN_TEXT_VALUE(value), GRN_TEXT_LEN(value));
   }
 }
 
 static void
 load_synonyms(grn_ctx *ctx)
 {
+  static char path_env[GRN_ENV_BUFFER_SIZE];
   const char *path;
   FILE *file;
   int number_of_lines;
   grn_encoding encoding;
   grn_obj line, key, value;
 
-  path = getenv("GRN_QUERY_EXPANDER_TSV_SYNONYMS_FILE");
-  if (!path) {
+  grn_getenv("GRN_QUERY_EXPANDER_TSV_SYNONYMS_FILE",
+             path_env,
+             GRN_ENV_BUFFER_SIZE);
+  if (path_env[0]) {
+    path = path_env;
+  } else {
     path = get_system_synonyms_file();
   }
-  file = fopen(path, "r");
+  file = grn_fopen(path, "r");
   if (!file) {
     GRN_LOG(ctx, GRN_LOG_WARNING,
             "[plugin][query-expander][tsv] "
@@ -219,6 +232,13 @@ load_synonyms(grn_ctx *ctx)
     const char *line_value = GRN_TEXT_VALUE(&line);
     size_t line_length = GRN_TEXT_LEN(&line);
 
+    if (line_length > 0 && line_value[line_length - 1] == '\n') {
+      if (line_length > 1 && line_value[line_length - 2] == '\r') {
+        line_length -= 2;
+      } else {
+        line_length -= 1;
+      }
+    }
     number_of_lines++;
     if (number_of_lines == 1) {
       encoding = guess_encoding(ctx, &line_value, &line_length);

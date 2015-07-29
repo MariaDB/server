@@ -1,0 +1,14 @@
+--source include/have_innodb.inc
+--source include/have_debug.inc
+--source include/not_valgrind.inc
+--source include/word_size.inc
+
+--vertical_results
+--replace_regex /^\/\S+/PATH/ /\.\//PATH/
+select * from information_schema.system_variables
+  where variable_name like 'innodb%' and
+  variable_name not in (
+    'innodb_disallow_writes',           # only available WITH_WSREP
+    'innodb_sched_priority_cleaner',    # linux only
+    'innodb_use_native_aio')            # default value depends on OS
+  order by variable_name;

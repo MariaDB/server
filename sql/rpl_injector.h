@@ -117,8 +117,8 @@ public:
       class table 
       {
       public:
-        table(TABLE *table, bool is_transactional) 
-            : m_table(table), m_is_transactional(is_transactional)
+        table(TABLE *table, bool is_transactional_arg)
+            : m_table(table), m_is_transactional(is_transactional_arg)
         { 
         }
 
@@ -179,27 +179,6 @@ public:
 
        */
       int use_table(server_id_type sid, table tbl);
-
-      /*
-        Add a 'write row' entry to the transaction.
-      */
-      int write_row (server_id_type sid, table tbl, 
-                     MY_BITMAP const *cols, size_t colcnt,
-                     record_type record);
-
-      /*
-        Add a 'delete row' entry to the transaction.
-      */
-      int delete_row(server_id_type sid, table tbl, 
-                     MY_BITMAP const *cols, size_t colcnt,
-                     record_type record);
-
-      /*
-        Add an 'update row' entry to the transaction.
-      */
-      int update_row(server_id_type sid, table tbl, 
-                     MY_BITMAP const *cols, size_t colcnt,
-                     record_type before, record_type after);
 
       /*
         Commit a transaction.

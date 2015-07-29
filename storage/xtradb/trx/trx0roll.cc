@@ -29,6 +29,8 @@ Created 3/26/1996 Heikki Tuuri
 #include "trx0roll.ic"
 #endif
 
+#include <mysql/service_wsrep.h>
+
 #include "fsp0fsp.h"
 #include "mach0data.h"
 #include "trx0rseg.h"
@@ -45,10 +47,16 @@ Created 3/26/1996 Heikki Tuuri
 #include "pars0pars.h"
 #include "srv0mon.h"
 #include "trx0sys.h"
+#ifdef WITH_WSREP
+#include "ha_prototypes.h"
+#endif /* WITH_WSREP */
 
 /** This many pages must be undone before a truncate is tried within
 rollback */
 #define TRX_ROLL_TRUNC_THRESHOLD	1
+
+/** true if trx_rollback_or_clean_all_recovered() thread is active */
+bool			trx_rollback_or_clean_is_active;
 
 /** In crash recovery, the current trx to be rolled back; NULL otherwise */
 static const trx_t*	trx_roll_crash_recv_trx	= NULL;
@@ -371,6 +379,13 @@ trx_rollback_to_savepoint_for_mysql_low(
 
 	trx->op_info = "";
 
+#ifdef WITH_WSREP
+	if (wsrep_on(trx->mysql_thd) &&
+	    trx->lock.was_chosen_as_deadlock_victim) {
+		trx->lock.was_chosen_as_deadlock_victim = FALSE;
+	}
+#endif
+
 	return(err);
 }
 
@@ -492,7 +507,7 @@ trx_release_savepoint_for_mysql(
 {
 	trx_named_savept_t*	savep;
 
-	ut_ad(trx_state_eq(trx, TRX_STATE_ACTIVE));
+	ut_ad(trx_state_eq(trx, TRX_STATE_ACTIVE) || trx_state_eq(trx, TRX_STATE_PREPARED));
 	ut_ad(trx->in_mysql_trx_list);
 
 	savep = trx_savepoint_find(trx, savepoint_name);
@@ -805,6 +820,8 @@ DECLARE_THREAD(trx_rollback_or_clean_all_recovered)(
 
 	trx_rollback_or_clean_recovered(TRUE);
 
+	trx_rollback_or_clean_is_active = false;
+
 	/* We count the number of threads in os_thread_exit(). A created
 	thread should always use that to exit and not use return() to exit. */
 
@@ -1009,6 +1026,12 @@ trx_roll_try_truncate(
 	if (trx->update_undo) {
 		trx_undo_truncate_end(trx, trx->update_undo, limit);
 	}
+
+#ifdef WITH_WSREP_OUT
+	if (wsrep_on(trx->mysql_thd)) {
+		trx->lock.was_chosen_as_deadlock_victim = FALSE;
+	}
+#endif /* WITH_WSREP */
 }
 
 /***********************************************************************//**

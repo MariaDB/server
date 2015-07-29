@@ -130,6 +130,8 @@ user	CREATE TABLE `user` (
   `authentication_string` text COLLATE utf8_bin NOT NULL,
   `password_expired` enum('N','Y') CHARACTER SET utf8 NOT NULL DEFAULT 'N',
   `is_role` enum('N','Y') CHARACTER SET utf8 NOT NULL DEFAULT 'N',
+  `default_role` char(80) COLLATE utf8_bin NOT NULL DEFAULT '',
+  `max_statement_time` decimal(12,6) NOT NULL DEFAULT '0.000000',
   PRIMARY KEY (`Host`,`User`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8 COLLATE=utf8_bin COMMENT='Users and global privileges'
 show create table func;
@@ -271,7 +273,8 @@ slow_log	CREATE TABLE `slow_log` (
   `insert_id` int(11) NOT NULL,
   `server_id` int(10) unsigned NOT NULL,
   `sql_text` mediumtext NOT NULL,
-  `thread_id` bigint(21) unsigned NOT NULL
+  `thread_id` bigint(21) unsigned NOT NULL,
+  `rows_affected` int(11) NOT NULL
 ) ENGINE=CSV DEFAULT CHARSET=utf8 COMMENT='Slow log'
 show create table table_stats;
 Table	Create Table

@@ -23,11 +23,6 @@
 #include <m_string.h>
 #include <errno.h>
 #include <my_getopt.h>
-#ifdef WITH_NDBCLUSTER_STORAGE_ENGINE
-#include "../storage/ndb/src/ndbapi/ndberror.c"
-#include "../storage/ndb/src/kernel/error/ndbd_exit_codes.c"
-#include "../storage/ndb/include/mgmapi/mgmapi_error.h"
-#endif
 #include <welcome_copyright_notice.h> /* ORACLE_WELCOME_COPYRIGHT_NOTICE */
 
 static my_bool verbose, print_all_codes;
@@ -35,35 +30,12 @@ static my_bool verbose, print_all_codes;
 #include <my_base.h>
 #include <my_handler_errors.h>
 
-#ifdef WITH_NDBCLUSTER_STORAGE_ENGINE
-static my_bool ndb_code;
-static char ndb_string[1024];
-int mgmapi_error_string(int err_no, char *str, int size)
-{
-  int i;
-  for (i= 0; i < ndb_mgm_noOfErrorMsgs; i++)
-  {
-    if ((int)ndb_mgm_error_msgs[i].code == err_no)
-    {
-      my_snprintf(str, size-1, "%s", ndb_mgm_error_msgs[i].msg);
-      str[size-1]= '\0';
-      return 0;
-    }
-  }
-  return -1;
-}
-#endif
-
 static struct my_option my_long_options[] =
 {
   {"help", '?', "Displays this help and exits.", 0, 0, 0, GET_NO_ARG,
    NO_ARG, 0, 0, 0, 0, 0, 0},
   {"info", 'I', "Synonym for --help.",  0, 0, 0, GET_NO_ARG,
    NO_ARG, 0, 0, 0, 0, 0, 0},
-#ifdef WITH_NDBCLUSTER_STORAGE_ENGINE
-  {"ndb", 257, "Ndbcluster storage engine specific error codes.", &ndb_code,
-   &ndb_code, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
-#endif
 #ifdef HAVE_SYS_ERRLIST
   {"all", 'a', "Print all the error messages and the number. Deprecated,"
    " will be removed in a future release.",
@@ -334,35 +306,7 @@ int main(int argc,char *argv[])
 
       found=0;
       code=atoi(*argv);
-#ifdef WITH_NDBCLUSTER_STORAGE_ENGINE
-      if (ndb_code)
-      {
-        if ((ndb_error_string(code, ndb_string, sizeof(ndb_string)) < 0) &&
-            (ndbd_exit_string(code, ndb_string, sizeof(ndb_string)) < 0) &&
-            (mgmapi_error_string(code, ndb_string, sizeof(ndb_string)) < 0))
-	{
-          msg= 0;
-	}
-	else
-	  msg= ndb_string;
-        if (msg)
-        {
-          if (verbose)
-            printf("NDB error code %3d: %s\n",code,msg);
-          else
-            puts(msg);
-        }
-        else
-        {
-	  fprintf(stderr,"Illegal ndb error code: %d\n",code);
-          error= 1;
-        }
-        found= 1;
-        msg= 0;
-      }
-      else
-#endif
-	msg = strerror(code);
+      msg = strerror(code);
 
       /*
         We don't print the OS error message if it is the same as the

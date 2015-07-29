@@ -1,0 +1,64 @@
+#
+# wsrep_causal_reads
+#
+# save the initial values
+SET @wsrep_causal_reads_global_saved = @@global.wsrep_causal_reads;
+SET @wsrep_causal_reads_session_saved = @@session.wsrep_causal_reads;
+# default
+SELECT @@global.wsrep_causal_reads;
+@@global.wsrep_causal_reads
+0
+SELECT @@session.wsrep_causal_reads;
+@@session.wsrep_causal_reads
+0
+
+# scope and valid values
+SET @@global.wsrep_causal_reads=OFF;
+Warnings:
+Warning	1287	'@@wsrep_causal_reads' is deprecated and will be removed in a future release. Please use '@@wsrep_sync_wait=1' instead
+SELECT @@global.wsrep_causal_reads;
+@@global.wsrep_causal_reads
+0
+SET @@global.wsrep_causal_reads=ON;
+Warnings:
+Warning	1287	'@@wsrep_causal_reads' is deprecated and will be removed in a future release. Please use '@@wsrep_sync_wait=1' instead
+SELECT @@global.wsrep_causal_reads;
+@@global.wsrep_causal_reads
+1
+SET @@session.wsrep_causal_reads=OFF;
+Warnings:
+Warning	1287	'@@wsrep_causal_reads' is deprecated and will be removed in a future release. Please use '@@wsrep_sync_wait=1' instead
+SELECT @@session.wsrep_causal_reads;
+@@session.wsrep_causal_reads
+0
+SET @@session.wsrep_causal_reads=ON;
+Warnings:
+Warning	1287	'@@wsrep_causal_reads' is deprecated and will be removed in a future release. Please use '@@wsrep_sync_wait=1' instead
+SELECT @@session.wsrep_causal_reads;
+@@session.wsrep_causal_reads
+1
+SET @@session.wsrep_causal_reads=default;
+Warnings:
+Warning	1287	'@@wsrep_causal_reads' is deprecated and will be removed in a future release. Please use '@@wsrep_sync_wait=1' instead
+SELECT @@session.wsrep_causal_reads;
+@@session.wsrep_causal_reads
+1
+
+# invalid values
+SET @@global.wsrep_causal_reads=NULL;
+ERROR 42000: Variable 'wsrep_causal_reads' can't be set to the value of 'NULL'
+SET @@global.wsrep_causal_reads='junk';
+ERROR 42000: Variable 'wsrep_causal_reads' can't be set to the value of 'junk'
+SET @@session.wsrep_causal_reads=NULL;
+ERROR 42000: Variable 'wsrep_causal_reads' can't be set to the value of 'NULL'
+SET @@session.wsrep_causal_reads='junk';
+ERROR 42000: Variable 'wsrep_causal_reads' can't be set to the value of 'junk'
+
+# restore the initial values
+SET @@global.wsrep_causal_reads = @wsrep_causal_reads_global_saved;
+Warnings:
+Warning	1287	'@@wsrep_causal_reads' is deprecated and will be removed in a future release. Please use '@@wsrep_sync_wait=1' instead
+SET @@session.wsrep_causal_reads = @wsrep_causal_reads_session_saved;
+Warnings:
+Warning	1287	'@@wsrep_causal_reads' is deprecated and will be removed in a future release. Please use '@@wsrep_sync_wait=1' instead
+# End of test

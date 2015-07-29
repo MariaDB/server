@@ -860,3 +860,31 @@ DEALLOCATE PREPARE stmt;
 --echo #
 --echo # End of 10.0 tests
 --echo #
+
+--echo #
+--echo # Start of 10.1 tests
+--echo #
+
+--echo #
+--echo # MDEV-8417 utf8mb4: compare broken bytes as "greater than any non-broken character"
+--echo #
+CREATE TABLE t1 (
+  id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  a VARCHAR(10) CHARACTER SET utf16, KEY(a,id)
+);
+INSERT INTO t1 (a) VALUES (_utf8mb4 0x61);
+INSERT INTO t1 (a) VALUES (_utf8mb4 0xC280),(_utf8mb4 0xDFBF);
+INSERT INTO t1 (a) VALUES (_utf8mb4 0xE0A080),(_utf8mb4 0xEFBFBF);
+INSERT INTO t1 (a) VALUES (_utf8mb4 0xF0908080),(_utf8mb4 0xF48FBFBF);
+SELECT id,HEX(a) FROM t1 ORDER BY a,id;
+SELECT id,HEX(a) FROM t1 ORDER BY a DESC,id DESC;
+SELECT COUNT(DISTINCT a) FROM t1;
+ALTER TABLE t1 MODIFY a VARCHAR(10) CHARACTER SET utf16 COLLATE utf16_bin;
+SELECT id,HEX(a) FROM t1 ORDER BY a;
+SELECT id,HEX(a) FROM t1 ORDER BY a DESC,id DESC;
+SELECT COUNT(DISTINCT a) FROM t1;
+DROP TABLE t1;
+
+--echo #
+--echo # End of 10.1 tests
+--echo #

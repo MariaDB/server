@@ -48,8 +48,8 @@ public:
   { /* never called */ }
   static void operator delete[](void *ptr, size_t size) { TRASH(ptr, size); }
 #ifdef HAVE_valgrind
-  bool dummy;
-  inline Sql_alloc() :dummy(0) {}
+  bool dummy_for_valgrind;
+  inline Sql_alloc() :dummy_for_valgrind(0) {}
   inline ~Sql_alloc() {}
 #else
   inline Sql_alloc() {}
@@ -221,19 +221,22 @@ public:
     }
     return 1;
   }
-  inline bool push_front(void *info)
+  bool push_front_impl(list_node *node)
   {
-    list_node *node=new list_node(info,first);
     if (node)
     {
       if (last == &first)
-	last= &node->next;
+        last= &node->next;
       first=node;
       elements++;
       return 0;
     }
     return 1;
   }
+  inline bool push_front(void *info)
+  { return push_front_impl(new list_node(info, first)); }
+  inline bool push_front(void *info, MEM_ROOT *mem_root)
+  { return push_front_impl(new (mem_root) list_node(info,first)); }
   void remove(list_node **prev)
   {
     list_node *node=(*prev)->next;
@@ -244,7 +247,7 @@ public:
     delete *prev;
     *prev=node;
   }
-  inline void concat(base_list *list)
+  inline void append(base_list *list)
   {
     if (!list->is_empty())
     {
@@ -290,7 +293,7 @@ public:
     *prev= &end_of_list;
     last= prev;
   }
-  inline void prepand(base_list *list)
+  inline void prepend(base_list *list)
   {
     if (!list->is_empty())
     {
@@ -513,12 +516,14 @@ public:
   inline bool push_back(T *a, MEM_ROOT *mem_root)
   { return base_list::push_back(a, mem_root); }
   inline bool push_front(T *a) { return base_list::push_front(a); }
+  inline bool push_front(T *a, MEM_ROOT *mem_root)
+  { return base_list::push_front(a, mem_root); }
   inline T* head() {return (T*) base_list::head(); }
   inline T** head_ref() {return (T**) base_list::head_ref(); }
   inline T* pop()  {return (T*) base_list::pop(); }
-  inline void concat(List<T> *list) { base_list::concat(list); }
+  inline void append(List<T> *list) { base_list::append(list); }
+  inline void prepend(List<T> *list) { base_list::prepend(list); }
   inline void disjoin(List<T> *list) { base_list::disjoin(list); }
-  inline void prepand(List<T> *list) { base_list::prepand(list); }
   inline bool add_unique(T *a, bool (*eq)(T *a, T *b))
   { return base_list::add_unique(a, (List_eq *)eq); }
   void delete_elements(void)

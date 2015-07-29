@@ -18,6 +18,17 @@
 INCLUDE(CheckFunctionExists)
 INCLUDE(CheckCSourceCompiles)
 INCLUDE(CheckCSourceRuns)
+INCLUDE(lz4)
+INCLUDE(lzo)
+INCLUDE(lzma)
+INCLUDE(bzip2)
+INCLUDE(snappy)
+
+MYSQL_CHECK_LZ4()
+MYSQL_CHECK_LZO()
+MYSQL_CHECK_LZMA()
+MYSQL_CHECK_BZIP2()
+MYSQL_CHECK_SNAPPY()
 
 # OS tests
 IF(UNIX)
@@ -199,6 +210,8 @@ IF(HAVE_IB_ATOMIC_PTHREAD_T_GCC)
   ADD_DEFINITIONS(-DHAVE_IB_ATOMIC_PTHREAD_T_GCC=1)
 ENDIF()
 
+CHECK_C_SOURCE_COMPILES("struct t1{ int a; char *b; }; struct t1 c= { .a=1, .b=0 }; main() { }" HAVE_C99_INITIALIZERS)
+
 ENDIF(NOT MSVC)
 
 CHECK_FUNCTION_EXISTS(asprintf  HAVE_ASPRINTF)
@@ -327,7 +340,9 @@ SET(INNOBASE_SOURCES
 	btr/btr0btr.cc
 	btr/btr0cur.cc
 	btr/btr0pcur.cc
+	btr/btr0scrub.cc
 	btr/btr0sea.cc
+	btr/btr0defragment.cc
 	buf/buf0buddy.cc
 	buf/buf0buf.cc
 	buf/buf0dblwr.cc
@@ -336,6 +351,7 @@ SET(INNOBASE_SOURCES
 	buf/buf0flu.cc
 	buf/buf0lru.cc
 	buf/buf0rea.cc
+	buf/buf0mtflu.cc
 	data/data0data.cc
 	data/data0type.cc
 	dict/dict0boot.cc
@@ -349,6 +365,8 @@ SET(INNOBASE_SOURCES
 	eval/eval0eval.cc
 	eval/eval0proc.cc
 	fil/fil0fil.cc
+	fil/fil0pagecompress.cc
+	fil/fil0crypt.cc
 	fsp/fsp0fsp.cc
 	fut/fut0fut.cc
 	fut/fut0lst.cc
@@ -373,6 +391,7 @@ SET(INNOBASE_SOURCES
 	lock/lock0wait.cc
 	log/log0log.cc
 	log/log0recv.cc
+	log/log0crypt.cc
 	mach/mach0data.cc
 	mem/mem0mem.cc
 	mem/mem0pool.cc
@@ -436,7 +455,8 @@ SET(INNOBASE_SOURCES
 	ut/ut0rnd.cc
 	ut/ut0ut.cc
 	ut/ut0vec.cc
-	ut/ut0wqueue.cc)
+	ut/ut0wqueue.cc
+	ut/ut0timer.cc)
 
 IF(WITH_INNODB)
   # Legacy option

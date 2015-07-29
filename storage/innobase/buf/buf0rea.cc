@@ -176,22 +176,25 @@ buf_read_page_low(
 
 	ut_ad(buf_page_in_file(bpage));
 
+	byte* frame = zip_size ? bpage->zip.data : ((buf_block_t*) bpage)->frame;
+
 	if (sync) {
 		thd_wait_begin(NULL, THD_WAIT_DISKIO);
 	}
 
 	if (zip_size) {
 		*err = fil_io(OS_FILE_READ | wake_later
-			      | ignore_nonexistent_pages,
-			      sync, space, zip_size, offset, 0, zip_size,
-			      bpage->zip.data, bpage);
+			| ignore_nonexistent_pages,
+			sync, space, zip_size, offset, 0, zip_size,
+			frame, bpage, &bpage->write_size);
 	} else {
 		ut_a(buf_page_get_state(bpage) == BUF_BLOCK_FILE_PAGE);
 
 		*err = fil_io(OS_FILE_READ | wake_later
-			      | ignore_nonexistent_pages,
-			      sync, space, 0, offset, 0, UNIV_PAGE_SIZE,
-			      ((buf_block_t*) bpage)->frame, bpage);
+			| ignore_nonexistent_pages,
+			sync, space, 0, offset, 0, UNIV_PAGE_SIZE,
+			frame, bpage,
+			&bpage->write_size);
 	}
 
 	if (sync) {

@@ -1,6 +1,6 @@
 /* -*- c-basic-offset: 2 -*- */
 /*
-  Copyright(C) 2011-2014 Kouhei Sutou <kou@clear-code.com>
+  Copyright(C) 2011-2015 Kouhei Sutou <kou@clear-code.com>
 
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -33,18 +33,9 @@
 #endif
 
 #if defined(MRN_MARIADB_P)
-#  if MYSQL_VERSION_ID >= 50302 && MYSQL_VERSION_ID < 100000
+#  if MYSQL_VERSION_ID < 100000
      typedef COST_VECT Cost_estimate;
 #  endif
-#endif
-
-#if MYSQL_VERSION_ID >= 50516
-#  define MRN_PLUGIN_HAVE_FLAGS 1
-#endif
-
-// for MySQL < 5.5
-#ifndef MY_ALL_CHARSETS_SIZE
-#  define MY_ALL_CHARSETS_SIZE 256
 #endif
 
 #ifndef MRN_MARIADB_P
@@ -61,42 +52,48 @@
 #  define KEY_N_KEY_PARTS(key) (key)->key_parts
 #endif
 
-#if MYSQL_VERSION_ID < 100000 || !defined(MRN_MARIADB_P)
-#  define init_alloc_root(PTR, SZ1, SZ2, FLAG) init_alloc_root(PTR, SZ1, SZ2)
+#if defined(MRN_MARIADB_P) && MYSQL_VERSION_ID >= 100000
+#  define mrn_init_alloc_root(PTR, SZ1, SZ2, FLAG) \
+  init_alloc_root(PTR, SZ1, SZ2, FLAG)
+#elif MYSQL_VERSION_ID >= 50706
+#  define mrn_init_alloc_root(PTR, SZ1, SZ2, FLAG) \
+  init_alloc_root(mrn_memory_key, PTR, SZ1, SZ2)
+#else
+#  define mrn_init_alloc_root(PTR, SZ1, SZ2, FLAG) \
+  init_alloc_root(PTR, SZ1, SZ2)
 #endif
 
 #if MYSQL_VERSION_ID < 100002 || !defined(MRN_MARIADB_P)
 #  define GTS_TABLE 0
 #endif
 
-/* For MySQL 5.1. MySQL 5.1 doesn't have FN_LIBCHAR2. */
-#ifndef FN_LIBCHAR2
-#  define FN_LIBCHAR2 FN_LIBCHAR
-#endif
-
 #if MYSQL_VERSION_ID >= 50607
 #  if MYSQL_VERSION_ID >= 100007 && defined(MRN_MARIADB_P)
 #    define MRN_GET_ERROR_MESSAGE thd_get_error_message(current_thd)
+#    define MRN_GET_ERROR_NUMBER thd_get_error_number(current_thd)
 #    define MRN_GET_CURRENT_ROW_FOR_WARNING(thd) thd_get_error_row(thd)
 #  else
 #    define MRN_GET_ERROR_MESSAGE current_thd->get_stmt_da()->message()
-#    define MRN_GET_CURRENT_ROW_FOR_WARNING(thd) thd->get_stmt_da()->current_row_for_warning()
+#    define MRN_GET_ERROR_NUMBER current_thd->get_stmt_da()->sql_errno()
+#    if MYSQL_VERSION_ID >= 50706
+#      define MRN_GET_CURRENT_ROW_FOR_WARNING(thd) \
+  thd->get_stmt_da()->current_row_for_condition()
+#    else
+#      define MRN_GET_CURRENT_ROW_FOR_WARNING(thd) \
+  thd->get_stmt_da()->current_row_for_warning()
+#    endif
 #  endif
 #else
-#  if MYSQL_VERSION_ID >= 50500
-#    define MRN_GET_ERROR_MESSAGE current_thd->stmt_da->message()
-#    define MRN_GET_CURRENT_ROW_FOR_WARNING(thd) thd->warning_info->current_row_for_warning()
-#  else
-#    define MRN_GET_ERROR_MESSAGE current_thd->main_da.message()
-#    define MRN_GET_CURRENT_ROW_FOR_WARNING(thd) thd->row_count
-#  endif
+#  define MRN_GET_ERROR_MESSAGE current_thd->stmt_da->message()
+#  define MRN_GET_ERROR_NUMBER current_thd->stmt_da->sql_errno()
+#  define MRN_GET_CURRENT_ROW_FOR_WARNING(thd) thd->warning_info->current_row_for_warning()
 #endif
 
 #if MYSQL_VERSION_ID >= 50607 && !defined(MRN_MARIADB_P)
 #  define MRN_ITEM_HAVE_ITEM_NAME
 #endif
 
-#if MYSQL_VERSION_ID >= 50500 && MYSQL_VERSION_ID < 50700
+#if MYSQL_VERSION_ID < 100000
 #  define MRN_HAVE_TABLE_DEF_CACHE
 #endif
 
@@ -116,10 +113,6 @@
 #  define MRN_TABLE_SHARE_HAVE_LOCK_SHARE
 #endif
 
-#if MYSQL_VERSION_ID >= 50404
-#  define MRN_TABLE_SHARE_HAVE_LOCK_HA_DATA
-#endif
-
 #ifndef TIME_FUZZY_DATE
 /* For MariaDB 10. */
 #  ifdef TIME_FUZZY_DATES
@@ -130,5 +123,121 @@
 #if MYSQL_VERSION_ID >= 100007 && defined(MRN_MARIADB_P)
 #  define MRN_USE_MYSQL_DATA_HOME
 #endif
+
+#if MYSQL_VERSION_ID >= 50706 && !defined(MRN_MARIADB_P)
+#  define MRN_SEVERITY_WARNING Sql_condition::SL_WARNING
+#else
+#  define MRN_SEVERITY_WARNING Sql_condition::WARN_LEVEL_WARN
+#endif
+
+#if MYSQL_VERSION_ID >= 50706 && !defined(MRN_MARIADB_P)
+#  define MRN_HAVE_PSI_MEMORY_KEY
+#endif
+
+#ifdef MRN_HAVE_PSI_MEMORY_KEY
+#  define mrn_my_malloc(size, flags) \
+  my_malloc(mrn_memory_key, size, flags)
+#  define mrn_my_strdup(string, flags) \
+  my_strdup(mrn_memory_key, string, flags)
+#  define mrn_my_strndup(string, size, flags) \
+  my_strndup(mrn_memory_key, string, size, flags)
+#  define mrn_my_multi_malloc(flags, ...) \
+  my_multi_malloc(mrn_memory_key, flags, __VA_ARGS__)
+#else
+#  define mrn_my_malloc(size, flags) my_malloc(size, flags)
+#  define mrn_my_strdup(string, flags) my_strdup(string, flags)
+#  define mrn_my_strndup(string, size, flags) \
+  my_strndup(string, size, flags)
+#  define mrn_my_multi_malloc(flags, ...) \
+  my_multi_malloc(flags, __VA_ARGS__)
+#endif
+
+#if MYSQL_VERSION_ID >= 50706 && !defined(MRN_MARIADB_P)
+#  define MRN_STRING_FREE(string) string.mem_free();
+#else
+#  define MRN_STRING_FREE(string) string.free();
+#endif
+
+#if MYSQL_VERSION_ID >= 50706 && !defined(MRN_MARIADB_P)
+#  define MRN_THD_DB_PATH(thd) ((thd)->db().str)
+#else
+#  define MRN_THD_DB_PATH(thd) ((thd)->db)
+#endif
+
+#ifndef INT_MAX64
+#  define INT_MAX64 LONGLONG_MAX
+#endif
+
+#ifdef UINT_MAX
+#  define UINT_MAX64 UINT_MAX
+#else
+#  define UINT_MAX64 LONGLONG_MAX
+#endif
+
+#if MYSQL_VERSION_ID >= 50706 && !defined(MRN_MARIADB_P)
+#  define mrn_my_stpmov(dst, src) my_stpmov(dst, src)
+#else
+#  define mrn_my_stpmov(dst, src) strmov(dst, src)
+#endif
+
+#if MYSQL_VERSION_ID >= 50607
+#  if !defined(MRN_MARIADB_P)
+#    define MRN_HAVE_SQL_OPTIMIZER_H
+#  endif
+#endif
+
+#if MYSQL_VERSION_ID >= 50600 && !defined(MRN_MARIADB_P)
+#  define MRN_HAVE_BINLOG_H
+#endif
+
+#if MYSQL_VERSION_ID >= 50706 && !defined(MRN_MARIADB_P)
+#  define MRN_HAVE_SPATIAL
+#elif defined(HAVE_SPATIAL)
+#  define MRN_HAVE_SPATIAL
+#endif
+
+#if MYSQL_VERSION_ID >= 50706 && !defined(MRN_MARIADB_P)
+#  define MRN_FORMAT_STRING_LENGTH "zu"
+#else
+#  define MRN_FORMAT_STRING_LENGTH "u"
+#endif
+
+#ifdef MRN_MARIADB_P
+#  define MRN_SUPPORT_CUSTOM_OPTIONS
+#endif
+
+#if defined(MRN_MARIADB_P) && MYSQL_VERSION_ID >= 100000
+#  if MYSQL_VERSION_ID >= 100104
+#    define mrn_init_sql_alloc(thd, mem_root)                           \
+  init_sql_alloc(mem_root,                                              \
+                 TABLE_ALLOC_BLOCK_SIZE,                                \
+                 0,                                                     \
+                 MYF(thd->slave_thread ? 0 : MY_THREAD_SPECIFIC))
+#  else
+#    define mrn_init_sql_alloc(thd, mem_root)           \
+  init_sql_alloc(mem_root,                              \
+                 TABLE_ALLOC_BLOCK_SIZE,                \
+                 0,                                     \
+                 MYF(0))
+#  endif
+#else
+#    define mrn_init_sql_alloc(thd, mem_root)           \
+  init_sql_alloc(mem_root,                              \
+                 TABLE_ALLOC_BLOCK_SIZE,                \
+                 0)
+#endif
+
+#ifdef MRN_MARIADB_P
+#  define MRN_ABORT_ON_WARNING(thd) thd->abort_on_warning
+#else
+#  if MYSQL_VERSION_ID >= 50706
+#    define MRN_ABORT_ON_WARNING(thd) false
+#  else
+#    define MRN_ABORT_ON_WARNING(thd) thd->abort_on_warning
+#  endif
+#endif
+
+#define MRN_ERROR_CODE_DATA_TRUNCATE(thd)                               \
+  (MRN_ABORT_ON_WARNING(thd) ? ER_WARN_DATA_OUT_OF_RANGE : WARN_DATA_TRUNCATED)
 
 #endif /* MRN_MYSQL_COMPAT_H_ */

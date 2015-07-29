@@ -210,7 +210,7 @@ ALTER TABLE t1_values ADD my_varbinary_1000 VARBINARY(1000);
 ALTER TABLE t1_values ADD my_datetime       DATETIME;
 ALTER TABLE t1_values ADD my_date           DATE;
 ALTER TABLE t1_values ADD ts_dummy          TIMESTAMP;
-ALTER TABLE t1_values ADD my_timestamp      TIMESTAMP;
+ALTER TABLE t1_values ADD my_timestamp      TIMESTAMP NOT NULL DEFAULT '2001-01-01 10:20:30';
 ALTER TABLE t1_values ADD my_time           TIME;
 ALTER TABLE t1_values ADD my_year           YEAR;
 ALTER TABLE t1_values ADD my_bigint         BIGINT;

@@ -184,6 +184,10 @@ AC_DEFUN([CONFIG_OPTION_MYSQL],[
     mysql_regex_include_dir="$ac_mysql_source_dir/regex"
   fi
   MYSQL_INCLUDES="$MYSQL_INCLUDES -I$mysql_regex_include_dir"
+  if test -d "$ac_mysql_source_dir/libbinlogevents"; then
+    MYSQL_INCLUDES="$MYSQL_INCLUDES -I$ac_mysql_source_dir/libbinlogevents/export"
+    MYSQL_INCLUDES="$MYSQL_INCLUDES -I$ac_mysql_source_dir/libbinlogevents/include"
+  fi
   MYSQL_INCLUDES="$MYSQL_INCLUDES -I$ac_mysql_source_dir"
   MYSQL_INCLUDES="$MYSQL_INCLUDES $($ac_mysql_config --include)"
   AC_SUBST(MYSQL_INCLUDES)
@@ -191,8 +195,19 @@ AC_DEFUN([CONFIG_OPTION_MYSQL],[
   MYSQL_VERSION="$($ac_mysql_config --version)"
   AC_SUBST(MYSQL_VERSION)
 
+  MYSQL_MAJOR_MINOR_VERSION=["$(echo $MYSQL_VERSION | sed -e 's/\([0-9]*\)\.\([0-9]*\)\.\([0-9]*[a-z]*\)[.0-9a-z-]*$/\1.\2/')"]
+
+  MYSQL_CXXFLAGS="-fno-implicit-templates -felide-constructors"
+  case "$MYSQL_MAJOR_MINOR_VERSION" in
+  5.7)
+      :
+      ;;
+  *)
+      MYSQL_CXXFLAGS="$MYSQL_CXXFLAGS -fno-exceptions -fno-rtti"
+      ;;
+  esac
+
   if test "${with_libmysqlservices_compat}" = "no"; then
-    MYSQL_MAJOR_MINOR_VERSION=["$(echo $MYSQL_VERSION | sed -e 's/\([0-9]*\)\.\([0-9]*\)\.\([0-9]*[a-z]*\)$/\1.\2/')"]
     case "$MYSQL_MAJOR_MINOR_VERSION" in
     5.1)
         MYSQL_LIBS=""
@@ -294,20 +309,30 @@ CONFIG_OPTION_GROONGA_NORMALIZER_MYSQL
 
 AC_ARG_WITH(default_parser,
     [AS_HELP_STRING([--with-default-parser=PARSER],
-                    [specify the default fulltext parser like
+                    [Deprecated. Use --with-default-tokenizer=TOKENIZER instead.
+		     specify the default fulltext parser like
                      --with-default-parser=TokenMecab.
                      (default: TokenBigram)])],
     [default_parser=$withval],
     [default_parser=no])
 if test x"$default_parser" != x"no"; then
-  AC_DEFINE_UNQUOTED(MRN_PARSER_DEFAULT,
+  AC_DEFINE_UNQUOTED(MRN_TOKENIZER_DEFAULT,
 		     "$default_parser",
-		     "specified default fulltext parser")
-  MRN_DEFAULT_PARSER=$default_parser
-else
-  MRN_DEFAULT_PARSER=TokenBigram
+		     "specified the default tokenizer for fulltext index")
 fi
-AC_SUBST(MRN_DEFAULT_PARSER)
+
+AC_ARG_WITH(default_tokenizer,
+    [AS_HELP_STRING([--with-default-tokenizer=TOKENIZER],
+                    [specify the default tokenizer for fulltext index like
+                     --with-default-tokenizer=TokenMecab.
+                     (default: TokenBigram)])],
+    [default_tokenizer=$withval],
+    [default_tokenizer=no])
+if test x"$default_tokenizer" != x"no"; then
+  AC_DEFINE_UNQUOTED(MRN_DEFAULT_TOKENIZER,
+		     "$default_tokenizer",
+		     "specified the default tokenizer for fulltext index")
+fi
 
 AC_ARG_ENABLE(fast_mutexes,
     [AS_HELP_STRING([--disable-fast-mutexes],
@@ -451,7 +476,7 @@ AC_SUBST(DOCUMENT_VERSION)
 AC_SUBST(DOCUMENT_VERSION_FULL)
 
 CFLAGS="$CFLAGS"
-CXXFLAGS="$CXXFLAGS -fno-implicit-templates -fno-exceptions -fno-rtti -felide-constructors"
+CXXFLAGS="$CXXFLAGS $MYSQL_CXXFLAGS"
 
 AC_CONFIG_FILES([
   Makefile
@@ -489,6 +514,7 @@ AC_OUTPUT([
   packages/rpm/centos/mysql55-mroonga.spec
   packages/rpm/centos/mysql56-community-mroonga.spec
   packages/rpm/centos/mariadb-mroonga.spec
+  packages/rpm/centos/percona-server-56-mroonga.spec
   packages/yum/env.sh
   data/install.sql
 ])

@@ -88,51 +88,51 @@ static inline bool test_if_sum_overflows_ull(ulonglong arg1, ulonglong arg2)
   return ULONGLONG_MAX - arg1 < arg2;
 }
 
-void Item_func::set_arguments(List<Item> &list)
-{
-  allowed_arg_cols= 1;
-  arg_count=list.elements;
-  args= tmp_arg;                                // If 2 arguments
-  if (arg_count <= 2 || (args=(Item**) sql_alloc(sizeof(Item*)*arg_count)))
-  {
-    List_iterator_fast<Item> li(list);
-    Item *item;
-    Item **save_args= args;
 
-    while ((item=li++))
-    {
-      *(save_args++)= item;
-      with_sum_func|=item->with_sum_func;
-      with_field|= item->with_field;
-    }
+void Item_args::set_arguments(List<Item> &list)
+{
+  arg_count= list.elements;
+  if (arg_count <= 2)
+  {
+    args= tmp_arg;
   }
-  list.empty();					// Fields are used
-}
-
-Item_func::Item_func(List<Item> &list)
-  :allowed_arg_cols(1)
-{
-  set_arguments(list);
-}
-
-Item_func::Item_func(THD *thd, Item_func *item)
-  :Item_result_field(thd, item),
-   allowed_arg_cols(item->allowed_arg_cols),
-   arg_count(item->arg_count),
-   used_tables_cache(item->used_tables_cache),
-   not_null_tables_cache(item->not_null_tables_cache),
-   const_item_cache(item->const_item_cache)
-{
-  if (arg_count)
+  else if (!(args= (Item**) sql_alloc(sizeof(Item*) * arg_count)))
   {
-    if (arg_count <=2)
-      args= tmp_arg;
-    else
-    {
-      if (!(args=(Item**) thd->alloc(sizeof(Item*)*arg_count)))
-	return;
-    }
-    memcpy((char*) args, (char*) item->args, sizeof(Item*)*arg_count);
+    arg_count= 0;
+    return;
+  }
+  uint i= 0;
+  List_iterator_fast<Item> li(list);
+  Item *item;
+  while ((item= li++))
+    args[i++]= item;
+}
+
+
+Item_args::Item_args(THD *thd, const Item_args *other)
+  :arg_count(other->arg_count)
+{
+  if (arg_count <= 2)
+  {
+    args= tmp_arg;
+  }
+  else if (!(args= (Item**) thd->alloc(sizeof(Item*) * arg_count)))
+  {
+    arg_count= 0;
+    return;
+  }
+  memcpy(args, other->args, sizeof(Item*) * arg_count);
+}
+
+
+void Item_func::sync_with_sum_func_and_with_field(List<Item> &list)
+{
+  List_iterator_fast<Item> li(list);
+  Item *item;
+  while ((item= li++))
+  {
+    with_sum_func|= item->with_sum_func;
+    with_field|= item->with_field;
   }
 }
 
@@ -178,8 +178,14 @@ Item_func::fix_fields(THD *thd, Item **ref)
   Item **arg,**arg_end;
   uchar buff[STACK_BUFF_ALLOC];			// Max argument in function
 
-  used_tables_cache= not_null_tables_cache= 0;
-  const_item_cache=1;
+  /*
+    The Used_tables_and_const_cache of "this" was initialized by
+    the constructor, or by Item_func::cleanup().
+  */
+  DBUG_ASSERT(used_tables_cache == 0);
+  DBUG_ASSERT(const_item_cache == true);
+
+  not_null_tables_cache= 0;
 
   /*
     Use stack limit of STACK_MIN_SIZE * 2 since
@@ -221,8 +227,7 @@ Item_func::fix_fields(THD *thd, Item **ref)
 
       with_sum_func= with_sum_func || item->with_sum_func;
       with_field= with_field || item->with_field;
-      used_tables_cache|=     item->used_tables();
-      const_item_cache&=      item->const_item();
+      used_tables_and_const_cache_join(item);
       with_subselect|=        item->has_subquery();
     }
   }
@@ -269,8 +274,8 @@ void Item_func::fix_after_pullout(st_select_lex *new_parent, Item **ref)
 {
   Item **arg,**arg_end;
 
-  used_tables_cache= not_null_tables_cache= 0;
-  const_item_cache=1;
+  used_tables_and_const_cache_init();
+  not_null_tables_cache= 0;
 
   if (arg_count)
   {
@@ -279,28 +284,12 @@ void Item_func::fix_after_pullout(st_select_lex *new_parent, Item **ref)
       (*arg)->fix_after_pullout(new_parent, arg);
       Item *item= *arg;
 
-      used_tables_cache|=     item->used_tables();
+      used_tables_and_const_cache_join(item);
       not_null_tables_cache|= item->not_null_tables();
-      const_item_cache&=      item->const_item();
     }
   }
 }
 
-
-bool Item_func::walk(Item_processor processor, bool walk_subquery,
-                     uchar *argument)
-{
-  if (arg_count)
-  {
-    Item **arg,**arg_end;
-    for (arg= args, arg_end= args+arg_count; arg != arg_end; arg++)
-    {
-      if ((*arg)->walk(processor, walk_subquery, argument))
-	return 1;
-    }
-  }
-  return (this->*processor)(argument);
-}
 
 void Item_func::traverse_cond(Cond_traverser traverser,
                               void *argument, traverse_order order)
@@ -330,6 +319,26 @@ void Item_func::traverse_cond(Cond_traverser traverser,
 }
 
 
+bool Item_args::transform_args(Item_transformer transformer, uchar *arg)
+{
+  for (uint i= 0; i < arg_count; i++)
+  {
+    Item *new_item= args[i]->transform(transformer, arg);
+    if (!new_item)
+      return true;
+    /*
+      THD::change_item_tree() should be called only if the tree was
+      really transformed, i.e. when a new item has been created.
+      Otherwise we'll be allocating a lot of unnecessary memory for
+      change records at each execution.
+    */
+    if (args[i] != new_item)
+      current_thd->change_item_tree(&args[i], new_item);
+  }
+  return false;
+}
+
+
 /**
   Transform an Item_func object with a transformer callback function.
 
@@ -350,26 +359,8 @@ void Item_func::traverse_cond(Cond_traverser traverser,
 Item *Item_func::transform(Item_transformer transformer, uchar *argument)
 {
   DBUG_ASSERT(!current_thd->stmt_arena->is_stmt_prepare());
-
-  if (arg_count)
-  {
-    Item **arg,**arg_end;
-    for (arg= args, arg_end= args+arg_count; arg != arg_end; arg++)
-    {
-      Item *new_item= (*arg)->transform(transformer, argument);
-      if (!new_item)
-	return 0;
-
-      /*
-        THD::change_item_tree() should be called only if the tree was
-        really transformed, i.e. when a new item has been created.
-        Otherwise we'll be allocating a lot of unnecessary memory for
-        change records at each execution.
-      */
-      if (*arg != new_item)
-        current_thd->change_item_tree(arg, new_item);
-    }
-  }
+  if (transform_args(transformer, argument))
+    return 0;
   return (this->*transformer)(argument);
 }
 
@@ -424,28 +415,16 @@ Item *Item_func::compile(Item_analyzer analyzer, uchar **arg_p,
 }
 
 /**
-  See comments in Item_cmp_func::split_sum_func()
+  See comments in Item_cond::split_sum_func()
 */
 
 void Item_func::split_sum_func(THD *thd, Item **ref_pointer_array,
-                               List<Item> &fields)
+                               List<Item> &fields, uint flags)
 {
   Item **arg, **arg_end;
   for (arg= args, arg_end= args+arg_count; arg != arg_end ; arg++)
-    (*arg)->split_sum_func2(thd, ref_pointer_array, fields, arg, TRUE);
-}
-
-
-void Item_func::update_used_tables()
-{
-  used_tables_cache=0;
-  const_item_cache=1;
-  for (uint i=0 ; i < arg_count ; i++)
-  {
-    args[i]->update_used_tables();
-    used_tables_cache|=args[i]->used_tables();
-    const_item_cache&=args[i]->const_item();
-  }
+    (*arg)->split_sum_func2(thd, ref_pointer_array, fields, arg,
+                            flags | SPLIT_SUM_SKIP_REGISTERED);
 }
 
 
@@ -501,7 +480,11 @@ bool Item_func::eq(const Item *item, bool binary_cmp) const
   /* Assume we don't have rtti */
   if (this == item)
     return 1;
-  if (item->type() != FUNC_ITEM)
+  /*
+    Ensure that we are comparing two functions and that the function
+    is deterministic.
+  */
+  if (item->type() != FUNC_ITEM || (used_tables() & RAND_TABLE_BIT))
     return 0;
   Item_func *item_func=(Item_func*) item;
   Item_func::Functype func_type;
@@ -714,12 +697,12 @@ void Item_func::count_real_length()
 
   @retval            False on success, true on error.
 */
-bool Item_func::count_string_result_length(enum_field_types field_type,
+bool Item_func::count_string_result_length(enum_field_types field_type_arg,
                                            Item **items, uint nitems)
 {
   if (agg_arg_charsets(collation, items, nitems, MY_COLL_ALLOW_CONV, 1))
     return true;
-  if (is_temporal_type(field_type))
+  if (is_temporal_type(field_type_arg))
     count_datetime_length(items, nitems);
   else
   {
@@ -735,7 +718,7 @@ void Item_func::signal_divide_by_null()
   THD *thd= current_thd;
   if (thd->variables.sql_mode & MODE_ERROR_FOR_DIVISION_BY_ZERO)
     push_warning(thd, Sql_condition::WARN_LEVEL_WARN, ER_DIVISION_BY_ZERO,
-                 ER(ER_DIVISION_BY_ZERO));
+                 ER_THD(thd, ER_DIVISION_BY_ZERO));
   null_value= 1;
 }
 
@@ -752,16 +735,6 @@ double Item_int_func::val_real()
   DBUG_ASSERT(fixed == 1);
 
   return unsigned_flag ? (double) ((ulonglong) val_int()) : (double) val_int();
-}
-
-bool Item_int_func::count_sargable_conds(uchar *arg)
-{
-  if (sargable)
-  {
-    SELECT_LEX *sel= (SELECT_LEX *) arg;
-    sel->cond_count++;
-  }
-  return 0;
 }
 
 
@@ -1180,10 +1153,11 @@ longlong Item_func_signed::val_int_from_str(int *error)
   value= cs->cset->strtoll10(cs, start, &end, error);
   if (*error > 0 || end != start+ length)
   {
+    THD *thd= current_thd;
     ErrConvString err(res);
-    push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                         ER_TRUNCATED_WRONG_VALUE,
-                        ER(ER_TRUNCATED_WRONG_VALUE), "INTEGER",
+                        ER_THD(thd, ER_TRUNCATED_WRONG_VALUE), "INTEGER",
                         err.ptr());
   }
   return value;
@@ -1342,9 +1316,10 @@ my_decimal *Item_decimal_typecast::val_decimal(my_decimal *dec)
   return dec;
 
 err:
-  push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
+  THD *thd= current_thd;
+  push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                       ER_WARN_DATA_OUT_OF_RANGE,
-                      ER(ER_WARN_DATA_OUT_OF_RANGE),
+                      ER_THD(thd, ER_WARN_DATA_OUT_OF_RANGE),
                       name, 1L);
   return dec;
 }
@@ -1383,10 +1358,11 @@ double Item_double_typecast::val_real()
 
   if ((error= truncate_double(&tmp, max_length, decimals, 0, DBL_MAX)))
   {
-    push_warning_printf(current_thd,
+    THD *thd= current_thd;
+    push_warning_printf(thd,
                         Sql_condition::WARN_LEVEL_WARN,
                         ER_WARN_DATA_OUT_OF_RANGE,
-                        ER(ER_WARN_DATA_OUT_OF_RANGE),
+                        ER_THD(thd, ER_WARN_DATA_OUT_OF_RANGE),
                         name, 1);
     if (error < 0)
     {
@@ -1831,7 +1807,7 @@ void Item_func_div::result_precision()
       args[0]->decimal_precision()           +  // 3
       args[1]->divisor_precision_increment() +  // 3
       prec_increment                            // 4
-    which gives 10 decimals digits. 
+    which gives 10 decimals digits.
   */
   uint precision=MY_MIN(args[0]->decimal_precision() + 
                      args[1]->divisor_precision_increment() + prec_increment,
@@ -2115,7 +2091,7 @@ void Item_func_neg::fix_length_and_dec()
     If this is in integer context keep the context as integer if possible
     (This is how multiplication and other integer functions works)
     Use val() to get value as arg_type doesn't mean that item is
-    Item_int or Item_real due to existence of Item_param.
+    Item_int or Item_float due to existence of Item_param.
   */
   if (cached_result_type == INT_RESULT && args[0]->const_item())
   {
@@ -2762,7 +2738,20 @@ void Item_func_rand::seed_random(Item *arg)
     TODO: do not do reinit 'rand' for every execute of PS/SP if
     args[0] is a constant.
   */
-  uint32 tmp= (uint32) arg->val_int();
+  uint32 tmp;
+#ifdef WITH_WSREP
+  THD *thd= current_thd;
+  if (WSREP(thd))
+  {
+    if (thd->wsrep_exec_mode==REPL_RECV)
+      tmp= thd->wsrep_rand;
+    else
+      tmp= thd->wsrep_rand= (uint32) arg->val_int();
+   }
+  else
+#endif /* WITH_WSREP */
+    tmp= (uint32) arg->val_int();
+
   my_rnd_init(rand, (uint32) (tmp*0x10001L+55555555L),
              (uint32) (tmp*0x10000001L));
 }
@@ -2930,8 +2919,9 @@ bool Item_func_min_max::get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date)
   for (uint i=0; i < arg_count ; i++)
   {
     Item **arg= args + i;
-    bool is_null;
-    longlong res= get_datetime_value(thd, &arg, 0, compare_as_dates, &is_null);
+    bool is_null_tmp;
+    longlong res= get_datetime_value(thd, &arg, 0, compare_as_dates,
+                                     &is_null_tmp);
 
     /* Check if we need to stop (because of error or KILL) and stop the loop */
     if (thd->is_error() || args[i]->null_value)
@@ -3469,7 +3459,7 @@ void udf_handler::cleanup()
 
 
 bool
-udf_handler::fix_fields(THD *thd, Item_result_field *func,
+udf_handler::fix_fields(THD *thd, Item_func_or_sum *func,
 			uint arg_count, Item **arguments)
 {
   uchar buff[STACK_BUFF_ALLOC];			// Max argument in function
@@ -3490,8 +3480,7 @@ udf_handler::fix_fields(THD *thd, Item_result_field *func,
 
   /* Fix all arguments */
   func->maybe_null=0;
-  used_tables_cache=0;
-  const_item_cache=1;
+  used_tables_and_const_cache_init();
 
   if ((f_args.arg_count=arg_count))
   {
@@ -3533,8 +3522,7 @@ udf_handler::fix_fields(THD *thd, Item_result_field *func,
       func->with_sum_func= func->with_sum_func || item->with_sum_func;
       func->with_field= func->with_field || item->with_field;
       func->with_subselect|= item->with_subselect;
-      used_tables_cache|=item->used_tables();
-      const_item_cache&=item->const_item();
+      used_tables_and_const_cache_join(item);
       f_args.arg_type[i]=item->result_type();
     }
     //TODO: why all following memory is not allocated with 1 call of sql_alloc?
@@ -3634,7 +3622,7 @@ udf_handler::fix_fields(THD *thd, Item_result_field *func,
   if (error)
   {
     my_error(ER_CANT_INITIALIZE_UDF, MYF(0),
-             u_d->name.str, ER(ER_UNKNOWN_ERROR));
+             u_d->name.str, ER_THD(thd, ER_UNKNOWN_ERROR));
     DBUG_RETURN(TRUE);
   }
   DBUG_RETURN(FALSE);
@@ -3943,11 +3931,11 @@ longlong Item_master_pos_wait::val_int()
   }
 #ifdef HAVE_REPLICATION
   longlong pos = (ulong)args[1]->val_int();
-  longlong timeout = (arg_count==3) ? args[2]->val_int() : 0 ;
+  longlong timeout = (arg_count>=3) ? args[2]->val_int() : 0 ;
   String connection_name_buff;
   LEX_STRING connection_name;
   Master_info *mi;
-  if (arg_count == 4)
+  if (arg_count >= 4)
   {
     String *con;
     if (!(con= args[3]->val_str(&connection_name_buff)))
@@ -4252,7 +4240,7 @@ longlong Item_func_get_lock::val_int()
 {
   DBUG_ASSERT(fixed == 1);
   String *res= args[0]->val_str(&value);
-  ulonglong timeout= args[1]->val_int();
+  double timeout= args[1]->val_real();
   THD *thd= current_thd;
   User_level_lock *ull;
   DBUG_ENTER("Item_func_get_lock::val_int");
@@ -4466,7 +4454,7 @@ longlong Item_func_benchmark::val_int()
   char buff[MAX_FIELD_WIDTH];
   String tmp(buff,sizeof(buff), &my_charset_bin);
   my_decimal tmp_decimal;
-  THD *thd=current_thd;
+  THD *thd= current_thd;
   ulonglong loop_count;
 
   loop_count= (ulonglong) args[0]->val_int();
@@ -4478,8 +4466,9 @@ longlong Item_func_benchmark::val_int()
     {
       char buff[22];
       llstr(((longlong) loop_count), buff);
-      push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
-                          ER_WRONG_VALUE_FOR_TYPE, ER(ER_WRONG_VALUE_FOR_TYPE),
+      push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                          ER_WRONG_VALUE_FOR_TYPE,
+                          ER_THD(thd, ER_WRONG_VALUE_FOR_TYPE),
                           "count", buff, "benchmark");
     }
 
@@ -5547,7 +5536,7 @@ get_var_with_binlog(THD *thd, enum_sql_command sql_command,
     tmp_var_list.push_back(new set_var_user(new Item_func_set_user_var(name,
                                                                        new Item_null())));
     /* Create the variable */
-    if (sql_set_variables(thd, &tmp_var_list))
+    if (sql_set_variables(thd, &tmp_var_list, false))
     {
       thd->lex= sav_lex;
       goto err;
@@ -6502,8 +6491,9 @@ Item_func_sp::Item_func_sp(Name_resolution_context *context_arg, sp_name *name)
 
 
 Item_func_sp::Item_func_sp(Name_resolution_context *context_arg,
-                           sp_name *name, List<Item> &list)
-  :Item_func(list), context(context_arg), m_name(name), m_sp(NULL),sp_result_field(NULL)
+                           sp_name *name_arg, List<Item> &list)
+  :Item_func(list), context(context_arg), m_name(name_arg), m_sp(NULL),
+   sp_result_field(NULL)
 {
   maybe_null= 1;
   m_name->init_qname(current_thd);
@@ -6656,11 +6646,8 @@ void Item_func_sp::fix_length_and_dec()
   DBUG_ENTER("Item_func_sp::fix_length_and_dec");
 
   DBUG_ASSERT(sp_result_field);
-  decimals= sp_result_field->decimals();
-  max_length= sp_result_field->field_length;
-  collation.set(sp_result_field->charset());
+  Type_std_attributes::set(sp_result_field);
   maybe_null= 1;
-  unsigned_flag= MY_TEST(sp_result_field->flags & UNSIGNED_FLAG);
 
   DBUG_VOID_RETURN;
 }
@@ -7010,9 +6997,6 @@ my_decimal *Item_func_last_value::val_decimal(my_decimal *decimal_value)
 void Item_func_last_value::fix_length_and_dec()
 {
   last_value=          args[arg_count -1];
-  decimals=            last_value->decimals;
-  max_length=          last_value->max_length;
-  collation.set(last_value->collation.collation);
+  Type_std_attributes::set(last_value);
   maybe_null=          last_value->maybe_null;
-  unsigned_flag=       last_value->unsigned_flag;
 }

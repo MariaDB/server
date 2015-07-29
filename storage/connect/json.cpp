@@ -1,5 +1,5 @@
 /*************** json CPP Declares Source Code File (.H) ***************/
-/*  Name: json.cpp   Version 1.0                                       */
+/*  Name: json.cpp   Version 1.1                                       */
 /*                                                                     */
 /*  (C) Copyright to the author Olivier BERTRAND          2014 - 2015  */
 /*                                                                     */
@@ -23,7 +23,7 @@
 
 #define ARGS       MY_MIN(24,len-i),s+MY_MAX(i-3,0)
 
-#if defined(WIN32)
+#if defined(__WIN__)
 #define EL  "\r\n"
 #else
 #define EL  "\n"
@@ -1157,6 +1157,6 @@ void JVALUE::SetString(PGLOBAL g, PSZ s)
 /***********************************************************************/
 bool JVALUE::IsNull(void)
 {
-  return (Jsp) ? Jsp->IsNull() : (Value) ? Value->IsNull() : true;
+  return (Jsp) ? Jsp->IsNull() : (Value) ? Value->IsZero() : true;
 } // end of IsNull
 

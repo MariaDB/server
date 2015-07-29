@@ -1,4 +1,4 @@
-# Copyright(C) 2011 Kouhei Sutou <kou@clear-code.com>
+# Copyright(C) 2011-2015 Kouhei Sutou <kou@clear-code.com>
 #
 # This library is free software; you can redistribute it and/or
 # modify it under the terms of the GNU Lesser General Public
@@ -15,13 +15,13 @@
 # Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
 --source include/have_innodb.inc
---source ../../include/mroonga/have_fulltext_index_comment.inc
 --source ../../include/mroonga/have_mroonga.inc
 
---disable_warnings
-DROP TABLE IF EXISTS diaries_innodb;
-DROP TABLE IF EXISTS diaries_mroonga;
---enable_warnings
+--disable_query_log
+DROP DATABASE test;
+CREATE DATABASE test;
+USE test;
+--enable_query_log
 
 CREATE TABLE diaries_innodb (
   id INT PRIMARY KEY AUTO_INCREMENT,

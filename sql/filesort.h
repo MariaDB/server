@@ -25,11 +25,13 @@ class SQL_SELECT;
 class THD;
 struct TABLE;
 typedef struct st_sort_field SORT_FIELD;
+class Filesort_tracker;
 
 ha_rows filesort(THD *thd, TABLE *table, st_sort_field *sortorder,
                  uint s_length, SQL_SELECT *select,
                  ha_rows max_rows, bool sort_positions,
-                 ha_rows *examined_rows, ha_rows *found_rows);
+                 ha_rows *examined_rows, ha_rows *found_rows,
+                 Filesort_tracker* tracker);
 void filesort_free_buffers(TABLE *table, bool full);
 void change_double_for_sort(double nr,uchar *to);
 

@@ -1,5 +1,5 @@
 /* -*- c-basic-offset: 2 -*- */
-/* Copyright(C) 2009-2012 Brazil
+/* Copyright(C) 2009-2015 Brazil
 
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -87,6 +87,8 @@ struct _grn_ii_updspec {
 
 typedef struct _grn_ii_updspec grn_ii_updspec;
 
+void grn_ii_init_from_env(void);
+
 GRN_API grn_ii *grn_ii_create(grn_ctx *ctx, const char *path, grn_obj *lexicon,
                               uint32_t flags);
 GRN_API grn_ii *grn_ii_open(grn_ctx *ctx, const char *path, grn_obj *lexicon);
@@ -103,6 +105,7 @@ grn_rc grn_ii_updspec_add(grn_ctx *ctx, grn_ii_updspec *u, int pos, int32_t weig
 int grn_ii_updspec_cmp(grn_ii_updspec *a, grn_ii_updspec *b);
 
 void grn_ii_expire(grn_ctx *ctx, grn_ii *ii);
+grn_rc grn_ii_flush(grn_ctx *ctx, grn_ii *ii);
 
 typedef struct {
   grn_id rid;
@@ -152,6 +155,8 @@ struct _grn_select_optarg {
   void *func_arg;
   int max_size;
   grn_obj *scorer;
+  grn_obj *scorer_args_expr;
+  unsigned int scorer_args_expr_offset;
 };
 
 GRN_API grn_rc grn_ii_column_update(grn_ctx *ctx, grn_ii *ii, grn_id id,

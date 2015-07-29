@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1995, 2013, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1995, 2014, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2009, Google Inc.
 
 Portions of this file contain modifications contributed and copyrighted by
@@ -55,6 +55,7 @@ Created 12/9/1995 Heikki Tuuri
 #include "srv0start.h"
 #include "trx0sys.h"
 #include "trx0trx.h"
+#include "trx0roll.h"
 #include "srv0mon.h"
 
 /*
@@ -89,6 +90,10 @@ UNIV_INTERN log_t*	log_sys	= NULL;
 /** Pointer to the log checksum calculation function */
 UNIV_INTERN log_checksum_func_t log_checksum_algorithm_ptr	=
 	log_block_calc_checksum_innodb;
+
+/* Next log block number to do dummy record filling if no log records written
+for a while */
+static ulint		next_lbn_to_pad = 0;
 
 #ifdef UNIV_PFS_RWLOCK
 UNIV_INTERN mysql_pfs_key_t	checkpoint_lock_key;
@@ -338,7 +343,7 @@ log_open(
 	log_t*	log			= log_sys;
 	ulint	len_upper_limit;
 #ifdef UNIV_LOG_ARCHIVE
-	ulint	archived_lsn_age;
+	lsn_t	archived_lsn_age;
 	ulint	dummy;
 #endif /* UNIV_LOG_ARCHIVE */
 	ulint	count			= 0;
@@ -629,10 +634,9 @@ function_exit:
 	return(lsn);
 }
 
-#ifdef UNIV_LOG_ARCHIVE
 /******************************************************//**
 Pads the current log block full with dummy log records. Used in producing
-consistent archived log files. */
+consistent archived log files and scrubbing redo log. */
 static
 void
 log_pad_current_log_block(void)
@@ -667,7 +671,6 @@ log_pad_current_log_block(void)
 
 	ut_a(lsn % OS_FILE_LOG_BLOCK_SIZE == LOG_BLOCK_HDR_SIZE);
 }
-#endif /* UNIV_LOG_ARCHIVE */
 
 /******************************************************//**
 Calculates the data capacity of a log group, when the log file headers are not
@@ -1048,7 +1051,7 @@ log_init(void)
 	log_block_set_first_rec_group(log_sys->buf, LOG_BLOCK_HDR_SIZE);
 
 	log_sys->buf_free = LOG_BLOCK_HDR_SIZE;
-	log_sys->lsn = LOG_START_LSN + LOG_BLOCK_HDR_SIZE;
+	log_sys->lsn = LOG_START_LSN + LOG_BLOCK_HDR_SIZE; // TODO(minliz): ensure various LOG_START_LSN?
 
 	MONITOR_SET(MONITOR_LSN_CHECKPOINT_AGE,
 		    log_sys->lsn - log_sys->last_checkpoint_lsn);
@@ -1381,7 +1384,7 @@ log_group_file_header_flush(
 		       (ulint) (dest_offset / UNIV_PAGE_SIZE),
 		       (ulint) (dest_offset % UNIV_PAGE_SIZE),
 		       OS_FILE_LOG_BLOCK_SIZE,
-		       buf, group);
+		       buf, group, 0);
 
 		srv_stats.os_log_pending_writes.dec();
 	}
@@ -1506,10 +1509,13 @@ loop:
 
 		ut_a(next_offset / UNIV_PAGE_SIZE <= ULINT_MAX);
 
+		log_encrypt_before_write(log_sys->next_checkpoint_no,
+					 buf, write_len);
+
 		fil_io(OS_FILE_WRITE | OS_FILE_LOG, true, group->space_id, 0,
 		       (ulint) (next_offset / UNIV_PAGE_SIZE),
 		       (ulint) (next_offset % UNIV_PAGE_SIZE), write_len, buf,
-		       group);
+		       group, 0);
 
 		srv_stats.os_log_pending_writes.dec();
 
@@ -2023,6 +2029,8 @@ log_group_checkpoint(
 	mach_write_to_8(buf + LOG_CHECKPOINT_NO, log_sys->next_checkpoint_no);
 	mach_write_to_8(buf + LOG_CHECKPOINT_LSN, log_sys->next_checkpoint_lsn);
 
+	log_crypt_write_checkpoint_buf(buf);
+
 	lsn_offset = log_group_calc_lsn_offset(log_sys->next_checkpoint_lsn,
 					       group);
 	mach_write_to_4(buf + LOG_CHECKPOINT_OFFSET_LOW32,
@@ -2100,7 +2108,7 @@ log_group_checkpoint(
 		       write_offset / UNIV_PAGE_SIZE,
 		       write_offset % UNIV_PAGE_SIZE,
 		       OS_FILE_LOG_BLOCK_SIZE,
-		       buf, ((byte*) group + 1));
+		       buf, ((byte*) group + 1), 0);
 
 		ut_ad(((ulint) group & 0x1UL) == 0);
 	}
@@ -2141,6 +2149,8 @@ log_reset_first_header_and_checkpoint(
 	mach_write_to_8(buf + LOG_CHECKPOINT_NO, 0);
 	mach_write_to_8(buf + LOG_CHECKPOINT_LSN, lsn);
 
+	log_crypt_write_checkpoint_buf(buf);
+
 	mach_write_to_4(buf + LOG_CHECKPOINT_OFFSET_LOW32,
 			LOG_FILE_HDR_SIZE + LOG_BLOCK_HDR_SIZE);
 	mach_write_to_4(buf + LOG_CHECKPOINT_OFFSET_HIGH32, 0);
@@ -2180,7 +2190,7 @@ log_group_read_checkpoint_info(
 
 	fil_io(OS_FILE_READ | OS_FILE_LOG, true, group->space_id, 0,
 	       field / UNIV_PAGE_SIZE, field % UNIV_PAGE_SIZE,
-	       OS_FILE_LOG_BLOCK_SIZE, log_sys->checkpoint_buf, NULL);
+	       OS_FILE_LOG_BLOCK_SIZE, log_sys->checkpoint_buf, NULL, 0);
 }
 
 /******************************************************//**
@@ -2295,7 +2305,6 @@ log_checkpoint(
 	}
 
 	log_sys->next_checkpoint_lsn = oldest_lsn;
-
 #ifdef UNIV_DEBUG
 	if (log_debug_writes) {
 		fprintf(stderr, "Making checkpoint no "
@@ -2305,6 +2314,13 @@ log_checkpoint(
 	}
 #endif /* UNIV_DEBUG */
 
+	/* generate key version and key used to encrypt future blocks,
+	*
+	* NOTE: the +1 is as the next_checkpoint_no will be updated once
+	* the checkpoint info has been written and THEN blocks will be encrypted
+	* with new key
+	*/
+	log_crypt_set_ver_and_key(log_sys->next_checkpoint_no + 1);
 	log_groups_write_checkpoint_info();
 
 	MONITOR_INC(MONITOR_NUM_CHECKPOINT);
@@ -2563,7 +2579,17 @@ loop:
 	fil_io(OS_FILE_READ | OS_FILE_LOG, sync, group->space_id, 0,
 	       (ulint) (source_offset / UNIV_PAGE_SIZE),
 	       (ulint) (source_offset % UNIV_PAGE_SIZE),
-	       len, buf, (type == LOG_ARCHIVE) ? &log_archive_io : NULL);
+	       len, buf, (type == LOG_ARCHIVE) ? &log_archive_io : NULL, 0);
+
+	if (release_mutex) {
+		mutex_enter(&log_sys->mutex);
+	}
+
+	log_decrypt_after_read(buf, len);
+
+	if (release_mutex) {
+		mutex_exit(&log_sys->mutex);
+	}
 
 	start_lsn += len;
 	buf += len;
@@ -2688,7 +2714,7 @@ log_group_archive_file_header_write(
 	       dest_offset / UNIV_PAGE_SIZE,
 	       dest_offset % UNIV_PAGE_SIZE,
 	       2 * OS_FILE_LOG_BLOCK_SIZE,
-	       buf, &log_archive_io);
+	       buf, &log_archive_io, 0);
 }
 
 /******************************************************//**
@@ -2725,7 +2751,7 @@ log_group_archive_completed_header_write(
 	       dest_offset % UNIV_PAGE_SIZE,
 	       OS_FILE_LOG_BLOCK_SIZE,
 	       buf + LOG_FILE_ARCH_COMPLETED,
-	       &log_archive_io);
+	       &log_archive_io, 0);
 }
 
 /******************************************************//**
@@ -2788,12 +2814,12 @@ loop:
 		file_handle = os_file_create(innodb_file_log_key,
 					     name, open_mode,
 					     OS_FILE_AIO,
-					     OS_DATA_FILE, &ret);
+					     OS_DATA_FILE, &ret, FALSE);
 
 		if (!ret && (open_mode == OS_FILE_CREATE)) {
 			file_handle = os_file_create(
 				innodb_file_log_key, name, OS_FILE_OPEN,
-				OS_FILE_AIO, OS_DATA_FILE, &ret);
+				OS_FILE_AIO, OS_DATA_FILE, &ret, FALSE);
 		}
 
 		if (!ret) {
@@ -2857,12 +2883,15 @@ loop:
 
 	MONITOR_INC(MONITOR_LOG_IO);
 
+	//TODO (jonaso): This must be dead code??
+	log_encrypt_before_write(log_sys->next_checkpoint_no, buf, len);
+
 	fil_io(OS_FILE_WRITE | OS_FILE_LOG, false, group->archive_space_id,
 	       0,
 	       (ulint) (next_offset / UNIV_PAGE_SIZE),
 	       (ulint) (next_offset % UNIV_PAGE_SIZE),
 	       ut_calc_align(len, OS_FILE_LOG_BLOCK_SIZE), buf,
-	       &log_archive_io);
+	       &log_archive_io, 0);
 
 	start_lsn += len;
 	next_offset += len;
@@ -3514,6 +3543,12 @@ logs_empty_and_mark_files_at_shutdown(void)
 	if (log_disable_checkpoint_active)
 		log_enable_checkpoint();
 
+	while (srv_fast_shutdown == 0 && trx_rollback_or_clean_is_active) {
+		/* we should wait until rollback after recovery end
+		for slow shutdown */
+		os_thread_sleep(100000);
+	}
+
 	/* Wait until the master thread and all other operations are idle: our
 	algorithm only works if the server is idle at shutdown */
 
@@ -4073,5 +4108,66 @@ log_mem_free(void)
 
 		log_sys = NULL;
 	}
+}
+
+/** Event to wake up the log scrub thread */
+UNIV_INTERN os_event_t log_scrub_event = NULL;
+
+UNIV_INTERN ibool srv_log_scrub_thread_active = FALSE;
+
+/*****************************************************************//*
+If no log record has been written for a while, fill current log
+block with dummy records. */
+static
+void
+log_scrub()
+/*=========*/
+{
+	ulint cur_lbn = log_block_convert_lsn_to_no(log_sys->lsn);
+	if (next_lbn_to_pad == cur_lbn)
+	{
+		log_pad_current_log_block();
+	}
+	next_lbn_to_pad = log_block_convert_lsn_to_no(log_sys->lsn);
+}
+
+/* log scrubbing speed, in bytes/sec */
+UNIV_INTERN ulonglong innodb_scrub_log_speed;
+
+/*****************************************************************//**
+This is the main thread for log scrub. It waits for an event and
+when waked up fills current log block with dummy records and
+sleeps again.
+@return this function does not return, it calls os_thread_exit() */
+extern "C" UNIV_INTERN
+os_thread_ret_t
+DECLARE_THREAD(log_scrub_thread)(
+/*===============================*/
+	void* arg __attribute__((unused)))	/*!< in: a dummy parameter
+						required by os_thread_create */
+{
+	ut_ad(!srv_read_only_mode);
+
+	srv_log_scrub_thread_active = TRUE;
+
+	while(srv_shutdown_state == SRV_SHUTDOWN_NONE)
+	{
+		/* log scrubbing interval in µs. */
+		ulonglong interval = 1000*1000*512/innodb_scrub_log_speed;
+
+		os_event_wait_time(log_scrub_event, interval);
+
+		log_scrub();
+
+		os_event_reset(log_scrub_event);
+	}
+
+	srv_log_scrub_thread_active = FALSE;
+
+	/* We count the number of threads in os_thread_exit(). A created
+	thread should always use that to exit and not use return() to exit. */
+	os_thread_exit(NULL);
+
+	OS_THREAD_DUMMY_RETURN;
 }
 #endif /* !UNIV_HOTBACKUP */

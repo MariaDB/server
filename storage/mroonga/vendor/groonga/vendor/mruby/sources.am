@@ -2,7 +2,7 @@ libmruby_la_SOURCES = \
 	../mruby-source/src/array.c \
 	../mruby-source/src/backtrace.c \
 	../mruby-source/src/class.c \
-	../mruby-source/src/codegen.c \
+	../mruby-source/src/codedump.c \
 	../mruby-source/src/compar.c \
 	../mruby-source/src/crc.c \
 	../mruby-source/src/debug.c \
@@ -11,13 +11,12 @@ libmruby_la_SOURCES = \
 	../mruby-source/src/error.c \
 	../mruby-source/src/error.h \
 	../mruby-source/src/etc.c \
+	../mruby-source/src/fmt_fp.c \
 	../mruby-source/src/gc.c \
 	../mruby-source/src/hash.c \
 	../mruby-source/src/init.c \
 	../mruby-source/src/kernel.c \
 	../mruby-source/src/load.c \
-	../mruby-source/src/mrb_throw.h \
-	../mruby-source/src/node.h \
 	../mruby-source/src/numeric.c \
 	../mruby-source/src/object.c \
 	../mruby-source/src/opcode.h \
@@ -32,6 +31,8 @@ libmruby_la_SOURCES = \
 	../mruby-source/src/variable.c \
 	../mruby-source/src/version.c \
 	../mruby-source/src/vm.c \
+	../mruby-source/mrbgems/mruby-compiler/core/codegen.c \
+	../mruby-source/mrbgems/mruby-compiler/core/node.h \
 	../mruby-source/mrbgems/mruby-sprintf/src/kernel.c \
 	../mruby-source/mrbgems/mruby-sprintf/src/sprintf.c \
 	../mruby-source/mrbgems/mruby-print/src/print.c \

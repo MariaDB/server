@@ -11,6 +11,8 @@ libgrnmrb_la_SOURCES =				\
 	mrb_command.h				\
 	mrb_command_input.c			\
 	mrb_command_input.h			\
+	mrb_content_type.c			\
+	mrb_content_type.h			\
 	mrb_converter.c				\
 	mrb_converter.h				\
 	mrb_ctx.c				\
@@ -37,8 +39,12 @@ libgrnmrb_la_SOURCES =				\
 	mrb_logger.h				\
 	mrb_object.c				\
 	mrb_object.h				\
+	mrb_object_flags.c			\
+	mrb_object_flags.h			\
 	mrb_operator.c				\
 	mrb_operator.h				\
+	mrb_options.c				\
+	mrb_options.h				\
 	mrb_patricia_trie.c			\
 	mrb_patricia_trie.h			\
 	mrb_procedure.c				\
@@ -49,6 +55,14 @@ libgrnmrb_la_SOURCES =				\
 	mrb_table_cursor.h			\
 	mrb_table_cursor_flags.c		\
 	mrb_table_cursor_flags.h		\
+	mrb_table_group_flags.c			\
+	mrb_table_group_flags.h			\
+	mrb_table_group_result.c		\
+	mrb_table_group_result.h		\
+	mrb_table_sort_flags.c			\
+	mrb_table_sort_flags.h			\
+	mrb_table_sort_key.c			\
+	mrb_table_sort_key.h			\
 	mrb_type.c				\
 	mrb_type.h				\
 	mrb_variable_size_column.c		\

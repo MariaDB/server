@@ -56,7 +56,8 @@ void init_alloc_root(MEM_ROOT *mem_root, size_t block_size,
                      myf my_flags)
 {
   DBUG_ENTER("init_alloc_root");
-  DBUG_PRINT("enter",("root: 0x%lx", (long) mem_root));
+  DBUG_PRINT("enter",("root: %p  prealloc: %zu", mem_root,
+                      pre_alloc_size));
 
   mem_root->free= mem_root->used= mem_root->pre_alloc= 0;
   mem_root->min_malloc= 32;
@@ -164,7 +165,7 @@ void *alloc_root(MEM_ROOT *mem_root, size_t length)
 #if defined(HAVE_valgrind) && defined(EXTRA_DEBUG)
   reg1 USED_MEM *next;
   DBUG_ENTER("alloc_root");
-  DBUG_PRINT("enter",("root: 0x%lx", (long) mem_root));
+  DBUG_PRINT("enter",("root: %p", mem_root));
 
   DBUG_ASSERT(alloc_root_inited(mem_root));
 
@@ -188,8 +189,8 @@ void *alloc_root(MEM_ROOT *mem_root, size_t length)
   next->next= mem_root->used;
   next->size= length;
   mem_root->used= next;
-  DBUG_PRINT("exit",("ptr: 0x%lx", (long) (((char*) next)+
-                                           ALIGN_SIZE(sizeof(USED_MEM)))));
+  DBUG_PRINT("exit",("ptr: %p", (((char*) next)+
+                                 ALIGN_SIZE(sizeof(USED_MEM)))));
   DBUG_RETURN((uchar*) (((char*) next)+ALIGN_SIZE(sizeof(USED_MEM))));
 #else
   size_t get_size, block_size;
@@ -197,7 +198,7 @@ void *alloc_root(MEM_ROOT *mem_root, size_t length)
   reg1 USED_MEM *next= 0;
   reg2 USED_MEM **prev;
   DBUG_ENTER("alloc_root");
-  DBUG_PRINT("enter",("root: 0x%lx", (long) mem_root));
+  DBUG_PRINT("enter",("root: %p", mem_root));
   DBUG_ASSERT(alloc_root_inited(mem_root));
 
   DBUG_EXECUTE_IF("simulate_out_of_memory",
@@ -256,7 +257,7 @@ void *alloc_root(MEM_ROOT *mem_root, size_t length)
     mem_root->first_block_usage= 0;
   }
   TRASH_ALLOC(point, length);
-  DBUG_PRINT("exit",("ptr: 0x%lx", (ulong) point));
+  DBUG_PRINT("exit",("ptr: %p", point));
   DBUG_RETURN((void*) point);
 #endif
 }
@@ -368,7 +369,7 @@ void free_root(MEM_ROOT *root, myf MyFlags)
 {
   reg1 USED_MEM *next,*old;
   DBUG_ENTER("free_root");
-  DBUG_PRINT("enter",("root: 0x%lx  flags: %u", (long) root, (uint) MyFlags));
+  DBUG_PRINT("enter",("root: %p  flags: %u", root, (uint) MyFlags));
 
   if (MyFlags & MY_MARK_BLOCKS_FREE)
   {

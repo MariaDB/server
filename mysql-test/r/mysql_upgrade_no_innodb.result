@@ -1,5 +1,5 @@
 The --upgrade-system-tables option was used, user tables won't be touched.
-Phase 1/5: Checking mysql database
+Phase 1/6: Checking and upgrading mysql database
 Processing databases
 mysql
 mysql.column_stats                                 OK
@@ -42,6 +42,9 @@ error    : Corrupt
 mysql.innodb_table_stats
 Error    : Unknown storage engine 'InnoDB'
 error    : Corrupt
-Phase 2/5: Running 'mysql_fix_privilege_tables'...
-Phase 5/5: Running 'FLUSH PRIVILEGES'...
+Phase 2/6: Fixing views... Skipped
+Phase 3/6: Running 'mysql_fix_privilege_tables'
+Phase 4/6: Fixing table and database names ... Skipped
+Phase 5/6: Checking and upgrading tables... Skipped
+Phase 6/6: Running 'FLUSH PRIVILEGES'
 OK

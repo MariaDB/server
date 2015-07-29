@@ -1,7 +1,7 @@
 /* -*- c-basic-offset: 2 -*- */
 /*
   Copyright(C) 2011-2013 Kentoku SHIBA
-  Copyright(C) 2011-2013 Kouhei Sutou <kou@clear-code.com>
+  Copyright(C) 2011-2015 Kouhei Sutou <kou@clear-code.com>
 
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -43,7 +43,7 @@ typedef struct st_mroonga_share
   char                *table_name;
   uint                table_name_length;
   uint                use_count;
-  mysql_mutex_t       mutex;
+  mysql_mutex_t       record_mutex;
   THR_LOCK            lock;
   TABLE_SHARE         *table_share;
   TABLE_SHARE         *wrap_table_share;
@@ -60,11 +60,11 @@ typedef struct st_mroonga_share
   plugin_ref          plugin;
   handlerton          *hton;
   char                **index_table;
-  char                **key_parser;
+  char                **key_tokenizer;
   char                **col_flags;
   char                **col_type;
   uint                *index_table_length;
-  uint                *key_parser_length;
+  uint                *key_tokenizer_length;
   uint                *col_flags_length;
   uint                *col_type_length;
   uint                *wrap_key_nr;
@@ -78,17 +78,17 @@ typedef struct st_mroonga_share
   bool                disable_keys;
 } MRN_SHARE;
 
-struct st_mrn_alter_share
+struct st_mrn_wrap_hton
 {
   char path[FN_REFLEN + 1];
-  TABLE_SHARE *alter_share;
-  st_mrn_alter_share *next;
+  handlerton *hton;
+  st_mrn_wrap_hton *next;
 };
 
 struct st_mrn_slot_data
 {
   grn_id last_insert_record_id;
-  st_mrn_alter_share *first_alter_share;
+  st_mrn_wrap_hton *first_wrap_hton;
   HA_CREATE_INFO *alter_create_info;
   HA_CREATE_INFO *disable_keys_create_info;
   char *alter_connect_string;
@@ -167,7 +167,7 @@ void mrn_free_tmp_table_share(TABLE_SHARE *table_share);
 KEY *mrn_create_key_info_for_table(MRN_SHARE *share, TABLE *table, int *error);
 void mrn_set_bitmap_by_key(MY_BITMAP *map, KEY *key_info);
 st_mrn_slot_data *mrn_get_slot_data(THD *thd, bool can_create);
-void mrn_clear_alter_share(THD *thd);
+void mrn_clear_slot_data(THD *thd);
 
 #ifdef __cplusplus
 }

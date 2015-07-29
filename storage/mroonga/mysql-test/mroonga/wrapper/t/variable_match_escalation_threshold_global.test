@@ -1,4 +1,4 @@
-# Copyright(C) 2012 Kouhei Sutou <kou@clear-code.com>
+# Copyright(C) 2012-2015 Kouhei Sutou <kou@clear-code.com>
 #
 # This library is free software; you can redistribute it and/or
 # modify it under the terms of the GNU Lesser General Public
@@ -15,17 +15,10 @@
 # Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
 --source include/have_innodb.inc
---source ../../include/mroonga/have_fulltext_index_comment.inc
 --source ../../include/mroonga/have_mroonga.inc
 
 --disable_warnings
 DROP TABLE IF EXISTS diaries;
---enable_warnings
-
-# MySQL <= 5.5 reports wrong a warning. :<
-# It has been fixed in MySQL >= 5.6 and MariaDB >= 5.3.
---disable_warnings
-SET GLOBAL mroonga_match_escalation_threshold = -1;
 --enable_warnings
 
 CREATE TABLE diaries (
@@ -40,17 +33,23 @@ INSERT INTO diaries (title, tags) VALUES ("Hello groonga!", "groonga install");
 INSERT INTO diaries (title, tags) VALUES ("Hello mroonga!", "mroonga install");
 
 
-SELECT * FROM diaries WHERE MATCH (tags) AGAINST ("install" IN BOOLEAN MODE);
-
 SELECT * FROM diaries WHERE MATCH (tags) AGAINST ("gr" IN BOOLEAN MODE);
 
-SET GLOBAL mroonga_match_escalation_threshold = 0;
-SELECT * FROM diaries WHERE MATCH (tags) AGAINST ("gr" IN BOOLEAN MODE);
+# MySQL <= 5.5 reports a wrong warning. :<
+# It has been fixed in MySQL >= 5.6 and MariaDB >= 5.3.
+--disable_warnings
+SET GLOBAL mroonga_match_escalation_threshold = -1;
+--enable_warnings
 
-SET mroonga_match_escalation_threshold = 0;
+CONNECT(search_connection, localhost, root);
+USE test;
 SELECT * FROM diaries WHERE MATCH (tags) AGAINST ("gr" IN BOOLEAN MODE);
+DISCONNECT search_connection;
+CONNECTION default;
 
+SET GLOBAL mroonga_match_escalation_threshold = DEFAULT;
 
 DROP TABLE diaries;
+
 
 --source ../../include/mroonga/have_mroonga_deinit.inc

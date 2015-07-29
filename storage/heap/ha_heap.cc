@@ -291,7 +291,6 @@ int ha_heap::index_read_map(uchar *buf, const uchar *key,
 {
   DBUG_ASSERT(inited==INDEX);
   int error = heap_rkey(file,buf,active_index, key, keypart_map, find_flag);
-  table->status = error ? STATUS_NOT_FOUND : 0;
   return error;
 }
 
@@ -301,7 +300,6 @@ int ha_heap::index_read_last_map(uchar *buf, const uchar *key,
   DBUG_ASSERT(inited==INDEX);
   int error= heap_rkey(file, buf, active_index, key, keypart_map,
 		       HA_READ_PREFIX_LAST);
-  table->status= error ? STATUS_NOT_FOUND : 0;
   return error;
 }
 
@@ -310,7 +308,6 @@ int ha_heap::index_read_idx_map(uchar *buf, uint index, const uchar *key,
                                 enum ha_rkey_function find_flag)
 {
   int error = heap_rkey(file, buf, index, key, keypart_map, find_flag);
-  table->status = error ? STATUS_NOT_FOUND : 0;
   return error;
 }
 
@@ -318,7 +315,6 @@ int ha_heap::index_next(uchar * buf)
 {
   DBUG_ASSERT(inited==INDEX);
   int error=heap_rnext(file,buf);
-  table->status=error ? STATUS_NOT_FOUND: 0;
   return error;
 }
 
@@ -326,7 +322,6 @@ int ha_heap::index_prev(uchar * buf)
 {
   DBUG_ASSERT(inited==INDEX);
   int error=heap_rprev(file,buf);
-  table->status=error ? STATUS_NOT_FOUND: 0;
   return error;
 }
 
@@ -334,7 +329,6 @@ int ha_heap::index_first(uchar * buf)
 {
   DBUG_ASSERT(inited==INDEX);
   int error=heap_rfirst(file, buf, active_index);
-  table->status=error ? STATUS_NOT_FOUND: 0;
   return error;
 }
 
@@ -342,7 +336,6 @@ int ha_heap::index_last(uchar * buf)
 {
   DBUG_ASSERT(inited==INDEX);
   int error=heap_rlast(file, buf, active_index);
-  table->status=error ? STATUS_NOT_FOUND: 0;
   return error;
 }
 
@@ -354,7 +347,6 @@ int ha_heap::rnd_init(bool scan)
 int ha_heap::rnd_next(uchar *buf)
 {
   int error=heap_scan(file, buf);
-  table->status=error ? STATUS_NOT_FOUND: 0;
   return error;
 }
 
@@ -364,7 +356,6 @@ int ha_heap::rnd_pos(uchar * buf, uchar *pos)
   HEAP_PTR heap_position;
   memcpy(&heap_position, pos, sizeof(HEAP_PTR));
   error=heap_rrnd(file, buf, heap_position);
-  table->status=error ? STATUS_NOT_FOUND: 0;
   return error;
 }
 

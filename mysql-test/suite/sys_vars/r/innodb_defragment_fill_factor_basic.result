@@ -1,0 +1,37 @@
+SET @start_innodb_defragment_fill_factor = @@global.innodb_defragment_fill_factor;
+SELECT @start_innodb_defragment_fill_factor;
+@start_innodb_defragment_fill_factor
+0.9
+SELECT COUNT(@@global.innodb_defragment_fill_factor);
+COUNT(@@global.innodb_defragment_fill_factor)
+1
+SET @@global.innodb_defragment_fill_factor = 0.77777777777777;
+SELECT @@global.innodb_defragment_fill_factor;
+@@global.innodb_defragment_fill_factor
+0.777778
+SET @@global.innodb_defragment_fill_factor = 1;
+SELECT @@global.innodb_defragment_fill_factor;
+@@global.innodb_defragment_fill_factor
+1.000000
+SET @@global.innodb_defragment_fill_factor = 0.7;
+SELECT @@global.innodb_defragment_fill_factor;
+@@global.innodb_defragment_fill_factor
+0.700000
+SET @@global.innodb_defragment_fill_factor = -1;
+Warnings:
+Warning	1292	Truncated incorrect innodb_defragment_fill_factor value: '-1'
+SELECT @@global.innodb_defragment_fill_factor;
+@@global.innodb_defragment_fill_factor
+0.700000
+SET @@global.innodb_defragment_fill_factor = 2;
+Warnings:
+Warning	1292	Truncated incorrect innodb_defragment_fill_factor value: '2'
+SELECT @@global.innodb_defragment_fill_factor;
+@@global.innodb_defragment_fill_factor
+1.000000
+SET @@global.innodb_defragment_fill_factor = "abc";
+ERROR 42000: Incorrect argument type to variable 'innodb_defragment_fill_factor'
+SELECT @@global.innodb_defragment_fill_factor;
+@@global.innodb_defragment_fill_factor
+1.000000
+SET @@global.innodb_defragment_fill_factor = @start_innodb_defragment_fill_factor;

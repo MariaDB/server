@@ -27,6 +27,7 @@ extern "C" {
 #endif
 
 GRN_API const char *grn_current_error_message(void);
+GRN_API const char *grn_strerror(int error_code);
 
 #ifdef __cplusplus
 }

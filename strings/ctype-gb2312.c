@@ -163,6 +163,14 @@ static const uchar sort_order_gb2312[]=
 
 #define isgb2312head(c) (0xa1<=(uchar)(c) && (uchar)(c)<=0xf7)
 #define isgb2312tail(c) (0xa1<=(uchar)(c) && (uchar)(c)<=0xfe)
+#define gb2312code(c,d) (((uchar)(c) <<8) | (uchar)(d))
+
+
+#define MY_FUNCTION_NAME(x)   my_ ## x ## _gb2312
+#define IS_MB1_CHAR(x)        ((uchar) (x) < 0x80)
+#define IS_MB2_CHAR(x,y)      (isgb2312head(x) && isgb2312tail(y))
+#define DEFINE_ASIAN_ROUTINES
+#include "ctype-mb.ic"
 
 
 static uint ismbchar_gb2312(CHARSET_INFO *cs __attribute__((unused)),
@@ -6324,7 +6332,10 @@ my_mb_wc_gb2312(CHARSET_INFO *cs  __attribute__((unused)),
   
   if (s+2>e)
     return MY_CS_TOOSMALL2;
-  
+
+  if (!IS_MB2_CHAR(hi, s[1]))  
+    return MY_CS_ILSEQ;
+
   if (!(pwc[0]=func_gb2312_uni_onechar(((hi<<8)+s[1])&0x7F7F)))
     return -2;
   
@@ -6332,46 +6343,23 @@ my_mb_wc_gb2312(CHARSET_INFO *cs  __attribute__((unused)),
 }
 
 
-/*
-  Returns well formed length of a EUC-KR string.
-*/
-static size_t
-my_well_formed_len_gb2312(CHARSET_INFO *cs __attribute__((unused)),
-                          const char *b, const char *e,
-                          size_t pos, int *error)
+#define MY_FUNCTION_NAME(x)   my_ ## x ## _gb2312_chinese_ci
+#define WEIGHT_MB1(x)        (sort_order_gb2312[(uchar) (x)])
+#define WEIGHT_MB2(x,y)      (gb2312code(x, y))
+#include "strcoll.ic"
+
+
+#define MY_FUNCTION_NAME(x)   my_ ## x ## _gb2312_bin
+#define WEIGHT_MB1(x)        ((uchar) (x))
+#define WEIGHT_MB2(x,y)      (gb2312code(x, y))
+#include "strcoll.ic"
+
+
+static MY_COLLATION_HANDLER my_collation_handler_gb2312_chinese_ci=
 {
-  const char *b0= b;
-  const char *emb= e - 1; /* Last possible end of an MB character */
-
-  *error= 0;
-  while (pos-- && b < e)
-  {
-    if ((uchar) b[0] < 128)
-    {
-      /* Single byte ascii character */
-      b++;
-    }
-    else  if (b < emb && isgb2312head(*b) && isgb2312tail(b[1]))
-    {
-      /* Double byte character */
-      b+= 2;
-    }
-    else
-    {
-      /* Wrong byte sequence */
-      *error= 1;
-      break;
-    }
-  }
-  return (size_t) (b - b0);
-}
-
-
-static MY_COLLATION_HANDLER my_collation_ci_handler =
-{
-  NULL,			/* init */
-  my_strnncoll_simple,  /* strnncoll  */
-  my_strnncollsp_simple,
+  NULL,                 /* init */
+  my_strnncoll_gb2312_chinese_ci,
+  my_strnncollsp_gb2312_chinese_ci,
   my_strnxfrm_mb,       /* strnxfrm   */
   my_strnxfrmlen_simple,
   my_like_range_mb,     /* like_range */
@@ -6381,6 +6369,24 @@ static MY_COLLATION_HANDLER my_collation_ci_handler =
   my_hash_sort_simple,
   my_propagate_simple
 };
+
+
+static MY_COLLATION_HANDLER my_collation_handler_gb2312_bin=
+{
+  NULL,	                /* init */
+  my_strnncoll_gb2312_bin,
+  my_strnncollsp_gb2312_bin,
+  my_strnxfrm_mb,
+  my_strnxfrmlen_simple,
+  my_like_range_mb,
+  my_wildcmp_mb_bin,
+  my_strcasecmp_mb_bin,
+  my_instr_mb,
+  my_hash_sort_mb_bin,
+  my_propagate_simple
+};
+
+
 
 static MY_CHARSET_HANDLER my_charset_handler=
 {
@@ -6410,7 +6416,10 @@ static MY_CHARSET_HANDLER my_charset_handler=
   my_strntod_8bit,
   my_strtoll10_8bit,
   my_strntoull10rnd_8bit,
-  my_scan_8bit
+  my_scan_8bit,
+  my_charlen_gb2312,
+  my_well_formed_char_length_gb2312,
+  my_copy_fix_mb,
 };
 
 
@@ -6443,8 +6452,9 @@ struct charset_info_st my_charset_gb2312_chinese_ci=
     0,                  /* escape_with_backslash_is_dangerous */
     1,                  /* levels_for_order   */
     &my_charset_handler,
-    &my_collation_ci_handler
+    &my_collation_handler_gb2312_chinese_ci
 };
+
 
 struct charset_info_st my_charset_gb2312_bin=
 {
@@ -6475,7 +6485,7 @@ struct charset_info_st my_charset_gb2312_bin=
     0,                  /* escape_with_backslash_is_dangerous */
     1,                  /* levels_for_order   */
     &my_charset_handler,
-    &my_collation_mb_bin_handler
+    &my_collation_handler_gb2312_bin
 };
 
 #endif

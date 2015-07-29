@@ -40,7 +40,7 @@ static void movelink(HASH_LINK *array,uint pos,uint next_link,uint newlink);
 static int hashcmp(const HASH *hash, HASH_LINK *pos, const uchar *key,
                    size_t length);
 
-my_hash_value_type my_hash_sort(const CHARSET_INFO *cs, const uchar *key,
+my_hash_value_type my_hash_sort(CHARSET_INFO *cs, const uchar *key,
                                 size_t length)
 {
   ulong nr1= 1, nr2= 4;
@@ -94,10 +94,9 @@ my_hash_init2(HASH *hash, uint growth_size, CHARSET_INFO *charset,
   hash->free=free_element;
   hash->flags=flags;
   hash->charset=charset;
-  res= my_init_dynamic_array2(&hash->array, 
-                              sizeof(HASH_LINK), NULL, size, growth_size, 
-                              MYF((flags & HASH_THREAD_SPECIFIC ?
-                                   MY_THREAD_SPECIFIC : 0)));
+  res= init_dynamic_array2(&hash->array, sizeof(HASH_LINK), NULL, size,
+                           growth_size, MYF((flags & HASH_THREAD_SPECIFIC ?
+                                             MY_THREAD_SPECIFIC : 0)));
   DBUG_RETURN(res);
 }
 

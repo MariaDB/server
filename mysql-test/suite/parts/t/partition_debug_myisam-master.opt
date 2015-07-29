@@ -1,1 +1,1 @@
---skip-stack-trace --skip-core-file --myisam-recover-option=off
+--skip-stack-trace --skip-core-file --myisam-recover-options=off

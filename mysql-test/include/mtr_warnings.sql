@@ -115,9 +115,6 @@ INSERT INTO global_suppressions VALUES
  ("unknown variable 'loose-"),
  ("You have forced lower_case_table_names to 0 through a command-line option"),
  ("Setting lower_case_table_names=2"),
- ("NDB Binlog:"),
- ("NDB: failed to setup table"),
- ("NDB: only row based binary logging"),
  ("Neither --relay-log nor --relay-log-index were used"),
  ("Query partially completed"),
  ("Slave I.O thread aborted while waiting for relay log"),
@@ -139,7 +136,6 @@ INSERT INTO global_suppressions VALUES
  ("Slave: The incident LOST_EVENTS occured on the master"),
  ("Slave: Unknown error.* 1105"),
  ("Slave: Can't drop database.* database doesn't exist"),
- ("Time-out in NDB"),
  ("Warning:\s+One can only use the --user.*root"),
  ("Warning:\s+Table:.* on (delete|rename)"),
  ("You have an error in your SQL syntax"),
@@ -227,6 +223,12 @@ INSERT INTO global_suppressions VALUES
  ("Slave I/O: Notifying master by SET @master_binlog_checksum= @@global.binlog_checksum failed with error.*"),
  ("Slave I/O: Setting master-side filtering of @@skip_replication failed with error:.*"),
  ("Slave I/O: Setting @mariadb_slave_capability failed with error:.*"),
+ ("Slave I/O: Get master @@GLOBAL.gtid_domain_id failed with error.*"),
+ ("Slave I/O: Setting @slave_connect_state failed with error.*"),
+ ("Slave I/O: Setting @slave_gtid_strict_mode failed with error.*"),
+ ("Slave I/O: Setting @slave_gtid_ignore_duplicates failed with error.*"),
+ ("Slave I/O: Setting @slave_until_gtid failed with error.*"),
+ ("Slave I/O: Get master GTID position failed with error.*"),
  ("THE_LAST_SUPPRESSION")||
 
 

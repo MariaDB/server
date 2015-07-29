@@ -9,7 +9,6 @@ DROP TABLE IF EXISTS mysqltest1.t3;
 DROP TABLE IF EXISTS mysqltest1.t1;
 DROP TABLE IF EXISTS mysqltest1.t2;
 DROP TABLE IF EXISTS mysqltest1.t4;
-DROP TABLE IF EXISTS mysqltest1.t10;
 CREATE TABLE mysqltest1.t1 (a INT, c CHAR(6),PRIMARY KEY(a));
 CREATE TABLE mysqltest1.t2 (a INT, c CHAR(6),PRIMARY KEY(a));
 CREATE TABLE mysqltest1.t3 (a INT, c CHAR(6), c2 CHAR(6), PRIMARY KEY(a));
@@ -32,7 +31,6 @@ a	c	c2
 1	Thank	GOD
 2	it	is
 3	Friday	TGIF
-CREATE TABLE mysqltest1.t10 (a INT, PRIMARY KEY(a));
 SELECT * FROM mysqltest1.v2;
 qty	price	value
 3	50	150
@@ -96,6 +94,5 @@ DROP TABLE IF EXISTS mysqltest1.t3;
 DROP TABLE IF EXISTS mysqltest1.t1;
 DROP TABLE IF EXISTS mysqltest1.t2;
 DROP TABLE IF EXISTS mysqltest1.t4;
-DROP TABLE IF EXISTS mysqltest1.t10;
 DROP DATABASE mysqltest1;
 include/rpl_end.inc

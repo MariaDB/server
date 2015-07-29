@@ -2,8 +2,6 @@
 # Test of replicating user variables
 #
 ###########################################################
-# 2006-02-08 By JBM added order by for use w/ NDB engine
-###########################################################
 source include/master-slave.inc;
 
 #save_master_pos;

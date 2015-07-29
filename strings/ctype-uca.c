@@ -1,5 +1,5 @@
 /* Copyright (c) 2004, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2014, SkySQL Ab.
+   Copyright (c) 2009, 2015, MariaDB
    
    This library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Library General Public
@@ -20583,7 +20583,25 @@ static int my_uca_scanner_next_any(my_uca_scanner *scanner)
     if (((mblen= scanner->cs->cset->mb_wc(scanner->cs, wc,
                                           scanner->sbeg,
                                           scanner->send)) <= 0))
-      return -1;
+    {
+      if (scanner->sbeg >= scanner->send)
+        return -1; /* No more bytes, end of line reached */
+      /*
+        There are some more bytes left. Non-positive mb_len means that
+        we got an incomplete or a bad byte sequence. Consume mbminlen bytes.
+      */
+      if ((scanner->sbeg+= scanner->cs->mbminlen) > scanner->send)
+      {
+        /* For safety purposes don't go beyond the string range. */
+        scanner->sbeg= scanner->send;
+      }
+      /*
+        Treat every complete or incomplete mbminlen unit as a weight which is
+        greater than weight for any possible normal character.
+        0xFFFF is greater than any possible weight in the UCA weight table.
+      */
+      return 0xFFFF;
+    }
 
     scanner->sbeg+= mblen;
     if (wc[0] > scanner->level->maxchar)
@@ -20714,7 +20732,7 @@ static int my_strnncoll_uca(CHARSET_INFO *cs,
 
 
 static inline int
-my_space_weight(const CHARSET_INFO *cs) /* W3-TODO */
+my_space_weight(CHARSET_INFO *cs) /* W3-TODO */
 {
   return cs->uca->level[0].weights[0][0x20 * cs->uca->level[0].lengths[0]];
 }

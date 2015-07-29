@@ -67,4 +67,5 @@ extern void tp_set_threadpool_stall_limit(uint val);
 /* Activate threadpool scheduler */
 extern void tp_scheduler(void);
 
-extern int show_threadpool_idle_threads(THD *thd, SHOW_VAR *var, char *buff);
+extern int show_threadpool_idle_threads(THD *thd, SHOW_VAR *var, char *buff,
+                                        enum enum_var_type scope);

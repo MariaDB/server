@@ -39,6 +39,14 @@ extern ibool buf_page_cleaner_is_active;
 /** Flag indicating if the lru_manager is in active state. */
 extern bool buf_lru_manager_is_active;
 
+/** Handled page counters for a single flush */
+struct flush_counters_t {
+	ulint	flushed;	/*!< number of dirty pages flushed */
+	ulint	evicted;	/*!< number of clean pages evicted */
+	ulint	unzip_LRU_evicted;/*!< number of uncompressed page images
+				evicted */
+};
+
 /********************************************************************//**
 Remove a block from the flush list of modified blocks.  */
 UNIV_INTERN
@@ -303,6 +311,63 @@ bool
 buf_flush_flush_list_in_progress(void)
 /*==================================*/
 	__attribute__((warn_unused_result));
+
+/******************************************************************//**
+Start a buffer flush batch for LRU or flush list */
+ibool
+buf_flush_start(
+/*============*/
+	buf_pool_t*	buf_pool,	/*!< buffer pool instance */
+	buf_flush_t	flush_type);	/*!< in: BUF_FLUSH_LRU
+					or BUF_FLUSH_LIST */
+
+/******************************************************************//**
+End a buffer flush batch for LRU or flush list */
+void
+buf_flush_end(
+/*==========*/
+	buf_pool_t*	buf_pool,	/*!< buffer pool instance */
+	buf_flush_t	flush_type);	/*!< in: BUF_FLUSH_LRU
+					or BUF_FLUSH_LIST */
+
+/*******************************************************************//**
+This utility flushes dirty blocks from the end of the LRU list or flush_list.
+NOTE 1: in the case of an LRU flush the calling thread may own latches to
+pages: to avoid deadlocks, this function must be written so that it cannot
+end up waiting for these latches! NOTE 2: in the case of a flush list flush,
+the calling thread is not allowed to own any latches on pages!
+@return number of blocks for which the write request was queued */
+__attribute__((nonnull))
+void
+buf_flush_batch(
+/*============*/
+	buf_pool_t*	buf_pool,	/*!< in: buffer pool instance */
+	buf_flush_t	flush_type,	/*!< in: BUF_FLUSH_LRU or
+					BUF_FLUSH_LIST; if BUF_FLUSH_LIST,
+					then the caller must not own any
+					latches on pages */
+	ulint		min_n,		/*!< in: wished minimum mumber of blocks
+					flushed (it is not guaranteed that the
+					actual number is that big, though) */
+	lsn_t		lsn_limit,	/*!< in: in the case of BUF_FLUSH_LIST
+					all blocks whose oldest_modification is
+					smaller than this should be flushed
+					(if their number does not exceed
+					min_n), otherwise ignored */
+	bool		limited_lru_scan,/*!< in: for LRU flushes, if true,
+					allow to scan only up to
+					srv_LRU_scan_depth pages in total */
+	flush_counters_t*	n);	/*!< out: flushed/evicted page
+					counts  */
+
+
+/******************************************************************//**
+Gather the aggregated stats for both flush list and LRU list flushing */
+void
+buf_flush_common(
+/*=============*/
+	buf_flush_t	flush_type,	/*!< in: type of flush */
+	ulint		page_count);	/*!< in: number of pages flushed */
 
 #ifndef UNIV_NONINL
 #include "buf0flu.ic"

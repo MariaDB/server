@@ -15,16 +15,7 @@ eval CREATE TABLE graph_base (
   ) ENGINE= $oqgraph_use_table_type ;
 
 
-CREATE TABLE graph (
-    latch   VARCHAR(32) NULL,
-    origid  BIGINT    UNSIGNED NULL,
-    destid  BIGINT    UNSIGNED NULL,
-    weight  DOUBLE    NULL,
-    seq     BIGINT    UNSIGNED NULL,
-    linkid  BIGINT    UNSIGNED NULL,
-    KEY (latch, origid, destid) USING HASH,
-    KEY (latch, destid, origid) USING HASH
-  ) ENGINE=OQGRAPH DATA_TABLE='graph_base' ORIGID='from_id', DESTID='to_id';
+CREATE TABLE graph ENGINE=OQGRAPH DATA_TABLE='graph_base' ORIGID='from_id', DESTID='to_id';
 
 # Regression for MDEV-5891
 select * from graph;

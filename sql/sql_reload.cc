@@ -26,6 +26,7 @@
 #include "hostname.h"    // hostname_cache_refresh
 #include "sql_repl.h"    // reset_master, reset_slave
 #include "rpl_mi.h"      // Master_info::data_lock
+#include "sql_show.h"
 #include "debug_sync.h"
 #include "rpl_mi.h"
 
@@ -97,8 +98,6 @@ bool reload_acl_and_cache(THD *thd, unsigned long long options,
     if (tmp_thd)
     {
       delete tmp_thd;
-      /* Remember that we don't have a THD */
-      set_current_thd(0);
       thd= 0;
     }
     reset_mqh((LEX_USER *)NULL, TRUE);
@@ -131,7 +130,7 @@ bool reload_acl_and_cache(THD *thd, unsigned long long options,
       result= 1;
     }
 
-  if ((options & REFRESH_SLOW_LOG) && opt_slow_log)
+  if ((options & REFRESH_SLOW_LOG) && global_system_variables.sql_log_slow)
     logger.flush_slow_log();
 
   if ((options & REFRESH_GENERAL_LOG) && opt_log)
@@ -257,7 +256,16 @@ bool reload_acl_and_cache(THD *thd, unsigned long long options,
       }
       if (options & REFRESH_CHECKPOINT)
         disable_checkpoints(thd);
-    }
+      /*
+        We need to do it second time after wsrep appliers were blocked in
+        make_global_read_lock_block_commit(thd) above since they could have
+        modified the tables too.
+      */
+      if (WSREP(thd) &&
+          close_cached_tables(thd, tables, (options & REFRESH_FAST) ?
+                              FALSE : TRUE, TRUE))
+          result= 1;
+     }
     else
     {
       if (thd && thd->locked_tables_mode)
@@ -326,7 +334,7 @@ bool reload_acl_and_cache(THD *thd, unsigned long long options,
   {
     DBUG_ASSERT(thd);
     tmp_write_to_binlog= 0;
-    if (reset_master(thd, NULL, 0))
+    if (reset_master(thd, NULL, 0, thd->lex->next_binlog_file_number))
     {
       /* NOTE: my_error() has been already called by reset_master(). */
       result= 1;
@@ -374,35 +382,17 @@ bool reload_acl_and_cache(THD *thd, unsigned long long options,
 #endif
  if (options & REFRESH_USER_RESOURCES)
    reset_mqh((LEX_USER *) NULL, 0);             /* purecov: inspected */
-  if (options & REFRESH_TABLE_STATS)
-  {
-    mysql_mutex_lock(&LOCK_global_table_stats);
-    free_global_table_stats();
-    init_global_table_stats();
-    mysql_mutex_unlock(&LOCK_global_table_stats);
-  }
-  if (options & REFRESH_INDEX_STATS)
-  {
-    mysql_mutex_lock(&LOCK_global_index_stats);
-    free_global_index_stats();
-    init_global_index_stats();
-    mysql_mutex_unlock(&LOCK_global_index_stats);
-  }
-  if (options & (REFRESH_USER_STATS | REFRESH_CLIENT_STATS))
-  {
-    mysql_mutex_lock(&LOCK_global_user_client_stats);
-    if (options & REFRESH_USER_STATS)
-    {
-      free_global_user_stats();
-      init_global_user_stats();
-    }
-    if (options & REFRESH_CLIENT_STATS)
-    {
-      free_global_client_stats();
-      init_global_client_stats();
-    }
-    mysql_mutex_unlock(&LOCK_global_user_client_stats);
-  }
+ if (options & REFRESH_GENERIC)
+ {
+   List_iterator_fast<LEX_STRING> li(thd->lex->view_list);
+   LEX_STRING *ls;
+   while ((ls= li++))
+   {
+     ST_SCHEMA_TABLE *table= find_schema_table(thd, ls->str);
+     if (table->reset_table())
+       result= 1;
+   }
+ }
  if (*write_to_binlog != -1)
    *write_to_binlog= tmp_write_to_binlog;
  /*
@@ -529,6 +519,8 @@ bool flush_tables_with_read_lock(THD *thd, TABLE_LIST *all_tables)
     }
   }
 
+  thd->variables.option_bits|= OPTION_TABLE_LOCK;
+
   /*
     Before opening and locking tables the below call also waits
     for old shares to go away, so the fact that we don't pass
@@ -542,7 +534,7 @@ bool flush_tables_with_read_lock(THD *thd, TABLE_LIST *all_tables)
   if (open_and_lock_tables(thd, all_tables, FALSE,
                            MYSQL_OPEN_SKIP_SCOPED_MDL_LOCK,
                            &lock_tables_prelocking_strategy))
-    goto error;
+    goto error_reset_bits;
 
   if (thd->lex->type & REFRESH_FOR_EXPORT)
   {
@@ -554,15 +546,14 @@ bool flush_tables_with_read_lock(THD *thd, TABLE_LIST *all_tables)
       {
         my_error(ER_ILLEGAL_HA, MYF(0),table_list->table->file->table_type(),
                  table_list->db, table_list->table_name);
-        return true;
+        goto error_reset_bits;
       }
     }
   }
 
   if (thd->locked_tables_list.init_locked_tables(thd))
-    goto error;
+    goto error_reset_bits;
 
-  thd->variables.option_bits|= OPTION_TABLE_LOCK;
 
   /*
     We don't downgrade MDL_SHARED_NO_WRITE here as the intended
@@ -573,6 +564,9 @@ bool flush_tables_with_read_lock(THD *thd, TABLE_LIST *all_tables)
 
   return FALSE;
 
+error_reset_bits:
+  close_thread_tables(thd);
+  thd->variables.option_bits&= ~OPTION_TABLE_LOCK;
 error:
   return TRUE;
 }

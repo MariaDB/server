@@ -9,7 +9,7 @@ int main() { return 0; }
 " TOKUDB_OK)
 ENDIF()
 
-IF(NOT TOKUDB_OK OR WITHOUT_TOKUDB OR WITHOUT_TOKUDB_STORAGE_ENGINE)
+IF(NOT TOKUDB_OK OR PLUGIN_TOKUDB STREQUAL "NO")
   RETURN()
 ENDIF()
 
@@ -25,8 +25,8 @@ IF (HAVE_WVLA)
 ENDIF()
 
 ############################################
-SET(TOKUDB_VERSION "tokudb-7.5.5")
-SET(TOKUDB_DEB_FILES "usr/lib/mysql/plugin/ha_tokudb.so\netc/mysql/conf.d/tokudb.cnf\nusr/bin/tokuftdump\nusr/share/doc/mariadb-server-10.0/README-TOKUDB\nusr/share/doc/mariadb-server-10.0/README.md" PARENT_SCOPE)
+SET(TOKUDB_DEB_FILES "usr/lib/mysql/plugin/ha_tokudb.so\netc/mysql/conf.d/tokudb.cnf\nusr/bin/tokuftdump\nusr/share/doc/mariadb-server-10.1/README-TOKUDB\nusr/share/doc/mariadb-server-10.1/README.md" PARENT_SCOPE)
+SET(TOKUDB_VERSION "tokudb-7.5.7")
 SET(USE_BDB OFF CACHE BOOL "")
 MARK_AS_ADVANCED(BUILDNAME)
 MARK_AS_ADVANCED(BUILD_TESTING)

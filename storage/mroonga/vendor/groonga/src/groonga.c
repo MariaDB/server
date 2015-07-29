@@ -20,6 +20,7 @@
 #include <stdio.h>
 #include <ctype.h>
 #include <fcntl.h>
+#include <sys/stat.h>
 
 #ifdef WIN32
 # define GROONGA_MAIN
@@ -38,9 +39,9 @@
 #ifdef HAVE_SYS_SOCKET_H
 # include <sys/socket.h>
 #endif /* HAVE_SYS_SOCKET_H */
-#ifdef HAVE_NETINET_IN_H
+#ifndef WIN32
 # include <netinet/in.h>
-#endif /* HAVE_NETINET_IN_H */
+#endif /* WIN32 */
 
 #ifdef HAVE_SYS_RESOURCE_H
 # include <sys/resource.h>
@@ -50,9 +51,12 @@
 # include <sys/sysctl.h>
 #endif /* HAVE_SYS_SYSCTL_H */
 
-#ifdef HAVE_IO_H
+#ifdef WIN32
 # include <io.h>
-#endif /* HAVE_IO_H */
+# include <direct.h>
+#else /* WIN32 */
+# include <sys/uio.h>
+#endif /* WIN32 */
 
 #ifdef HAVE__STRNICMP
 # ifdef strncasecmp
@@ -142,8 +146,8 @@ line_editor_init(int argc __attribute__((unused)), char *argv[])
   setlocale(LC_ALL, "");
 
   if (strlen(HOME_PATH) + strlen(HISTORY_PATH) < PATH_MAX) {
-    strcpy(line_editor_history_path, HOME_PATH);
-    strcat(line_editor_history_path, HISTORY_PATH);
+    grn_strcpy(line_editor_history_path, PATH_MAX, HOME_PATH);
+    grn_strcat(line_editor_history_path, PATH_MAX, HISTORY_PATH);
   } else {
     line_editor_history_path[0] = '\0';
   }
@@ -341,10 +345,14 @@ s_output(grn_ctx *ctx, int flags, void *arg)
 {
   FILE *stream = (FILE *)arg;
 
-  if (grn_ctx_get_output_type(ctx) == GRN_CONTENT_NONE) {
+  switch (grn_ctx_get_output_type(ctx)) {
+  case GRN_CONTENT_GROONGA_COMMAND_LIST :
+  case GRN_CONTENT_NONE :
     s_output_raw(ctx, flags, stream);
-  } else {
+    break;
+  default :
     s_output_typed(ctx, flags, stream);
+    break;
   }
 }
 
@@ -501,12 +509,39 @@ send_ready_notify(void)
   close_ready_notify_pipe();
 }
 
+static void
+create_pid_file(void)
+{
+#ifndef WIN32
+  FILE *pid_file = NULL;
+  pid_t pid;
+
+  if (!pid_file_path) {
+    return;
+  }
+
+  pid_file = fopen(pid_file_path, "w");
+  pid = getpid();
+  fprintf(pid_file, "%d\n", pid);
+  fclose(pid_file);
+#endif
+}
+
+static void
+clean_pid_file(void)
+{
+#ifndef WIN32
+  if (pid_file_path) {
+    unlink(pid_file_path);
+  }
+#endif
+}
+
 static int
 daemonize(void)
 {
   int exit_code = EXIT_SUCCESS;
 #ifndef WIN32
-  pid_t pid;
 
   if (pipe(ready_notify_pipe) == -1) {
     reset_ready_notify_pipe();
@@ -533,19 +568,12 @@ daemonize(void)
   }
   switch (fork()) {
   case 0:
-    {
-      FILE *pid_file = NULL;
-      if (pid_file_path) {
-        pid_file = fopen(pid_file_path, "w");
-      }
+    if (pid_file_path) {
+      create_pid_file();
+    } else {
+      pid_t pid;
       pid = getpid();
-      if (!pid_file) {
-        fprintf(stderr, "%d\n", pid);
-      } else {
-        fprintf(pid_file, "%d\n", pid);
-        fclose(pid_file);
-        pid_file = NULL;
-      }
+      fprintf(stderr, "%d\n", pid);
     }
     break;
   case -1:
@@ -556,26 +584,17 @@ daemonize(void)
     _exit(EXIT_SUCCESS);
   }
   {
-    int null_fd = GRN_OPEN("/dev/null", O_RDWR, 0);
+    int null_fd;
+    grn_open(null_fd, "/dev/null", O_RDWR);
     if (null_fd != -1) {
       dup2(null_fd, STDIN_FILENO);
       dup2(null_fd, STDOUT_FILENO);
       dup2(null_fd, STDERR_FILENO);
-      if (null_fd > STDERR_FILENO) { GRN_CLOSE(null_fd); }
+      if (null_fd > STDERR_FILENO) { grn_close(null_fd); }
     }
   }
 #endif /* WIN32 */
   return exit_code;
-}
-
-static void
-clean_pid_file(void)
-{
-#ifndef WIN32
-  if (pid_file_path) {
-    unlink(pid_file_path);
-  }
-#endif
 }
 
 static void
@@ -666,6 +685,8 @@ start_service(grn_ctx *ctx, const char *db_path,
     if (exit_code != EXIT_SUCCESS) {
       return exit_code;
     }
+  } else {
+    create_pid_file();
   }
 
   if (!grn_com_event_init(ctx, &ev, MAX_CON, sizeof(grn_com))) {
@@ -686,9 +707,7 @@ start_service(grn_ctx *ctx, const char *db_path,
     send_ready_notify();
   }
 
-  if (is_daemon_mode) {
-    clean_pid_file();
-  }
+  clean_pid_file();
 
   return exit_code;
 }
@@ -936,10 +955,14 @@ h_output(grn_ctx *ctx, int flags, void *arg)
 {
   ht_context *hc = (ht_context *)arg;
 
-  if (grn_ctx_get_output_type(ctx) == GRN_CONTENT_NONE) {
+  switch (grn_ctx_get_output_type(ctx)) {
+  case GRN_CONTENT_GROONGA_COMMAND_LIST :
+  case GRN_CONTENT_NONE :
     h_output_raw(ctx, flags, hc);
-  } else {
+    break;
+  default :
     h_output_typed(ctx, flags, hc);
+    break;
   }
 }
 
@@ -970,7 +993,7 @@ do_htreq_get(grn_ctx *ctx, grn_msg *msg)
 typedef struct {
   const char *path_start;
   int path_length;
-  int content_length;
+  long long int content_length;
   grn_bool have_100_continue;
   const char *body_start;
 } h_post_header;
@@ -1089,7 +1112,7 @@ do_htreq_post_parse_header_values(grn_ctx *ctx,
         }
         if (STRING_EQUAL_CI(name, name_length, "Content-Length")) {
           const char *rest;
-          header->content_length = grn_atoi(value, value + value_length, &rest);
+          header->content_length = grn_atoll(value, value + value_length, &rest);
           if (rest != value + value_length) {
             /* Invalid Content-Length value. TODO: report error. */
             header->content_length = -1;
@@ -1188,13 +1211,12 @@ do_htreq_post(grn_ctx *ctx, grn_msg *msg)
   }
 
   {
-    grn_obj line_buffer;
-    int read_content_length = 0;
+    grn_obj chunk_buffer;
+    long long int read_content_length = 0;
 
-    GRN_TEXT_INIT(&line_buffer, 0);
+    GRN_TEXT_INIT(&chunk_buffer, 0);
     while (read_content_length < header.content_length) {
 #define POST_BUFFER_SIZE 8192
-      grn_rc rc;
       char buffer[POST_BUFFER_SIZE];
       const char *buffer_start, *buffer_current, *buffer_end;
 
@@ -1218,42 +1240,56 @@ do_htreq_post(grn_ctx *ctx, grn_msg *msg)
       }
       read_content_length += buffer_end - buffer_start;
 
-      rc = GRN_SUCCESS;
-      buffer_current = buffer_start;
-      for (; rc == GRN_SUCCESS && buffer_current < buffer_end; buffer_current++) {
-        if (buffer_current[0] != '\n') {
+      buffer_current = buffer_end - 1;
+      for (; buffer_current > buffer_start; buffer_current--) {
+        grn_bool is_separator;
+        switch (buffer_current[0]) {
+        case '\n' :
+        case ',' :
+          is_separator = GRN_TRUE;
+          break;
+        default :
+          is_separator = GRN_FALSE;
+          break;
+        }
+        if (!is_separator) {
           continue;
         }
+
         GRN_TEXT_PUT(ctx,
-                     &line_buffer,
+                     &chunk_buffer,
                      buffer_start,
-                     buffer_current - buffer_start);
+                     buffer_current + 1 - buffer_start);
         {
           int flags = 0;
           if (!(read_content_length == header.content_length &&
                 buffer_current + 1 == buffer_end)) {
             flags |= GRN_CTX_QUIET;
           }
-          rc = grn_ctx_send(ctx,
-                            GRN_TEXT_VALUE(&line_buffer),
-                            GRN_TEXT_LEN(&line_buffer),
-                            flags);
+          grn_ctx_send(ctx,
+                       GRN_TEXT_VALUE(&chunk_buffer),
+                       GRN_TEXT_LEN(&chunk_buffer),
+                       flags);
         }
         buffer_start = buffer_current + 1;
-        GRN_BULK_REWIND(&line_buffer);
+        GRN_BULK_REWIND(&chunk_buffer);
+        break;
       }
-      GRN_TEXT_PUT(ctx, &line_buffer, buffer_start, buffer_end - buffer_start);
+      if (buffer_end > buffer_start) {
+        GRN_TEXT_PUT(ctx, &chunk_buffer,
+                     buffer_start, buffer_end - buffer_start);
+      }
 #undef POST_BUFFER_SIZE
     }
 
-    if (GRN_TEXT_LEN(&line_buffer) > 0) {
+    if (GRN_TEXT_LEN(&chunk_buffer) > 0) {
       grn_ctx_send(ctx,
-                   GRN_TEXT_VALUE(&line_buffer),
-                   GRN_TEXT_LEN(&line_buffer),
+                   GRN_TEXT_VALUE(&chunk_buffer),
+                   GRN_TEXT_LEN(&chunk_buffer),
                    0);
     }
 
-    GRN_OBJ_FIN(ctx, &line_buffer);
+    GRN_OBJ_FIN(ctx, &chunk_buffer);
   }
 }
 
@@ -2108,7 +2144,8 @@ enum {
   ACTION_ERROR
 };
 
-#define ACTION_MASK       (0x0f)
+#define ACTION_MASK          (0x0f)
+#define MODE_MASK            (0xf0)
 #define FLAG_MODE_ALONE      (1 << 4)
 #define FLAG_MODE_CLIENT     (1 << 5)
 #define FLAG_MODE_DAEMON     (1 << 6)
@@ -2195,7 +2232,7 @@ config_file_register(const char *path, const grn_str_getopt_opt *opts,
   char *args[4];
 
   name_buf[0] = name_buf[1] = '-';
-  strcpy(name_buf + 2, name);
+  grn_strcpy(name_buf + 2, CONFIG_FILE_MAX_NAME_LENGTH + 1, name);
 
   if (value) {
     const size_t entry_size = sizeof(config_file_entry) + value_length + 1;
@@ -2205,7 +2242,7 @@ config_file_register(const char *path, const grn_str_getopt_opt *opts,
               (unsigned int)entry_size);
       return CONFIG_FILE_MALLOC_ERROR;
     }
-    strcpy((char *)(entry + 1), value);
+    grn_strcpy((char *)(entry + 1), value_length + 1, value);
     entry->next = config_file_entry_head;
     if (!config_file_entry_head) {
       if (atexit(config_file_clear)) {
@@ -2405,9 +2442,10 @@ init_default_settings(void)
     if (document_root_length >= PATH_MAX) {
       fprintf(stderr, "can't use default root: too long path\n");
     } else {
-      strcpy(win32_default_document_root, grn_win32_base_dir());
-      strcat(win32_default_document_root, "/");
-      strcat(win32_default_document_root, GRN_DEFAULT_RELATIVE_DOCUMENT_ROOT);
+      grn_strcpy(win32_default_document_root, PATH_MAX, grn_win32_base_dir());
+      grn_strcat(win32_default_document_root, PATH_MAX, "/");
+      grn_strcat(win32_default_document_root, PATH_MAX,
+                 GRN_DEFAULT_RELATIVE_DOCUMENT_ROOT);
       default_document_root = win32_default_document_root;
     }
   }
@@ -2484,6 +2522,12 @@ show_version(void)
 #ifdef GRN_WITH_MESSAGE_PACK
   printf(",msgpack");
 #endif
+#ifdef GRN_WITH_MRUBY
+  printf(",mruby");
+#endif
+#ifdef GRN_WITH_ONIGMO
+  printf(",onigmo");
+#endif
 #ifdef GRN_WITH_ZLIB
   printf(",zlib");
 #endif
@@ -2558,9 +2602,21 @@ show_usage(FILE *output)
           "                           specify log level (default: %d)\n"
           "      --log-path <path>:   specify log path\n"
           "                           (default: %s)\n"
+          "      --log-rotate-threshold-size <threshold>:\n"
+          "                           specify threshold for log rotate\n"
+          "                           Log file is rotated when\n"
+          "                           log file size is larger than or\n"
+          "                           equals to the threshold\n"
+          "                           (default: 0; disabled)\n"
           "      --query-log-path <path>:\n"
           "                           specify query log path\n"
           "                           (default: %s)\n"
+          "      --query-log-rotate-threshold-size <threshold>:\n"
+          "                           specify threshold for query log rotate\n"
+          "                           Query log file is rotated when\n"
+          "                           query log file size is larger than or\n"
+          "                           equals to the threshold\n"
+          "                           (default: 0; disabled)\n"
           "\n"
           "Common options:\n"
           "      --working-directory <path>:\n"
@@ -2596,20 +2652,30 @@ show_usage(FILE *output)
 int
 main(int argc, char **argv)
 {
-  const char *port_arg = NULL, *encoding_arg = NULL,
-    *max_num_threads_arg = NULL, *log_level_arg = NULL,
-    *bind_address_arg = NULL, *hostname_arg = NULL, *protocol_arg = NULL,
-    *log_path_arg = NULL, *query_log_path_arg = NULL,
-    *cache_limit_arg = NULL, *document_root_arg = NULL,
-    *default_command_version_arg = NULL,
-    *default_match_escalation_threshold_arg = NULL,
-    *input_fd_arg = NULL, *output_fd_arg = NULL,
-    *working_directory_arg = NULL;
+  const char *port_arg = NULL;
+  const char *encoding_arg = NULL;
+  const char *max_num_threads_arg = NULL;
+  const char *log_level_arg = NULL;
+  const char *bind_address_arg = NULL;
+  const char *hostname_arg = NULL;
+  const char *protocol_arg = NULL;
+  const char *log_path_arg = GRN_LOG_PATH;
+  const char *log_rotate_threshold_size_arg = NULL;
+  const char *query_log_path_arg = NULL;
+  const char *query_log_rotate_threshold_size_arg = NULL;
+  const char *cache_limit_arg = NULL;
+  const char *document_root_arg = NULL;
+  const char *default_command_version_arg = NULL;
+  const char *default_match_escalation_threshold_arg = NULL;
+  const char *input_fd_arg = NULL;
+  const char *output_fd_arg = NULL;
+  const char *working_directory_arg = NULL;
   const char *config_path = NULL;
   int exit_code = EXIT_SUCCESS;
   int i;
   int flags = 0;
   uint32_t cache_limit = 0;
+  grn_bool need_line_editor = GRN_FALSE;
   static grn_str_getopt_opt opts[] = {
     {'p', "port", NULL, 0, GETOPT_OP_NONE},
     {'e', "encoding", NULL, 0, GETOPT_OP_NONE},
@@ -2624,7 +2690,9 @@ main(int argc, char **argv)
     {'\0', "protocol", NULL, 0, GETOPT_OP_NONE},
     {'\0', "version", NULL, ACTION_VERSION, GETOPT_OP_UPDATE},
     {'\0', "log-path", NULL, 0, GETOPT_OP_NONE},
+    {'\0', "log-rotate-threshold-size", NULL, 0, GETOPT_OP_NONE},
     {'\0', "query-log-path", NULL, 0, GETOPT_OP_NONE},
+    {'\0', "query-log-rotate-threshold-size", NULL, 0, GETOPT_OP_NONE},
     {'\0', "pid-path", NULL, 0, GETOPT_OP_NONE},
     {'\0', "config-path", NULL, 0, GETOPT_OP_NONE},
     {'\0', "show-config", NULL, ACTION_SHOW_CONFIG, GETOPT_OP_UPDATE},
@@ -2646,18 +2714,20 @@ main(int argc, char **argv)
   opts[8].arg = &hostname_arg;
   opts[10].arg = &protocol_arg;
   opts[12].arg = &log_path_arg;
-  opts[13].arg = &query_log_path_arg;
-  opts[14].arg = &pid_file_path;
-  opts[15].arg = &config_path;
-  opts[17].arg = &cache_limit_arg;
-  opts[18].arg = &input_path;
-  opts[19].arg = &document_root_arg;
-  opts[20].arg = &default_command_version_arg;
-  opts[21].arg = &default_match_escalation_threshold_arg;
-  opts[22].arg = &bind_address_arg;
-  opts[23].arg = &input_fd_arg;
-  opts[24].arg = &output_fd_arg;
-  opts[25].arg = &working_directory_arg;
+  opts[13].arg = &log_rotate_threshold_size_arg;
+  opts[14].arg = &query_log_path_arg;
+  opts[15].arg = &query_log_rotate_threshold_size_arg;
+  opts[16].arg = &pid_file_path;
+  opts[17].arg = &config_path;
+  opts[19].arg = &cache_limit_arg;
+  opts[20].arg = &input_path;
+  opts[21].arg = &document_root_arg;
+  opts[22].arg = &default_command_version_arg;
+  opts[23].arg = &default_match_escalation_threshold_arg;
+  opts[24].arg = &bind_address_arg;
+  opts[25].arg = &input_fd_arg;
+  opts[26].arg = &output_fd_arg;
+  opts[27].arg = &working_directory_arg;
 
   reset_ready_notify_pipe();
 
@@ -2719,6 +2789,10 @@ main(int argc, char **argv)
   case ACTION_ERROR :
     show_usage(stderr);
     return EXIT_FAILURE;
+  }
+
+  if ((flags & MODE_MASK) == 0) {
+    flags |= FLAG_MODE_ALONE;
   }
 
   if (port_arg) {
@@ -2807,8 +2881,37 @@ main(int argc, char **argv)
     grn_default_logger_set_path(log_path_arg);
   }
 
+  if (log_rotate_threshold_size_arg) {
+    const char * const end =
+      log_rotate_threshold_size_arg +
+      strlen(log_rotate_threshold_size_arg);
+    const char *rest = NULL;
+    const uint64_t value = grn_atoull(log_rotate_threshold_size_arg, end, &rest);
+    if (end != rest) {
+      fprintf(stderr, "invalid log rotate threshold size: <%s>\n",
+              log_rotate_threshold_size_arg);
+      return EXIT_FAILURE;
+    }
+    grn_default_logger_set_rotate_threshold_size(value);
+  }
+
   if (query_log_path_arg) {
     grn_default_query_logger_set_path(query_log_path_arg);
+  }
+
+  if (query_log_rotate_threshold_size_arg) {
+    const char * const end =
+      query_log_rotate_threshold_size_arg +
+      strlen(query_log_rotate_threshold_size_arg);
+    const char *rest = NULL;
+    const uint64_t value =
+      grn_atoull(query_log_rotate_threshold_size_arg, end, &rest);
+    if (end != rest) {
+      fprintf(stderr, "invalid query log rotate threshold size: <%s>\n",
+              query_log_rotate_threshold_size_arg);
+      return EXIT_FAILURE;
+    }
+    grn_default_query_logger_set_rotate_threshold_size(value);
   }
 
   if (log_level_arg) {
@@ -2870,6 +2973,11 @@ main(int argc, char **argv)
     }
   }
 
+  if ((flags & (FLAG_MODE_ALONE | FLAG_MODE_CLIENT)) &&
+      !batchmode) {
+    need_line_editor = GRN_TRUE;
+  }
+
   if (output_fd_arg) {
     const char * const end = output_fd_arg + strlen(output_fd_arg);
     const char *rest = NULL;
@@ -2895,9 +3003,9 @@ main(int argc, char **argv)
               bind_address_arg, (unsigned int)bind_address_length, HOST_NAME_MAX);
       return EXIT_FAILURE;
     }
-    strcpy(bind_address, bind_address_arg);
+    grn_strcpy(bind_address, HOST_NAME_MAX + 1, bind_address_arg);
   } else {
-    strcpy(bind_address, default_bind_address);
+    grn_strcpy(bind_address, HOST_NAME_MAX + 1, default_bind_address);
   }
 
   if (hostname_arg) {
@@ -2908,9 +3016,9 @@ main(int argc, char **argv)
               hostname_arg, (unsigned int)hostname_length, HOST_NAME_MAX);
       return EXIT_FAILURE;
     }
-    strcpy(hostname, hostname_arg);
+    grn_strcpy(hostname, HOST_NAME_MAX + 1, hostname_arg);
   } else {
-    strcpy(hostname, default_hostname);
+    grn_strcpy(hostname, HOST_NAME_MAX + 1, default_hostname);
   }
 
   if (document_root_arg) {
@@ -2971,7 +3079,7 @@ main(int argc, char **argv)
   }
 
 #ifdef GRN_WITH_LIBEDIT
-  if (!batchmode) {
+  if (need_line_editor) {
     line_editor_init(argc, argv);
   }
 #endif
@@ -3008,7 +3116,7 @@ main(int argc, char **argv)
   }
 
 #ifdef GRN_WITH_LIBEDIT
-  if (!batchmode) {
+  if (need_line_editor) {
     line_editor_fin();
   }
 #endif

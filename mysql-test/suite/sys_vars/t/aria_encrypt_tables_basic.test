@@ -1,0 +1,41 @@
+# bool global
+--source include/have_maria.inc
+
+SET @start_global_value = @@global.aria_encrypt_tables;
+
+#
+# exists as global only
+#
+select @@global.aria_encrypt_tables;
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+select @@session.aria_encrypt_tables;
+show global variables like 'aria_encrypt_tables';
+show session variables like 'aria_encrypt_tables';
+select * from information_schema.global_variables
+where variable_name='aria_encrypt_tables';
+select * from information_schema.session_variables
+where variable_name='aria_encrypt_tables';
+
+#
+# show that it's writable
+#
+set global aria_encrypt_tables=ON;
+select @@global.aria_encrypt_tables;
+set global aria_encrypt_tables=OFF;
+select @@global.aria_encrypt_tables;
+set global aria_encrypt_tables=1;
+select @@global.aria_encrypt_tables;
+--error ER_GLOBAL_VARIABLE
+set session aria_encrypt_tables=1;
+
+#
+# incorrect types
+#
+--error ER_WRONG_TYPE_FOR_VAR
+set global aria_encrypt_tables=1.1;
+--error ER_WRONG_TYPE_FOR_VAR
+set global aria_encrypt_tables=1e1;
+--error ER_WRONG_VALUE_FOR_VAR
+set global aria_encrypt_tables="foo";
+
+SET @@global.aria_encrypt_tables = @start_global_value;

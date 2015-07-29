@@ -1,4 +1,4 @@
-/* Copyright (c) 2010, 2013, Oracle and/or its affiliates. All rights reserved.
+/* Copyright (c) 2010, 2015, Oracle and/or its affiliates. All rights reserved.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -31,214 +31,6 @@
 
 THR_LOCK table_events_statements_current::m_table_lock;
 
-static const TABLE_FIELD_TYPE field_types[]=
-{
-  {
-    { C_STRING_WITH_LEN("THREAD_ID") },
-    { C_STRING_WITH_LEN("bigint(20)") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("EVENT_ID") },
-    { C_STRING_WITH_LEN("bigint(20)") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("END_EVENT_ID") },
-    { C_STRING_WITH_LEN("bigint(20)") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("EVENT_NAME") },
-    { C_STRING_WITH_LEN("varchar(128)") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("SOURCE") },
-    { C_STRING_WITH_LEN("varchar(64)") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("TIMER_START") },
-    { C_STRING_WITH_LEN("bigint(20)") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("TIMER_END") },
-    { C_STRING_WITH_LEN("bigint(20)") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("TIMER_WAIT") },
-    { C_STRING_WITH_LEN("bigint(20)") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("LOCK_TIME") },
-    { C_STRING_WITH_LEN("bigint(20)") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("SQL_TEXT") },
-    { C_STRING_WITH_LEN("longtext") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("DIGEST") },
-    { C_STRING_WITH_LEN("varchar(32)") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("DIGEST_TEXT") },
-    { C_STRING_WITH_LEN("longtext") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("CURRENT_SCHEMA") },
-    { C_STRING_WITH_LEN("varchar(64)") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("OBJECT_TYPE") },
-    { C_STRING_WITH_LEN("varchar(64)") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("OBJECT_SCHEMA") },
-    { C_STRING_WITH_LEN("varchar(64)") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("OBJECT_NAME") },
-    { C_STRING_WITH_LEN("varchar(64)") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("OBJECT_INSTANCE_BEGIN") },
-    { C_STRING_WITH_LEN("bigint") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("MYSQL_ERRNO") },
-    { C_STRING_WITH_LEN("int(11)") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("RETURNED_SQLSTATE") },
-    { C_STRING_WITH_LEN("varchar(5)") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("MESSAGE_TEXT") },
-    { C_STRING_WITH_LEN("varchar(128)") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("ERRORS") },
-    { C_STRING_WITH_LEN("bigint") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("WARNINGS") },
-    { C_STRING_WITH_LEN("bigint") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("ROWS_AFFECTED") },
-    { C_STRING_WITH_LEN("bigint") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("ROWS_SENT") },
-    { C_STRING_WITH_LEN("bigint") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("ROWS_EXAMINED") },
-    { C_STRING_WITH_LEN("bigint") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("CREATED_TMP_DISK_TABLES") },
-    { C_STRING_WITH_LEN("bigint") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("CREATED_TMP_TABLES") },
-    { C_STRING_WITH_LEN("bigint") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("SELECT_FULL_JOIN") },
-    { C_STRING_WITH_LEN("bigint") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("SELECT_FULL_RANGE_JOIN") },
-    { C_STRING_WITH_LEN("bigint") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("SELECT_RANGE") },
-    { C_STRING_WITH_LEN("bigint") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("SELECT_RANGE_CHECK") },
-    { C_STRING_WITH_LEN("bigint") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("SELECT_SCAN") },
-    { C_STRING_WITH_LEN("bigint") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("SORT_MERGE_PASSES") },
-    { C_STRING_WITH_LEN("bigint") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("SORT_RANGE") },
-    { C_STRING_WITH_LEN("bigint") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("SORT_ROWS") },
-    { C_STRING_WITH_LEN("bigint") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("SORT_SCAN") },
-    { C_STRING_WITH_LEN("bigint") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("NO_INDEX_USED") },
-    { C_STRING_WITH_LEN("bigint") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("NO_GOOD_INDEX_USED") },
-    { C_STRING_WITH_LEN("bigint") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("NESTING_EVENT_ID") },
-    { C_STRING_WITH_LEN("bigint(20)") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("NESTING_EVENT_TYPE") },
-    { C_STRING_WITH_LEN("enum(\'STATEMENT\',\'STAGE\',\'WAIT\'") },
-    { NULL, 0}
-  }
-};
-
-TABLE_FIELD_DEF
-table_events_statements_current::m_field_def=
-{40 , field_types, 0, (uint*) 0 };
-
 PFS_engine_table_share
 table_events_statements_current::m_share=
 {
@@ -251,8 +43,47 @@ table_events_statements_current::m_share=
   1000, /* records */
   sizeof(pos_events_statements_current), /* ref length */
   &m_table_lock,
-  &m_field_def,
-  false /* checked */
+  { C_STRING_WITH_LEN("CREATE TABLE events_statements_current("
+                      "THREAD_ID BIGINT unsigned not null,"
+                      "EVENT_ID BIGINT unsigned not null,"
+                      "END_EVENT_ID BIGINT unsigned,"
+                      "EVENT_NAME VARCHAR(128) not null,"
+                      "SOURCE VARCHAR(64),"
+                      "TIMER_START BIGINT unsigned,"
+                      "TIMER_END BIGINT unsigned,"
+                      "TIMER_WAIT BIGINT unsigned,"
+                      "LOCK_TIME bigint unsigned not null,"
+                      "SQL_TEXT LONGTEXT,"
+                      "DIGEST VARCHAR(32),"
+                      "DIGEST_TEXT LONGTEXT,"
+                      "CURRENT_SCHEMA VARCHAR(64),"
+                      "OBJECT_TYPE VARCHAR(64),"
+                      "OBJECT_SCHEMA VARCHAR(64),"
+                      "OBJECT_NAME VARCHAR(64),"
+                      "OBJECT_INSTANCE_BEGIN BIGINT unsigned,"
+                      "MYSQL_ERRNO INTEGER,"
+                      "RETURNED_SQLSTATE VARCHAR(5),"
+                      "MESSAGE_TEXT VARCHAR(128),"
+                      "ERRORS BIGINT unsigned not null,"
+                      "WARNINGS BIGINT unsigned not null,"
+                      "ROWS_AFFECTED BIGINT unsigned not null,"
+                      "ROWS_SENT BIGINT unsigned not null,"
+                      "ROWS_EXAMINED BIGINT unsigned not null,"
+                      "CREATED_TMP_DISK_TABLES BIGINT unsigned not null,"
+                      "CREATED_TMP_TABLES BIGINT unsigned not null,"
+                      "SELECT_FULL_JOIN BIGINT unsigned not null,"
+                      "SELECT_FULL_RANGE_JOIN BIGINT unsigned not null,"
+                      "SELECT_RANGE BIGINT unsigned not null,"
+                      "SELECT_RANGE_CHECK BIGINT unsigned not null,"
+                      "SELECT_SCAN BIGINT unsigned not null,"
+                      "SORT_MERGE_PASSES BIGINT unsigned not null,"
+                      "SORT_RANGE BIGINT unsigned not null,"
+                      "SORT_ROWS BIGINT unsigned not null,"
+                      "SORT_SCAN BIGINT unsigned not null,"
+                      "NO_INDEX_USED BIGINT unsigned not null,"
+                      "NO_GOOD_INDEX_USED BIGINT unsigned not null,"
+                      "NESTING_EVENT_ID BIGINT unsigned,"
+                      "NESTING_EVENT_TYPE ENUM('STATEMENT', 'STAGE', 'WAIT'))") }
 };
 
 THR_LOCK table_events_statements_history::m_table_lock;
@@ -269,8 +100,47 @@ table_events_statements_history::m_share=
   1000, /* records */
   sizeof(pos_events_statements_history), /* ref length */
   &m_table_lock,
-  &table_events_statements_current::m_field_def,
-  false /* checked */
+  { C_STRING_WITH_LEN("CREATE TABLE events_statements_history("
+                      "THREAD_ID BIGINT unsigned not null,"
+                      "EVENT_ID BIGINT unsigned not null,"
+                      "END_EVENT_ID BIGINT unsigned,"
+                      "EVENT_NAME VARCHAR(128) not null,"
+                      "SOURCE VARCHAR(64),"
+                      "TIMER_START BIGINT unsigned,"
+                      "TIMER_END BIGINT unsigned,"
+                      "TIMER_WAIT BIGINT unsigned,"
+                      "LOCK_TIME bigint unsigned not null,"
+                      "SQL_TEXT LONGTEXT,"
+                      "DIGEST VARCHAR(32),"
+                      "DIGEST_TEXT LONGTEXT,"
+                      "CURRENT_SCHEMA VARCHAR(64),"
+                      "OBJECT_TYPE VARCHAR(64),"
+                      "OBJECT_SCHEMA VARCHAR(64),"
+                      "OBJECT_NAME VARCHAR(64),"
+                      "OBJECT_INSTANCE_BEGIN BIGINT unsigned,"
+                      "MYSQL_ERRNO INTEGER,"
+                      "RETURNED_SQLSTATE VARCHAR(5),"
+                      "MESSAGE_TEXT VARCHAR(128),"
+                      "ERRORS BIGINT unsigned not null,"
+                      "WARNINGS BIGINT unsigned not null,"
+                      "ROWS_AFFECTED BIGINT unsigned not null,"
+                      "ROWS_SENT BIGINT unsigned not null,"
+                      "ROWS_EXAMINED BIGINT unsigned not null,"
+                      "CREATED_TMP_DISK_TABLES BIGINT unsigned not null,"
+                      "CREATED_TMP_TABLES BIGINT unsigned not null,"
+                      "SELECT_FULL_JOIN BIGINT unsigned not null,"
+                      "SELECT_FULL_RANGE_JOIN BIGINT unsigned not null,"
+                      "SELECT_RANGE BIGINT unsigned not null,"
+                      "SELECT_RANGE_CHECK BIGINT unsigned not null,"
+                      "SELECT_SCAN BIGINT unsigned not null,"
+                      "SORT_MERGE_PASSES BIGINT unsigned not null,"
+                      "SORT_RANGE BIGINT unsigned not null,"
+                      "SORT_ROWS BIGINT unsigned not null,"
+                      "SORT_SCAN BIGINT unsigned not null,"
+                      "NO_INDEX_USED BIGINT unsigned not null,"
+                      "NO_GOOD_INDEX_USED BIGINT unsigned not null,"
+                      "NESTING_EVENT_ID BIGINT unsigned,"
+                      "NESTING_EVENT_TYPE ENUM('STATEMENT', 'STAGE', 'WAIT'))") }
 };
 
 THR_LOCK table_events_statements_history_long::m_table_lock;
@@ -287,8 +157,47 @@ table_events_statements_history_long::m_share=
   10000, /* records */
   sizeof(PFS_simple_index), /* ref length */
   &m_table_lock,
-  &table_events_statements_current::m_field_def,
-  false /* checked */
+  { C_STRING_WITH_LEN("CREATE TABLE events_statements_history_long("
+                      "THREAD_ID BIGINT unsigned not null,"
+                      "EVENT_ID BIGINT unsigned not null,"
+                      "END_EVENT_ID BIGINT unsigned,"
+                      "EVENT_NAME VARCHAR(128) not null,"
+                      "SOURCE VARCHAR(64),"
+                      "TIMER_START BIGINT unsigned,"
+                      "TIMER_END BIGINT unsigned,"
+                      "TIMER_WAIT BIGINT unsigned,"
+                      "LOCK_TIME bigint unsigned not null,"
+                      "SQL_TEXT LONGTEXT,"
+                      "DIGEST VARCHAR(32),"
+                      "DIGEST_TEXT LONGTEXT,"
+                      "CURRENT_SCHEMA VARCHAR(64),"
+                      "OBJECT_TYPE VARCHAR(64),"
+                      "OBJECT_SCHEMA VARCHAR(64),"
+                      "OBJECT_NAME VARCHAR(64),"
+                      "OBJECT_INSTANCE_BEGIN BIGINT unsigned,"
+                      "MYSQL_ERRNO INTEGER,"
+                      "RETURNED_SQLSTATE VARCHAR(5),"
+                      "MESSAGE_TEXT VARCHAR(128),"
+                      "ERRORS BIGINT unsigned not null,"
+                      "WARNINGS BIGINT unsigned not null,"
+                      "ROWS_AFFECTED BIGINT unsigned not null,"
+                      "ROWS_SENT BIGINT unsigned not null,"
+                      "ROWS_EXAMINED BIGINT unsigned not null,"
+                      "CREATED_TMP_DISK_TABLES BIGINT unsigned not null,"
+                      "CREATED_TMP_TABLES BIGINT unsigned not null,"
+                      "SELECT_FULL_JOIN BIGINT unsigned not null,"
+                      "SELECT_FULL_RANGE_JOIN BIGINT unsigned not null,"
+                      "SELECT_RANGE BIGINT unsigned not null,"
+                      "SELECT_RANGE_CHECK BIGINT unsigned not null,"
+                      "SELECT_SCAN BIGINT unsigned not null,"
+                      "SORT_MERGE_PASSES BIGINT unsigned not null,"
+                      "SORT_RANGE BIGINT unsigned not null,"
+                      "SORT_ROWS BIGINT unsigned not null,"
+                      "SORT_SCAN BIGINT unsigned not null,"
+                      "NO_INDEX_USED BIGINT unsigned not null,"
+                      "NO_GOOD_INDEX_USED BIGINT unsigned not null,"
+                      "NESTING_EVENT_ID BIGINT unsigned,"
+                      "NESTING_EVENT_TYPE ENUM('STATEMENT', 'STAGE', 'WAIT'))") }
 };
 
 table_events_statements_common::table_events_statements_common
@@ -302,7 +211,7 @@ table_events_statements_common::table_events_statements_common
   @param statement                      the statement the cursor is reading
 */
 void table_events_statements_common::make_row_part_1(PFS_events_statements *statement,
-                                                     PSI_digest_storage *digest)
+                                                     sql_digest_storage *digest)
 {
   const char *base;
   const char *safe_source_file;
@@ -367,46 +276,40 @@ void table_events_statements_common::make_row_part_1(PFS_events_statements *stat
   m_row.m_sort_scan= statement->m_sort_scan;
   m_row.m_no_index_used= statement->m_no_index_used;
   m_row.m_no_good_index_used= statement->m_no_good_index_used;
-  /* 
+  /*
     Making a copy of digest storage.
   */
-  digest_copy(digest, & statement->m_digest_storage);
+  digest->copy(& statement->m_digest_storage);
 
   m_row_exists= true;
   return;
 }
 
 
-void table_events_statements_common::make_row_part_2(PSI_digest_storage *digest)
+void table_events_statements_common::make_row_part_2(const sql_digest_storage *digest)
 {
   /*
     Filling up statement digest information.
   */
-  int safe_byte_count= digest->m_byte_count;
+  uint safe_byte_count= digest->m_byte_count;
   if (safe_byte_count > 0 &&
-      safe_byte_count <= PSI_MAX_DIGEST_STORAGE_SIZE)
+      safe_byte_count <= pfs_max_digest_length)
   {
-    PFS_digest_key md5;
-    compute_md5_hash((char *) md5.m_md5,
-                     (char *) digest->m_token_array,
-                     safe_byte_count);
-
     /* Generate the DIGEST string from the MD5 digest  */
-    MD5_HASH_TO_STRING(md5.m_md5,
+    MD5_HASH_TO_STRING(digest->m_md5,
                        m_row.m_digest.m_digest);
     m_row.m_digest.m_digest_length= MD5_HASH_TO_STRING_LENGTH;
 
     /* Generate the DIGEST_TEXT string from the token array */
-    get_digest_text(m_row.m_digest.m_digest_text, digest);
-    m_row.m_digest.m_digest_text_length= strlen(m_row.m_digest.m_digest_text);
+    compute_digest_text(digest, &m_row.m_digest.m_digest_text);
 
-    if (m_row.m_digest.m_digest_text_length == 0)
+    if (m_row.m_digest.m_digest_text.length() == 0)
       m_row.m_digest.m_digest_length= 0;
   }
   else
   {
     m_row.m_digest.m_digest_length= 0;
-    m_row.m_digest.m_digest_text_length= 0;
+    m_row.m_digest.m_digest_text.length(0);
   }
 
   return;
@@ -491,9 +394,9 @@ int table_events_statements_common::read_row_values(TABLE *table,
           f->set_null();
         break;
       case 11: /* DIGEST_TEXT */
-        if (m_row.m_digest.m_digest_text_length > 0)
-           set_field_longtext_utf8(f, m_row.m_digest.m_digest_text,
-                                   m_row.m_digest.m_digest_text_length);
+        if (m_row.m_digest.m_digest_text.length() > 0)
+           set_field_longtext_utf8(f, m_row.m_digest.m_digest_text.ptr(),
+                                   m_row.m_digest.m_digest_text.length());
         else
           f->set_null();
         break;
@@ -710,11 +613,11 @@ int table_events_statements_current::rnd_pos(const void *pos)
 void table_events_statements_current::make_row(PFS_thread *pfs_thread,
                                                PFS_events_statements *statement)
 {
-  PSI_digest_storage digest;
+  sql_digest_storage digest;
   pfs_lock lock;
   pfs_lock stmt_lock;
 
-  digest_reset(&digest);
+  digest.reset(m_token_array, MAX_DIGEST_STORAGE_SIZE);
   /* Protect this reader against thread termination. */
   pfs_thread->m_lock.begin_optimistic_lock(&lock);
   /* Protect this reader against writing on statement information. */
@@ -838,10 +741,10 @@ int table_events_statements_history::rnd_pos(const void *pos)
 void table_events_statements_history::make_row(PFS_thread *pfs_thread,
                                                PFS_events_statements *statement)
 {
-  PSI_digest_storage digest;
+  sql_digest_storage digest;
   pfs_lock lock;
 
-  digest_reset(&digest);
+  digest.reset(m_token_array, MAX_DIGEST_STORAGE_SIZE);
   /* Protect this reader against thread termination. */
   pfs_thread->m_lock.begin_optimistic_lock(&lock);
 
@@ -942,9 +845,9 @@ int table_events_statements_history_long::rnd_pos(const void *pos)
 
 void table_events_statements_history_long::make_row(PFS_events_statements *statement)
 {
-  PSI_digest_storage digest;
+  sql_digest_storage digest;
 
-  digest_reset(&digest);
+  digest.reset(m_token_array, MAX_DIGEST_STORAGE_SIZE);
   table_events_statements_common::make_row_part_1(statement, &digest);
 
   table_events_statements_common::make_row_part_2(&digest);

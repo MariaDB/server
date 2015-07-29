@@ -1,4 +1,4 @@
-/* Copyright (C) 2008-2014 Kentoku Shiba
+/* Copyright (C) 2008-2015 Kentoku Shiba
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -41,11 +41,13 @@
 #include "spd_malloc.h"
 
 ulong *spd_db_att_thread_id;
+#if MYSQL_VERSION_ID < 100103
 #ifdef XID_CACHE_IS_SPLITTED
 uint *spd_db_att_xid_cache_split_num;
 #endif
 pthread_mutex_t *spd_db_att_LOCK_xid_cache;
 HASH *spd_db_att_xid_cache;
+#endif
 struct charset_info_st *spd_charset_utf8_bin;
 const char **spd_defaults_extra_file;
 const char **spd_defaults_file;
@@ -771,6 +773,8 @@ int spider_free_share_alloc(
     spider_free(spider_current_trx, share->net_write_timeouts, MYF(0));
   if (share->access_balances)
     spider_free(spider_current_trx, share->access_balances, MYF(0));
+  if (share->bka_table_name_types)
+    spider_free(spider_current_trx, share->bka_table_name_types, MYF(0));
 #ifndef WITHOUT_SPIDER_BG_SEARCH
   if (share->monitoring_bg_interval)
     spider_free(spider_current_trx, share->monitoring_bg_interval, MYF(0));
@@ -1987,6 +1991,8 @@ int spider_parse_connect_info(
           SPIDER_PARAM_STR("bke", bka_engine);
           SPIDER_PARAM_INT_WITH_MAX("bkm", bka_mode, 0, 2);
           SPIDER_PARAM_INT("bsz", bulk_size, 0);
+          SPIDER_PARAM_LONG_LIST_WITH_MAX("btt", bka_table_name_types,
+            0, 1);
           SPIDER_PARAM_INT_WITH_MAX("bum", bulk_update_mode, 0, 2);
           SPIDER_PARAM_INT("bus", bulk_update_size, 0);
 #ifndef WITHOUT_SPIDER_BG_SEARCH
@@ -2335,6 +2341,8 @@ int spider_parse_connect_info(
 #if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
           SPIDER_PARAM_LONGLONG("hs_result_free_size", hs_result_free_size, 0);
 #endif
+          SPIDER_PARAM_LONG_LIST_WITH_MAX("bka_table_name_type",
+            bka_table_name_types, 0, 1);
           error_num = ER_SPIDER_INVALID_CONNECT_INFO_NUM;
           my_printf_error(error_num, ER_SPIDER_INVALID_CONNECT_INFO_STR,
             MYF(0), tmp_ptr);
@@ -2482,6 +2490,8 @@ int spider_parse_connect_info(
     share->all_link_count = share->net_write_timeouts_length;
   if (share->all_link_count < share->access_balances_length)
     share->all_link_count = share->access_balances_length;
+  if (share->all_link_count < share->bka_table_name_types_length)
+    share->all_link_count = share->bka_table_name_types_length;
   if ((error_num = spider_increase_string_list(
     &share->server_names,
     &share->server_names_lengths,
@@ -2709,6 +2719,11 @@ int spider_parse_connect_info(
   if ((error_num = spider_increase_long_list(
     &share->access_balances,
     &share->access_balances_length,
+    share->all_link_count)))
+    goto error;
+  if ((error_num = spider_increase_long_list(
+    &share->bka_table_name_types,
+    &share->bka_table_name_types_length,
     share->all_link_count)))
     goto error;
 
@@ -3400,6 +3415,8 @@ int spider_set_connect_info_default(
       share->net_write_timeouts[roop_count] = 600;
     if (share->access_balances[roop_count] == -1)
       share->access_balances[roop_count] = 100;
+    if (share->bka_table_name_types[roop_count] == -1)
+      share->bka_table_name_types[roop_count] = 0;
   }
 
 #ifndef WITHOUT_SPIDER_BG_SEARCH
@@ -6263,7 +6280,7 @@ int spider_db_init(
       "?LOCK_xid_cache@@3PAUst_mysql_mutex@@A"));
   spd_db_att_xid_cache = *((HASH **)
     GetProcAddress(current_module, "?xid_cache@@3PAUst_hash@@A"));
-#else
+#elif MYSQL_VERSION_ID < 100103
   spd_db_att_LOCK_xid_cache = (pthread_mutex_t *)
 #if MYSQL_VERSION_ID < 50500
     GetProcAddress(current_module,
@@ -6289,7 +6306,7 @@ int spider_db_init(
   spd_db_att_xid_cache_split_num = &opt_xid_cache_split_num;
   spd_db_att_LOCK_xid_cache = LOCK_xid_cache;
   spd_db_att_xid_cache = xid_cache;
-#else
+#elif MYSQL_VERSION_ID < 100103
   spd_db_att_LOCK_xid_cache = &LOCK_xid_cache;
   spd_db_att_xid_cache = &xid_cache;
 #endif
@@ -7494,6 +7511,7 @@ void spider_set_tmp_share_pointer(
   tmp_share->net_write_timeouts = &tmp_long[13];
   tmp_long[13] = -1;
   tmp_share->access_balances = &tmp_long[14];
+  tmp_share->bka_table_name_types = &tmp_long[15];
   tmp_share->monitoring_limit = &tmp_longlong[0];
   tmp_share->monitoring_sid = &tmp_longlong[1];
 #ifndef WITHOUT_SPIDER_BG_SEARCH
@@ -7563,6 +7581,7 @@ void spider_set_tmp_share_pointer(
   tmp_share->net_read_timeouts_length = 1;
   tmp_share->net_write_timeouts_length = 1;
   tmp_share->access_balances_length = 1;
+  tmp_share->bka_table_name_types_length = 1;
 
 #ifndef WITHOUT_SPIDER_BG_SEARCH
   tmp_share->monitoring_bg_kind[0] = -1;
@@ -7989,12 +8008,6 @@ bool spider_check_direct_order_limit(
     DBUG_PRINT("info",("spider select_limit=%lld", select_limit));
     DBUG_PRINT("info",("spider offset_limit=%lld", offset_limit));
     if (
-#if MYSQL_VERSION_ID < 50500
-      !thd->variables.engine_condition_pushdown ||
-#else
-      !(thd->variables.optimizer_switch &
-        OPTIMIZER_SWITCH_ENGINE_CONDITION_PUSHDOWN) ||
-#endif
 #ifdef SPIDER_NEED_CHECK_CONDITION_AT_CHECKING_DIRECT_ORDER_LIMIT
       !spider->condition ||
 #endif
@@ -8136,10 +8149,15 @@ bool spider_check_index_merge(
     DBUG_PRINT("info",("spider join is null"));
     DBUG_RETURN(FALSE);
   }
+  if (!join->join_tab)
+  {
+    DBUG_PRINT("info",("spider join->join_tab is null"));
+    DBUG_RETURN(FALSE);
+  }
   for (roop_count = 0; roop_count < spider_join_table_count(join); ++roop_count)
   {
     JOIN_TAB *join_tab = &join->join_tab[roop_count];
-    if (join_tab && join_tab->table == table)
+    if (join_tab->table == table)
     {
       DBUG_PRINT("info",("spider join_tab->type=%u", join_tab->type));
       if (

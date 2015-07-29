@@ -25,159 +25,6 @@
 
 THR_LOCK table_host_cache::m_table_lock;
 
-static const TABLE_FIELD_TYPE field_types[]=
-{
-  {
-    { C_STRING_WITH_LEN("IP") },
-    { C_STRING_WITH_LEN("varchar(64)") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("HOST") },
-    { C_STRING_WITH_LEN("varchar(255)") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("HOST_VALIDATED") },
-    { C_STRING_WITH_LEN("enum(\'YES\',\'NO\')") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("SUM_CONNECT_ERRORS") },
-    { C_STRING_WITH_LEN("bigint(20)") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("COUNT_HOST_BLOCKED_ERRORS") },
-    { C_STRING_WITH_LEN("bigint(20)") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("COUNT_NAMEINFO_TRANSIENT_ERRORS") },
-    { C_STRING_WITH_LEN("bigint(20)") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("COUNT_NAMEINFO_PERMANENT_ERRORS") },
-    { C_STRING_WITH_LEN("bigint(20)") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("COUNT_FORMAT_ERRORS") },
-    { C_STRING_WITH_LEN("bigint(20)") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("COUNT_ADDRINFO_TRANSIENT_ERRORS") },
-    { C_STRING_WITH_LEN("bigint(20)") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("COUNT_ADDRINFO_PERMANENT_ERRORS") },
-    { C_STRING_WITH_LEN("bigint(20)") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("COUNT_FCRDNS_ERRORS") },
-    { C_STRING_WITH_LEN("bigint(20)") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("COUNT_HOST_ACL_ERRORS") },
-    { C_STRING_WITH_LEN("bigint(20)") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("COUNT_NO_AUTH_PLUGIN_ERRORS") },
-    { C_STRING_WITH_LEN("bigint(20)") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("COUNT_AUTH_PLUGIN_ERRORS") },
-    { C_STRING_WITH_LEN("bigint(20)") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("COUNT_HANDSHAKE_ERRORS") },
-    { C_STRING_WITH_LEN("bigint(20)") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("COUNT_PROXY_USER_ERRORS") },
-    { C_STRING_WITH_LEN("bigint(20)") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("COUNT_PROXY_USER_ACL_ERRORS") },
-    { C_STRING_WITH_LEN("bigint(20)") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("COUNT_AUTHENTICATION_ERRORS") },
-    { C_STRING_WITH_LEN("bigint(20)") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("COUNT_SSL_ERRORS") },
-    { C_STRING_WITH_LEN("bigint(20)") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("COUNT_MAX_USER_CONNECTIONS_ERRORS") },
-    { C_STRING_WITH_LEN("bigint(20)") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("COUNT_MAX_USER_CONNECTIONS_PER_HOUR_ERRORS") },
-    { C_STRING_WITH_LEN("bigint(20)") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("COUNT_DEFAULT_DATABASE_ERRORS") },
-    { C_STRING_WITH_LEN("bigint(20)") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("COUNT_INIT_CONNECT_ERRORS") },
-    { C_STRING_WITH_LEN("bigint(20)") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("COUNT_LOCAL_ERRORS") },
-    { C_STRING_WITH_LEN("bigint(20)") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("COUNT_UNKNOWN_ERRORS") },
-    { C_STRING_WITH_LEN("bigint(20)") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("FIRST_SEEN") },
-    { C_STRING_WITH_LEN("timestamp") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("LAST_SEEN") },
-    { C_STRING_WITH_LEN("timestamp") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("FIRST_ERROR_SEEN") },
-    { C_STRING_WITH_LEN("timestamp") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("LAST_ERROR_SEEN") },
-    { C_STRING_WITH_LEN("timestamp") },
-    { NULL, 0}
-  }
-};
-
-TABLE_FIELD_DEF
-table_host_cache::m_field_def=
-{ 29, field_types, 0, (uint*) 0 };
-
 PFS_engine_table_share
 table_host_cache::m_share=
 {
@@ -190,8 +37,36 @@ table_host_cache::m_share=
   1000, /* records */
   sizeof(PFS_simple_index), /* ref length */
   &m_table_lock,
-  &m_field_def,
-  false /* checked */
+  { C_STRING_WITH_LEN("CREATE TABLE host_cache("
+                      "IP VARCHAR(64) not null,"
+                      "HOST VARCHAR(255) collate utf8_bin,"
+                      "HOST_VALIDATED ENUM ('YES', 'NO') not null,"
+                      "SUM_CONNECT_ERRORS BIGINT not null,"
+                      "COUNT_HOST_BLOCKED_ERRORS BIGINT not null,"
+                      "COUNT_NAMEINFO_TRANSIENT_ERRORS BIGINT not null,"
+                      "COUNT_NAMEINFO_PERMANENT_ERRORS BIGINT not null,"
+                      "COUNT_FORMAT_ERRORS BIGINT not null,"
+                      "COUNT_ADDRINFO_TRANSIENT_ERRORS BIGINT not null,"
+                      "COUNT_ADDRINFO_PERMANENT_ERRORS BIGINT not null,"
+                      "COUNT_FCRDNS_ERRORS BIGINT not null,"
+                      "COUNT_HOST_ACL_ERRORS BIGINT not null,"
+                      "COUNT_NO_AUTH_PLUGIN_ERRORS BIGINT not null,"
+                      "COUNT_AUTH_PLUGIN_ERRORS BIGINT not null,"
+                      "COUNT_HANDSHAKE_ERRORS BIGINT not null,"
+                      "COUNT_PROXY_USER_ERRORS BIGINT not null,"
+                      "COUNT_PROXY_USER_ACL_ERRORS BIGINT not null,"
+                      "COUNT_AUTHENTICATION_ERRORS BIGINT not null,"
+                      "COUNT_SSL_ERRORS BIGINT not null,"
+                      "COUNT_MAX_USER_CONNECTIONS_ERRORS BIGINT not null,"
+                      "COUNT_MAX_USER_CONNECTIONS_PER_HOUR_ERRORS BIGINT not null,"
+                      "COUNT_DEFAULT_DATABASE_ERRORS BIGINT not null,"
+                      "COUNT_INIT_CONNECT_ERRORS BIGINT not null,"
+                      "COUNT_LOCAL_ERRORS BIGINT not null,"
+                      "COUNT_UNKNOWN_ERRORS BIGINT not null,"
+                      "FIRST_SEEN TIMESTAMP(0) NOT NULL default 0,"
+                      "LAST_SEEN TIMESTAMP(0) NOT NULL default 0,"
+                      "FIRST_ERROR_SEEN TIMESTAMP(0) null default 0,"
+                      "LAST_ERROR_SEEN TIMESTAMP(0) null default 0)") }
 };
 
 PFS_engine_table* table_host_cache::create(void)

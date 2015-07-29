@@ -17,7 +17,6 @@
 #ifndef _sql_plugin_h
 #define _sql_plugin_h
 
-
 /*
   the following #define adds server-only members to enum_mysql_show_type,
   that is defined in plugin.h
@@ -79,8 +78,6 @@ typedef struct st_mysql_show_var SHOW_VAR;
 #define PLUGIN_IS_DYING         16
 #define PLUGIN_IS_DISABLED      32
 
-/* A handle for the dynamic library containing a plugin or plugins. */
-
 struct st_ptr_backup {
   void **ptr;
   void *value;
@@ -88,6 +85,8 @@ struct st_ptr_backup {
   void save(const char **p) { save((void**)p); }
   void restore() { *ptr= value; }
 };
+
+/* A handle for the dynamic library containing a plugin or plugins. */
 
 struct st_plugin_dl
 {
@@ -190,4 +189,5 @@ extern bool plugin_foreach_with_mask(THD *thd, plugin_foreach_func *func,
                                      int type, uint state_mask, void *arg);
 extern bool plugin_dl_foreach(THD *thd, const LEX_STRING *dl,
                               plugin_foreach_func *func, void *arg);
+
 #endif

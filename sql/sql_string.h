@@ -35,20 +35,84 @@ typedef struct st_mem_root MEM_ROOT;
 int sortcmp(const String *a,const String *b, CHARSET_INFO *cs);
 String *copy_if_not_alloced(String *a,String *b,uint32 arg_length);
 inline uint32 copy_and_convert(char *to, uint32 to_length,
-                               const CHARSET_INFO *to_cs,
+                               CHARSET_INFO *to_cs,
                                const char *from, uint32 from_length,
-                               const CHARSET_INFO *from_cs, uint *errors)
+                               CHARSET_INFO *from_cs, uint *errors)
 {
   return my_convert(to, to_length, to_cs, from, from_length, from_cs, errors);
 }
-uint32 well_formed_copy_nchars(CHARSET_INFO *to_cs,
-                               char *to, uint to_length,
-                               CHARSET_INFO *from_cs,
-                               const char *from, uint from_length,
-                               uint nchars,
-                               const char **well_formed_error_pos,
-                               const char **cannot_convert_error_pos,
-                               const char **from_end_pos);
+
+
+class String_copier: private MY_STRCONV_STATUS
+{
+public:
+  const char *source_end_pos() const
+  { return m_native_copy_status.m_source_end_pos; }
+  const char *well_formed_error_pos() const
+  { return m_native_copy_status.m_well_formed_error_pos; }
+  const char *cannot_convert_error_pos() const
+  { return m_cannot_convert_error_pos; }
+  const char *most_important_error_pos() const
+  {
+    return well_formed_error_pos() ? well_formed_error_pos() :
+                                     cannot_convert_error_pos();
+  }
+  /*
+    Convert a string between character sets.
+    "dstcs" and "srccs" cannot be &my_charset_bin.
+  */
+  uint convert_fix(CHARSET_INFO *dstcs, char *dst, uint dst_length,
+                   CHARSET_INFO *srccs, const char *src, uint src_length,
+                   uint nchars)
+  {
+    return my_convert_fix(dstcs, dst, dst_length,
+                          srccs, src, src_length, nchars, this);
+  }
+  /*
+     Copy a string. Fix bad bytes/characters one Unicode conversion,
+     break on bad bytes in case of non-Unicode copying.
+  */
+  uint well_formed_copy(CHARSET_INFO *to_cs, char *to, uint to_length,
+                        CHARSET_INFO *from_cs, const char *from,
+                        uint from_length, uint nchars);
+  // Same as above, but without the "nchars" limit.
+  uint well_formed_copy(CHARSET_INFO *to_cs, char *to, uint to_length,
+                        CHARSET_INFO *from_cs, const char *from,
+                        uint from_length)
+  {
+    return well_formed_copy(to_cs, to, to_length,
+                            from_cs, from, from_length,
+                            from_length /* No limit on "nchars"*/);
+  }
+  /*
+    Copy a string. If a bad byte sequence is found in case of non-Unicode
+    copying, continues processing and replaces bad bytes to '?'.
+  */
+  uint copy_fix(CHARSET_INFO *to_cs, char *to, uint to_length,
+                CHARSET_INFO *from_cs, const char *from, uint from_length)
+  {
+    uint length= well_formed_copy(to_cs, to, to_length,
+                                  from_cs, from, from_length,
+                                  from_length /* No limit on nchars */);
+    if (well_formed_error_pos() && source_end_pos() < from + from_length)
+    {
+      /*
+        There was an error and there are still some bytes in the source string.
+        This is possible if there were no character set conversion and a
+        malformed byte sequence was found. Copy the rest and replace bad
+        bytes to '?'. Note: m_source_end_pos is not updated!!!
+      */
+      uint dummy_errors;
+      length+= copy_and_convert(to + length, to_length - length, to_cs,
+                                source_end_pos(),
+                                from_length - (source_end_pos() - from),
+                                from_cs, &dummy_errors);
+    }
+    return length;
+  }
+};
+
+
 size_t my_copy_with_hex_escaping(CHARSET_INFO *cs,
                                  char *dst, size_t dstlen,
                                  const char *src, size_t srclen);
@@ -136,6 +200,7 @@ public:
   inline bool is_empty() const { return (str_length == 0); }
   inline void mark_as_const() { Alloced_length= 0;}
   inline const char *ptr() const { return Ptr; }
+  inline const char *end() const { return Ptr + str_length; }
   inline char *c_ptr()
   {
     DBUG_ASSERT(!alloced || !Ptr || !Alloced_length || 
@@ -161,13 +226,13 @@ public:
   }
   LEX_STRING lex_string() const
   {
-    LEX_STRING lex_string = { (char*) ptr(), length() };
-    return lex_string;
+    LEX_STRING str = { (char*) ptr(), length() };
+    return str;
   }
   LEX_CSTRING lex_cstring() const
   {
-    LEX_CSTRING lex_cstring = { ptr(), length() };
-    return lex_cstring;
+    LEX_CSTRING skr = { ptr(), length() };
+    return skr;
   }
 
   void set(String &str,uint32 offset,uint32 arg_length)
@@ -211,22 +276,24 @@ public:
     str_charset=cs;
   }
   bool set_int(longlong num, bool unsigned_flag, CHARSET_INFO *cs);
-  bool set(longlong num, CHARSET_INFO *cs)
-  { return set_int(num, false, cs); }
-  bool set(ulonglong num, CHARSET_INFO *cs)
-  { return set_int((longlong)num, true, cs); }
+  bool set(int num, CHARSET_INFO *cs) { return set_int(num, false, cs); }
+  bool set(uint num, CHARSET_INFO *cs) { return set_int(num, true, cs); }
+  bool set(long num, CHARSET_INFO *cs) { return set_int(num, false, cs); }
+  bool set(ulong num, CHARSET_INFO *cs) { return set_int(num, true, cs); }
+  bool set(longlong num, CHARSET_INFO *cs) { return set_int(num, false, cs); }
+  bool set(ulonglong num, CHARSET_INFO *cs) { return set_int((longlong)num, true, cs); }
   bool set_real(double num,uint decimals, CHARSET_INFO *cs);
 
   /* Move handling of buffer from some other object to String */
-  void reassociate(char *ptr, uint32 length, uint32 alloced_length,
+  void reassociate(char *ptr_arg, uint32 length_arg, uint32 alloced_length_arg,
                    CHARSET_INFO *cs)
   { 
     free();
-    Ptr= ptr;
-    str_length= length;
-    Alloced_length= alloced_length;
+    Ptr= ptr_arg;
+    str_length= length_arg;
+    Alloced_length= alloced_length_arg;
     str_charset= cs;
-    alloced= ptr != 0;
+    alloced= ptr_arg != 0;
   }
 
   /*
@@ -357,6 +424,17 @@ public:
   {
     return copy(str->ptr(), str->length(), str->charset(), tocs, errors);
   }
+  bool copy(CHARSET_INFO *tocs,
+            CHARSET_INFO *fromcs, const char *src, uint32 src_length,
+            uint32 nchars, String_copier *copier)
+  {
+    if (alloc(tocs->mbmaxlen * src_length))
+      return true;
+    str_length= copier->well_formed_copy(tocs, Ptr, Alloced_length,
+                                         fromcs, src, src_length, nchars);
+    str_charset= tocs;
+    return false;
+  }
   void move(String &s)
   {
     free();
@@ -399,7 +477,7 @@ public:
   }
   bool append_hex(const char *src, uint32 srclen)
   {
-    for (const char *end= src + srclen ; src != end ; src++)
+    for (const char *src_end= src + srclen ; src != src_end ; src++)
     {
       if (append(_dig_vec_lower[((uchar) *src) >> 4]) ||
           append(_dig_vec_lower[((uchar) *src) & 0x0F]))
@@ -535,7 +613,7 @@ public:
       return TRUE;
     if (charset()->mbminlen > 1)
       return FALSE;
-    for (const char *c= ptr(), *end= c + length(); c < end; c++)
+    for (const char *c= ptr(), *c_end= c + length(); c < c_end; c++)
     {
       if (!my_isascii(*c))
         return FALSE;
@@ -573,14 +651,14 @@ class StringBuffer : public String
 
 public:
   StringBuffer() : String(buff, buff_sz, &my_charset_bin) { length(0); }
-  explicit StringBuffer(const CHARSET_INFO *cs) : String(buff, buff_sz, cs)
+  explicit StringBuffer(CHARSET_INFO *cs) : String(buff, buff_sz, cs)
   {
     length(0);
   }
-  StringBuffer(const char *str, size_t length, const CHARSET_INFO *cs)
+  StringBuffer(const char *str, size_t length_arg, CHARSET_INFO *cs)
     : String(buff, buff_sz, cs)
   {
-    set(str, length, cs);
+    set(str, length_arg, cs);
   }
 };
 

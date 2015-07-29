@@ -728,7 +728,7 @@ utf8_normalize(grn_ctx *ctx, grn_string *nstr)
             nstr->ctypes = ctypes;
           }
         }
-        memcpy(d, p, lp);
+        grn_memcpy(d, p, lp);
         d_ = d;
         d += lp;
         length++;

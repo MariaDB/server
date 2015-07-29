@@ -6,7 +6,6 @@
 #############################################################################
 # Change Author: JBM
 # Change Date: 2006-01-16
-# Change: Added Order by for NDB
 ##########
 
 # Includes
@@ -42,9 +41,6 @@ CALL test.p1();
 --enable_warnings
 SELECT * FROM test.t1 ORDER BY blob_column;
 save_master_pos;
-# Need to allow some time when NDB engine is used for
-# the injector thread to have time to populate binlog
-sleep 10;
 sync_slave_with_master;
 connection slave;
 SELECT * FROM test.t1 ORDER BY blob_column;

@@ -27,9 +27,14 @@ extern "C" {
 #include <mysql/service_kill_statement.h>
 #include <mysql/service_thd_timezone.h>
 #include <mysql/service_sha1.h>
+#include <mysql/service_md5.h>
 #include <mysql/service_logger.h>
 #include <mysql/service_thd_autoinc.h>
 #include <mysql/service_thd_error_context.h>
+#include <mysql/service_thd_specifics.h>
+#include <mysql/service_encryption.h>
+#include <mysql/service_encryption_scheme.h>
+/*#include <mysql/service_wsrep.h>*/
 
 #ifdef __cplusplus
 }

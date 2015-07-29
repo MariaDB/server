@@ -1,7 +1,7 @@
 #!/usr/bin/env ruby
 # -*- coding: utf-8 -*-
 #
-# Copyright (C) 2013  Kouhei Sutou <kou@clear-code.com>
+# Copyright (C) 2013-2015  Kouhei Sutou <kou@clear-code.com>
 #
 # This library is free software; you can redistribute it and/or
 # modify it under the terms of the GNU Library General Public
@@ -22,6 +22,7 @@ require "optparse"
 $LOAD_PATH.unshift(File.dirname(__FILE__))
 require "parser"
 
+@version = nil
 @suffix = ""
 @split_small_kana_p = false
 @split_kana_with_voiced_sound_mark_p = false
@@ -29,6 +30,10 @@ require "parser"
 
 option_parser = OptionParser.new
 option_parser.banner += " MYSQL_SOURCE/strings/ctype-uca.c"
+
+option_parser.on("--version=VERSION", "Use VERSION as UCA version") do |version|
+  @version = version
+end
 
 option_parser.on("--suffix=SUFFIX", "Add SUFFIX to names") do |suffix|
   @suffix = suffix
@@ -67,7 +72,7 @@ end
 
 ctype_uca_c_path = ARGV[0]
 
-parser = CTypeUCAParser.new
+parser = CTypeUCAParser.new(@version)
 File.open(ctype_uca_c_path) do |ctype_uca_c|
   parser.parse(ctype_uca_c)
 end
@@ -185,11 +190,15 @@ end
 normalized_ctype_uca_c_path =
   ctype_uca_c_path.sub(/\A.*\/([^\/]+\/strings\/ctype-uca\.c)\z/, "\\1")
 
-@suffix_upper_case = @suffix.upcase
+header_guard_id = "MYSQL_UCA"
+if @version
+  header_guard_id << "_#{@version}"
+end
+header_guard_id << "#{@suffix.upcase}_H"
 
 puts(<<-HEADER)
 /*
-  Copyright(C) 2013  Kouhei Sutou <kou@clear-code.com>
+  Copyright(C) 2013-2015  Kouhei Sutou <kou@clear-code.com>
 
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Library General Public
@@ -210,7 +219,7 @@ puts(<<-HEADER)
   #{normalized_ctype_uca_c_path}.
   The following is the header of the file:
 
-    Copyright (c) 2004, 2011, Oracle and/or its affiliates. All rights reserved.
+    Copyright (c) 2004, 2014, Oracle and/or its affiliates. All rights reserved.
 
     This library is free software; you can redistribute it and/or
     modify it under the terms of the GNU Library General Public
@@ -231,14 +240,23 @@ puts(<<-HEADER)
     Written by Alexander Barkov <bar@mysql.com>
 */
 
-#ifndef MYSQL_UCA#{@suffix_upper_case}_H
-#define MYSQL_UCA#{@suffix_upper_case}_H
+#ifndef #{header_guard_id}
+#define #{header_guard_id}
 
 #include <stdint.h>
 HEADER
 
+def variable_name_prefix
+  prefix = "unicode"
+  if @version
+    prefix << "_#{@version}"
+  end
+  prefix << "_ci#{@suffix}"
+  prefix
+end
+
 def page_name(page)
-  "unicode_ci#{@suffix}_page_%02x" % page
+  "#{variable_name_prefix}_page_%02x" % page
 end
 
 sorted_target_pages.each do |page, characters|
@@ -261,10 +279,10 @@ end
 
 puts(<<-PAGES_HEADER)
 
-static uint32_t *unicode_ci#{@suffix}_table[256] = {
+static uint32_t *#{variable_name_prefix}_table[#{parser.n_pages}] = {
 PAGES_HEADER
 
-pages = ["NULL"] * 256
+pages = ["NULL"] * parser.n_pages
 sorted_target_pages.each do |page, characters|
   pages[page] = page_name(page)
 end

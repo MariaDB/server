@@ -1,5 +1,6 @@
 /*
    Copyright (c) 2002, 2011, Oracle and/or its affiliates.
+   Copyright (c) 2010, 2015, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -169,7 +170,9 @@ mysql_handle_single_derived(LEX *lex, TABLE_LIST *derived, uint phases)
   uint8 allowed_phases= (derived->is_merged_derived() ? DT_PHASES_MERGE :
                          DT_PHASES_MATERIALIZE);
   DBUG_ENTER("mysql_handle_single_derived");
-  DBUG_PRINT("enter", ("phases: 0x%x  allowed: 0x%x", phases, allowed_phases));
+  DBUG_PRINT("enter", ("phases: 0x%x  allowed: 0x%x  alias: '%s'",
+                       phases, allowed_phases,
+                       (derived->alias ? derived->alias : "<NULL>")));
   if (!lex->derived_tables)
     DBUG_RETURN(FALSE);
 
@@ -407,7 +410,7 @@ bool mysql_derived_merge(THD *thd, LEX *lex, TABLE_LIST *derived)
     if (!derived->get_unit()->prepared)
     {
       dt_select->leaf_tables.empty();
-      make_leaves_list(dt_select->leaf_tables, derived, TRUE, 0);
+      make_leaves_list(thd, dt_select->leaf_tables, derived, TRUE, 0);
     } 
 
     derived->nested_join= (NESTED_JOIN*) thd->calloc(sizeof(NESTED_JOIN));
@@ -660,7 +663,7 @@ bool mysql_derived_prepare(THD *thd, LEX *lex, TABLE_LIST *derived)
 
   unit->derived= derived;
 
-  if (!(derived->derived_result= new select_union))
+  if (!(derived->derived_result= new (thd->mem_root) select_union(thd)))
     DBUG_RETURN(TRUE); // out of memory
 
   lex->context_analysis_only|= CONTEXT_ANALYSIS_ONLY_DERIVED;
@@ -799,7 +802,7 @@ bool mysql_derived_optimize(THD *thd, LEX *lex, TABLE_LIST *derived)
     if (!derived->is_merged_derived())
     {
       JOIN *join= first_select->join;
-      unit->set_limit(unit->global_parameters);
+      unit->set_limit(unit->global_parameters());
       unit->optimized= TRUE;
       if ((res= join->optimize()))
         goto err;
@@ -916,7 +919,7 @@ bool mysql_derived_fill(THD *thd, LEX *lex, TABLE_LIST *derived)
   }
   else
   {
-    unit->set_limit(unit->global_parameters);
+    unit->set_limit(unit->global_parameters());
     if (unit->select_limit_cnt == HA_POS_ERROR)
       first_select->options&= ~OPTION_FOUND_ROWS;
 
@@ -974,7 +977,7 @@ bool mysql_derived_reinit(THD *thd, LEX *lex, TABLE_LIST *derived)
   derived->merged_for_insert= FALSE;
   unit->unclean();
   unit->types.empty();
-  /* for derived tables & PS (which can't be reset by Item_subquery) */
+  /* for derived tables & PS (which can't be reset by Item_subselect) */
   unit->reinit_exec_mechanism();
   unit->set_thd(thd);
   DBUG_RETURN(FALSE);

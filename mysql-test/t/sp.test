@@ -4,7 +4,7 @@
 # Test cases for bugs are added at the end. See template there.
 #
 # Some tests that require --error go into sp-error.test
-# Tests that require inndb go into sp_trans.test
+# Tests that require innodb go into sp_trans.test
 # Tests that check privilege and security issues go to sp-security.test.
 # Tests that require multiple connections, except security/privilege tests,
 #   go to sp-thread.
@@ -4355,17 +4355,14 @@ begin
   return f1;
 end|
 drop function bug9048|
-#
-# This was disabled in 5.1.12. See bug #20701
-# When collation support in SP is implemented, then this test should
-# be removed.
-#
---error ER_NOT_SUPPORTED_YET
+
 create function bug9048(f1 char binary) returns char binary
 begin
   set f1= concat( 'hello', f1 );
   return f1;
 end|
+select collation(bug9048("foo"))|
+drop function bug9048|
 
 # Bug #12849 Stored Procedure: Crash on procedure call with CHAR type
 # 'INOUT' parameter
@@ -9303,3 +9300,88 @@ DROP PROCEDURE p1;
 DROP TABLE t1;
 
 --echo # End of 5.5 test
+
+DELIMITER |;
+CREATE FUNCTION f(f1 VARCHAR(64) COLLATE latin1_german2_ci)
+  RETURNS VARCHAR(64)
+BEGIN
+  RETURN 'str';
+END|
+DROP FUNCTION f|
+
+CREATE FUNCTION f(f1 VARCHAR(64))
+  RETURNS VARCHAR(64) COLLATE latin1_german2_ci
+BEGIN
+  RETURN 'str';
+END|
+DROP FUNCTION f|
+
+CREATE FUNCTION f(f1 VARCHAR(64))
+  RETURNS VARCHAR(64)
+BEGIN
+  DECLARE f2 VARCHAR(64) COLLATE latin1_german2_ci;
+  RETURN 'str';
+END|
+DROP FUNCTION f|
+DELIMITER ;|
+
+--echo #
+--echo # MDEV-7023: Error 2027: Malformed packet and assertion
+--echo # `field_types == 0 || field_types[field_pos] == MYSQL_TYPE_INT24 ||
+--echo #field_types[field_pos] == MYSQL_TYPE_LONG' failure in
+--echo #Protocol_text::store_long
+--echo #
+create table t1 (i int);
+create table t2 (i int);
+--delimiter |
+--error ER_SP_NO_RETSET
+create function f() returns int 
+begin 
+  analyze insert into t1 values (1); 
+  return 1; 
+end |
+--error ER_SP_NO_RETSET
+create function f() returns int 
+begin 
+  analyze insert t1 select * from t2; 
+  return 1; 
+end |
+--error ER_SP_NO_RETSET
+create function f() returns int 
+begin 
+  analyze delete from t1; 
+  return 1; 
+end |
+--error ER_SP_NO_RETSET
+create function f() returns int 
+begin 
+  analyze delete t1 from t1,t2; 
+  return 1; 
+end |
+--error ER_SP_NO_RETSET
+create function f() returns int 
+begin 
+  analyze update t1 set i=1; 
+  return 1; 
+end |
+--error ER_SP_NO_RETSET
+create function f() returns int 
+begin 
+  analyze update t1,t2 set i=1; 
+  return 1; 
+end |
+--error ER_SP_NO_RETSET
+create function f() returns int 
+begin 
+  analyze replace t1 set i=1; 
+  return 1; 
+end |
+--error ER_SP_NO_RETSET
+create function f() returns int 
+begin 
+  analyze replace t1 select * from t2; 
+  return 1; 
+end |
+--delimiter ;
+
+drop table t1,t2;

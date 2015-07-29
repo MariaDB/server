@@ -1,0 +1,16 @@
+#
+# MDEV-4260 Don't create frm files for temporary tables
+#
+
+# Ensure we don't overflow the internal heap table size in the join
+set @@session.max_heap_table_size=16*1024*1024;
+create table t1 select * from information_schema.session_status where variable_name like 'Opened%';
+create temporary table t2 (a int) engine=memory;
+select variable_name, session_status.variable_value - t1.variable_value
+from information_schema.session_status join t1 using (variable_name);
+let $tmpdir= `select @@tmpdir`;
+--list_files $tmpdir/ #sql*
+truncate table t2;
+select variable_name, session_status.variable_value - t1.variable_value
+from information_schema.session_status join t1 using (variable_name);
+drop table t1;

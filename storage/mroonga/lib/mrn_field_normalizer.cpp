@@ -114,6 +114,9 @@ namespace mrn {
     } else if ((strcmp(charset_info->name, "utf8_unicode_ci") == 0) ||
                (strcmp(charset_info->name, "utf8mb4_unicode_ci") == 0)) {
       normalizer_name = "NormalizerMySQLUnicodeCI";
+    } else if ((strcmp(charset_info->name, "utf8_unicode_520_ci") == 0) ||
+               (strcmp(charset_info->name, "utf8mb4_unicode_520_ci") == 0)) {
+      normalizer_name = "NormalizerMySQLUnicode520CI";
     }
 
     grn_obj *normalizer = NULL;
@@ -128,7 +131,7 @@ namespace mrn {
                  normalizer_name,
                  charset_info->name,
                  default_normalizer_name);
-        push_warning(thread_, Sql_condition::WARN_LEVEL_WARN,
+        push_warning(thread_, MRN_SEVERITY_WARNING,
                      HA_ERR_UNSUPPORTED, error_message);
       }
     }

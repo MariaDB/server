@@ -2578,7 +2578,6 @@ find_place(DYN_HEADER *hdr, void *key, my_bool string_keys)
   mid= 1;
   while (start != end)
   {
-    uint val;
     mid= (start + end) / 2;
     hdr->entry= hdr->header + mid * hdr->entry_size;
     if (!string_keys)
@@ -3894,11 +3893,11 @@ mariadb_dyncol_val_str(DYNAMIC_STRING *str, DYNAMIC_COLUMN_VALUE *val,
       }
     case DYN_COL_DECIMAL:
       {
-        int len= sizeof(buff);
-        decimal2string(&val->x.decimal.value, buff, &len,
+        int tmp_len= sizeof(buff);
+        decimal2string(&val->x.decimal.value, buff, &tmp_len,
                        0, val->x.decimal.value.frac,
                        '0');
-        if (dynstr_append_mem(str, buff, len))
+        if (dynstr_append_mem(str, buff, tmp_len))
           return ER_DYNCOL_RESOURCE;
         break;
       }

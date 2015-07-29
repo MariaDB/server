@@ -20,6 +20,7 @@
 #include "ma_rt_index.h"
 #include "ma_blockrec.h"
 #include <m_ctype.h>
+#include "ma_crypt.h"
 
 #if defined(MSDOS) || defined(__WIN__)
 #ifdef __WIN__
@@ -279,7 +280,7 @@ MARIA_HA *maria_open(const char *name, int mode, uint open_flags)
   char name_buff[FN_REFLEN], org_name[FN_REFLEN], index_name[FN_REFLEN],
        data_name[FN_REFLEN];
   uchar *disk_cache, *disk_pos, *end_pos;
-  MARIA_HA info,*m_info,*old_info;
+  MARIA_HA info, *UNINIT_VAR(m_info), *old_info;
   MARIA_SHARE share_buff,*share;
   double *rec_per_key_part;
   ulong  *nulls_per_key_part;
@@ -289,7 +290,6 @@ MARIA_HA *maria_open(const char *name, int mode, uint open_flags)
   File data_file= -1;
   DBUG_ENTER("maria_open");
 
-  LINT_INIT(m_info);
   kfile= -1;
   errpos= 0;
   head_length=sizeof(share_buff.state.header);
@@ -596,6 +596,12 @@ MARIA_HA *maria_open(const char *name, int mode, uint open_flags)
                              LSN_STORE_SIZE + TRANSID_SIZE :
                              0) + KEYPAGE_KEYID_SIZE + KEYPAGE_FLAG_SIZE +
                             KEYPAGE_USED_SIZE);
+
+    if (MY_TEST(share->base.extra_options & MA_EXTRA_OPTIONS_ENCRYPTED))
+    {
+      share->keypage_header+= ma_crypt_get_index_page_header_space(share);
+    }
+
     {
       HA_KEYSEG *pos=share->keyparts;
       uint32 ftkey_nr= 1;
@@ -829,6 +835,12 @@ MARIA_HA *maria_open(const char *name, int mode, uint open_flags)
     disk_pos= _ma_column_nr_read(disk_pos, share->column_nr,
                                  share->base.fields);
 
+    if (MY_TEST(share->base.extra_options & MA_EXTRA_OPTIONS_ENCRYPTED))
+    {
+      if (!(disk_pos= ma_crypt_read(share, disk_pos)))
+        goto err;
+    }
+
     if ((share->data_file_type == BLOCK_RECORD ||
          share->data_file_type == COMPRESSED_RECORD))
     {
@@ -1040,6 +1052,7 @@ err:
     (*share->once_end)(share);
     /* fall through */
   case 4:
+    ma_crypt_free(share);
     my_free(share);
     /* fall through */
   case 3:
@@ -1819,23 +1832,30 @@ uchar *_ma_column_nr_read(uchar *ptr, uint16 *offsets, uint columns)
 void _ma_set_data_pagecache_callbacks(PAGECACHE_FILE *file,
                                       MARIA_SHARE *share)
 {
+  pagecache_file_set_null_hooks(file);
   file->callback_data= (uchar*) share;
   file->flush_log_callback= &maria_flush_log_for_page_none; /* Do nothing */
+  file->post_write_hook= maria_page_write_failure;
 
   if (share->temporary)
   {
-    file->read_callback=  &maria_page_crc_check_none;
-    file->write_callback= &maria_page_filler_set_none;
+    file->post_read_hook= &maria_page_crc_check_none;
+    file->pre_write_hook= &maria_page_filler_set_none;
   }
   else
   {
-    file->read_callback=  &maria_page_crc_check_data;
+    file->post_read_hook= &maria_page_crc_check_data;
     if (share->options & HA_OPTION_PAGE_CHECKSUM)
-      file->write_callback= &maria_page_crc_set_normal;
+      file->pre_write_hook= &maria_page_crc_set_normal;
     else
-      file->write_callback= &maria_page_filler_set_normal;
+      file->pre_write_hook= &maria_page_filler_set_normal;
     if (share->now_transactional)
       file->flush_log_callback= maria_flush_log_for_page;
+  }
+
+  if (MY_TEST(share->base.extra_options & MA_EXTRA_OPTIONS_ENCRYPTED))
+  {
+    ma_crypt_set_data_pagecache_callbacks(file, share);
   }
 }
 
@@ -1851,25 +1871,31 @@ void _ma_set_data_pagecache_callbacks(PAGECACHE_FILE *file,
 void _ma_set_index_pagecache_callbacks(PAGECACHE_FILE *file,
                                        MARIA_SHARE *share)
 {
+  pagecache_file_set_null_hooks(file);
   file->callback_data= (uchar*) share;
   file->flush_log_callback= &maria_flush_log_for_page_none; /* Do nothing */
-  file->write_fail= maria_page_write_failure;
+  file->post_write_hook= maria_page_write_failure;
 
   if (share->temporary)
   {
-    file->read_callback=  &maria_page_crc_check_none;
-    file->write_callback= &maria_page_filler_set_none;
+    file->post_read_hook= &maria_page_crc_check_none;
+    file->pre_write_hook= &maria_page_filler_set_none;
   }
   else
   {
-    file->read_callback=  &maria_page_crc_check_index;
+    file->post_read_hook=  &maria_page_crc_check_index;
     if (share->options & HA_OPTION_PAGE_CHECKSUM)
-      file->write_callback= &maria_page_crc_set_index;
+      file->pre_write_hook= &maria_page_crc_set_index;
     else
-      file->write_callback= &maria_page_filler_set_normal;
+      file->pre_write_hook= &maria_page_filler_set_normal;
 
     if (share->now_transactional)
       file->flush_log_callback= maria_flush_log_for_page;
+  }
+
+  if (MY_TEST(share->base.extra_options & MA_EXTRA_OPTIONS_ENCRYPTED))
+  {
+    ma_crypt_set_index_pagecache_callbacks(file, share);
   }
 }
 

@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2010, 2013, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2010, 2014, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -851,7 +851,7 @@ exit:
 
 		error = row_merge_sort(psort_info->psort_common->trx,
 				       psort_info->psort_common->dup,
-				       merge_file[i], block[i], &tmpfd[i]);
+				       merge_file[i], block[i], &tmpfd[i], false, 0.0/* pct_progress */, 0.0/* pct_cost */);
 		if (error != DB_SUCCESS) {
 			close(tmpfd[i]);
 			goto func_exit;
@@ -1412,8 +1412,9 @@ row_fts_merge_insert(
 		fd[i] = psort_info[i].merge_file[id]->fd;
 		foffs[i] = 0;
 
-		buf[i] = static_cast<unsigned char (*)[16384]>(
+		buf[i] = static_cast<unsigned char (*)[65536]>(
 			mem_heap_alloc(heap, sizeof *buf[i]));
+
 		count_diag += (int) psort_info[i].merge_file[id]->n_rec;
 	}
 

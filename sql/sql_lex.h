@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2014, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2014, Monty Program Ab.
+   Copyright (c) 2010, 2015, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -47,6 +47,9 @@ class sys_var;
 class Item_func_match;
 class File_parser;
 class Key_part_spec;
+struct sql_digest_state;
+
+#define ALLOC_ROOT_SET 1024
 
 #ifdef MYSQL_SERVER
 /*
@@ -125,6 +128,7 @@ struct LEX_TYPE
 #if MYSQL_LEX
 #include "item_func.h"            /* Cast_target used in sql_yacc.h */
 #include "sql_get_diagnostics.h"  /* Types used in sql_yacc.h */
+#include "sp_pcontext.h"
 #include "sql_yacc.h"
 #define LEX_YYSTYPE YYSTYPE *
 #else
@@ -143,6 +147,9 @@ struct LEX_TYPE
 #define DESCRIBE_PARTITIONS	4
 
 #ifdef MYSQL_SERVER
+
+extern const LEX_STRING null_lex_str;
+extern const LEX_STRING empty_lex_str;
 
 enum enum_sp_suid_behaviour
 {
@@ -199,8 +206,13 @@ typedef Mem_root_array<ORDER*, true> Group_list_ptrs;
 typedef struct st_lex_server_options
 {
   long port;
-  uint server_name_length;
-  char *server_name, *host, *db, *username, *password, *scheme, *socket, *owner;
+  LEX_STRING server_name, host, db, username, password, scheme, socket, owner;
+  void reset(LEX_STRING name)
+  {
+    server_name= name;
+    host= db= username= password= scheme= socket= owner= null_lex_str;
+    port= -1;
+  }
 } LEX_SERVER_OPTIONS;
 
 
@@ -214,6 +226,8 @@ typedef struct st_lex_server_options
 struct LEX_MASTER_INFO
 {
   DYNAMIC_ARRAY repl_ignore_server_ids;
+  DYNAMIC_ARRAY repl_do_domain_ids;
+  DYNAMIC_ARRAY repl_ignore_domain_ids;
   char *host, *user, *password, *log_file_name;
   char *ssl_key, *ssl_cert, *ssl_ca, *ssl_capath, *ssl_cipher;
   char *ssl_crl, *ssl_crlpath;
@@ -231,7 +245,8 @@ struct LEX_MASTER_INFO
     changed variable or if it should be left at old value
    */
   enum {LEX_MI_UNCHANGED, LEX_MI_DISABLE, LEX_MI_ENABLE}
-    ssl, ssl_verify_server_cert, heartbeat_opt, repl_ignore_server_ids_opt;
+    ssl, ssl_verify_server_cert, heartbeat_opt, repl_ignore_server_ids_opt,
+    repl_do_domain_ids_opt, repl_ignore_domain_ids_opt;
   enum {
     LEX_GTID_UNCHANGED, LEX_GTID_NO, LEX_GTID_CURRENT_POS, LEX_GTID_SLAVE_POS
   } use_gtid_opt;
@@ -241,18 +256,29 @@ struct LEX_MASTER_INFO
     bzero(this, sizeof(*this));
     my_init_dynamic_array(&repl_ignore_server_ids,
                           sizeof(::server_id), 0, 16, MYF(0));
+    my_init_dynamic_array(&repl_do_domain_ids,
+                          sizeof(ulong), 0, 16, MYF(0));
+    my_init_dynamic_array(&repl_ignore_domain_ids,
+                          sizeof(ulong), 0, 16, MYF(0));
   }
-  void reset()
+  void reset(bool is_change_master)
   {
-    delete_dynamic(&repl_ignore_server_ids);
+    if (unlikely(is_change_master))
+    {
+      delete_dynamic(&repl_ignore_server_ids);
+      /* Free all the array elements. */
+      delete_dynamic(&repl_do_domain_ids);
+      delete_dynamic(&repl_ignore_domain_ids);
+    }
+
     host= user= password= log_file_name= ssl_key= ssl_cert= ssl_ca=
       ssl_capath= ssl_cipher= relay_log_name= 0;
     pos= relay_log_pos= server_id= port= connect_retry= 0;
     heartbeat_period= 0;
     ssl= ssl_verify_server_cert= heartbeat_opt=
-      repl_ignore_server_ids_opt= LEX_MI_UNCHANGED;
-    gtid_pos_str.length= 0;
-    gtid_pos_str.str= NULL;
+      repl_ignore_server_ids_opt= repl_do_domain_ids_opt=
+      repl_ignore_domain_ids_opt= LEX_MI_UNCHANGED;
+    gtid_pos_str= null_lex_str;
     use_gtid_opt= LEX_GTID_UNCHANGED;
   }
 };
@@ -500,7 +526,6 @@ public:
   void exclude();
   void exclude_from_tree();
 
-  virtual st_select_lex_unit* master_unit()= 0;
   virtual st_select_lex* outer_select()= 0;
   virtual st_select_lex* return_after_parsing()= 0;
 
@@ -522,8 +547,8 @@ public:
 
   friend class st_select_lex_unit;
   friend bool mysql_new_select(LEX *lex, bool move_down);
-  friend bool mysql_make_view(THD *thd, File_parser *parser,
-                              TABLE_LIST *table, uint flags);
+  friend bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *table,
+                              bool open_view_no_parse);
   friend bool mysql_derived_prepare(THD *thd, LEX *lex,
                                   TABLE_LIST *orig_table_list);
   friend bool mysql_derived_merge(THD *thd, LEX *lex,
@@ -548,7 +573,7 @@ class Explain_query;
 void delete_explain_query(LEX *lex);
 void create_explain_query(LEX *lex, MEM_ROOT *mem_root);
 void create_explain_query_if_not_exists(LEX *lex, MEM_ROOT *mem_root);
-bool print_explain_query(LEX *lex, THD *thd, String *str);
+bool print_explain_for_slow_log(LEX *lex, THD *thd, String *str);
 
 class st_select_lex_unit: public st_select_lex_node {
 protected:
@@ -584,11 +609,28 @@ public:
     any SELECT of this unit execution
   */
   List<Item> types;
-  /*
-    Pointer to 'last' select or pointer to unit where stored
-    global parameters for union
+  /**
+    Pointer to 'last' select, or pointer to select where we stored
+    global parameters for union.
+
+    If this is a union of multiple selects, the parser puts the global
+    parameters in fake_select_lex. If the union doesn't use a
+    temporary table, st_select_lex_unit::prepare() nulls out
+    fake_select_lex, but saves a copy in saved_fake_select_lex in
+    order to preserve the global parameters.
+
+    If it is not a union, first_select() is the last select.
+
+    @return select containing the global parameters
   */
-  st_select_lex *global_parameters;
+  inline st_select_lex *global_parameters()
+  {
+    if (fake_select_lex != NULL)
+      return fake_select_lex;
+    else if (saved_fake_select_lex != NULL)
+      return saved_fake_select_lex;
+    return first_select();
+  };
   //node on wich we should return current_select pointer after parsing subquery
   st_select_lex *return_to;
   /* LIMIT clause runtime counters */
@@ -607,6 +649,11 @@ public:
     ORDER BY and LIMIT
   */
   st_select_lex *fake_select_lex;
+  /**
+    SELECT_LEX that stores LIMIT and OFFSET for UNION ALL when no
+    fake_select_lex is used.
+  */
+  st_select_lex *saved_fake_select_lex;
 
   st_select_lex *union_distinct; /* pointer to the last UNION DISTINCT */
   bool describe; /* union exec() called for EXPLAIN */
@@ -620,7 +667,6 @@ public:
   TABLE *insert_table_with_stored_vcol;
 
   void init_query();
-  st_select_lex_unit* master_unit();
   st_select_lex* outer_select();
   st_select_lex* first_select()
   {
@@ -652,6 +698,7 @@ public:
   void set_limit(st_select_lex *values);
   void set_thd(THD *thd_arg) { thd= thd_arg; }
   inline bool is_union (); 
+  bool union_needs_tmp_table();
 
   void set_unique_exclude();
 
@@ -660,6 +707,7 @@ public:
 
   List<Item> *get_unit_column_types();
 
+  select_union *get_union_result() { return union_result; }
   int save_union_explain(Explain_query *output);
   int save_union_explain_part2(Explain_query *output);
 };
@@ -732,7 +780,8 @@ public:
   List<TABLE_LIST> leaf_tables;
   List<TABLE_LIST> leaf_tables_exec;
   List<TABLE_LIST> leaf_tables_prep;
-  bool is_prep_leaf_list_saved;
+  enum leaf_list_state {UNINIT, READY, SAVED};
+  enum leaf_list_state prep_leaf_list_state;
   uint insert_tables;
   st_select_lex *merged_into; /* select which this select is merged into */
                               /* (not 0 only for views/derived tables)   */
@@ -752,7 +801,7 @@ public:
     list during split_sum_func
   */
   uint select_n_having_items;
-  uint cond_count;    /* number of arguments of and/or/xor in where/having/on */
+  uint cond_count;    /* number of sargable Items in where/having/on          */
   uint between_count; /* number of between predicates in where/having/on      */
   uint max_equal_elems; /* maximal number of elements in multiple equalities  */   
   /*
@@ -848,7 +897,7 @@ public:
 
   void init_query();
   void init_select();
-  st_select_lex_unit* master_unit();
+  st_select_lex_unit* master_unit() { return (st_select_lex_unit*) master; }
   st_select_lex_unit* first_inner_unit() 
   { 
     return (st_select_lex_unit*) slave; 
@@ -911,9 +960,26 @@ public:
   */
   void cut_subtree() { slave= 0; }
   bool test_limit();
+  /**
+    Get offset for LIMIT.
+
+    Evaluate offset item if necessary.
+
+    @return Number of rows to skip.
+  */
+  ha_rows get_offset();
+  /**
+   Get limit.
+
+   Evaluate limit item if necessary.
+
+   @return Limit of rows in result.
+  */
+  ha_rows get_limit();
 
   friend void lex_start(THD *thd);
-  st_select_lex() : group_list_ptrs(NULL), n_sum_items(0), n_child_sum_items(0)
+  st_select_lex() : group_list_ptrs(NULL), braces(0),
+  n_sum_items(0), n_child_sum_items(0)
   {}
   void make_empty_select()
   {
@@ -1030,9 +1096,6 @@ struct st_sp_chistics
   enum enum_sp_data_access daccess;
 };
 
-extern const LEX_STRING null_lex_str;
-extern const LEX_STRING empty_lex_str;
-
 struct st_trg_chistics
 {
   enum trg_action_time_type action_time;
@@ -1043,9 +1106,6 @@ extern sys_var *trg_new_row_fake_var;
 
 enum xa_option_words {XA_NONE, XA_JOIN, XA_RESUME, XA_ONE_PHASE,
                       XA_SUSPEND, XA_FOR_MIGRATE};
-
-extern const LEX_STRING null_lex_str;
-extern const LEX_STRING empty_lex_str;
 
 class Sroutine_hash_entry;
 
@@ -1747,6 +1807,8 @@ enum enum_comment_state
 
 class Lex_input_stream
 {
+  size_t unescape(CHARSET_INFO *cs, char *to,
+                  const char *str, const char *end, int sep);
 public:
   Lex_input_stream()
   {
@@ -2031,9 +2093,6 @@ public:
   /** Current line number. */
   uint yylineno;
 
-  /** Length of the last token parsed. */
-  uint yytoklen;
-
   /** Interface with bison, value of the last token parsed. */
   LEX_YYSTYPE yylval;
 
@@ -2047,6 +2106,12 @@ public:
 
   /** LALR(2) resolution, value of the look ahead token.*/
   LEX_YYSTYPE lookahead_yylval;
+
+  bool get_text(LEX_STRING *to, int pre_skip, int post_skip);
+
+  void add_digest_token(uint token, LEX_YYSTYPE yylval);
+
+  void reduce_digest_token(uint token_left, uint token_right);
 
 private:
   /** Pointer to the current position in the raw input stream. */
@@ -2167,7 +2232,7 @@ public:
   /**
     Current statement digest instrumentation. 
   */
-  PSI_digest_locker* m_digest_psi;
+  sql_digest_state* m_digest;
 };
 
 /**
@@ -2233,6 +2298,7 @@ class SQL_SELECT;
 
 class Explain_query;
 class Explain_update;
+class Explain_delete;
 
 /* 
   Query plan of a single-table UPDATE.
@@ -2275,8 +2341,10 @@ public:
   void set_impossible_where() { impossible_where= true; }
   void set_no_partitions() { no_partitions= true; }
 
-  void save_explain_data(Explain_query *query);
-  void save_explain_data_intern(Explain_query *query, Explain_update *eu);
+  Explain_update* save_explain_update_data(MEM_ROOT *mem_root, THD *thd);
+protected:
+  void save_explain_data_intern(MEM_ROOT *mem_root, Explain_update *eu, bool is_analyze);
+public:
   virtual ~Update_plan() {}
 
   Update_plan(MEM_ROOT *mem_root_arg) : 
@@ -2305,11 +2373,16 @@ public:
     deleting_all_rows= true;
     scanned_rows= rows_arg;
   }
+  void cancel_delete_all_rows()
+  {
+    deleting_all_rows= false;
+  }
 
-  void save_explain_data(Explain_query *query);
+  Explain_delete* save_explain_delete_data(MEM_ROOT *mem_root, THD *thd);
 };
 
 
+class Query_arena_memroot;
 /* The state of the lex parsing. This is saved in the THD struct */
 
 struct LEX: public Query_tables_list
@@ -2324,7 +2397,10 @@ struct LEX: public Query_tables_list
   /* Query Plan Footprint of a currently running select  */
   Explain_query *explain;
 
-  char *length,*dec,*change;
+  // type information
+  char *length,*dec;
+  CHARSET_INFO *charset;
+
   LEX_STRING name;
   char *help_arg;
   char *backup_dir;				/* For RESTORE/BACKUP */
@@ -2333,18 +2409,15 @@ struct LEX: public Query_tables_list
   String *wild; /* Wildcard in SHOW {something} LIKE 'wild'*/ 
   sql_exchange *exchange;
   select_result *result;
-  Item *default_value, *on_update_value;
   LEX_STRING comment, ident;
   LEX_USER *grant_user;
   XID *xid;
   THD *thd;
-  Virtual_column_info *vcol_info;
 
   /* maintain a list of used plugins for this LEX */
   DYNAMIC_ARRAY plugins;
   plugin_ref plugins_static_buffer[INITIAL_LEX_PLUGIN_LIST_SIZE];
 
-  CHARSET_INFO *charset;
   bool text_string_is_7bit;
 
   /** SELECT of CREATE VIEW statement */
@@ -2364,14 +2437,24 @@ struct LEX: public Query_tables_list
   */
   LEX_USER *definer;
 
-  List<Key_part_spec> col_list;
   List<Key_part_spec> ref_list;
-  List<String>	      interval_list;
   List<LEX_USER>      users_list;
   List<LEX_COLUMN>    columns;
   List<Item>	      *insert_list,field_list,value_list,update_list;
   List<List_item>     many_values;
   List<set_var_base>  var_list;
+  List<set_var_base>  stmt_var_list; //SET_STATEMENT values
+  List<set_var_base>  old_var_list; // SET STATEMENT old values
+private:
+  Query_arena_memroot *arena_for_set_stmt;
+  MEM_ROOT *mem_root_for_set_stmt;
+  void parse_error();
+public:
+  inline bool is_arena_for_set_stmt() {return arena_for_set_stmt != 0;}
+  bool set_arena_for_set_stmt(Query_arena *backup);
+  void reset_arena_for_set_stmt(Query_arena *backup);
+  void free_arena_for_set_stmt();
+
   List<Item_func_set_user_var> set_var_list; // in-query assignment list
   List<Item_param>    param_list;
   List<LEX_STRING>    view_list; // view list (list of field names in view)
@@ -2398,14 +2481,15 @@ struct LEX: public Query_tables_list
   Item_sum *in_sum_func;
   udf_func udf;
   HA_CHECK_OPT   check_opt;			// check/repair options
-  HA_CREATE_INFO create_info;
-  KEY_CREATE_INFO key_create_info;
+  Table_specification_st create_info;
+  Key *last_key;
   LEX_MASTER_INFO mi;				// used by CHANGE MASTER
   LEX_SERVER_OPTIONS server_options;
   LEX_STRING relay_log_connection_name;
   USER_RESOURCES mqh;
   LEX_RESET_SLAVE reset_slave_info;
   ulonglong type;
+  ulong next_binlog_file_number;
   /* The following is used by KILL */
   killed_state kill_signal;
   killed_type  kill_type;
@@ -2454,7 +2538,6 @@ struct LEX: public Query_tables_list
 
   uint profile_query_id;
   uint profile_options;
-  uint uint_geom_type;
   uint grant, grant_tot_col, which_columns;
   enum Foreign_key::fk_match_opt fk_match_option;
   enum Foreign_key::fk_option fk_update_opt;
@@ -2468,6 +2551,8 @@ struct LEX: public Query_tables_list
   */
   uint table_count;
   uint8 describe;
+  bool  analyze_stmt; /* TRUE<=> this is "ANALYZE $stmt" */
+  bool  explain_json;
   /*
     A flag that indicates what kinds of derived tables are present in the
     query (0 if no derived tables, otherwise a combination of flags
@@ -2477,7 +2562,7 @@ struct LEX: public Query_tables_list
   uint16 create_view_algorithm;
   uint8 create_view_check;
   uint8 context_analysis_only;
-  bool drop_temporary, local_file;
+  bool local_file;
   bool check_exists;
   bool autocommit;
   bool verbose, no_write_to_binlog;
@@ -2563,9 +2648,17 @@ struct LEX: public Query_tables_list
   };
 
   /**
-    Collects create options for Field and KEY
+    Collects create options for KEY
   */
-  engine_option_value *option_list, *option_list_last;
+  engine_option_value *option_list;
+
+  /**
+    Helper pointer to the end of the list when parsing options for
+      LEX::create_info.option_list (for table)
+      LEX::last_field->option_list (for fields)
+      LEX::option_list             (for indexes)
+  */
+  engine_option_value *option_list_last;
 
   /**
     During name resolution search only in the table list given by 
@@ -2610,10 +2703,23 @@ struct LEX: public Query_tables_list
       limit_rows_examined_cnt= ULONGLONG_MAX;
   }
 
+
+  inline void free_set_stmt_mem_root()
+  {
+    DBUG_ASSERT(!is_arena_for_set_stmt());
+    if (mem_root_for_set_stmt)
+    {
+      free_root(mem_root_for_set_stmt, MYF(0));
+      delete mem_root_for_set_stmt;
+      mem_root_for_set_stmt= 0;
+    }
+  }
+
   LEX();
 
   virtual ~LEX()
   {
+    free_set_stmt_mem_root();
     destroy_query_tables_list();
     plugin_unlock_list(NULL, (plugin_ref *)plugins.buffer, plugins.elements);
     delete_dynamic(&plugins);
@@ -2694,9 +2800,9 @@ struct LEX: public Query_tables_list
 
   void cleanup_after_one_table_open();
 
-  bool push_context(Name_resolution_context *context)
+  bool push_context(Name_resolution_context *context, MEM_ROOT *mem_root)
   {
-    return context_stack.push_front(context);
+    return context_stack.push_front(context, mem_root);
   }
 
   void pop_context()
@@ -2743,8 +2849,92 @@ struct LEX: public Query_tables_list
     return FALSE;
   }
 
+  bool save_prep_leaf_tables();
+
   int print_explain(select_result_sink *output, uint8 explain_flags,
-                    bool *printed_anything);
+                    bool is_analyze, bool *printed_anything);
+  void restore_set_statement_var();
+
+  void init_last_field(Create_field *field, const char *name, CHARSET_INFO *cs);
+  void set_last_field_type(enum enum_field_types type);
+  bool set_bincmp(CHARSET_INFO *cs, bool bin);
+  // Check if "KEY IF NOT EXISTS name" used outside of ALTER context
+  bool check_add_key(DDL_options_st ddl)
+  {
+    if (ddl.if_not_exists() && sql_command != SQLCOM_ALTER_TABLE)
+    {
+      parse_error();
+      return true;
+    }
+    return false;
+  }
+  // Add a key as a part of CREATE TABLE or ALTER TABLE
+  bool add_key(Key::Keytype key_type, const LEX_STRING &key_name,
+               ha_key_alg algorithm, DDL_options_st ddl)
+  {
+    if (check_add_key(ddl) ||
+        !(last_key= new Key(key_type, key_name, algorithm, false, ddl)))
+      return true;
+    alter_info.key_list.push_back(last_key);
+    return false;
+  }
+  // Add a key for a CREATE INDEX statement
+  bool add_create_index(Key::Keytype key_type, const LEX_STRING &key_name,
+                        ha_key_alg algorithm, DDL_options_st ddl)
+  {
+    if (check_create_options(ddl) ||
+       !(last_key= new Key(key_type, key_name, algorithm, false, ddl)))
+      return true;
+    alter_info.key_list.push_back(last_key);
+    return false;
+  }
+  void set_command(enum_sql_command command,
+                   DDL_options_st options)
+  {
+    sql_command= command;
+    create_info.set(options);
+  }
+  void set_command(enum_sql_command command,
+                   uint scope,
+                   DDL_options_st options)
+  {
+    set_command(command, options);
+    create_info.options|= scope; // HA_LEX_CREATE_TMP_TABLE or 0
+  }
+  bool check_create_options(DDL_options_st options)
+  {
+    if (options.or_replace() && options.if_not_exists())
+    {
+      my_error(ER_WRONG_USAGE, MYF(0), "OR REPLACE", "IF NOT EXISTS");
+      return true;
+    }
+    return false;
+  }
+  bool add_create_options_with_check(DDL_options_st options)
+  {
+    create_info.add(options);
+    return check_create_options(create_info);
+  }
+  bool set_command_with_check(enum_sql_command command,
+                              uint scope,
+                              DDL_options_st options)
+  {
+    set_command(command, scope, options);
+    return check_create_options(options);
+  }
+  bool set_command_with_check(enum_sql_command command, DDL_options_st options)
+  {
+    set_command(command, options);
+    return check_create_options(options);
+  }
+  /*
+    DROP shares lex->create_info to store TEMPORARY and IF EXISTS options
+    to save on extra initialization in lex_start().
+    Add some wrappers, to avoid direct use of lex->create_info in the
+    caller code processing DROP statements (which might look confusing).
+  */
+  bool tmp_table() const { return create_info.tmp_table(); }
+  bool if_exists() const { return create_info.if_exists(); }
 };
 
 
@@ -2861,6 +3051,18 @@ public:
 };
 
 /**
+  Input parameters to the parser.
+*/
+struct Parser_input
+{
+  bool m_compute_digest;
+
+  Parser_input()
+    : m_compute_digest(false)
+  {}
+};
+
+/**
   Internal state of the parser.
   The complete state consist of:
   - state data used during lexical parsing,
@@ -2887,8 +3089,14 @@ public:
   ~Parser_state()
   {}
 
+  Parser_input m_input;
   Lex_input_stream m_lip;
   Yacc_state m_yacc;
+
+  /**
+    Current performance digest instrumentation. 
+  */
+  PSI_digest_locker* m_digest_psi;
 
   void reset(char *found_semicolon, unsigned int length)
   {
@@ -2897,21 +3105,14 @@ public:
   }
 };
 
+extern sql_digest_state *
+digest_add_token(sql_digest_state *state, uint token, LEX_YYSTYPE yylval);
 
-struct st_lex_local: public LEX
+extern sql_digest_state *
+digest_reduce_token(sql_digest_state *state, uint token_left, uint token_right);
+
+struct st_lex_local: public LEX, public Sql_alloc
 {
-  static void *operator new(size_t size) throw()
-  {
-    return sql_alloc(size);
-  }
-  static void *operator new(size_t size, MEM_ROOT *mem_root) throw()
-  {
-    return (void*) alloc_root(mem_root, (uint) size);
-  }
-  static void operator delete(void *ptr,size_t size)
-  { TRASH(ptr, size); }
-  static void operator delete(void *ptr, MEM_ROOT *mem_root)
-  { /* Never called */ }
 };
 
 extern void lex_init(void);

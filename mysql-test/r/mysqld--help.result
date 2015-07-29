@@ -39,8 +39,7 @@ The following options may be given as the first argument:
  increase this to get more performance
  --binlog-checksum=name 
  Type of BINLOG_CHECKSUM_ALG. Include checksum for log
- events in the binary log. Possible values are NONE and
- CRC32; default is NONE.
+ events in the binary log. One of: NONE, CRC32
  --binlog-commit-wait-count=# 
  If non-zero, binlog write will wait at most
  binlog_commit_wait_usec microseconds for at least this
@@ -71,10 +70,7 @@ The following options may be given as the first argument:
  statements where only row-based is correct: those which
  involve user-defined functions (i.e. UDFs) or the UUID()
  function; for those, row-based binary logging is
- automatically used. If NDBCLUSTER is enabled and
- binlog-format is MIXED, the format switches to row-based
- and back implicitly per each query accessing an
- NDBCLUSTER table
+ automatically used.
  --binlog-ignore-db=name 
  Tells the master that updates to the given database
  should not be logged to the binary log.
@@ -91,6 +87,17 @@ The following options may be given as the first argument:
  The maximum size of a row-based binary log event in
  bytes. Rows will be grouped into events smaller than this
  size if possible. The value has to be a multiple of 256.
+ --binlog-row-image=name 
+ Controls whether rows should be logged in 'FULL',
+ 'NOBLOB' or 'MINIMAL' formats. 'FULL', means that all
+ columns in the before and after image are logged.
+ 'NOBLOB', means that mysqld avoids logging blob columns
+ whenever possible (eg, blob column was not changed or is
+ not part of primary key). 'MINIMAL', means that a PK
+ equivalent (PK columns or full row if there is no PK in
+ the table) is logged in the before image, and only
+ changed columns are logged in the after image. (Default:
+ FULL).
  --binlog-stmt-cache-size=# 
  The size of the statement cache for updates to
  non-transactional engines for the binary log. If you
@@ -100,6 +107,9 @@ The following options may be given as the first argument:
  --bulk-insert-buffer-size=# 
  Size of tree cache used in bulk insert optimisation. Note
  that this is a limit per thread!
+ --changed-page-bitmaps[=name] 
+ Enable or disable CHANGED_PAGE_BITMAPS plugin. One of:
+ ON, OFF, FORCE (don't start if the plugin fails to load).
  --character-set-client-handshake 
  Don't ignore client side character set value sent during
  handshake.
@@ -114,11 +124,11 @@ The following options may be given as the first argument:
  --collation-server=name 
  Set the default collation.
  --completion-type=name 
- The transaction completion type, one of NO_CHAIN, CHAIN,
+ The transaction completion type. One of: NO_CHAIN, CHAIN,
  RELEASE
  --concurrent-insert[=name] 
- Use concurrent insert with MyISAM. Possible values are
- NEVER, AUTO, ALWAYS
+ Use concurrent insert with MyISAM. One of: NEVER, AUTO, 
+ ALWAYS
  --console           Write error output on screen; don't remove the console
  window on windows.
  --core-file         Write core on errors.
@@ -137,17 +147,19 @@ The following options may be given as the first argument:
  Short timeout for the two-step deadlock detection (in
  microseconds)
  --default-regex-flags=name 
- Default flags for the regex library. Syntax:
- default-regex-flags='[flag[,flag[,flag...]]]'. See the
- manual for the complete list of valid flags
+ Default flags for the regex library. Any combination of: 
+ DOTALL, DUPNAMES, EXTENDED, EXTRA, MULTILINE, UNGREEDY
  --default-storage-engine=name 
  The default storage engine for new tables
  --default-time-zone=name 
  Set the default time zone.
+ --default-tmp-storage-engine=name 
+ The default storage engine for user-created temporary
+ tables
  --default-week-format=# 
  The default week format used by WEEK() functions
  --delay-key-write[=name] 
- Type of DELAY_KEY_WRITE
+ Type of DELAY_KEY_WRITE. One of: OFF, ON, ALL
  --delayed-insert-limit=# 
  After inserting delayed_insert_limit rows, the INSERT
  DELAYED handler will check if there are any SELECT
@@ -164,6 +176,14 @@ The following options may be given as the first argument:
  --div-precision-increment=# 
  Precision of the result of '/' operator will be increased
  on that value
+ --encrypt-tmp-disk-tables 
+ Encrypt temporary on-disk tables (created as part of
+ query execution)
+ --encrypt-tmp-files Encrypt temporary files (created for filesort, binary log
+ cache, etc)
+ (Defaults to on; use --skip-encrypt-tmp-files to disable.)
+ --enforce-storage-engine=name 
+ Force the use of a storage engine for new tables
  --event-scheduler[=name] 
  Enable the event scheduler. Possible values are ON, OFF,
  and DISABLED (keep the event scheduler completely
@@ -207,6 +227,10 @@ The following options may be given as the first argument:
  mysql.general_logif --log-output=TABLE is used
  --general-log-file=name 
  Log connections and queries to given file
+ --getopt-prefix-matching 
+ Recognize command-line options by their unambiguos
+ prefixes.
+ (Defaults to on; use --skip-getopt-prefix-matching to disable.)
  --group-concat-max-len=# 
  The maximum length of the result of function 
  GROUP_CONCAT()
@@ -249,7 +273,7 @@ The following options may be given as the first argument:
  (unless the user has SUPER privilege)
  --init-file=name    Read SQL commands from this file at startup
  --init-rpl-role=name 
- Set the replication role.
+ Set the replication role. One of: MASTER, SLAVE
  --init-slave=name   Command(s) that are executed by a slave server each time
  the SQL thread starts
  --interactive-timeout=# 
@@ -331,8 +355,8 @@ The following options may be given as the first argument:
  not specified then 'datadir'/'log-basename'.err or the
  'pid-file' path with extension .err is used
  --log-isam[=name]   Log all MyISAM changes to file.
- --log-output=name   Syntax: log-output=value[,value...], where "value" could
- be TABLE, FILE or NONE
+ --log-output=name   How logs should be written. Any combination of: NONE, 
+ FILE, TABLE
  --log-queries-not-using-indexes 
  Log queries that are executed without benefit of any
  index to the slow log if it is open
@@ -345,10 +369,9 @@ The following options may be given as the first argument:
  Log slow OPTIMIZE, ANALYZE, ALTER and other
  administrative statements to the slow log if it is open.
  --log-slow-filter=name 
- Log only certain types of queries. Multiple flags can be
- specified, separated by commas. Valid values are admin,
- slave, filesort, filesort_on_disk, full_join, full_scan,
- query_cache, query_cache_miss, tmp_table,
+ Log only certain types of queries. Any combination of: 
+ admin, filesort, filesort_on_disk, full_join, full_scan, 
+ query_cache, query_cache_miss, tmp_table, 
  tmp_table_on_disk
  --log-slow-rate-limit=# 
  Write to slow log every #th slow query. Set to 1 to log
@@ -358,8 +381,8 @@ The following options may be given as the first argument:
  Log slow statements executed by slave thread to the slow
  log if it is open.
  --log-slow-verbosity=name 
- log-slow-verbosity=[value[,value ...]] where value is one
- of 'innodb', 'query_plan', 'explain' 
+ Verbosity level for the slow log. Any combination of: 
+ innodb, query_plan, explain
  --log-tc=name       Path to transaction coordinator log (used for
  transactions that affect more than one storage engine,
  when binary log is disabled).
@@ -405,6 +428,8 @@ The following options may be given as the first argument:
  Don't start more than this number of threads to handle
  INSERT DELAYED statements. If set to zero INSERT DELAYED
  will be not used
+ --max-digest-length=# 
+ Maximum length considered for digest text.
  --max-error-count=# Max number of errors/warnings to store for a statement
  --max-heap-table-size=# 
  Don't allow creation of heap tables bigger than this
@@ -420,7 +445,7 @@ The following options may be given as the first argument:
  Maximum number of prepared statements in the server
  --max-relay-log-size=# 
  relay log will be rotated automatically when the size
- exceeds this value.  If 0 are startup, it's set to
+ exceeds this value.  If 0 at startup, it's set to
  max_binlog_size
  --max-seeks-for-key=# 
  Limit assumed max number of seeks when looking up rows
@@ -430,8 +455,12 @@ The following options may be given as the first argument:
  value are used; the rest are ignored)
  --max-sp-recursion-depth[=#] 
  Maximum stored procedure recursion depth
- --max-tmp-tables=#  Maximum number of temporary tables a client can keep open
- at a time
+ --max-statement-time=# 
+ A SELECT query that have taken more than
+ max_statement_time seconds will be aborted. The argument
+ will be treated as a decimal value with microsecond
+ precision.  A value of 0 (default) means no timeout
+ --max-tmp-tables=#  Unused, will be removed.
  --max-user-connections=# 
  The maximum number of active connections for a single
  user (0 = no limit)
@@ -440,9 +469,9 @@ The following options may be given as the first argument:
  in between
  --memlock           Lock mysqld in memory.
  --metadata-locks-cache-size=# 
- Size of unused metadata locks cache
+ Unused
  --metadata-locks-hash-instances=# 
- Number of metadata locks hash instances
+ Unused
  --min-examined-row-limit=# 
  Don't write queries to slow log that examine fewer rows
  than that
@@ -460,9 +489,9 @@ The following options may be given as the first argument:
  Restricts the total memory used for memory mapping of
  MySQL tables
  --myisam-recover-options[=name] 
- Syntax: myisam-recover-options[=option[,option...]],
- where option can be DEFAULT, BACKUP, BACKUP_ALL, FORCE,
- QUICK, or OFF
+ Specifies how corrupted tables should be automatically
+ repaired. Any combination of: DEFAULT, BACKUP, FORCE, 
+ QUICK, BACKUP_ALL, OFF
  --myisam-repair-threads=# 
  If larger than 1, when repairing a MyISAM table all
  indexes will be created in parallel, with one thread per
@@ -477,6 +506,10 @@ The following options may be given as the first argument:
  NULLS_UNEQUAL (default behavior for 4.1 and later),
  NULLS_EQUAL (emulate 4.0 behavior), and NULLS_IGNORED
  --myisam-use-mmap   Use memory mapping for reading and writing MyISAM tables
+ --mysql56-temporal-format 
+ Use MySQL-5.6 (instead of MariaDB-5.3) format for TIME,
+ DATETIME, TIMESTAMP columns.
+ (Defaults to on; use --skip-mysql56-temporal-format to disable.)
  --net-buffer-length=# 
  Buffer length for TCP/IP and socket communication
  --net-read-timeout=# 
@@ -491,8 +524,9 @@ The following options may be given as the first argument:
  See also --old-mode
  --old-alter-table   Use old, non-optimized alter table
  --old-mode=name     Used to emulate old behavior from earlier MariaDB or
- MySQL versions. Syntax: old_mode=mode[,mode[,mode...]].
- See the manual for the complete list of valid old modes
+ MySQL versions. Any combination of: 
+ NO_DUP_KEY_WARNINGS_WITH_IGNORE, NO_PROGRESS_INFO, 
+ ZERO_DATE_TIME_CAST
  --old-passwords     Use old password encryption method (needed for 4.0 and
  older clients)
  --old-style-user-limits 
@@ -526,19 +560,20 @@ The following options may be given as the first argument:
  Controls number of record samples to check condition
  selectivity
  --optimizer-switch=name 
- optimizer_switch=option=val[,option=val...], where option
- is one of {derived_merge, derived_with_keys, firstmatch,
- in_to_exists, engine_condition_pushdown,
- index_condition_pushdown, index_merge,
- index_merge_intersection, index_merge_sort_intersection,
- index_merge_sort_union, index_merge_union,
- join_cache_bka, join_cache_hashed,
- join_cache_incremental, loosescan, materialization, mrr,
- mrr_cost_based, mrr_sort_keys, optimize_join_buffer_size,
- outer_join_with_cache, partial_match_rowid_merge,
- partial_match_table_scan, semijoin, semijoin_with_cache,
- subquery_cache, table_elimination, extended_keys,
- exists_to_in } and val is one of {on, off, default}
+ Fine-tune the optimizer behavior. Takes a comma-separated
+ list of option=value pairs, where value is on, off, or
+ default, and options are: index_merge, index_merge_union,
+ index_merge_sort_union, index_merge_intersection, 
+ index_merge_sort_intersection, engine_condition_pushdown,
+ index_condition_pushdown, derived_merge, 
+ derived_with_keys, firstmatch, loosescan, materialization,
+ in_to_exists, semijoin, partial_match_rowid_merge, 
+ partial_match_table_scan, subquery_cache, mrr, 
+ mrr_cost_based, mrr_sort_keys, outer_join_with_cache, 
+ semijoin_with_cache, join_cache_incremental, 
+ join_cache_hashed, join_cache_bka, 
+ optimize_join_buffer_size, table_elimination, 
+ extended_keys, exists_to_in
  --optimizer-use-condition-selectivity=# 
  Controls selectivity of which conditions the optimizer
  takes into account to calculate cardinality of a partial
@@ -691,9 +726,9 @@ The following options may be given as the first argument:
  in an incremental way. It can be specified many times,
  adding more plugins every time.
  --plugin-maturity=name 
- The lowest desirable plugin maturity (unknown,
- experimental, alpha, beta, gamma, or stable). Plugins
- less mature than that will not be installed or loaded.
+ The lowest desirable plugin maturity. Plugins less mature
+ than that will not be installed or loaded. One of: 
+ unknown, experimental, alpha, beta, gamma, stable
  -P, --port=#        Port number to use for connection or 0 to default to,
  my.cnf, $MYSQL_TCP_PORT, /etc/services, built-in default
  (3306), whatever comes first
@@ -850,8 +885,6 @@ The following options may be given as the first argument:
  --rowid-merge-buff-size=# 
  The size of the buffers used [NOT] IN evaluation via
  partial matching
- --rpl-recovery-rank=# 
- Unused, will be removed
  --safe-mode         Skip some optimize stages (for testing). Deprecated.
  --safe-user-create  Don't allow new user creation by the user who has no
  write privileges to the mysql.user table.
@@ -915,6 +948,16 @@ The following options may be given as the first argument:
  parallel replication thread when reading ahead in the
  relay log looking for opportunities for parallel
  replication. Only used when --slave-parallel-threads > 0.
+ --slave-parallel-mode=name 
+ Controls what transactions are applied in parallel when
+ using --slave-parallel-threads. Possible values:
+ "optimistic" tries to apply most transactional DML in
+ parallel, and handles any conflicts with rollback and
+ retry. "conservative" limits parallelism in an effort to
+ avoid any conflicts. "aggressive" tries to maximise the
+ parallelism, possibly at the cost of increased conflict
+ rate. "minimal" only parallelizes the commit steps of
+ transactions. "none" disables parallel apply completely.
  --slave-parallel-threads=# 
  If non-zero, number of threads to spawn to apply in
  parallel events on the slave that were group-committed on
@@ -922,6 +965,15 @@ The following options may be given as the first argument:
  replication domains. Note that these threads are in
  addition to the IO and SQL threads, which are always
  created by a replication slave
+ --slave-run-triggers-for-rbr=name 
+ Modes for how triggers in row-base replication on slave
+ side will be executed. Legal values are NO (default), YES
+ and LOGGING. NO means that trigger for RBR will not be
+ running on slave. YES and LOGGING means that triggers
+ will be running on slave, if there was not triggers
+ running on the master for the statement. LOGGING also
+ means results of that the executed triggers work will be
+ written to the binlog.
  --slave-skip-errors=name 
  Tells the slave thread to continue replication when a
  query event returns an error from the provided list
@@ -936,11 +988,10 @@ The following options may be given as the first argument:
  transaction in case it failed with a deadlock or elapsed
  lock wait timeout, before giving up and stopping
  --slave-type-conversions=name 
- Set of slave type conversions that are enabled. Legal
- values are: ALL_LOSSY to enable lossy conversions and
- ALL_NON_LOSSY to enable non-lossy conversions. If the
- variable is assigned the empty set, no conversions are
- allowed and it is expected that the types match exactly.
+ Set of slave type conversions that are enabled. If the
+ variable is empty, no conversions are allowed and it is
+ expected that the types match exactly. Any combination
+ of: ALL_LOSSY, ALL_NON_LOSSY
  --slow-launch-time=# 
  If creating the thread takes longer than this value (in
  seconds), the Slow_launch_threads counter will be
@@ -957,13 +1008,28 @@ The following options may be given as the first argument:
  --sort-buffer-size=# 
  Each thread that needs to do a sort allocates a buffer of
  this size
- --sql-mode=name     Syntax: sql-mode=mode[,mode[,mode...]]. See the manual
- for the complete list of valid sql modes
+ --sql-mode=name     Sets the sql mode. Any combination of: REAL_AS_FLOAT, 
+ PIPES_AS_CONCAT, ANSI_QUOTES, IGNORE_SPACE, 
+ IGNORE_BAD_TABLE_OPTIONS, ONLY_FULL_GROUP_BY, 
+ NO_UNSIGNED_SUBTRACTION, NO_DIR_IN_CREATE, POSTGRESQL, 
+ ORACLE, MSSQL, DB2, MAXDB, NO_KEY_OPTIONS, 
+ NO_TABLE_OPTIONS, NO_FIELD_OPTIONS, MYSQL323, MYSQL40, 
+ ANSI, NO_AUTO_VALUE_ON_ZERO, NO_BACKSLASH_ESCAPES, 
+ STRICT_TRANS_TABLES, STRICT_ALL_TABLES, NO_ZERO_IN_DATE, 
+ NO_ZERO_DATE, ALLOW_INVALID_DATES, 
+ ERROR_FOR_DIVISION_BY_ZERO, TRADITIONAL, 
+ NO_AUTO_CREATE_USER, HIGH_NOT_PRECEDENCE, 
+ NO_ENGINE_SUBSTITUTION, PAD_CHAR_TO_FULL_LENGTH
  --stack-trace       Print a symbolic stack trace on failure
  (Defaults to on; use --skip-stack-trace to disable.)
  --stored-program-cache=# 
  The soft upper limit for number of cached stored routines
  for one connection.
+ --strict-password-validation 
+ When password validation plugins are enabled, reject
+ passwords that cannot be validated (passwords specified
+ as a hash)
+ (Defaults to on; use --skip-strict-password-validation to disable.)
  -s, --symbolic-links 
  Enable symbolic link support.
  --sync-binlog=#     Synchronously flush binary log to disk after every #th
@@ -989,8 +1055,8 @@ The following options may be given as the first argument:
  --table-open-cache=# 
  The number of cached open tables
  --tc-heuristic-recover=name 
- Decision to use in heuristic recover process. Possible
- values are COMMIT or ROLLBACK.
+ Decision to use in heuristic recover process. One of: 
+ COMMIT, ROLLBACK
  --thread-cache-size=# 
  How many threads we should keep in a cache for reuse
  --thread-pool-idle-timeout=# 
@@ -1026,7 +1092,9 @@ The following options may be given as the first argument:
  Allocation block size for transactions to be stored in
  binary log
  --transaction-isolation=name 
- Default transaction isolation level.
+ Default transaction isolation level. One of: 
+ READ-UNCOMMITTED, READ-COMMITTED, REPEATABLE-READ, 
+ SERIALIZABLE
  --transaction-prealloc-size=# 
  Persistent buffer for transactions to be stored in binary
  log
@@ -1041,8 +1109,8 @@ The following options may be given as the first argument:
  of the underlying table and the query uses a LIMIT clause
  (usually get from GUI tools)
  --use-stat-tables=name 
- Specifies how to use system statistics tables. Possible
- values are NEVER, COMPLEMENTARY, PREFERABLY
+ Specifies how to use system statistics tables. One of: 
+ NEVER, COMPLEMENTARY, PREFERABLY
  -u, --user=name     Run mysqld daemon as user.
  --userstat          Enables statistics gathering for USER_STATISTICS,
  CLIENT_STATISTICS, INDEX_STATISTICS and TABLE_STATISTICS
@@ -1070,8 +1138,10 @@ binlog-direct-non-transactional-updates FALSE
 binlog-format STATEMENT
 binlog-optimize-thread-scheduling TRUE
 binlog-row-event-max-size 1024
+binlog-row-image FULL
 binlog-stmt-cache-size 32768
 bulk-insert-buffer-size 8388608
+changed-page-bitmaps ON
 character-set-client-handshake TRUE
 character-set-filesystem binary
 character-set-server latin1
@@ -1090,12 +1160,16 @@ deadlock-timeout-short 10000
 default-regex-flags 
 default-storage-engine myisam
 default-time-zone (No default value)
+default-tmp-storage-engine (No default value)
 default-week-format 0
 delay-key-write ON
 delayed-insert-limit 100
 delayed-insert-timeout 300
 delayed-queue-size 1000
 div-precision-increment 4
+encrypt-tmp-disk-tables FALSE
+encrypt-tmp-files TRUE
+enforce-storage-engine (No default value)
 event-scheduler OFF
 expensive-subquery-limit 100
 expire-logs-days 0
@@ -1111,6 +1185,7 @@ ft-query-expansion-limit 20
 ft-stopword-file (No default value)
 gdb FALSE
 general-log FALSE
+getopt-prefix-matching TRUE
 group-concat-max-len 1024
 gtid-domain-id 0
 gtid-ignore-duplicates FALSE
@@ -1157,7 +1232,6 @@ log-slow-rate-limit 1
 log-slow-slave-statements FALSE
 log-slow-verbosity 
 log-tc tc.log
-log-tc-size 24576
 log-warnings 1
 long-query-time 10
 low-priority-updates FALSE
@@ -1172,6 +1246,7 @@ max-binlog-stmt-cache-size 18446744073709547520
 max-connect-errors 100
 max-connections 151
 max-delayed-threads 20
+max-digest-length 1024
 max-error-count 64
 max-heap-table-size 16777216
 max-join-size 18446744073709551615
@@ -1182,6 +1257,7 @@ max-relay-log-size 1073741824
 max-seeks-for-key 18446744073709551615
 max-sort-length 1024
 max-sp-recursion-depth 0
+max-statement-time 0
 max-tmp-tables 32
 max-user-connections 0
 max-write-lock-count 18446744073709551615
@@ -1198,8 +1274,9 @@ myisam-mmap-size 18446744073709551615
 myisam-recover-options DEFAULT
 myisam-repair-threads 1
 myisam-sort-buffer-size 134216704
-myisam-stats-method nulls_unequal
+myisam-stats-method NULLS_UNEQUAL
 myisam-use-mmap FALSE
+mysql56-temporal-format TRUE
 net-buffer-length 16384
 net-read-timeout 30
 net-retry-count 10
@@ -1249,7 +1326,7 @@ performance-schema-max-rwlock-instances -1
 performance-schema-max-socket-classes 10
 performance-schema-max-socket-instances -1
 performance-schema-max-stage-classes 150
-performance-schema-max-statement-classes 180
+performance-schema-max-statement-classes 178
 performance-schema-max-table-handles -1
 performance-schema-max-table-instances -1
 performance-schema-max-thread-classes 50
@@ -1265,14 +1342,14 @@ preload-buffer-size 32768
 profiling-history-size 15
 progress-report-time 5
 protocol-version 10
-query-alloc-block-size 8192
+query-alloc-block-size 16384
 query-cache-limit 1048576
 query-cache-min-res-unit 4096
 query-cache-size 0
 query-cache-strip-comments FALSE
 query-cache-type ON
 query-cache-wlock-invalidate FALSE
-query-prealloc-size 8192
+query-prealloc-size 24576
 range-alloc-block-size 4096
 read-buffer-size 131072
 read-only FALSE
@@ -1284,14 +1361,13 @@ relay-log-purge TRUE
 relay-log-recovery FALSE
 relay-log-space-limit 0
 replicate-annotate-row-events FALSE
-replicate-events-marked-for-skip replicate
+replicate-events-marked-for-skip REPLICATE
 replicate-same-server-id FALSE
 report-host (No default value)
 report-password (No default value)
 report-port 0
 report-user (No default value)
 rowid-merge-buff-size 8388608
-rpl-recovery-rank 0
 safe-user-create FALSE
 secure-auth FALSE
 secure-file-priv (No default value)
@@ -1309,7 +1385,9 @@ slave-exec-mode STRICT
 slave-max-allowed-packet 1073741824
 slave-net-timeout 3600
 slave-parallel-max-queued 131072
+slave-parallel-mode conservative
 slave-parallel-threads 0
+slave-run-triggers-for-rbr NO
 slave-skip-errors (No default value)
 slave-sql-verify-checksum TRUE
 slave-transaction-retries 10
@@ -1320,6 +1398,7 @@ sort-buffer-size 2097152
 sql-mode 
 stack-trace TRUE
 stored-program-cache 256
+strict-password-validation TRUE
 symbolic-links FALSE
 sync-binlog 0
 sync-frm FALSE
@@ -1333,7 +1412,7 @@ table-open-cache 400
 tc-heuristic-recover COMMIT
 thread-cache-size 0
 thread-pool-idle-timeout 60
-thread-pool-max-threads 500
+thread-pool-max-threads 1000
 thread-pool-oversubscribe 3
 thread-pool-stall-limit 500
 thread-stack 294912

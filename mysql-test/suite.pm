@@ -23,6 +23,16 @@ sub skip_combinations {
   # don't run tests for the wrong platform
   $skip{'include/platform.combinations'} = [ (IS_WINDOWS) ? 'unix' : 'win' ];
 
+  # and for the wrong word size
+  # check for exact values, in case the default changes to be small everywhere
+  my $longsysvar= $::mysqld_variables{'max-binlog-stmt-cache-size'};
+  my %val_map= (
+    '4294963200' => '64bit', # remember, it shows *what configuration to skip*
+    '18446744073709547520' => '32bit'
+  );
+  die "unknown value max-binlog-stmt-cache-size=$longsysvar" unless $val_map{$longsysvar};
+  $skip{'include/word_size.combinations'} = [ $val_map{$longsysvar} ];
+
   # as a special case, disable certain include files as a whole
   $skip{'include/not_embedded.inc'} = 'Not run for embedded server'
              if $::opt_embedded_server;
@@ -53,7 +63,8 @@ sub skip_combinations {
   $skip{'include/check_ipv6.inc'} = 'No IPv6' unless ipv6_ok();
 
   $skip{'t/openssl_6975.test'} = 'no or too old openssl'
-    unless ! IS_WINDOWS and ! system "openssl ciphers TLSv1.2 >/dev/null 2>&1";
+    unless $::mysqld_variables{'version-ssl-library'} =~ /OpenSSL (\S+)/
+       and $1 ge "1.0.1d";
 
   %skip;
 }

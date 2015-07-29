@@ -920,6 +920,14 @@ row_ins_invalidate_query_cache(
 	innobase_invalidate_query_cache(thr_get_trx(thr), buf, len);
 	mem_free(buf);
 }
+#ifdef WITH_WSREP
+dberr_t wsrep_append_foreign_key(trx_t *trx,  
+			       dict_foreign_t*	foreign,
+			       const rec_t*	clust_rec,
+			       dict_index_t*	clust_index,
+			       ibool		referenced,
+			       ibool            shared);
+#endif /* WITH_WSREP */
 
 /*********************************************************************//**
 Perform referential actions or checks when a parent row is deleted or updated
@@ -1271,7 +1279,19 @@ row_ins_foreign_check_on_constraint(
 
 	cascade->state = UPD_NODE_UPDATE_CLUSTERED;
 
-	err = row_update_cascade_for_mysql(thr, cascade,
+#ifdef WITH_WSREP
+	err = wsrep_append_foreign_key(
+				       thr_get_trx(thr),
+				       foreign,
+				       clust_rec,
+				       clust_index,
+				       FALSE, FALSE);
+	if (err != DB_SUCCESS) {
+		fprintf(stderr,
+			"WSREP: foreign key append failed: %d\n", err);
+	} else
+#endif /* WITH_WSREP */
+		err = row_update_cascade_for_mysql(thr, cascade,
 					   foreign->foreign_table);
 
 	if (foreign->foreign_table->n_foreign_key_checks_running == 0) {
@@ -1603,7 +1623,14 @@ run_again:
 
 				if (check_ref) {
 					err = DB_SUCCESS;
-
+#ifdef WITH_WSREP
+					err = wsrep_append_foreign_key(
+						thr_get_trx(thr),
+						foreign,
+						rec, 
+						check_index, 
+						check_ref, TRUE);
+#endif /* WITH_WSREP */
 					goto end_scan;
 				} else if (foreign->type != 0) {
 					/* There is an ON UPDATE or ON DELETE

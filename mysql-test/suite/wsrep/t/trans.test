@@ -1,0 +1,14 @@
+--source include/have_wsrep.inc
+--source include/have_innodb.inc
+
+--echo #
+--echo # MDEV-4222 : Assertion `( ((global_system_variables.wsrep_on) &&
+--echo #            (thd && thd->variables.wsrep_on)) && srep_emulate_bin_log)
+--echo #            || mysql_bin_log .is_open()' fails on SAVEPOINT with
+--echo #            disabled wsrep_provider
+--echo #
+
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+SAVEPOINT A;
+
+--echo End of test.

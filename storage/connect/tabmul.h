@@ -6,14 +6,14 @@
 /*                                                                     */
 /*  This file contains the TDBMUL and TDBDIR classes declares.         */
 /***********************************************************************/
-#if defined(WIN32)
+#if defined(__WIN__)
 #include <io.h>
-#else   // !WIN32
+#else   // !__WIN__
 #include <sys/types.h>
 #include <unistd.h>
 #include <sys/stat.h>
 #include <dirent.h>
-#endif  // !WIN32
+#endif  // !__WIN__
 //#include "osutil.h"
 #include "block.h"
 
@@ -132,17 +132,17 @@ class TDBDIR : public TDBASE {
   // Members
   PSZ  To_File;                 // Points to file search pathname
   int  iFile;                   // Index of currently retrieved file
-#if defined(WIN32)
+#if defined(__WIN__)
   _finddata_t    FileData;      // Find data structure
   int  Hsearch;                 // Search handle
   char Drive[_MAX_DRIVE];       // Drive name
-#else   // !WIN32
+#else   // !__WIN__
   struct stat    Fileinfo;      // File info structure
   struct dirent *Entry;         // Point to directory entry structure
   DIR *Dir;                     // To searched directory structure
   bool Done;                    // true when _splipath is done
   char Pattern[_MAX_FNAME+_MAX_EXT];
-#endif  // !WIN32
+#endif  // !__WIN__
   char Fpath[_MAX_PATH];        // Absolute file search pattern
   char Direc[_MAX_DIR];         // Search path
   char Fname[_MAX_FNAME];       // File name
@@ -183,11 +183,11 @@ class TDBSDR : public TDBDIR {
   typedef struct _Sub_Dir {
     struct _Sub_Dir *Next;
     struct _Sub_Dir *Prev;
-#if defined(WIN32)
+#if defined(__WIN__)
     int H;               // Search handle
-#else   // !WIN32
+#else   // !__WIN__
     DIR *D;
-#endif  // !WIN32
+#endif  // !__WIN__
     size_t Len;           // Initial directory name length
     } SUBDIR, *PSUBDIR;
 

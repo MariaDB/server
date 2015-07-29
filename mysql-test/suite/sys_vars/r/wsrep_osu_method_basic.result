@@ -1,0 +1,61 @@
+#
+# wsrep_osu_method
+#
+# save the initial value
+SET @wsrep_osu_method_global_saved = @@global.wsrep_osu_method;
+# default
+SELECT @@global.wsrep_osu_method;
+@@global.wsrep_osu_method
+TOI
+
+# scope
+SELECT @@session.wsrep_osu_method;
+@@session.wsrep_osu_method
+TOI
+SET @@global.wsrep_osu_method=TOI;
+SELECT @@global.wsrep_osu_method;
+@@global.wsrep_osu_method
+TOI
+
+# valid values
+SET @@global.wsrep_osu_method=TOI;
+SELECT @@global.wsrep_osu_method;
+@@global.wsrep_osu_method
+TOI
+SET @@global.wsrep_osu_method=RSU;
+SELECT @@global.wsrep_osu_method;
+@@global.wsrep_osu_method
+RSU
+SET @@global.wsrep_osu_method="RSU";
+SELECT @@global.wsrep_osu_method;
+@@global.wsrep_osu_method
+RSU
+SET @@global.wsrep_osu_method=default;
+SELECT @@global.wsrep_osu_method;
+@@global.wsrep_osu_method
+TOI
+SET @@global.wsrep_osu_method=1;
+SELECT @@global.wsrep_osu_method;
+@@global.wsrep_osu_method
+RSU
+
+# invalid values
+SET @@global.wsrep_osu_method=4;
+ERROR 42000: Variable 'wsrep_OSU_method' can't be set to the value of '4'
+SELECT @@global.wsrep_osu_method;
+@@global.wsrep_osu_method
+RSU
+SET @@global.wsrep_osu_method=NULL;
+ERROR 42000: Variable 'wsrep_OSU_method' can't be set to the value of 'NULL'
+SELECT @@global.wsrep_osu_method;
+@@global.wsrep_osu_method
+RSU
+SET @@global.wsrep_osu_method='junk';
+ERROR 42000: Variable 'wsrep_OSU_method' can't be set to the value of 'junk'
+SELECT @@global.wsrep_osu_method;
+@@global.wsrep_osu_method
+RSU
+
+# restore the initial value
+SET @@global.wsrep_osu_method = @wsrep_osu_method_global_saved;
+# End of test

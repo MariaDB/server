@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2014, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2013, 2014, SkySQL Ab. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -374,11 +375,13 @@ Given a tablespace id and page number tries to get that page. If the
 page is not in the buffer pool it is not loaded and NULL is returned.
 Suitable for using when holding the lock_sys_t::mutex. */
 UNIV_INTERN
-const buf_block_t*
+buf_block_t*
 buf_page_try_get_func(
 /*==================*/
 	ulint		space_id,/*!< in: tablespace id */
 	ulint		page_no,/*!< in: page number */
+	ulint		rw_latch,       /*!< in: RW_S_LATCH, RW_X_LATCH */
+	bool		possibly_freed, /*!< in: don't mind if page is freed */
 	const char*	file,	/*!< in: file name */
 	ulint		line,	/*!< in: line where called */
 	mtr_t*		mtr);	/*!< in: mini-transaction */
@@ -390,7 +393,8 @@ not loaded.  Suitable for using when holding the lock_sys_t::mutex.
 @param mtr	in: mini-transaction
 @return		the page if in buffer pool, NULL if not */
 #define buf_page_try_get(space_id, page_no, mtr)	\
-	buf_page_try_get_func(space_id, page_no, __FILE__, __LINE__, mtr);
+	buf_page_try_get_func(space_id, page_no, RW_S_LATCH, false, \
+			      __FILE__, __LINE__, mtr);
 
 /********************************************************************//**
 Get read access to a compressed page (usually of type
@@ -1195,7 +1199,9 @@ UNIV_INTERN
 bool
 buf_page_io_complete(
 /*=================*/
-	buf_page_t*	bpage);	/*!< in: pointer to the block in question */
+	buf_page_t*	bpage,	/*!< in: pointer to the block in question */
+	bool		evict = false);/*!< in: whether or not to evict
+				the page from LRU list. */
 /********************************************************************//**
 Calculates a folded value of a file page address to use in the page hash
 table.
@@ -1435,6 +1441,76 @@ buf_flush_update_zip_checksum(
 
 #endif /* !UNIV_HOTBACKUP */
 
+/********************************************************************//**
+The hook that is called just before a page is written to disk.
+The function encrypts the content of the page and returns a pointer
+to a frame that will be written instead of the real frame. */
+UNIV_INTERN
+byte*
+buf_page_encrypt_before_write(
+/*==========================*/
+	buf_page_t*	page,		/*!< in/out: buffer page to be flushed */
+	byte*		frame,		/*!< in: src frame */
+	ulint		space_id);	/*!< in: space id */
+
+/**********************************************************************
+The hook that is called after page is written to disk.
+The function releases any resources needed for encryption that was allocated
+in buf_page_encrypt_before_write */
+UNIV_INTERN
+ibool
+buf_page_encrypt_after_write(
+/*=========================*/
+	buf_page_t* page); /*!< in/out: buffer page that was flushed */
+
+/********************************************************************//**
+The hook that is called just before a page is read from disk.
+The function allocates memory that is used to temporarily store disk content
+before getting decrypted */
+UNIV_INTERN
+byte*
+buf_page_decrypt_before_read(
+/*=========================*/
+	buf_page_t* page, /*!< in/out: buffer page read from disk */
+	ulint	zip_size);  /*!< in: compressed page size, or 0 */
+
+/********************************************************************//**
+The hook that is called just after a page is read from disk.
+The function decrypt disk content into buf_page_t and releases the
+temporary buffer that was allocated in buf_page_decrypt_before_read */
+UNIV_INTERN
+ibool
+buf_page_decrypt_after_read(
+/*========================*/
+	buf_page_t* page); /*!< in/out: buffer page read from disk */
+
+/** @brief The temporary memory structure.
+
+NOTE! The definition appears here only for other modules of this
+directory (buf) to see it. Do not use from outside! */
+
+typedef struct {
+	bool		reserved;	/*!< true if this slot is reserved
+					*/
+#ifdef HAVE_LZO
+	byte*		lzo_mem;	/*!< Temporal memory used by LZO */
+#endif
+	byte*           crypt_buf;	/*!< for encryption the data needs to be
+					copied to a separate buffer before it's
+					encrypted&written. this as a page can be
+					read while it's being flushed */
+	byte*		crypt_buf_free; /*!< for encryption, allocated buffer
+					that is then alligned */
+	byte*		comp_buf;	/*!< for compression we need
+					temporal buffer because page
+					can be read while it's being flushed */
+	byte*		comp_buf_free;	/*!< for compression, allocated
+					buffer that is then alligned */
+	byte*		out_buf;	/*!< resulting buffer after
+					encryption/compression. This is a
+					pointer and not allocated. */
+} buf_tmp_buffer_t;
+
 /** The common buffer control block structure
 for compressed and uncompressed frames */
 
@@ -1499,7 +1575,23 @@ struct buf_page_t{
 					state == BUF_BLOCK_ZIP_PAGE and
 					zip.data == NULL means an active
 					buf_pool->watch */
-#ifndef UNIV_HOTBACKUP
+
+	ulint           write_size;	/* Write size is set when this
+					page is first time written and then
+					if written again we check is TRIM
+					operation needed. */
+
+	unsigned        key_version;	/*!< key version for this block */
+	ulint           real_size;	/*!< Real size of the page
+					Normal pages == UNIV_PAGE_SIZE
+					page compressed pages, payload
+					size alligned to sector boundary.
+					*/
+
+	buf_tmp_buffer_t* slot;		/*!< Slot for temporary memory
+					used for encryption/compression
+					or NULL */
+ #ifndef UNIV_HOTBACKUP
 	buf_page_t*	hash;		/*!< node used in chaining to
 					buf_pool->page_hash or
 					buf_pool->zip_hash */
@@ -1757,6 +1849,133 @@ Compute the hash fold value for blocks in buf_pool->zip_hash. */
 #define BUF_POOL_ZIP_FOLD_BPAGE(b) BUF_POOL_ZIP_FOLD((buf_block_t*) (b))
 /* @} */
 
+/** A "Hazard Pointer" class used to iterate over page lists
+inside the buffer pool. A hazard pointer is a buf_page_t pointer
+which we intend to iterate over next and we want it remain valid
+even after we release the buffer pool mutex. */
+class HazardPointer {
+
+public:
+	/** Constructor
+	@param buf_pool buffer pool instance
+	@param mutex	mutex that is protecting the hp. */
+	HazardPointer(const buf_pool_t* buf_pool, const ib_mutex_t* mutex)
+		:
+		m_buf_pool(buf_pool)
+#ifdef UNIV_DEBUG
+		, m_mutex(mutex)
+#endif /* UNIV_DEBUG */
+		, m_hp() {}
+
+	/** Destructor */
+	virtual ~HazardPointer() {}
+
+	/** Get current value */
+	buf_page_t* get()
+	{
+		ut_ad(mutex_own(m_mutex));
+		return(m_hp);
+	}
+
+	/** Set current value
+	@param bpage	buffer block to be set as hp */
+	void set(buf_page_t* bpage);
+
+	/** Checks if a bpage is the hp
+	@param bpage	buffer block to be compared
+	@return true if it is hp */
+	bool is_hp(const buf_page_t* bpage);
+
+	/** Adjust the value of hp. This happens when some
+	other thread working on the same list attempts to
+	remove the hp from the list. Must be implemented
+	by the derived classes.
+	@param bpage	buffer block to be compared */
+	virtual void adjust(const buf_page_t*) = 0;
+
+protected:
+	/** Disable copying */
+	HazardPointer(const HazardPointer&);
+	HazardPointer& operator=(const HazardPointer&);
+
+	/** Buffer pool instance */
+	const buf_pool_t*	m_buf_pool;
+
+#if UNIV_DEBUG
+	/** mutex that protects access to the m_hp. */
+	const ib_mutex_t*	m_mutex;
+#endif /* UNIV_DEBUG */
+
+	/** hazard pointer. */
+	buf_page_t*		m_hp;
+};
+
+/** Class implementing buf_pool->flush_list hazard pointer */
+class FlushHp: public HazardPointer {
+
+public:
+	/** Constructor
+	@param buf_pool buffer pool instance
+	@param mutex	mutex that is protecting the hp. */
+	FlushHp(const buf_pool_t* buf_pool, const ib_mutex_t* mutex)
+		:
+		HazardPointer(buf_pool, mutex) {}
+
+	/** Destructor */
+	virtual ~FlushHp() {}
+
+	/** Adjust the value of hp. This happens when some
+	other thread working on the same list attempts to
+	remove the hp from the list.
+	@param bpage	buffer block to be compared */
+	void adjust(const buf_page_t* bpage);
+};
+
+/** Class implementing buf_pool->LRU hazard pointer */
+class LRUHp: public HazardPointer {
+
+public:
+	/** Constructor
+	@param buf_pool buffer pool instance
+	@param mutex	mutex that is protecting the hp. */
+	LRUHp(const buf_pool_t* buf_pool, const ib_mutex_t* mutex)
+		:
+		HazardPointer(buf_pool, mutex) {}
+
+	/** Destructor */
+	virtual ~LRUHp() {}
+
+	/** Adjust the value of hp. This happens when some
+	other thread working on the same list attempts to
+	remove the hp from the list.
+	@param bpage	buffer block to be compared */
+	void adjust(const buf_page_t* bpage);
+};
+
+/** Special purpose iterators to be used when scanning the LRU list.
+The idea is that when one thread finishes the scan it leaves the
+itr in that position and the other thread can start scan from
+there */
+class LRUItr: public LRUHp {
+
+public:
+	/** Constructor
+	@param buf_pool buffer pool instance
+	@param mutex	mutex that is protecting the hp. */
+	LRUItr(const buf_pool_t* buf_pool, const ib_mutex_t* mutex)
+		:
+		LRUHp(buf_pool, mutex) {}
+
+	/** Destructor */
+	virtual ~LRUItr() {}
+
+	/** Selects from where to start a scan. If we have scanned
+	too deep into the LRU list it resets the value to the tail
+	of the LRU list.
+	@return buf_page_t from where to start scan. */
+	buf_page_t* start();
+};
+
 /** Struct that is embedded in the free zip blocks */
 struct buf_buddy_free_t {
 	union {
@@ -1815,6 +2034,17 @@ struct buf_buddy_stat_t {
 	/** Total duration of block relocations, in microseconds. */
 	ib_uint64_t	relocated_usec;
 };
+
+/** @brief The temporary memory array structure.
+
+NOTE! The definition appears here only for other modules of this
+directory (buf) to see it. Do not use from outside! */
+
+typedef struct {
+	ulint		n_slots;	/*!< Total number of slots */
+	buf_tmp_buffer_t *slots;	/*!< Pointer to the slots in the
+					array */
+} buf_tmp_array_t;
 
 /** @brief The buffer pool structure.
 
@@ -1889,7 +2119,7 @@ struct buf_pool_t{
 					also protects writes to
 					bpage::oldest_modification and
 					flush_list_hp */
-	const buf_page_t*	flush_list_hp;/*!< "hazard pointer"
+	FlushHp			flush_hp;/*!< "hazard pointer"
 					used during scan of flush_list
 					while doing flush list batch.
 					Protected by flush_list_mutex */
@@ -1947,6 +2177,19 @@ struct buf_pool_t{
 	UT_LIST_BASE_NODE_T(buf_page_t) free;
 					/*!< base node of the free
 					block list */
+
+	/** "hazard pointer" used during scan of LRU while doing
+	LRU list batch.  Protected by buf_pool::mutex */
+	LRUHp		lru_hp;
+
+	/** Iterator used to scan the LRU list when searching for
+	replacable victim. Protected by buf_pool::mutex. */
+	LRUItr		lru_scan_itr;
+
+	/** Iterator used to scan the LRU list when searching for
+	single page flushing victim.  Protected by buf_pool::mutex. */
+	LRUItr		single_scan_itr;
+
 	UT_LIST_BASE_NODE_T(buf_page_t) LRU;
 					/*!< base node of the LRU list */
 	buf_page_t*	LRU_old;	/*!< pointer to the about
@@ -1985,6 +2228,10 @@ struct buf_pool_t{
 					/*!< Sentinel records for buffer
 					pool watches. Protected by
 					buf_pool->mutex. */
+
+	buf_tmp_array_t*		tmp_arr;
+					/*!< Array for temporal memory
+					used in compression and encryption */
 
 #if BUF_BUDDY_LOW > UNIV_ZIP_SIZE_MIN
 # error "BUF_BUDDY_LOW > UNIV_ZIP_SIZE_MIN"

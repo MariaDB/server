@@ -369,14 +369,11 @@ public:
 #if !defined(MYSQL_CLIENT) 
   static bool binlog_row_logging_function(THD *thd, TABLE *table,
                                           bool is_transactional,
-                                          MY_BITMAP *cols,
-                                          uint fields,
                                           const uchar *before_record
                                           __attribute__((unused)),
                                           const uchar *after_record)
   {
-    return thd->binlog_write_row(table, is_transactional,
-                                 cols, fields, after_record);
+    return thd->binlog_write_row(table, is_transactional, after_record);
   }
 #endif
 
@@ -452,7 +449,7 @@ public:
                                           const uchar *after_record)
   {
     return thd->binlog_update_row(table, is_transactional,
-                                  cols, fields, before_record, after_record);
+                                  before_record, after_record);
   }
 #endif
 
@@ -526,8 +523,7 @@ public:
                                           const uchar *after_record
                                           __attribute__((unused)))
   {
-    return thd->binlog_delete_row(table, is_transactional,
-                                  cols, fields, before_record);
+    return thd->binlog_delete_row(table, is_transactional, before_record);
   }
 #endif
   

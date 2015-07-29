@@ -3,7 +3,7 @@
 Copyright (c) 1995, 2014, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, 2009 Google Inc.
 Copyright (c) 2009, Percona Inc.
-Copyright (c) 2013, 2014, SkySQL Ab. All Rights Reserved.
+Copyright (c) 2013, 2015, MariaDB Corporation. All Rights Reserved.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -63,17 +63,27 @@ Created 10/8/1995 Heikki Tuuri
 #include "dict0stats_bg.h" /* dict_stats_event */
 #include "srv0start.h"
 #include "row0mysql.h"
+#include "row0log.h"
 #include "ha_prototypes.h"
 #include "trx0i_s.h"
 #include "os0sync.h" /* for HAVE_ATOMIC_BUILTINS */
 #include "srv0mon.h"
 #include "ut0crc32.h"
+#include "btr0defragment.h"
 
 #include "mysql/plugin.h"
 #include "mysql/service_thd_wait.h"
+#include "fil0fil.h"
+#include "fil0crypt.h"
+#include "fil0pagecompress.h"
+#include "btr0scrub.h"
 
+#ifdef WITH_WSREP
+extern int wsrep_debug;
+extern int wsrep_trx_is_aborting(void *thd_ptr);
+#endif
 /* The following is the maximum allowed duration of a lock wait. */
-UNIV_INTERN ulint	srv_fatal_semaphore_wait_threshold = 600;
+UNIV_INTERN ulong	srv_fatal_semaphore_wait_threshold =  DEFAULT_SRV_FATAL_SEMAPHORE_TIMEOUT;
 
 /* How much data manipulation language (DML) statements need to be delayed,
 in microseconds, in order to reduce the lagging of the purge thread. */
@@ -85,6 +95,9 @@ UNIV_INTERN ibool	srv_error_monitor_active = FALSE;
 UNIV_INTERN ibool	srv_buf_dump_thread_active = FALSE;
 
 UNIV_INTERN ibool	srv_dict_stats_thread_active = FALSE;
+
+UNIV_INTERN ibool	srv_log_scrub_active = FALSE;
+UNIV_INTERN my_bool	srv_scrub_log = FALSE;
 
 UNIV_INTERN const char*	srv_main_thread_op_info = "";
 
@@ -145,6 +158,20 @@ OS (provided we compiled Innobase with it in), otherwise we will
 use simulated aio we build below with threads.
 Currently we support native aio on windows and linux */
 UNIV_INTERN my_bool	srv_use_native_aio = TRUE;
+
+/* If this flag is TRUE, then we will use fallocate(PUCH_HOLE)
+to the pages */
+UNIV_INTERN my_bool	srv_use_trim = FALSE;
+/* If this flag is TRUE, then we will use posix fallocate for file extentsion */
+UNIV_INTERN my_bool	srv_use_posix_fallocate = FALSE;
+/* If this flag is TRUE, then we disable doublewrite buffer */
+UNIV_INTERN my_bool	srv_use_atomic_writes = FALSE;
+/* If this flag IS TRUE, then we use this algorithm for page compressing the pages */
+UNIV_INTERN ulong	innodb_compression_algorithm = PAGE_ZLIB_ALGORITHM;
+/* Number of threads used for multi-threaded flush */
+UNIV_INTERN long srv_mtflush_threads = MTFLUSH_DEFAULT_WORKER;
+/* If this flag is TRUE, then we will use multi threaded flush. */
+UNIV_INTERN my_bool	srv_use_mtflush                 = FALSE;
 
 #ifdef __WIN__
 /* Windows native condition variables. We use runtime loading / function
@@ -208,6 +235,10 @@ srv_printf_innodb_monitor() will request mutex acquisition
 with mutex_enter(), which will wait until it gets the mutex. */
 #define MUTEX_NOWAIT(mutex_skipped)	((mutex_skipped) < MAX_MUTEX_NOWAIT)
 
+#ifdef WITH_INNODB_DISALLOW_WRITES
+UNIV_INTERN os_event_t	srv_allow_writes_event;
+#endif /* WITH_INNODB_DISALLOW_WRITES */
+
 /** The sort order table of the MySQL latin1_swedish_ci character set
 collation */
 UNIV_INTERN const byte*	srv_latin1_ordering;
@@ -231,6 +262,8 @@ UNIV_INTERN ulint	srv_buf_pool_curr_size	= 0;
 /* size in bytes */
 UNIV_INTERN ulint	srv_mem_pool_size	= ULINT_MAX;
 UNIV_INTERN ulint	srv_lock_table_size	= ULINT_MAX;
+
+UNIV_INTERN ulong	srv_idle_flush_pct = 100;
 
 /* This parameter is deprecated. Use srv_n_io_[read|write]_threads
 instead. */
@@ -329,6 +362,10 @@ UNIV_INTERN ulint	srv_fast_shutdown	= 0;
 /* Generate a innodb_status.<pid> file */
 UNIV_INTERN ibool	srv_innodb_status	= FALSE;
 
+/* Optimize prefix index queries to skip cluster index lookup when possible */
+/* Enables or disables this prefix optimization.  Disabled by default. */
+UNIV_INTERN my_bool	srv_prefix_index_cluster_optimization = 0;
+
 /* When estimating number of different key values in an index, sample
 this many index pages, there are 2 ways to calculate statistics:
 * persistent stats that are calculated by ANALYZE TABLE and saved
@@ -355,11 +392,6 @@ The following parameter is the size of the buffer that is used for
 batch flushing i.e.: LRU flushing and flush_list flushing. The rest
 of the pages are used for single page flushing. */
 UNIV_INTERN ulong	srv_doublewrite_batch_size	= 120;
-
-UNIV_INTERN ibool	srv_use_atomic_writes = FALSE;
-#ifdef HAVE_POSIX_FALLOCATE
-UNIV_INTERN ibool	srv_use_posix_fallocate = TRUE;
-#endif
 
 UNIV_INTERN ulong	srv_replication_delay		= 0;
 
@@ -393,6 +425,26 @@ static ulint		srv_n_system_rows_read_old	= 0;
 UNIV_INTERN ulint	srv_truncated_status_writes	= 0;
 UNIV_INTERN ulint	srv_available_undo_logs         = 0;
 
+UNIV_INTERN ib_uint64_t srv_page_compression_saved      = 0;
+UNIV_INTERN ib_uint64_t srv_page_compression_trim_sect512       = 0;
+UNIV_INTERN ib_uint64_t srv_page_compression_trim_sect4096      = 0;
+UNIV_INTERN ib_uint64_t srv_index_pages_written         = 0;
+UNIV_INTERN ib_uint64_t srv_non_index_pages_written     = 0;
+UNIV_INTERN ib_uint64_t srv_pages_page_compressed       = 0;
+UNIV_INTERN ib_uint64_t srv_page_compressed_trim_op     = 0;
+UNIV_INTERN ib_uint64_t srv_page_compressed_trim_op_saved     = 0;
+UNIV_INTERN ib_uint64_t srv_index_page_decompressed     = 0;
+
+/* Defragmentation */
+UNIV_INTERN my_bool	srv_defragment = FALSE;
+UNIV_INTERN uint	srv_defragment_n_pages = 7;
+UNIV_INTERN uint	srv_defragment_stats_accuracy = 0;
+UNIV_INTERN uint	srv_defragment_fill_factor_n_recs = 20;
+UNIV_INTERN double	srv_defragment_fill_factor = 0.9;
+UNIV_INTERN uint	srv_defragment_frequency =
+	SRV_DEFRAGMENT_FREQUENCY_DEFAULT;
+UNIV_INTERN ulonglong	srv_defragment_interval = 0;
+
 /* Set the following to 0 if you want InnoDB to write messages on
 stderr on startup/shutdown. */
 UNIV_INTERN ibool	srv_print_verbose_log		= TRUE;
@@ -400,6 +452,9 @@ UNIV_INTERN my_bool	srv_print_innodb_monitor	= FALSE;
 UNIV_INTERN my_bool	srv_print_innodb_lock_monitor	= FALSE;
 UNIV_INTERN ibool	srv_print_innodb_tablespace_monitor = FALSE;
 UNIV_INTERN ibool	srv_print_innodb_table_monitor = FALSE;
+
+/** If this flag is set tables without primary key are not allowed */
+UNIV_INTERN my_bool	srv_force_primary_key		= FALSE;
 
 /* Array of English strings describing the current state of an
 i/o handler thread */
@@ -468,6 +523,9 @@ thread ensures that we flush the log files at least once per
 second. */
 static time_t	srv_last_log_flush_time;
 
+/** Enable semaphore request instrumentation */
+UNIV_INTERN my_bool 	srv_instrument_semaphores = FALSE;
+
 /* Interval in seconds at which various tasks are performed by the
 master thread when server is active. In order to balance the workload,
 we should try to keep intervals such that they are not multiple of
@@ -485,6 +543,9 @@ current_time % 5 != 0. */
 
 /** Simulate compression failures. */
 UNIV_INTERN uint srv_simulate_comp_failures = 0;
+
+/** Buffer pool dump status frequence in percentages */
+UNIV_INTERN ulong srv_buf_dump_status_frequency = 0;
 
 /** Acquire the system_mutex. */
 #define srv_sys_mutex_enter() do {			\
@@ -1000,6 +1061,14 @@ srv_init(void)
 	dict_ind_init();
 
 	srv_conc_init();
+#ifdef WITH_INNODB_DISALLOW_WRITES
+	/* Writes have to be enabled on init or else we hang. Thus, we
+	always set the event here regardless of innobase_disallow_writes.
+	That flag will always be 0 at this point because it isn't settable
+	via my.cnf or command line arg. */
+	srv_allow_writes_event = os_event_create();
+	os_event_set(srv_allow_writes_event);
+#endif /* WITH_INNODB_DISALLOW_WRITES */
 
 	/* Initialize some INFORMATION SCHEMA internal structures */
 	trx_i_s_cache_init(trx_i_s_cache);
@@ -1369,10 +1438,14 @@ srv_export_innodb_status(void)
 	ulint			LRU_len;
 	ulint			free_len;
 	ulint			flush_list_len;
+	fil_crypt_stat_t	crypt_stat;
+	btr_scrub_stat_t	scrub_stat;
 
 	buf_get_total_stat(&stat);
 	buf_get_total_list_len(&LRU_len, &free_len, &flush_list_len);
 	buf_get_total_list_size_in_bytes(&buf_pools_list_size);
+	fil_crypt_total_stat(&crypt_stat);
+	btr_scrub_total_stat(&scrub_stat);
 
 	mutex_enter(&srv_innodb_monitor_mutex);
 
@@ -1518,6 +1591,27 @@ srv_export_innodb_status(void)
 		srv_truncated_status_writes;
 
 	export_vars.innodb_available_undo_logs = srv_available_undo_logs;
+	export_vars.innodb_page_compression_saved = srv_stats.page_compression_saved;
+	export_vars.innodb_page_compression_trim_sect512 = srv_stats.page_compression_trim_sect512;
+	export_vars.innodb_page_compression_trim_sect4096 = srv_stats.page_compression_trim_sect4096;
+	export_vars.innodb_index_pages_written = srv_stats.index_pages_written;
+	export_vars.innodb_non_index_pages_written = srv_stats.non_index_pages_written;
+	export_vars.innodb_pages_page_compressed = srv_stats.pages_page_compressed;
+	export_vars.innodb_page_compressed_trim_op = srv_stats.page_compressed_trim_op;
+	export_vars.innodb_page_compressed_trim_op_saved = srv_stats.page_compressed_trim_op_saved;
+	export_vars.innodb_pages_page_decompressed = srv_stats.pages_page_decompressed;
+	export_vars.innodb_pages_page_compression_error = srv_stats.pages_page_compression_error;
+	export_vars.innodb_pages_decrypted = srv_stats.pages_decrypted;
+	export_vars.innodb_pages_encrypted = srv_stats.pages_encrypted;
+
+	export_vars.innodb_defragment_compression_failures =
+		btr_defragment_compression_failures;
+	export_vars.innodb_defragment_failures = btr_defragment_failures;
+	export_vars.innodb_defragment_count = btr_defragment_count;
+
+	export_vars.innodb_onlineddl_rowlog_rows = onlineddl_rowlog_rows;
+	export_vars.innodb_onlineddl_rowlog_pct_used = onlineddl_rowlog_pct_used;
+	export_vars.innodb_onlineddl_pct_progress = onlineddl_pct_progress;
 
 #ifdef UNIV_DEBUG
 	rw_lock_s_lock(&purge_sys->latch);
@@ -1546,6 +1640,35 @@ srv_export_innodb_status(void)
 			(ulint) (max_trx_id - up_limit_id);
 	}
 #endif /* UNIV_DEBUG */
+
+	export_vars.innodb_sec_rec_cluster_reads =
+		srv_stats.n_sec_rec_cluster_reads;
+	export_vars.innodb_sec_rec_cluster_reads_avoided =
+		srv_stats.n_sec_rec_cluster_reads_avoided;
+
+	export_vars.innodb_encryption_rotation_pages_read_from_cache =
+		crypt_stat.pages_read_from_cache;
+	export_vars.innodb_encryption_rotation_pages_read_from_disk =
+		crypt_stat.pages_read_from_disk;
+	export_vars.innodb_encryption_rotation_pages_modified =
+		crypt_stat.pages_modified;
+	export_vars.innodb_encryption_rotation_pages_flushed =
+		crypt_stat.pages_flushed;
+	export_vars.innodb_encryption_rotation_estimated_iops =
+		crypt_stat.estimated_iops;
+
+	export_vars.innodb_scrub_page_reorganizations =
+		scrub_stat.page_reorganizations;
+	export_vars.innodb_scrub_page_splits =
+		scrub_stat.page_splits;
+	export_vars.innodb_scrub_page_split_failures_underflow =
+		scrub_stat.page_split_failures_underflow;
+	export_vars.innodb_scrub_page_split_failures_out_of_filespace =
+		scrub_stat.page_split_failures_out_of_filespace;
+	export_vars.innodb_scrub_page_split_failures_missing_index =
+		scrub_stat.page_split_failures_missing_index;
+	export_vars.innodb_scrub_page_split_failures_unknown =
+		scrub_stat.page_split_failures_unknown;
 
 	mutex_exit(&srv_innodb_monitor_mutex);
 }
@@ -1803,7 +1926,20 @@ loop:
 
 	if (sync_array_print_long_waits(&waiter, &sema)
 	    && sema == old_sema && os_thread_eq(waiter, old_waiter)) {
+#if defined(WITH_WSREP) && defined(WITH_INNODB_DISALLOW_WRITES)
+	  if (srv_allow_writes_event->is_set) {
+#endif /* WITH_WSREP */
 		fatal_cnt++;
+#if defined(WITH_WSREP) && defined(WITH_INNODB_DISALLOW_WRITES)
+	  } else {
+		fprintf(stderr,
+			"WSREP: avoiding InnoDB self crash due to long "
+			"semaphore wait of  > %lu seconds\n"
+			"Server is processing SST donor operation, "
+			"fatal_cnt now: %lu",
+			(ulong) srv_fatal_semaphore_wait_threshold, fatal_cnt);
+	  }
+#endif /* WITH_WSREP */
 		if (fatal_cnt > 10) {
 
 			fprintf(stderr,
@@ -1917,6 +2053,8 @@ srv_any_background_threads_are_active(void)
 		thread_active = "buf_dump_thread";
 	} else if (srv_dict_stats_thread_active) {
 		thread_active = "dict_stats_thread";
+	} else if (srv_scrub_log && srv_log_scrub_thread_active) {
+		thread_active = "log_scrub_thread";
 	}
 
 	os_event_set(srv_error_event);
@@ -1924,6 +2062,8 @@ srv_any_background_threads_are_active(void)
 	os_event_set(srv_buf_dump_event);
 	os_event_set(lock_sys->timeout_event);
 	os_event_set(dict_stats_event);
+	if (srv_scrub_log)
+		os_event_set(log_scrub_event);
 
 	return(thread_active);
 }

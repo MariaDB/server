@@ -414,9 +414,7 @@ Event_db_repository::index_read_for_db_for_i_s(THD *thd, TABLE *schema_table,
   CHARSET_INFO *scs= system_charset_info;
   KEY *key_info;
   uint key_len;
-  uchar *key_buf= NULL;
-  LINT_INIT(key_buf);
-
+  uchar *key_buf;
   DBUG_ENTER("Event_db_repository::index_read_for_db_for_i_s");
 
   DBUG_PRINT("info", ("Using prefix scanning on PK"));
@@ -654,7 +652,6 @@ Event_db_repository::open_event_table(THD *thd, enum thr_lock_type lock_type,
 
 bool
 Event_db_repository::create_event(THD *thd, Event_parse_data *parse_data,
-                                  bool create_if_not,
                                   bool *event_already_exists)
 {
   int ret= 1;
@@ -685,18 +682,30 @@ Event_db_repository::create_event(THD *thd, Event_parse_data *parse_data,
   DBUG_PRINT("info", ("check existance of an event with the same name"));
   if (!find_named_event(parse_data->dbname, parse_data->name, table))
   {
-    if (create_if_not)
+    if (thd->lex->create_info.or_replace())
+    {
+      *event_already_exists= false; // Force the caller to update event_queue
+      if ((ret= table->file->ha_delete_row(table->record[0])))
+      {
+        table->file->print_error(ret, MYF(0));
+        goto end;
+      }
+    }
+    else if (thd->lex->create_info.if_not_exists())
     {
       *event_already_exists= true;
       push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
-                          ER_EVENT_ALREADY_EXISTS, ER(ER_EVENT_ALREADY_EXISTS),
+                          ER_EVENT_ALREADY_EXISTS,
+                          ER_THD(thd, ER_EVENT_ALREADY_EXISTS),
                           parse_data->name.str);
       ret= 0;
+      goto end;
     }
     else
+    {
       my_error(ER_EVENT_ALREADY_EXISTS, MYF(0), parse_data->name.str);
-
-    goto end;
+      goto end;
+    }
   } else
     *event_already_exists= false;
 
@@ -914,7 +923,7 @@ Event_db_repository::drop_event(THD *thd, LEX_STRING db, LEX_STRING name,
   }
 
   push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
-                      ER_SP_DOES_NOT_EXIST, ER(ER_SP_DOES_NOT_EXIST),
+                      ER_SP_DOES_NOT_EXIST, ER_THD(thd, ER_SP_DOES_NOT_EXIST),
                       "Event", name.str);
   ret= 0;
 

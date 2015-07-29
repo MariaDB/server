@@ -765,7 +765,7 @@ cli_safe_read(MYSQL *mysql)
 restart:
   if (net->vio != 0)
     len= my_net_read_packet(net, 0);
-  
+
   if (len == packet_error || len == 0)
   {
     DBUG_PRINT("error",("Wrong connection or packet. fd: %s  len: %lu",
@@ -1848,6 +1848,7 @@ mysql_ssl_set(MYSQL *mysql __attribute__((unused)) ,
            mysql_options(mysql, MYSQL_OPT_SSL_CAPATH, capath) |
            mysql_options(mysql, MYSQL_OPT_SSL_CIPHER, cipher) ?
            1 : 0);
+  mysql->options.use_ssl= TRUE;
 #endif /* HAVE_OPENSSL && !EMBEDDED_LIBRARY */
   DBUG_RETURN(result);
 }
@@ -1942,7 +1943,7 @@ static int ssl_verify_server_cert(Vio *vio, const char* server_hostname, const c
   SSL *ssl;
   X509 *server_cert;
   char *cp1, *cp2;
-  char buf[256];
+  char *buf;
   DBUG_ENTER("ssl_verify_server_cert");
   DBUG_PRINT("enter", ("server_hostname: %s", server_hostname));
 
@@ -1976,8 +1977,14 @@ static int ssl_verify_server_cert(Vio *vio, const char* server_hostname, const c
     are what we expect.
   */
 
-  X509_NAME_oneline(X509_get_subject_name(server_cert), buf, sizeof(buf));
+  buf= X509_NAME_oneline(X509_get_subject_name(server_cert), 0, 0);
   X509_free (server_cert);
+
+  if (!buf)
+  {
+    *errptr= "Out of memory";
+    DBUG_RETURN(1);
+  }
 
   DBUG_PRINT("info", ("hostname in cert: %s", buf));
   cp1= strstr(buf, "/CN=");
@@ -1991,11 +1998,13 @@ static int ssl_verify_server_cert(Vio *vio, const char* server_hostname, const c
     DBUG_PRINT("info", ("Server hostname in cert: %s", cp1));
     if (!strcmp(cp1, server_hostname))
     {
+      free(buf);
       /* Success */
       DBUG_RETURN(0);
     }
   }
   *errptr= "SSL certificate validation failure";
+  free(buf);
   DBUG_RETURN(1);
 }
 
@@ -2644,16 +2653,10 @@ static int send_client_reply_packet(MCPVIO_EXT *mpvio,
     mysql->client_flag|= CLIENT_MULTI_RESULTS;
 
 #if defined(HAVE_OPENSSL) && !defined(EMBEDDED_LIBRARY)
-  if (mysql->options.ssl_key || mysql->options.ssl_cert ||
-      mysql->options.ssl_ca || mysql->options.ssl_capath ||
-      mysql->options.ssl_cipher ||
-      (mysql->options.extension &&
-       (mysql->options.extension->ssl_crl ||
-        mysql->options.extension->ssl_crlpath)))
-    mysql->options.use_ssl= 1;
   if (mysql->options.use_ssl)
     mysql->client_flag|= CLIENT_SSL;
 #endif /* HAVE_OPENSSL && !EMBEDDED_LIBRARY*/
+
   if (mpvio->db)
     mysql->client_flag|= CLIENT_CONNECT_WITH_DB;
 
@@ -2682,6 +2685,23 @@ static int send_client_reply_packet(MCPVIO_EXT *mpvio,
     end= buff+5;
   }
 #ifdef HAVE_OPENSSL
+
+  /*
+     If client uses ssl and client also has to verify the server
+     certificate, a ssl connection is required.
+     If the server does not support ssl, we abort the connection.
+  */
+  if (mysql->options.use_ssl &&
+      (mysql->client_flag & CLIENT_SSL_VERIFY_SERVER_CERT) &&
+      !(mysql->server_capabilities & CLIENT_SSL))
+  {
+    set_mysql_extended_error(mysql, CR_SSL_CONNECTION_ERROR, unknown_sqlstate,
+                             ER(CR_SSL_CONNECTION_ERROR),
+                             "SSL is required, but the server does not "
+                             "support it");
+    goto error;
+  }
+
   if (mysql->client_flag & CLIENT_SSL)
   {
     /* Do the SSL layering. */
@@ -3211,7 +3231,7 @@ CLI_MYSQL_REAL_CONNECT(MYSQL *mysql,const char *host, const char *user,
 		       uint port, const char *unix_socket,ulong client_flag)
 {
   char		buff[NAME_LEN+USERNAME_LENGTH+100];
-  int           scramble_data_len, pkt_scramble_len= 0;
+  int           scramble_data_len, UNINIT_VAR(pkt_scramble_len);
   char          *end,*host_info= 0, *server_version_end, *pkt_end;
   char          *scramble_data;
   const char    *scramble_plugin;
@@ -3224,7 +3244,6 @@ CLI_MYSQL_REAL_CONNECT(MYSQL *mysql,const char *host, const char *user,
   struct	sockaddr_un UNIXaddr;
 #endif
   DBUG_ENTER("mysql_real_connect");
-  LINT_INIT(pkt_scramble_len);
 
   DBUG_PRINT("enter",("host: %s  db: %s  user: %s (client)",
 		      host ? host : "(Null)",

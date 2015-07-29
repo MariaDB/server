@@ -162,7 +162,7 @@ mutex_exit_func(
 {
 	ut_ad(mutex_own(mutex));
 
-	ut_d(mutex->thread_id = (os_thread_id_t) ULINT_UNDEFINED);
+	mutex->thread_id = (os_thread_id_t) ULINT_UNDEFINED;
 
 #ifdef UNIV_SYNC_DEBUG
 	sync_thread_reset_level(mutex);
@@ -204,16 +204,24 @@ mutex_enter_func(
 	ulint		line)		/*!< in: line where locked */
 {
 	ut_ad(mutex_validate(mutex));
+#ifndef WITH_WSREP
+	/* this cannot be be granted when BF trx kills a trx in lock wait state */
 	ut_ad(!mutex_own(mutex));
+#endif /* WITH_WSREP */
 
 	/* Note that we do not peek at the value of lock_word before trying
 	the atomic test_and_set; we could peek, and possibly save time. */
 
 	if (!ib_mutex_test_and_set(mutex)) {
-		ut_d(mutex->thread_id = os_thread_get_curr_id());
+		mutex->thread_id = os_thread_get_curr_id();
 #ifdef UNIV_SYNC_DEBUG
 		mutex_set_debug_info(mutex, file_name, line);
 #endif
+		if (srv_instrument_semaphores) {
+			mutex->file_name = file_name;
+			mutex->line = line;
+		}
+
 		return;	/* Succeeded! */
 	}
 
@@ -321,8 +329,8 @@ pfs_mutex_create_func(
 /*==================*/
 	mysql_pfs_key_t	key,		/*!< in: Performance Schema key */
 	ib_mutex_t*	mutex,		/*!< in: pointer to memory */
-# ifdef UNIV_DEBUG
 	const char*	cmutex_name,	/*!< in: mutex name */
+# ifdef UNIV_DEBUG
 #  ifdef UNIV_SYNC_DEBUG
 	ulint		level,		/*!< in: level */
 #  endif /* UNIV_SYNC_DEBUG */
@@ -333,8 +341,8 @@ pfs_mutex_create_func(
 	mutex->pfs_psi = PSI_MUTEX_CALL(init_mutex)(key, mutex);
 
 	mutex_create_func(mutex,
-# ifdef UNIV_DEBUG
 			  cmutex_name,
+# ifdef UNIV_DEBUG
 #  ifdef UNIV_SYNC_DEBUG
 			  level,
 #  endif /* UNIV_SYNC_DEBUG */

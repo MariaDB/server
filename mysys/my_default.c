@@ -102,8 +102,7 @@ static const char *f_extensions[]= { ".cnf", 0 };
 #define NEWLINE "\n"
 #endif
 
-static int handle_default_option(void *in_ctx, const char *group_name,
-                                 const char *option);
+static int handle_default_option(void *, const char *, const char *);
 
 /*
    This structure defines the context that we pass to callback
@@ -410,14 +409,13 @@ int get_defaults_options(int argc, char **argv,
                          char **extra_defaults,
                          char **group_suffix)
 {
-  int org_argc= argc, prev_argc= 0;
+  int org_argc= argc;
   *defaults= *extra_defaults= *group_suffix= 0;
 
-  while (argc >= 2 && argc != prev_argc)
+  while (argc >= 2)
   {
     /* Skip program name or previously handled argument */
     argv++;
-    prev_argc= argc;                            /* To check if we found */
     if (!*defaults && is_prefix(*argv,"--defaults-file="))
     {
       *defaults= *argv + sizeof("--defaults-file=")-1;
@@ -436,6 +434,7 @@ int get_defaults_options(int argc, char **argv,
       argc--;
       continue;
     }
+    break;
   }
   return org_argc - argc;
 }
@@ -917,7 +916,7 @@ static int search_default_file_with_ext(Process_option_func opt_handler,
    
     end= remove_end_comment(ptr);
     if ((value= strchr(ptr, '=')))
-      end= value;				/* Option without argument */
+      end= value;
     for ( ; my_isspace(&my_charset_latin1,end[-1]) ; end--) ;
     if (!value)
     {

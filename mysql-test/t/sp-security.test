@@ -1040,3 +1040,11 @@ drop database mysqltest_db;
 # Wait till all disconnects are completed
 --source include/wait_until_count_sessions.inc
 
+set password=password('foobar');
+create procedure sp1() select 1;
+show grants;
+grant execute on procedure sp1 to current_user() identified by 'barfoo';
+show grants;
+drop procedure sp1;
+set password='';
+

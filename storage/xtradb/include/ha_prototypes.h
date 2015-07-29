@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2006, 2013, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2006, 2014, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -285,6 +285,15 @@ innobase_casedn_str(
 /*================*/
 	char*	a);	/*!< in/out: string to put in lower case */
 
+#ifdef WITH_WSREP
+UNIV_INTERN
+int
+wsrep_innobase_kill_one_trx(void *thd_ptr,
+                            const trx_t *bf_trx, trx_t *victim_trx, ibool signal);
+int wsrep_innobase_mysql_sort(int mysql_type, uint charset_number,
+			      unsigned char* str, unsigned int str_length,
+			      unsigned int buf_length);
+#endif /* WITH_WSREP */
 /**********************************************************************//**
 Determines the connection character set.
 @return	connection character set */

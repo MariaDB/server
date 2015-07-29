@@ -132,3 +132,8 @@ select count(*) from information_schema.USER_PRIVILEGES;
 select no_such_function(1);
 
 --echo End of 5.1 tests
+
+#
+# MDEV-8280 crash in 'show global status' with --skip-grant-tables
+#
+show global status like 'Acl%';

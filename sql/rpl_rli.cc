@@ -228,7 +228,7 @@ a file name for --relay-log-index option", opt_relaylog_index_name);
       but a destructor will take care of that
     */
     if (rli->relay_log.open_index_file(buf_relaylog_index_name, ln, TRUE) ||
-        rli->relay_log.open(ln, LOG_BIN, 0, SEQ_READ_APPEND,
+        rli->relay_log.open(ln, LOG_BIN, 0, 0, SEQ_READ_APPEND,
                             mi->rli.max_relay_log_size, 1, TRUE))
     {
       mysql_mutex_unlock(&rli->data_lock);
@@ -1076,6 +1076,9 @@ void Relay_log_info::close_temporary_tables()
 /*
   purge_relay_logs()
 
+  @param rli		Relay log information
+  @param thd		thread id. May be zero during startup
+
   NOTES
     Assumes to have a run lock on rli and that no slave thread are running.
 */
@@ -1131,7 +1134,7 @@ int purge_relay_logs(Relay_log_info* rli, THD *thd, bool just_reset,
     rli->cur_log_fd= -1;
   }
 
-  if (rli->relay_log.reset_logs(thd, !just_reset, NULL, 0))
+  if (rli->relay_log.reset_logs(thd, !just_reset, NULL, 0, 0))
   {
     *errmsg = "Failed during log reset";
     error=1;
@@ -1290,13 +1293,9 @@ bool Relay_log_info::is_until_satisfied(THD *thd, Log_event *ev)
 }
 
 
-void Relay_log_info::stmt_done(my_off_t event_master_log_pos,
-                               time_t event_creation_time, THD *thd,
+void Relay_log_info::stmt_done(my_off_t event_master_log_pos, THD *thd,
                                rpl_group_info *rgi)
 {
-#ifndef DBUG_OFF
-  extern uint debug_not_change_ts_if_art_event;
-#endif
   DBUG_ENTER("Relay_log_info::stmt_done");
 
   DBUG_ASSERT(rgi->rli == this);
@@ -1350,22 +1349,6 @@ void Relay_log_info::stmt_done(my_off_t event_master_log_pos,
     if (mi->using_gtid == Master_info::USE_GTID_NO)
       flush_relay_log_info(this);
     DBUG_EXECUTE_IF("inject_crash_after_flush_rli", DBUG_SUICIDE(););
-    /*
-      Note that Rotate_log_event::do_apply_event() does not call this
-      function, so there is no chance that a fake rotate event resets
-      last_master_timestamp.  Note that we update without mutex
-      (probably ok - except in some very rare cases, only consequence
-      is that value may take some time to display in
-      Seconds_Behind_Master - not critical).
-
-      In parallel replication, we take care to not set last_master_timestamp
-      backwards, in case of out-of-order calls here.
-    */
-    if (!(event_creation_time == 0 &&
-          IF_DBUG(debug_not_change_ts_if_art_event > 0, 1)) &&
-        !(rgi->is_parallel_exec && event_creation_time <= last_master_timestamp)
-        )
-        last_master_timestamp= event_creation_time;
   }
   DBUG_VOID_RETURN;
 }
@@ -1412,7 +1395,6 @@ Relay_log_info::alloc_inuse_relaylog(const char *name)
     last_inuse_relaylog->next= ir;
   }
   last_inuse_relaylog= ir;
-  my_atomic_rwlock_init(&ir->inuse_relaylog_atomic_lock);
 
   return 0;
 }
@@ -1422,7 +1404,6 @@ void
 Relay_log_info::free_inuse_relaylog(inuse_relaylog *ir)
 {
   my_free(ir->relay_log_state);
-  my_atomic_rwlock_destroy(&ir->inuse_relaylog_atomic_lock);
   my_free(ir);
 }
 
@@ -1487,7 +1468,7 @@ rpl_load_gtid_slave_state(THD *thd)
     goto end;
   array_inited= true;
 
-  mysql_reset_thd_for_next_command(thd);
+  thd->reset_for_next_command();
 
   tlist.init_one_table(STRING_WITH_LEN("mysql"),
                        rpl_gtid_slave_state_table_name.str,
@@ -1650,7 +1631,9 @@ rpl_group_info::reinit(Relay_log_info *rli)
   row_stmt_start_timestamp= 0;
   long_find_row_note_printed= false;
   did_mark_start_commit= false;
+  gtid_ev_flags2= 0;
   gtid_ignore_duplicate_state= GTID_DUPLICATE_NULL;
+  speculation= SPECULATE_NO;
   commit_orderer.reinit();
 }
 
@@ -1769,7 +1752,7 @@ void rpl_group_info::cleanup_context(THD *thd, bool error)
     trans_rollback(thd);      // if a "real transaction"
     /*
       Now that we have rolled back the transaction, make sure we do not
-      errorneously update the GTID position.
+      erroneously update the GTID position.
     */
     gtid_pending= false;
   }
@@ -1788,6 +1771,13 @@ void rpl_group_info::cleanup_context(THD *thd, bool error)
       rli->clear_flag(Relay_log_info::IN_STMT);
       rli->clear_flag(Relay_log_info::IN_TRANSACTION);
     }
+
+    /*
+      Ensure we always release the domain for others to process, when using
+      --gtid-ignore-duplicates.
+    */
+    if (gtid_ignore_duplicate_state != GTID_DUPLICATE_NULL)
+      rpl_global_gtid_slave_state.release_domain_owner(this);
   }
 
   /*
@@ -1797,19 +1787,17 @@ void rpl_group_info::cleanup_context(THD *thd, bool error)
   thd->variables.option_bits&= ~OPTION_RELAXED_UNIQUE_CHECKS;
 
   /*
-    Ensure we always release the domain for others to process, when using
-    --gtid-ignore-duplicates.
-  */
-  if (gtid_ignore_duplicate_state != GTID_DUPLICATE_NULL)
-    rpl_global_gtid_slave_state.release_domain_owner(this);
-
-  /*
     Reset state related to long_find_row notes in the error log:
     - timestamp
     - flag that decides whether the slave prints or not
   */
   reset_row_stmt_start_timestamp();
   unset_long_find_row_note_printed();
+
+  DBUG_EXECUTE_IF("inject_sleep_gtid_100_x_x", {
+      if (current_gtid.domain_id == 100)
+        my_sleep(50000);
+    };);
 
   DBUG_VOID_RETURN;
 }

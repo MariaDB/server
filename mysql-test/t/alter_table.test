@@ -1326,6 +1326,14 @@ SHOW CREATE TABLE t2;
 DROP TABLE t2;
 DROP TABLE t1;
 
+CREATE TABLE t1 (
+    `transaction_id` int(11) NOT NULL DEFAULT '0', 
+    KEY `transaction_id` (`transaction_id`));
+ALTER TABLE t1 DROP KEY IF EXISTS transaction_id, ADD PRIMARY KEY IF NOT EXISTS (transaction_id);
+SHOW CREATE TABLE t1;
+
+DROP TABLE t1;
+
 --echo # Bug#11748057 (formerly known as 34972): ALTER TABLE statement doesn't
 --echo #                                         identify correct column name.
 --echo #
@@ -1687,3 +1695,29 @@ alter table t1 add unique index if not exists idx(i);
 alter table t1 add unique index if not exists idx(i);
 show create table t1;
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-7374 : Losing connection to MySQL while running ALTER TABLE
+--echo #
+CREATE TABLE t1(i INT) ENGINE=INNODB;
+INSERT INTO t1 VALUES (1),(2),(3),(4),(5),(6),(7),(8);
+INSERT INTO t1 SELECT a.* FROM t1 a, t1 b, t1 c, t1 d, t1 e;
+ALTER TABLE t1 MODIFY i FLOAT;
+DROP TABLE t1;
+
+--echo #
+--echo # Start of 10.1 tests
+--echo #
+
+--echo #
+--echo # MDEV-7816 ALTER with DROP INDEX and ADD INDEX .. COMMENT='comment2' ignores the new comment
+--echo #
+CREATE TABLE t1(a INT);
+CREATE INDEX i1 ON t1(a) COMMENT 'comment1';
+ALTER TABLE t1 DROP INDEX i1, ADD INDEX i1(a) COMMENT 'comment2';
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+--echo #
+--echo # Start of 10.1 tests
+--echo #

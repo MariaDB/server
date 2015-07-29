@@ -63,6 +63,7 @@ where event_name like "%MYSQL_BIN_LOG%"
 EVENT_NAME	COUNT_STAR
 wait/synch/cond/sql/MYSQL_BIN_LOG::COND_queue_busy	NONE
 wait/synch/mutex/sql/MYSQL_BIN_LOG::LOCK_binlog_background_thread	MANY
+wait/synch/mutex/sql/MYSQL_BIN_LOG::LOCK_binlog_end_pos	MANY
 wait/synch/mutex/sql/MYSQL_BIN_LOG::LOCK_index	MANY
 wait/synch/mutex/sql/MYSQL_BIN_LOG::LOCK_xid_list	MANY
 "Expect no slave relay log"
@@ -141,6 +142,7 @@ where event_name like "%MYSQL_BIN_LOG%"
 EVENT_NAME	COUNT_STAR
 wait/synch/cond/sql/MYSQL_BIN_LOG::COND_queue_busy	NONE
 wait/synch/mutex/sql/MYSQL_BIN_LOG::LOCK_binlog_background_thread	MANY
+wait/synch/mutex/sql/MYSQL_BIN_LOG::LOCK_binlog_end_pos	MANY
 wait/synch/mutex/sql/MYSQL_BIN_LOG::LOCK_index	MANY
 wait/synch/mutex/sql/MYSQL_BIN_LOG::LOCK_xid_list	MANY
 "Expect a slave relay log"

@@ -11,6 +11,22 @@
 # this is only for the mysqld standalone daemon
 [mysqld]
 
+#
+# * Galera-related settings
+#
+[galera]
+# Mandatory settings
+#wsrep_provider=
+#wsrep_cluster_address=
+#binlog_format=row
+#default_storage_engine=InnoDB
+#innodb_autoinc_lock_mode=2
+#bind-address=0.0.0.0
+#
+# Optional setting
+#wsrep_slave_threads=1
+#innodb_flush_log_at_trx_commit=0
+
 # this is only for embedded server
 [embedded]
 
@@ -19,8 +35,8 @@
 # you can put MariaDB-only options here
 [mariadb]
 
-# This group is only read by MariaDB-10.0 servers.
+# This group is only read by MariaDB-10.1 servers.
 # If you use the same .cnf file for MariaDB of different versions,
 # use this group for options that older servers don't understand
-[mariadb-10.0]
+[mariadb-10.1]
 

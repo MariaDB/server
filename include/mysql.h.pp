@@ -1,7 +1,5 @@
 typedef char my_bool;
 typedef int my_socket;
-#include "mysql_version.h"
-#include "mysql_com.h"
 enum enum_server_command
 {
   COM_SLEEP, COM_QUIT, COM_INIT_DB, COM_QUERY, COM_FIELD_LIST,
@@ -132,20 +130,17 @@ void scramble_323(char *to, const char *message, const char *password);
 my_bool check_scramble_323(const unsigned char *reply, const char *message,
                            unsigned long *salt);
 void get_salt_from_password_323(unsigned long *res, const char *password);
-void make_password_from_salt_323(char *to, const unsigned long *salt);
 void make_scrambled_password(char *to, const char *password);
 void scramble(char *to, const char *message, const char *password);
 my_bool check_scramble(const unsigned char *reply, const char *message,
                        const unsigned char *hash_stage2);
 void get_salt_from_password(unsigned char *res, const char *password);
-void make_password_from_salt(char *to, const unsigned char *hash_stage2);
 char *octet2hex(char *to, const char *str, unsigned int len);
 char *get_tty_password(const char *opt_message);
 void get_tty_password_buff(const char *opt_message, char *to, size_t length);
 const char *mysql_errno_to_sqlstate(unsigned int mysql_errno);
 my_bool my_thread_init(void);
 void my_thread_end(void);
-#include "mysql_time.h"
 typedef long my_time_t;
 enum enum_mysql_timestamp_type
 {
@@ -159,7 +154,6 @@ typedef struct st_mysql_time
   my_bool neg;
   enum enum_mysql_timestamp_type time_type;
 } MYSQL_TIME;
-#include "my_list.h"
 typedef struct st_list {
   struct st_list *prev,*next;
   void *data;
@@ -201,8 +195,6 @@ typedef struct st_mysql_field {
 typedef char **MYSQL_ROW;
 typedef unsigned int MYSQL_FIELD_OFFSET;
 typedef unsigned long long my_ulonglong;
-#include "typelib.h"
-#include "my_alloc.h"
 typedef struct st_used_mem
 {
   struct st_used_mem *next;
@@ -246,7 +238,6 @@ typedef struct st_mysql_rows {
   unsigned long length;
 } MYSQL_ROWS;
 typedef MYSQL_ROWS *MYSQL_ROW_OFFSET;
-#include "my_alloc.h"
 typedef struct embedded_query_result EMBEDDED_QUERY_RESULT;
 typedef struct st_mysql_data {
   MYSQL_ROWS *data;

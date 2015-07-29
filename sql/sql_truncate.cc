@@ -1,5 +1,5 @@
-/* Copyright (c) 2010, 2014, Oracle and/or its affiliates.
-   Copyright (c) 2013, 2014, SkySQL Ab.
+/* Copyright (c) 2010, 2015, Oracle and/or its affiliates.
+   Copyright (c) 2013, 2015, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -24,6 +24,7 @@
 #include "sql_acl.h"     // DROP_ACL
 #include "sql_parse.h"   // check_one_table_access()
 #include "sql_truncate.h"
+#include "wsrep_mysqld.h"
 #include "sql_show.h"    //append_identifier()
 
 
@@ -262,52 +263,6 @@ Sql_cmd_truncate_table::handler_truncate(THD *thd, TABLE_LIST *table_ref,
 
 
 /*
-  Close and recreate a temporary table. In case of success,
-  write truncate statement into the binary log if in statement
-  mode.
-
-  @param  thd     Thread context.
-  @param  table   The temporary table.
-
-  @retval  FALSE  Success.
-  @retval  TRUE   Error.
-*/
-
-static bool recreate_temporary_table(THD *thd, TABLE *table)
-{
-  bool error= TRUE;
-  TABLE_SHARE *share= table->s;
-  handlerton *table_type= table->s->db_type();
-  TABLE *new_table;
-  DBUG_ENTER("recreate_temporary_table");
-
-  table->file->info(HA_STATUS_AUTO | HA_STATUS_NO_LOCK);
-
-  /* Don't free share. */
-  close_temporary_table(thd, table, FALSE, FALSE);
-
-  dd_recreate_table(thd, share->db.str, share->table_name.str,
-                    share->normalized_path.str);
-
-  if ((new_table= open_table_uncached(thd, table_type, share->path.str,
-                                      share->db.str,
-                                      share->table_name.str, true, true)))
-  {
-    error= FALSE;
-    thd->thread_specific_used= TRUE;
-    new_table->s->table_creation_was_logged= share->table_creation_was_logged;
-  }
-  else
-    rm_temporary_table(table_type, share->path.str);
-
-  free_table_share(share);
-  my_free(table);
-
-  DBUG_RETURN(error);
-}
-
-
-/*
   Handle locking a base table for truncate.
 
   @param[in]  thd               Thread context.
@@ -441,30 +396,10 @@ bool Sql_cmd_truncate_table::truncate_table(THD *thd, TABLE_LIST *table_ref)
   /* If it is a temporary table, no need to take locks. */
   if (is_temporary_table(table_ref))
   {
-    TABLE *tmp_table= table_ref->table;
-
     /* In RBR, the statement is not binlogged if the table is temporary. */
     binlog_stmt= !thd->is_current_stmt_binlog_format_row();
 
-    /* Note that a temporary table cannot be partitioned. */
-    if (ha_check_storage_engine_flag(tmp_table->s->db_type(),
-                                     HTON_CAN_RECREATE))
-    {
-      if ((error= recreate_temporary_table(thd, tmp_table)))
-        binlog_stmt= FALSE; /* No need to binlog failed truncate-by-recreate. */
-
-      DBUG_ASSERT(! thd->transaction.stmt.modified_non_trans_table);
-    }
-    else
-    {
-      /*
-        The engine does not support truncate-by-recreate. Open the
-        table and invoke the handler truncate. In such a manner this
-        can in fact open several tables if it's a temporary MyISAMMRG
-        table.
-      */
-      error= handler_truncate(thd, table_ref, TRUE);
-    }
+    error= handler_truncate(thd, table_ref, TRUE);
 
     /*
       No need to invalidate the query cache, queries with temporary
@@ -477,6 +412,9 @@ bool Sql_cmd_truncate_table::truncate_table(THD *thd, TABLE_LIST *table_ref)
   {
     bool hton_can_recreate;
 
+    if (WSREP(thd) &&
+        wsrep_to_isolation_begin(thd, table_ref->db, table_ref->table_name, 0))
+        DBUG_RETURN(TRUE);
     if (lock_table(thd, table_ref, &hton_can_recreate))
       DBUG_RETURN(TRUE);
 

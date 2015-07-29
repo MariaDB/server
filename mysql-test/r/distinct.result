@@ -925,9 +925,6 @@ set join_buffer_size=1024;
 SELECT STRAIGHT_JOIN DISTINCT t1.id  FROM
 t1, v1, t2 WHERE v1.id = t2.i AND t1.i1 = v1.i1 AND t2.i != 3;
 id
-7
-8
-9
 18
 20
 24
@@ -937,34 +934,37 @@ id
 51
 61
 64
+7
 71
 74
 77
 78
+8
+9
 93
 94
 set join_buffer_size=1024*16;
 SELECT STRAIGHT_JOIN DISTINCT t1.id  FROM
 t1, v1, t2 WHERE v1.id = t2.i AND t1.i1 = v1.i1 AND t2.i != 3;
 id
-7
-9
 18
 20
 24
-8
+43
+45
 50
 51
 61
-43
-45
-71
 64
+7
+71
 74
 77
 78
-94
+8
+9
 93
+94
 set join_buffer_size=default;
 SELECT STRAIGHT_JOIN DISTINCT t1.id  FROM
 t1, v1, t2 WHERE v1.id = t2.i AND t1.i1 = v1.i1 AND t2.i != 3;

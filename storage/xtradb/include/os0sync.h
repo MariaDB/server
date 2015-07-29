@@ -452,7 +452,7 @@ Returns the old value of *ptr, atomically sets *ptr to new_val */
 # define os_atomic_test_and_set_ulint(ptr, new_val) \
 	__sync_lock_test_and_set(ptr, new_val)
 
-#ifdef __powerpc__
+#if defined(__powerpc__) || defined(__aarch64__)
 /*
   os_atomic_test_and_set_byte_release() should imply a release barrier before
   setting, and a full barrier after. But __sync_lock_test_and_set() is only
@@ -531,7 +531,7 @@ amount of increment. */
 	os_atomic_increment_ulint((ulong_t*) ptr, amount)
 
 # define os_atomic_increment_uint64(ptr, amount) \
-	atomic_add_64_nv(ptr, amount)
+	atomic_add_64_nv((uint64_t *) ptr, amount)
 
 /* Returns the resulting value, ptr is pointer to target, amount is the
 amount to decrement. */

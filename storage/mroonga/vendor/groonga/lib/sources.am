@@ -11,10 +11,15 @@ libgroonga_la_SOURCES =				\
 	grn_dat.h				\
 	db.c					\
 	grn_db.h				\
+	egn.cpp					\
+	grn_egn.h				\
+	grn_egn.hpp				\
 	error.c					\
 	grn_error.h				\
 	expr.c					\
 	grn_expr.h				\
+	expr_code.c				\
+	grn_expr_code.h				\
 	geo.c					\
 	grn_geo.h				\
 	grn.h					\
@@ -24,8 +29,11 @@ libgroonga_la_SOURCES =				\
 	grn_ii.h				\
 	io.c					\
 	grn_io.h				\
+	logger.c				\
+	grn_logger.h				\
 	mrb.c					\
 	grn_mrb.h				\
+	grn_msgpack.h				\
 	nfkc.c					\
 	normalizer.c				\
 	grn_normalizer.h			\

@@ -62,7 +62,7 @@ handler::multi_range_read_info_const(uint keyno, RANGE_SEQ_IF *seq,
   range_seq_t seq_it;
   ha_rows rows, total_rows= 0;
   uint n_ranges=0;
-  THD *thd= current_thd;
+  THD *thd= table->in_use;
   
   /* Default MRR implementation doesn't need buffer */
   *bufsz= 0;
@@ -199,12 +199,6 @@ ha_rows handler::multi_range_read_info(uint keyno, uint n_ranges, uint n_rows,
     One must have called index_init() before calling this function. Several
     multi_range_read_init() calls may be made in course of one query.
 
-    Until WL#2623 is done (see its text, section 3.2), the following will 
-    also hold:
-    The caller will guarantee that if "seq->init == mrr_ranges_array_init"
-    then seq_init_param is an array of n_ranges KEY_MULTI_RANGE structures.
-    This property will only be used by NDB handler until WL#2623 is done.
-     
     Buffer memory management is done according to the following scenario:
     The caller allocates the buffer and provides it to the callee by filling
     the members of HANDLER_BUFFER structure.
@@ -820,15 +814,14 @@ int DsMrr_impl::dsmrr_init(handler *h_arg, RANGE_SEQ_IF *seq_funcs,
                            void *seq_init_param, uint n_ranges, uint mode,
                            HANDLER_BUFFER *buf)
 {
-  THD *thd= current_thd;
+  THD *thd= h_arg->get_table()->in_use;
   int res;
   Key_parameters keypar;
-  uint key_buff_elem_size;
+  uint UNINIT_VAR(key_buff_elem_size); /* set/used when do_sort_keys==TRUE */
   handler *h_idx;
   Mrr_ordered_rndpos_reader *disk_strategy= NULL;
   bool do_sort_keys= FALSE;
   DBUG_ENTER("DsMrr_impl::dsmrr_init");
-  LINT_INIT(key_buff_elem_size); /* set/used when do_sort_keys==TRUE */
   /*
     index_merge may invoke a scan on an object for which dsmrr_info[_const]
     has not been called, so set the owner handler here as well.
@@ -1580,7 +1573,7 @@ bool DsMrr_impl::choose_mrr_impl(uint keyno, ha_rows rows, uint *flags,
 {
   Cost_estimate dsmrr_cost;
   bool res;
-  THD *thd= current_thd;
+  THD *thd= primary_file->get_table()->in_use;
   TABLE_SHARE *share= primary_file->get_table_share();
 
   bool doing_cpk_scan= check_cpk_scan(thd, share, keyno, *flags); 

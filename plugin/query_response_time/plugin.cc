@@ -72,9 +72,9 @@ static struct st_mysql_sys_var *query_response_time_info_vars[]=
 
 ST_FIELD_INFO query_response_time_fields_info[] =
 {
-  { "TIME",  QRT_TIME_STRING_LENGTH,      MYSQL_TYPE_STRING,  0, 0,               "", SKIP_OPEN_TABLE },
-  { "COUNT", MY_INT32_NUM_DECIMAL_DIGITS, MYSQL_TYPE_LONG,    0, MY_I_S_UNSIGNED, "", SKIP_OPEN_TABLE },
-  { "TOTAL", QRT_TIME_STRING_LENGTH,      MYSQL_TYPE_STRING,  0, 0,               "", SKIP_OPEN_TABLE },
+  { "TIME",  QRT_TIME_STRING_LENGTH,      MYSQL_TYPE_STRING,  0, 0,               "Time", 0 },
+  { "COUNT", MY_INT32_NUM_DECIMAL_DIGITS, MYSQL_TYPE_LONG,    0, MY_I_S_UNSIGNED, "Count", 0 },
+  { "TOTAL", QRT_TIME_STRING_LENGTH,      MYSQL_TYPE_STRING,  0, 0,               "Total", 0 },
   { 0, 0, MYSQL_TYPE_NULL, 0, 0, 0, 0 }
 };
 
@@ -84,6 +84,7 @@ static int query_response_time_info_init(void *p)
   ST_SCHEMA_TABLE *i_s_query_response_time= (ST_SCHEMA_TABLE *) p;
   i_s_query_response_time->fields_info= query_response_time_fields_info;
   i_s_query_response_time->fill_table= query_response_time_fill;
+  i_s_query_response_time->reset_table= query_response_time_flush;
   query_response_time_init();
   return 0;
 }

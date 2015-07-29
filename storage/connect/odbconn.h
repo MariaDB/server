@@ -29,9 +29,9 @@
 //efine MAX_CURSOR_NAME  18     // Max size of a cursor name
 #define DEFAULT_FIELD_TYPE SQL_TYPE_NULL // pick "C" data type to match SQL data type
 
-#if !defined(WIN32)
+#if !defined(__WIN__)
 typedef unsigned char *PUCHAR;
-#endif   // !WIN32
+#endif   // !__WIN__
 
 // Field Flags, used to indicate status of fields
 //efine SQL_FIELD_FLAG_DIRTY    0x1

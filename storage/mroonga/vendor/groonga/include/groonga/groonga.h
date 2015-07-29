@@ -18,11 +18,12 @@
 #ifndef GROONGA_GROONGA_H
 #define GROONGA_GROONGA_H
 
+#include <stdarg.h>
+#include <sys/types.h>
+
 #ifdef  __cplusplus
 extern "C" {
 #endif
-
-#include <stdarg.h>
 
 #ifndef GRN_API
 # if defined(_WIN32) || defined(_WIN64)
@@ -182,7 +183,8 @@ typedef enum {
   GRN_CONTENT_TSV,
   GRN_CONTENT_JSON,
   GRN_CONTENT_XML,
-  GRN_CONTENT_MSGPACK
+  GRN_CONTENT_MSGPACK,
+  GRN_CONTENT_GROONGA_COMMAND_LIST
 } grn_content_type;
 
 typedef struct _grn_obj grn_obj;
@@ -470,9 +472,12 @@ GRN_API grn_obj *grn_type_create(grn_ctx *ctx, const char *name, unsigned int na
                                  grn_obj_flags flags, unsigned int size);
 
 GRN_API grn_rc grn_plugin_register(grn_ctx *ctx, const char *name);
+GRN_API grn_rc grn_plugin_unregister(grn_ctx *ctx, const char *name);
 GRN_API grn_rc grn_plugin_register_by_path(grn_ctx *ctx, const char *path);
+GRN_API grn_rc grn_plugin_unregister_by_path(grn_ctx *ctx, const char *path);
 GRN_API const char *grn_plugin_get_system_plugins_dir(void);
 GRN_API const char *grn_plugin_get_suffix(void);
+GRN_API const char *grn_plugin_get_ruby_suffix(void);
 
 typedef struct {
   const char *name;
@@ -710,7 +715,8 @@ typedef enum {
   GRN_OP_TABLE_SORT,
   GRN_OP_TABLE_GROUP,
   GRN_OP_JSON_PUT,
-  GRN_OP_GET_MEMBER
+  GRN_OP_GET_MEMBER,
+  GRN_OP_REGEXP
 } grn_operator;
 
 GRN_API const char *grn_operator_to_string(grn_operator op);
@@ -723,6 +729,12 @@ GRN_API grn_bool grn_operator_exec_less_equal(grn_ctx *ctx,
                                               grn_obj *x, grn_obj *y);
 GRN_API grn_bool grn_operator_exec_greater_equal(grn_ctx *ctx,
                                                  grn_obj *x, grn_obj *y);
+GRN_API grn_bool grn_operator_exec_match(grn_ctx *ctx,
+                                         grn_obj *target, grn_obj *sub_text);
+GRN_API grn_bool grn_operator_exec_prefix(grn_ctx *ctx,
+                                          grn_obj *target, grn_obj *prefix);
+GRN_API grn_bool grn_operator_exec_regexp(grn_ctx *ctx,
+                                          grn_obj *target, grn_obj *pattern);
 
 struct _grn_table_group_result {
   grn_obj *table;
@@ -895,6 +907,8 @@ GRN_API grn_rc grn_obj_lock(grn_ctx *ctx, grn_obj *obj, grn_id id, int timeout);
 GRN_API grn_rc grn_obj_unlock(grn_ctx *ctx, grn_obj *obj, grn_id id);
 GRN_API grn_rc grn_obj_clear_lock(grn_ctx *ctx, grn_obj *obj);
 GRN_API unsigned int grn_obj_is_locked(grn_ctx *ctx, grn_obj *obj);
+GRN_API grn_rc grn_obj_flush(grn_ctx *ctx, grn_obj *obj);
+GRN_API grn_rc grn_obj_flush_recursive(grn_ctx *ctx, grn_obj *obj);
 GRN_API int grn_obj_defrag(grn_ctx *ctx, grn_obj *obj, int threshold);
 
 GRN_API grn_obj *grn_obj_db(grn_ctx *ctx, grn_obj *obj);
@@ -912,6 +926,8 @@ struct _grn_search_optarg {
   grn_obj *proc;
   int max_size;
   grn_obj *scorer;
+  grn_obj *scorer_args_expr;
+  unsigned int scorer_args_expr_offset;
 };
 
 GRN_API grn_rc grn_obj_search(grn_ctx *ctx, grn_obj *obj, grn_obj *query,
@@ -977,8 +993,21 @@ GRN_API grn_rc grn_obj_delete_hook(grn_ctx *ctx, grn_obj *obj, grn_hook_entry en
 
 GRN_API grn_obj *grn_obj_open(grn_ctx *ctx, unsigned char type, grn_obj_flags flags, grn_id domain);
 
+/* Deprecated since 5.0.1. Use grn_column_find_index_data() instead. */
 GRN_API int grn_column_index(grn_ctx *ctx, grn_obj *column, grn_operator op,
                              grn_obj **indexbuf, int buf_size, int *section);
+
+/* @since 5.0.1. */
+typedef struct _grn_index_datum {
+  grn_obj *index;
+  unsigned int section;
+} grn_index_datum;
+
+/* @since 5.0.1. */
+GRN_API unsigned int grn_column_find_index_data(grn_ctx *ctx, grn_obj *column,
+                                                grn_operator op,
+                                                grn_index_datum *index_data,
+                                                unsigned int n_index_data);
 
 GRN_API grn_rc grn_obj_delete_by_id(grn_ctx *ctx, grn_obj *db, grn_id id, grn_bool removep);
 GRN_API grn_rc grn_obj_path_by_id(grn_ctx *ctx, grn_obj *db, grn_id id, char *buffer);
@@ -1128,10 +1157,10 @@ GRN_API void grn_logger_set_max_level(grn_ctx *ctx, grn_log_level max_level);
 GRN_API grn_log_level grn_logger_get_max_level(grn_ctx *ctx);
 
 #ifdef __GNUC__
-#define GRN_ATTRIBUTE_PRINTF(fmt_pos) \
+# define GRN_ATTRIBUTE_PRINTF(fmt_pos) \
   __attribute__ ((format(printf, fmt_pos, fmt_pos + 1)))
 #else
-#define GRN_ATTRIBUTE_PRINTF(fmt_pos)
+# define GRN_ATTRIBUTE_PRINTF(fmt_pos)
 #endif /* __GNUC__ */
 
 GRN_API void grn_logger_put(grn_ctx *ctx, grn_log_level level,
@@ -1141,13 +1170,15 @@ GRN_API void grn_logger_reopen(grn_ctx *ctx);
 GRN_API grn_bool grn_logger_pass(grn_ctx *ctx, grn_log_level level);
 
 #ifndef GRN_LOG_DEFAULT_LEVEL
-#define GRN_LOG_DEFAULT_LEVEL GRN_LOG_NOTICE
+# define GRN_LOG_DEFAULT_LEVEL GRN_LOG_NOTICE
 #endif /* GRN_LOG_DEFAULT_LEVEL */
 
 GRN_API void grn_default_logger_set_max_level(grn_log_level level);
 GRN_API grn_log_level grn_default_logger_get_max_level(void);
 GRN_API void grn_default_logger_set_path(const char *path);
 GRN_API const char *grn_default_logger_get_path(void);
+GRN_API void grn_default_logger_set_rotate_threshold_size(off_t threshold);
+GRN_API off_t grn_default_logger_get_rotate_threshold_size(void);
 
 #define GRN_LOG(ctx,level,...) do {\
   if (grn_logger_pass(ctx, level)) {\
@@ -1180,6 +1211,8 @@ GRN_API void grn_default_query_logger_set_flags(unsigned int flags);
 GRN_API unsigned int grn_default_query_logger_get_flags(void);
 GRN_API void grn_default_query_logger_set_path(const char *path);
 GRN_API const char *grn_default_query_logger_get_path(void);
+GRN_API void grn_default_query_logger_set_rotate_threshold_size(off_t threshold);
+GRN_API off_t grn_default_query_logger_get_rotate_threshold_size(void);
 
 #define GRN_QUERY_LOG(ctx, flag, mark, format, ...) do {\
   if (grn_query_logger_pass(ctx, flag)) {\

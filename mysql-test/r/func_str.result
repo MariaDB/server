@@ -264,6 +264,9 @@ NULL
 select aes_decrypt(aes_encrypt("","a"),"a");
 aes_decrypt(aes_encrypt("","a"),"a")
 
+select aes_decrypt("", "a");
+aes_decrypt("", "a")
+NULL
 select repeat('monty',5),concat('*',space(5),'*');
 repeat('monty',5)	concat('*',space(5),'*')
 montymontymontymontymonty	*     *

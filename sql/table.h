@@ -30,6 +30,7 @@
 #include "mysql_com.h"              /* enum_field_types */
 #include "thr_lock.h"                  /* thr_lock_type */
 #include "filesort_utils.h"
+#include "parse_file.h"
 
 /* Structs that defines the TABLE */
 
@@ -47,6 +48,7 @@ class ACL_internal_schema_access;
 class ACL_internal_table_access;
 class Field;
 class Table_statistics;
+class TDC_element;
 
 /*
   Used to identify NESTED_JOIN structures within a join (applicable only to
@@ -611,32 +613,7 @@ struct TABLE_SHARE
   mysql_mutex_t LOCK_ha_data;           /* To protect access to ha_data */
   mysql_mutex_t LOCK_share;             /* To protect TABLE_SHARE */
 
-  typedef I_P_List <TABLE, TABLE_share> TABLE_list;
-  typedef I_P_List <TABLE, All_share_tables> All_share_tables_list;
-  struct
-  {
-    /**
-      Protects ref_count, m_flush_tickets, all_tables, free_tables, flushed,
-      all_tables_refs.
-    */
-    mysql_mutex_t LOCK_table_share;
-    mysql_cond_t COND_release;
-    TABLE_SHARE *next, **prev;            /* Link to unused shares */
-    uint ref_count;                       /* How many TABLE objects uses this */
-    uint all_tables_refs;                 /* Number of refs to all_tables */
-    /**
-      List of tickets representing threads waiting for the share to be flushed.
-    */
-    Wait_for_flush_list m_flush_tickets;
-    /*
-      Doubly-linked (back-linked) lists of used and unused TABLE objects
-      for this share.
-    */
-    All_share_tables_list all_tables;
-    TABLE_list free_tables;
-    ulong version;
-    bool flushed;
-  } tdc;
+  TDC_element *tdc;
 
   LEX_CUSTRING tabledef_version;
 
@@ -753,6 +730,13 @@ struct TABLE_SHARE
     to modify create_info->used_fields for ALTER TABLE.
   */
   ulong incompatible_version;
+
+  /**
+    For shares representing views File_parser object with view
+    definition read from .FRM file.
+  */
+  const File_parser *view_def;
+
 
   /*
     Cache for row-based replication table share checks that does not
@@ -1072,6 +1056,12 @@ public:
   TABLE_LIST *pos_in_table_list;/* Element referring to this table */
   /* Position in thd->locked_table_list under LOCK TABLES */
   TABLE_LIST *pos_in_locked_tables;
+
+  /*
+    Not-null for temporary tables only. Non-null values means this table is
+    used to compute GROUP BY, it has a unique of GROUP BY columns.
+    (set by create_tmp_table)
+  */
   ORDER		*group;
   String	alias;            	  /* alias or table name */
   uchar		*null_flags;
@@ -1113,6 +1103,7 @@ public:
     and max #key parts that range access would use.
   */
   ha_rows	quick_rows[MAX_KEY];
+  double 	quick_costs[MAX_KEY];
 
   /* 
     Bitmaps of key parts that =const for the duration of join execution. If
@@ -1284,6 +1275,7 @@ public:
   void mark_columns_needed_for_update(void);
   void mark_columns_needed_for_delete(void);
   void mark_columns_needed_for_insert(void);
+  void mark_columns_per_binlog_row_image(void);
   bool mark_virtual_col(Field *field);
   void mark_virtual_columns_for_write(bool insert_fl);
   void mark_default_fields_for_write();
@@ -1374,6 +1366,10 @@ public:
   }
 
   bool update_const_key_parts(COND *conds);
+
+  my_ptrdiff_t default_values_offset() const
+  { return (my_ptrdiff_t) (s->default_values - record[0]); }
+
   uint actual_n_key_parts(KEY *keyinfo);
   ulong actual_key_flags(KEY *keyinfo);
   int update_default_fields();
@@ -1383,6 +1379,8 @@ public:
   void prepare_triggers_for_insert_stmt_or_event();
   bool prepare_triggers_for_delete_stmt_or_event();
   bool prepare_triggers_for_update_stmt_or_event();
+
+  bool validate_default_values_of_unset_fields(THD *thd) const;
 };
 
 
@@ -1489,8 +1487,8 @@ typedef struct st_schema_table
 {
   const char* table_name;
   ST_FIELD_INFO *fields_info;
-  /* Create information_schema table */
-  TABLE *(*create_table)  (THD *thd, TABLE_LIST *table_list);
+  /* for FLUSH table_name */
+  int (*reset_table) ();
   /* Fill table with data */
   int (*fill_table) (THD *thd, TABLE_LIST *tables, COND *cond);
   /* Handle fileds for old SHOW */
@@ -1502,6 +1500,7 @@ typedef struct st_schema_table
   uint i_s_requested_object;  /* the object we need to open(TABLE | VIEW) */
 } ST_SCHEMA_TABLE;
 
+class IS_table_read_plan;
 
 /*
   Types of derived tables. The ending part is a bitmap of phases that are
@@ -1537,6 +1536,8 @@ typedef struct st_schema_table
 #define DT_PHASES_MATERIALIZE (DT_COMMON | DT_MATERIALIZE)
 
 #define VIEW_ALGORITHM_UNDEFINED 0
+/* Special value for ALTER VIEW: inherit original algorithm. */
+#define VIEW_ALGORITHM_INHERIT   DTYPE_VIEW
 #define VIEW_ALGORITHM_MERGE    (DTYPE_VIEW | DTYPE_MERGE)
 #define VIEW_ALGORITHM_TMPTABLE (DTYPE_VIEW | DTYPE_MATERIALIZE)
 
@@ -2048,11 +2049,22 @@ struct TABLE_LIST
   /* TRUE <=> this table is a const one and was optimized away. */
   bool optimized_away;
 
+  /* I_S: Flags to open_table (e.g. OPEN_TABLE_ONLY or OPEN_VIEW_ONLY) */
   uint i_s_requested_object;
-  bool has_db_lookup_value;
-  bool has_table_lookup_value;
+
+  /*
+    I_S: how to read the tables (SKIP_OPEN_TABLE/OPEN_FRM_ONLY/OPEN_FULL_TABLE)
+  */
   uint table_open_method;
+  /*
+    I_S: where the schema table was filled
+    (this is a hack. The code should be able to figure out whether reading
+    from I_S should be done by create_sort_index() or by JOIN::exec.)
+  */
   enum enum_schema_table_state schema_table_state;
+
+  /* Something like a "query plan" for reading INFORMATION_SCHEMA table */
+  IS_table_read_plan *is_table_read_plan;
 
   MDL_request mdl_request;
 

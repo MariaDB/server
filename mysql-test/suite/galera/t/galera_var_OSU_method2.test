@@ -1,0 +1,47 @@
+#
+# Test that the  wsrep_var_OSU_method variable can be changed in the middle of an ALTER without adverse effects.
+# In-depth testing of various OSU methods is implemented in separate tests.
+#
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+--source include/have_debug_sync.inc
+
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) Engine=InnoDB;
+
+--connection node_1
+SET SESSION wsrep_OSU_method = "TOI";
+SET DEBUG_SYNC = 'alter_table_before_open_tables WAIT_FOR continue';
+--send ALTER TABLE t1 ADD COLUMN f2 INTEGER;
+
+
+--connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1
+--connection node_1a
+
+SET SESSION wsrep_sync_wait = 0;
+
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE STATE = 'debug sync point: alter_table_before_open_tables'
+--source include/wait_condition.inc
+
+SET GLOBAL wsrep_OSU_method = "RSU";
+SET DEBUG_SYNC= 'now SIGNAL continue';
+
+--connection node_1
+--reap
+
+SELECT COUNT(*) = 2 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 't1';
+INSERT INTO t1 VALUES (1,2);
+
+--connection node_2
+# The ALTER above is visible on node_2
+SELECT COUNT(*) = 2 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 't1';
+INSERT INTO t1 VALUES (3,4);
+
+--connection node_1
+SET GLOBAL wsrep_OSU_method = "TOI";
+DROP TABLE t1;
+SET DEBUG_SYNC= 'RESET';
+
+--connection node_1a
+SET DEBUG_SYNC= 'RESET';
+

@@ -288,7 +288,8 @@ bool init_read_record(READ_RECORD *info,THD *thd, TABLE *table,
 				  thd->variables.read_buff_size);
   }
   /* Condition pushdown to storage engine */
-  if (thd->use_cond_push(table->file) && select && select->cond && 
+  if ((table->file->ha_table_flags() & HA_CAN_TABLE_CONDITION_PUSHDOWN) &&
+      select && select->cond && 
       (select->cond->used_tables() & table->map) &&
       !table->file->pushed_cond)
     table->file->cond_push(select->cond);

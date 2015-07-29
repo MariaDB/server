@@ -2155,7 +2155,6 @@ CREATE FUNCTION fn1(f1 char ) returns char
     return f1;
 
 DROP FUNCTION IF EXISTS fn1;
---error ER_NOT_SUPPORTED_YET
 CREATE FUNCTION fn1(f1 char binary ) returns char binary
     return f1;
 

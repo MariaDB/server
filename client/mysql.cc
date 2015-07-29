@@ -590,8 +590,6 @@ static COMMANDS commands[] = {
   { "NAMES", 0, 0, 0, ""},
   { "NATIONAL", 0, 0, 0, ""},
   { "NATURAL", 0, 0, 0, ""},
-  { "NDB", 0, 0, 0, ""},
-  { "NDBCLUSTER", 0, 0, 0, ""},
   { "NCHAR", 0, 0, 0, ""},
   { "NEW", 0, 0, 0, ""},
   { "NEXT", 0, 0, 0, ""},
@@ -3042,9 +3040,7 @@ static int com_server_help(String *buffer __attribute__((unused)),
       init_pager();
       char last_char= 0;
 
-      int num_name= 0, num_cat= 0;
-      LINT_INIT(num_name);
-      LINT_INIT(num_cat);
+      int UNINIT_VAR(num_name), UNINIT_VAR(num_cat);
 
       if (num_fields == 2)
       {
@@ -3181,7 +3177,7 @@ com_go(String *buffer,char *line __attribute__((unused)))
   }
 
   /* Remove garbage for nicer messages */
-  LINT_INIT(buff[0]);
+  LINT_INIT_STRUCT(buff[0]);
   remove_cntrl(*buffer);
 
   if (buffer->is_empty())
@@ -4700,8 +4696,7 @@ com_status(String *buffer __attribute__((unused)),
   const char *status_str;
   char buff[40];
   ulonglong id;
-  MYSQL_RES *result;
-  LINT_INIT(result);
+  MYSQL_RES *UNINIT_VAR(result);
 
   if (mysql_real_query_for_lazy(
         C_STRING_WITH_LEN("select DATABASE(), USER() limit 1")))
@@ -5260,8 +5255,7 @@ static void init_username()
   my_free(full_username);
   my_free(part_username);
 
-  MYSQL_RES *result;
-  LINT_INIT(result);
+  MYSQL_RES *UNINIT_VAR(result);
   if (!mysql_query(&mysql,"select USER()") &&
       (result=mysql_use_result(&mysql)))
   {

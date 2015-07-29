@@ -42,6 +42,7 @@ mach_write_to_1(
 
 	b[0] = (byte) n;
 }
+#endif /* !UNIV_INNOCHECKSUM */
 
 /********************************************************//**
 The following function is used to fetch data from one byte.
@@ -72,8 +73,6 @@ mach_write_to_2(
 	b[0] = (byte)(n >> 8);
 	b[1] = (byte)(n);
 }
-
-#endif /* !UNIV_INNOCHECKSUM */
 
 /********************************************************//**
 The following function is used to fetch data from 2 consecutive
@@ -860,7 +859,10 @@ mach_write_ulonglong(
 		*dest ^=  0x80;
 	}
 }
+#endif /* !UNIV_HOTBACKUP */
+#endif /* !UNIV_INNOCHECKSUM */
 
+#ifndef UNIV_HOTBACKUP
 /********************************************************//**
 Reads 1 - 4 bytes from a file page buffered in the buffer pool.
 @return	value read */
@@ -886,4 +888,3 @@ mach_read_ulint(
 }
 
 #endif /* !UNIV_HOTBACKUP */
-#endif /* !UNIV_INNOCHECKSUM */

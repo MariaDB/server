@@ -60,7 +60,7 @@ public:
 
 	#if MYSQL_VERSION_ID>50100
 	ulonglong		table_flags () const	{ return HA_CAN_INDEX_BLOBS | 
-                                                                 HA_MUST_USE_TABLE_CONDITION_PUSHDOWN; } ///< bitmap of implemented flags (see handler.h for more info)
+                                                                 HA_CAN_TABLE_CONDITION_PUSHDOWN; } ///< bitmap of implemented flags (see handler.h for more info)
 	#else
 	ulong			table_flags () const	{ return HA_CAN_INDEX_BLOBS; }			///< bitmap of implemented flags (see handler.h for more info)
 	#endif

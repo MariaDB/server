@@ -1,0 +1,33 @@
+SET @start_innodb_defragment_stats_accuracy = @@global.innodb_defragment_stats_accuracy;
+SELECT @start_innodb_defragment_stats_accuracy;
+@start_innodb_defragment_stats_accuracy
+0
+SELECT COUNT(@@global.innodb_defragment_stats_accuracy);
+COUNT(@@global.innodb_defragment_stats_accuracy)
+1
+SET @@global.innodb_defragment_stats_accuracy = 1;
+SELECT @@global.innodb_defragment_stats_accuracy;
+@@global.innodb_defragment_stats_accuracy
+1
+SET @@global.innodb_defragment_stats_accuracy = 1000;
+SELECT @@global.innodb_defragment_stats_accuracy;
+@@global.innodb_defragment_stats_accuracy
+1000
+SET @@global.innodb_defragment_stats_accuracy = -1;
+Warnings:
+Warning	1292	Truncated incorrect innodb_defragment_stats_accuracy value: '-1'
+SELECT @@global.innodb_defragment_stats_accuracy;
+@@global.innodb_defragment_stats_accuracy
+0
+SET @@global.innodb_defragment_stats_accuracy = 1000000000000;
+Warnings:
+Warning	1292	Truncated incorrect innodb_defragment_stats_accuracy value: '1000000000000'
+SELECT @@global.innodb_defragment_stats_accuracy;
+@@global.innodb_defragment_stats_accuracy
+4294967295
+SET @@global.innodb_defragment_stats_accuracy = "abc";
+ERROR 42000: Incorrect argument type to variable 'innodb_defragment_stats_accuracy'
+SELECT @@global.innodb_defragment_stats_accuracy;
+@@global.innodb_defragment_stats_accuracy
+4294967295
+SET @@global.innodb_defragment_stats_accuracy = @start_innodb_defragment_stats_accuracy;

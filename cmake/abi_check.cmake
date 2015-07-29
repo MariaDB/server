@@ -28,7 +28,7 @@ ELSE()
  SET(RUN_ABI_CHECK 0)
 ENDIF()
 
-IF(CMAKE_COMPILER_IS_GNUCC AND RUN_ABI_CHECK)
+IF(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang" AND RUN_ABI_CHECK)
   IF(CMAKE_C_COMPILER MATCHES "ccache$")
     SET(COMPILER ${CMAKE_C_COMPILER_ARG1})
     STRING(REGEX REPLACE "^ " "" COMPILER ${COMPILER})
@@ -43,6 +43,8 @@ IF(CMAKE_COMPILER_IS_GNUCC AND RUN_ABI_CHECK)
     ${CMAKE_SOURCE_DIR}/include/mysql/psi/psi_abi_v2.h
     ${CMAKE_SOURCE_DIR}/include/mysql/client_plugin.h
     ${CMAKE_SOURCE_DIR}/include/mysql/plugin_auth.h
+    ${CMAKE_SOURCE_DIR}/include/mysql/plugin_password_validation.h
+    ${CMAKE_SOURCE_DIR}/include/mysql/plugin_encryption.h
   )
 
   ADD_CUSTOM_TARGET(abi_check ALL

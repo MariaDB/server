@@ -397,8 +397,8 @@ connection default;
 #
 # cannot connect when password is set and plugin=mysql_native_password
 #
-update mysql.user set password=authentication_string, authentication_string=''
-                  where user like 'mysqltest_up_';
+update mysql.user set plugin='mysql_native_password' where user = 'mysqltest_up1';
+update mysql.user set plugin='mysql_old_password' where user = 'mysqltest_up2';
 select user, password, plugin, authentication_string from mysql.user
                   where user like 'mysqltest_up_';
 flush privileges;                  

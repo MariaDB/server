@@ -859,12 +859,11 @@ mysql_list_fields(MYSQL *mysql, const char *table, const char *wild)
 MYSQL_RES * STDCALL
 mysql_list_processes(MYSQL *mysql)
 {
-  MYSQL_DATA *fields;
+  MYSQL_DATA *UNINIT_VAR(fields);
   uint field_count;
   uchar *pos;
   DBUG_ENTER("mysql_list_processes");
 
-  LINT_INIT(fields);
   if (simple_command(mysql,COM_PROCESS_INFO,0,0,0))
     DBUG_RETURN(0);
   free_old_query(mysql);
@@ -1508,6 +1507,12 @@ my_bool cli_read_prepare_result(MYSQL *mysql, MYSQL_STMT *stmt)
     memory
 */
 
+#ifdef EMBEDDED_LIBRARY
+#define STMT_INIT_PREALLOC(S) 0
+#else
+#define STMT_INIT_PREALLOC(S) S
+#endif /*EMBEDDED_LIBRARY*/
+
 MYSQL_STMT * STDCALL
 mysql_stmt_init(MYSQL *mysql)
 {
@@ -1526,8 +1531,10 @@ mysql_stmt_init(MYSQL *mysql)
     DBUG_RETURN(NULL);
   }
 
-  init_alloc_root(&stmt->mem_root, 2048, 2048, MYF(MY_THREAD_SPECIFIC));
-  init_alloc_root(&stmt->result.alloc, 4096, 4096, MYF(MY_THREAD_SPECIFIC));
+  init_alloc_root(&stmt->mem_root, 2048, STMT_INIT_PREALLOC(2048),
+                  MYF(MY_THREAD_SPECIFIC));
+  init_alloc_root(&stmt->result.alloc, 4096, STMT_INIT_PREALLOC(4096),
+                  MYF(MY_THREAD_SPECIFIC));
   stmt->result.alloc.min_malloc= sizeof(MYSQL_ROWS);
   mysql->stmts= list_add(mysql->stmts, &stmt->list);
   stmt->list.data= stmt;
@@ -1543,6 +1550,8 @@ mysql_stmt_init(MYSQL *mysql)
 
   DBUG_RETURN(stmt);
 }
+
+#undef STMT_INIT_PREALLOC
 
 
 /*
@@ -4904,10 +4913,6 @@ my_bool STDCALL mysql_read_query_result(MYSQL *mysql)
 /********************************************************************
   mysql_net_ functions - low-level API to MySQL protocol
 *********************************************************************/
-#if MYSQL_VERSION_ID > 100100
-#error remove these wrappers in 10.1, rename functions instead
-#endif
-
 ulong STDCALL mysql_net_read_packet(MYSQL *mysql)
 {
   return cli_safe_read(mysql);

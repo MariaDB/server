@@ -452,7 +452,7 @@ void show_sql_type(enum_field_types type, uint16 metadata, String *str, CHARSET_
       CHARSET_INFO *cs= str->charset();
       uint32 length=
         cs->cset->snprintf(cs, (char*) str->ptr(), str->alloced_length(),
-                           "decimal(%d,?)", metadata);
+                           "decimal(%d,?)/*old*/", metadata);
       str->length(length);
     }
     break;
@@ -879,16 +879,19 @@ table_def::compatible_with(THD *thd, rpl_group_info *rgi,
                            col, field->field_name));
       DBUG_ASSERT(col < size() && col < table->s->fields);
       DBUG_ASSERT(table->s->db.str && table->s->table_name.str);
+      DBUG_ASSERT(table->in_use);
       const char *db_name= table->s->db.str;
       const char *tbl_name= table->s->table_name.str;
       char source_buf[MAX_FIELD_WIDTH];
       char target_buf[MAX_FIELD_WIDTH];
       String source_type(source_buf, sizeof(source_buf), &my_charset_latin1);
       String target_type(target_buf, sizeof(target_buf), &my_charset_latin1);
+      THD *thd= table->in_use;
+
       show_sql_type(type(col), field_metadata(col), &source_type, field->charset());
       field->sql_type(target_type);
       rli->report(ERROR_LEVEL, ER_SLAVE_CONVERSION_FAILED, rgi->gtid_info(),
-                  ER(ER_SLAVE_CONVERSION_FAILED),
+                  ER_THD(thd, ER_SLAVE_CONVERSION_FAILED),
                   col, db_name, tbl_name,
                   source_type.c_ptr_safe(), target_type.c_ptr_safe());
       return false;
@@ -1018,10 +1021,12 @@ TABLE *table_def::create_conversion_table(THD *thd, rpl_group_info *rgi,
 
 err:
   if (conv_table == NULL)
+  {
     rli->report(ERROR_LEVEL, ER_SLAVE_CANT_CREATE_CONVERSION, rgi->gtid_info(),
-                ER(ER_SLAVE_CANT_CREATE_CONVERSION),
+                ER_THD(thd, ER_SLAVE_CANT_CREATE_CONVERSION),
                 target_table->s->db.str,
                 target_table->s->table_name.str);
+  }
   DBUG_RETURN(conv_table);
 }
 #endif /* MYSQL_CLIENT */

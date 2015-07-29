@@ -2,6 +2,7 @@ module Groonga
   module Sharding
     class LogicalEnumerator
       attr_reader :target_range
+      attr_reader :logical_table
       attr_reader :shard_key_name
       def initialize(command_name, input)
         @command_name = command_name
@@ -9,16 +10,47 @@ module Groonga
         initialize_parameters
       end
 
-      def each
-        prefix = "#{@logical_table}_"
-        context = Context.instance
-        context.database.each_table(:prefix => prefix,
-                                    :order_by => :key,
-                                    :order => :ascending) do |table|
-          shard_range_raw = table.name[prefix.size..-1]
+      def each(&block)
+        each_internal(:ascending, &block)
+      end
 
-          next unless /\A(\d{4})(\d{2})(\d{2})\z/ =~ shard_range_raw
-          shard_range = ShardRange.new($1.to_i, $2.to_i, $3.to_i)
+      def reverse_each(&block)
+        each_internal(:descending, &block)
+      end
+
+      private
+      def each_internal(order)
+        context = Context.instance
+        each_shard_with_around(order) do |prev_shard, current_shard, next_shard|
+          table = current_shard.table
+          shard_range_data = current_shard.range_data
+          shard_range = nil
+
+          if shard_range_data.day.nil?
+            if order == :ascending
+              if next_shard
+                next_shard_range_data = next_shard.range_data
+              else
+                next_shard_range_data = nil
+              end
+            else
+              if prev_shard
+                next_shard_range_data = prev_shard.range_data
+              else
+                next_shard_range_data = nil
+              end
+            end
+            max_day = compute_month_shard_max_day(shard_range_data.year,
+                                                  shard_range_data.month,
+                                                  next_shard_range_data)
+            shard_range = MonthShardRange.new(shard_range_data.year,
+                                              shard_range_data.month,
+                                              max_day)
+          else
+            shard_range = DayShardRange.new(shard_range_data.year,
+                                            shard_range_data.month,
+                                            shard_range_data.day)
+          end
 
           physical_shard_key_name = "#{table.name}.#{@shard_key_name}"
           shard_key = context[physical_shard_key_name]
@@ -30,6 +62,36 @@ module Groonga
           end
 
           yield(table, shard_key, shard_range)
+        end
+      end
+
+      def each_shard_with_around(order)
+        context = Context.instance
+        prefix = "#{@logical_table}_"
+
+        shards = [nil]
+        context.database.each_table(:prefix => prefix,
+                                    :order_by => :key,
+                                    :order => order) do |table|
+          shard_range_raw = table.name[prefix.size..-1]
+
+          case shard_range_raw
+          when /\A(\d{4})(\d{2})\z/
+            shard_range_data = ShardRangeData.new($1.to_i, $2.to_i, nil)
+          when /\A(\d{4})(\d{2})(\d{2})\z/
+            shard_range_data = ShardRangeData.new($1.to_i, $2.to_i, $3.to_i)
+          else
+            next
+          end
+
+          shards << Shard.new(table, shard_range_data)
+          next if shards.size < 3
+          yield(*shards)
+          shards.shift
+        end
+
+        if shards.size == 2
+          yield(shards[0], shards[1], nil)
         end
       end
 
@@ -48,12 +110,83 @@ module Groonga
         @target_range = TargetRange.new(@command_name, @input)
       end
 
-      class ShardRange
+      def compute_month_shard_max_day(year, month, next_shard_range)
+        return nil if next_shard_range.nil?
+
+        return nil if month != next_shard_range.month
+
+        next_shard_range.day
+      end
+
+      class Shard
+        attr_reader :table, :range_data
+        def initialize(table, range_data)
+          @table = table
+          @range_data = range_data
+        end
+      end
+
+      class ShardRangeData
         attr_reader :year, :month, :day
         def initialize(year, month, day)
           @year = year
           @month = month
           @day = day
+        end
+      end
+
+      class DayShardRange
+        attr_reader :year, :month, :day
+        def initialize(year, month, day)
+          @year = year
+          @month = month
+          @day = day
+        end
+
+        def least_over_time
+          Time.local(@year, @month, @day + 1)
+        end
+
+        def min_time
+          Time.local(@year, @month, @day)
+        end
+
+        def include?(time)
+          @year == time.year and
+            @month == time.month and
+            @day == time.day
+        end
+      end
+
+      class MonthShardRange
+        attr_reader :year, :month, :max_day
+        def initialize(year, month, max_day)
+          @year = year
+          @month = month
+          @max_day = max_day
+        end
+
+        def least_over_time
+          if @max_day.nil?
+            Time.local(@year, @month + 1, 1)
+          else
+            Time.local(@year, @month, @max_day + 1)
+          end
+        end
+
+        def min_time
+          Time.local(@year, @month, 1)
+        end
+
+        def include?(time)
+          return false unless @year == time.year
+          return false unless @month == time.month
+
+          if @max_day.nil?
+            true
+          else
+            time.day <= @max_day
+          end
         end
       end
 
@@ -129,29 +262,22 @@ module Groonga
         end
 
         def in_min?(shard_range)
-          base_time = Time.local(shard_range.year,
-                                 shard_range.month,
-                                 shard_range.day + 1)
-          @min < base_time
+          @min < shard_range.least_over_time
         end
 
         def in_min_partial?(shard_range)
-          return false unless @min.year == shard_range.year
-          return false unless @min.month == shard_range.month
-          return false unless @min.day == shard_range.day
+          return false unless shard_range.include?(@min)
 
           return true if @min_border == :exclude
 
-          @min.hour != 0 and
-            @min.min != 0 and
-            @min.sec != 0 and
-            @min.usec != 0
+          not (@min.hour == 0 and
+               @min.min  == 0 and
+               @min.sec  == 0 and
+               @min.usec == 0)
         end
 
         def in_max?(shard_range)
-          max_base_time = Time.local(shard_range.year,
-                                     shard_range.month,
-                                     shard_range.day)
+          max_base_time = shard_range.min_time
           if @max_border == :include
             @max >= max_base_time
           else
@@ -160,9 +286,7 @@ module Groonga
         end
 
         def in_max_partial?(shard_range)
-          @max.year == shard_range.year and
-            @max.month == shard_range.month and
-            @max.day == shard_range.day
+          shard_range.include?(@max)
         end
       end
     end

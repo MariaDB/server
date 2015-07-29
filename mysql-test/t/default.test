@@ -166,3 +166,18 @@ drop table t1, t2;
 
 --echo End of 5.0 tests.
 
+--echo #
+--echo # Start of 10.1 tests
+--echo #
+
+# Using DEFAULT(col) in WHERE condition
+CREATE TABLE t1 (a INT DEFAULT 100, b INT DEFAULT NULL);
+INSERT INTO t1 VALUES ();
+SELECT * FROM t1 WHERE DEFAULT(a);
+SELECT * FROM t1 WHERE DEFAULT(b);
+DROP TABLE IF EXISTS t1;
+
+
+--echo #
+--echo # End of 10.1 tests
+--echo #

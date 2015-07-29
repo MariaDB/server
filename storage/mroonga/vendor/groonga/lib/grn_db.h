@@ -26,6 +26,8 @@
 #include <groonga/token_filter.h>
 #include <groonga/scorer.h>
 
+#include <float.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -53,6 +55,8 @@ typedef struct {
   grn_obj_header header;
   grn_id range;
 } grn_obj_spec;
+
+void grn_db_init_from_env(void);
 
 GRN_API grn_rc grn_db_close(grn_ctx *ctx, grn_obj *db);
 

@@ -41,26 +41,29 @@
 
 int decimal_operation_results(int result, const char *value, const char *type)
 {
+  /* Avoid calling current_thd on default path */
+  if (likely(result == E_DEC_OK))
+    return(result);
+  
+  THD *thd= current_thd;
   switch (result) {
-  case E_DEC_OK:
-    break;
   case E_DEC_TRUNCATED:
-    push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
-			ER_DATA_TRUNCATED, ER(ER_DATA_TRUNCATED),
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+			ER_DATA_TRUNCATED, ER_THD(thd, ER_DATA_TRUNCATED),
 			value, type);
     break;
   case E_DEC_OVERFLOW:
-    push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
-                        ER_DATA_OVERFLOW, ER(ER_DATA_OVERFLOW),
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                        ER_DATA_OVERFLOW, ER_THD(thd, ER_DATA_OVERFLOW),
 			value, type);
     break;
   case E_DEC_DIV_ZERO:
-    push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
-			ER_DIVISION_BY_ZERO, ER(ER_DIVISION_BY_ZERO));
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+			ER_DIVISION_BY_ZERO, ER_THD(thd, ER_DIVISION_BY_ZERO));
     break;
   case E_DEC_BAD_NUM:
-    push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
-			ER_BAD_DATA, ER(ER_BAD_DATA),
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+			ER_BAD_DATA, ER_THD(thd, ER_BAD_DATA),
 			value, type);
     break;
   case E_DEC_OOM:
@@ -335,7 +338,7 @@ my_decimal *date2my_decimal(MYSQL_TIME *ltime, my_decimal *dec)
 }
 
 
-void my_decimal_trim(ulong *precision, uint *scale)
+void my_decimal_trim(ulonglong *precision, uint *scale)
 {
   if (!(*precision) && !(*scale))
   {

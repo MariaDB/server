@@ -1,3 +1,27 @@
+mroonga (5.04-1) unstable; urgency=low
+
+  * New upstream release.
+
+ -- Masafumi Yokoyama <myokoym@gmail.com>  Mon, 29 Jun 2015 00:00:00 +0900
+
+mroonga (5.03-1) unstable; urgency=low
+
+  * New upstream release.
+
+ -- HAYASHI Kentaro <hayashi@clear-code.com>  Fri, 29 May 2015 00:00:00 +0900
+
+mroonga (5.02-1) unstable; urgency=low
+
+  * New upstream release.
+
+ -- HAYASHI Kentaro <hayashi@clear-code.com>  Wed, 29 Apr 2015 00:00:00 +0900
+
+mroonga (5.01-1) unstable; urgency=low
+
+  * New upstream release.
+
+ -- HAYASHI Kentaro <hayashi@clear-code.com>  Sun, 29 Mar 2015 00:00:00 +0900
+
 mroonga (5.00-1) unstable; urgency=low
 
   * New upstream release.

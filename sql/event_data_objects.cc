@@ -610,7 +610,7 @@ Event_timed::load_from_row(THD *thd, TABLE *table)
     push_warning_printf(thd,
                         Sql_condition::WARN_LEVEL_WARN,
                         ER_EVENT_INVALID_CREATION_CTX,
-                        ER(ER_EVENT_INVALID_CREATION_CTX),
+                        ER_THD(thd, ER_EVENT_INVALID_CREATION_CTX),
                         (const char *) dbname.str,
                         (const char *) name.str);
   }
@@ -1337,7 +1337,7 @@ Event_job_data::execute(THD *thd, bool drop)
 
   DBUG_ENTER("Event_job_data::execute");
 
-  mysql_reset_thd_for_next_command(thd);
+  thd->reset_for_next_command();
 
   /*
     MySQL parser currently assumes that current database is either
@@ -1472,8 +1472,19 @@ end:
       bool save_tx_read_only= thd->tx_read_only;
       thd->tx_read_only= false;
 
+      if (WSREP(thd))
+      {
+        thd->lex->sql_command = SQLCOM_DROP_EVENT;
+        WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL);
+      }
+
       ret= Events::drop_event(thd, dbname, name, FALSE);
 
+      WSREP_TO_ISOLATION_END;
+
+#ifdef WITH_WSREP
+  error:
+#endif
       thd->tx_read_only= save_tx_read_only;
       thd->security_ctx->master_access= saved_master_access;
     }

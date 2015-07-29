@@ -37,6 +37,7 @@ flush tables;
 
 # there must be a warning with file names
 replace_regex /\.[\\\/]master/master/;
+--source include/wait_for_binlog_checkpoint.inc
 purge binary logs TO 'master-bin.000004';
 
 --echo *** must show a list starting from the 'TO' argument of PURGE ***
@@ -57,6 +58,7 @@ remove_file $MYSQLD_DATADIR/master-bin.000001;
 let $date=`select NOW()  +  INTERVAL 1 MINUTE`;
 --disable_query_log
 replace_regex /\.[\\\/]master/master/;
+--source include/wait_for_binlog_checkpoint.inc
 eval purge binary logs BEFORE '$date';
 --enable_query_log
 
@@ -77,6 +79,7 @@ flush logs;
 remove_file $MYSQLD_DATADIR/master-bin.000001;
 mkdir $MYSQLD_DATADIR/master-bin.000001;
 
+--source include/wait_for_binlog_checkpoint.inc
 --error ER_BINLOG_PURGE_FATAL_ERR
 purge binary logs TO 'master-bin.000002';
 replace_regex /\.[\\\/]master/master/;
@@ -91,6 +94,7 @@ flush logs;
 
 --exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
 SET SESSION debug_dbug="+d,crash_purge_before_update_index";
+--source include/wait_for_binlog_checkpoint.inc
 --error 2013
 purge binary logs TO 'master-bin.000002';
 
@@ -111,6 +115,7 @@ flush logs;
 
 --exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
 SET SESSION debug_dbug="+d,crash_purge_non_critical_after_update_index";
+--source include/wait_for_binlog_checkpoint.inc
 --error 2013
 purge binary logs TO 'master-bin.000004';
 
@@ -134,6 +139,7 @@ flush logs;
 
 --exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
 SET SESSION debug_dbug="+d,crash_purge_critical_after_update_index";
+--source include/wait_for_binlog_checkpoint.inc
 --error 2013
 purge binary logs TO 'master-bin.000006';
 

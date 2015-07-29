@@ -209,6 +209,16 @@ unpack_row(rpl_group_info *rgi,
   Field **field_ptr;
   Field **const end_ptr= begin_ptr + colcnt;
 
+  if (bitmap_is_clear_all(cols))
+  {
+    /**
+       There was no data sent from the master, so there is
+       nothing to unpack.
+     */
+    *current_row_end= pack_ptr;
+    *master_reclength= 0;
+    DBUG_RETURN(error);
+  }
   DBUG_ASSERT(null_ptr < row_data + master_null_byte_count);
 
   // Mask to mask out the correct bit among the null bits
@@ -290,9 +300,12 @@ unpack_row(rpl_group_info *rgi,
         }
         else
         {
+          THD *thd= f->table->in_use;
+
           f->set_default();
-          push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
-                              ER_BAD_NULL_ERROR, ER(ER_BAD_NULL_ERROR),
+          push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                              ER_BAD_NULL_ERROR,
+                              ER_THD(thd, ER_BAD_NULL_ERROR),
                               f->field_name);
         }
       }
@@ -306,9 +319,8 @@ unpack_row(rpl_group_info *rgi,
           normal unpack operation.
         */
         uint16 const metadata= tabledef->field_metadata(i);
-#ifndef DBUG_OFF
         uchar const *const old_pack_ptr= pack_ptr;
-#endif
+
         pack_ptr= f->unpack(f->ptr, pack_ptr, row_end, metadata);
 	DBUG_PRINT("debug", ("field: %s; metadata: 0x%x;"
                              " pack_ptr: 0x%lx; pack_ptr': 0x%lx; bytes: %d",
@@ -317,6 +329,22 @@ unpack_row(rpl_group_info *rgi,
                              (int) (pack_ptr - old_pack_ptr)));
         if (!pack_ptr)
         {
+	  if (WSREP_ON)
+          {
+            /*
+              Debug message to troubleshoot bug:
+              https://mariadb.atlassian.net/browse/MDEV-4404
+              Galera Node throws "Could not read field" error and drops out of cluster
+            */
+            WSREP_WARN("ROW event unpack field: %s  metadata: 0x%x;"
+                       " pack_ptr: 0x%lx; conv_table %p conv_field %p table %s"
+                       " row_end: 0x%lx",
+                       f->field_name, metadata,
+                       (ulong) old_pack_ptr, conv_table, conv_field,
+                       (table_found) ? "found" : "not found", (ulong)row_end
+            );
+	  }
+
           rgi->rli->report(ERROR_LEVEL, ER_SLAVE_CORRUPT_EVENT,
                       rgi->gtid_info(),
                       "Could not read field '%s' of table '%s.%s'",
@@ -450,11 +478,12 @@ int prepare_record(TABLE *const table, const uint skip, const bool check)
     if ((f->flags &  NO_DEFAULT_VALUE_FLAG) &&
         (f->real_type() != MYSQL_TYPE_ENUM))
     {
+      THD *thd= f->table->in_use;
       f->set_default();
-      push_warning_printf(current_thd,
+      push_warning_printf(thd,
                           Sql_condition::WARN_LEVEL_WARN,
                           ER_NO_DEFAULT_FOR_FIELD,
-                          ER(ER_NO_DEFAULT_FOR_FIELD),
+                          ER_THD(thd, ER_NO_DEFAULT_FOR_FIELD),
                           f->field_name);
     }
   }

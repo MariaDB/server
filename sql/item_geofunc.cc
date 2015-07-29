@@ -219,6 +219,130 @@ String *Item_func_envelope::val_str(String *str)
 }
 
 
+int Item_func_boundary::Transporter::single_point(double x, double y)
+{
+  return 0;
+}
+
+
+int Item_func_boundary::Transporter::start_line()
+{
+  n_points= 0;
+  current_type= Gcalc_function::shape_line;
+  return 0;
+}
+
+
+int Item_func_boundary::Transporter::complete_line()
+{
+  current_type= (Gcalc_function::shape_type) 0;
+  if (n_points > 1)
+    return m_receiver->single_point(last_x, last_y);
+  return 0;
+}
+
+
+int Item_func_boundary::Transporter::start_poly()
+{
+  current_type= Gcalc_function::shape_polygon;
+  return 0;
+}
+
+
+int Item_func_boundary::Transporter::complete_poly()
+{
+  current_type= (Gcalc_function::shape_type) 0;
+  return 0;
+}
+
+
+int Item_func_boundary::Transporter::start_ring()
+{
+  n_points= 0;
+  return m_receiver->start_shape(Gcalc_function::shape_line);
+}
+
+
+int Item_func_boundary::Transporter::complete_ring()
+{
+  if (n_points > 1)
+  {
+     m_receiver->add_point(last_x, last_y);
+  }
+  m_receiver->complete_shape();
+  return 0;
+}
+
+
+int Item_func_boundary::Transporter::add_point(double x, double y)
+{
+  ++n_points;
+  if (current_type== Gcalc_function::shape_polygon)
+  {
+    /* Polygon's ring case */
+    if (n_points == 1)
+    {
+      last_x= x;
+      last_y= y;
+    }
+    return m_receiver->add_point(x, y);
+  }
+  
+  if (current_type== Gcalc_function::shape_line)
+  {
+    /* Line's case */
+    last_x= x;
+    last_y= y;
+    if (n_points == 1)
+      return m_receiver->single_point(x, y);
+  }
+  return 0;
+}
+
+
+int Item_func_boundary::Transporter::start_collection(int n_objects)
+{
+  return 0;
+}
+
+
+String *Item_func_boundary::val_str(String *str_value)
+{
+  DBUG_ENTER("Item_func_boundary::val_str");
+  DBUG_ASSERT(fixed == 1);
+  String arg_val;
+  String *swkb= args[0]->val_str(&arg_val);
+  Geometry_buffer buffer;
+  Geometry *g;
+  uint32 srid= 0;
+  Transporter trn(&res_receiver);
+  
+  if ((null_value=
+       args[0]->null_value ||
+       !(g= Geometry::construct(&buffer, swkb->ptr(), swkb->length()))))
+    DBUG_RETURN(0);
+  
+  if (g->store_shapes(&trn))
+    goto mem_error;
+
+  str_value->set_charset(&my_charset_bin);
+  if (str_value->reserve(SRID_SIZE, 512))
+    goto mem_error;
+  str_value->length(0);
+  str_value->q_append(srid);
+
+  if (!Geometry::create_from_opresult(&buffer, str_value, res_receiver))
+    goto mem_error;
+
+  res_receiver.reset();
+  DBUG_RETURN(str_value);
+
+mem_error:
+  null_value= 1;
+  DBUG_RETURN(0);
+}
+
+
 Field::geometry_type Item_func_centroid::get_geometry_type() const
 {
   return Field::GEOM_POINT;
@@ -247,6 +371,289 @@ String *Item_func_centroid::val_str(String *str)
 
   return (null_value= MY_TEST(geom->centroid(str))) ? 0 : str;
 }
+
+
+int Item_func_convexhull::add_node_to_line(ch_node **p_cur, int dir,
+                                           const Gcalc_heap::Info *pi)
+{
+  ch_node *new_node;
+  ch_node *cur= *p_cur;
+
+  while (cur->prev)
+  {
+    int v_sign= Gcalc_scan_iterator::point::cmp_dx_dy(
+                  cur->prev->pi, cur->pi, cur->pi, pi);
+    if (v_sign*dir <0)
+      break;
+    new_node= cur;
+    cur= cur->prev;
+    res_heap.free_item(new_node);
+  }
+  if (!(new_node= new_ch_node()))
+    return 1;
+  cur->next= new_node;
+  new_node->prev= cur;
+  new_node->pi= pi;
+  *p_cur= new_node;
+  return 0;
+}
+
+
+#ifndef HEAVY_CONVEX_HULL
+String *Item_func_convexhull::val_str(String *str_value)
+{
+  Geometry_buffer buffer;
+  Geometry *geom= NULL;
+  MBR mbr;
+  const char *c_end;
+  Gcalc_operation_transporter trn(&func, &collector);
+  uint32 srid= 0;
+  ch_node *left_first, *left_cur, *right_first, *right_cur;
+  Gcalc_heap::Info *cur_pi;
+  
+  DBUG_ENTER("Item_func_convexhull::val_str");
+  DBUG_ASSERT(fixed == 1);
+  String *swkb= args[0]->val_str(&tmp_value);
+
+  if ((null_value=
+       args[0]->null_value ||
+       !(geom= Geometry::construct(&buffer, swkb->ptr(), swkb->length()))))
+    DBUG_RETURN(0);
+  
+  geom->get_mbr(&mbr, &c_end);
+  collector.set_extent(mbr.xmin, mbr.xmax, mbr.ymin, mbr.ymax);
+  if ((null_value= geom->store_shapes(&trn)))
+  {
+    str_value= 0;
+    goto mem_error;
+  }
+
+  collector.prepare_operation();
+  if (!(cur_pi= collector.get_first()))
+    goto build_result; /* An EMPTY GEOMETRY */
+
+  if (!cur_pi->get_next())
+  {
+    /* Single point. */
+    if (res_receiver.single_point(cur_pi->x, cur_pi->y))
+      goto mem_error;
+    goto build_result;
+  }
+
+  left_cur= left_first= new_ch_node();
+  right_cur= right_first= new_ch_node();
+  right_first->prev= left_first->prev= 0;
+  right_first->pi= left_first->pi= cur_pi;
+
+  while ((cur_pi= cur_pi->get_next()))
+  {
+    /* Handle left part of the hull, then the right part. */
+    if (add_node_to_line(&left_cur, 1, cur_pi))
+      goto mem_error;
+    if (add_node_to_line(&right_cur, -1, cur_pi))
+      goto mem_error;
+  }
+
+  left_cur->next= 0;
+  if (left_first->get_next()->get_next() == NULL &&
+      right_cur->prev->prev == NULL)
+  {
+    /* We only have 2 nodes in the result, so we create a polyline. */
+    if (res_receiver.start_shape(Gcalc_function::shape_line) ||
+        res_receiver.add_point(left_first->pi->x, left_first->pi->y) ||
+        res_receiver.add_point(left_cur->pi->x, left_cur->pi->y) ||
+        res_receiver.complete_shape())
+
+      goto mem_error;
+
+    goto build_result;
+  }
+
+  if (res_receiver.start_shape(Gcalc_function::shape_polygon))
+    goto mem_error;
+
+  while (left_first)
+  {
+    if (res_receiver.add_point(left_first->pi->x, left_first->pi->y))
+      goto mem_error;
+    left_first= left_first->get_next();
+  }
+
+  /* Skip last point in the right part as it coincides */
+  /* with the last one in the left.                    */
+  right_cur= right_cur->prev;
+  while (right_cur->prev)
+  {
+    if (res_receiver.add_point(right_cur->pi->x, right_cur->pi->y))
+      goto mem_error;
+    right_cur= right_cur->prev;
+  }
+  res_receiver.complete_shape();
+
+build_result:
+  str_value->set_charset(&my_charset_bin);
+  if (str_value->reserve(SRID_SIZE, 512))
+    goto mem_error;
+  str_value->length(0);
+  str_value->q_append(srid);
+
+  if (!Geometry::create_from_opresult(&buffer, str_value, res_receiver))
+    goto mem_error;
+
+mem_error:
+  collector.reset();
+  func.reset();
+  res_receiver.reset();
+  res_heap.reset();
+  DBUG_RETURN(str_value);
+}
+
+#else /*HEAVY_CONVEX_HULL*/
+String *Item_func_convexhull::val_str(String *str_value)
+{
+  Geometry_buffer buffer;
+  Geometry *geom= NULL;
+  MBR mbr;
+  const char *c_end;
+  Gcalc_operation_transporter trn(&func, &collector);
+  const Gcalc_scan_iterator::event_point *ev;
+  uint32 srid= 0;
+  ch_node *left_first, *left_cur, *right_first, *right_cur;
+  
+  DBUG_ENTER("Item_func_convexhull::val_str");
+  DBUG_ASSERT(fixed == 1);
+  String *swkb= args[0]->val_str(&tmp_value);
+
+  if ((null_value=
+       args[0]->null_value ||
+       !(geom= Geometry::construct(&buffer, swkb->ptr(), swkb->length()))))
+    DBUG_RETURN(0);
+  
+  geom->get_mbr(&mbr, &c_end);
+  collector.set_extent(mbr.xmin, mbr.xmax, mbr.ymin, mbr.ymax);
+  if ((null_value= geom->store_shapes(&trn)))
+  {
+    str_value= 0;
+    goto mem_error;
+  }
+
+  collector.prepare_operation();
+  scan_it.init(&collector);
+  scan_it.killed= (int *) &(current_thd->killed);
+
+  if (!scan_it.more_points())
+    goto build_result; /* An EMPTY GEOMETRY */
+
+  if (scan_it.step())
+    goto mem_error;
+
+  if (!scan_it.more_points())
+  {
+    /* Single point. */
+    if (res_receiver.single_point(scan_it.get_events()->pi->x,
+                                  scan_it.get_events()->pi->y))
+      goto mem_error;
+    goto build_result;
+  }
+
+  left_cur= left_first= new_ch_node();
+  right_cur= right_first= new_ch_node();
+  right_first->prev= left_first->prev= 0;
+  right_first->pi= left_first->pi= scan_it.get_events()->pi;
+
+  while (scan_it.more_points())
+  {
+    if (scan_it.step())
+      goto mem_error;
+    ev= scan_it.get_events();
+    
+    /* Skip the intersections-only events. */
+    while (ev->event == scev_intersection)
+    {
+      ev= ev->get_next();
+      if (!ev)
+        goto skip_point;
+    }
+
+    {
+      Gcalc_point_iterator pit(&scan_it);
+      if (!pit.point() || scan_it.get_event_position() == pit.point())
+      {
+        /* Handle left part of the hull. */
+        if (add_node_to_line(&left_cur, 1, ev->pi))
+          goto mem_error;
+      }
+      if (pit.point())
+      {
+        /* Check the rightmost point */
+        for(; pit.point()->c_get_next(); ++pit)
+          ;
+      }
+      if (!pit.point() || pit.point()->event ||
+          scan_it.get_event_position() == pit.point()->c_get_next())
+      {
+        /* Handle right part of the hull. */
+        if (add_node_to_line(&right_cur, -1, ev->pi))
+          goto mem_error;
+      }
+    }
+skip_point:;
+  }
+
+  left_cur->next= 0;
+  if (left_first->get_next()->get_next() == NULL &&
+      right_cur->prev->prev == NULL)
+  {
+    /* We only have 2 nodes in the result, so we create a polyline. */
+    if (res_receiver.start_shape(Gcalc_function::shape_line) ||
+        res_receiver.add_point(left_first->pi->x, left_first->pi->y) ||
+        res_receiver.add_point(left_cur->pi->x, left_cur->pi->y) ||
+        res_receiver.complete_shape())
+
+      goto mem_error;
+
+    goto build_result;
+  }
+
+  if (res_receiver.start_shape(Gcalc_function::shape_polygon))
+    goto mem_error;
+
+  while (left_first)
+  {
+    if (res_receiver.add_point(left_first->pi->x, left_first->pi->y))
+      goto mem_error;
+    left_first= left_first->get_next();
+  }
+
+  /* Skip last point in the right part as it coincides */
+  /* with the last one in the left.                    */
+  right_cur= right_cur->prev;
+  while (right_cur->prev)
+  {
+    if (res_receiver.add_point(right_cur->pi->x, right_cur->pi->y))
+      goto mem_error;
+    right_cur= right_cur->prev;
+  }
+  res_receiver.complete_shape();
+
+build_result:
+  str_value->set_charset(&my_charset_bin);
+  if (str_value->reserve(SRID_SIZE, 512))
+    goto mem_error;
+  str_value->length(0);
+  str_value->q_append(srid);
+
+  if (!Geometry::create_from_opresult(&buffer, str_value, res_receiver))
+    goto mem_error;
+
+mem_error:
+  collector.reset();
+  func.reset();
+  res_receiver.reset();
+  res_heap.reset();
+  DBUG_RETURN(str_value);
+}
+#endif /*HEAVY_CONVEX_HULL*/
 
 
 /*
@@ -501,10 +908,11 @@ String *Item_func_spatial_collection::val_str(String *str)
   }
   if (str->length() > current_thd->variables.max_allowed_packet)
   {
-    push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
+    THD *thd= current_thd;
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
 			ER_WARN_ALLOWED_PACKET_OVERFLOWED,
-			ER(ER_WARN_ALLOWED_PACKET_OVERFLOWED),
-			func_name(), current_thd->variables.max_allowed_packet);
+			ER_THD(thd, ER_WARN_ALLOWED_PACKET_OVERFLOWED),
+			func_name(), thd->variables.max_allowed_packet);
     goto err;
   }
 
@@ -550,8 +958,8 @@ const char *Item_func_spatial_mbr_rel::func_name() const
 longlong Item_func_spatial_mbr_rel::val_int()
 {
   DBUG_ASSERT(fixed == 1);
-  String *res1= args[0]->val_str(&cmp.value1);
-  String *res2= args[1]->val_str(&cmp.value2);
+  String *res1= args[0]->val_str(&tmp_value1);
+  String *res2= args[1]->val_str(&tmp_value2);
   Geometry_buffer buffer1, buffer2;
   Geometry *g1, *g2;
   MBR mbr1, mbr2;
@@ -592,20 +1000,7 @@ longlong Item_func_spatial_mbr_rel::val_int()
 }
 
 
-Item_func_spatial_rel::Item_func_spatial_rel(Item *a,Item *b,
-                                             enum Functype sp_rel) :
-    Item_bool_func2(a,b), collector()
-{
-  spatial_rel = sp_rel;
-}
-
-
-Item_func_spatial_rel::~Item_func_spatial_rel()
-{
-}
-
-
-const char *Item_func_spatial_rel::func_name() const 
+const char *Item_func_spatial_precise_rel::func_name() const 
 { 
   switch (spatial_rel) {
     case SP_CONTAINS_FUNC:
@@ -662,91 +1057,223 @@ static double distance_points(const Gcalc_heap::Info *a,
 }
 
 
+static Gcalc_function::op_type op_matrix(int n)
+{
+  switch (n)
+  {
+    case 0:
+      return Gcalc_function::op_internals;
+    case 1:
+      return Gcalc_function::op_border;
+    case 2:
+      return (Gcalc_function::op_type)
+        ((int) Gcalc_function::op_not | (int) Gcalc_function::op_union);
+  };
+  GCALC_DBUG_ASSERT(FALSE);
+  return Gcalc_function::op_any;
+}
+
+
+static int setup_relate_func(Geometry *g1, Geometry *g2,
+    Gcalc_operation_transporter *trn, Gcalc_function *func,
+    const char *mask)
+{
+  int do_store_shapes=1;
+  uint shape_a, shape_b;
+  uint n_operands= 0;
+  int last_shape_pos;
+
+  last_shape_pos= func->get_next_expression_pos();
+  if (func->reserve_op_buffer(1))
+    return 1;
+  func->add_operation(Gcalc_function::op_intersection, 0);
+  for (int nc=0; nc<9; nc++)
+  {
+    uint cur_op;
+
+    cur_op= Gcalc_function::op_intersection;
+    switch (mask[nc])
+    {
+      case '*':
+        continue;
+      case 'T':
+      case '0':
+      case '1':
+      case '2':
+        cur_op|= Gcalc_function::v_find_t;
+        break;
+      case 'F':
+        cur_op|= (Gcalc_function::op_not | Gcalc_function::v_find_f);
+        break;
+      default:
+        return 1;
+    };
+    ++n_operands;
+    if (func->reserve_op_buffer(3))
+      return 1;
+    func->add_operation(cur_op, 2);
+
+    func->add_operation(op_matrix(nc/3), 1);
+    if (do_store_shapes)
+    {
+      shape_a= func->get_next_expression_pos();
+      if (g1->store_shapes(trn))
+        return 1;
+    }
+    else
+      func->repeat_expression(shape_a);
+    func->add_operation(op_matrix(nc%3), 1);
+    if (do_store_shapes)
+    {
+      shape_b= func->get_next_expression_pos();
+      if (g2->store_shapes(trn))
+        return 1;
+      do_store_shapes= 0;
+    }
+    else
+      func->repeat_expression(shape_b);
+  }
+  
+  func->add_operands_to_op(last_shape_pos, n_operands);
+  return 0;
+}
+
+
 #define GIS_ZERO 0.00000000001
 
-longlong Item_func_spatial_rel::val_int()
+class Geometry_ptr_with_buffer_and_mbr
 {
-  DBUG_ENTER("Item_func_spatial_rel::val_int");
+public:
+  Geometry *geom;
+  Geometry_buffer buffer;
+  MBR mbr;
+  bool construct(Item *item, String *tmp_value)
+  {
+    const char *c_end;
+    String *res= item->val_str(tmp_value);
+    return
+      item->null_value ||
+      !(geom= Geometry::construct(&buffer, res->ptr(), res->length())) ||
+      geom->get_mbr(&mbr, &c_end) || !mbr.valid();
+  }
+  int store_shapes(Gcalc_shape_transporter *trn) const
+  { return geom->store_shapes(trn); }
+};
+
+
+longlong Item_func_spatial_relate::val_int()
+{
+  DBUG_ENTER("Item_func_spatial_relate::val_int");
   DBUG_ASSERT(fixed == 1);
-  String *res1;
-  String *res2;
-  Geometry_buffer buffer1, buffer2;
-  Geometry *g1, *g2;
+  Geometry_ptr_with_buffer_and_mbr g1, g2;
   int result= 0;
-  int mask= 0;
-  uint shape_a, shape_b;
-  MBR umbr, mbr1, mbr2;
-  const char *c_end;
 
-  res1= args[0]->val_str(&tmp_value1);
-  res2= args[1]->val_str(&tmp_value2);
-  Gcalc_operation_transporter trn(&func, &collector);
-
-  if (func.reserve_op_buffer(1))
+  if ((null_value= (g1.construct(args[0], &tmp_value1) ||
+                    g2.construct(args[1], &tmp_value2) ||
+                    func.reserve_op_buffer(1))))
     DBUG_RETURN(0);
 
-  if ((null_value=
-       (args[0]->null_value || args[1]->null_value ||
-	!(g1= Geometry::construct(&buffer1, res1->ptr(), res1->length())) ||
-	!(g2= Geometry::construct(&buffer2, res2->ptr(), res2->length())) ||
-        g1->get_mbr(&mbr1, &c_end) || !mbr1.valid() ||
-        g2->get_mbr(&mbr2, &c_end) || !mbr2.valid())))
+  MBR umbr(g1.mbr, g2.mbr);
+  collector.set_extent(umbr.xmin, umbr.xmax, umbr.ymin, umbr.ymax);
+  g1.mbr.buffer(1e-5);
+  Gcalc_operation_transporter trn(&func, &collector);
+
+  String *matrix= args[2]->val_str(&tmp_matrix);
+  if ((null_value= args[2]->null_value || matrix->length() != 9 ||
+                   setup_relate_func(g1.geom, g2.geom,
+                                     &trn, &func, matrix->ptr())))
     goto exit;
 
-  umbr= mbr1;
-  umbr.add_mbr(&mbr2);
+  collector.prepare_operation();
+  scan_it.init(&collector);
+  scan_it.killed= (int *) &(current_thd->killed);
+  if (!func.alloc_states())
+    result= func.check_function(scan_it);
+
+exit:
+  collector.reset();
+  func.reset();
+  scan_it.reset();
+  DBUG_RETURN(result);
+}
+
+
+longlong Item_func_spatial_precise_rel::val_int()
+{
+  DBUG_ENTER("Item_func_spatial_precise_rel::val_int");
+  DBUG_ASSERT(fixed == 1);
+  Geometry_ptr_with_buffer_and_mbr g1, g2;
+  int result= 0;
+  uint shape_a, shape_b;
+
+  if ((null_value= (g1.construct(args[0], &tmp_value1) ||
+                    g2.construct(args[1], &tmp_value2) ||
+                    func.reserve_op_buffer(1))))
+    DBUG_RETURN(0);
+
+  Gcalc_operation_transporter trn(&func, &collector);
+
+  MBR umbr(g1.mbr, g2.mbr);
   collector.set_extent(umbr.xmin, umbr.xmax, umbr.ymin, umbr.ymax);
 
-  mbr1.buffer(1e-5);
+  g1.mbr.buffer(1e-5);
 
   switch (spatial_rel) {
     case SP_CONTAINS_FUNC:
-      if (!mbr1.contains(&mbr2))
+      if (!g1.mbr.contains(&g2.mbr))
         goto exit;
-      mask= 1;
-      func.add_operation(Gcalc_function::op_difference, 2);
+      func.add_operation(Gcalc_function::v_find_f |
+                         Gcalc_function::op_not |
+                         Gcalc_function::op_difference, 2);
       /* Mind the g2 goes first. */
-      null_value= g2->store_shapes(&trn) || g1->store_shapes(&trn);
+      null_value= g2.store_shapes(&trn) || g1.store_shapes(&trn);
       break;
     case SP_WITHIN_FUNC:
-      mbr2.buffer(2e-5);
-      if (!mbr1.within(&mbr2))
+      g2.mbr.buffer(2e-5);
+      if (!g1.mbr.within(&g2.mbr))
         goto exit;
-      mask= 1;
-      func.add_operation(Gcalc_function::op_difference, 2);
-      null_value= g1->store_shapes(&trn) || g2->store_shapes(&trn);
+      func.add_operation(Gcalc_function::v_find_f |
+                         Gcalc_function::op_not |
+                         Gcalc_function::op_difference, 2);
+      null_value= g1.store_shapes(&trn) || g2.store_shapes(&trn);
       break;
     case SP_EQUALS_FUNC:
-      if (!mbr1.contains(&mbr2))
+      if (!g1.mbr.contains(&g2.mbr))
         goto exit;
-      mask= 1;
-      func.add_operation(Gcalc_function::op_symdifference, 2);
-      null_value= g1->store_shapes(&trn) || g2->store_shapes(&trn);
+      func.add_operation(Gcalc_function::v_find_f |
+                         Gcalc_function::op_not |
+                         Gcalc_function::op_symdifference, 2);
+      null_value= g1.store_shapes(&trn) || g2.store_shapes(&trn);
       break;
     case SP_DISJOINT_FUNC:
-      mask= 1;
-      func.add_operation(Gcalc_function::op_intersection, 2);
-      null_value= g1->store_shapes(&trn) || g2->store_shapes(&trn);
+      func.add_operation(Gcalc_function::v_find_f |
+                         Gcalc_function::op_not |
+                         Gcalc_function::op_intersection, 2);
+      null_value= g1.store_shapes(&trn) || g2.store_shapes(&trn);
       break;
     case SP_INTERSECTS_FUNC:
-      if (!mbr1.intersects(&mbr2))
+      if (!g1.mbr.intersects(&g2.mbr))
         goto exit;
-      func.add_operation(Gcalc_function::op_intersection, 2);
-      null_value= g1->store_shapes(&trn) || g2->store_shapes(&trn);
+      func.add_operation(Gcalc_function::v_find_t |
+                         Gcalc_function::op_intersection, 2);
+      null_value= g1.store_shapes(&trn) || g2.store_shapes(&trn);
       break;
     case SP_OVERLAPS_FUNC:
     case SP_CROSSES_FUNC:
       func.add_operation(Gcalc_function::op_intersection, 2);
+      if (func.reserve_op_buffer(3))
+        break;
       func.add_operation(Gcalc_function::v_find_t |
                          Gcalc_function::op_intersection, 2);
       shape_a= func.get_next_expression_pos();
-      if ((null_value= g1->store_shapes(&trn)))
+      if ((null_value= g1.store_shapes(&trn)))
         break;
       shape_b= func.get_next_expression_pos();
-      if ((null_value= g2->store_shapes(&trn)))
+      if ((null_value= g2.store_shapes(&trn)))
         break;
-      func.add_operation(Gcalc_function::v_find_t |
-                         Gcalc_function::op_intersection, 2);
+      if (func.reserve_op_buffer(7))
+        break;
+      func.add_operation(Gcalc_function::op_intersection, 2);
       func.add_operation(Gcalc_function::v_find_t |
                          Gcalc_function::op_difference, 2);
       func.repeat_expression(shape_a);
@@ -757,23 +1284,23 @@ longlong Item_func_spatial_rel::val_int()
       func.repeat_expression(shape_a);
       break;
     case SP_TOUCHES_FUNC:
+      if (func.reserve_op_buffer(5))
+        break;
       func.add_operation(Gcalc_function::op_intersection, 2);
       func.add_operation(Gcalc_function::v_find_f |
                          Gcalc_function::op_not |
                          Gcalc_function::op_intersection, 2);
       func.add_operation(Gcalc_function::op_internals, 1);
       shape_a= func.get_next_expression_pos();
-      if ((null_value= g1->store_shapes(&trn)))
+      if ((null_value= g1.store_shapes(&trn)))
         break;
       func.add_operation(Gcalc_function::op_internals, 1);
       shape_b= func.get_next_expression_pos();
-      if ((null_value= g2->store_shapes(&trn)))
+      if ((null_value= g2.store_shapes(&trn)))
         break;
       func.add_operation(Gcalc_function::v_find_t |
                          Gcalc_function::op_intersection, 2);
-      func.add_operation(Gcalc_function::op_border, 1);
       func.repeat_expression(shape_a);
-      func.add_operation(Gcalc_function::op_border, 1);
       func.repeat_expression(shape_b);
       break;
     default:
@@ -791,7 +1318,7 @@ longlong Item_func_spatial_rel::val_int()
   if (func.alloc_states())
     goto exit;
 
-  result= func.check_function(scan_it) ^ mask;
+  result= func.check_function(scan_it);
 
 exit:
   collector.reset();
@@ -810,34 +1337,25 @@ String *Item_func_spatial_operation::val_str(String *str_value)
 {
   DBUG_ENTER("Item_func_spatial_operation::val_str");
   DBUG_ASSERT(fixed == 1);
-  String *res1= args[0]->val_str(&tmp_value1);
-  String *res2= args[1]->val_str(&tmp_value2);
-  Geometry_buffer buffer1, buffer2;
-  Geometry *g1, *g2;
+  Geometry_ptr_with_buffer_and_mbr g1, g2;
   uint32 srid= 0;
   Gcalc_operation_transporter trn(&func, &collector);
-  MBR mbr1, mbr2;
-  const char *c_end;
 
   if (func.reserve_op_buffer(1))
     DBUG_RETURN(0);
   func.add_operation(spatial_op, 2);
 
-  if ((null_value=
-       (args[0]->null_value || args[1]->null_value ||
-	!(g1= Geometry::construct(&buffer1, res1->ptr(), res1->length())) ||
-	!(g2= Geometry::construct(&buffer2, res2->ptr(), res2->length())) ||
-        g1->get_mbr(&mbr1, &c_end) || !mbr1.valid() ||
-        g2->get_mbr(&mbr2, &c_end) || !mbr2.valid())))
+  if ((null_value= (g1.construct(args[0], &tmp_value1) ||
+                    g2.construct(args[1], &tmp_value2))))
   {
     str_value= 0;
     goto exit;
   }
 
-  mbr1.add_mbr(&mbr2);
-  collector.set_extent(mbr1.xmin, mbr1.xmax, mbr1.ymin, mbr1.ymax);
+  g1.mbr.add_mbr(&g2.mbr);
+  collector.set_extent(g1.mbr.xmin, g1.mbr.xmax, g1.mbr.ymin, g1.mbr.ymax);
   
-  if ((null_value= g1->store_shapes(&trn) || g2->store_shapes(&trn)))
+  if ((null_value= g1.store_shapes(&trn) || g2.store_shapes(&trn)))
   {
     str_value= 0;
     goto exit;
@@ -860,7 +1378,7 @@ String *Item_func_spatial_operation::val_str(String *str_value)
   str_value->length(0);
   str_value->q_append(srid);
 
-  if (Geometry::create_from_opresult(&buffer1, str_value, res_receiver))
+  if (!Geometry::create_from_opresult(&g1.buffer, str_value, res_receiver))
     goto exit;
 
 exit:
@@ -1328,7 +1846,7 @@ return_empty_result:
   str_value->length(0);
   str_value->q_append(srid);
 
-  if (Geometry::create_from_opresult(&buffer, str_value, res_receiver))
+  if (!Geometry::create_from_opresult(&buffer, str_value, res_receiver))
     goto mem_error;
 
   null_value= 0;
@@ -1361,17 +1879,20 @@ longlong Item_func_issimple::val_int()
   Gcalc_operation_transporter trn(&func, &collector);
   Geometry *g;
   int result= 1;
-  const Gcalc_scan_iterator::event_point *ev;
   MBR mbr;
   const char *c_end;
 
   DBUG_ENTER("Item_func_issimple::val_int");
   DBUG_ASSERT(fixed == 1);
   
-  if ((null_value= (args[0]->null_value ||
-          !(g= Geometry::construct(&buffer, swkb->ptr(), swkb->length())) ||
-          g->get_mbr(&mbr, &c_end))))
-    DBUG_RETURN(0);
+  null_value= 0;
+  if ((args[0]->null_value ||
+       !(g= Geometry::construct(&buffer, swkb->ptr(), swkb->length())) ||
+       g->get_mbr(&mbr, &c_end)))
+  {
+    /* We got NULL as an argument. Have to return -1 */
+    DBUG_RETURN(-1);
+  }
 
   collector.set_extent(mbr.xmin, mbr.xmax, mbr.ymin, mbr.ymax);
 
@@ -1386,6 +1907,8 @@ longlong Item_func_issimple::val_int()
 
   while (scan_it.more_points())
   {
+    const Gcalc_scan_iterator::event_point *ev, *next_ev;
+
     if (scan_it.step())
       goto mem_error;
 
@@ -1393,11 +1916,18 @@ longlong Item_func_issimple::val_int()
     if (ev->simple_event())
       continue;
 
-    if ((ev->event == scev_thread || ev->event == scev_single_point) &&
-        !ev->get_next())
+    next_ev= ev->get_next();
+    if ((ev->event & (scev_thread | scev_single_point)) && !next_ev)
       continue;
 
-    if (ev->event == scev_two_threads && !ev->get_next()->get_next())
+    if ((ev->event == scev_two_threads) && !next_ev->get_next())
+      continue;
+
+    /* If the first and last points of a curve coincide - that is     */
+    /* an exception to the rule and the line is considered as simple. */
+    if ((next_ev && !next_ev->get_next()) &&
+        (ev->event & (scev_thread | scev_end)) &&
+        (next_ev->event & (scev_thread | scev_end)))
       continue;
 
     result= 0;
@@ -1423,14 +1953,46 @@ longlong Item_func_isclosed::val_int()
   Geometry *geom;
   int isclosed= 0;				// In case of error
 
-  null_value= (!swkb || 
-	       args[0]->null_value ||
-	       !(geom=
-		 Geometry::construct(&buffer, swkb->ptr(), swkb->length())) ||
-	       geom->is_closed(&isclosed));
+  null_value= 0;
+  if (!swkb || 
+      args[0]->null_value ||
+      !(geom= Geometry::construct(&buffer, swkb->ptr(), swkb->length())) ||
+      geom->is_closed(&isclosed))
+  {
+    /* IsClosed(NULL) should return -1 */
+    return -1;
+  }
 
   return (longlong) isclosed;
 }
+
+
+longlong Item_func_isring::val_int()
+{
+  /* It's actually a combination of two functions - IsClosed and IsSimple */
+  DBUG_ASSERT(fixed == 1);
+  String tmp;
+  String *swkb= args[0]->val_str(&tmp);
+  Geometry_buffer buffer;
+  Geometry *geom;
+  int isclosed= 0;				// In case of error
+
+  null_value= 0;
+  if (!swkb || 
+      args[0]->null_value ||
+      !(geom= Geometry::construct(&buffer, swkb->ptr(), swkb->length())) ||
+      geom->is_closed(&isclosed))
+  {
+    /* IsRing(NULL) should return -1 */
+    return -1;
+  }
+
+  if (!isclosed)
+    return 0;
+
+  return Item_func_issimple::val_int();
+}
+
 
 /*
   Numerical functions
@@ -1745,6 +2307,121 @@ exit:
 mem_error:
   null_value= 1;
   DBUG_RETURN(0);
+}
+
+
+String *Item_func_pointonsurface::val_str(String *str)
+{
+  Gcalc_operation_transporter trn(&func, &collector);
+
+  DBUG_ENTER("Item_func_pointonsurface::val_real");
+  DBUG_ASSERT(fixed == 1);
+  String *res= args[0]->val_str(&tmp_value);
+  Geometry_buffer buffer;
+  Geometry *g;
+  MBR mbr;
+  const char *c_end;
+  double px, py, x0, y0;
+  String *result= 0;
+  const Gcalc_scan_iterator::point *pprev= NULL;
+  uint32 srid;
+
+
+  null_value= 1;
+  if ((args[0]->null_value ||
+       !(g= Geometry::construct(&buffer, res->ptr(), res->length())) ||
+       g->get_mbr(&mbr, &c_end)))
+    goto mem_error;
+
+  collector.set_extent(mbr.xmin, mbr.xmax, mbr.ymin, mbr.ymax);
+
+  if (g->store_shapes(&trn))
+    goto mem_error;
+
+  collector.prepare_operation();
+  scan_it.init(&collector);
+
+  while (scan_it.more_points())
+  {
+    if (scan_it.step())
+      goto mem_error;
+
+    if (scan_it.get_h() > GIS_ZERO)
+    {
+      y0= scan_it.get_y();
+      break;
+    }
+  }
+
+  if (!scan_it.more_points())
+  {
+    goto exit;
+  }
+
+  if (scan_it.step())
+    goto mem_error;
+
+  for (Gcalc_point_iterator pit(&scan_it); pit.point(); ++pit)
+  {
+    if (pprev == NULL)
+    {
+      pprev= pit.point();
+      continue;
+    }
+    x0= scan_it.get_sp_x(pprev);
+    px= scan_it.get_sp_x(pit.point());
+    if (px - x0 > GIS_ZERO)
+    {
+      if (scan_it.get_h() > GIS_ZERO)
+      {
+        px= (px + x0) / 2.0;
+        py= scan_it.get_y();
+      }
+      else
+      {
+        px= (px + x0) / 2.0;
+        py= (y0 + scan_it.get_y()) / 2.0;
+      }
+      null_value= 0;
+      break;
+    }
+    pprev= NULL;
+  }
+
+  if (null_value)
+    goto exit;
+
+  str->set_charset(&my_charset_bin);
+  if (str->reserve(SRID_SIZE, 512))
+    goto mem_error;
+
+  str->length(0);
+  srid= uint4korr(res->ptr());
+  str->q_append(srid);
+
+  if (Geometry::create_point(str, px, py))
+    goto mem_error;
+
+  result= str;
+
+exit:
+  collector.reset();
+  func.reset();
+  scan_it.reset();
+  DBUG_RETURN(result);
+
+mem_error:
+  collector.reset();
+  func.reset();
+  scan_it.reset();
+  null_value= 1;
+  DBUG_RETURN(0);
+}
+
+
+Field::geometry_type Item_func_pointonsurface::get_geometry_type() const
+{
+  return Field::GEOM_POINT;
 }
 
 

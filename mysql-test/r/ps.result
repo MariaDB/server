@@ -1,5 +1,6 @@
 call mtr.add_suppression('Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT.');
 drop table if exists t1,t2,t3,t4;
+drop database if exists mysqltest1;
 drop database if exists client_test_db;
 create table t1
 (
@@ -1201,13 +1202,13 @@ SET @aux= "SELECT COUNT(*)
 prepare my_stmt from @aux;
 execute my_stmt;
 COUNT(*)
-44
+46
 execute my_stmt;
 COUNT(*)
-44
+46
 execute my_stmt;
 COUNT(*)
-44
+46
 deallocate prepare my_stmt;
 drop procedure if exists p1|
 drop table if exists t1|
@@ -2118,9 +2119,9 @@ select Host, Db from mysql.host limit 0;
 Host	Db
 show open tables from mysql;
 Database	Table	In_use	Name_locked
-mysql	user	0	0
 mysql	general_log	0	0
 mysql	host	0	0
+mysql	user	0	0
 call proc_1();
 show open tables from mysql;
 Database	Table	In_use	Name_locked
@@ -2131,9 +2132,9 @@ select Host, Db from mysql.host limit 0;
 Host	Db
 show open tables from mysql;
 Database	Table	In_use	Name_locked
-mysql	user	0	0
 mysql	general_log	0	0
 mysql	host	0	0
+mysql	user	0	0
 call proc_1();
 show open tables from mysql;
 Database	Table	In_use	Name_locked
@@ -2144,9 +2145,9 @@ select Host, Db from mysql.host limit 0;
 Host	Db
 show open tables from mysql;
 Database	Table	In_use	Name_locked
-mysql	user	0	0
 mysql	general_log	0	0
 mysql	host	0	0
+mysql	user	0	0
 call proc_1();
 show open tables from mysql;
 Database	Table	In_use	Name_locked
@@ -2157,9 +2158,9 @@ select Host, Db from mysql.host limit 0;
 Host	Db
 show open tables from mysql;
 Database	Table	In_use	Name_locked
-mysql	user	0	0
 mysql	general_log	0	0
 mysql	host	0	0
+mysql	user	0	0
 flush tables;
 create function func_1() returns int begin flush tables; return 1; end|
 ERROR 0A000: FLUSH is not allowed in stored function or trigger
@@ -2175,9 +2176,9 @@ select Host, Db from mysql.host limit 0;
 Host	Db
 show open tables from mysql;
 Database	Table	In_use	Name_locked
-mysql	user	0	0
 mysql	general_log	0	0
 mysql	host	0	0
+mysql	user	0	0
 prepare abc from "flush tables";
 execute abc;
 show open tables from mysql;
@@ -2189,9 +2190,9 @@ select Host, Db from mysql.host limit 0;
 Host	Db
 show open tables from mysql;
 Database	Table	In_use	Name_locked
-mysql	user	0	0
 mysql	general_log	0	0
 mysql	host	0	0
+mysql	user	0	0
 execute abc;
 show open tables from mysql;
 Database	Table	In_use	Name_locked
@@ -2202,9 +2203,9 @@ select Host, Db from mysql.host limit 0;
 Host	Db
 show open tables from mysql;
 Database	Table	In_use	Name_locked
-mysql	user	0	0
 mysql	general_log	0	0
 mysql	host	0	0
+mysql	user	0	0
 execute abc;
 show open tables from mysql;
 Database	Table	In_use	Name_locked
@@ -2215,9 +2216,9 @@ select Host, Db from mysql.host limit 0;
 Host	Db
 show open tables from mysql;
 Database	Table	In_use	Name_locked
-mysql	user	0	0
 mysql	general_log	0	0
 mysql	host	0	0
+mysql	user	0	0
 flush tables;
 deallocate prepare abc;
 create procedure proc_1() flush logs;

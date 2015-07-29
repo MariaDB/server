@@ -1741,7 +1741,7 @@ int ha_tina::reset(void)
 }
 
 
-bool ha_tina::check_if_incompatible_data(HA_CREATE_INFO *info,
+bool ha_tina::check_if_incompatible_data(HA_CREATE_INFO *info_arg,
 					   uint table_changes)
 {
   return COMPATIBLE_DATA_YES;

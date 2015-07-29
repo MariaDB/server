@@ -1,6 +1,6 @@
 /* -*- c-basic-offset: 2 -*- */
 /*
-  Copyright(C) 2013-2014 Brazil
+  Copyright(C) 2013-2015 Brazil
 
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -26,8 +26,39 @@
 #include <mruby/data.h>
 
 #include "../grn_mrb.h"
+#include "mrb_ctx.h"
 #include "mrb_object.h"
+#include "mrb_operator.h"
 #include "mrb_converter.h"
+
+mrb_value
+grn_mrb_object_inspect(mrb_state *mrb, mrb_value self)
+{
+  grn_ctx *ctx = (grn_ctx *)mrb->ud;
+  grn_obj *object;
+  mrb_value inspected;
+
+  object = DATA_PTR(self);
+  inspected = mrb_str_buf_new(mrb, 48);
+
+  mrb_str_cat_lit(mrb, inspected, "#<");
+  mrb_str_cat_cstr(mrb, inspected, mrb_obj_classname(mrb, self));
+  mrb_str_cat_lit(mrb, inspected, ":");
+  mrb_str_concat(mrb, inspected, mrb_ptr_to_str(mrb, mrb_cptr(self)));
+  if (object) {
+    grn_obj buffer;
+    GRN_TEXT_INIT(&buffer, 0);
+    grn_inspect(ctx, &buffer, object);
+    mrb_str_cat_lit(mrb, inspected, " ");
+    mrb_str_cat(mrb, inspected, GRN_TEXT_VALUE(&buffer), GRN_TEXT_LEN(&buffer));
+    GRN_OBJ_FIN(ctx, &buffer);
+  } else {
+    mrb_str_cat_lit(mrb, inspected, " (closed)");
+  }
+  mrb_str_cat_lit(mrb, inspected, ">");
+
+  return inspected;
+}
 
 static mrb_value
 object_get_id(mrb_state *mrb, mrb_value self)
@@ -60,19 +91,19 @@ object_find_index(mrb_state *mrb, mrb_value self)
   grn_ctx *ctx = (grn_ctx *)mrb->ud;
   grn_obj *object;
   mrb_value mrb_operator;
-  grn_obj *index;
-  int n_indexes;
-  int section_id;
+  grn_operator operator;
+  grn_index_datum index_datum;
+  int n_index_data;
 
   mrb_get_args(mrb, "o", &mrb_operator);
   object = DATA_PTR(self);
-  n_indexes = grn_column_index(ctx,
-                               object,
-                               mrb_fixnum(mrb_operator),
-                               &index,
-                               1,
-                               &section_id);
-  if (n_indexes == 0) {
+  operator = grn_mrb_value_to_operator(mrb, mrb_operator);
+  n_index_data = grn_column_find_index_data(ctx,
+                                         object,
+                                         operator,
+                                         &index_datum,
+                                         1);
+  if (n_index_data == 0) {
     return mrb_nil_value();
   } else {
     grn_mrb_data *data;
@@ -81,8 +112,8 @@ object_find_index(mrb_state *mrb, mrb_value self)
 
     data = &(ctx->impl->mrb);
     klass = mrb_class_get_under(mrb, data->module, "IndexInfo");
-    args[0] = grn_mrb_value_from_grn_obj(mrb, index);
-    args[1] = mrb_fixnum_value(section_id);
+    args[0] = grn_mrb_value_from_grn_obj(mrb, index_datum.index);
+    args[1] = mrb_fixnum_value(index_datum.section);
     return mrb_obj_new(mrb, klass, 2, args);
   }
 }
@@ -140,6 +171,54 @@ object_close(mrb_state *mrb, mrb_value self)
 }
 
 static mrb_value
+object_remove(mrb_state *mrb, mrb_value self)
+{
+  grn_ctx *ctx = (grn_ctx *)mrb->ud;
+  grn_obj *object;
+
+  object = DATA_PTR(self);
+  grn_obj_remove(ctx, object);
+  grn_mrb_ctx_check(mrb);
+
+  DATA_PTR(self) = NULL;
+
+  return mrb_nil_value();
+}
+
+static mrb_value
+object_get_domain_id(mrb_state *mrb, mrb_value self)
+{
+  grn_obj *object;
+  grn_id domain_id;
+
+  object = DATA_PTR(self);
+  domain_id = object->header.domain;
+
+  if (domain_id == GRN_ID_NIL) {
+    return mrb_nil_value();
+  } else {
+    return mrb_fixnum_value(domain_id);
+  }
+}
+
+static mrb_value
+object_get_range_id(mrb_state *mrb, mrb_value self)
+{
+  grn_ctx *ctx = (grn_ctx *)mrb->ud;
+  grn_obj *object;
+  grn_id range_id;
+
+  object = DATA_PTR(self);
+  range_id = grn_obj_get_range(ctx, object);
+
+  if (range_id == GRN_ID_NIL) {
+    return mrb_nil_value();
+  } else {
+    return mrb_fixnum_value(range_id);
+  }
+}
+
+static mrb_value
 object_is_temporary(mrb_state *mrb, mrb_value self)
 {
   grn_obj *object;
@@ -173,6 +252,9 @@ grn_mrb_object_init(grn_ctx *ctx)
   MRB_SET_INSTANCE_TT(klass, MRB_TT_DATA);
   data->object_class = klass;
 
+  mrb_define_method(mrb, klass, "inspect",
+                    grn_mrb_object_inspect, MRB_ARGS_NONE());
+
   mrb_define_method(mrb, klass, "id", object_get_id, MRB_ARGS_NONE());
   mrb_define_method(mrb, klass, "name", object_get_name, MRB_ARGS_NONE());
   mrb_define_method(mrb, klass, "find_index",
@@ -181,6 +263,12 @@ grn_mrb_object_init(grn_ctx *ctx)
                     object_grn_inspect, MRB_ARGS_NONE());
   mrb_define_method(mrb, klass, "==", object_equal, MRB_ARGS_REQ(1));
   mrb_define_method(mrb, klass, "close", object_close, MRB_ARGS_NONE());
+  mrb_define_method(mrb, klass, "remove", object_remove, MRB_ARGS_NONE());
+
+  mrb_define_method(mrb, klass, "domain_id", object_get_domain_id,
+                    MRB_ARGS_NONE());
+  mrb_define_method(mrb, klass, "range_id", object_get_range_id,
+                    MRB_ARGS_NONE());
 
   mrb_define_method(mrb, klass, "temporary?", object_is_temporary,
                     MRB_ARGS_NONE());

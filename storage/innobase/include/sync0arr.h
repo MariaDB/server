@@ -31,7 +31,7 @@ Created 9/5/1995 Heikki Tuuri
 #include "ut0mem.h"
 #include "os0thread.h"
 
-/** Synchronization wait array cell */
+/** Synchonization cell */
 struct sync_cell_t;
 /** Synchronization wait array */
 struct sync_array_t;
@@ -153,6 +153,16 @@ Prints info of the wait array without using any mutexes/semaphores. */
 UNIV_INTERN
 void
 sync_array_print_innodb(void);
+
+/*****************************************************************//**
+Gets the nth cell in array.
+@return	cell */
+UNIV_INTERN
+sync_cell_t*
+sync_array_get_nth_cell(
+/*====================*/
+	sync_array_t*	arr,	/*!< in: sync array */
+	ulint		n);	/*!< in: index */
 
 #ifndef UNIV_NONINL
 #include "sync0arr.ic"

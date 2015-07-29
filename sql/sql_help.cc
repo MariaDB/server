@@ -93,7 +93,7 @@ static bool init_fields(THD *thd, TABLE_LIST *tables,
   for (; count-- ; find_fields++)
   {
     /* We have to use 'new' here as field will be re_linked on free */
-    Item_field *field= new Item_field(context,
+    Item_field *field= new Item_field(thd, context,
                                       "mysql", find_fields->table_name,
                                       find_fields->field_name);
     if (!(find_fields->field= find_field_in_tables(thd, field, tables, NULL,
@@ -297,7 +297,7 @@ int get_topics_for_keyword(THD *thd, TABLE *topics, TABLE *relations,
        find_type(primary_key_name, &relations->s->keynames,
                  FIND_TYPE_NO_PREFIX) - 1) < 0)
   {
-    my_message(ER_CORRUPT_HELP_DB, ER(ER_CORRUPT_HELP_DB), MYF(0));
+    my_message(ER_CORRUPT_HELP_DB, ER_THD(thd, ER_CORRUPT_HELP_DB), MYF(0));
     DBUG_RETURN(-1);
   }
   rtopic_id= find_fields[help_relation_help_topic_id].field;
@@ -308,7 +308,7 @@ int get_topics_for_keyword(THD *thd, TABLE *topics, TABLE *relations,
   {
     if (topics->file->inited)
       topics->file->ha_index_end();
-    my_message(ER_CORRUPT_HELP_DB, ER(ER_CORRUPT_HELP_DB), MYF(0));
+    my_message(ER_CORRUPT_HELP_DB, ER_THD(thd, ER_CORRUPT_HELP_DB), MYF(0));
     DBUG_RETURN(-1);
   }
 

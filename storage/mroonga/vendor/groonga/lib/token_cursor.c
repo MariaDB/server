@@ -216,15 +216,17 @@ grn_token_cursor_next(grn_ctx *ctx, grn_token_cursor *token_cursor)
         token_cursor->force_prefix = GRN_TRUE;
       }
       if (token_cursor->curr_size == 0) {
-        char tokenizer_name[GRN_TABLE_MAX_KEY_SIZE];
-        int tokenizer_name_length;
-        tokenizer_name_length =
-          grn_obj_name(ctx, token_cursor->tokenizer,
-                       tokenizer_name, GRN_TABLE_MAX_KEY_SIZE);
-        GRN_LOG(ctx, GRN_WARN,
-                "[token_next] ignore an empty token: <%.*s>: <%.*s>",
-                tokenizer_name_length, tokenizer_name,
-                token_cursor->orig_blen, token_cursor->orig);
+        if (token_cursor->status != GRN_TOKEN_CURSOR_DONE) {
+          char tokenizer_name[GRN_TABLE_MAX_KEY_SIZE];
+          int tokenizer_name_length;
+          tokenizer_name_length =
+            grn_obj_name(ctx, token_cursor->tokenizer,
+                         tokenizer_name, GRN_TABLE_MAX_KEY_SIZE);
+          GRN_LOG(ctx, GRN_WARN,
+                  "[token_next] ignore an empty token: <%.*s>: <%.*s>",
+                  tokenizer_name_length, tokenizer_name,
+                  token_cursor->orig_blen, token_cursor->orig);
+        }
         continue;
       }
       if (token_cursor->curr_size > GRN_TABLE_MAX_KEY_SIZE) {
@@ -243,7 +245,7 @@ grn_token_cursor_next(grn_ctx *ctx, grn_token_cursor *token_cursor)
             continue;
           }
         } else {
-          if (status & GRN_TOKEN_LAST) {
+          if (status & GRN_TOKEN_REACH_END) {
             token_cursor->force_prefix = GRN_TRUE;
           }
         }

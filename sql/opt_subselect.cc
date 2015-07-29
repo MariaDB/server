@@ -1,5 +1,5 @@
 /*
-   Copyright (c) 2010, 2012, Monty Program Ab
+   Copyright (c) 2010, 2015, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1512,7 +1512,7 @@ static bool convert_subq_to_sj(JOIN *parent_join, Item_in_subselect *subq_pred)
     NOTE: We actually insert them at the front! That's because the order is
           reversed in this list.
   */
-  parent_lex->leaf_tables.concat(&subq_lex->leaf_tables);
+  parent_lex->leaf_tables.append(&subq_lex->leaf_tables);
 
   if (subq_lex->options & OPTION_SCHEMA_TABLE)
     parent_lex->options |= OPTION_SCHEMA_TABLE;
@@ -1611,9 +1611,20 @@ static bool convert_subq_to_sj(JOIN *parent_join, Item_in_subselect *subq_pred)
       sj_nest->sj_on_expr= and_items(sj_nest->sj_on_expr, item_eq);
     }
   }
-  /* Fix the created equality and AND */
-  if (!sj_nest->sj_on_expr->fixed)
-    sj_nest->sj_on_expr->fix_fields(parent_join->thd, &sj_nest->sj_on_expr);
+  /*
+    Fix the created equality and AND
+
+    Note that fix_fields() can actually fail in a meaningful way here. One
+    example is when the IN-equality is not valid, because it compares columns
+    with incompatible collations. (One can argue it would be more appropriate
+    to check for this at name resolution stage, but as a legacy of IN->EXISTS
+    we have in here).
+  */
+  if (!sj_nest->sj_on_expr->fixed &&
+      sj_nest->sj_on_expr->fix_fields(parent_join->thd, &sj_nest->sj_on_expr))
+  {
+    DBUG_RETURN(TRUE);
+  }
 
   /*
     Walk through sj nest's WHERE and ON expressions and call
@@ -1632,12 +1643,15 @@ static bool convert_subq_to_sj(JOIN *parent_join, Item_in_subselect *subq_pred)
   /* Inject sj_on_expr into the parent's WHERE or ON */
   if (emb_tbl_nest)
   {
-    emb_tbl_nest->on_expr= and_items(emb_tbl_nest->on_expr, 
+    emb_tbl_nest->on_expr= and_items(emb_tbl_nest->on_expr,
                                      sj_nest->sj_on_expr);
     emb_tbl_nest->on_expr->top_level_item();
-    if (!emb_tbl_nest->on_expr->fixed)
-      emb_tbl_nest->on_expr->fix_fields(parent_join->thd,
-                                        &emb_tbl_nest->on_expr);
+    if (!emb_tbl_nest->on_expr->fixed &&
+         emb_tbl_nest->on_expr->fix_fields(parent_join->thd,
+                                           &emb_tbl_nest->on_expr))
+    {
+      DBUG_RETURN(TRUE);
+    }
   }
   else
   {
@@ -1650,8 +1664,12 @@ static bool convert_subq_to_sj(JOIN *parent_join, Item_in_subselect *subq_pred)
     */
     save_lex= thd->lex->current_select;
     thd->lex->current_select=parent_join->select_lex;
-    if (!parent_join->conds->fixed)
-      parent_join->conds->fix_fields(parent_join->thd, &parent_join->conds);
+    if (!parent_join->conds->fixed &&
+         parent_join->conds->fix_fields(parent_join->thd,
+                                        &parent_join->conds))
+    {
+      DBUG_RETURN(1);
+    }
     thd->lex->current_select=save_lex;
     parent_join->select_lex->where= parent_join->conds;
   }
@@ -2508,10 +2526,16 @@ void advance_sj_state(JOIN *join, table_map remaining_tables, uint idx,
     LooseScan detector in best_access_path)
   */
   remaining_tables &= ~new_join_tab->table->map;
-  pos->prefix_dups_producing_tables= join->cur_dups_producing_tables;
+  table_map dups_producing_tables;
+
+  if (idx == join->const_tables)
+    dups_producing_tables= 0;
+  else
+    dups_producing_tables= pos[-1].dups_producing_tables;
+
   TABLE_LIST *emb_sj_nest;
   if ((emb_sj_nest= new_join_tab->emb_sj_nest))
-    join->cur_dups_producing_tables |= emb_sj_nest->sj_inner_tables;
+    dups_producing_tables |= emb_sj_nest->sj_inner_tables;
 
   Semi_join_strategy_picker **strategy;
   if (idx == join->const_tables)
@@ -2564,7 +2588,7 @@ void advance_sj_state(JOIN *join, table_map remaining_tables, uint idx,
                    fanout from semijoin X.
                 3. We have no clue what to do about fanount of semi-join Y.
         */
-        if ((join->cur_dups_producing_tables & handled_fanout) ||
+        if ((dups_producing_tables & handled_fanout) ||
             (read_time < *current_read_time && 
              !(handled_fanout & pos->inner_tables_handled_with_other_sjs)))
         {
@@ -2577,7 +2601,7 @@ void advance_sj_state(JOIN *join, table_map remaining_tables, uint idx,
             join->sjm_lookup_tables &= ~handled_fanout;
           *current_read_time= read_time;
           *current_record_count= rec_count;
-          join->cur_dups_producing_tables &= ~handled_fanout;
+          dups_producing_tables &= ~handled_fanout;
           //TODO: update bitmap of semi-joins that were handled together with
           // others.
           if (is_multiple_semi_joins(join, join->positions, idx, handled_fanout))
@@ -2604,6 +2628,7 @@ void advance_sj_state(JOIN *join, table_map remaining_tables, uint idx,
 
   pos->prefix_cost.convert_from_cost(*current_read_time);
   pos->prefix_record_count= *current_record_count;
+  pos->dups_producing_tables= dups_producing_tables;
 }
 
 
@@ -3115,8 +3140,6 @@ void restore_prev_sj_state(const table_map remaining_tables,
       tab->join->cur_sj_inner_tables &= ~emb_sj_nest->sj_inner_tables;
     }
   }
-  POSITION *pos= tab->join->positions + idx;
-  tab->join->cur_dups_producing_tables= pos->prefix_dups_producing_tables;
 }
 
 
@@ -3288,8 +3311,7 @@ void fix_semijoin_strategies_for_picked_join_order(JOIN *join)
   {
     POSITION *pos= join->best_positions + tablenr;
     JOIN_TAB *s= pos->table;
-    uint first;
-    LINT_INIT(first); // Set by every branch except SJ_OPT_NONE which doesn't use it
+    uint UNINIT_VAR(first); // Set by every branch except SJ_OPT_NONE which doesn't use it
 
     if ((handled_tabs & s->table->map) || pos->sj_strategy == SJ_OPT_NONE)
     {
@@ -5105,8 +5127,8 @@ TABLE *create_dummy_tmp_table(THD *thd)
 class select_value_catcher :public select_subselect
 {
 public:
-  select_value_catcher(Item_subselect *item_arg)
-    :select_subselect(item_arg)
+  select_value_catcher(THD *thd_arg, Item_subselect *item_arg):
+    select_subselect(thd_arg, item_arg)
   {}
   int send_data(List<Item> &items);
   int setup(List<Item> *items);
@@ -5217,10 +5239,11 @@ bool setup_jtbm_semi_joins(JOIN *join, List<TABLE_LIST> *join_list,
         subselect_single_select_engine *engine=
           (subselect_single_select_engine*)subq_pred->engine;
         select_value_catcher *new_sink;
-        if (!(new_sink= new select_value_catcher(subq_pred)))
+        if (!(new_sink=
+                new (join->thd->mem_root) select_value_catcher(join->thd, subq_pred)))
           DBUG_RETURN(TRUE);
         if (new_sink->setup(&engine->select_lex->join->fields_list) ||
-            engine->select_lex->join->change_result(new_sink) ||
+            engine->select_lex->join->change_result(new_sink, NULL) ||
             engine->exec())
         {
           DBUG_RETURN(TRUE);
@@ -5471,7 +5494,7 @@ bool JOIN::choose_subquery_plan(table_map join_tables)
       unmodified, and with injected IN->EXISTS predicates.
     */
     inner_read_time_1= inner_join->best_read;
-    inner_record_count_1= inner_join->record_count;
+    inner_record_count_1= inner_join->join_record_count;
 
     if (in_to_exists_where && const_tables != table_count)
     {
@@ -5572,8 +5595,8 @@ bool JOIN::choose_subquery_plan(table_map join_tables)
       Item_in_subselect::test_limit). However, once we allow this, here
       we should set the correct limit if given in the query.
     */
-    in_subs->unit->global_parameters->select_limit= NULL;
-    in_subs->unit->set_limit(unit->global_parameters);
+    in_subs->unit->global_parameters()->select_limit= NULL;
+    in_subs->unit->set_limit(unit->global_parameters());
     /*
       Set the limit of this JOIN object as well, because normally its being
       set in the beginning of JOIN::optimize, which was already done.

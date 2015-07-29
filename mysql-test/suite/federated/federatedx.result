@@ -2143,7 +2143,7 @@ DROP TABLE t1;
 #Switch to Connection Slave
 DROP TABLE t1;
 End of 5.0 tests
-create server 's1' foreign data wrapper 'mysql' options (port 3306);
+create server 's1' foreign data wrapper 'mysql' options (host 'foo');
 drop server 's1';
 #
 # Bug #32426: FEDERATED query returns corrupt results for ORDER BY on a TEXT

@@ -12,8 +12,7 @@
 #   used in the same transaction.
 #
 #   * Statements that do an implicit commit (i.e., most but not all DDL, and
-#   some utility commands) are logged specially due to unspecified requirements by
-#   NDB.
+#   some utility commands) are logged specially
 # 
 #   * Statements that update temporary tables need special treatment since they
 #   are not logged in row format.
@@ -147,9 +146,7 @@
 # - Rules for committing statements, except CREATE [TEMPORARY] TABLE...SELECT
 #
 #   * All other statements that have a pre-commit are written directly to the
-#   binlog. (Note: this is semantically equivalent to writing it to the SC and
-#   flushing the SC. However, due to requirements by NDB (which have not been
-#   clarified), we write directly to the binlog.)
+#   binlog.
 #
 # We use the include file rpl_mixing_engines.inc to generate sql commands from a
 # format string. The format string consists of a sequence of 'codes' separated

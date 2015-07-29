@@ -14,7 +14,7 @@
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA 
 
 
-# Handle/create the "INFO_*" files describing a MySQL (server) binary.
+# Handle/create the "INFO_*" files describing a MariaDB (server) binary.
 # This is part of the fix for bug#42969.
 
 
@@ -81,7 +81,7 @@ MACRO(CREATE_INFO_SRC target_dir)
     # to debug, add: FILE(APPEND ${INFO_SRC} "\nResult ${RESULT}\n")
     # For better readability ...
     FILE(APPEND ${INFO_SRC}
-      "MySQL source ${MAJOR_VERSION}.${MINOR_VERSION}.${PATCH_VERSION}\n")
+      "MariaDB source ${MAJOR_VERSION}.${MINOR_VERSION}.${PATCH_VERSION}\n")
   ELSEIF(EXISTS ${INFO_SRC})
     # Outside a git tree, there is no need to change an existing "INFO_SRC",
     # it cannot be improved.
@@ -96,7 +96,7 @@ MACRO(CREATE_INFO_SRC target_dir)
     FILE(WRITE ${INFO_SRC} "${SOURCE_INFO}\n")
   ELSE()
     # This is a fall-back.
-    FILE(WRITE ${INFO_SRC} "\nMySQL source ${VERSION}\n")
+    FILE(WRITE ${INFO_SRC} "\nMariaDB source ${VERSION}\n")
   ENDIF()
 ENDMACRO(CREATE_INFO_SRC)
 

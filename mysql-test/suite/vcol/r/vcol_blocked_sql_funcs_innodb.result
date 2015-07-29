@@ -54,6 +54,9 @@ ERROR HY000: Function or expression is not allowed for column 'b'
 # UTC_TIMESTAMP()
 create table t1 (a datetime, b datetime as (utc_timestamp()));
 ERROR HY000: Function or expression is not allowed for column 'b'
+# WEEK() - one argument version
+create table t1 (a datetime, b datetime as (week(a)));
+ERROR HY000: Function or expression is not allowed for column 'b'
 # MATCH()
 # BENCHMARK()
 create table t1 (a varchar(1024), b varchar(1024) as (benchmark(a,3)));

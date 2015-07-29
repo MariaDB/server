@@ -1,4 +1,4 @@
-/* Copyright (c) 2008, 2013, Oracle and/or its affiliates. All rights reserved.
+/* Copyright (c) 2008, 2015, Oracle and/or its affiliates. All rights reserved.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -200,6 +200,8 @@ struct PFS_global_param
   /** Maximum number of session attribute strings per thread */
   long m_session_connect_attrs_sizing;
 
+  uint m_max_digest_length;
+
   /** Sizing hints, for auto tuning. */
   PFS_sizing_hints m_hints;
 };
@@ -230,8 +232,6 @@ void pfs_automated_sizing(PFS_global_param *param);
   @param bootstrap True if the server is starting in bootstrap mode.
 */
 void initialize_performance_schema_acl(bool bootstrap);
-
-void check_performance_schema();
 
 /**
   Initialize the dynamic array holding individual instrument settings collected

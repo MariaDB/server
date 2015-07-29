@@ -1,0 +1,77 @@
+--source include/have_innodb.inc
+--source include/big_test.inc
+--source include/not_valgrind.inc
+--source include/not_embedded.inc
+
+--disable_warnings
+DROP TABLE if exists t1;
+--enable_warnings
+
+let $num_tables = 505;
+
+SET @start_table_definition_cache = @@global.table_definition_cache;
+SET @@global.table_definition_cache = 400;
+
+SET @start_flush_log_at_trx_commit = @@global.innodb_flush_log_at_trx_commit;
+SET @@global.innodb_flush_log_at_trx_commit=2;
+
+# set stats accuracy to be pretty high so stats sync is easily triggered.
+SET @start_innodb_defragment_stats_accuracy = @@global.innodb_defragment_stats_accuracy;
+SET @@global.innodb_defragment_stats_accuracy = 80;
+
+# Create table.
+CREATE TABLE t1 (a INT NOT NULL PRIMARY KEY AUTO_INCREMENT, b VARCHAR(256), KEY SECOND(a, b)) ENGINE=INNODB;
+
+# Populate data
+INSERT INTO t1 VALUES(1, REPEAT('A', 256));
+INSERT INTO t1 (b) SELECT b from t1;
+INSERT INTO t1 (b) SELECT b from t1;
+INSERT INTO t1 (b) SELECT b from t1;
+INSERT INTO t1 (b) SELECT b from t1;
+INSERT INTO t1 (b) SELECT b from t1;
+INSERT INTO t1 (b) SELECT b from t1;
+INSERT INTO t1 (b) SELECT b from t1;
+INSERT INTO t1 (b) SELECT b from t1;
+INSERT INTO t1 (b) SELECT b from t1;
+INSERT INTO t1 (b) SELECT b from t1;
+INSERT INTO t1 (b) SELECT b from t1;
+
+select stat_value > 0 from mysql.innodb_index_stats where table_name like '%t1%' and stat_name = 'n_page_split';
+
+# Create many tables to over flow the table definition cache
+
+--echo Create $num_tables table to overflow the table cache.
+--disable_query_log
+let $count = $num_tables;
+while ($count)
+{
+  EVAL CREATE TABLE t_$count (a INT NOT NULL PRIMARY KEY AUTO_INCREMENT) ENGINE=INNODB;
+  EVAL INSERT INTO t_$count VALUES (1), (2);
+  dec $count;
+}
+--enable_query_log
+--echo Sleep for a while to make sure t1 is evicted.
+select sleep(15);
+
+--echo Reload t1 to get defrag stats from persistent storage
+INSERT INTO t1 (b) SELECT b from t1;
+
+--echo make sure the stats thread will wake up and do the write even if there's a race condition between set and reset.
+select sleep(15);
+
+select stat_value > 0 from mysql.innodb_index_stats where table_name like '%t1%' and stat_name = 'n_page_split';
+
+
+# Clean up
+SET @@global.innodb_defragment_stats_accuracy = @start_innodb_defragment_stats_accuracy;
+SET @@global.table_definition_cache = @start_table_definition_cache;
+--disable_query_log
+let $count = $num_tables;
+while ($count)
+{
+  EVAL DROP TABLE t_$count;
+  dec $count;
+}
+set @@global.innodb_flush_log_at_trx_commit = @start_flush_log_at_trx_commit;
+--enable_query_log
+DROP TABLE t1;

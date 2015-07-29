@@ -70,12 +70,13 @@ LEX_USER *create_default_definer(THD *thd, bool role);
 LEX_USER *create_definer(THD *thd, LEX_STRING *user_name, LEX_STRING *host_name);
 LEX_USER *get_current_user(THD *thd, LEX_USER *user, bool lock=true);
 bool sp_process_definer(THD *thd);
-bool check_string_byte_length(LEX_STRING *str, const char *err_msg,
+bool check_string_byte_length(LEX_STRING *str, uint err_msg,
                               uint max_byte_length);
-bool check_string_char_length(LEX_STRING *str, const char *err_msg,
+bool check_string_char_length(LEX_STRING *str, uint err_msg,
                               uint max_char_length, CHARSET_INFO *cs,
                               bool no_error);
 CHARSET_INFO* merge_charset_and_collation(CHARSET_INFO *cs, CHARSET_INFO *cl);
+CHARSET_INFO *find_bin_collation(CHARSET_INFO *cs);
 bool check_host_name(LEX_STRING *str);
 bool check_identifier_name(LEX_STRING *str, uint max_char_length,
                            uint err_code, const char *param_for_err_msg);
@@ -87,7 +88,6 @@ bool alloc_query(THD *thd, const char *packet, uint packet_length);
 void mysql_init_select(LEX *lex);
 void mysql_parse(THD *thd, char *rawbuf, uint length,
                  Parser_state *parser_state);
-void mysql_reset_thd_for_next_command(THD *thd);
 bool mysql_new_select(LEX *lex, bool move_down);
 void create_select_for_variable(const char *var_name);
 void create_table_set_open_action_and_adjust_tables(LEX *lex);
@@ -107,16 +107,6 @@ bool append_file_to_dir(THD *thd, const char **filename_ptr,
                         const char *table_name);
 void execute_init_command(THD *thd, LEX_STRING *init_command,
                           mysql_rwlock_t *var_lock);
-bool add_field_to_list(THD *thd, LEX_STRING *field_name, enum enum_field_types type,
-		       char *length, char *decimal,
-		       uint type_modifier,
-		       Item *default_value, Item *on_update_value,
-		       LEX_STRING *comment,
-		       char *change, List<String> *interval_list,
-		       CHARSET_INFO *cs,
-		       uint uint_geom_type,
-                       Virtual_column_info *vcol_info,
-                       engine_option_value *create_options);
 bool add_to_list(THD *thd, SQL_I_List<ORDER> &list, Item *group, bool asc);
 void add_join_on(TABLE_LIST *b,Item *expr);
 void add_join_natural(TABLE_LIST *a,TABLE_LIST *b,List<String> *using_fields,
@@ -150,15 +140,6 @@ inline bool check_identifier_name(LEX_STRING *str)
 {
   return check_identifier_name(str, NAME_CHAR_LEN, 0, "");
 }
-
-
-/*
-  check_access() is needed for the connect engine.
-  It cannot be inlined - it must be exported.
-*/
-bool check_access(THD *thd, ulong want_access, const char *db, ulong *save_priv,
-                  GRANT_INTERNAL_INFO *grant_internal_info,
-                  bool dont_check_global_grants, bool no_errors);
 
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
 bool check_one_table_access(THD *thd, ulong privilege, TABLE_LIST *tables);
@@ -196,15 +177,5 @@ check_table_access(THD *thd, ulong requirements,TABLE_LIST *tables,
                    bool no_errors)
 { return false; }
 #endif /*NO_EMBEDDED_ACCESS_CHECKS*/
-
-/* These were under the INNODB_COMPATIBILITY_HOOKS */
-
-bool check_global_access(THD *thd, ulong want_access, bool no_errors= false);
-
-inline bool is_supported_parser_charset(CHARSET_INFO *cs)
-{
-  return MY_TEST(cs->mbminlen == 1);
-}
-
 
 #endif /* SQL_PARSE_INCLUDED */

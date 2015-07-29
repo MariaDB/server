@@ -186,11 +186,7 @@ enum enum_server_command
 #define REFRESH_USER_RESOURCES  (1ULL << 19)
 #define REFRESH_FOR_EXPORT      (1ULL << 20) /* FLUSH TABLES ... FOR EXPORT */
 
-#define REFRESH_TABLE_STATS     (1ULL << 27) /* Refresh table stats hash table */
-#define REFRESH_INDEX_STATS     (1ULL << 28) /* Refresh index stats hash table */
-#define REFRESH_USER_STATS      (1ULL << 29) /* Refresh user stats hash table */
-#define REFRESH_CLIENT_STATS    (1ULL << 30) /* Refresh client stats hash table */
-
+#define REFRESH_GENERIC         (1ULL << 30)
 #define REFRESH_FAST            (1ULL << 31) /* Intern flag */
 
 #define CLIENT_LONG_PASSWORD	1	/* new more secure passwords */
@@ -352,9 +348,6 @@ enum enum_server_command
 #define NET_WRITE_TIMEOUT	60		/* Timeout on write */
 #define NET_WAIT_TIMEOUT	8*60*60		/* Wait for new query */
 
-#define ONLY_KILL_QUERY         1
-
-
 struct st_vio;					/* Only C */
 typedef struct st_vio Vio;
 
@@ -502,12 +495,6 @@ enum mysql_enum_shutdown_level {
   SHUTDOWN_WAIT_CRITICAL_BUFFERS= (MYSQL_SHUTDOWN_KILLABLE_UPDATE << 1) + 1
 };
 
-/* Compatibility */
-#if !defined(MYSQL_SERVER) && defined(USE_OLD_FUNCTIONS)
-#define KILL_QUERY SHUTDOWN_KILL_QUERY
-#define KILL_CONNECTION SHUTDOWN_KILL_CONNECTION
-#endif
-
 enum enum_cursor_type
 {
   CURSOR_TYPE_NO_CURSOR= 0,
@@ -618,17 +605,11 @@ void scramble_323(char *to, const char *message, const char *password);
 my_bool check_scramble_323(const unsigned char *reply, const char *message,
                            unsigned long *salt);
 void get_salt_from_password_323(unsigned long *res, const char *password);
-#if MYSQL_VERSION_ID < 100100
-void make_password_from_salt_323(char *to, const unsigned long *salt);
-#endif
 void make_scrambled_password(char *to, const char *password);
 void scramble(char *to, const char *message, const char *password);
 my_bool check_scramble(const unsigned char *reply, const char *message,
                        const unsigned char *hash_stage2);
 void get_salt_from_password(unsigned char *res, const char *password);
-#if MYSQL_VERSION_ID < 100100
-void make_password_from_salt(char *to, const unsigned char *hash_stage2);
-#endif
 char *octet2hex(char *to, const char *str, unsigned int len);
 
 /* end of password.c */

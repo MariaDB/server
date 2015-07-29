@@ -1,0 +1,23 @@
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+#
+# Ensure that the read_only option does not apply to Galera appliers and that replication
+# continues, the way MySQL replication would.
+#
+
+CREATE TABLE t1 (id INT PRIMARY KEY) ENGINE=InnoDB;
+
+--connection node_2
+SET GLOBAL read_only=TRUE;
+
+--connection node_1
+INSERT INTO t1 VALUES (1);
+
+--connection node_2
+SELECT COUNT(*) = 1 FROM t1;
+
+SET GLOBAL read_only=FALSE;
+
+DROP TABLE t1;
+

@@ -2,8 +2,6 @@
 # Bug #797: If a query is ignored on slave (replicate-ignore-table) the slave
 # still checks that it has the same error as on the master.
 ##########################################################################
-# 2006-02-07 JBM Added error code 1022 for NDB Engine + ORDER BY
-##########################################################################
 
 -- source include/master-slave.inc
 

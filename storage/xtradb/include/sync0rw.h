@@ -40,6 +40,9 @@ Created 9/11/1995 Heikki Tuuri
 #include "sync0sync.h"
 #include "os0sync.h"
 
+/** Enable semaphore request instrumentation */
+extern my_bool srv_instrument_semaphores;
+
 /* The following undef is to prevent a name conflict with a macro
 in MySQL: */
 #undef rw_lock_t
@@ -153,14 +156,14 @@ defined, the rwlock are instrumented with performance schema probes. */
 # ifdef UNIV_DEBUG
 #  ifdef UNIV_SYNC_DEBUG
 #   define rw_lock_create(K, L, level)				\
-	rw_lock_create_func((L), (level), __FILE__, __LINE__, #L)
+	rw_lock_create_func((L), (level), #L, __FILE__, __LINE__)
 #  else	/* UNIV_SYNC_DEBUG */
 #   define rw_lock_create(K, L, level)				\
-	rw_lock_create_func((L), __FILE__, __LINE__, #L)
+	rw_lock_create_func((L), #L, __FILE__, __LINE__)
 #  endif/* UNIV_SYNC_DEBUG */
 # else /* UNIV_DEBUG */
 #  define rw_lock_create(K, L, level)				\
-	rw_lock_create_func((L), #L)
+	rw_lock_create_func((L), #L, __FILE__, __LINE__)
 # endif	/* UNIV_DEBUG */
 
 /**************************************************************//**
@@ -218,14 +221,14 @@ unlocking, not the corresponding function. */
 # ifdef UNIV_DEBUG
 #  ifdef UNIV_SYNC_DEBUG
 #   define rw_lock_create(K, L, level)				\
-	pfs_rw_lock_create_func((K), (L), (level), __FILE__, __LINE__, #L)
+	pfs_rw_lock_create_func((K), (L), (level), #L, __FILE__, __LINE__)
 #  else	/* UNIV_SYNC_DEBUG */
 #   define rw_lock_create(K, L, level)				\
-	pfs_rw_lock_create_func((K), (L), __FILE__, __LINE__, #L)
+	pfs_rw_lock_create_func((K), (L), #L, __FILE__, __LINE__)
 #  endif/* UNIV_SYNC_DEBUG */
 # else	/* UNIV_DEBUG */
 #  define rw_lock_create(K, L, level)				\
-	pfs_rw_lock_create_func((K), (L), #L)
+	pfs_rw_lock_create_func((K), (L), #L, __FILE__, __LINE__)
 # endif	/* UNIV_DEBUG */
 
 /******************************************************************
@@ -295,10 +298,10 @@ rw_lock_create_func(
 # ifdef UNIV_SYNC_DEBUG
 	ulint		level,		/*!< in: level */
 # endif /* UNIV_SYNC_DEBUG */
-	const char*	cfile_name,	/*!< in: file name where created */
-	ulint		cline,		/*!< in: file line where created */
 #endif /* UNIV_DEBUG */
-	const char*	cmutex_name);	/*!< in: mutex name */
+	const char*	cmutex_name,	/*!< in: mutex name */
+	const char*	cfile_name,	/*!< in: file name where created */
+	ulint		cline);		/*!< in: file line where created */
 /******************************************************************//**
 Creates, or rather, initializes a priority rw-lock object in a specified memory
 location (which must be appropriately aligned). The rw-lock is initialized
@@ -313,10 +316,10 @@ rw_lock_create_func(
 # ifdef UNIV_SYNC_DEBUG
 	ulint		level,		/*!< in: level */
 # endif /* UNIV_SYNC_DEBUG */
-	const char*	cfile_name,	/*!< in: file name where created */
-	ulint		cline,		/*!< in: file line where created */
 #endif /* UNIV_DEBUG */
-	const char*	cmutex_name);	/*!< in: mutex name */
+	const char*	cmutex_name,	/*!< in: mutex name */
+	const char*	cfile_name,	/*!< in: file name where created */
+	ulint		cline);		/*!< in: file line where created */
 /******************************************************************//**
 Calling this function is obligatory only if the memory buffer containing
 the rw-lock is freed. Removes an rw-lock object from the global list. The
@@ -752,8 +755,11 @@ struct rw_lock_t {
 	struct PSI_rwlock *pfs_psi;/*!< The instrumentation hook */
 #endif
 	ulint count_os_wait;	/*!< Count of os_waits. May not be accurate */
-	//const char*	cfile_name;/*!< File name where lock created */
+	const char*	cfile_name;/*!< File name where lock created */
 	const char*	lock_name;/*!< lock name */
+	os_thread_id_t	thread_id;/*!< thread id */
+	const char*	file_name;/*!< File name where the lock was obtained */
+	ulint		line;	  /*!< Line where the rw-lock was locked */
         /* last s-lock file/line is not guaranteed to be correct */
 	const char*	last_s_file_name;/*!< File name where last s-locked */
 	const char*	last_x_file_name;/*!< File name where last x-locked */
@@ -764,7 +770,7 @@ struct rw_lock_t {
 				are at the start of this struct, thus we can
 				peek this field without causing much memory
 				bus traffic */
-	//unsigned	cline:14;	/*!< Line where created */
+	unsigned	cline:14;	/*!< Line where created */
 	unsigned	last_s_line:14;	/*!< Line number where last time s-locked */
 	unsigned	last_x_line:14;	/*!< Line number where last time x-locked */
 #ifdef UNIV_DEBUG
@@ -853,10 +859,10 @@ pfs_rw_lock_create_func(
 # ifdef UNIV_SYNC_DEBUG
 	ulint		level,		/*!< in: level */
 # endif /* UNIV_SYNC_DEBUG */
-	const char*	cfile_name,	/*!< in: file name where created */
-	ulint		cline,		/*!< in: file line where created */
 #endif /* UNIV_DEBUG */
-	const char*	cmutex_name);	/*!< in: mutex name */
+	const char*	cmutex_name,	/*!< in: mutex name */
+	const char*	cfile_name,	/*!< in: file name where created */
+	ulint		cline);		/*!< in: file line where created */
 
 /******************************************************************//**
 Performance schema instrumented wrap function for rw_lock_create_func()
@@ -873,10 +879,10 @@ pfs_rw_lock_create_func(
 # ifdef UNIV_SYNC_DEBUG
 	ulint		level,		/*!< in: level */
 # endif /* UNIV_SYNC_DEBUG */
-	const char*	cfile_name,	/*!< in: file name where created */
-	ulint		cline,		/*!< in: file line where created */
 #endif /* UNIV_DEBUG */
-	const char*	cmutex_name);	/*!< in: mutex name */
+	const char*	cmutex_name,	/*!< in: mutex name */
+	const char*	cfile_name,	/*!< in: file name where created */
+	ulint		cline);		/*!< in: file line where created */
 
 /******************************************************************//**
 Performance schema instrumented wrap function for rw_lock_x_lock_func()

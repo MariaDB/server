@@ -23,15 +23,15 @@ user	host
 grant select on mysql.* to test_role2;
 flush privileges;
 select * from information_schema.applicable_roles;
-GRANTEE	ROLE_NAME	IS_GRANTABLE
-root@localhost	test_role1	YES
-root@localhost	test_role2	YES
-test_role1	test_role2	NO
+GRANTEE	ROLE_NAME	IS_GRANTABLE	IS_DEFAULT
+root@localhost	test_role1	YES	NO
+root@localhost	test_role2	YES	NO
+test_role1	test_role2	NO	NULL
 select * from information_schema.applicable_roles;
-GRANTEE	ROLE_NAME	IS_GRANTABLE
-test_role1	test_role2	NO
-test_user@localhost	test_role1	NO
-test_user@localhost	test_role2	NO
+GRANTEE	ROLE_NAME	IS_GRANTABLE	IS_DEFAULT
+test_role1	test_role2	NO	NULL
+test_user@localhost	test_role1	NO	NO
+test_user@localhost	test_role2	NO	NO
 show grants;
 Grants for test_user@localhost
 GRANT USAGE ON *.* TO 'test_user'@'localhost'

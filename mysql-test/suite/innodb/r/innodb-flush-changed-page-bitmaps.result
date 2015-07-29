@@ -1,0 +1,4 @@
+FLUSH NO_WRITE_TO_BINLOG changed_page_bitmaps;
+select * from information_schema.changed_page_bitmaps;
+dummy
+0

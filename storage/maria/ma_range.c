@@ -209,14 +209,13 @@ static double _ma_search_pos(MARIA_HA *info, MARIA_KEY *key,
 			     uint32 nextflag, my_off_t pos)
 {
   int flag;
-  uint keynr, max_keynr;
+  uint keynr, UNINIT_VAR(max_keynr);
   my_bool after_key;
   uchar *keypos;
   double offset;
   MARIA_KEYDEF *keyinfo= key->keyinfo;
   MARIA_PAGE page;
   DBUG_ENTER("_ma_search_pos");
-  LINT_INIT(max_keynr);
 
   if (pos == HA_OFFSET_ERROR)
     DBUG_RETURN(0.0);

@@ -95,6 +95,7 @@ source include/stop_slave.inc;
 
 connection master;
 set @@global.binlog_checksum = CRC32;
+-- source include/wait_for_binlog_checkpoint.inc
 insert into t1 values (1) /* will not be applied on slave due to simulation */;
 
 # instruction to the dump thread

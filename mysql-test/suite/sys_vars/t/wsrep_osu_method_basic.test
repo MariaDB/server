@@ -1,0 +1,49 @@
+--source include/have_wsrep.inc
+
+--echo #
+--echo # wsrep_osu_method
+--echo #
+
+--echo # save the initial value
+SET @wsrep_osu_method_global_saved = @@global.wsrep_osu_method;
+
+--echo # default
+SELECT @@global.wsrep_osu_method;
+
+--echo
+--echo # scope
+SELECT @@session.wsrep_osu_method;
+SET @@global.wsrep_osu_method=TOI;
+SELECT @@global.wsrep_osu_method;
+
+--echo
+--echo # valid values
+SET @@global.wsrep_osu_method=TOI;
+SELECT @@global.wsrep_osu_method;
+SET @@global.wsrep_osu_method=RSU;
+SELECT @@global.wsrep_osu_method;
+SET @@global.wsrep_osu_method="RSU";
+SELECT @@global.wsrep_osu_method;
+SET @@global.wsrep_osu_method=default;
+SELECT @@global.wsrep_osu_method;
+# numeric value
+SET @@global.wsrep_osu_method=1;
+SELECT @@global.wsrep_osu_method;
+
+--echo
+--echo # invalid values
+--error ER_WRONG_VALUE_FOR_VAR
+SET @@global.wsrep_osu_method=4;
+SELECT @@global.wsrep_osu_method;
+--error ER_WRONG_VALUE_FOR_VAR
+SET @@global.wsrep_osu_method=NULL;
+SELECT @@global.wsrep_osu_method;
+--error ER_WRONG_VALUE_FOR_VAR
+SET @@global.wsrep_osu_method='junk';
+SELECT @@global.wsrep_osu_method;
+
+--echo
+--echo # restore the initial value
+SET @@global.wsrep_osu_method = @wsrep_osu_method_global_saved;
+
+--echo # End of test

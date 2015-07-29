@@ -1,0 +1,39 @@
+SET @start_session_value = @@session.enforce_storage_engine;
+SET @@session.enforce_storage_engine = INNODB;
+SET @@session.enforce_storage_engine = DEFAULT;
+SELECT @@session.enforce_storage_engine;
+@@session.enforce_storage_engine
+NULL
+SET @@session.enforce_storage_engine = MYISAM;
+SELECT @@session.enforce_storage_engine;
+@@session.enforce_storage_engine
+MyISAM
+SET @@session.enforce_storage_engine = MERGE;
+SELECT @@session.enforce_storage_engine;
+@@session.enforce_storage_engine
+MRG_MyISAM
+SET @@session.enforce_storage_engine = MEMORY;
+SELECT @@session.enforce_storage_engine;
+@@session.enforce_storage_engine
+MEMORY
+SET @@session.enforce_storage_engine = INNODB;
+SELECT @@session.enforce_storage_engine;
+@@session.enforce_storage_engine
+InnoDB
+SET @@session.enforce_storage_engine = 8199;
+ERROR 42000: Incorrect argument type to variable 'enforce_storage_engine'
+SET @@session.enforce_storage_engine = 65530.34;
+ERROR 42000: Incorrect argument type to variable 'enforce_storage_engine'
+SET @@session.enforce_storage_engine = RECORD;
+ERROR 42000: Unknown storage engine 'RECORD'
+SELECT @@session.enforce_storage_engine =
+VARIABLE_VALUE FROM INFORMATION_SCHEMA.SESSION_VARIABLES
+WHERE VARIABLE_NAME='enforce_storage_engine';
+@@session.enforce_storage_engine =
+VARIABLE_VALUE
+1
+SET @@session.enforce_storage_engine = TRUE;
+ERROR 42000: Incorrect argument type to variable 'enforce_storage_engine'
+SET @@session.enforce_storage_engine = FALSE;
+ERROR 42000: Incorrect argument type to variable 'enforce_storage_engine'
+SET @@session.enforce_storage_engine = @start_session_value;

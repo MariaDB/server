@@ -14,7 +14,7 @@
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA
 
 # Common warning flags for GCC, G++, Clang and Clang++
-SET(MY_WARNING_FLAGS "-Wall -Wextra -Wformat-security")
+SET(MY_WARNING_FLAGS "-Wall -Wextra -Wformat-security -Wno-init-self")
 MY_CHECK_C_COMPILER_FLAG("-Wvla" HAVE_WVLA) # Requires GCC 4.3+ or Clang
 IF(HAVE_WVLA)
   SET(MY_WARNING_FLAGS "${MY_WARNING_FLAGS} -Wvla")
@@ -41,11 +41,11 @@ IF(MYSQL_MAINTAINER_MODE MATCHES "ERR")
 ENDIF()
 
 # Set warning flags for GCC/Clang
-IF(CMAKE_COMPILER_IS_GNUCC OR CMAKE_C_COMPILER_ID MATCHES "Clang")
+IF(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
   SET(MY_MAINTAINER_C_WARNINGS "${MY_C_WARNING_FLAGS}")
 ENDIF()
 # Set warning flags for G++/Clang++
-IF(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+IF(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
   SET(MY_MAINTAINER_CXX_WARNINGS "${MY_CXX_WARNING_FLAGS}")
 ENDIF()
 

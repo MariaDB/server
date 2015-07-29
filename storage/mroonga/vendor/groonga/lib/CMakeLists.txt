@@ -19,6 +19,7 @@ add_definitions(
 
 include_directories(
   ${CMAKE_CURRENT_SOURCE_DIR}/dat
+  ${ONIGMO_INCLUDE_DIRS}
   ${MRUBY_INCLUDE_DIRS}
   ${LIBLZ4_INCLUDE_DIRS})
 link_directories(
@@ -35,17 +36,20 @@ string(REGEX REPLACE "([^;]+)" "mrb/\\1"
 set_source_files_properties(${LIBGROONGA_SOURCES} ${LIBGRNMRB_SOURCES}
   PROPERTIES
   COMPILE_FLAGS "${GRN_C_COMPILE_FLAGS}")
-set_source_files_properties(dat.cpp ${LIBGRNDAT_SOURCES}
+set_source_files_properties(dat.cpp egn.cpp ${LIBGRNDAT_SOURCES}
   PROPERTIES
   COMPILE_FLAGS "${GRN_CXX_COMPILE_FLAGS}")
 
 set(GRN_ALL_SOURCES
   ${LIBGROONGA_SOURCES}
   ${LIBGRNDAT_SOURCES}
-  ${LIBGRNMRB_SOURCES}
-  ${MRUBY_LIBS})
+  ${LIBGRNMRB_SOURCES})
 if(GRN_EMBED)
   add_library(libgroonga STATIC ${GRN_ALL_SOURCES})
+  set_target_properties(
+    libgroonga
+    PROPERTIES
+    POSITION_INDEPENDENT_CODE ON)
 else()
   add_library(libgroonga SHARED ${GRN_ALL_SOURCES})
 endif()
@@ -59,11 +63,18 @@ set(GRN_ALL_LIBRARIES
     ${LIBLZ4_LIBRARIES}
     ${DL_LIBS}
     ${M_LIBS}
-    ${WS2_32_LIBS})
+    ${WS2_32_LIBS}
+    ${MRUBY_LIBS}
+    ${ONIGMO_LIBS})
 if(GRN_EMBED)
+  set(GRN_EMBEDDED_PLUGIN_LIBRARIES "")
+  if(GRN_WITH_MECAB)
+    list(APPEND GRN_EMBEDDED_PLUGIN_LIBRARIES mecab_tokenizer)
+  endif()
   target_link_libraries(libgroonga
     ${GRN_ALL_LIBRARIES}
-    ${STDCPP_LIBS})
+    ${STDCPP_LIBS}
+    ${GRN_EMBEDDED_PLUGIN_LIBRARIES})
 else()
   target_link_libraries(libgroonga
     ${GRN_ALL_LIBRARIES})
@@ -73,7 +84,7 @@ else()
     RUNTIME DESTINATION "${BIN_DIR}")
 endif()
 
-if(GRN_WITH_MRUBY AND NOT GRN_EMBED)
+if(GRN_WITH_MRUBY)
   read_file_list(${CMAKE_CURRENT_SOURCE_DIR}/mrb/scripts/sources.am
     RUBY_SCRIPTS)
   string(REGEX REPLACE "([^;]+)" "mrb/scripts/\\1"
@@ -81,4 +92,36 @@ if(GRN_WITH_MRUBY AND NOT GRN_EMBED)
   install(
     FILES ${RUBY_SCRIPTS}
     DESTINATION "${GRN_RELATIVE_RUBY_SCRIPTS_DIR}")
+
+  read_file_list(${CMAKE_CURRENT_SOURCE_DIR}/mrb/scripts/command_line/sources.am
+    COMMANE_LINE_RUBY_SCRIPTS)
+  string(REGEX REPLACE "([^;]+)" "mrb/scripts/command_line/\\1"
+    COMMANE_LINE_RUBY_SCRIPTS "${COMMANE_LINE_RUBY_SCRIPTS}")
+  install(
+    FILES ${COMMANE_LINE_RUBY_SCRIPTS}
+    DESTINATION "${GRN_RELATIVE_RUBY_SCRIPTS_DIR}/command_line")
+
+  read_file_list(${CMAKE_CURRENT_SOURCE_DIR}/mrb/scripts/context/sources.am
+    CONTEXT_RUBY_SCRIPTS)
+  string(REGEX REPLACE "([^;]+)" "mrb/scripts/context/\\1"
+    CONTEXT_RUBY_SCRIPTS "${CONTEXT_RUBY_SCRIPTS}")
+  install(
+    FILES ${CONTEXT_RUBY_SCRIPTS}
+    DESTINATION "${GRN_RELATIVE_RUBY_SCRIPTS_DIR}/context")
+
+  read_file_list(${CMAKE_CURRENT_SOURCE_DIR}/mrb/scripts/initialize/sources.am
+    INITIALIZE_RUBY_SCRIPTS)
+  string(REGEX REPLACE "([^;]+)" "mrb/scripts/initialize/\\1"
+    INITIALIZE_RUBY_SCRIPTS "${INITIALIZE_RUBY_SCRIPTS}")
+  install(
+    FILES ${INITIALIZE_RUBY_SCRIPTS}
+    DESTINATION "${GRN_RELATIVE_RUBY_SCRIPTS_DIR}/initialize")
+
+  read_file_list(${CMAKE_CURRENT_SOURCE_DIR}/mrb/scripts/logger/sources.am
+    LOGGER_RUBY_SCRIPTS)
+  string(REGEX REPLACE "([^;]+)" "mrb/scripts/logger/\\1"
+    LOGGER_RUBY_SCRIPTS "${LOGGER_RUBY_SCRIPTS}")
+  install(
+    FILES ${LOGGER_RUBY_SCRIPTS}
+    DESTINATION "${GRN_RELATIVE_RUBY_SCRIPTS_DIR}/logger")
 endif()

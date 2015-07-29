@@ -859,7 +859,8 @@ bool memcpy_field_possible(Field *to,Field *from)
           from->charset() == to->charset() &&
           (!sql_mode_for_dates(to->table->in_use) ||
            (from->type()!= MYSQL_TYPE_DATE &&
-            from->type()!= MYSQL_TYPE_DATETIME)) &&
+            from->type()!= MYSQL_TYPE_DATETIME &&
+            from->type()!= MYSQL_TYPE_TIMESTAMP)) &&
           (from_real_type != MYSQL_TYPE_VARCHAR ||
            ((Field_varstring*)from)->length_bytes ==
            ((Field_varstring*)to)->length_bytes));

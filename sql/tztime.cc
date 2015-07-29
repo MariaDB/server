@@ -327,7 +327,7 @@ static my_bool
 prepare_tz_info(TIME_ZONE_INFO *sp, MEM_ROOT *storage)
 {
   my_time_t cur_t= MY_TIME_T_MIN;
-  my_time_t cur_l, end_t, end_l;
+  my_time_t cur_l, end_t, UNINIT_VAR(end_l);
   my_time_t cur_max_seen_l= MY_TIME_T_MIN;
   long cur_offset, cur_corr, cur_off_and_corr;
   uint next_trans_idx, next_leap_idx;
@@ -339,8 +339,6 @@ prepare_tz_info(TIME_ZONE_INFO *sp, MEM_ROOT *storage)
   */
   my_time_t revts[TZ_MAX_REV_RANGES];
   REVT_INFO revtis[TZ_MAX_REV_RANGES];
-
-  LINT_INIT(end_l);
 
   /*
     Let us setup fallback time type which will be used if we have not any
@@ -1803,11 +1801,7 @@ end:
   if (org_thd)
     org_thd->store_globals();			/* purecov: inspected */
   else
-  {
-    /* Remember that we don't have a THD */
-    set_current_thd(0);
     my_pthread_setspecific_ptr(THR_MALLOC,  0);
-  }
   
   default_tz= default_tz_name ? global_system_variables.time_zone
                               : my_tz_SYSTEM;
@@ -2523,7 +2517,8 @@ scan_tz_dir(char * name_end, uint symlink_recursion_level, uint verbose)
 
   for (i= 0; i < cur_dir->number_of_files; i++)
   {
-    if (cur_dir->dir_entry[i].name[0] != '.')
+    if (cur_dir->dir_entry[i].name[0] != '.' &&
+        strcmp(cur_dir->dir_entry[i].name, "Factory"))
     {
       name_end_tmp= strmake(name_end, cur_dir->dir_entry[i].name,
                             FN_REFLEN - (name_end - fullname));
@@ -2708,6 +2703,13 @@ main(int argc, char **argv)
     free_defaults(default_argv);
     return 1;
   }
+
+  // Replicate MyISAM DDL for this session, cf. lp:1161432
+  // timezone info unfixable in XtraDB Cluster
+  printf("set @prep=if((select count(*) from information_schema.global_variables where variable_name='wsrep_on'), 'SET GLOBAL wsrep_replicate_myisam=?', 'do ?');\n"
+         "prepare set_wsrep_myisam from @prep;\n"
+         "set @toggle=1; execute set_wsrep_myisam using @toggle;\n");
+
   if (argc == 1 && !opt_leap)
   {
     /* Argument is timezonedir */
@@ -2754,6 +2756,9 @@ main(int argc, char **argv)
 
     free_root(&tz_storage, MYF(0));
   }
+
+  // Reset wsrep_replicate_myisam. lp:1161432
+  printf("set @toggle=0; execute set_wsrep_myisam using @toggle;\n");
 
   free_defaults(default_argv);
   my_end(0);

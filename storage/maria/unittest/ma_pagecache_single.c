@@ -97,30 +97,6 @@ static struct file_desc simple_delete_flush_test_file[]=
 };
 
 
-/**
-  @brief Dummy pagecache callback.
-*/
-
-static my_bool
-dummy_callback(uchar *page __attribute__((unused)),
-               pgcache_page_no_t page_no __attribute__((unused)),
-               uchar* data_ptr __attribute__((unused)))
-{
-  return 0;
-}
-
-
-/**
-  @brief Dummy pagecache callback.
-*/
-
-static void
-dummy_fail_callback(uchar* data_ptr __attribute__((unused)))
-{
-  return;
-}
-
-
 /*
   Recreate and reopen a file for test
 
@@ -786,8 +762,7 @@ int main(int argc __attribute__((unused)),
 	    errno);
     exit(1);
   }
-  pagecache_file_init(file1, &dummy_callback, &dummy_callback,
-                      &dummy_fail_callback, &dummy_callback, NULL);
+  pagecache_file_set_null_hooks(&file1);
   my_close(tmp_file, MYF(0));
   my_delete(file2_name, MYF(0));
 

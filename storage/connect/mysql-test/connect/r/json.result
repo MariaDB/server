@@ -15,7 +15,7 @@ DATEPUB int(4)
 ) ENGINE=CONNECT TABLE_TYPE=JSON FILE_NAME='biblio.json';
 SELECT * FROM t1;
 ISBN	LANG	SUBJECT	AUTHOR	TITLE	TRANSLATION	TRANSLATOR	PUBLISHER	DATEPUB
-9782212090819	fr	applications	Jean-Christophe Bernadac	Construire une application XML			Eyrolles Paris	1999
+9782212090819	fr	applications	Jean-Christophe Bernadac	Construire une application XML	NULL	NULL	Eyrolles Paris	1999
 9782840825685	fr	applications	William J. Pardi	XML en Action	adapté de l'anglais par	James Guerin	Microsoft Press Paris	1999
 DROP TABLE t1;
 #
@@ -37,7 +37,7 @@ Year int(4) FIELD_FORMAT='DATEPUB'
 ENGINE=CONNECT TABLE_TYPE=JSON FILE_NAME='biblio.json';
 SELECT * FROM t1;
 ISBN	Language	Subject	Authors	Title	Translation	Translator	Publisher	Location	Year
-9782212090819	fr	applications	2	Construire une application XML			Eyrolles	Paris	1999
+9782212090819	fr	applications	2	Construire une application XML	NULL	NULL	Eyrolles	Paris	1999
 9782840825685	fr	applications	1	XML en Action	adapté de l'anglais par	James Guerin	Microsoft Press	Paris	1999
 DROP TABLE t1;
 #
@@ -60,7 +60,7 @@ Year int(4) FIELD_FORMAT='DATEPUB'
 ENGINE=CONNECT TABLE_TYPE=JSON FILE_NAME='biblio.json';
 SELECT * FROM t1;
 ISBN	Language	Subject	AuthorFN	AuthorLN	Title	Translation	Translator	Publisher	Location	Year
-9782212090819	fr	applications	Jean-Christophe and François	Bernadac and Knab	Construire une application XML			Eyrolles	Paris	1999
+9782212090819	fr	applications	Jean-Christophe and François	Bernadac and Knab	Construire une application XML	NULL	NULL	Eyrolles	Paris	1999
 9782840825685	fr	applications	William J.	Pardi	XML en Action	adapté de l'anglais par	James Guerin	Microsoft Press	Paris	1999
 DROP TABLE t1;
 #
@@ -83,29 +83,29 @@ Year int(4) FIELD_FORMAT='DATEPUB'
 ENGINE=CONNECT TABLE_TYPE=JSON FILE_NAME='biblio.json';
 SELECT * FROM t1;
 ISBN	Language	Subject	AuthorFN	AuthorLN	Title	Translation	Translator	Publisher	Location	Year
-9782212090819	fr	applications	Jean-Christophe	Bernadac	Construire une application XML			Eyrolles	Paris	1999
-9782212090819	fr	applications	François	Knab	Construire une application XML			Eyrolles	Paris	1999
+9782212090819	fr	applications	Jean-Christophe	Bernadac	Construire une application XML	NULL	NULL	Eyrolles	Paris	1999
+9782212090819	fr	applications	François	Knab	Construire une application XML	NULL	NULL	Eyrolles	Paris	1999
 9782840825685	fr	applications	William J.	Pardi	XML en Action	adapté de l'anglais par	James Guerin	Microsoft Press	Paris	1999
 UPDATE t1 SET AuthorFN = 'Philippe' WHERE AuthorLN = 'Knab';
 SELECT * FROM t1 WHERE ISBN = '9782212090819';
 ISBN	Language	Subject	AuthorFN	AuthorLN	Title	Translation	Translator	Publisher	Location	Year
-9782212090819	fr	applications	Philippe	Bernadac	Construire une application XML			Eyrolles	Paris	1999
-9782212090819	fr	applications	François	Knab	Construire une application XML			Eyrolles	Paris	1999
+9782212090819	fr	applications	Jean-Christophe	Bernadac	Construire une application XML	NULL	NULL	Eyrolles	Paris	1999
+9782212090819	fr	applications	Philippe	Knab	Construire une application XML	NULL	NULL	Eyrolles	Paris	1999
 #
 # To add an author a new table must be created
 #
 CREATE TABLE t2 (
 FIRSTNAME CHAR(32),
 LASTNAME CHAR(32))
-ENGINE=CONNECT TABLE_TYPE=JSON FILE_NAME='biblio.json' OPTION_LIST='Object=[2]:AUTHOR';
+ENGINE=CONNECT TABLE_TYPE=JSON FILE_NAME='biblio.json' OPTION_LIST='Object=[1]:AUTHOR';
 SELECT * FROM t2;
 FIRSTNAME	LASTNAME
 William J.	Pardi
 INSERT INTO t2 VALUES('Charles','Dickens');
 SELECT * FROM t1;
 ISBN	Language	Subject	AuthorFN	AuthorLN	Title	Translation	Translator	Publisher	Location	Year
-9782212090819	fr	applications	Philippe	Bernadac	Construire une application XML			Eyrolles	Paris	1999
-9782212090819	fr	applications	François	Knab	Construire une application XML			Eyrolles	Paris	1999
+9782212090819	fr	applications	Jean-Christophe	Bernadac	Construire une application XML	NULL	NULL	Eyrolles	Paris	1999
+9782212090819	fr	applications	Philippe	Knab	Construire une application XML	NULL	NULL	Eyrolles	Paris	1999
 9782840825685	fr	applications	William J.	Pardi	XML en Action	adapté de l'anglais par	James Guerin	Microsoft Press	Paris	1999
 9782840825685	fr	applications	Charles	Dickens	XML en Action	adapté de l'anglais par	James Guerin	Microsoft Press	Paris	1999
 DROP TABLE t1;
@@ -127,11 +127,11 @@ line
 		"SUBJECT": "applications",
 		"AUTHOR": [
 			{
-				"FIRSTNAME": "Philippe",
+				"FIRSTNAME": "Jean-Christophe",
 				"LASTNAME": "Bernadac"
 			},
 			{
-				"FIRSTNAME": "François",
+				"FIRSTNAME": "Philippe",
 				"LASTNAME": "Knab"
 			}
 		],
@@ -252,9 +252,9 @@ DROP TABLE t1;
 #
 CREATE TABLE t2 (
 WHO CHAR(12),
-WEEK INT(2) FIELD_FORMAT='WEEK:[1]:NUMBER',
-WHAT CHAR(32) FIELD_FORMAT='WEEK:[1]:EXPENSE:[X]:WHAT',
-AMOUNT DOUBLE(8,2) FIELD_FORMAT='WEEK:[1]:EXPENSE:[X]:AMOUNT')
+WEEK INT(2) FIELD_FORMAT='WEEK:[0]:NUMBER',
+WHAT CHAR(32) FIELD_FORMAT='WEEK:[0]:EXPENSE:[X]:WHAT',
+AMOUNT DOUBLE(8,2) FIELD_FORMAT='WEEK:[0]:EXPENSE:[X]:AMOUNT')
 ENGINE=CONNECT TABLE_TYPE=JSON FILE_NAME='expense.json';
 SELECT * FROM t2;
 WHO	WEEK	WHAT	AMOUNT
@@ -268,9 +268,9 @@ Janet	3	Food	18.00
 Janet	3	Beer	18.00
 CREATE TABLE t3 (
 WHO CHAR(12),
-WEEK INT(2) FIELD_FORMAT='WEEK:[2]:NUMBER',
-WHAT CHAR(32) FIELD_FORMAT='WEEK:[2]:EXPENSE:[X]:WHAT',
-AMOUNT DOUBLE(8,2) FIELD_FORMAT='WEEK:[2]:EXPENSE:[X]:AMOUNT')
+WEEK INT(2) FIELD_FORMAT='WEEK:[1]:NUMBER',
+WHAT CHAR(32) FIELD_FORMAT='WEEK:[1]:EXPENSE:[X]:WHAT',
+AMOUNT DOUBLE(8,2) FIELD_FORMAT='WEEK:[1]:EXPENSE:[X]:AMOUNT')
 ENGINE=CONNECT TABLE_TYPE=JSON FILE_NAME='expense.json';
 SELECT * FROM t3;
 WHO	WEEK	WHAT	AMOUNT
@@ -284,9 +284,9 @@ Beth	4	Beer	15.00
 Janet	4	Car	17.00
 CREATE TABLE t4 (
 WHO CHAR(12),
-WEEK INT(2) FIELD_FORMAT='WEEK:[3]:NUMBER',
-WHAT CHAR(32) FIELD_FORMAT='WEEK:[3]:EXPENSE:[X]:WHAT',
-AMOUNT DOUBLE(8,2) FIELD_FORMAT='WEEK:[3]:EXPENSE:[X]:AMOUNT')
+WEEK INT(2) FIELD_FORMAT='WEEK:[2]:NUMBER',
+WHAT CHAR(32) FIELD_FORMAT='WEEK:[2]:EXPENSE:[X]:WHAT',
+AMOUNT DOUBLE(8,2) FIELD_FORMAT='WEEK:[2]:EXPENSE:[X]:AMOUNT')
 ENGINE=CONNECT TABLE_TYPE=JSON FILE_NAME='expense.json';
 SELECT * FROM t4;
 WHO	WEEK	WHAT	AMOUNT

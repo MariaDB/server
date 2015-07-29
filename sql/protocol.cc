@@ -489,6 +489,8 @@ static uchar *net_store_length_fast(uchar *packet, uint length)
 
 void Protocol::end_statement()
 {
+  /* sanity check*/
+  DBUG_ASSERT_IF_WSREP(!(WSREP(thd) && thd->wsrep_conflict_state == REPLAYING));
   DBUG_ENTER("Protocol::end_statement");
   DBUG_ASSERT(! thd->get_stmt_da()->is_sent());
   bool error= FALSE;
@@ -866,7 +868,7 @@ bool Protocol::send_result_set_metadata(List<Item> *list, uint flags)
   DBUG_RETURN(prepare_for_send(list->elements));
 
 err:
-  my_message(ER_OUT_OF_RESOURCES, ER(ER_OUT_OF_RESOURCES),
+  my_message(ER_OUT_OF_RESOURCES, ER_THD(thd, ER_OUT_OF_RESOURCES),
              MYF(0));	/* purecov: inspected */
   DBUG_RETURN(1);				/* purecov: inspected */
 }

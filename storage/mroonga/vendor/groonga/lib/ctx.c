@@ -21,18 +21,33 @@
 #include "grn_request_canceler.h"
 #include "grn_tokenizers.h"
 #include "grn_ctx_impl.h"
+#include "grn_ii.h"
 #include "grn_pat.h"
+#include "grn_proc.h"
 #include "grn_plugin.h"
 #include "grn_snip.h"
 #include "grn_output.h"
 #include "grn_normalizer.h"
+#include "grn_mrb.h"
 #include "grn_ctx_impl_mrb.h"
+#include "grn_logger.h"
 #include <stdio.h>
 #include <stdarg.h>
 #include <time.h>
-#ifdef HAVE_NETINET_IN_H
-#include <netinet/in.h>
-#endif /* HAVE_NETINET_IN_H */
+
+#ifdef WIN32
+# include <share.h>
+#else /* WIN32 */
+# include <netinet/in.h>
+#endif /* WIN32 */
+
+#if defined(HAVE__LOCALTIME64_S) && defined(__GNUC__)
+# ifdef _WIN64
+#  define localtime_s(tm, time) _localtime64_s(tm, time)
+# else /* _WIN64 */
+#  define localtime_s(tm, time) _localtime32_s(tm, time)
+# endif /* _WIN64 */
+#endif /* defined(HAVE__LOCALTIME64_S) && defined(__GNUC__) */
 
 #define GRN_CTX_INITIALIZER(enc) \
   { GRN_SUCCESS, 0, enc, 0, GRN_LOG_NOTICE,\
@@ -60,6 +75,30 @@ int grn_lock_timeout = GRN_LOCK_TIMEOUT;
 #ifdef USE_UYIELD
 int grn_uyield_count = 0;
 #endif
+
+static grn_bool grn_ctx_per_db = GRN_FALSE;
+
+static void
+grn_init_from_env(void)
+{
+  {
+    char grn_ctx_per_db_env[GRN_ENV_BUFFER_SIZE];
+    grn_getenv("GRN_CTX_PER_DB",
+               grn_ctx_per_db_env,
+               GRN_ENV_BUFFER_SIZE);
+    if (grn_ctx_per_db_env[0] && strcmp(grn_ctx_per_db_env, "yes") == 0) {
+      grn_ctx_per_db = GRN_TRUE;
+    }
+  }
+
+  grn_mrb_init_from_env();
+  grn_ctx_impl_mrb_init_from_env();
+  grn_io_init_from_env();
+  grn_ii_init_from_env();
+  grn_db_init_from_env();
+  grn_proc_init_from_env();
+  grn_plugin_init_from_env();
+}
 
 void
 grn_sleep(uint32_t seconds)
@@ -129,34 +168,48 @@ grn_time_now(grn_ctx *ctx, grn_obj *obj)
                                        GRN_TIME_NSEC_TO_USEC(tv.tv_nsec)));
 }
 
-grn_rc
-grn_timeval2str(grn_ctx *ctx, grn_timeval *tv, char *buf)
+struct tm *
+grn_timeval2tm(grn_ctx *ctx, grn_timeval *tv, struct tm *tm_buffer)
 {
   struct tm *ltm;
   const char *function_name;
 #ifdef HAVE__LOCALTIME64_S
-  struct tm tm;
   time_t t = tv->tv_sec;
   function_name = "localtime_s";
-  ltm = (localtime_s(&tm, &t) == 0) ? &tm : NULL;
+  ltm = (localtime_s(tm_buffer, &t) == 0) ? tm_buffer : NULL;
 #else /* HAVE__LOCALTIME64_S */
 # ifdef HAVE_LOCALTIME_R
-  struct tm tm;
   time_t t = tv->tv_sec;
   function_name = "localtime_r";
-  ltm = localtime_r(&t, &tm);
+  ltm = localtime_r(&t, tm_buffer);
 # else /* HAVE_LOCALTIME_R */
   time_t tvsec = (time_t) tv->tv_sec;
   function_name = "localtime";
   ltm = localtime(&tvsec);
 # endif /* HAVE_LOCALTIME_R */
 #endif /* HAVE__LOCALTIME64_S */
-  if (!ltm) { SERR(function_name); }
-  snprintf(buf, GRN_TIMEVAL_STR_SIZE - 1, GRN_TIMEVAL_STR_FORMAT,
-           ltm->tm_year + 1900, ltm->tm_mon + 1, ltm->tm_mday,
-           ltm->tm_hour, ltm->tm_min, ltm->tm_sec,
-           (int)(GRN_TIME_NSEC_TO_USEC(tv->tv_nsec)));
-  buf[GRN_TIMEVAL_STR_SIZE - 1] = '\0';
+  if (!ltm) {
+    SERR(function_name);
+  }
+  return ltm;
+}
+
+grn_rc
+grn_timeval2str(grn_ctx *ctx, grn_timeval *tv, char *buf, size_t buf_size)
+{
+  struct tm tm;
+  struct tm *ltm;
+  ltm = grn_timeval2tm(ctx, tv, &tm);
+  grn_snprintf(buf, buf_size, GRN_TIMEVAL_STR_SIZE,
+               GRN_TIMEVAL_STR_FORMAT,
+               ltm->tm_year + 1900, ltm->tm_mon + 1, ltm->tm_mday,
+               ltm->tm_hour, ltm->tm_min, ltm->tm_sec,
+               (int)(GRN_TIME_NSEC_TO_USEC(tv->tv_nsec)));
+  if (buf_size > GRN_TIMEVAL_STR_SIZE) {
+    buf[GRN_TIMEVAL_STR_SIZE - 1] = '\0';
+  } else {
+    buf[buf_size - 1] = '\0';
+  }
   return ctx->rc;
 }
 
@@ -235,7 +288,7 @@ grn_alloc_info_set_backtrace(char *buffer, size_t size)
       if (symbol_length + 2 > rest) {
         break;
       }
-      memcpy(buffer, symbols[i], symbol_length);
+      grn_memcpy(buffer, symbols[i], symbol_length);
       buffer += symbol_length;
       rest -= symbol_length;
       buffer[0] = '\n';
@@ -453,7 +506,7 @@ grn_ctx_loader_clear(grn_ctx *ctx)
 
 #ifdef GRN_WITH_MESSAGE_PACK
 static int
-grn_msgpack_buffer_write(void *data, const char *buf, unsigned int len)
+grn_msgpack_buffer_write(void *data, const char *buf, msgpack_size_t len)
 {
   grn_ctx *ctx = (grn_ctx *)data;
   return grn_bulk_write(ctx, ctx->impl->outbuf, buf, len);
@@ -550,7 +603,7 @@ grn_ctx_set_next_expr(grn_ctx *ctx, grn_obj *expr)
 }
 
 static void
-grn_ctx_impl_clear_n_same_error_mssagges(grn_ctx *ctx)
+grn_ctx_impl_clear_n_same_error_messagges(grn_ctx *ctx)
 {
   if (ctx->impl->n_same_error_messages == 0) {
     return;
@@ -583,8 +636,8 @@ grn_ctx_impl_set_current_error_message(grn_ctx *ctx)
     return;
   }
 
-  grn_ctx_impl_clear_n_same_error_mssagges(ctx);
-  strcpy(ctx->impl->previous_errbuf, ctx->errbuf);
+  grn_ctx_impl_clear_n_same_error_messagges(ctx);
+  grn_strcpy(ctx->impl->previous_errbuf, GRN_CTX_MSGSIZE, ctx->errbuf);
 }
 
 static grn_rc
@@ -594,7 +647,7 @@ grn_ctx_init_internal(grn_ctx *ctx, int flags)
   // if (ctx->stat != GRN_CTX_FIN) { return GRN_INVALID_ARGUMENT; }
   ERRCLR(ctx);
   ctx->flags = flags;
-  if (getenv("GRN_CTX_PER_DB") && strcmp(getenv("GRN_CTX_PER_DB"), "yes") == 0) {
+  if (grn_ctx_per_db) {
     ctx->flags |= GRN_CTX_PER_DB;
   }
   if (ERRP(ctx, GRN_ERROR)) { return ctx->rc; }
@@ -661,7 +714,7 @@ grn_ctx_fin(grn_ctx *ctx)
     CRITICAL_SECTION_LEAVE(grn_glock);
   }
   if (ctx->impl) {
-    grn_ctx_impl_clear_n_same_error_mssagges(ctx);
+    grn_ctx_impl_clear_n_same_error_messagges(ctx);
     if (ctx->impl->finalizer) {
       ctx->impl->finalizer(ctx, 0, NULL, &(ctx->user_data));
     }
@@ -756,474 +809,12 @@ grn_ctx_set_finalizer(grn_ctx *ctx, grn_proc_func *finalizer)
 
 grn_timeval grn_starttime;
 
-static char *default_logger_path = NULL;
-static FILE *default_logger_file = NULL;
-static grn_critical_section default_logger_lock;
-
-static void
-default_logger_log(grn_ctx *ctx, grn_log_level level,
-                   const char *timestamp, const char *title,
-                   const char *message, const char *location, void *user_data)
-{
-  const char slev[] = " EACewnid-";
-  if (default_logger_path) {
-    CRITICAL_SECTION_ENTER(default_logger_lock);
-    if (!default_logger_file) {
-      default_logger_file = fopen(default_logger_path, "a");
-    }
-    if (default_logger_file) {
-      if (location && *location) {
-        fprintf(default_logger_file, "%s|%c|%s %s %s\n",
-                timestamp, *(slev + level), title, message, location);
-      } else {
-        fprintf(default_logger_file, "%s|%c|%s %s\n", timestamp,
-                *(slev + level), title, message);
-      }
-      fflush(default_logger_file);
-    }
-    CRITICAL_SECTION_LEAVE(default_logger_lock);
-  }
-}
-
-static void
-default_logger_reopen(grn_ctx *ctx, void *user_data)
-{
-  GRN_LOG(ctx, GRN_LOG_NOTICE, "log will be closed.");
-  CRITICAL_SECTION_ENTER(default_logger_lock);
-  if (default_logger_file) {
-    fclose(default_logger_file);
-    default_logger_file = NULL;
-  }
-  CRITICAL_SECTION_LEAVE(default_logger_lock);
-  GRN_LOG(ctx, GRN_LOG_NOTICE, "log opened.");
-}
-
-static void
-default_logger_fin(grn_ctx *ctx, void *user_data)
-{
-  CRITICAL_SECTION_ENTER(default_logger_lock);
-  if (default_logger_file) {
-    fclose(default_logger_file);
-    default_logger_file = NULL;
-  }
-  CRITICAL_SECTION_LEAVE(default_logger_lock);
-}
-
-static grn_logger default_logger = {
-  GRN_LOG_DEFAULT_LEVEL,
-  GRN_LOG_TIME|GRN_LOG_MESSAGE,
-  NULL,
-  default_logger_log,
-  default_logger_reopen,
-  default_logger_fin
-};
-
-static grn_logger current_logger = {
-  GRN_LOG_DEFAULT_LEVEL,
-  GRN_LOG_TIME|GRN_LOG_MESSAGE,
-  NULL,
-  NULL,
-  NULL,
-  NULL
-};
-
-void
-grn_default_logger_set_max_level(grn_log_level max_level)
-{
-  default_logger.max_level = max_level;
-  if (current_logger.log == default_logger_log) {
-    current_logger.max_level = max_level;
-  }
-}
-
-grn_log_level
-grn_default_logger_get_max_level(void)
-{
-  return default_logger.max_level;
-}
-
-void
-grn_default_logger_set_path(const char *path)
-{
-  if (default_logger_path) {
-    free(default_logger_path);
-  }
-
-  if (path) {
-    default_logger_path = strdup(path);
-  } else {
-    default_logger_path = NULL;
-  }
-}
-
-const char *
-grn_default_logger_get_path(void)
-{
-  return default_logger_path;
-}
-
-void
-grn_logger_reopen(grn_ctx *ctx)
-{
-  if (current_logger.reopen) {
-    current_logger.reopen(ctx, current_logger.user_data);
-  }
-}
-
-static void
-grn_logger_fin(grn_ctx *ctx)
-{
-  if (current_logger.fin) {
-    current_logger.fin(ctx, current_logger.user_data);
-  }
-}
-
-static void
-logger_info_func_wrapper(grn_ctx *ctx, grn_log_level level,
-                         const char *timestamp, const char *title,
-                         const char *message, const char *location,
-                         void *user_data)
-{
-  grn_logger_info *info = user_data;
-  info->func(level, timestamp, title, message, location, info->func_arg);
-}
-
-/* Deprecated since 2.1.2. */
-grn_rc
-grn_logger_info_set(grn_ctx *ctx, const grn_logger_info *info)
-{
-  if (info) {
-    grn_logger logger;
-
-    memset(&logger, 0, sizeof(grn_logger));
-    logger.max_level = info->max_level;
-    logger.flags = info->flags;
-    if (info->func) {
-      logger.log       = logger_info_func_wrapper;
-      logger.user_data = (grn_logger_info *)info;
-    } else {
-      logger.log    = default_logger_log;
-      logger.reopen = default_logger_reopen;
-      logger.fin    = default_logger_fin;
-    }
-    return grn_logger_set(ctx, &logger);
-  } else {
-    return grn_logger_set(ctx, NULL);
-  }
-}
-
-grn_rc
-grn_logger_set(grn_ctx *ctx, const grn_logger *logger)
-{
-  grn_logger_fin(ctx);
-  if (logger) {
-    current_logger = *logger;
-  } else {
-    current_logger = default_logger;
-  }
-  return GRN_SUCCESS;
-}
-
-void
-grn_logger_set_max_level(grn_ctx *ctx, grn_log_level max_level)
-{
-  current_logger.max_level = max_level;
-}
-
-grn_log_level
-grn_logger_get_max_level(grn_ctx *ctx)
-{
-  return current_logger.max_level;
-}
-
-grn_bool
-grn_logger_pass(grn_ctx *ctx, grn_log_level level)
-{
-  return level <= current_logger.max_level;
-}
-
-#define TBUFSIZE GRN_TIMEVAL_STR_SIZE
-#define MBUFSIZE 0x1000
-#define LBUFSIZE 0x400
-
-void
-grn_logger_put(grn_ctx *ctx, grn_log_level level,
-               const char *file, int line, const char *func, const char *fmt, ...)
-{
-  if (level <= current_logger.max_level && current_logger.log) {
-    char tbuf[TBUFSIZE];
-    char mbuf[MBUFSIZE];
-    char lbuf[LBUFSIZE];
-    tbuf[0] = '\0';
-    if (current_logger.flags & GRN_LOG_TIME) {
-      grn_timeval tv;
-      grn_timeval_now(ctx, &tv);
-      grn_timeval2str(ctx, &tv, tbuf);
-    }
-    if (current_logger.flags & GRN_LOG_MESSAGE) {
-      va_list argp;
-      va_start(argp, fmt);
-      vsnprintf(mbuf, MBUFSIZE - 1, fmt, argp);
-      va_end(argp);
-      mbuf[MBUFSIZE - 1] = '\0';
-    } else {
-      mbuf[0] = '\0';
-    }
-    if (current_logger.flags & GRN_LOG_LOCATION) {
-      snprintf(lbuf, LBUFSIZE - 1, "%d %s:%d %s()", getpid(), file, line, func);
-      lbuf[LBUFSIZE - 1] = '\0';
-    } else {
-      lbuf[0] = '\0';
-    }
-    current_logger.log(ctx, level, tbuf, "", mbuf, lbuf,
-                       current_logger.user_data);
-  }
-}
-
-static void
-logger_init(void)
-{
-  if (!default_logger_path) {
-    default_logger_path = strdup(GRN_LOG_PATH);
-  }
-  memcpy(&current_logger, &default_logger, sizeof(grn_logger));
-  CRITICAL_SECTION_INIT(default_logger_lock);
-}
-
-static void
-logger_fin(grn_ctx *ctx)
-{
-  grn_logger_fin(ctx);
-  if (default_logger_path) {
-    free(default_logger_path);
-    default_logger_path = NULL;
-  }
-  CRITICAL_SECTION_FIN(default_logger_lock);
-}
-
-
-static char *default_query_logger_path = NULL;
-static FILE *default_query_logger_file = NULL;
-static grn_critical_section default_query_logger_lock;
-
-static void
-default_query_logger_log(grn_ctx *ctx, unsigned int flag,
-                         const char *timestamp, const char *info,
-                         const char *message, void *user_data)
-{
-  if (default_query_logger_path) {
-    CRITICAL_SECTION_ENTER(default_query_logger_lock);
-    if (!default_query_logger_file) {
-      default_query_logger_file = fopen(default_query_logger_path, "a");
-    }
-    if (default_query_logger_file) {
-      fprintf(default_query_logger_file, "%s|%s%s\n", timestamp, info, message);
-      fflush(default_query_logger_file);
-    }
-    CRITICAL_SECTION_LEAVE(default_query_logger_lock);
-  }
-}
-
-static void
-default_query_logger_close(grn_ctx *ctx, void *user_data)
-{
-  GRN_QUERY_LOG(ctx, GRN_QUERY_LOG_DESTINATION, " ",
-                "query log will be closed: <%s>", default_query_logger_path);
-  CRITICAL_SECTION_ENTER(default_query_logger_lock);
-  if (default_query_logger_file) {
-    fclose(default_query_logger_file);
-    default_query_logger_file = NULL;
-  }
-  CRITICAL_SECTION_LEAVE(default_query_logger_lock);
-}
-
-static void
-default_query_logger_reopen(grn_ctx *ctx, void *user_data)
-{
-  default_query_logger_close(ctx, user_data);
-  if (default_query_logger_path) {
-    GRN_QUERY_LOG(ctx, GRN_QUERY_LOG_DESTINATION, " ",
-                  "query log is opened: <%s>", default_query_logger_path);
-  }
-}
-
-static void
-default_query_logger_fin(grn_ctx *ctx, void *user_data)
-{
-  if (default_query_logger_file) {
-    default_query_logger_close(ctx, user_data);
-  }
-}
-
-static grn_query_logger default_query_logger = {
-  GRN_QUERY_LOG_DEFAULT,
-  NULL,
-  default_query_logger_log,
-  default_query_logger_reopen,
-  default_query_logger_fin
-};
-
-static grn_query_logger current_query_logger = {
-  GRN_QUERY_LOG_DEFAULT,
-  NULL,
-  NULL,
-  NULL,
-  NULL
-};
-
-void
-grn_default_query_logger_set_flags(unsigned int flags)
-{
-  default_query_logger.flags = flags;
-  if (current_query_logger.log == default_query_logger_log) {
-    current_query_logger.flags = flags;
-  }
-}
-
-unsigned int
-grn_default_query_logger_get_flags(void)
-{
-  return default_query_logger.flags;
-}
-
-void
-grn_default_query_logger_set_path(const char *path)
-{
-  if (default_query_logger_path) {
-    free(default_query_logger_path);
-  }
-
-  if (path) {
-    default_query_logger_path = strdup(path);
-  } else {
-    default_query_logger_path = NULL;
-  }
-}
-
-const char *
-grn_default_query_logger_get_path(void)
-{
-  return default_query_logger_path;
-}
-
-void
-grn_query_logger_reopen(grn_ctx *ctx)
-{
-  if (current_query_logger.reopen) {
-    current_query_logger.reopen(ctx, current_query_logger.user_data);
-  }
-}
-
-static void
-grn_query_logger_fin(grn_ctx *ctx)
-{
-  if (current_query_logger.fin) {
-    current_query_logger.fin(ctx, current_query_logger.user_data);
-  }
-}
-
-grn_rc
-grn_query_logger_set(grn_ctx *ctx, const grn_query_logger *logger)
-{
-  grn_query_logger_fin(ctx);
-  if (logger) {
-    current_query_logger = *logger;
-  } else {
-    current_query_logger = default_query_logger;
-  }
-  return GRN_SUCCESS;
-}
-
-grn_bool
-grn_query_logger_pass(grn_ctx *ctx, unsigned int flag)
-{
-  return current_query_logger.flags & flag;
-}
-
-#define TIMESTAMP_BUFFER_SIZE    TBUFSIZE
-/* 8+a(%p) + 1(|) + 1(mark) + 15(elapsed time) = 25+a */
-#define INFO_BUFFER_SIZE         40
-
-void
-grn_query_logger_put(grn_ctx *ctx, unsigned int flag, const char *mark,
-                     const char *format, ...)
-{
-  char timestamp[TIMESTAMP_BUFFER_SIZE];
-  char info[INFO_BUFFER_SIZE];
-  grn_obj *message = &ctx->impl->query_log_buf;
-
-  if (!current_query_logger.log) {
-    return;
-  }
-
-  {
-    grn_timeval tv;
-    timestamp[0] = '\0';
-    grn_timeval_now(ctx, &tv);
-    grn_timeval2str(ctx, &tv, timestamp);
-  }
-
-  if (flag & (GRN_QUERY_LOG_COMMAND | GRN_QUERY_LOG_DESTINATION)) {
-    snprintf(info, INFO_BUFFER_SIZE - 1, "%p|%s", ctx, mark);
-    info[INFO_BUFFER_SIZE - 1] = '\0';
-  } else {
-    grn_timeval tv;
-    uint64_t elapsed_time;
-    grn_timeval_now(ctx, &tv);
-    elapsed_time =
-      (uint64_t)(tv.tv_sec - ctx->impl->tv.tv_sec) * GRN_TIME_NSEC_PER_SEC +
-      (tv.tv_nsec - ctx->impl->tv.tv_nsec);
-
-    snprintf(info, INFO_BUFFER_SIZE - 1,
-             "%p|%s%015" GRN_FMT_INT64U " ", ctx, mark, elapsed_time);
-    info[INFO_BUFFER_SIZE - 1] = '\0';
-  }
-
-  {
-    va_list args;
-
-    va_start(args, format);
-    GRN_BULK_REWIND(message);
-    grn_text_vprintf(ctx, message, format, args);
-    va_end(args);
-    GRN_TEXT_PUTC(ctx, message, '\0');
-  }
-
-  current_query_logger.log(ctx, flag, timestamp, info, GRN_TEXT_VALUE(message),
-                           current_query_logger.user_data);
-}
-
-static void
-query_logger_init(void)
-{
-  memcpy(&current_query_logger, &default_query_logger, sizeof(grn_query_logger));
-  CRITICAL_SECTION_INIT(default_query_logger_lock);
-}
-
-static void
-query_logger_fin(grn_ctx *ctx)
-{
-  grn_query_logger_fin(ctx);
-  if (default_query_logger_path) {
-    free(default_query_logger_path);
-  }
-  CRITICAL_SECTION_FIN(default_query_logger_lock);
-}
-
-void
-grn_log_reopen(grn_ctx *ctx)
-{
-  grn_logger_reopen(ctx);
-  grn_query_logger_reopen(ctx);
-}
-
-
 static void
 check_overcommit_memory(grn_ctx *ctx)
 {
   FILE *file;
   int value;
-  file = fopen("/proc/sys/vm/overcommit_memory", "r");
+  file = grn_fopen("/proc/sys/vm/overcommit_memory", "r");
   if (!file) { return; }
   value = fgetc(file);
   if (value != '1') {
@@ -1245,25 +836,14 @@ check_overcommit_memory(grn_ctx *ctx)
   fclose(file);
 }
 
-static void
-check_grn_ja_skip_same_value_put(grn_ctx *ctx)
-{
-  const char *grn_ja_skip_same_value_put_env;
-
-  grn_ja_skip_same_value_put_env = getenv("GRN_JA_SKIP_SAME_VALUE_PUT");
-  if (grn_ja_skip_same_value_put_env &&
-      strcmp(grn_ja_skip_same_value_put_env, "no") == 0) {
-    grn_ja_skip_same_value_put = GRN_FALSE;
-  }
-}
-
 grn_rc
 grn_init(void)
 {
   grn_rc rc;
   grn_ctx *ctx = &grn_gctx;
-  logger_init();
-  query_logger_init();
+  grn_init_from_env();
+  grn_logger_init();
+  grn_query_logger_init();
   CRITICAL_SECTION_INIT(grn_glock);
   grn_gtick = 0;
   ctx->next = ctx;
@@ -1288,22 +868,50 @@ grn_init(void)
   }
   // expand_stack();
 #ifdef USE_FAIL_MALLOC
-  if (getenv("GRN_FMALLOC_PROB")) {
-    grn_fmalloc_prob = strtod(getenv("GRN_FMALLOC_PROB"), 0) * RAND_MAX;
-    if (getenv("GRN_FMALLOC_SEED")) {
-      srand((unsigned int)atoi(getenv("GRN_FMALLOC_SEED")));
-    } else {
-      srand((unsigned int)time(NULL));
+  {
+    char grn_fmalloc_prob_env[GRN_ENV_BUFFER_SIZE];
+    grn_getenv("GRN_FMALLOC_PROB",
+               grn_fmalloc_prob_env,
+               GRN_ENV_BUFFER_SIZE);
+    if (grn_fmalloc_prob_env[0]) {
+      char grn_fmalloc_seed_env[GRN_ENV_BUFFER_SIZE];
+      grn_fmalloc_prob = strtod(grn_fmalloc_prob_env, 0) * RAND_MAX;
+      grn_getenv("GRN_FMALLOC_SEED",
+                 grn_fmalloc_seed_env,
+                 GRN_ENV_BUFFER_SIZE);
+      if (grn_fmalloc_seed_env[0]) {
+        srand((unsigned int)atoi(grn_fmalloc_seed_env));
+      } else {
+        srand((unsigned int)time(NULL));
+      }
     }
   }
-  if (getenv("GRN_FMALLOC_FUNC")) {
-    grn_fmalloc_func = getenv("GRN_FMALLOC_FUNC");
+  {
+    static char grn_fmalloc_func_env[GRN_ENV_BUFFER_SIZE];
+    grn_getenv("GRN_FMALLOC_FUNC",
+               grn_fmalloc_func_env,
+               GRN_ENV_BUFFER_SIZE);
+    if (grn_fmalloc_func_env[0]) {
+      grn_fmalloc_func = grn_fmalloc_func_env;
+    }
   }
-  if (getenv("GRN_FMALLOC_FILE")) {
-    grn_fmalloc_file = getenv("GRN_FMALLOC_FILE");
+  {
+    static char grn_fmalloc_file_env[GRN_ENV_BUFFER_SIZE];
+    grn_getenv("GRN_FMALLOC_FILE",
+               grn_fmalloc_file_env,
+               GRN_ENV_BUFFER_SIZE);
+    if (grn_fmalloc_file_env[0]) {
+      grn_fmalloc_file = grn_fmalloc_file_env;
+    }
   }
-  if (getenv("GRN_FMALLOC_LINE")) {
-    grn_fmalloc_line = atoi(getenv("GRN_FMALLOC_LINE"));
+  {
+    char grn_fmalloc_line_env[GRN_ENV_BUFFER_SIZE];
+    grn_getenv("GRN_FMALLOC_LINE",
+               grn_fmalloc_line_env,
+               GRN_ENV_BUFFER_SIZE);
+    if (grn_fmalloc_line_env[0]) {
+      grn_fmalloc_line = atoi(grn_fmalloc_line_env);
+    }
   }
 #endif /* USE_FAIL_MALLOC */
   if ((rc = grn_com_init())) {
@@ -1311,12 +919,8 @@ grn_init(void)
     return rc;
   }
   grn_ctx_impl_init(ctx);
-  if ((rc = grn_io_init())) {
-    GRN_LOG(ctx, GRN_LOG_ALERT, "io initialize failed (%d)", rc);
-    return rc;
-  }
   if ((rc = grn_plugins_init())) {
-    GRN_LOG(ctx, GRN_LOG_ALERT, "plugins initialize failed (%d)", rc);
+    GRN_LOG(ctx, GRN_LOG_ALERT, "grn_plugins_init failed (%d)", rc);
     return rc;
   }
   if ((rc = grn_normalizer_init())) {
@@ -1343,7 +947,6 @@ grn_init(void)
   }
   GRN_LOG(ctx, GRN_LOG_NOTICE, "grn_init");
   check_overcommit_memory(ctx);
-  check_grn_ja_skip_same_value_put(ctx);
   return rc;
 }
 
@@ -1426,17 +1029,16 @@ grn_fin(void)
       GRN_GFREE(ctx);
     }
   }
-  query_logger_fin(ctx);
+  grn_query_logger_fin(ctx);
   grn_request_canceler_fin();
   grn_cache_fin();
   grn_tokenizers_fin();
   grn_normalizer_fin();
   grn_plugins_fin();
-  grn_io_fin();
   grn_ctx_fin(ctx);
   grn_com_fin();
   GRN_LOG(ctx, GRN_LOG_NOTICE, "grn_fin (%d)", alloc_count);
-  logger_fin(ctx);
+  grn_logger_fin(ctx);
   CRITICAL_SECTION_FIN(grn_glock);
   return GRN_SUCCESS;
 }
@@ -1511,6 +1113,26 @@ grn_ctx_set_output_type(grn_ctx *ctx, grn_content_type type)
 
   if (ctx->impl) {
     ctx->impl->output_type = type;
+    switch (ctx->impl->output_type) {
+    case GRN_CONTENT_NONE :
+      ctx->impl->mime_type = "application/octet-stream";
+      break;
+    case GRN_CONTENT_TSV :
+      ctx->impl->mime_type = "text/tab-separated-values";
+      break;
+    case GRN_CONTENT_JSON :
+      ctx->impl->mime_type = "application/json";
+      break;
+    case GRN_CONTENT_XML :
+      ctx->impl->mime_type = "text/xml";
+      break;
+    case GRN_CONTENT_MSGPACK :
+      ctx->impl->mime_type = "application/x-msgpack";
+      break;
+    case GRN_CONTENT_GROONGA_COMMAND_LIST :
+      ctx->impl->mime_type = "text/x-groonga-command-list";
+      break;
+    }
   } else {
     rc = GRN_INVALID_ARGUMENT;
   }
@@ -1630,7 +1252,7 @@ get_content_mime_type(grn_ctx *ctx, const char *p, const char *pe)
         ctx->impl->mime_type = "text/plain";
       } else if (p + 3 == pe && !memcmp(p, "tsv", 3)) {
         ctx->impl->output_type = GRN_CONTENT_TSV;
-        ctx->impl->mime_type = "text/plain";
+        ctx->impl->mime_type = "text/tab-separated-values";
       }
       break;
     case 'x':
@@ -1870,6 +1492,7 @@ grn_rc
 grn_ctx_sendv(grn_ctx *ctx, int argc, char **argv, int flags)
 {
   grn_obj buf;
+  GRN_API_ENTER;
   GRN_TEXT_INIT(&buf, 0);
   while (argc--) {
     // todo : encode into json like syntax
@@ -1879,7 +1502,7 @@ grn_ctx_sendv(grn_ctx *ctx, int argc, char **argv, int flags)
   }
   grn_ctx_send(ctx, GRN_TEXT_VALUE(&buf), GRN_TEXT_LEN(&buf), flags);
   GRN_OBJ_FIN(ctx, &buf);
-  return ctx->rc;
+  GRN_API_RETURN(ctx->rc);
 }
 
 static int
@@ -1928,7 +1551,6 @@ grn_ctx_send(grn_ctx *ctx, const char *str, unsigned int str_len, int flags)
       goto exit;
     } else {
       grn_obj *expr = NULL;
-      if (comment_command_p(str, str_len)) { goto output; };
       if (ctx->impl->qe_next) {
         grn_obj *val;
         expr = ctx->impl->qe_next;
@@ -1939,6 +1561,7 @@ grn_ctx_send(grn_ctx *ctx, const char *str, unsigned int str_len, int flags)
         }
         grn_expr_exec(ctx, expr, 0);
       } else {
+        if (comment_command_p(str, str_len)) { goto output; };
         ctx->impl->mime_type = "application/json";
         ctx->impl->output_type = GRN_CONTENT_JSON;
         grn_timeval_now(ctx, &ctx->impl->tv);
@@ -2103,7 +1726,7 @@ grn_cache_open(grn_ctx *ctx)
 
   cache->next = (grn_cache_entry *)cache;
   cache->prev = (grn_cache_entry *)cache;
-  cache->hash = grn_hash_create(&grn_gctx, NULL, GRN_TABLE_MAX_KEY_SIZE,
+  cache->hash = grn_hash_create(&grn_gctx, NULL, GRN_CACHE_MAX_KEY_SIZE,
                                 sizeof(grn_cache_entry), GRN_OBJ_KEY_VAR_SIZE);
   MUTEX_INIT(cache->mutex);
   cache->max_nentries = GRN_CACHE_DEFAULT_MAX_N_ENTRIES;
@@ -2157,10 +1780,18 @@ grn_cache_init(void)
 grn_rc
 grn_cache_set_max_n_entries(grn_ctx *ctx, grn_cache *cache, unsigned int n)
 {
+  uint32_t current_max_n_entries;
+
   if (!cache) {
     return GRN_INVALID_ARGUMENT;
   }
+
+  current_max_n_entries = cache->max_nentries;
   cache->max_nentries = n;
+  if (n < current_max_n_entries) {
+    grn_cache_expire(cache, current_max_n_entries - n);
+  }
+
   return GRN_SUCCESS;
 }
 
@@ -2412,7 +2043,7 @@ grn_ctx_realloc(grn_ctx *ctx, void *ptr, size_t size,
     if (res && ptr) {
       int32_t *header = &((int32_t *)ptr)[-2];
       size_t size_ = header[1];
-      memcpy(res, ptr, size_ > size ? size : size_);
+      grn_memcpy(res, ptr, size_ > size ? size : size_);
       grn_ctx_free(ctx, ptr, file, line, func);
     }
   } else {
@@ -2428,7 +2059,7 @@ grn_ctx_strdup(grn_ctx *ctx, const char *s, const char* file, int line, const ch
   if (s) {
     size_t size = strlen(s) + 1;
     if ((res = grn_ctx_alloc(ctx, size, 0, file, line, func))) {
-      memcpy(res, s, size);
+      grn_memcpy(res, s, size);
     }
   }
   return res;
@@ -2669,6 +2300,20 @@ grn_ctx_set_strdup(grn_ctx *ctx, grn_strdup_func strdup_func)
   ctx->impl->strdup_func = strdup_func;
 }
 
+grn_free_func
+grn_ctx_get_free(grn_ctx *ctx)
+{
+  if (!ctx || !ctx->impl) { return NULL; }
+  return ctx->impl->free_func;
+}
+
+void
+grn_ctx_set_free(grn_ctx *ctx, grn_free_func free_func)
+{
+  if (!ctx || !ctx->impl) { return; }
+  ctx->impl->free_func = free_func;
+}
+
 void *
 grn_malloc(grn_ctx *ctx, size_t size, const char* file, int line, const char *func)
 {
@@ -2708,6 +2353,16 @@ grn_strdup(grn_ctx *ctx, const char *string, const char* file, int line, const c
     return grn_strdup_default(ctx, string, file, line, func);
   }
 }
+
+void
+grn_free(grn_ctx *ctx, void *ptr, const char* file, int line, const char *func)
+{
+  if (ctx && ctx->impl && ctx->impl->free_func) {
+    return ctx->impl->free_func(ctx, ptr, file, line, func);
+  } else {
+    return grn_free_default(ctx, ptr, file, line, func);
+  }
+}
 #endif
 
 void *
@@ -2743,9 +2398,8 @@ grn_calloc_default(grn_ctx *ctx, size_t size, const char* file, int line, const 
       grn_alloc_info_add(res, file, line, func);
     } else {
       if (!(res = calloc(size, 1))) {
-        MERR("calloc fail (%" GRN_FMT_LLU ")=%p (%s:%d) <%" GRN_FMT_LLU ">",
-             (unsigned long long int)size, res, file, line,
-             (unsigned long long int)alloc_count);
+        MERR("calloc fail (%" GRN_FMT_SIZE ")=%p (%s:%d) <%d>",
+             size, res, file, line, alloc_count);
       } else {
         GRN_ADD_ALLOC_COUNT(1);
         grn_alloc_info_add(res, file, line, func);
@@ -2810,12 +2464,12 @@ grn_strdup_default(grn_ctx *ctx, const char *s, const char* file, int line, cons
 {
   if (!ctx) { return NULL; }
   {
-    char *res = strdup(s);
+    char *res = grn_strdup_raw(s);
     if (res) {
       GRN_ADD_ALLOC_COUNT(1);
       grn_alloc_info_add(res, file, line, func);
     } else {
-      if (!(res = strdup(s))) {
+      if (!(res = grn_strdup_raw(s))) {
         MERR("strdup(%p)=%p (%s:%d) <%d>", s, res, file, line, alloc_count);
       } else {
         GRN_ADD_ALLOC_COUNT(1);
@@ -2847,7 +2501,8 @@ grn_malloc_fail(grn_ctx *ctx, size_t size, const char* file, int line, const cha
   if (grn_fail_malloc_check(size, file, line, func)) {
     return grn_malloc_default(ctx, size, file, line, func);
   } else {
-    MERR("fail_malloc (%d) (%s:%d@%s) <%d>", size, file, line, func, alloc_count);
+    MERR("fail_malloc (%" GRN_FMT_SIZE ") (%s:%d@%s) <%d>",
+         size, file, line, func, alloc_count);
     return NULL;
   }
 }
@@ -2858,7 +2513,8 @@ grn_calloc_fail(grn_ctx *ctx, size_t size, const char* file, int line, const cha
   if (grn_fail_malloc_check(size, file, line, func)) {
     return grn_calloc_default(ctx, size, file, line, func);
   } else {
-    MERR("fail_calloc (%d) (%s:%d@%s) <%d>", size, file, line, func, alloc_count);
+    MERR("fail_calloc (%" GRN_FMT_SIZE ") (%s:%d@%s) <%d>",
+         size, file, line, func, alloc_count);
     return NULL;
   }
 }

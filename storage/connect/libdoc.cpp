@@ -1,6 +1,6 @@
 /******************************************************************/
 /*  Implementation of XML document processing using libxml2       */
-/*  Author: Olivier Bertrand                2007-2013             */
+/*  Author: Olivier Bertrand                2007-2015             */
 /******************************************************************/
 #include "my_global.h"
 #include <string.h>
@@ -162,10 +162,12 @@ class XML2ATTR : public XMLATTRIBUTE {
   friend class XML2NODE;
  public:
   // Properties
-//virtual char *GetText(void);
+  virtual char  *GetName(PGLOBAL g) {return (char*)Atrp->name;}
+  virtual PXATTR GetNext(PGLOBAL g);
 
   // Methods
-  virtual bool  SetText(PGLOBAL g, char *txtp, int len);
+  virtual RCODE  GetText(PGLOBAL g, char *bufp, int len);
+  virtual bool   SetText(PGLOBAL g, char *txtp, int len);
 
  protected:
   // Constructor
@@ -408,8 +410,7 @@ PFBLOCK LIBXMLDOC::LinkXblock(PGLOBAL g, MODE m, int rc, char *fn)
   xp->Next = (PX2BLOCK)dup->Openlist;
   dup->Openlist = (PFBLOCK)xp;
   xp->Type = TYPE_FB_XML2;
-  xp->Fname = (LPCSTR)PlugSubAlloc(g, NULL, strlen(fn) + 1);
-  strcpy((char*)xp->Fname, fn);
+  xp->Fname = (LPCSTR)PlugDup(g, fn);
   xp->Count = 1;
   xp->Length = (m == MODE_READ) ? 1 : 0;
   xp->Retcode = rc;
@@ -532,8 +533,8 @@ int LIBXMLDOC::DumpDoc(PGLOBAL g, char *ofn)
   // This function does not crash (
   if (xmlSaveFormatFileEnc((const char *)ofn, Docp, Encoding, 0) < 0) {
     xmlErrorPtr err = xmlGetLastError();
-
     strcpy(g->Message, (err) ? err->message : "Error saving XML doc");
+    xmlResetError(Xerr);
     rc = -1;
     } // endif Save
 //  rc = xmlDocDump(of, Docp);
@@ -568,6 +569,7 @@ void LIBXMLDOC::CloseDoc(PGLOBAL g, PFBLOCK xp)
     htrc("CloseDoc: xp=%p count=%d\n", xp, (xp) ? xp->Count : 0);
 
 //if (xp && xp->Count == 1) {
+  if (xp) {
     if (Nlist) {
       xmlXPathFreeNodeSet(Nlist);
 
@@ -604,7 +606,7 @@ void LIBXMLDOC::CloseDoc(PGLOBAL g, PFBLOCK xp)
       Ctxp = NULL;
       } // endif Ctxp
 
-//  } // endif Count
+    } // endif xp
 
   CloseXML2File(g, xp, false);
   } // end of Close
@@ -813,7 +815,7 @@ PXNODE XML2NODE::GetNext(PGLOBAL g)
 
   if (!Nodep->next)
     Next = NULL;
-  else if (!Next)
+  else // if (!Next)
     Next = new(g) XML2NODE(Doc, Nodep->next);
 
   return Next;
@@ -829,7 +831,7 @@ PXNODE XML2NODE::GetChild(PGLOBAL g)
 
   if (!Nodep->children)
     Children = NULL;
-  else if (!Children)
+  else // if (!Children)
     Children = new(g) XML2NODE(Doc, Nodep->children);
 
   return Children;
@@ -979,10 +981,16 @@ PXNODE XML2NODE::SelectSingleNode(PGLOBAL g, char *xp, PXNODE np)
 /******************************************************************/
 PXATTR XML2NODE::GetAttribute(PGLOBAL g, char *name, PXATTR ap)
   {
-  if (trace)
-    htrc("GetAttribute: %s\n", name);
+  xmlAttrPtr atp;
 
-  xmlAttrPtr atp = xmlHasProp(Nodep, BAD_CAST name);
+  if (trace)
+    htrc("GetAttribute: %s\n", SVP(name));
+
+  if (name)
+    atp = xmlHasProp(Nodep, BAD_CAST name);
+  else
+    atp = Nodep->properties;
+
 
   if (atp) {
     if (ap) {
@@ -1209,6 +1217,52 @@ XML2ATTR::XML2ATTR(PXDOC dp, xmlAttrPtr ap, xmlNodePtr np)
   Atrp = ap;
   Parent = np;
   } // end of XML2ATTR constructor
+
+/******************************************************************/
+/*  Return the next sibling of the attribute.                     */
+/******************************************************************/
+PXATTR XML2ATTR::GetNext(PGLOBAL g)
+  {
+  if (trace)
+    htrc("Attr GetNext\n");
+
+  if (!Atrp->next)
+    return NULL;
+  else
+    return new(g) XML2ATTR(Doc, Atrp->next, Atrp->parent);
+
+  } // end of GetNext
+
+/******************************************************************/
+/*  Return the text of an attribute.                              */
+/******************************************************************/
+RCODE XML2ATTR::GetText(PGLOBAL g, char *buf, int len)
+  {
+  RCODE    rc = RC_OK;
+  xmlChar *txt;
+
+  if (trace)
+    htrc("GetText\n");
+
+  if ((txt = xmlGetProp(Atrp->parent, Atrp->name))) {
+    // Copy the text to the buffer
+    if (strlen((char*)txt) >= (unsigned)len) {
+      memcpy(buf, txt, len - 1);
+      buf[len - 1] = 0;
+      sprintf(g->Message, "Truncated %s content", Atrp->name);
+      rc = RC_INFO;
+    } else
+      strcpy(buf, (const char*)txt);
+
+    xmlFree(txt);
+  } else
+    *buf = '\0';
+
+  if (trace)
+    htrc("GetText: %s\n", buf);
+
+  return rc;
+  } // end of GetText
 
 /******************************************************************/
 /*  Set the content of an attribute.                              */

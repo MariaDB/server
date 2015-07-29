@@ -107,7 +107,7 @@ int _create_index_by_sort(MI_SORT_PARAM *info,my_bool no_messages,
   uint sort_length, maxbuffer;
   ulonglong memavl, old_memavl;
   DYNAMIC_ARRAY buffpek;
-  ha_rows records, keys;
+  ha_rows records, UNINIT_VAR(keys);
   uchar **sort_keys;
   IO_CACHE tempfile, tempfile_for_exceptions;
   DBUG_ENTER("_create_index_by_sort");
@@ -135,7 +135,6 @@ int _create_index_by_sort(MI_SORT_PARAM *info,my_bool no_messages,
   memavl= MY_MAX(sortbuff_size, MIN_SORT_BUFFER);
   records=	info->sort_info->max_records;
   sort_length=	info->key_length;
-  LINT_INIT(keys);
 
   while (memavl >= MIN_SORT_BUFFER)
   {
@@ -342,12 +341,10 @@ pthread_handler_t thr_find_all_keys(void *arg)
   MI_SORT_PARAM *sort_param= (MI_SORT_PARAM*) arg;
   int error;
   ulonglong memavl, old_memavl, sortbuff_size;
-  ha_keys keys, idx;
+  ha_keys UNINIT_VAR(keys), idx;
   uint sort_length;
   uint maxbuffer;
   uchar **sort_keys=0;
-
-  LINT_INIT(keys);
 
   error=1;
 
@@ -552,7 +549,6 @@ int thr_write_keys(MI_SORT_PARAM *sort_param)
   MI_SORT_PARAM *sinfo;
   uchar *mergebuf=0;
   DBUG_ENTER("thr_write_keys");
-  LINT_INIT(length);
 
   for (i= 0, sinfo= sort_param ;
        i < sort_info->total_keys ;
@@ -880,10 +876,9 @@ static my_off_t read_to_buffer(IO_CACHE *fromfile, BUFFPEK *buffpek,
 
   if ((count= (ha_keys) MY_MIN((ha_rows) buffpek->max_keys,buffpek->count)))
   {
-    if (mysql_file_pread(fromfile->file, (uchar*) buffpek->base,
-                         (length= sort_length * count),
-                         buffpek->file_pos, MYF_RW))
-      return(HA_OFFSET_ERROR);               /* purecov: inspected */
+    if (my_b_pread(fromfile, (uchar*) buffpek->base,
+                   (length= sort_length * count), buffpek->file_pos))
+      return(HA_OFFSET_ERROR);
     buffpek->key=buffpek->base;
     buffpek->file_pos+= length;               /* New filepos */
     buffpek->count-=    count;
@@ -907,12 +902,12 @@ static my_off_t read_to_buffer_varlen(IO_CACHE *fromfile, BUFFPEK *buffpek,
 
     for (idx=1;idx<=count;idx++)
     {
-      if (mysql_file_pread(fromfile->file, (uchar*)&length_of_key,
-                           sizeof(length_of_key), buffpek->file_pos, MYF_RW))
+      if (my_b_pread(fromfile, (uchar*)&length_of_key,
+                     sizeof(length_of_key), buffpek->file_pos))
         return(HA_OFFSET_ERROR);
       buffpek->file_pos+=sizeof(length_of_key);
-      if (mysql_file_pread(fromfile->file, (uchar*) buffp,
-                           length_of_key, buffpek->file_pos, MYF_RW))
+      if (my_b_pread(fromfile, (uchar*) buffp,
+                     length_of_key, buffpek->file_pos))
         return(HA_OFFSET_ERROR);
       buffpek->file_pos+=length_of_key;
       buffp = buffp + sort_length;
@@ -977,7 +972,6 @@ merge_buffers(MI_SORT_PARAM *info, ha_keys keys, IO_CACHE *from_file,
   count=error=0;
   maxcount= keys/((uint) (Tb-Fb) +1);
   DBUG_ASSERT(maxcount > 0);
-  LINT_INIT(to_start_filepos);
   if (to_file)
     to_start_filepos=my_b_tell(to_file);
   strpos=(uchar*) sort_keys;

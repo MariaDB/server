@@ -217,9 +217,7 @@ static MYSQL_SYSVAR_ULONG(group_commit_interval, maria_group_commit_interval,
 
 static MYSQL_SYSVAR_ENUM(log_purge_type, log_purge_type,
        PLUGIN_VAR_RQCMDARG,
-       "Specifies how Aria transactional log will be purged. "
-       "Possible values of name are \"immediate\", \"external\" "
-       "and \"at_flush\"",
+       "Specifies how Aria transactional log will be purged",
        NULL, NULL, TRANSLOG_PURGE_IMMIDIATE,
        &maria_translog_purge_type_typelib);
 
@@ -258,9 +256,7 @@ static MYSQL_SYSVAR_ULONG(pagecache_file_hash_size, pagecache_file_hash_size,
        512, 128, 16384, 1);
 
 static MYSQL_SYSVAR_SET(recover, maria_recover_options, PLUGIN_VAR_OPCMDARG,
-       "Specifies how corrupted tables should be automatically repaired."
-       " Possible values are one or more of \"NORMAL\" (the default), "
-       "\"BACKUP\", \"FORCE\", or \"QUICK\".",
+       "Specifies how corrupted tables should be automatically repaired",
        NULL, NULL, HA_RECOVER_DEFAULT, &maria_recover_typelib);
 
 static MYSQL_THDVAR_ULONG(repair_threads, PLUGIN_VAR_RQCMDARG,
@@ -275,13 +271,11 @@ static MYSQL_THDVAR_ULONGLONG(sort_buffer_size, PLUGIN_VAR_RQCMDARG,
 
 static MYSQL_THDVAR_ENUM(stats_method, PLUGIN_VAR_RQCMDARG,
        "Specifies how Aria index statistics collection code should treat "
-       "NULLs. Possible values are \"nulls_unequal\", \"nulls_equal\", "
-       "and \"nulls_ignored\".", 0, 0, 0, &maria_stats_method_typelib);
+       "NULLs", 0, 0, 0, &maria_stats_method_typelib);
 
 static MYSQL_SYSVAR_ENUM(sync_log_dir, sync_log_dir, PLUGIN_VAR_RQCMDARG,
        "Controls syncing directory after log file growth and new file "
-       "creation. Possible values are \"never\", \"newfile\" and "
-       "\"always\").", NULL, NULL, TRANSLOG_SYNC_DIR_NEWFILE,
+       "creation", NULL, NULL, TRANSLOG_SYNC_DIR_NEWFILE,
        &maria_sync_log_dir_typelib);
 
 #ifdef USE_ARIA_FOR_TMP_TABLES
@@ -295,6 +289,11 @@ static MYSQL_SYSVAR_BOOL(used_for_temp_tables,
        use_maria_for_temp_tables, PLUGIN_VAR_READONLY | PLUGIN_VAR_NOCMDOPT,
        "Whether temporary tables should be MyISAM or Aria", 0, 0,
        1);
+
+static MYSQL_SYSVAR_BOOL(encrypt_tables, maria_encrypt_tables, 0,
+       "Encrypt tables (only for tables with ROW_FORMAT=PAGE (default) "
+       "and not FIXED/DYNAMIC)",
+       0, 0, 0);
 
 #ifdef HAVE_PSI_INTERFACE
 
@@ -1615,7 +1614,7 @@ int ha_maria::repair(THD *thd, HA_CHECK *param, bool do_optimize)
     locking= 1;
     if (maria_lock_database(file, table->s->tmp_table ? F_EXTRA_LCK : F_WRLCK))
     {
-      _ma_check_print_error(param, ER(ER_CANT_LOCK), my_errno);
+      _ma_check_print_error(param, ER_THD(thd, ER_CANT_LOCK), my_errno);
       DBUG_RETURN(HA_ADMIN_FAILED);
     }
   }
@@ -2323,7 +2322,6 @@ int ha_maria::index_read_map(uchar * buf, const uchar * key,
 {
   DBUG_ASSERT(inited == INDEX);
   int error= maria_rkey(file, buf, active_index, key, keypart_map, find_flag);
-  table->status= error ? STATUS_NOT_FOUND : 0;
   return error;
 }
 
@@ -2341,7 +2339,6 @@ int ha_maria::index_read_idx_map(uchar * buf, uint index, const uchar * key,
   error= maria_rkey(file, buf, index, key, keypart_map, find_flag);
    
   ma_set_index_cond_func(file, NULL, 0);
-  table->status= error ? STATUS_NOT_FOUND : 0;
   return error;
 }
 
@@ -2353,7 +2350,6 @@ int ha_maria::index_read_last_map(uchar * buf, const uchar * key,
   DBUG_ASSERT(inited == INDEX);
   int error= maria_rkey(file, buf, active_index, key, keypart_map,
                         HA_READ_PREFIX_LAST);
-  table->status= error ? STATUS_NOT_FOUND : 0;
   DBUG_RETURN(error);
 }
 
@@ -2362,7 +2358,6 @@ int ha_maria::index_next(uchar * buf)
 {
   DBUG_ASSERT(inited == INDEX);
   int error= maria_rnext(file, buf, active_index);
-  table->status= error ? STATUS_NOT_FOUND : 0;
   return error;
 }
 
@@ -2371,7 +2366,6 @@ int ha_maria::index_prev(uchar * buf)
 {
   DBUG_ASSERT(inited == INDEX);
   int error= maria_rprev(file, buf, active_index);
-  table->status= error ? STATUS_NOT_FOUND : 0;
   return error;
 }
 
@@ -2380,7 +2374,6 @@ int ha_maria::index_first(uchar * buf)
 {
   DBUG_ASSERT(inited == INDEX);
   int error= maria_rfirst(file, buf, active_index);
-  table->status= error ? STATUS_NOT_FOUND : 0;
   return error;
 }
 
@@ -2389,7 +2382,6 @@ int ha_maria::index_last(uchar * buf)
 {
   DBUG_ASSERT(inited == INDEX);
   int error= maria_rlast(file, buf, active_index);
-  table->status= error ? STATUS_NOT_FOUND : 0;
   return error;
 }
 
@@ -2408,7 +2400,6 @@ int ha_maria::index_next_same(uchar * buf,
   {
     error= maria_rnext_same(file,buf);
   } while (error == HA_ERR_RECORD_DELETED);
-  table->status= error ? STATUS_NOT_FOUND : 0;
   return error;
 }
 
@@ -2452,7 +2443,6 @@ int ha_maria::rnd_end()
 int ha_maria::rnd_next(uchar *buf)
 {
   int error= maria_scan(file, buf);
-  table->status= error ? STATUS_NOT_FOUND : 0;
   return error;
 }
 
@@ -2475,7 +2465,6 @@ int ha_maria::restart_rnd_next(uchar *buf)
 int ha_maria::rnd_pos(uchar *buf, uchar *pos)
 {
   int error= maria_rrnd(file, buf, my_get_ptr(pos, ref_length));
-  table->status= error ? STATUS_NOT_FOUND : 0;
   return error;
 }
 
@@ -3267,7 +3256,6 @@ int ha_maria::ft_read(uchar * buf)
 
   error= ft_handler->please->read_next(ft_handler, (char*) buf);
 
-  table->status= error ? STATUS_NOT_FOUND : 0;
   return error;
 }
 
@@ -3719,6 +3707,7 @@ struct st_mysql_sys_var* system_variables[]= {
   MYSQL_SYSVAR(stats_method),
   MYSQL_SYSVAR(sync_log_dir),
   MYSQL_SYSVAR(used_for_temp_tables),
+  MYSQL_SYSVAR(encrypt_tables),
   NULL
 };
 

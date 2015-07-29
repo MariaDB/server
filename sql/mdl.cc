@@ -17,19 +17,19 @@
 #include "sql_class.h"
 #include "debug_sync.h"
 #include "sql_array.h"
-#include <hash.h>
+#include <lf.h>
 #include <mysqld_error.h>
 #include <mysql/plugin.h>
 #include <mysql/service_thd_wait.h>
 #include <mysql/psi/mysql_stage.h>
+#include "wsrep_mysqld.h"
+#include "wsrep_thd.h"
 
 #ifdef HAVE_PSI_INTERFACE
-static PSI_mutex_key key_MDL_map_mutex;
 static PSI_mutex_key key_MDL_wait_LOCK_wait_status;
 
 static PSI_mutex_info all_mdl_mutexes[]=
 {
-  { &key_MDL_map_mutex, "MDL_map::mutex", 0},
   { &key_MDL_wait_LOCK_wait_status, "MDL_wait::LOCK_wait_status", 0}
 };
 
@@ -109,62 +109,9 @@ void MDL_key::init_psi_keys()
 static bool mdl_initialized= 0;
 
 
-class MDL_object_lock;
-class MDL_object_lock_cache_adapter;
-
-
-/**
-  A partition in a collection of all MDL locks.
-  MDL_map is partitioned for scalability reasons.
-  Maps MDL_key to MDL_lock instances.
-*/
-
-class MDL_map_partition
-{
-public:
-  MDL_map_partition();
-  ~MDL_map_partition();
-  inline MDL_lock *find_or_insert(const MDL_key *mdl_key);
-  unsigned long get_lock_owner(const MDL_key *key);
-  inline void remove(MDL_lock *lock);
-private:
-  bool move_from_hash_to_lock_mutex(MDL_lock *lock);
-  /** A partition of all acquired locks in the server. */
-  HASH m_locks;
-  /* Protects access to m_locks hash. */
-  mysql_mutex_t m_mutex;
-  /**
-    Cache of (unused) MDL_lock objects available for re-use.
-
-    On some systems (e.g. Windows XP) constructing/destructing
-    MDL_lock objects can be fairly expensive. We use this cache
-    to avoid these costs in scenarios in which they can have
-    significant negative effect on performance. For example, when
-    there is only one thread constantly executing statements in
-    auto-commit mode and thus constantly causing creation/
-    destruction of MDL_lock objects for the tables it uses.
-
-    Note that this cache contains only MDL_object_lock objects.
-
-    Protected by m_mutex mutex.
-  */
-  typedef I_P_List<MDL_object_lock, MDL_object_lock_cache_adapter,
-                   I_P_List_counter>
-          Lock_cache;
-  Lock_cache m_unused_locks_cache;
-  friend int mdl_iterate(int (*)(MDL_ticket *, void *), void *);
-};
-
-
-/**
-  Start-up parameter for the number of partitions of the MDL_lock hash.
-*/
-ulong mdl_locks_hash_partitions;
-
 /**
   A collection of all MDL locks. A singleton,
   there is only one instance of the map in the server.
-  Contains instances of MDL_map_partition
 */
 
 class MDL_map
@@ -172,12 +119,12 @@ class MDL_map
 public:
   void init();
   void destroy();
-  MDL_lock *find_or_insert(const MDL_key *key);
-  unsigned long get_lock_owner(const MDL_key *key);
-  void remove(MDL_lock *lock);
+  MDL_lock *find_or_insert(LF_PINS *pins, const MDL_key *key);
+  unsigned long get_lock_owner(LF_PINS *pins, const MDL_key *key);
+  void remove(LF_PINS *pins, MDL_lock *lock);
+  LF_PINS *get_pins() { return lf_hash_get_pins(&m_locks); }
 private:
-  /** Array of partitions where the locks are actually stored. */
-  Dynamic_array<MDL_map_partition *> m_partitions;
+  LF_HASH m_locks; /**< All acquired locks in the server. */
   /** Pre-allocated MDL_lock object for GLOBAL namespace. */
   MDL_lock *m_global_lock;
   /** Pre-allocated MDL_lock object for COMMIT namespace. */
@@ -375,6 +322,104 @@ public:
 
   typedef Ticket_list::List::Iterator Ticket_iterator;
 
+
+  /**
+    Helper struct which defines how different types of locks are handled
+    for a specific MDL_lock. In practice we use only two strategies: "scoped"
+    lock strategy for locks in GLOBAL, COMMIT and SCHEMA namespaces and
+    "object" lock strategy for all other namespaces.
+  */
+  struct MDL_lock_strategy
+  {
+    virtual const bitmap_t *incompatible_granted_types_bitmap() const = 0;
+    virtual const bitmap_t *incompatible_waiting_types_bitmap() const = 0;
+    virtual bool needs_notification(const MDL_ticket *ticket) const = 0;
+    virtual bool conflicting_locks(const MDL_ticket *ticket) const = 0;
+    virtual bitmap_t hog_lock_types_bitmap() const = 0;
+    virtual ~MDL_lock_strategy() {}
+  };
+
+
+  /**
+    An implementation of the scoped metadata lock. The only locking modes
+    which are supported at the moment are SHARED and INTENTION EXCLUSIVE
+    and EXCLUSIVE
+  */
+  struct MDL_scoped_lock : public MDL_lock_strategy
+  {
+    MDL_scoped_lock() {}
+    virtual const bitmap_t *incompatible_granted_types_bitmap() const
+    { return m_granted_incompatible; }
+    virtual const bitmap_t *incompatible_waiting_types_bitmap() const
+    { return m_waiting_incompatible; }
+    virtual bool needs_notification(const MDL_ticket *ticket) const
+    { return (ticket->get_type() == MDL_SHARED); }
+
+    /**
+      Notify threads holding scoped IX locks which conflict with a pending
+      S lock.
+
+      Thread which holds global IX lock can be a handler thread for
+      insert delayed. We need to kill such threads in order to get
+      global shared lock. We do this my calling code outside of MDL.
+    */
+    virtual bool conflicting_locks(const MDL_ticket *ticket) const
+    { return ticket->get_type() == MDL_INTENTION_EXCLUSIVE; }
+
+    /*
+      In scoped locks, only IX lock request would starve because of X/S. But that
+      is practically very rare case. So just return 0 from this function.
+    */
+    virtual bitmap_t hog_lock_types_bitmap() const
+    { return 0; }
+  private:
+    static const bitmap_t m_granted_incompatible[MDL_TYPE_END];
+    static const bitmap_t m_waiting_incompatible[MDL_TYPE_END];
+  };
+
+
+  /**
+    An implementation of a per-object lock. Supports SHARED, SHARED_UPGRADABLE,
+    SHARED HIGH PRIORITY and EXCLUSIVE locks.
+  */
+  struct MDL_object_lock : public MDL_lock_strategy
+  {
+    MDL_object_lock() {}
+    virtual const bitmap_t *incompatible_granted_types_bitmap() const
+    { return m_granted_incompatible; }
+    virtual const bitmap_t *incompatible_waiting_types_bitmap() const
+    { return m_waiting_incompatible; }
+    virtual bool needs_notification(const MDL_ticket *ticket) const
+    { return (ticket->get_type() >= MDL_SHARED_NO_WRITE); }
+
+    /**
+      Notify threads holding a shared metadata locks on object which
+      conflict with a pending X, SNW or SNRW lock.
+
+      If thread which holds conflicting lock is waiting on table-level
+      lock or some other non-MDL resource we might need to wake it up
+      by calling code outside of MDL.
+    */
+    virtual bool conflicting_locks(const MDL_ticket *ticket) const
+    { return ticket->get_type() < MDL_SHARED_UPGRADABLE; }
+
+    /*
+      To prevent starvation, these lock types that are only granted
+      max_write_lock_count times in a row while other lock types are
+      waiting.
+    */
+    virtual bitmap_t hog_lock_types_bitmap() const
+    {
+      return (MDL_BIT(MDL_SHARED_NO_WRITE) |
+              MDL_BIT(MDL_SHARED_NO_READ_WRITE) |
+              MDL_BIT(MDL_EXCLUSIVE));
+    }
+
+  private:
+    static const bitmap_t m_granted_incompatible[MDL_TYPE_END];
+    static const bitmap_t m_waiting_incompatible[MDL_TYPE_END];
+  };
+
 public:
   /** The key of the object (data) being protected. */
   MDL_key key;
@@ -418,30 +463,48 @@ public:
     return (m_granted.is_empty() && m_waiting.is_empty());
   }
 
-  virtual const bitmap_t *incompatible_granted_types_bitmap() const = 0;
-  virtual const bitmap_t *incompatible_waiting_types_bitmap() const = 0;
+  const bitmap_t *incompatible_granted_types_bitmap() const
+  { return m_strategy->incompatible_granted_types_bitmap(); }
+  const bitmap_t *incompatible_waiting_types_bitmap() const
+  { return m_strategy->incompatible_waiting_types_bitmap(); }
 
   bool has_pending_conflicting_lock(enum_mdl_type type);
 
   bool can_grant_lock(enum_mdl_type type, MDL_context *requstor_ctx,
                       bool ignore_lock_priority) const;
 
-  inline static MDL_lock *create(const MDL_key *key,
-                                 MDL_map_partition *map_part);
-
   inline unsigned long get_lock_owner() const;
 
   void reschedule_waiters();
 
-  void remove_ticket(Ticket_list MDL_lock::*queue, MDL_ticket *ticket);
+  void remove_ticket(LF_PINS *pins, Ticket_list MDL_lock::*queue,
+                     MDL_ticket *ticket);
 
   bool visit_subgraph(MDL_ticket *waiting_ticket,
                       MDL_wait_for_graph_visitor *gvisitor);
 
-  virtual bool needs_notification(const MDL_ticket *ticket) const = 0;
-  virtual void notify_conflicting_locks(MDL_context *ctx) = 0;
+  bool needs_notification(const MDL_ticket *ticket) const
+  { return m_strategy->needs_notification(ticket); }
+  void notify_conflicting_locks(MDL_context *ctx)
+  {
+    Ticket_iterator it(m_granted);
+    MDL_ticket *conflicting_ticket;
+    while ((conflicting_ticket= it++))
+    {
+      if (conflicting_ticket->get_ctx() != ctx &&
+          m_strategy->conflicting_locks(conflicting_ticket))
+      {
+        MDL_context *conflicting_ctx= conflicting_ticket->get_ctx();
 
-  virtual bitmap_t hog_lock_types_bitmap() const = 0;
+        ctx->get_owner()->
+          notify_shared_lock(conflicting_ctx->get_owner(),
+                             conflicting_ctx->get_needs_thr_lock_abort());
+      }
+    }
+  }
+
+  bitmap_t hog_lock_types_bitmap() const
+  { return m_strategy->hog_lock_types_bitmap(); }
 
   /** List of granted tickets for this lock. */
   Ticket_list m_granted;
@@ -456,196 +519,54 @@ public:
 
 public:
 
-  MDL_lock(const MDL_key *key_arg, MDL_map_partition *map_part)
+  MDL_lock()
+    : m_hog_lock_count(0),
+      m_strategy(0)
+  { mysql_prlock_init(key_MDL_lock_rwlock, &m_rwlock); }
+
+  MDL_lock(const MDL_key *key_arg)
   : key(key_arg),
     m_hog_lock_count(0),
-    m_ref_usage(0),
-    m_ref_release(0),
-    m_is_destroyed(FALSE),
-    m_version(0),
-    m_map_part(map_part)
+    m_strategy(&m_scoped_lock_strategy)
   {
+    DBUG_ASSERT(key_arg->mdl_namespace() == MDL_key::GLOBAL ||
+                key_arg->mdl_namespace() == MDL_key::COMMIT);
     mysql_prlock_init(key_MDL_lock_rwlock, &m_rwlock);
   }
 
-  virtual ~MDL_lock()
-  {
-    mysql_prlock_destroy(&m_rwlock);
-  }
-  inline static void destroy(MDL_lock *lock);
-public:
-  /**
-    These three members are used to make it possible to separate
-    the MDL_map_partition::m_mutex mutex and MDL_lock::m_rwlock in
-    MDL_map::find_or_insert() for increased scalability.
-    The 'm_is_destroyed' member is only set by destroyers that
-    have both the MDL_map_partition::m_mutex and MDL_lock::m_rwlock, thus
-    holding any of the mutexes is sufficient to read it.
-    The 'm_ref_usage; is incremented under protection by
-    MDL_map_partition::m_mutex, but when 'm_is_destroyed' is set to TRUE, this
-    member is moved to be protected by the MDL_lock::m_rwlock.
-    This means that the MDL_map::find_or_insert() which only
-    holds the MDL_lock::m_rwlock can compare it to 'm_ref_release'
-    without acquiring MDL_map_partition::m_mutex again and if equal
-    it can also destroy the lock object safely.
-    The 'm_ref_release' is incremented under protection by
-    MDL_lock::m_rwlock.
-    Note since we are only interested in equality of these two
-    counters we don't have to worry about overflows as long as
-    their size is big enough to hold maximum number of concurrent
-    threads on the system.
-  */
-  uint m_ref_usage;
-  uint m_ref_release;
-  bool m_is_destroyed;
-  /**
-    We use the same idea and an additional version counter to support
-    caching of unused MDL_lock object for further re-use.
-    This counter is incremented while holding both MDL_map_partition::m_mutex
-    and MDL_lock::m_rwlock locks each time when a MDL_lock is moved from
-    the partitioned hash to the paritioned unused objects list (or destroyed).
-    A thread, which has found a MDL_lock object for the key in the hash
-    and then released the MDL_map_partition::m_mutex before acquiring the
-    MDL_lock::m_rwlock, can determine that this object was moved to the
-    unused objects list (or destroyed) while it held no locks by comparing
-    the version value which it read while holding the MDL_map_partition::m_mutex
-    with the value read after acquiring the MDL_lock::m_rwlock.
-    Note that since it takes several years to overflow this counter such
-    theoretically possible overflows should not have any practical effects.
-  */
-  ulonglong m_version;
-  /**
-    Partition of MDL_map where the lock is stored.
-  */
-  MDL_map_partition *m_map_part;
-};
+  ~MDL_lock()
+  { mysql_prlock_destroy(&m_rwlock); }
 
+  static void lf_alloc_constructor(uchar *arg)
+  { new (arg + LF_HASH_OVERHEAD) MDL_lock(); }
 
-/**
-  An implementation of the scoped metadata lock. The only locking modes
-  which are supported at the moment are SHARED and INTENTION EXCLUSIVE
-  and EXCLUSIVE
-*/
+  static void lf_alloc_destructor(uchar *arg)
+  { ((MDL_lock*)(arg + LF_HASH_OVERHEAD))->~MDL_lock(); }
 
-class MDL_scoped_lock : public MDL_lock
-{
-public:
-  MDL_scoped_lock(const MDL_key *key_arg, MDL_map_partition *map_part)
-    : MDL_lock(key_arg, map_part)
-  { }
-
-  virtual const bitmap_t *incompatible_granted_types_bitmap() const
+  static void lf_hash_initializer(LF_HASH *hash __attribute__((unused)),
+                                  MDL_lock *lock, MDL_key *key_arg)
   {
-    return m_granted_incompatible;
-  }
-  virtual const bitmap_t *incompatible_waiting_types_bitmap() const
-  {
-    return m_waiting_incompatible;
-  }
-  virtual bool needs_notification(const MDL_ticket *ticket) const
-  {
-    return (ticket->get_type() == MDL_SHARED);
-  }
-  virtual void notify_conflicting_locks(MDL_context *ctx);
-
-  /*
-    In scoped locks, only IX lock request would starve because of X/S. But that
-    is practically very rare case. So just return 0 from this function.
-  */
-  virtual bitmap_t hog_lock_types_bitmap() const
-  {
-    return 0;
+    DBUG_ASSERT(key_arg->mdl_namespace() != MDL_key::GLOBAL &&
+                key_arg->mdl_namespace() != MDL_key::COMMIT);
+    new (&lock->key) MDL_key(key_arg);
+    if (key_arg->mdl_namespace() == MDL_key::SCHEMA)
+      lock->m_strategy= &m_scoped_lock_strategy;
+    else
+      lock->m_strategy= &m_object_lock_strategy;
   }
 
+  const MDL_lock_strategy *m_strategy;
 private:
-  static const bitmap_t m_granted_incompatible[MDL_TYPE_END];
-  static const bitmap_t m_waiting_incompatible[MDL_TYPE_END];
+  static const MDL_scoped_lock m_scoped_lock_strategy;
+  static const MDL_object_lock m_object_lock_strategy;
 };
 
 
-/**
-  An implementation of a per-object lock. Supports SHARED, SHARED_UPGRADABLE,
-  SHARED HIGH PRIORITY and EXCLUSIVE locks.
-*/
-
-class MDL_object_lock : public MDL_lock
-{
-public:
-  MDL_object_lock(const MDL_key *key_arg, MDL_map_partition *map_part)
-    : MDL_lock(key_arg, map_part)
-  { }
-
-  /**
-    Reset unused MDL_object_lock object to represent the lock context for a
-    different object.
-  */
-  void reset(const MDL_key *new_key)
-  {
-    /* We need to change only object's key. */
-    key.mdl_key_init(new_key);
-    /* m_granted and m_waiting should be already in the empty/initial state. */
-    DBUG_ASSERT(is_empty());
-    /* Object should not be marked as destroyed. */
-    DBUG_ASSERT(! m_is_destroyed);
-    /*
-      Values of the rest of the fields should be preserved between old and
-      new versions of the object. E.g., m_version and m_ref_usage/release
-      should be kept intact to properly handle possible remaining references
-      to the old version of the object.
-    */
-  }
-
-  virtual const bitmap_t *incompatible_granted_types_bitmap() const
-  {
-    return m_granted_incompatible;
-  }
-  virtual const bitmap_t *incompatible_waiting_types_bitmap() const
-  {
-    return m_waiting_incompatible;
-  }
-  virtual bool needs_notification(const MDL_ticket *ticket) const
-  {
-    return (ticket->get_type() >= MDL_SHARED_NO_WRITE);
-  }
-  virtual void notify_conflicting_locks(MDL_context *ctx);
-
-  /*
-    To prevent starvation, these lock types that are only granted
-    max_write_lock_count times in a row while other lock types are
-    waiting.
-  */
-  virtual bitmap_t hog_lock_types_bitmap() const
-  {
-    return (MDL_BIT(MDL_SHARED_NO_WRITE) |
-            MDL_BIT(MDL_SHARED_NO_READ_WRITE) |
-            MDL_BIT(MDL_EXCLUSIVE));
-  }
-
-private:
-  static const bitmap_t m_granted_incompatible[MDL_TYPE_END];
-  static const bitmap_t m_waiting_incompatible[MDL_TYPE_END];
-
-public:
-  /** Members for linking the object into the list of unused objects. */
-  MDL_object_lock *next_in_cache, **prev_in_cache;
-};
-
-
-/**
-  Helper class for linking MDL_object_lock objects into the unused objects list.
-*/
-class MDL_object_lock_cache_adapter :
-      public I_P_List_adapter<MDL_object_lock, &MDL_object_lock::next_in_cache,
-                              &MDL_object_lock::prev_in_cache>
-{
-};
+const MDL_lock::MDL_scoped_lock MDL_lock::m_scoped_lock_strategy;
+const MDL_lock::MDL_object_lock MDL_lock::m_object_lock_strategy;
 
 
 static MDL_map mdl_locks;
-/**
-  Start-up parameter for the maximum size of the unused MDL_lock objects cache.
-*/
-ulong mdl_locks_cache_size;
 
 
 extern "C"
@@ -702,74 +623,54 @@ void mdl_destroy()
 }
 
 
-static inline int mdl_iterate_lock(MDL_lock *lock,
-                                   int (*callback)(MDL_ticket *ticket, void *arg),
-                                   void *arg)
+struct mdl_iterate_arg
 {
+  int (*callback)(MDL_ticket *ticket, void *arg);
+  void *argument;
+};
+
+
+static my_bool mdl_iterate_lock(MDL_lock *lock, mdl_iterate_arg *arg)
+{
+  int res= FALSE;
+  /*
+    We can skip check for m_strategy here, becase m_granted
+    must be empty for such locks anyway.
+  */
+  mysql_prlock_rdlock(&lock->m_rwlock);
   MDL_lock::Ticket_iterator ticket_it(lock->m_granted);
   MDL_ticket *ticket;
-  int res= 0;
-  mysql_prlock_rdlock(&lock->m_rwlock);
-  while ((ticket= ticket_it++) && !(res= callback(ticket, arg))) /* no-op */;
+  while ((ticket= ticket_it++) && !(res= arg->callback(ticket, arg->argument)))
+    /* no-op */;
   mysql_prlock_unlock(&lock->m_rwlock);
-  return res;
+  return MY_TEST(res);
 }
 
 
 int mdl_iterate(int (*callback)(MDL_ticket *ticket, void *arg), void *arg)
 {
-  DYNAMIC_ARRAY locks;
-  uint i, j;
-  int res;
   DBUG_ENTER("mdl_iterate");
+  mdl_iterate_arg argument= { callback, arg };
+  LF_PINS *pins= mdl_locks.get_pins();
+  int res= 1;
 
-  if ((res= mdl_iterate_lock(mdl_locks.m_global_lock, callback, arg)) ||
-      (res= mdl_iterate_lock(mdl_locks.m_commit_lock, callback, arg)))
-    DBUG_RETURN(res);
-
-  my_init_dynamic_array(&locks, sizeof(MDL_lock*), 512, 1, MYF(0));
-
-  for (i= 0; i < mdl_locks.m_partitions.elements(); i++)
+  if (pins)
   {
-    MDL_map_partition *part= mdl_locks.m_partitions.at(i);
-    /* Collect all locks first */
-    mysql_mutex_lock(&part->m_mutex);
-    if (allocate_dynamic(&locks, part->m_locks.records))
-    {
-      res= 1;
-      mysql_mutex_unlock(&part->m_mutex);
-      break;
-    }
-    reset_dynamic(&locks);
-    for (j= 0; j < part->m_locks.records; j++)
-    {
-      MDL_lock *lock= (MDL_lock*) my_hash_element(&part->m_locks, j);
-      lock->m_ref_usage++;
-      insert_dynamic(&locks, &lock);
-    }
-    mysql_mutex_unlock(&part->m_mutex);
-
-    /* Now show them */
-    for (j= 0; j < locks.elements; j++)
-    {
-      MDL_lock *lock= (MDL_lock*) *dynamic_element(&locks, j, MDL_lock**);
-      res= mdl_iterate_lock(lock, callback, arg);
-
-      mysql_prlock_wrlock(&lock->m_rwlock);
-      uint ref_usage= lock->m_ref_usage;
-      uint ref_release= ++lock->m_ref_release;
-      bool is_destroyed= lock->m_is_destroyed;
-      mysql_prlock_unlock(&lock->m_rwlock);
-
-      if (unlikely(is_destroyed && ref_usage == ref_release))
-        MDL_lock::destroy(lock);
-
-      if (res)
-        break;
-    }
+    res= mdl_iterate_lock(mdl_locks.m_global_lock, &argument) ||
+         mdl_iterate_lock(mdl_locks.m_commit_lock, &argument) ||
+         lf_hash_iterate(&mdl_locks.m_locks, pins,
+                         (my_hash_walk_action) mdl_iterate_lock, &argument);
+    lf_hash_put_pins(pins);
   }
-  delete_dynamic(&locks);
   DBUG_RETURN(res);
+}
+
+
+my_hash_value_type mdl_hash_function(CHARSET_INFO *cs,
+                                     const uchar *key, size_t length)
+{
+  MDL_key *mdl_key= (MDL_key*) (key - offsetof(MDL_key, m_ptr));
+  return mdl_key->hash_value();
 }
 
 
@@ -780,33 +681,16 @@ void MDL_map::init()
   MDL_key global_lock_key(MDL_key::GLOBAL, "", "");
   MDL_key commit_lock_key(MDL_key::COMMIT, "", "");
 
-  m_global_lock= MDL_lock::create(&global_lock_key, NULL);
-  m_commit_lock= MDL_lock::create(&commit_lock_key, NULL);
+  m_global_lock= new (std::nothrow) MDL_lock(&global_lock_key);
+  m_commit_lock= new (std::nothrow) MDL_lock(&commit_lock_key);
 
-  for (uint i= 0; i < mdl_locks_hash_partitions; i++)
-  {
-    MDL_map_partition *part= new (std::nothrow) MDL_map_partition();
-    m_partitions.append(part);
-  }
+  lf_hash_init(&m_locks, sizeof(MDL_lock), LF_HASH_UNIQUE, 0, 0,
+               mdl_locks_key, &my_charset_bin);
+  m_locks.alloc.constructor= MDL_lock::lf_alloc_constructor;
+  m_locks.alloc.destructor= MDL_lock::lf_alloc_destructor;
+  m_locks.initializer= (lf_hash_initializer) MDL_lock::lf_hash_initializer;
+  m_locks.hash_function= mdl_hash_function;
 }
-
-
-my_hash_value_type mdl_hash_function(const CHARSET_INFO *cs,
-                                     const uchar *key, size_t length)
-{
-  MDL_key *mdl_key= (MDL_key*) (key - offsetof(MDL_key, m_ptr));
-  return mdl_key->hash_value();
-}
-
-
-/** Initialize the partition in the container with all MDL locks. */
-
-MDL_map_partition::MDL_map_partition()
-{
-  mysql_mutex_init(key_MDL_map_mutex, &m_mutex, NULL);
-  my_hash_init2(&m_locks, 0, &my_charset_bin, 16 /* FIXME */, 0, 0,
-                mdl_locks_key, mdl_hash_function, 0, 0);
-};
 
 
 /**
@@ -816,31 +700,11 @@ MDL_map_partition::MDL_map_partition()
 
 void MDL_map::destroy()
 {
-  MDL_lock::destroy(m_global_lock);
-  MDL_lock::destroy(m_commit_lock);
+  delete m_global_lock;
+  delete m_commit_lock;
 
-  while (m_partitions.elements() > 0)
-  {
-    MDL_map_partition *part= m_partitions.pop();
-    delete part;
-  }
-}
-
-
-/**
-  Destroy the partition in container for all MDL locks.
-  @pre It must be empty.
-*/
-
-MDL_map_partition::~MDL_map_partition()
-{
-  DBUG_ASSERT(!m_locks.records);
-  mysql_mutex_destroy(&m_mutex);
-  my_hash_free(&m_locks);
-
-  MDL_object_lock *lock;
-  while ((lock= m_unused_locks_cache.pop_front()))
-    MDL_lock::destroy(lock);
+  DBUG_ASSERT(!my_atomic_load32(&m_locks.count));
+  lf_hash_destroy(&m_locks);
 }
 
 
@@ -853,7 +717,7 @@ MDL_map_partition::~MDL_map_partition()
   @retval NULL     - Failure (OOM).
 */
 
-MDL_lock* MDL_map::find_or_insert(const MDL_key *mdl_key)
+MDL_lock* MDL_map::find_or_insert(LF_PINS *pins, const MDL_key *mdl_key)
 {
   MDL_lock *lock;
 
@@ -879,157 +743,22 @@ MDL_lock* MDL_map::find_or_insert(const MDL_key *mdl_key)
     return lock;
   }
 
-  uint part_id= mdl_key->hash_value() % mdl_locks_hash_partitions;
-  MDL_map_partition *part= m_partitions.at(part_id);
-
-  return part->find_or_insert(mdl_key);
-}
-
-
-/**
-  Find MDL_lock object corresponding to the key and hash value in
-  MDL_map partition, create it if it does not exist.
-
-  @retval non-NULL - Success. MDL_lock instance for the key with
-                     locked MDL_lock::m_rwlock.
-  @retval NULL     - Failure (OOM).
-*/
-
-MDL_lock* MDL_map_partition::find_or_insert(const MDL_key *mdl_key)
-{
-  MDL_lock *lock;
-
 retry:
-  mysql_mutex_lock(&m_mutex);
-  if (!(lock= (MDL_lock*) my_hash_search_using_hash_value(&m_locks,
-                                                          mdl_key->hash_value(),
-                                                          mdl_key->ptr(),
-                                                          mdl_key->length())))
-  {
-    MDL_object_lock *unused_lock= NULL;
-
-    /*
-      No lock object found so we need to create a new one
-      or reuse an existing unused object.
-    */
-    if (mdl_key->mdl_namespace() != MDL_key::SCHEMA &&
-        m_unused_locks_cache.elements())
-    {
-      /*
-        We need a MDL_object_lock type of object and the unused objects
-        cache has some. Get the first object from the cache and set a new
-        key for it.
-      */
-      DBUG_ASSERT(mdl_key->mdl_namespace() != MDL_key::GLOBAL &&
-                  mdl_key->mdl_namespace() != MDL_key::COMMIT);
-
-      unused_lock= m_unused_locks_cache.pop_front();
-      unused_lock->reset(mdl_key);
-
-      lock= unused_lock;
-    }
-    else
-    {
-      lock= MDL_lock::create(mdl_key, this);
-    }
-
-    if (!lock || my_hash_insert(&m_locks, (uchar*)lock))
-    {
-      if (unused_lock)
-      {
-        /*
-          Note that we can't easily destroy an object from cache here as it
-          still might be referenced by other threads. So we simply put it
-          back into the cache.
-        */
-        m_unused_locks_cache.push_front(unused_lock);
-      }
-      else
-      {
-        MDL_lock::destroy(lock);
-      }
-      mysql_mutex_unlock(&m_mutex);
+  while (!(lock= (MDL_lock*) lf_hash_search(&m_locks, pins, mdl_key->ptr(),
+                                            mdl_key->length())))
+    if (lf_hash_insert(&m_locks, pins, (uchar*) mdl_key) == -1)
       return NULL;
-    }
-  }
-
-  if (move_from_hash_to_lock_mutex(lock))
-    goto retry;
-
-  return lock;
-}
-
-
-/**
-  Release MDL_map_partition::m_mutex mutex and lock MDL_lock::m_rwlock for lock
-  object from the hash. Handle situation when object was released
-  while we held no locks.
-
-  @retval FALSE - Success.
-  @retval TRUE  - Object was released while we held no mutex, caller
-                  should re-try looking up MDL_lock object in the hash.
-*/
-
-bool MDL_map_partition::move_from_hash_to_lock_mutex(MDL_lock *lock)
-{
-  ulonglong version;
-
-  DBUG_ASSERT(! lock->m_is_destroyed);
-  mysql_mutex_assert_owner(&m_mutex);
-
-  /*
-    We increment m_ref_usage which is a reference counter protected by
-    MDL_map_partition::m_mutex under the condition it is present in the hash
-    and m_is_destroyed is FALSE.
-  */
-  lock->m_ref_usage++;
-  /* Read value of the version counter under protection of m_mutex lock. */
-  version= lock->m_version;
-  mysql_mutex_unlock(&m_mutex);
 
   mysql_prlock_wrlock(&lock->m_rwlock);
-  lock->m_ref_release++;
-
-  if (unlikely(lock->m_version != version))
+  if (unlikely(!lock->m_strategy))
   {
-    /*
-      If the current value of version differs from one that was read while
-      we held m_mutex mutex, this MDL_lock object was moved to the unused
-      objects list or destroyed while we held no locks.
-      We should retry our search. But first we should destroy the MDL_lock
-      object if necessary.
-    */
-    if (unlikely(lock->m_is_destroyed))
-    {
-      /*
-        Object was released while we held no locks, we need to
-        release it if no others hold references to it, while our own
-        reference count ensured that the object as such haven't got
-        its memory released yet. We can also safely compare
-        m_ref_usage and m_ref_release since the object is no longer
-        present in the hash (or unused objects list) so no one will
-        be able to find it and increment m_ref_usage anymore.
-      */
-      uint ref_usage= lock->m_ref_usage;
-      uint ref_release= lock->m_ref_release;
-      mysql_prlock_unlock(&lock->m_rwlock);
-      if (ref_usage == ref_release)
-        MDL_lock::destroy(lock);
-    }
-    else
-    {
-      /*
-        Object was not destroyed but its version has changed.
-        This means that it was moved to the unused objects list
-        (and even might be already re-used). So now it might
-        correspond to a different key, therefore we should simply
-        retry our search.
-      */
-      mysql_prlock_unlock(&lock->m_rwlock);
-    }
-    return TRUE;
+    mysql_prlock_unlock(&lock->m_rwlock);
+    lf_hash_search_unpin(pins);
+    goto retry;
   }
-  return FALSE;
+  lf_hash_search_unpin(pins);
+
+  return lock;
 }
 
 
@@ -1038,7 +767,7 @@ bool MDL_map_partition::move_from_hash_to_lock_mutex(MDL_lock *lock)
  */
 
 unsigned long
-MDL_map::get_lock_owner(const MDL_key *mdl_key)
+MDL_map::get_lock_owner(LF_PINS *pins, const MDL_key *mdl_key)
 {
   MDL_lock *lock;
   unsigned long res= 0;
@@ -1054,30 +783,20 @@ MDL_map::get_lock_owner(const MDL_key *mdl_key)
   }
   else
   {
-    uint part_id= mdl_key->hash_value() % mdl_locks_hash_partitions;
-    MDL_map_partition *part= m_partitions.at(part_id);
-    res= part->get_lock_owner(mdl_key);
+    lock= (MDL_lock*) lf_hash_search(&m_locks, pins, mdl_key->ptr(),
+                                     mdl_key->length());
+    if (lock)
+    {
+      /*
+        We can skip check for m_strategy here, becase m_granted
+        must be empty for such locks anyway.
+      */
+      mysql_prlock_rdlock(&lock->m_rwlock);
+      res= lock->get_lock_owner();
+      mysql_prlock_unlock(&lock->m_rwlock);
+      lf_hash_search_unpin(pins);
+    }
   }
-  return res;
-}
-
-
-
-unsigned long
-MDL_map_partition::get_lock_owner(const MDL_key *mdl_key)
-{
-  MDL_lock *lock;
-  unsigned long res= 0;
-
-  mysql_mutex_lock(&m_mutex);
-  lock= (MDL_lock*) my_hash_search_using_hash_value(&m_locks,
-                                                  mdl_key->hash_value(),
-                                                  mdl_key->ptr(),
-                                                  mdl_key->length());
-  if (lock)
-    res= lock->get_lock_owner();
-  mysql_mutex_unlock(&m_mutex);
-
   return res;
 }
 
@@ -1088,7 +807,7 @@ MDL_map_partition::get_lock_owner(const MDL_key *mdl_key)
   it.
 */
 
-void MDL_map::remove(MDL_lock *lock)
+void MDL_map::remove(LF_PINS *pins, MDL_lock *lock)
 {
   if (lock->key.mdl_namespace() == MDL_key::GLOBAL ||
       lock->key.mdl_namespace() == MDL_key::COMMIT)
@@ -1101,78 +820,9 @@ void MDL_map::remove(MDL_lock *lock)
     return;
   }
 
-  lock->m_map_part->remove(lock);
-}
-
-
-/**
-  Destroy MDL_lock object belonging to specific MDL_map
-  partition or delegate this responsibility to whatever
-  thread that holds the last outstanding reference to it.
-*/
-
-void MDL_map_partition::remove(MDL_lock *lock)
-{
-  mysql_mutex_lock(&m_mutex);
-  my_hash_delete(&m_locks, (uchar*) lock);
-  /*
-    To let threads holding references to the MDL_lock object know that it was
-    moved to the list of unused objects or destroyed, we increment the version
-    counter under protection of both MDL_map_partition::m_mutex and
-    MDL_lock::m_rwlock locks. This allows us to read the version value while
-    having either one of those locks.
-  */
-  lock->m_version++;
-
-  if ((lock->key.mdl_namespace() != MDL_key::SCHEMA) &&
-      (m_unused_locks_cache.elements() <
-       mdl_locks_cache_size/mdl_locks_hash_partitions))
-  {
-    /*
-      This is an object of MDL_object_lock type and the cache of unused
-      objects has not reached its maximum size yet. So instead of destroying
-      object we move it to the list of unused objects to allow its later
-      re-use with possibly different key. Any threads holding references to
-      this object (owning MDL_map_partition::m_mutex or MDL_lock::m_rwlock)
-      will notice this thanks to the fact that we have changed the
-      MDL_lock::m_version counter.
-    */
-    DBUG_ASSERT(lock->key.mdl_namespace() != MDL_key::GLOBAL &&
-                lock->key.mdl_namespace() != MDL_key::COMMIT);
-
-    m_unused_locks_cache.push_front((MDL_object_lock*)lock);
-    mysql_mutex_unlock(&m_mutex);
-    mysql_prlock_unlock(&lock->m_rwlock);
-  }
-  else
-  {
-    /*
-      Destroy the MDL_lock object, but ensure that anyone that is
-      holding a reference to the object is not remaining, if so he
-      has the responsibility to release it.
-
-      Setting of m_is_destroyed to TRUE while holding _both_
-      MDL_map_partition::m_mutex and MDL_lock::m_rwlock mutexes transfers
-      the protection of m_ref_usage from MDL_map_partition::m_mutex to
-      MDL_lock::m_rwlock while removal of the object from the hash
-      (and cache of unused objects) makes it read-only. Therefore
-      whoever acquires MDL_lock::m_rwlock next will see the most up
-      to date version of m_ref_usage.
-
-      This means that when m_is_destroyed is TRUE and we hold the
-      MDL_lock::m_rwlock we can safely read the m_ref_usage
-      member.
-    */
-    uint ref_usage, ref_release;
-
-    lock->m_is_destroyed= TRUE;
-    ref_usage= lock->m_ref_usage;
-    ref_release= lock->m_ref_release;
-    mysql_mutex_unlock(&m_mutex);
-    mysql_prlock_unlock(&lock->m_rwlock);
-    if (ref_usage == ref_release)
-      MDL_lock::destroy(lock);
-  }
+  lock->m_strategy= 0;
+  mysql_prlock_unlock(&lock->m_rwlock);
+  lf_hash_delete(&m_locks, pins, lock->key.ptr(), lock->key.length());
 }
 
 
@@ -1186,7 +836,8 @@ MDL_context::MDL_context()
   :
   m_owner(NULL),
   m_needs_thr_lock_abort(FALSE),
-  m_waiting_for(NULL)
+  m_waiting_for(NULL),
+  m_pins(NULL)
 {
   mysql_prlock_init(key_MDL_context_LOCK_waiting_for, &m_LOCK_waiting_for);
 }
@@ -1211,6 +862,14 @@ void MDL_context::destroy()
   DBUG_ASSERT(m_tickets[MDL_EXPLICIT].is_empty());
 
   mysql_prlock_destroy(&m_LOCK_waiting_for);
+  if (m_pins)
+    lf_hash_put_pins(m_pins);
+}
+
+
+bool MDL_context::fix_pins()
+{
+  return m_pins ? false : (m_pins= mdl_locks.get_pins()) == 0;
 }
 
 
@@ -1264,33 +923,6 @@ void MDL_request::init(const MDL_key *key_arg,
   type= mdl_type_arg;
   duration= mdl_duration_arg;
   ticket= NULL;
-}
-
-
-/**
-  Auxiliary functions needed for creation/destruction of MDL_lock objects.
-
-  @note Also chooses an MDL_lock descendant appropriate for object namespace.
-*/
-
-inline MDL_lock *MDL_lock::create(const MDL_key *mdl_key,
-                                  MDL_map_partition *map_part)
-{
-  switch (mdl_key->mdl_namespace())
-  {
-    case MDL_key::GLOBAL:
-    case MDL_key::SCHEMA:
-    case MDL_key::COMMIT:
-      return new (std::nothrow) MDL_scoped_lock(mdl_key, map_part);
-    default:
-      return new (std::nothrow) MDL_object_lock(mdl_key, map_part);
-  }
-}
-
-
-void MDL_lock::destroy(MDL_lock *lock)
-{
-  delete lock;
 }
 
 
@@ -1431,6 +1063,13 @@ MDL_wait::timed_wait(MDL_context_owner *owner, struct timespec *abs_timeout,
   while (!m_wait_status && !owner->is_killed() &&
          wait_result != ETIMEDOUT && wait_result != ETIME)
   {
+#ifdef WITH_WSREP
+    if (wsrep_thd_is_BF(owner->get_thd(), true))
+    {
+      wait_result= mysql_cond_wait(&m_COND_wait_status, &m_LOCK_wait_status);
+    }
+    else
+#endif
     wait_result= mysql_cond_timedwait(&m_COND_wait_status, &m_LOCK_wait_status,
                                       abs_timeout);
   }
@@ -1497,11 +1136,56 @@ void MDL_lock::Ticket_list::add_ticket(MDL_ticket *ticket)
     called by other threads.
   */
   DBUG_ASSERT(ticket->get_lock());
-  /*
-    Add ticket to the *back* of the queue to ensure fairness
-    among requests with the same priority.
-  */
-  m_list.push_back(ticket);
+#ifdef WITH_WSREP
+  if ((this == &(ticket->get_lock()->m_waiting)) &&
+      wsrep_thd_is_BF(ticket->get_ctx()->get_thd(), false))
+  {
+    Ticket_iterator itw(ticket->get_lock()->m_waiting);
+    Ticket_iterator itg(ticket->get_lock()->m_granted);
+
+    DBUG_ASSERT(WSREP_ON);
+    MDL_ticket *waiting, *granted;
+    MDL_ticket *prev=NULL;
+    bool added= false;
+
+    while ((waiting= itw++) && !added)
+    {
+      if (!wsrep_thd_is_BF(waiting->get_ctx()->get_thd(), true))
+      {
+        WSREP_DEBUG("MDL add_ticket inserted before: %lu %s",
+                    thd_get_thread_id(waiting->get_ctx()->get_thd()),
+                    wsrep_thd_query(waiting->get_ctx()->get_thd()));
+        /* Insert the ticket before the first non-BF waiting thd. */
+        m_list.insert_after(prev, ticket);
+        added= true;
+      }
+      prev= waiting;
+    }
+
+    /* Otherwise, insert the ticket at the back of the waiting list. */
+    if (!added) m_list.push_back(ticket);
+
+    while ((granted= itg++))
+    {
+      if (granted->get_ctx() != ticket->get_ctx() &&
+          granted->is_incompatible_when_granted(ticket->get_type()))
+      {
+        if (!wsrep_grant_mdl_exception(ticket->get_ctx(), granted))
+        {
+          WSREP_DEBUG("MDL victim killed at add_ticket");
+        }
+      }
+    }
+  }
+  else
+#endif /* WITH_WSREP */
+  {
+    /*
+      Add ticket to the *back* of the queue to ensure fairness
+      among requests with the same priority.
+    */
+    m_list.push_back(ticket);
+  }
   m_bitmap|= MDL_BIT(ticket->get_type());
 }
 
@@ -1710,14 +1394,16 @@ void MDL_lock::reschedule_waiters()
   on schema objects) and aren't acquired for DML.
 */
 
-const MDL_lock::bitmap_t MDL_scoped_lock::m_granted_incompatible[MDL_TYPE_END] =
+const MDL_lock::bitmap_t
+MDL_lock::MDL_scoped_lock::m_granted_incompatible[MDL_TYPE_END]=
 {
   MDL_BIT(MDL_EXCLUSIVE) | MDL_BIT(MDL_SHARED),
   MDL_BIT(MDL_EXCLUSIVE) | MDL_BIT(MDL_INTENTION_EXCLUSIVE), 0, 0, 0, 0, 0, 0,
   MDL_BIT(MDL_EXCLUSIVE) | MDL_BIT(MDL_SHARED) | MDL_BIT(MDL_INTENTION_EXCLUSIVE)
 };
 
-const MDL_lock::bitmap_t MDL_scoped_lock::m_waiting_incompatible[MDL_TYPE_END] =
+const MDL_lock::bitmap_t
+MDL_lock::MDL_scoped_lock::m_waiting_incompatible[MDL_TYPE_END]=
 {
   MDL_BIT(MDL_EXCLUSIVE) | MDL_BIT(MDL_SHARED),
   MDL_BIT(MDL_EXCLUSIVE), 0, 0, 0, 0, 0, 0, 0
@@ -1779,7 +1465,7 @@ const MDL_lock::bitmap_t MDL_scoped_lock::m_waiting_incompatible[MDL_TYPE_END] =
 */
 
 const MDL_lock::bitmap_t
-MDL_object_lock::m_granted_incompatible[MDL_TYPE_END] =
+MDL_lock::MDL_object_lock::m_granted_incompatible[MDL_TYPE_END]=
 {
   0,
   MDL_BIT(MDL_EXCLUSIVE),
@@ -1803,7 +1489,7 @@ MDL_object_lock::m_granted_incompatible[MDL_TYPE_END] =
 
 
 const MDL_lock::bitmap_t
-MDL_object_lock::m_waiting_incompatible[MDL_TYPE_END] =
+MDL_lock::MDL_object_lock::m_waiting_incompatible[MDL_TYPE_END]=
 {
   0,
   MDL_BIT(MDL_EXCLUSIVE),
@@ -1842,6 +1528,7 @@ MDL_lock::can_grant_lock(enum_mdl_type type_arg,
   bool can_grant= FALSE;
   bitmap_t waiting_incompat_map= incompatible_waiting_types_bitmap()[type_arg];
   bitmap_t granted_incompat_map= incompatible_granted_types_bitmap()[type_arg];
+  bool  wsrep_can_grant= TRUE;
 
   /*
     New lock request can be satisfied iff:
@@ -1864,10 +1551,49 @@ MDL_lock::can_grant_lock(enum_mdl_type type_arg,
       {
         if (ticket->get_ctx() != requestor_ctx &&
             ticket->is_incompatible_when_granted(type_arg))
+        {
+#ifdef WITH_WSREP
+          if (wsrep_thd_is_BF(requestor_ctx->get_thd(),false) &&
+              key.mdl_namespace() == MDL_key::GLOBAL)
+          {
+            WSREP_DEBUG("global lock granted for BF: %lu %s",
+                        thd_get_thread_id(requestor_ctx->get_thd()),
+                        wsrep_thd_query(requestor_ctx->get_thd()));
+            can_grant = true;
+          }
+          else if (!wsrep_grant_mdl_exception(requestor_ctx, ticket))
+          {
+            wsrep_can_grant= FALSE;
+            if (wsrep_log_conflicts)
+            {
+              MDL_lock * lock = ticket->get_lock();
+              WSREP_INFO(
+                         "MDL conflict db=%s table=%s ticket=%d solved by %s",
+                         lock->key.db_name(), lock->key.name(), ticket->get_type(),
+                         "abort" );
+            }
+          }
+          else
+            can_grant= TRUE;
+          /* Continue loop */
+#else
           break;
+#endif /* WITH_WSREP */
+        }
       }
-      if (ticket == NULL)             /* Incompatible locks are our own. */
-        can_grant= TRUE;
+      if ((ticket == NULL) && wsrep_can_grant)
+        can_grant= TRUE; /* Incompatible locks are our own. */
+    }
+  }
+  else
+  {
+    if (wsrep_thd_is_BF(requestor_ctx->get_thd(), false) &&
+	key.mdl_namespace() == MDL_key::GLOBAL)
+    {
+      WSREP_DEBUG("global lock granted for BF (waiting queue): %lu %s",
+                  thd_get_thread_id(requestor_ctx->get_thd()),
+                  wsrep_thd_query(requestor_ctx->get_thd()));
+      can_grant = true;
     }
   }
   return can_grant;
@@ -1893,12 +1619,13 @@ MDL_lock::get_lock_owner() const
 
 /** Remove a ticket from waiting or pending queue and wakeup up waiters. */
 
-void MDL_lock::remove_ticket(Ticket_list MDL_lock::*list, MDL_ticket *ticket)
+void MDL_lock::remove_ticket(LF_PINS *pins, Ticket_list MDL_lock::*list,
+                             MDL_ticket *ticket)
 {
   mysql_prlock_wrlock(&m_rwlock);
   (this->*list).remove_ticket(ticket);
   if (is_empty())
-    mdl_locks.remove(this);
+    mdl_locks.remove(pins, this);
   else
   {
     /*
@@ -2146,6 +1873,9 @@ MDL_context::try_acquire_lock_impl(MDL_request *mdl_request,
     return FALSE;
   }
 
+  if (fix_pins())
+    return TRUE;
+
   if (!(ticket= MDL_ticket::create(this, mdl_request->type
 #ifndef DBUG_OFF
                                    , mdl_request->duration
@@ -2154,7 +1884,7 @@ MDL_context::try_acquire_lock_impl(MDL_request *mdl_request,
     return TRUE;
 
   /* The below call implicitly locks MDL_lock::m_rwlock on success. */
-  if (!(lock= mdl_locks.find_or_insert(key)))
+  if (!(lock= mdl_locks.find_or_insert(m_pins, key)))
   {
     MDL_ticket::destroy(ticket);
     return TRUE;
@@ -2197,6 +1927,17 @@ MDL_context::clone_ticket(MDL_request *mdl_request)
 {
   MDL_ticket *ticket;
 
+
+  /*
+    Since in theory we can clone ticket belonging to a different context
+    we need to prepare target context for possible attempts to release
+    lock and thus possible removal of MDL_lock from MDL_map container.
+    So we allocate pins to be able to work with this container if they
+    are not allocated already.
+  */
+  if (fix_pins())
+    return TRUE;
+
   /*
     By submitting mdl_request->type to MDL_ticket::create()
     we effectively downgrade the cloned lock to the level of
@@ -2226,72 +1967,6 @@ MDL_context::clone_ticket(MDL_request *mdl_request)
 
 
 /**
-  Notify threads holding a shared metadata locks on object which
-  conflict with a pending X, SNW or SNRW lock.
-
-  @param  ctx  MDL_context for current thread.
-*/
-
-void MDL_object_lock::notify_conflicting_locks(MDL_context *ctx)
-{
-  Ticket_iterator it(m_granted);
-  MDL_ticket *conflicting_ticket;
-
-  while ((conflicting_ticket= it++))
-  {
-    /* Only try to abort locks on which we back off. */
-    if (conflicting_ticket->get_ctx() != ctx &&
-        conflicting_ticket->get_type() < MDL_SHARED_UPGRADABLE)
-
-    {
-      MDL_context *conflicting_ctx= conflicting_ticket->get_ctx();
-
-      /*
-        If thread which holds conflicting lock is waiting on table-level
-        lock or some other non-MDL resource we might need to wake it up
-        by calling code outside of MDL.
-      */
-      ctx->get_owner()->
-        notify_shared_lock(conflicting_ctx->get_owner(),
-                           conflicting_ctx->get_needs_thr_lock_abort());
-    }
-  }
-}
-
-
-/**
-  Notify threads holding scoped IX locks which conflict with a pending S lock.
-
-  @param  ctx  MDL_context for current thread.
-*/
-
-void MDL_scoped_lock::notify_conflicting_locks(MDL_context *ctx)
-{
-  Ticket_iterator it(m_granted);
-  MDL_ticket *conflicting_ticket;
-
-  while ((conflicting_ticket= it++))
-  {
-    if (conflicting_ticket->get_ctx() != ctx &&
-        conflicting_ticket->get_type() == MDL_INTENTION_EXCLUSIVE)
-
-    {
-      MDL_context *conflicting_ctx= conflicting_ticket->get_ctx();
-
-      /*
-        Thread which holds global IX lock can be a handler thread for
-        insert delayed. We need to kill such threads in order to get
-        global shared lock. We do this my calling code outside of MDL.
-      */
-      ctx->get_owner()->
-        notify_shared_lock(conflicting_ctx->get_owner(),
-                           conflicting_ctx->get_needs_thr_lock_abort());
-    }
-  }
-}
-
-
-/**
   Acquire one lock with waiting for conflicting locks to go away if needed.
 
   @param mdl_request [in/out] Lock request object for lock to be acquired
@@ -2304,17 +1979,13 @@ void MDL_scoped_lock::notify_conflicting_locks(MDL_context *ctx)
 */
 
 bool
-MDL_context::acquire_lock(MDL_request *mdl_request, ulong lock_wait_timeout)
+MDL_context::acquire_lock(MDL_request *mdl_request, double lock_wait_timeout)
 {
   MDL_lock *lock;
   MDL_ticket *ticket;
-  struct timespec abs_timeout;
   MDL_wait::enum_wait_status wait_status;
   DBUG_ENTER("MDL_context::acquire_lock");
   DBUG_PRINT("enter", ("lock_type: %d", mdl_request->type));
-
-  /* Do some work outside the critical section. */
-  set_timespec(abs_timeout, lock_wait_timeout);
 
   if (try_acquire_lock_impl(mdl_request, &ticket))
     DBUG_RETURN(TRUE);
@@ -2364,7 +2035,8 @@ MDL_context::acquire_lock(MDL_request *mdl_request, ulong lock_wait_timeout)
 
   find_deadlock();
 
-  struct timespec abs_shortwait;
+  struct timespec abs_timeout, abs_shortwait;
+  set_timespec(abs_timeout, lock_wait_timeout);
   set_timespec(abs_shortwait, 1);
   wait_status= MDL_wait::EMPTY;
 
@@ -2402,7 +2074,7 @@ MDL_context::acquire_lock(MDL_request *mdl_request, ulong lock_wait_timeout)
 
   if (wait_status != MDL_wait::GRANTED)
   {
-    lock->remove_ticket(&MDL_lock::m_waiting, ticket);
+    lock->remove_ticket(m_pins, &MDL_lock::m_waiting, ticket);
     MDL_ticket::destroy(ticket);
     switch (wait_status)
     {
@@ -2467,7 +2139,7 @@ extern "C" int mdl_request_ptr_cmp(const void* ptr1, const void* ptr2)
 */
 
 bool MDL_context::acquire_locks(MDL_request_list *mdl_requests,
-                                ulong lock_wait_timeout)
+                                double lock_wait_timeout)
 {
   MDL_request_list::Iterator it(*mdl_requests);
   MDL_request **sort_buf, **p_req;
@@ -2540,13 +2212,13 @@ err:
 bool
 MDL_context::upgrade_shared_lock(MDL_ticket *mdl_ticket,
                                  enum_mdl_type new_type,
-                                 ulong lock_wait_timeout)
+                                 double lock_wait_timeout)
 {
   MDL_request mdl_xlock_request;
   MDL_savepoint mdl_svp= mdl_savepoint();
   bool is_new_ticket;
   DBUG_ENTER("MDL_context::upgrade_shared_lock");
-  DBUG_PRINT("enter",("new_type: %d  lock_wait_timeout: %lu", new_type,
+  DBUG_PRINT("enter",("new_type: %d  lock_wait_timeout: %f", new_type,
                       lock_wait_timeout));
   DEBUG_SYNC(get_thd(), "mdl_upgrade_lock");
 
@@ -2859,7 +2531,7 @@ void MDL_context::release_lock(enum_mdl_duration duration, MDL_ticket *ticket)
 
   DBUG_ASSERT(this == ticket->get_ctx());
 
-  lock->remove_ticket(&MDL_lock::m_granted, ticket);
+  lock->remove_ticket(m_pins, &MDL_lock::m_granted, ticket);
 
   m_tickets[duration].remove(ticket);
   MDL_ticket::destroy(ticket);
@@ -3020,7 +2692,8 @@ MDL_context::is_lock_owner(MDL_key::enum_mdl_namespace mdl_namespace,
 unsigned long
 MDL_context::get_lock_owner(MDL_key *key)
 {
-  return mdl_locks.get_lock_owner(key);
+  fix_pins();
+  return mdl_locks.get_lock_owner(m_pins, key);
 }
 
 
@@ -3223,3 +2896,44 @@ void MDL_context::set_transaction_duration_for_all_locks()
     ticket->m_duration= MDL_TRANSACTION;
 #endif
 }
+
+
+
+void MDL_context::release_explicit_locks()
+{
+  release_locks_stored_before(MDL_EXPLICIT, NULL);
+}
+
+
+#ifdef WITH_WSREP
+void MDL_ticket::wsrep_report(bool debug)
+{
+  if (debug)
+  {
+      const PSI_stage_info *psi_stage = m_lock->key.get_wait_state_name();
+
+      WSREP_DEBUG("MDL ticket: type: %s space: %s db: %s name: %s (%s)",
+       	 (get_type()  == MDL_INTENTION_EXCLUSIVE)  ? "intention exclusive"  :
+       	 ((get_type() == MDL_SHARED)               ? "shared"               :
+       	 ((get_type() == MDL_SHARED_HIGH_PRIO      ? "shared high prio"     :
+       	 ((get_type() == MDL_SHARED_READ)          ? "shared read"          :
+       	 ((get_type() == MDL_SHARED_WRITE)         ? "shared write"         :
+       	 ((get_type() == MDL_SHARED_NO_WRITE)      ? "shared no write"      :
+         ((get_type() == MDL_SHARED_NO_READ_WRITE) ? "shared no read write" :
+       	 ((get_type() == MDL_EXCLUSIVE)            ? "exclusive"            :
+          "UNKNOWN")))))))),
+         (m_lock->key.mdl_namespace()  == MDL_key::GLOBAL) ? "GLOBAL"       :
+         ((m_lock->key.mdl_namespace() == MDL_key::SCHEMA) ? "SCHEMA"       :
+         ((m_lock->key.mdl_namespace() == MDL_key::TABLE)  ? "TABLE"        :
+         ((m_lock->key.mdl_namespace() == MDL_key::TABLE)  ? "FUNCTION"     :
+         ((m_lock->key.mdl_namespace() == MDL_key::TABLE)  ? "PROCEDURE"    :
+         ((m_lock->key.mdl_namespace() == MDL_key::TABLE)  ? "TRIGGER"      :
+         ((m_lock->key.mdl_namespace() == MDL_key::TABLE)  ? "EVENT"        :
+         ((m_lock->key.mdl_namespace() == MDL_key::COMMIT) ? "COMMIT"       :
+         (char *)"UNKNOWN"))))))),
+         m_lock->key.db_name(),
+       	 m_lock->key.name(),
+         psi_stage->m_name);
+    }
+}
+#endif /* WITH_WSREP */

@@ -40,6 +40,7 @@ Created 12/9/1995 Heikki Tuuri
 #include "sync0sync.h"
 #include "sync0rw.h"
 #endif /* !UNIV_HOTBACKUP */
+#include "log0crypt.h"
 
 /* Type used for all log sequence number storage and arithmetics */
 typedef	ib_uint64_t		lsn_t;
@@ -745,8 +746,16 @@ extern log_t*	log_sys;
 					is valid */
 #endif
 #define LOG_CHECKPOINT_OFFSET_HIGH32	(16 + LOG_CHECKPOINT_ARRAY_END)
-#define LOG_CHECKPOINT_SIZE		(20 + LOG_CHECKPOINT_ARRAY_END)
+#define LOG_CRYPT_VER			(20 + LOG_CHECKPOINT_ARRAY_END)
 
+#define LOG_CRYPT_MAX_ENTRIES           (5)
+#define LOG_CRYPT_ENTRY_SIZE            (4 + 4 + 2 * MY_AES_BLOCK_SIZE)
+#define LOG_CRYPT_SIZE                  (1 + 1 +			\
+					 (LOG_CRYPT_MAX_ENTRIES *	\
+					  LOG_CRYPT_ENTRY_SIZE))
+
+#define LOG_CHECKPOINT_SIZE		(20 + LOG_CHECKPOINT_ARRAY_END + \
+					 LOG_CRYPT_SIZE)
 
 /* Offsets of a log file header */
 #define LOG_GROUP_ID		0	/* log group number */
@@ -1082,6 +1091,22 @@ struct log_t{
 #define LOG_ARCH_OFF		75
 /* @} */
 #endif /* UNIV_LOG_ARCHIVE */
+
+extern os_event_t log_scrub_event;
+/* log scrubbing speed, in bytes/sec */
+extern ulonglong innodb_scrub_log_speed;
+
+/*****************************************************************//**
+This is the main thread for log scrub. It waits for an event and
+when waked up fills current log block with dummy records and
+sleeps again.
+@return this function does not return, it calls os_thread_exit() */
+extern "C" UNIV_INTERN
+os_thread_ret_t
+DECLARE_THREAD(log_scrub_thread)(
+/*===============================*/
+	void* arg);				/*!< in: a dummy parameter
+						required by os_thread_create */
 
 #ifndef UNIV_NONINL
 #include "log0log.ic"

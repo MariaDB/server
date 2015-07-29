@@ -1961,7 +1961,7 @@ double Gcalc_scan_iterator::get_h() const
     state.pi->calc_xy(&x, &next_y);
   }
   else
-    next_y= state.pi->y;
+    next_y= state.pi->next ? state.pi->get_next()->y : 0.0;
   return next_y - cur_y;
 }
 
@@ -1974,7 +1974,7 @@ double Gcalc_scan_iterator::get_sp_x(const point *sp) const
   dy= sp->next_pi->y - sp->pi->y;
   if (fabs(dy) < 1e-12)
     return sp->pi->x;
-  return (sp->next_pi->x - sp->pi->x) * dy;
+  return sp->pi->x + (sp->next_pi->x - sp->pi->x) * dy;
 }
 
 

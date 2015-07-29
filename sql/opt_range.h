@@ -69,13 +69,13 @@ class QUICK_RANGE :public Sql_alloc {
   uint16 dummy;					/* Avoid warnings on 'flag' */
 #endif
   QUICK_RANGE();				/* Full range */
-  QUICK_RANGE(const uchar *min_key_arg, uint min_length_arg,
+  QUICK_RANGE(THD *thd, const uchar *min_key_arg, uint min_length_arg,
               key_part_map min_keypart_map_arg,
 	      const uchar *max_key_arg, uint max_length_arg,
               key_part_map max_keypart_map_arg,
 	      uint flag_arg)
-    : min_key((uchar*) sql_memdup(min_key_arg,min_length_arg+1)),
-      max_key((uchar*) sql_memdup(max_key_arg,max_length_arg+1)),
+    : min_key((uchar*) thd->memdup(min_key_arg, min_length_arg + 1)),
+      max_key((uchar*) thd->memdup(max_key_arg, max_length_arg + 1)),
       min_length((uint16) min_length_arg),
       max_length((uint16) max_length_arg),
       flag((uint16) flag_arg),
@@ -389,10 +389,10 @@ public:
     Returns a QUICK_SELECT with reverse order of to the index.
   */
   virtual QUICK_SELECT_I *make_reverse(uint used_key_parts_arg) { return NULL; }
-  
+
   /*
     Add the key columns used by the quick select into table's read set.
-    
+
     This is used by an optimization in filesort.
   */
   virtual void add_used_key_part_to_set(MY_BITMAP *col_set)=0;
@@ -665,8 +665,8 @@ protected:
   int read_keys_and_merge();
 
 public:
-  QUICK_INDEX_MERGE_SELECT(THD *thd, TABLE *table)
-    :QUICK_INDEX_SORT_SELECT(thd, table) {}
+  QUICK_INDEX_MERGE_SELECT(THD *thd_arg, TABLE *table)
+    :QUICK_INDEX_SORT_SELECT(thd_arg, table) {}
 
   int get_next();
   int get_type() { return QS_TYPE_INDEX_MERGE; }
@@ -679,8 +679,8 @@ protected:
   int read_keys_and_merge();
 
 public:
-  QUICK_INDEX_INTERSECT_SELECT(THD *thd, TABLE *table)
-    :QUICK_INDEX_SORT_SELECT(thd, table) {}
+  QUICK_INDEX_INTERSECT_SELECT(THD *thd_arg, TABLE *table)
+    :QUICK_INDEX_SORT_SELECT(thd_arg, table) {}
 
   key_map filtered_scans;
   int get_next();
@@ -927,6 +927,7 @@ private:
   int  next_max();
   void update_min_result();
   void update_max_result();
+  int cmp_min_max_key(const uchar *key, uint16 length);
 public:
   QUICK_GROUP_MIN_MAX_SELECT(TABLE *table, JOIN *join, bool have_min,
                              bool have_max, bool have_agg_distinct,
@@ -1009,7 +1010,7 @@ class SQL_SELECT :public Sql_alloc {
   {
     key_map tmp;
     tmp.set_all();
-    return test_quick_select(thd, tmp, 0, limit, force_quick_range, FALSE) < 0;
+    return test_quick_select(thd, tmp, 0, limit, force_quick_range, FALSE, FALSE) < 0;
   }
   /* 
     RETURN
@@ -1026,7 +1027,7 @@ class SQL_SELECT :public Sql_alloc {
   }
   int test_quick_select(THD *thd, key_map keys, table_map prev_tables,
 			ha_rows limit, bool force_quick_range, 
-                        bool ordered_output);
+                        bool ordered_output, bool remove_false_parts_of_where);
 };
 
 
@@ -1051,7 +1052,7 @@ SQL_SELECT *make_select(TABLE *head, table_map const_tables,
 			table_map read_tables, COND *conds,
                         bool allow_null_cond,  int *error);
 
-bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item *cond);
+bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item **cond);
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
 bool prune_partitions(THD *thd, TABLE *table, Item *pprune_cond);

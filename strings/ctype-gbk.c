@@ -43,6 +43,13 @@
 #define gbkhead(e)     ((uchar)(e>>8))
 #define gbktail(e)     ((uchar)(e&0xff))
 
+#define MY_FUNCTION_NAME(x)   my_ ## x ## _gbk
+#define IS_MB1_CHAR(x)        ((uchar) (x) < 0x80)
+#define IS_MB2_CHAR(x,y)      (isgbkhead(x) && isgbktail(y))
+#define DEFINE_ASIAN_ROUTINES
+#include "ctype-mb.ic"
+
+
 static const uchar ctype_gbk[257] =
 {
   0,				/* For standard library */
@@ -3441,87 +3448,6 @@ static uint16 gbksortorder(uint16 i)
   else idx-=0x40;
   idx+=(gbkhead(i)-0x81)*0xbe;
   return 0x8100+gbk_order[idx];
-}
-
-
-int my_strnncoll_gbk_internal(const uchar **a_res, const uchar **b_res,
-			      size_t length)
-{
-  const uchar *a= *a_res, *b= *b_res;
-  uint a_char,b_char; 
-
-  while (length--)
-  {
-    if ((length > 0) && isgbkcode(*a,*(a+1)) && isgbkcode(*b, *(b+1)))
-    {
-      a_char= gbkcode(*a,*(a+1));
-      b_char= gbkcode(*b,*(b+1));
-      if (a_char != b_char)
-        return ((int) gbksortorder((uint16) a_char) -
-		(int) gbksortorder((uint16) b_char));
-      a+= 2;
-      b+= 2;
-      length--;
-    }
-    else if (sort_order_gbk[*a++] != sort_order_gbk[*b++])
-      return ((int) sort_order_gbk[a[-1]] -
-	      (int) sort_order_gbk[b[-1]]);
-  }
-  *a_res= a;
-  *b_res= b;
-  return 0;
-}
-
-
-
-int my_strnncoll_gbk(CHARSET_INFO *cs __attribute__((unused)),
-		     const uchar *a, size_t a_length,
-                     const uchar *b, size_t b_length,
-                     my_bool b_is_prefix)
-{
-  size_t length= MY_MIN(a_length, b_length);
-  int res= my_strnncoll_gbk_internal(&a, &b, length);
-  return res ? res : (int) ((b_is_prefix ? length : a_length) - b_length);
-}
-
-
-static int my_strnncollsp_gbk(CHARSET_INFO * cs __attribute__((unused)),
-			      const uchar *a, size_t a_length, 
-			      const uchar *b, size_t b_length,
-                              my_bool diff_if_only_endspace_difference)
-{
-  size_t length= MY_MIN(a_length, b_length);
-  int res= my_strnncoll_gbk_internal(&a, &b, length);
-
-#ifndef VARCHAR_WITH_DIFF_ENDSPACE_ARE_DIFFERENT_FOR_UNIQUE
-  diff_if_only_endspace_difference= 0;
-#endif
-
-  if (!res && a_length != b_length)
-  {
-    const uchar *end;
-    int swap= 1;
-    if (diff_if_only_endspace_difference)
-      res= 1;                                   /* Assume 'a' is bigger */
-    /*
-      Check the next not space character of the longer key. If it's < ' ',
-      then it's smaller than the other key.
-    */
-    if (a_length < b_length)
-    {
-      /* put shorter key in a */
-      a_length= b_length;
-      a= b;
-      swap= -1;				/* swap sign of result */
-      res= -res;
-    }
-    for (end= a + a_length-length; a < end ; a++)
-    {
-      if (*a != ' ')
-	return (*a < ' ') ? -swap : swap;
-    }
-  }
-  return res;
 }
 
 
@@ -10718,6 +10644,9 @@ my_mb_wc_gbk(CHARSET_INFO *cs __attribute__((unused)),
   if (s+2>e)
     return MY_CS_TOOSMALL2;
     
+  if (!IS_MB2_CHAR(hi, s[1]))
+    return MY_CS_ILSEQ;
+  
   if (!(pwc[0]=func_gbk_uni_onechar( (hi<<8) + s[1])))
     return -2;
   
@@ -10726,48 +10655,23 @@ my_mb_wc_gbk(CHARSET_INFO *cs __attribute__((unused)),
 }
 
 
-/*
-  Returns well formed length of a GBK string.
-*/
-static
-size_t my_well_formed_len_gbk(CHARSET_INFO *cs __attribute__((unused)),
-                              const char *b, const char *e,
-                              size_t pos, int *error)
+#define MY_FUNCTION_NAME(x)   my_ ## x ## _gbk_chinese_ci
+#define WEIGHT_MB1(x)        (sort_order_gbk[(uchar) (x)])
+#define WEIGHT_MB2(x,y)      (gbksortorder(gbkcode(x,y)))
+#include "strcoll.ic"
+
+
+#define MY_FUNCTION_NAME(x)   my_ ## x ## _gbk_bin
+#define WEIGHT_MB1(x)        ((uchar) (x))
+#define WEIGHT_MB2(x,y)      (gbkcode(x,y))
+#include "strcoll.ic"
+
+
+static MY_COLLATION_HANDLER my_collation_handler_gbk_chinese_ci=
 {
-  const char *b0= b;
-  const char *emb= e - 1; /* Last possible end of an MB character */
-
-  *error= 0;
-  while (pos-- && b < e)
-  {
-    if ((uchar) b[0] < 128)
-    {
-      /* Single byte ascii character */
-      b++;
-    }
-    else  if ((b < emb) && isgbkcode((uchar)*b, (uchar)b[1]))
-    {
-      /* Double byte character */
-      b+= 2;
-    }
-    else
-    {
-      /* Wrong byte sequence */
-      *error= 1;
-      break;
-    }
-  }
-  return (size_t) (b - b0);
-}
-
-
-                             
-
-static MY_COLLATION_HANDLER my_collation_ci_handler =
-{
-  NULL,			/* init */
-  my_strnncoll_gbk,
-  my_strnncollsp_gbk,
+  NULL,                 /* init */
+  my_strnncoll_gbk_chinese_ci,
+  my_strnncollsp_gbk_chinese_ci,
   my_strnxfrm_gbk,
   my_strnxfrmlen_simple,
   my_like_range_mb,
@@ -10777,6 +10681,24 @@ static MY_COLLATION_HANDLER my_collation_ci_handler =
   my_hash_sort_simple,
   my_propagate_simple
 };
+
+
+static MY_COLLATION_HANDLER my_collation_handler_gbk_bin=
+{
+  NULL,                 /* init */
+  my_strnncoll_gbk_bin,
+  my_strnncollsp_gbk_bin,
+  my_strnxfrm_mb,
+  my_strnxfrmlen_simple,
+  my_like_range_mb,
+  my_wildcmp_mb_bin,
+  my_strcasecmp_mb_bin,
+  my_instr_mb,
+  my_hash_sort_mb_bin,
+  my_propagate_simple
+};
+
+
 
 static MY_CHARSET_HANDLER my_charset_handler=
 {
@@ -10806,7 +10728,10 @@ static MY_CHARSET_HANDLER my_charset_handler=
   my_strntod_8bit,
   my_strtoll10_8bit,
   my_strntoull10rnd_8bit,
-  my_scan_8bit
+  my_scan_8bit,
+  my_charlen_gbk,
+  my_well_formed_char_length_gbk,
+  my_copy_fix_mb,
 };
 
 
@@ -10839,7 +10764,7 @@ struct charset_info_st my_charset_gbk_chinese_ci=
     1,                  /* escape_with_backslash_is_dangerous */
     1,                  /* levels_for_order   */
     &my_charset_handler,
-    &my_collation_ci_handler
+    &my_collation_handler_gbk_chinese_ci
 };
 
 struct charset_info_st my_charset_gbk_bin=
@@ -10871,7 +10796,7 @@ struct charset_info_st my_charset_gbk_bin=
     1,                  /* escape_with_backslash_is_dangerous */
     1,                  /* levels_for_order   */
     &my_charset_handler,
-    &my_collation_mb_bin_handler
+    &my_collation_handler_gbk_bin
 };
 
 

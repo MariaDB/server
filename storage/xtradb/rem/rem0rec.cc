@@ -33,6 +33,9 @@ Created 5/30/1994 Heikki Tuuri
 #include "mtr0mtr.h"
 #include "mtr0log.h"
 #include "fts0fts.h"
+#ifdef WITH_WSREP
+#include <ha_prototypes.h>
+#endif /* WITH_WSREP */
 
 /*			PHYSICAL RECORD (OLD STYLE)
 			===========================
@@ -842,7 +845,6 @@ rec_get_converted_size_comp_prefix_low(
 		}
 
 		ut_ad(len <= col->len || col->mtype == DATA_BLOB
-			|| col->mtype == DATA_VARMYSQL
 			|| (col->len == 0 && col->mtype == DATA_VARCHAR));
 
 		fixed_len = field->fixed_len;
@@ -1272,7 +1274,6 @@ rec_convert_dtuple_to_rec_comp(
 		} else {
 			ut_ad(len <= dtype_get_len(type)
 			      || dtype_get_mtype(type) == DATA_BLOB
-			      || dtype_get_mtype(type) == DATA_VARMYSQL
 			      || !strcmp(index->name,
 					 FTS_INDEX_TABLE_IND_NAME));
 			if (len < 128
@@ -1919,6 +1920,138 @@ rec_print(
 		}
 	}
 }
+#endif /* !UNIV_HOTBACKUP */
+
+#ifdef WITH_WSREP
+int
+wsrep_rec_get_foreign_key(
+	byte 		*buf,     /* out: extracted key */
+	ulint 		*buf_len, /* in/out: length of buf */
+	const rec_t*	rec,	  /* in: physical record */
+	dict_index_t*	index_for,  /* in: index in foreign table */
+	dict_index_t*	index_ref,  /* in: index in referenced table */
+	ibool		new_protocol) /* in: protocol > 1 */
+{
+	const byte*	data;
+	ulint		len;
+	ulint		key_len = 0;
+	ulint		i;
+	uint            key_parts;
+	mem_heap_t*	heap	= NULL;
+	ulint		offsets_[REC_OFFS_NORMAL_SIZE];
+        const ulint*    offsets;
+
+	ut_ad(index_for);
+	ut_ad(index_ref);
+
+        rec_offs_init(offsets_);
+	offsets = rec_get_offsets(rec, index_for, offsets_,
+				  ULINT_UNDEFINED, &heap);
+
+	ut_ad(rec_offs_validate(rec, NULL, offsets));
+
+	ut_ad(rec);
+
+	key_parts = dict_index_get_n_unique_in_tree(index_for);
+	for (i = 0; 
+	     i < key_parts && 
+	       (index_for->type & DICT_CLUSTERED || i < key_parts - 1); 
+	     i++) {
+		dict_field_t*	  field_f = 
+			dict_index_get_nth_field(index_for, i);
+		const dict_col_t* col_f = dict_field_get_col(field_f);
+                dict_field_t*	  field_r = 
+			dict_index_get_nth_field(index_ref, i);
+		const dict_col_t* col_r = dict_field_get_col(field_r);
+
+		data = rec_get_nth_field(rec, offsets, i, &len);
+		if (key_len + ((len != UNIV_SQL_NULL) ? len + 1 : 1) > 
+		    *buf_len) {
+			fprintf (stderr, 
+				 "WSREP: FK key len exceeded %lu %lu %lu\n", 
+				 key_len, len, *buf_len);
+			goto err_out;
+		}
+
+		if (len == UNIV_SQL_NULL) {
+			ut_a(!(col_f->prtype & DATA_NOT_NULL));
+			*buf++ = 1;
+			key_len++;
+		} else if (!new_protocol) {
+			if (!(col_r->prtype & DATA_NOT_NULL)) {
+				*buf++ = 0;
+				key_len++;
+			}
+			memcpy(buf, data, len);
+			*buf_len = wsrep_innobase_mysql_sort(
+				(int)(col_f->prtype & DATA_MYSQL_TYPE_MASK),
+				(uint)dtype_get_charset_coll(col_f->prtype),
+				buf, len, *buf_len);
+		} else { /* new protocol */
+			if (!(col_r->prtype & DATA_NOT_NULL)) {
+				*buf++ = 0;
+				key_len++;
+			}
+			switch (col_f->mtype) {
+			case DATA_INT: {
+				byte* ptr = buf+len;
+				for (;;) {
+					ptr--;
+					*ptr = *data;
+					if (ptr == buf) {
+						break;
+					}
+					data++;
+				}
+		
+				if (!(col_f->prtype & DATA_UNSIGNED)) {
+					buf[len-1] = (byte) (buf[len-1] ^ 128);
+				}
+
+				break;
+			}
+			case DATA_VARCHAR:
+			case DATA_VARMYSQL:
+			case DATA_CHAR:
+			case DATA_MYSQL:
+				/* Copy the actual data */
+				ut_memcpy(buf, data, len);
+				len = wsrep_innobase_mysql_sort(
+					(int)
+					(col_f->prtype & DATA_MYSQL_TYPE_MASK),
+					(uint)
+					dtype_get_charset_coll(col_f->prtype),
+					buf, len, *buf_len);
+				break;
+			case DATA_BLOB:
+			case DATA_BINARY:
+				memcpy(buf, data, len);
+				break;
+			default: 
+				break;
+			}
+
+			key_len += len;
+			buf 	+= len;
+		}
+	}
+
+	rec_validate(rec, offsets);
+
+	if (UNIV_LIKELY_NULL(heap)) {
+		mem_heap_free(heap);
+	}
+
+	*buf_len = key_len;
+	return DB_SUCCESS;
+
+ err_out:
+	if (UNIV_LIKELY_NULL(heap)) {
+		mem_heap_free(heap);
+	}
+	return DB_ERROR;
+}
+#endif /* WITH_WSREP */
 
 # ifdef UNIV_DEBUG
 /************************************************************//**
@@ -1961,5 +2094,5 @@ rec_get_trx_id(
 
 	return(trx_read_trx_id(trx_id));
 }
-# endif /* UNIV_DEBUG */
-#endif /* !UNIV_HOTBACKUP */
+#endif /* UNIV_DEBUG */
+

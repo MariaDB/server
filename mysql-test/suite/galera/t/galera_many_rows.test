@@ -1,0 +1,55 @@
+
+--source include/big_test.inc
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+CREATE TABLE ten (f1 INTEGER);
+INSERT INTO ten VALUES (1),(2),(3),(4),(5),(6),(7),(8),(9),(10);
+
+CREATE TABLE t1 (f1 INTEGER AUTO_INCREMENT PRIMARY KEY, f2 INTEGER) Engine=InnoDB;
+INSERT INTO t1 (f2) SELECT a1.f1 FROM ten AS a1, ten AS a2, ten AS a3, ten AS a4, ten AS a5;
+
+--connection node_2
+SELECT COUNT(*) = 100000 FROM t1;
+INSERT INTO t1 (f2) SELECT a1.f1 FROM ten AS a1, ten AS a2, ten AS a3, ten AS a4, ten AS a5;
+
+--connection node_1
+SELECT COUNT(*) = 200000 FROM t1;
+UPDATE t1 SET f2 = 1;
+
+--connection node_2
+SELECT COUNT(*) = 200000 FROM t1 WHERE f2 = 1;
+
+# Rollback
+--connection node_1
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+INSERT INTO t1 (f2) SELECT a1.f1 FROM ten AS a1, ten AS a2, ten AS a3, ten AS a4, ten AS a5;
+ROLLBACK;
+SELECT COUNT(*) = 200000 FROM t1;
+
+--connection node_2
+SELECT COUNT(*) = 200000 FROM t1;
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+UPDATE t1 SET f2 = 2;
+ROLLBACK;
+
+--connection node_1
+START TRANSACTION;
+SELECT COUNT(*) = 200000 FROM t1;
+UPDATE t1 SET f2 = 3;
+
+--connection node_2
+START TRANSACTION;
+UPDATE t1 SET f2 = 4;
+
+--connection node_1
+COMMIT;
+
+--connection node_2
+--error ER_LOCK_DEADLOCK
+COMMIT;
+
+DROP TABLE t1;
+DROP TABLE ten;

@@ -1,0 +1,105 @@
+#
+# Test wsrep_auto_increment_control = OFF
+# We issue two concurrent INSERTs and one will fail with a deadlock error
+#
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+--let $auto_increment_control_orig = `SELECT @@wsrep_auto_increment_control`
+
+#
+# Preserve existing variable values
+# 
+
+--connection node_1
+--let $auto_increment_increment_node1 = `SELECT @@auto_increment_increment`
+--let $auto_increment_offset_node1 = `SELECT @@auto_increment_offset`
+
+# Restore stock MySQL defaults 
+SET GLOBAL wsrep_auto_increment_control = OFF;
+SET GLOBAL auto_increment_increment = 1;
+SET GLOBAL auto_increment_offset = 1;
+
+#Open a fresh connection to node_1 so that the variables above take effect
+--let $galera_connection_name = node_1a
+--let $galera_server_number = 1
+--source include/galera_connect.inc
+
+--connection node_2
+--let $auto_increment_increment_node2 = `SELECT @@auto_increment_increment`
+--let $auto_increment_offset_node2 = `SELECT @@auto_increment_offset`
+
+SET GLOBAL wsrep_auto_increment_control = OFF;
+SET GLOBAL auto_increment_increment = 1;
+SET GLOBAL auto_increment_offset = 1;
+
+#Open a fresh connection to node_2
+--let $galera_connection_name = node_2a
+--let $galera_server_number = 2
+--source include/galera_connect.inc
+
+--connection node_1a
+SELECT @@auto_increment_increment = 1;
+SELECT @@auto_increment_offset = 1;
+
+CREATE TABLE t1 (f1 INTEGER AUTO_INCREMENT PRIMARY KEY, node VARCHAR(10)) ENGINE=InnoDB;
+
+#
+# We expect that SHOW CREATE TABLE on both nodes will return identical values
+#
+
+SHOW CREATE TABLE t1;
+
+--connection node_2a
+
+SHOW CREATE TABLE t1;
+
+--connection node_1a
+SELECT @@auto_increment_increment = 1;
+SELECT @@auto_increment_offset = 1;
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+INSERT INTO t1 (node) VALUES ('node1');
+SELECT f1 FROM t1;
+
+--connection node_2a
+SELECT @@auto_increment_increment = 1;
+SELECT @@auto_increment_offset = 1;
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+INSERT INTO t1 (node) VALUES ('node2');
+SELECT f1 FROM t1;
+
+--connection node_1a
+COMMIT;
+
+--connection node_2a
+--error ER_LOCK_DEADLOCK
+COMMIT;
+
+--connection node_1a
+SELECT * FROM t1;
+
+--connection node_2a
+SELECT * FROM t1;
+
+#
+# Restore all variables as they were
+#
+
+--disable_query_log
+
+--connection node_1
+--eval SET GLOBAL wsrep_auto_increment_control = $auto_increment_control_orig
+--eval SET GLOBAL auto_increment_increment = $auto_increment_increment_node1
+--eval SET GLOBAL auto_increment_offset = $auto_increment_offset_node1
+
+--connection node_2
+--eval SET GLOBAL wsrep_auto_increment_control = $auto_increment_control_orig
+--eval SET GLOBAL auto_increment_increment = $auto_increment_increment_node2
+--eval SET GLOBAL auto_increment_offset = $auto_increment_offset_node2
+
+--enable_query_log
+
+DROP TABLE t1;

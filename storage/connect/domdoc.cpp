@@ -4,7 +4,7 @@
 /******************************************************************/
 #include "my_global.h"
 #include <stdio.h>
-#if defined(WIN32)
+#if defined(__WIN__)
 //#include <windows.h>
 #if   defined(MSX2)
 #import "msxml2.dll"  //Does not exist on Vista
@@ -275,7 +275,7 @@ PXNODE DOMNODE::GetNext(PGLOBAL g)
   {
   if (Nodep->nextSibling == NULL)
     Next = NULL;
-  else if (!Next)
+  else // if (!Next)
     Next = new(g) DOMNODE(Doc, Nodep->nextSibling);
 
   return Next;
@@ -288,7 +288,7 @@ PXNODE DOMNODE::GetChild(PGLOBAL g)
   {
   if (Nodep->firstChild == NULL)
     Children = NULL;
-  else if (!Children)
+  else // if (!Children)
     Children = new(g) DOMNODE(Doc, Nodep->firstChild);
 
   return Children;
@@ -441,15 +441,27 @@ PXNODE DOMNODE::SelectSingleNode(PGLOBAL g, char *xp, PXNODE np)
 /******************************************************************/
 PXATTR DOMNODE::GetAttribute(PGLOBAL g, char *name, PXATTR ap)
   {
-  MSXML2::IXMLDOMElementPtr   ep = Nodep;
-  MSXML2::IXMLDOMAttributePtr atp = ep->getAttributeNode(name);
+  MSXML2::IXMLDOMElementPtr ep;
+  MSXML2::IXMLDOMNamedNodeMapPtr nmp;
+  MSXML2::IXMLDOMAttributePtr atp;
+
+  if (name) {
+    ep = Nodep;
+    atp = ep->getAttributeNode(name);
+    nmp = NULL;
+  } else {
+    nmp = Nodep->Getattributes();
+    atp = nmp->Getitem(0);
+  } // endif name
 
   if (atp) {
     if (ap) {
       ((PDOMATTR)ap)->Atrp = atp;
+      ((PDOMATTR)ap)->Nmp = nmp;
+      ((PDOMATTR)ap)->K = 0;
       return ap;
     } else
-      return new(g) DOMATTR(Doc, atp);
+      return new(g) DOMATTR(Doc, atp, nmp);
 
   } else
     return NULL;
@@ -617,13 +629,84 @@ bool DOMNODELIST::DropItem(PGLOBAL g, int n)
 /******************************************************************/
 /*  DOMATTR constructor.                                          */
 /******************************************************************/
-DOMATTR::DOMATTR(PXDOC dp, MSXML2::IXMLDOMAttributePtr ap)
+DOMATTR::DOMATTR(PXDOC dp, MSXML2::IXMLDOMAttributePtr ap,
+                           MSXML2::IXMLDOMNamedNodeMapPtr nmp)
         : XMLATTRIBUTE(dp)
   {
   Atrp = ap;
+  Nmp = nmp;
   Ws = NULL;
   Len = 0;
+  K = 0;
   }  // end of DOMATTR constructor
+
+/******************************************************************/
+/*  Return the attribute name.                                    */
+/******************************************************************/
+char *DOMATTR::GetName(PGLOBAL g)
+  {
+  if (!WideCharToMultiByte(CP_ACP, 0, Atrp->nodeName, -1,
+                           Name, sizeof(Name), NULL, NULL)) {
+    strcpy(g->Message, MSG(NAME_CONV_ERR));
+    return NULL;
+    } // endif
+
+  return Name;
+  }  // end of GetName
+
+/******************************************************************/
+/*  Return the next attribute node.                               */
+/*  This funtion is implemented as needed by XMLColumns.          */
+/******************************************************************/
+PXATTR DOMATTR::GetNext(PGLOBAL g)
+  {
+  if (!Nmp)
+    return NULL;
+
+  if (++K >= Nmp->Getlength()) {
+    Nmp->reset();
+    Nmp = NULL;
+    K = 0;
+    return NULL;
+    } // endif K
+
+  Atrp = Nmp->Getitem(K);
+  return this;
+  } // end of GetNext
+
+/******************************************************************/
+/*  Return the content of a node and subnodes.                    */
+/******************************************************************/
+RCODE DOMATTR::GetText(PGLOBAL g, char *buf, int len)
+  {
+  RCODE rc = RC_OK;
+
+  if (!WideCharToMultiByte(CP_UTF8, 0, Atrp->text, -1,
+                           buf, len, NULL, NULL)) {
+    DWORD lsr = GetLastError();
+
+    switch (lsr) {
+      case 0:
+      case ERROR_INSUFFICIENT_BUFFER:      // 122L
+        sprintf(g->Message, "Truncated %s content", GetName(g));
+        rc = RC_INFO;
+        break;
+      case ERROR_NO_UNICODE_TRANSLATION:   // 1113L
+        sprintf(g->Message, "Invalid character(s) in %s content",
+                            GetName(g));
+        rc = RC_INFO;
+        break;
+      default:
+        sprintf(g->Message, "System error getting %s content",
+                            GetName(g));
+        rc = RC_FX;
+        break;
+      } // endswitch
+
+    } // endif
+
+  return rc;
+  } // end of GetText
 
 /******************************************************************/
 /*  Set the text content of an attribute.                         */

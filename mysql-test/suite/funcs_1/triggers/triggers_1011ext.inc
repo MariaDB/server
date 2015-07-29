@@ -410,8 +410,6 @@ let $message= Testcase y.y.y.5: Rollback of nested trigger references;
 
 	set autocommit=0;
 	start transaction;
-# Bug#32656 NDB: Duplicate key error aborts transaction in handler.
-#           Doesn't talk back to SQL
 	--error ER_WARN_DATA_OUT_OF_RANGE
 	insert into t1 values (1);
 	commit;

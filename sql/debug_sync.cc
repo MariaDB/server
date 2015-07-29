@@ -1348,8 +1348,7 @@ static void debug_sync_execute(THD *thd, st_debug_sync_action *action)
 
   if (action->execute)
   {
-    const char  *old_proc_info;
-    LINT_INIT(old_proc_info);
+    const char  *UNINIT_VAR(old_proc_info);
 
     action->execute--;
 
@@ -1452,7 +1451,8 @@ static void debug_sync_execute(THD *thd, st_debug_sync_action *action)
           const bool save_abort_on_warning= thd->abort_on_warning;
           thd->abort_on_warning= false;
           push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
-                       ER_DEBUG_SYNC_TIMEOUT, ER(ER_DEBUG_SYNC_TIMEOUT));
+                       ER_DEBUG_SYNC_TIMEOUT,
+                       ER_THD(thd, ER_DEBUG_SYNC_TIMEOUT));
           thd->abort_on_warning= save_abort_on_warning;
           DBUG_EXECUTE_IF("debug_sync_abort_on_timeout", DBUG_ABORT(););
           break;

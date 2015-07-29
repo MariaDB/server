@@ -78,7 +78,7 @@ else
 if ($opt_password eq '')
 {
   system "stty -echo";
-  print "Password for user $opt_user to connect to MySQL: ";
+  print "Password for user $opt_user to connect to MariaDB: ";
   $opt_password = <STDIN>;
   chomp($opt_password);
   system "stty echo";
@@ -86,7 +86,7 @@ if ($opt_password eq '')
 }
 
 
-# make the connection to MySQL
+# make the connection to MariaDB
 $dbh= DBI->connect("DBI:mysql:mysql:host=$sqlhost:port=$opt_port:mysql_socket=$opt_socket",$opt_user,$opt_password, {PrintError => 0}) ||
   die("Can't make a connection to the mysql server.\n The error: $DBI::errstr");
 
@@ -106,7 +106,7 @@ sub q1 { # first question ...
   while (! $end) {
     print "#"x70;
     print "\n";
-    print "## Welcome to the permission setter $version for MySQL.\n";
+    print "## Welcome to the permission setter $version for MariaDB.\n";
     print "## made by Luuk de Boer\n";
     print "#"x70;
     print "\n";
@@ -634,17 +634,17 @@ sub usage
 {
   print <<EOL;
 ----------------------------------------------------------------------
-                 The permission setter for MySQL.
+                 The permission setter for MariaDB.
                       version: $version
 
                  made by: Luuk de Boer <luuk\@wxs.nl>
 ----------------------------------------------------------------------
 
 The permission setter is a little program which can help you add users
-or databases or change passwords in MySQL. Keep in mind that we don't
-check permissions which already been set in MySQL. So if you can't
-connect to MySQL using the permission you just added, take a look at
-the permissions which have already been set in MySQL.
+or databases or change passwords in MariaDB. Keep in mind that we don't
+check permissions which already been set in MariaDB. So if you can't
+connect to MariaDB using the permission you just added, take a look at
+the permissions which have already been set in MariaDB.
 
 The permission setter first reads your .my.cnf file in your Home
 directory if it exists.
@@ -653,7 +653,7 @@ Options for the permission setter:
 
 --help		: print this help message and exit.
 
-The options shown below are used for making the connection to the MySQL
+The options shown below are used for making the connection to the MariaDB
 server. Keep in mind that the permissions for the user specified via
 these options must be sufficient to add users / create databases / set
 passwords.

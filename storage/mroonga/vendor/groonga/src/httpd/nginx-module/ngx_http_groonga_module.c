@@ -134,6 +134,30 @@ ngx_str_is_custom_path(ngx_str_t *string)
 }
 
 static void
+ngx_http_groonga_write_fd(ngx_fd_t fd,
+                          u_char *buffer, size_t buffer_size,
+                          const char *message, size_t message_size)
+{
+  size_t rest_message_size = message_size;
+  const char *current_message = message;
+
+  while (rest_message_size > 0) {
+    size_t current_message_size;
+
+    if (rest_message_size > NGX_MAX_ERROR_STR) {
+      current_message_size = NGX_MAX_ERROR_STR;
+    } else {
+      current_message_size = rest_message_size;
+    }
+
+    grn_memcpy(buffer, current_message, current_message_size);
+    ngx_write_fd(fd, buffer, current_message_size);
+    rest_message_size -= current_message_size;
+    current_message += current_message_size;
+  }
+}
+
+static void
 ngx_http_groonga_logger_log(grn_ctx *ctx, grn_log_level level,
                             const char *timestamp, const char *title,
                             const char *message, const char *location,
@@ -171,10 +195,14 @@ ngx_http_groonga_logger_log(grn_ctx *ctx, grn_log_level level,
                         LOG_PREFIX_FORMAT,
                         timestamp, *(level_marks + level), title);
     ngx_write_fd(logger_data->file->fd, buffer, last - buffer);
-    ngx_write_fd(logger_data->file->fd, (void *)message, message_size);
+    ngx_http_groonga_write_fd(logger_data->file->fd,
+                              buffer, NGX_MAX_ERROR_STR,
+                              message, message_size);
     if (location_size > 0) {
       ngx_write_fd(logger_data->file->fd, " ", 1);
-      ngx_write_fd(logger_data->file->fd, (void *)location, location_size);
+      ngx_http_groonga_write_fd(logger_data->file->fd,
+                                buffer, NGX_MAX_ERROR_STR,
+                                location, location_size);
     }
     ngx_write_fd(logger_data->file->fd, "\n", 1);
   } else {
@@ -529,8 +557,8 @@ ngx_http_groonga_context_receive_handler_typed(grn_ctx *context,
       ngx_pid = getppid();
     }
 
-    ngx_rc = ngx_os_signal_process((ngx_cycle_t*)ngx_cycle,
-                                   "stop",
+    ngx_rc = ngx_os_signal_process((ngx_cycle_t *)ngx_cycle,
+                                   "quit",
                                    ngx_pid);
     if (ngx_rc == NGX_OK) {
       context->stat &= ~GRN_CTX_QUIT;
@@ -568,10 +596,14 @@ ngx_http_groonga_context_receive_handler(grn_ctx *context,
 {
   ngx_http_groonga_handler_data_t *data = callback_data;
 
-  if (grn_ctx_get_output_type(context) == GRN_CONTENT_NONE) {
+  switch (grn_ctx_get_output_type(context)) {
+  case GRN_CONTENT_GROONGA_COMMAND_LIST :
+  case GRN_CONTENT_NONE :
     ngx_http_groonga_context_receive_handler_raw(context, flags, data);
-  } else {
+    break;
+  default :
     ngx_http_groonga_context_receive_handler_typed(context, flags, data);
+    break;
   }
 }
 

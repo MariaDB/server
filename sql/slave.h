@@ -130,6 +130,9 @@ extern my_bool opt_log_slave_updates;
 extern char *opt_slave_skip_errors;
 extern my_bool opt_replicate_annotate_row_events;
 extern ulonglong relay_log_space_limit;
+extern ulonglong slave_skipped_errors;
+extern const char *relay_log_index;
+extern const char *relay_log_basename;
 
 /*
   3 possible values for Master_info::slave_running and
@@ -173,7 +176,8 @@ bool flush_relay_log_info(Relay_log_info* rli);
 int register_slave_on_master(MYSQL* mysql);
 int terminate_slave_threads(Master_info* mi, int thread_mask,
 			     bool skip_lock = 0);
-int start_slave_threads(bool need_slave_mutex, bool wait_for_start,
+int start_slave_threads(THD *thd,
+                        bool need_slave_mutex, bool wait_for_start,
 			Master_info* mi, const char* master_info_fname,
 			const char* slave_info_fname, int thread_mask);
 /*

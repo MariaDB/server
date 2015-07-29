@@ -29,6 +29,60 @@
 #include "mrb_ctx.h"
 #include "mrb_table.h"
 #include "mrb_converter.h"
+#include "mrb_options.h"
+
+static mrb_value
+mrb_grn_table_array_reference(mrb_state *mrb, mrb_value self)
+{
+  grn_ctx *ctx = (grn_ctx *)mrb->ud;
+  grn_obj *table;
+  grn_id key_domain_id;
+  mrb_value mrb_key;
+  grn_id record_id;
+  grn_mrb_value_to_raw_data_buffer buffer;
+  void *key;
+  unsigned int key_size;
+
+  mrb_get_args(mrb, "o", &mrb_key);
+
+  table = DATA_PTR(self);
+  if (table->header.type == GRN_DB) {
+    key_domain_id = GRN_DB_SHORT_TEXT;
+  } else {
+    key_domain_id = table->header.domain;
+  }
+
+  grn_mrb_value_to_raw_data_buffer_init(mrb, &buffer);
+  grn_mrb_value_to_raw_data(mrb, "key", mrb_key, key_domain_id,
+                            &buffer, &key, &key_size);
+  record_id = grn_table_get(ctx, table, key, key_size);
+  grn_mrb_value_to_raw_data_buffer_fin(mrb, &buffer);
+
+  if (record_id == GRN_ID_NIL) {
+    return mrb_nil_value();
+  } else {
+    return mrb_fixnum_value(record_id);
+  }
+}
+
+static mrb_value
+mrb_grn_table_find_column(mrb_state *mrb, mrb_value self)
+{
+  grn_ctx *ctx = (grn_ctx *)mrb->ud;
+  grn_obj *table;
+  mrb_value mrb_column_name;
+  grn_obj *column;
+
+  mrb_get_args(mrb, "o", &mrb_column_name);
+
+  table = DATA_PTR(self);
+  column = grn_obj_column(ctx, table,
+                          RSTRING_PTR(mrb_column_name),
+                          RSTRING_LEN(mrb_column_name));
+  grn_mrb_ctx_check(mrb);
+
+  return grn_mrb_value_from_grn_obj(mrb, column);
+}
 
 static mrb_value
 mrb_grn_table_is_locked(mrb_state *mrb, mrb_value self)
@@ -86,14 +140,12 @@ mrb_grn_table_select(mrb_state *mrb, mrb_value self)
     mrb_value mrb_result;
     mrb_value mrb_operator;
 
-    mrb_result = mrb_hash_get(mrb, mrb_options,
-                              mrb_symbol_value(mrb_intern_lit(mrb, "result")));
+    mrb_result = grn_mrb_options_get_lit(mrb, mrb_options, "result");
     if (!mrb_nil_p(mrb_result)) {
       result = DATA_PTR(mrb_result);
     }
 
-    mrb_operator = mrb_hash_get(mrb, mrb_options,
-                                mrb_symbol_value(mrb_intern_lit(mrb, "operator")));
+    mrb_operator = grn_mrb_options_get_lit(mrb, mrb_options, "operator");
     if (!mrb_nil_p(mrb_operator)) {
       operator = mrb_fixnum(mrb_operator);
     }
@@ -105,22 +157,21 @@ mrb_grn_table_select(mrb_state *mrb, mrb_value self)
   return grn_mrb_value_from_grn_obj(mrb, result);
 }
 
-/* TODO: Fix memory leak on error */
 static mrb_value
-mrb_grn_table_sort(mrb_state *mrb, mrb_value self)
+mrb_grn_table_sort_raw(mrb_state *mrb, mrb_value self)
 {
   grn_ctx *ctx = (grn_ctx *)mrb->ud;
   grn_obj *table;
-  grn_obj *result = NULL;
+  mrb_value mrb_keys;
   grn_table_sort_key *keys;
   int i, n_keys;
-  int offset = 0;
-  int limit = -1;
-  mrb_value mrb_keys;
-  mrb_value mrb_options = mrb_nil_value();
+  mrb_int offset;
+  mrb_int limit;
+  mrb_value mrb_result;
+  grn_obj *result;
 
   table = DATA_PTR(self);
-  mrb_get_args(mrb, "o|H", &mrb_keys, &mrb_options);
+  mrb_get_args(mrb, "oiio", &mrb_keys, &offset, &limit, &mrb_result);
 
   mrb_keys = mrb_convert_type(mrb, mrb_keys,
                               MRB_TT_ARRAY, "Array", "to_ary");
@@ -128,74 +179,118 @@ mrb_grn_table_sort(mrb_state *mrb, mrb_value self)
   n_keys = RARRAY_LEN(mrb_keys);
   keys = GRN_MALLOCN(grn_table_sort_key, n_keys);
   for (i = 0; i < n_keys; i++) {
-    mrb_value mrb_sort_options;
-    mrb_value mrb_sort_key;
-    mrb_value mrb_sort_order;
-
-    mrb_sort_options = RARRAY_PTR(mrb_keys)[i];
-    mrb_sort_key = mrb_hash_get(mrb, mrb_sort_options,
-                                mrb_symbol_value(mrb_intern_lit(mrb, "key")));
-    switch (mrb_type(mrb_sort_key)) {
-    case MRB_TT_STRING :
-      keys[i].key = grn_obj_column(ctx, table,
-                                   RSTRING_PTR(mrb_sort_key),
-                                   RSTRING_LEN(mrb_sort_key));
-      break;
-    case MRB_TT_SYMBOL :
-      {
-        const char *name;
-        mrb_int name_length;
-        name = mrb_sym2name_len(mrb, mrb_symbol(mrb_sort_key), &name_length);
-        keys[i].key = grn_obj_column(ctx, table, name, name_length);
-      }
-      break;
-    default :
-      /* TODO: free */
-      mrb_raisef(mrb, E_ARGUMENT_ERROR,
-                 "sort key must be string or symbol: %S",
-                 mrb_sort_key);
-      break;
-    }
-
-    keys[i].flags = 0;
-    mrb_sort_order =
-      mrb_hash_get(mrb, mrb_sort_options,
-                   mrb_symbol_value(mrb_intern_lit(mrb, "order")));
-    if (mrb_nil_p(mrb_sort_order) ||
-        (mrb_symbol(mrb_sort_order) == mrb_intern_lit(mrb, "ascending"))) {
-      keys[i].flags |= GRN_TABLE_SORT_ASC;
-    } else {
-      keys[i].flags |= GRN_TABLE_SORT_DESC;
-    }
+    memcpy(&(keys[i]),
+           DATA_PTR(RARRAY_PTR(mrb_keys)[i]),
+           sizeof(grn_table_sort_key));
   }
-
-  if (!mrb_nil_p(mrb_options)) {
-    mrb_value mrb_offset;
-    mrb_value mrb_limit;
-
-    mrb_offset = mrb_hash_get(mrb, mrb_options,
-                              mrb_symbol_value(mrb_intern_lit(mrb, "offset")));
-    if (!mrb_nil_p(mrb_offset)) {
-      offset = mrb_fixnum(mrb_offset);
-    }
-
-    mrb_limit = mrb_hash_get(mrb, mrb_options,
-                             mrb_symbol_value(mrb_intern_lit(mrb, "limit")));
-    if (!mrb_nil_p(mrb_limit)) {
-      limit = mrb_fixnum(mrb_limit);
-    }
-  }
-
-  result = grn_table_create(ctx, NULL, 0, NULL, GRN_TABLE_NO_KEY,
-                            NULL, table);
+  result = DATA_PTR(mrb_result);
   grn_table_sort(ctx, table, offset, limit, result, keys, n_keys);
-  for (i = 0; i < n_keys; i++) {
-    grn_obj_unlink(ctx, keys[i].key);
-  }
   GRN_FREE(keys);
   grn_mrb_ctx_check(mrb);
 
-  return grn_mrb_value_from_grn_obj(mrb, result);
+  return mrb_result;
+}
+
+static mrb_value
+mrb_grn_table_group_raw(mrb_state *mrb, mrb_value self)
+{
+  grn_ctx *ctx = (grn_ctx *)mrb->ud;
+  grn_obj *table;
+  mrb_value mrb_keys;
+  grn_table_sort_key *keys;
+  int i, n_keys;
+  mrb_value mrb_result;
+  grn_table_group_result *result;
+
+  table = DATA_PTR(self);
+  mrb_get_args(mrb, "oo", &mrb_keys, &mrb_result);
+
+  mrb_keys = mrb_convert_type(mrb, mrb_keys,
+                              MRB_TT_ARRAY, "Array", "to_ary");
+
+  n_keys = RARRAY_LEN(mrb_keys);
+  keys = GRN_MALLOCN(grn_table_sort_key, n_keys);
+  for (i = 0; i < n_keys; i++) {
+    memcpy(&(keys[i]),
+           DATA_PTR(RARRAY_PTR(mrb_keys)[i]),
+           sizeof(grn_table_sort_key));
+  }
+  result = DATA_PTR(mrb_result);
+  grn_table_group(ctx, table, keys, n_keys, result, 1);
+  GRN_FREE(keys);
+  grn_mrb_ctx_check(mrb);
+
+  return mrb_result;
+}
+
+static mrb_value
+mrb_grn_table_delete(mrb_state *mrb, mrb_value self)
+{
+  grn_ctx *ctx = (grn_ctx *)mrb->ud;
+  grn_obj *table;
+  mrb_value mrb_options;
+  mrb_value mrb_id;
+  mrb_value mrb_key;
+  mrb_value mrb_expression;
+
+  table = DATA_PTR(self);
+  mrb_get_args(mrb, "H", &mrb_options);
+
+  mrb_id = grn_mrb_options_get_lit(mrb, mrb_options, "id");
+  if (!mrb_nil_p(mrb_id)) {
+    grn_table_delete_by_id(ctx, table, mrb_fixnum(mrb_id));
+    grn_mrb_ctx_check(mrb);
+    return mrb_nil_value();
+  }
+
+  mrb_key = grn_mrb_options_get_lit(mrb, mrb_options, "key");
+  if (!mrb_nil_p(mrb_key)) {
+    grn_id key_domain_id;
+    void *key;
+    unsigned int key_size;
+    grn_mrb_value_to_raw_data_buffer buffer;
+
+    key_domain_id = table->header.domain;
+    grn_mrb_value_to_raw_data_buffer_init(mrb, &buffer);
+    grn_mrb_value_to_raw_data(mrb, "key", mrb_key, key_domain_id,
+                              &buffer, &key, &key_size);
+    grn_table_delete(ctx, table, key, key_size);
+    grn_mrb_value_to_raw_data_buffer_fin(mrb, &buffer);
+    grn_mrb_ctx_check(mrb);
+    return mrb_nil_value();
+  }
+
+  mrb_expression = grn_mrb_options_get_lit(mrb, mrb_options, "expression");
+  if (!mrb_nil_p(mrb_expression)) {
+    grn_obj *expression;
+    grn_obj *selected_records;
+    grn_table_cursor *cursor;
+
+    expression = DATA_PTR(mrb_expression);
+    selected_records = grn_table_select(ctx, table, expression, NULL, GRN_OP_OR);
+    grn_mrb_ctx_check(mrb);
+    cursor = grn_table_cursor_open(ctx, selected_records,
+                                   NULL, 0,
+                                   NULL, 0,
+                                   0, -1, 0);
+    if (cursor) {
+      while (grn_table_cursor_next(ctx, cursor) != GRN_ID_NIL) {
+        grn_id *id;
+        grn_table_cursor_get_key(ctx, cursor, (void **)&id);
+        grn_table_delete_by_id(ctx, table, *id);
+      }
+      grn_table_cursor_close(ctx, cursor);
+    }
+    grn_mrb_ctx_check(mrb);
+
+    return mrb_nil_value();
+  }
+
+  mrb_raisef(mrb, E_ARGUMENT_ERROR,
+             "must have :id, :key or :expression: %S",
+             mrb_options);
+
+  return mrb_nil_value();
 }
 
 void
@@ -210,6 +305,12 @@ grn_mrb_table_init(grn_ctx *ctx)
   klass = mrb_define_class_under(mrb, module, "Table", object_class);
   MRB_SET_INSTANCE_TT(klass, MRB_TT_DATA);
 
+  mrb_define_method(mrb, klass, "[]",
+                    mrb_grn_table_array_reference, MRB_ARGS_REQ(1));
+
+  mrb_define_method(mrb, klass, "find_column",
+                    mrb_grn_table_find_column, MRB_ARGS_REQ(1));
+
   mrb_define_method(mrb, klass, "locked?",
                     mrb_grn_table_is_locked, MRB_ARGS_NONE());
 
@@ -220,7 +321,13 @@ grn_mrb_table_init(grn_ctx *ctx)
 
   mrb_define_method(mrb, klass, "select",
                     mrb_grn_table_select, MRB_ARGS_ARG(1, 1));
-  mrb_define_method(mrb, klass, "sort",
-                    mrb_grn_table_sort, MRB_ARGS_ARG(1, 1));
+  mrb_define_method(mrb, klass, "sort_raw",
+                    mrb_grn_table_sort_raw, MRB_ARGS_REQ(4));
+  mrb_define_method(mrb, klass, "group_raw",
+                    mrb_grn_table_group_raw, MRB_ARGS_REQ(2));
+
+  mrb_define_method(mrb, klass, "delete",
+                    mrb_grn_table_delete, MRB_ARGS_REQ(1));
+
 }
 #endif

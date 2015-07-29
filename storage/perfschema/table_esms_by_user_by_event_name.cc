@@ -30,144 +30,6 @@
 
 THR_LOCK table_esms_by_user_by_event_name::m_table_lock;
 
-static const TABLE_FIELD_TYPE field_types[]=
-{
-  {
-    { C_STRING_WITH_LEN("USER") },
-    { C_STRING_WITH_LEN("char(16)") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("EVENT_NAME") },
-    { C_STRING_WITH_LEN("varchar(128)") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("COUNT_STAR") },
-    { C_STRING_WITH_LEN("bigint(20)") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("SUM_TIMER_WAIT") },
-    { C_STRING_WITH_LEN("bigint(20)") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("MIN_TIMER_WAIT") },
-    { C_STRING_WITH_LEN("bigint(20)") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("AVG_TIMER_WAIT") },
-    { C_STRING_WITH_LEN("bigint(20)") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("MAX_TIMER_WAIT") },
-    { C_STRING_WITH_LEN("bigint(20)") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("SUM_LOCK_TIME") },
-    { C_STRING_WITH_LEN("bigint(20)") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("SUM_ERRORS") },
-    { C_STRING_WITH_LEN("bigint(20)") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("SUM_WARNINGS") },
-    { C_STRING_WITH_LEN("bigint(20)") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("SUM_ROWS_AFFECTED") },
-    { C_STRING_WITH_LEN("bigint(20)") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("SUM_ROWS_SENT") },
-    { C_STRING_WITH_LEN("bigint(20)") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("SUM_ROWS_EXAMINED") },
-    { C_STRING_WITH_LEN("bigint(20)") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("SUM_CREATED_TMP_DISK_TABLES") },
-    { C_STRING_WITH_LEN("bigint(20)") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("SUM_CREATED_TMP_TABLES") },
-    { C_STRING_WITH_LEN("bigint(20)") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("SUM_SELECT_FULL_JOIN") },
-    { C_STRING_WITH_LEN("bigint(20)") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("SUM_SELECT_FULL_RANGE_JOIN") },
-    { C_STRING_WITH_LEN("bigint(20)") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("SUM_SELECT_RANGE") },
-    { C_STRING_WITH_LEN("bigint(20)") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("SUM_SELECT_RANGE_CHECK") },
-    { C_STRING_WITH_LEN("bigint(20)") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("SUM_SELECT_SCAN") },
-    { C_STRING_WITH_LEN("bigint(20)") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("SUM_SORT_MERGE_PASSES") },
-    { C_STRING_WITH_LEN("bigint(20)") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("SUM_SORT_RANGE") },
-    { C_STRING_WITH_LEN("bigint(20)") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("SUM_SORT_ROWS") },
-    { C_STRING_WITH_LEN("bigint(20)") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("SUM_SORT_SCAN") },
-    { C_STRING_WITH_LEN("bigint(20)") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("SUM_NO_INDEX_USED") },
-    { C_STRING_WITH_LEN("bigint(20)") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("SUM_NO_GOOD_INDEX_USED") },
-    { C_STRING_WITH_LEN("bigint(20)") },
-    { NULL, 0}
-  }
-};
-
-TABLE_FIELD_DEF
-table_esms_by_user_by_event_name::m_field_def=
-{ 26, field_types, 0, (uint*) 0 };
-
 PFS_engine_table_share
 table_esms_by_user_by_event_name::m_share=
 {
@@ -180,8 +42,33 @@ table_esms_by_user_by_event_name::m_share=
   1000, /* records */
   sizeof(pos_esms_by_user_by_event_name),
   &m_table_lock,
-  &m_field_def,
-  false /* checked */
+  { C_STRING_WITH_LEN("CREATE TABLE events_statements_summary_by_user_by_event_name("
+                      "USER CHAR(16) collate utf8_bin default null,"
+                      "EVENT_NAME VARCHAR(128) not null,"
+                      "COUNT_STAR BIGINT unsigned not null,"
+                      "SUM_TIMER_WAIT BIGINT unsigned not null,"
+                      "MIN_TIMER_WAIT BIGINT unsigned not null,"
+                      "AVG_TIMER_WAIT BIGINT unsigned not null,"
+                      "MAX_TIMER_WAIT BIGINT unsigned not null,"
+                      "SUM_LOCK_TIME BIGINT unsigned not null,"
+                      "SUM_ERRORS BIGINT unsigned not null,"
+                      "SUM_WARNINGS BIGINT unsigned not null,"
+                      "SUM_ROWS_AFFECTED BIGINT unsigned not null,"
+                      "SUM_ROWS_SENT BIGINT unsigned not null,"
+                      "SUM_ROWS_EXAMINED BIGINT unsigned not null,"
+                      "SUM_CREATED_TMP_DISK_TABLES BIGINT unsigned not null,"
+                      "SUM_CREATED_TMP_TABLES BIGINT unsigned not null,"
+                      "SUM_SELECT_FULL_JOIN BIGINT unsigned not null,"
+                      "SUM_SELECT_FULL_RANGE_JOIN BIGINT unsigned not null,"
+                      "SUM_SELECT_RANGE BIGINT unsigned not null,"
+                      "SUM_SELECT_RANGE_CHECK BIGINT unsigned not null,"
+                      "SUM_SELECT_SCAN BIGINT unsigned not null,"
+                      "SUM_SORT_MERGE_PASSES BIGINT unsigned not null,"
+                      "SUM_SORT_RANGE BIGINT unsigned not null,"
+                      "SUM_SORT_ROWS BIGINT unsigned not null,"
+                      "SUM_SORT_SCAN BIGINT unsigned not null,"
+                      "SUM_NO_INDEX_USED BIGINT unsigned not null,"
+                      "SUM_NO_GOOD_INDEX_USED BIGINT unsigned not null)") }
 };
 
 PFS_engine_table*

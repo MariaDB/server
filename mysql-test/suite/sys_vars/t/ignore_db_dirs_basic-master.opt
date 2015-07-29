@@ -1,11 +1,11 @@
---ignore-db-dir=a
---ignore-db-dir=b
---ignore-db-dir=c
---ignore-db-dir=
---ignore-db-dir=d
---ignore-db-dir x
---ignore-db-dir=
---ignore-db-dir=e
---ignore-db-dir=lost+found
---ignore-db-dir=.mysqlgui
---ignore-db-dir=ignored_db
+--ignore-db-dirs=a
+--ignore-db-dirs=b
+--ignore-db-dirs=c
+--ignore-db-dirs=
+--ignore-db-dirs=d
+--ignore-db-dirs x
+--ignore-db-dirs=
+--ignore-db-dirs=e
+--ignore-db-dirs=lost+found
+--ignore-db-dirs=.mysqlgui
+--ignore-db-dirs=ignored_db

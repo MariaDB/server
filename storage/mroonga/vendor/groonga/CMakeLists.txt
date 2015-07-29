@@ -20,6 +20,24 @@ cmake_minimum_required(VERSION 2.6.2)
 set(GRN_PROJECT_NAME "groonga")
 project("${GRN_PROJECT_NAME}")
 
+if("${CMAKE_SOURCE_DIR}" STREQUAL "${CMAKE_CURRENT_SOURCE_DIR}")
+  set(GRN_BUNDLED FALSE)
+else()
+  set(GRN_BUNDLED TRUE)
+endif()
+
+if(MSVC)
+  if(MSVC_VERSION LESS 1800)
+    set(GRN_OLD_MSVC_MESSAGE "Groonga supports only MSVC 2013 or later")
+    if(GRN_BUNDLED)
+      message(STATUS ${GRN_OLD_MSVC_MESSAGE})
+      return()
+    else()
+      message(FATAL_ERROR ${GRN_OLD_MSVC_MESSAGE})
+    endif()
+  endif()
+endif()
+
 if(CMAKE_C_COMPILER_ID STREQUAL "Clang")
   set(CMAKE_COMPILER_IS_CLANGC ON)
 endif()
@@ -119,6 +137,12 @@ set(GRN_RELATIVE_RUBY_SCRIPTS_DIR
 set(GRN_RUBY_SCRIPTS_DIR
   "${CMAKE_INSTALL_PREFIX}/${GRN_RELATIVE_RUBY_SCRIPTS_DIR}")
 
+
+if(CMAKE_COMPILER_IS_GNUCC)
+  set(GRN_C_COMPILE_FLAGS "${GRN_C_COMPILE_FLAGS} -std=gnu99")
+endif()
+
+
 macro(check_cflag flag)
   string(REGEX REPLACE "[-=]" "_" temporary_variable_name ${flag})
   string(TOUPPER "${temporary_variable_name}" temporary_variable_name)
@@ -161,14 +185,15 @@ if(CMAKE_COMPILER_IS_GNUCXX)
   check_cflag("-Wdeclaration-after-statement")
   check_cflag("-Wbad-function-cast")
   check_build_flag("-Wcast-align")
-  check_build_flag("-Wredundant-decls")
+  # check_build_flag("-Wredundant-decls")
   check_build_flag("-Wwrite-strings")
   check_cxxflag("-fexceptions")
   check_cxxflag("-fimplicit-templates")
   check_build_flag("-Wno-clobbered")
 endif()
 
-if(GRN_EMBED)
+if(NOT DEFINED CMAKE_C_COMPILE_OPTIONS_PIC)
+  # For old CMake
   if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_COMPILER_IS_CLANGCXX)
     check_build_flag("-fPIC")
   endif()
@@ -185,6 +210,9 @@ endif()
 add_definitions(
   -DHAVE_CONFIG_H
   )
+if(GRN_EMBED)
+  add_definitions(-DGRN_EMBEDDED)
+endif()
 
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_COMPILER_IS_CLANGCXX)
   set(_GNU_SOURCE TRUE)
@@ -480,47 +508,59 @@ endif()
 set(GRN_WITH_MESSAGE_PACK "auto"
   CACHE STRING "use MessagePack for suggestion")
 if(NOT ${GRN_WITH_MESSAGE_PACK} STREQUAL "no")
-  if("${GRN_WITH_MESSAGE_PACK}" STREQUAL "yes" OR
-      "${GRN_WITH_MESSAGE_PACK}" STREQUAL "auto")
-    set(MESSAGE_PACK_INCLUDE_DIRS "")
-    set(MESSAGE_PACK_LIBRARY_DIRS "")
-  else()
-    set(MESSAGE_PACK_INCLUDE_DIRS "${GRN_WITH_MESSAGE_PACK}/include")
-    set(MESSAGE_PACK_LIBRARY_DIRS "${GRN_WITH_MESSAGE_PACK}/lib")
-  endif()
-  set(CMAKE_REQUIRED_INCLUDES_SAVE ${CMAKE_REQUIRED_INCLUDES})
-  ac_check_lib(msgpack msgpack_version "${MESSAGE_PACK_LIBRARY_DIRS}")
-  set(CMAKE_REQUIRED_INCLUDES ${CMAKE_REQUIRED_INCLUDES_SAVE})
-  if(HAVE_LIBMSGPACK)
-    set(MESSAGE_PACK_LIBRARIES "msgpack")
+  pkg_check_modules(MESSAGE_PACK msgpack)
+  if(MESSAGE_PACK_FOUND)
     set(GRN_WITH_MESSAGE_PACK TRUE)
   else()
-    if(${GRN_WITH_MESSAGE_PACK} STREQUAL "yes")
-      message(FATAL_ERROR "No MessagePack found")
+    if("${GRN_WITH_MESSAGE_PACK}" STREQUAL "yes" OR
+	"${GRN_WITH_MESSAGE_PACK}" STREQUAL "auto")
+      set(MESSAGE_PACK_INCLUDE_DIRS "")
+      set(MESSAGE_PACK_LIBRARY_DIRS "")
+    else()
+      set(MESSAGE_PACK_INCLUDE_DIRS "${GRN_WITH_MESSAGE_PACK}/include")
+      set(MESSAGE_PACK_LIBRARY_DIRS "${GRN_WITH_MESSAGE_PACK}/lib")
     endif()
-    set(GRN_WITH_MESSAGE_PACK FALSE)
+    set(CMAKE_REQUIRED_INCLUDES_SAVE ${CMAKE_REQUIRED_INCLUDES})
+    ac_check_lib(msgpack msgpack_version "${MESSAGE_PACK_LIBRARY_DIRS}")
+    set(CMAKE_REQUIRED_INCLUDES ${CMAKE_REQUIRED_INCLUDES_SAVE})
+    if(HAVE_LIBMSGPACK)
+      set(MESSAGE_PACK_LIBRARIES "msgpack")
+      set(GRN_WITH_MESSAGE_PACK TRUE)
+    else()
+      if(${GRN_WITH_MESSAGE_PACK} STREQUAL "yes")
+	message(FATAL_ERROR "No MessagePack found")
+      endif()
+      set(GRN_WITH_MESSAGE_PACK FALSE)
+    endif()
   endif()
 else()
   set(GRN_WITH_MESSAGE_PACK FALSE)
 endif()
 
+find_program(RUBY NAMES "ruby2.1" "ruby21" "ruby")
+
 option(GRN_WITH_MRUBY "use mruby" OFF)
 if(GRN_WITH_MRUBY)
-  if(CMAKE_VERSION VERSION_LESS "2.8.8")
-    message(FATAL_ERROR
-      "Your CMake (${CMAKE_VERSION}) is old. "
-      "CMake 2.8.8 or later is required for mruby supported build")
-  endif()
   set(MRUBY_INCLUDE_DIRS
     "${CMAKE_CURRENT_SOURCE_DIR}/vendor/mruby-source/include")
-  set(MRUBY_LIBS "$<TARGET_OBJECTS:mruby>")
+  set(MRUBY_LIBS mruby)
 else()
   set(MRUBY_INCLUDE_DIRS "")
   set(MRUBY_LIBS "")
 endif()
 
-if(NOT GRN_EMBED)
-  add_subdirectory(vendor)
+# TODO: Support using system Onigmo instead of bundled Onigmo.
+# set(GRN_WITH_ONIGMO ON)
+# set(ONIGMO_INCLUDE_DIRS "${CMAKE_CURRENT_SOURCE_DIR}/vendor/onigmo-source")
+# set(ONIGMO_LIBS onigmo)
+
+# TODO: It's for Onigmo static link case. If we support system Onigmo,
+# we need to remove it and add -DEXPORT to Onigmo build.
+add_definitions(-DONIG_EXTERN=extern)
+
+add_subdirectory(vendor)
+if(GRN_EMBED)
+  add_subdirectory(plugins)
 endif()
 add_subdirectory(lib)
 if(NOT GRN_EMBED)
@@ -532,7 +572,6 @@ endif()
 
 configure_file(config.h.cmake ${CMAKE_CURRENT_BINARY_DIR}/config.h)
 
-set(RUBY "ruby") # TODO: support customization
 set(GROONGA "${CMAKE_CURRENT_BINARY_DIR}/src/groonga")
 set(GROONGA_SUGGEST_CREATE_DATASET
   "${CMAKE_CURRENT_BINARY_DIR}/src/suggest/groonga-suggest-create-dataset")

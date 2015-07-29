@@ -507,6 +507,17 @@ select * from t1 where c1 = '=> dž';
 select * from t1 where concat(c1) = '=> dž';
 drop table t1;
 
+
+--echo #
+--echo # MDEV-7649 wrong result when comparing utf8 column with an invalid literal
+--echo #
+
+SET NAMES utf8 COLLATE utf8_unicode_ci;
+--let ENGINE=MyISAM
+--source include/ctype_utf8_ilseq.inc
+--let ENGINE=HEAP
+--source include/ctype_utf8_ilseq.inc
+
 --echo #
 --echo # End of 5.5 tests
 --echo #
@@ -608,4 +619,18 @@ DROP TABLE t1;
 
 --echo #
 --echo # End of MariaDB-10.0 tests
+--echo #
+
+--echo #
+--echo # Start of MariaDB-10.1 tests
+--echo #
+
+--echo #
+--echo # MDEV-6973 XOR aggregates argument collations
+--echo #
+SELECT '10' COLLATE utf8_general_ci XOR '20' COLLATE utf8_unicode_ci;
+
+
+--echo #
+--echo # End of MariaDB-10.1 tests
 --echo #

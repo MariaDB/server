@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2010, 2011, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2013, SkySQL Ab. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -44,6 +45,8 @@ pfs_os_file_create_simple_func(
 	ulint		access_type,/*!< in: OS_FILE_READ_ONLY or
 				OS_FILE_READ_WRITE */
 	ibool*		success,/*!< out: TRUE if succeed, FALSE if error */
+	ulint		atomic_writes,/*!< in: atomic writes table option
+				value */
 	const char*	src_file,/*!< in: file name where func invoked */
 	ulint		src_line)/*!< in: line where the func invoked */
 {
@@ -59,7 +62,7 @@ pfs_os_file_create_simple_func(
 				     name, src_file, src_line);
 
 	file = os_file_create_simple_func(name, create_mode,
-					  access_type, success);
+					  access_type, success, atomic_writes);
 
 	/* Regsiter the returning "file" value with the system */
 	register_pfs_file_open_end(locker, file);
@@ -88,6 +91,8 @@ pfs_os_file_create_simple_no_error_handling_func(
 				OS_FILE_READ_ALLOW_DELETE; the last option is
 				used by a backup program reading the file */
 	ibool*		success,/*!< out: TRUE if succeed, FALSE if error */
+	ulint		atomic_writes,/*!< in: atomic writes table option
+				      value */
 	const char*	src_file,/*!< in: file name where func invoked */
 	ulint		src_line)/*!< in: line where the func invoked */
 {
@@ -103,7 +108,7 @@ pfs_os_file_create_simple_no_error_handling_func(
 				     name, src_file, src_line);
 
 	file = os_file_create_simple_no_error_handling_func(
-		name, create_mode, access_type, success);
+			name, create_mode, access_type, success, atomic_writes);
 
 	register_pfs_file_open_end(locker, file);
 
@@ -134,6 +139,8 @@ pfs_os_file_create_func(
 				function source code for the exact rules */
 	ulint		type,	/*!< in: OS_DATA_FILE or OS_LOG_FILE */
 	ibool*		success,/*!< out: TRUE if succeed, FALSE if error */
+	ulint		atomic_writes, /*!< in: atomic writes table option
+				       value */
 	const char*	src_file,/*!< in: file name where func invoked */
 	ulint		src_line)/*!< in: line where the func invoked */
 {
@@ -148,7 +155,8 @@ pfs_os_file_create_func(
 					: PSI_FILE_OPEN),
 				     name, src_file, src_line);
 
-	file = os_file_create_func(name, create_mode, purpose, type, success);
+	file = os_file_create_func(name, create_mode, purpose, type,
+				   success, atomic_writes);
 
 	register_pfs_file_open_end(locker, file);
 
@@ -212,6 +220,11 @@ pfs_os_aio_func(
                                 OS_AIO_SYNC */
 	ulint		space_id,
 	trx_t*		trx,
+	ulint*		write_size,/*!< in/out: Actual write size initialized
+			       after fist successfull trim
+			       operation for this page and if
+			       initialized we do not trim again if
+			       actual page size does not decrease. */
 	const char*	src_file,/*!< in: file name where func invoked */
 	ulint		src_line)/*!< in: line where the func invoked */
 {
@@ -227,7 +240,8 @@ pfs_os_aio_func(
 				   src_file, src_line);
 
 	result = os_aio_func(type, mode, name, file, buf, offset,
-			     n, message1, message2, space_id, trx);
+			     n, message1, message2, space_id, trx,
+			     write_size);
 
 	register_pfs_file_io_end(locker, n);
 

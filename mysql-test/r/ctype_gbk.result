@@ -464,6 +464,8 @@ DROP TABLE t1;
 select hex(convert(_gbk 0xA14041 using ucs2));
 hex(convert(_gbk 0xA14041 using ucs2))
 003F0041
+Warnings:
+Warning	1976	Cannot convert 'gbk' character 0xA140 to 'ucs2'
 create table t1 (c1 text not null, c2 text not null) character set gbk;
 alter table t1 change c1 c1 mediumtext  character set gbk not null;
 show create table t1;
@@ -573,7 +575,7 @@ Warning	1366	Incorrect string value: '\x80\' for column 'a' at row 61
 Warning	1366	Incorrect string value: '\x80]' for column 'a' at row 62
 Warning	1366	Incorrect string value: '\x80^' for column 'a' at row 63
 Warning	1366	Incorrect string value: '\x80_' for column 'a' at row 64
-SELECT COUNT(*) FROM t1 WHERE a<>'';
+SELECT COUNT(*) FROM t1 WHERE a<>'?';
 COUNT(*)
 23940
 SELECT code, hex(upper(a)), hex(lower(a)),a, upper(a), lower(a) FROM t1 WHERE hex(a)<>hex(upper(a)) OR hex(a)<>hex(lower(a));
@@ -770,6 +772,71 @@ HEX(LOWER(CAST(a AS CHAR CHARACTER SET utf8))) ORDER BY code;
 code	a
 A2FB	Ⅺ
 A2FC	Ⅻ
+Warnings:
+Warning	1976	Cannot convert 'gbk' character 0xA140 to 'utf8'
+Warning	1976	Cannot convert 'gbk' character 0xA140 to 'utf8'
+Warning	1976	Cannot convert 'gbk' character 0xA141 to 'utf8'
+Warning	1976	Cannot convert 'gbk' character 0xA141 to 'utf8'
+Warning	1976	Cannot convert 'gbk' character 0xA142 to 'utf8'
+Warning	1976	Cannot convert 'gbk' character 0xA142 to 'utf8'
+Warning	1976	Cannot convert 'gbk' character 0xA143 to 'utf8'
+Warning	1976	Cannot convert 'gbk' character 0xA143 to 'utf8'
+Warning	1976	Cannot convert 'gbk' character 0xA144 to 'utf8'
+Warning	1976	Cannot convert 'gbk' character 0xA144 to 'utf8'
+Warning	1976	Cannot convert 'gbk' character 0xA145 to 'utf8'
+Warning	1976	Cannot convert 'gbk' character 0xA145 to 'utf8'
+Warning	1976	Cannot convert 'gbk' character 0xA146 to 'utf8'
+Warning	1976	Cannot convert 'gbk' character 0xA146 to 'utf8'
+Warning	1976	Cannot convert 'gbk' character 0xA147 to 'utf8'
+Warning	1976	Cannot convert 'gbk' character 0xA147 to 'utf8'
+Warning	1976	Cannot convert 'gbk' character 0xA148 to 'utf8'
+Warning	1976	Cannot convert 'gbk' character 0xA148 to 'utf8'
+Warning	1976	Cannot convert 'gbk' character 0xA149 to 'utf8'
+Warning	1976	Cannot convert 'gbk' character 0xA149 to 'utf8'
+Warning	1976	Cannot convert 'gbk' character 0xA14A to 'utf8'
+Warning	1976	Cannot convert 'gbk' character 0xA14A to 'utf8'
+Warning	1976	Cannot convert 'gbk' character 0xA14B to 'utf8'
+Warning	1976	Cannot convert 'gbk' character 0xA14B to 'utf8'
+Warning	1976	Cannot convert 'gbk' character 0xA14C to 'utf8'
+Warning	1976	Cannot convert 'gbk' character 0xA14C to 'utf8'
+Warning	1976	Cannot convert 'gbk' character 0xA14D to 'utf8'
+Warning	1976	Cannot convert 'gbk' character 0xA14D to 'utf8'
+Warning	1976	Cannot convert 'gbk' character 0xA14E to 'utf8'
+Warning	1976	Cannot convert 'gbk' character 0xA14E to 'utf8'
+Warning	1976	Cannot convert 'gbk' character 0xA14F to 'utf8'
+Warning	1976	Cannot convert 'gbk' character 0xA14F to 'utf8'
+Warning	1976	Cannot convert 'gbk' character 0xA150 to 'utf8'
+Warning	1976	Cannot convert 'gbk' character 0xA150 to 'utf8'
+Warning	1976	Cannot convert 'gbk' character 0xA151 to 'utf8'
+Warning	1976	Cannot convert 'gbk' character 0xA151 to 'utf8'
+Warning	1976	Cannot convert 'gbk' character 0xA152 to 'utf8'
+Warning	1976	Cannot convert 'gbk' character 0xA152 to 'utf8'
+Warning	1976	Cannot convert 'gbk' character 0xA153 to 'utf8'
+Warning	1976	Cannot convert 'gbk' character 0xA153 to 'utf8'
+Warning	1976	Cannot convert 'gbk' character 0xA154 to 'utf8'
+Warning	1976	Cannot convert 'gbk' character 0xA154 to 'utf8'
+Warning	1976	Cannot convert 'gbk' character 0xA155 to 'utf8'
+Warning	1976	Cannot convert 'gbk' character 0xA155 to 'utf8'
+Warning	1976	Cannot convert 'gbk' character 0xA156 to 'utf8'
+Warning	1976	Cannot convert 'gbk' character 0xA156 to 'utf8'
+Warning	1976	Cannot convert 'gbk' character 0xA157 to 'utf8'
+Warning	1976	Cannot convert 'gbk' character 0xA157 to 'utf8'
+Warning	1976	Cannot convert 'gbk' character 0xA158 to 'utf8'
+Warning	1976	Cannot convert 'gbk' character 0xA158 to 'utf8'
+Warning	1976	Cannot convert 'gbk' character 0xA159 to 'utf8'
+Warning	1976	Cannot convert 'gbk' character 0xA159 to 'utf8'
+Warning	1976	Cannot convert 'gbk' character 0xA15A to 'utf8'
+Warning	1976	Cannot convert 'gbk' character 0xA15A to 'utf8'
+Warning	1976	Cannot convert 'gbk' character 0xA15B to 'utf8'
+Warning	1976	Cannot convert 'gbk' character 0xA15B to 'utf8'
+Warning	1976	Cannot convert 'gbk' character 0xA15C to 'utf8'
+Warning	1976	Cannot convert 'gbk' character 0xA15C to 'utf8'
+Warning	1976	Cannot convert 'gbk' character 0xA15D to 'utf8'
+Warning	1976	Cannot convert 'gbk' character 0xA15D to 'utf8'
+Warning	1976	Cannot convert 'gbk' character 0xA15E to 'utf8'
+Warning	1976	Cannot convert 'gbk' character 0xA15E to 'utf8'
+Warning	1976	Cannot convert 'gbk' character 0xA15F to 'utf8'
+Warning	1976	Cannot convert 'gbk' character 0xA15F to 'utf8'
 SELECT * FROM t1
 WHERE HEX(CAST(UPPER(a) AS CHAR CHARACTER SET utf8)) <>
 HEX(UPPER(CAST(a AS CHAR CHARACTER SET utf8))) ORDER BY code;
@@ -802,6 +869,71 @@ A8B9	ü
 A8BA	ê
 A8BD	ń
 A8BE	ň
+Warnings:
+Warning	1976	Cannot convert 'gbk' character 0xA140 to 'utf8'
+Warning	1976	Cannot convert 'gbk' character 0xA140 to 'utf8'
+Warning	1976	Cannot convert 'gbk' character 0xA141 to 'utf8'
+Warning	1976	Cannot convert 'gbk' character 0xA141 to 'utf8'
+Warning	1976	Cannot convert 'gbk' character 0xA142 to 'utf8'
+Warning	1976	Cannot convert 'gbk' character 0xA142 to 'utf8'
+Warning	1976	Cannot convert 'gbk' character 0xA143 to 'utf8'
+Warning	1976	Cannot convert 'gbk' character 0xA143 to 'utf8'
+Warning	1976	Cannot convert 'gbk' character 0xA144 to 'utf8'
+Warning	1976	Cannot convert 'gbk' character 0xA144 to 'utf8'
+Warning	1976	Cannot convert 'gbk' character 0xA145 to 'utf8'
+Warning	1976	Cannot convert 'gbk' character 0xA145 to 'utf8'
+Warning	1976	Cannot convert 'gbk' character 0xA146 to 'utf8'
+Warning	1976	Cannot convert 'gbk' character 0xA146 to 'utf8'
+Warning	1976	Cannot convert 'gbk' character 0xA147 to 'utf8'
+Warning	1976	Cannot convert 'gbk' character 0xA147 to 'utf8'
+Warning	1976	Cannot convert 'gbk' character 0xA148 to 'utf8'
+Warning	1976	Cannot convert 'gbk' character 0xA148 to 'utf8'
+Warning	1976	Cannot convert 'gbk' character 0xA149 to 'utf8'
+Warning	1976	Cannot convert 'gbk' character 0xA149 to 'utf8'
+Warning	1976	Cannot convert 'gbk' character 0xA14A to 'utf8'
+Warning	1976	Cannot convert 'gbk' character 0xA14A to 'utf8'
+Warning	1976	Cannot convert 'gbk' character 0xA14B to 'utf8'
+Warning	1976	Cannot convert 'gbk' character 0xA14B to 'utf8'
+Warning	1976	Cannot convert 'gbk' character 0xA14C to 'utf8'
+Warning	1976	Cannot convert 'gbk' character 0xA14C to 'utf8'
+Warning	1976	Cannot convert 'gbk' character 0xA14D to 'utf8'
+Warning	1976	Cannot convert 'gbk' character 0xA14D to 'utf8'
+Warning	1976	Cannot convert 'gbk' character 0xA14E to 'utf8'
+Warning	1976	Cannot convert 'gbk' character 0xA14E to 'utf8'
+Warning	1976	Cannot convert 'gbk' character 0xA14F to 'utf8'
+Warning	1976	Cannot convert 'gbk' character 0xA14F to 'utf8'
+Warning	1976	Cannot convert 'gbk' character 0xA150 to 'utf8'
+Warning	1976	Cannot convert 'gbk' character 0xA150 to 'utf8'
+Warning	1976	Cannot convert 'gbk' character 0xA151 to 'utf8'
+Warning	1976	Cannot convert 'gbk' character 0xA151 to 'utf8'
+Warning	1976	Cannot convert 'gbk' character 0xA152 to 'utf8'
+Warning	1976	Cannot convert 'gbk' character 0xA152 to 'utf8'
+Warning	1976	Cannot convert 'gbk' character 0xA153 to 'utf8'
+Warning	1976	Cannot convert 'gbk' character 0xA153 to 'utf8'
+Warning	1976	Cannot convert 'gbk' character 0xA154 to 'utf8'
+Warning	1976	Cannot convert 'gbk' character 0xA154 to 'utf8'
+Warning	1976	Cannot convert 'gbk' character 0xA155 to 'utf8'
+Warning	1976	Cannot convert 'gbk' character 0xA155 to 'utf8'
+Warning	1976	Cannot convert 'gbk' character 0xA156 to 'utf8'
+Warning	1976	Cannot convert 'gbk' character 0xA156 to 'utf8'
+Warning	1976	Cannot convert 'gbk' character 0xA157 to 'utf8'
+Warning	1976	Cannot convert 'gbk' character 0xA157 to 'utf8'
+Warning	1976	Cannot convert 'gbk' character 0xA158 to 'utf8'
+Warning	1976	Cannot convert 'gbk' character 0xA158 to 'utf8'
+Warning	1976	Cannot convert 'gbk' character 0xA159 to 'utf8'
+Warning	1976	Cannot convert 'gbk' character 0xA159 to 'utf8'
+Warning	1976	Cannot convert 'gbk' character 0xA15A to 'utf8'
+Warning	1976	Cannot convert 'gbk' character 0xA15A to 'utf8'
+Warning	1976	Cannot convert 'gbk' character 0xA15B to 'utf8'
+Warning	1976	Cannot convert 'gbk' character 0xA15B to 'utf8'
+Warning	1976	Cannot convert 'gbk' character 0xA15C to 'utf8'
+Warning	1976	Cannot convert 'gbk' character 0xA15C to 'utf8'
+Warning	1976	Cannot convert 'gbk' character 0xA15D to 'utf8'
+Warning	1976	Cannot convert 'gbk' character 0xA15D to 'utf8'
+Warning	1976	Cannot convert 'gbk' character 0xA15E to 'utf8'
+Warning	1976	Cannot convert 'gbk' character 0xA15E to 'utf8'
+Warning	1976	Cannot convert 'gbk' character 0xA15F to 'utf8'
+Warning	1976	Cannot convert 'gbk' character 0xA15F to 'utf8'
 DROP TABLE t1;
 #
 # End of 5.5 tests
@@ -4945,4 +5077,828 @@ DROP TABLE t1;
 # Start of ctype_E05C.inc
 #
 # End of 10.0 tests
+#
+#
+# Start of 10.1 tests
+#
+#
+# MDEV-6566 Different INSERT behaviour on bad bytes with and without character set conversion
+#
+CREATE TABLE t1 (
+id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+b VARBINARY(16),
+type SET('ascii','bad','head','tail','mb2','unassigned')
+);
+INSERT INTO t1 (b, type) VALUES (0x40,   'ascii,tail');
+INSERT INTO t1 (b, type) VALUES (0x80,   'tail');
+INSERT INTO t1 (b, type) VALUES (0x81,   'head,tail');
+INSERT INTO t1 (b, type) VALUES (0xFF,   'bad');
+INSERT INTO t1 (b, type) VALUES (0xA140, 'mb2,unassigned');
+INSERT INTO t1 (b, type) VALUES (0xA1A3, 'mb2');
+INSERT INTO t1 (b, type) VALUES (0xFE40, 'mb2');
+CREATE TABLE t2 AS SELECT
+CONCAT(t1.b,t2.b) AS b,
+t1.type AS type1,
+t2.type AS type2,
+CONCAT('[',t1.type,'][',t2.type,']') AS comment
+FROM t1, t1 t2;
+CREATE TABLE t3
+(
+b VARBINARY(16),
+c VARCHAR(16) CHARACTER SET gbk,
+comment VARCHAR(128)
+);
+#
+# A combination of two valid characters, should give no warnings
+# 
+INSERT INTO t3 (b,c,comment) SELECT b,b,comment FROM t2
+WHERE
+(FIND_IN_SET('ascii',type1) OR FIND_IN_SET('mb2',type1)) AND
+(FIND_IN_SET('ascii',type2) OR FIND_IN_SET('mb2',type2))
+ORDER BY b;
+SELECT COUNT(*) FROM t3;
+COUNT(*)
+16
+SELECT HEX(c),comment FROM t3 WHERE b=c ORDER BY b;
+HEX(c)	comment
+4040	[ascii,tail][ascii,tail]
+40A140	[ascii,tail][mb2,unassigned]
+40A1A3	[ascii,tail][mb2]
+40FE40	[ascii,tail][mb2]
+A14040	[mb2,unassigned][ascii,tail]
+A140A140	[mb2,unassigned][mb2,unassigned]
+A140A1A3	[mb2,unassigned][mb2]
+A140FE40	[mb2,unassigned][mb2]
+A1A340	[mb2][ascii,tail]
+A1A3A140	[mb2][mb2,unassigned]
+A1A3A1A3	[mb2][mb2]
+A1A3FE40	[mb2][mb2]
+FE4040	[mb2][ascii,tail]
+FE40A140	[mb2][mb2,unassigned]
+FE40A1A3	[mb2][mb2]
+FE40FE40	[mb2][mb2]
+SELECT HEX(c),HEX(b),comment FROM t3 WHERE b<>c ORDER BY b;
+HEX(c)	HEX(b)	comment
+DELETE FROM t2 WHERE b IN (SELECT b FROM t3);
+DELETE FROM t3;
+#
+# Sequences that start with a tail or a bad byte,
+# or end with a bad byte, all should be fixed.
+#
+INSERT INTO t3 (b,c,comment) SELECT b,b,comment FROM t2
+WHERE type1='tail' OR type1='bad' OR type2='bad'
+ORDER BY b;
+Warnings:
+Warning	1366	Incorrect string value: '\xFF' for column 'c' at row 1
+Warning	1366	Incorrect string value: '\x80@' for column 'c' at row 2
+Warning	1366	Incorrect string value: '\x80\x80' for column 'c' at row 3
+Warning	1366	Incorrect string value: '\x80\x81' for column 'c' at row 4
+Warning	1366	Incorrect string value: '\x80\xA1@' for column 'c' at row 5
+Warning	1366	Incorrect string value: '\x80\xA1\xA3' for column 'c' at row 6
+Warning	1366	Incorrect string value: '\x80\xFE@' for column 'c' at row 7
+Warning	1366	Incorrect string value: '\x80\xFF' for column 'c' at row 8
+Warning	1366	Incorrect string value: '\x81\xFF' for column 'c' at row 9
+Warning	1366	Incorrect string value: '\xFF' for column 'c' at row 10
+Warning	1366	Incorrect string value: '\xFF' for column 'c' at row 11
+Warning	1366	Incorrect string value: '\xFF' for column 'c' at row 12
+Warning	1366	Incorrect string value: '\xFF@' for column 'c' at row 13
+Warning	1366	Incorrect string value: '\xFF\x80' for column 'c' at row 14
+Warning	1366	Incorrect string value: '\xFF\x81' for column 'c' at row 15
+Warning	1366	Incorrect string value: '\xFF\xA1@' for column 'c' at row 16
+Warning	1366	Incorrect string value: '\xFF\xA1\xA3' for column 'c' at row 17
+Warning	1366	Incorrect string value: '\xFF\xFE@' for column 'c' at row 18
+Warning	1366	Incorrect string value: '\xFF\xFF' for column 'c' at row 19
+SELECT COUNT(*) FROM t3;
+COUNT(*)
+19
+SELECT HEX(c),comment FROM t3 WHERE b=c ORDER BY b;
+HEX(c)	comment
+SELECT HEX(c),HEX(b),comment FROM t3 WHERE b<>c ORDER BY b;
+HEX(c)	HEX(b)	comment
+403F	40FF	[ascii,tail][bad]
+3F40	8040	[tail][ascii,tail]
+3F3F	8080	[tail][tail]
+3F3F	8081	[tail][head,tail]
+3FA140	80A140	[tail][mb2,unassigned]
+3FA1A3	80A1A3	[tail][mb2]
+3FFE40	80FE40	[tail][mb2]
+3F3F	80FF	[tail][bad]
+3F3F	81FF	[head,tail][bad]
+A1403F	A140FF	[mb2,unassigned][bad]
+A1A33F	A1A3FF	[mb2][bad]
+FE403F	FE40FF	[mb2][bad]
+3F40	FF40	[bad][ascii,tail]
+3F3F	FF80	[bad][tail]
+3F3F	FF81	[bad][head,tail]
+3FA140	FFA140	[bad][mb2,unassigned]
+3FA1A3	FFA1A3	[bad][mb2]
+3FFE40	FFFE40	[bad][mb2]
+3F3F	FFFF	[bad][bad]
+DELETE FROM t2 WHERE b IN (SELECT b FROM t3);
+DELETE FROM t3;
+#
+# Sequences that start with an ASCII or an MB2 character,
+# followed by a non-ASCII tail, all should be fixed.
+#
+INSERT INTO t3 (b,c,comment) SELECT b,b,comment FROM t2
+WHERE (FIND_IN_SET('mb2',type1) OR FIND_IN_SET('ascii',type1))
+AND (FIND_IN_SET('tail',type2) AND NOT FIND_IN_SET('ascii',type2))
+ORDER BY b;
+Warnings:
+Warning	1366	Incorrect string value: '\x80' for column 'c' at row 1
+Warning	1366	Incorrect string value: '\x81' for column 'c' at row 2
+Warning	1366	Incorrect string value: '\x80' for column 'c' at row 3
+Warning	1366	Incorrect string value: '\x81' for column 'c' at row 4
+Warning	1366	Incorrect string value: '\x80' for column 'c' at row 5
+Warning	1366	Incorrect string value: '\x81' for column 'c' at row 6
+Warning	1366	Incorrect string value: '\x80' for column 'c' at row 7
+Warning	1366	Incorrect string value: '\x81' for column 'c' at row 8
+SELECT COUNT(*) FROM t3;
+COUNT(*)
+8
+SELECT HEX(c),comment FROM t3 WHERE b=c ORDER BY b;
+HEX(c)	comment
+SELECT HEX(c),HEX(b),comment FROM t3 WHERE b<>c ORDER BY b;
+HEX(c)	HEX(b)	comment
+403F	4080	[ascii,tail][tail]
+403F	4081	[ascii,tail][head,tail]
+A1403F	A14080	[mb2,unassigned][tail]
+A1403F	A14081	[mb2,unassigned][head,tail]
+A1A33F	A1A380	[mb2][tail]
+A1A33F	A1A381	[mb2][head,tail]
+FE403F	FE4080	[mb2][tail]
+FE403F	FE4081	[mb2][head,tail]
+DELETE FROM t2 WHERE b IN (SELECT b FROM t3);
+DELETE FROM t3;
+#
+# Other sequences
+#
+INSERT INTO t3 (b,c,comment) SELECT b,b,comment FROM t2 ORDER BY b;
+Warnings:
+Warning	1366	Incorrect string value: '\xA3' for column 'c' at row 5
+SELECT COUNT(*) FROM t3;
+COUNT(*)
+6
+SELECT HEX(c),comment FROM t3 WHERE b=c ORDER BY b;
+HEX(c)	comment
+8140	[head,tail][ascii,tail]
+8180	[head,tail][tail]
+8181	[head,tail][head,tail]
+81A140	[head,tail][mb2,unassigned]
+81FE40	[head,tail][mb2]
+SELECT HEX(c),HEX(b),comment FROM t3 WHERE b<>c ORDER BY b;
+HEX(c)	HEX(b)	comment
+81A13F	81A1A3	[head,tail][mb2]
+DELETE FROM t3;
+DROP TABLE t3;
+DROP TABLE t2;
+CREATE TABLE t2 AS SELECT
+CONCAT(t1.b,t2.b,t3.b) AS b,
+t1.type AS type1,
+t2.type AS type2,
+t3.type AS type3,
+CONCAT('[',t1.type,'][',t2.type,'][',t3.type,']') AS comment
+FROM t1, t1 t2,t1 t3;
+SELECT COUNT(*) FROM t2;
+COUNT(*)
+343
+CREATE TABLE t3
+(
+b VARBINARY(16),
+c VARCHAR(16) CHARACTER SET gbk,
+comment VARCHAR(128)
+);
+#
+# A combination of three valid characters, should give no warnings
+# 
+INSERT INTO t3 (b,c,comment) SELECT b,b,comment FROM t2
+WHERE
+(FIND_IN_SET('ascii',type1) OR FIND_IN_SET('mb2',type1)) AND
+(FIND_IN_SET('ascii',type2) OR FIND_IN_SET('mb2',type2)) AND
+(FIND_IN_SET('ascii',type3) OR FIND_IN_SET('mb2',type3)) 
+ORDER BY b;
+SELECT COUNT(*) FROM t3;
+COUNT(*)
+64
+SELECT HEX(c),comment FROM t3 WHERE b=c ORDER BY b;
+HEX(c)	comment
+404040	[ascii,tail][ascii,tail][ascii,tail]
+4040A140	[ascii,tail][ascii,tail][mb2,unassigned]
+4040A1A3	[ascii,tail][ascii,tail][mb2]
+4040FE40	[ascii,tail][ascii,tail][mb2]
+40A14040	[ascii,tail][mb2,unassigned][ascii,tail]
+40A140A140	[ascii,tail][mb2,unassigned][mb2,unassigned]
+40A140A1A3	[ascii,tail][mb2,unassigned][mb2]
+40A140FE40	[ascii,tail][mb2,unassigned][mb2]
+40A1A340	[ascii,tail][mb2][ascii,tail]
+40A1A3A140	[ascii,tail][mb2][mb2,unassigned]
+40A1A3A1A3	[ascii,tail][mb2][mb2]
+40A1A3FE40	[ascii,tail][mb2][mb2]
+40FE4040	[ascii,tail][mb2][ascii,tail]
+40FE40A140	[ascii,tail][mb2][mb2,unassigned]
+40FE40A1A3	[ascii,tail][mb2][mb2]
+40FE40FE40	[ascii,tail][mb2][mb2]
+A1404040	[mb2,unassigned][ascii,tail][ascii,tail]
+A14040A140	[mb2,unassigned][ascii,tail][mb2,unassigned]
+A14040A1A3	[mb2,unassigned][ascii,tail][mb2]
+A14040FE40	[mb2,unassigned][ascii,tail][mb2]
+A140A14040	[mb2,unassigned][mb2,unassigned][ascii,tail]
+A140A140A140	[mb2,unassigned][mb2,unassigned][mb2,unassigned]
+A140A140A1A3	[mb2,unassigned][mb2,unassigned][mb2]
+A140A140FE40	[mb2,unassigned][mb2,unassigned][mb2]
+A140A1A340	[mb2,unassigned][mb2][ascii,tail]
+A140A1A3A140	[mb2,unassigned][mb2][mb2,unassigned]
+A140A1A3A1A3	[mb2,unassigned][mb2][mb2]
+A140A1A3FE40	[mb2,unassigned][mb2][mb2]
+A140FE4040	[mb2,unassigned][mb2][ascii,tail]
+A140FE40A140	[mb2,unassigned][mb2][mb2,unassigned]
+A140FE40A1A3	[mb2,unassigned][mb2][mb2]
+A140FE40FE40	[mb2,unassigned][mb2][mb2]
+A1A34040	[mb2][ascii,tail][ascii,tail]
+A1A340A140	[mb2][ascii,tail][mb2,unassigned]
+A1A340A1A3	[mb2][ascii,tail][mb2]
+A1A340FE40	[mb2][ascii,tail][mb2]
+A1A3A14040	[mb2][mb2,unassigned][ascii,tail]
+A1A3A140A140	[mb2][mb2,unassigned][mb2,unassigned]
+A1A3A140A1A3	[mb2][mb2,unassigned][mb2]
+A1A3A140FE40	[mb2][mb2,unassigned][mb2]
+A1A3A1A340	[mb2][mb2][ascii,tail]
+A1A3A1A3A140	[mb2][mb2][mb2,unassigned]
+A1A3A1A3A1A3	[mb2][mb2][mb2]
+A1A3A1A3FE40	[mb2][mb2][mb2]
+A1A3FE4040	[mb2][mb2][ascii,tail]
+A1A3FE40A140	[mb2][mb2][mb2,unassigned]
+A1A3FE40A1A3	[mb2][mb2][mb2]
+A1A3FE40FE40	[mb2][mb2][mb2]
+FE404040	[mb2][ascii,tail][ascii,tail]
+FE4040A140	[mb2][ascii,tail][mb2,unassigned]
+FE4040A1A3	[mb2][ascii,tail][mb2]
+FE4040FE40	[mb2][ascii,tail][mb2]
+FE40A14040	[mb2][mb2,unassigned][ascii,tail]
+FE40A140A140	[mb2][mb2,unassigned][mb2,unassigned]
+FE40A140A1A3	[mb2][mb2,unassigned][mb2]
+FE40A140FE40	[mb2][mb2,unassigned][mb2]
+FE40A1A340	[mb2][mb2][ascii,tail]
+FE40A1A3A140	[mb2][mb2][mb2,unassigned]
+FE40A1A3A1A3	[mb2][mb2][mb2]
+FE40A1A3FE40	[mb2][mb2][mb2]
+FE40FE4040	[mb2][mb2][ascii,tail]
+FE40FE40A140	[mb2][mb2][mb2,unassigned]
+FE40FE40A1A3	[mb2][mb2][mb2]
+FE40FE40FE40	[mb2][mb2][mb2]
+SELECT HEX(c),HEX(b),comment FROM t3 WHERE b<>c ORDER BY b;
+HEX(c)	HEX(b)	comment
+DELETE FROM t2 WHERE b IN (SELECT b FROM t3);
+DELETE FROM t3;
+#
+# Sequences that start with a tail or a bad byte,
+# or have a bad byte, all should be fixed.
+#
+INSERT INTO t3 (b,c,comment) SELECT b,b,comment FROM t2
+WHERE type1='tail' OR type1='bad' OR type2='bad' OR type3='bad'
+ORDER BY b;
+Warnings:
+Warning	1366	Incorrect string value: '\xFF' for column 'c' at row 1
+Warning	1366	Incorrect string value: '\x80\xFF' for column 'c' at row 2
+Warning	1366	Incorrect string value: '\x81\xFF' for column 'c' at row 3
+Warning	1366	Incorrect string value: '\xFF' for column 'c' at row 4
+Warning	1366	Incorrect string value: '\xFF' for column 'c' at row 5
+Warning	1366	Incorrect string value: '\xFF' for column 'c' at row 6
+Warning	1366	Incorrect string value: '\xFF@' for column 'c' at row 7
+Warning	1366	Incorrect string value: '\xFF\x80' for column 'c' at row 8
+Warning	1366	Incorrect string value: '\xFF\x81' for column 'c' at row 9
+Warning	1366	Incorrect string value: '\xFF\xA1@' for column 'c' at row 10
+Warning	1366	Incorrect string value: '\xFF\xA1\xA3' for column 'c' at row 11
+Warning	1366	Incorrect string value: '\xFF\xFE@' for column 'c' at row 12
+Warning	1366	Incorrect string value: '\xFF\xFF' for column 'c' at row 13
+Warning	1366	Incorrect string value: '\x80@@' for column 'c' at row 14
+Warning	1366	Incorrect string value: '\x80@\x80' for column 'c' at row 15
+Warning	1366	Incorrect string value: '\x80@\x81' for column 'c' at row 16
+Warning	1366	Incorrect string value: '\x80@\xA1@' for column 'c' at row 17
+Warning	1366	Incorrect string value: '\x80@\xA1\xA3' for column 'c' at row 18
+Warning	1366	Incorrect string value: '\x80@\xFE@' for column 'c' at row 19
+Warning	1366	Incorrect string value: '\x80@\xFF' for column 'c' at row 20
+Warning	1366	Incorrect string value: '\x80\x80@' for column 'c' at row 21
+Warning	1366	Incorrect string value: '\x80\x80\x80' for column 'c' at row 22
+Warning	1366	Incorrect string value: '\x80\x80\x81' for column 'c' at row 23
+Warning	1366	Incorrect string value: '\x80\x80\xA1@' for column 'c' at row 24
+Warning	1366	Incorrect string value: '\x80\x80\xA1\xA3' for column 'c' at row 25
+Warning	1366	Incorrect string value: '\x80\x80\xFE@' for column 'c' at row 26
+Warning	1366	Incorrect string value: '\x80\x80\xFF' for column 'c' at row 27
+Warning	1366	Incorrect string value: '\x80\x81@' for column 'c' at row 28
+Warning	1366	Incorrect string value: '\x80\x81\x80' for column 'c' at row 29
+Warning	1366	Incorrect string value: '\x80\x81\x81' for column 'c' at row 30
+Warning	1366	Incorrect string value: '\x80\x81\xA1@' for column 'c' at row 31
+Warning	1366	Incorrect string value: '\x80\x81\xA1\xA3' for column 'c' at row 32
+Warning	1366	Incorrect string value: '\x80\x81\xFE@' for column 'c' at row 33
+Warning	1366	Incorrect string value: '\x80\x81\xFF' for column 'c' at row 34
+Warning	1366	Incorrect string value: '\x80\xA1@@' for column 'c' at row 35
+Warning	1366	Incorrect string value: '\x80\xA1@\x80' for column 'c' at row 36
+Warning	1366	Incorrect string value: '\x80\xA1@\x81' for column 'c' at row 37
+Warning	1366	Incorrect string value: '\x80\xA1@\xA1@' for column 'c' at row 38
+Warning	1366	Incorrect string value: '\x80\xA1@\xA1\xA3' for column 'c' at row 39
+Warning	1366	Incorrect string value: '\x80\xA1@\xFE@' for column 'c' at row 40
+Warning	1366	Incorrect string value: '\x80\xA1@\xFF' for column 'c' at row 41
+Warning	1366	Incorrect string value: '\x80\xA1\xA3@' for column 'c' at row 42
+Warning	1366	Incorrect string value: '\x80\xA1\xA3\x80' for column 'c' at row 43
+Warning	1366	Incorrect string value: '\x80\xA1\xA3\x81' for column 'c' at row 44
+Warning	1366	Incorrect string value: '\x80\xA1\xA3\xA1@' for column 'c' at row 45
+Warning	1366	Incorrect string value: '\x80\xA1\xA3\xA1\xA3' for column 'c' at row 46
+Warning	1366	Incorrect string value: '\x80\xA1\xA3\xFE@' for column 'c' at row 47
+Warning	1366	Incorrect string value: '\x80\xA1\xA3\xFF' for column 'c' at row 48
+Warning	1366	Incorrect string value: '\x80\xFE@@' for column 'c' at row 49
+Warning	1366	Incorrect string value: '\x80\xFE@\x80' for column 'c' at row 50
+Warning	1366	Incorrect string value: '\x80\xFE@\x81' for column 'c' at row 51
+Warning	1366	Incorrect string value: '\x80\xFE@\xA1@' for column 'c' at row 52
+Warning	1366	Incorrect string value: '\x80\xFE@\xA1\xA3' for column 'c' at row 53
+Warning	1366	Incorrect string value: '\x80\xFE@\xFE@' for column 'c' at row 54
+Warning	1366	Incorrect string value: '\x80\xFE@\xFF' for column 'c' at row 55
+Warning	1366	Incorrect string value: '\x80\xFF@' for column 'c' at row 56
+Warning	1366	Incorrect string value: '\x80\xFF\x80' for column 'c' at row 57
+Warning	1366	Incorrect string value: '\x80\xFF\x81' for column 'c' at row 58
+Warning	1366	Incorrect string value: '\x80\xFF\xA1@' for column 'c' at row 59
+Warning	1366	Incorrect string value: '\x80\xFF\xA1\xA3' for column 'c' at row 60
+Warning	1366	Incorrect string value: '\x80\xFF\xFE@' for column 'c' at row 61
+Warning	1366	Incorrect string value: '\x80\xFF\xFF' for column 'c' at row 62
+Warning	1366	Incorrect string value: '\xFF' for column 'c' at row 63
+Warning	1366	Incorrect string value: '\xFF' for column 'c' at row 64
+SELECT COUNT(*) FROM t3;
+COUNT(*)
+163
+SELECT HEX(c),comment FROM t3 WHERE b=c ORDER BY b;
+HEX(c)	comment
+SELECT HEX(c),HEX(b),comment FROM t3 WHERE b<>c ORDER BY b;
+HEX(c)	HEX(b)	comment
+40403F	4040FF	[ascii,tail][ascii,tail][bad]
+403F3F	4080FF	[ascii,tail][tail][bad]
+403F3F	4081FF	[ascii,tail][head,tail][bad]
+40A1403F	40A140FF	[ascii,tail][mb2,unassigned][bad]
+40A1A33F	40A1A3FF	[ascii,tail][mb2][bad]
+40FE403F	40FE40FF	[ascii,tail][mb2][bad]
+403F40	40FF40	[ascii,tail][bad][ascii,tail]
+403F3F	40FF80	[ascii,tail][bad][tail]
+403F3F	40FF81	[ascii,tail][bad][head,tail]
+403FA140	40FFA140	[ascii,tail][bad][mb2,unassigned]
+403FA1A3	40FFA1A3	[ascii,tail][bad][mb2]
+403FFE40	40FFFE40	[ascii,tail][bad][mb2]
+403F3F	40FFFF	[ascii,tail][bad][bad]
+3F4040	804040	[tail][ascii,tail][ascii,tail]
+3F403F	804080	[tail][ascii,tail][tail]
+3F403F	804081	[tail][ascii,tail][head,tail]
+3F40A140	8040A140	[tail][ascii,tail][mb2,unassigned]
+3F40A1A3	8040A1A3	[tail][ascii,tail][mb2]
+3F40FE40	8040FE40	[tail][ascii,tail][mb2]
+3F403F	8040FF	[tail][ascii,tail][bad]
+3F3F40	808040	[tail][tail][ascii,tail]
+3F3F3F	808080	[tail][tail][tail]
+3F3F3F	808081	[tail][tail][head,tail]
+3F3FA140	8080A140	[tail][tail][mb2,unassigned]
+3F3FA1A3	8080A1A3	[tail][tail][mb2]
+3F3FFE40	8080FE40	[tail][tail][mb2]
+3F3F3F	8080FF	[tail][tail][bad]
+3F8140	808140	[tail][head,tail][ascii,tail]
+3F8180	808180	[tail][head,tail][tail]
+3F8181	808181	[tail][head,tail][head,tail]
+3F81A140	8081A140	[tail][head,tail][mb2,unassigned]
+3F81A13F	8081A1A3	[tail][head,tail][mb2]
+3F81FE40	8081FE40	[tail][head,tail][mb2]
+3F3F3F	8081FF	[tail][head,tail][bad]
+3FA14040	80A14040	[tail][mb2,unassigned][ascii,tail]
+3FA1403F	80A14080	[tail][mb2,unassigned][tail]
+3FA1403F	80A14081	[tail][mb2,unassigned][head,tail]
+3FA140A140	80A140A140	[tail][mb2,unassigned][mb2,unassigned]
+3FA140A1A3	80A140A1A3	[tail][mb2,unassigned][mb2]
+3FA140FE40	80A140FE40	[tail][mb2,unassigned][mb2]
+3FA1403F	80A140FF	[tail][mb2,unassigned][bad]
+3FA1A340	80A1A340	[tail][mb2][ascii,tail]
+3FA1A33F	80A1A380	[tail][mb2][tail]
+3FA1A33F	80A1A381	[tail][mb2][head,tail]
+3FA1A3A140	80A1A3A140	[tail][mb2][mb2,unassigned]
+3FA1A3A1A3	80A1A3A1A3	[tail][mb2][mb2]
+3FA1A3FE40	80A1A3FE40	[tail][mb2][mb2]
+3FA1A33F	80A1A3FF	[tail][mb2][bad]
+3FFE4040	80FE4040	[tail][mb2][ascii,tail]
+3FFE403F	80FE4080	[tail][mb2][tail]
+3FFE403F	80FE4081	[tail][mb2][head,tail]
+3FFE40A140	80FE40A140	[tail][mb2][mb2,unassigned]
+3FFE40A1A3	80FE40A1A3	[tail][mb2][mb2]
+3FFE40FE40	80FE40FE40	[tail][mb2][mb2]
+3FFE403F	80FE40FF	[tail][mb2][bad]
+3F3F40	80FF40	[tail][bad][ascii,tail]
+3F3F3F	80FF80	[tail][bad][tail]
+3F3F3F	80FF81	[tail][bad][head,tail]
+3F3FA140	80FFA140	[tail][bad][mb2,unassigned]
+3F3FA1A3	80FFA1A3	[tail][bad][mb2]
+3F3FFE40	80FFFE40	[tail][bad][mb2]
+3F3F3F	80FFFF	[tail][bad][bad]
+81403F	8140FF	[head,tail][ascii,tail][bad]
+81803F	8180FF	[head,tail][tail][bad]
+81813F	8181FF	[head,tail][head,tail][bad]
+81A1403F	81A140FF	[head,tail][mb2,unassigned][bad]
+81A13F3F	81A1A3FF	[head,tail][mb2][bad]
+81FE403F	81FE40FF	[head,tail][mb2][bad]
+3F3F40	81FF40	[head,tail][bad][ascii,tail]
+3F3F3F	81FF80	[head,tail][bad][tail]
+3F3F3F	81FF81	[head,tail][bad][head,tail]
+3F3FA140	81FFA140	[head,tail][bad][mb2,unassigned]
+3F3FA1A3	81FFA1A3	[head,tail][bad][mb2]
+3F3FFE40	81FFFE40	[head,tail][bad][mb2]
+3F3F3F	81FFFF	[head,tail][bad][bad]
+A140403F	A14040FF	[mb2,unassigned][ascii,tail][bad]
+A1403F3F	A14080FF	[mb2,unassigned][tail][bad]
+A1403F3F	A14081FF	[mb2,unassigned][head,tail][bad]
+A140A1403F	A140A140FF	[mb2,unassigned][mb2,unassigned][bad]
+A140A1A33F	A140A1A3FF	[mb2,unassigned][mb2][bad]
+A140FE403F	A140FE40FF	[mb2,unassigned][mb2][bad]
+A1403F40	A140FF40	[mb2,unassigned][bad][ascii,tail]
+A1403F3F	A140FF80	[mb2,unassigned][bad][tail]
+A1403F3F	A140FF81	[mb2,unassigned][bad][head,tail]
+A1403FA140	A140FFA140	[mb2,unassigned][bad][mb2,unassigned]
+A1403FA1A3	A140FFA1A3	[mb2,unassigned][bad][mb2]
+A1403FFE40	A140FFFE40	[mb2,unassigned][bad][mb2]
+A1403F3F	A140FFFF	[mb2,unassigned][bad][bad]
+A1A3403F	A1A340FF	[mb2][ascii,tail][bad]
+A1A33F3F	A1A380FF	[mb2][tail][bad]
+A1A33F3F	A1A381FF	[mb2][head,tail][bad]
+A1A3A1403F	A1A3A140FF	[mb2][mb2,unassigned][bad]
+A1A3A1A33F	A1A3A1A3FF	[mb2][mb2][bad]
+A1A3FE403F	A1A3FE40FF	[mb2][mb2][bad]
+A1A33F40	A1A3FF40	[mb2][bad][ascii,tail]
+A1A33F3F	A1A3FF80	[mb2][bad][tail]
+A1A33F3F	A1A3FF81	[mb2][bad][head,tail]
+A1A33FA140	A1A3FFA140	[mb2][bad][mb2,unassigned]
+A1A33FA1A3	A1A3FFA1A3	[mb2][bad][mb2]
+A1A33FFE40	A1A3FFFE40	[mb2][bad][mb2]
+A1A33F3F	A1A3FFFF	[mb2][bad][bad]
+FE40403F	FE4040FF	[mb2][ascii,tail][bad]
+FE403F3F	FE4080FF	[mb2][tail][bad]
+FE403F3F	FE4081FF	[mb2][head,tail][bad]
+FE40A1403F	FE40A140FF	[mb2][mb2,unassigned][bad]
+FE40A1A33F	FE40A1A3FF	[mb2][mb2][bad]
+FE40FE403F	FE40FE40FF	[mb2][mb2][bad]
+FE403F40	FE40FF40	[mb2][bad][ascii,tail]
+FE403F3F	FE40FF80	[mb2][bad][tail]
+FE403F3F	FE40FF81	[mb2][bad][head,tail]
+FE403FA140	FE40FFA140	[mb2][bad][mb2,unassigned]
+FE403FA1A3	FE40FFA1A3	[mb2][bad][mb2]
+FE403FFE40	FE40FFFE40	[mb2][bad][mb2]
+FE403F3F	FE40FFFF	[mb2][bad][bad]
+3F4040	FF4040	[bad][ascii,tail][ascii,tail]
+3F403F	FF4080	[bad][ascii,tail][tail]
+3F403F	FF4081	[bad][ascii,tail][head,tail]
+3F40A140	FF40A140	[bad][ascii,tail][mb2,unassigned]
+3F40A1A3	FF40A1A3	[bad][ascii,tail][mb2]
+3F40FE40	FF40FE40	[bad][ascii,tail][mb2]
+3F403F	FF40FF	[bad][ascii,tail][bad]
+3F3F40	FF8040	[bad][tail][ascii,tail]
+3F3F3F	FF8080	[bad][tail][tail]
+3F3F3F	FF8081	[bad][tail][head,tail]
+3F3FA140	FF80A140	[bad][tail][mb2,unassigned]
+3F3FA1A3	FF80A1A3	[bad][tail][mb2]
+3F3FFE40	FF80FE40	[bad][tail][mb2]
+3F3F3F	FF80FF	[bad][tail][bad]
+3F8140	FF8140	[bad][head,tail][ascii,tail]
+3F8180	FF8180	[bad][head,tail][tail]
+3F8181	FF8181	[bad][head,tail][head,tail]
+3F81A140	FF81A140	[bad][head,tail][mb2,unassigned]
+3F81A13F	FF81A1A3	[bad][head,tail][mb2]
+3F81FE40	FF81FE40	[bad][head,tail][mb2]
+3F3F3F	FF81FF	[bad][head,tail][bad]
+3FA14040	FFA14040	[bad][mb2,unassigned][ascii,tail]
+3FA1403F	FFA14080	[bad][mb2,unassigned][tail]
+3FA1403F	FFA14081	[bad][mb2,unassigned][head,tail]
+3FA140A140	FFA140A140	[bad][mb2,unassigned][mb2,unassigned]
+3FA140A1A3	FFA140A1A3	[bad][mb2,unassigned][mb2]
+3FA140FE40	FFA140FE40	[bad][mb2,unassigned][mb2]
+3FA1403F	FFA140FF	[bad][mb2,unassigned][bad]
+3FA1A340	FFA1A340	[bad][mb2][ascii,tail]
+3FA1A33F	FFA1A380	[bad][mb2][tail]
+3FA1A33F	FFA1A381	[bad][mb2][head,tail]
+3FA1A3A140	FFA1A3A140	[bad][mb2][mb2,unassigned]
+3FA1A3A1A3	FFA1A3A1A3	[bad][mb2][mb2]
+3FA1A3FE40	FFA1A3FE40	[bad][mb2][mb2]
+3FA1A33F	FFA1A3FF	[bad][mb2][bad]
+3FFE4040	FFFE4040	[bad][mb2][ascii,tail]
+3FFE403F	FFFE4080	[bad][mb2][tail]
+3FFE403F	FFFE4081	[bad][mb2][head,tail]
+3FFE40A140	FFFE40A140	[bad][mb2][mb2,unassigned]
+3FFE40A1A3	FFFE40A1A3	[bad][mb2][mb2]
+3FFE40FE40	FFFE40FE40	[bad][mb2][mb2]
+3FFE403F	FFFE40FF	[bad][mb2][bad]
+3F3F40	FFFF40	[bad][bad][ascii,tail]
+3F3F3F	FFFF80	[bad][bad][tail]
+3F3F3F	FFFF81	[bad][bad][head,tail]
+3F3FA140	FFFFA140	[bad][bad][mb2,unassigned]
+3F3FA1A3	FFFFA1A3	[bad][bad][mb2]
+3F3FFE40	FFFFFE40	[bad][bad][mb2]
+3F3F3F	FFFFFF	[bad][bad][bad]
+DELETE FROM t2 WHERE b IN (SELECT b FROM t3);
+DELETE FROM t3;
+#
+# Sequences that start with an ASCII or an MB2 character,
+# followed by a pure non-ASCII tail, all should be fixed.
+#
+INSERT INTO t3 (b,c,comment) SELECT b,b,comment FROM t2
+WHERE (FIND_IN_SET('mb2',type1) OR FIND_IN_SET('ascii',type1))
+AND type2='tail'
+ORDER BY b;
+Warnings:
+Warning	1366	Incorrect string value: '\x80@' for column 'c' at row 1
+Warning	1366	Incorrect string value: '\x80\x80' for column 'c' at row 2
+Warning	1366	Incorrect string value: '\x80\x81' for column 'c' at row 3
+Warning	1366	Incorrect string value: '\x80\xA1@' for column 'c' at row 4
+Warning	1366	Incorrect string value: '\x80\xA1\xA3' for column 'c' at row 5
+Warning	1366	Incorrect string value: '\x80\xFE@' for column 'c' at row 6
+Warning	1366	Incorrect string value: '\x80@' for column 'c' at row 7
+Warning	1366	Incorrect string value: '\x80\x80' for column 'c' at row 8
+Warning	1366	Incorrect string value: '\x80\x81' for column 'c' at row 9
+Warning	1366	Incorrect string value: '\x80\xA1@' for column 'c' at row 10
+Warning	1366	Incorrect string value: '\x80\xA1\xA3' for column 'c' at row 11
+Warning	1366	Incorrect string value: '\x80\xFE@' for column 'c' at row 12
+Warning	1366	Incorrect string value: '\x80@' for column 'c' at row 13
+Warning	1366	Incorrect string value: '\x80\x80' for column 'c' at row 14
+Warning	1366	Incorrect string value: '\x80\x81' for column 'c' at row 15
+Warning	1366	Incorrect string value: '\x80\xA1@' for column 'c' at row 16
+Warning	1366	Incorrect string value: '\x80\xA1\xA3' for column 'c' at row 17
+Warning	1366	Incorrect string value: '\x80\xFE@' for column 'c' at row 18
+Warning	1366	Incorrect string value: '\x80@' for column 'c' at row 19
+Warning	1366	Incorrect string value: '\x80\x80' for column 'c' at row 20
+Warning	1366	Incorrect string value: '\x80\x81' for column 'c' at row 21
+Warning	1366	Incorrect string value: '\x80\xA1@' for column 'c' at row 22
+Warning	1366	Incorrect string value: '\x80\xA1\xA3' for column 'c' at row 23
+Warning	1366	Incorrect string value: '\x80\xFE@' for column 'c' at row 24
+SELECT COUNT(*) FROM t3;
+COUNT(*)
+24
+SELECT HEX(c),comment FROM t3 WHERE b=c ORDER BY b;
+HEX(c)	comment
+SELECT HEX(c),HEX(b),comment FROM t3 WHERE b<>c ORDER BY b;
+HEX(c)	HEX(b)	comment
+403F40	408040	[ascii,tail][tail][ascii,tail]
+403F3F	408080	[ascii,tail][tail][tail]
+403F3F	408081	[ascii,tail][tail][head,tail]
+403FA140	4080A140	[ascii,tail][tail][mb2,unassigned]
+403FA1A3	4080A1A3	[ascii,tail][tail][mb2]
+403FFE40	4080FE40	[ascii,tail][tail][mb2]
+A1403F40	A1408040	[mb2,unassigned][tail][ascii,tail]
+A1403F3F	A1408080	[mb2,unassigned][tail][tail]
+A1403F3F	A1408081	[mb2,unassigned][tail][head,tail]
+A1403FA140	A14080A140	[mb2,unassigned][tail][mb2,unassigned]
+A1403FA1A3	A14080A1A3	[mb2,unassigned][tail][mb2]
+A1403FFE40	A14080FE40	[mb2,unassigned][tail][mb2]
+A1A33F40	A1A38040	[mb2][tail][ascii,tail]
+A1A33F3F	A1A38080	[mb2][tail][tail]
+A1A33F3F	A1A38081	[mb2][tail][head,tail]
+A1A33FA140	A1A380A140	[mb2][tail][mb2,unassigned]
+A1A33FA1A3	A1A380A1A3	[mb2][tail][mb2]
+A1A33FFE40	A1A380FE40	[mb2][tail][mb2]
+FE403F40	FE408040	[mb2][tail][ascii,tail]
+FE403F3F	FE408080	[mb2][tail][tail]
+FE403F3F	FE408081	[mb2][tail][head,tail]
+FE403FA140	FE4080A140	[mb2][tail][mb2,unassigned]
+FE403FA1A3	FE4080A1A3	[mb2][tail][mb2]
+FE403FFE40	FE4080FE40	[mb2][tail][mb2]
+DELETE FROM t2 WHERE b IN (SELECT b FROM t3);
+DELETE FROM t3;
+#
+# Sequences that consist of two ASCII or MB2 characters,
+# followed by a pure non-ASCII tail, all should be fixed.
+#
+INSERT INTO t3 (b,c,comment) SELECT b,b,comment FROM t2
+WHERE (FIND_IN_SET('mb2',type1) OR FIND_IN_SET('ascii',type1)) AND
+(FIND_IN_SET('mb2',type2) OR FIND_IN_SET('ascii',type2)) AND
+type3='tail'
+ORDER BY b;
+Warnings:
+Warning	1366	Incorrect string value: '\x80' for column 'c' at row 1
+Warning	1366	Incorrect string value: '\x80' for column 'c' at row 2
+Warning	1366	Incorrect string value: '\x80' for column 'c' at row 3
+Warning	1366	Incorrect string value: '\x80' for column 'c' at row 4
+Warning	1366	Incorrect string value: '\x80' for column 'c' at row 5
+Warning	1366	Incorrect string value: '\x80' for column 'c' at row 6
+Warning	1366	Incorrect string value: '\x80' for column 'c' at row 7
+Warning	1366	Incorrect string value: '\x80' for column 'c' at row 8
+Warning	1366	Incorrect string value: '\x80' for column 'c' at row 9
+Warning	1366	Incorrect string value: '\x80' for column 'c' at row 10
+Warning	1366	Incorrect string value: '\x80' for column 'c' at row 11
+Warning	1366	Incorrect string value: '\x80' for column 'c' at row 12
+Warning	1366	Incorrect string value: '\x80' for column 'c' at row 13
+Warning	1366	Incorrect string value: '\x80' for column 'c' at row 14
+Warning	1366	Incorrect string value: '\x80' for column 'c' at row 15
+Warning	1366	Incorrect string value: '\x80' for column 'c' at row 16
+SELECT COUNT(*) FROM t3;
+COUNT(*)
+16
+SELECT HEX(c),comment FROM t3 WHERE b=c ORDER BY b;
+HEX(c)	comment
+SELECT HEX(c),HEX(b),comment FROM t3 WHERE b<>c ORDER BY b;
+HEX(c)	HEX(b)	comment
+40403F	404080	[ascii,tail][ascii,tail][tail]
+40A1403F	40A14080	[ascii,tail][mb2,unassigned][tail]
+40A1A33F	40A1A380	[ascii,tail][mb2][tail]
+40FE403F	40FE4080	[ascii,tail][mb2][tail]
+A140403F	A1404080	[mb2,unassigned][ascii,tail][tail]
+A140A1403F	A140A14080	[mb2,unassigned][mb2,unassigned][tail]
+A140A1A33F	A140A1A380	[mb2,unassigned][mb2][tail]
+A140FE403F	A140FE4080	[mb2,unassigned][mb2][tail]
+A1A3403F	A1A34080	[mb2][ascii,tail][tail]
+A1A3A1403F	A1A3A14080	[mb2][mb2,unassigned][tail]
+A1A3A1A33F	A1A3A1A380	[mb2][mb2][tail]
+A1A3FE403F	A1A3FE4080	[mb2][mb2][tail]
+FE40403F	FE404080	[mb2][ascii,tail][tail]
+FE40A1403F	FE40A14080	[mb2][mb2,unassigned][tail]
+FE40A1A33F	FE40A1A380	[mb2][mb2][tail]
+FE40FE403F	FE40FE4080	[mb2][mb2][tail]
+DELETE FROM t2 WHERE b IN (SELECT b FROM t3);
+DELETE FROM t3;
+#
+# Sequences that consist of two MB2 characters,
+# followed by a non-ASCII head or tail, all should be fixed.
+#
+INSERT INTO t3 (b,c,comment) SELECT b,b,comment FROM t2
+WHERE FIND_IN_SET('mb2',type1) AND FIND_IN_SET('mb2',type2)
+AND NOT FIND_IN_SET('ascii',type3)
+AND NOT FIND_IN_SET('mb2',type3)
+ORDER BY b;
+Warnings:
+Warning	1366	Incorrect string value: '\x81' for column 'c' at row 1
+Warning	1366	Incorrect string value: '\x81' for column 'c' at row 2
+Warning	1366	Incorrect string value: '\x81' for column 'c' at row 3
+Warning	1366	Incorrect string value: '\x81' for column 'c' at row 4
+Warning	1366	Incorrect string value: '\x81' for column 'c' at row 5
+Warning	1366	Incorrect string value: '\x81' for column 'c' at row 6
+Warning	1366	Incorrect string value: '\x81' for column 'c' at row 7
+Warning	1366	Incorrect string value: '\x81' for column 'c' at row 8
+Warning	1366	Incorrect string value: '\x81' for column 'c' at row 9
+SELECT COUNT(*) FROM t3;
+COUNT(*)
+9
+SELECT HEX(c),comment FROM t3 WHERE b=c ORDER BY b;
+HEX(c)	comment
+SELECT HEX(c),HEX(b),comment FROM t3 WHERE b<>c ORDER BY b;
+HEX(c)	HEX(b)	comment
+A140A1403F	A140A14081	[mb2,unassigned][mb2,unassigned][head,tail]
+A140A1A33F	A140A1A381	[mb2,unassigned][mb2][head,tail]
+A140FE403F	A140FE4081	[mb2,unassigned][mb2][head,tail]
+A1A3A1403F	A1A3A14081	[mb2][mb2,unassigned][head,tail]
+A1A3A1A33F	A1A3A1A381	[mb2][mb2][head,tail]
+A1A3FE403F	A1A3FE4081	[mb2][mb2][head,tail]
+FE40A1403F	FE40A14081	[mb2][mb2,unassigned][head,tail]
+FE40A1A33F	FE40A1A381	[mb2][mb2][head,tail]
+FE40FE403F	FE40FE4081	[mb2][mb2][head,tail]
+DELETE FROM t2 WHERE b IN (SELECT b FROM t3);
+DELETE FROM t3;
+#
+# Sequences that consist of head + tail + MB2 should go without warnings
+#
+INSERT INTO t3 (b,c,comment) SELECT b,b,comment FROM t2
+WHERE FIND_IN_SET('head',type1)
+AND FIND_IN_SET('tail',type2)
+AND FIND_IN_SET('mb2',type3)
+ORDER BY b;
+SELECT COUNT(*) FROM t3;
+COUNT(*)
+9
+SELECT HEX(c),comment FROM t3 WHERE b=c ORDER BY b;
+HEX(c)	comment
+8140A140	[head,tail][ascii,tail][mb2,unassigned]
+8140A1A3	[head,tail][ascii,tail][mb2]
+8140FE40	[head,tail][ascii,tail][mb2]
+8180A140	[head,tail][tail][mb2,unassigned]
+8180A1A3	[head,tail][tail][mb2]
+8180FE40	[head,tail][tail][mb2]
+8181A140	[head,tail][head,tail][mb2,unassigned]
+8181A1A3	[head,tail][head,tail][mb2]
+8181FE40	[head,tail][head,tail][mb2]
+SELECT HEX(c),HEX(b),comment FROM t3 WHERE b<>c ORDER BY b;
+HEX(c)	HEX(b)	comment
+DELETE FROM t2 WHERE b IN (SELECT b FROM t3);
+DELETE FROM t3;
+#
+# Sequences that consist of (ascii or mb2) + head + tail should go without warnings
+#
+INSERT INTO t3 (b,c,comment) SELECT b,b,comment FROM t2
+WHERE (FIND_IN_SET('ascii',type1) OR FIND_IN_SET('mb2',type1))
+AND FIND_IN_SET('head',type2)
+AND FIND_IN_SET('tail',type3)
+ORDER BY b;
+SELECT COUNT(*) FROM t3;
+COUNT(*)
+12
+SELECT HEX(c),comment FROM t3 WHERE b=c ORDER BY b;
+HEX(c)	comment
+408140	[ascii,tail][head,tail][ascii,tail]
+408180	[ascii,tail][head,tail][tail]
+408181	[ascii,tail][head,tail][head,tail]
+A1408140	[mb2,unassigned][head,tail][ascii,tail]
+A1408180	[mb2,unassigned][head,tail][tail]
+A1408181	[mb2,unassigned][head,tail][head,tail]
+A1A38140	[mb2][head,tail][ascii,tail]
+A1A38180	[mb2][head,tail][tail]
+A1A38181	[mb2][head,tail][head,tail]
+FE408140	[mb2][head,tail][ascii,tail]
+FE408180	[mb2][head,tail][tail]
+FE408181	[mb2][head,tail][head,tail]
+SELECT HEX(c),HEX(b),comment FROM t3 WHERE b<>c ORDER BY b;
+HEX(c)	HEX(b)	comment
+DELETE FROM t2 WHERE b IN (SELECT b FROM t3);
+DELETE FROM t3;
+INSERT INTO t3 (b,c,comment) SELECT b,b,comment FROM t2 ORDER BY b;
+Warnings:
+Warning	1366	Incorrect string value: '\x81' for column 'c' at row 1
+Warning	1366	Incorrect string value: '\xA3' for column 'c' at row 3
+Warning	1366	Incorrect string value: '\x81' for column 'c' at row 5
+Warning	1366	Incorrect string value: '\x81' for column 'c' at row 6
+Warning	1366	Incorrect string value: '\x81' for column 'c' at row 7
+Warning	1366	Incorrect string value: '\x80' for column 'c' at row 9
+Warning	1366	Incorrect string value: '\x81' for column 'c' at row 10
+Warning	1366	Incorrect string value: '\x80' for column 'c' at row 12
+Warning	1366	Incorrect string value: '\x81' for column 'c' at row 13
+Warning	1366	Incorrect string value: '\x80' for column 'c' at row 15
+Warning	1366	Incorrect string value: '\x81' for column 'c' at row 16
+Warning	1366	Incorrect string value: '\x80' for column 'c' at row 18
+Warning	1366	Incorrect string value: '\x81' for column 'c' at row 19
+Warning	1366	Incorrect string value: '\xA3' for column 'c' at row 27
+Warning	1366	Incorrect string value: '\x80' for column 'c' at row 30
+Warning	1366	Incorrect string value: '\x81' for column 'c' at row 31
+Warning	1366	Incorrect string value: '\x81' for column 'c' at row 35
+Warning	1366	Incorrect string value: '\xA3' for column 'c' at row 37
+Warning	1366	Incorrect string value: '\x81' for column 'c' at row 39
+Warning	1366	Incorrect string value: '\xA3' for column 'c' at row 41
+Warning	1366	Incorrect string value: '\x81' for column 'c' at row 43
+Warning	1366	Incorrect string value: '\xA3' for column 'c' at row 45
+SELECT COUNT(*) FROM t3;
+COUNT(*)
+46
+SELECT HEX(c),comment FROM t3 WHERE b=c ORDER BY b;
+HEX(c)	comment
+4081A140	[ascii,tail][head,tail][mb2,unassigned]
+4081FE40	[ascii,tail][head,tail][mb2]
+814040	[head,tail][ascii,tail][ascii,tail]
+818040	[head,tail][tail][ascii,tail]
+818140	[head,tail][head,tail][ascii,tail]
+81A14040	[head,tail][mb2,unassigned][ascii,tail]
+81A140A140	[head,tail][mb2,unassigned][mb2,unassigned]
+81A140A1A3	[head,tail][mb2,unassigned][mb2]
+81A140FE40	[head,tail][mb2,unassigned][mb2]
+81A1A340	[head,tail][mb2][ascii,tail]
+81A1A380	[head,tail][mb2][tail]
+81A1A381	[head,tail][mb2][head,tail]
+81A1A3A140	[head,tail][mb2][mb2,unassigned]
+81A1A3FE40	[head,tail][mb2][mb2]
+81FE4040	[head,tail][mb2][ascii,tail]
+81FE40A140	[head,tail][mb2][mb2,unassigned]
+81FE40A1A3	[head,tail][mb2][mb2]
+81FE40FE40	[head,tail][mb2][mb2]
+A14081A140	[mb2,unassigned][head,tail][mb2,unassigned]
+A14081FE40	[mb2,unassigned][head,tail][mb2]
+A1A381A140	[mb2][head,tail][mb2,unassigned]
+A1A381FE40	[mb2][head,tail][mb2]
+FE4081A140	[mb2][head,tail][mb2,unassigned]
+FE4081FE40	[mb2][head,tail][mb2]
+SELECT HEX(c),HEX(b),comment FROM t3 WHERE b<>c ORDER BY b;
+HEX(c)	HEX(b)	comment
+40403F	404081	[ascii,tail][ascii,tail][head,tail]
+4081A13F	4081A1A3	[ascii,tail][head,tail][mb2]
+40A1403F	40A14081	[ascii,tail][mb2,unassigned][head,tail]
+40A1A33F	40A1A381	[ascii,tail][mb2][head,tail]
+40FE403F	40FE4081	[ascii,tail][mb2][head,tail]
+81403F	814080	[head,tail][ascii,tail][tail]
+81403F	814081	[head,tail][ascii,tail][head,tail]
+81803F	818080	[head,tail][tail][tail]
+81803F	818081	[head,tail][tail][head,tail]
+81813F	818180	[head,tail][head,tail][tail]
+81813F	818181	[head,tail][head,tail][head,tail]
+81A1403F	81A14080	[head,tail][mb2,unassigned][tail]
+81A1403F	81A14081	[head,tail][mb2,unassigned][head,tail]
+81A1A3A13F	81A1A3A1A3	[head,tail][mb2][mb2]
+81FE403F	81FE4080	[head,tail][mb2][tail]
+81FE403F	81FE4081	[head,tail][mb2][head,tail]
+A140403F	A1404081	[mb2,unassigned][ascii,tail][head,tail]
+A14081A13F	A14081A1A3	[mb2,unassigned][head,tail][mb2]
+A1A3403F	A1A34081	[mb2][ascii,tail][head,tail]
+A1A381A13F	A1A381A1A3	[mb2][head,tail][mb2]
+FE40403F	FE404081	[mb2][ascii,tail][head,tail]
+FE4081A13F	FE4081A1A3	[mb2][head,tail][mb2]
+DROP TABLE t3;
+DROP TABLE t2;
+DROP TABLE t1;
+#
+# END OF MDEV-6566 Different INSERT behaviour on bad bytes with and without character set conversion
+#
+#
+# MDEV-7661 Unexpected result for: CAST(0xHHHH AS CHAR CHARACTER SET xxx) for incorrect byte sequences
+#
+SELECT HEX(CAST(0xA341 AS CHAR CHARACTER SET gb2312));
+HEX(CAST(0xA341 AS CHAR CHARACTER SET gb2312))
+3F41
+Warnings:
+Warning	1300	Invalid gb2312 character string: '\xA3A'
+SELECT HEX(CONVERT(CAST(0xA341 AS CHAR CHARACTER SET gb2312) USING utf8));
+HEX(CONVERT(CAST(0xA341 AS CHAR CHARACTER SET gb2312) USING utf8))
+3F41
+Warnings:
+Warning	1300	Invalid gb2312 character string: '\xA3A'
+#
+# End of 10.1 tests
 #

@@ -57,7 +57,7 @@ grn_command_input_close(grn_ctx *ctx, grn_command_input *input)
   GRN_API_ENTER;
 
   /* TODO: Free input->arguments by self. */
-  grn_expr_clear_vars(ctx, input->command);
+  /* grn_expr_clear_vars(ctx, input->command); */
   GRN_FREE(input);
 
   GRN_API_RETURN(ctx->rc);
@@ -127,6 +127,14 @@ grn_command_input_at(grn_ctx *ctx,
                                               offset + 1, &size);
   }
   GRN_API_RETURN(argument);
+}
+
+grn_obj *
+grn_command_input_get_arguments(grn_ctx *ctx,
+                                grn_command_input *input)
+{
+  GRN_API_ENTER;
+  GRN_API_RETURN((grn_obj *)(input->arguments));
 }
 
 grn_rc

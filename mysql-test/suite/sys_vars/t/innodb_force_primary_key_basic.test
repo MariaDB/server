@@ -1,0 +1,57 @@
+--source include/have_innodb.inc
+
+let $force_pk=`select @@innodb_force_primary_key`;
+
+SELECT COUNT(@@GLOBAL.innodb_force_primary_key);
+--echo 1 Expected
+
+####################################################################
+#   Check if Value can set                                         #
+####################################################################
+
+SET @@GLOBAL.innodb_force_primary_key=1;
+--echo Expected ok
+
+SELECT COUNT(@@GLOBAL.innodb_force_primary_key);
+--echo 1 Expected
+
+#################################################################
+# Check if the value in GLOBAL Table matches value in variable  #
+#################################################################
+
+SELECT IF(@@GLOBAL.innodb_force_primary_key, 'ON', 'OFF') = VARIABLE_VALUE
+FROM INFORMATION_SCHEMA.GLOBAL_VARIABLES
+WHERE VARIABLE_NAME='innodb_force_primary_key';
+--echo 1 Expected
+
+SELECT COUNT(@@GLOBAL.innodb_force_primary_key);
+--echo 1 Expected
+
+SELECT COUNT(VARIABLE_VALUE)
+FROM INFORMATION_SCHEMA.GLOBAL_VARIABLES 
+WHERE VARIABLE_NAME='innodb_force_primary_key';
+--echo 1 Expected
+
+################################################################################
+#  Check if accessing variable with and without GLOBAL point to same variable  #
+################################################################################
+SELECT @@innodb_force_primary_key = @@GLOBAL.innodb_force_primary_key;
+--echo 1 Expected
+
+SELECT COUNT(@@innodb_force_primary_key);
+--echo 1 Expected
+
+--Error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SELECT COUNT(@@local.innodb_force_primary_key);
+--echo Expected Variable 'innodb_force_primary_key' is a GLOBAL variable
+
+--Error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SELECT COUNT(@@SESSION.innodb_force_primary_key);
+--echo Expected Variable 'innodb_force_primary_key' is a GLOBAL variable
+
+SELECT COUNT(@@GLOBAL.innodb_force_primary_key);
+--echo 1 Expected
+
+--disable_query_log
+eval set global innodb_force_primary_key=$force_pk;
+--enable_query_log

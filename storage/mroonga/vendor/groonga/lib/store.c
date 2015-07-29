@@ -23,7 +23,8 @@
 
 /* rectangular arrays */
 
-#define GRN_RA_SEGMENT_SIZE (1 << 22)
+#define GRN_RA_W_SEGMENT    22
+#define GRN_RA_SEGMENT_SIZE (1 << GRN_RA_W_SEGMENT)
 
 static grn_ra *
 _grn_ra_create(grn_ctx *ctx, grn_ra *ra, const char *path, unsigned int element_size)
@@ -46,7 +47,7 @@ _grn_ra_create(grn_ctx *ctx, grn_ra *ra, const char *path, unsigned int element_
   grn_io_set_type(io, GRN_COLUMN_FIX_SIZE);
   header->element_size = actual_size;
   n_elm = GRN_RA_SEGMENT_SIZE / header->element_size;
-  for (w_elm = 22; (1 << w_elm) > n_elm; w_elm--);
+  for (w_elm = GRN_RA_W_SEGMENT; (1 << w_elm) > n_elm; w_elm--);
   ra->io = io;
   ra->header = header;
   ra->element_mask =  n_elm - 1;
@@ -89,7 +90,7 @@ grn_ra_open(grn_ctx *ctx, const char *path)
     return NULL;
   }
   n_elm = GRN_RA_SEGMENT_SIZE / header->element_size;
-  for (w_elm = 22; (1 << w_elm) > n_elm; w_elm--);
+  for (w_elm = GRN_RA_W_SEGMENT; (1 << w_elm) > n_elm; w_elm--);
   GRN_DB_OBJ_SET_TYPE(ra, GRN_COLUMN_FIX_SIZE);
   ra->io = io;
   ra->header = header;
@@ -337,8 +338,6 @@ struct grn_ja_header {
 #define SEGMENTS_EINFO_ON(ja,seg,lseg) (SEGMENTS_AT(ja,seg) = SEG_EINFO|(lseg))
 #define SEGMENTS_GINFO_ON(ja,seg,width) (SEGMENTS_AT(ja,seg) = SEG_GINFO|(width))
 #define SEGMENTS_OFF(ja,seg) (SEGMENTS_AT(ja,seg) = 0)
-
-grn_bool grn_ja_skip_same_value_put = GRN_TRUE;
 
 static grn_ja *
 _grn_ja_create(grn_ctx *ctx, grn_ja *ja, const char *path,
@@ -881,12 +880,12 @@ set_value(grn_ctx *ctx, grn_ja *ja, grn_id id, void *value, uint32_t value_len,
     if ((rc = grn_ja_alloc(ctx, ja, id, value_len + sizeof(uint32_t), einfo, &iw))) {
       return rc;
     }
-    memcpy(iw.addr, value, value_len);
+    grn_memcpy(iw.addr, value, value_len);
     memset((byte *)iw.addr + value_len, 0, sizeof(uint32_t));
     grn_io_win_unmap(&iw);
   } else {
     if ((rc = grn_ja_alloc(ctx, ja, id, value_len, einfo, &iw))) { return rc; }
-    memcpy(iw.addr, value, value_len);
+    grn_memcpy(iw.addr, value, value_len);
     grn_io_win_unmap(&iw);
   }
   return rc;
@@ -901,8 +900,7 @@ grn_ja_put_raw(grn_ctx *ctx, grn_ja *ja, grn_id id,
   grn_io_win iw;
   grn_ja_einfo einfo;
 
-  if (grn_ja_skip_same_value_put &&
-      (flags & GRN_OBJ_SET_MASK) == GRN_OBJ_SET &&
+  if ((flags & GRN_OBJ_SET_MASK) == GRN_OBJ_SET &&
       value_len > 0) {
     grn_io_win jw;
     uint32_t old_len;
@@ -935,11 +933,11 @@ grn_ja_put_raw(grn_ctx *ctx, grn_ja *ja, grn_id id,
             GRN_ASSERT(pos < el);
             if (el <= pos + value_len) {
               uint32_t rest = el - pos;
-              memcpy(b + pos, value, rest);
-              memcpy(b, (byte *)value + rest, value_len - rest);
+              grn_memcpy(b + pos, value, rest);
+              grn_memcpy(b, (byte *)value + rest, value_len - rest);
               *((uint32_t *)(b + el)) = value_len - rest;
             } else {
-              memcpy(b + pos, value, value_len);
+              grn_memcpy(b + pos, value, value_len);
               *((uint32_t *)(b + el)) = pos + value_len;
             }
             return GRN_SUCCESS;
@@ -950,8 +948,8 @@ grn_ja_put_raw(grn_ctx *ctx, grn_ja *ja, grn_id id,
               grn_ja_unref(ctx, &jw);
               return rc;
             }
-            memcpy(iw.addr, oldvalue, old_len);
-            memcpy((byte *)iw.addr + old_len, value, value_len);
+            grn_memcpy(iw.addr, oldvalue, old_len);
+            grn_memcpy((byte *)iw.addr + old_len, value, value_len);
             memset((byte *)iw.addr + old_len + value_len, 0, sizeof(uint32_t));
             grn_io_win_unmap(&iw);
           }
@@ -960,8 +958,8 @@ grn_ja_put_raw(grn_ctx *ctx, grn_ja *ja, grn_id id,
             grn_ja_unref(ctx, &jw);
             return rc;
           }
-          memcpy(iw.addr, oldvalue, old_len);
-          memcpy((byte *)iw.addr + old_len, value, value_len);
+          grn_memcpy(iw.addr, oldvalue, old_len);
+          grn_memcpy((byte *)iw.addr + old_len, value, value_len);
           grn_io_win_unmap(&iw);
         }
         grn_ja_unref(ctx, &jw);
@@ -985,11 +983,11 @@ grn_ja_put_raw(grn_ctx *ctx, grn_ja *ja, grn_id id,
             GRN_ASSERT(pos < el);
             if (pos < value_len) {
               uint32_t rest = value_len - pos;
-              memcpy(b, (byte *)value + rest, pos);
-              memcpy(b + el - rest, value, rest);
+              grn_memcpy(b, (byte *)value + rest, pos);
+              grn_memcpy(b + el - rest, value, rest);
               *((uint32_t *)(b + el)) = el - rest;
             } else {
-              memcpy(b + pos - value_len, value, value_len);
+              grn_memcpy(b + pos - value_len, value, value_len);
               *((uint32_t *)(b + el)) = pos - value_len;
             }
             return GRN_SUCCESS;
@@ -1000,8 +998,8 @@ grn_ja_put_raw(grn_ctx *ctx, grn_ja *ja, grn_id id,
               grn_ja_unref(ctx, &jw);
               return rc;
             }
-            memcpy(iw.addr, value, value_len);
-            memcpy((byte *)iw.addr + value_len, oldvalue, old_len);
+            grn_memcpy(iw.addr, value, value_len);
+            grn_memcpy((byte *)iw.addr + value_len, oldvalue, old_len);
             memset((byte *)iw.addr + value_len + old_len, 0, sizeof(uint32_t));
             grn_io_win_unmap(&iw);
           }
@@ -1010,8 +1008,8 @@ grn_ja_put_raw(grn_ctx *ctx, grn_ja *ja, grn_id id,
             grn_ja_unref(ctx, &jw);
             return rc;
           }
-          memcpy(iw.addr, value, value_len);
-          memcpy((byte *)iw.addr + value_len, oldvalue, old_len);
+          grn_memcpy(iw.addr, value, value_len);
+          grn_memcpy((byte *)iw.addr + value_len, oldvalue, old_len);
           grn_io_win_unmap(&iw);
         }
         grn_ja_unref(ctx, &jw);
@@ -1100,9 +1098,13 @@ grn_ja_putv(grn_ctx *ctx, grn_ja *ja, grn_id id, grn_obj *vector, int flags)
     size_t sizev = body ? GRN_BULK_VSIZE(body) : 0;
     size_t sizef = GRN_BULK_VSIZE(&footer);
     if ((rc = grn_ja_alloc(ctx, ja, id, sizeh + sizev + sizef, &einfo, &iw))) { goto exit; }
-    memcpy(iw.addr, GRN_BULK_HEAD(&header), sizeh);
-    if (body) { memcpy((char *)iw.addr + sizeh, GRN_BULK_HEAD(body), sizev); }
-    if (f) { memcpy((char *)iw.addr + sizeh + sizev, GRN_BULK_HEAD(&footer), sizef); }
+    grn_memcpy(iw.addr, GRN_BULK_HEAD(&header), sizeh);
+    if (body) {
+      grn_memcpy((char *)iw.addr + sizeh, GRN_BULK_HEAD(body), sizev);
+    }
+    if (f) {
+      grn_memcpy((char *)iw.addr + sizeh + sizev, GRN_BULK_HEAD(&footer), sizef);
+    }
     grn_io_win_unmap(&iw);
     rc = grn_ja_replace(ctx, ja, id, &einfo, NULL);
   }

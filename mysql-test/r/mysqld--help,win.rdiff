@@ -1,6 +1,6 @@
---- mysql-test/r/mysqld--help.result	2012-09-08 22:22:06 +0000
-+++ mysql-test/r/mysqld--help.result	2012-10-01 14:03:59 +0000
-@@ -248,7 +248,6 @@
+--- mysqld--help.result	2014-11-26 11:47:49.151273200 +0400
++++ mysqld--help,win.reject	2014-11-26 12:57:09.108153400 +0400
+@@ -288,7 +288,6 @@
   The number of segments in a key cache
   -L, --language=name Client error messages in given language. May be given as
   a full path. Deprecated. Use --lc-messages-dir instead.
@@ -8,15 +8,15 @@
   --lc-messages=name  Set the language used for the error messages.
   -L, --lc-messages-dir=name 
   Directory where error messages are
-@@ -443,6 +442,7 @@
-  NULLS_UNEQUAL (default behavior for 4.1 and later),
-  NULLS_EQUAL (emulate 4.0 behavior), and NULLS_IGNORED
-  --myisam-use-mmap   Use memory mapping for reading and writing MyISAM tables
+@@ -483,6 +482,7 @@
+  Use MySQL-5.6 (instead of MariaDB-5.3) format for TIME,
+  DATETIME, TIMESTAMP columns.
+  (Defaults to on; use --skip-mysql56-temporal-format to disable.)
 + --named-pipe        Enable the named pipe (NT)
   --net-buffer-length=# 
   Buffer length for TCP/IP and socket communication
   --net-read-timeout=# 
-@@ -710,6 +710,9 @@
+@@ -870,6 +870,9 @@
   files within specified directory
   --server-id=#       Uniquely identifies the server instance in the community
   of replication partners
@@ -26,7 +26,7 @@
   --show-slave-auth-info 
   Show user and password in SHOW SLAVE HOSTS on this
   master.
-@@ -777,6 +780,10 @@
+@@ -969,6 +972,10 @@
   Log slow queries to given log file. Defaults logging to
   'hostname'-slow.log. Must be enabled to activate other
   slow log options
@@ -37,16 +37,16 @@
   --socket=name       Socket file to use for connection
   --sort-buffer-size=# 
   Each thread that needs to do a sort allocates a buffer of
-@@ -785,6 +792,7 @@
-  for the complete list of valid sql modes
+@@ -987,6 +994,7 @@
+  NO_ENGINE_SUBSTITUTION, PAD_CHAR_TO_FULL_LENGTH
   --stack-trace       Print a symbolic stack trace on failure
   (Defaults to on; use --skip-stack-trace to disable.)
 + --standalone        Dummy option to start as a standalone program (NT).
   --stored-program-cache=# 
   The soft upper limit for number of cached stored routines
   for one connection.
-@@ -817,25 +825,11 @@
-  values are COMMIT or ROLLBACK.
+@@ -1019,25 +1027,11 @@
+  COMMIT, ROLLBACK
   --thread-cache-size=# 
   How many threads we should keep in a cache for reuse
 - --thread-pool-idle-timeout=# 
@@ -72,8 +72,8 @@
 + Minimum number of threads in the thread pool.
   --thread-stack=#    The stack size for each thread
   --time-format=name  The TIME format (ignored)
-  --timed-mutexes     Specify whether to time mutexes (only InnoDB mutexes are
-@@ -844,8 +838,8 @@
+  --timed-mutexes     Specify whether to time mutexes. Deprecated, has no
+@@ -1046,8 +1040,8 @@
   size, MySQL will automatically convert it to an on-disk
   MyISAM or Aria table
   -t, --tmpdir=name   Path for temporary files. Several paths may be specified,
@@ -84,23 +84,23 @@
   --transaction-alloc-block-size=# 
   Allocation block size for transactions to be stored in
   binary log
-@@ -949,7 +943,6 @@
- key-cache-block-size 1024
+@@ -1165,7 +1159,6 @@
  key-cache-division-limit 100
+ key-cache-file-hash-size 512
  key-cache-segments 0
 -large-pages FALSE
  lc-messages en_US
  lc-messages-dir MYSQL_SHAREDIR/
  lc-time-names en_US
-@@ -1012,6 +1005,7 @@
- myisam-sort-buffer-size 8388608
- myisam-stats-method nulls_unequal
+@@ -1231,6 +1224,7 @@
+ myisam-stats-method NULLS_UNEQUAL
  myisam-use-mmap FALSE
+ mysql56-temporal-format TRUE
 +named-pipe FALSE
  net-buffer-length 16384
  net-read-timeout 30
  net-retry-count 10
-@@ -1077,6 +1071,8 @@
+@@ -1327,6 +1321,8 @@
  secure-auth FALSE
  secure-file-priv (No default value)
  server-id 0
@@ -109,7 +109,7 @@
  show-slave-auth-info FALSE
  skip-grant-tables TRUE
  skip-name-resolve FALSE
-@@ -1093,6 +1089,7 @@
+@@ -1348,6 +1344,7 @@
  slave-type-conversions 
  slow-launch-time 2
  slow-query-log FALSE
@@ -117,12 +117,12 @@
  sort-buffer-size 2097152
  sql-mode 
  stack-trace TRUE
-@@ -1109,10 +1106,8 @@
+@@ -1364,10 +1361,8 @@
  table-open-cache 400
  tc-heuristic-recover COMMIT
  thread-cache-size 0
 -thread-pool-idle-timeout 60
- thread-pool-max-threads 500
+ thread-pool-max-threads 1000
 -thread-pool-oversubscribe 3
 -thread-pool-stall-limit 500
 +thread-pool-min-threads 1

@@ -1,7 +1,8 @@
 /*****************************************************************************
 
-Copyright (c) 1997, 2014, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1997, 2015, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
+Copyright (c) 2013, SkySQL Ab. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -55,6 +56,7 @@ Created 9/20/1997 Heikki Tuuri
 #include "trx0undo.h"
 #include "trx0rec.h"
 #include "fil0fil.h"
+#include "fil0crypt.h"
 #ifndef UNIV_HOTBACKUP
 # include "buf0rea.h"
 # include "srv0srv.h"
@@ -698,8 +700,9 @@ recv_synchronize_groups(
 		recovered_lsn */
 
 		log_group_set_fields(group, recovered_lsn);
-	}
+		ut_a(log_sys);
 
+	}
 	/* Copy the checkpoint info to the groups; remember that we have
 	incremented checkpoint_no by one, and the info will not be written
 	over the max checkpoint info, thus making the preservation of max
@@ -807,6 +810,10 @@ recv_find_max_checkpoint(
 				buf + LOG_CHECKPOINT_OFFSET_HIGH32)) << 32;
 			checkpoint_no = mach_read_from_8(
 				buf + LOG_CHECKPOINT_NO);
+
+			if (!log_crypt_read_checkpoint_buf(buf)) {
+				return DB_ERROR;
+			}
 
 #ifdef UNIV_DEBUG
 			if (log_debug_writes) {
@@ -996,6 +1003,12 @@ log_block_checksum_is_ok_or_old_format(
 #endif
 		return(TRUE);
 	}
+
+	fprintf(stderr, "BROKEN: block: %lu checkpoint: %lu %.8lx %.8lx\n",
+		log_block_get_hdr_no(block),
+		log_block_get_checkpoint_no(block),
+		log_block_calc_checksum(block),
+		log_block_get_checksum(block));
 
 	return(FALSE);
 }
@@ -1208,7 +1221,9 @@ recv_parse_or_apply_log_rec_body(
 				      + 0 /*FLST_PREV*/
 				      || offs == PAGE_BTR_IBUF_FREE_LIST_NODE
 				      + PAGE_HEADER + FIL_ADDR_PAGE
-				      + FIL_ADDR_SIZE /*FLST_NEXT*/);
+				      + FIL_ADDR_SIZE /*FLST_NEXT*/
+				      || offs ==
+				      FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID);
 				break;
 			}
 		}
@@ -1435,6 +1450,9 @@ recv_parse_or_apply_log_rec_body(
 			ptr = page_zip_parse_compress_no_data(
 				ptr, end_ptr, page, page_zip, index);
 		}
+		break;
+	case MLOG_FILE_WRITE_CRYPT_DATA:
+		ptr = fil_parse_write_crypt_data(ptr, end_ptr, block);
 		break;
 	default:
 		ptr = NULL;
@@ -1933,7 +1951,7 @@ loop:
 		goto loop;
 	}
 
-	ut_ad(!allow_ibuf == mutex_own(&log_sys->mutex));
+	ut_ad((!allow_ibuf) == mutex_own(&log_sys->mutex));
 
 	if (!allow_ibuf) {
 		recv_no_ibuf_operations = TRUE;
@@ -2149,7 +2167,7 @@ recv_apply_log_recs_for_backup(void)
 				error = fil_io(OS_FILE_READ, true,
 					       recv_addr->space, zip_size,
 					       recv_addr->page_no, 0, zip_size,
-					       block->page.zip.data, NULL);
+					       block->page.zip.data, NULL, 0, 0, false);
 				if (error == DB_SUCCESS
 				    && !buf_zip_decompress(block, TRUE)) {
 					exit(1);
@@ -2159,7 +2177,7 @@ recv_apply_log_recs_for_backup(void)
 					       recv_addr->space, 0,
 					       recv_addr->page_no, 0,
 					       UNIV_PAGE_SIZE,
-					       block->frame, NULL);
+					       block->frame, NULL, 0, 0, false);
 			}
 
 			if (error != DB_SUCCESS) {
@@ -2188,13 +2206,15 @@ recv_apply_log_recs_for_backup(void)
 					       recv_addr->space, zip_size,
 					       recv_addr->page_no, 0,
 					       zip_size,
-					       block->page.zip.data, NULL);
+					       block->page.zip.data, NULL, 0, 0, false);
 			} else {
 				error = fil_io(OS_FILE_WRITE, true,
 					       recv_addr->space, 0,
 					       recv_addr->page_no, 0,
 					       UNIV_PAGE_SIZE,
-					       block->frame, NULL);
+					       block->frame, NULL, 0,
+					       block->latest_modification,
+					       block->encrypt_later);
 			}
 skip_this_recv_addr:
 			recv_addr = HASH_GET_NEXT(addr_hash, recv_addr);
@@ -2806,6 +2826,13 @@ recv_scan_log_recs(
 
 			finished = TRUE;
 
+			/* Crash if we encounter a garbage log block */
+			if (!srv_force_recovery) {
+				fputs("InnoDB: Set innodb_force_recovery"
+				      " to ignore this error.\n", stderr);
+				ut_error;
+			}
+
 			break;
 		}
 
@@ -3159,7 +3186,7 @@ recv_recovery_from_checkpoint_start_func(
 
 	fil_io(OS_FILE_READ | OS_FILE_LOG, true, max_cp_group->space_id, 0,
 	       0, 0, LOG_FILE_HDR_SIZE,
-	       log_hdr_buf, max_cp_group);
+	       log_hdr_buf, max_cp_group, 0);
 
 	if (0 == ut_memcmp(log_hdr_buf + LOG_FILE_WAS_CREATED_BY_HOT_BACKUP,
 			   (byte*)"ibbackup", (sizeof "ibbackup") - 1)) {
@@ -3190,7 +3217,7 @@ recv_recovery_from_checkpoint_start_func(
 		fil_io(OS_FILE_WRITE | OS_FILE_LOG, true,
 		       max_cp_group->space_id, 0,
 		       0, 0, OS_FILE_LOG_BLOCK_SIZE,
-		       log_hdr_buf, max_cp_group);
+		       log_hdr_buf, max_cp_group, 0);
 	}
 
 	log_hdr_log_block_size
@@ -3226,12 +3253,10 @@ recv_recovery_from_checkpoint_start_func(
 		/* Start reading the log groups from the checkpoint lsn up. The
 		variable contiguous_lsn contains an lsn up to which the log is
 		known to be contiguously written to all log groups. */
-
 		recv_sys->parse_start_lsn = checkpoint_lsn;
 		recv_sys->scanned_lsn = checkpoint_lsn;
 		recv_sys->scanned_checkpoint_no = 0;
 		recv_sys->recovered_lsn = checkpoint_lsn;
-
 		srv_start_lsn = checkpoint_lsn;
 	}
 
@@ -3314,7 +3339,6 @@ recv_recovery_from_checkpoint_start_func(
 
 		group = UT_LIST_GET_NEXT(log_groups, group);
 	}
-
 	/* Done with startup scan. Clear the flag. */
 	recv_log_scan_is_startup_type = FALSE;
 	if (TYPE_CHECKPOINT) {
@@ -3402,6 +3426,9 @@ recv_recovery_from_checkpoint_start_func(
 
 	log_sys->next_checkpoint_lsn = checkpoint_lsn;
 	log_sys->next_checkpoint_no = checkpoint_no + 1;
+	/* here the checkpoint info is written without any redo logging ongoing
+	* and next_checkpoint_no is updated directly hence no +1 */
+	log_crypt_set_ver_and_key(log_sys->next_checkpoint_no);
 
 #ifdef UNIV_LOG_ARCHIVE
 	log_sys->archived_lsn = archived_lsn;
@@ -3432,6 +3459,7 @@ recv_recovery_from_checkpoint_start_func(
 		    log_sys->lsn - log_sys->last_checkpoint_lsn);
 
 	log_sys->next_checkpoint_no = checkpoint_no + 1;
+	log_crypt_set_ver_and_key(log_sys->next_checkpoint_no);
 
 #ifdef UNIV_LOG_ARCHIVE
 	if (archived_lsn == LSN_MAX) {
@@ -3580,6 +3608,7 @@ recv_recovery_rollback_active(void)
 		/* Rollback the uncommitted transactions which have no user
 		session */
 
+		trx_rollback_or_clean_is_active = true;
 		os_thread_create(trx_rollback_or_clean_all_recovered, 0, 0);
 	}
 }
@@ -3785,7 +3814,7 @@ try_open_again:
 
 	file_handle = os_file_create(innodb_file_log_key,
 				     name, OS_FILE_OPEN,
-				     OS_FILE_LOG, OS_FILE_AIO, &ret);
+				     OS_FILE_LOG, OS_FILE_AIO, &ret, FALSE);
 
 	if (ret == FALSE) {
 ask_again:
@@ -3837,7 +3866,7 @@ ask_again:
 	/* Read the archive file header */
 	fil_io(OS_FILE_READ | OS_FILE_LOG, true, group->archive_space_id, 0,
 	       0, 0,
-	       LOG_FILE_HDR_SIZE, buf, NULL);
+	       LOG_FILE_HDR_SIZE, buf, NULL, 0);
 
 	/* Check if the archive file header is consistent */
 
@@ -3911,7 +3940,7 @@ ask_again:
 		fil_io(OS_FILE_READ | OS_FILE_LOG, true,
 		       group->archive_space_id, 0,
 		       read_offset / UNIV_PAGE_SIZE,
-		       read_offset % UNIV_PAGE_SIZE, len, buf, NULL);
+		       read_offset % UNIV_PAGE_SIZE, len, buf, NULL, 0);
 
 		ret = recv_scan_log_recs(
 			(buf_pool_get_n_pages()
@@ -4111,4 +4140,3 @@ byte* recv_dblwr_t::find_page(ulint space_id, ulint page_no)
 
 	return(result);
 }
-

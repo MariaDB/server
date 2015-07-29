@@ -392,7 +392,7 @@ class Item_bool :public Item_int
 public:
   Item_bool(int32 i): Item_int(i) {}
   const char *func_name() const { return "xpath_bool"; }
-  bool is_bool_func() { return 1; }
+  bool is_bool_type() { return true; }
 };
 
 
@@ -402,15 +402,14 @@ public:
   * a node-set is true if and only if it is non-empty
   * a string is true if and only if its length is non-zero
 */
-class Item_xpath_cast_bool :public Item_int_func
+class Item_xpath_cast_bool :public Item_bool_func
 {
   String *pxml;
   String tmp_value;
 public:
   Item_xpath_cast_bool(Item *a, String *pxml_arg)
-    :Item_int_func(a), pxml(pxml_arg) {}
+    :Item_bool_func(a), pxml(pxml_arg) {}
   const char *func_name() const { return "xpath_cast_bool"; }
-  bool is_bool_func() { return 1; }
   longlong val_int()
   {
     if (args[0]->type() == XPATH_NODESET)
@@ -568,7 +567,6 @@ public:
     :Item_bool_func(nodeset,cmpfunc), pxml(p) {}
   enum Type type() const { return XPATH_NODESET_CMP; };
   const char *func_name() const { return "xpath_nodeset_to_const_comparator"; }
-  bool is_bool_func() { return 1; }
   bool check_vcol_func_processor(uchar *int_arg) 
   {
     return trace_unsupported_by_check_vcol_func_processor(func_name());
@@ -823,7 +821,7 @@ String *Item_nodeset_func_elementbyindex::val_nodeset(String *nodeset)
                                                                    flt->pos,
                                                                    size);
     int index= (int) (args[1]->val_int()) - 1;
-    if (index >= 0 && (flt->pos == (uint) index || args[1]->is_bool_func()))
+    if (index >= 0 && (flt->pos == (uint) index || args[1]->is_bool_type()))
       ((XPathFilter*)nodeset)->append_element(flt->num, pos++);
   }
   return nodeset;
@@ -1732,7 +1730,7 @@ my_xpath_parse_AxisSpecifier_NodeTest_opt_Predicate_list(MY_XPATH *xpath)
 
     xpath->item= nodeset2bool(xpath, xpath->item);
 
-    if (xpath->item->is_bool_func())
+    if (xpath->item->is_bool_type())
     {
       xpath->context= new Item_nodeset_func_predicate(prev_context,
                                                       xpath->item,
@@ -2856,14 +2854,15 @@ bool Item_xml_str_func::XML::parse()
   /* Execute XML parser */
   if ((rc= my_xml_parse(&p, m_raw_ptr->ptr(), m_raw_ptr->length())) != MY_XML_OK)
   {
+    THD *thd= current_thd;
     char buf[128];
     my_snprintf(buf, sizeof(buf)-1, "parse error at line %d pos %lu: %s",
                 my_xml_error_lineno(&p) + 1,
                 (ulong) my_xml_error_pos(&p) + 1,
                 my_xml_error_string(&p));
-    push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                         ER_WRONG_VALUE,
-                        ER(ER_WRONG_VALUE), "XML", buf);
+                        ER_THD(thd, ER_WRONG_VALUE), "XML", buf);
     m_raw_ptr= (String *) 0;
   }
   my_xml_parser_free(&p);

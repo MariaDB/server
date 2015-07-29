@@ -2,6 +2,7 @@
 
 Copyright (c) 1996, 2014, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
+Copyright (c) 2013, SkySQL Ab. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -42,6 +43,8 @@ Created 1/8/1996 Heikki Tuuri
 #include "ut0byte.h"
 #include "trx0types.h"
 #include "row0types.h"
+#include "fsp0fsp.h"
+#include "dict0pagecompress.h"
 
 extern bool innodb_table_stats_not_found;
 extern bool innodb_index_stats_not_found;
@@ -120,7 +123,9 @@ enum dict_table_op_t {
 	DICT_TABLE_OP_DROP_ORPHAN,
 	/** Silently load the tablespace if it does not exist,
 	and do not load the definitions of incomplete indexes. */
-	DICT_TABLE_OP_LOAD_TABLESPACE
+	DICT_TABLE_OP_LOAD_TABLESPACE,
+	/** Open the table only if it's in table cache. */
+	DICT_TABLE_OP_OPEN_ONLY_IF_CACHED
 };
 
 /**********************************************************************//**
@@ -133,6 +138,17 @@ dict_table_open_on_id(
 	table_id_t	table_id,	/*!< in: table id */
 	ibool		dict_locked,	/*!< in: TRUE=data dictionary locked */
 	dict_table_op_t	table_op)	/*!< in: operation to perform */
+	__attribute__((warn_unused_result));
+
+/**********************************************************************//**
+Returns a table object based on table id.
+@return	table, NULL if does not exist */
+UNIV_INTERN
+dict_table_t*
+dict_table_open_on_index_id(
+/*==================*/
+	table_id_t	table_id,	/*!< in: table id */
+	bool		dict_locked)	/*!< in: TRUE=data dictionary locked */
 	__attribute__((warn_unused_result));
 /********************************************************************//**
 Decrements the count of open handles to a table. */
@@ -597,6 +613,17 @@ dict_table_get_col_name(
 	ulint			col_nr)	/*!< in: column number */
 	__attribute__((nonnull, warn_unused_result));
 /**********************************************************************//**
+Returns a column's name.
+@return column name. NOTE: not guaranteed to stay valid if table is
+modified in any way (columns added, etc.). */
+UNIV_INTERN
+const char*
+dict_table_get_col_name_for_mysql(
+/*==============================*/
+	const dict_table_t*	table,	/*!< in: table */
+	const char*		col_name)/*!< in: MySQL table column name */
+	__attribute__((nonnull, warn_unused_result));
+/**********************************************************************//**
 Prints a table data. */
 UNIV_INTERN
 void
@@ -907,7 +934,14 @@ dict_tf_set(
 	ulint*		flags,		/*!< in/out: table */
 	rec_format_t	format,		/*!< in: file format */
 	ulint		zip_ssize,	/*!< in: zip shift size */
-	bool		remote_path)	/*!< in: table uses DATA DIRECTORY */
+	bool		remote_path,	/*!< in: table uses DATA DIRECTORY
+					*/
+        bool		page_compressed,/*!< in: table uses page compressed
+					pages */
+	ulint		page_compression_level, /*!< in: table page compression
+						 level */
+	ulint		atomic_writes)  /*!< in: table atomic
+					writes option value*/
 	__attribute__((nonnull));
 /********************************************************************//**
 Convert a 32 bit integer table flags to the 32 bit integer that is
@@ -1146,8 +1180,9 @@ ulint
 dict_index_get_nth_col_pos(
 /*=======================*/
 	const dict_index_t*	index,	/*!< in: index */
-	ulint			n)	/*!< in: column number */
-	__attribute__((nonnull, warn_unused_result));
+	ulint			n,	/*!< in: column number */
+	ulint*			prefix_col_pos) /*!< out: col num if prefix */
+	__attribute__((nonnull(1), warn_unused_result));
 /********************************************************************//**
 Looks for column n in an index.
 @return position in internal representation of the index;
@@ -1158,9 +1193,11 @@ dict_index_get_nth_col_or_prefix_pos(
 /*=================================*/
 	const dict_index_t*	index,		/*!< in: index */
 	ulint			n,		/*!< in: column number */
-	ibool			inc_prefix)	/*!< in: TRUE=consider
+	ibool			inc_prefix,	/*!< in: TRUE=consider
 						column prefixes too */
-	__attribute__((nonnull, warn_unused_result));
+	ulint*			prefix_col_pos)	/*!< out: col num if prefix */
+
+	__attribute__((nonnull(1), warn_unused_result));
 /********************************************************************//**
 Returns TRUE if the index contains a column or a prefix of that column.
 @return	TRUE if contains the column or its prefix */
@@ -1430,8 +1467,12 @@ dict_index_calc_min_rec_len(
 Reserves the dictionary system mutex for MySQL. */
 UNIV_INTERN
 void
-dict_mutex_enter_for_mysql(void);
+dict_mutex_enter_for_mysql_func(const char * file, ulint line);
 /*============================*/
+
+#define dict_mutex_enter_for_mysql() \
+  dict_mutex_enter_for_mysql_func(__FILE__, __LINE__)
+
 /********************************************************************//**
 Releases the dictionary system mutex for MySQL. */
 UNIV_INTERN
@@ -1508,6 +1549,16 @@ dict_table_get_index_on_name(
 /*=========================*/
 	dict_table_t*	table,	/*!< in: table */
 	const char*	name)	/*!< in: name of the index to find */
+	__attribute__((nonnull, warn_unused_result));
+/**********************************************************************//**
+Looks for an index with the given id given a table instance.
+@return	index or NULL */
+UNIV_INTERN
+dict_index_t*
+dict_table_find_index_on_id(
+/*========================*/
+	const dict_table_t*	table,	/*!< in: table instance */
+	index_id_t		id)	/*!< in: index id */
 	__attribute__((nonnull, warn_unused_result));
 /**********************************************************************//**
 In case there is more than one index with the same name return the index

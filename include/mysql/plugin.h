@@ -75,21 +75,24 @@ typedef struct st_mysql_xid MYSQL_XID;
 #define MYSQL_PLUGIN_INTERFACE_VERSION 0x0104
 
 /* MariaDB plugin interface version */
-#define MARIA_PLUGIN_INTERFACE_VERSION 0x0108
+#define MARIA_PLUGIN_INTERFACE_VERSION 0x010b
 
 /*
   The allowable types of plugins
 */
-#define MYSQL_UDF_PLUGIN             0  /* User-defined function        */
-#define MYSQL_STORAGE_ENGINE_PLUGIN  1  /* Storage Engine               */
+#define MYSQL_UDF_PLUGIN             0  /* not implemented              */
+#define MYSQL_STORAGE_ENGINE_PLUGIN  1
 #define MYSQL_FTPARSER_PLUGIN        2  /* Full-text parser plugin      */
-#define MYSQL_DAEMON_PLUGIN          3  /* The daemon/raw plugin type */
-#define MYSQL_INFORMATION_SCHEMA_PLUGIN  4  /* The I_S plugin type */
-#define MYSQL_AUDIT_PLUGIN           5  /* The Audit plugin type        */
-#define MYSQL_REPLICATION_PLUGIN     6	/* The replication plugin type */
-#define MYSQL_AUTHENTICATION_PLUGIN  7  /* The authentication plugin type */
-#define MYSQL_VALIDATE_PASSWORD_PLUGIN  8   /* validate password plugin type */
-#define MYSQL_MAX_PLUGIN_TYPE_NUM    9  /* The number of plugin types   */
+#define MYSQL_DAEMON_PLUGIN          3
+#define MYSQL_INFORMATION_SCHEMA_PLUGIN  4
+#define MYSQL_AUDIT_PLUGIN           5
+#define MYSQL_REPLICATION_PLUGIN     6
+#define MYSQL_AUTHENTICATION_PLUGIN  7
+#define MYSQL_MAX_PLUGIN_TYPE_NUM    10  /* The number of plugin types   */
+
+/* MariaDB plugin types */
+#define MariaDB_PASSWORD_VALIDATION_PLUGIN  8
+#define MariaDB_ENCRYPTION_PLUGIN 9
 
 /* We use the following strings to define licenses for plugins */
 #define PLUGIN_LICENSE_PROPRIETARY 0
@@ -180,14 +183,19 @@ enum enum_mysql_show_type
 #define SHOW_LONG     SHOW_ULONG
 #define SHOW_LONGLONG SHOW_ULONGLONG
 
+enum enum_var_type
+{
+  SHOW_OPT_DEFAULT= 0, SHOW_OPT_SESSION, SHOW_OPT_GLOBAL
+};
+
 struct st_mysql_show_var {
   const char *name;
-  char *value;
+  void *value;
   enum enum_mysql_show_type type;
 };
 
-#define SHOW_VAR_FUNC_BUFF_SIZE 1024
-typedef int (*mysql_show_var_func)(MYSQL_THD, struct st_mysql_show_var*, char *);
+#define SHOW_VAR_FUNC_BUFF_SIZE (256 * sizeof(void*))
+typedef int (*mysql_show_var_func)(MYSQL_THD, struct st_mysql_show_var*, void *, enum enum_var_type);
 
 
 /*

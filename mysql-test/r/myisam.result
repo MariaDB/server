@@ -656,7 +656,7 @@ test.t2	984116287
 drop table t1, t2;
 show variables like 'myisam_stats_method';
 Variable_name	Value
-myisam_stats_method	nulls_unequal
+myisam_stats_method	NULLS_UNEQUAL
 create table t1 (a int, key(a));
 insert into t1 values (0),(1),(2),(3),(4);
 insert into t1 select NULL from t1;
@@ -677,7 +677,7 @@ t1	1	a	1	a	A	10	NULL	NULL	YES	BTREE
 set myisam_stats_method=nulls_equal;
 show variables like 'myisam_stats_method';
 Variable_name	Value
-myisam_stats_method	nulls_equal
+myisam_stats_method	NULLS_EQUAL
 insert into t1 values (11);
 delete from t1 where a=11;
 analyze table t1;
@@ -697,7 +697,7 @@ t1	1	a	1	a	A	5	NULL	NULL	YES	BTREE
 set myisam_stats_method=DEFAULT;
 show variables like 'myisam_stats_method';
 Variable_name	Value
-myisam_stats_method	nulls_unequal
+myisam_stats_method	NULLS_UNEQUAL
 insert into t1 values (11);
 delete from t1 where a=11;
 analyze table t1;
@@ -718,7 +718,7 @@ drop table t1;
 set myisam_stats_method=nulls_ignored;
 show variables like 'myisam_stats_method';
 Variable_name	Value
-myisam_stats_method	nulls_ignored
+myisam_stats_method	NULLS_IGNORED
 create table t1 (
 a char(3), b char(4), c char(5), d char(6),
 key(a,b,c,d)
@@ -2526,6 +2526,17 @@ test.t1	check	warning	1 client is using or hasn't closed the table properly
 test.t1	check	error	Size of indexfile is: 1024        Should be: 2048
 test.t1	check	warning	Size of datafile is: 14       Should be: 7
 test.t1	check	error	Corrupt
+DROP TABLE t1;
+#
+# MDEV-3870 - Valgrind warnings on OPTIMIZE MyISAM or Aria TABLE with
+#             disabled keys
+#
+CREATE TABLE t1 (a INT, KEY(a)) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (4),(3),(1),(0);
+ALTER TABLE t1 DISABLE KEYS;
+OPTIMIZE TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	optimize	status	OK
 DROP TABLE t1;
 show variables like 'myisam_block_size';
 Variable_name	Value

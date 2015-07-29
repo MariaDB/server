@@ -1,5 +1,5 @@
-/* Copyright (c) 2000, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2014, SkySQL Ab.
+/* Copyright (c) 2000, 2015, Oracle and/or its affiliates.
+   Copyright (c) 2008, 2015, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -76,7 +76,7 @@ bool Item_sum::init_sum_func_check(THD *thd)
   }
   if (!(thd->lex->allow_sum_func & curr_sel->name_visibility_map))
   {
-    my_message(ER_INVALID_GROUP_FUNC_USE, ER(ER_INVALID_GROUP_FUNC_USE),
+    my_message(ER_INVALID_GROUP_FUNC_USE, ER_THD(thd, ER_INVALID_GROUP_FUNC_USE),
                MYF(0));
     return TRUE;
   }
@@ -200,7 +200,8 @@ bool Item_sum::check_sum_func(THD *thd, Item **ref)
     invalid= aggr_level <= max_sum_func_level;
   if (invalid)  
   {
-    my_message(ER_INVALID_GROUP_FUNC_USE, ER(ER_INVALID_GROUP_FUNC_USE),
+    my_message(ER_INVALID_GROUP_FUNC_USE,
+               ER_THD(thd, ER_INVALID_GROUP_FUNC_USE),
                MYF(0));
     return TRUE;
   }
@@ -281,7 +282,7 @@ bool Item_sum::check_sum_func(THD *thd, Item **ref)
           !sel->group_list.elements)
       {
         my_message(ER_MIX_OF_GROUP_FUNC_AND_FIELDS,
-                   ER(ER_MIX_OF_GROUP_FUNC_AND_FIELDS), MYF(0));
+                   ER_THD(thd, ER_MIX_OF_GROUP_FUNC_AND_FIELDS), MYF(0));
         return TRUE;
       }
     }
@@ -400,20 +401,9 @@ bool Item_sum::collect_outer_ref_processor(uchar *param)
 }
 
 
-Item_sum::Item_sum(List<Item> &list) :arg_count(list.elements), 
+Item_sum::Item_sum(List<Item> &list) :Item_func_or_sum(list),
   forced_const(FALSE)
 {
-  if ((args=(Item**) sql_alloc(sizeof(Item*)*arg_count)))
-  {
-    uint i=0;
-    List_iterator_fast<Item> li(list);
-    Item *item;
-
-    while ((item=li++))
-    {
-      args[i++]= item;
-    }
-  }
   if (!(orig_args= (Item **) sql_alloc(sizeof(Item *) * arg_count)))
   {
     args= NULL;
@@ -429,27 +419,23 @@ Item_sum::Item_sum(List<Item> &list) :arg_count(list.elements),
 */
 
 Item_sum::Item_sum(THD *thd, Item_sum *item):
-  Item_result_field(thd, item),
+  Item_func_or_sum(thd, item),
   aggr_sel(item->aggr_sel),
   nest_level(item->nest_level), aggr_level(item->aggr_level),
   quick_group(item->quick_group),
-  arg_count(item->arg_count), orig_args(NULL),
+  orig_args(NULL),
   used_tables_cache(item->used_tables_cache),
   forced_const(item->forced_const) 
 {
   if (arg_count <= 2)
   {
-    args=tmp_args;
     orig_args=tmp_orig_args;
   }
   else
   {
-    if (!(args= (Item**) thd->alloc(sizeof(Item*)*arg_count)))
-      return;
     if (!(orig_args= (Item**) thd->alloc(sizeof(Item*)*arg_count)))
       return;
   }
-  memcpy(args, item->args, sizeof(Item*)*arg_count);
   memcpy(orig_args, item->orig_args, sizeof(Item*)*arg_count);
   init_aggregator();
   with_distinct= item->with_distinct;
@@ -509,22 +495,6 @@ Item *Item_sum::get_tmp_table_item(THD *thd)
     }
   }
   return sum_item;
-}
-
-
-bool Item_sum::walk (Item_processor processor, bool walk_subquery,
-                     uchar *argument)
-{
-  if (arg_count)
-  {
-    Item **arg,**arg_end;
-    for (arg= args, arg_end= args+arg_count; arg != arg_end; arg++)
-    {
-      if ((*arg)->walk(processor, walk_subquery, argument))
-	return 1;
-    }
-  }
-  return (this->*processor)(argument);
 }
 
 
@@ -3143,6 +3113,7 @@ int dump_leaf_key(void* key_arg, element_count count __attribute__((unused)),
     CHARSET_INFO *cs= item->collation.collation;
     const char *ptr= result->ptr();
     uint add_length;
+    THD *thd= current_thd;
     /*
       It's ok to use item->result.length() as the fourth argument
       as this is never used to limit the length of the data.
@@ -3155,8 +3126,9 @@ int dump_leaf_key(void* key_arg, element_count count __attribute__((unused)),
                                           &well_formed_error);
     result->length(old_length + add_length);
     item->warning_for_row= TRUE;
-    push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
-                        ER_CUT_VALUE_GROUP_CONCAT, ER(ER_CUT_VALUE_GROUP_CONCAT),
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                        ER_CUT_VALUE_GROUP_CONCAT,
+                        ER_THD(thd, ER_CUT_VALUE_GROUP_CONCAT),
                         item->row_count);
 
     return 1;
@@ -3311,12 +3283,24 @@ void Item_func_group_concat::cleanup()
     }
     DBUG_ASSERT(tree == 0);
   }
-
+  /*
+    As the ORDER structures pointed to by the elements of the
+    'order' array may be modified in find_order_in_list() called
+    from Item_func_group_concat::setup() to point to runtime
+    created objects, we need to reset them back to the original
+    arguments of the function.
+  */
+  ORDER **order_ptr= order;
+  for (uint i= 0; i < arg_count_order; i++)
+  {
+    (*order_ptr)->item= &args[arg_count_field + i];
+    order_ptr++;
+  }
   DBUG_VOID_RETURN;
 }
 
 
-Field *Item_func_group_concat::make_string_field(TABLE *table)
+Field *Item_func_group_concat::make_string_field(TABLE *table_arg)
 {
   Field *field;
   DBUG_ASSERT(collation.collation);
@@ -3325,10 +3309,11 @@ Field *Item_func_group_concat::make_string_field(TABLE *table)
                           maybe_null, name, collation.collation, TRUE);
   else
     field= new Field_varstring(max_length,
-                               maybe_null, name, table->s, collation.collation);
+                               maybe_null, name, table_arg->s,
+                               collation.collation);
 
   if (field)
-    field->init(table);
+    field->init(table_arg);
   return field;
 }
 

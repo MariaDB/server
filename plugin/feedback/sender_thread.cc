@@ -16,6 +16,7 @@
 #include "feedback.h"
 #include <sql_acl.h>
 #include <sql_parse.h>
+#include <sql_show.h>
 #include <time.h>
 
 namespace feedback {
@@ -120,7 +121,7 @@ static int prepare_for_fill(TABLE_LIST *tables)
                          strlen(i_s_feedback->table_name),
                          0, TL_READ);
   tables->schema_table= i_s_feedback;
-  tables->table= i_s_feedback->create_table(thd, tables);
+  tables->table= create_schema_table(thd, tables);
   if (!tables->table)
     return 1;
 

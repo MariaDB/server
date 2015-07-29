@@ -25,6 +25,7 @@ Created Apr 25, 2012 Vasil Dimov
 
 #include "row0mysql.h"
 #include "srv0start.h"
+#include "dict0dict.h"
 #include "dict0stats.h"
 #include "dict0stats_bg.h"
 
@@ -44,8 +45,10 @@ UNIV_INTERN os_event_t		dict_stats_event = NULL;
 
 /** This mutex protects the "recalc_pool" variable. */
 static ib_mutex_t		recalc_pool_mutex;
+static ib_mutex_t		defrag_pool_mutex;
 #ifdef HAVE_PSI_INTERFACE
 static mysql_pfs_key_t		recalc_pool_mutex_key;
+static mysql_pfs_key_t		defrag_pool_mutex_key;
 #endif /* HAVE_PSI_INTERFACE */
 
 /** The number of tables that can be added to "recalc_pool" before
@@ -59,16 +62,26 @@ static recalc_pool_t		recalc_pool;
 
 typedef recalc_pool_t::iterator	recalc_pool_iterator_t;
 
+/** Indices whose defrag stats need to be saved to persistent storage.*/
+struct defrag_pool_item_t {
+	table_id_t	table_id;
+	index_id_t	index_id;
+};
+typedef std::vector<defrag_pool_item_t>	defrag_pool_t;
+static defrag_pool_t			defrag_pool;
+typedef defrag_pool_t::iterator		defrag_pool_iterator_t;
+
 /*****************************************************************//**
 Initialize the recalc pool, called once during thread initialization. */
 static
 void
-dict_stats_recalc_pool_init()
+dict_stats_pool_init()
 /*=========================*/
 {
 	ut_ad(!srv_read_only_mode);
 
 	recalc_pool.reserve(RECALC_POOL_INITIAL_SLOTS);
+	defrag_pool.reserve(RECALC_POOL_INITIAL_SLOTS);
 }
 
 /*****************************************************************//**
@@ -76,12 +89,13 @@ Free the resources occupied by the recalc pool, called once during
 thread de-initialization. */
 static
 void
-dict_stats_recalc_pool_deinit()
-/*===========================*/
+dict_stats_pool_deinit()
+/*====================*/
 {
 	ut_ad(!srv_read_only_mode);
 
 	recalc_pool.clear();
+	defrag_pool.clear();
         /*
           recalc_pool may still have its buffer allocated. It will free it when
           its destructor is called.
@@ -90,8 +104,12 @@ dict_stats_recalc_pool_deinit()
           memory.  To avoid that, we force recalc_pool to surrender its buffer
           to empty_pool object, which will free it when leaving this function:
         */
-        recalc_pool_t empty_pool;
-        recalc_pool.swap(empty_pool);
+	recalc_pool_t recalc_empty_pool;
+	defrag_pool_t defrag_empty_pool;
+	memset(&recalc_empty_pool, 0, sizeof(recalc_pool_t));
+	memset(&defrag_empty_pool, 0, sizeof(defrag_pool_t));
+        recalc_pool.swap(recalc_empty_pool);
+	defrag_pool.swap(defrag_empty_pool);
 }
 
 /*****************************************************************//**
@@ -188,6 +206,111 @@ dict_stats_recalc_pool_del(
 }
 
 /*****************************************************************//**
+Add an index in a table to the defrag pool, which is processed by the
+background stats gathering thread. Only the table id and index id are
+added to the list, so the table can be closed after being enqueued and
+it will be opened when needed. If the table or index does not exist later
+(has been DROPped), then it will be removed from the pool and skipped. */
+UNIV_INTERN
+void
+dict_stats_defrag_pool_add(
+/*=======================*/
+	const dict_index_t*	index)	/*!< in: table to add */
+{
+	defrag_pool_item_t item;
+
+	ut_ad(!srv_read_only_mode);
+
+	mutex_enter(&defrag_pool_mutex);
+
+	/* quit if already in the list */
+	for (defrag_pool_iterator_t iter = defrag_pool.begin();
+	     iter != defrag_pool.end();
+	     ++iter) {
+		if ((*iter).table_id == index->table->id
+		    && (*iter).index_id == index->id) {
+			mutex_exit(&defrag_pool_mutex);
+			return;
+		}
+	}
+
+	item.table_id = index->table->id;
+	item.index_id = index->id;
+	defrag_pool.push_back(item);
+
+	mutex_exit(&defrag_pool_mutex);
+
+	os_event_set(dict_stats_event);
+}
+
+/*****************************************************************//**
+Get an index from the auto defrag pool. The returned index id is removed
+from the pool.
+@return true if the pool was non-empty and "id" was set, false otherwise */
+static
+bool
+dict_stats_defrag_pool_get(
+/*=======================*/
+	table_id_t*	table_id,	/*!< out: table id, or unmodified if
+					list is empty */
+	index_id_t*	index_id)	/*!< out: index id, or unmodified if
+					list is empty */
+{
+	ut_ad(!srv_read_only_mode);
+
+	mutex_enter(&defrag_pool_mutex);
+
+	if (defrag_pool.empty()) {
+		mutex_exit(&defrag_pool_mutex);
+		return(false);
+	}
+
+	defrag_pool_item_t& item = defrag_pool.back();
+	*table_id = item.table_id;
+	*index_id = item.index_id;
+
+	defrag_pool.pop_back();
+
+	mutex_exit(&defrag_pool_mutex);
+
+	return(true);
+}
+
+/*****************************************************************//**
+Delete a given index from the auto defrag pool. */
+UNIV_INTERN
+void
+dict_stats_defrag_pool_del(
+/*=======================*/
+	const dict_table_t*	table,	/*!<in: if given, remove
+					all entries for the table */
+	const dict_index_t*	index)	/*!< in: if given, remove this index */
+{
+	ut_a((table && !index) || (!table && index));
+	ut_ad(!srv_read_only_mode);
+	ut_ad(mutex_own(&dict_sys->mutex));
+
+	mutex_enter(&defrag_pool_mutex);
+
+	defrag_pool_iterator_t iter = defrag_pool.begin();
+	while (iter != defrag_pool.end()) {
+		if ((table && (*iter).table_id == table->id)
+		    || (index
+			&& (*iter).table_id == index->table->id
+			&& (*iter).index_id == index->id)) {
+			/* erase() invalidates the iterator */
+			iter = defrag_pool.erase(iter);
+			if (index)
+				break;
+		} else {
+			iter++;
+		}
+	}
+
+	mutex_exit(&defrag_pool_mutex);
+}
+
+/*****************************************************************//**
 Wait until background stats thread has stopped using the specified table.
 The caller must have locked the data dictionary using
 row_mysql_lock_data_dictionary() and this function may unlock it temporarily
@@ -237,7 +360,10 @@ dict_stats_thread_init()
 	mutex_create(recalc_pool_mutex_key, &recalc_pool_mutex,
 		     SYNC_STATS_AUTO_RECALC);
 
-	dict_stats_recalc_pool_init();
+	/* We choose SYNC_STATS_DEFRAG to be below SYNC_FSP_PAGE. */
+	mutex_create(defrag_pool_mutex_key, &defrag_pool_mutex,
+	     SYNC_STATS_DEFRAG);
+	dict_stats_pool_init();
 }
 
 /*****************************************************************//**
@@ -251,10 +377,13 @@ dict_stats_thread_deinit()
 	ut_a(!srv_read_only_mode);
 	ut_ad(!srv_dict_stats_thread_active);
 
-	dict_stats_recalc_pool_deinit();
+	dict_stats_pool_deinit();
 
 	mutex_free(&recalc_pool_mutex);
 	memset(&recalc_pool_mutex, 0x0, sizeof(recalc_pool_mutex));
+
+	mutex_free(&defrag_pool_mutex);
+	memset(&defrag_pool_mutex, 0x0, sizeof(defrag_pool_mutex));
 
 	os_event_free(dict_stats_event);
 	dict_stats_event = NULL;
@@ -298,7 +427,7 @@ dict_stats_process_entry_from_recalc_pool()
 		return;
 	}
 
-	table->stats_bg_flag = BG_STAT_IN_PROGRESS;
+	table->stats_bg_flag |= BG_STAT_IN_PROGRESS;
 
 	mutex_exit(&dict_sys->mutex);
 
@@ -325,11 +454,68 @@ dict_stats_process_entry_from_recalc_pool()
 
 	mutex_enter(&dict_sys->mutex);
 
-	table->stats_bg_flag = BG_STAT_NONE;
+	table->stats_bg_flag &= ~BG_STAT_IN_PROGRESS;
 
 	dict_table_close(table, TRUE, FALSE);
 
 	mutex_exit(&dict_sys->mutex);
+}
+
+/*****************************************************************//**
+Get the first index that has been added for updating persistent defrag
+stats and eventually save its stats. */
+static
+void
+dict_stats_process_entry_from_defrag_pool()
+/*=======================================*/
+{
+	table_id_t	table_id;
+	index_id_t	index_id;
+
+	ut_ad(!srv_read_only_mode);
+
+	/* pop the first index from the auto defrag pool */
+	if (!dict_stats_defrag_pool_get(&table_id, &index_id)) {
+		/* no index in defrag pool */
+		return;
+	}
+
+	dict_table_t*	table;
+
+	mutex_enter(&dict_sys->mutex);
+
+	/* If the table is no longer cached, we've already lost the in
+	memory stats so there's nothing really to write to disk. */
+	table = dict_table_open_on_id(table_id, TRUE,
+				      DICT_TABLE_OP_OPEN_ONLY_IF_CACHED);
+
+	if (table == NULL) {
+		mutex_exit(&dict_sys->mutex);
+		return;
+	}
+
+	/* Check whether table is corrupted */
+	if (table->corrupted) {
+		dict_table_close(table, TRUE, FALSE);
+		mutex_exit(&dict_sys->mutex);
+		return;
+	}
+	mutex_exit(&dict_sys->mutex);
+
+	dict_index_t*	index = dict_table_find_index_on_id(table, index_id);
+
+	if (index == NULL) {
+		return;
+	}
+
+	/* Check whether index is corrupted */
+	if (dict_index_is_corrupted(index)) {
+		dict_table_close(table, FALSE, FALSE);
+		return;
+	}
+
+	dict_stats_save_defrag_stats(index);
+	dict_table_close(table, FALSE, FALSE);
 }
 
 /*****************************************************************//**
@@ -363,6 +549,9 @@ DECLARE_THREAD(dict_stats_thread)(
 		}
 
 		dict_stats_process_entry_from_recalc_pool();
+
+		while (defrag_pool.size())
+			dict_stats_process_entry_from_defrag_pool();
 
 		os_event_reset(dict_stats_event);
 	}

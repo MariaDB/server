@@ -104,7 +104,7 @@ ORDER BY head, tail;
 DROP TEMPORARY TABLE head, tail;
 SHOW CREATE TABLE t1;
 UPDATE t1 SET a=unhex(code) ORDER BY code;
-SELECT COUNT(*) FROM t1 WHERE a<>'';
+SELECT COUNT(*) FROM t1 WHERE a<>'?';
 #
 # Display all characters that have upper or lower case mapping.
 #
@@ -202,4 +202,236 @@ SET NAMES gbk;
 
 --echo #
 --echo # End of 10.0 tests
+--echo #
+
+
+--echo #
+--echo # Start of 10.1 tests
+--echo #
+
+--echo #
+--echo # MDEV-6566 Different INSERT behaviour on bad bytes with and without character set conversion
+--echo #
+
+CREATE TABLE t1 (
+  id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  b VARBINARY(16),
+  type SET('ascii','bad','head','tail','mb2','unassigned')
+);
+INSERT INTO t1 (b, type) VALUES (0x40,   'ascii,tail');
+INSERT INTO t1 (b, type) VALUES (0x80,   'tail');
+INSERT INTO t1 (b, type) VALUES (0x81,   'head,tail');
+INSERT INTO t1 (b, type) VALUES (0xFF,   'bad');
+INSERT INTO t1 (b, type) VALUES (0xA140, 'mb2,unassigned');
+INSERT INTO t1 (b, type) VALUES (0xA1A3, 'mb2');
+INSERT INTO t1 (b, type) VALUES (0xFE40, 'mb2');
+CREATE TABLE t2 AS SELECT
+  CONCAT(t1.b,t2.b) AS b,
+  t1.type AS type1,
+  t2.type AS type2,
+  CONCAT('[',t1.type,'][',t2.type,']') AS comment
+FROM t1, t1 t2;
+
+CREATE TABLE t3
+(
+  b VARBINARY(16),
+  c VARCHAR(16) CHARACTER SET gbk,
+  comment VARCHAR(128)
+);
+--echo #
+--echo # A combination of two valid characters, should give no warnings
+--echo # 
+INSERT INTO t3 (b,c,comment) SELECT b,b,comment FROM t2
+WHERE
+  (FIND_IN_SET('ascii',type1) OR FIND_IN_SET('mb2',type1)) AND
+  (FIND_IN_SET('ascii',type2) OR FIND_IN_SET('mb2',type2))
+ORDER BY b;
+SELECT COUNT(*) FROM t3;
+SELECT HEX(c),comment FROM t3 WHERE b=c ORDER BY b;
+SELECT HEX(c),HEX(b),comment FROM t3 WHERE b<>c ORDER BY b;
+DELETE FROM t2 WHERE b IN (SELECT b FROM t3);
+DELETE FROM t3;
+
+--echo #
+--echo # Sequences that start with a tail or a bad byte,
+--echo # or end with a bad byte, all should be fixed.
+--echo #
+INSERT INTO t3 (b,c,comment) SELECT b,b,comment FROM t2
+WHERE type1='tail' OR type1='bad' OR type2='bad'
+ORDER BY b;
+SELECT COUNT(*) FROM t3;
+SELECT HEX(c),comment FROM t3 WHERE b=c ORDER BY b;
+SELECT HEX(c),HEX(b),comment FROM t3 WHERE b<>c ORDER BY b;
+DELETE FROM t2 WHERE b IN (SELECT b FROM t3);
+DELETE FROM t3;
+
+--echo #
+--echo # Sequences that start with an ASCII or an MB2 character,
+--echo # followed by a non-ASCII tail, all should be fixed.
+--echo #
+INSERT INTO t3 (b,c,comment) SELECT b,b,comment FROM t2
+WHERE (FIND_IN_SET('mb2',type1) OR FIND_IN_SET('ascii',type1))
+      AND (FIND_IN_SET('tail',type2) AND NOT FIND_IN_SET('ascii',type2))
+ORDER BY b;
+SELECT COUNT(*) FROM t3;
+SELECT HEX(c),comment FROM t3 WHERE b=c ORDER BY b;
+SELECT HEX(c),HEX(b),comment FROM t3 WHERE b<>c ORDER BY b;
+DELETE FROM t2 WHERE b IN (SELECT b FROM t3);
+DELETE FROM t3;
+
+--echo #
+--echo # Other sequences
+--echo #
+INSERT INTO t3 (b,c,comment) SELECT b,b,comment FROM t2 ORDER BY b;
+SELECT COUNT(*) FROM t3;
+SELECT HEX(c),comment FROM t3 WHERE b=c ORDER BY b;
+SELECT HEX(c),HEX(b),comment FROM t3 WHERE b<>c ORDER BY b;
+DELETE FROM t3;
+DROP TABLE t3;
+DROP TABLE t2;
+
+CREATE TABLE t2 AS SELECT
+  CONCAT(t1.b,t2.b,t3.b) AS b,
+  t1.type AS type1,
+  t2.type AS type2,
+  t3.type AS type3,
+  CONCAT('[',t1.type,'][',t2.type,'][',t3.type,']') AS comment
+FROM t1, t1 t2,t1 t3;
+SELECT COUNT(*) FROM t2;
+
+CREATE TABLE t3
+(
+  b VARBINARY(16),
+  c VARCHAR(16) CHARACTER SET gbk,
+  comment VARCHAR(128)
+);
+
+--echo #
+--echo # A combination of three valid characters, should give no warnings
+--echo # 
+INSERT INTO t3 (b,c,comment) SELECT b,b,comment FROM t2
+WHERE
+  (FIND_IN_SET('ascii',type1) OR FIND_IN_SET('mb2',type1)) AND
+  (FIND_IN_SET('ascii',type2) OR FIND_IN_SET('mb2',type2)) AND
+  (FIND_IN_SET('ascii',type3) OR FIND_IN_SET('mb2',type3)) 
+ORDER BY b;
+SELECT COUNT(*) FROM t3;
+SELECT HEX(c),comment FROM t3 WHERE b=c ORDER BY b;
+SELECT HEX(c),HEX(b),comment FROM t3 WHERE b<>c ORDER BY b;
+DELETE FROM t2 WHERE b IN (SELECT b FROM t3);
+DELETE FROM t3;
+
+--echo #
+--echo # Sequences that start with a tail or a bad byte,
+--echo # or have a bad byte, all should be fixed.
+--echo #
+INSERT INTO t3 (b,c,comment) SELECT b,b,comment FROM t2
+WHERE type1='tail' OR type1='bad' OR type2='bad' OR type3='bad'
+ORDER BY b;
+SELECT COUNT(*) FROM t3;
+SELECT HEX(c),comment FROM t3 WHERE b=c ORDER BY b;
+SELECT HEX(c),HEX(b),comment FROM t3 WHERE b<>c ORDER BY b;
+DELETE FROM t2 WHERE b IN (SELECT b FROM t3);
+DELETE FROM t3;
+
+--echo #
+--echo # Sequences that start with an ASCII or an MB2 character,
+--echo # followed by a pure non-ASCII tail, all should be fixed.
+--echo #
+INSERT INTO t3 (b,c,comment) SELECT b,b,comment FROM t2
+WHERE (FIND_IN_SET('mb2',type1) OR FIND_IN_SET('ascii',type1))
+      AND type2='tail'
+ORDER BY b;
+SELECT COUNT(*) FROM t3;
+SELECT HEX(c),comment FROM t3 WHERE b=c ORDER BY b;
+SELECT HEX(c),HEX(b),comment FROM t3 WHERE b<>c ORDER BY b;
+DELETE FROM t2 WHERE b IN (SELECT b FROM t3);
+DELETE FROM t3;
+
+--echo #
+--echo # Sequences that consist of two ASCII or MB2 characters,
+--echo # followed by a pure non-ASCII tail, all should be fixed.
+--echo #
+INSERT INTO t3 (b,c,comment) SELECT b,b,comment FROM t2
+WHERE (FIND_IN_SET('mb2',type1) OR FIND_IN_SET('ascii',type1)) AND
+      (FIND_IN_SET('mb2',type2) OR FIND_IN_SET('ascii',type2)) AND
+      type3='tail'
+ORDER BY b;
+SELECT COUNT(*) FROM t3;
+SELECT HEX(c),comment FROM t3 WHERE b=c ORDER BY b;
+SELECT HEX(c),HEX(b),comment FROM t3 WHERE b<>c ORDER BY b;
+DELETE FROM t2 WHERE b IN (SELECT b FROM t3);
+DELETE FROM t3;
+
+
+--echo #
+--echo # Sequences that consist of two MB2 characters,
+--echo # followed by a non-ASCII head or tail, all should be fixed.
+--echo #
+INSERT INTO t3 (b,c,comment) SELECT b,b,comment FROM t2
+WHERE FIND_IN_SET('mb2',type1) AND FIND_IN_SET('mb2',type2)
+      AND NOT FIND_IN_SET('ascii',type3)
+      AND NOT FIND_IN_SET('mb2',type3)
+ORDER BY b;
+SELECT COUNT(*) FROM t3;
+SELECT HEX(c),comment FROM t3 WHERE b=c ORDER BY b;
+SELECT HEX(c),HEX(b),comment FROM t3 WHERE b<>c ORDER BY b;
+DELETE FROM t2 WHERE b IN (SELECT b FROM t3);
+DELETE FROM t3;
+
+
+--echo #
+--echo # Sequences that consist of head + tail + MB2 should go without warnings
+--echo #
+INSERT INTO t3 (b,c,comment) SELECT b,b,comment FROM t2
+WHERE FIND_IN_SET('head',type1)
+  AND FIND_IN_SET('tail',type2)
+  AND FIND_IN_SET('mb2',type3)
+ORDER BY b;
+SELECT COUNT(*) FROM t3;
+SELECT HEX(c),comment FROM t3 WHERE b=c ORDER BY b;
+SELECT HEX(c),HEX(b),comment FROM t3 WHERE b<>c ORDER BY b;
+DELETE FROM t2 WHERE b IN (SELECT b FROM t3);
+DELETE FROM t3;
+
+--echo #
+--echo # Sequences that consist of (ascii or mb2) + head + tail should go without warnings
+--echo #
+INSERT INTO t3 (b,c,comment) SELECT b,b,comment FROM t2
+WHERE (FIND_IN_SET('ascii',type1) OR FIND_IN_SET('mb2',type1))
+  AND FIND_IN_SET('head',type2)
+  AND FIND_IN_SET('tail',type3)
+ORDER BY b;
+SELECT COUNT(*) FROM t3;
+SELECT HEX(c),comment FROM t3 WHERE b=c ORDER BY b;
+SELECT HEX(c),HEX(b),comment FROM t3 WHERE b<>c ORDER BY b;
+DELETE FROM t2 WHERE b IN (SELECT b FROM t3);
+DELETE FROM t3;
+
+
+#--echo #
+#--echo # Other sequences
+#--echo #
+INSERT INTO t3 (b,c,comment) SELECT b,b,comment FROM t2 ORDER BY b;
+SELECT COUNT(*) FROM t3;
+SELECT HEX(c),comment FROM t3 WHERE b=c ORDER BY b;
+SELECT HEX(c),HEX(b),comment FROM t3 WHERE b<>c ORDER BY b;
+
+DROP TABLE t3;
+DROP TABLE t2;
+DROP TABLE t1;
+
+--echo #
+--echo # END OF MDEV-6566 Different INSERT behaviour on bad bytes with and without character set conversion
+--echo #
+
+--echo #
+--echo # MDEV-7661 Unexpected result for: CAST(0xHHHH AS CHAR CHARACTER SET xxx) for incorrect byte sequences
+--echo #
+SELECT HEX(CAST(0xA341 AS CHAR CHARACTER SET gb2312));
+SELECT HEX(CONVERT(CAST(0xA341 AS CHAR CHARACTER SET gb2312) USING utf8));
+
+
+--echo #
+--echo # End of 10.1 tests
 --echo #

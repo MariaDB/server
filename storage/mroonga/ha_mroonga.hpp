@@ -33,18 +33,11 @@ extern "C" {
 #include <groonga.h>
 #include "mrn_mysql_compat.h"
 
-#if (MYSQL_VERSION_ID >= 50603) || \
-    (MYSQL_VERSION_ID >= 50513 && MYSQL_VERSION_ID < 50600) || \
-    (MYSQL_VERSION_ID >= 50158 && MYSQL_VERSION_ID < 50500)
-#  define MRN_HANDLER_CLONE_NEED_NAME 1
-#endif
-
 #if (MYSQL_VERSION_ID >= 50514 && MYSQL_VERSION_ID < 50600)
 #  define MRN_HANDLER_HAVE_FINAL_ADD_INDEX 1
 #endif
 
-#if (MYSQL_VERSION_ID >= 50603) || \
-    (defined(MRN_MARIADB_P) && MYSQL_VERSION_ID >= 50209)
+#if (MYSQL_VERSION_ID >= 50603) || defined(MRN_MARIADB_P)
 #  define MRN_HANDLER_HAVE_HA_RND_NEXT 1
 #  define MRN_HANDLER_HAVE_HA_RND_POS 1
 #  define MRN_HANDLER_HAVE_HA_INDEX_READ_MAP 1
@@ -56,8 +49,7 @@ extern "C" {
 #  define MRN_HANDLER_HAVE_HA_INDEX_NEXT_SAME 1
 #endif
 
-#if (MYSQL_VERSION_ID >= 50604) || \
-    (defined(MRN_MARIADB_P) && MYSQL_VERSION_ID >= 50302)
+#if (MYSQL_VERSION_ID >= 50604) || defined(MRN_MARIADB_P)
 #  define MRN_HANDLER_HAVE_HA_CLOSE 1
 #  define MRN_HANDLER_HAVE_MULTI_RANGE_READ 1
 #endif
@@ -77,13 +69,8 @@ extern "C" {
 #  endif
 #endif
 
-#if (defined(MRN_MARIADB_P) && MYSQL_VERSION_ID >= 50302)
+#ifdef MRN_MARIADB_P
 #  define MRN_HANDLER_HAVE_MULTI_RANGE_READ_INFO_KEY_PARTS
-#endif
-
-#if MYSQL_VERSION_ID >= 50500
-#  define MRN_HANDLER_HAVE_TRUNCATE
-#  define MRN_HANDLER_HAVE_GET_PARENT_FOREIGN_KEY_LIST
 #endif
 
 #if MYSQL_VERSION_ID < 50600
@@ -94,25 +81,20 @@ extern "C" {
 #  define MRN_HANDLER_HAVE_SET_HA_SHARE_REF
 #endif
 
-#if MYSQL_VERSION_ID >= 50500
-#  define MRN_TABLE_LIST_INIT_REQUIRE_ALIAS
+#if MYSQL_VERSION_ID >= 50706 && !defined(MRN_MARIADB_P)
+#  define MRN_BIG_TABLES
+#elif defined(BIG_TABLES)
+#  define MRN_BIG_TABLES
 #endif
 
-#ifdef BIG_TABLES
+#ifdef MRN_BIG_TABLES
 #  define MRN_HA_ROWS_FORMAT "llu"
 #else
 #  define MRN_HA_ROWS_FORMAT "lu"
 #endif
 
-#if (MYSQL_VERSION_ID < 50519) || \
-    defined(MRN_MARIADB_P) || \
-    (50600 <= MYSQL_VERSION_ID && MYSQL_VERSION_ID < 50604)
+#ifdef MRN_MARIADB_P
 #  define MRN_NEED_FREE_STRING_MEMALLOC_PLUGIN_VAR
-#endif
-
-#if MYSQL_VERSION_ID >= 50500
-#  define MRN_HAVE_HA_EXTRA_ADD_CHILDREN_LIST
-#  define MRN_HAVE_HA_EXTRA_IS_ATTACHED_CHILDREN
 #endif
 
 #ifdef MRN_MARIADB_P
@@ -141,13 +123,15 @@ extern "C" {
 #  define MRN_FIELD_STORE_TIME_NEED_TYPE
 #endif
 
-#if MYSQL_VERSION_ID < 50500
-#  define MRN_HAVE_TL_WRITE_ALLOW_READ
+#if MYSQL_VERSION_ID < 50706 || defined(MRN_MARIADB_P)
+#  define MRN_HAVE_TL_WRITE_DELAYED
 #endif
 
-#if (defined(MRN_MARIADB_P) && \
-     ((MYSQL_VERSION_ID >= 50306 && MYSQL_VERSION_ID < 50500) || \
-      MYSQL_VERSION_ID >= 50523))
+#if MYSQL_VERSION_ID >= 50706 && !defined(MRN_MARIADB_P)
+#  define MRN_HAVE_TL_WRITE_CONCURRENT_DEFAULT
+#endif
+
+#ifdef MRN_MARIADB_P
 #  define MRN_HANDLER_AUTO_REPAIR_HAVE_ERROR
 #endif
 
@@ -177,6 +161,47 @@ extern "C" {
 
 #if (defined(MRN_MARIADB_P) && MYSQL_VERSION_ID >= 100010)
 #  define MRN_HAVE_TDC_LOCK_TABLE_SHARE
+#  if MYSQL_VERSION_ID >= 100100
+#    define MRN_TABLE_SHARE_TDC_IS_POINTER
+#  endif
+#endif
+
+#ifdef MRN_MARIADB_P
+#  if MYSQL_VERSION_ID >= 50542 && MYSQL_VERSION_ID < 100000
+#    define MRN_SUPPORT_THDVAR_SET
+#  elif MYSQL_VERSION_ID >= 100017
+#    define MRN_SUPPORT_THDVAR_SET
+#  endif
+#else
+#  define MRN_SUPPORT_THDVAR_SET
+#endif
+
+#ifdef MRN_MARIADB_P
+#  if MYSQL_VERSION_ID < 100000
+#    define MRN_SUPPORT_PARTITION
+#  endif
+#else
+#  define MRN_SUPPORT_PARTITION
+#endif
+
+#if MYSQL_VERSION_ID >= 50706 && !defined(MRN_MARIADB_P)
+#  define MRN_FLUSH_LOGS_HAVE_BINLOG_GROUP_FLUSH
+#endif
+
+#if MYSQL_VERSION_ID < 50706 || defined(MRN_MARIADB_P)
+#  define MRN_HAVE_HTON_ALTER_TABLE_FLAGS
+#endif
+
+#if MYSQL_VERSION_ID >= 50706 && !defined(MRN_MARIADB_P)
+#  define MRN_FOREIGN_KEY_USE_CONST_STRING
+#endif
+
+#if MYSQL_VERSION_ID < 50706 || defined(MRN_MARIADB_P)
+#  define MRN_HANDLER_IS_FATAL_ERROR_HAVE_FLAGS
+#endif
+
+#if MYSQL_VERSION_ID < 50706 || defined(MRN_MARIADB_P)
+#  define MRN_HANDLER_HAVE_RESET_AUTO_INCREMENT
 #endif
 
 class ha_mroonga;
@@ -203,6 +228,22 @@ struct st_mrn_ft_info
   grn_obj *key_accessor;
   ha_mroonga *mroonga;
 };
+
+#ifdef MRN_SUPPORT_CUSTOM_OPTIONS
+struct ha_field_option_struct
+{
+  const char *groonga_type;
+  const char *flags;
+};
+
+struct ha_index_option_struct
+{
+  const char *tokenizer;
+  const char *normalizer;
+  const char *token_filters;
+  const char *flags;
+};
+#endif
 
 /* handler class */
 class ha_mroonga: public handler
@@ -394,11 +435,7 @@ public:
 
   int reset();
 
-#ifdef MRN_HANDLER_CLONE_NEED_NAME
   handler *clone(const char *name, MEM_ROOT *mem_root);
-#else
-  handler *clone(MEM_ROOT *mem_root);
-#endif
   uint8 table_cache_type();
 #ifdef MRN_HANDLER_HAVE_MULTI_RANGE_READ
   ha_rows multi_range_read_info_const(uint keyno, RANGE_SEQ_IF *seq,
@@ -429,9 +466,7 @@ public:
 #endif
   int end_bulk_insert();
   int delete_all_rows();
-#ifdef MRN_HANDLER_HAVE_TRUNCATE
   int truncate();
-#endif // MRN_HANDLER_HAVE_TRUNCATE
   double scan_time();
   double read_time(uint index, uint ranges, ha_rows rows);
   const key_map *keys_to_use_for_scanning();
@@ -448,7 +483,7 @@ public:
   bool check_and_repair(THD *thd);
   int analyze(THD* thd, HA_CHECK_OPT* check_opt);
   int optimize(THD* thd, HA_CHECK_OPT* check_opt);
-  bool is_fatal_error(int error_num, uint flags);
+  bool is_fatal_error(int error_num, uint flags=0);
   bool check_if_incompatible_data(HA_CREATE_INFO *create_info,
                                   uint table_changes);
 #ifdef MRN_HANDLER_HAVE_CHECK_IF_SUPPORTED_INPLACE_ALTER
@@ -474,7 +509,9 @@ public:
   void restore_auto_increment(ulonglong prev_insert_id);
   void release_auto_increment();
   int check_for_upgrade(HA_CHECK_OPT *check_opt);
+#ifdef MRN_HANDLER_HAVE_RESET_AUTO_INCREMENT
   int reset_auto_increment(ulonglong value);
+#endif
   bool was_semi_consistent_read();
   void try_semi_consistent_read(bool yes);
   void unlock_row();
@@ -513,9 +550,7 @@ protected:
 #endif
   bool can_switch_engines();
   int get_foreign_key_list(THD *thd, List<FOREIGN_KEY_INFO> *f_key_list);
-#ifdef MRN_HANDLER_HAVE_GET_PARENT_FOREIGN_KEY_LIST
   int get_parent_foreign_key_list(THD *thd, List<FOREIGN_KEY_INFO> *f_key_list);
-#endif
   uint referenced_by_foreign_key();
   void init_table_handle_for_HANDLER();
   void free_foreign_key_create_info(char* str);
@@ -543,6 +578,8 @@ private:
   void mkdir_p(const char *directory);
   ulonglong file_size(const char *path);
 
+  bool have_unique_index();
+
   void push_warning_unsupported_spatial_index_search(enum ha_rkey_function flag);
   void clear_cursor();
   void clear_cursor_geo();
@@ -550,13 +587,23 @@ private:
   void clear_search_result();
   void clear_search_result_geo();
   void clear_indexes();
-  int alter_share_add(const char *path, TABLE_SHARE *table_share);
+  int add_wrap_hton(const char *path, handlerton *wrap_handlerton);
   void remove_related_files(const char *base_path);
   void remove_grn_obj_force(const char *name);
   int drop_index(MRN_SHARE *target_share, uint key_index);
+  int drop_indexes_normal(const char *table_name, grn_obj *table);
+  int drop_indexes_multiple(const char *table_name, grn_obj *table);
+  int drop_indexes(const char *table_name);
+  bool find_column_flags(Field *field, MRN_SHARE *mrn_share, int i,
+                         grn_obj_flags *column_flags);
+  grn_obj *find_column_type(Field *field, MRN_SHARE *mrn_share, int i,
+                            int error_code);
+  grn_obj *find_tokenizer(KEY *key, MRN_SHARE *mrn_share, int i);
   grn_obj *find_tokenizer(const char *name, int name_length);
-  grn_obj *find_normalizer(KEY *key_info);
-  bool find_token_filters(KEY *key_info, grn_obj *token_filters);
+  grn_obj *find_normalizer(KEY *key);
+  grn_obj *find_normalizer(KEY *key, const char *name);
+  bool find_index_column_flags(KEY *key, grn_obj_flags *index_column_flags);
+  bool find_token_filters(KEY *key, grn_obj *token_filters);
   bool find_token_filters_put(grn_obj *token_filters,
                               const char *token_filter_name,
                               int token_filter_name_length);
@@ -579,6 +626,7 @@ private:
   void check_count_skip(key_part_map start_key_part_map,
                         key_part_map end_key_part_map, bool fulltext);
   bool is_grn_zero_column_value(grn_obj *column, grn_obj *value);
+  bool is_primary_key_field(Field *field) const;
   void check_fast_order_limit(grn_table_sort_key **sort_keys, int *n_sort_keys,
                               longlong *limit);
 
@@ -732,12 +780,9 @@ private:
   int close_databases();
   int ensure_database_open(const char *name);
   int ensure_database_remove(const char *name);
-  int wrapper_delete_table(const char *name, MRN_SHARE *tmp_share,
+  int wrapper_delete_table(const char *name, handlerton *wrap_handlerton,
                            const char *table_name);
-  int wrapper_delete_index(const char *name, MRN_SHARE *tmp_share,
-                           const char *table_name);
-  int storage_delete_table(const char *name, MRN_SHARE *tmp_share,
-                           const char *table_name);
+  int generic_delete_table(const char *name, const char *table_name);
   int wrapper_open(const char *name, int mode, uint test_if_locked);
   int wrapper_open_indexes(const char *name);
   int storage_open(const char *name, int mode, uint test_if_locked);
@@ -931,13 +976,8 @@ private:
   void storage_cond_pop();
   bool wrapper_get_error_message(int error, String *buf);
   bool storage_get_error_message(int error, String *buf);
-#ifdef MRN_HANDLER_CLONE_NEED_NAME
   handler *wrapper_clone(const char *name, MEM_ROOT *mem_root);
   handler *storage_clone(const char *name, MEM_ROOT *mem_root);
-#else
-  handler *wrapper_clone(MEM_ROOT *mem_root);
-  handler *storage_clone(MEM_ROOT *mem_root);
-#endif
   uint8 wrapper_table_cache_type();
   uint8 storage_table_cache_type();
 #ifdef MRN_HANDLER_HAVE_MULTI_RANGE_READ
@@ -993,9 +1033,7 @@ private:
                               const char *function_name);
   int wrapper_delete_all_rows();
   int storage_delete_all_rows();
-#ifdef MRN_HANDLER_HAVE_TRUNCATE
   int wrapper_truncate();
-#endif // MRN_HANDLER_HAVE_TRUNCATE
   int wrapper_truncate_index();
   int storage_truncate();
   int storage_truncate_index();
@@ -1040,6 +1078,7 @@ private:
   int wrapper_fill_indexes(THD *thd, KEY *key_info,
                            grn_obj **index_columns, uint n_keys);
   int wrapper_recreate_indexes(THD *thd);
+  int storage_recreate_indexes(THD *thd);
   int wrapper_repair(THD* thd, HA_CHECK_OPT* check_opt);
   int storage_repair(THD* thd, HA_CHECK_OPT* check_opt);
   bool wrapper_check_and_repair(THD *thd);
@@ -1131,8 +1170,10 @@ private:
   void storage_release_auto_increment();
   int wrapper_check_for_upgrade(HA_CHECK_OPT *check_opt);
   int storage_check_for_upgrade(HA_CHECK_OPT *check_opt);
+#ifdef MRN_HANDLER_HAVE_RESET_AUTO_INCREMENT
   int wrapper_reset_auto_increment(ulonglong value);
   int storage_reset_auto_increment(ulonglong value);
+#endif
   bool wrapper_was_semi_consistent_read();
   bool storage_was_semi_consistent_read();
   void wrapper_try_semi_consistent_read(bool yes);
@@ -1157,10 +1198,8 @@ private:
   bool storage_can_switch_engines();
   int wrapper_get_foreign_key_list(THD *thd, List<FOREIGN_KEY_INFO> *f_key_list);
   int storage_get_foreign_key_list(THD *thd, List<FOREIGN_KEY_INFO> *f_key_list);
-#ifdef MRN_HANDLER_HAVE_GET_PARENT_FOREIGN_KEY_LIST
   int wrapper_get_parent_foreign_key_list(THD *thd, List<FOREIGN_KEY_INFO> *f_key_list);
   int storage_get_parent_foreign_key_list(THD *thd, List<FOREIGN_KEY_INFO> *f_key_list);
-#endif
   uint wrapper_referenced_by_foreign_key();
   uint storage_referenced_by_foreign_key();
   void wrapper_init_table_handle_for_HANDLER();

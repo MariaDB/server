@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2014, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2014, Monty Program Ab.
+   Copyright (c) 2010, 2015, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -705,10 +705,7 @@ static int execute_commands(MYSQL *mysql,int argc, char **argv)
       if (mysql_refresh(mysql,
 			(uint) ~(REFRESH_GRANT | REFRESH_STATUS |
 				 REFRESH_READ_LOCK | REFRESH_SLAVE |
-				 REFRESH_MASTER | REFRESH_TABLE_STATS |
-                                 REFRESH_INDEX_STATS |
-                                 REFRESH_USER_STATS |
-                                 REFRESH_CLIENT_STATS)))
+				 REFRESH_MASTER)))
       {
 	my_printf_error(0, "refresh failed; error: '%s'", error_flags,
 			mysql_error(mysql));
@@ -1249,6 +1246,9 @@ static int execute_commands(MYSQL *mysql,int argc, char **argv)
 static char **mask_password(int argc, char ***argv)
 {
   char **temp_argv;
+  if (!argc)
+    return NULL;
+
   temp_argv= (char **)(my_malloc(sizeof(char *) * argc, MYF(MY_WME)));
   argc--;
   while (argc > 0)

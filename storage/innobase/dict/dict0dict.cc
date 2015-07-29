@@ -1,7 +1,8 @@
 /*****************************************************************************
 
-Copyright (c) 1996, 2014, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1996, 2015, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
+Copyright (c) 2013, SkySQL Ab. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -320,10 +321,10 @@ dict_get_db_name_len(
 Reserves the dictionary system mutex for MySQL. */
 UNIV_INTERN
 void
-dict_mutex_enter_for_mysql(void)
+dict_mutex_enter_for_mysql_func(const char * file, ulint line)
 /*============================*/
 {
-	mutex_enter(&(dict_sys->mutex));
+	mutex_enter_func(&(dict_sys->mutex), file, line);
 }
 
 /********************************************************************//**
@@ -508,7 +509,7 @@ dict_table_try_drop_aborted(
 
 	if (table == NULL) {
 		table = dict_table_open_on_id_low(
-			table_id, DICT_ERR_IGNORE_NONE);
+			table_id, DICT_ERR_IGNORE_NONE, FALSE);
 	} else {
 		ut_ad(table->id == table_id);
 	}
@@ -648,7 +649,68 @@ dict_table_get_col_name(
 	return(s);
 }
 
+/**********************************************************************//**
+Returns a column's name.
+@return column name. NOTE: not guaranteed to stay valid if table is
+modified in any way (columns added, etc.). */
+UNIV_INTERN
+const char*
+dict_table_get_col_name_for_mysql(
+/*==============================*/
+	const dict_table_t*	table,	/*!< in: table */
+	const char*		col_name)/*! in: MySQL table column name */
+{
+	ulint		i;
+	const char*	s;
+
+	ut_ad(table);
+	ut_ad(col_name);
+	ut_ad(table->magic_n == DICT_TABLE_MAGIC_N);
+
+	s = table->col_names;
+	if (s) {
+		/* If we have many virtual columns MySQL key_part->fieldnr
+		could be larger than number of columns in InnoDB table
+		when creating new indexes. */
+		for (i = 0; i < table->n_def; i++) {
+
+			if (!innobase_strcasecmp(s, col_name)) {
+				break; /* Found */
+			}
+			s += strlen(s) + 1;
+		}
+	}
+
+	return(s);
+}
 #ifndef UNIV_HOTBACKUP
+/** Allocate and init the autoinc latch of a given table.
+This function must not be called concurrently on the same table object.
+@param[in,out]	table_void	table whose autoinc latch to create */
+void
+dict_table_autoinc_alloc(
+	void*	table_void)
+{
+	dict_table_t*	table = static_cast<dict_table_t*>(table_void);
+	table->autoinc_mutex = new (std::nothrow) ib_mutex_t();
+	ut_a(table->autoinc_mutex != NULL);
+	mutex_create(autoinc_mutex_key,
+		     table->autoinc_mutex, SYNC_DICT_AUTOINC_MUTEX);
+}
+
+/** Allocate and init the zip_pad_mutex of a given index.
+This function must not be called concurrently on the same index object.
+@param[in,out]	index_void	index whose zip_pad_mutex to create */
+void
+dict_index_zip_pad_alloc(
+	void*	index_void)
+{
+	dict_index_t*	index = static_cast<dict_index_t*>(index_void);
+	index->zip_pad.mutex = new (std::nothrow) os_fast_mutex_t;
+	ut_a(index->zip_pad.mutex != NULL);
+	os_fast_mutex_init(zip_pad_mutex_key, index->zip_pad.mutex);
+}
+
 /********************************************************************//**
 Acquire the autoinc lock. */
 UNIV_INTERN
@@ -657,7 +719,32 @@ dict_table_autoinc_lock(
 /*====================*/
 	dict_table_t*	table)	/*!< in/out: table */
 {
-	mutex_enter(&table->autoinc_mutex);
+#ifdef HAVE_ATOMIC_BUILTINS
+	os_once::do_or_wait_for_done(
+		&table->autoinc_mutex_created,
+		dict_table_autoinc_alloc, table);
+#else /* HAVE_ATOMIC_BUILTINS */
+	ut_ad(table->autoinc_mutex_created == os_once::DONE);
+#endif /* HAVE_ATOMIC_BUILTINS */
+
+	mutex_enter(table->autoinc_mutex);
+}
+
+/** Acquire the zip_pad_mutex latch.
+@param[in,out]	index	the index whose zip_pad_mutex to acquire.*/
+void
+dict_index_zip_pad_lock(
+	dict_index_t*	index)
+{
+#ifdef HAVE_ATOMIC_BUILTINS
+	os_once::do_or_wait_for_done(
+		&index->zip_pad.mutex_created,
+		dict_index_zip_pad_alloc, index);
+#else /* HAVE_ATOMIC_BUILTINS */
+	ut_ad(index->zip_pad.mutex_created == os_once::DONE);
+#endif /* HAVE_ATOMIC_BUILTINS */
+
+	os_fast_mutex_lock(index->zip_pad.mutex);
 }
 
 /********************************************************************//**
@@ -669,7 +756,7 @@ dict_table_autoinc_initialize(
 	dict_table_t*	table,	/*!< in/out: table */
 	ib_uint64_t	value)	/*!< in: next value to assign to a row */
 {
-	ut_ad(mutex_own(&table->autoinc_mutex));
+	ut_ad(dict_table_autoinc_own(table));
 
 	table->autoinc = value;
 }
@@ -711,7 +798,7 @@ dict_table_autoinc_read(
 /*====================*/
 	const dict_table_t*	table)	/*!< in: table */
 {
-	ut_ad(mutex_own(&table->autoinc_mutex));
+	ut_ad(dict_table_autoinc_own(table));
 
 	return(table->autoinc);
 }
@@ -727,7 +814,7 @@ dict_table_autoinc_update_if_greater(
 	dict_table_t*	table,	/*!< in/out: table */
 	ib_uint64_t	value)	/*!< in: value which was assigned to a row */
 {
-	ut_ad(mutex_own(&table->autoinc_mutex));
+	ut_ad(dict_table_autoinc_own(table));
 
 	if (value > table->autoinc) {
 
@@ -743,7 +830,7 @@ dict_table_autoinc_unlock(
 /*======================*/
 	dict_table_t*	table)	/*!< in/out: table */
 {
-	mutex_exit(&table->autoinc_mutex);
+	mutex_exit(table->autoinc_mutex);
 }
 #endif /* !UNIV_HOTBACKUP */
 
@@ -757,16 +844,23 @@ dict_index_get_nth_col_or_prefix_pos(
 /*=================================*/
 	const dict_index_t*	index,		/*!< in: index */
 	ulint			n,		/*!< in: column number */
-	ibool			inc_prefix)	/*!< in: TRUE=consider
+	ibool			inc_prefix,	/*!< in: TRUE=consider
 						column prefixes too */
+	ulint*			prefix_col_pos)	/*!< out: col num if prefix */
 {
 	const dict_field_t*	field;
 	const dict_col_t*	col;
 	ulint			pos;
 	ulint			n_fields;
+	ulint			prefixed_pos_dummy;
 
 	ut_ad(index);
 	ut_ad(index->magic_n == DICT_INDEX_MAGIC_N);
+
+	if (!prefix_col_pos) {
+		prefix_col_pos = &prefixed_pos_dummy;
+	}
+	*prefix_col_pos = ULINT_UNDEFINED;
 
 	col = dict_table_get_nth_col(index->table, n);
 
@@ -780,10 +874,11 @@ dict_index_get_nth_col_or_prefix_pos(
 	for (pos = 0; pos < n_fields; pos++) {
 		field = dict_index_get_nth_field(index, pos);
 
-		if (col == field->col
-		    && (inc_prefix || field->prefix_len == 0)) {
-
-			return(pos);
+		if (col == field->col) {
+			*prefix_col_pos = pos;
+			if (inc_prefix || field->prefix_len == 0) {
+				return(pos);
+			}
 		}
 	}
 
@@ -895,7 +990,8 @@ dict_table_open_on_id(
 		table_id,
 		table_op == DICT_TABLE_OP_LOAD_TABLESPACE
 		? DICT_ERR_IGNORE_RECOVER_LOCK
-		: DICT_ERR_IGNORE_NONE);
+		: DICT_ERR_IGNORE_NONE,
+		table_op == DICT_TABLE_OP_OPEN_ONLY_IF_CACHED);
 
 	if (table != NULL) {
 
@@ -927,7 +1023,7 @@ dict_table_get_nth_col_pos(
 	ulint			n)	/*!< in: column number */
 {
 	return(dict_index_get_nth_col_pos(dict_table_get_first_index(table),
-					  n));
+					  n, NULL));
 }
 
 /********************************************************************//**
@@ -1413,7 +1509,7 @@ dict_table_move_from_non_lru_to_lru(
 /**********************************************************************//**
 Looks for an index with the given id given a table instance.
 @return	index or NULL */
-static
+UNIV_INTERN
 dict_index_t*
 dict_table_find_index_on_id(
 /*========================*/
@@ -1582,15 +1678,18 @@ dict_table_rename_in_cache(
 	} else if (table->space != TRX_SYS_SPACE) {
 		char*	new_path = NULL;
 
-		if (table->dir_path_of_temp_table != NULL) {
+		if (DICT_TF2_FLAG_IS_SET(table, DICT_TF2_TEMPORARY)) {
 			ut_print_timestamp(stderr);
 			fputs("  InnoDB: Error: trying to rename a"
 			      " TEMPORARY TABLE ", stderr);
 			ut_print_name(stderr, NULL, TRUE, old_name);
-			fputs(" (", stderr);
-			ut_print_filename(stderr,
-					  table->dir_path_of_temp_table);
-			fputs(" )\n", stderr);
+			if (table->dir_path_of_temp_table != NULL) {
+				fputs(" (", stderr);
+				ut_print_filename(
+					stderr, table->dir_path_of_temp_table);
+				fputs(" )\n", stderr);
+			}
+
 			return(DB_ERROR);
 
 		} else if (DICT_TF_HAS_DATA_DIR(table->flags)) {
@@ -2542,6 +2641,13 @@ undo_size_ok:
 	new_index->stat_index_size = 1;
 	new_index->stat_n_leaf_pages = 1;
 
+	new_index->stat_defrag_n_pages_freed = 0;
+	new_index->stat_defrag_n_page_split = 0;
+
+	new_index->stat_defrag_sample_next_slot = 0;
+	memset(&new_index->stat_defrag_data_size_sample,
+	       0x0, sizeof(ulint) * STAT_DEFRAG_DATA_SIZE_N_SAMPLE);
+
 	/* Add the new index as the last index for the table */
 
 	UT_LIST_ADD_LAST(indexes, table->indexes, new_index);
@@ -3351,7 +3457,29 @@ dict_foreign_find_index(
 
 	return(NULL);
 }
-
+#ifdef WITH_WSREP
+dict_index_t*
+wsrep_dict_foreign_find_index(
+/*====================*/
+	dict_table_t*	table,	/*!< in: table */
+	const char**	col_names, /*!< in: column names, or NULL
+					to use table->col_names */
+	const char**	columns,/*!< in: array of column names */
+	ulint		n_cols,	/*!< in: number of columns */
+	dict_index_t*	types_idx, /*!< in: NULL or an index to whose types the
+				   column types must match */
+	ibool		check_charsets,
+				/*!< in: whether to check charsets.
+				only has an effect if types_idx != NULL */
+	ulint		check_null)
+				/*!< in: nonzero if none of the columns must
+				be declared NOT NULL */
+{
+	return dict_foreign_find_index(
+		table, col_names, columns, n_cols, types_idx, check_charsets,
+		check_null);
+}
+#endif /* WITH_WSREP */
 /**********************************************************************//**
 Report an error in a foreign key definition. */
 static
@@ -4110,16 +4238,25 @@ dict_table_get_highest_foreign_id(
 	for (dict_foreign_set::iterator it = table->foreign_set.begin();
 	     it != table->foreign_set.end();
 	     ++it) {
+		char    fkid[MAX_TABLE_NAME_LEN+20];
 		foreign = *it;
 
-		if (ut_strlen(foreign->id) > ((sizeof dict_ibfk) - 1) + len
-		    && 0 == ut_memcmp(foreign->id, table->name, len)
-		    && 0 == ut_memcmp(foreign->id + len,
+		strcpy(fkid, foreign->id);
+		/* Convert foreign key identifier on dictionary memory
+		cache to filename charset. */
+		innobase_convert_to_filename_charset(
+				strchr(fkid, '/') + 1,
+				strchr(foreign->id, '/') + 1,
+				MAX_TABLE_NAME_LEN);
+
+		if (ut_strlen(fkid) > ((sizeof dict_ibfk) - 1) + len
+		    && 0 == ut_memcmp(fkid, table->name, len)
+		    && 0 == ut_memcmp(fkid + len,
 				      dict_ibfk, (sizeof dict_ibfk) - 1)
-		    && foreign->id[len + ((sizeof dict_ibfk) - 1)] != '0') {
+		    && fkid[len + ((sizeof dict_ibfk) - 1)] != '0') {
 			/* It is of the >= 4.0.18 format */
 
-			id = strtoul(foreign->id + len
+			id = strtoul(fkid + len
 				     + ((sizeof dict_ibfk) - 1),
 				     &endp, 10);
 			if (*endp == '\0') {
@@ -6678,10 +6815,10 @@ dict_index_zip_success(
 		return;
 	}
 
-	os_fast_mutex_lock(&index->zip_pad.mutex);
+	dict_index_zip_pad_lock(index);
 	++index->zip_pad.success;
 	dict_index_zip_pad_update(&index->zip_pad, zip_threshold);
-	os_fast_mutex_unlock(&index->zip_pad.mutex);
+	dict_index_zip_pad_unlock(index);
 }
 
 /*********************************************************************//**
@@ -6701,10 +6838,10 @@ dict_index_zip_failure(
 		return;
 	}
 
-	os_fast_mutex_lock(&index->zip_pad.mutex);
+	dict_index_zip_pad_lock(index);
 	++index->zip_pad.failure;
 	dict_index_zip_pad_update(&index->zip_pad, zip_threshold);
-	os_fast_mutex_unlock(&index->zip_pad.mutex);
+	dict_index_zip_pad_unlock(index);
 }
 
 
@@ -6736,9 +6873,9 @@ dict_index_zip_pad_optimal_page_size(
 #ifdef HAVE_ATOMIC_BUILTINS
 	pad = os_atomic_increment_ulint(&index->zip_pad.pad, 0);
 #else /* HAVE_ATOMIC_BUILTINS */
-	os_fast_mutex_lock(&index->zip_pad.mutex);
+	dict_index_zip_pad_lock(index);
 	pad = index->zip_pad.pad;
-	os_fast_mutex_unlock(&index->zip_pad.mutex);
+	dict_index_zip_pad_unlock(index);
 #endif /* HAVE_ATOMIC_BUILTINS */
 
 	ut_ad(pad < UNIV_PAGE_SIZE);

@@ -839,6 +839,7 @@ static void handle_no_active_connection(struct st_command* command,
 #define EMB_END_CONNECTION 3
 #define EMB_PREPARE_STMT 4
 #define EMB_EXECUTE_STMT 5
+#define EMB_CLOSE_STMT 6
 
 /* workaround for MySQL BUG#57491 */
 #undef MY_WME
@@ -886,6 +887,9 @@ pthread_handler_t connection_thread(void *arg)
         break;
       case EMB_EXECUTE_STMT:
         cn->result= mysql_stmt_execute(cn->stmt);
+        break;
+      case EMB_CLOSE_STMT:
+        cn->result= mysql_stmt_close(cn->stmt);
         break;
       default:
         DBUG_ASSERT(0);
@@ -984,6 +988,17 @@ static int do_stmt_execute(struct st_connection *cn)
 }
 
 
+static int do_stmt_close(struct st_connection *cn)
+{
+  /* The cn->stmt is already set. */
+  if (!cn->has_thread)
+    return mysql_stmt_close(cn->stmt);
+  signal_connection_thd(cn, EMB_CLOSE_STMT);
+  wait_query_thread_done(cn);
+  return cn->result;
+}
+
+
 static void emb_close_connection(struct st_connection *cn)
 {
   if (!cn->has_thread)
@@ -1019,6 +1034,7 @@ static void init_connection_thd(struct st_connection *cn)
 #define do_read_query_result(cn) mysql_read_query_result(cn->mysql)
 #define do_stmt_prepare(cn, q, q_len) mysql_stmt_prepare(cn->stmt, q, q_len)
 #define do_stmt_execute(cn) mysql_stmt_execute(cn->stmt)
+#define do_stmt_close(cn) mysql_stmt_close(cn->stmt)
 
 #endif /*EMBEDDED_LIBRARY*/
 
@@ -1378,11 +1394,11 @@ void close_connections()
   DBUG_ENTER("close_connections");
   for (--next_con; next_con >= connections; --next_con)
   {
+    if (next_con->stmt)
+      do_stmt_close(next_con);
 #ifdef EMBEDDED_LIBRARY
     emb_close_connection(next_con);
 #endif
-    if (next_con->stmt)
-      mysql_stmt_close(next_con->stmt);
     next_con->stmt= 0;
     mysql_close(next_con->mysql);
     next_con->mysql= 0;
@@ -2617,12 +2633,11 @@ void var_query_set(VAR *var, const char *query, const char** query_end)
 {
   char *end = (char*)((query_end && *query_end) ?
 		      *query_end : query + strlen(query));
-  MYSQL_RES *res;
+  MYSQL_RES *UNINIT_VAR(res);
   MYSQL_ROW row;
   MYSQL* mysql = cur_con->mysql;
   DYNAMIC_STRING ds_query;
   DBUG_ENTER("var_query_set");
-  LINT_INIT(res);
 
   if (!mysql)
   {
@@ -2668,7 +2683,7 @@ void var_query_set(VAR *var, const char *query, const char** query_end)
     report_or_die("Query '%s' didn't return a result set", ds_query.str);
     dynstr_free(&ds_query);
     eval_expr(var, "", 0);
-    return;
+    DBUG_VOID_RETURN;
   }
   dynstr_free(&ds_query);
 
@@ -2801,7 +2816,7 @@ void var_set_query_get_value(struct st_command *command, VAR *var)
 {
   long row_no;
   int col_no= -1;
-  MYSQL_RES* res;
+  MYSQL_RES* UNINIT_VAR(res);
   MYSQL* mysql= cur_con->mysql;
 
   static DYNAMIC_STRING ds_query;
@@ -2814,7 +2829,6 @@ void var_set_query_get_value(struct st_command *command, VAR *var)
   };
 
   DBUG_ENTER("var_set_query_get_value");
-  LINT_INIT(res);
 
   if (!mysql)
   {
@@ -4740,10 +4754,6 @@ void do_sync_with_master(struct st_command *command)
 }
 
 
-/*
-  when ndb binlog is on, this call will wait until last updated epoch
-  (locally in the mysqld) has been received into the binlog
-*/
 int do_save_master_pos()
 {
   MYSQL_RES *res;
@@ -4752,144 +4762,6 @@ int do_save_master_pos()
   const char *query;
   DBUG_ENTER("do_save_master_pos");
 
-#ifdef HAVE_NDB_BINLOG
-  /*
-    Wait for ndb binlog to be up-to-date with all changes
-    done on the local mysql server
-  */
-  {
-    ulong have_ndbcluster;
-    if (mysql_query(mysql, query= "show variables like 'have_ndbcluster'"))
-      die("'%s' failed: %d %s", query,
-          mysql_errno(mysql), mysql_error(mysql));
-    if (!(res= mysql_store_result(mysql)))
-      die("mysql_store_result() returned NULL for '%s'", query);
-    if (!(row= mysql_fetch_row(res)))
-      die("Query '%s' returned empty result", query);
-
-    have_ndbcluster= strcmp("YES", row[1]) == 0;
-    mysql_free_result(res);
-
-    if (have_ndbcluster)
-    {
-      ulonglong start_epoch= 0, handled_epoch= 0,
-	latest_epoch=0, latest_trans_epoch=0,
-	latest_handled_binlog_epoch= 0, latest_received_binlog_epoch= 0,
-	latest_applied_binlog_epoch= 0;
-      int count= 0;
-      int do_continue= 1;
-      while (do_continue)
-      {
-        const char binlog[]= "binlog";
-	const char latest_epoch_str[]=
-          "latest_epoch=";
-        const char latest_trans_epoch_str[]=
-          "latest_trans_epoch=";
-	const char latest_received_binlog_epoch_str[]=
-	  "latest_received_binlog_epoch";
-        const char latest_handled_binlog_epoch_str[]=
-          "latest_handled_binlog_epoch=";
-        const char latest_applied_binlog_epoch_str[]=
-          "latest_applied_binlog_epoch=";
-        if (count)
-          my_sleep(100*1000); /* 100ms */
-        if (mysql_query(mysql, query= "show engine ndb status"))
-          die("failed in '%s': %d %s", query,
-              mysql_errno(mysql), mysql_error(mysql));
-        if (!(res= mysql_store_result(mysql)))
-          die("mysql_store_result() returned NULL for '%s'", query);
-        while ((row= mysql_fetch_row(res)))
-        {
-          if (strcmp(row[1], binlog) == 0)
-          {
-            const char *status= row[2];
-
-	    /* latest_epoch */
-	    while (*status && strncmp(status, latest_epoch_str,
-				      sizeof(latest_epoch_str)-1))
-	      status++;
-	    if (*status)
-            {
-	      status+= sizeof(latest_epoch_str)-1;
-	      latest_epoch= strtoull(status, (char**) 0, 10);
-	    }
-	    else
-	      die("result does not contain '%s' in '%s'",
-		  latest_epoch_str, query);
-	    /* latest_trans_epoch */
-	    while (*status && strncmp(status, latest_trans_epoch_str,
-				      sizeof(latest_trans_epoch_str)-1))
-	      status++;
-	    if (*status)
-	    {
-	      status+= sizeof(latest_trans_epoch_str)-1;
-	      latest_trans_epoch= strtoull(status, (char**) 0, 10);
-	    }
-	    else
-	      die("result does not contain '%s' in '%s'",
-		  latest_trans_epoch_str, query);
-	    /* latest_received_binlog_epoch */
-	    while (*status &&
-		   strncmp(status, latest_received_binlog_epoch_str,
-			   sizeof(latest_received_binlog_epoch_str)-1))
-	      status++;
-	    if (*status)
-	    {
-	      status+= sizeof(latest_received_binlog_epoch_str)-1;
-	      latest_received_binlog_epoch= strtoull(status, (char**) 0, 10);
-	    }
-	    else
-	      die("result does not contain '%s' in '%s'",
-		  latest_received_binlog_epoch_str, query);
-	    /* latest_handled_binlog */
-	    while (*status &&
-		   strncmp(status, latest_handled_binlog_epoch_str,
-			   sizeof(latest_handled_binlog_epoch_str)-1))
-	      status++;
-	    if (*status)
-	    {
-	      status+= sizeof(latest_handled_binlog_epoch_str)-1;
-	      latest_handled_binlog_epoch= strtoull(status, (char**) 0, 10);
-	    }
-	    else
-	      die("result does not contain '%s' in '%s'",
-		  latest_handled_binlog_epoch_str, query);
-	    /* latest_applied_binlog_epoch */
-	    while (*status &&
-		   strncmp(status, latest_applied_binlog_epoch_str,
-			   sizeof(latest_applied_binlog_epoch_str)-1))
-	      status++;
-	    if (*status)
-	    {
-	      status+= sizeof(latest_applied_binlog_epoch_str)-1;
-	      latest_applied_binlog_epoch= strtoull(status, (char**) 0, 10);
-	    }
-	    else
-	      die("result does not contain '%s' in '%s'",
-		  latest_applied_binlog_epoch_str, query);
-	    if (count == 0)
-	      start_epoch= latest_trans_epoch;
-	    break;
-	  }
-	}
-	if (!row)
-	  die("result does not contain '%s' in '%s'",
-	      binlog, query);
-	if (latest_handled_binlog_epoch > handled_epoch)
-	  count= 0;
-	handled_epoch= latest_handled_binlog_epoch;
-	count++;
-	if (latest_handled_binlog_epoch >= start_epoch)
-          do_continue= 0;
-        else if (count > 300) /* 30s */
-	{
-	  break;
-        }
-        mysql_free_result(res);
-      }
-    }
-  }
-#endif
   if (mysql_query(mysql, query= "show master status"))
     die("failed in 'show master status': %d %s",
 	mysql_errno(mysql), mysql_error(mysql));
@@ -5635,7 +5507,11 @@ void do_close_connection(struct st_command *command)
       con->mysql->net.vio = 0;
     }
   }
-#else
+#endif /*!EMBEDDED_LIBRARY*/
+  if (con->stmt)
+    do_stmt_close(con);
+  con->stmt= 0;
+#ifdef EMBEDDED_LIBRARY
   /*
     As query could be still executed in a separate theread
     we need to check if the query's thread was finished and probably wait
@@ -5643,9 +5519,6 @@ void do_close_connection(struct st_command *command)
   */
   emb_close_connection(con);
 #endif /*EMBEDDED_LIBRARY*/
-  if (con->stmt)
-    mysql_stmt_close(con->stmt);
-  con->stmt= 0;
 
   mysql_close(con->mysql);
   con->mysql= 0;
@@ -5912,6 +5785,8 @@ void do_connect(struct st_command *command)
   my_bool con_ssl= 0, con_compress= 0;
   my_bool con_pipe= 0;
   my_bool con_shm __attribute__ ((unused))= 0;
+  int read_timeout= 0;
+  int write_timeout= 0;
   struct st_connection* con_slot;
 
   static DYNAMIC_STRING ds_connection_name;
@@ -6008,6 +5883,16 @@ void do_connect(struct st_command *command)
       con_pipe= 1;
     else if (length == 3 && !strncmp(con_options, "SHM", 3))
       con_shm= 1;
+    else if (strncasecmp(con_options, "read_timeout=",
+                         sizeof("read_timeout=")-1) == 0)
+    {
+      read_timeout= atoi(con_options + sizeof("read_timeout=")-1);
+    }
+    else if (strncasecmp(con_options, "write_timeout=",
+                         sizeof("write_timeout=")-1) == 0)
+    {
+      write_timeout= atoi(con_options + sizeof("write_timeout=")-1);
+    }
     else
       die("Illegal option to connect: %.*s", 
           (int) (end - con_options), con_options);
@@ -6079,6 +5964,18 @@ void do_connect(struct st_command *command)
 
   if (opt_protocol)
     mysql_options(con_slot->mysql, MYSQL_OPT_PROTOCOL, (char*) &opt_protocol);
+
+  if (read_timeout)
+  {
+    mysql_options(con_slot->mysql, MYSQL_OPT_READ_TIMEOUT,
+                  (char*)&read_timeout);
+  }
+
+  if (write_timeout)
+  {
+    mysql_options(con_slot->mysql, MYSQL_OPT_WRITE_TIMEOUT,
+                  (char*)&write_timeout);
+  }
 
 #ifdef HAVE_SMEM
   if (con_shm)
@@ -10203,7 +10100,7 @@ int reg_replace(char** buf_p, int* buf_len_p, char *pattern,
   {
     /* find the match */
     err_code= regexec(&r,str_p, r.re_nsub+1, subs,
-                         (str_p == string) ? REG_NOTBOL : 0);
+                         (str_p == string) ? 0 : REG_NOTBOL);
 
     /* if regular expression error (eg. bad syntax, or out of memory) */
     if (err_code && err_code != REG_NOMATCH)

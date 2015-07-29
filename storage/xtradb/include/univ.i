@@ -2,6 +2,7 @@
 
 Copyright (c) 1994, 2013, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, Google Inc.
+Copyright (c) 2013, 2015, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -44,10 +45,10 @@ Created 1/20/1994 Heikki Tuuri
 
 #define INNODB_VERSION_MAJOR	5
 #define INNODB_VERSION_MINOR	6
-#define INNODB_VERSION_BUGFIX	22
+#define INNODB_VERSION_BUGFIX	24
 
 #ifndef PERCONA_INNODB_VERSION
-#define PERCONA_INNODB_VERSION 72.0
+#define PERCONA_INNODB_VERSION 72.2
 #endif
 
 /* Enable UNIV_LOG_ARCHIVE in XtraDB */
@@ -350,6 +351,36 @@ typedef enum innodb_file_formats_enum innodb_file_formats_t;
 /** The 2-logarithm of UNIV_PAGE_SIZE: */
 #define UNIV_PAGE_SIZE_SHIFT	srv_page_size_shift
 
+#ifdef HAVE_LZO
+#define IF_LZO(A,B) A
+#else
+#define IF_LZO(A,B) B
+#endif
+
+#ifdef HAVE_LZ4
+#define IF_LZ4(A,B) A
+#else
+#define IF_LZ4(A,B) B
+#endif
+
+#ifdef HAVE_LZMA
+#define IF_LZMA(A,B) A
+#else
+#define IF_LZMA(A,B) B
+#endif
+
+#ifdef HAVE_BZIP2
+#define IF_BZIP2(A,B) A
+#else
+#define IF_BZIP2(A,B) B
+#endif
+
+#ifdef HAVE_SNAPPY
+#define IF_SNAPPY(A,B) A
+#else
+#define IF_SNAPPY(A,B) B
+#endif
+
 /** The universal page size of the database */
 #define UNIV_PAGE_SIZE		((ulint) srv_page_size)
 
@@ -368,8 +399,10 @@ limit both with this same constant. */
 /* Define the Min, Max, Default page sizes. */
 /** Minimum Page Size Shift (power of 2) */
 #define UNIV_PAGE_SIZE_SHIFT_MIN	12
+/** log2 of largest page size (1<<16 == 64436 bytes). */
 /** Maximum Page Size Shift (power of 2) */
-#define UNIV_PAGE_SIZE_SHIFT_MAX	14
+#define UNIV_PAGE_SIZE_SHIFT_MAX	16
+/** log2 of default page size (1<<14 == 16384 bytes). */
 /** Default Page Size Shift (power of 2) */
 #define UNIV_PAGE_SIZE_SHIFT_DEF	14
 /** Original 16k InnoDB Page Size Shift, in case the default changes */
@@ -469,6 +502,9 @@ typedef uint32_t ib_uint32_t;
 # endif /* __WIN__ */
 
 # define IB_ID_FMT	UINT64PF
+
+/* Type used for all log sequence number storage and arithmetics */
+typedef	ib_uint64_t		lsn_t;
 
 #ifdef _WIN64
 typedef unsigned __int64	ulint;

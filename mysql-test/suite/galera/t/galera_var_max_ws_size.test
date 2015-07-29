@@ -1,0 +1,23 @@
+#
+# This test sets wsrep_max_ws_size to a very low value and checks that the transaction is rejected
+#
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+--connection node_1
+
+CREATE TABLE t1 (f1 INTEGER AUTO_INCREMENT PRIMARY KEY, f2 VARCHAR(1024)) Engine=InnoDB;
+
+--let $wsrep_max_ws_size_orig = `SELECT @@wsrep_max_ws_size`
+SET GLOBAL wsrep_max_ws_size = 1024;
+
+--error ER_ERROR_DURING_COMMIT
+INSERT INTO t1 VALUES (DEFAULT, REPEAT('X', 1024));
+SELECT COUNT(*) = 0 FROM t1;
+
+--disable_query_log
+--eval SET GLOBAL wsrep_max_ws_size = $wsrep_max_ws_size_orig
+--enable_query_log
+
+DROP TABLE t1;

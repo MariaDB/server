@@ -56,6 +56,7 @@ Created 12/19/1997 Heikki Tuuri
 #include "row0mysql.h"
 #include "read0read.h"
 #include "buf0lru.h"
+#include "srv0srv.h"
 #include "ha_prototypes.h"
 #include "m_string.h" /* for my_sys.h */
 #include "my_sys.h" /* DEBUG_SYNC_C */
@@ -2933,8 +2934,13 @@ row_sel_store_mysql_rec(
 			: templ->rec_field_no;
 		/* We should never deliver column prefixes to MySQL,
 		except for evaluating innobase_index_cond(). */
+		/* ...actually, we do want to do this in order to
+		support the prefix query optimization.
+
 		ut_ad(dict_index_get_nth_field(index, field_no)->prefix_len
 		      == 0);
+
+		...so we disable this assert. */
 
 		if (!row_sel_store_mysql_field(mysql_rec, prebuilt,
 					       rec, index, offsets,
@@ -3027,6 +3033,8 @@ row_sel_get_clust_rec_for_mysql(
 	rec_t*		old_vers;
 	dberr_t		err;
 	trx_t*		trx;
+
+	srv_stats.n_sec_rec_cluster_reads.inc();
 
 	*out_rec = NULL;
 	trx = thr_get_trx(thr);
@@ -3683,6 +3691,7 @@ row_search_for_mysql(
 	ulint*		offsets				= offsets_;
 	ibool		table_lock_waited		= FALSE;
 	byte*		next_buf			= 0;
+	ibool		use_clustered_index		= FALSE;
 
 	rec_offs_init(offsets_);
 
@@ -4706,10 +4715,68 @@ locks_ok:
 	}
 
 	/* Get the clustered index record if needed, if we did not do the
-	search using the clustered index. */
+	search using the clustered index... */
 
-	if (index != clust_index && prebuilt->need_to_access_clustered) {
+	use_clustered_index =
+		(index != clust_index && prebuilt->need_to_access_clustered);
 
+	if (use_clustered_index && srv_prefix_index_cluster_optimization
+	    && prebuilt->n_template <= index->n_fields) {
+		/* ...but, perhaps avoid the clustered index lookup if
+		all of the following are true:
+		1) all columns are in the secondary index
+		2) all values for columns that are prefix-only
+		   indexes are shorter than the prefix size
+		This optimization can avoid many IOs for certain schemas.
+		*/
+		ibool row_contains_all_values = TRUE;
+		int i;
+		for (i = 0; i < prebuilt->n_template; i++) {
+			/* Condition (1) from above: is the field in the
+			index (prefix or not)? */
+			mysql_row_templ_t* templ =
+				prebuilt->mysql_template + i;
+			ulint secondary_index_field_no =
+				templ->rec_prefix_field_no;
+			if (secondary_index_field_no == ULINT_UNDEFINED) {
+				row_contains_all_values = FALSE;
+				break;
+			}
+			/* Condition (2) from above: if this is a
+			prefix, is this row's value size shorter
+			than the prefix? */
+			if (templ->rec_field_is_prefix) {
+				ulint record_size = rec_offs_nth_size(
+					offsets,
+					secondary_index_field_no);
+				const dict_field_t *field =
+					dict_index_get_nth_field(
+						index,
+						secondary_index_field_no);
+				ut_a(field->prefix_len > 0);
+				if (record_size >= field->prefix_len) {
+					row_contains_all_values = FALSE;
+					break;
+				}
+			}
+		}
+		/* If (1) and (2) were true for all columns above, use
+		rec_prefix_field_no instead of rec_field_no, and skip
+		the clustered lookup below. */
+		if (row_contains_all_values) {
+			for (i = 0; i < prebuilt->n_template; i++) {
+				mysql_row_templ_t* templ =
+					prebuilt->mysql_template + i;
+				templ->rec_field_no =
+					templ->rec_prefix_field_no;
+				ut_a(templ->rec_field_no != ULINT_UNDEFINED);
+			}
+			use_clustered_index = FALSE;
+			srv_stats.n_sec_rec_cluster_reads_avoided.inc();
+		}
+	}
+
+	if (use_clustered_index) {
 requires_clust_rec:
 		ut_ad(index != clust_index);
 		/* We use a 'goto' to the preceding label if a consistent

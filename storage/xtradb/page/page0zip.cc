@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2005, 2014, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2005, 2015, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
 Copyright (c) 2014, SkySQL Ab. All Rights Reserved.
 
@@ -77,7 +77,7 @@ UNIV_INTERN uint	page_zip_level = DEFAULT_COMPRESSION_LEVEL;
 
 /* Whether or not to log compressed page images to avoid possible
 compression algorithm changes in zlib. */
-UNIV_INTERN my_bool	page_zip_log_pages = true;
+UNIV_INTERN my_bool	page_zip_log_pages = false;
 
 /* Please refer to ../include/page0zip.ic for a description of the
 compressed page format. */
@@ -659,7 +659,7 @@ page_zip_dir_encode(
 #if PAGE_ZIP_DIR_SLOT_MASK & (PAGE_ZIP_DIR_SLOT_MASK + 1)
 # error "PAGE_ZIP_DIR_SLOT_MASK is not 1 less than a power of 2"
 #endif
-#if PAGE_ZIP_DIR_SLOT_MASK < UNIV_PAGE_SIZE_MAX - 1
+#if PAGE_ZIP_DIR_SLOT_MASK < UNIV_PAGE_SIZE_DEF - 1
 # error "PAGE_ZIP_DIR_SLOT_MASK < UNIV_PAGE_SIZE_MAX - 1"
 #endif
 		if (UNIV_UNLIKELY(rec_get_n_owned_new(rec))) {
@@ -912,7 +912,7 @@ page_zip_compress_sec(
 			rec - REC_N_NEW_EXTRA_BYTES
 			- c_stream->next_in);
 
-		if (UNIV_LIKELY(c_stream->avail_in)) {
+		if (UNIV_LIKELY(c_stream->avail_in != 0)) {
 			UNIV_MEM_ASSERT_RW(c_stream->next_in,
 					   c_stream->avail_in);
 			err = deflate(c_stream, Z_NO_FLUSH);
@@ -1007,7 +1007,7 @@ page_zip_compress_clust_ext(
 
 			c_stream->avail_in = static_cast<uInt>(
 				src - c_stream->next_in);
-			if (UNIV_LIKELY(c_stream->avail_in)) {
+			if (UNIV_LIKELY(c_stream->avail_in != 0)) {
 				err = deflate(c_stream, Z_NO_FLUSH);
 				if (UNIV_UNLIKELY(err != Z_OK)) {
 
@@ -1601,7 +1601,7 @@ page_zip_fields_free(
 {
 	if (index) {
 		dict_table_t*	table = index->table;
-		os_fast_mutex_free(&index->zip_pad.mutex);
+		dict_index_zip_pad_mutex_destroy(index);
 		mem_heap_free(index->heap);
 
 		dict_mem_table_free(table);
@@ -1652,7 +1652,7 @@ page_zip_fields_decode(
 	}
 
 	table = dict_mem_table_create("ZIP_DUMMY", DICT_HDR_SPACE, n,
-				      DICT_TF_COMPACT, 0, true);
+				      DICT_TF_COMPACT, 0);
 	index = dict_mem_index_create("ZIP_DUMMY", "ZIP_DUMMY",
 				      DICT_HDR_SPACE, 0, n);
 	index->table = table;

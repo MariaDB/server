@@ -46,7 +46,8 @@ int stop_slave(THD* thd, Master_info* mi, bool net_report);
 bool change_master(THD* thd, Master_info* mi, bool *master_info_added);
 bool mysql_show_binlog_events(THD* thd);
 int reset_slave(THD *thd, Master_info* mi);
-int reset_master(THD* thd, rpl_gtid *init_state, uint32 init_state_len);
+int reset_master(THD* thd, rpl_gtid *init_state, uint32 init_state_len,
+                 ulong next_log_number);
 bool purge_master_logs(THD* thd, const char* to_log);
 bool purge_master_logs_before_date(THD* thd, time_t purge_time);
 bool log_in_use(const char* log_name);
@@ -56,14 +57,15 @@ extern int init_master_info(Master_info* mi);
 void kill_zombie_dump_threads(uint32 slave_server_id);
 int check_binlog_magic(IO_CACHE* log, const char** errmsg);
 
-typedef struct st_load_file_info
+struct LOAD_FILE_IO_CACHE : public IO_CACHE
 {
   THD* thd;
   my_off_t last_pos_in_file;
   bool wrote_create_file, log_delayed;
-} LOAD_FILE_INFO;
+  int (*real_read_function)(struct st_io_cache *,uchar *,size_t);
+};
 
-int log_loaded_block(IO_CACHE* file);
+int log_loaded_block(IO_CACHE* file, uchar *Buffer, size_t Count);
 int init_replication_sys_vars();
 void mysql_binlog_send(THD* thd, char* log_ident, my_off_t pos, ushort flags);
 
@@ -79,6 +81,10 @@ int rpl_append_gtid_state(String *dest, bool use_binlog);
 int rpl_load_gtid_state(slave_connection_state *state, bool use_binlog);
 bool rpl_gtid_pos_check(THD *thd, char *str, size_t len);
 bool rpl_gtid_pos_update(THD *thd, char *str, size_t len);
+
+#else
+
+struct LOAD_FILE_IO_CACHE : public IO_CACHE { };
 
 #endif /* HAVE_REPLICATION */
 

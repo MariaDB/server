@@ -231,6 +231,15 @@ NULL
 SELECT master_gtid_wait('', NULL);
 master_gtid_wait('', NULL)
 0
+SHOW STATUS LIKE 'Master_gtid_wait_count';
+Variable_name	Value
+Master_gtid_wait_count	1
+SHOW STATUS LIKE 'Master_gtid_wait_timeouts';
+Variable_name	Value
+Master_gtid_wait_timeouts	0
+SHOW STATUS LIKE 'Master_gtid_wait_time';
+Variable_name	Value
+Master_gtid_wait_time	0
 SELECT master_gtid_wait(@pos, 0.5);
 master_gtid_wait(@pos, 0.5)
 -1
@@ -271,13 +280,46 @@ SELECT master_gtid_wait('2-1-5');
 SELECT master_gtid_wait('2-1-10');
 SELECT master_gtid_wait('2-1-5,1-1-4,0-1-110');
 SELECT master_gtid_wait('2-1-2');
+SHOW STATUS LIKE 'Master_gtid_wait_timeouts';
+Variable_name	Value
+Master_gtid_wait_timeouts	0
+SHOW STATUS LIKE 'Master_gtid_wait_count';
+Variable_name	Value
+Master_gtid_wait_count	3
 SELECT master_gtid_wait('1-1-1');
 master_gtid_wait('1-1-1')
 0
+SHOW STATUS LIKE 'Master_gtid_wait_timeouts';
+Variable_name	Value
+Master_gtid_wait_timeouts	0
+SHOW STATUS LIKE 'Master_gtid_wait_count';
+Variable_name	Value
+Master_gtid_wait_count	4
+SET @a= MASTER_GTID_WAIT_TIME;
+SELECT IF(@a <= 100*1000*1000, "OK", CONCAT("Error: wait time ", @a, " is larger than expected"))
+AS Master_gtid_wait_time_as_expected;
+Master_gtid_wait_time_as_expected
+OK
 SELECT master_gtid_wait('0-1-109');
+SHOW STATUS LIKE 'Master_gtid_wait_timeouts';
+Variable_name	Value
+Master_gtid_wait_timeouts	0
+SHOW STATUS LIKE 'Master_gtid_wait_count';
+Variable_name	Value
+Master_gtid_wait_count	4
 SELECT master_gtid_wait('2-1-2', 0.5);
 master_gtid_wait('2-1-2', 0.5)
 -1
+SHOW STATUS LIKE 'Master_gtid_wait_timeouts';
+Variable_name	Value
+Master_gtid_wait_timeouts	1
+SHOW STATUS LIKE 'Master_gtid_wait_count';
+Variable_name	Value
+Master_gtid_wait_count	5
+SET @a= MASTER_GTID_WAIT_TIME;
+SELECT IF(@a BETWEEN 0.4*1000*1000 AND 100*1000*1000, "OK", CONCAT("Error: wait time ", @a, " not as expected")) AS Master_gtid_wait_time_as_expected;
+Master_gtid_wait_time_as_expected
+OK
 KILL QUERY KILL_ID;
 ERROR 70100: Query execution was interrupted
 SET gtid_domain_id=2;

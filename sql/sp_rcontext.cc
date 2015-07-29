@@ -155,14 +155,14 @@ bool sp_rcontext::set_return_value(THD *thd, Item **return_value_item)
 }
 
 
-bool sp_rcontext::push_cursor(sp_lex_keeper *lex_keeper,
+bool sp_rcontext::push_cursor(THD *thd, sp_lex_keeper *lex_keeper,
                               sp_instr_cpush *i)
 {
   /*
     We should create cursors in the callers arena, as
     it could be (and usually is) used in several instructions.
   */
-  sp_cursor *c= new (callers_arena->mem_root) sp_cursor(lex_keeper, i);
+  sp_cursor *c= new (callers_arena->mem_root) sp_cursor(thd, lex_keeper, i);
 
   if (c == NULL)
     return true;
@@ -421,8 +421,9 @@ bool sp_rcontext::set_case_expr(THD *thd, int case_expr_id,
 ///////////////////////////////////////////////////////////////////////////
 
 
-sp_cursor::sp_cursor(sp_lex_keeper *lex_keeper, sp_instr_cpush *i)
-  :m_lex_keeper(lex_keeper),
+sp_cursor::sp_cursor(THD *thd_arg, sp_lex_keeper *lex_keeper, sp_instr_cpush *i):
+   result(thd_arg),
+   m_lex_keeper(lex_keeper),
    server_side_cursor(NULL),
    m_i(i)
 {
@@ -450,7 +451,8 @@ int sp_cursor::open(THD *thd)
 {
   if (server_side_cursor)
   {
-    my_message(ER_SP_CURSOR_ALREADY_OPEN, ER(ER_SP_CURSOR_ALREADY_OPEN),
+    my_message(ER_SP_CURSOR_ALREADY_OPEN,
+               ER_THD(thd, ER_SP_CURSOR_ALREADY_OPEN),
                MYF(0));
     return -1;
   }
@@ -464,7 +466,8 @@ int sp_cursor::close(THD *thd)
 {
   if (! server_side_cursor)
   {
-    my_message(ER_SP_CURSOR_NOT_OPEN, ER(ER_SP_CURSOR_NOT_OPEN), MYF(0));
+    my_message(ER_SP_CURSOR_NOT_OPEN, ER_THD(thd, ER_SP_CURSOR_NOT_OPEN),
+               MYF(0));
     return -1;
   }
   destroy();
@@ -483,20 +486,21 @@ int sp_cursor::fetch(THD *thd, List<sp_variable> *vars)
 {
   if (! server_side_cursor)
   {
-    my_message(ER_SP_CURSOR_NOT_OPEN, ER(ER_SP_CURSOR_NOT_OPEN), MYF(0));
+    my_message(ER_SP_CURSOR_NOT_OPEN, ER_THD(thd, ER_SP_CURSOR_NOT_OPEN),
+               MYF(0));
     return -1;
   }
   if (vars->elements != result.get_field_count())
   {
     my_message(ER_SP_WRONG_NO_OF_FETCH_ARGS,
-               ER(ER_SP_WRONG_NO_OF_FETCH_ARGS), MYF(0));
+               ER_THD(thd, ER_SP_WRONG_NO_OF_FETCH_ARGS), MYF(0));
     return -1;
   }
 
   DBUG_EXECUTE_IF("bug23032_emit_warning",
                   push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
                                ER_UNKNOWN_ERROR,
-                               ER(ER_UNKNOWN_ERROR)););
+                               ER_THD(thd, ER_UNKNOWN_ERROR)););
 
   result.set_spvar_list(vars);
 
@@ -510,7 +514,7 @@ int sp_cursor::fetch(THD *thd, List<sp_variable> *vars)
   */
   if (! server_side_cursor->is_open())
   {
-    my_message(ER_SP_FETCH_NO_DATA, ER(ER_SP_FETCH_NO_DATA), MYF(0));
+    my_message(ER_SP_FETCH_NO_DATA, ER_THD(thd, ER_SP_FETCH_NO_DATA), MYF(0));
     return -1;
   }
 

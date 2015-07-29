@@ -44,7 +44,8 @@ class Cached_item;
 
 /* base class for subselects */
 
-class Item_subselect :public Item_result_field
+class Item_subselect :public Item_result_field,
+                      protected Used_tables_and_const_cache
 {
   bool value_assigned;   /* value already assigned to subselect */
   bool own_engine;  /* the engine was not taken from other Item_subselect */
@@ -53,16 +54,12 @@ protected:
   THD *thd;
   /* old engine if engine was changed */
   subselect_engine *old_engine;
-  /* cache of used external tables */
-  table_map used_tables_cache;
   /* allowed number of columns (1 for single value subqueries) */
   uint max_columns;
   /* where subquery is placed */
   enum_parsing_place parsing_place;
   /* work with 'substitution' */
   bool have_to_be_excluded;
-  /* cache of constant state */
-  bool const_item_cache;
   
   bool inside_first_fix_fields;
   bool done_first_fix_fields;
@@ -240,7 +237,6 @@ public:
     @return the SELECT_LEX structure associated with this Item
   */
   st_select_lex* get_select_lex();
-  const char *func_name() const { DBUG_ASSERT(0); return "subselect"; }
   virtual bool expr_cache_is_needed(THD *);
   virtual void get_cache_parameters(List<Item> &parameters);
   virtual bool is_subquery_processor (uchar *opt_arg) { return 1; }
@@ -248,7 +244,10 @@ public:
   bool limit_index_condition_pushdown_processor(uchar *opt_arg) 
   {
     return TRUE;
-   }
+  }
+
+  void init_expr_cache_tracker(THD *thd);
+
 
   friend class select_result_interceptor;
   friend class Item_in_optimizer;
@@ -269,7 +268,7 @@ class Item_singlerow_subselect :public Item_subselect
 protected:
   Item_cache *value, **row;
 public:
-  Item_singlerow_subselect(st_select_lex *select_lex);
+  Item_singlerow_subselect(THD *thd_arg, st_select_lex *select_lex);
   Item_singlerow_subselect() :Item_subselect(), value(0), row (0)
   {}
 
@@ -364,7 +363,7 @@ public:
   /* true if we got this from EXISTS or to IN */
   bool exists_transformed;
 
-  Item_exists_subselect(st_select_lex *select_lex);
+  Item_exists_subselect(THD *thd_arg, st_select_lex *select_lex);
   Item_exists_subselect()
     :Item_subselect(), upper_not(NULL),abort_on_null(0),
     emb_on_expr_nest(NULL), optimizer(0), exists_transformed(0)
@@ -570,7 +569,7 @@ public:
 
   Item_func_not_all *upper_item; // point on NOT/NOP before ALL/SOME subquery
 
-  Item_in_subselect(Item * left_expr, st_select_lex *select_lex);
+  Item_in_subselect(THD *thd_arg, Item * left_expr, st_select_lex *select_lex);
   Item_in_subselect()
     :Item_exists_subselect(), left_expr_cache(0), first_execution(TRUE),
     in_strategy(SUBS_NOT_TRANSFORMED),
@@ -712,7 +711,8 @@ public:
   chooser_compare_func_creator func_creator;
   bool all;
 
-  Item_allany_subselect(Item * left_expr, chooser_compare_func_creator fc,
+  Item_allany_subselect(THD *thd_arg, Item * left_expr,
+                        chooser_compare_func_creator fc,
                         st_select_lex *select_lex, bool all);
 
   void cleanup();
@@ -986,7 +986,7 @@ public:
   This function is actually defined in sql_parse.cc, but it depends on
   chooser_compare_func_creator defined in this file.
  */
-Item * all_any_subquery_creator(Item *left_expr,
+Item * all_any_subquery_creator(THD *thd, Item *left_expr,
                                 chooser_compare_func_creator cmp,
                                 bool all,
                                 SELECT_LEX *select_lex);
@@ -1039,9 +1039,9 @@ public:
   Name_resolution_context *semi_join_conds_context;
 
 
-  subselect_hash_sj_engine(THD *thd, Item_subselect *in_predicate,
+  subselect_hash_sj_engine(THD *thd_arg, Item_subselect *in_predicate,
                            subselect_single_select_engine *old_engine)
-    : subselect_engine(thd, in_predicate, NULL), 
+    : subselect_engine(thd_arg, in_predicate, NULL), 
       tmp_table(NULL), is_materialized(FALSE), materialize_engine(old_engine),
       materialize_join(NULL),  semi_join_conds(NULL), lookup_engine(NULL),
       count_partial_match_columns(0), count_null_only_columns(0),

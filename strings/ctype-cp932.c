@@ -176,10 +176,19 @@ static const uchar sort_order_cp932[]=
   (uchar) '\370',(uchar) '\371',(uchar) '\372',(uchar) '\373',(uchar) '\374',(uchar) '\375',(uchar) '\376',(uchar) '\377'
 };
 
-#define iscp932head(c) ((0x81<=(c) && (c)<=0x9f) || \
-                       ((0xe0<=(c)) && (c)<=0xfc))
-#define iscp932tail(c) ((0x40<=(c) && (c)<=0x7e) || \
-                       (0x80<=(c) && (c)<=0xfc))
+#define iscp932head(c) ((0x81 <= (uchar) (c) && (uchar) (c) <= 0x9f) || \
+                        (0xe0 <= (uchar) (c) && (uchar) (c) <= 0xfc))
+#define iscp932tail(c) ((0x40 <= (uchar) (c) && (uchar) (c) <= 0x7e) || \
+                        (0x80 <= (uchar) (c) && (uchar) (c) <= 0xfc))
+
+#define iscp932kata(c)  (0xA1 <= (uchar) (c) && (uchar) (c) <= 0xDF)
+
+#define MY_FUNCTION_NAME(x)   my_ ## x ## _cp932
+#define IS_8BIT_CHAR(x)       iscp932kata(x)
+#define IS_MB1_CHAR(x)        ((uchar) (x) < 0x80 || iscp932kata(x))
+#define IS_MB2_CHAR(x,y)      (iscp932head(x) && iscp932tail(y))
+#define DEFINE_ASIAN_ROUTINES
+#include "ctype-mb.ic"
 
 
 static uint ismbchar_cp932(CHARSET_INFO *cs __attribute__((unused)),
@@ -1708,90 +1717,6 @@ MY_UNICASE_INFO my_caseinfo_cp932=
   0xFFFF,
   my_caseinfo_pages_cp932
 };
-
-static int my_strnncoll_cp932_internal(const CHARSET_INFO *cs,
-				      const uchar **a_res, size_t a_length,
-				      const uchar **b_res, size_t b_length)
-{
-  const uchar *a= *a_res, *b= *b_res;
-  const uchar *a_end= a + a_length;
-  const uchar *b_end= b + b_length;
-  while (a < a_end && b < b_end)
-  {
-    if (ismbchar_cp932(cs,(char*) a, (char*) a_end) &&
-	ismbchar_cp932(cs,(char*) b, (char*) b_end))
-    {
-      uint a_char= cp932code(*a, *(a+1));
-      uint b_char= cp932code(*b, *(b+1));
-      if (a_char != b_char)
-	return a_char - b_char;
-      a += 2;
-      b += 2;
-    } else
-    {
-      if (sort_order_cp932[(uchar)*a] != sort_order_cp932[(uchar)*b])
-	return sort_order_cp932[(uchar)*a] - sort_order_cp932[(uchar)*b];
-      a++;
-      b++;
-    }
-  }
-  *a_res= a;
-  *b_res= b;
-  return 0;
-}
-
-
-static int my_strnncoll_cp932(CHARSET_INFO *cs __attribute__((unused)),
-			      const uchar *a, size_t a_length, 
-			      const uchar *b, size_t b_length,
-                              my_bool b_is_prefix)
-{
-  int res= my_strnncoll_cp932_internal(cs, &a, a_length, &b, b_length);
-  if (b_is_prefix && a_length > b_length)
-    a_length= b_length;
-  return res ? res : (int) (a_length - b_length);
-}
-
-
-static int my_strnncollsp_cp932(CHARSET_INFO *cs __attribute__((unused)),
-                                const uchar *a, size_t a_length, 
-                                const uchar *b, size_t b_length,
-                                my_bool diff_if_only_endspace_difference
-                                __attribute__((unused)))
-{
-  const uchar *a_end= a + a_length;
-  const uchar *b_end= b + b_length;
-  int res= my_strnncoll_cp932_internal(cs, &a, a_length, &b, b_length);
-
-#ifndef VARCHAR_WITH_DIFF_ENDSPACE_ARE_DIFFERENT_FOR_UNIQUE
-  diff_if_only_endspace_difference= 0;
-#endif
-
-  if (!res && (a != a_end || b != b_end))
-  {
-    int swap= 1;
-    if (diff_if_only_endspace_difference)
-      res= 1;                                   /* Assume 'a' is bigger */
-    /*
-      Check the next not space character of the longer key. If it's < ' ',
-      then it's smaller than the other key.
-    */
-    if (a == a_end)
-    {
-      /* put shorter key in a */
-      a_end= b_end;
-      a= b;
-      swap= -1;				/* swap sign of result */
-      res= -res;
-    }
-    for (; a < a_end ; a++)
-    {
-      if (*a != (uchar) ' ')
-	return (*a < (uchar) ' ') ? -swap : swap;
-    }
-  }
-  return res;
-}
 
 
 static const uint16 cp932_to_unicode[65536]=
@@ -34711,63 +34636,56 @@ size_t my_numcells_cp932(CHARSET_INFO *cs __attribute__((unused)),
   return clen;
 }
 
+
 /*
-  Returns a well formed length of a cp932 string.
-  cp932 additional characters are also accepted.
+  cp932_chinese_ci and cp932_bin sort character blocks in this order:
+  1. [00..7F]                - 7BIT characters (ASCII)
+  2. [81..9F][40..7E,80..FC] - MB2 characters, part1
+  3. [A1..DF]                - 8BIT characters (Kana)
+  4. [E0..FC][40..7E,80..FC] - MB2 characters, part2
 */
+#define MY_FUNCTION_NAME(x)   my_ ## x ## _cp932_japanese_ci
+#define WEIGHT_PAD_SPACE     (256 * (int) ' ')
+#define WEIGHT_MB1(x)        (256 * (int) sort_order_cp932[(uchar) (x)])
+#define WEIGHT_MB2(x,y)      (cp932code(x, y))
+#include "strcoll.ic"
 
-static
-size_t my_well_formed_len_cp932(CHARSET_INFO *cs __attribute__((unused)),
-                                const char *b, const char *e,
-                                size_t pos, int *error)
+
+#define MY_FUNCTION_NAME(x)   my_ ## x ## _cp932_bin
+#define WEIGHT_PAD_SPACE     (256 * (int) ' ')
+#define WEIGHT_MB1(x)        (256 * (int) (uchar) (x))
+#define WEIGHT_MB2(x,y)      (cp932code(x, y))
+#include "strcoll.ic"
+
+
+static MY_COLLATION_HANDLER my_collation_handler_cp932_japanese_ci=
 {
-  const char *b0= b;
-  *error= 0;
-  while (pos-- && b < e)
-  {
-    /*
-      Cast to int8 for extra safety.
-      "char" can be unsigned by default
-      on some platforms.
-    */
-    if (((int8)b[0]) >= 0)
-    {
-      /* Single byte ascii character */
-      b++;
-    }
-    else  if (iscp932head((uchar)*b) && (e-b)>1 && iscp932tail((uchar)b[1]))
-    {
-      /* Double byte character */
-      b+= 2;
-    }
-    else if (((uchar)*b) >= 0xA1 && ((uchar)*b) <= 0xDF)
-    {
-      /* Half width kana */
-      b++;
-    }
-    else
-    {
-      /* Wrong byte sequence */
-      *error= 1;
-      break;
-    }
-  }
-  return (size_t) (b - b0);
-}
-
-
-static MY_COLLATION_HANDLER my_collation_ci_handler =
-{
-  NULL,			/* init */
-  my_strnncoll_cp932,
-  my_strnncollsp_cp932,
+  NULL,                  /* init */
+  my_strnncoll_cp932_japanese_ci,
+  my_strnncollsp_cp932_japanese_ci,
   my_strnxfrm_mb,
   my_strnxfrmlen_simple,
   my_like_range_mb,
-  my_wildcmp_mb,	/* wildcmp  */
+  my_wildcmp_mb,
   my_strcasecmp_8bit,
   my_instr_mb,
   my_hash_sort_simple,
+  my_propagate_simple
+};
+
+
+static MY_COLLATION_HANDLER my_collation_handler_cp932_bin=
+{
+  NULL,	                /* init */
+  my_strnncoll_cp932_bin,
+  my_strnncollsp_cp932_bin,
+  my_strnxfrm_mb,
+  my_strnxfrmlen_simple,
+  my_like_range_mb,
+  my_wildcmp_mb_bin,
+  my_strcasecmp_mb_bin,
+  my_instr_mb,
+  my_hash_sort_mb_bin,
   my_propagate_simple
 };
 
@@ -34800,7 +34718,10 @@ static MY_CHARSET_HANDLER my_charset_handler=
   my_strntod_8bit,
   my_strtoll10_8bit,
   my_strntoull10rnd_8bit,
-  my_scan_8bit
+  my_scan_8bit,
+  my_charlen_cp932,
+  my_well_formed_char_length_cp932,
+  my_copy_fix_mb,
 };
 
 
@@ -34833,7 +34754,7 @@ struct charset_info_st my_charset_cp932_japanese_ci=
     1,                  /* escape_with_backslash_is_dangerous */
     1,                  /* levels_for_order   */
     &my_charset_handler,
-    &my_collation_ci_handler
+    &my_collation_handler_cp932_japanese_ci
 };
 
 struct charset_info_st my_charset_cp932_bin=
@@ -34865,7 +34786,7 @@ struct charset_info_st my_charset_cp932_bin=
     1,                  /* escape_with_backslash_is_dangerous */
     1,                  /* levels_for_order   */
     &my_charset_handler,
-    &my_collation_mb_bin_handler
+    &my_collation_handler_cp932_bin
 };
 
 #endif

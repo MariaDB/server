@@ -38,11 +38,13 @@
 #include "spd_ping_table.h"
 #include "spd_malloc.h"
 
+#if MYSQL_VERSION_ID < 100103
 #ifdef XID_CACHE_IS_SPLITTED
 extern uint *spd_db_att_xid_cache_split_num;
 #endif
 extern pthread_mutex_t *spd_db_att_LOCK_xid_cache;
 extern HASH *spd_db_att_xid_cache;
+#endif
 extern struct charset_info_st *spd_charset_utf8_bin;
 
 extern handlerton *spider_hton_ptr;
@@ -1641,6 +1643,13 @@ int spider_xa_lock(
   int error_num;
   const char *old_proc_info;
   DBUG_ENTER("spider_xa_lock");
+#if MYSQL_VERSION_ID >= 100103
+  old_proc_info = thd_proc_info(thd, "Locking xid by Spider");
+  error_num= 0;
+  if (xid_cache_insert(thd, xid_state))
+    error_num= thd->get_stmt_da()->sql_errno() == ER_XAER_DUPID ?
+               ER_SPIDER_XA_LOCKED_NUM : HA_ERR_OUT_OF_MEM;
+#else
 #ifdef SPIDER_HAS_HASH_VALUE_TYPE
   my_hash_value_type hash_value = my_calc_hash(spd_db_att_xid_cache,
     (uchar*) xid_state->xid.key(), xid_state->xid.key_length());
@@ -1699,6 +1708,7 @@ error:
 #else
   pthread_mutex_unlock(spd_db_att_LOCK_xid_cache);
 #endif
+#endif
   thd_proc_info(thd, old_proc_info);
   DBUG_RETURN(error_num);
 }
@@ -1709,6 +1719,10 @@ int spider_xa_unlock(
   THD *thd = current_thd;
   const char *old_proc_info;
   DBUG_ENTER("spider_xa_unlock");
+#if MYSQL_VERSION_ID >= 100103
+  old_proc_info = thd_proc_info(thd, "Unlocking xid by Spider");
+  xid_cache_delete(thd, xid_state);
+#else
 #if defined(SPIDER_HAS_HASH_VALUE_TYPE) && defined(HASH_UPDATE_WITH_HASH_VALUE)
   my_hash_value_type hash_value = my_calc_hash(spd_db_att_xid_cache,
     (uchar*) xid_state->xid.key(), xid_state->xid.key_length());
@@ -1737,6 +1751,7 @@ int spider_xa_unlock(
   pthread_mutex_unlock(&spd_db_att_LOCK_xid_cache[idx]);
 #else
   pthread_mutex_unlock(spd_db_att_LOCK_xid_cache);
+#endif
 #endif
   thd_proc_info(thd, old_proc_info);
   DBUG_RETURN(0);
@@ -1857,7 +1872,6 @@ int spider_internal_start_trx(
 
       trx->internal_xid_state.xa_state = XA_ACTIVE;
       trx->internal_xid_state.xid.set(&trx->xid);
-      trx->internal_xid_state.in_thd = 1;
       if ((error_num = spider_xa_lock(&trx->internal_xid_state)))
       {
         if (error_num == ER_SPIDER_XA_LOCKED_NUM)

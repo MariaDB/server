@@ -6,8 +6,6 @@ INSERT INTO t2 VALUES(1),(2),(3);
 #
 CREATE OR REPLACE TABLE IF NOT EXISTS t1 (a int);
 ERROR HY000: Incorrect usage of OR REPLACE and IF NOT EXISTS
-create or replace trigger trg before insert on t1 for each row set @a:=1;
-ERROR HY000: Incorrect usage of OR REPLACE and TRIGGERS / SP / EVENT
 create or replace table mysql.general_log (a int);
 ERROR HY000: You cannot 'CREATE OR REPLACE' a log table if logging is enabled
 create or replace table mysql.slow_log (a int);
@@ -402,29 +400,29 @@ select * from information_schema.metadata_lock_info;
 THREAD_ID	LOCK_MODE	LOCK_DURATION	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
 #	MDL_INTENTION_EXCLUSIVE	MDL_EXPLICIT	Global read lock		
 #	MDL_SHARED_NO_READ_WRITE	MDL_EXPLICIT	Table metadata lock	test	t1
-#	MDL_INTENTION_EXCLUSIVE	MDL_EXPLICIT	Schema metadata lock	test	
 #	MDL_SHARED_READ	MDL_EXPLICIT	Table metadata lock	test	t2
+#	MDL_INTENTION_EXCLUSIVE	MDL_EXPLICIT	Schema metadata lock	test	
 create or replace table t1 (i int);
 select * from information_schema.metadata_lock_info;
 THREAD_ID	LOCK_MODE	LOCK_DURATION	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
 #	MDL_INTENTION_EXCLUSIVE	MDL_EXPLICIT	Global read lock		
 #	MDL_SHARED_NO_READ_WRITE	MDL_EXPLICIT	Table metadata lock	test	t1
-#	MDL_INTENTION_EXCLUSIVE	MDL_EXPLICIT	Schema metadata lock	test	
 #	MDL_SHARED_READ	MDL_EXPLICIT	Table metadata lock	test	t2
+#	MDL_INTENTION_EXCLUSIVE	MDL_EXPLICIT	Schema metadata lock	test	
 create or replace table t1 like t2;
 select * from information_schema.metadata_lock_info;
 THREAD_ID	LOCK_MODE	LOCK_DURATION	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
 #	MDL_INTENTION_EXCLUSIVE	MDL_EXPLICIT	Global read lock		
 #	MDL_SHARED_NO_READ_WRITE	MDL_EXPLICIT	Table metadata lock	test	t1
-#	MDL_INTENTION_EXCLUSIVE	MDL_EXPLICIT	Schema metadata lock	test	
 #	MDL_SHARED_READ	MDL_EXPLICIT	Table metadata lock	test	t2
+#	MDL_INTENTION_EXCLUSIVE	MDL_EXPLICIT	Schema metadata lock	test	
 create or replace table t1 select 1 as f1;
 select * from information_schema.metadata_lock_info;
 THREAD_ID	LOCK_MODE	LOCK_DURATION	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
 #	MDL_INTENTION_EXCLUSIVE	MDL_EXPLICIT	Global read lock		
 #	MDL_SHARED_NO_READ_WRITE	MDL_EXPLICIT	Table metadata lock	test	t1
-#	MDL_INTENTION_EXCLUSIVE	MDL_EXPLICIT	Schema metadata lock	test	
 #	MDL_SHARED_READ	MDL_EXPLICIT	Table metadata lock	test	t2
+#	MDL_INTENTION_EXCLUSIVE	MDL_EXPLICIT	Schema metadata lock	test	
 drop table t1;
 unlock tables;
 #

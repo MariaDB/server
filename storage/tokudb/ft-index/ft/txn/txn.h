@@ -253,6 +253,7 @@ struct tokutxn {
     uint32_t num_pin; // number of threads (all hot indexes) that want this
                       // txn to not transition to commit or abort
     uint64_t client_id;
+    time_t start_time;
 };
 typedef struct tokutxn *TOKUTXN;
 
@@ -302,7 +303,7 @@ int toku_txn_abort_with_lsn(struct tokutxn *txn, LSN oplsn,
 
 int toku_txn_discard_txn(struct tokutxn *txn);
 
-void toku_txn_prepare_txn (struct tokutxn *txn, TOKU_XA_XID *xid);
+void toku_txn_prepare_txn (struct tokutxn *txn, TOKU_XA_XID *xid, int nosync);
 // Effect: Do the internal work of preparing a transaction (does not log the prepare record).
 
 void toku_txn_get_prepared_xa_xid(struct tokutxn *txn, TOKU_XA_XID *xa_xid);
@@ -367,6 +368,8 @@ bool toku_txn_has_spilled_rollback(struct tokutxn *txn);
 
 uint64_t toku_txn_get_client_id(struct tokutxn *txn);
 void toku_txn_set_client_id(struct tokutxn *txn, uint64_t client_id);
+
+time_t toku_txn_get_start_time(struct tokutxn *txn);
 
 //
 // This function is used by the leafentry iterators.

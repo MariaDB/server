@@ -109,6 +109,7 @@ source include/show_master_logs.inc;
 # we just tests if synonyms are accepted
 purge binary logs to 'master-bin.000002';
 source include/show_binary_logs.inc;
+--source include/wait_for_binlog_checkpoint.inc
 
 # Set the purge time 1 second after the last modify time of master-bin.000002.
 perl;

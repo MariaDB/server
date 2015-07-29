@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1995, 2011, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1995, 2015, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -64,7 +64,8 @@ buf_calc_page_crc32(
 	there we store the old formula checksum. */
 
 	checksum = ut_crc32(page + FIL_PAGE_OFFSET,
-			    FIL_PAGE_FILE_FLUSH_LSN - FIL_PAGE_OFFSET)
+			    FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION
+			    - FIL_PAGE_OFFSET)
 		^ ut_crc32(page + FIL_PAGE_DATA,
 			   UNIV_PAGE_SIZE - FIL_PAGE_DATA
 			   - FIL_PAGE_END_LSN_OLD_CHKSUM);
@@ -94,7 +95,8 @@ buf_calc_page_new_checksum(
 	there we store the old formula checksum. */
 
 	checksum = ut_fold_binary(page + FIL_PAGE_OFFSET,
-				  FIL_PAGE_FILE_FLUSH_LSN - FIL_PAGE_OFFSET)
+				  FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION
+				  - FIL_PAGE_OFFSET)
 		+ ut_fold_binary(page + FIL_PAGE_DATA,
 				 UNIV_PAGE_SIZE - FIL_PAGE_DATA
 				 - FIL_PAGE_END_LSN_OLD_CHKSUM);
@@ -119,7 +121,7 @@ buf_calc_page_old_checksum(
 {
 	ulint checksum;
 
-	checksum = ut_fold_binary(page, FIL_PAGE_FILE_FLUSH_LSN);
+	checksum = ut_fold_binary(page, FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION);
 
 	checksum = checksum & 0xFFFFFFFFUL;
 
@@ -139,14 +141,17 @@ buf_checksum_algorithm_name(
 {
 	switch (algo) {
 	case SRV_CHECKSUM_ALGORITHM_CRC32:
-	case SRV_CHECKSUM_ALGORITHM_STRICT_CRC32:
 		return("crc32");
+	case SRV_CHECKSUM_ALGORITHM_STRICT_CRC32:
+		return("strict_crc32");
 	case SRV_CHECKSUM_ALGORITHM_INNODB:
-	case SRV_CHECKSUM_ALGORITHM_STRICT_INNODB:
 		return("innodb");
+	case SRV_CHECKSUM_ALGORITHM_STRICT_INNODB:
+		return("strict_innodb");
 	case SRV_CHECKSUM_ALGORITHM_NONE:
-	case SRV_CHECKSUM_ALGORITHM_STRICT_NONE:
 		return("none");
+	case SRV_CHECKSUM_ALGORITHM_STRICT_NONE:
+		return("strict_none");
 	}
 
 	ut_error;

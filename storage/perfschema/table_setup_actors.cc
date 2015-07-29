@@ -29,29 +29,6 @@
 
 THR_LOCK table_setup_actors::m_table_lock;
 
-static const TABLE_FIELD_TYPE field_types[]=
-{
-  {
-    { C_STRING_WITH_LEN("HOST") },
-    { C_STRING_WITH_LEN("char(60)") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("USER") },
-    { C_STRING_WITH_LEN("char(16)") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("ROLE") },
-    { C_STRING_WITH_LEN("char(16)") },
-    { NULL, 0}
-  }
-};
-
-TABLE_FIELD_DEF
-table_setup_actors::m_field_def=
-{ 3, field_types, 0, (uint*) 0 };
-
 PFS_engine_table_share
 table_setup_actors::m_share=
 {
@@ -64,8 +41,10 @@ table_setup_actors::m_share=
   1000, /* records */
   sizeof(PFS_simple_index),
   &m_table_lock,
-  &m_field_def,
-  false /* checked */
+  { C_STRING_WITH_LEN("CREATE TABLE setup_actors("
+                      "HOST CHAR(60) collate utf8_bin default '%' not null,"
+                      "USER CHAR(16) collate utf8_bin default '%' not null,"
+                      "ROLE CHAR(16) collate utf8_bin default '%' not null)") }
 };
 
 PFS_engine_table* table_setup_actors::create()

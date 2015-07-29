@@ -20,40 +20,89 @@
   This header defines five atomic operations:
 
   my_atomic_add#(&var, what)
+  my_atomic_add#_explicit(&var, what, memory_order)
     'Fetch and Add'
     add 'what' to *var, and return the old value of *var
+    All memory orders are valid.
 
   my_atomic_fas#(&var, what)
+  my_atomic_fas#_explicit(&var, what, memory_order)
     'Fetch And Store'
     store 'what' in *var, and return the old value of *var
+    All memory orders are valid.
 
   my_atomic_cas#(&var, &old, new)
+  my_atomic_cas#_weak_explicit(&var, &old, new, succ, fail)
+  my_atomic_cas#_strong_explicit(&var, &old, new, succ, fail)
     'Compare And Swap'
     if *var is equal to *old, then store 'new' in *var, and return TRUE
     otherwise store *var in *old, and return FALSE
+    succ - the memory synchronization ordering for the read-modify-write
+    operation if the comparison succeeds. All memory orders are valid.
+    fail - the memory synchronization ordering for the load operation if the
+    comparison fails. Cannot be MY_MEMORY_ORDER_RELEASE or
+    MY_MEMORY_ORDER_ACQ_REL and cannot specify stronger ordering than succ.
+
+    The weak form is allowed to fail spuriously, that is, act as if *var != *old
+    even if they are equal. When a compare-and-exchange is in a loop, the weak
+    version will yield better performance on some platforms. When a weak
+    compare-and-exchange would require a loop and a strong one would not, the
+    strong one is preferable.
 
   my_atomic_load#(&var)
+  my_atomic_load#_explicit(&var, memory_order)
     return *var
+    Order must be one of MY_MEMORY_ORDER_RELAXED, MY_MEMORY_ORDER_CONSUME,
+    MY_MEMORY_ORDER_ACQUIRE, MY_MEMORY_ORDER_SEQ_CST.
 
   my_atomic_store#(&var, what)
+  my_atomic_store#_explicit(&var, what, memory_order)
     store 'what' in *var
+    Order must be one of MY_MEMORY_ORDER_RELAXED, MY_MEMORY_ORDER_RELEASE,
+    MY_MEMORY_ORDER_SEQ_CST.
 
   '#' is substituted by a size suffix - 8, 16, 32, 64, or ptr
   (e.g. my_atomic_add8, my_atomic_fas32, my_atomic_casptr).
 
-  NOTE This operations are not always atomic, so they always must be
-  enclosed in my_atomic_rwlock_rdlock(lock)/my_atomic_rwlock_rdunlock(lock)
-  or my_atomic_rwlock_wrlock(lock)/my_atomic_rwlock_wrunlock(lock).
-  Hint: if a code block makes intensive use of atomic ops, it make sense
-  to take/release rwlock once for the whole block, not for every statement.
+  The first version orders memory accesses according to MY_MEMORY_ORDER_SEQ_CST,
+  the second version (with _explicit suffix) orders memory accesses according to
+  given memory order.
 
-  On architectures where these operations are really atomic, rwlocks will
-  be optimized away.
+  memory_order specifies how non-atomic memory accesses are to be ordered around
+  an atomic operation:
+
+  MY_MEMORY_ORDER_RELAXED - there are no constraints on reordering of memory
+                            accesses around the atomic variable.
+  MY_MEMORY_ORDER_CONSUME - no reads in the current thread dependent on the
+                            value currently loaded can be reordered before this
+                            load. This ensures that writes to dependent
+                            variables in other threads that release the same
+                            atomic variable are visible in the current thread.
+                            On most platforms, this affects compiler
+                            optimization only.
+  MY_MEMORY_ORDER_ACQUIRE - no reads in the current thread can be reordered
+                            before this load. This ensures that all writes in
+                            other threads that release the same atomic variable
+                            are visible in the current thread.
+  MY_MEMORY_ORDER_RELEASE - no writes in the current thread can be reordered
+                            after this store. This ensures that all writes in
+                            the current thread are visible in other threads that
+                            acquire the same atomic variable.
+  MY_MEMORY_ORDER_ACQ_REL - no reads in the current thread can be reordered
+                            before this load as well as no writes in the current
+                            thread can be reordered after this store. The
+                            operation is read-modify-write operation. It is
+                            ensured that all writes in another threads that
+                            release the same atomic variable are visible before
+                            the modification and the modification is visible in
+                            other threads that acquire the same atomic variable.
+  MY_MEMORY_ORDER_SEQ_CST - The operation has the same semantics as
+                            acquire-release operation, and additionally has
+                            sequentially-consistent operation ordering.
+
   8- and 16-bit atomics aren't implemented for windows (see generic-msvc.h),
-  but can be added, if necessary. 
+  but can be added, if necessary.
 */
-
-#ifndef my_atomic_rwlock_init
 
 #define intptr         void *
 /**
@@ -62,16 +111,14 @@
 */
 #undef MY_ATOMIC_HAS_8_16
 
-#ifndef MY_ATOMIC_MODE_RWLOCKS
 /*
  * Attempt to do atomic ops without locks
  */
 #include "atomic/nolock.h"
-#endif
 
 #ifndef make_atomic_cas_body
 /* nolock.h was not able to generate even a CAS function, fall back */
-#include "atomic/rwlock.h"
+#error atomic ops for this platform are not implemented
 #endif
 
 /* define missing functions by using the already generated ones */
@@ -281,6 +328,79 @@ make_atomic_store(ptr)
 #define MY_ATOMIC_NOT_1CPU 1
 extern int my_atomic_initialize();
 
+#ifdef __ATOMIC_SEQ_CST
+#define MY_MEMORY_ORDER_RELAXED __ATOMIC_RELAXED
+#define MY_MEMORY_ORDER_CONSUME __ATOMIC_CONSUME
+#define MY_MEMORY_ORDER_ACQUIRE __ATOMIC_ACQUIRE
+#define MY_MEMORY_ORDER_RELEASE __ATOMIC_RELEASE
+#define MY_MEMORY_ORDER_ACQ_REL __ATOMIC_ACQ_REL
+#define MY_MEMORY_ORDER_SEQ_CST __ATOMIC_SEQ_CST
+
+#define my_atomic_store32_explicit(P, D, O) __atomic_store_n((P), (D), (O))
+#define my_atomic_store64_explicit(P, D, O) __atomic_store_n((P), (D), (O))
+#define my_atomic_storeptr_explicit(P, D, O) __atomic_store_n((P), (D), (O))
+
+#define my_atomic_load32_explicit(P, O) __atomic_load_n((P), (O))
+#define my_atomic_load64_explicit(P, O) __atomic_load_n((P), (O))
+#define my_atomic_loadptr_explicit(P, O) __atomic_load_n((P), (O))
+
+#define my_atomic_fas32_explicit(P, D, O) __atomic_exchange_n((P), (D), (O))
+#define my_atomic_fas64_explicit(P, D, O) __atomic_exchange_n((P), (D), (O))
+#define my_atomic_fasptr_explicit(P, D, O) __atomic_exchange_n((P), (D), (O))
+
+#define my_atomic_add32_explicit(P, A, O) __atomic_fetch_add((P), (A), (O))
+#define my_atomic_add64_explicit(P, A, O) __atomic_fetch_add((P), (A), (O))
+
+#define my_atomic_cas32_weak_explicit(P, E, D, S, F) \
+  __atomic_compare_exchange_n((P), (E), (D), true, (S), (F))
+#define my_atomic_cas64_weak_explicit(P, E, D, S, F) \
+  __atomic_compare_exchange_n((P), (E), (D), true, (S), (F))
+#define my_atomic_casptr_weak_explicit(P, E, D, S, F) \
+  __atomic_compare_exchange_n((P), (E), (D), true, (S), (F))
+
+#define my_atomic_cas32_strong_explicit(P, E, D, S, F) \
+  __atomic_compare_exchange_n((P), (E), (D), false, (S), (F))
+#define my_atomic_cas64_strong_explicit(P, E, D, S, F) \
+  __atomic_compare_exchange_n((P), (E), (D), false, (S), (F))
+#define my_atomic_casptr_strong_explicit(P, E, D, S, F) \
+  __atomic_compare_exchange_n((P), (E), (D), false, (S), (F))
+#else
+#define MY_MEMORY_ORDER_RELAXED
+#define MY_MEMORY_ORDER_CONSUME
+#define MY_MEMORY_ORDER_ACQUIRE
+#define MY_MEMORY_ORDER_RELEASE
+#define MY_MEMORY_ORDER_ACQ_REL
+#define MY_MEMORY_ORDER_SEQ_CST
+
+#define my_atomic_store32_explicit(P, D, O) my_atomic_store32((P), (D))
+#define my_atomic_store64_explicit(P, D, O) my_atomic_store64((P), (D))
+#define my_atomic_storeptr_explicit(P, D, O) my_atomic_storeptr((P), (D))
+
+#define my_atomic_load32_explicit(P, O) my_atomic_load32((P))
+#define my_atomic_load64_explicit(P, O) my_atomic_load64((P))
+#define my_atomic_loadptr_explicit(P, O) my_atomic_loadptr((P))
+
+#define my_atomic_fas32_explicit(P, D, O) my_atomic_fas32((P), (D))
+#define my_atomic_fas64_explicit(P, D, O) my_atomic_fas64((P), (D))
+#define my_atomic_fasptr_explicit(P, D, O) my_atomic_fasptr((P), (D))
+
+#define my_atomic_add32_explicit(P, A, O) my_atomic_add32((P), (A))
+#define my_atomic_add64_explicit(P, A, O) my_atomic_add64((P), (A))
+#define my_atomic_addptr_explicit(P, A, O) my_atomic_addptr((P), (A))
+
+#define my_atomic_cas32_weak_explicit(P, E, D, S, F) \
+  my_atomic_cas32((P), (E), (D))
+#define my_atomic_cas64_weak_explicit(P, E, D, S, F) \
+  my_atomic_cas64((P), (E), (D))
+#define my_atomic_casptr_weak_explicit(P, E, D, S, F) \
+  my_atomic_casptr((P), (E), (D))
+
+#define my_atomic_cas32_strong_explicit(P, E, D, S, F) \
+  my_atomic_cas32((P), (E), (D))
+#define my_atomic_cas64_strong_explicit(P, E, D, S, F) \
+  my_atomic_cas64((P), (E), (D))
+#define my_atomic_casptr_strong_explicit(P, E, D, S, F) \
+  my_atomic_casptr((P), (E), (D))
 #endif
 
 #endif /* MY_ATOMIC_INCLUDED */

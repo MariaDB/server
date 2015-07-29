@@ -19,6 +19,8 @@
 
 #include "my_global.h"                  /* C_MODE_START, C_MODE_END */
 
+#include <m_string.h>
+
 C_MODE_START
 
 #ifdef HAVE_AIOWAIT
@@ -65,7 +67,7 @@ typedef struct my_aio_result {
 #define MY_WME		16	/* Write message on error */
 #define MY_WAIT_IF_FULL 32	/* Wait and try again if disk full error */
 #define MY_IGNORE_BADFD 32      /* my_sync: ignore 'bad descriptor' errors */
-#define MY_UNUSED       64      /* Unused (was support for RAID) */
+#define MY_ENCRYPT      64      /* Encrypt IO_CACHE temporary files */
 #define MY_FULL_IO     512      /* For my_read - loop intil I/O is complete */
 #define MY_DONT_CHECK_FILESIZE 128 /* Option to init_io_cache() */
 #define MY_LINK_WARNING 32	/* my_redel() gives warning if links */
@@ -78,6 +80,11 @@ typedef struct my_aio_result {
 #define MY_SHORT_WAIT	64	/* my_lock() don't wait if can't lock */
 #define MY_FORCE_LOCK   128     /* use my_lock() even if disable_locking */
 #define MY_NO_WAIT      256	/* my_lock() don't wait at all */
+/*
+  init_dynamic_array() has init buffer; Internal flag, not to be used by
+  caller.
+*/
+#define MY_INIT_BUFFER_USED 256
 #define MY_ZEROFILL	32	/* my_malloc(), fill array with zero */
 #define MY_ALLOW_ZERO_PTR 64	/* my_realloc() ; zero ptr -> malloc */
 #define MY_FREE_ON_ERROR 128	/* my_realloc() ; Free old ptr on error */
@@ -280,7 +287,7 @@ enum cache_type
 {
   TYPE_NOT_SET= 0, READ_CACHE, WRITE_CACHE,
   SEQ_READ_APPEND		/* sequential read or append */,
-  READ_FIFO, READ_NET,WRITE_NET};
+  READ_FIFO, READ_NET};
 
 enum flush_type
 {
@@ -359,7 +366,6 @@ typedef struct st_dynamic_string
 } DYNAMIC_STRING;
 
 struct st_io_cache;
-typedef int (*IO_CACHE_CALLBACK)(struct st_io_cache*);
 
 typedef struct st_io_cache_share
 {
@@ -456,24 +462,14 @@ typedef struct st_io_cache		/* Used when cacheing files */
   */
   enum cache_type type;
   /*
-    Callbacks when the actual read I/O happens. These were added and
-    are currently used for binary logging of LOAD DATA INFILE - when a
-    block is read from the file, we create a block create/append event, and
-    when IO_CACHE is closed, we create an end event. These functions could,
-    of course be used for other things
-  */
-  IO_CACHE_CALLBACK pre_read;
-  IO_CACHE_CALLBACK post_read;
-  IO_CACHE_CALLBACK pre_close;
-  /*
     Counts the number of times, when we were forced to use disk. We use it to
     increase the binlog_cache_disk_use and binlog_stmt_cache_disk_use status
     variables.
   */
   ulong disk_writes;
-  void* arg;				/* for use by pre/post_read */
   char *file_name;			/* if used with 'open_cached_file' */
-  char *dir,*prefix;
+  const char *dir;
+  char prefix[3];
   File file; /* file descriptor */
   /*
     seek_not_done is set by my_b_seek() to inform the upcoming read/write
@@ -513,56 +509,108 @@ typedef void (*my_error_reporter)(enum loglevel level, const char *format, ...)
 
 extern my_error_reporter my_charset_error_reporter;
 
-	/* defines for mf_iocache */
+/* inline functions for mf_iocache */
 
-	/* Test if buffer is inited */
-#define my_b_clear(info) (info)->buffer=0
-#define my_b_inited(info) (info)->buffer
+extern int my_b_flush_io_cache(IO_CACHE *info, int need_append_buffer_lock);
+extern int _my_b_get(IO_CACHE *info);
+extern int _my_b_read(IO_CACHE *info,uchar *Buffer,size_t Count);
+extern int _my_b_write(IO_CACHE *info,const uchar *Buffer,size_t Count);
+
+/* Test if buffer is inited */
+static inline void my_b_clear(IO_CACHE *info) { info->buffer= 0; }
+static inline int my_b_inited(IO_CACHE *info) { return MY_TEST(info->buffer); }
 #define my_b_EOF INT_MIN
 
-#define my_b_read(info,Buffer,Count) \
-  ((info)->read_pos + (Count) <= (info)->read_end ?\
-   (memcpy(Buffer,(info)->read_pos,(size_t) (Count)), \
-    ((info)->read_pos+=(Count)),0) :\
-   (*(info)->read_function)((info),Buffer,Count))
+static inline int my_b_read(IO_CACHE *info, uchar *Buffer, size_t Count)
+{
+  if (info->read_pos + Count <= info->read_end)
+  {
+    memcpy(Buffer, info->read_pos, Count);
+    info->read_pos+= Count;
+    return 0;
+  }
+  return _my_b_read(info, Buffer, Count);
+}
 
-#define my_b_write(info,Buffer,Count) \
- ((info)->write_pos + (Count) <=(info)->write_end ?\
-  (memcpy((info)->write_pos, (Buffer), (size_t)(Count)),\
-   ((info)->write_pos+=(Count)),0) : \
-   (*(info)->write_function)((info),(uchar *)(Buffer),(Count)))
+static inline int my_b_write(IO_CACHE *info, const uchar *Buffer, size_t Count)
+{
+  if (info->write_pos + Count <= info->write_end)
+  {
+    memcpy(info->write_pos, Buffer, Count);
+    info->write_pos+= Count;
+    return 0;
+  }
+  return _my_b_write(info, Buffer, Count);
+}
 
-#define my_b_get(info) \
-  ((info)->read_pos != (info)->read_end ?\
-   ((info)->read_pos++, (int) (uchar) (info)->read_pos[-1]) :\
-   _my_b_get(info))
+static inline int my_b_get(IO_CACHE *info)
+{
+  if (info->read_pos != info->read_end)
+  {
+    info->read_pos++;
+    return info->read_pos[-1];
+  }
+  return _my_b_get(info);
+}
 
-	/* my_b_write_byte dosn't have any err-check */
-#define my_b_write_byte(info,chr) \
-  (((info)->write_pos < (info)->write_end) ?\
-   ((*(info)->write_pos++)=(chr)) :\
-   (_my_b_write(info,0,0) , ((*(info)->write_pos++)=(chr))))
+/* my_b_write_byte dosn't have any err-check */
+static inline void my_b_write_byte(IO_CACHE *info, uchar chr)
+{
+  if (info->write_pos >= info->write_end)
+    my_b_flush_io_cache(info, 1);
+  *info->write_pos++= chr;
+}
 
-#define my_b_fill_cache(info) \
-  (((info)->read_end=(info)->read_pos),(*(info)->read_function)(info,0,0))
+/**
+  Fill buffer of the cache.
 
-#define my_b_tell(info) ((info)->pos_in_file + \
-			 (size_t) (*(info)->current_pos - (info)->request_pos))
-#define my_b_write_tell(info) ((info)->pos_in_file + \
-			 ((info)->write_pos - (info)->write_buffer))
+  @note It assumes that you have already used all characters in the CACHE,
+        independent of the read_pos value!
 
-#define my_b_get_buffer_start(info) (info)->request_pos 
-#define my_b_get_bytes_in_buffer(info) (char*) (info)->read_end -   \
-  (char*) my_b_get_buffer_start(info)
-#define my_b_get_pos_in_file(info) (info)->pos_in_file
+  @returns
+        0     On error or EOF (info->error = -1 on error)
+        #     Number of characters
+*/
+static inline size_t my_b_fill(IO_CACHE *info)
+{
+  info->read_pos= info->read_end;
+  return _my_b_read(info,0,0) ? 0 : info->read_end - info->read_pos;
+}
 
-/* tell write offset in the SEQ_APPEND cache */
+static inline my_off_t my_b_tell(const IO_CACHE *info)
+{
+  return info->pos_in_file + (*info->current_pos - info->request_pos);
+}
+
+static inline my_off_t my_b_write_tell(const IO_CACHE *info)
+{
+  return info->pos_in_file + (info->write_pos - info->write_buffer);
+}
+
+static inline uchar* my_b_get_buffer_start(const IO_CACHE *info)
+{
+  return info->request_pos;
+}
+
+static inline size_t my_b_get_bytes_in_buffer(const IO_CACHE *info)
+{
+  return info->read_end - info->request_pos;
+}
+
+static inline my_off_t my_b_get_pos_in_file(const IO_CACHE *info)
+{
+  return info->pos_in_file;
+}
+
+static inline size_t my_b_bytes_in_cache(const IO_CACHE *info)
+{
+  return *info->current_end - *info->current_pos;
+}
+
 int      my_b_copy_to_file(IO_CACHE *cache, FILE *file);
 my_off_t my_b_append_tell(IO_CACHE* info);
 my_off_t my_b_safe_tell(IO_CACHE* info); /* picks the correct tell() */
-
-#define my_b_bytes_in_cache(info) (size_t) (*(info)->current_end - \
-					  *(info)->current_pos)
+int my_b_pread(IO_CACHE *info, uchar *Buffer, size_t Count, my_off_t pos);
 
 typedef uint32 ha_checksum;
 extern ulong my_crc_dbug_check;
@@ -747,32 +795,24 @@ void my_store_ptr(uchar *buff, size_t pack_length, my_off_t pos);
 my_off_t my_get_ptr(uchar *ptr, size_t pack_length);
 extern int init_io_cache(IO_CACHE *info,File file,size_t cachesize,
 			 enum cache_type type,my_off_t seek_offset,
-			 pbool use_async_io, myf cache_myflags);
+			 my_bool use_async_io, myf cache_myflags);
 extern my_bool reinit_io_cache(IO_CACHE *info,enum cache_type type,
-			       my_off_t seek_offset,pbool use_async_io,
-			       pbool clear_cache);
+			       my_off_t seek_offset, my_bool use_async_io,
+			       my_bool clear_cache);
 extern void setup_io_cache(IO_CACHE* info);
-extern int _my_b_read(IO_CACHE *info,uchar *Buffer,size_t Count);
-extern int _my_b_read_r(IO_CACHE *info,uchar *Buffer,size_t Count);
 extern void init_io_cache_share(IO_CACHE *read_cache, IO_CACHE_SHARE *cshare,
                                 IO_CACHE *write_cache, uint num_threads);
 extern void remove_io_thread(IO_CACHE *info);
-extern int _my_b_seq_read(IO_CACHE *info,uchar *Buffer,size_t Count);
-extern int _my_b_net_read(IO_CACHE *info,uchar *Buffer,size_t Count);
-extern int _my_b_get(IO_CACHE *info);
 extern int _my_b_async_read(IO_CACHE *info,uchar *Buffer,size_t Count);
-extern int _my_b_write(IO_CACHE *info,const uchar *Buffer,size_t Count);
 extern int my_b_append(IO_CACHE *info,const uchar *Buffer,size_t Count);
 extern int my_b_safe_write(IO_CACHE *info,const uchar *Buffer,size_t Count);
 
 extern int my_block_write(IO_CACHE *info, const uchar *Buffer,
 			  size_t Count, my_off_t pos);
-extern int my_b_flush_io_cache(IO_CACHE *info, int need_append_buffer_lock);
 
 #define flush_io_cache(info) my_b_flush_io_cache((info),1)
 
 extern int end_io_cache(IO_CACHE *info);
-extern size_t my_b_fill(IO_CACHE *info);
 extern void my_b_seek(IO_CACHE *info,my_off_t pos);
 extern size_t my_b_gets(IO_CACHE *info, char *to, size_t max_length);
 extern my_off_t my_b_filelength(IO_CACHE *info);

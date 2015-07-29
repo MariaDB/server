@@ -4,7 +4,7 @@
 --source include/not_embedded.inc
 --source include/have_innodb.inc
 --source include/have_perfschema.inc
---source ../include/no_protocol.inc
+--source include/no_protocol.inc
 --source include/have_binlog_format_mixed.inc
 --source include/master-slave.inc
 
@@ -64,7 +64,7 @@ connection master;
 --echo *** Create test tables
 --echo
 
-show variables like '%binlog_format%';
+show variables like 'binlog_format%';
 
 --disable_warnings
 drop table if exists test.marker;
@@ -129,7 +129,7 @@ connection master;
 --echo *** MASTER ***
 --echo **************
 --echo
-show variables like '%binlog_format%';
+show variables like 'binlog_format%';
 
 --echo *** Clear statement events
 --source ../include/rpl_statements_truncate.inc

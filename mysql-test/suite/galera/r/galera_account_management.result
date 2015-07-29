@@ -1,0 +1,40 @@
+CREATE USER user1, user2 IDENTIFIED BY 'password';
+SELECT COUNT(*) = 2 FROM mysql.user WHERE user IN ('user1', 'user2');
+COUNT(*) = 2
+1
+RENAME USER user2 TO user3;
+SELECT COUNT(*) = 0 FROM mysql.user WHERE user = 'user2';
+COUNT(*) = 0
+1
+SELECT COUNT(*) = 1 FROM mysql.user WHERE user = 'user3';
+COUNT(*) = 1
+1
+SET PASSWORD FOR user3 = PASSWORD('foo');
+SELECT password != '' FROM mysql.user WHERE user = 'user3';
+password != ''
+1
+DROP USER user1, user3;
+SELECT COUNT(*) = 0 FROM mysql.user WHERE user IN ('user1', 'user2');
+COUNT(*) = 0
+1
+GRANT ALL ON *.* TO user4 IDENTIFIED BY 'password';
+SELECT COUNT(*) = 1 FROM mysql.user WHERE user = 'user4';
+COUNT(*) = 1
+1
+SELECT Select_priv = 'Y' FROM mysql.user WHERE user = 'user4';
+Select_priv = 'Y'
+1
+CREATE USER user5;
+GRANT PROXY ON user4 TO user5;
+SELECT COUNT(*) = 1 FROM mysql.proxies_priv WHERE user = 'user5';
+COUNT(*) = 1
+1
+REVOKE ALL PRIVILEGES ON *.* FROM user4;
+SELECT Select_priv = 'N' FROM mysql.user WHERE user = 'user4';
+Select_priv = 'N'
+1
+REVOKE PROXY ON user4 FROM user5;
+SELECT COUNT(*) = 0 FROM mysql.proxies_priv WHERE user = 'user5';
+COUNT(*) = 0
+1
+DROP USER user4, user5;

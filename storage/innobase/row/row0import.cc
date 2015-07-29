@@ -1990,7 +1990,8 @@ PageConverter::update_header(
 	}
 
 	mach_write_to_8(
-		get_frame(block) + FIL_PAGE_FILE_FLUSH_LSN, m_current_lsn);
+		get_frame(block) + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION,
+		m_current_lsn);
 
 	/* Write space_id to the tablespace header, page 0. */
 	mach_write_to_4(

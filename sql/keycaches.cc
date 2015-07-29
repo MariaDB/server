@@ -103,7 +103,7 @@ LEX_STRING default_key_cache_base= {C_STRING_WITH_LEN("default")};
 
 KEY_CACHE zero_key_cache; ///< @@nonexistent_cache.param->value_ptr() points here
 
-KEY_CACHE *get_key_cache(LEX_STRING *cache_name)
+KEY_CACHE *get_key_cache(const LEX_STRING *cache_name)
 {
   if (!cache_name || ! cache_name->length)
     cache_name= &default_key_cache_base;
@@ -223,6 +223,7 @@ Rpl_filter *get_or_create_rpl_filter(const char *name, uint length)
 void free_rpl_filter(const char *name, Rpl_filter *filter)
 {
   delete filter;
+  filter= 0;
 }
 
 void free_all_rpl_filters()

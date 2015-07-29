@@ -15,33 +15,6 @@
 
 #include "table_session_connect.h"
 
-static const TABLE_FIELD_TYPE field_types[]=
-{
-  {
-    { C_STRING_WITH_LEN("PROCESSLIST_ID") },
-    { C_STRING_WITH_LEN("int(11)") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("ATTR_NAME") },
-    { C_STRING_WITH_LEN("varchar(32)") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("ATTR_VALUE") },
-    { C_STRING_WITH_LEN("varchar(1024)") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("ORDINAL_POSITION") },
-    { C_STRING_WITH_LEN("int(11)") },
-    { NULL, 0}
-  }
-};
-
-TABLE_FIELD_DEF table_session_connect::m_field_def=
-{ 4, field_types, 0, (uint*) 0 };
-
 table_session_connect::table_session_connect(const PFS_engine_table_share *share)
  : cursor_by_thread_connect_attr(share)
 {
@@ -88,8 +61,7 @@ bool parse_length_encoded_string(const char **ptr,
                  uint nchars_max)
 {
   ulong copy_length, data_length;
-  const char *well_formed_error_pos= NULL, *cannot_convert_error_pos= NULL,
-        *from_end_pos= NULL;
+  String_copier copier;
 
   copy_length= data_length= net_field_length((uchar **) ptr);
 
@@ -100,11 +72,8 @@ bool parse_length_encoded_string(const char **ptr,
   if (*ptr - start_ptr + data_length > input_length)
     return true;
 
-  copy_length= well_formed_copy_nchars(&my_charset_utf8_bin, dest, dest_size,
-                                       from_cs, *ptr, data_length, nchars_max,
-                                       &well_formed_error_pos,
-                                       &cannot_convert_error_pos,
-                                       &from_end_pos);
+  copy_length= copier.well_formed_copy(&my_charset_utf8_bin, dest, dest_size,
+                                       from_cs, *ptr, data_length, nchars_max);
   *copied_len= copy_length;
   (*ptr)+= data_length;
 

@@ -1,0 +1,61 @@
+DROP TABLE if exists t1;
+select @@global.innodb_stats_persistent;
+@@global.innodb_stats_persistent
+0
+set global innodb_defragment_stats_accuracy = 80;
+CREATE TABLE t1 (a INT NOT NULL PRIMARY KEY AUTO_INCREMENT, b VARCHAR(256), c INT, KEY second(a, b),KEY third(c)) ENGINE=INNODB;
+SET @@global.innodb_defragment_n_pages = 20;
+select count(*) from t1;
+count(*)
+20000
+select count(*) from t1 force index (second);
+count(*)
+20000
+select count(*) from t1 force index (third);
+count(*)
+20000
+select count(*) from t1;
+count(*)
+15800
+select count(*) from t1 force index (second);
+count(*)
+15800
+select count(*) from t1 force index (third);
+count(*)
+15800
+select count(stat_value) > 0 from mysql.innodb_index_stats where table_name like '%t1%' and  stat_name  in ('n_pages_freed');
+count(stat_value) > 0
+0
+select count(stat_value) > 0 from mysql.innodb_index_stats where table_name like '%t1%' and  stat_name  in ('n_page_split');
+count(stat_value) > 0
+1
+select count(stat_value) > 0 from mysql.innodb_index_stats where table_name like '%t1%' and  stat_name  in ('n_leaf_pages_defrag');
+count(stat_value) > 0
+1
+optimize table t1;;
+INSERT INTO t1 VALUES (400000, REPEAT('A', 256),300000);;
+INSERT INTO t1 VALUES (500000, REPEAT('A', 256),400000);;
+DELETE FROM t1 where a between 1 and 100;;
+UPDATE t1 SET c = c + 1 where c between 2000 and 8000;;
+optimize table t1;
+Table	Op	Msg_type	Msg_text
+test.t1	optimize	status	OK
+select count(*) from t1;
+count(*)
+15723
+select count(*) from t1 force index (second);
+count(*)
+15723
+select count(*) from t1 force index (third);
+count(*)
+15723
+select count(stat_value) > 0 from mysql.innodb_index_stats where table_name like '%t1%' and  stat_name  in ('n_pages_freed');
+count(stat_value) > 0
+1
+select count(stat_value) > 0 from mysql.innodb_index_stats where table_name like '%t1%' and  stat_name  in ('n_page_split');
+count(stat_value) > 0
+1
+select count(stat_value) > 0 from mysql.innodb_index_stats where table_name like '%t1%' and  stat_name  in ('n_leaf_pages_defrag');
+count(stat_value) > 0
+1
+drop table t1;

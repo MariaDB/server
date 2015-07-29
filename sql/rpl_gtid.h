@@ -159,6 +159,8 @@ struct rpl_slave_state
   HASH hash;
   /* Mutex protecting access to the state. */
   mysql_mutex_t LOCK_slave_state;
+  /* Auxiliary buffer to sort gtid list. */
+  DYNAMIC_ARRAY gtid_sort_array;
 
   uint64 last_sub_id;
   bool inited;
@@ -178,7 +180,8 @@ struct rpl_slave_state
                   bool in_transaction, bool in_statement);
   uint64 next_sub_id(uint32 domain_id);
   int iterate(int (*cb)(rpl_gtid *, void *), void *data,
-              rpl_gtid *extra_gtids, uint32 num_extra);
+              rpl_gtid *extra_gtids, uint32 num_extra,
+              bool sort);
   int tostring(String *dest, rpl_gtid *extra_gtids, uint32 num_extra);
   bool domain_to_gtid(uint32 domain_id, rpl_gtid *out_gtid);
   int load(THD *thd, char *state_from_master, size_t len, bool reset,
@@ -201,7 +204,7 @@ struct rpl_slave_state
   (domain_id, server_id) pair.
   This will be logged at the start of the next binlog file as a
   Gtid_list_log_event; this way, it is easy to find the binlog file
-  containing a gigen GTID, by simply scanning backwards from the newest
+  containing a given GTID, by simply scanning backwards from the newest
   one until a lower seq_no is found in the Gtid_list_log_event at the
   start of a binlog for the given domain_id and server_id.
 
@@ -227,6 +230,9 @@ struct rpl_binlog_state
   /* Mutex protecting access to the state. */
   mysql_mutex_t LOCK_binlog_state;
   my_bool initialized;
+
+  /* Auxiliary buffer to sort gtid list. */
+  DYNAMIC_ARRAY gtid_sort_array;
 
   rpl_binlog_state();
   ~rpl_binlog_state();
@@ -271,6 +277,9 @@ struct slave_connection_state
 
   /* Mapping from domain_id to the entry with GTID requested for that domain. */
   HASH hash;
+
+  /* Auxiliary buffer to sort gtid list. */
+  DYNAMIC_ARRAY gtid_sort_array;
 
   slave_connection_state();
   ~slave_connection_state();

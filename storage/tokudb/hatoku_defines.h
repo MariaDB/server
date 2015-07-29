@@ -96,11 +96,12 @@ PATENT RIGHTS GRANT:
 #pragma interface               /* gcc class implementation */
 #endif
 
+#if 100000 <= MYSQL_VERSION_ID && MYSQL_VERSION_ID <= 100199
+
 #if !defined(TOKUDB_CHECK_JEMALLOC)
 #define TOKUDB_CHECK_JEMALLOC 1
 #endif
 
-#if 100000 <= MYSQL_VERSION_ID && MYSQL_VERSION_ID <= 100099
 // mariadb 10.0
 #define TOKU_USE_DB_TYPE_TOKUDB 1
 #define TOKU_INCLUDE_ALTER_56 1
@@ -355,6 +356,7 @@ typedef struct st_tokudb_trx_data {
     DB_TXN *sp_level;
     DB_TXN *sub_sp_level;
     uint tokudb_lock_count;
+    uint create_lock_count;
     tokudb_stmt_progress stmt_progress;
     bool checkpoint_lock_taken;
     LIST *handlers;

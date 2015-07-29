@@ -1,0 +1,101 @@
+#
+# Test the account management statements - GRANT, REVOKE, etc.
+#
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+#
+# CREATE USER
+#
+--connection node_1
+CREATE USER user1, user2 IDENTIFIED BY 'password';
+
+--connection node_2
+SELECT COUNT(*) = 2 FROM mysql.user WHERE user IN ('user1', 'user2');
+
+#
+# ALTER USER
+#
+
+# LP bug 1376269
+#
+#--connection node_1
+#ALTER USER user1 PASSWORD EXPIRE;
+#SELECT password_expired = 'Y' FROM mysql.user WHERE user = 'user1';
+#
+#--connection node_2
+#SELECT password_expired = 'Y' FROM mysql.user WHERE user = 'user1';
+
+#
+# RENAME USER
+#
+
+--connection node_1
+RENAME USER user2 TO user3;
+
+--connection node_2
+SELECT COUNT(*) = 0 FROM mysql.user WHERE user = 'user2';
+SELECT COUNT(*) = 1 FROM mysql.user WHERE user = 'user3';
+
+#
+# SET PASSWORD
+#
+
+--connection node_1
+SET PASSWORD FOR user3 = PASSWORD('foo');
+
+--connection node_1
+SELECT password != '' FROM mysql.user WHERE user = 'user3';
+
+#
+# DROP USER
+#
+--connection node_1
+DROP USER user1, user3;
+
+--connection node_2
+SELECT COUNT(*) = 0 FROM mysql.user WHERE user IN ('user1', 'user2');
+
+#
+# GRANT
+#
+
+--connection node_1
+GRANT ALL ON *.* TO user4 IDENTIFIED BY 'password';
+
+--connection node_2
+SELECT COUNT(*) = 1 FROM mysql.user WHERE user = 'user4';
+SELECT Select_priv = 'Y' FROM mysql.user WHERE user = 'user4';
+
+#
+# GRANT PROXY ON
+#
+--connection node_1
+CREATE USER user5;
+GRANT PROXY ON user4 TO user5;
+
+--connection node_2
+SELECT COUNT(*) = 1 FROM mysql.proxies_priv WHERE user = 'user5';
+
+#
+# REVOKE
+#
+
+--connection node_1
+REVOKE ALL PRIVILEGES ON *.* FROM user4;
+
+--connection node_2
+SELECT Select_priv = 'N' FROM mysql.user WHERE user = 'user4';
+
+#
+# REVOKE PROXY
+#
+
+--connection node_1
+REVOKE PROXY ON user4 FROM user5;
+
+--connection node_2
+SELECT COUNT(*) = 0 FROM mysql.proxies_priv WHERE user = 'user5';
+
+DROP USER user4, user5;

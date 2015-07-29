@@ -28,7 +28,7 @@
 #include <my_sys.h>
 #include <m_string.h>
 #include <mysql_com.h>
-#include <hash.h>
+#include <lf.h>
 
 #include <algorithm>
 
@@ -334,24 +334,25 @@ public:
     @param  name          Name of of the object
     @param  key           Where to store the the MDL key.
   */
-  void mdl_key_init(enum_mdl_namespace mdl_namespace,
-                    const char *db, const char *name)
+  void mdl_key_init(enum_mdl_namespace mdl_namespace_arg,
+                    const char *db, const char *name_arg)
   {
-    m_ptr[0]= (char) mdl_namespace;
+    m_ptr[0]= (char) mdl_namespace_arg;
     /*
       It is responsibility of caller to ensure that db and object names
       are not longer than NAME_LEN. Still we play safe and try to avoid
       buffer overruns.
     */
     DBUG_ASSERT(strlen(db) <= NAME_LEN);
-    DBUG_ASSERT(strlen(name) <= NAME_LEN);
+    DBUG_ASSERT(strlen(name_arg) <= NAME_LEN);
     m_db_name_length= static_cast<uint16>(strmake(m_ptr + 1, db, NAME_LEN) -
                                           m_ptr - 1);
-    m_length= static_cast<uint16>(strmake(m_ptr + m_db_name_length + 2, name,
+    m_length= static_cast<uint16>(strmake(m_ptr + m_db_name_length + 2,
+                                          name_arg,
                                           NAME_LEN) - m_ptr + 1);
     m_hash_value= my_hash_sort(&my_charset_bin, (uchar*) m_ptr + 1,
                                m_length - 1);
-    DBUG_ASSERT(mdl_namespace == USER_LOCK || ok_for_lower_case_names(db));
+    DBUG_ASSERT(mdl_namespace_arg == USER_LOCK || ok_for_lower_case_names(db));
   }
   void mdl_key_init(const MDL_key *rhs)
   {
@@ -416,7 +417,7 @@ private:
 private:
   MDL_key(const MDL_key &);                     /* not implemented */
   MDL_key &operator=(const MDL_key &);          /* not implemented */
-  friend my_hash_value_type mdl_hash_function(const CHARSET_INFO *,
+  friend my_hash_value_type mdl_hash_function(CHARSET_INFO *,
                                               const uchar *, size_t);
 };
 
@@ -586,6 +587,9 @@ public:
   MDL_ticket *next_in_lock;
   MDL_ticket **prev_in_lock;
 public:
+#ifdef WITH_WSREP
+  void wsrep_report(bool debug);
+#endif /* WITH_WSREP */
   bool has_pending_conflicting_lock() const;
 
   MDL_context *get_ctx() const { return m_ctx; }
@@ -749,11 +753,11 @@ public:
   void destroy();
 
   bool try_acquire_lock(MDL_request *mdl_request);
-  bool acquire_lock(MDL_request *mdl_request, ulong lock_wait_timeout);
-  bool acquire_locks(MDL_request_list *requests, ulong lock_wait_timeout);
+  bool acquire_lock(MDL_request *mdl_request, double lock_wait_timeout);
+  bool acquire_locks(MDL_request_list *requests, double lock_wait_timeout);
   bool upgrade_shared_lock(MDL_ticket *mdl_ticket,
                            enum_mdl_type new_type,
-                           ulong lock_wait_timeout);
+                           double lock_wait_timeout);
 
   bool clone_ticket(MDL_request *mdl_request);
 
@@ -773,6 +777,10 @@ public:
              m_tickets[MDL_TRANSACTION].is_empty() &&
              m_tickets[MDL_EXPLICIT].is_empty());
   }
+  inline bool has_transactional_locks() const
+  {
+    return !m_tickets[MDL_TRANSACTION].is_empty();
+  }
 
   MDL_savepoint mdl_savepoint()
   {
@@ -786,6 +794,7 @@ public:
 
   void release_statement_locks();
   void release_transactional_locks();
+  void release_explicit_locks();
   void rollback_to_savepoint(const MDL_savepoint &mdl_savepoint);
 
   MDL_context_owner *get_owner() { return m_owner; }
@@ -909,16 +918,18 @@ private:
     readily available to the wait-for graph iterator.
    */
   MDL_wait_for_subgraph *m_waiting_for;
+  LF_PINS *m_pins;
 private:
-  THD *get_thd() const { return m_owner->get_thd(); }
   MDL_ticket *find_ticket(MDL_request *mdl_req,
                           enum_mdl_duration *duration);
   void release_locks_stored_before(enum_mdl_duration duration, MDL_ticket *sentinel);
   void release_lock(enum_mdl_duration duration, MDL_ticket *ticket);
   bool try_acquire_lock_impl(MDL_request *mdl_request,
                              MDL_ticket **out_ticket);
+  bool fix_pins();
 
 public:
+  THD *get_thd() const { return m_owner->get_thd(); }
   void find_deadlock();
 
   ulong get_thread_id() const { return thd_get_thread_id(get_thd()); }
@@ -972,21 +983,6 @@ extern "C" unsigned long thd_get_thread_id(const MYSQL_THD thd);
 */
 extern "C" int thd_is_connected(MYSQL_THD thd);
 
-
-/*
-  Start-up parameter for the maximum size of the unused MDL_lock objects cache
-  and a constant for its default value.
-*/
-extern ulong mdl_locks_cache_size;
-static const ulong MDL_LOCKS_CACHE_SIZE_DEFAULT = 1024;
-
-/*
-  Start-up parameter for the number of partitions of the hash
-  containing all the MDL_lock objects and a constant for
-  its default value.
-*/
-extern ulong mdl_locks_hash_partitions;
-static const ulong MDL_LOCKS_HASH_PARTITIONS_DEFAULT = 8;
 
 /*
   Metadata locking subsystem tries not to grant more than

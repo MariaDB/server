@@ -78,5 +78,5 @@ fi
 ./configure \
   --with-embedded-server \
   --with-perfschema \
-  --with-plugins=max-no-ndb
+  --with-plugins=max
 $gmake -j4

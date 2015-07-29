@@ -195,6 +195,39 @@ dict_stats_rename_table(
 					is returned */
 	size_t		errstr_sz);	/*!< in: errstr size */
 
+/*********************************************************************//**
+Save defragmentation result.
+@return DB_SUCCESS or error code */
+UNIV_INTERN
+dberr_t
+dict_stats_save_defrag_summary(
+	dict_index_t*	index);	/*!< in: index */
+
+/*********************************************************************//**
+Save defragmentation stats for a given index.
+@return DB_SUCCESS or error code */
+UNIV_INTERN
+dberr_t
+dict_stats_save_defrag_stats(
+	dict_index_t*	index);	/*!< in: index */
+
+/**********************************************************************//**
+Clear defragmentation summary. */
+UNIV_INTERN
+void
+dict_stats_empty_defrag_summary(
+/*==================*/
+	dict_index_t* index);	/*!< in: index to clear defragmentation stats */
+
+/**********************************************************************//**
+Clear defragmentation related index stats. */
+UNIV_INTERN
+void
+dict_stats_empty_defrag_stats(
+/*==================*/
+	dict_index_t* index);	/*!< in: index to clear defragmentation stats */
+
+
 #ifndef UNIV_NONINL
 #include "dict0stats.ic"
 #endif

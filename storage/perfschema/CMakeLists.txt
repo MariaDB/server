@@ -1,4 +1,4 @@
-# Copyright (c) 2009, 2011, Oracle and/or its affiliates. All rights reserved.
+# Copyright (c) 2009, 2015, Oracle and/or its affiliates. All rights reserved.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -16,36 +16,17 @@
 INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}
                     ${CMAKE_SOURCE_DIR}/include
                     ${CMAKE_SOURCE_DIR}/sql
+                    ${CMAKE_BINARY_DIR}/sql
                     ${PCRE_INCLUDES}
                     ${CMAKE_SOURCE_DIR}/extra/yassl/include)
 
 ADD_DEFINITIONS(-DMYSQL_SERVER)
-
-# Gen_pfs_lex_token
-IF(NOT CMAKE_CROSSCOMPILING)
-  ADD_EXECUTABLE(gen_pfs_lex_token gen_pfs_lex_token.cc)
-  # gen_pfs_lex_token itself depends on ${CMAKE_CURRENT_BINARY_DIR}/sql/sql_yacc.h
-  ADD_DEPENDENCIES(gen_pfs_lex_token GenServerSource)
-ENDIF()
-
-ADD_CUSTOM_COMMAND(
-  OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/pfs_lex_token.h
-  COMMAND gen_pfs_lex_token > pfs_lex_token.h
-  DEPENDS gen_pfs_lex_token
-)
-
-SET(PFS_GEN_SOURCES
-  ${CMAKE_CURRENT_BINARY_DIR}/pfs_lex_token.h
-)
-
-SET_SOURCE_FILES_PROPERTIES(${PFS_GEN_SOURCES} PROPERTIES GENERATED 1)
 
 #
 # Maintainer: keep this list sorted, to avoid merge collisions.
 # Tip: ls -1 *.h, ls -1 *.cc
 #
 SET(PERFSCHEMA_SOURCES
-${PFS_GEN_SOURCES}
 ha_perfschema.h
 cursor_by_account.h
 cursor_by_host.h
@@ -131,9 +112,7 @@ cursor_by_user.cc
 ha_perfschema.cc
 pfs.cc
 pfs_account.cc
-pfs_atomic.cc
 pfs_autosize.cc
-pfs_check.cc
 pfs_column_values.cc
 pfs_con_slice.cc
 pfs_defaults.cc
@@ -203,6 +182,9 @@ table_session_account_connect_attrs.cc
 )
 
 MYSQL_ADD_PLUGIN(perfschema ${PERFSCHEMA_SOURCES} STORAGE_ENGINE DEFAULT STATIC_ONLY)
-IF(WITH_PERFSCHEMA_STORAGE_ENGINE AND WITH_UNIT_TESTS)
-  ADD_SUBDIRECTORY(unittest)
-ENDIF()
+IF (TARGET perfschema)
+  ADD_DEPENDENCIES(perfschema GenServerSource)
+  IF(WITH_UNIT_TESTS)
+    ADD_SUBDIRECTORY(unittest)
+  ENDIF(WITH_UNIT_TESTS)
+ENDIF(TARGET perfschema)

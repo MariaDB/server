@@ -43,14 +43,14 @@
 #define PLUGINDIR	"lib/plugin"
 #endif
 
-#define CURRENT_THD_ERRMSGS current_thd->variables.lc_messages->errmsgs->errmsgs
+#define CURRENT_THD_ERRMSGS current_thd->variables.errmsgs
 #define DEFAULT_ERRMSGS     my_default_lc_messages->errmsgs->errmsgs
 
 #define ER(X)         CURRENT_THD_ERRMSGS[(X) - ER_ERROR_FIRST]
 #define ER_DEFAULT(X) DEFAULT_ERRMSGS[(X) - ER_ERROR_FIRST]
 #define ER_SAFE(X) (((X) >= ER_ERROR_FIRST && (X) <= ER_ERROR_LAST) ? ER(X) : "Invalid error code")
-#define ER_THD(thd,X) ((thd)->variables.lc_messages->errmsgs->errmsgs[(X) - \
-                       ER_ERROR_FIRST])
+#define ER_SAFE_THD(T,X) (((X) >= ER_ERROR_FIRST && (X) <= ER_ERROR_LAST) ? ER_THD(T,X) : "Invalid error code")
+#define ER_THD(thd,X) ((thd)->variables.errmsgs[(X) - ER_ERROR_FIRST])
 #define ER_THD_OR_DEFAULT(thd,X) ((thd) ? ER_THD(thd, X) : ER_DEFAULT(X))
 
 #define ME_INFO (ME_HOLDTANG+ME_OLDWIN+ME_NOREFRESH)
@@ -185,6 +185,7 @@
 enum extra2_frm_value_type {
   EXTRA2_TABLEDEF_VERSION=0,
   EXTRA2_DEFAULT_PART_ENGINE=1,
+  EXTRA2_GIS=2,
 
 #define EXTRA2_ENGINE_IMPORTANT 128
 

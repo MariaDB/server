@@ -1,0 +1,8 @@
+create role r1;
+prepare stmt from "set password = '11111111111111111111111111111111111111111'";
+execute stmt;
+prepare stmt from "set default role r1";
+execute stmt;
+set password = '';
+set default role NONE;
+drop role r1;

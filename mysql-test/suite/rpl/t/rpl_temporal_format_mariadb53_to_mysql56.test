@@ -1,0 +1,14 @@
+#
+# MariaDB-5.3 fractional temporal types do not store metadata 
+# when running with --binlog-format=row, thus can replicate
+# only into a field with exactly the same data type and format.
+#
+# Skip when running with --binlog-format=row.
+# But mixed and statement formats should work without problems.
+#
+-- source include/have_binlog_format_mixed_or_statement.inc
+
+--let $force_master_mysql56_temporal_format=false;
+--let $force_slave_mysql56_temporal_format=true;
+
+--source rpl_temporal_format_default_to_default.test

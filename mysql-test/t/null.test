@@ -308,3 +308,567 @@ SELECT NOT NOT NULLIF(2,3);
 --echo #
 --echo # End of 10.0 tests
 --echo #
+
+--echo #
+--echo # Start of 10.1 tests
+--echo #
+
+--echo #
+--echo # MDEV-7146 NULLIF returns unexpected result with a YEAR field
+--echo #
+CREATE TABLE t1 (a YEAR(2));
+INSERT INTO t1 VALUES (0);
+SELECT a,NULLIF(a,2000),NULLIF(2000,a) FROM t1;
+SELECT a,NULLIF(a,2001),NULLIF(2001,a) FROM t1;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-7005 NULLIF does not work as documented
+--echo #
+
+CREATE TABLE t1 (a TIME);
+CREATE TABLE t2 AS SELECT a,NULLIF(a,a), CASE WHEN a=a THEN NULL ELSE a END FROM t1;
+SHOW CREATE TABLE t2;
+DROP TABLE t1,t2;
+
+--error ER_CANT_AGGREGATE_2COLLATIONS
+SELECT NULLIF(_latin1'a' COLLATE latin1_general_ci, _latin1'a' COLLATE latin1_bin);
+
+CREATE TABLE t1 AS SELECT
+  NULLIF(1,1),
+  NULLIF(1,1.0),
+  NULLIF(1,1e0),
+  NULLIF(1,'2001-01-01'),
+  NULLIF(1,TIME'00:00:00');
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 AS SELECT
+  NULLIF(1.0,1),
+  NULLIF(1.0,1.0),
+  NULLIF(1.0,1e0),
+  NULLIF(1.0,'2001-01-01'),
+  NULLIF(1.0,TIME'00:00:00');
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 AS SELECT
+  NULLIF(1e0,1),
+  NULLIF(1e0,1.0),
+  NULLIF(1e0,1e0),
+  NULLIF(1e0,'2001-01-01'),
+  NULLIF(1e0,TIME'00:00:00');
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 AS SELECT
+  NULLIF('1',1),
+  NULLIF('1',1.0),
+  NULLIF('1',1e0),
+  NULLIF('1','2001-01-01'),
+  NULLIF('1',TIME'00:00:00');
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 AS SELECT
+  NULLIF(TIMESTAMP'2001-01-01 00:00:00',1),
+  NULLIF(TIMESTAMP'2001-01-01 00:00:00',1.0),
+  NULLIF(TIMESTAMP'2001-01-01 00:00:00',1e0),
+  NULLIF(TIMESTAMP'2001-01-01 00:00:00','2001-01-01'),
+  NULLIF(TIMESTAMP'2001-01-01 00:00:00',TIME'00:00:00');
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 AS SELECT
+  NULLIF(DATE'2001-01-01',1),
+  NULLIF(DATE'2001-01-01',1.0),
+  NULLIF(DATE'2001-01-01',1e0),
+  NULLIF(DATE'2001-01-01','2001-01-01'),
+  NULLIF(DATE'2001-01-01',TIME'00:00:00');
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 AS SELECT
+  NULLIF(TIME'00:00:01',1),
+  NULLIF(TIME'00:00:01',1.0),
+  NULLIF(TIME'00:00:01',1e0),
+  NULLIF(TIME'00:00:01','00:00:00'),
+  NULLIF(TIME'00:00:01',DATE'2001-01-01');
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+CREATE TABLE t1
+(
+  c_tinyint    TINYINT,
+  c_smallint   SMALLINT,
+  c_int        INT,
+  c_bigint     BIGINT,
+  c_float      FLOAT,
+  c_double     DOUBLE,
+  c_decimal103 DECIMAL(10,3),
+  c_varchar10  VARCHAR(10),
+  c_text       TEXT,
+  c_blob       BLOB,
+  c_enum       ENUM('one','two','tree'),
+  c_datetime3  DATETIME(3),
+  c_timestamp3 TIMESTAMP(3),
+  c_date       DATE,
+  c_time       TIME
+);
+
+--echo #
+--echo # Checking that the return type depends only on args[0], even when compared to a super type
+--echo #
+
+CREATE TABLE t2 AS SELECT
+  NULLIF(c_tinyint,  1),
+  NULLIF(c_tinyint,  c_smallint),
+  NULLIF(c_tinyint,  c_tinyint),
+  NULLIF(c_tinyint,  c_int),
+  NULLIF(c_tinyint,  c_bigint),
+  NULLIF(c_tinyint,  c_float),
+  NULLIF(c_tinyint,  c_double),
+  NULLIF(c_tinyint,  c_decimal103),
+  NULLIF(c_tinyint,  c_varchar10),
+  NULLIF(c_tinyint,  c_text),
+  NULLIF(c_tinyint,  c_blob),
+  NULLIF(c_tinyint,  c_enum),
+  NULLIF(c_tinyint,  c_datetime3),
+  NULLIF(c_tinyint,  c_timestamp3),
+  NULLIF(c_tinyint,  c_date),
+  NULLIF(c_tinyint,  c_time)
+FROM t1;
+SHOW CREATE TABLE t2;
+DROP TABLE t2;
+
+CREATE TABLE t2 AS SELECT
+  NULLIF(c_smallint,  1),
+  NULLIF(c_smallint,  c_smallint),
+  NULLIF(c_smallint,  c_tinyint),
+  NULLIF(c_smallint,  c_int),
+  NULLIF(c_smallint,  c_bigint),
+  NULLIF(c_smallint,  c_float),
+  NULLIF(c_smallint,  c_double),
+  NULLIF(c_smallint,  c_decimal103),
+  NULLIF(c_smallint,  c_varchar10),
+  NULLIF(c_smallint,  c_text),
+  NULLIF(c_smallint,  c_blob),
+  NULLIF(c_smallint,  c_enum),
+  NULLIF(c_smallint,  c_datetime3),
+  NULLIF(c_smallint,  c_timestamp3),
+  NULLIF(c_smallint,  c_date),
+  NULLIF(c_smallint,  c_time)
+FROM t1;
+SHOW CREATE TABLE t2;
+DROP TABLE t2;
+
+CREATE TABLE t2 AS SELECT
+  NULLIF(c_int,  1),
+  NULLIF(c_int,  c_smallint),
+  NULLIF(c_int,  c_tinyint),
+  NULLIF(c_int,  c_int),
+  NULLIF(c_int,  c_bigint),
+  NULLIF(c_int,  c_float),
+  NULLIF(c_int,  c_double),
+  NULLIF(c_int,  c_decimal103),
+  NULLIF(c_int,  c_varchar10),
+  NULLIF(c_int,  c_text),
+  NULLIF(c_int,  c_blob),
+  NULLIF(c_int,  c_enum),
+  NULLIF(c_int,  c_datetime3),
+  NULLIF(c_int,  c_timestamp3),
+  NULLIF(c_int,  c_date),
+  NULLIF(c_int,  c_time)
+FROM t1;
+SHOW CREATE TABLE t2;
+DROP TABLE t2;
+
+CREATE TABLE t2 AS SELECT
+  NULLIF(c_bigint,  1),
+  NULLIF(c_bigint,  c_smallint),
+  NULLIF(c_bigint,  c_tinyint),
+  NULLIF(c_bigint,  c_int),
+  NULLIF(c_bigint,  c_bigint),
+  NULLIF(c_bigint,  c_float),
+  NULLIF(c_bigint,  c_double),
+  NULLIF(c_bigint,  c_decimal103),
+  NULLIF(c_bigint,  c_varchar10),
+  NULLIF(c_bigint,  c_text),
+  NULLIF(c_bigint,  c_blob),
+  NULLIF(c_bigint,  c_enum),
+  NULLIF(c_bigint,  c_datetime3),
+  NULLIF(c_bigint,  c_timestamp3),
+  NULLIF(c_bigint,  c_date),
+  NULLIF(c_bigint,  c_time)
+FROM t1;
+SHOW CREATE TABLE t2;
+DROP TABLE t2;
+
+# QQ: this should probably create a FLOAT column instead of a DOUBLE column
+CREATE TABLE t2 AS SELECT
+  NULLIF(c_float,  1),
+  NULLIF(c_float,  c_smallint),
+  NULLIF(c_float,  c_tinyint),
+  NULLIF(c_float,  c_int),
+  NULLIF(c_float,  c_bigint),
+  NULLIF(c_float,  c_float),
+  NULLIF(c_float,  c_double),
+  NULLIF(c_float,  c_decimal103),
+  NULLIF(c_float,  c_varchar10),
+  NULLIF(c_float,  c_text),
+  NULLIF(c_float,  c_blob),
+  NULLIF(c_float,  c_enum),
+  NULLIF(c_float,  c_datetime3),
+  NULLIF(c_float,  c_timestamp3),
+  NULLIF(c_float,  c_date),
+  NULLIF(c_float,  c_time)
+FROM t1;
+SHOW CREATE TABLE t2;
+DROP TABLE t2;
+
+CREATE TABLE t2 AS SELECT
+  NULLIF(c_double,  1),
+  NULLIF(c_double,  c_smallint),
+  NULLIF(c_double,  c_tinyint),
+  NULLIF(c_double,  c_int),
+  NULLIF(c_double,  c_bigint),
+  NULLIF(c_double,  c_float),
+  NULLIF(c_double,  c_double),
+  NULLIF(c_double,  c_decimal103),
+  NULLIF(c_double,  c_varchar10),
+  NULLIF(c_double,  c_text),
+  NULLIF(c_double,  c_blob),
+  NULLIF(c_double,  c_enum),
+  NULLIF(c_double,  c_datetime3),
+  NULLIF(c_double,  c_timestamp3),
+  NULLIF(c_double,  c_date),
+  NULLIF(c_double,  c_time)
+FROM t1;
+SHOW CREATE TABLE t2;
+DROP TABLE t2;
+
+CREATE TABLE t2 AS SELECT
+  NULLIF(c_decimal103,  1),
+  NULLIF(c_decimal103,  c_smallint),
+  NULLIF(c_decimal103,  c_tinyint),
+  NULLIF(c_decimal103,  c_int),
+  NULLIF(c_decimal103,  c_bigint),
+  NULLIF(c_decimal103,  c_float),
+  NULLIF(c_decimal103,  c_double),
+  NULLIF(c_decimal103,  c_decimal103),
+  NULLIF(c_decimal103,  c_varchar10),
+  NULLIF(c_decimal103,  c_text),
+  NULLIF(c_decimal103,  c_blob),
+  NULLIF(c_decimal103,  c_enum),
+  NULLIF(c_decimal103,  c_datetime3),
+  NULLIF(c_decimal103,  c_timestamp3),
+  NULLIF(c_decimal103,  c_date),
+  NULLIF(c_decimal103,  c_time)
+FROM t1;
+SHOW CREATE TABLE t2;
+DROP TABLE t2;
+
+CREATE TABLE t2 AS SELECT
+  NULLIF(c_varchar10,  1),
+  NULLIF(c_varchar10,  c_smallint),
+  NULLIF(c_varchar10,  c_tinyint),
+  NULLIF(c_varchar10,  c_int),
+  NULLIF(c_varchar10,  c_bigint),
+  NULLIF(c_varchar10,  c_float),
+  NULLIF(c_varchar10,  c_double),
+  NULLIF(c_varchar10,  c_decimal103),
+  NULLIF(c_varchar10,  c_varchar10),
+  NULLIF(c_varchar10,  c_text),
+  NULLIF(c_varchar10,  c_blob),
+  NULLIF(c_varchar10,  c_enum),
+  NULLIF(c_varchar10,  c_datetime3),
+  NULLIF(c_varchar10,  c_timestamp3),
+  NULLIF(c_varchar10,  c_date),
+  NULLIF(c_varchar10,  c_time)
+FROM t1;
+SHOW CREATE TABLE t2;
+DROP TABLE t2;
+
+CREATE TABLE t2 AS SELECT
+  NULLIF(c_text,  1),
+  NULLIF(c_text,  c_smallint),
+  NULLIF(c_text,  c_tinyint),
+  NULLIF(c_text,  c_int),
+  NULLIF(c_text,  c_bigint),
+  NULLIF(c_text,  c_float),
+  NULLIF(c_text,  c_double),
+  NULLIF(c_text,  c_decimal103),
+  NULLIF(c_text,  c_varchar10),
+  NULLIF(c_text,  c_text),
+  NULLIF(c_text,  c_blob),
+  NULLIF(c_text,  c_enum),
+  NULLIF(c_text,  c_datetime3),
+  NULLIF(c_text,  c_timestamp3),
+  NULLIF(c_text,  c_date),
+  NULLIF(c_text,  c_time)
+FROM t1;
+SHOW CREATE TABLE t2;
+DROP TABLE t2;
+
+# QQ: this should probably create BLOB instead of LONGBLOB
+CREATE TABLE t2 AS SELECT
+  NULLIF(c_blob,  1),
+  NULLIF(c_blob,  c_smallint),
+  NULLIF(c_blob,  c_tinyint),
+  NULLIF(c_blob,  c_int),
+  NULLIF(c_blob,  c_bigint),
+  NULLIF(c_blob,  c_float),
+  NULLIF(c_blob,  c_double),
+  NULLIF(c_blob,  c_decimal103),
+  NULLIF(c_blob,  c_varchar10),
+  NULLIF(c_blob,  c_text),
+  NULLIF(c_blob,  c_blob),
+  NULLIF(c_blob,  c_enum),
+  NULLIF(c_blob,  c_datetime3),
+  NULLIF(c_blob,  c_timestamp3),
+  NULLIF(c_blob,  c_date),
+  NULLIF(c_blob,  c_time)
+FROM t1;
+SHOW CREATE TABLE t2;
+DROP TABLE t2;
+
+# QQ: this should probably create a ENUM column instead of VARCHAR(4)
+CREATE TABLE t2 AS SELECT
+  NULLIF(c_enum,  1),
+  NULLIF(c_enum,  c_smallint),
+  NULLIF(c_enum,  c_tinyint),
+  NULLIF(c_enum,  c_int),
+  NULLIF(c_enum,  c_bigint),
+  NULLIF(c_enum,  c_float),
+  NULLIF(c_enum,  c_double),
+  NULLIF(c_enum,  c_decimal103),
+  NULLIF(c_enum,  c_varchar10),
+  NULLIF(c_enum,  c_text),
+  NULLIF(c_enum,  c_blob),
+  NULLIF(c_enum,  c_enum),
+  NULLIF(c_enum,  c_datetime3),
+  NULLIF(c_enum,  c_timestamp3),
+  NULLIF(c_enum,  c_date),
+  NULLIF(c_enum,  c_time)
+FROM t1;
+SHOW CREATE TABLE t2;
+DROP TABLE t2;
+
+CREATE TABLE t2 AS SELECT
+  NULLIF(c_datetime3,  1),
+  NULLIF(c_datetime3,  c_smallint),
+  NULLIF(c_datetime3,  c_tinyint),
+  NULLIF(c_datetime3,  c_int),
+  NULLIF(c_datetime3,  c_bigint),
+  NULLIF(c_datetime3,  c_float),
+  NULLIF(c_datetime3,  c_double),
+  NULLIF(c_datetime3,  c_decimal103),
+  NULLIF(c_datetime3,  c_varchar10),
+  NULLIF(c_datetime3,  c_text),
+  NULLIF(c_datetime3,  c_blob),
+  NULLIF(c_datetime3,  c_enum),
+  NULLIF(c_datetime3,  c_datetime3),
+  NULLIF(c_datetime3,  c_timestamp3),
+  NULLIF(c_datetime3,  c_date),
+  NULLIF(c_datetime3,  c_time)
+FROM t1;
+SHOW CREATE TABLE t2;
+DROP TABLE t2;
+
+CREATE TABLE t2 AS SELECT
+  NULLIF(c_timestamp3,  1),
+  NULLIF(c_timestamp3,  c_smallint),
+  NULLIF(c_timestamp3,  c_tinyint),
+  NULLIF(c_timestamp3,  c_int),
+  NULLIF(c_timestamp3,  c_bigint),
+  NULLIF(c_timestamp3,  c_float),
+  NULLIF(c_timestamp3,  c_double),
+  NULLIF(c_timestamp3,  c_decimal103),
+  NULLIF(c_timestamp3,  c_varchar10),
+  NULLIF(c_timestamp3,  c_text),
+  NULLIF(c_timestamp3,  c_blob),
+  NULLIF(c_timestamp3,  c_enum),
+  NULLIF(c_timestamp3,  c_datetime3),
+  NULLIF(c_timestamp3,  c_timestamp3),
+  NULLIF(c_timestamp3,  c_date),
+  NULLIF(c_timestamp3,  c_time)
+FROM t1;
+SHOW CREATE TABLE t2;
+DROP TABLE t2;
+
+CREATE TABLE t2 AS SELECT
+  NULLIF(c_date,  1),
+  NULLIF(c_date,  c_smallint),
+  NULLIF(c_date,  c_tinyint),
+  NULLIF(c_date,  c_int),
+  NULLIF(c_date,  c_bigint),
+  NULLIF(c_date,  c_float),
+  NULLIF(c_date,  c_double),
+  NULLIF(c_date,  c_decimal103),
+  NULLIF(c_date,  c_varchar10),
+  NULLIF(c_date,  c_text),
+  NULLIF(c_date,  c_blob),
+  NULLIF(c_date,  c_enum),
+  NULLIF(c_date,  c_datetime3),
+  NULLIF(c_date,  c_timestamp3),
+  NULLIF(c_date,  c_date),
+  NULLIF(c_date,  c_time)
+FROM t1;
+SHOW CREATE TABLE t2;
+DROP TABLE t2;
+
+CREATE TABLE t2 AS SELECT
+  NULLIF(c_time,  1),
+  NULLIF(c_time,  c_smallint),
+  NULLIF(c_time,  c_tinyint),
+  NULLIF(c_time,  c_int),
+  NULLIF(c_time,  c_bigint),
+  NULLIF(c_time,  c_float),
+  NULLIF(c_time,  c_double),
+  NULLIF(c_time,  c_decimal103),
+  NULLIF(c_time,  c_varchar10),
+  NULLIF(c_time,  c_text),
+  NULLIF(c_time,  c_blob),
+  NULLIF(c_time,  c_enum),
+  NULLIF(c_time,  c_datetime3),
+  NULLIF(c_time,  c_timestamp3),
+  NULLIF(c_time,  c_date),
+  NULLIF(c_time,  c_time)
+FROM t1;
+SHOW CREATE TABLE t2;
+DROP TABLE t2;
+
+--echo #
+--echo # Checking that the return type depends only on args[0], even if compared to a field
+--echo #
+
+CREATE TABLE t2 AS SELECT
+  NULLIF(1,  1),
+  NULLIF(1,  c_smallint),
+  NULLIF(1,  c_tinyint),
+  NULLIF(1,  c_int),
+  NULLIF(1,  c_bigint),
+  NULLIF(1,  c_float),
+  NULLIF(1,  c_double),
+  NULLIF(1,  c_decimal103),
+  NULLIF(1,  c_varchar10),
+  NULLIF(1,  c_text),
+  NULLIF(1,  c_blob),
+  NULLIF(1,  c_enum),
+  NULLIF(1,  c_datetime3),
+  NULLIF(1,  c_timestamp3),
+  NULLIF(1,  c_date),
+  NULLIF(1,  c_time)
+FROM t1;
+SHOW CREATE TABLE t2;
+DROP TABLE t2;
+
+CREATE TABLE t2 AS SELECT
+  NULLIF(1.0,  1),
+  NULLIF(1.0,  c_smallint),
+  NULLIF(1.0,  c_tinyint),
+  NULLIF(1.0,  c_int),
+  NULLIF(1.0,  c_bigint),
+  NULLIF(1.0,  c_float),
+  NULLIF(1.0,  c_double),
+  NULLIF(1.0,  c_decimal103),
+  NULLIF(1.0,  c_varchar10),
+  NULLIF(1.0,  c_text),
+  NULLIF(1.0,  c_blob),
+  NULLIF(1.0,  c_enum),
+  NULLIF(1.0,  c_datetime3),
+  NULLIF(1.0,  c_timestamp3),
+  NULLIF(1.0,  c_date),
+  NULLIF(1.0,  c_time)
+FROM t1;
+SHOW CREATE TABLE t2;
+DROP TABLE t2;
+
+CREATE TABLE t2 AS SELECT
+  NULLIF(1e0,  1),
+  NULLIF(1e0,  c_smallint),
+  NULLIF(1e0,  c_tinyint),
+  NULLIF(1e0,  c_int),
+  NULLIF(1e0,  c_bigint),
+  NULLIF(1e0,  c_float),
+  NULLIF(1e0,  c_double),
+  NULLIF(1e0,  c_decimal103),
+  NULLIF(1e0,  c_varchar10),
+  NULLIF(1e0,  c_text),
+  NULLIF(1e0,  c_blob),
+  NULLIF(1e0,  c_enum),
+  NULLIF(1e0,  c_datetime3),
+  NULLIF(1e0,  c_timestamp3),
+  NULLIF(1e0,  c_date),
+  NULLIF(1e0,  c_time)
+FROM t1;
+SHOW CREATE TABLE t2;
+DROP TABLE t2;
+
+CREATE TABLE t2 AS SELECT
+  NULLIF('1',  1),
+  NULLIF('1',  c_smallint),
+  NULLIF('1',  c_tinyint),
+  NULLIF('1',  c_int),
+  NULLIF('1',  c_bigint),
+  NULLIF('1',  c_float),
+  NULLIF('1',  c_double),
+  NULLIF('1',  c_decimal103),
+  NULLIF('1',  c_varchar10),
+  NULLIF('1',  c_text),
+  NULLIF('1',  c_blob),
+  NULLIF('1',  c_enum),
+  NULLIF('1',  c_datetime3),
+  NULLIF('1',  c_timestamp3),
+  NULLIF('1',  c_date),
+  NULLIF('1',  c_time)
+FROM t1;
+SHOW CREATE TABLE t2;
+DROP TABLE t2;
+
+CREATE TABLE t2 AS SELECT
+  NULLIF(TIME'10:10:10',  1),
+  NULLIF(TIME'10:10:10',  c_smallint),
+  NULLIF(TIME'10:10:10',  c_tinyint),
+  NULLIF(TIME'10:10:10',  c_int),
+  NULLIF(TIME'10:10:10',  c_bigint),
+  NULLIF(TIME'10:10:10',  c_float),
+  NULLIF(TIME'10:10:10',  c_double),
+  NULLIF(TIME'10:10:10',  c_decimal103),
+  NULLIF(TIME'10:10:10',  c_varchar10),
+  NULLIF(TIME'10:10:10',  c_text),
+  NULLIF(TIME'10:10:10',  c_blob),
+  NULLIF(TIME'10:10:10',  c_enum),
+  NULLIF(TIME'10:10:10',  c_datetime3),
+  NULLIF(TIME'10:10:10',  c_timestamp3),
+  NULLIF(TIME'10:10:10',  c_date),
+  NULLIF(TIME'10:10:10',  c_time)
+FROM t1;
+SHOW CREATE TABLE t2;
+DROP TABLE t2;
+
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-7759 NULLIF(x,y) is not equal to CASE WHEN x=y THEN NULL ELSE x END
+--echo #
+CREATE TABLE t1 (a YEAR);
+INSERT INTO t1 VALUES (2010),(2020);
+SELECT * FROM t1 WHERE a=2010 AND NULLIF(10.1,a) IS NULL;
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=2010 AND NULLIF(10.1,a) IS NULL;
+SELECT * FROM t1 WHERE a=2010 AND CASE WHEN 10.1=a THEN NULL ELSE 10.1 END IS NULL;
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=2010 AND CASE WHEN 10.1=a THEN NULL ELSE 10.1 END IS NULL;
+DROP TABLE t1;
+
+--echo # Two warnings expected
+CREATE TABLE t1 AS SELECT
+  NULLIF(TIMESTAMP'2001-01-01 00:00:00',1) AS a,
+  CASE WHEN TIMESTAMP'2001-01-01 00:00:00'=1 THEN NULL
+       ELSE TIMESTAMP'2001-01-01 00:00:00'
+  END AS b;
+DROP TABLE t1;
+
+
+--echo #
+--echo # End of 10.1 tests
+--echo #

@@ -16,6 +16,10 @@
   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 */
 
+#ifdef GRN_EMBEDDED
+#  define GRN_PLUGIN_FUNCTION_TAG token_filters_stop_word
+#endif
+
 #include <grn_str.h>
 
 #include <groonga.h>
@@ -37,6 +41,10 @@ static void *
 stop_word_init(grn_ctx *ctx, grn_obj *table, grn_token_mode mode)
 {
   grn_stop_word_token_filter *token_filter;
+
+  if (mode != GRN_TOKEN_GET) {
+    return NULL;
+  }
 
   token_filter = GRN_PLUGIN_MALLOC(ctx, sizeof(grn_stop_word_token_filter));
   if (!token_filter) {
@@ -83,28 +91,29 @@ stop_word_filter(grn_ctx *ctx,
                  void *user_data)
 {
   grn_stop_word_token_filter *token_filter = user_data;
+  grn_id id;
+  grn_obj *data;
 
-  if (token_filter->mode == GRN_TOKEN_GET) {
-    grn_id id;
-    grn_obj *data;
+  if (!token_filter) {
+    return;
+  }
 
-    data = grn_token_get_data(ctx, current_token);
-    id = grn_table_get(ctx,
-                       token_filter->table,
-                       GRN_TEXT_VALUE(data),
-                       GRN_TEXT_LEN(data));
-    if (id != GRN_ID_NIL) {
-      GRN_BULK_REWIND(&(token_filter->value));
-      grn_obj_get_value(ctx,
-                        token_filter->column,
-                        id,
-                        &(token_filter->value));
-      if (GRN_BOOL_VALUE(&(token_filter->value))) {
-        grn_tokenizer_status status;
-        status = grn_token_get_status(ctx, current_token);
-        status |= GRN_TOKEN_SKIP;
-        grn_token_set_status(ctx, next_token, status);
-      }
+  data = grn_token_get_data(ctx, current_token);
+  id = grn_table_get(ctx,
+                     token_filter->table,
+                     GRN_TEXT_VALUE(data),
+                     GRN_TEXT_LEN(data));
+  if (id != GRN_ID_NIL) {
+    GRN_BULK_REWIND(&(token_filter->value));
+    grn_obj_get_value(ctx,
+                      token_filter->column,
+                      id,
+                      &(token_filter->value));
+    if (GRN_BOOL_VALUE(&(token_filter->value))) {
+      grn_tokenizer_status status;
+      status = grn_token_get_status(ctx, current_token);
+      status |= GRN_TOKEN_SKIP;
+      grn_token_set_status(ctx, next_token, status);
     }
   }
 }

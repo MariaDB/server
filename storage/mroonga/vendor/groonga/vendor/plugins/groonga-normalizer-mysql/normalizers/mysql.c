@@ -35,6 +35,8 @@
 #include "mysql_general_ci_table.h"
 #include "mysql_unicode_ci_table.h"
 #include "mysql_unicode_ci_except_kana_ci_kana_with_voiced_sound_mark_table.h"
+#include "mysql_unicode_520_ci_table.h"
+#include "mysql_unicode_520_ci_except_kana_ci_kana_with_voiced_sound_mark_table.h"
 
 #ifdef __GNUC__
 #  define GNUC_UNUSED __attribute__((__unused__))
@@ -155,7 +157,7 @@ utf8_to_unichar(const char *utf8, int byte_size)
 
 static inline void
 decompose_character(const char *rest, int character_length,
-                    int *page, uint32_t *low_code)
+                    size_t *page, uint32_t *low_code)
 {
   switch (character_length) {
   case 1 :
@@ -175,10 +177,27 @@ decompose_character(const char *rest, int character_length,
       ((rest[0] & 0x07) << 10) +
       ((rest[1] & 0x3f) << 4) +
       ((rest[2] & 0x3c) >> 2);
-    *low_code = ((rest[1] & 0x03) << 6) + (rest[2] & 0x3f);
+    *low_code = ((rest[2] & 0x03) << 6) + (rest[3] & 0x3f);
+    break;
+  case 5 :
+    *page =
+      ((rest[0] & 0x03) << 16) +
+      ((rest[1] & 0x3f) << 10) +
+      ((rest[2] & 0x3f) << 4) +
+      ((rest[3] & 0x3c) >> 2);
+    *low_code = ((rest[3] & 0x03) << 6) + (rest[4] & 0x3f);
+    break;
+  case 6 :
+    *page =
+      ((rest[0] & 0x01) << 22) +
+      ((rest[1] & 0x3f) << 16) +
+      ((rest[2] & 0x3f) << 10) +
+      ((rest[3] & 0x3f) << 4) +
+      ((rest[4] & 0x3c) >> 2);
+    *low_code = ((rest[4] & 0x03) << 6) + (rest[5] & 0x3f);
     break;
   default :
-    *page = -1;
+    *page = (size_t)-1;
     *low_code = 0x00;
     break;
   }
@@ -187,15 +206,16 @@ decompose_character(const char *rest, int character_length,
 static inline void
 normalize_character(const char *utf8, int character_length,
                     uint32_t **normalize_table,
+                    size_t normalize_table_size,
                     char *normalized,
                     unsigned int *normalized_character_length,
                     unsigned int *normalized_length_in_bytes,
                     unsigned int *normalized_n_characters)
 {
-  int page;
+  size_t page;
   uint32_t low_code;
   decompose_character(utf8, character_length, &page, &low_code);
-  if ((0x00 <= page && page <= 0xff) && normalize_table[page]) {
+  if (page < normalize_table_size && normalize_table[page]) {
     uint32_t normalized_code;
     unsigned int n_bytes;
     normalized_code = normalize_table[page][low_code];
@@ -304,6 +324,7 @@ static void
 normalize(grn_ctx *ctx, grn_obj *string,
           const char *normalizer_type_label,
           uint32_t **normalize_table,
+          size_t normalize_table_size,
           normalizer_func custom_normalizer)
 {
   const char *original, *rest;
@@ -343,40 +364,50 @@ normalize(grn_ctx *ctx, grn_obj *string,
   rest_length = original_length_in_bytes;
   while (rest_length > 0) {
     int character_length;
+    grn_bool custom_normalized = GRN_FALSE;
+    unsigned int normalized_character_length;
+    unsigned int previous_normalized_length_in_bytes =
+      normalized_length_in_bytes;
+    unsigned int previous_normalized_n_characters =
+      normalized_n_characters;
 
     character_length = grn_plugin_charlen(ctx, rest, rest_length, encoding);
     if (character_length == 0) {
       break;
     }
 
-    if (remove_blank_p && character_length == 1 && rest[0] == ' ') {
+    if (custom_normalizer) {
+      custom_normalized = custom_normalizer(ctx,
+                                            rest,
+                                            &character_length,
+                                            rest_length - character_length,
+                                            normalize_table,
+                                            normalized,
+                                            &normalized_character_length,
+                                            &normalized_length_in_bytes,
+                                            &normalized_n_characters);
+    }
+    if (!custom_normalized) {
+      normalize_character(rest, character_length,
+                          normalize_table, normalize_table_size,
+                          normalized,
+                          &normalized_character_length,
+                          &normalized_length_in_bytes,
+                          &normalized_n_characters);
+    }
+
+    if (remove_blank_p &&
+        normalized_character_length == 1 &&
+        normalized[previous_normalized_length_in_bytes] == ' ') {
       if (current_type > types) {
         current_type[-1] |= GRN_CHAR_BLANK;
       }
       if (current_check) {
         current_check[0]++;
       }
+      normalized_length_in_bytes = previous_normalized_length_in_bytes;
+      normalized_n_characters = previous_normalized_n_characters;
     } else {
-      grn_bool custom_normalized = GRN_FALSE;
-      unsigned int normalized_character_length;
-      if (custom_normalizer) {
-        custom_normalized = custom_normalizer(ctx,
-                                              rest,
-                                              &character_length,
-                                              rest_length - character_length,
-                                              normalize_table,
-                                              normalized,
-                                              &normalized_character_length,
-                                              &normalized_length_in_bytes,
-                                              &normalized_n_characters);
-      }
-      if (!custom_normalized) {
-        normalize_character(rest, character_length, normalize_table,
-                            normalized,
-                            &normalized_character_length,
-                            &normalized_length_in_bytes,
-                            &normalized_n_characters);
-      }
       if (current_type && normalized_character_length > 0) {
         char *current_normalized;
         current_normalized =
@@ -448,7 +479,9 @@ mysql_general_ci_next(GNUC_UNUSED grn_ctx *ctx,
                      grn_encoding_to_string(encoding));
     return NULL;
   }
-  normalize(ctx, string, normalizer_type_label, general_ci_table, NULL);
+  normalize(ctx, string, normalizer_type_label,
+            general_ci_table, sizeof(general_ci_table) / sizeof(uint32_t *),
+            NULL);
   return NULL;
 }
 
@@ -472,7 +505,9 @@ mysql_unicode_ci_next(GNUC_UNUSED grn_ctx *ctx,
                      grn_encoding_to_string(encoding));
     return NULL;
   }
-  normalize(ctx, string, normalizer_type_label, unicode_ci_table, NULL);
+  normalize(ctx, string, normalizer_type_label,
+            unicode_ci_table, sizeof(unicode_ci_table) / sizeof(uint32_t *),
+            NULL);
   return NULL;
 }
 
@@ -638,6 +673,64 @@ mysql_unicode_ci_except_kana_ci_kana_with_voiced_sound_mark_next(
   normalize(ctx, string,
             normalizer_type_label,
             unicode_ci_except_kana_ci_kana_with_voiced_sound_mark_table,
+            sizeof(unicode_ci_except_kana_ci_kana_with_voiced_sound_mark_table) / sizeof(uint32_t *),
+            normalize_halfwidth_katakana_with_voiced_sound_mark);
+  return NULL;
+}
+
+static grn_obj *
+mysql_unicode_520_ci_next(GNUC_UNUSED grn_ctx *ctx,
+                          GNUC_UNUSED int nargs,
+                          grn_obj **args,
+                          GNUC_UNUSED grn_user_data *user_data)
+{
+  grn_obj *string = args[0];
+  grn_encoding encoding;
+  const char *normalizer_type_label = "mysql-unicode-520-ci";
+
+  encoding = grn_string_get_encoding(ctx, string);
+  if (encoding != GRN_ENC_UTF8) {
+    GRN_PLUGIN_ERROR(ctx,
+                     GRN_FUNCTION_NOT_IMPLEMENTED,
+                     "[normalizer][%s] "
+                     "UTF-8 encoding is only supported: %s",
+                     normalizer_type_label,
+                     grn_encoding_to_string(encoding));
+    return NULL;
+  }
+  normalize(ctx, string, normalizer_type_label,
+            unicode_520_ci_table,
+            sizeof(unicode_520_ci_table) / sizeof(uint32_t *),
+            NULL);
+  return NULL;
+}
+
+static grn_obj *
+mysql_unicode_520_ci_except_kana_ci_kana_with_voiced_sound_mark_next(
+  GNUC_UNUSED grn_ctx *ctx,
+  GNUC_UNUSED int nargs,
+  grn_obj **args,
+  GNUC_UNUSED grn_user_data *user_data)
+{
+  grn_obj *string = args[0];
+  grn_encoding encoding;
+  const char *normalizer_type_label =
+    "mysql-unicode-520-ci-except-kana-ci-kana-with-voiced-sound-mark";
+
+  encoding = grn_string_get_encoding(ctx, string);
+  if (encoding != GRN_ENC_UTF8) {
+    GRN_PLUGIN_ERROR(ctx,
+                     GRN_FUNCTION_NOT_IMPLEMENTED,
+                     "[normalizer][%s] "
+                     "UTF-8 encoding is only supported: %s",
+                     normalizer_type_label,
+                     grn_encoding_to_string(encoding));
+    return NULL;
+  }
+  normalize(ctx, string,
+            normalizer_type_label,
+            unicode_520_ci_except_kana_ci_kana_with_voiced_sound_mark_table,
+            sizeof(unicode_520_ci_except_kana_ci_kana_with_voiced_sound_mark_table) / sizeof(uint32_t *),
             normalize_halfwidth_katakana_with_voiced_sound_mark);
   return NULL;
 }
@@ -663,6 +756,17 @@ GRN_PLUGIN_REGISTER(grn_ctx *ctx)
                           -1,
                           NULL,
                           mysql_unicode_ci_except_kana_ci_kana_with_voiced_sound_mark_next,
+                          NULL);
+  grn_normalizer_register(ctx, "NormalizerMySQLUnicode520CI", -1,
+                          NULL, mysql_unicode_520_ci_next, NULL);
+  grn_normalizer_register(ctx,
+                          "NormalizerMySQLUnicode520CI"
+                          "Except"
+                          "KanaCI"
+                          "KanaWithVoicedSoundMark",
+                          -1,
+                          NULL,
+                          mysql_unicode_520_ci_except_kana_ci_kana_with_voiced_sound_mark_next,
                           NULL);
   return GRN_SUCCESS;
 }

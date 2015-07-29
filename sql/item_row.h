@@ -17,22 +17,31 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
 
-class Item_row: public Item
+/**
+  Row items used for comparing rows and IN operations on rows:
+
+  @verbatim
+  (a, b, c) > (10, 10, 30)
+  (a, b, c) = (select c, d, e, from t1 where x=12)
+  (a, b, c) IN ((1,2,2), (3,4,5), (6,7,8)
+  (a, b, c) IN (select c, d, e, from t1)
+  @endverbatim
+*/
+
+class Item_row: public Item,
+                private Item_args,
+                private Used_tables_and_const_cache
 {
-  Item **items;
-  table_map used_tables_cache, not_null_tables_cache;
-  uint arg_count;
-  bool const_item_cache;
+  table_map not_null_tables_cache;
   bool with_null;
 public:
-  Item_row(List<Item> &);
+  Item_row(List<Item> &list)
+   :Item_args(list), not_null_tables_cache(0), with_null(0)
+  { }
   Item_row(Item_row *item):
-    Item(),
-    items(item->items),
-    used_tables_cache(item->used_tables_cache),
+    Item_args(item),
+    Used_tables_and_const_cache(item),
     not_null_tables_cache(0),
-    arg_count(item->arg_count),
-    const_item_cache(item->const_item_cache),
     with_null(0)
   {}
 
@@ -66,22 +75,32 @@ public:
   bool fix_fields(THD *thd, Item **ref);
   void fix_after_pullout(st_select_lex *new_parent, Item **ref);
   void cleanup();
-  void split_sum_func(THD *thd, Item **ref_pointer_array, List<Item> &fields);
+  void split_sum_func(THD *thd, Item **ref_pointer_array, List<Item> &fields,
+                      uint flags);
   table_map used_tables() const { return used_tables_cache; };
   bool const_item() const { return const_item_cache; };
   enum Item_result result_type() const { return ROW_RESULT; }
   Item_result cmp_type() const { return ROW_RESULT; }
-  void update_used_tables();
+  void update_used_tables()
+  {
+    used_tables_and_const_cache_init();
+    used_tables_and_const_cache_update_and_join(arg_count, args);
+  }
   table_map not_null_tables() const { return not_null_tables_cache; }
   virtual void print(String *str, enum_query_type query_type);
 
-  bool walk(Item_processor processor, bool walk_subquery, uchar *arg);
+  bool walk(Item_processor processor, bool walk_subquery, uchar *arg)
+  {
+    if (walk_args(processor, walk_subquery, arg))
+      return true;
+    return (this->*processor)(arg);
+  }
   Item *transform(Item_transformer transformer, uchar *arg);
   bool eval_not_null_tables(uchar *opt_arg);
 
   uint cols() { return arg_count; }
-  Item* element_index(uint i) { return items[i]; }
-  Item** addr(uint i) { return items + i; }
+  Item* element_index(uint i) { return args[i]; }
+  Item** addr(uint i) { return args + i; }
   bool check_cols(uint c);
   bool null_inside() { return with_null; };
   void bring_value();

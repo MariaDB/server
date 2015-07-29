@@ -1,5 +1,5 @@
 /* -*- c-basic-offset: 2 -*- */
-/* Copyright(C) 2009-2014 Brazil
+/* Copyright(C) 2009-2015 Brazil
 
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -20,6 +20,7 @@
 #include <string.h>
 #include "grn_str.h"
 #include "grn_db.h"
+#include "grn_expr_code.h"
 #include "grn_util.h"
 #include "grn_output.h"
 
@@ -53,6 +54,8 @@ put_delimiter(grn_ctx *ctx, grn_obj *outbuf, grn_content_type output_type)
     }
   case GRN_CONTENT_MSGPACK :
     // do nothing
+    break;
+  case GRN_CONTENT_GROONGA_COMMAND_LIST :
     break;
   case GRN_CONTENT_NONE:
     break;
@@ -88,6 +91,8 @@ grn_output_array_open(grn_ctx *ctx, grn_obj *outbuf, grn_content_type output_typ
     msgpack_pack_array(&ctx->impl->msgpacker, nelements);
 #endif
     break;
+  case GRN_CONTENT_GROONGA_COMMAND_LIST :
+    break;
   case GRN_CONTENT_NONE:
     break;
   }
@@ -118,6 +123,8 @@ grn_output_array_close(grn_ctx *ctx, grn_obj *outbuf, grn_content_type output_ty
     break;
   case GRN_CONTENT_MSGPACK :
     // do nothing
+    break;
+  case GRN_CONTENT_GROONGA_COMMAND_LIST :
     break;
   case GRN_CONTENT_NONE:
     break;
@@ -155,6 +162,8 @@ grn_output_map_open(grn_ctx *ctx, grn_obj *outbuf, grn_content_type output_type,
     msgpack_pack_map(&ctx->impl->msgpacker, nelements);
 #endif
     break;
+  case GRN_CONTENT_GROONGA_COMMAND_LIST :
+    break;
   case GRN_CONTENT_NONE:
     break;
   }
@@ -186,6 +195,8 @@ grn_output_map_close(grn_ctx *ctx, grn_obj *outbuf, grn_content_type output_type
   case GRN_CONTENT_MSGPACK :
     // do nothing
     break;
+  case GRN_CONTENT_GROONGA_COMMAND_LIST :
+    break;
   case GRN_CONTENT_NONE:
     break;
   }
@@ -214,6 +225,9 @@ grn_output_int32(grn_ctx *ctx, grn_obj *outbuf, grn_content_type output_type, in
     msgpack_pack_int32(&ctx->impl->msgpacker, value);
 #endif
     break;
+  case GRN_CONTENT_GROONGA_COMMAND_LIST :
+    grn_text_itoa(ctx, outbuf, value);
+    break;
   case GRN_CONTENT_NONE:
     break;
   }
@@ -240,6 +254,9 @@ grn_output_int64(grn_ctx *ctx, grn_obj *outbuf, grn_content_type output_type, in
 #ifdef GRN_WITH_MESSAGE_PACK
     msgpack_pack_int64(&ctx->impl->msgpacker, value);
 #endif
+    break;
+  case GRN_CONTENT_GROONGA_COMMAND_LIST :
+    grn_text_lltoa(ctx, outbuf, value);
     break;
   case GRN_CONTENT_NONE:
     break;
@@ -268,6 +285,9 @@ grn_output_uint64(grn_ctx *ctx, grn_obj *outbuf, grn_content_type output_type, i
     msgpack_pack_uint64(&ctx->impl->msgpacker, value);
 #endif
     break;
+  case GRN_CONTENT_GROONGA_COMMAND_LIST :
+    grn_text_ulltoa(ctx, outbuf, value);
+    break;
   case GRN_CONTENT_NONE:
     break;
   }
@@ -295,6 +315,9 @@ grn_output_float(grn_ctx *ctx, grn_obj *outbuf, grn_content_type output_type, do
     msgpack_pack_double(&ctx->impl->msgpacker, value);
 #endif
     break;
+  case GRN_CONTENT_GROONGA_COMMAND_LIST :
+    grn_text_ftoa(ctx, outbuf, value);
+    break;
   case GRN_CONTENT_NONE:
     break;
   }
@@ -320,9 +343,12 @@ grn_output_str(grn_ctx *ctx, grn_obj *outbuf, grn_content_type output_type,
     break;
   case GRN_CONTENT_MSGPACK :
 #ifdef GRN_WITH_MESSAGE_PACK
-    msgpack_pack_raw(&ctx->impl->msgpacker, value_len);
-    msgpack_pack_raw_body(&ctx->impl->msgpacker, value, value_len);
+    msgpack_pack_str(&ctx->impl->msgpacker, value_len);
+    msgpack_pack_str_body(&ctx->impl->msgpacker, value, value_len);
 #endif
+    break;
+  case GRN_CONTENT_GROONGA_COMMAND_LIST :
+    GRN_TEXT_PUT(ctx, outbuf, value, value_len);
     break;
   case GRN_CONTENT_NONE:
     break;
@@ -362,6 +388,9 @@ grn_output_bool(grn_ctx *ctx, grn_obj *outbuf, grn_content_type output_type, grn
     }
 #endif
     break;
+  case GRN_CONTENT_GROONGA_COMMAND_LIST :
+    GRN_TEXT_PUTS(ctx, outbuf, value ? "true" : "false");
+    break;
   case GRN_CONTENT_NONE:
     break;
   }
@@ -385,6 +414,8 @@ grn_output_null(grn_ctx *ctx, grn_obj *outbuf, grn_content_type output_type)
 #ifdef GRN_WITH_MESSAGE_PACK
     msgpack_pack_nil(&ctx->impl->msgpacker);
 #endif
+    break;
+  case GRN_CONTENT_GROONGA_COMMAND_LIST :
     break;
   case GRN_CONTENT_NONE:
     break;
@@ -425,6 +456,9 @@ grn_output_time(grn_ctx *ctx, grn_obj *outbuf, grn_content_type output_type, int
 #ifdef GRN_WITH_MESSAGE_PACK
     msgpack_pack_double(&ctx->impl->msgpacker, dv);
 #endif
+    break;
+  case GRN_CONTENT_GROONGA_COMMAND_LIST :
+    grn_text_ftoa(ctx, outbuf, dv);
     break;
   case GRN_CONTENT_NONE:
     break;
@@ -477,8 +511,8 @@ grn_output_geo_point(grn_ctx *ctx, grn_obj *outbuf, grn_content_type output_type
       grn_text_itoa(ctx, &buf, value->latitude);
       GRN_TEXT_PUTC(ctx, &buf, 'x');
       grn_text_itoa(ctx, &buf, value->longitude);
-      msgpack_pack_raw(&ctx->impl->msgpacker, GRN_TEXT_LEN(&buf));
-      msgpack_pack_raw_body(&ctx->impl->msgpacker,
+      msgpack_pack_str(&ctx->impl->msgpacker, GRN_TEXT_LEN(&buf));
+      msgpack_pack_str_body(&ctx->impl->msgpacker,
                             GRN_TEXT_VALUE(&buf),
                             GRN_TEXT_LEN(&buf));
       grn_obj_close(ctx, &buf);
@@ -486,6 +520,17 @@ grn_output_geo_point(grn_ctx *ctx, grn_obj *outbuf, grn_content_type output_type
       msgpack_pack_nil(&ctx->impl->msgpacker);
     }
 #endif
+    break;
+  case GRN_CONTENT_GROONGA_COMMAND_LIST :
+    if (value) {
+      GRN_TEXT_PUTC(ctx, outbuf, '"');
+      grn_text_itoa(ctx, outbuf, value->latitude);
+      GRN_TEXT_PUTC(ctx, outbuf, 'x');
+      grn_text_itoa(ctx, outbuf, value->longitude);
+      GRN_TEXT_PUTC(ctx, outbuf, '"');
+    } else {
+      GRN_TEXT_PUTS(ctx, outbuf, "\"\"");
+    }
     break;
   case GRN_CONTENT_NONE:
     break;
@@ -1090,57 +1135,6 @@ count_n_elements_in_expression(grn_ctx *ctx, grn_obj *expression)
   return n_elements;
 }
 
-static inline int
-count_used_n_codes(grn_ctx *ctx, grn_expr_code *start, grn_expr_code *target)
-{
-  int n_codes;
-  int i, n_args;
-  grn_bool have_proc_push_code = GRN_FALSE;
-  grn_expr_code *sub_code;
-
-  if (start == target) {
-    return 0;
-  }
-
-  n_args = target->nargs;
-  if (target->op == GRN_OP_CALL) {
-    if (!target->value) {
-      have_proc_push_code = GRN_TRUE;
-    }
-  } else {
-    if (target->value) {
-      n_args--;
-      if (n_args == 0) {
-        return 1;
-      }
-    }
-  }
-
-  n_codes = 1;
-  sub_code = target - 1;
-  for (i = 0; i < n_args; i++) {
-    int sub_n_codes;
-    sub_n_codes = count_used_n_codes(ctx, start, sub_code);
-    n_codes += sub_n_codes;
-    sub_code -= sub_n_codes;
-    if (sub_code < start) {
-      /* TODO: report error */
-      return 0;
-    }
-  }
-
-  if (have_proc_push_code) {
-    n_codes++;
-    sub_code--;
-    if (sub_code < start) {
-      /* TODO: report error */
-      return 0;
-    }
-  }
-
-  return n_codes;
-}
-
 static grn_bool
 is_score_accessor(grn_ctx *ctx, grn_obj *obj)
 {
@@ -1261,10 +1255,10 @@ grn_output_table_columns_by_expression(grn_ctx *ctx, grn_obj *outbuf,
 
     have_comma = GRN_TRUE;
     if (is_first_comma) {
-      int n_used_codes;
+      unsigned int n_used_codes;
       int code_end_offset;
 
-      n_used_codes = count_used_n_codes(ctx, expr->codes, code - 1);
+      n_used_codes = grn_expr_code_n_used_codes(ctx, expr->codes, code - 1);
       code_end_offset = code - expr->codes - n_used_codes;
 
       grn_output_table_column_by_expression(ctx, outbuf, output_type,
@@ -1373,13 +1367,13 @@ grn_output_table_records_by_expression(grn_ctx *ctx, grn_obj *outbuf,
         have_comma = GRN_TRUE;
         if (is_first_comma) {
           int second_code_offset;
-          int second_code_n_used_code;
+          unsigned int second_code_n_used_codes;
           second_code_offset = code - expr->codes - 1;
-          second_code_n_used_code =
-            count_used_n_codes(ctx,
-                               expr->codes,
-                               expr->codes + second_code_offset);
-          expr->codes_curr = second_code_offset - second_code_n_used_code + 1;
+          second_code_n_used_codes =
+            grn_expr_code_n_used_codes(ctx,
+                                       expr->codes,
+                                       expr->codes + second_code_offset);
+          expr->codes_curr = second_code_offset - second_code_n_used_codes + 1;
           grn_output_table_record_by_expression(ctx, outbuf, output_type,
                                                 format->expression);
           code_start_offset = expr->codes_curr;
@@ -1802,7 +1796,7 @@ typedef struct {
 } msgpack_writer_ctx;
 
 static inline int
-msgpack_buffer_writer(void* data, const char* buf, unsigned int len)
+msgpack_buffer_writer(void* data, const char* buf, msgpack_size_t len)
 {
   msgpack_writer_ctx *writer_ctx = (msgpack_writer_ctx *)data;
   return grn_bulk_write(writer_ctx->ctx, writer_ctx->buffer, buf, len);
@@ -1980,8 +1974,8 @@ grn_output_envelope(grn_ctx *ctx,
       msgpack_pack_double(&header_packer, elapsed);
 
       if (rc != GRN_SUCCESS) {
-        msgpack_pack_raw(&header_packer, strlen(ctx->errbuf));
-        msgpack_pack_raw_body(&header_packer, ctx->errbuf, strlen(ctx->errbuf));
+        msgpack_pack_str(&header_packer, strlen(ctx->errbuf));
+        msgpack_pack_str_body(&header_packer, ctx->errbuf, strlen(ctx->errbuf));
         if (ctx->errfunc && ctx->errfile) {
           grn_obj *command = GRN_CTX_USER_DATA(ctx)->ptr;
           int error_detail_size;
@@ -1996,32 +1990,34 @@ grn_output_envelope(grn_ctx *ctx,
           }
           msgpack_pack_array(&header_packer, error_detail_size);
 
-          msgpack_pack_raw(&header_packer, strlen(ctx->errfunc));
-          msgpack_pack_raw_body(&header_packer, ctx->errfunc, strlen(ctx->errfunc));
+          msgpack_pack_str(&header_packer, strlen(ctx->errfunc));
+          msgpack_pack_str_body(&header_packer, ctx->errfunc, strlen(ctx->errfunc));
 
-          msgpack_pack_raw(&header_packer, strlen(ctx->errfile));
-          msgpack_pack_raw_body(&header_packer, ctx->errfile, strlen(ctx->errfile));
+          msgpack_pack_str(&header_packer, strlen(ctx->errfile));
+          msgpack_pack_str_body(&header_packer, ctx->errfile, strlen(ctx->errfile));
 
           msgpack_pack_int(&header_packer, ctx->errline);
 
           if (command) {
             if (file) {
-              msgpack_pack_raw(&header_packer, strlen(file));
-              msgpack_pack_raw_body(&header_packer, file, strlen(file));
+              msgpack_pack_str(&header_packer, strlen(file));
+              msgpack_pack_str_body(&header_packer, file, strlen(file));
             } else {
-              msgpack_pack_raw(&header_packer, 7);
-              msgpack_pack_raw_body(&header_packer, "(stdin)", 7);
+              msgpack_pack_str(&header_packer, 7);
+              msgpack_pack_str_body(&header_packer, "(stdin)", 7);
             }
 
             msgpack_pack_int(&header_packer, line);
 
-            msgpack_pack_raw(&header_packer, GRN_TEXT_LEN(command));
-            msgpack_pack_raw_body(&header_packer, GRN_TEXT_VALUE(command), GRN_TEXT_LEN(command));
+            msgpack_pack_str(&header_packer, GRN_TEXT_LEN(command));
+            msgpack_pack_str_body(&header_packer, GRN_TEXT_VALUE(command), GRN_TEXT_LEN(command));
           }
         }
       }
     }
 #endif
+    break;
+  case GRN_CONTENT_GROONGA_COMMAND_LIST :
     break;
   case GRN_CONTENT_NONE:
     break;

@@ -1,6 +1,8 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2013, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2013, 2014, SkySQL Ab. All Rights Reserved.
+Copyright (c) 2013, 2014, Fusion-io. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -30,6 +32,7 @@ Created 11/11/1995 Heikki Tuuri
 #endif
 
 #include "buf0buf.h"
+#include "buf0mtflu.h"
 #include "buf0checksum.h"
 #include "srv0start.h"
 #include "srv0srv.h"
@@ -44,10 +47,12 @@ Created 11/11/1995 Heikki Tuuri
 #include "ibuf0ibuf.h"
 #include "log0log.h"
 #include "os0file.h"
+#include "os0sync.h"
 #include "trx0sys.h"
 #include "srv0mon.h"
 #include "mysql/plugin.h"
 #include "mysql/service_thd_wait.h"
+#include "fil0pagecompress.h"
 
 /** Number of pages flushed through non flush_list flushes. */
 // static ulint buf_lru_flush_page_count = 0;
@@ -74,15 +79,6 @@ in thrashing. */
 #define BUF_LRU_MIN_LEN		256
 
 /* @} */
-
-/** Handled page counters for a single flush */
-struct flush_counters_t {
-	ulint	flushed;	/*!< number of dirty pages flushed */
-	ulint	evicted;	/*!< number of clean pages evicted, including
-			        evicted uncompressed page images */
-	ulint	unzip_LRU_evicted;/*!< number of uncompressed page images
-				evicted */
-};
 
 /******************************************************************//**
 Increases flush_list size in bytes with zip_size for compressed page,
@@ -724,8 +720,10 @@ buf_flush_write_complete(
 
 	buf_pool->n_flush[flush_type]--;
 
-	/* fprintf(stderr, "n pending flush %lu\n",
-	buf_pool->n_flush[flush_type]); */
+#ifdef UNIV_MTFLUSH_DEBUG
+	fprintf(stderr, "n pending flush %lu\n",
+		buf_pool->n_flush[flush_type]);
+#endif
 
 	if (buf_pool->n_flush[flush_type] == 0
 	    && buf_pool->init_flush[flush_type] == FALSE) {
@@ -760,7 +758,7 @@ buf_flush_update_zip_checksum(
 				srv_checksum_algorithm)));
 
 	mach_write_to_8(page + FIL_PAGE_LSN, lsn);
-	memset(page + FIL_PAGE_FILE_FLUSH_LSN, 0, 8);
+	memset(page + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION, 0, 8);
 	mach_write_to_4(page + FIL_PAGE_SPACE_OR_CHKSUM, checksum);
 }
 
@@ -881,6 +879,8 @@ buf_flush_write_block_low(
 {
 	ulint	zip_size	= buf_page_get_zip_size(bpage);
 	page_t*	frame		= NULL;
+	ulint space_id          = buf_page_get_space(bpage);
+	atomic_writes_t awrites = fil_space_get_atomic_writes(space_id);
 
 #ifdef UNIV_DEBUG
 	buf_pool_t*	buf_pool = buf_pool_from_bpage(bpage);
@@ -936,7 +936,7 @@ buf_flush_write_block_low(
 
 		mach_write_to_8(frame + FIL_PAGE_LSN,
 				bpage->newest_modification);
-		memset(frame + FIL_PAGE_FILE_FLUSH_LSN, 0, 8);
+		memset(frame + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION, 0, 8);
 		break;
 	case BUF_BLOCK_FILE_PAGE:
 		frame = bpage->zip.data;
@@ -951,17 +951,43 @@ buf_flush_write_block_low(
 		break;
 	}
 
+	frame = buf_page_encrypt_before_write(bpage, frame, space_id);
+
 	if (!srv_use_doublewrite_buf || !buf_dblwr) {
 		fil_io(OS_FILE_WRITE | OS_AIO_SIMULATED_WAKE_LATER,
-		       sync, buf_page_get_space(bpage), zip_size,
-		       buf_page_get_page_no(bpage), 0,
-		       zip_size ? zip_size : UNIV_PAGE_SIZE,
-		       frame, bpage);
-	} else if (flush_type == BUF_FLUSH_SINGLE_PAGE) {
-		buf_dblwr_write_single_page(bpage, sync);
+			sync,
+			buf_page_get_space(bpage),
+			zip_size,
+			buf_page_get_page_no(bpage),
+			0,
+			zip_size ? zip_size : bpage->real_size,
+			frame,
+			bpage,
+			&bpage->write_size);
 	} else {
-		ut_ad(!sync);
-		buf_dblwr_add_to_batch(bpage);
+		/* InnoDB uses doublewrite buffer and doublewrite buffer
+		is initialized. User can define do we use atomic writes
+		on a file space (table) or not. If atomic writes are
+		not used we should use doublewrite buffer and if
+		atomic writes should be used, no doublewrite buffer
+		is used. */
+
+		if (awrites == ATOMIC_WRITES_ON) {
+			fil_io(OS_FILE_WRITE | OS_AIO_SIMULATED_WAKE_LATER,
+				FALSE,
+				buf_page_get_space(bpage),
+				zip_size,
+				buf_page_get_page_no(bpage),
+				0,
+				zip_size ? zip_size : bpage->real_size,
+				frame,
+				bpage,
+				&bpage->write_size);
+		} else if (flush_type == BUF_FLUSH_SINGLE_PAGE) {
+			buf_dblwr_write_single_page(bpage, sync);
+		} else {
+			buf_dblwr_add_to_batch(bpage);
+		}
 	}
 
 	/* When doing single page flushing the IO is done synchronously
@@ -1753,7 +1779,6 @@ end up waiting for these latches! NOTE 2: in the case of a flush list flush,
 the calling thread is not allowed to own any latches on pages!
 @return number of blocks for which the write request was queued */
 __attribute__((nonnull))
-static
 void
 buf_flush_batch(
 /*============*/
@@ -1812,7 +1837,6 @@ buf_flush_batch(
 
 /******************************************************************//**
 Gather the aggregated stats for both flush list and LRU list flushing */
-static
 void
 buf_flush_common(
 /*=============*/
@@ -1839,7 +1863,6 @@ buf_flush_common(
 
 /******************************************************************//**
 Start a buffer flush batch for LRU or flush list */
-static
 ibool
 buf_flush_start(
 /*============*/
@@ -1853,6 +1876,11 @@ buf_flush_start(
 	    || buf_pool->init_flush[flush_type] == TRUE) {
 
 		/* There is already a flush batch of the same type running */
+
+#ifdef UNIV_PAGECOMPRESS_DEBUG
+		fprintf(stderr, "Error: flush_type %d n_flush %lu init_flush %lu\n",
+			flush_type, buf_pool->n_flush[flush_type], buf_pool->init_flush[flush_type]);
+#endif
 
 		mutex_exit(&buf_pool->flush_state_mutex);
 
@@ -1868,7 +1896,6 @@ buf_flush_start(
 
 /******************************************************************//**
 End a buffer flush batch for LRU or flush list */
-static
 void
 buf_flush_end(
 /*==========*/
@@ -1922,6 +1949,24 @@ buf_flush_wait_batch_end(
 		thd_wait_end(NULL);
 	}
 }
+
+/* JAN: TODO: */
+
+void buf_pool_enter_LRU_mutex(
+	buf_pool_t*    buf_pool)
+{
+	ut_ad(!mutex_own(&buf_pool->LRU_list_mutex));
+	mutex_enter(&buf_pool->LRU_list_mutex);
+}
+
+void buf_pool_exit_LRU_mutex(
+	buf_pool_t*    buf_pool)
+{
+	ut_ad(mutex_own(&buf_pool->LRU_list_mutex));
+	mutex_exit(&buf_pool->LRU_list_mutex);
+}
+
+/* JAN: TODO: END: */
 
 /*******************************************************************//**
 This utility flushes dirty blocks from the end of the LRU list and also
@@ -1992,6 +2037,10 @@ buf_flush_list(
 	ulint		remaining_instances = srv_buf_pool_instances;
 	bool		timeout = false;
 	ulint		flush_start_time = 0;
+
+	if (buf_mtflu_init_done()) {
+		return(buf_mtflu_flush_list(min_n, lsn_limit, n_processed));
+	}
 
 	for (i = 0; i < srv_buf_pool_instances; i++) {
 		requested_pages[i] = 0;
@@ -2220,6 +2269,11 @@ buf_flush_LRU_tail(void)
 	ulint	free_list_lwm = srv_LRU_scan_depth / 100
 		* srv_cleaner_free_list_lwm;
 
+	if(buf_mtflu_init_done())
+	{
+		return(buf_mtflu_flush_LRU_tail());
+	}
+
 	for (ulint i = 0; i < srv_buf_pool_instances; i++) {
 
 		const buf_pool_t* buf_pool = buf_pool_from_array(i);
@@ -2294,17 +2348,24 @@ buf_flush_LRU_tail(void)
 					free_len = UT_LIST_GET_LEN(
 						buf_pool->free);
 				}
+				if (n.flushed) {
+					MONITOR_INC_VALUE_CUMULATIVE(
+						MONITOR_LRU_BATCH_FLUSH_TOTAL_PAGE,
+						MONITOR_LRU_BATCH_FLUSH_COUNT,
+						MONITOR_LRU_BATCH_FLUSH_PAGES,
+						n.flushed);
+				}
+
+				if (n.evicted) {
+					MONITOR_INC_VALUE_CUMULATIVE(
+						MONITOR_LRU_BATCH_EVICT_TOTAL_PAGE,
+						MONITOR_LRU_BATCH_EVICT_COUNT,
+						MONITOR_LRU_BATCH_EVICT_PAGES,
+						n.evicted);
+				}
 			} while (active_instance[i]
 				 && free_len <= free_list_lwm);
 		}
-	}
-
-	if (total_flushed) {
-		MONITOR_INC_VALUE_CUMULATIVE(
-			MONITOR_LRU_BATCH_TOTAL_PAGE,
-			MONITOR_LRU_BATCH_COUNT,
-			MONITOR_LRU_BATCH_PAGES,
-			total_flushed);
 	}
 
 	return(total_flushed);
@@ -2719,8 +2780,7 @@ DECLARE_THREAD(buf_flush_page_cleaner_thread)(
 
 			/* Flush pages from flush_list if required */
 			page_cleaner_flush_pages_if_needed();
-			n_flushed = 0;
-		} else {
+		} else if (srv_idle_flush_pct) {
 			n_flushed = page_cleaner_do_flush_batch(
 							PCT_IO(100),
 							LSN_MAX);
@@ -2735,7 +2795,7 @@ DECLARE_THREAD(buf_flush_page_cleaner_thread)(
 		}
 
 		/* Flush pages from end of LRU if required */
-		n_flushed = buf_flush_LRU_tail();
+		buf_flush_LRU_tail();
 	}
 
 	ut_ad(srv_shutdown_state > 0);

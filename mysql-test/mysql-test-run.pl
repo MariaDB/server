@@ -136,6 +136,9 @@ my $opt_start;
 my $opt_start_dirty;
 my $opt_start_exit;
 my $start_only;
+my $file_wsrep_provider;
+
+our @global_suppressions;
 
 END {
   if ( defined $opt_tmpdir_pid and $opt_tmpdir_pid == $$ )
@@ -168,6 +171,7 @@ my @DEFAULT_SUITES= qw(
     archive-
     binlog-
     csv-
+    encryption-
     federated-
     funcs_1-
     funcs_2-
@@ -188,6 +192,7 @@ my @DEFAULT_SUITES= qw(
     sys_vars-
     unit-
     vcol-
+    wsrep-
   );
 my $opt_suites;
 
@@ -339,16 +344,6 @@ sub check_timeout ($) { return testcase_timeout($_[0]); }
 
 our $opt_warnings= 1;
 
-our $ndbcluster_enabled= 0;
-my $opt_include_ndbcluster= 0;
-my $opt_skip_ndbcluster= 0;
-
-my $exe_ndbd;
-my $exe_ndbmtd;
-my $exe_ndb_mgmd;
-my $exe_ndb_waiter;
-my $exe_ndb_mgm;
-
 our %mysqld_variables;
 our @optional_plugins;
 
@@ -411,7 +406,6 @@ sub main {
     # Run the mysqld to find out what features are available
     collect_mysqld_features();
   }
-  check_ndbcluster_support();
   check_ssl_support();
   check_debug_support();
 
@@ -603,12 +597,6 @@ sub run_test_server ($$$) {
   my $test_failure= 0;    # Set true if test suite failed
   my $extra_warnings= []; # Warnings found during server shutdowns
 
-  # Scheduler variables
-  my $max_ndb= $ENV{MTR_MAX_NDB} || $childs / 2;
-  $max_ndb = $childs if $max_ndb > $childs;
-  $max_ndb = 1 if $max_ndb < 1;
-  my $num_ndb_tests= 0;
-
   my $completed= [];
   my %running;
   my $result;
@@ -782,9 +770,6 @@ sub run_test_server ($$$) {
 	  mtr_error("'", $result->{name},"' is not known to be running")
 	    unless delete $running{$result->key()};
 
-	  # Update scheduler variables
-	  $num_ndb_tests-- if ($result->{ndb_test});
-
 	  # Save result in completed list
 	  push(@$completed, $result);
 
@@ -817,7 +802,6 @@ sub run_test_server ($$$) {
 
 	# Find next test to schedule
 	# - Try to use same configuration as worker used last time
-	# - Limit number of parallel ndb tests
 
 	my $next;
 	my $second_best;
@@ -835,12 +819,6 @@ sub run_test_server ($$$) {
 	    # Since the test at pos $i was taken away, next
 	    # test will also be at $i -> redo
 	    redo;
-	  }
-
-	  # Limit number of parallell NDB tests
-	  if ($t->{ndb_test} and $num_ndb_tests >= $max_ndb){
-	    #mtr_report("Skipping, num ndb is already at max, $num_ndb_tests");
-	    next;
 	  }
 
 	  # From secondary choices, we prefer to pick a 'long-running' test if
@@ -895,7 +873,6 @@ sub run_test_server ($$$) {
 	  delete $next->{criteria};
 	  $next->write_test($sock, 'TESTCASE');
 	  $running{$next->key()}= $next;
-	  $num_ndb_tests++ if ($next->{ndb_test});
 	}
 	else {
 	  # No more test, tell child to exit
@@ -1036,15 +1013,7 @@ sub ignore_option {
 
 # Setup any paths that are $opt_vardir related
 sub set_vardir {
-  my ($vardir)= @_;
-  if(IS_WINDOWS)
-  {
-    $opt_vardir= $vardir;
-  }
-  else
-  {
-    $opt_vardir= realpath($vardir);
-  }
+  ($opt_vardir)= @_;
 
   $path_vardir_trace= $opt_vardir;
   # Chop off any "c:", DBUG likes a unix path ex: c:/src/... => /src/...
@@ -1133,9 +1102,6 @@ sub command_line_setup {
 
              # Control what test suites or cases to run
              'force+'                   => \$opt_force,
-             'with-ndbcluster-only'     => \&collect_option,
-             'ndb|include-ndbcluster'   => \$opt_include_ndbcluster,
-             'skip-ndbcluster|skip-ndb' => \$opt_skip_ndbcluster,
              'suite|suites=s'           => \$opt_suites,
              'skip-rpl'                 => \&collect_option,
              'skip-test=s'              => \&collect_option,
@@ -1478,7 +1444,7 @@ sub command_line_setup {
     # Search through list of locations that are known
     # to be "fast disks" to find a suitable location
     # Use --mem=<dir> as first location to look.
-    my @tmpfs_locations= ($opt_mem, "/dev/shm", "/tmp");
+    my @tmpfs_locations= ($opt_mem,"/run/shm", "/dev/shm", "/tmp");
 
     foreach my $fs (@tmpfs_locations)
     {
@@ -1494,20 +1460,11 @@ sub command_line_setup {
   # --------------------------------------------------------------------------
   # Set the "var/" directory, the base for everything else
   # --------------------------------------------------------------------------
-  if(defined $ENV{MTR_BINDIR})
-  {
-    $default_vardir= "$ENV{MTR_BINDIR}/mysql-test/var";
-  }
-  else
-  {
-    $default_vardir= "$glob_mysql_test_dir/var";
-  }
-  unless (IS_WINDOWS) {
-    my $realpath = realpath($default_vardir);
-    die "realpath('$default_vardir') failed: $!\n"
-      unless defined($realpath) && $realpath ne '';
-    $default_vardir = $realpath;
-  }
+  my $vardir_location= (defined $ENV{MTR_BINDIR} 
+                          ? "$ENV{MTR_BINDIR}/mysql-test" 
+                          : $glob_mysql_test_dir);
+  $vardir_location= realpath $vardir_location unless IS_WINDOWS;
+  $default_vardir= "$vardir_location/var";
 
   if ( ! $opt_vardir )
   {
@@ -1911,7 +1868,7 @@ sub collect_mysqld_features {
       # they are listed in the --help output as
       #  --archive[=name]    Enable or disable ARCHIVE plugin. Possible values are ON, OFF, FORCE (don't start if the plugin fails to load).
       push @optional_plugins, $1
-        if /^  --([-a-z0-9]+)\[=name\] +Enable or disable \w+ plugin. Possible values are ON, OFF, FORCE/;
+        if /^  --([-a-z0-9]+)\[=name\] +Enable or disable \w+ plugin. One of: ON, OFF, FORCE/;
       next;
     }
 
@@ -2017,51 +1974,6 @@ sub executable_setup () {
   $exe_mysql_plugin=   mtr_exe_exists("$path_client_bindir/mysql_plugin");
 
   $exe_mysql_embedded= mtr_exe_maybe_exists("$basedir/libmysqld/examples/mysql_embedded");
-
-  if ( $ndbcluster_enabled )
-  {
-    # Look for single threaded NDB
-    $exe_ndbd=
-      my_find_bin($bindir,
-		  ["storage/ndb/src/kernel", "libexec", "sbin", "bin"],
-		  "ndbd");
-
-    # Look for multi threaded NDB
-    $exe_ndbmtd=
-      my_find_bin($bindir,
-		  ["storage/ndb/src/kernel", "libexec", "sbin", "bin"],
-		  "ndbmtd", NOT_REQUIRED);
-    if ($exe_ndbmtd)
-    {
-      my $mtr_ndbmtd = $ENV{MTR_NDBMTD};
-      if ($mtr_ndbmtd)
-      {
-	mtr_report(" - multi threaded ndbd found, will be used always");
-	$exe_ndbd = $exe_ndbmtd;
-      }
-      else
-      {
-	mtr_report(" - multi threaded ndbd found, will be ".
-		   "used \"round robin\"");
-      }
-    }
-
-    $exe_ndb_mgmd=
-      my_find_bin($bindir,
-		  ["storage/ndb/src/mgmsrv", "libexec", "sbin", "bin"],
-		  "ndb_mgmd");
-
-    $exe_ndb_mgm=
-      my_find_bin($bindir,
-                  ["storage/ndb/src/mgmclient", "bin"],
-                  "ndb_mgm");
-
-    $exe_ndb_waiter=
-      my_find_bin($bindir,
-		  ["storage/ndb/tools/", "bin"],
-		  "ndb_waiter");
-
-  }
 
   # Look for mysqltest executable
   if ( $opt_embedded_server )
@@ -2288,14 +2200,6 @@ sub environment_setup {
   }
 
   # --------------------------------------------------------------------------
-  # Add the path where libndbclient can be found
-  # --------------------------------------------------------------------------
-  if ( $ndbcluster_enabled )
-  {
-    push(@ld_library_paths,  "$basedir/storage/ndb/src/.libs");
-  }
-
-  # --------------------------------------------------------------------------
   # Valgrind need to be run with debug libraries otherwise it's almost
   # impossible to add correct supressions, that means if "/usr/lib/debug"
   # is available, it should be added to
@@ -2379,34 +2283,6 @@ sub environment_setup {
   # to disable those tests when DNS is broken.
   #
   $ENV{HAVE_BROKEN_DNS}= defined(gethostbyname('invalid_hostname'));
-
-  # ----------------------------------------------------
-  # Setup env for NDB
-  # ----------------------------------------------------
-  if ( $ndbcluster_enabled )
-  {
-    $ENV{'NDB_MGM'}=
-      my_find_bin($bindir,
-		  ["storage/ndb/src/mgmclient", "bin"],
-		  "ndb_mgm");
-
-    $ENV{'NDB_TOOLS_DIR'}=
-      my_find_dir($bindir,
-		  ["storage/ndb/tools", "bin"]);
-
-    $ENV{'NDB_EXAMPLES_DIR'}=
-      my_find_dir($basedir,
-		  ["storage/ndb/ndbapi-examples", "bin"]);
-
-    $ENV{'NDB_EXAMPLES_BINARY'}=
-      my_find_bin($bindir,
-		  ["storage/ndb/ndbapi-examples/ndbapi_simple", "bin"],
-		  "ndbapi_simple", NOT_REQUIRED);
-
-    my $path_ndb_testrun_log= "$opt_vardir/log/ndb_testrun.log";
-    $ENV{'NDB_TOOLS_OUTPUT'}=         $path_ndb_testrun_log;
-    $ENV{'NDB_EXAMPLES_OUTPUT'}=      $path_ndb_testrun_log;
-  }
 
   # ----------------------------------------------------
   # mysql clients
@@ -2894,317 +2770,6 @@ sub vs_config_dirs ($$) {
           "$basedir/$path_part/relwithdebinfo/$exe",
           "$basedir/$path_part/debug/$exe");
 }
-
-
-sub check_ndbcluster_support {
-
-  my $ndbcluster_supported = 0;
-  if ($mysqld_variables{'ndb-connectstring'})
-  {
-    $ndbcluster_supported = 1;
-  }
-
-  if ($opt_skip_ndbcluster && $opt_include_ndbcluster)
-  {
-    # User is ambivalent. Theoretically the arg which was
-    # given last on command line should win, but that order is
-    # unknown at this time.
-    mtr_error("Ambigous command, both --include-ndbcluster " .
-	      " and --skip-ndbcluster was specified");
-  }
-
-  # Check if this is MySQL Cluster, ie. mysql version string ends
-  # with -ndb-Y.Y.Y[-status]
-  if ( defined $mysql_version_extra &&
-       $mysql_version_extra =~ /-ndb-([0-9]*)\.([0-9]*)\.([0-9]*)/ )
-  {
-    # MySQL Cluster tree
-    mtr_report(" - MySQL Cluster detected");
-
-    if ($opt_skip_ndbcluster)
-    {
-      mtr_report(" - skipping ndbcluster(--skip-ndbcluster)");
-      return;
-    }
-
-    if (!$ndbcluster_supported)
-    {
-      # MySQL Cluster tree, but mysqld was not compiled with
-      # ndbcluster -> fail unless --skip-ndbcluster was used
-      mtr_error("This is MySQL Cluster but mysqld does not " .
-		"support ndbcluster. Use --skip-ndbcluster to " .
-		"force mtr to run without it.");
-    }
-
-    # mysqld was compiled with ndbcluster -> auto enable
-  }
-  else
-  {
-    # Not a MySQL Cluster tree
-    if (!$ndbcluster_supported)
-    {
-      if ($opt_include_ndbcluster)
-      {
-	mtr_error("Could not detect ndbcluster support ".
-		  "requested with --include-ndbcluster");
-      }
-
-      # Silently skip, mysqld was compiled without ndbcluster
-      # which is the default case
-      return;
-    }
-
-    if ($opt_skip_ndbcluster)
-    {
-      # Compiled with ndbcluster but ndbcluster skipped
-      mtr_report(" - skipping ndbcluster(--skip-ndbcluster)");
-      return;
-    }
-
-
-    # Not a MySQL Cluster tree, enable ndbcluster
-    # if --include-ndbcluster was used
-    if ($opt_include_ndbcluster)
-    {
-      # enable ndbcluster
-    }
-    else
-    {
-      mtr_report(" - skipping ndbcluster(disabled by default)");
-      return;
-    }
-  }
-
-  mtr_report(" - enabling ndbcluster");
-  $ndbcluster_enabled= 1;
-  # Add MySQL Cluster test suites
-  push @DEFAULT_SUITES, qw(ndb ndb_binlog rpl_ndb ndb_rpl ndb_memcache);
-  return;
-}
-
-
-sub ndbcluster_wait_started {
-  my $cluster= shift;
-  my $ndb_waiter_extra_opt= shift;
-  my $path_waitlog= join('/', $opt_vardir, $cluster->name(), "ndb_waiter.log");
-
-  my $args;
-  mtr_init_args(\$args);
-  mtr_add_arg($args, "--defaults-file=%s", $path_config_file);
-  mtr_add_arg($args, "--defaults-group-suffix=%s", $cluster->suffix());
-  mtr_add_arg($args, "--timeout=%d", $opt_start_timeout);
-
-  if ($ndb_waiter_extra_opt)
-  {
-    mtr_add_arg($args, "$ndb_waiter_extra_opt");
-  }
-
-  # Start the ndb_waiter which will connect to the ndb_mgmd
-  # and poll it for state of the ndbd's, will return when
-  # all nodes in the cluster is started
-
-  my $res= My::SafeProcess->run
-    (
-     name          => "ndb_waiter ".$cluster->name(),
-     path          => $exe_ndb_waiter,
-     args          => \$args,
-     output        => $path_waitlog,
-     error         => $path_waitlog,
-     append        => 1,
-    );
-
-  # Check that ndb_mgmd(s) are still alive
-  foreach my $ndb_mgmd ( in_cluster($cluster, ndb_mgmds()) )
-  {
-    my $proc= $ndb_mgmd->{proc};
-    if ( ! $proc->wait_one(0) )
-    {
-      mtr_warning("$proc died");
-      return 2;
-    }
-  }
-
-  # Check that all started ndbd(s) are still alive
-  foreach my $ndbd ( in_cluster($cluster, ndbds()) )
-  {
-    my $proc= $ndbd->{proc};
-    next unless defined $proc;
-    if ( ! $proc->wait_one(0) )
-    {
-      mtr_warning("$proc died");
-      return 3;
-    }
-  }
-
-  if ($res)
-  {
-    mtr_verbose("ndbcluster_wait_started failed");
-    return 1;
-  }
-  return 0;
-}
-
-
-sub ndb_mgmd_wait_started($) {
-  my ($cluster)= @_;
-
-  my $retries= 100;
-  while ($retries)
-  {
-    my $result= ndbcluster_wait_started($cluster, "--no-contact");
-    if ($result == 0)
-    {
-      # ndb_mgmd is started
-      mtr_verbose("ndb_mgmd is started");
-      return 0;
-    }
-    elsif ($result > 1)
-    {
-      mtr_warning("Cluster process failed while waiting for start");
-      return $result;
-    }
-
-    mtr_milli_sleep(100);
-    $retries--;
-  }
-
-  return 1;
-}
-
-sub ndb_mgmd_stop{
-  my $ndb_mgmd= shift or die "usage: ndb_mgmd_stop(<ndb_mgmd>)";
-
-  my $host=$ndb_mgmd->value('HostName');
-  my $port=$ndb_mgmd->value('PortNumber');
-  mtr_verbose("Stopping cluster '$host:$port'");
-
-  my $args;
-  mtr_init_args(\$args);
-  mtr_add_arg($args, "--ndb-connectstring=%s:%s", $host,$port);
-  mtr_add_arg($args, "-e");
-  mtr_add_arg($args, "shutdown");
-
-  My::SafeProcess->run
-    (
-     name          => "ndb_mgm shutdown $host:$port",
-     path          => $exe_ndb_mgm,
-     args          => \$args,
-     output         => "/dev/null",
-    );
-}
-
-sub ndb_mgmd_start ($$) {
-  my ($cluster, $ndb_mgmd)= @_;
-
-  mtr_verbose("ndb_mgmd_start");
-
-  my $dir= $ndb_mgmd->value("DataDir");
-  mkpath($dir) unless -d $dir;
-
-  my $args;
-  mtr_init_args(\$args);
-  mtr_add_arg($args, "--defaults-file=%s", $path_config_file);
-  mtr_add_arg($args, "--defaults-group-suffix=%s", $cluster->suffix());
-  mtr_add_arg($args, "--mycnf");
-  mtr_add_arg($args, "--nodaemon");
-
-  my $path_ndb_mgmd_log= "$dir/ndb_mgmd.log";
-
-  $ndb_mgmd->{'proc'}= My::SafeProcess->new
-    (
-     name          => $ndb_mgmd->after('cluster_config.'),
-     path          => $exe_ndb_mgmd,
-     args          => \$args,
-     output        => $path_ndb_mgmd_log,
-     error         => $path_ndb_mgmd_log,
-     append        => 1,
-     verbose       => $opt_verbose,
-     shutdown      => sub { ndb_mgmd_stop($ndb_mgmd) },
-    );
-  mtr_verbose("Started $ndb_mgmd->{proc}");
-
-  # FIXME Should not be needed
-  # Unfortunately the cluster nodes will fail to start
-  # if ndb_mgmd has not started properly
-  if (ndb_mgmd_wait_started($cluster))
-  {
-    mtr_warning("Failed to wait for start of ndb_mgmd");
-    return 1;
-  }
-
-  return 0;
-}
-
-sub ndbd_stop {
-  # Intentionally left empty, ndbd nodes will be shutdown
-  # by sending "shutdown" to ndb_mgmd
-}
-
-our $exe_ndbmtd_counter= 0;
-
-sub ndbd_start {
-  my ($cluster, $ndbd)= @_;
-
-  mtr_verbose("ndbd_start");
-
-  my $dir= $ndbd->value("DataDir");
-  mkpath($dir) unless -d $dir;
-
-  my $args;
-  mtr_init_args(\$args);
-  mtr_add_arg($args, "--defaults-file=%s", $path_config_file);
-  mtr_add_arg($args, "--defaults-group-suffix=%s", $cluster->suffix());
-  mtr_add_arg($args, "--nodaemon");
-
-# > 5.0 { 'character-sets-dir' => \&fix_charset_dir },
-
-  my $exe= $exe_ndbd;
-  if ($exe_ndbmtd and ($exe_ndbmtd_counter++ % 2) == 0)
-  {
-    # Use ndbmtd every other time
-    $exe= $exe_ndbmtd;
-  }
-
-  my $path_ndbd_log= "$dir/ndbd.log";
-  my $proc= My::SafeProcess->new
-    (
-     name          => $ndbd->after('cluster_config.'),
-     path          => $exe,
-     args          => \$args,
-     output        => $path_ndbd_log,
-     error         => $path_ndbd_log,
-     append        => 1,
-     verbose       => $opt_verbose,
-     shutdown      => sub { ndbd_stop($ndbd) },
-    );
-  mtr_verbose("Started $proc");
-
-  $ndbd->{proc}= $proc;
-
-  return;
-}
-
-
-sub ndbcluster_start ($) {
-  my ($cluster) = @_;
-
-  mtr_verbose("ndbcluster_start '".$cluster->name()."'");
-
-  foreach my $ndb_mgmd ( in_cluster($cluster, ndb_mgmds()) )
-  {
-    next if started($ndb_mgmd);
-    ndb_mgmd_start($cluster, $ndb_mgmd);
-  }
-
-  foreach my $ndbd ( in_cluster($cluster, ndbds()) )
-  {
-    next if started($ndbd);
-    ndbd_start($cluster, $ndbd);
-  }
-
-  return 0;
-}
-
 
 sub mysql_server_start($) {
   my ($mysqld, $tinfo) = @_;
@@ -3773,7 +3338,7 @@ sub do_before_run_mysqltest($)
     my $resdir= dirname($resfile);
     # we'll use a separate extension for generated result files
     # to be able to distinguish them from manually created
-    # version-controlled results, and to ignore them in bzr.
+    # version-controlled results, and to ignore them in git.
     my $dest = "$base_file$suites.result~";
     my @cmd = ($exe_patch, qw/--binary -r - -f -s -o/,
                $dest, $base_result, $resfile);
@@ -4140,8 +3705,6 @@ sub config_files($) {
 
 sub _like   { return $config ? $config->like($_[0]) : (); }
 sub mysqlds { return _like('mysqld\.'); }
-sub ndbds   { return _like('cluster_config\.ndbd\.');}
-sub ndb_mgmds { return _like('cluster_config\.ndb_mgmd\.'); }
 
 sub fix_servers($) {
   my ($tinfo) = @_;
@@ -4151,19 +3714,6 @@ sub fix_servers($) {
       SORT => 300,
       START => \&mysql_server_start,
       WAIT => \&mysql_server_wait,
-    },
-    qr/mysql_cluster\./ => {
-      SORT => 200,
-      START => \&ndbcluster_start,
-      WAIT => \&ndbcluster_wait_started,
-    },
-    qr/cluster_config\.ndb_mgmd\./ => {
-      SORT => 210,
-      START => undef,
-    },
-    qr/cluster_config\.ndbd\./ => {
-      SORT => 220,
-      START => undef,
     },
     $tinfo->{suite}->servers()
   );
@@ -4814,12 +4364,16 @@ sub extract_warning_lines ($$) {
   # Perl code.
   my @antipatterns =
     (
+     @global_suppressions,
      qr/error .*connecting to master/,
-     qr/Plugin 'ndbcluster' will be forced to shutdown/,
      qr/InnoDB: Error: in ALTER TABLE `test`.`t[12]`/,
      qr/InnoDB: Error: table `test`.`t[12]` .*does not exist in the InnoDB internal/,
      qr/InnoDB: Warning: Setting innodb_use_sys_malloc/,
      qr/InnoDB: Warning: a long semaphore wait:/,
+     qr/InnoDB: Disabling redo log encryption/,
+     qr/InnoDB: Redo log crypto: Can't initialize to key version -1u/,
+     qr/InnoDB: Dumping buffer pool.*/,
+     qr/InnoDB: Buffer pool.*/,
      qr/Slave: Unknown table 't1' .* 1051/,
      qr/Slave SQL:.*(Internal MariaDB error code: [[:digit:]]+|Query:.*)/,
      qr/slave SQL thread aborted/,
@@ -4829,7 +4383,6 @@ sub extract_warning_lines ($$) {
      qr/Now setting lower_case_table_names to [02]/,
      qr/Setting lower_case_table_names=2/,
      qr/You have forced lower_case_table_names to 0/,
-     qr/Plugin 'ndbcluster' will be forced to shutdow/,
      qr/deprecated/,
      qr/Slave SQL thread retried transaction/,
      qr/Slave \(additional info\)/,
@@ -4839,6 +4392,12 @@ sub extract_warning_lines ($$) {
      qr/Slave I\/O: Get master clock failed with error:.*/,
      qr/Slave I\/O: Get master COLLATION_SERVER failed with error:.*/,
      qr/Slave I\/O: Get master TIME_ZONE failed with error:.*/,
+     qr/Slave I\/O: Get master \@\@GLOBAL.gtid_domain_id failed with error:.*/,
+     qr/Slave I\/O: Setting \@slave_connect_state failed with error:.*/,
+     qr/Slave I\/O: Setting \@slave_gtid_strict_mode failed with error:.*/,
+     qr/Slave I\/O: Setting \@slave_gtid_ignore_duplicates failed with error:.*/,
+     qr/Slave I\/O: Setting \@slave_until_gtid failed with error:.*/,
+     qr/Slave I\/O: Get master GTID position failed with error:.*/,
      qr/Slave I\/O: error reconnecting to master '.*' - retry-time: [1-3]  retries/,
      qr/Slave I\/0: Master command COM_BINLOG_DUMP failed/,
      qr/Error reading packet/,
@@ -5706,18 +5265,6 @@ sub servers_need_restart($) {
 ############################################
 
 #
-# Filter a list of servers and return only those that are part
-# of the specified cluster
-#
-sub in_cluster {
-  my ($cluster)= shift;
-  # Return only processes for a specific cluster
-  return grep { $_->suffix() eq $cluster->suffix() } @_;
-}
-
-
-
-#
 # Filter a list of servers and return the SafeProcess
 # for only those that are started or stopped
 #
@@ -6442,7 +5989,7 @@ Options to control directories to use
   mem                   Run testsuite in "memory" using tmpfs or ramdisk
                         Attempts to find a suitable location
                         using a builtin list of standard locations
-                        for tmpfs (/dev/shm)
+                        for tmpfs (/run/shm, /dev/shm, /tmp)
                         The option can also be set using environment
                         variable MTR_MEM=[DIR]
   clean-vardir          Clean vardir if tests were successful and if
@@ -6458,9 +6005,6 @@ Options to control what test suites or cases to run
                         the execution will continue from the next test file.
                         When specified twice, execution will continue executing
                         the failed test file from the next command.
-  with-ndbcluster-only  Run only tests that include "ndb" in the filename
-  skip-ndb[cluster]     Skip all tests that need cluster. Default.
-  include-ndb[cluster]  Enable all tests that need cluster
   do-test=PREFIX or REGEX
                         Run test cases which name are prefixed with PREFIX
                         or fulfills REGEX
@@ -6484,6 +6028,8 @@ Options to control what test suites or cases to run
   skip-test-list=FILE   Skip the tests listed in FILE. Each line in the file
                         is an entry and should be formatted as: 
                         <TESTNAME> : <COMMENT>
+  force-restart         Always restart servers between tests. This makes it
+                        easier to see from which test warnings may come from.
 
 Options that specify ports
 
@@ -6601,7 +6147,6 @@ Misc options
                         servers to exit before finishing the process
   fast                  Run as fast as possible, dont't wait for servers
                         to shutdown etc.
-  force-restart         Always restart servers between tests
   parallel=N            Run tests in N parallel threads (default 1)
                         Use parallel=auto for auto-setting of N
   repeat=N              Run each test N number of times

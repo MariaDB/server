@@ -291,19 +291,18 @@ Geometry *Geometry::create_from_wkb(Geometry_buffer *buffer,
 }
 
 
-int Geometry::create_from_opresult(Geometry_buffer *g_buf,
+Geometry *Geometry::create_from_opresult(Geometry_buffer *g_buf,
                                    String *res, Gcalc_result_receiver &rr)
 {
   uint32 geom_type= rr.get_result_typeid();
   Geometry *obj= create_by_typeid(g_buf, geom_type);
 
   if (!obj || res->reserve(WKB_HEADER_SIZE, 512))
-    return 1;
+    return NULL;
 
   res->q_append((char) wkb_ndr);
   res->q_append(geom_type);
-  return obj->init_from_opresult(res, rr.result(), rr.length()) == 0 &&
-         rr.length();
+  return obj->init_from_opresult(res, rr.result(), rr.length()) ? obj : NULL;
 }
 
 
@@ -386,7 +385,7 @@ bool Geometry::create_point(String *result, const char *data) const
     1	Can't reallocate 'result'
 */
 
-bool Geometry::create_point(String *result, double x, double y) const
+bool Geometry::create_point(String *result, double x, double y)
 {
   if (result->reserve(1 + 4 + POINT_DATA_SIZE))
     return 1;
@@ -2227,6 +2226,13 @@ uint Gis_geometry_collection::init_from_opresult(String *bin,
     return 0;
   bin->q_append(n_objects);
   
+  if (res_len == 0)
+  {
+    /* Special case of GEOMETRYCOLLECTION EMPTY. */
+    opres+= 1;
+    goto empty_geom;
+  }
+  
   while (res_len)
   {
     switch ((Gcalc_function::shape_type) uint4korr(opres))
@@ -2250,6 +2256,7 @@ uint Gis_geometry_collection::init_from_opresult(String *bin,
     res_len-= g_len;
     n_objects++;
   }
+empty_geom:
   bin->write_at_position(no_pos, n_objects);
   return (uint) (opres - opres_orig);
 }

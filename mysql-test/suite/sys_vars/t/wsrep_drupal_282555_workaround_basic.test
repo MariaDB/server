@@ -1,0 +1,42 @@
+--source include/have_wsrep.inc
+
+--echo #
+--echo # wsrep_drupal_282555_workaround
+--echo #
+
+--echo # save the initial value
+SET @wsrep_drupal_282555_workaround_global_saved = @@global.wsrep_drupal_282555_workaround;
+
+--echo # default
+SELECT @@global.wsrep_drupal_282555_workaround;
+
+--echo
+--echo # scope
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SELECT @@session.wsrep_drupal_282555_workaround;
+SET @@global.wsrep_drupal_282555_workaround=OFF;
+SELECT @@global.wsrep_drupal_282555_workaround;
+SET @@global.wsrep_drupal_282555_workaround=ON;
+SELECT @@global.wsrep_drupal_282555_workaround;
+
+--echo
+--echo # valid values
+SET @@global.wsrep_drupal_282555_workaround='OFF';
+SELECT @@global.wsrep_drupal_282555_workaround;
+SET @@global.wsrep_drupal_282555_workaround=ON;
+SELECT @@global.wsrep_drupal_282555_workaround;
+SET @@global.wsrep_drupal_282555_workaround=default;
+SELECT @@global.wsrep_drupal_282555_workaround;
+
+--echo
+--echo # invalid values
+--error ER_WRONG_VALUE_FOR_VAR
+SET @@global.wsrep_drupal_282555_workaround=NULL;
+--error ER_WRONG_VALUE_FOR_VAR
+SET @@global.wsrep_drupal_282555_workaround='junk';
+
+--echo
+--echo # restore the initial value
+SET @@global.wsrep_drupal_282555_workaround = @wsrep_drupal_282555_workaround_global_saved;
+
+--echo # End of test

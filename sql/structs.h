@@ -94,7 +94,19 @@ typedef struct st_key {
   uint	usable_key_parts; /* Should normally be = user_defined_key_parts */
   uint ext_key_parts;              /* Number of key parts in extended key */
   ulong ext_key_flags;             /* Flags for extended key              */
-  key_part_map ext_key_part_map;   /* Bitmap of pk key parts in extension */ 
+  /*
+    Parts of primary key that are in the extension of this index. 
+
+    Example: if this structure describes idx1, which is defined as 
+      INDEX idx1 (pk2, col2)
+    and pk is defined as:
+      PRIMARY KEY (pk1, pk2)
+    then 
+      pk1 is in the extension idx1, ext_key_part_map.is_set(0) == true
+      pk2 is explicitly present in idx1, it is not in the extension, so
+      ext_key_part_map.is_set(1) == false
+  */
+  key_part_map ext_key_part_map;
   uint  block_size;
   uint  name_length;
   enum  ha_key_alg algorithm;
@@ -221,12 +233,15 @@ typedef struct user_resources {
     connections allowed
   */
   int user_conn;
+  /* Max query timeout */
+  double max_statement_time;
+
   /*
      Values of this enum and specified_limits member are used by the
      parser to store which user limits were specified in GRANT statement.
   */
   enum {QUERIES_PER_HOUR= 1, UPDATES_PER_HOUR= 2, CONNECTIONS_PER_HOUR= 4,
-        USER_CONNECTIONS= 8};
+        USER_CONNECTIONS= 8, MAX_STATEMENT_TIME= 16};
   uint specified_limits;
 } USER_RESOURCES;
 
@@ -271,83 +286,22 @@ typedef struct st_user_stats
   char priv_user[MY_MAX(USERNAME_LENGTH, LIST_PROCESS_HOST_LEN) + 1];
   uint user_name_length;
   uint total_connections;
+  uint total_ssl_connections;
   uint concurrent_connections;
   time_t connected_time;  // in seconds
-  double busy_time;       // in seconds
-  double cpu_time;        // in seconds
+  ha_rows rows_read, rows_sent;
+  ha_rows rows_updated, rows_deleted, rows_inserted;
   ulonglong bytes_received;
   ulonglong bytes_sent;
   ulonglong binlog_bytes_written;
-  ha_rows   rows_read, rows_sent;
-  ha_rows rows_updated, rows_deleted, rows_inserted;
   ulonglong select_commands, update_commands, other_commands;
   ulonglong commit_trans, rollback_trans;
-  ulonglong denied_connections, lost_connections;
+  ulonglong denied_connections, lost_connections, max_statement_time_exceeded;
   ulonglong access_denied_errors;
   ulonglong empty_queries;
+  double busy_time;       // in seconds
+  double cpu_time;        // in seconds
 } USER_STATS;
-
-/* Lookup function for hash tables with USER_STATS entries */
-extern "C" uchar *get_key_user_stats(USER_STATS *user_stats, size_t *length,
-                                     my_bool not_used __attribute__((unused)));
-
-/* Free all memory for a hash table with USER_STATS entries */
-extern void free_user_stats(USER_STATS* user_stats);
-
-/* Intialize an instance of USER_STATS */
-extern void
-init_user_stats(USER_STATS *user_stats,
-                const char *user,
-                size_t user_length,
-                const char *priv_user,
-                uint total_connections,
-                uint concurrent_connections,
-                time_t connected_time,
-                double busy_time,
-                double cpu_time,
-                ulonglong bytes_received,
-                ulonglong bytes_sent,
-                ulonglong binlog_bytes_written,
-                ha_rows rows_sent,
-                ha_rows rows_read,
-                ha_rows rows_inserted,
-                ha_rows rows_deleted,
-                ha_rows rows_updated,
-                ulonglong select_commands,
-                ulonglong update_commands,
-                ulonglong other_commands,
-                ulonglong commit_trans,
-                ulonglong rollback_trans,
-                ulonglong denied_connections,
-                ulonglong lost_connections,
-                ulonglong access_denied_errors,
-                ulonglong empty_queries);
-
-/* Increment values of an instance of USER_STATS */
-extern void
-add_user_stats(USER_STATS *user_stats,
-               uint total_connections,
-               uint concurrent_connections,
-               time_t connected_time,
-               double busy_time,
-               double cpu_time,
-               ulonglong bytes_received,
-               ulonglong bytes_sent,
-               ulonglong binlog_bytes_written,
-               ha_rows rows_sent,
-               ha_rows rows_read,
-               ha_rows rows_inserted,
-               ha_rows rows_deleted,
-               ha_rows rows_updated,
-               ulonglong select_commands,
-               ulonglong update_commands,
-               ulonglong other_commands,
-               ulonglong commit_trans,
-               ulonglong rollback_trans,
-               ulonglong denied_connections,
-               ulonglong lost_connections,
-               ulonglong access_denied_errors,
-               ulonglong empty_queries);
 
 typedef struct st_table_stats
 {
@@ -517,5 +471,83 @@ public:
   Discrete_interval* get_tail() const { return tail; };
   Discrete_interval* get_current() const { return current; };
 };
+
+
+/*
+  DDL options:
+  - CREATE IF NOT EXISTS
+  - DROP IF EXISTS
+  - CREATE LIKE
+  - REPLACE
+*/
+struct DDL_options_st
+{
+public:
+  enum Options
+  {
+    OPT_NONE= 0,
+    OPT_IF_NOT_EXISTS= 2,              // CREATE TABLE IF NOT EXISTS
+    OPT_LIKE= 4,                       // CREATE TABLE LIKE
+    OPT_OR_REPLACE= 16,                // CREATE OR REPLACE TABLE
+    OPT_OR_REPLACE_SLAVE_GENERATED= 32,// REPLACE was added on slave, it was
+                                       // not in the original query on master.
+    OPT_IF_EXISTS= 64
+  };
+
+private:
+  Options m_options;
+
+public:
+  Options create_like_options() const
+  {
+    return (DDL_options_st::Options)
+           (((uint) m_options) & (OPT_IF_NOT_EXISTS | OPT_OR_REPLACE));
+  }
+  void init() { m_options= OPT_NONE; }
+  void init(Options options) { m_options= options; }
+  void set(Options other)
+  {
+    m_options= other;
+  }
+  void set(const DDL_options_st other)
+  {
+    m_options= other.m_options;
+  }
+  bool if_not_exists() const { return m_options & OPT_IF_NOT_EXISTS; }
+  bool or_replace() const { return m_options & OPT_OR_REPLACE; }
+  bool or_replace_slave_generated() const
+  { return m_options & OPT_OR_REPLACE_SLAVE_GENERATED; }
+  bool like() const { return m_options & OPT_LIKE; }
+  bool if_exists() const { return m_options & OPT_IF_EXISTS; }
+  void add(const DDL_options_st::Options other)
+  {
+    m_options= (Options) ((uint) m_options | (uint) other);
+  }
+  void add(const DDL_options_st &other)
+  {
+    add(other.m_options);
+  }
+  DDL_options_st operator|(const DDL_options_st &other)
+  {
+    add(other.m_options);
+    return *this;
+  }
+  DDL_options_st operator|=(DDL_options_st::Options other)
+  {
+    add(other);
+    return *this;
+  }
+};
+
+
+class DDL_options: public DDL_options_st
+{
+public:
+  DDL_options() { init(); }
+  DDL_options(Options options) { init(options); }
+  DDL_options(const DDL_options_st &options)
+  { DDL_options_st::operator=(options); }
+};
+
 
 #endif /* STRUCTS_INCLUDED */

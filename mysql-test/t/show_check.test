@@ -135,9 +135,11 @@ show create table t1;
 drop table t1;
 
 flush tables;
+--sorted_result
 show open tables;
 create table t1(n int);
 insert into t1 values (1);
+--sorted_result
 show open tables;
 drop table t1;
 
@@ -617,6 +619,7 @@ show databases;
 show tables;
 show events;
 show table status;
+--sorted_result
 show open tables;
 show plugins;
 show columns in t1;

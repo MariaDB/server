@@ -1,0 +1,50 @@
+SET SESSION slave_parallel_mode= none;
+ERROR HY000: Variable 'slave_parallel_mode' is a GLOBAL variable and should be set with SET GLOBAL
+SELECT @@slave_parallel_mode;
+@@slave_parallel_mode
+minimal
+SELECT @@m1.slave_parallel_mode;
+@@m1.slave_parallel_mode
+NULL
+Warnings:
+Warning	1617	There is no master connection 'm1'
+Warning	1617	There is no master connection 'm1'
+CHANGE MASTER TO master_host='127.0.0.1', master_port=3310, master_user='root';
+SELECT @@``.slave_parallel_mode;
+@@``.slave_parallel_mode
+minimal
+SELECT @@slave_parallel_mode;
+@@slave_parallel_mode
+minimal
+Parallel_Mode = 'minimal'
+SELECT @@m2.slave_parallel_mode;
+@@m2.slave_parallel_mode
+NULL
+Warnings:
+Warning	1617	There is no master connection 'm2'
+Warning	1617	There is no master connection 'm2'
+SET GLOBAL m2.slave_parallel_mode = none;
+Warnings:
+Warning	1617	There is no master connection 'm2'
+CHANGE MASTER 'm1' TO master_host='127.0.0.1', master_port=3311, master_user='root';
+SELECT @@m1.slave_parallel_mode;
+@@m1.slave_parallel_mode
+optimistic
+Parallel_Mode = 'minimal'
+SET GLOBAL m1.slave_parallel_mode= conservative;
+Parallel_Mode = 'minimal'
+SET default_master_connection= 'm1';
+SELECT @@slave_parallel_mode;
+@@slave_parallel_mode
+conservative
+SET GLOBAL slave_parallel_mode= aggressive;
+SELECT @@slave_parallel_mode;
+@@slave_parallel_mode
+aggressive
+Parallel_Mode = 'aggressive'
+SET default_master_connection= '';
+SELECT @@slave_parallel_mode;
+@@slave_parallel_mode
+minimal
+RESET SLAVE ALL;
+RESET SLAVE 'm1' ALL;

@@ -2206,3 +2206,21 @@ DEALLOCATE PREPARE stmt;
 #
 # End of 10.0 tests
 #
+#
+# Start of 10.1 tests
+#
+#
+# MDEV-8419 utf32: compare broken bytes as "greater than any non-broken character"
+#
+CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET utf32, KEY(a));
+INSERT INTO t1 VALUES (0x10000),(0x10001),(0x10002);
+SELECT COUNT(DISTINCT a) FROM t1;
+COUNT(DISTINCT a)
+1
+DROP TABLE t1;
+SELECT _utf32 0x10001=_utf32 0x10002;
+_utf32 0x10001=_utf32 0x10002
+1
+#
+# End of 10.1 tests
+#

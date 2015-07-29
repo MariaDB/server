@@ -64,7 +64,7 @@ sync_slave_with_master;
 connection slave;
 SELECT * FROM t2 order by id;
 
---echo # INSERT triggers which cause also UPDATE test (insert duplicate row)
+--echo # INSERT triggers causing DELETE + INSERT (on unique key conflict)
 insert into t1 values ('0','1');
 
 SELECT * FROM t2 order by id;

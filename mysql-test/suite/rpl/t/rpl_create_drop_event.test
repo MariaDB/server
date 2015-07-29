@@ -1,0 +1,27 @@
+--source include/master-slave.inc
+
+connection master;
+SET GLOBAL event_scheduler=off;
+
+CREATE TABLE t1 (a INT);
+CREATE EVENT ev1 ON SCHEDULE EVERY 1 SECOND DO INSERT INTO t1 VALUES (10);
+--error ER_EVENT_ALREADY_EXISTS
+CREATE EVENT ev1 ON SCHEDULE EVERY 1 SECOND DO INSERT INTO t1 VALUES (11);
+CREATE OR REPLACE EVENT ev1 ON SCHEDULE EVERY 1 SECOND DO INSERT INTO t1 VALUES (11);
+SELECT EVENT_NAME,STATUS,EVENT_DEFINITION FROM INFORMATION_SCHEMA.EVENTS;
+
+SET GLOBAL event_scheduler=on;
+let $wait_condition= SELECT count(*)>0 FROM t1;
+--source include/wait_condition.inc
+SET GLOBAL event_scheduler=off;
+SELECT DISTINCT a FROM t1;
+DELETE FROM t1;
+
+--echo # Syncing slave with master
+sync_slave_with_master;
+SELECT EVENT_NAME,STATUS,EVENT_DEFINITION FROM INFORMATION_SCHEMA.EVENTS;
+connection master;
+DROP TABLE t1;
+DROP EVENT ev1;
+sync_slave_with_master;
+--source include/rpl_end.inc

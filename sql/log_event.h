@@ -804,6 +804,8 @@ typedef struct st_print_event_info
   bool server_id_printed;
   uint32 domain_id;
   bool domain_id_printed;
+  bool allow_parallel;
+  bool allow_parallel_printed;
 
   /*
     Track when @@skip_replication changes so we need to output a SET
@@ -1340,7 +1342,11 @@ public:
    */
   int apply_event(rpl_group_info *rgi)
   {
-    return do_apply_event(rgi);
+    int res;
+    THD_STAGE_INFO(thd, stage_apply_event);
+    res= do_apply_event(rgi);
+    THD_STAGE_INFO(thd, stage_after_apply_event);
+    return res;
   }
 
 
@@ -3127,6 +3133,12 @@ public:
     <td>1 byte bitfield</td>
     <td>Bit 0 set indicates stand-alone event (no terminating COMMIT)</td>
     <td>Bit 1 set indicates group commit, and that commit id exists</td>
+    <td>Bit 2 set indicates a transactional event group (can be safely rolled
+        back).</td>
+    <td>Bit 3 set indicates that user allowed optimistic parallel apply (the
+        @@SESSION.replicate_allow_parallel value was true at commit).</td>
+    <td>Bit 4 set indicates that this transaction encountered a row (or other)
+        lock wait during execution.</td>
   </tr>
 
   <tr>
@@ -3159,6 +3171,23 @@ public:
     master. Groups with same commit_id are part of the same group commit.
   */
   static const uchar FL_GROUP_COMMIT_ID= 2;
+  /*
+    FL_TRANSACTIONAL is set for an event group that can be safely rolled back
+    (no MyISAM, eg.).
+  */
+  static const uchar FL_TRANSACTIONAL= 4;
+  /*
+    FL_ALLOW_PARALLEL reflects the (negation of the) value of
+    @@SESSION.skip_parallel_replication at the time of commit.
+  */
+  static const uchar FL_ALLOW_PARALLEL= 8;
+  /*
+    FL_WAITED is set if a row lock wait (or other wait) is detected during the
+    execution of the transaction.
+  */
+  static const uchar FL_WAITED= 16;
+  /* FL_DDL is set for event group containing DDL. */
+  static const uchar FL_DDL= 32;
 
 #ifdef MYSQL_SERVER
   Gtid_log_event(THD *thd_arg, uint64 seq_no, uint32 domain_id, bool standalone,
@@ -4235,8 +4264,57 @@ public:
   virtual int get_data_size();
 
   MY_BITMAP const *get_cols() const { return &m_cols; }
+  MY_BITMAP const *get_cols_ai() const { return &m_cols_ai; }
   size_t get_width() const          { return m_width; }
   ulong get_table_id() const        { return m_table_id; }
+
+#if defined(MYSQL_SERVER)
+  /*
+    This member function compares the table's read/write_set
+    with this event's m_cols and m_cols_ai. Comparison takes
+    into account what type of rows event is this: Delete, Write or
+    Update, therefore it uses the correct m_cols[_ai] according
+    to the event type code.
+
+    Note that this member function should only be called for the
+    following events:
+    - Delete_rows_log_event
+    - Write_rows_log_event
+    - Update_rows_log_event
+
+    @param[IN] table The table to compare this events bitmaps
+                     against.
+
+    @return TRUE if sets match, FALSE otherwise. (following
+                 bitmap_cmp return logic).
+
+   */
+  virtual bool read_write_bitmaps_cmp(TABLE *table)
+  {
+    bool res= FALSE;
+
+    switch (get_general_type_code())
+    {
+      case DELETE_ROWS_EVENT:
+        res= bitmap_cmp(get_cols(), table->read_set);
+        break;
+      case UPDATE_ROWS_EVENT:
+        res= (bitmap_cmp(get_cols(), table->read_set) &&
+              bitmap_cmp(get_cols_ai(), table->write_set));
+        break;
+      case WRITE_ROWS_EVENT:
+        res= bitmap_cmp(get_cols(), table->write_set);
+        break;
+      default:
+        /*
+          We should just compare bitmaps for Delete, Write
+          or Update rows events.
+        */
+        DBUG_ASSERT(0);
+    }
+    return res;
+  }
+#endif
 
 #ifdef MYSQL_SERVER
   virtual bool write_data_header(IO_CACHE *file);
@@ -4331,12 +4409,23 @@ protected:
   int find_row(rpl_group_info *);
   int write_row(rpl_group_info *, const bool);
 
+  // Unpack the current row into m_table->record[0], but with
+  // a different columns bitmap.
+  int unpack_current_row(rpl_group_info *rgi, MY_BITMAP const *cols)
+  {
+    DBUG_ASSERT(m_table);
+
+    ASSERT_OR_RETURN_ERROR(m_curr_row <= m_rows_end, HA_ERR_CORRUPT_EVENT);
+    return ::unpack_row(rgi, m_table, m_width, m_curr_row, cols,
+                                   &m_curr_row_end, &m_master_reclength, m_rows_end);
+  }
+
   // Unpack the current row into m_table->record[0]
   int unpack_current_row(rpl_group_info *rgi)
   {
     DBUG_ASSERT(m_table);
 
-    ASSERT_OR_RETURN_ERROR(m_curr_row < m_rows_end, HA_ERR_CORRUPT_EVENT);
+    ASSERT_OR_RETURN_ERROR(m_curr_row <= m_rows_end, HA_ERR_CORRUPT_EVENT);
     return ::unpack_row(rgi, m_table, m_width, m_curr_row, &m_cols,
                                    &m_curr_row_end, &m_master_reclength, m_rows_end);
   }
@@ -4440,8 +4529,8 @@ public:
   };
 
 #if defined(MYSQL_SERVER)
-  Write_rows_log_event(THD*, TABLE*, ulong table_id, 
-		       MY_BITMAP const *cols, bool is_transactional);
+  Write_rows_log_event(THD*, TABLE*, ulong table_id,
+                       bool is_transactional);
 #endif
 #ifdef HAVE_REPLICATION
   Write_rows_log_event(const char *buf, uint event_len, 
@@ -4450,14 +4539,11 @@ public:
 #if defined(MYSQL_SERVER) 
   static bool binlog_row_logging_function(THD *thd, TABLE *table,
                                           bool is_transactional,
-                                          MY_BITMAP *cols,
-                                          uint fields,
                                           const uchar *before_record
                                           __attribute__((unused)),
                                           const uchar *after_record)
   {
-    return thd->binlog_write_row(table, is_transactional,
-                                 cols, fields, after_record);
+    return thd->binlog_write_row(table, is_transactional, after_record);
   }
 #endif
 
@@ -4503,12 +4589,6 @@ public:
 
 #ifdef MYSQL_SERVER
   Update_rows_log_event(THD*, TABLE*, ulong table_id,
-			MY_BITMAP const *cols_bi,
-			MY_BITMAP const *cols_ai,
-                        bool is_transactional);
-
-  Update_rows_log_event(THD*, TABLE*, ulong table_id,
-			MY_BITMAP const *cols,
                         bool is_transactional);
 
   void init(MY_BITMAP const *cols);
@@ -4524,13 +4604,11 @@ public:
 #ifdef MYSQL_SERVER
   static bool binlog_row_logging_function(THD *thd, TABLE *table,
                                           bool is_transactional,
-                                          MY_BITMAP *cols,
-                                          uint fields,
                                           const uchar *before_record,
                                           const uchar *after_record)
   {
     return thd->binlog_update_row(table, is_transactional,
-                                  cols, fields, before_record, after_record);
+                                  before_record, after_record);
   }
 #endif
 
@@ -4587,8 +4665,7 @@ public:
   };
 
 #ifdef MYSQL_SERVER
-  Delete_rows_log_event(THD*, TABLE*, ulong, 
-			MY_BITMAP const *cols, bool is_transactional);
+  Delete_rows_log_event(THD*, TABLE*, ulong, bool is_transactional);
 #endif
 #ifdef HAVE_REPLICATION
   Delete_rows_log_event(const char *buf, uint event_len, 
@@ -4597,14 +4674,12 @@ public:
 #ifdef MYSQL_SERVER
   static bool binlog_row_logging_function(THD *thd, TABLE *table,
                                           bool is_transactional,
-                                          MY_BITMAP *cols,
-                                          uint fields,
                                           const uchar *before_record,
                                           const uchar *after_record
                                           __attribute__((unused)))
   {
     return thd->binlog_delete_row(table, is_transactional,
-                                  cols, fields, before_record);
+                                  before_record);
   }
 #endif
 

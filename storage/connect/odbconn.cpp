@@ -1,5 +1,5 @@
 /************ Odbconn C++ Functions Source Code File (.CPP) ************/
-/*  Name: ODBCONN.CPP  Version 2.1                                     */
+/*  Name: ODBCONN.CPP  Version 2.2                                     */
 /*                                                                     */
 /*  (C) Copyright to the author Olivier BERTRAND          1998-2015    */
 /*                                                                     */
@@ -11,7 +11,7 @@
 /***********************************************************************/
 #include <my_global.h>
 #include <m_string.h>
-#if defined(WIN32)
+#if defined(__WIN__)
 //nclude <io.h>
 //nclude <fcntl.h>
 #include <direct.h>                      // for getcwd
@@ -45,13 +45,13 @@
 #include "osutil.h"
 
 
-#if defined(WIN32)
+#if defined(__WIN__)
 /***********************************************************************/
 /*  For dynamic load of ODBC32.DLL                                     */
 /***********************************************************************/
 #pragma comment(lib, "odbc32.lib")
 extern "C" HINSTANCE s_hModule;           // Saved module handle
-#endif // WIN32
+#endif // __WIN__
 
 int GetConvSize();
 
@@ -116,16 +116,24 @@ static int GetSQLCType(int type)
 /***********************************************************************/
 /*  TranslateSQLType: translate a SQL Type to a PLG type.              */
 /***********************************************************************/
-int TranslateSQLType(int stp, int prec, int& len, char& v)
+int TranslateSQLType(int stp, int prec, int& len, char& v, bool& w)
   {
   int type;
 
   switch (stp) {
+    case SQL_WVARCHAR:                      //  (-9)
+      w = true;
     case SQL_VARCHAR:                       //   12
       v = 'V';
+      type = TYPE_STRING;
+      break;
+    case SQL_WCHAR:                         //  (-8)
+      w = true;
     case SQL_CHAR:                          //    1
       type = TYPE_STRING;
       break;
+    case SQL_WLONGVARCHAR:                  // (-10)
+      w = true;
     case SQL_LONGVARCHAR:                   //  (-1)
       v = 'V';
       type = TYPE_STRING;
@@ -180,7 +188,6 @@ int TranslateSQLType(int stp, int prec, int& len, char& v)
     case SQL_BINARY:                        //  (-2)
     case SQL_VARBINARY:                     //  (-3)
     case SQL_LONGVARBINARY:                 //  (-4)
-//  case SQL_BIT:                           //  (-7)
     case SQL_GUID:                          // (-11)
     default:
       type = TYPE_ERROR;
@@ -410,6 +417,7 @@ PQRYRES ODBCSrcCols(PGLOBAL g, char *dsn, char *src, POPARM sop)
 PQRYRES MyODBCCols(PGLOBAL g, char *dsn, char *tab, bool info)
   {
 //  int      i, type, len, prec;
+  bool     w = false;
 //  PCOLRES  crp, crpt, crpl, crpp;
   PQRYRES  qrp;
   ODBConn *ocp;
@@ -455,7 +463,7 @@ PQRYRES MyODBCCols(PGLOBAL g, char *dsn, char *tab, bool info)
     type = crpt->Kdata->GetIntValue(i);
     len  = crpl->Kdata->GetIntValue(i);
     prec = crpp->Kdata->GetIntValue(i);
-    type = TranslateSQLType(type, prec, len);
+    type = TranslateSQLType(type, prec, len, w);
     crpt->Kdata->SetValue(type, i);
 
     // Some data sources do not count prec in length
@@ -867,8 +875,7 @@ bool DBX::BuildErrorMessage(ODBConn* pdb, HSTMT hstmt)
       for (int i = 0; i < MAX_NUM_OF_MSG
               && (rc == SQL_SUCCESS || rc == SQL_SUCCESS_WITH_INFO)
               && strcmp((char*)state, "00000"); i++) {
-        m_ErrMsg[i] = (PSZ)PlugSubAlloc(g, NULL, strlen((char*)msg) + 1);
-        strcpy(m_ErrMsg[i], (char*)msg);
+        m_ErrMsg[i] = (PSZ)PlugDup(g, (char*)msg);
 
         if (trace)
           htrc("%s: %s, Native=%d\n", state, msg, native);
@@ -882,8 +889,7 @@ bool DBX::BuildErrorMessage(ODBConn* pdb, HSTMT hstmt)
     } else {
       snprintf((char*)msg, SQL_MAX_MESSAGE_LENGTH + 1, "%s: %s", m_Msg,
                MSG(BAD_HANDLE_VAL));
-      m_ErrMsg[0] = (PSZ)PlugSubAlloc(g, NULL, strlen((char*)msg) + 1);
-      strcpy(m_ErrMsg[0], (char*)msg);
+      m_ErrMsg[0] = (PSZ)PlugDup(g, (char*)msg);
 
       if (trace)
         htrc("%s: rc=%hd\n", SVP(m_ErrMsg[0]), m_RC); 
@@ -1012,8 +1018,7 @@ PSZ ODBConn::GetStringInfo(ushort infotype)
 //  *buffer = '\0';
     } // endif rc
 
-  p = (char *)PlugSubAlloc(m_G, NULL, strlen(buffer) + 1);
-  strcpy(p, buffer);
+  p = PlugDup(m_G, buffer);
   return p;
   } // end of GetStringInfo
 
@@ -1204,15 +1209,15 @@ bool ODBConn::DriverConnect(DWORD Options)
   SWORD   nResult;
   PUCHAR  ConnOut = (PUCHAR)PlugSubAlloc(m_G, NULL, MAX_CONNECT_LEN);
   UWORD   wConnectOption = SQL_DRIVER_COMPLETE;
-#if defined(WIN32)
+#if defined(__WIN__)
   HWND    hWndTop = GetForegroundWindow();
   HWND    hWnd = GetParent(hWndTop);
 
   if (hWnd == NULL)
     hWnd = GetDesktopWindow();
-#else   // !WIN32
+#else   // !__WIN__
   HWND    hWnd = (HWND)1;
-#endif  // !WIN32
+#endif  // !__WIN__
   PGLOBAL& g = m_G;
   PDBUSER dup = PlgGetUser(g);
 
@@ -1225,10 +1230,10 @@ bool ODBConn::DriverConnect(DWORD Options)
                         SQL_NTS, ConnOut, MAX_CONNECT_LEN,
                         &nResult, wConnectOption);
 
-#if defined(WIN32)
+#if defined(__WIN__)
   if (hWndTop)
     EnableWindow(hWndTop, true);
-#endif   // WIN32
+#endif   // __WIN__
 
   // If user hit 'Cancel'
   if (rc == SQL_NO_DATA_FOUND) {

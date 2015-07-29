@@ -1,5 +1,5 @@
 /* -*- c-basic-offset: 2 -*- */
-/* Copyright(C) 2011-2014 Brazil
+/* Copyright(C) 2011-2015 Brazil
 
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -70,7 +70,7 @@ bool
 grn_dat_remove_file(grn_ctx *ctx, const char *path)
 {
   struct stat stat;
-  return !::stat(path, &stat) && !unlink(path);
+  return !::stat(path, &stat) && !grn_unlink(path);
 }
 
 grn_rc
@@ -144,7 +144,7 @@ grn_dat_generate_trie_path(const char *base_path, char *trie_path, uint32_t file
     return;
   }
   const size_t len = std::strlen(base_path);
-  std::memcpy(trie_path, base_path, len);
+  grn_memcpy(trie_path, base_path, len);
   trie_path[len] = '.';
   grn_itoh(file_id % (1U << (4 * FILE_ID_LENGTH)),
            trie_path + len + 1, FILE_ID_LENGTH);
@@ -502,7 +502,7 @@ grn_dat_get_key(grn_ctx *ctx, grn_dat *dat, grn_id id, void *keybuf, int bufsize
     return 0;
   }
   if (keybuf && (bufsize >= (int)key.length())) {
-    std::memcpy(keybuf, key.ptr(), key.length());
+    grn_memcpy(keybuf, key.ptr(), key.length());
   }
   return (int)key.length();
 }
@@ -1109,6 +1109,36 @@ grn_dat_repair(grn_ctx *ctx, grn_dat *dat)
   if (!grn_dat_open_trie_if_needed(ctx, dat)) {
     return ctx->rc;
   }
+  return GRN_SUCCESS;
+}
+
+grn_rc
+grn_dat_flush(grn_ctx *ctx, grn_dat *dat)
+{
+  if (!dat->io) {
+    return GRN_SUCCESS;
+  }
+
+  grn_rc rc = grn_io_flush(ctx, dat->io);
+  if (rc != GRN_SUCCESS) {
+    return rc;
+  }
+
+  if (dat->trie) {
+    grn::dat::Trie * const trie = static_cast<grn::dat::Trie *>(dat->trie);
+    try {
+      trie->flush();
+    } catch (const grn::dat::Exception &ex) {
+      const grn_rc error_code = grn_dat_translate_error_code(ex.code());
+      if (error_code == GRN_INPUT_OUTPUT_ERROR) {
+        SERR("grn::dat::Trie::flush failed");
+      } else {
+        ERR(error_code, "grn::dat::Trie::flush failed");
+      }
+      return error_code;
+    }
+  }
+
   return GRN_SUCCESS;
 }
 

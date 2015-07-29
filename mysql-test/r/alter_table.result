@@ -1488,6 +1488,17 @@ t2	CREATE TABLE `t2` (
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t2;
 DROP TABLE t1;
+CREATE TABLE t1 (
+`transaction_id` int(11) NOT NULL DEFAULT '0', 
+KEY `transaction_id` (`transaction_id`));
+ALTER TABLE t1 DROP KEY IF EXISTS transaction_id, ADD PRIMARY KEY IF NOT EXISTS (transaction_id);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `transaction_id` int(11) NOT NULL DEFAULT '0',
+  PRIMARY KEY (`transaction_id`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
 # Bug#11748057 (formerly known as 34972): ALTER TABLE statement doesn't
 #                                         identify correct column name.
 #
@@ -1693,8 +1704,10 @@ INSERT INTO tm1 VALUES (1,1,1), (2,2,2);
 INSERT INTO tm2 VALUES (1,1,1), (2,2,2);
 ALTER TABLE ti1;
 affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
 ALTER TABLE tm1;
 affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
 ALTER TABLE ti1 ADD COLUMN d VARCHAR(200);
 affected rows: 0
 info: Records: 0  Duplicates: 0  Warnings: 0
@@ -1999,3 +2012,30 @@ t1	CREATE TABLE `t1` (
   UNIQUE KEY `idx` (`i`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t1;
+#
+# MDEV-7374 : Losing connection to MySQL while running ALTER TABLE
+#
+CREATE TABLE t1(i INT) ENGINE=INNODB;
+INSERT INTO t1 VALUES (1),(2),(3),(4),(5),(6),(7),(8);
+INSERT INTO t1 SELECT a.* FROM t1 a, t1 b, t1 c, t1 d, t1 e;
+ALTER TABLE t1 MODIFY i FLOAT;
+DROP TABLE t1;
+#
+# Start of 10.1 tests
+#
+#
+# MDEV-7816 ALTER with DROP INDEX and ADD INDEX .. COMMENT='comment2' ignores the new comment
+#
+CREATE TABLE t1(a INT);
+CREATE INDEX i1 ON t1(a) COMMENT 'comment1';
+ALTER TABLE t1 DROP INDEX i1, ADD INDEX i1(a) COMMENT 'comment2';
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  KEY `i1` (`a`) COMMENT 'comment2'
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+#
+# Start of 10.1 tests
+#

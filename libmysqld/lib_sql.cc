@@ -130,10 +130,6 @@ emb_advanced_command(MYSQL *mysql, enum enum_server_command command,
     thd= (THD *) mysql->thd;
   }
 
-#if defined(ENABLED_PROFILING)
-  thd->profiling.start_new_query();
-#endif
-
   thd->clear_data_list();
   /* Check that we are calling the client functions in right order */
   if (mysql->status != MYSQL_STATUS_READY)
@@ -177,10 +173,6 @@ emb_advanced_command(MYSQL *mysql, enum enum_server_command command,
     result= thd->is_error() ? -1 : 0;
 
   thd->mysys_var= 0;
-
-#if defined(ENABLED_PROFILING)
-  thd->profiling.finish_current_query();
-#endif
 
 end:
   thd->reset_globals();

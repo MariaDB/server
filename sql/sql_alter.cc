@@ -18,6 +18,7 @@
                                              // mysql_exchange_partition
 #include "sql_base.h"                        // open_temporary_tables
 #include "sql_alter.h"
+#include "wsrep_mysqld.h"
 
 Alter_info::Alter_info(const Alter_info &rhs, MEM_ROOT *mem_root)
   :drop_list(rhs.drop_list, mem_root),
@@ -293,15 +294,27 @@ bool Sql_cmd_alter_table::execute(THD *thd)
   /* Don't yet allow changing of symlinks with ALTER TABLE */
   if (create_info.data_file_name)
     push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-                        WARN_OPTION_IGNORED, ER(WARN_OPTION_IGNORED),
+                        WARN_OPTION_IGNORED, ER_THD(thd, WARN_OPTION_IGNORED),
                         "DATA DIRECTORY");
   if (create_info.index_file_name)
     push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-                        WARN_OPTION_IGNORED, ER(WARN_OPTION_IGNORED),
+                        WARN_OPTION_IGNORED, ER_THD(thd, WARN_OPTION_IGNORED),
                         "INDEX DIRECTORY");
   create_info.data_file_name= create_info.index_file_name= NULL;
 
   thd->enable_slow_log= opt_log_slow_admin_statements;
+
+#ifdef WITH_WSREP
+  TABLE *find_temporary_table(THD *thd, const TABLE_LIST *tl);
+
+  if ((!thd->is_current_stmt_binlog_format_row() ||
+       !find_temporary_table(thd, first_table)))
+  {
+    WSREP_TO_ISOLATION_BEGIN(((lex->name.str) ? select_lex->db : NULL),
+                             ((lex->name.str) ? lex->name.str : NULL),
+                             first_table);
+  }
+#endif /* WITH_WSREP */
 
   result= mysql_alter_table(thd, select_lex->db, lex->name.str,
                             &create_info,
@@ -312,6 +325,12 @@ bool Sql_cmd_alter_table::execute(THD *thd)
                             lex->ignore);
 
   DBUG_RETURN(result);
+
+#ifdef WITH_WSREP
+error:
+  WSREP_WARN("ALTER TABLE isolation failure");
+  DBUG_RETURN(TRUE);
+#endif /* WITH_WSREP */
 }
 
 bool Sql_cmd_discard_import_tablespace::execute(THD *thd)

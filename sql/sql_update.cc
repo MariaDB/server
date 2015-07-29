@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2011, 2013, Monty Program Ab.
+   Copyright (c) 2011, 2015, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -277,6 +277,7 @@ int mysql_update(THD *thd,
   List<Item> all_fields;
   killed_state killed_status= NOT_KILLED;
   Update_plan query_plan(thd->mem_root);
+  Explain_update *explain;
   query_plan.index= MAX_KEY;
   query_plan.using_filesort= FALSE;
   DBUG_ENTER("mysql_update");
@@ -376,13 +377,13 @@ int mysql_update(THD *thd,
   if (conds)
   {
     Item::cond_result cond_value;
-    conds= remove_eq_conds(thd, conds, &cond_value);
+    conds= conds->remove_eq_conds(thd, &cond_value, true);
     if (cond_value == Item::COND_FALSE)
     {
       limit= 0;                                   // Impossible WHERE
       query_plan.set_impossible_where();
-      if (thd->lex->describe)
-        goto exit_without_my_ok;
+      if (thd->lex->describe || thd->lex->analyze_stmt)
+        goto produce_explain_and_leave;
     }
   }
 
@@ -403,8 +404,8 @@ int mysql_update(THD *thd,
     free_underlaid_joins(thd, select_lex);
 
     query_plan.set_no_partitions();
-    if (thd->lex->describe)
-      goto exit_without_my_ok;
+    if (thd->lex->describe || thd->lex->analyze_stmt)
+      goto produce_explain_and_leave;
 
     my_ok(thd);				// No matching records
     DBUG_RETURN(0);
@@ -419,8 +420,8 @@ int mysql_update(THD *thd,
       (select && select->check_quick(thd, safe_update, limit)))
   {
     query_plan.set_impossible_where();
-    if (thd->lex->describe)
-      goto exit_without_my_ok;
+    if (thd->lex->describe || thd->lex->analyze_stmt)
+      goto produce_explain_and_leave;
 
     delete select;
     free_underlaid_joins(thd, select_lex);
@@ -446,7 +447,7 @@ int mysql_update(THD *thd,
     if (safe_update && !using_limit)
     {
       my_message(ER_UPDATE_WITHOUT_KEY_IN_SAFE_MODE,
-		 ER(ER_UPDATE_WITHOUT_KEY_IN_SAFE_MODE), MYF(0));
+		 ER_THD(thd, ER_UPDATE_WITHOUT_KEY_IN_SAFE_MODE), MYF(0));
       goto err;
     }
   }
@@ -515,8 +516,10 @@ int mysql_update(THD *thd,
      - otherwise, execute the query plan
   */
   if (thd->lex->describe)
-    goto exit_without_my_ok;
-  query_plan.save_explain_data(thd->lex->explain);
+    goto produce_explain_and_leave;
+  explain= query_plan.save_explain_update_data(query_plan.mem_root, thd);
+
+  ANALYZE_START_TRACKING(&explain->command_tracker);
 
   DBUG_EXECUTE_IF("show_explain_probe_update_exec_start", 
                   dbug_serve_apcs(thd, 1););
@@ -551,11 +554,15 @@ int mysql_update(THD *thd,
       table->sort.io_cache = (IO_CACHE *) my_malloc(sizeof(IO_CACHE),
 						    MYF(MY_FAE | MY_ZEROFILL |
                                                         MY_THREAD_SPECIFIC));
-      if (!(sortorder=make_unireg_sortorder(order, &length, NULL)) ||
+      Filesort_tracker *fs_tracker= 
+        thd->lex->explain->get_upd_del_plan()->filesort_tracker;
+
+      if (!(sortorder=make_unireg_sortorder(thd, order, &length, NULL)) ||
           (table->sort.found_records= filesort(thd, table, sortorder, length,
                                                select, limit,
                                                true,
-                                               &examined_rows, &found_rows))
+                                               &examined_rows, &found_rows,
+                                               fs_tracker))
           == HA_POS_ERROR)
       {
 	goto err;
@@ -575,7 +582,7 @@ int mysql_update(THD *thd,
 	we go trough the matching rows, save a pointer to them and
 	update these in a separate loop based on the pointer.
       */
-
+      explain->buf_tracker.on_scan_init();
       IO_CACHE tempfile;
       if (open_cached_file(&tempfile, mysql_tmpdir,TEMP_PREFIX,
 			   DISK_BUFFER_SIZE, MYF(MY_WME)))
@@ -616,6 +623,7 @@ int mysql_update(THD *thd,
 
       while (!(error=info.read_record(&info)) && !thd->killed)
       {
+        explain->buf_tracker.on_record_read();
         if (table->vfield)
           update_virtual_fields(thd, table,
                                 table->triggers ? VCOL_UPDATE_ALL :
@@ -626,6 +634,7 @@ int mysql_update(THD *thd,
           if (table->file->was_semi_consistent_read())
 	    continue;  /* repeat the read of the same row if it still exists */
 
+          explain->buf_tracker.on_record_after_where();
 	  table->file->position(table->record[0]);
 	  if (my_b_write(&tempfile,table->file->ref,
 			 table->file->ref_length))
@@ -675,7 +684,7 @@ int mysql_update(THD *thd,
 	select= new SQL_SELECT;
 	select->head=table;
       }
-      //psergey-todo: disable SHOW EXPLAIN because the plan was deleted? 
+
       if (reinit_io_cache(&tempfile,READ_CACHE,0L,0,0))
 	error=1; /* purecov: inspected */
       select->file=tempfile;			// Read row ptrs from this file
@@ -728,9 +737,11 @@ int mysql_update(THD *thd,
     if all updated columns are read
   */
   can_compare_record= records_are_comparable(table);
+  explain->tracker.on_scan_init();
 
   while (!(error=info.read_record(&info)) && !thd->killed)
   {
+    explain->tracker.on_record_read();
     if (table->vfield)
       update_virtual_fields(thd, table,
                             table->triggers ? VCOL_UPDATE_ALL :
@@ -741,6 +752,7 @@ int mysql_update(THD *thd,
       if (table->file->was_semi_consistent_read())
         continue;  /* repeat the read of the same row if it still exists */
 
+      explain->tracker.on_record_after_where();
       store_record(table,record[1]);
       if (fill_record_n_invoke_before_triggers(thd, table, fields, values, 0,
                                                TRG_EVENT_UPDATE))
@@ -902,6 +914,7 @@ int mysql_update(THD *thd,
       break;
     }
   }
+  ANALYZE_STOP_TRACKING(&explain->command_tracker);
   table->auto_increment_field_not_null= FALSE;
   dup_key_found= 0;
   /*
@@ -949,6 +962,7 @@ int mysql_update(THD *thd,
 
   end_read_record(&info);
   delete select;
+  select= NULL;
   THD_STAGE_INFO(thd, stage_end);
   (void) table->file->extra(HA_EXTRA_NO_IGNORE_DUP_KEY);
 
@@ -963,6 +977,8 @@ int mysql_update(THD *thd,
   
   if (thd->transaction.stmt.modified_non_trans_table)
       thd->transaction.all.modified_non_trans_table= TRUE;
+  thd->transaction.all.m_unsafe_rollback_flags|=
+    (thd->transaction.stmt.m_unsafe_rollback_flags & THD_TRANS::DID_WAIT);
 
   /*
     error < 0 means really no error at all: we processed all rows until the
@@ -975,7 +991,7 @@ int mysql_update(THD *thd,
   */
   if ((error < 0) || thd->transaction.stmt.modified_non_trans_table)
   {
-    if (mysql_bin_log.is_open())
+    if (WSREP_EMULATE_BINLOG(thd) || mysql_bin_log.is_open())
     {
       int errcode= 0;
       if (error < 0)
@@ -998,10 +1014,10 @@ int mysql_update(THD *thd,
   id= thd->arg_of_last_insert_id_function ?
     thd->first_successful_insert_id_in_prev_stmt : 0;
 
-  if (error < 0)
+  if (error < 0 && !thd->lex->analyze_stmt)
   {
     char buff[MYSQL_ERRMSG_SIZE];
-    my_snprintf(buff, sizeof(buff), ER(ER_UPDATE_INFO), (ulong) found,
+    my_snprintf(buff, sizeof(buff), ER_THD(thd, ER_UPDATE_INFO), (ulong) found,
                 (ulong) updated,
                 (ulong) thd->get_stmt_da()->current_statement_warn_count());
     my_ok(thd, (thd->client_capabilities & CLIENT_FOUND_ROWS) ? found : updated,
@@ -1017,19 +1033,28 @@ int mysql_update(THD *thd,
   }
   *found_return= found;
   *updated_return= updated;
+  
+  
+  if (thd->lex->analyze_stmt)
+    goto emit_explain_and_leave;
+
   DBUG_RETURN((error >= 0 || thd->is_error()) ? 1 : 0);
 
 err:
-
   delete select;
   free_underlaid_joins(thd, select_lex);
   table->disable_keyread();
   thd->abort_on_warning= 0;
   DBUG_RETURN(1);
 
-exit_without_my_ok:
-  query_plan.save_explain_data(thd->lex->explain);
+produce_explain_and_leave:
+  /* 
+    We come here for various "degenerate" query plans: impossible WHERE,
+    no-partitions-used, impossible-range, etc.
+  */
+  query_plan.save_explain_update_data(query_plan.mem_root, thd);
 
+emit_explain_and_leave:
   int err2= thd->lex->explain->send_explain(thd);
 
   delete select;
@@ -1520,7 +1545,7 @@ int mysql_multi_update_prepare(THD *thd)
   */
   lex->select_lex.exclude_from_table_unique_test= FALSE;
 
-  if (lex->select_lex.save_prep_leaf_tables(thd))
+  if (lex->save_prep_leaf_tables())
     DBUG_RETURN(TRUE);
  
   DBUG_RETURN (FALSE);
@@ -1546,7 +1571,7 @@ bool mysql_multi_update(THD *thd,
   bool res;
   DBUG_ENTER("mysql_multi_update");
   
-  if (!(*result= new multi_update(table_list,
+  if (!(*result= new (thd->mem_root) multi_update(thd, table_list,
                                  &thd->lex->select_lex.leaf_tables,
                                  fields, values,
                                  handle_duplicates, ignore)))
@@ -1572,7 +1597,7 @@ bool mysql_multi_update(THD *thd,
     (*result)->abort_result_set();
   else
   {
-    if (thd->lex->describe)
+    if (thd->lex->describe || thd->lex->analyze_stmt)
       res= thd->lex->explain->send_explain(thd);
   }
   thd->abort_on_warning= 0;
@@ -1580,12 +1605,13 @@ bool mysql_multi_update(THD *thd,
 }
 
 
-multi_update::multi_update(TABLE_LIST *table_list,
+multi_update::multi_update(THD *thd_arg, TABLE_LIST *table_list,
                            List<TABLE_LIST> *leaves_list,
 			   List<Item> *field_list, List<Item> *value_list,
 			   enum enum_duplicates handle_duplicates_arg,
-                           bool ignore_arg)
-  :all_tables(table_list), leaves(leaves_list), update_tables(0),
+                           bool ignore_arg):
+   select_result_interceptor(thd_arg),
+   all_tables(table_list), leaves(leaves_list), update_tables(0),
    tmp_tables(0), updated(0), found(0), fields(field_list),
    values(value_list), table_count(0), copy_field(0),
    handle_duplicates(handle_duplicates_arg), do_update(1), trans_safe(1),
@@ -1624,7 +1650,7 @@ int multi_update::prepare(List<Item> &not_used_values,
 
   if (!tables_to_update)
   {
-    my_message(ER_NO_TABLES_USED, ER(ER_NO_TABLES_USED), MYF(0));
+    my_message(ER_NO_TABLES_USED, ER_THD(thd, ER_NO_TABLES_USED), MYF(0));
     DBUG_RETURN(1);
   }
 
@@ -1960,7 +1986,7 @@ loop_end:
         DBUG_RETURN(1);
     } while ((tbl= tbl_it++));
 
-    temp_fields.concat(fields_for_table[cnt]);
+    temp_fields.append(fields_for_table[cnt]);
 
     /* Make an unique key over the first field to avoid duplicated updates */
     bzero((char*) &group, sizeof(group));
@@ -2217,7 +2243,7 @@ void multi_update::abort_result_set()
       The query has to binlog because there's a modified non-transactional table
       either from the query's list or via a stored routine: bug#13270,23333
     */
-    if (mysql_bin_log.is_open())
+    if (WSREP_EMULATE_BINLOG(thd) || mysql_bin_log.is_open())
     {
       /*
         THD::killed status might not have been set ON at time of an error
@@ -2232,6 +2258,8 @@ void multi_update::abort_result_set()
     }
     thd->transaction.all.modified_non_trans_table= TRUE;
   }
+  thd->transaction.all.m_unsafe_rollback_flags|=
+    (thd->transaction.stmt.m_unsafe_rollback_flags & THD_TRANS::DID_WAIT);
   DBUG_ASSERT(trans_safe || !updated || thd->transaction.stmt.modified_non_trans_table);
 }
 
@@ -2483,10 +2511,12 @@ bool multi_update::send_eof()
 
   if (thd->transaction.stmt.modified_non_trans_table)
     thd->transaction.all.modified_non_trans_table= TRUE;
+  thd->transaction.all.m_unsafe_rollback_flags|=
+    (thd->transaction.stmt.m_unsafe_rollback_flags & THD_TRANS::DID_WAIT);
 
   if (local_error == 0 || thd->transaction.stmt.modified_non_trans_table)
   {
-    if (mysql_bin_log.is_open())
+    if (WSREP_EMULATE_BINLOG(thd) || mysql_bin_log.is_open())
     {
       int errcode= 0;
       if (local_error == 0)
@@ -2515,11 +2545,14 @@ bool multi_update::send_eof()
     DBUG_RETURN(TRUE);
   }
 
-  id= thd->arg_of_last_insert_id_function ?
+  if (!thd->lex->analyze_stmt)
+  {
+    id= thd->arg_of_last_insert_id_function ?
     thd->first_successful_insert_id_in_prev_stmt : 0;
-  my_snprintf(buff, sizeof(buff), ER(ER_UPDATE_INFO),
-              (ulong) found, (ulong) updated, (ulong) thd->cuted_fields);
-  ::my_ok(thd, (thd->client_capabilities & CLIENT_FOUND_ROWS) ? found : updated,
-          id, buff);
+    my_snprintf(buff, sizeof(buff), ER_THD(thd, ER_UPDATE_INFO),
+                (ulong) found, (ulong) updated, (ulong) thd->cuted_fields);
+    ::my_ok(thd, (thd->client_capabilities & CLIENT_FOUND_ROWS) ? found : updated,
+            id, buff);
+  }
   DBUG_RETURN(FALSE);
 }

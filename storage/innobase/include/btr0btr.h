@@ -2,6 +2,7 @@
 
 Copyright (c) 1994, 2013, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
+Copyright (c) 2014, SkySQL Ab. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -447,7 +448,7 @@ btr_root_raise_and_insert(
 	const dtuple_t*	tuple,	/*!< in: tuple to insert */
 	ulint		n_ext,	/*!< in: number of externally stored columns */
 	mtr_t*		mtr)	/*!< in: mtr */
-	__attribute__((nonnull, warn_unused_result));
+	__attribute__((nonnull(2,3,4,7), warn_unused_result));
 /*************************************************************//**
 Reorganizes an index page.
 
@@ -542,7 +543,7 @@ btr_page_split_and_insert(
 	const dtuple_t*	tuple,	/*!< in: tuple to insert */
 	ulint		n_ext,	/*!< in: number of externally stored columns */
 	mtr_t*		mtr)	/*!< in: mtr */
-	__attribute__((nonnull, warn_unused_result));
+	__attribute__((nonnull(2,3,4,7), warn_unused_result));
 /*******************************************************//**
 Inserts a data tuple to a tree on a non-leaf level. It is assumed
 that mtr holds an x-latch on the tree. */
@@ -671,6 +672,21 @@ btr_get_size(
 				is s-latched */
 	__attribute__((nonnull, warn_unused_result));
 /**************************************************************//**
+Gets the number of reserved and used pages in a B-tree.
+@return	number of pages reserved, or ULINT_UNDEFINED if the index
+is unavailable */
+UNIV_INTERN
+ulint
+btr_get_size_and_reserved(
+/*======================*/
+	dict_index_t*	index,	/*!< in: index */
+	ulint		flag,	/*!< in: BTR_N_LEAF_PAGES or BTR_TOTAL_SIZE */
+	ulint*		used,	/*!< out: number of pages used (<= reserved) */
+	mtr_t*		mtr)	/*!< in/out: mini-transaction where index
+				is s-latched */
+	__attribute__((nonnull));
+
+/**************************************************************//**
 Allocates a new file page to be used in an index tree. NOTE: we assume
 that the caller has made the reservation for free extents!
 @retval NULL if no page could be allocated
@@ -715,8 +731,36 @@ btr_page_free_low(
 	dict_index_t*	index,	/*!< in: index tree */
 	buf_block_t*	block,	/*!< in: block to be freed, x-latched */
 	ulint		level,	/*!< in: page level */
+	bool		blob,   /*!< in: blob page */
 	mtr_t*		mtr)	/*!< in: mtr */
 	__attribute__((nonnull));
+/*************************************************************//**
+Reorganizes an index page.
+
+IMPORTANT: On success, the caller will have to update IBUF_BITMAP_FREE
+if this is a compressed leaf page in a secondary index. This has to
+be done either within the same mini-transaction, or by invoking
+ibuf_reset_free_bits() before mtr_commit(). On uncompressed pages,
+IBUF_BITMAP_FREE is unaffected by reorganization.
+
+@retval true if the operation was successful
+@retval false if it is a compressed page, and recompression failed */
+UNIV_INTERN
+bool
+btr_page_reorganize_block(
+/*======================*/
+	bool		recovery,/*!< in: true if called in recovery:
+				locks should not be updated, i.e.,
+				there cannot exist locks on the
+				page, and a hash index should not be
+				dropped: it cannot exist */
+	ulint		z_level,/*!< in: compression level to be used
+				if dealing with compressed page */
+	buf_block_t*	block,	/*!< in/out: B-tree page */
+	dict_index_t*	index,	/*!< in: the index tree of the page */
+	mtr_t*		mtr)	/*!< in/out: mini-transaction */
+	__attribute__((nonnull));
+
 #ifdef UNIV_BTR_PRINT
 /*************************************************************//**
 Prints size info of a B-tree. */
@@ -762,6 +806,60 @@ btr_validate_index(
 	const trx_t*	trx)			/*!< in: transaction or 0 */
 	__attribute__((nonnull(1), warn_unused_result));
 
+#ifdef UNIV_SYNC_DEBUG
+/*************************************************************//**
+Removes a page from the level list of pages.
+@param space	in: space where removed
+@param zip_size	in: compressed page size in bytes, or 0 for uncompressed
+@param page	in/out: page to remove
+@param index	in: index tree
+@param mtr	in/out: mini-transaction */
+# define btr_level_list_remove(space,zip_size,page,index,mtr)		\
+	btr_level_list_remove_func(space,zip_size,page,index,mtr)
+#else /* UNIV_SYNC_DEBUG */
+/*************************************************************//**
+Removes a page from the level list of pages.
+@param space	in: space where removed
+@param zip_size	in: compressed page size in bytes, or 0 for uncompressed
+@param page	in/out: page to remove
+@param index	in: index tree
+@param mtr	in/out: mini-transaction */
+# define btr_level_list_remove(space,zip_size,page,index,mtr)		\
+	btr_level_list_remove_func(space,zip_size,page,mtr)
+#endif /* UNIV_SYNC_DEBUG */
+
+/*************************************************************//**
+Removes a page from the level list of pages. */
+UNIV_INTERN
+void
+btr_level_list_remove_func(
+/*=======================*/
+	ulint			space,	/*!< in: space where removed */
+	ulint			zip_size,/*!< in: compressed page size in bytes
+					or 0 for uncompressed pages */
+	page_t*			page,	/*!< in/out: page to remove */
+#ifdef UNIV_SYNC_DEBUG
+	const dict_index_t*	index,	/*!< in: index tree */
+#endif /* UNIV_SYNC_DEBUG */
+	mtr_t*			mtr)	/*!< in/out: mini-transaction */
+	__attribute__((nonnull));
+
+/*************************************************************//**
+If page is the only on its level, this function moves its records to the
+father page, thus reducing the tree height.
+@return father block */
+UNIV_INTERN
+buf_block_t*
+btr_lift_page_up(
+/*=============*/
+	dict_index_t*	index,	/*!< in: index tree */
+	buf_block_t*	block,	/*!< in: page which is the only on its level;
+				must not be empty: use
+				btr_discard_only_page_on_level if the last
+				record from the page should be removed */
+	mtr_t*		mtr)	/*!< in: mtr */
+	__attribute__((nonnull));
+
 #define BTR_N_LEAF_PAGES	1
 #define BTR_TOTAL_SIZE		2
 #endif /* !UNIV_HOTBACKUP */
@@ -769,5 +867,9 @@ btr_validate_index(
 #ifndef UNIV_NONINL
 #include "btr0btr.ic"
 #endif
+
+/****************************************************************
+Global variable controlling if scrubbing should be performed */
+extern my_bool srv_immediate_scrub_data_uncompressed;
 
 #endif

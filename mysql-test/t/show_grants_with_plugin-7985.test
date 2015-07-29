@@ -1,0 +1,161 @@
+--source include/not_embedded.inc
+--enable_connect_log
+call mtr.add_suppression("password and an authentication plugin");
+
+--echo #
+--echo # Create a user with mysql_native_password plugin.
+--echo # The user has no password or auth_string set.
+--echo #
+
+create user u1;
+GRANT SELECT ON mysql.* to u1 IDENTIFIED VIA mysql_native_password;
+select user, host, password, plugin, authentication_string from mysql.user where user = 'u1';
+
+--echo #
+--echo # The user's grants should show no password at all.
+--echo #
+show grants for u1;
+--echo #
+--echo # Test to see if connecting with no password is succesful.
+--echo #
+--connect (con1, localhost, u1,,)
+show grants;
+--disconnect con1
+
+--connection default
+--echo #
+--echo # Test after flushing privileges.
+--echo #
+flush privileges;
+--connect (con1, localhost, u1,,)
+show grants;
+--disconnect con1
+
+--connection default
+--echo #
+--echo # Now add a mysql_native password string in authentication_string.
+--echo #
+# Password string is SOMETHING
+GRANT SELECT ON mysql.* to u1 IDENTIFIED VIA mysql_native_password
+USING '*7AFEFD08B6B720E781FB000CAA418F54FA662626';
+select user, host, password, plugin, authentication_string from mysql.user where user = 'u1';
+--echo #
+--echo # Test to see if connecting with password is succesful.
+--echo #
+--connect (con1, localhost, u1,'SOMETHING',)
+show grants;
+--disconnect con1
+
+--connection default
+--echo #
+--echo # Test after flushing privileges.
+--echo #
+flush privileges;
+--connect (con1, localhost, u1,'SOMETHING',)
+show grants;
+--disconnect con1
+--connection default
+
+--echo #
+--echo # Now we also set a password for the user.
+--echo #
+set password for u1 = PASSWORD('SOMETHINGELSE');
+select user, host, password, plugin, authentication_string from mysql.user where user = 'u1';
+
+--echo #
+--echo # Here we should use the password field, as that primes over
+--echo # the authentication_string field.
+--echo #
+show grants for u1;
+
+--echo #
+--echo # Logging in with the user's password should work.
+--echo #
+--connect (con1, localhost, u1,'SOMETHINGELSE',)
+show grants;
+--disconnect con1
+--connection default
+--echo #
+--echo # Reload privileges and test logging in again.
+--echo #
+flush privileges;
+show grants for u1;
+--echo #
+--echo # Here we connect via the user's password again.
+--echo #
+--connect (con1, localhost, u1,'SOMETHINGELSE',)
+show grants;
+--disconnect con1
+--connection default
+
+--echo #
+--echo # Now we remove the authentication plugin password, flush privileges and
+--echo # try again.
+--echo #
+update mysql.user set authentication_string = '' where user='u1';
+select user, host, password, plugin, authentication_string from mysql.user where user = 'u1';
+flush privileges;
+show grants for u1;
+--echo #
+--echo # Here we connect via the user's password.
+--echo #
+--connect (con1, localhost, u1,'SOMETHINGELSE',)
+select user, host, password, plugin, authentication_string from mysql.user where user = 'u1';
+--disconnect con1
+--connection default
+
+--echo #
+--echo # Try and set a wrong auth_string password, with mysql_native_password.
+--echo # Make sure it fails.
+--echo #
+--error ER_PASSWD_LENGTH
+GRANT USAGE ON *.* TO u1 IDENTIFIED VIA mysql_native_password USING 'asd';
+--echo #
+--echo # Now set a correct password.
+--echo #
+GRANT SELECT ON mysql.* to u1 IDENTIFIED VIA mysql_native_password
+USING '*7AFEFD08B6B720E781FB000CAA418F54FA662626';
+show grants for u1;
+
+--echo #
+--echo # Test if the user can now use that password instead.
+--echo #
+--connect (con1, localhost, u1,'SOMETHING',)
+show grants;
+--disconnect con1
+
+--echo #
+--echo # Test if the user can now use that password instead, after flushing privileges;
+--echo #
+--connection default
+flush privileges;
+
+--connect (con1, localhost, u1,'SOMETHING',)
+show grants;
+--disconnect con1
+--connection default
+
+--echo #
+--echo # Clear all passwords from the user.
+--echo #
+set password for u1 = '';
+select user, host, password, plugin, authentication_string from mysql.user where user = 'u1';
+
+--echo #
+--echo # Test no password connect.
+--echo #
+--connect (con1, localhost, u1,,)
+show grants;
+--disconnect con1
+--connection default
+
+--echo #
+--echo # Test no password connect, after flushing privileges.
+--echo #
+flush privileges;
+--connect (con1, localhost, u1,,)
+show grants;
+--disconnect con1
+--connection default
+
+drop user u1;

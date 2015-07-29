@@ -73,7 +73,7 @@ CC="gcc -static-libgcc" CXX="g++ -static-libgcc" CFLAGS="$FLAGS" CXXFLAGS="$FLAG
 	--without-docs --with-extra-charsets=all \
 	--with-libwrap --with-ssl --with-readline --with-libevent --with-zlib-dir=bundled \
 	--with-partition --with-embedded-server \
-	--with-plugins=max-no-ndb \
+	--with-plugins=max \
 	--without-plugin-innodb_plugin
 
 make $AM_MAKEFLAGS

@@ -24,7 +24,9 @@
 #define TABLE_RULE_ARR_SIZE   16
 
 Rpl_filter::Rpl_filter() : 
-  table_rules_on(0), do_table_inited(0), ignore_table_inited(0),
+  parallel_mode(SLAVE_PARALLEL_CONSERVATIVE),
+  table_rules_on(0),
+  do_table_inited(0), ignore_table_inited(0),
   wild_do_table_inited(0), wild_ignore_table_inited(0)
 {
   do_db.empty();

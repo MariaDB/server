@@ -123,11 +123,7 @@ buf_dump_status(
 		sizeof(export_vars.innodb_buffer_pool_dump_status),
 		fmt, ap);
 
-	if (severity == STATUS_NOTICE || severity == STATUS_ERR) {
-		ut_print_timestamp(stderr);
-		fprintf(stderr, " InnoDB: %s\n",
-			export_vars.innodb_buffer_pool_dump_status);
-	}
+	ib_logf((ib_log_level_t) severity, "%s", export_vars.innodb_buffer_pool_dump_status);
 
 	va_end(ap);
 }
@@ -215,6 +211,8 @@ buf_dump(
 		buf_dump_t*		dump;
 		ulint			n_pages;
 		ulint			j;
+		ulint			limit;
+		ulint			counter;
 
 		buf_pool = buf_pool_from_array(i);
 
@@ -258,6 +256,9 @@ buf_dump(
 
 		buf_pool_mutex_exit(buf_pool);
 
+		limit = (ulint)((double)n_pages * ((double)srv_buf_dump_status_frequency / (double)100));
+		counter = 0;
+
 		for (j = 0; j < n_pages && !SHOULD_QUIT(); j++) {
 			ret = fprintf(f, ULINTPF "," ULINTPF "\n",
 				      BUF_DUMP_SPACE(dump[j]),
@@ -272,7 +273,14 @@ buf_dump(
 				return;
 			}
 
-			if (j % 128 == 0) {
+			counter++;
+
+			/* Print buffer pool dump status only if
+			srv_buf_dump_status_frequency is > 0 and
+			we have processed that amount of pages. */
+			if (srv_buf_dump_status_frequency &&
+			    counter == limit) {
+				counter = 0;
 				buf_dump_status(
 					STATUS_INFO,
 					"Dumping buffer pool "

@@ -90,7 +90,7 @@ PATENT RIGHTS GRANT:
 #ident "The technology is licensed by the Massachusetts Institute of Technology, Rutgers State University of New Jersey, and the Research Foundation of State University of New York at Stony Brook under United States of America Serial No. 11/760379 and to the patents and/or patent applications resulting from it."
 #if TOKU_INCLUDE_ALTER_56
 
-#if 100000 <= MYSQL_VERSION_ID && MYSQL_VERSION_ID <= 100099
+#if 100000 <= MYSQL_VERSION_ID && MYSQL_VERSION_ID <= 101099
 #define TOKU_ALTER_RENAME ALTER_RENAME
 #define DYNAMIC_ARRAY_ELEMENTS_TYPE size_t
 #elif (50600 <= MYSQL_VERSION_ID && MYSQL_VERSION_ID <= 50699) || \
@@ -221,7 +221,7 @@ static bool change_type_is_supported(TABLE *table, TABLE *altered_table, Alter_i
 static ulong fix_handler_flags(THD *thd, TABLE *table, TABLE *altered_table, Alter_inplace_info *ha_alter_info) {
     ulong handler_flags = ha_alter_info->handler_flags;
 
-#if 100000 <= MYSQL_VERSION_ID && MYSQL_VERSION_ID <= 100099
+#if 100000 <= MYSQL_VERSION_ID && MYSQL_VERSION_ID <= 100199
     // This is automatically supported, hide the flag from later checks
     handler_flags &= ~Alter_inplace_info::ALTER_PARTITIONED;
 #endif
@@ -724,13 +724,13 @@ bool ha_tokudb::commit_inplace_alter_table(TABLE *altered_table, Alter_inplace_i
     if (commit) {
 #if (50613 <= MYSQL_VERSION_ID && MYSQL_VERSION_ID <= 50699) || \
     (50700 <= MYSQL_VERSION_ID && MYSQL_VERSION_ID <= 50799) || \
-    (100000 <= MYSQL_VERSION_ID && MYSQL_VERSION_ID <= 100099)
+    (100000 <= MYSQL_VERSION_ID && MYSQL_VERSION_ID <= 100199)
         if (ha_alter_info->group_commit_ctx) {
             ha_alter_info->group_commit_ctx = NULL;
         }
 #endif
 #if (50500 <= MYSQL_VERSION_ID && MYSQL_VERSION_ID <= 50599) || \
-    (100000 <= MYSQL_VERSION_ID && MYSQL_VERSION_ID <= 100099)
+    (100000 <= MYSQL_VERSION_ID && MYSQL_VERSION_ID <= 100199)
 #if WITH_PARTITION_STORAGE_ENGINE
         if (TOKU_PARTITION_WRITE_FRM_DATA || altered_table->part_info == NULL) {
 #else
@@ -784,13 +784,16 @@ bool ha_tokudb::commit_inplace_alter_table(TABLE *altered_table, Alter_inplace_i
         assert(trx->tokudb_lock_count > 0);
         // for partitioned tables, we use a single transaction to do all of the partition changes.  the tokudb_lock_count
         // is a reference count for each of the handlers to the same transaction.  obviously, we want to only abort once.
-        if (!--trx->tokudb_lock_count) {
-            abort_txn(ctx->alter_txn);
-            ctx->alter_txn = NULL;
-            trx->stmt = NULL;
-            trx->sub_sp_level = NULL;
+        if (trx->tokudb_lock_count > 0) {
+            if (--trx->tokudb_lock_count <= trx->create_lock_count) {
+                trx->create_lock_count = 0;
+                abort_txn(ctx->alter_txn);
+                ctx->alter_txn = NULL;
+                trx->stmt = NULL;
+                trx->sub_sp_level = NULL;
+            }
+            transaction = NULL;
         }
-        transaction = NULL;
 
         if (ctx->add_index_changed) {
             restore_add_index(table, ha_alter_info->index_add_count, ctx->incremented_num_DBs, ctx->modified_DBs);

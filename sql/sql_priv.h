@@ -51,9 +51,9 @@
     compile_time_assert(MYSQL_VERSION_ID < VerHi * 10000 + VerLo * 100);    \
     if (((THD *) Thd) != NULL)                                              \
       push_warning_printf(((THD *) Thd), Sql_condition::WARN_LEVEL_WARN,    \
-                        ER_WARN_DEPRECATED_SYNTAX,                          \
-                        ER(ER_WARN_DEPRECATED_SYNTAX),                      \
-                        (Old), (New));                                      \
+                         ER_WARN_DEPRECATED_SYNTAX,                          \
+                         ER_THD(((THD *) Thd), ER_WARN_DEPRECATED_SYNTAX), \
+                         (Old), (New));                                      \
     else                                                                    \
       sql_print_warning("The syntax '%s' is deprecated and will be removed " \
                         "in a future release. Please use %s instead.",      \
@@ -77,11 +77,12 @@
 
 #define WARN_DEPRECATED_NO_REPLACEMENT(Thd,Old)                             \
   do {                                                                      \
-    if (((THD *) Thd) != NULL)                                              \
-      push_warning_printf(((THD *) Thd), Sql_condition::WARN_LEVEL_WARN,    \
-                        ER_WARN_DEPRECATED_SYNTAX_NO_REPLACEMENT,           \
-                        ER(ER_WARN_DEPRECATED_SYNTAX_NO_REPLACEMENT),       \
-                        (Old));                                             \
+    THD *thd_= ((THD*) Thd);                                                \
+    if (thd_ != NULL)                                                       \
+      push_warning_printf(thd_, Sql_condition::WARN_LEVEL_WARN,             \
+                         ER_WARN_DEPRECATED_SYNTAX_NO_REPLACEMENT,          \
+                         ER_THD(thd_, ER_WARN_DEPRECATED_SYNTAX_NO_REPLACEMENT), \
+                         (Old));                                            \
     else                                                                    \
       sql_print_warning("'%s' is deprecated and will be removed "           \
                         "in a future release.", (Old));                     \
@@ -181,6 +182,7 @@
 */
 #define OPTION_ALLOW_BATCH              (1ULL << 36) // THD, intern (slave)
 #define OPTION_SKIP_REPLICATION         (1ULL << 37) // THD, user
+#define OPTION_RPL_SKIP_PARALLEL        (1ULL << 38)
 
 /* The rest of the file is included in the server only */
 #ifndef MYSQL_CLIENT
@@ -191,7 +193,7 @@
 #define OPTIMIZER_SWITCH_INDEX_MERGE_SORT_UNION    (1ULL << 2)
 #define OPTIMIZER_SWITCH_INDEX_MERGE_INTERSECT     (1ULL << 3)
 #define OPTIMIZER_SWITCH_INDEX_MERGE_SORT_INTERSECT (1ULL << 4)
-#define OPTIMIZER_SWITCH_ENGINE_CONDITION_PUSHDOWN (1ULL << 5)
+#define deprecated_ENGINE_CONDITION_PUSHDOWN       (1ULL << 5)
 #define OPTIMIZER_SWITCH_INDEX_COND_PUSHDOWN       (1ULL << 6)
 #define OPTIMIZER_SWITCH_DERIVED_MERGE             (1ULL << 7)
 #define OPTIMIZER_SWITCH_DERIVED_WITH_KEYS         (1ULL << 8)
@@ -345,11 +347,6 @@ enum enum_parsing_place
   PARSING_PLACE_SIZE /* always should be the last */
 };
 
-
-enum enum_var_type
-{
-  OPT_DEFAULT= 0, OPT_SESSION, OPT_GLOBAL
-};
 
 class sys_var;
 

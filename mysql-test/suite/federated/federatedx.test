@@ -1506,8 +1506,7 @@ DROP TABLE federated.test;
 # and lost changes to NEW variables.
 # Since for federated engine only operation which is affected by wrong
 # fields mark-up is handler::write_row() this file constains coverage
-# for ON INSERT triggers only. Tests for other types of triggers reside
-# in ndb_trigger.test.
+# for ON INSERT triggers only.
 #
 connection slave;
 --disable_warnings
@@ -1967,7 +1966,7 @@ connection default;
 
 --echo End of 5.0 tests
 
-create server 's1' foreign data wrapper 'mysql' options (port 3306);
+create server 's1' foreign data wrapper 'mysql' options (host 'foo');
 drop server 's1';
 
 

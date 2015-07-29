@@ -1505,7 +1505,7 @@ my_bool _ma_log_delete(MARIA_PAGE *ma_page, const uchar *key_pos,
 
   /* Store keypage_flag */
   *log_pos++= KEY_OP_SET_PAGEFLAG;
-  *log_pos++= ma_page->buff[KEYPAGE_TRANSFLAG_OFFSET];
+  *log_pos++= _ma_get_keypage_flag(info->s, ma_page->buff);
 
   log_pos[0]= KEY_OP_OFFSET;
   int2store(log_pos+1, offset);

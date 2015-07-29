@@ -1,0 +1,49 @@
+--source include/have_wsrep.inc
+
+--echo #
+--echo # wsrep_provider_options
+--echo #
+
+call mtr.add_suppression("WSREP: Failed to get provider options");
+
+--echo # save the initial value
+SET @wsrep_provider_options_global_saved = @@global.wsrep_provider_options;
+
+--echo # default
+SELECT @@global.wsrep_provider_options;
+
+--echo
+--echo # scope
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SELECT @@session.wsrep_provider_options;
+--error 0,ER_WRONG_ARGUMENTS
+SET @@global.wsrep_provider_options='option1';
+SELECT @@global.wsrep_provider_options;
+
+--echo
+--echo # valid values
+--error 0,ER_WRONG_ARGUMENTS
+SET @@global.wsrep_provider_options='name1=value1;name2=value2';
+SELECT @@global.wsrep_provider_options;
+--error 0,ER_WRONG_ARGUMENTS
+SET @@global.wsrep_provider_options='hyphenated-name:value';
+SELECT @@global.wsrep_provider_options;
+--error 0,ER_WRONG_ARGUMENTS
+SET @@global.wsrep_provider_options=default;
+SELECT @@global.wsrep_provider_options;
+
+--echo
+--echo # invalid values
+--error ER_WRONG_TYPE_FOR_VAR
+SET @@global.wsrep_provider_options=1;
+SELECT @@global.wsrep_provider_options;
+--error ER_WRONG_ARGUMENTS,ER_WRONG_ARGUMENTS
+SET @@global.wsrep_provider_options=NULL;
+SELECT @@global.wsrep_provider_options;
+
+--echo
+--echo # restore the initial value
+--error 0,ER_WRONG_ARGUMENTS
+SET @@global.wsrep_provider_options = @wsrep_provider_options_global_saved;
+
+--echo # End of test

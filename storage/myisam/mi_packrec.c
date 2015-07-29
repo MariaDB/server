@@ -1364,7 +1364,6 @@ uint _mi_pack_get_block_info(MI_INFO *myisam, MI_BIT_BUFF *bit_buff,
 {
   uchar *header=info->header;
   uint head_length, UNINIT_VAR(ref_length);
-  LINT_INIT(ref_length);
 
   if (file >= 0)
   {

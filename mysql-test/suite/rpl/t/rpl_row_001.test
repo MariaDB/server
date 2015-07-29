@@ -1,8 +1,6 @@
 ########################################################
 # By JBM 2005-02-15 Wrapped to allow reuse of test code#
-# Added to skip if ndb is default                      #
 ########################################################
--- source include/not_ndb_default.inc
 -- source include/have_binlog_format_row.inc
 # Slow test, don't run during staging part
 -- source include/not_staging.inc

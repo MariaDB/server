@@ -10,8 +10,6 @@
 # Original Date: 2006-11-22                                                    #
 # Change Author: MattiasJ                                                      #
 # Change Date: 2008-05-15                                                      #
-# Change: Added $max_8_partitions since ndb only capable of 8 partitions       #
-#         and $no_reorg_partition since ndb does not support that              #
 ################################################################################
 --echo -------------------------------------------------------------------------
 --echo ---  $sqlfunc  in partition with coltype  $coltype

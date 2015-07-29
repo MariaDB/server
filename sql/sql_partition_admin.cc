@@ -1,4 +1,5 @@
 /* Copyright (c) 2010, 2013, Oracle and/or its affiliates. All rights reserved.
+   Copyright (c) 2014, SkySQL Ab.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -128,7 +129,7 @@ static bool check_exchange_partition(TABLE *table, TABLE *part_table)
   {
     /*
       Only allowed on partitioned tables throught the generic ha_partition
-      handler, i.e not yet for native partitioning (NDB).
+      handler, i.e not yet for native partitioning.
     */
     my_error(ER_PARTITION_MGMT_ON_NONPARTITIONED, MYF(0));
     DBUG_RETURN(TRUE);
@@ -763,13 +764,25 @@ bool Sql_cmd_alter_table_truncate_partition::execute(THD *thd)
   if (check_one_table_access(thd, DROP_ACL, first_table))
     DBUG_RETURN(TRUE);
 
+#ifdef WITH_WSREP
+  if (WSREP_ON)
+  {
+    TABLE *find_temporary_table(THD *thd, const TABLE_LIST *tl);
+
+    if ((!thd->is_current_stmt_binlog_format_row() ||
+         !find_temporary_table(thd, first_table))  &&
+        wsrep_to_isolation_begin(
+          thd, first_table->db, first_table->table_name, NULL)
+       )
+    {
+      WSREP_WARN("ALTER TABLE isolation failure");
+      DBUG_RETURN(TRUE);
+    }
+  }
+#endif /* WITH_WSREP */
+
   if (open_tables(thd, &first_table, &table_counter, 0))
     DBUG_RETURN(true);
-
-  /*
-    TODO: Add support for TRUNCATE PARTITION for NDB and other
-          engines supporting native partitioning.
-  */
 
   if (!first_table->table || first_table->view ||
       first_table->table->s->db_type() != partition_hton)
@@ -824,9 +837,16 @@ bool Sql_cmd_alter_table_truncate_partition::execute(THD *thd)
     log. The exception is a unimplemented truncate method or failure
     before any call to handler::truncate() is done.
     Also, it is logged in statement format, regardless of the binlog format.
+
+    Since we've changed data within the table, we also have to invalidate
+    the query cache for it.
   */
-  if (error != HA_ERR_WRONG_COMMAND && binlog_stmt)
-    error|= write_bin_log(thd, !error, thd->query(), thd->query_length());
+  if (error != HA_ERR_WRONG_COMMAND)
+  {
+    query_cache_invalidate3(thd, first_table, FALSE);
+    if (binlog_stmt)
+      error|= write_bin_log(thd, !error, thd->query(), thd->query_length());
+  }
 
   /*
     A locked table ticket was upgraded to a exclusive lock. After the

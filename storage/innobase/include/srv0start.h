@@ -37,7 +37,8 @@ Created 10/10/1995 Heikki Tuuri
 #endif
 
 /*********************************************************************//**
-Normalizes a directory path for Windows: converts slashes to backslashes. */
+Normalizes a directory path for Windows: converts slashes to backslashes. 
+*/
 UNIV_INTERN
 void
 srv_normalize_path_for_win(

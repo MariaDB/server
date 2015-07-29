@@ -121,7 +121,7 @@ int make_profile_table_for_show(THD *thd, ST_SCHEMA_TABLE *schema_table)
       continue;
 
     field_info= &schema_table->fields_info[i];
-    Item_field *field= new Item_field(context,
+    Item_field *field= new Item_field(thd, context,
                                       NullS, NullS, field_info->field_name);
     if (field)
     {
@@ -302,7 +302,8 @@ void QUERY_PROFILE::new_status(const char *status_arg,
   PROF_MEASUREMENT *prof;
   DBUG_ENTER("QUERY_PROFILE::status");
 
-  DBUG_ASSERT(status_arg != NULL);
+  if (!status_arg)
+    DBUG_VOID_RETURN;
 
   if ((function_arg != NULL) && (file_arg != NULL))
     prof= new PROF_MEASUREMENT(this, status_arg, function_arg, base_name(file_arg), line_arg);
@@ -337,62 +338,6 @@ PROFILING::~PROFILING()
 }
 
 /**
-  A new state is given, and that signals the profiler to start a new
-  timed step for the current query's profile.
-
-  @param  status_arg  name of this step
-  @param  function_arg  calling function (usually supplied from compiler)
-  @param  function_arg  calling file (usually supplied from compiler)
-  @param  function_arg  calling line number (usually supplied from compiler)
-*/
-void PROFILING::status_change(const char *status_arg,
-                              const char *function_arg,
-                              const char *file_arg, unsigned int line_arg)
-{
-  DBUG_ENTER("PROFILING::status_change");
-
-  if (status_arg == NULL)  /* We don't know how to handle that */
-    DBUG_VOID_RETURN;
-
-  if (current == NULL)  /* This profile was already discarded. */
-    DBUG_VOID_RETURN;
-
-  if (unlikely(enabled))
-    current->new_status(status_arg, function_arg, file_arg, line_arg);
-
-  DBUG_VOID_RETURN;
-}
-
-/**
-  Prepare to start processing a new query.  It is an error to do this
-  if there's a query already in process; nesting is not supported.
-
-  @param  initial_state  (optional) name of period before first state change
-*/
-void PROFILING::start_new_query(const char *initial_state)
-{
-  DBUG_ENTER("PROFILING::start_new_query");
-
-  /* This should never happen unless the server is radically altered. */
-  if (unlikely(current != NULL))
-  {
-    DBUG_PRINT("warning", ("profiling code was asked to start a new query "
-                           "before the old query was finished.  This is "
-                           "probably a bug."));
-    finish_current_query();
-  }
-
-  enabled= ((thd->variables.option_bits & OPTION_PROFILING) != 0);
-
-  if (! enabled) DBUG_VOID_RETURN;
-
-  DBUG_ASSERT(current == NULL);
-  current= new QUERY_PROFILE(this, initial_state);
-
-  DBUG_VOID_RETURN;
-}
-
-/**
   Throw away the current profile, because it's useless or unwanted
   or corrupted.
 */
@@ -411,36 +356,31 @@ void PROFILING::discard_current_query()
   saved, and maintain the profile history size.  Naturally, this may not
   succeed if the profile was previously discarded, and that's expected.
 */
-void PROFILING::finish_current_query()
+void PROFILING::finish_current_query_impl()
 {
   DBUG_ENTER("PROFILING::finish_current_profile");
-  if (current != NULL)
+  DBUG_ASSERT(current);
+
+  /* The last fence-post, so we can support the span before this. */
+  status_change("ending", NULL, NULL, 0);
+
+  if (enabled &&   /* ON at end? */
+      (current->query_source != NULL) &&
+      (! current->entries.is_empty()))
   {
-    /* The last fence-post, so we can support the span before this. */
-    status_change("ending", NULL, NULL, 0);
+    current->profiling_query_id= next_profile_id();   /* assign an id */
 
-    if ((enabled) &&                                    /* ON at start? */
-        ((thd->variables.option_bits & OPTION_PROFILING) != 0) &&   /* and ON at end? */
-        (current->query_source != NULL) &&
-        (! current->entries.is_empty()))
-    {
-      current->profiling_query_id= next_profile_id();   /* assign an id */
+    history.push_back(current);
+    last= current; /* never contains something that is not in the history. */
 
-      history.push_back(current);
-      last= current; /* never contains something that is not in the history. */
-      current= NULL;
-    }
-    else
-    {
-      delete current;
-      current= NULL;
-    }
+    /* Maintain the history size. */
+    while (history.elements > thd->variables.profiling_history_size)
+      delete history.pop();
   }
+  else
+    delete current;
 
-  /* Maintain the history size. */
-  while (history.elements > thd->variables.profiling_history_size)
-    delete history.pop();
-
+  current= NULL;
   DBUG_VOID_RETURN;
 }
 
@@ -498,26 +438,6 @@ bool PROFILING::show_profiles()
   }
   my_eof(thd);
   DBUG_RETURN(FALSE);
-}
-
-/**
-  At a point in execution where we know the query source, save the text
-  of it in the query profile.
-
-  This must be called exactly once per descrete statement.
-*/
-void PROFILING::set_query_source(char *query_source_arg, uint query_length_arg)
-{
-  DBUG_ENTER("PROFILING::set_query_source");
-
-  if (! enabled)
-    DBUG_VOID_RETURN;
-
-  if (current != NULL)
-    current->set_query_source(query_source_arg, query_length_arg);
-  else
-    DBUG_PRINT("info", ("no current profile to send query source to"));
-  DBUG_VOID_RETURN;
 }
 
 /**
@@ -744,5 +664,11 @@ int PROFILING::fill_statistics_info(THD *thd_arg, TABLE_LIST *tables, Item *cond
   }
 
   DBUG_RETURN(0);
+}
+
+
+void PROFILING::reset()
+{
+  enabled= thd->variables.option_bits & OPTION_PROFILING;
 }
 #endif /* ENABLED_PROFILING */

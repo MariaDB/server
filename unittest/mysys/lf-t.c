@@ -113,11 +113,18 @@ pthread_handler_t test_lf_alloc(void *arg)
   return 0;
 }
 
+my_bool do_sum(void *num, void *acc)
+{
+  *(int *)acc += *(int *)num;
+  return 0;
+}
+
+
 #define N_TLH 1000
 pthread_handler_t test_lf_hash(void *arg)
 {
   int    m= (*(int *)arg)/(2*N_TLH);
-  int32 x,y,z,sum= 0, ins= 0;
+  int32 x,y,z,sum= 0, ins= 0, scans= 0;
   LF_PINS *pins;
 
   if (with_my_thread_init)
@@ -138,6 +145,12 @@ pthread_handler_t test_lf_hash(void *arg)
         sum+= z;
         ins++;
       }
+      else
+      {
+        int unused= 0;
+        lf_hash_iterate(&lf_hash, pins, do_sum, &unused);
+        scans++;
+      }
     }
     for (i= 0; i < N_TLH; i++)
     {
@@ -154,9 +167,9 @@ pthread_handler_t test_lf_hash(void *arg)
 
   if (--N == 0)
   {
-    diag("%d mallocs, %d pins in stack, %d hash size, %d inserts",
+    diag("%d mallocs, %d pins in stack, %d hash size, %d inserts, %d scans",
          lf_hash.alloc.mallocs, lf_hash.alloc.pinbox.pins_in_array,
-         lf_hash.size, inserts);
+         lf_hash.size, inserts, scans);
     bad|= lf_hash.count;
   }
   if (!--running_threads) pthread_cond_signal(&cond);
@@ -181,12 +194,12 @@ void do_tests()
   with_my_thread_init= 1;
   test_concurrently("lf_pinbox (with my_thread_init)", test_lf_pinbox, N= THREADS, CYCLES);
   test_concurrently("lf_alloc (with my_thread_init)",  test_lf_alloc,  N= THREADS, CYCLES);
-  test_concurrently("lf_hash (with my_thread_init)",   test_lf_hash,   N= THREADS, CYCLES/10);
+  test_concurrently("lf_hash (with my_thread_init)",   test_lf_hash,   N= THREADS, CYCLES);
 
   with_my_thread_init= 0;
   test_concurrently("lf_pinbox (without my_thread_init)", test_lf_pinbox, N= THREADS, CYCLES);
   test_concurrently("lf_alloc (without my_thread_init)",  test_lf_alloc,  N= THREADS, CYCLES);
-  test_concurrently("lf_hash (without my_thread_init)",   test_lf_hash,   N= THREADS, CYCLES/10);
+  test_concurrently("lf_hash (without my_thread_init)",   test_lf_hash,   N= THREADS, CYCLES);
 
   lf_hash_destroy(&lf_hash);
   lf_alloc_destroy(&lf_allocator);

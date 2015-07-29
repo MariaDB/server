@@ -36,8 +36,6 @@ our $do_test;
 our $skip_test;
 our $binlog_format;
 our $enable_disabled;
-our $default_storage_engine;
-our $opt_with_ndbcluster_only;
 
 sub collect_option {
   my ($opt, $value)= @_;
@@ -620,7 +618,7 @@ sub make_combinations($$@)
     if (My::Options::is_set($test->{master_opt}, $comb->{comb_opt}) &&
         My::Options::is_set($test->{slave_opt}, $comb->{comb_opt}) ){
 
-      delete $test_combs->{$comb->{name}};
+      $test_combs->{$comb->{name}} = 2;
 
       # Add combination name short name
       push @{$test->{combinations}}, $comb->{name};
@@ -629,8 +627,9 @@ sub make_combinations($$@)
     }
 
     # Skip all other combinations, if this combination is forced
-    if (delete $test_combs->{$comb->{name}}) {
+    if ($test_combs->{$comb->{name}}) {
       @combinations = ($comb); # run the loop below only for this combination
+      $test_combs->{$comb->{name}} = 2;
       last;
     }
   }
@@ -818,29 +817,6 @@ sub collect_one_test_case {
     return $tinfo
   }
 
-  if ( $tinfo->{'ndb_test'} )
-  {
-    # This is a NDB test
-    if ( $::ndbcluster_enabled == 0)
-    {
-      # ndbcluster is disabled
-      $tinfo->{'skip'}= 1;
-      $tinfo->{'comment'}= "ndbcluster disabled";
-      return $tinfo;
-    }
-  }
-  else
-  {
-    # This is not a ndb test
-    if ( $opt_with_ndbcluster_only )
-    {
-      # Only the ndb test should be run, all other should be skipped
-      $tinfo->{'skip'}= 1;
-      $tinfo->{'comment'}= "Only ndbcluster tests";
-      return $tinfo;
-    }
-  }
-
   if ( $tinfo->{'rpl_test'} )
   {
     if ( $skip_rpl )
@@ -883,9 +859,10 @@ sub collect_one_test_case {
   {
     @cases = map make_combinations($_, \%test_combs, @{$comb}), @cases;
   }
-  if (keys %test_combs) {
+  my @no_combs = grep { $test_combs{$_} == 1 } keys %test_combs;
+  if (@no_combs) {
     mtr_error("Could not run $name with '".(
-        join(',', sort keys %test_combs))."' combination(s)");
+        join(',', sort @no_combs))."' combination(s)");
   }
 
   for $tinfo (@cases) {
@@ -977,10 +954,7 @@ sub collect_one_test_case {
 
 
 my $tags_map= {'big_test' => ['big_test', 1],
-               'have_ndb' => ['ndb_test', 1],
-               'have_multi_ndb' => ['ndb_test', 1],
                'master-slave' => ['rpl_test', 1],
-               'ndb_master-slave' => ['rpl_test', 1, 'ndb_test', 1],
                'long_test' => ['long_test', 1],
 };
 my $tags_regex_string= join('|', keys %$tags_map);

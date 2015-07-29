@@ -67,6 +67,8 @@ it should also declare all the accompanying data structures, as necessary
 3. add the new file to include/mysql/services.h
 4. increase the minor plugin ABI version in include/mysql/plugin.h
    (MARIA_PLUGIN_INTERFACE_VERSION = MARIA_PLUGIN_INTERFACE_VERSION+1)
+   don't forget to update test result! e.g. use something like
+   grep '\s\<1\.11\>' -r mysql-test
 5. add the version of your service to include/service_versions.h:
 ==================================================================
     #define VERSION_foo 0x0100
@@ -82,7 +84,7 @@ it should also declare all the accompanying data structures, as necessary
 7. add the new file to libservices/CMakeLists.txt (MYSQLSERVICES_SOURCES)
 8. Add all new files to repository (bzr add)
 9. and finally, register your service for dynamic linking in
-    sql/sql_plugin_services.h as follows:
+    sql/sql_plugin_services.ic as follows:
 9.1 fill in the service structure:
 ==================================================================
   static struct foo_service_st foo_handler = {

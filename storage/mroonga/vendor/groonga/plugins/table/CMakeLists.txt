@@ -18,10 +18,12 @@ include_directories(
   ${MRUBY_INCLUDE_DIRS})
 
 read_file_list(${CMAKE_CURRENT_SOURCE_DIR}/sources.am TABLE_SOURCES)
-add_library(table MODULE ${TABLE_SOURCES})
-set_source_files_properties(${TABLE_SOURCES}
-  PROPERTIES
-  COMPILE_FLAGS "${GRN_C_COMPILE_FLAGS}")
-set_target_properties(table PROPERTIES PREFIX "")
-target_link_libraries(table libgroonga)
-install(TARGETS table DESTINATION "${GRN_RELATIVE_PLUGINS_DIR}/table")
+if(NOT GRN_EMBED)
+  add_library(table MODULE ${TABLE_SOURCES})
+  set_source_files_properties(${TABLE_SOURCES}
+    PROPERTIES
+    COMPILE_FLAGS "${GRN_C_COMPILE_FLAGS}")
+  set_target_properties(table PROPERTIES PREFIX "")
+  target_link_libraries(table libgroonga)
+  install(TARGETS table DESTINATION "${GRN_RELATIVE_PLUGINS_DIR}/table")
+endif()

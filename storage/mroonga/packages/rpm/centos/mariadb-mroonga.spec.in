@@ -1,8 +1,8 @@
 %define mariadb_epoch_default   1
 %define mariadb_version_default 5.5.41
-%define mariadb_release_default 1
+%define mariadb_release_default 2
 %define mariadb_dist_default    .el7_0
-%define mariadb_download_base_url_default http://vault.centos.org/7.0.1406/updates/Source/SPackages
+%define mariadb_download_base_url_default http://vault.centos.org/7.1.1503/os/Source/SPackages
 %define mariadb_spec_file_default mariadb.spec
 
 %{!?mariadb_epoch:%define mariadb_epoch %{mariadb_epoch_default}}
@@ -30,7 +30,7 @@ BuildRoot:      %{_tmppath}/%{name}-%{version}-%{release}-%(%{__id_u} -n)
 BuildRequires:	groonga-devel >= %{groonga_required_version}
 BuildRequires:	groonga-normalizer-mysql-devel
 BuildRequires:	wget
-BuildRequires:	mariadb-devel
+BuildRequires:	mariadb-devel = %{mariadb_package_version}
 Requires:	mariadb-server = %{mariadb_package_version}
 Requires:	mariadb = %{mariadb_package_version}
 Requires:	groonga-libs >= %{groonga_required_version}
@@ -154,6 +154,18 @@ fi
 %doc mysql-mroonga-doc/*
 
 %changelog
+* Mon Jun 29 2015 Masafumi Yokoyama <myokoym@gmail.com> - 5.04-1
+- new upstream release.
+
+* Fri May 29 2015 HAYASHI Kentaro <hayashi@clear-code.com> - 5.03-1
+- new upstream release.
+
+* Wed Apr 29 2015 HAYASHI Kentaro <hayashi@clear-code.com> - 5.02-1
+- new upstream release.
+
+* Sun Mar 29 2015 HAYASHI Kentaro <hayashi@clear-code.com> - 5.01-1
+- new upstream release.
+
 * Mon Feb 09 2015  <hayashi@clear-code.com> - 5.00-1
 - new upstream release.
 

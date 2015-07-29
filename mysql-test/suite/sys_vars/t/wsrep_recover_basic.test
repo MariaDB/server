@@ -1,0 +1,26 @@
+--source include/have_wsrep.inc
+
+--echo #
+--echo # wsrep_recover
+--echo #
+
+--echo # default
+SELECT @@global.wsrep_recover;
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SELECT @@session.wsrep_recover;
+
+--echo
+--echo # scope and valid values
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SET @@global.wsrep_recover=OFF;
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SET @@global.wsrep_recover=ON;
+
+--echo
+--echo # invalid values
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SET @@global.wsrep_recover=NULL;
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SET @@global.wsrep_recover='junk';
+
+--echo # End of test

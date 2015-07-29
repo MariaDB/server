@@ -1,4 +1,4 @@
-/* Copyright (c) 2008, 2012, Oracle and/or its affiliates. All rights reserved.
+/* Copyright (c) 2008, 2015, Oracle and/or its affiliates. All rights reserved.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -71,7 +71,6 @@ initialize_performance_schema(PFS_global_param *param)
   }
 
   init_timers();
-  PFS_atomic::init();
 
   init_event_name_sizing(param);
   register_global_classes();
@@ -187,7 +186,6 @@ static void cleanup_performance_schema(void)
   cleanup_account_hash();
   cleanup_digest();
   cleanup_digest_hash();
-  PFS_atomic::cleanup();
 }
 
 void shutdown_performance_schema(void)

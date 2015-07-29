@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2011, 2014, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2011, 2015, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -39,6 +39,10 @@ Created 2011-05-26 Marko Makela
 #include "handler0alter.h"
 
 #include<map>
+
+ulint onlineddl_rowlog_rows;
+ulint onlineddl_rowlog_pct_used;
+ulint onlineddl_pct_progress;
 
 /** Table row modification operations during online table rebuild.
 Delete-marked records are not copied to the rebuilt table. */
@@ -471,6 +475,10 @@ write_failed:
 	log->tail.total += size;
 	UNIV_MEM_INVALID(log->tail.buf, sizeof log->tail.buf);
 	mutex_exit(&log->mutex);
+
+	os_atomic_increment_ulint(&onlineddl_rowlog_rows, 1);
+	/* 10000 means 100.00%, 4525 means 45.25% */
+	onlineddl_rowlog_pct_used = (log->tail.total * 10000) / srv_online_max_size;
 }
 
 #ifdef UNIV_DEBUG
@@ -1380,6 +1388,27 @@ blob_done:
 		} else {
 			data = rec_get_nth_field(mrec, offsets, i, &len);
 			dfield_set_data(dfield, data, len);
+		}
+
+		if (len != UNIV_SQL_NULL && col->mtype == DATA_MYSQL
+		    && col->len != len && !dict_table_is_comp(log->table)) {
+
+			ut_ad(col->len >= len);
+			if (dict_table_is_comp(index->table)) {
+				byte*	buf = (byte*) mem_heap_alloc(heap,
+								     col->len);
+				memcpy(buf, dfield->data, len);
+				memset(buf + len, 0x20, col->len - len);
+
+				dfield_set_data(dfield, buf, col->len);
+			} else {
+				/* field length mismatch should not happen
+				when rebuilding the redundant row format
+				table. */
+				ut_ad(0);
+				*error = DB_CORRUPTION;
+				return(NULL);
+			}
 		}
 
 		/* See if any columns were changed to NULL or NOT NULL. */

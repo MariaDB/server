@@ -1,5 +1,5 @@
 /*************** tabjson H Declares Source Code File (.H) **************/
-/*  Name: tabjson.h   Version 1.0                                      */
+/*  Name: tabjson.h   Version 1.1                                      */
 /*                                                                     */
 /*  (C) Copyright to the author Olivier BERTRAND          2014 - 2015  */
 /*                                                                     */
@@ -25,7 +25,8 @@ typedef struct _jnode {
   PVAL  CncVal;                 // To cont value used for OP_CNC
   PVAL  Valp;                   // The internal array VALUE
   int   Rank;                   // The rank in array
-  int   Nx;                     // Same row number
+  int   Rx;                     // Read row number
+  int   Nx;                     // Next to read row number
 } JNODE, *PJNODE;
 
 /***********************************************************************/
@@ -34,6 +35,8 @@ typedef struct _jnode {
 class JSONDEF : public DOSDEF {                   /* Table description */
   friend class TDBJSON;
   friend class TDBJSN;
+  friend class TDBJCL;
+  friend PQRYRES JSONColumns(PGLOBAL, char*, PTOS, bool);
  public:
   // Constructor
   JSONDEF(void);
@@ -52,6 +55,8 @@ class JSONDEF : public DOSDEF {                   /* Table description */
   char *Xcol;                   /* Name of expandable column           */
   int   Limit;                  /* Limit of multiple values            */
   int   Pretty;                 /* Depends on file structure           */
+  int   Level;                  /* Used for catalog table              */
+  int   Base;                   /* Tne array index base                */
   bool  Strict;                 /* Strict syntax checking              */
   }; // end of JSONDEF
 
@@ -69,38 +74,46 @@ class TDBJSN : public TDBDOS {
    TDBJSN(TDBJSN *tdbp);
 
   // Implementation
-  virtual AMT  GetAmType(void) {return TYPE_AM_JSN;}
-  virtual bool SkipHeader(PGLOBAL g);
-  virtual PTDB Duplicate(PGLOBAL g) {return (PTDB)new(g) TDBJSN(this);}
+  virtual AMT   GetAmType(void) {return TYPE_AM_JSN;}
+  virtual bool  SkipHeader(PGLOBAL g);
+  virtual PTDB  Duplicate(PGLOBAL g) {return (PTDB)new(g) TDBJSN(this);}
+          PJSON GetRow(void) {return Row;} 
 
   // Methods
-  virtual PTDB CopyOne(PTABS t);
-  virtual PCOL MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n);
-  virtual PCOL InsertSpecialColumn(PGLOBAL g, PCOL colp);
-  virtual int  RowNumber(PGLOBAL g, bool b = FALSE)
-                {return (b) ? N : Fpos + 1;}
+  virtual PTDB  CopyOne(PTABS t);
+  virtual PCOL  MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n);
+  virtual PCOL  InsertSpecialColumn(PCOL colp);
+  virtual int   RowNumber(PGLOBAL g, bool b = FALSE)
+                 {return (b) ? M : N;}
 
   // Database routines
-  virtual int  Cardinality(PGLOBAL g);
-  virtual int  GetMaxSize(PGLOBAL g);
-  virtual bool OpenDB(PGLOBAL g);
-  virtual bool PrepareWriting(PGLOBAL g);
-  virtual int  ReadDB(PGLOBAL g);
+  virtual int   Cardinality(PGLOBAL g);
+  virtual int   GetMaxSize(PGLOBAL g);
+  virtual bool  OpenDB(PGLOBAL g);
+  virtual bool  PrepareWriting(PGLOBAL g);
+  virtual int   ReadDB(PGLOBAL g);
 
  protected:
+          PJSON FindRow(PGLOBAL g);
+          int   MakeTopTree(PGLOBAL g, PJSON jsp);
+
   // Members
+  PJSON Top;                       // The top JSON tree
   PJSON Row;                       // The current row
+  PJSON Val;                       // The value of the current row
   PJCOL Colp;                      // The multiple column
   JMODE Jmode;                     // MODE_OBJECT by default
+  char *Objname;                   // The table object name
   char *Xcol;                      // Name of expandable column
   int   Fpos;                      // The current row index
-//int   Spos;                      // DELETE start index
   int   N;                         // The current Rownum
+  int   M;                         // Index of multiple value
 	int   Limit;		    				     // Limit of multiple values
   int   Pretty;                    // Depends on file structure
   int   NextSame;                  // Same next row
   int   SameRow;                   // Same row nb
   int   Xval;                      // Index of expandable array
+  int   B;                         // Array index base
   bool  Strict;                    // Strict syntax checking
   bool  Comma;                     // Row has final comma
   }; // end of class TDBJSN
@@ -166,6 +179,7 @@ class TDBJSON : public TDBJSN {
   // Implementation
   virtual AMT  GetAmType(void) {return TYPE_AM_JSON;}
   virtual PTDB Duplicate(PGLOBAL g) {return (PTDB)new(g) TDBJSON(this);}
+          PJAR GetDoc(void) {return Doc;} 
 
   // Methods
   virtual PTDB CopyOne(PTABS t);
@@ -183,19 +197,34 @@ class TDBJSON : public TDBJSN {
   virtual int  WriteDB(PGLOBAL g);
   virtual int  DeleteDB(PGLOBAL g, int irc);
   virtual void CloseDB(PGLOBAL g);
+          int  MakeDocument(PGLOBAL g);
 
   // Optimization routines
   virtual int  MakeIndex(PGLOBAL g, PIXDEF pxdf, bool add);
 
  protected:
           int  MakeNewDoc(PGLOBAL g);
-          int  MakeDocument(PGLOBAL g);
 
   // Members
-  PJSON Top;                       // The file JSON tree
   PJAR  Doc;                       // The document array
-  char *Objname;                   // The table object name
   int   Multiple;                  // 0: No 1: DIR 2: Section 3: filelist
   bool  Done;                      // True when document parsing is done
   bool  Changed;                   // After Update, Insert or Delete
   }; // end of class TDBJSON
+
+/***********************************************************************/
+/*  This is the class declaration for the JSON catalog table.          */
+/***********************************************************************/
+class TDBJCL : public TDBCAT {
+ public:
+  // Constructor
+  TDBJCL(PJDEF tdp);
+
+ protected:
+  // Specific routines
+  virtual PQRYRES GetResult(PGLOBAL g);
+
+  // Members
+  PTOS  Topt;
+  char *Db;
+  }; // end of class TDBJCL

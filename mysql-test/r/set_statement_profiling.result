@@ -1,0 +1,4 @@
+set statement profiling=default for select 1;
+ERROR 42000: The system variable profiling cannot be set in SET STATEMENT.
+set statement profiling_history_size=default for select 1;
+ERROR 42000: The system variable profiling_history_size cannot be set in SET STATEMENT.

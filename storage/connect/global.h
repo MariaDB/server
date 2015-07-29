@@ -13,11 +13,11 @@
 #include <time.h>                   /* time_t type declaration         */
 #include <setjmp.h>                 /* Long jump   declarations        */
 
-#if defined(WIN32) && !defined(NOEX)
+#if defined(__WIN__) && !defined(NOEX)
 #define DllExport  __declspec( dllexport )
-#else   // !WIN32
+#else   // !__WIN__
 #define DllExport
-#endif  // !WIN32
+#endif  // !__WIN__
 
 #if defined(DOMDOC_SUPPORT) || defined(LIBXML2_SUPPORT)
 #define XML_SUPPORT 1
@@ -42,11 +42,11 @@
 #define STEP(I)                    MSG_##I
 #endif  // !XMSG and !NEWMSG
 
-#if defined(WIN32)
+#if defined(__WIN__)
 #define CRLF  2
-#else    // !WIN32
+#else    // !__WIN__
 #define CRLF  1
-#endif  // !WIN32
+#endif  // !__WIN__
 
 /***********************************************************************/
 /*  Define access to the thread based trace value.                     */
@@ -104,7 +104,7 @@
   #define  SYS_STAMP   "DOSR"
 #elif defined(WIN)
   #define  SYS_STAMP   "WIN1"
-#elif defined(WIN32)
+#elif defined(__WIN__)
   #define  SYS_STAMP   "WIN2"
 #else
   #define  SYS_STAMP   "XXXX"
@@ -118,7 +118,7 @@ extern "C" {
 /*  Static variables                                                   */
 /***********************************************************************/
 #if defined(STORAGE)
-         char      sys_stamp[4] = SYS_STAMP;
+         char      sys_stamp[5] = SYS_STAMP;
 #else
   extern char      sys_stamp[];
 #endif
@@ -248,9 +248,9 @@ DllExport char   *PlugReadMessage(PGLOBAL, int, char *);
 #elif defined(NEWMSG)
 DllExport char   *PlugGetMessage(PGLOBAL, int);
 #endif   // XMSG  || NEWMSG
-#if defined(WIN32)
+#if defined(__WIN__)
 DllExport short   GetLineLength(PGLOBAL);  // Console line length
-#endif   // WIN32
+#endif   // __WIN__
 DllExport PGLOBAL PlugInit(LPCSTR, uint);  // Plug global initialization
 DllExport int     PlugExit(PGLOBAL);       // Plug global termination
 DllExport LPSTR   PlugRemoveType(LPSTR, LPCSTR);

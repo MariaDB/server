@@ -1,0 +1,48 @@
+--source include/master-slave.inc
+
+connection master;
+CREATE ROLE role_1;
+sync_slave_with_master;
+
+SELECT User FROM mysql.user WHERE is_role='Y' ORDER BY User;
+
+connection master;
+CREATE ROLE IF NOT EXISTS role_1;
+CREATE ROLE IF NOT EXISTS role_2;
+sync_slave_with_master;
+
+SELECT User FROM mysql.user WHERE is_role='Y' ORDER BY User;
+
+connection master;
+
+--error ER_WRONG_USAGE
+CREATE OR REPLACE ROLE IF NOT EXISTS role_3; 
+
+CREATE OR REPLACE ROLE role_3; 
+CREATE OR REPLACE ROLE role_2; 
+sync_slave_with_master;
+
+SELECT User FROM mysql.user WHERE is_role='Y' ORDER BY User;
+
+connection master;
+--error ER_CANNOT_USER
+CREATE ROLE role_2;
+
+sync_slave_with_master;
+
+SELECT User FROM mysql.user WHERE is_role='Y' ORDER BY User;
+
+connection master;
+DROP ROLE role_1;
+DROP ROLE IF EXISTS role_2;
+DROP ROLE IF EXISTS role_3;
+DROP ROLE IF EXISTS role_4;
+
+--error ER_CANNOT_USER
+DROP ROLE role_4;
+
+sync_slave_with_master;
+
+SELECT User FROM mysql.user WHERE is_role='Y' ORDER BY User;
+
+--source include/rpl_end.inc

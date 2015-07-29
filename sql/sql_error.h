@@ -440,7 +440,7 @@ private:
   ulonglong id() const { return m_warn_id; }
 
   /** Set id of the warning information area. */
-  void id(ulonglong id) { m_warn_id= id; }
+  void id(ulonglong id_arg) { m_warn_id= id_arg; }
 
   /** Do we have any errors and warnings that we can *show*? */
   bool is_empty() const { return m_warn_list.is_empty(); }
@@ -501,8 +501,8 @@ private:
     - GET DIAGNOSTICS
     @param read_only the read only property to set.
   */
-  void set_read_only(bool read_only)
-  { m_read_only= read_only; }
+  void set_read_only(bool read_only_arg)
+  { m_read_only= read_only_arg; }
 
   /**
     Read only status.
@@ -670,7 +670,7 @@ public:
   /** True if status information is sent to the client. */
   bool is_sent() const { return m_is_sent; }
 
-  void set_is_sent(bool is_sent) { m_is_sent= is_sent; }
+  void set_is_sent(bool is_sent_arg) { m_is_sent= is_sent_arg; }
 
   void set_ok_status(ulonglong affected_rows,
                      ulonglong last_insert_id,
@@ -793,8 +793,8 @@ public:
   bool is_warning_info_read_only() const
   { return get_warning_info()->is_read_only(); }
 
-  void set_warning_info_read_only(bool read_only)
-  { get_warning_info()->set_read_only(read_only); }
+  void set_warning_info_read_only(bool read_only_arg)
+  { get_warning_info()->set_read_only(read_only_arg); }
 
   ulong error_count() const
   { return get_warning_info()->error_count(); }
@@ -815,13 +815,14 @@ public:
   { return get_warning_info()->push_warning(thd, sql_condition); }
 
   Sql_condition *push_warning(THD *thd,
-                              uint sql_errno,
+                              uint sql_errno_arg,
                               const char* sqlstate,
                               Sql_condition::enum_warning_level level,
                               const char* msg)
   {
     return get_warning_info()->push_warning(thd,
-                                            sql_errno, sqlstate, level, msg);
+                                            sql_errno_arg, sqlstate, level,
+                                            msg);
   }
 
   void mark_sql_conditions_for_removal()
@@ -869,13 +870,13 @@ private:
 
   /**
     The number of rows affected by the last statement. This is
-    semantically close to thd->row_count_func, but has a different
-    life cycle. thd->row_count_func stores the value returned by
+    semantically close to thd->m_row_count_func, but has a different
+    life cycle. thd->m_row_count_func stores the value returned by
     function ROW_COUNT() and is cleared only by statements that
     update its value, such as INSERT, UPDATE, DELETE and few others.
     This member is cleared at the beginning of the next statement.
 
-    We could possibly merge the two, but life cycle of thd->row_count_func
+    We could possibly merge the two, but life cycle of thd->m_row_count_func
     can not be changed.
   */
   ulonglong    m_affected_rows;

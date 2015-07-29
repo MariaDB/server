@@ -350,11 +350,12 @@ uint32_t grn_io_detect_type(grn_ctx *ctx, const char *path);
 grn_rc grn_io_set_type(grn_io *io, uint32_t type);
 uint32_t grn_io_get_type(grn_io *io);
 
-grn_rc grn_io_init(void);
-grn_rc grn_io_fin(void);
+void grn_io_init_from_env(void);
 
 uint32_t grn_io_expire(grn_ctx *ctx, grn_io *io, int count_thresh, uint32_t limit);
 uint32_t grn_expire(grn_ctx *ctx, int count_thresh, uint32_t limit);
+
+grn_rc grn_io_flush(grn_ctx *ctx, grn_io *io);
 
 /* encode/decode */
 
@@ -380,7 +381,7 @@ uint32_t grn_expire(grn_ctx *ctx, int count_thresh, uint32_t limit);
     *_p++ = _v & 0xff; \
   } else { \
     *_p++ = 0x8f; \
-    memcpy(_p, &_v, sizeof(uint32_t));\
+    grn_memcpy(_p, &_v, sizeof(uint32_t));\
     _p += sizeof(uint32_t); \
   } \
   p = _p; \
@@ -395,7 +396,7 @@ uint32_t grn_expire(grn_ctx *ctx, int count_thresh, uint32_t limit);
   switch (_v >> 4) { \
   case 0x08 : \
     if (_v == 0x8f) { \
-      memcpy(&_v, _p, sizeof(uint32_t));\
+      grn_memcpy(&_v, _p, sizeof(uint32_t));\
       _p += sizeof(uint32_t); \
     } \
     break; \

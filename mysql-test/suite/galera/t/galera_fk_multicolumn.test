@@ -1,0 +1,42 @@
+#
+# Test UPDATE on multiple columns with multiple FKs
+#
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+CREATE TABLE t0 (
+    f1 INT PRIMARY KEY,
+    f2 INT UNIQUE
+);
+
+CREATE TABLE t1 (
+    f1 INT PRIMARY KEY,
+    FOREIGN KEY (f1)
+        REFERENCES t0(f1)
+        ON UPDATE CASCADE
+);
+
+CREATE TABLE t2 (
+    f2 INT PRIMARY KEY,
+    FOREIGN KEY (f2)
+        REFERENCES t0(f2)
+        ON UPDATE CASCADE
+);
+
+INSERT INTO t0 VALUES (0, 0);
+INSERT INTO t1 VALUES (0);
+INSERT INTO t2 VALUES (0);
+
+--connection node_2
+UPDATE t0 SET f1 = 1, f2 = 2;
+
+--connection node_1
+SELECT f1 = 1 FROM t1 WHERE f1 = 1;
+SELECT f2 = 2 FROM t2 WHERE f2 = 2;
+SELECT f1 = 1 FROM t1;
+SELECT f2 = 2 FROM t2;
+
+DROP TABLE t2;
+DROP TABLE t1;
+DROP TABLE t0;

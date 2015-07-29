@@ -1376,8 +1376,6 @@ int ha_archive::rnd_next(uchar *buf)
   current_position= aztell(&archive);
   rc= get_row(&archive, buf);
 
-  table->status=rc ? STATUS_NOT_FOUND: 0;
-
 end:
   DBUG_RETURN(rc);
 }
@@ -1875,7 +1873,7 @@ void ha_archive::destroy_record_buffer(archive_record_buffer *r)
   frm image in the ARZ file. And this cannot be done in-place, it
   requires ARZ file to be recreated from scratch
 */
-bool ha_archive::check_if_incompatible_data(HA_CREATE_INFO *info,
+bool ha_archive::check_if_incompatible_data(HA_CREATE_INFO *info_arg,
                                             uint table_changes)
 {
   return COMPATIBLE_DATA_NO;

@@ -197,8 +197,8 @@ static inline int access_denied_error_code(int passwd_used)
 /* prototypes */
 
 bool hostname_requires_resolving(const char *hostname);
-my_bool  acl_init(bool dont_read_acl_tables);
-my_bool acl_reload(THD *thd);
+bool  acl_init(bool dont_read_acl_tables);
+bool acl_reload(THD *thd);
 void acl_free(bool end=0);
 ulong acl_get(const char *host, const char *ip,
               const char *user, const char *db, my_bool db_is_pattern);
@@ -206,10 +206,8 @@ bool acl_authenticate(THD *thd, uint com_change_user_pkt_len);
 bool acl_getroot(Security_context *sctx, char *user, char *host,
                  char *ip, char *db);
 bool acl_check_host(const char *host, const char *ip);
-int check_change_password(THD *thd, const char *host, const char *user,
-                           char *password, uint password_len);
-bool change_password(THD *thd, const char *host, const char *user,
-                     char *password);
+bool check_change_password(THD *thd, LEX_USER *user);
+bool change_password(THD *thd, LEX_USER *user);
 
 bool mysql_grant_role(THD *thd, List<LEX_USER> &user_list, bool revoke);
 bool mysql_grant(THD *thd, const char *db, List <LEX_USER> &user_list,
@@ -220,9 +218,9 @@ int mysql_table_grant(THD *thd, TABLE_LIST *table, List <LEX_USER> &user_list,
 bool mysql_routine_grant(THD *thd, TABLE_LIST *table, bool is_proc,
                          List <LEX_USER> &user_list, ulong rights,
                          bool revoke, bool write_to_binlog);
-my_bool grant_init();
+bool grant_init();
 void grant_free(void);
-my_bool grant_reload(THD *thd);
+bool grant_reload(THD *thd);
 bool check_grant(THD *thd, ulong want_access, TABLE_LIST *tables,
                  bool any_combination_will_do, uint number, bool no_errors);
 bool check_grant_column (THD *thd, GRANT_INFO *grant,
@@ -235,6 +233,10 @@ bool check_grant_all_columns(THD *thd, ulong want_access,
 bool check_grant_routine(THD *thd, ulong want_access,
                          TABLE_LIST *procs, bool is_proc, bool no_error);
 bool check_grant_db(THD *thd,const char *db);
+bool check_global_access(THD *thd, ulong want_access, bool no_errors= false);
+bool check_access(THD *thd, ulong want_access, const char *db, ulong *save_priv,
+                  GRANT_INTERNAL_INFO *grant_internal_info,
+                  bool dont_check_global_grants, bool no_errors);
 ulong get_table_grant(THD *thd, TABLE_LIST *table);
 ulong get_column_grant(THD *thd, GRANT_INFO *grant,
                        const char *db_name, const char *table_name,
@@ -262,11 +264,6 @@ int fill_schema_schema_privileges(THD *thd, TABLE_LIST *tables, COND *cond);
 int fill_schema_table_privileges(THD *thd, TABLE_LIST *tables, COND *cond);
 int fill_schema_column_privileges(THD *thd, TABLE_LIST *tables, COND *cond);
 int wild_case_compare(CHARSET_INFO *cs, const char *str,const char *wildstr);
-int check_password_policy(String *password);
-#ifdef NO_EMBEDDED_ACCESS_CHECKS
-#define check_grant(A,B,C,D,E,F) 0
-#define check_grant_db(A,B) 0
-#endif
 
 /**
   Result of an access check for an internal schema or table.
@@ -401,6 +398,11 @@ bool acl_check_proxy_grant_access (THD *thd, const char *host, const char *user,
                                    bool with_grant);
 int acl_setrole(THD *thd, char *rolename, ulonglong access);
 int acl_check_setrole(THD *thd, char *rolename, ulonglong *access);
+int acl_check_set_default_role(THD *thd, const char *host, const char *user);
+int acl_set_default_role(THD *thd, const char *host, const char *user,
+                         const char *rolename);
+
+extern SHOW_VAR acl_statistics[];
 
 #ifndef DBUG_OFF
 extern ulong role_global_merges, role_db_merges, role_table_merges,

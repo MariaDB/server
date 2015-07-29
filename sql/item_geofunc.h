@@ -2,7 +2,7 @@
 #define ITEM_GEOFUNC_INCLUDED
 
 /* Copyright (c) 2000, 2010 Oracle and/or its affiliates.
-   Copyright (C) 2011 Monty Program Ab.
+   Copyright (C) 2011, 2015 MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -93,6 +93,39 @@ public:
   };
 };
 
+
+// #define HEAVY_CONVEX_HULL
+class Item_func_convexhull: public Item_geometry_func
+{
+  class ch_node: public Gcalc_dyn_list::Item
+  {
+  public:
+    const Gcalc_heap::Info *pi;
+    ch_node *prev;
+    Gcalc_dyn_list::Item *next;
+    ch_node *get_next() { return (ch_node *) next; }
+  };
+
+  Gcalc_heap collector;
+  Gcalc_function func;
+  Gcalc_dyn_list res_heap;
+
+  Gcalc_result_receiver res_receiver;
+  String tmp_value;
+#ifdef HEAVY_CONVEX_HULL
+  Gcalc_scan_iterator scan_it;
+#endif /*HEAVY_CONVEX_HULL*/
+  ch_node *new_ch_node() { return (ch_node *) res_heap.new_item(); }
+  int add_node_to_line(ch_node **p_cur, int dir, const Gcalc_heap::Info *pi);
+public:
+  Item_func_convexhull(Item *a): Item_geometry_func(a),
+    res_heap(8192, sizeof(ch_node))
+    {}
+  const char *func_name() const { return "st_convexhull"; }
+  String *val_str(String *);
+};
+
+
 class Item_func_centroid: public Item_geometry_func
 {
 public:
@@ -111,12 +144,44 @@ public:
   Field::geometry_type get_geometry_type() const;
 };
 
+
+class Item_func_boundary: public Item_geometry_func
+{
+  class Transporter : public Gcalc_shape_transporter
+  {
+    Gcalc_result_receiver *m_receiver;
+    uint n_points;
+    Gcalc_function::shape_type current_type;
+    double last_x, last_y;
+  public:
+    Transporter(Gcalc_result_receiver *receiver) :
+      Gcalc_shape_transporter(NULL), m_receiver(receiver)
+    {}
+    int single_point(double x, double y);
+    int start_line();
+    int complete_line();
+    int start_poly();
+    int complete_poly();
+    int start_ring();
+    int complete_ring();
+    int add_point(double x, double y);
+
+    int start_collection(int n_objects);
+  };
+  Gcalc_result_receiver res_receiver;
+public:
+  Item_func_boundary(Item *a): Item_geometry_func(a) {}
+  const char *func_name() const { return "st_boundary"; }
+  String *val_str(String *);
+};
+
+
 class Item_func_point: public Item_geometry_func
 {
 public:
   Item_func_point(Item *a, Item *b): Item_geometry_func(a, b) {}
   Item_func_point(Item *a, Item *b, Item *srid): Item_geometry_func(a, b, srid) {}
-  const char *func_name() const { return "st_point"; }
+  const char *func_name() const { return "point"; }
   String *val_str(String *);
   Field::geometry_type get_geometry_type() const;
 };
@@ -207,52 +272,65 @@ public:
   Spatial relations
 */
 
-class Item_func_spatial_mbr_rel: public Item_bool_func2
+class Item_func_spatial_rel: public Item_bool_func2
 {
+protected:
   enum Functype spatial_rel;
+  String tmp_value1, tmp_value2;
 public:
-  Item_func_spatial_mbr_rel(Item *a,Item *b, enum Functype sp_rel) :
-    Item_bool_func2(a,b) { spatial_rel = sp_rel; }
-  longlong val_int();
-  enum Functype functype() const 
-  { 
-    return spatial_rel;
-  }
+  Item_func_spatial_rel(Item *a, Item *b, enum Functype sp_rel)
+   :Item_bool_func2(a, b), spatial_rel(sp_rel)
+  { }
+  enum Functype functype() const { return spatial_rel; }
   enum Functype rev_functype() const { return spatial_rel; }
-  const char *func_name() const;
-  virtual inline void print(String *str, enum_query_type query_type)
-  {
-    Item_func::print(str, query_type);
-  }
-  void fix_length_and_dec() { maybe_null= 1; }
   bool is_null() { (void) val_int(); return null_value; }
+  void add_key_fields(JOIN *join, KEY_FIELD **key_fields,
+                      uint *and_level, table_map usable_tables,
+                      SARGABLE_PARAM **sargables)
+  {
+    return add_key_fields_optimize_op(join, key_fields, and_level,
+                                      usable_tables, sargables, false);
+  }
 };
 
 
-class Item_func_spatial_rel: public Item_bool_func2
+class Item_func_spatial_mbr_rel: public Item_func_spatial_rel
 {
-  enum Functype spatial_rel;
+public:
+  Item_func_spatial_mbr_rel(Item *a, Item *b, enum Functype sp_rel)
+   :Item_func_spatial_rel(a, b, sp_rel)
+  { }
+  longlong val_int();
+  const char *func_name() const;
+};
+
+
+class Item_func_spatial_precise_rel: public Item_func_spatial_rel
+{
   Gcalc_heap collector;
   Gcalc_scan_iterator scan_it;
   Gcalc_function func;
-  String tmp_value1,tmp_value2;
 public:
-  Item_func_spatial_rel(Item *a,Item *b, enum Functype sp_rel);
-  virtual ~Item_func_spatial_rel();
+  Item_func_spatial_precise_rel(Item *a, Item *b, enum Functype sp_rel)
+   :Item_func_spatial_rel(a, b, sp_rel), collector()
+  { }
   longlong val_int();
-  enum Functype functype() const 
-  { 
-    return spatial_rel;
-  }
-  enum Functype rev_functype() const { return spatial_rel; }
   const char *func_name() const;
-  virtual inline void print(String *str, enum_query_type query_type)
-  {
-    Item_func::print(str, query_type);
-  }
+};
 
-  void fix_length_and_dec() { maybe_null= 1; }
-  bool is_null() { (void) val_int(); return null_value; }
+
+class Item_func_spatial_relate: public Item_bool_func
+{
+  Gcalc_heap collector;
+  Gcalc_scan_iterator scan_it;
+  Gcalc_function func;
+  String tmp_value1, tmp_value2, tmp_matrix;
+public:
+  Item_func_spatial_relate(Item *a, Item *b, Item *matrix)
+   :Item_bool_func(a, b, matrix)
+  { }
+  longlong val_int();
+  const char *func_name() const { return "st_relate"; }
 };
 
 
@@ -340,33 +418,40 @@ class Item_func_isempty: public Item_bool_func
 public:
   Item_func_isempty(Item *a): Item_bool_func(a) {}
   longlong val_int();
-  optimize_type select_optimize() const { return OPTIMIZE_NONE; }
   const char *func_name() const { return "st_isempty"; }
   void fix_length_and_dec() { maybe_null= 1; }
 };
 
-class Item_func_issimple: public Item_bool_func
+class Item_func_issimple: public Item_int_func
 {
   Gcalc_heap collector;
   Gcalc_function func;
   Gcalc_scan_iterator scan_it;
   String tmp;
 public:
-  Item_func_issimple(Item *a): Item_bool_func(a) {}
+  Item_func_issimple(Item *a): Item_int_func(a) {}
   longlong val_int();
-  optimize_type select_optimize() const { return OPTIMIZE_NONE; }
   const char *func_name() const { return "st_issimple"; }
-  void fix_length_and_dec() { maybe_null= 1; }
+  void fix_length_and_dec() { decimals=0; max_length=2; }
+  uint decimal_precision() const { return 1; }
 };
 
-class Item_func_isclosed: public Item_bool_func
+class Item_func_isclosed: public Item_int_func
 {
 public:
-  Item_func_isclosed(Item *a): Item_bool_func(a) {}
+  Item_func_isclosed(Item *a): Item_int_func(a) {}
   longlong val_int();
-  optimize_type select_optimize() const { return OPTIMIZE_NONE; }
   const char *func_name() const { return "st_isclosed"; }
-  void fix_length_and_dec() { maybe_null= 1; }
+  void fix_length_and_dec() { decimals=0; max_length=2; }
+  uint decimal_precision() const { return 1; }
+};
+
+class Item_func_isring: public Item_func_issimple
+{
+public:
+  Item_func_isring(Item *a): Item_func_issimple(a) {}
+  longlong val_int();
+  const char *func_name() const { return "st_isring"; }
 };
 
 class Item_func_dimension: public Item_int_func
@@ -494,6 +579,20 @@ public:
   Item_func_distance(Item *a, Item *b): Item_real_func(a, b) {}
   double val_real();
   const char *func_name() const { return "st_distance"; }
+};
+
+
+class Item_func_pointonsurface: public Item_geometry_func
+{
+  String tmp_value;
+  Gcalc_heap collector;
+  Gcalc_function func;
+  Gcalc_scan_iterator scan_it;
+public:
+  Item_func_pointonsurface(Item *a): Item_geometry_func(a) {}
+  const char *func_name() const { return "st_pointonsurface"; }
+  String *val_str(String *);
+  Field::geometry_type get_geometry_type() const;
 };
 
 

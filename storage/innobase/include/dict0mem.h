@@ -1,7 +1,8 @@
 /*****************************************************************************
 
-Copyright (c) 1996, 2014, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1996, 2015, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
+Copyright (c) 2013, SkySQL Ab. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -50,6 +51,7 @@ Created 1/8/1996 Heikki Tuuri
 #include <set>
 #include <algorithm>
 #include <iterator>
+#include <ostream>
 
 /* Forward declaration. */
 struct ib_rbt_t;
@@ -124,11 +126,34 @@ This flag prevents older engines from attempting to open the table and
 allows InnoDB to update_create_info() accordingly. */
 #define DICT_TF_WIDTH_DATA_DIR		1
 
+/**
+Width of the page compression flag
+*/
+#define DICT_TF_WIDTH_PAGE_COMPRESSION  1
+#define DICT_TF_WIDTH_PAGE_COMPRESSION_LEVEL 4
+
+/**
+Width of the page encryption flag
+*/
+#define DICT_TF_WIDTH_PAGE_ENCRYPTION  1
+#define DICT_TF_WIDTH_PAGE_ENCRYPTION_KEY 8
+
+/**
+Width of atomic writes flag
+DEFAULT=0, ON = 1, OFF = 2
+*/
+#define DICT_TF_WIDTH_ATOMIC_WRITES 2
+
 /** Width of all the currently known table flags */
 #define DICT_TF_BITS	(DICT_TF_WIDTH_COMPACT		\
 			+ DICT_TF_WIDTH_ZIP_SSIZE	\
 			+ DICT_TF_WIDTH_ATOMIC_BLOBS	\
-			+ DICT_TF_WIDTH_DATA_DIR)
+			+ DICT_TF_WIDTH_DATA_DIR        \
+			+ DICT_TF_WIDTH_PAGE_COMPRESSION \
+			+ DICT_TF_WIDTH_PAGE_COMPRESSION_LEVEL \
+		        + DICT_TF_WIDTH_ATOMIC_WRITES \
+		        + DICT_TF_WIDTH_PAGE_ENCRYPTION \
+		        + DICT_TF_WIDTH_PAGE_ENCRYPTION_KEY)
 
 /** A mask of all the known/used bits in table flags */
 #define DICT_TF_BIT_MASK	(~(~0 << DICT_TF_BITS))
@@ -144,9 +169,23 @@ allows InnoDB to update_create_info() accordingly. */
 /** Zero relative shift position of the DATA_DIR field */
 #define DICT_TF_POS_DATA_DIR		(DICT_TF_POS_ATOMIC_BLOBS	\
 					+ DICT_TF_WIDTH_ATOMIC_BLOBS)
-/** Zero relative shift position of the start of the UNUSED bits */
-#define DICT_TF_POS_UNUSED		(DICT_TF_POS_DATA_DIR		\
-					+ DICT_TF_WIDTH_DATA_DIR)
+/** Zero relative shift position of the PAGE_COMPRESSION field */
+#define DICT_TF_POS_PAGE_COMPRESSION	(DICT_TF_POS_DATA_DIR	\
+		                        + DICT_TF_WIDTH_DATA_DIR)
+/** Zero relative shift position of the PAGE_COMPRESSION_LEVEL field */
+#define DICT_TF_POS_PAGE_COMPRESSION_LEVEL	(DICT_TF_POS_PAGE_COMPRESSION	\
+					+ DICT_TF_WIDTH_PAGE_COMPRESSION)
+/** Zero relative shift position of the ATOMIC_WRITES field */
+#define DICT_TF_POS_ATOMIC_WRITES	(DICT_TF_POS_PAGE_COMPRESSION_LEVEL \
+					+ DICT_TF_WIDTH_PAGE_COMPRESSION_LEVEL)
+/** Zero relative shift position of the PAGE_ENCRYPTION field */
+#define DICT_TF_POS_PAGE_ENCRYPTION	(DICT_TF_POS_ATOMIC_WRITES	\
+		                        + DICT_TF_WIDTH_ATOMIC_WRITES)
+/** Zero relative shift position of the PAGE_ENCRYPTION_KEY field */
+#define DICT_TF_POS_PAGE_ENCRYPTION_KEY	(DICT_TF_POS_PAGE_ENCRYPTION	\
+		                        + DICT_TF_WIDTH_PAGE_ENCRYPTION)
+#define DICT_TF_POS_UNUSED		(DICT_TF_POS_PAGE_ENCRYPTION_KEY     \
+		                        + DICT_TF_WIDTH_PAGE_ENCRYPTION_KEY)
 
 /** Bit mask of the COMPACT field */
 #define DICT_TF_MASK_COMPACT				\
@@ -164,6 +203,26 @@ allows InnoDB to update_create_info() accordingly. */
 #define DICT_TF_MASK_DATA_DIR				\
 		((~(~0 << DICT_TF_WIDTH_DATA_DIR))	\
 		<< DICT_TF_POS_DATA_DIR)
+/** Bit mask of the PAGE_COMPRESSION field */
+#define DICT_TF_MASK_PAGE_COMPRESSION			\
+		((~(~0 << DICT_TF_WIDTH_PAGE_COMPRESSION)) \
+		<< DICT_TF_POS_PAGE_COMPRESSION)
+/** Bit mask of the PAGE_COMPRESSION_LEVEL field */
+#define DICT_TF_MASK_PAGE_COMPRESSION_LEVEL		\
+		((~(~0 << DICT_TF_WIDTH_PAGE_COMPRESSION_LEVEL)) \
+		<< DICT_TF_POS_PAGE_COMPRESSION_LEVEL)
+/** Bit mask of the ATOMIC_WRITES field */
+#define DICT_TF_MASK_ATOMIC_WRITES		\
+		((~(~0 << DICT_TF_WIDTH_ATOMIC_WRITES)) \
+		<< DICT_TF_POS_ATOMIC_WRITES)
+/** Bit mask of the PAGE_ENCRYPTION field */
+#define DICT_TF_MASK_PAGE_ENCRYPTION			\
+		((~(~0 << DICT_TF_WIDTH_PAGE_ENCRYPTION))	\
+		<< DICT_TF_POS_PAGE_ENCRYPTION)
+/** Bit mask of the PAGE_ENCRYPTION_KEY field */
+#define DICT_TF_MASK_PAGE_ENCRYPTION_KEY		\
+		((~(~0 << DICT_TF_WIDTH_PAGE_ENCRYPTION_KEY)) \
+		<< DICT_TF_POS_PAGE_ENCRYPTION_KEY)
 
 /** Return the value of the COMPACT field */
 #define DICT_TF_GET_COMPACT(flags)			\
@@ -181,6 +240,27 @@ allows InnoDB to update_create_info() accordingly. */
 #define DICT_TF_HAS_DATA_DIR(flags)			\
 		((flags & DICT_TF_MASK_DATA_DIR)	\
 		>> DICT_TF_POS_DATA_DIR)
+/** Return the value of the PAGE_COMPRESSION field */
+#define DICT_TF_GET_PAGE_COMPRESSION(flags)	       \
+		((flags & DICT_TF_MASK_PAGE_COMPRESSION) \
+		>> DICT_TF_POS_PAGE_COMPRESSION)
+/** Return the value of the PAGE_COMPRESSION_LEVEL field */
+#define DICT_TF_GET_PAGE_COMPRESSION_LEVEL(flags)       \
+		((flags & DICT_TF_MASK_PAGE_COMPRESSION_LEVEL)	\
+		>> DICT_TF_POS_PAGE_COMPRESSION_LEVEL)
+/** Return the value of the ATOMIC_WRITES field */
+#define DICT_TF_GET_ATOMIC_WRITES(flags)       \
+		((flags & DICT_TF_MASK_ATOMIC_WRITES)	\
+		>> DICT_TF_POS_ATOMIC_WRITES)
+/** Return the contents of the PAGE_ENCRYPTION field */
+#define DICT_TF_GET_PAGE_ENCRYPTION(flags)			\
+		((flags & DICT_TF_MASK_PAGE_ENCRYPTION) \
+		>> DICT_TF_POS_PAGE_ENCRYPTION)
+/** Return the contents of the PAGE_ENCRYPTION KEY field */
+#define DICT_TF_GET_PAGE_ENCRYPTION_KEY(flags)			\
+		((flags & DICT_TF_MASK_PAGE_ENCRYPTION_KEY) \
+		>> DICT_TF_POS_PAGE_ENCRYPTION_KEY)
+
 /** Return the contents of the UNUSED bits */
 #define DICT_TF_GET_UNUSED(flags)			\
 		(flags >> DICT_TF_POS_UNUSED)
@@ -492,6 +572,9 @@ be REC_VERSION_56_MAX_INDEX_COL_LEN (3072) bytes */
 
 /** Defines the maximum fixed length column size */
 #define DICT_MAX_FIXED_COL_LEN		DICT_ANTELOPE_MAX_INDEX_COL_LEN
+#ifdef WITH_WSREP
+#define WSREP_MAX_SUPPORTED_KEY_LENGTH 3500
+#endif /* WITH_WSREP */
 
 /** Data structure for a field in an index */
 struct dict_field_t{
@@ -548,11 +631,12 @@ extern ulong	zip_failure_threshold_pct;
 compression failures */
 extern ulong	zip_pad_max;
 
-/** Data structure to hold information about about how much space in
+/** Data structure to hold information about how much space in
 an uncompressed page should be left as padding to avoid compression
 failures. This estimate is based on a self-adapting heuristic. */
 struct zip_pad_info_t {
-	os_fast_mutex_t	mutex;	/*!< mutex protecting the info */
+	os_fast_mutex_t*
+			mutex;	/*!< mutex protecting the info */
 	ulint		pad;	/*!< number of bytes used as pad */
 	ulint		success;/*!< successful compression ops during
 				current round */
@@ -560,7 +644,14 @@ struct zip_pad_info_t {
 				current round */
 	ulint		n_rounds;/*!< number of currently successful
 				rounds */
+	volatile os_once::state_t
+			mutex_created;
+				/*!< Creation state of mutex member */
 };
+
+/** Number of samples of data size kept when page compression fails for
+a certain index.*/
+#define STAT_DEFRAG_DATA_SIZE_N_SAMPLE	10
 
 /** Data structure for an index.  Most fields will be
 initialized to 0, NULL or FALSE in dict_mem_index_create(). */
@@ -652,6 +743,23 @@ struct dict_index_t{
 	bool		stats_error_printed;
 				/*!< has persistent statistics error printed
 				for this index ? */
+	/* @} */
+	/** Statistics for defragmentation, these numbers are estimations and
+	could be very inaccurate at certain times, e.g. right after restart,
+	during defragmentation, etc. */
+	/* @{ */
+	ulint		stat_defrag_modified_counter;
+	ulint		stat_defrag_n_pages_freed;
+				/* number of pages freed by defragmentation. */
+	ulint		stat_defrag_n_page_split;
+				/* number of page splits since last full index
+				defragmentation. */
+	ulint		stat_defrag_data_size_sample[STAT_DEFRAG_DATA_SIZE_N_SAMPLE];
+				/* data size when compression failure happened
+				the most recent 10 times. */
+	ulint		stat_defrag_sample_next_slot;
+				/* in which slot the next sample should be
+				saved. */
 	/* @} */
 	rw_lock_t	lock;	/*!< read-write lock protecting the
 				upper levels of the index tree */
@@ -1115,20 +1223,29 @@ struct dict_table_t{
 				calculation; this counter is not protected by
 				any latch, because this is only used for
 				heuristics */
-#define BG_STAT_NONE		0
-#define BG_STAT_IN_PROGRESS	(1 << 0)
+
+#define BG_STAT_IN_PROGRESS	((byte)(1 << 0))
 				/*!< BG_STAT_IN_PROGRESS is set in
 				stats_bg_flag when the background
 				stats code is working on this table. The DROP
 				TABLE code waits for this to be cleared
 				before proceeding. */
-#define BG_STAT_SHOULD_QUIT	(1 << 1)
+#define BG_STAT_SHOULD_QUIT	((byte)(1 << 1))
 				/*!< BG_STAT_SHOULD_QUIT is set in
 				stats_bg_flag when DROP TABLE starts
 				waiting on BG_STAT_IN_PROGRESS to be cleared,
 				the background stats thread will detect this
 				and will eventually quit sooner */
-	byte		stats_bg_flag;
+#define BG_SCRUB_IN_PROGRESS	((byte)(1 << 2))
+				/*!< BG_SCRUB_IN_PROGRESS is set in
+				stats_bg_flag when the background
+				scrub code is working on this table. The DROP
+				TABLE code waits for this to be cleared
+				before proceeding. */
+
+#define BG_IN_PROGRESS (BG_STAT_IN_PROGRESS | BG_SCRUB_IN_PROGRESS)
+
+	byte 		stats_bg_flag;
 				/*!< see BG_STAT_* above.
 				Writes are covered by dict_sys->mutex.
 				Dirty reads are possible. */
@@ -1160,9 +1277,14 @@ struct dict_table_t{
 				space from the lock heap of the trx:
 				otherwise the lock heap would grow rapidly
 				if we do a large insert from a select */
-	ib_mutex_t		autoinc_mutex;
+	ib_mutex_t*	autoinc_mutex;
 				/*!< mutex protecting the autoincrement
 				counter */
+
+	/** Creation state of autoinc_mutex member */
+	volatile os_once::state_t
+			autoinc_mutex_created;
+
 	ib_uint64_t	autoinc;/*!< autoinc counter value to give to the
 				next inserted row */
 	ulong		n_waiting_or_granted_auto_inc_locks;
@@ -1224,6 +1346,111 @@ struct dict_foreign_add_to_referenced_table {
 		}
 	}
 };
+
+/** Destroy the autoinc latch of the given table.
+This function is only called from either single threaded environment
+or from a thread that has not shared the table object with other threads.
+@param[in,out]	table	table whose stats latch to destroy */
+inline
+void
+dict_table_autoinc_destroy(
+	dict_table_t*	table)
+{
+	if (table->autoinc_mutex_created == os_once::DONE
+	    && table->autoinc_mutex != NULL) {
+		mutex_free(table->autoinc_mutex);
+		delete table->autoinc_mutex;
+	}
+}
+
+/** Allocate and init the autoinc latch of a given table.
+This function must not be called concurrently on the same table object.
+@param[in,out]	table_void	table whose autoinc latch to create */
+void
+dict_table_autoinc_alloc(
+	void*	table_void);
+
+/** Allocate and init the zip_pad_mutex of a given index.
+This function must not be called concurrently on the same index object.
+@param[in,out]	index_void	index whose zip_pad_mutex to create */
+void
+dict_index_zip_pad_alloc(
+	void*	index_void);
+
+/** Request for lazy creation of the autoinc latch of a given table.
+This function is only called from either single threaded environment
+or from a thread that has not shared the table object with other threads.
+@param[in,out]	table	table whose autoinc latch is to be created. */
+inline
+void
+dict_table_autoinc_create_lazy(
+	dict_table_t*	table)
+{
+#ifdef HAVE_ATOMIC_BUILTINS
+	table->autoinc_mutex = NULL;
+	table->autoinc_mutex_created = os_once::NEVER_DONE;
+#else /* HAVE_ATOMIC_BUILTINS */
+	dict_table_autoinc_alloc(table);
+	table->autoinc_mutex_created = os_once::DONE;
+#endif /* HAVE_ATOMIC_BUILTINS */
+}
+
+/** Request a lazy creation of dict_index_t::zip_pad::mutex.
+This function is only called from either single threaded environment
+or from a thread that has not shared the table object with other threads.
+@param[in,out]	index	index whose zip_pad mutex is to be created */
+inline
+void
+dict_index_zip_pad_mutex_create_lazy(
+	dict_index_t*	index)
+{
+#ifdef HAVE_ATOMIC_BUILTINS
+	index->zip_pad.mutex = NULL;
+	index->zip_pad.mutex_created = os_once::NEVER_DONE;
+#else /* HAVE_ATOMIC_BUILTINS */
+	dict_index_zip_pad_alloc(index);
+	index->zip_pad.mutex_created = os_once::DONE;
+#endif /* HAVE_ATOMIC_BUILTINS */
+}
+
+/** Destroy the zip_pad_mutex of the given index.
+This function is only called from either single threaded environment
+or from a thread that has not shared the table object with other threads.
+@param[in,out]	table	table whose stats latch to destroy */
+inline
+void
+dict_index_zip_pad_mutex_destroy(
+	dict_index_t*	index)
+{
+	if (index->zip_pad.mutex_created == os_once::DONE
+	    && index->zip_pad.mutex != NULL) {
+		os_fast_mutex_free(index->zip_pad.mutex);
+		delete index->zip_pad.mutex;
+	}
+}
+
+/** Release the zip_pad_mutex of a given index.
+@param[in,out]	index	index whose zip_pad_mutex is to be released */
+inline
+void
+dict_index_zip_pad_unlock(
+	dict_index_t*	index)
+{
+	os_fast_mutex_unlock(index->zip_pad.mutex);
+}
+
+#ifdef UNIV_DEBUG
+/** Check if the current thread owns the autoinc_mutex of a given table.
+@param[in]	table	the autoinc_mutex belongs to this table
+@return true, if the current thread owns the autoinc_mutex, false otherwise.*/
+inline
+bool
+dict_table_autoinc_own(
+	const dict_table_t*	table)
+{
+	return(mutex_own(table->autoinc_mutex));
+}
+#endif /* UNIV_DEBUG */
 
 #ifndef UNIV_NONINL
 #include "dict0mem.ic"

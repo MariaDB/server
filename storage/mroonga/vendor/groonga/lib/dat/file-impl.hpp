@@ -1,5 +1,5 @@
 /* -*- c-basic-offset: 2 -*- */
-/* Copyright(C) 2011-2012 Brazil
+/* Copyright(C) 2011-2015 Brazil
 
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -44,6 +44,8 @@ class FileImpl {
   }
 
   void swap(FileImpl *rhs);
+
+  void flush();
 
  private:
   void *ptr_;

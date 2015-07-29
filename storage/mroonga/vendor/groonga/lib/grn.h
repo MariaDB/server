@@ -1,5 +1,5 @@
 /* -*- c-basic-offset: 2 -*- */
-/* Copyright(C) 2009-2014 Brazil
+/* Copyright(C) 2009-2015 Brazil
 
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -23,21 +23,21 @@
 # include <config.h>
 #endif /* HAVE_CONFIG_H */
 
+#if defined(WIN32) && defined(__GNUC__)
+# define __MINGW_MSVC_COMPAT_WARNINGS
+#endif /* defined(WIN32) && defined(__GNUC__) */
+
 #ifdef __cplusplus
 # define __STDC_LIMIT_MACROS
 #endif
 
-#ifdef HAVE_STDLIB_H
-# include <stdlib.h>
-#endif /* HAVE_STDLIB_H */
+#include <stdlib.h>
 
 #ifdef HAVE_STDINT_H
 # include <stdint.h>
 #endif /* HAVE_STDINT_H */
 
-#ifdef HAVE_SYS_TYPES_H
-# include <sys/types.h>
-#endif /* HAVE_SYS_TYPES_H */
+#include <sys/types.h>
 
 #ifdef HAVE_SYS_PARAM_H
 # include <sys/param.h>
@@ -67,30 +67,6 @@
 # define GRN_VAR extern
 #endif
 
-#ifdef HAVE_OPEN
-# define GRN_OPEN(pathname, ...) open(pathname, __VA_ARGS__)
-#else
-# define GRN_OPEN(pathname, ...) _open(pathname, __VA_ARGS__)
-#endif /* HAVE_OPEN */
-
-#ifdef HAVE_CLOSE
-# define GRN_CLOSE(fd) close(fd)
-#else
-# define GRN_CLOSE(fd) _close(fd)
-#endif /* HAVE_CLOSE */
-
-#ifdef HAVE_READ
-# define GRN_READ(fd, buf, count) read(fd, buf, count)
-#else
-# define GRN_READ(fd, buf, count) _read(fd, buf, count)
-#endif /* HAVE_READ */
-
-#ifdef HAVE_WRITE
-# define GRN_WRITE(fd, buf, count) write(fd, buf, count)
-#else
-# define GRN_WRITE(fd, buf, count) _write(fd, buf, count)
-#endif /* HAVE_WRITE */
-
 #ifdef WIN32
 
 # if defined(__GNUC__) && !defined(WINVER)
@@ -116,15 +92,9 @@
 #  endif
 # endif
 
-# ifndef __GNUC__
-#  define snprintf(str, size, ...) _snprintf(str, size, __VA_ARGS__)
-# endif /* __GNUC__ */
 # if !defined(__GNUC__) && _MSC_VER < 1500
 #  define vsnprintf(str, size, format, ap) _vsnprintf(str, size, format, ap)
 # endif /* !defined(__GNUC__) && _MSC_VER < 1500 */
-# ifndef HAVE_UNLINK
-#  define unlink(pathname) _unlink(pathname)
-# endif
 # define getpid() _getpid()
 # if !defined(__GNUC__) && _MSC_VER < 1400
 #  define fstat(fd, buf) _fstat(fd, buf)
@@ -479,12 +449,14 @@ typedef int grn_cond;
 # else /* WIN64 */
 #  define GRN_FMT_SOCKET "u"
 # endif /* WIN64 */
+# define GRN_FMT_OFF64_T GRN_FMT_LLD
 #else /* WIN32 */
 # define GRN_FMT_LLD  "lld"
 # define GRN_FMT_LLU  "llu"
 # define GRN_FMT_SIZE  "zu"
 # define GRN_FMT_SSIZE "zd"
 # define GRN_FMT_SOCKET "d"
+# define GRN_FMT_OFF64_T "jd"
 #endif /* WIN32 */
 
 #ifdef __GNUC__
@@ -549,13 +521,6 @@ typedef int grn_cond;
   (*(p) = (v))
 # endif /* ATOMIC 64BIT SET */
 
-# ifdef HAVE_MKOSTEMP
-#  define GRN_MKOSTEMP(template,flags,mode) mkostemp(template,flags)
-# else /* HAVE_MKOSTEMP */
-#  define GRN_MKOSTEMP(template,flags,mode) \
-  (mktemp(template), GRN_OPEN((template),((flags)|O_RDWR|O_CREAT|O_EXCL),mode))
-# endif /* HAVE_MKOSTEMP */
-
 #elif (defined(WIN32) || defined (_WIN64)) /* __GNUC__ */
 
 # define GRN_ATOMIC_ADD_EX(p,i,r) \
@@ -585,9 +550,6 @@ typedef int grn_cond;
 # define GRN_BIT_SCAN_REV(v,r)  for (r = 31; r && !((1 << r) & v); r--)
 # define GRN_BIT_SCAN_REV0(v,r) GRN_BIT_SCAN_REV(v,r)
 
-# define GRN_MKOSTEMP(template,flags,mode) \
-  (mktemp(template), GRN_OPEN((template),((flags)|O_RDWR|O_CREAT),mode))
-
 #else /* __GNUC__ */
 
 # if (defined(__sun) && defined(__SVR4)) /* ATOMIC ADD */
@@ -602,9 +564,6 @@ typedef int grn_cond;
 /* todo */
 # define GRN_BIT_SCAN_REV(v,r)  for (r = 31; r && !((1 << r) & v); r--)
 # define GRN_BIT_SCAN_REV0(v,r) GRN_BIT_SCAN_REV(v,r)
-
-# define GRN_MKOSTEMP(template,flags,mode) \
-  (mktemp(template), GRN_OPEN((template),flags,mode))
 
 #endif /* __GNUC__ */
 
@@ -712,7 +671,7 @@ grn_str_greater(const uint8_t *ap, uint32_t as, const uint8_t *bp, uint32_t bs)
   lo_ = (lo_ | (lo_ <<  1)) & 0x5555555555555555ULL;\
   result_ = (la_ << 1) | lo_;\
   grn_hton_uint64(result_, result_);\
-  memcpy(keybuf, &result_, sizeof(result_));\
+  grn_memcpy(keybuf, &result_, sizeof(result_));\
 } while (0)
 
 #define grn_ntog(keybuf,key,size) do {\

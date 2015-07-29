@@ -213,6 +213,53 @@ SHOW STATUS LIKE 'Slave_open_temp_tables';
 FLUSH LOGS;
 
 
+--echo *** MDEV-7936: Assertion `!table || table->in_use == _current_thd()' failed on parallel replication in optimistic mode ***
+
+--connection server_1
+CREATE TEMPORARY TABLE t4 (a INT PRIMARY KEY) ENGINE=InnoDB;
+SET @old_dbug= @@SESSION.debug_dbug;
+SET SESSION debug_dbug="+d,binlog_force_commit_id";
+SET @commit_id= 10000;
+INSERT INTO t4 VALUES (30);
+INSERT INTO t4 VALUES (31);
+SET SESSION debug_dbug= @old_dbug;
+INSERT INTO t1 SELECT a, "conservative" FROM t4;
+DROP TEMPORARY TABLE t4;
+SELECT * FROM t1 WHERE a >= 30 ORDER BY a;
+--source include/save_master_gtid.inc
+
+--connection server_2
+--source include/sync_with_master_gtid.inc
+
+SELECT * FROM t1 WHERE a >= 30 ORDER BY a;
+
+--source include/stop_slave.inc
+SET @old_mode= @@GLOBAL.slave_parallel_mode;
+SET GLOBAL slave_parallel_mode=optimistic;
+
+--connection server_1
+CREATE TEMPORARY TABLE t4 (a INT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t4 VALUES (32);
+INSERT INTO t4 VALUES (33);
+INSERT INTO t1 SELECT a, "optimistic" FROM t4;
+DROP TEMPORARY TABLE t4;
+
+SELECT * FROM t1 WHERE a >= 30 ORDER BY a;
+--source include/save_master_gtid.inc
+
+--connection server_2
+--source include/start_slave.inc
+--source include/sync_with_master_gtid.inc
+
+SELECT * FROM t1 WHERE a >= 30 ORDER BY a;
+
+--source include/stop_slave.inc
+SET GLOBAL slave_parallel_mode=@old_mode;
+--source include/start_slave.inc
+
+
+# Clean up.
+
 --connection server_2
 --source include/stop_slave.inc
 SET GLOBAL slave_parallel_threads=@old_parallel_threads;

@@ -91,19 +91,19 @@ Field	Type	Null	Key	Default	Extra
 c	bigint(12)	YES		NULL	
 d	bigint(12)	YES		NULL	
 explain select c from mysqltest.v1;
-ERROR HY000: EXPLAIN/SHOW can not be issued; lacking privileges for underlying table
+ERROR HY000: ANALYZE/EXPLAIN/SHOW can not be issued; lacking privileges for underlying table
 show create view mysqltest.v1;
 ERROR 42000: SHOW VIEW command denied to user 'mysqltest_1'@'localhost' for table 'v1'
 explain select c from mysqltest.v2;
-ERROR HY000: EXPLAIN/SHOW can not be issued; lacking privileges for underlying table
+ERROR HY000: ANALYZE/EXPLAIN/SHOW can not be issued; lacking privileges for underlying table
 show create view mysqltest.v2;
 ERROR 42000: SHOW VIEW command denied to user 'mysqltest_1'@'localhost' for table 'v2'
 explain select c from mysqltest.v3;
-ERROR HY000: EXPLAIN/SHOW can not be issued; lacking privileges for underlying table
+ERROR HY000: ANALYZE/EXPLAIN/SHOW can not be issued; lacking privileges for underlying table
 show create view mysqltest.v3;
 ERROR 42000: SHOW VIEW command denied to user 'mysqltest_1'@'localhost' for table 'v3'
 explain select c from mysqltest.v4;
-ERROR HY000: EXPLAIN/SHOW can not be issued; lacking privileges for underlying table
+ERROR HY000: ANALYZE/EXPLAIN/SHOW can not be issued; lacking privileges for underlying table
 show create view mysqltest.v4;
 ERROR 42000: SHOW VIEW command denied to user 'mysqltest_1'@'localhost' for table 'v4'
 explain select c from mysqltest.v5;
@@ -115,7 +115,7 @@ show create view mysqltest.v5;
 View	Create View	character_set_client	collation_connection
 v5	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `mysqltest`.`v5` AS select (`mysqltest`.`t1`.`a` + 1) AS `c`,(`mysqltest`.`t1`.`b` + 1) AS `d` from `mysqltest`.`t1`	latin1	latin1_swedish_ci
 explain select c from mysqltest.v1;
-ERROR HY000: EXPLAIN/SHOW can not be issued; lacking privileges for underlying table
+ERROR HY000: ANALYZE/EXPLAIN/SHOW can not be issued; lacking privileges for underlying table
 show create view mysqltest.v1;
 ERROR 42000: SHOW VIEW command denied to user 'mysqltest_1'@'localhost' for table 'v1'
 grant show view on mysqltest.v1 to mysqltest_1@localhost;
@@ -128,15 +128,15 @@ show create view mysqltest.v1;
 View	Create View	character_set_client	collation_connection
 v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `mysqltest`.`v1` AS select (`mysqltest`.`t1`.`a` + 1) AS `c`,(`mysqltest`.`t1`.`b` + 1) AS `d` from `mysqltest`.`t1`	latin1	latin1_swedish_ci
 explain select c from mysqltest.v2;
-ERROR HY000: EXPLAIN/SHOW can not be issued; lacking privileges for underlying table
+ERROR HY000: ANALYZE/EXPLAIN/SHOW can not be issued; lacking privileges for underlying table
 show create view mysqltest.v2;
 ERROR 42000: SHOW VIEW command denied to user 'mysqltest_1'@'localhost' for table 'v2'
 explain select c from mysqltest.v3;
-ERROR HY000: EXPLAIN/SHOW can not be issued; lacking privileges for underlying table
+ERROR HY000: ANALYZE/EXPLAIN/SHOW can not be issued; lacking privileges for underlying table
 show create view mysqltest.v3;
 ERROR 42000: SHOW VIEW command denied to user 'mysqltest_1'@'localhost' for table 'v3'
 explain select c from mysqltest.v4;
-ERROR HY000: EXPLAIN/SHOW can not be issued; lacking privileges for underlying table
+ERROR HY000: ANALYZE/EXPLAIN/SHOW can not be issued; lacking privileges for underlying table
 show create view mysqltest.v4;
 ERROR 42000: SHOW VIEW command denied to user 'mysqltest_1'@'localhost' for table 'v4'
 explain select c from mysqltest.v5;
@@ -156,12 +156,12 @@ show create view mysqltest.v2;
 View	Create View	character_set_client	collation_connection
 v2	CREATE ALGORITHM=TEMPTABLE DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `mysqltest`.`v2` AS select (`mysqltest`.`t1`.`a` + 1) AS `c`,(`mysqltest`.`t1`.`b` + 1) AS `d` from `mysqltest`.`t1`	latin1	latin1_swedish_ci
 explain select c from mysqltest.v3;
-ERROR HY000: EXPLAIN/SHOW can not be issued; lacking privileges for underlying table
+ERROR HY000: ANALYZE/EXPLAIN/SHOW can not be issued; lacking privileges for underlying table
 show create view mysqltest.v3;
 View	Create View	character_set_client	collation_connection
 v3	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `mysqltest`.`v3` AS select (`mysqltest`.`t2`.`a` + 1) AS `c`,(`mysqltest`.`t2`.`b` + 1) AS `d` from `mysqltest`.`t2`	latin1	latin1_swedish_ci
 explain select c from mysqltest.v4;
-ERROR HY000: EXPLAIN/SHOW can not be issued; lacking privileges for underlying table
+ERROR HY000: ANALYZE/EXPLAIN/SHOW can not be issued; lacking privileges for underlying table
 show create view mysqltest.v4;
 View	Create View	character_set_client	collation_connection
 v4	CREATE ALGORITHM=TEMPTABLE DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `mysqltest`.`v4` AS select (`mysqltest`.`t2`.`a` + 1) AS `c`,(`mysqltest`.`t2`.`b` + 1) AS `d` from `mysqltest`.`t2`	latin1	latin1_swedish_ci
@@ -1027,7 +1027,7 @@ grant select, show view on mysqltest1.v1 to quintessa@localhost;
 select * from v1;
 i
 explain select * from v1;
-ERROR HY000: EXPLAIN/SHOW can not be issued; lacking privileges for underlying table
+ERROR HY000: ANALYZE/EXPLAIN/SHOW can not be issued; lacking privileges for underlying table
 ... as cecil
 select * from v1;
 ERROR 42000: SELECT command denied to user 'cecil'@'localhost' for table 'v1'
@@ -1043,7 +1043,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 select * from v1;
 i
 explain select * from v1;
-ERROR HY000: EXPLAIN/SHOW can not be issued; lacking privileges for underlying table
+ERROR HY000: ANALYZE/EXPLAIN/SHOW can not be issued; lacking privileges for underlying table
 ... as fiona
 select * from v2;
 i	j
@@ -1057,14 +1057,14 @@ ERROR 42000: SELECT command denied to user 'fiona'@'localhost' for table 'v1'
 explain select * from t2;
 ERROR 42000: SELECT command denied to user 'fiona'@'localhost' for table 't2'
 explain select * from v2;
-ERROR HY000: EXPLAIN/SHOW can not be issued; lacking privileges for underlying table
+ERROR HY000: ANALYZE/EXPLAIN/SHOW can not be issued; lacking privileges for underlying table
 ... as greg
 select * from v2;
 i	j
 explain select * from v1;
 ERROR 42000: SELECT command denied to user 'greg'@'localhost' for table 'v1'
 explain select * from v2;
-ERROR HY000: EXPLAIN/SHOW can not be issued; lacking privileges for underlying table
+ERROR HY000: ANALYZE/EXPLAIN/SHOW can not be issued; lacking privileges for underlying table
 ... as han
 select * from t3;
 ERROR 42000: SELECT command denied to user 'han'@'localhost' for table 't3'
@@ -1084,17 +1084,17 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 select * from v2;
 i	j
 explain select * from v2;
-ERROR HY000: EXPLAIN/SHOW can not be issued; lacking privileges for underlying table
+ERROR HY000: ANALYZE/EXPLAIN/SHOW can not be issued; lacking privileges for underlying table
 ... as jamie
 select * from v2;
 i	j
 explain select * from v2;
-ERROR HY000: EXPLAIN/SHOW can not be issued; lacking privileges for underlying table
+ERROR HY000: ANALYZE/EXPLAIN/SHOW can not be issued; lacking privileges for underlying table
 ... as karl
 select * from v2;
 i	j
 explain select * from v2;
-ERROR HY000: EXPLAIN/SHOW can not be issued; lacking privileges for underlying table
+ERROR HY000: ANALYZE/EXPLAIN/SHOW can not be issued; lacking privileges for underlying table
 ... as lena
 select * from v2;
 ERROR 42000: SELECT command denied to user 'lena'@'localhost' for table 'v2'
@@ -1111,22 +1111,22 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 select * from v2;
 i	j
 explain select * from v2;
-ERROR HY000: EXPLAIN/SHOW can not be issued; lacking privileges for underlying table
+ERROR HY000: ANALYZE/EXPLAIN/SHOW can not be issued; lacking privileges for underlying table
 ... as olga
 select * from v2;
 i	j
 explain select * from v2;
-ERROR HY000: EXPLAIN/SHOW can not be issued; lacking privileges for underlying table
+ERROR HY000: ANALYZE/EXPLAIN/SHOW can not be issued; lacking privileges for underlying table
 ... as pjotr
 select * from v2;
 i	j
 explain select * from v2;
-ERROR HY000: EXPLAIN/SHOW can not be issued; lacking privileges for underlying table
+ERROR HY000: ANALYZE/EXPLAIN/SHOW can not be issued; lacking privileges for underlying table
 ... as quintessa
 select * from v1;
 i
 explain select * from v1;
-ERROR HY000: EXPLAIN/SHOW can not be issued; lacking privileges for underlying table
+ERROR HY000: ANALYZE/EXPLAIN/SHOW can not be issued; lacking privileges for underlying table
 ... as root again at last: clean-up time!
 drop user alice@localhost;
 drop user bob@localhost;

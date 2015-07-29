@@ -117,17 +117,12 @@ TABLE *open_ltable(THD *thd, TABLE_LIST *table_list, thr_lock_type update,
                             MYSQL_OPEN_GET_NEW_TABLE |\
                             MYSQL_OPEN_HAS_MDL_LOCK)
 
-bool open_table(THD *thd, TABLE_LIST *table_list, MEM_ROOT *mem_root,
-                Open_table_context *ot_ctx);
-
-bool open_new_frm(THD *thd, TABLE_SHARE *share, const char *alias,
-                  uint db_stat, uint prgflag,
-                  uint ha_open_flags, TABLE *outparam, TABLE_LIST *table_desc,
-                  MEM_ROOT *mem_root);
+bool open_table(THD *thd, TABLE_LIST *table_list, Open_table_context *ot_ctx);
 
 bool get_key_map_from_key_list(key_map *map, TABLE *table,
                                List<String> *index_list);
-TABLE *open_table_uncached(THD *thd, handlerton *hton, const char *path,
+TABLE *open_table_uncached(THD *thd, handlerton *hton,
+                           LEX_CUSTRING *frm, const char *path,
                            const char *db, const char *table_name,
                            bool add_to_temporary_tables_list,
                            bool open_in_engine);
@@ -148,7 +143,11 @@ TABLE_LIST *find_table_in_list(TABLE_LIST *table,
                                const char *db_name,
                                const char *table_name);
 TABLE *find_temporary_table(THD *thd, const char *db, const char *table_name);
+bool find_and_use_temporary_table(THD *thd, const char *db,
+                                  const char *table_name, TABLE **out_table);
 TABLE *find_temporary_table(THD *thd, const TABLE_LIST *tl);
+bool find_and_use_temporary_table(THD *thd, const TABLE_LIST *tl,
+                                  TABLE **out_table);
 TABLE *find_temporary_table(THD *thd, const char *table_key,
                             uint table_key_length);
 void close_thread_tables(THD *thd);
@@ -165,7 +164,7 @@ bool fill_record_n_invoke_before_triggers(THD *thd, TABLE *table,
 bool insert_fields(THD *thd, Name_resolution_context *context,
 		   const char *db_name, const char *table_name,
                    List_iterator<Item> *it, bool any_privileges);
-void make_leaves_list(List<TABLE_LIST> &list, TABLE_LIST *tables,
+void make_leaves_list(THD *thd, List<TABLE_LIST> &list, TABLE_LIST *tables,
                       bool full_table_list, TABLE_LIST *boundary);
 int setup_wild(THD *thd, TABLE_LIST *tables, List<Item> &fields,
 	       List<Item> *sum_func_list, uint wild_num);
@@ -225,15 +224,41 @@ int setup_conds(THD *thd, TABLE_LIST *tables, List<TABLE_LIST> &leaves,
 void wrap_ident(THD *thd, Item **conds);
 int setup_ftfuncs(SELECT_LEX* select);
 int init_ftfuncs(THD *thd, SELECT_LEX* select, bool no_order);
-bool lock_table_names(THD *thd, TABLE_LIST *table_list,
+bool lock_table_names(THD *thd, const DDL_options_st &options,
+                      TABLE_LIST *table_list,
                       TABLE_LIST *table_list_end, ulong lock_wait_timeout,
                       uint flags);
-bool open_tables(THD *thd, TABLE_LIST **tables, uint *counter, uint flags,
+static inline bool
+lock_table_names(THD *thd, TABLE_LIST *table_list,
+                 TABLE_LIST *table_list_end, ulong lock_wait_timeout,
+                 uint flags)
+{
+  return lock_table_names(thd, thd->lex->create_info, table_list,
+                          table_list_end, lock_wait_timeout, flags);
+}
+bool open_tables(THD *thd, const DDL_options_st &options,
+                 TABLE_LIST **tables, uint *counter, uint flags,
                  Prelocking_strategy *prelocking_strategy);
+static inline bool
+open_tables(THD *thd, TABLE_LIST **tables, uint *counter, uint flags,
+            Prelocking_strategy *prelocking_strategy)
+{
+  return open_tables(thd, thd->lex->create_info, tables, counter, flags,
+                     prelocking_strategy);
+}
 /* open_and_lock_tables with optional derived handling */
-bool open_and_lock_tables(THD *thd, TABLE_LIST *tables,
+bool open_and_lock_tables(THD *thd, const DDL_options_st &options,
+                          TABLE_LIST *tables,
                           bool derived, uint flags,
                           Prelocking_strategy *prelocking_strategy);
+static inline bool
+open_and_lock_tables(THD *thd, TABLE_LIST *tables,
+                     bool derived, uint flags,
+                     Prelocking_strategy *prelocking_strategy)
+{
+  return open_and_lock_tables(thd, thd->lex->create_info,
+                              tables, derived, flags, prelocking_strategy);
+}
 /* simple open_and_lock_tables without derived handling for single table */
 TABLE *open_n_lock_single_table(THD *thd, TABLE_LIST *table_l,
                                 thr_lock_type lock_type, uint flags,
@@ -244,7 +269,7 @@ bool lock_tables(THD *thd, TABLE_LIST *tables, uint counter, uint flags);
 int decide_logging_format(THD *thd, TABLE_LIST *tables);
 void free_io_cache(TABLE *entry);
 void intern_close_table(TABLE *entry);
-void kill_delayed_threads_for_table(TABLE_SHARE *share);
+void kill_delayed_threads_for_table(TDC_element *element);
 void close_thread_table(THD *thd, TABLE **table_ptr);
 bool close_temporary_tables(THD *thd);
 TABLE_LIST *unique_table(THD *thd, TABLE_LIST *table, TABLE_LIST *table_list,
@@ -281,16 +306,14 @@ void close_all_tables_for_name(THD *thd, TABLE_SHARE *share,
                                TABLE *skip_table);
 OPEN_TABLE_LIST *list_open_tables(THD *thd, const char *db, const char *wild);
 bool tdc_open_view(THD *thd, TABLE_LIST *table_list, const char *alias,
-                   const char *cache_key, uint cache_key_length,
-                   MEM_ROOT *mem_root, uint flags);
+                   const char *cache_key, uint cache_key_length, uint flags);
 
 static inline bool tdc_open_view(THD *thd, TABLE_LIST *table_list,
-                                 const char *alias, MEM_ROOT *mem_root,
-                                 uint flags)
+                                 const char *alias, uint flags)
 {
   const char *key;
   uint key_length= get_table_def_key(table_list, &key);
-  return tdc_open_view(thd, table_list, alias, key, key_length, mem_root, flags);
+  return tdc_open_view(thd, table_list, alias, key, key_length, flags);
 }
 
 TABLE *find_table_for_mdl_upgrade(THD *thd, const char *db,
@@ -459,11 +482,21 @@ public:
 
 
 inline bool
+open_tables(THD *thd, const DDL_options_st &options,
+            TABLE_LIST **tables, uint *counter, uint flags)
+{
+  DML_prelocking_strategy prelocking_strategy;
+
+  return open_tables(thd, options, tables, counter, flags,
+                     &prelocking_strategy);
+}
+inline bool
 open_tables(THD *thd, TABLE_LIST **tables, uint *counter, uint flags)
 {
   DML_prelocking_strategy prelocking_strategy;
 
-  return open_tables(thd, tables, counter, flags, &prelocking_strategy);
+  return open_tables(thd, thd->lex->create_info, tables, counter, flags,
+                     &prelocking_strategy);
 }
 
 inline TABLE *open_n_lock_single_table(THD *thd, TABLE_LIST *table_l,
@@ -477,12 +510,23 @@ inline TABLE *open_n_lock_single_table(THD *thd, TABLE_LIST *table_l,
 
 
 /* open_and_lock_tables with derived handling */
-inline bool open_and_lock_tables(THD *thd, TABLE_LIST *tables,
+inline bool open_and_lock_tables(THD *thd,
+                                 const DDL_options_st &options,
+                                 TABLE_LIST *tables,
                                  bool derived, uint flags)
 {
   DML_prelocking_strategy prelocking_strategy;
 
-  return open_and_lock_tables(thd, tables, derived, flags,
+  return open_and_lock_tables(thd, options, tables, derived, flags,
+                              &prelocking_strategy);
+}
+inline bool open_and_lock_tables(THD *thd, TABLE_LIST *tables,
+                                  bool derived, uint flags)
+{
+  DML_prelocking_strategy prelocking_strategy;
+
+  return open_and_lock_tables(thd, thd->lex->create_info,
+                              tables, derived, flags,
                               &prelocking_strategy);
 }
 

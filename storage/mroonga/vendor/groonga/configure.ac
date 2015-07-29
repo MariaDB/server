@@ -141,6 +141,7 @@ AC_DEFUN([REMOVE_CXXFLAG], [
 TEST_CFLAGS=""
 TEST_CXXFLAGS=""
 NO_STRICT_ALIASING_CFLAGS=""
+NO_FLOAT_EQUAL_CFLAGS=""
 if test "$GCC" = "yes"; then
   CHECK_BUILD_FLAG([-Wall])
   CHECK_BUILD_FLAG([-Wextra])
@@ -160,12 +161,15 @@ if test "$GCC" = "yes"; then
   fi
   CHECK_BUILD_FLAG([-Wdisabled-optimization])
   CHECK_BUILD_FLAG([-Wfloat-equal])
+  if test "x$check_cflag" = "xyes"; then
+    NO_FLOAT_EQUAL_CFLAGS="-Wno-float-equal"
+  fi
   CHECK_BUILD_FLAG([-Wpointer-arith])
   CHECK_CFLAG([-Wbad-function-cast])
   if test "$CLANG" = "no"; then
     CHECK_BUILD_FLAG([-Wcast-align])
   fi
-  CHECK_BUILD_FLAG([-Wredundant-decls])
+#  CHECK_BUILD_FLAG([-Wredundant-decls])
 #  CHECK_BUILD_FLAG([-Wunsafe-loop-optimizations])
 #  CHECK_BUILD_FLAG([-Wunreachable-code])
 #  CHECK_BUILD_FLAG([-Wswitch-enum])
@@ -192,6 +196,7 @@ fi
 AC_SUBST(TEST_CFLAGS)
 AC_SUBST(TEST_CXXFLAGS)
 AC_SUBST(NO_STRICT_ALIASING_CFLAGS)
+AC_SUBST(NO_FLOAT_EQUAL_CFLAGS)
 
 AC_LIBTOOL_WIN32_DLL
 AM_PROG_LIBTOOL
@@ -210,7 +215,7 @@ GRN_DLL_FILENAME="libgroonga-\$(LT_CURRENT).dll"
 AC_SUBST(GRN_DLL_FILENAME)
 
 if test "$srcdir/version.sh"; then
-  source "$srcdir/version.sh"
+  . "$srcdir/version.sh"
   AC_SUBST(GRN_VERSION)
   AC_DEFINE_UNQUOTED(GRN_VERSION, ["$GRN_VERSION"], [groonga version])
 fi
@@ -226,6 +231,10 @@ AC_CONFIG_FILES([
   lib/dat/Makefile
   lib/mrb/Makefile
   lib/mrb/scripts/Makefile
+  lib/mrb/scripts/command_line/Makefile
+  lib/mrb/scripts/context/Makefile
+  lib/mrb/scripts/initialize/Makefile
+  lib/mrb/scripts/logger/Makefile
   include/Makefile
   include/groonga/Makefile
   plugins/Makefile
@@ -236,6 +245,7 @@ AC_CONFIG_FILES([
   plugins/ruby/Makefile
   plugins/token_filters/Makefile
   plugins/sharding/Makefile
+  plugins/functions/Makefile
   examples/Makefile
   examples/dictionary/Makefile
   examples/dictionary/edict/Makefile
@@ -1160,30 +1170,48 @@ AC_SUBST(LIBEVENT_CFLAGS)
 AC_SUBST(LIBEVENT_LIBS)
 
 # MessagePack
-AC_ARG_WITH(message-pack,
-  [AS_HELP_STRING([--without-message-pack],
-    [Disable MessagePack used for suggestion. [default=/usr]])],
-  [with_message_pack="$withval"],
-  [with_message_pack="/usr"])
-if test "x$with_message_pack" != "xno"; then
-  _SAVE_CFLAGS="$CFLAGS"
-  _SAVE_LDFLAGS="$LDFLAGS"
-  _SAVE_LIBS="$LIBS"
-  CFLAGS="$CFLAGS -I$with_message_pack/include"
-  LDFLAGS="$LDFLAGS -L$with_message_pack/lib"
-  AC_SEARCH_LIBS(msgpack_version, msgpack,
-                 [message_pack_available=yes],
-                 [message_pack_available=no])
-  CFLAGS="$_SAVE_CFLAGS"
-  LDFLAGS="$_SAVE_LDFLAGS"
-  LIBS="$_SAVE_LIBS"
+AC_ARG_ENABLE(message-pack,
+  [AS_HELP_STRING([--disable-message-pack],
+    [Disable MessagePack support. [default=auto-detect]])],
+  [enable_message_pack="$enableval"],
+  [enable_message_pack="auto"])
+if test "x$enable_message_pack" != "xno"; then
+  m4_ifdef([PKG_CHECK_MODULES], [
+    PKG_CHECK_MODULES([MESSAGE_PACK], [msgpack],
+      [message_pack_available=yes],
+      [message_pack_available=no])
+    ],
+    [message_pack_vailable=no])
+
+  if test "$message_pack_available" = "no"; then
+    AC_ARG_WITH(message-pack,
+      [AS_HELP_STRING([--with-message-pack],
+        [Specify prefix where MessagePack is installed. [default=/usr]])],
+      [with_message_pack="$withval"],
+      [with_message_pack="/usr"])
+    _SAVE_CFLAGS="$CFLAGS"
+    _SAVE_LDFLAGS="$LDFLAGS"
+    _SAVE_LIBS="$LIBS"
+    CFLAGS="$CFLAGS -I$with_message_pack/include"
+    LDFLAGS="$LDFLAGS -L$with_message_pack/lib"
+    AC_SEARCH_LIBS(msgpack_version, msgpack,
+                   [message_pack_available=yes],
+                   [message_pack_available=no])
+    CFLAGS="$_SAVE_CFLAGS"
+    LDFLAGS="$_SAVE_LDFLAGS"
+    LIBS="$_SAVE_LIBS"
+
+    if test "x$message_pack_available" = "xyes"; then
+      MESSAGE_PACK_CFLAGS="-I$with_message_pack/include"
+      MESSAGE_PACK_LIBS="-L$with_message_pack/lib -lmsgpack"
+    fi
+  fi
+
   if test "x$message_pack_available" = "xyes"; then
     AC_DEFINE(GRN_WITH_MESSAGE_PACK, [1],
               [Define to 1 if MessagePack is available.])
-    MESSAGE_PACK_CFLAGS="-I$with_message_pack/include"
-    MESSAGE_PACK_LIBS="-L$with_message_pack/lib -lmsgpack"
   else
-    if test "x$with_message_pack" = "xyes"; then
+    if test "x$enable_message_pack" = "xyes"; then
       AC_MSG_ERROR("No MessagePack found")
     fi
   fi
@@ -1347,6 +1375,9 @@ AC_SUBST(token_filter_pluginsdir)
 sharding_pluginsdir="\${pluginsdir}/sharding"
 AC_SUBST(sharding_pluginsdir)
 
+function_pluginsdir="\${pluginsdir}/functions"
+AC_SUBST(function_pluginsdir)
+
 AC_MSG_CHECKING(for the suffix of plugin shared libraries)
 shrext_cmds=$(./libtool --config | grep '^shrext_cmds=')
 eval $shrext_cmds
@@ -1455,9 +1486,9 @@ fi
 AC_MSG_RESULT($enable_mruby)
 
 if test "$enable_mruby" = "yes"; then
-  if test ! -f "$srcdir/vendor/mruby/mruby-build.timestamp" -a \
+  if test ! -f "$srcdir/vendor/mruby/mruby_build.timestamp" -a \
           "$ac_cv_ruby_available" != "yes"; then
-    AC_MSG_ERROR(--enable-ruby requires --with-ruby)
+    AC_MSG_ERROR(--enable-mruby requires --with-ruby)
   fi
   AC_DEFINE(GRN_WITH_MRUBY, [1], [Define to 1 if mruby is enabled.])
   MRUBY_CFLAGS="-I\$(top_srcdir)/vendor/mruby-source/include"
@@ -1475,7 +1506,10 @@ AC_ARG_ENABLE(shared-onigmo,
   [enable_shared_onigmo="no"])
 AM_CONDITIONAL(WITH_SHARED_ONIGMO, test "$enable_shared_onigmo" = "yes")
 
+# TODO: Support using system Onigmo instead of bundled Onigmo.
 AC_DEFINE(GRN_WITH_ONIGMO, [1], [Use Onigmo.])
+GRN_WITH_ONIGMO="yes"
+AC_SUBST(GRN_WITH_ONIGMO)
 AC_CONFIG_SUBDIRS([vendor/onigmo])
 
 ONIGMO_CFLAGS="-I\$(top_srcdir)/vendor/onigmo-source"

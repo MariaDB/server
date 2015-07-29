@@ -415,15 +415,8 @@ public:
     Master log position of the event. The position is recorded in the
     relay log info and used to produce information for <code>SHOW
     SLAVE STATUS</code>.
-
-    @param event_creation_time
-    Timestamp for the creation of the event on the master side. The
-    time stamp is recorded in the relay log info and used to compute
-    the <code>Seconds_behind_master</code> field.
   */
-  void stmt_done(my_off_t event_log_pos,
-                 time_t event_creation_time, THD *thd,
-                 rpl_group_info *rgi);
+  void stmt_done(my_off_t event_log_pos, THD *thd, rpl_group_info *rgi);
   int alloc_inuse_relaylog(const char *name);
   void free_inuse_relaylog(inuse_relaylog *ir);
   void reset_inuse_relaylog();
@@ -530,8 +523,6 @@ struct inuse_relaylog {
   /* Set when all events have been read from a relaylog. */
   bool completed;
   char name[FN_REFLEN];
-  /* Lock used to protect inuse_relaylog::dequeued_count */
-  my_atomic_rwlock_t inuse_relaylog_atomic_lock;
 };
 
 
@@ -651,6 +642,8 @@ struct rpl_group_info
     counting one event group twice.
   */
   bool did_mark_start_commit;
+  /* Copy of flags2 from GTID event. */
+  uchar gtid_ev_flags2;
   enum {
     GTID_DUPLICATE_NULL=0,
     GTID_DUPLICATE_IGNORE=1,
@@ -682,6 +675,36 @@ struct rpl_group_info
   inuse_relaylog *relay_log;
   uint64 retry_start_offset;
   uint64 retry_event_count;
+  /*
+    If `speculation' is != SPECULATE_NO, then we are optimistically running
+    this transaction in parallel, even though it might not be safe (there may
+    be a conflict with a prior event group).
+
+    In this case, a conflict can cause other errors than deadlocks (like
+    duplicate key for example). So in case of _any_ error, we need to roll
+    back and retry the event group.
+  */
+  enum enum_speculation {
+    /*
+      This transaction was group-committed together on the master with the
+      other transactions with which it is replicated in parallel.
+    */
+    SPECULATE_NO,
+    /*
+      We will optimistically try to run this transaction in parallel with
+      other transactions, even though it is not known to be conflict free.
+      If we get a conflict, we will detect it as a deadlock, roll back and
+      retry.
+    */
+    SPECULATE_OPTIMISTIC,
+    /*
+      This transaction got a conflict during speculative parallel apply, or
+      it was marked on the master as likely to cause a conflict or unsafe to
+      speculate. So it will wait for the prior transaction to commit before
+      starting to replicate.
+    */
+    SPECULATE_WAIT
+  } speculation;
   bool killed_for_retry;
 
   rpl_group_info(Relay_log_info *rli_);

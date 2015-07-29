@@ -45,10 +45,6 @@
 static grn_hash *grn_plugins = NULL;
 static grn_critical_section grn_plugins_lock;
 
-#ifdef GRN_WITH_MRUBY
-static const char *grn_plugin_mrb_suffix = ".rb";
-#endif /* GRN_WITH_MRUBY */
-
 #ifdef HAVE_DLFCN_H
 #  include <dlfcn.h>
 #  define grn_dl_open(filename)      dlopen(filename, RTLD_LAZY | RTLD_LOCAL)
@@ -67,6 +63,18 @@ static const char *grn_plugin_mrb_suffix = ".rb";
 #  define grn_dl_sym_error_label()   "GetProcAddress"
 #  define grn_dl_clear_error()
 #endif
+
+#define GRN_PLUGIN_KEY_SIZE(filename) (strlen((filename)) + 1)
+
+static char grn_plugins_dir[GRN_ENV_BUFFER_SIZE];
+
+void
+grn_plugin_init_from_env(void)
+{
+  grn_getenv("GRN_PLUGINS_DIR",
+             grn_plugins_dir,
+             GRN_ENV_BUFFER_SIZE);
+}
 
 static int
 compute_name_size(const char *name, int name_size)
@@ -88,7 +96,8 @@ grn_plugin_reference(grn_ctx *ctx, const char *filename)
   grn_plugin **plugin = NULL;
 
   CRITICAL_SECTION_ENTER(grn_plugins_lock);
-  id = grn_hash_get(&grn_gctx, grn_plugins, filename, strlen(filename),
+  id = grn_hash_get(&grn_gctx, grn_plugins,
+                    filename, GRN_PLUGIN_KEY_SIZE(filename),
                     (void **)&plugin);
   if (plugin) {
     (*plugin)->refcount++;
@@ -102,7 +111,8 @@ const char *
 grn_plugin_path(grn_ctx *ctx, grn_id id)
 {
   const char *path;
-  uint32_t key_size;
+  grn_plugin *plugin;
+  int value_size;
   const char *system_plugins_dir;
   size_t system_plugins_dir_size;
 
@@ -111,13 +121,14 @@ grn_plugin_path(grn_ctx *ctx, grn_id id)
   }
 
   CRITICAL_SECTION_ENTER(grn_plugins_lock);
-  path = _grn_hash_key(&grn_gctx, grn_plugins, id, &key_size);
+  value_size = grn_hash_get_value(&grn_gctx, grn_plugins, id, &plugin);
   CRITICAL_SECTION_LEAVE(grn_plugins_lock);
 
-  if (!path) {
+  if (!plugin) {
     return NULL;
   }
 
+  path = plugin->path;
   system_plugins_dir = grn_plugin_get_system_plugins_dir();
   system_plugins_dir_size = strlen(system_plugins_dir);
   if (strncmp(system_plugins_dir, path, system_plugins_dir_size) == 0) {
@@ -254,6 +265,11 @@ grn_plugin_open_mrb(grn_ctx *ctx, const char *filename, size_t filename_size)
   grn_id id = GRN_ID_NIL;
   grn_plugin **plugin = NULL;
 
+  if (!ctx->impl->mrb.state) {
+    ERR(GRN_FUNCTION_NOT_IMPLEMENTED, "mruby support isn't enabled");
+    return GRN_ID_NIL;
+  }
+
   id = grn_hash_add(&grn_gctx, grn_plugins, filename, filename_size,
                     (void **)&plugin, NULL);
   if (!id) {
@@ -266,6 +282,7 @@ grn_plugin_open_mrb(grn_ctx *ctx, const char *filename, size_t filename_size)
     return GRN_ID_NIL;
   }
 
+  grn_memcpy((*plugin)->path, filename, filename_size);
   (*plugin)->dl = NULL;
   (*plugin)->init_func = NULL;
   (*plugin)->register_func = NULL;
@@ -284,7 +301,7 @@ grn_plugin_open(grn_ctx *ctx, const char *filename)
   grn_plugin **plugin = NULL;
   size_t filename_size;
 
-  filename_size = strlen(filename);
+  filename_size = GRN_PLUGIN_KEY_SIZE(filename);
 
   CRITICAL_SECTION_ENTER(grn_plugins_lock);
   if ((id = grn_hash_get(&grn_gctx, grn_plugins, filename, filename_size,
@@ -294,11 +311,15 @@ grn_plugin_open(grn_ctx *ctx, const char *filename)
   }
 
 #ifdef GRN_WITH_MRUBY
-  if (filename_size > strlen(grn_plugin_mrb_suffix) &&
-      strcmp(filename + (filename_size - strlen(grn_plugin_mrb_suffix)),
-             grn_plugin_mrb_suffix) == 0) {
-    id = grn_plugin_open_mrb(ctx, filename, filename_size);
-    goto exit;
+  {
+    const char *mrb_suffix;
+    mrb_suffix = grn_plugin_get_ruby_suffix();
+    if (filename_size > strlen(mrb_suffix) &&
+      strcmp(filename + (strlen(filename) - strlen(mrb_suffix)),
+             mrb_suffix) == 0) {
+      id = grn_plugin_open_mrb(ctx, filename, filename_size);
+      goto exit;
+    }
   }
 #endif /* GRN_WITH_MRUBY */
 
@@ -307,6 +328,7 @@ grn_plugin_open(grn_ctx *ctx, const char *filename)
                            (void **)&plugin, NULL))) {
       *plugin = GRN_GMALLOCN(grn_plugin, 1);
       if (*plugin) {
+        grn_memcpy((*plugin)->path, filename, filename_size);
         if (grn_plugin_initialize(ctx, *plugin, dl, id, filename)) {
           GRN_GFREE(*plugin);
           *plugin = NULL;
@@ -439,6 +461,12 @@ grn_plugin_get_suffix(void)
   return GRN_PLUGIN_SUFFIX;
 }
 
+const char *
+grn_plugin_get_ruby_suffix(void)
+{
+  return ".rb";
+}
+
 grn_rc
 grn_plugin_register_by_path(grn_ctx *ctx, const char *path)
 {
@@ -476,9 +504,9 @@ grn_plugin_get_default_system_plugins_dir(void)
 
     base_dir = grn_win32_base_dir();
     base_dir_length = strlen(base_dir);
-    strcpy(win32_plugins_dir_buffer, base_dir);
-    strcat(win32_plugins_dir_buffer, "/");
-    strcat(win32_plugins_dir_buffer, relative_path);
+    grn_strcpy(win32_plugins_dir_buffer, PATH_MAX, base_dir);
+    grn_strcat(win32_plugins_dir_buffer, PATH_MAX, "/");
+    grn_strcat(win32_plugins_dir_buffer, PATH_MAX, relative_path);
     win32_plugins_dir = win32_plugins_dir_buffer;
   }
   return win32_plugins_dir;
@@ -495,14 +523,11 @@ grn_plugin_get_default_system_plugins_dir(void)
 const char *
 grn_plugin_get_system_plugins_dir(void)
 {
-  const char *plugins_dir;
-
-  plugins_dir = getenv("GRN_PLUGINS_DIR");
-  if (!plugins_dir) {
-    plugins_dir = grn_plugin_get_default_system_plugins_dir();
+  if (grn_plugins_dir[0]) {
+    return grn_plugins_dir;
+  } else {
+    return grn_plugin_get_default_system_plugins_dir();
   }
-
-  return plugins_dir;
 }
 
 static char *
@@ -521,13 +546,18 @@ grn_plugin_find_path_raw(grn_ctx *ctx, const char *path)
   return GRN_STRDUP(path);
 }
 
-#if GRN_WITH_MRUBY
+#ifdef GRN_WITH_MRUBY
 static char *
 grn_plugin_find_path_mrb(grn_ctx *ctx, const char *path, size_t path_len)
 {
   char mrb_path[PATH_MAX];
-  const char *mrb_suffix = grn_plugin_mrb_suffix;
+  const char *mrb_suffix;
   size_t mrb_path_len;
+
+  mrb_suffix = grn_plugin_get_ruby_suffix();
+  if (!ctx->impl->mrb.state) {
+    return NULL;
+  }
 
   mrb_path_len = path_len + strlen(mrb_suffix);
   if (mrb_path_len >= PATH_MAX) {
@@ -537,8 +567,8 @@ grn_plugin_find_path_mrb(grn_ctx *ctx, const char *path, size_t path_len)
     return NULL;
   }
 
-  strcpy(mrb_path, path);
-  strcat(mrb_path, mrb_suffix);
+  grn_strcpy(mrb_path, PATH_MAX, path);
+  grn_strcat(mrb_path, PATH_MAX, mrb_suffix);
   return grn_plugin_find_path_raw(ctx, mrb_path);
 }
 #else /* GRN_WITH_MRUBY */
@@ -565,8 +595,8 @@ grn_plugin_find_path_so(grn_ctx *ctx, const char *path, size_t path_len)
     return NULL;
   }
 
-  strcpy(so_path, path);
-  strcat(so_path, so_suffix);
+  grn_strcpy(so_path, PATH_MAX, path);
+  grn_strcat(so_path, PATH_MAX, so_suffix);
   return grn_plugin_find_path_raw(ctx, so_path);
 }
 
@@ -598,10 +628,10 @@ grn_plugin_find_path_libs_so(grn_ctx *ctx, const char *path, size_t path_len)
   }
 
   libs_so_path[0] = '\0';
-  strncat(libs_so_path, path, base_name - path);
-  strcat(libs_so_path, libs_path);
-  strcat(libs_so_path, base_name);
-  strcat(libs_so_path, so_suffix);
+  grn_strncat(libs_so_path, PATH_MAX, path, base_name - path);
+  grn_strcat(libs_so_path, PATH_MAX, libs_path);
+  grn_strcat(libs_so_path, PATH_MAX, base_name);
+  grn_strcat(libs_so_path, PATH_MAX, so_suffix);
   return grn_plugin_find_path_raw(ctx, libs_so_path);
 }
 
@@ -620,11 +650,11 @@ grn_plugin_find_path(grn_ctx *ctx, const char *name)
     path[0] = '\0';
   } else {
     plugins_dir = grn_plugin_get_system_plugins_dir();
-    strcpy(path, plugins_dir);
+    grn_strcpy(path, PATH_MAX, plugins_dir);
 
     dir_last_char = plugins_dir[strlen(path) - 1];
     if (dir_last_char != '/') {
-      strcat(path, "/");
+      grn_strcat(path, PATH_MAX, "/");
     }
   }
 
@@ -637,7 +667,7 @@ grn_plugin_find_path(grn_ctx *ctx, const char *name)
         path, name);
     goto exit;
   }
-  strcat(path, name);
+  grn_strcat(path, PATH_MAX, name);
 
   found_path = grn_plugin_find_path_raw(ctx, path);
   if (found_path) {
@@ -673,6 +703,30 @@ exit :
   GRN_API_RETURN(found_path);
 }
 
+static void
+grn_plugin_set_name_resolve_error(grn_ctx *ctx, const char *name,
+                                  const char *tag)
+{
+  const char *prefix, *prefix_separator, *suffix;
+
+  if (name[0] == '/') {
+    prefix = "";
+    prefix_separator = "";
+    suffix = "";
+  } else {
+    prefix = grn_plugin_get_system_plugins_dir();
+    if (prefix[strlen(prefix) - 1] != '/') {
+      prefix_separator = "/";
+    } else {
+      prefix_separator = "";
+    }
+    suffix = grn_plugin_get_suffix();
+  }
+  ERR(GRN_NO_SUCH_FILE_OR_DIRECTORY,
+      "%s cannot find plugin file: <%s%s%s%s>",
+      tag, prefix, prefix_separator, name, suffix);
+}
+
 grn_rc
 grn_plugin_register(grn_ctx *ctx, const char *name)
 {
@@ -686,23 +740,86 @@ grn_plugin_register(grn_ctx *ctx, const char *name)
     GRN_FREE(path);
   } else {
     if (ctx->rc == GRN_SUCCESS) {
-      const char *prefix, *prefix_separator, *suffix;
-      if (name[0] == '/') {
-        prefix = "";
-        prefix_separator = "";
-        suffix = "";
-      } else {
-        prefix = grn_plugin_get_system_plugins_dir();
-        if (prefix[strlen(prefix) - 1] != '/') {
-          prefix_separator = "/";
-        } else {
-          prefix_separator = "";
-        }
-        suffix = grn_plugin_get_suffix();
+      grn_plugin_set_name_resolve_error(ctx, name, "[plugin][register]");
+    }
+    rc = ctx->rc;
+  }
+  GRN_API_RETURN(rc);
+}
+
+grn_rc
+grn_plugin_unregister_by_path(grn_ctx *ctx, const char *path)
+{
+  grn_obj *db;
+  grn_id plugin_id;
+
+  if (!ctx || !ctx->impl) {
+    ERR(GRN_INVALID_ARGUMENT, "[plugin][unregister] ctx isn't initialized");
+    return ctx->rc;
+  }
+
+  db = ctx->impl->db;
+  if (!db) {
+    ERR(GRN_INVALID_ARGUMENT, "[plugin][unregister] DB isn't initialized");
+    return ctx->rc;
+  }
+
+  GRN_API_ENTER;
+
+  CRITICAL_SECTION_ENTER(grn_plugins_lock);
+  plugin_id = grn_hash_get(&grn_gctx, grn_plugins,
+                           path, GRN_PLUGIN_KEY_SIZE(path),
+                           NULL);
+  CRITICAL_SECTION_LEAVE(grn_plugins_lock);
+
+  if (plugin_id == GRN_ID_NIL) {
+    GRN_API_RETURN(ctx->rc);
+  }
+
+  {
+    grn_table_cursor *cursor;
+    grn_id id;
+
+    cursor = grn_table_cursor_open(ctx, db,
+                                   NULL, 0,
+                                   NULL, 0,
+                                   0, -1, GRN_CURSOR_BY_ID);
+    if (!cursor) {
+      GRN_API_RETURN(ctx->rc);
+    }
+
+    while ((id = grn_table_cursor_next(ctx, cursor))) {
+      grn_obj *obj;
+      obj = grn_ctx_at(ctx, id);
+      if (!obj) {
+        continue;
       }
-      ERR(GRN_NO_SUCH_FILE_OR_DIRECTORY,
-          "cannot find plugin file: <%s%s%s%s>",
-          prefix, prefix_separator, name, suffix);
+      if (obj->header.type == GRN_PROC && DB_OBJ(obj)->range == plugin_id) {
+        grn_obj_remove(ctx, obj);
+      } else {
+        grn_obj_unlink(ctx, obj);
+      }
+    }
+    grn_table_cursor_close(ctx, cursor);
+  }
+
+  GRN_API_RETURN(ctx->rc);
+}
+
+grn_rc
+grn_plugin_unregister(grn_ctx *ctx, const char *name)
+{
+  grn_rc rc;
+  char *path;
+
+  GRN_API_ENTER;
+  path = grn_plugin_find_path(ctx, name);
+  if (path) {
+    rc = grn_plugin_unregister_by_path(ctx, path);
+    GRN_FREE(path);
+  } else {
+    if (ctx->rc == GRN_SUCCESS) {
+      grn_plugin_set_name_resolve_error(ctx, name, "[plugin][unregister]");
     }
     rc = ctx->rc;
   }

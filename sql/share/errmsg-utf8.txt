@@ -2936,7 +2936,7 @@ ER_PASSWORD_ANONYMOUS_USER 42000
         cze "Používáte MySQL jako anonymní uživatel a anonymní uživatelé nemají povoleno měnit hesla"
         dan "Du bruger MariaDB som anonym bruger. Anonyme brugere må ikke ændre adgangskoder"
         nla "U gebruikt MariaDB als anonieme gebruiker en deze mogen geen wachtwoorden wijzigen"
-        eng "You are using MariaDB as an anonymous user and anonymous users are not allowed to change passwords"
+        eng "You are using MariaDB as an anonymous user and anonymous users are not allowed to modify user settings"
         est "Te kasutate MariaDB-i anonüümse kasutajana, kelledel pole parooli muutmise õigust"
         fre "Vous utilisez un utilisateur anonyme et les utilisateurs anonymes ne sont pas autorisés à changer les mots de passe"
         ger "Sie benutzen MariaDB als anonymer Benutzer und dürfen daher keine Passwörter ändern"
@@ -2946,7 +2946,7 @@ ER_PASSWORD_ANONYMOUS_USER 42000
         jpn "MySQL を匿名ユーザーで使用しているので、パスワードの変更はできません。"
         kor "당신은 MariaDB서버에 익명의 사용자로 접속을 하셨습니다.익명의 사용자는 암호를 변경할 수 없습니다."
         por "Você está usando o MariaDB como usuário anônimo e usuários anônimos não têm permissão para mudar senhas"
-        rum "Dumneavoastra folositi MariaDB ca un utilizator anonim si utilizatorii anonimi nu au voie sa schime parolele"
+        rum "Dumneavoastra folositi MariaDB ca un utilizator anonim si utilizatorii anonimi nu au voie sa schimbe setarile utilizatorilor."
         rus "Вы используете MariaDB от имени анонимного пользователя, а анонимным пользователям не разрешается менять пароли"
         serbian "Vi koristite MariaDB kao anonimni korisnik a anonimnim korisnicima nije dozvoljeno da menjaju lozinke"
         spa "Tu estás usando MariaDB como un usuario anonimo y usuarios anonimos no tienen permiso para cambiar las claves"
@@ -5194,10 +5194,10 @@ ER_FPARSER_EOF_IN_UNKNOWN_PARAMETER
         rus "Неожиданный конец файла при пропуске неизвестного параметра '%-.192s'"
         ukr "Несподіванний кінець файлу у спробі проминути невідомий параметр '%-.192s'"
 ER_VIEW_NO_EXPLAIN  
-        eng "EXPLAIN/SHOW can not be issued; lacking privileges for underlying table"
-        ger "EXPLAIN/SHOW kann nicht verlangt werden. Rechte für zugrunde liegende Tabelle fehlen"
-        rus "EXPLAIN/SHOW не может быть выполнено; недостаточно прав на таблицы запроса"
-        ukr "EXPLAIN/SHOW не може бути виконано; немає прав на таблиці запиту"
+        eng "ANALYZE/EXPLAIN/SHOW can not be issued; lacking privileges for underlying table"
+        ger "ANALYZE/EXPLAIN/SHOW kann nicht verlangt werden. Rechte für zugrunde liegende Tabelle fehlen"
+        rus "ANALYZE/EXPLAIN/SHOW не может быть выполнено; недостаточно прав на таблицы запроса"
+        ukr "ANALYZE/EXPLAIN/SHOW не може бути виконано; немає прав на таблиці запиту"
 ER_FRM_UNKNOWN_TYPE  
         eng "File '%-.192s' has unknown type '%-.64s' in its header"
         ger "Datei '%-.192s' hat unbekannten Typ '%-.64s' im Header"
@@ -5469,11 +5469,11 @@ ER_SP_NO_RECURSION
         eng "Recursive stored functions and triggers are not allowed."
         ger "Rekursive gespeicherte Routinen und Triggers sind nicht erlaubt"
 ER_TOO_BIG_SCALE 42000 S1009
-        eng "Too big scale %u specified for '%-.192s'. Maximum is %lu."
-        ger "Zu großer Skalierungsfaktor %u für '%-.192s' angegeben. Maximum ist %lu"
+        eng "Too big scale %llu specified for '%-.192s'. Maximum is %u."
+        ger "Zu großer Skalierungsfaktor %llu für '%-.192s' angegeben. Maximum ist %u"
 ER_TOO_BIG_PRECISION 42000 S1009
-        eng "Too big precision %u specified for '%-.192s'. Maximum is %lu."
-        ger "Zu große Genauigkeit %u für '%-.192s' angegeben. Maximum ist %lu"
+        eng "Too big precision %llu specified for '%-.192s'. Maximum is %u."
+        ger "Zu große Genauigkeit %llu für '%-.192s' angegeben. Maximum ist %u"
 ER_M_BIGGER_THAN_D 42000 S1009
         eng "For float(M,D), double(M,D) or decimal(M,D), M must be >= D (column '%-.192s')."
         ger "Für FLOAT(M,D), DOUBLE(M,D) oder DECIMAL(M,D) muss M >= D sein (Feld '%-.192s')"
@@ -5541,8 +5541,8 @@ ER_VIEW_OTHER_USER
         eng "You need the SUPER privilege for creation view with '%-.192s'@'%-.192s' definer"
         ger "Sie brauchen die SUPER-Berechtigung, um einen View mit dem Definierer '%-.192s'@'%-.192s' zu erzeugen"
 ER_NO_SUCH_USER
-  eng "The user specified as a definer ('%-.64s'@'%-.64s') does not exist"
-  ger "Der als Definierer angegebene Benutzer ('%-.64s'@'%-.64s') existiert nicht"
+        eng "The user specified as a definer ('%-.64s'@'%-.64s') does not exist"
+        ger "Der als Definierer angegebene Benutzer ('%-.64s'@'%-.64s') existiert nicht"
 ER_FORBID_SCHEMA_CHANGE
         eng "Changing schema from '%-.192s' to '%-.192s' is not allowed."
         ger "Wechsel des Schemas von '%-.192s' auf '%-.192s' ist nicht erlaubt"
@@ -5571,8 +5571,8 @@ ER_SP_WRONG_NAME 42000
         eng "Incorrect routine name '%-.192s'"
         ger "Ungültiger Routinenname '%-.192s'"
 ER_TABLE_NEEDS_UPGRADE
-        eng "Table upgrade required. Please do \"REPAIR TABLE `%-.32s`\" or dump/reload to fix it!"
-        ger "Tabellenaktualisierung erforderlich. Bitte zum Reparieren \"REPAIR TABLE `%-.32s`\" eingeben!"
+        eng "Upgrade required. Please do \"REPAIR %s %`s\" or dump/reload to fix it!"
+        ger "Aktualisierung erforderlich. Bitte zum Reparieren \"REPAIR %s %`s\" eingeben!"
 ER_SP_NO_AGGREGATE 42000
         eng "AGGREGATE is not supported for stored functions"
         ger "AGGREGATE wird bei gespeicherten Funktionen nicht unterstützt"
@@ -5919,9 +5919,8 @@ ER_TEMP_TABLE_PREVENTS_SWITCH_OUT_OF_RBR
 ER_STORED_FUNCTION_PREVENTS_SWITCH_BINLOG_FORMAT
         eng "Cannot change the binary logging format inside a stored function or trigger"
         ger "Das Binärlog-Format kann innerhalb einer gespeicherten Funktion oder eines Triggers nicht geändert werden"
-ER_NDB_CANT_SWITCH_BINLOG_FORMAT
-        eng "The NDB cluster engine does not support changing the binlog format on the fly yet"
-        ger "Die Speicher-Engine NDB Cluster unterstützt das Ändern des Binärlog-Formats zur Laufzeit noch nicht"
+ER_UNUSED_13
+        eng "You should never see it"
 ER_PARTITION_NO_TEMPORARY
         eng "Cannot create temporary table with partitions"
         ger "Anlegen temporärer Tabellen mit Partitionen nicht möglich"
@@ -6138,9 +6137,8 @@ ER_SLAVE_HEARTBEAT_FAILURE
   ger "Unerwartete Daten vom Heartbeat des Masters: %s"
 ER_SLAVE_HEARTBEAT_VALUE_OUT_OF_RANGE
   eng "The requested value for the heartbeat period is either negative or exceeds the maximum allowed (%s seconds)."
-ER_NDB_REPLICATION_SCHEMA_ERROR
-  eng "Bad schema for mysql.ndb_replication table. Message: %-.64s"
-  ger "Fehlerhaftes Schema für mysql.ndb_replication table. Meldung: %-.64s"
+ER_UNUSED_14
+  eng "You should never see it"
 ER_CONFLICT_FN_PARSE_ERROR
   eng "Error in parsing conflict function. Message: %-.64s"
   ger "Fehler beim Parsen einer Konflikt-Funktion. Meldung: %-.64s"
@@ -6440,10 +6438,10 @@ ER_BINLOG_UNSAFE_CREATE_REPLACE_SELECT
 ER_BINLOG_UNSAFE_UPDATE_IGNORE
   eng "UPDATE IGNORE is unsafe because the order in which rows are updated determines which (if any) rows are ignored. This order cannot be predicted and may differ on master and the slave."
 
-ER_UNUSED_13
+ER_UNUSED_15
   eng "You should never see it"
 
-ER_UNUSED_14
+ER_UNUSED_16
   eng "You should never see it"
 
 ER_BINLOG_UNSAFE_WRITE_AUTOINC_SELECT
@@ -7080,7 +7078,7 @@ ER_INSIDE_TRANSACTION_PREVENTS_SWITCH_GTID_DOMAIN_ID_SEQ_NO
 ER_STORED_FUNCTION_PREVENTS_SWITCH_GTID_DOMAIN_ID_SEQ_NO
         eng "Cannot modify @@session.gtid_domain_id or @@session.gtid_seq_no inside a stored function or trigger"
 ER_GTID_POSITION_NOT_FOUND_IN_BINLOG2
-	eng "Connecting slave requested to start from GTID %u-%u-%llu, which is not in the master's binlog. Since the master's binlog contains GTIDs with higher sequence numbers, it probably means that the slave has diverged due to executing extra errorneous transactions"
+	eng "Connecting slave requested to start from GTID %u-%u-%llu, which is not in the master's binlog. Since the master's binlog contains GTIDs with higher sequence numbers, it probably means that the slave has diverged due to executing extra erroneous transactions"
 ER_BINLOG_MUST_BE_EMPTY
 	eng "This operation is not allowed if any GTID has been logged to the binary log. Run RESET MASTER first to erase the log"
 ER_NO_SUCH_QUERY
@@ -7111,3 +7109,27 @@ ER_SLAVE_SKIP_NOT_IN_GTID
 	eng "When using GTID, @@sql_slave_skip_counter can not be used. Instead, setting @@gtid_slave_pos explicitly can be used to skip to after a given GTID position."
 ER_TABLE_DEFINITION_TOO_BIG
         eng "The definition for table %`s is too big"
+ER_STATEMENT_TIMEOUT 70100
+        eng "Query execution was interrupted (max_statement_time exceeded)"
+ER_SUBQUERIES_NOT_SUPPORTED 42000
+        eng "%s does not support subqueries or stored functions."
+ER_SET_STATEMENT_NOT_SUPPORTED 42000
+        eng "The system variable %.200s cannot be set in SET STATEMENT." 
+ER_UNUSED_17
+        eng "You should never see it"
+ER_USER_CREATE_EXISTS
+        eng "Can't create user '%-.64s'@'%-.64s'; it already exists"
+ER_USER_DROP_EXISTS
+        eng "Can't drop user '%-.64s'@'%-.64s'; it doesn't exist"
+ER_ROLE_CREATE_EXISTS
+        eng "Can't create role '%-.64s'; it already exists"
+ER_ROLE_DROP_EXISTS
+        eng "Can't drop role '%-.64s'; it doesn't exist"
+ER_CANNOT_CONVERT_CHARACTER
+        eng "Cannot convert '%s' character 0x%-.64s to '%s'"
+ER_INVALID_DEFAULT_VALUE_FOR_FIELD  22007
+        eng "Incorrect default value '%-.128s' for column '%.192s'"
+ER_KILL_QUERY_DENIED_ERROR
+        eng "You are not owner of query %lu"
+        ger "Sie sind nicht Eigentümer von Abfrage %lu"
+        rus "Вы не являетесь владельцем запроса %lu"

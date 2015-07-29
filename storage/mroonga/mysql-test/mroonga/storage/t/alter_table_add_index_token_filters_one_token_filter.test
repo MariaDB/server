@@ -15,6 +15,7 @@
 # Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
 --source ../../include/mroonga/have_mroonga.inc
+--source ../../include/mroonga/have_groonga_plugin_register.inc
 --source ../../include/mroonga/load_mroonga_functions.inc
 
 --disable_query_log
@@ -23,7 +24,7 @@ CREATE DATABASE test;
 USE test;
 --enable_query_log
 
-SELECT mroonga_command("register token_filters/stop_word");
+SELECT mroonga_command("plugin_register token_filters/stop_word");
 
 SET NAMES utf8;
 
@@ -31,11 +32,9 @@ CREATE TABLE memos (
   content VARCHAR(64) NOT NULL
 ) DEFAULT CHARSET=utf8;
 
-SELECT mroonga_command("dump");
-
 ALTER TABLE memos ADD FULLTEXT INDEX (content) COMMENT 'token_filters "TokenFilterStopWord"';
 
-SELECT mroonga_command("dump");
+SELECT mroonga_command("dump --dump_plugins no");
 
 DROP TABLE memos;
 

@@ -17,6 +17,7 @@ typedef class MAPFAM *PMAPFAM;
 /*  This is the variable file access method using file mapping.        */
 /***********************************************************************/
 class DllExport MAPFAM : public TXTFAM {
+  friend class TDBJSON;
  public:
   // Constructor
   MAPFAM(PDOSDEF tdp);

@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2013, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2013, 2014, SkySQL Ab. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -74,6 +75,13 @@ enum ib_quiesce_t {
 	QUIESCE_START,			/*!< Initialise, prepare to start */
 	QUIESCE_COMPLETE		/*!< All done */
 };
+
+/** Enum values for atomic_writes table option */
+typedef enum {
+	ATOMIC_WRITES_DEFAULT = 0,
+	ATOMIC_WRITES_ON = 1,
+	ATOMIC_WRITES_OFF = 2
+} atomic_writes_t;
 
 /** Prefix for tmp tables, adopted from sql/table.h */
 #define tmp_file_prefix		"#sql"

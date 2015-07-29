@@ -55,33 +55,26 @@
 	/* Functions defined in this file */
 
 static int check_k_link(HA_CHECK *param, MI_INFO *info,uint nr);
-static int chk_index(HA_CHECK *param, MI_INFO *info,MI_KEYDEF *keyinfo,
-		     my_off_t page, uchar *buff, ha_rows *keys,
-		     ha_checksum *key_checksum, uint level);
+static int chk_index(HA_CHECK *, MI_INFO *, MI_KEYDEF *, my_off_t, uchar *,
+                     ha_rows *, ha_checksum *, uint);
 static uint isam_key_length(MI_INFO *info,MI_KEYDEF *keyinfo);
 static ha_checksum calc_checksum(ha_rows count);
 static int writekeys(MI_SORT_PARAM *sort_param);
-static int sort_one_index(HA_CHECK *param, MI_INFO *info,MI_KEYDEF *keyinfo,
-			  my_off_t pagepos, File new_file);
+static int sort_one_index(HA_CHECK *, MI_INFO *, MI_KEYDEF *, my_off_t, File);
 static int sort_key_read(MI_SORT_PARAM *sort_param,void *key);
 static int sort_ft_key_read(MI_SORT_PARAM *sort_param,void *key);
 static int sort_get_next_record(MI_SORT_PARAM *sort_param);
 static int sort_key_cmp(MI_SORT_PARAM *sort_param, const void *a,const void *b);
 static int sort_ft_key_write(MI_SORT_PARAM *sort_param, const void *a);
 static int sort_key_write(MI_SORT_PARAM *sort_param, const void *a);
-static my_off_t get_record_for_key(MI_INFO *info,MI_KEYDEF *keyinfo,
-				uchar *key);
-static int sort_insert_key(MI_SORT_PARAM  *sort_param,
-                           reg1 SORT_KEY_BLOCKS *key_block,
-			   uchar *key, my_off_t prev_block);
+static my_off_t get_record_for_key(MI_INFO *, MI_KEYDEF *, uchar *);
+static int sort_insert_key(MI_SORT_PARAM  *, SORT_KEY_BLOCKS *, uchar *, my_off_t);
 static int sort_delete_record(MI_SORT_PARAM *sort_param);
 /*static int flush_pending_blocks(HA_CHECK *param);*/
-static SORT_KEY_BLOCKS	*alloc_key_blocks(HA_CHECK *param, uint blocks,
-					  uint buffer_length);
+static SORT_KEY_BLOCKS	*alloc_key_blocks(HA_CHECK *, uint, uint);
 static ha_checksum mi_byte_checksum(const uchar *buf, uint length);
 static void set_data_file_type(MI_SORT_INFO *sort_info, MYISAM_SHARE *share);
-static int replace_data_file(HA_CHECK *param, MI_INFO *info,
-                             const char *name, File new_file);
+static int replace_data_file(HA_CHECK *, MI_INFO *, const char *, File);
 
 void myisamchk_init(HA_CHECK *param)
 {
@@ -1545,11 +1538,6 @@ int mi_repair(HA_CHECK *param, register MI_INFO *info,
     bzero(&info->rec_cache,sizeof(info->rec_cache));
     goto err;
   }
-  if (!rep_quick)
-    if (init_io_cache(&info->rec_cache,-1,(uint) param->write_buffer_length,
-		      WRITE_CACHE, new_header_length, 1,
-		      MYF(MY_WME | MY_WAIT_IF_FULL)))
-      goto err;
   info->opt_flag|=WRITE_CACHE_USED;
   if (!mi_alloc_rec_buff(info, -1, &sort_param.record) ||
       !mi_alloc_rec_buff(info, -1, &sort_param.rec_buff))
@@ -1577,12 +1565,16 @@ int mi_repair(HA_CHECK *param, register MI_INFO *info,
 		 "datafile-header"))
       goto err;
     info->s->state.dellink= HA_OFFSET_ERROR;
-    info->rec_cache.file=new_file;
     if (param->testflag & T_UNPACK)
     {
       share->options&= ~HA_OPTION_COMPRESS_RECORD;
       mi_int2store(share->state.header.options,share->options);
     }
+    if (init_io_cache(&info->rec_cache, new_file,
+                      (uint) param->write_buffer_length,
+		      WRITE_CACHE, new_header_length, 1,
+		      MYF(MY_WME | MY_WAIT_IF_FULL)))
+      goto err;
   }
   sort_info.info=info;
   sort_info.param = param;
@@ -1944,16 +1936,8 @@ int mi_sort_index(HA_CHECK *param, register MI_INFO *info, char * name)
   for (key= 0,keyinfo= &share->keyinfo[0]; key < share->base.keys ;
        key++,keyinfo++)
   {
-    if (! mi_is_key_active(info->s->state.key_map, key))
-    {
-      /* Since the key is not active, this should not be read, but we
-      initialize it anyway to silence a Valgrind warn when passing that
-      chunk of memory to pwrite(). */
-      index_pos[key]= HA_OFFSET_ERROR;
-      continue;
-    }
-
-    if (share->state.key_root[key] != HA_OFFSET_ERROR)
+    if (mi_is_key_active(info->s->state.key_map, key) &&
+        share->state.key_root[key] != HA_OFFSET_ERROR)
     {
       index_pos[key]=param->new_file_pos;	/* Write first block here */
       if (sort_one_index(param,info,keyinfo,share->state.key_root[key],
@@ -2235,19 +2219,16 @@ int mi_repair_by_sort(HA_CHECK *param, register MI_INFO *info,
   if (!(sort_info.key_block=
 	alloc_key_blocks(param,
 			 (uint) param->sort_key_blocks,
-			 share->base.max_key_block_length))
-      || init_io_cache(&param->read_cache,info->dfile,
-		       (uint) param->read_buffer_length,
-		       READ_CACHE,share->pack.header_length,1,MYF(MY_WME)) ||
-      (! rep_quick &&
-       init_io_cache(&info->rec_cache,info->dfile,
-		     (uint) param->write_buffer_length,
-		     WRITE_CACHE,new_header_length,1,
-                     MYF((param->myf_rw & MY_WAIT_IF_FULL) | MY_WME))))
+			 share->base.max_key_block_length)))
     goto err;
+
+  if (init_io_cache(&param->read_cache,info->dfile,
+		       (uint) param->read_buffer_length,
+		       READ_CACHE,share->pack.header_length,1,MYF(MY_WME)))
+    goto err;
+
   sort_info.key_block_end=sort_info.key_block+param->sort_key_blocks;
   info->opt_flag|=WRITE_CACHE_USED;
-  info->rec_cache.file=info->dfile;		/* for sort_delete_record */
 
   if (!mi_alloc_rec_buff(info, -1, &sort_param.record) ||
       !mi_alloc_rec_buff(info, -1, &sort_param.rec_buff))
@@ -2279,7 +2260,11 @@ int mi_repair_by_sort(HA_CHECK *param, register MI_INFO *info,
       mi_int2store(share->state.header.options,share->options);
     }
     share->state.dellink= HA_OFFSET_ERROR;
-    info->rec_cache.file=new_file;
+    if (init_io_cache(&info->rec_cache, new_file,
+                      (uint) param->write_buffer_length,
+                      WRITE_CACHE, new_header_length, 1,
+                      MYF((param->myf_rw & MY_WAIT_IF_FULL) | MY_WME)))
+      goto err;
   }
 
   info->update= (short) (HA_STATE_CHANGED | HA_STATE_ROW_CHANGED);
@@ -2699,23 +2684,16 @@ int mi_repair_parallel(HA_CHECK *param, register MI_INFO *info,
 
   if (!(sort_info.key_block=
 	alloc_key_blocks(param, (uint) param->sort_key_blocks,
-			 share->base.max_key_block_length)) ||
-      init_io_cache(&param->read_cache, info->dfile,
-                    (uint) param->read_buffer_length,
-                    READ_CACHE, share->pack.header_length, 1, MYF(MY_WME)) ||
-      (!rep_quick &&
-       (init_io_cache(&info->rec_cache, info->dfile,
-                      (uint) param->write_buffer_length,
-                      WRITE_CACHE, new_header_length, 1,
-                      MYF(MY_WME | MY_WAIT_IF_FULL) & param->myf_rw) ||
-        init_io_cache(&new_data_cache, -1,
-                      (uint) param->write_buffer_length,
-                      READ_CACHE, new_header_length, 1,
-                      MYF(MY_WME | MY_DONT_CHECK_FILESIZE)))))
+			 share->base.max_key_block_length)))
     goto err;
+
+  if (init_io_cache(&param->read_cache, info->dfile,
+                    (uint) param->read_buffer_length,
+                    READ_CACHE, share->pack.header_length, 1, MYF(MY_WME)))
+    goto err;
+
   sort_info.key_block_end=sort_info.key_block+param->sort_key_blocks;
   info->opt_flag|=WRITE_CACHE_USED;
-  info->rec_cache.file=info->dfile;         /* for sort_delete_record */
 
   if (!rep_quick)
   {
@@ -2741,7 +2719,18 @@ int mi_repair_parallel(HA_CHECK *param, register MI_INFO *info,
       mi_int2store(share->state.header.options,share->options);
     }
     share->state.dellink= HA_OFFSET_ERROR;
-    info->rec_cache.file=new_file;
+
+    if (init_io_cache(&info->rec_cache, new_file,
+                      (uint) param->write_buffer_length,
+                      WRITE_CACHE, new_header_length, 1,
+                      MYF(MY_WME | MY_WAIT_IF_FULL) & param->myf_rw))
+      goto err;
+
+    if (init_io_cache(&new_data_cache, -1,
+                      (uint) param->write_buffer_length,
+                      READ_CACHE, new_header_length, 1,
+                      MYF(MY_WME | MY_DONT_CHECK_FILESIZE)))
+      goto err;
   }
 
   info->update= (short) (HA_STATE_CHANGED | HA_STATE_ROW_CHANGED);
@@ -3292,7 +3281,6 @@ static int sort_get_next_record(MI_SORT_PARAM *sort_param)
       }
     }
   case DYNAMIC_RECORD:
-    LINT_INIT(to);
     pos=sort_param->pos;
     searching=(sort_param->fix_datafile && (param->testflag & T_EXTEND));
     parallel_flag= (sort_param->read_cache.file < 0) ? READING_NEXT : 0;

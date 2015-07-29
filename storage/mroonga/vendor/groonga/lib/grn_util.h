@@ -1,5 +1,5 @@
 /* -*- c-basic-offset: 2 -*- */
-/* Copyright(C) 2010-2011 Brazil
+/* Copyright(C) 2010-2015 Brazil
 
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -28,6 +28,8 @@ GRN_API grn_rc grn_normalize_offset_and_limit(grn_ctx *ctx, int size, int *offse
 
 GRN_API const char *grn_win32_base_dir(void);
 GRN_API char *grn_path_separator_to_system(char *dest, char *groonga_path);
+
+int grn_mkstemp(char *path_template);
 
 #ifdef __cplusplus
 }

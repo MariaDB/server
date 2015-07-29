@@ -437,3 +437,36 @@ mtr_print(
 }
 # endif /* !UNIV_HOTBACKUP */
 #endif /* UNIV_DEBUG */
+
+/**********************************************************//**
+Releases a buf_page stored in an mtr memo after a
+savepoint. */
+UNIV_INTERN
+void
+mtr_release_buf_page_at_savepoint(
+/*=============================*/
+	mtr_t*		mtr,		/*!< in: mtr */
+	ulint		savepoint,	/*!< in: savepoint */
+	buf_block_t*	block)		/*!< in: block to release */
+{
+	mtr_memo_slot_t* slot;
+	dyn_array_t*	memo;
+
+	ut_ad(mtr);
+	ut_ad(mtr->magic_n == MTR_MAGIC_N);
+	ut_ad(mtr->state == MTR_ACTIVE);
+
+	memo = &(mtr->memo);
+
+	ut_ad(dyn_array_get_data_size(memo) > savepoint);
+
+	slot = (mtr_memo_slot_t*) dyn_array_get_element(memo, savepoint);
+
+	ut_ad(slot->object == block);
+	ut_ad(slot->type == MTR_MEMO_PAGE_S_FIX ||
+	      slot->type == MTR_MEMO_PAGE_X_FIX ||
+	      slot->type == MTR_MEMO_BUF_FIX);
+
+	buf_page_release((buf_block_t*) slot->object, slot->type);
+	slot->object = NULL;
+}

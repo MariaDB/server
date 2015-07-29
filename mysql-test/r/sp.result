@@ -3548,7 +3548,10 @@ begin
 set f1= concat( 'hello', f1 );
 return f1;
 end|
-ERROR 42000: This version of MariaDB doesn't yet support 'return value collation'
+select collation(bug9048("foo"))|
+collation(bug9048("foo"))
+latin1_bin
+drop function bug9048|
 drop procedure if exists bug12849_1|
 create procedure bug12849_1(inout x char) select x into x|
 set @var='a'|
@@ -7858,3 +7861,79 @@ v1
 DROP PROCEDURE p1;
 DROP TABLE t1;
 # End of 5.5 test
+CREATE FUNCTION f(f1 VARCHAR(64) COLLATE latin1_german2_ci)
+RETURNS VARCHAR(64)
+BEGIN
+RETURN 'str';
+END|
+DROP FUNCTION f|
+CREATE FUNCTION f(f1 VARCHAR(64))
+RETURNS VARCHAR(64) COLLATE latin1_german2_ci
+BEGIN
+RETURN 'str';
+END|
+DROP FUNCTION f|
+CREATE FUNCTION f(f1 VARCHAR(64))
+RETURNS VARCHAR(64)
+BEGIN
+DECLARE f2 VARCHAR(64) COLLATE latin1_german2_ci;
+RETURN 'str';
+END|
+DROP FUNCTION f|
+#
+# MDEV-7023: Error 2027: Malformed packet and assertion
+# `field_types == 0 || field_types[field_pos] == MYSQL_TYPE_INT24 ||
+#field_types[field_pos] == MYSQL_TYPE_LONG' failure in
+#Protocol_text::store_long
+#
+create table t1 (i int);
+create table t2 (i int);
+create function f() returns int 
+begin 
+analyze insert into t1 values (1); 
+return 1; 
+end |
+ERROR 0A000: Not allowed to return a result set from a function
+create function f() returns int 
+begin 
+analyze insert t1 select * from t2; 
+return 1; 
+end |
+ERROR 0A000: Not allowed to return a result set from a function
+create function f() returns int 
+begin 
+analyze delete from t1; 
+return 1; 
+end |
+ERROR 0A000: Not allowed to return a result set from a function
+create function f() returns int 
+begin 
+analyze delete t1 from t1,t2; 
+return 1; 
+end |
+ERROR 0A000: Not allowed to return a result set from a function
+create function f() returns int 
+begin 
+analyze update t1 set i=1; 
+return 1; 
+end |
+ERROR 0A000: Not allowed to return a result set from a function
+create function f() returns int 
+begin 
+analyze update t1,t2 set i=1; 
+return 1; 
+end |
+ERROR 0A000: Not allowed to return a result set from a function
+create function f() returns int 
+begin 
+analyze replace t1 set i=1; 
+return 1; 
+end |
+ERROR 0A000: Not allowed to return a result set from a function
+create function f() returns int 
+begin 
+analyze replace t1 select * from t2; 
+return 1; 
+end |
+ERROR 0A000: Not allowed to return a result set from a function
+drop table t1,t2;

@@ -452,7 +452,7 @@ Returns the old value of *ptr, atomically sets *ptr to new_val */
 # define os_atomic_test_and_set_ulint(ptr, new_val) \
 	__sync_lock_test_and_set(ptr, new_val)
 
-#ifdef __powerpc__
+#if defined(__powerpc__) || defined(__aarch64__)
 /*
   os_atomic_test_and_set_byte_release() should imply a release barrier before
   setting, and a full barrier after. But __sync_lock_test_and_set() is only

@@ -100,20 +100,20 @@ drop table t1;
 -- after Bug#29394 is implemented.
 show variables like "wait_timeout%";
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def	information_schema	VARIABLES	VARIABLES	VARIABLE_NAME	Variable_name	253	64	12	N	1	0	8
-def	information_schema	VARIABLES	VARIABLES	VARIABLE_VALUE	Value	253	1024	5	Y	0	0	8
+def	information_schema	SESSION_VARIABLES	SESSION_VARIABLES	VARIABLE_NAME	Variable_name	253	64	12	N	1	0	8
+def	information_schema	SESSION_VARIABLES	SESSION_VARIABLES	VARIABLE_VALUE	Value	253	2048	5	N	1	0	8
 Variable_name	Value
 wait_timeout	28800
 show variables like "WAIT_timeout%";
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def	information_schema	VARIABLES	VARIABLES	VARIABLE_NAME	Variable_name	253	64	12	N	1	0	8
-def	information_schema	VARIABLES	VARIABLES	VARIABLE_VALUE	Value	253	1024	5	Y	0	0	8
+def	information_schema	SESSION_VARIABLES	SESSION_VARIABLES	VARIABLE_NAME	Variable_name	253	64	12	N	1	0	8
+def	information_schema	SESSION_VARIABLES	SESSION_VARIABLES	VARIABLE_VALUE	Value	253	2048	5	N	1	0	8
 Variable_name	Value
 wait_timeout	28800
 show variables like "this_doesn't_exists%";
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def	information_schema	VARIABLES	VARIABLES	VARIABLE_NAME	Variable_name	253	64	0	N	1	0	8
-def	information_schema	VARIABLES	VARIABLES	VARIABLE_VALUE	Value	253	1024	0	Y	0	0	8
+def	information_schema	SESSION_VARIABLES	SESSION_VARIABLES	VARIABLE_NAME	Variable_name	253	64	0	N	1	0	8
+def	information_schema	SESSION_VARIABLES	SESSION_VARIABLES	VARIABLE_VALUE	Value	253	2048	0	N	1	0	8
 Variable_name	Value
 show table status from test like "this_doesn't_exists%";
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
@@ -259,8 +259,8 @@ create table t1(n int);
 insert into t1 values (1);
 show open tables;
 Database	Table	In_use	Name_locked
-test	t1	0	0
 mysql	general_log	0	0
+test	t1	0	0
 drop table t1;
 create table t1 (a int not null, b VARCHAR(10), INDEX (b) ) AVG_ROW_LENGTH=10 CHECKSUM=1 COMMENT="test" ENGINE=MYISAM MIN_ROWS=10 MAX_ROWS=100 PACK_KEYS=1 DELAY_KEY_WRITE=1 ROW_FORMAT=fixed;
 show create table t1;
@@ -1069,8 +1069,9 @@ def	information_schema	VIEWS	VIEWS	DEFINER	DEFINER	253	567	14	N	1	0	33
 def	information_schema	VIEWS	VIEWS	SECURITY_TYPE	SECURITY_TYPE	253	21	7	N	1	0	33
 def	information_schema	VIEWS	VIEWS	CHARACTER_SET_CLIENT	CHARACTER_SET_CLIENT	253	96	6	N	1	0	33
 def	information_schema	VIEWS	VIEWS	COLLATION_CONNECTION	COLLATION_CONNECTION	253	96	6	N	1	0	33
-TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	VIEW_DEFINITION	CHECK_OPTION	IS_UPDATABLE	DEFINER	SECURITY_TYPE	CHARACTER_SET_CLIENT	COLLATION_CONNECTION
-def	test	v1	select 1 AS `1`	NONE	NO	root@localhost	DEFINER	binary	binary
+def	information_schema	VIEWS	VIEWS	ALGORITHM	ALGORITHM	253	30	9	N	1	0	33
+TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	VIEW_DEFINITION	CHECK_OPTION	IS_UPDATABLE	DEFINER	SECURITY_TYPE	CHARACTER_SET_CLIENT	COLLATION_CONNECTION	ALGORITHM
+def	test	v1	select 1 AS `1`	NONE	NO	root@localhost	DEFINER	binary	binary	UNDEFINED
 ----------------------------------------------------------------
 SHOW CREATE PROCEDURE p1;
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr

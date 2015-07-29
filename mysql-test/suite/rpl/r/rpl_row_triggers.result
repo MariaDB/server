@@ -65,7 +65,7 @@ i0	1		a
 i1	1		a
 u0	1	a	d
 u1	1	a	d
-# INSERT triggers which cause also UPDATE test (insert duplicate row)
+# INSERT triggers causing DELETE + INSERT (on unique key conflict)
 insert into t1 values ('0','1');
 SELECT * FROM t2 order by id;
 id	cnt	o	n
@@ -78,12 +78,12 @@ u1	1	a	d
 insert into t1 values ('0','1');
 SELECT * FROM t2 order by id;
 id	cnt	o	n
-d0	1	d	
-d1	1	d	
+d0	2	0	
+d1	2	0	
 i0	3		0
 i1	3		0
-u0	2	0	0
-u1	2	0	0
+u0	1	a	d
+u1	1	a	d
 # INSERT triggers which cause also DELETE test
 # (insert duplicate row in table referenced by foreign key)
 insert into t1 values ('1','1');
@@ -91,12 +91,12 @@ CREATE TABLE t3 (C1 CHAR(1) primary key, FOREIGN KEY (C1) REFERENCES t1(C1) ) en
 insert into t1 values ('1','1');
 SELECT * FROM t2 order by id;
 id	cnt	o	n
-d0	2	1	
-d1	2	1	
+d0	3	1	
+d1	3	1	
 i0	5		1
 i1	5		1
-u0	2	0	0
-u1	2	0	0
+u0	1	a	d
+u1	1	a	d
 drop table t3,t1;
 SET @@global.slave_exec_mode= @old_slave_exec_mode;
 SET @@global.slave_run_triggers_for_rbr= @old_slave_run_triggers_for_rbr;

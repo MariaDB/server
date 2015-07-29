@@ -1349,6 +1349,21 @@ page_cur_insert_rec_zip(
 					return(insert_rec);
 				}
 
+				/* Page compress failed. If this happened on a
+				leaf page, put the data size into the sample
+				buffer. */
+				if (page_is_leaf(page)) {
+					ulint occupied = page_get_data_size(page)
+						+ page_dir_calc_reserved_space(
+								page_get_n_recs(page));
+					index->stat_defrag_data_size_sample[
+						index->stat_defrag_sample_next_slot] =
+								occupied;
+					index->stat_defrag_sample_next_slot =
+						(index->stat_defrag_sample_next_slot
+						 + 1) % STAT_DEFRAG_DATA_SIZE_N_SAMPLE;
+				}
+
 				ut_ad(cursor->rec
 				      == (pos > 1
 					  ? page_rec_get_nth(

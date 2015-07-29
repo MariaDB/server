@@ -13,8 +13,14 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
 
+#ifndef MYSYS_PRIV_INCLUDED
+#define MYSYS_PRIV_INCLUDED
+
 #include <my_global.h>
 #include <my_sys.h>
+#include <my_crypt.h>
+
+C_MODE_START
 
 #ifdef USE_SYSTEM_WRAPPERS
 #include "system_wrappers.h"
@@ -42,16 +48,16 @@ extern PSI_mutex_key key_BITMAP_mutex, key_IO_CACHE_append_buffer_lock,
   key_THR_LOCK_lock, key_THR_LOCK_malloc,
   key_THR_LOCK_mutex, key_THR_LOCK_myisam, key_THR_LOCK_net,
   key_THR_LOCK_open, key_THR_LOCK_threads, key_LOCK_uuid_generator,
-  key_TMPDIR_mutex, key_THR_LOCK_myisam_mmap;
+  key_TMPDIR_mutex, key_THR_LOCK_myisam_mmap, key_LOCK_timer;
 
-extern PSI_cond_key key_COND_alarm, key_IO_CACHE_SHARE_cond,
+extern PSI_cond_key key_COND_alarm, key_COND_timer, key_IO_CACHE_SHARE_cond,
   key_IO_CACHE_SHARE_cond_writer, key_my_thread_var_suspend,
   key_THR_COND_threads;
 
 #ifdef USE_ALARM_THREAD
 extern PSI_thread_key key_thread_alarm;
 #endif /* USE_ALARM_THREAD */
-
+extern PSI_thread_key key_thread_timer;
 extern PSI_rwlock_key key_SAFEHASH_mutex;
 
 #endif /* HAVE_PSI_INTERFACE */
@@ -70,6 +76,16 @@ extern PSI_file_key key_file_proc_meminfo;
 #endif /* HUGETLB_USE_PROC_MEMINFO */
 extern PSI_file_key key_file_charset, key_file_cnf;
 #endif /* HAVE_PSI_INTERFACE */
+
+typedef struct {
+  ulonglong counter;
+  uint block_length, last_block_length;
+  uchar key[MY_AES_BLOCK_SIZE];
+  ulonglong inbuf_counter;
+} IO_CACHE_CRYPT;
+
+extern int (*_my_b_encr_read)(IO_CACHE *info,uchar *Buffer,size_t Count);
+extern int (*_my_b_encr_write)(IO_CACHE *info,const uchar *Buffer,size_t Count);
 
 #ifdef SAFEMALLOC
 void *sf_malloc(size_t size, myf my_flags);
@@ -115,4 +131,8 @@ extern int      my_win_fsync(File fd);
 extern File     my_win_dup(File fd);
 extern File     my_win_sopen(const char *path, int oflag, int shflag, int perm);
 extern File     my_open_osfhandle(HANDLE handle, int oflag);
+#endif
+
+C_MODE_END
+
 #endif

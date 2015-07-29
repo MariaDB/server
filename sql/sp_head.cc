@@ -150,12 +150,8 @@ sp_get_item_value(THD *thd, Item *item, String *str)
         return NULL;
 
       {
-        char buf_holder[STRING_BUFFER_USUAL_SIZE];
-        String buf(buf_holder, sizeof(buf_holder), result->charset());
+        StringBuffer<STRING_BUFFER_USUAL_SIZE> buf(result->charset());
         CHARSET_INFO *cs= thd->variables.character_set_client;
-
-        /* We must reset length of the buffer, because of String specificity. */
-        buf.length(0);
 
         buf.append('_');
         buf.append(result->charset()->csname);
@@ -176,6 +172,28 @@ sp_get_item_value(THD *thd, Item *item, String *str)
   default:
     return NULL;
   }
+}
+
+
+bool Item_splocal::append_for_log(THD *thd, String *str)
+{
+  if (fix_fields(thd, NULL))
+    return true;
+
+  if (limit_clause_param)
+    return str->append_ulonglong(val_uint());
+
+  if (str->append(STRING_WITH_LEN(" NAME_CONST('")) ||
+      str->append(&m_name) ||
+      str->append(STRING_WITH_LEN("',")))
+    return true;
+
+  StringBuffer<STRING_BUFFER_USUAL_SIZE> str_value_holder(&my_charset_latin1);
+  String *str_value= sp_get_item_value(thd, this_item(), &str_value_holder);
+  if (str_value)
+    return str->append(*str_value) || str->append(')');
+  else
+    return str->append(STRING_WITH_LEN("NULL)"));
 }
 
 
@@ -263,13 +281,13 @@ sp_get_flags_for_command(LEX *lex)
     flags= sp_head::CONTAINS_DYNAMIC_SQL;
     break;
   case SQLCOM_CREATE_TABLE:
-    if (lex->create_info.tmp_table())
+    if (lex->tmp_table())
       flags= 0;
     else
       flags= sp_head::HAS_COMMIT_OR_ROLLBACK;
     break;
   case SQLCOM_DROP_TABLE:
-    if (lex->drop_temporary)
+    if (lex->tmp_table())
       flags= 0;
     else
       flags= sp_head::HAS_COMMIT_OR_ROLLBACK;
@@ -323,11 +341,13 @@ sp_get_flags_for_command(LEX *lex)
   case SQLCOM_DELETE_MULTI:
   {
     /* 
-      DELETE normally doesn't return resultset, but there are two exceptions:
+      DELETE normally doesn't return resultset, but there are 3 exceptions:
        - DELETE ... RETURNING
        - EXPLAIN DELETE ...
+       - ANALYZE DELETE ...
     */
-    if (lex->select_lex.item_list.is_empty() && !lex->describe)
+    if (lex->select_lex.item_list.is_empty() &&
+        !lex->describe && !lex->analyze_stmt)
       flags= 0;
     else
       flags= sp_head::MULTI_RESULTS; 
@@ -340,7 +360,7 @@ sp_get_flags_for_command(LEX *lex)
   case SQLCOM_REPLACE_SELECT:
   case SQLCOM_INSERT_SELECT:
   {
-    if (!lex->describe)
+    if (!lex->describe && !lex->analyze_stmt)
       flags= 0;
     else
       flags= sp_head::MULTI_RESULTS; 
@@ -520,7 +540,7 @@ check_routine_name(LEX_STRING *ident)
     my_error(ER_SP_WRONG_NAME, MYF(0), ident->str);
     return TRUE;
   }
-  if (check_string_char_length(ident, "", NAME_CHAR_LEN,
+  if (check_string_char_length(ident, 0, NAME_CHAR_LEN,
                                system_charset_info, 1))
   {
     my_error(ER_TOO_LONG_IDENT, MYF(0), ident->str);
@@ -578,13 +598,12 @@ sp_head::sp_head()
   :Query_arena(&main_mem_root, STMT_INITIALIZED_FOR_SP),
    m_flags(0),
    m_sp_cache_version(0),
+   m_creation_ctx(0),
    unsafe_flags(0),
    m_recursion_level(0),
    m_next_cached_sp(0),
    m_cont_level(0)
 {
-  const LEX_STRING str_reset= { NULL, 0 };
-
   m_first_instance= this;
   m_first_free_instance= this;
   m_last_cached_sp= this;
@@ -595,7 +614,7 @@ sp_head::sp_head()
     be rewritten soon. Remove the else part and replace 'if' with
     an assert when this is done.
   */
-  m_db= m_name= m_qname= str_reset;
+  m_db= m_name= m_qname= null_lex_str;
 
   DBUG_ENTER("sp_head::sp_head");
 
@@ -860,7 +879,7 @@ sp_head::create_result_field(uint field_max_length, const char *field_name,
                       m_return_field_def.pack_flag,
                       m_return_field_def.sql_type,
                       m_return_field_def.charset,
-                      m_return_field_def.geom_type,
+                      m_return_field_def.geom_type, m_return_field_def.srid,
                       Field::NONE,                  /* unreg check */
                       m_return_field_def.interval,
                       field_name ? field_name : (const char *) m_name.str);
@@ -874,7 +893,8 @@ sp_head::create_result_field(uint field_max_length, const char *field_name,
 }
 
 
-int cmp_splocal_locations(Item_splocal * const *a, Item_splocal * const *b)
+int cmp_rqp_locations(Rewritable_query_parameter * const *a,
+                      Rewritable_query_parameter * const *b)
 {
   return (int)((*a)->pos_in_query - (*b)->pos_in_query);
 }
@@ -980,85 +1000,32 @@ subst_spvars(THD *thd, sp_instr *instr, LEX_STRING *query_str)
 {
   DBUG_ENTER("subst_spvars");
 
-  Dynamic_array<Item_splocal*> sp_vars_uses;
-  char *pbuf, *cur, buffer[512];
-  String qbuf(buffer, sizeof(buffer), &my_charset_bin);
-  int prev_pos, res, buf_len;
+  Dynamic_array<Rewritable_query_parameter*> rewritables;
+  char *pbuf;
+  StringBuffer<512> qbuf;
+  Copy_query_with_rewrite acc(thd, query_str->str, query_str->length, &qbuf);
 
-  /* Find all instances of Item_splocal used in this statement */
+  /* Find rewritable Items used in this statement */
   for (Item *item= instr->free_list; item; item= item->next)
   {
-    if (item->is_splocal())
-    {
-      Item_splocal *item_spl= (Item_splocal*)item;
-      if (item_spl->pos_in_query)
-        sp_vars_uses.append(item_spl);
-    }
+    Rewritable_query_parameter *rqp= item->get_rewritable_query_parameter();
+    if (rqp && rqp->pos_in_query)
+      rewritables.append(rqp);
   }
-  if (!sp_vars_uses.elements())
+  if (!rewritables.elements())
     DBUG_RETURN(FALSE);
 
-  /* Sort SP var refs by their occurences in the query */
-  sp_vars_uses.sort(cmp_splocal_locations);
+  rewritables.sort(cmp_rqp_locations);
 
-  /*
-    Construct a statement string where SP local var refs are replaced
-    with "NAME_CONST(name, value)"
-  */
-  qbuf.length(0);
-  cur= query_str->str;
-  prev_pos= res= 0;
-  thd->query_name_consts= 0;
+  thd->query_name_consts= rewritables.elements();
 
-  for (Item_splocal **splocal= sp_vars_uses.front(); 
-       splocal <= sp_vars_uses.back(); splocal++)
+  for (Rewritable_query_parameter **rqp= rewritables.front();
+       rqp <= rewritables.back(); rqp++)
   {
-    Item *val;
-
-    char str_buffer[STRING_BUFFER_USUAL_SIZE];
-    String str_value_holder(str_buffer, sizeof(str_buffer),
-                            &my_charset_latin1);
-    String *str_value;
-
-    /* append the text between sp ref occurences */
-    res|= qbuf.append(cur + prev_pos, (*splocal)->pos_in_query - prev_pos);
-    prev_pos= (*splocal)->pos_in_query + (*splocal)->len_in_query;
-
-    res|= (*splocal)->fix_fields(thd, (Item **) splocal);
-    if (res)
-      break;
-
-    if ((*splocal)->limit_clause_param)
-    {
-      res|= qbuf.append_ulonglong((*splocal)->val_uint());
-      if (res)
-        break;
-      continue;
-    }
-
-    /* append the spvar substitute */
-    res|= qbuf.append(STRING_WITH_LEN(" NAME_CONST('"));
-    res|= qbuf.append((*splocal)->m_name.str, (*splocal)->m_name.length);
-    res|= qbuf.append(STRING_WITH_LEN("',"));
-
-    if (res)
-      break;
-
-    val= (*splocal)->this_item();
-    DBUG_PRINT("info", ("print 0x%lx", (long) val));
-    str_value= sp_get_item_value(thd, val, &str_value_holder);
-    if (str_value)
-      res|= qbuf.append(*str_value);
-    else
-      res|= qbuf.append(STRING_WITH_LEN("NULL"));
-    res|= qbuf.append(')');
-    if (res)
-      break;
-
-    thd->query_name_consts++;
+    if (acc.append(*rqp))
+      DBUG_RETURN(TRUE);
   }
-  if (res ||
-      qbuf.append(cur + prev_pos, query_str->length - prev_pos))
+  if (acc.finalize())
     DBUG_RETURN(TRUE);
 
   /*
@@ -1073,8 +1040,8 @@ subst_spvars(THD *thd, sp_instr *instr, LEX_STRING *query_str)
             <db_name>     Name of current database
             <flags>       Flags struct
   */
-  buf_len= (qbuf.length() + 1 + QUERY_CACHE_DB_LENGTH_SIZE + thd->db_length +
-            QUERY_CACHE_FLAGS_SIZE + 1);
+  int buf_len= (qbuf.length() + 1 + QUERY_CACHE_DB_LENGTH_SIZE +
+                thd->db_length + QUERY_CACHE_FLAGS_SIZE + 1);
   if ((pbuf= (char *) alloc_root(thd->mem_root, buf_len)))
   {
     char *ptr= pbuf + qbuf.length();
@@ -1166,31 +1133,8 @@ sp_head::execute(THD *thd, bool merge_da_on_success)
   Diagnostics_area *da= thd->get_stmt_da();
   Warning_info sp_wi(da->warning_info_id(), false, true);
 
-  /*
-    Just reporting a stack overrun error
-    (@sa check_stack_overrun()) requires stack memory for error
-    message buffer. Thus, we have to put the below check
-    relatively close to the beginning of the execution stack,
-    where available stack margin is still big. As long as the check
-    has to be fairly high up the call stack, the amount of memory
-    we "book" for has to stay fairly high as well, and hence
-    not very accurate. The number below has been calculated
-    by trial and error, and reflects the amount of memory necessary
-    to execute a single stored procedure instruction, be it either
-    an SQL statement, or, heaviest of all, a CALL, which involves
-    parsing and loading of another stored procedure into the cache
-    (@sa db_load_routine() and Bug#10100).
-    At the time of measuring, a recursive SP invocation required
-    3232 bytes of stack on 32 bit Linux, 6016 bytes on 64 bit Mac
-    and 11152 on 64 bit Solaris sparc.
-    The same with db_load_routine() required circa 7k bytes and
-    14k bytes accordingly. Hence, here we book the stack with some
-    reasonable margin.
-
-    Reverting back to 8 * STACK_MIN_SIZE until further fix.
-    8 * STACK_MIN_SIZE is required on some exotic platforms.
-  */
-  if (check_stack_overrun(thd, 8 * STACK_MIN_SIZE, (uchar*)&old_packet))
+  /* this 7*STACK_MIN_SIZE is a complex matter with a long history (see it!) */
+  if (check_stack_overrun(thd, 7 * STACK_MIN_SIZE, (uchar*)&old_packet))
     DBUG_RETURN(TRUE);
 
   /* init per-instruction memroot */
@@ -1242,7 +1186,8 @@ sp_head::execute(THD *thd, bool merge_da_on_success)
     Switch query context. This has to be done early as this is sometimes
     allocated trough sql_alloc
   */
-  saved_creation_ctx= m_creation_ctx->set_n_backup(thd);
+  if (m_creation_ctx)
+    saved_creation_ctx= m_creation_ctx->set_n_backup(thd);
 
   /*
     We have to save/restore this info when we are changing call level to
@@ -1365,7 +1310,12 @@ sp_head::execute(THD *thd, bool merge_da_on_success)
     if (thd->locked_tables_mode <= LTM_LOCK_TABLES)
       thd->user_var_events_alloc= thd->mem_root;
 
+    sql_digest_state *parent_digest= thd->m_digest;
+    thd->m_digest= NULL;
+
     err_status= i->execute(thd, &ip);
+
+    thd->m_digest= parent_digest;
 
     if (i->free_list)
       cleanup_items(i->free_list);
@@ -1407,7 +1357,8 @@ sp_head::execute(THD *thd, bool merge_da_on_success)
 
   /* Restore query context. */
 
-  m_creation_ctx->restore_env(thd, saved_creation_ctx);
+  if (m_creation_ctx)
+    m_creation_ctx->restore_env(thd, saved_creation_ctx);
 
   /* Restore arena. */
 
@@ -1749,7 +1700,7 @@ bool
 sp_head::execute_function(THD *thd, Item **argp, uint argcount,
                           Field *return_value_fld)
 {
-  ulonglong binlog_save_options;
+  ulonglong UNINIT_VAR(binlog_save_options);
   bool need_binlog_call= FALSE;
   uint arg_no;
   sp_rcontext *octx = thd->spcont;
@@ -1762,8 +1713,6 @@ sp_head::execute_function(THD *thd, Item **argp, uint argcount,
   Query_arena backup_arena;
   DBUG_ENTER("sp_head::execute_function");
   DBUG_PRINT("info", ("function %s", m_name.str));
-
-  LINT_INIT(binlog_save_options);
 
   /*
     Check that the function is called with all specified arguments.
@@ -2272,16 +2221,6 @@ sp_head::reset_lex(THD *thd)
   sublex->trg_table_fields.empty();
   sublex->sp_lex_in_use= FALSE;
 
-  /* Reset type info. */
-
-  sublex->charset= NULL;
-  sublex->length= NULL;
-  sublex->dec= NULL;
-  sublex->interval_list.empty();
-  sublex->type= 0;
-  sublex->uint_geom_type= 0;
-  sublex->vcol_info= 0;
-
   /* Reset part of parser state which needs this. */
   thd->m_parser_state->m_yacc.reset_before_substatement();
 
@@ -2335,6 +2274,9 @@ sp_head::restore_lex(THD *thd)
     procedures) to multiset of tables used by this routine.
   */
   merge_table_list(thd, sublex->query_tables, sublex);
+  /* Merge lists of PS parameters. */
+  oldlex->param_list.append(&sublex->param_list);
+
   if (! sublex->sp_lex_in_use)
   {
     sublex->sphead= NULL;
@@ -2404,16 +2346,9 @@ sp_head::fill_field_definition(THD *thd, LEX *lex,
                                enum enum_field_types field_type,
                                Create_field *field_def)
 {
-  LEX_STRING cmt = { 0, 0 };
   uint unused1= 0;
 
-  if (field_def->init(thd, (char*) "", field_type, lex->length, lex->dec,
-                      lex->type, (Item*) 0, (Item*) 0, &cmt, 0,
-                      &lex->interval_list,
-                      lex->charset ? lex->charset :
-                                     thd->variables.collation_database,
-                      lex->uint_geom_type,
-		      lex->vcol_info, NULL, FALSE))
+  if (field_def->check(thd))
     return TRUE;
 
   if (field_def->interval_list.elements)
@@ -3043,6 +2978,7 @@ sp_lex_keeper::reset_lex_and_exec_core(THD *thd, uint *nextp,
 
     cleanup_items() is called in sp_head::execute()
   */
+  thd->lex->restore_set_statement_var();
   DBUG_RETURN(res || thd->is_error());
 }
 
@@ -3682,7 +3618,7 @@ sp_instr_cpush::execute(THD *thd, uint *nextp)
 {
   DBUG_ENTER("sp_instr_cpush::execute");
 
-  int ret= thd->spcont->push_cursor(&m_lex_keeper, this);
+  int ret= thd->spcont->push_cursor(thd, &m_lex_keeper, this);
 
   *nextp= m_ip+1;
 
@@ -3915,7 +3851,7 @@ sp_instr_error::execute(THD *thd, uint *nextp)
 {
   DBUG_ENTER("sp_instr_error::execute");
 
-  my_message(m_errcode, ER(m_errcode), MYF(0));
+  my_message(m_errcode, ER_THD(thd, m_errcode), MYF(0));
   *nextp= m_ip+1;
   DBUG_RETURN(-1);
 }
@@ -4070,7 +4006,7 @@ sp_head::merge_table_list(THD *thd, TABLE_LIST *table, LEX *lex_for_tmp_check)
   SP_TABLE *tab;
 
   if (lex_for_tmp_check->sql_command == SQLCOM_DROP_TABLE &&
-      lex_for_tmp_check->drop_temporary)
+      lex_for_tmp_check->tmp_table())
     return TRUE;
 
   for (uint i= 0 ; i < m_sptabs.records ; i++)
@@ -4135,7 +4071,7 @@ sp_head::merge_table_list(THD *thd, TABLE_LIST *table, LEX *lex_for_tmp_check)
           return FALSE;
         if (lex_for_tmp_check->sql_command == SQLCOM_CREATE_TABLE &&
             lex_for_tmp_check->query_tables == table &&
-            lex_for_tmp_check->create_info.tmp_table())
+            lex_for_tmp_check->tmp_table())
         {
           tab->temp= TRUE;
           tab->qname.length= temp_table_key_length;

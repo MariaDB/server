@@ -1169,6 +1169,46 @@ INET6_NTOA(ip)	HEX(ip)	LENGTH(ip)
 
 DROP TABLE t1;
 DROP TABLE t2;
+#
+# MDEV-4018 : Microseconds in GET_LOCK()
+#
+# -> Switching to connection 'default'
+select is_used_lock('test') = connection_id();
+is_used_lock('test') = connection_id()
+NULL
+# GET_LOCK returns 1 if it manages to acquire a lock
+select get_lock('test', 0);
+get_lock('test', 0)
+1
+# -> Switching to connection 'con1'
+select is_used_lock('test') = connection_id();
+is_used_lock('test') = connection_id()
+0
+select get_lock('test', 0);
+get_lock('test', 0)
+0
+select get_lock('test', 1.0);
+get_lock('test', 1.0)
+0
+select get_lock('test', 1.5);
+get_lock('test', 1.5)
+0
+select get_lock('test', 0.1);
+get_lock('test', 0.1)
+0
+select get_lock('test', 0.000001);
+get_lock('test', 0.000001)
+0
+select get_lock('test', 0.0000000000000001);
+get_lock('test', 0.0000000000000001)
+0
+# -> Switching to connection 'default'
+select is_used_lock('test') = connection_id();
+is_used_lock('test') = connection_id()
+1
+select release_lock('test');
+release_lock('test')
+1
 
 # -- Done.
 

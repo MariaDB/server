@@ -1,0 +1,41 @@
+SET @start_global_value = @@global.aria_encrypt_tables;
+select @@global.aria_encrypt_tables;
+@@global.aria_encrypt_tables
+0
+select @@session.aria_encrypt_tables;
+ERROR HY000: Variable 'aria_encrypt_tables' is a GLOBAL variable
+show global variables like 'aria_encrypt_tables';
+Variable_name	Value
+aria_encrypt_tables	OFF
+show session variables like 'aria_encrypt_tables';
+Variable_name	Value
+aria_encrypt_tables	OFF
+select * from information_schema.global_variables
+where variable_name='aria_encrypt_tables';
+VARIABLE_NAME	VARIABLE_VALUE
+ARIA_ENCRYPT_TABLES	OFF
+select * from information_schema.session_variables
+where variable_name='aria_encrypt_tables';
+VARIABLE_NAME	VARIABLE_VALUE
+ARIA_ENCRYPT_TABLES	OFF
+set global aria_encrypt_tables=ON;
+select @@global.aria_encrypt_tables;
+@@global.aria_encrypt_tables
+1
+set global aria_encrypt_tables=OFF;
+select @@global.aria_encrypt_tables;
+@@global.aria_encrypt_tables
+0
+set global aria_encrypt_tables=1;
+select @@global.aria_encrypt_tables;
+@@global.aria_encrypt_tables
+1
+set session aria_encrypt_tables=1;
+ERROR HY000: Variable 'aria_encrypt_tables' is a GLOBAL variable and should be set with SET GLOBAL
+set global aria_encrypt_tables=1.1;
+ERROR 42000: Incorrect argument type to variable 'aria_encrypt_tables'
+set global aria_encrypt_tables=1e1;
+ERROR 42000: Incorrect argument type to variable 'aria_encrypt_tables'
+set global aria_encrypt_tables="foo";
+ERROR 42000: Variable 'aria_encrypt_tables' can't be set to the value of 'foo'
+SET @@global.aria_encrypt_tables = @start_global_value;

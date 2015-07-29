@@ -143,6 +143,9 @@ int Gcalc_function::count_internal(const char *cur_func, uint set_type,
   {
     if (set_type == 0)
       result= i_states[n_shape] | b_states[n_shape];
+    /* the last call for the count_internal outside of all shapes. */
+    else if (set_type == 1)
+      result= 0;
     else if (set_type == op_border)
       result= b_states[n_shape];
     else if (set_type == op_internals)
@@ -158,7 +161,8 @@ int Gcalc_function::count_internal(const char *cur_func, uint set_type,
 
   if (next_func == op_border || next_func == op_internals)
   {
-    result= count_internal(cur_func, next_func, &cur_func);
+    result= count_internal(cur_func,
+        (set_type == 1) ? set_type : next_func, &cur_func);
     goto exit;
   }
 
@@ -180,16 +184,34 @@ int Gcalc_function::count_internal(const char *cur_func, uint set_type,
     switch (next_func)
     {
       case op_union:
-        result= result | next_res;
+        if (result == result_true || next_res == result_true)
+          result= result_true;
+        else if (result == result_unknown || next_res == result_unknown)
+          result= result_unknown;
+        else
+          result= result_false;
         break;
       case op_intersection:
-        result= result & next_res;
+        if (result == result_false || next_res == result_false)
+          result= result_false;
+        else if (result == result_unknown || next_res == result_unknown)
+          result= result_unknown;
+        else
+          result= result_true;
         break;
       case op_symdifference:
-        result= result ^ next_res;
+        if (result == result_unknown || next_res == result_unknown)
+          result= result_unknown;
+        else
+          result= result ^ next_res;
         break;
       case op_difference:
-        result= result & !next_res;
+        if (result == result_false || next_res == result_true)
+          result= result_false;
+        else if (result == result_unknown || next_res == result_unknown)
+          result= result_unknown;
+        else
+          result= result_true;
         break;
       default:
         GCALC_DBUG_ASSERT(FALSE);
@@ -197,24 +219,35 @@ int Gcalc_function::count_internal(const char *cur_func, uint set_type,
   }
 
 exit:
-  result^= mask;
+  if (result != result_unknown)
+    result^= mask;
   if (v_state != v_empty)
   {
     switch (v_state)
     {
       case v_find_t:
-        if (result)
+        if (result == result_true)
         {
           c_op= (c_op & ~v_mask) | v_t_found;
           int4store(sav_cur_func, c_op);
-        };
+        }
+        else
+        {
+          if (set_type != 1)
+            result= result_unknown;
+        }
         break;
       case v_find_f:
-        if (!result)
+        if (result == result_false)
         {
           c_op= (c_op & ~v_mask) | v_f_found;
           int4store(sav_cur_func, c_op);
-        };
+        }
+        else
+        {
+          if (set_type != 1)
+            result= result_unknown;
+        }
         break;
       case v_t_found:
         result= 1;
@@ -264,6 +297,7 @@ int Gcalc_function::check_function(Gcalc_scan_iterator &scan_it)
 {
   const Gcalc_scan_iterator::point *eq_start, *cur_eq;
   const Gcalc_scan_iterator::event_point *events;
+  int result;
   GCALC_DBUG_ENTER("Gcalc_function::check_function");
 
   while (scan_it.more_points())
@@ -288,8 +322,8 @@ int Gcalc_function::check_function(Gcalc_scan_iterator &scan_it)
       if (events->event == scev_end)
         set_b_state(events->get_shape());
 
-      if (count())
-        GCALC_DBUG_RETURN(1);
+      if ((result= count()) != result_unknown)
+        GCALC_DBUG_RETURN(result);
       clear_b_states();
       continue;
     }
@@ -300,15 +334,15 @@ int Gcalc_function::check_function(Gcalc_scan_iterator &scan_it)
       gcalc_shape_info si= events->get_shape();
       if (events->event == scev_thread ||
           events->event == scev_end ||
-          events->event == scev_single_point ||
           (get_shape_kind(si) == Gcalc_function::shape_polygon))
         set_b_state(si);
-      else if (get_shape_kind(si) == Gcalc_function::shape_line)
+      else if (events->event == scev_single_point ||
+               get_shape_kind(si) == Gcalc_function::shape_line)
         set_i_state(si);
     }
 
-    if (count())
-      GCALC_DBUG_RETURN(1);
+    if ((result= count()) != result_unknown)
+      GCALC_DBUG_RETURN(result);
 
     /* Set back states changed in the loop above. */
     for (events= scan_it.get_events(); events; events= events->get_next())
@@ -316,10 +350,10 @@ int Gcalc_function::check_function(Gcalc_scan_iterator &scan_it)
       gcalc_shape_info si= events->get_shape();
       if (events->event == scev_thread ||
           events->event == scev_end ||
-          events->event == scev_single_point ||
-          (get_shape_kind(si) == Gcalc_function::shape_polygon))
+          get_shape_kind(si) == Gcalc_function::shape_polygon)
         clear_b_state(si);
-      else if (get_shape_kind(si) == Gcalc_function::shape_line)
+      else if (events->event == scev_single_point ||
+               get_shape_kind(si) == Gcalc_function::shape_line)
         clear_i_state(si);
     }
 
@@ -343,8 +377,8 @@ int Gcalc_function::check_function(Gcalc_scan_iterator &scan_it)
         else
           invert_i_state(si);
       }
-      if (count())
-        GCALC_DBUG_RETURN(1);
+      if ((result= count()) != result_unknown)
+        GCALC_DBUG_RETURN(result);
 
       for (cur_eq= eq_start; cur_eq != pit.point(); cur_eq= cur_eq->get_next())
       {
@@ -357,12 +391,13 @@ int Gcalc_function::check_function(Gcalc_scan_iterator &scan_it)
         else
           invert_i_state(cur_eq->get_shape());
       }
-      if (count())
-        GCALC_DBUG_RETURN(1);
+      if ((result= count()) != result_unknown)
+        GCALC_DBUG_RETURN(result);
+
       eq_start= pit.point();
     } while (pit.point() != scan_it.get_event_end());
   }
-  GCALC_DBUG_RETURN(0);
+  GCALC_DBUG_RETURN(count_last());
 }
 
 

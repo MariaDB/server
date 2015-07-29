@@ -39,7 +39,7 @@ BuildRequires:	groonga-devel >= %{groonga_required_version}
 BuildRequires:	groonga-normalizer-mysql-devel
 BuildRequires:	wget
 BuildRequires:	which
-BuildRequires:	mysql55-mysql-devel
+BuildRequires:	mysql55-mysql-devel = %{mysql_version}-%{mysql_release}.%{mysql_dist}
 BuildRequires:	mysql55-build
 Requires:	mysql55-mysql-server = %{mysql_version}-%{mysql_release}.%{mysql_dist}
 Requires:	mysql55-mysql = %{mysql_version}-%{mysql_release}.%{mysql_dist}
@@ -163,6 +163,18 @@ fi
 %doc mysql-mroonga-doc/*
 
 %changelog
+* Mon Jun 29 2015 Masafumi Yokoyama <myokoym@gmail.com> - 5.04-1
+- new upstream release.
+
+* Fri May 29 2015 HAYASHI Kentaro <hayashi@clear-code.com> - 5.03-1
+- new upstream release.
+
+* Wed Apr 29 2015 HAYASHI Kentaro <hayashi@clear-code.com> - 5.02-1
+- new upstream release.
+
+* Sun Mar 29 2015 HAYASHI Kentaro <hayashi@clear-code.com> - 5.01-1
+- new upstream release.
+
 * Mon Feb 09 2015  <hayashi@clear-code.com> - 5.00-1
 - new upstream release.
 

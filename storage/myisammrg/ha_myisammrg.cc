@@ -1121,7 +1121,6 @@ int ha_myisammrg::index_read_map(uchar * buf, const uchar * key,
 {
   DBUG_ASSERT(this->file->children_attached);
   int error=myrg_rkey(file,buf,active_index, key, keypart_map, find_flag);
-  table->status=error ? STATUS_NOT_FOUND: 0;
   return error;
 }
 
@@ -1131,7 +1130,6 @@ int ha_myisammrg::index_read_idx_map(uchar * buf, uint index, const uchar * key,
 {
   DBUG_ASSERT(this->file->children_attached);
   int error=myrg_rkey(file,buf,index, key, keypart_map, find_flag);
-  table->status=error ? STATUS_NOT_FOUND: 0;
   return error;
 }
 
@@ -1141,7 +1139,6 @@ int ha_myisammrg::index_read_last_map(uchar *buf, const uchar *key,
   DBUG_ASSERT(this->file->children_attached);
   int error=myrg_rkey(file,buf,active_index, key, keypart_map,
 		      HA_READ_PREFIX_LAST);
-  table->status=error ? STATUS_NOT_FOUND: 0;
   return error;
 }
 
@@ -1149,7 +1146,6 @@ int ha_myisammrg::index_next(uchar * buf)
 {
   DBUG_ASSERT(this->file->children_attached);
   int error=myrg_rnext(file,buf,active_index);
-  table->status=error ? STATUS_NOT_FOUND: 0;
   return error;
 }
 
@@ -1157,7 +1153,6 @@ int ha_myisammrg::index_prev(uchar * buf)
 {
   DBUG_ASSERT(this->file->children_attached);
   int error=myrg_rprev(file,buf, active_index);
-  table->status=error ? STATUS_NOT_FOUND: 0;
   return error;
 }
 
@@ -1165,7 +1160,6 @@ int ha_myisammrg::index_first(uchar * buf)
 {
   DBUG_ASSERT(this->file->children_attached);
   int error=myrg_rfirst(file, buf, active_index);
-  table->status=error ? STATUS_NOT_FOUND: 0;
   return error;
 }
 
@@ -1173,7 +1167,6 @@ int ha_myisammrg::index_last(uchar * buf)
 {
   DBUG_ASSERT(this->file->children_attached);
   int error=myrg_rlast(file, buf, active_index);
-  table->status=error ? STATUS_NOT_FOUND: 0;
   return error;
 }
 
@@ -1187,7 +1180,6 @@ int ha_myisammrg::index_next_same(uchar * buf,
   {
     error= myrg_rnext_same(file,buf);
   } while (error == HA_ERR_RECORD_DELETED);
-  table->status=error ? STATUS_NOT_FOUND: 0;
   return error;
 }
 
@@ -1203,7 +1195,6 @@ int ha_myisammrg::rnd_next(uchar *buf)
 {
   DBUG_ASSERT(this->file->children_attached);
   int error=myrg_rrnd(file, buf, HA_OFFSET_ERROR);
-  table->status=error ? STATUS_NOT_FOUND: 0;
   return error;
 }
 
@@ -1212,7 +1203,6 @@ int ha_myisammrg::rnd_pos(uchar * buf, uchar *pos)
 {
   DBUG_ASSERT(this->file->children_attached);
   int error=myrg_rrnd(file, buf, my_get_ptr(pos,ref_length));
-  table->status=error ? STATUS_NOT_FOUND: 0;
   return error;
 }
 

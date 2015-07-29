@@ -55,12 +55,12 @@ c1	c2	match(c2) against("ii")
 3	aa ii ii ii oo	524289
 select c1,c2,match(c2) against("ii") from t1 where match(c2) against("ii");
 c1	c2	match(c2) against("ii")
-1	aa ii uu ee oo	174763
 3	aa ii ii ii oo	524289
 5	ta ti ii ii to	349526
+1	aa ii uu ee oo	174763
 select c1,c2,match(c2) against("ii") from t1 where match(c2) against("ii");
 c1	c2	match(c2) against("ii")
-1	aa ii uu ee oo	174763
 3	aa ii ii ii oo	524289
 5	ta ti ii ii to	349526
+1	aa ii uu ee oo	174763
 drop table t1,t2;

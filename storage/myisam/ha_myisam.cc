@@ -42,8 +42,8 @@ const char *myisam_recover_names[] =
 TYPELIB myisam_recover_typelib= {array_elements(myisam_recover_names)-1,"",
 				 myisam_recover_names, NULL};
 
-const char *myisam_stats_method_names[] = {"nulls_unequal", "nulls_equal",
-                                           "nulls_ignored", NullS};
+const char *myisam_stats_method_names[] = {"NULLS_UNEQUAL", "NULLS_EQUAL",
+                                           "NULLS_IGNORED", NullS};
 TYPELIB myisam_stats_method_typelib= {
   array_elements(myisam_stats_method_names) - 1, "",
   myisam_stats_method_names, NULL};
@@ -66,8 +66,7 @@ static MYSQL_SYSVAR_ULONGLONG(max_sort_file_size, myisam_max_temp_length,
 
 static MYSQL_SYSVAR_SET(recover_options, myisam_recover_options,
   PLUGIN_VAR_OPCMDARG|PLUGIN_VAR_READONLY,
-  "Syntax: myisam-recover-options[=option[,option...]], where option can be "
-  "DEFAULT, BACKUP, BACKUP_ALL, FORCE, QUICK, or OFF",
+  "Specifies how corrupted tables should be automatically repaired",
   NULL, NULL, 1, &myisam_recover_typelib);
 
 static MYSQL_THDVAR_ULONG(repair_threads, PLUGIN_VAR_RQCMDARG,
@@ -1108,7 +1107,7 @@ int ha_myisam::repair(THD *thd, HA_CHECK &param, bool do_optimize)
     locking= 1;
     if (mi_lock_database(file, table->s->tmp_table ? F_EXTRA_LCK : F_WRLCK))
     {
-      mi_check_print_error(&param,ER(ER_CANT_LOCK),my_errno);
+      mi_check_print_error(&param, ER_THD(thd, ER_CANT_LOCK), my_errno);
       DBUG_RETURN(HA_ADMIN_FAILED);
     }
   }
@@ -1118,9 +1117,9 @@ int ha_myisam::repair(THD *thd, HA_CHECK &param, bool do_optimize)
        (!(param.testflag & T_QUICK) ||
 	!(share->state.changed & STATE_NOT_OPTIMIZED_KEYS))))
   {
-    ulonglong key_map= ((local_testflag & T_CREATE_MISSING_KEYS) ?
-			mi_get_mask_all_keys_active(share->base.keys) :
-			share->state.key_map);
+    ulonglong tmp_key_map= ((local_testflag & T_CREATE_MISSING_KEYS) ?
+                            mi_get_mask_all_keys_active(share->base.keys) :
+                            share->state.key_map);
     ulonglong testflag= param.testflag;
 #ifdef HAVE_MMAP
     bool remap= MY_TEST(share->file_map);
@@ -1134,7 +1133,7 @@ int ha_myisam::repair(THD *thd, HA_CHECK &param, bool do_optimize)
     if (remap)
       mi_munmap_file(file);
 #endif
-    if (mi_test_if_sort_rep(file,file->state->records,key_map,0) &&
+    if (mi_test_if_sort_rep(file,file->state->records,tmp_key_map,0) &&
 	(local_testflag & T_REP_BY_SORT))
     {
       local_testflag|= T_STATISTICS;
@@ -2001,7 +2000,7 @@ int ha_myisam::create(const char *name, register TABLE *table_arg,
 		      HA_CREATE_INFO *ha_create_info)
 {
   int error;
-  uint create_flags= 0, records, i;
+  uint create_flags= 0, record_count, i;
   char buff[FN_REFLEN];
   MI_KEYDEF *keydef;
   MI_COLUMNDEF *recinfo;
@@ -2017,7 +2016,7 @@ int ha_myisam::create(const char *name, register TABLE *table_arg,
       break;
     }
   }
-  if ((error= table2myisam(table_arg, &keydef, &recinfo, &records)))
+  if ((error= table2myisam(table_arg, &keydef, &recinfo, &record_count)))
     DBUG_RETURN(error); /* purecov: inspected */
   bzero((char*) &create_info, sizeof(create_info));
   create_info.max_rows= share->max_rows;
@@ -2039,13 +2038,16 @@ int ha_myisam::create(const char *name, register TABLE *table_arg,
   else
 #endif /* HAVE_READLINK */
   {
+    THD *thd= table_arg->in_use;
     if (ha_create_info->data_file_name)
-      push_warning_printf(table_arg->in_use, Sql_condition::WARN_LEVEL_WARN,
-                          WARN_OPTION_IGNORED, ER(WARN_OPTION_IGNORED),
+      push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                          WARN_OPTION_IGNORED,
+                          ER_THD(thd, WARN_OPTION_IGNORED),
                           "DATA DIRECTORY");
     if (ha_create_info->index_file_name)
-      push_warning_printf(table_arg->in_use, Sql_condition::WARN_LEVEL_WARN,
-                          WARN_OPTION_IGNORED, ER(WARN_OPTION_IGNORED),
+      push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                          WARN_OPTION_IGNORED,
+                          ER_THD(thd, WARN_OPTION_IGNORED),
                           "INDEX DIRECTORY");
   }
 
@@ -2064,7 +2066,7 @@ int ha_myisam::create(const char *name, register TABLE *table_arg,
   error= mi_create(fn_format(buff, name, "", "",
                              MY_UNPACK_FILENAME|MY_APPEND_EXT),
                    share->keys, keydef,
-                   records, recinfo,
+                   record_count, recinfo,
                    0, (MI_UNIQUEDEF*) 0,
                    &create_info, create_flags);
   my_free(recinfo);
@@ -2178,21 +2180,21 @@ uint ha_myisam::checksum() const
 }
 
 
-bool ha_myisam::check_if_incompatible_data(HA_CREATE_INFO *info,
+bool ha_myisam::check_if_incompatible_data(HA_CREATE_INFO *create_info,
 					   uint table_changes)
 {
   uint options= table->s->db_options_in_use;
 
-  if (info->auto_increment_value != stats.auto_increment_value ||
-      info->data_file_name != data_file_name ||
-      info->index_file_name != index_file_name ||
+  if (create_info->auto_increment_value != stats.auto_increment_value ||
+      create_info->data_file_name != data_file_name ||
+      create_info->index_file_name != index_file_name ||
       table_changes == IS_EQUAL_NO ||
       table_changes & IS_EQUAL_PACK_LENGTH) // Not implemented yet
     return COMPATIBLE_DATA_NO;
 
   if ((options & (HA_OPTION_PACK_RECORD | HA_OPTION_CHECKSUM |
 		  HA_OPTION_DELAY_KEY_WRITE)) !=
-      (info->table_options & (HA_OPTION_PACK_RECORD | HA_OPTION_CHECKSUM |
+      (create_info->table_options & (HA_OPTION_PACK_RECORD | HA_OPTION_CHECKSUM |
 			      HA_OPTION_DELAY_KEY_WRITE)))
     return COMPATIBLE_DATA_NO;
   return COMPATIBLE_DATA_YES;
@@ -2228,7 +2230,7 @@ int myisam_panic(handlerton *hton, ha_panic_function flag)
 
 static int myisam_init(void *p)
 {
-  handlerton *myisam_hton;
+  handlerton *hton;
 
 #ifdef HAVE_PSI_INTERFACE
   init_myisam_psi_keys();
@@ -2242,13 +2244,13 @@ static int myisam_init(void *p)
 
   myisam_block_size=(uint) 1 << my_bit_log2(opt_myisam_block_size);
 
-  myisam_hton= (handlerton *)p;
-  myisam_hton->state= SHOW_OPTION_YES;
-  myisam_hton->db_type= DB_TYPE_MYISAM;
-  myisam_hton->create= myisam_create_handler;
-  myisam_hton->panic= myisam_panic;
-  myisam_hton->flags= HTON_CAN_RECREATE | HTON_SUPPORT_LOG_TABLES;
-  myisam_hton->tablefile_extensions= ha_myisam_exts;
+  hton= (handlerton *)p;
+  hton->state= SHOW_OPTION_YES;
+  hton->db_type= DB_TYPE_MYISAM;
+  hton->create= myisam_create_handler;
+  hton->panic= myisam_panic;
+  hton->flags= HTON_CAN_RECREATE | HTON_SUPPORT_LOG_TABLES;
+  hton->tablefile_extensions= ha_myisam_exts;
   mi_killed= mi_killed_in_mariadb;
 
   return 0;

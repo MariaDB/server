@@ -2,6 +2,7 @@
 
 Copyright (c) 2010, 2014, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
+Copyright (c) 2013, 2014, MariaDB Corporation
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -290,11 +291,35 @@ static monitor_info_t	innodb_counter_info[] =
 	 MONITOR_EXISTING | MONITOR_DEFAULT_ON),
 	 MONITOR_DEFAULT_START, MONITOR_OVLD_PAGES_WRITTEN},
 
+	{"buffer_index_pages_written", "buffer",
+	 "Number of index pages written (innodb_index_pages_written)",
+	 static_cast<monitor_type_t>(
+	 MONITOR_EXISTING | MONITOR_DEFAULT_ON),
+	 MONITOR_DEFAULT_START, MONITOR_OVLD_INDEX_PAGES_WRITTEN},
+
+	{"buffer_non_index_pages_written", "buffer",
+	 "Number of non index pages written (innodb_non_index_pages_written)",
+	 static_cast<monitor_type_t>(
+	 MONITOR_EXISTING | MONITOR_DEFAULT_ON),
+	 MONITOR_DEFAULT_START, MONITOR_OVLD_NON_INDEX_PAGES_WRITTEN},
+
 	{"buffer_pages_read", "buffer",
 	 "Number of pages read (innodb_pages_read)",
 	 static_cast<monitor_type_t>(
 	 MONITOR_EXISTING | MONITOR_DEFAULT_ON),
 	 MONITOR_DEFAULT_START, MONITOR_OVLD_PAGES_READ},
+
+	{"buffer_index_sec_rec_cluster_reads", "buffer",
+	 "Number of secondary record reads triggered cluster read",
+	 static_cast<monitor_type_t>(
+	 MONITOR_EXISTING | MONITOR_DEFAULT_ON),
+	 MONITOR_DEFAULT_START, MONITOR_OVLD_INDEX_SEC_REC_CLUSTER_READS},
+
+	{"buffer_index_sec_rec_cluster_reads_avoided", "buffer",
+	 "Number of secondary record reads avoided triggering cluster read",
+	 static_cast<monitor_type_t>(
+	 MONITOR_EXISTING | MONITOR_DEFAULT_ON),
+	 MONITOR_DEFAULT_START, MONITOR_OVLD_INDEX_SEC_REC_CLUSTER_READS_AVOIDED},
 
 	{"buffer_data_reads", "buffer",
 	 "Amount of data read in bytes (innodb_data_reads)",
@@ -457,20 +482,36 @@ static monitor_info_t	innodb_counter_info[] =
 	 MONITOR_LRU_BATCH_SCANNED_PER_CALL},
 
 	/* Cumulative counter for LRU batch pages flushed */
-	{"buffer_LRU_batch_total_pages", "buffer",
+	{"buffer_LRU_batch_flush_total_pages", "buffer",
 	 "Total pages flushed as part of LRU batches",
-	 MONITOR_SET_OWNER, MONITOR_LRU_BATCH_COUNT,
-	 MONITOR_LRU_BATCH_TOTAL_PAGE},
+	 MONITOR_SET_OWNER, MONITOR_LRU_BATCH_FLUSH_COUNT,
+	 MONITOR_LRU_BATCH_FLUSH_TOTAL_PAGE},
 
-	{"buffer_LRU_batches", "buffer",
+	{"buffer_LRU_batches_flush", "buffer",
 	 "Number of LRU batches",
-	 MONITOR_SET_MEMBER, MONITOR_LRU_BATCH_TOTAL_PAGE,
-	 MONITOR_LRU_BATCH_COUNT},
+	 MONITOR_SET_MEMBER, MONITOR_LRU_BATCH_FLUSH_TOTAL_PAGE,
+	 MONITOR_LRU_BATCH_FLUSH_COUNT},
 
-	{"buffer_LRU_batch_pages", "buffer",
+	{"buffer_LRU_batch_flush_pages", "buffer",
 	 "Pages queued as an LRU batch",
-	 MONITOR_SET_MEMBER, MONITOR_LRU_BATCH_TOTAL_PAGE,
-	 MONITOR_LRU_BATCH_PAGES},
+	 MONITOR_SET_MEMBER, MONITOR_LRU_BATCH_FLUSH_TOTAL_PAGE,
+	 MONITOR_LRU_BATCH_FLUSH_PAGES},
+
+	/* Cumulative counter for LRU batch pages flushed */
+	{"buffer_LRU_batch_evict_total_pages", "buffer",
+	 "Total pages evicted as part of LRU batches",
+	 MONITOR_SET_OWNER, MONITOR_LRU_BATCH_EVICT_COUNT,
+	 MONITOR_LRU_BATCH_EVICT_TOTAL_PAGE},
+
+	{"buffer_LRU_batches_evict", "buffer",
+	 "Number of LRU batches",
+	 MONITOR_SET_MEMBER, MONITOR_LRU_BATCH_EVICT_TOTAL_PAGE,
+	 MONITOR_LRU_BATCH_EVICT_COUNT},
+
+	{"buffer_LRU_batch_evict_pages", "buffer",
+	 "Pages queued as an LRU batch",
+	 MONITOR_SET_MEMBER, MONITOR_LRU_BATCH_EVICT_TOTAL_PAGE,
+	 MONITOR_LRU_BATCH_EVICT_PAGES},
 
 	/* Cumulative counter for single page LRU scans */
 	{"buffer_LRU_single_flush_scanned", "buffer",
@@ -878,6 +919,81 @@ static monitor_info_t	innodb_counter_info[] =
 	 "Number of times padding is decremented due to good compressibility",
 	 MONITOR_NONE,
 	 MONITOR_DEFAULT_START, MONITOR_PAD_DECREMENTS},
+
+	{"compress_saved", "compression",
+	 "Number of bytes saved by page compression",
+	 MONITOR_NONE,
+	 MONITOR_DEFAULT_START, MONITOR_OVLD_PAGE_COMPRESS_SAVED},
+
+	{"compress_trim_sect512", "compression",
+	 "Number of sect-512 TRIMed by page compression",
+	 MONITOR_NONE,
+	 MONITOR_DEFAULT_START, MONITOR_OVLD_PAGE_COMPRESS_TRIM_SECT512},
+
+	{"compress_trim_sect1024", "compression",
+	 "Number of sect-1024 TRIMed by page compression",
+	 MONITOR_NONE,
+	 MONITOR_DEFAULT_START, MONITOR_OVLD_PAGE_COMPRESS_TRIM_SECT1024},
+
+	{"compress_trim_sect2048", "compression",
+	 "Number of sect-2048 TRIMed by page compression",
+	 MONITOR_NONE,
+	 MONITOR_DEFAULT_START, MONITOR_OVLD_PAGE_COMPRESS_TRIM_SECT2048},
+
+	{"compress_trim_sect4096", "compression",
+	 "Number of sect-4K TRIMed by page compression",
+	 MONITOR_NONE,
+	 MONITOR_DEFAULT_START, MONITOR_OVLD_PAGE_COMPRESS_TRIM_SECT4096},
+
+	{"compress_trim_sect8192", "compression",
+	 "Number of sect-8K TRIMed by page compression",
+	 MONITOR_NONE,
+	 MONITOR_DEFAULT_START, MONITOR_OVLD_PAGE_COMPRESS_TRIM_SECT8192},
+
+	{"compress_trim_sect16384", "compression",
+	 "Number of sect-16K TRIMed by page compression",
+	 MONITOR_NONE,
+	 MONITOR_DEFAULT_START, MONITOR_OVLD_PAGE_COMPRESS_TRIM_SECT16384},
+
+	{"compress_trim_sect32768", "compression",
+	 "Number of sect-32K TRIMed by page compression",
+	 MONITOR_NONE,
+	 MONITOR_DEFAULT_START, MONITOR_OVLD_PAGE_COMPRESS_TRIM_SECT32768},
+
+	{"compress_pages_page_compressed", "compression",
+	 "Number of pages compressed by page compression",
+	 MONITOR_NONE,
+	 MONITOR_DEFAULT_START, MONITOR_OVLD_PAGES_PAGE_COMPRESSED},
+
+	{"compress_page_compressed_trim_op", "compression",
+	 "Number of TRIM operation performed by page compression",
+	 MONITOR_NONE,
+	 MONITOR_DEFAULT_START, MONITOR_OVLD_PAGE_COMPRESSED_TRIM_OP},
+
+	{"compress_page_compressed_trim_op_saved", "compression",
+	 "Number of TRIM operation saved by page compression",
+	 MONITOR_NONE,
+	 MONITOR_DEFAULT_START, MONITOR_OVLD_PAGE_COMPRESSED_TRIM_OP_SAVED},
+
+	{"compress_pages_page_decompressed", "compression",
+	 "Number of pages decompressed by page compression",
+	 MONITOR_NONE,
+	 MONITOR_DEFAULT_START, MONITOR_OVLD_PAGES_PAGE_DECOMPRESSED},
+
+	{"compress_pages_page_compression_error", "compression",
+	 "Number of page compression errors",
+	 MONITOR_NONE,
+	 MONITOR_DEFAULT_START, MONITOR_OVLD_PAGES_PAGE_COMPRESSION_ERROR},
+
+	{"compress_pages_encrypted", "compression",
+	 "Number of pages encrypted",
+	 MONITOR_NONE,
+	 MONITOR_DEFAULT_START, MONITOR_OVLD_PAGES_ENCRYPTED},
+
+	{"compress_pages_decrypted", "compression",
+	 "Number of pages decrypted",
+	 MONITOR_NONE,
+	 MONITOR_DEFAULT_START, MONITOR_OVLD_PAGES_DECRYPTED},
 
 	/* ========== Counters for Index ========== */
 	{"module_index", "index", "Index Manager",
@@ -1573,10 +1689,30 @@ srv_mon_process_existing_counter(
 		value = stat.n_pages_written;
 		break;
 
+	/* innodb_index_pages_written, the number of index pages written */
+	case MONITOR_OVLD_INDEX_PAGES_WRITTEN:
+		value = srv_stats.index_pages_written;
+		break;
+
+	/* innodb_non_index_pages_written, the number of non index pages written */
+	case MONITOR_OVLD_NON_INDEX_PAGES_WRITTEN:
+		value = srv_stats.non_index_pages_written;
+		break;
+
 	/* innodb_pages_read */
 	case MONITOR_OVLD_PAGES_READ:
 		buf_get_total_stat(&stat);
 		value = stat.n_pages_read;
+		break;
+
+	/* Number of times secondary index lookup triggered cluster lookup */
+	case MONITOR_OVLD_INDEX_SEC_REC_CLUSTER_READS:
+		value = srv_stats.n_sec_rec_cluster_reads;
+		break;
+	/* Number of times prefix optimization avoided triggering cluster
+	lookup */
+	case MONITOR_OVLD_INDEX_SEC_REC_CLUSTER_READS_AVOIDED:
+		value = srv_stats.n_sec_rec_cluster_reads_avoided;
 		break;
 
 	/* innodb_data_reads, the total number of data reads */
@@ -1832,6 +1968,52 @@ srv_mon_process_existing_counter(
 
 	case MONITOR_OVLD_ADAPTIVE_HASH_SEARCH_BTREE:
 		value = btr_cur_n_non_sea;
+		break;
+
+        case MONITOR_OVLD_PAGE_COMPRESS_SAVED:
+		value = srv_stats.page_compression_saved;
+		break;
+        case MONITOR_OVLD_PAGE_COMPRESS_TRIM_SECT512:
+		value = srv_stats.page_compression_trim_sect512;
+		break;
+       case MONITOR_OVLD_PAGE_COMPRESS_TRIM_SECT1024:
+		value = srv_stats.page_compression_trim_sect1024;
+		break;
+       case MONITOR_OVLD_PAGE_COMPRESS_TRIM_SECT2048:
+		value = srv_stats.page_compression_trim_sect2048;
+		break;
+        case MONITOR_OVLD_PAGE_COMPRESS_TRIM_SECT4096:
+		value = srv_stats.page_compression_trim_sect4096;
+		break;
+        case MONITOR_OVLD_PAGE_COMPRESS_TRIM_SECT8192:
+		value = srv_stats.page_compression_trim_sect8192;
+		break;
+        case MONITOR_OVLD_PAGE_COMPRESS_TRIM_SECT16384:
+		value = srv_stats.page_compression_trim_sect16384;
+		break;
+        case MONITOR_OVLD_PAGE_COMPRESS_TRIM_SECT32768:
+		value = srv_stats.page_compression_trim_sect32768;
+		break;
+        case MONITOR_OVLD_PAGES_PAGE_COMPRESSED:
+		value = srv_stats.pages_page_compressed;
+		break;
+        case MONITOR_OVLD_PAGE_COMPRESSED_TRIM_OP:
+		value = srv_stats.page_compressed_trim_op;
+		break;
+        case MONITOR_OVLD_PAGE_COMPRESSED_TRIM_OP_SAVED:
+		value = srv_stats.page_compressed_trim_op_saved;
+		break;
+        case MONITOR_OVLD_PAGES_PAGE_DECOMPRESSED:
+		value = srv_stats.pages_page_decompressed;
+		break;
+        case MONITOR_OVLD_PAGES_PAGE_COMPRESSION_ERROR:
+		value = srv_stats.pages_page_compression_error;
+		break;
+        case MONITOR_OVLD_PAGES_ENCRYPTED:
+		value = srv_stats.pages_encrypted;
+		break;
+        case MONITOR_OVLD_PAGES_DECRYPTED:
+		value = srv_stats.pages_decrypted;
 		break;
 
 	default:

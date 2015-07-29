@@ -438,3 +438,62 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 select 1 from t1 as t1_0 inner join t1 as t2 on (t1_0.a <=> now()) join t1 on 1;
 1
 drop table t1;
+#
+# Start of 10.1 tests
+#
+#
+# MDEV-7824 [Bug #68041] Zero date can be inserted in strict no-zero mode through a default value
+#
+SET sql_mode=DEFAULT;
+CREATE TABLE t1 (a DATE DEFAULT '0000-00-00');
+SET sql_mode=TRADITIONAL;
+INSERT INTO t1 VALUES ('0000-00-00');
+ERROR 22007: Incorrect date value: '0000-00-00' for column 'a' at row 1
+INSERT INTO t1 VALUES ();
+ERROR 22007: Incorrect default value '0000-00-00' for column 'a'
+INSERT INTO t1 VALUES (DEFAULT);
+ERROR 22007: Incorrect default value '0000-00-00' for column 'a'
+DROP TABLE t1;
+SET sql_mode=DEFAULT;
+CREATE TABLE t1 (a DATE NOT NULL DEFAULT '0000-00-00', b DATE NOT NULL DEFAULT '0000-00-00');
+CREATE TABLE t2 (a DATE NOT NULL DEFAULT '0000-00-00');
+INSERT INTO t2 VALUES ('0000-00-00');
+SET sql_mode=TRADITIONAL;
+INSERT INTO t1 (a) SELECT a FROM t2;
+ERROR 22007: Incorrect default value '0000-00-00' for column 'b'
+DROP TABLE t1, t2;
+SET sql_mode=DEFAULT;
+CREATE TABLE t1 (a DATE DEFAULT '0000-00-00', b DATE DEFAULT '0000-00-00');
+INSERT INTO t1 VALUES (DEFAULT,DEFAULT);;
+SELECT a INTO OUTFILE 'MYSQLTEST_VARDIR/tmp/mdev-7824.txt' FROM t1;
+DELETE FROM t1;
+SET sql_mode=TRADITIONAL;
+LOAD DATA INFILE 'MYSQLTEST_VARDIR/tmp/mdev-7824.txt' INTO TABLE t1 (a);
+ERROR 22007: Incorrect default value '0000-00-00' for column 'b'
+DROP TABLE t1;
+SET sql_mode=DEFAULT;
+CREATE TABLE t1 (a DATE DEFAULT '0000-00-00');;
+SET sql_mode='NO_ZERO_DATE';
+ALTER TABLE t1 ADD b INT NOT NULL;
+ERROR 42000: Invalid default value for 'a'
+DROP TABLE t1;
+SET sql_mode=DEFAULT;
+#
+# End of MDEV-7824 [Bug #68041] Zero date can be inserted in strict no-zero mode through a default value
+#
+#
+# MDEV-8373 Zero date can be inserted in strict no-zero mode through CREATE TABLE AS SELECT timestamp_field
+#
+SET sql_mode=DEFAULT;
+CREATE TABLE t1 (a DATE);;
+INSERT INTO t1 VALUES (0);
+SET sql_mode='TRADITIONAL';
+CREATE TABLE t2 AS SELECT * FROM t1;
+ERROR 22007: Incorrect date value: '0000-00-00' for column 'a' at row 1
+DROP TABLE t1;
+#
+# End of MDEV-8373 Zero date can be inserted in strict no-zero mode through CREATE TABLE AS SELECT timestamp_field
+#
+#
+# End of 10.1 tests
+#

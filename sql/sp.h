@@ -214,4 +214,19 @@ bool load_collation(MEM_ROOT *mem_root,
                     CHARSET_INFO *dflt_cl,
                     CHARSET_INFO **cl);
 
+void sp_returns_type(THD *thd,
+                     String &result,
+                     sp_head *sp);
+
+bool show_create_sp(THD *thd, String *buf,
+              stored_procedure_type type,
+              const char *db, ulong dblen,
+              const char *name, ulong namelen,
+              const char *params, ulong paramslen,
+              const char *returns, ulong returnslen,
+              const char *body, ulong bodylen,
+              st_sp_chistics *chistics,
+              const LEX_STRING *definer_user,
+              const LEX_STRING *definer_host,
+	      ulonglong sql_mode);
 #endif /* _SP_H_ */

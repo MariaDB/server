@@ -42,9 +42,9 @@ class DllExport XOBJECT : public BLOCK {
   virtual int    GetResultType(void) {return TYPE_VOID;}
   virtual int    GetKey(void) {return 0;}
 #if defined(_DEBUG)
-  virtual void   SetKey(int k) {assert(false);}
+  virtual void   SetKey(int) {assert(false);}
 #else    // !_DEBUG
-  virtual void   SetKey(int k) {}   // Only defined for COLBLK
+  virtual void   SetKey(int) {}     // Only defined for COLBLK
 #endif  // !_DEBUG
   virtual int    GetLength(void) = 0;
   virtual int    GetLengthEx(void) = 0;
@@ -134,6 +134,7 @@ class DllExport STRING : public BLOCK {
   inline void   Reset(void) {*Strp = 0;}
          bool   Set(PSZ s);
          bool   Set(char *s, uint n);
+         bool   Append(const char *s, uint ln);
          bool   Append(PSZ s);
          bool   Append(STRING &str);
          bool   Append(char c);

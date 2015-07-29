@@ -3,7 +3,7 @@
 
 /*
    Copyright (c) 2000, 2011, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2013, Monty Program Ab.
+   Copyright (c) 2009, 2015, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -134,21 +134,35 @@ public:
   const char *func_name() const { return "from_base64"; }
 };
 
+#include <my_crypt.h>
 
-class Item_func_aes_encrypt :public Item_str_func
+class Item_aes_crypt :public Item_str_func
+{
+  enum { AES_KEY_LENGTH = 128 };
+  void create_key(String *user_key, uchar* key);
+
+protected:
+  int (*crypt)(const uchar* src, uint slen, uchar* dst, uint* dlen,
+               const uchar* key, uint klen, const uchar* iv, uint ivlen,
+               int no_padding);
+
+public:
+  Item_aes_crypt(Item *a, Item *b) :Item_str_func(a,b) {}
+  String *val_str(String *);
+};
+
+class Item_func_aes_encrypt :public Item_aes_crypt
 {
 public:
-  Item_func_aes_encrypt(Item *a, Item *b) :Item_str_func(a,b) {}
-  String *val_str(String *);
+  Item_func_aes_encrypt(Item *a, Item *b) :Item_aes_crypt(a,b) {}
   void fix_length_and_dec();
   const char *func_name() const { return "aes_encrypt"; }
 };
 
-class Item_func_aes_decrypt :public Item_str_func	
+class Item_func_aes_decrypt :public Item_aes_crypt
 {
 public:
-  Item_func_aes_decrypt(Item *a, Item *b) :Item_str_func(a,b) {}
-  String *val_str(String *);
+  Item_func_aes_decrypt(Item *a, Item *b) :Item_aes_crypt(a,b) {}
   void fix_length_and_dec();
   const char *func_name() const { return "aes_decrypt"; }
 };
@@ -407,39 +421,31 @@ public:
 
 class Item_func_password :public Item_str_ascii_func
 {
+public:
+  enum PW_Alg {OLD, NEW};
+private:
   char tmp_value[SCRAMBLED_PASSWORD_CHAR_LENGTH+1]; 
+  enum PW_Alg alg;
+  bool deflt;
 public:
-  Item_func_password(Item *a) :Item_str_ascii_func(a) {}
+  Item_func_password(Item *a) :Item_str_ascii_func(a), alg(NEW), deflt(1) {}
+  Item_func_password(Item *a, PW_Alg al) :Item_str_ascii_func(a),
+    alg(al), deflt(0) {}
   String *val_str_ascii(String *str);
+  bool fix_fields(THD *thd, Item **ref);
   void fix_length_and_dec()
   {
-    fix_length_and_charset(SCRAMBLED_PASSWORD_CHAR_LENGTH, default_charset());
+    fix_length_and_charset((alg == 1 ?
+                            SCRAMBLED_PASSWORD_CHAR_LENGTH :
+                            SCRAMBLED_PASSWORD_CHAR_LENGTH_323),
+                           default_charset());
   }
-  const char *func_name() const { return "password"; }
-  static char *alloc(THD *thd, const char *password, size_t pass_len);
+  const char *func_name() const { return ((deflt || alg == 1) ?
+                                          "password" : "old_password"); }
+  static char *alloc(THD *thd, const char *password, size_t pass_len,
+                     enum PW_Alg al);
 };
 
-
-/*
-  Item_func_old_password -- PASSWORD() implementation used in MySQL 3.21 - 4.0
-  compatibility mode. This item is created in sql_yacc.yy when
-  'old_passwords' session variable is set, and to handle OLD_PASSWORD()
-  function.
-*/
-
-class Item_func_old_password :public Item_str_ascii_func
-{
-  char tmp_value[SCRAMBLED_PASSWORD_CHAR_LENGTH_323+1];
-public:
-  Item_func_old_password(Item *a) :Item_str_ascii_func(a) {}
-  String *val_str_ascii(String *str);
-  void fix_length_and_dec()
-  {
-    fix_length_and_charset(SCRAMBLED_PASSWORD_CHAR_LENGTH_323, default_charset());
-  } 
-  const char *func_name() const { return "old_password"; }
-  static char *alloc(THD *thd, const char *password, size_t pass_len);
-};
 
 
 class Item_func_des_encrypt :public Item_str_func
@@ -514,8 +520,8 @@ private:
 protected:
   SQL_CRYPT sql_crypt;
 public:
-  Item_func_encode(Item *a, Item *seed):
-    Item_str_func(a, seed) {}
+  Item_func_encode(Item *a, Item *seed_arg):
+    Item_str_func(a, seed_arg) {}
   String *val_str(String *);
   void fix_length_and_dec();
   const char *func_name() const { return "encode"; }
@@ -530,7 +536,7 @@ private:
 class Item_func_decode :public Item_func_encode
 {
 public:
-  Item_func_decode(Item *a, Item *seed): Item_func_encode(a, seed) {}
+  Item_func_decode(Item *a, Item *seed_arg): Item_func_encode(a, seed_arg) {}
   const char *func_name() const { return "decode"; }
 protected:
   void crypto_transform(String *);
@@ -937,7 +943,6 @@ public:
   Item_func_conv_charset(Item *a, CHARSET_INFO *cs, bool cache_if_const) 
     :Item_str_func(a) 
   {
-    DBUG_ASSERT(args[0]->fixed);
     conv_charset= cs;
     if (cache_if_const && args[0]->const_item() && !args[0]->is_expensive())
     {
@@ -1171,8 +1176,8 @@ public:
 class Item_func_dyncol_add: public Item_func_dyncol_create
 {
 public:
-  Item_func_dyncol_add(List<Item> &args, DYNCALL_CREATE_DEF *dfs)
-    :Item_func_dyncol_create(args, dfs)
+  Item_func_dyncol_add(List<Item> &args_arg, DYNCALL_CREATE_DEF *dfs)
+    :Item_func_dyncol_create(args_arg, dfs)
   {}
   const char *func_name() const{ return "column_add"; }
   String *val_str(String *);

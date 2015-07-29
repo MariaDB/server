@@ -124,6 +124,12 @@ allow_unsigned_uploads = 0
                     "--distribution", code_name,
                     "--newversion", deb_version,
                     "Build for #{code_name}.")
+        case code_name
+        when "vivid"
+          run_command("sed",
+                      "-i", "-e", "s,5\\.5,5.6,g",
+                      "debian/rules")
+        end
         run_command("sed",
                     "-i", "-e", "s,MYSQL_VERSION,#{@mysql_version[code_name]},",
                     "debian/control")

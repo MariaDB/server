@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1995, 2013, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1995, 2015, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, Google Inc.
 
 Portions of this file contain modifications contributed and copyrighted by
@@ -47,6 +47,8 @@ Created 9/5/1995 Heikki Tuuri
 #endif /* UNIV_SYNC_DEBUG */
 #include "ha_prototypes.h"
 #include "my_cpu.h"
+
+#include <vector>
 
 /*
 	REASONS FOR IMPLEMENTING THE SPIN LOCK MUTEX
@@ -228,14 +230,8 @@ UNIV_INTERN ibool	sync_order_checks_on	= FALSE;
 static const ulint SYNC_THREAD_N_LEVELS = 10000;
 
 /** Array for tracking sync levels per thread. */
-struct sync_arr_t {
-	ulint		in_use;		/*!< Number of active cells */
-	ulint		n_elems;	/*!< Number of elements in the array */
-	ulint		max_elems;	/*!< Maximum elements */
-	ulint		next_free;	/*!< ULINT_UNDEFINED or index of next
-					free slot */
-	sync_level_t*	elems;		/*!< Array elements */
-};
+typedef std::vector<sync_level_t> sync_arr_t;
+
 
 /** Mutexes or rw-locks held by a thread */
 struct sync_thread_t{
@@ -273,9 +269,9 @@ mutex_create_func(
 # ifdef UNIV_SYNC_DEBUG
 	ulint		level,		/*!< in: level */
 # endif /* UNIV_SYNC_DEBUG */
+#endif /* UNIV_DEBUG */
 	const char*	cfile_name,	/*!< in: file name where created */
 	ulint		cline,		/*!< in: file line where created */
-#endif /* UNIV_DEBUG */
 	const char*	cmutex_name)	/*!< in: mutex name */
 {
 #if defined(HAVE_ATOMIC_BUILTINS)
@@ -288,16 +284,13 @@ mutex_create_func(
 	mutex_set_waiters(mutex, 0);
 #ifdef UNIV_DEBUG
 	mutex->magic_n = MUTEX_MAGIC_N;
+	mutex->level = level;
 #endif /* UNIV_DEBUG */
-#ifdef UNIV_SYNC_DEBUG
+
 	mutex->line = 0;
 	mutex->file_name = "not yet reserved";
-	mutex->level = level;
-#endif /* UNIV_SYNC_DEBUG */
-#ifdef UNIV_DEBUG
 	mutex->cfile_name = cfile_name;
 	mutex->cline = cline;
-#endif /* UNIV_DEBUG */
 	mutex->count_os_wait = 0;
 	mutex->cmutex_name=	  cmutex_name;
 
@@ -339,11 +332,11 @@ mutex_create_func(
 # ifdef UNIV_SYNC_DEBUG
 	ulint			level,		/*!< in: level */
 # endif /* UNIV_SYNC_DEBUG */
+#endif /* UNIV_DEBUG */
 	const char*		cfile_name,	/*!< in: file name where
 						created */
 	ulint			cline,		/*!< in: file line where
 						created */
-#endif /* UNIV_DEBUG */
 	const char*		cmutex_name)	/*!< in: mutex name */
 {
 	mutex_create_func(&mutex->base_mutex,
@@ -351,9 +344,9 @@ mutex_create_func(
 # ifdef UNIV_SYNC_DEBUG
 			  level,
 #endif /* UNIV_SYNC_DEBUG */
+#endif /* UNIV_DEBUG */
 			  cfile_name,
 			  cline,
-#endif /* UNIV_DEBUG */
 			  cmutex_name);
 	mutex->high_priority_waiters = 0;
 	mutex->high_priority_event = os_event_create();
@@ -463,10 +456,14 @@ mutex_enter_nowait_func(
 
 	if (!ib_mutex_test_and_set(mutex)) {
 
-		ut_d(mutex->thread_id = os_thread_get_curr_id());
+		mutex->thread_id = os_thread_get_curr_id();
 #ifdef UNIV_SYNC_DEBUG
 		mutex_set_debug_info(mutex, file_name, line);
 #endif
+		if (srv_instrument_semaphores) {
+			mutex->file_name = file_name;
+			mutex->line = line;
+		}
 
 		return(0);	/* Succeeded! */
 	}
@@ -607,10 +604,15 @@ spin_loop:
 	if (ib_mutex_test_and_set(mutex) == 0) {
 		/* Succeeded! */
 
-		ut_d(mutex->thread_id = os_thread_get_curr_id());
+		mutex->thread_id = os_thread_get_curr_id();
 #ifdef UNIV_SYNC_DEBUG
 		mutex_set_debug_info(mutex, file_name, line);
 #endif
+		if (srv_instrument_semaphores) {
+			mutex->file_name = file_name;
+			mutex->line = line;
+		}
+
 		return;
 	}
 
@@ -661,10 +663,14 @@ spin_loop:
 
 			sync_array_free_cell(sync_arr, index);
 
-			ut_d(mutex->thread_id = os_thread_get_curr_id());
+			mutex->thread_id = os_thread_get_curr_id();
 #ifdef UNIV_SYNC_DEBUG
 			mutex_set_debug_info(mutex, file_name, line);
 #endif
+			if (srv_instrument_semaphores) {
+				mutex->file_name = file_name;
+				mutex->line = line;
+			}
 
 			if (prio_mutex) {
 				os_atomic_decrement_ulint(
@@ -952,10 +958,10 @@ sync_thread_levels_g(
 {
 	ulint		i;
 
-	for (i = 0; i < arr->n_elems; i++) {
+	for (i = 0; i < arr->size(); i++) {
 		const sync_level_t*	slot;
 
-		slot = &arr->elems[i];
+		slot = (const sync_level_t*)&(arr->at(i));
 
 		if (slot->latch != NULL && slot->level <= limit) {
 			if (warn) {
@@ -987,10 +993,10 @@ sync_thread_levels_contain(
 {
 	ulint		i;
 
-	for (i = 0; i < arr->n_elems; i++) {
+	for (i = 0; i < arr->size(); i++) {
 		const sync_level_t*	slot;
 
-		slot = &arr->elems[i];
+		slot = (const sync_level_t*)&(arr->at(i));
 
 		if (slot->latch != NULL && slot->level == level) {
 
@@ -1034,10 +1040,10 @@ sync_thread_levels_contains(
 
 	arr = thread_slot->levels;
 
-	for (i = 0; i < arr->n_elems; i++) {
+	for (i = 0; i < arr->size(); i++) {
 		sync_level_t*	slot;
 
-		slot = &arr->elems[i];
+		slot = (sync_level_t*)&(arr->at(i));
 
 		if (slot->latch != NULL && slot->level == level) {
 
@@ -1083,10 +1089,10 @@ sync_thread_levels_nonempty_gen(
 
 	arr = thread_slot->levels;
 
-	for (i = 0; i < arr->n_elems; ++i) {
+	for (i = 0; i < arr->size(); ++i) {
 		const sync_level_t*	slot;
 
-		slot = &arr->elems[i];
+		slot = (const sync_level_t*)&(arr->at(i));
 
 		if (slot->latch != NULL
 		    && (!dict_mutex_allowed
@@ -1143,10 +1149,10 @@ sync_thread_levels_nonempty_trx(
 
 	arr = thread_slot->levels;
 
-	for (i = 0; i < arr->n_elems; ++i) {
+	for (i = 0; i < arr->size(); ++i) {
 		const sync_level_t*	slot;
 
-		slot = &arr->elems[i];
+		slot = (const sync_level_t*)&(arr->at(i));
 
 		if (slot->latch != NULL
 		    && (!has_search_latch
@@ -1177,10 +1183,9 @@ sync_thread_add_level(
 			SYNC_LEVEL_VARYING, nothing is done */
 	ibool	relock)	/*!< in: TRUE if re-entering an x-lock */
 {
-	ulint		i;
-	sync_level_t*	slot;
 	sync_arr_t*	array;
 	sync_thread_t*	thread_slot;
+	sync_level_t	sync_level;
 
 	if (!sync_order_checks_on) {
 
@@ -1205,21 +1210,11 @@ sync_thread_add_level(
 	thread_slot = sync_thread_level_arrays_find_slot();
 
 	if (thread_slot == NULL) {
-		ulint	sz;
-
-		sz = sizeof(*array)
-		   + (sizeof(*array->elems) * SYNC_THREAD_N_LEVELS);
 
 		/* We have to allocate the level array for a new thread */
-		array = static_cast<sync_arr_t*>(calloc(sz, sizeof(char)));
+		array = new sync_arr_t();
 		ut_a(array != NULL);
-
-		array->next_free = ULINT_UNDEFINED;
-		array->max_elems = SYNC_THREAD_N_LEVELS;
-		array->elems = (sync_level_t*) &array[1];
-
 		thread_slot = sync_thread_level_arrays_find_free();
-
 		thread_slot->levels = array;
 		thread_slot->id = os_thread_get_curr_id();
 	}
@@ -1280,6 +1275,7 @@ sync_thread_add_level(
 	case SYNC_IBUF_MUTEX:
 	case SYNC_INDEX_ONLINE_LOG:
 	case SYNC_STATS_AUTO_RECALC:
+	case SYNC_STATS_DEFRAG:
 		if (!sync_thread_levels_g(array, level, TRUE)) {
 			fprintf(stderr,
 				"InnoDB: sync_thread_levels_g(array, %lu)"
@@ -1446,26 +1442,10 @@ sync_thread_add_level(
 	}
 
 levels_ok:
-	if (array->next_free == ULINT_UNDEFINED) {
-		ut_a(array->n_elems < array->max_elems);
 
-		i = array->n_elems++;
-	} else {
-		i = array->next_free;
-		array->next_free = array->elems[i].level;
-	}
-
-	ut_a(i < array->n_elems);
-	ut_a(i != ULINT_UNDEFINED);
-
-	++array->in_use;
-
-	slot = &array->elems[i];
-
-	ut_a(slot->latch == NULL);
-
-	slot->latch = latch;
-	slot->level = level;
+	sync_level.latch = latch;
+	sync_level.level = level;
+	array->push_back(sync_level);
 
 	mutex_exit(&sync_thread_mutex);
 }
@@ -1483,7 +1463,6 @@ sync_thread_reset_level(
 {
 	sync_arr_t*	array;
 	sync_thread_t*	thread_slot;
-	ulint		i;
 
 	if (!sync_order_checks_on) {
 
@@ -1512,36 +1491,15 @@ sync_thread_reset_level(
 
 	array = thread_slot->levels;
 
-	for (i = 0; i < array->n_elems; i++) {
-		sync_level_t*	slot;
+	for (std::vector<sync_level_t>::iterator it = array->begin(); it != array->end(); ++it) {
+		sync_level_t level = *it;
 
-		slot = &array->elems[i];
-
-		if (slot->latch != latch) {
+		if (level.latch != latch) {
 			continue;
 		}
 
-		slot->latch = NULL;
-
-		/* Update the free slot list. See comment in sync_level_t
-		for the level field. */
-		slot->level = array->next_free;
-		array->next_free = i;
-
-		ut_a(array->in_use >= 1);
-		--array->in_use;
-
-		/* If all cells are idle then reset the free
-		list. The assumption is that this will save
-		time when we need to scan up to n_elems. */
-
-		if (array->in_use == 0) {
-			array->n_elems = 0;
-			array->next_free = ULINT_UNDEFINED;
-		}
-
+		array->erase(it);
 		mutex_exit(&sync_thread_mutex);
-
 		return(TRUE);
 	}
 
@@ -1628,8 +1586,7 @@ sync_thread_level_arrays_free(void)
 
 		/* If this slot was allocated then free the slot memory too. */
 		if (slot->levels != NULL) {
-			free(slot->levels);
-			slot->levels = NULL;
+			delete slot->levels;
 		}
 	}
 

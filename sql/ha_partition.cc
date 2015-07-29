@@ -4413,7 +4413,7 @@ int ha_partition::delete_row(const uchar *buf)
     removed as a result of a SQL statement.
 
     Called from item_sum.cc by Item_func_group_concat::clear(),
-    Item_sum_count_distinct::clear(), and Item_func_group_concat::clear().
+    Item_sum_count::clear(), and Item_func_group_concat::clear().
     Called from sql_delete.cc by mysql_delete().
     Called from sql_select.cc by JOIN::reset().
     Called from sql_union.cc by st_select_lex_unit::exec().
@@ -4945,7 +4945,6 @@ int ha_partition::rnd_next(uchar *buf)
 end:
   m_part_spec.start_part= NO_CURRENT_PART_ID;
 end_dont_reset_start_part:
-  table->status= STATUS_NOT_FOUND;
   DBUG_RETURN(result);
 }
 
@@ -5849,7 +5848,6 @@ int ha_partition::partition_scan_set_up(uchar * buf, bool idx_read_flag)
       key not found.
     */
     DBUG_PRINT("info", ("scan with no partition to scan"));
-    table->status= STATUS_NOT_FOUND;
     DBUG_RETURN(HA_ERR_END_OF_FILE);
   }
   if (m_part_spec.start_part == m_part_spec.end_part)
@@ -5874,7 +5872,6 @@ int ha_partition::partition_scan_set_up(uchar * buf, bool idx_read_flag)
     if (start_part == MY_BIT_NONE)
     {
       DBUG_PRINT("info", ("scan with no partition to scan"));
-      table->status= STATUS_NOT_FOUND;
       DBUG_RETURN(HA_ERR_END_OF_FILE);
     }
     if (start_part > m_part_spec.start_part)
@@ -8021,7 +8018,8 @@ void ha_partition::print_error(int error, myf errflag)
                       table->s->table_name.str,
                       str.c_ptr_safe());
 
-      max_length= (MYSQL_ERRMSG_SIZE - (uint) strlen(ER(ER_ROW_IN_WRONG_PARTITION)));
+      max_length= (MYSQL_ERRMSG_SIZE -
+                   (uint) strlen(ER_THD(thd, ER_ROW_IN_WRONG_PARTITION)));
       if (str.length() >= max_length)
       {
         str.length(max_length-4);
@@ -8825,7 +8823,7 @@ int ha_partition::indexes_are_disabled(void)
     @retval != 0  Error
 */
 
-int ha_partition::check_misplaced_rows(uint read_part_id, bool repair)
+int ha_partition::check_misplaced_rows(uint read_part_id, bool do_repair)
 {
   int result= 0;
   uint32 correct_part_id;
@@ -8836,7 +8834,7 @@ int ha_partition::check_misplaced_rows(uint read_part_id, bool repair)
 
   DBUG_ASSERT(m_file);
 
-  if (repair)
+  if (do_repair)
   {
     /* We must read the full row, if we need to move it! */
     bitmap_set_all(table->read_set);
@@ -8881,7 +8879,7 @@ int ha_partition::check_misplaced_rows(uint read_part_id, bool repair)
     if (correct_part_id != read_part_id)
     {
       num_misplaced_rows++;
-      if (!repair)
+      if (!do_repair)
       {
         /* Check. */
 	print_admin_msg(ha_thd(), MYSQL_ERRMSG_SIZE, "error",

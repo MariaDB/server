@@ -1,0 +1,40 @@
+CREATE DATABASE IF NOT EXISTS db1;
+affected rows: 1
+CREATE DATABASE IF NOT EXISTS db1;
+affected rows: 0
+Warnings:
+Note	1007	Can't create database 'db1'; database exists
+CREATE TABLE db1.t1 (a INT);
+affected rows: 0
+SHOW TABLES IN db1;
+Tables_in_db1
+t1
+affected rows: 1
+CREATE OR REPLACE DATABASE db1;
+affected rows: 2
+SHOW TABLES IN db1;
+Tables_in_db1
+affected rows: 0
+CREATE OR REPLACE DATABASE IF NOT EXISTS db2;
+ERROR HY000: Incorrect usage of OR REPLACE and IF NOT EXISTS
+DROP DATABASE db1;
+affected rows: 0
+DROP DATABASE IF EXISTS db1;
+affected rows: 0
+Warnings:
+Note	1008	Can't drop database 'db1'; database doesn't exist
+DROP DATABASE db1;
+ERROR HY000: Can't drop database 'db1'; database doesn't exist
+CREATE OR REPLACE DATABASE db1;
+affected rows: 1
+SHOW TABLES IN db1;
+Tables_in_db1
+affected rows: 0
+CREATE DATABASE db1;
+ERROR HY000: Can't create database 'db1'; database exists
+DROP DATABASE IF EXISTS db1;
+affected rows: 0
+DROP DATABASE IF EXISTS db1;
+affected rows: 0
+Warnings:
+Note	1008	Can't drop database 'db1'; database doesn't exist

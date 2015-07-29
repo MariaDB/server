@@ -11,7 +11,7 @@ include/master-slave.inc
 
 *** Create test tables
 
-show variables like '%binlog_format%';
+show variables like 'binlog_format%';
 Variable_name	Value
 binlog_format	MIXED
 drop table if exists test.marker;
@@ -55,7 +55,7 @@ Expect 1
 *** MASTER ***
 **************
 
-show variables like '%binlog_format%';
+show variables like 'binlog_format%';
 Variable_name	Value
 binlog_format	MIXED
 *** Clear statement events

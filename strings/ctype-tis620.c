@@ -618,7 +618,7 @@ ret:
 */
 
 static size_t
-my_strnxfrm_tis620(const CHARSET_INFO *cs,
+my_strnxfrm_tis620(CHARSET_INFO *cs,
                    uchar *dst, size_t dstlen, uint nweights,
                    const uchar *src, size_t srclen, uint flags)
 {
@@ -885,7 +885,10 @@ static MY_CHARSET_HANDLER my_charset_handler=
     my_strntod_8bit,
     my_strtoll10_8bit,
     my_strntoull10rnd_8bit,
-    my_scan_8bit
+    my_scan_8bit,
+    my_charlen_8bit,
+    my_well_formed_char_length_8bit,
+    my_copy_8bit,
 };
 
 

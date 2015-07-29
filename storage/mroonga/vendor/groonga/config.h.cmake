@@ -14,7 +14,7 @@
 #define PACKAGE_URL          "${PACKAGE_URL}"
 #define PACKAGE_VERSION      "${VERSION}"
 
-/* groonga related constants */
+/* Groonga related constants */
 #define GRN_CONFIG_PATH      "${GRN_CONFIG_PATH}"
 #define GRN_LOG_PATH         "${GRN_LOG_PATH}"
 #define GRN_VERSION          "${GRN_VERSION}"
@@ -88,6 +88,7 @@
 #cmakedefine GRN_WITH_MESSAGE_PACK
 #cmakedefine GRN_WITH_MRUBY
 #cmakedefine GRN_WITH_NFKC
+#cmakedefine GRN_WITH_ONIGMO
 #cmakedefine GRN_WITH_ZEROMQ
 #cmakedefine GRN_WITH_ZLIB
 
@@ -97,16 +98,13 @@
 #cmakedefine HAVE_ERRNO_H
 #cmakedefine HAVE_EXECINFO_H
 #cmakedefine HAVE_INTTYPES_H
-#cmakedefine HAVE_IO_H
 #cmakedefine HAVE_LINUX_FUTEX_H
 #cmakedefine HAVE_MEMORY_H
 #cmakedefine HAVE_NETDB_H
-#cmakedefine HAVE_NETINET_IN_H
-#cmakedefine HAVE_NETINET_TCP_H
 #cmakedefine HAVE_PTHREAD_H
 #cmakedefine HAVE_SIGNAL_H
+#cmakedefine HAVE_STDARG_H
 #cmakedefine HAVE_STDINT_H
-#cmakedefine HAVE_STDLIB_H
 #cmakedefine HAVE_STRINGS_H
 #cmakedefine HAVE_STRING_H
 #cmakedefine HAVE_SYS_MMAN_H
@@ -118,7 +116,6 @@
 #cmakedefine HAVE_SYS_SYSCALL_H
 #cmakedefine HAVE_SYS_SYSCTL_H
 #cmakedefine HAVE_SYS_TIME_H
-#cmakedefine HAVE_SYS_TYPES_H
 #cmakedefine HAVE_SYS_WAIT_H
 #cmakedefine HAVE_TIME_H
 #cmakedefine HAVE_UCONTEXT_H
@@ -142,17 +139,12 @@
 #cmakedefine HAVE_BACKTRACE
 #cmakedefine HAVE_CLOCK
 #cmakedefine HAVE_CLOCK_GETTIME
-#cmakedefine HAVE_CLOSE
 #cmakedefine HAVE_FPCLASSIFY
 #cmakedefine HAVE_GMTIME_R
 #cmakedefine HAVE_LOCALTIME_R
-#cmakedefine HAVE_MKOSTEMP
-#cmakedefine HAVE_OPEN
-#cmakedefine HAVE_READ
+#cmakedefine HAVE_MKSTEMP
 #cmakedefine HAVE_STRCASECMP
 #cmakedefine HAVE_STRNCASECMP
 #cmakedefine HAVE_STRTOULL
-#cmakedefine HAVE_UNLINK
-#cmakedefine HAVE_WRITE
 #cmakedefine HAVE_PTHREAD_MUTEXATTR_SETPSHARED
 #cmakedefine HAVE_PTHREAD_CONDATTR_SETPSHARED

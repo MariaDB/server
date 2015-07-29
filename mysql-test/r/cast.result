@@ -454,8 +454,8 @@ cast(_koi8r'�'   AS nchar(2)) as c5;
 c1	c2	c3	c4	c5
 фг	ф 	фг	ф 	ф
 Warnings:
-Warning	1292	Truncated incorrect CHAR(4) value: 'фгх'
-Warning	1292	Truncated incorrect CHAR(3) value: 'ф  '
+Warning	1292	Truncated incorrect CHAR(2) value: 'фгх'
+Warning	1292	Truncated incorrect CHAR(2) value: 'ф  '
 create table t1 select
 cast(_koi8r'��'  AS nchar)    as c1,
 cast(_koi8r'� '  AS nchar)    as c2,
@@ -463,8 +463,8 @@ cast(_koi8r'���' AS nchar(2)) as c3,
 cast(_koi8r'�  ' AS nchar(2)) as c4,
 cast(_koi8r'�'   AS nchar(2)) as c5;
 Warnings:
-Warning	1292	Truncated incorrect CHAR(4) value: 'фгх'
-Warning	1292	Truncated incorrect CHAR(3) value: 'ф  '
+Warning	1292	Truncated incorrect CHAR(2) value: 'фгх'
+Warning	1292	Truncated incorrect CHAR(2) value: 'ф  '
 select * from t1;
 c1	c2	c3	c4	c5
 фг	ф 	фг	ф 	ф
@@ -796,3 +796,26 @@ DATE("foo")
 NULL
 Warnings:
 Warning	1292	Incorrect datetime value: 'foo'
+create table t1 (a int, b char(5) as (cast("a" as char(10) binary) + a) );
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` char(5) AS (cast("a" as char(10) binary) + a) VIRTUAL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+drop table t1;
+select collation(cast("a" as char(10) binary));
+collation(cast("a" as char(10) binary))
+latin1_bin
+select collation(cast("a" as char(10) charset utf8 binary));
+collation(cast("a" as char(10) charset utf8 binary))
+utf8_bin
+select collation(cast("a" as char(10) ascii binary));
+collation(cast("a" as char(10) ascii binary))
+latin1_bin
+select collation(cast("a" as char(10) binary charset utf8));
+collation(cast("a" as char(10) binary charset utf8))
+utf8_bin
+select collation(cast("a" as char(10) binary ascii));
+collation(cast("a" as char(10) binary ascii))
+latin1_bin

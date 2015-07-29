@@ -69,11 +69,11 @@ protected:
   };
   Item *nodeset_func;
   XML xml;
-  bool get_xml(XML *xml, bool cache= false)
+  bool get_xml(XML *xml_arg, bool cache= false)
   {
-    if (!cache && xml->cached())
-      return xml->raw() == 0;
-    return xml->parse(args[0], cache);
+    if (!cache && xml_arg->cached())
+      return xml_arg->raw() == 0;
+    return xml_arg->parse(args[0], cache);
   }
 public:
   Item_xml_str_func(Item *a, Item *b): 

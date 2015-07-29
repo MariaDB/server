@@ -1616,6 +1616,42 @@ UNION ALL
 SELECT 'a' AS id, REPEAT('bla bla', 100) AS body) t1;
 
 --echo #
+--echo # MDEV-7814 Assertion `args[0]->fixed' fails in Item_func_conv_charset::Item_func_conv_charset
+--echo #
+CREATE TABLE t1(a CHAR(1) CHARACTER SET latin1, b INT NOT NULL);
+CREATE TABLE t2(a CHAR(1) CHARACTER SET utf8 COLLATE utf8_general_ci, b INT NOT NULL);
+SELECT (SELECT t2.a FROM t2 WHERE t2.a=t1.a) AS aa, b, COUNT(b) FROM t1 GROUP BY aa;
+DROP TABLE t1,t2;
+
+--echo #
+--echo # MDEV-7649 wrong result when comparing utf8 column with an invalid literal
+--echo #
+
+SET NAMES utf8 COLLATE utf8_general_ci;
+--let ENGINE=InnoDB
+--source include/ctype_utf8_ilseq.inc
+--let ENGINE=MyISAM
+--source include/ctype_utf8_ilseq.inc
+--let ENGINE=HEAP
+--source include/ctype_utf8_ilseq.inc
+
+--echo #
+--echo # MDEV-8067 correct fix for MySQL Bug # 19699237: UNINITIALIZED VARIABLE IN ITEM_FIELD::STR_RESULT
+--echo #
+CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET utf8);
+CREATE TABLE t2 (a VARCHAR(10) CHARACTER SET latin1);
+INSERT INTO t1 VALUES ('aaa');
+INSERT INTO t2 VALUES ('aaa');
+SELECT (SELECT CONCAT(a),1 FROM t1) <=> (SELECT CONCAT(a),1 FROM t2);
+INSERT INTO t1 VALUES ('aaa');
+INSERT INTO t2 VALUES ('aaa');
+# Running the below query crashed with two rows
+--error ER_SUBQUERY_NO_1_ROW
+SELECT (SELECT CONCAT(a),1 FROM t1) <=> (SELECT CONCAT(a),1 FROM t2);
+DROP TABLE t1, t2;
+
+
+--echo #
 --echo # End of 5.5 tests
 --echo #
 
@@ -1755,4 +1791,34 @@ let $ctype_unescape_combinations=selected;
 
 --echo #
 --echo # End of 10.0 tests
+--echo #
+
+
+--echo #
+--echo # Start of 10.1 tests
+--echo #
+
+--echo #
+--echo # MDEV-6572 "USE dbname" with a bad sequence erroneously connects to a wrong database
+--echo #
+SET NAMES utf8;
+--error ER_INVALID_CHARACTER_STRING
+SELECT * FROM `test😁😁test`;
+
+--echo #
+--echo #MDEV-8256 A part of a ROW comparison is erroneously optimized away
+--echo #
+SET NAMES utf8;
+CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET utf8);
+INSERT INTO t1 VALUES ('1e1'),('1é1');
+SELECT * FROM t1 WHERE a=10;
+SELECT * FROM t1 WHERE a='1e1';
+SELECT * FROM t1 WHERE a=10 AND a='1e1';
+SELECT * FROM t1 WHERE (a,a)=(10,'1e1');
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE (a,a)=(10,'1e1');
+DROP TABLE t1;
+
+
+--echo #
+--echo # End of 10.1 tests
 --echo #

@@ -28,49 +28,6 @@
 
 THR_LOCK table_socket_instances::m_table_lock;
 
-static const TABLE_FIELD_TYPE field_types[]=
-{
-  {
-    { C_STRING_WITH_LEN("EVENT_NAME") },
-    { C_STRING_WITH_LEN("varchar(128)") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("OBJECT_INSTANCE_BEGIN") },
-    { C_STRING_WITH_LEN("bigint(20)") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("THREAD_ID") },
-    { C_STRING_WITH_LEN("bigint(20)") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("SOCKET_ID") },
-    { C_STRING_WITH_LEN("int(11)") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("IP") },
-    { C_STRING_WITH_LEN("varchar(64)") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("PORT") },
-    { C_STRING_WITH_LEN("int(11)") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("STATE") },
-    { C_STRING_WITH_LEN("enum('IDLE','ACTIVE')") },
-    { NULL, 0}
-  }
-};
-
-TABLE_FIELD_DEF
-table_socket_instances::m_field_def=
-{ 7, field_types, 0, (uint*) 0 };
-
 PFS_engine_table_share
 table_socket_instances::m_share=
 {
@@ -83,8 +40,14 @@ table_socket_instances::m_share=
   1000, /* records */
   sizeof(PFS_simple_index),
   &m_table_lock,
-  &m_field_def,
-  false /* checked */
+  { C_STRING_WITH_LEN("CREATE TABLE socket_instances("
+                      "EVENT_NAME VARCHAR(128) not null,"
+                      "OBJECT_INSTANCE_BEGIN BIGINT unsigned not null,"
+                      "THREAD_ID BIGINT unsigned,"
+                      "SOCKET_ID INTEGER not null,"
+                      "IP VARCHAR(64) not null,"
+                      "PORT INTEGER not null,"
+                      "STATE ENUM('IDLE','ACTIVE') not null)") }
 };
 
 PFS_engine_table* table_socket_instances::create(void)

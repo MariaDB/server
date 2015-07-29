@@ -1022,6 +1022,10 @@ struct trx_t{
 	ulint		total_table_lock_wait_time;
 					/*!< Total table lock wait time
 					up to this moment. */
+
+#ifdef WITH_WSREP
+	os_event_t	wsrep_event;	/* event waited for in srv_conc_slot */
+#endif /* WITH_WSREP */
 };
 
 /* Transaction isolation levels (trx->isolation_level) */

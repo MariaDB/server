@@ -351,7 +351,7 @@ a
 DROP TABLE t1;
 set global LC_MESSAGES=convert((@@global.log_bin_trust_function_creators) 
 using cp1250);
-ERROR HY000: Unknown locale: '1'
+ERROR HY000: Unknown locale: 'ON'
 #
 # Start of 5.6 tests
 #

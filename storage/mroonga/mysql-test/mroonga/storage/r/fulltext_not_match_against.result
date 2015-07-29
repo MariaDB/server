@@ -18,21 +18,21 @@ c1	c2	c3
 6	20	ka ki ku ke ko
 7	20	aa ii uu ee oo
 8	20	ka ki ku ke ko
-select * from t1 where match(c3) against("uu");
+select * from t1 where match(c3) against("+uu" in boolean mode) order by c1;
 c1	c2	c3
 1	10	aa ii uu ee oo
 3	10	aa ii uu ee oo
 5	20	aa ii uu ee oo
 7	20	aa ii uu ee oo
-select * from t1 where not match(c3) against("uu");
+select * from t1 where not match(c3) against("+uu" in boolean mode) order by c1;
 c1	c2	c3
 2	10	ka ki ku ke ko
 4	10	ka ki ku ke ko
 6	20	ka ki ku ke ko
 8	20	ka ki ku ke ko
-select * from t1 where match(c3) against("dummy");
+select * from t1 where match(c3) against("+dummy" in boolean mode) order by c1;
 c1	c2	c3
-select * from t1 where not match(c3) against("dummy");
+select * from t1 where not match(c3) against("+dummy" in boolean mode) order by c1;
 c1	c2	c3
 1	10	aa ii uu ee oo
 2	10	ka ki ku ke ko
@@ -42,26 +42,26 @@ c1	c2	c3
 6	20	ka ki ku ke ko
 7	20	aa ii uu ee oo
 8	20	ka ki ku ke ko
-select * from t1 where c1 = 4 and not match(c3) against("uu");
+select * from t1 where c1 = 4 and not match(c3) against("+uu" in boolean mode) order by c1;
 c1	c2	c3
 4	10	ka ki ku ke ko
-select * from t1 where c1 <= 4 and not match(c3) against("uu");
+select * from t1 where c1 <= 4 and not match(c3) against("+uu" in boolean mode) order by c1;
 c1	c2	c3
 2	10	ka ki ku ke ko
 4	10	ka ki ku ke ko
-select * from t1 where c1 > 4 and not match(c3) against("uu");
+select * from t1 where c1 > 4 and not match(c3) against("+uu" in boolean mode) order by c1;
 c1	c2	c3
 6	20	ka ki ku ke ko
 8	20	ka ki ku ke ko
-select * from t1 where c2 = 10 and not match(c3) against("uu");
+select * from t1 where c2 = 10 and not match(c3) against("+uu" in boolean mode) order by c1;
 c1	c2	c3
 2	10	ka ki ku ke ko
 4	10	ka ki ku ke ko
-select * from t1 where c2 >= 15 and not match(c3) against("uu");
+select * from t1 where c2 >= 15 and not match(c3) against("+uu" in boolean mode) order by c1;
 c1	c2	c3
 6	20	ka ki ku ke ko
 8	20	ka ki ku ke ko
-select * from t1 where c2 < 15 and not match(c3) against("uu");
+select * from t1 where c2 < 15 and not match(c3) against("+uu" in boolean mode) order by c1;
 c1	c2	c3
 2	10	ka ki ku ke ko
 4	10	ka ki ku ke ko

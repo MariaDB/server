@@ -1,7 +1,7 @@
 --source include/not_embedded.inc
 --source include/have_innodb.inc
 --source include/have_perfschema.inc
---source ../include/no_protocol.inc
+--source include/no_protocol.inc
 
 -- source include/master-slave.inc
 
@@ -45,7 +45,7 @@ insert into performance_schema.setup_objects
 select * from performance_schema.setup_objects
   order by object_type, object_schema, object_name;
 
-select digest, digest_text, count_star
+select digest_text, count_star
   from performance_schema.events_statements_summary_by_digest
   where digest_text like "%in_%_digest%";
 
@@ -67,7 +67,7 @@ insert into performance_schema.setup_objects
 select * from performance_schema.setup_objects
   order by object_type, object_schema, object_name;
 
-select digest, digest_text, count_star
+select digest_text, count_star
   from performance_schema.events_statements_summary_by_digest
   where digest_text like "%in_%_digest%";
 
