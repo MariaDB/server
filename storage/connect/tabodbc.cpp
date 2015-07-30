@@ -1268,9 +1268,10 @@ void ODBCCOL::ReadColumn(PGLOBAL g)
 
   } // endif Buf_Type
 
-  // Handle null values
-  if (Value->IsZero())
-    Value->SetNull(Nullable);
+  // Nulls are handled by StrLen[n] == SQL_NULL_DATA
+	// MDEV-8561
+//if (Value->IsZero())
+//  Value->SetNull(Nullable);
 
   if (trace) {
     char buf[64];
