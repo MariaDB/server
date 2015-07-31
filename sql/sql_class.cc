@@ -1068,7 +1068,15 @@ THD::THD()
    derived_tables_processing(FALSE),
    waiting_on_group_commit(FALSE), has_waiter(FALSE),
    spcont(NULL),
+   m_parser_state(NULL),
+#if defined(ENABLED_DEBUG_SYNC)
+   debug_sync_control(0),
+#endif /* defined(ENABLED_DEBUG_SYNC) */
+   wait_for_commit_ptr(0),
+   main_da(0, false, false),
+   m_stmt_da(&main_da)
 #ifdef WITH_WSREP
+  ,
    wsrep_applier(is_applier),
    wsrep_applier_closing(FALSE),
    wsrep_client_thread(0),
@@ -1076,15 +1084,8 @@ THD::THD()
    wsrep_po_cnt(0),
    wsrep_po_in_trans(FALSE),
    wsrep_apply_format(0),
-   wsrep_apply_toi(false),
+   wsrep_apply_toi(false)
 #endif
-   m_parser_state(NULL),
-#if defined(ENABLED_DEBUG_SYNC)
-   debug_sync_control(0),
-#endif /* defined(ENABLED_DEBUG_SYNC) */
-   wait_for_commit_ptr(0),
-    main_da(0, false, false),
-   m_stmt_da(&main_da)
 {
   ulong tmp;
 
