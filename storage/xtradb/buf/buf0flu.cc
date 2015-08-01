@@ -937,11 +937,11 @@ buf_flush_write_block_low(
 	case BUF_BLOCK_ZIP_DIRTY:
 		frame = bpage->zip.data;
 
-		ut_a(page_zip_verify_checksum(frame, zip_size));
-
 		mach_write_to_8(frame + FIL_PAGE_LSN,
 				bpage->newest_modification);
 		memset(frame + FIL_PAGE_FILE_FLUSH_LSN, 0, 8);
+
+		ut_a(page_zip_verify_checksum(frame, zip_size));
 		break;
 	case BUF_BLOCK_FILE_PAGE:
 		frame = bpage->zip.data;
