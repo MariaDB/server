@@ -457,7 +457,7 @@ fil_space_get_latch(
 
 /*******************************************************************//**
 Returns the type of a file space.
-@return	FIL_TABLESPACE or FIL_LOG */
+@return	ULINT_UNDEFINED, or FIL_TABLESPACE or FIL_LOG */
 UNIV_INTERN
 ulint
 fil_space_get_type(
@@ -465,6 +465,7 @@ fil_space_get_type(
 	ulint	id)	/*!< in: space id */
 {
 	fil_space_t*	space;
+	ulint type = ULINT_UNDEFINED;
 
 	ut_ad(fil_system);
 
@@ -472,11 +473,13 @@ fil_space_get_type(
 
 	space = fil_space_get_by_id(id);
 
-	ut_a(space);
-
 	mutex_exit(&fil_system->mutex);
 
-	return(space->purpose);
+	if (space) {
+		type = space->purpose;
+	}
+
+	return(type);
 }
 #endif /* !UNIV_HOTBACKUP */
 

@@ -430,7 +430,8 @@ int init_slave()
 
   if (active_mi->host[0] && !opt_skip_slave_start)
   {
-    if (start_slave_threads(1 /* need mutex */,
+    if (start_slave_threads(0, /* No active thd */
+                            1 /* need mutex */,
                             0 /* no wait for start*/,
                             active_mi,
                             master_info_file,
@@ -887,7 +888,8 @@ int start_slave_thread(
     started the threads that were not previously running
 */
 
-int start_slave_threads(bool need_slave_mutex, bool wait_for_start,
+int start_slave_threads(THD *thd,
+                        bool need_slave_mutex, bool wait_for_start,
                         Master_info* mi, const char* master_info_fname,
                         const char* slave_info_fname, int thread_mask)
 {
@@ -933,7 +935,7 @@ int start_slave_threads(bool need_slave_mutex, bool wait_for_start,
                                 mi->rli.group_master_log_pos);
     strmake(mi->master_log_name, mi->rli.group_master_log_name,
             sizeof(mi->master_log_name)-1);
-    purge_relay_logs(&mi->rli, NULL, 0, &errmsg);
+    purge_relay_logs(&mi->rli, thd, 0, &errmsg);
     mi->rli.group_master_log_pos= mi->master_log_pos;
     strmake(mi->rli.group_master_log_name, mi->master_log_name,
             sizeof(mi->rli.group_master_log_name)-1);

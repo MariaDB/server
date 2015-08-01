@@ -591,7 +591,7 @@ inline_mysql_socket_socket
   int domain, int type, int protocol)
 {
   MYSQL_SOCKET mysql_socket= MYSQL_INVALID_SOCKET;
-  mysql_socket.fd= socket(domain, type, protocol);
+  mysql_socket.fd= socket(domain, type | SOCK_CLOEXEC, protocol);
 
 #ifdef HAVE_PSI_SOCKET_INTERFACE
   if (likely(mysql_socket.fd != INVALID_SOCKET))
@@ -1051,6 +1051,8 @@ inline_mysql_socket_accept
 #endif
   MYSQL_SOCKET socket_listen, struct sockaddr *addr, socklen_t *addr_len)
 {
+  int flags;
+
   MYSQL_SOCKET socket_accept= MYSQL_INVALID_SOCKET;
   socklen_t addr_length= (addr_len != NULL) ? *addr_len : 0;
 
@@ -1064,7 +1066,19 @@ inline_mysql_socket_accept
       (&state, socket_listen.m_psi, PSI_SOCKET_CONNECT, (size_t)0, src_file, src_line);
 
     /* Instrumented code */
+#ifdef HAVE_ACCEPT4
+    socket_accept.fd= accept4(socket_listen.fd, addr, &addr_length,
+                              SOCK_CLOEXEC);
+#else
     socket_accept.fd= accept(socket_listen.fd, addr, &addr_length);
+#ifdef FD_CLOEXEC
+    flags= fcntl(socket_accept.fd, F_GETFD);
+    if (flags != -1) {
+      flags |= FD_CLOEXEC;
+      fcntl(socket_accept.fd, F_SETFD, flags);
+    }
+#endif
+#endif
 
     /* Instrumentation end */
     if (locker != NULL)
@@ -1074,7 +1088,19 @@ inline_mysql_socket_accept
 #endif
   {
     /* Non instrumented code */
+#ifdef HAVE_ACCEPT4
+    socket_accept.fd= accept4(socket_listen.fd, addr, &addr_length,
+                              SOCK_CLOEXEC);
+#else
     socket_accept.fd= accept(socket_listen.fd, addr, &addr_length);
+#ifdef FD_CLOEXEC
+    flags= fcntl(socket_accept.fd, F_GETFD);
+    if (flags != -1) {
+      flags |= FD_CLOEXEC;
+      fcntl(socket_accept.fd, F_SETFD, flags);
+    }
+#endif
+#endif
   }
 
 #ifdef HAVE_PSI_SOCKET_INTERFACE

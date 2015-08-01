@@ -58,10 +58,4 @@ f1	node
 SELECT * FROM t1;
 f1	node
 1	node1
-SET GLOBAL wsrep_auto_increment_control = 1;
-SET GLOBAL auto_increment_increment = 2;
-SET GLOBAL auto_increment_offset = 1;
-SET GLOBAL wsrep_auto_increment_control = 1;
-SET GLOBAL auto_increment_increment = 2;
-SET GLOBAL auto_increment_offset = 2;
 DROP TABLE t1;

@@ -1,0 +1,63 @@
+#
+# This test tests the operation of transaction replay. If a potentially conflicting remote transaction arrives at
+# just the right time during the commit of a local transaction, the local transaction will be aborted and replayed.
+#
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+--source include/have_debug_sync.inc
+--source suite/galera/include/galera_have_debug_sync.inc
+
+--let $wsrep_local_replays_old = `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_replays'`
+
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY, f2 CHAR(1));
+INSERT INTO t1 VALUES (1, 'a');
+INSERT INTO t1 VALUES (2, 'a');
+
+--connection node_1
+SET AUTOCOMMIT=ON;
+START TRANSACTION;
+
+UPDATE t1 SET f2 = 'b' WHERE f1 = 1;
+SELECT * FROM t1 WHERE f1 = 2 FOR UPDATE;
+
+# Block the commit
+--connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1
+SET GLOBAL wsrep_provider_options = 'dbug=d,apply_monitor_enter_sync';
+
+--connection node_1
+--send COMMIT;
+
+# Wait until commit is blocked
+--connection node_1a
+SET SESSION wsrep_sync_wait = 0;
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_debug_sync_waiters' AND VARIABLE_VALUE = 'apply_monitor_enter_sync'
+--source include/wait_condition.inc
+
+# Issue a conflicting update on node #2
+--connection node_2
+UPDATE t1 SET f2 = 'c' WHERE f1 = 2;
+
+# Unblock the commit
+--connection node_1a
+SET GLOBAL wsrep_provider_options = 'dbug=';
+SET GLOBAL wsrep_provider_options = 'signal=apply_monitor_enter_sync';
+
+# Commit succeeds
+--connection node_1
+--reap
+
+SELECT COUNT(*) = 1 FROM t1 WHERE f2 = 'b';
+SELECT COUNT(*) = 1 FROM t1 WHERE f2 = 'c';
+
+# wsrep_local_replays has increased by 1
+--let $wsrep_local_replays_new = `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_replays'`
+--disable_query_log
+--eval SELECT $wsrep_local_replays_new - $wsrep_local_replays_old = 1 AS wsrep_local_replays;
+--enable_query_log
+
+--connection node_2
+SELECT COUNT(*) = 1 FROM t1 WHERE f2 = 'b';
+SELECT COUNT(*) = 1 FROM t1 WHERE f2 = 'c';
+
+DROP TABLE t1;

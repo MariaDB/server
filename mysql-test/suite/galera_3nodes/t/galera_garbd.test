@@ -1,0 +1,50 @@
+#
+# A very basic test for the galera arbitrator. We shut down node #3 and use its port allocation to start garbd.
+# As MTR does not allow multiple servers to be down at the same time, we are limited as to what we can test.
+#
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+--source include/big_test.inc
+
+--echo Killing node #3 to free ports for garbd ...
+--let $galera_connection_name = node_3
+--let $galera_server_number = 3
+--source include/galera_connect.inc
+--source include/shutdown_mysqld.inc
+
+--connection node_1
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--source include/wait_condition.inc
+
+--echo Starting garbd ...
+--exec `dirname $WSREP_PROVIDER`/garb/garbd --address "gcomm://127.0.0.1:$NODE_GALERAPORT_1" --group my_wsrep_cluster --options 'base_port=$NODE_GALERAPORT_3' > $MYSQL_TMP_DIR/garbd.log 2>&1 &
+
+--sleep 5
+
+--let $wait_condition = SELECT VARIABLE_VALUE = 3 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--source include/wait_condition.inc
+
+CREATE TABLE t1 (f1 INTEGER);
+INSERT INTO t1 VALUES (1);
+
+--connection node_2
+SELECT COUNT(*) = 1 FROM t1;
+
+--echo Killing garbd ...
+--exec pkill --oldest --full garbd.*$NODE_GALERAPORT_3
+
+--connection node_1
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--source include/wait_condition.inc
+
+INSERT INTO t1 VALUES (2);
+
+--connection node_2
+SELECT COUNT(*) = 2 FROM t1;
+
+DROP TABLE t1;
+
+--echo Restarting node #3 to satisfy MTR's end-of-test checks
+--connection node_3
+--source include/start_mysqld.inc

@@ -46,6 +46,7 @@ struct _grn_plugin {
   int refcount;
 };
 
+void grn_plugin_init_from_env(void);
 grn_rc grn_plugins_init(void);
 grn_rc grn_plugins_fin(void);
 grn_id grn_plugin_open(grn_ctx *ctx, const char *filename);

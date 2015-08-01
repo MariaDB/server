@@ -101,6 +101,9 @@ PHP_FUNCTION(grn_ctx_init)
   long flags = 0;
   grn_rc rc;
 
+  if (ctx == NULL) {
+    RETURN_FALSE; // unable to allocate memory for ctx
+  }
 
   if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "|l", &flags) == FAILURE) {
     return;

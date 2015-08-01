@@ -364,41 +364,50 @@ normalize(grn_ctx *ctx, grn_obj *string,
   rest_length = original_length_in_bytes;
   while (rest_length > 0) {
     int character_length;
+    grn_bool custom_normalized = GRN_FALSE;
+    unsigned int normalized_character_length;
+    unsigned int previous_normalized_length_in_bytes =
+      normalized_length_in_bytes;
+    unsigned int previous_normalized_n_characters =
+      normalized_n_characters;
 
     character_length = grn_plugin_charlen(ctx, rest, rest_length, encoding);
     if (character_length == 0) {
       break;
     }
 
-    if (remove_blank_p && character_length == 1 && rest[0] == ' ') {
+    if (custom_normalizer) {
+      custom_normalized = custom_normalizer(ctx,
+                                            rest,
+                                            &character_length,
+                                            rest_length - character_length,
+                                            normalize_table,
+                                            normalized,
+                                            &normalized_character_length,
+                                            &normalized_length_in_bytes,
+                                            &normalized_n_characters);
+    }
+    if (!custom_normalized) {
+      normalize_character(rest, character_length,
+                          normalize_table, normalize_table_size,
+                          normalized,
+                          &normalized_character_length,
+                          &normalized_length_in_bytes,
+                          &normalized_n_characters);
+    }
+
+    if (remove_blank_p &&
+        normalized_character_length == 1 &&
+        normalized[previous_normalized_length_in_bytes] == ' ') {
       if (current_type > types) {
         current_type[-1] |= GRN_CHAR_BLANK;
       }
       if (current_check) {
         current_check[0]++;
       }
+      normalized_length_in_bytes = previous_normalized_length_in_bytes;
+      normalized_n_characters = previous_normalized_n_characters;
     } else {
-      grn_bool custom_normalized = GRN_FALSE;
-      unsigned int normalized_character_length;
-      if (custom_normalizer) {
-        custom_normalized = custom_normalizer(ctx,
-                                              rest,
-                                              &character_length,
-                                              rest_length - character_length,
-                                              normalize_table,
-                                              normalized,
-                                              &normalized_character_length,
-                                              &normalized_length_in_bytes,
-                                              &normalized_n_characters);
-      }
-      if (!custom_normalized) {
-        normalize_character(rest, character_length,
-                            normalize_table, normalize_table_size,
-                            normalized,
-                            &normalized_character_length,
-                            &normalized_length_in_bytes,
-                            &normalized_n_characters);
-      }
       if (current_type && normalized_character_length > 0) {
         char *current_normalized;
         current_normalized =

@@ -1,0 +1,1 @@
+--binlog-checksum=CRC32 --master-verify-checksum=1 --slave-sql-verify-checksum=1

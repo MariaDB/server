@@ -1,0 +1,14 @@
+SELECT VARIABLE_VALUE = 4 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+VARIABLE_VALUE = 4
+1
+CREATE TABLE t1 (f1 INTEGER);
+INSERT INTO t1 VALUES (1);
+CALL mtr.add_suppression("There are no nodes in the same segment that will ever be able to become donors, yet there is a suitable donor outside");
+SELECT VARIABLE_VALUE LIKE '%gmcast.segment = 3%' FROM INFORMATION_SCHEMA.GLOBAL_VARIABLES WHERE VARIABLE_NAME = 'wsrep_provider_options';
+VARIABLE_VALUE LIKE '%gmcast.segment = 3%'
+1
+SELECT COUNT(*) = 1 FROM t1;
+COUNT(*) = 1
+1
+DROP TABLE t1;
+CALL mtr.add_suppression("There are no nodes in the same segment that will ever be able to become donors, yet there is a suitable donor outside");

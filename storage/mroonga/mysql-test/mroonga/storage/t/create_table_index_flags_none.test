@@ -1,4 +1,5 @@
 # Copyright(C) 2015  Naoya Murakami <naoya@createfield.com>
+# Copyright(C) 2015  Kouhei SUtou <kou@clear-code.com>
 #
 # This library is free software; you can redistribute it and/or
 # modify it under the terms of the GNU Lesser General Public
@@ -27,7 +28,7 @@ SET NAMES utf8;
 
 CREATE TABLE memos (
   content VARCHAR(64) NOT NULL,
-  FULLTEXT INDEX (content) COMMENT 'index_flags "NONE"'
+  FULLTEXT INDEX (content) COMMENT 'flags "NONE"'
 ) DEFAULT CHARSET=utf8;
 
 SELECT mroonga_command("dump --dump_plugins no --dump_schema no");

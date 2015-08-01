@@ -1,5 +1,6 @@
 EXTRA_DIST =					\
 	configure				\
+	config.h.cmake				\
 	CMakeLists.txt
 
 CONFIGURE_DEPENDENCIES =			\

@@ -26,6 +26,32 @@
 #define MRN_CLASS_NAME "mrn::IndexTableName"
 
 namespace mrn {
+  const char *IndexTableName::SEPARATOR = "-";
+
+  bool IndexTableName::is_custom_name(const char *table_name,
+                                      size_t table_name_length,
+                                      const char *index_table_name,
+                                      size_t index_table_name_length)
+  {
+    MRN_DBUG_ENTER_METHOD();
+
+    if (index_table_name_length <= (table_name_length + strlen(SEPARATOR))) {
+      DBUG_RETURN(true);
+    }
+
+    if (strncmp(table_name, index_table_name, table_name_length) != 0) {
+      DBUG_RETURN(true);
+    }
+
+    if (strncmp(SEPARATOR,
+                index_table_name + table_name_length,
+                strlen(SEPARATOR)) != 0) {
+      DBUG_RETURN(true);
+    }
+
+    DBUG_RETURN(false);
+  }
+
   IndexTableName::IndexTableName(const char *table_name,
                                  const char *mysql_index_name)
     : table_name_(table_name),
@@ -38,7 +64,10 @@ namespace mrn {
            mysql_index_name_multibyte,
            mysql_index_name_multibyte + strlen(mysql_index_name_));
     snprintf(name_, MRN_MAX_KEY_SIZE,
-             "%s-%s", table_name_, encoded_mysql_index_name_multibyte);
+             "%s%s%s",
+             table_name_,
+             SEPARATOR,
+             encoded_mysql_index_name_multibyte);
     length_ = strlen(name_);
   }
 

@@ -313,19 +313,22 @@ public:
 #endif
             const char *log_name,
             enum_log_type log_type,
-            const char *new_name,
+            const char *new_name, ulong next_file_number,
             enum cache_type io_cache_type_arg);
   bool init_and_set_log_file_name(const char *log_name,
                                   const char *new_name,
+                                  ulong next_log_number,
                                   enum_log_type log_type_arg,
                                   enum cache_type io_cache_type_arg);
   void init(enum_log_type log_type_arg,
             enum cache_type io_cache_type_arg);
   void close(uint exiting);
   inline bool is_open() { return log_state != LOG_CLOSED; }
-  const char *generate_name(const char *log_name, const char *suffix,
+  const char *generate_name(const char *log_name,
+                            const char *suffix,
                             bool strip_ext, char *buff);
-  int generate_new_name(char *new_name, const char *log_name);
+  int generate_new_name(char *new_name, const char *log_name,
+                        ulong next_log_number);
  protected:
   /* LOCK_log is inited by init_pthread_objects() */
   mysql_mutex_t LOCK_log;
@@ -366,7 +369,7 @@ public:
                 key_file_slow_log,
 #endif
                 generate_name(log_name, "-slow.log", 0, buf),
-                LOG_NORMAL, 0, WRITE_CACHE);
+                LOG_NORMAL, 0, 0, WRITE_CACHE);
   }
   bool open_query_log(const char *log_name)
   {
@@ -376,7 +379,7 @@ public:
                 key_file_query_log,
 #endif
                 generate_name(log_name, ".log", 0, buf),
-                LOG_NORMAL, 0, WRITE_CACHE);
+                LOG_NORMAL, 0, 0, WRITE_CACHE);
   }
 
 private:
@@ -707,6 +710,7 @@ public:
   bool open(const char *log_name,
             enum_log_type log_type,
             const char *new_name,
+            ulong next_log_number,
 	    enum cache_type io_cache_type_arg,
 	    ulong max_size,
             bool null_created,
@@ -780,7 +784,8 @@ public:
   int purge_index_entry(THD *thd, ulonglong *decrease_log_space,
                         bool need_mutex);
   bool reset_logs(THD* thd, bool create_new_log,
-                  rpl_gtid *init_state, uint32 init_state_len);
+                  rpl_gtid *init_state, uint32 init_state_len,
+                  ulong next_log_number);
   void close(uint exiting);
   void clear_inuse_flag_when_closing(File file);
 

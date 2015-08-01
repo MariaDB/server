@@ -13037,13 +13037,26 @@ reset_option:
           SLAVE               { Lex->type|= REFRESH_SLAVE; }
           optional_connection_name
           slave_reset_options { }
-        | MASTER_SYM          { Lex->type|= REFRESH_MASTER; }
+        | MASTER_SYM
+          {
+             Lex->type|= REFRESH_MASTER;
+             Lex->next_binlog_file_number= 0;
+          }
+          master_reset_options
         | QUERY_SYM CACHE_SYM { Lex->type|= REFRESH_QUERY_CACHE;}
         ;
 
 slave_reset_options:
           /* empty */ { Lex->reset_slave_info.all= false; }
         | ALL         { Lex->reset_slave_info.all= true; }
+        ;
+
+master_reset_options:
+          /* empty */ {}
+        | TO_SYM ulong_num
+          {
+            Lex->next_binlog_file_number = $2;
+          }
         ;
 
 purge:

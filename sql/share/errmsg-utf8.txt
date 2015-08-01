@@ -7131,3 +7131,7 @@ ER_INVALID_DEFAULT_VALUE_FOR_FIELD  22007
         eng "Incorrect default value '%-.128s' for column '%.192s'"
 ER_SYSTEMD_LISTEN_FDS
         eng "Systemd error for configured ListenStream"
+ER_KILL_QUERY_DENIED_ERROR
+        eng "You are not owner of query %lu"
+        ger "Sie sind nicht Eigentümer von Abfrage %lu"
+        rus "Вы не являетесь владельцем запроса %lu"

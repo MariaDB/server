@@ -28,6 +28,7 @@ IF(WITH_WSREP AND NOT EMBEDDED_LIBRARY)
     wsrep_binlog.cc
     wsrep_applier.cc
     wsrep_thd.cc
+    wsrep_xid.cc
   )
   SET(WSREP_LIB wsrep)
 ELSE()

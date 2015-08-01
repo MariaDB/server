@@ -1,5 +1,5 @@
 /* -*- c-basic-offset: 2 -*- */
-/* Copyright(C) 2011 Brazil
+/* Copyright(C) 2011-2015 Brazil
 
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -166,6 +166,10 @@ void Trie::swap(Trie *trie) {
   blocks_.swap(&trie->blocks_);
   entries_.swap(&trie->entries_);
   key_buf_.swap(&trie->key_buf_);
+}
+
+void Trie::flush() {
+  file_.flush();
 }
 
 void Trie::create_file(const char *file_name,

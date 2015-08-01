@@ -8276,6 +8276,17 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
 
   DEBUG_SYNC(thd, "alter_opened_table");
 
+#ifdef WITH_WSREP
+  DBUG_EXECUTE_IF("sync.alter_opened_table",
+                  {
+                    const char act[]=
+                      "now "
+                      "wait_for signal.alter_opened_table";
+                    DBUG_ASSERT(!debug_sync_set_action(thd,
+                                                       STRING_WITH_LEN(act)));
+                  };);
+#endif // WITH_WSREP
+
   if (error)
     DBUG_RETURN(true);
 

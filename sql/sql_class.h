@@ -673,6 +673,7 @@ typedef struct system_variables
   my_bool wsrep_dirty_reads;
   uint wsrep_sync_wait;
   ulong wsrep_retry_autocommit;
+  ulong wsrep_OSU_method;
   double long_query_time_double, max_statement_time_double;
 
   my_bool pseudo_slave_mode;
@@ -4383,6 +4384,8 @@ class select_insert :public select_result_interceptor {
   virtual int send_data(List<Item> &items);
   virtual void store_values(List<Item> &values);
   virtual bool can_rollback_data() { return 0; }
+  bool prepare_eof();
+  bool send_ok_packet();
   bool send_eof();
   virtual void abort_result_set();
   /* not implemented: select_insert is never re-used in prepared statements */

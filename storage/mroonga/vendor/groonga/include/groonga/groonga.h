@@ -907,6 +907,8 @@ GRN_API grn_rc grn_obj_lock(grn_ctx *ctx, grn_obj *obj, grn_id id, int timeout);
 GRN_API grn_rc grn_obj_unlock(grn_ctx *ctx, grn_obj *obj, grn_id id);
 GRN_API grn_rc grn_obj_clear_lock(grn_ctx *ctx, grn_obj *obj);
 GRN_API unsigned int grn_obj_is_locked(grn_ctx *ctx, grn_obj *obj);
+GRN_API grn_rc grn_obj_flush(grn_ctx *ctx, grn_obj *obj);
+GRN_API grn_rc grn_obj_flush_recursive(grn_ctx *ctx, grn_obj *obj);
 GRN_API int grn_obj_defrag(grn_ctx *ctx, grn_obj *obj, int threshold);
 
 GRN_API grn_obj *grn_obj_db(grn_ctx *ctx, grn_obj *obj);

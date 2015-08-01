@@ -1,4 +1,4 @@
-/* Copyright (C) 2013 Codership Oy <info@codership.com>
+/* Copyright (C) 2013-2015 Codership Oy <info@codership.com>
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -14,9 +14,10 @@
    51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA. */
 
 #include "wsrep_priv.h"
-#include "wsrep_binlog.h"
+#include "wsrep_binlog.h" // wsrep_dump_rbr_buf()
+#include "wsrep_xid.h"
 
-#include "log_event.h" // EVENT_LEN_OFFSET, etc.
+#include "log_event.h" // class THD, EVENT_LEN_OFFSET, etc.
 #include "wsrep_applier.h"
 
 /*
@@ -74,13 +75,10 @@ void wsrep_set_apply_format(THD* thd, Format_description_log_event* ev)
 Format_description_log_event* wsrep_get_apply_format(THD* thd)
 {
   if (thd->wsrep_apply_format)
-      return (Format_description_log_event*) thd->wsrep_apply_format;
-  /* TODO: mariadb does not support rli->get_rli_description_event()
-   * => look for alternative way to remember last FDE in replication
-   */
-  //return thd->wsrep_rli->get_rli_description_event();
-  thd->wsrep_apply_format = new Format_description_log_event(4);
-  return (Format_description_log_event*) thd->wsrep_apply_format;
+  {
+    return (Format_description_log_event*) thd->wsrep_apply_format;
+  }
+  return thd->wsrep_rgi->rli->relay_log.description_event_for_exec;
 }
 
 static wsrep_cb_status_t wsrep_apply_events(THD*        thd,
@@ -90,6 +88,7 @@ static wsrep_cb_status_t wsrep_apply_events(THD*        thd,
   char *buf= (char *)events_buf;
   int rcode= 0;
   int event= 1;
+  Log_event_type typ;
 
   DBUG_ENTER("wsrep_apply_events");
 
@@ -124,7 +123,9 @@ static wsrep_cb_status_t wsrep_apply_events(THD*        thd,
       goto error;
     }
 
-    switch (ev->get_type_code()) {
+    typ= ev->get_type_code();
+
+    switch (typ) {
     case FORMAT_DESCRIPTION_EVENT:
       wsrep_set_apply_format(thd, (Format_description_log_event*)ev);
       continue;
@@ -144,10 +145,11 @@ static wsrep_cb_status_t wsrep_apply_events(THD*        thd,
       break;
     }
 
-    thd->set_server_id(ev->server_id); // use the original server id for logging
-    thd->set_time();                // time the query
+    /* Use the original server id for logging. */
+    thd->set_server_id(ev->server_id);
+    thd->set_time();                            // time the query
     wsrep_xid_init(&thd->transaction.xid_state.xid,
-                   &thd->wsrep_trx_meta.gtid.uuid,
+                   thd->wsrep_trx_meta.gtid.uuid,
                    thd->wsrep_trx_meta.gtid.seqno);
     thd->lex->current_select= 0;
     if (!ev->when)
@@ -157,8 +159,11 @@ static wsrep_cb_status_t wsrep_apply_events(THD*        thd,
       ev->when_sec_part= hrtime_sec_part(hrtime);
     }
 
+    thd->variables.option_bits=
+      (thd->variables.option_bits & ~OPTION_SKIP_REPLICATION) |
+      (ev->flags & LOG_EVENT_SKIP_REPLICATION_F ?  OPTION_SKIP_REPLICATION : 0);
+
     ev->thd = thd;
-    //exec_res = ev->apply_event(thd->wsrep_rli);
     exec_res = ev->apply_event(thd->wsrep_rgi);
     DBUG_PRINT("info", ("exec_event result: %d", exec_res));
 
@@ -190,7 +195,7 @@ static wsrep_cb_status_t wsrep_apply_events(THD*        thd,
       DBUG_RETURN(WSREP_CB_FAILURE);
     }
 
-    delete ev;
+    delete_or_keep_event_post_apply(thd->wsrep_rgi, typ, ev);
   }
 
  error:
@@ -288,14 +293,6 @@ static wsrep_cb_status_t wsrep_commit(THD* const thd,
   wsrep_cb_status_t const rcode(trans_commit(thd) ?
                                 WSREP_CB_FAILURE : WSREP_CB_SUCCESS);
 
-#ifdef WSREP_PROC_INFO
-  snprintf(thd->wsrep_info, sizeof(thd->wsrep_info) - 1,
-           "committed %lld", (long long)wsrep_thd_trx_seqno(thd));
-  thd_proc_info(thd, thd->wsrep_info);
-#else
-  thd_proc_info(thd, "committed");
-#endif /* WSREP_PROC_INFO */
-
   if (WSREP_CB_SUCCESS == rcode)
   {
     thd->wsrep_rgi->cleanup_context(thd, false);
@@ -304,6 +301,14 @@ static wsrep_cb_status_t wsrep_commit(THD* const thd,
 #endif /* GTID_SUPPORT */
     // TODO: mark snapshot with global_seqno.
   }
+
+#ifdef WSREP_PROC_INFO
+  snprintf(thd->wsrep_info, sizeof(thd->wsrep_info) - 1,
+           "committed %lld", (long long) wsrep_thd_trx_seqno(thd));
+  thd_proc_info(thd, thd->wsrep_info);
+#else
+  thd_proc_info(thd, "committed");
+#endif /* WSREP_PROC_INFO */
 
   return rcode;
 }

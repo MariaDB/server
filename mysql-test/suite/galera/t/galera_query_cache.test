@@ -1,0 +1,67 @@
+--source include/have_query_cache.inc
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+#
+# Ensure that the query cache behaves properly with respect to Galera
+#
+# * in the absence of updates, the query cache does serve cached results
+# * any cache-invalidating query on the remote node also causes the local cache to be invalidated
+#
+
+CREATE TABLE t1 (id INT PRIMARY KEY) ENGINE=InnoDB;
+
+INSERT INTO t1 VALUES (1);
+
+--connection node_2
+RESET QUERY CACHE;
+FLUSH STATUS;
+
+#
+# 1. Cache works
+#
+
+SELECT COUNT(*) FROM t1;
+SELECT VARIABLE_VALUE = 1 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'Qcache_queries_in_cache';
+
+SELECT COUNT(*) FROM t1;
+SELECT VARIABLE_VALUE = 1 FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME = 'Qcache_hits';
+
+#
+# 2. Cache is invalidated by DML on remote node
+#
+
+--connection node_1
+INSERT INTO t1 VALUES (2);
+
+--connection node_2
+FLUSH STATUS;
+
+SELECT VARIABLE_VALUE = 0 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'Qcache_queries_in_cache';
+SELECT COUNT(*) FROM t1;
+SELECT VARIABLE_VALUE = 1 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'Qcache_queries_in_cache';
+
+SELECT VARIABLE_VALUE = 0 FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME = 'Qcache_hits';
+SELECT COUNT(*) FROM t1;
+SELECT VARIABLE_VALUE = 1 FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME = 'Qcache_hits';
+
+#
+# 3. Cache is invalidated by DDL on remote node
+#
+
+--connection node_1
+ALTER TABLE t1 ADD COLUMN f2 INTEGER;
+
+--connection node_2
+FLUSH STATUS;
+
+SELECT VARIABLE_VALUE = 0 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'Qcache_queries_in_cache';
+SELECT COUNT(*) FROM t1;
+SELECT VARIABLE_VALUE = 1 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'Qcache_queries_in_cache';
+
+SELECT VARIABLE_VALUE = 0 FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME = 'Qcache_hits';
+SELECT COUNT(*) FROM t1;
+SELECT VARIABLE_VALUE = 1 FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME = 'Qcache_hits';
+
+DROP TABLE t1;
+

@@ -1,0 +1,20 @@
+Note: The included SELinux policy files can be used for MariaDB Galera cluster.
+However, since these policies had been tested for a limited set of scenarios,
+it is highly recommended that you run mysqld in "permissive" mode even with
+these policies installed and report any denials on mariadb.org/jira.
+
+
+How to generate and load the policy module of MariaDB Galera cluster ?
+  * Generate the SELinux policy module.
+    # cd <source>/policy/selinux/
+    # make -f /usr/share/selinux/devel/Makefile mariadb-server.pp
+
+  * Load the generated policy module.
+    # semodule -i /path/to/mariadb-server.pp
+
+  * Lastly, run the following command to allow tcp/4568 and udp/4567.
+    # semanage port -a -t mysqld_port_t -p tcp 4568
+    # semanage port -a -t mysqld_port_t -p udp 4567
+
+How to run mysqld in permissve mode ?
+  # semanage permissive -a mysqld_t

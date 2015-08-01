@@ -1,0 +1,17 @@
+#
+# LP:1276424 Deadlock with insertion of NULL unique ke
+#
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+CREATE TABLE t1 (f1 INT DEFAULT NULL, UNIQUE KEY i1 (f1)) ENGINE=InnoDB;
+
+INSERT INTO t1 VALUES (NULL);
+INSERT INTO t1 VALUES (NULL);
+
+--connection node_2
+SELECT COUNT(*) = 2 FROM t1;
+SELECT f1 IS NULL FROM t1;
+
+DROP TABLE t1;

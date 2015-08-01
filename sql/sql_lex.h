@@ -801,7 +801,7 @@ public:
     list during split_sum_func
   */
   uint select_n_having_items;
-  uint cond_count;    /* number of arguments of and/or/xor in where/having/on */
+  uint cond_count;    /* number of sargable Items in where/having/on          */
   uint between_count; /* number of between predicates in where/having/on      */
   uint max_equal_elems; /* maximal number of elements in multiple equalities  */   
   /*
@@ -2489,6 +2489,7 @@ public:
   USER_RESOURCES mqh;
   LEX_RESET_SLAVE reset_slave_info;
   ulonglong type;
+  ulong next_binlog_file_number;
   /* The following is used by KILL */
   killed_state kill_signal;
   killed_type  kill_type;

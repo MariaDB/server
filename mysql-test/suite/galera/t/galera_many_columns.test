@@ -2,20 +2,18 @@
 --source include/galera_cluster.inc
 --source include/have_innodb.inc
 
-CREATE TABLE t1 (f1017 VARCHAR(3) DEFAULT 'ABC') ENGINE=InnoDB;
-
---let $count = 1016
+--disable_query_log
+SET @create_var1 = "";
+--let $count = 1017
 while ($count)
 {
-  --disable_query_log
-  --eval SET @ddl_var1 = CONCAT("ALTER TABLE t1 ADD COLUMN f", $count, " VARCHAR(3) DEFAULT 'ABC'")
-  --let $ddl_var = `SELECT @ddl_var1`
-  --enable_query_log
-  --eval $ddl_var
+  --eval SET @create_var1 = CONCAT(@create_var1, "f", $count, " VARCHAR(3) DEFAULT 'ABC', ")
   --dec $count
 }
 
-ALTER TABLE t1 ADD PRIMARY KEY (f1, f1017);
+--let $create_var = `SELECT @create_var1`
+--eval CREATE TABLE t1 ($create_var PRIMARY KEY (f1, f1017)) ENGINE=InnoDB;
+--enable_query_log
 
 INSERT INTO t1 (f1) VALUES (DEFAULT);
 

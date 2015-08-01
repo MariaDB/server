@@ -1,4 +1,4 @@
-/* Copyright 2008-2012 Codership Oy <http://www.codership.com>
+/* Copyright 2008-2015 Codership Oy <http://www.codership.com>
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -26,6 +26,7 @@
 #include <sql_parse.h>
 #include "wsrep_priv.h"
 #include "wsrep_utils.h"
+#include "wsrep_xid.h"
 #include <cstdio>
 #include <cstdlib>
 
@@ -264,19 +265,41 @@ void wsrep_sst_complete (const wsrep_uuid_t* sst_uuid,
 }
 
 void wsrep_sst_received (wsrep_t*            const wsrep,
-                         const wsrep_uuid_t* const uuid,
+                         const wsrep_uuid_t&       uuid,
                          wsrep_seqno_t       const seqno,
                          const void*         const state,
                          size_t              const state_len)
 {
-    int const rcode(seqno < 0 ? seqno : 0);
-    wsrep_gtid_t const state_id = {
-        *uuid, (rcode ? WSREP_SEQNO_UNDEFINED : seqno)
-    };
+    wsrep_get_SE_checkpoint(local_uuid, local_seqno);
+
+    if (memcmp(&local_uuid, &uuid, sizeof(wsrep_uuid_t)) ||
+        local_seqno < seqno || seqno < 0)
+    {
+        wsrep_set_SE_checkpoint(uuid, seqno);
+        local_uuid = uuid;
+        local_seqno = seqno;
+    }
+    else if (local_seqno > seqno)
+    {
+        WSREP_WARN("SST postion is in the past: %lld, current: %lld. "
+                   "Can't continue.",
+                   (long long)seqno, (long long)local_seqno);
+        unireg_abort(1);
+    }
+
 #ifdef GTID_SUPPORT
-    wsrep_init_sidno(state_id.uuid);
+    wsrep_init_sidno(uuid);
 #endif /* GTID_SUPPORT */
-    wsrep->sst_received(wsrep, &state_id, state, state_len, rcode);
+
+    if (wsrep)
+    {
+        int const rcode(seqno < 0 ? seqno : 0);
+        wsrep_gtid_t const state_id = {
+            uuid, (rcode ? WSREP_SEQNO_UNDEFINED : seqno)
+        };
+
+        wsrep->sst_received(wsrep, &state_id, state, state_len, rcode);
+    }
 }
 
 // Let applier threads to continue
@@ -285,7 +308,7 @@ void wsrep_sst_continue ()
   if (sst_needed)
   {
     WSREP_INFO("Signalling provider to continue.");
-    wsrep_sst_received (wsrep, &local_uuid, local_seqno, NULL, 0);
+    wsrep_sst_received (wsrep, local_uuid, local_seqno, NULL, 0);
   }
 }
 
@@ -781,7 +804,7 @@ static int sst_donate_mysqldump (const char*         addr,
     host_len = strlen (addr) + 1;
   }
 
-  char *host=(char*)alloca(host_len);
+  char *host= (char *) alloca(host_len);
 
   strncpy (host, addr, host_len - 1);
   host[host_len - 1] = '\0';
@@ -801,7 +824,7 @@ static int sst_donate_mysqldump (const char*         addr,
     user_len = (auth) ? strlen (auth) + 1 : 1;
   }
 
-  char *user=(char*)alloca(user_len);
+  char *user= (char *) alloca(user_len);
 
   strncpy (user, (auth) ? auth : "", user_len - 1);
   user[user_len - 1] = '\0';
@@ -912,11 +935,13 @@ static int sst_flush_tables(THD* thd)
   {
     WSREP_INFO("Tables flushed.");
     const char base_name[]= "tables_flushed";
+
     ssize_t const full_len= strlen(mysql_real_data_home) + strlen(base_name)+2;
-    char *real_name=(char*)alloca(full_len);
-    sprintf(real_name, "%s/%s", mysql_real_data_home, base_name);
-    char *tmp_name=(char*)alloca(full_len + 4);
-    sprintf(tmp_name, "%s.tmp", real_name);
+    char *real_name= (char *) alloca(full_len);
+    snprintf(real_name, (size_t) full_len, "%s/%s", mysql_real_data_home,
+             base_name);
+    char *tmp_name= (char *) alloca(full_len + 4);
+    snprintf(tmp_name, (size_t) full_len + 4, "%s.tmp", real_name);
 
     FILE* file= fopen(tmp_name, "w+");
     if (0 == file)
@@ -1078,7 +1103,7 @@ static int sst_donate_other (const char*   method,
                              wsrep_seqno_t seqno,
                              bool          bypass)
 {
-  char    cmd_str[4096];
+  char  cmd_str[4096];
   const char* binlog_opt= "";
   char* binlog_opt_val= NULL;
 
@@ -1111,7 +1136,7 @@ static int sst_donate_other (const char*   method,
                  bypass ? " "WSREP_SST_OPT_BYPASS : "");
   my_free(binlog_opt_val);
 
-  if (ret < 0 || ret >= (int)sizeof(cmd_str))
+  if (ret < 0 || ret >= (int) sizeof(cmd_str))
   {
     WSREP_ERROR("sst_donate_other(): snprintf() failed: %d", ret);
     return (ret < 0 ? ret : -EMSGSIZE);

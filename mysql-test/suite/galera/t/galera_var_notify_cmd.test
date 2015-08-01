@@ -1,0 +1,14 @@
+#
+# Test wsrep_notify_cmd. We use a version of the support-files/wsrep_notify.sh script that writes
+# notifications into a table.
+#
+
+--source include/have_innodb.inc
+--source include/galera_cluster.inc
+
+--connection node_1
+SELECT COUNT(DISTINCT uuid) = 2 FROM mtr_wsrep_notify.membership;
+SELECT MAX(size) = 2 FROM mtr_wsrep_notify.status;
+SELECT COUNT(DISTINCT idx) = 2 FROM mtr_wsrep_notify.status;
+
+DROP SCHEMA mtr_wsrep_notify;

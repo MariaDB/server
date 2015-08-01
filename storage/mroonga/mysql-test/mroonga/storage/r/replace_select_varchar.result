@@ -31,7 +31,8 @@ SELECT v.id, v.video_id, v.description, NULL
 FROM videos_master AS v
 WHERE v.video_id = (video_id);
 SELECT *, MATCH(description) AGAINST("my") FROM videos_groonga
-WHERE MATCH(description) AGAINST("my");
+WHERE MATCH(description) AGAINST("my")
+ORDER BY id;
 id	video_id	description	tags_unpack	MATCH(description) AGAINST("my")
 1	video-1	My Familly		209716
 2	video-2	My Cat		209716

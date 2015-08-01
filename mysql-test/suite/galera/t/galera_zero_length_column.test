@@ -1,0 +1,41 @@
+#
+# Test columns with size zero. This is known to have tripped other storage engines.
+# Keys are not allowed on such columns
+#
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+--connection node_1
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY , f2 VARCHAR(0)) ENGINE=InnoDB;
+CREATE TABLE t2 (f1 VARCHAR(0)) ENGINE=InnoDB;
+
+
+INSERT INTO t1 VALUES (1, NULL);
+INSERT INTO t1 VALUES (2, '');
+
+INSERT INTO t2 VALUES (NULL);
+INSERT INTO t2 VALUES ('');
+
+--connection node_2
+SELECT COUNT(*) = 2 FROM t1;
+SELECT f2 IS NULL FROM t1 WHERE f1 = 1;
+SELECT f2 = '' FROM t1 WHERE f1 = 2;
+
+SELECT COUNT(*) = 2 FROM t2;
+SELECT f1 IS NULL FROM t2 WHERE f1 IS NULL;
+SELECT f1 = '' FROM t2 WHERE f1 IS NOT NULL;
+
+UPDATE t1 SET f2 = '' WHERE f1 = 1;
+UPDATE t1 SET f2 = NULL WHERE f1 = 2;
+
+UPDATE t2 SET f1 = '' WHERE f1 IS NULL;
+
+--connection node_1
+SELECT f2 = '' FROM t1 WHERE f1 = 1;
+SELECT f2 IS NULL FROM t1 WHERE f1 = 2;
+
+SELECT COUNT(*) = 2 FROM t2 WHERE f1 = '';
+
+DROP TABLE t1;
+DROP TABLE t2;

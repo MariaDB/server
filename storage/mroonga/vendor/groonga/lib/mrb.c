@@ -20,6 +20,8 @@
 #include "grn_ctx_impl.h"
 #include "grn_util.h"
 
+#include <string.h>
+
 #ifdef GRN_WITH_MRUBY
 # include <mruby/proc.h>
 # include <mruby/compile.h>
@@ -34,6 +36,16 @@
 
 #define BUFFER_SIZE 2048
 #define E_LOAD_ERROR (mrb_class_get(mrb, "LoadError"))
+
+static char grn_mrb_ruby_scripts_dir[GRN_ENV_BUFFER_SIZE];
+
+void
+grn_mrb_init_from_env(void)
+{
+  grn_getenv("GRN_RUBY_SCRIPTS_DIR",
+             grn_mrb_ruby_scripts_dir,
+             GRN_ENV_BUFFER_SIZE);
+}
 
 #ifdef GRN_WITH_MRUBY
 # ifdef WIN32
@@ -68,13 +80,8 @@ grn_mrb_get_default_system_ruby_scripts_dir(void)
 const char *
 grn_mrb_get_system_ruby_scripts_dir(grn_ctx *ctx)
 {
-  static char ruby_scripts_dir[GRN_ENV_BUFFER_SIZE];
-
-  grn_getenv("GRN_RUBY_SCRIPTS_DIR",
-             ruby_scripts_dir,
-             GRN_ENV_BUFFER_SIZE);
-  if (ruby_scripts_dir[0]) {
-    return ruby_scripts_dir;
+  if (grn_mrb_ruby_scripts_dir[0]) {
+    return grn_mrb_ruby_scripts_dir;
   } else {
     return grn_mrb_get_default_system_ruby_scripts_dir();
   }

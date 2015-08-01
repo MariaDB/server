@@ -50,4 +50,10 @@ namespace mrn {
   grn_obj *SmartGrnObj::get() {
     return obj_;
   }
+
+  grn_obj *SmartGrnObj::release() {
+    grn_obj *obj = obj_;
+    obj_ = NULL;
+    return obj;
+  }
 }

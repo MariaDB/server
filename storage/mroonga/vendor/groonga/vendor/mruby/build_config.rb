@@ -12,6 +12,7 @@ MRuby::Build.new do |conf|
 
   enable_debug
 
+  conf.gem :core => "mruby-compiler"
   conf.gem :core => "mruby-sprintf"
   conf.gem :core => "mruby-print"
   conf.gem :core => "mruby-math"

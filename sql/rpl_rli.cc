@@ -228,7 +228,7 @@ a file name for --relay-log-index option", opt_relaylog_index_name);
       but a destructor will take care of that
     */
     if (rli->relay_log.open_index_file(buf_relaylog_index_name, ln, TRUE) ||
-        rli->relay_log.open(ln, LOG_BIN, 0, SEQ_READ_APPEND,
+        rli->relay_log.open(ln, LOG_BIN, 0, 0, SEQ_READ_APPEND,
                             mi->rli.max_relay_log_size, 1, TRUE))
     {
       mysql_mutex_unlock(&rli->data_lock);
@@ -1076,6 +1076,9 @@ void Relay_log_info::close_temporary_tables()
 /*
   purge_relay_logs()
 
+  @param rli		Relay log information
+  @param thd		thread id. May be zero during startup
+
   NOTES
     Assumes to have a run lock on rli and that no slave thread are running.
 */
@@ -1131,7 +1134,7 @@ int purge_relay_logs(Relay_log_info* rli, THD *thd, bool just_reset,
     rli->cur_log_fd= -1;
   }
 
-  if (rli->relay_log.reset_logs(thd, !just_reset, NULL, 0))
+  if (rli->relay_log.reset_logs(thd, !just_reset, NULL, 0, 0))
   {
     *errmsg = "Failed during log reset";
     error=1;

@@ -1,0 +1,103 @@
+--source include/big_test.inc
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+#
+# This test forces 1K tables without a PK to participate in a single transaction
+#
+
+#
+# First, create 1K tables
+#
+
+--connection node_1
+
+--let $count = 1000
+while ($count)
+{
+  --disable_query_log
+  --let $ddl_var = `SELECT CONCAT("CREATE TABLE t", $count, " (f1 INTEGER) ENGINE=InnoDB")`
+  --eval $ddl_var
+  --enable_query_log
+  --dec $count
+}
+
+--let $count = 1000
+while ($count)
+{
+  --disable_query_log
+  --let $ddl_var = `SELECT CONCAT("INSERT INTO t", $count, " VALUES (1234)")`
+  --eval $ddl_var
+  --enable_query_log
+  --dec $count
+}
+
+#
+# Second, perform 1K updates
+#
+
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+
+--let $count = 1000
+while ($count)
+{
+  --disable_query_log
+  --let $ddl_var = `SELECT CONCAT("UPDATE t", $count, " SET f1 = 1")`
+  --eval $ddl_var
+  --enable_query_log
+  --dec $count
+}
+
+COMMIT;
+
+# Third, confirm that all the inserts have arrived on the second node
+#
+
+--connection node_2
+CREATE TABLE sum_table (f1 INTEGER);
+
+--let $count = 1000
+while ($count)
+{
+  --disable_query_log
+  --let $ddl_var = `SELECT CONCAT("INSERT INTO sum_table SELECT COUNT(*) FROM t", $count)`
+  --eval $ddl_var
+  --enable_query_log
+  --dec $count
+}
+
+SELECT SUM(f1) = 1000 FROM sum_table;
+
+#
+# Fourth, create a deadlock
+#
+
+--connection node_1
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+
+--let $count = 1000
+while ($count)
+{
+  --disable_query_log
+  --let $ddl_var = `SELECT CONCAT("UPDATE t", $count, " SET f1 = 2")`
+  --eval $ddl_var
+  --enable_query_log
+  --dec $count
+}
+
+--connection node_2
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+UPDATE t1000 SET f1 = 3;
+
+--connection node_1
+COMMIT;
+
+--connection node_2
+--error ER_LOCK_DEADLOCK
+COMMIT;
+
+DROP SCHEMA test;
+CREATE SCHEMA test;

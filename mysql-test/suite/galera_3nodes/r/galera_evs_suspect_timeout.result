@@ -1,0 +1,19 @@
+SET GLOBAL wsrep_provider_options = 'evs.inactive_timeout=PT100M; evs.suspect_timeout=PT1S';
+SET GLOBAL wsrep_provider_options = 'evs.inactive_timeout=PT100M; evs.suspect_timeout=PT1S';
+Suspending node ...
+SET SESSION wsrep_sync_wait = 0;
+SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+VARIABLE_VALUE = 2
+1
+CREATE TABLE t1 (f1 INTEGER);
+INSERT INTO t1 VALUES (1);
+SET SESSION wsrep_sync_wait = 0;
+SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+VARIABLE_VALUE = 2
+1
+SELECT COUNT(*) = 1 FROM t1;
+COUNT(*) = 1
+1
+DROP TABLE t1;
+Resuming node ...
+CALL mtr.add_suppression("WSREP: gcs_caused() returned -1 \\(Operation not permitted\\)");

@@ -26,12 +26,13 @@
 #include <mruby/data.h>
 
 #include "../grn_mrb.h"
+#include "mrb_ctx.h"
 #include "mrb_object.h"
 #include "mrb_operator.h"
 #include "mrb_converter.h"
 
-static mrb_value
-object_inspect(mrb_state *mrb, mrb_value self)
+mrb_value
+grn_mrb_object_inspect(mrb_state *mrb, mrb_value self)
 {
   grn_ctx *ctx = (grn_ctx *)mrb->ud;
   grn_obj *object;
@@ -170,6 +171,21 @@ object_close(mrb_state *mrb, mrb_value self)
 }
 
 static mrb_value
+object_remove(mrb_state *mrb, mrb_value self)
+{
+  grn_ctx *ctx = (grn_ctx *)mrb->ud;
+  grn_obj *object;
+
+  object = DATA_PTR(self);
+  grn_obj_remove(ctx, object);
+  grn_mrb_ctx_check(mrb);
+
+  DATA_PTR(self) = NULL;
+
+  return mrb_nil_value();
+}
+
+static mrb_value
 object_get_domain_id(mrb_state *mrb, mrb_value self)
 {
   grn_obj *object;
@@ -237,7 +253,7 @@ grn_mrb_object_init(grn_ctx *ctx)
   data->object_class = klass;
 
   mrb_define_method(mrb, klass, "inspect",
-                    object_inspect, MRB_ARGS_NONE());
+                    grn_mrb_object_inspect, MRB_ARGS_NONE());
 
   mrb_define_method(mrb, klass, "id", object_get_id, MRB_ARGS_NONE());
   mrb_define_method(mrb, klass, "name", object_get_name, MRB_ARGS_NONE());
@@ -247,6 +263,7 @@ grn_mrb_object_init(grn_ctx *ctx)
                     object_grn_inspect, MRB_ARGS_NONE());
   mrb_define_method(mrb, klass, "==", object_equal, MRB_ARGS_REQ(1));
   mrb_define_method(mrb, klass, "close", object_close, MRB_ARGS_NONE());
+  mrb_define_method(mrb, klass, "remove", object_remove, MRB_ARGS_NONE());
 
   mrb_define_method(mrb, klass, "domain_id", object_get_domain_id,
                     MRB_ARGS_NONE());
