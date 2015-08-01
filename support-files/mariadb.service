@@ -23,9 +23,9 @@ Alias=mysqld.service
 ## Core requirements
 ##
 
-Type=Notify
+Type=notify
 
-# Setting this to true can break replication and the Type=Notify settings
+# Setting this to true can break replication and the Type=notify settings
 PrivateNetwork=false
 
 ##############################################################################
