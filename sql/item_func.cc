@@ -4268,6 +4268,24 @@ longlong Item_func_get_lock::val_int()
   if (thd->slave_thread)
   {
     null_value= 0;
+  }
+
+  if (args[1]->null_value ||
+      (!args[1]->unsigned_flag && ((longlong) timeout < 0)))
+  {
+    char buf[22];
+    if (args[1]->null_value)
+      strmov(buf, "NULL");
+    else
+      llstr(((longlong) timeout), buf);
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                        ER_WRONG_VALUE_FOR_TYPE, ER(ER_WRONG_VALUE_FOR_TYPE),
+                        "timeout", buf, "get_lock");
+    null_value= 1;
+    DBUG_RETURN(0);
+  }
+  {
+    null_value= 0;
     DBUG_RETURN(1);
   }
 

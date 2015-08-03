@@ -824,7 +824,8 @@ innobase_find_fk_index(
 		if (!(index->type & DICT_FTS)
 		    && dict_foreign_qualify_index(
 			    table, col_names, columns, n_cols,
-			    index, NULL, true, 0)) {
+			    index, NULL, true, 0,
+			    NULL, NULL, NULL)) {
 			for (ulint i = 0; i < n_drop_index; i++) {
 				if (index == drop_index[i]) {
 					/* Skip to-be-dropped indexes. */
@@ -1014,7 +1015,8 @@ innobase_get_foreign_key_info(
 						referenced_table, 0,
 						referenced_column_names,
 						i, index,
-						TRUE, FALSE);
+						TRUE, FALSE,
+						NULL, NULL, NULL);
 
 				DBUG_EXECUTE_IF(
 					"innodb_test_no_reference_idx",
@@ -3317,7 +3319,8 @@ innobase_check_foreign_key_index(
 		    foreign->referenced_col_names,
 		    foreign->n_fields, index,
 		    /*check_charsets=*/TRUE,
-		    /*check_null=*/FALSE)
+		    /*check_null=*/FALSE,
+		    NULL, NULL, NULL)
 	    && !innobase_find_equiv_index(
 		    foreign->referenced_col_names,
 		    foreign->n_fields,
@@ -3345,7 +3348,8 @@ innobase_check_foreign_key_index(
 		    foreign->foreign_col_names,
 		    foreign->n_fields, index,
 		    /*check_charsets=*/TRUE,
-		    /*check_null=*/FALSE)
+		    /*check_null=*/FALSE,
+		    NULL, NULL, NULL)
 	    && !innobase_find_equiv_index(
 		    foreign->foreign_col_names,
 		    foreign->n_fields,
@@ -4789,7 +4793,8 @@ innobase_update_foreign_try(
 				fk->n_fields, fk->referenced_index, TRUE,
 				fk->type
 				& (DICT_FOREIGN_ON_DELETE_SET_NULL
-				   | DICT_FOREIGN_ON_UPDATE_SET_NULL));
+					| DICT_FOREIGN_ON_UPDATE_SET_NULL),
+				NULL, NULL, NULL);
 			if (!fk->foreign_index) {
 				my_error(ER_FK_INCORRECT_OPTION,
 					 MYF(0), table_name, fk->id);
@@ -4801,7 +4806,7 @@ innobase_update_foreign_try(
 		names, while the columns in ctx->old_table have not
 		been renamed yet. */
 		error = dict_create_add_foreign_to_dictionary(
-			ctx->old_table->name, fk, trx);
+			(dict_table_t*)ctx->old_table,ctx->old_table->name, fk, trx);
 
 		DBUG_EXECUTE_IF(
 			"innodb_test_cannot_add_fk_system",

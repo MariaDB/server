@@ -2768,6 +2768,16 @@ void unlink_thd(THD *thd)
     sync feature has been shut down at this point.
   */
   DBUG_EXECUTE_IF("sleep_after_lock_thread_count_before_delete_thd", sleep(5););
+  if (unlikely(abort_loop))
+  {
+    /*
+      During shutdown, we have to delete thd inside the mutex
+      to not refer to mutexes that may be deleted during shutdown
+    */
+    delete thd;
+    thd= 0;
+  }
+  thread_count--;
   mysql_mutex_unlock(&LOCK_thread_count);
 
   delete thd;

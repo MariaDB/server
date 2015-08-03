@@ -4862,6 +4862,7 @@ sub extract_warning_lines ($$) {
      qr|InnoDB: Setting thread \d+ nice to \d+ failed, current nice \d+, errno 13|, # setpriority() fails under valgrind
      qr|Failed to setup SSL|,
      qr|SSL error: Failed to set ciphers to use|,
+     qr/Plugin 'InnoDB' will be forced to shutdown/,
     );
 
   my $matched_lines= [];
