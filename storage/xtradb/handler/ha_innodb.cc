@@ -559,7 +559,8 @@ ib_cb_t innodb_api_cb[] = {
 	(ib_cb_t) ib_get_idx_field_name,
 	(ib_cb_t) ib_trx_get_start_time,
 	(ib_cb_t) ib_cfg_bk_commit_interval,
-	(ib_cb_t) ib_cursor_stmt_begin
+	(ib_cb_t) ib_cursor_stmt_begin,
+	(ib_cb_t) ib_trx_read_only
 };
 
 /*************************************************************//**
@@ -11609,6 +11610,13 @@ ha_innobase::estimate_rows_upper_bound()
 
 	prebuilt->trx->op_info = "";
 
+        /* Set num_rows less than MERGEBUFF to simulate the case where we do
+        not have enough space to merge the externally sorted file blocks. */
+        DBUG_EXECUTE_IF("set_num_rows_lt_MERGEBUFF",
+                        estimate = 2;
+                        DBUG_SET("-d,set_num_rows_lt_MERGEBUFF");
+                       );
+
 	DBUG_RETURN((ha_rows) estimate);
 }
 
@@ -11874,7 +11882,6 @@ ha_innobase::info_low(
 	dict_table_t*	ib_table;
 	ha_rows		rec_per_key;
 	ib_uint64_t	n_rows;
-	char		path[FN_REFLEN];
 	os_file_stat_t	stat_info;
 
 	DBUG_ENTER("info");
@@ -11931,6 +11938,7 @@ ha_innobase::info_low(
 			prebuilt->trx->op_info =
 				"returning various info to MySQL";
 		}
+
 	}
 
 	if (flag & HA_STATUS_VARIABLE) {
@@ -12062,6 +12070,7 @@ ha_innobase::info_low(
 
 	if (flag & HA_STATUS_CONST) {
 		ulong	i;
+		char	path[FN_REFLEN];
 		/* Verify the number of index in InnoDB and MySQL
 		matches up. If prebuilt->clust_index_was_generated
 		holds, InnoDB defines GEN_CLUST_INDEX internally */

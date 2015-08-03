@@ -2725,7 +2725,8 @@ lock_rec_inherit_to_gap(
 		    && !((srv_locks_unsafe_for_binlog
 			  || lock->trx->isolation_level
 			  <= TRX_ISO_READ_COMMITTED)
-			 && lock_get_mode(lock) == LOCK_X)) {
+			 && lock_get_mode(lock) ==
+			 (lock->trx->duplicates ? LOCK_S : LOCK_X))) {
 
 			lock_rec_add_to_queue(
 				LOCK_REC | LOCK_GAP | lock_get_mode(lock),
