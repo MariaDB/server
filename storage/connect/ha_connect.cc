@@ -169,7 +169,7 @@
 #define JSONMAX      10             // JSON Default max grp size
 
 extern "C" {
-       char  version[]= "Version 1.03.0007 June 03, 2015";
+       char  version[]= "Version 1.03.0007 July 05, 2015";
 #if defined(__WIN__)
        char  compver[]= "Version 1.03.0007 " __DATE__ " "  __TIME__;
        char slash= '\\';
@@ -2237,7 +2237,9 @@ bool ha_connect::MakeKeyWhere(PGLOBAL g, PSTRG qry, OPVAL op, char q,
       case OP_EQ:
       case OP_GT:
       case OP_GE:
-        oom|= qry->Append((PSZ)GetValStr(op, false));
+			case OP_LT:
+			case OP_LE:
+				oom |= qry->Append((PSZ)GetValStr(op, false));
         break;
       default:
         oom|= qry->Append(" ??? ");
@@ -6676,6 +6678,6 @@ maria_declare_plugin(connect)
   NULL,                                         /* status variables */
   connect_system_variables,                     /* system variables */
   "1.03.0007",                                  /* string version */
-  MariaDB_PLUGIN_MATURITY_BETA                  /* maturity */
+	MariaDB_PLUGIN_MATURITY_GAMMA                 /* maturity */
 }
 maria_declare_plugin_end;
