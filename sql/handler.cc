@@ -1615,6 +1615,7 @@ int ha_rollback_trans(THD *thd, bool all)
   DBUG_ASSERT(thd->transaction.stmt.ha_list == NULL ||
               trans == &thd->transaction.stmt);
 
+#ifdef HAVE_REPLICATION
   if (is_real_trans)
   {
     /*
@@ -1632,6 +1633,7 @@ int ha_rollback_trans(THD *thd, bool all)
     if (thd->rgi_slave && thd->rgi_slave->did_mark_start_commit)
       thd->rgi_slave->unmark_start_commit();
   }
+#endif
 
   if (thd->in_sub_stmt)
   {
