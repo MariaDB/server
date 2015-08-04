@@ -4268,6 +4268,7 @@ longlong Item_func_get_lock::val_int()
   if (thd->slave_thread)
   {
     null_value= 0;
+    DBUG_RETURN(1);
   }
 
   if (args[1]->null_value ||
@@ -4283,10 +4284,6 @@ longlong Item_func_get_lock::val_int()
                         "timeout", buf, "get_lock");
     null_value= 1;
     DBUG_RETURN(0);
-  }
-  {
-    null_value= 0;
-    DBUG_RETURN(1);
   }
 
   if (!ull_name_ok(res))

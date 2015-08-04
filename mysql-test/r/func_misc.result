@@ -374,6 +374,8 @@ NULL
 Warnings:
 Warning	1411	Incorrect timeout value: '-1' for function get_lock
 #
+# GET_LOCK, RELEASE_LOCK, IS_USED_LOCK functions test
+#
 # IS_USED_LOCK, IS_FREE_LOCK: the  lock is not acquired
 # Note: IS_USED_LOCK returns NULL if the lock is unused
 select is_used_lock('test');
