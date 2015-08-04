@@ -1582,6 +1582,24 @@ int ha_rollback_trans(THD *thd, bool all)
   DBUG_ASSERT(thd->transaction.stmt.ha_list == NULL ||
               trans == &thd->transaction.stmt);
 
+  if (is_real_trans)
+  {
+    /*
+      In parallel replication, if we need to rollback during commit, we must
+      first inform following transactions that we are going to abort our commit
+      attempt. Otherwise those following transactions can run too early, and
+      possibly cause replication to fail. See comments in retry_event_group().
+
+      There were several bugs with this in the past that were very hard to
+      track down (MDEV-7458, MDEV-8302). So we add here an assertion for
+      rollback without signalling following transactions. And in release
+      builds, we explicitly do the signalling before rolling back.
+    */
+    DBUG_ASSERT(!(thd->rgi_slave && thd->rgi_slave->did_mark_start_commit));
+    if (thd->rgi_slave && thd->rgi_slave->did_mark_start_commit)
+      thd->rgi_slave->unmark_start_commit();
+  }
+
   if (thd->in_sub_stmt)
   {
     DBUG_ASSERT(0);

@@ -4261,7 +4261,6 @@ int Query_log_event::do_apply_event(rpl_group_info *rgi,
                           "mysql", rpl_gtid_slave_state_table_name.str,
                           errcode,
                           thd->get_stmt_da()->message());
-            trans_rollback(thd);
             sub_id= 0;
             thd->is_slave_error= 1;
             goto end;
@@ -7351,7 +7350,6 @@ int Xid_log_event::do_apply_event(rpl_group_info *rgi)
                     "%s.%s: %d: %s",
                     "mysql", rpl_gtid_slave_state_table_name.str, ec,
                     thd->get_stmt_da()->message());
-      trans_rollback(thd);
       thd->is_slave_error= 1;
       return err;
     }
