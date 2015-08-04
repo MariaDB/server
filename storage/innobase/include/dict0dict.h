@@ -555,10 +555,18 @@ dict_foreign_find_index(
 					/*!< in: whether to check
 					charsets.  only has an effect
 					if types_idx != NULL */
-	ulint			check_null)
+	ulint			check_null,
 					/*!< in: nonzero if none of
 					the columns must be declared
 					NOT NULL */
+	ulint*			error,	/*!< out: error code */
+	ulint*			err_col_no,
+					/*!< out: column number where
+					error happened */
+	dict_index_t**		err_index)
+			                /*!< out: index where error
+					happened */
+
 	__attribute__((nonnull(1,3), warn_unused_result));
 /**********************************************************************//**
 Returns a column's name.
@@ -650,10 +658,17 @@ dict_foreign_qualify_index(
 					/*!< in: whether to check
 					charsets.  only has an effect
 					if types_idx != NULL */
-	ulint			check_null)
+	ulint			check_null,
 					/*!< in: nonzero if none of
 					the columns must be declared
 					NOT NULL */
+	ulint*			error,	/*!< out: error code */
+	ulint*			err_col_no,
+					/*!< out: column number where
+					error happened */
+	dict_index_t**		err_index)
+					/*!< out: index where error
+					happened */
 	__attribute__((nonnull(1,3), warn_unused_result));
 #ifdef UNIV_DEBUG
 /********************************************************************//**

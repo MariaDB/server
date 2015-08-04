@@ -6583,6 +6583,7 @@ find_field_in_tables(THD *thd, Item_ident *item,
 
   if (item->cached_table)
   {
+    DBUG_PRINT("info", ("using cached table"));
     /*
       This shortcut is used by prepared statements. We assume that
       TABLE_LIST *first_table is not changed during query execution (which
