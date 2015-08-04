@@ -3453,6 +3453,10 @@ dict_foreign_find_index(
 			    index, types_idx,
 			    check_charsets, check_null,
 			    error, err_col_no,err_index)) {
+			if (error) {
+				*error = DB_SUCCESS;
+			}
+
 			return(index);
 		}
 
