@@ -4362,6 +4362,74 @@ int init_dups_weedout(JOIN *join, uint first_table, int first_fanout_table, uint
 
 
 /*
+  @brief
+    Set up semi-join Loose Scan strategy for execution
+
+  @detail
+    Other strategies are done in setup_semijoin_dups_elimination(),
+    however, we need to set up Loose Scan earlier, before make_join_select is
+    called. This is to prevent make_join_select() from switching full index
+    scans into quick selects (which will break Loose Scan access).
+
+  @return
+    0  OK
+    1  Error
+*/
+
+int setup_semijoin_loosescan(JOIN *join)
+{
+  uint i;
+  DBUG_ENTER("setup_semijoin_loosescan");
+
+  POSITION *pos= join->best_positions + join->const_tables;
+  for (i= join->const_tables ; i < join->top_join_tab_count; )
+  {
+    JOIN_TAB *tab=join->join_tab + i;
+    switch (pos->sj_strategy) {
+      case SJ_OPT_MATERIALIZE:
+      case SJ_OPT_MATERIALIZE_SCAN:
+        i+= 1; /* join tabs are embedded in the nest */
+        pos += pos->n_sj_tables;
+        break;
+      case SJ_OPT_LOOSE_SCAN:
+      {
+        /* We jump from the last table to the first one */
+        tab->loosescan_match_tab= tab + pos->n_sj_tables - 1;
+
+        /* LooseScan requires records to be produced in order */
+        if (tab->select && tab->select->quick)
+          tab->select->quick->need_sorted_output();
+
+        for (uint j= i; j < i + pos->n_sj_tables; j++)
+          join->join_tab[j].inside_loosescan_range= TRUE;
+
+        /* Calculate key length */
+        uint keylen= 0;
+        uint keyno= pos->loosescan_picker.loosescan_key;
+        for (uint kp=0; kp < pos->loosescan_picker.loosescan_parts; kp++)
+          keylen += tab->table->key_info[keyno].key_part[kp].store_length;
+
+        tab->loosescan_key= keyno;
+        tab->loosescan_key_len= keylen;
+        if (pos->n_sj_tables > 1) 
+          tab[pos->n_sj_tables - 1].do_firstmatch= tab;
+        i+= pos->n_sj_tables;
+        pos+= pos->n_sj_tables;
+        break;
+      }
+      default:
+      {
+        i++;
+        pos++;
+        break;
+      }
+    }
+  }
+  DBUG_RETURN(FALSE);
+}
+
+
+/*
   Setup the strategies to eliminate semi-join duplicates.
   
   SYNOPSIS
@@ -4469,8 +4537,6 @@ int setup_semijoin_dups_elimination(JOIN *join, ulonglong options,
   for (i= join->const_tables ; i < join->top_join_tab_count; )
   {
     JOIN_TAB *tab=join->join_tab + i;
-    //POSITION *pos= join->best_positions + i;
-    uint keylen, keyno;
     switch (pos->sj_strategy) {
       case SJ_OPT_MATERIALIZE:
       case SJ_OPT_MATERIALIZE_SCAN:
@@ -4480,26 +4546,7 @@ int setup_semijoin_dups_elimination(JOIN *join, ulonglong options,
         break;
       case SJ_OPT_LOOSE_SCAN:
       {
-        /* We jump from the last table to the first one */
-        tab->loosescan_match_tab= tab + pos->n_sj_tables - 1;
-        
-        /* LooseScan requires records to be produced in order */
-        if (tab->select && tab->select->quick)
-          tab->select->quick->need_sorted_output();
-
-        for (uint j= i; j < i + pos->n_sj_tables; j++)
-          join->join_tab[j].inside_loosescan_range= TRUE;
-
-        /* Calculate key length */
-        keylen= 0;
-        keyno= pos->loosescan_picker.loosescan_key;
-        for (uint kp=0; kp < pos->loosescan_picker.loosescan_parts; kp++)
-          keylen += tab->table->key_info[keyno].key_part[kp].store_length;
-
-        tab->loosescan_key= keyno;
-        tab->loosescan_key_len= keylen;
-        if (pos->n_sj_tables > 1) 
-          tab[pos->n_sj_tables - 1].do_firstmatch= tab;
+        /* Setup already handled by setup_semijoin_loosescan */
         i+= pos->n_sj_tables;
         pos+= pos->n_sj_tables;
         break;

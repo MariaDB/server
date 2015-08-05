@@ -717,8 +717,7 @@ public:
                                struct st_position *pos,
                                struct st_position *loose_scan_pos);
   friend bool get_best_combination(JOIN *join);
-  friend int setup_semijoin_dups_elimination(JOIN *join, ulonglong options,
-                                             uint no_jbuf_after);
+  friend int setup_semijoin_loosescan(JOIN *join);
   friend void fix_semijoin_strategies_for_picked_join_order(JOIN *join);
 };
 
