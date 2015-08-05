@@ -7751,6 +7751,8 @@ bool multi_update_precheck(THD *thd, TABLE_LIST *tables)
   */
   for (table= tables; table; table= table->next_local)
   {
+    if (table->is_jtbm())
+      continue;
     if (table->derived)
       table->grant.privilege= SELECT_ACL;
     else if ((check_access(thd, UPDATE_ACL, table->db,
