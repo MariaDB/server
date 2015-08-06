@@ -1,0 +1,18 @@
+RESET MASTER;
+SET SESSION binlog_format = 'STATEMENT';
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+SET SESSION binlog_format = 'MIXED';
+INSERT INTO t1 VALUES (2);
+SHOW BINLOG EVENTS IN 'mysqld-bin.000001' FROM 120;
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+mysqld-bin.000001	<Pos>	Query	1	<End_log_pos>	use `test`; CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB
+mysqld-bin.000001	<Pos>	Query	1	<End_log_pos>	BEGIN
+mysqld-bin.000001	<Pos>	Table_map	1	<End_log_pos>	table_id: ### (test.t1)
+mysqld-bin.000001	<Pos>	Write_rows	1	<End_log_pos>	table_id: ### flags: STMT_END_F
+mysqld-bin.000001	<Pos>	Xid	1	<End_log_pos>	COMMIT /* xid=### */
+mysqld-bin.000001	<Pos>	Query	1	<End_log_pos>	BEGIN
+mysqld-bin.000001	<Pos>	Table_map	1	<End_log_pos>	table_id: ### (test.t1)
+mysqld-bin.000001	<Pos>	Write_rows	1	<End_log_pos>	table_id: ### flags: STMT_END_F
+mysqld-bin.000001	<Pos>	Xid	1	<End_log_pos>	COMMIT /* xid=### */
+DROP TABLE t1;

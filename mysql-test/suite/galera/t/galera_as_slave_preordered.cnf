@@ -1,0 +1,3 @@
+!include ../galera_2nodes_as_slave.cnf
+[mysqld]
+wsrep-preordered=TRUE

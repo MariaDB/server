@@ -1,0 +1,25 @@
+#
+# Test that wsrep_forced_binlog_format=ROW indeed prevents the log to be switched to STATEMENT format on a per-connection basis
+# 
+
+--source include/have_log_bin.inc
+--source include/have_innodb.inc
+--source include/galera_cluster.inc
+
+--connection node_1
+RESET MASTER;
+
+SET SESSION binlog_format = 'STATEMENT';
+
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+
+SET SESSION binlog_format = 'MIXED';
+
+INSERT INTO t1 VALUES (2);
+
+--replace_regex /xid=[0-9]+/xid=###/ /table_id: [0-9]+/table_id: ###/
+--replace_column 2 <Pos> 5 <End_log_pos>
+SHOW BINLOG EVENTS IN 'mysqld-bin.000001' FROM 120;
+
+DROP TABLE t1;
