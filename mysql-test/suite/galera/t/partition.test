@@ -27,5 +27,68 @@ SELECT * FROM t1;
 # Cleanup
 DROP TABLE t1;
 
+
+--echo #
+--echo # MDEV#7501 : alter table exchange partition is not replicated in
+--echo #             galera cluster
+--echo #
+
+--echo
+--echo # On node_1
+--connection node_1
+
+CREATE TABLE test.t1 (
+  i INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  PRIMARY KEY (i)
+  ) ENGINE=INNODB
+  PARTITION BY RANGE (i)
+    (PARTITION p1 VALUES LESS THAN (10) ENGINE = INNODB,
+     PARTITION p2 VALUES LESS THAN (20) ENGINE = INNODB,
+     PARTITION pMax VALUES LESS THAN MAXVALUE ENGINE = INNODB);
+
+INSERT INTO test.t1 (i) VALUE (9),(19);
+CREATE TABLE test.p1 LIKE test.t1;
+ALTER TABLE test.p1 REMOVE PARTITIONING;
+
+ALTER TABLE test.t1 EXCHANGE PARTITION p1 WITH TABLE test.p1; 
+SELECT * FROM test.t1;
+SELECT * FROM test.p1;
+
+--echo
+--echo # On node_2
+--connection node_2
+
+SHOW CREATE TABLE t1;
+SHOW CREATE TABLE p1;
+
+SELECT * FROM test.t1;
+SELECT * FROM test.p1;
+
+--echo
+--echo # On node_1
+--connection node_1
+ALTER TABLE t1 TRUNCATE PARTITION p2;
+SELECT * FROM test.t1;
+
+--echo
+--echo # On node_2
+--connection node_2
+SELECT * FROM test.t1;
+
+--echo
+--echo # On node_1
+--connection node_1
+ALTER TABLE t1 DROP PARTITION p2;
+SHOW CREATE TABLE t1;
+
+--echo
+--echo # On node_2
+--connection node_2
+SHOW CREATE TABLE t1;
+
+
+# Cleanup
+DROP TABLE t1, p1;
+
 --source include/galera_end.inc
 --echo # End of test
