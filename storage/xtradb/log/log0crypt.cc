@@ -86,6 +86,9 @@ log_block_get_start_lsn(
 	return start_lsn;
 }
 
+/*********************************************************************//**
+Get crypt info from checkpoint.
+@return a crypt info or NULL if not present. */
 static
 const crypt_info_t*
 get_crypt_info(
@@ -107,6 +110,9 @@ get_crypt_info(
 	return NULL;
 }
 
+/*********************************************************************//**
+Get crypt info from log block
+@return a crypt info or NULL if not present. */
 static
 const crypt_info_t*
 get_crypt_info(
@@ -239,14 +245,23 @@ init_crypt_key(
 	return true;
 }
 
-static bool mysort(const crypt_info_t& i,
-		   const crypt_info_t& j)
+/*********************************************************************//**
+Compare function for checkpoint numbers
+@return true if first checkpoint is larger than second one */
+static
+bool
+mysort(const crypt_info_t& i,
+       const crypt_info_t& j)
 {
 	return i.checkpoint_no > j.checkpoint_no;
 }
 
+/*********************************************************************//**
+Add crypt info to set if it is not already present
+@return true if successfull, false if not- */
 static
-bool add_crypt_info(crypt_info_t* info)
+bool
+add_crypt_info(crypt_info_t* info)
 {
 	/* so that no one is searching array while we modify it */
 	ut_ad(mutex_own(&(log_sys->mutex)));
@@ -332,7 +347,7 @@ Encrypt one or more log block before it is flushed to disk */
 UNIV_INTERN
 void
 log_encrypt_before_write(
-/*===========================*/
+/*=====================*/
 	ib_uint64_t next_checkpoint_no,	/*!< in: log group to be flushed */
 	byte* block,			/*!< in/out: pointer to a log block */
 	const ulint size)		/*!< in: size of log blocks */
@@ -369,7 +384,7 @@ Decrypt a specified log segment after they are read from a log file to a buffer.
 */
 void
 log_decrypt_after_read(
-/*==========================*/
+/*===================*/
 	byte* frame,	        /*!< in/out: log segment */
 	const ulint size)	/*!< in: log segment size */
 {
@@ -499,3 +514,74 @@ log_crypt_read_checkpoint_buf(
 	return true;
 }
 
+/********************************************************
+Check is the checkpoint information encrypted. This check
+is based on fact has log group crypt info and based
+on this crypt info was the key version different from
+unencrypted key version. There is no realible way to
+distinguish encrypted log block from corrupted log block,
+but if log block corruption is found this function is
+used to find out if log block is maybe encrypted but
+encryption key, key management plugin or encryption
+algorithm does not match.
+@return TRUE, if log block may be encrypted */
+UNIV_INTERN
+ibool
+log_crypt_block_maybe_encrypted(
+/*============================*/
+	const byte* 		log_block,	/*!< in: log block */
+	log_crypt_err_t* 	err_info)	/*!< out: error info */
+{
+	ibool maybe_encrypted = FALSE;
+	const crypt_info_t* crypt_info;
+
+	*err_info = LOG_UNENCRYPTED;
+	crypt_info = get_crypt_info(log_block);
+
+	if (crypt_info &&
+	    crypt_info->key_version != UNENCRYPTED_KEY_VER) {
+		byte mysqld_key[MY_AES_BLOCK_SIZE] = {0};
+		uint keylen= sizeof(mysqld_key);
+
+		/* Log block contains crypt info and based on key
+		version block could be encrypted. */
+		*err_info = LOG_DECRYPT_MAYBE_FAILED;
+		maybe_encrypted = TRUE;
+
+		if (encryption_key_get(LOG_DEFAULT_ENCRYPTION_KEY,
+				       crypt_info->key_version, mysqld_key, &keylen)) {
+			*err_info = LOG_CRYPT_KEY_NOT_FOUND;
+		}
+	}
+
+	return (maybe_encrypted);
+}
+
+/********************************************************
+Print crypt error message to error log */
+UNIV_INTERN
+void
+log_crypt_print_error(
+/*==================*/
+	log_crypt_err_t 	err_info) 	/*!< out: error info */
+{
+	switch(err_info) {
+	case LOG_CRYPT_KEY_NOT_FOUND:
+		ib_logf(IB_LOG_LEVEL_ERROR,
+			"Redo log crypto: getting mysqld crypto key "
+			"from key version failed. Reason could be that "
+			"requested key version is not found or required "
+			"encryption key management plugin is not found.");
+		break;
+	case LOG_DECRYPT_MAYBE_FAILED:
+		ib_logf(IB_LOG_LEVEL_ERROR,
+			"Redo log crypto: failed to decrypt log block. "
+			"Reason could be that requested key version is "
+			"not found, required encryption key management "
+			"plugin is not found or configured encryption "
+			"algorithm and/or method does not match.");
+		break;
+	default:
+		ut_error; /* Real bug */
+	}
+}
