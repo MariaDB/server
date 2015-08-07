@@ -63,8 +63,8 @@ public:
   }
 
   // interface for getting the time
-  ulonglong get_loops() { return count; }
-  double get_time_ms()
+  ulonglong get_loops() const { return count; }
+  double get_time_ms() const
   {
     // convert 'cycles' to milliseconds.
     return 1000 * ((double)cycles) / sys_timer_info.cycles.frequency;
@@ -169,8 +169,8 @@ class Json_writer;
 class Filesort_tracker : public Sql_alloc
 {
 public:
-  Filesort_tracker() :
-    r_loops(0), r_limit(0), r_used_pq(0), 
+  Filesort_tracker(bool do_timing) :
+    time_tracker(do_timing), r_limit(0), r_used_pq(0),
     r_examined_rows(0), r_sorted_rows(0), r_output_rows(0),
     sort_passes(0),
     sort_buffer_size(0)
@@ -180,10 +180,12 @@ public:
 
   inline void report_use(ha_rows r_limit_arg)
   {
-    if (!r_loops++)
+    if (!time_tracker.get_loops())
       r_limit= r_limit_arg;
     else
       r_limit= (r_limit != r_limit_arg)? 0: r_limit_arg;
+
+    ANALYZE_START_TRACKING(&time_tracker);
   }
   inline void incr_pq_used() { r_used_pq++; }
 
@@ -202,6 +204,7 @@ public:
   }
   inline void report_merge_passes_at_end(ulong passes)
   {
+    ANALYZE_STOP_TRACKING(&time_tracker);
     sort_passes += passes;
   }
 
@@ -216,14 +219,14 @@ public:
   /* Functions to get the statistics */
   void print_json_members(Json_writer *writer);
   
-  ulonglong get_r_loops() { return r_loops; }
+  ulonglong get_r_loops() const { return time_tracker.get_loops(); }
   double get_avg_examined_rows() 
   { 
-    return ((double)r_examined_rows) / r_loops;
+    return ((double)r_examined_rows) / get_r_loops();
   }
   double get_avg_returned_rows()
   { 
-    return ((double)r_output_rows) / r_loops; 
+    return ((double)r_output_rows) / get_r_loops(); 
   }
   double get_r_filtered()
   {
@@ -233,7 +236,9 @@ public:
       return 1.0;
   }
 private:
-  ulonglong r_loops; /* How many times filesort was invoked */
+  Time_and_counter_tracker time_tracker;
+
+  //ulonglong r_loops; /* How many times filesort was invoked */
   /*
     LIMIT is typically a constant. There is never "LIMIT 0".
       HA_POS_ERROR means we never had a limit
@@ -366,11 +371,12 @@ class Sort_and_group_tracker : public Sql_alloc
   qep_actions_data[MAX_QEP_ACTIONS];
   
   Filesort_tracker *dummy_fsort_tracker;
-
+  bool is_analyze;
 public:
-  Sort_and_group_tracker() : 
+  Sort_and_group_tracker(bool is_analyze_arg) :
     cur_action(0), total_actions(0), varied_executions(false),
-    dummy_fsort_tracker(NULL)
+    dummy_fsort_tracker(NULL),
+    is_analyze(is_analyze_arg)
   {}
 
   /*************** Reporting interface ***************/

@@ -371,7 +371,6 @@ ha_rows filesort(THD *thd, TABLE *table, SORT_FIELD *sortorder, uint s_length,
 
   err:
   my_free(param.tmp_buffer);
-  tracker->report_merge_passes_at_end(thd->query_plan_fsort_passes);
   if (!subselect || !subselect->is_uncacheable())
   {
     table_sort.free_sort_buffer();
@@ -393,6 +392,7 @@ ha_rows filesort(THD *thd, TABLE *table, SORT_FIELD *sortorder, uint s_length,
       outfile->end_of_file=save_pos;
     }
   }
+  tracker->report_merge_passes_at_end(thd->query_plan_fsort_passes);
   if (error)
   {
     int kill_errno= thd->killed_errno();
