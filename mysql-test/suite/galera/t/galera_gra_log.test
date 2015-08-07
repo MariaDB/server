@@ -28,7 +28,7 @@ SELECT COUNT(*) = 0 FROM t1;
 --exec cat $MYSQLTEST_VARDIR/mysqld.2/data/GRA_*.log >> $gra_binlog_file
 
 # Make sure the binlog thus produced is readable and contains the failure
---replace_regex /SET TIMESTAMP=[0-9]+/SET TIMESTAMP=<TIMESTAMKP>/ /#[0-9]+ [0-9]+:[0-9]+:[0-9]+/<ISO TIMESTAMP>/
+--replace_regex /SET TIMESTAMP=[0-9]+/SET TIMESTAMP=<TIMESTAMP>/ /#[0-9]+ +[0-9]+:[0-9]+:[0-9]+/<ISO TIMESTAMP>/ /pseudo_thread_id=[0-9]+/pseudo_thread_id=<PSEUDO_THREAD_ID>/
 --exec $MYSQL_BINLOG $gra_binlog_file
 
 SET SESSION wsrep_on=ON;

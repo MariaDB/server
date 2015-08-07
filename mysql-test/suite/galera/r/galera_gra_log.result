@@ -20,8 +20,8 @@ Jfk=
 # at 120
 <ISO TIMESTAMP> server id 1  end_log_pos 91 	Query	thread_id=7	exec_time=0	error_code=0
 use `test`/*!*/;
-SET TIMESTAMP=<TIMESTAMKP>/*!*/;
-SET @@session.pseudo_thread_id=7/*!*/;
+SET TIMESTAMP=<TIMESTAMP>/*!*/;
+SET @@session.pseudo_thread_id=<PSEUDO_THREAD_ID>/*!*/;
 SET @@session.foreign_key_checks=1, @@session.sql_auto_is_null=0, @@session.unique_checks=1, @@session.autocommit=1/*!*/;
 SET @@session.sql_mode=1073741824/*!*/;
 SET @@session.auto_increment_increment=1, @@session.auto_increment_offset=1/*!*/;
