@@ -11645,6 +11645,11 @@ index_bad:
 		}
 	}
 
+	if (srv_force_primary_key && form->s->primary_key >= MAX_KEY) {
+		my_error(ER_REQUIRES_PRIMARY_KEY, MYF(0));
+		DBUG_RETURN(false);
+	}
+
 	row_format = form->s->row_type;
 
 	if (create_info->key_block_size) {
