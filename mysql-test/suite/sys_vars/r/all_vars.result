@@ -11,5 +11,6 @@ select distinct variable_name as `there should be *no* variables listed below:` 
 left join t1 on variable_name=test_name where test_name is null;
 there should be *no* variables listed below:
 max_digest_length
+pfs_max_digest_length
 drop table t1;
 drop table t2;

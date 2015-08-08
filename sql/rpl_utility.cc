@@ -947,6 +947,7 @@ TABLE *table_def::create_conversion_table(THD *thd, rpl_group_info *rgi,
   {
     Create_field *field_def=
       (Create_field*) alloc_root(thd->mem_root, sizeof(Create_field));
+    bool unsigned_flag= 0;
     if (field_list.push_back(field_def))
       DBUG_RETURN(NULL);
 
@@ -956,8 +957,7 @@ TABLE *table_def::create_conversion_table(THD *thd, rpl_group_info *rgi,
     uint32 max_length=
       max_display_length_for_field(type(col), field_metadata(col));
 
-    switch(type(col))
-    {
+    switch(type(col)) {
       int precision;
     case MYSQL_TYPE_ENUM:
     case MYSQL_TYPE_SET:
@@ -996,6 +996,18 @@ TABLE *table_def::create_conversion_table(THD *thd, rpl_group_info *rgi,
       pack_length= field_metadata(col) & 0x00ff;
       break;
 
+    case MYSQL_TYPE_TINY:
+    case MYSQL_TYPE_SHORT:
+    case MYSQL_TYPE_INT24:
+    case MYSQL_TYPE_LONG:
+    case MYSQL_TYPE_LONGLONG:
+      /*
+        As we don't know if the integer was signed or not on the master,
+        assume we have same sign on master and slave.  This is true when not
+        using conversions so it should be true also when using conversions.
+      */
+      unsigned_flag= ((Field_num*) target_table->field[col])->unsigned_flag;
+      break;
     default:
       break;
     }
@@ -1003,12 +1015,13 @@ TABLE *table_def::create_conversion_table(THD *thd, rpl_group_info *rgi,
     DBUG_PRINT("debug", ("sql_type: %d, target_field: '%s', max_length: %d, decimals: %d,"
                          " maybe_null: %d, unsigned_flag: %d, pack_length: %u",
                          binlog_type(col), target_table->field[col]->field_name,
-                         max_length, decimals, TRUE, FALSE, pack_length));
+                         max_length, decimals, TRUE, unsigned_flag,
+                         pack_length));
     field_def->init_for_tmp_table(type(col),
                                   max_length,
                                   decimals,
                                   TRUE,         // maybe_null
-                                  FALSE,        // unsigned_flag
+                                  unsigned_flag,
                                   pack_length);
     field_def->charset= target_table->field[col]->charset();
     field_def->interval= interval;
@@ -1174,7 +1187,7 @@ bool event_checksum_test(uchar *event_buf, ulong event_len, uint8 alg)
       compile_time_assert(BINLOG_CHECKSUM_ALG_ENUM_END <= 0x80);
     }
     incoming= uint4korr(event_buf + event_len - BINLOG_CHECKSUM_LEN);
-    computed= my_checksum(0L, NULL, 0);
+    computed= 0;
     /* checksum the event content but the checksum part itself */
     computed= my_checksum(computed, (const uchar*) event_buf, 
                           event_len - BINLOG_CHECKSUM_LEN);

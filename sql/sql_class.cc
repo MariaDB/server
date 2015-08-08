@@ -1149,6 +1149,7 @@ THD::THD()
   file_id = 0;
   query_id= 0;
   query_name_consts= 0;
+  semisync_info= 0;
   db_charset= global_system_variables.collation_database;
   bzero(ha_data, sizeof(ha_data));
   mysys_var=0;
@@ -1606,6 +1607,8 @@ void THD::init(void)
   bzero((char *) &org_status_var, sizeof(org_status_var));
   start_bytes_received= 0;
   last_commit_gtid.seq_no= 0;
+  status_in_global= 0;
+
 #ifdef WITH_WSREP
   wsrep_exec_mode= wsrep_applier ? REPL_RECV :  LOCAL_STATE;
   wsrep_conflict_state= NO_CONFLICT;
@@ -1628,8 +1631,8 @@ void THD::init(void)
   */
   if (variables.wsrep_causal_reads)
     variables.wsrep_sync_wait|= WSREP_SYNC_WAIT_BEFORE_READ;
+#endif /* WITH_WSREP */
 
-#endif
   if (variables.sql_log_bin)
     variables.option_bits|= OPTION_BIN_LOG;
   else
@@ -1734,6 +1737,7 @@ void THD::change_user(void)
   cleanup();
   reset_killed();
   cleanup_done= 0;
+  status_in_global= 0;
   init();
   stmt_map.reset();
   my_hash_init(&user_vars, system_charset_info, USER_VARS_HASH_SIZE, 0, 0,
@@ -1871,6 +1875,7 @@ THD::~THD()
   mysql_audit_free_thd(this);
   if (rgi_slave)
     rgi_slave->cleanup_after_session();
+  my_free(semisync_info);
 #endif
 
   free_root(&main_mem_root, MYF(0));

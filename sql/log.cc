@@ -4257,6 +4257,7 @@ int MYSQL_BIN_LOG::purge_first_log(Relay_log_info* rli, bool included)
   int error;
   char *to_purge_if_included= NULL;
   inuse_relaylog *ir;
+  ulonglong log_space_reclaimed= 0;
   DBUG_ENTER("purge_first_log");
 
   DBUG_ASSERT(is_open());
@@ -4328,17 +4329,13 @@ int MYSQL_BIN_LOG::purge_first_log(Relay_log_info* rli, bool included)
 
   DBUG_EXECUTE_IF("crash_before_purge_logs", DBUG_SUICIDE(););
 
-  mysql_mutex_lock(&rli->log_space_lock);
   rli->relay_log.purge_logs(to_purge_if_included, included,
-                            0, 0, &rli->log_space_total);
-  mysql_mutex_unlock(&rli->log_space_lock);
+                            0, 0, &log_space_reclaimed);
 
-  /*
-    Ok to broadcast after the critical region as there is no risk of
-    the mutex being destroyed by this thread later - this helps save
-    context switches
-  */
+  mysql_mutex_lock(&rli->log_space_lock);
+  rli->log_space_total-= log_space_reclaimed;
   mysql_cond_broadcast(&rli->log_space_cond);
+  mysql_mutex_unlock(&rli->log_space_lock);
 
   /*
    * Need to update the log pos because purge logs has been called 
@@ -4387,8 +4384,8 @@ int MYSQL_BIN_LOG::update_log_index(LOG_INFO* log_info, bool need_update_threads
   @param need_mutex
   @param need_update_threads If we want to update the log coordinates of
                              all threads. False for relay logs, true otherwise.
-  @param freed_log_space     If not null, decrement this variable of
-                             the amount of log space freed
+  @param reclaimeed_log_space If not null, increment this variable to
+                              the amount of log space freed
 
   @note
     If any of the logs before the deleted one is in use,
@@ -4404,10 +4401,10 @@ int MYSQL_BIN_LOG::update_log_index(LOG_INFO* log_info, bool need_update_threads
 */
 
 int MYSQL_BIN_LOG::purge_logs(const char *to_log, 
-                          bool included,
-                          bool need_mutex, 
-                          bool need_update_threads, 
-                          ulonglong *decrease_log_space)
+                              bool included,
+                              bool need_mutex, 
+                              bool need_update_threads, 
+                              ulonglong *reclaimed_space)
 {
   int error= 0;
   bool exit_loop= 0;
@@ -4471,7 +4468,7 @@ int MYSQL_BIN_LOG::purge_logs(const char *to_log,
 err:
   /* Read each entry from purge_index_file and delete the file. */
   if (is_inited_purge_index_file() &&
-      (error= purge_index_entry(thd, decrease_log_space, FALSE)))
+      (error= purge_index_entry(thd, reclaimed_space, FALSE)))
     sql_print_error("MSYQL_BIN_LOG::purge_logs failed to process registered files"
                     " that would be purged.");
   close_purge_index_file();
@@ -4576,7 +4573,7 @@ int MYSQL_BIN_LOG::register_create_index_entry(const char *entry)
   DBUG_RETURN(register_purge_index_entry(entry));
 }
 
-int MYSQL_BIN_LOG::purge_index_entry(THD *thd, ulonglong *decrease_log_space,
+int MYSQL_BIN_LOG::purge_index_entry(THD *thd, ulonglong *reclaimed_space,
                                      bool need_mutex)
 {
   DBUG_ENTER("MYSQL_BIN_LOG:purge_index_entry");
@@ -4696,8 +4693,8 @@ int MYSQL_BIN_LOG::purge_index_entry(THD *thd, ulonglong *decrease_log_space,
         DBUG_PRINT("info",("purging %s",log_info.log_file_name));
         if (!my_delete(log_info.log_file_name, MYF(0)))
         {
-          if (decrease_log_space)
-            *decrease_log_space-= s.st_size;
+          if (reclaimed_space)
+            *reclaimed_space+= s.st_size;
         }
         else
         {
@@ -6549,9 +6546,10 @@ int MYSQL_BIN_LOG::write_cache(THD *thd, IO_CACHE *cache)
   long val;
   ulong end_log_pos_inc= 0; // each event processed adds BINLOG_CHECKSUM_LEN 2 t
   uchar header[LOG_EVENT_HEADER_LEN];
-  ha_checksum crc= 0, crc_0= 0; // assignments to keep compiler happy
+  ha_checksum crc= 0, crc_0= 0;
   my_bool do_checksum= (binlog_checksum_options != BINLOG_CHECKSUM_ALG_OFF);
   uchar buf[BINLOG_CHECKSUM_LEN];
+  DBUG_ENTER("MYSQL_BIN_LOG::write_cache");
 
   // while there is just one alg the following must hold:
   DBUG_ASSERT(!do_checksum ||
@@ -6573,9 +6571,7 @@ int MYSQL_BIN_LOG::write_cache(THD *thd, IO_CACHE *cache)
 
   group= (uint)my_b_tell(&log_file);
   hdr_offs= carry= 0;
-  if (do_checksum)
-    crc= crc_0= my_checksum(0L, NULL, 0);
-
+  
   do
   {
     /*
@@ -6604,7 +6600,7 @@ int MYSQL_BIN_LOG::write_cache(THD *thd, IO_CACHE *cache)
 
       /* write the first half of the split header */
       if (my_b_write(&log_file, header, carry))
-        return ER_ERROR_ON_WRITE;
+        DBUG_RETURN(ER_ERROR_ON_WRITE);
       status_var_add(thd->status_var.binlog_bytes_written, carry);
 
       /*
@@ -6648,12 +6644,12 @@ int MYSQL_BIN_LOG::write_cache(THD *thd, IO_CACHE *cache)
         crc= my_checksum(crc, cache->read_pos, length); 
         remains -= length;
         if (my_b_write(&log_file, cache->read_pos, length))
-          return ER_ERROR_ON_WRITE;
+          DBUG_RETURN(ER_ERROR_ON_WRITE);
         if (remains == 0)
         {
           int4store(buf, crc);
           if (my_b_write(&log_file, buf, BINLOG_CHECKSUM_LEN))
-            return ER_ERROR_ON_WRITE;
+            DBUG_RETURN(ER_ERROR_ON_WRITE);
           crc= crc_0;
         }
       }
@@ -6680,7 +6676,7 @@ int MYSQL_BIN_LOG::write_cache(THD *thd, IO_CACHE *cache)
             DBUG_ASSERT(remains == 0);
             if (my_b_write(&log_file, cache->read_pos, hdr_offs) ||
                 my_b_write(&log_file, buf, BINLOG_CHECKSUM_LEN))
-              return ER_ERROR_ON_WRITE;
+              DBUG_RETURN(ER_ERROR_ON_WRITE);
             crc= crc_0;
           }
         }
@@ -6712,12 +6708,12 @@ int MYSQL_BIN_LOG::write_cache(THD *thd, IO_CACHE *cache)
                                        length, &crc);
             if (my_b_write(&log_file, ev, 
                            remains == 0 ? event_len : length - hdr_offs))
-              return ER_ERROR_ON_WRITE;
+              DBUG_RETURN(ER_ERROR_ON_WRITE);
             if (remains == 0)
             {
               int4store(buf, crc);
               if (my_b_write(&log_file, buf, BINLOG_CHECKSUM_LEN))
-                return ER_ERROR_ON_WRITE;
+                DBUG_RETURN(ER_ERROR_ON_WRITE);
               crc= crc_0; // crc is complete
             }
           }
@@ -6742,10 +6738,10 @@ int MYSQL_BIN_LOG::write_cache(THD *thd, IO_CACHE *cache)
 
     /* Write data to the binary log file */
     DBUG_EXECUTE_IF("fail_binlog_write_1",
-                    errno= 28; return ER_ERROR_ON_WRITE;);
+                    errno= 28; DBUG_RETURN(ER_ERROR_ON_WRITE););
     if (!do_checksum)
       if (my_b_write(&log_file, cache->read_pos, length))
-        return ER_ERROR_ON_WRITE;
+        DBUG_RETURN(ER_ERROR_ON_WRITE);
     status_var_add(thd->status_var.binlog_bytes_written, length);
 
     cache->read_pos=cache->read_end;		// Mark buffer used up
@@ -6755,7 +6751,7 @@ int MYSQL_BIN_LOG::write_cache(THD *thd, IO_CACHE *cache)
   DBUG_ASSERT(!do_checksum || remains == 0);
   DBUG_ASSERT(!do_checksum || crc == crc_0);
 
-  return 0;                                     // All OK
+  DBUG_RETURN(0);                               // All OK
 }
 
 /*

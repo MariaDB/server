@@ -242,6 +242,178 @@ a
 24
 25
 26
+*** MDEV-8354: out-of-order error with --gtid-ignore-duplicates and row-based replication ***
+SET default_master_connection = "b2a";
+STOP SLAVE;
+include/wait_for_slave_to_stop.inc
+SET default_master_connection = "c2a";
+STOP SLAVE;
+include/wait_for_slave_to_stop.inc
+SET default_master_connection = "c2b";
+STOP SLAVE;
+include/wait_for_slave_to_stop.inc
+SET default_master_connection = "b2c";
+STOP SLAVE;
+include/wait_for_slave_to_stop.inc
+SET @old_slave_mode=@@GLOBAL.slave_exec_mode;
+SET GLOBAL slave_exec_mode=IDEMPOTENT;
+SET @old_strict=@@GLOBAL.gtid_strict_mode;
+SET GLOBAL gtid_strict_mode=1;
+SET @old_dbug=@@GLOBAL.debug_dbug;
+SET GLOBAL debug_dbug="+d,inject_sleep_gtid_100_x_x";
+SET @old_domain=@@SESSION.gtid_domain_id;
+SET @old_format=@@SESSION.binlog_format;
+SET SESSION gtid_domain_id=100;
+SET SESSION binlog_format='row';
+INSERT INTO t1 VALUES (30);
+INSERT INTO t1 VALUES (31);
+INSERT INTO t1 VALUES (32);
+INSERT INTO t1 VALUES (33);
+INSERT INTO t1 VALUES (34);
+INSERT INTO t1 VALUES (35);
+INSERT INTO t1 VALUES (36);
+INSERT INTO t1 VALUES (37);
+INSERT INTO t1 VALUES (38);
+INSERT INTO t1 VALUES (39);
+INSERT INTO t1 VALUES (40);
+INSERT INTO t1 VALUES (41);
+INSERT INTO t1 VALUES (42);
+INSERT INTO t1 VALUES (43);
+INSERT INTO t1 VALUES (44);
+INSERT INTO t1 VALUES (45);
+INSERT INTO t1 VALUES (46);
+INSERT INTO t1 VALUES (47);
+INSERT INTO t1 VALUES (48);
+INSERT INTO t1 VALUES (49);
+SET SESSION gtid_domain_id=@old_domain;
+SET SESSION binlog_format=@old_format;
+include/save_master_gtid.inc
+include/sync_with_master_gtid.inc
+INSERT INTO t1 VALUES (50);
+include/save_master_gtid.inc
+SET default_master_connection = "b2c";
+START SLAVE;
+include/wait_for_slave_to_start.inc
+SELECT MASTER_GTID_WAIT("GTID", 30);
+MASTER_GTID_WAIT("GTID", 30)
+0
+SET default_master_connection = "b2a";
+START SLAVE;
+include/wait_for_slave_to_start.inc
+SET default_master_connection = "c2a";
+START SLAVE;
+include/wait_for_slave_to_start.inc
+include/sync_with_master_gtid.inc
+SELECT * FROM t1 WHERE a >= 30 ORDER BY a;
+a
+30
+31
+32
+33
+34
+35
+36
+37
+38
+39
+40
+41
+42
+43
+44
+45
+46
+47
+48
+49
+50
+SET default_master_connection = "c2b";
+START SLAVE;
+include/wait_for_slave_to_start.inc
+include/sync_with_master_gtid.inc
+SELECT * FROM t1 WHERE a >= 30 ORDER BY a;
+a
+30
+31
+32
+33
+34
+35
+36
+37
+38
+39
+40
+41
+42
+43
+44
+45
+46
+47
+48
+49
+50
+include/sync_with_master_gtid.inc
+SET GLOBAL debug_dbug=@old_dbug;
+SELECT * FROM t1 WHERE a >= 30 ORDER BY a;
+a
+30
+31
+32
+33
+34
+35
+36
+37
+38
+39
+40
+41
+42
+43
+44
+45
+46
+47
+48
+49
+50
+SET GLOBAL slave_exec_mode=@old_slave_mode;
+SET GLOBAL gtid_strict_mode=@old_strict;
+*** MDEV-8496: gtid_ignore_duplicates treats gtid_seq_no as 32-bit ***
+SET @old_domain= @@SESSION.gtid_domain_id;
+SET SESSION gtid_domain_id=102;
+SET SESSION gtid_seq_no=4294967294;
+INSERT INTO t1 VALUES (60);
+INSERT INTO t1 VALUES (61);
+INSERT INTO t1 VALUES (62);
+SET SESSION gtid_domain_id= @old_domain;
+include/save_master_gtid.inc
+include/sync_with_master_gtid.inc
+SELECT * FROM t1 WHERE a >= 60 ORDER BY a;
+a
+60
+61
+62
+SET default_master_connection = "c2b";
+include/sync_with_master_gtid.inc
+SET default_master_connection = "a2b";
+include/sync_with_master_gtid.inc
+SELECT * FROM t1 WHERE a >= 60 ORDER BY a;
+a
+60
+61
+62
+SET default_master_connection = "b2c";
+include/sync_with_master_gtid.inc
+SET default_master_connection = "a2c";
+include/sync_with_master_gtid.inc
+SELECT * FROM t1 WHERE a >= 60 ORDER BY a;
+a
+60
+61
+62
 SET GLOBAL gtid_domain_id=0;
 STOP ALL SLAVES;
 Warnings:

@@ -3404,7 +3404,7 @@ Warning	1292	Truncated incorrect DECIMAL value: ''
 Warning	1918	Encountered illegal value '' when converting to DECIMAL
 Warning	1292	Truncated incorrect DECIMAL value: '<---------1000 characters-------------------------------------------------------------------------------------------------------'
 Warning	1918	Encountered illegal value '' when converting to DECIMAL
-Warning	1292	Truncated incorrect DECIMAL value: ' ---äÖüß@µ*$-- '
+Warning	1292	Truncated incorrect DECIMAL value: ' ---\xC3\xA4\xC3\x96\xC3\xBC\xC3\x9F@\xC2\xB5*$-- '
 SHOW CREATE VIEW v1;
 View	Create View	character_set_client	collation_connection
 v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select cast(`t1_values`.`my_varbinary_1000` as decimal(37,2)) AS `CAST(my_varbinary_1000 AS DECIMAL(37,2))`,`t1_values`.`my_varbinary_1000` AS `my_varbinary_1000`,`t1_values`.`id` AS `id` from `t1_values`	latin1	latin1_swedish_ci
@@ -3424,7 +3424,7 @@ Warning	1292	Truncated incorrect DECIMAL value: ''
 Warning	1918	Encountered illegal value '' when converting to DECIMAL
 Warning	1292	Truncated incorrect DECIMAL value: '<---------1000 characters-------------------------------------------------------------------------------------------------------'
 Warning	1918	Encountered illegal value '' when converting to DECIMAL
-Warning	1292	Truncated incorrect DECIMAL value: ' ---äÖüß@µ*$-- '
+Warning	1292	Truncated incorrect DECIMAL value: ' ---\xC3\xA4\xC3\x96\xC3\xBC\xC3\x9F@\xC2\xB5*$-- '
 DROP VIEW v1;
 
 
@@ -3492,7 +3492,7 @@ Warning	1292	Truncated incorrect DECIMAL value: ''
 Warning	1918	Encountered illegal value '' when converting to DECIMAL
 Warning	1292	Truncated incorrect DECIMAL value: '<---------1000 characters-------------------------------------------------------------------------------------------------------'
 Warning	1918	Encountered illegal value '' when converting to DECIMAL
-Warning	1292	Truncated incorrect DECIMAL value: ' ---äÖüß@µ*$-- '
+Warning	1292	Truncated incorrect DECIMAL value: ' ---Ã¤Ã–Ã¼ÃŸ@Âµ*$-- '
 SHOW CREATE VIEW v1;
 View	Create View	character_set_client	collation_connection
 v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select cast(`t1_values`.`my_varchar_1000` as decimal(37,2)) AS `CAST(my_varchar_1000 AS DECIMAL(37,2))`,`t1_values`.`my_varchar_1000` AS `my_varchar_1000`,`t1_values`.`id` AS `id` from `t1_values`	latin1	latin1_swedish_ci
@@ -3512,7 +3512,7 @@ Warning	1292	Truncated incorrect DECIMAL value: ''
 Warning	1918	Encountered illegal value '' when converting to DECIMAL
 Warning	1292	Truncated incorrect DECIMAL value: '<---------1000 characters-------------------------------------------------------------------------------------------------------'
 Warning	1918	Encountered illegal value '' when converting to DECIMAL
-Warning	1292	Truncated incorrect DECIMAL value: ' ---äÖüß@µ*$-- '
+Warning	1292	Truncated incorrect DECIMAL value: ' ---Ã¤Ã–Ã¼ÃŸ@Âµ*$-- '
 DROP VIEW v1;
 
 

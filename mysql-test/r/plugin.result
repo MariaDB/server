@@ -5,7 +5,7 @@ Warning	1266	Using storage engine MyISAM for table 't1'
 DROP TABLE t1;
 INSTALL PLUGIN example SONAME 'ha_example';
 INSTALL PLUGIN EXAMPLE SONAME 'ha_example';
-ERROR HY000: Function 'EXAMPLE' already exists
+ERROR HY000: Plugin 'EXAMPLE' already installed
 UNINSTALL PLUGIN example;
 INSTALL SONAME 'ha_example';
 select * from information_schema.plugins where plugin_library like 'ha_example%';

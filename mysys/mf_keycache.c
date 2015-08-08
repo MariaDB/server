@@ -1123,6 +1123,7 @@ static void wait_on_queue(KEYCACHE_WQUEUE *wqueue,
   struct st_my_thread_var *thread= my_thread_var;
   DBUG_ASSERT(!thread->next);
   DBUG_ASSERT(!thread->prev); /* Not required, but must be true anyway. */
+  mysql_mutex_assert_owner(mutex);
 
   /* Add to queue. */
   if (! (last= wqueue->last_thread))
@@ -1177,14 +1178,15 @@ static void release_whole_queue(KEYCACHE_WQUEUE *wqueue)
   do
   {
     thread=next;
-    DBUG_ASSERT(thread);
+    DBUG_ASSERT(thread && thread->init == 1);
     KEYCACHE_DBUG_PRINT("release_whole_queue: signal",
                         ("thread %ld", thread->id));
+    /* Take thread from queue. */
+    next= thread->next;
+    thread->next= NULL;
+
     /* Signal the thread. */
     keycache_pthread_cond_signal(&thread->suspend);
-    /* Take thread from queue. */
-    next=thread->next;
-    thread->next= NULL;
   }
   while (thread != last);
 
