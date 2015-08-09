@@ -5590,6 +5590,7 @@ static bool check_table_binlog_row_based(THD *thd, TABLE *table)
 
   return (thd->is_current_stmt_binlog_format_row() &&
           table->s->cached_row_logging_check &&
+#ifdef WITH_WSREP
           /*
             Wsrep partially enables binary logging if it have not been
             explicitly turned on. As a result we return 'true' if we are in
@@ -5608,6 +5609,10 @@ static bool check_table_binlog_row_based(THD *thd, TABLE *table)
           ((WSREP_EMULATE_BINLOG(thd) && (thd->wsrep_exec_mode != REPL_RECV)) ||
            ((WSREP(thd) || (thd->variables.option_bits & OPTION_BIN_LOG)) &&
             mysql_bin_log.is_open())));
+#else
+          (thd->variables.option_bits & OPTION_BIN_LOG) &&
+          mysql_bin_log.is_open());
+#endif
 }
 
 
