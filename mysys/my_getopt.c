@@ -47,14 +47,15 @@ static char *check_struct_option(char *cur_arg, char *key_name);
   order of their arguments must correspond to each other.
 */
 static const char *special_opt_prefix[]=
-{"skip", "disable", "enable", "maximum", "loose", 0};
+{"skip", "disable", "enable", "maximum", "loose", "autoset", 0};
 static const uint special_opt_prefix_lengths[]=
-{ 4,      7,         6,        7,         5,      0};
+{ 4,      7,         6,        7,         5,       7,        0};
 enum enum_special_opt
-{ OPT_SKIP, OPT_DISABLE, OPT_ENABLE, OPT_MAXIMUM, OPT_LOOSE};
+{ OPT_SKIP, OPT_DISABLE, OPT_ENABLE, OPT_MAXIMUM, OPT_LOOSE, OPT_AUTOSET};
 
 char *disabled_my_option= (char*) "0";
 char *enabled_my_option= (char*) "1";
+char *autoset_my_option= (char*) "";
 
 /*
    This is a flag that can be set in client programs. 0 means that
@@ -198,7 +199,7 @@ int handle_options(int *argc, char ***argv,
 {
   uint UNINIT_VAR(opt_found), argvpos= 0, length;
   my_bool end_of_options= 0, must_be_var, set_maximum_value,
-          option_is_loose;
+          option_is_loose, option_is_autoset;
   char **pos, **pos_end, *optend, *opt_str, key_name[FN_REFLEN];
   const char *UNINIT_VAR(prev_found);
   const struct my_option *optp;
@@ -249,6 +250,7 @@ int handle_options(int *argc, char ***argv,
       must_be_var=       0;
       set_maximum_value= 0;
       option_is_loose=   0;
+      option_is_autoset= 0;
 
       cur_arg++;		/* skip '-' */
       if (*cur_arg == '-')      /* check for long option, */
@@ -297,6 +299,8 @@ int handle_options(int *argc, char ***argv,
                 length-= special_opt_prefix_lengths[i] + 1;
 		if (i == OPT_LOOSE)
 		  option_is_loose= 1;
+		else if (i == OPT_AUTOSET)
+		  option_is_autoset= 1;
 		if ((opt_found= findopt(opt_str, length, &optp, &prev_found)))
 		{
 		  if (opt_found > 1)
@@ -458,6 +462,36 @@ int handle_options(int *argc, char ***argv,
 	  }
 	  argument= optend;
 	}
+	else if (option_is_autoset)
+	{
+	  if (optend)
+	  {
+	    my_getopt_error_reporter(ERROR_LEVEL,
+                                     "%s: automatic setup request of "
+                                     "option '--%s' cannot take an argument",
+                                     my_progname, optp->name);
+
+	    DBUG_RETURN(EXIT_NO_ARGUMENT_ALLOWED);
+	  }
+	  /*
+	    We support automatic setup only via get_one_option and only for
+	    marked options.
+	  */
+	  if (!get_one_option ||
+	      !(optp->var_type & GET_AUTO))
+	  {
+	    my_getopt_error_reporter(option_is_loose ?
+				     WARNING_LEVEL : ERROR_LEVEL,
+                                     "%s: automatic setup request is "
+				     "unsupported by option '--%s'",
+                                     my_progname, optp->name);
+	    if (!option_is_loose)
+	      return EXIT_ARGUMENT_INVALID;
+	    continue;
+	  }
+	  else
+            argument= autoset_my_option;
+	}
 	else if (optp->arg_type == REQUIRED_ARG && !optend)
 	{
 	  /* Check if there are more arguments after this one,
@@ -585,7 +619,8 @@ int handle_options(int *argc, char ***argv,
           (*argc)--; /* option handled (short), decrease argument count */
 	continue;
       }
-      if (((error= setval(optp, value, argument, set_maximum_value))) &&
+      if ((!option_is_autoset) &&
+	  ((error= setval(optp, value, argument, set_maximum_value))) &&
           !option_is_loose)
 	DBUG_RETURN(error);
       if (get_one_option && get_one_option(optp->id, optp, argument))
@@ -1427,6 +1462,11 @@ void my_print_help(const struct my_option *options)
       }
 
       col= print_comment(optp->comment, col, name_space, comment_space);
+      if (optp->var_type & GET_AUTO)
+      {
+        col= print_comment(" (Automatically configured unless set explicitly)",
+                           col, name_space, comment_space);
+      }
 
       switch (optp->var_type & GET_TYPE_MASK) {
       case GET_ENUM:
