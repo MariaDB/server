@@ -2539,7 +2539,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` datetime DEFAULT NULL,
-  `b` timestamp AS (timestamp(a)) VIRTUAL NULL ON UPDATE CURRENT_TIMESTAMP
+  `b` timestamp AS (timestamp(a)) VIRTUAL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 insert into t1 values ('2008-12-31',default);
 select * from t1;
@@ -2554,7 +2554,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` datetime DEFAULT NULL,
-  `b` timestamp AS (timestampadd(minute,1,a)) VIRTUAL NULL ON UPDATE CURRENT_TIMESTAMP
+  `b` timestamp AS (timestampadd(minute,1,a)) VIRTUAL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 insert into t1 values ('2003-01-02',default);
 select * from t1;
