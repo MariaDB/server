@@ -26,6 +26,7 @@ UNLOCK TABLES;
 --source include/wait_condition.inc
 
 COMMIT;
+SET AUTOCOMMIT=ON;
 SELECT COUNT(*) = 1 FROM t1;
 
 --let $wsrep_local_bf_aborts_after = `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_bf_aborts'`

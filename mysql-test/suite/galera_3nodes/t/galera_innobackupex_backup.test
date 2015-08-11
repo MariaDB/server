@@ -12,6 +12,7 @@ INSERT INTO t1 VALUES (1),(2),(3),(4),(5),(6),(7),(8),(9),(10);
 --connection node_2
 SELECT COUNT(*) = 10 FROM t1;
 
+--exec rm -rf $MYSQL_TMP_DIR/innobackupex_backup
 --exec innobackupex $MYSQL_TMP_DIR/innobackupex_backup --galera-info --defaults-file=$MYSQLTEST_VARDIR/my.cnf --defaults-group=mysqld.2 --port=$NODE_MYPORT_2 --host=127.0.0.1 --no-timestamp > $MYSQL_TMP_DIR/innobackupex-backup.log
 --exec innobackupex $MYSQL_TMP_DIR/innobackupex_backup --apply-log --galera-info --defaults-file=$MYSQLTEST_VARDIR/my.cnf --defaults-group=mysqld.2 --port=$NODE_MYPORT_2 --host=127.0.0.1 --no-timestamp > $MYSQL_TMP_DIR/innobackupex-apply.log
 
@@ -47,6 +48,7 @@ INSERT INTO t1 VALUES (11),(12),(13),(14),(15),(16),(17),(18),(19),(20);
 EOF
 
 --source include/start_mysqld.inc
+--sleep 5
 
 --source include/wait_until_connected_again.inc
 SELECT COUNT(*) = 20 FROM t1;
