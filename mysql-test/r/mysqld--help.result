@@ -21,9 +21,10 @@ The following options may be given as the first argument:
  --automatic-sp-privileges 
  Creating and dropping stored procedures alters ACLs
  (Defaults to on; use --skip-automatic-sp-privileges to disable.)
- --back-log=#        The number of outstanding connection requests MySQL can
+ --back-log=#        The number of outstanding connection requests MariaDB can
  have. This comes into play when the main MySQL thread
  gets very many connection requests in a very short time
+ (Automatically configured unless set explicitly)
  -b, --basedir=name  Path to installation directory. All paths are usually
  resolved relative to this
  --big-tables        Allow big result sets by saving all temporary sets on
@@ -265,6 +266,7 @@ The following options may be given as the first argument:
  height-balanced, DOUBLE_PREC_HB - double precision
  height-balanced.
  --host-cache-size=# How many host names should be cached to avoid resolving.
+ (Automatically configured unless set explicitly)
  --ignore-builtin-innodb 
  Disable initialization of builtin InnoDB plugin
  --ignore-db-dirs=name 
@@ -895,6 +897,7 @@ The following options may be given as the first argument:
  write privileges to the mysql.user table.
  --secure-auth       Disallow authentication for accounts that have old
  (pre-4.1) passwords
+ (Defaults to on; use --skip-secure-auth to disable.)
  --secure-file-priv=name 
  Limit LOAD DATA, SELECT ... OUTFILE, and LOAD_FILE() to
  files within specified directory
@@ -1043,13 +1046,12 @@ The following options may be given as the first argument:
  (Defaults to on; use --skip-sync-frm to disable.)
  --sync-master-info=# 
  Synchronously flush master info to disk after every #th
- event. Use 0 (default) to disable synchronous flushing
+ event. Use 0 to disable synchronous flushing
  --sync-relay-log=#  Synchronously flush relay log to disk after every #th
- event. Use 0 (default) to disable synchronous flushing
+ event. Use 0 to disable synchronous flushing
  --sync-relay-log-info=# 
  Synchronously flush relay log info to disk after every
- #th transaction. Use 0 (default) to disable synchronous
- flushing
+ #th transaction. Use 0 to disable synchronous flushing
  --sysdate-is-now    Non-default option to alias SYSDATE() to NOW() to make it
  safe-replicable. Since 5.0, SYSDATE() returns a `dynamic'
  value different for different invocations, even within
@@ -1131,7 +1133,7 @@ auto-increment-increment 1
 auto-increment-offset 1
 autocommit TRUE
 automatic-sp-privileges TRUE
-back-log 150
+back-log 80
 big-tables FALSE
 bind-address (No default value)
 binlog-annotate-row-events FALSE
@@ -1199,7 +1201,7 @@ gtid-strict-mode FALSE
 help TRUE
 histogram-size 0
 histogram-type SINGLE_PREC_HB
-host-cache-size 128
+host-cache-size 279
 ignore-builtin-innodb FALSE
 ignore-db-dirs 
 init-connect 
@@ -1207,7 +1209,7 @@ init-file (No default value)
 init-rpl-role MASTER
 init-slave 
 interactive-timeout 28800
-join-buffer-size 131072
+join-buffer-size 262144
 join-buffer-space-limit 2097152
 join-cache-level 2
 keep-files-on-create FALSE
@@ -1245,7 +1247,7 @@ lower-case-table-names 1
 master-info-file master.info
 master-retry-count 86400
 master-verify-checksum FALSE
-max-allowed-packet 1048576
+max-allowed-packet 4194304
 max-binlog-cache-size 18446744073709547520
 max-binlog-size 1073741824
 max-binlog-stmt-cache-size 18446744073709547520
@@ -1257,7 +1259,7 @@ max-error-count 64
 max-heap-table-size 16777216
 max-join-size 18446744073709551615
 max-length-for-sort-data 1024
-max-long-data-size 1048576
+max-long-data-size 4194304
 max-prepared-stmt-count 16382
 max-relay-log-size 1073741824
 max-seeks-for-key 18446744073709551615
@@ -1352,9 +1354,9 @@ protocol-version 10
 query-alloc-block-size 16384
 query-cache-limit 1048576
 query-cache-min-res-unit 4096
-query-cache-size 0
+query-cache-size 1048576
 query-cache-strip-comments FALSE
-query-cache-type ON
+query-cache-type OFF
 query-cache-wlock-invalidate FALSE
 query-prealloc-size 24576
 range-alloc-block-size 4096
@@ -1376,7 +1378,7 @@ report-port 0
 report-user (No default value)
 rowid-merge-buff-size 8388608
 safe-user-create FALSE
-secure-auth FALSE
+secure-auth TRUE
 secure-file-priv (No default value)
 server-id 0
 show-slave-auth-info FALSE
@@ -1402,20 +1404,20 @@ slave-type-conversions
 slow-launch-time 2
 slow-query-log FALSE
 sort-buffer-size 2097152
-sql-mode 
+sql-mode NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION
 stack-trace TRUE
 stored-program-cache 256
 strict-password-validation TRUE
 symbolic-links FALSE
 sync-binlog 0
 sync-frm FALSE
-sync-master-info 0
-sync-relay-log 0
-sync-relay-log-info 0
+sync-master-info 10000
+sync-relay-log 10000
+sync-relay-log-info 10000
 sysdate-is-now FALSE
-table-cache 400
+table-cache 2000
 table-definition-cache 400
-table-open-cache 400
+table-open-cache 2000
 tc-heuristic-recover COMMIT
 thread-cache-size 0
 thread-pool-idle-timeout 60

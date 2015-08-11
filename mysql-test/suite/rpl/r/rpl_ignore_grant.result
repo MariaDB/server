@@ -1,8 +1,12 @@
 include/master-slave.inc
 [connection master]
+set global sql_mode="";
+set local sql_mode="";
 delete from mysql.user where user=_binary'rpl_ignore_grant';
 delete from mysql.db where user=_binary'rpl_ignore_grant';
 flush privileges;
+set global sql_mode="";
+set local sql_mode="";
 delete from mysql.user where user=_binary'rpl_ignore_grant';
 delete from mysql.db where user=_binary'rpl_ignore_grant';
 flush privileges;
@@ -31,4 +35,6 @@ flush privileges;
 delete from mysql.user where user=_binary'rpl_ignore_grant';
 delete from mysql.db where user=_binary'rpl_ignore_grant';
 flush privileges;
+set global sql_mode=default;
+set global sql_mode=default;
 include/rpl_end.inc

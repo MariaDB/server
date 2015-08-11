@@ -452,30 +452,3 @@ SELECT * FROM t2 WHERE c = 10 ORDER BY a DESC, b DESC;
 
 DROP TABLE t1, t2;
 
-
---echo #
---echo # Bug #53742: UPDATEs have no effect after applying patch for bug 36569
---echo #
-
---disable_warnings
-CREATE TABLE t1 (
-  pk INT NOT NULL AUTO_INCREMENT,
-  c1_idx CHAR(1) DEFAULT 'y',
-  c2 INT,
-  PRIMARY KEY (pk),
-  INDEX c1_idx (c1_idx)
-) ENGINE=InnoDB;
---enable_warnings
-
-INSERT INTO t1 VALUES (), (), (), ();
-
-SELECT * FROM t1 WHERE c1_idx = 'y' ORDER BY pk DESC LIMIT 2;
-UPDATE t1 SET c2 = 0 WHERE c1_idx = 'y' ORDER BY pk DESC LIMIT 2;
-SELECT * FROM t1 WHERE c1_idx = 'y' ORDER BY pk DESC LIMIT 2;
-SELECT * FROM t1 WHERE c1_idx = 'y' ORDER BY pk DESC;
-
-DELETE FROM t1 WHERE c1_idx = 'y' ORDER BY pk DESC LIMIT 2;
-SELECT * FROM t1 WHERE c1_idx = 'y' ORDER BY pk DESC;
-
-DROP TABLE t1;
-

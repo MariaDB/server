@@ -54,6 +54,8 @@
 #                          the routine; otherwise NULL),
 #                   DEFINER (shows the user who created the routine).
 ################################################################################
+set sql_mode="";
+set sql_mode="";
 -- echo # ========== routines.1 ==========
 USE INFORMATION_SCHEMA;
 --replace_result ENGINE=MyISAM "" ENGINE=MARIA "" ENGINE=Aria "" " PAGE_CHECKSUM=1" "" " PAGE_CHECKSUM=0" ""

@@ -1810,6 +1810,7 @@ length(a)
 5000
 drop table t1;
 drop table t1;
+set sql_mode="";
 DROP TABLE IF EXISTS federated.test;
 CREATE TABLE federated.test (
 `i` int(11) NOT NULL,
@@ -1818,6 +1819,7 @@ CREATE TABLE federated.test (
 PRIMARY KEY  (`i`,`j`),
 UNIQUE KEY `i` (`i`,`c`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1;
+set sql_mode=default;
 DROP TABLE IF EXISTS federated.test1;
 DROP TABLE IF EXISTS federated.test2;
 create table federated.test1 (

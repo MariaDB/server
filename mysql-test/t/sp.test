@@ -14,7 +14,6 @@
 # Tests that require --with-geometry go into sp_gis.test
 # Tests that require multibyte character sets, which are not always available,
 #   go into separate files (e.g. sp-ucs2.test)
-
 use test;
 
 # Test tables

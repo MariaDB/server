@@ -206,6 +206,7 @@ ID	root	HOST_NAME	information_schema	Sleep	TIME		NULL	TIME_MS	0	0	0.000	MEMORY	R
 5 Grant PROCESS privilege to anonymous user.
 connection default (user=root)
 ####################################################################################
+create user ''@'localhost';
 GRANT PROCESS ON *.* TO ''@'localhost';
 ####################################################################################
 5.1 Establish connection (anonymous1,localhost,'',,information_schema)

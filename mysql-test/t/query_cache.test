@@ -4,7 +4,16 @@
 #
 # Tests with query cache
 #
+SET GLOBAL query_cache_type= Off;
+SET LOCAL query_cache_type= Off;
+SET LOCAL query_cache_type= 0;
+--error ER_QUERY_CACHE_IS_GLOBALY_DISABLED
+SET LOCAL query_cache_type= on;
+--error ER_QUERY_CACHE_IS_GLOBALY_DISABLED
+SET LOCAL query_cache_type= 1;
 set GLOBAL query_cache_size=1355776;
+SET GLOBAL query_cache_type= ON;
+SET LOCAL query_cache_type= ON;
 
 # Reset query cache variables.
 
@@ -1204,9 +1213,8 @@ set global query_cache_size=102400;
 set global query_cache_size=0;
 set global query_cache_type=0;
 show status like 'Qcache_free_blocks';
-
---error ER_QUERY_CACHE_DISABLED
 set global query_cache_size=102400;
+show status like 'Qcache_free_blocks';
 set global query_cache_type=on;
 set session query_cache_type=on;
 
@@ -1260,6 +1268,8 @@ set GLOBAL query_cache_limit=default;
 set GLOBAL query_cache_min_res_unit=default;
 set GLOBAL query_cache_size=default;
 set local query_cache_type=default;
+set GLOBAL query_cache_type=on;
+set local query_cache_type=on;
 
 #
 # Bug#33756 - query cache with concurrent_insert=0 appears broken

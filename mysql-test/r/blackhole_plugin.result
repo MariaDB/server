@@ -1,7 +1,9 @@
+set sql_mode="";
 CREATE TABLE t1(a int) ENGINE=BLACKHOLE;
 Warnings:
 Warning	1286	Unknown storage engine 'BLACKHOLE'
 Warning	1266	Using storage engine MyISAM for table 't1'
+set sql_mode=default;
 DROP TABLE t1;
 INSTALL PLUGIN blackhole SONAME 'ha_blackhole.so';
 INSTALL PLUGIN BLACKHOLE SONAME 'ha_blackhole.so';

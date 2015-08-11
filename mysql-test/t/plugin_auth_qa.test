@@ -3,6 +3,8 @@
 --source include/have_plugin_auth.inc
 --source include/not_embedded.inc
 
+set sql_mode="";
+
 CREATE DATABASE test_user_db;
 
 --sorted_result
@@ -332,5 +334,6 @@ DROP USER grant_user,plug_dest;
 set @@sql_mode= @save_sql_mode;
 #
 DROP DATABASE test_user_db;
+
 --exit
 

@@ -1,5 +1,9 @@
+set GLOBAL sql_mode="";
+set LOCAL sql_mode="";
 drop table if exists test.t1,mysqltest.t1,mysqltest.t2;
 drop database if exists mysqltest;
+set GLOBAL query_cache_type=ON;
+set LOCAL query_cache_type=ON;
 set GLOBAL query_cache_size=1355776;
 reset query cache;
 flush status;
@@ -219,3 +223,7 @@ flush privileges;
 drop table test.t1,mysqltest.t1,mysqltest.t2;
 drop database mysqltest;
 set GLOBAL query_cache_size=default;
+set GLOBAL query_cache_type=ON;
+set LOCAL query_cache_type=ON;
+set GLOBAL sql_mode=default;
+set GLOBAL query_cache_type=default;

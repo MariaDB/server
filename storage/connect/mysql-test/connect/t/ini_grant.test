@@ -5,8 +5,10 @@ let $MYSQLD_DATADIR= `select @@datadir`;
 --echo #
 --echo # Checking FILE privileges
 --echo #
+set sql_mode="";
 GRANT ALL PRIVILEGES ON *.* TO user@localhost;
 REVOKE FILE ON *.* FROM user@localhost;
+set sql_mode=default;
 --connect(user,localhost,user,,)
 --connection user
 SELECT user();

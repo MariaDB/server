@@ -2237,12 +2237,12 @@ drop table t1;
 create table t1 (
 r_object_id char(16) NOT NULL,
 group_name varchar(32) NOT NULL
-) engine = InnoDB;
+);
 create table t2 (
 r_object_id char(16) NOT NULL,
 i_position int(11) NOT NULL,
 users_names varchar(32) default NULL
-) Engine = InnoDB;
+);
 create view v1 as select r_object_id, group_name from t1;
 create view v2 as select r_object_id, i_position, users_names from t2;
 create unique index r_object_id on t1(r_object_id);
@@ -2902,6 +2902,8 @@ Tables_in_test
 t1
 DROP TABLE t1;
 DROP VIEW IF EXISTS v1;
+set GLOBAL sql_mode="";
+set LOCAL sql_mode="";
 CREATE DATABASE bug21261DB;
 USE bug21261DB;
 CREATE TABLE t1 (x INT);
@@ -2924,6 +2926,8 @@ DROP VIEW v1;
 DROP TABLE t1;
 DROP DATABASE bug21261DB;
 USE test;
+set GLOBAL sql_mode=default;
+set LOCAL sql_mode=default;
 create table t1 (f1 datetime);
 create view v1 as select * from t1 where f1 between now() and now() + interval 1 minute;
 show create view v1;

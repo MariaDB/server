@@ -12,6 +12,7 @@
 
 --source include/not_embedded.inc
 
+create user foo@localhost;
 grant create user on *.* to foo@localhost;
 --change_user foo
 

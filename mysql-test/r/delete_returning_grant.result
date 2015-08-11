@@ -1,3 +1,5 @@
+set GLOBAL sql_mode="";
+set LOCAL sql_mode="";
 CREATE TABLE t1 (a int(11), b varchar(32));
 INSERT INTO t1 VALUES (7,'ggggggg'),(1,'a'),(3,'ccc'),(4,'dddd'),(1,'A'),
 (2,'BB'),(4,'DDDD'),(5,'EEEEE'),(7,'GGGGGGG'),(2,'bb');
@@ -67,3 +69,4 @@ DROP DATABASE mysqltest;
 DROP USER mysqltest_1@localhost;
 DROP VIEW v1;
 DROP TABLE t1;
+set GLOBAL sql_mode=default;

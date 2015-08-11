@@ -1,3 +1,5 @@
+set sql_mode="";
+set GLOBAL sql_mode="";
 
 --source suite/funcs_1/storedproc/load_sp_tb.inc
 --------------------------------------------------------------------------------
@@ -388,6 +390,7 @@ DROP USER 'user_2'@'localhost';
 --------------------------------------------------------------------------------
 DROP DATABASE IF EXISTS db_storedproc;
 DROP DATABASE IF EXISTS db_storedproc_1;
+set GLOBAL sql_mode=default;
 
 .                               +++ END OF SCRIPT +++
 --------------------------------------------------------------------------------

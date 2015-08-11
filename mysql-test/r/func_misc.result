@@ -334,10 +334,7 @@ CREATE TABLE t1 (a char(2) not null );
 INSERT INTO t1 VALUES (4),(7),(1);
 set @optimizer_switch_save= @@optimizer_switch;
 set optimizer_switch='materialization=off';
-CREATE TABLE tv (e char(2) not null ) engine=mysql;
-Warnings:
-Warning	1286	Unknown storage engine 'mysql'
-Warning	1266	Using storage engine MyISAM for table 'tv'
+CREATE TABLE tv (e char(2) not null );
 INSERT INTO tv VALUES (1);
 CREATE ALGORITHM=MERGE VIEW v_merge AS SELECT * FROM tv;
 CREATE ALGORITHM=MERGE VIEW vm AS SELECT * FROM tv;

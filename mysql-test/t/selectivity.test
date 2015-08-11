@@ -848,6 +848,7 @@ set optimizer_use_condition_selectivity=1;
 explain extended 
 select * from t1, t2, t1 as t3
   where t1.b=t2.c and t2.d=t3.a and t3.b<5 and t1.a < 2000;
+--sorted_result
 select * from t1, t2, t1 as t3
   where t1.b=t2.c and t2.d=t3.a and t3.b<5 and t1.a < 2000;
 
@@ -855,6 +856,7 @@ set optimizer_use_condition_selectivity=3;
 explain extended
 select * from t1, t2, t1 as t3
   where t1.b=t2.c and t2.d=t3.a and t3.b<5 and t1.a < 2000;
+--sorted_result
 select * from t1, t2, t1 as t3
   where t1.b=t2.c and t2.d=t3.a and t3.b<5 and t1.a < 2000;
 
@@ -946,11 +948,11 @@ drop table t0,t1,t2;
 --echo # Bug mdev-7316: a conjunct in WHERE with selectivity == 0
 --echo #
 
-CREATE TABLE t1 (a varchar(16), b int, PRIMARY KEY(a), KEY(b)) ENGINE=INNODB;
+CREATE TABLE t1 (a varchar(16), b int, PRIMARY KEY(a), KEY(b));
 INSERT INTO t1 VALUES
   ('USAChinese',10), ('USAEnglish',20), ('USAFrench',30);
 
-CREATE TABLE t2 (i int) ENGINE=INNODB;
+CREATE TABLE t2 (i int);
 INSERT INTO t2 VALUES
   (1),(2),(3),(4),(5),(6),(7),(8),(9),(10),(1),(2),(3),(4);
 

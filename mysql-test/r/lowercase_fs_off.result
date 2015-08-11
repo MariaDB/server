@@ -1,3 +1,5 @@
+set GLOBAL sql_mode="";
+set LOCAL sql_mode="";
 create database d1;
 grant all on d1.* to 'sample'@'localhost' identified by 'password';
 flush privileges;
@@ -63,3 +65,4 @@ CREATE TRIGGER t1_bi BEFORE INSERT ON t1 FOR EACH ROW SET new.a= 1;
 RENAME TABLE t1 TO T1;
 ALTER TABLE T1 RENAME t1;
 DROP TABLE t1;
+set GLOBAL sql_mode=default;

@@ -2083,18 +2083,16 @@ drop table t1;
 
 # Bug#12941
 #
---disable_warnings
 create table t1 (
   r_object_id char(16) NOT NULL,
   group_name varchar(32) NOT NULL
-) engine = InnoDB;
+);
 
 create table t2 (
   r_object_id char(16) NOT NULL,
   i_position int(11) NOT NULL,
   users_names varchar(32) default NULL
-) Engine = InnoDB;
---enable_warnings
+);
 
 create view v1 as select r_object_id, group_name from t1;
 create view v2 as select r_object_id, i_position, users_names from t2;
@@ -2806,11 +2804,12 @@ DROP VIEW IF EXISTS v1;
 # Bug#21261 Wrong access rights was required for an insert to a view
 #
 
+set GLOBAL sql_mode="";
+set LOCAL sql_mode="";
 CREATE DATABASE bug21261DB;
 USE bug21261DB;
 connect (root,localhost,root,,bug21261DB);
 connection root;
-
 CREATE TABLE t1 (x INT);
 CREATE SQL SECURITY INVOKER VIEW v1 AS SELECT x FROM t1;
 GRANT INSERT, UPDATE ON v1 TO 'user21261'@'localhost';
@@ -2840,6 +2839,8 @@ USE test;
 disconnect root;
 disconnect user21261;
 
+set GLOBAL sql_mode=default;
+set LOCAL sql_mode=default;
 
 #
 # Bug#15950 NOW() optimized away in VIEWs

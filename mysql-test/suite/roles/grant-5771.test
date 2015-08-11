@@ -6,6 +6,7 @@
 create database mysqltest1;
 create database mysqltest2;
 
+create user foo@localhost;
 create role r1, r2;
 grant all on mysqltest1.* to r1;
 grant all on mysqltest2.* to r2;

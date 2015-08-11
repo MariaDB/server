@@ -6,6 +6,8 @@
 # Save the initial number of concurrent sessions
 --source include/count_sessions.inc
 
+set GLOBAL sql_mode="";
+set LOCAL sql_mode="";
 SET @old_log_bin_trust_function_creators= @@global.log_bin_trust_function_creators;
 SET GLOBAL log_bin_trust_function_creators = 1;
 
@@ -2208,9 +2210,6 @@ disconnect con1;
 DROP USER untrusted@localhost;
 DROP DATABASE secret;
 
-# Wait till we reached the initial number of concurrent sessions
---source include/wait_until_count_sessions.inc
-
 --echo #
 --echo # BUG#11759114 - '51401: GRANT TREATS NONEXISTENT FUNCTIONS/PRIVILEGES
 --echo #                 DIFFERENTLY'.
@@ -2233,3 +2232,7 @@ grant select on mysqltest_db1.t1 to mysqltest_u1;
 show grants for mysqltest_u1;
 drop database mysqltest_db1;
 drop user mysqltest_u1;
+
+set GLOBAL sql_mode=default;
+# Wait till we reached the initial number of concurrent sessions
+--source include/wait_until_count_sessions.inc

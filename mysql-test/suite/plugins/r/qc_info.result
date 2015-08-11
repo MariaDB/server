@@ -1,3 +1,5 @@
+set global query_cache_type=ON;
+set local query_cache_type=ON;
 set global query_cache_size=1355776;
 create table t1 (a int not null);
 insert into t1 values (1),(2),(3);
@@ -16,6 +18,7 @@ set global query_cache_size = 0;
 select * from information_schema.query_cache_info;
 STATEMENT_SCHEMA	STATEMENT_TEXT	RESULT_BLOCKS_COUNT	RESULT_BLOCKS_SIZE	RESULT_BLOCKS_SIZE_USED
 set global query_cache_size= default;
+set global query_cache_type=default;
 show query_cache_info;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'query_cache_info' at line 1
 flush query_cache_info;

@@ -3,6 +3,7 @@ source include/master-slave.inc;
 
 # create a user for replication that requires ssl encryption
 connection master;
+create user replssl@localhost;
 grant replication slave on *.* to replssl@localhost require ssl;
 create table t1 (t int auto_increment, KEY(t));
 

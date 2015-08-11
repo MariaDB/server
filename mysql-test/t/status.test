@@ -281,6 +281,7 @@ create database db37908;
 --enable_warnings
 create table db37908.t1(f1 int);
 insert into db37908.t1 values(1);
+create user mysqltest_1@localhost;
 grant usage,execute on test.* to mysqltest_1@localhost;
 delimiter |;
 create procedure proc37908() begin select 1; end |

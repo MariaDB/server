@@ -1,3 +1,5 @@
+set local sql_mode="";
+set global sql_mode="";
 drop table if exists t1;
 SET SESSION enforce_storage_engine=MyISAM;
 select @@session.enforce_storage_engine;
@@ -117,5 +119,6 @@ t1	CREATE TABLE `t1` (
   PRIMARY KEY (`c1`)
 ) ENGINE=MEMORY DEFAULT CHARSET=latin1
 DROP TABLE t1;
+set global sql_mode=default;
 SET SESSION enforce_storage_engine=NULL;
 SET GLOBAL enforce_storage_engine=NULL;

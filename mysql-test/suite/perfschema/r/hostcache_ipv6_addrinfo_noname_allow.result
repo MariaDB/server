@@ -23,7 +23,9 @@ select `User`, `Host` from mysql.`user` where `user` like '2001:%';
 User	Host
 select `User`, `Host` from mysql.`user` where `user` like 'santa.claus.%';
 User	Host
+create user 'root'@'santa.claus.ipv6.example.com';
 grant select on test.* to 'root'@'santa.claus.ipv6.example.com';
+create user 'root'@'2001:db8::6:6';
 grant select on test.* to 'root'@'2001:db8::6:6';
 select "Con1 is alive";
 Con1 is alive

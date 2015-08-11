@@ -12,9 +12,11 @@ if (!`SELECT count(*) FROM information_schema.engines WHERE
 # Test for handler type, will select MyISAM and print a warning
 # about that - since InnoDB is disabled
 #
+set sql_mode="";
 create table t1 (id int) engine=InnoDB;
 alter table t1 engine=InnoDB;
 drop table t1;
+set sql_mode=default;
 
 #
 # Bug#29263 disabled storage engines omitted in SHOW ENGINES

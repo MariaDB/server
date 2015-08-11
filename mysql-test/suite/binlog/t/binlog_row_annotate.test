@@ -24,6 +24,8 @@
 
 --disable_query_log
 
+set sql_mode="";
+
 # Fix timestamp to avoid varying results
 SET timestamp=1000000000;
 

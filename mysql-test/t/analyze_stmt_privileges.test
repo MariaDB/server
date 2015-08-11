@@ -11,6 +11,7 @@ use db;
 create table t1 (i int, c varchar(8));
 insert into t1 values (1,'foo'),(2,'bar'),(3,'baz'),(4,'qux');
 create view v1 as select * from t1 where i > 1;
+CREATE USER u1@localhost;
 grant ALL on db.v1 to u1@localhost;
 
 --connect (con1,localhost,u1,,)

@@ -1,3 +1,5 @@
+set GLOBAL sql_mode="";
+set LOCAL sql_mode="";
 alter table mysql.user modify User char(16) binary not null default '';
 alter table mysql.db modify User char(16) binary not null default '';
 alter table mysql.tables_priv modify User char(16) binary not null default '';
@@ -30,3 +32,4 @@ Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is
 def					user()	253	141	14	N	1	31	8
 user()
 root@localhost
+set GLOBAL sql_mode=default;

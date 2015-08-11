@@ -1,3 +1,5 @@
+set GLOBAL sql_mode="";
+set LOCAL sql_mode="";
 SET @old_log_bin_trust_function_creators= @@global.log_bin_trust_function_creators;
 SET GLOBAL log_bin_trust_function_creators = 1;
 drop table if exists t1;
@@ -2580,3 +2582,4 @@ Grants for mysqltest_u1@%
 GRANT USAGE ON *.* TO 'mysqltest_u1'@'%'
 drop database mysqltest_db1;
 drop user mysqltest_u1;
+set GLOBAL sql_mode=default;

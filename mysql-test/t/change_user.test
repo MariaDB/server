@@ -1,10 +1,14 @@
+# This test is checking that old password authentication works
+set global secure_auth=0;
 #
 # functional change user tests
 #
-
+create user test_nopw;
 grant select on test.* to test_nopw;
-grant select on test.* to test_oldpw identified by password "09301740536db389";
-grant select on test.* to test_newpw identified by "newpw";
+create user test_oldpw identified by password "09301740536db389";
+grant select on test.* to test_oldpw;
+create user test_newpw identified by "newpw";
+grant select on test.* to test_newpw;
 
 select concat('<', user(), '>'), concat('<', current_user(), '>'), database();
 
@@ -136,3 +140,5 @@ if ($after != $before){
   die The value of com_select changed during change_user;
 }
 echo Value of com_select did not change;
+
+set global secure_auth=default;

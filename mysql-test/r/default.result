@@ -1,5 +1,6 @@
 drop table if exists t1,t2,t3,t4,t5,t6;
 drop database if exists mysqltest;
+set sql_mode="";
 CREATE TABLE t1 (a varchar(30) binary NOT NULL DEFAULT ' ',
 b varchar(1) binary NOT NULL DEFAULT ' ',
 c varchar(4) binary NOT NULL DEFAULT '0000',
@@ -29,6 +30,7 @@ z varchar(20) binary NOT NULL DEFAULT ' ',
 a1 varchar(30) binary NOT NULL DEFAULT ' ',
 b1 tinyblob NULL)
 ENGINE=InnoDB DEFAULT CHARACTER SET = latin1 COLLATE latin1_bin;
+set sql_mode=default;
 INSERT into t1 (b) values ('1');
 SHOW WARNINGS;
 Level	Code	Message

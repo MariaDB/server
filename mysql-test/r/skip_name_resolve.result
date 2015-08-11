@@ -1,3 +1,4 @@
+CREATE USER mysqltest_1@'127.0.0.1/255.255.255.255';
 GRANT ALL ON test.* TO mysqltest_1@'127.0.0.1/255.255.255.255';
 SHOW GRANTS FOR mysqltest_1@'127.0.0.1/255.255.255.255';
 Grants for mysqltest_1@127.0.0.1/255.255.255.255

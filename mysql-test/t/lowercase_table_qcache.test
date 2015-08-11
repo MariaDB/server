@@ -3,6 +3,8 @@
 # Test of query cache with --lower-case-table-names
 #
 set GLOBAL query_cache_size=1355776;
+set GLOBAL query_cache_type=ON;
+set LOCAL query_cache_type=ON;
 
 --disable_warnings
 drop database if exists MySQLtesT;
@@ -26,6 +28,7 @@ select * from MySQL.db;
 enable_result_log;
 show status like "Qcache_queries_in_cache";
 
-set GLOBAL query_cache_size=0;
+set GLOBAL query_cache_size=default;
+set GLOBAL query_cache_type=default;
 
 # End of 4.1 tests

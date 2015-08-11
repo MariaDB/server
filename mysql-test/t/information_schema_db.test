@@ -7,6 +7,9 @@
 
 -- source include/testdb_only.inc
 
+set local sql_mode="";
+set global sql_mode="";
+
 --disable_warnings
 drop table if exists t1,t2;
 drop view if exists v1,v2;
@@ -250,3 +253,5 @@ connection user1;
 disconnect user1;
 --source include/wait_until_disconnected.inc
 connection default;
+
+set global sql_mode=default;

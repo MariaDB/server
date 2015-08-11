@@ -4328,6 +4328,27 @@ static int init_common_variables()
   }
 #endif /* HAVE_SOLARIS_LARGE_PAGES */
 
+
+  /* Fix host_cache_size. */
+  if (IS_SYSVAR_AUTOSIZE(&host_cache_size))
+  {
+    if (max_connections <= 628 - 128)
+      SYSVAR_AUTOSIZE(host_cache_size, 128 + max_connections);
+    else if (max_connections <= ((ulong)(2000 - 628)) * 20 + 500)
+      SYSVAR_AUTOSIZE(host_cache_size, 628 + ((max_connections - 500) / 20));
+    else
+      SYSVAR_AUTOSIZE(host_cache_size, 2000);
+  }
+
+  /* Fix back_log (back_log == 0 added for MySQL compatibility) */
+  if (back_log == 0 || IS_SYSVAR_AUTOSIZE(&back_log))
+  {
+    if ((900 - 50) * 5 >= max_connections)
+     SYSVAR_AUTOSIZE(back_log, (50 + max_connections / 5));
+    else
+     SYSVAR_AUTOSIZE(back_log, 900);
+  }
+
   /* connections and databases needs lots of files */
   {
     uint files, wanted_files, max_open_files;
@@ -4873,9 +4894,16 @@ static int init_server_components()
     unireg_abort(1);
 
   query_cache_set_min_res_unit(query_cache_min_res_unit);
+  query_cache_result_size_limit(query_cache_limit);
+  /* if we set size of QC non zero in config then probably we want it ON */
+  if (query_cache_size != 0 &&
+      global_system_variables.query_cache_type == 0 &&
+      !IS_SYSVAR_AUTOSIZE(&query_cache_size))
+  {
+    global_system_variables.query_cache_type= 1;
+  }
   query_cache_init();
   query_cache_resize(query_cache_size);
-  query_cache_result_size_limit(query_cache_limit);
   my_rnd_init(&sql_rand,(ulong) server_start_time,(ulong) server_start_time/2);
   setup_fpu();
   init_thr_lock();
@@ -5551,6 +5579,12 @@ int mysqld_main(int argc, char **argv)
   my_timer_init(&sys_timer_info);
 
   int ho_error __attribute__((unused))= handle_early_options();
+
+  /* fix tdc_size */
+  if (IS_SYSVAR_AUTOSIZE(&tdc_size))
+  {
+    SYSVAR_AUTOSIZE(tdc_size, MY_MIN(400 + tdc_size / 2, 2000));
+  }
 
 #ifdef WITH_PERFSCHEMA_STORAGE_ENGINE
   if (ho_error == 0)
