@@ -304,6 +304,7 @@ dbcontext::init_thread(const void *stack_bottom, volatile int& shutdown_flag)
       thd->db = 0;
       thd->db = my_strdup("handlersocket", MYF(0));
     }
+    thd->variables.option_bits |= OPTION_TABLE_LOCK;
     my_pthread_setspecific_ptr(THR_THD, thd);
     DBG_THR(fprintf(stderr, "HNDSOCK x0 %p\n", thd));
   }
