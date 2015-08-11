@@ -7039,7 +7039,7 @@ SEL_TREE *Item_func_in::get_func_mm_tree(RANGE_OPT_PARAM *param,
         per-statement mem_root (while thd->mem_root is currently pointing
         to mem_root local to range optimizer).
       */
-      Item *value_item= array->create_item();
+      Item *value_item= array->create_item(param->thd);
       param->thd->mem_root= tmp_root;
 
       if (array->count > NOT_IN_IGNORE_THRESHOLD || !value_item)

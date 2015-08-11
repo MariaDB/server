@@ -146,13 +146,13 @@ void Item_row::print(String *str, enum_query_type query_type)
 }
 
 
-Item *Item_row::transform(Item_transformer transformer, uchar *arg)
+Item *Item_row::transform(THD *thd, Item_transformer transformer, uchar *arg)
 {
-  DBUG_ASSERT(!current_thd->stmt_arena->is_stmt_prepare());
+  DBUG_ASSERT(!thd->stmt_arena->is_stmt_prepare());
 
-  if (transform_args(transformer, arg))
+  if (transform_args(thd, transformer, arg))
     return 0;
-  return (this->*transformer)(arg);
+  return (this->*transformer)(thd, arg);
 }
 
 void Item_row::bring_value()

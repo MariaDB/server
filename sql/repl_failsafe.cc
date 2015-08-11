@@ -232,16 +232,16 @@ bool show_slave_hosts(THD* thd)
   Protocol *protocol= thd->protocol;
   DBUG_ENTER("show_slave_hosts");
 
-  field_list.push_back(new Item_return_int("Server_id", 10,
+  field_list.push_back(new Item_return_int(thd, "Server_id", 10,
 					   MYSQL_TYPE_LONG));
-  field_list.push_back(new Item_empty_string("Host", 20));
+  field_list.push_back(new Item_empty_string(thd, "Host", 20));
   if (opt_show_slave_auth_info)
   {
-    field_list.push_back(new Item_empty_string("User",20));
-    field_list.push_back(new Item_empty_string("Password",20));
+    field_list.push_back(new Item_empty_string(thd, "User", 20));
+    field_list.push_back(new Item_empty_string(thd, "Password", 20));
   }
-  field_list.push_back(new Item_return_int("Port", 7, MYSQL_TYPE_LONG));
-  field_list.push_back(new Item_return_int("Master_id", 10,
+  field_list.push_back(new Item_return_int(thd, "Port", 7, MYSQL_TYPE_LONG));
+  field_list.push_back(new Item_return_int(thd, "Master_id", 10,
 					   MYSQL_TYPE_LONG));
 
   if (protocol->send_result_set_metadata(&field_list,

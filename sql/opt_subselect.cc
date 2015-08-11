@@ -461,7 +461,7 @@ void best_access_path(JOIN *join, JOIN_TAB *s,
 
 static Item *create_subq_in_equalities(THD *thd, SJ_MATERIALIZATION_INFO *sjm, 
                                 Item_in_subselect *subq_pred);
-static void remove_sj_conds(Item **tree);
+static void remove_sj_conds(THD *thd, Item **tree);
 static bool is_cond_sj_in_equality(Item *item);
 static bool sj_table_is_included(JOIN *join, JOIN_TAB *join_tab);
 static Item *remove_additional_cond(Item* conds);
@@ -1135,7 +1135,8 @@ bool convert_join_subqueries_to_semijoins(JOIN *join)
       Item **tree= (in_subq->emb_on_expr_nest == NO_JOIN_NEST)?
                      &join->conds : &(in_subq->emb_on_expr_nest->on_expr);
       Item *replace_me= in_subq->original_item();
-      if (replace_where_subcondition(join, tree, replace_me, new Item_int(1),
+      if (replace_where_subcondition(join, tree, replace_me,
+                                     new Item_int(thd, 1),
                                      FALSE))
         goto restore_arena_and_fail;
     }
@@ -1594,9 +1595,10 @@ static bool convert_subq_to_sj(JOIN *parent_join, Item_in_subselect *subq_pred)
   {
     nested_join->sj_outer_expr_list.push_back(subq_pred->left_expr);
     Item_func_eq *item_eq=
-      new Item_func_eq(subq_pred->left_expr, subq_lex->ref_pointer_array[0]);
+      new Item_func_eq(thd, subq_pred->left_expr,
+                       subq_lex->ref_pointer_array[0]);
     item_eq->in_equality_no= 0;
-    sj_nest->sj_on_expr= and_items(sj_nest->sj_on_expr, item_eq);
+    sj_nest->sj_on_expr= and_items(thd, sj_nest->sj_on_expr, item_eq);
   }
   else
   {
@@ -1605,10 +1607,10 @@ static bool convert_subq_to_sj(JOIN *parent_join, Item_in_subselect *subq_pred)
       nested_join->sj_outer_expr_list.push_back(subq_pred->left_expr->
                                                 element_index(i));
       Item_func_eq *item_eq= 
-        new Item_func_eq(subq_pred->left_expr->element_index(i), 
+        new Item_func_eq(thd, subq_pred->left_expr->element_index(i),
                          subq_lex->ref_pointer_array[i]);
       item_eq->in_equality_no= i;
-      sj_nest->sj_on_expr= and_items(sj_nest->sj_on_expr, item_eq);
+      sj_nest->sj_on_expr= and_items(thd, sj_nest->sj_on_expr, item_eq);
     }
   }
   /*
@@ -1643,7 +1645,7 @@ static bool convert_subq_to_sj(JOIN *parent_join, Item_in_subselect *subq_pred)
   /* Inject sj_on_expr into the parent's WHERE or ON */
   if (emb_tbl_nest)
   {
-    emb_tbl_nest->on_expr= and_items(emb_tbl_nest->on_expr,
+    emb_tbl_nest->on_expr= and_items(thd, emb_tbl_nest->on_expr,
                                      sj_nest->sj_on_expr);
     emb_tbl_nest->on_expr->top_level_item();
     if (!emb_tbl_nest->on_expr->fixed &&
@@ -1656,7 +1658,7 @@ static bool convert_subq_to_sj(JOIN *parent_join, Item_in_subselect *subq_pred)
   else
   {
     /* Inject into the WHERE */
-    parent_join->conds= and_items(parent_join->conds, sj_nest->sj_on_expr);
+    parent_join->conds= and_items(thd, parent_join->conds, sj_nest->sj_on_expr);
     parent_join->conds->top_level_item();
     /*
       fix_fields must update the properties (e.g. st_select_lex::cond_count of
@@ -3650,9 +3652,9 @@ bool setup_sj_materialization_part2(JOIN_TAB *sjm_tab)
     */
     for (i= 0; i < sjm->tables; i++)
     {
-      remove_sj_conds(&tab[i].select_cond);
+      remove_sj_conds(thd, &tab[i].select_cond);
       if (tab[i].select)
-        remove_sj_conds(&tab[i].select->cond);
+        remove_sj_conds(thd, &tab[i].select->cond);
     }
     if (!(sjm->in_equality= create_subq_in_equalities(thd, sjm,
                                                       emb_sj_nest->sj_subq_pred)))
@@ -3795,8 +3797,8 @@ static Item *create_subq_in_equalities(THD *thd, SJ_MATERIALIZATION_INFO *sjm,
   Item *res= NULL;
   if (subq_pred->left_expr->cols() == 1)
   {
-    if (!(res= new Item_func_eq(subq_pred->left_expr,
-                                new Item_field(sjm->table->field[0]))))
+    if (!(res= new Item_func_eq(thd, subq_pred->left_expr,
+                                new Item_field(thd, sjm->table->field[0]))))
       return NULL; /* purecov: inspected */
   }
   else
@@ -3804,9 +3806,9 @@ static Item *create_subq_in_equalities(THD *thd, SJ_MATERIALIZATION_INFO *sjm,
     Item *conj;
     for (uint i= 0; i < subq_pred->left_expr->cols(); i++)
     {
-      if (!(conj= new Item_func_eq(subq_pred->left_expr->element_index(i), 
-                                   new Item_field(sjm->table->field[i]))) ||
-          !(res= and_items(res, conj)))
+      if (!(conj= new Item_func_eq(thd, subq_pred->left_expr->element_index(i),
+                                   new Item_field(thd, sjm->table->field[i]))) ||
+          !(res= and_items(thd, res, conj)))
         return NULL; /* purecov: inspected */
     }
   }
@@ -3818,7 +3820,7 @@ static Item *create_subq_in_equalities(THD *thd, SJ_MATERIALIZATION_INFO *sjm,
 
 
 
-static void remove_sj_conds(Item **tree)
+static void remove_sj_conds(THD *thd, Item **tree)
 {
   if (*tree)
   {
@@ -3834,7 +3836,7 @@ static void remove_sj_conds(Item **tree)
       while ((item= li++))
       {
         if (is_cond_sj_in_equality(item))
-          li.replace(new Item_int(1));
+          li.replace(new Item_int(thd, 1));
       }
     }
   }
@@ -5100,7 +5102,7 @@ TABLE *create_dummy_tmp_table(THD *thd)
   sjm_table_param.init();
   sjm_table_param.field_count= 1;
   List<Item> sjm_table_cols;
-  Item *column_item= new Item_int(1);
+  Item *column_item= new Item_int(thd, 1);
   sjm_table_cols.push_back(column_item);
   if (!(table= create_tmp_table(thd, &sjm_table_param, 
                                 sjm_table_cols, (ORDER*) 0, 
@@ -5143,16 +5145,16 @@ int select_value_catcher::setup(List<Item> *items)
   assigned= FALSE;
   n_elements= items->elements;
  
-  if (!(row= (Item_cache**) sql_alloc(sizeof(Item_cache*)*n_elements)))
+  if (!(row= (Item_cache**) thd->alloc(sizeof(Item_cache*) * n_elements)))
     return TRUE;
   
   Item *sel_item;
   List_iterator<Item> li(*items);
   for (uint i= 0; (sel_item= li++); i++)
   {
-    if (!(row[i]= Item_cache::get_cache(sel_item)))
+    if (!(row[i]= Item_cache::get_cache(thd, sel_item)))
       return TRUE;
-    row[i]->setup(sel_item);
+    row[i]->setup(thd, sel_item);
   }
   return FALSE;
 }
@@ -5260,12 +5262,13 @@ bool setup_jtbm_semi_joins(JOIN *join, List<TABLE_LIST> *join_list,
           Item *eq_cond;
           for (uint i= 0; i < subq_pred->left_expr->cols(); i++)
           {
-            eq_cond= new Item_func_eq(subq_pred->left_expr->element_index(i),
+            eq_cond= new Item_func_eq(join->thd,
+                                      subq_pred->left_expr->element_index(i),
                                       new_sink->row[i]);
             if (!eq_cond)
               DBUG_RETURN(1);
 
-            if (!((*join_where)= and_items(*join_where, eq_cond)) ||
+            if (!((*join_where)= and_items(join->thd, *join_where, eq_cond)) ||
                 (*join_where)->fix_fields(join->thd, join_where))
               DBUG_RETURN(1);
           }
@@ -5304,7 +5307,7 @@ bool setup_jtbm_semi_joins(JOIN *join, List<TABLE_LIST> *join_list,
 
         Item *sj_conds= hash_sj_engine->semi_join_conds;
 
-        (*join_where)= and_items(*join_where, sj_conds);
+        (*join_where)= and_items(join->thd, *join_where, sj_conds);
         if (!(*join_where)->fixed)
           (*join_where)->fix_fields(join->thd, join_where);
       }

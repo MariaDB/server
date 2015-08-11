@@ -1542,7 +1542,7 @@ static int mysql_test_select(Prepared_statement *stmt,
     List<Item> fields(lex->select_lex.item_list);
 
     /* Change columns if a procedure like analyse() */
-    if (unit->last_procedure && unit->last_procedure->change_columns(fields))
+    if (unit->last_procedure && unit->last_procedure->change_columns(thd, fields))
       goto error;
 
     /*
@@ -1898,7 +1898,7 @@ static bool mysql_test_multidelete(Prepared_statement *stmt,
                                   TABLE_LIST *tables)
 {
   stmt->thd->lex->current_select= &stmt->thd->lex->select_lex;
-  if (add_item_to_list(stmt->thd, new Item_null()))
+  if (add_item_to_list(stmt->thd, new Item_null(stmt->thd)))
   {
     my_error(ER_OUTOFMEMORY, MYF(ME_FATALERROR), 0);
     goto error;

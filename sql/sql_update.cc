@@ -1978,7 +1978,7 @@ loop_end:
         table to be updated was created by mysql 4.1. Deny this.
       */
       field->can_alter_field_type= 0;
-      Item_field *ifield= new Item_field((Field *) field);
+      Item_field *ifield= new Item_field(join->thd, (Field *) field);
       if (!ifield)
          DBUG_RETURN(1);
       ifield->maybe_null= 0;

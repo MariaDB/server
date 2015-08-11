@@ -3050,7 +3050,7 @@ public:
     interval_list.empty();
   }
 
-  Create_field(Field *field, Field *orig_field);
+  Create_field(THD *thd, Field *field, Field *orig_field);
   /* Used to make a clone of this object for ALTER/CREATE TABLE */
   Create_field *clone(MEM_ROOT *mem_root) const;
   void create_length_to_internal_length(void);

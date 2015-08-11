@@ -1983,10 +1983,14 @@ bool mysql_xa_recover(THD *thd)
   Protocol *protocol= thd->protocol;
   DBUG_ENTER("mysql_xa_recover");
 
-  field_list.push_back(new Item_int("formatID", 0, MY_INT32_NUM_DECIMAL_DIGITS));
-  field_list.push_back(new Item_int("gtrid_length", 0, MY_INT32_NUM_DECIMAL_DIGITS));
-  field_list.push_back(new Item_int("bqual_length", 0, MY_INT32_NUM_DECIMAL_DIGITS));
-  field_list.push_back(new Item_empty_string("data",XIDDATASIZE));
+  field_list.push_back(new Item_int(thd, "formatID", 0,
+                                    MY_INT32_NUM_DECIMAL_DIGITS));
+  field_list.push_back(new Item_int(thd, "gtrid_length", 0,
+                                    MY_INT32_NUM_DECIMAL_DIGITS));
+  field_list.push_back(new Item_int(thd, "bqual_length", 0,
+                                    MY_INT32_NUM_DECIMAL_DIGITS));
+  field_list.push_back(new Item_empty_string(thd, "data",
+                                             XIDDATASIZE));
 
   if (protocol->send_result_set_metadata(&field_list,
                             Protocol::SEND_NUM_ROWS | Protocol::SEND_EOF))
@@ -5523,9 +5527,9 @@ bool ha_show_status(THD *thd, handlerton *db_type, enum ha_stat_type stat)
   Protocol *protocol= thd->protocol;
   bool result;
 
-  field_list.push_back(new Item_empty_string("Type",10));
-  field_list.push_back(new Item_empty_string("Name",FN_REFLEN));
-  field_list.push_back(new Item_empty_string("Status",10));
+  field_list.push_back(new Item_empty_string(thd, "Type", 10));
+  field_list.push_back(new Item_empty_string(thd, "Name", FN_REFLEN));
+  field_list.push_back(new Item_empty_string(thd, "Status", 10));
 
   if (protocol->send_result_set_metadata(&field_list,
                             Protocol::SEND_NUM_ROWS | Protocol::SEND_EOF))

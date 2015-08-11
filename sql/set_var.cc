@@ -982,7 +982,7 @@ int fill_sysvars(THD *thd, TABLE_LIST *tables, COND *cond)
 
   DBUG_ASSERT(tables->table->in_use == thd);
 
-  cond= make_cond_for_info_schema(cond, tables);
+  cond= make_cond_for_info_schema(thd, cond, tables);
   thd->count_cuted_fields= CHECK_FIELD_WARN;
   mysql_rwlock_rdlock(&LOCK_system_variables_hash);
 

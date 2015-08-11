@@ -1034,18 +1034,19 @@ int Log_event::net_send(THD *thd, Protocol *protocol, const char* log_name,
   EVENTS.
 */
 
-void Log_event::init_show_field_list(List<Item>* field_list)
+void Log_event::init_show_field_list(THD *thd, List<Item>* field_list)
 {
-  field_list->push_back(new Item_empty_string("Log_name", 20));
-  field_list->push_back(new Item_return_int("Pos", MY_INT32_NUM_DECIMAL_DIGITS,
-					    MYSQL_TYPE_LONGLONG));
-  field_list->push_back(new Item_empty_string("Event_type", 20));
-  field_list->push_back(new Item_return_int("Server_id", 10,
-					    MYSQL_TYPE_LONG));
-  field_list->push_back(new Item_return_int("End_log_pos",
+  field_list->push_back(new Item_empty_string(thd, "Log_name", 20));
+  field_list->push_back(new Item_return_int(thd, "Pos",
                                             MY_INT32_NUM_DECIMAL_DIGITS,
 					    MYSQL_TYPE_LONGLONG));
-  field_list->push_back(new Item_empty_string("Info", 20));
+  field_list->push_back(new Item_empty_string(thd, "Event_type", 20));
+  field_list->push_back(new Item_return_int(thd, "Server_id", 10,
+					    MYSQL_TYPE_LONG));
+  field_list->push_back(new Item_return_int(thd, "End_log_pos",
+                                            MY_INT32_NUM_DECIMAL_DIGITS,
+					    MYSQL_TYPE_LONGLONG));
+  field_list->push_back(new Item_empty_string(thd, "Info", 20));
 }
 
 /**
@@ -7853,33 +7854,33 @@ int User_var_log_event::do_apply_event(rpl_group_info *rgi)
 
   if (is_null)
   {
-    it= new Item_null();
+    it= new Item_null(thd);
   }
   else
   {
     switch (type) {
     case REAL_RESULT:
       float8get(real_val, val);
-      it= new Item_float(real_val, 0);
+      it= new Item_float(thd, real_val, 0);
       val= (char*) &real_val;		// Pointer to value in native format
       val_len= 8;
       break;
     case INT_RESULT:
       int_val= (longlong) uint8korr(val);
-      it= new Item_int(int_val);
+      it= new Item_int(thd, int_val);
       val= (char*) &int_val;		// Pointer to value in native format
       val_len= 8;
       break;
     case DECIMAL_RESULT:
     {
-      Item_decimal *dec= new Item_decimal((uchar*) val+2, val[0], val[1]);
+      Item_decimal *dec= new Item_decimal(thd, (uchar*) val+2, val[0], val[1]);
       it= dec;
       val= (char *)dec->val_decimal(NULL);
       val_len= sizeof(my_decimal);
       break;
     }
     case STRING_RESULT:
-      it= new Item_string(val, val_len, charset);
+      it= new Item_string(thd, val, val_len, charset);
       break;
     case ROW_RESULT:
     default:
@@ -7888,7 +7889,7 @@ int User_var_log_event::do_apply_event(rpl_group_info *rgi)
     }
   }
 
-  Item_func_set_user_var *e= new Item_func_set_user_var(user_var_name, it);
+  Item_func_set_user_var *e= new Item_func_set_user_var(thd, user_var_name, it);
   /*
     Item_func_set_user_var can't substitute something else on its place =>
     0 can be passed as last argument (reference on item)

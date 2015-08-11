@@ -2021,7 +2021,7 @@ sp_head::execute_procedure(THD *thd, List<Item> *args)
 
       if (spvar->mode == sp_variable::MODE_OUT)
       {
-        Item_null *null_item= new Item_null();
+        Item_null *null_item= new Item_null(thd);
         Item *tmp_item= null_item;
 
         if (!null_item ||
@@ -2575,8 +2575,8 @@ sp_head::show_create_routine(THD *thd, int type)
 
   /* Send header. */
 
-  fields.push_back(new Item_empty_string(col1_caption, NAME_CHAR_LEN));
-  fields.push_back(new Item_empty_string("sql_mode", sql_mode.length));
+  fields.push_back(new Item_empty_string(thd, col1_caption, NAME_CHAR_LEN));
+  fields.push_back(new Item_empty_string(thd, "sql_mode", sql_mode.length));
 
   {
     /*
@@ -2585,7 +2585,7 @@ sp_head::show_create_routine(THD *thd, int type)
     */
 
     Item_empty_string *stmt_fld=
-      new Item_empty_string(col3_caption,
+      new Item_empty_string(thd, col3_caption,
                             MY_MAX(m_defstr.length, 1024));
 
     stmt_fld->maybe_null= TRUE;
@@ -2593,13 +2593,13 @@ sp_head::show_create_routine(THD *thd, int type)
     fields.push_back(stmt_fld);
   }
 
-  fields.push_back(new Item_empty_string("character_set_client",
+  fields.push_back(new Item_empty_string(thd, "character_set_client",
                                          MY_CS_NAME_SIZE));
 
-  fields.push_back(new Item_empty_string("collation_connection",
+  fields.push_back(new Item_empty_string(thd, "collation_connection",
                                          MY_CS_NAME_SIZE));
 
-  fields.push_back(new Item_empty_string("Database Collation",
+  fields.push_back(new Item_empty_string(thd, "Database Collation",
                                          MY_CS_NAME_SIZE));
 
   if (protocol->send_result_set_metadata(&fields,
@@ -2783,9 +2783,9 @@ sp_head::show_routine_code(THD *thd)
   if (check_show_routine_access(thd, this, &full_access) || !full_access)
     DBUG_RETURN(1);
 
-  field_list.push_back(new Item_uint("Pos", 9));
+  field_list.push_back(new Item_uint(thd, "Pos", 9));
   // 1024 is for not to confuse old clients
-  field_list.push_back(new Item_empty_string("Instruction",
+  field_list.push_back(new Item_empty_string(thd, "Instruction",
                                              MY_MAX(buffer.length(), 1024)));
   if (protocol->send_result_set_metadata(&field_list, Protocol::SEND_NUM_ROWS |
                                          Protocol::SEND_EOF))
@@ -3895,7 +3895,7 @@ sp_instr_set_case_expr::exec_core(THD *thd, uint *nextp)
       initialized. Set to NULL so we can continue.
     */
 
-    Item *null_item= new Item_null();
+    Item *null_item= new Item_null(thd);
 
     if (!null_item ||
         thd->spcont->set_case_expr(thd, m_case_expr_id, &null_item))

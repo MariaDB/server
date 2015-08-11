@@ -7304,7 +7304,7 @@ mark_common_columns(THD *thd, TABLE_LIST *table_ref_1, TABLE_LIST *table_ref_2,
           set_new_item_local_context(thd, item_ident_2, nj_col_2->table_ref))
         goto err;
 
-      if (!(eq_cond= new Item_func_eq(item_ident_1, item_ident_2)))
+      if (!(eq_cond= new Item_func_eq(thd, item_ident_1, item_ident_2)))
         goto err;                               /* Out of memory. */
 
       if (field_1 && field_1->vcol_info)
@@ -7317,8 +7317,8 @@ mark_common_columns(THD *thd, TABLE_LIST *table_ref_1, TABLE_LIST *table_ref_2,
         fix_fields() is applied to all ON conditions in setup_conds()
         so we don't do it here.
       */
-      add_join_on((table_ref_1->outer_join & JOIN_TYPE_RIGHT ?
-                   table_ref_1 : table_ref_2),
+      add_join_on(thd, (table_ref_1->outer_join & JOIN_TYPE_RIGHT ?
+                        table_ref_1 : table_ref_2),
                   eq_cond);
 
       nj_col_1->is_common= nj_col_2->is_common= TRUE;
@@ -7651,7 +7651,7 @@ store_top_level_join_columns(THD *thd, TABLE_LIST *table_ref,
     /* Add a TRUE condition to outer joins that have no common columns. */
     if (table_ref_2->outer_join &&
         !table_ref_1->on_expr && !table_ref_2->on_expr)
-      table_ref_2->on_expr= new Item_int((longlong) 1,1);   /* Always true. */
+      table_ref_2->on_expr= new Item_int(thd, (longlong) 1, 1); // Always true.
 
     /* Change this table reference to become a leaf for name resolution. */
     if (left_neighbor)
@@ -7816,7 +7816,7 @@ int setup_wild(THD *thd, TABLE_LIST *tables, List<Item> &fields,
 
           Item_int do not need fix_fields() because it is basic constant.
         */
-        it.replace(new Item_int("Not_used", (longlong) 1,
+        it.replace(new Item_int(thd, "Not_used", (longlong) 1,
                                 MY_INT64_NUM_DECIMAL_DIGITS));
       }
       else if (insert_fields(thd, ((Item_field*) item)->context,
@@ -8510,7 +8510,7 @@ void wrap_ident(THD *thd, Item **conds)
   DBUG_ASSERT((*conds)->type() == Item::FIELD_ITEM || (*conds)->type() == Item::REF_ITEM);
   Query_arena *arena, backup;
   arena= thd->activate_stmt_arena_if_needed(&backup);
-  if ((wrapper= new Item_direct_ref_to_ident((Item_ident *)(*conds))))
+  if ((wrapper= new Item_direct_ref_to_ident(thd, (Item_ident *) (*conds))))
     (*conds)= (Item*) wrapper;
   if (arena)
     thd->restore_active_arena(arena, &backup);
@@ -9176,7 +9176,7 @@ int init_ftfuncs(THD *thd, SELECT_LEX *select_lex, bool no_order)
     DBUG_PRINT("info",("Performing FULLTEXT search"));
 
     while ((ifm=li++))
-      ifm->init_search(no_order);
+      ifm->init_search(thd, no_order);
   }
   return 0;
 }

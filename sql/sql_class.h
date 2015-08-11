@@ -4088,6 +4088,8 @@ class JOIN;
 class select_result_sink: public Sql_alloc
 {
 public:
+  THD *thd;
+  select_result_sink(THD *thd_arg): thd(thd_arg) {}
   /*
     send_data returns 0 on ok, 1 on error and -1 if data was ignored, for
     example for a duplicate row entry written to a temp table.
@@ -4112,7 +4114,6 @@ public:
 class select_result :public select_result_sink 
 {
 protected:
-  THD *thd;
   /* 
     All descendant classes have their send_data() skip the first 
     unit->offset_limit_cnt rows sent.  Select_materialize
@@ -4121,7 +4122,7 @@ protected:
   SELECT_LEX_UNIT *unit;
   /* Something used only by the parser: */
 public:
-  select_result(THD *thd_arg): thd(thd_arg) {}
+  select_result(THD *thd_arg): select_result_sink(thd_arg) {}
   virtual ~select_result() {};
   /**
     Change wrapped select_result.
@@ -4208,9 +4209,8 @@ class select_result_explain_buffer : public select_result_sink
 {
 public:
   select_result_explain_buffer(THD *thd_arg, TABLE *table_arg) : 
-    thd(thd_arg), dst_table(table_arg) {};
+    select_result_sink(thd_arg), dst_table(table_arg) {};
 
-  THD *thd;
   TABLE *dst_table; /* table to write into */
 
   /* The following is called in the child thread: */
@@ -4227,7 +4227,7 @@ public:
 class select_result_text_buffer : public select_result_sink
 {
 public:
-  select_result_text_buffer(THD *thd_arg) : thd(thd_arg) {}
+  select_result_text_buffer(THD *thd_arg): select_result_sink(thd_arg) {}
   int send_data(List<Item> &items);
   bool send_result_set_metadata(List<Item> &fields, uint flag);
 
@@ -4235,7 +4235,6 @@ public:
 private:
   int append_row(List<Item> &items, bool send_names);
 
-  THD *thd;
   List<char*> rows;
   int n_columns;
 };

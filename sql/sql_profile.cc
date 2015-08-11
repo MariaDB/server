@@ -390,11 +390,12 @@ bool PROFILING::show_profiles()
   QUERY_PROFILE *prof;
   List<Item> field_list;
 
-  field_list.push_back(new Item_return_int("Query_ID", 10,
+  field_list.push_back(new Item_return_int(thd, "Query_ID", 10,
                                            MYSQL_TYPE_LONG));
-  field_list.push_back(new Item_return_int("Duration", TIME_FLOAT_DIGITS-1,
+  field_list.push_back(new Item_return_int(thd, "Duration",
+                                           TIME_FLOAT_DIGITS - 1,
                                            MYSQL_TYPE_DOUBLE));
-  field_list.push_back(new Item_empty_string("Query", 40));
+  field_list.push_back(new Item_empty_string(thd, "Query", 40));
 
   if (thd->protocol->send_result_set_metadata(&field_list,
                                  Protocol::SEND_NUM_ROWS | Protocol::SEND_EOF))

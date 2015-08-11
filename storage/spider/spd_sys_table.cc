@@ -2390,7 +2390,7 @@ TABLE *spider_mk_sys_tmp_table(
     goto error_alloc_field;
   field->init(table);
 
-  if (!(i_field = new Item_field((Field *) field)))
+  if (!(i_field = new Item_field(thd, (Field *) field)))
     goto error_alloc_item_field;
 
   if (i_list.push_back(i_field))
@@ -2443,7 +2443,7 @@ TABLE *spider_mk_sys_tmp_table_for_result(
     goto error_alloc_field1;
   field1->init(table);
 
-  if (!(i_field1 = new Item_field((Field *) field1)))
+  if (!(i_field1 = new Item_field(thd, (Field *) field1)))
     goto error_alloc_item_field1;
 
   if (i_list.push_back(i_field1))
@@ -2454,7 +2454,7 @@ TABLE *spider_mk_sys_tmp_table_for_result(
     goto error_alloc_field2;
   field2->init(table);
 
-  if (!(i_field2 = new Item_field((Field *) field2)))
+  if (!(i_field2 = new Item_field(thd, (Field *) field2)))
     goto error_alloc_item_field2;
 
   if (i_list.push_back(i_field2))
@@ -2465,7 +2465,7 @@ TABLE *spider_mk_sys_tmp_table_for_result(
     goto error_alloc_field3;
   field3->init(table);
 
-  if (!(i_field3 = new Item_field((Field *) field3)))
+  if (!(i_field3 = new Item_field(thd, (Field *) field3)))
     goto error_alloc_item_field3;
 
   if (i_list.push_back(i_field3))

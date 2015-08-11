@@ -285,7 +285,7 @@ public:
   } save_result;
   LEX_STRING base; /**< for structured variables, like keycache_name.variable_name */
 
-  set_var(enum_var_type type_arg, sys_var *var_arg,
+  set_var(THD *thd, enum_var_type type_arg, sys_var *var_arg,
           const LEX_STRING *base_name_arg, Item *value_arg)
     :var(var_arg), type(type_arg), base(*base_name_arg)
   {
@@ -296,7 +296,8 @@ public:
     if (value_arg && value_arg->type() == Item::FIELD_ITEM)
     {
       Item_field *item= (Item_field*) value_arg;
-      if (!(value=new Item_string_sys(item->field_name))) // names are utf8
+      // names are utf8
+      if (!(value=new Item_string_sys(thd, item->field_name)))
         value=value_arg;                        /* Give error message later */
     }
     else

@@ -1850,9 +1850,9 @@ int test_if_item_cache_changed(List<Cached_item> &list);
 int join_init_read_record(JOIN_TAB *tab);
 int join_read_record_no_init(JOIN_TAB *tab);
 void set_position(JOIN *join,uint idx,JOIN_TAB *table,KEYUSE *key);
-inline Item * and_items(Item* cond, Item *item)
+inline Item * and_items(THD *thd, Item* cond, Item *item)
 {
-  return (cond? (new Item_cond_and(cond, item)) : item);
+  return (cond ? (new Item_cond_and(thd, cond, item)) : item);
 }
 bool choose_plan(JOIN *join, table_map join_tables);
 void optimize_wo_join_buffering(JOIN *join, uint first_tab, uint last_tab, 

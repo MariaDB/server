@@ -529,7 +529,7 @@ bool check_func_dependency(JOIN *join,
                            TABLE_LIST *oj_tbl,
                            Item* cond);
 static 
-void build_eq_mods_for_cond(Dep_analysis_context *dac, 
+void build_eq_mods_for_cond(THD *thd, Dep_analysis_context *dac,
                             Dep_module_expr **eq_mod, uint *and_level, 
                             Item *cond);
 static 
@@ -846,7 +846,7 @@ bool check_func_dependency(JOIN *join,
       Dep_value_field objects for the used fields.
   */
   uint and_level=0;
-  build_eq_mods_for_cond(&dac, &last_eq_mod, &and_level, cond);
+  build_eq_mods_for_cond(join->thd, &dac, &last_eq_mod, &and_level, cond);
   if (!(dac.n_equality_mods= last_eq_mod - dac.equality_mods))
     return FALSE;  /* No useful conditions */
 
@@ -1149,7 +1149,7 @@ int compare_field_values(Dep_value_field *a, Dep_value_field *b, void *unused)
 */
 
 static 
-void build_eq_mods_for_cond(Dep_analysis_context *ctx, 
+void build_eq_mods_for_cond(THD *thd, Dep_analysis_context *ctx,
                             Dep_module_expr **eq_mod,
                             uint *and_level, Item *cond)
 {
@@ -1163,7 +1163,7 @@ void build_eq_mods_for_cond(Dep_analysis_context *ctx,
     {
       Item *item;
       while ((item=li++))
-        build_eq_mods_for_cond(ctx, eq_mod, and_level, item);
+        build_eq_mods_for_cond(thd, ctx, eq_mod, and_level, item);
 
       for (Dep_module_expr *mod_exp= ctx->equality_mods + orig_offset;
            mod_exp != *eq_mod ; mod_exp++)
@@ -1175,12 +1175,12 @@ void build_eq_mods_for_cond(Dep_analysis_context *ctx,
     {
       Item *item;
       (*and_level)++;
-      build_eq_mods_for_cond(ctx, eq_mod, and_level, li++);
+      build_eq_mods_for_cond(thd, ctx, eq_mod, and_level, li++);
       while ((item=li++))
       {
         Dep_module_expr *start_key_fields= *eq_mod;
         (*and_level)++;
-        build_eq_mods_for_cond(ctx, eq_mod, and_level, item);
+        build_eq_mods_for_cond(thd, ctx, eq_mod, and_level, item);
         *eq_mod= merge_eq_mods(ctx->equality_mods + orig_offset, 
                                start_key_fields, *eq_mod,
                                ++(*and_level));
@@ -1217,7 +1217,7 @@ void build_eq_mods_for_cond(Dep_analysis_context *ctx,
   }
   case Item_func::ISNULL_FUNC:
   {
-    Item *tmp=new Item_null;
+    Item *tmp=new Item_null(thd);
     if (tmp)
       check_equality(ctx, eq_mod, *and_level, cond_func, args[0], tmp);
     break;

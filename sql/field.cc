@@ -9987,7 +9987,7 @@ Field *make_field(TABLE_SHARE *share, uchar *ptr, uint32 field_length,
 
 /** Create a field suitable for create of table. */
 
-Create_field::Create_field(Field *old_field,Field *orig_field)
+Create_field::Create_field(THD *thd, Field *old_field, Field *orig_field)
 {
   field=      old_field;
   field_name=change=old_field->field_name;
@@ -10039,7 +10039,6 @@ Create_field::Create_field(Field *old_field,Field *orig_field)
   case MYSQL_TYPE_YEAR:
     if (length != 4)
     {
-      THD *thd= current_thd;
       char buff[sizeof("YEAR()") + MY_INT64_NUM_DECIMAL_DIGITS + 1];
       my_snprintf(buff, sizeof(buff), "YEAR(%lu)", length);
       push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
@@ -10098,7 +10097,7 @@ Create_field::Create_field(Field *old_field,Field *orig_field)
         StringBuffer<MAX_FIELD_WIDTH> tmp(charset);
         String *res= orig_field->val_str(&tmp);
         char *pos= (char*) sql_strmake(res->ptr(), res->length());
-        def= new Item_string(pos, res->length(), charset);
+        def= new Item_string(thd, pos, res->length(), charset);
       }
       orig_field->move_field_offset(-diff);	// Back to record[0]
     }
