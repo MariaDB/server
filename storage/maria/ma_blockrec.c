@@ -5187,8 +5187,7 @@ my_bool _ma_cmp_block_unique(MARIA_HA *info, MARIA_UNIQUEDEF *def,
     Don't allocate more than 16K on the stack to ensure we don't get
     stack overflow.
   */
-  if (!(old_record= my_safe_alloca(info->s->base.reclength,
-                                   MARIA_MAX_RECORD_ON_STACK)))
+  if (!(old_record= my_safe_alloca(info->s->base.reclength)))
     DBUG_RETURN(1);
 
   /* Don't let the compare destroy blobs that may be in use */
@@ -5210,8 +5209,7 @@ my_bool _ma_cmp_block_unique(MARIA_HA *info, MARIA_UNIQUEDEF *def,
     info->rec_buff_size= org_rec_buff_size;
   }
   DBUG_PRINT("exit", ("result: %d", error));
-  my_safe_afree(old_record, info->s->base.reclength,
-                MARIA_MAX_RECORD_ON_STACK);
+  my_safe_afree(old_record, info->s->base.reclength);
   DBUG_RETURN(error != 0);
 }
 

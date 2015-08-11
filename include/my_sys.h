@@ -205,16 +205,17 @@ extern void my_large_free(uchar *ptr);
 #endif /* GNUC */
 #define my_alloca(SZ) alloca((size_t) (SZ))
 #define my_afree(PTR) ((void)0)
-#define my_safe_alloca(size, max_alloca_sz) ((size <= max_alloca_sz) ? \
-                                             my_alloca(size) : \
-                                             my_malloc(size, MYF(0)))
-#define my_safe_afree(ptr, size, max_alloca_sz) if (size > max_alloca_sz) \
-                                               my_free(ptr)
+#define MAX_ALLOCA_SZ 4096
+#define my_safe_alloca(size) (((size) <= MAX_ALLOCA_SZ) ? \
+                               my_alloca(size) : \
+                               my_malloc((size), MYF(MY_THREAD_SPECIFIC|MY_WME)))
+#define my_safe_afree(ptr, size) \
+                  do { if ((size) > MAX_ALLOCA_SZ) my_free(ptr); } while(0)
 #else
 #define my_alloca(SZ) my_malloc(SZ,MYF(MY_FAE))
 #define my_afree(PTR) my_free(PTR)
-#define my_safe_alloca(size, max_alloca_sz) my_alloca(size)
-#define my_safe_afree(ptr, size, max_alloca_sz) my_afree(ptr)
+#define my_safe_alloca(size) my_alloca(size)
+#define my_safe_afree(ptr, size) my_afree(ptr)
 #endif /* HAVE_ALLOCA */
 
 #ifndef errno				/* did we already get it? */
