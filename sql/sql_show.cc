@@ -1810,35 +1810,36 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
       else
         packet->append(STRING_WITH_LEN(" VIRTUAL"));
     }
-
-    if (flags & NOT_NULL_FLAG)
-      packet->append(STRING_WITH_LEN(" NOT NULL"));
-    else if (field->type() == MYSQL_TYPE_TIMESTAMP)
+    else
     {
-      /*
-        TIMESTAMP field require explicit NULL flag, because unlike
-        all other fields they are treated as NOT NULL by default.
-      */
-      packet->append(STRING_WITH_LEN(" NULL"));
+      if (flags & NOT_NULL_FLAG)
+        packet->append(STRING_WITH_LEN(" NOT NULL"));
+      else if (field->type() == MYSQL_TYPE_TIMESTAMP)
+      {
+        /*
+          TIMESTAMP field require explicit NULL flag, because unlike
+          all other fields they are treated as NOT NULL by default.
+        */
+        packet->append(STRING_WITH_LEN(" NULL"));
+      }
+
+      if (get_field_default_value(thd, field, &def_value, 1))
+      {
+        packet->append(STRING_WITH_LEN(" DEFAULT "));
+        packet->append(def_value.ptr(), def_value.length(), system_charset_info);
+      }
+
+      if (!limited_mysql_mode &&
+          print_on_update_clause(field, &def_value, false))
+      {
+        packet->append(STRING_WITH_LEN(" "));
+        packet->append(def_value);
+      }
+
+      if (field->unireg_check == Field::NEXT_NUMBER &&
+          !(sql_mode & MODE_NO_FIELD_OPTIONS))
+        packet->append(STRING_WITH_LEN(" AUTO_INCREMENT"));
     }
-
-    if (!field->vcol_info &&
-        get_field_default_value(thd, field, &def_value, 1))
-    {
-      packet->append(STRING_WITH_LEN(" DEFAULT "));
-      packet->append(def_value.ptr(), def_value.length(), system_charset_info);
-    }
-
-    if (!limited_mysql_mode && print_on_update_clause(field, &def_value, false))
-    {
-      packet->append(STRING_WITH_LEN(" "));
-      packet->append(def_value);
-    }
-
-
-    if (field->unireg_check == Field::NEXT_NUMBER &&
-        !(sql_mode & MODE_NO_FIELD_OPTIONS))
-      packet->append(STRING_WITH_LEN(" AUTO_INCREMENT"));
 
     if (field->comment.length)
     {

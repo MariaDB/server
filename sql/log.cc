@@ -5953,19 +5953,19 @@ bool MYSQL_BIN_LOG::write(Log_event *event_info, my_bool *with_annotate)
   binlog_cache_data *cache_data= 0;
   bool is_trans_cache= FALSE;
   bool using_trans= event_info->use_trans_cache();
-  bool direct;
+  bool direct= event_info->use_direct_logging();
   ulong UNINIT_VAR(prev_binlog_id);
   DBUG_ENTER("MYSQL_BIN_LOG::write(Log_event *)");
 
   /*
     When binary logging is not enabled (--log-bin=0), wsrep-patch partially
     enables it without opening the binlog file (MSQL_BIN_LOG::open().
-    So, avoid writing directly to binlog file.
+    So, avoid writing to binlog file.
   */
-  if (wsrep_emulate_bin_log)
-    direct= false;
-  else
-    direct= event_info->use_direct_logging();
+  if (direct &&
+      (wsrep_emulate_bin_log ||
+       (WSREP(thd) && !(thd->variables.option_bits & OPTION_BIN_LOG))))
+    DBUG_RETURN(0);
 
   if (thd->variables.option_bits & OPTION_GTID_BEGIN)
   {
@@ -6013,7 +6013,17 @@ bool MYSQL_BIN_LOG::write(Log_event *event_info, my_bool *with_annotate)
       binlog_[wild_]{do|ignore}_table?" (WL#1049)"
     */
     const char *local_db= event_info->get_db();
-    if ((!(thd->variables.option_bits & OPTION_BIN_LOG)) ||
+
+    bool option_bin_log_flag= (thd->variables.option_bits & OPTION_BIN_LOG);
+
+    /*
+      Log all updates to binlog cache so that they can get replicated to other
+      nodes. A check has been added to stop them from getting logged into
+      binary log files.
+    */
+    if (WSREP(thd)) option_bin_log_flag= true;
+
+    if ((!(option_bin_log_flag)) ||
 	(thd->lex->sql_command != SQLCOM_ROLLBACK_TO_SAVEPOINT &&
          thd->lex->sql_command != SQLCOM_SAVEPOINT &&
          !binlog_filter->db_ok(local_db)))
@@ -6956,9 +6966,11 @@ MYSQL_BIN_LOG::write_transaction_to_binlog(THD *thd,
 
   /*
     Control should not be allowed beyond this point in wsrep_emulate_bin_log
-    mode.
+    mode. Also, do not write the cached updates to binlog if binary logging is
+    disabled (log-bin/sql_log_bin).
   */
-  if (wsrep_emulate_bin_log) DBUG_RETURN(0);
+  if (wsrep_emulate_bin_log || !(thd->variables.option_bits & OPTION_BIN_LOG))
+    DBUG_RETURN(0);
 
   entry.thd= thd;
   entry.cache_mngr= cache_mngr;

@@ -1615,6 +1615,26 @@ int ha_rollback_trans(THD *thd, bool all)
   DBUG_ASSERT(thd->transaction.stmt.ha_list == NULL ||
               trans == &thd->transaction.stmt);
 
+#ifdef HAVE_REPLICATION
+  if (is_real_trans)
+  {
+    /*
+      In parallel replication, if we need to rollback during commit, we must
+      first inform following transactions that we are going to abort our commit
+      attempt. Otherwise those following transactions can run too early, and
+      possibly cause replication to fail. See comments in retry_event_group().
+
+      There were several bugs with this in the past that were very hard to
+      track down (MDEV-7458, MDEV-8302). So we add here an assertion for
+      rollback without signalling following transactions. And in release
+      builds, we explicitly do the signalling before rolling back.
+    */
+    DBUG_ASSERT(!(thd->rgi_slave && thd->rgi_slave->did_mark_start_commit));
+    if (thd->rgi_slave && thd->rgi_slave->did_mark_start_commit)
+      thd->rgi_slave->unmark_start_commit();
+  }
+#endif
+
   if (thd->in_sub_stmt)
   {
     DBUG_ASSERT(0);
@@ -5568,13 +5588,31 @@ static bool check_table_binlog_row_based(THD *thd, TABLE *table)
   DBUG_ASSERT(table->s->cached_row_logging_check == 0 ||
               table->s->cached_row_logging_check == 1);
 
-  return thd->is_current_stmt_binlog_format_row() &&
+  return (thd->is_current_stmt_binlog_format_row() &&
           table->s->cached_row_logging_check &&
+#ifdef WITH_WSREP
+          /*
+            Wsrep partially enables binary logging if it have not been
+            explicitly turned on. As a result we return 'true' if we are in
+            wsrep binlog emulation mode and the current thread is not a wsrep
+            applier or replayer thread. This decision is not affected by
+            @@sql_log_bin as we want the events to make into the binlog
+            cache only to filter them later before they make into binary log
+            file.
+
+            However, we do return 'false' if binary logging was temporarily
+            turned off (see tmp_disable_binlog(A)).
+
+            Otherwise, return 'true' if binary logging is on.
+          */
+          (thd->variables.sql_log_bin_off != 1) &&
+          ((WSREP_EMULATE_BINLOG(thd) && (thd->wsrep_exec_mode != REPL_RECV)) ||
+           ((WSREP(thd) || (thd->variables.option_bits & OPTION_BIN_LOG)) &&
+            mysql_bin_log.is_open())));
+#else
           (thd->variables.option_bits & OPTION_BIN_LOG) &&
-          /* applier and replayer should not binlog */
-          ((IF_WSREP(WSREP_EMULATE_BINLOG(thd) &&
-                     thd->wsrep_exec_mode != REPL_RECV, 0)) ||
-           mysql_bin_log.is_open());
+          mysql_bin_log.is_open());
+#endif
 }
 
 

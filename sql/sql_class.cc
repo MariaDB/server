@@ -1440,6 +1440,8 @@ void THD::init(void)
   else
     variables.option_bits&= ~OPTION_BIN_LOG;
 
+  variables.sql_log_bin_off= 0;
+
   select_commands= update_commands= other_commands= 0;
   /* Set to handle counting of aborted connections */
   userstat_running= opt_userstat_running;

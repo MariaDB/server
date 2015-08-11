@@ -283,3 +283,25 @@ drop table t1;
 create table t1 (a int, b int as (b is null) virtual);
 
 --echo # end of 5.3 tests
+
+
+--echo #
+--echo # Start of 10.1 tests
+--echo #
+
+--echo #
+--echo # MDEV-8441 Bad SHOW CREATE TABLE output for a table with a virtual column
+--echo #
+CREATE TABLE t1 (a DATETIME, b TIMESTAMP AS (TIMESTAMP(a)));
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+# Make sure that if the first TIMESTAMP column appears to be virtual,
+# then no further promotion is done, so the next TIMESTAMP column "c" does not
+# get the "DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP" attributes.
+CREATE TABLE t1 (a DATETIME, b TIMESTAMP AS (TIMESTAMP(a)),c TIMESTAMP);
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+--echo #
+--echo # End of 10.1 tests
+--echo #

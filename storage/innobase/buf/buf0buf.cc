@@ -4273,6 +4273,46 @@ buf_mark_space_corrupt(
 }
 
 /********************************************************************//**
+Check if page is maybe compressed, encrypted or both when we encounter
+corrupted page. Note that we can't be 100% sure if page is corrupted
+or decrypt/decompress just failed.
+*/
+static
+void
+buf_page_check_corrupt(
+/*===================*/
+	const buf_page_t*	bpage)	/*!< in/out: buffer page read from disk */
+{
+	ulint zip_size = buf_page_get_zip_size(bpage);
+	byte* dst_frame = (zip_size) ? bpage->zip.data :
+		((buf_block_t*) bpage)->frame;
+	unsigned key_version =
+		mach_read_from_4(dst_frame + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION);
+	bool page_compressed = fil_page_is_compressed(dst_frame);
+	bool page_compressed_encrypted = fil_page_is_compressed_encrypted(dst_frame);
+	ulint space_id = mach_read_from_4(
+		dst_frame + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID);
+	fil_space_crypt_t* crypt_data = fil_space_get_crypt_data(space_id);
+	fil_space_t* space = fil_space_found_by_id(space_id);
+
+	if (key_version != 0 ||
+		(crypt_data && crypt_data->type != CRYPT_SCHEME_UNENCRYPTED) ||
+		page_compressed || page_compressed_encrypted) {
+		ib_logf(IB_LOG_LEVEL_ERROR,
+			"Maybe corruption: Block space_id %lu in file %s maybe corrupted\n"
+			"Reason could be that key_version in page %u \n"
+			"or in crypt_data %p could not be found,\n"
+			"key management plugin is not found or\n"
+			"used encryption algorithm or method does not match.\n"
+			"Page compressed %d, compressed and encrypted %d.\n",
+			space_id, space ? space->name : "NULL",
+			key_version,
+			crypt_data,
+			page_compressed, page_compressed_encrypted);
+	}
+}
+
+/********************************************************************//**
 Completes an asynchronous read or write request of a file page to or from
 the buffer pool.
 @return true if successful */
@@ -4438,6 +4478,8 @@ corrupt:
 				    && buf_mark_space_corrupt(bpage)) {
 					return(false);
 				} else {
+					buf_page_check_corrupt(bpage);
+
 					fputs("InnoDB: Ending processing"
 					      " because of"
 					      " a corrupt database page.\n",
