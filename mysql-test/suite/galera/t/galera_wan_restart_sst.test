@@ -92,6 +92,7 @@ INSERT INTO t1 VALUES (34);
 --sleep 5
 
 --connection node_1
+--source include/wait_until_connected_again.inc
 INSERT INTO t1 VALUES (31);
 
 --connection node_2

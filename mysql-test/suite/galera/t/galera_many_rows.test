@@ -14,6 +14,12 @@ CREATE TABLE t1 (f1 INTEGER AUTO_INCREMENT PRIMARY KEY, f2 INTEGER) Engine=InnoD
 INSERT INTO t1 (f2) SELECT a1.f1 FROM ten AS a1, ten AS a2, ten AS a3, ten AS a4, ten AS a5;
 
 --connection node_2
+SET SESSION wsrep_sync_wait = 0;
+--let $wsrep_provider_options_node2 = `SELECT @@wsrep_provider_options`
+SET SESSION wsrep_sync_wait = 7;
+
+SET GLOBAL wsrep_provider_options = 'repl.causal_read_timeout=PT1H';
+
 SELECT COUNT(*) = 100000 FROM t1;
 INSERT INTO t1 (f2) SELECT a1.f1 FROM ten AS a1, ten AS a2, ten AS a3, ten AS a4, ten AS a5;
 
@@ -22,8 +28,6 @@ SELECT COUNT(*) = 200000 FROM t1;
 UPDATE t1 SET f2 = 1;
 
 --connection node_2
---let $wsrep_provider_options_node2 = `SELECT @@wsrep_provider_options`
-SET GLOBAL wsrep_provider_options = 'repl.causal_read_timeout=PT5M';
 SELECT COUNT(*) = 200000 FROM t1 WHERE f2 = 1;
 
 --connection node_1
