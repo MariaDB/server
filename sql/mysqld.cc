@@ -7414,7 +7414,7 @@ struct my_option my_long_options[]=
    &opt_show_slave_auth_info, &opt_show_slave_auth_info, 0,
    GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"skip-bdb", OPT_DEPRECATED_OPTION,
-   "Deprecated option; Exist only for compatiblity with old my.cnf files",
+   "Deprecated option; Exist only for compatibility with old my.cnf files",
    0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0},
 #ifndef DISABLE_GRANT_OPTIONS
   {"skip-grant-tables", 0,
@@ -8799,7 +8799,7 @@ mysqld_get_one_option(int optid, const struct my_option *opt, char *argument)
     break;
   case OPT_DEPRECATED_OPTION:
     sql_print_warning("'%s' is deprecated. It does nothing and exists only "
-                      "for compatiblity with old my.cnf files.",
+                      "for compatibility with old my.cnf files.",
                       opt->name);
     break;
   case OPT_MYSQL_COMPATIBILITY:
