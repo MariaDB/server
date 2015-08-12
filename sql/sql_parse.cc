@@ -52,7 +52,7 @@
 #include "sql_connect.h"      // decrease_user_connections,
                               // check_mqh,
                               // reset_mqh
-#include "sql_rename.h"       // mysql_rename_table
+#include "sql_rename.h"       // mysql_rename_tables
 #include "sql_tablespace.h"   // mysql_alter_tablespace
 #include "hostname.h"         // hostname_cache_refresh
 #include "sql_acl.h"          // *_ACL, check_grant, is_acl_user,
@@ -127,7 +127,7 @@ static bool execute_sqlcom_select(THD *thd, TABLE_LIST *all_tables);
 static void sql_kill(THD *thd, ulong id, killed_state state);
 static void sql_kill_user(THD *thd, LEX_USER *user, killed_state state);
 static bool execute_show_status(THD *, TABLE_LIST *);
-static bool execute_rename_table(THD *, TABLE_LIST *, TABLE_LIST *);
+static bool check_rename_table(THD *, TABLE_LIST *, TABLE_LIST *);
 
 const char *any_db="*any*";	// Special symbol for check_access
 
@@ -3055,8 +3055,12 @@ end_with_restore_list:
 
   case SQLCOM_RENAME_TABLE:
   {
+    if (check_rename_table(thd, first_table, all_tables))
+      goto error;
+
     WSREP_TO_ISOLATION_BEGIN(0, 0, first_table)
-    if (execute_rename_table(thd, first_table, all_tables))
+
+    if (mysql_rename_tables(thd, first_table, 0))
       goto error;
     break;
   }
@@ -5226,8 +5230,8 @@ static bool execute_show_status(THD *thd, TABLE_LIST *all_tables)
 }
 
 
-static bool execute_rename_table(THD *thd, TABLE_LIST *first_table,
-                                 TABLE_LIST *all_tables)
+static bool check_rename_table(THD *thd, TABLE_LIST *first_table,
+                               TABLE_LIST *all_tables)
 {
   DBUG_ASSERT(first_table == all_tables && first_table != 0);
   TABLE_LIST *table;
@@ -5241,7 +5245,7 @@ static bool execute_rename_table(THD *thd, TABLE_LIST *first_table,
                      &table->next_local->grant.privilege,
                      &table->next_local->grant.m_internal,
                      0, 0))
-      return 1;
+      return true;
     TABLE_LIST old_list, new_list;
     /*
       we do not need initialize old_list and new_list because we will
@@ -5254,10 +5258,10 @@ static bool execute_rename_table(THD *thd, TABLE_LIST *first_table,
                        INSERT_ACL | CREATE_ACL) &&
         check_grant(thd, INSERT_ACL | CREATE_ACL, &new_list, FALSE, 1,
                     FALSE)))
-      return 1;
+      return true;
   }
 
-  return mysql_rename_tables(thd, first_table, 0);
+  return false;
 }
 
 
