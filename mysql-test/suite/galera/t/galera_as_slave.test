@@ -45,3 +45,6 @@ DROP TABLE t1;
 
 STOP SLAVE;
 RESET SLAVE ALL;
+
+--connection node_1
+RESET MASTER;
