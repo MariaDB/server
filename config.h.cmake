@@ -87,6 +87,7 @@
 #cmakedefine HAVE_SYS_UTSNAME_H 1
 #cmakedefine HAVE_SYS_STAT_H 1
 #cmakedefine HAVE_SYS_STREAM_H 1
+#cmakedefine HAVE_SYS_SYSCALL_H 1
 #cmakedefine HAVE_SYS_TERMCAP_H 1
 #cmakedefine HAVE_SYS_TIMEB_H 1
 #cmakedefine HAVE_SYS_TIMES_H 1
