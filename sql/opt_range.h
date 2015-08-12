@@ -38,7 +38,7 @@
 class JOIN;
 class Item_sum;
 
-typedef struct st_key_part {
+struct KEY_PART {
   uint16           key,part;
   /* See KEY_PART_INFO for meaning of the next two: */
   uint16           store_length, length;
@@ -50,7 +50,7 @@ typedef struct st_key_part {
   uint8 flag;
   Field            *field;
   Field::imagetype image_type;
-} KEY_PART;
+};
 
 class Explain_quick_select;
 /*

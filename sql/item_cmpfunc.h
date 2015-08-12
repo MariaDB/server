@@ -120,6 +120,10 @@ public:
   friend class Item_func;
 };
 
+
+class SEL_ARG;
+struct KEY_PART;
+
 class Item_bool_func :public Item_int_func
 {
 protected:
@@ -147,6 +151,9 @@ protected:
   SEL_TREE *get_ne_mm_tree(RANGE_OPT_PARAM *param,
                            Field *field, Item *lt_value, Item *gt_value,
                            Item_result cmp_type);
+  virtual SEL_ARG *get_mm_leaf(RANGE_OPT_PARAM *param, Field *field,
+                               KEY_PART *key_part,
+                               Item_func::Functype type, Item *value);
 public:
   Item_bool_func() :Item_int_func() {}
   Item_bool_func(Item *a) :Item_int_func(a) {}
@@ -1437,6 +1444,9 @@ protected:
     DBUG_ENTER("Item_func_null_predicate::get_func_mm_tree");
     DBUG_RETURN(get_mm_parts(param, field, functype(), value, cmp_type));
   }
+  SEL_ARG *get_mm_leaf(RANGE_OPT_PARAM *param, Field *field,
+                       KEY_PART *key_part,
+                       Item_func::Functype type, Item *value);
 public:
   Item_func_null_predicate(Item *a) :Item_bool_func(a) { }
   void add_key_fields(JOIN *join, KEY_FIELD **key_fields, uint *and_level,
@@ -1552,6 +1562,10 @@ class Item_func_like :public Item_bool_func2
   DTCollation cmp_collation;
   String cmp_value1, cmp_value2;
   bool with_sargable_pattern() const;
+protected:
+  SEL_ARG *get_mm_leaf(RANGE_OPT_PARAM *param, Field *field,
+                       KEY_PART *key_part,
+                       Item_func::Functype type, Item *value);
 public:
   int escape;
 

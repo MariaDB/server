@@ -945,10 +945,6 @@ class TABLE_READ_PLAN;
 struct st_index_scan_info;
 struct st_ror_scan_info;
 
-static SEL_ARG *get_mm_leaf(RANGE_OPT_PARAM *param,COND *cond_func,Field *field,
-			    KEY_PART *key_part,
-			    Item_func::Functype type,Item *value);
-
 static bool is_key_scan_ror(PARAM *param, uint keynr, uint8 nparts);
 static ha_rows check_quick_select(PARAM *param, uint idx, bool index_only,
                                   SEL_ARG *tree, bool update_tbl_stats, 
@@ -8235,7 +8231,19 @@ Item_bool_func::get_mm_parts(RANGE_OPT_PARAM *param, Field *field,
 	DBUG_RETURN(0);				// OOM
       if (!value || !(value->used_tables() & ~param->read_tables))
       {
-	sel_arg= get_mm_leaf(param,this,key_part->field,key_part,type,value);
+        /*
+          We need to restore the runtime mem_root of the thread in this
+          function because it evaluates the value of its argument, while
+          the argument can be any, e.g. a subselect. The subselect
+          items, in turn, assume that all the memory allocated during
+          the evaluation has the same life span as the item itself.
+          TODO: opt_range.cc should not reset thd->mem_root at all.
+        */
+        MEM_ROOT *tmp_root= param->mem_root;
+        param->thd->mem_root= param->old_root;
+        sel_arg= get_mm_leaf(param, key_part->field, key_part, type, value);
+        param->thd->mem_root= tmp_root;
+
 	if (!sel_arg)
 	  continue;
 	if (sel_arg->type == SEL_ARG::IMPOSSIBLE)
@@ -8263,53 +8271,144 @@ Item_bool_func::get_mm_parts(RANGE_OPT_PARAM *param, Field *field,
 }
 
 
-static SEL_ARG *
-get_mm_leaf(RANGE_OPT_PARAM *param, COND *conf_func, Field *field,
-            KEY_PART *key_part, Item_func::Functype type,Item *value)
+SEL_ARG *
+Item_func_null_predicate::get_mm_leaf(RANGE_OPT_PARAM *param,
+                                      Field *field, KEY_PART *key_part,
+                                      Item_func::Functype type,
+                                      Item *value)
+{
+  MEM_ROOT *alloc= param->mem_root;
+  DBUG_ENTER("Item_func_null_predicate::get_mm_leaf");
+  DBUG_ASSERT(!value);
+  /*
+    No check for field->table->maybe_null. It's perfecly fine to use range
+    access for cases like
+
+      SELECT * FROM t1 LEFT JOIN t2 ON t2.key IS [NOT] NULL
+
+    ON expression is evaluated before considering NULL-complemented rows, so
+    IS [NOT] NULL has regular semantics.
+  */
+  if (!field->real_maybe_null())
+    DBUG_RETURN(type == ISNULL_FUNC ? &null_element : NULL);
+  SEL_ARG *tree;
+  if (!(tree= new (alloc) SEL_ARG(field, is_null_string, is_null_string)))
+    DBUG_RETURN(0);
+  if (type == Item_func::ISNOTNULL_FUNC)
+  {
+    tree->min_flag=NEAR_MIN;		    /* IS NOT NULL ->  X > NULL */
+    tree->max_flag=NO_MAX_RANGE;
+  }
+  DBUG_RETURN(tree);
+}
+
+
+SEL_ARG *
+Item_func_like::get_mm_leaf(RANGE_OPT_PARAM *param,
+                            Field *field, KEY_PART *key_part,
+                            Item_func::Functype type, Item *value)
+{
+  DBUG_ENTER("Item_func_like::get_mm_leaf");
+  DBUG_ASSERT(value);
+
+  if (key_part->image_type != Field::itRAW)
+    DBUG_RETURN(0);
+
+  if (param->using_real_indexes &&
+      !field->optimize_range(param->real_keynr[key_part->key],
+                             key_part->part))
+    DBUG_RETURN(0);
+
+  if (field->result_type() == STRING_RESULT &&
+      field->charset() != compare_collation())
+    DBUG_RETURN(0);
+
+  StringBuffer<MAX_FIELD_WIDTH> tmp(value->collation.collation);
+  String *res;
+
+  if (!(res= value->val_str(&tmp)))
+    DBUG_RETURN(&null_element);
+
+  if (field->cmp_type() != STRING_RESULT)
+    DBUG_RETURN(0);
+
+  /*
+    TODO:
+    Check if this was a function. This should have be optimized away
+    in the sql_select.cc
+  */
+  if (res != &tmp)
+  {
+    tmp.copy(*res);				// Get own copy
+    res= &tmp;
+  }
+
+  uint maybe_null= (uint) field->real_maybe_null();
+  uint field_length= field->pack_length() + maybe_null;
+  size_t offset= maybe_null;
+  size_t length= key_part->store_length;
+
+  if (length != key_part->length + maybe_null)
+  {
+    /* key packed with length prefix */
+    offset+= HA_KEY_BLOB_LENGTH;
+    field_length= length - HA_KEY_BLOB_LENGTH;
+  }
+  else
+  {
+    if (unlikely(length < field_length))
+    {
+      /*
+        This can only happen in a table created with UNIREG where one key
+        overlaps many fields
+      */
+      length= field_length;
+    }
+    else
+      field_length= length;
+  }
+  length+= offset;
+  uchar *min_str,*max_str;
+  if (!(min_str= (uchar*) alloc_root(param->mem_root, length*2)))
+    DBUG_RETURN(0);
+  max_str= min_str + length;
+  if (maybe_null)
+    max_str[0]= min_str[0]=0;
+
+  size_t min_length, max_length;
+  field_length-= maybe_null;
+  if (my_like_range(field->charset(),
+                                 res->ptr(), res->length(),
+                                 escape, wild_one, wild_many,
+                                 field_length,
+                                 (char*) min_str + offset,
+                                 (char*) max_str + offset,
+                                 &min_length, &max_length))
+    DBUG_RETURN(0);              // Can't optimize with LIKE
+
+  if (offset != maybe_null)			// BLOB or VARCHAR
+  {
+    int2store(min_str + maybe_null, min_length);
+    int2store(max_str + maybe_null, max_length);
+  }
+  SEL_ARG *tree= new (param->mem_root) SEL_ARG(field, min_str, max_str);
+  DBUG_RETURN(tree);
+}
+
+
+SEL_ARG *
+Item_bool_func::get_mm_leaf(RANGE_OPT_PARAM *param,
+                            Field *field, KEY_PART *key_part,
+                            Item_func::Functype type, Item *value)
 {
   uint maybe_null=(uint) field->real_maybe_null();
-  bool optimize_range;
   SEL_ARG *tree= 0;
   MEM_ROOT *alloc= param->mem_root;
   uchar *str;
   int err;
-  DBUG_ENTER("get_mm_leaf");
+  DBUG_ENTER("Item_bool_func::get_mm_leaf");
 
-  /*
-    We need to restore the runtime mem_root of the thread in this
-    function because it evaluates the value of its argument, while
-    the argument can be any, e.g. a subselect. The subselect
-    items, in turn, assume that all the memory allocated during
-    the evaluation has the same life span as the item itself.
-    TODO: opt_range.cc should not reset thd->mem_root at all.
-  */
-  param->thd->mem_root= param->old_root;
-  if (!value)					// IS NULL or IS NOT NULL
-  {
-    /*
-      No check for field->table->maybe_null. It's perfecly fine to use range
-      access for cases like 
-
-        SELECT * FROM t1 LEFT JOIN t2 ON t2.key IS [NOT] NULL
-
-      ON expression is evaluated before considering NULL-complemented rows, so
-      IS [NOT] NULL has regular semantics.
-    */
-    if (!maybe_null)				// Not null field
-    {
-      if (type == Item_func::ISNULL_FUNC)
-        tree= &null_element;
-      goto end;
-    }
-    if (!(tree= new (alloc) SEL_ARG(field,is_null_string,is_null_string)))
-      goto end;                                 // out of memory
-    if (type == Item_func::ISNOTNULL_FUNC)
-    {
-      tree->min_flag=NEAR_MIN;		    /* IS NOT NULL ->  X > NULL */
-      tree->max_flag=NO_MAX_RANGE;
-    }
-    goto end;
-  }
+  DBUG_ASSERT(value); // IS NULL and IS NOT NULL are handled separately
 
   /*
     1. Usually we can't use an index if the column collation
@@ -8327,9 +8426,9 @@ get_mm_leaf(RANGE_OPT_PARAM *param, COND *conf_func, Field *field,
       field->match_collation_to_optimize_range() &&
       value->result_type() == STRING_RESULT &&
       key_part->image_type == Field::itRAW &&
-      field->charset() != conf_func->compare_collation() &&
-      !((type == Item_func::EQUAL_FUNC || type == Item_func::EQ_FUNC) &&
-        conf_func->compare_collation()->state & MY_CS_BINSORT))
+      field->charset() != compare_collation() &&
+      !((type == EQUAL_FUNC || type == EQ_FUNC) &&
+        compare_collation()->state & MY_CS_BINSORT))
     goto end;
   if (value->cmp_type() == TIME_RESULT && field->cmp_type() != TIME_RESULT)
     goto end;
@@ -8338,14 +8437,14 @@ get_mm_leaf(RANGE_OPT_PARAM *param, COND *conf_func, Field *field,
   {
     // @todo: use is_spatial_operator() instead?
     switch (type) {
-    case Item_func::SP_EQUALS_FUNC:
-    case Item_func::SP_DISJOINT_FUNC:
-    case Item_func::SP_INTERSECTS_FUNC:
-    case Item_func::SP_TOUCHES_FUNC:
-    case Item_func::SP_CROSSES_FUNC:
-    case Item_func::SP_WITHIN_FUNC:
-    case Item_func::SP_CONTAINS_FUNC:
-    case Item_func::SP_OVERLAPS_FUNC:
+    case SP_EQUALS_FUNC:
+    case SP_DISJOINT_FUNC:
+    case SP_INTERSECTS_FUNC:
+    case SP_TOUCHES_FUNC:
+    case SP_CROSSES_FUNC:
+    case SP_WITHIN_FUNC:
+    case SP_CONTAINS_FUNC:
+    case SP_OVERLAPS_FUNC:
       break;
     default:
       /* 
@@ -8356,95 +8455,11 @@ get_mm_leaf(RANGE_OPT_PARAM *param, COND *conf_func, Field *field,
     }
   }
 
-  if (param->using_real_indexes)
-    optimize_range= field->optimize_range(param->real_keynr[key_part->key],
-                                          key_part->part);
-  else
-    optimize_range= TRUE;
-
-  if (type == Item_func::LIKE_FUNC)
-  {
-    bool like_error;
-    char buff1[MAX_FIELD_WIDTH];
-    uchar *min_str,*max_str;
-    String tmp(buff1,sizeof(buff1),value->collation.collation),*res;
-    size_t length, offset, min_length, max_length;
-    uint field_length= field->pack_length()+maybe_null;
-
-    if (!optimize_range)
-      goto end;
-    if (!(res= value->val_str(&tmp)))
-    {
-      tree= &null_element;
-      goto end;
-    }
-
-    /*
-      TODO:
-      Check if this was a function. This should have be optimized away
-      in the sql_select.cc
-    */
-    if (res != &tmp)
-    {
-      tmp.copy(*res);				// Get own copy
-      res= &tmp;
-    }
-    if (field->cmp_type() != STRING_RESULT)
-      goto end;                                 // Can only optimize strings
-
-    offset=maybe_null;
-    length=key_part->store_length;
-
-    if (length != key_part->length  + maybe_null)
-    {
-      /* key packed with length prefix */
-      offset+= HA_KEY_BLOB_LENGTH;
-      field_length= length - HA_KEY_BLOB_LENGTH;
-    }
-    else
-    {
-      if (unlikely(length < field_length))
-      {
-	/*
-	  This can only happen in a table created with UNIREG where one key
-	  overlaps many fields
-	*/
-	length= field_length;
-      }
-      else
-	field_length= length;
-    }
-    length+=offset;
-    if (!(min_str= (uchar*) alloc_root(alloc, length*2)))
-      goto end;
-
-    max_str=min_str+length;
-    if (maybe_null)
-      max_str[0]= min_str[0]=0;
-
-    field_length-= maybe_null;
-    like_error= my_like_range(field->charset(),
-			      res->ptr(), res->length(),
-			      ((Item_func_like*)(conf_func))->escape,
-			      wild_one, wild_many,
-			      field_length,
-			      (char*) min_str+offset, (char*) max_str+offset,
-			      &min_length, &max_length);
-    if (like_error)				// Can't optimize with LIKE
-      goto end;
-
-    if (offset != maybe_null)			// BLOB or VARCHAR
-    {
-      int2store(min_str+maybe_null,min_length);
-      int2store(max_str+maybe_null,max_length);
-    }
-    tree= new (alloc) SEL_ARG(field, min_str, max_str);
-    goto end;
-  }
-
-  if (!optimize_range &&
-      type != Item_func::EQ_FUNC &&
-      type != Item_func::EQUAL_FUNC)
+  if (param->using_real_indexes &&
+      !field->optimize_range(param->real_keynr[key_part->key],
+                             key_part->part) &&
+      type != EQ_FUNC &&
+      type != EQUAL_FUNC)
     goto end;                                   // Can't optimize this
 
   /*
@@ -8456,7 +8471,7 @@ get_mm_leaf(RANGE_OPT_PARAM *param, COND *conf_func, Field *field,
   err= value->save_in_field_no_warnings(field, 1);
   if (err == 2 && field->cmp_type() == STRING_RESULT)
   {
-    if (type == Item_func::EQ_FUNC)
+    if (type == EQ_FUNC)
     {
       tree= new (alloc) SEL_ARG(field, 0, 0);
       tree->type= SEL_ARG::IMPOSSIBLE;
@@ -8469,7 +8484,7 @@ get_mm_leaf(RANGE_OPT_PARAM *param, COND *conf_func, Field *field,
   {
     if (field->cmp_type() != value->result_type())
     {
-      if ((type == Item_func::EQ_FUNC || type == Item_func::EQUAL_FUNC) &&
+      if ((type == EQ_FUNC || type == EQUAL_FUNC) &&
           value->result_type() == item_cmp_type(field->result_type(),
                                                 value->result_type()))
       {
@@ -8485,8 +8500,8 @@ get_mm_leaf(RANGE_OPT_PARAM *param, COND *conf_func, Field *field,
         */
         tree= 0;
         if (err == 3 && field->type() == FIELD_TYPE_DATE &&
-            (type == Item_func::GT_FUNC || type == Item_func::GE_FUNC ||
-             type == Item_func::LT_FUNC || type == Item_func::LE_FUNC) )
+            (type == GT_FUNC || type == GE_FUNC ||
+             type == LT_FUNC || type == LE_FUNC) )
         {
           /*
             We were saving DATETIME into a DATE column, the conversion went ok
@@ -8519,14 +8534,14 @@ get_mm_leaf(RANGE_OPT_PARAM *param, COND *conf_func, Field *field,
     */
     else if (err == 1 && field->result_type() == INT_RESULT)
     {
-      if (type == Item_func::LT_FUNC && (value->val_int() > 0))
-        type = Item_func::LE_FUNC;
-      else if (type == Item_func::GT_FUNC &&
+      if (type == LT_FUNC && (value->val_int() > 0))
+        type= LE_FUNC;
+      else if (type == GT_FUNC &&
                (field->type() != FIELD_TYPE_BIT) &&
                !((Field_num*)field)->unsigned_flag &&
                !((Item_int*)value)->unsigned_flag &&
                (value->val_int() < 0))
-        type = Item_func::GE_FUNC;
+        type= GE_FUNC;
     }
   }
   else if (err < 0)
@@ -8540,7 +8555,7 @@ get_mm_leaf(RANGE_OPT_PARAM *param, COND *conf_func, Field *field,
     Any sargable predicate except "<=>" involving NULL as a constant is always
     FALSE
   */
-  if (type != Item_func::EQUAL_FUNC && field->is_real_null())
+  if (type != EQUAL_FUNC && field->is_real_null())
   {
     tree= &null_element;
     goto end;
@@ -8576,12 +8591,12 @@ get_mm_leaf(RANGE_OPT_PARAM *param, COND *conf_func, Field *field,
     longlong item_val= value->val_int();
     if (item_val < 0)
     {
-      if (type == Item_func::LT_FUNC || type == Item_func::LE_FUNC)
+      if (type == LT_FUNC || type == LE_FUNC)
       {
         tree->type= SEL_ARG::IMPOSSIBLE;
         goto end;
       }
-      if (type == Item_func::GT_FUNC || type == Item_func::GE_FUNC)
+      if (type == GT_FUNC || type == GE_FUNC)
       {
         tree= 0;
         goto end;
@@ -8590,11 +8605,11 @@ get_mm_leaf(RANGE_OPT_PARAM *param, COND *conf_func, Field *field,
   }
 
   switch (type) {
-  case Item_func::LT_FUNC:
+  case LT_FUNC:
     if (stored_field_cmp_to_item(param->thd, field, value) == 0)
       tree->max_flag=NEAR_MAX;
     /* fall through */
-  case Item_func::LE_FUNC:
+  case LE_FUNC:
     if (!maybe_null)
       tree->min_flag=NO_MIN_RANGE;		/* From start */
     else
@@ -8603,61 +8618,61 @@ get_mm_leaf(RANGE_OPT_PARAM *param, COND *conf_func, Field *field,
       tree->min_flag=NEAR_MIN;
     }
     break;
-  case Item_func::GT_FUNC:
+  case GT_FUNC:
     /* Don't use open ranges for partial key_segments */
     if ((!(key_part->flag & HA_PART_KEY_SEG)) &&
         (stored_field_cmp_to_item(param->thd, field, value) <= 0))
       tree->min_flag=NEAR_MIN;
     tree->max_flag= NO_MAX_RANGE;
     break;
-  case Item_func::GE_FUNC:
+  case GE_FUNC:
     /* Don't use open ranges for partial key_segments */
     if ((!(key_part->flag & HA_PART_KEY_SEG)) &&
         (stored_field_cmp_to_item(param->thd, field, value) < 0))
       tree->min_flag= NEAR_MIN;
     tree->max_flag=NO_MAX_RANGE;
     break;
-  case Item_func::SP_EQUALS_FUNC:
+  case SP_EQUALS_FUNC:
     tree->min_flag=GEOM_FLAG | HA_READ_MBR_EQUAL;// NEAR_MIN;//512;
     tree->max_flag=NO_MAX_RANGE;
     break;
-  case Item_func::SP_DISJOINT_FUNC:
+  case SP_DISJOINT_FUNC:
     tree->min_flag=GEOM_FLAG | HA_READ_MBR_DISJOINT;// NEAR_MIN;//512;
     tree->max_flag=NO_MAX_RANGE;
     break;
-  case Item_func::SP_INTERSECTS_FUNC:
+  case SP_INTERSECTS_FUNC:
     tree->min_flag=GEOM_FLAG | HA_READ_MBR_INTERSECT;// NEAR_MIN;//512;
     tree->max_flag=NO_MAX_RANGE;
     break;
-  case Item_func::SP_TOUCHES_FUNC:
+  case SP_TOUCHES_FUNC:
     tree->min_flag=GEOM_FLAG | HA_READ_MBR_INTERSECT;// NEAR_MIN;//512;
     tree->max_flag=NO_MAX_RANGE;
     break;
-
-  case Item_func::SP_CROSSES_FUNC:
+  case SP_CROSSES_FUNC:
     tree->min_flag=GEOM_FLAG | HA_READ_MBR_INTERSECT;// NEAR_MIN;//512;
     tree->max_flag=NO_MAX_RANGE;
     break;
-  case Item_func::SP_WITHIN_FUNC:
+  case SP_WITHIN_FUNC:
     tree->min_flag=GEOM_FLAG | HA_READ_MBR_WITHIN;// NEAR_MIN;//512;
     tree->max_flag=NO_MAX_RANGE;
     break;
-
-  case Item_func::SP_CONTAINS_FUNC:
+  case SP_CONTAINS_FUNC:
     tree->min_flag=GEOM_FLAG | HA_READ_MBR_CONTAIN;// NEAR_MIN;//512;
     tree->max_flag=NO_MAX_RANGE;
     break;
-  case Item_func::SP_OVERLAPS_FUNC:
+  case SP_OVERLAPS_FUNC:
     tree->min_flag=GEOM_FLAG | HA_READ_MBR_INTERSECT;// NEAR_MIN;//512;
     tree->max_flag=NO_MAX_RANGE;
     break;
-
+  case EQ_FUNC:
+  case EQUAL_FUNC:
+    break;
   default:
+    DBUG_ASSERT(0);
     break;
   }
 
 end:
-  param->thd->mem_root= alloc;
   DBUG_RETURN(tree);
 }
 
