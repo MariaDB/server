@@ -122,6 +122,31 @@ public:
 
 class Item_bool_func :public Item_int_func
 {
+protected:
+  /*
+    Build a SEL_TREE for a simple predicate
+    @param  param       PARAM from SQL_SELECT::test_quick_select
+    @param  field       field in the predicate
+    @param  value       constant in the predicate
+    @param  cmp_type    compare type for the field
+    @return Pointer to the tree built tree
+  */
+  virtual SEL_TREE *get_func_mm_tree(RANGE_OPT_PARAM *param,
+                                     Field *field, Item *value,
+                                     Item_result cmp_type)
+  {
+    DBUG_ENTER("Item_bool_func2::get_func_mm_tree");
+    DBUG_ASSERT(0);
+    DBUG_RETURN(0);
+  }
+  SEL_TREE *get_full_func_mm_tree(RANGE_OPT_PARAM *param,
+                                  Item_field *field_item, Item *value);
+  SEL_TREE *get_mm_parts(RANGE_OPT_PARAM *param, Field *field,
+                         Item_func::Functype type,
+                         Item *value, Item_result cmp_type);
+  SEL_TREE *get_ne_mm_tree(RANGE_OPT_PARAM *param,
+                           Field *field, Item *lt_value, Item *gt_value,
+                           Item_result cmp_type);
 public:
   Item_bool_func() :Item_int_func() {}
   Item_bool_func(Item *a) :Item_int_func(a) {}
@@ -291,6 +316,21 @@ protected:
   void add_key_fields_optimize_op(JOIN *join, KEY_FIELD **key_fields,
                                   uint *and_level, table_map usable_tables,
                                   SARGABLE_PARAM **sargables, bool equal_func);
+  SEL_TREE *get_func_mm_tree(RANGE_OPT_PARAM *param,
+                             Field *field, Item *value, Item_result cmp_type)
+  {
+    DBUG_ENTER("Item_bool_func2::get_func_mm_tree");
+    /*
+       Here the function for the following predicates are processed:
+       <, <=, =, <=>, >=, >, LIKE, spatial relations
+       If the predicate is of the form (value op field) it is handled
+       as the equivalent predicate (field rev_op value), e.g.
+       2 <= a is handled as a >= 2.
+    */
+    Item_func::Functype func_type=
+      (value != arguments()[0]) ? functype() : rev_functype();
+    DBUG_RETURN(get_mm_parts(param, field, func_type, value, cmp_type));
+  }
 public:
   Item_bool_func2(Item *a,Item *b)
     :Item_bool_func(a,b) { }
@@ -587,6 +627,13 @@ public:
 
 class Item_func_ne :public Item_bool_rowready_func2
 {
+protected:
+  SEL_TREE *get_func_mm_tree(RANGE_OPT_PARAM *param,
+                             Field *field, Item *value,  Item_result cmp_type)
+  {
+    DBUG_ENTER("Item_func_ne::get_func_mm_tree");
+    DBUG_RETURN(get_ne_mm_tree(param, field, value, value, cmp_type));
+  }
 public:
   Item_func_ne(Item *a,Item *b) :Item_bool_rowready_func2(a,b) {}
   longlong val_int();
@@ -635,6 +682,9 @@ public:
 class Item_func_between :public Item_func_opt_neg
 {
   DTCollation cmp_collation;
+protected:
+  SEL_TREE *get_func_mm_tree(RANGE_OPT_PARAM *param,
+                             Field *field, Item *value, Item_result cmp_type);
 public:
   Item_result cmp_type;
   String value0,value1,value2;
@@ -1292,6 +1342,9 @@ public:
 */
 class Item_func_in :public Item_func_opt_neg
 {
+protected:
+  SEL_TREE *get_func_mm_tree(RANGE_OPT_PARAM *param,
+                             Field *field, Item *value, Item_result cmp_type);
 public:
   /* 
     an array of values when the right hand arguments of IN
@@ -1377,6 +1430,13 @@ public:
 /* Functions used by where clause */
 class Item_func_null_predicate :public Item_bool_func
 {
+protected:
+  SEL_TREE *get_func_mm_tree(RANGE_OPT_PARAM *param,
+                             Field *field, Item *value, Item_result cmp_type)
+  {
+    DBUG_ENTER("Item_func_null_predicate::get_func_mm_tree");
+    DBUG_RETURN(get_mm_parts(param, field, functype(), value, cmp_type));
+  }
 public:
   Item_func_null_predicate(Item *a) :Item_bool_func(a) { }
   void add_key_fields(JOIN *join, KEY_FIELD **key_fields, uint *and_level,
