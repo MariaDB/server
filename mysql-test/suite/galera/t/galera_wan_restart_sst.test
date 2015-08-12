@@ -40,6 +40,7 @@ INSERT INTO t1 VALUES (13);
 --sleep 5
 
 --connection node_1
+--source include/wait_until_connected_again.inc
 INSERT INTO t1 VALUES (11);
 
 --connection node_2
@@ -66,6 +67,7 @@ INSERT INTO t1 VALUES (22);
 --sleep 5
 
 --connection node_1
+--source include/wait_until_connected_again.inc
 INSERT INTO t1 VALUES (21);
 
 --connection node_3
@@ -134,6 +136,7 @@ SELECT COUNT(*) = 19 FROM t1;
 --connection node_1
 DROP TABLE t1;
 CALL mtr.add_suppression("There are no nodes in the same segment that will ever be able to become donors, yet there is a suitable donor outside");
+CALL mtr.add_suppression("WSREP: gcs_caused\\(\\) returned -1 \\(Operation not permitted\\)");
 
 --connection node_2
 CALL mtr.add_suppression("Action message in non-primary configuration from member 0");

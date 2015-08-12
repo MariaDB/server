@@ -47,6 +47,7 @@ COUNT(*) = 19
 1
 DROP TABLE t1;
 CALL mtr.add_suppression("There are no nodes in the same segment that will ever be able to become donors, yet there is a suitable donor outside");
+CALL mtr.add_suppression("WSREP: gcs_caused\\(\\) returned -1 \\(Operation not permitted\\)");
 CALL mtr.add_suppression("Action message in non-primary configuration from member 0");
 CALL mtr.add_suppression("There are no nodes in the same segment that will ever be able to become donors, yet there is a suitable donor outside");
 CALL mtr.add_suppression("Action message in non-primary configuration from member 0");
