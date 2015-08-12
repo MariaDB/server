@@ -837,7 +837,6 @@ class RANGE_OPT_PARAM
 public:
   THD	*thd;   /* Current thread handle */
   TABLE *table; /* Table being analyzed */
-  COND *cond;   /* Used inside get_mm_tree(). */
   table_map prev_tables;
   table_map read_tables;
   table_map current_table; /* Bit of the table being analyzed */
@@ -8109,8 +8108,6 @@ Item_func_between::get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr)
   if (const_item())
     DBUG_RETURN(get_mm_tree_for_const(param, this));
 
-  param->cond= this;
-
   SEL_TREE *tree= 0;
   SEL_TREE *ftree= 0;
 
@@ -8158,8 +8155,6 @@ SEL_TREE *Item_func_in::get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr)
   if (const_item())
     DBUG_RETURN(get_mm_tree_for_const(param, this));
 
-  param->cond= this;
-
   if (key_item()->real_item()->type() != Item::FIELD_ITEM)
     DBUG_RETURN(0);
   Item_field *field= (Item_field*) (key_item()->real_item());
@@ -8173,8 +8168,6 @@ SEL_TREE *Item_equal::get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr)
   DBUG_ENTER("Item_equal::get_mm_tree");
   if (const_item())
     DBUG_RETURN(get_mm_tree_for_const(param, this));
-
-  param->cond= this;
 
   SEL_TREE *tree= 0;
   SEL_TREE *ftree= 0;
@@ -8215,7 +8208,6 @@ SEL_TREE *Item_func_null_predicate::get_mm_tree(RANGE_OPT_PARAM *param,
   DBUG_ENTER("Item_func_null_predicate::get_mm_tree");
   if (const_item())
     DBUG_RETURN(get_mm_tree_for_const(param, this));
-  param->cond= this;
   if (args[0]->real_item()->type() == Item::FIELD_ITEM)
   {
     Item_field *field_item= (Item_field*) args[0]->real_item();
@@ -8231,8 +8223,6 @@ SEL_TREE *Item_bool_func2::get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr)
   DBUG_ENTER("Item_bool_func2::get_mm_tree");
   if (const_item())
     DBUG_RETURN(get_mm_tree_for_const(param, this));
-
-  param->cond= this;
 
   SEL_TREE *ftree= 0;
   DBUG_ASSERT(arg_count == 2);
@@ -8491,7 +8481,7 @@ get_mm_leaf(RANGE_OPT_PARAM *param, COND *conf_func, Field *field,
     field_length-= maybe_null;
     like_error= my_like_range(field->charset(),
 			      res->ptr(), res->length(),
-			      ((Item_func_like*)(param->cond))->escape,
+			      ((Item_func_like*)(conf_func))->escape,
 			      wild_one, wild_many,
 			      field_length,
 			      (char*) min_str+offset, (char*) max_str+offset,
