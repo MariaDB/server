@@ -277,6 +277,9 @@ class Item_func_spatial_rel: public Item_bool_func2
 protected:
   enum Functype spatial_rel;
   String tmp_value1, tmp_value2;
+  SEL_ARG *get_mm_leaf(RANGE_OPT_PARAM *param, Field *field,
+                       KEY_PART *key_part,
+                       Item_func::Functype type, Item *value);
 public:
   Item_func_spatial_rel(Item *a, Item *b, enum Functype sp_rel)
    :Item_bool_func2(a, b), spatial_rel(sp_rel)
