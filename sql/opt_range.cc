@@ -7845,7 +7845,7 @@ Item_bool_func::get_mm_leaf(RANGE_OPT_PARAM *param,
   err= value->save_in_field_no_warnings(field, 1);
   if (err == 2 && field->cmp_type() == STRING_RESULT)
   {
-    if (type == EQ_FUNC)
+    if (type == EQ_FUNC || type == EQUAL_FUNC)
     {
       tree= new (alloc) SEL_ARG(field, 0, 0);
       tree->type= SEL_ARG::IMPOSSIBLE;
