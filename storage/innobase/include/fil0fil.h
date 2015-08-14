@@ -774,6 +774,9 @@ char*
 fil_read_link_file(
 /*===============*/
 	const char*	name);		/*!< in: tablespace name */
+
+#include "fil0crypt.h"
+
 /*******************************************************************//**
 Creates a new single-table tablespace to a database directory of MySQL.
 Database directories are under the 'datadir' of MySQL. The datadir is the
@@ -792,9 +795,11 @@ fil_create_new_single_table_tablespace(
 	const char*	dir_path,	/*!< in: NULL or a dir path */
 	ulint		flags,		/*!< in: tablespace flags */
 	ulint		flags2,		/*!< in: table flags2 */
-	ulint		size)		/*!< in: the initial size of the
+	ulint		size,		/*!< in: the initial size of the
 					tablespace file in pages,
 					must be >= FIL_IBD_FILE_INITIAL_SIZE */
+	fil_encryption_t mode,	/*!< in: encryption mode */
+	ulint		key_id)	/*!< in: encryption key_id */
 	__attribute__((nonnull, warn_unused_result));
 #ifndef UNIV_HOTBACKUP
 /********************************************************************//**

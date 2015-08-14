@@ -309,7 +309,8 @@ dict_build_table_def_step(
 			space, table->name, path,
 			dict_tf_to_fsp_flags(table->flags),
 			table->flags2,
-			FIL_IBD_FILE_INITIAL_SIZE);
+			FIL_IBD_FILE_INITIAL_SIZE,
+			node->mode, node->key_id);
 
 		table->space = (unsigned int) space;
 
@@ -934,8 +935,10 @@ tab_create_graph_create(
 	dict_table_t*	table,	/*!< in: table to create, built as a memory data
 				structure */
 	mem_heap_t*	heap,	/*!< in: heap where created */
-	bool		commit)	/*!< in: true if the commit node should be
+	bool		commit,	/*!< in: true if the commit node should be
 				added to the query graph */
+	fil_encryption_t mode,	/*!< in: encryption mode */
+	ulint		key_id)	/*!< in: encryption key_id */
 {
 	tab_node_t*	node;
 
@@ -948,6 +951,8 @@ tab_create_graph_create(
 
 	node->state = TABLE_BUILD_TABLE_DEF;
 	node->heap = mem_heap_create(256);
+	node->mode = mode;
+	node->key_id = key_id;
 
 	node->tab_def = ins_node_create(INS_DIRECT, dict_sys->sys_tables,
 					heap);
@@ -1042,7 +1047,6 @@ dict_create_table_step(
 		/* DO THE CHECKS OF THE CONSISTENCY CONSTRAINTS HERE */
 
 		err = dict_build_table_def_step(thr, node);
-
 		if (err != DB_SUCCESS) {
 
 			goto function_exit;

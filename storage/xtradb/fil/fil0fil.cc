@@ -2426,7 +2426,9 @@ fil_op_log_parse_or_replay(
 			if (fil_create_new_single_table_tablespace(
 				    space_id, name, path, flags,
 				    DICT_TF2_USE_TABLESPACE,
-				    FIL_IBD_FILE_INITIAL_SIZE) != DB_SUCCESS) {
+				    FIL_IBD_FILE_INITIAL_SIZE,
+				    FIL_SPACE_ENCRYPTION_DEFAULT,
+				    FIL_DEFAULT_ENCRYPTION_KEY) != DB_SUCCESS) {
 				ut_error;
 			}
 		}
@@ -3365,9 +3367,11 @@ fil_create_new_single_table_tablespace(
 	const char*	dir_path,	/*!< in: NULL or a dir path */
 	ulint		flags,		/*!< in: tablespace flags */
 	ulint		flags2,		/*!< in: table flags2 */
-	ulint		size)		/*!< in: the initial size of the
+	ulint		size,		/*!< in: the initial size of the
 					tablespace file in pages,
 					must be >= FIL_IBD_FILE_INITIAL_SIZE */
+	fil_encryption_t mode,	/*!< in: encryption mode */
+	ulint		key_id)	/*!< in: encryption key_id */
 {
 	os_file_t	file;
 	ibool		ret;
@@ -3534,7 +3538,7 @@ fil_create_new_single_table_tablespace(
 	}
 
 	success = fil_space_create(tablename, space_id, flags, FIL_TABLESPACE,
-		fil_space_create_crypt_data(FIL_SPACE_ENCRYPTION_DEFAULT, FIL_DEFAULT_ENCRYPTION_KEY));
+			fil_space_create_crypt_data(mode, key_id));
 
 	if (!success || !fil_node_create(path, size, space_id, FALSE)) {
 		err = DB_ERROR;
