@@ -2360,9 +2360,11 @@ int ODBConn::GetCatInfo(CATPARM *cap)
         } // endif rc
 
       for (n = 0, crp = qrp->Colresp; crp; n++, crp = crp->Next) {
-        if (vlen[n] == SQL_NULL_DATA)
+				if (vlen[n] == SQL_NO_TOTAL)
+					ThrowDBX("Unexpected SQL_NO_TOTAL returned from SQLFetch");
+				else if (vlen[n] == SQL_NULL_DATA)
           pval[n]->SetNull(true);
-        else if (crp->Type == TYPE_STRING && vlen[n] != SQL_NULL_DATA)
+        else if (crp->Type == TYPE_STRING/* && vlen[n] != SQL_NULL_DATA*/)
           pval[n]->SetValue_char(pbuf[n], vlen[n]);
         else
           pval[n]->SetNull(false);
