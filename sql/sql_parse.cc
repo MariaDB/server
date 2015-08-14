@@ -1075,6 +1075,12 @@ bool do_command(THD *thd)
                  "WSREP has not yet prepared node for application use",
                  MYF(0));
       thd->protocol->end_statement();
+
+      /* Performance Schema Interface instrumentation end */
+      MYSQL_END_STATEMENT(thd->m_statement_psi, thd->get_stmt_da());
+      thd->m_statement_psi= NULL;
+      thd->m_digest= NULL;
+
       return_value= FALSE;
       goto out;
     }
