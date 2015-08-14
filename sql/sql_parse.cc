@@ -862,6 +862,11 @@ bool do_command(THD *thd)
         command != COM_SLEEP        &&
         command != COM_STATISTICS   &&
         command != COM_TIME         &&
+        command != COM_STMT_PREPARE &&
+        command != COM_STMT_SEND_LONG_DATA &&
+        command != COM_STMT_EXECUTE &&
+        command != COM_STMT_RESET   &&
+        command != COM_STMT_CLOSE   &&
         command != COM_END
     ) {
       my_message(ER_UNKNOWN_COM_ERROR,

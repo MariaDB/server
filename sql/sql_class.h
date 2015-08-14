@@ -3076,6 +3076,8 @@ private:
 public:
   /** Overloaded to guard query/query_length fields */
   virtual void set_statement(Statement *stmt);
+  inline enum enum_server_command get_command() const
+  { return command; }
 
   /**
     Assign a new value to thd->query and thd->query_id and mysys_var.

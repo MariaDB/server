@@ -5226,20 +5226,22 @@ restart:
     }
   }
 #ifdef WITH_WSREP
-  if ((thd->lex->sql_command== SQLCOM_INSERT         ||
-       thd->lex->sql_command== SQLCOM_INSERT_SELECT  ||
-       thd->lex->sql_command== SQLCOM_REPLACE        ||
-       thd->lex->sql_command== SQLCOM_REPLACE_SELECT ||
-       thd->lex->sql_command== SQLCOM_UPDATE         ||
-       thd->lex->sql_command== SQLCOM_UPDATE_MULTI   ||
-       thd->lex->sql_command== SQLCOM_LOAD           ||
-       thd->lex->sql_command== SQLCOM_DELETE)        &&
-      wsrep_replicate_myisam                         &&
-      (*start)                                       &&
-      (*start)->table && (*start)->table->file->ht->db_type == DB_TYPE_MYISAM)
-    {
-      WSREP_TO_ISOLATION_BEGIN(NULL, NULL, (*start));
-    }
+  if (wsrep_replicate_myisam                               &&
+      (*start)                                             &&
+      (*start)->table                                      &&
+      (*start)->table->file->ht->db_type == DB_TYPE_MYISAM &&
+      thd->get_command() != COM_STMT_PREPARE               &&
+      ((thd->lex->sql_command == SQLCOM_INSERT             ||
+        thd->lex->sql_command == SQLCOM_INSERT_SELECT      ||
+        thd->lex->sql_command == SQLCOM_REPLACE            ||
+        thd->lex->sql_command == SQLCOM_REPLACE_SELECT     ||
+        thd->lex->sql_command == SQLCOM_UPDATE             ||
+        thd->lex->sql_command == SQLCOM_UPDATE_MULTI       ||
+        thd->lex->sql_command == SQLCOM_LOAD               ||
+        thd->lex->sql_command == SQLCOM_DELETE)))
+  {
+    WSREP_TO_ISOLATION_BEGIN(NULL, NULL, (*start));
+  }
  error:
 #endif
 
