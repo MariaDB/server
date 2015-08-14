@@ -1358,10 +1358,6 @@ void ODBCCOL::ReadColumn(PGLOBAL g)
 
   } // endif Buf_Type
 
-  // Handle null values
-  if (Value->IsZero())
-    Value->SetNull(Nullable);
-
   if (trace > 1) {
     char buf[64];
 

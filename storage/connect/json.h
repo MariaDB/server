@@ -1,5 +1,5 @@
 /**************** json H Declares Source Code File (.H) ****************/
-/*  Name: json.h   Version 1.1                                         */
+/*  Name: json.h   Version 1.2                                         */
 /*                                                                     */
 /*  (C) Copyright to the author Olivier BERTRAND          2014 - 2015  */
 /*                                                                     */
@@ -16,8 +16,9 @@
 enum JTYP {TYPE_STRG = 1, 
            TYPE_DBL = 2,
            TYPE_BOOL = 4,
-           TYPE_INTG = 7, 
-           TYPE_JSON = 12, 
+           TYPE_BINT = 5, 
+					 TYPE_INTG = 7,
+					 TYPE_JSON = 12,
            TYPE_JAR, 
            TYPE_JOB, 
            TYPE_JVAL};
@@ -40,13 +41,13 @@ typedef struct {
   int   len;
   } STRG, *PSG;
 
-PJSON ParseJson(PGLOBAL g, char *s, int n, int prty, bool *b = NULL);
+PJSON ParseJson(PGLOBAL g, char *s, int n, int prty = 2, bool *b = NULL);
 PJAR  ParseArray(PGLOBAL g, int& i, STRG& src);
 PJOB  ParseObject(PGLOBAL g, int& i, STRG& src);
 PJVAL ParseValue(PGLOBAL g, int& i, STRG& src);
 char *ParseString(PGLOBAL g, int& i, STRG& src);
 PVAL  ParseNumeric(PGLOBAL g, int& i, STRG& src);
-PSZ   Serialize(PGLOBAL g, PJSON jsp, FILE *fs, int pretty);
+PSZ   Serialize(PGLOBAL g, PJSON jsp, char *fn, int pretty);
 bool  SerializeArray(JOUT *js, PJAR jarp, bool b);
 bool  SerializeObject(JOUT *js, PJOB jobp);
 bool  SerializeValue(JOUT *js, PJVAL jvp);
@@ -118,7 +119,8 @@ class JOUTPRT : public JOUTFILE {
 /***********************************************************************/
 class JPAIR : public BLOCK {
   friend class JOBJECT;
-  friend PJOB ParseObject(PGLOBAL, int&, STRG&);
+	friend class JSNX;
+	friend PJOB ParseObject(PGLOBAL, int&, STRG&);
   friend bool SerializeObject(JOUT *, PJOB);
  public:
   JPAIR(PSZ key) : BLOCK() {Key = key; Val = NULL; Next = NULL;}
@@ -145,7 +147,7 @@ class JSON : public BLOCK {
   virtual JTYP   GetType(void) {return TYPE_JSON;}
   virtual JTYP   GetValType(void) {X return TYPE_JSON;}
   virtual void   InitArray(PGLOBAL g) {X}
-  virtual PJVAL  AddValue(PGLOBAL g, PJVAL jvp = NULL) {X return NULL;}
+  virtual PJVAL  AddValue(PGLOBAL g, PJVAL jvp = NULL, int *x = NULL) {X return NULL;}
   virtual PJPR   AddPair(PGLOBAL g, PSZ key) {X return NULL;}
   virtual PJVAL  GetValue(const char *key) {X return NULL;}
   virtual PJOB   GetObject(void) {return NULL;}
@@ -165,8 +167,9 @@ class JSON : public BLOCK {
   virtual void   SetString(PGLOBAL g, PSZ s) {X}
   virtual void   SetInteger(PGLOBAL g, int n) {X}
   virtual void   SetFloat(PGLOBAL g, double f) {X}
-  virtual bool   DeleteValue(int i) {X return true;}
-  virtual bool   IsNull(void) {X return true;}
+	virtual void   DeleteKey(char *k) {X}
+	virtual bool   DeleteValue(int i) {X return true;}
+	virtual bool   IsNull(void) {X return true;}
 
  protected:
   int Size;
@@ -178,6 +181,7 @@ class JSON : public BLOCK {
 class JOBJECT : public JSON {
   friend PJOB ParseObject(PGLOBAL, int&, STRG&);
   friend bool SerializeObject(JOUT *, PJOB);
+	friend class JSNX;
  public:
   JOBJECT(void) : JSON() {First = Last = NULL;}
 
@@ -191,7 +195,8 @@ class JOBJECT : public JSON {
   virtual PJVAL GetValue(const char* key);
   virtual PSZ   GetText(PGLOBAL g, PSZ text);
   virtual void  SetValue(PGLOBAL g, PJVAL jvp, PSZ key);
-  virtual bool  IsNull(void);
+	virtual void  DeleteKey(char *k);
+	virtual bool  IsNull(void);
 
  protected:
   PJPR First;
@@ -211,7 +216,7 @@ class JARRAY : public JSON {
   virtual void  Clear(void) {First = Last = NULL; Size = 0;}
   virtual JTYP  GetType(void) {return TYPE_JAR;}
   virtual PJAR  GetArray(void) {return this;}
-  virtual PJVAL AddValue(PGLOBAL g, PJVAL jvp = NULL);
+  virtual PJVAL AddValue(PGLOBAL g, PJVAL jvp = NULL, int *x = NULL);
   virtual void  InitArray(PGLOBAL g);
   virtual PJVAL GetValue(int i);
   virtual bool  SetValue(PGLOBAL g, PJVAL jvp, int i);
@@ -231,7 +236,8 @@ class JARRAY : public JSON {
 /***********************************************************************/
 class JVALUE : public JSON {
   friend class JARRAY;
-  friend PJVAL ParseValue(PGLOBAL, int&, STRG&);
+	friend class JSNX;
+	friend PJVAL ParseValue(PGLOBAL, int&, STRG&);
   friend bool  SerializeValue(JOUT *, PJVAL);
  public:
   JVALUE(void) : JSON() 
@@ -251,14 +257,16 @@ class JVALUE : public JSON {
   virtual PVAL   GetValue(void) {return Value;}
   virtual PJSON  GetJson(void) {return (Jsp ? Jsp : this);}
   virtual int    GetInteger(void);
-  virtual double GetFloat(void);
+	virtual long long GetBigint(void);
+	virtual double GetFloat(void);
   virtual PSZ    GetString(void);
   virtual PSZ    GetText(PGLOBAL g, PSZ text);
   virtual void   SetValue(PVAL valp) {Value = valp;}
   virtual void   SetValue(PJSON jsp) {Jsp = jsp;}
   virtual void   SetString(PGLOBAL g, PSZ s);
   virtual void   SetInteger(PGLOBAL g, int n);
-  virtual void   SetFloat(PGLOBAL g, double f);
+	virtual void   SetBigint(PGLOBAL g, longlong ll);
+	virtual void   SetFloat(PGLOBAL g, double f);
   virtual bool   IsNull(void);
 
  protected:
