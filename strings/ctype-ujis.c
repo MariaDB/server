@@ -67293,6 +67293,7 @@ static MY_CHARSET_HANDLER my_charset_handler=
     my_charlen_ujis,
     my_well_formed_char_length_ujis,
     my_copy_fix_mb,
+    my_native_to_mb_ujis,
 };
 
 

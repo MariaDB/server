@@ -256,10 +256,8 @@ static int my_mb_wc_bin(CHARSET_INFO *cs __attribute__((unused)),
 }
 
 
-static int my_wc_mb_bin(CHARSET_INFO *cs __attribute__((unused)),
-			my_wc_t wc,
-			uchar *s,
-			uchar *e __attribute__((unused)))
+int my_wc_mb_bin(CHARSET_INFO *cs __attribute__((unused)),
+                 my_wc_t wc, uchar *s, uchar *e)
 {
   if (s >= e)
     return MY_CS_TOOSMALL;
@@ -552,6 +550,7 @@ static MY_CHARSET_HANDLER my_charset_handler=
   my_charlen_8bit,
   my_well_formed_char_length_8bit,
   my_copy_8bit,
+  my_wc_mb_bin,
 };
 
 
