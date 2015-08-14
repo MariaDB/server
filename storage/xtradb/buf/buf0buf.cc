@@ -1082,6 +1082,8 @@ buf_block_init(
 	block->page.buf_fix_count = 0;
 	block->page.io_fix = BUF_IO_NONE;
 	block->page.key_version = 0;
+	block->page.page_encrypted = false;
+	block->page.page_compressed = false;
 	block->page.real_size = 0;
 	block->page.write_size = 0;
 	block->modify_clock = 0;
@@ -2831,6 +2833,7 @@ loop:
 				retries = BUF_PAGE_READ_MAX_RETRIES;
 			);
 		} else {
+
 			fprintf(stderr, "InnoDB: Error: Unable"
 				" to read tablespace %lu page no"
 				" %lu into the buffer pool after"
@@ -3620,6 +3623,8 @@ buf_page_init_low(
 	bpage->oldest_modification = 0;
 	bpage->write_size = 0;
 	bpage->key_version = 0;
+	bpage->page_encrypted = false;
+	bpage->page_compressed = false;
 	bpage->real_size = 0;
 
 	HASH_INVALIDATE(bpage, hash);
@@ -4334,10 +4339,9 @@ buf_page_check_corrupt(
 	ulint zip_size = buf_page_get_zip_size(bpage);
 	byte* dst_frame = (zip_size) ? bpage->zip.data :
 		((buf_block_t*) bpage)->frame;
-	unsigned key_version =
-		mach_read_from_4(dst_frame + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION);
-	bool page_compressed = fil_page_is_compressed(dst_frame);
-	bool page_compressed_encrypted = fil_page_is_compressed_encrypted(dst_frame);
+	unsigned key_version = bpage->key_version;
+	bool page_compressed = bpage->page_encrypted;
+	bool page_compressed_encrypted = bpage->page_compressed;
 	ulint space_id = mach_read_from_4(
 		dst_frame + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID);
 	fil_space_crypt_t* crypt_data = fil_space_get_crypt_data(space_id);
@@ -4347,15 +4351,20 @@ buf_page_check_corrupt(
 		(crypt_data && crypt_data->type != CRYPT_SCHEME_UNENCRYPTED) ||
 		page_compressed || page_compressed_encrypted) {
 		ib_logf(IB_LOG_LEVEL_ERROR,
-			"Maybe corruption: Block space_id %lu in file %s maybe corrupted\n"
-			"Reason could be that key_version in page %u \n"
-			"or in crypt_data %p could not be found,\n"
-			"key management plugin is not found or\n"
-			"used encryption algorithm or method does not match.\n"
-			"Page compressed %d, compressed and encrypted %d.\n",
-			space_id, space ? space->name : "NULL",
-			key_version,
-			crypt_data,
+			"Maybe corruption: Block space_id %lu in file %s maybe corrupted.",
+			space_id, space ? space->name : "NULL");
+		ib_logf(IB_LOG_LEVEL_ERROR,
+			"Page based on contents %s encrypted.",
+			(key_version == 0 && page_compressed_encrypted == false) ? "not" : "maybe");
+		ib_logf(IB_LOG_LEVEL_ERROR,
+			"Reason could be that key_version %u in page "
+			"or in crypt_data %p could not be found.",
+			key_version, crypt_data);
+		ib_logf(IB_LOG_LEVEL_ERROR,
+			"Reason could be also that key management plugin is not found or"
+			"used encryption algorithm or method does not match.");
+		ib_logf(IB_LOG_LEVEL_ERROR,
+			"Based on page page compressed %d, compressed and encrypted %d.",
 			page_compressed, page_compressed_encrypted);
 	}
 }
@@ -4481,44 +4490,39 @@ corrupt:
 			fil_system_enter();
 			space = fil_space_get_by_id(bpage->space);
 			fil_system_exit();
-			fprintf(stderr,
-				"InnoDB: Database page corruption on disk"
-				" or a failed\n"
-				"InnoDB: space %lu file %s read of page %lu.\n"
-				"InnoDB: You may have to recover"
-				" from a backup.\n",
+			ib_logf(IB_LOG_LEVEL_ERROR,
+				"Database page corruption on disk"
+				" or a failed");
+			ib_logf(IB_LOG_LEVEL_ERROR,
+				"Space %lu file %s read of page %lu.",
 				(ulint)bpage->space,
 				space ? space->name : "NULL",
 				(ulong) bpage->offset);
+			ib_logf(IB_LOG_LEVEL_ERROR,
+				"You may have to recover"
+				" from a backup.");
+
+			buf_page_check_corrupt(bpage);
 
 			buf_page_print(frame, buf_page_get_zip_size(bpage),
 				       BUF_PAGE_PRINT_NO_CRASH);
-			fprintf(stderr,
-				"InnoDB: Database page corruption on disk"
-				" or a failed\n"
-				"InnoDB: file read of page %lu.\n"
-				"InnoDB: You may have to recover"
-				" from a backup.\n",
-				(ulong) bpage->offset);
-			fputs("InnoDB: It is also possible that"
-			      " your operating\n"
-			      "InnoDB: system has corrupted its"
-			      " own file cache\n"
-			      "InnoDB: and rebooting your computer"
-			      " removes the\n"
-			      "InnoDB: error.\n"
-			      "InnoDB: If the corrupt page is an index page\n"
-			      "InnoDB: you can also try to"
-			      " fix the corruption\n"
-			      "InnoDB: by dumping, dropping,"
-			      " and reimporting\n"
-			      "InnoDB: the corrupt table."
-			      " You can use CHECK\n"
-			      "InnoDB: TABLE to scan your"
-			      " table for corruption.\n"
-			      "InnoDB: See also "
-			      REFMAN "forcing-innodb-recovery.html\n"
-			      "InnoDB: about forcing recovery.\n", stderr);
+			ib_logf(IB_LOG_LEVEL_ERROR,
+				"It is also possible that your operating"
+				"system has corrupted its own file cache.");
+			ib_logf(IB_LOG_LEVEL_ERROR,
+				"and rebooting your computer removes the error.");
+			ib_logf(IB_LOG_LEVEL_ERROR,
+				"If the corrupt page is an index page you can also try to");
+			ib_logf(IB_LOG_LEVEL_ERROR,
+				"fix the corruption by dumping, dropping, and reimporting");
+			ib_logf(IB_LOG_LEVEL_ERROR,
+				"the corrupt table. You can use CHECK");
+			ib_logf(IB_LOG_LEVEL_ERROR,
+				"TABLE to scan your table for corruption.");
+			ib_logf(IB_LOG_LEVEL_ERROR,
+			      "See also "
+			      REFMAN "forcing-innodb-recovery.html"
+			      " about forcing recovery.");
 
 			if (srv_pass_corrupt_table && bpage->space != 0
 			    && bpage->space < SRV_LOG_SPACE_FIRST_ID) {
@@ -4536,7 +4540,8 @@ corrupt:
 					dict_table_set_corrupt_by_space(bpage->space, TRUE);
 				}
 				bpage->is_corrupt = TRUE;
-			} else
+			}
+
 			if (srv_force_recovery < SRV_FORCE_IGNORE_CORRUPT) {
 				/* If page space id is larger than TRX_SYS_SPACE
 				(0), we will attempt to mark the corresponding
@@ -4547,10 +4552,8 @@ corrupt:
 				} else {
 					buf_page_check_corrupt(bpage);
 
-					fputs("InnoDB: Ending processing"
-					      " because of"
-					      " a corrupt database page.\n",
-					      stderr);
+					ib_logf(IB_LOG_LEVEL_ERROR,
+						"Ending processing because of a corrupt database page.");
 
 					ut_error;
 				}
@@ -6080,6 +6083,11 @@ buf_page_decrypt_after_read(
 		/* File header pages are not encrypted/compressed */
 		return (TRUE);
 	}
+
+	/* Store these for corruption check */
+	bpage->key_version = key_version;
+	bpage->page_encrypted = page_compressed_encrypted;
+	bpage->page_compressed = page_compressed;
 
 	if (page_compressed) {
 		/* the page we read is unencrypted */
