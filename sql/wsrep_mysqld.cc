@@ -1130,7 +1130,13 @@ create_view_query(THD *thd, uchar** buf, size_t* buf_len)
     buff.append(command[thd->lex->create_view_mode].str,
                 command[thd->lex->create_view_mode].length);
 
-    if (!lex->definer)
+    LEX_USER *definer;
+
+    if (lex->definer)
+    {
+      definer= get_current_user(thd, lex->definer);
+    }
+    else
     {
       /*
         DEFINER-clause is missing; we have to create default definer in
@@ -1138,16 +1144,19 @@ create_view_query(THD *thd, uchar** buf, size_t* buf_len)
         If this is an ALTER VIEW then the current user should be set as
         the definer.
       */
+      definer= create_default_definer(thd, false);
+    }
 
-      if (!(lex->definer= create_default_definer(thd, false)))
-      {
-        WSREP_WARN("view default definer issue");
-      }
+    if (definer)
+    {
+      views->definer.user = definer->user;
+      views->definer.host = definer->host;
+    } else {
+      WSREP_ERROR("Failed to get DEFINER for VIEW.");
+      return 1;
     }
 
     views->algorithm    = lex->create_view_algorithm;
-    views->definer.user = lex->definer->user;
-    views->definer.host = lex->definer->host;
     views->view_suid    = lex->create_view_suid;
     views->with_check   = lex->create_view_check;
 
