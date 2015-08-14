@@ -57,8 +57,8 @@ NODE_MYSOCK_1= @mysqld.1.socket
 NODE_MYPORT_2= @mysqld.2.port
 NODE_MYSOCK_2= @mysqld.2.socket
 
-NODE_MYPORT_3= @mysqld.2.port
-NODE_MYSOCK_3= @mysqld.2.socket
+NODE_MYPORT_3= @mysqld.3.port
+NODE_MYSOCK_3= @mysqld.3.socket
 
 NODE_GALERAPORT_2= @mysqld.2.#galera_port
 NODE_GALERAPORT_3= @mysqld.3.#galera_port
