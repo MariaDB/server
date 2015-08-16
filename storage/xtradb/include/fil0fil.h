@@ -207,6 +207,7 @@ struct fsp_open_info {
 	ulint		flags;		/*!< Tablespace flags */
 	ulint		encryption_error; /*!< if an encryption error occurs */
 	fil_space_crypt_t* crypt_data;  /*!< crypt data */
+	dict_table_t*	table;		/*!< table */
 };
 
 struct fil_space_t;
@@ -828,7 +829,8 @@ fil_open_single_table_tablespace(
 	ulint		flags,		/*!< in: tablespace flags */
 	const char*	tablename,	/*!< in: table name in the
 					databasename/tablename format */
-	const char*	filepath)	/*!< in: tablespace filepath */
+	const char*	filepath,	/*!< in: tablespace filepath */
+	dict_table_t*	table)		/*!< in: table */
 	__attribute__((nonnull(5), warn_unused_result));
 
 #endif /* !UNIV_HOTBACKUP */

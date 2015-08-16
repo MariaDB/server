@@ -5629,6 +5629,26 @@ table_opened:
 		free_share(share);
 		my_errno = ENOENT;
 
+		/* If table has no talespace but it has crypt data, check
+		is tablespace made unaccessible because encryption service
+		or used key_id is not available. */
+		if (ib_table && ib_table->crypt_data) {
+			fil_space_crypt_t* crypt_data = ib_table->crypt_data;
+			if ((crypt_data->encryption == FIL_SPACE_ENCRYPTION_ON) ||
+				(srv_encrypt_tables &&
+					crypt_data && crypt_data->encryption == FIL_SPACE_ENCRYPTION_DEFAULT)) {
+
+				if (!encryption_key_id_exists(crypt_data->key_id)) {
+					push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+						HA_ERR_NO_SUCH_TABLE,
+						"Table %s is encrypted but encryption service or"
+						" used key_id %u is not available. "
+						" Can't continue reading table.",
+						ib_table->name, crypt_data->key_id);
+				}
+			}
+		}
+
 		dict_table_close(ib_table, FALSE, FALSE);
 
 		DBUG_RETURN(HA_ERR_NO_SUCH_TABLE);

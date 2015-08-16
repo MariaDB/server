@@ -4435,6 +4435,20 @@ sub extract_warning_lines ($$) {
      qr|SSL error: Failed to set ciphers to use|,
      qr/Plugin 'InnoDB' will be forced to shutdown/,
      qr|Could not increase number of max_open_files to more than|,
+     qr/InnoDB: Error table encrypted but encryption service not available.*/,
+     qr/InnoDB: Could not find a valid tablespace file for*/,
+     qr/InnoDB: Tablespace open failed for*/,
+     qr/InnoDB: Failed to find tablespace for table*/,
+     qr/InnoDB: Space */,
+     qr|InnoDB: You may have to recover from a backup|,
+     qr|InnoDB: It is also possible that your operatingsystem has corrupted its own file cache|,
+     qr|InnoDB: and rebooting your computer removes the error|,
+     qr|InnoDB: If the corrupt page is an index page you can also try to|,
+     qr|nnoDB: fix the corruption by dumping, dropping, and reimporting|,
+     qr|InnoDB: the corrupt table. You can use CHECK|,
+     qr|InnoDB: TABLE to scan your table for corruption|,
+     qr/InnoDB: See also */
+
     );
 
   my $matched_lines= [];

@@ -2023,6 +2023,7 @@ fil_read_first_page(
 	const char*	check_msg = NULL;
 	fil_space_crypt_t* cdata;
 
+
 	buf = static_cast<byte*>(ut_malloc(2 * UNIV_PAGE_SIZE));
 
 	/* Align the memory for a possible read from a raw device */
@@ -2053,6 +2054,10 @@ fil_read_first_page(
 		fsp_flags_get_zip_size(*flags), NULL);
 	cdata = fil_space_read_crypt_data(space, page, offset);
 
+	if (crypt_data) {
+		*crypt_data = cdata;
+	}
+
 	/* If file space is encrypted we need to have at least some
 	encryption service available where to get keys */
 	if ((cdata && cdata->encryption == FIL_SPACE_ENCRYPTION_ON) ||
@@ -2060,16 +2065,14 @@ fil_read_first_page(
 			cdata && cdata->encryption == FIL_SPACE_ENCRYPTION_DEFAULT)) {
 
 		if (!encryption_key_id_exists(cdata->key_id)) {
-			ib_logf(IB_LOG_LEVEL_FATAL,
-				"Tablespace id %ld encrypted but encryption service"
-				" not available. Can't continue opening tablespace.\n",
-				space);
-			ut_error;
-		}
-	}
+			ib_logf(IB_LOG_LEVEL_ERROR,
+				"Tablespace id %ld is encrypted but encryption service"
+				" or used key_id %u is not available. Can't continue opening tablespace.",
+				space, cdata->key_id);
 
-	if (crypt_data) {
-		*crypt_data = cdata;
+			return ("table encrypted but encryption service not available.");
+
+		}
 	}
 
 	ut_free(buf);
@@ -3655,7 +3658,8 @@ fil_open_single_table_tablespace(
 	ulint		flags,		/*!< in: tablespace flags */
 	const char*	tablename,	/*!< in: table name in the
 					databasename/tablename format */
-	const char*	path_in)	/*!< in: tablespace filepath */
+	const char*	path_in,	/*!< in: tablespace filepath */
+	dict_table_t*	table)		/*!< in: table */
 {
 	dberr_t		err = DB_SUCCESS;
 	bool		dict_filepath_same_as_default = false;
@@ -3769,6 +3773,10 @@ fil_open_single_table_tablespace(
 			&def.lsn, &def.lsn, &def.crypt_data);
 		def.valid = !def.check_msg;
 
+		if (table) {
+			table->crypt_data = def.crypt_data;
+		}
+
 		/* Validate this single-table-tablespace with SYS_TABLES,
 		but do not compare the DATA_DIR flag, in case the
 		tablespace was relocated. */
@@ -3790,6 +3798,10 @@ fil_open_single_table_tablespace(
 			remote.file, FALSE, &remote.flags, &remote.id,
 			&remote.lsn, &remote.lsn, &remote.crypt_data);
 		remote.valid = !remote.check_msg;
+
+		if (table) {
+			table->crypt_data = remote.crypt_data;
+		}
 
 		/* Validate this single-table-tablespace with SYS_TABLES,
 		but do not compare the DATA_DIR flag, in case the
@@ -3813,6 +3825,10 @@ fil_open_single_table_tablespace(
 			dict.file, FALSE, &dict.flags, &dict.id,
 			&dict.lsn, &dict.lsn, &dict.crypt_data);
 		dict.valid = !dict.check_msg;
+
+		if (table) {
+			table->crypt_data = dict.crypt_data;
+		}
 
 		/* Validate this single-table-tablespace with SYS_TABLES,
 		but do not compare the DATA_DIR flag, in case the
@@ -3995,7 +4011,9 @@ cleanup_and_exit:
 		mem_free(remote.filepath);
 	}
 	if (remote.crypt_data && remote.crypt_data != crypt_data) {
-		fil_space_destroy_crypt_data(&remote.crypt_data);
+		if (err == DB_SUCCESS) {
+			fil_space_destroy_crypt_data(&remote.crypt_data);
+		}
 	}
 	if (dict.success) {
 		os_file_close(dict.file);
@@ -4010,7 +4028,9 @@ cleanup_and_exit:
 		os_file_close(def.file);
 	}
 	if (def.crypt_data && def.crypt_data != crypt_data) {
-		fil_space_destroy_crypt_data(&def.crypt_data);
+		if (err == DB_SUCCESS) {
+			fil_space_destroy_crypt_data(&def.crypt_data);
+		}
 	}
 
 	mem_free(def.filepath);

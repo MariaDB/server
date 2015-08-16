@@ -51,6 +51,9 @@ Created 1/8/1996 Heikki Tuuri
 #include "trx0types.h"
 #include "fts0fts.h"
 #include "os0once.h"
+#include "fil0fil.h"
+#include <my_crypt.h>
+#include "fil0crypt.h"
 #include <set>
 #include <algorithm>
 #include <iterator>
@@ -1030,6 +1033,7 @@ struct dict_table_t{
 	table_id_t	id;	/*!< id of the table */
 	mem_heap_t*	heap;	/*!< memory heap */
 	char*		name;	/*!< table name */
+	fil_space_crypt_t *crypt_data; /*!< crypt data if present */
 	const char*	dir_path_of_temp_table;/*!< NULL or the directory path
 				where a TEMPORARY table that was explicitly
 				created by a user should be placed if
