@@ -4583,8 +4583,7 @@ String *Item_func_dyncol_create::val_str(String *str)
       char *ptr;
       size_t length, alloc_length;
       dynstr_reassociate(&col, &ptr, &length, &alloc_length);
-      str_value.reassociate(ptr, (uint32) length, (uint32) alloc_length,
-                            &my_charset_bin);
+      str_value.reset(ptr, length, alloc_length, &my_charset_bin);
       res= &str_value;
       null_value= FALSE;
     }
@@ -4676,8 +4675,7 @@ String *Item_func_dyncol_json::val_str(String *str)
     char *ptr;
     size_t length, alloc_length;
     dynstr_reassociate(&json, &ptr, &length, &alloc_length);
-    str->reassociate(ptr, (uint32) length, (uint32) alloc_length,
-                     &my_charset_utf8_general_ci);
+    str->reset(ptr, length, alloc_length, &my_charset_utf8_general_ci);
     null_value= FALSE;
   }
   return str;
@@ -4725,8 +4723,7 @@ String *Item_func_dyncol_add::val_str(String *str)
     char *ptr;
     size_t length, alloc_length;
     dynstr_reassociate(&col, &ptr, &length, &alloc_length);
-    str->reassociate(ptr, (uint32) length, (uint32) alloc_length,
-                     &my_charset_bin);
+    str->reset(ptr, length, alloc_length, &my_charset_bin);
     null_value= FALSE;
   }
 
