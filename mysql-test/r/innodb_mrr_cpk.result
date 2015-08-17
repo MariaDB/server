@@ -11,7 +11,7 @@ create table t1(a char(8), b char(8), filler char(100), primary key(a));
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` char(8) NOT NULL DEFAULT '',
+  `a` char(8) NOT NULL,
   `b` char(8) DEFAULT NULL,
   `filler` char(100) DEFAULT NULL,
   PRIMARY KEY (`a`)

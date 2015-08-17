@@ -4092,6 +4092,20 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
   {
     Field::utype type= (Field::utype) MTYP_TYPENR(sql_field->unireg_check);
 
+    /*
+      Set NO_DEFAULT_VALUE_FLAG if this field doesn't have a default value and
+      it is NOT NULL, not an AUTO_INCREMENT field, not a TIMESTAMP and not
+      updated trough a NOW() function.
+    */
+    if (!sql_field->def &&
+        !sql_field->has_default_function() &&
+        (sql_field->flags & NOT_NULL_FLAG) &&
+        !is_timestamp_type(sql_field->sql_type))
+    {
+      sql_field->flags|= NO_DEFAULT_VALUE_FLAG;
+      sql_field->pack_flag|= FIELDFLAG_NO_DEFAULT;
+    }
+
     if (thd->variables.sql_mode & MODE_NO_ZERO_DATE &&
         !sql_field->def &&
         is_timestamp_type(sql_field->sql_type) &&

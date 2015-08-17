@@ -224,9 +224,21 @@ CREATE TABLE t1 AS
 SELECT 10 AS a, REPEAT('a',20) AS b, REPEAT('a',8) AS c, REPEAT('a',8) AS d;
 ALTER TABLE t1 ADD PRIMARY KEY(a), ADD KEY(b);
 INSERT INTO t1 (a, b) VALUES (1, repeat(0xF1F2,5));
+Warnings:
+Warning	1364	Field 'c' doesn't have a default value
+Warning	1364	Field 'd' doesn't have a default value
 INSERT INTO t1 (a, b) VALUES (2, repeat(0xF1F2,10));
+Warnings:
+Warning	1364	Field 'c' doesn't have a default value
+Warning	1364	Field 'd' doesn't have a default value
 INSERT INTO t1 (a, b) VALUES (3, repeat(0xF1F2,11));
+Warnings:
+Warning	1364	Field 'c' doesn't have a default value
+Warning	1364	Field 'd' doesn't have a default value
 INSERT INTO t1 (a, b) VALUES (4, repeat(0xF1F2,12));
+Warnings:
+Warning	1364	Field 'c' doesn't have a default value
+Warning	1364	Field 'd' doesn't have a default value
 SELECT hex(concat(repeat(0xF1F2, 10), '%'));
 hex(concat(repeat(0xF1F2, 10), '%'))
 F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F225
@@ -439,9 +451,21 @@ CREATE TABLE t1 AS
 SELECT 10 AS a, REPEAT('a',20) AS b, REPEAT('a',8) AS c, REPEAT('a',8) AS d;
 ALTER TABLE t1 ADD PRIMARY KEY(a), ADD KEY(b);
 INSERT INTO t1 (a, b) VALUES (1, repeat(0xF1F2,5));
+Warnings:
+Warning	1364	Field 'c' doesn't have a default value
+Warning	1364	Field 'd' doesn't have a default value
 INSERT INTO t1 (a, b) VALUES (2, repeat(0xF1F2,10));
+Warnings:
+Warning	1364	Field 'c' doesn't have a default value
+Warning	1364	Field 'd' doesn't have a default value
 INSERT INTO t1 (a, b) VALUES (3, repeat(0xF1F2,11));
+Warnings:
+Warning	1364	Field 'c' doesn't have a default value
+Warning	1364	Field 'd' doesn't have a default value
 INSERT INTO t1 (a, b) VALUES (4, repeat(0xF1F2,12));
+Warnings:
+Warning	1364	Field 'c' doesn't have a default value
+Warning	1364	Field 'd' doesn't have a default value
 SELECT hex(concat(repeat(0xF1F2, 10), '%'));
 hex(concat(repeat(0xF1F2, 10), '%'))
 F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F225
@@ -528,7 +552,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `code` varchar(8) DEFAULT NULL,
-  `a` varchar(1) CHARACTER SET big5 NOT NULL DEFAULT ''
+  `a` varchar(1) CHARACTER SET big5 NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 SELECT COUNT(*) FROM t1;
 COUNT(*)
@@ -926,7 +950,7 @@ CREATE TABLE t1 AS SELECT 'a' AS a;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` varchar(1) CHARACTER SET big5 NOT NULL DEFAULT ''
+  `a` varchar(1) CHARACTER SET big5 NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 CREATE TABLE t2 AS SELECT WEIGHT_STRING(a) AS ws FROM t1;
 SHOW CREATE TABLE t2;
@@ -946,7 +970,7 @@ CREATE TABLE t1 AS SELECT REPEAT('a',5) AS a;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` varchar(5) CHARACTER SET big5 NOT NULL DEFAULT ''
+  `a` varchar(5) CHARACTER SET big5 NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 CREATE TABLE t2 AS SELECT WEIGHT_STRING(a) AS ws FROM t1;
 SHOW CREATE TABLE t2;
@@ -1185,7 +1209,7 @@ CREATE TABLE t1 AS SELECT 'a' AS a;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` varchar(1) CHARACTER SET big5 COLLATE big5_bin NOT NULL DEFAULT ''
+  `a` varchar(1) CHARACTER SET big5 COLLATE big5_bin NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 CREATE TABLE t2 AS SELECT WEIGHT_STRING(a) AS ws FROM t1;
 SHOW CREATE TABLE t2;
@@ -1205,7 +1229,7 @@ CREATE TABLE t1 AS SELECT REPEAT('a',5) AS a;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` varchar(5) CHARACTER SET big5 COLLATE big5_bin NOT NULL DEFAULT ''
+  `a` varchar(5) CHARACTER SET big5 COLLATE big5_bin NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 CREATE TABLE t2 AS SELECT WEIGHT_STRING(a) AS ws FROM t1;
 SHOW CREATE TABLE t2;
@@ -4548,7 +4572,7 @@ CREATE TABLE t1 AS SELECT REPEAT(' ',10) AS a LIMIT 0;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` varchar(10) CHARACTER SET big5 NOT NULL DEFAULT ''
+  `a` varchar(10) CHARACTER SET big5 NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 INSERT INTO t1 VALUES ('à\'),('à\t');
 INSERT INTO t1 VALUES ('\\à\'),('\\à\t'),('\\à\t\t');
@@ -4587,7 +4611,7 @@ CREATE TABLE t1 AS SELECT REPEAT(' ', 10) AS a LIMIT 0;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` varchar(10) CHARACTER SET big5 NOT NULL DEFAULT ''
+  `a` varchar(10) CHARACTER SET big5 NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 INSERT INTO t1 VALUES (BINARY('à\')),(BINARY('à\t'));
 INSERT INTO t1 VALUES (BINARY('\\à\')),(BINARY('\\à\t')),(BINARY('\\à\t\t'));
@@ -4626,7 +4650,7 @@ CREATE TABLE t1 AS SELECT REPEAT(' ', 10) AS a LIMIT 0;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` varchar(10) CHARACTER SET big5 NOT NULL DEFAULT ''
+  `a` varchar(10) CHARACTER SET big5 NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 INSERT INTO t1 VALUES (_BINARY'à\'),(_BINARY'à\t');
 INSERT INTO t1 VALUES (_BINARY'\\à\'),(_BINARY'\\à\t'),(_BINARY'\\à\t\t');
@@ -4672,7 +4696,7 @@ CREATE TABLE t1 AS SELECT REPEAT(' ', 10) AS a LIMIT 0;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` varchar(10) CHARACTER SET big5 NOT NULL DEFAULT ''
+  `a` varchar(10) CHARACTER SET big5 NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 INSERT INTO t1 VALUES ('à\['),('\à\[');
 SELECT HEX(a) FROM t1;
@@ -4692,7 +4716,7 @@ CREATE TABLE t1 AS SELECT REPEAT(' ', 10) AS a LIMIT 0;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` varbinary(10) NOT NULL DEFAULT ''
+  `a` varbinary(10) NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 INSERT INTO t1 VALUES ('à\['),('\à\[');
 SELECT HEX(a) FROM t1;

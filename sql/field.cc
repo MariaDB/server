@@ -9463,14 +9463,6 @@ bool Create_field::check(THD *thd)
     sql_type= vcol_info->get_real_type();
   }
 
-  /*
-    Set NO_DEFAULT_VALUE_FLAG if this field doesn't have a default value and
-    it is NOT NULL, not an AUTO_INCREMENT field and not a TIMESTAMP.
-  */
-  if (!def && unireg_check == Field::NONE &&
-      (flags & NOT_NULL_FLAG) && !is_timestamp_type(sql_type))
-    flags|= NO_DEFAULT_VALUE_FLAG;
-
   sign_len= flags & UNSIGNED_FLAG ? 0 : 1;
 
   switch (sql_type) {
@@ -9662,6 +9654,16 @@ bool Create_field::check(THD *thd)
   }
   /* Remember the value of length */
   char_length= length;
+
+  /*
+    Set NO_DEFAULT_VALUE_FLAG if this field doesn't have a default value and
+    it is NOT NULL, not an AUTO_INCREMENT field and not a TIMESTAMP.
+    We need to do this check here and in mysql_create_prepare_table() as
+    sp_head::fill_field_definition() calls this function.
+  */
+  if (!def && unireg_check == Field::NONE &&
+      (flags & NOT_NULL_FLAG) && !is_timestamp_type(sql_type))
+    flags|= NO_DEFAULT_VALUE_FLAG;
 
   if (!(flags & BLOB_FLAG) &&
       ((length > max_field_charlength &&

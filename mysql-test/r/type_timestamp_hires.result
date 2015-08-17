@@ -131,9 +131,9 @@ show create table t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` timestamp(4) NOT NULL DEFAULT CURRENT_TIMESTAMP(4) ON UPDATE CURRENT_TIMESTAMP(4),
-  `a+0` decimal(25,4) NOT NULL DEFAULT '0.0000',
-  `a-1` decimal(25,4) NOT NULL DEFAULT '0.0000',
-  `a*1` decimal(25,4) NOT NULL DEFAULT '0.0000',
+  `a+0` decimal(25,4) NOT NULL,
+  `a-1` decimal(25,4) NOT NULL,
+  `a*1` decimal(25,4) NOT NULL,
   `a/2` decimal(28,8) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 show create table t3;

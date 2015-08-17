@@ -3315,7 +3315,7 @@ DROP TABLE IF EXISTS t1;
 DROP VIEW  IF EXISTS v1;
 --enable_warnings
 
-CREATE TABLE t1 ( f1 BIGINT, f2 CHAR(20), f3 NUMERIC(7,4),
+CREATE TABLE t1 ( f1 BIGINT DEFAULT 0, f2 CHAR(20), f3 NUMERIC(7,4),
                   f4 CHAR, PRIMARY KEY(f1));
 
 # VIEW including the base table PRIMARY KEY, but not all base table columns (f4)

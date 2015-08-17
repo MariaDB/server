@@ -840,8 +840,8 @@ create table t2 engine heap select concat(a,_utf8mb4'') as a, concat(b,_utf8mb4'
 show create table t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
-  `a` varchar(5) CHARACTER SET utf8mb4 NOT NULL DEFAULT '',
-  `b` varchar(15) CHARACTER SET utf8mb4 NOT NULL DEFAULT ''
+  `a` varchar(5) CHARACTER SET utf8mb4 NOT NULL,
+  `b` varchar(15) CHARACTER SET utf8mb4 NOT NULL
 ) ENGINE=MEMORY DEFAULT CHARSET=latin1
 drop table t2;
 drop table t1;
@@ -1065,8 +1065,8 @@ CREATE TABLE t1 AS SELECT REPEAT('a',1) AS a, 1 AS b LIMIT 0;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` varchar(1) CHARACTER SET utf8mb4 NOT NULL DEFAULT '',
-  `b` int(1) NOT NULL DEFAULT '0'
+  `a` varchar(1) CHARACTER SET utf8mb4 NOT NULL,
+  `b` int(1) NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 INSERT INTO t1 VALUES ('s',0),(_latin1 0xDF,1);
 SELECT * FROM t1 ORDER BY a, b;
@@ -2468,7 +2468,7 @@ Table	Create Table
 t3	CREATE TEMPORARY TABLE `t3` (
   `utf8mb4` varchar(10) CHARACTER SET utf8mb4 NOT NULL,
   `utf8mb3` varchar(10) CHARACTER SET utf8 NOT NULL,
-  `concat(utf8mb4,utf8mb3)` varchar(20) CHARACTER SET utf8mb4 NOT NULL DEFAULT ''
+  `concat(utf8mb4,utf8mb3)` varchar(20) CHARACTER SET utf8mb4 NOT NULL
 ) ENGINE=MEMORY DEFAULT CHARSET=latin1
 DROP TEMPORARY TABLE t3;
 SELECT * FROM t1, t2 WHERE t1.utf8mb4 > t2.utf8mb3;

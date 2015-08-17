@@ -488,7 +488,7 @@ Note	1831	Duplicate index 'key_2' defined on the table 'test.t1'. This is deprec
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` int(11) NOT NULL DEFAULT '0',
+  `a` int(11) NOT NULL,
   PRIMARY KEY (`a`),
   UNIQUE KEY `constraint_1` (`a`),
   UNIQUE KEY `key_1` (`a`),

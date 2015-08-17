@@ -6,7 +6,7 @@ INSERT INTO foo VALUES (1,0),(2,0);
 SHOW CREATE TABLE foo;
 Table	Create Table
 foo	CREATE TABLE `foo` (
-  `a` int(11) NOT NULL DEFAULT '0',
+  `a` int(11) NOT NULL,
   `b` int(11) DEFAULT NULL,
   PRIMARY KEY (`a`)
 ) ENGINE=TokuDB DEFAULT CHARSET=latin1
@@ -16,7 +16,7 @@ ALTER TABLE foo ADD KEY(b);
 SHOW CREATE TABLE foo;
 Table	Create Table
 foo	CREATE TABLE `foo` (
-  `a` int(11) NOT NULL DEFAULT '0',
+  `a` int(11) NOT NULL,
   `b` int(11) DEFAULT NULL,
   PRIMARY KEY (`a`),
   KEY `b` (`b`)
