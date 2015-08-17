@@ -1200,9 +1200,9 @@ bool event_checksum_test(uchar *event_buf, ulong event_len, uint8 alg)
       DBUG_ASSERT(event_buf[EVENT_TYPE_OFFSET] == FORMAT_DESCRIPTION_EVENT);
       event_buf[FLAGS_OFFSET]= (uchar) flags;
     }
-    res= !(computed == incoming);
+    res= DBUG_EVALUATE_IF("simulate_checksum_test_failure", TRUE, computed != incoming);
   }
-  return DBUG_EVALUATE_IF("simulate_checksum_test_failure", TRUE, res);
+  return res;
 }
 
 #if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)

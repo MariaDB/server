@@ -1436,8 +1436,9 @@ gtid_state_from_pos(const char *name, uint32 offset,
       break;
 
     packet.length(0);
-    err= Log_event::read_log_event(&cache, &packet, NULL,
-                                   current_checksum_alg);
+    err= Log_event::read_log_event(&cache, &packet,
+                                   opt_master_verify_checksum
+                                   ? current_checksum_alg : 0);
     if (err)
     {
       errormsg= "Could not read binlog while searching for slave start "
@@ -2230,8 +2231,9 @@ static int send_format_descriptor_event(binlog_send_info *info,
       the binlog
     */
     info->last_pos= my_b_tell(log);
-    error= Log_event::read_log_event(log, packet, /* LOCK_log */ NULL,
-                                     info->current_checksum_alg);
+    error= Log_event::read_log_event(log, packet,
+                                     opt_master_verify_checksum
+                                     ? info->current_checksum_alg : 0);
     linfo->pos= my_b_tell(log);
 
     if (error)
@@ -2566,9 +2568,9 @@ static int send_events(binlog_send_info *info,
       return 1;
 
     info->last_pos= linfo->pos;
-    error = Log_event::read_log_event(log, packet, /* LOCK_log */ NULL,
-                                      info->current_checksum_alg,
-                                      NULL, NULL);
+    error= Log_event::read_log_event(log, packet,
+                                     opt_master_verify_checksum
+                                     ? info->current_checksum_alg : 0);
     linfo->pos= my_b_tell(log);
 
     if (error)

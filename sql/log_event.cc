@@ -1283,29 +1283,26 @@ bool Log_event::write_header(IO_CACHE* file, ulong event_data_length)
   DBUG_RETURN( ret);
 }
 
+#endif /* !MYSQL_CLIENT */
 
 /**
-  This needn't be format-tolerant, because we only read
-  LOG_EVENT_MINIMAL_HEADER_LEN (we just want to read the event's length).
+  This needn't be format-tolerant, because we only parse the first
+  LOG_EVENT_MINIMAL_HEADER_LEN bytes (just need the event's length).
 */
 
 int Log_event::read_log_event(IO_CACHE* file, String* packet,
-                              mysql_mutex_t* log_lock,
-                              uint8 checksum_alg_arg,
-                              const char *log_file_name_arg,
-                              bool* is_binlog_active)
+                              uint8 checksum_alg_arg)
 {
   ulong data_len;
-  int result=0;
   char buf[LOG_EVENT_MINIMAL_HEADER_LEN];
   uchar ev_offset= packet->length();
-  DBUG_ENTER("Log_event::read_log_event");
-
-  if (log_lock)
-    mysql_mutex_lock(log_lock);
-
-  if (log_file_name_arg)
-    *is_binlog_active= mysql_bin_log.is_active(log_file_name_arg);
+#ifndef max_allowed_packet
+  THD *thd=current_thd;
+  ulong max_allowed_packet= thd ? thd->slave_thread ? slave_max_allowed_packet
+                                                    : thd->variables.max_allowed_packet
+                                : ~(uint)0;
+#endif
+  DBUG_ENTER("Log_event::read_log_event(IO_CACHE*,String*...)");
 
   if (my_b_read(file, (uchar*) buf, sizeof(buf)))
   {
@@ -1315,41 +1312,32 @@ int Log_event::read_log_event(IO_CACHE* file, String* packet,
       update to the log.
     */
     DBUG_PRINT("error",("file->error: %d", file->error));
-    if (!file->error)
-      result= LOG_READ_EOF;
-    else
-      result= (file->error > 0 ? LOG_READ_TRUNC : LOG_READ_IO);
-    goto end;
+    DBUG_RETURN(file->error == 0 ? LOG_READ_EOF :
+                file->error > 0 ? LOG_READ_TRUNC : LOG_READ_IO);
   }
   data_len= uint4korr(buf + EVENT_LEN_OFFSET);
-  if (data_len < LOG_EVENT_MINIMAL_HEADER_LEN ||
-      data_len > max(current_thd->variables.max_allowed_packet,
-                     opt_binlog_rows_event_max_size + MAX_LOG_EVENT_HEADER))
-  {
-    DBUG_PRINT("error",("data_len: %lu", data_len));
-    result= ((data_len < LOG_EVENT_MINIMAL_HEADER_LEN) ? LOG_READ_BOGUS :
-	     LOG_READ_TOO_LARGE);
-    goto end;
-  }
 
   /* Append the log event header to packet */
   if (packet->append(buf, sizeof(buf)))
-  {
-    /* Failed to allocate packet */
-    result= LOG_READ_MEM;
-    goto end;
-  }
-  data_len-= LOG_EVENT_MINIMAL_HEADER_LEN;
-  if (data_len)
+    DBUG_RETURN(LOG_READ_MEM);
+
+  if (data_len < LOG_EVENT_MINIMAL_HEADER_LEN)
+    DBUG_RETURN(LOG_READ_BOGUS);
+
+  if (data_len > max(max_allowed_packet,
+                     opt_binlog_rows_event_max_size + MAX_LOG_EVENT_HEADER))
+    DBUG_RETURN(LOG_READ_TOO_LARGE);
+
+  if (data_len > LOG_EVENT_MINIMAL_HEADER_LEN)
   {
     /* Append rest of event, read directly from file into packet */
-    if (packet->append(file, data_len))
+    if (packet->append(file, data_len - LOG_EVENT_MINIMAL_HEADER_LEN))
     {
       /*
         Fatal error occured when appending rest of the event
         to packet, possible failures:
 	1. EOF occured when reading from file, it's really an error
-           as data_len is >=0 there's supposed to be more bytes available.
+           as there's supposed to be more bytes available.
            file->error will have been set to number of bytes left to read
         2. Read was interrupted, file->error would normally be set to -1
         3. Failed to allocate memory for packet, my_errno
@@ -1357,53 +1345,31 @@ int Log_event::read_log_event(IO_CACHE* file, String* packet,
            memory allocation occurs before the call to read it might
            be uninitialized)
       */
-      result= (my_errno == ENOMEM ? LOG_READ_MEM :
-               (file->error >= 0 ? LOG_READ_TRUNC: LOG_READ_IO));
-      /* Implicit goto end; */
+      DBUG_RETURN(my_errno == ENOMEM ? LOG_READ_MEM :
+                  (file->error >= 0 ? LOG_READ_TRUNC: LOG_READ_IO));
     }
-    else
-    {
-      /* Corrupt the event for Dump thread*/
-      DBUG_EXECUTE_IF("corrupt_read_log_event2",
-	uchar *debug_event_buf_c = (uchar*) packet->ptr() + ev_offset;
-        if (debug_event_buf_c[EVENT_TYPE_OFFSET] != FORMAT_DESCRIPTION_EVENT)
-        {
-          int debug_cor_pos = rand() % (data_len + sizeof(buf) - BINLOG_CHECKSUM_LEN);
-          debug_event_buf_c[debug_cor_pos] =~ debug_event_buf_c[debug_cor_pos];
-          DBUG_PRINT("info", ("Corrupt the event at Log_event::read_log_event: byte on position %d", debug_cor_pos));
-          DBUG_SET("-d,corrupt_read_log_event2");
-	}
-      );                                                                                           
-      /*
-        CRC verification of the Dump thread
-      */
-      if (opt_master_verify_checksum &&
-          event_checksum_test((uchar*) packet->ptr() + ev_offset,
-                              data_len + sizeof(buf),
-                              checksum_alg_arg))
+
+    /* Corrupt the event for Dump thread*/
+    DBUG_EXECUTE_IF("corrupt_read_log_event2",
+      uchar *debug_event_buf_c = (uchar*) packet->ptr() + ev_offset;
+      if (debug_event_buf_c[EVENT_TYPE_OFFSET] != FORMAT_DESCRIPTION_EVENT)
       {
-        result= LOG_READ_CHECKSUM_FAILURE;
-        goto end;
+        int debug_cor_pos = rand() % (data_len - BINLOG_CHECKSUM_LEN);
+        debug_event_buf_c[debug_cor_pos] =~ debug_event_buf_c[debug_cor_pos];
+        DBUG_PRINT("info", ("Corrupt the event at Log_event::read_log_event: byte on position %d", debug_cor_pos));
+        DBUG_SET("-d,corrupt_read_log_event2");
       }
-    }
+    );
+    /*
+      CRC verification of the Dump thread
+    */
+    if (event_checksum_test((uchar*) packet->ptr() + ev_offset,
+                            data_len, checksum_alg_arg))
+      DBUG_RETURN(LOG_READ_CHECKSUM_FAILURE);
   }
-
-end:
-  if (log_lock)
-    mysql_mutex_unlock(log_lock);
-  DBUG_RETURN(result);
+  DBUG_RETURN(0);
 }
-#endif /* !MYSQL_CLIENT */
 
-#ifndef MYSQL_CLIENT
-#define UNLOCK_MUTEX if (log_lock) mysql_mutex_unlock(log_lock);
-#define LOCK_MUTEX if (log_lock) mysql_mutex_lock(log_lock);
-#else
-#define UNLOCK_MUTEX
-#define LOCK_MUTEX
-#endif
-
-#ifndef MYSQL_CLIENT
 /**
   @note
     Allocates memory;  The caller is responsible for clean-up.
@@ -1413,87 +1379,61 @@ Log_event* Log_event::read_log_event(IO_CACHE* file,
                                      const Format_description_log_event
                                      *description_event,
                                      my_bool crc_check)
-#else
-Log_event* Log_event::read_log_event(IO_CACHE* file,
-                                     const Format_description_log_event
-                                     *description_event,
-                                     my_bool crc_check)
-#endif
 {
-  DBUG_ENTER("Log_event::read_log_event");
+  DBUG_ENTER("Log_event::read_log_event(IO_CACHE*,Format_description_log_event*...)");
   DBUG_ASSERT(description_event != 0);
-  char head[LOG_EVENT_MINIMAL_HEADER_LEN];
-  /*
-    First we only want to read at most LOG_EVENT_MINIMAL_HEADER_LEN, just to
-    check the event for sanity and to know its length; no need to really parse
-    it. We say "at most" because this could be a 3.23 master, which has header
-    of 13 bytes, whereas LOG_EVENT_MINIMAL_HEADER_LEN is 19 bytes (it's
-    "minimal" over the set {MySQL >=4.0}).
-  */
-  uint header_size= MY_MIN(description_event->common_header_len,
-                        LOG_EVENT_MINIMAL_HEADER_LEN);
-
-  LOCK_MUTEX;
-  DBUG_PRINT("info", ("my_b_tell: %lu", (ulong) my_b_tell(file)));
-  if (my_b_read(file, (uchar *) head, header_size))
-  {
-    DBUG_PRINT("info", ("Log_event::read_log_event(IO_CACHE*,Format_desc*) \
-failed my_b_read"));
-    UNLOCK_MUTEX;
-    /*
-      No error here; it could be that we are at the file's end. However
-      if the next my_b_read() fails (below), it will be an error as we
-      were able to read the first bytes.
-    */
-    DBUG_RETURN(0);
-  }
-  ulong data_len = uint4korr(head + EVENT_LEN_OFFSET);
-  char *buf= 0;
+  String event;
   const char *error= 0;
-  Log_event *res=  0;
-#ifndef max_allowed_packet
-  THD *thd=current_thd;
-  uint max_allowed_packet= thd ? slave_max_allowed_packet:~(uint)0;
-#endif
+  Log_event *res= 0;
 
-  if (data_len > max<ulong>(max_allowed_packet,
-                        opt_binlog_rows_event_max_size + MAX_LOG_EVENT_HEADER))
+  if (log_lock)
+    mysql_mutex_lock(log_lock);
+
+  switch (read_log_event(file, &event, (uint8)BINLOG_CHECKSUM_ALG_OFF))
   {
-    error = "Event too big";
-    goto err;
+    case 0:
+      break;
+    case LOG_READ_EOF: // no error here; we are at the file's end
+      goto err;
+    case LOG_READ_BOGUS:
+      error= "Event too small";
+      goto err;
+    case LOG_READ_IO:
+      error= "read error";
+      goto err;
+    case LOG_READ_MEM:
+      error= "Out of memory";
+      goto err;
+    case LOG_READ_TRUNC:
+      error= "Event truncated";
+      goto err;
+    case LOG_READ_TOO_LARGE:
+      error= "Event too big";
+      goto err;
+    case LOG_READ_CHECKSUM_FAILURE:
+    default:
+      DBUG_ASSERT(0);
+      error= "internal error";
+      goto err;
   }
 
-  if (data_len < header_size)
-  {
-    error = "Event too small";
-    goto err;
-  }
-
-  // some events use the extra byte to null-terminate strings
-  if (!(buf = (char*) my_malloc(data_len+1, MYF(MY_WME))))
-  {
-    error = "Out of memory";
-    goto err;
-  }
-  buf[data_len] = 0;
-  memcpy(buf, head, header_size);
-  if (my_b_read(file, (uchar*) buf + header_size, data_len - header_size))
-  {
-    error = "read error";
-    goto err;
-  }
-  if ((res= read_log_event(buf, data_len, &error, description_event, crc_check)))
-    res->register_temp_buf(buf, TRUE);
+  if ((res= read_log_event(event.ptr(), event.length(),
+                           &error, description_event, crc_check)))
+    res->register_temp_buf(event.release(), true);
 
 err:
-  UNLOCK_MUTEX;
-  if (!res)
+  if (log_lock)
+    mysql_mutex_unlock(log_lock);
+  if (error)
   {
-    DBUG_ASSERT(error != 0);
-    sql_print_error("Error in Log_event::read_log_event(): "
-                    "'%s', data_len: %lu, event_type: %d",
-		    error,data_len,(uchar)(head[EVENT_TYPE_OFFSET]));
-    my_free(buf);
+    DBUG_ASSERT(!res);
+    if (event.length() >= OLD_HEADER_LEN)
+      sql_print_error("Error in Log_event::read_log_event(): '%s',"
+                      " data_len: %lu, event_type: %d", error,
+                      uint4korr(event.ptr() + EVENT_LEN_OFFSET),
+                      (uchar)(event.ptr()[EVENT_TYPE_OFFSET]));
+    else
+      sql_print_error("Error in Log_event::read_log_event(): '%s'", error);
     /*
       The SQL slave thread will check if file->error<0 to know
       if there was an I/O error. Even if there is no "low-level" I/O errors

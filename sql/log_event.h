@@ -1127,6 +1127,39 @@ public:
 
   Log_event();
   Log_event(THD* thd_arg, uint16 flags_arg, bool is_transactional);
+
+  /*
+    init_show_field_list() prepares the column names and types for the
+    output of SHOW BINLOG EVENTS; it is used only by SHOW BINLOG
+    EVENTS.
+  */
+  static void init_show_field_list(THD *thd, List<Item>* field_list);
+#ifdef HAVE_REPLICATION
+  int net_send(THD *thd, Protocol *protocol, const char* log_name,
+               my_off_t pos);
+
+  /*
+    pack_info() is used by SHOW BINLOG EVENTS; as print() it prepares and sends
+    a string to display to the user, so it resembles print().
+  */
+
+  virtual void pack_info(THD *thd, Protocol *protocol);
+
+#endif /* HAVE_REPLICATION */
+  virtual const char* get_db()
+  {
+    return thd ? thd->db : 0;
+  }
+#else
+  Log_event() : temp_buf(0), flags(0) {}
+  /* print*() functions are used by mysqlbinlog */
+  virtual void print(FILE* file, PRINT_EVENT_INFO* print_event_info) = 0;
+  void print_timestamp(IO_CACHE* file, time_t *ts = 0);
+  void print_header(IO_CACHE* file, PRINT_EVENT_INFO* print_event_info,
+                    bool is_more);
+  void print_base64(IO_CACHE* file, PRINT_EVENT_INFO* print_event_info,
+                    bool is_more);
+#endif
   /*
     read_log_event() functions read an event from a binlog or relay
     log; used by SHOW BINLOG EVENTS, the binlog_dump thread on the
@@ -1155,9 +1188,9 @@ public:
 
     @param[in]  file                log file to be read
     @param[out] packet              packet to hold the event
-    @param[in]  lock                the lock to be used upon read
-    @param[in]  log_file_name_arg   the log's file name
-    @param[out] is_binlog_active    is the current log still active
+    @param[in]  checksum_alg_arg    verify the event checksum using this
+                                    algorithm (or don't if it's
+                                    use BINLOG_CHECKSUM_ALG_OFF)
 
     @retval 0                   success
     @retval LOG_READ_EOF        end of file, nothing was read
@@ -1168,46 +1201,7 @@ public:
     @retval LOG_READ_TOO_LARGE  event too large
    */
   static int read_log_event(IO_CACHE* file, String* packet,
-                            mysql_mutex_t* log_lock,
-                            uint8 checksum_alg_arg,
-                            const char *log_file_name_arg = NULL,
-                            bool* is_binlog_active = NULL);
-  /*
-    init_show_field_list() prepares the column names and types for the
-    output of SHOW BINLOG EVENTS; it is used only by SHOW BINLOG
-    EVENTS.
-  */
-  static void init_show_field_list(THD *thd, List<Item>* field_list);
-#ifdef HAVE_REPLICATION
-  int net_send(THD *thd, Protocol *protocol, const char* log_name,
-               my_off_t pos);
-
-  /*
-    pack_info() is used by SHOW BINLOG EVENTS; as print() it prepares and sends
-    a string to display to the user, so it resembles print().
-  */
-
-  virtual void pack_info(THD *thd, Protocol *protocol);
-
-#endif /* HAVE_REPLICATION */
-  virtual const char* get_db()
-  {
-    return thd ? thd->db : 0;
-  }
-#else
-  Log_event() : temp_buf(0), flags(0) {}
-    /* avoid having to link mysqlbinlog against libpthread */
-  static Log_event* read_log_event(IO_CACHE* file,
-                                   const Format_description_log_event
-                                   *description_event, my_bool crc_check);
-  /* print*() functions are used by mysqlbinlog */
-  virtual void print(FILE* file, PRINT_EVENT_INFO* print_event_info) = 0;
-  void print_timestamp(IO_CACHE* file, time_t *ts = 0);
-  void print_header(IO_CACHE* file, PRINT_EVENT_INFO* print_event_info,
-                    bool is_more);
-  void print_base64(IO_CACHE* file, PRINT_EVENT_INFO* print_event_info,
-                    bool is_more);
-#endif
+                            uint8 checksum_alg_arg);
   /* 
      The value is set by caller of FD constructor and
      Log_event::write_header() for the rest.
