@@ -546,6 +546,7 @@ void lex_start(THD *thd)
   lex->limit_rows_examined_cnt= ULONGLONG_MAX;
   lex->var_list.empty();
   lex->stmt_var_list.empty();
+  lex->proc_list.elements=0;
 
   lex->is_lex_started= TRUE;
   DBUG_VOID_RETURN;

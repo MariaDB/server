@@ -1018,10 +1018,10 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %parse-param { THD *thd }
 %lex-param { THD *thd }
 /*
-  Currently there are 164 shift/reduce conflicts.
+  Currently there are 160 shift/reduce conflicts.
   We should not introduce new conflicts any more.
 */
-%expect 164
+%expect 160
 
 /*
    Comments for TOKENS.
@@ -1748,6 +1748,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
         opt_default_time_precision
         case_stmt_body opt_bin_mod
         opt_if_exists_table_element opt_if_not_exists_table_element
+        opt_into opt_procedure_clause
 
 %type <object_ddl_options>
         create_or_replace 
@@ -5588,7 +5589,7 @@ create_select:
           {
             Select->parsing_place= NO_MATTER;
           }
-          opt_select_from
+          table_expression
           {
             /*
               The following work only with the local list, the global list
@@ -5982,11 +5983,6 @@ merge_insert_types:
        | FIRST_SYM       { $$= MERGE_INSERT_TO_FIRST; }
        | LAST_SYM        { $$= MERGE_INSERT_TO_LAST; }
        ;
-
-opt_select_from:
-          opt_limit_clause {}
-        | select_from select_lock_type
-        ;
 
 udf_type:
           STRING_SYM {$$ = (int) STRING_RESULT; }
@@ -8453,6 +8449,7 @@ select_paren_derived:
             Lex->current_select->set_braces(true);
           }
           SELECT_SYM select_part2_derived
+          table_expression
           {
             if (setup_select_in_parentheses(Lex))
               MYSQL_YYABORT;
@@ -8470,7 +8467,45 @@ select_init2:
           union_clause
         ;
 
+/*
+  Theoretically we can merge all 3 right hand sides of the select_part2
+  rule into one, however such a transformation adds one shift/reduce
+  conflict more.
+*/
 select_part2:
+          select_options_and_item_list
+          opt_order_clause
+          opt_limit_clause
+          opt_select_lock_type
+        | select_options_and_item_list into opt_select_lock_type
+        | select_options_and_item_list
+          opt_into
+          from_clause
+          opt_where_clause
+          opt_group_clause
+          opt_having_clause
+          opt_order_clause
+          opt_limit_clause
+          opt_procedure_clause
+          opt_into
+          opt_select_lock_type
+          {
+            if ($2 && $10)
+            {
+              /* double "INTO" clause */
+              my_error(ER_WRONG_USAGE, MYF(0), "INTO", "INTO");
+              MYSQL_YYABORT;
+            }
+            if ($9 && ($2 || $10))
+            {
+              /* "INTO" with "PROCEDURE ANALYSE" */
+              my_error(ER_WRONG_USAGE, MYF(0), "PROCEDURE", "INTO");
+              MYSQL_YYABORT;
+            }
+          }
+        ;
+
+select_options_and_item_list:
           {
             LEX *lex= Lex;
             SELECT_LEX *sel= lex->current_select;
@@ -8482,27 +8517,36 @@ select_part2:
           {
             Select->parsing_place= NO_MATTER;
           }
-          select_into select_lock_type
         ;
 
-select_into:
-          opt_order_clause opt_limit_clause {}
-        | into
-        | select_from
-        | into select_from
-        | select_from into
+table_expression:
+          opt_from_clause
+          opt_where_clause
+          opt_group_clause
+          opt_having_clause
+          opt_order_clause
+          opt_limit_clause
+          opt_procedure_clause
+          opt_select_lock_type
         ;
 
-select_from:
-          FROM join_table_list 
+from_clause:
+          FROM table_reference_list
+        ;
+
+opt_from_clause:
+          /* empty */
+        | from_clause
+        ;
+
+table_reference_list:
+          join_table_list
           {
             Select->context.table_list=
               Select->context.first_name_resolution_table=
                 Select->table_list.first;
           }
-          where_clause group_clause having_clause
-          opt_order_clause opt_limit_clause procedure_clause
-        | FROM DUAL_SYM where_clause opt_limit_clause
+        | DUAL_SYM
           /* oracle compatibility: oracle always requires FROM clause,
              and DUAL is system table without fields.
              Is "SELECT 1 FROM DUAL" any better than "SELECT 1" ?
@@ -8586,7 +8630,7 @@ select_option:
           }
         ;
 
-select_lock_type:
+opt_select_lock_type:
           /* empty */
         | FOR_SYM UPDATE_SYM
           {
@@ -10953,9 +10997,7 @@ select_derived_union:
               last select in the union.
              */
             Lex->pop_context();
-          }
-          opt_union_order_or_limit
-          {
+
             if ($1 != NULL)
             {
               my_parse_error(thd, ER_SYNTAX_ERROR);
@@ -10969,14 +11011,7 @@ select_init2_derived:
           select_part2_derived
           {
             LEX *lex= Lex;
-            SELECT_LEX * sel= lex->current_select;
             if (lex->current_select->set_braces(0))
-            {
-              my_parse_error(thd, ER_SYNTAX_ERROR);
-              MYSQL_YYABORT;
-            }
-            if (sel->linkage == UNION_TYPE &&
-                sel->master_unit()->first_select()->braces)
             {
               my_parse_error(thd, ER_SYNTAX_ERROR);
               MYSQL_YYABORT;
@@ -10997,7 +11032,6 @@ select_part2_derived:
           {
             Select->parsing_place= NO_MATTER;
           }
-          opt_select_from select_lock_type
         ;
 
 /* handle contents of parentheses in join expression */
@@ -11045,7 +11079,7 @@ select_derived2:
           {
             Select->parsing_place= NO_MATTER;
           }
-          opt_select_from
+          table_expression
         ;
 
 get_select_lex:
@@ -11222,7 +11256,7 @@ opt_all:
         | ALL
         ;
 
-where_clause:
+opt_where_clause:
           /* empty */  { Select->where= 0; }
         | WHERE
           {
@@ -11238,7 +11272,7 @@ where_clause:
           }
         ;
 
-having_clause:
+opt_having_clause:
           /* empty */
         | HAVING
           {
@@ -11275,7 +11309,7 @@ opt_escape:
    group by statement in select
 */
 
-group_clause:
+opt_group_clause:
           /* empty */
         | GROUP_SYM BY group_list olap_opt
         ;
@@ -11421,25 +11455,6 @@ order_dir:
           /* empty */ { $$ =  1; }
         | ASC  { $$ =1; }
         | DESC { $$ =0; }
-        ;
-
-opt_limit_clause_init:
-          /* empty */
-          {
-            LEX *lex= Lex;
-            SELECT_LEX *sel= lex->current_select;
-            if (sel->master_unit()->is_union() && !sel->braces)
-            {
-              /* Move LIMIT that belongs to UNION to fake_select_lex */
-              Lex->current_select= sel->master_unit()->fake_select_lex;
-              DBUG_ASSERT(Select);
-            }
-            sel= lex->current_select;
-            sel->offset_limit= 0;
-            sel->select_limit= 0;
-	    lex->limit_rows_examined= 0;
-          }
-        | limit_clause {}
         ;
 
 opt_limit_clause:
@@ -11639,8 +11654,8 @@ choice:
 	| DEFAULT { $$= HA_CHOICE_UNDEF; }
 	;
 
-procedure_clause:
-          /* empty */
+opt_procedure_clause:
+          /* empty */ { $$= false; }
         | PROCEDURE_SYM ident /* Procedure name */
           {
             LEX *lex=Lex;
@@ -11669,6 +11684,9 @@ procedure_clause:
             Lex->uncacheable(UNCACHEABLE_SIDEEFFECT);
           }
           '(' procedure_list ')'
+          {
+            $$= true;
+          }
         ;
 
 procedure_list:
@@ -11745,6 +11763,11 @@ select_outvar:
                                           Lex->sphead)) :
                                 NULL;
           }
+        ;
+
+opt_into:
+          /* empty */ { $$= false; }
+        | into        { $$= true; }
         ;
 
 into:
@@ -12241,7 +12264,7 @@ update:
             */
             Select->set_lock_for_tables($3);
           }
-          where_clause opt_order_clause delete_limit_clause {}
+          opt_where_clause opt_order_clause delete_limit_clause {}
         ;
 
 update_list:
@@ -12306,7 +12329,7 @@ single_multi:
             YYPS->m_lock_type= TL_READ_DEFAULT;
             YYPS->m_mdl_type= MDL_SHARED_READ;
           }
-          where_clause opt_order_clause
+          opt_where_clause opt_order_clause
           delete_limit_clause {}
           opt_select_expressions {}
         | table_wild_list
@@ -12315,7 +12338,7 @@ single_multi:
             YYPS->m_lock_type= TL_READ_DEFAULT;
             YYPS->m_mdl_type= MDL_SHARED_READ;
           }
-          FROM join_table_list where_clause
+          FROM join_table_list opt_where_clause
           {
             if (multi_delete_set_locks_and_link_aux_tables(Lex))
               MYSQL_YYABORT;
@@ -12326,7 +12349,7 @@ single_multi:
             YYPS->m_lock_type= TL_READ_DEFAULT;
             YYPS->m_mdl_type= MDL_SHARED_READ;
           }
-          USING join_table_list where_clause
+          USING join_table_list opt_where_clause
           {
             if (multi_delete_set_locks_and_link_aux_tables(Lex))
               MYSQL_YYABORT;
@@ -12584,13 +12607,14 @@ show_param:
           {
             LEX *lex= Lex;
             lex->sql_command= SQLCOM_SHOW_BINLOG_EVENTS;
-          } opt_limit_clause_init
+          }
+          opt_limit_clause
         | RELAYLOG_SYM optional_connection_name EVENTS_SYM binlog_in binlog_from
           {
             LEX *lex= Lex;
             lex->sql_command= SQLCOM_SHOW_RELAYLOG_EVENTS;
-          } opt_limit_clause_init
-        | keys_or_index from_or_in table_ident opt_db where_clause
+          } opt_limit_clause
+        | keys_or_index from_or_in table_ident opt_db opt_where_clause
           {
             LEX *lex= Lex;
             lex->sql_command= SQLCOM_SHOW_KEYS;
@@ -12625,13 +12649,13 @@ show_param:
           { (void) create_select_for_variable("warning_count"); }
         | COUNT_SYM '(' '*' ')' ERRORS
           { (void) create_select_for_variable("error_count"); }
-        | WARNINGS opt_limit_clause_init
+        | WARNINGS opt_limit_clause
           { Lex->sql_command = SQLCOM_SHOW_WARNS;}
-        | ERRORS opt_limit_clause_init
+        | ERRORS opt_limit_clause
           { Lex->sql_command = SQLCOM_SHOW_ERRORS;}
         | PROFILES_SYM
           { Lex->sql_command = SQLCOM_SHOW_PROFILES; }
-        | PROFILE_SYM opt_profile_defs opt_profile_args opt_limit_clause_init
+        | PROFILE_SYM opt_profile_defs opt_profile_args opt_limit_clause
           { 
             LEX *lex= Lex;
             lex->sql_command= SQLCOM_SHOW_PROFILE;
@@ -15206,7 +15230,7 @@ handler:
             if (!lex->current_select->add_table_to_list(lex->thd, $2, 0, 0))
               MYSQL_YYABORT;
           }
-          handler_read_or_scan where_clause opt_limit_clause
+          handler_read_or_scan opt_where_clause opt_limit_clause
           {
             Lex->expr_allows_subselect= TRUE;
             /* Stored functions are not supported for HANDLER READ. */
@@ -15926,7 +15950,7 @@ union_order_or_limit:
         ;
 
 order_or_limit:
-          order_clause opt_limit_clause_init
+          order_clause opt_limit_clause
         | limit_clause
         ;
 
@@ -15938,17 +15962,19 @@ union_option:
 
 query_specification:
           SELECT_SYM select_init2_derived
-          { 
+          table_expression
+          {
             $$= Lex->current_select->master_unit()->first_select();
           }
         | '(' select_paren_derived ')'
+          opt_union_order_or_limit
           {
             $$= Lex->current_select->master_unit()->first_select();
           }
         ;
 
 query_expression_body:
-          query_specification opt_union_order_or_limit
+          query_specification
         | query_expression_body
           UNION_SYM union_option 
           {
@@ -15956,7 +15982,6 @@ query_expression_body:
               MYSQL_YYABORT;
           }
           query_specification
-          opt_union_order_or_limit
           {
             Lex->pop_context();
             $$= $1;
