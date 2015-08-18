@@ -893,6 +893,20 @@ PJPR JOBJECT::AddPair(PGLOBAL g, PSZ key)
 } // end of AddPair
 
 /***********************************************************************/
+/* Return all keys as an array.                                        */
+/***********************************************************************/
+PJAR JOBJECT::GetKeyList(PGLOBAL g)
+{
+	PJAR jarp = new(g) JARRAY();
+
+	for (PJPR jpp = First; jpp; jpp = jpp->Next)
+		jarp->AddValue(g, new(g) JVALUE(g, jpp->GetKey()));
+
+	jarp->InitArray(g);
+	return jarp;
+} // end of GetKeyList
+
+/***********************************************************************/
 /* Get the value corresponding to the given key.                       */
 /***********************************************************************/
 PJVAL JOBJECT::GetValue(const char* key)
@@ -1104,6 +1118,17 @@ JVALUE::JVALUE(PGLOBAL g, PVAL valp) : JSON()
   Value = AllocateValue(g, valp); 
   Next = NULL;
   Del = false;
+} // end of JVALUE constructor
+
+/***********************************************************************/
+/* Constructor for a given string.                                     */
+/***********************************************************************/
+JVALUE::JVALUE(PGLOBAL g, PSZ strp) : JSON()
+{
+	Jsp = NULL;
+	Value = AllocateValue(g, strp, TYPE_STRING);
+	Next = NULL;
+	Del = false;
 } // end of JVALUE constructor
 
 /***********************************************************************/

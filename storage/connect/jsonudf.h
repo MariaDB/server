@@ -52,6 +52,10 @@ extern "C" {
 	DllExport char *Json_Array_Delete(UDF_EXEC_ARGS);
 	DllExport void Json_Array_Delete_deinit(UDF_INIT*);
 
+	DllExport my_bool Json_Object_init(UDF_INIT*, UDF_ARGS*, char*);
+	DllExport char *Json_Object(UDF_EXEC_ARGS);
+	DllExport void Json_Object_deinit(UDF_INIT*);
+
 	DllExport my_bool Json_Object_Nonull_init(UDF_INIT*, UDF_ARGS*, char*);
 	DllExport char *Json_Object_Nonull(UDF_EXEC_ARGS);
 	DllExport void Json_Object_Nonull_deinit(UDF_INIT*);
@@ -64,9 +68,9 @@ extern "C" {
 	DllExport char *Json_Object_Delete(UDF_EXEC_ARGS);
 	DllExport void Json_Object_Delete_deinit(UDF_INIT*);
 
-	DllExport my_bool Json_Object_init(UDF_INIT*, UDF_ARGS*, char*);
-	DllExport char *Json_Object(UDF_EXEC_ARGS);
-	DllExport void Json_Object_deinit(UDF_INIT*);
+	DllExport my_bool Json_Object_List_init(UDF_INIT*, UDF_ARGS*, char*);
+	DllExport char *Json_Object_List(UDF_EXEC_ARGS);
+	DllExport void Json_Object_List_deinit(UDF_INIT*);
 
 	DllExport my_bool Json_Array_Grp_init(UDF_INIT*, UDF_ARGS*, char*);
 	DllExport void Json_Array_Grp_add(UDF_INIT *, UDF_ARGS *, char *, char *);

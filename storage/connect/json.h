@@ -149,10 +149,11 @@ class JSON : public BLOCK {
   virtual void   InitArray(PGLOBAL g) {X}
   virtual PJVAL  AddValue(PGLOBAL g, PJVAL jvp = NULL, int *x = NULL) {X return NULL;}
   virtual PJPR   AddPair(PGLOBAL g, PSZ key) {X return NULL;}
-  virtual PJVAL  GetValue(const char *key) {X return NULL;}
+	virtual PJAR   GetKeyList(PGLOBAL g) {X return NULL;}
+	virtual PJVAL  GetValue(const char *key) {X return NULL;}
   virtual PJOB   GetObject(void) {return NULL;}
   virtual PJAR   GetArray(void) {return NULL;}
-  virtual PJVAL  GetValue(int i) {X return NULL;}
+	virtual PJVAL  GetValue(int i) {X return NULL;}
   virtual PVAL   GetValue(void) {X return NULL;}
   virtual PJSON  GetJson(void) {X return NULL;}
   virtual PJPR   GetFirst(void) {X return NULL;}
@@ -193,7 +194,8 @@ class JOBJECT : public JSON {
   virtual PJPR  AddPair(PGLOBAL g, PSZ key);
   virtual PJOB  GetObject(void) {return this;}
   virtual PJVAL GetValue(const char* key);
-  virtual PSZ   GetText(PGLOBAL g, PSZ text);
+	virtual PJAR  GetKeyList(PGLOBAL g);
+	virtual PSZ   GetText(PGLOBAL g, PSZ text);
   virtual void  SetValue(PGLOBAL g, PJVAL jvp, PSZ key);
 	virtual void  DeleteKey(char *k);
 	virtual bool  IsNull(void);
@@ -245,6 +247,7 @@ class JVALUE : public JSON {
   JVALUE(PJSON jsp) : JSON()
                 {Jsp = jsp; Value = NULL; Next = NULL; Del = false;}
   JVALUE(PGLOBAL g, PVAL valp);
+	JVALUE(PGLOBAL g, PSZ strp);
 
   using JSON::GetValue;
   using JSON::SetValue;
