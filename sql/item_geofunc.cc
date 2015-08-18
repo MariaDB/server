@@ -1082,6 +1082,8 @@ static int setup_relate_func(Geometry *g1, Geometry *g2,
   uint shape_a, shape_b;
   uint n_operands= 0;
   int last_shape_pos;
+  UNINIT_VAR(shape_a);
+  UNINIT_VAR(shape_b);
 
   last_shape_pos= func->get_next_expression_pos();
   if (func->reserve_op_buffer(1))
@@ -2325,7 +2327,8 @@ String *Item_func_pointonsurface::val_str(String *str)
   String *result= 0;
   const Gcalc_scan_iterator::point *pprev= NULL;
   uint32 srid;
-
+  UNINIT_VAR(px);
+  UNINIT_VAR(py);
 
   null_value= 1;
   if ((args[0]->null_value ||

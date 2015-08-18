@@ -1133,6 +1133,8 @@ sp_head::execute(THD *thd, bool merge_da_on_success)
   Diagnostics_area *da= thd->get_stmt_da();
   Warning_info sp_wi(da->warning_info_id(), false, true);
 
+  UNINIT_VAR(saved_creation_ctx);
+
   /* this 7*STACK_MIN_SIZE is a complex matter with a long history (see it!) */
   if (check_stack_overrun(thd, 7 * STACK_MIN_SIZE, (uchar*)&old_packet))
     DBUG_RETURN(TRUE);
