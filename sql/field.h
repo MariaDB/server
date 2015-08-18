@@ -3084,6 +3084,14 @@ public:
   {
     return 255 - FRM_VCOL_HEADER_SIZE(interval != NULL);
   }
+
+  bool has_default_function() const
+  {
+    return (unireg_check == Field::TIMESTAMP_DN_FIELD ||
+            unireg_check == Field::TIMESTAMP_DNUN_FIELD ||
+            unireg_check == Field::TIMESTAMP_UN_FIELD ||
+            unireg_check == Field::NEXT_NUMBER);
+  }
 };
 
 

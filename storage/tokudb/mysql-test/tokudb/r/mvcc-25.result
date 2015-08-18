@@ -7,14 +7,14 @@ create table bar like foo;
 show create table foo;
 Table	Create Table
 foo	CREATE TABLE `foo` (
-  `a` int(11) NOT NULL DEFAULT '0',
+  `a` int(11) NOT NULL,
   `b` varchar(100) DEFAULT NULL,
   PRIMARY KEY (`a`)
 ) ENGINE=TokuDB DEFAULT CHARSET=latin1
 show create table bar;
 Table	Create Table
 bar	CREATE TABLE `bar` (
-  `a` int(11) NOT NULL DEFAULT '0',
+  `a` int(11) NOT NULL,
   `b` varchar(100) DEFAULT NULL,
   PRIMARY KEY (`a`)
 ) ENGINE=TokuDB DEFAULT CHARSET=latin1

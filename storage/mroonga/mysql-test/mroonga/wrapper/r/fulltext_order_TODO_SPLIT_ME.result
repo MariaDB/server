@@ -11,7 +11,7 @@ FULLTEXT KEY ftx2(c)
 SHOW CREATE TABLE ft;
 Table	Create Table
 ft	CREATE TABLE `ft` (
-  `a` int(11) NOT NULL DEFAULT '0',
+  `a` int(11) NOT NULL,
   `b` text,
   `c` text,
   PRIMARY KEY (`a`),

@@ -1597,7 +1597,7 @@ int ha_maria::repair(THD *thd, HA_CHECK *param, bool do_optimize)
 
   param->db_name= table->s->db.str;
   param->table_name= table->alias.c_ptr();
-  param->tmpfile_createflag= O_RDWR | O_TRUNC | O_EXCL;
+  param->tmpfile_createflag= O_RDWR | O_TRUNC;
   param->using_global_keycache= 1;
   param->thd= thd;
   param->tmpdir= &mysql_tmpdir_list;
@@ -1688,7 +1688,7 @@ int ha_maria::repair(THD *thd, HA_CHECK *param, bool do_optimize)
       thd_proc_info(thd, "Sorting index");
       error= maria_sort_index(param, file, fixed_name);
     }
-    if (!statistics_done && (local_testflag & T_STATISTICS))
+    if (!error && !statistics_done && (local_testflag & T_STATISTICS))
     {
       if (share->state.changed & STATE_NOT_ANALYZED)
       {

@@ -1106,7 +1106,7 @@ t1	CREATE TABLE `t1` (
 show create table mysqltest.t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
-  `test` varchar(4) CHARACTER SET latin1 NOT NULL DEFAULT ''
+  `test` varchar(4) CHARACTER SET latin1 NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8
 drop table mysqltest.t1;
 drop table mysqltest.t2;
@@ -1121,7 +1121,7 @@ t1	CREATE TABLE `t1` (
 show create table mysqltest.t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
-  `test` varchar(4) NOT NULL DEFAULT ''
+  `test` varchar(4) NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop database mysqltest;
 deallocate prepare stmt1;
@@ -2465,22 +2465,22 @@ create procedure proc_1() show create table tab1;
 call proc_1();
 Table	Create Table
 tab1	CREATE TABLE `tab1` (
-  `a` int(11) NOT NULL DEFAULT '0',
-  `b` char(1) NOT NULL DEFAULT '',
+  `a` int(11) NOT NULL,
+  `b` char(1) NOT NULL,
   PRIMARY KEY (`a`,`b`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 call proc_1();
 Table	Create Table
 tab1	CREATE TABLE `tab1` (
-  `a` int(11) NOT NULL DEFAULT '0',
-  `b` char(1) NOT NULL DEFAULT '',
+  `a` int(11) NOT NULL,
+  `b` char(1) NOT NULL,
   PRIMARY KEY (`a`,`b`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 call proc_1();
 Table	Create Table
 tab1	CREATE TABLE `tab1` (
-  `a` int(11) NOT NULL DEFAULT '0',
-  `b` char(1) NOT NULL DEFAULT '',
+  `a` int(11) NOT NULL,
+  `b` char(1) NOT NULL,
   PRIMARY KEY (`a`,`b`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop procedure proc_1;
@@ -2494,22 +2494,22 @@ prepare abc from "show create table tab1";
 execute abc;
 Table	Create Table
 tab1	CREATE TABLE `tab1` (
-  `a` int(11) NOT NULL DEFAULT '0',
-  `b` char(1) NOT NULL DEFAULT '',
+  `a` int(11) NOT NULL,
+  `b` char(1) NOT NULL,
   PRIMARY KEY (`a`,`b`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 execute abc;
 Table	Create Table
 tab1	CREATE TABLE `tab1` (
-  `a` int(11) NOT NULL DEFAULT '0',
-  `b` char(1) NOT NULL DEFAULT '',
+  `a` int(11) NOT NULL,
+  `b` char(1) NOT NULL,
   PRIMARY KEY (`a`,`b`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 execute abc;
 Table	Create Table
 tab1	CREATE TABLE `tab1` (
-  `a` int(11) NOT NULL DEFAULT '0',
-  `b` char(1) NOT NULL DEFAULT '',
+  `a` int(11) NOT NULL,
+  `b` char(1) NOT NULL,
   PRIMARY KEY (`a`,`b`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 deallocate prepare abc;

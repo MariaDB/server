@@ -104,8 +104,8 @@ let $insert_all= INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template;
 
 # Column list with definition for all tables to be checked
-let $column_list= f_int1 INTEGER,
-f_int2 INTEGER,
+let $column_list= f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000);

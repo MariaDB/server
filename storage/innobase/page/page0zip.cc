@@ -4928,9 +4928,12 @@ page_zip_verify_checksum(
 	stored = static_cast<ib_uint32_t>(mach_read_from_4(
 		static_cast<const unsigned char*>(data) + FIL_PAGE_SPACE_OR_CHKSUM));
 
-	ulint	page_no = mach_read_from_4(static_cast<const unsigned char*>					(data) + FIL_PAGE_OFFSET);
-	ulint	space_id = mach_read_from_4(static_cast<const unsigned char*>
-				(data) + FIL_PAGE_SPACE_ID);
+	ulint	page_no __attribute__((unused)) =
+                mach_read_from_4(static_cast<const unsigned char*>
+                                 (data) + FIL_PAGE_OFFSET);
+	ulint	space_id __attribute__((unused)) =
+                mach_read_from_4(static_cast<const unsigned char*>
+                                 (data) + FIL_PAGE_SPACE_ID);
 
 #if FIL_PAGE_LSN % 8
 #error "FIL_PAGE_LSN must be 64 bit aligned"

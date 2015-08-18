@@ -6072,7 +6072,7 @@ insert into examplebug20777 values (1, 9223372036854775806, 9223372036854775807,
 show create table examplebug20777;
 Table	Create Table
 examplebug20777	CREATE TABLE `examplebug20777` (
-  `i` int(1) NOT NULL DEFAULT '0',
+  `i` int(1) NOT NULL,
   `2**63-2` bigint(20) unsigned DEFAULT NULL,
   `2**63-1` bigint(20) unsigned DEFAULT NULL,
   `2**63` bigint(20) unsigned DEFAULT NULL,

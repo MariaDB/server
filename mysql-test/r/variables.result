@@ -1569,7 +1569,7 @@ CREATE TABLE t1 AS SELECT @a:= CAST(1 AS UNSIGNED) AS a;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` int(1) unsigned NOT NULL DEFAULT '0'
+  `a` int(1) unsigned NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t1;
 End of 5.1 tests
