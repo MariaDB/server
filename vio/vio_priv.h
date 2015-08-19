@@ -20,6 +20,7 @@
 /* Structures and functions private to the vio package */
 
 #define DONT_MAP_VIO
+#include <config.h>
 #include <my_global.h>
 #include <mysql_com.h>
 #include <my_sys.h>
@@ -62,4 +63,11 @@ int vio_ssl_blocking(Vio *vio, my_bool set_blocking_mode, my_bool *old_mode);
 my_bool vio_ssl_has_data(Vio *vio);
 
 #endif /* HAVE_OPENSSL */
+
+#ifdef HAVE_GSSAPI
+size_t vio_gss_read(Vio *vio, uchar *buf, size_t size);
+size_t vio_gss_write(Vio *vio, const uchar *buf, size_t size);
+int vio_gss_close(Vio *vio);
+my_bool vio_gss_has_data(Vio *vio);
+#endif /* HAVE_GSSAPI */
 #endif /* VIO_PRIV_INCLUDED */

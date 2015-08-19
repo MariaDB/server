@@ -25,7 +25,9 @@
 #include "my_net.h"   /* needed because of struct in_addr */
 #include <mysql/psi/mysql_socket.h>
 
-/* Simple vio interface in C;  The functions are implemented in violite.c */
+/* Simple vio interface in C; the functions are implemented in the top-level
+ * vio/ directory.
+ */
 
 #ifdef	__cplusplus
 extern "C" {
@@ -38,7 +40,7 @@ typedef struct st_vio Vio;
 enum enum_vio_type
 {
   VIO_CLOSED, VIO_TYPE_TCPIP, VIO_TYPE_SOCKET, VIO_TYPE_NAMEDPIPE,
-  VIO_TYPE_SSL, VIO_TYPE_SHARED_MEMORY
+  VIO_TYPE_SSL, VIO_TYPE_SHARED_MEMORY, VIO_TYPE_GSSAPI
 };
 
 /**
@@ -121,6 +123,12 @@ int vio_getnameinfo(const struct sockaddr *sa,
                     char *hostname, size_t hostname_size,
                     char *port, size_t port_size,
                     int flags);
+
+#ifdef HAVE_GSSAPI
+#include <gssapi/gssapi.h>
+#include <gssapi/gssapi_ext.h>
+#include <gssapi/gssapi_generic.h>
+#endif /* HAVE_GSSAPI */
 
 #ifdef HAVE_OPENSSL
 #include <openssl/opensslv.h>
@@ -227,6 +235,39 @@ enum SSL_type
   SSL_TYPE_SPECIFIED
 };
 
+#ifdef HAVE_GSSAPI
+#define GSS_DBUG_ERROR(major, minor)                                \
+  do                                                                \
+  {                                                                 \
+    gss_buffer_desc db_input;                                       \
+    OM_uint32 resmajor = major, resminor = minor;                   \
+    OM_uint32 cont = 0;                                             \
+                                                                    \
+    do                                                              \
+    {                                                               \
+      db_input.length = 0;                                          \
+      db_input.value = NULL;                                        \
+      major = gss_display_status(&minor, resmajor, GSS_C_GSS_CODE,  \
+                                 GSS_C_NO_OID, &cont, &input);      \
+      DBUG_PRINT("gsserror", ("%s", (char *) db_input.value));      \
+      major = gss_release_buffer(&minor, &input);                   \
+    }                                                               \
+    while (cont != 0);                                              \
+    cont = 0;                                                       \
+    do                                                              \
+    {                                                               \
+      db_input.length = 0;                                          \
+      db_input.value = NULL;                                        \
+      major = gss_display_status(&minor, resminor, GSS_C_MECH_CODE, \
+                                 GSS_C_NO_OID, &cont, &db_input);   \
+      DBUG_PRINT("gsserror", ("%s", (char *) db_input.value));      \
+      major = gss_release_buffer(&minor, &db_input);                \
+    }                                                               \
+    while (cont != 0);                                              \
+  }                                                                 \
+  while (0);
+#endif /* HAVE_GSSAPI */
+
 
 /* HFTODO - hide this if we don't want client in embedded server */
 /* This structure is for every connection on both sides */
@@ -288,5 +329,8 @@ struct st_vio
   DWORD read_timeout_ms;
   DWORD write_timeout_ms;
 #endif
+#ifdef HAVE_GSSAPI
+  gss_ctx_id_t gss_ctxt;
+#endif /* HAVE_GSSAPI */
 };
 #endif /* vio_violite_h_ */
