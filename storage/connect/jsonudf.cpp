@@ -18,9 +18,10 @@
 #define MEMFIX  4096
 #define PUSH_WARNING(M) \
 push_warning(current_thd, Sql_condition::WARN_LEVEL_WARN, 0, M)
+#define M 7
 
 uint GetJsonGrpSize(void);
-static int IsJson(UDF_ARGS *args, int i);
+static int IsJson(UDF_ARGS *args, uint i);
 static PSZ MakePSZ(PGLOBAL g, UDF_ARGS *args, int i);
 
 /* ------------------------------ JSNX ------------------------------- */
@@ -990,7 +991,7 @@ static char *MakeResult(PGLOBAL g, UDF_ARGS *args, PJSON top, int n = 2)
 /***********************************************************************/
 /*  Returns not 0 if the argument is a JSON item or file name.         */
 /***********************************************************************/
-static int IsJson(UDF_ARGS *args, int i)
+static int IsJson(UDF_ARGS *args, uint i)
 {
 	int n = 0;
 
@@ -1030,7 +1031,8 @@ static long GetFileLength(char *fn)
 /*  Calculate the reslen and memlen needed by a function.              */
 /***********************************************************************/
 static my_bool CalcLen(UDF_ARGS *args, my_bool obj,
-                       unsigned long& reslen, unsigned long& memlen)
+                       unsigned long& reslen, unsigned long& memlen,
+											 my_bool mod = false)
 {
 	char fn[_MAX_PATH];
   unsigned long i, k, n;
@@ -1050,12 +1052,16 @@ static my_bool CalcLen(UDF_ARGS *args, my_bool obj,
     switch (args->arg_type[i]) {
       case STRING_RESULT:
 				if (IsJson(args, i) == 2 && args->args[i]) {
-					n = MY_MIN(args->lengths[i], sizeof(fn) - 1);
-					memcpy(fn, args->args[i], n);
-					fn[n] = 0;
-					j = i;
-					fl = GetFileLength(fn);
-					reslen += fl;
+					if (!mod) {
+						n = MY_MIN(args->lengths[i], sizeof(fn) - 1);
+						memcpy(fn, args->args[i], n);
+						fn[n] = 0;
+						j = i;
+						fl = GetFileLength(fn);
+						reslen += fl;
+					} else
+						reslen += args->lengths[i];
+
 				} else if (IsJson(args, i) == 1)
           reslen += args->lengths[i];
 				else
@@ -1106,9 +1112,9 @@ static my_bool CalcLen(UDF_ARGS *args, my_bool obj,
 						fl = GetFileLength(fn);
 					}	// endif i
 
-					memlen += fl * 5;
+					memlen += fl * M;
 				}	else if (IsJson(args, i) == 1)
-					memlen += args->lengths[i] * 5;  // Estimate parse memory
+					memlen += args->lengths[i] * M;  // Estimate parse memory
   
         memlen += sizeof(TYPVAL<PSZ>);
         break;
@@ -1129,14 +1135,15 @@ static my_bool CalcLen(UDF_ARGS *args, my_bool obj,
 
     } // endfor i
 
-  return false;
+	reslen = MY_MIN(reslen, 65535);			// VARCHAR length limit
+	return false;
 } // end of CalcLen
 
 /***********************************************************************/
 /*  Check if the calculated memory is enough.                          */
 /***********************************************************************/
 static my_bool CheckMemory(PGLOBAL g, UDF_INIT *initid, UDF_ARGS *args, 
-	                         uint n, my_bool obj)
+	                         uint n, my_bool obj, my_bool mod = false)
 {
 	unsigned long rl, ml;
 
@@ -1144,7 +1151,7 @@ static my_bool CheckMemory(PGLOBAL g, UDF_INIT *initid, UDF_ARGS *args,
 
 	for (uint i = 0; i < n; i++)
 		if (IsJson(args, i) == 2) {
-			if (CalcLen(args, obj, rl, ml))
+			if (CalcLen(args, obj, rl, ml, mod))
 				return true;
 			else if (ml > g->Sarea_Size) {
 				free(g->Sarea);
@@ -1475,7 +1482,7 @@ my_bool Json_Array_Add_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
     strcpy(message, "Json_Array_Add first argument must be a json item");
     return true;
 	} else
-    CalcLen(args, false, reslen, memlen);
+    CalcLen(args, false, reslen, memlen, true);
 
 	return JsonInit(initid, message, true, reslen, memlen);
 } // end of Json_Array_Add_init
@@ -1486,7 +1493,7 @@ char *Json_Array_Add(UDF_INIT *initid, UDF_ARGS *args, char *result,
 	char   *str = NULL;
   PGLOBAL g = (PGLOBAL)initid->ptr;
 
-	if (!CheckMemory(g, initid, args, 2, false)) {
+	if (!CheckMemory(g, initid, args, 2, false, true)) {
 		int  *x = NULL, n = 2;
 		PJSON top;
 		PJVAL jvp;
@@ -1518,11 +1525,13 @@ char *Json_Array_Add(UDF_INIT *initid, UDF_ARGS *args, char *result,
 	} // endif CheckMemory
 
 	// In case of error or file, return unchanged argument
-	if (!str)
+	if (!str) {
 		str = args->args[0];
+		*res_length = args->lengths[0];
+	} else
+		*res_length = strlen(str);
 
-	*res_length = (str) ? strlen(str) : 0;
-  return str;
+	return str;
 } // end of Json_Array_Add
 
 void Json_Array_Add_deinit(UDF_INIT* initid)
@@ -1547,7 +1556,7 @@ my_bool Json_Array_Delete_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 		strcpy(message, "Json_Array_Delete second argument is not an integer (index)");
 		return true;
 	} else
-    CalcLen(args, false, reslen, memlen);
+    CalcLen(args, false, reslen, memlen, true);
 
   return JsonInit(initid, message, true, reslen, memlen);
 } // end of Json_Array_Delete_init
@@ -1558,7 +1567,7 @@ char *Json_Array_Delete(UDF_INIT *initid, UDF_ARGS *args, char *result,
 	char   *str = NULL;
   PGLOBAL g = (PGLOBAL)initid->ptr;
 
-	if (!CheckMemory(g, initid, args, 1, false)) {
+	if (!CheckMemory(g, initid, args, 1, false, true)) {
 		int   n;
 		PJAR  arp;
 		PJVAL jvp = MakeValue(g, args, 0);
@@ -1578,10 +1587,12 @@ char *Json_Array_Delete(UDF_INIT *initid, UDF_ARGS *args, char *result,
 	} // endif CheckMemory
 
 	// In case of error or file, return unchanged argument
-	if (!str)
+	if (!str) {
 		str = args->args[0];
+		*res_length = args->lengths[0];
+	} else
+		*res_length = strlen(str);
 
-	*res_length = (str) ? strlen(str) : 0;
   return str;
 } // end of Json_Array_Delete
 
@@ -1683,7 +1694,7 @@ my_bool Json_Object_Add_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 		strcpy(message, "Json_Object_Add first argument must be a json item");
 		return true;
 	} else
-		CalcLen(args, false, reslen, memlen);
+		CalcLen(args, false, reslen, memlen, true);
 
 	return JsonInit(initid, message, true, reslen, memlen);
 } // end of Json_Object_Add_init
@@ -1694,7 +1705,7 @@ char *Json_Object_Add(UDF_INIT *initid, UDF_ARGS *args, char *result,
 	char   *key, *str = NULL;
 	PGLOBAL g = (PGLOBAL)initid->ptr;
 
-	if (!CheckMemory(g, initid, args, 2, false)) {
+	if (!CheckMemory(g, initid, args, 2, false, true)) {
 		PJOB  jobp;
 		PJVAL jvp = MakeValue(g, args, 0);
 		PJSON top = jvp->GetJson();
@@ -1713,10 +1724,12 @@ char *Json_Object_Add(UDF_INIT *initid, UDF_ARGS *args, char *result,
 	} // endif CheckMemory
 
 	// In case of error or file, return unchanged argument
-	if (!str)
+	if (!str) {
 		str = args->args[0];
+		*res_length = args->lengths[0];
+	} else
+		*res_length = strlen(str);
 
-	*res_length = (str) ? strlen(str) : 0;
 	return str;
 } // end of Json_Object_Add
 
@@ -1742,7 +1755,7 @@ my_bool Json_Object_Delete_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 		strcpy(message, "Json_Object_Delete second argument must be a key string");
 		return true;
 	} else
-		CalcLen(args, false, reslen, memlen);
+		CalcLen(args, false, reslen, memlen, true);
 
 	return JsonInit(initid, message, true, reslen, memlen);
 } // end of Json_Object_Delete_init
@@ -1753,7 +1766,7 @@ char *Json_Object_Delete(UDF_INIT *initid, UDF_ARGS *args, char *result,
 	char   *str = NULL;
 	PGLOBAL g = (PGLOBAL)initid->ptr;
 
-	if (!CheckMemory(g, initid, args, 1, false)) {
+	if (!CheckMemory(g, initid, args, 1, false, true)) {
 		char *key;
 		PJOB  jobp;
 		PJVAL jvp = MakeValue(g, args, 0);
@@ -1772,10 +1785,12 @@ char *Json_Object_Delete(UDF_INIT *initid, UDF_ARGS *args, char *result,
 	} // endif CheckMemory
 
 	// In case of error or file, return unchanged argument
-	if (!str)
-		str = args->args[0]; 
+	if (!str) {
+		str = args->args[0];
+		*res_length = args->lengths[0];
+	} else
+		*res_length = strlen(str);
 
-	*res_length = (str) ? strlen(str) : 0;
 	return str;
 } // end of Json_Object_Delete
 
@@ -2300,7 +2315,7 @@ my_bool Json_File_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 	CalcLen(args, false, reslen, memlen);
 
 	if (args->arg_count > 2 && *(longlong*)args->args[2])
-		more += GetFileLength(args->args[0]) * 5;
+		more += GetFileLength(args->args[0]) * M;
 
   memlen += more;
 	return JsonInit(initid, message, false, reslen, memlen);
@@ -2436,4 +2451,3 @@ void Json_Make_File_deinit(UDF_INIT* initid)
 {
 	PlugExit((PGLOBAL)initid->ptr);
 } // end of Json_Make_File_deinit
-
