@@ -57,6 +57,11 @@
 
 #include "sql_plugin_compat.h"
 
+#ifdef HAVE_GSSAPI
+char *kerberos_principal_name_ptr;
+char *kerberos_keytab_path_ptr;
+#endif /* HAVE_GSSAPI */
+
 bool mysql_user_table_is_in_short_password_format= false;
 
 static const
