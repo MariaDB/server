@@ -1,5 +1,6 @@
 /* Copyright (c) 2003, 2014, Oracle and/or its affiliates.
    Copyright (c) 2009, 2015, MariaDB
+   Copyright (c) 2015 Shuang Qiu and Monty Program Ab
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -112,6 +113,9 @@ my_bool	net_flush(NET *net);
 
 #define native_password_plugin_name "mysql_native_password"
 #define old_password_plugin_name    "mysql_old_password"
+#ifdef HAVE_GSSAPI
+#define kerberos_plugin_name        "kerberos"
+#endif /* HAVE_GSSAPI */
 
 uint            mariadb_deinitialize_ssl= 1;
 uint		mysql_port=0;
@@ -2372,6 +2376,9 @@ typedef struct st_mysql_client_plugin_AUTHENTICATION auth_plugin_t;
 static int client_mpvio_write_packet(struct st_plugin_vio*, const uchar*, int);
 static int native_password_auth_client(MYSQL_PLUGIN_VIO *vio, MYSQL *mysql);
 static int old_password_auth_client(MYSQL_PLUGIN_VIO *vio, MYSQL *mysql);
+#ifdef HAVE_GSSAPI
+static int kerberos_auth_client(MYSQL_PLUGIN_VIO *vio, MYSQL *mysql);
+#endif /* HAVE_GSSAPI */
 
 static auth_plugin_t native_password_client_plugin=
 {
@@ -2405,11 +2412,32 @@ static auth_plugin_t old_password_client_plugin=
   old_password_auth_client
 };
 
+#ifdef HAVE_GSSAPI
+static auth_plugin_t kerberos_client_plugin=
+{
+  MYSQL_CLIENT_AUTHENTICATION_PLUGIN,
+  MYSQL_CLIENT_AUTHENTICATION_PLUGIN_INTERFACE_VERSION,
+  kerberos_plugin_name,
+  "Shuang Qiu, Monty Program Ab",
+  "Kerberos-based auth & encryption",
+  {1, 0, 0},
+  "GPL",
+  NULL,
+  NULL,
+  NULL,
+  NULL,
+  kerberos_auth_client
+};
+#endif /* HAVE_GSSAPI */
+
 
 struct st_mysql_client_plugin *mysql_client_builtins[]=
 {
   (struct st_mysql_client_plugin *)&native_password_client_plugin,
   (struct st_mysql_client_plugin *)&old_password_client_plugin,
+#ifdef HAVE_GSSAPI
+  (struct st_mysql_client_plugin *)&kerberos_client_plugin,
+#endif
   0
 };
 
@@ -3155,6 +3183,14 @@ int run_plugin_auth(MYSQL *mysql, char *data, uint data_len,
       }
     }
   }
+
+#ifdef HAVE_GSSAPI
+  if (!strcmp(auth_plugin->name, kerberos_plugin_name))
+  {
+    vio_reset(mysql->net.vio, VIO_TYPE_GSSAPI,
+              mysql_socket_getfd(mysql->net.vio->mysql_socket), NULL, 0);
+  }
+#endif /* HAVE_GSSAPI */
   /*
     net->read_pos[0] should always be 0 here if the server implements
     the protocol correctly
@@ -4908,6 +4944,141 @@ static int old_password_auth_client(MYSQL_PLUGIN_VIO *vio, MYSQL *mysql)
   DBUG_RETURN(CR_OK);
 }
 
+#ifdef HAVE_GSSAPI
+static int gssapi_kerberos_auth_client(const char *spn,
+                                       MYSQL *mysql __attribute__((unused)),
+                                       MYSQL_PLUGIN_VIO *vio)
+{
+  int r_len, context_established, rc, have_cred, have_ctxt, have_name;
+  OM_uint32 major, minor;
+  gss_name_t service_name;
+  gss_ctx_id_t ctxt;
+  gss_buffer_desc spn_buf, input, output;
+  gss_cred_id_t cred;
+
+  DBUG_ENTER("gssapi_kerberos_auth_client");
+  
+  r_len= 0; /* packet read length */
+  context_established= 0; /* indicate ctxt avail */
+  rc= CR_OK;
+  have_cred= have_ctxt= have_name= FALSE;
+  major= minor= 0;
+  cred= GSS_C_NO_CREDENTIAL; /* use default credential */
+
+  /* import principal from plain text */
+  /* initialize plain text service principal name */
+  spn_buf.length= strlen(spn);
+  spn_buf.value= (void *) spn;
+  /* import service principal */
+  major= gss_import_name(&minor, &spn_buf, (gss_OID) gss_nt_user_name,
+                         &service_name);
+  /* gss_import_name error checking */
+  if (GSS_ERROR(major))
+
+  {
+    GSS_DBUG_ERROR(major, minor);
+    rc= CR_ERROR;
+    goto cleanup;
+  }
+  have_name= TRUE;
+
+  /* initial context */
+  ctxt= GSS_C_NO_CONTEXT;
+  input.length= 0;
+  input.value= NULL;
+
+  while (!context_established)
+  {
+    major= gss_init_sec_context(&minor, cred, &ctxt, service_name,
+                                GSS_C_NO_OID, 0, 0, GSS_C_NO_CHANNEL_BINDINGS,
+                                &input, NULL, &output, NULL, NULL);
+
+    if (output.length)
+    {
+      /* send credential */
+      if (vio->write_packet(vio, output.value, output.length))
+      {
+        GSS_DBUG_ERROR(major, minor);
+        rc= CR_ERROR;
+        goto cleanup;
+      }
+      gss_release_buffer(&minor, &output);
+    }
+
+    if (GSS_ERROR(major))
+    {
+      /* fatal error */
+      if (ctxt != GSS_C_NO_CONTEXT)
+      {
+        gss_delete_sec_context(&minor, &ctxt, GSS_C_NO_BUFFER);
+      }
+      GSS_DBUG_ERROR(major, minor);
+      rc= CR_ERROR;
+      goto cleanup;
+    }
+
+    if (major & GSS_S_CONTINUE_NEEDED)
+    {
+      r_len= vio->read_packet(vio, (unsigned char **) &input.value);
+      if (r_len < 0)
+      {
+        rc= CR_ERROR;
+        GSS_DBUG_ERROR(major, minor);
+        goto cleanup;
+      }
+    }
+    else
+    {
+      context_established= 1;
+      mysql->net.vio->gss_ctxt= ctxt;
+    }
+  }
+
+cleanup:
+  if (have_name)
+    gss_release_name(&minor, &service_name);
+  if (have_ctxt && !context_established)
+    gss_delete_sec_context(&minor, &ctxt, GSS_C_NO_BUFFER);
+  if (have_cred)
+    gss_release_cred(&minor, &cred);
+
+  DBUG_RETURN(rc);
+}
+
+static int kerberos_auth_client(MYSQL_PLUGIN_VIO *vio, MYSQL *mysql)
+{
+  int r_len, rc;
+  char *spn, *spn_buff;
+  const int PRINCIPAL_NAME_LEN= 256;
+  
+  DBUG_ENTER("kerberos_auth_client");
+
+  r_len= 0;
+  rc= CR_OK;
+  
+  spn= NULL; /* service principal name */
+  spn_buff= (char *) malloc(PRINCIPAL_NAME_LEN);
+  if (!spn_buff)
+  {
+    DBUG_PRINT("kerberos_auth_client", ("malloc failure!"));
+    DBUG_RETURN(-1);
+  }
+
+  /* read from server for service principal name */
+  r_len= vio->read_packet(vio, (unsigned char **) &spn);
+  if (r_len < 0)
+  {
+    DBUG_PRINT("kerberos", ("fail to read service principal name."));
+    DBUG_RETURN(CR_ERROR);
+  }
+  strncpy(spn_buff, spn, PRINCIPAL_NAME_LEN);
+
+  rc= gssapi_kerberos_auth_client((const char *) spn_buff, mysql, vio);
+
+  free(spn_buff);
+  DBUG_RETURN(rc);
+}
+#endif /* HAVE_GSSAPI */
 
 my_socket STDCALL
 mysql_get_socket(const MYSQL *mysql)

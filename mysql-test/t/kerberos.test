@@ -1,0 +1,34 @@
+# Testing Kerberos plugin
+#
+# Requires the following env variables set:
+#   - MTR_KERBEROS_ENABLED: whether to run the test
+#   - MTR_KERBEROS_UPN: kerberos princapal name to connect as
+#   - MTR_KERBEROS_SPN: kerberos principal name for the server
+#   - KRB5_KTNAME: location of keytab (if not default)
+
+--source include/not_embedded.inc
+
+if (!$MTR_KERBEROS_ENABLED) {
+  skip Kerberos not configured;
+}
+
+--replace_result $MTR_KERBEROS_UPN MTR_KERBEROS_UPN
+eval CREATE USER test_kerberos IDENTIFIED VIA kerberos AS '$MTR_KERBEROS_UPN';
+
+--replace_result $MTR_KERBEROS_SPN MTR_KERBEROS_SPN
+eval SET GLOBAL kerberos_principal_name='$MTR_KERBEROS_SPN';
+
+--echo #
+--echo # user principal is accepted, and authentication is successful.
+--echo #
+--exec echo "SELECT USER();" | $MYSQL_TEST -u test_kerberos
+--echo # connection is persistent.
+
+# --echo #
+# --echo # authentication is unsuccessful
+# --echo #
+# --error 1
+# --exec $MYSQL_TEST -u test_kerberos
+
+SET GLOBAL kerberos_principal_name='';
+DROP USER test_kerberos;
