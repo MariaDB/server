@@ -127,6 +127,9 @@
 #cmakedefine USE_LIBEDIT_INTERFACE 1
 #cmakedefine USE_NEW_READLINE_INTERFACE 1
 
+/* GSSAPI */
+#cmakedefine HAVE_GSSAPI 1
+
 #cmakedefine FIONREAD_IN_SYS_IOCTL 1
 #cmakedefine GWINSZ_IN_SYS_IOCTL 1
 #cmakedefine TIOCSTAT_IN_SYS_IOCTL 1
