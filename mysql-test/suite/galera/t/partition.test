@@ -1,0 +1,31 @@
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+--source include/have_partition.inc
+
+--echo #
+--echo # MDEV#4953 Galera: DELETE from a partitioned table is not replicated
+--echo #
+
+USE test;
+CREATE TABLE t1 (pk INT PRIMARY KEY, i INT) ENGINE=INNODB PARTITION BY HASH(pk) PARTITIONS 2;
+INSERT INTO t1 VALUES (1,100), (2,200);
+SELECT * FROM t1;
+
+DELETE FROM t1;
+SELECT * FROM t1;
+
+--echo
+--echo # On node_1
+--connection node_1
+SELECT * FROM t1;
+
+--echo
+--echo # On node_2
+--connection node_2
+SELECT * FROM t1;
+
+# Cleanup
+DROP TABLE t1;
+
+--source include/galera_end.inc
+--echo # End of test
