@@ -1168,22 +1168,24 @@ int collect_ulonglong(ulonglong *element,
 
 bool analyse::change_columns(THD *thd, List<Item> &field_list)
 {
+  MEM_ROOT *mem_root= thd->mem_root;
   field_list.empty();
 
-  func_items[0] = new Item_proc_string(thd, "Field_name", 255);
-  func_items[1] = new Item_proc_string(thd, "Min_value", 255);
+  func_items[0]= new (mem_root) Item_proc_string(thd, "Field_name", 255);
+  func_items[1]= new (mem_root) Item_proc_string(thd, "Min_value", 255);
   func_items[1]->maybe_null = 1;
-  func_items[2] = new Item_proc_string(thd, "Max_value", 255);
+  func_items[2]= new (mem_root) Item_proc_string(thd, "Max_value", 255);
   func_items[2]->maybe_null = 1;
-  func_items[3] = new Item_proc_int(thd, "Min_length");
-  func_items[4] = new Item_proc_int(thd, "Max_length");
-  func_items[5] = new Item_proc_int(thd, "Empties_or_zeros");
-  func_items[6] = new Item_proc_int(thd, "Nulls");
-  func_items[7] = new Item_proc_string(thd, "Avg_value_or_avg_length", 255);
-  func_items[8] = new Item_proc_string(thd, "Std", 255);
+  func_items[3]= new (mem_root) Item_proc_int(thd, "Min_length");
+  func_items[4]= new (mem_root) Item_proc_int(thd, "Max_length");
+  func_items[5]= new (mem_root) Item_proc_int(thd, "Empties_or_zeros");
+  func_items[6]= new (mem_root) Item_proc_int(thd, "Nulls");
+  func_items[7]= new (mem_root) Item_proc_string(thd, "Avg_value_or_avg_length", 255);
+  func_items[8]= new (mem_root) Item_proc_string(thd, "Std", 255);
   func_items[8]->maybe_null = 1;
-  func_items[9] = new Item_proc_string(thd, "Optimal_fieldtype",
-				       MY_MAX(64, output_str_length));
+  func_items[9]= new (mem_root) Item_proc_string(thd, "Optimal_fieldtype",
+                                                  MY_MAX(64,
+                                                         output_str_length));
 
   for (uint i = 0; i < array_elements(func_items); i++)
     field_list.push_back(func_items[i]);

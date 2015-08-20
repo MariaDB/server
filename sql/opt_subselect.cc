@@ -1136,7 +1136,7 @@ bool convert_join_subqueries_to_semijoins(JOIN *join)
                      &join->conds : &(in_subq->emb_on_expr_nest->on_expr);
       Item *replace_me= in_subq->original_item();
       if (replace_where_subcondition(join, tree, replace_me,
-                                     new Item_int(thd, 1),
+                                     new (thd->mem_root) Item_int(thd, 1),
                                      FALSE))
         goto restore_arena_and_fail;
     }
@@ -1595,7 +1595,7 @@ static bool convert_subq_to_sj(JOIN *parent_join, Item_in_subselect *subq_pred)
   {
     nested_join->sj_outer_expr_list.push_back(subq_pred->left_expr);
     Item_func_eq *item_eq=
-      new Item_func_eq(thd, subq_pred->left_expr,
+      new (thd->mem_root) Item_func_eq(thd, subq_pred->left_expr,
                        subq_lex->ref_pointer_array[0]);
     item_eq->in_equality_no= 0;
     sj_nest->sj_on_expr= and_items(thd, sj_nest->sj_on_expr, item_eq);
@@ -1607,7 +1607,7 @@ static bool convert_subq_to_sj(JOIN *parent_join, Item_in_subselect *subq_pred)
       nested_join->sj_outer_expr_list.push_back(subq_pred->left_expr->
                                                 element_index(i));
       Item_func_eq *item_eq= 
-        new Item_func_eq(thd, subq_pred->left_expr->element_index(i),
+        new (thd->mem_root) Item_func_eq(thd, subq_pred->left_expr->element_index(i),
                          subq_lex->ref_pointer_array[i]);
       item_eq->in_equality_no= i;
       sj_nest->sj_on_expr= and_items(thd, sj_nest->sj_on_expr, item_eq);
@@ -3797,8 +3797,8 @@ static Item *create_subq_in_equalities(THD *thd, SJ_MATERIALIZATION_INFO *sjm,
   Item *res= NULL;
   if (subq_pred->left_expr->cols() == 1)
   {
-    if (!(res= new Item_func_eq(thd, subq_pred->left_expr,
-                                new Item_field(thd, sjm->table->field[0]))))
+    if (!(res= new (thd->mem_root) Item_func_eq(thd, subq_pred->left_expr,
+                                new (thd->mem_root) Item_field(thd, sjm->table->field[0]))))
       return NULL; /* purecov: inspected */
   }
   else
@@ -3806,8 +3806,8 @@ static Item *create_subq_in_equalities(THD *thd, SJ_MATERIALIZATION_INFO *sjm,
     Item *conj;
     for (uint i= 0; i < subq_pred->left_expr->cols(); i++)
     {
-      if (!(conj= new Item_func_eq(thd, subq_pred->left_expr->element_index(i),
-                                   new Item_field(thd, sjm->table->field[i]))) ||
+      if (!(conj= new (thd->mem_root) Item_func_eq(thd, subq_pred->left_expr->element_index(i),
+                                   new (thd->mem_root) Item_field(thd, sjm->table->field[i]))) ||
           !(res= and_items(thd, res, conj)))
         return NULL; /* purecov: inspected */
     }
@@ -3836,7 +3836,7 @@ static void remove_sj_conds(THD *thd, Item **tree)
       while ((item= li++))
       {
         if (is_cond_sj_in_equality(item))
-          li.replace(new Item_int(thd, 1));
+          li.replace(new (thd->mem_root) Item_int(thd, 1));
       }
     }
   }
@@ -5102,7 +5102,7 @@ TABLE *create_dummy_tmp_table(THD *thd)
   sjm_table_param.init();
   sjm_table_param.field_count= 1;
   List<Item> sjm_table_cols;
-  Item *column_item= new Item_int(thd, 1);
+  Item *column_item= new (thd->mem_root) Item_int(thd, 1);
   sjm_table_cols.push_back(column_item);
   if (!(table= create_tmp_table(thd, &sjm_table_param, 
                                 sjm_table_cols, (ORDER*) 0, 
@@ -5194,6 +5194,7 @@ bool setup_jtbm_semi_joins(JOIN *join, List<TABLE_LIST> *join_list,
   TABLE_LIST *table;
   NESTED_JOIN *nested_join;
   List_iterator<TABLE_LIST> li(*join_list);
+  THD *thd= join->thd;
   DBUG_ENTER("setup_jtbm_semi_joins");
   
   while ((table= li++))
@@ -5242,7 +5243,7 @@ bool setup_jtbm_semi_joins(JOIN *join, List<TABLE_LIST> *join_list,
           (subselect_single_select_engine*)subq_pred->engine;
         select_value_catcher *new_sink;
         if (!(new_sink=
-                new (join->thd->mem_root) select_value_catcher(join->thd, subq_pred)))
+                new (thd->mem_root) select_value_catcher(thd, subq_pred)))
           DBUG_RETURN(TRUE);
         if (new_sink->setup(&engine->select_lex->join->fields_list) ||
             engine->select_lex->join->change_result(new_sink, NULL) ||
@@ -5262,14 +5263,14 @@ bool setup_jtbm_semi_joins(JOIN *join, List<TABLE_LIST> *join_list,
           Item *eq_cond;
           for (uint i= 0; i < subq_pred->left_expr->cols(); i++)
           {
-            eq_cond= new Item_func_eq(join->thd,
-                                      subq_pred->left_expr->element_index(i),
-                                      new_sink->row[i]);
+            eq_cond= new (thd->mem_root)
+              Item_func_eq(thd, subq_pred->left_expr->element_index(i),
+                           new_sink->row[i]);
             if (!eq_cond)
               DBUG_RETURN(1);
 
-            if (!((*join_where)= and_items(join->thd, *join_where, eq_cond)) ||
-                (*join_where)->fix_fields(join->thd, join_where))
+            if (!((*join_where)= and_items(thd, *join_where, eq_cond)) ||
+                (*join_where)->fix_fields(thd, join_where))
               DBUG_RETURN(1);
           }
         }
@@ -5281,7 +5282,7 @@ bool setup_jtbm_semi_joins(JOIN *join, List<TABLE_LIST> *join_list,
 
         /* Set up a dummy TABLE*, optimizer code needs JOIN_TABs to have TABLE */
         TABLE *dummy_table;
-        if (!(dummy_table= create_dummy_tmp_table(join->thd)))
+        if (!(dummy_table= create_dummy_tmp_table(thd)))
           DBUG_RETURN(1);
         table->table= dummy_table;
         table->table->pos_in_table_list= table;
@@ -5307,9 +5308,9 @@ bool setup_jtbm_semi_joins(JOIN *join, List<TABLE_LIST> *join_list,
 
         Item *sj_conds= hash_sj_engine->semi_join_conds;
 
-        (*join_where)= and_items(join->thd, *join_where, sj_conds);
+        (*join_where)= and_items(thd, *join_where, sj_conds);
         if (!(*join_where)->fixed)
-          (*join_where)->fix_fields(join->thd, join_where);
+          (*join_where)->fix_fields(thd, join_where);
       }
       table->table->maybe_null= MY_TEST(join->mixed_implicit_grouping);
     }

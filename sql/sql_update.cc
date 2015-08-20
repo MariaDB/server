@@ -148,7 +148,7 @@ static bool check_fields(THD *thd, List<Item> &items)
       we make temporary copy of Item_field, to avoid influence of changing
       result_field on Item_ref which refer on this field
     */
-    thd->change_item_tree(it.ref(), new Item_field(thd, field));
+    thd->change_item_tree(it.ref(), new (thd->mem_root) Item_field(thd, field));
   }
   return FALSE;
 }
@@ -1978,7 +1978,7 @@ loop_end:
         table to be updated was created by mysql 4.1. Deny this.
       */
       field->can_alter_field_type= 0;
-      Item_field *ifield= new Item_field(join->thd, (Field *) field);
+      Item_field *ifield= new (thd->mem_root) Item_field(join->thd, (Field *) field);
       if (!ifield)
          DBUG_RETURN(1);
       ifield->maybe_null= 0;

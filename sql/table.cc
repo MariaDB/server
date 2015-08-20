@@ -4142,7 +4142,7 @@ bool TABLE::fill_item_list(List<Item> *item_list) const
   */
   for (Field **ptr= field; *ptr; ptr++)
   {
-    Item_field *item= new Item_field(in_use, *ptr);
+    Item_field *item= new (in_use->mem_root) Item_field(in_use, *ptr);
     if (!item || item_list->push_back(item))
       return TRUE;
   }
@@ -5297,7 +5297,7 @@ Item *Field_iterator_table::create_item(THD *thd)
 {
   SELECT_LEX *select= thd->lex->current_select;
 
-  Item_field *item= new Item_field(thd, &select->context, *ptr);
+  Item_field *item= new (thd->mem_root) Item_field(thd, &select->context, *ptr);
   if (item && thd->variables.sql_mode & MODE_ONLY_FULL_GROUP_BY &&
       !thd->lex->in_sum_func && select->cur_pos_in_select_list != UNDEF_POS)
   {
@@ -5354,7 +5354,7 @@ Item *create_view_field(THD *thd, TABLE_LIST *view, Item **field_ref,
   {
     DBUG_RETURN(field);
   }
-  Item *item= new Item_direct_view_ref(thd, &view->view->select_lex.context,
+  Item *item= new (thd->mem_root) Item_direct_view_ref(thd, &view->view->select_lex.context,
                                        field_ref, view->alias,
                                        name, view);
   /*
@@ -5559,7 +5559,7 @@ Field_iterator_table_ref::get_or_create_column_ref(THD *thd, TABLE_LIST *parent_
     /* The field belongs to a stored table. */
     Field *tmp_field= table_field_it.field();
     Item_field *tmp_item=
-      new Item_field(thd, &thd->lex->current_select->context, tmp_field);
+      new (thd->mem_root) Item_field(thd, &thd->lex->current_select->context, tmp_field);
     if (!tmp_item)
       return NULL;
     nj_col= new Natural_join_column(tmp_item, table_ref);
@@ -7328,7 +7328,7 @@ bool TABLE_LIST::change_refs_to_fields()
     DBUG_ASSERT(!field_it.end_of_fields());
     if (!materialized_items[idx])
     {
-      materialized_items[idx]= new Item_field(thd, table->field[idx]);
+      materialized_items[idx]= new (thd->mem_root) Item_field(thd, table->field[idx]);
       if (!materialized_items[idx])
         return TRUE;
     }

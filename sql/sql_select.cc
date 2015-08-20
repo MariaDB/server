@@ -512,9 +512,9 @@ fix_inner_refs(THD *thd, List<Item> &all_fields, SELECT_LEX *select,
       direct_ref= TRUE;
 
     new_ref= direct_ref ?
-              new Item_direct_ref(thd, ref->context, item_ref, ref->table_name,
+              new (thd->mem_root) Item_direct_ref(thd, ref->context, item_ref, ref->table_name,
                           ref->field_name, ref->alias_name_used) :
-              new Item_ref(thd, ref->context, item_ref, ref->table_name,
+              new (thd->mem_root) Item_ref(thd, ref->context, item_ref, ref->table_name,
                           ref->field_name, ref->alias_name_used);
     if (!new_ref)
       return TRUE;
@@ -892,7 +892,7 @@ JOIN::prepare(Item ***rref_pointer_array,
       if ((*ord->item)->type() == Item::FIELD_ITEM &&
           (*ord->item)->field_type() == MYSQL_TYPE_BIT)
       {
-        Item_field *field= new Item_field(thd, *(Item_field**)ord->item);
+        Item_field *field= new (thd->mem_root) Item_field(thd, *(Item_field**)ord->item);
         int el= all_fields.elements;
         ref_pointer_array[el]= field;
         all_fields.push_front(field);
@@ -1150,7 +1150,7 @@ TODO: make view to decide if it is possible to write to WHERE directly or make S
       conds= having;
       having= 0;
     }
-    else if ((conds=new Item_cond_and(conds,having)))
+    else if ((conds=new (thd->mem_root) Item_cond_and(conds,having)))
     {
       /*
         Item_cond_and can't be fixed after creation, so we do not check
@@ -1408,7 +1408,7 @@ TODO: make view to decide if it is possible to write to WHERE directly or make S
   if (!conds && outer_join)
   {
     /* Handle the case where we have an OUTER JOIN without a WHERE */
-    conds= new Item_int(thd, (longlong) 1,1); // Always true
+    conds= new (thd->mem_root) Item_int(thd, (longlong) 1,1); // Always true
   }
 
   if (impossible_where)
@@ -1544,7 +1544,7 @@ TODO: make view to decide if it is possible to write to WHERE directly or make S
   if (conds && const_table_map != found_const_table_map &&
       (select_options & SELECT_DESCRIBE))
   {
-    conds=new Item_int(thd, (longlong) 0, 1); // Always false
+    conds=new (thd->mem_root) Item_int(thd, (longlong) 0, 1); // Always false
   }
 
   /* Cache constant expressions in WHERE, HAVING, ON clauses. */
@@ -2976,7 +2976,7 @@ void JOIN::exec_inner()
 	else
 	{
 	  if (!(curr_table->select->cond=
-                new Item_cond_and(thd, curr_table->select->cond,
+                new (thd->mem_root) Item_cond_and(thd, curr_table->select->cond,
                                   sort_table_cond)))
 	    DBUG_VOID_RETURN;
 	}
@@ -2985,7 +2985,7 @@ void JOIN::exec_inner()
           if (sort_table_cond->type() == Item::COND_ITEM)
             sort_table_cond= sort_table_cond->copy_andor_structure(thd);           
           if (!(curr_table->pre_idx_push_select_cond= 
-                new Item_cond_and(thd, curr_table->pre_idx_push_select_cond,
+                new (thd->mem_root) Item_cond_and(thd, curr_table->pre_idx_push_select_cond,
                                   sort_table_cond)))
             DBUG_VOID_RETURN;            
         }
@@ -3888,7 +3888,7 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
     if (join->cond_value == Item::COND_FALSE)
     {
       join->impossible_where= true;
-      conds= new Item_int(join->thd, (longlong) 0, 1);
+      conds= new (join->thd->mem_root) Item_int(join->thd, (longlong) 0, 1);
     }
 
     join->cond_equal= NULL;
@@ -4838,7 +4838,7 @@ Item_func_null_predicate::add_key_fields(JOIN *join, KEY_FIELD **key_fields,
   /* column_name IS [NOT] NULL */
   if (is_local_field(args[0]) && !(used_tables() & OUTER_REF_TABLE_BIT))
   {
-    Item *tmp= new Item_null(join->thd);
+    Item *tmp= new (join->thd->mem_root) Item_null(join->thd);
     if (unlikely(!tmp))                       // Should never be true
       return;
     add_key_equal_fields(join, key_fields, *and_level, this,
@@ -9156,7 +9156,7 @@ inline void add_cond_and_fix(THD *thd, Item **e1, Item *e2)
     if (!e2)
       return;
     Item *res;
-    if ((res= new Item_cond_and(thd, *e1, e2)))
+    if ((res= new (thd->mem_root) Item_cond_and(thd, *e1, e2)))
     {
       res->fix_fields(thd, 0);
       res->update_used_tables();
@@ -9257,7 +9257,8 @@ static void add_not_null_conds(JOIN *join)
           */
           if (!referred_tab)
             continue;
-          if (!(notnull= new Item_func_isnotnull(join->thd, not_null_item)))
+          if (!(notnull= new (join->thd->mem_root)
+                Item_func_isnotnull(join->thd, not_null_item)))
             DBUG_VOID_RETURN;
           /*
             We need to do full fix_fields() call here in order to have correct
@@ -9321,7 +9322,7 @@ add_found_match_trig_cond(THD *thd, JOIN_TAB *tab, COND *cond,
   if (tab == root_tab)
     return cond;
   if ((tmp= add_found_match_trig_cond(thd, tab->first_upper, cond, root_tab)))
-    tmp= new Item_func_trig_cond(thd, tmp, &tab->found);
+    tmp= new (thd->mem_root) Item_func_trig_cond(thd, tmp, &tab->found);
   if (tmp)
   {
     tmp->quick_fix_field();
@@ -9673,7 +9674,7 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
             below to check if we should use 'quick' instead.
           */
           DBUG_PRINT("info", ("Item_int"));
-          tmp= new Item_int(thd, (longlong) 1, 1); // Always true
+          tmp= new (thd->mem_root) Item_int(thd, (longlong) 1, 1); // Always true
         }
 
       }
@@ -9906,13 +9907,13 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
                                               (table_map) 0, -1, FALSE, FALSE);
           if (!tmp_cond)
             continue;
-          tmp_cond= new Item_func_trig_cond(thd, tmp_cond,
+          tmp_cond= new (thd->mem_root) Item_func_trig_cond(thd, tmp_cond,
                                             &cond_tab->not_null_compl);
           if (!tmp_cond)
             DBUG_RETURN(1);
           tmp_cond->quick_fix_field();
           cond_tab->select_cond= !cond_tab->select_cond ? tmp_cond :
-                                 new Item_cond_and(thd, cond_tab->select_cond,
+                                 new (thd->mem_root) Item_cond_and(thd, cond_tab->select_cond,
                                                    tmp_cond);
           if (!cond_tab->select_cond)
 	    DBUG_RETURN(1);
@@ -10013,7 +10014,7 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
               the null complemented row.
 	    */ 
             DBUG_PRINT("info", ("Item_func_trig_cond"));
-            tmp_cond= new Item_func_trig_cond(thd, tmp_cond,
+            tmp_cond= new (thd->mem_root) Item_func_trig_cond(thd, tmp_cond,
                                               &first_inner_tab->
                                               not_null_compl);
             DBUG_PRINT("info", ("Item_func_trig_cond 0x%lx",
@@ -10024,7 +10025,7 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
             DBUG_PRINT("info", ("Item_cond_and"));
             *sel_cond_ref= !(*sel_cond_ref) ? 
                              tmp_cond :
-                             new Item_cond_and(thd, *sel_cond_ref, tmp_cond);
+                             new (thd->mem_root) Item_cond_and(thd, *sel_cond_ref, tmp_cond);
             DBUG_PRINT("info", ("Item_cond_and 0x%lx",
                                 (ulong)(*sel_cond_ref)));
             if (!(*sel_cond_ref))
@@ -11012,7 +11013,8 @@ void JOIN_TAB::remove_redundant_bnl_scan_conds()
   {
     List_iterator<Item> pushed_cond_li(*((Item_cond*) select_cond)->argument_list());
     Item *pushed_item;
-    Item_cond_and *reduced_select_cond= new Item_cond_and(join->thd);
+    Item_cond_and *reduced_select_cond= new (join->thd->mem_root)
+      Item_cond_and(join->thd);
 
     if (is_cond_and(cache_select->cond))
     {
@@ -12739,7 +12741,7 @@ static bool check_row_equality(THD *thd, Item *left_row, Item_row *right_row,
     if (!is_converted)
     {
       Item_func_eq *eq_item;
-      if (!(eq_item= new Item_func_eq(thd, left_item, right_item)) ||
+      if (!(eq_item= new (thd->mem_root) Item_func_eq(thd, left_item, right_item)) ||
           eq_item->set_cmp_func_and_arg_cmp_context())
         return FALSE;
       eq_item->quick_fix_field();
@@ -13039,7 +13041,7 @@ COND *Item_func_eq::build_equal_items(THD *thd,
         Here a new AND level must be created. It can happen only
         when a row equality is processed as a standalone predicate.
       */
-      Item_cond_and *and_cond= new Item_cond_and(thd, eq_list);
+      Item_cond_and *and_cond= new (thd->mem_root) Item_cond_and(thd, eq_list);
       and_cond->quick_fix_field();
       List<Item> *cond_args= and_cond->argument_list();
       List_iterator_fast<Item_equal> it(cond_equal.current_level);
@@ -13398,7 +13400,7 @@ Item *eliminate_item_equal(THD *thd, COND *cond, COND_EQUAL *upper_levels,
   List<Item> eq_list;
   Item_func_eq *eq_item= 0;
   if (((Item *) item_equal)->const_item() && !item_equal->val_int())
-    return new Item_int(thd, (longlong) 0, 1);
+    return new (thd->mem_root) Item_int(thd, (longlong) 0, 1);
   Item *item_const= item_equal->get_const();
   Item_equal_fields_iterator it(*item_equal);
   Item *head;
@@ -13463,7 +13465,7 @@ Item *eliminate_item_equal(THD *thd, COND *cond, COND_EQUAL *upper_levels,
           Upper item also has "field_item=const".
           Don't produce equality if const is equal to item_const.
         */
-        Item_func_eq *func= new Item_func_eq(thd, item_const, upper_const);
+        Item_func_eq *func= new (thd->mem_root) Item_func_eq(thd, item_const, upper_const);
         func->set_cmp_func();
         func->quick_fix_field();
         if (func->val_int())
@@ -13512,7 +13514,7 @@ Item *eliminate_item_equal(THD *thd, COND *cond, COND_EQUAL *upper_levels,
       if (head_real_item->type() == Item::FIELD_ITEM)
         head_item= head_real_item;
       
-      eq_item= new Item_func_eq(thd, field_item->real_item(), head_item);
+      eq_item= new (thd->mem_root) Item_func_eq(thd, field_item->real_item(), head_item);
 
       if (!eq_item || eq_item->set_cmp_func())
         return 0;
@@ -13545,7 +13547,7 @@ Item *eliminate_item_equal(THD *thd, COND *cond, COND_EQUAL *upper_levels,
   switch (eq_list.elements)
   {
   case 0:
-    res= cond ? cond : new Item_int(thd, (longlong) 1, 1);
+    res= cond ? cond : new (thd->mem_root) Item_int(thd, (longlong) 1, 1);
     break;
   case 1:
     if (!cond || cond->type() ==  Item::INT_ITEM)
@@ -13568,7 +13570,7 @@ Item *eliminate_item_equal(THD *thd, COND *cond, COND_EQUAL *upper_levels,
     }
   }  
   if (!res)
-    res= new Item_cond_and(thd, eq_list);
+    res= new (thd->mem_root) Item_cond_and(thd, eq_list);
   if (res)
   {
     res->quick_fix_field();
@@ -15405,8 +15407,8 @@ Item_func_isnull::remove_eq_conds(THD *thd, Item::cond_result *cond_value,
         query_cache_abort(&thd->query_cache_tls);
   #endif
         COND *new_cond, *cond= this;
-        if ((new_cond= new Item_func_eq(thd, args[0],
-                                        new Item_int(thd, "last_insert_id()",
+        if ((new_cond= new (thd->mem_root) Item_func_eq(thd, args[0],
+                                        new (thd->mem_root) Item_int(thd, "last_insert_id()",
                                                      thd->read_first_successful_insert_id_in_prev_stmt(),
                                                      MY_INT64_NUM_DECIMAL_DIGITS))))
         {
@@ -16265,7 +16267,7 @@ create_tmp_table(THD *thd, TMP_TABLE_PARAM *param, List<Item> &fields,
             string_total_length+= new_field->pack_length();
           }
           thd->mem_root= mem_root_save;
-          arg= sum_item->set_arg(i, thd, new Item_field(thd, new_field));
+          arg= sum_item->set_arg(i, thd, new (thd->mem_root) Item_field(thd, new_field));
           thd->mem_root= &table->mem_root;
           if (param->force_not_null_cols)
 	  {
@@ -19849,7 +19851,7 @@ make_cond_for_table_from_pred(THD *thd, Item *root_cond, Item *cond,
     if (((Item_cond*) cond)->functype() == Item_func::COND_AND_FUNC)
     {
       /* Create new top level AND item */
-      Item_cond_and *new_cond=new Item_cond_and(thd);
+      Item_cond_and *new_cond=new (thd->mem_root) Item_cond_and(thd);
       if (!new_cond)
 	return (COND*) 0;			// OOM /* purecov: inspected */
       List_iterator<Item> li(*((Item_cond*) cond)->argument_list());
@@ -19884,7 +19886,7 @@ make_cond_for_table_from_pred(THD *thd, Item *root_cond, Item *cond,
     }
     else
     {						// Or list
-      Item_cond_or *new_cond=new Item_cond_or(thd);
+      Item_cond_or *new_cond=new (thd->mem_root) Item_cond_or(thd);
       if (!new_cond)
 	return (COND*) 0;			// OOM /* purecov: inspected */
       List_iterator<Item> li(*((Item_cond*) cond)->argument_list());
@@ -19979,7 +19981,7 @@ make_cond_after_sjm(THD *thd, Item *root_cond, Item *cond, table_map tables,
     if (((Item_cond*) cond)->functype() == Item_func::COND_AND_FUNC)
     {
       /* Create new top level AND item */
-      Item_cond_and *new_cond= new Item_cond_and(thd);
+      Item_cond_and *new_cond= new (thd->mem_root) Item_cond_and(thd);
       if (!new_cond)
 	return (COND*) 0;			// OOM /* purecov: inspected */
       List_iterator<Item> li(*((Item_cond*) cond)->argument_list());
@@ -20010,7 +20012,7 @@ make_cond_after_sjm(THD *thd, Item *root_cond, Item *cond, table_map tables,
     }
     else
     {						// Or list
-      Item_cond_or *new_cond= new Item_cond_or(thd);
+      Item_cond_or *new_cond= new (thd->mem_root) Item_cond_or(thd);
       if (!new_cond)
 	return (COND*) 0;			// OOM /* purecov: inspected */
       List_iterator<Item> li(*((Item_cond*) cond)->argument_list());
@@ -22035,7 +22037,7 @@ create_distinct_group(THD *thd, Item **ref_pointer_array,
           converted to a LONG field. Original field will remain of the
           BIT type and will be returned to a client.
         */
-        Item_field *new_item= new Item_field(thd, (Item_field*)item);
+        Item_field *new_item= new (thd->mem_root) Item_field(thd, (Item_field*)item);
         int el= all_fields.elements;
         orig_ref_pointer_array[el]= new_item;
         all_fields.push_front(new_item);
@@ -22445,7 +22447,7 @@ setup_copy_fields(THD *thd, TMP_TABLE_PARAM *param,
           ((Item_ref *)pos)->ref_type() == Item_ref::AGGREGATE_REF))
     {
       Item_field *item;
-      if (!(item= new Item_field(thd, ((Item_field*) real_pos))))
+      if (!(item= new (thd->mem_root) Item_field(thd, ((Item_field*) real_pos))))
 	goto err;
       if (pos->type() == Item::REF_ITEM)
       {
@@ -22458,7 +22460,7 @@ setup_copy_fields(THD *thd, TMP_TABLE_PARAM *param,
       pos= item;
       if (item->field->flags & BLOB_FLAG)
       {
-	if (!(pos= new Item_copy_string(thd, pos)))
+	if (!(pos= new (thd->mem_root) Item_copy_string(thd, pos)))
 	  goto err;
        /*
          Item_copy_string::copy for function can call 
@@ -22513,7 +22515,7 @@ setup_copy_fields(THD *thd, TMP_TABLE_PARAM *param,
 	 on how the value is to be used: In some cases this may be an
 	 argument in a group function, like: IF(ISNULL(col),0,COUNT(*))
       */
-      if (!(pos=new Item_copy_string(thd, pos)))
+      if (!(pos=new (thd->mem_root) Item_copy_string(thd, pos)))
 	goto err;
       if (i < border)                           // HAVING, ORDER and GROUP BY
       {
@@ -22726,8 +22728,8 @@ change_to_use_tmp_fields(THD *thd, Item **ref_pointer_array,
           would access already-unlocked tables.
          */
         Item_func_set_user_var* suv=
-          new Item_func_set_user_var(thd, (Item_func_set_user_var*) item);
-        Item_field *new_field= new Item_field(thd, field);
+          new (thd->mem_root) Item_func_set_user_var(thd, (Item_func_set_user_var*) item);
+        Item_field *new_field= new (thd->mem_root) Item_field(thd, field);
         if (!suv || !new_field)
           DBUG_RETURN(true);                  // Fatal error
         /*
@@ -22750,7 +22752,7 @@ change_to_use_tmp_fields(THD *thd, Item **ref_pointer_array,
       if (item->type() == Item::SUM_FUNC_ITEM && field->table->group)
         item_field= ((Item_sum*) item)->result_item(thd, field);
       else
-        item_field= (Item *) new Item_field(thd, field);
+        item_field= (Item *) new (thd->mem_root) Item_field(thd, field);
       if (!item_field)
         DBUG_RETURN(true);                    // Fatal error
 
@@ -22990,7 +22992,7 @@ static bool add_ref_to_table_cond(THD *thd, JOIN_TAB *join_tab)
   if (!join_tab->ref.key_parts)
     DBUG_RETURN(FALSE);
 
-  Item_cond_and *cond= new Item_cond_and(thd);
+  Item_cond_and *cond= new (thd->mem_root) Item_cond_and(thd);
   TABLE *table=join_tab->table;
   int error= 0;
   if (!cond)
@@ -23001,7 +23003,7 @@ static bool add_ref_to_table_cond(THD *thd, JOIN_TAB *join_tab)
     Field *field=table->field[table->key_info[join_tab->ref.key].key_part[i].
 			      fieldnr-1];
     Item *value=join_tab->ref.items[i];
-    cond->add(new Item_func_equal(thd, new Item_field(thd, field), value));
+    cond->add(new (thd->mem_root) Item_func_equal(thd, new (thd->mem_root) Item_field(thd, field), value));
   }
   if (thd->is_fatal_error)
     DBUG_RETURN(TRUE);
@@ -23118,7 +23120,7 @@ static bool change_group_ref(THD *thd, Item_func *expr, ORDER *group_list,
           if (item->eq(*group_tmp->item,0))
           {
             Item *new_item;
-            if (!(new_item= new Item_ref(thd, context, group_tmp->item, 0,
+            if (!(new_item= new (thd->mem_root) Item_ref(thd, context, group_tmp->item, 0,
                                          item->name)))
               return 1;                                 // fatal_error is set
             thd->change_item_tree(arg, new_item);
@@ -23256,7 +23258,7 @@ bool JOIN::rollup_process_const_fields()
     {
       if (*group_tmp->item == item)
       {
-        Item* new_item= new Item_func_rollup_const(thd, item);
+        Item* new_item= new (thd->mem_root) Item_func_rollup_const(thd, item);
         if (!new_item)
           return 1;
         new_item->fix_fields(thd, (Item **) 0);
@@ -23535,11 +23537,12 @@ int print_explain_message_line(select_result_sink *result,
                                const char *message)
 {
   THD *thd= result->thd;
-  Item *item_null= new Item_null(thd);
+  MEM_ROOT *mem_root= thd->mem_root;
+  Item *item_null= new (mem_root) Item_null(thd);
   List<Item> item_list;
 
-  item_list.push_back(new Item_int(thd, (int32) select_number));
-  item_list.push_back(new Item_string_sys(thd, select_type));
+  item_list.push_back(new (mem_root) Item_int(thd, (int32) select_number));
+  item_list.push_back(new (mem_root) Item_string_sys(thd, select_type));
   /* `table` */
   item_list.push_back(item_null);
   
@@ -23554,7 +23557,7 @@ int print_explain_message_line(select_result_sink *result,
   /* `rows` */
   if (rows)
   {
-    item_list.push_back(new Item_int(thd, *rows,
+    item_list.push_back(new (mem_root) Item_int(thd, *rows,
                                      MY_INT64_NUM_DECIMAL_DIGITS));
   }
   else
@@ -23574,7 +23577,7 @@ int print_explain_message_line(select_result_sink *result,
 
   /* `Extra` */
   if (message)
-    item_list.push_back(new Item_string_sys(thd, message));
+    item_list.push_back(new (mem_root) Item_string_sys(thd, message));
   else
     item_list.push_back(item_null);
 
@@ -23629,11 +23632,13 @@ void JOIN_TAB::update_explain_data(uint idx)
       join->select_lex->select_number != INT_MAX &&
       join->select_lex->select_number != UINT_MAX)
   {
-    Explain_table_access *eta= new (join->thd->mem_root) Explain_table_access(join->thd->mem_root);
+    Explain_table_access *eta= new (join->thd->mem_root)
+      Explain_table_access(join->thd->mem_root);
     save_explain_data(eta, join->const_table_map, join->select_distinct,
                       join->first_breadth_first_optimization_tab());
 
-    Explain_select *sel= join->thd->lex->explain->get_select(join->select_lex->select_number);
+    Explain_select *sel= join->thd->lex->explain->
+      get_select(join->select_lex->select_number);
     idx -= my_count_bits(join->eliminated_tables);
     sel->replace_table(idx, eta);
   }

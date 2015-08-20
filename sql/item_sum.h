@@ -431,8 +431,8 @@ public:
   virtual void update_field()=0;
   virtual bool keep_field_type(void) const { return 0; }
   virtual void fix_length_and_dec() { maybe_null=1; null_value=1; }
-  virtual Item *result_item(THD *thd, Field *field)
-  { return new Item_field(thd, field); }
+  virtual Item *result_item(THD *thd, Field *field);
+
   /*
     Return bitmap of tables that are needed to evaluate the item.
 
@@ -879,8 +879,7 @@ public:
   String *val_str(String *str);
   void reset_field();
   void update_field();
-  Item *result_item(THD *thd, Field *field)
-  { return new Item_avg_field(thd, hybrid_type, this); }
+  Item *result_item(THD *thd, Field *field);
   void no_rows_in_result() {}
   const char *func_name() const 
   { 
@@ -977,8 +976,7 @@ public:
   my_decimal *val_decimal(my_decimal *);
   void reset_field();
   void update_field();
-  Item *result_item(THD *thd, Field *field)
-  { return new Item_variance_field(thd, this); }
+  Item *result_item(THD *thd, Field *field);
   void no_rows_in_result() {}
   const char *func_name() const
     { return sample ? "var_samp(" : "variance("; }
@@ -1019,8 +1017,7 @@ class Item_sum_std :public Item_sum_variance
     {}
   enum Sumfunctype sum_func () const { return STD_FUNC; }
   double val_real();
-  Item *result_item(THD *thd, Field *field)
-  { return new Item_std_field(thd, this); }
+  Item *result_item(THD *thd, Field *field);
   const char *func_name() const { return "std("; }
   Item *copy_or_same(THD* thd);
   enum Item_result result_type () const { return REAL_RESULT; }

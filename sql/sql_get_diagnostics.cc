@@ -270,7 +270,7 @@ Condition_information_item::make_utf8_string_item(THD *thd, const String *str)
   String tmp(str->ptr(), str->length(), from_cs);
   /* If necessary, convert the string (ignoring errors), then copy it over. */
   uint conv_errors;
-  return new Item_string(thd, &tmp, to_cs, &conv_errors,
+  return new (thd->mem_root) Item_string(thd, &tmp, to_cs, &conv_errors,
                          DERIVATION_COERCIBLE, MY_REPERTOIRE_UNICODE30);
 }
 

@@ -10097,7 +10097,7 @@ Create_field::Create_field(THD *thd, Field *old_field, Field *orig_field)
         StringBuffer<MAX_FIELD_WIDTH> tmp(charset);
         String *res= orig_field->val_str(&tmp);
         char *pos= (char*) sql_strmake(res->ptr(), res->length());
-        def= new Item_string(thd, pos, res->length(), charset);
+        def= new (thd->mem_root) Item_string(thd, pos, res->length(), charset);
       }
       orig_field->move_field_offset(-diff);	// Back to record[0]
     }

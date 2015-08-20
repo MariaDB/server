@@ -192,7 +192,7 @@ static Item *make_cond_for_index(THD *thd, Item *cond, TABLE *table, uint keyno,
     if (((Item_cond*) cond)->functype() == Item_func::COND_AND_FUNC)
     {
       table_map used_tables= 0;
-      Item_cond_and *new_cond= new Item_cond_and(thd);
+      Item_cond_and *new_cond= new (thd->mem_root) Item_cond_and(thd);
       if (!new_cond)
 	return (COND*) 0;
       List_iterator<Item> li(*((Item_cond*) cond)->argument_list());
@@ -227,7 +227,7 @@ static Item *make_cond_for_index(THD *thd, Item *cond, TABLE *table, uint keyno,
     }
     else /* It's OR */
     {
-      Item_cond_or *new_cond= new Item_cond_or(thd);
+      Item_cond_or *new_cond= new (thd->mem_root) Item_cond_or(thd);
       if (!new_cond)
 	return (COND*) 0;
       List_iterator<Item> li(*((Item_cond*) cond)->argument_list());
@@ -269,7 +269,7 @@ static Item *make_cond_remainder(THD *thd, Item *cond, TABLE *table, uint keyno,
     if (((Item_cond*) cond)->functype() == Item_func::COND_AND_FUNC)
     {
       /* Create new top level AND item */
-      Item_cond_and *new_cond= new Item_cond_and(thd);
+      Item_cond_and *new_cond= new (thd->mem_root) Item_cond_and(thd);
       if (!new_cond)
 	return (COND*) 0;
       List_iterator<Item> li(*((Item_cond*) cond)->argument_list());
@@ -297,7 +297,7 @@ static Item *make_cond_remainder(THD *thd, Item *cond, TABLE *table, uint keyno,
     }
     else /* It's OR */
     {
-      Item_cond_or *new_cond= new Item_cond_or(thd);
+      Item_cond_or *new_cond= new (thd->mem_root) Item_cond_or(thd);
       if (!new_cond)
 	return (COND*) 0;
       List_iterator<Item> li(*((Item_cond*) cond)->argument_list());
@@ -420,8 +420,8 @@ void push_index_cond(JOIN_TAB *tab, uint keyno)
           tab->select_cond= row_cond;
         else
         {
-          COND *new_cond= new Item_cond_and(tab->join->thd, row_cond,
-                                            idx_remainder_cond);
+          COND *new_cond= new (tab->join->thd->mem_root)
+            Item_cond_and(tab->join->thd, row_cond, idx_remainder_cond);
           tab->select_cond= new_cond;
 	  tab->select_cond->quick_fix_field();
           ((Item_cond_and*)tab->select_cond)->used_tables_cache= 

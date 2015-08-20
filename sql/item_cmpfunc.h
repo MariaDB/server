@@ -971,10 +971,7 @@ public:
   ~in_string();
   void set(uint pos,Item *item);
   uchar *get_value(Item *item);
-  Item* create_item(THD *thd)
-  {
-    return new Item_string_for_in_vector(thd, collation);
-  }
+  Item* create_item(THD *thd);
   void value_to_item(uint pos, Item *item)
   {    
     String *str=((String*) base)+pos;
@@ -1001,15 +998,7 @@ public:
   in_longlong(uint elements);
   void set(uint pos,Item *item);
   uchar *get_value(Item *item);
-  
-  Item* create_item(THD *thd)
-  { 
-    /* 
-      We're created a signed INT, this may not be correct in 
-      general case (see BUG#19342).
-    */
-    return new Item_int(thd, (longlong)0);
-  }
+  Item* create_item(THD *thd);
   void value_to_item(uint pos, Item *item)
   {
     ((Item_int*) item)->value= ((packed_longlong*) base)[pos].val;
@@ -1042,10 +1031,7 @@ public:
      lval_cache(0) {};
   void set(uint pos,Item *item);
   uchar *get_value(Item *item);
-  Item* create_item(THD *thd)
-  { 
-    return new Item_datetime(thd);
-  }
+  Item *create_item(THD *thd);
   void value_to_item(uint pos, Item *item)
   {
     packed_longlong *val= reinterpret_cast<packed_longlong*>(base)+pos;
@@ -1063,10 +1049,7 @@ public:
   in_double(uint elements);
   void set(uint pos,Item *item);
   uchar *get_value(Item *item);
-  Item *create_item(THD *thd)
-  { 
-    return new Item_float(thd, 0.0, 0);
-  }
+  Item *create_item(THD *thd);
   void value_to_item(uint pos, Item *item)
   {
     ((Item_float*)item)->value= ((double*) base)[pos];
@@ -1082,10 +1065,7 @@ public:
   in_decimal(uint elements);
   void set(uint pos, Item *item);
   uchar *get_value(Item *item);
-  Item *create_item(THD *thd)
-  { 
-    return new Item_decimal(thd, 0, FALSE);
-  }
+  Item *create_item(THD *thd);
   void value_to_item(uint pos, Item *item)
   {
     my_decimal *dec= ((my_decimal *)base) + pos;
@@ -2178,13 +2158,7 @@ public:
   const char *func_name() const { return "and"; }
   table_map not_null_tables() const
   { return abort_on_null ? not_null_tables_cache: and_tables_cache; }
-  Item* copy_andor_structure(THD *thd)
-  {
-    Item_cond_and *item;
-    if ((item= new Item_cond_and(thd, this)))
-       item->copy_andor_arguments(thd, this);
-    return item;
-  }
+  Item *copy_andor_structure(THD *thd);
   Item *neg_transformer(THD *thd);
   void mark_as_condition_AND_part(TABLE_LIST *embedding);
   virtual uint exists2in_reserved_items() { return list.elements; };
@@ -2217,13 +2191,7 @@ public:
   longlong val_int();
   const char *func_name() const { return "or"; }
   table_map not_null_tables() const { return and_tables_cache; }
-  Item* copy_andor_structure(THD *thd)
-  {
-    Item_cond_or *item;
-    if ((item= new Item_cond_or(thd, this)))
-      item->copy_andor_arguments(thd, this);
-    return item;
-  }
+  Item *copy_andor_structure(THD *thd);
   Item *neg_transformer(THD *thd);
 };
 
@@ -2252,16 +2220,6 @@ inline bool is_cond_or(Item *item)
   Item_cond *cond_item= (Item_cond*) item;
   return (cond_item->functype() == Item_func::COND_OR_FUNC);
 }
-
-/* Some useful inline functions */
-
-inline Item *and_conds(THD *thd, Item *a, Item *b)
-{
-  if (!b) return a;
-  if (!a) return b;
-  return new Item_cond_and(thd, a, b);
-}
-
 
 Item *and_expressions(Item *a, Item *b, Item **org_item);
 

@@ -727,7 +727,7 @@ void Item_func::signal_divide_by_null()
 Item *Item_func::get_tmp_table_item(THD *thd)
 {
   if (!with_sum_func && !const_item())
-    return new Item_field(thd, result_field);
+    return new (thd->mem_root) Item_field(thd, result_field);
   return copy_or_same(thd);
 }
 
@@ -5534,8 +5534,10 @@ get_var_with_binlog(THD *thd, enum_sql_command sql_command,
     LEX *sav_lex= thd->lex, lex_tmp;
     thd->lex= &lex_tmp;
     lex_start(thd);
-    tmp_var_list.push_back(new set_var_user(new Item_func_set_user_var(thd, name,
-                                                                       new Item_null(thd))));
+    tmp_var_list.push_back(new (thd->mem_root)
+                           set_var_user(new (thd->mem_root)
+                                        Item_func_set_user_var(thd, name,
+                                                               new (thd->mem_root) Item_null(thd))));
     /* Create the variable */
     if (sql_set_variables(thd, &tmp_var_list, false))
     {
@@ -5699,7 +5701,7 @@ bool Item_func_get_user_var::eq(const Item *item, bool binary_cmp) const
 bool Item_func_get_user_var::set_value(THD *thd,
                                        sp_rcontext * /*ctx*/, Item **it)
 {
-  Item_func_set_user_var *suv= new Item_func_set_user_var(thd, get_name(), *it);
+  Item_func_set_user_var *suv= new (thd->mem_root) Item_func_set_user_var(thd, get_name(), *it);
   /*
     Item_func_set_user_var is not fixed after construction, call
     fix_fields().
@@ -6114,10 +6116,10 @@ void Item_func_match::init_search(THD *thd, bool no_order)
   if (key == NO_SUCH_KEY)
   {
     List<Item> fields;
-    fields.push_back(new Item_string(thd, " ", 1, cmp_collation.collation));
+    fields.push_back(new (thd->mem_root) Item_string(thd, " ", 1, cmp_collation.collation));
     for (uint i= 1; i < arg_count; i++)
       fields.push_back(args[i]);
-    concat_ws= new Item_func_concat_ws(thd, fields);
+    concat_ws= new (thd->mem_root) Item_func_concat_ws(thd, fields);
     /*
       Above function used only to get value and do not need fix_fields for it:
       Item_string - basic constant
@@ -6465,7 +6467,7 @@ Item *get_system_var(THD *thd, enum_var_type var_type, LEX_STRING name,
 
   set_if_smaller(component_name->length, MAX_SYS_VAR_LENGTH);
 
-  return new Item_func_get_system_var(thd, var, var_type, component_name,
+  return new (thd->mem_root) Item_func_get_system_var(thd, var, var_type, component_name,
                                       NULL, 0);
 }
 

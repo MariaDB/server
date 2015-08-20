@@ -610,9 +610,9 @@ class Item: public Type_std_attributes
   */
   uint join_tab_idx;
 
+  static void *operator new(size_t size);
+
 public:
-  static void *operator new(size_t size) throw ()
-  { return sql_alloc(size); }
   static void *operator new(size_t size, MEM_ROOT *mem_root) throw ()
   { return alloc_root(mem_root, size); }
   static void operator delete(void *ptr,size_t size) { TRASH(ptr, size); }
@@ -2454,7 +2454,7 @@ public:
   enum Item_result result_type () const { return STRING_RESULT; }
   enum_field_types field_type() const   { return MYSQL_TYPE_NULL; }
   bool basic_const_item() const { return 1; }
-  Item *clone_item(THD *thd) { return new Item_null(thd, name); }
+  Item *clone_item(THD *thd);
   bool is_null() { return 1; }
 
   virtual inline void print(String *str, enum_query_type query_type)
@@ -2663,7 +2663,7 @@ public:
   String *val_str(String*);
   int save_in_field(Field *field, bool no_conversions);
   bool basic_const_item() const { return 1; }
-  Item *clone_item(THD *thd) { return new Item_int(thd, name, value, max_length); }
+  Item *clone_item(THD *thd);
   virtual void print(String *str, enum_query_type query_type);
   Item_num *neg(THD *thd) { value= -value; return this; }
   uint decimal_precision() const
@@ -2684,8 +2684,7 @@ public:
   double val_real()
     { DBUG_ASSERT(fixed == 1); return ulonglong2double((ulonglong)value); }
   String *val_str(String*);
-  Item *clone_item(THD *thd)
-  { return new Item_uint(thd, name, value, max_length); }
+  Item *clone_item(THD *thd);
   virtual void print(String *str, enum_query_type query_type);
   Item_num *neg(THD *thd);
   uint decimal_precision() const { return max_length; }
@@ -2729,10 +2728,7 @@ public:
   my_decimal *val_decimal(my_decimal *val) { return &decimal_value; }
   int save_in_field(Field *field, bool no_conversions);
   bool basic_const_item() const { return 1; }
-  Item *clone_item(THD *thd)
-  {
-    return new Item_decimal(thd, name, &decimal_value, decimals, max_length);
-  }
+  Item *clone_item(THD *thd);
   virtual void print(String *str, enum_query_type query_type);
   Item_num *neg(THD *thd)
   {
@@ -2788,8 +2784,7 @@ public:
   String *val_str(String*);
   my_decimal *val_decimal(my_decimal *);
   bool basic_const_item() const { return 1; }
-  Item *clone_item(THD *thd)
-  { return new Item_float(thd, name, value, decimals, max_length); }
+  Item *clone_item(THD *thd);
   Item_num *neg(THD *thd) { value= -value; return this; }
   virtual void print(String *str, enum_query_type query_type);
   bool eq(const Item *item, bool binary_cmp) const
@@ -2914,11 +2909,7 @@ public:
   {
     return str_eq(&str_value, item, binary_cmp);
   }
-  Item *clone_item(THD *thd)
-  {
-    return new Item_string(thd, name, str_value.ptr(),
-                           str_value.length(), collation.collation);
-  }
+  Item *clone_item(THD *thd);
   Item *safe_charset_converter(THD *thd, CHARSET_INFO *tocs)
   {
     return const_charset_converter(thd, tocs, true);
@@ -4849,12 +4840,7 @@ public:
     is a constant and need not be optimized further.
     Important when storing packed datetime values.
   */
-  Item *clone_item(THD *thd)
-  {
-    Item_cache_temporal *item= new Item_cache_temporal(thd, cached_field_type);
-    item->store_packed(value, example);
-    return item;
-  }
+  Item *clone_item(THD *thd);
 };
 
 

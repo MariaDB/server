@@ -326,14 +326,14 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
   DBUG_ENTER("mysql_admin_table");
   DBUG_PRINT("enter", ("extra_open_options: %u", extra_open_options));
 
-  field_list.push_back(item = new Item_empty_string(thd, "Table",
+  field_list.push_back(item= new (thd->mem_root) Item_empty_string(thd, "Table",
                                                     NAME_CHAR_LEN * 2));
   item->maybe_null = 1;
-  field_list.push_back(item = new Item_empty_string(thd, "Op", 10));
+  field_list.push_back(item= new (thd->mem_root) Item_empty_string(thd, "Op", 10));
   item->maybe_null = 1;
-  field_list.push_back(item = new Item_empty_string(thd, "Msg_type", 10));
+  field_list.push_back(item= new (thd->mem_root) Item_empty_string(thd, "Msg_type", 10));
   item->maybe_null = 1;
-  field_list.push_back(item = new Item_empty_string(thd, "Msg_text",
+  field_list.push_back(item= new (thd->mem_root) Item_empty_string(thd, "Msg_text",
                                                     SQL_ADMIN_MSG_TEXT_SIZE));
   item->maybe_null = 1;
   if (protocol->send_result_set_metadata(&field_list,

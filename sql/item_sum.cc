@@ -490,7 +490,7 @@ Item *Item_sum::get_tmp_table_item(THD *thd)
 	if (arg->type() == Item::FIELD_ITEM)
 	  ((Item_field*) arg)->field= result_field_tmp++;
 	else
-	  sum_item->args[i]= new Item_field(thd, result_field_tmp++);
+	  sum_item->args[i]= new (thd->mem_root) Item_field(thd, result_field_tmp++);
       }
     }
   }
@@ -610,6 +610,10 @@ void Item_sum::cleanup()
   forced_const= FALSE; 
 }
 
+Item *Item_sum::result_item(THD *thd, Field *field)
+{
+  return new (thd->mem_root) Item_field(thd, field);
+}
 
 /**
   Compare keys consisting of single field that cannot be compared as binary.
@@ -1759,6 +1763,12 @@ Item *Item_sum_std::copy_or_same(THD* thd)
 }
 
 
+Item *Item_sum_std::result_item(THD *thd, Field *field)
+{
+  return new (thd->mem_root) Item_std_field(thd, this);
+}
+
+
 /*
   Variance
 */
@@ -1988,6 +1998,11 @@ void Item_sum_variance::update_field()
   int8store(res,field_count);
 }
 
+
+Item *Item_sum_variance::result_item(THD *thd, Field *field)
+{
+  return new (thd->mem_root) Item_variance_field(thd, this);
+}
 
 /* min & max */
 
@@ -2474,6 +2489,12 @@ void Item_sum_avg::update_field()
       int8store(res, field_count);
     }
   }
+}
+
+
+Item *Item_sum_avg::result_item(THD *thd, Field *field)
+{
+  return new (thd->mem_root) Item_avg_field(thd, hybrid_type, this);
 }
 
 

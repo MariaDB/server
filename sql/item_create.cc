@@ -5234,7 +5234,7 @@ Create_func_round::create_native(THD *thd, LEX_STRING name,
   case 1:
   {
     Item *param_1= item_list->pop();
-    Item *i0 = new (thd->mem_root) Item_int(thd, (char*)"0", 0, 1);
+    Item *i0= new (thd->mem_root) Item_int(thd, (char*)"0", 0, 1);
     func= new (thd->mem_root) Item_func_round(thd, param_1, i0, 0);
     break;
   }
@@ -6397,7 +6397,7 @@ Item *create_func_dyncol_delete(THD *thd, Item *str, List<Item> &nums)
   for (uint i= 0; (key= it++); i++)
   {
     dfs[i].key= key;
-    dfs[i].value= new Item_null(thd);
+    dfs[i].value= new (thd->mem_root) Item_null(thd);
     dfs[i].type= DYN_COL_INT;
     args->push_back(dfs[i].key);
     args->push_back(dfs[i].value);

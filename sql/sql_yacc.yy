@@ -284,8 +284,9 @@ int case_stmt_action_expr(LEX *lex, Item* expr)
   if (parsing_ctx->push_case_expr_id(case_expr_id))
     return 1;
 
-  i= new sp_instr_set_case_expr(sp->instructions(),
-                                parsing_ctx, case_expr_id, expr, lex);
+  i= new (lex->thd->mem_root)
+    sp_instr_set_case_expr(sp->instructions(), parsing_ctx, case_expr_id, expr,
+                           lex);
 
   sp->add_cont_backpatch(i);
   return sp->add_instr(i);
@@ -307,10 +308,12 @@ int case_stmt_action_when(LEX *lex, Item *when, bool simple)
   sp_instr_jump_if_not *i;
   Item_case_expr *var;
   Item *expr;
+  THD *thd= lex->thd;
 
   if (simple)
   {
-    var= new Item_case_expr(lex->thd, ctx->get_current_case_expr_id());
+    var= new (thd->mem_root)
+         Item_case_expr(thd, ctx->get_current_case_expr_id());
 
 #ifndef DBUG_OFF
     if (var)
@@ -319,11 +322,11 @@ int case_stmt_action_when(LEX *lex, Item *when, bool simple)
     }
 #endif
 
-    expr= new Item_func_eq(lex->thd, var, when);
-    i= new sp_instr_jump_if_not(ip, ctx, expr, lex);
+    expr= new (thd->mem_root) Item_func_eq(thd, var, when);
+    i= new (thd->mem_root) sp_instr_jump_if_not(ip, ctx, expr, lex);
   }
   else
-    i= new sp_instr_jump_if_not(ip, ctx, when, lex);
+    i= new (thd->mem_root) sp_instr_jump_if_not(ip, ctx, when, lex);
 
   /*
     BACKPATCH: Registering forward jump from
@@ -332,7 +335,7 @@ int case_stmt_action_when(LEX *lex, Item *when, bool simple)
   */
 
   return !MY_TEST(i) ||
-         sp->push_backpatch(i, ctx->push_label(lex->thd, empty_lex_str, 0)) ||
+         sp->push_backpatch(i, ctx->push_label(thd, empty_lex_str, 0)) ||
          sp->add_cont_backpatch(i) ||
          sp->add_instr(i);
 }
@@ -348,7 +351,7 @@ int case_stmt_action_then(LEX *lex)
   sp_head *sp= lex->sphead;
   sp_pcontext *ctx= lex->spcont;
   uint ip= sp->instructions();
-  sp_instr_jump *i = new sp_instr_jump(ip, ctx);
+  sp_instr_jump *i= new (lex->thd->mem_root) sp_instr_jump(ip, ctx);
   if (!MY_TEST(i) || sp->add_instr(i))
     return 1;
 
@@ -411,7 +414,8 @@ set_system_variable(THD *thd, struct sys_var_with_base *tmp,
     return TRUE;
   }
 
-  if (! (var= new set_var(thd, var_type, tmp->var, &tmp->base_name, val)))
+  if (! (var= new (thd->mem_root)
+         set_var(thd, var_type, tmp->var, &tmp->base_name, val)))
     return TRUE;
 
   return lex->var_list.push_back(var);
@@ -447,8 +451,9 @@ set_local_variable(THD *thd, sp_variable *spv, Item *val)
       return TRUE;
   }
 
-  sp_set= new sp_instr_set(lex->sphead->instructions(), lex->spcont,
-                           spv->offset, it, spv->type, lex, TRUE);
+  sp_set= new (thd->mem_root)
+         sp_instr_set(lex->sphead->instructions(), lex->spcont,
+                                   spv->offset, it, spv->type, lex, TRUE);
 
   return (sp_set == NULL || lex->sphead->add_instr(sp_set));
 }
@@ -474,7 +479,7 @@ set_trigger_new_row(THD *thd, LEX_STRING *name, Item *val)
 
   /* QQ: Shouldn't this be field's default value ? */
   if (! val)
-    val= new Item_null(thd);
+    val= new (thd->mem_root) Item_null(thd);
 
   DBUG_ASSERT(lex->trg_chistics.action_time == TRG_ACTION_BEFORE &&
               (lex->trg_chistics.event == TRG_EVENT_INSERT ||
@@ -488,8 +493,10 @@ set_trigger_new_row(THD *thd, LEX_STRING *name, Item *val)
   if (trg_fld == NULL)
     return TRUE;
 
-  sp_fld= new sp_instr_set_trigger_field(lex->sphead->instructions(),
-                                         lex->spcont, trg_fld, val, lex);
+  sp_fld= new (thd->mem_root)
+        sp_instr_set_trigger_field(lex->sphead->instructions(),
+                                                 lex->spcont, trg_fld, val,
+         lex);
 
   if (sp_fld == NULL)
     return TRUE;
@@ -814,8 +821,8 @@ static bool sp_create_assignment_instr(THD *thd, bool no_lookahead)
       sp_instr_stmt *i;
       Lex_input_stream *lip= &thd->m_parser_state->m_lip;
 
-      if (!(i= new sp_instr_stmt(sp->instructions(), lex->spcont,
-                                 lex)))
+      if (!(i= new (thd->mem_root)
+        sp_instr_stmt(sp->instructions(), lex->spcont, lex)))
         return true;
 
       /*
@@ -2796,7 +2803,7 @@ sp_name:
             {
               MYSQL_YYABORT;
             }
-            $$= new sp_name($1, $3, true);
+            $$= new (thd->mem_root) sp_name($1, $3, true);
             if ($$ == NULL)
               MYSQL_YYABORT;
             $$->init_qname(thd);
@@ -2811,7 +2818,7 @@ sp_name:
             }
             if (lex->copy_db_to(&db.str, &db.length))
               MYSQL_YYABORT;
-            $$= new sp_name(db, $1, false);
+            $$= new (lex->thd->mem_root) sp_name(db, $1, false);
             if ($$ == NULL)
               MYSQL_YYABORT;
             $$->init_qname(thd);
@@ -3066,13 +3073,14 @@ sp_decl:
             
               /* The last instruction is responsible for freeing LEX. */
 
-              sp_instr_set *is= new sp_instr_set(lex->sphead->instructions(),
-                                                 pctx,
-                                                 var_idx,
-                                                 dflt_value_item,
-                                                 var_type,
-                                                 lex,
-                                                 last);
+              sp_instr_set *is= (new (lex->thd->mem_root)
+                                 sp_instr_set(lex->sphead->instructions(),
+                                               pctx,
+                                               var_idx,
+                                               dflt_value_item,
+                                               var_type,
+                                               lex,
+                                               last));
               if (is == NULL ||
                   lex->sphead->add_instr(is))
                 MYSQL_YYABORT;
@@ -3112,7 +3120,8 @@ sp_decl:
 
             sp_pcontext *ctx= lex->spcont;
             sp_instr_hpush_jump *i=
-              new sp_instr_hpush_jump(sp->instructions(), ctx, h);
+              new (lex->thd->mem_root) sp_instr_hpush_jump(sp->instructions(),
+                   ctx, h);
 
             if (i == NULL || sp->add_instr(i))
               MYSQL_YYABORT;
@@ -3135,14 +3144,16 @@ sp_decl:
 
             if ($2 == sp_handler::CONTINUE)
             {
-              i= new sp_instr_hreturn(sp->instructions(), ctx);
+              i= new (lex->thd->mem_root)
+                 sp_instr_hreturn(sp->instructions(), ctx);
               if (i == NULL ||
                   sp->add_instr(i))
                 MYSQL_YYABORT;
             }
             else
             {  /* EXIT or UNDO handler, just jump to the end of the block */
-              i= new sp_instr_hreturn(sp->instructions(), ctx);
+              i= new (lex->thd->mem_root)
+                 sp_instr_hreturn(sp->instructions(), ctx);
               if (i == NULL ||
                   sp->add_instr(i) ||
                   sp->push_backpatch(i, lex->spcont->last_label())) /* Block end */
@@ -3169,8 +3180,9 @@ sp_decl:
               delete $5;
               MYSQL_YYABORT;
             }
-            i= new sp_instr_cpush(sp->instructions(), ctx, $5,
-                                  ctx->current_cursor_count());
+            i= new (lex->thd->mem_root)
+               sp_instr_cpush(sp->instructions(), ctx, $5,
+                              ctx->current_cursor_count());
             if (i == NULL ||
                 sp->add_instr(i) ||
                 ctx->add_cursor($2))
@@ -3712,8 +3724,8 @@ sp_proc_stmt_statement:
                         lex->var_list.is_empty());
             if (lex->sql_command != SQLCOM_SET_OPTION)
             {
-              sp_instr_stmt *i=new sp_instr_stmt(sp->instructions(),
-                                                 lex->spcont, lex);
+              sp_instr_stmt *i=new (lex->thd->mem_root)
+                sp_instr_stmt(sp->instructions(), lex->spcont, lex);
               if (i == NULL)
                 MYSQL_YYABORT;
 
@@ -3754,8 +3766,9 @@ sp_proc_stmt_return:
             {
               sp_instr_freturn *i;
 
-              i= new sp_instr_freturn(sp->instructions(), lex->spcont, $3,
-                                      sp->m_return_field_def.sql_type, lex);
+              i= new (lex->thd->mem_root)
+                 sp_instr_freturn(sp->instructions(), lex->spcont, $3,
+                                  sp->m_return_field_def.sql_type, lex);
               if (i == NULL ||
                   sp->add_instr(i))
                 MYSQL_YYABORT;
@@ -3811,7 +3824,8 @@ sp_proc_stmt_leave:
               n= ctx->diff_handlers(lab->ctx, exclusive);
               if (n)
               {
-                sp_instr_hpop *hpop= new sp_instr_hpop(ip++, ctx, n);
+                sp_instr_hpop *hpop= new (lex->thd->mem_root)
+                  sp_instr_hpop(ip++, ctx, n);
                 if (hpop == NULL)
                   MYSQL_YYABORT;
                 sp->add_instr(hpop);
@@ -3819,12 +3833,13 @@ sp_proc_stmt_leave:
               n= ctx->diff_cursors(lab->ctx, exclusive);
               if (n)
               {
-                sp_instr_cpop *cpop= new sp_instr_cpop(ip++, ctx, n);
+                sp_instr_cpop *cpop= new (lex->thd->mem_root)
+                  sp_instr_cpop(ip++, ctx, n);
                 if (cpop == NULL)
                   MYSQL_YYABORT;
                 sp->add_instr(cpop);
               }
-              i= new sp_instr_jump(ip, ctx);
+              i= new (lex->thd->mem_root) sp_instr_jump(ip, ctx);
               if (i == NULL)
                 MYSQL_YYABORT;
               sp->push_backpatch(i, lab);  /* Jumping forward */
@@ -3855,7 +3870,8 @@ sp_proc_stmt_iterate:
               n= ctx->diff_handlers(lab->ctx, FALSE);  /* Inclusive the dest. */
               if (n)
               {
-                sp_instr_hpop *hpop= new sp_instr_hpop(ip++, ctx, n);
+                sp_instr_hpop *hpop= new (lex->thd->mem_root)
+                  sp_instr_hpop(ip++, ctx, n);
                 if (hpop == NULL ||
                     sp->add_instr(hpop))
                   MYSQL_YYABORT;
@@ -3863,12 +3879,14 @@ sp_proc_stmt_iterate:
               n= ctx->diff_cursors(lab->ctx, FALSE);  /* Inclusive the dest. */
               if (n)
               {
-                sp_instr_cpop *cpop= new sp_instr_cpop(ip++, ctx, n);
+                sp_instr_cpop *cpop= new (lex->thd->mem_root)
+                  sp_instr_cpop(ip++, ctx, n);
                 if (cpop == NULL ||
                     sp->add_instr(cpop))
                   MYSQL_YYABORT;
               }
-              i= new sp_instr_jump(ip, ctx, lab->ip); /* Jump back */
+              i= new (lex->thd->mem_root)
+                sp_instr_jump(ip, ctx, lab->ip); /* Jump back */
               if (i == NULL ||
                   sp->add_instr(i))
                 MYSQL_YYABORT;
@@ -3889,7 +3907,8 @@ sp_proc_stmt_open:
               my_error(ER_SP_CURSOR_MISMATCH, MYF(0), $2.str);
               MYSQL_YYABORT;
             }
-            i= new sp_instr_copen(sp->instructions(), lex->spcont, offset);
+            i= new (lex->thd->mem_root) 
+              sp_instr_copen(sp->instructions(), lex->spcont, offset);
             if (i == NULL ||
                 sp->add_instr(i))
               MYSQL_YYABORT;
@@ -3909,7 +3928,8 @@ sp_proc_stmt_fetch:
               my_error(ER_SP_CURSOR_MISMATCH, MYF(0), $3.str);
               MYSQL_YYABORT;
             }
-            i= new sp_instr_cfetch(sp->instructions(), lex->spcont, offset);
+            i= new (lex->thd->mem_root)
+              sp_instr_cfetch(sp->instructions(), lex->spcont, offset);
             if (i == NULL ||
                 sp->add_instr(i))
               MYSQL_YYABORT;
@@ -3931,7 +3951,8 @@ sp_proc_stmt_close:
               my_error(ER_SP_CURSOR_MISMATCH, MYF(0), $2.str);
               MYSQL_YYABORT;
             }
-            i= new sp_instr_cclose(sp->instructions(), lex->spcont,  offset);
+            i= new (lex->thd->mem_root)
+              sp_instr_cclose(sp->instructions(), lex->spcont,  offset);
             if (i == NULL ||
                 sp->add_instr(i))
               MYSQL_YYABORT;
@@ -3995,8 +4016,8 @@ sp_if:
             sp_head *sp= lex->sphead;
             sp_pcontext *ctx= lex->spcont;
             uint ip= sp->instructions();
-            sp_instr_jump_if_not *i = new sp_instr_jump_if_not(ip, ctx,
-                                                               $2, lex);
+            sp_instr_jump_if_not *i= new (lex->thd->mem_root)
+              sp_instr_jump_if_not(ip, ctx, $2, lex);
             if (i == NULL ||
                 sp->push_backpatch(i, ctx->push_label(thd, empty_lex_str, 0)) ||
                 sp->add_cont_backpatch(i) ||
@@ -4010,7 +4031,7 @@ sp_if:
             sp_head *sp= Lex->sphead;
             sp_pcontext *ctx= Lex->spcont;
             uint ip= sp->instructions();
-            sp_instr_jump *i = new sp_instr_jump(ip, ctx);
+            sp_instr_jump *i= new (thd->mem_root) sp_instr_jump(ip, ctx);
             if (i == NULL ||
                 sp->add_instr(i))
               MYSQL_YYABORT;
@@ -4181,8 +4202,8 @@ else_clause_opt:
             LEX *lex= Lex;
             sp_head *sp= lex->sphead;
             uint ip= sp->instructions();
-            sp_instr_error *i= new sp_instr_error(ip, lex->spcont,
-                                                  ER_SP_CASE_NOT_FOUND);
+            sp_instr_error *i= new (thd->mem_root)
+              sp_instr_error(ip, lex->spcont, ER_SP_CASE_NOT_FOUND);
             if (i == NULL ||
                 sp->add_instr(i))
               MYSQL_YYABORT;
@@ -4298,14 +4319,16 @@ sp_block_content:
             sp->backpatch(ctx->last_label()); /* We always have a label */
             if ($2.hndlrs)
             {
-              i= new sp_instr_hpop(sp->instructions(), ctx, $2.hndlrs);
+              i= new (thd->mem_root)
+                sp_instr_hpop(sp->instructions(), ctx, $2.hndlrs);
               if (i == NULL ||
                   sp->add_instr(i))
                 MYSQL_YYABORT;
             }
             if ($2.curs)
             {
-              i= new sp_instr_cpop(sp->instructions(), ctx, $2.curs);
+              i= new (lex->thd->mem_root)
+                sp_instr_cpop(sp->instructions(), ctx, $2.curs);
               if (i == NULL ||
                   sp->add_instr(i))
                 MYSQL_YYABORT;
@@ -4322,7 +4345,8 @@ sp_control_content:
             LEX *lex= Lex;
             uint ip= lex->sphead->instructions();
             sp_label *lab= lex->spcont->last_label();  /* Jumping back */
-            sp_instr_jump *i = new sp_instr_jump(ip, lex->spcont, lab->ip);
+            sp_instr_jump *i= new (lex->thd->mem_root)
+              sp_instr_jump(ip, lex->spcont, lab->ip);
             if (i == NULL ||
                 lex->sphead->add_instr(i))
               MYSQL_YYABORT;
@@ -4334,8 +4358,8 @@ sp_control_content:
             LEX *lex= Lex;
             sp_head *sp= lex->sphead;
             uint ip= sp->instructions();
-            sp_instr_jump_if_not *i = new sp_instr_jump_if_not(ip, lex->spcont,
-                                                               $3, lex);
+            sp_instr_jump_if_not *i= new (lex->thd->mem_root)
+              sp_instr_jump_if_not(ip, lex->spcont, $3, lex);
             if (i == NULL ||
                 /* Jumping forward */
                 sp->push_backpatch(i, lex->spcont->last_label()) ||
@@ -4350,7 +4374,8 @@ sp_control_content:
             LEX *lex= Lex;
             uint ip= lex->sphead->instructions();
             sp_label *lab= lex->spcont->last_label();  /* Jumping back */
-            sp_instr_jump *i = new sp_instr_jump(ip, lex->spcont, lab->ip);
+            sp_instr_jump *i= new (lex->thd->mem_root)
+              sp_instr_jump(ip, lex->spcont, lab->ip);
             if (i == NULL ||
                 lex->sphead->add_instr(i))
               MYSQL_YYABORT;
@@ -4363,9 +4388,8 @@ sp_control_content:
             LEX *lex= Lex;
             uint ip= lex->sphead->instructions();
             sp_label *lab= lex->spcont->last_label();  /* Jumping back */
-            sp_instr_jump_if_not *i = new sp_instr_jump_if_not(ip, lex->spcont,
-                                                               $5, lab->ip,
-                                                               lex);
+            sp_instr_jump_if_not *i= new (lex->thd->mem_root)
+              sp_instr_jump_if_not(ip, lex->spcont, $5, lab->ip, lex);
             if (i == NULL ||
                 lex->sphead->add_instr(i))
               MYSQL_YYABORT;
@@ -8684,7 +8708,7 @@ expr:
             else
             {
               /* X OR Y */
-              $$ = new (thd->mem_root) Item_cond_or(thd, $1, $3);
+              $$= new (thd->mem_root) Item_cond_or(thd, $1, $3);
               if ($$ == NULL)
                 MYSQL_YYABORT;
             }
@@ -8692,7 +8716,7 @@ expr:
         | expr XOR expr %prec XOR
           {
             /* XOR is a proprietary extension */
-            $$ = new (thd->mem_root) Item_func_xor(thd, $1, $3);
+            $$= new (thd->mem_root) Item_func_xor(thd, $1, $3);
             if ($$ == NULL)
               MYSQL_YYABORT;
           }
@@ -8734,7 +8758,7 @@ expr:
             else
             {
               /* X AND Y */
-              $$ = new (thd->mem_root) Item_cond_and(thd, $1, $3);
+              $$= new (thd->mem_root) Item_cond_and(thd, $1, $3);
               if ($$ == NULL)
                 MYSQL_YYABORT;
             }
@@ -8858,7 +8882,7 @@ predicate:
           {
             $7->push_front($5);
             $7->push_front($1);
-            Item_func_in *item = new (thd->mem_root) Item_func_in(thd, *$7);
+            Item_func_in *item= new (thd->mem_root) Item_func_in(thd, *$7);
             if (item == NULL)
               MYSQL_YYABORT;
             item->negate();
@@ -9625,7 +9649,7 @@ function_call_nonkeyword:
           }
         | POSITION_SYM '(' bit_expr IN_SYM expr ')'
           {
-            $$ = new (thd->mem_root) Item_func_locate(thd, $5, $3);
+            $$= new (thd->mem_root) Item_func_locate(thd, $5, $3);
             if ($$ == NULL)
               MYSQL_YYABORT;
           }
@@ -9826,7 +9850,7 @@ function_call_conflict:
           }
         | MOD_SYM '(' expr ',' expr ')'
           {
-            $$ = new (thd->mem_root) Item_func_mod(thd, $3, $5);
+            $$= new (thd->mem_root) Item_func_mod(thd, $3, $5);
             if ($$ == NULL)
               MYSQL_YYABORT;
           }
@@ -9847,7 +9871,7 @@ function_call_conflict:
           }
         | QUARTER_SYM '(' expr ')'
           {
-            $$ = new (thd->mem_root) Item_func_quarter(thd, $3);
+            $$= new (thd->mem_root) Item_func_quarter(thd, $3);
             if ($$ == NULL)
               MYSQL_YYABORT;
           }
@@ -11802,7 +11826,7 @@ drop:
               MYSQL_YYABORT;
             }
             lex->set_command(SQLCOM_DROP_FUNCTION, $3);
-            spname= new sp_name($4, $6, true);
+            spname= new (lex->thd->mem_root) sp_name($4, $6, true);
             if (spname == NULL)
               MYSQL_YYABORT;
             spname->init_qname(thd);
@@ -11821,7 +11845,7 @@ drop:
             if (thd->db && lex->copy_db_to(&db.str, &db.length))
               MYSQL_YYABORT;
             lex->set_command(SQLCOM_DROP_FUNCTION, $3);
-            spname= new sp_name(db, $4, false);
+            spname= new (lex->thd->mem_root) sp_name(db, $4, false);
             if (spname == NULL)
               MYSQL_YYABORT;
             spname->init_qname(thd);
@@ -12050,7 +12074,7 @@ insert_field_spec:
         | SET
           {
             LEX *lex=Lex;
-            if (!(lex->insert_list = new List_item) ||
+            if (!(lex->insert_list= new List_item) ||
                 lex->many_values.push_back(lex->insert_list))
               MYSQL_YYABORT;
           }
@@ -12106,7 +12130,7 @@ opt_equal:
 no_braces:
           '('
           {
-              if (!(Lex->insert_list = new List_item))
+              if (!(Lex->insert_list= new List_item))
                 MYSQL_YYABORT;
           }
           opt_values ')'
@@ -13511,7 +13535,7 @@ literal:
                 TOK_GENERIC_VALUE := NULL_SYM
             */
             YYLIP->reduce_digest_token(TOK_GENERIC_VALUE, NULL_SYM);
-            $$ = new (thd->mem_root) Item_null(thd);
+            $$= new (thd->mem_root) Item_null(thd);
             if ($$ == NULL)
               MYSQL_YYABORT;
             YYLIP->next_state= MY_LEX_OPERATOR_OR_IDENT;
@@ -13530,13 +13554,13 @@ literal:
           }
         | HEX_NUM
           {
-            $$ = new (thd->mem_root) Item_hex_hybrid(thd, $1.str, $1.length);
+            $$= new (thd->mem_root) Item_hex_hybrid(thd, $1.str, $1.length);
             if ($$ == NULL)
               MYSQL_YYABORT;
           }
         | HEX_STRING
           {
-            $$ = new (thd->mem_root) Item_hex_string(thd, $1.str, $1.length);
+            $$= new (thd->mem_root) Item_hex_string(thd, $1.str, $1.length);
             if ($$ == NULL)
               MYSQL_YYABORT;
           }
@@ -15172,7 +15196,7 @@ handler_rkey_function:
             LEX *lex=Lex;
             lex->ha_read_mode = RKEY;
             lex->ha_rkey_mode=$1;
-            if (!(lex->insert_list = new List_item))
+            if (!(lex->insert_list= new List_item))
               MYSQL_YYABORT;
           }
           '(' values ')'
@@ -15609,7 +15633,7 @@ column_list:
 column_list_id:
           ident
           {
-            String *new_str = new (thd->mem_root) String((const char*) $1.str,$1.length,system_charset_info);
+            String *new_str= new (thd->mem_root) String((const char*) $1.str,$1.length,system_charset_info);
             if (new_str == NULL)
               MYSQL_YYABORT;
             List_iterator <LEX_COLUMN> iter(Lex->columns);

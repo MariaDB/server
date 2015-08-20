@@ -9626,9 +9626,9 @@ bool mysql_checksum_table(THD *thd, TABLE_LIST *tables,
   */
   DBUG_ASSERT(! thd->in_sub_stmt);
 
-  field_list.push_back(item = new Item_empty_string(thd, "Table", NAME_LEN*2));
+  field_list.push_back(item= new (thd->mem_root) Item_empty_string(thd, "Table", NAME_LEN*2));
   item->maybe_null= 1;
-  field_list.push_back(item= new Item_int(thd, "Checksum",
+  field_list.push_back(item= new (thd->mem_root) Item_int(thd, "Checksum",
                                           (longlong) 1,
                                           MY_INT64_NUM_DECIMAL_DIGITS));
   item->maybe_null= 1;

@@ -2456,10 +2456,10 @@ int THD::send_explain_fields(select_result *result, uint8 explain_flags, bool is
 
 void THD::make_explain_json_field_list(List<Item> &field_list, bool is_analyze)
 {
-  Item *item= new Item_empty_string(this, (is_analyze ?
-                                     "ANALYZE" :
-                                     "EXPLAIN"),
-                                    78, system_charset_info);
+  Item *item= new (mem_root) Item_empty_string(this, (is_analyze ?
+                                                      "ANALYZE" :
+                                                      "EXPLAIN"),
+                                               78, system_charset_info);
   field_list.push_back(item);
 }
 
@@ -2477,59 +2477,70 @@ void THD::make_explain_field_list(List<Item> &field_list, uint8 explain_flags,
 {
   Item *item;
   CHARSET_INFO *cs= system_charset_info;
-  field_list.push_back(item= new Item_return_int(this, "id", 3,
-                                                 MYSQL_TYPE_LONGLONG));
+  field_list.push_back(item= new (mem_root)
+                       Item_return_int(this, "id", 3,
+                                       MYSQL_TYPE_LONGLONG));
   item->maybe_null= 1;
-  field_list.push_back(new Item_empty_string(this, "select_type", 19, cs));
-  field_list.push_back(item= new Item_empty_string(this, "table", NAME_CHAR_LEN,
-                                                   cs));
+  field_list.push_back(new (mem_root)
+                       Item_empty_string(this, "select_type", 19, cs));
+  field_list.push_back(item= new (mem_root)
+                       Item_empty_string(this, "table", NAME_CHAR_LEN, cs));
   item->maybe_null= 1;
   if (explain_flags & DESCRIBE_PARTITIONS)
   {
     /* Maximum length of string that make_used_partitions_str() can produce */
-    item= new Item_empty_string(this, "partitions",
-                                MAX_PARTITIONS * (1 + FN_LEN), cs);
+    item= new (mem_root) Item_empty_string(this, "partitions",
+                                           MAX_PARTITIONS * (1 + FN_LEN), cs);
     field_list.push_back(item);
     item->maybe_null= 1;
   }
-  field_list.push_back(item= new Item_empty_string(this, "type", 10, cs));
+  field_list.push_back(item= new (mem_root)
+                       Item_empty_string(this, "type", 10, cs));
   item->maybe_null= 1;
-  field_list.push_back(item=new Item_empty_string(this, "possible_keys",
-						  NAME_CHAR_LEN*MAX_KEY, cs));
+  field_list.push_back(item= new (mem_root)
+                       Item_empty_string(this, "possible_keys",
+                                         NAME_CHAR_LEN*MAX_KEY, cs));
   item->maybe_null=1;
-  field_list.push_back(item=new Item_empty_string(this, "key", NAME_CHAR_LEN,
-                                                  cs));
+  field_list.push_back(item=new (mem_root)
+                       Item_empty_string(this, "key", NAME_CHAR_LEN, cs));
   item->maybe_null=1;
-  field_list.push_back(item=new Item_empty_string(this, "key_len",
-						  NAME_CHAR_LEN*MAX_KEY));
+  field_list.push_back(item=new (mem_root)
+                       Item_empty_string(this, "key_len",
+                                         NAME_CHAR_LEN*MAX_KEY));
   item->maybe_null=1;
-  field_list.push_back(item=new Item_empty_string(this, "ref",
-                                                  NAME_CHAR_LEN*MAX_REF_PARTS,
-                                                  cs));
+  field_list.push_back(item=new (mem_root)
+                       Item_empty_string(this, "ref",
+                                         NAME_CHAR_LEN*MAX_REF_PARTS,
+                                         cs));
   item->maybe_null=1;
-  field_list.push_back(item= new Item_return_int(this, "rows", 10,
-                                                 MYSQL_TYPE_LONGLONG));
+  field_list.push_back(item= new (mem_root)
+                       Item_return_int(this, "rows", 10,
+                                       MYSQL_TYPE_LONGLONG));
   if (is_analyze)
   {
-    field_list.push_back(item= new Item_float(this, "r_rows", 0.1234, 10, 4));
+    field_list.push_back(item= new (mem_root)
+                         Item_float(this, "r_rows", 0.1234, 10, 4));
     item->maybe_null=1;
   }
 
   if (is_analyze || (explain_flags & DESCRIBE_EXTENDED))
   {
-    field_list.push_back(item= new Item_float(this, "filtered", 0.1234, 2, 4));
+    field_list.push_back(item= new (mem_root)
+                         Item_float(this, "filtered", 0.1234, 2, 4));
     item->maybe_null=1;
   }
 
   if (is_analyze)
   {
-    field_list.push_back(item= new Item_float(this, "r_filtered", 0.1234, 2,
-                                              4));
+    field_list.push_back(item= new (mem_root)
+                         Item_float(this, "r_filtered", 0.1234, 2,
+                                    4));
     item->maybe_null=1;
   }
 
   item->maybe_null= 1;
-  field_list.push_back(new Item_empty_string(this, "Extra", 255, cs));
+  field_list.push_back(new (mem_root)
+                       Item_empty_string(this, "Extra", 255, cs));
 }
 
 
@@ -3807,7 +3818,7 @@ Statement_map::~Statement_map()
 
 bool my_var_user::set(THD *thd, Item *item)
 {
-  Item_func_set_user_var *suv= new Item_func_set_user_var(thd, name, item);
+  Item_func_set_user_var *suv= new (thd->mem_root) Item_func_set_user_var(thd, name, item);
   suv->save_item_result(item);
   return suv->fix_fields(thd, 0) || suv->update();
 }

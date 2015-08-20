@@ -5334,6 +5334,13 @@ inline bool add_group_to_list(THD *thd, Item *item, bool asc)
   return thd->lex->current_select->add_group_to_list(thd, item, asc);
 }
 
+inline Item *and_conds(THD *thd, Item *a, Item *b)
+{
+  if (!b) return a;
+  if (!a) return b;
+  return new (thd->mem_root) Item_cond_and(thd, a, b);
+}
+
 /* inline handler methods that need to know TABLE and THD structures */
 inline void handler::increment_statistics(ulong SSV::*offset) const
 {

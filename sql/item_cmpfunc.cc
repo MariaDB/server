@@ -442,7 +442,7 @@ static bool convert_const_to_int(THD *thd, Item_field *field_item,
 
       if (0 == field_cmp)
       {
-        Item *tmp= new Item_int_with_ref(thd, field->val_int(), *item,
+        Item *tmp= new (thd->mem_root) Item_int_with_ref(thd, field->val_int(), *item,
                                          MY_TEST(field->flags & UNSIGNED_FLAG));
         if (tmp)
           thd->change_item_tree(item, tmp);
@@ -878,7 +878,7 @@ get_datetime_value(THD *thd, Item ***item_arg, Item **cache_arg,
   {
     Query_arena backup;
     Query_arena *save_arena= thd->switch_to_arena_for_cached_items(&backup);
-    Item_cache_temporal *cache= new Item_cache_temporal(thd, f_type);
+    Item_cache_temporal *cache= new (thd->mem_root) Item_cache_temporal(thd, f_type);
     if (save_arena)
       thd->set_query_arena(save_arena);
 
@@ -3475,6 +3475,12 @@ uchar *in_string::get_value(Item *item)
   return (uchar*) item->val_str(&tmp);
 }
 
+Item *in_string::create_item(THD *thd)
+{
+  return new (thd->mem_root) Item_string_for_in_vector(thd, collation);
+}
+
+
 in_row::in_row(uint elements, Item * item)
 {
   base= (char*) new cmp_item_row[count= elements];
@@ -3531,6 +3537,16 @@ uchar *in_longlong::get_value(Item *item)
   return (uchar*) &tmp;
 }
 
+Item *in_longlong::create_item(THD *thd)
+{ 
+  /* 
+     We're created a signed INT, this may not be correct in 
+     general case (see BUG#19342).
+  */
+  return new (thd->mem_root) Item_int(thd, (longlong)0);
+}
+
+
 void in_datetime::set(uint pos,Item *item)
 {
   Item **tmp_item= &item;
@@ -3552,6 +3568,12 @@ uchar *in_datetime::get_value(Item *item)
   return (uchar*) &tmp;
 }
 
+Item *in_datetime::create_item(THD *thd)
+{ 
+  return new (thd->mem_root) Item_datetime(thd);
+}
+
+
 in_double::in_double(uint elements)
   :in_vector(elements,sizeof(double),(qsort2_cmp) cmp_double, 0)
 {}
@@ -3567,6 +3589,11 @@ uchar *in_double::get_value(Item *item)
   if (item->null_value)
     return 0;					/* purecov: inspected */
   return (uchar*) &tmp;
+}
+
+Item *in_double::create_item(THD *thd)
+{ 
+  return new (thd->mem_root) Item_float(thd, 0.0, 0);
 }
 
 
@@ -3594,6 +3621,11 @@ uchar *in_decimal::get_value(Item *item)
   if (item->null_value)
     return 0;
   return (uchar *)result;
+}
+
+Item *in_decimal::create_item(THD *thd)
+{ 
+  return new (thd->mem_root) Item_decimal(thd, 0, FALSE);
 }
 
 
@@ -4220,6 +4252,15 @@ Item_cond::Item_cond(THD *thd, Item_cond *item)
 }
 
 
+Item *Item_cond_and::copy_andor_structure(THD *thd)
+{
+  Item_cond_and *item;
+  if ((item= new (thd->mem_root) Item_cond_and(thd, this)))
+    item->copy_andor_arguments(thd, this);
+  return item;
+}
+
+
 void Item_cond::copy_andor_arguments(THD *thd, Item_cond *item)
 {
   List_iterator_fast<Item> li(item->list);
@@ -4284,7 +4325,7 @@ Item_cond::fix_fields(THD *thd, Item **ref)
       Query_arena backup, *arena;
       Item *new_item;
       arena= thd->activate_stmt_arena_if_needed(&backup);
-      if ((new_item= new Item_func_ne(thd, item, new Item_int(thd, 0, 1))))
+      if ((new_item= new (thd->mem_root) Item_func_ne(thd, item, new (thd->mem_root) Item_int(thd, 0, 1))))
         li.replace(item= new_item);
       if (arena)
         thd->restore_active_arena(arena, &backup);
@@ -4606,7 +4647,7 @@ void Item_cond::neg_arguments(THD *thd)
     Item *new_item= item->neg_transformer(thd);
     if (!new_item)
     {
-      if (!(new_item= new Item_func_not(thd, item)))
+      if (!(new_item= new (thd->mem_root) Item_func_not(thd, item)))
 	return;					// Fatal OEM error
     }
     (void) li.replace(new_item);
@@ -4623,7 +4664,6 @@ void Item_cond_and::mark_as_condition_AND_part(TABLE_LIST *embedding)
     item->mark_as_condition_AND_part(embedding);
   }
 }
-
 
 /**
   Evaluation of AND(expr, expr, expr ...).
@@ -4682,6 +4722,15 @@ longlong Item_cond_or::val_int()
   return 0;
 }
 
+Item *Item_cond_or::copy_andor_structure(THD *thd)
+{
+  Item_cond_or *item;
+  if ((item= new (thd->mem_root) Item_cond_or(thd, this)))
+    item->copy_andor_arguments(thd, this);
+  return item;
+}
+
+
 /**
   Create an AND expression from two expressions.
 
@@ -4709,7 +4758,7 @@ Item *and_expressions(THD *thd, Item *a, Item *b, Item **org_item)
   if (a == *org_item)
   {
     Item_cond *res;
-    if ((res= new Item_cond_and(thd, a, (Item*) b)))
+    if ((res= new (thd->mem_root) Item_cond_and(thd, a, (Item*) b)))
     {
       res->used_tables_cache= a->used_tables() | b->used_tables();
       res->not_null_tables_cache= a->not_null_tables() | b->not_null_tables();
@@ -5527,7 +5576,7 @@ bool Item_func_not::fix_fields(THD *thd, Item **ref)
     Item *new_item;
     bool rc= TRUE;
     arena= thd->activate_stmt_arena_if_needed(&backup);
-    if ((new_item= new Item_func_eq(thd, args[0], new Item_int(thd, 0, 1))))
+    if ((new_item= new (thd->mem_root) Item_func_eq(thd, args[0], new (thd->mem_root) Item_int(thd, 0, 1))))
     {
       new_item->name= name;
       rc= (*ref= new_item)->fix_fields(thd, ref);
@@ -5579,7 +5628,7 @@ Item *Item_func_xor::neg_transformer(THD *thd)
 */
 Item *Item_func_isnull::neg_transformer(THD *thd)
 {
-  Item *item= new Item_func_isnotnull(thd, args[0]);
+  Item *item= new (thd->mem_root) Item_func_isnotnull(thd, args[0]);
   return item;
 }
 
@@ -5589,7 +5638,7 @@ Item *Item_func_isnull::neg_transformer(THD *thd)
 */
 Item *Item_func_isnotnull::neg_transformer(THD *thd)
 {
-  Item *item= new Item_func_isnull(thd, args[0]);
+  Item *item= new (thd->mem_root) Item_func_isnull(thd, args[0]);
   return item;
 }
 
@@ -5598,7 +5647,7 @@ Item *Item_cond_and::neg_transformer(THD *thd)	/* NOT(a AND b AND ...)  -> */
 					/* NOT a OR NOT b OR ... */
 {
   neg_arguments(thd);
-  Item *item= new Item_cond_or(thd, list);
+  Item *item= new (thd->mem_root) Item_cond_or(thd, list);
   return item;
 }
 
@@ -5607,7 +5656,7 @@ Item *Item_cond_or::neg_transformer(THD *thd)	/* NOT(a OR b OR ...)  -> */
 					/* NOT a AND NOT b AND ... */
 {
   neg_arguments(thd);
-  Item *item= new Item_cond_and(thd, list);
+  Item *item= new (thd->mem_root) Item_cond_and(thd, list);
   return item;
 }
 
@@ -5615,7 +5664,7 @@ Item *Item_cond_or::neg_transformer(THD *thd)	/* NOT(a OR b OR ...)  -> */
 Item *Item_func_nop_all::neg_transformer(THD *thd)
 {
   /* "NOT (e $cmp$ ANY (SELECT ...)) -> e $rev_cmp$" ALL (SELECT ...) */
-  Item_func_not_all *new_item= new Item_func_not_all(thd, args[0]);
+  Item_func_not_all *new_item= new (thd->mem_root) Item_func_not_all(thd, args[0]);
   Item_allany_subselect *allany= (Item_allany_subselect*)args[0];
   allany->create_comp_func(FALSE);
   allany->all= !allany->all;
@@ -5626,7 +5675,7 @@ Item *Item_func_nop_all::neg_transformer(THD *thd)
 Item *Item_func_not_all::neg_transformer(THD *thd)
 {
   /* "NOT (e $cmp$ ALL (SELECT ...)) -> e $rev_cmp$" ANY (SELECT ...) */
-  Item_func_nop_all *new_item= new Item_func_nop_all(thd, args[0]);
+  Item_func_nop_all *new_item= new (thd->mem_root) Item_func_nop_all(thd, args[0]);
   Item_allany_subselect *allany= (Item_allany_subselect*)args[0];
   allany->all= !allany->all;
   allany->create_comp_func(TRUE);
@@ -5636,37 +5685,37 @@ Item *Item_func_not_all::neg_transformer(THD *thd)
 
 Item *Item_func_eq::negated_item(THD *thd) /* a = b  ->  a != b */
 {
-  return new Item_func_ne(thd, args[0], args[1]);
+  return new (thd->mem_root) Item_func_ne(thd, args[0], args[1]);
 }
 
 
 Item *Item_func_ne::negated_item(THD *thd) /* a != b  ->  a = b */
 {
-  return new Item_func_eq(thd, args[0], args[1]);
+  return new (thd->mem_root) Item_func_eq(thd, args[0], args[1]);
 }
 
 
 Item *Item_func_lt::negated_item(THD *thd) /* a < b  ->  a >= b */
 {
-  return new Item_func_ge(thd, args[0], args[1]);
+  return new (thd->mem_root) Item_func_ge(thd, args[0], args[1]);
 }
 
 
 Item *Item_func_ge::negated_item(THD *thd) /* a >= b  ->  a < b */
 {
-  return new Item_func_lt(thd, args[0], args[1]);
+  return new (thd->mem_root) Item_func_lt(thd, args[0], args[1]);
 }
 
 
 Item *Item_func_gt::negated_item(THD *thd) /* a > b  ->  a <= b */
 {
-  return new Item_func_le(thd, args[0], args[1]);
+  return new (thd->mem_root) Item_func_le(thd, args[0], args[1]);
 }
 
 
 Item *Item_func_le::negated_item(THD *thd) /* a <= b  ->  a > b */
 {
-  return new Item_func_gt(thd, args[0], args[1]);
+  return new (thd->mem_root) Item_func_gt(thd, args[0], args[1]);
 }
 
 /**

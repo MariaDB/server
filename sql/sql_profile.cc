@@ -121,7 +121,7 @@ int make_profile_table_for_show(THD *thd, ST_SCHEMA_TABLE *schema_table)
       continue;
 
     field_info= &schema_table->fields_info[i];
-    Item_field *field= new Item_field(thd, context,
+    Item_field *field= new (thd->mem_root) Item_field(thd, context,
                                       NullS, NullS, field_info->field_name);
     if (field)
     {
@@ -389,13 +389,14 @@ bool PROFILING::show_profiles()
   DBUG_ENTER("PROFILING::show_profiles");
   QUERY_PROFILE *prof;
   List<Item> field_list;
+  MEM_ROOT *mem_root= thd->mem_root;
 
-  field_list.push_back(new Item_return_int(thd, "Query_ID", 10,
+  field_list.push_back(new (mem_root) Item_return_int(thd, "Query_ID", 10,
                                            MYSQL_TYPE_LONG));
-  field_list.push_back(new Item_return_int(thd, "Duration",
+  field_list.push_back(new (mem_root) Item_return_int(thd, "Duration",
                                            TIME_FLOAT_DIGITS - 1,
                                            MYSQL_TYPE_DOUBLE));
-  field_list.push_back(new Item_empty_string(thd, "Query", 40));
+  field_list.push_back(new (mem_root) Item_empty_string(thd, "Query", 40));
 
   if (thd->protocol->send_result_set_metadata(&field_list,
                                  Protocol::SEND_NUM_ROWS | Protocol::SEND_EOF))

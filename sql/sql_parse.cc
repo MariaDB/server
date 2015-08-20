@@ -2672,6 +2672,7 @@ mysql_execute_command(THD *thd)
     if (lex->set_arena_for_set_stmt(&backup))
       goto error;
 
+    MEM_ROOT *mem_root= thd->mem_root;
     while ((var= it++))
     {
       DBUG_ASSERT(var->is_system());
@@ -2699,8 +2700,8 @@ mysql_execute_command(THD *thd)
             longlong val= v->var->val_int(&null_value, thd, v->type, &v->base);
             o= new set_var(thd, v->type, v->var, &v->base,
                            (null_value ?
-                            (Item *) new Item_null(thd) :
-                            (Item *) new Item_int(thd, val)));
+                            (Item *) new (mem_root) Item_null(thd) :
+                            (Item *) new (mem_root) Item_int(thd, val)));
           }
           break;
         case GET_UINT:
@@ -2711,8 +2712,8 @@ mysql_execute_command(THD *thd)
             ulonglong val= v->var->val_int(&null_value, thd, v->type, &v->base);
             o= new set_var(thd, v->type, v->var, &v->base,
                            (null_value ?
-                            (Item *) new Item_null(thd) :
-                            (Item *) new Item_uint(thd, val)));
+                            (Item *) new (mem_root) Item_null(thd) :
+                            (Item *) new (mem_root) Item_uint(thd, val)));
           }
           break;
         case GET_DOUBLE:
@@ -2721,8 +2722,8 @@ mysql_execute_command(THD *thd)
             double val= v->var->val_real(&null_value, thd, v->type, &v->base);
             o= new set_var(thd, v->type, v->var, &v->base,
                            (null_value ?
-                            (Item *) new Item_null(thd) :
-                            (Item *) new Item_float(thd, val, 1)));
+                            (Item *) new (mem_root) Item_null(thd) :
+                            (Item *) new (mem_root) Item_float(thd, val, 1)));
           }
           break;
         default:
@@ -2741,13 +2742,13 @@ mysql_execute_command(THD *thd)
             val= v->var->val_str(&tmp, thd, v->type, &v->base);
             if (val)
             {
-              Item_string *str= new Item_string(thd, v->var->charset(thd),
+              Item_string *str= new (mem_root) Item_string(thd, v->var->charset(thd),
                                                 val->ptr(), val->length());
               o= new set_var(thd, v->type, v->var, &v->base, str);
             }
             else
               o= new set_var(thd, v->type, v->var, &v->base,
-                             new Item_null(thd));
+                             new (mem_root) Item_null(thd));
           }
           break;
         }
@@ -3003,7 +3004,7 @@ mysql_execute_command(THD *thd)
       my_error(ER_WRONG_ARGUMENTS, MYF(0), "PURGE LOGS BEFORE");
       goto error;
     }
-    it= new Item_func_unix_timestamp(thd, it);
+    it= new (thd->mem_root) Item_func_unix_timestamp(thd, it);
     it->fix_fields(thd, &it);
     res = purge_master_logs_before_date(thd, (ulong)it->val_int());
     break;
@@ -4088,7 +4089,7 @@ end_with_restore_list:
     /* condition will be TRUE on SP re-excuting */
     if (select_lex->item_list.elements != 0)
       select_lex->item_list.empty();
-    if (add_item_to_list(thd, new Item_null(thd)))
+    if (add_item_to_list(thd, new (thd->mem_root) Item_null(thd)))
       goto error;
 
     THD_STAGE_INFO(thd, stage_init);
@@ -7876,7 +7877,7 @@ Item *normalize_cond(THD *thd, Item *cond)
     Item::Type type= cond->type();
     if (type == Item::FIELD_ITEM || type == Item::REF_ITEM)
     {
-      cond= new Item_func_ne(thd, cond, new Item_int(thd, 0));
+      cond= new (thd->mem_root) Item_func_ne(thd, cond, new (thd->mem_root) Item_int(thd, 0));
     }
   }
   return cond;
@@ -7911,7 +7912,7 @@ void add_join_on(THD *thd, TABLE_LIST *b, Item *expr)
         right and left join. If called later, it happens if we add more
         than one condition to the ON clause.
       */
-      b->on_expr= new Item_cond_and(thd, b->on_expr,expr);
+      b->on_expr= new (thd->mem_root) Item_cond_and(thd, b->on_expr,expr);
     }
     b->on_expr->top_level_item();
   }
@@ -8819,12 +8820,12 @@ Item *negate_expression(THD *thd, Item *expr)
       if it is not boolean function then we have to emulate value of
       not(not(a)), it will be a != 0
     */
-    return new Item_func_ne(thd, arg, new Item_int(thd, (char*) "0", 0, 1));
+    return new (thd->mem_root) Item_func_ne(thd, arg, new (thd->mem_root) Item_int(thd, (char*) "0", 0, 1));
   }
 
   if ((negated= expr->neg_transformer(thd)) != 0)
     return negated;
-  return new Item_func_not(thd, expr);
+  return new (thd->mem_root) Item_func_not(thd, expr);
 }
 
 /**
