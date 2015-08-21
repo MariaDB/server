@@ -534,7 +534,8 @@ void build_eq_mods_for_cond(THD *thd, Dep_analysis_context *dac,
                             Item *cond);
 static 
 void check_equality(Dep_analysis_context *dac, Dep_module_expr **eq_mod, 
-                    uint and_level, Item_func *cond, Item *left, Item *right);
+                    uint and_level, Item_bool_func *cond,
+                    Item *left, Item *right);
 static 
 Dep_module_expr *merge_eq_mods(Dep_module_expr *start, 
                                  Dep_module_expr *new_fields, 
@@ -1199,27 +1200,30 @@ void build_eq_mods_for_cond(THD *thd, Dep_analysis_context *ctx,
   case Item_func::BETWEEN:
   {
     Item *fld;
-    if (!((Item_func_between*)cond)->negated &&
+    Item_func_between *func= (Item_func_between *) cond_func;
+    if (!func->negated &&
         (fld= args[0]->real_item())->type() == Item::FIELD_ITEM &&
         args[1]->eq(args[2], ((Item_field*)fld)->field->binary()))
     {
-      check_equality(ctx, eq_mod, *and_level, cond_func, args[0], args[1]);
-      check_equality(ctx, eq_mod, *and_level, cond_func, args[1], args[0]);
+      check_equality(ctx, eq_mod, *and_level, func, args[0], args[1]);
+      check_equality(ctx, eq_mod, *and_level, func, args[1], args[0]);
     }
     break;
   }
   case Item_func::EQ_FUNC:
   case Item_func::EQUAL_FUNC:
   {
-    check_equality(ctx, eq_mod, *and_level, cond_func, args[0], args[1]);
-    check_equality(ctx, eq_mod, *and_level, cond_func, args[1], args[0]);
+    Item_bool_rowready_func2 *func= (Item_bool_rowready_func2*) cond_func;
+    check_equality(ctx, eq_mod, *and_level, func, args[0], args[1]);
+    check_equality(ctx, eq_mod, *and_level, func, args[1], args[0]);
     break;
   }
   case Item_func::ISNULL_FUNC:
   {
     Item *tmp=new (thd->mem_root) Item_null(thd);
     if (tmp)
-      check_equality(ctx, eq_mod, *and_level, cond_func, args[0], tmp);
+      check_equality(ctx, eq_mod, *and_level,
+                     (Item_func_isnull*) cond_func, args[0], tmp);
     break;
   }
   case Item_func::MULT_EQUAL_FUNC:
@@ -1479,7 +1483,8 @@ Dep_module_expr *merge_eq_mods(Dep_module_expr *start,
 
 static 
 void check_equality(Dep_analysis_context *ctx, Dep_module_expr **eq_mod,
-                    uint and_level, Item_func *cond, Item *left, Item *right)
+                    uint and_level, Item_bool_func *cond,
+                    Item *left, Item *right)
 {
   if ((left->used_tables() & ctx->usable_tables) &&
       !(right->used_tables() & RAND_TABLE_BIT) &&

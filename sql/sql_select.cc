@@ -4147,7 +4147,7 @@ error:
 /// Used when finding key fields
 struct KEY_FIELD {
   Field		*field;
-  Item_func     *cond;
+  Item_bool_func *cond;
   Item		*val;			///< May be empty if diff constant
   uint		level;
   uint		optimize;
@@ -4400,7 +4400,7 @@ static uint get_semi_join_select_list_index(Field *field)
 
 static void
 add_key_field(JOIN *join,
-              KEY_FIELD **key_fields,uint and_level, Item_func *cond,
+              KEY_FIELD **key_fields,uint and_level, Item_bool_func *cond,
               Field *field, bool eq_func, Item **value, uint num_values,
               table_map usable_tables, SARGABLE_PARAM **sargables)
 {
@@ -4552,7 +4552,7 @@ add_key_field(JOIN *join,
 
 static void
 add_key_equal_fields(JOIN *join, KEY_FIELD **key_fields, uint and_level,
-                     Item_func *cond, Item *field_item,
+                     Item_bool_func *cond, Item *field_item,
                      bool eq_func, Item **val,
                      uint num_values, table_map usable_tables,
                      SARGABLE_PARAM **sargables)
@@ -12511,7 +12511,8 @@ finish:
 */
 
 static bool check_simple_equality(THD *thd, Item *left_item, Item *right_item,
-                                  Item *item, COND_EQUAL *cond_equal)
+                                  const Item_bool_func *item,
+                                  COND_EQUAL *cond_equal)
 {
   Item *orig_left_item= left_item;
   Item *orig_right_item= right_item;
@@ -12653,7 +12654,7 @@ static bool check_simple_equality(THD *thd, Item *left_item, Item *right_item,
           eq_item->quick_fix_field();
           item= eq_item;
         }  
-        if ((cs != ((Item_func *) item)->compare_collation()) ||
+        if ((cs != item->compare_collation()) ||
             !cs->coll->propagate(cs, 0, 0))
           return FALSE;
       }

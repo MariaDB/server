@@ -1249,7 +1249,7 @@ double Field::pos_in_interval_val_str(Field *min, Field *max, uint data_offset)
 /*
   This handles all numeric and BIT data types.
 */ 
-bool Field::can_optimize_keypart_ref(const Item_func *cond,
+bool Field::can_optimize_keypart_ref(const Item_bool_func *cond,
                                      const Item *item) const
 {
   DBUG_ASSERT(cmp_type() != STRING_RESULT);
@@ -5289,7 +5289,7 @@ my_decimal *Field_temporal::val_decimal(my_decimal *d)
 }
 
 
-bool Field_temporal::can_optimize_keypart_ref(const Item_func *cond,
+bool Field_temporal::can_optimize_keypart_ref(const Item_bool_func *cond,
                                               const Item *value) const
 {
   return true; // Field is of TIME_RESULT, which supersedes everything else.
@@ -6488,7 +6488,7 @@ uint32 Field_longstr::max_data_length() const
 
 
 bool
-Field_longstr::cmp_to_string_with_same_collation(const Item_func *cond,
+Field_longstr::cmp_to_string_with_same_collation(const Item_bool_func *cond,
                                                  const Item *item) const
 {
   return item->cmp_type() == STRING_RESULT &&
@@ -6497,7 +6497,7 @@ Field_longstr::cmp_to_string_with_same_collation(const Item_func *cond,
 
 
 bool
-Field_longstr::cmp_to_string_with_stricter_collation(const Item_func *cond,
+Field_longstr::cmp_to_string_with_stricter_collation(const Item_bool_func *cond,
                                                      const Item *item) const
 {
   return item->cmp_type() == STRING_RESULT &&
@@ -6506,7 +6506,7 @@ Field_longstr::cmp_to_string_with_stricter_collation(const Item_func *cond,
 }
 
 
-bool Field_longstr::can_optimize_keypart_ref(const Item_func *cond,
+bool Field_longstr::can_optimize_keypart_ref(const Item_bool_func *cond,
                                              const Item *item) const
 {
   DBUG_ASSERT(cmp_type() == STRING_RESULT);
@@ -6514,7 +6514,7 @@ bool Field_longstr::can_optimize_keypart_ref(const Item_func *cond,
 }
 
 
-bool Field_longstr::can_optimize_hash_join(const Item_func *cond,
+bool Field_longstr::can_optimize_hash_join(const Item_bool_func *cond,
                                            const Item *item) const
 {
   DBUG_ASSERT(cmp_type() == STRING_RESULT);
@@ -8561,7 +8561,7 @@ uint Field_num::is_equal(Create_field *new_field)
 }
 
 
-bool Field_enum::can_optimize_keypart_ref(const Item_func *cond,
+bool Field_enum::can_optimize_keypart_ref(const Item_bool_func *cond,
                                           const Item *item) const
 {
   DBUG_ASSERT(cmp_type() == INT_RESULT);
@@ -8576,7 +8576,7 @@ bool Field_enum::can_optimize_keypart_ref(const Item_func *cond,
   case REAL_RESULT:
     return true;
   case STRING_RESULT:
-    return charset() == ((Item_func*)cond)->compare_collation();
+    return charset() == cond->compare_collation();
   case IMPOSSIBLE_RESULT:
   case ROW_RESULT:
     DBUG_ASSERT(0);

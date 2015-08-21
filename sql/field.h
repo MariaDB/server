@@ -1012,16 +1012,16 @@ public:
     return (double) 0.5; 
   }
 
-  virtual bool can_optimize_keypart_ref(const Item_func *cond,
+  virtual bool can_optimize_keypart_ref(const Item_bool_func *cond,
                                         const Item *item) const;
-  virtual bool can_optimize_hash_join(const Item_func *cond,
+  virtual bool can_optimize_hash_join(const Item_bool_func *cond,
                                       const Item *item) const
   {
     return can_optimize_keypart_ref(cond, item);
   }
   virtual bool can_optimize_group_min_max(const Item_bool_func *cond,
                                           const Item *const_item) const;
-  bool can_optimize_outer_join_table_elimination(const Item_func *cond,
+  bool can_optimize_outer_join_table_elimination(const Item_bool_func *cond,
                                                  const Item *item) const
   {
     // Exactly the same rules with REF access
@@ -1207,9 +1207,9 @@ protected:
     return report_if_important_data(copier->source_end_pos(),
                                     end, count_spaces);
   }
-  bool cmp_to_string_with_same_collation(const Item_func *cond,
+  bool cmp_to_string_with_same_collation(const Item_bool_func *cond,
                                          const Item *item) const;
-  bool cmp_to_string_with_stricter_collation(const Item_func *cond,
+  bool cmp_to_string_with_stricter_collation(const Item_bool_func *cond,
                                              const Item *item) const;
 public:
   Field_longstr(uchar *ptr_arg, uint32 len_arg, uchar *null_ptr_arg,
@@ -1222,8 +1222,10 @@ public:
   int store_decimal(const my_decimal *d);
   uint32 max_data_length() const;
   bool match_collation_to_optimize_range() const { return true; }
-  bool can_optimize_keypart_ref(const Item_func *cond, const Item *item) const;
-  bool can_optimize_hash_join(const Item_func *cond, const Item *item) const;
+  bool can_optimize_keypart_ref(const Item_bool_func *cond,
+                                const Item *item) const;
+  bool can_optimize_hash_join(const Item_bool_func *cond,
+                              const Item *item) const;
   bool can_optimize_group_min_max(const Item_bool_func *cond,
                                   const Item *const_item) const;
 };
@@ -1653,7 +1655,8 @@ public:
   uint size_of() const { return sizeof(*this); }
   uint32 max_display_length() { return 4; }
   void move_field_offset(my_ptrdiff_t ptr_diff) {}
-  bool can_optimize_keypart_ref(const Item_func *cond, const Item *item) const
+  bool can_optimize_keypart_ref(const Item_bool_func *cond,
+                                const Item *item) const
   {
     DBUG_ASSERT(0);
     return false;
@@ -1696,7 +1699,8 @@ public:
   {
     return pos_in_interval_val_real(min, max);
   }
-  bool can_optimize_keypart_ref(const Item_func *cond, const Item *item) const;
+  bool can_optimize_keypart_ref(const Item_bool_func *cond,
+                                const Item *item) const;
   bool can_optimize_group_min_max(const Item_bool_func *cond,
                                   const Item *const_item) const;
 };
@@ -2773,7 +2777,8 @@ public:
   virtual const uchar *unpack(uchar *to, const uchar *from,
                               const uchar *from_end, uint param_data);
 
-  bool can_optimize_keypart_ref(const Item_func *cond, const Item *item) const;
+  bool can_optimize_keypart_ref(const Item_bool_func *cond,
+                                const Item *item) const;
   bool can_optimize_group_min_max(const Item_bool_func *cond,
                                   const Item *const_item) const
   {
