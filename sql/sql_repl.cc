@@ -3800,6 +3800,7 @@ bool mysql_show_binlog_events(THD* thd)
   int old_max_allowed_packet= thd->variables.max_allowed_packet;
   Master_info *mi= 0;
   LOG_INFO linfo;
+  LEX_MASTER_INFO *lex_mi= &thd->lex->mi;
 
   DBUG_ENTER("mysql_show_binlog_events");
 
@@ -3821,10 +3822,12 @@ bool mysql_show_binlog_events(THD* thd)
   }
   else  /* showing relay log contents */
   {
+    if (!lex_mi->connection_name.str)
+      lex_mi->connection_name= thd->variables.default_master_connection;
     mysql_mutex_lock(&LOCK_active_mi);
     if (!master_info_index ||
         !(mi= master_info_index->
-          get_master_info(&thd->variables.default_master_connection,
+          get_master_info(&lex_mi->connection_name,
                           Sql_condition::WARN_LEVEL_ERROR)))
     {
       mysql_mutex_unlock(&LOCK_active_mi);
@@ -3835,7 +3838,6 @@ bool mysql_show_binlog_events(THD* thd)
 
   if (binary_log->is_open())
   {
-    LEX_MASTER_INFO *lex_mi= &thd->lex->mi;
     SELECT_LEX_UNIT *unit= &thd->lex->unit;
     ha_rows event_count, limit_start, limit_end;
     my_off_t pos = MY_MAX(BIN_LOG_HEADER_SIZE, lex_mi->pos); // user-friendly

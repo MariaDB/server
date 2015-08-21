@@ -1,10 +1,11 @@
 ##############################################################################
 # Show relay log events 
 #
-# Useage: 
+# Usage:
 # let $binlog_file= slave-relay-bin.000002; 
 # let $binlog_start= 106; 
 # let $binlog_limit= 1, 3; 
+# let $master_name= master1;
 # source include/show_relaylog_events.inc;
 #
 # It shows the first relay log file if $binlog_file is not given. 
