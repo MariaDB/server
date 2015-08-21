@@ -336,12 +336,12 @@ RESET MASTER;
 RESET MASTER;
 SHOW MASTER STATUS;
 File	Position	Binlog_Do_DB	Binlog_Ignore_DB
-master-bin.000001	313		
+master-bin.000001	<pos>		
 RESET MASTER TO 100;
 SHOW MASTER STATUS;
 File	Position	Binlog_Do_DB	Binlog_Ignore_DB
-master-bin.000100	313		
+master-bin.000100	<pos>		
 RESET MASTER;
 SHOW MASTER STATUS;
 File	Position	Binlog_Do_DB	Binlog_Ignore_DB
-master-bin.000001	313		
+master-bin.000001	<pos>		
