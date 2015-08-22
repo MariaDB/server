@@ -912,9 +912,30 @@ my_bool JSNX::LocateValue(PJVAL jvp)
 /* ---------------------------- JSON UDF ----------------------------- */
 
 /***********************************************************************/
+/*  Program for SubSet re-initialization of the memory pool.           */
+/***********************************************************************/
+static my_bool JsonSubSet(PGLOBAL g)
+{
+	PPOOLHEADER pph = (PPOOLHEADER)g->Sarea;
+
+	pph->To_Free = (OFFSET)((g->Createas) ? g->Createas : sizeof(POOLHEADER));
+	pph->FreeBlk = g->Sarea_Size - pph->To_Free;
+	return FALSE;
+} /* end of JsonSubSet */
+
+/***********************************************************************/
+/*  Program for saving the status of the memory pools.                 */
+/***********************************************************************/
+inline void JsonMemSave(PGLOBAL g)
+{
+	g->Createas = (int)((PPOOLHEADER)g->Sarea)->To_Free;
+} /* end of JsonMemSave */
+
+/***********************************************************************/
 /*  Allocate and initialise the memory area.                           */
 /***********************************************************************/
-static my_bool JsonInit(UDF_INIT *initid, char *message, my_bool mbn, 
+static my_bool JsonInit(UDF_INIT *initid, UDF_ARGS *args,
+												char *message, my_bool mbn,
                         unsigned long reslen, unsigned long memlen)
 {
   PGLOBAL g = PlugInit(NULL, memlen);
@@ -929,11 +950,12 @@ static my_bool JsonInit(UDF_INIT *initid, char *message, my_bool mbn,
   } else
     initid->ptr = (char*)g;
 
+	g->Mrr = (args->arg_count && args->args[0]) ? 1 : 0;
+	g->Alchecked = (initid->const_item) ? 1 : 0;
   initid->maybe_null = mbn;
-	initid->const_item = false;
   initid->max_length = reslen;
   return false;
-} // end of Json_init
+} // end of JsonInit
 
 /***********************************************************************/
 /*  Check if a path was specified and set jvp according to it.         */
@@ -1135,7 +1157,6 @@ static my_bool CalcLen(UDF_ARGS *args, my_bool obj,
 
     } // endfor i
 
-	reslen = MY_MIN(reslen, 65535);			// VARCHAR length limit
 	return false;
 } // end of CalcLen
 
@@ -1163,16 +1184,18 @@ static my_bool CheckMemory(PGLOBAL g, UDF_INIT *initid, UDF_ARGS *args,
 					strcpy(g->Message, errmsg);
 					g->Sarea_Size = 0;
 					return true;
-				} else
-					g->Sarea_Size = ml;
+					} // endif Alloc
 
+				g->Sarea_Size = ml;
+				g->Createas = 0;
+				g->Xchk = NULL;
 				initid->max_length = rl;
 			}	// endif Size
 
 			break;
 		} // endif IsJson
 
-	PlugSubSet(g, g->Sarea, g->Sarea_Size);
+	JsonSubSet(g);
 	return false;
 } // end of CheckMemory
 
@@ -1343,7 +1366,7 @@ my_bool Json_Value_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
   } else
     CalcLen(args, false, reslen, memlen);
 
-  return JsonInit(initid, message, false, reslen, memlen);
+  return JsonInit(initid, args, message, false, reslen, memlen);
 } // end of Json_Value_init
 
 char *Json_Value(UDF_INIT *initid, UDF_ARGS *args, char *result, 
@@ -1352,16 +1375,22 @@ char *Json_Value(UDF_INIT *initid, UDF_ARGS *args, char *result,
   char   *str;
   PGLOBAL g = (PGLOBAL)initid->ptr;
 
-	if (!CheckMemory(g, initid, args, 1, false)) {
-		PJVAL jvp = MakeValue(g, args, 0);
+	if (!g->Xchk) {
+		if (!CheckMemory(g, initid, args, 1, false)) {
+			PJVAL jvp = MakeValue(g, args, 0);
 
-		if (!(str = Serialize(g, jvp, NULL, 0)))
+			if (!(str = Serialize(g, jvp, NULL, 0)))
+				str = strcpy(result, g->Message);
+
+		} else
 			str = strcpy(result, g->Message);
 
+		// Keep result of constant function
+		g->Xchk = (g->Alchecked) ? str : NULL;
 	} else
-		str = strcpy(result, g->Message);
+		str = (char*)g->Xchk;
 
-  *res_length = strlen(str);
+	*res_length = strlen(str);
   return str;
 } // end of Json_Value
 
@@ -1378,32 +1407,36 @@ my_bool Json_Array_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
   unsigned long reslen, memlen;
 
   CalcLen(args, false, reslen, memlen);
-  return JsonInit(initid, message, false, reslen, memlen);
+  return JsonInit(initid, args, message, false, reslen, memlen);
 } // end of Json_Array_init
 
 char *Json_Array(UDF_INIT *initid, UDF_ARGS *args, char *result, 
                  unsigned long *res_length, char *, char *)
 {
   char   *str;
-  uint    i;
-  PJAR    arp;
   PGLOBAL g = (PGLOBAL)initid->ptr;
 
-	if (!CheckMemory(g, initid, args, args->arg_count, false)) {
-		arp = new(g)JARRAY;
+	if (!g->Xchk) {
+		if (!CheckMemory(g, initid, args, args->arg_count, false)) {
+			PJAR arp = new(g)JARRAY;
 
-		for (i = 0; i < args->arg_count; i++)
-			arp->AddValue(g, MakeValue(g, args, i));
+			for (uint i = 0; i < args->arg_count; i++)
+				arp->AddValue(g, MakeValue(g, args, i));
 
-		arp->InitArray(g);
+			arp->InitArray(g);
 
-		if (!(str = Serialize(g, arp, NULL, 0)))
+			if (!(str = Serialize(g, arp, NULL, 0)))
+				str = strcpy(result, g->Message);
+
+		} else
 			str = strcpy(result, g->Message);
 
+		// Keep result of constant function
+		g->Xchk = (g->Alchecked) ? str : NULL;
 	} else
-		str = strcpy(result, g->Message);
+		str = (char*)g->Xchk;
 
-  *res_length = strlen(str);
+	*res_length = strlen(str);
   return str;
 } // end of Json_Array
 
@@ -1428,8 +1461,8 @@ my_bool Json_Array_Add_Values_init(UDF_INIT *initid, UDF_ARGS *args, char *messa
 	} else
 		CalcLen(args, false, reslen, memlen);
 
-	return JsonInit(initid, message, true, reslen, memlen);
-} // end of Json_Array_Add_init
+	return JsonInit(initid, args, message, true, reslen, memlen);
+} // end of Json_Array_Add_Values_init
 
 char *Json_Array_Add_Values(UDF_INIT *initid, UDF_ARGS *args, char *result,
 	unsigned long *res_length, char *, char *)
@@ -1437,27 +1470,33 @@ char *Json_Array_Add_Values(UDF_INIT *initid, UDF_ARGS *args, char *result,
 	char   *str = NULL;
 	PGLOBAL g = (PGLOBAL)initid->ptr;
 
-	if (!CheckMemory(g, initid, args, args->arg_count, false)) {
-		PJAR  arp;
-		PJVAL jvp = MakeValue(g, args, 0);
+	if (!g->Xchk) {
+		if (!CheckMemory(g, initid, args, args->arg_count, false)) {
+			PJAR  arp;
+			PJVAL jvp = MakeValue(g, args, 0);
+			
+			if (jvp->GetValType() != TYPE_JAR) {
+				arp = new(g)JARRAY;
+				arp->AddValue(g, jvp);
+			} else
+				arp = jvp->GetArray();
 
-		if (jvp->GetValType() != TYPE_JAR) {
-			arp = new(g)JARRAY;
-			arp->AddValue(g, jvp);
-		} else
-			arp = jvp->GetArray();
+			for (uint i = 1; i < args->arg_count; i++)
+				arp->AddValue(g, MakeValue(g, args, i));
 
-		for (uint i = 1; i < args->arg_count; i++)
-			arp->AddValue(g, MakeValue(g, args, i));
+			arp->InitArray(g);
+			str = Serialize(g, arp, NULL, 0);
+		} // endif CheckMemory
 
-		arp->InitArray(g);
-		str = Serialize(g, arp, NULL, 0);
-	} // endif CheckMemory
+		if (!str) {
+			PUSH_WARNING(g->Message);
+			str = args->args[0];
+		}	// endif str
 
-	if (!str) {
-		PUSH_WARNING(g->Message);
-		str = args->args[0];
-	}	// endif str
+		// Keep result of constant function
+		g->Xchk = (g->Alchecked) ? str : NULL;
+	} else
+		str = (char*)g->Xchk;
 
 	*res_length = (str) ? strlen(str) : 0;
 	return str;
@@ -1484,7 +1523,7 @@ my_bool Json_Array_Add_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 	} else
     CalcLen(args, false, reslen, memlen, true);
 
-	return JsonInit(initid, message, true, reslen, memlen);
+	return JsonInit(initid, args, message, true, reslen, memlen);
 } // end of Json_Array_Add_init
 
 char *Json_Array_Add(UDF_INIT *initid, UDF_ARGS *args, char *result, 
@@ -1493,11 +1532,21 @@ char *Json_Array_Add(UDF_INIT *initid, UDF_ARGS *args, char *result,
 	char   *str = NULL;
   PGLOBAL g = (PGLOBAL)initid->ptr;
 
+	if (g->Xchk) {
+		// This constant function was recalled
+		str = (char*)g->Xchk;
+		*res_length = strlen(str);
+		return str;
+	} // endif Xchk
+
 	if (!CheckMemory(g, initid, args, 2, false, true)) {
 		int  *x = NULL, n = 2;
 		PJSON top;
 		PJVAL jvp;
 		PJAR  arp;
+
+		jvp = MakeValue(g, args, 0);
+		top = jvp->GetJson();
 
 		if (args->arg_count > 2) {
 			if (args->arg_type[2] == INT_RESULT) {
@@ -1508,9 +1557,6 @@ char *Json_Array_Add(UDF_INIT *initid, UDF_ARGS *args, char *result,
 				n = 3;
 
 		} // endif count
-
-		jvp = MakeValue(g, args, 0);
-		top = jvp->GetJson();
 
 		if (CheckPath(g, args, top, jvp, n))
 			PUSH_WARNING(g->Message);
@@ -1525,12 +1571,14 @@ char *Json_Array_Add(UDF_INIT *initid, UDF_ARGS *args, char *result,
 	} // endif CheckMemory
 
 	// In case of error or file, return unchanged argument
-	if (!str) {
-		str = args->args[0];
-		*res_length = args->lengths[0];
-	} else
-		*res_length = strlen(str);
+	if (!str)
+		str = MakePSZ(g, args, 0);
 
+	if (g->Alchecked)
+		// Keep result of constant function
+		g->Xchk = str;
+
+	*res_length = strlen(str);
 	return str;
 } // end of Json_Array_Add
 
@@ -1558,7 +1606,7 @@ my_bool Json_Array_Delete_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 	} else
     CalcLen(args, false, reslen, memlen, true);
 
-  return JsonInit(initid, message, true, reslen, memlen);
+  return JsonInit(initid, args, message, true, reslen, memlen);
 } // end of Json_Array_Delete_init
 
 char *Json_Array_Delete(UDF_INIT *initid, UDF_ARGS *args, char *result, 
@@ -1566,6 +1614,13 @@ char *Json_Array_Delete(UDF_INIT *initid, UDF_ARGS *args, char *result,
 {
 	char   *str = NULL;
   PGLOBAL g = (PGLOBAL)initid->ptr;
+
+	if (g->Xchk) {
+		// This constant function was recalled
+		str = (char*)g->Xchk;
+		*res_length = strlen(str);
+		return str;
+	} // endif Xchk
 
 	if (!CheckMemory(g, initid, args, 1, false, true)) {
 		int   n;
@@ -1587,13 +1642,15 @@ char *Json_Array_Delete(UDF_INIT *initid, UDF_ARGS *args, char *result,
 	} // endif CheckMemory
 
 	// In case of error or file, return unchanged argument
-	if (!str) {
-		str = args->args[0];
-		*res_length = args->lengths[0];
-	} else
-		*res_length = strlen(str);
+	if (!str)
+		str = MakePSZ(g, args, 0);
 
-  return str;
+	if (g->Alchecked)
+		// Keep result of constant function
+		g->Xchk = str;
+
+	*res_length = (str) ? strlen(str) : 0;
+	return str;
 } // end of Json_Array_Delete
 
 void Json_Array_Delete_deinit(UDF_INIT* initid)
@@ -1609,7 +1666,7 @@ my_bool Json_Object_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
   unsigned long reslen, memlen;
 
   CalcLen(args, true, reslen, memlen);
-  return JsonInit(initid, message, false, reslen, memlen);
+  return JsonInit(initid, args, message, false, reslen, memlen);
 } // end of Json_Object_init
 
 char *Json_Object(UDF_INIT *initid, UDF_ARGS *args, char *result, 
@@ -1618,17 +1675,23 @@ char *Json_Object(UDF_INIT *initid, UDF_ARGS *args, char *result,
   char   *str = NULL;
   PGLOBAL g = (PGLOBAL)initid->ptr;
 
-	if (!CheckMemory(g, initid, args, args->arg_count, true)) {
-		PJOB objp = new(g)JOBJECT;
+	if (!g->Xchk) {
+		if (!CheckMemory(g, initid, args, args->arg_count, true)) {
+			PJOB objp = new(g)JOBJECT;
 
-	  for (uint i = 0; i < args->arg_count; i++)
-			objp->SetValue(g, MakeValue(g, args, i), MakeKey(g, args, i));
+			for (uint i = 0; i < args->arg_count; i++)
+				objp->SetValue(g, MakeValue(g, args, i), MakeKey(g, args, i));
 
-		str = Serialize(g, objp, NULL, 0);
-	} // endif CheckMemory
+			str = Serialize(g, objp, NULL, 0);
+		} // endif CheckMemory
 
-	if (!str)
-		str = strcpy(result, g->Message);
+		if (!str)
+			str = strcpy(result, g->Message);
+
+		// Keep result of constant function
+		g->Xchk = (g->Alchecked) ? str : NULL;
+	} else
+		str = (char*)g->Xchk;
 
 	*res_length = strlen(str);
   return str;
@@ -1648,7 +1711,7 @@ my_bool Json_Object_Nonull_init(UDF_INIT *initid, UDF_ARGS *args,
   unsigned long reslen, memlen;
 
   CalcLen(args, true, reslen, memlen);
-  return JsonInit(initid, message, false, reslen, memlen);
+  return JsonInit(initid, args, message, false, reslen, memlen);
 } // end of Json_Object_Nonull_init
 
 char *Json_Object_Nonull(UDF_INIT *initid, UDF_ARGS *args, char *result, 
@@ -1657,19 +1720,25 @@ char *Json_Object_Nonull(UDF_INIT *initid, UDF_ARGS *args, char *result,
   char   *str;
   PGLOBAL g = (PGLOBAL)initid->ptr;
 
-	if (!CheckMemory(g, initid, args, args->arg_count, true)) {
-		PJVAL jvp;
-		PJOB  objp = new(g)JOBJECT;
+	if (!g->Xchk) {
+		if (!CheckMemory(g, initid, args, args->arg_count, true)) {
+			PJVAL jvp;
+			PJOB  objp = new(g)JOBJECT;
 
-		for (uint i = 0; i < args->arg_count; i++)
-			if (!(jvp = MakeValue(g, args, i))->IsNull())
-				objp->SetValue(g, jvp, MakeKey(g, args, i));
+			for (uint i = 0; i < args->arg_count; i++)
+				if (!(jvp = MakeValue(g, args, i))->IsNull())
+					objp->SetValue(g, jvp, MakeKey(g, args, i));
 
-		str = Serialize(g, objp, NULL, 0);
-	} // endif CheckMemory
+			str = Serialize(g, objp, NULL, 0);
+		} // endif CheckMemory
 
-	if (!str)
-		str = strcpy(result, g->Message);
+		if (!str)
+			str = strcpy(result, g->Message);
+
+		// Keep result of constant function
+		g->Xchk = (g->Alchecked) ? str : NULL;
+	} else
+		str = (char*)g->Xchk;
 
 	*res_length = strlen(str);
   return str;
@@ -1696,7 +1765,7 @@ my_bool Json_Object_Add_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 	} else
 		CalcLen(args, false, reslen, memlen, true);
 
-	return JsonInit(initid, message, true, reslen, memlen);
+	return JsonInit(initid, args, message, true, reslen, memlen);
 } // end of Json_Object_Add_init
 
 char *Json_Object_Add(UDF_INIT *initid, UDF_ARGS *args, char *result,
@@ -1704,6 +1773,13 @@ char *Json_Object_Add(UDF_INIT *initid, UDF_ARGS *args, char *result,
 {
 	char   *key, *str = NULL;
 	PGLOBAL g = (PGLOBAL)initid->ptr;
+
+	if (g->Xchk) {
+		// This constant function was recalled
+		str = (char*)g->Xchk;
+		*res_length = strlen(str);
+		return str;
+	} // endif Xchk
 
 	if (!CheckMemory(g, initid, args, 2, false, true)) {
 		PJOB  jobp;
@@ -1724,12 +1800,14 @@ char *Json_Object_Add(UDF_INIT *initid, UDF_ARGS *args, char *result,
 	} // endif CheckMemory
 
 	// In case of error or file, return unchanged argument
-	if (!str) {
-		str = args->args[0];
-		*res_length = args->lengths[0];
-	} else
-		*res_length = strlen(str);
+	if (!str)
+		str = MakePSZ(g, args, 0);
 
+	if (g->Alchecked)
+		// Keep result of constant function
+		g->Xchk = str;
+
+	*res_length = strlen(str);
 	return str;
 } // end of Json_Object_Add
 
@@ -1757,7 +1835,7 @@ my_bool Json_Object_Delete_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 	} else
 		CalcLen(args, false, reslen, memlen, true);
 
-	return JsonInit(initid, message, true, reslen, memlen);
+	return JsonInit(initid, args, message, true, reslen, memlen);
 } // end of Json_Object_Delete_init
 
 char *Json_Object_Delete(UDF_INIT *initid, UDF_ARGS *args, char *result,
@@ -1765,6 +1843,13 @@ char *Json_Object_Delete(UDF_INIT *initid, UDF_ARGS *args, char *result,
 {
 	char   *str = NULL;
 	PGLOBAL g = (PGLOBAL)initid->ptr;
+
+	if (g->Xchk) {
+		// This constant function was recalled
+		str = (char*)g->Xchk;
+		*res_length = strlen(str);
+		return str;
+	} // endif Xchk
 
 	if (!CheckMemory(g, initid, args, 1, false, true)) {
 		char *key;
@@ -1785,12 +1870,14 @@ char *Json_Object_Delete(UDF_INIT *initid, UDF_ARGS *args, char *result,
 	} // endif CheckMemory
 
 	// In case of error or file, return unchanged argument
-	if (!str) {
-		str = args->args[0];
-		*res_length = args->lengths[0];
-	} else
-		*res_length = strlen(str);
+	if (!str)
+		str = MakePSZ(g, args, 0);
 
+	if (g->Alchecked)
+		// Keep result of constant function
+		g->Xchk = str;
+
+	*res_length = strlen(str);
 	return str;
 } // end of Json_Object_Delete
 
@@ -1815,7 +1902,7 @@ my_bool Json_Object_List_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 	} else
 		CalcLen(args, false, reslen, memlen);
 
-	return JsonInit(initid, message, true, reslen, memlen);
+	return JsonInit(initid, args, message, true, reslen, memlen);
 } // end of Json_Object_List_init
 
 char *Json_Object_List(UDF_INIT *initid, UDF_ARGS *args, char *result,
@@ -1824,20 +1911,31 @@ char *Json_Object_List(UDF_INIT *initid, UDF_ARGS *args, char *result,
 	char   *str = NULL;
 	PGLOBAL g = (PGLOBAL)initid->ptr;
 
-	if (!CheckMemory(g, initid, args, 1, false)) {
-		PJVAL jvp = MakeValue(g, args, 0);
+	if (!g->N) {
+		if (!CheckMemory(g, initid, args, 1, false)) {
+			PJVAL jvp = MakeValue(g, args, 0);
 
-		if (jvp && jvp->GetValType() == TYPE_JOB) {
-			PJOB jobp = jvp->GetObject();
-			PJAR jarp = jobp->GetKeyList(g);
+			if (jvp && jvp->GetValType() == TYPE_JOB) {
+				PJOB jobp = jvp->GetObject();
+				PJAR jarp = jobp->GetKeyList(g);
 
-			if (!(str = Serialize(g, jarp, NULL, 0)))
-				PUSH_WARNING(g->Message);
+				if (!(str = Serialize(g, jarp, NULL, 0)))
+					PUSH_WARNING(g->Message);
 
-		} else
-			PUSH_WARNING("First argument is not an object");
+			} else
+				PUSH_WARNING("First argument is not an object");
 
-	} // endif CheckMemory
+
+		} // endif CheckMemory
+
+		if (g->Alchecked) {
+			// Keep result of constant function
+			g->Xchk = str;
+			g->N = 1;			// str can be NULL
+			} // endif Alchecked
+
+	} else
+		str = (char*)g->Xchk;
 
 	*res_length = (str) ? strlen(str) : 0;
 	return str;
@@ -1864,7 +1962,7 @@ my_bool Json_Array_Grp_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
   reslen *= n;
   memlen += ((memlen - MEMFIX) * (n - 1));
 
-  if (JsonInit(initid, message, false, reslen, memlen))
+  if (JsonInit(initid, args, message, false, reslen, memlen))
     return true;
 
   PGLOBAL g = (PGLOBAL)initid->ptr;
@@ -1934,7 +2032,7 @@ my_bool Json_Object_Grp_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
   reslen *= n;
   memlen += ((memlen - MEMFIX) * (n - 1));
 
-  if (JsonInit(initid, message, false, reslen, memlen))
+  if (JsonInit(initid, args, message, false, reslen, memlen))
     return true;
 
   PGLOBAL g = (PGLOBAL)initid->ptr;
@@ -2005,8 +2103,18 @@ my_bool Json_Get_String_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 	} else
 		CalcLen(args, false, reslen, memlen);
 
-	memlen += 1000;       // TODO: calculate this
-	return JsonInit(initid, message, true, reslen, memlen);
+	if (IsJson(args, 0) == 2) {
+		char fn[_MAX_PATH];
+		long fl;
+
+		memcpy(fn, args->args[0], args->lengths[0]);
+		fn[args->lengths[0]] = 0;
+		fl = GetFileLength(fn);
+		memlen += fl * 3;
+	}	else
+		memlen += args->lengths[0] * 3;
+
+	return JsonInit(initid, args, message, true, reslen, memlen);
 } // end of Json_Get_String_init
 
 char *Json_Get_String(UDF_INIT *initid, UDF_ARGS *args, char *result,
@@ -2015,21 +2123,38 @@ char *Json_Get_String(UDF_INIT *initid, UDF_ARGS *args, char *result,
 	char   *str = NULL;
 	PGLOBAL g = (PGLOBAL)initid->ptr;
 
+	if (g->N) {
+		str = (char*)g->Xchk;
+		goto fin;
+	} else if (g->Alchecked)
+		g->N = 1;
+
 	if (!CheckMemory(g, initid, args, 1, false)) {
 		char *p, *path;
 		PJSON jsp;
 		PJSNX jsx;
-		PJVAL jvp = MakeValue(g, args, 0);
+		PJVAL jvp;
 
-		if ((p = jvp->GetString())) {
-			if (!(jsp = ParseJson(g, p, strlen(p)))) {
-				PUSH_WARNING(g->Message);
+		if (!g->Xchk) {
+			jvp = MakeValue(g, args, 0);
 
-				return NULL;
-			} // endif jsp
+			if ((p = jvp->GetString())) {
+				if (!(jsp = ParseJson(g, p, strlen(p)))) {
+					PUSH_WARNING(g->Message);
+
+					return NULL;
+				} // endif jsp
+
+			} else
+				jsp = jvp->GetJson();
+
+			if (g->Mrr) {			 // First argument is a constant
+				g->Xchk = jsp;
+				JsonMemSave(g);
+				} // endif Mrr
 
 		} else
-			jsp = jvp->GetJson();
+			jsp = (PJSON)g->Xchk;
 
 		path = MakePSZ(g, args, 1);
 		jsx = new(g)JSNX(g, jsp, TYPE_STRING, initid->max_length);
@@ -2044,8 +2169,13 @@ char *Json_Get_String(UDF_INIT *initid, UDF_ARGS *args, char *result,
 		if (!jsx->GetValue()->IsNull())
 			str = jsx->GetValue()->GetCharValue();
 
+		if (g->Alchecked)
+			// Keep result of constant function
+			g->Xchk = str;
+
 	} // endif CheckMemory
 
+ fin:
 	*res_length = (str) ? strlen(str) : 0;
 	return str;
 } // end of Json_Get_String
@@ -2075,7 +2205,7 @@ my_bool Json_Get_Int_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 		CalcLen(args, false, reslen, memlen);
 
 	memlen += 1000;       // TODO: calculate this
-	return JsonInit(initid, message, true, reslen, memlen);
+	return JsonInit(initid, args, message, true, reslen, memlen);
 } // end of Json_Get_Int_init
 
 long long Json_Get_Int(UDF_INIT *initid, UDF_ARGS *args, char *result,
@@ -2083,22 +2213,37 @@ long long Json_Get_Int(UDF_INIT *initid, UDF_ARGS *args, char *result,
 {
 	PGLOBAL g = (PGLOBAL)initid->ptr;
 
+	if (g->N)
+		return (g->Xchk) ? *(long long*)g->Xchk : NULL;
+	else if (g->Alchecked)
+		g->N = 1;
+
 	if (!CheckMemory(g, initid, args, 1, false)) {
-		long long n;
 		char *p, *path;
+		long long n;
 		PJSON jsp;
 		PJSNX jsx;
-		PJVAL jvp = MakeValue(g, args, 0);
+		PJVAL jvp;
 
-		if ((p = jvp->GetString())) {
-			if (!(jsp = ParseJson(g, p, strlen(p)))) {
-				PUSH_WARNING(g->Message);
+		if (!g->Xchk) {
+			jvp = MakeValue(g, args, 0);
 
-				return NULL;
-			} // endif jsp
+			if ((p = jvp->GetString())) {
+				if (!(jsp = ParseJson(g, p, strlen(p)))) {
+					PUSH_WARNING(g->Message);
+					return NULL;
+				} // endif jsp
+
+			} else
+				jsp = jvp->GetJson();
+
+			if (g->Mrr) {			 // First argument is a constant
+				g->Xchk = jsp;
+				JsonMemSave(g);
+			} // endif Mrr
 
 		} else
-			jsp = jvp->GetJson();
+			jsp = (PJSON)g->Xchk;
 
 		path = MakePSZ(g, args, 1);
 		jsx = new(g)JSNX(g, jsp, TYPE_BIGINT);
@@ -2106,7 +2251,7 @@ long long Json_Get_Int(UDF_INIT *initid, UDF_ARGS *args, char *result,
 		if (jsx->SetJpath(g, path)) {
 			PUSH_WARNING(g->Message);
 			return NULL;
-		}	// endif SetJpath
+		} // endif SetJpath
 
 		jsx->ReadValue(g);
 
@@ -2116,6 +2261,14 @@ long long Json_Get_Int(UDF_INIT *initid, UDF_ARGS *args, char *result,
 		}	// endif IsNull
 
 		n = jsx->GetValue()->GetBigintValue();
+
+		if (g->Alchecked) {
+			// Keep result of constant function
+			long long *np = (long long*)PlugSubAlloc(g, NULL, sizeof(long long));
+			*np = n;
+			g->Xchk = np;
+		} // endif Alchecked
+
 		return n;
 	} else
 		return NULL;
@@ -2155,7 +2308,7 @@ my_bool Json_Get_Real_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 
 	CalcLen(args, false, reslen, memlen);
 	memlen += 1000;       // TODO: calculate this
-	return JsonInit(initid, message, true, reslen, memlen);
+	return JsonInit(initid, args, message, true, reslen, memlen);
 } // end of Json_Get_Real_init
 
 double Json_Get_Real(UDF_INIT *initid, UDF_ARGS *args, char *result,
@@ -2163,21 +2316,37 @@ double Json_Get_Real(UDF_INIT *initid, UDF_ARGS *args, char *result,
 {
 	PGLOBAL g = (PGLOBAL)initid->ptr;
 
+	if (g->N)
+		return (g->Xchk) ? *(double*)g->Xchk : NULL;
+	else if (g->Alchecked)
+		g->N = 1;
+
 	if (!CheckMemory(g, initid, args, 1, false)) {
 		char  *p, *path;
 		double d;
 		PJSON  jsp;
 		PJSNX  jsx;
-		PJVAL  jvp = MakeValue(g, args, 0);
+		PJVAL  jvp;
 
-		if ((p = jvp->GetString())) {
-			if (!(jsp = ParseJson(g, p, strlen(p)))) {
-				PUSH_WARNING(g->Message);
-				return NULL;
-			} // endif jsp
+		if (!g->Xchk) {
+			jvp = MakeValue(g, args, 0);
+
+			if ((p = jvp->GetString())) {
+				if (!(jsp = ParseJson(g, p, strlen(p)))) {
+					PUSH_WARNING(g->Message);
+					return NULL;
+				} // endif jsp
+
+			} else
+				jsp = jvp->GetJson();
+
+			if (g->Mrr) {			 // First argument is a constant
+				g->Xchk = jsp;
+				JsonMemSave(g);
+			} // endif Mrr
 
 		} else
-			jsp = jvp->GetJson();
+			jsp = (PJSON)g->Xchk;
 
 		path = MakePSZ(g, args, 1);
 		jsx = new(g)JSNX(g, jsp, TYPE_DOUBLE);
@@ -2195,6 +2364,14 @@ double Json_Get_Real(UDF_INIT *initid, UDF_ARGS *args, char *result,
 		}	// endif IsNull
 
 		d = jsx->GetValue()->GetFloatValue();
+
+		if (g->Alchecked) {
+			// Keep result of constant function
+			double *dp = (double*)PlugSubAlloc(g, NULL, sizeof(double));
+			*dp = d;
+			g->Xchk = dp;
+		} // endif Alchecked
+
 		return d;
 	} else
 		return NULL;
@@ -2228,16 +2405,24 @@ my_bool Json_Locate_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 
 	CalcLen(args, false, reslen, memlen);
 	memlen += more;       // TODO: calculate this
-	return JsonInit(initid, message, true, reslen, memlen);
+	return JsonInit(initid, args, message, true, reslen, memlen);
 } // end of Json_Locate_init
 
 char *Json_Locate(UDF_INIT *initid, UDF_ARGS *args, char *result,
 	                unsigned long *res_length, char *, char *)
 {
+	char   *path = NULL;
 	PGLOBAL g = (PGLOBAL)initid->ptr;
 
+	if (g->N) {
+		path = (char*)g->Xchk;
+		*res_length = (path) ? strlen(path) : 0;
+		return path;
+	} else if (g->Alchecked)
+		g->N = 1;
+
 	if (!CheckMemory(g, initid, args, 1, false)) {
-		char *p, *path = NULL;
+		char *p;
 		int   rc;
 		PJVAL jvp;
 		PJSON jsp;
@@ -2254,20 +2439,33 @@ char *Json_Locate(UDF_INIT *initid, UDF_ARGS *args, char *result,
 			goto err;
 		} // endif rc
 
-		jvp = MakeValue(g, args, 0);
+		if (!g->Xchk) {
+			jvp = MakeValue(g, args, 0);
 
-		if ((p = jvp->GetString())) {
-			if (!(jsp = ParseJson(g, p, strlen(p)))) {
-				PUSH_WARNING(g->Message);
+			if ((p = jvp->GetString())) {
+				if (!(jsp = ParseJson(g, p, strlen(p)))) {
+					PUSH_WARNING(g->Message);
 
-				goto err;
-			} // endif jsp
+					goto err;
+				} // endif jsp
+
+			} else
+				jsp = jvp->GetJson();
+
+			if (g->Mrr) {			 // First argument is a constant
+				g->Xchk = jsp;
+				JsonMemSave(g);
+			} // endif Mrr
 
 		} else
-			jsp = jvp->GetJson();
+			jsp = (PJSON)g->Xchk;
 
 		jsx = new(g)JSNX(g, jsp, TYPE_STRING);
 		path = jsx->Locate(g, jsp, args->args[1], args->arg_type[1], args->lengths[1]);
+
+		if (g->Alchecked)
+			// Keep result of constant function
+			g->Xchk = path;
 
 	err:
 		g->jump_level--;
@@ -2288,10 +2486,10 @@ void Json_Locate_deinit(UDF_INIT* initid)
 /***********************************************************************/
 my_bool Json_File_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 {
-	unsigned long reslen, memlen, more = 1024;
+	unsigned long reslen, memlen, fl, more = 1024;
 
-	if (args->arg_count > 4) {
-		strcpy(message, "Json_File cannot accept more than 4 arguments");
+	if (args->arg_count < 1 || args->arg_count > 4) {
+		strcpy(message, "Json_File only accepts 1 to 4 arguments");
 		return true;
 	} else if (args->arg_type[0] != STRING_RESULT) {
 		strcpy(message, "Json_File first argument must be a (string) file name");
@@ -2313,12 +2511,16 @@ my_bool Json_File_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 
 	initid->maybe_null = 1;
 	CalcLen(args, false, reslen, memlen);
+	fl = GetFileLength(args->args[0]);
 
-	if (args->arg_count > 2 && *(longlong*)args->args[2])
-		more += GetFileLength(args->args[0]) * M;
+	if (initid->const_item)
+		more += fl;
+
+	if (args->arg_count > 1 && *(longlong*)args->args[1])
+		more += fl * M;
 
   memlen += more;
-	return JsonInit(initid, message, false, reslen, memlen);
+	return JsonInit(initid, args, message, false, reslen, memlen);
 } // end of Json_File_init
 
 char *Json_File(UDF_INIT *initid, UDF_ARGS *args, char *result,
@@ -2326,6 +2528,12 @@ char *Json_File(UDF_INIT *initid, UDF_ARGS *args, char *result,
 {
 	char   *str, *fn;
 	PGLOBAL g = (PGLOBAL)initid->ptr;
+
+	if (g->N) {
+		str = (char*)g->Xchk;
+		goto fin;
+	} else if (g->Alchecked)
+		g->N = 1;
 
 	PlugSubSet(g, g->Sarea, g->Sarea_Size);
 	fn = MakePSZ(g, args, 0);
@@ -2392,6 +2600,11 @@ char *Json_File(UDF_INIT *initid, UDF_ARGS *args, char *result,
 	} else
 		str = GetJsonFile(g, fn);
 
+	if (g->Alchecked)
+		// Keep result of constant function
+		g->Xchk = str;
+
+ fin:
 	*res_length = (str) ? strlen(str) : 0;
 	return str;
 } // end of Json_File
@@ -2423,7 +2636,7 @@ my_bool Json_Make_File_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 	} // endifs
 
 	CalcLen(args, false, reslen, memlen);
-	return JsonInit(initid, message, true, reslen, memlen);
+	return JsonInit(initid, args, message, true, reslen, memlen);
 } // end of Json_Make_File_init
 
 char *Json_Make_File(UDF_INIT *initid, UDF_ARGS *args, char *result,
@@ -2434,8 +2647,25 @@ char *Json_Make_File(UDF_INIT *initid, UDF_ARGS *args, char *result,
 	PJVAL   jvp;
 	PGLOBAL g = (PGLOBAL)initid->ptr;
 
+	if (g->N) {
+		str = (char*)g->Xchk;
+		goto fin;
+	} else if (g->Alchecked)
+		g->N = 1;
+
 	PlugSubSet(g, g->Sarea, g->Sarea_Size);
-	jvp = MakeValue(g, args, 0);
+
+	if (!g->Xchk) {
+		jvp = MakeValue(g, args, 0);
+
+		if (g->Mrr) {			 // First argument is a constant
+			g->Xchk = jvp;
+			JsonMemSave(g);
+		} // endif Mrr
+
+	} else
+		jvp = (PJVAL)g->Xchk;
+
 	fn = MakePSZ(g, args, 1);
 	pretty = (args->arg_count > 2) ? (int)*(longlong*)args->args[2] : 2;
 
@@ -2443,6 +2673,12 @@ char *Json_Make_File(UDF_INIT *initid, UDF_ARGS *args, char *result,
 		PUSH_WARNING(msg);
 
 	str= fn;
+
+	if (g->Alchecked)
+		// Keep result of constant function
+		g->Xchk = str;
+
+ fin:
 	*res_length = (str) ? strlen(str) : 0;
 	return str;
 } // end of Json_Make_File

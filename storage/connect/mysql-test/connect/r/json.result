@@ -171,6 +171,40 @@ line
 ]
 DROP TABLE t1;
 #
+# Testing a pretty=0 file
+#
+CREATE TABLE t1
+(
+ISBN CHAR(15) NOT NULL,
+Language CHAR(2) FIELD_FORMAT='LANG',
+Subject CHAR(32) FIELD_FORMAT='SUBJECT',
+AuthorFN CHAR(128) FIELD_FORMAT='AUTHOR:[X]:FIRSTNAME',
+AuthorLN CHAR(128) FIELD_FORMAT='AUTHOR:[X]:LASTNAME',
+Title CHAR(32) FIELD_FORMAT='TITLE',
+Translation CHAR(32) FIELD_FORMAT='TRANSLATED:PREFIX',
+TranslatorFN CHAR(80) FIELD_FORMAT='TRANSLATED:TRANSLATOR:FIRSTNAME',
+TranslatorLN CHAR(80) FIELD_FORMAT='TRANSLATED:TRANSLATOR:LASTNAME',
+Publisher CHAR(20) FIELD_FORMAT='PUBLISHER:NAME',
+Location CHAR(16) FIELD_FORMAT='PUBLISHER:PLACE',
+Year int(4) FIELD_FORMAT='DATEPUB',
+INDEX IX(ISBN)
+)
+ENGINE=CONNECT TABLE_TYPE=JSON FILE_NAME='bib0.json' LRECL=320 OPTION_LIST='Pretty=0';
+SHOW INDEX FROM t1;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+t1	1	IX	1	ISBN	A	NULL	NULL	NULL		XINDEX		
+SELECT * FROM t1;
+ISBN	Language	Subject	AuthorFN	AuthorLN	Title	Translation	TranslatorFN	TranslatorLN	Publisher	Location	Year
+9782212090819	fr	applications	Jean-Michel	Bernadac	Construire une application XML	NULL	NULL	NULL	Eyrolles	Paris	1999
+9782212090819	fr	applications	François	Knab	Construire une application XML	NULL	NULL	NULL	Eyrolles	Paris	1999
+9782840825685	fr	applications	William J.	Pardi	XML en Action	adapté de l'anglais par	James	Guerin	Microsoft Press	Paris	2001
+DESCRIBE SELECT * FROM t1 WHERE ISBN = '9782212090819';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ref	IX	IX	15	const	1	Using where
+UPDATE t1 SET AuthorFN = 'Philippe' WHERE ISBN = '9782212090819';
+ERROR HY000: Got error 122 'Cannot write expanded column when Pretty is not 2' from CONNECT
+DROP TABLE t1;
+#
 # A file with 2 arrays
 #
 CREATE TABLE t1 (
