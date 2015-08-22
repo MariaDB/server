@@ -11,6 +11,10 @@
 # Don't write these queries to binlog
 set SQL_LOG_BIN=0;
 
+# Do not replicate updates to other galera nodes
+--error 0,1193
+set WSREP_ON=0;
+
 # Turn off any debug crashes, allow the variable to be
 # non existent in release builds
 --error 0,1193
