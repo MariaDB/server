@@ -89,11 +89,11 @@ extern "C" {
 	DllExport void Json_Get_String_deinit(UDF_INIT*);
 
 	DllExport my_bool Json_Get_Int_init(UDF_INIT*, UDF_ARGS*, char*);
-	DllExport long long Json_Get_Int(UDF_EXEC_ARGS);
+	DllExport long long Json_Get_Int(UDF_INIT*, UDF_ARGS*, char*, char*);
 	DllExport void Json_Get_Int_deinit(UDF_INIT*);
 
 	DllExport my_bool Json_Get_Real_init(UDF_INIT*, UDF_ARGS*, char*);
-	DllExport double Json_Get_Real(UDF_EXEC_ARGS);
+	DllExport double Json_Get_Real(UDF_INIT*, UDF_ARGS*, char*, char*);
 	DllExport void Json_Get_Real_deinit(UDF_INIT*);
 
 	DllExport my_bool Json_Locate_init(UDF_INIT*, UDF_ARGS*, char*);
