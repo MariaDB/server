@@ -22032,7 +22032,7 @@ Testcase 3.3.2.1 - 3.3.2.6 alternative implementation
 --------------------------------------------------------------------------------
 DROP TABLE IF EXISTS t1;
 DROP VIEW  IF EXISTS v1;
-CREATE TABLE t1 ( f1 BIGINT, f2 CHAR(20), f3 NUMERIC(7,4),
+CREATE TABLE t1 ( f1 BIGINT DEFAULT 0, f2 CHAR(20), f3 NUMERIC(7,4),
 f4 CHAR, PRIMARY KEY(f1));
 CREATE VIEW v1 AS SELECT f1, f2, f3 FROM t1;
 INSERT INTO v1 SET f1 = 1;

@@ -468,7 +468,7 @@ extern "C" int madvise(void *addr, size_t len, int behav);
 /*
    Suppress uninitialized variable warning without generating code.
 */
-#if defined(__GNUC__)
+#if defined(__GNUC__) && (__GNUC__ < 4 || __GNUC__ == 4 && __GNUC_MINOR__ < 8)
 /* GCC specific self-initialization which inhibits the warning. */
 #define UNINIT_VAR(x) x= x
 #elif defined(_lint) || defined(FORCE_INIT_OF_VARS)

@@ -210,7 +210,8 @@ public:
   Explain_basic_join(root),
     message(NULL),
     using_temporary(false), using_filesort(false),
-    time_tracker(is_analyze)
+    time_tracker(is_analyze),
+    ops_tracker(is_analyze)
   {}
 
   /*
@@ -729,6 +730,8 @@ private:
   
   This is similar to Explain_table_access, except that it is more restrictive.
   Also, it can have UPDATE operation options, but currently there aren't any.
+
+  Explain_delete inherits from this.
 */
 
 class Explain_update : public Explain_node

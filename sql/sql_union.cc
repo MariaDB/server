@@ -342,6 +342,7 @@ bool st_select_lex_unit::prepare(THD *thd_arg, select_result *sel_result,
   bool is_union_select;
   bool instantiate_tmp_table= false;
   DBUG_ENTER("st_select_lex_unit::prepare");
+  DBUG_ASSERT(thd == thd_arg && thd == current_thd);
 
   describe= MY_TEST(additional_options & SELECT_DESCRIBE);
 
@@ -484,7 +485,8 @@ bool st_select_lex_unit::prepare(THD *thd_arg, select_result *sel_result,
       while ((item_tmp= it++))
       {
 	/* Error's in 'new' will be detected after loop */
-	types.push_back(new Item_type_holder(thd_arg, item_tmp));
+	types.push_back(new (thd_arg->mem_root)
+                        Item_type_holder(thd_arg, item_tmp));
       }
 
       if (thd_arg->is_fatal_error)

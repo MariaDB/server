@@ -446,7 +446,7 @@ bool mysql_derived_merge(THD *thd, LEX *lex, TABLE_LIST *derived)
   if (derived->get_unit()->prepared)
   {
     Item *expr= derived->on_expr;
-    expr= and_conds(expr, dt_select->join ? dt_select->join->conds : 0);
+    expr= and_conds(thd, expr, dt_select->join ? dt_select->join->conds : 0);
     if (expr && (derived->prep_on_expr || expr != derived->on_expr))
     {
       derived->on_expr= expr;

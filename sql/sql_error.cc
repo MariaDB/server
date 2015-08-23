@@ -814,13 +814,16 @@ const LEX_STRING warning_level_names[]=
 bool mysqld_show_warnings(THD *thd, ulong levels_to_show)
 {
   List<Item> field_list;
+  MEM_ROOT *mem_root= thd->mem_root;
   DBUG_ENTER("mysqld_show_warnings");
 
   DBUG_ASSERT(thd->get_stmt_da()->is_warning_info_read_only());
 
-  field_list.push_back(new Item_empty_string("Level", 7));
-  field_list.push_back(new Item_return_int("Code",4, MYSQL_TYPE_LONG));
-  field_list.push_back(new Item_empty_string("Message",MYSQL_ERRMSG_SIZE));
+  field_list.push_back(new (mem_root) Item_empty_string(thd, "Level", 7));
+  field_list.push_back(new (mem_root) Item_return_int(thd, "Code", 4,
+                                                      MYSQL_TYPE_LONG));
+  field_list.push_back(new (mem_root) Item_empty_string(thd, "Message",
+                       MYSQL_ERRMSG_SIZE));
 
   if (thd->protocol->send_result_set_metadata(&field_list,
                                  Protocol::SEND_NUM_ROWS | Protocol::SEND_EOF))

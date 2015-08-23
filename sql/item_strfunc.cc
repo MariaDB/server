@@ -4273,9 +4273,9 @@ String *Item_func_uuid::val_str(String *str)
 }
 
 
-Item_func_dyncol_create::Item_func_dyncol_create(List<Item> &args,
-                                                 DYNCALL_CREATE_DEF *dfs)
-  : Item_str_func(args), defs(dfs), vals(0), keys_num(NULL), keys_str(NULL),
+Item_func_dyncol_create::Item_func_dyncol_create(THD *thd, List<Item> &args,
+                                                 DYNCALL_CREATE_DEF *dfs):
+  Item_str_func(thd, args), defs(dfs), vals(0), keys_num(NULL), keys_str(NULL),
   names(FALSE), force_names(FALSE)
 {
   DBUG_ASSERT((args.elements & 0x1) == 0); // even number of arguments

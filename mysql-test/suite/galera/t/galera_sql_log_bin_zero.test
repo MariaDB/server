@@ -1,6 +1,7 @@
 #
-# Test SET SESSION sql_log_bin = 0 . We expect that unlogged updates will not be replicated
-# to the slave and that there will be no assertions in the process.
+# Test SET SESSION sql_log_bin = 0 . We expect that updates gets repliated to
+# other nodes while they do not show up in the binary log files.
+# (see galera.galera_as_master)
 #
 
 --source include/galera_cluster.inc
@@ -18,8 +19,8 @@ INSERT INTO t1 VALUES (2);
 
 
 --connection node_2
-SELECT COUNT(*) = 1 FROM t1;
-SELECT COUNT(*) = 0 FROM t1 WHERE f1 = 1;
+SELECT COUNT(*) = 2 FROM t1;
+SELECT COUNT(*) = 1 FROM t1 WHERE f1 = 1;
 
 --connection node_1
 DROP TABLE t1;

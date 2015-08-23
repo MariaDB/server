@@ -318,7 +318,7 @@ void JOIN_CACHE::collect_info_on_key_args()
     The allocated arrays are adjacent.
   
   NOTES
-    The memory is allocated in join->thd->memroot
+    The memory is allocated in join->thd->mem_root
 
   RETURN VALUE
     pointer to the first array  

@@ -633,6 +633,11 @@ typedef struct system_variables
   my_bool query_cache_strip_comments;
   my_bool sql_log_slow;
   my_bool sql_log_bin;
+  /*
+    A flag to help detect whether binary logging was temporarily disabled
+    (see tmp_disable_binlog(A) macro).
+  */
+  my_bool sql_log_bin_off;
   my_bool binlog_annotate_row_events;
   my_bool binlog_direct_non_trans_update;
 
@@ -4036,11 +4041,14 @@ my_eof(THD *thd)
   thd->get_stmt_da()->set_eof_status(thd);
 }
 
-#define tmp_disable_binlog(A)       \
+#define tmp_disable_binlog(A)                                              \
   {ulonglong tmp_disable_binlog__save_options= (A)->variables.option_bits; \
-  (A)->variables.option_bits&= ~OPTION_BIN_LOG
+  (A)->variables.option_bits&= ~OPTION_BIN_LOG;                            \
+  (A)->variables.sql_log_bin_off= 1;
 
-#define reenable_binlog(A)   (A)->variables.option_bits= tmp_disable_binlog__save_options;}
+#define reenable_binlog(A)                                                  \
+  (A)->variables.option_bits= tmp_disable_binlog__save_options;             \
+  (A)->variables.sql_log_bin_off= 0;}
 
 
 inline sql_mode_t sql_mode_for_dates(THD *thd)
@@ -4080,6 +4088,8 @@ class JOIN;
 class select_result_sink: public Sql_alloc
 {
 public:
+  THD *thd;
+  select_result_sink(THD *thd_arg): thd(thd_arg) {}
   /*
     send_data returns 0 on ok, 1 on error and -1 if data was ignored, for
     example for a duplicate row entry written to a temp table.
@@ -4104,7 +4114,6 @@ public:
 class select_result :public select_result_sink 
 {
 protected:
-  THD *thd;
   /* 
     All descendant classes have their send_data() skip the first 
     unit->offset_limit_cnt rows sent.  Select_materialize
@@ -4113,7 +4122,7 @@ protected:
   SELECT_LEX_UNIT *unit;
   /* Something used only by the parser: */
 public:
-  select_result(THD *thd_arg): thd(thd_arg) {}
+  select_result(THD *thd_arg): select_result_sink(thd_arg) {}
   virtual ~select_result() {};
   /**
     Change wrapped select_result.
@@ -4200,9 +4209,8 @@ class select_result_explain_buffer : public select_result_sink
 {
 public:
   select_result_explain_buffer(THD *thd_arg, TABLE *table_arg) : 
-    thd(thd_arg), dst_table(table_arg) {};
+    select_result_sink(thd_arg), dst_table(table_arg) {};
 
-  THD *thd;
   TABLE *dst_table; /* table to write into */
 
   /* The following is called in the child thread: */
@@ -4219,7 +4227,7 @@ public:
 class select_result_text_buffer : public select_result_sink
 {
 public:
-  select_result_text_buffer(THD *thd_arg) : thd(thd_arg) {}
+  select_result_text_buffer(THD *thd_arg): select_result_sink(thd_arg) {}
   int send_data(List<Item> &items);
   bool send_result_set_metadata(List<Item> &fields, uint flag);
 
@@ -4227,7 +4235,6 @@ public:
 private:
   int append_row(List<Item> &items, bool send_names);
 
-  THD *thd;
   List<char*> rows;
   int n_columns;
 };
@@ -5325,6 +5332,13 @@ inline bool add_gorder_to_list(THD *thd, Item *item, bool asc)
 inline bool add_group_to_list(THD *thd, Item *item, bool asc)
 {
   return thd->lex->current_select->add_group_to_list(thd, item, asc);
+}
+
+inline Item *and_conds(THD *thd, Item *a, Item *b)
+{
+  if (!b) return a;
+  if (!a) return b;
+  return new (thd->mem_root) Item_cond_and(thd, a, b);
 }
 
 /* inline handler methods that need to know TABLE and THD structures */

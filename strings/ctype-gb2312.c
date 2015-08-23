@@ -6420,6 +6420,7 @@ static MY_CHARSET_HANDLER my_charset_handler=
   my_charlen_gb2312,
   my_well_formed_char_length_gb2312,
   my_copy_fix_mb,
+  my_native_to_mb_gb2312,
 };
 
 

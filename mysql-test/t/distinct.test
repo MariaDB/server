@@ -561,7 +561,7 @@ DROP TABLE t1;
 #
 # Bug #34928: Confusion by having Primary Key and Index
 #
-CREATE TABLE t1(a INT, b INT, c INT, d INT, e INT,
+CREATE TABLE t1(a INT, b INT, c INT, d INT default 0, e INT default 0,
                 PRIMARY KEY(a,b,c,d,e),
                 KEY(a,b,d,c)
 );

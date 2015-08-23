@@ -106,10 +106,10 @@ struct tablevec_entry {
 
 struct expr_user_lock : private noncopyable {
   expr_user_lock(THD *thd, int timeout)
-    : lck_key("handlersocket_wr", 16, &my_charset_latin1),
-      lck_timeout(timeout),
-      lck_func_get_lock(&lck_key, &lck_timeout),
-      lck_func_release_lock(&lck_key)
+    : lck_key(thd, "handlersocket_wr", 16, &my_charset_latin1),
+      lck_timeout(thd, timeout),
+      lck_func_get_lock(thd, &lck_key, &lck_timeout),
+      lck_func_release_lock(thd, &lck_key)
   {
     lck_key.fix_fields(thd, 0);
     lck_timeout.fix_fields(thd, 0);

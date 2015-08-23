@@ -26,29 +26,38 @@
 void Filesort_tracker::print_json_members(Json_writer *writer)
 {
   const char *varied_str= "(varied across executions)";
-  writer->add_member("r_loops").add_ll(r_loops);
+  writer->add_member("r_loops").add_ll(get_r_loops());
   
+  if (get_r_loops() && time_tracker.timed)
+  {
+    writer->add_member("r_total_time_ms").
+            add_double(time_tracker.get_time_ms());
+  }
   if (r_limit != HA_POS_ERROR)
   {
     writer->add_member("r_limit");
     if (r_limit == 0)
       writer->add_str(varied_str);
     else
-      writer->add_ll(rint(r_limit/r_loops));
+      writer->add_ll(rint(r_limit/get_r_loops()));
   }
 
   writer->add_member("r_used_priority_queue"); 
-  if (r_used_pq == r_loops)
+  if (r_used_pq == get_r_loops())
     writer->add_bool(true);
   else if (r_used_pq == 0)
     writer->add_bool(false);
   else
     writer->add_str(varied_str);
 
-  writer->add_member("r_output_rows").add_ll(rint(r_output_rows / r_loops));
+  writer->add_member("r_output_rows").add_ll(rint(r_output_rows / 
+                                                  get_r_loops()));
 
   if (sort_passes)
-    writer->add_member("r_sort_passes").add_ll(rint(sort_passes / r_loops));
+  {
+    writer->add_member("r_sort_passes").add_ll(rint(sort_passes /
+                                                    get_r_loops()));
+  }
 
   if (sort_buffer_size != 0)
   {
@@ -79,13 +88,13 @@ Filesort_tracker *Sort_and_group_tracker::report_sorting(THD *thd)
       varied_executions= true;
       cur_action++;
       if (!dummy_fsort_tracker)
-        dummy_fsort_tracker= new (thd->mem_root) Filesort_tracker();
+        dummy_fsort_tracker= new (thd->mem_root) Filesort_tracker(is_analyze);
       return dummy_fsort_tracker;
     }
     return qep_actions_data[cur_action++].filesort_tracker;
   }
 
-  Filesort_tracker *fs_tracker= new(thd->mem_root)Filesort_tracker();
+  Filesort_tracker *fs_tracker= new(thd->mem_root)Filesort_tracker(is_analyze);
   qep_actions_data[cur_action].filesort_tracker= fs_tracker;
   qep_actions[cur_action++]= EXPL_ACTION_FILESORT;
 

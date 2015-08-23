@@ -38,7 +38,7 @@
 class Item_proc :public Item
 {
 public:
-  Item_proc(const char *name_par): Item()
+  Item_proc(THD *thd, const char *name_par): Item(thd)
   {
      this->name=(char*) name_par;
   }
@@ -63,7 +63,8 @@ class Item_proc_real :public Item_proc
 {
   double value;
 public:
-  Item_proc_real(const char *name_par,uint dec) : Item_proc(name_par)
+  Item_proc_real(THD *thd, const char *name_par, uint dec):
+    Item_proc(thd, name_par)
   {
      decimals=dec; max_length=float_length(dec);
   }
@@ -92,7 +93,7 @@ class Item_proc_int :public Item_proc
 {
   longlong value;
 public:
-  Item_proc_int(const char *name_par) :Item_proc(name_par)
+  Item_proc_int(THD *thd, const char *name_par): Item_proc(thd, name_par)
   { max_length=11; }
   enum Item_result result_type () const { return INT_RESULT; }
   enum_field_types field_type() const { return MYSQL_TYPE_LONGLONG; }
@@ -111,8 +112,8 @@ public:
 class Item_proc_string :public Item_proc
 {
 public:
-  Item_proc_string(const char *name_par,uint length) :Item_proc(name_par)
-    { this->max_length=length; }
+  Item_proc_string(THD *thd, const char *name_par, uint length):
+    Item_proc(thd, name_par) { this->max_length=length; }
   enum Item_result result_type () const { return STRING_RESULT; }
   enum_field_types field_type() const { return MYSQL_TYPE_VARCHAR; }
   void set(double nr) { str_value.set_real(nr, 2, default_charset()); }
@@ -156,7 +157,7 @@ public:
   virtual void add(void)=0;
   virtual void end_group(void)=0;
   virtual int send_row(List<Item> &fields)=0;
-  virtual bool change_columns(List<Item> &fields)=0;
+  virtual bool change_columns(THD *thd, List<Item> &fields)= 0;
   virtual void update_refs(void) {}
   virtual int end_of_records() { return 0; }
 };

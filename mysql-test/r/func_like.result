@@ -227,5 +227,30 @@ Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where ((`test`.`t1`.`a` = 10.0) and (`test`.`t1`.`a` like 10.00))
 DROP TABLE t1;
 #
+# MDEV-8599 "WHERE varchar_field LIKE temporal_const" does not use range optimizer
+#
+CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET latin1, KEY(a)) ENGINE=MyISAM;
+INSERT INTO t1 VALUES ('00:00:00');
+INSERT INTO t1 VALUES ('00:00:01');
+INSERT INTO t1 VALUES ('00:00:02');
+INSERT INTO t1 VALUES ('00:00:03');
+INSERT INTO t1 VALUES ('00:00:04');
+INSERT INTO t1 VALUES ('00:00:05');
+INSERT INTO t1 VALUES ('00:00:06');
+INSERT INTO t1 VALUES ('00:00:07');
+EXPLAIN SELECT * FROM t1 WHERE a LIKE '00:00:00';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	a	a	13	NULL	1	Using where; Using index
+EXPLAIN SELECT * FROM t1 WHERE a LIKE TIME'00:00:00';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	a	a	13	NULL	1	Using where; Using index
+SELECT * FROM t1 WHERE a LIKE '00:00:00';
+a
+00:00:00
+SELECT * FROM t1 WHERE a LIKE TIME'00:00:00';
+a
+00:00:00
+DROP TABLE t1;
+#
 # End of 10.1 tests
 #

@@ -401,7 +401,7 @@ bool Item_sum::collect_outer_ref_processor(uchar *param)
 }
 
 
-Item_sum::Item_sum(List<Item> &list) :Item_func_or_sum(list),
+Item_sum::Item_sum(THD *thd, List<Item> &list): Item_func_or_sum(thd, list),
   forced_const(FALSE)
 {
   if (!(orig_args= (Item **) sql_alloc(sizeof(Item *) * arg_count)))
@@ -490,7 +490,7 @@ Item *Item_sum::get_tmp_table_item(THD *thd)
 	if (arg->type() == Item::FIELD_ITEM)
 	  ((Item_field*) arg)->field= result_field_tmp++;
 	else
-	  sum_item->args[i]= new Item_field(result_field_tmp++);
+	  sum_item->args[i]= new (thd->mem_root) Item_field(thd, result_field_tmp++);
       }
     }
   }
@@ -610,6 +610,10 @@ void Item_sum::cleanup()
   forced_const= FALSE; 
 }
 
+Item *Item_sum::result_item(THD *thd, Field *field)
+{
+  return new (thd->mem_root) Item_field(thd, field);
+}
 
 /**
   Compare keys consisting of single field that cannot be compared as binary.
@@ -1197,7 +1201,7 @@ Item_sum_hybrid::fix_fields(THD *thd, Item **ref)
   case IMPOSSIBLE_RESULT:
     DBUG_ASSERT(0);
   };
-  setup_hybrid(args[0], NULL);
+  setup_hybrid(thd, args[0], NULL);
   /* MIN/MAX can return NULL for empty set indepedent of the used column */
   maybe_null= 1;
   unsigned_flag=item->unsigned_flag;
@@ -1236,18 +1240,18 @@ Item_sum_hybrid::fix_fields(THD *thd, Item **ref)
     and Item_sum_min::add() to use different values!
 */
 
-void Item_sum_hybrid::setup_hybrid(Item *item, Item *value_arg)
+void Item_sum_hybrid::setup_hybrid(THD *thd, Item *item, Item *value_arg)
 {
-  if (!(value= Item_cache::get_cache(item, item->cmp_type())))
+  if (!(value= Item_cache::get_cache(thd, item, item->cmp_type())))
     return;
-  value->setup(item);
+  value->setup(thd, item);
   value->store(value_arg);
   /* Don't cache value, as it will change */
   if (!item->const_item())
     value->set_used_tables(RAND_TABLE_BIT);
-  if (!(arg_cache= Item_cache::get_cache(item, item->cmp_type())))
+  if (!(arg_cache= Item_cache::get_cache(thd, item, item->cmp_type())))
     return;
-  arg_cache->setup(item);
+  arg_cache->setup(thd, item);
   /* Don't cache value, as it will change */
   if (!item->const_item())
     arg_cache->set_used_tables(RAND_TABLE_BIT);
@@ -1759,6 +1763,12 @@ Item *Item_sum_std::copy_or_same(THD* thd)
 }
 
 
+Item *Item_sum_std::result_item(THD *thd, Field *field)
+{
+  return new (thd->mem_root) Item_std_field(thd, this);
+}
+
+
 /*
   Variance
 */
@@ -1989,6 +1999,11 @@ void Item_sum_variance::update_field()
 }
 
 
+Item *Item_sum_variance::result_item(THD *thd, Field *field)
+{
+  return new (thd->mem_root) Item_variance_field(thd, this);
+}
+
 /* min & max */
 
 void Item_sum_hybrid::clear()
@@ -2088,7 +2103,7 @@ void Item_sum_hybrid::restore_to_before_no_rows_in_result()
 Item *Item_sum_min::copy_or_same(THD* thd)
 {
   Item_sum_min *item= new (thd->mem_root) Item_sum_min(thd, this);
-  item->setup_hybrid(args[0], value);
+  item->setup_hybrid(thd, args[0], value);
   return item;
 }
 
@@ -2111,7 +2126,7 @@ bool Item_sum_min::add()
 Item *Item_sum_max::copy_or_same(THD* thd)
 {
   Item_sum_max *item= new (thd->mem_root) Item_sum_max(thd, this);
-  item->setup_hybrid(args[0], value);
+  item->setup_hybrid(thd, args[0], value);
   return item;
 }
 
@@ -2477,6 +2492,12 @@ void Item_sum_avg::update_field()
 }
 
 
+Item *Item_sum_avg::result_item(THD *thd, Field *field)
+{
+  return new (thd->mem_root) Item_avg_field(thd, hybrid_type, this);
+}
+
+
 void Item_sum_hybrid::update_field()
 {
   switch (hybrid_type) {
@@ -2591,7 +2612,9 @@ Item_sum_hybrid::min_max_update_decimal_field()
 }
 
 
-Item_avg_field::Item_avg_field(Item_result res_type, Item_sum_avg *item)
+Item_avg_field::Item_avg_field(THD *thd, Item_result res_type,
+                               Item_sum_avg *item):
+  Item_result_field(thd)
 {
   name=item->name;
   decimals=item->decimals;
@@ -2664,8 +2687,8 @@ String *Item_avg_field::val_str(String *str)
 }
 
 
-Item_std_field::Item_std_field(Item_sum_std *item)
-  : Item_variance_field(item)
+Item_std_field::Item_std_field(THD *thd, Item_sum_std *item):
+  Item_variance_field(thd, item)
 {
 }
 
@@ -2703,7 +2726,8 @@ my_decimal *Item_std_field::val_decimal(my_decimal *dec_buf)
 }
 
 
-Item_variance_field::Item_variance_field(Item_sum_variance *item)
+Item_variance_field::Item_variance_field(THD *thd, Item_sum_variance *item):
+  Item_result_field(thd)
 {
   name=item->name;
   decimals=item->decimals;
@@ -3147,11 +3171,11 @@ int dump_leaf_key(void* key_arg, element_count count __attribute__((unused)),
 */
 
 Item_func_group_concat::
-Item_func_group_concat(Name_resolution_context *context_arg,
+Item_func_group_concat(THD *thd, Name_resolution_context *context_arg,
                        bool distinct_arg, List<Item> *select_list,
                        const SQL_I_List<ORDER> &order_list,
                        String *separator_arg)
-  :tmp_table_param(0), separator(separator_arg), tree(0),
+  :Item_sum(thd), tmp_table_param(0), separator(separator_arg), tree(0),
    unique_filter(NULL), table(0),
    order(0), context(context_arg),
    arg_count_order(order_list.elements),
