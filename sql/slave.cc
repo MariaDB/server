@@ -3917,7 +3917,6 @@ pthread_handler_t handle_slave_io(void *arg)
   int ret;
   rpl_io_thread_info io_info;
 #ifndef DBUG_OFF
-  uint retry_count_reg= 0, retry_count_dump= 0, retry_count_event= 0;
   mi->dbug_do_disconnect= false;
 #endif
   // needs to call my_thread_init(), otherwise we get a coredump in DBUG_ stuff
@@ -4101,16 +4100,6 @@ connected:
         goto err;
       goto connected;
     }
-    DBUG_EXECUTE_IF("FORCE_SLAVE_TO_RECONNECT_REG", 
-      if (!retry_count_reg)
-      {
-        retry_count_reg++;
-        sql_print_information("Forcing to reconnect slave I/O thread");
-        if (try_to_reconnect(thd, mysql, mi, &retry_count, suppress_warnings,
-                             reconnect_messages[SLAVE_RECON_ACT_REG]))
-          goto err;
-        goto connected;
-      });
   }
 
   DBUG_PRINT("info",("Starting reading binary log from master"));
@@ -4127,16 +4116,7 @@ requesting master dump") ||
         goto err;
       goto connected;
     }
-    DBUG_EXECUTE_IF("FORCE_SLAVE_TO_RECONNECT_DUMP", 
-      if (!retry_count_dump)
-      {
-        retry_count_dump++;
-        sql_print_information("Forcing to reconnect slave I/O thread");
-        if (try_to_reconnect(thd, mysql, mi, &retry_count, suppress_warnings,
-                             reconnect_messages[SLAVE_RECON_ACT_DUMP]))
-          goto err;
-        goto connected;
-      });
+
     const char *event_buf;
 
     DBUG_ASSERT(mi->last_error().number == 0);
@@ -4154,16 +4134,6 @@ requesting master dump") ||
       if (check_io_slave_killed(mi, "Slave I/O thread killed while \
 reading event"))
         goto err;
-      DBUG_EXECUTE_IF("FORCE_SLAVE_TO_RECONNECT_EVENT",
-        if (!retry_count_event)
-        {
-          retry_count_event++;
-          sql_print_information("Forcing to reconnect slave I/O thread");
-          if (try_to_reconnect(thd, mysql, mi, &retry_count, suppress_warnings,
-                               reconnect_messages[SLAVE_RECON_ACT_EVENT]))
-            goto err;
-          goto connected;
-        });
 
       if (event_len == packet_error)
       {

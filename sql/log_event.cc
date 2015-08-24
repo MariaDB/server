@@ -519,6 +519,28 @@ pretty_print_str(String *packet, const char *str, int len)
 }
 #endif /* !MYSQL_CLIENT */
 
+#ifndef DBUG_OFF
+#define DBUG_DUMP_EVENT_BUF(B,L)                                         \
+  do {                                                                   \
+    const uchar *_buf=(uchar*)(B);                                       \
+    size_t _len=(L);                                                     \
+    if (_len >= LOG_EVENT_MINIMAL_HEADER_LEN)                            \
+    {                                                                    \
+      DBUG_PRINT("data", ("header: timestamp:%u type:%u server_id:%u len:%u log_pos:%u flags:%u",  \
+                          uint4korr(_buf), _buf[EVENT_TYPE_OFFSET],      \
+                          uint4korr(_buf+SERVER_ID_OFFSET),              \
+                          uint4korr(_buf+EVENT_LEN_OFFSET),              \
+                          uint4korr(_buf+LOG_POS_OFFSET),                \
+                          uint4korr(_buf+FLAGS_OFFSET)));                \
+      DBUG_DUMP("data", _buf+LOG_EVENT_MINIMAL_HEADER_LEN,               \
+                _len-LOG_EVENT_MINIMAL_HEADER_LEN);                      \
+    }                                                                    \
+    else                                                                 \
+      DBUG_DUMP("data", _buf, _len);                                     \
+  } while(0)
+#else
+#define DBUG_DUMP_EVENT_BUF(B,L) do { } while(0)
+#endif
 
 #if defined(HAVE_REPLICATION) && !defined(MYSQL_CLIENT)
 
@@ -1433,7 +1455,7 @@ Log_event* Log_event::read_log_event(const char* buf, uint event_len,
   DBUG_ENTER("Log_event::read_log_event(char*,...)");
   DBUG_ASSERT(description_event != 0);
   DBUG_PRINT("info", ("binlog_version: %d", description_event->binlog_version));
-  DBUG_DUMP("data", (unsigned char*) buf, event_len);
+  DBUG_DUMP_EVENT_BUF(buf, event_len);
 
   /* Check the integrity */
   if (event_len < EVENT_LEN_OFFSET ||
@@ -1647,9 +1669,9 @@ Log_event* Log_event::read_log_event(const char* buf, uint event_len,
       ev->crc= uint4korr(buf + (event_len));
   }
 
-  DBUG_PRINT("read_event", ("%s(type_code: %d; event_len: %d)",
+  DBUG_PRINT("read_event", ("%s(type_code: %u; event_len: %u)",
                             ev ? ev->get_type_str() : "<unknown>",
-                            buf[EVENT_TYPE_OFFSET],
+                            (uchar)buf[EVENT_TYPE_OFFSET],
                             event_len));
   /*
     is_valid() are small event-specific sanity tests which are
@@ -6024,12 +6046,9 @@ Rotate_log_event::Rotate_log_event(const char* new_log_ident_arg,
    pos(pos_arg),ident_len(ident_len_arg ? ident_len_arg :
                           (uint) strlen(new_log_ident_arg)), flags(flags_arg)
 {
-#ifndef DBUG_OFF
-  char buff[22];
   DBUG_ENTER("Rotate_log_event::Rotate_log_event(...,flags)");
-  DBUG_PRINT("enter",("new_log_ident: %s  pos: %s  flags: %lu", new_log_ident_arg,
-                      llstr(pos_arg, buff), (ulong) flags));
-#endif
+  DBUG_PRINT("enter",("new_log_ident: %s  pos: %llu  flags: %lu", new_log_ident_arg,
+                      pos_arg, (ulong) flags));
   cache_type= EVENT_NO_CACHE;
   if (flags & DUP_NAME)
     new_log_ident= my_strndup(new_log_ident_arg, ident_len, MYF(MY_WME));
@@ -6098,14 +6117,11 @@ int Rotate_log_event::do_update_pos(rpl_group_info *rgi)
 {
   Relay_log_info *rli= rgi->rli;
   DBUG_ENTER("Rotate_log_event::do_update_pos");
-#ifndef DBUG_OFF
-  char buf[32];
-#endif
 
   DBUG_PRINT("info", ("server_id=%lu; ::server_id=%lu",
                       (ulong) this->server_id, (ulong) global_system_variables.server_id));
   DBUG_PRINT("info", ("new_log_ident: %s", this->new_log_ident));
-  DBUG_PRINT("info", ("pos: %s", llstr(this->pos, buf)));
+  DBUG_PRINT("info", ("pos: %llu", this->pos));
 
   /*
     If we are in a transaction or in a group: the only normal case is
@@ -11192,11 +11208,9 @@ Rows_log_event::write_row(rpl_group_info *rgi,
   if (is_auto_inc_in_extra_columns())
     m_table->next_number_field->set_null();
   
-#ifndef DBUG_OFF
   DBUG_DUMP("record[0]", table->record[0], table->s->reclength);
   DBUG_PRINT_BITSET("debug", "write_set = %s", table->write_set);
   DBUG_PRINT_BITSET("debug", "read_set = %s", table->read_set);
-#endif
 
   if (invoke_triggers &&
       process_triggers(TRG_EVENT_INSERT, TRG_ACTION_BEFORE, TRUE))
@@ -11305,11 +11319,9 @@ Rows_log_event::write_row(rpl_group_info *rgi,
       error= unpack_current_row(rgi);
     }
 
-#ifndef DBUG_OFF
     DBUG_PRINT("debug",("preparing for update: before and after image"));
     DBUG_DUMP("record[1] (before)", table->record[1], table->s->reclength);
     DBUG_DUMP("record[0] (after)", table->record[0], table->s->reclength);
-#endif
 
     /*
        REPLACE is defined as either INSERT or DELETE + INSERT.  If
@@ -11669,10 +11681,8 @@ int Rows_log_event::find_row(rpl_group_info *rgi)
   prepare_record(table, m_width, FALSE);
   error= unpack_current_row(rgi);
 
-#ifndef DBUG_OFF
   DBUG_PRINT("info",("looking for the following record"));
   DBUG_DUMP("record[0]", table->record[0], table->s->reclength);
-#endif
 
   if ((table->file->ha_table_flags() & HA_PRIMARY_KEY_REQUIRED_FOR_POSITION) &&
       table->s->primary_key < MAX_KEY)
