@@ -34,14 +34,16 @@
 #include "ha_partition.h"
 
 
-partition_info *partition_info::get_clone()
+partition_info *partition_info::get_clone(THD *thd)
 {
+  MEM_ROOT *mem_root= thd->mem_root;
   DBUG_ENTER("partition_info::get_clone");
+
   if (!this)
     DBUG_RETURN(NULL);
   List_iterator<partition_element> part_it(partitions);
   partition_element *part;
-  partition_info *clone= new partition_info();
+  partition_info *clone= new (mem_root) partition_info();
   if (!clone)
   {
     mem_alloc_error(sizeof(partition_info));
@@ -57,7 +59,7 @@ partition_info *partition_info::get_clone()
   {
     List_iterator<partition_element> subpart_it(part->subpartitions);
     partition_element *subpart;
-    partition_element *part_clone= new partition_element();
+    partition_element *part_clone= new (mem_root) partition_element();
     if (!part_clone)
     {
       mem_alloc_error(sizeof(partition_element));
@@ -74,9 +76,9 @@ partition_info *partition_info::get_clone()
         DBUG_RETURN(NULL);
       }
       memcpy(subpart_clone, subpart, sizeof(partition_element));
-      part_clone->subpartitions.push_back(subpart_clone);
+      part_clone->subpartitions.push_back(subpart_clone, mem_root);
     }
-    clone->partitions.push_back(part_clone);
+    clone->partitions.push_back(part_clone, mem_root);
   }
   DBUG_RETURN(clone);
 }
@@ -2236,12 +2238,12 @@ bool partition_info::is_full_part_expr_in_fields(List<Item> &fields)
     FALSE              Success
 */
 
-int partition_info::add_max_value()
+int partition_info::add_max_value(THD *thd)
 {
   DBUG_ENTER("partition_info::add_max_value");
 
   part_column_list_val *col_val;
-  if (!(col_val= add_column_value()))
+  if (!(col_val= add_column_value(thd)))
   {
     DBUG_RETURN(TRUE);
   }
@@ -2261,7 +2263,7 @@ int partition_info::add_max_value()
     0                  Memory allocation failure
 */
 
-part_column_list_val *partition_info::add_column_value()
+part_column_list_val *partition_info::add_column_value(THD *thd)
 {
   uint max_val= num_columns ? num_columns : MAX_REF_PARTS;
   DBUG_ENTER("add_column_value");
@@ -2283,9 +2285,9 @@ part_column_list_val *partition_info::add_column_value()
       into the structure used for 1 column. After this we call
       ourselves recursively which should always succeed.
     */
-    if (!reorganize_into_single_field_col_val())
+    if (!reorganize_into_single_field_col_val(thd))
     {
-      DBUG_RETURN(add_column_value());
+      DBUG_RETURN(add_column_value(thd));
     }
     DBUG_RETURN(NULL);
   }
@@ -2366,7 +2368,7 @@ bool partition_info::add_column_list_value(THD *thd, Item *item)
   if (part_type == LIST_PARTITION &&
       num_columns == 1U)
   {
-    if (init_column_part())
+    if (init_column_part(thd))
     {
       DBUG_RETURN(TRUE);
     }
@@ -2395,7 +2397,7 @@ bool partition_info::add_column_list_value(THD *thd, Item *item)
   }
   thd->where= save_where;
 
-  if (!(col_val= add_column_value()))
+  if (!(col_val= add_column_value(thd)))
   {
     DBUG_RETURN(TRUE);
   }
@@ -2416,7 +2418,7 @@ bool partition_info::add_column_list_value(THD *thd, Item *item)
     TRUE                     Failure
     FALSE                    Success
 */
-bool partition_info::init_column_part()
+bool partition_info::init_column_part(THD *thd)
 {
   partition_element *p_elem= curr_part_elem;
   part_column_list_val *col_val_array;
@@ -2425,8 +2427,8 @@ bool partition_info::init_column_part()
   DBUG_ENTER("partition_info::init_column_part");
 
   if (!(list_val=
-      (part_elem_value*)sql_calloc(sizeof(part_elem_value))) ||
-       p_elem->list_val_list.push_back(list_val))
+      (part_elem_value*) thd->calloc(sizeof(part_elem_value))) ||
+      p_elem->list_val_list.push_back(list_val, thd->mem_root))
   {
     mem_alloc_error(sizeof(part_elem_value));
     DBUG_RETURN(TRUE);
@@ -2436,8 +2438,8 @@ bool partition_info::init_column_part()
   else
     loc_num_columns= MAX_REF_PARTS;
   if (!(col_val_array=
-        (part_column_list_val*)sql_calloc(loc_num_columns *
-         sizeof(part_column_list_val))))
+        (part_column_list_val*) thd->calloc(loc_num_columns *
+                                            sizeof(part_column_list_val))))
   {
     mem_alloc_error(loc_num_columns * sizeof(part_elem_value));
     DBUG_RETURN(TRUE);
@@ -2470,7 +2472,8 @@ bool partition_info::init_column_part()
     TRUE                     Failure
     FALSE                    Success
 */
-int partition_info::reorganize_into_single_field_col_val()
+
+int partition_info::reorganize_into_single_field_col_val(THD *thd)
 {
   part_column_list_val *col_val, *new_col_val;
   part_elem_value *val= curr_list_val;
@@ -2486,11 +2489,11 @@ int partition_info::reorganize_into_single_field_col_val()
   {
     col_val= &val->col_val_array[i];
     DBUG_ASSERT(part_type == LIST_PARTITION);
-    if (init_column_part())
+    if (init_column_part(thd))
     {
       DBUG_RETURN(TRUE);
     }
-    if (!(new_col_val= add_column_value()))
+    if (!(new_col_val= add_column_value(thd)))
     {
       DBUG_RETURN(TRUE);
     }
@@ -3103,7 +3106,7 @@ void partition_info::print_debug(const char *str, uint *value)
    remove code parts using ifdef, but the code parts cannot be called
    so we simply need to add empty functions to make the linker happy.
  */
-part_column_list_val *partition_info::add_column_value()
+part_column_list_val *partition_info::add_column_value(THD *thd)
 {
   return NULL;
 }
@@ -3118,12 +3121,12 @@ bool partition_info::set_part_expr(char *start_token, Item *item_ptr,
   return FALSE;
 }
 
-int partition_info::reorganize_into_single_field_col_val()
+int partition_info::reorganize_into_single_field_col_val(THD *thd)
 {
   return 0;
 }
 
-bool partition_info::init_column_part()
+bool partition_info::init_column_part(THD *thd)
 {
   return FALSE;
 }
@@ -3132,7 +3135,7 @@ bool partition_info::add_column_list_value(THD *thd, Item *item)
 {
   return FALSE;
 }
-int partition_info::add_max_value()
+int partition_info::add_max_value(THD *thd)
 {
   return 0;
 }

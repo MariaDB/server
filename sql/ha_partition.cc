@@ -1810,7 +1810,7 @@ int ha_partition::change_partitions(HA_CREATE_INFO *create_info,
         DBUG_RETURN(HA_ERR_OUT_OF_MEM);
       if (p_share_refs->init(num_subparts))
         DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-      if (m_new_partitions_share_refs.push_back(p_share_refs))
+      if (m_new_partitions_share_refs.push_back(p_share_refs, thd->mem_root))
         DBUG_RETURN(HA_ERR_OUT_OF_MEM);
       do
       {

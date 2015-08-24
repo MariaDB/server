@@ -1188,7 +1188,7 @@ bool analyse::change_columns(THD *thd, List<Item> &field_list)
                                                          output_str_length));
 
   for (uint i = 0; i < array_elements(func_items); i++)
-    field_list.push_back(func_items[i]);
+    field_list.push_back(func_items[i], thd->mem_root);
   result_fields = field_list;
   return 0;
 } // analyse::change_columns

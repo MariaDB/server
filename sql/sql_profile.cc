@@ -386,30 +386,35 @@ void PROFILING::finish_current_query_impl()
 
 bool PROFILING::show_profiles()
 {
-  DBUG_ENTER("PROFILING::show_profiles");
   QUERY_PROFILE *prof;
   List<Item> field_list;
   MEM_ROOT *mem_root= thd->mem_root;
-
-  field_list.push_back(new (mem_root) Item_return_int(thd, "Query_ID", 10,
-                                           MYSQL_TYPE_LONG));
-  field_list.push_back(new (mem_root) Item_return_int(thd, "Duration",
-                                           TIME_FLOAT_DIGITS - 1,
-                                           MYSQL_TYPE_DOUBLE));
-  field_list.push_back(new (mem_root) Item_empty_string(thd, "Query", 40));
-
-  if (thd->protocol->send_result_set_metadata(&field_list,
-                                 Protocol::SEND_NUM_ROWS | Protocol::SEND_EOF))
-    DBUG_RETURN(TRUE);
-
   SELECT_LEX *sel= &thd->lex->select_lex;
   SELECT_LEX_UNIT *unit= &thd->lex->unit;
   ha_rows idx= 0;
   Protocol *protocol= thd->protocol;
+  void *iterator;
+  DBUG_ENTER("PROFILING::show_profiles");
+
+  field_list.push_back(new (mem_root)
+                       Item_return_int(thd, "Query_ID", 10,
+                                       MYSQL_TYPE_LONG),
+                       mem_root);
+  field_list.push_back(new (mem_root)
+                       Item_return_int(thd, "Duration",
+                                       TIME_FLOAT_DIGITS - 1,
+                                       MYSQL_TYPE_DOUBLE),
+                       mem_root);
+  field_list.push_back(new (mem_root) Item_empty_string(thd, "Query", 40),
+                       mem_root);
+
+  if (protocol->send_result_set_metadata(&field_list,
+                                         Protocol::SEND_NUM_ROWS |
+                                         Protocol::SEND_EOF))
+    DBUG_RETURN(TRUE);
 
   unit->set_limit(sel);
 
-  void *iterator;
   for (iterator= history.new_iterator();
        iterator != NULL;
        iterator= history.iterator_next(iterator))

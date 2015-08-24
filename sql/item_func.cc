@@ -5552,7 +5552,8 @@ get_var_with_binlog(THD *thd, enum_sql_command sql_command,
     tmp_var_list.push_back(new (thd->mem_root)
                            set_var_user(new (thd->mem_root)
                                         Item_func_set_user_var(thd, name,
-                                                               new (thd->mem_root) Item_null(thd))));
+                                                               new (thd->mem_root) Item_null(thd))),
+                           thd->mem_root);
     /* Create the variable */
     if (sql_set_variables(thd, &tmp_var_list, false))
     {
@@ -6131,7 +6132,9 @@ void Item_func_match::init_search(THD *thd, bool no_order)
   if (key == NO_SUCH_KEY)
   {
     List<Item> fields;
-    fields.push_back(new (thd->mem_root) Item_string(thd, " ", 1, cmp_collation.collation));
+    fields.push_back(new (thd->mem_root)
+                     Item_string(thd, " ", 1, cmp_collation.collation),
+                     thd->mem_root);
     for (uint i= 1; i < arg_count; i++)
       fields.push_back(args[i]);
     concat_ws= new (thd->mem_root) Item_func_concat_ws(thd, fields);

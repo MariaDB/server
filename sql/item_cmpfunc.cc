@@ -2774,6 +2774,26 @@ Item_func_nullif::is_null()
 }
 
 
+Item_func_case::Item_func_case(THD *thd, List<Item> &list,
+                               Item *first_expr_arg, Item *else_expr_arg):
+  Item_func_hybrid_field_type(thd), first_expr_num(-1), else_expr_num(-1),
+  left_result_type(INT_RESULT), case_item(0)
+{
+  ncases= list.elements;
+  if (first_expr_arg)
+  {
+    first_expr_num= list.elements;
+    list.push_back(first_expr_arg, thd->mem_root);
+  }
+  if (else_expr_arg)
+  {
+    else_expr_num= list.elements;
+    list.push_back(else_expr_arg, thd->mem_root);
+  }
+  set_arguments(list);
+  bzero(&cmp_items, sizeof(cmp_items));
+}
+
 /**
     Find and return matching items for CASE or ELSE item if all compares
     are failed or NULL if ELSE item isn't defined.
@@ -4252,6 +4272,14 @@ Item_cond::Item_cond(THD *thd, Item_cond *item)
 }
 
 
+Item_cond::Item_cond(THD *thd, Item *i1, Item *i2):
+  Item_bool_func(thd), abort_on_null(0)
+{
+  list.push_back(i1, thd->mem_root);
+  list.push_back(i2, thd->mem_root);
+}
+
+
 Item *Item_cond_and::copy_andor_structure(THD *thd)
 {
   Item_cond_and *item;
@@ -4265,7 +4293,7 @@ void Item_cond::copy_andor_arguments(THD *thd, Item_cond *item)
 {
   List_iterator_fast<Item> li(item->list);
   while (Item *it= li++)
-    list.push_back(it->copy_andor_structure(thd));
+    list.push_back(it->copy_andor_structure(thd), thd->mem_root);
 }
 
 
@@ -4788,7 +4816,7 @@ Item *and_expressions(THD *thd, Item *a, Item *b, Item **org_item)
     }
     return res;
   }
-  if (((Item_cond_and*) a)->add((Item*) b))
+  if (((Item_cond_and*) a)->add((Item*) b, thd->mem_root))
     return 0;
   ((Item_cond_and*) a)->used_tables_cache|= b->used_tables();
   ((Item_cond_and*) a)->not_null_tables_cache|= b->not_null_tables();
@@ -5836,7 +5864,7 @@ void Item_equal::add_const(THD *thd, Item *c, Item *f)
     with_const= TRUE;
     if (f)
       compare_as_dates= f->cmp_type() == TIME_RESULT;
-    equal_items.push_front(c);
+    equal_items.push_front(c, thd->mem_root);
     return;
   }
   Item *const_item= get_const();
@@ -5991,7 +6019,7 @@ bool Item_equal::merge_with_check(THD *thd, Item_equal *item, bool save_merged)
         while ((item= fi++))
 	{
           if (!contains(fi.get_curr_field()))
-            add(item);
+            add(item, thd->mem_root);
         }
       }
     }         
@@ -6041,7 +6069,7 @@ void Item_equal::merge_into_list(THD *thd, List<Item_equal> *list,
     }
   }
   if (!only_intersected && !merge_into)
-    list->push_back(this);
+    list->push_back(this, thd->mem_root);
 }
 
 

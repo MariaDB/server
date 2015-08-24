@@ -5322,7 +5322,7 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table,
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   /* Partition info is not handled by mysql_prepare_alter_table() call. */
   if (src_table->table->part_info)
-    thd->work_part_info= src_table->table->part_info->get_clone();
+    thd->work_part_info= src_table->table->part_info->get_clone(thd);
 #endif
 
   /*
@@ -5941,7 +5941,7 @@ remove_key:
         {
           // Adding the index into the drop list for replacing
           alter_info->flags |= Alter_info::ALTER_DROP_INDEX;
-          alter_info->drop_list.push_back(ad);
+          alter_info->drop_list.push_back(ad, thd->mem_root);
         }
       }
     }
@@ -7390,7 +7390,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
         Note that columns with AFTER clauses are added to the end
         of the list for now. Their positions will be corrected later.
       */
-      new_create_list.push_back(def);
+      new_create_list.push_back(def, thd->mem_root);
       if (field->stored_in_db != def->stored_in_db)
       {
         my_error(ER_UNSUPPORTED_ACTION_ON_VIRTUAL_COLUMN, MYF(0));
@@ -7414,8 +7414,8 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
         This field was not dropped and not changed, add it to the list
         for the new table.
       */
-      def= new Create_field(thd, field, field);
-      new_create_list.push_back(def);
+      def= new (thd->mem_root) Create_field(thd, field, field);
+      new_create_list.push_back(def, thd->mem_root);
       alter_it.rewind();			// Change default if ALTER
       Alter_column *alter;
       while ((alter=alter_it++))
@@ -7466,7 +7466,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
         alter_ctx->error_if_not_empty= TRUE;
     }
     if (!def->after)
-      new_create_list.push_back(def);
+      new_create_list.push_back(def, thd->mem_root);
     else
     {
       Create_field *find;
@@ -7494,7 +7494,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
         }
       }
       if (def->after == first_keyword)
-        new_create_list.push_front(def);
+        new_create_list.push_front(def, thd->mem_root);
       else
       {
         find_it.rewind();
@@ -7633,7 +7633,8 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
       key_part_length /= key_part->field->charset()->mbmaxlen;
       key_parts.push_back(new Key_part_spec(cfield->field_name,
                                             strlen(cfield->field_name),
-					    key_part_length));
+					    key_part_length),
+                          thd->mem_root);
     }
     if (table->s->tmp_table == NO_TMP_TABLE)
     {
@@ -7683,7 +7684,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
                    &key_create_info,
                    MY_TEST(key_info->flags & HA_GENERATED_KEY),
                    key_parts, key_info->option_list, DDL_options());
-      new_key_list.push_back(key);
+      new_key_list.push_back(key, thd->mem_root);
     }
   }
   {
@@ -7693,7 +7694,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
       if (key->type == Key::FOREIGN_KEY &&
           ((Foreign_key *)key)->validate(new_create_list))
         goto err;
-      new_key_list.push_back(key);
+      new_key_list.push_back(key, thd->mem_root);
       if (key->name.str &&
 	  !my_strcasecmp(system_charset_info, key->name.str, primary_key_name))
       {
@@ -9626,11 +9627,14 @@ bool mysql_checksum_table(THD *thd, TABLE_LIST *tables,
   */
   DBUG_ASSERT(! thd->in_sub_stmt);
 
-  field_list.push_back(item= new (thd->mem_root) Item_empty_string(thd, "Table", NAME_LEN*2));
+  field_list.push_back(item= new (thd->mem_root)
+                       Item_empty_string(thd, "Table", NAME_LEN*2),
+                       thd->mem_root);
   item->maybe_null= 1;
-  field_list.push_back(item= new (thd->mem_root) Item_int(thd, "Checksum",
-                                          (longlong) 1,
-                                          MY_INT64_NUM_DECIMAL_DIGITS));
+  field_list.push_back(item= new (thd->mem_root)
+                       Item_int(thd, "Checksum", (longlong) 1,
+                                MY_INT64_NUM_DECIMAL_DIGITS),
+                       thd->mem_root);
   item->maybe_null= 1;
   if (protocol->send_result_set_metadata(&field_list,
                             Protocol::SEND_NUM_ROWS | Protocol::SEND_EOF))

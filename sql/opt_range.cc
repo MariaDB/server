@@ -792,6 +792,8 @@ SEL_TREE::SEL_TREE(SEL_TREE *arg, bool without_merges,
 {
   keys_map= arg->keys_map;
   type= arg->type;
+  MEM_ROOT *mem_root;
+
   for (uint idx= 0; idx < param->keys; idx++)
   {
     if ((keys[idx]= arg->keys[idx]))
@@ -801,16 +803,17 @@ SEL_TREE::SEL_TREE(SEL_TREE *arg, bool without_merges,
   if (without_merges)
     return;
 
+  mem_root= current_thd->mem_root;
   List_iterator<SEL_IMERGE> it(arg->merges);
   for (SEL_IMERGE *el= it++; el; el= it++)
   {
-    SEL_IMERGE *merge= new SEL_IMERGE(el, 0, param);
+    SEL_IMERGE *merge= new (mem_root) SEL_IMERGE(el, 0, param);
     if (!merge || merge->trees == merge->trees_next)
     {
       merges.empty();
       return;
     }
-    merges.push_back (merge);
+    merges.push_back(merge, mem_root);
   }
 }
 
@@ -937,11 +940,12 @@ int imerge_list_or_list(RANGE_OPT_PARAM *param,
 
   uint rc;
   bool is_last_check_pass= FALSE;
-
   SEL_IMERGE *imerge= im1->head();
   uint elems= imerge->trees_next-imerge->trees;
+  MEM_ROOT *mem_root= current_thd->mem_root;
+
   im1->empty();
-  im1->push_back(imerge);
+  im1->push_back(imerge, mem_root);
 
   rc= imerge->or_sel_imerge_with_checks(param, elems, im2->head(),
                                         TRUE, &is_last_check_pass);
@@ -957,14 +961,14 @@ int imerge_list_or_list(RANGE_OPT_PARAM *param,
 
   if (!is_last_check_pass)
   {
-    SEL_IMERGE* new_imerge= new SEL_IMERGE(imerge, elems, param);
+    SEL_IMERGE* new_imerge= new (mem_root) SEL_IMERGE(imerge, elems, param);
     if (new_imerge)
     {
       is_last_check_pass= TRUE;
       rc= new_imerge->or_sel_imerge_with_checks(param, elems, im2->head(),
                                                  FALSE, &is_last_check_pass);
       if (!rc)
-        im1->push_back(new_imerge); 
+        im1->push_back(new_imerge, mem_root); 
     }
   }
   return rc;  
@@ -1024,17 +1028,17 @@ int imerge_list_or_tree(RANGE_OPT_PARAM *param,
                         List<SEL_IMERGE> *merges,
                         SEL_TREE *tree)
 {
-
   SEL_IMERGE *imerge;
   List<SEL_IMERGE> additional_merges;
   List_iterator<SEL_IMERGE> it(*merges);
+  MEM_ROOT *mem_root= current_thd->mem_root;
   
   while ((imerge= it++))
   {
     bool is_last_check_pass;
     int rc= 0;
     int rc1= 0;
-    SEL_TREE *or_tree= new SEL_TREE (tree, FALSE, param);
+    SEL_TREE *or_tree= new (mem_root) SEL_TREE (tree, FALSE, param);
     if (or_tree)
     {
       uint elems= imerge->trees_next-imerge->trees;
@@ -1042,13 +1046,14 @@ int imerge_list_or_tree(RANGE_OPT_PARAM *param,
                                           TRUE, &is_last_check_pass);
       if (!is_last_check_pass)
       {
-        SEL_IMERGE *new_imerge= new SEL_IMERGE(imerge, elems, param);
+        SEL_IMERGE *new_imerge= new (mem_root) SEL_IMERGE(imerge, elems,
+                                                          param);
         if (new_imerge)
 	{ 
           rc1= new_imerge->or_sel_tree_with_checks(param, elems, or_tree,
                                                    FALSE, &is_last_check_pass);
           if (!rc1)
-            additional_merges.push_back(new_imerge);
+            additional_merges.push_back(new_imerge, mem_root);
         }
       }
     }
@@ -1110,11 +1115,12 @@ int imerge_list_and_tree(RANGE_OPT_PARAM *param,
   SEL_IMERGE *new_imerge= NULL;
   List<SEL_IMERGE> new_merges;
   List_iterator<SEL_IMERGE> it(*merges);
+  MEM_ROOT *mem_root= current_thd->mem_root;
   
   while ((imerge= it++))
   {
     if (!new_imerge)
-       new_imerge= new SEL_IMERGE();
+      new_imerge= new (mem_root) SEL_IMERGE();
     if (imerge->have_common_keys(param, tree) && 
         new_imerge && !imerge->and_sel_tree(param, tree, new_imerge))
     {
@@ -1125,7 +1131,7 @@ int imerge_list_and_tree(RANGE_OPT_PARAM *param,
         if (replace)
           it.replace(new_imerge);
         else        
-          new_merges.push_back(new_imerge);
+          new_merges.push_back(new_imerge, mem_root);
         new_imerge= NULL;
       }
     }
@@ -1371,7 +1377,7 @@ QUICK_INDEX_SORT_SELECT::push_quick_back(QUICK_RANGE_SELECT *quick_sel_range)
     pk_quick_select= quick_sel_range;
     DBUG_RETURN(0);
   }
-  DBUG_RETURN(quick_selects.push_back(quick_sel_range));
+  DBUG_RETURN(quick_selects.push_back(quick_sel_range, thd->mem_root));
 }
 
 QUICK_INDEX_SORT_SELECT::~QUICK_INDEX_SORT_SELECT()

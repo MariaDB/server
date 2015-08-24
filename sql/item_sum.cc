@@ -272,7 +272,7 @@ bool Item_sum::check_sum_func(THD *thd, Item **ref)
             Let upper function decide whether this field is a non
             aggregated one.
           */
-          in_sum_func->outer_fields.push_back(field);
+          in_sum_func->outer_fields.push_back(field, thd->mem_root);
         }
         else
           sel->set_non_agg_field_used(true);
@@ -777,7 +777,7 @@ bool Aggregator_distinct::setup(THD *thd)
     for (uint i=0; i < item_sum->get_arg_count() ; i++)
     {
       Item *item=item_sum->get_arg(i);
-      if (list.push_back(item))
+      if (list.push_back(item, thd->mem_root))
         return TRUE;                              // End of memory
       if (item->const_item() && item->is_null())
         always_null= true;
@@ -898,7 +898,7 @@ bool Aggregator_distinct::setup(THD *thd)
       PS/SP. Hence all further allocations are performed in the runtime
       mem_root.
     */
-    if (field_list.push_back(&field_def))
+    if (field_list.push_back(&field_def, thd->mem_root))
       DBUG_RETURN(TRUE);
 
     item_sum->null_value= item_sum->maybe_null= 1;
@@ -3505,7 +3505,7 @@ bool Item_func_group_concat::setup(THD *thd)
   for (uint i= 0; i < arg_count_field; i++)
   {
     Item *item= args[i];
-    if (list.push_back(item))
+    if (list.push_back(item, thd->mem_root))
       DBUG_RETURN(TRUE);
     if (item->const_item())
     {

@@ -4785,7 +4785,7 @@ Item_field::fix_outer_field(THD *thd, Field **from_field, Item **reference)
             non aggregated fields of the outer select.
           */
           marker= select->cur_pos_in_select_list;
-          select->non_agg_fields.push_back(this);
+          select->non_agg_fields.push_back(this, thd->mem_root);
         }
         if (*from_field != view_ref_found)
         {
@@ -4810,7 +4810,7 @@ Item_field::fix_outer_field(THD *thd, Field **from_field, Item **reference)
             if (!(rf= new (thd->mem_root) Item_outer_ref(thd, context, this)))
               return -1;
             thd->change_item_tree(reference, rf);
-            select->inner_refs_list.push_back(rf);
+            select->inner_refs_list.push_back(rf, thd->mem_root);
             rf->in_sum_func= thd->lex->in_sum_func;
           }
           /*
@@ -4930,7 +4930,8 @@ Item_field::fix_outer_field(THD *thd, Field **from_field, Item **reference)
 
     if (place != IN_HAVING && select->group_list.elements)
     {
-      outer_context->select_lex->inner_refs_list.push_back((Item_outer_ref*)rf);
+      outer_context->select_lex->inner_refs_list.push_back((Item_outer_ref*)rf,
+                                                           thd->mem_root);
       ((Item_outer_ref*)rf)->in_sum_func= thd->lex->in_sum_func;
     }
     thd->change_item_tree(reference, rf);
@@ -5205,7 +5206,7 @@ bool Item_field::fix_fields(THD *thd, Item **reference)
       !outer_fixed && !thd->lex->in_sum_func &&
       thd->lex->current_select->cur_pos_in_select_list != UNDEF_POS)
   {
-    thd->lex->current_select->non_agg_fields.push_back(this);
+    thd->lex->current_select->non_agg_fields.push_back(this, thd->mem_root);
     marker= thd->lex->current_select->cur_pos_in_select_list;
   }
 mark_non_agg_field:
@@ -5241,7 +5242,7 @@ mark_non_agg_field:
     else
     {
       if (outer_fixed)
-        thd->lex->in_sum_func->outer_fields.push_back(this);
+        thd->lex->in_sum_func->outer_fields.push_back(this, thd->mem_root);
       else if (thd->lex->in_sum_func->nest_level !=
           thd->lex->current_select->nest_level)
         select_lex->set_non_agg_field_used(true);
@@ -6731,9 +6732,10 @@ Item *Item_field::update_value_transformer(THD *thd, uchar *select_arg)
     Item_ref *ref;
 
     ref_pointer_array[el]= (Item*)this;
-    all_fields->push_front((Item*)this);
-    ref= new (thd->mem_root) Item_ref(thd, &select->context, ref_pointer_array + el,
-                      table_name, field_name);
+    all_fields->push_front((Item*)this, thd->mem_root);
+    ref= new (thd->mem_root)
+      Item_ref(thd, &select->context, ref_pointer_array + el,
+               table_name, field_name);
     return ref;
   }
   return this;
@@ -7165,7 +7167,7 @@ void Item_ref::cleanup()
 
 Item* Item_ref::transform(THD *thd, Item_transformer transformer, uchar *arg)
 {
-  DBUG_ASSERT(!current_thd->stmt_arena->is_stmt_prepare());
+  DBUG_ASSERT(!thd->stmt_arena->is_stmt_prepare());
   DBUG_ASSERT((*ref) != NULL);
 
   /* Transform the object we are referencing. */

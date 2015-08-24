@@ -481,7 +481,7 @@ fix_inner_refs(THD *thd, List<Item> &all_fields, SELECT_LEX *select,
       int el= all_fields.elements;
       ref_pointer_array[el]= item;
       /* Add the field item to the select list of the current select. */
-      all_fields.push_front(item);
+      all_fields.push_front(item, thd->mem_root);
       /*
         If it's needed reset each Item_ref item that refers this field with
         a new reference taken from ref_pointer_array.
@@ -895,7 +895,7 @@ JOIN::prepare(Item ***rref_pointer_array,
         Item_field *field= new (thd->mem_root) Item_field(thd, *(Item_field**)ord->item);
         int el= all_fields.elements;
         ref_pointer_array[el]= field;
-        all_fields.push_front(field);
+        all_fields.push_front(field, thd->mem_root);
         ord->item= ref_pointer_array + el;
       }
     }
@@ -3903,7 +3903,8 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
         if (!join->cond_equal)
           join->cond_equal= new COND_EQUAL;
         join->cond_equal->current_level.empty();
-        join->cond_equal->current_level.push_back((Item_equal*) conds);
+        join->cond_equal->current_level.push_back((Item_equal*) conds,
+                                                  join->thd->mem_root);
       }
     }
 
@@ -5567,7 +5568,7 @@ is_indexed_agg_distinct(JOIN *join, List<Item_field> *out_args)
 
       Item_field* item= static_cast<Item_field*>(expr->real_item());
       if (out_args)
-        out_args->push_back(item);
+        out_args->push_back(item, join->thd->mem_root);
 
       cur_aggdistinct_fields.set_bit(item->field->field_index);
       result= true;
@@ -8569,7 +8570,7 @@ get_best_combination(JOIN *join)
         DBUG_RETURN(TRUE);
       jt_range->start= jt;
       jt_range->end= jt + sjm->tables;
-      join->join_tab_ranges.push_back(jt_range);
+      join->join_tab_ranges.push_back(jt_range, join->thd->mem_root);
       j->bush_children= jt_range;
       sjm_nest_end= jt + sjm->tables;
       sjm_nest_root= j;
@@ -11033,7 +11034,7 @@ void JOIN_TAB::remove_redundant_bnl_scan_conds()
           }
         }
         if (!found_cond)
-          reduced_select_cond->add(pushed_item);
+          reduced_select_cond->add(pushed_item, join->thd->mem_root);
       }
     }
     else
@@ -11041,7 +11042,7 @@ void JOIN_TAB::remove_redundant_bnl_scan_conds()
       while ((pushed_item= pushed_cond_li++))
       {
         if (!pushed_item->eq(cache_select->cond, 0))
-          reduced_select_cond->add(pushed_item);
+          reduced_select_cond->add(pushed_item, join->thd->mem_root);
       }
     }
 
@@ -12182,7 +12183,8 @@ remove_const(JOIN *join,ORDER *first_order, COND *cond,
           Delay the evaluation of constant ORDER and/or GROUP expressions that
           contain subqueries until the execution phase.
         */
-        join->exec_const_order_group_cond.push_back(order->item[0]);
+        join->exec_const_order_group_cond.push_back(order->item[0],
+                                                    join->thd->mem_root);
       }
       DBUG_PRINT("info",("removing: %s", order->item[0]->full_name()));
       continue;
@@ -12570,21 +12572,21 @@ static bool check_simple_equality(THD *thd, Item *left_item, Item *right_item,
       /* left_item_equal of an upper level contains left_item */
       left_item_equal= new (thd->mem_root) Item_equal(thd, left_item_equal);
       left_item_equal->set_context_field(((Item_field*) left_item));
-      cond_equal->current_level.push_back(left_item_equal);
+      cond_equal->current_level.push_back(left_item_equal, thd->mem_root);
     }
     if (right_copyfl)
     {
       /* right_item_equal of an upper level contains right_item */
       right_item_equal= new (thd->mem_root) Item_equal(thd, right_item_equal);
       right_item_equal->set_context_field(((Item_field*) right_item));
-      cond_equal->current_level.push_back(right_item_equal);
+      cond_equal->current_level.push_back(right_item_equal, thd->mem_root);
     }
 
     if (left_item_equal)
     { 
       /* left item was found in the current or one of the upper levels */
       if (! right_item_equal)
-        left_item_equal->add(orig_right_item);
+        left_item_equal->add(orig_right_item, thd->mem_root);
       else
       {
         /* Merge two multiple equalities forming a new one */
@@ -12599,7 +12601,7 @@ static bool check_simple_equality(THD *thd, Item *left_item, Item *right_item,
     { 
       /* left item was not found neither the current nor in upper levels  */
       if (right_item_equal)
-        right_item_equal->add(orig_left_item);
+        right_item_equal->add(orig_left_item, thd->mem_root);
       else 
       {
         /* None of the fields was found in multiple equalities */
@@ -12608,7 +12610,7 @@ static bool check_simple_equality(THD *thd, Item *left_item, Item *right_item,
                                                                orig_right_item,
                                                                FALSE);
         item_equal->set_context_field((Item_field*)left_item);
-        cond_equal->current_level.push_back(item_equal);
+        cond_equal->current_level.push_back(item_equal, thd->mem_root);
       }
     }
     return TRUE;
@@ -12664,7 +12666,7 @@ static bool check_simple_equality(THD *thd, Item *left_item, Item *right_item,
       if (copyfl)
       {
         item_equal= new (thd->mem_root) Item_equal(thd, item_equal);
-        cond_equal->current_level.push_back(item_equal);
+        cond_equal->current_level.push_back(item_equal, thd->mem_root);
         item_equal->set_context_field(field_item);
       }
       if (item_equal)
@@ -12746,7 +12748,7 @@ static bool check_row_equality(THD *thd, Item *left_row, Item_row *right_row,
           eq_item->set_cmp_func_and_arg_cmp_context())
         return FALSE;
       eq_item->quick_fix_field();
-      eq_list->push_back(eq_item);
+      eq_list->push_back(eq_item, thd->mem_root);
     }
   }
   return TRUE;
@@ -13493,7 +13495,7 @@ Item *eliminate_item_equal(THD *thd, COND *cond, COND_EQUAL *upper_levels,
 
     if (produce_equality)
     {
-      if (eq_item && eq_list.push_back(eq_item))
+      if (eq_item && eq_list.push_back(eq_item, thd->mem_root))
         return 0;
       
       /*
@@ -13538,7 +13540,7 @@ Item *eliminate_item_equal(THD *thd, COND *cond, COND_EQUAL *upper_levels,
     - if we have only one condition to return, we don't create an Item_cond_and
   */
 
-  if (eq_item && eq_list.push_back(eq_item))
+  if (eq_item && eq_list.push_back(eq_item, thd->mem_root))
     return 0;
   COND *res= 0;
   switch (eq_list.elements)
@@ -13562,7 +13564,7 @@ Item *eliminate_item_equal(THD *thd, COND *cond, COND_EQUAL *upper_levels,
         res= cond;
         ((Item_cond *) res)->add_at_end(&eq_list);
       }
-      else if (eq_list.push_front(cond))
+      else if (eq_list.push_front(cond, thd->mem_root))
         return 0;
     }
   }  
@@ -13715,7 +13717,7 @@ static COND* substitute_for_best_equal_field(THD *thd, JOIN_TAB *context_tab,
 	  {
              /* Do not add an equality condition if it's always true */ 
              if (eq_cond->type() != Item::INT_ITEM &&
-                 cond_list->push_front(eq_cond))
+                 cond_list->push_front(eq_cond, thd->mem_root))
                eq_cond= 0;
           }
 	}
@@ -14332,7 +14334,7 @@ simplify_joins(JOIN *join, List<TABLE_LIST> *join_list, COND *conds, bool top,
          If this is a semi-join that is not contained within another semi-join, 
          leave it intact (otherwise it is flattened)
        */
-      join->select_lex->sj_nests.push_back(table);
+      join->select_lex->sj_nests.push_back(table, join->thd->mem_root);
 
       /* 
         Also, walk through semi-join children and mark those that are now
@@ -14357,7 +14359,7 @@ simplify_joins(JOIN *join, List<TABLE_LIST> *join_list, COND *conds, bool top,
         if (!tbl->embedding && !tbl->on_expr && tbl->table)
           tbl->table->maybe_null= FALSE;
         tbl->join_list= table->join_list;
-        repl_list.push_back(tbl);
+        repl_list.push_back(tbl, join->thd->mem_root);
         tbl->dep_tables|= table->dep_tables;
       }
       li.replace(repl_list);
@@ -15146,7 +15148,7 @@ Item_cond::remove_eq_conds(THD *thd, Item::cond_result *cond_value,
                 Item_func::MULT_EQUAL_FUNC)
       {
         li.remove();
-        new_equalities.push_back((Item_equal *) new_item);
+        new_equalities.push_back((Item_equal *) new_item, thd->mem_root);
       }
       else
       {
@@ -19857,7 +19859,7 @@ make_cond_for_table_from_pred(THD *thd, Item *root_cond, Item *cond,
                                                 exclude_expensive_cond,
                                                 retain_ref_cond);
 	if (fix)
-	  new_cond->argument_list()->push_back(fix);
+	  new_cond->argument_list()->push_back(fix, thd->mem_root);
       }
       switch (new_cond->argument_list()->elements) {
       case 0:
@@ -19893,7 +19895,7 @@ make_cond_for_table_from_pred(THD *thd, Item *root_cond, Item *cond,
                                                 retain_ref_cond);
 	if (!fix)
 	  return (COND*) 0;			// Always true
-	new_cond->argument_list()->push_back(fix);
+	new_cond->argument_list()->push_back(fix, thd->mem_root);
       }
       /*
         Call fix_fields to propagate all properties of the children to
@@ -19984,7 +19986,7 @@ make_cond_after_sjm(THD *thd, Item *root_cond, Item *cond, table_map tables,
         Item *fix=make_cond_after_sjm(thd, root_cond, item, tables, sjm_tables,
                                       inside_or_clause);
 	if (fix)
-	  new_cond->argument_list()->push_back(fix);
+	  new_cond->argument_list()->push_back(fix, thd->mem_root);
       }
       switch (new_cond->argument_list()->elements) {
       case 0:
@@ -20016,7 +20018,7 @@ make_cond_after_sjm(THD *thd, Item *root_cond, Item *cond, table_map tables,
                                        /*inside_or_clause= */TRUE);
 	if (!fix)
 	  return (COND*) 0;			// Always true
-	new_cond->argument_list()->push_back(fix);
+	new_cond->argument_list()->push_back(fix, thd->mem_root);
       }
       /*
 	Item_cond_or do not need fix_fields for execution, its parameters
@@ -21773,7 +21775,8 @@ find_order_in_list(THD *thd, Item **ref_pointer_array, TABLE_LIST *tables,
     return TRUE; /* Wrong field. */
 
   uint el= all_fields.elements;
-  all_fields.push_front(order_item); /* Add new field to field list. */
+ /* Add new field to field list. */
+  all_fields.push_front(order_item, thd->mem_root);
   ref_pointer_array[el]= order_item;
   /*
      If the order_item is a SUM_FUNC_ITEM, when fix_fields is called
@@ -21959,7 +21962,7 @@ setup_new_fields(THD *thd, List<Item> &fields,
       thd->where="procedure list";
       if ((*new_field->item)->fix_fields(thd, new_field->item))
 	DBUG_RETURN(1); /* purecov: inspected */
-      all_fields.push_front(*new_field->item);
+      all_fields.push_front(*new_field->item, thd->mem_root);
       new_field->item=all_fields.head_ref();
     }
   }
@@ -22033,7 +22036,7 @@ create_distinct_group(THD *thd, Item **ref_pointer_array,
         Item_field *new_item= new (thd->mem_root) Item_field(thd, (Item_field*)item);
         int el= all_fields.elements;
         orig_ref_pointer_array[el]= new_item;
-        all_fields.push_front(new_item);
+        all_fields.push_front(new_item, thd->mem_root);
         ord->item= orig_ref_pointer_array + el;
       }
       else
@@ -22464,7 +22467,7 @@ setup_copy_fields(THD *thd, TMP_TABLE_PARAM *param,
          copy_funcs
          (to see full test case look at having.test, BUG #4358) 
        */
-	if (param->copy_funcs.push_front(pos))
+	if (param->copy_funcs.push_front(pos, thd->mem_root))
 	  goto err;
       }
       else
@@ -22512,10 +22515,10 @@ setup_copy_fields(THD *thd, TMP_TABLE_PARAM *param,
 	goto err;
       if (i < border)                           // HAVING, ORDER and GROUP BY
       {
-        if (extra_funcs.push_back(pos))
+        if (extra_funcs.push_back(pos, thd->mem_root))
           goto err;
       }
-      else if (param->copy_funcs.push_back(pos))
+      else if (param->copy_funcs.push_back(pos, thd->mem_root))
 	goto err;
     }
     res_all_fields.push_back(pos, thd->mem_root);
@@ -22716,9 +22719,10 @@ change_to_use_tmp_fields(THD *thd, Item **ref_pointer_array,
       if (field != NULL)
       {
         /*
-          Replace "@:=<expression>" with "@:=<tmp table column>". Otherwise, we
-          would re-evaluate <expression>, and if expression were a subquery, this
-          would access already-unlocked tables.
+          Replace "@:=<expression>" with "@:=<tmp table
+          column>". Otherwise, we would re-evaluate <expression>, and
+          if expression were a subquery, this would access
+          already-unlocked tables.
          */
         Item_func_set_user_var* suv=
           new (thd->mem_root) Item_func_set_user_var(thd, (Item_func_set_user_var*) item);
@@ -22726,14 +22730,15 @@ change_to_use_tmp_fields(THD *thd, Item **ref_pointer_array,
         if (!suv || !new_field)
           DBUG_RETURN(true);                  // Fatal error
         /*
-         We are replacing the argument of Item_func_set_user_var after its value
-         has been read.  The argument's null_value should be set by now, so we
-         must set it explicitly for the replacement argument since the null_value
-         may be read without any preceding call to val_*().
+          We are replacing the argument of Item_func_set_user_var
+          after its value has been read.  The argument's null_value
+          should be set by now, so we must set it explicitly for the
+          replacement argument since the null_value may be read
+          without any preceding call to val_*().
         */
         new_field->update_null_value();
         List<Item> list;
-        list.push_back(new_field);
+        list.push_back(new_field, thd->mem_root);
         suv->set_arguments(list);
         item_field= suv;
       }
@@ -22818,7 +22823,8 @@ change_refs_to_tmp_fields(THD *thd, Item **ref_pointer_array,
   uint i, border= all_fields.elements - elements;
   for (i= 0; (item= it++); i++)
   {
-    res_all_fields.push_back(new_item= item->get_tmp_table_item(thd));
+    res_all_fields.push_back(new_item= item->get_tmp_table_item(thd),
+                             thd->mem_root);
     ref_pointer_array[((i < border)? all_fields.elements-i-1 : i-border)]=
       new_item;
   }
@@ -22996,7 +23002,10 @@ static bool add_ref_to_table_cond(THD *thd, JOIN_TAB *join_tab)
     Field *field=table->field[table->key_info[join_tab->ref.key].key_part[i].
 			      fieldnr-1];
     Item *value=join_tab->ref.items[i];
-    cond->add(new (thd->mem_root) Item_func_equal(thd, new (thd->mem_root) Item_field(thd, field), value));
+    cond->add(new (thd->mem_root)
+              Item_func_equal(thd, new (thd->mem_root) Item_field(thd, field),
+                              value),
+              thd->mem_root);
   }
   if (thd->is_fatal_error)
     DBUG_RETURN(TRUE);
@@ -23012,7 +23021,7 @@ static bool add_ref_to_table_cond(THD *thd, JOIN_TAB *join_tab)
     if (join_tab->select->pre_idx_push_select_cond)
       cond_copy= cond->copy_andor_structure(thd);
     if (join_tab->select->cond)
-      error=(int) cond->add(join_tab->select->cond);
+      error=(int) cond->add(join_tab->select->cond, thd->mem_root);
     join_tab->select->cond= cond;
     if (join_tab->select->pre_idx_push_select_cond)
     {
@@ -23180,7 +23189,7 @@ bool JOIN::rollup_init()
   for (i= 0 ; i < send_group_parts; i++)
   {
     for (j=0 ; j < fields_list.elements ; j++)
-      rollup.fields[i].push_back(rollup.null_items[i]);
+      rollup.fields[i].push_back(rollup.null_items[i], thd->mem_root);
   }
   List_iterator<Item> it(all_fields);
   Item *item;
@@ -23534,45 +23543,49 @@ int print_explain_message_line(select_result_sink *result,
   Item *item_null= new (mem_root) Item_null(thd);
   List<Item> item_list;
 
-  item_list.push_back(new (mem_root) Item_int(thd, (int32) select_number));
-  item_list.push_back(new (mem_root) Item_string_sys(thd, select_type));
+  item_list.push_back(new (mem_root) Item_int(thd, (int32) select_number),
+                      mem_root);
+  item_list.push_back(new (mem_root) Item_string_sys(thd, select_type),
+                      mem_root);
   /* `table` */
-  item_list.push_back(item_null);
+  item_list.push_back(item_null, mem_root);
   
   /* `partitions` */
   if (options & DESCRIBE_PARTITIONS)
-    item_list.push_back(item_null);
+    item_list.push_back(item_null, mem_root);
   
   /* type, possible_keys, key, key_len, ref */
   for (uint i=0 ; i < 5; i++)
-    item_list.push_back(item_null);
+    item_list.push_back(item_null, mem_root);
 
   /* `rows` */
   if (rows)
   {
     item_list.push_back(new (mem_root) Item_int(thd, *rows,
-                                     MY_INT64_NUM_DECIMAL_DIGITS));
+                                     MY_INT64_NUM_DECIMAL_DIGITS),
+                        mem_root);
   }
   else
-    item_list.push_back(item_null);
+    item_list.push_back(item_null, mem_root);
 
   /* `r_rows` */
   if (is_analyze)
-    item_list.push_back(item_null);
+    item_list.push_back(item_null, mem_root);
 
   /* `filtered` */
   if (is_analyze || options & DESCRIBE_EXTENDED)
-    item_list.push_back(item_null);
+    item_list.push_back(item_null, mem_root);
   
   /* `r_filtered` */
   if (is_analyze)
-    item_list.push_back(item_null);
+    item_list.push_back(item_null, mem_root);
 
   /* `Extra` */
   if (message)
-    item_list.push_back(new (mem_root) Item_string_sys(thd, message));
+    item_list.push_back(new (mem_root) Item_string_sys(thd, message),
+                        mem_root);
   else
-    item_list.push_back(item_null);
+    item_list.push_back(item_null, mem_root);
 
   if (result->send_data(item_list))
     return 1;

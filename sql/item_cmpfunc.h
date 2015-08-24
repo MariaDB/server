@@ -1302,24 +1302,7 @@ class Item_func_case :public Item_func_hybrid_field_type
   cmp_item *case_item;
 public:
   Item_func_case(THD *thd, List<Item> &list, Item *first_expr_arg,
-                 Item *else_expr_arg):
-    Item_func_hybrid_field_type(thd), first_expr_num(-1), else_expr_num(-1),
-    left_result_type(INT_RESULT), case_item(0)
-  {
-    ncases= list.elements;
-    if (first_expr_arg)
-    {
-      first_expr_num= list.elements;
-      list.push_back(first_expr_arg);
-    }
-    if (else_expr_arg)
-    {
-      else_expr_num= list.elements;
-      list.push_back(else_expr_arg);
-    }
-    set_arguments(list);
-    bzero(&cmp_items, sizeof(cmp_items));
-  }
+                 Item *else_expr_arg);
   double real_op();
   longlong int_op();
   String *str_op(String *);
@@ -1789,24 +1772,19 @@ public:
   /* Item_cond() is only used to create top level items */
   Item_cond(THD *thd): Item_bool_func(thd), abort_on_null(1)
   { const_item_cache=0; }
-  Item_cond(THD *thd, Item *i1, Item *i2):
-    Item_bool_func(thd), abort_on_null(0)
-  {
-    list.push_back(i1);
-    list.push_back(i2);
-  }
+  Item_cond(THD *thd, Item *i1, Item *i2);
   Item_cond(THD *thd, Item_cond *item);
   Item_cond(THD *thd, List<Item> &nlist):
     Item_bool_func(thd), list(nlist), abort_on_null(0) {}
-  bool add(Item *item)
+  bool add(Item *item, MEM_ROOT *root)
   {
     DBUG_ASSERT(item);
-    return list.push_back(item);
+    return list.push_back(item, root);
   }
-  bool add_at_head(Item *item)
+  bool add_at_head(Item *item, MEM_ROOT *root)
   {
     DBUG_ASSERT(item);
-    return list.push_front(item);
+    return list.push_front(item, root);
   }
   void add_at_head(List<Item> *nlist)
   {
@@ -2004,7 +1982,7 @@ public:
   inline Item* get_const() { return with_const ? equal_items.head() : NULL; }
   void add_const(THD *thd, Item *c, Item *f = NULL);
   /** Add a non-constant item to the multiple equality */
-  void add(Item *f) { equal_items.push_back(f); }
+  void add(Item *f, MEM_ROOT *root) { equal_items.push_back(f, root); }
   bool contains(Field *field);
   Item* get_first(struct st_join_table *context, Item *field);
   /** Get number of field items / references to field items in this object */   

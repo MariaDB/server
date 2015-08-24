@@ -4724,7 +4724,7 @@ uint prep_alter_part_table(THD *thd, TABLE *table, Alter_info *alter_info,
   thd->work_part_info= thd->lex->part_info;
 
   if (thd->work_part_info &&
-      !(thd->work_part_info= thd->lex->part_info->get_clone()))
+      !(thd->work_part_info= thd->lex->part_info->get_clone(thd)))
     DBUG_RETURN(TRUE);
 
   /* ALTER_ADMIN_PARTITION is handled in mysql_admin_table */
@@ -4804,7 +4804,7 @@ uint prep_alter_part_table(THD *thd, TABLE *table, Alter_info *alter_info,
             Create copy of partition_info to avoid modifying original
             TABLE::part_info, to keep it safe for later use.
           */
-          if (!(tab_part_info= tab_part_info->get_clone()))
+          if (!(tab_part_info= tab_part_info->get_clone(thd)))
             DBUG_RETURN(TRUE);
         }
 
@@ -4855,7 +4855,7 @@ uint prep_alter_part_table(THD *thd, TABLE *table, Alter_info *alter_info,
         we read data from old version of table using this TABLE object
         while copying them to new version of table.
       */
-      if (!(tab_part_info= tab_part_info->get_clone()))
+      if (!(tab_part_info= tab_part_info->get_clone(thd)))
         DBUG_RETURN(TRUE);
     }
     DBUG_PRINT("info", ("*fast_alter_table flags: 0x%x", flags));
@@ -5152,7 +5152,7 @@ that are reorganised.
           partition_element *part_elem= alt_it++;
           if (*fast_alter_table)
             part_elem->part_state= PART_TO_BE_ADDED;
-          if (tab_part_info->partitions.push_back(part_elem))
+          if (tab_part_info->partitions.push_back(part_elem, thd->mem_root))
           {
             mem_alloc_error(1);
             goto err;
@@ -5459,7 +5459,8 @@ the generated partition syntax in a correct manner.
             else
               tab_max_range= part_elem->range_value;
             if (*fast_alter_table &&
-                tab_part_info->temp_partitions.push_back(part_elem))
+                tab_part_info->temp_partitions.push_back(part_elem,
+                                                         thd->mem_root))
             {
               mem_alloc_error(1);
               goto err;
@@ -5643,7 +5644,7 @@ the generated partition syntax in a correct manner.
 
           Create a copy of TABLE::part_info to be able to modify it freely.
         */
-        if (!(tab_part_info= tab_part_info->get_clone()))
+        if (!(tab_part_info= tab_part_info->get_clone(thd)))
           DBUG_RETURN(TRUE);
         thd->work_part_info= tab_part_info;
         if (create_info->used_fields & HA_CREATE_USED_ENGINE &&
@@ -6634,7 +6635,7 @@ void handle_alter_part_error(ALTER_PARTITION_PARAM_TYPE *lpt,
       }
     }
     /* Ensure the share is destroyed and reopened. */
-    part_info= lpt->part_info->get_clone();
+    part_info= lpt->part_info->get_clone(thd);
     close_all_tables_for_name(thd, table->s, HA_EXTRA_NOT_USED, NULL);
   }
   else
@@ -6652,7 +6653,7 @@ err_exclusive_lock:
       the table cache.
     */
     mysql_lock_remove(thd, thd->lock, table);
-    part_info= lpt->part_info->get_clone();
+    part_info= lpt->part_info->get_clone(thd);
     close_thread_table(thd, &thd->open_tables);
     lpt->table_list->table= NULL;
   }

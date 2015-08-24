@@ -2563,7 +2563,7 @@ bool Item_in_subselect::inject_in_to_exists_cond(JOIN *join_arg)
       Item_equal *elem;
       while ((elem= li++))
       {
-        and_args->push_back(elem);
+        and_args->push_back(elem, thd->mem_root);
       }
     }
   }
@@ -2580,7 +2580,8 @@ bool Item_in_subselect::inject_in_to_exists_cond(JOIN *join_arg)
     join_arg->having= select_lex->having;
   }
   join_arg->thd->change_item_tree(&unit->global_parameters()->select_limit,
-                                  new (thd->mem_root) Item_int(thd, (int32) 1));
+                                  new (thd->mem_root)
+                                  Item_int(thd, (int32) 1));
   unit->select_limit_cnt= 1;
 
   DBUG_RETURN(false);
@@ -2820,7 +2821,7 @@ bool Item_exists_subselect::exists2in_processor(uchar *opt_arg)
         it.replace(local_field);
       else
       {
-        first_select->item_list.push_back(local_field);
+        first_select->item_list.push_back(local_field, thd->mem_root);
         first_select->join->all_fields.elements++;
       }
       first_select->ref_pointer_array[i]= (Item *)local_field;
@@ -2846,7 +2847,7 @@ bool Item_exists_subselect::exists2in_processor(uchar *opt_arg)
       }
       outer_exp->fix_after_pullout(unit->outer_select(), &outer_exp);
       outer_exp->update_used_tables();
-      outer.push_back(outer_exp);
+      outer.push_back(outer_exp, thd->mem_root);
     }
   }
 
@@ -2998,12 +2999,13 @@ bool Item_exists_subselect::exists2in_processor(uchar *opt_arg)
                                                            &unit->outer_select()->context,
                                                            optimizer->arguments()[0]->addr(i),
                                                            (char *)"<no matter>",
-                                                           (char *)exists_outer_expr_name)));
+                                                           (char *)exists_outer_expr_name)),
+                       thd->mem_root);
         }
       }
       if (and_list->elements > 0)
       {
-        and_list->push_front(optimizer);
+        and_list->push_front(optimizer, thd->mem_root);
         exp= new (thd->mem_root) Item_cond_and(thd, *and_list);
       }
       else
@@ -3308,7 +3310,8 @@ bool Item_in_subselect::init_left_expr_cache()
     Cached_item *cur_item_cache= new_Cached_item(thd,
                                                  left_expr->element_index(i),
                                                  FALSE);
-    if (!cur_item_cache || left_expr_cache->push_front(cur_item_cache))
+    if (!cur_item_cache || left_expr_cache->push_front(cur_item_cache,
+                                                       thd->mem_root))
       return TRUE;
   }
   return FALSE;
@@ -4931,14 +4934,17 @@ bool subselect_hash_sj_engine::make_semi_join_conds()
   
   for (uint i= 0; i < item_in->left_expr->cols(); i++)
   {
-    Item_func_eq *eq_cond; /* New equi-join condition for the current column. */
+    /* New equi-join condition for the current column. */
+    Item_func_eq *eq_cond;
     /* Item for the corresponding field from the materialized temp table. */
     Item_field *right_col_item;
 
-    if (!(right_col_item= new (thd->mem_root) Item_field(thd, context, tmp_table->field[i])) ||
-        !(eq_cond= new (thd->mem_root) Item_func_eq(thd, item_in->left_expr->element_index(i),
-                                    right_col_item)) ||
-        (((Item_cond_and*)semi_join_conds)->add(eq_cond)))
+    if (!(right_col_item= new (thd->mem_root)
+          Item_field(thd, context, tmp_table->field[i])) ||
+        !(eq_cond= new (thd->mem_root)
+          Item_func_eq(thd, item_in->left_expr->element_index(i),
+                       right_col_item)) ||
+        (((Item_cond_and*)semi_join_conds)->add(eq_cond, thd->mem_root)))
     {
       delete semi_join_conds;
       semi_join_conds= NULL;

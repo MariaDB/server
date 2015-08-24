@@ -3957,7 +3957,7 @@ static TABLE *create_table_from_items(THD *thd,
       DBUG_RETURN(0);
     if (item->maybe_null)
       cr_field->flags &= ~NOT_NULL_FLAG;
-    alter_info->create_list.push_back(cr_field);
+    alter_info->create_list.push_back(cr_field, thd->mem_root);
   }
 
   DEBUG_SYNC(thd,"create_table_select_before_create");

@@ -202,7 +202,7 @@ static Item *make_cond_for_index(THD *thd, Item *cond, TABLE *table, uint keyno,
 	Item *fix= make_cond_for_index(thd, item, table, keyno, other_tbls_ok);
 	if (fix)
         {
-	  new_cond->argument_list()->push_back(fix);
+	  new_cond->argument_list()->push_back(fix, thd->mem_root);
           used_tables|= fix->used_tables();
         }
         if (MY_TEST(item->marker == ICP_COND_USES_INDEX_ONLY))
@@ -237,7 +237,7 @@ static Item *make_cond_for_index(THD *thd, Item *cond, TABLE *table, uint keyno,
         Item *fix= make_cond_for_index(thd, item, table, keyno, other_tbls_ok);
 	if (!fix)
 	  return (COND*) 0;
-	new_cond->argument_list()->push_back(fix);
+	new_cond->argument_list()->push_back(fix, thd->mem_root);
         if (MY_TEST(item->marker == ICP_COND_USES_INDEX_ONLY))
         {
           n_marked++;
@@ -280,7 +280,7 @@ static Item *make_cond_remainder(THD *thd, Item *cond, TABLE *table, uint keyno,
                                        other_tbls_ok, exclude_index);
 	if (fix)
         {
-	  new_cond->argument_list()->push_back(fix);
+	  new_cond->argument_list()->push_back(fix, thd->mem_root);
           tbl_map |= fix->used_tables();
         }
       }
@@ -308,7 +308,7 @@ static Item *make_cond_remainder(THD *thd, Item *cond, TABLE *table, uint keyno,
                                        other_tbls_ok, FALSE);
 	if (!fix)
 	  return (COND*) 0;
-	new_cond->argument_list()->push_back(fix);
+	new_cond->argument_list()->push_back(fix, thd->mem_root);
         tbl_map |= fix->used_tables();
       }
       new_cond->quick_fix_field();

@@ -418,7 +418,7 @@ set_system_variable(THD *thd, struct sys_var_with_base *tmp,
          set_var(thd, var_type, tmp->var, &tmp->base_name, val)))
     return TRUE;
 
-  return lex->var_list.push_back(var);
+  return lex->var_list.push_back(var, thd->mem_root);
 }
 
 
@@ -860,11 +860,15 @@ static void add_key_to_list(LEX *lex, LEX_STRING *field_name,
                             enum Key::Keytype type, bool check_exists)
 {
   Key *key;
-  key= new Key(type, null_lex_str, HA_KEY_ALG_UNDEF, false,
-               DDL_options(check_exists ? DDL_options::OPT_IF_NOT_EXISTS :
-                                          DDL_options::OPT_NONE));
-  key->columns.push_back(new Key_part_spec(*field_name, 0));
-  lex->alter_info.key_list.push_back(key);
+  MEM_ROOT *mem_root= lex->thd->mem_root;
+  key= new (mem_root)
+        Key(type, null_lex_str, HA_KEY_ALG_UNDEF, false,
+             DDL_options(check_exists ?
+                         DDL_options::OPT_IF_NOT_EXISTS :
+                         DDL_options::OPT_NONE));
+  key->columns.push_back(new (mem_root) Key_part_spec(*field_name, 0),
+                         mem_root);
+  lex->alter_info.key_list.push_back(key, mem_root);
 }
 
 void LEX::init_last_field(Create_field *field, const char *field_name,
@@ -2181,7 +2185,8 @@ execute_var_ident:
           {
             LEX *lex=Lex;
             LEX_STRING *lexstr= (LEX_STRING*)thd->memdup(&$2, sizeof(LEX_STRING));
-            if (!lexstr || lex->prepared_stmt_params.push_back(lexstr))
+            if (!lexstr || lex->prepared_stmt_params.push_back(lexstr,
+                                                               thd->mem_root))
               MYSQL_YYABORT;
           }
         ;
@@ -2897,11 +2902,11 @@ opt_sp_cparams:
 sp_cparams:
           sp_cparams ',' expr
           {
-           Lex->value_list.push_back($3);
+           Lex->value_list.push_back($3, thd->mem_root);
           }
         | expr
           {
-            Lex->value_list.push_back($1);
+            Lex->value_list.push_back($1, thd->mem_root);
           }
         ;
 
@@ -3520,12 +3525,12 @@ statement_information:
           statement_information_item
           {
             $$= new (thd->mem_root) List<Statement_information_item>;
-            if ($$ == NULL || $$->push_back($1))
+            if ($$ == NULL || $$->push_back($1, thd->mem_root))
               MYSQL_YYABORT;
           }
         | statement_information ',' statement_information_item
           {
-            if ($1->push_back($3))
+            if ($1->push_back($3, thd->mem_root))
               MYSQL_YYABORT;
             $$= $1;
           }
@@ -3577,12 +3582,12 @@ condition_information:
           condition_information_item
           {
             $$= new (thd->mem_root) List<Condition_information_item>;
-            if ($$ == NULL || $$->push_back($1))
+            if ($$ == NULL || $$->push_back($1, thd->mem_root))
               MYSQL_YYABORT;
           }
         | condition_information ',' condition_information_item
           {
-            if ($1->push_back($3))
+            if ($1->push_back($3, thd->mem_root))
               MYSQL_YYABORT;
             $$= $1;
           }
@@ -5009,7 +5014,7 @@ part_field_item:
           {
             partition_info *part_info= Lex->part_info;
             part_info->num_columns++;
-            if (part_info->part_field_list.push_back($1.str))
+            if (part_info->part_field_list.push_back($1.str, thd->mem_root))
             {
               mem_alloc_error(1);
               MYSQL_YYABORT;
@@ -5094,7 +5099,7 @@ sub_part_field_item:
           ident
           {
             partition_info *part_info= Lex->part_info;
-            if (part_info->subpart_field_list.push_back($1.str))
+            if (part_info->subpart_field_list.push_back($1.str, thd->mem_root))
             {
               mem_alloc_error(1);
               MYSQL_YYABORT;
@@ -5189,7 +5194,8 @@ part_definition:
             partition_info *part_info= Lex->part_info;
             partition_element *p_elem= new partition_element();
 
-            if (!p_elem || part_info->partitions.push_back(p_elem))
+            if (!p_elem ||
+                 part_info->partitions.push_back(p_elem, thd->mem_root))
             {
               mem_alloc_error(sizeof(partition_element));
               MYSQL_YYABORT;
@@ -5289,11 +5295,11 @@ part_func_max:
             }
             else
               part_info->num_columns= 1U;
-            if (part_info->init_column_part())
+            if (part_info->init_column_part(thd))
             {
               MYSQL_YYABORT;
             }
-            if (part_info->add_max_value())
+            if (part_info->add_max_value(thd))
             {
               MYSQL_YYABORT;
             }
@@ -5325,7 +5331,7 @@ part_values_in:
                 we ADD or REORGANIZE partitions. Also can only happen
                 for LIST partitions.
               */
-              if (part_info->reorganize_into_single_field_col_val())
+              if (part_info->reorganize_into_single_field_col_val(thd))
               {
                 MYSQL_YYABORT;
               }
@@ -5355,7 +5361,7 @@ part_value_item:
             /* Initialisation code needed for each list of value expressions */
             if (!(part_info->part_type == LIST_PARTITION &&
                   part_info->num_columns == 1U) &&
-                 part_info->init_column_part())
+                 part_info->init_column_part(thd))
             {
               MYSQL_YYABORT;
             }
@@ -5398,7 +5404,7 @@ part_value_expr_item:
               my_parse_error(ER_THD(thd, ER_MAXVALUE_IN_VALUES_IN));
               MYSQL_YYABORT;
             }
-            if (part_info->add_max_value())
+            if (part_info->add_max_value(thd))
             {
               MYSQL_YYABORT;
             }
@@ -5491,7 +5497,7 @@ sub_part_definition:
               MYSQL_YYABORT;
             }
             if (!sub_p_elem ||
-             curr_part->subpartitions.push_back(sub_p_elem))
+             curr_part->subpartitions.push_back(sub_p_elem, thd->mem_root))
             {
               mem_alloc_error(sizeof(partition_element));
               MYSQL_YYABORT;
@@ -6074,8 +6080,8 @@ key_def:
               handle_if_exists_options() expectes the two keys in this order:
               the Foreign_key, followed by its auto-generated Key.
             */
-            lex->alter_info.key_list.push_back(key);
-            lex->alter_info.key_list.push_back(Lex->last_key);
+            lex->alter_info.key_list.push_back(key, thd->mem_root);
+            lex->alter_info.key_list.push_back(Lex->last_key, thd->mem_root);
             lex->option_list= NULL;
 
             /* Only used for ALTER TABLE. Ignored otherwise. */
@@ -6129,7 +6135,7 @@ field_spec:
             if (f->check(thd))
               MYSQL_YYABORT;
 
-            lex->alter_info.create_list.push_back(f);
+            lex->alter_info.create_list.push_back(f, thd->mem_root);
 
             if (f->flags & PRI_KEY_FLAG)
               add_key_to_list(lex, &$1, Key::PRIMARY, Lex->check_exists);
@@ -6837,7 +6843,7 @@ ref_list:
             Key_part_spec *key= new Key_part_spec($3, 0);
             if (key == NULL)
               MYSQL_YYABORT;
-            Lex->ref_list.push_back(key);
+            Lex->ref_list.push_back(key, thd->mem_root);
           }
         | ident
           {
@@ -6846,7 +6852,7 @@ ref_list:
               MYSQL_YYABORT;
             LEX *lex= Lex;
             lex->ref_list.empty();
-            lex->ref_list.push_back(key);
+            lex->ref_list.push_back(key, thd->mem_root);
           }
         ;
 
@@ -7056,11 +7062,11 @@ btree_or_rtree:
 key_list:
           key_list ',' key_part order_dir
           {
-            Lex->last_key->columns.push_back($3);
+            Lex->last_key->columns.push_back($3, thd->mem_root);
           }
         | key_part order_dir
           {
-            Lex->last_key->columns.push_back($1);
+            Lex->last_key->columns.push_back($1, thd->mem_root);
           }
         ;
 
@@ -7095,8 +7101,10 @@ opt_component:
         ;
 
 string_list:
-          text_string { Lex->last_field->interval_list.push_back($1); }
-        | string_list ',' text_string { Lex->last_field->interval_list.push_back($3); };
+          text_string
+          { Lex->last_field->interval_list.push_back($1, thd->mem_root); }
+        | string_list ',' text_string
+          { Lex->last_field->interval_list.push_back($3, thd->mem_root); };
 
 /*
 ** Alter table
@@ -7548,7 +7556,8 @@ alt_part_name_list:
 alt_part_name_item:
           ident
           {
-            if (Lex->alter_info.partition_names.push_back($1.str))
+            if (Lex->alter_info.partition_names.push_back($1.str,
+                                                          thd->mem_root))
             {
               mem_alloc_error(1);
               MYSQL_YYABORT;
@@ -7608,7 +7617,7 @@ alter_list_item:
             Alter_drop *ad= new Alter_drop(Alter_drop::COLUMN, $4.str, $3);
             if (ad == NULL)
               MYSQL_YYABORT;
-            lex->alter_info.drop_list.push_back(ad);
+            lex->alter_info.drop_list.push_back(ad, thd->mem_root);
             lex->alter_info.flags|= Alter_info::ALTER_DROP_COLUMN;
           }
         | DROP FOREIGN KEY_SYM opt_if_exists_table_element field_ident
@@ -7617,7 +7626,7 @@ alter_list_item:
             Alter_drop *ad= new Alter_drop(Alter_drop::FOREIGN_KEY, $5.str, $4);
             if (ad == NULL)
               MYSQL_YYABORT;
-            lex->alter_info.drop_list.push_back(ad);
+            lex->alter_info.drop_list.push_back(ad, thd->mem_root);
             lex->alter_info.flags|= Alter_info::DROP_FOREIGN_KEY;
           }
         | DROP PRIMARY_SYM KEY_SYM
@@ -7627,7 +7636,7 @@ alter_list_item:
                                            FALSE);
             if (ad == NULL)
               MYSQL_YYABORT;
-            lex->alter_info.drop_list.push_back(ad);
+            lex->alter_info.drop_list.push_back(ad, thd->mem_root);
             lex->alter_info.flags|= Alter_info::ALTER_DROP_INDEX;
           }
         | DROP key_or_index opt_if_exists_table_element field_ident
@@ -7636,7 +7645,7 @@ alter_list_item:
             Alter_drop *ad= new Alter_drop(Alter_drop::KEY, $4.str, $3);
             if (ad == NULL)
               MYSQL_YYABORT;
-            lex->alter_info.drop_list.push_back(ad);
+            lex->alter_info.drop_list.push_back(ad, thd->mem_root);
             lex->alter_info.flags|= Alter_info::ALTER_DROP_INDEX;
           }
         | DISABLE_SYM KEYS
@@ -7657,7 +7666,7 @@ alter_list_item:
             Alter_column *ac= new Alter_column($3.str,$6);
             if (ac == NULL)
               MYSQL_YYABORT;
-            lex->alter_info.alter_list.push_back(ac);
+            lex->alter_info.alter_list.push_back(ac, thd->mem_root);
             lex->alter_info.flags|= Alter_info::ALTER_CHANGE_COLUMN_DEFAULT;
           }
         | ALTER opt_column field_ident DROP DEFAULT
@@ -7666,7 +7675,7 @@ alter_list_item:
             Alter_column *ac= new Alter_column($3.str, (Item*) 0);
             if (ac == NULL)
               MYSQL_YYABORT;
-            lex->alter_info.alter_list.push_back(ac);
+            lex->alter_info.alter_list.push_back(ac, thd->mem_root);
             lex->alter_info.flags|= Alter_info::ALTER_CHANGE_COLUMN_DEFAULT;
           }
         | RENAME opt_to table_ident
@@ -8099,12 +8108,12 @@ table_column_list:
         | ident 
           {
             Lex->column_list->push_back((LEX_STRING*)
-                thd->memdup(&$1, sizeof(LEX_STRING)));
+                thd->memdup(&$1, sizeof(LEX_STRING)), thd->mem_root);
           }
         | table_column_list ',' ident
           {
             Lex->column_list->push_back((LEX_STRING*)
-                thd->memdup(&$3, sizeof(LEX_STRING)));
+                thd->memdup(&$3, sizeof(LEX_STRING)), thd->mem_root);
           }
         ;
 
@@ -8118,15 +8127,17 @@ table_index_list:
 table_index_name:
           ident
           {
-            Lex->index_list->push_back(
-              (LEX_STRING*) thd->memdup(&$1, sizeof(LEX_STRING)));
+            Lex->index_list->push_back((LEX_STRING*)
+                                       thd->memdup(&$1, sizeof(LEX_STRING)),
+                                       thd->mem_root);
           }
         |
           PRIMARY_SYM
           {
             LEX_STRING str= {(char*) "PRIMARY", 7};
-            Lex->index_list->push_back(
-              (LEX_STRING*) thd->memdup(&str, sizeof(LEX_STRING)));
+            Lex->index_list->push_back((LEX_STRING*)
+                                        thd->memdup(&str, sizeof(LEX_STRING)),
+                                        thd->mem_root);
           }  
         ;  
 
@@ -8235,12 +8246,14 @@ rename:
 rename_list:
           user TO_SYM user
           {
-            if (Lex->users_list.push_back($1) || Lex->users_list.push_back($3))
+            if (Lex->users_list.push_back($1, thd->mem_root) ||
+                Lex->users_list.push_back($3, thd->mem_root))
               MYSQL_YYABORT;
           }
         | rename_list ',' user TO_SYM user
           {
-            if (Lex->users_list.push_back($3) || Lex->users_list.push_back($5))
+            if (Lex->users_list.push_back($3, thd->mem_root) ||
+                Lex->users_list.push_back($5, thd->mem_root))
               MYSQL_YYABORT;
           }
         ;
@@ -8692,7 +8705,7 @@ expr:
                 /*
                   (X1 OR X2) OR Y ==> OR (X1, X2, Y)
                 */
-                item1->add($3);
+                item1->add($3, thd->mem_root);
                 $$ = $1;
               }
             }
@@ -8702,7 +8715,7 @@ expr:
               /*
                 X OR (Y1 OR Y2) ==> OR (X, Y1, Y2)
               */
-              item3->add_at_head($1);
+              item3->add_at_head($1, thd->mem_root);
               $$ = $3;
             }
             else
@@ -8742,7 +8755,7 @@ expr:
                 /*
                   (X1 AND X2) AND Y ==> AND (X1, X2, Y)
                 */
-                item1->add($3);
+                item1->add($3, thd->mem_root);
                 $$ = $1;
               }
             }
@@ -8752,7 +8765,7 @@ expr:
               /*
                 X AND (Y1 AND Y2) ==> AND (X, Y1, Y2)
               */
-              item3->add_at_head($1);
+              item3->add_at_head($1, thd->mem_root);
               $$ = $3;
             }
             else
@@ -8866,8 +8879,8 @@ predicate:
           }
         | bit_expr IN_SYM '(' expr ',' expr_list ')'
           { 
-            $6->push_front($4);
-            $6->push_front($1);
+            $6->push_front($4, thd->mem_root);
+            $6->push_front($1, thd->mem_root);
             $$= new (thd->mem_root) Item_func_in(thd, *$6);
             if ($$ == NULL)
               MYSQL_YYABORT;
@@ -8880,8 +8893,8 @@ predicate:
           }
         | bit_expr not IN_SYM '(' expr ',' expr_list ')'
           {
-            $7->push_front($5);
-            $7->push_front($1);
+            $7->push_front($5, thd->mem_root);
+            $7->push_front($1, thd->mem_root);
             Item_func_in *item= new (thd->mem_root) Item_func_in(thd, *$7);
             if (item == NULL)
               MYSQL_YYABORT;
@@ -9190,11 +9203,11 @@ dyncall_create_list:
          $$= new (thd->mem_root) List<DYNCALL_CREATE_DEF>;
          if ($$ == NULL)
            MYSQL_YYABORT;
-         $$->push_back($1);
+         $$->push_back($1, thd->mem_root);
        }
    | dyncall_create_list ',' dyncall_create_element
        {
-         $1->push_back($3);
+         $1->push_back($3, thd->mem_root);
          $$= $1;
        }
    ;
@@ -9258,14 +9271,14 @@ simple_expr:
           { $$= $2; }
         | '(' expr ',' expr_list ')'
           {
-            $4->push_front($2);
+            $4->push_front($2, thd->mem_root);
             $$= new (thd->mem_root) Item_row(thd, *$4);
             if ($$ == NULL)
               MYSQL_YYABORT;
           }
         | ROW_SYM '(' expr ',' expr_list ')'
           {
-            $5->push_front($3);
+            $5->push_front($3, thd->mem_root);
             $$= new (thd->mem_root) Item_row(thd, *$5);
             if ($$ == NULL)
               MYSQL_YYABORT;
@@ -9302,12 +9315,12 @@ simple_expr:
           }
         | MATCH ident_list_arg AGAINST '(' bit_expr fulltext_options ')'
           {
-            $2->push_front($5);
+            $2->push_front($5, thd->mem_root);
             Item_func_match *i1= new (thd->mem_root) Item_func_match(thd, *$2,
                                                                      $6);
             if (i1 == NULL)
               MYSQL_YYABORT;
-            Select->add_ftfunc_to_list(i1);
+            Select->add_ftfunc_to_list(thd, i1);
             $$= i1;
           }
         | BINARY simple_expr %prec NEG
@@ -9440,8 +9453,8 @@ function_call_keyword:
             List<Item> *list= new (thd->mem_root) List<Item>;
             if (list == NULL)
               MYSQL_YYABORT;
-            list->push_front($5);
-            list->push_front($3);
+            list->push_front($5, thd->mem_root);
+            list->push_front($3, thd->mem_root);
             Item_row *item= new (thd->mem_root) Item_row(thd, *list);
             if (item == NULL)
               MYSQL_YYABORT;
@@ -9451,8 +9464,8 @@ function_call_keyword:
           }
         | INTERVAL_SYM '(' expr ',' expr ',' expr_list ')' %prec INTERVAL_SYM
           {
-            $7->push_front($5);
-            $7->push_front($3);
+            $7->push_front($5, thd->mem_root);
+            $7->push_front($3, thd->mem_root);
             Item_row *item= new (thd->mem_root) Item_row(thd, *$7);
             if (item == NULL)
               MYSQL_YYABORT;
@@ -10180,11 +10193,11 @@ udf_expr_list:
             $$= new (thd->mem_root) List<Item>;
             if ($$ == NULL)
               MYSQL_YYABORT;
-            $$->push_back($1);
+            $$->push_back($1, thd->mem_root);
           }
         | udf_expr_list ',' udf_expr
           {
-            $1->push_back($3);
+            $1->push_back($3, thd->mem_root);
             $$= $1;
           }
         ;
@@ -10379,7 +10392,7 @@ variable_aux:
               MYSQL_YYABORT;
             LEX *lex= Lex;
             lex->uncacheable(UNCACHEABLE_SIDEEFFECT);
-            lex->set_var_list.push_back(item);
+            lex->set_var_list.push_back(item, thd->mem_root);
           }
         | ident_or_text
           {
@@ -10512,11 +10525,11 @@ expr_list:
             $$= new (thd->mem_root) List<Item>;
             if ($$ == NULL)
               MYSQL_YYABORT;
-            $$->push_back($1);
+            $$->push_back($1, thd->mem_root);
           }
         | expr_list ',' expr
           {
-            $1->push_back($3);
+            $1->push_back($3, thd->mem_root);
             $$= $1;
           }
         ;
@@ -10532,11 +10545,11 @@ ident_list:
             $$= new (thd->mem_root) List<Item>;
             if ($$ == NULL)
               MYSQL_YYABORT;
-            $$->push_back($1);
+            $$->push_back($1, thd->mem_root);
           }
         | ident_list ',' simple_ident
           {
-            $1->push_back($3);
+            $1->push_back($3, thd->mem_root);
             $$= $1;
           }
         ;
@@ -10557,13 +10570,13 @@ when_list:
             $$= new List<Item>;
             if ($$ == NULL)
               MYSQL_YYABORT;
-            $$->push_back($2);
-            $$->push_back($4);
+            $$->push_back($2, thd->mem_root);
+            $$->push_back($4, thd->mem_root);
           }
         | when_list WHEN_SYM expr THEN_SYM expr
           {
-            $1->push_back($3);
-            $1->push_back($5);
+            $1->push_back($3, thd->mem_root);
+            $1->push_back($5, thd->mem_root);
             $$= $1;
           }
         ;
@@ -11121,7 +11134,7 @@ using_list:
                                                     system_charset_info);
             if (s == NULL)
               MYSQL_YYABORT;
-            $$->push_back(s);
+            $$->push_back(s, thd->mem_root);
           }
         | using_list ',' ident
           {
@@ -11130,7 +11143,7 @@ using_list:
                                                     system_charset_info);
             if (s == NULL)
               MYSQL_YYABORT;
-            $1->push_back(s);
+            $1->push_back(s, thd->mem_root);
             $$= $1;
           }
         ;
@@ -11681,7 +11694,7 @@ select_var_ident: select_outvar
             {
               if ($1 == NULL)
                 MYSQL_YYABORT;
-              ((select_dumpvar *)Lex->result)->var_list.push_back($1);
+              ((select_dumpvar *)Lex->result)->var_list.push_back($1, thd->mem_root);
             }
             else
             {
@@ -11798,7 +11811,7 @@ drop:
             lex->sql_command= SQLCOM_DROP_INDEX;
             lex->alter_info.reset();
             lex->alter_info.flags= Alter_info::ALTER_DROP_INDEX;
-            lex->alter_info.drop_list.push_back(ad);
+            lex->alter_info.drop_list.push_back(ad, thd->mem_root);
             if (!lex->current_select->add_table_to_list(lex->thd, $6, NULL,
                                                         TL_OPTION_UPDATING,
                                                         TL_READ_NO_INSERT,
@@ -12074,16 +12087,17 @@ insert_field_spec:
         | SET
           {
             LEX *lex=Lex;
-            if (!(lex->insert_list= new List_item) ||
-                lex->many_values.push_back(lex->insert_list))
+            if (!(lex->insert_list= new (thd->mem_root) List_item) ||
+                lex->many_values.push_back(lex->insert_list, thd->mem_root))
               MYSQL_YYABORT;
           }
           ident_eq_list
         ;
 
 fields:
-          fields ',' insert_ident { Lex->field_list.push_back($3); }
-        | insert_ident { Lex->field_list.push_back($1); }
+          fields ',' insert_ident
+          { Lex->field_list.push_back($3, thd->mem_root); }
+        | insert_ident { Lex->field_list.push_back($1, thd->mem_root); }
         ;
 
 insert_values:
@@ -12111,8 +12125,8 @@ ident_eq_value:
           simple_ident_nospvar equal expr_or_default
           {
             LEX *lex=Lex;
-            if (lex->field_list.push_back($1) ||
-                lex->insert_list->push_back($3))
+            if (lex->field_list.push_back($1, thd->mem_root) ||
+                lex->insert_list->push_back($3, thd->mem_root))
               MYSQL_YYABORT;
           }
         ;
@@ -12130,13 +12144,13 @@ opt_equal:
 no_braces:
           '('
           {
-              if (!(Lex->insert_list= new List_item))
+              if (!(Lex->insert_list= new (thd->mem_root) List_item))
                 MYSQL_YYABORT;
           }
           opt_values ')'
           {
             LEX *lex=Lex;
-            if (lex->many_values.push_back(lex->insert_list))
+            if (lex->many_values.push_back(lex->insert_list, thd->mem_root))
               MYSQL_YYABORT;
           }
         ;
@@ -12149,12 +12163,12 @@ opt_values:
 values:
           values ','  expr_or_default
           {
-            if (Lex->insert_list->push_back($3))
+            if (Lex->insert_list->push_back($3, thd->mem_root))
               MYSQL_YYABORT;
           }
         | expr_or_default
           {
-            if (Lex->insert_list->push_back($1))
+            if (Lex->insert_list->push_back($1, thd->mem_root))
               MYSQL_YYABORT;
           }
         ;
@@ -12230,8 +12244,8 @@ insert_update_elem:
           simple_ident_nospvar equal expr_or_default
           {
           LEX *lex= Lex;
-          if (lex->update_list.push_back($1) || 
-              lex->value_list.push_back($3))
+          if (lex->update_list.push_back($1, thd->mem_root) || 
+              lex->value_list.push_back($3, thd->mem_root))
               MYSQL_YYABORT;
           }
         ;
@@ -13037,8 +13051,9 @@ flush_option:
                my_parse_error(ER_THD(thd, ER_SYNTAX_ERROR), $2);
                MYSQL_YYABORT;
              }
-             Lex->view_list.push_back(
-                        (LEX_STRING*)thd->memdup(&$1, sizeof(LEX_STRING)));
+             Lex->view_list.push_back((LEX_STRING*)
+                                       thd->memdup(&$1, sizeof(LEX_STRING)),
+                                       thd->mem_root);
            }
         ;
 
@@ -13116,7 +13131,7 @@ purge_option:
           {
             LEX *lex= Lex;
             lex->value_list.empty();
-            lex->value_list.push_front($2);
+            lex->value_list.push_front($2, thd->mem_root);
             lex->sql_command= SQLCOM_PURGE_BEFORE;
           }
         ;
@@ -13157,11 +13172,11 @@ kill_option:
 kill_expr:
         expr
         {
-          Lex->value_list.push_front($$);
+          Lex->value_list.push_front($$, thd->mem_root);
          }
         | USER user
           {
-            Lex->users_list.push_back($2);
+            Lex->users_list.push_back($2, thd->mem_root);
             Lex->kill_type= KILL_TYPE_USER;
           }
         ;
@@ -13338,9 +13353,9 @@ opt_field_or_var_spec:
 
 fields_or_vars:
           fields_or_vars ',' field_or_var
-          { Lex->field_list.push_back($3); }
+          { Lex->field_list.push_back($3, thd->mem_root); }
         | field_or_var
-          { Lex->field_list.push_back($1); }
+          { Lex->field_list.push_back($1, thd->mem_root); }
         ;
 
 field_or_var:
@@ -13367,8 +13382,8 @@ load_data_set_elem:
           simple_ident_nospvar equal remember_name expr_or_default remember_end
           {
             LEX *lex= Lex;
-            if (lex->update_list.push_back($1) || 
-                lex->value_list.push_back($4))
+            if (lex->update_list.push_back($1, thd->mem_root) || 
+                lex->value_list.push_back($4, thd->mem_root))
                 MYSQL_YYABORT;
             $4->set_name_no_truncate($3, (uint) ($5 - $3), thd->charset());
           }
@@ -13504,7 +13519,7 @@ param_marker:
                                                  : thd->query();
             item= new (thd->mem_root) Item_param(thd, lip->get_tok_start() -
                                                       query_start);
-            if (!($$= item) || lex->param_list.push_back(item))
+            if (!($$= item) || lex->param_list.push_back(item, thd->mem_root))
             {
               my_message(ER_OUT_OF_RESOURCES, ER_THD(thd, ER_OUT_OF_RESOURCES), MYF(0));
               MYSQL_YYABORT;
@@ -14741,7 +14756,7 @@ option_value_no_option_type:
             set_var_user *var= new set_var_user(item);
             if (var == NULL)
               MYSQL_YYABORT;
-            Lex->var_list.push_back(var);
+            Lex->var_list.push_back(var, thd->mem_root);
           }
         | '@' '@' opt_var_ident_type internal_variable_name equal set_expr_or_default
           {
@@ -14766,7 +14781,7 @@ option_value_no_option_type:
                                               cs2);
             if (var == NULL)
               MYSQL_YYABORT;
-            lex->var_list.push_back(var);
+            lex->var_list.push_back(var, thd->mem_root);
           }
         | NAMES_SYM equal expr
           {
@@ -14800,7 +14815,7 @@ option_value_no_option_type:
             var= new set_var_collation_client(cs3, cs3, cs3);
             if (var == NULL)
               MYSQL_YYABORT;
-            lex->var_list.push_back(var);
+            lex->var_list.push_back(var, thd->mem_root);
           }
         | DEFAULT ROLE_SYM grant_role
           {
@@ -14813,7 +14828,7 @@ option_value_no_option_type:
                                                                 $3->user);
             if (var == NULL)
               MYSQL_YYABORT;
-            lex->var_list.push_back(var);
+            lex->var_list.push_back(var, thd->mem_root);
             thd->lex->autocommit= TRUE;
             if (lex->sphead)
               lex->sphead->m_flags|= sp_head::HAS_SET_AUTOCOMMIT_STMT;
@@ -14824,7 +14839,7 @@ option_value_no_option_type:
             set_var_default_role *var= new set_var_default_role($5, $3->user);
             if (var == NULL)
               MYSQL_YYABORT;
-            lex->var_list.push_back(var);
+            lex->var_list.push_back(var, thd->mem_root);
             thd->lex->autocommit= TRUE;
             if (lex->sphead)
               lex->sphead->m_flags|= sp_head::HAS_SET_AUTOCOMMIT_STMT;
@@ -14835,7 +14850,7 @@ option_value_no_option_type:
             set_var_role *var= new set_var_role($2);
             if (var == NULL)
               MYSQL_YYABORT;
-            lex->var_list.push_back(var);
+            lex->var_list.push_back(var, thd->mem_root);
           }
         | PASSWORD_SYM opt_for_user text_or_password
           {
@@ -14843,7 +14858,7 @@ option_value_no_option_type:
             set_var_password *var= new set_var_password(lex->definer);
             if (var == NULL)
               MYSQL_YYABORT;
-            lex->var_list.push_back(var);
+            lex->var_list.push_back(var, thd->mem_root);
             lex->autocommit= TRUE;
             if (lex->sphead)
               lex->sphead->m_flags|= sp_head::HAS_SET_AUTOCOMMIT_STMT;
@@ -14954,7 +14969,7 @@ transaction_access_mode:
                                       item);
             if (var == NULL)
               MYSQL_YYABORT;
-            lex->var_list.push_back(var);
+            lex->var_list.push_back(var, thd->mem_root);
           }
         ;
 
@@ -14971,7 +14986,7 @@ isolation_level:
                                       item);
             if (var == NULL)
               MYSQL_YYABORT;
-            lex->var_list.push_back(var);
+            lex->var_list.push_back(var, thd->mem_root);
           }
         ;
 
@@ -15261,7 +15276,7 @@ revoke_command:
         | admin_option_for_role FROM user_and_role_list
           {
             Lex->sql_command= SQLCOM_REVOKE_ROLE;
-            if (Lex->users_list.push_front($1))
+            if (Lex->users_list.push_front($1, thd->mem_root))
               MYSQL_YYABORT;
           }
         ;
@@ -15322,7 +15337,7 @@ grant_command:
             LEX *lex= Lex;
             lex->sql_command= SQLCOM_GRANT_ROLE;
             /* The first role is the one that is granted */
-            if (Lex->users_list.push_front($1))
+            if (Lex->users_list.push_front($1, thd->mem_root))
               MYSQL_YYABORT;
           }
 
@@ -15339,12 +15354,12 @@ opt_with_admin_option:
 role_list:
           grant_role
           {
-            if (Lex->users_list.push_back($1))
+            if (Lex->users_list.push_back($1, thd->mem_root))
               MYSQL_YYABORT;
           }
         | role_list ',' grant_role
           {
-            if (Lex->users_list.push_back($3))
+            if (Lex->users_list.push_back($3, thd->mem_root))
               MYSQL_YYABORT;
           }
         ;
@@ -15549,12 +15564,12 @@ grant_ident:
 user_list:
           user
           {
-            if (Lex->users_list.push_back($1))
+            if (Lex->users_list.push_back($1, thd->mem_root))
               MYSQL_YYABORT;
           }
         | user_list ',' user
           {
-            if (Lex->users_list.push_back($3))
+            if (Lex->users_list.push_back($3, thd->mem_root))
               MYSQL_YYABORT;
           }
         ;
@@ -15562,12 +15577,12 @@ user_list:
 grant_list:
           grant_user
           {
-            if (Lex->users_list.push_back($1))
+            if (Lex->users_list.push_back($1, thd->mem_root))
               MYSQL_YYABORT;
           }
         | grant_list ',' grant_user
           {
-            if (Lex->users_list.push_back($3))
+            if (Lex->users_list.push_back($3, thd->mem_root))
               MYSQL_YYABORT;
           }
         ;
@@ -15575,12 +15590,12 @@ grant_list:
 user_and_role_list:
           user_or_role
           {
-            if (Lex->users_list.push_back($1))
+            if (Lex->users_list.push_back($1, thd->mem_root))
               MYSQL_YYABORT;
           }
         | user_and_role_list ',' user_or_role
           {
-            if (Lex->users_list.push_back($3))
+            if (Lex->users_list.push_back($3, thd->mem_root))
               MYSQL_YYABORT;
           }
         ;
@@ -15653,7 +15668,7 @@ column_list_id:
               LEX_COLUMN *col= new LEX_COLUMN (*new_str,lex->which_columns);
               if (col == NULL)
                 MYSQL_YYABORT;
-              lex->columns.push_back(col);
+              lex->columns.push_back(col, thd->mem_root);
             }
           }
         ;
@@ -16128,15 +16143,17 @@ view_list_opt:
 
 view_list:
           ident 
-            {
-              Lex->view_list.push_back((LEX_STRING*)
-                      thd->memdup(&$1, sizeof(LEX_STRING)));
-            }
+          {
+            Lex->view_list.push_back((LEX_STRING*)
+                                     thd->memdup(&$1, sizeof(LEX_STRING)),
+                                     thd->mem_root);
+          }
         | view_list ',' ident
-            {
-              Lex->view_list.push_back((LEX_STRING*)
-                      thd->memdup(&$3, sizeof(LEX_STRING)));
-            }
+          {
+            Lex->view_list.push_back((LEX_STRING*)
+                                     thd->memdup(&$3, sizeof(LEX_STRING)),
+                                     thd->mem_root);
+          }
         ;
 
 view_select:

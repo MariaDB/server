@@ -2754,7 +2754,7 @@ mysql_execute_command(THD *thd)
         }
       }
       DBUG_ASSERT(o);
-      lex->old_var_list.push_back(o);
+      lex->old_var_list.push_back(o, thd->mem_root);
     }
     lex->reset_arena_for_set_stmt(&backup);
     if (lex->old_var_list.is_empty())
@@ -3273,7 +3273,7 @@ mysql_execute_command(THD *thd)
 #ifdef WITH_PARTITION_STORAGE_ENGINE
     {
       partition_info *part_info= thd->lex->part_info;
-      if (part_info && !(part_info= thd->lex->part_info->get_clone()))
+      if (part_info && !(part_info= thd->lex->part_info->get_clone(thd)))
       {
         res= -1;
         goto end_with_restore_list;
@@ -7551,7 +7551,7 @@ bool st_select_lex::init_nested_join(THD *thd)
   nested_join= ptr->nested_join=
     ((NESTED_JOIN*) ((uchar*) ptr + ALIGN_SIZE(sizeof(TABLE_LIST))));
 
-  join_list->push_front(ptr);
+  join_list->push_front(ptr, thd->mem_root);
   ptr->embedding= embedding;
   ptr->join_list= join_list;
   ptr->alias= (char*) "(nested_join)";
@@ -7593,7 +7593,7 @@ TABLE_LIST *st_select_lex::end_nested_join(THD *thd)
     join_list->pop();
     embedded->join_list= join_list;
     embedded->embedding= embedding;
-    join_list->push_front(embedded);
+    join_list->push_front(embedded, thd->mem_root);
     ptr= embedded;
     embedded->lifted= 1;
   }
@@ -7657,7 +7657,7 @@ TABLE_LIST *st_select_lex::nest_last_join(THD *thd)
         ptr->join_using_fields= prev_join_using;
     }
   }
-  join_list->push_front(ptr);
+  join_list->push_front(ptr, thd->mem_root);
   nested_join->used_tables= nested_join->not_null_tables= (table_map) 0;
   DBUG_RETURN(ptr);
 }
@@ -7724,8 +7724,8 @@ TABLE_LIST *st_select_lex::convert_right_join()
   TABLE_LIST *tab1= join_list->pop();
   DBUG_ENTER("convert_right_join");
 
-  join_list->push_front(tab2);
-  join_list->push_front(tab1);
+  join_list->push_front(tab2, parent_lex->thd->mem_root);
+  join_list->push_front(tab1, parent_lex->thd->mem_root);
   tab1->outer_join|= JOIN_TYPE_RIGHT;
 
   DBUG_RETURN(tab1);

@@ -5316,7 +5316,7 @@ inline bool add_item_to_list(THD *thd, Item *item)
 
 inline bool add_value_to_list(THD *thd, Item *value)
 {
-  return thd->lex->value_list.push_back(value);
+  return thd->lex->value_list.push_back(value, thd->mem_root);
 }
 
 inline bool add_order_to_list(THD *thd, Item *item, bool asc)

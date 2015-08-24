@@ -4004,11 +4004,19 @@ bool show_binlog_info(THD* thd)
   DBUG_ENTER("show_binlog_info");
 
   List<Item> field_list;
-  field_list.push_back(new (mem_root) Item_empty_string(thd, "File", FN_REFLEN));
-  field_list.push_back(new (mem_root) Item_return_int(thd, "Position", 20,
-					   MYSQL_TYPE_LONGLONG));
-  field_list.push_back(new (mem_root) Item_empty_string(thd, "Binlog_Do_DB", 255));
-  field_list.push_back(new (mem_root) Item_empty_string(thd, "Binlog_Ignore_DB", 255));
+  field_list.push_back(new (mem_root)
+                       Item_empty_string(thd, "File", FN_REFLEN),
+                       mem_root);
+  field_list.push_back(new (mem_root)
+                       Item_return_int(thd, "Position", 20,
+                                       MYSQL_TYPE_LONGLONG),
+                       mem_root);
+  field_list.push_back(new (mem_root)
+                       Item_empty_string(thd, "Binlog_Do_DB", 255),
+                       mem_root);
+  field_list.push_back(new (mem_root)
+                       Item_empty_string(thd, "Binlog_Ignore_DB", 255),
+                       mem_root);
 
   if (protocol->send_result_set_metadata(&field_list,
                             Protocol::SEND_NUM_ROWS | Protocol::SEND_EOF))
@@ -4060,9 +4068,13 @@ bool show_binlogs(THD* thd)
     DBUG_RETURN(TRUE);
   }
 
-  field_list.push_back(new (mem_root) Item_empty_string(thd, "Log_name", 255));
-  field_list.push_back(new (mem_root) Item_return_int(thd, "File_size", 20,
-                                                      MYSQL_TYPE_LONGLONG));
+  field_list.push_back(new (mem_root)
+                       Item_empty_string(thd, "Log_name", 255),
+                       mem_root);
+  field_list.push_back(new (mem_root)
+                       Item_return_int(thd, "File_size", 20,
+                                       MYSQL_TYPE_LONGLONG),
+                       mem_root);
   if (protocol->send_result_set_metadata(&field_list,
                             Protocol::SEND_NUM_ROWS | Protocol::SEND_EOF))
     DBUG_RETURN(TRUE);

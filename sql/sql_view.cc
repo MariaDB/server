@@ -1981,7 +1981,7 @@ bool insert_view_fields(THD *thd, List<Item> *list, TABLE_LIST *view)
   {
     Item_field *fld;
     if ((fld= entry->item->field_for_view_update()))
-      list->push_back(fld);
+      list->push_back(fld, thd->mem_root);
     else
     {
       my_error(ER_NON_INSERTABLE_TABLE, MYF(0), view->alias, "INSERT");

@@ -1037,17 +1037,28 @@ int Log_event::net_send(THD *thd, Protocol *protocol, const char* log_name,
 void Log_event::init_show_field_list(THD *thd, List<Item>* field_list)
 {
   MEM_ROOT *mem_root= thd->mem_root;
-  field_list->push_back(new (mem_root) Item_empty_string(thd, "Log_name", 20));
-  field_list->push_back(new (mem_root) Item_return_int(thd, "Pos",
-                                            MY_INT32_NUM_DECIMAL_DIGITS,
-					    MYSQL_TYPE_LONGLONG));
-  field_list->push_back(new (mem_root) Item_empty_string(thd, "Event_type", 20));
-  field_list->push_back(new (mem_root) Item_return_int(thd, "Server_id", 10,
-					    MYSQL_TYPE_LONG));
-  field_list->push_back(new (mem_root) Item_return_int(thd, "End_log_pos",
-                                            MY_INT32_NUM_DECIMAL_DIGITS,
-					    MYSQL_TYPE_LONGLONG));
-  field_list->push_back(new (mem_root) Item_empty_string(thd, "Info", 20));
+  field_list->push_back(new (mem_root)
+                        Item_empty_string(thd, "Log_name", 20),
+                        mem_root);
+  field_list->push_back(new (mem_root)
+                        Item_return_int(thd, "Pos",
+                                        MY_INT32_NUM_DECIMAL_DIGITS,
+                                        MYSQL_TYPE_LONGLONG),
+                        mem_root);
+  field_list->push_back(new (mem_root)
+                        Item_empty_string(thd, "Event_type", 20),
+                        mem_root);
+  field_list->push_back(new (mem_root)
+                        Item_return_int(thd, "Server_id", 10,
+                                        MYSQL_TYPE_LONG),
+                        mem_root);
+  field_list->push_back(new (mem_root)
+                        Item_return_int(thd, "End_log_pos",
+                                        MY_INT32_NUM_DECIMAL_DIGITS,
+                                        MYSQL_TYPE_LONGLONG),
+                        mem_root);
+  field_list->push_back(new (mem_root) Item_empty_string(thd, "Info", 20),
+                        mem_root);
 }
 
 /**
@@ -5726,8 +5737,10 @@ void Load_log_event::set_fields(const char* affected_db,
   const char* field = fields;
   for (i= 0; i < num_fields; i++)
   {
-    field_list.push_back(new (thd->mem_root) Item_field(thd, context,
-                                        affected_db, table_name, field));
+    field_list.push_back(new (thd->mem_root)
+                         Item_field(thd, context, affected_db, table_name,
+                                    field),
+                         thd->mem_root);
     field+= field_lens[i]  + 1;
   }
 }

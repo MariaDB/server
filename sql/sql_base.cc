@@ -7442,12 +7442,12 @@ store_natural_using_join_columns(THD *thd, TABLE_LIST *natural_using_join,
     nj_col_1= it_1.get_natural_column_ref();
     if (nj_col_1->is_common)
     {
-      natural_using_join->join_columns->push_back(nj_col_1);
+      natural_using_join->join_columns->push_back(nj_col_1, thd->mem_root);
       /* Reset the common columns for the next call to mark_common_columns. */
       nj_col_1->is_common= FALSE;
     }
     else
-      non_join_columns->push_back(nj_col_1);
+      non_join_columns->push_back(nj_col_1, thd->mem_root);
   }
 
   /*
@@ -7487,7 +7487,7 @@ store_natural_using_join_columns(THD *thd, TABLE_LIST *natural_using_join,
   {
     nj_col_2= it_2.get_natural_column_ref();
     if (!nj_col_2->is_common)
-      non_join_columns->push_back(nj_col_2);
+      non_join_columns->push_back(nj_col_2, thd->mem_root);
     else
     {
       /* Reset the common columns for the next call to mark_common_columns. */
@@ -8054,7 +8054,7 @@ bool setup_tables(THD *thd, Name_resolution_context *context,
     {
       List_iterator_fast <TABLE_LIST> ti(select_lex->leaf_tables_prep);
       while ((table_list= ti++))
-        leaves.push_back(table_list);
+        leaves.push_back(table_list, thd->mem_root);
     }
       
     while ((table_list= ti++))

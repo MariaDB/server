@@ -2459,8 +2459,8 @@ void THD::make_explain_json_field_list(List<Item> &field_list, bool is_analyze)
   Item *item= new (mem_root) Item_empty_string(this, (is_analyze ?
                                                       "ANALYZE" :
                                                       "EXPLAIN"),
-                                               78, system_charset_info);
-  field_list.push_back(item);
+                                              78, system_charset_info);
+  field_list.push_back(item, mem_root);
 }
 
 
@@ -2479,68 +2479,77 @@ void THD::make_explain_field_list(List<Item> &field_list, uint8 explain_flags,
   CHARSET_INFO *cs= system_charset_info;
   field_list.push_back(item= new (mem_root)
                        Item_return_int(this, "id", 3,
-                                       MYSQL_TYPE_LONGLONG));
+                                       MYSQL_TYPE_LONGLONG), mem_root);
   item->maybe_null= 1;
   field_list.push_back(new (mem_root)
-                       Item_empty_string(this, "select_type", 19, cs));
+                       Item_empty_string(this, "select_type", 19, cs),
+                       mem_root);
   field_list.push_back(item= new (mem_root)
-                       Item_empty_string(this, "table", NAME_CHAR_LEN, cs));
+                       Item_empty_string(this, "table", NAME_CHAR_LEN, cs),
+                       mem_root);
   item->maybe_null= 1;
   if (explain_flags & DESCRIBE_PARTITIONS)
   {
     /* Maximum length of string that make_used_partitions_str() can produce */
     item= new (mem_root) Item_empty_string(this, "partitions",
                                            MAX_PARTITIONS * (1 + FN_LEN), cs);
-    field_list.push_back(item);
+    field_list.push_back(item, mem_root);
     item->maybe_null= 1;
   }
   field_list.push_back(item= new (mem_root)
-                       Item_empty_string(this, "type", 10, cs));
+                       Item_empty_string(this, "type", 10, cs),
+                       mem_root);
   item->maybe_null= 1;
   field_list.push_back(item= new (mem_root)
                        Item_empty_string(this, "possible_keys",
-                                         NAME_CHAR_LEN*MAX_KEY, cs));
+                                         NAME_CHAR_LEN*MAX_KEY, cs),
+                       mem_root);
   item->maybe_null=1;
   field_list.push_back(item=new (mem_root)
-                       Item_empty_string(this, "key", NAME_CHAR_LEN, cs));
+                       Item_empty_string(this, "key", NAME_CHAR_LEN, cs),
+                       mem_root);
   item->maybe_null=1;
   field_list.push_back(item=new (mem_root)
                        Item_empty_string(this, "key_len",
-                                         NAME_CHAR_LEN*MAX_KEY));
+                                         NAME_CHAR_LEN*MAX_KEY),
+                       mem_root);
   item->maybe_null=1;
   field_list.push_back(item=new (mem_root)
                        Item_empty_string(this, "ref",
-                                         NAME_CHAR_LEN*MAX_REF_PARTS,
-                                         cs));
+                                         NAME_CHAR_LEN*MAX_REF_PARTS, cs),
+                       mem_root);
   item->maybe_null=1;
   field_list.push_back(item= new (mem_root)
-                       Item_return_int(this, "rows", 10,
-                                       MYSQL_TYPE_LONGLONG));
+                       Item_return_int(this, "rows", 10, MYSQL_TYPE_LONGLONG),
+                       mem_root);
   if (is_analyze)
   {
     field_list.push_back(item= new (mem_root)
-                         Item_float(this, "r_rows", 0.1234, 10, 4));
+                         Item_float(this, "r_rows", 0.1234, 10, 4),
+                         mem_root);
     item->maybe_null=1;
   }
 
   if (is_analyze || (explain_flags & DESCRIBE_EXTENDED))
   {
     field_list.push_back(item= new (mem_root)
-                         Item_float(this, "filtered", 0.1234, 2, 4));
+                         Item_float(this, "filtered", 0.1234, 2, 4),
+                         mem_root);
     item->maybe_null=1;
   }
 
   if (is_analyze)
   {
     field_list.push_back(item= new (mem_root)
-                         Item_float(this, "r_filtered", 0.1234, 2,
-                                    4));
+                         Item_float(this, "r_filtered", 0.1234, 2, 4),
+                         mem_root);
     item->maybe_null=1;
   }
 
   item->maybe_null= 1;
   field_list.push_back(new (mem_root)
-                       Item_empty_string(this, "Extra", 255, cs));
+                       Item_empty_string(this, "Extra", 255, cs),
+                       mem_root);
 }
 
 

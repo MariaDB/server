@@ -1520,7 +1520,7 @@ bool Protocol_binary::send_out_parameters(List<Item_param> *sp_params)
       if (!item_param->get_out_param_info())
         continue; // It's an IN-parameter.
 
-      if (out_param_lst.push_back(item_param))
+      if (out_param_lst.push_back(item_param, thd->mem_root))
         return TRUE;
     }
   }

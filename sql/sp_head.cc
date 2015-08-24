@@ -2574,8 +2574,12 @@ sp_head::show_create_routine(THD *thd, int type)
 
   /* Send header. */
 
-  fields.push_back(new (mem_root) Item_empty_string(thd, col1_caption, NAME_CHAR_LEN));
-  fields.push_back(new (mem_root) Item_empty_string(thd, "sql_mode", sql_mode.length));
+  fields.push_back(new (mem_root)
+                   Item_empty_string(thd, col1_caption, NAME_CHAR_LEN),
+                   thd->mem_root);
+  fields.push_back(new (mem_root)
+                   Item_empty_string(thd, "sql_mode", sql_mode.length),
+                   thd->mem_root);
 
   {
     /*
@@ -2589,17 +2593,23 @@ sp_head::show_create_routine(THD *thd, int type)
 
     stmt_fld->maybe_null= TRUE;
 
-    fields.push_back(stmt_fld);
+    fields.push_back(stmt_fld, thd->mem_root);
   }
 
-  fields.push_back(new (mem_root) Item_empty_string(thd, "character_set_client",
-                                         MY_CS_NAME_SIZE));
+  fields.push_back(new (mem_root)
+                   Item_empty_string(thd, "character_set_client",
+                                     MY_CS_NAME_SIZE),
+                   thd->mem_root);
 
-  fields.push_back(new (mem_root) Item_empty_string(thd, "collation_connection",
-                                         MY_CS_NAME_SIZE));
+  fields.push_back(new (mem_root)
+                   Item_empty_string(thd, "collation_connection",
+                                     MY_CS_NAME_SIZE),
+                   thd->mem_root);
 
-  fields.push_back(new (mem_root) Item_empty_string(thd, "Database Collation",
-                                         MY_CS_NAME_SIZE));
+  fields.push_back(new (mem_root)
+                   Item_empty_string(thd, "Database Collation",
+                                     MY_CS_NAME_SIZE),
+                   thd->mem_root);
 
   if (protocol->send_result_set_metadata(&fields,
                             Protocol::SEND_NUM_ROWS | Protocol::SEND_EOF))
@@ -2782,11 +2792,13 @@ sp_head::show_routine_code(THD *thd)
   if (check_show_routine_access(thd, this, &full_access) || !full_access)
     DBUG_RETURN(1);
 
-  field_list.push_back(new (thd->mem_root) Item_uint(thd, "Pos", 9));
+  field_list.push_back(new (thd->mem_root) Item_uint(thd, "Pos", 9),
+                       thd->mem_root);
   // 1024 is for not to confuse old clients
   field_list.push_back(new (thd->mem_root)
                        Item_empty_string(thd, "Instruction",
-                                         MY_MAX(buffer.length(), 1024)));
+                                         MY_MAX(buffer.length(), 1024)),
+                       thd->mem_root);
   if (protocol->send_result_set_metadata(&field_list, Protocol::SEND_NUM_ROWS |
                                          Protocol::SEND_EOF))
     DBUG_RETURN(1);

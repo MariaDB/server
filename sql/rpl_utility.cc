@@ -950,7 +950,7 @@ TABLE *table_def::create_conversion_table(THD *thd, rpl_group_info *rgi,
   {
     Create_field *field_def=
       (Create_field*) alloc_root(thd->mem_root, sizeof(Create_field));
-    if (field_list.push_back(field_def))
+    if (field_list.push_back(field_def, thd->mem_root))
       DBUG_RETURN(NULL);
 
     uint decimals= 0;
