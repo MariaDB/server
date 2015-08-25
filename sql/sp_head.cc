@@ -1129,11 +1129,9 @@ sp_head::execute(THD *thd, bool merge_da_on_success)
   const uint status_backup_mask= SERVER_STATUS_CURSOR_EXISTS |
                                  SERVER_STATUS_LAST_ROW_SENT;
   Reprepare_observer *save_reprepare_observer= thd->m_reprepare_observer;
-  Object_creation_ctx *saved_creation_ctx;
+  Object_creation_ctx *UNINIT_VAR(saved_creation_ctx);
   Diagnostics_area *da= thd->get_stmt_da();
   Warning_info sp_wi(da->warning_info_id(), false, true);
-
-  UNINIT_VAR(saved_creation_ctx);
 
   /* this 7*STACK_MIN_SIZE is a complex matter with a long history (see it!) */
   if (check_stack_overrun(thd, 7 * STACK_MIN_SIZE, (uchar*)&old_packet))

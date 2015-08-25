@@ -2933,8 +2933,7 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item **cond)
         }
         if (i)
         {
-          double selectivity_mult;
-          UNINIT_VAR(selectivity_mult);
+          double UNINIT_VAR(selectivity_mult);
 
           /* 
             There is at least 1-column prefix of columns whose selectivity has
