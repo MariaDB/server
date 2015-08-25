@@ -9676,10 +9676,10 @@ static int get_options(int *argc_ptr, char ***argv_ptr)
   }
 
   if (global_system_variables.wsrep_causal_reads) {
-      WSREP_WARN("option --wsrep-casual-reads is deprecated");
+      WSREP_WARN("option --wsrep-causal-reads is deprecated");
       if (!(global_system_variables.wsrep_sync_wait &
             WSREP_SYNC_WAIT_BEFORE_READ)) {
-          WSREP_WARN("--wsrep-casual-reads=ON takes precedence over --wsrep-sync-wait=%u. "
+          WSREP_WARN("--wsrep-causal-reads=ON takes precedence over --wsrep-sync-wait=%u. "
                      "WSREP_SYNC_WAIT_BEFORE_READ is on",
                      global_system_variables.wsrep_sync_wait);
           global_system_variables.wsrep_sync_wait |= WSREP_SYNC_WAIT_BEFORE_READ;
