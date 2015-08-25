@@ -3388,14 +3388,10 @@ Query_log_event::Query_log_event(const char* buf, uint event_len,
       break;
     case Q_SQL_MODE_CODE:
     {
-#ifndef DBUG_OFF
-      char buff[22];
-#endif
       CHECK_SPACE(pos, end, 8);
       sql_mode_inited= 1;
       sql_mode= (ulong) uint8korr(pos); // QQ: Fix when sql_mode is ulonglong
-      DBUG_PRINT("info",("In Query_log_event, read sql_mode: %s",
-			 llstr(sql_mode, buff)));
+      DBUG_PRINT("info",("In Query_log_event, read sql_mode: %llu", sql_mode));
       pos+= 8;
       break;
     }
@@ -5787,7 +5783,6 @@ int Load_log_event::do_apply_event(NET* net, rpl_group_info *rgi,
     }
     else
     {
-      char llbuff[22];
       enum enum_duplicates handle_dup;
       bool ignore= 0;
       char query_buffer[1024];
@@ -5888,10 +5883,9 @@ int Load_log_event::do_apply_event(NET* net, rpl_group_info *rgi,
       {
         /* log_pos is the position of the LOAD event in the master log */
         sql_print_warning("Slave: load data infile on table '%s' at "
-                          "log position %s in log '%s' produced %ld "
+                          "log position %llu in log '%s' produced %ld "
                           "warning(s). Default database: '%s'",
-                          (char*) table_name,
-                          llstr(log_pos,llbuff), RPL_LOG_NAME, 
+                          (char*) table_name, log_pos, RPL_LOG_NAME,
                           (ulong) thd->cuted_fields,
                           print_slave_db_safe(thd->db));
       }
@@ -5999,12 +5993,11 @@ Error '%s' running LOAD DATA INFILE on table '%s'. Default database: '%s'",
 #if defined(HAVE_REPLICATION) && !defined(MYSQL_CLIENT)
 void Rotate_log_event::pack_info(THD *thd, Protocol *protocol)
 {
-  char buf1[256], buf[22];
-  String tmp(buf1, sizeof(buf1), log_cs);
+  StringBuffer<256> tmp(log_cs);
   tmp.length(0);
   tmp.append(new_log_ident, ident_len);
   tmp.append(STRING_WITH_LEN(";pos="));
-  tmp.append(llstr(pos,buf));
+  tmp.append_ulonglong(pos);
   protocol->store(tmp.ptr(), tmp.length(), &my_charset_bin);
 }
 #endif

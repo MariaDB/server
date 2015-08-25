@@ -4281,12 +4281,9 @@ int MYSQL_BIN_LOG::purge_first_log(Relay_log_info* rli, bool included)
   if((error=find_log_pos(&rli->linfo, rli->event_relay_log_name, 0)) || 
      (error=find_next_log(&rli->linfo, 0)))
   {
-    char buff[22];
-    sql_print_error("next log error: %d  offset: %s  log: %s included: %d",
-                    error,
-                    llstr(rli->linfo.index_file_offset,buff),
-                    rli->event_relay_log_name,
-                    included);
+    sql_print_error("next log error: %d  offset: %llu  log: %s included: %d",
+                    error, rli->linfo.index_file_offset,
+                    rli->event_relay_log_name, included);
     goto err;
   }
 
@@ -4327,12 +4324,9 @@ int MYSQL_BIN_LOG::purge_first_log(Relay_log_info* rli, bool included)
    */
   if((error=find_log_pos(&rli->linfo, rli->event_relay_log_name, 0)))
   {
-    char buff[22];
-    sql_print_error("next log error: %d  offset: %s  log: %s included: %d",
-                    error,
-                    llstr(rli->linfo.index_file_offset,buff),
-                    rli->group_relay_log_name,
-                    included);
+    sql_print_error("next log error: %d  offset: %llu  log: %s included: %d",
+                    error, rli->linfo.index_file_offset,
+                    rli->group_relay_log_name, included);
     goto err;
   }
 

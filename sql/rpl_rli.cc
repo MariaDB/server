@@ -395,24 +395,16 @@ Failed to open the existing relay log info file '%s' (errno %d)",
                            0 /* no data lock*/,
                            &msg, 0))
     {
-      char llbuf[22];
-      sql_print_error("Failed to open the relay log '%s' (relay_log_pos %s)",
-                      rli->group_relay_log_name,
-                      llstr(rli->group_relay_log_pos, llbuf));
+      sql_print_error("Failed to open the relay log '%s' (relay_log_pos %llu)",
+                      rli->group_relay_log_name, rli->group_relay_log_pos);
       goto err;
     }
   }
 
-#ifndef DBUG_OFF
-  {
-    char llbuf1[22], llbuf2[22];
-    DBUG_PRINT("info", ("my_b_tell(rli->cur_log)=%s rli->event_relay_log_pos=%s",
-                        llstr(my_b_tell(rli->cur_log),llbuf1),
-                        llstr(rli->event_relay_log_pos,llbuf2)));
-    DBUG_ASSERT(rli->event_relay_log_pos >= BIN_LOG_HEADER_SIZE);
-    DBUG_ASSERT(my_b_tell(rli->cur_log) == rli->event_relay_log_pos);
-  }
-#endif
+  DBUG_PRINT("info", ("my_b_tell(rli->cur_log)=%llu rli->event_relay_log_pos=%llu",
+                      my_b_tell(rli->cur_log), rli->event_relay_log_pos));
+  DBUG_ASSERT(rli->event_relay_log_pos >= BIN_LOG_HEADER_SIZE);
+  DBUG_ASSERT(my_b_tell(rli->cur_log) == rli->event_relay_log_pos);
 
   /*
     Now change the cache from READ to WRITE - must do this
@@ -457,10 +449,7 @@ static inline int add_relay_log(Relay_log_info* rli,LOG_INFO* linfo)
     DBUG_RETURN(1);
   }
   rli->log_space_total += s.st_size;
-#ifndef DBUG_OFF
-  char buf[22];
-  DBUG_PRINT("info",("log_space_total: %s", llstr(rli->log_space_total,buf)));
-#endif
+  DBUG_PRINT("info",("log_space_total: %llu", rli->log_space_total));
   DBUG_RETURN(0);
 }
 
@@ -725,14 +714,8 @@ int init_relay_log_pos(Relay_log_info* rli,const char* log,
       rli->relay_log.description_event_for_exec= fdev;
     }
     my_b_seek(rli->cur_log,(off_t)pos);
-#ifndef DBUG_OFF
-  {
-    char llbuf1[22], llbuf2[22];
-    DBUG_PRINT("info", ("my_b_tell(rli->cur_log)=%s rli->event_relay_log_pos=%s",
-                        llstr(my_b_tell(rli->cur_log),llbuf1),
-                        llstr(rli->event_relay_log_pos,llbuf2)));
-  }
-#endif
+    DBUG_PRINT("info", ("my_b_tell(rli->cur_log)=%llu rli->event_relay_log_pos=%llu",
+                        my_b_tell(rli->cur_log), rli->event_relay_log_pos));
 
   }
 
@@ -1165,10 +1148,7 @@ int purge_relay_logs(Relay_log_info* rli, THD *thd, bool just_reset,
   }
 
 err:
-#ifndef DBUG_OFF
-  char buf[22];
-#endif
-  DBUG_PRINT("info",("log_space_total: %s",llstr(rli->log_space_total,buf)));
+  DBUG_PRINT("info",("log_space_total: %llu",rli->log_space_total));
   mysql_mutex_unlock(&rli->data_lock);
   DBUG_RETURN(error);
 }
@@ -1225,21 +1205,16 @@ bool Relay_log_info::is_until_satisfied(my_off_t master_beg_pos)
     log_pos= group_relay_log_pos;
   }
 
-#ifndef DBUG_OFF
-  {
-    char buf[32];
-    DBUG_PRINT("info", ("group_master_log_name='%s', group_master_log_pos=%s",
-                        group_master_log_name, llstr(group_master_log_pos, buf)));
-    DBUG_PRINT("info", ("group_relay_log_name='%s', group_relay_log_pos=%s",
-                        group_relay_log_name, llstr(group_relay_log_pos, buf)));
-    DBUG_PRINT("info", ("(%s) log_name='%s', log_pos=%s",
-                        until_condition == UNTIL_MASTER_POS ? "master" : "relay",
-                        log_name, llstr(log_pos, buf)));
-    DBUG_PRINT("info", ("(%s) until_log_name='%s', until_log_pos=%s",
-                        until_condition == UNTIL_MASTER_POS ? "master" : "relay",
-                        until_log_name, llstr(until_log_pos, buf)));
-  }
-#endif
+  DBUG_PRINT("info", ("group_master_log_name='%s', group_master_log_pos=%llu",
+                      group_master_log_name, group_master_log_pos));
+  DBUG_PRINT("info", ("group_relay_log_name='%s', group_relay_log_pos=%llu",
+                      group_relay_log_name, group_relay_log_pos));
+  DBUG_PRINT("info", ("(%s) log_name='%s', log_pos=%llu",
+                      until_condition == UNTIL_MASTER_POS ? "master" : "relay",
+                      log_name, log_pos));
+  DBUG_PRINT("info", ("(%s) until_log_name='%s', until_log_pos=%llu",
+                      until_condition == UNTIL_MASTER_POS ? "master" : "relay",
+                      until_log_name, until_log_pos));
 
   if (until_log_names_cmp_result == UNTIL_LOG_NAMES_CMP_UNKNOWN)
   {
