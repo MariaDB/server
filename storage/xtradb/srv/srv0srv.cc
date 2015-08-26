@@ -2944,7 +2944,7 @@ srv_master_do_active_tasks(void)
 		srv_main_thread_op_info = "enforcing dict cache limit";
 		n_evicted = srv_master_evict_from_table_cache(50);
 		MONITOR_INC_VALUE(
-			MONITOR_SRV_DICT_LRU_EVICT_COUNT, n_evicted);
+			MONITOR_SRV_DICT_LRU_EVICT_COUNT_ACTIVE, n_evicted);
 		MONITOR_INC_TIME_IN_MICRO_SECS(
 			MONITOR_SRV_DICT_LRU_MICROSECOND, counter_time);
 	}
@@ -2976,6 +2976,7 @@ srv_master_do_idle_tasks(void)
 /*==========================*/
 {
 	ullint	counter_time;
+	ulint	n_evicted = 0;
 
 	++srv_main_idle_loops;
 
@@ -3013,7 +3014,9 @@ srv_master_do_idle_tasks(void)
 	}
 
 	srv_main_thread_op_info = "enforcing dict cache limit";
-	srv_master_evict_from_table_cache(100);
+	n_evicted = srv_master_evict_from_table_cache(100);
+        MONITOR_INC_VALUE(
+                MONITOR_SRV_DICT_LRU_EVICT_COUNT_IDLE, n_evicted);
 	MONITOR_INC_TIME_IN_MICRO_SECS(
 		MONITOR_SRV_DICT_LRU_MICROSECOND, counter_time);
 
