@@ -2295,6 +2295,8 @@ public:
 
 class Item_field :public Item_ident
 {
+  bool can_be_substituted_to_equal_item(const Context &ctx,
+                                        const Item_equal *item);
 protected:
   void set_field(Field *field);
 public:
@@ -2431,8 +2433,6 @@ public:
   Item_equal *get_item_equal() { return item_equal; }
   void set_item_equal(Item_equal *item_eq) { item_equal= item_eq; }
   Item_equal *find_item_equal(COND_EQUAL *cond_equal);
-  bool can_be_substituted_to_equal_item(const Context &ctx,
-                                        const Item_equal *item);
   Item* propagate_equal_fields(THD *, const Context &, COND_EQUAL *);
   bool set_no_const_sub(uchar *arg);
   Item *replace_equal_field(THD *thd, uchar *arg);
