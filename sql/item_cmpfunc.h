@@ -369,9 +369,12 @@ public:
   }
   Item *neg_transformer(THD *thd);
   virtual Item *negated_item(THD *thd);
-  bool subst_argument_checker(uchar **arg)
+  Item* propagate_equal_fields(THD *thd, const Context &ctx, COND_EQUAL *cond)
   {
-    return (*arg != NULL);     
+    Item_args::propagate_equal_fields(thd,
+                                      Context(ANY_SUBST, compare_collation()),
+                                      cond);
+    return this;
   }
   void fix_length_and_dec();
   int set_cmp_func()
@@ -418,9 +421,10 @@ public:
   { Item_func::print_op(str, query_type); }
   longlong val_int();
   Item *neg_transformer(THD *thd);
-  bool subst_argument_checker(uchar **arg)
+  Item* propagate_equal_fields(THD *thd, const Context &ctx, COND_EQUAL *cond)
   {
-    return (*arg != NULL);     
+    Item_args::propagate_equal_fields(thd, ANY_SUBST, cond);
+    return this;
   }
 };
 
@@ -692,7 +696,13 @@ public:
     return this;
   }
   bool eq(const Item *item, bool binary_cmp) const;
-  bool subst_argument_checker(uchar **arg) { return TRUE; }
+  Item* propagate_equal_fields(THD *thd, const Context &ctx, COND_EQUAL *cond)
+  {
+    Item_args::propagate_equal_fields(thd,
+                                      Context(ANY_SUBST, compare_collation()),
+                                      cond);
+    return this;
+  }
 };
 
 
@@ -1841,7 +1851,7 @@ public:
   void traverse_cond(Cond_traverser, void *arg, traverse_order order);
   void neg_arguments(THD *thd);
   enum_field_types field_type() const { return MYSQL_TYPE_LONGLONG; }
-  bool subst_argument_checker(uchar **arg) { return TRUE; }
+  Item* propagate_equal_fields(THD *, const Context &, COND_EQUAL *);
   Item *compile(THD *thd, Item_analyzer analyzer, uchar **arg_p,
                 Item_transformer transformer, uchar *arg_t);
   bool eval_not_null_tables(uchar *opt_arg);

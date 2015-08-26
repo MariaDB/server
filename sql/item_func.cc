@@ -415,6 +415,21 @@ Item *Item_func::compile(THD *thd, Item_analyzer analyzer, uchar **arg_p,
   return (this->*transformer)(thd, arg_t);
 }
 
+
+void Item_args::propagate_equal_fields(THD *thd,
+                                       const Item::Context &ctx,
+                                       COND_EQUAL *cond)
+{
+  Item **arg,**arg_end;
+  for (arg= args, arg_end= args + arg_count; arg != arg_end; arg++)
+  {
+    Item *new_item= (*arg)->propagate_equal_fields(thd, ctx, cond);
+    if (new_item && *arg != new_item)
+      thd->change_item_tree(arg, new_item);
+  }
+}
+
+
 /**
   See comments in Item_cond::split_sum_func()
 */

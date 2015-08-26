@@ -248,3 +248,34 @@ SELECT _latin1 0x7E, _latin1 X'7E', _latin1 B'01111110';
 --echo #
 --echo # End of 10.0 tests
 --echo #
+
+--echo #
+--echo # Start of 10.1 tests
+--echo #
+
+--echo #
+--echo # MDEV-8661 Wrong result for SELECT..WHERE a='a' AND a='a' COLLATE latin1_bin
+--echo #
+SET NAMES latin1;
+CREATE TABLE t1 (a CHAR(10));
+INSERT INTO t1 VALUES ('a'),('A');
+SELECT * FROM t1 WHERE a='a' AND a='a' COLLATE latin1_bin;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET latin1 COLLATE latin1_swedish_ci);
+INSERT INTO t1 VALUES ('a'),('A');
+SELECT * FROM t1 WHERE a='a' COLLATE latin1_bin AND a='A' COLLATE latin1_swedish_ci;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-8679 Equal field propagation is not used for VARCHAR when it safely could
+--echo #
+CREATE TABLE t1 (a VARCHAR(10));
+INSERT INTO t1 VALUES ('10'),('11'),('12');
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a='10' AND IF(a='10',1,0)=1;
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a='10' AND CASE WHEN a='10' THEN 1 ELSE 0 END;
+DROP TABLE t1;
+
+--echo #
+--echo # End of 10.1 tests
+--echo #

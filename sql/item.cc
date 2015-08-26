@@ -5356,11 +5356,14 @@ Item_equal *Item_field::find_item_equal(COND_EQUAL *cond_equal)
     FALSE  otherwise
 */
 
-bool Item_field::subst_argument_checker(uchar **arg)
+bool Item_field::can_be_substituted_to_equal_item(const Context &ctx,
+                                                  const Item_equal *item_equal)
 {
-  return *arg &&
-         (*arg == (uchar *) Item::ANY_SUBST ||
-          result_type() != STRING_RESULT || 
+  if (cmp_context == STRING_RESULT &&
+      ctx.compare_collation() != item_equal->compare_collation())
+    return false;
+  return (ctx.subst_constraint() == ANY_SUBST ||
+          field->result_type() != STRING_RESULT ||
           (field->flags & BINARY_FLAG));
 }
 
@@ -5418,14 +5421,23 @@ static void convert_zerofill_number_to_string(THD *thd, Item **item, Field_num *
     - pointer to the field item, otherwise.
 */
 
-Item *Item_field::equal_fields_propagator(THD *thd, uchar *arg)
+Item *Item_field::propagate_equal_fields(THD *thd,
+                                         const Context &ctx,
+                                         COND_EQUAL *arg)
 {
   if (no_const_subst)
     return this;
   item_equal= find_item_equal((COND_EQUAL *) arg);
   Item *item= 0;
   if (item_equal)
+  {
+    if (!can_be_substituted_to_equal_item(ctx, item_equal))
+    {
+      item_equal= NULL;
+      return this;
+    }
     item= item_equal->get_const();
+  }
   /*
     Disable const propagation for items used in different comparison contexts.
     This must be done because, for example, Item_hex_string->val_int() is not
@@ -8124,43 +8136,6 @@ Item_equal *Item_direct_view_ref::find_item_equal(COND_EQUAL *cond_equal)
 
 
 /**
-  Check whether a reference to field item can be substituted for an equal item
-
-  @details
-  The function checks whether a substitution of a reference to field item for
-  an equal item is valid.
-
-  @param arg   *arg != NULL <-> the reference is in the context
-               where substitution for an equal item is valid
-
-  @note
-    See also the note for Item_field::subst_argument_checker
-
-  @retval
-    TRUE   substitution is valid
-  @retval
-    FALSE  otherwise
-*/
-bool Item_direct_view_ref::subst_argument_checker(uchar **arg)
-{
-  bool res= FALSE;
-  if (*arg)
-  { 
-    Item *item= real_item();
-    if (item->type() == FIELD_ITEM &&
-        (*arg == (uchar *) Item::ANY_SUBST || 
-         result_type() != STRING_RESULT ||
-         (((Item_field *) item)->field->flags & BINARY_FLAG)))
-      res= TRUE;
-  }
-  /* Block any substitution into the wrapped object */
-  if (*arg)
-    *arg= NULL; 
-  return res; 
-}
-
-
-/**
   Set a pointer to the multiple equality the view field reference belongs to
   (if any).
 
@@ -8180,7 +8155,7 @@ bool Item_direct_view_ref::subst_argument_checker(uchar **arg)
     of the compile method.
 
   @note 
-    The function calls Item_field::equal_fields_propagator for the field item
+    The function calls Item_field::propagate_equal_fields() for the field item
     this->real_item() to do the job. Then it takes the pointer to equal_item
     from this field item and assigns it to this->item_equal.
 
@@ -8189,12 +8164,14 @@ bool Item_direct_view_ref::subst_argument_checker(uchar **arg)
     - pointer to the field item, otherwise.
 */
 
-Item *Item_direct_view_ref::equal_fields_propagator(THD *thd, uchar *arg)
+Item *Item_direct_view_ref::propagate_equal_fields(THD *thd,
+                                                   const Context &ctx,
+                                                   COND_EQUAL *cond)
 {
   Item *field_item= real_item();
   if (field_item->type() != FIELD_ITEM)
     return this;
-  Item *item= field_item->equal_fields_propagator(thd, arg);
+  Item *item= field_item->propagate_equal_fields(thd, ctx, cond);
   set_item_equal(field_item->get_item_equal());
   field_item->set_item_equal(NULL);
   if (item != field_item)

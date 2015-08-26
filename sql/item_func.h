@@ -341,19 +341,15 @@ public:
     return FALSE;
   }
 
-  /*
-    By default only substitution for a field whose two different values
-    are never equal is allowed in the arguments of a function.
-    This is overruled for the direct arguments of comparison functions.
-  */ 
-  bool subst_argument_checker(uchar **arg) 
-  { 
-    if (*arg)
-    {
-      *arg= (uchar *) Item::IDENTITY_SUBST;
-      return TRUE;
-    }
-    return FALSE;
+  Item* propagate_equal_fields(THD *thd, const Context &ctx, COND_EQUAL *cond)
+  {
+    /*
+      By default only substitution for a field whose two different values
+      are never equal is allowed in the arguments of a function.
+      This is overruled for the direct arguments of comparison functions.
+    */
+    Item_args::propagate_equal_fields(thd, IDENTITY_SUBST, cond);
+    return this;
   }
 
   /*

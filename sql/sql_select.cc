@@ -13077,11 +13077,7 @@ COND *Item_func::build_equal_items(THD *thd, COND_EQUAL *inherited,
     as soon the field is not of a string type or the field reference is
     an argument of a comparison predicate. 
   */ 
-  uchar* is_subst_valid= (uchar *) Item::ANY_SUBST;
-  COND *cond= compile(thd, &Item::subst_argument_checker,
-                      &is_subst_valid, 
-                      &Item::equal_fields_propagator,
-                      (uchar *) inherited);
+  COND *cond= propagate_equal_fields(thd, ANY_SUBST, inherited);
   cond->update_used_tables();
   DBUG_ASSERT(cond == this);
   DBUG_ASSERT(!cond_equal_ref || !cond_equal_ref[0]);
@@ -14906,11 +14902,7 @@ void propagate_new_equalities(THD *thd, Item *cond,
   }
   else
   {
-    uchar* is_subst_valid= (uchar *) Item::ANY_SUBST;
-    cond= cond->compile(thd, &Item::subst_argument_checker,
-                        &is_subst_valid, 
-                        &Item::equal_fields_propagator,
-                        (uchar *) inherited);
+    cond= cond->propagate_equal_fields(thd, Item::ANY_SUBST, inherited);
     cond->update_used_tables();
   }          
 } 

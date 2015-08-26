@@ -1417,16 +1417,45 @@ public:
   */ 
   enum Subst_constraint 
   { 
-    NO_SUBST= 0,         /* No substitution for a field is allowed   */
     ANY_SUBST,           /* Any substitution for a field is allowed  */ 
     IDENTITY_SUBST       /* Substitution for a field is allowed if any two
                             different values of the field type are not equal */
   };
 
-  virtual bool subst_argument_checker(uchar **arg)
-  { 
-    return (*arg != NULL); 
-  }
+  /*
+    Item context attributes.
+    Comparison functions pass their attributes to propagate_equal_fields().
+    For exmple, for string comparison, the collation of the comparison
+    operation is important inside propagate_equal_fields().
+    TODO: We should move Item::cmp_context to from Item to Item::Context
+    eventually.
+  */
+  class Context
+  {
+    /*
+      Which type of propagation is allowed:
+      - SUBST_ANY (loose equality, according to the collation), or
+      - SUBST_IDENTITY (strict binary equality).
+    */
+    Subst_constraint m_subst_constraint;
+    /*
+      Collation of the comparison operation.
+      Important only when SUBST_ANY.
+    */
+    CHARSET_INFO *m_compare_collation;
+  public:
+    Context(Subst_constraint subst, CHARSET_INFO *cs)
+      :m_subst_constraint(subst), m_compare_collation(cs) { }
+    Context(Subst_constraint subst)
+      :m_subst_constraint(subst), m_compare_collation(&my_charset_bin) { }
+    Subst_constraint subst_constraint() const { return m_subst_constraint; }
+    CHARSET_INFO *compare_collation() const { return m_compare_collation; }
+  };
+
+  virtual Item* propagate_equal_fields(THD*, const Context &, COND_EQUAL *)
+  {
+    return this;
+  };
 
   /*
     @brief
@@ -1446,7 +1475,6 @@ public:
     return trace_unsupported_by_check_vcol_func_processor(full_name());
   }
 
-  virtual Item *equal_fields_propagator(THD *thd, uchar * arg) { return this; }
   virtual bool set_no_const_sub(uchar *arg) { return FALSE; }
   /* arg points to REPLACE_EQUAL_FIELD_ARG object */
   virtual Item *replace_equal_field(THD *thd, uchar *arg) { return this; }
@@ -1587,7 +1615,7 @@ public:
   }
   /**
     Check whether this and the given item has compatible comparison context.
-    Used by the equality propagation. See Item_field::equal_fields_propagator.
+    Used by the equality propagation. See Item_field::propagate_equal_fields()
 
     @return
       TRUE  if the context is the same
@@ -2403,8 +2431,9 @@ public:
   Item_equal *get_item_equal() { return item_equal; }
   void set_item_equal(Item_equal *item_eq) { item_equal= item_eq; }
   Item_equal *find_item_equal(COND_EQUAL *cond_equal);
-  bool subst_argument_checker(uchar **arg);
-  Item *equal_fields_propagator(THD *thd, uchar *arg);
+  bool can_be_substituted_to_equal_item(const Context &ctx,
+                                        const Item_equal *item);
+  Item* propagate_equal_fields(THD *, const Context &, COND_EQUAL *);
   bool set_no_const_sub(uchar *arg);
   Item *replace_equal_field(THD *thd, uchar *arg);
   inline uint32 max_disp_length() { return field->max_display_length(); }
@@ -3391,6 +3420,7 @@ protected:
     return false;
   }
   bool transform_args(THD *thd, Item_transformer transformer, uchar *arg);
+  void propagate_equal_fields(THD *, const Item::Context &, COND_EQUAL *);
 public:
   uint arg_count;
   Item_args(void)
@@ -3999,8 +4029,7 @@ public:
   Item_equal *get_item_equal() { return item_equal; }
   void set_item_equal(Item_equal *item_eq) { item_equal= item_eq; }
   Item_equal *find_item_equal(COND_EQUAL *cond_equal);
-  bool subst_argument_checker(uchar **arg);
-  Item *equal_fields_propagator(THD *thd, uchar *arg);
+  Item* propagate_equal_fields(THD *, const Context &, COND_EQUAL *);
   Item *replace_equal_field(THD *thd, uchar *arg);
   table_map used_tables() const;
   void update_used_tables();

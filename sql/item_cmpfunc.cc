@@ -3115,7 +3115,7 @@ void Item_func_case::fix_length_and_dec()
     }
     /*
       Set cmp_context of all WHEN arguments. This prevents
-      Item_field::equal_fields_propagator() from transforming a
+      Item_field::propagate_equal_fields() from transforming a
       zerofill argument into a string constant. Such a change would
       require rebuilding cmp_items.
     */
@@ -4110,7 +4110,7 @@ void Item_func_in::fix_length_and_dec()
   }
   /*
     Set cmp_context of all arguments. This prevents
-    Item_field::equal_fields_propagator() from transforming a zerofill integer
+    Item_field::propagate_equal_fields() from transforming a zerofill integer
     argument into a string constant. Such a change would require rebuilding
     cmp_itmes.
    */
@@ -4559,6 +4559,29 @@ Item *Item_cond::compile(THD *thd, Item_analyzer analyzer, uchar **arg_p,
       thd->change_item_tree(li.ref(), new_item);
   }
   return Item_func::transform(thd, transformer, arg_t);
+}
+
+
+Item *Item_cond::propagate_equal_fields(THD *thd,
+                                        const Context &ctx,
+                                        COND_EQUAL *cond)
+{
+  DBUG_ASSERT(!thd->stmt_arena->is_stmt_prepare());
+  DBUG_ASSERT(arg_count == 0);
+  List_iterator<Item> li(list);
+  Item *item;
+  while ((item= li++))
+  {
+    /*
+      The exact value of the second parameter to propagate_equal_fields()
+      is not important at this point. Item_func derivants will create and
+      pass their own context to the arguments.
+    */
+    Item *new_item= item->propagate_equal_fields(thd, ANY_SUBST, cond);
+    if (new_item && new_item != item)
+      thd->change_item_tree(li.ref(), new_item);
+  }
+  return this;
 }
 
 void Item_cond::traverse_cond(Cond_traverser traverser,
