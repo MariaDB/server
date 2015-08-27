@@ -1105,7 +1105,7 @@ public:
   static cmp_item* get_comparator(Item_result type, Item * warn_item,
                                   CHARSET_INFO *cs);
   virtual cmp_item *make_same()= 0;
-  virtual void store_value_by_template(cmp_item *tmpl, Item *item)
+  virtual void store_value_by_template(THD *thd, cmp_item *tmpl, Item *item)
   {
     store_value(item);
   }
@@ -1300,6 +1300,7 @@ class Item_func_case :public Item_func_hybrid_field_type
   DTCollation cmp_collation;
   cmp_item *cmp_items[6]; /* For all result types */
   cmp_item *case_item;
+  Item **arg_buffer;
 public:
   Item_func_case(THD *thd, List<Item> &list, Item *first_expr_arg,
                  Item *else_expr_arg);
@@ -1405,7 +1406,7 @@ public:
   int cmp(Item *arg);
   int compare(cmp_item *arg);
   cmp_item *make_same();
-  void store_value_by_template(cmp_item *tmpl, Item *);
+  void store_value_by_template(THD *thd, cmp_item *tmpl, Item *);
   friend void Item_func_in::fix_length_and_dec();
 };
 
@@ -1414,7 +1415,7 @@ class in_row :public in_vector
 {
   cmp_item_row tmp;
 public:
-  in_row(uint elements, Item *);
+  in_row(THD *thd, uint elements, Item *);
   ~in_row();
   void set(uint pos,Item *item);
   uchar *get_value(Item *item);

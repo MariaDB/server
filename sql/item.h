@@ -3172,16 +3172,16 @@ public:
 class Item_hex_constant: public Item_basic_constant
 {
 private:
-  void hex_string_init(const char *str, uint str_length);
+  void hex_string_init(THD *thd, const char *str, uint str_length);
 public:
   Item_hex_constant(THD *thd): Item_basic_constant(thd)
   {
-    hex_string_init("", 0);
+    hex_string_init(thd, "", 0);
   }
   Item_hex_constant(THD *thd, const char *str, uint str_length):
     Item_basic_constant(thd)
   {
-    hex_string_init(str, str_length);
+    hex_string_init(thd, str, str_length);
   }
   enum Type type() const { return VARBIN_ITEM; }
   enum Item_result result_type () const { return STRING_RESULT; }
@@ -3409,7 +3409,7 @@ class Item_args
 {
 protected:
   Item **args, *tmp_arg[2];
-  void set_arguments(List<Item> &list);
+  void set_arguments(THD *thd, List<Item> &list);
   bool walk_args(Item_processor processor, bool walk_subquery, uchar *arg)
   {
     for (uint i= 0; i < arg_count; i++)
@@ -3463,9 +3463,9 @@ public:
       args[0]= a; args[1]= b; args[2]= c; args[3]= d; args[4]= e;
     }
   }
-  Item_args(List<Item> &list)
+  Item_args(THD *thd, List<Item> &list)
   {
-    set_arguments(list);
+    set_arguments(thd, list);
   }
   Item_args(THD *thd, const Item_args *other);
   inline Item **arguments() const { return args; }
@@ -3560,7 +3560,7 @@ public:
   Item_func_or_sum(THD *thd, Item_func_or_sum *item):
     Item_result_field(thd, item), Item_args(thd, item) { }
   Item_func_or_sum(THD *thd, List<Item> &list):
-    Item_result_field(thd), Item_args(list) { }
+    Item_result_field(thd), Item_args(thd, list) { }
   bool walk(Item_processor processor, bool walk_subquery, uchar *arg)
   {
     if (walk_args(processor, walk_subquery, arg))

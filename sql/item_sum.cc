@@ -404,7 +404,7 @@ bool Item_sum::collect_outer_ref_processor(uchar *param)
 Item_sum::Item_sum(THD *thd, List<Item> &list): Item_func_or_sum(thd, list),
   forced_const(FALSE)
 {
-  if (!(orig_args= (Item **) sql_alloc(sizeof(Item *) * arg_count)))
+  if (!(orig_args= (Item **) thd->alloc(sizeof(Item *) * arg_count)))
   {
     args= NULL;
   }
@@ -3197,8 +3197,8 @@ Item_func_group_concat(THD *thd, Name_resolution_context *context_arg,
            (for possible order items in temporary tables)
     order - arg_count_order
   */
-  if (!(args= (Item**) sql_alloc(sizeof(Item*) * arg_count * 2 +
-                                 sizeof(ORDER*)*arg_count_order)))
+  if (!(args= (Item**) thd->alloc(sizeof(Item*) * arg_count * 2 +
+                                  sizeof(ORDER*)*arg_count_order)))
     return;
 
   order= (ORDER**)(args + arg_count);

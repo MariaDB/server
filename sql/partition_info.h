@@ -335,7 +335,7 @@ public:
   bool set_part_expr(char *start_token, Item *item_ptr,
                      char *end_token, bool is_subpart);
   static int compare_column_values(const void *a, const void *b);
-  bool set_up_charset_field_preps();
+  bool set_up_charset_field_preps(THD *thd);
   bool check_partition_field_length();
   bool init_column_part(THD *thd);
   bool add_column_list_value(THD *thd, Item *item);

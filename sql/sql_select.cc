@@ -22484,7 +22484,7 @@ setup_copy_fields(THD *thd, TMP_TABLE_PARAM *param,
           another extra byte to not get warnings from purify in
           Field_string::val_int
         */
-	if (!(tmp= (uchar*) sql_alloc(field->pack_length()+2)))
+	if (!(tmp= (uchar*) thd->alloc(field->pack_length()+2)))
 	  goto err;
         if (copy)
         {
@@ -22739,7 +22739,7 @@ change_to_use_tmp_fields(THD *thd, Item **ref_pointer_array,
         new_field->update_null_value();
         List<Item> list;
         list.push_back(new_field, thd->mem_root);
-        suv->set_arguments(list);
+        suv->set_arguments(thd, list);
         item_field= suv;
       }
       else

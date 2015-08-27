@@ -1222,8 +1222,8 @@ bool partition_info::check_range_constants(THD *thd)
     part_column_list_val *UNINIT_VAR(current_largest_col_val);
     uint num_column_values= part_field_list.elements;
     uint size_entries= sizeof(part_column_list_val) * num_column_values;
-    range_col_array= (part_column_list_val*)sql_calloc(num_parts *
-                                                       size_entries);
+    range_col_array= (part_column_list_val*) thd->calloc(num_parts *
+                                                         size_entries);
     if (unlikely(range_col_array == NULL))
     {
       mem_alloc_error(num_parts * size_entries);
@@ -1260,7 +1260,7 @@ bool partition_info::check_range_constants(THD *thd)
     longlong part_range_value;
     bool signed_flag= !part_expr->unsigned_flag;
 
-    range_int_array= (longlong*)sql_alloc(num_parts * sizeof(longlong));
+    range_int_array= (longlong*) thd->alloc(num_parts * sizeof(longlong));
     if (unlikely(range_int_array == NULL))
     {
       mem_alloc_error(num_parts * sizeof(longlong));
@@ -1474,7 +1474,7 @@ bool partition_info::check_list_constants(THD *thd)
   size_entries= column_list ?
         (num_column_values * sizeof(part_column_list_val)) :
         sizeof(LIST_PART_ENTRY);
-  ptr= sql_calloc((num_list_values+1) * size_entries);
+  ptr= thd->calloc((num_list_values+1) * size_entries);
   if (unlikely(ptr == NULL))
   {
     mem_alloc_error(num_list_values * size_entries);
@@ -1972,7 +1972,7 @@ bool partition_info::check_partition_field_length()
     the binary collation.
 */
 
-bool partition_info::set_up_charset_field_preps()
+bool partition_info::set_up_charset_field_preps(THD *thd)
 {
   Field *field, **ptr;
   uchar **char_ptrs;
@@ -1998,14 +1998,14 @@ bool partition_info::set_up_charset_field_preps()
       }
     }
     size= tot_part_fields * sizeof(char*);
-    if (!(char_ptrs= (uchar**)sql_calloc(size)))
+    if (!(char_ptrs= (uchar**)thd->calloc(size)))
       goto error;
     part_field_buffers= char_ptrs;
-    if (!(char_ptrs= (uchar**)sql_calloc(size)))
+    if (!(char_ptrs= (uchar**)thd->calloc(size)))
       goto error;
     restore_part_field_ptrs= char_ptrs;
     size= (tot_part_fields + 1) * sizeof(Field*);
-    if (!(char_ptrs= (uchar**)sql_alloc(size)))
+    if (!(char_ptrs= (uchar**)thd->alloc(size)))
       goto error;
     part_charset_field_array= (Field**)char_ptrs;
     ptr= part_field_array;
@@ -2016,7 +2016,7 @@ bool partition_info::set_up_charset_field_preps()
       {
         uchar *field_buf;
         size= field->pack_length();
-        if (!(field_buf= (uchar*) sql_calloc(size)))
+        if (!(field_buf= (uchar*) thd->calloc(size)))
           goto error;
         part_charset_field_array[i]= field;
         part_field_buffers[i++]= field_buf;
@@ -2038,14 +2038,14 @@ bool partition_info::set_up_charset_field_preps()
       }
     }
     size= tot_subpart_fields * sizeof(char*);
-    if (!(char_ptrs= (uchar**) sql_calloc(size)))
+    if (!(char_ptrs= (uchar**) thd->calloc(size)))
       goto error;
     subpart_field_buffers= char_ptrs;
-    if (!(char_ptrs= (uchar**) sql_calloc(size)))
+    if (!(char_ptrs= (uchar**) thd->calloc(size)))
       goto error;
     restore_subpart_field_ptrs= char_ptrs;
     size= (tot_subpart_fields + 1) * sizeof(Field*);
-    if (!(char_ptrs= (uchar**) sql_alloc(size)))
+    if (!(char_ptrs= (uchar**) thd->alloc(size)))
       goto error;
     subpart_charset_field_array= (Field**)char_ptrs;
     ptr= subpart_field_array;
@@ -2057,7 +2057,7 @@ bool partition_info::set_up_charset_field_preps()
       if (!field_is_partition_charset(field))
         continue;
       size= field->pack_length();
-      if (!(field_buf= (uchar*) sql_calloc(size)))
+      if (!(field_buf= (uchar*) thd->calloc(size)))
         goto error;
       subpart_charset_field_array[i]= field;
       subpart_field_buffers[i++]= field_buf;
@@ -2686,14 +2686,13 @@ bool partition_info::fix_column_value_functions(THD *thd,
         }
         thd->got_warning= save_got_warning;
         thd->variables.sql_mode= save_sql_mode;
-        if (!(val_ptr= (uchar*) sql_calloc(len)))
+        if (!(val_ptr= (uchar*) thd->memdup(field->ptr, len)))
         {
           mem_alloc_error(len);
           result= TRUE;
           goto end;
         }
         col_val->column_value= val_ptr;
-        memcpy(val_ptr, field->ptr, len);
       }
     }
     col_val->fixed= 2;

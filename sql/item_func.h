@@ -103,7 +103,7 @@ public:
   Item_func(THD *thd, List<Item> &list):
     Item_func_or_sum(thd, list), allowed_arg_cols(1)
   {
-    set_arguments(list);
+    set_arguments(thd, list);
   }
   // Constructor used for Item_cond_and/or (see Item comment)
   Item_func(THD *thd, Item_func *item)
@@ -134,10 +134,10 @@ public:
   bool eq(const Item *item, bool binary_cmp) const;
   virtual Item *key_item() const { return args[0]; }
   virtual bool const_item() const { return const_item_cache; }
-  void set_arguments(List<Item> &list)
+  void set_arguments(THD *thd, List<Item> &list)
   {
     allowed_arg_cols= 1;
-    Item_args::set_arguments(list);
+    Item_args::set_arguments(thd, list);
     sync_with_sum_func_and_with_field(list);
     list.empty();                                     // Fields are used
   }

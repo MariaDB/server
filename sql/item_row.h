@@ -36,7 +36,7 @@ class Item_row: public Item,
   bool with_null;
 public:
   Item_row(THD *thd, List<Item> &list):
-   Item(thd), Item_args(list), not_null_tables_cache(0), with_null(0)
+  Item(thd), Item_args(thd, list), not_null_tables_cache(0), with_null(0)
   { }
   Item_row(THD *thd, Item_row *item):
     Item(thd),

@@ -1756,7 +1756,7 @@ bool fix_partition_func(THD *thd, TABLE *table,
     goto end;
   if (unlikely(set_up_partition_bitmaps(thd, part_info)))
     goto end;
-  if (unlikely(part_info->set_up_charset_field_preps()))
+  if (unlikely(part_info->set_up_charset_field_preps(thd)))
   {
     my_error(ER_PARTITION_FUNCTION_IS_NOT_ALLOWED, MYF(0));
     goto end;
@@ -2653,8 +2653,7 @@ char *generate_partition_syntax(partition_info *part_info,
   {
     if (!use_sql_alloc)
       my_free(buf);
-    else
-      buf= NULL;
+    buf= NULL;
   }
   else
     buf[*buf_length]= 0;

@@ -3648,8 +3648,8 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
     DBUG_RETURN(TRUE);
   }
 
-  (*key_info_buffer)= key_info= (KEY*) sql_calloc(sizeof(KEY) * (*key_count));
-  key_part_info=(KEY_PART_INFO*) sql_calloc(sizeof(KEY_PART_INFO)*key_parts);
+  (*key_info_buffer)= key_info= (KEY*) thd->calloc(sizeof(KEY) * (*key_count));
+  key_part_info=(KEY_PART_INFO*) thd->calloc(sizeof(KEY_PART_INFO)*key_parts);
   if (!*key_info_buffer || ! key_part_info)
     DBUG_RETURN(TRUE);				// Out of memory
 

@@ -1721,7 +1721,7 @@ bool mysql_upgrade_db(THD *thd, LEX_STRING *old_db)
 
       table_str.length= filename_to_tablename(file->name,
                                               tname, sizeof(tname)-1);
-      table_str.str= (char*) sql_memdup(tname, table_str.length + 1);
+      table_str.str= (char*) thd->memdup(tname, table_str.length + 1);
       Table_ident *old_ident= new Table_ident(thd, *old_db, table_str, 0);
       Table_ident *new_ident= new Table_ident(thd, new_db, table_str, 0);
       if (!old_ident || !new_ident ||

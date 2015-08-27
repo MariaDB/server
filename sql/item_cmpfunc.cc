@@ -2790,7 +2790,7 @@ Item_func_case::Item_func_case(THD *thd, List<Item> &list,
     else_expr_num= list.elements;
     list.push_back(else_expr_arg, thd->mem_root);
   }
-  set_arguments(list);
+  set_arguments(thd, list);
   bzero(&cmp_items, sizeof(cmp_items));
 }
 
@@ -2949,6 +2949,10 @@ bool Item_func_case::fix_fields(THD *thd, Item **ref)
     Item_func_case::val_int() -> Item_func_case::find_item()
   */
   uchar buff[MAX_FIELD_WIDTH*2+sizeof(String)*2+sizeof(String*)*2+sizeof(double)*2+sizeof(longlong)*2];
+
+  if (!(arg_buffer= (Item**) thd->alloc(sizeof(Item*)*(ncases+1))))
+    return TRUE;
+
   bool res= Item_func::fix_fields(thd, ref);
   /*
     Call check_stack_overrun after fix_fields to be sure that stack variable
@@ -3002,13 +3006,10 @@ static void change_item_tree_if_needed(THD *thd,
 
 void Item_func_case::fix_length_and_dec()
 {
-  Item **agg;
+  Item **agg= arg_buffer;
   uint nagg;
   uint found_types= 0;
   THD *thd= current_thd;
-
-  if (!(agg= (Item**) sql_alloc(sizeof(Item*)*(ncases+1))))
-    return;
 
   if (else_expr_num == -1 || args[else_expr_num]->maybe_null)
     maybe_null= 1;
@@ -3052,8 +3053,9 @@ void Item_func_case::fix_length_and_dec()
     if (else_expr_num != -1) 
       agg_num_lengths(args[else_expr_num]);
     max_length= my_decimal_precision_to_length_no_truncation(max_length +
-                                                             decimals, decimals,
-                                               unsigned_flag);
+                                                             decimals,
+                                                             decimals,
+                                                             unsigned_flag);
   }
   
   /*
@@ -3501,9 +3503,9 @@ Item *in_string::create_item(THD *thd)
 }
 
 
-in_row::in_row(uint elements, Item * item)
+in_row::in_row(THD *thd, uint elements, Item * item)
 {
-  base= (char*) new cmp_item_row[count= elements];
+  base= (char*) new (thd->mem_root) cmp_item_row[count= elements];
   size= sizeof(cmp_item_row);
   compare= (qsort2_cmp) cmp_row;
   /*
@@ -3532,7 +3534,7 @@ void in_row::set(uint pos, Item *item)
 {
   DBUG_ENTER("in_row::set");
   DBUG_PRINT("enter", ("pos: %u  item: 0x%lx", pos, (ulong) item));
-  ((cmp_item_row*) base)[pos].store_value_by_template(&tmp, item);
+  ((cmp_item_row*) base)[pos].store_value_by_template(current_thd, &tmp, item);
   DBUG_VOID_RETURN;
 }
 
@@ -3745,7 +3747,7 @@ void cmp_item_row::store_value(Item *item)
 }
 
 
-void cmp_item_row::store_value_by_template(cmp_item *t, Item *item)
+void cmp_item_row::store_value_by_template(THD *thd, cmp_item *t, Item *item)
 {
   cmp_item_row *tmpl= (cmp_item_row*) t;
   if (tmpl->n != item->cols())
@@ -3754,7 +3756,7 @@ void cmp_item_row::store_value_by_template(cmp_item *t, Item *item)
     return;
   }
   n= tmpl->n;
-  if ((comparators= (cmp_item **) sql_alloc(sizeof(cmp_item *)*n)))
+  if ((comparators= (cmp_item **) thd->alloc(sizeof(cmp_item *)*n)))
   {
     item->bring_value();
     item->null_value= 0;
@@ -3762,7 +3764,7 @@ void cmp_item_row::store_value_by_template(cmp_item *t, Item *item)
     {
       if (!(comparators[i]= tmpl->comparators[i]->make_same()))
 	break;					// new failed
-      comparators[i]->store_value_by_template(tmpl->comparators[i],
+      comparators[i]->store_value_by_template(thd, tmpl->comparators[i],
 					      item->element_index(i));
       item->null_value|= item->element_index(i)->null_value;
     }
@@ -4006,12 +4008,12 @@ void Item_func_in::fix_length_and_dec()
 
       if (const_itm && !nulls_in_row())
       {
-        array= new in_row(arg_count-1, 0);
+        array= new (thd->mem_root) in_row(thd, arg_count-1, 0);
         cmp= &((in_row*)array)->tmp;
       }
       else
       {
-        if (!(cmp= new cmp_item_row))
+        if (!(cmp= new (thd->mem_root) cmp_item_row))
           return;
         cmp_items[ROW_RESULT]= cmp;
       }
@@ -4028,7 +4030,7 @@ void Item_func_in::fix_length_and_dec()
             cmp= ((in_row*)array)->tmp.comparators + col;
           else
             cmp= ((cmp_item_row*)cmp_items[ROW_RESULT])->comparators + col;
-          *cmp= new cmp_item_datetime(date_arg);
+          *cmp= new (thd->mem_root) cmp_item_datetime(date_arg);
         }
       }
     }
@@ -4067,14 +4069,14 @@ void Item_func_in::fix_length_and_dec()
     }
     switch (cmp_type) {
     case STRING_RESULT:
-      array=new in_string(arg_count-1,(qsort2_cmp) srtcmp_in, 
-                          cmp_collation.collation);
+      array=new (thd->mem_root) in_string(arg_count-1,(qsort2_cmp) srtcmp_in, 
+                                          cmp_collation.collation);
       break;
     case INT_RESULT:
-      array= new in_longlong(arg_count-1);
+      array= new (thd->mem_root) in_longlong(arg_count-1);
       break;
     case REAL_RESULT:
-      array= new in_double(arg_count-1);
+      array= new (thd->mem_root) in_double(arg_count-1);
       break;
     case ROW_RESULT:
       /*
@@ -4085,11 +4087,11 @@ void Item_func_in::fix_length_and_dec()
       ((in_row*)array)->tmp.store_value(args[0]);
       break;
     case DECIMAL_RESULT:
-      array= new in_decimal(arg_count - 1);
+      array= new (thd->mem_root) in_decimal(arg_count - 1);
       break;
     case TIME_RESULT:
       date_arg= find_date_time_item(args, arg_count, 0);
-      array= new in_datetime(date_arg, arg_count - 1);
+      array= new (thd->mem_root) in_datetime(date_arg, arg_count - 1);
       break;
     case IMPOSSIBLE_RESULT:
       DBUG_ASSERT(0);
@@ -5063,16 +5065,18 @@ bool Item_func_like::find_selective_predicates_list_processor(uchar *arg)
     (find_selective_predicates_list_processor_data *) arg;
   if (use_sampling && used_tables() == data->table->map)
   {
-    COND_STATISTIC *stat= (COND_STATISTIC *)sql_alloc(sizeof(COND_STATISTIC));
-    if (!stat)
+    THD *thd= data->table->in_use;
+    COND_STATISTIC *stat;
+    Item *arg0;
+    if (!(stat= (COND_STATISTIC *) thd->alloc(sizeof(COND_STATISTIC))))
       return TRUE;
     stat->cond= this;
-    Item *arg0= args[0]->real_item();
+    arg0= args[0]->real_item();
     if (args[1]->const_item() && arg0->type() == FIELD_ITEM)
       stat->field_arg= ((Item_field *)arg0)->field;
     else
       stat->field_arg= NULL;
-    data->list.push_back(stat);
+    data->list.push_back(stat, thd->mem_root);
   }
   return FALSE;
 }

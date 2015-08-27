@@ -89,14 +89,14 @@ static inline bool test_if_sum_overflows_ull(ulonglong arg1, ulonglong arg2)
 }
 
 
-void Item_args::set_arguments(List<Item> &list)
+void Item_args::set_arguments(THD *thd, List<Item> &list)
 {
   arg_count= list.elements;
   if (arg_count <= 2)
   {
     args= tmp_arg;
   }
-  else if (!(args= (Item**) sql_alloc(sizeof(Item*) * arg_count)))
+  else if (!(args= (Item**) thd->alloc(sizeof(Item*) * arg_count)))
   {
     arg_count= 0;
     return;
@@ -3501,7 +3501,7 @@ udf_handler::fix_fields(THD *thd, Item_func_or_sum *func,
   if ((f_args.arg_count=arg_count))
   {
     if (!(f_args.arg_type= (Item_result*)
-	  sql_alloc(f_args.arg_count*sizeof(Item_result))))
+	  thd->alloc(f_args.arg_count*sizeof(Item_result))))
 
     {
       free_udf(u_d);
@@ -3543,13 +3543,14 @@ udf_handler::fix_fields(THD *thd, Item_func_or_sum *func,
     }
     //TODO: why all following memory is not allocated with 1 call of sql_alloc?
     if (!(buffers=new String[arg_count]) ||
-	!(f_args.args= (char**) sql_alloc(arg_count * sizeof(char *))) ||
-	!(f_args.lengths= (ulong*) sql_alloc(arg_count * sizeof(long))) ||
-	!(f_args.maybe_null= (char*) sql_alloc(arg_count * sizeof(char))) ||
-	!(num_buffer= (char*) sql_alloc(arg_count *
+	!(f_args.args= (char**) thd->alloc(arg_count * sizeof(char *))) ||
+	!(f_args.lengths= (ulong*) thd->alloc(arg_count * sizeof(long))) ||
+	!(f_args.maybe_null= (char*) thd->alloc(arg_count * sizeof(char))) ||
+	!(num_buffer= (char*) thd->alloc(arg_count *
 					ALIGN_SIZE(sizeof(double)))) ||
-	!(f_args.attributes= (char**) sql_alloc(arg_count * sizeof(char *))) ||
-	!(f_args.attribute_lengths= (ulong*) sql_alloc(arg_count *
+	!(f_args.attributes= (char**) thd->alloc(arg_count *
+                                                 sizeof(char *))) ||
+	!(f_args.attribute_lengths= (ulong*) thd->alloc(arg_count *
 						       sizeof(long))))
     {
       free_udf(u_d);
@@ -6507,7 +6508,7 @@ Item_func_sp::Item_func_sp(THD *thd, Name_resolution_context *context_arg,
 {
   maybe_null= 1;
   m_name->init_qname(current_thd);
-  dummy_table= (TABLE*) sql_calloc(sizeof(TABLE)+ sizeof(TABLE_SHARE));
+  dummy_table= (TABLE*) thd->calloc(sizeof(TABLE)+ sizeof(TABLE_SHARE));
   dummy_table->s= (TABLE_SHARE*) (dummy_table+1);
 }
 
@@ -6519,7 +6520,7 @@ Item_func_sp::Item_func_sp(THD *thd, Name_resolution_context *context_arg,
 {
   maybe_null= 1;
   m_name->init_qname(current_thd);
-  dummy_table= (TABLE*) sql_calloc(sizeof(TABLE)+ sizeof(TABLE_SHARE));
+  dummy_table= (TABLE*) thd->calloc(sizeof(TABLE)+ sizeof(TABLE_SHARE));
   dummy_table->s= (TABLE_SHARE*) (dummy_table+1);
 }
 
@@ -6631,7 +6632,7 @@ Item_func_sp::init_result_field(THD *thd)
   if (sp_result_field->pack_length() > sizeof(result_buf))
   {
     void *tmp;
-    if (!(tmp= sql_alloc(sp_result_field->pack_length())))
+    if (!(tmp= thd->alloc(sp_result_field->pack_length())))
       DBUG_RETURN(TRUE);
     sp_result_field->move_field((uchar*) tmp);
   }

@@ -2333,10 +2333,8 @@ static int show_create_view(THD *thd, TABLE_LIST *table, String *buff)
 
 class thread_info :public ilink {
 public:
-  static void *operator new(size_t size)
-  {
-    return (void*) sql_alloc((uint) size);
-  }
+  static void *operator new(size_t size, MEM_ROOT *mem_root) throw ()
+  { return alloc_root(mem_root, size); }
   static void operator delete(void *ptr __attribute__((unused)),
                               size_t size __attribute__((unused)))
   { TRASH(ptr, size); }
@@ -2440,7 +2438,7 @@ void mysqld_list_processes(THD *thd,const char *user, bool verbose)
         (!user || (!tmp->system_thread &&
                    tmp_sctx->user && !strcmp(tmp_sctx->user, user))))
     {
-      thread_info *thd_info= new thread_info;
+      thread_info *thd_info= new (thd->mem_root) thread_info;
 
       thd_info->thread_id=tmp->thread_id;
       thd_info->user= thd->strdup(tmp_sctx->user ? tmp_sctx->user :

@@ -2397,18 +2397,21 @@ const char *Item_ident::full_name() const
   char *tmp;
   if (!table_name || !field_name)
     return field_name ? field_name : name ? name : "tmp_field";
+
   if (db_name && db_name[0])
   {
-    tmp=(char*) sql_alloc((uint) strlen(db_name)+(uint) strlen(table_name)+
-			  (uint) strlen(field_name)+3);
+    THD *thd= current_thd;
+    tmp=(char*) thd->alloc((uint) strlen(db_name)+(uint) strlen(table_name)+
+			   (uint) strlen(field_name)+3);
     strxmov(tmp,db_name,".",table_name,".",field_name,NullS);
   }
   else
   {
     if (table_name[0])
     {
-      tmp= (char*) sql_alloc((uint) strlen(table_name) +
-			     (uint) strlen(field_name) + 2);
+      THD *thd= current_thd;
+      tmp= (char*) thd->alloc((uint) strlen(table_name) +
+			      (uint) strlen(field_name) + 2);
       strxmov(tmp, table_name, ".", field_name, NullS);
     }
     else
@@ -6276,10 +6279,11 @@ inline uint char_val(char X)
 }
 
 
-void Item_hex_constant::hex_string_init(const char *str, uint str_length)
+void Item_hex_constant::hex_string_init(THD *thd, const char *str,
+                                        uint str_length)
 {
   max_length=(str_length+1)/2;
-  char *ptr=(char*) sql_alloc(max_length+1);
+  char *ptr=(char*) thd->alloc(max_length+1);
   if (!ptr)
   {
     str_value.set("", 0, &my_charset_bin);
@@ -6372,12 +6376,12 @@ Item_bin_string::Item_bin_string(THD *thd, const char *str, uint str_length):
   Item_hex_hybrid(thd)
 {
   const char *end= str + str_length - 1;
+  char *ptr;
   uchar bits= 0;
   uint power= 1;
 
   max_length= (str_length + 7) >> 3;
-  char *ptr= (char*) sql_alloc(max_length + 1);
-  if (!ptr)
+  if (!(ptr= (char*) thd->alloc(max_length + 1)))
     return;
   str_value.set(ptr, max_length, &my_charset_bin);
 
@@ -8260,9 +8264,10 @@ bool Item_default_value::fix_fields(THD *thd, Item **items)
     my_error(ER_NO_DEFAULT_FOR_FIELD, MYF(0), field_arg->field->field_name);
     goto error;
   }
-  if (!(def_field= (Field*) sql_alloc(field_arg->field->size_of())))
+  if (!(def_field= (Field*) thd->alloc(field_arg->field->size_of())))
     goto error;
-  memcpy((void *)def_field, (void *)field_arg->field, field_arg->field->size_of());
+  memcpy((void *)def_field, (void *)field_arg->field,
+         field_arg->field->size_of());
   def_field->move_field_offset((my_ptrdiff_t)
                                (def_field->table->s->default_values -
                                 def_field->table->record[0]));
@@ -8402,10 +8407,11 @@ bool Item_insert_value::fix_fields(THD *thd, Item **items)
 
   if (field_arg->field->table->insert_values)
   {
-    Field *def_field= (Field*) sql_alloc(field_arg->field->size_of());
+    Field *def_field= (Field*) thd->alloc(field_arg->field->size_of());
     if (!def_field)
       return TRUE;
-    memcpy((void *)def_field, (void *)field_arg->field, field_arg->field->size_of());
+    memcpy((void *)def_field, (void *)field_arg->field,
+           field_arg->field->size_of());
     def_field->move_field_offset((my_ptrdiff_t)
                                  (def_field->table->insert_values -
                                   def_field->table->record[0]));
