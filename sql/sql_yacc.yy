@@ -2350,6 +2350,7 @@ ignore_server_id:
           {
             insert_dynamic(&Lex->mi.repl_ignore_server_ids, (uchar*) &($1));
           }
+          ;
 
 do_domain_id_list:
           /* Empty */
@@ -2362,6 +2363,7 @@ do_domain_id:
           {
             insert_dynamic(&Lex->mi.repl_do_domain_ids, (uchar*) &($1));
           }
+          ;
 
 ignore_domain_id_list:
           /* Empty */
@@ -2374,6 +2376,7 @@ ignore_domain_id:
           {
             insert_dynamic(&Lex->mi.repl_ignore_domain_ids, (uchar*) &($1));
           }
+          ;
 
 master_file_def:
           MASTER_LOG_FILE_SYM EQ TEXT_STRING_sys
@@ -2382,7 +2385,6 @@ master_file_def:
           }
         | MASTER_LOG_POS_SYM EQ ulonglong_num
           {
-            Lex->mi.pos = $3;
             /* 
                If the user specified a value < BIN_LOG_HEADER_SIZE, adjust it
                instead of causing subsequent errors. 
@@ -2394,7 +2396,7 @@ master_file_def:
                from 0" (4 in fact), unspecified means "don't change the position
                (keep the preceding value)").
             */
-            Lex->mi.pos= MY_MAX(BIN_LOG_HEADER_SIZE, Lex->mi.pos);
+            Lex->mi.pos= MY_MAX(BIN_LOG_HEADER_SIZE, $3);
           }
         | RELAY_LOG_FILE_SYM EQ TEXT_STRING_sys
           {
@@ -2415,7 +2417,6 @@ master_file_def:
             }
             Lex->mi.use_gtid_opt= LEX_MASTER_INFO::LEX_GTID_CURRENT_POS;
           }
-        ;
         | MASTER_USE_GTID_SYM EQ SLAVE_POS_SYM
           {
             if (Lex->mi.use_gtid_opt != LEX_MASTER_INFO::LEX_GTID_UNCHANGED)
@@ -2425,7 +2426,6 @@ master_file_def:
             }
             Lex->mi.use_gtid_opt= LEX_MASTER_INFO::LEX_GTID_SLAVE_POS;
           }
-        ;
         | MASTER_USE_GTID_SYM EQ NO_SYM
           {
             if (Lex->mi.use_gtid_opt != LEX_MASTER_INFO::LEX_GTID_UNCHANGED)
@@ -2443,7 +2443,7 @@ optional_connection_name:
             LEX *lex= thd->lex;
             lex->mi.connection_name= null_lex_str;
           }
-        | connection_name;
+        | connection_name
         ;
 
 connection_name:
@@ -2458,6 +2458,7 @@ connection_name:
            }
 #endif
          }
+         ;
 
 /* create a table */
 
