@@ -33,6 +33,7 @@ drop table t1;
 
 set names latin2 collate latin2_czech_cs;
 --source include/ctype_pad_space.inc
+--source include/ctype_like_cond_propagation.inc
 
 # We can not use ctype_filesort.inc because
 # order of SPACE and TAB is not strict

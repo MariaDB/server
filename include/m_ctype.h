@@ -201,6 +201,10 @@ extern MY_UNI_CTYPE my_uni_ctype[256];
 #define MY_CS_UNICODE_SUPPLEMENT 16384 /* Non-BMP Unicode characters */
 #define MY_CS_LOWER_SORT 32768 /* If use lower case as weight   */
 #define MY_CS_STRNXFRM_BAD_NWEIGHTS 0x10000 /* strnxfrm ignores "nweights" */
+#define MY_CS_NOPAD   0x20000  /* if does not ignore trailing spaces */
+#define MY_CS_NON1TO1 0x40000  /* Has a complex mapping from characters
+                                  to weights, e.g. contractions, expansions,
+                                  ignorable characters */
 #define MY_CHARSET_UNDEFINED 0
 
 /* Character repertoire flags */

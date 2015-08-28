@@ -1614,6 +1614,38 @@ public:
            Item_bool_func2::get_mm_tree(param, cond_ptr) :
            Item_func::get_mm_tree(param, cond_ptr);
   }
+  Item* propagate_equal_fields(THD *thd, const Context &ctx, COND_EQUAL *cond)
+  {
+    /*
+      LIKE differs from the regular comparison operator ('=') in the following:
+      - LIKE never ignores trailing spaces (even for PAD SPACE collations)
+        Propagation of equal fields with a PAD SPACE collation into LIKE
+        is not safe.
+        Example:
+          WHERE a='a ' AND a LIKE 'a'     - returns true for 'a'
+        cannot be rewritten to:
+          WHERE a='a ' AND 'a ' LIKE 'a'  - returns false for 'a'
+        Note, binary collations in MySQL/MariaDB, e.g. latin1_bin,
+        still have the PAD SPACE attribute and ignore trailing spaces!
+      - LIKE does not take into account contractions, expansions,
+        and ignorable characters.
+        Propagation of equal fields with contractions/expansions/ignorables
+        is also not safe.
+
+      It's safe to propagate my_charset_bin (BINARY/VARBINARY/BLOB) values,
+      because they do not ignore trailing spaces and have one-to-one mapping
+      between a string and its weights.
+      The below condition should be true only for my_charset_bin
+      (as of version 10.1.7).
+    */
+    uint flags= Item_func_like::compare_collation()->state;
+    if ((flags & MY_CS_NOPAD) && !(flags & MY_CS_NON1TO1))
+      Item_args::propagate_equal_fields(thd,
+                                        Context(ANY_SUBST,
+                                        compare_collation()),
+                                        cond);
+    return this;
+  }
   const char *func_name() const { return "like"; }
   bool fix_fields(THD *thd, Item **ref);
   void fix_length_and_dec()

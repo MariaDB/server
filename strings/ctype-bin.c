@@ -557,7 +557,7 @@ static MY_CHARSET_HANDLER my_charset_handler=
 struct charset_info_st my_charset_bin =
 {
     63,0,0,			/* number        */
-    MY_CS_COMPILED|MY_CS_BINSORT|MY_CS_PRIMARY,/* state */
+    MY_CS_COMPILED|MY_CS_BINSORT|MY_CS_PRIMARY|MY_CS_NOPAD,/* state */
     "binary",			/* cs name    */
     "binary",			/* name          */
     "",				/* comment       */

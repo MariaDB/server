@@ -6775,6 +6775,31 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 Warnings:
 Note	1003	select `test`.`t1`.`c1` AS `c1` from `test`.`t1` where (('%' = concat(`test`.`t1`.`c1`)) and ('a' like concat(`test`.`t1`.`c1`)))
 DROP TABLE t1;
+#
+# MDEV-8694 Wrong result for SELECT..WHERE a NOT LIKE 'a ' AND a='a'
+#
+CREATE TABLE t1 AS SELECT SPACE(10) AS a LIMIT 0;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` varchar(10) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+INSERT INTO t1 VALUES ('a'),('a ');
+SELECT a, LENGTH(a) FROM t1 WHERE a NOT LIKE 'a ';
+a	LENGTH(a)
+a	1
+SELECT a, LENGTH(a) FROM t1 WHERE a NOT LIKE 'a ' AND a='a';
+a	LENGTH(a)
+a	1
+EXPLAIN EXTENDED SELECT a, LENGTH(a) FROM t1 WHERE a NOT LIKE 'a ' AND a='a';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a`,length(`test`.`t1`.`a`) AS `LENGTH(a)` from `test`.`t1` where ((`test`.`t1`.`a` = 'a') and (not((`test`.`t1`.`a` like 'a '))))
+DROP TABLE t1;
+#
+# End of MDEV-8694
+#
 SET NAMES utf8;
 #
 # MDEV-7149 Constant condition propagation erroneously applied for LIKE
@@ -6871,6 +6896,31 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 Warnings:
 Note	1003	select `test`.`t1`.`c1` AS `c1` from `test`.`t1` where (('%' = concat(`test`.`t1`.`c1`)) and ('a' like concat(`test`.`t1`.`c1`)))
 DROP TABLE t1;
+#
+# MDEV-8694 Wrong result for SELECT..WHERE a NOT LIKE 'a ' AND a='a'
+#
+CREATE TABLE t1 AS SELECT SPACE(10) AS a LIMIT 0;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` varchar(10) CHARACTER SET utf8 NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+INSERT INTO t1 VALUES ('a'),('a ');
+SELECT a, LENGTH(a) FROM t1 WHERE a NOT LIKE 'a ';
+a	LENGTH(a)
+a	1
+SELECT a, LENGTH(a) FROM t1 WHERE a NOT LIKE 'a ' AND a='a';
+a	LENGTH(a)
+a	1
+EXPLAIN EXTENDED SELECT a, LENGTH(a) FROM t1 WHERE a NOT LIKE 'a ' AND a='a';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a`,length(`test`.`t1`.`a`) AS `LENGTH(a)` from `test`.`t1` where ((not((`test`.`t1`.`a` like 'a '))) and (`test`.`t1`.`a` = 'a'))
+DROP TABLE t1;
+#
+# End of MDEV-8694
+#
 #
 # MDEV-7149 Constant condition propagation erroneously applied for LIKE
 #
