@@ -3604,7 +3604,11 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
     */
     if ((rli->until_condition == Relay_log_info::UNTIL_MASTER_POS ||
          rli->until_condition == Relay_log_info::UNTIL_RELAY_POS) &&
-        rli->is_until_satisfied(thd, ev))
+        (ev->server_id != global_system_variables.server_id ||
+         rli->replicate_same_server_id) &&
+         rli->is_until_satisfied((rli->get_flag(Relay_log_info::IN_TRANSACTION) || !ev->log_pos)
+                                  ? rli->group_master_log_pos
+                                  : ev->log_pos - ev->data_written))
     {
       char buf[22];
       sql_print_information("Slave SQL thread stopped because it reached its"
@@ -4726,7 +4730,7 @@ log '%s' at position %s, relay log '%s' position: %s%s", RPL_LOG_NAME,
   }
   if ((rli->until_condition == Relay_log_info::UNTIL_MASTER_POS ||
        rli->until_condition == Relay_log_info::UNTIL_RELAY_POS) &&
-      rli->is_until_satisfied(thd, NULL))
+      rli->is_until_satisfied(rli->group_master_log_pos))
   {
     char buf[22];
     sql_print_information("Slave SQL thread stopped because it reached its"

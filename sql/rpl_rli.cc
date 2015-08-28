@@ -1207,27 +1207,20 @@ err:
      false - condition not met
 */
 
-bool Relay_log_info::is_until_satisfied(THD *thd, Log_event *ev)
+bool Relay_log_info::is_until_satisfied(my_off_t master_beg_pos)
 {
   const char *log_name;
   ulonglong log_pos;
   DBUG_ENTER("Relay_log_info::is_until_satisfied");
 
-  DBUG_ASSERT(until_condition == UNTIL_MASTER_POS ||
-              until_condition == UNTIL_RELAY_POS);
-
   if (until_condition == UNTIL_MASTER_POS)
   {
-    if (ev && ev->server_id == (uint32) global_system_variables.server_id &&
-        !replicate_same_server_id)
-      DBUG_RETURN(FALSE);
     log_name= group_master_log_name;
-    log_pos= ((!ev)? group_master_log_pos :
-              (get_flag(IN_TRANSACTION) || !ev->log_pos) ?
-              group_master_log_pos : ev->log_pos - ev->data_written);
+    log_pos= master_beg_pos;
   }
   else
-  { /* until_condition == UNTIL_RELAY_POS */
+  {
+    DBUG_ASSERT(until_condition == UNTIL_RELAY_POS);
     log_name= group_relay_log_name;
     log_pos= group_relay_log_pos;
   }
