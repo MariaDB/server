@@ -1392,6 +1392,20 @@ public:
   void add_key_fields(JOIN *join, KEY_FIELD **key_fields, uint *and_level,
                       table_map usable_tables, SARGABLE_PARAM **sargables);
   SEL_TREE *get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr);
+  Item* propagate_equal_fields(THD *thd, const Context &ctx, COND_EQUAL *cond)
+  {
+    /*
+      In case when arg_types_compatible is false,
+      fix_length_and_dec() leaves args[0]->cmp_context equal to
+      IMPOSSIBLE_CONTEXT. In this case it's not safe to replace the field to an
+      equal constant, because Item_field::can_be_substituted_to_equal_item()
+      won't be able to check compatibility between
+      Item_equal->compare_collation() and this->compare_collation().
+    */
+    return arg_types_compatible ?
+           Item_func_opt_neg::propagate_equal_fields(thd, ctx, cond) :
+           this;
+  }
   virtual void print(String *str, enum_query_type query_type);
   enum Functype functype() const { return IN_FUNC; }
   const char *func_name() const { return " IN "; }

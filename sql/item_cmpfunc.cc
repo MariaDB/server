@@ -3999,6 +3999,7 @@ void Item_func_in::fix_length_and_dec()
     if (m_compare_type == STRING_RESULT &&
         agg_arg_charsets_for_comparison(cmp_collation, args, arg_count))
       return;
+    args[0]->cmp_context= m_compare_type;
     arg_types_compatible= TRUE;
 
     if (m_compare_type == ROW_RESULT)
