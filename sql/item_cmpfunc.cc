@@ -2197,9 +2197,9 @@ void Item_func_between::fix_length_and_dec()
   */
   if (!args[0] || !args[1] || !args[2])
     return;
-  if ( agg_cmp_type(&cmp_type, args, 3))
+  if (agg_cmp_type(&m_compare_type, args, 3))
     return;
-  if (cmp_type == STRING_RESULT &&
+  if (m_compare_type == STRING_RESULT &&
       agg_arg_charsets_for_comparison(cmp_collation, args, 3))
    return;
 
@@ -2211,7 +2211,7 @@ void Item_func_between::fix_length_and_dec()
     For this to work, we need to know what date/time type we compare
     strings as.
   */
-  if (cmp_type ==  TIME_RESULT)
+  if (m_compare_type ==  TIME_RESULT)
     compare_as_dates= find_date_time_item(args, 3, 0);
 
   /* See the comment about the similar block in Item_bool_func2 */
@@ -2225,7 +2225,7 @@ void Item_func_between::fix_length_and_dec()
       const bool cvt_arg1= convert_const_to_int(thd, field_item, &args[1]);
       const bool cvt_arg2= convert_const_to_int(thd, field_item, &args[2]);
       if (cvt_arg1 && cvt_arg2)
-        cmp_type=INT_RESULT;                    // Works for all types.
+        m_compare_type= INT_RESULT;              // Works for all types.
     }
   }
 }
@@ -2235,7 +2235,7 @@ longlong Item_func_between::val_int()
 {
   DBUG_ASSERT(fixed == 1);
 
-  switch (cmp_type) {
+  switch (m_compare_type) {
   case TIME_RESULT:
   {
     THD *thd= current_thd;
@@ -3972,7 +3972,7 @@ void Item_func_in::fix_length_and_dec()
   Item *date_arg= 0;
   uint found_types= 0;
   uint type_cnt= 0, i;
-  Item_result cmp_type= STRING_RESULT;
+  m_compare_type= STRING_RESULT;
   left_result_type= args[0]->cmp_type();
   if (!(found_types= collect_cmp_types(args, arg_count, true)))
     return;
@@ -3990,18 +3990,18 @@ void Item_func_in::fix_length_and_dec()
     if (found_types & (1U << i))
     {
       (type_cnt)++;
-      cmp_type= (Item_result) i;
+      m_compare_type= (Item_result) i;
     }
   }
 
   if (type_cnt == 1)
   {
-    if (cmp_type == STRING_RESULT && 
+    if (m_compare_type == STRING_RESULT &&
         agg_arg_charsets_for_comparison(cmp_collation, args, arg_count))
       return;
     arg_types_compatible= TRUE;
 
-    if (cmp_type == ROW_RESULT)
+    if (m_compare_type == ROW_RESULT)
     {
       uint cols= args[0]->cols();
       cmp_item_row *cmp= 0;
@@ -4051,7 +4051,7 @@ void Item_func_in::fix_length_and_dec()
       See the comment about the similar block in Item_bool_func2
     */  
     if (args[0]->real_item()->type() == FIELD_ITEM &&
-        !thd->lex->is_view_context_analysis() && cmp_type != INT_RESULT)
+        !thd->lex->is_view_context_analysis() && m_compare_type != INT_RESULT)
     {
       Item_field *field_item= (Item_field*) (args[0]->real_item());
       if (field_item->field_type() ==  MYSQL_TYPE_LONGLONG ||
@@ -4064,10 +4064,10 @@ void Item_func_in::fix_length_and_dec()
             all_converted= FALSE;
         }
         if (all_converted)
-          cmp_type= INT_RESULT;
+          m_compare_type= INT_RESULT;
       }
     }
-    switch (cmp_type) {
+    switch (m_compare_type) {
     case STRING_RESULT:
       array=new (thd->mem_root) in_string(arg_count-1,(qsort2_cmp) srtcmp_in, 
                                           cmp_collation.collation);

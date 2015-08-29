@@ -679,6 +679,17 @@ public:
 
 class Item_func_opt_neg :public Item_bool_func
 {
+protected:
+  /*
+    The result type that will be used for comparison.
+    cmp_type() of all arguments are collected to here.
+  */
+  Item_result m_compare_type;
+  /*
+    The collation that will be used for comparison in case
+    when m_compare_type is STRING_RESULT.
+  */
+  DTCollation cmp_collation;
 public:
   bool negated;     /* <=> the item represents NOT <func> */
   bool pred_level;  /* <=> [NOT] <func> is used on a predicate level */
@@ -708,12 +719,10 @@ public:
 
 class Item_func_between :public Item_func_opt_neg
 {
-  DTCollation cmp_collation;
 protected:
   SEL_TREE *get_func_mm_tree(RANGE_OPT_PARAM *param,
                              Field *field, Item *value, Item_result cmp_type);
 public:
-  Item_result cmp_type;
   String value0,value1,value2;
   /* TRUE <=> arguments will be compared as dates. */
   Item *compare_as_dates;
@@ -1355,7 +1364,6 @@ public:
   bool arg_types_compatible;
   Item_result left_result_type;
   cmp_item *cmp_items[6]; /* One cmp_item for each result type */
-  DTCollation cmp_collation;
 
   Item_func_in(THD *thd, List<Item> &list):
     Item_func_opt_neg(thd, list), array(0), have_null(0),
