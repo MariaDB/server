@@ -707,6 +707,7 @@ public:
     return this;
   }
   bool eq(const Item *item, bool binary_cmp) const;
+  CHARSET_INFO *compare_collation() const { return cmp_collation.collation; }
   Item* propagate_equal_fields(THD *thd, const Context &ctx, COND_EQUAL *cond)
   {
     Item_args::propagate_equal_fields(thd,
@@ -733,7 +734,6 @@ public:
   const char *func_name() const { return "between"; }
   void fix_length_and_dec();
   virtual void print(String *str, enum_query_type query_type);
-  CHARSET_INFO *compare_collation() const { return cmp_collation.collation; }
   bool eval_not_null_tables(uchar *opt_arg);
   void fix_after_pullout(st_select_lex *new_parent, Item **ref);
   bool count_sargable_conds(uchar *arg);
@@ -1396,7 +1396,6 @@ public:
   enum Functype functype() const { return IN_FUNC; }
   const char *func_name() const { return " IN "; }
   bool nulls_in_row();
-  CHARSET_INFO *compare_collation() const { return cmp_collation.collation; }
   bool eval_not_null_tables(uchar *opt_arg);
   void fix_after_pullout(st_select_lex *new_parent, Item **ref);
   bool count_sargable_conds(uchar *arg);
