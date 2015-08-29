@@ -2199,6 +2199,8 @@ void Item_func_between::fix_length_and_dec()
     return;
   if (agg_cmp_type(&m_compare_type, args, 3))
     return;
+  args[0]->cmp_context= args[1]->cmp_context= args[2]->cmp_context=
+    m_compare_type;
   if (m_compare_type == STRING_RESULT &&
       agg_arg_charsets_for_comparison(cmp_collation, args, 3))
    return;
