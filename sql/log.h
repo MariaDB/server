@@ -17,10 +17,10 @@
 #ifndef LOG_H
 #define LOG_H
 
-#include "unireg.h"                    // REQUIRED: for other includes
 #include "handler.h"                            /* my_xid */
 #include "wsrep.h"
 #include "wsrep_mysqld.h"
+#include "rpl_constants.h"
 
 class Relay_log_info;
 
@@ -591,7 +591,7 @@ public:
   /* This is relay log */
   bool is_relay_log;
   ulong signal_cnt;  // update of the counter is checked by heartbeat
-  uint8 checksum_alg_reset; // to contain a new value when binlog is rotated
+  enum enum_binlog_checksum_alg checksum_alg_reset; // to contain a new value when binlog is rotated
   /*
     Holds the last seen in Relay-Log FD's checksum alg value.
     The initial value comes from the slave's local FD that heads
@@ -625,7 +625,7 @@ public:
     (A)    - checksum algorithm descriptor value
     FD.(A) - the value of (A) in FD
   */
-  uint8 relay_log_checksum_alg;
+  enum enum_binlog_checksum_alg relay_log_checksum_alg;
   /*
     These describe the log's format. This is used only for relay logs.
     _for_exec is used by the SQL thread, _for_queue by the I/O thread. It's

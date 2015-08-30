@@ -3450,12 +3450,12 @@ bool MYSQL_BIN_LOG::open(const char *log_name,
       {
         if (relay_log_checksum_alg == BINLOG_CHECKSUM_ALG_UNDEF)
           relay_log_checksum_alg=
-            opt_slave_sql_verify_checksum ? (uint8) binlog_checksum_options
-                                          : (uint8) BINLOG_CHECKSUM_ALG_OFF;
+            opt_slave_sql_verify_checksum ? (enum_binlog_checksum_alg) binlog_checksum_options
+                                          : BINLOG_CHECKSUM_ALG_OFF;
         s.checksum_alg= relay_log_checksum_alg;
       }
       else
-        s.checksum_alg= (uint8) binlog_checksum_options;
+        s.checksum_alg= (enum_binlog_checksum_alg)binlog_checksum_options;
 
       DBUG_ASSERT(s.checksum_alg != BINLOG_CHECKSUM_ALG_UNDEF);
       if (!s.is_valid())
@@ -8068,8 +8068,8 @@ void MYSQL_BIN_LOG::close(uint exiting)
     {
       Stop_log_event s;
       // the checksumming rule for relay-log case is similar to Rotate
-        s.checksum_alg= is_relay_log ?
-          (uint8) relay_log_checksum_alg : (uint8) binlog_checksum_options;
+        s.checksum_alg= is_relay_log ? relay_log_checksum_alg
+                                     : (enum_binlog_checksum_alg)binlog_checksum_options;
       DBUG_ASSERT(!is_relay_log ||
                   relay_log_checksum_alg != BINLOG_CHECKSUM_ALG_UNDEF);
       s.write(&log_file);
@@ -10007,7 +10007,7 @@ binlog_checksum_update(MYSQL_THD thd, struct st_mysql_sys_var *var,
   {
     prev_binlog_id= mysql_bin_log.current_binlog_id;
     if (binlog_checksum_options != value)
-      mysql_bin_log.checksum_alg_reset= (uint8) value;
+      mysql_bin_log.checksum_alg_reset= (enum_binlog_checksum_alg)value;
     if (mysql_bin_log.rotate(true, &check_purge))
       check_purge= false;
   }

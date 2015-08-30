@@ -1158,7 +1158,7 @@ table_def::~table_def()
    @return  TRUE        if test fails
             FALSE       as success
 */
-bool event_checksum_test(uchar *event_buf, ulong event_len, uint8 alg)
+bool event_checksum_test(uchar *event_buf, ulong event_len, enum enum_binlog_checksum_alg alg)
 {
   bool res= FALSE;
   uint16 flags= 0; // to store in FD's buffer flags orig value

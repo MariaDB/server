@@ -1221,7 +1221,7 @@ int wsrep_to_buf_helper(
   int ret(0);
 
   Format_description_log_event *tmp_fd= new Format_description_log_event(4);
-  tmp_fd->checksum_alg= binlog_checksum_options;
+  tmp_fd->checksum_alg= (enum_binlog_checksum_alg)binlog_checksum_options;
   tmp_fd->write(&tmp_io_cache);
   delete tmp_fd;
 

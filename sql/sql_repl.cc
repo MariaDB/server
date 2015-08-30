@@ -51,7 +51,7 @@ extern TYPELIB binlog_checksum_typelib;
 static int
 fake_event_header(String* packet, Log_event_type event_type, ulong extra_len,
                   my_bool *do_checksum, ha_checksum *crc, const char** errmsg,
-                  uint8 checksum_alg_arg, uint32 end_pos)
+                  enum enum_binlog_checksum_alg checksum_alg_arg, uint32 end_pos)
 {
   char header[LOG_EVENT_HEADER_LEN];
   ulong event_len;
@@ -132,7 +132,7 @@ struct binlog_send_info {
   enum_gtid_skip_type gtid_skip_group;
   enum_gtid_until_state gtid_until_group;
   ushort flags;
-  uint8 current_checksum_alg;
+  enum enum_binlog_checksum_alg current_checksum_alg;
   bool slave_gtid_strict_mode;
   bool send_fake_gtid_list;
   bool slave_gtid_ignore_duplicates;
@@ -208,7 +208,7 @@ static int reset_transmit_packet(struct binlog_send_info *info, ushort flags,
 */
 
 static int fake_rotate_event(binlog_send_info *info, ulonglong position,
-                             const char** errmsg, uint8 checksum_alg_arg)
+                             const char** errmsg, enum enum_binlog_checksum_alg checksum_alg_arg)
 {
   DBUG_ENTER("fake_rotate_event");
   ulong ev_offset;
@@ -453,9 +453,9 @@ static bool is_slave_checksum_aware(THD * thd)
                 @c enum enum_binlog_checksum_alg
 */
 
-static uint8 get_binlog_checksum_value_at_connect(THD * thd)
+static enum enum_binlog_checksum_alg get_binlog_checksum_value_at_connect(THD * thd)
 {
-  uint8 ret;
+  enum enum_binlog_checksum_alg ret;
 
   DBUG_ENTER("get_binlog_checksum_value_at_connect");
   user_var_entry *entry= get_binlog_checksum_uservar(thd);
@@ -470,7 +470,8 @@ static uint8 get_binlog_checksum_value_at_connect(THD * thd)
     uint dummy_errors;
     str.copy(entry->value, entry->length, &my_charset_bin, &my_charset_bin,
              &dummy_errors);
-    ret= (uint8) find_type ((char*) str.ptr(), &binlog_checksum_typelib, 1) - 1;
+    ret= (enum_binlog_checksum_alg)
+      (find_type ((char*) str.ptr(), &binlog_checksum_typelib, 1) - 1);
     DBUG_ASSERT(ret <= BINLOG_CHECKSUM_ALG_CRC32); // while it's just on CRC32 alg
   }
   DBUG_RETURN(ret);
@@ -774,7 +775,7 @@ get_slave_until_gtid(THD *thd, String *out_str)
 static int send_heartbeat_event(binlog_send_info *info,
                                 NET* net, String* packet,
                                 const struct event_coordinates *coord,
-                                uint8 checksum_alg_arg)
+                                enum enum_binlog_checksum_alg checksum_alg_arg)
 {
   DBUG_ENTER("send_heartbeat_event");
 
@@ -1394,7 +1395,7 @@ gtid_state_from_pos(const char *name, uint32 offset,
   bool found_gtid_list_event= false;
   bool found_format_description_event= false;
   bool valid_pos= false;
-  uint8 current_checksum_alg= BINLOG_CHECKSUM_ALG_UNDEF;
+  enum enum_binlog_checksum_alg current_checksum_alg= BINLOG_CHECKSUM_ALG_UNDEF;
   int err;
   String packet;
   Format_description_log_event *fdev= NULL;
@@ -1437,8 +1438,8 @@ gtid_state_from_pos(const char *name, uint32 offset,
 
     packet.length(0);
     err= Log_event::read_log_event(&cache, &packet,
-                                   opt_master_verify_checksum
-                                   ? current_checksum_alg : 0);
+                         opt_master_verify_checksum ? current_checksum_alg
+                                                    : BINLOG_CHECKSUM_ALG_OFF);
     if (err)
     {
       errormsg= "Could not read binlog while searching for slave start "
@@ -1646,7 +1647,7 @@ send_event_to_slave(binlog_send_info *info, Log_event_type event_type,
   String* const packet= info->packet;
   size_t len= packet->length();
   int mariadb_slave_capability= info->mariadb_slave_capability;
-  uint8 current_checksum_alg= info->current_checksum_alg;
+  enum enum_binlog_checksum_alg current_checksum_alg= info->current_checksum_alg;
   slave_connection_state *gtid_state= &info->gtid_state;
   slave_connection_state *until_gtid_state= info->until_gtid_state;
 
@@ -2229,7 +2230,7 @@ static int send_format_descriptor_event(binlog_send_info *info, IO_CACHE *log,
   info->last_pos= my_b_tell(log);
   error= Log_event::read_log_event(log, packet,
                                    opt_master_verify_checksum
-                                   ? info->current_checksum_alg : 0);
+                                   ? info->current_checksum_alg : BINLOG_CHECKSUM_ALG_OFF);
   linfo->pos= my_b_tell(log);
 
   if (error)
@@ -2559,8 +2560,8 @@ static int send_events(binlog_send_info *info, IO_CACHE* log, LOG_INFO* linfo,
 
     info->last_pos= linfo->pos;
     error= Log_event::read_log_event(log, packet,
-                                     opt_master_verify_checksum
-                                     ? info->current_checksum_alg : 0);
+                       opt_master_verify_checksum ? info->current_checksum_alg
+                                                  : BINLOG_CHECKSUM_ALG_OFF);
     linfo->pos= my_b_tell(log);
 
     if (error)

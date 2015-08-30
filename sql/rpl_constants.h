@@ -69,4 +69,13 @@ enum ExtraRowInfoFormat {
 #define EXTRA_ROW_INFO_HDR_BYTES 2
 #define EXTRA_ROW_INFO_MAX_PAYLOAD (255 - EXTRA_ROW_INFO_HDR_BYTES)
 
+enum enum_binlog_checksum_alg {
+  BINLOG_CHECKSUM_ALG_OFF= 0,    // Events are without checksum though its generator
+                                 // is checksum-capable New Master (NM).
+  BINLOG_CHECKSUM_ALG_CRC32= 1,  // CRC32 of zlib algorithm.
+  BINLOG_CHECKSUM_ALG_ENUM_END,  // the cut line: valid alg range is [1, 0x7f].
+  BINLOG_CHECKSUM_ALG_UNDEF= 255 // special value to tag undetermined yet checksum
+                                 // or events from checksum-unaware servers
+};
+
 #endif /* RPL_CONSTANTS_H */

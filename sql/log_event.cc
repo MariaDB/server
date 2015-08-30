@@ -1091,20 +1091,12 @@ my_bool Log_event::need_checksum()
      provides their checksum alg preference through Log_event::checksum_alg.
   */
   if (checksum_alg != BINLOG_CHECKSUM_ALG_UNDEF)
-    ret= (checksum_alg != BINLOG_CHECKSUM_ALG_OFF);
+    ret= checksum_alg != BINLOG_CHECKSUM_ALG_OFF;
   else
   {
-    if (binlog_checksum_options != BINLOG_CHECKSUM_ALG_OFF &&
-           cache_type == Log_event::EVENT_NO_CACHE)
-    {
-      checksum_alg= binlog_checksum_options;
-      ret= MY_TEST(binlog_checksum_options);
-    }
-    else
-    {
-      ret= FALSE;
-      checksum_alg= (uint8) BINLOG_CHECKSUM_ALG_OFF;
-    }
+    ret= binlog_checksum_options && cache_type == Log_event::EVENT_NO_CACHE;
+    checksum_alg= ret ? (enum_binlog_checksum_alg)binlog_checksum_options
+                      : BINLOG_CHECKSUM_ALG_OFF;
   }
   /*
     FD calls the methods before data_written has been calculated.
@@ -1269,7 +1261,7 @@ bool Log_event::write_header(IO_CACHE* file, ulong event_data_length)
 */
 
 int Log_event::read_log_event(IO_CACHE* file, String* packet,
-                              uint8 checksum_alg_arg)
+                              enum enum_binlog_checksum_alg checksum_alg_arg)
 {
   ulong data_len;
   char buf[LOG_EVENT_MINIMAL_HEADER_LEN];
@@ -1367,7 +1359,7 @@ Log_event* Log_event::read_log_event(IO_CACHE* file,
   if (log_lock)
     mysql_mutex_lock(log_lock);
 
-  switch (read_log_event(file, &event, (uint8)BINLOG_CHECKSUM_ALG_OFF))
+  switch (read_log_event(file, &event, BINLOG_CHECKSUM_ALG_OFF))
   {
     case 0:
       break;
@@ -1437,7 +1429,7 @@ Log_event* Log_event::read_log_event(const char* buf, uint event_len,
                                      my_bool crc_check)
 {
   Log_event* ev;
-  uint8 alg;
+  enum enum_binlog_checksum_alg alg;
   DBUG_ENTER("Log_event::read_log_event(char*,...)");
   DBUG_ASSERT(description_event != 0);
   DBUG_PRINT("info", ("binlog_version: %d", description_event->binlog_version));
@@ -3589,7 +3581,7 @@ Query_log_event::Query_log_event(const char* buf, uint event_len,
 */
 int
 Query_log_event::dummy_event(String *packet, ulong ev_offset,
-                             uint8 checksum_alg)
+                             enum enum_binlog_checksum_alg checksum_alg)
 {
   uchar *p= (uchar *)packet->ptr() + ev_offset;
   size_t data_len= packet->length() - ev_offset;
@@ -3681,7 +3673,7 @@ Query_log_event::dummy_event(String *packet, ulong ev_offset,
 */
 int
 Query_log_event::begin_event(String *packet, ulong ev_offset,
-                             uint8 checksum_alg)
+                             enum enum_binlog_checksum_alg checksum_alg)
 {
   uchar *p= (uchar *)packet->ptr() + ev_offset;
   uchar *q= p + LOG_EVENT_HEADER_LEN;
@@ -4470,7 +4462,8 @@ Query_log_event::do_shall_skip(rpl_group_info *rgi)
 
 bool
 Query_log_event::peek_is_commit_rollback(const char *event_start,
-                                         size_t event_len, uint8 checksum_alg)
+                                         size_t event_len,
+                                         enum enum_binlog_checksum_alg checksum_alg)
 {
   if (checksum_alg == BINLOG_CHECKSUM_ALG_CRC32)
   {
@@ -4864,7 +4857,7 @@ Format_description_log_event(uint8 binlog_ver, const char* server_ver)
     break;
   }
   calc_server_version_split();
-  checksum_alg= (uint8) BINLOG_CHECKSUM_ALG_UNDEF;
+  checksum_alg= BINLOG_CHECKSUM_ALG_UNDEF;
 }
 
 
@@ -4916,11 +4909,11 @@ Format_description_log_event(const char* buf,
   {
     /* the last bytes are the checksum alg desc and value (or value's room) */
     number_of_event_types -= BINLOG_CHECKSUM_ALG_DESC_LEN;
-    checksum_alg= post_header_len[number_of_event_types];
+    checksum_alg= (enum_binlog_checksum_alg)post_header_len[number_of_event_types];
   }
   else
   {
-    checksum_alg= (uint8) BINLOG_CHECKSUM_ALG_UNDEF;
+    checksum_alg= BINLOG_CHECKSUM_ALG_UNDEF;
   }
 
   DBUG_VOID_RETURN;
@@ -4956,8 +4949,8 @@ bool Format_description_log_event::write(IO_CACHE* file)
 #ifndef DBUG_OFF
   data_written= 0; // to prepare for need_checksum assert
 #endif
-  uchar checksum_byte= need_checksum() ?
-    checksum_alg : (uint8) BINLOG_CHECKSUM_ALG_OFF;
+  uint8 checksum_byte= (uint8)
+    (need_checksum() ? checksum_alg : BINLOG_CHECKSUM_ALG_OFF);
   /* 
      FD of checksum-aware server is always checksum-equipped, (V) is in,
      regardless of @@global.binlog_checksum policy.
@@ -5162,9 +5155,9 @@ Format_description_log_event::is_version_before_checksum(const master_version_sp
             checksum-unaware (effectively no checksum) and the actuall
             [1-254] range alg descriptor.
 */
-uint8 get_checksum_alg(const char* buf, ulong len)
+enum enum_binlog_checksum_alg get_checksum_alg(const char* buf, ulong len)
 {
-  uint8 ret;
+  enum enum_binlog_checksum_alg ret;
   char version[ST_SERVER_VER_LEN];
   Format_description_log_event::master_version_split version_split;
 
@@ -5177,9 +5170,9 @@ uint8 get_checksum_alg(const char* buf, ulong len)
   version[ST_SERVER_VER_LEN - 1]= 0;
   
   do_server_version_split(version, &version_split);
-  ret= Format_description_log_event::is_version_before_checksum(&version_split) ?
-    (uint8) BINLOG_CHECKSUM_ALG_UNDEF :
-    * (uint8*) (buf + len - BINLOG_CHECKSUM_LEN - BINLOG_CHECKSUM_ALG_DESC_LEN);
+  ret= Format_description_log_event::is_version_before_checksum(&version_split)
+    ? BINLOG_CHECKSUM_ALG_UNDEF
+    : (enum_binlog_checksum_alg)buf[len - BINLOG_CHECKSUM_LEN - BINLOG_CHECKSUM_ALG_DESC_LEN];
   DBUG_ASSERT(ret == BINLOG_CHECKSUM_ALG_OFF ||
               ret == BINLOG_CHECKSUM_ALG_UNDEF ||
               ret == BINLOG_CHECKSUM_ALG_CRC32);
@@ -6358,7 +6351,7 @@ Gtid_log_event::Gtid_log_event(THD *thd_arg, uint64 seq_no_arg,
 */
 bool
 Gtid_log_event::peek(const char *event_start, size_t event_len,
-                     uint8 checksum_alg,
+                     enum enum_binlog_checksum_alg checksum_alg,
                      uint32 *domain_id, uint32 *server_id, uint64 *seq_no,
                      uchar *flags2, const Format_description_log_event *fdev)
 {
@@ -6424,7 +6417,8 @@ Gtid_log_event::write(IO_CACHE *file)
 */
 int
 Gtid_log_event::make_compatible_event(String *packet, bool *need_dummy_event,
-                                      ulong ev_offset, uint8 checksum_alg)
+                                      ulong ev_offset,
+                                      enum enum_binlog_checksum_alg checksum_alg)
 {
   uchar flags2;
   if (packet->length() - ev_offset < LOG_EVENT_HEADER_LEN + GTID_HEADER_LEN)
@@ -6879,7 +6873,7 @@ Gtid_list_log_event::print(FILE *file, PRINT_EVENT_INFO *print_event_info)
 */
 bool
 Gtid_list_log_event::peek(const char *event_start, uint32 event_len,
-                          uint8 checksum_alg,
+                          enum enum_binlog_checksum_alg checksum_alg,
                           rpl_gtid **out_gtid_list, uint32 *out_list_len,
                           const Format_description_log_event *fdev)
 {

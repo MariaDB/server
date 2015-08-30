@@ -1881,8 +1881,8 @@ when it try to get the value of TIME_ZONE global variable from master.";
           (master_row= mysql_fetch_row(master_res)) &&
           (master_row[0] != NULL))
       {
-        mi->checksum_alg_before_fd= (uint8)
-          find_type(master_row[0], &binlog_checksum_typelib, 1) - 1;
+        mi->checksum_alg_before_fd= (enum_binlog_checksum_alg)
+          (find_type(master_row[0], &binlog_checksum_typelib, 1) - 1);
         // valid outcome is either of
         DBUG_ASSERT(mi->checksum_alg_before_fd == BINLOG_CHECKSUM_ALG_OFF ||
                     mi->checksum_alg_before_fd == BINLOG_CHECKSUM_ALG_CRC32);
@@ -5408,9 +5408,9 @@ static int queue_event(Master_info* mi,const char* buf, ulong event_len)
     Show-up of FD:s affects checksum_alg at once because
     that changes FD_queue.
   */
-  uint8 checksum_alg= mi->checksum_alg_before_fd != BINLOG_CHECKSUM_ALG_UNDEF ? 
-    mi->checksum_alg_before_fd :
-    mi->rli.relay_log.relay_log_checksum_alg;
+  enum enum_binlog_checksum_alg checksum_alg=
+    mi->checksum_alg_before_fd != BINLOG_CHECKSUM_ALG_UNDEF ?
+    mi->checksum_alg_before_fd : mi->rli.relay_log.relay_log_checksum_alg;
 
   char *save_buf= NULL; // needed for checksumming the fake Rotate event
   char rot_buf[LOG_EVENT_HEADER_LEN + ROTATE_HEADER_LEN + FN_REFLEN];

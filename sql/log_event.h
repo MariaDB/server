@@ -566,15 +566,6 @@ struct sql_ex_info
 #endif
 #undef EXPECTED_OPTIONS         /* You shouldn't use this one */
 
-enum enum_binlog_checksum_alg {
-  BINLOG_CHECKSUM_ALG_OFF= 0,    // Events are without checksum though its generator
-                                 // is checksum-capable New Master (NM).
-  BINLOG_CHECKSUM_ALG_CRC32= 1,  // CRC32 of zlib algorithm.
-  BINLOG_CHECKSUM_ALG_ENUM_END,  // the cut line: valid alg range is [1, 0x7f].
-  BINLOG_CHECKSUM_ALG_UNDEF= 255 // special value to tag undetermined yet checksum
-                                 // or events from checksum-unaware servers
-};
-
 #define CHECKSUM_CRC32_SIGNATURE_LEN 4
 /**
    defined statically while there is just one alg implemented
@@ -1201,7 +1192,7 @@ public:
     @retval LOG_READ_TOO_LARGE  event too large
    */
   static int read_log_event(IO_CACHE* file, String* packet,
-                            uint8 checksum_alg_arg);
+                            enum enum_binlog_checksum_alg checksum_alg_arg);
   /* 
      The value is set by caller of FD constructor and
      Log_event::write_header() for the rest.
@@ -1210,7 +1201,7 @@ public:
      On the slave side the value is assigned from post_header_len[last] 
      of the last seen FD event.
   */
-  uint8 checksum_alg;
+  enum enum_binlog_checksum_alg checksum_alg;
 
   static void *operator new(size_t size)
   {
@@ -1995,8 +1986,8 @@ public:
       my_free(data_buf);
   }
   Log_event_type get_type_code() { return QUERY_EVENT; }
-  static int dummy_event(String *packet, ulong ev_offset, uint8 checksum_alg);
-  static int begin_event(String *packet, ulong ev_offset, uint8 checksum_alg);
+  static int dummy_event(String *packet, ulong ev_offset, enum enum_binlog_checksum_alg checksum_alg);
+  static int begin_event(String *packet, ulong ev_offset, enum enum_binlog_checksum_alg checksum_alg);
 #ifdef MYSQL_SERVER
   bool write(IO_CACHE* file);
   virtual bool write_post_header_for_derived(IO_CACHE* file) { return FALSE; }
@@ -2019,7 +2010,7 @@ public:        /* !!! Public in this patch to allow old usage */
                        const char *query_arg,
                        uint32 q_len_arg);
   static bool peek_is_commit_rollback(const char *event_start,
-                                      size_t event_len, uint8 checksum_alg);
+                                      size_t event_len, enum enum_binlog_checksum_alg checksum_alg);
 #endif /* HAVE_REPLICATION */
   /*
     If true, the event always be applied by slave SQL thread or be printed by
@@ -3206,9 +3197,9 @@ public:
 #ifdef MYSQL_SERVER
   bool write(IO_CACHE *file);
   static int make_compatible_event(String *packet, bool *need_dummy_event,
-                                    ulong ev_offset, uint8 checksum_alg);
+                                    ulong ev_offset, enum enum_binlog_checksum_alg checksum_alg);
   static bool peek(const char *event_start, size_t event_len,
-                   uint8 checksum_alg,
+                   enum enum_binlog_checksum_alg checksum_alg,
                    uint32 *domain_id, uint32 *server_id, uint64 *seq_no,
                    uchar *flags2, const Format_description_log_event *fdev);
 #endif
@@ -3324,7 +3315,7 @@ public:
   enum_skip_reason do_shall_skip(rpl_group_info *rgi);
 #endif
   static bool peek(const char *event_start, uint32 event_len,
-                   uint8 checksum_alg,
+                   enum enum_binlog_checksum_alg checksum_alg,
                    rpl_gtid **out_gtid_list, uint32 *out_list_len,
                    const Format_description_log_event *fdev);
 };
@@ -4864,8 +4855,8 @@ bool rpl_get_position_info(const char **log_file_name, ulonglong *log_pos,
                            const char **group_relay_log_name,
                            ulonglong *relay_log_pos);
 
-bool event_checksum_test(uchar *buf, ulong event_len, uint8 alg);
-uint8 get_checksum_alg(const char* buf, ulong len);
+bool event_checksum_test(uchar *buf, ulong event_len, enum_binlog_checksum_alg alg);
+enum enum_binlog_checksum_alg get_checksum_alg(const char* buf, ulong len);
 extern TYPELIB binlog_checksum_typelib;
 
 /**
