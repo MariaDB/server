@@ -2193,10 +2193,8 @@ static int init_binlog_sender(binlog_send_info *info,
 /**
  * send format descriptor event for one binlog file
  */
-static int send_format_descriptor_event(binlog_send_info *info,
-                                        IO_CACHE *log,
-                                        LOG_INFO *linfo,
-                                        my_off_t start_pos)
+static int send_format_descriptor_event(binlog_send_info *info, IO_CACHE *log,
+                                        LOG_INFO *linfo, my_off_t start_pos)
 {
   int error;
   ulong ev_offset;
@@ -2220,145 +2218,139 @@ static int send_format_descriptor_event(binlog_send_info *info,
     return 1;
   }
 
-  do
+  /* reset transmit packet for the event read from binary log file */
+  if (reset_transmit_packet(info, info->flags, &ev_offset, &info->errmsg))
+    return 1;
+
+  /*
+    Try to find a Format_description_log_event at the beginning of
+    the binlog
+  */
+  info->last_pos= my_b_tell(log);
+  error= Log_event::read_log_event(log, packet,
+                                   opt_master_verify_checksum
+                                   ? info->current_checksum_alg : 0);
+  linfo->pos= my_b_tell(log);
+
+  if (error)
   {
-    /* reset transmit packet for the event read from binary log file */
-    if (reset_transmit_packet(info, info->flags, &ev_offset, &info->errmsg))
-      break;
+    set_read_error(info, error);
+    return 1;
+  }
+
+  event_type= (Log_event_type)((uchar)(*packet)[LOG_EVENT_OFFSET+ev_offset]);
+
+  /*
+    The packet has offsets equal to the normal offsets in a
+    binlog event + ev_offset (the first ev_offset characters are
+    the header (default \0)).
+  */
+  DBUG_PRINT("info",
+             ("Looked for a Format_description_log_event, "
+              "found event type %d", (int)event_type));
+
+  if (event_type != FORMAT_DESCRIPTION_EVENT)
+  {
+    info->error= ER_MASTER_FATAL_ERROR_READING_BINLOG;
+    info->errmsg= "Failed to find format descriptor event in start of binlog";
+    sql_print_warning("Failed to find format descriptor event in "
+                      "start of binlog: %s",
+                      info->log_file_name);
+    return 1;
+  }
+
+  info->current_checksum_alg= get_checksum_alg(packet->ptr() + ev_offset,
+                                               packet->length() - ev_offset);
+
+  DBUG_ASSERT(info->current_checksum_alg == BINLOG_CHECKSUM_ALG_OFF ||
+              info->current_checksum_alg == BINLOG_CHECKSUM_ALG_UNDEF ||
+              info->current_checksum_alg == BINLOG_CHECKSUM_ALG_CRC32);
+
+  if (!is_slave_checksum_aware(thd) &&
+      info->current_checksum_alg != BINLOG_CHECKSUM_ALG_OFF &&
+      info->current_checksum_alg != BINLOG_CHECKSUM_ALG_UNDEF)
+  {
+    info->error= ER_MASTER_FATAL_ERROR_READING_BINLOG;
+    info->errmsg= "Slave can not handle replication events with the "
+        "checksum that master is configured to log";
+    sql_print_warning("Master is configured to log replication events "
+                      "with checksum, but will not send such events to "
+                      "slaves that cannot process them");
+    return 1;
+  }
+
+  Format_description_log_event *tmp;
+  if (!(tmp= new Format_description_log_event(packet->ptr()+ev_offset,
+                                              packet->length()-ev_offset,
+                                              info->fdev)))
+  {
+    info->error= ER_MASTER_FATAL_ERROR_READING_BINLOG;
+    info->errmsg= "Corrupt Format_description event found "
+        "or out-of-memory";
+    return 1;
+  }
+  delete info->fdev;
+  info->fdev= tmp;
+
+  (*packet)[FLAGS_OFFSET+ev_offset] &= ~LOG_EVENT_BINLOG_IN_USE_F;
+
+  if (info->clear_initial_log_pos)
+  {
+    info->clear_initial_log_pos= false;
+    /*
+      mark that this event with "log_pos=0", so the slave
+      should not increment master's binlog position
+      (rli->group_master_log_pos)
+    */
+    int4store((char*) packet->ptr()+LOG_POS_OFFSET+ev_offset, (ulong) 0);
 
     /*
-      Try to find a Format_description_log_event at the beginning of
-      the binlog
+      if reconnect master sends FD event with `created' as 0
+      to avoid destroying temp tables.
     */
-    info->last_pos= my_b_tell(log);
-    error= Log_event::read_log_event(log, packet,
-                                     opt_master_verify_checksum
-                                     ? info->current_checksum_alg : 0);
-    linfo->pos= my_b_tell(log);
+    int4store((char*) packet->ptr()+LOG_EVENT_MINIMAL_HEADER_LEN+
+              ST_CREATED_OFFSET+ev_offset, (ulong) 0);
 
-    if (error)
-    {
-      set_read_error(info, error);
-      break;
-    }
-
-    event_type= (Log_event_type)((uchar)(*packet)[LOG_EVENT_OFFSET+ev_offset]);
-
+    /* fix the checksum due to latest changes in header */
+    if (info->current_checksum_alg != BINLOG_CHECKSUM_ALG_OFF &&
+      info->current_checksum_alg != BINLOG_CHECKSUM_ALG_UNDEF)
+      fix_checksum(packet, ev_offset);
+  }
+  else if (info->using_gtid_state)
+  {
     /*
-      The packet has offsets equal to the normal offsets in a
-      binlog event + ev_offset (the first ev_offset characters are
-      the header (default \0)).
+      If this event has the field `created' set, then it will cause the
+      slave to delete all active temporary tables. This must not happen
+      if the slave received any later GTIDs in a previous connect, as
+      those GTIDs might have created new temporary tables that are still
+      needed.
+
+      So here, we check if the starting GTID position was already
+      reached before this format description event. If not, we clear the
+      `created' flag to preserve temporary tables on the slave. (If the
+      slave connects at a position past this event, it means that it
+      already received and handled it in a previous connect).
     */
-    DBUG_PRINT("info",
-               ("Looked for a Format_description_log_event, "
-                "found event type %d", (int)event_type));
-
-    if (event_type != FORMAT_DESCRIPTION_EVENT)
+    if (!info->gtid_state.is_pos_reached())
     {
-      info->error= ER_MASTER_FATAL_ERROR_READING_BINLOG;
-      info->errmsg= "Failed to find format descriptor event in start of binlog";
-      sql_print_warning("Failed to find format descriptor event in "
-                        "start of binlog: %s",
-                        info->log_file_name);
-      break;
-    }
-
-    info->current_checksum_alg= get_checksum_alg(packet->ptr() + ev_offset,
-                                                 packet->length() - ev_offset);
-
-    DBUG_ASSERT(info->current_checksum_alg == BINLOG_CHECKSUM_ALG_OFF ||
-                info->current_checksum_alg == BINLOG_CHECKSUM_ALG_UNDEF ||
-                info->current_checksum_alg == BINLOG_CHECKSUM_ALG_CRC32);
-
-    if (!is_slave_checksum_aware(thd) &&
-        info->current_checksum_alg != BINLOG_CHECKSUM_ALG_OFF &&
-        info->current_checksum_alg != BINLOG_CHECKSUM_ALG_UNDEF)
-    {
-      info->error= ER_MASTER_FATAL_ERROR_READING_BINLOG;
-      info->errmsg= "Slave can not handle replication events with the "
-          "checksum that master is configured to log";
-      sql_print_warning("Master is configured to log replication events "
-                        "with checksum, but will not send such events to "
-                        "slaves that cannot process them");
-      break;
-    }
-
-    Format_description_log_event *tmp;
-    if (!(tmp= new Format_description_log_event(packet->ptr()+ev_offset,
-                                                packet->length()-ev_offset,
-                                                info->fdev)))
-    {
-      info->error= ER_MASTER_FATAL_ERROR_READING_BINLOG;
-      info->errmsg= "Corrupt Format_description event found "
-          "or out-of-memory";
-      break;
-    }
-    delete info->fdev;
-    info->fdev= tmp;
-
-    (*packet)[FLAGS_OFFSET+ev_offset] &= ~LOG_EVENT_BINLOG_IN_USE_F;
-
-    if (info->clear_initial_log_pos)
-    {
-      info->clear_initial_log_pos= false;
-      /*
-        mark that this event with "log_pos=0", so the slave
-        should not increment master's binlog position
-        (rli->group_master_log_pos)
-      */
-      int4store((char*) packet->ptr()+LOG_POS_OFFSET+ev_offset, (ulong) 0);
-
-      /*
-        if reconnect master sends FD event with `created' as 0
-        to avoid destroying temp tables.
-      */
       int4store((char*) packet->ptr()+LOG_EVENT_MINIMAL_HEADER_LEN+
                 ST_CREATED_OFFSET+ev_offset, (ulong) 0);
-
-      /* fix the checksum due to latest changes in header */
       if (info->current_checksum_alg != BINLOG_CHECKSUM_ALG_OFF &&
-        info->current_checksum_alg != BINLOG_CHECKSUM_ALG_UNDEF)
+          info->current_checksum_alg != BINLOG_CHECKSUM_ALG_UNDEF)
         fix_checksum(packet, ev_offset);
     }
-    else if (info->using_gtid_state)
-    {
-      /*
-        If this event has the field `created' set, then it will cause the
-        slave to delete all active temporary tables. This must not happen
-        if the slave received any later GTIDs in a previous connect, as
-        those GTIDs might have created new temporary tables that are still
-        needed.
+  }
 
-        So here, we check if the starting GTID position was already
-        reached before this format description event. If not, we clear the
-        `created' flag to preserve temporary tables on the slave. (If the
-        slave connects at a position past this event, it means that it
-        already received and handled it in a previous connect).
-      */
-      if (!info->gtid_state.is_pos_reached())
-      {
-        int4store((char*) packet->ptr()+LOG_EVENT_MINIMAL_HEADER_LEN+
-                  ST_CREATED_OFFSET+ev_offset, (ulong) 0);
-        if (info->current_checksum_alg != BINLOG_CHECKSUM_ALG_OFF &&
-            info->current_checksum_alg != BINLOG_CHECKSUM_ALG_UNDEF)
-          fix_checksum(packet, ev_offset);
-      }
-    }
+  /* send it */
+  if (my_net_write(info->net, (uchar*) packet->ptr(), packet->length()))
+  {
+    info->errmsg= "Failed on my_net_write()";
+    info->error= ER_UNKNOWN_ERROR;
+    return 1;
+  }
 
-    /* send it */
-    if (my_net_write(info->net, (uchar*) packet->ptr(), packet->length()))
-    {
-      info->errmsg= "Failed on my_net_write()";
-      info->error= ER_UNKNOWN_ERROR;
-      break;
-    }
-
-    /** all done */
-    return 0;
-
-  } while (false);
-
-  return 1;
+  /** all done */
+  return 0;
 }
 
 static bool should_stop(binlog_send_info *info)
@@ -2545,9 +2537,7 @@ static my_off_t get_binlog_end_pos(binlog_send_info *info,
  * return 0 - OK
  *        else NOK
  */
-static int send_events(binlog_send_info *info,
-                       IO_CACHE* log,
-                       LOG_INFO* linfo,
+static int send_events(binlog_send_info *info, IO_CACHE* log, LOG_INFO* linfo,
                        my_off_t end_pos)
 {
   int error;
@@ -2575,7 +2565,8 @@ static int send_events(binlog_send_info *info,
 
     if (error)
     {
-      goto read_err;
+      set_read_error(info, error);
+      return 1;
     }
 
     Log_event_type event_type=
@@ -2661,11 +2652,6 @@ static int send_events(binlog_send_info *info,
   }
 
   return 0;
-
-read_err:
-  set_read_error(info, error);
-
-  return 1;
 }
 
 /**

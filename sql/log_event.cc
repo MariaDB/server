@@ -4439,12 +4439,6 @@ end:
   DBUG_RETURN(thd->is_slave_error);
 }
 
-int Query_log_event::do_update_pos(rpl_group_info *rgi)
-{
-  return Log_event::do_update_pos(rgi);
-}
-
-
 Log_event::enum_skip_reason
 Query_log_event::do_shall_skip(rpl_group_info *rgi)
 {
@@ -4980,7 +4974,7 @@ bool Format_description_log_event::write(IO_CACHE* file)
     slave does it via marking the event according to
     FD_queue checksum_alg value.
   */
-  compile_time_assert(sizeof(BINLOG_CHECKSUM_ALG_DESC_LEN == 1));
+  compile_time_assert(BINLOG_CHECKSUM_ALG_DESC_LEN == 1);
 #ifndef DBUG_OFF
   data_written= 0; // to prepare for need_checksum assert
 #endif
@@ -5019,7 +5013,7 @@ bool Format_description_log_event::write(IO_CACHE* file)
 int Format_description_log_event::do_apply_event(rpl_group_info *rgi)
 {
   int ret= 0;
-  Relay_log_info const *rli= rgi->rli;
+  Relay_log_info *rli= rgi->rli;
   DBUG_ENTER("Format_description_log_event::do_apply_event");
 
   /*
@@ -5067,7 +5061,7 @@ int Format_description_log_event::do_apply_event(rpl_group_info *rgi)
   {
     /* Save the information describing this binlog */
     delete rli->relay_log.description_event_for_exec;
-    const_cast<Relay_log_info *>(rli)->relay_log.description_event_for_exec= this;
+    rli->relay_log.description_event_for_exec= this;
   }
 
   DBUG_RETURN(ret);

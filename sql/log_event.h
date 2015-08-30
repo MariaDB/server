@@ -2014,7 +2014,6 @@ public:        /* !!! Public in this patch to allow old usage */
 #if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
   virtual enum_skip_reason do_shall_skip(rpl_group_info *rgi);
   virtual int do_apply_event(rpl_group_info *rgi);
-  virtual int do_update_pos(rpl_group_info *rgi);
 
   int do_apply_event(rpl_group_info *rgi,
                        const char *query_arg,
