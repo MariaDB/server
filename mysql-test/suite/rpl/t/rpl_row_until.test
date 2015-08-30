@@ -39,17 +39,14 @@ sync_slave_with_master;
 --source include/stop_slave.inc
 # Reset slave.
 RESET SLAVE;
---disable_query_log
+--replace_result $MASTER_MYPORT MASTER_MYPORT
 eval CHANGE MASTER TO MASTER_USER='root', MASTER_CONNECT_RETRY=1, MASTER_HOST='127.0.0.1', MASTER_PORT=$MASTER_MYPORT;
---enable_query_log
 
 # Try to replicate all queries until drop of t1
 
 connection slave;
-echo START SLAVE UNTIL MASTER_LOG_FILE='$master_log_file', MASTER_LOG_POS=master_pos_drop_t1;
---disable_query_log
+--replace_result $master_pos_drop_t1 master_pos_drop_t1
 eval START SLAVE UNTIL MASTER_LOG_FILE='$master_log_file', MASTER_LOG_POS=$master_pos_drop_t1;
---enable_query_log
 --source include/wait_for_slave_sql_to_stop.inc
 
 # Here table should be still not deleted
@@ -59,7 +56,6 @@ SELECT * FROM t1;
 --source include/check_slave_param.inc
 
 # This should fail right after start
---replace_result 291 MASTER_LOG_POS
 START SLAVE UNTIL MASTER_LOG_FILE='master-no-such-bin.000001', MASTER_LOG_POS=291;
 --source include/wait_for_slave_sql_to_stop.inc
 # again this table should be still not deleted
@@ -77,10 +73,8 @@ sync_slave_with_master;
 --source include/stop_slave.inc
 
 # This should stop immediately as we are already there
-echo START SLAVE SQL_THREAD UNTIL MASTER_LOG_FILE='$master_log_file', MASTER_LOG_POS=master_pos_create_t2;
---disable_query_log
+--replace_result $master_pos_create_t2 master_pos_create_t2
 eval START SLAVE SQL_THREAD UNTIL MASTER_LOG_FILE='$master_log_file', MASTER_LOG_POS=$master_pos_create_t2;
---enable_query_log
 let $slave_param= Until_Log_Pos;
 let $slave_param_value= $master_pos_create_t2;
 --source include/wait_for_slave_param.inc
@@ -140,9 +134,8 @@ INSERT INTO t1 VALUES (3);
 --let $relay_log_file= query_get_value(SHOW SLAVE STATUS, Relay_Log_File,1)
 --source include/get_relay_log_pos.inc
 
---disable_query_log
+--replace_result $relay_log_pos relay_log_pos
 --eval start slave until relay_log_file='$relay_log_file', relay_log_pos=$relay_log_pos
---enable_query_log
 --source include/wait_for_slave_sql_to_stop.inc
 
 --let $assert_cond= COUNT(*) = 2 FROM t1
