@@ -1009,7 +1009,7 @@ void Relay_log_info::inc_group_relay_log_pos(ulonglong log_pos,
     group_relay_log_pos= event_relay_log_pos;
     strmake_buf(group_relay_log_name, event_relay_log_name);
     notify_group_relay_log_name_update();
-    if (log_pos) // 3.23 binlogs don't have log_posx
+    if (log_pos) // not 3.23 binlogs (no log_pos there) and not Stop_log_event
       group_master_log_pos= log_pos;
   }
 

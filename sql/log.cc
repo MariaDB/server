@@ -5956,7 +5956,7 @@ bool MYSQL_BIN_LOG::write(Log_event *event_info, my_bool *with_annotate)
 
   /*
     When binary logging is not enabled (--log-bin=0), wsrep-patch partially
-    enables it without opening the binlog file (MSQL_BIN_LOG::open().
+    enables it without opening the binlog file (MYSQL_BIN_LOG::open().
     So, avoid writing to binlog file.
   */
   if (direct &&

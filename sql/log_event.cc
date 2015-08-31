@@ -1157,8 +1157,7 @@ bool Log_event::write_footer(IO_CACHE* file)
 {
   DBUG_ENTER("write_footer");
   /*
-     footer contains the checksum-algorithm descriptor 
-     followed by the checksum value
+     (optional) footer contains the checksum value
   */
   if (need_checksum())
   {
@@ -1171,7 +1170,7 @@ bool Log_event::write_footer(IO_CACHE* file)
 }
 
 /*
-  Log_event::write()
+  Log_event::write_header()
 */
 
 bool Log_event::write_header(IO_CACHE* file, ulong event_data_length)
@@ -1209,29 +1208,8 @@ bool Log_event::write_header(IO_CACHE* file, ulong event_data_length)
   else  if (!log_pos)
   {
     /*
-      Calculate position of end of event
-
-      Note that with a SEQ_READ_APPEND cache, my_b_tell() does not
-      work well.  So this will give slightly wrong positions for the
-      Format_desc/Rotate/Stop events which the slave writes to its
-      relay log. For example, the initial Format_desc will have
-      end_log_pos=91 instead of 95. Because after writing the first 4
-      bytes of the relay log, my_b_tell() still reports 0. Because
-      my_b_append() does not update the counter which my_b_tell()
-      later uses (one should probably use my_b_append_tell() to work
-      around this).  To get right positions even when writing to the
-      relay log, we use the (new) my_b_safe_tell().
-
-      Note that this raises a question on the correctness of all these
-      DBUG_ASSERT(my_b_tell()=rli->event_relay_log_pos).
-
-      If in a transaction, the log_pos which we calculate below is not
-      very good (because then my_b_safe_tell() returns start position
-      of the BEGIN, so it's like the statement was at the BEGIN's
-      place), but it's not a very serious problem (as the slave, when
-      it is in a transaction, does not take those end_log_pos into
-      account (as it calls inc_event_relay_log_pos()). To be fixed
-      later, so that it looks less strange. But not bug.
+      Calculate the position of where the next event will start
+      (end of this event, that is).
     */
 
     log_pos= my_b_safe_tell(file)+data_written;
@@ -1341,7 +1319,7 @@ int Log_event::read_log_event(IO_CACHE* file, String* packet,
            file->error will have been set to number of bytes left to read
         2. Read was interrupted, file->error would normally be set to -1
         3. Failed to allocate memory for packet, my_errno
-           will be ENOMEM(file->error shuold be 0, but since the
+           will be ENOMEM(file->error should be 0, but since the
            memory allocation occurs before the call to read it might
            be uninitialized)
       */
@@ -2737,7 +2715,7 @@ void Query_log_event::pack_info(THD *thd, Protocol *protocol)
 /**
   Utility function for the next method (Query_log_event::write()) .
 */
-static void write_str_with_code_and_len(uchar **dst, const char *src,
+static void store_str_with_code_and_len(uchar **dst, const char *src,
                                         uint len, uint code)
 {
   /*
@@ -2833,7 +2811,7 @@ bool Query_log_event::write(IO_CACHE* file)
   }
   if (catalog_len) // i.e. this var is inited (false for 4.0 events)
   {
-    write_str_with_code_and_len(&start,
+    store_str_with_code_and_len(&start,
                                 catalog, catalog_len, Q_CATALOG_NZ_CODE);
     /*
       In 5.0.x where x<4 masters we used to store the end zero here. This was
@@ -2871,7 +2849,7 @@ bool Query_log_event::write(IO_CACHE* file)
   {
     /* In the TZ sys table, column Name is of length 64 so this should be ok */
     DBUG_ASSERT(time_zone_len <= MAX_TIME_ZONE_NAME_LENGTH);
-    write_str_with_code_and_len(&start,
+    store_str_with_code_and_len(&start,
                                 time_zone_str, time_zone_len, Q_TIME_ZONE_CODE);
   }
   if (lc_time_names_number)

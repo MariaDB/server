@@ -1239,10 +1239,12 @@ public:
 	   write_data_body(file) ||
 	   write_footer(file));
   }
-  virtual bool write_data_header(IO_CACHE* file)
+  virtual bool write_data_header(IO_CACHE* file __attribute__((unused)))
   { return 0; }
   virtual bool write_data_body(IO_CACHE* file __attribute__((unused)))
   { return 0; }
+
+  /* Return start of query time or current time */
   inline my_time_t get_time()
   {
     THD *tmp_thd;
@@ -1320,8 +1322,6 @@ public:
     Returns the human readable name of this event's type.
   */
   const char* get_type_str();
-
-  /* Return start of query time or current time */
 
 #if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
 public:
