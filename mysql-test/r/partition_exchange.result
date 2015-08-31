@@ -485,14 +485,14 @@ INSERT INTO tsp VALUES (2, "First value"), (10, "Ten"), (50, "Fifty"), (200, "Tw
 SHOW CREATE TABLE t;
 Table	Create Table
 t	CREATE TABLE `t` (
-  `a` int(11) NOT NULL DEFAULT '0',
+  `a` int(11) NOT NULL,
   `b` varchar(55) DEFAULT NULL,
   PRIMARY KEY (`a`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 SHOW CREATE TABLE tp;
 Table	Create Table
 tp	CREATE TABLE `tp` (
-  `a` int(11) NOT NULL DEFAULT '0',
+  `a` int(11) NOT NULL,
   `b` varchar(55) DEFAULT NULL,
   PRIMARY KEY (`a`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
@@ -523,14 +523,14 @@ ALTER TABLE tp EXCHANGE PARTITION p0 WITH TABLE t;
 SHOW CREATE TABLE t;
 Table	Create Table
 t	CREATE TABLE `t` (
-  `a` int(11) NOT NULL DEFAULT '0',
+  `a` int(11) NOT NULL,
   `b` varchar(55) DEFAULT NULL,
   PRIMARY KEY (`a`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 SHOW CREATE TABLE tp;
 Table	Create Table
 tp	CREATE TABLE `tp` (
-  `a` int(11) NOT NULL DEFAULT '0',
+  `a` int(11) NOT NULL,
   `b` varchar(55) DEFAULT NULL,
   PRIMARY KEY (`a`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
@@ -583,14 +583,14 @@ ERROR HY000: Found a row that does not match the partition
 SHOW CREATE TABLE t;
 Table	Create Table
 t	CREATE TABLE `t` (
-  `a` int(11) NOT NULL DEFAULT '0',
+  `a` int(11) NOT NULL,
   `b` varchar(55) DEFAULT NULL,
   PRIMARY KEY (`a`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 SHOW CREATE TABLE tp;
 Table	Create Table
 tp	CREATE TABLE `tp` (
-  `a` int(11) NOT NULL DEFAULT '0',
+  `a` int(11) NOT NULL,
   `b` varchar(55) DEFAULT NULL,
   PRIMARY KEY (`a`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
@@ -639,14 +639,14 @@ ERROR HY000: Table to exchange with partition is partitioned: 'tp'
 SHOW CREATE TABLE t;
 Table	Create Table
 t	CREATE TABLE `t` (
-  `a` int(11) NOT NULL DEFAULT '0',
+  `a` int(11) NOT NULL,
   `b` varchar(55) DEFAULT NULL,
   PRIMARY KEY (`a`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 SHOW CREATE TABLE tp;
 Table	Create Table
 tp	CREATE TABLE `tp` (
-  `a` int(11) NOT NULL DEFAULT '0',
+  `a` int(11) NOT NULL,
   `b` varchar(55) DEFAULT NULL,
   PRIMARY KEY (`a`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
@@ -656,7 +656,7 @@ tp	CREATE TABLE `tp` (
 SHOW CREATE TABLE tsp;
 Table	Create Table
 tsp	CREATE TABLE `tsp` (
-  `a` int(11) NOT NULL DEFAULT '0',
+  `a` int(11) NOT NULL,
   `b` varchar(55) DEFAULT NULL,
   PRIMARY KEY (`a`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
@@ -693,14 +693,14 @@ ALTER TABLE tp EXCHANGE PARTITION p0 WITH TABLE t;
 SHOW CREATE TABLE t;
 Table	Create Table
 t	CREATE TABLE `t` (
-  `a` int(11) NOT NULL DEFAULT '0',
+  `a` int(11) NOT NULL,
   `b` varchar(55) DEFAULT NULL,
   PRIMARY KEY (`a`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 SHOW CREATE TABLE tp;
 Table	Create Table
 tp	CREATE TABLE `tp` (
-  `a` int(11) NOT NULL DEFAULT '0',
+  `a` int(11) NOT NULL,
   `b` varchar(55) DEFAULT NULL,
   PRIMARY KEY (`a`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
@@ -731,14 +731,14 @@ ALTER TABLE tp EXCHANGE PARTITION p0 WITH TABLE t;
 SHOW CREATE TABLE t;
 Table	Create Table
 t	CREATE TABLE `t` (
-  `a` int(11) NOT NULL DEFAULT '0',
+  `a` int(11) NOT NULL,
   `b` varchar(55) DEFAULT NULL,
   PRIMARY KEY (`a`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 SHOW CREATE TABLE tp;
 Table	Create Table
 tp	CREATE TABLE `tp` (
-  `a` int(11) NOT NULL DEFAULT '0',
+  `a` int(11) NOT NULL,
   `b` varchar(55) DEFAULT NULL,
   PRIMARY KEY (`a`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
@@ -770,14 +770,14 @@ ALTER TABLE tsp EXCHANGE PARTITION sp1 WITH TABLE t;
 SHOW CREATE TABLE t;
 Table	Create Table
 t	CREATE TABLE `t` (
-  `a` int(11) NOT NULL DEFAULT '0',
+  `a` int(11) NOT NULL,
   `b` varchar(55) DEFAULT NULL,
   PRIMARY KEY (`a`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 SHOW CREATE TABLE tsp;
 Table	Create Table
 tsp	CREATE TABLE `tsp` (
-  `a` int(11) NOT NULL DEFAULT '0',
+  `a` int(11) NOT NULL,
   `b` varchar(55) DEFAULT NULL,
   PRIMARY KEY (`a`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
@@ -815,14 +815,14 @@ ALTER TABLE tp ENGINE = InnoDB;
 SHOW CREATE TABLE t;
 Table	Create Table
 t	CREATE TABLE `t` (
-  `a` int(11) NOT NULL DEFAULT '0',
+  `a` int(11) NOT NULL,
   `b` varchar(55) DEFAULT NULL,
   PRIMARY KEY (`a`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
 SHOW CREATE TABLE tp;
 Table	Create Table
 tp	CREATE TABLE `tp` (
-  `a` int(11) NOT NULL DEFAULT '0',
+  `a` int(11) NOT NULL,
   `b` varchar(55) DEFAULT NULL,
   PRIMARY KEY (`a`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
@@ -853,14 +853,14 @@ ALTER TABLE tp EXCHANGE PARTITION p0 WITH TABLE t;
 SHOW CREATE TABLE t;
 Table	Create Table
 t	CREATE TABLE `t` (
-  `a` int(11) NOT NULL DEFAULT '0',
+  `a` int(11) NOT NULL,
   `b` varchar(55) DEFAULT NULL,
   PRIMARY KEY (`a`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
 SHOW CREATE TABLE tp;
 Table	Create Table
 tp	CREATE TABLE `tp` (
-  `a` int(11) NOT NULL DEFAULT '0',
+  `a` int(11) NOT NULL,
   `b` varchar(55) DEFAULT NULL,
   PRIMARY KEY (`a`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
@@ -894,14 +894,14 @@ ALTER TABLE tp ENGINE = InnoDB;
 SHOW CREATE TABLE t;
 Table	Create Table
 t	CREATE TABLE `t` (
-  `a` int(11) NOT NULL DEFAULT '0',
+  `a` int(11) NOT NULL,
   `b` varchar(55) DEFAULT NULL,
   PRIMARY KEY (`a`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 SHOW CREATE TABLE tp;
 Table	Create Table
 tp	CREATE TABLE `tp` (
-  `a` int(11) NOT NULL DEFAULT '0',
+  `a` int(11) NOT NULL,
   `b` varchar(55) DEFAULT NULL,
   PRIMARY KEY (`a`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
@@ -913,14 +913,14 @@ ERROR HY000: The mix of handlers in the partitions is not allowed in this versio
 SHOW CREATE TABLE t;
 Table	Create Table
 t	CREATE TABLE `t` (
-  `a` int(11) NOT NULL DEFAULT '0',
+  `a` int(11) NOT NULL,
   `b` varchar(55) DEFAULT NULL,
   PRIMARY KEY (`a`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 SHOW CREATE TABLE tp;
 Table	Create Table
 tp	CREATE TABLE `tp` (
-  `a` int(11) NOT NULL DEFAULT '0',
+  `a` int(11) NOT NULL,
   `b` varchar(55) DEFAULT NULL,
   PRIMARY KEY (`a`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
@@ -946,14 +946,14 @@ INSERT INTO t SELECT * FROM tmp2;
 SHOW CREATE TABLE t;
 Table	Create Table
 t	CREATE TABLE `t` (
-  `a` int(11) NOT NULL DEFAULT '0',
+  `a` int(11) NOT NULL,
   `b` varchar(55) DEFAULT NULL,
   PRIMARY KEY (`a`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 MIN_ROWS=1000 MAX_ROWS=100000
 SHOW CREATE TABLE tp;
 Table	Create Table
 tp	CREATE TABLE `tp` (
-  `a` int(11) NOT NULL DEFAULT '0',
+  `a` int(11) NOT NULL,
   `b` varchar(55) DEFAULT NULL,
   PRIMARY KEY (`a`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
@@ -975,7 +975,7 @@ ALTER TABLE tp EXCHANGE PARTITION p0 WITH TABLE t;
 SHOW CREATE TABLE t;
 Table	Create Table
 t	CREATE TABLE `t` (
-  `a` int(11) NOT NULL DEFAULT '0',
+  `a` int(11) NOT NULL,
   `b` varchar(55) DEFAULT NULL,
   PRIMARY KEY (`a`),
   KEY `ba_key` (`b`,`a`)
@@ -983,7 +983,7 @@ t	CREATE TABLE `t` (
 SHOW CREATE TABLE tp;
 Table	Create Table
 tp	CREATE TABLE `tp` (
-  `a` int(11) NOT NULL DEFAULT '0',
+  `a` int(11) NOT NULL,
   `b` varchar(55) DEFAULT NULL,
   PRIMARY KEY (`a`),
   KEY `ba_key` (`b`,`a`)
@@ -1034,7 +1034,7 @@ ALTER TABLE tmp RENAME TO t;
 SHOW CREATE TABLE t;
 Table	Create Table
 t	CREATE TEMPORARY TABLE `t` (
-  `a` int(11) NOT NULL DEFAULT '0',
+  `a` int(11) NOT NULL,
   `b` varchar(55) DEFAULT NULL,
   PRIMARY KEY (`a`),
   KEY `ba_key` (`b`,`a`)
@@ -1042,7 +1042,7 @@ t	CREATE TEMPORARY TABLE `t` (
 SHOW CREATE TABLE tp;
 Table	Create Table
 tp	CREATE TABLE `tp` (
-  `a` int(11) NOT NULL DEFAULT '0',
+  `a` int(11) NOT NULL,
   `b` varchar(55) DEFAULT NULL,
   PRIMARY KEY (`a`),
   KEY `ba_key` (`b`,`a`)
@@ -1055,7 +1055,7 @@ ERROR HY000: Table to exchange with partition is temporary: 't'
 SHOW CREATE TABLE t;
 Table	Create Table
 t	CREATE TEMPORARY TABLE `t` (
-  `a` int(11) NOT NULL DEFAULT '0',
+  `a` int(11) NOT NULL,
   `b` varchar(55) DEFAULT NULL,
   PRIMARY KEY (`a`),
   KEY `ba_key` (`b`,`a`)
@@ -1063,7 +1063,7 @@ t	CREATE TEMPORARY TABLE `t` (
 SHOW CREATE TABLE tp;
 Table	Create Table
 tp	CREATE TABLE `tp` (
-  `a` int(11) NOT NULL DEFAULT '0',
+  `a` int(11) NOT NULL,
   `b` varchar(55) DEFAULT NULL,
   PRIMARY KEY (`a`),
   KEY `ba_key` (`b`,`a`)

@@ -1405,7 +1405,7 @@ void ZLBFAM::Rewind(void)
   if (CurBlk >= 0) {   // Nothing to do if no block read yet
     if (!Optimized) {  // If optimized, fseek will be done in ReadBuffer
       rewind(Stream);
-      fread(Zlenp, sizeof(int), 1, Stream);
+      (void) fread(Zlenp, sizeof(int), 1, Stream);
       fseek(Stream, *Zlenp + sizeof(int), SEEK_SET);
       OldBlk = -1;
       } // endif Optimized

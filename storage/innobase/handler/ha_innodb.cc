@@ -10319,7 +10319,9 @@ create_table_def(
 					is a zero length-string */
 	const char*	remote_path,	/*!< in: Remote path or zero length-string */
 	ulint		flags,		/*!< in: table flags */
-	ulint		flags2)		/*!< in: table flags2 */
+	ulint		flags2,		/*!< in: table flags2 */
+	fil_encryption_t mode,		/*!< in: encryption mode */
+	ulint		key_id)		/*!< in: encryption key_id */
 {
 	THD*		thd = trx->mysql_thd;
 	dict_table_t*	table;
@@ -10499,7 +10501,7 @@ err_col:
 		fts_add_doc_id_column(table, heap);
 	}
 
-	err = row_create_table_for_mysql(table, trx, false);
+	err = row_create_table_for_mysql(table, trx, false, mode, key_id);
 
 	mem_heap_free(heap);
 
@@ -11575,7 +11577,7 @@ ha_innobase::create(
 	row_mysql_lock_data_dictionary(trx);
 
 	error = create_table_def(trx, form, norm_name, temp_path,
-				 remote_path, flags, flags2);
+			remote_path, flags, flags2, encrypt, key_id);
 	if (error) {
 		goto cleanup;
 	}
@@ -11734,48 +11736,6 @@ ha_innobase::create(
 		norm_name, FALSE, FALSE, DICT_ERR_IGNORE_NONE);
 
 	DBUG_ASSERT(innobase_table != 0);
-
-	/* If user has requested that table should be encrypted or table
-	should remain as unencrypted store crypt data */
-	if (encrypt != FIL_SPACE_ENCRYPTION_DEFAULT) {
-		ulint maxsize=0;
-		ulint zip_size = fil_space_get_zip_size(innobase_table->space);
-		fil_space_crypt_t* old_crypt_data = fil_space_get_crypt_data(innobase_table->space);
-		fil_space_crypt_t* crypt_data;
-
-		crypt_data = fil_space_create_crypt_data(encrypt, key_id);
-		crypt_data->page0_offset = fsp_header_get_crypt_offset(zip_size, &maxsize);
-		crypt_data->encryption = encrypt;
-
-		/* If there is old crypt data, copy IV */
-		if (old_crypt_data) {
-			memcpy(crypt_data->iv, old_crypt_data->iv, sizeof(crypt_data->iv));
-		}
-
-		mtr_t mtr;
-		mtr_start(&mtr);
-		/* Get page 0*/
-		ulint offset = 0;
-		buf_block_t* block = buf_page_get_gen(innobase_table->space,
-						      zip_size,
-						      offset,
-						      RW_X_LATCH,
-						      NULL,
-						      BUF_GET,
-						      __FILE__, __LINE__,
-						      &mtr);
-
-		/* Set up new crypt data */
-		crypt_data = fil_space_set_crypt_data(innobase_table->space, crypt_data);
-
-		/* Compute location to store crypt data */
-		byte* frame = buf_block_get_frame(block);
-
-		/* Write crypt data to page 0 */
-		fil_space_write_crypt_data(innobase_table->space, frame, crypt_data->page0_offset, maxsize, &mtr);
-
-		mtr_commit(&mtr);
-	}
 
 	innobase_copy_frm_flags_from_create_info(innobase_table, create_info);
 

@@ -2672,6 +2672,7 @@ mysql_execute_command(THD *thd)
     if (lex->set_arena_for_set_stmt(&backup))
       goto error;
 
+    MEM_ROOT *mem_root= thd->mem_root;
     while ((var= it++))
     {
       DBUG_ASSERT(var->is_system());
@@ -2685,7 +2686,7 @@ mysql_execute_command(THD *thd)
         goto error;
       }
       if (v->var->session_is_default(thd))
-          o= new set_var(v->type, v->var, &v->base, NULL);
+          o= new set_var(thd,v->type, v->var, &v->base, NULL);
       else
       {
         switch (v->var->option.var_type & GET_TYPE_MASK)
@@ -2697,10 +2698,10 @@ mysql_execute_command(THD *thd)
           {
             bool null_value;
             longlong val= v->var->val_int(&null_value, thd, v->type, &v->base);
-            o= new set_var(v->type, v->var, &v->base,
+            o= new set_var(thd, v->type, v->var, &v->base,
                            (null_value ?
-                            (Item *)new Item_null() :
-                            (Item *)new Item_int(val)));
+                            (Item *) new (mem_root) Item_null(thd) :
+                            (Item *) new (mem_root) Item_int(thd, val)));
           }
           break;
         case GET_UINT:
@@ -2709,20 +2710,20 @@ mysql_execute_command(THD *thd)
           {
             bool null_value;
             ulonglong val= v->var->val_int(&null_value, thd, v->type, &v->base);
-            o= new set_var(v->type, v->var, &v->base,
+            o= new set_var(thd, v->type, v->var, &v->base,
                            (null_value ?
-                            (Item *)new Item_null() :
-                            (Item *)new Item_uint(val)));
+                            (Item *) new (mem_root) Item_null(thd) :
+                            (Item *) new (mem_root) Item_uint(thd, val)));
           }
           break;
         case GET_DOUBLE:
           {
             bool null_value;
             double val= v->var->val_real(&null_value, thd, v->type, &v->base);
-            o= new set_var(v->type, v->var, &v->base,
+            o= new set_var(thd, v->type, v->var, &v->base,
                            (null_value ?
-                            (Item *)new Item_null() :
-                            (Item *)new Item_float(val, 1)));
+                            (Item *) new (mem_root) Item_null(thd) :
+                            (Item *) new (mem_root) Item_float(thd, val, 1)));
           }
           break;
         default:
@@ -2741,18 +2742,19 @@ mysql_execute_command(THD *thd)
             val= v->var->val_str(&tmp, thd, v->type, &v->base);
             if (val)
             {
-              Item_string *str= new Item_string(v->var->charset(thd),
+              Item_string *str= new (mem_root) Item_string(thd, v->var->charset(thd),
                                                 val->ptr(), val->length());
-              o= new set_var(v->type, v->var, &v->base, str);
+              o= new set_var(thd, v->type, v->var, &v->base, str);
             }
             else
-              o= new set_var(v->type, v->var, &v->base, new Item_null());
+              o= new set_var(thd, v->type, v->var, &v->base,
+                             new (mem_root) Item_null(thd));
           }
           break;
         }
       }
       DBUG_ASSERT(o);
-      lex->old_var_list.push_back(o);
+      lex->old_var_list.push_back(o, thd->mem_root);
     }
     lex->reset_arena_for_set_stmt(&backup);
     if (lex->old_var_list.is_empty())
@@ -3002,7 +3004,7 @@ mysql_execute_command(THD *thd)
       my_error(ER_WRONG_ARGUMENTS, MYF(0), "PURGE LOGS BEFORE");
       goto error;
     }
-    it= new Item_func_unix_timestamp(it);
+    it= new (thd->mem_root) Item_func_unix_timestamp(thd, it);
     it->fix_fields(thd, &it);
     res = purge_master_logs_before_date(thd, (ulong)it->val_int());
     break;
@@ -3271,7 +3273,7 @@ mysql_execute_command(THD *thd)
 #ifdef WITH_PARTITION_STORAGE_ENGINE
     {
       partition_info *part_info= thd->lex->part_info;
-      if (part_info && !(part_info= thd->lex->part_info->get_clone()))
+      if (part_info && !(part_info= thd->lex->part_info->get_clone(thd)))
       {
         res= -1;
         goto end_with_restore_list;
@@ -4087,7 +4089,7 @@ end_with_restore_list:
     /* condition will be TRUE on SP re-excuting */
     if (select_lex->item_list.elements != 0)
       select_lex->item_list.empty();
-    if (add_item_to_list(thd, new Item_null()))
+    if (add_item_to_list(thd, new (thd->mem_root) Item_null(thd)))
       goto error;
 
     THD_STAGE_INFO(thd, stage_init);
@@ -5745,7 +5747,8 @@ static bool execute_sqlcom_select(THD *thd, TABLE_LIST *all_tables)
     SELECT_LEX *param= lex->unit.global_parameters();
     if (!param->explicit_limit)
       param->select_limit=
-        new (thd->mem_root) Item_int((ulonglong) thd->variables.select_limit);
+        new (thd->mem_root) Item_int(thd,
+                                     (ulonglong) thd->variables.select_limit);
   }
   if (!(res= open_and_lock_tables(thd, all_tables, TRUE, 0)))
   {
@@ -7548,7 +7551,7 @@ bool st_select_lex::init_nested_join(THD *thd)
   nested_join= ptr->nested_join=
     ((NESTED_JOIN*) ((uchar*) ptr + ALIGN_SIZE(sizeof(TABLE_LIST))));
 
-  join_list->push_front(ptr);
+  join_list->push_front(ptr, thd->mem_root);
   ptr->embedding= embedding;
   ptr->join_list= join_list;
   ptr->alias= (char*) "(nested_join)";
@@ -7590,7 +7593,7 @@ TABLE_LIST *st_select_lex::end_nested_join(THD *thd)
     join_list->pop();
     embedded->join_list= join_list;
     embedded->embedding= embedding;
-    join_list->push_front(embedded);
+    join_list->push_front(embedded, thd->mem_root);
     ptr= embedded;
     embedded->lifted= 1;
   }
@@ -7654,7 +7657,7 @@ TABLE_LIST *st_select_lex::nest_last_join(THD *thd)
         ptr->join_using_fields= prev_join_using;
     }
   }
-  join_list->push_front(ptr);
+  join_list->push_front(ptr, thd->mem_root);
   nested_join->used_tables= nested_join->not_null_tables= (table_map) 0;
   DBUG_RETURN(ptr);
 }
@@ -7721,8 +7724,8 @@ TABLE_LIST *st_select_lex::convert_right_join()
   TABLE_LIST *tab1= join_list->pop();
   DBUG_ENTER("convert_right_join");
 
-  join_list->push_front(tab2);
-  join_list->push_front(tab1);
+  join_list->push_front(tab2, parent_lex->thd->mem_root);
+  join_list->push_front(tab1, parent_lex->thd->mem_root);
   tab1->outer_join|= JOIN_TYPE_RIGHT;
 
   DBUG_RETURN(tab1);
@@ -7867,14 +7870,14 @@ push_new_name_resolution_context(THD *thd,
   @return fixed condition
 */
 
-Item *normalize_cond(Item *cond)
+Item *normalize_cond(THD *thd, Item *cond)
 {
   if (cond)
   {
     Item::Type type= cond->type();
     if (type == Item::FIELD_ITEM || type == Item::REF_ITEM)
     {
-      cond= new Item_func_ne(cond, new Item_int(0));
+      cond= new (thd->mem_root) Item_func_ne(thd, cond, new (thd->mem_root) Item_int(thd, 0));
     }
   }
   return cond;
@@ -7895,11 +7898,11 @@ Item *normalize_cond(Item *cond)
     TRUE   if all is OK
 */
 
-void add_join_on(TABLE_LIST *b, Item *expr)
+void add_join_on(THD *thd, TABLE_LIST *b, Item *expr)
 {
   if (expr)
   {
-    expr= normalize_cond(expr);
+    expr= normalize_cond(thd, expr);
     if (!b->on_expr)
       b->on_expr= expr;
     else
@@ -7909,7 +7912,7 @@ void add_join_on(TABLE_LIST *b, Item *expr)
         right and left join. If called later, it happens if we add more
         than one condition to the ON clause.
       */
-      b->on_expr= new Item_cond_and(b->on_expr,expr);
+      b->on_expr= new (thd->mem_root) Item_cond_and(thd, b->on_expr,expr);
     }
     b->on_expr->top_level_item();
   }
@@ -8038,7 +8041,8 @@ kill_one_thread(THD *thd, longlong id, killed_state kill_signal, killed_type typ
       error=0;
     }
     else
-      error=ER_KILL_DENIED_ERROR;
+      error= (type == KILL_TYPE_QUERY ? ER_KILL_QUERY_DENIED_ERROR :
+                                        ER_KILL_DENIED_ERROR);
     mysql_mutex_unlock(&tmp->LOCK_thd_data);
   }
   DBUG_PRINT("exit", ("%d", error));
@@ -8278,16 +8282,17 @@ Item * all_any_subquery_creator(THD *thd, Item *left_expr,
     return new (thd->mem_root) Item_in_subselect(thd, left_expr, select_lex);
 
   if ((cmp == &comp_ne_creator) && all)        // <> ALL <=> NOT IN
-    return new (thd->mem_root) Item_func_not(
+    return new (thd->mem_root) Item_func_not(thd,
              new (thd->mem_root) Item_in_subselect(thd, left_expr, select_lex));
 
   Item_allany_subselect *it=
     new (thd->mem_root) Item_allany_subselect(thd, left_expr, cmp, select_lex,
                                               all);
-  if (all)
-    return it->upper_item= new (thd->mem_root) Item_func_not_all(it); /* ALL */
+  if (all) /* ALL */
+    return it->upper_item= new (thd->mem_root) Item_func_not_all(thd, it);
 
-  return it->upper_item= new (thd->mem_root) Item_func_nop_all(it);   /* ANY/SOME */
+  /* ANY/SOME */
+  return it->upper_item= new (thd->mem_root) Item_func_nop_all(thd, it);
 }
 
 
@@ -8815,12 +8820,12 @@ Item *negate_expression(THD *thd, Item *expr)
       if it is not boolean function then we have to emulate value of
       not(not(a)), it will be a != 0
     */
-    return new Item_func_ne(arg, new Item_int((char*) "0", 0, 1));
+    return new (thd->mem_root) Item_func_ne(thd, arg, new (thd->mem_root) Item_int(thd, (char*) "0", 0, 1));
   }
 
   if ((negated= expr->neg_transformer(thd)) != 0)
     return negated;
-  return new Item_func_not(expr);
+  return new (thd->mem_root) Item_func_not(thd, expr);
 }
 
 /**

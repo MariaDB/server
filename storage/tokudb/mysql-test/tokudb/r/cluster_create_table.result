@@ -5,7 +5,7 @@ create table t1(a int, b int, c int, d int, primary key(a), key(b) clustering=ye
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` int(11) NOT NULL DEFAULT '0',
+  `a` int(11) NOT NULL,
   `b` int(11) DEFAULT NULL,
   `c` int(11) DEFAULT NULL,
   `d` int(11) DEFAULT NULL,
@@ -16,7 +16,7 @@ create index foo on t1(c,d) clustering=yes;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` int(11) NOT NULL DEFAULT '0',
+  `a` int(11) NOT NULL,
   `b` int(11) DEFAULT NULL,
   `c` int(11) DEFAULT NULL,
   `d` int(11) DEFAULT NULL,
@@ -30,10 +30,10 @@ alter table t1 add key bar(d,c,b,a) clustering=yes;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` int(11) NOT NULL DEFAULT '0',
-  `b` int(11) NOT NULL DEFAULT '0',
-  `c` int(11) NOT NULL DEFAULT '0',
-  `d` int(11) NOT NULL DEFAULT '0',
+  `a` int(11) NOT NULL,
+  `b` int(11) NOT NULL,
+  `c` int(11) NOT NULL,
+  `d` int(11) NOT NULL,
   PRIMARY KEY (`a`,`b`,`c`,`d`),
   KEY `b` (`b`) `clustering`=yes,
   KEY `foo` (`c`,`d`) `clustering`=yes,

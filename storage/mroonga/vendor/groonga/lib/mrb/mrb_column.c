@@ -25,7 +25,23 @@
 
 #include "mrb_ctx.h"
 #include "mrb_column.h"
+#include "mrb_bulk.h"
 #include "mrb_converter.h"
+
+static mrb_value
+mrb_grn_column_array_reference(mrb_state *mrb, mrb_value self)
+{
+  grn_ctx *ctx = (grn_ctx *)mrb->ud;
+  grn_obj *column;
+  grn_id record_id;
+  grn_obj *column_value;
+
+  column = DATA_PTR(self);
+  mrb_get_args(mrb, "i", &record_id);
+
+  column_value = grn_obj_get_value(ctx, column, record_id, NULL);
+  return grn_mrb_value_from_grn_obj(mrb, column_value);
+}
 
 static mrb_value
 mrb_grn_column_is_locked(mrb_state *mrb, mrb_value self)
@@ -64,6 +80,9 @@ grn_mrb_column_init(grn_ctx *ctx)
 
   klass = mrb_define_class_under(mrb, module, "Column", object_class);
   MRB_SET_INSTANCE_TT(klass, MRB_TT_DATA);
+
+  mrb_define_method(mrb, klass, "[]",
+                    mrb_grn_column_array_reference, MRB_ARGS_REQ(1));
 
   mrb_define_method(mrb, klass, "locked?",
                     mrb_grn_column_is_locked, MRB_ARGS_NONE());

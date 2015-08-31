@@ -1,5 +1,5 @@
 /* -*- c-basic-offset: 2 -*- */
-/* Copyright(C) 2009 Brazil
+/* Copyright(C) 2009-2015 Brazil
 
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -22,6 +22,8 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+void grn_proc_init_from_env(void);
 
 GRN_VAR const char *grn_document_root;
 void grn_db_init_builtin_query(grn_ctx *ctx);

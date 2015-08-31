@@ -632,36 +632,45 @@ send_show_create_event(THD *thd, Event_timed *et, Protocol *protocol)
   List<Item> field_list;
   LEX_STRING sql_mode;
   const String *tz_name;
-
+  MEM_ROOT *mem_root= thd->mem_root;
   DBUG_ENTER("send_show_create_event");
 
   show_str.length(0);
   if (et->get_create_event(thd, &show_str))
     DBUG_RETURN(TRUE);
 
-  field_list.push_back(new Item_empty_string("Event", NAME_CHAR_LEN));
+  field_list.push_back(new (mem_root)
+                       Item_empty_string(thd, "Event", NAME_CHAR_LEN),
+                       mem_root);
 
   if (sql_mode_string_representation(thd, et->sql_mode, &sql_mode))
     DBUG_RETURN(TRUE);
 
-  field_list.push_back(new Item_empty_string("sql_mode", (uint) sql_mode.length));
+  field_list.push_back(new (mem_root)
+                       Item_empty_string(thd, "sql_mode",
+                                         (uint) sql_mode.length), mem_root);
 
   tz_name= et->time_zone->get_name();
 
-  field_list.push_back(new Item_empty_string("time_zone",
-                                             tz_name->length()));
+  field_list.push_back(new (mem_root)
+                       Item_empty_string(thd, "time_zone", tz_name->length()),
+                       mem_root);
 
-  field_list.push_back(new Item_empty_string("Create Event",
-                                             show_str.length()));
+  field_list.push_back(new (mem_root)
+                       Item_empty_string(thd, "Create Event",
+                                         show_str.length()), mem_root);
 
-  field_list.push_back(
-    new Item_empty_string("character_set_client", MY_CS_NAME_SIZE));
+  field_list.push_back(new (mem_root)
+                       Item_empty_string(thd, "character_set_client",
+                                         MY_CS_NAME_SIZE), mem_root);
 
-  field_list.push_back(
-    new Item_empty_string("collation_connection", MY_CS_NAME_SIZE));
+  field_list.push_back(new (mem_root)
+                       Item_empty_string(thd, "collation_connection",
+                                         MY_CS_NAME_SIZE), mem_root);
 
-  field_list.push_back(
-    new Item_empty_string("Database Collation", MY_CS_NAME_SIZE));
+  field_list.push_back(new (mem_root)
+                       Item_empty_string(thd, "Database Collation",
+                                         MY_CS_NAME_SIZE), mem_root);
 
   if (protocol->send_result_set_metadata(&field_list,
                             Protocol::SEND_NUM_ROWS | Protocol::SEND_EOF))

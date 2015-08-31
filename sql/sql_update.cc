@@ -148,7 +148,7 @@ static bool check_fields(THD *thd, List<Item> &items)
       we make temporary copy of Item_field, to avoid influence of changing
       result_field on Item_ref which refer on this field
     */
-    thd->change_item_tree(it.ref(), new Item_field(thd, field));
+    thd->change_item_tree(it.ref(), new (thd->mem_root) Item_field(thd, field));
   }
   return FALSE;
 }
@@ -1755,8 +1755,8 @@ int multi_update::prepare(List<Item> &not_used_values,
   {
     Item *value= value_it++;
     uint offset= item->field->table->pos_in_table_list->shared;
-    fields_for_table[offset]->push_back(item);
-    values_for_table[offset]->push_back(value);
+    fields_for_table[offset]->push_back(item, thd->mem_root);
+    values_for_table[offset]->push_back(value, thd->mem_root);
   }
   if (thd->is_fatal_error)
     DBUG_RETURN(1);
@@ -1978,11 +1978,11 @@ loop_end:
         table to be updated was created by mysql 4.1. Deny this.
       */
       field->can_alter_field_type= 0;
-      Item_field *ifield= new Item_field((Field *) field);
+      Item_field *ifield= new (thd->mem_root) Item_field(join->thd, (Field *) field);
       if (!ifield)
          DBUG_RETURN(1);
       ifield->maybe_null= 0;
-      if (temp_fields.push_back(ifield))
+      if (temp_fields.push_back(ifield, thd->mem_root))
         DBUG_RETURN(1);
     } while ((tbl= tbl_it++));
 

@@ -926,7 +926,7 @@ public:
 
   bool add_item_to_list(THD *thd, Item *item);
   bool add_group_to_list(THD *thd, Item *item, bool asc);
-  bool add_ftfunc_to_list(Item_func_match *func);
+  bool add_ftfunc_to_list(THD *thd, Item_func_match *func);
   bool add_order_to_list(THD *thd, Item *item, bool asc);
   bool add_gorder_to_list(THD *thd, Item *item, bool asc);
   TABLE_LIST* add_table_to_list(THD *thd, Table_ident *table,

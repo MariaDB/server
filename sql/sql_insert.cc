@@ -3482,7 +3482,7 @@ select_insert::prepare(List<Item> &values, SELECT_LEX_UNIT *u)
 
       while ((item= li++))
       {
-        item->transform(&Item::update_value_transformer,
+        item->transform(thd, &Item::update_value_transformer,
                         (uchar*)lex->current_select);
       }
     }
@@ -3950,13 +3950,14 @@ static TABLE *create_table_from_items(THD *thd,
                               (Item ***) 0, &tmp_field, &def_field, 0, 0, 0, 0,
                               0);
     if (!field ||
-	!(cr_field=new Create_field(field,(item->type() == Item::FIELD_ITEM ?
-					   ((Item_field *)item)->field :
-					   (Field*) 0))))
+        !(cr_field=new Create_field(thd, field,
+                                    (item->type() == Item::FIELD_ITEM ?
+                                       ((Item_field *) item)->field :
+                                       (Field *) 0))))
       DBUG_RETURN(0);
     if (item->maybe_null)
       cr_field->flags &= ~NOT_NULL_FLAG;
-    alter_info->create_list.push_back(cr_field);
+    alter_info->create_list.push_back(cr_field, thd->mem_root);
   }
 
   DEBUG_SYNC(thd,"create_table_select_before_create");

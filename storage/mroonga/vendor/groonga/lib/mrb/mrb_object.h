@@ -27,6 +27,8 @@ extern "C" {
 
 void grn_mrb_object_init(grn_ctx *ctx);
 
+mrb_value grn_mrb_object_inspect(mrb_state *mrb, mrb_value self);
+
 #ifdef __cplusplus
 }
 #endif

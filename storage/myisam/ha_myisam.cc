@@ -1012,6 +1012,7 @@ int ha_myisam::repair(THD* thd, HA_CHECK_OPT *check_opt)
   param.testflag= ((check_opt->flags & ~(T_EXTEND)) |
                    T_SILENT | T_FORCE_CREATE | T_CALC_CHECKSUM |
                    (check_opt->flags & T_EXTEND ? T_REP : T_REP_BY_SORT));
+  param.tmpfile_createflag= O_RDWR | O_TRUNC;
   param.sort_buffer_length=  THDVAR(thd, sort_buffer_size);
   param.backup_time= check_opt->start_time;
   start_records=file->state->records;
@@ -1062,6 +1063,7 @@ int ha_myisam::optimize(THD* thd, HA_CHECK_OPT *check_opt)
   param.op_name= "optimize";
   param.testflag= (check_opt->flags | T_SILENT | T_FORCE_CREATE |
                    T_REP_BY_SORT | T_STATISTICS | T_SORT_INDEX);
+  param.tmpfile_createflag= O_RDWR | O_TRUNC;
   param.sort_buffer_length=  THDVAR(thd, sort_buffer_size);
   if ((error= repair(thd,param,1)) && param.retry_repair)
   {
@@ -1181,7 +1183,7 @@ int ha_myisam::repair(THD *thd, HA_CHECK &param, bool do_optimize)
       thd_proc_info(thd, "Sorting index");
       error=mi_sort_index(&param,file,fixed_name);
     }
-    if (!statistics_done && (local_testflag & T_STATISTICS))
+    if (!error && !statistics_done && (local_testflag & T_STATISTICS))
     {
       if (share->state.changed & STATE_NOT_ANALYZED)
       {

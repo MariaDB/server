@@ -3061,6 +3061,9 @@ CHARSET_INFO* get_sql_field_charset(Create_field *sql_field,
    Modifies the first column definition whose SQL type is TIMESTAMP
    by adding the features DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP.
 
+   If the first TIMESTAMP column appears to be nullable, or to have an
+   explicit default, or to be a virtual column, then no promition is done.
+
    @param column_definitions The list of column definitions, in the physical
                              order in which they appear in the table.
  */
@@ -3076,7 +3079,8 @@ void promote_first_timestamp_column(List<Create_field> *column_definitions)
     {
       if ((column_definition->flags & NOT_NULL_FLAG) != 0 && // NOT NULL,
           column_definition->def == NULL &&            // no constant default,
-          column_definition->unireg_check == Field::NONE) // no function default
+          column_definition->unireg_check == Field::NONE && // no function default
+          column_definition->vcol_info == NULL)
       {
         DBUG_PRINT("info", ("First TIMESTAMP column '%s' was promoted to "
                             "DEFAULT CURRENT_TIMESTAMP ON UPDATE "
@@ -3264,7 +3268,7 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
         pointer in the parsed tree of a prepared statement or a
         stored procedure statement.
       */
-      sql_field->def= sql_field->def->safe_charset_converter(save_cs);
+      sql_field->def= sql_field->def->safe_charset_converter(thd, save_cs);
 
       if (sql_field->def == NULL)
       {
@@ -3644,8 +3648,8 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
     DBUG_RETURN(TRUE);
   }
 
-  (*key_info_buffer)= key_info= (KEY*) sql_calloc(sizeof(KEY) * (*key_count));
-  key_part_info=(KEY_PART_INFO*) sql_calloc(sizeof(KEY_PART_INFO)*key_parts);
+  (*key_info_buffer)= key_info= (KEY*) thd->calloc(sizeof(KEY) * (*key_count));
+  key_part_info=(KEY_PART_INFO*) thd->calloc(sizeof(KEY_PART_INFO)*key_parts);
   if (!*key_info_buffer || ! key_part_info)
     DBUG_RETURN(TRUE);				// Out of memory
 
@@ -4042,7 +4046,7 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
       my_error(ER_WRONG_NAME_FOR_INDEX, MYF(0), key_info->name);
       DBUG_RETURN(TRUE);
     }
-    if (!(key_info->flags & HA_NULL_PART_KEY))
+    if (key->type == Key::UNIQUE && !(key_info->flags & HA_NULL_PART_KEY))
       unique_key=1;
     key_info->key_length=(uint16) key_length;
     if (key_length > max_key_length && key->type != Key::FULLTEXT)
@@ -4091,6 +4095,20 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
   while ((sql_field=it++))
   {
     Field::utype type= (Field::utype) MTYP_TYPENR(sql_field->unireg_check);
+
+    /*
+      Set NO_DEFAULT_VALUE_FLAG if this field doesn't have a default value and
+      it is NOT NULL, not an AUTO_INCREMENT field, not a TIMESTAMP and not
+      updated trough a NOW() function.
+    */
+    if (!sql_field->def &&
+        !sql_field->has_default_function() &&
+        (sql_field->flags & NOT_NULL_FLAG) &&
+        !is_timestamp_type(sql_field->sql_type))
+    {
+      sql_field->flags|= NO_DEFAULT_VALUE_FLAG;
+      sql_field->pack_flag|= FIELDFLAG_NO_DEFAULT;
+    }
 
     if (thd->variables.sql_mode & MODE_NO_ZERO_DATE &&
         !sql_field->def &&
@@ -5304,7 +5322,7 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table,
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   /* Partition info is not handled by mysql_prepare_alter_table() call. */
   if (src_table->table->part_info)
-    thd->work_part_info= src_table->table->part_info->get_clone();
+    thd->work_part_info= src_table->table->part_info->get_clone(thd);
 #endif
 
   /*
@@ -5923,7 +5941,7 @@ remove_key:
         {
           // Adding the index into the drop list for replacing
           alter_info->flags |= Alter_info::ALTER_DROP_INDEX;
-          alter_info->drop_list.push_back(ad);
+          alter_info->drop_list.push_back(ad, thd->mem_root);
         }
       }
     }
@@ -7372,7 +7390,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
         Note that columns with AFTER clauses are added to the end
         of the list for now. Their positions will be corrected later.
       */
-      new_create_list.push_back(def);
+      new_create_list.push_back(def, thd->mem_root);
       if (field->stored_in_db != def->stored_in_db)
       {
         my_error(ER_UNSUPPORTED_ACTION_ON_VIRTUAL_COLUMN, MYF(0));
@@ -7396,8 +7414,8 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
         This field was not dropped and not changed, add it to the list
         for the new table.
       */
-      def= new Create_field(field, field);
-      new_create_list.push_back(def);
+      def= new (thd->mem_root) Create_field(thd, field, field);
+      new_create_list.push_back(def, thd->mem_root);
       alter_it.rewind();			// Change default if ALTER
       Alter_column *alter;
       while ((alter=alter_it++))
@@ -7448,7 +7466,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
         alter_ctx->error_if_not_empty= TRUE;
     }
     if (!def->after)
-      new_create_list.push_back(def);
+      new_create_list.push_back(def, thd->mem_root);
     else
     {
       Create_field *find;
@@ -7476,7 +7494,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
         }
       }
       if (def->after == first_keyword)
-        new_create_list.push_front(def);
+        new_create_list.push_front(def, thd->mem_root);
       else
       {
         find_it.rewind();
@@ -7615,7 +7633,8 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
       key_part_length /= key_part->field->charset()->mbmaxlen;
       key_parts.push_back(new Key_part_spec(cfield->field_name,
                                             strlen(cfield->field_name),
-					    key_part_length));
+					    key_part_length),
+                          thd->mem_root);
     }
     if (table->s->tmp_table == NO_TMP_TABLE)
     {
@@ -7665,7 +7684,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
                    &key_create_info,
                    MY_TEST(key_info->flags & HA_GENERATED_KEY),
                    key_parts, key_info->option_list, DDL_options());
-      new_key_list.push_back(key);
+      new_key_list.push_back(key, thd->mem_root);
     }
   }
   {
@@ -7675,7 +7694,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
       if (key->type == Key::FOREIGN_KEY &&
           ((Foreign_key *)key)->validate(new_create_list))
         goto err;
-      new_key_list.push_back(key);
+      new_key_list.push_back(key, thd->mem_root);
       if (key->name.str &&
 	  !my_strcasecmp(system_charset_info, key->name.str, primary_key_name))
       {
@@ -9374,7 +9393,7 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
       tables.db= from->s->db.str;
 
       THD_STAGE_INFO(thd, stage_sorting);
-      Filesort_tracker dummy_tracker;
+      Filesort_tracker dummy_tracker(false);
       if (thd->lex->select_lex.setup_ref_array(thd, order_num) ||
           setup_order(thd, thd->lex->select_lex.ref_pointer_array,
                       &tables, fields, all_fields, order) ||
@@ -9608,11 +9627,14 @@ bool mysql_checksum_table(THD *thd, TABLE_LIST *tables,
   */
   DBUG_ASSERT(! thd->in_sub_stmt);
 
-  field_list.push_back(item = new Item_empty_string("Table", NAME_LEN*2));
+  field_list.push_back(item= new (thd->mem_root)
+                       Item_empty_string(thd, "Table", NAME_LEN*2),
+                       thd->mem_root);
   item->maybe_null= 1;
-  field_list.push_back(item= new Item_int("Checksum",
-                                          (longlong) 1,
-                                          MY_INT64_NUM_DECIMAL_DIGITS));
+  field_list.push_back(item= new (thd->mem_root)
+                       Item_int(thd, "Checksum", (longlong) 1,
+                                MY_INT64_NUM_DECIMAL_DIGITS),
+                       thd->mem_root);
   item->maybe_null= 1;
   if (protocol->send_result_set_metadata(&field_list,
                             Protocol::SEND_NUM_ROWS | Protocol::SEND_EOF))

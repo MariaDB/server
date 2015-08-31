@@ -67,6 +67,8 @@ main(int argc, char **argv)
     return EXIT_FAILURE;
   }
 
+  grn_default_logger_set_path(GRN_LOG_PATH);
+
   if (grn_init() != GRN_SUCCESS) {
     return EXIT_FAILURE;
   }

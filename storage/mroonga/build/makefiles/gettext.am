@@ -1,6 +1,8 @@
 include $(top_srcdir)/doc/files.am
 include $(top_srcdir)/build/makefiles/sphinx-build.am
 
+CLEANFILES =
+
 EXTRA_DIST +=					\
 	$(po_files)
 
@@ -11,9 +13,11 @@ endif
 
 if DOCUMENT_BUILDABLE
 BUILT_SOURCES +=				\
+	mo-build-stamp
+CLEANFILES +=					\
 	pot-build-stamp				\
 	edit-po-build-stamp			\
-	$(mo_files)
+	mo-build-stamp
 endif
 
 SUFFIXES += .pot .po .mo .edit
@@ -47,8 +51,8 @@ SUFFIXES += .pot .po .mo .edit
 	msgfmt -o $@ $<
 
 if DOCUMENT_BUILDABLE
-update: pot-build-stamp edit-po-build-stamp
-build: update $(mo_files)
+update: edit-po-build-stamp
+build: mo-build-stamp
 else
 update:
 build:
@@ -68,6 +72,15 @@ pot-build-stamp: $(absolute_source_files)
 	$(MAKE) gettext
 	@touch $@
 
-edit-po-build-stamp: $(absolute_source_files)
+edit-po-build-stamp: pot-build-stamp
 	$(MAKE) $(edit_po_files)
+	@touch $@
+
+mo_build_stamp_dependencies = edit-po-build-stamp
+if DOCUMENT_BUILDABLE
+mo_build_stamp_dependencies += $(edit_po_files)
+endif
+
+mo-build-stamp: $(mo_build_stamp_dependencies)
+	$(MAKE) $(mo_files)
 	@touch $@

@@ -1,7 +1,7 @@
 /* -*- c-basic-offset: 2 -*- */
 /*
   Copyright(C) 2010-2013 Kentoku SHIBA
-  Copyright(C) 2011-2013 Kouhei Sutou <kou@clear-code.com>
+  Copyright(C) 2011-2015 Kouhei Sutou <kou@clear-code.com>
 
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -21,8 +21,9 @@
 #ifndef MRN_TIME_CONVERTER_HPP_
 #define MRN_TIME_CONVERTER_HPP_
 
-#include <groonga.h>
 #include <mrn_mysql_compat.h>
+
+#include <groonga.h>
 
 namespace mrn {
   class TimeConverter {
@@ -34,10 +35,13 @@ namespace mrn {
 
     long long int mysql_time_to_grn_time(MYSQL_TIME *mysql_time,
                                          bool *truncated);
+    long long int mysql_datetime_to_grn_time(long long int mysql_datetime,
+                                             bool *truncated);
 
     long long int tm_to_grn_time(struct tm *time, int usec, bool *truncated);
 
     void grn_time_to_mysql_time(long long int grn_time, MYSQL_TIME *mysql_time);
+    long long int grn_time_to_mysql_datetime(long long int grn_time);
 
   private:
     time_t tm_to_time_gm(struct tm *time, bool *truncated);

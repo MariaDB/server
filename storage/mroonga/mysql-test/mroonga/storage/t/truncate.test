@@ -1,4 +1,4 @@
-# Copyright(C) 2011-2012 Kouhei Sutou <kou@clear-code.com>
+# Copyright(C) 2011-2015 Kouhei Sutou <kou@clear-code.com>
 #
 # This library is free software; you can redistribute it and/or
 # modify it under the terms of the GNU Lesser General Public
@@ -38,17 +38,23 @@ INSERT INTO diaries VALUES(2, 2011, 11, 10, "天気", "明日の富士山の天�
 INSERT INTO diaries VALUES(3, 2011, 11, 11, "富士山", "今日も天気がよくてきれいに見える。");
 
 SELECT * FROM diaries;
-SELECT * FROM diaries WHERE MATCH(content) AGAINST("今日 天気" IN BOOLEAN MODE);
+SELECT * FROM diaries
+  WHERE MATCH(content) AGAINST("+今日" IN BOOLEAN MODE)
+  ORDER BY id;
 TRUNCATE TABLE diaries;
 SELECT * FROM diaries;
-SELECT * FROM diaries WHERE MATCH(content) AGAINST("今日 天気" IN BOOLEAN MODE);
+SELECT * FROM diaries
+  WHERE MATCH(content) AGAINST("+今日" IN BOOLEAN MODE)
+  ORDER BY id;
 
 INSERT INTO diaries VALUES(1, 2011, 11, 11, "帰り道", "つかれたー");
 INSERT INTO diaries VALUES(2, 2011, 12, 1, "久しぶり", "天気が悪いからずっと留守番。");
 INSERT INTO diaries VALUES(3, 2011, 12, 2, "初雪", "今年はじめての雪！");
 
 SELECT * FROM diaries;
-SELECT * FROM diaries WHERE MATCH(content) AGAINST("悪い" IN BOOLEAN MODE);
+SELECT * FROM diaries
+  WHERE MATCH(content) AGAINST("+悪い" IN BOOLEAN MODE)
+  ORDER BY id;
 
 
 DROP TABLE diaries;

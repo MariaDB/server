@@ -8,7 +8,7 @@ insert into foo values (1,1);
 show create table foo;
 Table	Create Table
 foo	CREATE TABLE `foo` (
-  `a` int(11) NOT NULL DEFAULT '0',
+  `a` int(11) NOT NULL,
   `b` int(11) DEFAULT NULL,
   PRIMARY KEY (`a`)
 ) ENGINE=TokuDB DEFAULT CHARSET=latin1

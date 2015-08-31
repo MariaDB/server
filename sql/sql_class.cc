@@ -1440,6 +1440,8 @@ void THD::init(void)
   else
     variables.option_bits&= ~OPTION_BIN_LOG;
 
+  variables.sql_log_bin_off= 0;
+
   select_commands= update_commands= other_commands= 0;
   /* Set to handle counting of aborted connections */
   userstat_running= opt_userstat_running;
@@ -2454,11 +2456,11 @@ int THD::send_explain_fields(select_result *result, uint8 explain_flags, bool is
 
 void THD::make_explain_json_field_list(List<Item> &field_list, bool is_analyze)
 {
-  Item *item= new Item_empty_string((is_analyze ?
-                                     "ANALYZE" :
-                                     "EXPLAIN"),
-                                    78, system_charset_info);
-  field_list.push_back(item);
+  Item *item= new (mem_root) Item_empty_string(this, (is_analyze ?
+                                                      "ANALYZE" :
+                                                      "EXPLAIN"),
+                                              78, system_charset_info);
+  field_list.push_back(item, mem_root);
 }
 
 
@@ -2475,55 +2477,79 @@ void THD::make_explain_field_list(List<Item> &field_list, uint8 explain_flags,
 {
   Item *item;
   CHARSET_INFO *cs= system_charset_info;
-  field_list.push_back(item= new Item_return_int("id",3, MYSQL_TYPE_LONGLONG));
+  field_list.push_back(item= new (mem_root)
+                       Item_return_int(this, "id", 3,
+                                       MYSQL_TYPE_LONGLONG), mem_root);
   item->maybe_null= 1;
-  field_list.push_back(new Item_empty_string("select_type", 19, cs));
-  field_list.push_back(item= new Item_empty_string("table", NAME_CHAR_LEN, cs));
+  field_list.push_back(new (mem_root)
+                       Item_empty_string(this, "select_type", 19, cs),
+                       mem_root);
+  field_list.push_back(item= new (mem_root)
+                       Item_empty_string(this, "table", NAME_CHAR_LEN, cs),
+                       mem_root);
   item->maybe_null= 1;
   if (explain_flags & DESCRIBE_PARTITIONS)
   {
     /* Maximum length of string that make_used_partitions_str() can produce */
-    item= new Item_empty_string("partitions", MAX_PARTITIONS * (1 + FN_LEN),
-                                cs);
-    field_list.push_back(item);
+    item= new (mem_root) Item_empty_string(this, "partitions",
+                                           MAX_PARTITIONS * (1 + FN_LEN), cs);
+    field_list.push_back(item, mem_root);
     item->maybe_null= 1;
   }
-  field_list.push_back(item= new Item_empty_string("type", 10, cs));
+  field_list.push_back(item= new (mem_root)
+                       Item_empty_string(this, "type", 10, cs),
+                       mem_root);
   item->maybe_null= 1;
-  field_list.push_back(item=new Item_empty_string("possible_keys",
-						  NAME_CHAR_LEN*MAX_KEY, cs));
+  field_list.push_back(item= new (mem_root)
+                       Item_empty_string(this, "possible_keys",
+                                         NAME_CHAR_LEN*MAX_KEY, cs),
+                       mem_root);
   item->maybe_null=1;
-  field_list.push_back(item=new Item_empty_string("key", NAME_CHAR_LEN, cs));
+  field_list.push_back(item=new (mem_root)
+                       Item_empty_string(this, "key", NAME_CHAR_LEN, cs),
+                       mem_root);
   item->maybe_null=1;
-  field_list.push_back(item=new Item_empty_string("key_len",
-						  NAME_CHAR_LEN*MAX_KEY));
+  field_list.push_back(item=new (mem_root)
+                       Item_empty_string(this, "key_len",
+                                         NAME_CHAR_LEN*MAX_KEY),
+                       mem_root);
   item->maybe_null=1;
-  field_list.push_back(item=new Item_empty_string("ref",
-                                                  NAME_CHAR_LEN*MAX_REF_PARTS,
-                                                  cs));
+  field_list.push_back(item=new (mem_root)
+                       Item_empty_string(this, "ref",
+                                         NAME_CHAR_LEN*MAX_REF_PARTS, cs),
+                       mem_root);
   item->maybe_null=1;
-  field_list.push_back(item= new Item_return_int("rows", 10,
-                                                 MYSQL_TYPE_LONGLONG));
+  field_list.push_back(item= new (mem_root)
+                       Item_return_int(this, "rows", 10, MYSQL_TYPE_LONGLONG),
+                       mem_root);
   if (is_analyze)
   {
-    field_list.push_back(item= new Item_float("r_rows", 0.1234, 10, 4));
+    field_list.push_back(item= new (mem_root)
+                         Item_float(this, "r_rows", 0.1234, 10, 4),
+                         mem_root);
     item->maybe_null=1;
   }
 
   if (is_analyze || (explain_flags & DESCRIBE_EXTENDED))
   {
-    field_list.push_back(item= new Item_float("filtered", 0.1234, 2, 4));
+    field_list.push_back(item= new (mem_root)
+                         Item_float(this, "filtered", 0.1234, 2, 4),
+                         mem_root);
     item->maybe_null=1;
   }
 
   if (is_analyze)
   {
-    field_list.push_back(item= new Item_float("r_filtered", 0.1234, 2, 4));
+    field_list.push_back(item= new (mem_root)
+                         Item_float(this, "r_filtered", 0.1234, 2, 4),
+                         mem_root);
     item->maybe_null=1;
   }
 
   item->maybe_null= 1;
-  field_list.push_back(new Item_empty_string("Extra", 255, cs));
+  field_list.push_back(new (mem_root)
+                       Item_empty_string(this, "Extra", 255, cs),
+                       mem_root);
 }
 
 
@@ -3344,7 +3370,7 @@ int select_max_min_finder_subselect::send_data(List<Item> &items)
   {
     if (!cache)
     {
-      cache= Item_cache::get_cache(val_item);
+      cache= Item_cache::get_cache(thd, val_item);
       switch (val_item->result_type()) {
       case REAL_RESULT:
 	op= &select_max_min_finder_subselect::cmp_real;
@@ -3801,7 +3827,7 @@ Statement_map::~Statement_map()
 
 bool my_var_user::set(THD *thd, Item *item)
 {
-  Item_func_set_user_var *suv= new Item_func_set_user_var(name, item);
+  Item_func_set_user_var *suv= new (thd->mem_root) Item_func_set_user_var(thd, name, item);
   suv->save_item_result(item);
   return suv->fix_fields(thd, 0) || suv->update();
 }

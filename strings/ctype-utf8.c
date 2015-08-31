@@ -5526,6 +5526,7 @@ MY_CHARSET_HANDLER my_charset_utf8_handler=
     my_charlen_utf8,
     my_well_formed_char_length_utf8,
     my_copy_fix_mb,
+    my_uni_utf8,
 };
 
 
@@ -7109,6 +7110,7 @@ static MY_CHARSET_HANDLER my_charset_filename_handler=
     my_charlen_filename,
     my_well_formed_char_length_filename,
     my_copy_fix_mb,
+    my_wc_mb_filename,
 };
 
 
@@ -7879,6 +7881,7 @@ MY_CHARSET_HANDLER my_charset_utf8mb4_handler=
   my_charlen_utf8mb4,
   my_well_formed_char_length_utf8mb4,
   my_copy_fix_mb,
+  my_wc_mb_utf8mb4,
 };
 
 

@@ -38,6 +38,9 @@ if (!$have_default_storage_engine_variable) {
 let have_default_tmp_storage_engine_variable=`SELECT 1 FROM information_schema.global_variables WHERE variable_name = "default_tmp_storage_engine"`;
 if ($have_default_tmp_storage_engine_variable) {
   let original_default_tmp_storage_engine=`SELECT variable_value FROM information_schema.global_variables WHERE variable_name = "default_tmp_storage_engine"`;
+  if (!$original_default_tmp_storage_engine) {
+    let original_default_tmp_storage_engine=NULL;
+  }
   set default_tmp_storage_engine=Mroonga;
 }
 

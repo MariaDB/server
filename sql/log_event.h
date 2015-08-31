@@ -1177,7 +1177,7 @@ public:
     output of SHOW BINLOG EVENTS; it is used only by SHOW BINLOG
     EVENTS.
   */
-  static void init_show_field_list(List<Item>* field_list);
+  static void init_show_field_list(THD *thd, List<Item>* field_list);
 #ifdef HAVE_REPLICATION
   int net_send(THD *thd, Protocol *protocol, const char* log_name,
                my_off_t pos);

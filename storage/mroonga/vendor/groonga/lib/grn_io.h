@@ -350,11 +350,12 @@ uint32_t grn_io_detect_type(grn_ctx *ctx, const char *path);
 grn_rc grn_io_set_type(grn_io *io, uint32_t type);
 uint32_t grn_io_get_type(grn_io *io);
 
-grn_rc grn_io_init(void);
-grn_rc grn_io_fin(void);
+void grn_io_init_from_env(void);
 
 uint32_t grn_io_expire(grn_ctx *ctx, grn_io *io, int count_thresh, uint32_t limit);
 uint32_t grn_expire(grn_ctx *ctx, int count_thresh, uint32_t limit);
+
+grn_rc grn_io_flush(grn_ctx *ctx, grn_io *io);
 
 /* encode/decode */
 

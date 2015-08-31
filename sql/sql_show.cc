@@ -451,14 +451,19 @@ bool mysqld_show_authors(THD *thd)
 {
   List<Item> field_list;
   Protocol *protocol= thd->protocol;
+  MEM_ROOT *mem_root= thd->mem_root;
   DBUG_ENTER("mysqld_show_authors");
 
-  field_list.push_back(new Item_empty_string("Name",40));
-  field_list.push_back(new Item_empty_string("Location",40));
-  field_list.push_back(new Item_empty_string("Comment",512));
+  field_list.push_back(new (mem_root) Item_empty_string(thd, "Name", 40),
+                       mem_root);
+  field_list.push_back(new (mem_root) Item_empty_string(thd, "Location", 40),
+                       mem_root);
+  field_list.push_back(new (mem_root) Item_empty_string(thd, "Comment", 512),
+                       mem_root);
 
   if (protocol->send_result_set_metadata(&field_list,
-                            Protocol::SEND_NUM_ROWS | Protocol::SEND_EOF))
+                                         Protocol::SEND_NUM_ROWS |
+                                         Protocol::SEND_EOF))
     DBUG_RETURN(TRUE);
 
   show_table_authors_st *authors;
@@ -485,14 +490,19 @@ bool mysqld_show_contributors(THD *thd)
 {
   List<Item> field_list;
   Protocol *protocol= thd->protocol;
+  MEM_ROOT *mem_root= thd->mem_root;
   DBUG_ENTER("mysqld_show_contributors");
 
-  field_list.push_back(new Item_empty_string("Name",40));
-  field_list.push_back(new Item_empty_string("Location",40));
-  field_list.push_back(new Item_empty_string("Comment", 512));
+  field_list.push_back(new (mem_root) Item_empty_string(thd, "Name", 40),
+                       mem_root);
+  field_list.push_back(new (mem_root) Item_empty_string(thd, "Location", 40),
+                       mem_root);
+  field_list.push_back(new (mem_root) Item_empty_string(thd, "Comment",  512),
+                       mem_root);
 
   if (protocol->send_result_set_metadata(&field_list,
-                            Protocol::SEND_NUM_ROWS | Protocol::SEND_EOF))
+                                         Protocol::SEND_NUM_ROWS |
+                                         Protocol::SEND_EOF))
     DBUG_RETURN(TRUE);
 
   show_table_contributors_st *contributors;
@@ -562,14 +572,20 @@ bool mysqld_show_privileges(THD *thd)
 {
   List<Item> field_list;
   Protocol *protocol= thd->protocol;
+  MEM_ROOT *mem_root= thd->mem_root;
   DBUG_ENTER("mysqld_show_privileges");
 
-  field_list.push_back(new Item_empty_string("Privilege",10));
-  field_list.push_back(new Item_empty_string("Context",15));
-  field_list.push_back(new Item_empty_string("Comment",NAME_CHAR_LEN));
+  field_list.push_back(new (mem_root) Item_empty_string(thd, "Privilege", 10),
+                       mem_root);
+  field_list.push_back(new (mem_root) Item_empty_string(thd, "Context", 15),
+                       mem_root);
+  field_list.push_back(new (mem_root) Item_empty_string(thd, "Comment",
+                                                        NAME_CHAR_LEN),
+                       mem_root);
 
   if (protocol->send_result_set_metadata(&field_list,
-                            Protocol::SEND_NUM_ROWS | Protocol::SEND_EOF))
+                                         Protocol::SEND_NUM_ROWS |
+                                         Protocol::SEND_EOF))
     DBUG_RETURN(TRUE);
 
   show_privileges_st *privilege= sys_privileges;
@@ -1092,6 +1108,7 @@ mysqld_show_create(THD *thd, TABLE_LIST *table_list)
   String buffer(buff, sizeof(buff), system_charset_info);
   List<Item> field_list;
   bool error= TRUE;
+  MEM_ROOT *mem_root= thd->mem_root;
   DBUG_ENTER("mysqld_show_create");
   DBUG_PRINT("enter",("db: %s  table: %s",table_list->db,
                       table_list->table_name));
@@ -1144,24 +1161,37 @@ mysqld_show_create(THD *thd, TABLE_LIST *table_list)
 
   if (table_list->view)
   {
-    field_list.push_back(new Item_empty_string("View",NAME_CHAR_LEN));
-    field_list.push_back(new Item_empty_string("Create View",
-                                               MY_MAX(buffer.length(),1024)));
-    field_list.push_back(new Item_empty_string("character_set_client",
-                                               MY_CS_NAME_SIZE));
-    field_list.push_back(new Item_empty_string("collation_connection",
-                                               MY_CS_NAME_SIZE));
+    field_list.push_back(new (mem_root)
+                         Item_empty_string(thd, "View", NAME_CHAR_LEN),
+                         mem_root);
+    field_list.push_back(new (mem_root)
+                         Item_empty_string(thd, "Create View",
+                                           MY_MAX(buffer.length(),1024)),
+                         mem_root);
+    field_list.push_back(new (mem_root)
+                         Item_empty_string(thd, "character_set_client",
+                                           MY_CS_NAME_SIZE),
+                         mem_root);
+    field_list.push_back(new (mem_root)
+                         Item_empty_string(thd, "collation_connection",
+                                           MY_CS_NAME_SIZE),
+                         mem_root);
   }
   else
   {
-    field_list.push_back(new Item_empty_string("Table",NAME_CHAR_LEN));
+    field_list.push_back(new (mem_root)
+                         Item_empty_string(thd, "Table", NAME_CHAR_LEN),
+                         mem_root);
     // 1024 is for not to confuse old clients
-    field_list.push_back(new Item_empty_string("Create Table",
-                                               MY_MAX(buffer.length(),1024)));
+    field_list.push_back(new (mem_root)
+                         Item_empty_string(thd, "Create Table",
+                                           MY_MAX(buffer.length(),1024)),
+                         mem_root);
   }
 
   if (protocol->send_result_set_metadata(&field_list,
-                            Protocol::SEND_NUM_ROWS | Protocol::SEND_EOF))
+                                         Protocol::SEND_NUM_ROWS |
+                                         Protocol::SEND_EOF))
     goto exit;
 
   protocol->prepare_for_resend();
@@ -1215,6 +1245,7 @@ bool mysqld_show_create_db(THD *thd, LEX_STRING *dbname,
 #endif
   Schema_specification_st create;
   Protocol *protocol=thd->protocol;
+  MEM_ROOT *mem_root= thd->mem_root;
   DBUG_ENTER("mysql_show_create_db");
 
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
@@ -1249,11 +1280,16 @@ bool mysqld_show_create_db(THD *thd, LEX_STRING *dbname,
     load_db_opt_by_name(thd, dbname->str, &create);
   }
   List<Item> field_list;
-  field_list.push_back(new Item_empty_string("Database",NAME_CHAR_LEN));
-  field_list.push_back(new Item_empty_string("Create Database",1024));
+  field_list.push_back(new (mem_root)
+                       Item_empty_string(thd, "Database", NAME_CHAR_LEN),
+                       mem_root);
+  field_list.push_back(new (mem_root)
+                       Item_empty_string(thd, "Create Database", 1024),
+                       mem_root);
 
   if (protocol->send_result_set_metadata(&field_list,
-                            Protocol::SEND_NUM_ROWS | Protocol::SEND_EOF))
+                                         Protocol::SEND_NUM_ROWS |
+                                         Protocol::SEND_EOF))
     DBUG_RETURN(TRUE);
 
   protocol->prepare_for_resend();
@@ -1295,6 +1331,7 @@ void
 mysqld_list_fields(THD *thd, TABLE_LIST *table_list, const char *wild)
 {
   TABLE *table;
+  MEM_ROOT *mem_root= thd->mem_root;
   DBUG_ENTER("mysqld_list_fields");
   DBUG_PRINT("enter",("table: %s",table_list->table_name));
 
@@ -1313,16 +1350,19 @@ mysqld_list_fields(THD *thd, TABLE_LIST *table_list, const char *wild)
         !wild_case_compare(system_charset_info, field->field_name,wild))
     {
       if (table_list->view)
-        field_list.push_back(new Item_ident_for_show(field,
-                                                     table_list->view_db.str,
-                                                     table_list->view_name.str));
+        field_list.push_back(new (mem_root)
+                             Item_ident_for_show(thd, field,
+                                                 table_list->view_db.str,
+                                                 table_list->view_name.str),
+                             mem_root);
       else
-        field_list.push_back(new Item_field(field));
+        field_list.push_back(new (mem_root) Item_field(thd, field), mem_root);
     }
   }
   restore_record(table, s->default_values);              // Get empty record
   table->use_all_columns();
-  if (thd->protocol->send_result_set_metadata(&field_list, Protocol::SEND_DEFAULTS))
+  if (thd->protocol->send_result_set_metadata(&field_list,
+                                              Protocol::SEND_DEFAULTS))
     DBUG_VOID_RETURN;
   my_eof(thd);
   DBUG_VOID_RETURN;
@@ -1810,35 +1850,36 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
       else
         packet->append(STRING_WITH_LEN(" VIRTUAL"));
     }
-
-    if (flags & NOT_NULL_FLAG)
-      packet->append(STRING_WITH_LEN(" NOT NULL"));
-    else if (field->type() == MYSQL_TYPE_TIMESTAMP)
+    else
     {
-      /*
-        TIMESTAMP field require explicit NULL flag, because unlike
-        all other fields they are treated as NOT NULL by default.
-      */
-      packet->append(STRING_WITH_LEN(" NULL"));
+      if (flags & NOT_NULL_FLAG)
+        packet->append(STRING_WITH_LEN(" NOT NULL"));
+      else if (field->type() == MYSQL_TYPE_TIMESTAMP)
+      {
+        /*
+          TIMESTAMP field require explicit NULL flag, because unlike
+          all other fields they are treated as NOT NULL by default.
+        */
+        packet->append(STRING_WITH_LEN(" NULL"));
+      }
+
+      if (get_field_default_value(thd, field, &def_value, 1))
+      {
+        packet->append(STRING_WITH_LEN(" DEFAULT "));
+        packet->append(def_value.ptr(), def_value.length(), system_charset_info);
+      }
+
+      if (!limited_mysql_mode &&
+          print_on_update_clause(field, &def_value, false))
+      {
+        packet->append(STRING_WITH_LEN(" "));
+        packet->append(def_value);
+      }
+
+      if (field->unireg_check == Field::NEXT_NUMBER &&
+          !(sql_mode & MODE_NO_FIELD_OPTIONS))
+        packet->append(STRING_WITH_LEN(" AUTO_INCREMENT"));
     }
-
-    if (!field->vcol_info &&
-        get_field_default_value(thd, field, &def_value, 1))
-    {
-      packet->append(STRING_WITH_LEN(" DEFAULT "));
-      packet->append(def_value.ptr(), def_value.length(), system_charset_info);
-    }
-
-    if (!limited_mysql_mode && print_on_update_clause(field, &def_value, false))
-    {
-      packet->append(STRING_WITH_LEN(" "));
-      packet->append(def_value);
-    }
-
-
-    if (field->unireg_check == Field::NEXT_NUMBER &&
-        !(sql_mode & MODE_NO_FIELD_OPTIONS))
-      packet->append(STRING_WITH_LEN(" AUTO_INCREMENT"));
 
     if (field->comment.length)
     {
@@ -2292,10 +2333,8 @@ static int show_create_view(THD *thd, TABLE_LIST *table, String *buff)
 
 class thread_info :public ilink {
 public:
-  static void *operator new(size_t size)
-  {
-    return (void*) sql_alloc((uint) size);
-  }
+  static void *operator new(size_t size, MEM_ROOT *mem_root) throw ()
+  { return alloc_root(mem_root, size); }
   static void operator delete(void *ptr __attribute__((unused)),
                               size_t size __attribute__((unused)))
   { TRASH(ptr, size); }
@@ -2340,28 +2379,49 @@ void mysqld_list_processes(THD *thd,const char *user, bool verbose)
   ulong max_query_length= (verbose ? thd->variables.max_allowed_packet :
 			   PROCESS_LIST_WIDTH);
   Protocol *protocol= thd->protocol;
+  MEM_ROOT *mem_root= thd->mem_root;
   DBUG_ENTER("mysqld_list_processes");
 
-  field_list.push_back(new Item_int("Id", 0, MY_INT32_NUM_DECIMAL_DIGITS));
-  field_list.push_back(new Item_empty_string("User", USERNAME_CHAR_LENGTH));
-  field_list.push_back(new Item_empty_string("Host",LIST_PROCESS_HOST_LEN));
-  field_list.push_back(field=new Item_empty_string("db",NAME_CHAR_LEN));
+  field_list.push_back(new (mem_root)
+                       Item_int(thd, "Id", 0, MY_INT32_NUM_DECIMAL_DIGITS),
+                       mem_root);
+  field_list.push_back(new (mem_root)
+                       Item_empty_string(thd, "User",
+                                         USERNAME_CHAR_LENGTH),
+                       mem_root);
+  field_list.push_back(new (mem_root)
+                       Item_empty_string(thd, "Host",
+                                         LIST_PROCESS_HOST_LEN),
+                       mem_root);
+  field_list.push_back(field=new (mem_root)
+                       Item_empty_string(thd, "db", NAME_CHAR_LEN),
+                       mem_root);
   field->maybe_null=1;
-  field_list.push_back(new Item_empty_string("Command",16));
-  field_list.push_back(field= new Item_return_int("Time",7, MYSQL_TYPE_LONG));
+  field_list.push_back(new (mem_root) Item_empty_string(thd, "Command", 16),
+                       mem_root);
+  field_list.push_back(field= new (mem_root)
+                       Item_return_int(thd, "Time", 7, MYSQL_TYPE_LONG),
+                       mem_root);
   field->unsigned_flag= 0;
-  field_list.push_back(field=new Item_empty_string("State",30));
+  field_list.push_back(field=new (mem_root)
+                       Item_empty_string(thd, "State", 30),
+                       mem_root);
   field->maybe_null=1;
-  field_list.push_back(field=new Item_empty_string("Info",max_query_length));
+  field_list.push_back(field=new (mem_root)
+                       Item_empty_string(thd, "Info", max_query_length),
+                       mem_root);
   field->maybe_null=1;
   if (!thd->variables.old_mode &&
       !(thd->variables.old_behavior & OLD_MODE_NO_PROGRESS_INFO))
   {
-    field_list.push_back(field= new Item_float("Progress", 0.0, 3, 7));
+    field_list.push_back(field= new (mem_root)
+                         Item_float(thd, "Progress", 0.0, 3, 7),
+                         mem_root);
     field->maybe_null= 0;
   }
   if (protocol->send_result_set_metadata(&field_list,
-                            Protocol::SEND_NUM_ROWS | Protocol::SEND_EOF))
+                                         Protocol::SEND_NUM_ROWS |
+                                         Protocol::SEND_EOF))
     DBUG_VOID_RETURN;
 
   if (thd->killed)
@@ -2378,7 +2438,7 @@ void mysqld_list_processes(THD *thd,const char *user, bool verbose)
         (!user || (!tmp->system_thread &&
                    tmp_sctx->user && !strcmp(tmp_sctx->user, user))))
     {
-      thread_info *thd_info= new thread_info;
+      thread_info *thd_info= new (thd->mem_root) thread_info;
 
       thd_info->thread_id=tmp->thread_id;
       thd_info->user= thd->strdup(tmp_sctx->user ? tmp_sctx->user :
@@ -2534,11 +2594,11 @@ int select_result_explain_buffer::send_data(List<Item> &items)
   DBUG_RETURN(MY_TEST(res));
 }
 
-bool select_result_text_buffer::send_result_set_metadata(List<Item> &fields, uint flag)
+bool select_result_text_buffer::send_result_set_metadata(List<Item> &fields,
+                                                         uint flag)
 {
   n_columns= fields.elements;
   return append_row(fields, true /*send item names */);
-  return send_data(fields);
 }
 
 
@@ -2554,16 +2614,18 @@ int select_result_text_buffer::append_row(List<Item> &items, bool send_names)
   char **row;
   int column= 0;
 
-  if (!(row= (char**) thd->alloc(sizeof(char*) * n_columns)))
+  if (!(row= (char**) thd->alloc(sizeof(char*) * n_columns)) ||
+      rows.push_back(row, thd->mem_root))
     return true;
-  rows.push_back(row);
 
   while ((item= it++))
   {
     DBUG_ASSERT(column < n_columns);
     StringBuffer<32> buf;
     const char *data_ptr; 
+    char *ptr;
     size_t data_len;
+
     if (send_names)
     {
       data_ptr= item->name;
@@ -2585,8 +2647,8 @@ int select_result_text_buffer::append_row(List<Item> &items, bool send_names)
       }
     }
 
-    char *ptr= (char*)thd->alloc(data_len + 1);
-    memcpy(ptr, data_ptr, data_len + 1);
+    if (!(ptr= (char*) thd->memdup(data_ptr, data_len + 1)))
+      return true;
     row[column]= ptr;
 
     column++;
@@ -3527,7 +3589,7 @@ bool uses_only_table_name_fields(Item *item, TABLE_LIST *table)
 }
 
 
-COND *make_cond_for_info_schema(COND *cond, TABLE_LIST *table)
+COND *make_cond_for_info_schema(THD *thd, COND *cond, TABLE_LIST *table)
 {
   if (!cond)
     return (COND*) 0;
@@ -3536,16 +3598,16 @@ COND *make_cond_for_info_schema(COND *cond, TABLE_LIST *table)
     if (((Item_cond*) cond)->functype() == Item_func::COND_AND_FUNC)
     {
       /* Create new top level AND item */
-      Item_cond_and *new_cond=new Item_cond_and;
+      Item_cond_and *new_cond=new (thd->mem_root) Item_cond_and(thd);
       if (!new_cond)
 	return (COND*) 0;
       List_iterator<Item> li(*((Item_cond*) cond)->argument_list());
       Item *item;
       while ((item=li++))
       {
-	Item *fix= make_cond_for_info_schema(item, table);
+	Item *fix= make_cond_for_info_schema(thd, item, table);
 	if (fix)
-	  new_cond->argument_list()->push_back(fix);
+	  new_cond->argument_list()->push_back(fix, thd->mem_root);
       }
       switch (new_cond->argument_list()->elements) {
       case 0:
@@ -3559,17 +3621,17 @@ COND *make_cond_for_info_schema(COND *cond, TABLE_LIST *table)
     }
     else
     {						// Or list
-      Item_cond_or *new_cond=new Item_cond_or;
+      Item_cond_or *new_cond= new (thd->mem_root) Item_cond_or(thd);
       if (!new_cond)
 	return (COND*) 0;
       List_iterator<Item> li(*((Item_cond*) cond)->argument_list());
       Item *item;
       while ((item=li++))
       {
-	Item *fix=make_cond_for_info_schema(item, table);
+	Item *fix=make_cond_for_info_schema(thd, item, table);
 	if (!fix)
 	  return (COND*) 0;
-	new_cond->argument_list()->push_back(fix);
+	new_cond->argument_list()->push_back(fix, thd->mem_root);
       }
       new_cond->quick_fix_field();
       new_cond->top_level_item();
@@ -7057,7 +7119,7 @@ int fill_variables(THD *thd, TABLE_LIST *tables, COND *cond)
       schema_table_idx == SCH_GLOBAL_VARIABLES)
     scope= OPT_GLOBAL;
 
-  COND *partial_cond= make_cond_for_info_schema(cond, tables);
+  COND *partial_cond= make_cond_for_info_schema(thd, cond, tables);
 
   mysql_rwlock_rdlock(&LOCK_system_variables_hash);
   res= show_status_array(thd, wild, enumerate_sys_vars(thd, sorted_vars, scope),
@@ -7099,7 +7161,7 @@ int fill_status(THD *thd, TABLE_LIST *tables, COND *cond)
     tmp1= &thd->status_var;
   }
 
-  COND *partial_cond= make_cond_for_info_schema(cond, tables);
+  COND *partial_cond= make_cond_for_info_schema(thd, cond, tables);
   // Evaluate and cache const subqueries now, before the mutex.
   if (partial_cond)
     partial_cond->val_int();
@@ -7312,6 +7374,7 @@ TABLE *create_schema_table(THD *thd, TABLE_LIST *table_list)
   ST_SCHEMA_TABLE *schema_table= table_list->schema_table;
   ST_FIELD_INFO *fields_info= schema_table->fields_info;
   CHARSET_INFO *cs= system_charset_info;
+  MEM_ROOT *mem_root= thd->mem_root;
   DBUG_ENTER("create_schema_table");
 
   for (; fields_info->field_name; fields_info++)
@@ -7322,43 +7385,50 @@ TABLE *create_schema_table(THD *thd, TABLE_LIST *table_list)
     case MYSQL_TYPE_SHORT:
     case MYSQL_TYPE_LONGLONG:
     case MYSQL_TYPE_INT24:
-      if (!(item= new Item_return_int(fields_info->field_name,
-                                      fields_info->field_length,
-                                      fields_info->field_type,
-                                      fields_info->value)))
+      if (!(item= new (mem_root)
+            Item_return_int(thd, fields_info->field_name,
+                            fields_info->field_length,
+                            fields_info->field_type,
+                            fields_info->value)))
       {
         DBUG_RETURN(0);
       }
       item->unsigned_flag= (fields_info->field_flags & MY_I_S_UNSIGNED);
       break;
     case MYSQL_TYPE_DATE:
-      if (!(item=new Item_return_date_time(fields_info->field_name,
-                                           strlen(fields_info->field_name),
-                                           fields_info->field_type)))
+      if (!(item=new (mem_root)
+            Item_return_date_time(thd, fields_info->field_name,
+                                  strlen(fields_info->field_name),
+                                  fields_info->field_type)))
         DBUG_RETURN(0);
       break;
     case MYSQL_TYPE_TIME:
-      if (!(item=new Item_return_date_time(fields_info->field_name,
-                                           strlen(fields_info->field_name),
-                                           fields_info->field_type)))
+      if (!(item=new (mem_root)
+            Item_return_date_time(thd, fields_info->field_name,
+                                  strlen(fields_info->field_name),
+                                  fields_info->field_type)))
         DBUG_RETURN(0);
       break;
     case MYSQL_TYPE_TIMESTAMP:
     case MYSQL_TYPE_DATETIME:
-      if (!(item=new Item_return_date_time(fields_info->field_name,
-                                           strlen(fields_info->field_name),
-                                           fields_info->field_type)))
+      if (!(item=new (mem_root)
+            Item_return_date_time(thd, fields_info->field_name,
+                                  strlen(fields_info->field_name),
+                                  fields_info->field_type)))
         DBUG_RETURN(0);
       break;
     case MYSQL_TYPE_FLOAT:
     case MYSQL_TYPE_DOUBLE:
-      if ((item= new Item_float(fields_info->field_name, 0.0, NOT_FIXED_DEC,
-                           fields_info->field_length)) == NULL)
+      if ((item= new (mem_root)
+           Item_float(thd, fields_info->field_name, 0.0,
+                      NOT_FIXED_DEC,
+                      fields_info->field_length)) == NULL)
         DBUG_RETURN(NULL);
       break;
     case MYSQL_TYPE_DECIMAL:
     case MYSQL_TYPE_NEWDECIMAL:
-      if (!(item= new Item_decimal((longlong) fields_info->value, false)))
+      if (!(item= new (mem_root)
+            Item_decimal(thd, (longlong) fields_info->value, false)))
       {
         DBUG_RETURN(0);
       }
@@ -7366,7 +7436,7 @@ TABLE *create_schema_table(THD *thd, TABLE_LIST *table_list)
         Create a type holder, as we want the type of the item to defined
         the type of the object, not the value
       */
-      if (!(item= new Item_type_holder(thd, item)))
+      if (!(item= new (mem_root) Item_type_holder(thd, item)))
         DBUG_RETURN(0);
       item->unsigned_flag= (fields_info->field_flags & MY_I_S_UNSIGNED);
       item->decimals= fields_info->field_length%10;
@@ -7382,8 +7452,9 @@ TABLE *create_schema_table(THD *thd, TABLE_LIST *table_list)
     case MYSQL_TYPE_MEDIUM_BLOB:
     case MYSQL_TYPE_LONG_BLOB:
     case MYSQL_TYPE_BLOB:
-      if (!(item= new Item_blob(fields_info->field_name,
-                                fields_info->field_length)))
+      if (!(item= new (mem_root)
+            Item_blob(thd, fields_info->field_name,
+                      fields_info->field_length)))
       {
         DBUG_RETURN(0);
       }
@@ -7392,7 +7463,8 @@ TABLE *create_schema_table(THD *thd, TABLE_LIST *table_list)
       /* Don't let unimplemented types pass through. Could be a grave error. */
       DBUG_ASSERT(fields_info->field_type == MYSQL_TYPE_STRING);
 
-      if (!(item= new Item_empty_string("", fields_info->field_length, cs)))
+      if (!(item= new (mem_root)
+            Item_empty_string(thd, "", fields_info->field_length, cs)))
       {
         DBUG_RETURN(0);
       }
@@ -7400,7 +7472,7 @@ TABLE *create_schema_table(THD *thd, TABLE_LIST *table_list)
                      strlen(fields_info->field_name), cs);
       break;
     }
-    field_list.push_back(item);
+    field_list.push_back(item, thd->mem_root);
     item->maybe_null= (fields_info->field_flags & MY_I_S_MAYBE_NULL);
     field_count++;
   }
@@ -7451,8 +7523,8 @@ static int make_old_format(THD *thd, ST_SCHEMA_TABLE *schema_table)
   {
     if (field_info->old_name)
     {
-      Item_field *field= new Item_field(thd, context,
-                                        NullS, NullS, field_info->field_name);
+      Item_field *field= new (thd->mem_root)
+        Item_field(thd, context, NullS, NullS, field_info->field_name);
       if (field)
       {
         field->set_name(field_info->old_name,
@@ -7478,7 +7550,7 @@ int make_schemata_old_format(THD *thd, ST_SCHEMA_TABLE *schema_table)
   {
     ST_FIELD_INFO *field_info= &schema_table->fields_info[1];
     String buffer(tmp,sizeof(tmp), system_charset_info);
-    Item_field *field= new Item_field(thd, context,
+    Item_field *field= new (thd->mem_root) Item_field(thd, context,
                                       NullS, NullS, field_info->field_name);
     if (!field || add_item_to_list(thd, field))
       return 1;
@@ -7513,7 +7585,7 @@ int make_table_names_old_format(THD *thd, ST_SCHEMA_TABLE *schema_table)
     buffer.append(lex->wild->ptr());
     buffer.append(')');
   }
-  Item_field *field= new Item_field(thd, context,
+  Item_field *field= new (thd->mem_root) Item_field(thd, context,
                                     NullS, NullS, field_info->field_name);
   if (add_item_to_list(thd, field))
     return 1;
@@ -7522,7 +7594,7 @@ int make_table_names_old_format(THD *thd, ST_SCHEMA_TABLE *schema_table)
   {
     field->set_name(buffer.ptr(), buffer.length(), system_charset_info);
     field_info= &schema_table->fields_info[3];
-    field= new Item_field(thd, context, NullS, NullS, field_info->field_name);
+    field= new (thd->mem_root) Item_field(thd, context, NullS, NullS, field_info->field_name);
     if (add_item_to_list(thd, field))
       return 1;
     field->set_name(field_info->old_name, strlen(field_info->old_name),
@@ -7546,7 +7618,7 @@ int make_columns_old_format(THD *thd, ST_SCHEMA_TABLE *schema_table)
                                *field_num == 18 ||
                                *field_num == 19))
       continue;
-    Item_field *field= new Item_field(thd, context,
+    Item_field *field= new (thd->mem_root) Item_field(thd, context,
                                       NullS, NullS, field_info->field_name);
     if (field)
     {
@@ -7571,7 +7643,7 @@ int make_character_sets_old_format(THD *thd, ST_SCHEMA_TABLE *schema_table)
   for (; *field_num >= 0; field_num++)
   {
     field_info= &schema_table->fields_info[*field_num];
-    Item_field *field= new Item_field(thd, context,
+    Item_field *field= new (thd->mem_root) Item_field(thd, context,
                                       NullS, NullS, field_info->field_name);
     if (field)
     {
@@ -7596,7 +7668,7 @@ int make_proc_old_format(THD *thd, ST_SCHEMA_TABLE *schema_table)
   for (; *field_num >= 0; field_num++)
   {
     field_info= &schema_table->fields_info[*field_num];
-    Item_field *field= new Item_field(thd, context,
+    Item_field *field= new (thd->mem_root) Item_field(thd, context,
                                       NullS, NullS, field_info->field_name);
     if (field)
     {
@@ -7814,7 +7886,7 @@ static bool optimize_for_get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond
   if (plan->has_db_lookup_value() && plan->has_table_lookup_value())
     plan->partial_cond= 0;
   else
-    plan->partial_cond= make_cond_for_info_schema(cond, tables);
+    plan->partial_cond= make_cond_for_info_schema(thd, cond, tables);
   
 end:
   DBUG_RETURN(0);
@@ -9107,10 +9179,8 @@ static bool show_create_trigger_impl(THD *thd,
                                      int trigger_idx)
 {
   int ret_code;
-
   Protocol *p= thd->protocol;
   List<Item> fields;
-
   LEX_STRING trg_name;
   ulonglong trg_sql_mode;
   LEX_STRING trg_sql_mode_str;
@@ -9118,8 +9188,8 @@ static bool show_create_trigger_impl(THD *thd,
   LEX_STRING trg_client_cs_name;
   LEX_STRING trg_connection_cl_name;
   LEX_STRING trg_db_cl_name;
-
   CHARSET_INFO *trg_client_cs;
+  MEM_ROOT *mem_root= thd->mem_root;
 
   /*
     TODO: Check privileges here. This functionality will be added by
@@ -9151,8 +9221,11 @@ static bool show_create_trigger_impl(THD *thd,
 
   /* Send header. */
 
-  fields.push_back(new Item_empty_string("Trigger", NAME_LEN));
-  fields.push_back(new Item_empty_string("sql_mode", trg_sql_mode_str.length));
+  fields.push_back(new (mem_root) Item_empty_string(thd, "Trigger", NAME_LEN),
+                   mem_root);
+  fields.push_back(new (mem_root)
+                   Item_empty_string(thd, "sql_mode", trg_sql_mode_str.length),
+                   mem_root);
 
   {
     /*
@@ -9161,24 +9234,33 @@ static bool show_create_trigger_impl(THD *thd,
     */
 
     Item_empty_string *stmt_fld=
-      new Item_empty_string("SQL Original Statement",
-                            MY_MAX(trg_sql_original_stmt.length, 1024));
+      new (mem_root) Item_empty_string(thd, "SQL Original Statement",
+                                       MY_MAX(trg_sql_original_stmt.length,
+                                              1024));
 
     stmt_fld->maybe_null= TRUE;
 
-    fields.push_back(stmt_fld);
+    fields.push_back(stmt_fld, mem_root);
   }
 
-  fields.push_back(new Item_empty_string("character_set_client",
-                                         MY_CS_NAME_SIZE));
+  fields.push_back(new (mem_root)
+                   Item_empty_string(thd, "character_set_client",
+                                     MY_CS_NAME_SIZE),
+                   mem_root);
 
-  fields.push_back(new Item_empty_string("collation_connection",
-                                         MY_CS_NAME_SIZE));
+  fields.push_back(new (mem_root)
+                   Item_empty_string(thd, "collation_connection",
+                                     MY_CS_NAME_SIZE),
+                   mem_root);
 
-  fields.push_back(new Item_empty_string("Database Collation",
-                                         MY_CS_NAME_SIZE));
+  fields.push_back(new (mem_root)
+                   Item_empty_string(thd, "Database Collation",
+                                     MY_CS_NAME_SIZE),
+                   mem_root);
 
-  if (p->send_result_set_metadata(&fields, Protocol::SEND_NUM_ROWS | Protocol::SEND_EOF))
+  if (p->send_result_set_metadata(&fields,
+                                  Protocol::SEND_NUM_ROWS |
+                                  Protocol::SEND_EOF))
     return TRUE;
 
   /* Send data. */

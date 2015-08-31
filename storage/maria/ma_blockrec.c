@@ -1208,7 +1208,6 @@ static my_bool extend_directory(MARIA_HA *info, uchar *buff, uint block_size,
 {
   uint length, first_pos;
   uchar *dir, *first_dir;
-  MARIA_SHARE *share= info->s;
   DBUG_ENTER("extend_directory");
 
   /*
@@ -1254,10 +1253,10 @@ static my_bool extend_directory(MARIA_HA *info, uchar *buff, uint block_size,
     }
   }
 
-  check_directory(share,
+  check_directory(info->s,
                   buff, block_size,
-                  head_page ? MY_MIN(share->base.min_block_length, length) : 0,
-                  *empty_space);
+                  head_page ? MY_MIN(info->s->base.min_block_length, length) :
+                  0, *empty_space);
   DBUG_RETURN(0);
 }
 

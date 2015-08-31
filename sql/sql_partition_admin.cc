@@ -805,7 +805,7 @@ bool Sql_cmd_alter_table_truncate_partition::execute(THD *thd)
                                   String(partition_name, system_charset_info);
     if (!str_partition_name)
       DBUG_RETURN(true);
-    partition_names_list.push_back(str_partition_name);
+    partition_names_list.push_back(str_partition_name, thd->mem_root);
   }
   first_table->partition_names= &partition_names_list;
   if (first_table->table->part_info->set_partition_bitmaps(first_table))

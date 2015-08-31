@@ -20,12 +20,14 @@ SHOW CREATE TABLE diaries;
 Table	Create Table
 diaries	CREATE TABLE `diaries` (
   `description` text,
-  `internal_id` int(11) NOT NULL DEFAULT '0',
+  `internal_id` int(11) NOT NULL,
   `subject` text,
   PRIMARY KEY (`internal_id`)
 ) ENGINE=Mroonga DEFAULT CHARSET=utf8
 INSERT INTO diaries (subject, description)
 VALUES ("groonga (1)", "starting groonga.");
+Warnings:
+Warning	1364	Field 'internal_id' doesn't have a default value
 SELECT * FROM diaries;
 description	internal_id	subject
 starting groonga.	0	groonga (1)

@@ -364,7 +364,13 @@ fil_space_destroy_crypt_data(
 	fil_space_crypt_t **crypt_data)	/*!< out: crypt data */
 {
 	if (crypt_data != NULL && (*crypt_data) != NULL) {
-		mutex_free(& (*crypt_data)->mutex);
+		/* Make sure that this thread owns the crypt_data
+		and make it unawailable, this does not fully
+		avoid the race between drop table and crypt thread */
+		mutex_enter(&(*crypt_data)->mutex);
+		(*crypt_data)->inited = false;
+		mutex_exit(&(*crypt_data)->mutex);
+		mutex_free(&(*crypt_data)->mutex);
 		memset(*crypt_data, 0, sizeof(fil_space_crypt_t));
 		free(*crypt_data);
 		(*crypt_data) = NULL;
@@ -2241,7 +2247,7 @@ fil_crypt_set_thread_cnt(
 			os_thread_id_t rotation_thread_id;
 			os_thread_create(fil_crypt_thread, NULL, &rotation_thread_id);
 			ib_logf(IB_LOG_LEVEL_INFO,
-				"Creating #%d thread id %lu total threads %u\n",
+				"Creating #%d thread id %lu total threads %u.",
 				i+1, os_thread_pf(rotation_thread_id), new_cnt);
 		}
 	} else if (new_cnt < srv_n_fil_crypt_threads) {

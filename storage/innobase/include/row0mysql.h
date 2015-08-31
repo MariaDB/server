@@ -35,6 +35,7 @@ Created 9/17/2000 Heikki Tuuri
 #include "row0types.h"
 #include "btr0pcur.h"
 #include "trx0types.h"
+#include "fil0crypt.h"
 
 // Forward declaration
 struct SysIndexCallback;
@@ -386,7 +387,9 @@ row_create_table_for_mysql(
 				(will be freed, or on DB_SUCCESS
 				added to the data dictionary cache) */
 	trx_t*		trx,	/*!< in/out: transaction */
-	bool		commit)	/*!< in: if true, commit the transaction */
+	bool		commit,	/*!< in: if true, commit the transaction */
+	fil_encryption_t mode,	/*!< in: encryption mode */
+	ulint		key_id)	/*!< in: encryption key_id */
 	__attribute__((nonnull, warn_unused_result));
 /*********************************************************************//**
 Does an index creation operation for MySQL. TODO: currently failure

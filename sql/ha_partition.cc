@@ -1693,8 +1693,8 @@ int ha_partition::change_partitions(HA_CREATE_INFO *create_info,
     } while (++i < num_parts);
   }
   if (m_reorged_parts &&
-      !(m_reorged_file= (handler**)sql_calloc(sizeof(handler*)*
-                                              (m_reorged_parts + 1))))
+      !(m_reorged_file= (handler**) thd->calloc(sizeof(handler*)*
+                                                (m_reorged_parts + 1))))
   {
     mem_alloc_error(sizeof(handler*)*(m_reorged_parts+1));
     DBUG_RETURN(HA_ERR_OUT_OF_MEM);
@@ -1725,8 +1725,9 @@ int ha_partition::change_partitions(HA_CREATE_INFO *create_info,
       }
     } while (++i < num_parts);
   }
-  if (!(new_file_array= (handler**)sql_calloc(sizeof(handler*)*
-                                            (2*(num_remain_partitions + 1)))))
+  if (!(new_file_array= ((handler**)
+                         thd->calloc(sizeof(handler*)*
+                                     (2*(num_remain_partitions + 1))))))
   {
     mem_alloc_error(sizeof(handler*)*2*(num_remain_partitions+1));
     DBUG_RETURN(HA_ERR_OUT_OF_MEM);
@@ -1810,7 +1811,7 @@ int ha_partition::change_partitions(HA_CREATE_INFO *create_info,
         DBUG_RETURN(HA_ERR_OUT_OF_MEM);
       if (p_share_refs->init(num_subparts))
         DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-      if (m_new_partitions_share_refs.push_back(p_share_refs))
+      if (m_new_partitions_share_refs.push_back(p_share_refs, thd->mem_root))
         DBUG_RETURN(HA_ERR_OUT_OF_MEM);
       do
       {

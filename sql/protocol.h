@@ -139,6 +139,10 @@ public:
   virtual enum enum_protocol_type type()= 0;
 
   void end_statement();
+
+  friend int send_answer_1(Protocol *protocol, String *s1, String *s2,
+                           String *s3);
+  friend int send_header_2(Protocol *protocol, bool for_category);
 };
 
 

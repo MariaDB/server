@@ -128,7 +128,7 @@ This is temp. table
 show create table v1;
 Table	Create Table
 v1	CREATE TEMPORARY TABLE `v1` (
-  `A` varchar(19) NOT NULL DEFAULT ''
+  `A` varchar(19) NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 show create view v1;
 View	Create View	character_set_client	collation_connection

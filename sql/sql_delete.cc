@@ -159,7 +159,7 @@ void Update_plan::save_explain_data_intern(MEM_ROOT *mem_root,
   explain->where_cond= select? select->cond: NULL;
 
   if (using_filesort)
-    explain->filesort_tracker= new (mem_root) Filesort_tracker;
+    explain->filesort_tracker= new (mem_root) Filesort_tracker(is_analyze);
   explain->using_io_buffer= using_io_buffer;
 
   append_possible_keys(mem_root, explain->possible_keys, table, 
@@ -906,7 +906,7 @@ multi_delete::multi_delete(THD *thd_arg, TABLE_LIST *dt, uint num_of_tables_arg)
     num_of_tables(num_of_tables_arg), error(0),
     do_delete(0), transactional_tables(0), normal_tables(0), error_handled(0)
 {
-  tempfiles= (Unique **) sql_calloc(sizeof(Unique *) * num_of_tables);
+  tempfiles= (Unique **) thd_arg->calloc(sizeof(Unique *) * num_of_tables);
 }
 
 

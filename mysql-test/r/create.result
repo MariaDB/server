@@ -131,12 +131,12 @@ drop table t2;
 create table t2 select now() as a , curtime() as b, curdate() as c , 1+1 as d , 1.0 + 1 as e , 33333333333333333 + 3 as f;
 describe t2;
 Field	Type	Null	Key	Default	Extra
-a	datetime	NO		0000-00-00 00:00:00	
-b	time	NO		00:00:00	
-c	date	NO		0000-00-00	
-d	int(3)	NO		0	
-e	decimal(3,1)	NO		0.0	
-f	bigint(19)	NO		0	
+a	datetime	NO		NULL	
+b	time	NO		NULL	
+c	date	NO		NULL	
+d	int(3)	NO		NULL	
+e	decimal(3,1)	NO		NULL	
+f	bigint(19)	NO		NULL	
 drop table t2;
 create table t2 select CAST("2001-12-29" AS DATE) as d, CAST("20:45:11" AS TIME) as t, CAST("2001-12-29  20:45:11" AS DATETIME) as dt;
 describe t2;
@@ -481,10 +481,10 @@ from t1;
 explain t2;
 Field	Type	Null	Key	Default	Extra
 a	int(11)	YES		NULL	
-b	bigint(11)	NO		0	
-c	bigint(10) unsigned	NO		0	
+b	bigint(11)	NO		NULL	
+c	bigint(10) unsigned	NO		NULL	
 d	date	YES		NULL	
-e	varchar(1)	NO			
+e	varchar(1)	NO		NULL	
 f	datetime	YES		NULL	
 g	time	YES		NULL	
 h	longblob	NO		NULL	
@@ -727,7 +727,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `b` int(11) NOT NULL,
   `a` varchar(12) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
-  `c` int(1) NOT NULL DEFAULT '0',
+  `c` int(1) NOT NULL,
   PRIMARY KEY (`a`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop table t1;
@@ -740,7 +740,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `b` int(11) DEFAULT NULL,
   `a` varchar(12) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
-  `c` int(1) NOT NULL DEFAULT '0',
+  `c` int(1) NOT NULL,
   PRIMARY KEY (`a`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop table t1;
@@ -763,7 +763,7 @@ b int not null, primary key (a)
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` varchar(12) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL DEFAULT '',
+  `a` varchar(12) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
   `b` int(11) NOT NULL,
   PRIMARY KEY (`a`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1

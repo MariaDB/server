@@ -180,14 +180,14 @@ create table t1 select 1 as 'a';
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` int(1) NOT NULL DEFAULT '0'
+  `a` int(1) NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop table t1;
 create table t1 select 9223372036854775809 as 'a';
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` bigint(19) unsigned NOT NULL DEFAULT '0'
+  `a` bigint(19) unsigned NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 select * from t1;
 a
@@ -397,12 +397,12 @@ select -(-9223372036854775808), -(-(-9223372036854775808));
 create table t1 select -9223372036854775808 bi;
 describe t1;
 Field	Type	Null	Key	Default	Extra
-bi	bigint(20)	NO		0	
+bi	bigint(20)	NO		NULL	
 drop table t1;
 create table t1 select -9223372036854775809 bi;
 describe t1;
 Field	Type	Null	Key	Default	Extra
-bi	decimal(19,0)	NO		0	
+bi	decimal(19,0)	NO		NULL	
 drop table t1;
 #
 # Bug #45360: wrong results

@@ -225,6 +225,11 @@ static void
 signal_error_to_sql_driver_thread(THD *thd, rpl_group_info *rgi, int err)
 {
   rgi->worker_error= err;
+  /*
+    In case we get an error during commit, inform following transactions that
+    we aborted our commit.
+  */
+  rgi->unmark_start_commit();
   rgi->cleanup_context(thd, true);
   rgi->rli->abort_slave= true;
   rgi->rli->stop_for_until= false;
@@ -377,6 +382,7 @@ do_retry:
     transaction we deadlocked with will not signal that it started to commit
     until after the unmark.
   */
+  DBUG_EXECUTE_IF("inject_mdev8302", { my_sleep(20000);});
   rgi->unmark_start_commit();
   DEBUG_SYNC(thd, "rpl_parallel_retry_after_unmark");
 
@@ -914,9 +920,24 @@ handle_rpl_parallel_thread(void *arg)
       group_ending= is_group_ending(qev->ev, event_type);
       if (group_ending && likely(!rgi->worker_error))
       {
-        DEBUG_SYNC(thd, "rpl_parallel_before_mark_start_commit");
-        rgi->mark_start_commit();
-        DEBUG_SYNC(thd, "rpl_parallel_after_mark_start_commit");
+        /*
+          Do an extra check for (deadlock) kill here. This helps prevent a
+          lingering deadlock kill that occured during normal DML processing to
+          propagate past the mark_start_commit(). If we detect a deadlock only
+          after mark_start_commit(), we have to unmark, which has at least a
+          theoretical possibility of leaving a window where it looks like all
+          transactions in a GCO have started committing, while in fact one
+          will need to rollback and retry. This is not supposed to be possible
+          (since there is a deadlock, at least one transaction should be
+          blocked from reaching commit), but this seems a fragile ensurance,
+          and there were historically a number of subtle bugs in this area.
+        */
+        if (!thd->killed)
+        {
+          DEBUG_SYNC(thd, "rpl_parallel_before_mark_start_commit");
+          rgi->mark_start_commit();
+          DEBUG_SYNC(thd, "rpl_parallel_after_mark_start_commit");
+        }
       }
 
       /*
@@ -941,7 +962,17 @@ handle_rpl_parallel_thread(void *arg)
           });
         if (!err)
 #endif
-        err= rpt_handle_event(qev, rpt);
+        {
+          if (thd->check_killed())
+          {
+            thd->clear_error();
+            thd->get_stmt_da()->reset_diagnostics_area();
+            thd->send_kill_message();
+            err= 1;
+          }
+          else
+            err= rpt_handle_event(qev, rpt);
+        }
         delete_or_keep_event_post_apply(rgi, event_type, qev->ev);
         DBUG_EXECUTE_IF("rpl_parallel_simulate_temp_err_gtid_0_x_100",
                         err= dbug_simulate_tmp_error(rgi, thd););

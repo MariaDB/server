@@ -1,5 +1,5 @@
 /* -*- c-basic-offset: 2 -*- */
-/* Copyright(C) 2011 Brazil
+/* Copyright(C) 2011-2015 Brazil
 
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -123,6 +123,15 @@ void FileImpl::swap(FileImpl *rhs) {
   std::swap(addr_, rhs->addr_);
 }
 
+void FileImpl::flush() {
+  if (!addr_) {
+    return;
+  }
+
+  BOOL succeeded = ::FlushViewOfFile(addr_, size_);
+  GRN_DAT_THROW_IF(IO_ERROR, !succeeded);
+}
+
 void FileImpl::create_(const char *path, UInt64 size) {
   if ((path != NULL) && (path[0] != '\0')) {
     file_ = ::CreateFileA(path, GRN_IO_FILE_CREATE_MODE,
@@ -191,6 +200,15 @@ void FileImpl::swap(FileImpl *rhs) {
   std::swap(fd_, rhs->fd_);
   std::swap(addr_, rhs->addr_);
   std::swap(length_, rhs->length_);
+}
+
+void FileImpl::flush() {
+  if (!addr_) {
+    return;
+  }
+
+  int result = ::msync(addr_, length_, MS_SYNC);
+  GRN_DAT_THROW_IF(IO_ERROR, result != 0);
 }
 
 void FileImpl::create_(const char *path, UInt64 size) {

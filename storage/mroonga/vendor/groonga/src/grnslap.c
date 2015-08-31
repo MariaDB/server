@@ -21,11 +21,11 @@
 #include <string.h>
 #include <stdio.h>
 #ifdef HAVE_SYS_WAIT_H
-#include <sys/wait.h>
+# include <sys/wait.h>
 #endif /* HAVE_SYS_WAIT_H */
-#ifdef HAVE_NETINET_IN_H
-#include <netinet/in.h>
-#endif /* HAVE_NETINET_IN_H */
+#ifndef WIN32
+# include <netinet/in.h>
+#endif /* WIN32 */
 
 #define DEFAULT_PORT 10041
 #define DEFAULT_HOST "localhost"
@@ -361,6 +361,8 @@ main(int argc, char **argv)
     /* too much dests */
     flags |= flag_usage;
   }
+
+  grn_default_logger_set_path(GRN_LOG_PATH);
 
   if (grn_init()) { return -1; }
   if (flags & flag_usage) {

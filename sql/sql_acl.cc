@@ -7788,7 +7788,7 @@ bool mysql_show_grants(THD *thd, LEX_USER *lex_user)
   }
   DBUG_ASSERT(rolename || username);
 
-  Item_string *field=new Item_string_ascii("", 0);
+  Item_string *field=new (thd->mem_root) Item_string_ascii(thd, "", 0);
   List<Item> field_list;
   field->name=buff;
   field->max_length=1024;
@@ -7796,9 +7796,10 @@ bool mysql_show_grants(THD *thd, LEX_USER *lex_user)
     strxmov(buff,"Grants for ",rolename, NullS);
   else
     strxmov(buff,"Grants for ",username,"@",hostname, NullS);
-  field_list.push_back(field);
+  field_list.push_back(field, thd->mem_root);
   if (protocol->send_result_set_metadata(&field_list,
-                                         Protocol::SEND_NUM_ROWS | Protocol::SEND_EOF))
+                                         Protocol::SEND_NUM_ROWS |
+                                         Protocol::SEND_EOF))
   {
     mysql_mutex_unlock(&acl_cache->lock);
     mysql_rwlock_unlock(&LOCK_grant);
@@ -10158,7 +10159,7 @@ bool sp_grant_privileges(THD *thd, const char *sp_db, const char *sp_name,
     combo->auth= au->auth_string;
   }
 
-  if (user_list.push_back(combo))
+  if (user_list.push_back(combo, thd->mem_root))
     DBUG_RETURN(TRUE);
 
   thd->lex->ssl_type= SSL_TYPE_NOT_SPECIFIED;

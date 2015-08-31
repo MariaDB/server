@@ -38,6 +38,7 @@
 #include "set_var.h"
 #ifdef HAVE_SPATIAL
 #include <m_ctype.h>
+#include "opt_range.h"
 
 
 Field *Item_geometry_func::tmp_table_field(TABLE *t_arg)
@@ -929,6 +930,78 @@ err:
   Functions for spatial relations
 */
 
+static SEL_ARG sel_arg_impossible(SEL_ARG::IMPOSSIBLE);
+
+SEL_ARG *
+Item_func_spatial_rel::get_mm_leaf(RANGE_OPT_PARAM *param,
+                                   Field *field, KEY_PART *key_part,
+                                   Item_func::Functype type, Item *value)
+{
+  DBUG_ENTER("Item_func_spatial_rel::get_mm_leaf");
+  if (key_part->image_type != Field::itMBR)
+    DBUG_RETURN(0);
+  if (value->cmp_type() != STRING_RESULT)
+    DBUG_RETURN(&sel_arg_impossible);
+
+  if (param->using_real_indexes &&
+      !field->optimize_range(param->real_keynr[key_part->key],
+                             key_part->part))
+   DBUG_RETURN(0);
+
+  if (value->save_in_field_no_warnings(field, 1))
+    DBUG_RETURN(&sel_arg_impossible);            // Bad GEOMETRY value
+
+  DBUG_ASSERT(!field->real_maybe_null()); // SPATIAL keys do not support NULL
+
+  uchar *str= (uchar*) alloc_root(param->mem_root, key_part->store_length + 1);
+  if (!str)
+    DBUG_RETURN(0);                              // out of memory
+  field->get_key_image(str, key_part->length, key_part->image_type);
+  SEL_ARG *tree;
+  if (!(tree= new (param->mem_root) SEL_ARG(field, str, str)))
+    DBUG_RETURN(0);                              // out of memory
+
+  switch (type) {
+  case SP_EQUALS_FUNC:
+    tree->min_flag= GEOM_FLAG | HA_READ_MBR_EQUAL;// NEAR_MIN;//512;
+    tree->max_flag= NO_MAX_RANGE;
+    break;
+  case SP_DISJOINT_FUNC:
+    tree->min_flag= GEOM_FLAG | HA_READ_MBR_DISJOINT;// NEAR_MIN;//512;
+    tree->max_flag= NO_MAX_RANGE;
+    break;
+  case SP_INTERSECTS_FUNC:
+    tree->min_flag= GEOM_FLAG | HA_READ_MBR_INTERSECT;// NEAR_MIN;//512;
+    tree->max_flag= NO_MAX_RANGE;
+    break;
+  case SP_TOUCHES_FUNC:
+    tree->min_flag= GEOM_FLAG | HA_READ_MBR_INTERSECT;// NEAR_MIN;//512;
+    tree->max_flag= NO_MAX_RANGE;
+    break;
+  case SP_CROSSES_FUNC:
+    tree->min_flag= GEOM_FLAG | HA_READ_MBR_INTERSECT;// NEAR_MIN;//512;
+    tree->max_flag= NO_MAX_RANGE;
+    break;
+  case SP_WITHIN_FUNC:
+    tree->min_flag= GEOM_FLAG | HA_READ_MBR_WITHIN;// NEAR_MIN;//512;
+    tree->max_flag= NO_MAX_RANGE;
+    break;
+  case SP_CONTAINS_FUNC:
+    tree->min_flag= GEOM_FLAG | HA_READ_MBR_CONTAIN;// NEAR_MIN;//512;
+    tree->max_flag= NO_MAX_RANGE;
+    break;
+  case SP_OVERLAPS_FUNC:
+    tree->min_flag= GEOM_FLAG | HA_READ_MBR_INTERSECT;// NEAR_MIN;//512;
+    tree->max_flag= NO_MAX_RANGE;
+    break;
+  default:
+    DBUG_ASSERT(0);
+    break;
+  }
+  DBUG_RETURN(tree);
+}
+
+
 const char *Item_func_spatial_mbr_rel::func_name() const 
 { 
   switch (spatial_rel) {
@@ -1079,7 +1152,7 @@ static int setup_relate_func(Geometry *g1, Geometry *g2,
     const char *mask)
 {
   int do_store_shapes=1;
-  uint shape_a, shape_b;
+  uint UNINIT_VAR(shape_a), UNINIT_VAR(shape_b);
   uint n_operands= 0;
   int last_shape_pos;
 
@@ -2321,11 +2394,10 @@ String *Item_func_pointonsurface::val_str(String *str)
   Geometry *g;
   MBR mbr;
   const char *c_end;
-  double px, py, x0, y0;
+  double UNINIT_VAR(px), UNINIT_VAR(py), x0, y0;
   String *result= 0;
   const Gcalc_scan_iterator::point *pprev= NULL;
   uint32 srid;
-
 
   null_value= 1;
   if ((args[0]->null_value ||

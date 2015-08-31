@@ -69,8 +69,7 @@ public:
                           srccs, src, src_length, nchars, this);
   }
   /*
-     Copy a string. Fix bad bytes/characters one Unicode conversion,
-     break on bad bytes in case of non-Unicode copying.
+     Copy a string. Fix bad bytes/characters to '?'.
   */
   uint well_formed_copy(CHARSET_INFO *to_cs, char *to, uint to_length,
                         CHARSET_INFO *from_cs, const char *from,
@@ -83,32 +82,6 @@ public:
     return well_formed_copy(to_cs, to, to_length,
                             from_cs, from, from_length,
                             from_length /* No limit on "nchars"*/);
-  }
-  /*
-    Copy a string. If a bad byte sequence is found in case of non-Unicode
-    copying, continues processing and replaces bad bytes to '?'.
-  */
-  uint copy_fix(CHARSET_INFO *to_cs, char *to, uint to_length,
-                CHARSET_INFO *from_cs, const char *from, uint from_length)
-  {
-    uint length= well_formed_copy(to_cs, to, to_length,
-                                  from_cs, from, from_length,
-                                  from_length /* No limit on nchars */);
-    if (well_formed_error_pos() && source_end_pos() < from + from_length)
-    {
-      /*
-        There was an error and there are still some bytes in the source string.
-        This is possible if there were no character set conversion and a
-        malformed byte sequence was found. Copy the rest and replace bad
-        bytes to '?'. Note: m_source_end_pos is not updated!!!
-      */
-      uint dummy_errors;
-      length+= copy_and_convert(to + length, to_length - length, to_cs,
-                                source_end_pos(),
-                                from_length - (source_end_pos() - from),
-                                from_cs, &dummy_errors);
-    }
-    return length;
   }
 };
 

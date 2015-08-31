@@ -105,6 +105,126 @@ SET character_set_server= @safe_character_set_server;
 SET collation_server= @safe_collation_server;
 SET character_set_client= @safe_character_set_client;
 SET character_set_results= @safe_character_set_results;
+#
+# MDEV-7149 Constant condition propagation erroneously applied for LIKE
+#
+CREATE TABLE t1 AS SELECT REPEAT('a', 10) AS c1 LIMIT 0;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c1` varchar(10) CHARACTER SET utf8 NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+INSERT INTO t1 VALUES ('a'),('a ');
+SELECT * FROM t1 WHERE CONCAT(c1)='a';
+c1
+a
+a 
+SELECT * FROM t1 WHERE CONCAT(c1) LIKE 'a ';
+c1
+a 
+SELECT * FROM t1 WHERE CONCAT(c1)='a' AND CONCAT(c1) LIKE 'a ';
+c1
+a 
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE CONCAT(c1)='a' AND CONCAT(c1) LIKE 'a ';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`c1` AS `c1` from `test`.`t1` where ((concat(`test`.`t1`.`c1`) = 'a') and (concat(`test`.`t1`.`c1`) like 'a '))
+DROP TABLE t1;
+CREATE TABLE t1 AS SELECT REPEAT('a', 10) AS c1 LIMIT 0;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c1` varchar(10) CHARACTER SET utf8 NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+INSERT INTO t1 VALUES ('a'),('a ');
+SELECT * FROM t1 WHERE 'a'=CONCAT(c1);
+c1
+a
+a 
+SELECT * FROM t1 WHERE 'a ' LIKE CONCAT(c1);
+c1
+a 
+SELECT * FROM t1 WHERE 'a'=CONCAT(c1) AND 'a ' LIKE CONCAT(c1);
+c1
+a 
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE 'a'=CONCAT(c1) AND 'a ' LIKE CONCAT(c1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`c1` AS `c1` from `test`.`t1` where (('a' = concat(`test`.`t1`.`c1`)) and ('a ' like concat(`test`.`t1`.`c1`)))
+DROP TABLE t1;
+CREATE TABLE t1 AS SELECT REPEAT('a', 10) AS c1 LIMIT 0;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c1` varchar(10) CHARACTER SET utf8 NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+INSERT INTO t1 VALUES ('%'),('% ');
+SELECT * FROM t1 WHERE '% '=CONCAT(c1);
+c1
+%
+% 
+SELECT * FROM t1 WHERE 'a' LIKE CONCAT(c1);
+c1
+%
+SELECT * FROM t1 WHERE '% '=CONCAT(c1) AND 'a' LIKE CONCAT(c1);
+c1
+%
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE '% '=CONCAT(c1) AND 'a' LIKE CONCAT(c1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`c1` AS `c1` from `test`.`t1` where (('% ' = concat(`test`.`t1`.`c1`)) and ('a' like concat(`test`.`t1`.`c1`)))
+DROP TABLE t1;
+CREATE TABLE t1 AS SELECT REPEAT('a', 10) AS c1 LIMIT 0;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c1` varchar(10) CHARACTER SET utf8 NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+INSERT INTO t1 VALUES ('%'),('% ');
+SELECT * FROM t1 WHERE '%'=CONCAT(c1);
+c1
+%
+% 
+SELECT * FROM t1 WHERE 'a' LIKE CONCAT(c1);
+c1
+%
+SELECT * FROM t1 WHERE '%'=CONCAT(c1) AND 'a' LIKE CONCAT(c1);
+c1
+%
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE '%'=CONCAT(c1) AND 'a' LIKE CONCAT(c1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`c1` AS `c1` from `test`.`t1` where (('%' = concat(`test`.`t1`.`c1`)) and ('a' like concat(`test`.`t1`.`c1`)))
+DROP TABLE t1;
+#
+# MDEV-8694 Wrong result for SELECT..WHERE a NOT LIKE 'a ' AND a='a'
+#
+CREATE TABLE t1 AS SELECT SPACE(10) AS a LIMIT 0;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` varchar(10) CHARACTER SET utf8 NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+INSERT INTO t1 VALUES ('a'),('a ');
+SELECT a, LENGTH(a) FROM t1 WHERE a NOT LIKE 'a ';
+a	LENGTH(a)
+a	1
+SELECT a, LENGTH(a) FROM t1 WHERE a NOT LIKE 'a ' AND a='a';
+a	LENGTH(a)
+a	1
+EXPLAIN EXTENDED SELECT a, LENGTH(a) FROM t1 WHERE a NOT LIKE 'a ' AND a='a';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a`,length(`test`.`t1`.`a`) AS `LENGTH(a)` from `test`.`t1` where ((not((`test`.`t1`.`a` like 'a '))) and (`test`.`t1`.`a` = 'a'))
+DROP TABLE t1;
+#
+# End of MDEV-8694
+#
 SET @test_character_set= 'cp1250';
 SET @test_collation= 'cp1250_czech_cs';
 SET @safe_character_set_server= @@character_set_server;
@@ -370,7 +490,7 @@ CREATE TABLE t1 AS SELECT 'a' AS a;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` varchar(1) CHARACTER SET cp1250 COLLATE cp1250_czech_cs NOT NULL DEFAULT ''
+  `a` varchar(1) CHARACTER SET cp1250 COLLATE cp1250_czech_cs NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 CREATE TABLE t2 AS SELECT WEIGHT_STRING(a) AS ws FROM t1;
 SHOW CREATE TABLE t2;
@@ -390,7 +510,7 @@ CREATE TABLE t1 AS SELECT REPEAT('a',5) AS a;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` varchar(5) CHARACTER SET cp1250 COLLATE cp1250_czech_cs NOT NULL DEFAULT ''
+  `a` varchar(5) CHARACTER SET cp1250 COLLATE cp1250_czech_cs NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 CREATE TABLE t2 AS SELECT WEIGHT_STRING(a) AS ws FROM t1;
 SHOW CREATE TABLE t2;

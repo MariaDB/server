@@ -250,6 +250,8 @@ innodb_log_flush_usec	server	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NU
 innodb_mem_validate_usec	server	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	disabled	counter	Time (in microseconds) spent to do memory validation
 innodb_master_purge_usec	server	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	disabled	counter	Time (in microseconds) spent by master thread to purge records
 innodb_dict_lru_usec	server	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	disabled	counter	Time (in microseconds) spent to process DICT LRU list
+innodb_dict_lru_count_active	server	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	disabled	counter	Number of tables evicted from DICT LRU list in the active loop
+innodb_dict_lru_count_idle	server	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	disabled	counter	Number of tables evicted from DICT LRU list in the idle loop
 innodb_checkpoint_usec	server	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	disabled	counter	Time (in microseconds) spent by master thread to do checkpoint
 innodb_dblwr_writes	server	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	disabled	status_counter	Number of doublewrite operations that have been performed (innodb_dblwr_writes)
 innodb_dblwr_pages_written	server	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	disabled	status_counter	Number of pages that have been written for doublewrite operations (innodb_dblwr_pages_written)

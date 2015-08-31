@@ -23,12 +23,40 @@
 #include <mruby/class.h>
 #include <mruby/data.h>
 
+#include "mrb_ctx.h"
 #include "mrb_array.h"
 
 static struct mrb_data_type mrb_grn_array_type = {
   "Groonga::Array",
   NULL
 };
+
+static mrb_value
+mrb_grn_array_singleton_create(mrb_state *mrb, mrb_value klass)
+{
+  grn_ctx *ctx = (grn_ctx *)mrb->ud;
+  char *name;
+  mrb_int name_length;
+  const char *path = NULL;
+  mrb_value mrb_value_type;
+  grn_obj *value_type = NULL;
+  grn_obj *array;
+
+  mrb_get_args(mrb, "so", &name, &name_length, &mrb_value_type);
+  if (!mrb_nil_p(mrb_value_type)) {
+    value_type = DATA_PTR(mrb_value_type);
+  }
+
+  array = grn_table_create(ctx,
+                           name, name_length,
+                           path,
+                           GRN_TABLE_NO_KEY,
+                           NULL,
+                           value_type);
+  grn_mrb_ctx_check(mrb);
+
+  return mrb_funcall(mrb, klass, "new", 1, mrb_cptr_value(mrb, array));
+}
 
 static mrb_value
 mrb_grn_array_initialize(mrb_state *mrb, mrb_value self)
@@ -53,6 +81,10 @@ grn_mrb_array_init(grn_ctx *ctx)
   table_class = mrb_class_get_under(mrb, module, "Table");
   klass = mrb_define_class_under(mrb, module, "Array", table_class);
   MRB_SET_INSTANCE_TT(klass, MRB_TT_DATA);
+
+  mrb_define_singleton_method(mrb, (struct RObject *)klass, "create",
+                              mrb_grn_array_singleton_create,
+                              MRB_ARGS_REQ(2));
 
   mrb_define_method(mrb, klass, "initialize",
                     mrb_grn_array_initialize, MRB_ARGS_REQ(1));

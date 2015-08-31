@@ -17,10 +17,11 @@
 #define WSREP_XID_H
 
 #include <my_config.h>
-#include "../wsrep/wsrep_api.h"
-#include "handler.h" // XID typedef
 
 #ifdef WITH_WSREP
+
+#include "../wsrep/wsrep_api.h"
+#include "handler.h" // XID typedef
 
 void wsrep_xid_init(xid_t*, const wsrep_uuid_t&, wsrep_seqno_t);
 const wsrep_uuid_t* wsrep_xid_uuid(const XID&);

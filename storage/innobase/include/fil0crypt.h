@@ -66,17 +66,20 @@ struct key_struct
 
 struct fil_space_rotate_state_t
 {
-	time_t start_time;    // time when rotation started
-	ulint active_threads; // active threads in space
-	ulint next_offset;    // next "free" offset
-	ulint max_offset;     // max offset needing to be rotated
-	uint  min_key_version_found; // min key version found but not rotated
-	lsn_t end_lsn;		     // max lsn created when rotating this space
-	bool starting;		     // initial write of IV
-	bool flushing;		     // space is being flushed at end of rotate
+	time_t start_time;	/*!< time when rotation started */
+	ulint active_threads;	/*!< active threads in space */
+	ulint next_offset;	/*!< next "free" offset */
+	ulint max_offset;	/*!< max offset needing to be rotated */
+	uint  min_key_version_found; /*!< min key version found but not
+				     rotated */
+	lsn_t end_lsn;		/*!< max lsn created when rotating this
+				space */
+	bool starting;		/*!< initial write of IV */
+	bool flushing;		/*!< space is being flushed at end of rotate */
 	struct {
-		bool is_active; // is scrubbing active in this space
-		time_t last_scrub_completed; // when was last scrub completed
+		bool is_active; /*!< is scrubbing active in this space */
+		time_t last_scrub_completed; /*!< when was last scrub
+					     completed */
 	} scrubbing;
 };
 

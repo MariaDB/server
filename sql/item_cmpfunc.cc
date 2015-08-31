@@ -442,7 +442,7 @@ static bool convert_const_to_int(THD *thd, Item_field *field_item,
 
       if (0 == field_cmp)
       {
-        Item *tmp= new Item_int_with_ref(field->val_int(), *item,
+        Item *tmp= new (thd->mem_root) Item_int_with_ref(thd, field->val_int(), *item,
                                          MY_TEST(field->flags & UNSIGNED_FLAG));
         if (tmp)
           thd->change_item_tree(item, tmp);
@@ -789,8 +789,8 @@ Item** Arg_comparator::cache_converted_constant(THD *thd_arg, Item **value,
       (*value)->const_item() && type != (*value)->result_type() &&
       type != TIME_RESULT)
   {
-    Item_cache *cache= Item_cache::get_cache(*value, type);
-    cache->setup(*value);
+    Item_cache *cache= Item_cache::get_cache(thd_arg, *value, type);
+    cache->setup(thd_arg, *value);
     *cache_item= cache;
     return cache_item;
   }
@@ -878,7 +878,7 @@ get_datetime_value(THD *thd, Item ***item_arg, Item **cache_arg,
   {
     Query_arena backup;
     Query_arena *save_arena= thd->switch_to_arena_for_cached_items(&backup);
-    Item_cache_temporal *cache= new Item_cache_temporal(f_type);
+    Item_cache_temporal *cache= new (thd->mem_root) Item_cache_temporal(thd, f_type);
     if (save_arena)
       thd->set_query_arena(save_arena);
 
@@ -1411,11 +1411,11 @@ bool Item_in_optimizer::fix_left(THD *thd)
 {
   DBUG_ENTER("Item_in_optimizer::fix_left");
   if ((!args[0]->fixed && args[0]->fix_fields(thd, args)) ||
-      (!cache && !(cache= Item_cache::get_cache(args[0]))))
+      (!cache && !(cache= Item_cache::get_cache(thd, args[0]))))
     DBUG_RETURN(1);
   DBUG_PRINT("info", ("actual fix fields"));
 
-  cache->setup(args[0]);
+  cache->setup(thd, args[0]);
   if (cache->cols() == 1)
   {
     DBUG_ASSERT(args[0]->type() != ROW_ITEM);
@@ -1542,9 +1542,8 @@ bool Item_in_optimizer::invisible_mode()
   this item - otherwise
 */
 
-Item *Item_in_optimizer::expr_cache_insert_transformer(uchar *thd_arg)
+Item *Item_in_optimizer::expr_cache_insert_transformer(THD *thd, uchar *unused)
 {
-  THD *thd= (THD*) thd_arg;
   DBUG_ENTER("Item_in_optimizer::expr_cache_insert_transformer");
 
   if (invisible_mode())
@@ -1802,16 +1801,16 @@ bool Item_in_optimizer::is_null()
     @retval NULL if an error occurred
 */
 
-Item *Item_in_optimizer::transform(Item_transformer transformer,
+Item *Item_in_optimizer::transform(THD *thd, Item_transformer transformer,
                                    uchar *argument)
 {
   Item *new_item;
 
-  DBUG_ASSERT(!current_thd->stmt_arena->is_stmt_prepare());
+  DBUG_ASSERT(!thd->stmt_arena->is_stmt_prepare());
   DBUG_ASSERT(arg_count == 2);
 
   /* Transform the left IN operand. */
-  new_item= (*args)->transform(transformer, argument);
+  new_item= (*args)->transform(thd, transformer, argument);
   if (!new_item)
     return 0;
   /*
@@ -1821,16 +1820,16 @@ Item *Item_in_optimizer::transform(Item_transformer transformer,
     change records at each execution.
   */
   if ((*args) != new_item)
-    current_thd->change_item_tree(args, new_item);
+    thd->change_item_tree(args, new_item);
 
   if (invisible_mode())
   {
     /* MAX/MIN transformed => pass through */
-    new_item= args[1]->transform(transformer, argument);
+    new_item= args[1]->transform(thd, transformer, argument);
     if (!new_item)
       return 0;
     if (args[1] != new_item)
-      current_thd->change_item_tree(args + 1, new_item);
+      thd->change_item_tree(args + 1, new_item);
   }
   else
   {
@@ -1852,7 +1851,7 @@ Item *Item_in_optimizer::transform(Item_transformer transformer,
     Item_in_subselect *in_arg= (Item_in_subselect*)args[1];
     current_thd->change_item_tree(&in_arg->left_expr, args[0]);
   }
-  return (this->*transformer)(argument);
+  return (this->*transformer)(thd, argument);
 }
 
 
@@ -2198,9 +2197,11 @@ void Item_func_between::fix_length_and_dec()
   */
   if (!args[0] || !args[1] || !args[2])
     return;
-  if ( agg_cmp_type(&cmp_type, args, 3))
+  if (agg_cmp_type(&m_compare_type, args, 3))
     return;
-  if (cmp_type == STRING_RESULT &&
+  args[0]->cmp_context= args[1]->cmp_context= args[2]->cmp_context=
+    m_compare_type;
+  if (m_compare_type == STRING_RESULT &&
       agg_arg_charsets_for_comparison(cmp_collation, args, 3))
    return;
 
@@ -2212,7 +2213,7 @@ void Item_func_between::fix_length_and_dec()
     For this to work, we need to know what date/time type we compare
     strings as.
   */
-  if (cmp_type ==  TIME_RESULT)
+  if (m_compare_type ==  TIME_RESULT)
     compare_as_dates= find_date_time_item(args, 3, 0);
 
   /* See the comment about the similar block in Item_bool_func2 */
@@ -2226,7 +2227,7 @@ void Item_func_between::fix_length_and_dec()
       const bool cvt_arg1= convert_const_to_int(thd, field_item, &args[1]);
       const bool cvt_arg2= convert_const_to_int(thd, field_item, &args[2]);
       if (cvt_arg1 && cvt_arg2)
-        cmp_type=INT_RESULT;                    // Works for all types.
+        m_compare_type= INT_RESULT;              // Works for all types.
     }
   }
 }
@@ -2236,7 +2237,7 @@ longlong Item_func_between::val_int()
 {
   DBUG_ASSERT(fixed == 1);
 
-  switch (cmp_type) {
+  switch (m_compare_type) {
   case TIME_RESULT:
   {
     THD *thd= current_thd;
@@ -2775,6 +2776,26 @@ Item_func_nullif::is_null()
 }
 
 
+Item_func_case::Item_func_case(THD *thd, List<Item> &list,
+                               Item *first_expr_arg, Item *else_expr_arg):
+  Item_func_hybrid_field_type(thd), first_expr_num(-1), else_expr_num(-1),
+  left_result_type(INT_RESULT), case_item(0)
+{
+  ncases= list.elements;
+  if (first_expr_arg)
+  {
+    first_expr_num= list.elements;
+    list.push_back(first_expr_arg, thd->mem_root);
+  }
+  if (else_expr_arg)
+  {
+    else_expr_num= list.elements;
+    list.push_back(else_expr_arg, thd->mem_root);
+  }
+  set_arguments(thd, list);
+  bzero(&cmp_items, sizeof(cmp_items));
+}
+
 /**
     Find and return matching items for CASE or ELSE item if all compares
     are failed or NULL if ELSE item isn't defined.
@@ -2930,6 +2951,10 @@ bool Item_func_case::fix_fields(THD *thd, Item **ref)
     Item_func_case::val_int() -> Item_func_case::find_item()
   */
   uchar buff[MAX_FIELD_WIDTH*2+sizeof(String)*2+sizeof(String*)*2+sizeof(double)*2+sizeof(longlong)*2];
+
+  if (!(arg_buffer= (Item**) thd->alloc(sizeof(Item*)*(ncases+1))))
+    return TRUE;
+
   bool res= Item_func::fix_fields(thd, ref);
   /*
     Call check_stack_overrun after fix_fields to be sure that stack variable
@@ -2983,13 +3008,10 @@ static void change_item_tree_if_needed(THD *thd,
 
 void Item_func_case::fix_length_and_dec()
 {
-  Item **agg;
+  Item **agg= arg_buffer;
   uint nagg;
   uint found_types= 0;
   THD *thd= current_thd;
-
-  if (!(agg= (Item**) sql_alloc(sizeof(Item*)*(ncases+1))))
-    return;
 
   if (else_expr_num == -1 || args[else_expr_num]->maybe_null)
     maybe_null= 1;
@@ -3033,8 +3055,9 @@ void Item_func_case::fix_length_and_dec()
     if (else_expr_num != -1) 
       agg_num_lengths(args[else_expr_num]);
     max_length= my_decimal_precision_to_length_no_truncation(max_length +
-                                                             decimals, decimals,
-                                               unsigned_flag);
+                                                             decimals,
+                                                             decimals,
+                                                             unsigned_flag);
   }
   
   /*
@@ -3116,7 +3139,7 @@ void Item_func_case::fix_length_and_dec()
     }
     /*
       Set cmp_context of all WHEN arguments. This prevents
-      Item_field::equal_fields_propagator() from transforming a
+      Item_field::propagate_equal_fields() from transforming a
       zerofill argument into a string constant. Such a change would
       require rebuilding cmp_items.
     */
@@ -3476,9 +3499,15 @@ uchar *in_string::get_value(Item *item)
   return (uchar*) item->val_str(&tmp);
 }
 
-in_row::in_row(uint elements, Item * item)
+Item *in_string::create_item(THD *thd)
 {
-  base= (char*) new cmp_item_row[count= elements];
+  return new (thd->mem_root) Item_string_for_in_vector(thd, collation);
+}
+
+
+in_row::in_row(THD *thd, uint elements, Item * item)
+{
+  base= (char*) new (thd->mem_root) cmp_item_row[count= elements];
   size= sizeof(cmp_item_row);
   compare= (qsort2_cmp) cmp_row;
   /*
@@ -3507,7 +3536,7 @@ void in_row::set(uint pos, Item *item)
 {
   DBUG_ENTER("in_row::set");
   DBUG_PRINT("enter", ("pos: %u  item: 0x%lx", pos, (ulong) item));
-  ((cmp_item_row*) base)[pos].store_value_by_template(&tmp, item);
+  ((cmp_item_row*) base)[pos].store_value_by_template(current_thd, &tmp, item);
   DBUG_VOID_RETURN;
 }
 
@@ -3532,6 +3561,16 @@ uchar *in_longlong::get_value(Item *item)
   return (uchar*) &tmp;
 }
 
+Item *in_longlong::create_item(THD *thd)
+{ 
+  /* 
+     We're created a signed INT, this may not be correct in 
+     general case (see BUG#19342).
+  */
+  return new (thd->mem_root) Item_int(thd, (longlong)0);
+}
+
+
 void in_datetime::set(uint pos,Item *item)
 {
   Item **tmp_item= &item;
@@ -3553,6 +3592,12 @@ uchar *in_datetime::get_value(Item *item)
   return (uchar*) &tmp;
 }
 
+Item *in_datetime::create_item(THD *thd)
+{ 
+  return new (thd->mem_root) Item_datetime(thd);
+}
+
+
 in_double::in_double(uint elements)
   :in_vector(elements,sizeof(double),(qsort2_cmp) cmp_double, 0)
 {}
@@ -3568,6 +3613,11 @@ uchar *in_double::get_value(Item *item)
   if (item->null_value)
     return 0;					/* purecov: inspected */
   return (uchar*) &tmp;
+}
+
+Item *in_double::create_item(THD *thd)
+{ 
+  return new (thd->mem_root) Item_float(thd, 0.0, 0);
 }
 
 
@@ -3595,6 +3645,11 @@ uchar *in_decimal::get_value(Item *item)
   if (item->null_value)
     return 0;
   return (uchar *)result;
+}
+
+Item *in_decimal::create_item(THD *thd)
+{ 
+  return new (thd->mem_root) Item_decimal(thd, 0, FALSE);
 }
 
 
@@ -3694,7 +3749,7 @@ void cmp_item_row::store_value(Item *item)
 }
 
 
-void cmp_item_row::store_value_by_template(cmp_item *t, Item *item)
+void cmp_item_row::store_value_by_template(THD *thd, cmp_item *t, Item *item)
 {
   cmp_item_row *tmpl= (cmp_item_row*) t;
   if (tmpl->n != item->cols())
@@ -3703,7 +3758,7 @@ void cmp_item_row::store_value_by_template(cmp_item *t, Item *item)
     return;
   }
   n= tmpl->n;
-  if ((comparators= (cmp_item **) sql_alloc(sizeof(cmp_item *)*n)))
+  if ((comparators= (cmp_item **) thd->alloc(sizeof(cmp_item *)*n)))
   {
     item->bring_value();
     item->null_value= 0;
@@ -3711,7 +3766,7 @@ void cmp_item_row::store_value_by_template(cmp_item *t, Item *item)
     {
       if (!(comparators[i]= tmpl->comparators[i]->make_same()))
 	break;					// new failed
-      comparators[i]->store_value_by_template(tmpl->comparators[i],
+      comparators[i]->store_value_by_template(thd, tmpl->comparators[i],
 					      item->element_index(i));
       item->null_value|= item->element_index(i)->null_value;
     }
@@ -3919,7 +3974,7 @@ void Item_func_in::fix_length_and_dec()
   Item *date_arg= 0;
   uint found_types= 0;
   uint type_cnt= 0, i;
-  Item_result cmp_type= STRING_RESULT;
+  m_compare_type= STRING_RESULT;
   left_result_type= args[0]->cmp_type();
   if (!(found_types= collect_cmp_types(args, arg_count, true)))
     return;
@@ -3937,30 +3992,31 @@ void Item_func_in::fix_length_and_dec()
     if (found_types & (1U << i))
     {
       (type_cnt)++;
-      cmp_type= (Item_result) i;
+      m_compare_type= (Item_result) i;
     }
   }
 
   if (type_cnt == 1)
   {
-    if (cmp_type == STRING_RESULT && 
+    if (m_compare_type == STRING_RESULT &&
         agg_arg_charsets_for_comparison(cmp_collation, args, arg_count))
       return;
+    args[0]->cmp_context= m_compare_type;
     arg_types_compatible= TRUE;
 
-    if (cmp_type == ROW_RESULT)
+    if (m_compare_type == ROW_RESULT)
     {
       uint cols= args[0]->cols();
       cmp_item_row *cmp= 0;
 
       if (const_itm && !nulls_in_row())
       {
-        array= new in_row(arg_count-1, 0);
+        array= new (thd->mem_root) in_row(thd, arg_count-1, 0);
         cmp= &((in_row*)array)->tmp;
       }
       else
       {
-        if (!(cmp= new cmp_item_row))
+        if (!(cmp= new (thd->mem_root) cmp_item_row))
           return;
         cmp_items[ROW_RESULT]= cmp;
       }
@@ -3977,7 +4033,7 @@ void Item_func_in::fix_length_and_dec()
             cmp= ((in_row*)array)->tmp.comparators + col;
           else
             cmp= ((cmp_item_row*)cmp_items[ROW_RESULT])->comparators + col;
-          *cmp= new cmp_item_datetime(date_arg);
+          *cmp= new (thd->mem_root) cmp_item_datetime(date_arg);
         }
       }
     }
@@ -3998,7 +4054,7 @@ void Item_func_in::fix_length_and_dec()
       See the comment about the similar block in Item_bool_func2
     */  
     if (args[0]->real_item()->type() == FIELD_ITEM &&
-        !thd->lex->is_view_context_analysis() && cmp_type != INT_RESULT)
+        !thd->lex->is_view_context_analysis() && m_compare_type != INT_RESULT)
     {
       Item_field *field_item= (Item_field*) (args[0]->real_item());
       if (field_item->field_type() ==  MYSQL_TYPE_LONGLONG ||
@@ -4011,19 +4067,19 @@ void Item_func_in::fix_length_and_dec()
             all_converted= FALSE;
         }
         if (all_converted)
-          cmp_type= INT_RESULT;
+          m_compare_type= INT_RESULT;
       }
     }
-    switch (cmp_type) {
+    switch (m_compare_type) {
     case STRING_RESULT:
-      array=new in_string(arg_count-1,(qsort2_cmp) srtcmp_in, 
-                          cmp_collation.collation);
+      array=new (thd->mem_root) in_string(arg_count-1,(qsort2_cmp) srtcmp_in, 
+                                          cmp_collation.collation);
       break;
     case INT_RESULT:
-      array= new in_longlong(arg_count-1);
+      array= new (thd->mem_root) in_longlong(arg_count-1);
       break;
     case REAL_RESULT:
-      array= new in_double(arg_count-1);
+      array= new (thd->mem_root) in_double(arg_count-1);
       break;
     case ROW_RESULT:
       /*
@@ -4034,11 +4090,11 @@ void Item_func_in::fix_length_and_dec()
       ((in_row*)array)->tmp.store_value(args[0]);
       break;
     case DECIMAL_RESULT:
-      array= new in_decimal(arg_count - 1);
+      array= new (thd->mem_root) in_decimal(arg_count - 1);
       break;
     case TIME_RESULT:
       date_arg= find_date_time_item(args, arg_count, 0);
-      array= new in_datetime(date_arg, arg_count - 1);
+      array= new (thd->mem_root) in_datetime(date_arg, arg_count - 1);
       break;
     case IMPOSSIBLE_RESULT:
       DBUG_ASSERT(0);
@@ -4079,7 +4135,7 @@ void Item_func_in::fix_length_and_dec()
   }
   /*
     Set cmp_context of all arguments. This prevents
-    Item_field::equal_fields_propagator() from transforming a zerofill integer
+    Item_field::propagate_equal_fields() from transforming a zerofill integer
     argument into a string constant. Such a change would require rebuilding
     cmp_itmes.
    */
@@ -4221,11 +4277,28 @@ Item_cond::Item_cond(THD *thd, Item_cond *item)
 }
 
 
+Item_cond::Item_cond(THD *thd, Item *i1, Item *i2):
+  Item_bool_func(thd), abort_on_null(0)
+{
+  list.push_back(i1, thd->mem_root);
+  list.push_back(i2, thd->mem_root);
+}
+
+
+Item *Item_cond_and::copy_andor_structure(THD *thd)
+{
+  Item_cond_and *item;
+  if ((item= new (thd->mem_root) Item_cond_and(thd, this)))
+    item->copy_andor_arguments(thd, this);
+  return item;
+}
+
+
 void Item_cond::copy_andor_arguments(THD *thd, Item_cond *item)
 {
   List_iterator_fast<Item> li(item->list);
   while (Item *it= li++)
-    list.push_back(it->copy_andor_structure(thd));
+    list.push_back(it->copy_andor_structure(thd), thd->mem_root);
 }
 
 
@@ -4285,7 +4358,7 @@ Item_cond::fix_fields(THD *thd, Item **ref)
       Query_arena backup, *arena;
       Item *new_item;
       arena= thd->activate_stmt_arena_if_needed(&backup);
-      if ((new_item= new Item_func_ne(item, new Item_int(0, 1))))
+      if ((new_item= new (thd->mem_root) Item_func_ne(thd, item, new (thd->mem_root) Item_int(thd, 0, 1))))
         li.replace(item= new_item);
       if (arena)
         thd->restore_active_arena(arena, &backup);
@@ -4450,15 +4523,15 @@ bool Item_cond_and::walk_top_and(Item_processor processor, uchar *arg)
     Item returned as the result of transformation of the root node 
 */
 
-Item *Item_cond::transform(Item_transformer transformer, uchar *arg)
+Item *Item_cond::transform(THD *thd, Item_transformer transformer, uchar *arg)
 {
-  DBUG_ASSERT(!current_thd->stmt_arena->is_stmt_prepare());
+  DBUG_ASSERT(!thd->stmt_arena->is_stmt_prepare());
 
   List_iterator<Item> li(list);
   Item *item;
   while ((item= li++))
   {
-    Item *new_item= item->transform(transformer, arg);
+    Item *new_item= item->transform(thd, transformer, arg);
     if (!new_item)
       return 0;
 
@@ -4469,9 +4542,9 @@ Item *Item_cond::transform(Item_transformer transformer, uchar *arg)
       change records at each execution.
     */
     if (new_item != item)
-      current_thd->change_item_tree(li.ref(), new_item);
+      thd->change_item_tree(li.ref(), new_item);
   }
-  return Item_func::transform(transformer, arg);
+  return Item_func::transform(thd, transformer, arg);
 }
 
 
@@ -4499,7 +4572,7 @@ Item *Item_cond::transform(Item_transformer transformer, uchar *arg)
     Item returned as the result of transformation of the root node 
 */
 
-Item *Item_cond::compile(Item_analyzer analyzer, uchar **arg_p,
+Item *Item_cond::compile(THD *thd, Item_analyzer analyzer, uchar **arg_p,
                          Item_transformer transformer, uchar *arg_t)
 {
   if (!(this->*analyzer)(arg_p))
@@ -4514,11 +4587,34 @@ Item *Item_cond::compile(Item_analyzer analyzer, uchar **arg_p,
       to analyze any argument of the condition formula.
     */   
     uchar *arg_v= *arg_p;
-    Item *new_item= item->compile(analyzer, &arg_v, transformer, arg_t);
+    Item *new_item= item->compile(thd, analyzer, &arg_v, transformer, arg_t);
     if (new_item && new_item != item)
-      current_thd->change_item_tree(li.ref(), new_item);
+      thd->change_item_tree(li.ref(), new_item);
   }
-  return Item_func::transform(transformer, arg_t);
+  return Item_func::transform(thd, transformer, arg_t);
+}
+
+
+Item *Item_cond::propagate_equal_fields(THD *thd,
+                                        const Context &ctx,
+                                        COND_EQUAL *cond)
+{
+  DBUG_ASSERT(!thd->stmt_arena->is_stmt_prepare());
+  DBUG_ASSERT(arg_count == 0);
+  List_iterator<Item> li(list);
+  Item *item;
+  while ((item= li++))
+  {
+    /*
+      The exact value of the second parameter to propagate_equal_fields()
+      is not important at this point. Item_func derivants will create and
+      pass their own context to the arguments.
+    */
+    Item *new_item= item->propagate_equal_fields(thd, ANY_SUBST, cond);
+    if (new_item && new_item != item)
+      thd->change_item_tree(li.ref(), new_item);
+  }
+  return this;
 }
 
 void Item_cond::traverse_cond(Cond_traverser traverser,
@@ -4607,7 +4703,7 @@ void Item_cond::neg_arguments(THD *thd)
     Item *new_item= item->neg_transformer(thd);
     if (!new_item)
     {
-      if (!(new_item= new Item_func_not(item)))
+      if (!(new_item= new (thd->mem_root) Item_func_not(thd, item)))
 	return;					// Fatal OEM error
     }
     (void) li.replace(new_item);
@@ -4624,7 +4720,6 @@ void Item_cond_and::mark_as_condition_AND_part(TABLE_LIST *embedding)
     item->mark_as_condition_AND_part(embedding);
   }
 }
-
 
 /**
   Evaluation of AND(expr, expr, expr ...).
@@ -4683,6 +4778,15 @@ longlong Item_cond_or::val_int()
   return 0;
 }
 
+Item *Item_cond_or::copy_andor_structure(THD *thd)
+{
+  Item_cond_or *item;
+  if ((item= new (thd->mem_root) Item_cond_or(thd, this)))
+    item->copy_andor_arguments(thd, this);
+  return item;
+}
+
+
 /**
   Create an AND expression from two expressions.
 
@@ -4703,21 +4807,21 @@ longlong Item_cond_or::val_int()
     Item
 */
 
-Item *and_expressions(Item *a, Item *b, Item **org_item)
+Item *and_expressions(THD *thd, Item *a, Item *b, Item **org_item)
 {
   if (!a)
     return (*org_item= (Item*) b);
   if (a == *org_item)
   {
     Item_cond *res;
-    if ((res= new Item_cond_and(a, (Item*) b)))
+    if ((res= new (thd->mem_root) Item_cond_and(thd, a, (Item*) b)))
     {
       res->used_tables_cache= a->used_tables() | b->used_tables();
       res->not_null_tables_cache= a->not_null_tables() | b->not_null_tables();
     }
     return res;
   }
-  if (((Item_cond_and*) a)->add((Item*) b))
+  if (((Item_cond_and*) a)->add((Item*) b, thd->mem_root))
     return 0;
   ((Item_cond_and*) a)->used_tables_cache|= b->used_tables();
   ((Item_cond_and*) a)->not_null_tables_cache|= b->not_null_tables();
@@ -4964,16 +5068,18 @@ bool Item_func_like::find_selective_predicates_list_processor(uchar *arg)
     (find_selective_predicates_list_processor_data *) arg;
   if (use_sampling && used_tables() == data->table->map)
   {
-    COND_STATISTIC *stat= (COND_STATISTIC *)sql_alloc(sizeof(COND_STATISTIC));
-    if (!stat)
+    THD *thd= data->table->in_use;
+    COND_STATISTIC *stat;
+    Item *arg0;
+    if (!(stat= (COND_STATISTIC *) thd->alloc(sizeof(COND_STATISTIC))))
       return TRUE;
     stat->cond= this;
-    Item *arg0= args[0]->real_item();
+    arg0= args[0]->real_item();
     if (args[1]->const_item() && arg0->type() == FIELD_ITEM)
       stat->field_arg= ((Item_field *)arg0)->field;
     else
       stat->field_arg= NULL;
-    data->list.push_back(stat);
+    data->list.push_back(stat, thd->mem_root);
   }
   return FALSE;
 }
@@ -5528,7 +5634,7 @@ bool Item_func_not::fix_fields(THD *thd, Item **ref)
     Item *new_item;
     bool rc= TRUE;
     arena= thd->activate_stmt_arena_if_needed(&backup);
-    if ((new_item= new Item_func_eq(args[0], new Item_int(0, 1))))
+    if ((new_item= new (thd->mem_root) Item_func_eq(thd, args[0], new (thd->mem_root) Item_int(thd, 0, 1))))
     {
       new_item->name= name;
       rc= (*ref= new_item)->fix_fields(thd, ref);
@@ -5543,7 +5649,7 @@ bool Item_func_not::fix_fields(THD *thd, Item **ref)
 
 Item *Item_bool_rowready_func2::neg_transformer(THD *thd)
 {
-  Item *item= negated_item();
+  Item *item= negated_item(thd);
   return item;
 }
 
@@ -5562,14 +5668,14 @@ Item *Item_func_xor::neg_transformer(THD *thd)
   Item_func_xor *new_item;
   if ((neg_operand= args[0]->neg_transformer(thd)))
     // args[0] has neg_tranformer
-    new_item= new(thd->mem_root) Item_func_xor(neg_operand, args[1]);
+    new_item= new(thd->mem_root) Item_func_xor(thd, neg_operand, args[1]);
   else if ((neg_operand= args[1]->neg_transformer(thd)))
     // args[1] has neg_tranformer
-    new_item= new(thd->mem_root) Item_func_xor(args[0], neg_operand);
+    new_item= new(thd->mem_root) Item_func_xor(thd, args[0], neg_operand);
   else
   {
-    neg_operand= new(thd->mem_root) Item_func_not(args[0]);
-    new_item= new(thd->mem_root) Item_func_xor(neg_operand, args[1]);
+    neg_operand= new(thd->mem_root) Item_func_not(thd, args[0]);
+    new_item= new(thd->mem_root) Item_func_xor(thd, neg_operand, args[1]);
   }
   return new_item;
 }
@@ -5580,7 +5686,7 @@ Item *Item_func_xor::neg_transformer(THD *thd)
 */
 Item *Item_func_isnull::neg_transformer(THD *thd)
 {
-  Item *item= new Item_func_isnotnull(args[0]);
+  Item *item= new (thd->mem_root) Item_func_isnotnull(thd, args[0]);
   return item;
 }
 
@@ -5590,7 +5696,7 @@ Item *Item_func_isnull::neg_transformer(THD *thd)
 */
 Item *Item_func_isnotnull::neg_transformer(THD *thd)
 {
-  Item *item= new Item_func_isnull(args[0]);
+  Item *item= new (thd->mem_root) Item_func_isnull(thd, args[0]);
   return item;
 }
 
@@ -5599,7 +5705,7 @@ Item *Item_cond_and::neg_transformer(THD *thd)	/* NOT(a AND b AND ...)  -> */
 					/* NOT a OR NOT b OR ... */
 {
   neg_arguments(thd);
-  Item *item= new Item_cond_or(list);
+  Item *item= new (thd->mem_root) Item_cond_or(thd, list);
   return item;
 }
 
@@ -5608,7 +5714,7 @@ Item *Item_cond_or::neg_transformer(THD *thd)	/* NOT(a OR b OR ...)  -> */
 					/* NOT a AND NOT b AND ... */
 {
   neg_arguments(thd);
-  Item *item= new Item_cond_and(list);
+  Item *item= new (thd->mem_root) Item_cond_and(thd, list);
   return item;
 }
 
@@ -5616,7 +5722,7 @@ Item *Item_cond_or::neg_transformer(THD *thd)	/* NOT(a OR b OR ...)  -> */
 Item *Item_func_nop_all::neg_transformer(THD *thd)
 {
   /* "NOT (e $cmp$ ANY (SELECT ...)) -> e $rev_cmp$" ALL (SELECT ...) */
-  Item_func_not_all *new_item= new Item_func_not_all(args[0]);
+  Item_func_not_all *new_item= new (thd->mem_root) Item_func_not_all(thd, args[0]);
   Item_allany_subselect *allany= (Item_allany_subselect*)args[0];
   allany->create_comp_func(FALSE);
   allany->all= !allany->all;
@@ -5627,7 +5733,7 @@ Item *Item_func_nop_all::neg_transformer(THD *thd)
 Item *Item_func_not_all::neg_transformer(THD *thd)
 {
   /* "NOT (e $cmp$ ALL (SELECT ...)) -> e $rev_cmp$" ANY (SELECT ...) */
-  Item_func_nop_all *new_item= new Item_func_nop_all(args[0]);
+  Item_func_nop_all *new_item= new (thd->mem_root) Item_func_nop_all(thd, args[0]);
   Item_allany_subselect *allany= (Item_allany_subselect*)args[0];
   allany->all= !allany->all;
   allany->create_comp_func(TRUE);
@@ -5635,45 +5741,45 @@ Item *Item_func_not_all::neg_transformer(THD *thd)
   return new_item;
 }
 
-Item *Item_func_eq::negated_item()		/* a = b  ->  a != b */
+Item *Item_func_eq::negated_item(THD *thd) /* a = b  ->  a != b */
 {
-  return new Item_func_ne(args[0], args[1]);
+  return new (thd->mem_root) Item_func_ne(thd, args[0], args[1]);
 }
 
 
-Item *Item_func_ne::negated_item()		/* a != b  ->  a = b */
+Item *Item_func_ne::negated_item(THD *thd) /* a != b  ->  a = b */
 {
-  return new Item_func_eq(args[0], args[1]);
+  return new (thd->mem_root) Item_func_eq(thd, args[0], args[1]);
 }
 
 
-Item *Item_func_lt::negated_item()		/* a < b  ->  a >= b */
+Item *Item_func_lt::negated_item(THD *thd) /* a < b  ->  a >= b */
 {
-  return new Item_func_ge(args[0], args[1]);
+  return new (thd->mem_root) Item_func_ge(thd, args[0], args[1]);
 }
 
 
-Item *Item_func_ge::negated_item()		/* a >= b  ->  a < b */
+Item *Item_func_ge::negated_item(THD *thd) /* a >= b  ->  a < b */
 {
-  return new Item_func_lt(args[0], args[1]);
+  return new (thd->mem_root) Item_func_lt(thd, args[0], args[1]);
 }
 
 
-Item *Item_func_gt::negated_item()		/* a > b  ->  a <= b */
+Item *Item_func_gt::negated_item(THD *thd) /* a > b  ->  a <= b */
 {
-  return new Item_func_le(args[0], args[1]);
+  return new (thd->mem_root) Item_func_le(thd, args[0], args[1]);
 }
 
 
-Item *Item_func_le::negated_item()		/* a <= b  ->  a > b */
+Item *Item_func_le::negated_item(THD *thd) /* a <= b  ->  a > b */
 {
-  return new Item_func_gt(args[0], args[1]);
+  return new (thd->mem_root) Item_func_gt(thd, args[0], args[1]);
 }
 
 /**
   just fake method, should never be called.
 */
-Item *Item_bool_rowready_func2::negated_item()
+Item *Item_bool_rowready_func2::negated_item(THD *thd)
 {
   DBUG_ASSERT(0);
   return 0;
@@ -5696,14 +5802,14 @@ Item *Item_bool_rowready_func2::negated_item()
   of the type Item_field or Item_direct_view_ref(Item_field). 
 */
 
-Item_equal::Item_equal(THD *thd_arg, Item *f1, Item *f2, bool with_const_item)
-  : Item_bool_func(), eval_item(0), cond_false(0), cond_true(0), 
-    context_field(NULL), link_equal_fields(FALSE)
+Item_equal::Item_equal(THD *thd, Item *f1, Item *f2, bool with_const_item):
+  Item_bool_func(thd), eval_item(0), cond_false(0), cond_true(0),
+  context_field(NULL), link_equal_fields(FALSE)
 {
   const_item_cache= 0;
   with_const= with_const_item;
-  equal_items.push_back(f1, thd_arg->mem_root);
-  equal_items.push_back(f2, thd_arg->mem_root);
+  equal_items.push_back(f1, thd->mem_root);
+  equal_items.push_back(f2, thd->mem_root);
   compare_as_dates= with_const_item && f2->cmp_type() == TIME_RESULT;
   upper_levels= NULL;
 }
@@ -5721,16 +5827,16 @@ Item_equal::Item_equal(THD *thd_arg, Item *f1, Item *f2, bool with_const_item)
   outer join).
 */
 
-Item_equal::Item_equal(THD *thd_arg, Item_equal *item_equal)
-  : Item_bool_func(), eval_item(0), cond_false(0), cond_true(0),
-     context_field(NULL), link_equal_fields(FALSE)
+Item_equal::Item_equal(THD *thd, Item_equal *item_equal):
+  Item_bool_func(thd), eval_item(0), cond_false(0), cond_true(0),
+  context_field(NULL), link_equal_fields(FALSE)
 {
   const_item_cache= 0;
   List_iterator_fast<Item> li(item_equal->equal_items);
   Item *item;
   while ((item= li++))
   {
-    equal_items.push_back(item, thd_arg->mem_root);
+    equal_items.push_back(item, thd->mem_root);
   }
   with_const= item_equal->with_const;
   compare_as_dates= item_equal->compare_as_dates;
@@ -5765,7 +5871,7 @@ void Item_equal::add_const(THD *thd, Item *c, Item *f)
     with_const= TRUE;
     if (f)
       compare_as_dates= f->cmp_type() == TIME_RESULT;
-    equal_items.push_front(c);
+    equal_items.push_front(c, thd->mem_root);
     return;
   }
   Item *const_item= get_const();
@@ -5776,7 +5882,7 @@ void Item_equal::add_const(THD *thd, Item *c, Item *f)
   }
   else
   {
-    Item_func_eq *func= new (thd->mem_root) Item_func_eq(c, const_item);
+    Item_func_eq *func= new (thd->mem_root) Item_func_eq(thd, c, const_item);
     if (func->set_cmp_func())
     {
       /*
@@ -5920,7 +6026,7 @@ bool Item_equal::merge_with_check(THD *thd, Item_equal *item, bool save_merged)
         while ((item= fi++))
 	{
           if (!contains(fi.get_curr_field()))
-            add(item);
+            add(item, thd->mem_root);
         }
       }
     }         
@@ -5970,7 +6076,7 @@ void Item_equal::merge_into_list(THD *thd, List<Item_equal> *list,
     }
   }
   if (!only_intersected && !merge_into)
-    list->push_back(this);
+    list->push_back(this, thd->mem_root);
 }
 
 
@@ -6216,15 +6322,15 @@ bool Item_equal::walk(Item_processor processor, bool walk_subquery, uchar *arg)
 }
 
 
-Item *Item_equal::transform(Item_transformer transformer, uchar *arg)
+Item *Item_equal::transform(THD *thd, Item_transformer transformer, uchar *arg)
 {
-  DBUG_ASSERT(!current_thd->stmt_arena->is_stmt_prepare());
+  DBUG_ASSERT(!thd->stmt_arena->is_stmt_prepare());
 
   Item *item;
   Item_equal_fields_iterator it(*this);
   while ((item= it++))
   {
-    Item *new_item= item->transform(transformer, arg);
+    Item *new_item= item->transform(thd, transformer, arg);
     if (!new_item)
       return 0;
 
@@ -6235,9 +6341,9 @@ Item *Item_equal::transform(Item_transformer transformer, uchar *arg)
       change records at each execution.
     */
     if (new_item != item)
-      current_thd->change_item_tree((Item **) it.ref(), new_item);
+      thd->change_item_tree((Item **) it.ref(), new_item);
   }
-  return Item_func::transform(transformer, arg);
+  return Item_func::transform(thd, transformer, arg);
 }
 
 
@@ -6476,4 +6582,76 @@ longlong Item_func_dyncol_exists::val_int()
 null:
   null_value= TRUE;
   return 0;
+}
+
+
+Item_bool_rowready_func2 *Eq_creator::create(THD *thd, Item *a, Item *b) const
+{
+  return new(thd->mem_root) Item_func_eq(thd, a, b);
+}
+
+
+Item_bool_rowready_func2* Eq_creator::create_swap(THD *thd, Item *a, Item *b) const
+{
+  return new(thd->mem_root) Item_func_eq(thd, b, a);
+}
+
+
+Item_bool_rowready_func2* Ne_creator::create(THD *thd, Item *a, Item *b) const
+{
+  return new(thd->mem_root) Item_func_ne(thd, a, b);
+}
+
+
+Item_bool_rowready_func2* Ne_creator::create_swap(THD *thd, Item *a, Item *b) const
+{
+  return new(thd->mem_root) Item_func_ne(thd, b, a);
+}
+
+
+Item_bool_rowready_func2* Gt_creator::create(THD *thd, Item *a, Item *b) const
+{
+  return new(thd->mem_root) Item_func_gt(thd, a, b);
+}
+
+
+Item_bool_rowready_func2* Gt_creator::create_swap(THD *thd, Item *a, Item *b) const
+{
+  return new(thd->mem_root) Item_func_lt(thd, b, a);
+}
+
+
+Item_bool_rowready_func2* Lt_creator::create(THD *thd, Item *a, Item *b) const
+{
+  return new(thd->mem_root) Item_func_lt(thd, a, b);
+}
+
+
+Item_bool_rowready_func2* Lt_creator::create_swap(THD *thd, Item *a, Item *b) const
+{
+  return new(thd->mem_root) Item_func_gt(thd, b, a);
+}
+
+
+Item_bool_rowready_func2* Ge_creator::create(THD *thd, Item *a, Item *b) const
+{
+  return new(thd->mem_root) Item_func_ge(thd, a, b);
+}
+
+
+Item_bool_rowready_func2* Ge_creator::create_swap(THD *thd, Item *a, Item *b) const
+{
+  return new(thd->mem_root) Item_func_le(thd, b, a);
+}
+
+
+Item_bool_rowready_func2* Le_creator::create(THD *thd, Item *a, Item *b) const
+{
+  return new(thd->mem_root) Item_func_le(thd, a, b);
+}
+
+
+Item_bool_rowready_func2* Le_creator::create_swap(THD *thd, Item *a, Item *b) const
+{
+  return new(thd->mem_root) Item_func_ge(thd, b, a);
 }

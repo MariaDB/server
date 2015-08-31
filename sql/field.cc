@@ -1249,7 +1249,7 @@ double Field::pos_in_interval_val_str(Field *min, Field *max, uint data_offset)
 /*
   This handles all numeric and BIT data types.
 */ 
-bool Field::can_optimize_keypart_ref(const Item_func *cond,
+bool Field::can_optimize_keypart_ref(const Item_bool_func *cond,
                                      const Item *item) const
 {
   DBUG_ASSERT(cmp_type() != STRING_RESULT);
@@ -5289,7 +5289,7 @@ my_decimal *Field_temporal::val_decimal(my_decimal *d)
 }
 
 
-bool Field_temporal::can_optimize_keypart_ref(const Item_func *cond,
+bool Field_temporal::can_optimize_keypart_ref(const Item_bool_func *cond,
                                               const Item *value) const
 {
   return true; // Field is of TIME_RESULT, which supersedes everything else.
@@ -6488,7 +6488,7 @@ uint32 Field_longstr::max_data_length() const
 
 
 bool
-Field_longstr::cmp_to_string_with_same_collation(const Item_func *cond,
+Field_longstr::cmp_to_string_with_same_collation(const Item_bool_func *cond,
                                                  const Item *item) const
 {
   return item->cmp_type() == STRING_RESULT &&
@@ -6497,7 +6497,7 @@ Field_longstr::cmp_to_string_with_same_collation(const Item_func *cond,
 
 
 bool
-Field_longstr::cmp_to_string_with_stricter_collation(const Item_func *cond,
+Field_longstr::cmp_to_string_with_stricter_collation(const Item_bool_func *cond,
                                                      const Item *item) const
 {
   return item->cmp_type() == STRING_RESULT &&
@@ -6506,7 +6506,7 @@ Field_longstr::cmp_to_string_with_stricter_collation(const Item_func *cond,
 }
 
 
-bool Field_longstr::can_optimize_keypart_ref(const Item_func *cond,
+bool Field_longstr::can_optimize_keypart_ref(const Item_bool_func *cond,
                                              const Item *item) const
 {
   DBUG_ASSERT(cmp_type() == STRING_RESULT);
@@ -6514,7 +6514,7 @@ bool Field_longstr::can_optimize_keypart_ref(const Item_func *cond,
 }
 
 
-bool Field_longstr::can_optimize_hash_join(const Item_func *cond,
+bool Field_longstr::can_optimize_hash_join(const Item_bool_func *cond,
                                            const Item *item) const
 {
   DBUG_ASSERT(cmp_type() == STRING_RESULT);
@@ -8561,7 +8561,7 @@ uint Field_num::is_equal(Create_field *new_field)
 }
 
 
-bool Field_enum::can_optimize_keypart_ref(const Item_func *cond,
+bool Field_enum::can_optimize_keypart_ref(const Item_bool_func *cond,
                                           const Item *item) const
 {
   DBUG_ASSERT(cmp_type() == INT_RESULT);
@@ -8576,7 +8576,7 @@ bool Field_enum::can_optimize_keypart_ref(const Item_func *cond,
   case REAL_RESULT:
     return true;
   case STRING_RESULT:
-    return charset() == ((Item_func*)cond)->compare_collation();
+    return charset() == cond->compare_collation();
   case IMPOSSIBLE_RESULT:
   case ROW_RESULT:
     DBUG_ASSERT(0);
@@ -9463,14 +9463,6 @@ bool Create_field::check(THD *thd)
     sql_type= vcol_info->get_real_type();
   }
 
-  /*
-    Set NO_DEFAULT_VALUE_FLAG if this field doesn't have a default value and
-    it is NOT NULL, not an AUTO_INCREMENT field and not a TIMESTAMP.
-  */
-  if (!def && unireg_check == Field::NONE &&
-      (flags & NOT_NULL_FLAG) && !is_timestamp_type(sql_type))
-    flags|= NO_DEFAULT_VALUE_FLAG;
-
   sign_len= flags & UNSIGNED_FLAG ? 0 : 1;
 
   switch (sql_type) {
@@ -9662,6 +9654,16 @@ bool Create_field::check(THD *thd)
   }
   /* Remember the value of length */
   char_length= length;
+
+  /*
+    Set NO_DEFAULT_VALUE_FLAG if this field doesn't have a default value and
+    it is NOT NULL, not an AUTO_INCREMENT field and not a TIMESTAMP.
+    We need to do this check here and in mysql_create_prepare_table() as
+    sp_head::fill_field_definition() calls this function.
+  */
+  if (!def && unireg_check == Field::NONE &&
+      (flags & NOT_NULL_FLAG) && !is_timestamp_type(sql_type))
+    flags|= NO_DEFAULT_VALUE_FLAG;
 
   if (!(flags & BLOB_FLAG) &&
       ((length > max_field_charlength &&
@@ -9985,7 +9987,7 @@ Field *make_field(TABLE_SHARE *share, uchar *ptr, uint32 field_length,
 
 /** Create a field suitable for create of table. */
 
-Create_field::Create_field(Field *old_field,Field *orig_field)
+Create_field::Create_field(THD *thd, Field *old_field, Field *orig_field)
 {
   field=      old_field;
   field_name=change=old_field->field_name;
@@ -10037,7 +10039,6 @@ Create_field::Create_field(Field *old_field,Field *orig_field)
   case MYSQL_TYPE_YEAR:
     if (length != 4)
     {
-      THD *thd= current_thd;
       char buff[sizeof("YEAR()") + MY_INT64_NUM_DECIMAL_DIGITS + 1];
       my_snprintf(buff, sizeof(buff), "YEAR(%lu)", length);
       push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
@@ -10096,7 +10097,7 @@ Create_field::Create_field(Field *old_field,Field *orig_field)
         StringBuffer<MAX_FIELD_WIDTH> tmp(charset);
         String *res= orig_field->val_str(&tmp);
         char *pos= (char*) sql_strmake(res->ptr(), res->length());
-        def= new Item_string(pos, res->length(), charset);
+        def= new (thd->mem_root) Item_string(thd, pos, res->length(), charset);
       }
       orig_field->move_field_offset(-diff);	// Back to record[0]
     }

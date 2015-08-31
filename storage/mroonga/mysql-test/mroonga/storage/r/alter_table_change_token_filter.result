@@ -1,5 +1,5 @@
-SELECT mroonga_command("register token_filters/stop_word");
-mroonga_command("register token_filters/stop_word")
+SELECT mroonga_command("plugin_register token_filters/stop_word");
+mroonga_command("plugin_register token_filters/stop_word")
 true
 CREATE TABLE terms (
 term VARCHAR(64) NOT NULL PRIMARY KEY,

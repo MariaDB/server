@@ -159,6 +159,7 @@ begin
 select 1;
 select sql_no_cache * from t1 where i > 5;
 select sql_no_cache * from t1 where i > 5;
+select sleep(2);
 end |
 set max_statement_time = 0.001;
 call pr();
@@ -170,6 +171,7 @@ create procedure pr()
 begin
 select sql_no_cache * from t1 where i > 5;
 select sql_no_cache * from t1 where i > 5;
+select sleep(2);
 end |
 set max_statement_time = 0.001;
 call pr();

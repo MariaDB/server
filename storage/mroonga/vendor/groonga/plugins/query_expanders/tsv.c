@@ -15,6 +15,10 @@
   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 */
 
+#ifdef GRN_EMBEDDED
+#  define GRN_PLUGIN_FUNCTION_TAG query_expanders_tsv
+#endif
+
 /* groonga's internal headers */
 /* for grn_text_fgets(): We don't want to require stdio.h for groonga.h.
    What should we do? Should we split header file such as groonga/stdio.h? */

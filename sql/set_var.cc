@@ -788,9 +788,30 @@ int set_var::light_check(THD *thd)
   Consider set_var::check() method if there is a need to return
   an error due to logics.
 */
+
 int set_var::update(THD *thd)
 {
   return value ? var->update(thd, this) : var->set_default(thd, this);
+}
+
+
+set_var::set_var(THD *thd, enum_var_type type_arg, sys_var *var_arg,
+                 const LEX_STRING *base_name_arg, Item *value_arg)
+  :var(var_arg), type(type_arg), base(*base_name_arg)
+{
+  /*
+    If the set value is a field, change it to a string to allow things like
+    SET table_type=MYISAM;
+  */
+  if (value_arg && value_arg->type() == Item::FIELD_ITEM)
+  {
+    Item_field *item= (Item_field*) value_arg;
+    // names are utf8
+    if (!(value= new (thd->mem_root) Item_string_sys(thd, item->field_name)))
+      value=value_arg;                        /* Give error message later */
+  }
+  else
+    value=value_arg;
 }
 
 
@@ -982,7 +1003,7 @@ int fill_sysvars(THD *thd, TABLE_LIST *tables, COND *cond)
 
   DBUG_ASSERT(tables->table->in_use == thd);
 
-  cond= make_cond_for_info_schema(cond, tables);
+  cond= make_cond_for_info_schema(thd, cond, tables);
   thd->count_cuted_fields= CHECK_FIELD_WARN;
   mysql_rwlock_rdlock(&LOCK_system_variables_hash);
 

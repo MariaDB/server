@@ -174,7 +174,7 @@ Statement_information_item::get_value(THD *thd, const Diagnostics_area *da)
   case NUMBER:
   {
     ulong count= da->cond_count();
-    value= new (thd->mem_root) Item_uint(count);
+    value= new (thd->mem_root) Item_uint(thd, count);
     break;
   }
   /*
@@ -183,7 +183,7 @@ Statement_information_item::get_value(THD *thd, const Diagnostics_area *da)
     REPLACE, LOAD).
   */
   case ROW_COUNT:
-    value= new (thd->mem_root) Item_int(thd->get_row_count_func());
+    value= new (thd->mem_root) Item_int(thd, thd->get_row_count_func());
     break;
   }
 
@@ -270,7 +270,7 @@ Condition_information_item::make_utf8_string_item(THD *thd, const String *str)
   String tmp(str->ptr(), str->length(), from_cs);
   /* If necessary, convert the string (ignoring errors), then copy it over. */
   uint conv_errors;
-  return new Item_string(&tmp, to_cs, &conv_errors,
+  return new (thd->mem_root) Item_string(thd, &tmp, to_cs, &conv_errors,
                          DERIVATION_COERCIBLE, MY_REPERTOIRE_UNICODE30);
 }
 
@@ -329,7 +329,7 @@ Condition_information_item::get_value(THD *thd, const Sql_condition *cond)
     value= make_utf8_string_item(thd, &(cond->m_message_text));
     break;
   case MYSQL_ERRNO:
-    value= new (thd->mem_root) Item_uint(cond->m_sql_errno);
+    value= new (thd->mem_root) Item_uint(thd, cond->m_sql_errno);
     break;
   case RETURNED_SQLSTATE:
     str.set_ascii(cond->get_sqlstate(), strlen(cond->get_sqlstate()));

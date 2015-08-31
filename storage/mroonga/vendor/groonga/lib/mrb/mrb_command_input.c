@@ -27,6 +27,7 @@
 #include <mruby/string.h>
 
 #include "mrb_ctx.h"
+#include "mrb_converter.h"
 #include "mrb_command_input.h"
 
 static struct mrb_data_type mrb_grn_command_input_type = {
@@ -102,6 +103,19 @@ mrb_grn_command_input_array_reference(mrb_state *mrb, mrb_value self)
                             GRN_TEXT_LEN(argument));
 }
 
+static mrb_value
+mrb_grn_command_input_get_arguments(mrb_state *mrb, mrb_value self)
+{
+  grn_ctx *ctx = (grn_ctx *)mrb->ud;
+  grn_command_input *input;
+  grn_obj *arguments;
+
+  input = DATA_PTR(self);
+  arguments = grn_command_input_get_arguments(ctx, input);
+
+  return grn_mrb_value_from_grn_obj(mrb, arguments);
+}
+
 void
 grn_mrb_command_input_init(grn_ctx *ctx)
 {
@@ -118,5 +132,8 @@ grn_mrb_command_input_init(grn_ctx *ctx)
 
   mrb_define_method(mrb, klass, "[]",
                     mrb_grn_command_input_array_reference, MRB_ARGS_REQ(1));
+
+  mrb_define_method(mrb, klass, "arguments",
+                    mrb_grn_command_input_get_arguments, MRB_ARGS_NONE());
 }
 #endif

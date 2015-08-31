@@ -1,5 +1,5 @@
 /* -*- c-basic-offset: 2 -*- */
-/* Copyright(C) 2011-2014 Brazil
+/* Copyright(C) 2011-2015 Brazil
 
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -1109,6 +1109,36 @@ grn_dat_repair(grn_ctx *ctx, grn_dat *dat)
   if (!grn_dat_open_trie_if_needed(ctx, dat)) {
     return ctx->rc;
   }
+  return GRN_SUCCESS;
+}
+
+grn_rc
+grn_dat_flush(grn_ctx *ctx, grn_dat *dat)
+{
+  if (!dat->io) {
+    return GRN_SUCCESS;
+  }
+
+  grn_rc rc = grn_io_flush(ctx, dat->io);
+  if (rc != GRN_SUCCESS) {
+    return rc;
+  }
+
+  if (dat->trie) {
+    grn::dat::Trie * const trie = static_cast<grn::dat::Trie *>(dat->trie);
+    try {
+      trie->flush();
+    } catch (const grn::dat::Exception &ex) {
+      const grn_rc error_code = grn_dat_translate_error_code(ex.code());
+      if (error_code == GRN_INPUT_OUTPUT_ERROR) {
+        SERR("grn::dat::Trie::flush failed");
+      } else {
+        ERR(error_code, "grn::dat::Trie::flush failed");
+      }
+      return error_code;
+    }
+  }
+
   return GRN_SUCCESS;
 }
 

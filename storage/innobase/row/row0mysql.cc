@@ -2211,7 +2211,9 @@ row_create_table_for_mysql(
 				(will be freed, or on DB_SUCCESS
 				added to the data dictionary cache) */
 	trx_t*		trx,	/*!< in/out: transaction */
-	bool		commit)	/*!< in: if true, commit the transaction */
+	bool		commit,	/*!< in: if true, commit the transaction */
+	fil_encryption_t mode,	/*!< in: encryption mode */
+	ulint		key_id)	/*!< in: encryption key_id */
 {
 	tab_node_t*	node;
 	mem_heap_t*	heap;
@@ -2324,7 +2326,7 @@ err_exit:
 		ut_ad(strstr(table->name, "/FTS_") != NULL);
 	}
 
-	node = tab_create_graph_create(table, heap, commit);
+	node = tab_create_graph_create(table, heap, commit, mode, key_id);
 
 	thr = pars_complete_graph_for_exec(node, trx, heap);
 
@@ -3461,10 +3463,19 @@ row_truncate_table_for_mysql(
 
 	if (table->space && !DICT_TF2_FLAG_IS_SET(table, DICT_TF2_TEMPORARY)) {
 		/* Discard and create the single-table tablespace. */
+		fil_space_crypt_t* crypt_data;
 		ulint	space	= table->space;
 		ulint	flags	= fil_space_get_flags(space);
+		ulint	key_id  = FIL_DEFAULT_ENCRYPTION_KEY;
+		fil_encryption_t mode = FIL_SPACE_ENCRYPTION_DEFAULT;
 
 		dict_get_and_save_data_dir_path(table, true);
+		crypt_data = fil_space_get_crypt_data(space);
+
+		if (crypt_data) {
+			key_id = crypt_data->key_id;
+			mode = crypt_data->encryption;
+		}
 
 		if (flags != ULINT_UNDEFINED
 		    && fil_discard_tablespace(space) == DB_SUCCESS) {
@@ -3483,7 +3494,8 @@ row_truncate_table_for_mysql(
 				    space, table->name,
 				    table->data_dir_path,
 				    flags, table->flags2,
-				    FIL_IBD_FILE_INITIAL_SIZE)
+				    FIL_IBD_FILE_INITIAL_SIZE,
+				    mode, key_id)
 			    != DB_SUCCESS) {
 				dict_table_x_unlock_indexes(table);
 

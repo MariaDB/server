@@ -95,12 +95,13 @@ public:
     bound_sj_equalities(0),
     quick_uses_applicable_index(FALSE)
   {
-    UNINIT_VAR(quick_max_loose_keypart); /* Protected by quick_uses_applicable_index */
+    /* Protected by quick_uses_applicable_index */
+    LINT_INIT(quick_max_loose_keypart);
     /* The following are protected by best_loose_scan_cost!= DBL_MAX */
-    UNINIT_VAR(best_loose_scan_key);
-    UNINIT_VAR(best_loose_scan_records);
-    UNINIT_VAR(best_max_loose_keypart);
-    UNINIT_VAR(best_loose_scan_start_key);
+    LINT_INIT(best_loose_scan_key);
+    LINT_INIT(best_loose_scan_records);
+    LINT_INIT(best_max_loose_keypart);
+    LINT_INIT(best_loose_scan_start_key);
   }
   
   void init(JOIN *join, JOIN_TAB *s, table_map remaining_tables)
@@ -122,7 +123,7 @@ public:
         s->emb_sj_nest->sj_in_exprs < 64 && 
         ((remaining_tables & s->emb_sj_nest->sj_inner_tables) ==        // (2)
          s->emb_sj_nest->sj_inner_tables) &&                            // (2)
-        join->cur_sj_inner_tables == 0 &&                                  // (3)
+        join->cur_sj_inner_tables == 0 &&                               // (3)
         !(remaining_tables & 
           s->emb_sj_nest->nested_join->sj_corr_tables) &&               // (4)
         remaining_tables & s->emb_sj_nest->nested_join->sj_depends_on &&// (5)

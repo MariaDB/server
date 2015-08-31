@@ -230,7 +230,7 @@ t1	CREATE TABLE `t1` (
   `c00` binary(0) DEFAULT NULL,
   `c01` varchar(6) CHARACTER SET latin2 DEFAULT NULL,
   `c02` varchar(6) CHARACTER SET latin2 DEFAULT NULL,
-  `c03` varchar(6) CHARACTER SET latin2 NOT NULL DEFAULT '',
+  `c03` varchar(6) CHARACTER SET latin2 NOT NULL,
   `c04` varchar(6) CHARACTER SET latin2 DEFAULT NULL,
   `c05` varchar(6) CHARACTER SET latin2 DEFAULT NULL,
   `c06` varchar(6) CHARACTER SET latin2 DEFAULT NULL,
