@@ -79,6 +79,17 @@ public:
                         item_cmp_type((*a1)->cmp_type(),
                                       (*a2)->cmp_type()));
   }
+  int set_cmp_func_and_arg_cmp_context(Item_func_or_sum *owner_arg,
+                                       Item **a1, Item **a2,
+                                       bool set_null_arg)
+  {
+    set_null= set_null_arg;
+    Item_result type= item_cmp_type((*a1)->cmp_type(), (*a2)->cmp_type());
+    int rc= set_cmp_func(owner_arg, a1, a2, type);
+    if (!rc)
+      (*a1)->cmp_context= (*a2)->cmp_context= type;
+    return rc;
+  }
   inline int compare() { return (this->*func)(); }
 
   int compare_string();		 // compare args[0] & args[1]

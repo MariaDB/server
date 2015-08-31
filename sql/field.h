@@ -1012,6 +1012,21 @@ public:
     return (double) 0.5; 
   }
 
+  /*
+    Check if comparison between the field and an item unambiguously
+    identifies a distinct field value.
+
+    Example1: SELECT * FROM t1 WHERE int_column=10;
+              This example returns distinct integer value of 10.
+
+    Example2: SELECT * FROM t1 WHERE varchar_column=DATE'2001-01-01'
+              This example returns non-distinct values.
+              Comparison as DATE will return '2001-01-01' and '2001-01-01x',
+              but these two values are not equal to each other as VARCHARs.
+    See also the function with the same name in sql_select.cc.
+  */
+  virtual bool test_if_equality_guarantees_uniqueness(const Item *const_item)
+                                                      const;
   virtual bool can_optimize_keypart_ref(const Item_bool_func *cond,
                                         const Item *item) const;
   virtual bool can_optimize_hash_join(const Item_bool_func *cond,
@@ -1187,6 +1202,7 @@ public:
   {
     return pos_in_interval_val_str(min, max, length_size());
   }
+  bool test_if_equality_guarantees_uniqueness(const Item *const_item) const;
 };
 
 /* base class for Field_string, Field_varstring and Field_blob */

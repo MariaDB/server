@@ -12513,7 +12513,6 @@ finish:
 */
 
 static bool check_simple_equality(THD *thd, Item *left_item, Item *right_item,
-                                  const Item_bool_func *item,
                                   COND_EQUAL *cond_equal)
 {
   Item *orig_left_item= left_item;
@@ -12639,27 +12638,35 @@ static bool check_simple_equality(THD *thd, Item *left_item, Item *right_item,
     }
 
     if (const_item &&
-        field_item->result_type() == const_item->result_type())
+        field_item->field->test_if_equality_guarantees_uniqueness(const_item))
     {
-      bool copyfl;
+      /*
+        field_item and const_item are arguments of a scalar or a row
+        comparison function:
+          WHERE column=constant
+          WHERE (column, ...) = (constant, ...)
 
-      if (field_item->cmp_type() == STRING_RESULT)
-      {
-        CHARSET_INFO *cs= field_item->field->charset();
-        if (!item)
-        {
-          Item_func_eq *eq_item;
-          if (!(eq_item= new (thd->mem_root) Item_func_eq(thd, orig_left_item,
-                                                          orig_right_item)) ||
-              eq_item->set_cmp_func_and_arg_cmp_context())
-            return FALSE;
-          eq_item->quick_fix_field();
-          item= eq_item;
-        }  
-        if ((cs != item->compare_collation()) ||
-            !cs->coll->propagate(cs, 0, 0))
-          return FALSE;
-      }
+        The owner comparison function has previously called fix_fields(),
+        so field_item and const_item should be directly comparable items,
+        field_item->cmp_context and const_item->cmp_context should be set.
+        In case of string comparison, charsets and collations of
+        field_item and const_item should have already be aggregated
+        for comparison, all necessary character set converters installed
+        and fixed.
+
+        In case of string comparison, const_item can be either:
+        - a weaker constant that does not need to be converted to field_item:
+            WHERE latin1_field = 'latin1_const'
+            WHERE varbinary_field = 'latin1_const'
+            WHERE latin1_bin_field = 'latin1_general_ci_const'
+        - a stronger constant that does not need to be converted to field_item:
+            WHERE latin1_field = binary 0xDF
+            WHERE latin1_field = 'a' COLLATE latin1_bin
+        - a result of conversion (e.g. from the session character set)
+          to the character set of field_item:
+            WHERE latin1_field = 'utf8_string_with_latin1_repertoire'
+      */
+      bool copyfl;
 
       Item_equal *item_equal = find_item_equal(cond_equal,
                                                field_item->field, &copyfl);
@@ -12737,7 +12744,7 @@ static bool check_row_equality(THD *thd, Item *left_row, Item_row *right_row,
     }
     else
     { 
-      is_converted= check_simple_equality(thd, left_item, right_item, 0,
+      is_converted= check_simple_equality(thd, left_item, right_item,
                                           cond_equal);
     }  
  
@@ -12799,7 +12806,7 @@ bool Item_func_eq::check_equality(THD *thd, COND_EQUAL *cond_equal,
                               (Item_row *) right_item,
                               cond_equal, eq_list);
   }
-  return check_simple_equality(thd, left_item, right_item, this, cond_equal);
+  return check_simple_equality(thd, left_item, right_item, cond_equal);
 }
 
                           
@@ -15457,6 +15464,8 @@ Item_func_isnull::remove_eq_conds(THD *thd, Item::cond_result *cond_value,
 /*
   psergey-todo: this returns false for int_column='1234' (here '1234' is a
   constant. Need to discuss this with Bar).
+
+  See also Field::test_if_equality_guaranees_uniqueness(const Item *item);
 */
 static bool
 test_if_equality_guarantees_uniqueness(Item *l, Item *r)

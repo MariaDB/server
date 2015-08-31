@@ -1246,6 +1246,21 @@ double Field::pos_in_interval_val_str(Field *min, Field *max, uint data_offset)
 }
 
 
+bool Field::test_if_equality_guarantees_uniqueness(const Item *item) const
+{
+  DBUG_ASSERT(cmp_type() != STRING_RESULT); // For STRING_RESULT see Field_str
+  /*
+    We use result_type() rather than cmp_type() in the below condition,
+    because it covers a special case that string literals guarantee uniqueness
+    for temporal columns, so the query:
+      WHERE temporal_column='string'
+    cannot return multiple distinct temporal values.
+    QQ: perhaps we could allow INT/DECIMAL/DOUBLE types for temporal items.
+  */
+  return result_type() == item->result_type();
+}
+
+
 /*
   This handles all numeric and BIT data types.
 */ 
@@ -1840,6 +1855,32 @@ Field_str::Field_str(uchar *ptr_arg,uint32 len_arg, uchar *null_ptr_arg,
   if (charset_arg->state & MY_CS_BINSORT)
     flags|=BINARY_FLAG;
   field_derivation= DERIVATION_IMPLICIT;
+}
+
+
+bool Field_str::test_if_equality_guarantees_uniqueness(const Item *item) const
+{
+  /*
+    Can't guarantee uniqueness when comparing a CHAR/VARCHAR/TEXT,
+    BINARY/VARBINARY/BLOB, ENUM,SET columns to an item with cmp_type()
+    of INT_RESULT, DOUBLE_RESULT, DECIMAL_RESULT or TIME_RESULT.
+    Example:
+      SELECT * FROM t1 WHERE varchar_column=DATE'2001-01-01'
+    return non-unuque values, e.g. '2001-01-01' and '2001-01-01x'.
+  */
+  if (!field_charset->coll->propagate(field_charset, 0, 0) ||
+      item->cmp_type() != STRING_RESULT)
+    return false;
+  /*
+    Can't guarantee uniqueness when comparing to
+    an item of a different collation.
+    Example:
+      SELECT * FROM t1
+      WHERE latin1_bin_column = _latin1'A' COLLATE latin1_swedish_ci
+    return non-unique values 'a' and 'A'.
+  */
+  DTCollation tmp(field_charset, field_derivation, repertoire());
+  return !tmp.aggregate(item->collation) && tmp.collation == field_charset;
 }
 
 

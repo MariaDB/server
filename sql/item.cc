@@ -1814,7 +1814,7 @@ void Item::split_sum_func2(THD *thd, Item **ref_pointer_array,
 
 
 static bool
-left_is_superset(DTCollation *left, DTCollation *right)
+left_is_superset(const DTCollation *left, const DTCollation *right)
 {
   /* Allow convert to Unicode */
   if (left->collation->state & MY_CS_UNICODE &&
@@ -1873,7 +1873,7 @@ left_is_superset(DTCollation *left, DTCollation *right)
   @endcode
 */
 
-bool DTCollation::aggregate(DTCollation &dt, uint flags)
+bool DTCollation::aggregate(const DTCollation &dt, uint flags)
 {
   if (!my_charset_same(collation, dt.collation))
   {
