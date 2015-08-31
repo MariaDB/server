@@ -1215,6 +1215,7 @@ int wsrep_to_buf_helper(
     THD* thd, const char *query, uint query_len, uchar** buf, size_t* buf_len)
 {
   IO_CACHE tmp_io_cache;
+  Log_event_writer writer(&tmp_io_cache);
   if (open_cached_file(&tmp_io_cache, mysql_tmpdir, TEMP_PREFIX,
                        65536, MYF(MY_WME)))
     return 1;
@@ -1222,7 +1223,7 @@ int wsrep_to_buf_helper(
 
   Format_description_log_event *tmp_fd= new Format_description_log_event(4);
   tmp_fd->checksum_alg= (enum_binlog_checksum_alg)binlog_checksum_options;
-  tmp_fd->write(&tmp_io_cache);
+  writer.write(tmp_fd);
   delete tmp_fd;
 
 #ifdef GTID_SUPPORT
@@ -1230,7 +1231,7 @@ int wsrep_to_buf_helper(
   {
       Gtid_log_event gtid_ev(thd, FALSE, &thd->variables.gtid_next);
       if (!gtid_ev.is_valid()) ret= 0;
-      if (!ret && gtid_ev.write(&tmp_io_cache)) ret= 1;
+      if (!ret && writer.write(&gtid_ev)) ret= 1;
   }
 #endif /* GTID_SUPPORT */
 
@@ -1240,12 +1241,12 @@ int wsrep_to_buf_helper(
     Query_log_event ev(thd, thd->wsrep_TOI_pre_query,
 		       thd->wsrep_TOI_pre_query_len,
 		       FALSE, FALSE, FALSE, 0);
-    if (ev.write(&tmp_io_cache)) ret= 1;
+    if (writer.write(&ev)) ret= 1;
   }
 
   /* continue to append the actual query */
   Query_log_event ev(thd, query, query_len, FALSE, FALSE, FALSE, 0);
-  if (!ret && ev.write(&tmp_io_cache)) ret= 1;
+  if (!ret && writer.write(&ev)) ret= 1;
   if (!ret && wsrep_write_cache_buf(&tmp_io_cache, buf, buf_len)) ret= 1;
   close_cached_file(&tmp_io_cache);
   return ret;

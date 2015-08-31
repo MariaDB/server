@@ -445,6 +445,7 @@ void wsrep_dump_rbr_buf_with_header(THD *thd, const void *rbr_buf,
   char filename[PATH_MAX]= {0};
   File file;
   IO_CACHE cache;
+  Log_event_writer writer(&cache);
   Format_description_log_event *ev= wsrep_get_apply_format(thd);
 
   int len= my_snprintf(filename, PATH_MAX, "%s/GRA_%ld_%lld_v2.log",
@@ -476,7 +477,7 @@ void wsrep_dump_rbr_buf_with_header(THD *thd, const void *rbr_buf,
     goto cleanup2;
   }
 
-  if (ev->write(&cache) || my_b_write(&cache, (uchar*)rbr_buf, buf_len) ||
+  if (writer.write(ev) || my_b_write(&cache, (uchar*)rbr_buf, buf_len) ||
       flush_io_cache(&cache))
   {
     WSREP_ERROR("Failed to write to '%s'.", filename);

@@ -145,61 +145,7 @@ class String;
 #define LINE_START_EMPTY	0x8
 #define ESCAPED_EMPTY		0x10
 
-/*****************************************************************************
-
-  old_sql_ex struct
-
- ****************************************************************************/
-struct old_sql_ex
-{
-  char field_term;
-  char enclosed;
-  char line_term;
-  char line_start;
-  char escaped;
-  char opt_flags;
-  char empty_flags;
-};
-
 #define NUM_LOAD_DELIM_STRS 5
-
-/*****************************************************************************
-
-  sql_ex_info struct
-
- ****************************************************************************/
-struct sql_ex_info
-{
-  sql_ex_info() {}                            /* Remove gcc warning */
-  const char* field_term;
-  const char* enclosed;
-  const char* line_term;
-  const char* line_start;
-  const char* escaped;
-  int cached_new_format;
-  uint8 field_term_len,enclosed_len,line_term_len,line_start_len, escaped_len;
-  char opt_flags;
-  char empty_flags;
-
-  // store in new format even if old is possible
-  void force_new_format() { cached_new_format = 1;}
-  int data_size()
-  {
-    return (new_format() ?
-	    field_term_len + enclosed_len + line_term_len +
-	    line_start_len + escaped_len + 6 : 7);
-  }
-  bool write_data(IO_CACHE* file);
-  const char* init(const char* buf, const char* buf_end, bool use_new_format);
-  bool new_format()
-  {
-    return ((cached_new_format != -1) ? cached_new_format :
-	    (cached_new_format=(field_term_len > 1 ||
-				enclosed_len > 1 ||
-				line_term_len > 1 || line_start_len > 1 ||
-				escaped_len > 1)));
-  }
-};
 
 /*****************************************************************************
 
@@ -843,6 +789,33 @@ typedef struct st_print_event_info
 #endif
 
 /**
+  This class encapsulates writing of Log_event objects to IO_CACHE.
+  Automatically calculates the checksum if necessary.
+*/
+class Log_event_writer
+{
+public:
+  ulonglong bytes_written;
+  uint checksum_len;
+  int write(Log_event *ev);
+  int write_header(uchar *pos, size_t len);
+  int write_data(const uchar *pos, size_t len);
+  int write_footer();
+  my_off_t pos() { return my_b_safe_tell(file); }
+
+Log_event_writer(IO_CACHE *file_arg) : bytes_written(0), file(file_arg) { }
+
+private:
+  IO_CACHE *file;
+  /**
+    Placeholder for event checksum while writing to binlog.
+   */
+  ha_checksum crc;
+
+  int write_internal(const uchar *pos, size_t len);
+};
+
+/**
   the struct aggregates two paramenters that identify an event
   uniquely in scope of communication of a particular master and slave couple.
   I.e there can not be 2 events from the same staying connected master which
@@ -1108,10 +1081,7 @@ public:
   */
   ulong slave_exec_mode;
 
-  /**
-    Placeholder for event checksum while writing to binlog.
-   */
-  ha_checksum crc;
+  Log_event_writer *writer;
 
 #ifdef MYSQL_SERVER
   THD* thd;
@@ -1143,6 +1113,7 @@ public:
   }
 #else
   Log_event() : temp_buf(0), flags(0) {}
+  ha_checksum crc;
   /* print*() functions are used by mysqlbinlog */
   virtual void print(FILE* file, PRINT_EVENT_INFO* print_event_info) = 0;
   void print_timestamp(IO_CACHE* file, time_t *ts = 0);
@@ -1216,23 +1187,26 @@ public:
   /* Placement version of the above operators */
   static void *operator new(size_t, void* ptr) { return ptr; }
   static void operator delete(void*, void*) { }
-  bool wrapper_my_b_safe_write(IO_CACHE* file, const uchar* buf, ulong data_length);
 
 #ifdef MYSQL_SERVER
-  bool write_header(IO_CACHE* file, ulong data_length);
-  bool write_footer(IO_CACHE* file);
+  bool write_header(ulong data_length);
+  bool write_data(const uchar *buf, ulong data_length)
+  { return writer->write_data(buf, data_length); }
+  bool write_data(const char *buf, ulong data_length)
+  { return write_data((uchar*)buf, data_length); }
+  bool write_footer()
+  { return writer->write_footer(); }
+
   my_bool need_checksum();
 
-  virtual bool write(IO_CACHE* file)
+  virtual bool write()
   {
-    return(write_header(file, get_data_size()) ||
-	   write_data_header(file) ||
-	   write_data_body(file) ||
-	   write_footer(file));
+    return write_header(get_data_size()) || write_data_header() ||
+	   write_data_body() || write_footer();
   }
-  virtual bool write_data_header(IO_CACHE* file __attribute__((unused)))
+  virtual bool write_data_header()
   { return 0; }
-  virtual bool write_data_body(IO_CACHE* file __attribute__((unused)))
+  virtual bool write_data_body()
   { return 0; }
 
   /* Return start of query time or current time */
@@ -1989,8 +1963,8 @@ public:
   static int dummy_event(String *packet, ulong ev_offset, enum enum_binlog_checksum_alg checksum_alg);
   static int begin_event(String *packet, ulong ev_offset, enum enum_binlog_checksum_alg checksum_alg);
 #ifdef MYSQL_SERVER
-  bool write(IO_CACHE* file);
-  virtual bool write_post_header_for_derived(IO_CACHE* file) { return FALSE; }
+  bool write();
+  virtual bool write_post_header_for_derived() { return FALSE; }
 #endif
   bool is_valid() const { return query != 0; }
 
@@ -2039,6 +2013,42 @@ public:        /* !!! Public in this patch to allow old usage */
   bool is_rollback() { return !strcmp(query, "ROLLBACK"); }
 };
 
+
+/*****************************************************************************
+  sql_ex_info struct
+ ****************************************************************************/
+struct sql_ex_info
+{
+  sql_ex_info() {}                            /* Remove gcc warning */
+  const char* field_term;
+  const char* enclosed;
+  const char* line_term;
+  const char* line_start;
+  const char* escaped;
+  int cached_new_format;
+  uint8 field_term_len,enclosed_len,line_term_len,line_start_len, escaped_len;
+  char opt_flags;
+  char empty_flags;
+
+  // store in new format even if old is possible
+  void force_new_format() { cached_new_format = 1;}
+  int data_size()
+  {
+    return (new_format() ?
+	    field_term_len + enclosed_len + line_term_len +
+	    line_start_len + escaped_len + 6 : 7);
+  }
+  bool write_data(Log_event_writer *writer);
+  const char* init(const char* buf, const char* buf_end, bool use_new_format);
+  bool new_format()
+  {
+    return ((cached_new_format != -1) ? cached_new_format :
+	    (cached_new_format=(field_term_len > 1 ||
+				enclosed_len > 1 ||
+				line_term_len > 1 || line_start_len > 1 ||
+				escaped_len > 1)));
+  }
+};
 
 /**
   @class Load_log_event
@@ -2333,8 +2343,8 @@ public:
     return sql_ex.new_format() ? NEW_LOAD_EVENT: LOAD_EVENT;
   }
 #ifdef MYSQL_SERVER
-  bool write_data_header(IO_CACHE* file);
-  bool write_data_body(IO_CACHE* file);
+  bool write_data_header();
+  bool write_data_body();
 #endif
   bool is_valid() const { return table_name != 0; }
   int get_data_size()
@@ -2422,7 +2432,7 @@ public:
   my_off_t get_header_len(my_off_t l __attribute__((unused)))
   { return LOG_EVENT_MINIMAL_HEADER_LEN; }
 #ifdef MYSQL_SERVER
-  bool write(IO_CACHE* file);
+  bool write();
 #endif
   bool is_valid() const { return server_version[0] != 0; }
   int get_data_size()
@@ -2492,7 +2502,7 @@ public:
   }
   Log_event_type get_type_code() { return FORMAT_DESCRIPTION_EVENT;}
 #ifdef MYSQL_SERVER
-  bool write(IO_CACHE* file);
+  bool write();
 #endif
   bool header_is_valid() const
   {
@@ -2601,7 +2611,7 @@ Intvar_log_event(THD* thd_arg,uchar type_arg, ulonglong val_arg,
   const char* get_var_type_name();
   int get_data_size() { return  9; /* sizeof(type) + sizeof(val) */;}
 #ifdef MYSQL_SERVER
-  bool write(IO_CACHE* file);
+  bool write();
 #endif
   bool is_valid() const { return 1; }
   bool is_part_of_group() { return 1; }
@@ -2681,7 +2691,7 @@ class Rand_log_event: public Log_event
   Log_event_type get_type_code() { return RAND_EVENT;}
   int get_data_size() { return 16; /* sizeof(ulonglong) * 2*/ }
 #ifdef MYSQL_SERVER
-  bool write(IO_CACHE* file);
+  bool write();
 #endif
   bool is_valid() const { return 1; }
   bool is_part_of_group() { return 1; }
@@ -2731,7 +2741,7 @@ class Xid_log_event: public Log_event
   Log_event_type get_type_code() { return XID_EVENT;}
   int get_data_size() { return sizeof(xid); }
 #ifdef MYSQL_SERVER
-  bool write(IO_CACHE* file);
+  bool write();
 #endif
   bool is_valid() const { return 1; }
 
@@ -2792,7 +2802,7 @@ public:
   ~User_var_log_event() {}
   Log_event_type get_type_code() { return USER_VAR_EVENT;}
 #ifdef MYSQL_SERVER
-  bool write(IO_CACHE* file);
+  bool write();
   /* 
      Getter and setter for deferred User-event. 
      Returns true if the event is not applied directly 
@@ -2944,7 +2954,7 @@ public:
   int get_data_size() { return  ident_len + ROTATE_HEADER_LEN;}
   bool is_valid() const { return new_log_ident != 0; }
 #ifdef MYSQL_SERVER
-  bool write(IO_CACHE* file);
+  bool write();
 #endif
 
 private:
@@ -2977,7 +2987,7 @@ public:
   int get_data_size() { return  binlog_file_len + BINLOG_CHECKPOINT_HEADER_LEN;}
   bool is_valid() const { return binlog_file_name != 0; }
 #ifdef MYSQL_SERVER
-  bool write(IO_CACHE* file);
+  bool write();
   enum_skip_reason do_shall_skip(rpl_group_info *rgi);
 #endif
 };
@@ -3105,7 +3115,7 @@ public:
   }
   bool is_valid() const { return seq_no != 0; }
 #ifdef MYSQL_SERVER
-  bool write(IO_CACHE *file);
+  bool write();
   static int make_compatible_event(String *packet, bool *need_dummy_event,
                                     ulong ev_offset, enum enum_binlog_checksum_alg checksum_alg);
   static bool peek(const char *event_start, size_t event_len,
@@ -3220,7 +3230,7 @@ public:
   bool is_valid() const { return list != NULL; }
 #if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
   bool to_packet(String *packet);
-  bool write(IO_CACHE *file);
+  bool write();
   virtual int do_apply_event(rpl_group_info *rgi);
   enum_skip_reason do_shall_skip(rpl_group_info *rgi);
 #endif
@@ -3291,13 +3301,13 @@ public:
   }
   bool is_valid() const { return inited_from_old || block != 0; }
 #ifdef MYSQL_SERVER
-  bool write_data_header(IO_CACHE* file);
-  bool write_data_body(IO_CACHE* file);
+  bool write_data_header();
+  bool write_data_body();
   /*
     Cut out Create_file extentions and
     write it as Load event - used on the slave
   */
-  bool write_base(IO_CACHE* file);
+  bool write_base();
 #endif
 
 private:
@@ -3351,7 +3361,7 @@ public:
   int get_data_size() { return  block_len + APPEND_BLOCK_HEADER_LEN ;}
   bool is_valid() const { return block != 0; }
 #ifdef MYSQL_SERVER
-  bool write(IO_CACHE* file);
+  bool write();
   const char* get_db() { return db; }
 #endif
 
@@ -3392,7 +3402,7 @@ public:
   int get_data_size() { return DELETE_FILE_HEADER_LEN ;}
   bool is_valid() const { return file_id != 0; }
 #ifdef MYSQL_SERVER
-  bool write(IO_CACHE* file);
+  bool write();
   const char* get_db() { return db; }
 #endif
 
@@ -3432,7 +3442,7 @@ public:
   int get_data_size() { return  EXEC_LOAD_HEADER_LEN ;}
   bool is_valid() const { return file_id != 0; }
 #ifdef MYSQL_SERVER
-  bool write(IO_CACHE* file);
+  bool write();
   const char* get_db() { return db; }
 #endif
 
@@ -3532,7 +3542,7 @@ public:
 
   ulong get_post_header_size_for_derived();
 #ifdef MYSQL_SERVER
-  bool write_post_header_for_derived(IO_CACHE* file);
+  bool write_post_header_for_derived();
 #endif
 
 private:
@@ -3596,8 +3606,8 @@ public:
   virtual bool is_part_of_group() { return 1; }
 
 #ifndef MYSQL_CLIENT
-  virtual bool write_data_header(IO_CACHE*);
-  virtual bool write_data_body(IO_CACHE*);
+  virtual bool write_data_header();
+  virtual bool write_data_body();
 #endif
 
 #if !defined(MYSQL_CLIENT) && defined(HAVE_REPLICATION)
@@ -4012,8 +4022,8 @@ public:
   virtual int get_data_size() { return (uint) m_data_size; } 
 #ifdef MYSQL_SERVER
   virtual int save_field_metadata();
-  virtual bool write_data_header(IO_CACHE *file);
-  virtual bool write_data_body(IO_CACHE *file);
+  virtual bool write_data_header();
+  virtual bool write_data_body();
   virtual const char *get_db() { return m_dbnam; }
 #endif
 
@@ -4211,8 +4221,8 @@ public:
 #endif
 
 #ifdef MYSQL_SERVER
-  virtual bool write_data_header(IO_CACHE *file);
-  virtual bool write_data_body(IO_CACHE *file);
+  virtual bool write_data_header();
+  virtual bool write_data_body();
   virtual const char *get_db() { return m_table->s->db.str; }
 #endif
   /*
@@ -4674,6 +4684,9 @@ public:
 
 #ifdef MYSQL_SERVER
   void pack_info(THD *thd, Protocol*);
+
+  virtual bool write_data_header();
+  virtual bool write_data_body();
 #endif
 
   Incident_log_event(const char *buf, uint event_len,
@@ -4688,9 +4701,6 @@ public:
 #if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
   virtual int do_apply_event(rpl_group_info *rgi);
 #endif
-
-  virtual bool write_data_header(IO_CACHE *file);
-  virtual bool write_data_body(IO_CACHE *file);
 
   virtual Log_event_type get_type_code() { return INCIDENT_EVENT; }
 
@@ -4751,6 +4761,14 @@ private:
   const char* log_ident;
   uint ident_len;
 };
+
+inline int Log_event_writer::write(Log_event *ev)
+{
+  ev->writer= this;
+  int res= ev->write();
+  IF_DBUG(ev->writer= 0,); // writer must be set before every Log_event::write
+  return res;
+}
 
 /**
    The function is called by slave applier in case there are

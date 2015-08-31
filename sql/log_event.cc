@@ -668,19 +668,6 @@ static void cleanup_load_tmpdir(LEX_STRING *connection_name)
 
 
 /*
-  write_str()
-*/
-
-static bool write_str(IO_CACHE *file, const char *str, uint length)
-{
-  uchar tmp[1];
-  tmp[0]= (uchar) length;
-  return (my_b_safe_write(file, tmp, sizeof(tmp)) ||
-	  my_b_safe_write(file, (uchar*) str, length));
-}
-
-
-/*
   read_str()
 */
 
@@ -845,8 +832,7 @@ const char* Log_event::get_type_str()
 
 #ifndef MYSQL_CLIENT
 Log_event::Log_event(THD* thd_arg, uint16 flags_arg, bool using_trans)
-  :log_pos(0), temp_buf(0), exec_time(0),
-   crc(0), thd(thd_arg),
+  :log_pos(0), temp_buf(0), exec_time(0), thd(thd_arg),
    checksum_alg(BINLOG_CHECKSUM_ALG_UNDEF)
 {
   server_id=	thd->variables.server_id;
@@ -870,8 +856,7 @@ Log_event::Log_event(THD* thd_arg, uint16 flags_arg, bool using_trans)
 */
 
 Log_event::Log_event()
-  :temp_buf(0), exec_time(0), flags(0),
-   cache_type(Log_event::EVENT_INVALID_CACHE), crc(0),
+  :temp_buf(0), exec_time(0), flags(0), cache_type(EVENT_INVALID_CACHE),
    thd(0), checksum_alg(BINLOG_CHECKSUM_ALG_UNDEF)
 {
   server_id=	global_system_variables.server_id;
@@ -893,7 +878,7 @@ Log_event::Log_event()
 Log_event::Log_event(const char* buf,
                      const Format_description_log_event* description_event)
   :temp_buf(0), exec_time(0), cache_type(Log_event::EVENT_INVALID_CACHE),
-    crc(0), checksum_alg(BINLOG_CHECKSUM_ALG_UNDEF)
+    checksum_alg(BINLOG_CHECKSUM_ALG_UNDEF)
 {
 #ifndef MYSQL_CLIENT
   thd = 0;
@@ -1159,26 +1144,51 @@ my_bool Log_event::need_checksum()
   DBUG_RETURN(ret);
 }
 
-bool Log_event::wrapper_my_b_safe_write(IO_CACHE* file, const uchar* buf, ulong size)
+int Log_event_writer::write_internal(const uchar *pos, size_t len)
 {
-  if (need_checksum() && size != 0)
-    crc= my_checksum(crc, buf, size);
-
-  return my_b_safe_write(file, buf, size);
+  if (my_b_safe_write(file, pos, len))
+    return 1;
+  bytes_written+= len;
+  return 0;
 }
 
-bool Log_event::write_footer(IO_CACHE* file) 
+int Log_event_writer::write_header(uchar *pos, size_t len)
 {
   DBUG_ENTER("write_footer");
   /*
-     (optional) footer contains the checksum value
+    recording checksum of FD event computed with dropped
+    possibly active LOG_EVENT_BINLOG_IN_USE_F flag.
+    Similar step at verication: the active flag is dropped before
+    checksum computing.
   */
-  if (need_checksum())
+  if (checksum_len)
   {
-    DBUG_PRINT("info", ("Writing checksum"));
-    uchar buf[BINLOG_CHECKSUM_LEN];
-    int4store(buf, crc);
-    DBUG_RETURN(my_b_safe_write(file, (uchar*) buf, sizeof(buf)));
+    uchar save=pos[FLAGS_OFFSET];
+    pos[FLAGS_OFFSET]&= ~LOG_EVENT_BINLOG_IN_USE_F;
+    crc= my_checksum(0, pos, len);
+    pos[FLAGS_OFFSET]= save;
+  }
+
+  return write_internal(pos, len);
+}
+
+int Log_event_writer::write_data(const uchar *pos, size_t len)
+{
+  if (checksum_len)
+    crc= my_checksum(crc, pos, len);
+
+  return write_internal(pos, len);
+}
+
+int Log_event_writer::write_footer()
+{
+  DBUG_ENTER("Log_event_writer::write_footer");
+  if (checksum_len)
+  {
+    uchar checksum_buf[BINLOG_CHECKSUM_LEN];
+    int4store(checksum_buf, crc);
+    if (write_internal(checksum_buf, BINLOG_CHECKSUM_LEN))
+      DBUG_RETURN(ER_ERROR_ON_WRITE);
   }
   DBUG_RETURN(0);
 }
@@ -1187,24 +1197,19 @@ bool Log_event::write_footer(IO_CACHE* file)
   Log_event::write_header()
 */
 
-bool Log_event::write_header(IO_CACHE* file, ulong event_data_length)
+bool Log_event::write_header(ulong event_data_length)
 {
   uchar header[LOG_EVENT_HEADER_LEN];
   ulong now;
-  bool ret;
   DBUG_ENTER("Log_event::write_header");
   DBUG_PRINT("enter", ("filepos: %lld  length: %lu type: %d",
-                       (longlong) my_b_tell(file), event_data_length,
+                       (longlong) writer->pos(), event_data_length,
                        (int) get_type_code()));
 
-  /* Store number of bytes that will be written by this event */
-  data_written= event_data_length + sizeof(header);
+  writer->checksum_len= need_checksum() ? BINLOG_CHECKSUM_LEN : 0;
 
-  if (need_checksum())
-  {
-    crc= 0;
-    data_written += BINLOG_CHECKSUM_LEN;
-  }
+  /* Store number of bytes that will be written by this event */
+  data_written= event_data_length + sizeof(header) + writer->checksum_len;
 
   /*
     log_pos != 0 if this is relay-log event. In this case we should not
@@ -1226,7 +1231,7 @@ bool Log_event::write_header(IO_CACHE* file, ulong event_data_length)
       (end of this event, that is).
     */
 
-    log_pos= my_b_safe_tell(file)+data_written;
+    log_pos= writer->pos() + data_written;
   }
 
   now= get_time();                               // Query start time
@@ -1243,36 +1248,10 @@ bool Log_event::write_header(IO_CACHE* file, ulong event_data_length)
   int4store(header+ SERVER_ID_OFFSET, server_id);
   int4store(header+ EVENT_LEN_OFFSET, data_written);
   int4store(header+ LOG_POS_OFFSET, log_pos);
-  /*
-    recording checksum of FD event computed with dropped
-    possibly active LOG_EVENT_BINLOG_IN_USE_F flag.
-    Similar step at verication: the active flag is dropped before
-    checksum computing.
-  */
-  if (header[EVENT_TYPE_OFFSET] != FORMAT_DESCRIPTION_EVENT ||
-      !need_checksum() || !(flags & LOG_EVENT_BINLOG_IN_USE_F))
-  {
-    int2store(header+ FLAGS_OFFSET, flags);
-    ret= wrapper_my_b_safe_write(file, header, sizeof(header)) != 0;
-  }
-  else
-  {
-    ret= (wrapper_my_b_safe_write(file, header, FLAGS_OFFSET) != 0);
-    if (!ret)
-    {
-      flags &= ~LOG_EVENT_BINLOG_IN_USE_F;
-      int2store(header + FLAGS_OFFSET, flags);
-      crc= my_checksum(crc, header + FLAGS_OFFSET, sizeof(flags));
-      flags |= LOG_EVENT_BINLOG_IN_USE_F;    
-      int2store(header + FLAGS_OFFSET, flags);
-      ret= (my_b_safe_write(file, header + FLAGS_OFFSET, sizeof(flags)) != 0);
-    }
-    if (!ret)
-      ret= (wrapper_my_b_safe_write(file, header + FLAGS_OFFSET + sizeof(flags),
-                                    sizeof(header)
-                                    - (FLAGS_OFFSET + sizeof(flags))) != 0);
-  }
-  DBUG_RETURN( ret);
+  int2store(header + FLAGS_OFFSET, flags);
+
+  bool ret= writer->write_header(header, sizeof(header));
+  DBUG_RETURN(ret);
 }
 
 #endif /* !MYSQL_CLIENT */
@@ -1664,9 +1643,11 @@ Log_event* Log_event::read_log_event(const char* buf, uint event_len,
   if (ev)
   {
     ev->checksum_alg= alg;
+#ifdef MYSQL_CLIENT
     if (ev->checksum_alg != BINLOG_CHECKSUM_ALG_OFF &&
         ev->checksum_alg != BINLOG_CHECKSUM_ALG_UNDEF)
       ev->crc= uint4korr(buf + (event_len));
+#endif
   }
 
   DBUG_PRINT("read_event", ("%s(type_code: %u; event_len: %u)",
@@ -2749,7 +2730,7 @@ static void store_str_with_code_and_len(uchar **dst, const char *src,
     will print!
 */
 
-bool Query_log_event::write(IO_CACHE* file)
+bool Query_log_event::write()
 {
   uchar buf[QUERY_HEADER_LEN + MAX_SIZE_LOG_EVENT_STATUS];
   uchar *start, *start_of_status;
@@ -2978,14 +2959,13 @@ bool Query_log_event::write(IO_CACHE* file)
   */
   event_length= (uint) (start-buf) + get_post_header_size_for_derived() + db_len + 1 + q_len;
 
-  return (write_header(file, event_length) ||
-          wrapper_my_b_safe_write(file, (uchar*) buf, QUERY_HEADER_LEN) ||
-          write_post_header_for_derived(file) ||
-          wrapper_my_b_safe_write(file, (uchar*) start_of_status,
-                          (uint) (start-start_of_status)) ||
-          wrapper_my_b_safe_write(file, (db) ? (uchar*) db : (uchar*)"", db_len + 1) ||
-          wrapper_my_b_safe_write(file, (uchar*) query, q_len) ||
-	  write_footer(file)) ? 1 : 0;
+  return write_header(event_length) ||
+         write_data(buf, QUERY_HEADER_LEN) ||
+         write_post_header_for_derived() ||
+         write_data(start_of_status, (uint) (start-start_of_status)) ||
+         write_data(safe_str(db), db_len + 1) ||
+         write_data(query, q_len) ||
+         write_footer();
 }
 
 /**
@@ -4610,7 +4590,7 @@ Start_log_event_v3::Start_log_event_v3(const char* buf, uint event_len,
 */
 
 #ifndef MYSQL_CLIENT
-bool Start_log_event_v3::write(IO_CACHE* file)
+bool Start_log_event_v3::write()
 {
   char buff[START_V3_HEADER_LEN];
   int2store(buff + ST_BINLOG_VER_OFFSET,binlog_version);
@@ -4618,9 +4598,9 @@ bool Start_log_event_v3::write(IO_CACHE* file)
   if (!dont_set_created)
     created= get_time(); // this sets when and when_sec_part as a side effect
   int4store(buff + ST_CREATED_OFFSET,created);
-  return (write_header(file, sizeof(buff)) ||
-          wrapper_my_b_safe_write(file, (uchar*) buff, sizeof(buff)) ||
-	  write_footer(file));
+  return write_header(sizeof(buff)) ||
+         write_data(buff, sizeof(buff)) ||
+         write_footer();
 }
 #endif
 
@@ -4933,7 +4913,7 @@ Format_description_log_event(const char* buf,
 }
 
 #ifndef MYSQL_CLIENT
-bool Format_description_log_event::write(IO_CACHE* file)
+bool Format_description_log_event::write()
 {
   bool ret;
   bool no_checksum;
@@ -4981,12 +4961,11 @@ bool Format_description_log_event::write(IO_CACHE* file)
   {
     checksum_alg= BINLOG_CHECKSUM_ALG_CRC32;  // Forcing (V) room to fill anyway
   }
-  ret= (write_header(file, rec_size) ||
-        wrapper_my_b_safe_write(file, buff, sizeof(buff)) ||
-        wrapper_my_b_safe_write(file, (uchar*)post_header_len,
-                                number_of_event_types) ||
-        wrapper_my_b_safe_write(file, &checksum_byte, sizeof(checksum_byte)) ||
-        write_footer(file));
+  ret= write_header(rec_size) ||
+       write_data(buff, sizeof(buff)) ||
+       write_data(post_header_len, number_of_event_types) ||
+       write_data(&checksum_byte, sizeof(checksum_byte)) ||
+       write_footer();
   if (no_checksum)
     checksum_alg= BINLOG_CHECKSUM_ALG_OFF;
   return ret;
@@ -5332,7 +5311,7 @@ void Load_log_event::pack_info(THD *thd, Protocol *protocol)
   Load_log_event::write_data_header()
 */
 
-bool Load_log_event::write_data_header(IO_CACHE* file)
+bool Load_log_event::write_data_header()
 {
   char buf[LOAD_HEADER_LEN];
   int4store(buf + L_THREAD_ID_OFFSET, slave_proxy_id);
@@ -5341,7 +5320,7 @@ bool Load_log_event::write_data_header(IO_CACHE* file)
   buf[L_TBL_LEN_OFFSET] = (char)table_name_len;
   buf[L_DB_LEN_OFFSET] = (char)db_len;
   int4store(buf + L_NUM_FIELDS_OFFSET, num_fields);
-  return my_b_safe_write(file, (uchar*)buf, LOAD_HEADER_LEN) != 0;
+  return write_data(buf, LOAD_HEADER_LEN) != 0;
 }
 
 
@@ -5349,19 +5328,19 @@ bool Load_log_event::write_data_header(IO_CACHE* file)
   Load_log_event::write_data_body()
 */
 
-bool Load_log_event::write_data_body(IO_CACHE* file)
+bool Load_log_event::write_data_body()
 {
-  if (sql_ex.write_data(file))
+  if (sql_ex.write_data(writer))
     return 1;
   if (num_fields && fields && field_lens)
   {
-    if (my_b_safe_write(file, (uchar*)field_lens, num_fields) ||
-	my_b_safe_write(file, (uchar*)fields, field_block_len))
+    if (write_data(field_lens, num_fields) ||
+	write_data(fields, field_block_len))
       return 1;
   }
-  return (my_b_safe_write(file, (uchar*)table_name, table_name_len + 1) ||
-	  my_b_safe_write(file, (uchar*)db, db_len + 1) ||
-	  my_b_safe_write(file, (uchar*)fname, fname_len));
+  return (write_data(table_name, table_name_len + 1) ||
+	  write_data(db, db_len + 1) ||
+	  write_data(fname, fname_len));
 }
 
 
@@ -6078,15 +6057,14 @@ Rotate_log_event::Rotate_log_event(const char* buf, uint event_len,
 */
 
 #ifndef MYSQL_CLIENT
-bool Rotate_log_event::write(IO_CACHE* file)
+bool Rotate_log_event::write()
 {
   char buf[ROTATE_HEADER_LEN];
   int8store(buf + R_POS_OFFSET, pos);
-  return (write_header(file, ROTATE_HEADER_LEN + ident_len) || 
-          wrapper_my_b_safe_write(file, (uchar*) buf, ROTATE_HEADER_LEN) ||
-          wrapper_my_b_safe_write(file, (uchar*) new_log_ident,
-                                     (uint) ident_len) ||
-          write_footer(file));
+  return (write_header(ROTATE_HEADER_LEN + ident_len) ||
+          write_data(buf, ROTATE_HEADER_LEN) ||
+          write_data(new_log_ident, (uint) ident_len) ||
+          write_footer());
 }
 #endif
 
@@ -6276,15 +6254,14 @@ Binlog_checkpoint_log_event::Binlog_checkpoint_log_event(
 
 
 #ifndef MYSQL_CLIENT
-bool Binlog_checkpoint_log_event::write(IO_CACHE *file)
+bool Binlog_checkpoint_log_event::write()
 {
   uchar buf[BINLOG_CHECKPOINT_HEADER_LEN];
   int4store(buf, binlog_file_len);
-  return write_header(file, BINLOG_CHECKPOINT_HEADER_LEN + binlog_file_len) ||
-    wrapper_my_b_safe_write(file, buf, BINLOG_CHECKPOINT_HEADER_LEN) ||
-    wrapper_my_b_safe_write(file, (const uchar *)binlog_file_name,
-                            binlog_file_len) ||
-    write_footer(file);
+  return write_header(BINLOG_CHECKPOINT_HEADER_LEN + binlog_file_len) ||
+         write_data(buf, BINLOG_CHECKPOINT_HEADER_LEN) ||
+         write_data(binlog_file_name, binlog_file_len) ||
+         write_footer();
 }
 #endif  /* MYSQL_CLIENT */
 
@@ -6386,7 +6363,7 @@ Gtid_log_event::peek(const char *event_start, size_t event_len,
 
 
 bool
-Gtid_log_event::write(IO_CACHE *file)
+Gtid_log_event::write()
 {
   uchar buf[GTID_HEADER_LEN+2];
   size_t write_len;
@@ -6404,9 +6381,9 @@ Gtid_log_event::write(IO_CACHE *file)
     bzero(buf+13, GTID_HEADER_LEN-13);
     write_len= GTID_HEADER_LEN;
   }
-  return write_header(file, write_len) ||
-    wrapper_my_b_safe_write(file, buf, write_len) ||
-    write_footer(file);
+  return write_header(write_len) ||
+         write_data(buf, write_len) ||
+         write_footer();
 }
 
 
@@ -6764,7 +6741,7 @@ Gtid_list_log_event::to_packet(String *packet)
 
 
 bool
-Gtid_list_log_event::write(IO_CACHE *file)
+Gtid_list_log_event::write()
 {
   char buf[128];
   String packet(buf, sizeof(buf), system_charset_info);
@@ -6772,10 +6749,9 @@ Gtid_list_log_event::write(IO_CACHE *file)
   packet.length(0);
   if (to_packet(&packet))
     return true;
-  return
-    write_header(file, get_data_size()) ||
-    wrapper_my_b_safe_write(file, (uchar *)packet.ptr(), packet.length()) ||
-    write_footer(file);
+  return write_header(get_data_size()) ||
+         write_data(packet.ptr(), packet.length()) ||
+         write_footer();
 }
 
 
@@ -6980,14 +6956,14 @@ const char* Intvar_log_event::get_var_type_name()
 */
 
 #ifndef MYSQL_CLIENT
-bool Intvar_log_event::write(IO_CACHE* file)
+bool Intvar_log_event::write()
 {
   uchar buf[9];
   buf[I_TYPE_OFFSET]= (uchar) type;
   int8store(buf + I_VAL_OFFSET, val);
-  return (write_header(file, sizeof(buf)) ||
-          wrapper_my_b_safe_write(file, buf, sizeof(buf)) ||
-	  write_footer(file));
+  return write_header(sizeof(buf)) ||
+         write_data(buf, sizeof(buf)) ||
+         write_footer();
 }
 #endif
 
@@ -7110,14 +7086,14 @@ Rand_log_event::Rand_log_event(const char* buf,
 
 
 #ifndef MYSQL_CLIENT
-bool Rand_log_event::write(IO_CACHE* file)
+bool Rand_log_event::write()
 {
   uchar buf[16];
   int8store(buf + RAND_SEED1_OFFSET, seed1);
   int8store(buf + RAND_SEED2_OFFSET, seed2);
-  return (write_header(file, sizeof(buf)) ||
-          wrapper_my_b_safe_write(file, buf, sizeof(buf)) ||
-	  write_footer(file));
+  return write_header(sizeof(buf)) ||
+         write_data(buf, sizeof(buf)) ||
+         write_footer();
 }
 #endif
 
@@ -7236,12 +7212,12 @@ Xid_log_event(const char* buf,
 
 
 #ifndef MYSQL_CLIENT
-bool Xid_log_event::write(IO_CACHE* file)
+bool Xid_log_event::write()
 {
   DBUG_EXECUTE_IF("do_not_write_xid", return 0;);
-  return (write_header(file, sizeof(xid)) ||
-	  wrapper_my_b_safe_write(file, (uchar*) &xid, sizeof(xid)) ||
-	  write_footer(file));
+  return write_header(sizeof(xid)) ||
+         write_data((uchar*)&xid, sizeof(xid)) ||
+         write_footer();
 }
 #endif
 
@@ -7587,7 +7563,7 @@ err:
 
 
 #ifndef MYSQL_CLIENT
-bool User_var_log_event::write(IO_CACHE* file)
+bool User_var_log_event::write()
 {
   char buf[UV_NAME_LEN_SIZE];
   char buf1[UV_VAL_IS_NULL + UV_VAL_TYPE_SIZE + 
@@ -7642,13 +7618,13 @@ bool User_var_log_event::write(IO_CACHE* file)
   /* Length of the whole event */
   event_length= sizeof(buf)+ name_len + buf1_length + val_len + unsigned_len;
 
-  return (write_header(file, event_length) ||
-          wrapper_my_b_safe_write(file, (uchar*) buf, sizeof(buf))   ||
-	  wrapper_my_b_safe_write(file, (uchar*) name, name_len)     ||
-	  wrapper_my_b_safe_write(file, (uchar*) buf1, buf1_length) ||
-	  wrapper_my_b_safe_write(file, pos, val_len) ||
-          wrapper_my_b_safe_write(file, &flags, unsigned_len) ||
-          write_footer(file));
+  return write_header(event_length) ||
+         write_data(buf, sizeof(buf))   ||
+         write_data(name, name_len)     ||
+         write_data(buf1, buf1_length) ||
+         write_data(pos, val_len) ||
+         write_data(&flags, unsigned_len) ||
+         write_footer();
 }
 #endif
 
@@ -7986,13 +7962,13 @@ Create_file_log_event(THD* thd_arg, sql_exchange* ex,
   Create_file_log_event::write_data_body()
 */
 
-bool Create_file_log_event::write_data_body(IO_CACHE* file)
+bool Create_file_log_event::write_data_body()
 {
   bool res;
-  if ((res= Load_log_event::write_data_body(file)) || fake_base)
+  if ((res= Load_log_event::write_data_body()) || fake_base)
     return res;
-  return (my_b_safe_write(file, (uchar*) "", 1) ||
-          my_b_safe_write(file, (uchar*) block, block_len));
+  return write_data("", 1) ||
+         write_data(block, block_len);
 }
 
 
@@ -8000,14 +7976,14 @@ bool Create_file_log_event::write_data_body(IO_CACHE* file)
   Create_file_log_event::write_data_header()
 */
 
-bool Create_file_log_event::write_data_header(IO_CACHE* file)
+bool Create_file_log_event::write_data_header()
 {
   bool res;
   uchar buf[CREATE_FILE_HEADER_LEN];
-  if ((res= Load_log_event::write_data_header(file)) || fake_base)
+  if ((res= Load_log_event::write_data_header()) || fake_base)
     return res;
   int4store(buf + CF_FILE_ID_OFFSET, file_id);
-  return my_b_safe_write(file, buf, CREATE_FILE_HEADER_LEN) != 0;
+  return write_data(buf, CREATE_FILE_HEADER_LEN) != 0;
 }
 
 
@@ -8015,11 +7991,11 @@ bool Create_file_log_event::write_data_header(IO_CACHE* file)
   Create_file_log_event::write_base()
 */
 
-bool Create_file_log_event::write_base(IO_CACHE* file)
+bool Create_file_log_event::write_base()
 {
   bool res;
   fake_base= 1;                                 // pretend we are Load event
-  res= write(file);
+  res= write();
   fake_base= 0;
   return res;
 }
@@ -8166,6 +8142,7 @@ int Create_file_log_event::do_apply_event(rpl_group_info *rgi)
   char *ext;
   int fd = -1;
   IO_CACHE file;
+  Log_event_writer lew(&file);
   int error = 1;
   Relay_log_info const *rli= rgi->rli;
 
@@ -8191,7 +8168,8 @@ int Create_file_log_event::do_apply_event(rpl_group_info *rgi)
   // a trick to avoid allocating another buffer
   fname= fname_buf;
   fname_len= (uint) (strmov(ext, ".data") - fname);
-  if (write_base(&file))
+  writer= &lew;
+  if (write_base())
   {
     strmov(ext, ".info"); // to have it right in the error message
     rli->report(ERROR_LEVEL, my_errno, rgi->gtid_info(),
@@ -8282,14 +8260,14 @@ Append_block_log_event::Append_block_log_event(const char* buf, uint len,
 */
 
 #ifndef MYSQL_CLIENT
-bool Append_block_log_event::write(IO_CACHE* file)
+bool Append_block_log_event::write()
 {
   uchar buf[APPEND_BLOCK_HEADER_LEN];
   int4store(buf + AB_FILE_ID_OFFSET, file_id);
-  return (write_header(file, APPEND_BLOCK_HEADER_LEN + block_len) ||
-          wrapper_my_b_safe_write(file, buf, APPEND_BLOCK_HEADER_LEN) ||
-	  wrapper_my_b_safe_write(file, (uchar*) block, block_len) ||
-	  write_footer(file));
+  return write_header(APPEND_BLOCK_HEADER_LEN + block_len) ||
+         write_data(buf, APPEND_BLOCK_HEADER_LEN) ||
+         write_data(block, block_len) ||
+         write_footer();
 }
 #endif
 
@@ -8442,13 +8420,13 @@ Delete_file_log_event::Delete_file_log_event(const char* buf, uint len,
 */
 
 #ifndef MYSQL_CLIENT
-bool Delete_file_log_event::write(IO_CACHE* file)
+bool Delete_file_log_event::write()
 {
  uchar buf[DELETE_FILE_HEADER_LEN];
  int4store(buf + DF_FILE_ID_OFFSET, file_id);
- return (write_header(file, sizeof(buf)) ||
-         wrapper_my_b_safe_write(file, buf, sizeof(buf)) ||
-	 write_footer(file));
+ return write_header(sizeof(buf)) ||
+        write_data(buf, sizeof(buf)) ||
+        write_footer();
 }
 #endif
 
@@ -8542,13 +8520,13 @@ Execute_load_log_event::Execute_load_log_event(const char* buf, uint len,
 */
 
 #ifndef MYSQL_CLIENT
-bool Execute_load_log_event::write(IO_CACHE* file)
+bool Execute_load_log_event::write()
 {
   uchar buf[EXEC_LOAD_HEADER_LEN];
   int4store(buf + EL_FILE_ID_OFFSET, file_id);
-  return (write_header(file, sizeof(buf)) || 
-          wrapper_my_b_safe_write(file, buf, sizeof(buf)) ||
-	  write_footer(file));
+  return write_header(sizeof(buf)) ||
+         write_data(buf, sizeof(buf)) ||
+         write_footer();
 }
 #endif
 
@@ -8777,14 +8755,14 @@ ulong Execute_load_query_log_event::get_post_header_size_for_derived()
 
 #ifndef MYSQL_CLIENT
 bool
-Execute_load_query_log_event::write_post_header_for_derived(IO_CACHE* file)
+Execute_load_query_log_event::write_post_header_for_derived()
 {
   uchar buf[EXECUTE_LOAD_QUERY_EXTRA_HEADER_LEN];
   int4store(buf, file_id);
   int4store(buf + 4, fn_pos_start);
   int4store(buf + 4 + 4, fn_pos_end);
   *(buf + 4 + 4 + 4)= (uchar) dup_handling;
-  return wrapper_my_b_safe_write(file, buf, EXECUTE_LOAD_QUERY_EXTRA_HEADER_LEN);
+  return write_data(buf, EXECUTE_LOAD_QUERY_EXTRA_HEADER_LEN);
 }
 #endif
 
@@ -8928,40 +8906,6 @@ Execute_load_query_log_event::do_apply_event(rpl_group_info *rgi)
 **************************************************************************/
 
 /*
-  sql_ex_info::write_data()
-*/
-
-bool sql_ex_info::write_data(IO_CACHE* file)
-{
-  if (new_format())
-  {
-    return (write_str(file, field_term, (uint) field_term_len) ||
-	    write_str(file, enclosed,   (uint) enclosed_len) ||
-	    write_str(file, line_term,  (uint) line_term_len) ||
-	    write_str(file, line_start, (uint) line_start_len) ||
-	    write_str(file, escaped,    (uint) escaped_len) ||
-	    my_b_safe_write(file,(uchar*) &opt_flags,1));
-  }
-  else
-  {
-    /**
-      @todo This is sensitive to field padding. We should write a
-      char[7], not an old_sql_ex. /sven
-    */
-    old_sql_ex old_ex;
-    old_ex.field_term= *field_term;
-    old_ex.enclosed=   *enclosed;
-    old_ex.line_term=  *line_term;
-    old_ex.line_start= *line_start;
-    old_ex.escaped=    *escaped;
-    old_ex.opt_flags=  opt_flags;
-    old_ex.empty_flags=empty_flags;
-    return my_b_safe_write(file, (uchar*) &old_ex, sizeof(old_ex)) != 0;
-  }
-}
-
-
-/*
   sql_ex_info::init()
 */
 
@@ -9011,12 +8955,54 @@ const char *sql_ex_info::init(const char *buf, const char *buf_end,
   return buf;
 }
 
+#ifndef MYSQL_CLIENT
+/*
+  write_str()
+*/
+
+static bool write_str(Log_event_writer *writer, const char *str, uint length)
+{
+  uchar tmp[1];
+  tmp[0]= (uchar) length;
+  return (writer->write_data(tmp, sizeof(tmp)) ||
+	  writer->write_data((uchar*) str, length));
+}
+
+/*
+  sql_ex_info::write_data()
+*/
+
+bool sql_ex_info::write_data(Log_event_writer *writer)
+{
+  if (new_format())
+  {
+    return write_str(writer, field_term, field_term_len) ||
+	   write_str(writer, enclosed,   enclosed_len) ||
+	   write_str(writer, line_term,  line_term_len) ||
+	   write_str(writer, line_start, line_start_len) ||
+	   write_str(writer, escaped,    escaped_len) ||
+	   writer->write_data((uchar*) &opt_flags, 1);
+  }
+  else
+  {
+    uchar old_ex[7];
+    old_ex[0]= *field_term;
+    old_ex[1]= *enclosed;
+    old_ex[2]= *line_term;
+    old_ex[3]= *line_start;
+    old_ex[4]= *escaped;
+    old_ex[5]=  opt_flags;
+    old_ex[6]=  empty_flags;
+    return writer->write_data(old_ex, sizeof(old_ex));
+  }
+}
+
+
 
 /**************************************************************************
 	Rows_log_event member functions
 **************************************************************************/
 
-#ifndef MYSQL_CLIENT
 Rows_log_event::Rows_log_event(THD *thd_arg, TABLE *tbl_arg, ulong tid,
                                MY_BITMAP const *cols, bool is_transactional,
                                Log_event_type event_type)
@@ -9965,7 +9951,7 @@ Rows_log_event::do_update_pos(rpl_group_info *rgi)
 #endif /* !defined(MYSQL_CLIENT) && defined(HAVE_REPLICATION) */
 
 #ifndef MYSQL_CLIENT
-bool Rows_log_event::write_data_header(IO_CACHE *file)
+bool Rows_log_event::write_data_header()
 {
   uchar buf[ROWS_HEADER_LEN_V2];        // No need to init the buffer
   DBUG_ASSERT(m_table_id != ~0UL);
@@ -9973,14 +9959,14 @@ bool Rows_log_event::write_data_header(IO_CACHE *file)
                   {
                     int4store(buf + 0, m_table_id);
                     int2store(buf + 4, m_flags);
-                    return (wrapper_my_b_safe_write(file, buf, 6));
+                    return (write_data(buf, 6));
                   });
   int6store(buf + RW_MAPID_OFFSET, (ulonglong)m_table_id);
   int2store(buf + RW_FLAGS_OFFSET, m_flags);
-  return (wrapper_my_b_safe_write(file, buf, ROWS_HEADER_LEN));
+  return write_data(buf, ROWS_HEADER_LEN);
 }
 
-bool Rows_log_event::write_data_body(IO_CACHE*file)
+bool Rows_log_event::write_data_body()
 {
   /*
      Note that this should be the number of *bits*, not the number of
@@ -9993,11 +9979,10 @@ bool Rows_log_event::write_data_body(IO_CACHE*file)
   DBUG_ASSERT(static_cast<size_t>(sbuf_end - sbuf) <= sizeof(sbuf));
 
   DBUG_DUMP("m_width", sbuf, (size_t) (sbuf_end - sbuf));
-  res= res || wrapper_my_b_safe_write(file, sbuf, (size_t) (sbuf_end - sbuf));
+  res= res || write_data(sbuf, (size_t) (sbuf_end - sbuf));
 
   DBUG_DUMP("m_cols", (uchar*) m_cols.bitmap, no_bytes_in_map(&m_cols));
-  res= res || wrapper_my_b_safe_write(file, (uchar*) m_cols.bitmap,
-                              no_bytes_in_map(&m_cols));
+  res= res || write_data((uchar*)m_cols.bitmap, no_bytes_in_map(&m_cols));
   /*
     TODO[refactor write]: Remove the "down cast" here (and elsewhere).
    */
@@ -10005,11 +9990,11 @@ bool Rows_log_event::write_data_body(IO_CACHE*file)
   {
     DBUG_DUMP("m_cols_ai", (uchar*) m_cols_ai.bitmap,
               no_bytes_in_map(&m_cols_ai));
-    res= res || wrapper_my_b_safe_write(file, (uchar*) m_cols_ai.bitmap,
-                                no_bytes_in_map(&m_cols_ai));
+    res= res || write_data((uchar*)m_cols_ai.bitmap,
+                           no_bytes_in_map(&m_cols_ai));
   }
   DBUG_DUMP("rows", m_rows_buf, data_size);
-  res= res || wrapper_my_b_safe_write(file, m_rows_buf, (size_t) data_size);
+  res= res || write_data(m_rows_buf, (size_t) data_size);
 
   return res;
 
@@ -10107,16 +10092,16 @@ bool Annotate_rows_log_event::is_valid() const
 }
 
 #ifndef MYSQL_CLIENT
-bool Annotate_rows_log_event::write_data_header(IO_CACHE *file)
+bool Annotate_rows_log_event::write_data_header()
 { 
   return 0;
 }
 #endif
 
 #ifndef MYSQL_CLIENT
-bool Annotate_rows_log_event::write_data_body(IO_CACHE *file)
+bool Annotate_rows_log_event::write_data_body()
 {
-  return wrapper_my_b_safe_write(file, (uchar*) m_query_txt, m_query_len);
+  return write_data(m_query_txt, m_query_len);
 }
 #endif
 
@@ -10826,7 +10811,7 @@ int Table_map_log_event::do_update_pos(rpl_group_info *rgi)
 #endif /* !defined(MYSQL_CLIENT) && defined(HAVE_REPLICATION) */
 
 #ifndef MYSQL_CLIENT
-bool Table_map_log_event::write_data_header(IO_CACHE *file)
+bool Table_map_log_event::write_data_header()
 {
   DBUG_ASSERT(m_table_id != ~0UL);
   uchar buf[TABLE_MAP_HEADER_LEN];
@@ -10834,14 +10819,14 @@ bool Table_map_log_event::write_data_header(IO_CACHE *file)
                   {
                     int4store(buf + 0, m_table_id);
                     int2store(buf + 4, m_flags);
-                    return (wrapper_my_b_safe_write(file, buf, 6));
+                    return (write_data(buf, 6));
                   });
   int6store(buf + TM_MAPID_OFFSET, (ulonglong)m_table_id);
   int2store(buf + TM_FLAGS_OFFSET, m_flags);
-  return (wrapper_my_b_safe_write(file, buf, TABLE_MAP_HEADER_LEN));
+  return write_data(buf, TABLE_MAP_HEADER_LEN);
 }
 
-bool Table_map_log_event::write_data_body(IO_CACHE *file)
+bool Table_map_log_event::write_data_body()
 {
   DBUG_ASSERT(m_dbnam != NULL);
   DBUG_ASSERT(m_tblnam != NULL);
@@ -10862,15 +10847,15 @@ bool Table_map_log_event::write_data_body(IO_CACHE *file)
   uchar mbuf[MAX_INT_WIDTH];
   uchar *const mbuf_end= net_store_length(mbuf, m_field_metadata_size);
 
-  return (wrapper_my_b_safe_write(file, dbuf,      sizeof(dbuf)) ||
-          wrapper_my_b_safe_write(file, (const uchar*)m_dbnam,   m_dblen+1) ||
-          wrapper_my_b_safe_write(file, tbuf,      sizeof(tbuf)) ||
-          wrapper_my_b_safe_write(file, (const uchar*)m_tblnam,  m_tbllen+1) ||
-          wrapper_my_b_safe_write(file, cbuf, (size_t) (cbuf_end - cbuf)) ||
-          wrapper_my_b_safe_write(file, m_coltype, m_colcnt) ||
-          wrapper_my_b_safe_write(file, mbuf, (size_t) (mbuf_end - mbuf)) ||
-          wrapper_my_b_safe_write(file, m_field_metadata, m_field_metadata_size),
-          wrapper_my_b_safe_write(file, m_null_bits, (m_colcnt + 7) / 8));
+  return write_data(dbuf,      sizeof(dbuf)) ||
+         write_data(m_dbnam,   m_dblen+1) ||
+         write_data(tbuf,      sizeof(tbuf)) ||
+         write_data(m_tblnam,  m_tbllen+1) ||
+         write_data(cbuf, (size_t) (cbuf_end - cbuf)) ||
+         write_data(m_coltype, m_colcnt) ||
+         write_data(mbuf, (size_t) (mbuf_end - mbuf)) ||
+         write_data(m_field_metadata, m_field_metadata_size),
+         write_data(m_null_bits, (m_colcnt + 7) / 8);
  }
 #endif
 
@@ -12432,35 +12417,27 @@ Incident_log_event::do_apply_event(rpl_group_info *rgi)
 }
 #endif
 
+#ifdef MYSQL_SERVER
 bool
-Incident_log_event::write_data_header(IO_CACHE *file)
+Incident_log_event::write_data_header()
 {
   DBUG_ENTER("Incident_log_event::write_data_header");
   DBUG_PRINT("enter", ("m_incident: %d", m_incident));
   uchar buf[sizeof(int16)];
   int2store(buf, (int16) m_incident);
-#ifndef MYSQL_CLIENT
-  DBUG_RETURN(wrapper_my_b_safe_write(file, buf, sizeof(buf)));
-#else
-   DBUG_RETURN(my_b_safe_write(file, buf, sizeof(buf)));
-#endif
+  DBUG_RETURN(write_data(buf, sizeof(buf)));
 }
 
 bool
-Incident_log_event::write_data_body(IO_CACHE *file)
+Incident_log_event::write_data_body()
 {
   uchar tmp[1];
   DBUG_ENTER("Incident_log_event::write_data_body");
   tmp[0]= (uchar) m_message.length;
-  crc= my_checksum(crc, (uchar*) tmp, 1);
-  if (m_message.length > 0)
-  {
-    crc= my_checksum(crc, (uchar*) m_message.str, m_message.length);
-    // todo: report a bug on write_str accepts uint but treats it as uchar
-  }
-  DBUG_RETURN(write_str(file, m_message.str, (uint) m_message.length));
+  DBUG_RETURN(write_data(tmp, sizeof(tmp)) ||
+              write_data(m_message.str, m_message.length));
 }
-
+#endif
 
 #ifdef MYSQL_CLIENT
 /**

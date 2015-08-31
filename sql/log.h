@@ -737,6 +737,9 @@ public:
   void stop_union_events(THD *thd);
   bool is_query_in_union(THD *thd, query_id_t query_id_param);
 
+  bool write_event(Log_event *ev, IO_CACHE *file);
+  bool write_event(Log_event *ev) { return write_event(ev, &log_file); }
+
   /*
     v stands for vector
     invoked as appendv(buf1,len1,buf2,len2,...,bufn,lenn,0)

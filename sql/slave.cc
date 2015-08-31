@@ -5501,7 +5501,7 @@ static int queue_event(Master_info* mi,const char* buf, ulong event_len)
                           mi->master_log_name, rev.new_log_ident);
 
       mysql_mutex_lock(log_lock);
-      if (likely(!fdle.write(rli->relay_log.get_log_file()) &&
+      if (likely(!rli->relay_log.write_event(&fdle) &&
                  !rli->relay_log.flush_and_sync(NULL)))
       {
         rli->relay_log.harvest_bytes_written(&rli->log_space_total);
