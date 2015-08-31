@@ -5335,6 +5335,12 @@ Item *create_view_field(THD *thd, TABLE_LIST *view, Item **field_ref,
     item->maybe_null= TRUE;
   /* Save item in case we will need to fall back to materialization. */
   view->used_items.push_front(item);
+  /*
+    If we create this reference on persistent memory then it should be
+    present in persistent list
+  */
+  if (thd->mem_root == thd->stmt_arena->mem_root)
+    view->persistent_used_items.push_front(item);
   DBUG_RETURN(item);
 }
 
@@ -6912,6 +6918,7 @@ bool TABLE_LIST::handle_derived(LEX *lex, uint phases)
 {
   SELECT_LEX_UNIT *unit;
   DBUG_ENTER("handle_derived");
+  DBUG_PRINT("enter", ("phases: 0x%x", phases));
   if ((unit= get_unit()))
   {
     for (SELECT_LEX *sl= unit->first_select(); sl; sl= sl->next_select())

@@ -7380,14 +7380,6 @@ mark_common_columns(THD *thd, TABLE_LIST *table_ref_1, TABLE_LIST *table_ref_2,
   */
   result= FALSE;
 
-  /*
-    Save the lists made during natural join matching (because
-    the matching done only once but we need the list in case
-    of prepared statements).
-  */
-  table_ref_1->persistent_used_items= table_ref_1->used_items;
-  table_ref_2->persistent_used_items= table_ref_2->used_items;
-
 err:
   if (arena)
     thd->restore_active_arena(arena, &backup);
@@ -8434,11 +8426,6 @@ insert_fields(THD *thd, Name_resolution_context *context, const char *db_name,
         }
       }
 #endif
-      /*
-         field_iterator.create_item() builds used_items which we
-         have to save because changes made once and they are persistent
-      */
-      tables->persistent_used_items= tables->used_items;
 
       if ((field= field_iterator.field()))
       {
