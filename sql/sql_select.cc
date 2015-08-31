@@ -15406,7 +15406,7 @@ Item_func_isnull::remove_eq_conds(THD *thd, Item::cond_result *cond_value,
            thd->substitute_null_with_insert_id))
       {
   #ifdef HAVE_QUERY_CACHE
-        query_cache_abort(&thd->query_cache_tls);
+        query_cache_abort(thd, &thd->query_cache_tls);
   #endif
         COND *new_cond, *cond= this;
         if ((new_cond= new (thd->mem_root) Item_func_eq(thd, args[0],
@@ -15674,11 +15674,13 @@ static Field *create_tmp_field_from_item(THD *thd, Item *item, TABLE *table,
 {
   bool maybe_null= item->maybe_null;
   Field *UNINIT_VAR(new_field);
+  MEM_ROOT *mem_root= thd->mem_root;
 
   switch (item->result_type()) {
   case REAL_RESULT:
-    new_field= new Field_double(item->max_length, maybe_null,
-                                item->name, item->decimals, TRUE);
+    new_field= new (mem_root)
+      Field_double(item->max_length, maybe_null,
+                   item->name, item->decimals, TRUE);
     break;
   case INT_RESULT:
     /* 
@@ -15688,11 +15690,13 @@ static Field *create_tmp_field_from_item(THD *thd, Item *item, TABLE *table,
       Field_long : make them Field_longlong.  
     */
     if (item->max_length >= (MY_INT32_NUM_DECIMAL_DIGITS - 1))
-      new_field=new Field_longlong(item->max_length, maybe_null,
-                                   item->name, item->unsigned_flag);
+      new_field=new (mem_root)
+        Field_longlong(item->max_length, maybe_null,
+                       item->name, item->unsigned_flag);
     else
-      new_field=new Field_long(item->max_length, maybe_null,
-                               item->name, item->unsigned_flag);
+      new_field=new (mem_root)
+        Field_long(item->max_length, maybe_null, item->name,
+                   item->unsigned_flag);
     break;
   case STRING_RESULT:
     DBUG_ASSERT(item->collation.collation);
@@ -15711,15 +15715,16 @@ static Field *create_tmp_field_from_item(THD *thd, Item *item, TABLE *table,
     else if (item->max_length/item->collation.collation->mbmaxlen > 255 &&
              convert_blob_length <= Field_varstring::MAX_SIZE && 
              convert_blob_length)
-      new_field= new Field_varstring(convert_blob_length, maybe_null,
-                                     item->name, table->s,
-                                     item->collation.collation);
+      new_field= new (mem_root)
+        Field_varstring(convert_blob_length, maybe_null,
+                        item->name, table->s,
+                        item->collation.collation);
     else
       new_field= item->make_string_field(table);
     new_field->set_derivation(item->collation.derivation);
     break;
   case DECIMAL_RESULT:
-    new_field= Field_new_decimal::create_from_item(item);
+    new_field= Field_new_decimal::create_from_item(mem_root, item);
     break;
   case ROW_RESULT:
   default:
@@ -16930,7 +16935,7 @@ TABLE *create_virtual_tmp_table(THD *thd, List<Create_field> &field_list)
   List_iterator_fast<Create_field> it(field_list);
   while ((cdef= it++))
   {
-    *field= make_field(share, 0, cdef->length,
+    *field= make_field(share, thd->mem_root, 0, cdef->length,
                        (uchar*) (f_maybe_null(cdef->pack_flag) ? "" : 0),
                        f_maybe_null(cdef->pack_flag) ? 1 : 0,
                        cdef->pack_flag, cdef->sql_type, cdef->charset,

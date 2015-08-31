@@ -506,7 +506,7 @@ bool Sql_cmd_resignal::execute(THD *thd)
 
   if (m_cond)
   {
-    query_cache_abort(&thd->query_cache_tls);
+    query_cache_abort(thd, &thd->query_cache_tls);
 
     /* Keep handled conditions. */
     da->unmark_sql_conditions_from_removal();

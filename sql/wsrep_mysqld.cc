@@ -1737,7 +1737,7 @@ pthread_handler_t start_wsrep_THD(void *arg)
   thread_created++;
   threads.append(thd);
 
-  my_net_init(&thd->net,(st_vio*) 0, MYF(0));
+  my_net_init(&thd->net,(st_vio*) 0, thd, MYF(0));
 
   DBUG_PRINT("wsrep",(("creating thread %lld"), (long long)thd->thread_id));
   thd->prior_thr_create_utime= thd->start_utime= microsecond_interval_timer();

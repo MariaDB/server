@@ -4769,7 +4769,7 @@ public:
     null_value= 1;
   }
 
-  virtual bool allocate(uint i) { return 0; }
+  virtual bool allocate(THD *thd, uint i) { return 0; }
   virtual bool setup(THD *thd, Item *item)
   {
     example= item;
@@ -4950,7 +4950,7 @@ public:
     'allocate' used only in row transformer, to preallocate space for row 
     cache.
   */
-  bool allocate(uint num);
+  bool allocate(THD *thd, uint num);
   /*
     'setup' is needed only by row => it not called by simple row subselect
     (only by IN subselect (in subselect optimizer))

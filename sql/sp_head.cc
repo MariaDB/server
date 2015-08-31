@@ -872,6 +872,7 @@ sp_head::create_result_field(uint field_max_length, const char *field_name,
                 field_max_length : m_return_field_def.length;
 
   field= ::make_field(table->s,                     /* TABLE_SHARE ptr */
+                      table->in_use->mem_root,
                       (uchar*) 0,                   /* field ptr */
                       field_length,                 /* field [max] length */
                       (uchar*) "",                  /* null ptr */

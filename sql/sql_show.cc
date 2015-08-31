@@ -5588,6 +5588,7 @@ bool store_schema_params(THD *thd, TABLE *table, TABLE *proc_table,
   sp_head *sp;
   stored_procedure_type routine_type;
   bool free_sp_head;
+  bool error= 0;
   DBUG_ENTER("store_schema_params");
 
   bzero((char*) &tbl, sizeof(TABLE));
@@ -5638,7 +5639,8 @@ bool store_schema_params(THD *thd, TABLE *table, TABLE *proc_table,
                 &tmp_string);
       table->field[15]->store(tmp_string.ptr(), tmp_string.length(), cs);
       field_def= &sp->m_return_field_def;
-      field= make_field(&share, (uchar*) 0, field_def->length,
+      field= make_field(&share, thd->mem_root,
+                        (uchar*) 0, field_def->length,
                         (uchar*) "", 0, field_def->pack_flag,
                         field_def->sql_type, field_def->charset,
                         field_def->geom_type, field_def->srid, Field::NONE,
@@ -5691,7 +5693,7 @@ bool store_schema_params(THD *thd, TABLE *table, TABLE *proc_table,
                 &tmp_string);
       table->field[15]->store(tmp_string.ptr(), tmp_string.length(), cs);
 
-      field= make_field(&share, (uchar*) 0, field_def->length,
+      field= make_field(&share, thd->mem_root, (uchar*) 0, field_def->length,
                         (uchar*) "", 0, field_def->pack_flag,
                         field_def->sql_type, field_def->charset,
                         field_def->geom_type, field_def->srid, Field::NONE,
@@ -5702,17 +5704,15 @@ bool store_schema_params(THD *thd, TABLE *table, TABLE *proc_table,
       store_column_type(table, field, cs, 6);
       if (schema_table_store_record(thd, table))
       {
-        free_table_share(&share);
-        if (free_sp_head)
-          delete sp;
-        DBUG_RETURN(1);
+        error= 1;
+        break;
       }
     }
     if (free_sp_head)
       delete sp;
   }
   free_table_share(&share);
-  DBUG_RETURN(0);
+  DBUG_RETURN(error);
 }
 
 
@@ -5790,7 +5790,8 @@ bool store_schema_proc(THD *thd, TABLE *table, TABLE *proc_table,
           bzero((char*) &tbl, sizeof(TABLE));
           (void) build_table_filename(path, sizeof(path), "", "", "", 0);
           init_tmp_table_share(thd, &share, "", 0, "", path);
-          field= make_field(&share, (uchar*) 0, field_def->length,
+          field= make_field(&share, thd->mem_root, (uchar*) 0,
+                            field_def->length,
                             (uchar*) "", 0, field_def->pack_flag,
                             field_def->sql_type, field_def->charset,
                             field_def->geom_type, field_def->srid, Field::NONE,

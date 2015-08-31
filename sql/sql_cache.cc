@@ -397,9 +397,9 @@ const uchar *query_state_map;
 #if defined(ENABLED_DEBUG_SYNC)
 #define QC_DEBUG_SYNC(name)               \
   do {                                    \
-    THD *thd= current_thd;                \
-    if (thd)                              \
-      DEBUG_SYNC(thd, name);              \
+    THD *thd_tmp= current_thd;            \
+    if (thd_tmp)                          \
+      DEBUG_SYNC(thd_tmp, name);          \
   } while (0)
 #else
 #define QC_DEBUG_SYNC(name)
@@ -1037,10 +1037,10 @@ uchar *query_cache_query_get_key(const uchar *record, size_t *length,
 /**
   libmysql convenience wrapper to insert data into query cache.
 */
-void query_cache_insert(const char *packet, ulong length,
+void query_cache_insert(void *thd_arg, const char *packet, ulong length,
                         unsigned pkt_nr)
 {
-  THD *thd= current_thd;
+  THD *thd= (THD*) thd_arg;
 
   /*
     Current_thd can be NULL when a new connection is immediately ended
@@ -1052,7 +1052,7 @@ void query_cache_insert(const char *packet, ulong length,
   if (!thd)
     return;
 
-  query_cache.insert(&thd->query_cache_tls,
+  query_cache.insert(thd, &thd->query_cache_tls,
                      packet, length,
                      pkt_nr);
 }
@@ -1063,7 +1063,7 @@ void query_cache_insert(const char *packet, ulong length,
 */
 
 void
-Query_cache::insert(Query_cache_tls *query_cache_tls,
+Query_cache::insert(THD *thd, Query_cache_tls *query_cache_tls,
                     const char *packet, ulong length,
                     unsigned pkt_nr)
 {
@@ -1073,15 +1073,13 @@ Query_cache::insert(Query_cache_tls *query_cache_tls,
   if (is_disabled() || query_cache_tls->first_query_block == NULL)
     DBUG_VOID_RETURN;
 
-  DBUG_ASSERT(current_thd);
-
   QC_DEBUG_SYNC("wait_in_query_cache_insert");
 
   /*
     Lock the cache with try_lock(). try_lock() will fail if
     cache was disabled between the above test and lock.
   */
-  if (try_lock(current_thd, Query_cache::WAIT))
+  if (try_lock(thd, Query_cache::WAIT))
     DBUG_VOID_RETURN;
 
   Query_cache_block *query_block = query_cache_tls->first_query_block;
@@ -1130,16 +1128,15 @@ Query_cache::insert(Query_cache_tls *query_cache_tls,
 
 
 void
-Query_cache::abort(Query_cache_tls *query_cache_tls)
+Query_cache::abort(THD *thd, Query_cache_tls *query_cache_tls)
 {
-  THD *thd;
   DBUG_ENTER("query_cache_abort");
 
   /* See the comment on double-check locking usage above. */
   if (is_disabled() || query_cache_tls->first_query_block == NULL)
     DBUG_VOID_RETURN;
 
-  if (try_lock(current_thd, Query_cache::WAIT))
+  if (try_lock(thd, Query_cache::WAIT))
     DBUG_VOID_RETURN;
 
   /*
@@ -1149,7 +1146,6 @@ Query_cache::abort(Query_cache_tls *query_cache_tls)
   Query_cache_block *query_block= query_cache_tls->first_query_block;
   if (query_block)
   {
-    thd= current_thd;
     THD_STAGE_INFO(thd, stage_storing_result_in_query_cache);
     DUMP(this);
     BLOCK_LOCK_WR(query_block);
@@ -1181,12 +1177,12 @@ void Query_cache::end_of_result(THD *thd)
 
   if (thd->killed)
   {
-    query_cache_abort(&thd->query_cache_tls);
+    query_cache_abort(thd, &thd->query_cache_tls);
     DBUG_VOID_RETURN;
   }
 
 #ifdef EMBEDDED_LIBRARY
-  insert(query_cache_tls, (char*)thd,
+  insert(thd, query_cache_tls, (char*)thd,
                      emb_count_querycache_size(thd), 0);
 #endif
 
@@ -3338,7 +3334,7 @@ Query_cache::register_tables_from_list(THD *thd, TABLE_LIST *tables_used,
       /*
         There are not callback function for for VIEWs
       */
-      if (!insert_table(key_length, key, (*block_table),
+      if (!insert_table(thd, key_length, key, (*block_table),
                         tables_used->view_db.length, 0,
                         HA_CACHE_TBL_NONTRANSACT, 0, 0, TRUE))
         DBUG_RETURN(0);
@@ -3357,7 +3353,7 @@ Query_cache::register_tables_from_list(THD *thd, TABLE_LIST *tables_used,
                   (ulong) tables_used->table->s->table_cache_key.length,
                   (ulong) tables_used->table->s->table_cache_key.str));
 
-      if (!insert_table(tables_used->table->s->table_cache_key.length,
+      if (!insert_table(thd, tables_used->table->s->table_cache_key.length,
                         tables_used->table->s->table_cache_key.str,
                         (*block_table),
                         tables_used->db_length, 0,
@@ -3423,7 +3419,7 @@ my_bool Query_cache::register_all_tables(THD *thd,
 */
 
 my_bool
-Query_cache::insert_table(uint key_len, const char *key,
+Query_cache::insert_table(THD *thd, uint key_len, const char *key,
 			  Query_cache_block_table *node,
 			  uint32 db_length, uint8 suffix_length_arg,
                           uint8 cache_type,
@@ -3434,8 +3430,6 @@ Query_cache::insert_table(uint key_len, const char *key,
   DBUG_ENTER("Query_cache::insert_table");
   DBUG_PRINT("qcache", ("insert table node 0x%lx, len %d",
 		      (ulong)node, key_len));
-
-  THD *thd= current_thd;
 
   Query_cache_block *table_block=
     (hash ?

@@ -386,10 +386,7 @@ typedef struct st_net {
     queries in cache that have not stored its results yet
   */
 #endif
-  /*
-    Unused, please remove with the next incompatible ABI change.
-  */
-  unsigned char *unused;
+  void *thd; 	   /* Used by MariaDB server to avoid calling current_thd */
   unsigned int last_errno;
   unsigned char error; 
   my_bool unused4; /* Please remove with the next incompatible ABI change. */
@@ -517,7 +514,7 @@ enum enum_mysql_set_option
 extern "C" {
 #endif
 
-my_bool	my_net_init(NET *net, Vio* vio, unsigned int my_flags);
+my_bool	my_net_init(NET *net, Vio* vio, void *thd, unsigned int my_flags);
 void	my_net_local_init(NET *net);
 void	net_end(NET *net);
 void	net_clear(NET *net, my_bool clear_buffer);

@@ -111,6 +111,8 @@ bool Item::val_bool()
 */
 bool Item::get_date_with_conversion(MYSQL_TIME *ltime, ulonglong fuzzydate)
 {
+  THD *thd= current_thd;
+
   /*
     Some TIME type items return error when trying to do get_date()
     without TIME_TIME_ONLY set (e.g. Item_field for Field_time).
@@ -119,7 +121,7 @@ bool Item::get_date_with_conversion(MYSQL_TIME *ltime, ulonglong fuzzydate)
     and leave it to get_date() to check date.
   */
   ulonglong time_flag= (field_type() == MYSQL_TYPE_TIME &&
-           !(current_thd->variables.old_behavior & OLD_MODE_ZERO_DATE_TIME_CAST)) ?
+           !(thd->variables.old_behavior & OLD_MODE_ZERO_DATE_TIME_CAST)) ?
            TIME_TIME_ONLY : 0;
   if (get_date(ltime, fuzzydate | time_flag))
     return true;
@@ -127,7 +129,7 @@ bool Item::get_date_with_conversion(MYSQL_TIME *ltime, ulonglong fuzzydate)
       !(fuzzydate & TIME_TIME_ONLY))
   {
     MYSQL_TIME tmp;
-    if (time_to_datetime_with_warn(current_thd, ltime, &tmp, fuzzydate))
+    if (time_to_datetime_with_warn(thd, ltime, &tmp, fuzzydate))
       return null_value= true;
     *ltime= tmp;
   }
@@ -3033,17 +3035,17 @@ longlong_from_string_with_check(CHARSET_INFO *cs, const char *cptr,
   int err;
   longlong tmp;
   char *end_of_num= (char*) end;
+  THD *thd= current_thd;
 
   tmp= (*(cs->cset->strtoll10))(cs, cptr, &end_of_num, &err);
   /*
     TODO: Give error if we wanted a signed integer and we got an unsigned
     one
   */
-  if (!current_thd->no_errors &&
+  if (!thd->no_errors &&
       (err > 0 ||
        (end != end_of_num && !check_if_only_end_space(cs, end_of_num, end))))
   {
-    THD *thd= current_thd;
     ErrConvString err_str(cptr, end - cptr, cs);
     push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                         ER_TRUNCATED_WRONG_VALUE,
@@ -5730,22 +5732,26 @@ bool Item::eq_by_collation(Item *item, bool binary_cmp, CHARSET_INFO *cs)
 Field *Item::make_string_field(TABLE *table)
 {
   Field *field;
+  MEM_ROOT *mem_root= table->in_use->mem_root;
+
   DBUG_ASSERT(collation.collation);
   /* 
     Note: the following check is repeated in 
     subquery_types_allow_materialization():
   */
   if (too_big_for_varchar())
-    field= new Field_blob(max_length, maybe_null, name,
-                          collation.collation, TRUE);
+    field= new (mem_root)
+      Field_blob(max_length, maybe_null, name,
+                 collation.collation, TRUE);
   /* Item_type_holder holds the exact type, do not change it */
   else if (max_length > 0 &&
       (type() != Item::TYPE_HOLDER || field_type() != MYSQL_TYPE_STRING))
-    field= new Field_varstring(max_length, maybe_null, name, table->s,
-                               collation.collation);
+    field= new (mem_root)
+      Field_varstring(max_length, maybe_null, name, table->s,
+                      collation.collation);
   else
-    field= new Field_string(max_length, maybe_null, name,
-                            collation.collation);
+    field= new (mem_root)
+      Field_string(max_length, maybe_null, name, collation.collation);
   if (field)
     field->init(table);
   return field;
@@ -5771,63 +5777,74 @@ Field *Item::tmp_table_field_from_field_type(TABLE *table, bool fixed_length)
   */
   uchar *null_ptr= maybe_null ? (uchar*) "" : 0;
   Field *field;
+  MEM_ROOT *mem_root= table->in_use->mem_root;
 
   switch (field_type()) {
   case MYSQL_TYPE_DECIMAL:
   case MYSQL_TYPE_NEWDECIMAL:
-    field= Field_new_decimal::create_from_item(this);
+    field= Field_new_decimal::create_from_item(mem_root, this);
     break;
   case MYSQL_TYPE_TINY:
-    field= new Field_tiny((uchar*) 0, max_length, null_ptr, 0, Field::NONE,
-			  name, 0, unsigned_flag);
+    field= new (mem_root)
+      Field_tiny((uchar*) 0, max_length, null_ptr, 0, Field::NONE,
+                 name, 0, unsigned_flag);
     break;
   case MYSQL_TYPE_SHORT:
-    field= new Field_short((uchar*) 0, max_length, null_ptr, 0, Field::NONE,
-			   name, 0, unsigned_flag);
+    field= new (mem_root)
+      Field_short((uchar*) 0, max_length, null_ptr, 0, Field::NONE,
+                  name, 0, unsigned_flag);
     break;
   case MYSQL_TYPE_LONG:
-    field= new Field_long((uchar*) 0, max_length, null_ptr, 0, Field::NONE,
-			  name, 0, unsigned_flag);
+    field= new (mem_root)
+      Field_long((uchar*) 0, max_length, null_ptr, 0, Field::NONE,
+                 name, 0, unsigned_flag);
     break;
 #ifdef HAVE_LONG_LONG
   case MYSQL_TYPE_LONGLONG:
-    field= new Field_longlong((uchar*) 0, max_length, null_ptr, 0, Field::NONE,
-			      name, 0, unsigned_flag);
+    field= new (mem_root)
+      Field_longlong((uchar*) 0, max_length, null_ptr, 0, Field::NONE,
+                     name, 0, unsigned_flag);
     break;
 #endif
   case MYSQL_TYPE_FLOAT:
-    field= new Field_float((uchar*) 0, max_length, null_ptr, 0, Field::NONE,
-			   name, decimals, 0, unsigned_flag);
+    field= new (mem_root)
+      Field_float((uchar*) 0, max_length, null_ptr, 0, Field::NONE,
+                  name, decimals, 0, unsigned_flag);
     break;
   case MYSQL_TYPE_DOUBLE:
-    field= new Field_double((uchar*) 0, max_length, null_ptr, 0, Field::NONE,
-			    name, decimals, 0, unsigned_flag);
+    field= new (mem_root)
+      Field_double((uchar*) 0, max_length, null_ptr, 0, Field::NONE,
+                   name, decimals, 0, unsigned_flag);
     break;
   case MYSQL_TYPE_INT24:
-    field= new Field_medium((uchar*) 0, max_length, null_ptr, 0, Field::NONE,
-			    name, 0, unsigned_flag);
+    field= new (mem_root)
+      Field_medium((uchar*) 0, max_length, null_ptr, 0, Field::NONE,
+                   name, 0, unsigned_flag);
     break;
   case MYSQL_TYPE_NEWDATE:
   case MYSQL_TYPE_DATE:
-    field= new Field_newdate(0, null_ptr, 0, Field::NONE, name);
+    field= new (mem_root)
+      Field_newdate(0, null_ptr, 0, Field::NONE, name);
     break;
   case MYSQL_TYPE_TIME:
-    field= new_Field_time(0, null_ptr, 0, Field::NONE, name, decimals);
+    field= new_Field_time(mem_root, 0, null_ptr, 0, Field::NONE, name,
+                          decimals);
     break;
   case MYSQL_TYPE_TIMESTAMP:
-    field= new_Field_timestamp(0, null_ptr, 0,
+    field= new_Field_timestamp(mem_root, 0, null_ptr, 0,
                                Field::NONE, name, 0, decimals);
     break;
   case MYSQL_TYPE_DATETIME:
-    field= new_Field_datetime(0, null_ptr, 0, Field::NONE, name, decimals);
+    field= new_Field_datetime(mem_root, 0, null_ptr, 0, Field::NONE, name,
+                              decimals);
     break;
   case MYSQL_TYPE_YEAR:
-    field= new Field_year((uchar*) 0, max_length, null_ptr, 0, Field::NONE,
-			  name);
+    field= new (mem_root)
+      Field_year((uchar*) 0, max_length, null_ptr, 0, Field::NONE, name);
     break;
   case MYSQL_TYPE_BIT:
-    field= new Field_bit_as_char(NULL, max_length, null_ptr, 0,
-                                 Field::NONE, name);
+    field= new (mem_root)
+      Field_bit_as_char(NULL, max_length, null_ptr, 0, Field::NONE, name);
     break;
   default:
     /* This case should never be chosen */
@@ -5837,8 +5854,8 @@ Field *Item::tmp_table_field_from_field_type(TABLE *table, bool fixed_length)
   case MYSQL_TYPE_STRING:
     if (fixed_length && !too_big_for_varchar())
     {
-      field= new Field_string(max_length, maybe_null, name,
-                              collation.collation);
+      field= new (mem_root)
+        Field_string(max_length, maybe_null, name, collation.collation);
       break;
     }
     /* Fall through to make_string_field() */
@@ -5852,15 +5869,16 @@ Field *Item::tmp_table_field_from_field_type(TABLE *table, bool fixed_length)
   case MYSQL_TYPE_LONG_BLOB:
   case MYSQL_TYPE_BLOB:
     if (this->type() == Item::TYPE_HOLDER)
-      field= new Field_blob(max_length, maybe_null, name, collation.collation,
-                            1);
+      field= new (mem_root)
+        Field_blob(max_length, maybe_null, name, collation.collation, 1);
     else
-      field= new Field_blob(max_length, maybe_null, name, collation.collation);
+      field= new (mem_root)
+        Field_blob(max_length, maybe_null, name, collation.collation);
     break;					// Blob handled outside of case
 #ifdef HAVE_SPATIAL
   case MYSQL_TYPE_GEOMETRY:
-    field= new Field_geom(max_length, maybe_null,
-                          name, table->s, get_geometry_type());
+    field= new (mem_root)
+      Field_geom(max_length, maybe_null, name, table->s, get_geometry_type());
 #endif /* HAVE_SPATIAL */
   }
   if (field)
@@ -9288,10 +9306,9 @@ int Item_cache_str::save_in_field(Field *field, bool no_conversions)
 }
 
 
-bool Item_cache_row::allocate(uint num)
+bool Item_cache_row::allocate(THD *thd, uint num)
 {
   item_count= num;
-  THD *thd= current_thd;
   return (!(values= 
 	    (Item_cache **) thd->calloc(sizeof(Item_cache *)*item_count)));
 }
@@ -9300,7 +9317,7 @@ bool Item_cache_row::allocate(uint num)
 bool Item_cache_row::setup(THD *thd, Item *item)
 {
   example= item;
-  if (!values && allocate(item->cols()))
+  if (!values && allocate(thd, item->cols()))
     return 1;
   for (uint i= 0; i < item_count; i++)
   {

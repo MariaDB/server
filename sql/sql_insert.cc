@@ -3931,6 +3931,7 @@ static TABLE *create_table_from_items(THD *thd,
   tmp_table.s->db_create_options=0;
   tmp_table.null_row= 0;
   tmp_table.maybe_null= 0;
+  tmp_table.in_use= thd;
 
   promote_first_timestamp_column(&alter_info->create_list);
 
@@ -3950,10 +3951,11 @@ static TABLE *create_table_from_items(THD *thd,
                               (Item ***) 0, &tmp_field, &def_field, 0, 0, 0, 0,
                               0);
     if (!field ||
-        !(cr_field=new Create_field(thd, field,
-                                    (item->type() == Item::FIELD_ITEM ?
-                                       ((Item_field *) item)->field :
-                                       (Field *) 0))))
+        !(cr_field= (new (thd->mem_root)
+                     Create_field(thd, field,
+                                  (item->type() == Item::FIELD_ITEM ?
+                                   ((Item_field *) item)->field :
+                                   (Field *) 0)))))
       DBUG_RETURN(0);
     if (item->maybe_null)
       cr_field->flags &= ~NOT_NULL_FLAG;

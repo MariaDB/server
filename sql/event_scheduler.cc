@@ -186,7 +186,7 @@ pre_init_event_thread(THD* thd)
   thd->security_ctx->master_access= 0;
   thd->security_ctx->db_access= 0;
   thd->security_ctx->host_or_ip= (char*)my_localhost;
-  my_net_init(&thd->net, NULL, MYF(MY_THREAD_SPECIFIC));
+  my_net_init(&thd->net, NULL, thd, MYF(MY_THREAD_SPECIFIC));
   thd->security_ctx->set_user((char*)"event_scheduler");
   thd->net.read_timeout= slave_net_timeout;
   thd->variables.option_bits|= OPTION_AUTO_IS_NULL;
