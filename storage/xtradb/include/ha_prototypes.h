@@ -636,5 +636,13 @@ ib_push_warning(
 	ulint		error,	/*!< in: error code to push as warning */
 	const char	*format,/*!< in: warning message */
 	...);
-
+/********************************************************************//**
+Helper function to push warnings from InnoDB internals to SQL-layer. */
+UNIV_INTERN
+void
+ib_push_warning(
+	void*		ithd,	/*!< in: thd */
+	ulint		error,	/*!< in: error code to push as warning */
+	const char	*format,/*!< in: warning message */
+	...);
 #endif /* HA_INNODB_PROTOTYPES_H */

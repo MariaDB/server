@@ -2,7 +2,7 @@
 
 Copyright (c) 1996, 2015, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, SkySQL Ab. All Rights Reserved.
+Copyright (c) 2013, 2015, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1017,6 +1017,7 @@ struct dict_table_t{
 	table_id_t	id;	/*!< id of the table */
 	mem_heap_t*	heap;	/*!< memory heap */
 	char*		name;	/*!< table name */
+	void*		thd;		/*!< thd */
 	fil_space_crypt_t *crypt_data; /*!< crypt data if present */
 	const char*	dir_path_of_temp_table;/*!< NULL or the directory path
 				where a TEMPORARY table that was explicitly
@@ -1330,6 +1331,7 @@ struct dict_table_t{
 			locks;	/*!< list of locks on the table; protected
 				by lock_sys->mutex */
 #endif /* !UNIV_HOTBACKUP */
+	ibool		is_encrypted;
 
 #ifdef UNIV_DEBUG
 	ulint		magic_n;/*!< magic number */

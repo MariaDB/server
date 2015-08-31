@@ -689,6 +689,10 @@ buf_block_get_frame(
 /*================*/
 	const buf_block_t*	block)	/*!< in: pointer to the control block */
 {
+	if (!block) {
+		return NULL;
+	}
+
 	SRV_CORRUPT_TABLE_CHECK(block, return(0););
 
 	switch (buf_block_get_state(block)) {
@@ -696,6 +700,9 @@ buf_block_get_frame(
 	case BUF_BLOCK_ZIP_PAGE:
 	case BUF_BLOCK_ZIP_DIRTY:
 	case BUF_BLOCK_NOT_USED:
+		if (block->page.encrypted) {
+			goto ok;
+		}
 		ut_error;
 		break;
 	case BUF_BLOCK_FILE_PAGE:

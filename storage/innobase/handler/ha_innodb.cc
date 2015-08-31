@@ -1747,6 +1747,7 @@ convert_error_code_to_mysql(
 
 	case DB_TABLESPACE_DELETED:
 	case DB_TABLE_NOT_FOUND:
+	case DB_ENCRYPTED_DECRYPT_FAILED:
 		return(HA_ERR_NO_SUCH_TABLE);
 
 	case DB_TABLESPACE_NOT_FOUND:
@@ -5592,7 +5593,14 @@ table_opened:
 
 	innobase_copy_frm_flags_from_table_share(ib_table, table->s);
 
-	dict_stats_init(ib_table);
+	ib_table->thd = (void*)thd;
+
+	/* No point to init any statistics if tablespace is still encrypted. */
+	if (!ib_table->is_encrypted) {
+		dict_stats_init(ib_table);
+	} else {
+		ib_table->stat_initialized = 1;
+	}
 
 	MONITOR_INC(MONITOR_TABLE_OPEN);
 
@@ -5621,6 +5629,11 @@ table_opened:
 		file, best to play it safe. */
 
 		no_tablespace = true;
+	} else if (ib_table->is_encrypted) {
+		/* This means that tablespace was found but we could not
+		decrypt encrypted page. */
+		no_tablespace = true;
+		ib_table->ibd_file_missing = true;
 	} else {
 		no_tablespace = false;
 	}
@@ -5632,9 +5645,9 @@ table_opened:
 		/* If table has no talespace but it has crypt data, check
 		is tablespace made unaccessible because encryption service
 		or used key_id is not available. */
-		if (ib_table && ib_table->crypt_data) {
+		if (ib_table) {
 			fil_space_crypt_t* crypt_data = ib_table->crypt_data;
-			if ((crypt_data->encryption == FIL_SPACE_ENCRYPTION_ON) ||
+			if ((crypt_data && crypt_data->encryption == FIL_SPACE_ENCRYPTION_ON) ||
 				(srv_encrypt_tables &&
 					crypt_data && crypt_data->encryption == FIL_SPACE_ENCRYPTION_DEFAULT)) {
 
@@ -5646,6 +5659,13 @@ table_opened:
 						" Can't continue reading table.",
 						ib_table->name, crypt_data->key_id);
 				}
+			} else if (ib_table->is_encrypted) {
+				push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+					HA_ERR_NO_SUCH_TABLE,
+					"Table %s is encrypted but encryption service or"
+					" used key_id is not available. "
+					" Can't continue reading table.",
+					ib_table->name);
 			}
 		}
 
@@ -20211,4 +20231,60 @@ static void innodb_remember_check_sysvar_funcs()
 	/* remember build-in sysvar check functions */
 	ut_ad((MYSQL_SYSVAR_NAME(checksum_algorithm).flags & 0x1FF) == PLUGIN_VAR_ENUM);
 	check_sysvar_enum = MYSQL_SYSVAR_NAME(checksum_algorithm).check;
+}
+
+/********************************************************************//**
+Helper function to push warnings from InnoDB internals to SQL-layer. */
+UNIV_INTERN
+void
+ib_push_warning(
+	trx_t*		trx,	/*!< in: trx */
+	ulint		error,	/*!< in: error code to push as warning */
+	const char	*format,/*!< in: warning message */
+	...)
+{
+	va_list args;
+	THD *thd = (THD *)trx->mysql_thd;
+	char *buf;
+#define MAX_BUF_SIZE 4*1024
+
+	va_start(args, format);
+	buf = (char *)my_malloc(MAX_BUF_SIZE, MYF(MY_WME));
+	vsprintf(buf,format, args);
+
+	push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+		convert_error_code_to_mysql((dberr_t)error, 0, thd),
+		buf);
+	my_free(buf);
+	va_end(args);
+}
+
+/********************************************************************//**
+Helper function to push warnings from InnoDB internals to SQL-layer. */
+UNIV_INTERN
+void
+ib_push_warning(
+	void*		ithd,	/*!< in: thd */
+	ulint		error,	/*!< in: error code to push as warning */
+	const char	*format,/*!< in: warning message */
+	...)
+{
+	va_list args;
+	THD *thd = (THD *)ithd;
+	char *buf;
+#define MAX_BUF_SIZE 4*1024
+
+	if (ithd == NULL) {
+		thd = current_thd;
+	}
+
+	va_start(args, format);
+	buf = (char *)my_malloc(MAX_BUF_SIZE, MYF(MY_WME));
+	vsprintf(buf,format, args);
+
+	push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+		convert_error_code_to_mysql((dberr_t)error, 0, thd),
+		buf);
+	my_free(buf);
+	va_end(args);
 }

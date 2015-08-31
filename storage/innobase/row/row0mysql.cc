@@ -623,6 +623,8 @@ handle_new_error:
 	case DB_FTS_INVALID_DOCID:
 	case DB_INTERRUPTED:
 	case DB_DICT_CHANGED:
+	case DB_TABLE_NOT_FOUND:
+	case DB_ENCRYPTED_DECRYPT_FAILED:
 		if (savept) {
 			/* Roll back the latest, possibly incomplete insertion
 			or update */
@@ -1315,7 +1317,13 @@ row_insert_for_mysql(
 			prebuilt->table->name);
 
 		return(DB_TABLESPACE_NOT_FOUND);
-
+	} else if (prebuilt->table->is_encrypted) {
+		ib_push_warning(trx, DB_ENCRYPTED_DECRYPT_FAILED,
+			"Table %s in tablespace %lu encrypted."
+			"However key management plugin or used key_id is not found or"
+			" used encryption algorithm or method does not match.",
+			prebuilt->table->name, prebuilt->table->space);
+		return(DB_ENCRYPTED_DECRYPT_FAILED);
 	} else if (prebuilt->magic_n != ROW_PREBUILT_ALLOCATED) {
 		fprintf(stderr,
 			"InnoDB: Error: trying to free a corrupt\n"
@@ -1710,6 +1718,13 @@ row_update_for_mysql(
 			"InnoDB: how you can resolve the problem.\n",
 			prebuilt->table->name);
 		return(DB_ERROR);
+	} else if (prebuilt->table->is_encrypted) {
+		ib_push_warning(trx, DB_ENCRYPTED_DECRYPT_FAILED,
+			"Table %s in tablespace %lu encrypted."
+			"However key management plugin or used key_id is not found or"
+			" used encryption algorithm or method does not match.",
+			prebuilt->table->name, prebuilt->table->space);
+		return (DB_TABLE_NOT_FOUND);
 	}
 
 	if (UNIV_UNLIKELY(prebuilt->magic_n != ROW_PREBUILT_ALLOCATED)) {
@@ -3916,6 +3931,19 @@ row_drop_table_for_mysql(
 		      "InnoDB: You can look for further help from\n"
 		      "InnoDB: " REFMAN "innodb-troubleshooting.html\n",
 		      stderr);
+		goto funct_exit;
+	}
+
+	/* If table is encrypted and table page encryption failed
+	mark this table read only. */
+	if (table->is_encrypted) {
+
+		if (table->can_be_evicted) {
+			dict_table_move_from_lru_to_non_lru(table);
+		}
+
+		dict_table_close(table, TRUE, FALSE);
+		err = DB_READ_ONLY;
 		goto funct_exit;
 	}
 

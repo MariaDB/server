@@ -2,10 +2,24 @@
 -- source include/have_file_key_management_plugin.inc
 # embedded does not support restart
 -- source include/not_embedded.inc
+-- source include/not_valgrind.inc
+# Avoid CrashReporter popup on Mac
+-- source include/not_crashrep.inc
+-- source include/not_windows.inc
+
+#
+# MDEV-8588: Assertion failure in file ha_innodb.cc line 21140 if at least one encrypted
+# table exists and encryption service is not available.
+#
 
 call mtr.add_suppression("Plugin 'file_key_management' init function returned error");
 call mtr.add_suppression("InnoDB: Database page corruption on disk or a failed.*");
 call mtr.add_suppression("Plugin 'file_key_management' registration.*failed");
+call mtr.add_suppression("InnoDB: Block in space_id .* in file test/.* encrypted");
+call mtr.add_suppression("InnoDB: However key management plugin or used key_id 1 is not found or used encryption algorithm or method does not match.");
+call mtr.add_suppression("InnoDB: Marking tablespace as missing. You may drop this table or install correct key management plugin and key file.");
+call mtr.add_suppression(".*InnoDB: Cannot open table test/.* from the internal data dictionary of InnoDB though the .frm file for the table exists. See .* for how you can resolve the problem.");
+call mtr.add_suppression("InnoDB: .ibd file is missing for table test/.*");
 
 --echo
 --echo # Start server with keys2.txt
@@ -44,3 +58,63 @@ SHOW WARNINGS;
 -- let $restart_parameters=--file-key-management-filename=$MYSQL_TEST_DIR/std_data/keysbad3.txt
 -- source include/restart_mysqld.inc
 DROP TABLE t1;
+
+#
+# MDEV-8591: Database page corruption on disk or a failed space, Assertion failure in file buf0buf.cc
+# line 2856 on querying a table using wrong default encryption key
+#
+
+--echo # Start server with keys.txt
+-- let $restart_parameters=--file-key-management-filename=$MYSQL_TEST_DIR/std_data/keys.txt
+-- source include/restart_mysqld.inc
+
+CREATE TABLE t2 (c VARCHAR(8), id int not null primary key, b int, key(b)) ENGINE=InnoDB ENCRYPTED=YES;
+INSERT INTO t2 VALUES ('foobar',1,2);
+
+--echo
+--echo # Restart server with keys2.txt
+-- let $restart_parameters=--file-key-management-filename=$MYSQL_TEST_DIR/std_data/keys2.txt
+-- source include/restart_mysqld.inc
+
+--error 1932,1712
+SELECT * FROM t2;
+SHOW WARNINGS;
+--error 1932,1712
+SELECT * FROM t2 where id = 1;
+SHOW WARNINGS;
+--error 1932,1712
+SELECT * FROM t2 where b = 1;
+SHOW WARNINGS;
+--error 1932
+INSERT INTO t2 VALUES ('tmp',3,3);
+SHOW WARNINGS;
+--error 1932,1712
+DELETE FROM t2 where b = 3;
+SHOW WARNINGS;
+--error 1932,1712
+DELETE FROM t2 where id = 3;
+SHOW WARNINGS;
+--error 1932,1712
+UPDATE t2 set b = b +1;
+SHOW WARNINGS;
+OPTIMIZE TABLE t2;
+SHOW WARNINGS;
+--error 1932
+ALTER TABLE t2 ADD COLUMN c INT;
+SHOW WARNINGS;
+ANALYZE TABLE t2;
+SHOW WARNINGS;
+--error 1932
+TRUNCATE TABLE t2;
+SHOW WARNINGS;
+--error 1036
+DROP TABLE t2;
+SHOW WARNINGS;
+
+--echo
+--echo # Restart server with keys.txt
+-- let $restart_parameters=--file-key-management-filename=$MYSQL_TEST_DIR/std_data/keys.txt
+-- source include/restart_mysqld.inc
+
+DROP TABLE t2;
+SHOW WARNINGS;

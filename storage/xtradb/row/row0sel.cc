@@ -2,6 +2,7 @@
 
 Copyright (c) 1997, 2013, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, Google Inc.
+Copyright (c) 2015, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -3726,6 +3727,9 @@ row_search_for_mysql(
 
 		return(DB_TABLESPACE_NOT_FOUND);
 
+	} else if (prebuilt->table->is_encrypted) {
+
+		return(DB_ENCRYPTED_DECRYPT_FAILED);
 	} else if (!prebuilt->index_usable) {
 
 		return(DB_MISSING_HISTORY);
@@ -4137,9 +4141,14 @@ wait_table_again:
 
 	} else if (dtuple_get_n_fields(search_tuple) > 0) {
 
-		btr_pcur_open_with_no_init(index, search_tuple, mode,
-					   BTR_SEARCH_LEAF,
-					   pcur, 0, &mtr);
+		err = btr_pcur_open_with_no_init(index, search_tuple, mode,
+					   	 BTR_SEARCH_LEAF,
+					   	 pcur, 0, &mtr);
+
+		if (err != DB_SUCCESS) {
+			rec = NULL;
+			goto lock_wait_or_error;
+		}
 
 		pcur->trx_if_known = trx;
 
@@ -4173,9 +4182,23 @@ wait_table_again:
 			}
 		}
 	} else if (mode == PAGE_CUR_G || mode == PAGE_CUR_L) {
-		btr_pcur_open_at_index_side(
+		err = btr_pcur_open_at_index_side(
 			mode == PAGE_CUR_G, index, BTR_SEARCH_LEAF,
 			pcur, false, 0, &mtr);
+
+		if (err != DB_SUCCESS) {
+			if (err == DB_ENCRYPTED_DECRYPT_FAILED) {
+				ib_push_warning(trx->mysql_thd,
+					DB_ENCRYPTED_DECRYPT_FAILED,
+					"Table %s is encrypted but encryption service or"
+					" used key_id is not available. "
+					" Can't continue reading table.",
+					prebuilt->table->name);
+				index->table->is_encrypted = true;
+			}
+			rec = NULL;
+			goto lock_wait_or_error;
+		}
 	}
 
 rec_loop:
@@ -4190,6 +4213,11 @@ rec_loop:
 	/* PHASE 4: Look for matching records in a loop */
 
 	rec = btr_pcur_get_rec(pcur);
+
+	if (!rec) {
+		err = DB_ENCRYPTED_DECRYPT_FAILED;
+		goto lock_wait_or_error;
+	}
 
 	SRV_CORRUPT_TABLE_CHECK(rec,
 	{
@@ -5132,7 +5160,9 @@ lock_wait_or_error:
 
 	/*-------------------------------------------------------------*/
 
-	btr_pcur_store_position(pcur, &mtr);
+	if (rec) {
+		btr_pcur_store_position(pcur, &mtr);
+	}
 
 lock_table_wait:
 	mtr_commit(&mtr);
