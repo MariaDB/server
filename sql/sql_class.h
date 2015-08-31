@@ -68,7 +68,6 @@ struct rpl_group_info;
 class Rpl_filter;
 class Query_log_event;
 class Load_log_event;
-class Slave_log_event;
 class sp_rcontext;
 class sp_cache;
 class Lex_input_stream;
