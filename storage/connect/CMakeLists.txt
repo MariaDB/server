@@ -48,7 +48,7 @@ IF(UNIX)
   # Bar: -Wfatal-errors removed (does not present in gcc on solaris10)
   if(WITH_WARNINGS)
     add_definitions(-Wall -Wextra -Wmissing-declarations)
-    message(STATUS "CONNECT: GCC: All warnings enabled")
+    #message(STATUS "CONNECT: GCC: All warnings enabled")
   else()
     add_definitions(-Wall -Wmissing-declarations)
     add_definitions(-Wno-write-strings)
@@ -69,7 +69,7 @@ IF(UNIX)
 # These switches are for C++ only
 #   add_definitions(-Wno-reorder)
 
-    message(STATUS "CONNECT: GCC: Some warnings disabled")
+    #message(STATUS "CONNECT: GCC: Some warnings disabled")
   endif(WITH_WARNINGS)
 
   add_definitions( -DUNIX -DLINUX -DUBUNTU )
