@@ -5472,6 +5472,12 @@ sub start_mysqltest ($) {
     mtr_add_arg($args, "--max-connections=%d", $opt_max_connections);
   }
 
+  if ( $opt_valgrind )
+  {
+    # Longer timeouts when running with valgrind
+    mtr_add_arg($args, "--wait-longer-for-timeouts");
+  }
+
   if ( $opt_embedded_server )
   {
 
