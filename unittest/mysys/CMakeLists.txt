@@ -13,8 +13,10 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA
 
-MY_ADD_TESTS(bitmap base64 my_vsnprintf my_atomic my_rdtsc lf my_malloc
+MY_ADD_TESTS(bitmap base64 my_vsnprintf my_atomic my_rdtsc lf my_malloc aes
              LINK_LIBRARIES mysys)
+
+ADD_DEFINITIONS(${SSL_DEFINES})
 
 MY_ADD_TESTS(ma_dyncol
 	     LINK_LIBRARIES mysqlclient)
