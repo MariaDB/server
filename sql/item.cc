@@ -5368,9 +5368,10 @@ bool Item_field::can_be_substituted_to_equal_item(const Context &ctx,
   if (cmp_context == STRING_RESULT &&
       ctx.compare_collation() != item_equal->compare_collation())
     return false;
-  return (ctx.subst_constraint() == ANY_SUBST ||
-          field->result_type() != STRING_RESULT ||
-          (field->flags & BINARY_FLAG));
+  return ctx.subst_constraint() == ANY_SUBST ||
+         field->cmp_type() != STRING_RESULT ||
+         ((field->charset()->state & MY_CS_BINSORT) &&
+          (field->charset()->state & MY_CS_NOPAD));
 }
 
 
