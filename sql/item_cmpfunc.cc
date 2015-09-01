@@ -553,8 +553,10 @@ int Arg_comparator::set_compare_func(Item_func_or_sum *item, Item_result type)
 	my_error(ER_OPERAND_COLUMNS, MYF(0), (*a)->element_index(i)->cols());
 	return 1;
       }
-      if (comparators[i].set_cmp_func(owner, (*a)->addr(i), (*b)->addr(i),
-                                      set_null))
+      if (comparators[i].set_cmp_func_and_arg_cmp_context(owner,
+                                                          (*a)->addr(i),
+                                                          (*b)->addr(i),
+                                                          set_null))
         return 1;
     }
     break;

@@ -8039,5 +8039,69 @@ Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where ((`test`.`t1`.`a` = 'a') and (`test`.`t1`.`a` between 'a' and <cache>(('c' collate latin1_bin))))
 DROP TABLE t1;
 #
+# MDEV-8707 Wrong result for SELECT..WHERE varchar_column=DATE'2001-01-01' AND varchar_column='2001-01-01'
+#
+SET NAMES latin1;
+CREATE TABLE t1 (a VARCHAR(40));
+INSERT INTO t1 VALUES ('2001-01-01'),('2001-01-01x');
+SELECT * FROM t1 WHERE a=DATE'2001-01-01' AND a='2001-01-01';
+a
+2001-01-01
+SELECT * FROM t1 WHERE a='2001-01-01' AND a=DATE'2001-01-01';
+a
+2001-01-01
+SELECT * FROM t1 WHERE (a,a)=('2001-01-01x',DATE'2001-01-01');
+a
+2001-01-01x
+Warnings:
+Warning	1292	Truncated incorrect date value: '2001-01-01x'
+SELECT * FROM t1 WHERE (a,a)=(DATE'2001-01-01','2001-01-01x');
+a
+2001-01-01x
+Warnings:
+Warning	1292	Truncated incorrect date value: '2001-01-01x'
+SELECT * FROM t1 WHERE (a,a)=('2001-01-01',DATE'2001-01-01');
+a
+2001-01-01
+SELECT * FROM t1 WHERE (a,a)=(DATE'2001-01-01','2001-01-01');
+a
+2001-01-01
+DROP TABLE t1;
+CREATE TABLE t1 (a ENUM('2001-01-01','2001-01-01x'));
+INSERT INTO t1 VALUES ('2001-01-01'),('2001-01-01x');
+SELECT * FROM t1 WHERE a=DATE'2001-01-01' AND a='2001-01-01';
+a
+2001-01-01
+SELECT * FROM t1 WHERE a='2001-01-01' AND a=DATE'2001-01-01';
+a
+2001-01-01
+SELECT * FROM t1 WHERE (a,a)=('2001-01-01x',DATE'2001-01-01');
+a
+2001-01-01x
+Warnings:
+Warning	1292	Truncated incorrect date value: '2001-01-01x'
+SELECT * FROM t1 WHERE (a,a)=(DATE'2001-01-01','2001-01-01x');
+a
+2001-01-01x
+Warnings:
+Warning	1292	Truncated incorrect date value: '2001-01-01x'
+SELECT * FROM t1 WHERE (a,a)=('2001-01-01',DATE'2001-01-01');
+a
+2001-01-01
+SELECT * FROM t1 WHERE (a,a)=(DATE'2001-01-01','2001-01-01');
+a
+2001-01-01
+DROP TABLE t1;
+CREATE TABLE t1 (a VARCHAR(40),b VARCHAR(40));
+INSERT INTO t1 VALUES ('2001-01-01','2001-01-01x');
+SELECT * FROM t1 WHERE a=b AND a=DATE'2001-01-01';
+a	b
+DROP TABLE t1;
+CREATE TABLE t1 (a ENUM('2001-01-01','2001-01-01x'),b ENUM('2001-01-01','2001-01-01x'));
+INSERT INTO t1 VALUES ('2001-01-01','2001-01-01x');
+SELECT * FROM t1 WHERE a=b AND a=DATE'2001-01-01';
+a	b
+DROP TABLE t1;
+#
 # End of 10.1 tests
 #
