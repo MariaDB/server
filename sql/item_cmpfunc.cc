@@ -165,7 +165,7 @@ static int agg_cmp_type(Item_result *type, Item **items, uint nitems)
   type[0]= items[0]->cmp_type();
   for (i= 1 ; i < nitems ; i++)
   {
-    type[0]= item_cmp_type(type[0], items[i]->cmp_type());
+    type[0]= item_cmp_type(type[0], items[i]);
     /*
       When aggregating types of two row expressions we have to check
       that they have the same cardinality and that each component
@@ -231,26 +231,25 @@ static uint collect_cmp_types(Item **items, uint nitems, bool skip_nulls= FALSE)
 {
   uint i;
   uint found_types;
-  Item_result left_result= items[0]->cmp_type();
+  Item_result left_cmp_type= items[0]->cmp_type();
   DBUG_ASSERT(nitems > 1);
   found_types= 0;
   for (i= 1; i < nitems ; i++)
   {
     if (skip_nulls && items[i]->type() == Item::NULL_ITEM)
       continue; // Skip NULL constant items
-    if ((left_result == ROW_RESULT || 
+    if ((left_cmp_type == ROW_RESULT ||
          items[i]->cmp_type() == ROW_RESULT) &&
         cmp_row_type(items[0], items[i]))
       return 0;
-    found_types|= 1U << (uint)item_cmp_type(left_result,
-                                            items[i]->cmp_type());
+    found_types|= 1U << (uint) item_cmp_type(left_cmp_type, items[i]);
   }
   /*
    Even if all right-hand items are NULLs and we are skipping them all, we need
    at least one type bit in the found_type bitmask.
   */
   if (skip_nulls && !found_types)
-    found_types= 1U << (uint)left_result;
+    found_types= 1U << (uint) left_cmp_type;
   return found_types;
 }
 
@@ -500,8 +499,7 @@ bool Item_func::setup_args_and_comparator(THD *thd, Arg_comparator *cmp)
       agg_arg_charsets_for_comparison(cmp->cmp_collation, args, 2))
       return true;
 
-  args[0]->cmp_context= args[1]->cmp_context=
-    item_cmp_type(args[0]->result_type(), args[1]->result_type());
+  args[0]->cmp_context= args[1]->cmp_context= item_cmp_type(args[0], args[1]);
 
   //  Convert constants when compared to int/year field
   DBUG_ASSERT(functype() != LIKE_FUNC);
@@ -2781,7 +2779,7 @@ Item_func_nullif::is_null()
 Item_func_case::Item_func_case(THD *thd, List<Item> &list,
                                Item *first_expr_arg, Item *else_expr_arg):
   Item_func_hybrid_field_type(thd), first_expr_num(-1), else_expr_num(-1),
-  left_result_type(INT_RESULT), case_item(0)
+  left_cmp_type(INT_RESULT), case_item(0)
 {
   ncases= list.elements;
   if (first_expr_arg)
@@ -2840,7 +2838,7 @@ Item *Item_func_case::find_item(String *str)
     {
       if (args[i]->real_item()->type() == NULL_ITEM)
         continue;
-      cmp_type= item_cmp_type(left_result_type, args[i]->cmp_type());
+      cmp_type= item_cmp_type(left_cmp_type, args[i]);
       DBUG_ASSERT(cmp_type != ROW_RESULT);
       DBUG_ASSERT(cmp_items[(uint)cmp_type]);
       if (!(value_added_map & (1U << (uint)cmp_type)))
@@ -3070,7 +3068,7 @@ void Item_func_case::fix_length_and_dec()
   {
     uint i;
     agg[0]= args[first_expr_num];
-    left_result_type= agg[0]->cmp_type();
+    left_cmp_type= agg[0]->cmp_type();
 
     /*
       As the first expression and WHEN expressions
@@ -3146,8 +3144,7 @@ void Item_func_case::fix_length_and_dec()
       require rebuilding cmp_items.
     */
     for (i= 0; i < ncases; i+= 2)
-      args[i]->cmp_context= item_cmp_type(left_result_type,
-                                          args[i]->result_type());
+      args[i]->cmp_context= item_cmp_type(left_cmp_type, args[i]);
   }
 }
 
@@ -3977,7 +3974,7 @@ void Item_func_in::fix_length_and_dec()
   uint found_types= 0;
   uint type_cnt= 0, i;
   m_compare_type= STRING_RESULT;
-  left_result_type= args[0]->cmp_type();
+  left_cmp_type= args[0]->cmp_type();
   if (!(found_types= collect_cmp_types(args, arg_count, true)))
     return;
   
@@ -4143,7 +4140,7 @@ void Item_func_in::fix_length_and_dec()
    */
   for (arg= args + 1, arg_end= args + arg_count; arg != arg_end ; arg++)
   {
-    arg[0]->cmp_context= item_cmp_type(left_result_type, arg[0]->result_type());
+    arg[0]->cmp_context= item_cmp_type(left_cmp_type, arg[0]);
   }
   max_length= 1;
 }
@@ -4209,7 +4206,7 @@ longlong Item_func_in::val_int()
       have_null= TRUE;
       continue;
     }
-    Item_result cmp_type= item_cmp_type(left_result_type, args[i]->cmp_type());
+    Item_result cmp_type= item_cmp_type(left_cmp_type, args[i]);
     in_item= cmp_items[(uint)cmp_type];
     DBUG_ASSERT(in_item);
     if (!(value_added_map & (1U << (uint)cmp_type)))

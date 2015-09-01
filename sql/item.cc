@@ -8619,7 +8619,7 @@ void resolve_const_item(THD *thd, Item **ref, Item *comp_item)
     return;                                     // Can't be better
 
   Item *new_item= NULL;
-  Item_result res_type=item_cmp_type(comp_item->cmp_type(), item->cmp_type());
+  Item_result res_type= item_cmp_type(comp_item, item);
   char *name=item->name;			// Alloced by sql_alloc
   MEM_ROOT *mem_root= thd->mem_root;
 

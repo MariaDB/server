@@ -29,6 +29,14 @@
 #include "pcre.h"                 /* pcre header file */
 
 extern Item_result item_cmp_type(Item_result a,Item_result b);
+inline Item_result item_cmp_type(const Item *a, const Item *b)
+{
+  return item_cmp_type(a->cmp_type(), b->cmp_type());
+}
+inline Item_result item_cmp_type(Item_result a, const Item *b)
+{
+  return item_cmp_type(a, b->cmp_type());
+}
 class Item_bool_func2;
 class Arg_comparator;
 
@@ -51,8 +59,7 @@ class Arg_comparator: public Sql_alloc
   int set_compare_func(Item_func_or_sum *owner, Item_result type);
   inline int set_compare_func(Item_func_or_sum *owner_arg)
   {
-    return set_compare_func(owner_arg, item_cmp_type((*a)->result_type(),
-                                                     (*b)->result_type()));
+    return set_compare_func(owner_arg, item_cmp_type(*a, *b));
   }
   bool agg_arg_charsets_for_comparison();
 
@@ -75,16 +82,14 @@ public:
 			  Item **a1, Item **a2, bool set_null_arg)
   {
     set_null= set_null_arg;
-    return set_cmp_func(owner_arg, a1, a2,
-                        item_cmp_type((*a1)->cmp_type(),
-                                      (*a2)->cmp_type()));
+    return set_cmp_func(owner_arg, a1, a2, item_cmp_type(*a1, *a2));
   }
   int set_cmp_func_and_arg_cmp_context(Item_func_or_sum *owner_arg,
                                        Item **a1, Item **a2,
                                        bool set_null_arg)
   {
     set_null= set_null_arg;
-    Item_result type= item_cmp_type((*a1)->cmp_type(), (*a2)->cmp_type());
+    Item_result type= item_cmp_type(*a1, *a2);
     int rc= set_cmp_func(owner_arg, a1, a2, type);
     if (!rc)
       (*a1)->cmp_context= (*a2)->cmp_context= type;
@@ -397,7 +402,7 @@ public:
     if (set_cmp_func())
       return true;
     tmp_arg[0]->cmp_context= tmp_arg[1]->cmp_context=
-      item_cmp_type(tmp_arg[0]->result_type(), tmp_arg[1]->result_type());
+      item_cmp_type(tmp_arg[0], tmp_arg[1]);
     return false;
   }
   CHARSET_INFO *compare_collation() const
@@ -1313,7 +1318,7 @@ public:
 class Item_func_case :public Item_func_hybrid_field_type
 {
   int first_expr_num, else_expr_num;
-  enum Item_result left_result_type;
+  enum Item_result left_cmp_type;
   String tmp_value;
   uint ncases;
   Item_result cmp_type;
@@ -1373,7 +1378,7 @@ public:
     and can be used safely as comparisons for key conditions
   */
   bool arg_types_compatible;
-  Item_result left_result_type;
+  Item_result left_cmp_type;
   cmp_item *cmp_items[6]; /* One cmp_item for each result type */
 
   Item_func_in(THD *thd, List<Item> &list):
