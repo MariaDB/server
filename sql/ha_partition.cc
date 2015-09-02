@@ -2400,7 +2400,7 @@ reg_query_cache_dependant_table(THD *thd,
     DBUG_RETURN(TRUE);
   }
   (++(*block_table))->n= ++(*n);
-  if (!cache->insert_table(cache_key_len,
+  if (!cache->insert_table(thd, cache_key_len,
                            cache_key, (*block_table),
                            table_share->db.length,
                            (uint8) (cache_key_len -

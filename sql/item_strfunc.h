@@ -1049,12 +1049,11 @@ public:
   }
 };
 
-class Item_func_charset :public Item_str_func
+
+class Item_func_expr_str_metadata :public Item_str_func
 {
 public:
-  Item_func_charset(THD *thd, Item *a): Item_str_func(thd, a) {}
-  String *val_str(String *);
-  const char *func_name() const { return "charset"; }
+  Item_func_expr_str_metadata(THD *thd, Item *a): Item_str_func(thd, a) { }
   void fix_length_and_dec()
   {
      collation.set(system_charset_info);
@@ -1062,22 +1061,31 @@ public:
      maybe_null= 0;
   };
   table_map not_null_tables() const { return 0; }
+  Item* propagate_equal_fields(THD *thd, const Context &ctx, COND_EQUAL *cond)
+  { return this; }
+  bool const_item() const { return true; }
 };
 
-class Item_func_collation :public Item_str_func
+
+class Item_func_charset :public Item_func_expr_str_metadata
 {
 public:
-  Item_func_collation(THD *thd, Item *a): Item_str_func(thd, a) {}
+  Item_func_charset(THD *thd, Item *a)
+    :Item_func_expr_str_metadata(thd, a) { }
+  String *val_str(String *);
+  const char *func_name() const { return "charset"; }
+};
+
+
+class Item_func_collation :public Item_func_expr_str_metadata
+{
+public:
+  Item_func_collation(THD *thd, Item *a)
+    :Item_func_expr_str_metadata(thd, a) {}
   String *val_str(String *);
   const char *func_name() const { return "collation"; }
-  void fix_length_and_dec()
-  {
-     collation.set(system_charset_info);
-     max_length= 64 * collation.collation->mbmaxlen; // should be enough
-     maybe_null= 0;
-  };
-  table_map not_null_tables() const { return 0; }
 };
+
 
 class Item_func_weight_string :public Item_str_func
 {
@@ -1106,6 +1114,8 @@ public:
            this->nweights == that->nweights &&
            this->result_length == that->result_length;
   }
+  Item* propagate_equal_fields(THD *thd, const Context &ctx, COND_EQUAL *cond)
+  { return this; }
 };
 
 class Item_func_crc32 :public Item_int_func

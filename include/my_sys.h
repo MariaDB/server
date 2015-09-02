@@ -1028,9 +1028,9 @@ extern size_t escape_quotes_for_mysql(CHARSET_INFO *charset_info,
                                       char *to, size_t to_length,
                                       const char *from, size_t length);
 
-extern void thd_increment_bytes_sent(ulong length);
-extern void thd_increment_bytes_received(ulong length);
-extern void thd_increment_net_big_packet_count(ulong length);
+extern void thd_increment_bytes_sent(void *thd, ulong length);
+extern void thd_increment_bytes_received(void *thd, ulong length);
+extern void thd_increment_net_big_packet_count(void *thd, ulong length);
 
 #ifdef __WIN__
 extern my_bool have_tcpip;		/* Is set if tcpip is used */

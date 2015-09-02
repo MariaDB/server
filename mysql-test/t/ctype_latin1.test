@@ -330,5 +330,26 @@ SELECT * FROM t1 WHERE a=b AND a=DATE'2001-01-01';
 DROP TABLE t1;
 
 --echo #
+--echo # MDEV-8695 Wrong result for SELECT..WHERE varchar_column='a' AND CRC32(varchar_column)=3904355907
+--echo #
+CREATE TABLE t1 (a VARCHAR(10) COLLATE latin1_bin);
+INSERT INTO t1 VALUES ('a'),('a ');
+SELECT a, LENGTH(a), CRC32(a) FROM t1 WHERE CRC32(a)=3904355907;
+SELECT a, LENGTH(a), CRC32(a) FROM t1 WHERE a='a' AND CRC32(a)=3904355907;
+--echo # 'a' should not be propagated into CRC32(a)
+EXPLAIN EXTENDED SELECT a, LENGTH(a), CRC32(a) FROM t1 WHERE a='a' AND CRC32(a)=3904355907;
+SELECT a, HEX(a) FROM t1 WHERE HEX(a)='61';
+SELECT *,HEX(a) FROM t1 WHERE a='a' AND HEX(a)='61';
+--echo # 'a' should not be propagated into HEX(a)
+EXPLAIN EXTENDED SELECT *,HEX(a) FROM t1 WHERE a='a' AND HEX(a)='61';
+SELECT * FROM t1 WHERE a='a';
+SELECT * FROM t1 WHERE LENGTH(a)=2;
+SELECT * FROM t1 WHERE a='a' AND LENGTH(a)=2;
+--echo # 'a' should not be propagated into LENGTH(a)
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a='a' AND LENGTH(a)=2;
+DROP TABLE t1;
+
+
+--echo #
 --echo # End of 10.1 tests
 --echo #

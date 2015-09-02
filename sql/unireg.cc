@@ -924,7 +924,7 @@ static bool make_empty_rec(THD *thd, uchar *buff, uint table_options,
     /*
       regfield don't have to be deleted as it's allocated with sql_alloc()
     */
-    Field *regfield= make_field(&share,
+    Field *regfield= make_field(&share, thd->mem_root,
                                 buff+field->offset + data_offset,
                                 field->length,
                                 null_pos + null_count / 8,

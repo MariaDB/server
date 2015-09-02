@@ -1286,7 +1286,7 @@ Sql_condition* THD::raise_condition(uint sql_errno,
     }
   }
 
-  query_cache_abort(&query_cache_tls);
+  query_cache_abort(this, &query_cache_tls);
 
   /* 
      Avoid pushing a condition for fatal out of memory errors as this will 
@@ -1939,6 +1939,7 @@ void THD::disconnect()
   /* Disconnect even if a active vio is not associated. */
   if (net.vio != vio)
     vio_close(net.vio);
+  net.thd= 0;                                   // Don't collect statistics
 
   mysql_mutex_unlock(&LOCK_thd_data);
 }
@@ -2065,7 +2066,11 @@ bool THD::store_globals()
   real_id= pthread_self();                      // For debugging
   mysys_var->stack_ends_here= thread_stack +    // for consistency, see libevent_thread_proc
                               STACK_DIRECTION * (long)my_thread_stack_size;
-  vio_set_thread_id(net.vio, real_id);
+  if (net.vio)
+  {
+    vio_set_thread_id(net.vio, real_id);
+    net.thd= this;
+  }
   /*
     We have to call thr_lock_info_init() again here as THD may have been
     created in another thread
@@ -2090,7 +2095,7 @@ void THD::reset_globals()
   /* Undocking the thread specific data. */
   set_current_thd(0);
   my_pthread_setspecific_ptr(THR_MALLOC, NULL);
-  
+  net.thd= 0;
 }
 
 /*
@@ -3998,26 +4003,29 @@ void TMP_TABLE_PARAM::init()
 }
 
 
-void thd_increment_bytes_sent(ulong length)
+void thd_increment_bytes_sent(void *thd, ulong length)
 {
-  THD *thd=current_thd;
+  /* thd == 0 when close_connection() calls net_send_error() */
   if (likely(thd != 0))
   {
-    /* current_thd == 0 when close_connection() calls net_send_error() */
-    thd->status_var.bytes_sent+= length;
+    ((THD*) thd)->status_var.bytes_sent+= length;
   }
 }
 
 
-void thd_increment_bytes_received(ulong length)
+void thd_increment_bytes_received(void *thd, ulong length)
 {
-  current_thd->status_var.bytes_received+= length;
+  if (unlikely(!thd))                           // Called from federatedx
+    thd= current_thd;
+  ((THD*) thd)->status_var.bytes_received+= length;
 }
 
 
-void thd_increment_net_big_packet_count(ulong length)
+void thd_increment_net_big_packet_count(void *thd, ulong length)
 {
-  current_thd->status_var.net_big_packet_count+= length;
+  if (unlikely(!thd))                           // Called from federatedx
+    thd= current_thd;
+  ((THD*) thd)->status_var.net_big_packet_count+= length;
 }
 
 

@@ -324,13 +324,26 @@ convert_kill_to_deadlock_error(rpl_group_info *rgi)
 }
 
 
-static bool
+/*
+  Check if an event marks the end of an event group. Returns non-zero if so,
+  zero otherwise.
+
+  In addition, returns 1 if the group is committing, 2 if it is rolling back.
+*/
+static int
 is_group_ending(Log_event *ev, Log_event_type event_type)
 {
-  return event_type == XID_EVENT ||
-         (event_type == QUERY_EVENT &&
-          (((Query_log_event *)ev)->is_commit() ||
-           ((Query_log_event *)ev)->is_rollback()));
+  if (event_type == XID_EVENT)
+    return 1;
+  if (event_type == QUERY_EVENT)
+  {
+    Query_log_event *qev = (Query_log_event *)ev;
+    if (qev->is_commit())
+      return 1;
+    if (qev->is_rollback())
+      return 2;
+  }
+  return 0;
 }
 
 
@@ -584,7 +597,7 @@ do_retry:
       err= 1;
       goto err;
     }
-    if (is_group_ending(ev, event_type))
+    if (is_group_ending(ev, event_type) == 1)
       rgi->mark_start_commit();
 
     err= rpt_handle_event(qev, rpt);
@@ -730,7 +743,8 @@ handle_rpl_parallel_thread(void *arg)
       Log_event_type event_type;
       rpl_group_info *rgi= qev->rgi;
       rpl_parallel_entry *entry= rgi->parallel_entry;
-      bool end_of_group, group_ending;
+      bool end_of_group;
+      int group_ending;
 
       next_qev= qev->next;
       if (qev->typ == rpl_parallel_thread::queued_event::QUEUED_POS_UPDATE)
@@ -918,7 +932,18 @@ handle_rpl_parallel_thread(void *arg)
 
       group_rgi= rgi;
       group_ending= is_group_ending(qev->ev, event_type);
-      if (group_ending && likely(!rgi->worker_error))
+      /*
+        We do not unmark_start_commit() here in case of an explicit ROLLBACK
+        statement. Such events should be very rare, there is no real reason
+        to try to group commit them - on the contrary, it seems best to avoid
+        running them in parallel with following group commits, as with
+        ROLLBACK events we are already deep in dangerous corner cases with
+        mix of transactional and non-transactional tables or the like. And
+        avoiding the mark_start_commit() here allows us to keep an assertion
+        in ha_rollback_trans() that we do not rollback after doing
+        mark_start_commit().
+      */
+      if (group_ending == 1 && likely(!rgi->worker_error))
       {
         /*
           Do an extra check for (deadlock) kill here. This helps prevent a

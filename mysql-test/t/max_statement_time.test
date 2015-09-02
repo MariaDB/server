@@ -1,9 +1,11 @@
 #
 # Test behavior of MAX_STATEMENT_TIME.
+# We can't do this under valgrind as valgrind interferes with thread scheduling
 #
 
 --source include/not_embedded.inc
 --source include/have_innodb.inc
+--source include/not_valgrind.inc
 
 --echo
 --echo # Test the MAX_STATEMENT_TIME option.
@@ -207,6 +209,7 @@ delimiter ;|
 set max_statement_time = 0.001;
 --error ER_STATEMENT_TIMEOUT
 call pr();
+set max_statement_time = 0;
 drop procedure pr;
 delimiter |;
 create procedure pr()

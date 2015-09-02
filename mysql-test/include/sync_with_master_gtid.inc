@@ -34,6 +34,10 @@ let $_slave_timeout= $slave_timeout;
 if (!$_slave_timeout)
 {
   let $_slave_timeout= 120;
+  if ($VALGRIND_TEST)
+  {
+    let $_slave_timeout= 1200;
+  }
 }
 
 --let $_result= `SELECT master_gtid_wait('$master_pos', $_slave_timeout)`

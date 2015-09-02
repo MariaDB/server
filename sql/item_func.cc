@@ -521,23 +521,27 @@ bool Item_func::eq(const Item *item, bool binary_cmp) const
 Field *Item_func::tmp_table_field(TABLE *table)
 {
   Field *field= NULL;
+  MEM_ROOT *mem_root= table->in_use->mem_root;
 
   switch (result_type()) {
   case INT_RESULT:
     if (max_char_length() > MY_INT32_NUM_DECIMAL_DIGITS)
-      field= new Field_longlong(max_char_length(), maybe_null, name,
-                                unsigned_flag);
+      field= new (mem_root)
+        Field_longlong(max_char_length(), maybe_null, name,
+                       unsigned_flag);
     else
-      field= new Field_long(max_char_length(), maybe_null, name,
-                            unsigned_flag);
+      field= new (mem_root)
+        Field_long(max_char_length(), maybe_null, name,
+                   unsigned_flag);
     break;
   case REAL_RESULT:
-    field= new Field_double(max_char_length(), maybe_null, name, decimals);
+    field= new (mem_root)
+      Field_double(max_char_length(), maybe_null, name, decimals);
     break;
   case STRING_RESULT:
     return make_string_field(table);
   case DECIMAL_RESULT:
-    field= Field_new_decimal::create_from_item(this);
+    field= Field_new_decimal::create_from_item(mem_root, this);
     break;
   case ROW_RESULT:
   case TIME_RESULT:
@@ -6507,7 +6511,7 @@ Item_func_sp::Item_func_sp(THD *thd, Name_resolution_context *context_arg,
   Item_func(thd), context(context_arg), m_name(name), m_sp(NULL), sp_result_field(NULL)
 {
   maybe_null= 1;
-  m_name->init_qname(current_thd);
+  m_name->init_qname(thd);
   dummy_table= (TABLE*) thd->calloc(sizeof(TABLE)+ sizeof(TABLE_SHARE));
   dummy_table->s= (TABLE_SHARE*) (dummy_table+1);
 }
@@ -6519,7 +6523,7 @@ Item_func_sp::Item_func_sp(THD *thd, Name_resolution_context *context_arg,
   sp_result_field(NULL)
 {
   maybe_null= 1;
-  m_name->init_qname(current_thd);
+  m_name->init_qname(thd);
   dummy_table= (TABLE*) thd->calloc(sizeof(TABLE)+ sizeof(TABLE_SHARE));
   dummy_table->s= (TABLE_SHARE*) (dummy_table+1);
 }

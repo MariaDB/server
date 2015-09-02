@@ -487,7 +487,7 @@ ulong delay_key_write_options;
 uint protocol_version;
 uint lower_case_table_names;
 ulong tc_heuristic_recover= 0;
-int32 thread_count;
+int32 thread_count, service_thread_count;
 int32 thread_running;
 int32 slave_open_temp_tables;
 ulong thread_created;
@@ -1753,7 +1753,7 @@ static void close_connections(void)
   /* All threads has now been aborted */
   DBUG_PRINT("quit",("Waiting for threads to die (count=%u)",thread_count));
   mysql_mutex_lock(&LOCK_thread_count);
-  while (thread_count)
+  while (thread_count || service_thread_count)
   {
     mysql_cond_wait(&COND_thread_count, &LOCK_thread_count);
     DBUG_PRINT("quit",("One thread died (count=%u)",thread_count));
@@ -2108,6 +2108,7 @@ void clean_up(bool print_message)
   xid_cache_free();
   tdc_deinit();
   mdl_destroy();
+  dflt_key_cache= 0;
   key_caches.delete_elements((void (*)(const char*, uchar*)) free_key_cache);
   wt_end();
   multi_keycache_free();
@@ -2150,6 +2151,7 @@ void clean_up(bool print_message)
     sql_print_information(ER_DEFAULT(ER_SHUTDOWN_COMPLETE),my_progname);
   cleanup_errmsgs();
   MYSQL_CALLBACK(thread_scheduler, end, ());
+  thread_scheduler= 0;
   mysql_library_end();
   finish_client_errs();
   (void) my_error_unregister(ER_ERROR_FIRST, ER_ERROR_LAST); // finish server errs
@@ -2838,8 +2840,26 @@ void delete_running_thd(THD *thd)
   delete thd;
   dec_thread_running();
   thread_safe_decrement32(&thread_count);
-  if (!thread_count)
+  signal_thd_deleted();
+}
+
+/*
+  Send a signal to unblock close_conneciton() if there is no more
+  threads running with a THD attached
+
+  It's safe to check for thread_count and service_thread_count outside
+  of a mutex as we are only interested to see if they where decremented
+  to 0 by a previous unlink_thd() call.
+
+  We should only signal COND_thread_count if both variables are 0,
+  false positives are ok.
+*/
+
+void signal_thd_deleted()
+{
+  if (!thread_count && ! service_thread_count)
   {
+    /* Signal close_connections() that all THD's are freed */
     mysql_mutex_lock(&LOCK_thread_count);
     mysql_cond_broadcast(&COND_thread_count);
     mysql_mutex_unlock(&LOCK_thread_count);
@@ -2993,22 +3013,10 @@ bool one_thread_per_connection_end(THD *thd, bool put_in_cache)
 
   unlink_thd(thd);
 
-  if (put_in_cache && cache_thread() && !wsrep_applier)
+  if (!wsrep_applier && put_in_cache && cache_thread())
     DBUG_RETURN(0);                             // Thread is reused
 
-  /*
-    It's safe to check for thread_count outside of the mutex
-    as we are only interested to see if it was counted to 0 by the
-    above unlink_thd() call. We should only signal COND_thread_count if
-    thread_count is likely to be 0. (false positives are ok)
-  */
-  if (!thread_count)
-  {
-    mysql_mutex_lock(&LOCK_thread_count);
-    DBUG_PRINT("signal", ("Broadcasting COND_thread_count"));
-    mysql_cond_broadcast(&COND_thread_count);
-    mysql_mutex_unlock(&LOCK_thread_count);
-  }
+  signal_thd_deleted();
   DBUG_LEAVE;                                   // Must match DBUG_ENTER()
 #if defined(HAVE_OPENSSL) && !defined(EMBEDDED_LIBRARY)
   ERR_remove_state(0);
@@ -6165,7 +6173,7 @@ static void bootstrap(MYSQL_FILE *file)
   thd->variables.wsrep_on= 0;
 #endif
   thd->bootstrap=1;
-  my_net_init(&thd->net,(st_vio*) 0, MYF(0));
+  my_net_init(&thd->net,(st_vio*) 0, (void*) 0, MYF(0));
   thd->max_client_packet_length= thd->net.max_packet;
   thd->security_ctx->master_access= ~(ulong)0;
   thd->thread_id= thd->variables.pseudo_thread_id= thread_id++;
@@ -6634,7 +6642,7 @@ void handle_connections_sockets()
           mysql_socket_vio_new(new_sock,
                                is_unix_sock ? VIO_TYPE_SOCKET : VIO_TYPE_TCPIP,
                                is_unix_sock ? VIO_LOCALHOST: 0)) ||
-	my_net_init(&thd->net, vio_tmp, MYF(MY_THREAD_SPECIFIC)))
+	my_net_init(&thd->net, vio_tmp, thd, MYF(MY_THREAD_SPECIFIC)))
     {
       /*
         Only delete the temporary vio if we didn't already attach it to the
@@ -6759,7 +6767,7 @@ pthread_handler_t handle_connections_namedpipes(void *arg)
     }
     set_current_thd(thd);
     if (!(thd->net.vio= vio_new_win32pipe(hConnectedPipe)) ||
-	my_net_init(&thd->net, thd->net.vio, MYF(MY_THREAD_SPECIFIC)))
+	my_net_init(&thd->net, thd->net.vio, thd, MYF(MY_THREAD_SPECIFIC)))
     {
       close_connection(thd, ER_OUT_OF_RESOURCES);
       delete thd;
@@ -6956,7 +6964,7 @@ pthread_handler_t handle_connections_shared_memory(void *arg)
                                                    event_server_wrote,
                                                    event_server_read,
                                                    event_conn_closed)) ||
-        my_net_init(&thd->net, thd->net.vio, MYF(MY_THREAD_SPECIFIC)))
+        my_net_init(&thd->net, thd->net.vio, thd, MYF(MY_THREAD_SPECIFIC)))
     {
       close_connection(thd, ER_OUT_OF_RESOURCES);
       errmsg= 0;
@@ -8588,7 +8596,8 @@ static int mysql_init_variables(void)
   cleanup_done= 0;
   server_id_supplied= 0;
   test_flags= select_errors= dropping_tables= ha_open_options=0;
-  thread_count= thread_running= kill_cached_threads= wake_thread=0;
+  thread_count= thread_running= kill_cached_threads= wake_thread= 0;
+  service_thread_count= 0;
   slave_open_temp_tables= 0;
   cached_thread_count= 0;
   opt_endinfo= using_udf_functions= 0;

@@ -6312,7 +6312,7 @@ Item *create_temporal_literal(THD *thd,
     if (status.warnings) // e.g. a note on nanosecond truncation
     {
       ErrConvString err(str, length, cs);
-      make_truncated_value_warning(current_thd,
+      make_truncated_value_warning(thd,
                                    Sql_condition::time_warn_level(status.warnings),
                                    &err, ltime.time_type, 0);
     }

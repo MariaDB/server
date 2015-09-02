@@ -1011,8 +1011,10 @@ String *Item_func_concat_ws::val_str(String *str)
     if (!(res2= args[i]->val_str(use_as_buff)))
       continue;					// Skip NULL
 
+    if (!thd)
+      thd= current_thd;
     if (res->length() + sep_str->length() + res2->length() >
-	(thd ? thd : (thd= current_thd))->variables.max_allowed_packet)
+	thd->variables.max_allowed_packet)
     {
       push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
 			  ER_WARN_ALLOWED_PACKET_OVERFLOWED,
@@ -1273,8 +1275,12 @@ redo:
         while (j != search_end)
           if (*i++ != *j++) goto skip;
         offset= (int) (ptr-res->ptr());
+
+        if (!thd)
+          thd= current_thd;
+
         if (res->length()-from_length + to_length >
-            (thd ? thd : (thd= current_thd))->variables.max_allowed_packet)
+            thd->variables.max_allowed_packet)
         {
           push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                               ER_WARN_ALLOWED_PACKET_OVERFLOWED,
@@ -1301,7 +1307,7 @@ redo:
   else
 #endif /* USE_MB */
   {
-    THD *thd= current_thd;
+    thd= current_thd;
     do
     {
       if (res->length()-from_length + to_length >

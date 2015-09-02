@@ -1657,7 +1657,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
 #endif
 
     *field_ptr= reg_field=
-      make_field(share, record+recpos,
+      make_field(share, &share->mem_root, record+recpos,
 		 (uint32) field_length,
 		 null_pos, null_bit_pos,
 		 pack_flag,
