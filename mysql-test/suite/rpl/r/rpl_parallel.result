@@ -1689,6 +1689,24 @@ a	b
 include/stop_slave.inc
 SET GLOBAL debug_dbug=@old_dbug;
 include/start_slave.inc
+*** MDEV-8725: Assertion on ROLLBACK statement in the binary log ***
+BEGIN;
+INSERT INTO t2 VALUES (200);
+INSERT INTO t1 VALUES (200);
+INSERT INTO t2 VALUES (201);
+ROLLBACK;
+SELECT * FROM t1 WHERE a>=200 ORDER BY a;
+a
+200
+SELECT * FROM t2 WHERE a>=200 ORDER BY a;
+a
+include/save_master_gtid.inc
+include/sync_with_master_gtid.inc
+SELECT * FROM t1 WHERE a>=200 ORDER BY a;
+a
+200
+SELECT * FROM t2 WHERE a>=200 ORDER BY a;
+a
 include/stop_slave.inc
 SET GLOBAL slave_parallel_threads=@old_parallel_threads;
 include/start_slave.inc
