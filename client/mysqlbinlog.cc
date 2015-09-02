@@ -2575,6 +2575,11 @@ void *sql_alloc(size_t size)
   return alloc_root(&s_mem_root, size);
 }
 
+struct encryption_service_st encryption_handler=
+{
+  0, 0, 0, 0, 0, 0, 0
+};
+
 /*
   We must include this here as it's compiled with different options for
   the server

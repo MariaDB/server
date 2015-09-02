@@ -5607,6 +5607,7 @@ static int queue_event(Master_info* mi,const char* buf, ulong event_len)
       error= ER_SLAVE_RELAY_LOG_WRITE_FAILURE;
       goto err;
     }
+    tmp->copy_crypto_data(mi->rli.relay_log.description_event_for_queue);
     delete mi->rli.relay_log.description_event_for_queue;
     mi->rli.relay_log.description_event_for_queue= tmp;
     if (tmp->checksum_alg == BINLOG_CHECKSUM_ALG_UNDEF)
@@ -6028,7 +6029,7 @@ static int queue_event(Master_info* mi,const char* buf, ulong event_len)
   }
   else
   {
-    if (likely(!(rli->relay_log.appendv(buf,event_len,0))))
+    if (likely(!rli->relay_log.write_event_buffer((uchar*)buf, event_len)))
     {
       mi->master_log_pos+= inc_pos;
       DBUG_PRINT("info", ("master_log_pos: %lu", (ulong) mi->master_log_pos));
@@ -6778,6 +6779,7 @@ static Log_event* next_event(rpl_group_info *rgi, ulonglong *event_size)
       mysql_file_close(rli->cur_log_fd, MYF(MY_WME));
       rli->cur_log_fd = -1;
       rli->last_inuse_relaylog->completed= true;
+      rli->relay_log.description_event_for_exec->reset_crypto();
 
       if (relay_log_purge)
       {

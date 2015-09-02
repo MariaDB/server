@@ -527,6 +527,9 @@ class MYSQL_BIN_LOG: public TC_LOG, private MYSQL_LOG
   ulonglong group_commit_trigger_count, group_commit_trigger_timeout;
   ulonglong group_commit_trigger_lock_wait;
 
+  /* binlog encryption data */
+  struct Binlog_crypt_data crypto;
+
   /* pointer to the sync period variable, for binlog this will be
      sync_binlog_period, for relay log this will be
      sync_relay_log_period
@@ -740,11 +743,7 @@ public:
   bool write_event(Log_event *ev, IO_CACHE *file);
   bool write_event(Log_event *ev) { return write_event(ev, &log_file); }
 
-  /*
-    v stands for vector
-    invoked as appendv(buf1,len1,buf2,len2,...,bufn,lenn,0)
-  */
-  bool appendv(const char* buf,uint len,...);
+  bool write_event_buffer(uchar* buf,uint len);
   bool append(Log_event* ev);
   bool append_no_lock(Log_event* ev);
 

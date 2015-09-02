@@ -547,9 +547,12 @@ read_relay_log_description_event(IO_CACHE *cur_log, ulonglong start_pos,
     typ= ev->get_type_code();
     if (typ == FORMAT_DESCRIPTION_EVENT)
     {
+      Format_description_log_event *old= fdev;
       DBUG_PRINT("info",("found Format_description_log_event"));
-      delete fdev;
       fdev= (Format_description_log_event*) ev;
+      fdev->copy_crypto_data(old);
+      delete old;
+
       /*
         As ev was returned by read_log_event, it has passed is_valid(), so
         my_malloc() in ctor worked, no need to check again.
@@ -570,6 +573,17 @@ read_relay_log_description_event(IO_CACHE *cur_log, ulonglong start_pos,
         position (argument 'pos') or until you find another event than Rotate
         or Format_desc.
       */
+    }
+    else if (typ == START_ENCRYPTION_EVENT)
+    {
+      if (fdev->start_decryption((Start_encryption_log_event*) ev))
+      {
+        *errmsg= "Unable to set up decryption of binlog.";
+        delete ev;
+        delete fdev;
+        return NULL;
+      }
+      delete ev;
     }
     else
     {

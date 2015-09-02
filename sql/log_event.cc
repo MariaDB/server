@@ -816,6 +816,7 @@ const char* Log_event::get_type_str(Log_event_type type)
   case BINLOG_CHECKPOINT_EVENT: return "Binlog_checkpoint";
   case GTID_EVENT: return "Gtid";
   case GTID_LIST_EVENT: return "Gtid_list";
+  case START_ENCRYPTION_EVENT: return "Start_encryption";
   default: return "Unknown";				/* impossible */
   }
 }
@@ -1129,8 +1130,9 @@ my_bool Log_event::need_checksum()
                   the local RL's Rotate and the master's Rotate
                   which IO thread instantiates via queue_binlog_ver_3_event.
                */
-               get_type_code() == ROTATE_EVENT
-               ||  /* FD is always checksummed */
+               get_type_code() == ROTATE_EVENT ||
+               get_type_code() == START_ENCRYPTION_EVENT ||
+               /* FD is always checksummed */
                get_type_code() == FORMAT_DESCRIPTION_EVENT) && 
                checksum_alg != BINLOG_CHECKSUM_ALG_OFF));
 
@@ -1152,6 +1154,53 @@ int Log_event_writer::write_internal(const uchar *pos, size_t len)
   return 0;
 }
 
+/*
+  as soon as encryption produces the first output block, write event_len
+  where it should be in a valid event header
+*/
+int Log_event_writer::maybe_write_event_len(uchar *pos, size_t len)
+{
+  if (len && event_len)
+  {
+    DBUG_ASSERT(len >= EVENT_LEN_OFFSET);
+    if (write_internal(pos + EVENT_LEN_OFFSET - 4, 4))
+      return 1;
+    int4store(pos + EVENT_LEN_OFFSET - 4, event_len);
+    event_len= 0;
+  }
+  return 0;
+}
+
+int Log_event_writer::encrypt_and_write(const uchar *pos, size_t len)
+{
+  uchar *dst= 0;
+  size_t dstsize= 0;
+
+  if (ctx)
+  {
+    dstsize= encryption_encrypted_length(len, ENCRYPTION_KEY_SYSTEM_DATA,
+                                         crypto->key_version);
+    if (!(dst= (uchar*)my_safe_alloca(dstsize)))
+      return 1;
+
+    uint dstlen;
+    if (encryption_ctx_update(ctx, pos, len, dst, &dstlen))
+      goto err;
+    if (maybe_write_event_len(dst, dstlen))
+      return 1;
+    pos= dst;
+    len= dstlen;
+  }
+  if (write_internal(pos, len))
+    goto err;
+
+  my_safe_afree(dst, dstsize);
+  return 0;
+err:
+  my_safe_afree(dst, dstsize);
+  return 1;
+}
+
 int Log_event_writer::write_header(uchar *pos, size_t len)
 {
   DBUG_ENTER("write_footer");
@@ -1169,7 +1218,23 @@ int Log_event_writer::write_header(uchar *pos, size_t len)
     pos[FLAGS_OFFSET]= save;
   }
 
-  return write_internal(pos, len);
+  if (ctx)
+  {
+    uchar iv[BINLOG_IV_LENGTH];
+    crypto->set_iv(iv, my_b_safe_tell(file));
+    if (encryption_ctx_init(ctx, crypto->key, crypto->key_length,
+           iv, sizeof(iv), ENCRYPTION_FLAG_ENCRYPT | ENCRYPTION_FLAG_NOPAD,
+           ENCRYPTION_KEY_SYSTEM_DATA, crypto->key_version))
+      return 1;
+
+    DBUG_ASSERT(len >= LOG_EVENT_HEADER_LEN);
+    event_len= uint4korr(pos + EVENT_LEN_OFFSET);
+    DBUG_ASSERT(event_len >= len);
+    memcpy(pos + EVENT_LEN_OFFSET, pos, 4);
+    pos+= 4;
+    len-= 4;
+  }
+  return encrypt_and_write(pos, len);
 }
 
 int Log_event_writer::write_data(const uchar *pos, size_t len)
@@ -1177,7 +1242,7 @@ int Log_event_writer::write_data(const uchar *pos, size_t len)
   if (checksum_len)
     crc= my_checksum(crc, pos, len);
 
-  return write_internal(pos, len);
+  return encrypt_and_write(pos, len);
 }
 
 int Log_event_writer::write_footer()
@@ -1187,7 +1252,16 @@ int Log_event_writer::write_footer()
   {
     uchar checksum_buf[BINLOG_CHECKSUM_LEN];
     int4store(checksum_buf, crc);
-    if (write_internal(checksum_buf, BINLOG_CHECKSUM_LEN))
+    if (encrypt_and_write(checksum_buf, BINLOG_CHECKSUM_LEN))
+      DBUG_RETURN(ER_ERROR_ON_WRITE);
+  }
+  if (ctx)
+  {
+    uint dstlen;
+    uchar dst[MY_AES_BLOCK_SIZE*2];
+    if (encryption_ctx_finish(ctx, dst, &dstlen))
+      DBUG_RETURN(1);
+    if (maybe_write_event_len(dst, dstlen) || write_internal(dst, dstlen))
       DBUG_RETURN(ER_ERROR_ON_WRITE);
   }
   DBUG_RETURN(0);
@@ -1262,6 +1336,7 @@ bool Log_event::write_header(ulong event_data_length)
 */
 
 int Log_event::read_log_event(IO_CACHE* file, String* packet,
+                              const Format_description_log_event *fdle,
                               enum enum_binlog_checksum_alg checksum_alg_arg)
 {
   ulong data_len;
@@ -1299,7 +1374,7 @@ int Log_event::read_log_event(IO_CACHE* file, String* packet,
                      opt_binlog_rows_event_max_size + MAX_LOG_EVENT_HEADER))
     DBUG_RETURN(LOG_READ_TOO_LARGE);
 
-  if (data_len > LOG_EVENT_MINIMAL_HEADER_LEN)
+  if (likely(data_len > LOG_EVENT_MINIMAL_HEADER_LEN))
   {
     /* Append rest of event, read directly from file into packet */
     if (packet->append(file, data_len - LOG_EVENT_MINIMAL_HEADER_LEN))
@@ -1319,7 +1394,42 @@ int Log_event::read_log_event(IO_CACHE* file, String* packet,
       DBUG_RETURN(my_errno == ENOMEM ? LOG_READ_MEM :
                   (file->error >= 0 ? LOG_READ_TRUNC: LOG_READ_IO));
     }
+  }
 
+  if (fdle->crypto_data.scheme)
+  {
+    uchar iv[BINLOG_IV_LENGTH];
+    fdle->crypto_data.set_iv(iv, my_b_tell(file) - data_len);
+
+    char *newpkt= (char*)my_malloc(data_len + ev_offset + 1, MYF(MY_WME));
+    if (!newpkt)
+      DBUG_RETURN(LOG_READ_MEM);
+    memcpy(newpkt, packet->ptr(), ev_offset);
+
+    uint dstlen;
+    uchar *src= (uchar*)packet->ptr() + ev_offset;
+    uchar *dst= (uchar*)newpkt + ev_offset;
+    memcpy(src + EVENT_LEN_OFFSET, src, 4);
+    if (encryption_crypt(src + 4, data_len - 4, dst + 4, &dstlen,
+            fdle->crypto_data.key, fdle->crypto_data.key_length, iv,
+            sizeof(iv), ENCRYPTION_FLAG_DECRYPT | ENCRYPTION_FLAG_NOPAD,
+            ENCRYPTION_KEY_SYSTEM_DATA, fdle->crypto_data.key_version))
+    {
+      my_free(newpkt);
+      DBUG_RETURN(LOG_READ_DECRYPT);
+    }
+    DBUG_ASSERT(dstlen == data_len - 4);
+    memcpy(dst, dst + EVENT_LEN_OFFSET, 4);
+    int4store(dst + EVENT_LEN_OFFSET, data_len);
+    packet->reset(newpkt, data_len + ev_offset, data_len + ev_offset + 1,
+                  &my_charset_bin);
+  }
+
+  /*
+    CRC verification of the Dump thread
+  */
+  if (data_len > LOG_EVENT_MINIMAL_HEADER_LEN)
+  {
     /* Corrupt the event for Dump thread*/
     DBUG_EXECUTE_IF("corrupt_read_log_event2",
       uchar *debug_event_buf_c = (uchar*) packet->ptr() + ev_offset;
@@ -1331,28 +1441,19 @@ int Log_event::read_log_event(IO_CACHE* file, String* packet,
         DBUG_SET("-d,corrupt_read_log_event2");
       }
     );
-    /*
-      CRC verification of the Dump thread
-    */
     if (event_checksum_test((uchar*) packet->ptr() + ev_offset,
-                            data_len, checksum_alg_arg))
+                             data_len, checksum_alg_arg))
       DBUG_RETURN(LOG_READ_CHECKSUM_FAILURE);
   }
   DBUG_RETURN(0);
 }
 
-/**
-  @note
-    Allocates memory;  The caller is responsible for clean-up.
-*/
-Log_event* Log_event::read_log_event(IO_CACHE* file,
-                                     mysql_mutex_t* log_lock,
-                                     const Format_description_log_event
-                                     *description_event,
+Log_event* Log_event::read_log_event(IO_CACHE* file, mysql_mutex_t* log_lock,
+                                     const Format_description_log_event *fdle,
                                      my_bool crc_check)
 {
   DBUG_ENTER("Log_event::read_log_event(IO_CACHE*,Format_description_log_event*...)");
-  DBUG_ASSERT(description_event != 0);
+  DBUG_ASSERT(fdle != 0);
   String event;
   const char *error= 0;
   Log_event *res= 0;
@@ -1360,14 +1461,14 @@ Log_event* Log_event::read_log_event(IO_CACHE* file,
   if (log_lock)
     mysql_mutex_lock(log_lock);
 
-  switch (read_log_event(file, &event, BINLOG_CHECKSUM_ALG_OFF))
+  switch (read_log_event(file, &event, fdle, BINLOG_CHECKSUM_ALG_OFF))
   {
     case 0:
       break;
     case LOG_READ_EOF: // no error here; we are at the file's end
       goto err;
     case LOG_READ_BOGUS:
-      error= "Event too small";
+      error= "Event invalid";
       goto err;
     case LOG_READ_IO:
       error= "read error";
@@ -1381,6 +1482,9 @@ Log_event* Log_event::read_log_event(IO_CACHE* file,
     case LOG_READ_TOO_LARGE:
       error= "Event too big";
       goto err;
+    case LOG_READ_DECRYPT:
+      error= "Event decryption failure";
+      goto err;
     case LOG_READ_CHECKSUM_FAILURE:
     default:
       DBUG_ASSERT(0);
@@ -1389,7 +1493,7 @@ Log_event* Log_event::read_log_event(IO_CACHE* file,
   }
 
   if ((res= read_log_event(event.ptr(), event.length(),
-                           &error, description_event, crc_check)))
+                           &error, fdle, crc_check)))
     res->register_temp_buf(event.release(), true);
 
 err:
@@ -1401,8 +1505,8 @@ err:
     if (event.length() >= OLD_HEADER_LEN)
       sql_print_error("Error in Log_event::read_log_event(): '%s',"
                       " data_len: %lu, event_type: %d", error,
-                      uint4korr(event.ptr() + EVENT_LEN_OFFSET),
-                      (uchar)(event.ptr()[EVENT_TYPE_OFFSET]));
+                      uint4korr(&event[EVENT_LEN_OFFSET]),
+                      (uchar)event[EVENT_TYPE_OFFSET]);
     else
       sql_print_error("Error in Log_event::read_log_event(): '%s'", error);
     /*
@@ -1420,26 +1524,25 @@ err:
 
 
 /**
-  Binlog format tolerance is in (buf, event_len, description_event)
+  Binlog format tolerance is in (buf, event_len, fdle)
   constructors.
 */
 
 Log_event* Log_event::read_log_event(const char* buf, uint event_len,
 				     const char **error,
-                                     const Format_description_log_event *description_event,
+                                     const Format_description_log_event *fdle,
                                      my_bool crc_check)
 {
   Log_event* ev;
   enum enum_binlog_checksum_alg alg;
   DBUG_ENTER("Log_event::read_log_event(char*,...)");
-  DBUG_ASSERT(description_event != 0);
-  DBUG_PRINT("info", ("binlog_version: %d", description_event->binlog_version));
+  DBUG_ASSERT(fdle != 0);
+  DBUG_PRINT("info", ("binlog_version: %d", fdle->binlog_version));
   DBUG_DUMP_EVENT_BUF(buf, event_len);
 
   /* Check the integrity */
   if (event_len < EVENT_LEN_OFFSET ||
-      (uchar)buf[EVENT_TYPE_OFFSET] >= ENUM_END_EVENT ||
-      (uint) event_len != uint4korr(buf+EVENT_LEN_OFFSET))
+      (uchar)buf[EVENT_TYPE_OFFSET] >= ENUM_END_EVENT)
   {
     *error="Sanity check failed";		// Needed to free buffer
     DBUG_RETURN(NULL); // general sanity check - will fail on a partial read
@@ -1448,16 +1551,16 @@ Log_event* Log_event::read_log_event(const char* buf, uint event_len,
   uint event_type= (uchar)buf[EVENT_TYPE_OFFSET];
   // all following START events in the current file are without checksum
   if (event_type == START_EVENT_V3)
-    (const_cast< Format_description_log_event *>(description_event))->checksum_alg= BINLOG_CHECKSUM_ALG_OFF;
+    (const_cast< Format_description_log_event *>(fdle))->checksum_alg= BINLOG_CHECKSUM_ALG_OFF;
   /*
     CRC verification by SQL and Show-Binlog-Events master side.
-    The caller has to provide @description_event->checksum_alg to
+    The caller has to provide @fdle->checksum_alg to
     be the last seen FD's (A) descriptor.
     If event is FD the descriptor is in it.
     Notice, FD of the binlog can be only in one instance and therefore
     Show-Binlog-Events executing master side thread needs just to know
     the only FD's (A) value -  whereas RL can contain more.
-    In the RL case, the alg is kept in FD_e (@description_event) which is reset 
+    In the RL case, the alg is kept in FD_e (@fdle) which is reset
     to the newer read-out event after its execution with possibly new alg descriptor.
     Therefore in a typical sequence of RL:
     {FD_s^0, FD_m, E_m^1} E_m^1 
@@ -1469,7 +1572,7 @@ Log_event* Log_event::read_log_event(const char* buf, uint event_len,
     Notice, a pre-checksum FD version forces alg := BINLOG_CHECKSUM_ALG_UNDEF.
   */
   alg= (event_type != FORMAT_DESCRIPTION_EVENT) ?
-    description_event->checksum_alg : get_checksum_alg(buf, event_len);
+    fdle->checksum_alg : get_checksum_alg(buf, event_len);
   // Emulate the corruption during reading an event
   DBUG_EXECUTE_IF("corrupt_read_log_event_char",
     if (event_type != FORMAT_DESCRIPTION_EVENT)
@@ -1488,7 +1591,7 @@ Log_event* Log_event::read_log_event(const char* buf, uint event_len,
     *error= "Event crc check failed! Most likely there is event corruption.";
     if (force_opt)
     {
-      ev= new Unknown_log_event(buf, description_event);
+      ev= new Unknown_log_event(buf, fdle);
       DBUG_RETURN(ev);
     }
     else
@@ -1500,17 +1603,17 @@ Log_event* Log_event::read_log_event(const char* buf, uint event_len,
 #endif
   }
 
-  if (event_type > description_event->number_of_event_types &&
+  if (event_type > fdle->number_of_event_types &&
       event_type != FORMAT_DESCRIPTION_EVENT)
   {
     /*
-      It is unsafe to use the description_event if its post_header_len
+      It is unsafe to use the fdle if its post_header_len
       array does not include the event type.
     */
     DBUG_PRINT("error", ("event type %d found, but the current "
                          "Format_description_log_event supports only %d event "
                          "types", event_type,
-                         description_event->number_of_event_types));
+                         fdle->number_of_event_types));
     ev= NULL;
   }
   else
@@ -1525,9 +1628,9 @@ Log_event* Log_event::read_log_event(const char* buf, uint event_len,
       array, which was set up when the Format_description_log_event
       was read.
     */
-    if (description_event->event_type_permutation)
+    if (fdle->event_type_permutation)
     {
-      int new_event_type= description_event->event_type_permutation[event_type];
+      int new_event_type= fdle->event_type_permutation[event_type];
       DBUG_PRINT("info", ("converting event type %d to %d (%s)",
                    event_type, new_event_type,
                    get_type_str((Log_event_type)new_event_type)));
@@ -1538,99 +1641,102 @@ Log_event* Log_event::read_log_event(const char* buf, uint event_len,
         (event_type == FORMAT_DESCRIPTION_EVENT ||
          alg != BINLOG_CHECKSUM_ALG_OFF))
       event_len= event_len - BINLOG_CHECKSUM_LEN;
-    
+
     switch(event_type) {
     case QUERY_EVENT:
-      ev  = new Query_log_event(buf, event_len, description_event, QUERY_EVENT);
+      ev  = new Query_log_event(buf, event_len, fdle, QUERY_EVENT);
       break;
     case LOAD_EVENT:
-      ev = new Load_log_event(buf, event_len, description_event);
+      ev = new Load_log_event(buf, event_len, fdle);
       break;
     case NEW_LOAD_EVENT:
-      ev = new Load_log_event(buf, event_len, description_event);
+      ev = new Load_log_event(buf, event_len, fdle);
       break;
     case ROTATE_EVENT:
-      ev = new Rotate_log_event(buf, event_len, description_event);
+      ev = new Rotate_log_event(buf, event_len, fdle);
       break;
     case BINLOG_CHECKPOINT_EVENT:
-      ev = new Binlog_checkpoint_log_event(buf, event_len, description_event);
+      ev = new Binlog_checkpoint_log_event(buf, event_len, fdle);
       break;
     case GTID_EVENT:
-      ev = new Gtid_log_event(buf, event_len, description_event);
+      ev = new Gtid_log_event(buf, event_len, fdle);
       break;
     case GTID_LIST_EVENT:
-      ev = new Gtid_list_log_event(buf, event_len, description_event);
+      ev = new Gtid_list_log_event(buf, event_len, fdle);
       break;
     case CREATE_FILE_EVENT:
-      ev = new Create_file_log_event(buf, event_len, description_event);
+      ev = new Create_file_log_event(buf, event_len, fdle);
       break;
     case APPEND_BLOCK_EVENT:
-      ev = new Append_block_log_event(buf, event_len, description_event);
+      ev = new Append_block_log_event(buf, event_len, fdle);
       break;
     case DELETE_FILE_EVENT:
-      ev = new Delete_file_log_event(buf, event_len, description_event);
+      ev = new Delete_file_log_event(buf, event_len, fdle);
       break;
     case EXEC_LOAD_EVENT:
-      ev = new Execute_load_log_event(buf, event_len, description_event);
+      ev = new Execute_load_log_event(buf, event_len, fdle);
       break;
     case START_EVENT_V3: /* this is sent only by MySQL <=4.x */
-      ev = new Start_log_event_v3(buf, event_len, description_event);
+      ev = new Start_log_event_v3(buf, event_len, fdle);
       break;
     case STOP_EVENT:
-      ev = new Stop_log_event(buf, description_event);
+      ev = new Stop_log_event(buf, fdle);
       break;
     case INTVAR_EVENT:
-      ev = new Intvar_log_event(buf, description_event);
+      ev = new Intvar_log_event(buf, fdle);
       break;
     case XID_EVENT:
-      ev = new Xid_log_event(buf, description_event);
+      ev = new Xid_log_event(buf, fdle);
       break;
     case RAND_EVENT:
-      ev = new Rand_log_event(buf, description_event);
+      ev = new Rand_log_event(buf, fdle);
       break;
     case USER_VAR_EVENT:
-      ev = new User_var_log_event(buf, event_len, description_event);
+      ev = new User_var_log_event(buf, event_len, fdle);
       break;
     case FORMAT_DESCRIPTION_EVENT:
-      ev = new Format_description_log_event(buf, event_len, description_event);
+      ev = new Format_description_log_event(buf, event_len, fdle);
       break;
 #if defined(HAVE_REPLICATION) 
     case PRE_GA_WRITE_ROWS_EVENT:
-      ev = new Write_rows_log_event_old(buf, event_len, description_event);
+      ev = new Write_rows_log_event_old(buf, event_len, fdle);
       break;
     case PRE_GA_UPDATE_ROWS_EVENT:
-      ev = new Update_rows_log_event_old(buf, event_len, description_event);
+      ev = new Update_rows_log_event_old(buf, event_len, fdle);
       break;
     case PRE_GA_DELETE_ROWS_EVENT:
-      ev = new Delete_rows_log_event_old(buf, event_len, description_event);
+      ev = new Delete_rows_log_event_old(buf, event_len, fdle);
       break;
     case WRITE_ROWS_EVENT_V1:
     case WRITE_ROWS_EVENT:
-      ev = new Write_rows_log_event(buf, event_len, description_event);
+      ev = new Write_rows_log_event(buf, event_len, fdle);
       break;
     case UPDATE_ROWS_EVENT_V1:
     case UPDATE_ROWS_EVENT:
-      ev = new Update_rows_log_event(buf, event_len, description_event);
+      ev = new Update_rows_log_event(buf, event_len, fdle);
       break;
     case DELETE_ROWS_EVENT_V1:
     case DELETE_ROWS_EVENT:
-      ev = new Delete_rows_log_event(buf, event_len, description_event);
+      ev = new Delete_rows_log_event(buf, event_len, fdle);
       break;
     case TABLE_MAP_EVENT:
-      ev = new Table_map_log_event(buf, event_len, description_event);
+      ev = new Table_map_log_event(buf, event_len, fdle);
       break;
 #endif
     case BEGIN_LOAD_QUERY_EVENT:
-      ev = new Begin_load_query_log_event(buf, event_len, description_event);
+      ev = new Begin_load_query_log_event(buf, event_len, fdle);
       break;
     case EXECUTE_LOAD_QUERY_EVENT:
-      ev= new Execute_load_query_log_event(buf, event_len, description_event);
+      ev= new Execute_load_query_log_event(buf, event_len, fdle);
       break;
     case INCIDENT_EVENT:
-      ev = new Incident_log_event(buf, event_len, description_event);
+      ev = new Incident_log_event(buf, event_len, fdle);
       break;
     case ANNOTATE_ROWS_EVENT:
-      ev = new Annotate_rows_log_event(buf, event_len, description_event);
+      ev = new Annotate_rows_log_event(buf, event_len, fdle);
+      break;
+    case START_ENCRYPTION_EVENT:
+      ev = new Start_encryption_log_event(buf, event_len, fdle);
       break;
     default:
       DBUG_PRINT("error",("Unknown event code: %d",
@@ -1676,7 +1782,7 @@ Log_event* Log_event::read_log_event(const char* buf, uint event_len,
       *error= "Found invalid event in binary log";
       DBUG_RETURN(0);
     }
-    ev= new Unknown_log_event(buf, description_event);
+    ev= new Unknown_log_event(buf, fdle);
 #else
     *error= "Found invalid event in binary log";
     DBUG_RETURN(0);
@@ -4797,6 +4903,7 @@ Format_description_log_event(uint8 binlog_ver, const char* server_ver)
         BINLOG_CHECKPOINT_HEADER_LEN;
       post_header_len[GTID_EVENT-1]= GTID_HEADER_LEN;
       post_header_len[GTID_LIST_EVENT-1]= GTID_LIST_HEADER_LEN;
+      post_header_len[START_ENCRYPTION_EVENT-1]= START_ENCRYPTION_HEADER_LEN;
 
       // Sanity-check that all post header lengths are initialized.
       int i;
@@ -4851,6 +4958,7 @@ Format_description_log_event(uint8 binlog_ver, const char* server_ver)
   }
   calc_server_version_split();
   checksum_alg= BINLOG_CHECKSUM_ALG_UNDEF;
+  reset_crypto();
 }
 
 
@@ -4908,6 +5016,7 @@ Format_description_log_event(const char* buf,
   {
     checksum_alg= BINLOG_CHECKSUM_ALG_UNDEF;
   }
+  reset_crypto();
 
   DBUG_VOID_RETURN;
 }
@@ -5023,6 +5132,7 @@ int Format_description_log_event::do_apply_event(rpl_group_info *rgi)
   if (!ret)
   {
     /* Save the information describing this binlog */
+    copy_crypto_data(rli->relay_log.description_event_for_exec);
     delete rli->relay_log.description_event_for_exec;
     rli->relay_log.description_event_for_exec= this;
   }
@@ -5063,6 +5173,17 @@ Format_description_log_event::do_shall_skip(rpl_group_info *rgi)
 }
 
 #endif
+
+bool Format_description_log_event::start_decryption(Start_encryption_log_event* sele)
+{
+  DBUG_ASSERT(crypto_data.scheme == 0);
+
+  if (!sele->is_valid())
+    return 1;
+
+  memcpy(crypto_data.nonce, sele->nonce, BINLOG_NONCE_LENGTH);
+  return crypto_data.init(sele->crypto_scheme, sele->key_version);
+}
 
 static inline void
 do_server_version_split(char* version,
@@ -5170,8 +5291,60 @@ enum enum_binlog_checksum_alg get_checksum_alg(const char* buf, ulong len)
               ret == BINLOG_CHECKSUM_ALG_CRC32);
   DBUG_RETURN(ret);
 }
-  
 
+Start_encryption_log_event::Start_encryption_log_event(
+    const char* buf, uint event_len,
+    const Format_description_log_event* description_event)
+  :Log_event(buf, description_event)
+{
+  if ((int)event_len ==
+      LOG_EVENT_MINIMAL_HEADER_LEN + Start_encryption_log_event::get_data_size())
+  {
+    buf += LOG_EVENT_MINIMAL_HEADER_LEN;
+    crypto_scheme = *(uchar*)buf;
+    key_version = uint4korr(buf + BINLOG_CRYPTO_SCHEME_LENGTH);
+    memcpy(nonce,
+           buf + BINLOG_CRYPTO_SCHEME_LENGTH + BINLOG_KEY_VERSION_LENGTH,
+           BINLOG_NONCE_LENGTH);
+  }
+  else
+    crypto_scheme= ~0; // invalid
+}
+
+#if defined(HAVE_REPLICATION) && !defined(MYSQL_CLIENT)
+int Start_encryption_log_event::do_apply_event(rpl_group_info* rgi)
+{
+  return rgi->rli->relay_log.description_event_for_exec->start_decryption(this);
+}
+
+int Start_encryption_log_event::do_update_pos(rpl_group_info *rgi)
+{
+  /*
+    master never sends Start_encryption_log_event, any SELE that a slave
+    might see was created locally in MYSQL_BIN_LOG::open() on the slave
+  */
+  rgi->inc_event_relay_log_pos();
+  return 0;
+}
+
+#endif
+
+#ifndef MYSQL_SERVER
+void Start_encryption_log_event::print(FILE* file,
+                                       PRINT_EVENT_INFO* print_event_info)
+{
+    Write_on_release_cache cache(&print_event_info->head_cache, file);
+    StringBuffer<1024> buf;
+    buf.append(STRING_WITH_LEN("# Encryption scheme: "));
+    buf.append_ulonglong(crypto_scheme);
+    buf.append(STRING_WITH_LEN(", key_version: "));
+    buf.append_ulonglong(key_version);
+    buf.append(STRING_WITH_LEN(", nonce: "));
+    buf.append_hex(nonce, BINLOG_NONCE_LENGTH);
+    buf.append(STRING_WITH_LEN("\n# The rest of the binlog is encrypted!\n"));
+    my_b_write(&cache, (uchar*)buf.ptr(), buf.length());
+}
+#endif
   /**************************************************************************
         Load_log_event methods
    General note about Load_log_event: the binlogging of LOAD DATA INFILE is
@@ -12290,7 +12463,12 @@ Incident_log_event::Incident_log_event(const char *buf, uint event_len,
   char const *const str_end= buf + event_len;
   uint8 len= 0;                   // Assignment to keep compiler happy
   const char *str= NULL;          // Assignment to keep compiler happy
-  read_str(&ptr, str_end, &str, &len);
+  if (read_str(&ptr, str_end, &str, &len))
+  {
+    /* Mark this event invalid */
+    m_incident= INCIDENT_NONE;
+    DBUG_VOID_RETURN;
+  }
   if (!(m_message.str= (char*) my_malloc(len+1, MYF(MY_WME))))
   {
     /* Mark this event invalid */

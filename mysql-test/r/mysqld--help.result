@@ -176,6 +176,8 @@ The following options may be given as the first argument:
  --div-precision-increment=# 
  Precision of the result of '/' operator will be increased
  on that value
+ --encrypt-binlog    Encrypt binary logs (including relay logs)
+ (Defaults to on; use --skip-encrypt-binlog to disable.)
  --encrypt-tmp-disk-tables 
  Encrypt temporary on-disk tables (created as part of
  query execution)
@@ -1170,6 +1172,7 @@ delayed-insert-limit 100
 delayed-insert-timeout 300
 delayed-queue-size 1000
 div-precision-increment 4
+encrypt-binlog TRUE
 encrypt-tmp-disk-tables FALSE
 encrypt-tmp-files TRUE
 enforce-storage-engine (No default value)

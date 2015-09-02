@@ -570,16 +570,26 @@ do_retry:
         err= 1;
         goto check_retry;
       }
+      description_event->reset_crypto();
       /* Loop to try again on the new log file. */
     }
 
     event_type= ev->get_type_code();
     if (event_type == FORMAT_DESCRIPTION_EVENT)
     {
+      Format_description_log_event *newde= (Format_description_log_event*)ev;
+      newde->copy_crypto_data(description_event);
       delete description_event;
-      description_event= (Format_description_log_event *)ev;
+      description_event= newde;
       continue;
-    } else if (!Log_event::is_group_event(event_type))
+    }
+    else if (event_type == START_ENCRYPTION_EVENT)
+    {
+      description_event->start_decryption((Start_encryption_log_event*)ev);
+      delete ev;
+      continue;
+    }
+    else if (!Log_event::is_group_event(event_type))
     {
       delete ev;
       continue;

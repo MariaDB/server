@@ -644,6 +644,9 @@ void set_read_error(binlog_send_info *info, int error)
   case LOG_READ_CHECKSUM_FAILURE:
     info->errmsg= "event read from binlog did not pass crc check";
     break;
+  case LOG_READ_DECRYPT:
+    info->errmsg= "event decryption failure";
+    break;
   default:
     info->errmsg= "unknown error reading log event on the master";
     break;
@@ -918,9 +921,14 @@ get_gtid_list_event(IO_CACHE *cache, Gtid_list_log_event **out_gtid_list)
     typ= ev->get_type_code();
     if (typ == GTID_LIST_EVENT)
       break;                                    /* Done, found it */
+    if (typ == START_ENCRYPTION_EVENT)
+    {
+      if (fdle->start_decryption((Start_encryption_log_event*) ev))
+        errormsg= "Could not set up decryption for binlog.";
+    }
     delete ev;
     if (typ == ROTATE_EVENT || typ == STOP_EVENT ||
-        typ == FORMAT_DESCRIPTION_EVENT)
+        typ == FORMAT_DESCRIPTION_EVENT || typ == START_ENCRYPTION_EVENT)
       continue;                                 /* Continue looking */
 
     /* We did not find any Gtid_list_log_event, must be old binlog. */
@@ -1437,7 +1445,7 @@ gtid_state_from_pos(const char *name, uint32 offset,
       break;
 
     packet.length(0);
-    err= Log_event::read_log_event(&cache, &packet,
+    err= Log_event::read_log_event(&cache, &packet, fdev,
                          opt_master_verify_checksum ? current_checksum_alg
                                                     : BINLOG_CHECKSUM_ALG_OFF);
     if (err)
@@ -1473,6 +1481,20 @@ gtid_state_from_pos(const char *name, uint32 offset,
       }
       delete fdev;
       fdev= tmp;
+    }
+    else if (typ == START_ENCRYPTION_EVENT)
+    {
+      uint sele_len = packet.length();
+      if (current_checksum_alg == BINLOG_CHECKSUM_ALG_CRC32)
+      {
+        sele_len -= BINLOG_CHECKSUM_LEN;
+      }
+      Start_encryption_log_event sele(packet.ptr(), sele_len, fdev);
+      if (fdev->start_decryption(&sele))
+      {
+        errormsg= "Could not start decryption of binlog.";
+        goto end;
+      }
     }
     else if (typ != FORMAT_DESCRIPTION_EVENT && !found_format_description_event)
     {
@@ -2216,9 +2238,10 @@ static int send_format_descriptor_event(binlog_send_info *info, IO_CACHE *log,
     the binlog
   */
   info->last_pos= my_b_tell(log);
-  error= Log_event::read_log_event(log, packet,
+  error= Log_event::read_log_event(log, packet, info->fdev,
                                    opt_master_verify_checksum
-                                   ? info->current_checksum_alg : BINLOG_CHECKSUM_ALG_OFF);
+                                   ? info->current_checksum_alg
+                                   : BINLOG_CHECKSUM_ALG_OFF);
   linfo->pos= my_b_tell(log);
 
   if (error)
@@ -2268,10 +2291,13 @@ static int send_format_descriptor_event(binlog_send_info *info, IO_CACHE *log,
     return 1;
   }
 
+  uint ev_len= packet->length() - ev_offset;
+  if (info->current_checksum_alg != BINLOG_CHECKSUM_ALG_UNDEF)
+    ev_len-= BINLOG_CHECKSUM_LEN;
+
   Format_description_log_event *tmp;
-  if (!(tmp= new Format_description_log_event(packet->ptr()+ev_offset,
-                                              packet->length()-ev_offset,
-                                              info->fdev)))
+  if (!(tmp= new Format_description_log_event(packet->ptr() + ev_offset,
+                                              ev_len, info->fdev)))
   {
     info->error= ER_MASTER_FATAL_ERROR_READING_BINLOG;
     info->errmsg= "Corrupt Format_description event found "
@@ -2337,6 +2363,57 @@ static int send_format_descriptor_event(binlog_send_info *info, IO_CACHE *log,
     info->error= ER_UNKNOWN_ERROR;
     return 1;
   }
+
+  /*
+    Read the following Start_encryption_log_event but don't send it to slave.
+    Slave doesn't need to know whether master's binlog is encrypted,
+    and if it'll want to encrypt its logs, it should generate its own
+    random nonce, not use the one from the master.
+  */
+  packet->length(0);
+  info->last_pos= linfo->pos;
+  error= Log_event::read_log_event(log, packet, info->fdev,
+                                   opt_master_verify_checksum
+                                   ? info->current_checksum_alg
+                                   : BINLOG_CHECKSUM_ALG_OFF);
+  linfo->pos= my_b_tell(log);
+
+  if (error)
+  {
+    set_read_error(info, error);
+    return 1;
+  }
+
+  event_type= (Log_event_type)((uchar)(*packet)[LOG_EVENT_OFFSET]);
+  if (event_type == START_ENCRYPTION_EVENT)
+  {
+    Start_encryption_log_event *sele= (Start_encryption_log_event *)
+      Log_event::read_log_event(packet->ptr(), packet->length(), &info->errmsg,
+                                info->fdev, BINLOG_CHECKSUM_ALG_OFF);
+    if (!sele)
+    {
+      info->error= ER_MASTER_FATAL_ERROR_READING_BINLOG;
+      return 1;
+    }
+
+    if (info->fdev->start_decryption(sele))
+    {
+      info->error= ER_MASTER_FATAL_ERROR_READING_BINLOG;
+      info->errmsg= "Could not decrypt binlog: encryption key error";
+      return 1;
+    }
+    delete sele;
+  }
+  else if (start_pos == BIN_LOG_HEADER_SIZE)
+  {
+    /*
+      not Start_encryption_log_event - seek back. But only if
+      send_one_binlog_file() isn't going to seek anyway
+    */
+    my_b_seek(log, info->last_pos);
+    linfo->pos= info->last_pos;
+  }
+
 
   /** all done */
   return 0;
@@ -2547,7 +2624,7 @@ static int send_events(binlog_send_info *info, IO_CACHE* log, LOG_INFO* linfo,
       return 1;
 
     info->last_pos= linfo->pos;
-    error= Log_event::read_log_event(log, packet,
+    error= Log_event::read_log_event(log, packet, info->fdev,
                        opt_master_verify_checksum ? info->current_checksum_alg
                                                   : BINLOG_CHECKSUM_ALG_OFF);
     linfo->pos= my_b_tell(log);
@@ -2598,8 +2675,9 @@ static int send_events(binlog_send_info *info, IO_CACHE* log, LOG_INFO* linfo,
                     });
 #endif
 
-    if ((info->errmsg= send_event_to_slave(info, event_type, log,
-                                           ev_offset, &info->error_gtid)))
+    if (event_type != START_ENCRYPTION_EVENT &&
+        ((info->errmsg= send_event_to_slave(info, event_type, log,
+                                           ev_offset, &info->error_gtid))))
       return 1;
 
     if (unlikely(info->send_fake_gtid_list) &&
@@ -3876,38 +3954,52 @@ bool mysql_show_binlog_events(THD* thd)
       Read the first event in case it's a Format_description_log_event, to
       know the format. If there's no such event, we are 3.23 or 4.x. This
       code, like before, can't read 3.23 binlogs.
+      Also read the second event, in case it's a Start_encryption_log_event.
       This code will fail on a mixed relay log (one which has Format_desc then
       Rotate then Format_desc).
     */
-    ev= Log_event::read_log_event(&log, (mysql_mutex_t*)0, description_event,
-                                   opt_master_verify_checksum);
-    if (ev)
+
+    my_off_t scan_pos = BIN_LOG_HEADER_SIZE;
+    while (scan_pos < pos)
     {
+      ev= Log_event::read_log_event(&log, (mysql_mutex_t*)0, description_event,
+                                    opt_master_verify_checksum);
+      scan_pos = my_b_tell(&log);
+      if (ev == NULL || !ev->is_valid())
+      {
+        mysql_mutex_unlock(log_lock);
+        errmsg = "Wrong offset or I/O error";
+        goto err;
+      }
       if (ev->get_type_code() == FORMAT_DESCRIPTION_EVENT)
       {
         delete description_event;
         description_event= (Format_description_log_event*) ev;
       }
       else
+      {
+        if (ev->get_type_code() == START_ENCRYPTION_EVENT)
+        {
+          if (description_event->start_decryption((Start_encryption_log_event*) ev))
+          {
+            delete ev;
+            mysql_mutex_unlock(log_lock);
+            errmsg = "Could not initialize decryption of binlog.";
+            goto err;
+          }
+        }
         delete ev;
+        break;
+      }
     }
 
     my_b_seek(&log, pos);
-
-    if (!description_event->is_valid())
-    {
-      errmsg="Invalid Format_description event; could be out of memory";
-      goto err;
-    }
 
     for (event_count = 0;
          (ev = Log_event::read_log_event(&log, (mysql_mutex_t*) 0,
                                          description_event,
                                          opt_master_verify_checksum)); )
     {
-      if (ev->get_type_code() == FORMAT_DESCRIPTION_EVENT)
-        description_event->checksum_alg= ev->checksum_alg;
-
       if (event_count >= limit_start &&
 	  ev->net_send(thd, protocol, linfo.log_file_name, pos))
       {
@@ -3917,8 +4009,30 @@ bool mysql_show_binlog_events(THD* thd)
 	goto err;
       }
 
+      if (ev->get_type_code() == FORMAT_DESCRIPTION_EVENT)
+      {
+        Format_description_log_event* new_fdle=
+          (Format_description_log_event*) ev;
+        new_fdle->copy_crypto_data(description_event);
+        delete description_event;
+        description_event= new_fdle;
+      }
+      else
+      {
+        if (ev->get_type_code() == START_ENCRYPTION_EVENT)
+        {
+          if (description_event->start_decryption((Start_encryption_log_event*) ev))
+          {
+            errmsg = "Error starting decryption";
+            delete ev;
+            mysql_mutex_unlock(log_lock);
+            goto err;
+          }
+        }
+        delete ev;
+      }
+
       pos = my_b_tell(&log);
-      delete ev;
 
       if (++event_count >= limit_end)
 	break;

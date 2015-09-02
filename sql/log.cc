@@ -3457,6 +3457,7 @@ bool MYSQL_BIN_LOG::open(const char *log_name,
       else
         s.checksum_alg= (enum_binlog_checksum_alg)binlog_checksum_options;
 
+      crypto.scheme = 0;
       DBUG_ASSERT(s.checksum_alg != BINLOG_CHECKSUM_ALG_UNDEF);
       if (!s.is_valid())
         goto err;
@@ -3464,6 +3465,26 @@ bool MYSQL_BIN_LOG::open(const char *log_name,
       if (write_event(&s))
         goto err;
       bytes_written+= s.data_written;
+
+      if (encrypt_binlog)
+      {
+        uint key_version= encryption_key_get_latest_version(ENCRYPTION_KEY_SYSTEM_DATA);
+        if (key_version != ENCRYPTION_KEY_VERSION_INVALID &&
+            key_version != ENCRYPTION_KEY_NOT_ENCRYPTED)
+        {
+          if (my_random_bytes(crypto.nonce, sizeof(crypto.nonce)))
+            goto err;
+
+          Start_encryption_log_event sele(1, key_version, crypto.nonce);
+          sele.checksum_alg= s.checksum_alg;
+          if (write_event(&sele))
+            goto err;
+
+          // Start_encryption_log_event is written, enable the encryption
+          if (crypto.init(sele.crypto_scheme, key_version))
+            goto err;
+        }
+      }
 
       if (!is_relay_log)
       {
@@ -5107,7 +5128,10 @@ end:
 
 bool MYSQL_BIN_LOG::write_event(Log_event *ev, IO_CACHE *file)
 {
-  Log_event_writer writer(file);
+  Log_event_writer writer(file, &crypto);
+  if (crypto.scheme && file == &log_file)
+    writer.ctx= alloca(crypto.ctx_size);
+
   return writer.write(ev);
 }
 
@@ -5145,32 +5169,62 @@ err:
   DBUG_RETURN(error);
 }
 
-
-bool MYSQL_BIN_LOG::appendv(const char* buf, uint len,...)
+bool MYSQL_BIN_LOG::write_event_buffer(uchar* buf, uint len)
 {
-  bool error= 0;
-  DBUG_ENTER("MYSQL_BIN_LOG::appendv");
-  va_list(args);
-  va_start(args,len);
+  bool error= 1;
+  uchar *ebuf= 0;
+  DBUG_ENTER("MYSQL_BIN_LOG::write_event_buffer");
 
   DBUG_ASSERT(log_file.type == SEQ_READ_APPEND);
 
   mysql_mutex_assert_owner(&LOCK_log);
-  do
+
+  if (crypto.scheme != 0)
   {
-    if (my_b_append(&log_file,(uchar*) buf,len))
-    {
-      error= 1;
+    DBUG_ASSERT(crypto.scheme == 1);
+
+    uint elen;
+    uchar iv[BINLOG_IV_LENGTH];
+
+    ebuf= (uchar*)my_safe_alloca(len);
+    if (!ebuf)
       goto err;
-    }
-    bytes_written += len;
-  } while ((buf=va_arg(args,const char*)) && (len=va_arg(args,uint)));
+
+    crypto.set_iv(iv, my_b_append_tell(&log_file));
+
+    /*
+      we want to encrypt everything, excluding the event length:
+      massage the data before the encryption
+    */
+    memcpy(buf + EVENT_LEN_OFFSET, buf, 4);
+
+    if (encryption_crypt(buf + 4, len - 4,
+                         ebuf + 4, &elen,
+                         crypto.key, crypto.key_length, iv, sizeof(iv),
+                         ENCRYPTION_FLAG_ENCRYPT | ENCRYPTION_FLAG_NOPAD,
+                         ENCRYPTION_KEY_SYSTEM_DATA, crypto.key_version))
+      goto err;
+
+    DBUG_ASSERT(elen == len - 4);
+
+    /* massage the data after the encryption */
+    memcpy(ebuf, ebuf + EVENT_LEN_OFFSET, 4);
+    int4store(ebuf + EVENT_LEN_OFFSET, len);
+
+    buf= ebuf;
+  }
+  if (my_b_append(&log_file, buf, len))
+    goto err;
+  bytes_written+= len;
+
+  error= 0;
   DBUG_PRINT("info",("max_size: %lu",max_size));
   if (flush_and_sync(0))
     goto err;
   if (my_b_append_tell(&log_file) > max_size)
     error= new_file_without_locking();
 err:
+  my_safe_afree(ebuf, len);
   if (!error)
     signal_update();
   DBUG_RETURN(error);
@@ -6533,8 +6587,9 @@ class CacheWriter: public Log_event_writer
 public:
   ulong remains;
 
-  CacheWriter(THD *thd_arg, IO_CACHE *file_arg, bool do_checksum)
-    : Log_event_writer(file_arg), remains(0), thd(thd_arg), first(true)
+  CacheWriter(THD *thd_arg, IO_CACHE *file_arg, bool do_checksum,
+              Binlog_crypt_data *cr)
+    : Log_event_writer(file_arg, cr), remains(0), thd(thd_arg), first(true)
   { checksum_len= do_checksum ? BINLOG_CHECKSUM_LEN : 0; }
 
   ~CacheWriter()
@@ -6585,7 +6640,10 @@ int MYSQL_BIN_LOG::write_cache(THD *thd, IO_CACHE *cache)
   long val;
   ulong end_log_pos_inc= 0; // each event processed adds BINLOG_CHECKSUM_LEN 2 t
   uchar header[LOG_EVENT_HEADER_LEN];
-  CacheWriter writer(thd, &log_file, binlog_checksum_options);
+  CacheWriter writer(thd, &log_file, binlog_checksum_options, &crypto);
+
+  if (crypto.scheme)
+    writer.ctx= alloca(crypto.ctx_size);
 
   // while there is just one alg the following must hold:
   DBUG_ASSERT(binlog_checksum_options == BINLOG_CHECKSUM_ALG_OFF ||
@@ -9670,6 +9728,13 @@ int TC_LOG_BINLOG::recover(LOG_INFO *linfo, const char *last_log_name,
         break;
 #endif
 
+      case START_ENCRYPTION_EVENT:
+        {
+          if (fdle->start_decryption((Start_encryption_log_event*) ev))
+            goto err2;
+        }
+        break;
+
       default:
         /* Nothing. */
         break;
@@ -9746,6 +9811,7 @@ int TC_LOG_BINLOG::recover(LOG_INFO *linfo, const char *last_log_name,
       sql_print_error("Error reading binlog files during recovery. Aborting.");
       goto err2;
     }
+    fdle->reset_crypto();
   }
 
   if (do_xa)

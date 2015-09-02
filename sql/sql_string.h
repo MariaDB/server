@@ -467,6 +467,10 @@ public:
     }
     return false;
   }
+  bool append_hex(const uchar *src, uint32 srclen)
+  {
+    return append_hex((const char*)src, srclen);
+  }
   bool fill(uint32 max_length,char fill);
   void strip_sp();
   friend int sortcmp(const String *a,const String *b, CHARSET_INFO *cs);
