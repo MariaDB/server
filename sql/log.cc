@@ -7664,14 +7664,13 @@ void
 MYSQL_BIN_LOG::binlog_trigger_immediate_group_commit()
 {
   group_commit_entry *head;
-  mysql_mutex_lock(&LOCK_prepare_ordered);
+  mysql_mutex_assert_owner(&LOCK_prepare_ordered);
   head= group_commit_queue;
   if (head)
   {
     head->thd->has_waiter= true;
     mysql_cond_signal(&COND_prepare_ordered);
   }
-  mysql_mutex_unlock(&LOCK_prepare_ordered);
 }
 
 
@@ -7690,9 +7689,11 @@ binlog_report_wait_for(THD *thd1, THD *thd2)
 {
   if (opt_binlog_commit_wait_count == 0)
     return;
+  mysql_mutex_lock(&LOCK_prepare_ordered);
   thd2->has_waiter= true;
   if (thd2->waiting_on_group_commit)
     mysql_bin_log.binlog_trigger_immediate_group_commit();
+  mysql_mutex_unlock(&LOCK_prepare_ordered);
 }
 
 
