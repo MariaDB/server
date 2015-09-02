@@ -1160,6 +1160,9 @@ public:
   const char *func_name() const { return "coercibility"; }
   void fix_length_and_dec() { max_length=10; maybe_null= 0; }
   table_map not_null_tables() const { return 0; }
+  Item* propagate_equal_fields(THD *thd, const Context &ctx, COND_EQUAL *cond)
+  { return this; }
+  bool const_item() const { return true; }
 };
 
 class Item_func_locate :public Item_int_func
