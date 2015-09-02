@@ -1192,10 +1192,8 @@ bool event_checksum_test(uchar *event_buf, ulong event_len, uint8 alg)
       compile_time_assert(BINLOG_CHECKSUM_ALG_ENUM_END <= 0x80);
     }
     incoming= uint4korr(event_buf + event_len - BINLOG_CHECKSUM_LEN);
-    computed= 0;
-    /* checksum the event content but the checksum part itself */
-    computed= my_checksum(computed, (const uchar*) event_buf, 
-                          event_len - BINLOG_CHECKSUM_LEN);
+    /* checksum the event content without the checksum part itself */
+    computed= my_checksum(0, event_buf, event_len - BINLOG_CHECKSUM_LEN);
     if (flags != 0)
     {
       /* restoring the orig value of flags of FD */

@@ -49,6 +49,7 @@
 #include <base64.h>
 #include <my_bitmap.h>
 #include "rpl_utility.h"
+#include "rpl_constants.h"
 #include "sql_digest.h"
 
 #define my_b_write_string(A, B) my_b_write((A), (uchar*)(B), (uint) (sizeof(B) - 1))
@@ -3750,7 +3751,7 @@ Query_log_event::dummy_event(String *packet, ulong ev_offset,
 
   if (checksum_alg == BINLOG_CHECKSUM_ALG_CRC32)
   {
-    ha_checksum crc= my_checksum(0L, p, data_len);
+    ha_checksum crc= my_checksum(0, p, data_len);
     int4store(p + data_len, crc);
   }
   return 0;
@@ -3815,7 +3816,7 @@ Query_log_event::begin_event(String *packet, ulong ev_offset,
 
   if (checksum_alg == BINLOG_CHECKSUM_ALG_CRC32)
   {
-    ha_checksum crc= my_checksum(0L, p, data_len);
+    ha_checksum crc= my_checksum(0, p, data_len);
     int4store(p + data_len, crc);
   }
   return 0;

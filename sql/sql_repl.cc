@@ -404,11 +404,11 @@ inline void fix_checksum(String *packet, ulong ev_offset)
 {
   /* recalculate the crc for this event */
   uint data_len = uint4korr(packet->ptr() + ev_offset + EVENT_LEN_OFFSET);
-  ha_checksum crc= my_checksum(0L, NULL, 0);
+  ha_checksum crc;
   DBUG_ASSERT(data_len == 
               LOG_EVENT_MINIMAL_HEADER_LEN + FORMAT_DESCRIPTION_HEADER_LEN +
               BINLOG_CHECKSUM_ALG_DESC_LEN + BINLOG_CHECKSUM_LEN);
-  crc= my_checksum(crc, (uchar *)packet->ptr() + ev_offset, data_len -
+  crc= my_checksum(0, (uchar *)packet->ptr() + ev_offset, data_len -
                    BINLOG_CHECKSUM_LEN);
   int4store(packet->ptr() + ev_offset + data_len - BINLOG_CHECKSUM_LEN, crc);
 }
@@ -810,8 +810,7 @@ static int send_heartbeat_event(binlog_send_info *info,
   if (do_checksum)
   {
     char b[BINLOG_CHECKSUM_LEN];
-    ha_checksum crc;
-    crc= my_checksum(0, (uchar*) header, sizeof(header));
+    ha_checksum crc= my_checksum(0, (uchar*) header, sizeof(header));
     crc= my_checksum(crc, (uchar*) p, ident_len);
     int4store(b, crc);
     packet->append(b, sizeof(b));

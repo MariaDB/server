@@ -615,7 +615,6 @@ my_off_t my_b_safe_tell(IO_CACHE* info); /* picks the correct tell() */
 int my_b_pread(IO_CACHE *info, uchar *Buffer, size_t Count, my_off_t pos);
 
 typedef uint32 ha_checksum;
-extern ulong my_crc_dbug_check;
 
 #include <my_alloc.h>
 

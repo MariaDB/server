@@ -4986,14 +4986,6 @@ static Sys_var_ulong Sys_deadlock_timeout_depth_long(
        SESSION_VAR(wt_timeout_long), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(0, UINT_MAX), DEFAULT(50000000), BLOCK_SIZE(1));
 
-#ifndef DBUG_OFF
-static Sys_var_ulong Sys_debug_crc_break(
-       "debug_crc_break",
-       "Call my_debug_put_break_here() if crc matches this number (for debug)",
-       GLOBAL_VAR(my_crc_dbug_check), CMD_LINE(REQUIRED_ARG),
-       VALID_RANGE(0, ULONG_MAX), DEFAULT(0), BLOCK_SIZE(1));
-#endif
-
 static Sys_var_uint Sys_extra_port(
        "extra_port",
        "Extra port number to use for tcp connections in a "
