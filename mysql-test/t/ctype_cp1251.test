@@ -127,5 +127,18 @@ DROP TABLE t1;
 
 
 --echo #
+--echo # MDEV-8671 Wrong result for SELECT..WHERE varchar_column=' 1' AND (varchar_column XOR '1')
+--echo #
+CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET cp1251 COLLATE cp1251_ukrainian_ci);
+INSERT INTO t1 VALUES (' 1'),('`1');
+SELECT * FROM t1 WHERE a=' 1';
+SELECT * FROM t1 WHERE (a XOR '0');
+SELECT * FROM t1 WHERE a=' 1' AND (a XOR '0');
+--echo # ' 1' should not be propagated into (a XIR '0')
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=' 1' AND (a XOR '0');
+DROP TABLE t1;
+
+
+--echo #
 --echo # End of 10.1 tests
 --echo #
