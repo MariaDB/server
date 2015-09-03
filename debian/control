@@ -306,11 +306,12 @@ Description: MariaDB database regression test suite
 Package: mariadb-server-10.1
 Architecture: any
 Suggests: mailx, mariadb-test, netcat-openbsd, socat, tinyca
-Recommends: galera-3 (>=25.3), libhtml-template-perl
+Recommends: libhtml-template-perl
 Pre-Depends: mariadb-common, adduser (>= 3.40), debconf
 Depends: bsdutils,
          coreutils,
          findutils,
+         galera-3 (>=25.3),
          gawk,
          grep,
          iproute,
