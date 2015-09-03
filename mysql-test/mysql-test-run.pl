@@ -4434,6 +4434,7 @@ sub extract_warning_lines ($$) {
      qr|Failed to setup SSL|,
      qr|SSL error: Failed to set ciphers to use|,
      qr/Plugin 'InnoDB' will be forced to shutdown/,
+     qr|Could not increase number of max_open_files to more than|,
     );
 
   my $matched_lines= [];

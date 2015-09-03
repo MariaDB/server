@@ -63,4 +63,5 @@ ERROR 42000: You are not allowed to create a user with GRANT
 drop user foo@localhost;
 drop user bar@localhost;
 drop role auto_create;
+drop user auto_create;
 drop database db;

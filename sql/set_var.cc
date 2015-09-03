@@ -172,13 +172,13 @@ sys_var::sys_var(sys_var_chain *chain, const char *name_arg,
   option.value= (uchar **)global_var_ptr();
   option.def_value= def_val;
   option.app_type= this;
+  option.var_type= flags & AUTO_SET ? GET_AUTO : 0;
 
   if (chain->last)
     chain->last->next= this;
   else
     chain->first= this;
   chain->last= this;
-  fix_auto_flag();
 }
 
 bool sys_var::update(THD *thd, set_var *var)

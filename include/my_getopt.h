@@ -39,9 +39,9 @@ C_MODE_START
 #define GET_DOUBLE    14
 #define GET_FLAGSET   15
 
-#define GET_ASK_ADDR	 128
-#define GET_AUTO         64
-#define GET_TYPE_MASK	 63
+#define GET_ASK_ADDR     128
+#define GET_AUTO          64
+#define GET_TYPE_MASK     63
 
 /**
   Enumeration of the my_option::arg_type attributes.

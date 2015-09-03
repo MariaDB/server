@@ -89,12 +89,6 @@ protected:
   const char *const deprecation_substitute;
   bool is_os_charset; ///< true if the value is in character_set_filesystem
 
-  inline void fix_auto_flag()
-  {
-    if (flags & AUTO_SET)
-      option.var_type|= GET_AUTO;
-  }
-
 public:
   sys_var(sys_var_chain *chain, const char *name_arg, const char *comment,
           int flag_args, ptrdiff_t off, int getopt_id,

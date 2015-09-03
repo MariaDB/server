@@ -1,4 +1,4 @@
-/* Copyright (c) 2015, Monty Program Ab
+/* Copyright (c) 2015, MariaDB Corporation
 
    Redistribution and use in source and binary forms, with or without
    modification, are permitted provided that the following conditions are
@@ -38,7 +38,7 @@ static struct my_option mopts_options[]=
   {"str", 0,
     "Something numeric.",
     &mopts_str, &mopts_str, 0, GET_STR,
-    REQUIRED_ARG, (ulong)"ddd", 0, 0, 0, 0, 0},
+    REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"bool", 0,
     "Something true or false",
     &mopts_bool, &mopts_bool, 0, GET_BOOL,
@@ -325,6 +325,9 @@ int main(int argc __attribute__((unused)), char **argv)
 {
   MY_INIT(argv[0]);
   plan(4*8 + 1*4 + 3*4 + 3*2);
+
+  /* gcc 4.1.2 doesn't want it in the initializer, we have to do it run-time */
+  mopts_options[0].def_value= (intptr)"ddd";
 
   test_mopts1();
   test_mopts2();

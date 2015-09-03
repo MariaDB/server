@@ -55,7 +55,7 @@ enum enum_special_opt
 
 char *disabled_my_option= (char*) "0";
 char *enabled_my_option= (char*) "1";
-char *autoset_my_option= (char*) "";
+char *autoset_my_option= (char*) "auto";
 
 /*
    This is a flag that can be set in client programs. 0 means that
@@ -467,7 +467,7 @@ int handle_options(int *argc, char ***argv,
 	  if (optend)
 	  {
 	    my_getopt_error_reporter(ERROR_LEVEL,
-                                     "%s: automatic setup request of "
+                                     "%s: automatically set "
                                      "option '--%s' cannot take an argument",
                                      my_progname, optp->name);
 
