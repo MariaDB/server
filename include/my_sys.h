@@ -175,6 +175,7 @@ extern void set_malloc_size_cb(MALLOC_SIZE_CB func);
 	/* defines when allocating data */
 extern void *my_malloc(size_t Size,myf MyFlags);
 extern void *my_multi_malloc(myf MyFlags, ...);
+extern void *my_multi_malloc_large(myf MyFlags, ...);
 extern void *my_realloc(void *oldpoint, size_t Size, myf MyFlags);
 extern void my_free(void *ptr);
 extern void *my_memdup(const void *from,size_t length,myf MyFlags);

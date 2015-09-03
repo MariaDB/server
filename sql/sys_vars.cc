@@ -325,6 +325,14 @@ static Sys_var_long Sys_pfs_digest_size(
        DEFAULT(-1),
        BLOCK_SIZE(1));
 
+static Sys_var_long Sys_pfs_max_digest_length(
+       "performance_schema_max_digest_length",
+       "Maximum length considered for digest text, when stored in performance_schema tables.",
+       PARSED_EARLY READ_ONLY GLOBAL_VAR(pfs_param.m_max_digest_length),
+       CMD_LINE(REQUIRED_ARG), VALID_RANGE(0, 1024 * 1024),
+       DEFAULT(1024),
+       BLOCK_SIZE(1));
+
 static Sys_var_long Sys_pfs_connect_attrs_size(
        "performance_schema_session_connect_attrs_size",
        "Size of session attribute string buffer per thread."
@@ -1349,7 +1357,7 @@ static Sys_var_ulong Sys_max_connect_errors(
 
 static Sys_var_uint Sys_max_digest_length(
        "max_digest_length", "Maximum length considered for digest text.",
-       PARSED_EARLY READ_ONLY GLOBAL_VAR(max_digest_length),
+       READ_ONLY GLOBAL_VAR(max_digest_length),
        CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(0, 1024 * 1024), DEFAULT(1024), BLOCK_SIZE(1));
 

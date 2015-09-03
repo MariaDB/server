@@ -1,7 +1,7 @@
 /*****************************************************************************
 
-Copyright (c) 2005, 2014, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2014, SkySQL Ab. All Rights Reserved.
+Copyright (c) 2005, 2015, Oracle and/or its affiliates
+Copyright (c) 2013, 2015, SkySQL Ab
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -30,6 +30,7 @@ Smart ALTER TABLE
 #include <innodb_priv.h>
 #include <sql_alter.h>
 #include <sql_class.h>
+#include <sql_table.h>
 
 #include "dict0crea.h"
 #include "dict0dict.h"
@@ -396,6 +397,35 @@ ha_innobase::check_if_supported_inplace_alter(
 		}
 	}
 
+	/* If we have column that has changed from NULL -> NOT NULL
+	and column default has changed we need to do additional
+	check. */
+	if ((ha_alter_info->handler_flags
+			& Alter_inplace_info::ALTER_COLUMN_NOT_NULLABLE) &&
+	    (ha_alter_info->handler_flags
+		    & Alter_inplace_info::ALTER_COLUMN_DEFAULT)) {
+		Alter_info *alter_info = ha_alter_info->alter_info;
+		List_iterator<Create_field> def_it(alter_info->create_list);
+		Create_field *def;
+		while ((def=def_it++)) {
+
+			/* If this is first column definition whose SQL type
+			is TIMESTAMP and it is defined as NOT NULL and
+			it has either constant default or function default
+			we must use "Copy" method. */
+			if (is_timestamp_type(def->sql_type)) {
+				if ((def->flags & NOT_NULL_FLAG) != 0 && // NOT NULL
+					(def->def != NULL || // constant default ?
+					 def->unireg_check != Field::NONE)) { // function default
+					ha_alter_info->unsupported_reason = innobase_get_err_msg(
+						ER_ALTER_OPERATION_NOT_SUPPORTED_REASON_NOT_NULL);
+					DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
+				}
+				break;
+			}
+		}
+	}
+
 	/* We should be able to do the operation in-place.
 	See if we can do it online (LOCK=NONE). */
 	bool	online = true;
@@ -523,12 +553,9 @@ ha_innobase::check_if_supported_inplace_alter(
 	} else if (((ha_alter_info->handler_flags
 		     & Alter_inplace_info::ADD_PK_INDEX)
 		    || innobase_need_rebuild(ha_alter_info))
-		   && (innobase_fulltext_exist(altered_table)
-		       || (prebuilt->table->flags2
-			   & DICT_TF2_FTS_HAS_DOC_ID))) {
+		   && (innobase_fulltext_exist(altered_table))) {
 		/* Refuse to rebuild the table online, if
-		fulltext indexes are to survive the rebuild,
-		or if the table contains a hidden FTS_DOC_ID column. */
+		fulltext indexes are to survive the rebuild. */
 		online = false;
 		/* If the table already contains fulltext indexes,
 		refuse to rebuild the table natively altogether. */
@@ -819,7 +846,8 @@ innobase_find_fk_index(
 		if (!(index->type & DICT_FTS)
 		    && dict_foreign_qualify_index(
 			    table, col_names, columns, n_cols,
-			    index, NULL, true, 0)) {
+			    index, NULL, true, 0,
+			    NULL, NULL, NULL)) {
 			for (ulint i = 0; i < n_drop_index; i++) {
 				if (index == drop_index[i]) {
 					/* Skip to-be-dropped indexes. */
@@ -886,10 +914,8 @@ innobase_get_foreign_key_info(
 		char*		tbl_namep = NULL;
 		ulint		db_name_len = 0;
 		ulint		tbl_name_len = 0;
-#ifdef __WIN__
 		char		db_name[MAX_DATABASE_NAME_LEN];
 		char		tbl_name[MAX_TABLE_NAME_LEN];
-#endif
 
 		fk_key = static_cast<Foreign_key*>(key);
 
@@ -942,24 +968,29 @@ innobase_get_foreign_key_info(
 		add_fk[num_fk] = dict_mem_foreign_create();
 
 #ifndef __WIN__
-		tbl_namep = fk_key->ref_table.str;
-		tbl_name_len = fk_key->ref_table.length;
-		db_namep = fk_key->ref_db.str;
-		db_name_len = fk_key->ref_db.length;
+		if(fk_key->ref_db.str) {
+			tablename_to_filename(fk_key->ref_db.str, db_name,
+					      MAX_DATABASE_NAME_LEN);
+			db_namep = db_name;
+			db_name_len = strlen(db_name);
+		}
+		if (fk_key->ref_table.str) {
+			tablename_to_filename(fk_key->ref_table.str, tbl_name,
+					      MAX_TABLE_NAME_LEN);
+			tbl_namep = tbl_name;
+			tbl_name_len = strlen(tbl_name);
+		}
 #else
 		ut_ad(fk_key->ref_table.str);
-
-		memcpy(tbl_name, fk_key->ref_table.str,
-		       fk_key->ref_table.length);
-		tbl_name[fk_key->ref_table.length] = 0;
+		tablename_to_filename(fk_key->ref_table.str, tbl_name,
+				      MAX_TABLE_NAME_LEN);
 		innobase_casedn_str(tbl_name);
 		tbl_name_len = strlen(tbl_name);
 		tbl_namep = &tbl_name[0];
 
 		if (fk_key->ref_db.str != NULL) {
-			memcpy(db_name, fk_key->ref_db.str,
-			       fk_key->ref_db.length);
-			db_name[fk_key->ref_db.length] = 0;
+			tablename_to_filename(fk_key->ref_db.str, db_name,
+					      MAX_DATABASE_NAME_LEN);
 			innobase_casedn_str(db_name);
 			db_name_len = strlen(db_name);
 			db_namep = &db_name[0];
@@ -1009,7 +1040,8 @@ innobase_get_foreign_key_info(
 						referenced_table, 0,
 						referenced_column_names,
 						i, index,
-						TRUE, FALSE);
+						TRUE, FALSE,
+						NULL, NULL, NULL);
 
 				DBUG_EXECUTE_IF(
 					"innodb_test_no_reference_idx",
@@ -3310,58 +3342,74 @@ innobase_check_foreign_key_index(
 	ulint			n_drop_fk)	/*!< in: Number of foreign keys
 						to drop */
 {
-	dict_foreign_t*	foreign;
+	ut_ad(index != NULL);
+	ut_ad(indexed_table != NULL);
 
-	/* Check if the index is referenced. */
-	foreign = dict_table_get_referenced_constraint(indexed_table, index);
+	const dict_foreign_set*	fks = &indexed_table->referenced_set;
 
-	ut_ad(!foreign || indexed_table
-	      == foreign->referenced_table);
+	/* Check for all FK references from other tables to the index. */
+	for (dict_foreign_set::const_iterator it = fks->begin();
+	     it != fks->end(); ++it) {
 
-	if (foreign
-	    && !dict_foreign_find_index(
-		    indexed_table, col_names,
-		    foreign->referenced_col_names,
-		    foreign->n_fields, index,
-		    /*check_charsets=*/TRUE,
-		    /*check_null=*/FALSE)
-	    && !innobase_find_equiv_index(
-		    foreign->referenced_col_names,
-		    foreign->n_fields,
-		    ha_alter_info->key_info_buffer,
-		    ha_alter_info->index_add_buffer,
-		    ha_alter_info->index_add_count)
-	    ) {
-		trx->error_info = index;
-		return(true);
+		dict_foreign_t*	foreign = *it;
+		if (foreign->referenced_index != index) {
+			continue;
+		}
+		ut_ad(indexed_table == foreign->referenced_table);
+
+		if (NULL == dict_foreign_find_index(
+			    indexed_table, col_names,
+			    foreign->referenced_col_names,
+			    foreign->n_fields, index,
+			    /*check_charsets=*/TRUE,
+			    /*check_null=*/FALSE,
+			    NULL, NULL, NULL)
+		    && NULL == innobase_find_equiv_index(
+			    foreign->referenced_col_names,
+			    foreign->n_fields,
+			    ha_alter_info->key_info_buffer,
+			    ha_alter_info->index_add_buffer,
+			    ha_alter_info->index_add_count)) {
+
+			/* Index cannot be dropped. */
+			trx->error_info = index;
+			return(true);
+		}
 	}
 
-	/* Check if this index references some
-	other table */
-	foreign = dict_table_get_foreign_constraint(
-		indexed_table, index);
+	fks = &indexed_table->foreign_set;
 
-	ut_ad(!foreign || indexed_table
-	      == foreign->foreign_table);
+	/* Check for all FK references in current table using the index. */
+	for (dict_foreign_set::const_iterator it = fks->begin();
+	     it != fks->end(); ++it) {
 
-	if (foreign
-	    && !innobase_dropping_foreign(
-		    foreign, drop_fk, n_drop_fk)
-	    && !dict_foreign_find_index(
-		    indexed_table, col_names,
-		    foreign->foreign_col_names,
-		    foreign->n_fields, index,
-		    /*check_charsets=*/TRUE,
-		    /*check_null=*/FALSE)
-	    && !innobase_find_equiv_index(
-		    foreign->foreign_col_names,
-		    foreign->n_fields,
-		    ha_alter_info->key_info_buffer,
-		    ha_alter_info->index_add_buffer,
-		    ha_alter_info->index_add_count)
-	    ) {
-		trx->error_info = index;
-		return(true);
+		dict_foreign_t*	foreign = *it;
+		if (foreign->foreign_index != index) {
+			continue;
+		}
+
+		ut_ad(indexed_table == foreign->foreign_table);
+
+		if (!innobase_dropping_foreign(
+			    foreign, drop_fk, n_drop_fk)
+		    && NULL == dict_foreign_find_index(
+			    indexed_table, col_names,
+			    foreign->foreign_col_names,
+			    foreign->n_fields, index,
+			    /*check_charsets=*/TRUE,
+			    /*check_null=*/FALSE,
+			    NULL, NULL, NULL)
+		    && NULL == innobase_find_equiv_index(
+			    foreign->foreign_col_names,
+			    foreign->n_fields,
+			    ha_alter_info->key_info_buffer,
+			    ha_alter_info->index_add_buffer,
+			    ha_alter_info->index_add_count)) {
+
+			/* Index cannot be dropped. */
+			trx->error_info = index;
+			return(true);
+		}
 	}
 
 	return(false);
@@ -3596,6 +3644,19 @@ check_if_ok_to_rename:
 		if (index->type & DICT_FTS) {
 			DBUG_ASSERT(index->type == DICT_FTS
 				    || (index->type & DICT_CORRUPT));
+
+			/* We need to drop any corrupted fts indexes
+			before we add a new fts index. */
+			if (add_fts_idx && index->type & DICT_CORRUPT) {
+				ib_errf(user_thd, IB_LOG_LEVEL_ERROR,
+					ER_INNODB_INDEX_CORRUPT,
+					"Fulltext index '%s' is corrupt. "
+					"you should drop this index first.",
+					index->name);
+
+				goto err_exit_no_heap;
+			}
+
 			continue;
 		}
 
@@ -4817,7 +4878,8 @@ innobase_update_foreign_try(
 				fk->n_fields, fk->referenced_index, TRUE,
 				fk->type
 				& (DICT_FOREIGN_ON_DELETE_SET_NULL
-				   | DICT_FOREIGN_ON_UPDATE_SET_NULL));
+					| DICT_FOREIGN_ON_UPDATE_SET_NULL),
+				NULL, NULL, NULL);
 			if (!fk->foreign_index) {
 				my_error(ER_FK_INCORRECT_OPTION,
 					 MYF(0), table_name, fk->id);
@@ -4829,7 +4891,7 @@ innobase_update_foreign_try(
 		names, while the columns in ctx->old_table have not
 		been renamed yet. */
 		error = dict_create_add_foreign_to_dictionary(
-			ctx->old_table->name, fk, trx);
+			(dict_table_t*)ctx->old_table,ctx->old_table->name, fk, trx);
 
 		DBUG_EXECUTE_IF(
 			"innodb_test_cannot_add_fk_system",

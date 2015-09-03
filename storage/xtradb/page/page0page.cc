@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1994, 2013, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1994, 2015, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
 
 This program is free software; you can redistribute it and/or modify it under
@@ -30,6 +30,11 @@ Created 2/2/1994 Heikki Tuuri
 #include "page0page.ic"
 #endif
 #undef THIS_MODULE
+
+#include "ha_prototypes.h"
+#include "buf0checksum.h"
+
+#ifndef UNIV_INNOCHECKSUM
 
 #include "page0cur.h"
 #include "page0zip.h"
@@ -2818,4 +2823,52 @@ page_find_rec_max_not_deleted(
 		} while (rec != page + PAGE_OLD_SUPREMUM);
 	}
 	return(prev_rec);
+}
+
+#endif /* #ifndef UNIV_INNOCHECKSUM */
+
+/** Issue a warning when the checksum that is stored in the page is valid,
+but different than the global setting innodb_checksum_algorithm.
+@param[in]	current_algo	current checksum algorithm
+@param[in]	page_checksum	page valid checksum
+@param[in]	space_id	tablespace id
+@param[in]	page_no		page number */
+void
+page_warn_strict_checksum(
+	srv_checksum_algorithm_t	curr_algo,
+	srv_checksum_algorithm_t	page_checksum,
+	ulint				space_id,
+	ulint				page_no)
+{
+	srv_checksum_algorithm_t	curr_algo_nonstrict;
+	switch (curr_algo) {
+	case SRV_CHECKSUM_ALGORITHM_STRICT_CRC32:
+		curr_algo_nonstrict = SRV_CHECKSUM_ALGORITHM_CRC32;
+		break;
+	case SRV_CHECKSUM_ALGORITHM_STRICT_INNODB:
+		curr_algo_nonstrict = SRV_CHECKSUM_ALGORITHM_INNODB;
+		break;
+	case SRV_CHECKSUM_ALGORITHM_STRICT_NONE:
+		curr_algo_nonstrict = SRV_CHECKSUM_ALGORITHM_NONE;
+		break;
+	default:
+		ut_error;
+	}
+
+#ifdef UNIV_INNOCHECKSUM
+	fprintf(stderr,
+#else
+	ib_logf(IB_LOG_LEVEL_WARN,
+#endif
+		"innodb_checksum_algorithm is set to \"%s\""
+		" but the page [page id: space=" ULINTPF ","
+		" page number=" ULINTPF "] contains a valid checksum \"%s\"."
+		" Accepting the page as valid. Change innodb_checksum_algorithm"
+		" to \"%s\" to silently accept such pages or rewrite all pages"
+		" so that they contain \"%s\" checksum.",
+		buf_checksum_algorithm_name(curr_algo),
+		space_id, page_no,
+		buf_checksum_algorithm_name(page_checksum),
+		buf_checksum_algorithm_name(curr_algo_nonstrict),
+		buf_checksum_algorithm_name(curr_algo_nonstrict));
 }

@@ -1227,6 +1227,9 @@ protected:
                                          const Item *item) const;
   bool cmp_to_string_with_stricter_collation(const Item_bool_func *cond,
                                              const Item *item) const;
+  my_decimal *val_decimal_from_str(const char *str, uint length,
+                                   CHARSET_INFO *cs,
+                                   my_decimal *decimal_value);
 public:
   Field_longstr(uchar *ptr_arg, uint32 len_arg, uchar *null_ptr_arg,
                 uchar null_bit_arg, utype unireg_check_arg,

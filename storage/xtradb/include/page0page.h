@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1994, 2013, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1994, 2015, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -27,6 +27,10 @@ Created 2/2/1994 Heikki Tuuri
 #define page0page_h
 
 #include "univ.i"
+
+#include "buf0types.h"
+
+#ifndef UNIV_INNOCHECKSUM
 
 #include "page0types.h"
 #include "fil0fil.h"
@@ -1110,6 +1114,24 @@ page_find_rec_with_heap_no(
 const rec_t*
 page_find_rec_max_not_deleted(
 	const page_t*	page);
+
+#endif /* #ifndef UNIV_INNOCHECKSUM */
+
+/** Issue a warning when the checksum that is stored in the page is valid,
+but different than the global setting innodb_checksum_algorithm.
+@param[in]	current_algo	current checksum algorithm
+@param[in]	page_checksum	page valid checksum
+@param[in]	space_id	tablespace id
+@param[in]	page_no		page number */
+void
+page_warn_strict_checksum(
+	srv_checksum_algorithm_t	curr_algo,
+	srv_checksum_algorithm_t	page_checksum,
+	ulint				space_id,
+	ulint				page_no);
+
+#ifndef UNIV_INNOCHECKSUM
+
 #ifdef UNIV_MATERIALIZE
 #undef UNIV_INLINE
 #define UNIV_INLINE  UNIV_INLINE_ORIGINAL
@@ -1118,5 +1140,7 @@ page_find_rec_max_not_deleted(
 #ifndef UNIV_NONINL
 #include "page0page.ic"
 #endif
+
+#endif /* #ifndef UNIV_INNOCHECKSUM */
 
 #endif

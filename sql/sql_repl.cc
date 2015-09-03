@@ -79,8 +79,7 @@ fake_event_header(String* packet, Log_event_type event_type, ulong extra_len,
   }
   if (*do_checksum)
   {
-    *crc= my_checksum(0L, NULL, 0);
-    *crc= my_checksum(*crc, (uchar*)header, sizeof(header));
+    *crc= my_checksum(0, (uchar*)header, sizeof(header));
   }
   return 0;
 }
@@ -811,8 +810,8 @@ static int send_heartbeat_event(binlog_send_info *info,
   if (do_checksum)
   {
     char b[BINLOG_CHECKSUM_LEN];
-    ha_checksum crc= my_checksum(0L, NULL, 0);
-    crc= my_checksum(crc, (uchar*) header, sizeof(header));
+    ha_checksum crc;
+    crc= my_checksum(0, (uchar*) header, sizeof(header));
     crc= my_checksum(crc, (uchar*) p, ident_len);
     int4store(b, crc);
     packet->append(b, sizeof(b));

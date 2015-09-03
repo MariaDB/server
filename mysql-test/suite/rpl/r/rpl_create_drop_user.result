@@ -40,7 +40,7 @@ DROP USER IF EXISTS u1@localhost;
 DROP USER u2@localhost;
 DROP USER IF EXISTS u3@localhost;
 Warnings:
-Note	1973	Can't drop user 'u3'@'localhost'; it doesn't exist
+Note	1974	Can't drop user 'u3'@'localhost'; it doesn't exist
 SELECT user, password FROM mysql.user WHERE user LIKE 'u%' ORDER BY user;
 user	password
 include/rpl_end.inc

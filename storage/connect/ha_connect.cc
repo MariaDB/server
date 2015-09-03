@@ -169,7 +169,7 @@
 #define JSONMAX      10             // JSON Default max grp size
 
 extern "C" {
-       char  version[]= "Version 1.03.0007 June 03, 2015";
+       char  version[]= "Version 1.03.0007 July 05, 2015";
 #if defined(__WIN__)
        char  compver[]= "Version 1.03.0007 " __DATE__ " "  __TIME__;
        char slash= '\\';
@@ -1114,7 +1114,7 @@ int GetIntegerTableOption(PGLOBAL g, PTOS options, char *opname, int idef)
   else if (!stricmp(opname, "Compressed"))
     opval= (options->compressed);
 
-  if (opval == NO_IVAL) {
+  if (opval == (ulonglong)NO_IVAL) {
     char *pv;
 
     if ((pv= GetListOption(g, opname, options->oplist)))
@@ -2237,7 +2237,9 @@ bool ha_connect::MakeKeyWhere(PGLOBAL g, PSTRG qry, OPVAL op, char q,
       case OP_EQ:
       case OP_GT:
       case OP_GE:
-        oom|= qry->Append((PSZ)GetValStr(op, false));
+			case OP_LT:
+			case OP_LE:
+				oom |= qry->Append((PSZ)GetValStr(op, false));
         break;
       default:
         oom|= qry->Append(" ??? ");
@@ -4017,7 +4019,27 @@ bool ha_connect::check_privileges(THD *thd, PTOS options, char *dbn)
     case TAB_MAC:
     case TAB_WMI:
     case TAB_OEM:
-      return check_access(thd, FILE_ACL, db, NULL, NULL, 0, 0);
+#ifdef NO_EMBEDDED_ACCESS_CHECKS
+      return false;
+#endif
+      /*
+        If table or table->mdl_ticket is NULL - it's a DLL, e.g. CREATE TABLE.
+        if the table has an MDL_EXCLUSIVE lock - it's a DDL too, e.g. the
+        insert step of CREATE ... SELECT.
+
+        Otherwise it's a DML, the table was normally opened, locked,
+        privilege were already checked, and table->grant.privilege is set.
+        With SQL SECURITY DEFINER, table->grant.privilege has definer's privileges.
+      */
+      if (!table || !table->mdl_ticket || table->mdl_ticket->get_type() == MDL_EXCLUSIVE)
+        return check_access(thd, FILE_ACL, db, NULL, NULL, 0, 0);
+      if (table->grant.privilege & FILE_ACL)
+        return false;
+      status_var_increment(thd->status_var.access_denied_errors);
+      my_error(access_denied_error_code(thd->password), MYF(0),
+               thd->security_ctx->priv_user, thd->security_ctx->priv_host,
+               (thd->password ?  ER(ER_YES) : ER(ER_NO)));
+      return true;
 
     // This is temporary until a solution is found
     case TAB_TBL:
@@ -4404,14 +4426,15 @@ int ha_connect::external_lock(THD *thd, int lock_type)
     xmod= MODE_ANY;              // For info commands
     DBUG_RETURN(rc);
     } // endif MODE_ANY
-
-  DBUG_ASSERT(table && table->s);
-
+  else
   if (check_privileges(thd, options, table->s->db.str)) {
     strcpy(g->Message, "This operation requires the FILE privilege");
     htrc("%s\n", g->Message);
     DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
     } // endif check_privileges
+
+
+  DBUG_ASSERT(table && table->s);
 
   // Table mode depends on the query type
   newmode= CheckMode(g, thd, newmode, &xcheck, &cras);
@@ -5666,6 +5689,14 @@ int ha_connect::create(const char *name, TABLE *table_arg,
   PGLOBAL g= xp->g;
 
   DBUG_ENTER("ha_connect::create");
+  /*
+    This assignment fixes test failures if some
+    "ALTER TABLE t1 ADD KEY(a)" query exits on ER_ACCESS_DENIED_ERROR
+    (e.g. on missing FILE_ACL). All following "CREATE TABLE" failed with
+    "ERROR 1105: CONNECT index modification should be in-place"
+    TODO: check with Olivier.
+  */
+  g->Xchk= NULL;
   int  sqlcom= thd_sql_command(table_arg->in_use);
   PTOS options= GetTableOptionStruct(table_arg->s);
 
@@ -6154,10 +6185,6 @@ bool ha_connect::FileExists(const char *fn, bool bf)
     bool  b= false;
     int   n;
     struct stat info;
-
-    if (check_access(ha_thd(), FILE_ACL, table->s->db.str,
-                     NULL, NULL, 0, 0))
-      return true;
 
 #if defined(__WIN__)
     s= "\\";
@@ -6648,6 +6675,6 @@ maria_declare_plugin(connect)
   NULL,                                         /* status variables */
   connect_system_variables,                     /* system variables */
   "1.03.0007",                                  /* string version */
-  MariaDB_PLUGIN_MATURITY_BETA                  /* maturity */
+	MariaDB_PLUGIN_MATURITY_GAMMA                 /* maturity */
 }
 maria_declare_plugin_end;

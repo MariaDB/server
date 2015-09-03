@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1995, 2011, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1995, 2015, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -27,19 +27,19 @@ Created Aug 11, 2011 Vasil Dimov
 #include "fil0fil.h" /* FIL_* */
 #include "ut0crc32.h" /* ut_crc32() */
 #include "ut0rnd.h" /* ut_fold_binary() */
+#include "buf0types.h"
 
 #ifndef UNIV_INNOCHECKSUM
 
 #include "srv0srv.h" /* SRV_CHECKSUM_* */
-#include "buf0types.h"
+
+#endif /* !UNIV_INNOCHECKSUM */
 
 /** the macro MYSQL_SYSVAR_ENUM() requires "long unsigned int" and if we
 use srv_checksum_algorithm_t here then we get a compiler error:
 ha_innodb.cc:12251: error: cannot convert 'srv_checksum_algorithm_t*' to
   'long unsigned int*' in initialization */
 UNIV_INTERN ulong	srv_checksum_algorithm = SRV_CHECKSUM_ALGORITHM_INNODB;
-
-#endif /* !UNIV_INNOCHECKSUM */
 
 /********************************************************************//**
 Calculates a page CRC32 which is stored to the page when it is written
@@ -127,8 +127,6 @@ buf_calc_page_old_checksum(
 	return(checksum);
 }
 
-#ifndef UNIV_INNOCHECKSUM
-
 /********************************************************************//**
 Return a printable string describing the checksum algorithm.
 @return	algorithm name */
@@ -140,18 +138,19 @@ buf_checksum_algorithm_name(
 {
 	switch (algo) {
 	case SRV_CHECKSUM_ALGORITHM_CRC32:
-	case SRV_CHECKSUM_ALGORITHM_STRICT_CRC32:
 		return("crc32");
+	case SRV_CHECKSUM_ALGORITHM_STRICT_CRC32:
+		return("strict_crc32");
 	case SRV_CHECKSUM_ALGORITHM_INNODB:
-	case SRV_CHECKSUM_ALGORITHM_STRICT_INNODB:
 		return("innodb");
+	case SRV_CHECKSUM_ALGORITHM_STRICT_INNODB:
+		return("strict_innodb");
 	case SRV_CHECKSUM_ALGORITHM_NONE:
-	case SRV_CHECKSUM_ALGORITHM_STRICT_NONE:
 		return("none");
+	case SRV_CHECKSUM_ALGORITHM_STRICT_NONE:
+		return("strict_none");
 	}
 
 	ut_error;
 	return(NULL);
 }
-
-#endif /* !UNIV_INNOCHECKSUM */

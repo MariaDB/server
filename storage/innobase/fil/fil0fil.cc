@@ -1,7 +1,7 @@
 /*****************************************************************************
 
-Copyright (c) 1995, 2014, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2015, MariaDB Corporation. All Rights Reserved.
+Copyright (c) 1995, 2015, Oracle and/or its affiliates.
+Copyright (c) 2013, 2015, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -5730,9 +5730,10 @@ fil_io(
 
 	space = fil_space_get_by_id(space_id);
 
-	/* If we are deleting a tablespace we don't allow any read
-	operations on that. However, we do allow write operations. */
-	if (space == 0 || (type == OS_FILE_READ && space->stop_new_ops)) {
+	/* If we are deleting a tablespace we don't allow async read operations
+	on that. However, we do allow write and sync read operations */
+	if (space == 0
+	    || (type == OS_FILE_READ && !sync && space->stop_new_ops)) {
 		mutex_exit(&fil_system->mutex);
 
 		ib_logf(IB_LOG_LEVEL_ERROR,
@@ -5871,9 +5872,9 @@ fil_io(
 
 	if (!ret) {
 		return(DB_OUT_OF_FILE_SPACE);
-	} else {
-		return(DB_SUCCESS);
 	}
+
+	return(DB_SUCCESS);
 }
 
 #ifndef UNIV_HOTBACKUP

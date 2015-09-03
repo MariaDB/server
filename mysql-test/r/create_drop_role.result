@@ -20,7 +20,7 @@ Host	User	Role	Admin_option
 CREATE ROLE IF NOT EXISTS role1 WITH ADMIN user4;
 Warnings:
 Note	1449	The user specified as a definer ('user4'@'%') does not exist
-Note	1974	Can't create role 'role1'; it already exists
+Note	1975	Can't create role 'role1'; it already exists
 SELECT * FROM mysql.roles_mapping WHERE Role='role1';
 Host	User	Role	Admin_option
 %	user3	role1	Y
@@ -29,11 +29,11 @@ SELECT * FROM mysql.roles_mapping WHERE Role='role1';
 Host	User	Role	Admin_option
 DROP ROLE IF EXISTS role1;
 Warnings:
-Note	1975	Can't drop role 'role1'; it doesn't exist
+Note	1976	Can't drop role 'role1'; it doesn't exist
 CREATE ROLE role_1;
 CREATE ROLE IF NOT EXISTS role_1;
 Warnings:
-Note	1974	Can't create role 'role_1'; it already exists
+Note	1975	Can't create role 'role_1'; it already exists
 CREATE OR REPLACE ROLE role_1;
 CREATE OR REPLACE ROLE IF NOT EXISTS role_1;
 ERROR HY000: Incorrect usage of OR REPLACE and IF NOT EXISTS
@@ -69,7 +69,7 @@ SET ROLE NONE;
 DROP ROLE role_1;
 DROP ROLE IF EXISTS role_1;
 Warnings:
-Note	1975	Can't drop role 'role_1'; it doesn't exist
+Note	1976	Can't drop role 'role_1'; it doesn't exist
 DROP ROLE role_1;
 ERROR HY000: Operation DROP ROLE failed for 'role_1'
 DROP USER u1@localhost;

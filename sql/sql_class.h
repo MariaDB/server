@@ -66,7 +66,6 @@ class Reprepare_observer;
 class Relay_log_info;
 struct rpl_group_info;
 class Rpl_filter;
-
 class Query_log_event;
 class Load_log_event;
 class Slave_log_event;
@@ -77,6 +76,7 @@ class Parser_state;
 class Rows_log_event;
 class Sroutine_hash_entry;
 class user_var_entry;
+struct Trans_binlog_info;
 class rpl_io_thread_info;
 class rpl_sql_thread_info;
 
@@ -2043,6 +2043,9 @@ public:
   */
   const char *where;
 
+  /* Needed by MariaDB semi sync replication */
+  Trans_binlog_info *semisync_info;
+
   ulong client_capabilities;		/* What the client supports */
   ulong max_client_packet_length;
 
@@ -2111,10 +2114,10 @@ public:
   /* Do not set socket timeouts for wait_timeout (used with threadpool) */
   bool skip_wait_timeout;
 
-  /* container for handler's private per-connection data */
-  Ha_data ha_data[MAX_HA];
-
   bool prepare_derived_at_open;
+
+  /* Set to 1 if status of this THD is already in global status */
+  bool status_in_global;
 
   /* 
     To signal that the tmp table to be created is created for materialized
@@ -2123,6 +2126,9 @@ public:
   bool create_tmp_table_for_derived;
 
   bool save_prep_leaf_list;
+
+  /* container for handler's private per-connection data */
+  Ha_data ha_data[MAX_HA];
 
 #ifndef MYSQL_CLIENT
   binlog_cache_mngr *  binlog_setup_trx_data();
@@ -3833,6 +3839,8 @@ public:
   {
     mysql_mutex_lock(&LOCK_status);
     add_to_status(&global_status_var, &status_var);
+    /* Mark that this THD status has already been added in global status */
+    status_in_global= 1;
     mysql_mutex_unlock(&LOCK_status);
   }
 

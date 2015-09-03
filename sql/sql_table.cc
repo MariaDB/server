@@ -4680,12 +4680,12 @@ int create_table_impl(THD *thd,
       bool table_creation_was_logged= tmp_table->s->table_creation_was_logged;
       if (options.or_replace())
       {
-        bool is_trans;
+        bool tmp;
         /*
           We are using CREATE OR REPLACE on an existing temporary table
           Remove the old table so that we can re-create it.
         */
-        if (drop_temporary_table(thd, tmp_table, &is_trans))
+        if (drop_temporary_table(thd, tmp_table, &tmp))
           goto err;
       }
       else if (options.if_not_exists())

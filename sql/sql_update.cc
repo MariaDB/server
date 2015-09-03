@@ -1186,7 +1186,7 @@ bool unsafe_key_update(List<TABLE_LIST> leaves, table_map tables_for_update)
 
   while ((tl= it++))
   {
-    if (tl->table->map & tables_for_update)
+    if (!tl->is_jtbm() && (tl->table->map & tables_for_update))
     {
       TABLE *table1= tl->table;
       bool primkey_clustered= (table1->file->primary_key_is_clustered() &&
@@ -1203,6 +1203,8 @@ bool unsafe_key_update(List<TABLE_LIST> leaves, table_map tables_for_update)
       it2.rewind();
       while ((tl2= it2++))
       {
+        if (tl2->is_jtbm())
+          continue;
         /*
           Look at "next" tables only since all previous tables have
           already been checked
@@ -1434,6 +1436,9 @@ int mysql_multi_update_prepare(THD *thd)
   {
     TABLE *table= tl->table;
 
+    if (tl->is_jtbm())
+      continue;
+
     /* if table will be updated then check that it is unique */
     if (table->map & tables_for_update)
     {
@@ -1482,6 +1487,8 @@ int mysql_multi_update_prepare(THD *thd)
   for (tl= table_list; tl; tl= tl->next_local)
   {
     bool not_used= false;
+    if (tl->is_jtbm())
+      continue;
     if (multi_update_check_table_access(thd, tl, tables_for_update, &not_used))
       DBUG_RETURN(TRUE);
   }
@@ -1489,6 +1496,8 @@ int mysql_multi_update_prepare(THD *thd)
   /* check single table update for view compound from several tables */
   for (tl= table_list; tl; tl= tl->next_local)
   {
+    if (tl->is_jtbm())
+      continue;
     if (tl->is_merged_derived())
     {
       TABLE_LIST *for_update= 0;
@@ -1518,6 +1527,8 @@ int mysql_multi_update_prepare(THD *thd)
   ti.rewind();
   while ((tl= ti++))
   {
+    if (tl->is_jtbm())
+      continue;
     TABLE *table= tl->table;
     TABLE_LIST *tlist;
     if (!(tlist= tl->top_table())->derived)
@@ -1661,6 +1672,9 @@ int multi_update::prepare(List<Item> &not_used_values,
   */
   while ((table_ref= ti++))
   {
+    if (table_ref->is_jtbm())
+      continue;
+
     TABLE *table= table_ref->table;
     if (tables_to_update & table->map)
     {
@@ -1680,6 +1694,9 @@ int multi_update::prepare(List<Item> &not_used_values,
   ti.rewind();
   while ((table_ref= ti++))
   {
+    if (table_ref->is_jtbm())
+      continue;
+
     TABLE *table= table_ref->table;
     if (tables_to_update & table->map)
     {
@@ -1710,6 +1727,8 @@ int multi_update::prepare(List<Item> &not_used_values,
   while ((table_ref= ti++))
   {
     /* TODO: add support of view of join support */
+    if (table_ref->is_jtbm())
+      continue;
     TABLE *table=table_ref->table;
     leaf_table_count++;
     if (tables_to_update & table->map)

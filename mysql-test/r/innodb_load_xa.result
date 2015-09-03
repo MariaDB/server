@@ -14,3 +14,5 @@ Variable_name	Value
 Handler_prepare	0
 drop table t1;
 uninstall plugin innodb;
+Warnings:
+Warning	1620	Plugin is busy and will be uninstalled on shutdown
