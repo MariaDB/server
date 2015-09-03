@@ -1298,7 +1298,13 @@ create_view_query(THD *thd, uchar** buf, size_t* buf_len)
     buff.append(command[thd->lex->create_view_mode].str,
                 command[thd->lex->create_view_mode].length);
 
-    if (!lex->definer)
+    LEX_USER *definer;
+
+    if (lex->definer)
+    {
+      definer= get_current_user(thd, lex->definer);
+    }
+    else
     {
       /*
         DEFINER-clause is missing; we have to create default definer in
@@ -1306,16 +1312,19 @@ create_view_query(THD *thd, uchar** buf, size_t* buf_len)
         If this is an ALTER VIEW then the current user should be set as
         the definer.
       */
+      definer= create_default_definer(thd, false);
+    }
 
-      if (!(lex->definer= create_default_definer(thd, false)))
-      {
-        WSREP_WARN("view default definer issue");
-      }
+    if (definer)
+    {
+      views->definer.user = definer->user;
+      views->definer.host = definer->host;
+    } else {
+      WSREP_ERROR("Failed to get DEFINER for VIEW.");
+      return 1;
     }
 
     views->algorithm    = lex->create_view_algorithm;
-    views->definer.user = lex->definer->user;
-    views->definer.host = lex->definer->host;
     views->view_suid    = lex->create_view_suid;
     views->with_check   = lex->create_view_check;
 
@@ -1367,6 +1376,7 @@ static int wsrep_TOI_begin(THD *thd, char *db_, char *table_,
   uchar* buf(0);
   size_t buf_len(0);
   int buf_err;
+  int rc= 0;
 
   WSREP_DEBUG("TO BEGIN: %lld, %d : %s", (long long)wsrep_thd_trx_seqno(thd),
               thd->wsrep_exec_mode, thd->query() );
@@ -1406,7 +1416,6 @@ static int wsrep_TOI_begin(THD *thd, char *db_, char *table_,
   {
     thd->wsrep_exec_mode= TOTAL_ORDER;
     wsrep_to_isolation++;
-    if (buf) my_free(buf);
     wsrep_keys_free(&key_arr);
     WSREP_DEBUG("TO BEGIN: %lld, %d",(long long)wsrep_thd_trx_seqno(thd),
 		thd->wsrep_exec_mode);
@@ -1418,18 +1427,18 @@ static int wsrep_TOI_begin(THD *thd, char *db_, char *table_,
                ret, (thd->query()) ? thd->query() : "void");
     my_error(ER_LOCK_DEADLOCK, MYF(0), "WSREP replication failed. Check "
 	     "your wsrep connection state and retry the query.");
-    if (buf) my_free(buf);
     wsrep_keys_free(&key_arr);
-    return -1;
+    rc= -1;
   }
   else {
     /* non replicated DDL, affecting temporary tables only */
     WSREP_DEBUG("TO isolation skipped for: %d, sql: %s."
 		"Only temporary tables affected.",
 		ret, (thd->query()) ? thd->query() : "void");
-    return 1;
+    rc= 1;
   }
-  return 0;
+  if (buf) my_free(buf);
+  return rc;
 }
 
 static void wsrep_TOI_end(THD *thd) {

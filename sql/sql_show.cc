@@ -2196,8 +2196,11 @@ static void store_key_options(THD *thd, String *packet, TABLE *table,
 void
 view_store_options(THD *thd, TABLE_LIST *table, String *buff)
 {
-  buff->append(STRING_WITH_LEN("ALGORITHM="));
-  buff->append(view_algorithm(table));
+  if (table->algorithm != VIEW_ALGORITHM_INHERIT)
+  {
+    buff->append(STRING_WITH_LEN("ALGORITHM="));
+    buff->append(view_algorithm(table));
+  }
   buff->append(' ');
   append_definer(thd, buff, &table->definer.user, &table->definer.host);
   if (table->view_suid)

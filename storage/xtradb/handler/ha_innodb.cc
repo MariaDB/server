@@ -8211,10 +8211,11 @@ no_commit:
 			;
 		} else if (src_table == prebuilt->table) {
 #ifdef WITH_WSREP
-			if (wsrep_on(user_thd) && wsrep_load_data_splitting &&
+			if (wsrep_on(user_thd)                              &&
+			    wsrep_load_data_splitting                       &&
 			    sql_command == SQLCOM_LOAD                      &&
-			    !thd_test_options(
-					      user_thd, OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN))
+			    !thd_test_options(user_thd,
+			                      OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN))
 			{
 				switch (wsrep_run_wsrep_commit(user_thd, 1))
 				{
@@ -8242,10 +8243,11 @@ no_commit:
 			prebuilt->sql_stat_start = TRUE;
 		} else {
 #ifdef WITH_WSREP
-			if (wsrep_on(user_thd) && wsrep_load_data_splitting &&
+			if (wsrep_on(user_thd)                              &&
+			    wsrep_load_data_splitting                       &&
 			    sql_command == SQLCOM_LOAD                      &&
-			    !thd_test_options(
-					      user_thd, OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN))
+			    !thd_test_options(user_thd,
+			                      OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN))
 			{
 				switch (wsrep_run_wsrep_commit(user_thd, 1))
 				{
@@ -8476,14 +8478,15 @@ report_error:
 						   user_thd);
 
 #ifdef WITH_WSREP
-	if (!error_result && wsrep_thd_exec_mode(user_thd) == LOCAL_STATE &&
-	    wsrep_on(user_thd) && !wsrep_consistency_check(user_thd) &&
-	    (sql_command != SQLCOM_LOAD || 
-	     thd_binlog_format(user_thd) == BINLOG_FORMAT_ROW)) {
-
-		if (wsrep_append_keys(user_thd, false, record, NULL)) {
- 			DBUG_PRINT("wsrep", ("row key failed"));
- 			error_result = HA_ERR_INTERNAL_ERROR;
+	if (!error_result                                &&
+	    wsrep_thd_exec_mode(user_thd) == LOCAL_STATE &&
+	    wsrep_on(user_thd)                           &&
+	    !wsrep_consistency_check(user_thd))
+	{
+		if (wsrep_append_keys(user_thd, false, record, NULL))
+		{
+			DBUG_PRINT("wsrep", ("row key failed"));
+			error_result = HA_ERR_INTERNAL_ERROR;
 			goto wsrep_error;
 		}
 	}
