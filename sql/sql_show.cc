@@ -106,8 +106,7 @@ static TYPELIB grant_types = { sizeof(grant_names)/sizeof(char **),
 /* Match the values of enum ha_choice */
 static const char *ha_choice_values[] = {"", "0", "1"};
 
-static void store_key_options(THD *thd, String *packet, TABLE *table,
-                              KEY *key_info);
+static void store_key_options(THD *, String *, TABLE *, KEY *);
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
 static void get_cs_converted_string_value(THD *thd,
@@ -2193,8 +2192,7 @@ static void store_key_options(THD *thd, String *packet, TABLE *table,
 }
 
 
-void
-view_store_options(THD *thd, TABLE_LIST *table, String *buff)
+void view_store_options(THD *thd, TABLE_LIST *table, String *buff)
 {
   if (table->algorithm != VIEW_ALGORITHM_INHERIT)
   {
@@ -2210,15 +2208,8 @@ view_store_options(THD *thd, TABLE_LIST *table, String *buff)
 }
 
 
-/*
-  Append DEFINER clause to the given buffer.
-
-  SYNOPSIS
-    append_definer()
-    thd           [in] thread handle
-    buffer        [inout] buffer to hold DEFINER clause
-    definer_user  [in] user name part of definer
-    definer_host  [in] host name part of definer
+/**
+  Returns ALGORITHM clause of a view
 */
 
 static const LEX_STRING *view_algorithm(TABLE_LIST *table)
