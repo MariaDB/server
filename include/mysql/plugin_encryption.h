@@ -69,16 +69,50 @@ struct st_mariadb_encryption
                           unsigned char *key, unsigned int *key_length);
 
   /*********** ENCRYPTION ************************************************/
+  /*
+    the caller uses encryption as follows:
+      1. create the encryption context object of the crypt_ctx_size() bytes.
+      2. initialize it with crypt_ctx_init().
+      3. repeat crypt_ctx_update() until there are no more data to encrypt.
+      4. write the remaining output bytes and destroy the context object
+         with crypt_ctx_finish().
+  */
 
-  uint (*crypt_ctx_size)(unsigned int key_id, unsigned int key_version);
+  /**
+    returns the size of the encryption context object in bytes
+  */
+  unsigned int (*crypt_ctx_size)(unsigned int key_id, unsigned int key_version);
+  /**
+    initializes the encryption context object.
+  */
   int (*crypt_ctx_init)(void *ctx, const unsigned char* key, unsigned int klen,
                         const unsigned char* iv, unsigned int ivlen,
                         int flags, unsigned int key_id,
                         unsigned int key_version);
+  /**
+    processes (encrypts or decrypts) a chunk of data
+
+    writes the output to th dst buffer. note that it might write
+    more bytes that were in the input. or less. or none at all.
+  */
   int (*crypt_ctx_update)(void *ctx, const unsigned char* src, unsigned int slen,
                           unsigned char* dst, unsigned int* dlen);
+  /**
+    writes the remaining output bytes and destroys the encryption context
+
+    crypt_ctx_update might've cached part of the output in the context,
+    this method will flush these data out.
+  */
   int (*crypt_ctx_finish)(void *ctx, unsigned char* dst, unsigned int* dlen);
-  uint (*encrypted_length)(unsigned int slen, unsigned int key_id, unsigned int key_version);
+  /**
+    returns the length of the encrypted data
+
+    it returns the exact length, given only the source length.
+    which means, this API only supports encryption algorithms where
+    the length of the encrypted data only depends on the length of the
+    input (a.k.a. compression is not supported).
+  */
+  unsigned int (*encrypted_length)(unsigned int slen, unsigned int key_id, unsigned int key_version);
 };
 #endif
 
