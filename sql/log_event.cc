@@ -1203,7 +1203,7 @@ err:
 
 int Log_event_writer::write_header(uchar *pos, size_t len)
 {
-  DBUG_ENTER("write_footer");
+  DBUG_ENTER("Log_event_writer::write_header");
   /*
     recording checksum of FD event computed with dropped
     possibly active LOG_EVENT_BINLOG_IN_USE_F flag.
@@ -1225,7 +1225,7 @@ int Log_event_writer::write_header(uchar *pos, size_t len)
     if (encryption_ctx_init(ctx, crypto->key, crypto->key_length,
            iv, sizeof(iv), ENCRYPTION_FLAG_ENCRYPT | ENCRYPTION_FLAG_NOPAD,
            ENCRYPTION_KEY_SYSTEM_DATA, crypto->key_version))
-      return 1;
+      DBUG_RETURN(1);
 
     DBUG_ASSERT(len >= LOG_EVENT_HEADER_LEN);
     event_len= uint4korr(pos + EVENT_LEN_OFFSET);
@@ -1234,15 +1234,16 @@ int Log_event_writer::write_header(uchar *pos, size_t len)
     pos+= 4;
     len-= 4;
   }
-  return encrypt_and_write(pos, len);
+  DBUG_RETURN(encrypt_and_write(pos, len));
 }
 
 int Log_event_writer::write_data(const uchar *pos, size_t len)
 {
+  DBUG_ENTER("Log_event_writer::write_data");
   if (checksum_len)
     crc= my_checksum(crc, pos, len);
 
-  return encrypt_and_write(pos, len);
+  DBUG_RETURN(encrypt_and_write(pos, len));
 }
 
 int Log_event_writer::write_footer()
