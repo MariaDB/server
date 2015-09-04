@@ -161,13 +161,13 @@ SELECT `£Ã£±`, CONVERT(`£Ã£±` using sjis) FROM `£Ô£³`;
 í´íµí¶í·í¸í¹íºí»í¼í½í¾í¿íÀíÁíÂíÃíÄíÅíÆíÇ	????????????????????
 íÈíÉíÊíËíÌíÍíÎíÏíĞíÑíÒíÓíÔíÕíÖí×íØíÙíÚíÛ	????????????????????
 Warnings:
-Warning	1976	Cannot convert 'ucs2' character 0x02DB to 'sjis'
-Warning	1976	Cannot convert 'ucs2' character 0x9EF8 to 'sjis'
-Warning	1976	Cannot convert 'ucs2' character 0x4E5A to 'sjis'
-Warning	1976	Cannot convert 'ucs2' character 0x4EE1 to 'sjis'
-Warning	1976	Cannot convert 'ucs2' character 0x4F19 to 'sjis'
-Warning	1976	Cannot convert 'ucs2' character 0x9F2B to 'sjis'
-Warning	1976	Cannot convert 'ucs2' character 0x9F57 to 'sjis'
+Warning	1977	Cannot convert 'ucs2' character 0x02DB to 'sjis'
+Warning	1977	Cannot convert 'ucs2' character 0x9EF8 to 'sjis'
+Warning	1977	Cannot convert 'ucs2' character 0x4E5A to 'sjis'
+Warning	1977	Cannot convert 'ucs2' character 0x4EE1 to 'sjis'
+Warning	1977	Cannot convert 'ucs2' character 0x4F19 to 'sjis'
+Warning	1977	Cannot convert 'ucs2' character 0x9F2B to 'sjis'
+Warning	1977	Cannot convert 'ucs2' character 0x9F57 to 'sjis'
 SELECT `£Ã£±`, CONVERT(`£Ã£±` using utf8) FROM `£Ô£´`;
 £Ã£±	CONVERT(`£Ã£±` using utf8)
  ¡¢£¤¥¦§¨©ª«¬­®¯	 ¡¢£¤¥¦§¨©ª«¬­®¯
@@ -244,13 +244,13 @@ SELECT `£Ã£±`, CONVERT(`£Ã£±` using sjis) FROM `£Ô£¶`;
 í´íµí¶í·í¸í¹íºí»í¼í½í¾í¿íÀíÁíÂíÃíÄíÅíÆíÇ	????????????????????
 íÈíÉíÊíËíÌíÍíÎíÏíĞíÑíÒíÓíÔíÕíÖí×íØíÙíÚíÛ	????????????????????
 Warnings:
-Warning	1976	Cannot convert 'ucs2' character 0x02DB to 'sjis'
-Warning	1976	Cannot convert 'ucs2' character 0x9EF8 to 'sjis'
-Warning	1976	Cannot convert 'ucs2' character 0x4E5A to 'sjis'
-Warning	1976	Cannot convert 'ucs2' character 0x4EE1 to 'sjis'
-Warning	1976	Cannot convert 'ucs2' character 0x4F19 to 'sjis'
-Warning	1976	Cannot convert 'ucs2' character 0x9F2B to 'sjis'
-Warning	1976	Cannot convert 'ucs2' character 0x9F57 to 'sjis'
+Warning	1977	Cannot convert 'ucs2' character 0x02DB to 'sjis'
+Warning	1977	Cannot convert 'ucs2' character 0x9EF8 to 'sjis'
+Warning	1977	Cannot convert 'ucs2' character 0x4E5A to 'sjis'
+Warning	1977	Cannot convert 'ucs2' character 0x4EE1 to 'sjis'
+Warning	1977	Cannot convert 'ucs2' character 0x4F19 to 'sjis'
+Warning	1977	Cannot convert 'ucs2' character 0x9F2B to 'sjis'
+Warning	1977	Cannot convert 'ucs2' character 0x9F57 to 'sjis'
 SELECT `£Ã£±`, CONVERT(`£Ã£±` using utf8) FROM `£Ô£·`;
 £Ã£±	CONVERT(`£Ã£±` using utf8)
 PQRSTUVWXYZ[\]^_	PQRSTUVWXYZ[\]^_
@@ -327,13 +327,13 @@ SELECT `£Ã£±`, CONVERT(`£Ã£±` using sjis) FROM `£Ô£¹`;
 í´íµí¶í·í¸í¹íºí»í¼í½í¾í¿íÀíÁíÂíÃíÄíÅíÆíÇ	????????????????????
 íÈíÉíÊíËíÌíÍíÎíÏíĞíÑíÒíÓíÔíÕíÖí×íØíÙíÚíÛ	????????????????????
 Warnings:
-Warning	1976	Cannot convert 'ucs2' character 0x02DB to 'sjis'
-Warning	1976	Cannot convert 'ucs2' character 0x4E5A to 'sjis'
-Warning	1976	Cannot convert 'ucs2' character 0x4EE1 to 'sjis'
-Warning	1976	Cannot convert 'ucs2' character 0x4F19 to 'sjis'
-Warning	1976	Cannot convert 'ucs2' character 0x9EF8 to 'sjis'
-Warning	1976	Cannot convert 'ucs2' character 0x9F2B to 'sjis'
-Warning	1976	Cannot convert 'ucs2' character 0x9F57 to 'sjis'
+Warning	1977	Cannot convert 'ucs2' character 0x02DB to 'sjis'
+Warning	1977	Cannot convert 'ucs2' character 0x4E5A to 'sjis'
+Warning	1977	Cannot convert 'ucs2' character 0x4EE1 to 'sjis'
+Warning	1977	Cannot convert 'ucs2' character 0x4F19 to 'sjis'
+Warning	1977	Cannot convert 'ucs2' character 0x9EF8 to 'sjis'
+Warning	1977	Cannot convert 'ucs2' character 0x9F2B to 'sjis'
+Warning	1977	Cannot convert 'ucs2' character 0x9F57 to 'sjis'
 drop table `£Ô£±`;
 drop table `£Ô£²`;
 drop table `£Ô£³`;

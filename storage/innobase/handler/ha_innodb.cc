@@ -108,7 +108,7 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #define thd_get_trx_isolation(X) ((enum_tx_isolation)thd_tx_isolation(X))
 
 #ifdef MYSQL_DYNAMIC_PLUGIN
-#define tc_size 400
+#define tc_size 2000
 #define tdc_size 400
 #endif
 
