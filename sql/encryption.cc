@@ -25,31 +25,23 @@ void init_io_cache_encryption();
 static plugin_ref encryption_manager= 0;
 struct encryption_service_st encryption_handler;
 
-unsigned int has_key_id(uint id)
-{
-  return encryption_key_get_latest_version(id) != ENCRYPTION_KEY_VERSION_INVALID;
-}
-
-unsigned int has_key_version(uint id, uint version)
-{
-  uint unused;
-  return encryption_key_get(id, version, NULL, &unused) != ENCRYPTION_KEY_VERSION_INVALID;
-}
-
 uint no_key(uint)
 {
   return ENCRYPTION_KEY_VERSION_INVALID;
 }
 
-static int no_crypt(const uchar* source, uint source_length,
-                    uchar* dest, uint* dest_length,
-                    const uchar* key, uint key_length,
-                    const uchar* iv, uint iv_length,
-                    int no_padding, uint key_id, uint key_version)
+static int ctx_init(void *ctx, const unsigned char* key, unsigned int klen,
+                    const unsigned char* iv, unsigned int ivlen, int flags,
+                    unsigned int key_id, unsigned int key_version)
 {
-  return 1;
+  return my_aes_crypt_init(ctx, MY_AES_CBC, flags, key, klen, iv, ivlen);
 }
 
+static unsigned int get_length(unsigned int slen, unsigned int key_id,
+                               unsigned int key_version)
+{
+  return my_aes_get_size(MY_AES_CBC, slen);
+}
 
 int initialize_encryption_plugin(st_plugin_int *plugin)
 {
@@ -67,13 +59,21 @@ int initialize_encryption_plugin(st_plugin_int *plugin)
   st_mariadb_encryption *handle=
     (struct st_mariadb_encryption*) plugin->plugin->info;
 
-  encryption_handler.encryption_encrypt_func=
-    handle->encrypt ? handle->encrypt
-                    : (encrypt_decrypt_func)my_aes_encrypt_cbc;
+  encryption_handler.encryption_ctx_size_func=
+    handle->crypt_ctx_size ? handle->crypt_ctx_size :
+    (uint (*)(unsigned int, unsigned int))my_aes_ctx_size;
 
-  encryption_handler.encryption_decrypt_func=
-    handle->decrypt ? handle->decrypt
-                    : (encrypt_decrypt_func)my_aes_decrypt_cbc;
+  encryption_handler.encryption_ctx_init_func=
+    handle->crypt_ctx_init ? handle->crypt_ctx_init : ctx_init;
+
+  encryption_handler.encryption_ctx_update_func=
+    handle->crypt_ctx_update ? handle->crypt_ctx_update : my_aes_crypt_update;
+
+  encryption_handler.encryption_ctx_finish_func=
+    handle->crypt_ctx_finish ? handle->crypt_ctx_finish : my_aes_crypt_finish;
+
+  encryption_handler.encryption_encrypted_length_func=
+    handle->encrypted_length ? handle->encrypted_length : get_length;
 
   encryption_handler.encryption_key_get_func=
     handle->get_key;
@@ -88,10 +88,6 @@ int initialize_encryption_plugin(st_plugin_int *plugin)
 
 int finalize_encryption_plugin(st_plugin_int *plugin)
 {
-  encryption_handler.encryption_encrypt_func= no_crypt;
-  encryption_handler.encryption_decrypt_func= no_crypt;
-  encryption_handler.encryption_key_id_exists_func= has_key_id;
-  encryption_handler.encryption_key_version_exists_func= has_key_version;
   encryption_handler.encryption_key_get_func=
       (uint (*)(uint, uint, uchar*, uint*))no_key;
   encryption_handler.encryption_key_get_latest_version_func= no_key;
@@ -144,8 +140,9 @@ static uint scheme_get_key(st_encryption_scheme *scheme,
     goto ret;
 
   /* Now generate the local key by encrypting IV using the global key */
-  rc = my_aes_encrypt_ecb(scheme->iv, sizeof(scheme->iv), key->key, &key_len,
-                          global_key, global_key_len, NULL, 0, 1);
+  rc = my_aes_crypt(MY_AES_ECB, ENCRYPTION_FLAG_ENCRYPT | ENCRYPTION_FLAG_NOPAD,
+                    scheme->iv, sizeof(scheme->iv), key->key, &key_len,
+                    global_key, global_key_len, NULL, 0);
 
   DBUG_ASSERT(key_len == sizeof(key->key));
 
@@ -169,7 +166,7 @@ int do_crypt(const unsigned char* src, unsigned int slen,
              struct st_encryption_scheme *scheme,
              unsigned int key_version, unsigned int i32_1,
              unsigned int i32_2, unsigned long long i64,
-             encrypt_decrypt_func crypt)
+             int flag)
 {
   compile_time_assert(ENCRYPTION_SCHEME_KEY_INVALID ==
                       (int)ENCRYPTION_KEY_VERSION_INVALID);
@@ -197,8 +194,8 @@ int do_crypt(const unsigned char* src, unsigned int slen,
   int4store(iv + 4, i32_2);
   int8store(iv + 8, i64);
 
-  return crypt(src, slen, dst, dlen, key.key, sizeof(key.key),
-               iv, sizeof(iv), 1, scheme->key_id, key_version);
+  return encryption_crypt(src, slen, dst, dlen, key.key, sizeof(key.key),
+                          iv, sizeof(iv), flag, scheme->key_id, key_version);
 }
 
 int encryption_scheme_encrypt(const unsigned char* src, unsigned int slen,
@@ -208,7 +205,7 @@ int encryption_scheme_encrypt(const unsigned char* src, unsigned int slen,
                               unsigned int i32_2, unsigned long long i64)
 {
   return do_crypt(src, slen, dst, dlen, scheme, key_version, i32_1,
-                  i32_2, i64, encryption_handler.encryption_encrypt_func);
+                  i32_2, i64, ENCRYPTION_FLAG_NOPAD | ENCRYPTION_FLAG_ENCRYPT);
 }
 
 
@@ -219,5 +216,5 @@ int encryption_scheme_decrypt(const unsigned char* src, unsigned int slen,
                               unsigned int i32_2, unsigned long long i64)
 {
   return do_crypt(src, slen, dst, dlen, scheme, key_version, i32_1,
-                  i32_2, i64, encryption_handler.encryption_decrypt_func);
+                  i32_2, i64, ENCRYPTION_FLAG_NOPAD | ENCRYPTION_FLAG_DECRYPT);
 }

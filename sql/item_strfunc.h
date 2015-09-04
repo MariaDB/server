@@ -148,10 +148,7 @@ class Item_aes_crypt :public Item_str_func
   void create_key(String *user_key, uchar* key);
 
 protected:
-  int (*crypt)(const uchar* src, uint slen, uchar* dst, uint* dlen,
-               const uchar* key, uint klen, const uchar* iv, uint ivlen,
-               int no_padding);
-
+  int what;
 public:
   Item_aes_crypt(THD *thd, Item *a, Item *b): Item_str_func(thd, a, b) {}
   String *val_str(String *);

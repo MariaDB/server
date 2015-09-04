@@ -36,6 +36,8 @@ struct st_mariadb_encryption
 {
   int interface_version;                        /**< version plugin uses */
 
+  /*********** KEY MANAGEMENT ********************************************/
+
   /**
     function returning latest key version for a given key id
 
@@ -66,8 +68,17 @@ struct st_mariadb_encryption
   unsigned int (*get_key)(unsigned int key_id, unsigned int version,
                           unsigned char *key, unsigned int *key_length);
 
-  encrypt_decrypt_func encrypt;
-  encrypt_decrypt_func decrypt;
+  /*********** ENCRYPTION ************************************************/
+
+  uint (*crypt_ctx_size)(unsigned int key_id, unsigned int key_version);
+  int (*crypt_ctx_init)(void *ctx, const unsigned char* key, unsigned int klen,
+                        const unsigned char* iv, unsigned int ivlen,
+                        int flags, unsigned int key_id,
+                        unsigned int key_version);
+  int (*crypt_ctx_update)(void *ctx, const unsigned char* src, unsigned int slen,
+                          unsigned char* dst, unsigned int* dlen);
+  int (*crypt_ctx_finish)(void *ctx, unsigned char* dst, unsigned int* dlen);
+  uint (*encrypted_length)(unsigned int slen, unsigned int key_id, unsigned int key_version);
 };
 #endif
 

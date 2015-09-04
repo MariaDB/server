@@ -181,21 +181,46 @@ int thd_key_create(MYSQL_THD_KEY_T *key);
 void thd_key_delete(MYSQL_THD_KEY_T *key);
 void* thd_getspecific(void* thd, MYSQL_THD_KEY_T key);
 int thd_setspecific(void* thd, MYSQL_THD_KEY_T key, void *value);
-typedef int (*encrypt_decrypt_func)(const unsigned char* src, unsigned int slen,
-                                    unsigned char* dst, unsigned int* dlen,
-                                    const unsigned char* key, unsigned int klen,
-                                    const unsigned char* iv, unsigned int ivlen,
-                                    int no_padding, unsigned int key_id,
-                                    unsigned int key_version);
 struct encryption_service_st {
-  unsigned int (*encryption_key_get_latest_version_func)(unsigned int);
-  unsigned int (*encryption_key_id_exists_func)(unsigned int);
-  unsigned int (*encryption_key_version_exists_func)(unsigned int, unsigned int);
-  unsigned int (*encryption_key_get_func)(unsigned int, unsigned int, unsigned char*, unsigned int*);
-  encrypt_decrypt_func encryption_encrypt_func;
-  encrypt_decrypt_func encryption_decrypt_func;
+  unsigned int (*encryption_key_get_latest_version_func)(unsigned int key_id);
+  unsigned int (*encryption_key_get_func)(unsigned int key_id, unsigned int key_version,
+                                          unsigned char* buffer, unsigned int* length);
+  unsigned int (*encryption_ctx_size_func)(unsigned int key_id, unsigned int key_version);
+  int (*encryption_ctx_init_func)(void *ctx, const unsigned char* key, unsigned int klen,
+                                  const unsigned char* iv, unsigned int ivlen,
+                                  int flags, unsigned int key_id,
+                                  unsigned int key_version);
+  int (*encryption_ctx_update_func)(void *ctx, const unsigned char* src, unsigned int slen,
+                                    unsigned char* dst, unsigned int* dlen);
+  int (*encryption_ctx_finish_func)(void *ctx, unsigned char* dst, unsigned int* dlen);
+  unsigned int (*encryption_encrypted_length_func)(unsigned int slen, unsigned int key_id, unsigned int key_version);
 };
 extern struct encryption_service_st encryption_handler;
+static inline unsigned int encryption_key_id_exists(unsigned int id)
+{
+  return encryption_handler.encryption_key_get_latest_version_func(id) != (~(unsigned int)0);
+}
+static inline unsigned int encryption_key_version_exists(unsigned int id, unsigned int version)
+{
+  unsigned int unused;
+  return encryption_handler.encryption_key_get_func((id),(version),(NULL),(&unused)) != (~(unsigned int)0);
+}
+static inline int encryption_crypt(const unsigned char* src, unsigned int slen,
+                                   unsigned char* dst, unsigned int* dlen,
+                                   const unsigned char* key, unsigned int klen,
+                                   const unsigned char* iv, unsigned int ivlen,
+                                   int flags, unsigned int key_id, unsigned int key_version)
+{
+  void *ctx= alloca(encryption_handler.encryption_ctx_size_func((key_id),(key_version)));
+  int res1, res2;
+  unsigned int d1, d2;
+  if ((res1= encryption_handler.encryption_ctx_init_func((ctx),(key),(klen),(iv),(ivlen),(flags),(key_id),(key_version))))
+    return res1;
+  res1= encryption_handler.encryption_ctx_update_func((ctx),(src),(slen),(dst),(&d1));
+  res2= encryption_handler.encryption_ctx_finish_func((ctx),(dst + d1),(&d2));
+  *dlen= d1 + d2;
+  return res1 ? res1 : res2;
+}
 struct st_encryption_scheme_key {
   unsigned int version;
   unsigned char key[16];
@@ -392,6 +417,13 @@ struct st_mariadb_encryption
   unsigned int (*get_latest_key_version)(unsigned int key_id);
   unsigned int (*get_key)(unsigned int key_id, unsigned int version,
                           unsigned char *key, unsigned int *key_length);
-  encrypt_decrypt_func encrypt;
-  encrypt_decrypt_func decrypt;
+  uint (*crypt_ctx_size)(unsigned int key_id, unsigned int key_version);
+  int (*crypt_ctx_init)(void *ctx, const unsigned char* key, unsigned int klen,
+                        const unsigned char* iv, unsigned int ivlen,
+                        int flags, unsigned int key_id,
+                        unsigned int key_version);
+  int (*crypt_ctx_update)(void *ctx, const unsigned char* src, unsigned int slen,
+                          unsigned char* dst, unsigned int* dlen);
+  int (*crypt_ctx_finish)(void *ctx, unsigned char* dst, unsigned int* dlen);
+  uint (*encrypted_length)(unsigned int slen, unsigned int key_id, unsigned int key_version);
 };

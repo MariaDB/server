@@ -30,7 +30,7 @@ static unsigned int no_key()
 
 struct encryption_service_st encryption_handler=
 {
-  no_key, 0, 0, 0, 0, 0
+  no_key, 0, 0, 0, 0, 0, 0
 };
 
 int encryption_scheme_encrypt(const unsigned char* src __attribute__((unused)),

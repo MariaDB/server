@@ -36,57 +36,53 @@ extern "C" {
 /* The max key length of all supported algorithms */
 #define MY_AES_MAX_KEY_LENGTH 32
 
+#define MY_AES_CTX_SIZE 512
+
+enum my_aes_mode {
+    MY_AES_ECB, MY_AES_CBC
 #ifdef HAVE_EncryptAes128Ctr
-
-int my_aes_encrypt_ctr(const uchar* source, uint source_length,
-                                uchar* dest, uint* dest_length,
-                                const uchar* key, uint key_length,
-                                const uchar* iv, uint iv_length);
-
-#define my_aes_decrypt_ctr my_aes_encrypt_ctr
-
+  , MY_AES_CTR
 #endif
-
 #ifdef HAVE_EncryptAes128Gcm
-
-int my_aes_encrypt_gcm(const uchar* source, uint source_length,
-                                uchar* dest, uint* dest_length,
-                                const uchar* key, uint key_length,
-                                const uchar* iv, uint iv_length);
-
-int my_aes_decrypt_gcm(const uchar* source, uint source_length,
-                                uchar* dest, uint* dest_length,
-                                const uchar* key, uint key_length,
-                                const uchar* iv, uint iv_length);
+  , MY_AES_GCM
 #endif
+};
 
-int my_aes_encrypt_cbc(const uchar* source, uint source_length,
-                                uchar* dest, uint* dest_length,
-                                const uchar* key, uint key_length,
-                                const uchar* iv, uint iv_length,
-                                int no_padding);
+int my_aes_crypt_init(void *ctx, enum my_aes_mode mode, int flags,
+                      const unsigned char* key, unsigned int klen,
+                      const unsigned char* iv, unsigned int ivlen);
+int my_aes_crypt_update(void *ctx, const uchar *src, uint slen,
+                        uchar *dst, uint *dlen);
+int my_aes_crypt_finish(void *ctx, uchar *dst, uint *dlen);
+int my_aes_crypt(enum my_aes_mode mode, int flags,
+                 const uchar *src, uint slen, uchar *dst, uint *dlen,
+                 const uchar *key, uint klen, const uchar *iv, uint ivlen);
 
-int my_aes_decrypt_cbc(const uchar* source, uint source_length,
-                                uchar* dest, uint* dest_length,
-                                const uchar* key, uint key_length,
-                                const uchar* iv, uint iv_length,
-                                int no_padding);
+/*
+  calculate the length of the cyphertext from the length of the plaintext
+  for different AES encryption modes with padding enabled.
+  Without padding (ENCRYPTION_FLAG_NOPAD) cyphertext has the same length
+  as the plaintext
+*/
+static inline uint my_aes_get_size(enum my_aes_mode mode __attribute__((unused)), uint source_length)
+{
+#ifdef HAVE_EncryptAes128Ctr
+  if (mode == MY_AES_CTR)
+    return source_length;
+#ifdef HAVE_EncryptAes128Gcm
+  if (mode == MY_AES_GCM)
+    return source_length + MY_AES_BLOCK_SIZE;
+#endif
+#endif
+  return (source_length / MY_AES_BLOCK_SIZE + 1) * MY_AES_BLOCK_SIZE;
+}
 
-int my_aes_encrypt_ecb(const uchar* source, uint source_length,
-                                uchar* dest, uint* dest_length,
-                                const uchar* key, uint key_length,
-                                const uchar* iv, uint iv_length,
-                                int no_padding);
-
-int my_aes_decrypt_ecb(const uchar* source, uint source_length,
-                                uchar* dest, uint* dest_length,
-                                const uchar* key, uint key_length,
-                                const uchar* iv, uint iv_length,
-                                int no_padding);
+static inline uint my_aes_ctx_size(enum my_aes_mode mode __attribute__((unused)))
+{
+  return MY_AES_CTX_SIZE;
+}
 
 int my_random_bytes(uchar* buf, int num);
-
-uint my_aes_get_size(uint source_length);
 
 #ifdef __cplusplus
 }
