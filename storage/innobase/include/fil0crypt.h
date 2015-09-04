@@ -381,6 +381,20 @@ fil_crypt_set_encrypt_tables(
 /*=========================*/
 	uint val);      /*!< in: New srv_encrypt_tables setting */
 
+/******************************************************************
+Encrypt a buffer */
+UNIV_INTERN
+byte*
+fil_encrypt_buf(
+/*============*/
+	fil_space_crypt_t* crypt_data,	/*!< in: crypt data */
+	ulint		space,		/*!< in: Space id */
+	ulint		offset,		/*!< in: Page offset */
+	lsn_t		lsn,		/*!< in: lsn */
+	byte*		src_frame,	/*!< in: Source page to be encrypted */
+	ulint		zip_size,	/*!< in: compressed size if
+					row_format compressed */
+	byte*		dst_frame);	/*!< in: outbut buffer */
 
 /******************************************************************
 Calculate post encryption checksum

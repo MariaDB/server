@@ -11976,6 +11976,8 @@ ha_innobase::discard_or_import_tablespace(
 			     | HA_STATUS_CONST
 			     | HA_STATUS_VARIABLE
 			     | HA_STATUS_AUTO);
+
+			fil_crypt_set_encrypt_tables(srv_encrypt_tables);
 		}
 	}
 

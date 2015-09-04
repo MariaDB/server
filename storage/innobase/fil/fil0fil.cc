@@ -6418,8 +6418,16 @@ fil_iterate(
 		ut_ad(!(n_bytes % iter.page_size));
 
 		byte* readptr = io_buffer;
-		if (iter.crypt_data != NULL) {
+		byte* writeptr = io_buffer;
+		bool encrypted = false;
+
+		/* Use additional crypt io buffer if tablespace is encrypted */
+		if ((iter.crypt_data != NULL && iter.crypt_data->encryption == FIL_SPACE_ENCRYPTION_ON) ||
+				(srv_encrypt_tables &&
+					iter.crypt_data && iter.crypt_data->encryption == FIL_SPACE_ENCRYPTION_DEFAULT)) {
+			encrypted = true;
 			readptr = iter.crypt_io_buffer;
+			writeptr = iter.crypt_io_buffer;
 		}
 
 		if (!os_file_read(iter.file, readptr, offset, (ulint) n_bytes)) {
@@ -6432,12 +6440,15 @@ fil_iterate(
 		bool		updated = false;
 		os_offset_t	page_off = offset;
 		ulint		n_pages_read = (ulint) n_bytes / iter.page_size;
+		bool		decrypted = false;
 
 		for (ulint i = 0; i < n_pages_read; ++i) {
+			ulint size = iter.page_size;
 
-			if (iter.crypt_data != NULL) {
-				ulint size = iter.page_size;
-				bool decrypted = fil_space_decrypt(
+			/* If tablespace is encrypted, we need to decrypt
+			the page. */
+			if (encrypted) {
+				decrypted = fil_space_decrypt(
 							iter.crypt_data,
 							io_buffer + i * size, //dst
 							iter.page_size,
@@ -6468,6 +6479,32 @@ fil_iterate(
 			buf_block_set_state(block, BUF_BLOCK_NOT_USED);
 			buf_block_set_state(block, BUF_BLOCK_READY_FOR_USE);
 
+			/* If tablespace is encrypted, encrypt page before we
+			write it back. Note that we should not encrypt the
+			buffer that is in buffer pool. */
+			if (decrypted && encrypted) {
+				unsigned char *src = io_buffer + (i * size);
+				unsigned char *dst = writeptr + (i * size);
+				ulint space = mach_read_from_4(
+					src + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID);
+				ulint offset = mach_read_from_4(src + FIL_PAGE_OFFSET);
+				ib_uint64_t lsn = mach_read_from_8(src + FIL_PAGE_LSN);
+
+				byte* tmp = fil_encrypt_buf(
+							iter.crypt_data,
+							space,
+							offset,
+							lsn,
+							src,
+							iter.page_size == UNIV_PAGE_SIZE ? 0 : iter.page_size,
+							dst);
+
+				if (tmp == src) {
+					/* TODO: remove unnecessary memcpy's */
+					memcpy(writeptr, src, size);
+				}
+			}
+
 			page_off += iter.page_size;
 			block->frame += iter.page_size;
 		}
@@ -6475,7 +6512,7 @@ fil_iterate(
 		/* A page was updated in the set, write back to disk. */
 		if (updated
 		    && !os_file_write(
-				iter.filepath, iter.file, io_buffer,
+				iter.filepath, iter.file, writeptr,
 				offset, (ulint) n_bytes)) {
 
 			ib_logf(IB_LOG_LEVEL_ERROR, "os_file_write() failed");
@@ -6637,28 +6674,6 @@ fil_tablespace_iterate(
 		mem_free(io_buffer);
 
 		if (iter.crypt_data != NULL) {
-			/* clear crypt data from page 0 and write it back */
-			os_file_read(file, page, 0, UNIV_PAGE_SIZE);
-			fil_space_clear_crypt_data(page, crypt_data_offset);
-			lsn_t lsn = mach_read_from_8(page + FIL_PAGE_LSN);
-			if (callback.get_zip_size() == 0) {
-				buf_flush_init_for_writing(
-					page, 0, lsn);
-			} else {
-				buf_flush_update_zip_checksum(
-					page, callback.get_zip_size(), lsn);
-			}
-
-			if (!os_file_write(
-				    iter.filepath, iter.file, page,
-				    0, iter.page_size)) {
-
-				ib_logf(IB_LOG_LEVEL_ERROR,
-					"os_file_write() failed");
-
-				return(DB_IO_ERROR);
-			}
-
 			mem_free(crypt_io_buffer);
 			iter.crypt_io_buffer = NULL;
 			fil_space_destroy_crypt_data(&iter.crypt_data);

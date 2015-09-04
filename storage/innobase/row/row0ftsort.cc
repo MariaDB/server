@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2010, 2014, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2015, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -37,7 +38,8 @@ Created 10/13/2010 Jimmy Yang
 	do {								\
 		b[N] = row_merge_read_rec(				\
 			block[N], buf[N], b[N], index,			\
-			fd[N], &foffs[N], &mrec[N], offsets[N]);	\
+			fd[N], &foffs[N], &mrec[N], offsets[N],		\
+			crypt_data, crypt_block[N], space);		\
 		if (UNIV_UNLIKELY(!b[N])) {				\
 			if (mrec[N]) {					\
 				goto exit;				\
@@ -191,6 +193,8 @@ row_fts_psort_info_init(
 	fts_psort_t*		merge_info = NULL;
 	ulint			block_size;
 	ibool			ret = TRUE;
+	fil_space_crypt_t*	crypt_data = NULL;
+	bool			encrypted = false;
 
 	block_size = 3 * srv_sort_buf_size;
 
@@ -219,6 +223,19 @@ row_fts_psort_info_init(
 	common_info->sort_event = os_event_create();
 	common_info->merge_event = os_event_create();
 	common_info->opt_doc_id_size = opt_doc_id_size;
+	crypt_data = fil_space_get_crypt_data(new_table->space);
+
+	if ((crypt_data && crypt_data->encryption == FIL_SPACE_ENCRYPTION_ON) ||
+		(srv_encrypt_tables &&
+			crypt_data && crypt_data->encryption == FIL_SPACE_ENCRYPTION_DEFAULT)) {
+
+		common_info->crypt_data = crypt_data;
+		encrypted = true;
+	} else {
+		/* Not needed */
+		common_info->crypt_data = NULL;
+		crypt_data = NULL;
+	}
 
 	/* There will be FTS_NUM_AUX_INDEX number of "sort buckets" for
 	each parallel sort thread. Each "sort bucket" holds records for
@@ -255,6 +272,29 @@ row_fts_psort_info_init(
 				static_cast<row_merge_block_t*>(
 					ut_align(
 					psort_info[j].block_alloc[i], 1024));
+
+			/* If tablespace is encrypted, allocate additional buffer for
+			encryption/decryption. */
+			if (encrypted) {
+
+				/* Need to align memory for O_DIRECT write */
+				psort_info[j].crypt_alloc[i] =
+					static_cast<row_merge_block_t*>(ut_malloc(
+							block_size + 1024));
+
+				psort_info[j].crypt_block[i] =
+					static_cast<row_merge_block_t*>(
+						ut_align(
+							psort_info[j].crypt_alloc[i], 1024));
+
+				if (!psort_info[j].crypt_block[i]) {
+					ret = FALSE;
+					goto func_exit;
+				}
+			} else {
+				psort_info[j].crypt_alloc[i] = NULL;
+				psort_info[j].crypt_block[i] = NULL;
+			}
 
 			if (!psort_info[j].merge_block[i]) {
 				ret = FALSE;
@@ -313,6 +353,11 @@ row_fts_psort_info_destroy(
 				if (psort_info[j].block_alloc[i]) {
 					ut_free(psort_info[j].block_alloc[i]);
 				}
+
+				if (psort_info[j].crypt_alloc[i]) {
+					ut_free(psort_info[j].crypt_alloc[i]);
+				}
+
 				mem_free(psort_info[j].merge_file[i]);
 			}
 
@@ -595,6 +640,7 @@ fts_parallel_tokenization(
 	ibool			processed = FALSE;
 	merge_file_t**		merge_file;
 	row_merge_block_t**	block;
+	row_merge_block_t**	crypt_block;
 	int			tmpfd[FTS_NUM_AUX_INDEX];
 	ulint			mycount[FTS_NUM_AUX_INDEX];
 	ib_uint64_t		total_rec = 0;
@@ -609,6 +655,7 @@ fts_parallel_tokenization(
 	fts_tokenize_ctx_t	t_ctx;
 	ulint			retried = 0;
 	dberr_t			error = DB_SUCCESS;
+	fil_space_crypt_t*	crypt_data = NULL;
 
 	ut_ad(psort_info);
 
@@ -630,6 +677,8 @@ fts_parallel_tokenization(
 				? DATA_VARCHAR : DATA_VARMYSQL;
 
 	block = psort_info->merge_block;
+	crypt_block = psort_info->crypt_block;
+	crypt_data = psort_info->psort_common->crypt_data;
 	zip_size = dict_table_zip_size(table);
 
 	row_merge_fts_get_next_doc_item(psort_info, &doc_item);
@@ -724,7 +773,10 @@ loop:
 
 		if (!row_merge_write(merge_file[t_ctx.buf_used]->fd,
 				     merge_file[t_ctx.buf_used]->offset++,
-				     block[t_ctx.buf_used])) {
+				     block[t_ctx.buf_used],
+				     crypt_data,
+				     crypt_block[t_ctx.buf_used],
+				     table->space)) {
 			error = DB_TEMP_FILE_WRITE_FAILURE;
 			goto func_exit;
 		}
@@ -817,13 +869,21 @@ exit:
 			if (merge_file[i]->offset != 0) {
 				if (!row_merge_write(merge_file[i]->fd,
 						merge_file[i]->offset++,
-						block[i])) {
+						block[i],
+						crypt_data,
+						crypt_block[i],
+						table->space)) {
 					error = DB_TEMP_FILE_WRITE_FAILURE;
 					goto func_exit;
 				}
 
 				UNIV_MEM_INVALID(block[i][0],
 						 srv_sort_buf_size);
+
+				if (crypt_block[i]) {
+					UNIV_MEM_INVALID(crypt_block[i][0],
+						 srv_sort_buf_size);
+				}
 			}
 
 			buf[i] = row_merge_buf_empty(buf[i]);
@@ -848,7 +908,10 @@ exit:
 
 		error = row_merge_sort(psort_info->psort_common->trx,
 				       psort_info->psort_common->dup,
-				       merge_file[i], block[i], &tmpfd[i], false, 0.0/* pct_progress */, 0.0/* pct_cost */);
+				       merge_file[i], block[i], &tmpfd[i],
+				       false, 0.0/* pct_progress */, 0.0/* pct_cost */,
+				       crypt_data, crypt_block[i], table->space);
+
 		if (error != DB_SUCCESS) {
 			close(tmpfd[i]);
 			goto func_exit;
@@ -1352,6 +1415,7 @@ row_fts_merge_insert(
 	mrec_buf_t**		buf;
 	int*			fd;
 	byte**			block;
+	byte**			crypt_block;
 	const mrec_t**		mrec;
 	ulint			count = 0;
 	int*			sel_tree;
@@ -1359,6 +1423,8 @@ row_fts_merge_insert(
 	ulint			start;
 	fts_psort_insert_t	ins_ctx;
 	ulint			count_diag = 0;
+	fil_space_crypt_t*	crypt_data = NULL;
+	ulint			space;
 
 	ut_ad(index);
 	ut_ad(table);
@@ -1371,6 +1437,7 @@ row_fts_merge_insert(
 	ins_ctx.trx->op_info = "inserting index entries";
 
 	ins_ctx.opt_doc_id_size = psort_info[0].psort_common->opt_doc_id_size;
+	crypt_data = psort_info[0].psort_common->crypt_data;
 
 	heap = mem_heap_create(500 + sizeof(mrec_buf_t));
 
@@ -1384,6 +1451,8 @@ row_fts_merge_insert(
 		heap, sizeof(*buf) * fts_sort_pll_degree);
 	fd = (int*) mem_heap_alloc(heap, sizeof(*fd) * fts_sort_pll_degree);
 	block = (byte**) mem_heap_alloc(
+		heap, sizeof(*block) * fts_sort_pll_degree);
+	crypt_block = (byte**) mem_heap_alloc(
 		heap, sizeof(*block) * fts_sort_pll_degree);
 	mrec = (const mrec_t**) mem_heap_alloc(
 		heap, sizeof(*mrec) * fts_sort_pll_degree);
@@ -1405,6 +1474,7 @@ row_fts_merge_insert(
 		offsets[i][0] = num;
 		offsets[i][1] = dict_index_get_n_fields(index);
 		block[i] = psort_info[i].merge_block[id];
+		crypt_block[i] = psort_info[i].crypt_block[id];
 		b[i] = psort_info[i].merge_block[id];
 		fd[i] = psort_info[i].merge_file[id]->fd;
 		foffs[i] = 0;
@@ -1447,6 +1517,7 @@ row_fts_merge_insert(
 	ins_ctx.fts_table.table_id = table->id;
 	ins_ctx.fts_table.parent = index->table->name;
 	ins_ctx.fts_table.table = index->table;
+	space = table->space;
 
 	for (i = 0; i < fts_sort_pll_degree; i++) {
 		if (psort_info[i].merge_file[id]->n_rec == 0) {
@@ -1459,7 +1530,10 @@ row_fts_merge_insert(
 			if (psort_info[i].merge_file[id]->offset > 0
 			    && (!row_merge_read(
 					fd[i], foffs[i],
-					(row_merge_block_t*) block[i]))) {
+					(row_merge_block_t*) block[i],
+					crypt_data,
+					(row_merge_block_t*) crypt_block[i],
+					space))) {
 				error = DB_CORRUPTION;
 				goto exit;
 			}

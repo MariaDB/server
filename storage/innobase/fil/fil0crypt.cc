@@ -244,9 +244,6 @@ fil_space_merge_crypt_data(
 	ut_a(dst->type == CRYPT_SCHEME_UNENCRYPTED ||
 	     dst->type == CRYPT_SCHEME_1);
 
-	/* no support for changing iv (yet?) */
-	ut_a(memcmp(src->iv, dst->iv, sizeof(src->iv)) == 0);
-
 	dst->encryption = src->encryption;
 	dst->type = src->type;
 	dst->min_key_version = src->min_key_version;
@@ -287,7 +284,7 @@ fil_space_read_crypt_data(
 			page[offset + 4],
 			page[offset + 5]);
 #endif
-		/* Create data is not stored. */
+		/* Crypt data is not stored. */
 		return NULL;
 	}
 
@@ -370,7 +367,7 @@ fil_space_destroy_crypt_data(
 		mutex_enter(&(*crypt_data)->mutex);
 		(*crypt_data)->inited = false;
 		mutex_exit(&(*crypt_data)->mutex);
-		mutex_free(&(*crypt_data)->mutex);
+		mutex_free(& (*crypt_data)->mutex);
 		memset(*crypt_data, 0, sizeof(fil_space_crypt_t));
 		free(*crypt_data);
 		(*crypt_data) = NULL;
@@ -555,42 +552,22 @@ fil_space_clear_crypt_data(
 }
 
 /******************************************************************
-Encrypt a page */
+Encrypt a buffer */
 UNIV_INTERN
 byte*
-fil_space_encrypt(
-/*==============*/
+fil_encrypt_buf(
+/*============*/
+	fil_space_crypt_t* crypt_data,	/*!< in: crypt data */
 	ulint		space,		/*!< in: Space id */
 	ulint		offset,		/*!< in: Page offset */
 	lsn_t		lsn,		/*!< in: lsn */
 	byte*		src_frame,	/*!< in: Source page to be encrypted */
 	ulint		zip_size,	/*!< in: compressed size if
-					row_format compressed */
+					row format compressed */
 	byte*		dst_frame)	/*!< in: outbut buffer */
 {
-	fil_space_crypt_t* crypt_data = NULL;
 	ulint page_size = (zip_size) ? zip_size : UNIV_PAGE_SIZE;
-	uint key_version;
-
-	ulint orig_page_type = mach_read_from_2(src_frame+FIL_PAGE_TYPE);
-
-	if (orig_page_type==FIL_PAGE_TYPE_FSP_HDR
-		|| orig_page_type==FIL_PAGE_TYPE_XDES) {
-		/* File space header or extent descriptor do not need to be
-		encrypted. */
-		return src_frame;
-	}
-
-	/* Get crypt data from file space */
-	crypt_data = fil_space_get_crypt_data(space);
-
-	if (crypt_data == NULL) {
-		return src_frame;
-	}
-
-	ut_ad(crypt_data->encryption != FIL_SPACE_ENCRYPTION_OFF);
-
-	key_version = fil_crypt_get_latest_key_version(crypt_data);
+	uint key_version = fil_crypt_get_latest_key_version(crypt_data);
 
 	if (key_version == ENCRYPTION_KEY_VERSION_INVALID) {
 		ib_logf(IB_LOG_LEVEL_FATAL,
@@ -599,6 +576,7 @@ fil_space_encrypt(
 		ut_error;
 	}
 
+	ulint orig_page_type = mach_read_from_2(src_frame+FIL_PAGE_TYPE);
 	ibool page_compressed = (orig_page_type == FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED);
 	ulint header_len = FIL_PAGE_DATA;
 
@@ -659,6 +637,45 @@ fil_space_encrypt(
 	srv_stats.pages_encrypted.inc();
 
 	return dst_frame;
+}
+
+/******************************************************************
+Encrypt a page */
+UNIV_INTERN
+byte*
+fil_space_encrypt(
+/*==============*/
+	ulint		space,		/*!< in: Space id */
+	ulint		offset,		/*!< in: Page offset */
+	lsn_t		lsn,		/*!< in: lsn */
+	byte*		src_frame,	/*!< in: Source page to be encrypted */
+	ulint		zip_size,	/*!< in: compressed size if
+					row_format compressed */
+	byte*		dst_frame)	/*!< in: outbut buffer */
+{
+	fil_space_crypt_t* crypt_data = NULL;
+
+	ulint orig_page_type = mach_read_from_2(src_frame+FIL_PAGE_TYPE);
+
+	if (orig_page_type==FIL_PAGE_TYPE_FSP_HDR
+		|| orig_page_type==FIL_PAGE_TYPE_XDES) {
+		/* File space header or extent descriptor do not need to be
+		encrypted. */
+		return src_frame;
+	}
+
+	/* Get crypt data from file space */
+	crypt_data = fil_space_get_crypt_data(space);
+
+	if (crypt_data == NULL) {
+		return src_frame;
+	}
+
+	ut_ad(crypt_data->encryption != FIL_SPACE_ENCRYPTION_OFF);
+
+	byte* tmp = fil_encrypt_buf(crypt_data, space, offset, lsn, src_frame, zip_size, dst_frame);
+
+	return tmp;
 }
 
 /*********************************************************************
@@ -1075,7 +1092,7 @@ fil_crypt_start_encrypting_space(
 	do
 	{
 		if (fil_crypt_is_closing(space) ||
-			fil_space_found_by_id(space)) {
+			fil_space_found_by_id(space) == NULL) {
 			break;
 		}
 
@@ -2326,11 +2343,11 @@ fil_crypt_threads_init()
 	fil_crypt_threads_event = os_event_create();
 	mutex_create(fil_crypt_threads_mutex_key,
 		     &fil_crypt_threads_mutex, SYNC_NO_ORDER_CHECK);
-	fil_crypt_threads_inited = true;
 
 	uint cnt = srv_n_fil_crypt_threads;
 	srv_n_fil_crypt_threads = 0;
 	fil_crypt_set_thread_cnt(cnt);
+	fil_crypt_threads_inited = true;
 }
 
 /*********************************************************************
