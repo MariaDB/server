@@ -27,7 +27,7 @@
 
 #include <mysql/plugin.h>
 
-#define MariaDB_ENCRYPTION_INTERFACE_VERSION 0x0200
+#define MariaDB_ENCRYPTION_INTERFACE_VERSION 0x0300
 
 /**
   Encryption plugin descriptor
