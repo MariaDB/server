@@ -4179,6 +4179,10 @@ oom:
 			 : ha_alter_info->key_info_buffer[
 				 prebuilt->trx->error_key_num].name);
 		break;
+	case DB_ENCRYPTED_DECRYPT_FAILED:
+		my_error(ER_NO_SUCH_TABLE_IN_ENGINE, MYF(0),
+			table_share->db.str, table_share->table_name.str);
+		break;
 	default:
 		my_error_innodb(error,
 				table_share->table_name.str,

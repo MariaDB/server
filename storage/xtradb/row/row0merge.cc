@@ -1433,6 +1433,13 @@ row_merge_read_clustered_index(
 		row_ext_t*	ext;
 		page_cur_t*	cur	= btr_pcur_get_page_cur(&pcur);
 
+		/* Do not continue if table pages are still encrypted */
+		if (old_table->is_encrypted || new_table->is_encrypted) {
+			err = DB_ENCRYPTED_DECRYPT_FAILED;
+			trx->error_key_num = 0;
+			goto func_exit;
+		}
+
 		page_cur_move_to_next(cur);
 
 		if (page_cur_is_after_last(cur)) {
@@ -3761,6 +3768,17 @@ row_merge_build_indexes(
 		"index of the table and create temporary files");
 
 	pct_cost = COST_READ_CLUSTERED_INDEX * 100 / (total_static_cost + total_dynamic_cost);
+
+	/* Do not continue if we can't encrypt table pages */
+	if (old_table->is_encrypted || new_table->is_encrypted) {
+		error = DB_ENCRYPTED_DECRYPT_FAILED;
+		ib_push_warning(trx->mysql_thd, DB_ENCRYPTED_DECRYPT_FAILED,
+			"Table %s is encrypted but encryption service or"
+			" used key_id is not available. "
+			" Can't continue reading table.",
+			old_table->is_encrypted ? old_table->name : new_table->name);
+		goto func_exit;
+	}
 
 	/* Read clustered index of the table and create files for
 	secondary index entries for merge sort */
