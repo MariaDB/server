@@ -3,6 +3,8 @@ if (`select count(*) = 0 from information_schema.plugins where plugin_name = 'qu
   --skip QUERY_CACHE_INFO plugin is not active
 }
 
+set global query_cache_type=ON;
+set local query_cache_type=ON;
 set global query_cache_size=1355776;
 
 create table t1 (a int not null);

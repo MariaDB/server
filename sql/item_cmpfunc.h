@@ -29,6 +29,14 @@
 #include "pcre.h"                 /* pcre header file */
 
 extern Item_result item_cmp_type(Item_result a,Item_result b);
+inline Item_result item_cmp_type(const Item *a, const Item *b)
+{
+  return item_cmp_type(a->cmp_type(), b->cmp_type());
+}
+inline Item_result item_cmp_type(Item_result a, const Item *b)
+{
+  return item_cmp_type(a, b->cmp_type());
+}
 class Item_bool_func2;
 class Arg_comparator;
 
@@ -51,8 +59,7 @@ class Arg_comparator: public Sql_alloc
   int set_compare_func(Item_func_or_sum *owner, Item_result type);
   inline int set_compare_func(Item_func_or_sum *owner_arg)
   {
-    return set_compare_func(owner_arg, item_cmp_type((*a)->result_type(),
-                                                     (*b)->result_type()));
+    return set_compare_func(owner_arg, item_cmp_type(*a, *b));
   }
   bool agg_arg_charsets_for_comparison();
 
@@ -75,9 +82,18 @@ public:
 			  Item **a1, Item **a2, bool set_null_arg)
   {
     set_null= set_null_arg;
-    return set_cmp_func(owner_arg, a1, a2,
-                        item_cmp_type((*a1)->cmp_type(),
-                                      (*a2)->cmp_type()));
+    return set_cmp_func(owner_arg, a1, a2, item_cmp_type(*a1, *a2));
+  }
+  int set_cmp_func_and_arg_cmp_context(Item_func_or_sum *owner_arg,
+                                       Item **a1, Item **a2,
+                                       bool set_null_arg)
+  {
+    set_null= set_null_arg;
+    Item_result type= item_cmp_type(*a1, *a2);
+    int rc= set_cmp_func(owner_arg, a1, a2, type);
+    if (!rc)
+      (*a1)->cmp_context= (*a2)->cmp_context= type;
+    return rc;
   }
   inline int compare() { return (this->*func)(); }
 
@@ -369,9 +385,12 @@ public:
   }
   Item *neg_transformer(THD *thd);
   virtual Item *negated_item(THD *thd);
-  bool subst_argument_checker(uchar **arg)
+  Item* propagate_equal_fields(THD *thd, const Context &ctx, COND_EQUAL *cond)
   {
-    return (*arg != NULL);     
+    Item_args::propagate_equal_fields(thd,
+                                      Context(ANY_SUBST, compare_collation()),
+                                      cond);
+    return this;
   }
   void fix_length_and_dec();
   int set_cmp_func()
@@ -383,7 +402,7 @@ public:
     if (set_cmp_func())
       return true;
     tmp_arg[0]->cmp_context= tmp_arg[1]->cmp_context=
-      item_cmp_type(tmp_arg[0]->result_type(), tmp_arg[1]->result_type());
+      item_cmp_type(tmp_arg[0], tmp_arg[1]);
     return false;
   }
   CHARSET_INFO *compare_collation() const
@@ -418,9 +437,15 @@ public:
   { Item_func::print_op(str, query_type); }
   longlong val_int();
   Item *neg_transformer(THD *thd);
-  bool subst_argument_checker(uchar **arg)
+  Item* propagate_equal_fields(THD *thd, const Context &ctx, COND_EQUAL *cond)
   {
-    return (*arg != NULL);     
+    Item_args::propagate_equal_fields(thd, ANY_SUBST, cond);
+    return this;
+  }
+  void fix_length_and_dec()
+  {
+    Item_bool_func::fix_length_and_dec();
+    args[0]->cmp_context= args[1]->cmp_context= INT_RESULT;
   }
 };
 
@@ -675,6 +700,17 @@ public:
 
 class Item_func_opt_neg :public Item_bool_func
 {
+protected:
+  /*
+    The result type that will be used for comparison.
+    cmp_type() of all arguments are collected to here.
+  */
+  Item_result m_compare_type;
+  /*
+    The collation that will be used for comparison in case
+    when m_compare_type is STRING_RESULT.
+  */
+  DTCollation cmp_collation;
 public:
   bool negated;     /* <=> the item represents NOT <func> */
   bool pred_level;  /* <=> [NOT] <func> is used on a predicate level */
@@ -692,18 +728,23 @@ public:
     return this;
   }
   bool eq(const Item *item, bool binary_cmp) const;
-  bool subst_argument_checker(uchar **arg) { return TRUE; }
+  CHARSET_INFO *compare_collation() const { return cmp_collation.collation; }
+  Item* propagate_equal_fields(THD *thd, const Context &ctx, COND_EQUAL *cond)
+  {
+    Item_args::propagate_equal_fields(thd,
+                                      Context(ANY_SUBST, compare_collation()),
+                                      cond);
+    return this;
+  }
 };
 
 
 class Item_func_between :public Item_func_opt_neg
 {
-  DTCollation cmp_collation;
 protected:
   SEL_TREE *get_func_mm_tree(RANGE_OPT_PARAM *param,
                              Field *field, Item *value, Item_result cmp_type);
 public:
-  Item_result cmp_type;
   String value0,value1,value2;
   /* TRUE <=> arguments will be compared as dates. */
   Item *compare_as_dates;
@@ -714,7 +755,6 @@ public:
   const char *func_name() const { return "between"; }
   void fix_length_and_dec();
   virtual void print(String *str, enum_query_type query_type);
-  CHARSET_INFO *compare_collation() const { return cmp_collation.collation; }
   bool eval_not_null_tables(uchar *opt_arg);
   void fix_after_pullout(st_select_lex *new_parent, Item **ref);
   bool count_sargable_conds(uchar *arg);
@@ -1095,7 +1135,7 @@ public:
   static cmp_item* get_comparator(Item_result type, Item * warn_item,
                                   CHARSET_INFO *cs);
   virtual cmp_item *make_same()= 0;
-  virtual void store_value_by_template(cmp_item *tmpl, Item *item)
+  virtual void store_value_by_template(THD *thd, cmp_item *tmpl, Item *item)
   {
     store_value(item);
   }
@@ -1283,33 +1323,17 @@ public:
 class Item_func_case :public Item_func_hybrid_field_type
 {
   int first_expr_num, else_expr_num;
-  enum Item_result left_result_type;
+  enum Item_result left_cmp_type;
   String tmp_value;
   uint ncases;
   Item_result cmp_type;
   DTCollation cmp_collation;
   cmp_item *cmp_items[6]; /* For all result types */
   cmp_item *case_item;
+  Item **arg_buffer;
 public:
   Item_func_case(THD *thd, List<Item> &list, Item *first_expr_arg,
-                 Item *else_expr_arg):
-    Item_func_hybrid_field_type(thd), first_expr_num(-1), else_expr_num(-1),
-    left_result_type(INT_RESULT), case_item(0)
-  {
-    ncases= list.elements;
-    if (first_expr_arg)
-    {
-      first_expr_num= list.elements;
-      list.push_back(first_expr_arg);
-    }
-    if (else_expr_arg)
-    {
-      else_expr_num= list.elements;
-      list.push_back(else_expr_arg);
-    }
-    set_arguments(list);
-    bzero(&cmp_items, sizeof(cmp_items));
-  }
+                 Item *else_expr_arg);
   double real_op();
   longlong int_op();
   String *str_op(String *);
@@ -1359,9 +1383,8 @@ public:
     and can be used safely as comparisons for key conditions
   */
   bool arg_types_compatible;
-  Item_result left_result_type;
+  Item_result left_cmp_type;
   cmp_item *cmp_items[6]; /* One cmp_item for each result type */
-  DTCollation cmp_collation;
 
   Item_func_in(THD *thd, List<Item> &list):
     Item_func_opt_neg(thd, list), array(0), have_null(0),
@@ -1390,11 +1413,24 @@ public:
   void add_key_fields(JOIN *join, KEY_FIELD **key_fields, uint *and_level,
                       table_map usable_tables, SARGABLE_PARAM **sargables);
   SEL_TREE *get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr);
+  Item* propagate_equal_fields(THD *thd, const Context &ctx, COND_EQUAL *cond)
+  {
+    /*
+      In case when arg_types_compatible is false,
+      fix_length_and_dec() leaves args[0]->cmp_context equal to
+      IMPOSSIBLE_CONTEXT. In this case it's not safe to replace the field to an
+      equal constant, because Item_field::can_be_substituted_to_equal_item()
+      won't be able to check compatibility between
+      Item_equal->compare_collation() and this->compare_collation().
+    */
+    return arg_types_compatible ?
+           Item_func_opt_neg::propagate_equal_fields(thd, ctx, cond) :
+           this;
+  }
   virtual void print(String *str, enum_query_type query_type);
   enum Functype functype() const { return IN_FUNC; }
   const char *func_name() const { return " IN "; }
   bool nulls_in_row();
-  CHARSET_INFO *compare_collation() const { return cmp_collation.collation; }
   bool eval_not_null_tables(uchar *opt_arg);
   void fix_after_pullout(st_select_lex *new_parent, Item **ref);
   bool count_sargable_conds(uchar *arg);
@@ -1412,7 +1448,7 @@ public:
   int cmp(Item *arg);
   int compare(cmp_item *arg);
   cmp_item *make_same();
-  void store_value_by_template(cmp_item *tmpl, Item *);
+  void store_value_by_template(THD *thd, cmp_item *tmpl, Item *);
   friend void Item_func_in::fix_length_and_dec();
 };
 
@@ -1421,7 +1457,7 @@ class in_row :public in_vector
 {
   cmp_item_row tmp;
 public:
-  in_row(uint elements, Item *);
+  in_row(THD *thd, uint elements, Item *);
   ~in_row();
   void set(uint pos,Item *item);
   uchar *get_value(Item *item);
@@ -1620,6 +1656,38 @@ public:
            Item_bool_func2::get_mm_tree(param, cond_ptr) :
            Item_func::get_mm_tree(param, cond_ptr);
   }
+  Item* propagate_equal_fields(THD *thd, const Context &ctx, COND_EQUAL *cond)
+  {
+    /*
+      LIKE differs from the regular comparison operator ('=') in the following:
+      - LIKE never ignores trailing spaces (even for PAD SPACE collations)
+        Propagation of equal fields with a PAD SPACE collation into LIKE
+        is not safe.
+        Example:
+          WHERE a='a ' AND a LIKE 'a'     - returns true for 'a'
+        cannot be rewritten to:
+          WHERE a='a ' AND 'a ' LIKE 'a'  - returns false for 'a'
+        Note, binary collations in MySQL/MariaDB, e.g. latin1_bin,
+        still have the PAD SPACE attribute and ignore trailing spaces!
+      - LIKE does not take into account contractions, expansions,
+        and ignorable characters.
+        Propagation of equal fields with contractions/expansions/ignorables
+        is also not safe.
+
+      It's safe to propagate my_charset_bin (BINARY/VARBINARY/BLOB) values,
+      because they do not ignore trailing spaces and have one-to-one mapping
+      between a string and its weights.
+      The below condition should be true only for my_charset_bin
+      (as of version 10.1.7).
+    */
+    uint flags= Item_func_like::compare_collation()->state;
+    if ((flags & MY_CS_NOPAD) && !(flags & MY_CS_NON1TO1))
+      Item_args::propagate_equal_fields(thd,
+                                        Context(ANY_SUBST,
+                                        compare_collation()),
+                                        cond);
+    return this;
+  }
   const char *func_name() const { return "like"; }
   bool fix_fields(THD *thd, Item **ref);
   void fix_length_and_dec()
@@ -1779,24 +1847,19 @@ public:
   /* Item_cond() is only used to create top level items */
   Item_cond(THD *thd): Item_bool_func(thd), abort_on_null(1)
   { const_item_cache=0; }
-  Item_cond(THD *thd, Item *i1, Item *i2):
-    Item_bool_func(thd), abort_on_null(0)
-  {
-    list.push_back(i1);
-    list.push_back(i2);
-  }
+  Item_cond(THD *thd, Item *i1, Item *i2);
   Item_cond(THD *thd, Item_cond *item);
   Item_cond(THD *thd, List<Item> &nlist):
     Item_bool_func(thd), list(nlist), abort_on_null(0) {}
-  bool add(Item *item)
+  bool add(Item *item, MEM_ROOT *root)
   {
     DBUG_ASSERT(item);
-    return list.push_back(item);
+    return list.push_back(item, root);
   }
-  bool add_at_head(Item *item)
+  bool add_at_head(Item *item, MEM_ROOT *root)
   {
     DBUG_ASSERT(item);
-    return list.push_front(item);
+    return list.push_front(item, root);
   }
   void add_at_head(List<Item> *nlist)
   {
@@ -1841,7 +1904,7 @@ public:
   void traverse_cond(Cond_traverser, void *arg, traverse_order order);
   void neg_arguments(THD *thd);
   enum_field_types field_type() const { return MYSQL_TYPE_LONGLONG; }
-  bool subst_argument_checker(uchar **arg) { return TRUE; }
+  Item* propagate_equal_fields(THD *, const Context &, COND_EQUAL *);
   Item *compile(THD *thd, Item_analyzer analyzer, uchar **arg_p,
                 Item_transformer transformer, uchar *arg_t);
   bool eval_not_null_tables(uchar *opt_arg);
@@ -1994,7 +2057,7 @@ public:
   inline Item* get_const() { return with_const ? equal_items.head() : NULL; }
   void add_const(THD *thd, Item *c, Item *f = NULL);
   /** Add a non-constant item to the multiple equality */
-  void add(Item *f) { equal_items.push_back(f); }
+  void add(Item *f, MEM_ROOT *root) { equal_items.push_back(f, root); }
   bool contains(Field *field);
   Item* get_first(struct st_join_table *context, Item *field);
   /** Get number of field items / references to field items in this object */   

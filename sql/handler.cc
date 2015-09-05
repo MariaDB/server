@@ -1986,16 +1986,16 @@ bool mysql_xa_recover(THD *thd)
 
   field_list.push_back(new (mem_root)
                        Item_int(thd, "formatID", 0,
-                                MY_INT32_NUM_DECIMAL_DIGITS));
+                                MY_INT32_NUM_DECIMAL_DIGITS), mem_root);
   field_list.push_back(new (mem_root)
                        Item_int(thd, "gtrid_length", 0,
-                                MY_INT32_NUM_DECIMAL_DIGITS));
+                                MY_INT32_NUM_DECIMAL_DIGITS), mem_root);
   field_list.push_back(new (mem_root)
                        Item_int(thd, "bqual_length", 0,
-                                MY_INT32_NUM_DECIMAL_DIGITS));
+                                MY_INT32_NUM_DECIMAL_DIGITS), mem_root);
   field_list.push_back(new (mem_root)
                        Item_empty_string(thd, "data",
-                                         XIDDATASIZE));
+                                         XIDDATASIZE), mem_root);
 
   if (protocol->send_result_set_metadata(&field_list,
                             Protocol::SEND_NUM_ROWS | Protocol::SEND_EOF))
@@ -5533,9 +5533,13 @@ bool ha_show_status(THD *thd, handlerton *db_type, enum ha_stat_type stat)
   MEM_ROOT *mem_root= thd->mem_root;
   bool result;
 
-  field_list.push_back(new (mem_root) Item_empty_string(thd, "Type", 10));
-  field_list.push_back(new (mem_root) Item_empty_string(thd, "Name", FN_REFLEN));
-  field_list.push_back(new (mem_root) Item_empty_string(thd, "Status", 10));
+  field_list.push_back(new (mem_root) Item_empty_string(thd, "Type", 10),
+                       mem_root);
+  field_list.push_back(new (mem_root)
+                       Item_empty_string(thd, "Name", FN_REFLEN), mem_root);
+  field_list.push_back(new (mem_root)
+                       Item_empty_string(thd, "Status", 10),
+                       mem_root);
 
   if (protocol->send_result_set_metadata(&field_list,
                             Protocol::SEND_NUM_ROWS | Protocol::SEND_EOF))

@@ -23,6 +23,7 @@ DROP PROCEDURE IF EXISTS test.p3;
 
 # Begin test section 1 
 # Create user user1 with no particular access rights
+create user user1@localhost;
 grant usage on *.* to user1@localhost;
 flush privileges;
 
@@ -34,6 +35,7 @@ CREATE PROCEDURE test.p3 () SQL SECURITY INVOKER CALL test.p1();
 GRANT EXECUTE ON PROCEDURE p1 TO user1@localhost;
 GRANT EXECUTE ON PROCEDURE p2 TO user1@localhost;
 GRANT EXECUTE ON PROCEDURE p3 TO user1@localhost;
+set sql_mode=default;
 
 # Need to wait for the rights to be applied at the slave
 sync_slave_with_master;

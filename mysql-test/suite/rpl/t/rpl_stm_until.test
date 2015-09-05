@@ -64,7 +64,6 @@ select * from t1;
 --source include/check_slave_param.inc
 
 # this should fail right after start
---replace_result 291 MASTER_LOG_POS
 start slave until master_log_file='master-no-such-bin.000001', master_log_pos=291;
 --source include/wait_for_slave_io_to_start.inc
 --source include/wait_for_slave_sql_to_stop.inc
@@ -107,22 +106,18 @@ eval start slave until master_log_file='$master_log_file', master_log_pos=$maste
 
 --echo ==== Test various error conditions ====
 
---replace_result 561 MASTER_LOG_POS
 --error 1277
 start slave until master_log_file='master-bin', master_log_pos=561;
---replace_result 561 MASTER_LOG_POS 12 RELAY_LOG_POS
 --error 1277
 start slave until master_log_file='master-bin.000001', master_log_pos=561, relay_log_pos=12;
 --error 1277
 start slave until master_log_file='master-bin.000001';
 --error 1277
 start slave until relay_log_file='slave-relay-bin.000002';
---replace_result 561 MASTER_LOG_POS
 --error 1277
 start slave until relay_log_file='slave-relay-bin.000002', master_log_pos=561;
 # Warning should be given for second command
 start slave sql_thread;
---replace_result 776 MASTER_LOG_POS
 start slave until master_log_file='master-bin.000001', master_log_pos=776;
 
 #

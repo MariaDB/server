@@ -1152,11 +1152,9 @@ static int setup_relate_func(Geometry *g1, Geometry *g2,
     const char *mask)
 {
   int do_store_shapes=1;
-  uint shape_a, shape_b;
+  uint UNINIT_VAR(shape_a), UNINIT_VAR(shape_b);
   uint n_operands= 0;
   int last_shape_pos;
-  UNINIT_VAR(shape_a);
-  UNINIT_VAR(shape_b);
 
   last_shape_pos= func->get_next_expression_pos();
   if (func->reserve_op_buffer(1))
@@ -2396,12 +2394,10 @@ String *Item_func_pointonsurface::val_str(String *str)
   Geometry *g;
   MBR mbr;
   const char *c_end;
-  double px, py, x0, y0;
+  double UNINIT_VAR(px), UNINIT_VAR(py), x0, y0;
   String *result= 0;
   const Gcalc_scan_iterator::point *pprev= NULL;
   uint32 srid;
-  UNINIT_VAR(px);
-  UNINIT_VAR(py);
 
   null_value= 1;
   if ((args[0]->null_value ||

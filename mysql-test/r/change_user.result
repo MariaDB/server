@@ -1,6 +1,10 @@
+set global secure_auth=0;
+create user test_nopw;
 grant select on test.* to test_nopw;
-grant select on test.* to test_oldpw identified by password "09301740536db389";
-grant select on test.* to test_newpw identified by "newpw";
+create user test_oldpw identified by password "09301740536db389";
+grant select on test.* to test_oldpw;
+create user test_newpw identified by "newpw";
+grant select on test.* to test_newpw;
 select concat('<', user(), '>'), concat('<', current_user(), '>'), database();
 concat('<', user(), '>')	concat('<', current_user(), '>')	database()
 <root@localhost>	<root@localhost>	test
@@ -85,3 +89,4 @@ IS_USED_LOCK('bug31418')
 NULL
 FLUSH STATUS;
 Value of com_select did not change
+set global secure_auth=default;

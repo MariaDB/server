@@ -1246,6 +1246,21 @@ double Field::pos_in_interval_val_str(Field *min, Field *max, uint data_offset)
 }
 
 
+bool Field::test_if_equality_guarantees_uniqueness(const Item *item) const
+{
+  DBUG_ASSERT(cmp_type() != STRING_RESULT); // For STRING_RESULT see Field_str
+  /*
+    We use result_type() rather than cmp_type() in the below condition,
+    because it covers a special case that string literals guarantee uniqueness
+    for temporal columns, so the query:
+      WHERE temporal_column='string'
+    cannot return multiple distinct temporal values.
+    QQ: perhaps we could allow INT/DECIMAL/DOUBLE types for temporal items.
+  */
+  return result_type() == item->result_type();
+}
+
+
 /*
   This handles all numeric and BIT data types.
 */ 
@@ -1840,6 +1855,32 @@ Field_str::Field_str(uchar *ptr_arg,uint32 len_arg, uchar *null_ptr_arg,
   if (charset_arg->state & MY_CS_BINSORT)
     flags|=BINARY_FLAG;
   field_derivation= DERIVATION_IMPLICIT;
+}
+
+
+bool Field_str::test_if_equality_guarantees_uniqueness(const Item *item) const
+{
+  /*
+    Can't guarantee uniqueness when comparing a CHAR/VARCHAR/TEXT,
+    BINARY/VARBINARY/BLOB, ENUM,SET columns to an item with cmp_type()
+    of INT_RESULT, DOUBLE_RESULT, DECIMAL_RESULT or TIME_RESULT.
+    Example:
+      SELECT * FROM t1 WHERE varchar_column=DATE'2001-01-01'
+    return non-unuque values, e.g. '2001-01-01' and '2001-01-01x'.
+  */
+  if (!field_charset->coll->propagate(field_charset, 0, 0) ||
+      item->cmp_type() != STRING_RESULT)
+    return false;
+  /*
+    Can't guarantee uniqueness when comparing to
+    an item of a different collation.
+    Example:
+      SELECT * FROM t1
+      WHERE latin1_bin_column = _latin1'A' COLLATE latin1_swedish_ci
+    return non-unique values 'a' and 'A'.
+  */
+  DTCollation tmp(field_charset, field_derivation, repertoire());
+  return !tmp.aggregate(item->collation) && tmp.collation == field_charset;
 }
 
 
@@ -2695,7 +2736,7 @@ Field_new_decimal::Field_new_decimal(uint32 len_arg,
 }
 
 
-Field *Field_new_decimal::create_from_item (Item *item)
+Field *Field_new_decimal::create_from_item(MEM_ROOT *mem_root, Item *item)
 {
   uint8 dec= item->decimals;
   uint8 intg= item->decimal_precision() - dec;
@@ -2734,8 +2775,9 @@ Field *Field_new_decimal::create_from_item (Item *item)
       /* Corrected value fits. */
       len= required_length;
   }
-  return new Field_new_decimal(len, item->maybe_null, item->name,
-                               dec, item->unsigned_flag);
+  return new (mem_root)
+    Field_new_decimal(len, item->maybe_null, item->name,
+                      dec, item->unsigned_flag);
 }
 
 
@@ -2834,14 +2876,13 @@ int Field_new_decimal::store(const char *from, uint length,
   ASSERT_COLUMN_MARKED_FOR_WRITE_OR_COMPUTED;
   int err;
   my_decimal decimal_value;
-  THD *thd= get_thd();
   DBUG_ENTER("Field_new_decimal::store(char*)");
 
   if ((err= str2my_decimal(E_DEC_FATAL_ERROR &
                            ~(E_DEC_OVERFLOW | E_DEC_BAD_NUM),
                            from, length, charset_arg,
                            &decimal_value)) &&
-      thd->abort_on_warning)
+      get_thd()->abort_on_warning)
   {
     ErrConvString errmsg(from, length, charset_arg);
     set_warning_truncated_wrong_value("decimal", errmsg.ptr());
@@ -4888,9 +4929,8 @@ void Field_timestamp::sql_type(String &res) const
 
 int Field_timestamp::set_time()
 {
-  THD *thd= get_thd();
   set_notnull();
-  store_TIME(thd->query_start(), 0);
+  store_TIME(get_thd()->query_start(), 0);
   return 0;
 }
 
@@ -5051,8 +5091,8 @@ int Field_timestamp::store_decimal(const my_decimal *d)
   }
   else
     tmp= number_to_datetime(nr, sec_part, &ltime, TIME_NO_ZERO_IN_DATE |
-                                                  (thd->variables.sql_mode &
-                                                   MODE_NO_ZERO_DATE), &error);
+                            (thd->variables.sql_mode &
+                             MODE_NO_ZERO_DATE), &error);
 
   return store_TIME_with_warning(thd, &ltime, &str, error, tmp != -1);
 }
@@ -5253,16 +5293,16 @@ int Field_temporal_with_date::store_time_dec(MYSQL_TIME *ltime, uint dec)
     */
     have_smth_to_conv= false;
     error= MYSQL_TIME_WARN_OUT_OF_RANGE;
-    goto store;
   }
-
-  /*
-    We don't perform range checking here since values stored in TIME
-    structure always fit into DATETIME range.
-  */
-  have_smth_to_conv= !check_date(&l_time, pack_time(&l_time) != 0,
-                                 sql_mode_for_dates(current_thd), &error);
-store:
+  else
+  {
+    /*
+      We don't perform range checking here since values stored in TIME
+      structure always fit into DATETIME range.
+    */
+    have_smth_to_conv= !check_date(&l_time, pack_time(&l_time) != 0,
+                                   sql_mode_for_dates(get_thd()), &error);
+  }
   return store_TIME_with_warning(&l_time, &str, error, have_smth_to_conv);
 }
 
@@ -6603,22 +6643,30 @@ String *Field_string::val_str(String *val_buffer __attribute__((unused)),
 }
 
 
-my_decimal *Field_string::val_decimal(my_decimal *decimal_value)
+my_decimal *Field_longstr::val_decimal_from_str(const char *str,
+                                                uint length,
+                                                CHARSET_INFO *cs,
+                                                my_decimal *decimal_value)
 {
-  ASSERT_COLUMN_MARKED_FOR_READ;
   THD *thd;
-  int err= str2my_decimal(E_DEC_FATAL_ERROR, (char*) ptr, field_length,
-                          charset(), decimal_value);
+  int err= str2my_decimal(E_DEC_FATAL_ERROR, str, length, cs, decimal_value);
   if (err && !(thd= get_thd())->no_errors)
   {
-    ErrConvString errmsg((char*) ptr, field_length, charset());
+    ErrConvString errmsg(str, length, cs);
     push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                         ER_TRUNCATED_WRONG_VALUE, 
                         ER_THD(thd, ER_TRUNCATED_WRONG_VALUE),
                         "DECIMAL", errmsg.ptr());
   }
-
   return decimal_value;
+}
+
+
+my_decimal *Field_string::val_decimal(my_decimal *decimal_value)
+{
+  ASSERT_COLUMN_MARKED_FOR_READ;
+  return val_decimal_from_str((const char *) ptr, field_length,
+                              Field_string::charset(), decimal_value);
 }
 
 
@@ -6887,8 +6935,9 @@ Field *Field_string::make_new_field(MEM_ROOT *root, TABLE *new_table,
   Field *field;
   if (type() != MYSQL_TYPE_VAR_STRING || keep_type)
     field= Field::make_new_field(root, new_table, keep_type);
-  else if ((field= new Field_varstring(field_length, maybe_null(), field_name,
-                                       new_table->s, charset())))
+  else if ((field= new (root) Field_varstring(field_length, maybe_null(),
+                                              field_name,
+                                              new_table->s, charset())))
   {
     /*
       Old VARCHAR field which should be modified to a VARCHAR on copy
@@ -6994,7 +7043,7 @@ double Field_varstring::val_real(void)
        (error || (length != (uint)(end - (char*)ptr+length_bytes) && 
          !check_if_only_end_space(cs, end, (char*)ptr+length_bytes+length)))) 
   {
-    push_numerical_conversion_warning(current_thd, (char*)ptr+length_bytes, 
+    push_numerical_conversion_warning(get_thd(), (char*)ptr+length_bytes, 
                                       length, cs,"DOUBLE", 
                                       ER_TRUNCATED_WRONG_VALUE);
   }
@@ -7017,7 +7066,7 @@ longlong Field_varstring::val_int(void)
        (error || (length != (uint)(end - (char*)ptr+length_bytes) && 
          !check_if_only_end_space(cs, end, (char*)ptr+length_bytes+length)))) 
   {
-    push_numerical_conversion_warning(current_thd, (char*)ptr+length_bytes, 
+    push_numerical_conversion_warning(get_thd(), (char*)ptr+length_bytes, 
                                       length, cs, "INTEGER", 
                                       ER_TRUNCATED_WRONG_VALUE);  
   }
@@ -7037,18 +7086,9 @@ String *Field_varstring::val_str(String *val_buffer __attribute__((unused)),
 my_decimal *Field_varstring::val_decimal(my_decimal *decimal_value)
 {
   ASSERT_COLUMN_MARKED_FOR_READ;
-  CHARSET_INFO *cs= charset();
   uint length= length_bytes == 1 ? (uint) *ptr : uint2korr(ptr);
-  int error= str2my_decimal(E_DEC_FATAL_ERROR, (char*) ptr+length_bytes, length,
-                 cs, decimal_value);
-
-  if (!get_thd()->no_errors && error)
-  {
-    push_numerical_conversion_warning(current_thd, (char*)ptr+length_bytes, 
-                                      length, cs, "DECIMAL", 
-                                      ER_TRUNCATED_WRONG_VALUE); 
-  }
-  return decimal_value;
+  return val_decimal_from_str((const char *) ptr + length_bytes, length,
+                              Field_varstring::charset(), decimal_value);
 }
 
 
@@ -7556,9 +7596,8 @@ my_decimal *Field_blob::val_decimal(my_decimal *decimal_value)
   else
     length= get_length(ptr);
 
-  str2my_decimal(E_DEC_FATAL_ERROR, blob, length, charset(),
-                 decimal_value);
-  return decimal_value;
+  return val_decimal_from_str(blob, length,
+                              Field_blob::charset(), decimal_value);
 }
 
 
@@ -7723,7 +7762,7 @@ int Field_blob::do_save_field_metadata(uchar *metadata_ptr)
 
 uint32 Field_blob::sort_length() const
 {
-  return (uint32) (current_thd->variables.max_sort_length + 
+  return (uint32) (get_thd()->variables.max_sort_length + 
                    (field_charset == &my_charset_bin ? 0 : packlength));
 }
 
@@ -9776,7 +9815,9 @@ uint pack_length_to_packflag(uint type)
 }
 
 
-Field *make_field(TABLE_SHARE *share, uchar *ptr, uint32 field_length,
+Field *make_field(TABLE_SHARE *share,
+                  MEM_ROOT *mem_root,
+                  uchar *ptr, uint32 field_length,
 		  uchar *null_pos, uchar null_bit,
 		  uint pack_flag,
 		  enum_field_types field_type,
@@ -9788,6 +9829,7 @@ Field *make_field(TABLE_SHARE *share, uchar *ptr, uint32 field_length,
 {
   uchar *UNINIT_VAR(bit_ptr);
   uchar UNINIT_VAR(bit_offset);
+
   if (field_type == MYSQL_TYPE_BIT && !f_bit_as_char(pack_flag))
   {
     bit_ptr= null_pos;
@@ -9824,16 +9866,18 @@ Field *make_field(TABLE_SHARE *share, uchar *ptr, uint32 field_length,
       if (field_type == MYSQL_TYPE_STRING ||
           field_type == MYSQL_TYPE_DECIMAL ||   // 3.23 or 4.0 string
           field_type == MYSQL_TYPE_VAR_STRING)
-        return new Field_string(ptr,field_length,null_pos,null_bit,
-                                unireg_check, field_name,
-                                field_charset);
+        return new (mem_root)
+          Field_string(ptr,field_length,null_pos,null_bit,
+                       unireg_check, field_name,
+                       field_charset);
       if (field_type == MYSQL_TYPE_VARCHAR)
-        return new Field_varstring(ptr,field_length,
-                                   HA_VARCHAR_PACKLENGTH(field_length),
-                                   null_pos,null_bit,
-                                   unireg_check, field_name,
-                                   share,
-                                   field_charset);
+        return new (mem_root)
+          Field_varstring(ptr,field_length,
+                          HA_VARCHAR_PACKLENGTH(field_length),
+                          null_pos,null_bit,
+                          unireg_check, field_name,
+                          share,
+                          field_charset);
       return 0;                                 // Error
     }
 
@@ -9845,138 +9889,160 @@ Field *make_field(TABLE_SHARE *share, uchar *ptr, uint32 field_length,
     if (f_is_geom(pack_flag))
     {
       status_var_increment(current_thd->status_var.feature_gis);
-      return new Field_geom(ptr,null_pos,null_bit,
-			    unireg_check, field_name, share,
-			    pack_length, geom_type, srid);
+      return new (mem_root)
+        Field_geom(ptr,null_pos,null_bit,
+                   unireg_check, field_name, share,
+                   pack_length, geom_type, srid);
     }
 #endif
     if (f_is_blob(pack_flag))
-      return new Field_blob(ptr,null_pos,null_bit,
-			    unireg_check, field_name, share,
-			    pack_length, field_charset);
+      return new (mem_root)
+        Field_blob(ptr,null_pos,null_bit,
+                   unireg_check, field_name, share,
+                   pack_length, field_charset);
     if (interval)
     {
       if (f_is_enum(pack_flag))
-	return new Field_enum(ptr,field_length,null_pos,null_bit,
-				  unireg_check, field_name,
-				  pack_length, interval, field_charset);
+	return new (mem_root)
+          Field_enum(ptr,field_length,null_pos,null_bit,
+                     unireg_check, field_name,
+                     pack_length, interval, field_charset);
       else
-	return new Field_set(ptr,field_length,null_pos,null_bit,
-			     unireg_check, field_name,
-			     pack_length, interval, field_charset);
+	return new (mem_root)
+          Field_set(ptr,field_length,null_pos,null_bit,
+                    unireg_check, field_name,
+                    pack_length, interval, field_charset);
     }
   }
 
   switch (field_type) {
   case MYSQL_TYPE_DECIMAL:
-    return new Field_decimal(ptr,field_length,null_pos,null_bit,
-			     unireg_check, field_name,
-			     f_decimals(pack_flag),
-			     f_is_zerofill(pack_flag) != 0,
-			     f_is_dec(pack_flag) == 0);
+    return new (mem_root)
+      Field_decimal(ptr,field_length,null_pos,null_bit,
+                    unireg_check, field_name,
+                    f_decimals(pack_flag),
+                    f_is_zerofill(pack_flag) != 0,
+                    f_is_dec(pack_flag) == 0);
   case MYSQL_TYPE_NEWDECIMAL:
-    return new Field_new_decimal(ptr,field_length,null_pos,null_bit,
-                                 unireg_check, field_name,
-                                 f_decimals(pack_flag),
-                                 f_is_zerofill(pack_flag) != 0,
-                                 f_is_dec(pack_flag) == 0);
+    return new (mem_root)
+      Field_new_decimal(ptr,field_length,null_pos,null_bit,
+                        unireg_check, field_name,
+                        f_decimals(pack_flag),
+                        f_is_zerofill(pack_flag) != 0,
+                        f_is_dec(pack_flag) == 0);
   case MYSQL_TYPE_FLOAT:
-    return new Field_float(ptr,field_length,null_pos,null_bit,
-			   unireg_check, field_name,
-			   f_decimals(pack_flag),
-			   f_is_zerofill(pack_flag) != 0,
-			   f_is_dec(pack_flag)== 0);
+    return new (mem_root)
+      Field_float(ptr,field_length,null_pos,null_bit,
+                  unireg_check, field_name,
+                  f_decimals(pack_flag),
+                  f_is_zerofill(pack_flag) != 0,
+                  f_is_dec(pack_flag)== 0);
   case MYSQL_TYPE_DOUBLE:
-    return new Field_double(ptr,field_length,null_pos,null_bit,
-			    unireg_check, field_name,
-			    f_decimals(pack_flag),
-			    f_is_zerofill(pack_flag) != 0,
-			    f_is_dec(pack_flag)== 0);
+    return new (mem_root)
+      Field_double(ptr,field_length,null_pos,null_bit,
+                   unireg_check, field_name,
+                   f_decimals(pack_flag),
+                   f_is_zerofill(pack_flag) != 0,
+                   f_is_dec(pack_flag)== 0);
   case MYSQL_TYPE_TINY:
-    return new Field_tiny(ptr,field_length,null_pos,null_bit,
-			  unireg_check, field_name,
-			  f_is_zerofill(pack_flag) != 0,
-			  f_is_dec(pack_flag) == 0);
+    return new (mem_root)
+      Field_tiny(ptr,field_length,null_pos,null_bit,
+                 unireg_check, field_name,
+                 f_is_zerofill(pack_flag) != 0,
+                 f_is_dec(pack_flag) == 0);
   case MYSQL_TYPE_SHORT:
-    return new Field_short(ptr,field_length,null_pos,null_bit,
-			   unireg_check, field_name,
-			   f_is_zerofill(pack_flag) != 0,
-			   f_is_dec(pack_flag) == 0);
+    return new (mem_root)
+      Field_short(ptr,field_length,null_pos,null_bit,
+                  unireg_check, field_name,
+                  f_is_zerofill(pack_flag) != 0,
+                  f_is_dec(pack_flag) == 0);
   case MYSQL_TYPE_INT24:
-    return new Field_medium(ptr,field_length,null_pos,null_bit,
-			    unireg_check, field_name,
-			    f_is_zerofill(pack_flag) != 0,
-			    f_is_dec(pack_flag) == 0);
+    return new (mem_root)
+      Field_medium(ptr,field_length,null_pos,null_bit,
+                   unireg_check, field_name,
+                   f_is_zerofill(pack_flag) != 0,
+                   f_is_dec(pack_flag) == 0);
   case MYSQL_TYPE_LONG:
-    return new Field_long(ptr,field_length,null_pos,null_bit,
-			   unireg_check, field_name,
-			   f_is_zerofill(pack_flag) != 0,
-			   f_is_dec(pack_flag) == 0);
+    return new (mem_root)
+      Field_long(ptr,field_length,null_pos,null_bit,
+                 unireg_check, field_name,
+                 f_is_zerofill(pack_flag) != 0,
+                 f_is_dec(pack_flag) == 0);
   case MYSQL_TYPE_LONGLONG:
-    return new Field_longlong(ptr,field_length,null_pos,null_bit,
-			      unireg_check, field_name,
-			      f_is_zerofill(pack_flag) != 0,
-			      f_is_dec(pack_flag) == 0);
+    return new (mem_root)
+      Field_longlong(ptr,field_length,null_pos,null_bit,
+                     unireg_check, field_name,
+                     f_is_zerofill(pack_flag) != 0,
+                     f_is_dec(pack_flag) == 0);
   case MYSQL_TYPE_TIMESTAMP:
   {
     uint dec= field_length > MAX_DATETIME_WIDTH ?
                        field_length - MAX_DATETIME_WIDTH - 1: 0;
-    return new_Field_timestamp(ptr, null_pos, null_bit, unireg_check,
+    return new_Field_timestamp(mem_root, ptr, null_pos, null_bit, unireg_check,
                                field_name, share, dec);
   }
   case MYSQL_TYPE_TIMESTAMP2:
   {
     uint dec= field_length > MAX_DATETIME_WIDTH ?
                        field_length - MAX_DATETIME_WIDTH - 1: 0;
-    return new Field_timestampf(ptr, null_pos, null_bit, unireg_check,
-                                field_name, share, dec);
+    return new (mem_root)
+      Field_timestampf(ptr, null_pos, null_bit, unireg_check,
+                       field_name, share, dec);
   }
   case MYSQL_TYPE_YEAR:
-    return new Field_year(ptr,field_length,null_pos,null_bit,
-			  unireg_check, field_name);
+    return new (mem_root)
+      Field_year(ptr,field_length,null_pos,null_bit,
+                 unireg_check, field_name);
   case MYSQL_TYPE_DATE:
-    return new Field_date(ptr,null_pos,null_bit,
-                          unireg_check, field_name);
+    return new (mem_root)
+      Field_date(ptr,null_pos,null_bit,
+                 unireg_check, field_name);
   case MYSQL_TYPE_NEWDATE:
-    return new Field_newdate(ptr,null_pos,null_bit,
-                             unireg_check, field_name);
+    return new (mem_root)
+      Field_newdate(ptr,null_pos,null_bit,
+                    unireg_check, field_name);
   case MYSQL_TYPE_TIME:
   {
     uint dec= field_length > MIN_TIME_WIDTH ?
                        field_length - MIN_TIME_WIDTH - 1: 0;
-    return new_Field_time(ptr, null_pos, null_bit, unireg_check,
+    return new_Field_time(mem_root, ptr, null_pos, null_bit, unireg_check,
                           field_name, dec);
   }
   case MYSQL_TYPE_TIME2:
   {
     uint dec= field_length > MIN_TIME_WIDTH ?
                        field_length - MIN_TIME_WIDTH - 1: 0;
-    return new Field_timef(ptr, null_pos, null_bit, unireg_check,
-                           field_name, dec);
+    return new (mem_root)
+      Field_timef(ptr, null_pos, null_bit, unireg_check,
+                  field_name, dec);
   }
   case MYSQL_TYPE_DATETIME:
   {
     uint dec= field_length > MAX_DATETIME_WIDTH ?
                        field_length - MAX_DATETIME_WIDTH - 1: 0;
-    return new_Field_datetime(ptr, null_pos, null_bit, unireg_check,
+    return new_Field_datetime(mem_root, ptr, null_pos, null_bit, unireg_check,
                               field_name, dec);
   }
   case MYSQL_TYPE_DATETIME2:
   {
     uint dec= field_length > MAX_DATETIME_WIDTH ?
                        field_length - MAX_DATETIME_WIDTH - 1: 0;
-    return new Field_datetimef(ptr, null_pos, null_bit, unireg_check,
-                              field_name, dec);
+    return new (mem_root)
+      Field_datetimef(ptr, null_pos, null_bit, unireg_check,
+                      field_name, dec);
   }
   case MYSQL_TYPE_NULL:
-    return new Field_null(ptr, field_length, unireg_check, field_name,
-                          field_charset);
+    return new (mem_root)
+      Field_null(ptr, field_length, unireg_check, field_name,
+                 field_charset);
   case MYSQL_TYPE_BIT:
-    return f_bit_as_char(pack_flag) ?
-           new Field_bit_as_char(ptr, field_length, null_pos, null_bit,
-                                 unireg_check, field_name) :
-           new Field_bit(ptr, field_length, null_pos, null_bit, bit_ptr,
-                         bit_offset, unireg_check, field_name);
+    return (f_bit_as_char(pack_flag) ?
+            new (mem_root)
+            Field_bit_as_char(ptr, field_length, null_pos, null_bit,
+                              unireg_check, field_name) :
+            new (mem_root)
+            Field_bit(ptr, field_length, null_pos, null_bit, bit_ptr,
+                      bit_offset, unireg_check, field_name));
 
   default:					// Impossible (Wrong version)
     break;

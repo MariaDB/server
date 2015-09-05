@@ -1,6 +1,7 @@
 --echo #
 --echo # Beginning of grant.inc
 --echo #
+CREATE USER user@localhost;
 GRANT ALL PRIVILEGES ON *.* TO user@localhost;
 REVOKE FILE ON *.* FROM user@localhost;
 --connect(user,localhost,user,,)
@@ -53,7 +54,7 @@ CREATE VIEW v1 AS SELECT * FROM t1;
 --echo # Testing a VIEW created with FILE privileges but accessed with no FILE
 --connection default
 SELECT user();
-CREATE VIEW v1 AS SELECT * FROM t1;
+CREATE SQL SECURITY INVOKER VIEW v1 AS SELECT * FROM t1;
 --connection user
 SELECT user();
 --error ER_ACCESS_DENIED_ERROR

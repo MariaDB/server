@@ -1,3 +1,5 @@
+set GLOBAL sql_mode="";
+set LOCAL sql_mode="";
 SET NAMES binary;
 drop database if exists mysqltest;
 drop database if exists mysqltest_1;
@@ -845,3 +847,4 @@ DROP USER mysqltest_u2@localhost;
 DROP USER mysqltest_u3@localhost;
 DROP USER mysqltest_u4@localhost;
 DROP USER mysqltest_u5@localhost;
+set GLOBAL sql_mode=default;

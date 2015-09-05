@@ -127,6 +127,13 @@ public:
     derivation= derivation_arg;
     set_repertoire_from_charset(collation_arg);
   }
+  DTCollation(CHARSET_INFO *collation_arg,
+              Derivation derivation_arg,
+              uint repertoire_arg)
+   :collation(collation_arg),
+    derivation(derivation_arg),
+    repertoire(repertoire_arg)
+  { }
   void set(const DTCollation &dt)
   { 
     collation= dt.collation;
@@ -160,7 +167,7 @@ public:
   }
   void set(Derivation derivation_arg)
   { derivation= derivation_arg; }
-  bool aggregate(DTCollation &dt, uint flags= 0);
+  bool aggregate(const DTCollation &dt, uint flags= 0);
   bool set(DTCollation &dt1, DTCollation &dt2, uint flags= 0)
   { set(dt1); return aggregate(dt2, flags); }
   const char *derivation_name() const
@@ -670,7 +677,7 @@ public:
     calls.
   */
   uint name_length;                     /* Length of name */
-  int8 marker;
+  int  marker;
   bool maybe_null;			/* If item may be null */
   bool in_rollup;                       /* If used in GROUP BY list
                                            of a query with ROLLUP */ 
@@ -1417,16 +1424,45 @@ public:
   */ 
   enum Subst_constraint 
   { 
-    NO_SUBST= 0,         /* No substitution for a field is allowed   */
     ANY_SUBST,           /* Any substitution for a field is allowed  */ 
     IDENTITY_SUBST       /* Substitution for a field is allowed if any two
                             different values of the field type are not equal */
   };
 
-  virtual bool subst_argument_checker(uchar **arg)
-  { 
-    return (*arg != NULL); 
-  }
+  /*
+    Item context attributes.
+    Comparison functions pass their attributes to propagate_equal_fields().
+    For exmple, for string comparison, the collation of the comparison
+    operation is important inside propagate_equal_fields().
+    TODO: We should move Item::cmp_context to from Item to Item::Context
+    eventually.
+  */
+  class Context
+  {
+    /*
+      Which type of propagation is allowed:
+      - SUBST_ANY (loose equality, according to the collation), or
+      - SUBST_IDENTITY (strict binary equality).
+    */
+    Subst_constraint m_subst_constraint;
+    /*
+      Collation of the comparison operation.
+      Important only when SUBST_ANY.
+    */
+    CHARSET_INFO *m_compare_collation;
+  public:
+    Context(Subst_constraint subst, CHARSET_INFO *cs)
+      :m_subst_constraint(subst), m_compare_collation(cs) { }
+    Context(Subst_constraint subst)
+      :m_subst_constraint(subst), m_compare_collation(&my_charset_bin) { }
+    Subst_constraint subst_constraint() const { return m_subst_constraint; }
+    CHARSET_INFO *compare_collation() const { return m_compare_collation; }
+  };
+
+  virtual Item* propagate_equal_fields(THD*, const Context &, COND_EQUAL *)
+  {
+    return this;
+  };
 
   /*
     @brief
@@ -1446,7 +1482,6 @@ public:
     return trace_unsupported_by_check_vcol_func_processor(full_name());
   }
 
-  virtual Item *equal_fields_propagator(THD *thd, uchar * arg) { return this; }
   virtual bool set_no_const_sub(uchar *arg) { return FALSE; }
   /* arg points to REPLACE_EQUAL_FIELD_ARG object */
   virtual Item *replace_equal_field(THD *thd, uchar *arg) { return this; }
@@ -1587,7 +1622,7 @@ public:
   }
   /**
     Check whether this and the given item has compatible comparison context.
-    Used by the equality propagation. See Item_field::equal_fields_propagator.
+    Used by the equality propagation. See Item_field::propagate_equal_fields()
 
     @return
       TRUE  if the context is the same
@@ -2267,6 +2302,8 @@ public:
 
 class Item_field :public Item_ident
 {
+  bool can_be_substituted_to_equal_item(const Context &ctx,
+                                        const Item_equal *item);
 protected:
   void set_field(Field *field);
 public:
@@ -2403,8 +2440,7 @@ public:
   Item_equal *get_item_equal() { return item_equal; }
   void set_item_equal(Item_equal *item_eq) { item_equal= item_eq; }
   Item_equal *find_item_equal(COND_EQUAL *cond_equal);
-  bool subst_argument_checker(uchar **arg);
-  Item *equal_fields_propagator(THD *thd, uchar *arg);
+  Item* propagate_equal_fields(THD *, const Context &, COND_EQUAL *);
   bool set_no_const_sub(uchar *arg);
   Item *replace_equal_field(THD *thd, uchar *arg);
   inline uint32 max_disp_length() { return field->max_display_length(); }
@@ -3143,16 +3179,16 @@ public:
 class Item_hex_constant: public Item_basic_constant
 {
 private:
-  void hex_string_init(const char *str, uint str_length);
+  void hex_string_init(THD *thd, const char *str, uint str_length);
 public:
   Item_hex_constant(THD *thd): Item_basic_constant(thd)
   {
-    hex_string_init("", 0);
+    hex_string_init(thd, "", 0);
   }
   Item_hex_constant(THD *thd, const char *str, uint str_length):
     Item_basic_constant(thd)
   {
-    hex_string_init(str, str_length);
+    hex_string_init(thd, str, str_length);
   }
   enum Type type() const { return VARBIN_ITEM; }
   enum Item_result result_type () const { return STRING_RESULT; }
@@ -3380,7 +3416,7 @@ class Item_args
 {
 protected:
   Item **args, *tmp_arg[2];
-  void set_arguments(List<Item> &list);
+  void set_arguments(THD *thd, List<Item> &list);
   bool walk_args(Item_processor processor, bool walk_subquery, uchar *arg)
   {
     for (uint i= 0; i < arg_count; i++)
@@ -3391,6 +3427,7 @@ protected:
     return false;
   }
   bool transform_args(THD *thd, Item_transformer transformer, uchar *arg);
+  void propagate_equal_fields(THD *, const Item::Context &, COND_EQUAL *);
 public:
   uint arg_count;
   Item_args(void)
@@ -3433,9 +3470,9 @@ public:
       args[0]= a; args[1]= b; args[2]= c; args[3]= d; args[4]= e;
     }
   }
-  Item_args(List<Item> &list)
+  Item_args(THD *thd, List<Item> &list)
   {
-    set_arguments(list);
+    set_arguments(thd, list);
   }
   Item_args(THD *thd, const Item_args *other);
   inline Item **arguments() const { return args; }
@@ -3530,7 +3567,7 @@ public:
   Item_func_or_sum(THD *thd, Item_func_or_sum *item):
     Item_result_field(thd, item), Item_args(thd, item) { }
   Item_func_or_sum(THD *thd, List<Item> &list):
-    Item_result_field(thd), Item_args(list) { }
+    Item_result_field(thd), Item_args(thd, list) { }
   bool walk(Item_processor processor, bool walk_subquery, uchar *arg)
   {
     if (walk_args(processor, walk_subquery, arg))
@@ -3562,6 +3599,7 @@ class Item_ref :public Item_ident
 {
 protected:
   void set_properties();
+  bool set_properties_only; // the item doesn't need full fix_fields
 public:
   enum Ref_Type { REF, DIRECT_REF, VIEW_REF, OUTER_REF, AGGREGATE_REF };
   Item **ref;
@@ -3570,7 +3608,7 @@ public:
            const char *db_arg, const char *table_name_arg,
            const char *field_name_arg):
     Item_ident(thd, context_arg, db_arg, table_name_arg, field_name_arg),
-    ref(0), reference_trough_name(1) {}
+    set_properties_only(0), ref(0), reference_trough_name(1) {}
   /*
     This constructor is used in two scenarios:
     A) *item = NULL
@@ -3593,7 +3631,7 @@ public:
 
   /* Constructor need to process subselect with temporary tables (see Item) */
   Item_ref(THD *thd, Item_ref *item)
-    :Item_ident(thd, item), ref(item->ref) {}
+    :Item_ident(thd, item), set_properties_only(0), ref(item->ref) {}
   enum Type type() const		{ return REF_ITEM; }
   enum Type real_type() const           { return ref ? (*ref)->type() :
                                           REF_ITEM; }
@@ -3999,8 +4037,7 @@ public:
   Item_equal *get_item_equal() { return item_equal; }
   void set_item_equal(Item_equal *item_eq) { item_equal= item_eq; }
   Item_equal *find_item_equal(COND_EQUAL *cond_equal);
-  bool subst_argument_checker(uchar **arg);
-  Item *equal_fields_propagator(THD *thd, uchar *arg);
+  Item* propagate_equal_fields(THD *, const Context &, COND_EQUAL *);
   Item *replace_equal_field(THD *thd, uchar *arg);
   table_map used_tables() const;
   void update_used_tables();
@@ -4733,7 +4770,7 @@ public:
     null_value= 1;
   }
 
-  virtual bool allocate(uint i) { return 0; }
+  virtual bool allocate(THD *thd, uint i) { return 0; }
   virtual bool setup(THD *thd, Item *item)
   {
     example= item;
@@ -4914,7 +4951,7 @@ public:
     'allocate' used only in row transformer, to preallocate space for row 
     cache.
   */
-  bool allocate(uint num);
+  bool allocate(THD *thd, uint num);
   /*
     'setup' is needed only by row => it not called by simple row subselect
     (only by IN subselect (in subselect optimizer))

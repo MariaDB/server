@@ -13,6 +13,8 @@
 # Save the initial number of concurrent sessions.
 --source include/count_sessions.inc
 
+set global sql_mode="";
+set local sql_mode="";
 --echo # FTWRL takes two global metadata locks -- a global shared
 --echo # metadata lock and the commit blocker lock.
 --echo # The first lock prevents DDL from taking place.
@@ -2161,6 +2163,7 @@ disconnect con1;
 disconnect con2;
 disconnect con3;
 
+set global sql_mode=default;
 # Check that all connections opened by test cases in this file are really
 # gone so execution of other tests won't be affected by their presence.
 --source include/wait_until_count_sessions.inc

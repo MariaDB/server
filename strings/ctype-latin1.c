@@ -736,7 +736,7 @@ static MY_COLLATION_HANDLER my_collation_german2_ci_handler=
 struct charset_info_st my_charset_latin1_german2_ci=
 {
   31,0,0,				/* number    */
-  MY_CS_COMPILED|MY_CS_STRNXFRM,	/* state     */
+  MY_CS_COMPILED|MY_CS_STRNXFRM|MY_CS_NON1TO1, /* state     */
   "latin1",				/* cs name    */
   "latin1_german2_ci",			/* name      */
   "",					/* comment   */

@@ -114,7 +114,7 @@ btr_pcur_open_low(
 Opens an persistent cursor to an index tree without initializing the
 cursor. */
 UNIV_INLINE
-void
+dberr_t
 btr_pcur_open_with_no_init_func(
 /*============================*/
 	dict_index_t*	index,	/*!< in: index */
@@ -143,7 +143,7 @@ btr_pcur_open_with_no_init_func(
 /*****************************************************************//**
 Opens a persistent cursor at either end of an index. */
 UNIV_INLINE
-void
+dberr_t
 btr_pcur_open_at_index_side(
 /*========================*/
 	bool		from_left,	/*!< in: true if open to the low end,

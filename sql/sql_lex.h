@@ -870,8 +870,6 @@ public:
   bool no_wrap_view_item;
   /* exclude this select from check of unique_table() */
   bool exclude_from_table_unique_test;
-  /* List of fields that aren't under an aggregate function */
-  List<Item_field> non_agg_fields;
   /* index in the select list of the expression currently being fixed */
   int cur_pos_in_select_list;
 
@@ -926,7 +924,7 @@ public:
 
   bool add_item_to_list(THD *thd, Item *item);
   bool add_group_to_list(THD *thd, Item *item, bool asc);
-  bool add_ftfunc_to_list(Item_func_match *func);
+  bool add_ftfunc_to_list(THD *thd, Item_func_match *func);
   bool add_order_to_list(THD *thd, Item *item, bool asc);
   bool add_gorder_to_list(THD *thd, Item *item, bool asc);
   TABLE_LIST* add_table_to_list(THD *thd, Table_ident *table,

@@ -12,6 +12,7 @@ create view t1 as select "I am a view" as a;
 drop table t1;
 
 create table t1 (a int) engine=archive;
+create user foo@bar;
 grant select on test.t1 to foo@bar;
 drop user foo@bar;
 drop table t1;

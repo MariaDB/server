@@ -1934,7 +1934,6 @@ void st_select_lex::init_select()
   with_sum_func= 0;
   is_correlated= 0;
   cur_pos_in_select_list= UNDEF_POS;
-  non_agg_fields.empty();
   cond_value= having_value= Item::COND_UNDEF;
   inner_refs_list.empty();
   insert_tables= 0;
@@ -1942,6 +1941,7 @@ void st_select_lex::init_select()
   m_non_agg_field_used= false;
   m_agg_func_used= false;
   name_visibility_map= 0;
+  join= 0;
 }
 
 /*
@@ -2334,9 +2334,9 @@ bool st_select_lex::add_group_to_list(THD *thd, Item *item, bool asc)
 }
 
 
-bool st_select_lex::add_ftfunc_to_list(Item_func_match *func)
+bool st_select_lex::add_ftfunc_to_list(THD *thd, Item_func_match *func)
 {
-  return !func || ftfunc_list->push_back(func); // end of memory?
+  return !func || ftfunc_list->push_back(func, thd->mem_root); // end of memory?
 }
 
 
@@ -3459,7 +3459,7 @@ void st_select_lex::alloc_index_hints (THD *thd)
 */
 bool st_select_lex::add_index_hint (THD *thd, char *str, uint length)
 {
-  return index_hints->push_front (new (thd->mem_root) 
+  return index_hints->push_front(new (thd->mem_root) 
                                  Index_hint(current_index_hint_type,
                                             current_index_hint_clause,
                                             str, length), thd->mem_root);
@@ -3800,7 +3800,7 @@ bool SELECT_LEX::merge_subquery(THD *thd, TABLE_LIST *derived,
     Item_in_subselect *in_subq;
     while ((in_subq= li++))
     {
-      sj_subselects.push_back(in_subq);
+      sj_subselects.push_back(in_subq, thd->mem_root);
       if (in_subq->emb_on_expr_nest == NO_JOIN_NEST)
          in_subq->emb_on_expr_nest= derived;
     }

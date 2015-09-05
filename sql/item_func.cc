@@ -89,14 +89,14 @@ static inline bool test_if_sum_overflows_ull(ulonglong arg1, ulonglong arg2)
 }
 
 
-void Item_args::set_arguments(List<Item> &list)
+void Item_args::set_arguments(THD *thd, List<Item> &list)
 {
   arg_count= list.elements;
   if (arg_count <= 2)
   {
     args= tmp_arg;
   }
-  else if (!(args= (Item**) sql_alloc(sizeof(Item*) * arg_count)))
+  else if (!(args= (Item**) thd->alloc(sizeof(Item*) * arg_count)))
   {
     arg_count= 0;
     return;
@@ -415,6 +415,21 @@ Item *Item_func::compile(THD *thd, Item_analyzer analyzer, uchar **arg_p,
   return (this->*transformer)(thd, arg_t);
 }
 
+
+void Item_args::propagate_equal_fields(THD *thd,
+                                       const Item::Context &ctx,
+                                       COND_EQUAL *cond)
+{
+  Item **arg,**arg_end;
+  for (arg= args, arg_end= args + arg_count; arg != arg_end; arg++)
+  {
+    Item *new_item= (*arg)->propagate_equal_fields(thd, ctx, cond);
+    if (new_item && *arg != new_item)
+      thd->change_item_tree(arg, new_item);
+  }
+}
+
+
 /**
   See comments in Item_cond::split_sum_func()
 */
@@ -506,23 +521,27 @@ bool Item_func::eq(const Item *item, bool binary_cmp) const
 Field *Item_func::tmp_table_field(TABLE *table)
 {
   Field *field= NULL;
+  MEM_ROOT *mem_root= table->in_use->mem_root;
 
   switch (result_type()) {
   case INT_RESULT:
     if (max_char_length() > MY_INT32_NUM_DECIMAL_DIGITS)
-      field= new Field_longlong(max_char_length(), maybe_null, name,
-                                unsigned_flag);
+      field= new (mem_root)
+        Field_longlong(max_char_length(), maybe_null, name,
+                       unsigned_flag);
     else
-      field= new Field_long(max_char_length(), maybe_null, name,
-                            unsigned_flag);
+      field= new (mem_root)
+        Field_long(max_char_length(), maybe_null, name,
+                   unsigned_flag);
     break;
   case REAL_RESULT:
-    field= new Field_double(max_char_length(), maybe_null, name, decimals);
+    field= new (mem_root)
+      Field_double(max_char_length(), maybe_null, name, decimals);
     break;
   case STRING_RESULT:
     return make_string_field(table);
   case DECIMAL_RESULT:
-    field= Field_new_decimal::create_from_item(this);
+    field= Field_new_decimal::create_from_item(mem_root, this);
     break;
   case ROW_RESULT:
   case TIME_RESULT:
@@ -3486,7 +3505,7 @@ udf_handler::fix_fields(THD *thd, Item_func_or_sum *func,
   if ((f_args.arg_count=arg_count))
   {
     if (!(f_args.arg_type= (Item_result*)
-	  sql_alloc(f_args.arg_count*sizeof(Item_result))))
+	  thd->alloc(f_args.arg_count*sizeof(Item_result))))
 
     {
       free_udf(u_d);
@@ -3528,13 +3547,14 @@ udf_handler::fix_fields(THD *thd, Item_func_or_sum *func,
     }
     //TODO: why all following memory is not allocated with 1 call of sql_alloc?
     if (!(buffers=new String[arg_count]) ||
-	!(f_args.args= (char**) sql_alloc(arg_count * sizeof(char *))) ||
-	!(f_args.lengths= (ulong*) sql_alloc(arg_count * sizeof(long))) ||
-	!(f_args.maybe_null= (char*) sql_alloc(arg_count * sizeof(char))) ||
-	!(num_buffer= (char*) sql_alloc(arg_count *
+	!(f_args.args= (char**) thd->alloc(arg_count * sizeof(char *))) ||
+	!(f_args.lengths= (ulong*) thd->alloc(arg_count * sizeof(long))) ||
+	!(f_args.maybe_null= (char*) thd->alloc(arg_count * sizeof(char))) ||
+	!(num_buffer= (char*) thd->alloc(arg_count *
 					ALIGN_SIZE(sizeof(double)))) ||
-	!(f_args.attributes= (char**) sql_alloc(arg_count * sizeof(char *))) ||
-	!(f_args.attribute_lengths= (ulong*) sql_alloc(arg_count *
+	!(f_args.attributes= (char**) thd->alloc(arg_count *
+                                                 sizeof(char *))) ||
+	!(f_args.attribute_lengths= (ulong*) thd->alloc(arg_count *
 						       sizeof(long))))
     {
       free_udf(u_d);
@@ -4258,6 +4278,21 @@ longlong Item_func_get_lock::val_int()
   {
     null_value= 0;
     DBUG_RETURN(1);
+  }
+
+  if (args[1]->null_value ||
+      (!args[1]->unsigned_flag && ((longlong) timeout < 0)))
+  {
+    char buf[22];
+    if (args[1]->null_value)
+      strmov(buf, "NULL");
+    else
+      llstr(((longlong) timeout), buf);
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                        ER_WRONG_VALUE_FOR_TYPE, ER(ER_WRONG_VALUE_FOR_TYPE),
+                        "timeout", buf, "get_lock");
+    null_value= 1;
+    DBUG_RETURN(0);
   }
 
   if (!ull_name_ok(res))
@@ -5537,7 +5572,8 @@ get_var_with_binlog(THD *thd, enum_sql_command sql_command,
     tmp_var_list.push_back(new (thd->mem_root)
                            set_var_user(new (thd->mem_root)
                                         Item_func_set_user_var(thd, name,
-                                                               new (thd->mem_root) Item_null(thd))));
+                                                               new (thd->mem_root) Item_null(thd))),
+                           thd->mem_root);
     /* Create the variable */
     if (sql_set_variables(thd, &tmp_var_list, false))
     {
@@ -6116,7 +6152,9 @@ void Item_func_match::init_search(THD *thd, bool no_order)
   if (key == NO_SUCH_KEY)
   {
     List<Item> fields;
-    fields.push_back(new (thd->mem_root) Item_string(thd, " ", 1, cmp_collation.collation));
+    fields.push_back(new (thd->mem_root)
+                     Item_string(thd, " ", 1, cmp_collation.collation),
+                     thd->mem_root);
     for (uint i= 1; i < arg_count; i++)
       fields.push_back(args[i]);
     concat_ws= new (thd->mem_root) Item_func_concat_ws(thd, fields);
@@ -6488,8 +6526,8 @@ Item_func_sp::Item_func_sp(THD *thd, Name_resolution_context *context_arg,
   Item_func(thd), context(context_arg), m_name(name), m_sp(NULL), sp_result_field(NULL)
 {
   maybe_null= 1;
-  m_name->init_qname(current_thd);
-  dummy_table= (TABLE*) sql_calloc(sizeof(TABLE)+ sizeof(TABLE_SHARE));
+  m_name->init_qname(thd);
+  dummy_table= (TABLE*) thd->calloc(sizeof(TABLE)+ sizeof(TABLE_SHARE));
   dummy_table->s= (TABLE_SHARE*) (dummy_table+1);
 }
 
@@ -6500,8 +6538,8 @@ Item_func_sp::Item_func_sp(THD *thd, Name_resolution_context *context_arg,
   sp_result_field(NULL)
 {
   maybe_null= 1;
-  m_name->init_qname(current_thd);
-  dummy_table= (TABLE*) sql_calloc(sizeof(TABLE)+ sizeof(TABLE_SHARE));
+  m_name->init_qname(thd);
+  dummy_table= (TABLE*) thd->calloc(sizeof(TABLE)+ sizeof(TABLE_SHARE));
   dummy_table->s= (TABLE_SHARE*) (dummy_table+1);
 }
 
@@ -6613,7 +6651,7 @@ Item_func_sp::init_result_field(THD *thd)
   if (sp_result_field->pack_length() > sizeof(result_buf))
   {
     void *tmp;
-    if (!(tmp= sql_alloc(sp_result_field->pack_length())))
+    if (!(tmp= thd->alloc(sp_result_field->pack_length())))
       DBUG_RETURN(TRUE);
     sp_result_field->move_field((uchar*) tmp);
   }

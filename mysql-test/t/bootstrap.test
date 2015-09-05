@@ -78,6 +78,7 @@ EOF
 # Check that installed plugins are *not* automatically loaded in --bootstrap
 #
 --write_file $MYSQLTEST_VARDIR/tmp/bootstrap_plugins.sql
+SET SQL_MODE="";
 use test;
 create table t1(a int) engine=example;
 EOF

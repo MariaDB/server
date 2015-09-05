@@ -688,9 +688,16 @@ eval create table t1 (
 insert into t1 values(1,'foo'),(2,'foobar');
 --sorted_result
 select * from t1 where b like 'foob%';
+--disable_query_log
+set @ctype_save_sql_mode=@@sql_mode;
+set sql_mode="";
+--enable_query_log
 --disable_warnings
 alter table t1 engine=innodb;
 --enable_warnings
+--disable_query_log
+set sql_mode=@ctype_save_sql_mode;
+--enable_query_log
 --sorted_result
 select * from t1 where b like 'foob%';
 drop table t1;

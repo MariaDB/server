@@ -7755,6 +7755,31 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 Warnings:
 Note	1003	select `test`.`t1`.`c1` AS `c1` from `test`.`t1` where (('%' = concat(`test`.`t1`.`c1`)) and ('a' like concat(`test`.`t1`.`c1`)))
 DROP TABLE t1;
+#
+# MDEV-8694 Wrong result for SELECT..WHERE a NOT LIKE 'a ' AND a='a'
+#
+CREATE TABLE t1 AS SELECT SPACE(10) AS a LIMIT 0;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` varchar(10) NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+INSERT INTO t1 VALUES ('a'),('a ');
+SELECT a, LENGTH(a) FROM t1 WHERE a NOT LIKE 'a ';
+a	LENGTH(a)
+a	1
+SELECT a, LENGTH(a) FROM t1 WHERE a NOT LIKE 'a ' AND a='a';
+a	LENGTH(a)
+a	1
+EXPLAIN EXTENDED SELECT a, LENGTH(a) FROM t1 WHERE a NOT LIKE 'a ' AND a='a';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a`,length(`test`.`t1`.`a`) AS `LENGTH(a)` from `test`.`t1` where ((`test`.`t1`.`a` = 'a') and (not((`test`.`t1`.`a` like 'a '))))
+DROP TABLE t1;
+#
+# End of MDEV-8694
+#
 SET NAMES latin1 COLLATE latin1_bin;
 #
 # MDEV-7149 Constant condition propagation erroneously applied for LIKE
@@ -7852,6 +7877,31 @@ Warnings:
 Note	1003	select `test`.`t1`.`c1` AS `c1` from `test`.`t1` where (('%' = concat(`test`.`t1`.`c1`)) and ('a' like concat(`test`.`t1`.`c1`)))
 DROP TABLE t1;
 #
+# MDEV-8694 Wrong result for SELECT..WHERE a NOT LIKE 'a ' AND a='a'
+#
+CREATE TABLE t1 AS SELECT SPACE(10) AS a LIMIT 0;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` varchar(10) CHARACTER SET latin1 COLLATE latin1_bin NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+INSERT INTO t1 VALUES ('a'),('a ');
+SELECT a, LENGTH(a) FROM t1 WHERE a NOT LIKE 'a ';
+a	LENGTH(a)
+a	1
+SELECT a, LENGTH(a) FROM t1 WHERE a NOT LIKE 'a ' AND a='a';
+a	LENGTH(a)
+a	1
+EXPLAIN EXTENDED SELECT a, LENGTH(a) FROM t1 WHERE a NOT LIKE 'a ' AND a='a';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a`,length(`test`.`t1`.`a`) AS `LENGTH(a)` from `test`.`t1` where ((`test`.`t1`.`a` = 'a') and (not((`test`.`t1`.`a` like 'a '))))
+DROP TABLE t1;
+#
+# End of MDEV-8694
+#
+#
 # MDEV-6752 Trailing incomplete characters are not replaced to question marks on conversion
 #
 SET NAMES utf8, character_set_connection=latin1;
@@ -7914,4 +7964,190 @@ _latin1 0x7E	_latin1 X'7E'	_latin1 B'01111110'
 ~	~	~
 #
 # End of 10.0 tests
+#
+#
+# Start of 10.1 tests
+#
+#
+# MDEV-8661 Wrong result for SELECT..WHERE a='a' AND a='a' COLLATE latin1_bin
+#
+SET NAMES latin1;
+CREATE TABLE t1 (a CHAR(10));
+INSERT INTO t1 VALUES ('a'),('A');
+SELECT * FROM t1 WHERE a='a' AND a='a' COLLATE latin1_bin;
+a
+a
+DROP TABLE t1;
+CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET latin1 COLLATE latin1_swedish_ci);
+INSERT INTO t1 VALUES ('a'),('A');
+SELECT * FROM t1 WHERE a='a' COLLATE latin1_bin AND a='A' COLLATE latin1_swedish_ci;
+a
+a
+DROP TABLE t1;
+#
+# MDEV-8679 Equal field propagation is not used for VARCHAR when it safely could
+#
+CREATE TABLE t1 (a VARCHAR(10));
+INSERT INTO t1 VALUES ('10'),('11'),('12');
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a='10' AND IF(a='10',1,0)=1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where (`test`.`t1`.`a` = '10')
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a='10' AND CASE WHEN a='10' THEN 1 ELSE 0 END;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where (`test`.`t1`.`a` = '10')
+DROP TABLE t1;
+#
+# MDEV-8680 Wrong result for SELECT..WHERE a IN ('a' COLLATE latin1_bin,'b') AND a='a'
+#
+SET NAMES latin1;
+CREATE TABLE t1 (a VARCHAR(10));
+INSERT INTO t1 VALUES ('a'),('A');
+SELECT * FROM t1 WHERE a IN ('a' COLLATE latin1_bin,'b');
+a
+a
+SELECT * FROM t1 WHERE a IN ('a' COLLATE latin1_bin,'b') AND a='a';
+a
+a
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a IN ('a' COLLATE latin1_bin,'b') AND a='a';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where ((`test`.`t1`.`a` = 'a') and (`test`.`t1`.`a` in (<cache>(('a' collate latin1_bin)),'b')))
+DROP TABLE t1;
+#
+# MDEV-8698 Wrong result for SELECT..WHERE a BETWEEN 'a' AND 'c' COLLATE latin1_bin;
+#
+SET NAMES latin1;
+CREATE TABLE t1 (a VARCHAR(10));
+INSERT INTO t1 VALUES ('a'),('A'),('b'),('B'),('c'),('C');
+SELECT * FROM t1 WHERE a BETWEEN 'a' AND 'c' COLLATE latin1_bin;
+a
+a
+b
+c
+SELECT * FROM t1 WHERE a BETWEEN 'a' AND 'c' COLLATE latin1_bin AND a='a';
+a
+a
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a BETWEEN 'a' AND 'c' COLLATE latin1_bin AND a='a';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	6	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where ((`test`.`t1`.`a` = 'a') and (`test`.`t1`.`a` between 'a' and <cache>(('c' collate latin1_bin))))
+DROP TABLE t1;
+#
+# MDEV-8707 Wrong result for SELECT..WHERE varchar_column=DATE'2001-01-01' AND varchar_column='2001-01-01'
+#
+SET NAMES latin1;
+CREATE TABLE t1 (a VARCHAR(40));
+INSERT INTO t1 VALUES ('2001-01-01'),('2001-01-01x');
+SELECT * FROM t1 WHERE a=DATE'2001-01-01' AND a='2001-01-01';
+a
+2001-01-01
+SELECT * FROM t1 WHERE a='2001-01-01' AND a=DATE'2001-01-01';
+a
+2001-01-01
+SELECT * FROM t1 WHERE (a,a)=('2001-01-01x',DATE'2001-01-01');
+a
+2001-01-01x
+Warnings:
+Warning	1292	Truncated incorrect date value: '2001-01-01x'
+SELECT * FROM t1 WHERE (a,a)=(DATE'2001-01-01','2001-01-01x');
+a
+2001-01-01x
+Warnings:
+Warning	1292	Truncated incorrect date value: '2001-01-01x'
+SELECT * FROM t1 WHERE (a,a)=('2001-01-01',DATE'2001-01-01');
+a
+2001-01-01
+SELECT * FROM t1 WHERE (a,a)=(DATE'2001-01-01','2001-01-01');
+a
+2001-01-01
+DROP TABLE t1;
+CREATE TABLE t1 (a ENUM('2001-01-01','2001-01-01x'));
+INSERT INTO t1 VALUES ('2001-01-01'),('2001-01-01x');
+SELECT * FROM t1 WHERE a=DATE'2001-01-01' AND a='2001-01-01';
+a
+2001-01-01
+SELECT * FROM t1 WHERE a='2001-01-01' AND a=DATE'2001-01-01';
+a
+2001-01-01
+SELECT * FROM t1 WHERE (a,a)=('2001-01-01x',DATE'2001-01-01');
+a
+2001-01-01x
+Warnings:
+Warning	1292	Truncated incorrect date value: '2001-01-01x'
+SELECT * FROM t1 WHERE (a,a)=(DATE'2001-01-01','2001-01-01x');
+a
+2001-01-01x
+Warnings:
+Warning	1292	Truncated incorrect date value: '2001-01-01x'
+SELECT * FROM t1 WHERE (a,a)=('2001-01-01',DATE'2001-01-01');
+a
+2001-01-01
+SELECT * FROM t1 WHERE (a,a)=(DATE'2001-01-01','2001-01-01');
+a
+2001-01-01
+DROP TABLE t1;
+CREATE TABLE t1 (a VARCHAR(40),b VARCHAR(40));
+INSERT INTO t1 VALUES ('2001-01-01','2001-01-01x');
+SELECT * FROM t1 WHERE a=b AND a=DATE'2001-01-01';
+a	b
+DROP TABLE t1;
+CREATE TABLE t1 (a ENUM('2001-01-01','2001-01-01x'),b ENUM('2001-01-01','2001-01-01x'));
+INSERT INTO t1 VALUES ('2001-01-01','2001-01-01x');
+SELECT * FROM t1 WHERE a=b AND a=DATE'2001-01-01';
+a	b
+DROP TABLE t1;
+#
+# MDEV-8695 Wrong result for SELECT..WHERE varchar_column='a' AND CRC32(varchar_column)=3904355907
+#
+CREATE TABLE t1 (a VARCHAR(10) COLLATE latin1_bin);
+INSERT INTO t1 VALUES ('a'),('a ');
+SELECT a, LENGTH(a), CRC32(a) FROM t1 WHERE CRC32(a)=3904355907;
+a	LENGTH(a)	CRC32(a)
+a	1	3904355907
+SELECT a, LENGTH(a), CRC32(a) FROM t1 WHERE a='a' AND CRC32(a)=3904355907;
+a	LENGTH(a)	CRC32(a)
+a	1	3904355907
+# 'a' should not be propagated into CRC32(a)
+EXPLAIN EXTENDED SELECT a, LENGTH(a), CRC32(a) FROM t1 WHERE a='a' AND CRC32(a)=3904355907;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a`,length(`test`.`t1`.`a`) AS `LENGTH(a)`,crc32(`test`.`t1`.`a`) AS `CRC32(a)` from `test`.`t1` where ((`test`.`t1`.`a` = 'a') and (crc32(`test`.`t1`.`a`) = 3904355907))
+SELECT a, HEX(a) FROM t1 WHERE HEX(a)='61';
+a	HEX(a)
+a	61
+SELECT *,HEX(a) FROM t1 WHERE a='a' AND HEX(a)='61';
+a	HEX(a)
+a	61
+# 'a' should not be propagated into HEX(a)
+EXPLAIN EXTENDED SELECT *,HEX(a) FROM t1 WHERE a='a' AND HEX(a)='61';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a`,hex(`test`.`t1`.`a`) AS `HEX(a)` from `test`.`t1` where ((`test`.`t1`.`a` = 'a') and (hex(`test`.`t1`.`a`) = '61'))
+SELECT * FROM t1 WHERE a='a';
+a
+a
+a 
+SELECT * FROM t1 WHERE LENGTH(a)=2;
+a
+a 
+SELECT * FROM t1 WHERE a='a' AND LENGTH(a)=2;
+a
+a 
+# 'a' should not be propagated into LENGTH(a)
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a='a' AND LENGTH(a)=2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where ((`test`.`t1`.`a` = 'a') and (length(`test`.`t1`.`a`) = 2))
+DROP TABLE t1;
+#
+# End of 10.1 tests
 #

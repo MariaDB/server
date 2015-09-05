@@ -3,6 +3,9 @@
 --source include/mysql_upgrade_preparation.inc
 --source include/have_innodb.inc
 
+SET GLOBAL SQL_MODE="";
+SET LOCAL SQL_MODE="";
+
 query_vertical SELECT PLUGIN_STATUS, PLUGIN_TYPE, PLUGIN_DESCRIPTION
   FROM INFORMATION_SCHEMA.PLUGINS WHERE PLUGIN_NAME='test_plugin_server';
 
@@ -60,7 +63,7 @@ disconnect plug_con_rightp;
 --echo ## test no_auto_create_user sql mode with plugin users
 SET @@sql_mode=no_auto_create_user;
 GRANT INSERT ON TEST.* TO grant_user IDENTIFIED WITH 'test_plugin_server';
-SET @@sql_mode=default;
+SET @@sql_mode="";
 DROP USER grant_user;
 
 --echo ## test utf-8 user name
@@ -580,4 +583,5 @@ disconnect bug12818542_con2;
 DROP USER bug12818542@localhost;
 DROP USER bug12818542_dest@localhost;
 
+SET GLOBAL SQL_MODE=default;
 --echo End of 5.5 tests

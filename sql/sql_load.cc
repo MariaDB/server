@@ -99,7 +99,7 @@ public:
   /* load xml */
   List<XML_TAG> taglist;
   int read_value(int delim, String *val);
-  int read_xml();
+  int read_xml(THD *thd);
   int clear_level(int level);
 
   my_off_t file_length() { return cache.end_of_file; }
@@ -270,7 +270,7 @@ int mysql_load(THD *thd,sql_exchange *ex,TABLE_LIST *table_list,
       Item *item;
       if (!(item= field_iterator.create_item(thd)))
         DBUG_RETURN(TRUE);
-      fields_vars.push_back(item->real_item());
+      fields_vars.push_back(item->real_item(), thd->mem_root);
     }
     bitmap_set_all(table->write_set);
     /*
@@ -298,6 +298,18 @@ int mysql_load(THD *thd,sql_exchange *ex,TABLE_LIST *table_list,
 
   table->prepare_triggers_for_insert_stmt_or_event();
   table->mark_columns_needed_for_insert();
+
+  if (table->vfield)
+  {
+    for (Field **vfield_ptr= table->vfield; *vfield_ptr; vfield_ptr++)
+    {
+      if ((*vfield_ptr)->stored_in_db)
+      {
+        thd->lex->unit.insert_table_with_stored_vcol= table;
+        break;
+      }
+    }
+  }
 
   uint tot_length=0;
   bool use_blobs= 0, use_vars= 0;
@@ -1151,7 +1163,7 @@ read_xml_field(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
     }
     
     // read row tag and save values into tag list
-    if (read_info.read_xml())
+    if (read_info.read_xml(thd))
       break;
     
     List_iterator_fast<XML_TAG> xmlit(read_info.taglist);
@@ -1875,7 +1887,7 @@ int READ_INFO::read_value(int delim, String *val)
   tags and attributes are stored in taglist
   when tag set in ROWS IDENTIFIED BY is closed, we are ready and return
 */
-int READ_INFO::read_xml()
+int READ_INFO::read_xml(THD *thd)
 {
   DBUG_ENTER("READ_INFO::read_xml");
   int chr, chr2, chr3;
@@ -1973,11 +1985,13 @@ int READ_INFO::read_xml()
         goto found_eof;
       
       /* save value to list */
-      if(tag.length() > 0 && value.length() > 0)
+      if (tag.length() > 0 && value.length() > 0)
       {
         DBUG_PRINT("read_xml", ("lev:%i tag:%s val:%s",
                                 level,tag.c_ptr_safe(), value.c_ptr_safe()));
-        taglist.push_front( new XML_TAG(level, tag, value));
+        XML_TAG *tmp= new XML_TAG(level, tag, value);
+        if (!tmp || taglist.push_front(tmp, thd->mem_root))
+          DBUG_RETURN(1);                       // End of memory
       }
       tag.length(0);
       value.length(0);
@@ -2037,13 +2051,15 @@ int READ_INFO::read_xml()
       }
       
       chr= read_value(delim, &value);
-      if(attribute.length() > 0 && value.length() > 0)
+      if (attribute.length() > 0 && value.length() > 0)
       {
         DBUG_PRINT("read_xml", ("lev:%i att:%s val:%s\n",
                                 level + 1,
                                 attribute.c_ptr_safe(),
                                 value.c_ptr_safe()));
-        taglist.push_front(new XML_TAG(level + 1, attribute, value));
+        XML_TAG *tmp= new XML_TAG(level + 1, attribute, value);
+        if (!tmp || taglist.push_front(tmp, thd->mem_root))
+          DBUG_RETURN(1);                       // End of memory
       }
       attribute.length(0);
       value.length(0);

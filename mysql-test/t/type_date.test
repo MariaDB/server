@@ -394,5 +394,15 @@ let defval='0000-00-00';
 --source include/type_temporal_zero_default.inc
 
 --echo #
+--echo # MDEV-8722 The patch for MDEV-8688 disabled equal field propagation for temporal column and BETWEEN and IN
+--echo #
+CREATE TABLE t1 (a DATE);
+INSERT INTO t1 VALUES ('2001-01-01'),('2001-01-02');
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a='2001-01-01' AND a BETWEEN '2001-01-01' AND '2001-01-02';
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a='2001-01-01' AND a IN ('2001-01-01','2001-01-02');
+DROP TABLE t1;
+
+
+--echo #
 --echo # End of 10.1 tests
 --echo #

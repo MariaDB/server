@@ -213,7 +213,8 @@ struct fsp_open_info {
 #ifdef UNIV_LOG_ARCHIVE
 	ulint		arch_log_no;	/*!< latest archived log file number */
 #endif /* UNIV_LOG_ARCHIVE */
-	fil_space_crypt_t* crypt_data; /*!< crypt data */
+	fil_space_crypt_t* crypt_data;	/*!< crypt data */
+	dict_table_t*	table;		/*!< table */
 };
 
 struct fil_space_t;
@@ -833,7 +834,8 @@ fil_open_single_table_tablespace(
 	ulint		flags,		/*!< in: tablespace flags */
 	const char*	tablename,	/*!< in: table name in the
 					databasename/tablename format */
-	const char*	filepath)	/*!< in: tablespace filepath */
+	const char*	filepath,	/*!< in: tablespace filepath */
+	dict_table_t*	table)		/*!< in: table */
 	__attribute__((nonnull(5), warn_unused_result));
 
 #endif /* !UNIV_HOTBACKUP */

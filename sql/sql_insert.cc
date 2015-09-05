@@ -1670,8 +1670,7 @@ int write_record(THD *thd, TABLE *table,COPY_INFO *info)
 
 	if (!key)
 	{
-	  if (!(key=(char*) my_safe_alloca(table->s->max_unique_length,
-					   MAX_KEY_LENGTH)))
+	  if (!(key=(char*) my_safe_alloca(table->s->max_unique_length)))
 	  {
 	    error=ENOMEM;
 	    goto err;
@@ -1897,7 +1896,7 @@ after_trg_n_copied_inc:
 
 ok_or_after_trg_err:
   if (key)
-    my_safe_afree(key,table->s->max_unique_length,MAX_KEY_LENGTH);
+    my_safe_afree(key,table->s->max_unique_length);
   if (!table->file->has_transactions())
     thd->transaction.stmt.modified_non_trans_table= TRUE;
   DBUG_RETURN(trg_error);
@@ -1909,7 +1908,7 @@ err:
 before_trg_err:
   table->file->restore_auto_increment(prev_insert_id);
   if (key)
-    my_safe_afree(key, table->s->max_unique_length, MAX_KEY_LENGTH);
+    my_safe_afree(key, table->s->max_unique_length);
   table->column_bitmaps_set(save_read_set, save_write_set);
   DBUG_RETURN(1);
 }
@@ -3931,6 +3930,7 @@ static TABLE *create_table_from_items(THD *thd,
   tmp_table.s->db_create_options=0;
   tmp_table.null_row= 0;
   tmp_table.maybe_null= 0;
+  tmp_table.in_use= thd;
 
   promote_first_timestamp_column(&alter_info->create_list);
 
@@ -3950,14 +3950,15 @@ static TABLE *create_table_from_items(THD *thd,
                               (Item ***) 0, &tmp_field, &def_field, 0, 0, 0, 0,
                               0);
     if (!field ||
-        !(cr_field=new Create_field(thd, field,
-                                    (item->type() == Item::FIELD_ITEM ?
-                                       ((Item_field *) item)->field :
-                                       (Field *) 0))))
+        !(cr_field= (new (thd->mem_root)
+                     Create_field(thd, field,
+                                  (item->type() == Item::FIELD_ITEM ?
+                                   ((Item_field *) item)->field :
+                                   (Field *) 0)))))
       DBUG_RETURN(0);
     if (item->maybe_null)
       cr_field->flags &= ~NOT_NULL_FLAG;
-    alter_info->create_list.push_back(cr_field);
+    alter_info->create_list.push_back(cr_field, thd->mem_root);
   }
 
   DEBUG_SYNC(thd,"create_table_select_before_create");

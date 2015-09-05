@@ -47,18 +47,6 @@ include(CheckCCompilerFlag)
 include(CheckCXXCompilerFlag)
 
 ## adds a compiler flag if the compiler supports it
-macro(set_cflags_if_supported_named flag flagname)
-  check_c_compiler_flag("${flag}" HAVE_C_${flagname})
-  if (HAVE_C_${flagname})
-    set(CMAKE_C_FLAGS "${flag} ${CMAKE_C_FLAGS}")
-  endif ()
-  check_cxx_compiler_flag("${flag}" HAVE_CXX_${flagname})
-  if (HAVE_CXX_${flagname})
-    set(CMAKE_CXX_FLAGS "${flag} ${CMAKE_CXX_FLAGS}")
-  endif ()
-endmacro(set_cflags_if_supported_named)
-
-## adds a compiler flag if the compiler supports it
 macro(set_cflags_if_supported)
   foreach(flag ${ARGN})
     check_c_compiler_flag(${flag} HAVE_C_${flag})
@@ -84,21 +72,19 @@ macro(set_ldflags_if_supported)
 endmacro(set_ldflags_if_supported)
 
 ## disable some warnings
-set_cflags_if_supported(
-  -Wno-missing-field-initializers
-  -Wstrict-null-sentinel
-  -Winit-self
-  -Wswitch
-  -Wtrampolines
-  -Wlogical-op
-  -Wmissing-format-attribute
-  -Wno-error=missing-format-attribute
-  -Wno-error=address-of-array-temporary
-  -Wno-error=tautological-constant-out-of-range-compare
-  -Wno-ignored-attributes
-  -fno-rtti
-  -fno-exceptions
-  )
+MY_CHECK_AND_SET_COMPILER_FLAG(-Wno-missing-field-initializers)
+MY_CHECK_AND_SET_COMPILER_FLAG(-Wstrict-null-sentinel)
+MY_CHECK_AND_SET_COMPILER_FLAG(-Winit-self)
+MY_CHECK_AND_SET_COMPILER_FLAG(-Wswitch)
+MY_CHECK_AND_SET_COMPILER_FLAG(-Wtrampolines)
+MY_CHECK_AND_SET_COMPILER_FLAG(-Wlogical-op)
+MY_CHECK_AND_SET_COMPILER_FLAG(-Wmissing-format-attribute)
+MY_CHECK_AND_SET_COMPILER_FLAG(-Wno-error=missing-format-attribute)
+MY_CHECK_AND_SET_COMPILER_FLAG(-Wno-error=address-of-array-temporary)
+MY_CHECK_AND_SET_COMPILER_FLAG(-Wno-error=tautological-constant-out-of-range-compare)
+MY_CHECK_AND_SET_COMPILER_FLAG(-Wno-ignored-attributes)
+MY_CHECK_AND_SET_COMPILER_FLAG(-fno-rtti)
+MY_CHECK_AND_SET_COMPILER_FLAG(-fno-exceptions)
 ## set_cflags_if_supported_named("-Weffc++" -Weffcpp)
 
 if (CMAKE_CXX_FLAGS MATCHES -fno-implicit-templates)
@@ -111,19 +97,12 @@ endif()
 
 ## Clang has stricter POD checks.  So, only enable this warning on our other builds (Linux + GCC)
 if (NOT CMAKE_CXX_COMPILER_ID MATCHES Clang)
-  set_cflags_if_supported(
-    -Wpacked
-    )
+  MY_CHECK_AND_SET_COMPILER_FLAG(-Wpacked)
 endif ()
 
 ## this hits with optimized builds somewhere in ftleaf_split, we don't
 ## know why but we don't think it's a big deal
-set_cflags_if_supported(
-  -Wno-error=strict-overflow
-  )
-set_ldflags_if_supported(
-  -Wno-error=strict-overflow
-  )
+MY_CHECK_AND_SET_COMPILER_FLAG(-Wno-error=strict-overflow)
 
 ## set extra debugging flags and preprocessor definitions
 set(CMAKE_C_FLAGS_DEBUG "-g3 -O0 ${CMAKE_C_FLAGS_DEBUG}")
@@ -154,16 +133,15 @@ else ()
 endif ()
 
 ## set warnings
-set_cflags_if_supported(
-  -Wextra
-  -Wbad-function-cast
-  -Wno-missing-noreturn
-  -Wstrict-prototypes
-  -Wmissing-prototypes
-  -Wmissing-declarations
-  -Wpointer-arith
-  -Wmissing-format-attribute
-  -Wshadow
+  MY_CHECK_AND_SET_COMPILER_FLAG(-Wextra)
+  MY_CHECK_AND_SET_COMPILER_FLAG(-Wbad-function-cast)
+  MY_CHECK_AND_SET_COMPILER_FLAG(-Wno-missing-noreturn)
+  MY_CHECK_AND_SET_COMPILER_FLAG(-Wstrict-prototypes)
+  MY_CHECK_AND_SET_COMPILER_FLAG(-Wmissing-prototypes)
+  MY_CHECK_AND_SET_COMPILER_FLAG(-Wmissing-declarations)
+  MY_CHECK_AND_SET_COMPILER_FLAG(-Wpointer-arith)
+  MY_CHECK_AND_SET_COMPILER_FLAG(-Wmissing-format-attribute)
+  MY_CHECK_AND_SET_COMPILER_FLAG(-Wshadow)
   ## other flags to try:
   #-Wunsafe-loop-optimizations
   #-Wpointer-arith
@@ -173,11 +151,10 @@ set_cflags_if_supported(
   #-Wzero-as-null-pointer-constant
   #-Wlogical-op
   #-Wvector-optimization-performance
-  )
 
 if (NOT CMAKE_CXX_COMPILER_ID STREQUAL Clang)
   # Disabling -Wcast-align with clang.  TODO: fix casting and re-enable it, someday.
-  set_cflags_if_supported(-Wcast-align)
+  MY_CHECK_AND_SET_COMPILER_FLAG(-Wcast-align)
 endif ()
 
 ## always want these

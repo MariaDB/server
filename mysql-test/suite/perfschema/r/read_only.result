@@ -1,5 +1,6 @@
 use performance_schema;
 set @start_read_only= @@global.read_only;
+create user pfsuser@localhost;
 grant SELECT, UPDATE on performance_schema.* to pfsuser@localhost;
 flush privileges;
 connect (con1, localhost, pfsuser, , test);

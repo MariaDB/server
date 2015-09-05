@@ -1193,12 +1193,16 @@ DROP TABLE t1;
 DROP TABLE t2;
 --exec $MYSQL test < $MYSQLTEST_VARDIR/tmp/mwl136.sql
 
---replace_regex /\/\* xid=.* \*\//\/* XID *\// /Server ver: .*, Binlog ver: .*/Server ver: #, Binlog ver: #/ /table_id: [0-9]+/table_id: #/
-SHOW BINLOG EVENTS LIMIT 7,3;
+let $binlog_limit= 7, 3;
+source include/show_binlog_events.inc;
+source include/binlog_start_pos.inc;
+let _BINLOG_START_POS= $binlog_start_pos;
 --perl
 my $f= "$ENV{MYSQLTEST_VARDIR}/tmp/mwl136.sql";
+my $pos=$ENV{_BINLOG_START_POS} + 691;
 open F, '<', $f or die "Failed to open $f: $!\n";
 while (<F>) {
+   s/$pos/<pos>/;
    print if /CHANGE MASTER TO/;
 }
 EOF

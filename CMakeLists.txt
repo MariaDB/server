@@ -401,7 +401,6 @@ IF(WIN32)
   ADD_SUBDIRECTORY(win/upgrade_wizard)
   ADD_SUBDIRECTORY(win/packaging)
 ENDIF()
-ADD_SUBDIRECTORY(packaging/solaris)
 
 
 INCLUDE(for_clients)

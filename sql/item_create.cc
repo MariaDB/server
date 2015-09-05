@@ -6312,7 +6312,7 @@ Item *create_temporal_literal(THD *thd,
     if (status.warnings) // e.g. a note on nanosecond truncation
     {
       ErrConvString err(str, length, cs);
-      make_truncated_value_warning(current_thd,
+      make_truncated_value_warning(thd,
                                    Sql_condition::time_warn_level(status.warnings),
                                    &err, ltime.time_type, 0);
     }
@@ -6349,8 +6349,8 @@ static List<Item> *create_func_dyncol_prepare(THD *thd,
   for (uint i= 0; (def= li++) ;)
   {
     dfs[0][i++]= *def;
-    args->push_back(def->key);
-    args->push_back(def->value);
+    args->push_back(def->key, thd->mem_root);
+    args->push_back(def->value, thd->mem_root);
   }
   return args;
 }
@@ -6374,7 +6374,7 @@ Item *create_func_dyncol_add(THD *thd, Item *str,
   if (!(args= create_func_dyncol_prepare(thd, &dfs, list)))
     return NULL;
 
-  args->push_back(str);
+  args->push_back(str, thd->mem_root);
 
   return new (thd->mem_root) Item_func_dyncol_add(thd, *args, dfs);
 }
@@ -6399,11 +6399,11 @@ Item *create_func_dyncol_delete(THD *thd, Item *str, List<Item> &nums)
     dfs[i].key= key;
     dfs[i].value= new (thd->mem_root) Item_null(thd);
     dfs[i].type= DYN_COL_INT;
-    args->push_back(dfs[i].key);
-    args->push_back(dfs[i].value);
+    args->push_back(dfs[i].key, thd->mem_root);
+    args->push_back(dfs[i].value, thd->mem_root);
   }
 
-  args->push_back(str);
+  args->push_back(str, thd->mem_root);
 
   return new (thd->mem_root) Item_func_dyncol_add(thd, *args, dfs);
 }

@@ -1,5 +1,6 @@
 include/master-slave.inc
 [connection master]
+create user replssl@localhost;
 grant replication slave on *.* to replssl@localhost require ssl;
 create table t1 (t int);
 stop slave;

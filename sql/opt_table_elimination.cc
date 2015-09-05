@@ -1018,6 +1018,7 @@ public:
 bool Dep_analysis_context::setup_equality_modules_deps(List<Dep_module> 
                                                        *bound_modules)
 {
+  THD *thd= current_thd;
   DBUG_ENTER("setup_equality_modules_deps");
  
   /*
@@ -1042,7 +1043,7 @@ bool Dep_analysis_context::setup_equality_modules_deps(List<Dep_module>
   }
  
   void *buf;
-  if (!(buf= current_thd->alloc(bitmap_buffer_size(offset))) ||
+  if (!(buf= thd->alloc(bitmap_buffer_size(offset))) ||
       my_bitmap_init(&expr_deps, (my_bitmap_map*)buf, offset, FALSE))
   {
     DBUG_RETURN(TRUE); /* purecov: inspected */
@@ -1084,7 +1085,7 @@ bool Dep_analysis_context::setup_equality_modules_deps(List<Dep_module>
     }
 
     if (!eq_mod->unbound_args)
-      bound_modules->push_back(eq_mod);
+      bound_modules->push_back(eq_mod, thd->mem_root);
   }
 
   DBUG_RETURN(FALSE);
@@ -1255,7 +1256,7 @@ void build_eq_mods_for_cond(THD *thd, Dep_analysis_context *ctx,
       {
         Dep_value_field *field_val;
         if ((field_val= ctx->get_field_value(equal_field)))
-          fvl->push_back(field_val);
+          fvl->push_back(field_val, thd->mem_root);
       }
       else
       {

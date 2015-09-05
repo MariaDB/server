@@ -1,5 +1,6 @@
 source include/not_embedded.inc;
 
+create user foo@localhost;
 grant create user on *.* to foo@localhost;
 
 ########################################
@@ -99,4 +100,3 @@ grant role4 to current_user;
 ########################################
 drop role role1, role2, role3, role4, role5, role6;
 drop user foo@localhost;
-

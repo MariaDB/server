@@ -371,7 +371,7 @@ EXPLAIN
         "attached_condition": "(tbl2.b < 5)"
       },
       "buffer_type": "flat",
-      "buffer_size": "128Kb",
+      "buffer_size": "256Kb",
       "join_type": "BNL",
       "attached_condition": "(tbl2.a = tbl1.a)"
     }
@@ -638,7 +638,7 @@ EXPLAIN
         "filtered": 100
       },
       "buffer_type": "flat",
-      "buffer_size": "128Kb",
+      "buffer_size": "256Kb",
       "join_type": "BNL"
     }
   }
@@ -672,7 +672,7 @@ EXPLAIN
         "first_match": "t2"
       },
       "buffer_type": "flat",
-      "buffer_size": "128Kb",
+      "buffer_size": "256Kb",
       "join_type": "BNL",
       "attached_condition": "((t1.b = t2.b) and (t1.a = t2.a))"
     }
@@ -709,7 +709,7 @@ EXPLAIN
           "filtered": 100
         },
         "buffer_type": "flat",
-        "buffer_size": "128Kb",
+        "buffer_size": "256Kb",
         "join_type": "BNL",
         "attached_condition": "((t1.b = t2.b) and (t1.a = t2.a))"
       }
@@ -822,7 +822,7 @@ EXPLAIN
               "filtered": 100
             },
             "buffer_type": "flat",
-            "buffer_size": "128Kb",
+            "buffer_size": "256Kb",
             "join_type": "BNL",
             "attached_condition": "((t2.b <> outer_t1.a) and trigcond(((<cache>(outer_t1.a) = t1.a) or isnull(t1.a))))"
           }
@@ -873,7 +873,7 @@ EXPLAIN
               "filtered": 100
             },
             "buffer_type": "flat",
-            "buffer_size": "128Kb",
+            "buffer_size": "256Kb",
             "join_type": "BNL",
             "attached_condition": "(tbl2.b = tbl1.b)"
           }

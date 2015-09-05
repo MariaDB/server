@@ -151,10 +151,10 @@ void memorize_variant_topic(THD *thd, TABLE *topics, int count,
   else
   {
     if (count == 1)
-      names->push_back(name);
+      names->push_back(name, thd->mem_root);
     String *new_name= new (thd->mem_root) String;
     get_field(mem_root,find_fields[help_topic_name].field,new_name);
-    names->push_back(new_name);
+    names->push_back(new_name, thd->mem_root);
   }
   DBUG_VOID_RETURN;
 }
@@ -380,7 +380,7 @@ int search_categories(THD *thd, TABLE *categories,
     get_field(thd->mem_root,pfname,lname);
     if (++count == 1 && res_id)
       *res_id= (int16) pcat_id->val_int();
-    names->push_back(lname);
+    names->push_back(lname, thd->mem_root);
   }
   end_read_record(&read_record_info);
 
@@ -415,7 +415,7 @@ void get_all_items_for_category(THD *thd, TABLE *items, Field *pfname,
       continue;
     String *name= new (thd->mem_root) String();
     get_field(thd->mem_root,pfname,name);
-    res->push_back(name);
+    res->push_back(name, thd->mem_root);
   }
   end_read_record(&read_record_info);
 
@@ -454,9 +454,12 @@ int send_answer_1(Protocol *protocol, String *s1, String *s2, String *s3)
   DBUG_ENTER("send_answer_1");
 
   List<Item> field_list;
-  field_list.push_back(new (mem_root) Item_empty_string(thd, "name", 64));
-  field_list.push_back(new (mem_root) Item_empty_string(thd, "description", 1000));
-  field_list.push_back(new (mem_root) Item_empty_string(thd, "example", 1000));
+  field_list.push_back(new (mem_root) Item_empty_string(thd, "name", 64),
+                       mem_root);
+  field_list.push_back(new (mem_root) Item_empty_string(thd, "description", 1000),
+                       mem_root);
+  field_list.push_back(new (mem_root) Item_empty_string(thd, "example", 1000),
+                       mem_root);
 
   if (protocol->send_result_set_metadata(&field_list,
                             Protocol::SEND_NUM_ROWS | Protocol::SEND_EOF))
@@ -500,11 +503,17 @@ int send_header_2(Protocol *protocol, bool for_category)
   DBUG_ENTER("send_header_2");
   List<Item> field_list;
   if (for_category)
-    field_list.push_back(new (mem_root) Item_empty_string(thd, "source_category_name",
-                                               64));
-  field_list.push_back(new (mem_root) Item_empty_string(thd, "name", 64));
-  field_list.push_back(new (mem_root) Item_empty_string(thd, "is_it_category", 1));
-  DBUG_RETURN(protocol->send_result_set_metadata(&field_list, Protocol::SEND_NUM_ROWS |
+    field_list.push_back(new (mem_root)
+                         Item_empty_string(thd, "source_category_name", 64),
+                         mem_root);
+  field_list.push_back(new (mem_root)
+                       Item_empty_string(thd, "name", 64),
+                       mem_root);
+  field_list.push_back(new (mem_root)
+                       Item_empty_string(thd, "is_it_category", 1),
+                       mem_root);
+  DBUG_RETURN(protocol->send_result_set_metadata(&field_list,
+                                                 Protocol::SEND_NUM_ROWS |
                                                  Protocol::SEND_EOF));
 }
 

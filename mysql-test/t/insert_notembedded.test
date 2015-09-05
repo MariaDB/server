@@ -1,5 +1,8 @@
 -- source include/not_embedded.inc
 
+set local sql_mode="";
+set global sql_mode="";
+
 --disable_warnings
 drop table if exists t1;
 --enable_warnings
@@ -188,3 +191,6 @@ disconnect select;
 unlock tables;
 drop table t1;
 set low_priority_updates=default;
+
+set local sql_mode=default;
+set global sql_mode=default;

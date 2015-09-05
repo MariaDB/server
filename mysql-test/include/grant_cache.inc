@@ -37,12 +37,16 @@
 
 --source include/add_anonymous_users.inc
 
+set GLOBAL sql_mode="";
+set LOCAL sql_mode="";
 #
 --disable_warnings
 drop table if exists test.t1,mysqltest.t1,mysqltest.t2;
 drop database if exists mysqltest;
 --enable_warnings
 
+set GLOBAL query_cache_type=ON;
+set LOCAL query_cache_type=ON;
 set GLOBAL query_cache_size=1355776;
 
 reset query cache;
@@ -214,5 +218,9 @@ drop table test.t1,mysqltest.t1,mysqltest.t2;
 drop database mysqltest;
 
 set GLOBAL query_cache_size=default;
+set GLOBAL query_cache_type=ON;
+set LOCAL query_cache_type=ON;
 
 --source include/delete_anonymous_users.inc
+set GLOBAL sql_mode=default;
+set GLOBAL query_cache_type=default;

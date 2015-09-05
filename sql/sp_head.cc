@@ -872,6 +872,7 @@ sp_head::create_result_field(uint field_max_length, const char *field_name,
                 field_max_length : m_return_field_def.length;
 
   field= ::make_field(table->s,                     /* TABLE_SHARE ptr */
+                      table->in_use->mem_root,
                       (uchar*) 0,                   /* field ptr */
                       field_length,                 /* field [max] length */
                       (uchar*) "",                  /* null ptr */
@@ -1129,11 +1130,9 @@ sp_head::execute(THD *thd, bool merge_da_on_success)
   const uint status_backup_mask= SERVER_STATUS_CURSOR_EXISTS |
                                  SERVER_STATUS_LAST_ROW_SENT;
   Reprepare_observer *save_reprepare_observer= thd->m_reprepare_observer;
-  Object_creation_ctx *saved_creation_ctx;
+  Object_creation_ctx *UNINIT_VAR(saved_creation_ctx);
   Diagnostics_area *da= thd->get_stmt_da();
   Warning_info sp_wi(da->warning_info_id(), false, true);
-
-  UNINIT_VAR(saved_creation_ctx);
 
   /* this 7*STACK_MIN_SIZE is a complex matter with a long history (see it!) */
   if (check_stack_overrun(thd, 7 * STACK_MIN_SIZE, (uchar*)&old_packet))
@@ -2576,8 +2575,12 @@ sp_head::show_create_routine(THD *thd, int type)
 
   /* Send header. */
 
-  fields.push_back(new (mem_root) Item_empty_string(thd, col1_caption, NAME_CHAR_LEN));
-  fields.push_back(new (mem_root) Item_empty_string(thd, "sql_mode", sql_mode.length));
+  fields.push_back(new (mem_root)
+                   Item_empty_string(thd, col1_caption, NAME_CHAR_LEN),
+                   thd->mem_root);
+  fields.push_back(new (mem_root)
+                   Item_empty_string(thd, "sql_mode", sql_mode.length),
+                   thd->mem_root);
 
   {
     /*
@@ -2591,17 +2594,23 @@ sp_head::show_create_routine(THD *thd, int type)
 
     stmt_fld->maybe_null= TRUE;
 
-    fields.push_back(stmt_fld);
+    fields.push_back(stmt_fld, thd->mem_root);
   }
 
-  fields.push_back(new (mem_root) Item_empty_string(thd, "character_set_client",
-                                         MY_CS_NAME_SIZE));
+  fields.push_back(new (mem_root)
+                   Item_empty_string(thd, "character_set_client",
+                                     MY_CS_NAME_SIZE),
+                   thd->mem_root);
 
-  fields.push_back(new (mem_root) Item_empty_string(thd, "collation_connection",
-                                         MY_CS_NAME_SIZE));
+  fields.push_back(new (mem_root)
+                   Item_empty_string(thd, "collation_connection",
+                                     MY_CS_NAME_SIZE),
+                   thd->mem_root);
 
-  fields.push_back(new (mem_root) Item_empty_string(thd, "Database Collation",
-                                         MY_CS_NAME_SIZE));
+  fields.push_back(new (mem_root)
+                   Item_empty_string(thd, "Database Collation",
+                                     MY_CS_NAME_SIZE),
+                   thd->mem_root);
 
   if (protocol->send_result_set_metadata(&fields,
                             Protocol::SEND_NUM_ROWS | Protocol::SEND_EOF))
@@ -2784,11 +2793,13 @@ sp_head::show_routine_code(THD *thd)
   if (check_show_routine_access(thd, this, &full_access) || !full_access)
     DBUG_RETURN(1);
 
-  field_list.push_back(new (thd->mem_root) Item_uint(thd, "Pos", 9));
+  field_list.push_back(new (thd->mem_root) Item_uint(thd, "Pos", 9),
+                       thd->mem_root);
   // 1024 is for not to confuse old clients
   field_list.push_back(new (thd->mem_root)
                        Item_empty_string(thd, "Instruction",
-                                         MY_MAX(buffer.length(), 1024)));
+                                         MY_MAX(buffer.length(), 1024)),
+                       thd->mem_root);
   if (protocol->send_result_set_metadata(&field_list, Protocol::SEND_NUM_ROWS |
                                          Protocol::SEND_EOF))
     DBUG_RETURN(1);

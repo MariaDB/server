@@ -110,8 +110,9 @@ extern "C" sig_handler handle_fatal_signal(int sig)
   set_server_version();
   my_safe_printf_stderr("Server version: %s\n", server_version);
 
-  my_safe_printf_stderr("key_buffer_size=%lu\n",
-                        (ulong) dflt_key_cache->key_cache_mem_size);
+  if (dflt_key_cache)
+    my_safe_printf_stderr("key_buffer_size=%lu\n",
+                          (ulong) dflt_key_cache->key_cache_mem_size);
 
   my_safe_printf_stderr("read_buffer_size=%ld\n",
                         (long) global_system_variables.read_buff_size);
@@ -119,24 +120,30 @@ extern "C" sig_handler handle_fatal_signal(int sig)
   my_safe_printf_stderr("max_used_connections=%lu\n",
                         (ulong) max_used_connections);
 
-  my_safe_printf_stderr("max_threads=%u\n",
-                        (uint) thread_scheduler->max_threads +
-                        (uint) extra_max_connections);
+  if (thread_scheduler)
+    my_safe_printf_stderr("max_threads=%u\n",
+                          (uint) thread_scheduler->max_threads +
+                          (uint) extra_max_connections);
 
   my_safe_printf_stderr("thread_count=%u\n", (uint) thread_count);
 
-  my_safe_printf_stderr("It is possible that mysqld could use up to \n"
-                        "key_buffer_size + "
-                        "(read_buffer_size + sort_buffer_size)*max_threads = "
-                        "%lu K  bytes of memory\n",
-                        (ulong)(dflt_key_cache->key_cache_mem_size +
-                         (global_system_variables.read_buff_size +
-                          global_system_variables.sortbuff_size) *
-                         (thread_scheduler->max_threads + extra_max_connections) +
-                         (max_connections + extra_max_connections)* sizeof(THD)) / 1024);
-
-  my_safe_printf_stderr("%s",
-    "Hope that's ok; if not, decrease some variables in the equation.\n\n");
+  if (dflt_key_cache && thread_scheduler)
+  {
+    my_safe_printf_stderr("It is possible that mysqld could use up to \n"
+                          "key_buffer_size + "
+                          "(read_buffer_size + sort_buffer_size)*max_threads = "
+                          "%lu K  bytes of memory\n",
+                          (ulong)
+                          (dflt_key_cache->key_cache_mem_size +
+                           (global_system_variables.read_buff_size +
+                            global_system_variables.sortbuff_size) *
+                           (thread_scheduler->max_threads + extra_max_connections) +
+                           (max_connections + extra_max_connections) *
+                           sizeof(THD)) / 1024);
+    my_safe_printf_stderr("%s",
+                          "Hope that's ok; if not, decrease some variables in "
+                          "the equation.\n\n");
+  }
 
 #ifdef HAVE_STACKTRACE
   thd= current_thd;

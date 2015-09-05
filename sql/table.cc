@@ -1657,7 +1657,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
 #endif
 
     *field_ptr= reg_field=
-      make_field(share, record+recpos,
+      make_field(share, &share->mem_root, record+recpos,
 		 (uint32) field_length,
 		 null_pos, null_bit_pos,
 		 pack_flag,
@@ -5301,7 +5301,7 @@ Item *Field_iterator_table::create_item(THD *thd)
   if (item && thd->variables.sql_mode & MODE_ONLY_FULL_GROUP_BY &&
       !thd->lex->in_sum_func && select->cur_pos_in_select_list != UNDEF_POS)
   {
-    select->non_agg_fields.push_back(item);
+    select->join->non_agg_fields.push_back(item);
     item->marker= select->cur_pos_in_select_list;
     select->set_non_agg_field_used(true);
   }
@@ -5354,9 +5354,10 @@ Item *create_view_field(THD *thd, TABLE_LIST *view, Item **field_ref,
   {
     DBUG_RETURN(field);
   }
-  Item *item= new (thd->mem_root) Item_direct_view_ref(thd, &view->view->select_lex.context,
-                                       field_ref, view->alias,
-                                       name, view);
+  Item *item= (new (thd->mem_root)
+               Item_direct_view_ref(thd, &view->view->select_lex.context,
+                                    field_ref, view->alias,
+                                    name, view));
   /*
     Force creation of nullable item for the result tmp table for outer joined
     views/derived tables.
@@ -5364,7 +5365,13 @@ Item *create_view_field(THD *thd, TABLE_LIST *view, Item **field_ref,
   if (view->table && view->table->maybe_null)
     item->maybe_null= TRUE;
   /* Save item in case we will need to fall back to materialization. */
-  view->used_items.push_front(item);
+  view->used_items.push_front(item, thd->mem_root);
+  /*
+    If we create this reference on persistent memory then it should be
+    present in persistent list
+  */
+  if (thd->mem_root == thd->stmt_arena->mem_root)
+    view->persistent_used_items.push_front(item, thd->mem_root);
   DBUG_RETURN(item);
 }
 
@@ -7085,6 +7092,7 @@ bool TABLE_LIST::handle_derived(LEX *lex, uint phases)
 {
   SELECT_LEX_UNIT *unit;
   DBUG_ENTER("handle_derived");
+  DBUG_PRINT("enter", ("phases: 0x%x", phases));
   if ((unit= get_unit()))
   {
     for (SELECT_LEX *sl= unit->first_select(); sl; sl= sl->next_select())

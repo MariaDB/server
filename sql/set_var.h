@@ -62,7 +62,7 @@ public:
   LEX_CSTRING name;
   enum flag_enum { GLOBAL, SESSION, ONLY_SESSION, SCOPE_MASK=1023,
                    READONLY=1024, ALLOCATED=2048, PARSE_EARLY=4096,
-                   NO_SET_STATEMENT=8192};
+                   NO_SET_STATEMENT=8192, AUTO_SET=16384};
   enum { NO_GETOPT=-1, GETOPT_ONLY_HELP=-2 };
   enum where { CONFIG, AUTO, SQL, COMPILE_TIME, ENV };
 
@@ -389,10 +389,17 @@ int sql_set_variables(THD *thd, List<set_var_base> *var_list, bool free);
 #define SYSVAR_AUTOSIZE(VAR,VAL)                        \
   do {                                                  \
     VAR= (VAL);                                         \
-    mark_sys_var_value_origin(&VAR, sys_var::AUTO);     \
+    set_sys_var_value_origin(&VAR, sys_var::AUTO);      \
   } while(0)
 
-void mark_sys_var_value_origin(void *ptr, enum sys_var::where here);
+void set_sys_var_value_origin(void *ptr, enum sys_var::where here);
+
+enum sys_var::where get_sys_var_value_origin(void *ptr);
+inline bool IS_SYSVAR_AUTOSIZE(void *ptr)
+{
+  enum sys_var::where res= get_sys_var_value_origin(ptr);
+  return (res == sys_var::AUTO || res == sys_var::COMPILE_TIME);
+}
 
 bool fix_delay_key_write(sys_var *self, THD *thd, enum_var_type type);
 

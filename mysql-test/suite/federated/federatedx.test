@@ -1633,6 +1633,7 @@ drop table t1;
 #
 
 connection slave;
+set sql_mode="";
 --disable_warnings
 DROP TABLE IF EXISTS federated.test;
 CREATE TABLE federated.test (
@@ -1643,6 +1644,7 @@ CREATE TABLE federated.test (
   UNIQUE KEY `i` (`i`,`c`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1;
 --enable_warnings
+set sql_mode=default;
 
 connection master;
 --disable_warnings

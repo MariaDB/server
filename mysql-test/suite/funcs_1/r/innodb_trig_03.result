@@ -1,3 +1,4 @@
+set sql_mode="";
 USE test;
 drop table if exists tb3;
 create table tb3 (

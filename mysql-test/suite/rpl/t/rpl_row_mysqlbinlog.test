@@ -21,6 +21,7 @@
 
 --disable_query_log
 select "---Setup Section  --" as "";
+set sql_mode="";
 --enable_query_log
 
 set timestamp=1000000000;

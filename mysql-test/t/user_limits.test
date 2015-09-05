@@ -26,6 +26,7 @@ flush privileges;
 --disable_ps_protocol
 
 # Test of MAX_QUERIES_PER_HOUR limit
+create user mysqltest_1@localhost;
 grant usage on *.* to mysqltest_1@localhost with max_queries_per_hour 2;
 # This ensures that counters are reset and makes test scheduling independent
 flush user_resources;
@@ -46,6 +47,7 @@ disconnect mqph;
 disconnect mqph2;
 
 # Test of MAX_UPDATES_PER_HOUR limit
+create user mysqltest_1@localhost;
 grant usage on *.* to mysqltest_1@localhost with max_updates_per_hour 2;
 flush user_resources;
 connect (muph, localhost, mysqltest_1,,);
@@ -70,6 +72,7 @@ disconnect muph;
 disconnect muph2;
 
 # Test of MAX_CONNECTIONS_PER_HOUR limit
+create user mysqltest_1@localhost;
 grant usage on *.* to mysqltest_1@localhost with max_connections_per_hour 2;
 flush user_resources;
 connect (mcph1, localhost, mysqltest_1,,);
@@ -97,6 +100,7 @@ drop user mysqltest_1@localhost;
 # Test of MAX_USER_CONNECTIONS limit
 # We need this to reset internal mqh_used variable
 flush privileges;
+create user mysqltest_1@localhost;
 grant usage on *.* to mysqltest_1@localhost with max_user_connections 2;
 flush user_resources;
 connect (muc1, localhost, mysqltest_1,,);
@@ -150,6 +154,7 @@ set session max_user_connections= 2;
 set global max_user_connections= 2;
 select @@session.max_user_connections, @@global.max_user_connections;
 # Let us check that global limit works
+create user mysqltest_1@localhost;
 grant usage on *.* to mysqltest_1@localhost;
 flush user_resources;
 connect (muca1, localhost, mysqltest_1,,);

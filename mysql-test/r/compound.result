@@ -155,7 +155,7 @@ drop function fn|
 drop table t1|
 begin not atomic select @@sql_mode; end|
 @@sql_mode
-
+NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION
 create table t1 (a int)|
 select a from t1 having a > 1|
 a

@@ -682,20 +682,14 @@ SET optimizer_switch=@save_optimizer_switch;
 #  (just a testcase)
 CREATE TABLE t1 (
 PostID int(10) unsigned NOT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8;
-Warnings:
-Warning	1286	Unknown storage engine 'InnoDB'
-Warning	1266	Using storage engine MyISAM for table 't1'
+) DEFAULT CHARSET=utf8;
 INSERT INTO t1 (PostID) VALUES (1), (2);
 CREATE TABLE t2 (
 VoteID int(10) unsigned NOT NULL PRIMARY KEY AUTO_INCREMENT,
 EntityID int(10) unsigned NOT NULL,
 UserID int(10) unsigned NOT NULL,
 UNIQUE KEY EntityID (EntityID,UserID)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8;
-Warnings:
-Warning	1286	Unknown storage engine 'InnoDB'
-Warning	1266	Using storage engine MyISAM for table 't2'
+) DEFAULT CHARSET=utf8;
 INSERT INTO t2 (EntityID, UserID) VALUES (1,  30), (2, 30);
 SELECT t1.*, T.Voted as Voted
 FROM 

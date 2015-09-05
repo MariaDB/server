@@ -1,3 +1,4 @@
+set sql_mode="";
 
 --source suite/funcs_1/storedproc/load_sp_tb.inc
 --------------------------------------------------------------------------------

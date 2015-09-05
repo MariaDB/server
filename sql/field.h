@@ -1012,6 +1012,21 @@ public:
     return (double) 0.5; 
   }
 
+  /*
+    Check if comparison between the field and an item unambiguously
+    identifies a distinct field value.
+
+    Example1: SELECT * FROM t1 WHERE int_column=10;
+              This example returns distinct integer value of 10.
+
+    Example2: SELECT * FROM t1 WHERE varchar_column=DATE'2001-01-01'
+              This example returns non-distinct values.
+              Comparison as DATE will return '2001-01-01' and '2001-01-01x',
+              but these two values are not equal to each other as VARCHARs.
+    See also the function with the same name in sql_select.cc.
+  */
+  virtual bool test_if_equality_guarantees_uniqueness(const Item *const_item)
+                                                      const;
   virtual bool can_optimize_keypart_ref(const Item_bool_func *cond,
                                         const Item *item) const;
   virtual bool can_optimize_hash_join(const Item_bool_func *cond,
@@ -1187,6 +1202,7 @@ public:
   {
     return pos_in_interval_val_str(min, max, length_size());
   }
+  bool test_if_equality_guarantees_uniqueness(const Item *const_item) const;
 };
 
 /* base class for Field_string, Field_varstring and Field_blob */
@@ -1211,6 +1227,9 @@ protected:
                                          const Item *item) const;
   bool cmp_to_string_with_stricter_collation(const Item_bool_func *cond,
                                              const Item *item) const;
+  my_decimal *val_decimal_from_str(const char *str, uint length,
+                                   CHARSET_INFO *cs,
+                                   my_decimal *decimal_value);
 public:
   Field_longstr(uchar *ptr_arg, uint32 len_arg, uchar *null_ptr_arg,
                 uchar null_bit_arg, utype unireg_check_arg,
@@ -1334,7 +1353,7 @@ public:
                              uint16 mflags, int *order_var);
   uint is_equal(Create_field *new_field);
   virtual const uchar *unpack(uchar* to, const uchar *from, const uchar *from_end, uint param_data);
-  static Field *create_from_item (Item *);
+  static Field *create_from_item(MEM_ROOT *root, Item *);
 };
 
 
@@ -2313,45 +2332,50 @@ public:
 
 
 static inline Field_timestamp *
-new_Field_timestamp(uchar *ptr, uchar *null_ptr, uchar null_bit,
+new_Field_timestamp(MEM_ROOT *root,uchar *ptr, uchar *null_ptr, uchar null_bit,
                     enum Field::utype unireg_check, const char *field_name,
                     TABLE_SHARE *share, uint dec)
 {
   if (dec==0)
-    return new Field_timestamp(ptr, MAX_DATETIME_WIDTH, null_ptr, null_bit,
-                                unireg_check, field_name, share);
+    return new (root)
+      Field_timestamp(ptr, MAX_DATETIME_WIDTH, null_ptr,
+                      null_bit, unireg_check, field_name, share);
   if (dec == NOT_FIXED_DEC)
     dec= MAX_DATETIME_PRECISION;
-  return new Field_timestamp_hires(ptr, null_ptr, null_bit, unireg_check,
-                                   field_name, share, dec);
+  return new (root)
+    Field_timestamp_hires(ptr, null_ptr, null_bit, unireg_check,
+                          field_name, share, dec);
 }
 
 static inline Field_time *
-new_Field_time(uchar *ptr, uchar *null_ptr, uchar null_bit,
+new_Field_time(MEM_ROOT *root, uchar *ptr, uchar *null_ptr, uchar null_bit,
                enum Field::utype unireg_check, const char *field_name,
                uint dec)
 {
   if (dec == 0)
-    return new Field_time(ptr, MIN_TIME_WIDTH, null_ptr, null_bit,
-                          unireg_check, field_name);
+    return new (root)
+      Field_time(ptr, MIN_TIME_WIDTH, null_ptr, null_bit, unireg_check,
+                 field_name);
   if (dec == NOT_FIXED_DEC)
     dec= MAX_DATETIME_PRECISION;
-  return new Field_time_hires(ptr, null_ptr, null_bit,
-                                  unireg_check, field_name, dec);
+  return new (root)
+    Field_time_hires(ptr, null_ptr, null_bit, unireg_check, field_name, dec);
 }
 
 static inline Field_datetime *
-new_Field_datetime(uchar *ptr, uchar *null_ptr, uchar null_bit,
+new_Field_datetime(MEM_ROOT *root, uchar *ptr, uchar *null_ptr, uchar null_bit,
                    enum Field::utype unireg_check,
                    const char *field_name, uint dec)
 {
   if (dec == 0)
-    return new Field_datetime(ptr, MAX_DATETIME_WIDTH, null_ptr, null_bit,
-                              unireg_check, field_name);
+    return new (root)
+      Field_datetime(ptr, MAX_DATETIME_WIDTH, null_ptr, null_bit,
+                     unireg_check, field_name);
   if (dec == NOT_FIXED_DEC)
     dec= MAX_DATETIME_PRECISION;
-  return new Field_datetime_hires(ptr, null_ptr, null_bit,
-                                  unireg_check, field_name, dec);
+  return new (root)
+    Field_datetime_hires(ptr, null_ptr, null_bit,
+                         unireg_check, field_name, dec);
 }
 
 class Field_string :public Field_longstr {
@@ -3162,7 +3186,8 @@ public:
 };
 
 
-Field *make_field(TABLE_SHARE *share, uchar *ptr, uint32 field_length,
+Field *make_field(TABLE_SHARE *share, MEM_ROOT *mem_root,
+                  uchar *ptr, uint32 field_length,
 		  uchar *null_pos, uchar null_bit,
 		  uint pack_flag, enum_field_types field_type,
 		  CHARSET_INFO *cs,

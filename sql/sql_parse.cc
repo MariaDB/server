@@ -51,7 +51,7 @@
 #include "sql_connect.h"      // decrease_user_connections,
                               // check_mqh,
                               // reset_mqh
-#include "sql_rename.h"       // mysql_rename_table
+#include "sql_rename.h"       // mysql_rename_tables
 #include "sql_tablespace.h"   // mysql_alter_tablespace
 #include "hostname.h"         // hostname_cache_refresh
 #include "sql_acl.h"          // *_ACL, check_grant, is_acl_user,
@@ -133,7 +133,7 @@ static void sql_kill(THD *thd, longlong id, killed_state state, killed_type type
 static void sql_kill_user(THD *thd, LEX_USER *user, killed_state state);
 static bool lock_tables_precheck(THD *thd, TABLE_LIST *tables);
 static bool execute_show_status(THD *, TABLE_LIST *);
-static bool execute_rename_table(THD *, TABLE_LIST *, TABLE_LIST *);
+static bool check_rename_table(THD *, TABLE_LIST *, TABLE_LIST *);
 
 const char *any_db="*any*";	// Special symbol for check_access
 
@@ -2754,7 +2754,7 @@ mysql_execute_command(THD *thd)
         }
       }
       DBUG_ASSERT(o);
-      lex->old_var_list.push_back(o);
+      lex->old_var_list.push_back(o, thd->mem_root);
     }
     lex->reset_arena_for_set_stmt(&backup);
     if (lex->old_var_list.is_empty())
@@ -3273,7 +3273,7 @@ mysql_execute_command(THD *thd)
 #ifdef WITH_PARTITION_STORAGE_ENGINE
     {
       partition_info *part_info= thd->lex->part_info;
-      if (part_info && !(part_info= thd->lex->part_info->get_clone()))
+      if (part_info && !(part_info= thd->lex->part_info->get_clone(thd)))
       {
         res= -1;
         goto end_with_restore_list;
@@ -3589,8 +3589,12 @@ end_with_restore_list:
 #endif /* HAVE_REPLICATION */
   case SQLCOM_RENAME_TABLE:
   {
+    if (check_rename_table(thd, first_table, all_tables))
+      goto error;
+
     WSREP_TO_ISOLATION_BEGIN(0, 0, first_table)
-    if (execute_rename_table(thd, first_table, all_tables))
+
+    if (mysql_rename_tables(thd, first_table, 0))
       goto error;
     break;
   }
@@ -5880,8 +5884,8 @@ static bool execute_show_status(THD *thd, TABLE_LIST *all_tables)
 }
 
 
-static bool execute_rename_table(THD *thd, TABLE_LIST *first_table,
-                                 TABLE_LIST *all_tables)
+static bool check_rename_table(THD *thd, TABLE_LIST *first_table,
+                               TABLE_LIST *all_tables)
 {
   DBUG_ASSERT(first_table == all_tables && first_table != 0);
   TABLE_LIST *table;
@@ -5911,7 +5915,7 @@ static bool execute_rename_table(THD *thd, TABLE_LIST *first_table,
       return 1;
   }
 
-  return mysql_rename_tables(thd, first_table, 0);
+  return 0;
 }
 
 
@@ -6848,6 +6852,8 @@ void THD::reset_for_next_command()
   thd->reset_current_stmt_binlog_format_row();
   thd->binlog_unsafe_warning_flags= 0;
 
+  thd->save_prep_leaf_list= false;
+
   DBUG_PRINT("debug",
              ("is_current_stmt_binlog_format_row(): %d",
               thd->is_current_stmt_binlog_format_row()));
@@ -7220,7 +7226,7 @@ void mysql_parse(THD *thd, char *rawbuf, uint length,
       DBUG_PRINT("info",("Command aborted. Fatal_error: %d",
 			 thd->is_fatal_error));
 
-      query_cache_abort(&thd->query_cache_tls);
+      query_cache_abort(thd, &thd->query_cache_tls);
     }
     THD_STAGE_INFO(thd, stage_freeing_items);
     sp_cache_enforce_limit(thd->sp_proc_cache, stored_program_cache_size);
@@ -7551,7 +7557,7 @@ bool st_select_lex::init_nested_join(THD *thd)
   nested_join= ptr->nested_join=
     ((NESTED_JOIN*) ((uchar*) ptr + ALIGN_SIZE(sizeof(TABLE_LIST))));
 
-  join_list->push_front(ptr);
+  join_list->push_front(ptr, thd->mem_root);
   ptr->embedding= embedding;
   ptr->join_list= join_list;
   ptr->alias= (char*) "(nested_join)";
@@ -7593,7 +7599,7 @@ TABLE_LIST *st_select_lex::end_nested_join(THD *thd)
     join_list->pop();
     embedded->join_list= join_list;
     embedded->embedding= embedding;
-    join_list->push_front(embedded);
+    join_list->push_front(embedded, thd->mem_root);
     ptr= embedded;
     embedded->lifted= 1;
   }
@@ -7657,7 +7663,7 @@ TABLE_LIST *st_select_lex::nest_last_join(THD *thd)
         ptr->join_using_fields= prev_join_using;
     }
   }
-  join_list->push_front(ptr);
+  join_list->push_front(ptr, thd->mem_root);
   nested_join->used_tables= nested_join->not_null_tables= (table_map) 0;
   DBUG_RETURN(ptr);
 }
@@ -7724,8 +7730,8 @@ TABLE_LIST *st_select_lex::convert_right_join()
   TABLE_LIST *tab1= join_list->pop();
   DBUG_ENTER("convert_right_join");
 
-  join_list->push_front(tab2);
-  join_list->push_front(tab1);
+  join_list->push_front(tab2, parent_lex->thd->mem_root);
+  join_list->push_front(tab1, parent_lex->thd->mem_root);
   tab1->outer_join|= JOIN_TYPE_RIGHT;
 
   DBUG_RETURN(tab1);
@@ -8327,6 +8333,8 @@ bool multi_update_precheck(THD *thd, TABLE_LIST *tables)
   */
   for (table= tables; table; table= table->next_local)
   {
+    if (table->is_jtbm())
+      continue;
     if (table->derived)
       table->grant.privilege= SELECT_ACL;
     else if ((check_access(thd, UPDATE_ACL, table->db,

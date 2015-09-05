@@ -3,6 +3,7 @@
 Copyright (c) 1994, 2014, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, Google Inc.
 Copyright (c) 2012, Facebook Inc.
+Copyright (c) 2015, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -386,7 +387,7 @@ search tuple should be performed in the B-tree. InnoDB does an insert
 immediately after the cursor. Thus, the cursor may end up on a user record,
 or on a page infimum record. */
 UNIV_INTERN
-void
+dberr_t
 btr_cur_search_to_nth_level(
 /*========================*/
 	dict_index_t*	index,	/*!< in: index */
@@ -436,6 +437,7 @@ btr_cur_search_to_nth_level(
 	page_cur_t*	page_cursor;
 	btr_op_t	btr_op;
 	ulint		root_height = 0; /* remove warning */
+	dberr_t		err = DB_SUCCESS;
 
 #ifdef BTR_CUR_ADAPT
 	btr_search_t*	info;
@@ -553,7 +555,7 @@ btr_cur_search_to_nth_level(
 		      || mode != PAGE_CUR_LE);
 		btr_cur_n_sea++;
 
-		return;
+		return err;
 	}
 # endif /* BTR_CUR_HASH_ADAPT */
 #endif /* BTR_CUR_ADAPT */
@@ -649,7 +651,21 @@ search_loop:
 retry_page_get:
 	block = buf_page_get_gen(
 		space, zip_size, page_no, rw_latch, guess, buf_mode,
-		file, line, mtr);
+		file, line, mtr, &err);
+
+	if (err != DB_SUCCESS) {
+		if (err == DB_ENCRYPTED_DECRYPT_FAILED) {
+			ib_push_warning((void *)NULL,
+				DB_ENCRYPTED_DECRYPT_FAILED,
+				"Table %s is encrypted but encryption service or"
+				" used key_id is not available. "
+				" Can't continue reading table.",
+				index->table->name);
+			index->table->is_encrypted = true;
+		}
+
+		goto func_exit;
+	}
 
 	if (block == NULL) {
 		SRV_CORRUPT_TABLE_CHECK(buf_mode == BUF_GET_IF_IN_POOL ||
@@ -889,12 +905,14 @@ func_exit:
 
 		rw_lock_s_lock(btr_search_get_latch(cursor->index));
 	}
+
+	return err;
 }
 
 /*****************************************************************//**
 Opens a cursor at either end of an index. */
 UNIV_INTERN
-void
+dberr_t
 btr_cur_open_at_index_side_func(
 /*============================*/
 	bool		from_left,	/*!< in: true if open to the low end,
@@ -920,6 +938,8 @@ btr_cur_open_at_index_side_func(
 	mem_heap_t*	heap		= NULL;
 	ulint		offsets_[REC_OFFS_NORMAL_SIZE];
 	ulint*		offsets		= offsets_;
+	dberr_t		err = DB_SUCCESS;
+	
 	rec_offs_init(offsets_);
 
 	estimate = latch_mode & BTR_ESTIMATE;
@@ -957,11 +977,26 @@ btr_cur_open_at_index_side_func(
 	height = ULINT_UNDEFINED;
 
 	for (;;) {
-		buf_block_t*	block;
-		page_t*		page;
+		buf_block_t*	block=NULL;
+		page_t*		page=NULL;
+
 		block = buf_page_get_gen(space, zip_size, page_no,
 					 RW_NO_LATCH, NULL, BUF_GET,
-					 file, line, mtr);
+					 file, line, mtr, &err);
+		if (err != DB_SUCCESS) {
+			if (err == DB_ENCRYPTED_DECRYPT_FAILED) {
+				ib_push_warning((void *)NULL,
+					DB_ENCRYPTED_DECRYPT_FAILED,
+					"Table %s is encrypted but encryption service or"
+					" used key_id is not available. "
+					" Can't continue reading table.",
+					index->table->name);
+				index->table->is_encrypted = true;
+			}
+
+			goto exit_loop;
+		}
+
 		page = buf_block_get_frame(block);
 
 		SRV_CORRUPT_TABLE_CHECK(page,
@@ -1066,6 +1101,8 @@ exit_loop:
 	if (UNIV_LIKELY_NULL(heap)) {
 		mem_heap_free(heap);
 	}
+
+	return err;
 }
 
 /**********************************************************************//**
@@ -1113,10 +1150,25 @@ btr_cur_open_at_rnd_pos_func(
 	for (;;) {
 		buf_block_t*	block;
 		page_t*		page;
+		dberr_t		err=DB_SUCCESS;
 
 		block = buf_page_get_gen(space, zip_size, page_no,
 					 RW_NO_LATCH, NULL, BUF_GET,
-					 file, line, mtr);
+					 file, line, mtr, &err);
+
+		if (err != DB_SUCCESS) {
+			if (err == DB_ENCRYPTED_DECRYPT_FAILED) {
+				ib_push_warning((void *)NULL,
+					DB_ENCRYPTED_DECRYPT_FAILED,
+					"Table %s is encrypted but encryption service or"
+					" used key_id is not available. "
+					" Can't continue reading table.",
+					index->table->name);
+				index->table->is_encrypted = true;
+			}
+			goto exit_loop;
+		}
+
 		page = buf_block_get_frame(block);
 
 		SRV_CORRUPT_TABLE_CHECK(page,
@@ -3749,6 +3801,7 @@ btr_estimate_n_rows_in_range_on_level(
 		mtr_t		mtr;
 		page_t*		page;
 		buf_block_t*	block;
+		dberr_t		err=DB_SUCCESS;
 
 		mtr_start(&mtr);
 
@@ -3759,7 +3812,23 @@ btr_estimate_n_rows_in_range_on_level(
 		silence a debug assertion about this. */
 		block = buf_page_get_gen(space, zip_size, page_no, RW_S_LATCH,
 					 NULL, BUF_GET_POSSIBLY_FREED,
-					 __FILE__, __LINE__, &mtr);
+					 __FILE__, __LINE__, &mtr, &err);
+
+		if (err != DB_SUCCESS) {
+			if (err == DB_ENCRYPTED_DECRYPT_FAILED) {
+				ib_push_warning((void *)NULL,
+					DB_ENCRYPTED_DECRYPT_FAILED,
+					"Table %s is encrypted but encryption service or"
+					" used key_id is not available. "
+					" Can't continue reading table.",
+					index->table->name);
+				index->table->is_encrypted = true;
+			}
+
+			mtr_commit(&mtr);
+			goto inexact;
+		}
+
 
 		page = buf_block_get_frame(block);
 

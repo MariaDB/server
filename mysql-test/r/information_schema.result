@@ -1,3 +1,5 @@
+set global sql_mode="";
+set local sql_mode="";
 DROP TABLE IF EXISTS t0,t1,t2,t3,t4,t5;
 DROP VIEW IF EXISTS v1;
 show variables where variable_name like "skip_show_database";
@@ -2066,3 +2068,4 @@ Variable_name	Value
 Opened_tables	3
 drop database mysqltest;
 drop database db1;
+set global sql_mode=default;

@@ -10,6 +10,8 @@
 -- source include/not_embedded.inc
 -- source include/have_debug_sync.inc
 -- source include/not_threadpool.inc
+set local sql_mode="";
+set global sql_mode="";
 
 --disable_warnings
 SET DEBUG_SYNC = 'RESET';
@@ -675,3 +677,5 @@ DROP USER u1@localhost;
 
 SET DEBUG_SYNC = 'RESET';
 DROP FUNCTION MY_KILL;
+
+set global sql_mode=default;

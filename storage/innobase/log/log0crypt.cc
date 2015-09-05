@@ -131,15 +131,16 @@ log_blocks_crypt(
 	const byte* block,	/*!< in: blocks before encrypt/decrypt*/
 	ulint size,		/*!< in: size of block */
 	byte* dst_block,	/*!< out: blocks after encrypt/decrypt */
-	bool is_encrypt)	/*!< in: encrypt or decrypt*/
+	int what)		/*!< in: encrypt or decrypt*/
 {
 	byte *log_block = (byte*)block;
 	Crypt_result rc = MY_AES_OK;
 	uint dst_len;
 	byte aes_ctr_counter[MY_AES_BLOCK_SIZE];
+	byte is_encrypt= what == ENCRYPTION_FLAG_ENCRYPT;
 	lsn_t lsn = is_encrypt ? log_sys->lsn : srv_start_lsn;
 
-	const int src_len = OS_FILE_LOG_BLOCK_SIZE - LOG_BLOCK_HDR_SIZE;
+	const uint src_len = OS_FILE_LOG_BLOCK_SIZE - LOG_BLOCK_HDR_SIZE;
 	for (ulint i = 0; i < size ; i += OS_FILE_LOG_BLOCK_SIZE) {
 		ulint log_block_no = log_block_get_hdr_no(log_block);
 		lsn_t log_block_start_lsn = log_block_get_start_lsn(
@@ -174,21 +175,13 @@ log_blocks_crypt(
 		bzero(aes_ctr_counter + 15, 1);
 
 		int rc;
-		if (is_encrypt) {
-			rc = encryption_encrypt(log_block + LOG_BLOCK_HDR_SIZE, src_len,
-						dst_block + LOG_BLOCK_HDR_SIZE, &dst_len,
-						(unsigned char*)(info->crypt_key), 16,
-						aes_ctr_counter, MY_AES_BLOCK_SIZE, 1,
-						LOG_DEFAULT_ENCRYPTION_KEY,
-						info->key_version);
-		} else {
-			rc = encryption_decrypt(log_block + LOG_BLOCK_HDR_SIZE, src_len,
-						dst_block + LOG_BLOCK_HDR_SIZE, &dst_len,
-						(unsigned char*)(info->crypt_key), 16,
-						aes_ctr_counter, MY_AES_BLOCK_SIZE, 1,
-						LOG_DEFAULT_ENCRYPTION_KEY,
-						info->key_version);
-		}
+		rc = encryption_crypt(log_block + LOG_BLOCK_HDR_SIZE, src_len,
+					dst_block + LOG_BLOCK_HDR_SIZE, &dst_len,
+					(unsigned char*)(info->crypt_key), 16,
+					aes_ctr_counter, MY_AES_BLOCK_SIZE,
+					what | ENCRYPTION_FLAG_NOPAD,
+					LOG_DEFAULT_ENCRYPTION_KEY,
+					info->key_version);
 
 		ut_a(rc == MY_AES_OK);
 		ut_a(dst_len == src_len);
@@ -230,10 +223,11 @@ init_crypt_key(
 	}
 
 	uint dst_len;
-	int rc= my_aes_encrypt_ecb(info->crypt_msg, sizeof(info->crypt_msg), //src, srclen
-                        info->crypt_key, &dst_len, //dst, &dstlen
-                        (unsigned char*)&mysqld_key, sizeof(mysqld_key),
-                        NULL, 0, 1);
+	int rc= my_aes_crypt(MY_AES_ECB, ENCRYPTION_FLAG_NOPAD|ENCRYPTION_FLAG_ENCRYPT,
+                             info->crypt_msg, sizeof(info->crypt_msg), //src, srclen
+                             info->crypt_key, &dst_len, //dst, &dstlen
+                             (unsigned char*)&mysqld_key, sizeof(mysqld_key),
+                             NULL, 0);
 
 	if (rc != MY_AES_OK || dst_len != MY_AES_BLOCK_SIZE) {
 		fprintf(stderr,
@@ -296,7 +290,7 @@ log_blocks_encrypt(
 	const ulint size,		/*!< in: size of blocks, must be multiple of a log block */
 	byte* dst_block)		/*!< out: blocks after encryption */
 {
-	return log_blocks_crypt(block, size, dst_block, true);
+	return log_blocks_crypt(block, size, dst_block, ENCRYPTION_FLAG_ENCRYPT);
 }
 
 /*********************************************************************//**
@@ -366,7 +360,7 @@ log_encrypt_before_write(
 	byte* dst_frame = (byte*)malloc(size);
 
 	//encrypt log blocks content
-	Crypt_result result = log_blocks_crypt(block, size, dst_frame, true);
+	Crypt_result result = log_blocks_crypt(block, size, dst_frame, ENCRYPTION_FLAG_ENCRYPT);
 
 	if (result == MY_AES_OK) {
 		ut_ad(block[0] == dst_frame[0]);
@@ -392,7 +386,7 @@ log_decrypt_after_read(
 	byte* dst_frame = (byte*)malloc(size);
 
 	// decrypt log blocks content
-	Crypt_result result = log_blocks_crypt(frame, size, dst_frame, false);
+	Crypt_result result = log_blocks_crypt(frame, size, dst_frame, ENCRYPTION_FLAG_DECRYPT);
 
 	if (result == MY_AES_OK) {
 		memcpy(frame, dst_frame, size);

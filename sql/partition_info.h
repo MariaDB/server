@@ -292,7 +292,7 @@ public:
   }
   ~partition_info() {}
 
-  partition_info *get_clone();
+  partition_info *get_clone(THD *thd);
   bool set_named_partition_bitmap(const char *part_name, uint length);
   bool set_partition_bitmaps(TABLE_LIST *table_list);
   /* Answers the question if subpartitioning is used for a certain table */
@@ -328,16 +328,16 @@ public:
                                   part_elem_value *val,
                                   uint part_id);
   bool fix_parser_data(THD *thd);
-  int add_max_value();
+  int add_max_value(THD *thd);
   void init_col_val(part_column_list_val *col_val, Item *item);
-  int reorganize_into_single_field_col_val();
-  part_column_list_val *add_column_value();
+  int reorganize_into_single_field_col_val(THD *thd);
+  part_column_list_val *add_column_value(THD *thd);
   bool set_part_expr(char *start_token, Item *item_ptr,
                      char *end_token, bool is_subpart);
   static int compare_column_values(const void *a, const void *b);
-  bool set_up_charset_field_preps();
+  bool set_up_charset_field_preps(THD *thd);
   bool check_partition_field_length();
-  bool init_column_part();
+  bool init_column_part(THD *thd);
   bool add_column_list_value(THD *thd, Item *item);
   void set_show_version_string(String *packet);
   partition_element *get_part_elem(const char *partition_name,

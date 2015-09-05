@@ -35,7 +35,7 @@ SELECT COUNT(@@GLOBAL.Host_Cache_Size);
 --echo 1 Expected
 
 #set @Default_host_cache_size=(select if(if(@@global.max_connections<500,128+@@global.max_connections,128+@@global.max_connections+floor((@@global.max_connections-500)/20))>2000,2000,if(@@global.max_connections<500,128+@@global.max_connections,128+@@global.max_connections+floor((@@global.max_connections-500)/20))));
-set @Default_host_cache_size=128;
+set @Default_host_cache_size=279;
 
 select @@global.Host_Cache_Size=@Default_host_cache_size;
 --echo 1 Expected

@@ -9,6 +9,7 @@ grant role1 to current_user;
 create role role2;
 grant insert,select on mysqltest1.t1 to role2;
 grant event,execute,trigger on mysqltest1.* to role2;
+create user foo@localhost;
 grant create view on mysqltest1.* to foo@localhost;
 create role role4;
 grant select on mysqltest1.t1 to role4;
@@ -78,6 +79,7 @@ Warnings:
 Note	1449	The user specified as a definer ('role4'@'') does not exist
 select * from test.v5;
 ERROR HY000: The user specified as a definer ('role4'@'') does not exist
+create user role4;
 grant select on mysqltest1.t1 to role4;
 show create view test.v5;
 View	Create View	character_set_client	collation_connection
@@ -104,7 +106,7 @@ create definer=current_role trigger tr1 before insert on t2 for each row
 insert t1 values (111, 222, 333);
 show create trigger tr1;
 Trigger	sql_mode	SQL Original Statement	character_set_client	collation_connection	Database Collation
-tr1		CREATE DEFINER=`role1` trigger tr1 before insert on t2 for each row
+tr1	NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`role1` trigger tr1 before insert on t2 for each row
 insert t1 values (111, 222, 333)	latin1	latin1_swedish_ci	latin1_swedish_ci
 set role none;
 insert t2 values (11,22,33);
@@ -121,7 +123,7 @@ create definer=role2 trigger tr2 before delete on t2 for each row
 insert t1 values (111, 222, 333);
 show create trigger tr2;
 Trigger	sql_mode	SQL Original Statement	character_set_client	collation_connection	Database Collation
-tr2		CREATE DEFINER=`role2` trigger tr2 before delete on t2 for each row
+tr2	NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`role2` trigger tr2 before delete on t2 for each row
 insert t1 values (111, 222, 333)	latin1	latin1_swedish_ci	latin1_swedish_ci
 delete from t2 where a=1;
 select * from t1;
@@ -139,7 +141,7 @@ Warnings:
 Note	1449	The user specified as a definer ('role3'@'%') does not exist
 show create trigger tr3;
 Trigger	sql_mode	SQL Original Statement	character_set_client	collation_connection	Database Collation
-tr3		CREATE DEFINER=`role3`@`%` trigger tr3 before update on t2 for each row
+tr3	NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`role3`@`%` trigger tr3 before update on t2 for each row
 insert t1 values (111, 222, 333)	latin1	latin1_swedish_ci	latin1_swedish_ci
 update t2 set b=2 where a=2;
 ERROR HY000: The user specified as a definer ('role3'@'%') does not exist
@@ -153,7 +155,7 @@ a	b	c
 flush tables;
 show create trigger tr2;
 Trigger	sql_mode	SQL Original Statement	character_set_client	collation_connection	Database Collation
-tr2		CREATE DEFINER=`role2`@`` trigger tr2 before delete on t2 for each row
+tr2	NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`role2`@`` trigger tr2 before delete on t2 for each row
 insert t1 values (111, 222, 333)	latin1	latin1_swedish_ci	latin1_swedish_ci
 delete from t2 where a=2;
 ERROR HY000: The user specified as a definer ('role2'@'%') does not exist
@@ -170,7 +172,7 @@ set role role1;
 create definer=current_role procedure pr1() insert t1 values (111, 222, 333);
 show create procedure pr1;
 Procedure	sql_mode	Create Procedure	character_set_client	collation_connection	Database Collation
-pr1		CREATE DEFINER=`role1` PROCEDURE `pr1`()
+pr1	NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`role1` PROCEDURE `pr1`()
 insert t1 values (111, 222, 333)	latin1	latin1_swedish_ci	latin1_swedish_ci
 set role none;
 call pr1();
@@ -182,7 +184,7 @@ a	b	c
 create definer=role2 procedure pr2() insert t1 values (111, 222, 333);
 show create procedure pr2;
 Procedure	sql_mode	Create Procedure	character_set_client	collation_connection	Database Collation
-pr2		CREATE DEFINER=`role2` PROCEDURE `pr2`()
+pr2	NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`role2` PROCEDURE `pr2`()
 insert t1 values (111, 222, 333)	latin1	latin1_swedish_ci	latin1_swedish_ci
 call pr2();
 select * from t1;
@@ -196,7 +198,7 @@ Warnings:
 Note	1449	The user specified as a definer ('role3'@'%') does not exist
 show create procedure pr3;
 Procedure	sql_mode	Create Procedure	character_set_client	collation_connection	Database Collation
-pr3		CREATE DEFINER=`role3`@`%` PROCEDURE `pr3`()
+pr3	NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`role3`@`%` PROCEDURE `pr3`()
 insert t1 values (111, 222, 333)	latin1	latin1_swedish_ci	latin1_swedish_ci
 call pr3();
 ERROR HY000: The user specified as a definer ('role3'@'%') does not exist
@@ -213,7 +215,7 @@ set role role1;
 create definer=current_role function fn1() returns int return (select sum(a+b) from t1);
 show create function fn1;
 Function	sql_mode	Create Function	character_set_client	collation_connection	Database Collation
-fn1		CREATE DEFINER=`role1` FUNCTION `fn1`() RETURNS int(11)
+fn1	NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`role1` FUNCTION `fn1`() RETURNS int(11)
 return (select sum(a+b) from t1)	latin1	latin1_swedish_ci	latin1_swedish_ci
 set role none;
 select fn1();
@@ -225,7 +227,7 @@ a	b	c
 create definer=role2 function fn2() returns int return (select sum(a+b) from t1);
 show create function fn2;
 Function	sql_mode	Create Function	character_set_client	collation_connection	Database Collation
-fn2		CREATE DEFINER=`role2` FUNCTION `fn2`() RETURNS int(11)
+fn2	NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`role2` FUNCTION `fn2`() RETURNS int(11)
 return (select sum(a+b) from t1)	latin1	latin1_swedish_ci	latin1_swedish_ci
 select fn2();
 fn2()
@@ -235,7 +237,7 @@ Warnings:
 Note	1449	The user specified as a definer ('role3'@'%') does not exist
 show create function fn3;
 Function	sql_mode	Create Function	character_set_client	collation_connection	Database Collation
-fn3		CREATE DEFINER=`role3`@`%` FUNCTION `fn3`() RETURNS int(11)
+fn3	NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`role3`@`%` FUNCTION `fn3`() RETURNS int(11)
 return (select sum(a+b) from t1)	latin1	latin1_swedish_ci	latin1_swedish_ci
 select fn3();
 ERROR HY000: The user specified as a definer ('role3'@'%') does not exist
@@ -248,7 +250,7 @@ create definer=current_role event e1 on schedule every 1 second starts '2000-01-
 insert t1 values (111, 2, 0);
 show create event e1;
 Event	sql_mode	time_zone	Create Event	character_set_client	collation_connection	Database Collation
-e1		SYSTEM	CREATE DEFINER=`role1` EVENT `e1` ON SCHEDULE EVERY 1 SECOND STARTS '2000-01-01 00:00:00' ON COMPLETION NOT PRESERVE ENABLE DO insert t1 values (111, 2, 0)	latin1	latin1_swedish_ci	latin1_swedish_ci
+e1	NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	SYSTEM	CREATE DEFINER=`role1` EVENT `e1` ON SCHEDULE EVERY 1 SECOND STARTS '2000-01-01 00:00:00' ON COMPLETION NOT PRESERVE ENABLE DO insert t1 values (111, 2, 0)	latin1	latin1_swedish_ci	latin1_swedish_ci
 set role none;
 create definer=role3 event e3 on schedule every 1 second starts '2000-01-01' do
 insert t1 values (111, 3, 0);
@@ -256,12 +258,12 @@ Warnings:
 Note	1449	The user specified as a definer ('role3'@'%') does not exist
 show create event e3;
 Event	sql_mode	time_zone	Create Event	character_set_client	collation_connection	Database Collation
-e3		SYSTEM	CREATE DEFINER=`role3`@`%` EVENT `e3` ON SCHEDULE EVERY 1 SECOND STARTS '2000-01-01 00:00:00' ON COMPLETION NOT PRESERVE ENABLE DO insert t1 values (111, 3, 0)	latin1	latin1_swedish_ci	latin1_swedish_ci
+e3	NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	SYSTEM	CREATE DEFINER=`role3`@`%` EVENT `e3` ON SCHEDULE EVERY 1 SECOND STARTS '2000-01-01 00:00:00' ON COMPLETION NOT PRESERVE ENABLE DO insert t1 values (111, 3, 0)	latin1	latin1_swedish_ci	latin1_swedish_ci
 create definer=role2 event e2 on schedule every 1 second starts '2000-01-01' do
 insert t1 values (111, 4, 0);
 show create event e2;
 Event	sql_mode	time_zone	Create Event	character_set_client	collation_connection	Database Collation
-e2		SYSTEM	CREATE DEFINER=`role2` EVENT `e2` ON SCHEDULE EVERY 1 SECOND STARTS '2000-01-01 00:00:00' ON COMPLETION NOT PRESERVE ENABLE DO insert t1 values (111, 4, 0)	latin1	latin1_swedish_ci	latin1_swedish_ci
+e2	NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	SYSTEM	CREATE DEFINER=`role2` EVENT `e2` ON SCHEDULE EVERY 1 SECOND STARTS '2000-01-01 00:00:00' ON COMPLETION NOT PRESERVE ENABLE DO insert t1 values (111, 4, 0)	latin1	latin1_swedish_ci	latin1_swedish_ci
 set global event_scheduler=off;
 select distinct * from t1;
 a	b	c
@@ -337,7 +339,7 @@ INSERT INTO `t2` VALUES (2,20,200);
 /*!50003 SET character_set_results = latin1 */ ;
 /*!50003 SET collation_connection  = latin1_swedish_ci */ ;
 /*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
-/*!50003 SET sql_mode              = '' */ ;
+/*!50003 SET sql_mode              = 'NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION' */ ;
 DELIMITER ;;
 /*!50003 CREATE*/ /*!50017 DEFINER=`role1`*/ /*!50003 trigger tr1 before insert on t2 for each row
 insert t1 values (111, 222, 333) */;;
@@ -353,7 +355,7 @@ DELIMITER ;
 /*!50003 SET character_set_results = latin1 */ ;
 /*!50003 SET collation_connection  = latin1_swedish_ci */ ;
 /*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
-/*!50003 SET sql_mode              = '' */ ;
+/*!50003 SET sql_mode              = 'NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION' */ ;
 DELIMITER ;;
 /*!50003 CREATE*/ /*!50017 DEFINER=`role3`@`%`*/ /*!50003 trigger tr3 before update on t2 for each row
 insert t1 values (111, 222, 333) */;;
@@ -369,7 +371,7 @@ DELIMITER ;
 /*!50003 SET character_set_results = latin1 */ ;
 /*!50003 SET collation_connection  = latin1_swedish_ci */ ;
 /*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
-/*!50003 SET sql_mode              = '' */ ;
+/*!50003 SET sql_mode              = 'NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION' */ ;
 DELIMITER ;;
 /*!50003 CREATE*/ /*!50017 DEFINER=`role2`@``*/ /*!50003 trigger tr2 before delete on t2 for each row
 insert t1 values (111, 222, 333) */;;
@@ -387,7 +389,7 @@ DELIMITER ;;
 /*!50003 SET character_set_results = latin1 */ ;;
 /*!50003 SET collation_connection  = latin1_swedish_ci */ ;;
 /*!50003 SET @saved_sql_mode       = @@sql_mode */ ;;
-/*!50003 SET sql_mode              = '' */ ;;
+/*!50003 SET sql_mode              = 'NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION' */ ;;
 /*!50003 SET @saved_time_zone      = @@time_zone */ ;;
 /*!50003 SET time_zone             = 'SYSTEM' */ ;;
 /*!50106 CREATE*/ /*!50117 DEFINER=`role1`*/ /*!50106 EVENT `e1` ON SCHEDULE EVERY 1 SECOND STARTS '2000-01-01 00:00:00' ON COMPLETION NOT PRESERVE ENABLE DO insert t1 values (111, 2, 0) */ ;;
@@ -404,7 +406,7 @@ DELIMITER ;;
 /*!50003 SET character_set_results = latin1 */ ;;
 /*!50003 SET collation_connection  = latin1_swedish_ci */ ;;
 /*!50003 SET @saved_sql_mode       = @@sql_mode */ ;;
-/*!50003 SET sql_mode              = '' */ ;;
+/*!50003 SET sql_mode              = 'NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION' */ ;;
 /*!50003 SET @saved_time_zone      = @@time_zone */ ;;
 /*!50003 SET time_zone             = 'SYSTEM' */ ;;
 /*!50106 CREATE*/ /*!50117 DEFINER=`role2`*/ /*!50106 EVENT `e2` ON SCHEDULE EVERY 1 SECOND STARTS '2000-01-01 00:00:00' ON COMPLETION NOT PRESERVE ENABLE DO insert t1 values (111, 4, 0) */ ;;
@@ -421,7 +423,7 @@ DELIMITER ;;
 /*!50003 SET character_set_results = latin1 */ ;;
 /*!50003 SET collation_connection  = latin1_swedish_ci */ ;;
 /*!50003 SET @saved_sql_mode       = @@sql_mode */ ;;
-/*!50003 SET sql_mode              = '' */ ;;
+/*!50003 SET sql_mode              = 'NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION' */ ;;
 /*!50003 SET @saved_time_zone      = @@time_zone */ ;;
 /*!50003 SET time_zone             = 'SYSTEM' */ ;;
 /*!50106 CREATE*/ /*!50117 DEFINER=`role3`@`%`*/ /*!50106 EVENT `e3` ON SCHEDULE EVERY 1 SECOND STARTS '2000-01-01 00:00:00' ON COMPLETION NOT PRESERVE ENABLE DO insert t1 values (111, 3, 0) */ ;;
@@ -439,7 +441,7 @@ DELIMITER ;
 /*!50003 SET character_set_results = latin1 */ ;
 /*!50003 SET collation_connection  = latin1_swedish_ci */ ;
 /*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
-/*!50003 SET sql_mode              = '' */ ;
+/*!50003 SET sql_mode              = 'NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION' */ ;
 DELIMITER ;;
 CREATE DEFINER=`role1` FUNCTION `fn1`() RETURNS int(11)
 return (select sum(a+b) from t1) ;;
@@ -455,7 +457,7 @@ DELIMITER ;
 /*!50003 SET character_set_results = latin1 */ ;
 /*!50003 SET collation_connection  = latin1_swedish_ci */ ;
 /*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
-/*!50003 SET sql_mode              = '' */ ;
+/*!50003 SET sql_mode              = 'NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION' */ ;
 DELIMITER ;;
 CREATE DEFINER=`role2` FUNCTION `fn2`() RETURNS int(11)
 return (select sum(a+b) from t1) ;;
@@ -471,7 +473,7 @@ DELIMITER ;
 /*!50003 SET character_set_results = latin1 */ ;
 /*!50003 SET collation_connection  = latin1_swedish_ci */ ;
 /*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
-/*!50003 SET sql_mode              = '' */ ;
+/*!50003 SET sql_mode              = 'NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION' */ ;
 DELIMITER ;;
 CREATE DEFINER=`role3`@`%` FUNCTION `fn3`() RETURNS int(11)
 return (select sum(a+b) from t1) ;;
@@ -487,7 +489,7 @@ DELIMITER ;
 /*!50003 SET character_set_results = latin1 */ ;
 /*!50003 SET collation_connection  = latin1_swedish_ci */ ;
 /*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
-/*!50003 SET sql_mode              = '' */ ;
+/*!50003 SET sql_mode              = 'NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION' */ ;
 DELIMITER ;;
 CREATE DEFINER=`role1` PROCEDURE `pr1`()
 insert t1 values (111, 222, 333) ;;
@@ -503,7 +505,7 @@ DELIMITER ;
 /*!50003 SET character_set_results = latin1 */ ;
 /*!50003 SET collation_connection  = latin1_swedish_ci */ ;
 /*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
-/*!50003 SET sql_mode              = '' */ ;
+/*!50003 SET sql_mode              = 'NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION' */ ;
 DELIMITER ;;
 CREATE DEFINER=`role2`@`%` PROCEDURE `pr2`()
 insert t1 values (111, 222, 333) ;;
@@ -519,7 +521,7 @@ DELIMITER ;
 /*!50003 SET character_set_results = latin1 */ ;
 /*!50003 SET collation_connection  = latin1_swedish_ci */ ;
 /*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
-/*!50003 SET sql_mode              = '' */ ;
+/*!50003 SET sql_mode              = 'NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION' */ ;
 DELIMITER ;;
 CREATE DEFINER=`role3`@`%` PROCEDURE `pr3`()
 insert t1 values (111, 222, 333) ;;

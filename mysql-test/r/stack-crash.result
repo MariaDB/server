@@ -23,10 +23,7 @@ CREATE TABLE t1 (
 `sspo_lu_uid` int(11) NOT NULL DEFAULT '0',
 PRIMARY KEY (`sspo_id`),
 KEY `post_uid` (`sspo_uid`,`sspo_cr_date`)
-) ENGINE=InnoDB AUTO_INCREMENT=30 DEFAULT CHARSET=utf8;
-Warnings:
-Warning	1286	Unknown storage engine 'InnoDB'
-Warning	1266	Using storage engine MyISAM for table 't1'
+) AUTO_INCREMENT=30 DEFAULT CHARSET=utf8;
 INSERT INTO t1 VALUES (1,2,'P','test1','',0,'','',NULL,'','','','','A','2013-09-30 00:19:32',2,'2013-09-30 00:19:32',2),(2,2,'P','bbb','',0,'','',NULL,'','','','','A','2013-10-02 15:06:35',2,'2013-10-02 15:06:35',2);
 CREATE TABLE `t2` (
 `spoo_id` int(11) NOT NULL AUTO_INCREMENT,
@@ -41,10 +38,7 @@ CREATE TABLE `t2` (
 `spoo_lu_uid` int(11) NOT NULL DEFAULT '0',
 PRIMARY KEY (`spoo_id`),
 KEY `object_option_main_idx` (`spoo_user_type_id`,`spoo_uid`,`spoo_option_id`,`spoo_value`(255))
-) ENGINE=InnoDB AUTO_INCREMENT=107 DEFAULT CHARSET=utf8;
-Warnings:
-Warning	1286	Unknown storage engine 'InnoDB'
-Warning	1266	Using storage engine MyISAM for table 't2'
+) AUTO_INCREMENT=107 DEFAULT CHARSET=utf8;
 INSERT INTO `t2` VALUES (19,1,2,6,'Dortmund','A','2013-09-26 01:36:51',2,'2013-09-26 01:36:51',2),(20,1,2,8,'49','A','2013-09-26 01:36:51',2,'2013-09-26 01:36:51',2);
 SELECT Count(*)
 FROM   t1 AS tbl

@@ -14,7 +14,6 @@
 # Tests that require --with-geometry go into sp_gis.test
 # Tests that require multibyte character sets, which are not always available,
 #   go into separate files (e.g. sp-ucs2.test)
-
 use test;
 
 # Test tables
@@ -9300,6 +9299,75 @@ DROP PROCEDURE p1;
 DROP TABLE t1;
 
 --echo # End of 5.5 test
+
+--echo #
+--echo #  MDEV-7040: Crash in field_conv, memcpy_field_possible, part#2
+--echo #
+create table t1 (
+  col1 bigint(20),
+  col2 char(1),
+  col3 char(2)
+);
+insert into t1 values (1,'a','a'), (2,'b','b');
+
+create table t2 as select * from t1;
+create table t3 as select * from t1;
+create table t4 as select * from t1;
+create table t5 as select * from t1;
+create table t6 as select * from t1;
+
+flush tables;
+
+DELIMITER |;
+
+CREATE PROCEDURE p1()
+begin
+   DECLARE _var1 bigint(20) UNSIGNED;
+   DECLARE _var2 CHAR(1) DEFAULT NULL;
+   DECLARE _var3 CHAR(1) DEFAULT NULL;
+
+   DECLARE _done BOOLEAN DEFAULT 0;
+
+   declare cur1 cursor for
+   select col1, col2, col3 
+   from t1 
+   where 
+     col1 in (select t2.col1 from t2 where t2.col2=t1.col2) or
+     col2 in (select t3.col3 from t3 where t3.col3=t1.col2) ;
+   
+   DECLARE CONTINUE HANDLER FOR NOT FOUND SET _done = 1;
+
+   OPEN cur1;
+   
+   set _var1 = (select _var1 from t4 limit 1);
+   set _var1 = (select _var1 from t5 limit 1);
+   set _var1 = (select _var1 from t6 limit 1);
+label1:
+   LOOP
+     SET _done = 0;
+     FETCH cur1 INTO _var1, _var2, _var3;
+     IF _done THEN
+         LEAVE label1;
+     END IF;
+   END LOOP label1;
+   CLOSE cur1;
+end|
+DELIMITER ;|
+
+set @tmp_toc= @@table_open_cache;
+set @tmp_tdc= @@table_definition_cache;
+
+set global table_open_cache=1;
+set global table_definition_cache=1;
+call p1();
+
+set global table_open_cache= @tmp_toc;
+set global table_definition_cache= @tmp_tdc;
+drop procedure p1;
+
+drop table t1,t2,t3,t4,t5,t6;
+
+--echo # End of 10.0 test
 
 DELIMITER |;
 CREATE FUNCTION f(f1 VARCHAR(64) COLLATE latin1_german2_ci)

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2014, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2014, SkySQL Ab. All Rights Reserved.
+Copyright (c) 2013, 2015, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -430,7 +430,8 @@ buf_page_get_gen(
 				BUF_GET_IF_IN_POOL_OR_WATCH */
 	const char*	file,	/*!< in: file name */
 	ulint		line,	/*!< in: line where called */
-	mtr_t*		mtr);	/*!< in: mini-transaction */
+	mtr_t*		mtr,	/*!< in: mini-transaction */
+	dberr_t*	err = NULL); /*!< out: error code */
 /********************************************************************//**
 Initializes a page to the buffer buf_pool. The page is usually not read
 from a file even if it cannot be found in the buffer buf_pool. This is one
@@ -1582,9 +1583,14 @@ struct buf_page_t{
 					operation needed. */
 
 	unsigned        key_version;	/*!< key version for this block */
-	bool            page_encrypted; /*!< page is encrypted */
+	bool            page_encrypted; /*!< page is page encrypted */
 	bool            page_compressed;/*!< page is page compressed */
-
+	ulint           stored_checksum;/*!< stored page checksum if page
+					encrypted */
+	bool            encrypted;      /*!< page is still encrypted */
+	ulint           calculated_checksum;
+					/*!< calculated checksum if page
+					encrypted */
 	ulint           real_size;	/*!< Real size of the page
 					Normal pages == UNIV_PAGE_SIZE
 					page compressed pages, payload

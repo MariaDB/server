@@ -272,7 +272,7 @@ bool Item_sum::check_sum_func(THD *thd, Item **ref)
             Let upper function decide whether this field is a non
             aggregated one.
           */
-          in_sum_func->outer_fields.push_back(field);
+          in_sum_func->outer_fields.push_back(field, thd->mem_root);
         }
         else
           sel->set_non_agg_field_used(true);
@@ -404,7 +404,7 @@ bool Item_sum::collect_outer_ref_processor(uchar *param)
 Item_sum::Item_sum(THD *thd, List<Item> &list): Item_func_or_sum(thd, list),
   forced_const(FALSE)
 {
-  if (!(orig_args= (Item **) sql_alloc(sizeof(Item *) * arg_count)))
+  if (!(orig_args= (Item **) thd->alloc(sizeof(Item *) * arg_count)))
   {
     args= NULL;
   }
@@ -502,23 +502,27 @@ Field *Item_sum::create_tmp_field(bool group, TABLE *table,
                                   uint convert_blob_length)
 {
   Field *UNINIT_VAR(field);
+  MEM_ROOT *mem_root= table->in_use->mem_root;
+
   switch (result_type()) {
   case REAL_RESULT:
-    field= new Field_double(max_length, maybe_null, name, decimals, TRUE);
+    field= new (mem_root)
+      Field_double(max_length, maybe_null, name, decimals, TRUE);
     break;
   case INT_RESULT:
-    field= new Field_longlong(max_length, maybe_null, name, unsigned_flag);
+    field= new (mem_root)
+      Field_longlong(max_length, maybe_null, name, unsigned_flag);
     break;
   case STRING_RESULT:
     if (max_length/collation.collation->mbmaxlen <= 255 ||
         convert_blob_length > Field_varstring::MAX_SIZE ||
         !convert_blob_length)
       return make_string_field(table);
-    field= new Field_varstring(convert_blob_length, maybe_null,
-                               name, table->s, collation.collation);
+    field= new (mem_root) Field_varstring(convert_blob_length, maybe_null,
+                                          name, table->s, collation.collation);
     break;
   case DECIMAL_RESULT:
-    field= Field_new_decimal::create_from_item(this);
+    field= Field_new_decimal::create_from_item(mem_root, this);
     break;
   case ROW_RESULT:
   case TIME_RESULT:
@@ -777,7 +781,7 @@ bool Aggregator_distinct::setup(THD *thd)
     for (uint i=0; i < item_sum->get_arg_count() ; i++)
     {
       Item *item=item_sum->get_arg(i);
-      if (list.push_back(item))
+      if (list.push_back(item, thd->mem_root))
         return TRUE;                              // End of memory
       if (item->const_item() && item->is_null())
         always_null= true;
@@ -898,7 +902,7 @@ bool Aggregator_distinct::setup(THD *thd)
       PS/SP. Hence all further allocations are performed in the runtime
       mem_root.
     */
-    if (field_list.push_back(&field_def))
+    if (field_list.push_back(&field_def, thd->mem_root))
       DBUG_RETURN(TRUE);
 
     item_sum->null_value= item_sum->maybe_null= 1;
@@ -1266,33 +1270,37 @@ Field *Item_sum_hybrid::create_tmp_field(bool group, TABLE *table,
 					 uint convert_blob_length)
 {
   Field *field;
+  MEM_ROOT *mem_root;
+
   if (args[0]->type() == Item::FIELD_ITEM)
   {
     field= ((Item_field*) args[0])->field;
     
-    if ((field= create_tmp_field_from_field(current_thd, field, name, table,
+    if ((field= create_tmp_field_from_field(table->in_use, field, name, table,
 					    NULL, convert_blob_length)))
       field->flags&= ~NOT_NULL_FLAG;
     return field;
   }
+
   /*
     DATE/TIME fields have STRING_RESULT result types.
     In order to preserve field type, it's needed to handle DATE/TIME
     fields creations separately.
   */
+  mem_root= table->in_use->mem_root;
   switch (args[0]->field_type()) {
   case MYSQL_TYPE_DATE:
-    field= new Field_newdate(0, maybe_null ? (uchar*)"" : 0, 0, Field::NONE,
-                             name);
+    field= new (mem_root)
+      Field_newdate(0, maybe_null ? (uchar*)"" : 0, 0, Field::NONE, name);
     break;
   case MYSQL_TYPE_TIME:
-    field= new_Field_time(0, maybe_null ? (uchar*)"" : 0, 0, Field::NONE,
-                          name, decimals);
+    field= new_Field_time(mem_root, 0, maybe_null ? (uchar*)"" : 0, 0,
+                          Field::NONE, name, decimals);
     break;
   case MYSQL_TYPE_TIMESTAMP:
   case MYSQL_TYPE_DATETIME:
-    field= new_Field_datetime(0, maybe_null ? (uchar*)"" : 0, 0, Field::NONE,
-                              name, decimals);
+    field= new_Field_datetime(mem_root, 0, maybe_null ? (uchar*)"" : 0, 0,
+                              Field::NONE, name, decimals);
     break;
   default:
     return Item_sum::create_tmp_field(group, table, convert_blob_length);
@@ -1657,6 +1665,8 @@ Field *Item_sum_avg::create_tmp_field(bool group, TABLE *table,
                                       uint convert_blob_len)
 {
   Field *field;
+  MEM_ROOT *mem_root= table->in_use->mem_root;
+
   if (group)
   {
     /*
@@ -1664,14 +1674,16 @@ Field *Item_sum_avg::create_tmp_field(bool group, TABLE *table,
       The easiest way is to do this is to store both value in a string
       and unpack on access.
     */
-    field= new Field_string(((hybrid_type == DECIMAL_RESULT) ?
-                             dec_bin_size : sizeof(double)) + sizeof(longlong),
-                            0, name, &my_charset_bin);
+    field= new (mem_root)
+      Field_string(((hybrid_type == DECIMAL_RESULT) ?
+                    dec_bin_size : sizeof(double)) + sizeof(longlong),
+                   0, name, &my_charset_bin);
   }
   else if (hybrid_type == DECIMAL_RESULT)
-    field= Field_new_decimal::create_from_item(this);
+    field= Field_new_decimal::create_from_item(mem_root, this);
   else
-    field= new Field_double(max_length, maybe_null, name, decimals, TRUE);
+    field= new (mem_root) Field_double(max_length, maybe_null, name, decimals,
+                                       TRUE);
   if (field)
     field->init(table);
   return field;
@@ -3197,8 +3209,8 @@ Item_func_group_concat(THD *thd, Name_resolution_context *context_arg,
            (for possible order items in temporary tables)
     order - arg_count_order
   */
-  if (!(args= (Item**) sql_alloc(sizeof(Item*) * arg_count * 2 +
-                                 sizeof(ORDER*)*arg_count_order)))
+  if (!(args= (Item**) thd->alloc(sizeof(Item*) * arg_count * 2 +
+                                  sizeof(ORDER*)*arg_count_order)))
     return;
 
   order= (ORDER**)(args + arg_count);
@@ -3505,7 +3517,7 @@ bool Item_func_group_concat::setup(THD *thd)
   for (uint i= 0; i < arg_count_field; i++)
   {
     Item *item= args[i];
-    if (list.push_back(item))
+    if (list.push_back(item, thd->mem_root))
       DBUG_RETURN(TRUE);
     if (item->const_item())
     {
@@ -3524,9 +3536,17 @@ bool Item_func_group_concat::setup(THD *thd)
     "all_fields". The resulting field list is used as input to create
     tmp table columns.
   */
-  if (arg_count_order &&
-      setup_order(thd, args, context->table_list, list, all_fields, *order))
-    DBUG_RETURN(TRUE);
+  if (arg_count_order)
+  {
+    uint n_elems= arg_count_order + all_fields.elements;
+    ref_pointer_array= static_cast<Item**>(thd->alloc(sizeof(Item*) * n_elems));
+    if (!ref_pointer_array)
+      DBUG_RETURN(TRUE);
+    memcpy(ref_pointer_array, args, arg_count * sizeof(Item*));
+    if (setup_order(thd, ref_pointer_array, context->table_list, list,
+                    all_fields, *order))
+      DBUG_RETURN(TRUE);
+  }
 
   count_field_types(select_lex, tmp_table_param, all_fields, 0);
   tmp_table_param->force_copy_fields= force_copy_fields;

@@ -394,7 +394,7 @@ public:
   void close_temporary_tables();
 
   /* Check if UNTIL condition is satisfied. See slave.cc for more. */
-  bool is_until_satisfied(THD *thd, Log_event *ev);
+  bool is_until_satisfied(my_off_t);
   inline ulonglong until_pos()
   {
     DBUG_ASSERT(until_condition == UNTIL_MASTER_POS ||

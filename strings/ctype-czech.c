@@ -625,7 +625,8 @@ static MY_COLLATION_HANDLER my_collation_latin2_czech_ci_handler =
 struct charset_info_st my_charset_latin2_czech_ci =
 {
     2,0,0,                                      /* number    */
-    MY_CS_COMPILED|MY_CS_STRNXFRM|MY_CS_CSSORT|MY_CS_STRNXFRM_BAD_NWEIGHTS, /* state     */
+    MY_CS_COMPILED|MY_CS_STRNXFRM|MY_CS_CSSORT|
+    MY_CS_STRNXFRM_BAD_NWEIGHTS|MY_CS_NON1TO1,  /* state     */
     "latin2",                                   /* cs name   */
     "latin2_czech_cs",                          /* name      */
     "",                                         /* comment   */

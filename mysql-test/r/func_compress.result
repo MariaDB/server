@@ -1,3 +1,4 @@
+set global max_allowed_packet=1048576;
 select @test_compress_string:='string for test compress function aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa ';
 @test_compress_string:='string for test compress function aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa '
 string for test compress function aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa 
@@ -152,6 +153,7 @@ UNCOMPRESS(CAST(0 AS BINARY(5)))
 NULL
 Warnings:
 Warning	1259	ZLIB: Input data corrupted
+set global max_allowed_packet=default;
 #
 # End of 5.5 tests
 #

@@ -71,12 +71,15 @@ SET @@GLOBAL.query_cache_size = 65536;
 
 SET @@query_cache_type = DEFAULT;
 SELECT @@query_cache_type;
---echo ON Expected
+--echo OFF Expected
+--error ER_QUERY_CACHE_IS_GLOBALY_DISABLED
+SET @@query_cache_type = ON;
 
 --echo '#--------------------FN_DYNVARS_135_02-------------------------#'
 #
 # Testing valid possible values
 #
+SET GLOBAL query_cache_type= ON;
 
 --error ER_WRONG_VALUE_FOR_VAR
 SET @@query_cache_type = NULL;

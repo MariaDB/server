@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1995, 2014, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1995, 2015, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, Google Inc.
 Copyright (c) 2013, 2015, MariaDB Corporation. All Rights Reserved.
 
@@ -59,10 +59,23 @@ Created 11/5/1995 Heikki Tuuri
 #include "srv0start.h"
 #include "ut0byte.h"
 #include "fil0pagecompress.h"
+#include "ha_prototypes.h"
 
 
 /* prototypes for new functions added to ha_innodb.cc */
 trx_t* innobase_get_trx();
+
+/********************************************************************//**
+Check if page is maybe compressed, encrypted or both when we encounter
+corrupted page. Note that we can't be 100% sure if page is corrupted
+or decrypt/decompress just failed.
+*/
+static
+ibool
+buf_page_check_corrupt(
+/*===================*/
+	buf_page_t*	bpage);	/*!< in/out: buffer page read from
+					disk */
 
 static inline
 void
@@ -564,6 +577,79 @@ buf_page_is_zeroes(
 	return(true);
 }
 
+/** Checks if the page is in crc32 checksum format.
+@param[in]	read_buf	database page
+@param[in]	checksum_field1	new checksum field
+@param[in]	checksum_field2	old checksum field
+@return true if the page is in crc32 checksum format */
+UNIV_INLINE
+bool
+buf_page_is_checksum_valid_crc32(
+	const byte*	read_buf,
+	ulint		checksum_field1,
+	ulint		checksum_field2)
+{
+	ib_uint32_t	crc32 = buf_calc_page_crc32(read_buf);
+
+	return(checksum_field1 == crc32 && checksum_field2 == crc32);
+}
+
+/** Checks if the page is in innodb checksum format.
+@param[in]	read_buf	database page
+@param[in]	checksum_field1	new checksum field
+@param[in]	checksum_field2	old checksum field
+@return true if the page is in innodb checksum format */
+UNIV_INLINE
+bool
+buf_page_is_checksum_valid_innodb(
+	const byte*	read_buf,
+	ulint		checksum_field1,
+	ulint		checksum_field2)
+{
+	/* There are 2 valid formulas for
+	checksum_field2 (old checksum field) which algo=innodb could have
+	written to the page:
+
+	1. Very old versions of InnoDB only stored 8 byte lsn to the
+	start and the end of the page.
+
+	2. Newer InnoDB versions store the old formula checksum
+	(buf_calc_page_old_checksum()). */
+
+	if (checksum_field2 != mach_read_from_4(read_buf + FIL_PAGE_LSN)
+	    && checksum_field2 != buf_calc_page_old_checksum(read_buf)) {
+		return(false);
+	}
+
+	/* old field is fine, check the new field */
+
+	/* InnoDB versions < 4.0.14 and < 4.1.1 stored the space id
+	(always equal to 0), to FIL_PAGE_SPACE_OR_CHKSUM */
+
+	if (checksum_field1 != 0
+	    && checksum_field1 != buf_calc_page_new_checksum(read_buf)) {
+		return(false);
+	}
+
+	return(true);
+}
+
+/** Checks if the page is in none checksum format.
+@param[in]	read_buf	database page
+@param[in]	checksum_field1	new checksum field
+@param[in]	checksum_field2	old checksum field
+@return true if the page is in none checksum format */
+UNIV_INLINE
+bool
+buf_page_is_checksum_valid_none(
+	const byte*	read_buf,
+	ulint		checksum_field1,
+	ulint		checksum_field2)
+{
+	return(checksum_field1 == checksum_field2
+	       && checksum_field1 == BUF_NO_CHECKSUM_MAGIC);
+}
+
 /********************************************************************//**
 Checks if a page is corrupt.
 @return	TRUE if corrupted */
@@ -580,8 +666,6 @@ buf_page_is_corrupted(
 	ulint		page_encrypted = fil_page_is_encrypted(read_buf);
 	ulint		checksum_field1;
 	ulint		checksum_field2;
-	ibool		crc32_inited = FALSE;
-	ib_uint32_t	crc32 = ULINT32_UNDEFINED;
 
 	if (!page_encrypted && !zip_size
 	    && memcmp(read_buf + FIL_PAGE_LSN + 4,
@@ -664,148 +748,121 @@ buf_page_is_corrupted(
 		return(FALSE);
 	}
 
-	switch ((srv_checksum_algorithm_t) srv_checksum_algorithm) {
+	DBUG_EXECUTE_IF("buf_page_is_corrupt_failure", return(TRUE); );
+
+	ulint	page_no = mach_read_from_4(read_buf + FIL_PAGE_OFFSET);
+	ulint	space_id = mach_read_from_4(read_buf + FIL_PAGE_SPACE_ID);
+	const srv_checksum_algorithm_t	curr_algo =
+		static_cast<srv_checksum_algorithm_t>(srv_checksum_algorithm);
+
+	switch (curr_algo) {
+	case SRV_CHECKSUM_ALGORITHM_CRC32:
 	case SRV_CHECKSUM_ALGORITHM_STRICT_CRC32:
 
-		crc32 = buf_calc_page_crc32(read_buf);
+		if (buf_page_is_checksum_valid_crc32(read_buf,
+			checksum_field1, checksum_field2)) {
+			return(FALSE);
+		}
 
-		return(checksum_field1 != crc32 || checksum_field2 != crc32);
+		if (buf_page_is_checksum_valid_none(read_buf,
+			checksum_field1, checksum_field2)) {
+			if (curr_algo
+			    == SRV_CHECKSUM_ALGORITHM_STRICT_CRC32) {
+				page_warn_strict_checksum(
+					curr_algo,
+					SRV_CHECKSUM_ALGORITHM_NONE,
+					space_id, page_no);
+			}
 
+			return(FALSE);
+		}
+
+		if (buf_page_is_checksum_valid_innodb(read_buf,
+			checksum_field1, checksum_field2)) {
+			if (curr_algo
+			    == SRV_CHECKSUM_ALGORITHM_STRICT_CRC32) {
+				page_warn_strict_checksum(
+					curr_algo,
+					SRV_CHECKSUM_ALGORITHM_INNODB,
+					space_id, page_no);
+			}
+
+			return(FALSE);
+		}
+
+		return(TRUE);
+
+	case SRV_CHECKSUM_ALGORITHM_INNODB:
 	case SRV_CHECKSUM_ALGORITHM_STRICT_INNODB:
 
-		return(checksum_field1
-		       != buf_calc_page_new_checksum(read_buf)
-		       || checksum_field2
-		       != buf_calc_page_old_checksum(read_buf));
+		if (buf_page_is_checksum_valid_innodb(read_buf,
+			checksum_field1, checksum_field2)) {
+			return(FALSE);
+		}
+
+		if (buf_page_is_checksum_valid_none(read_buf,
+			checksum_field1, checksum_field2)) {
+			if (curr_algo
+			    == SRV_CHECKSUM_ALGORITHM_STRICT_INNODB) {
+				page_warn_strict_checksum(
+					curr_algo,
+					SRV_CHECKSUM_ALGORITHM_NONE,
+					space_id, page_no);
+			}
+
+			return(FALSE);
+		}
+
+		if (buf_page_is_checksum_valid_crc32(read_buf,
+			checksum_field1, checksum_field2)) {
+			if (curr_algo
+			    == SRV_CHECKSUM_ALGORITHM_STRICT_INNODB) {
+				page_warn_strict_checksum(
+					curr_algo,
+					SRV_CHECKSUM_ALGORITHM_CRC32,
+					space_id, page_no);
+			}
+
+			return(FALSE);
+		}
+
+		return(TRUE);
 
 	case SRV_CHECKSUM_ALGORITHM_STRICT_NONE:
 
-		return(checksum_field1 != BUF_NO_CHECKSUM_MAGIC
-		       || checksum_field2 != BUF_NO_CHECKSUM_MAGIC);
-
-	case SRV_CHECKSUM_ALGORITHM_CRC32:
-	case SRV_CHECKSUM_ALGORITHM_INNODB:
-		/* There are 3 valid formulas for
-		checksum_field2 (old checksum field):
-
-		1. Very old versions of InnoDB only stored 8 byte lsn to the
-		start and the end of the page.
-
-		2. InnoDB versions before MySQL 5.6.3 store the old formula
-		checksum (buf_calc_page_old_checksum()).
-
-		3. InnoDB versions 5.6.3 and newer with
-		innodb_checksum_algorithm=strict_crc32|crc32 store CRC32. */
-
-		/* since innodb_checksum_algorithm is not strict_* allow
-		any of the algos to match for the old field */
-
-		if (checksum_field2
-		    != mach_read_from_4(read_buf + FIL_PAGE_LSN)
-		    && checksum_field2 != BUF_NO_CHECKSUM_MAGIC) {
-
-			/* The checksum does not match any of the
-			fast to check. First check the selected algorithm
-			for writing checksums because we assume that the
-			chance of it matching is higher. */
-
-			if (srv_checksum_algorithm
-			    == SRV_CHECKSUM_ALGORITHM_CRC32) {
-
-				crc32 = buf_calc_page_crc32(read_buf);
-				crc32_inited = TRUE;
-
-				if (checksum_field2 != crc32
-				    && checksum_field2
-				    != buf_calc_page_old_checksum(read_buf)) {
-
-					return(TRUE);
-				}
-			} else {
-				ut_ad(srv_checksum_algorithm
-				     == SRV_CHECKSUM_ALGORITHM_INNODB);
-
-				if (checksum_field2
-				    != buf_calc_page_old_checksum(read_buf)) {
-
-					crc32 = buf_calc_page_crc32(read_buf);
-					crc32_inited = TRUE;
-
-					if (checksum_field2 != crc32) {
-						return(TRUE);
-					}
-				}
-			}
+		if (buf_page_is_checksum_valid_none(read_buf,
+			checksum_field1, checksum_field2)) {
+			return(FALSE);
 		}
 
-		/* old field is fine, check the new field */
-
-		/* InnoDB versions < 4.0.14 and < 4.1.1 stored the space id
-		(always equal to 0), to FIL_PAGE_SPACE_OR_CHKSUM */
-
-		if (checksum_field1 != 0
-		    && checksum_field1 != BUF_NO_CHECKSUM_MAGIC) {
-
-			/* The checksum does not match any of the
-			fast to check. First check the selected algorithm
-			for writing checksums because we assume that the
-			chance of it matching is higher. */
-
-			if (srv_checksum_algorithm
-			    == SRV_CHECKSUM_ALGORITHM_CRC32) {
-
-				if (!crc32_inited) {
-					crc32 = buf_calc_page_crc32(read_buf);
-					crc32_inited = TRUE;
-				}
-
-				if (checksum_field1 != crc32
-				    && checksum_field1
-				    != buf_calc_page_new_checksum(read_buf)) {
-
-					return(TRUE);
-				}
-			} else {
-				ut_ad(srv_checksum_algorithm
-				     == SRV_CHECKSUM_ALGORITHM_INNODB);
-
-				if (checksum_field1
-				    != buf_calc_page_new_checksum(read_buf)) {
-
-					if (!crc32_inited) {
-						crc32 = buf_calc_page_crc32(
-							read_buf);
-						crc32_inited = TRUE;
-					}
-
-					if (checksum_field1 != crc32) {
-						return(TRUE);
-					}
-				}
-			}
+		if (buf_page_is_checksum_valid_crc32(read_buf,
+			checksum_field1, checksum_field2)) {
+			page_warn_strict_checksum(
+				curr_algo,
+				SRV_CHECKSUM_ALGORITHM_CRC32,
+				space_id, page_no);
+			return(FALSE);
 		}
 
-		/* If CRC32 is stored in at least one of the fields, then the
-		other field must also be CRC32 */
-		if (crc32_inited
-		    && ((checksum_field1 == crc32
-			 && checksum_field2 != crc32)
-			|| (checksum_field1 != crc32
-			    && checksum_field2 == crc32))) {
-
-			return(TRUE);
+		if (buf_page_is_checksum_valid_innodb(read_buf,
+			checksum_field1, checksum_field2)) {
+			page_warn_strict_checksum(
+				curr_algo,
+				SRV_CHECKSUM_ALGORITHM_INNODB,
+				space_id, page_no);
+			return(FALSE);
 		}
 
-		break;
+		return(TRUE);
+
 	case SRV_CHECKSUM_ALGORITHM_NONE:
 		/* should have returned FALSE earlier */
-		ut_error;
+		break;
 	/* no default so the compiler will emit a warning if new enum
 	is added and not handled here */
 	}
 
-	DBUG_EXECUTE_IF("buf_page_is_corrupt_failure", return(TRUE); );
-
+	ut_error;
 	return(FALSE);
 }
 
@@ -1084,6 +1141,9 @@ buf_block_init(
 	block->page.key_version = 0;
 	block->page.page_encrypted = false;
 	block->page.page_compressed = false;
+	block->page.encrypted = false;
+	block->page.stored_checksum = BUF_NO_CHECKSUM_MAGIC;
+	block->page.calculated_checksum = BUF_NO_CHECKSUM_MAGIC;
 	block->page.real_size = 0;
 	block->page.write_size = 0;
 	block->modify_clock = 0;
@@ -1817,6 +1877,9 @@ page_found:
 		goto page_found;
 	}
 
+	/* The maximum number of purge threads should never exceed
+	BUF_POOL_WATCH_SIZE. So there is no way for purge thread
+	instance to hold a watch when setting another watch. */
 	for (i = 0; i < BUF_POOL_WATCH_SIZE; i++) {
 		bpage = &buf_pool->watch[i];
 
@@ -2187,7 +2250,7 @@ lookup:
 		/* Page not in buf_pool: needs to be read from file */
 
 		ut_ad(!hash_lock);
-		buf_read_page(space, zip_size, offset, trx);
+		buf_read_page(space, zip_size, offset, trx, NULL);
 
 #if defined UNIV_DEBUG || defined UNIV_BUF_DEBUG
 		ut_a(++buf_dbg_counter % 5771 || buf_validate());
@@ -2706,7 +2769,8 @@ buf_page_get_gen(
 				BUF_GET_IF_IN_POOL_OR_WATCH */
 	const char*	file,	/*!< in: file name */
 	ulint		line,	/*!< in: line where called */
-	mtr_t*		mtr)	/*!< in: mini-transaction */
+	mtr_t*		mtr,	/*!< in: mini-transaction */
+	dberr_t*        err)	/*!< out: error code */
 {
 	buf_block_t*	block;
 	ulint		fold;
@@ -2724,6 +2788,11 @@ buf_page_get_gen(
 	ut_ad((rw_latch == RW_S_LATCH)
 	      || (rw_latch == RW_X_LATCH)
 	      || (rw_latch == RW_NO_LATCH));
+
+	if (err) {
+		*err = DB_SUCCESS;
+	}
+
 #ifdef UNIV_DEBUG
 	switch (mode) {
 	case BUF_GET_NO_LATCH:
@@ -2787,6 +2856,8 @@ loop:
 	}
 
 	if (block == NULL) {
+		buf_page_t*	bpage=NULL;
+
 		/* Page not in buf_pool: needs to be read from file */
 
 		if (mode == BUF_GET_IF_IN_POOL_OR_WATCH) {
@@ -2821,36 +2892,77 @@ loop:
 			return(NULL);
 		}
 
-		if (buf_read_page(space, zip_size, offset, trx)) {
+		if (buf_read_page(space, zip_size, offset, trx, &bpage)) {
 			buf_read_ahead_random(space, zip_size, offset,
 					      ibuf_inside(mtr), trx);
 
 			retries = 0;
 		} else if (retries < BUF_PAGE_READ_MAX_RETRIES) {
 			++retries;
+
+			bool corrupted = true;
+
+			if (bpage) {
+				corrupted = buf_page_check_corrupt(bpage);
+			}
+
+			/* Do not try again for encrypted pages */
+			if (!corrupted) {
+				ib_mutex_t* pmutex = buf_page_get_mutex(bpage);
+				mutex_enter(&buf_pool->LRU_list_mutex);
+				mutex_enter(pmutex);
+				buf_page_set_io_fix(bpage, BUF_IO_NONE);
+				buf_LRU_free_page(bpage, zip_size ? true : false);
+				mutex_exit(pmutex);
+
+				if (err) {
+					*err = DB_ENCRYPTED_DECRYPT_FAILED;
+				}
+				return (NULL);
+			}
+
 			DBUG_EXECUTE_IF(
 				"innodb_page_corruption_retries",
 				retries = BUF_PAGE_READ_MAX_RETRIES;
 			);
 		} else {
+			bool corrupted = true;
 
-			fprintf(stderr, "InnoDB: Error: Unable"
-				" to read tablespace %lu page no"
-				" %lu into the buffer pool after"
-				" %lu attempts\n"
-				"InnoDB: The most probable cause"
-				" of this error may be that the"
-				" table has been corrupted.\n"
-				"InnoDB: You can try to fix this"
-				" problem by using"
-				" innodb_force_recovery.\n"
-				"InnoDB: Please see reference manual"
-				" for more details.\n"
-				"InnoDB: Aborting...\n",
-				space, offset,
-				BUF_PAGE_READ_MAX_RETRIES);
+			if (bpage) {
+				corrupted = buf_page_check_corrupt(bpage);
+			}
 
-			ut_error;
+			if (corrupted) {
+				fprintf(stderr, "InnoDB: Error: Unable"
+					" to read tablespace %lu page no"
+					" %lu into the buffer pool after"
+					" %lu attempts\n"
+					"InnoDB: The most probable cause"
+					" of this error may be that the"
+					" table has been corrupted.\n"
+					"InnoDB: You can try to fix this"
+					" problem by using"
+					" innodb_force_recovery.\n"
+					"InnoDB: Please see reference manual"
+					" for more details.\n"
+					"InnoDB: Aborting...\n",
+					space, offset,
+					BUF_PAGE_READ_MAX_RETRIES);
+
+				ut_error;
+			} else {
+				ib_mutex_t* pmutex = buf_page_get_mutex(bpage);
+				mutex_enter(&buf_pool->LRU_list_mutex);
+				mutex_enter(pmutex);
+				buf_page_set_io_fix(bpage, BUF_IO_NONE);
+				buf_LRU_free_page(bpage, zip_size ? true : false);
+				mutex_exit(pmutex);
+
+				if (err) {
+					*err = DB_ENCRYPTED_DECRYPT_FAILED;
+				}
+				return (NULL);
+			}
 		}
 
 #if defined UNIV_DEBUG || defined UNIV_BUF_DEBUG
@@ -3623,8 +3735,11 @@ buf_page_init_low(
 	bpage->oldest_modification = 0;
 	bpage->write_size = 0;
 	bpage->key_version = 0;
+	bpage->stored_checksum = BUF_NO_CHECKSUM_MAGIC;
+	bpage->calculated_checksum = BUF_NO_CHECKSUM_MAGIC;
 	bpage->page_encrypted = false;
 	bpage->page_compressed = false;
+	bpage->encrypted = false;
 	bpage->real_size = 0;
 
 	HASH_INVALIDATE(bpage, hash);
@@ -4294,33 +4409,41 @@ buf_mark_space_corrupt(
 
 	/* First unfix and release lock on the bpage */
 	ut_ad(!mutex_own(&buf_pool->LRU_list_mutex));
-	mutex_enter(&buf_pool->LRU_list_mutex);
-	rw_lock_x_lock(hash_lock);
-	mutex_enter(buf_page_get_mutex(bpage));
-	ut_ad(buf_page_get_io_fix(bpage) == BUF_IO_READ);
-	ut_ad(bpage->buf_fix_count == 0);
 
-	/* Set BUF_IO_NONE before we remove the block from LRU list */
-	buf_page_set_io_fix(bpage, BUF_IO_NONE);
+	if (!bpage->encrypted) {
+		mutex_enter(&buf_pool->LRU_list_mutex);
+		rw_lock_x_lock(hash_lock);
+		mutex_enter(buf_page_get_mutex(bpage));
+		ut_ad(buf_page_get_io_fix(bpage) == BUF_IO_READ);
+		ut_ad(bpage->buf_fix_count == 0);
 
-	if (uncompressed) {
-		rw_lock_x_unlock_gen(
-			&((buf_block_t*) bpage)->lock,
-			BUF_IO_READ);
+		/* Set BUF_IO_NONE before we remove the block from LRU list */
+		buf_page_set_io_fix(bpage, BUF_IO_NONE);
+
+		if (uncompressed) {
+			rw_lock_x_unlock_gen(
+				&((buf_block_t*) bpage)->lock,
+				BUF_IO_READ);
+		}
 	}
 
 	/* Find the table with specified space id, and mark it corrupted */
 	if (dict_set_corrupted_by_space(space)) {
-		buf_LRU_free_one_page(bpage);
+		if (!bpage->encrypted) {
+			buf_LRU_free_one_page(bpage);
+		}
 	} else {
-		mutex_exit(buf_page_get_mutex(bpage));
+		if (!bpage->encrypted) {
+			mutex_exit(buf_page_get_mutex(bpage));
+		}
 		ret = FALSE;
 	}
 
-	mutex_exit(&buf_pool->LRU_list_mutex);
-
-	ut_ad(buf_pool->n_pend_reads > 0);
-	os_atomic_decrement_ulint(&buf_pool->n_pend_reads, 1);
+	if(!bpage->encrypted) {
+		mutex_exit(&buf_pool->LRU_list_mutex);
+		ut_ad(buf_pool->n_pend_reads > 0);
+		os_atomic_decrement_ulint(&buf_pool->n_pend_reads, 1);
+	}
 
 	return(ret);
 }
@@ -4331,42 +4454,77 @@ corrupted page. Note that we can't be 100% sure if page is corrupted
 or decrypt/decompress just failed.
 */
 static
-void
+ibool
 buf_page_check_corrupt(
 /*===================*/
-	const buf_page_t*	bpage)	/*!< in/out: buffer page read from disk */
+	buf_page_t*	bpage)	/*!< in/out: buffer page read from disk */
 {
 	ulint zip_size = buf_page_get_zip_size(bpage);
 	byte* dst_frame = (zip_size) ? bpage->zip.data :
 		((buf_block_t*) bpage)->frame;
 	unsigned key_version = bpage->key_version;
 	bool page_compressed = bpage->page_encrypted;
+	ulint stored_checksum = bpage->stored_checksum;
+	ulint calculated_checksum = bpage->stored_checksum;
 	bool page_compressed_encrypted = bpage->page_compressed;
 	ulint space_id = mach_read_from_4(
 		dst_frame + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID);
 	fil_space_crypt_t* crypt_data = fil_space_get_crypt_data(space_id);
 	fil_space_t* space = fil_space_found_by_id(space_id);
+	bool corrupted = true;
+
+	if (key_version != 0 || page_compressed_encrypted) {
+		bpage->encrypted = true;
+	}
 
 	if (key_version != 0 ||
 		(crypt_data && crypt_data->type != CRYPT_SCHEME_UNENCRYPTED) ||
 		page_compressed || page_compressed_encrypted) {
-		ib_logf(IB_LOG_LEVEL_ERROR,
-			"Maybe corruption: Block space_id %lu in file %s maybe corrupted.",
-			space_id, space ? space->name : "NULL");
-		ib_logf(IB_LOG_LEVEL_ERROR,
-			"Page based on contents %s encrypted.",
-			(key_version == 0 && page_compressed_encrypted == false) ? "not" : "maybe");
-		ib_logf(IB_LOG_LEVEL_ERROR,
-			"Reason could be that key_version %u in page "
-			"or in crypt_data %p could not be found.",
-			key_version, crypt_data);
-		ib_logf(IB_LOG_LEVEL_ERROR,
-			"Reason could be also that key management plugin is not found or"
-			"used encryption algorithm or method does not match.");
-		ib_logf(IB_LOG_LEVEL_ERROR,
-			"Based on page page compressed %d, compressed and encrypted %d.",
-			page_compressed, page_compressed_encrypted);
+
+		/* Page is really corrupted if post encryption stored
+		checksum does not match calculated checksum after page was
+		read. For pages compressed and then encrypted, there is no
+		checksum. */
+		corrupted = (!page_compressed_encrypted && stored_checksum != calculated_checksum);
+
+		if (corrupted) {
+			ib_logf(IB_LOG_LEVEL_ERROR,
+				"%s: Block in space_id %lu in file %s corrupted.",
+				page_compressed_encrypted ? "Maybe corruption" : "Corruption",
+				space_id, space ? space->name : "NULL");
+			ib_logf(IB_LOG_LEVEL_ERROR,
+				"Page based on contents %s encrypted.",
+				(key_version == 0 && page_compressed_encrypted == false) ? "not" : "maybe");
+			if (stored_checksum != BUF_NO_CHECKSUM_MAGIC || calculated_checksum != BUF_NO_CHECKSUM_MAGIC) {
+				ib_logf(IB_LOG_LEVEL_ERROR,
+					"Page stored checksum %lu but calculated checksum %lu.",
+					stored_checksum, calculated_checksum);
+			}
+			ib_logf(IB_LOG_LEVEL_ERROR,
+				"Reason could be that key_version %u in page "
+				"or in crypt_data %p could not be found.",
+				key_version, crypt_data);
+			ib_logf(IB_LOG_LEVEL_ERROR,
+				"Reason could be also that key management plugin is not found or"
+				" used encryption algorithm or method does not match.");
+			ib_logf(IB_LOG_LEVEL_ERROR,
+				"Based on page page compressed %d, compressed and encrypted %d.",
+				page_compressed, page_compressed_encrypted);
+		} else {
+			ib_logf(IB_LOG_LEVEL_ERROR,
+				"Block in space_id %lu in file %s encrypted.",
+				space_id, space ? space->name : "NULL");
+			ib_logf(IB_LOG_LEVEL_ERROR,
+				"However key management plugin or used key_id %u is not found or"
+				" used encryption algorithm or method does not match.",
+				key_version);
+			ib_logf(IB_LOG_LEVEL_ERROR,
+				"Marking tablespace as missing. You may drop this table or"
+				" install correct key management plugin and key file.");
+		}
 	}
+
+	return corrupted;
 }
 
 /********************************************************************//**
@@ -4487,42 +4645,46 @@ buf_page_io_complete(
 				;);
 corrupt:
 
-			fil_system_enter();
-			space = fil_space_get_by_id(bpage->space);
-			fil_system_exit();
-			ib_logf(IB_LOG_LEVEL_ERROR,
-				"Database page corruption on disk"
-				" or a failed");
-			ib_logf(IB_LOG_LEVEL_ERROR,
-				"Space %lu file %s read of page %lu.",
-				(ulint)bpage->space,
-				space ? space->name : "NULL",
-				(ulong) bpage->offset);
-			ib_logf(IB_LOG_LEVEL_ERROR,
-				"You may have to recover"
-				" from a backup.");
+			bool corrupted = buf_page_check_corrupt(bpage);
 
-			buf_page_check_corrupt(bpage);
+			if (corrupted) {
+				fil_system_enter();
+				space = fil_space_get_by_id(bpage->space);
+				fil_system_exit();
+				ib_logf(IB_LOG_LEVEL_ERROR,
+					"Database page corruption on disk"
+					" or a failed");
+				ib_logf(IB_LOG_LEVEL_ERROR,
+					"Space %lu file %s read of page %lu.",
+					(ulint)bpage->space,
+					space ? space->name : "NULL",
+					(ulong) bpage->offset);
+				ib_logf(IB_LOG_LEVEL_ERROR,
+					"You may have to recover"
+					" from a backup.");
 
-			buf_page_print(frame, buf_page_get_zip_size(bpage),
-				       BUF_PAGE_PRINT_NO_CRASH);
-			ib_logf(IB_LOG_LEVEL_ERROR,
-				"It is also possible that your operating"
-				"system has corrupted its own file cache.");
-			ib_logf(IB_LOG_LEVEL_ERROR,
-				"and rebooting your computer removes the error.");
-			ib_logf(IB_LOG_LEVEL_ERROR,
-				"If the corrupt page is an index page you can also try to");
-			ib_logf(IB_LOG_LEVEL_ERROR,
-				"fix the corruption by dumping, dropping, and reimporting");
-			ib_logf(IB_LOG_LEVEL_ERROR,
-				"the corrupt table. You can use CHECK");
-			ib_logf(IB_LOG_LEVEL_ERROR,
-				"TABLE to scan your table for corruption.");
-			ib_logf(IB_LOG_LEVEL_ERROR,
-			      "See also "
-			      REFMAN "forcing-innodb-recovery.html"
-			      " about forcing recovery.");
+
+				buf_page_print(frame, buf_page_get_zip_size(bpage),
+					BUF_PAGE_PRINT_NO_CRASH);
+
+				ib_logf(IB_LOG_LEVEL_ERROR,
+					"It is also possible that your operating"
+					"system has corrupted its own file cache.");
+				ib_logf(IB_LOG_LEVEL_ERROR,
+					"and rebooting your computer removes the error.");
+				ib_logf(IB_LOG_LEVEL_ERROR,
+					"If the corrupt page is an index page you can also try to");
+				ib_logf(IB_LOG_LEVEL_ERROR,
+					"fix the corruption by dumping, dropping, and reimporting");
+				ib_logf(IB_LOG_LEVEL_ERROR,
+					"the corrupt table. You can use CHECK");
+				ib_logf(IB_LOG_LEVEL_ERROR,
+					"TABLE to scan your table for corruption.");
+				ib_logf(IB_LOG_LEVEL_ERROR,
+					"See also "
+					REFMAN "forcing-innodb-recovery.html"
+					" about forcing recovery.");
+			}
 
 			if (srv_pass_corrupt_table && bpage->space != 0
 			    && bpage->space < SRV_LOG_SPACE_FIRST_ID) {
@@ -4550,12 +4712,30 @@ corrupt:
 				    && buf_mark_space_corrupt(bpage)) {
 					return(false);
 				} else {
-					buf_page_check_corrupt(bpage);
+					corrupted = buf_page_check_corrupt(bpage);
 
-					ib_logf(IB_LOG_LEVEL_ERROR,
-						"Ending processing because of a corrupt database page.");
+					if (corrupted) {
+						ib_logf(IB_LOG_LEVEL_ERROR,
+							"Ending processing because of a corrupt database page.");
 
-					ut_error;
+						ut_error;
+					}
+
+					ib_push_warning(innobase_get_trx(), DB_ENCRYPTED_DECRYPT_FAILED,
+						"Table in tablespace %lu encrypted."
+						"However key management plugin or used key_id %lu is not found or"
+						" used encryption algorithm or method does not match."
+						" Can't continue opening the table.",
+						bpage->key_version);
+
+					if (bpage->space > TRX_SYS_SPACE) {
+						if (corrupted) {
+							buf_mark_space_corrupt(bpage);
+						}
+					} else {
+						ut_error;
+					}
+					return(false);
 				}
 			}
 		}
@@ -4733,11 +4913,13 @@ buf_all_freed_instance(
 		mutex_exit(&buf_pool->LRU_list_mutex);
 
 		if (UNIV_LIKELY_NULL(block)) {
-			fprintf(stderr,
-				"Page %lu %lu still fixed or dirty\n",
-				(ulong) block->page.space,
-				(ulong) block->page.offset);
-			ut_error;
+			if (block->page.key_version == 0) {
+				fprintf(stderr,
+					"Page %lu %lu still fixed or dirty\n",
+					(ulong) block->page.space,
+					(ulong) block->page.offset);
+				ut_error;
+			}
 		}
 	}
 
@@ -6077,6 +6259,11 @@ buf_page_decrypt_after_read(
 	bool page_compressed_encrypted = fil_page_is_compressed_encrypted(dst_frame);
 	buf_pool_t* buf_pool = buf_pool_from_bpage(bpage);
 
+	/* If page is encrypted read post-encryption checksum */
+	if (!page_compressed_encrypted && key_version != 0) {
+		bpage->stored_checksum = mach_read_from_4(dst_frame +  + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION + 4);
+	}
+
 	ut_ad(bpage->key_version == 0);
 
 	if (bpage->offset == 0) {
@@ -6121,6 +6308,13 @@ buf_page_decrypt_after_read(
 #ifdef UNIV_DEBUG
 			fil_page_type_validate(dst_frame);
 #endif
+
+			/* Calculate checksum before decrypt, this will be
+			used later to find out if incorrect key was used. */
+			if (!page_compressed_encrypted) {
+				bpage->calculated_checksum = fil_crypt_calculate_checksum(zip_size, dst_frame);
+			}
+
 			/* decrypt using crypt_buf to dst_frame */
 			fil_space_decrypt(bpage->space,
 					  slot->crypt_buf,

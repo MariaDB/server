@@ -16,6 +16,7 @@
 #
 
 --source include/have_log_bin.inc
+set sql_mode="";
 
 SET NAMES 'utf8';
 #SHOW VARIABLES LIKE 'character_set%';

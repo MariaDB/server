@@ -753,6 +753,7 @@ drop table t1,t3,t4;
 --echo #
 --echo # ----------  SHOW EXPLAIN and permissions -----------------
 --echo #
+create user test2@localhost;
 grant ALL on test.* to test2@localhost;
 
 # Give the user SUPER privilege so it can set debug_dbug variable.
@@ -1201,4 +1202,3 @@ drop table t0,t1,t2;
 connection default;
 disconnect con1;
 set debug_sync='RESET';
-

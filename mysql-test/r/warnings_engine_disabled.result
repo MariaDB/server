@@ -1,3 +1,4 @@
+set sql_mode="";
 create table t1 (id int) engine=InnoDB;
 Warnings:
 Warning	1286	Unknown storage engine 'InnoDB'
@@ -6,6 +7,7 @@ alter table t1 engine=InnoDB;
 Warnings:
 Warning	1286	Unknown storage engine 'InnoDB'
 drop table t1;
+set sql_mode=default;
 SELECT ENGINE, SUPPORT FROM INFORMATION_SCHEMA.ENGINES WHERE ENGINE='InnoDB';
 ENGINE	SUPPORT
 InnoDB	NO

@@ -103,7 +103,7 @@ public:
   Item_func(THD *thd, List<Item> &list):
     Item_func_or_sum(thd, list), allowed_arg_cols(1)
   {
-    set_arguments(list);
+    set_arguments(thd, list);
   }
   // Constructor used for Item_cond_and/or (see Item comment)
   Item_func(THD *thd, Item_func *item)
@@ -134,10 +134,10 @@ public:
   bool eq(const Item *item, bool binary_cmp) const;
   virtual Item *key_item() const { return args[0]; }
   virtual bool const_item() const { return const_item_cache; }
-  void set_arguments(List<Item> &list)
+  void set_arguments(THD *thd, List<Item> &list)
   {
     allowed_arg_cols= 1;
-    Item_args::set_arguments(list);
+    Item_args::set_arguments(thd, list);
     sync_with_sum_func_and_with_field(list);
     list.empty();                                     // Fields are used
   }
@@ -341,19 +341,15 @@ public:
     return FALSE;
   }
 
-  /*
-    By default only substitution for a field whose two different values
-    are never equal is allowed in the arguments of a function.
-    This is overruled for the direct arguments of comparison functions.
-  */ 
-  bool subst_argument_checker(uchar **arg) 
-  { 
-    if (*arg)
-    {
-      *arg= (uchar *) Item::IDENTITY_SUBST;
-      return TRUE;
-    }
-    return FALSE;
+  Item* propagate_equal_fields(THD *thd, const Context &ctx, COND_EQUAL *cond)
+  {
+    /*
+      By default only substitution for a field whose two different values
+      are never equal is allowed in the arguments of a function.
+      This is overruled for the direct arguments of comparison functions.
+    */
+    Item_args::propagate_equal_fields(thd, IDENTITY_SUBST, cond);
+    return this;
   }
 
   /*
@@ -1164,6 +1160,9 @@ public:
   const char *func_name() const { return "coercibility"; }
   void fix_length_and_dec() { max_length=10; maybe_null= 0; }
   table_map not_null_tables() const { return 0; }
+  Item* propagate_equal_fields(THD *thd, const Context &ctx, COND_EQUAL *cond)
+  { return this; }
+  bool const_item() const { return true; }
 };
 
 class Item_func_locate :public Item_int_func

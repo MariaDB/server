@@ -4,6 +4,8 @@
 #
 # Testing the MySQL command line client(mysql)
 #
+set GLOBAL sql_mode="";
+set LOCAL sql_mode="";
 
 --disable_warnings
 drop table if exists t1,t2,t3;
@@ -632,5 +634,6 @@ EOF
 --exec $MYSQL --default-character-set=utf8 < $MYSQLTEST_VARDIR/tmp/mdev-6572.sql 2>&1
 --remove_file $MYSQLTEST_VARDIR/tmp/mdev-6572.sql
 
+set GLOBAL sql_mode=default;
 --echo
 --echo End of tests

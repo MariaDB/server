@@ -1,4 +1,13 @@
+SET GLOBAL query_cache_type= Off;
+SET LOCAL query_cache_type= Off;
+SET LOCAL query_cache_type= 0;
+SET LOCAL query_cache_type= on;
+ERROR HY000: Query cache is globally disabled and you can't enable it only for this session
+SET LOCAL query_cache_type= 1;
+ERROR HY000: Query cache is globally disabled and you can't enable it only for this session
 set GLOBAL query_cache_size=1355776;
+SET GLOBAL query_cache_type= ON;
+SET LOCAL query_cache_type= ON;
 flush query cache;
 flush query cache;
 reset query cache;
@@ -1599,7 +1608,9 @@ show status like 'Qcache_free_blocks';
 Variable_name	Value
 Qcache_free_blocks	0
 set global query_cache_size=102400;
-ERROR HY000: Query cache is disabled; set query_cache_type to ON or DEMAND to enable it
+show status like 'Qcache_free_blocks';
+Variable_name	Value
+Qcache_free_blocks	1
 set global query_cache_type=on;
 set session query_cache_type=on;
 Restore default values.
@@ -1660,6 +1671,8 @@ set GLOBAL query_cache_limit=default;
 set GLOBAL query_cache_min_res_unit=default;
 set GLOBAL query_cache_size=default;
 set local query_cache_type=default;
+set GLOBAL query_cache_type=on;
+set local query_cache_type=on;
 FLUSH STATUS;
 SET GLOBAL query_cache_size=10*1024*1024;
 SET @save_concurrent_insert= @@concurrent_insert;

@@ -4,7 +4,7 @@
 #
 # http://seclists.org/fulldisclosure/2012/Dec/4
 #
-
+set sql_mode="";
 # in acl_get(), check_grant_db(), mysql_grant()
 grant file on *.* to user1@localhost with grant option;
 grant select on `a%`.* to user1@localhost with grant option;
@@ -28,4 +28,3 @@ delete from mysql.db where db like '=>%';
 alter table mysql.host modify Db char(64) default "";
 alter table mysql.db modify Db char(64) default "", modify User char(80) default "";
 flush privileges;
-

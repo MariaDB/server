@@ -13,6 +13,7 @@ DROP TABLE IF EXISTS table_11733 ;
 # READ_ONLY does nothing to SUPER users
 # so we use a non-SUPER one:
 
+create user test@localhost;
 grant CREATE, SELECT, DROP on *.* to test@localhost;
 
 connect (con1,localhost,test,,test);
@@ -47,6 +48,7 @@ disconnect con1;
 # Bug #35732: read-only blocks SELECT statements in InnoDB
 #
 # Test 1: read only mode
+create user test@localhost;
 GRANT CREATE, SELECT, DROP ON *.* TO test@localhost;
 connect(con1, localhost, test, , test);
 
@@ -251,3 +253,4 @@ connection default;
 SET GLOBAL READ_ONLY = OFF;
 DROP USER bug33669@localhost;
 DROP DATABASE db1;
+

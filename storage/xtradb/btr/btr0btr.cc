@@ -2,6 +2,7 @@
 
 Copyright (c) 1994, 2013, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
+Copyright (c) 2014, 2015, MariaDB Corporation
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -741,6 +742,19 @@ btr_root_block_get(
 
 	block = btr_block_get(space, zip_size, root_page_no, mode, index, mtr);
 
+	if (!block) {
+		index->table->is_encrypted = TRUE;
+		index->table->corrupted = FALSE;
+
+		ib_push_warning(index->table->thd, DB_ENCRYPTED_DECRYPT_FAILED,
+			"Table %s in tablespace %lu is encrypted but encryption service or"
+			" used key_id is not available. "
+			" Can't continue reading table.",
+			index->table->name, space);
+
+		return NULL;
+	}
+
 	SRV_CORRUPT_TABLE_CHECK(block, return(0););
 
 	btr_assert_not_corrupted(block, index);
@@ -779,8 +793,10 @@ btr_root_get(
 	const dict_index_t*	index,	/*!< in: index tree */
 	mtr_t*			mtr)	/*!< in: mtr */
 {
-	return(buf_block_get_frame(btr_root_block_get(index, RW_X_LATCH,
-						      mtr)));
+	buf_block_t* root = btr_root_block_get(index, RW_X_LATCH,
+			mtr);
+
+	return(root ? buf_block_get_frame(root) : NULL);
 }
 
 /**************************************************************//**
@@ -795,7 +811,7 @@ btr_height_get(
 	dict_index_t*	index,	/*!< in: index tree */
 	mtr_t*		mtr)	/*!< in/out: mini-transaction */
 {
-	ulint		height;
+	ulint		height=0;
 	buf_block_t*	root_block;
 
 	ut_ad(mtr_memo_contains(mtr, dict_index_get_lock(index),
@@ -806,13 +822,16 @@ btr_height_get(
         /* S latches the page */
         root_block = btr_root_block_get(index, RW_S_LATCH, mtr);
 
-        height = btr_page_get_level(buf_block_get_frame_fast(root_block), mtr);
+	if (root_block) {
 
-        /* Release the S latch on the root page. */
-        mtr_memo_release(mtr, root_block, MTR_MEMO_PAGE_S_FIX);
+		height = btr_page_get_level(buf_block_get_frame_fast(root_block), mtr);
+
+		/* Release the S latch on the root page. */
+		mtr_memo_release(mtr, root_block, MTR_MEMO_PAGE_S_FIX);
 #ifdef UNIV_SYNC_DEBUG
-        sync_thread_reset_level(&root_block->lock);
+		sync_thread_reset_level(&root_block->lock);
 #endif /* UNIV_SYNC_DEBUG */
+	}
 
 	return(height);
 }
@@ -1260,7 +1279,7 @@ btr_get_size_and_reserved(
 {
 	fseg_header_t*	seg_header;
 	page_t*		root;
-	ulint		n;
+	ulint		n=ULINT_UNDEFINED;
 	ulint		dummy;
 
 	ut_ad(mtr_memo_contains(mtr, dict_index_get_lock(index),
@@ -1274,17 +1293,21 @@ btr_get_size_and_reserved(
 	}
 
 	root = btr_root_get(index, mtr);
+	*used = 0;
 
-	seg_header = root + PAGE_HEADER + PAGE_BTR_SEG_LEAF;
+	if (root) {
 
-	n = fseg_n_reserved_pages(seg_header, used, mtr);
+		seg_header = root + PAGE_HEADER + PAGE_BTR_SEG_LEAF;
 
-	if (flag == BTR_TOTAL_SIZE) {
-		seg_header = root + PAGE_HEADER + PAGE_BTR_SEG_TOP;
+		n = fseg_n_reserved_pages(seg_header, used, mtr);
 
-		n += fseg_n_reserved_pages(seg_header, &dummy, mtr);
-		*used += dummy;
+		if (flag == BTR_TOTAL_SIZE) {
+			seg_header = root + PAGE_HEADER + PAGE_BTR_SEG_TOP;
 
+			n += fseg_n_reserved_pages(seg_header, &dummy, mtr);
+			*used += dummy;
+
+		}
 	}
 
 	return(n);

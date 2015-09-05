@@ -103,7 +103,7 @@ extern uint test_flags;
 extern ulong bytes_sent, bytes_received, net_big_packet_count;
 #ifdef HAVE_QUERY_CACHE
 #define USE_QUERY_CACHE
-extern void query_cache_insert(const char *packet, ulong length,
+extern void query_cache_insert(void *thd, const char *packet, ulong length,
                                unsigned pkt_nr);
 #endif // HAVE_QUERY_CACHE
 #define update_statistics(A) A
@@ -123,7 +123,7 @@ static my_bool net_write_buff(NET *, const uchar *, ulong);
 
 /** Init with packet info. */
 
-my_bool my_net_init(NET *net, Vio* vio, uint my_flags)
+my_bool my_net_init(NET *net, Vio *vio, void *thd, uint my_flags)
 {
   DBUG_ENTER("my_net_init");
   DBUG_PRINT("enter", ("my_flags: %u", my_flags));
@@ -142,10 +142,11 @@ my_bool my_net_init(NET *net, Vio* vio, uint my_flags)
   net->where_b = net->remain_in_buf=0;
   net->net_skip_rest_factor= 0;
   net->last_errno=0;
-  net->unused= 0;
   net->thread_specific_malloc= MY_TEST(my_flags & MY_THREAD_SPECIFIC);
+  net->thd= 0;
 #ifdef MYSQL_SERVER
   net->extension= NULL;
+  net->thd= thd;
 #endif
 
   if (vio)
@@ -602,7 +603,7 @@ net_real_write(NET *net,const uchar *packet, size_t len)
   DBUG_ENTER("net_real_write");
 
 #if defined(MYSQL_SERVER) && defined(USE_QUERY_CACHE)
-  query_cache_insert((char*) packet, len, net->pkt_nr);
+  query_cache_insert(net->thd, (char*) packet, len, net->pkt_nr);
 #endif
 
   if (net->error == 2)
@@ -705,7 +706,7 @@ net_real_write(NET *net,const uchar *packet, size_t len)
       break;
     }
     pos+=length;
-    update_statistics(thd_increment_bytes_sent(length));
+    update_statistics(thd_increment_bytes_sent(net->thd, length));
   }
 #ifndef __WIN__
  end:
@@ -778,7 +779,7 @@ static my_bool my_net_skip_rest(NET *net, uint32 remain, thr_alarm_t *alarmed,
   DBUG_PRINT("enter",("bytes_to_skip: %u", (uint) remain));
 
   /* The following is good for debugging */
-  update_statistics(thd_increment_net_big_packet_count(1));
+  update_statistics(thd_increment_net_big_packet_count(net->thd, 1));
 
   if (!thr_alarm_in_use(alarmed))
   {
@@ -794,7 +795,7 @@ static my_bool my_net_skip_rest(NET *net, uint32 remain, thr_alarm_t *alarmed,
       size_t length= MY_MIN(remain, net->max_packet);
       if (net_safe_read(net, net->buff, length, alarmed))
 	DBUG_RETURN(1);
-      update_statistics(thd_increment_bytes_received(length));
+      update_statistics(thd_increment_bytes_received(net->thd, length));
       remain -= (uint32) length;
       limit-= length;
       if (limit < 0)
@@ -935,7 +936,7 @@ my_real_read(NET *net, size_t *complen,
 	}
 	remain -= (uint32) length;
 	pos+= length;
-	update_statistics(thd_increment_bytes_received(length));
+	update_statistics(thd_increment_bytes_received(net->thd, length));
       }
       if (i == 0)
       {					/* First parts is packet length */

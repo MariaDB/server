@@ -87,6 +87,7 @@ DROP TABLE t1;
 #
 # Bug #6345 Unexpected behaviour with partial indices
 #
+set sql_mode="";
 --disable_warnings
 CREATE TABLE t1
 (
@@ -96,6 +97,7 @@ CREATE TABLE t1
   KEY b (b(10))
 ) ENGINE=InnoDB CHARACTER SET 'ujis' COLLATE 'ujis_japanese_ci';
 --enable_warnings
+set sql_mode=default;
 INSERT INTO t1 (a, b) VALUES (0, 'aaabbbcccddd');
 INSERT INTO t1 (a, b) VALUES (1, 'eeefffggghhh');
 INSERT INTO t1 (a, b) VALUES (2, 'iiijjjkkkl');

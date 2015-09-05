@@ -667,7 +667,8 @@ parse_quoted_escaped_string(const char *ptr, const char *end,
   @param[in] mem_root         MEM_ROOT for parameters allocation
 */
 
-bool get_file_options_ulllist(const char *&ptr, const char *end, const char *line,
+bool get_file_options_ulllist(const char *&ptr, const char *end,
+                              const char *line,
                               uchar* base, File_option *parameter,
                               MEM_ROOT *mem_root)
 {

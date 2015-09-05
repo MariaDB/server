@@ -1,5 +1,7 @@
 -- source include/not_embedded.inc
 
+set local sql_mode="";
+set global sql_mode="";
 --disable_warnings
 drop table if exists t1;
 --enable_warnings
@@ -82,5 +84,6 @@ DROP TABLE t1;
 connection default;
 disconnect con1;
 
+set global sql_mode=default;
 SET SESSION enforce_storage_engine=NULL;
 SET GLOBAL enforce_storage_engine=NULL;

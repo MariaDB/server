@@ -1,8 +1,11 @@
 create database db;
 create role auto_create;
+create user auto_create;
 grant all on db.* to auto_create;
+create user foo@localhost;
 grant auto_create to foo@localhost;
-grant auto_create to bar@localhost identified by 'baz';
+create user bar@localhost identified by 'baz';
+grant auto_create to bar@localhost;
 set role 'auto_create';
 use db;
 create table t1 (i int);
@@ -60,4 +63,5 @@ ERROR 42000: You are not allowed to create a user with GRANT
 drop user foo@localhost;
 drop user bar@localhost;
 drop role auto_create;
+drop user auto_create;
 drop database db;

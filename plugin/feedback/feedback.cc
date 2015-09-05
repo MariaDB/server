@@ -120,7 +120,7 @@ static COND* make_cond(THD *thd, TABLE_LIST *tables, LEX_STRING *filter)
     if (!like)
       return OOM;
 
-    res->add(like);
+    res->add(like, thd->mem_root);
   }
 
   if (res->fix_fields(thd, (Item**)&res))

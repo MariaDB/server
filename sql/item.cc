@@ -111,6 +111,8 @@ bool Item::val_bool()
 */
 bool Item::get_date_with_conversion(MYSQL_TIME *ltime, ulonglong fuzzydate)
 {
+  THD *thd= current_thd;
+
   /*
     Some TIME type items return error when trying to do get_date()
     without TIME_TIME_ONLY set (e.g. Item_field for Field_time).
@@ -119,7 +121,7 @@ bool Item::get_date_with_conversion(MYSQL_TIME *ltime, ulonglong fuzzydate)
     and leave it to get_date() to check date.
   */
   ulonglong time_flag= (field_type() == MYSQL_TYPE_TIME &&
-           !(current_thd->variables.old_behavior & OLD_MODE_ZERO_DATE_TIME_CAST)) ?
+           !(thd->variables.old_behavior & OLD_MODE_ZERO_DATE_TIME_CAST)) ?
            TIME_TIME_ONLY : 0;
   if (get_date(ltime, fuzzydate | time_flag))
     return true;
@@ -127,7 +129,7 @@ bool Item::get_date_with_conversion(MYSQL_TIME *ltime, ulonglong fuzzydate)
       !(fuzzydate & TIME_TIME_ONLY))
   {
     MYSQL_TIME tmp;
-    if (time_to_datetime_with_warn(current_thd, ltime, &tmp, fuzzydate))
+    if (time_to_datetime_with_warn(thd, ltime, &tmp, fuzzydate))
       return null_value= true;
     *ltime= tmp;
   }
@@ -1814,7 +1816,7 @@ void Item::split_sum_func2(THD *thd, Item **ref_pointer_array,
 
 
 static bool
-left_is_superset(DTCollation *left, DTCollation *right)
+left_is_superset(const DTCollation *left, const DTCollation *right)
 {
   /* Allow convert to Unicode */
   if (left->collation->state & MY_CS_UNICODE &&
@@ -1873,7 +1875,7 @@ left_is_superset(DTCollation *left, DTCollation *right)
   @endcode
 */
 
-bool DTCollation::aggregate(DTCollation &dt, uint flags)
+bool DTCollation::aggregate(const DTCollation &dt, uint flags)
 {
   if (!my_charset_same(collation, dt.collation))
   {
@@ -2397,18 +2399,21 @@ const char *Item_ident::full_name() const
   char *tmp;
   if (!table_name || !field_name)
     return field_name ? field_name : name ? name : "tmp_field";
+
   if (db_name && db_name[0])
   {
-    tmp=(char*) sql_alloc((uint) strlen(db_name)+(uint) strlen(table_name)+
-			  (uint) strlen(field_name)+3);
+    THD *thd= current_thd;
+    tmp=(char*) thd->alloc((uint) strlen(db_name)+(uint) strlen(table_name)+
+			   (uint) strlen(field_name)+3);
     strxmov(tmp,db_name,".",table_name,".",field_name,NullS);
   }
   else
   {
     if (table_name[0])
     {
-      tmp= (char*) sql_alloc((uint) strlen(table_name) +
-			     (uint) strlen(field_name) + 2);
+      THD *thd= current_thd;
+      tmp= (char*) thd->alloc((uint) strlen(table_name) +
+			      (uint) strlen(field_name) + 2);
       strxmov(tmp, table_name, ".", field_name, NullS);
     }
     else
@@ -3030,17 +3035,17 @@ longlong_from_string_with_check(CHARSET_INFO *cs, const char *cptr,
   int err;
   longlong tmp;
   char *end_of_num= (char*) end;
+  THD *thd= current_thd;
 
   tmp= (*(cs->cset->strtoll10))(cs, cptr, &end_of_num, &err);
   /*
     TODO: Give error if we wanted a signed integer and we got an unsigned
     one
   */
-  if (!current_thd->no_errors &&
+  if (!thd->no_errors &&
       (err > 0 ||
        (end != end_of_num && !check_if_only_end_space(cs, end_of_num, end))))
   {
-    THD *thd= current_thd;
     ErrConvString err_str(cptr, end - cptr, cs);
     push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                         ER_TRUNCATED_WRONG_VALUE,
@@ -4315,18 +4320,23 @@ static bool mark_as_dependent(THD *thd, SELECT_LEX *last, SELECT_LEX *current,
                               Item_ident *resolved_item,
                               Item_ident *mark_item)
 {
-  const char *db_name= (resolved_item->db_name ?
-                        resolved_item->db_name : "");
-  const char *table_name= (resolved_item->table_name ?
-                           resolved_item->table_name : "");
+  DBUG_ENTER("mark_as_dependent");
+
   /* store pointer on SELECT_LEX from which item is dependent */
   if (mark_item && mark_item->can_be_depended)
+  {
+    DBUG_PRINT("info", ("mark_item: %p  lex: %p", mark_item, last));
     mark_item->depended_from= last;
-  if (current->mark_as_dependent(thd, last, /** resolved_item psergey-thu
-    **/mark_item))
-    return TRUE;
+  }
+  if (current->mark_as_dependent(thd, last,
+                                 /** resolved_item psergey-thu **/ mark_item))
+    DBUG_RETURN(TRUE);
   if (thd->lex->describe & DESCRIBE_EXTENDED)
   {
+    const char *db_name= (resolved_item->db_name ?
+                          resolved_item->db_name : "");
+    const char *table_name= (resolved_item->table_name ?
+                             resolved_item->table_name : "");
     push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
                         ER_WARN_FIELD_RESOLVED,
                         ER_THD(thd,ER_WARN_FIELD_RESOLVED),
@@ -4335,7 +4345,7 @@ static bool mark_as_dependent(THD *thd, SELECT_LEX *last, SELECT_LEX *current,
                         resolved_item->field_name,
                         current->select_number, last->select_number);
   }
-  return FALSE;
+  DBUG_RETURN(FALSE);
 }
 
 
@@ -4785,7 +4795,7 @@ Item_field::fix_outer_field(THD *thd, Field **from_field, Item **reference)
             non aggregated fields of the outer select.
           */
           marker= select->cur_pos_in_select_list;
-          select->non_agg_fields.push_back(this);
+          select->join->non_agg_fields.push_back(this, thd->mem_root);
         }
         if (*from_field != view_ref_found)
         {
@@ -4810,7 +4820,7 @@ Item_field::fix_outer_field(THD *thd, Field **from_field, Item **reference)
             if (!(rf= new (thd->mem_root) Item_outer_ref(thd, context, this)))
               return -1;
             thd->change_item_tree(reference, rf);
-            select->inner_refs_list.push_back(rf);
+            select->inner_refs_list.push_back(rf, thd->mem_root);
             rf->in_sum_func= thd->lex->in_sum_func;
           }
           /*
@@ -4930,7 +4940,8 @@ Item_field::fix_outer_field(THD *thd, Field **from_field, Item **reference)
 
     if (place != IN_HAVING && select->group_list.elements)
     {
-      outer_context->select_lex->inner_refs_list.push_back((Item_outer_ref*)rf);
+      outer_context->select_lex->inner_refs_list.push_back((Item_outer_ref*)rf,
+                                                           thd->mem_root);
       ((Item_outer_ref*)rf)->in_sum_func= thd->lex->in_sum_func;
     }
     thd->change_item_tree(reference, rf);
@@ -5203,9 +5214,10 @@ bool Item_field::fix_fields(THD *thd, Item **reference)
   fixed= 1;
   if (thd->variables.sql_mode & MODE_ONLY_FULL_GROUP_BY &&
       !outer_fixed && !thd->lex->in_sum_func &&
-      thd->lex->current_select->cur_pos_in_select_list != UNDEF_POS)
+      thd->lex->current_select->cur_pos_in_select_list != UNDEF_POS &&
+      thd->lex->current_select->join)
   {
-    thd->lex->current_select->non_agg_fields.push_back(this);
+    thd->lex->current_select->join->non_agg_fields.push_back(this, thd->mem_root);
     marker= thd->lex->current_select->cur_pos_in_select_list;
   }
 mark_non_agg_field:
@@ -5241,7 +5253,7 @@ mark_non_agg_field:
     else
     {
       if (outer_fixed)
-        thd->lex->in_sum_func->outer_fields.push_back(this);
+        thd->lex->in_sum_func->outer_fields.push_back(this, thd->mem_root);
       else if (thd->lex->in_sum_func->nest_level !=
           thd->lex->current_select->nest_level)
         select_lex->set_non_agg_field_used(true);
@@ -5356,12 +5368,16 @@ Item_equal *Item_field::find_item_equal(COND_EQUAL *cond_equal)
     FALSE  otherwise
 */
 
-bool Item_field::subst_argument_checker(uchar **arg)
+bool Item_field::can_be_substituted_to_equal_item(const Context &ctx,
+                                                  const Item_equal *item_equal)
 {
-  return *arg &&
-         (*arg == (uchar *) Item::ANY_SUBST ||
-          result_type() != STRING_RESULT || 
-          (field->flags & BINARY_FLAG));
+  if (cmp_context == STRING_RESULT &&
+      ctx.compare_collation() != item_equal->compare_collation())
+    return false;
+  return ctx.subst_constraint() == ANY_SUBST ||
+         field->cmp_type() != STRING_RESULT ||
+         ((field->charset()->state & MY_CS_BINSORT) &&
+          (field->charset()->state & MY_CS_NOPAD));
 }
 
 
@@ -5418,14 +5434,23 @@ static void convert_zerofill_number_to_string(THD *thd, Item **item, Field_num *
     - pointer to the field item, otherwise.
 */
 
-Item *Item_field::equal_fields_propagator(THD *thd, uchar *arg)
+Item *Item_field::propagate_equal_fields(THD *thd,
+                                         const Context &ctx,
+                                         COND_EQUAL *arg)
 {
   if (no_const_subst)
     return this;
   item_equal= find_item_equal((COND_EQUAL *) arg);
   Item *item= 0;
   if (item_equal)
+  {
+    if (!can_be_substituted_to_equal_item(ctx, item_equal))
+    {
+      item_equal= NULL;
+      return this;
+    }
     item= item_equal->get_const();
+  }
   /*
     Disable const propagation for items used in different comparison contexts.
     This must be done because, for example, Item_hex_string->val_int() is not
@@ -5714,22 +5739,26 @@ bool Item::eq_by_collation(Item *item, bool binary_cmp, CHARSET_INFO *cs)
 Field *Item::make_string_field(TABLE *table)
 {
   Field *field;
+  MEM_ROOT *mem_root= table->in_use->mem_root;
+
   DBUG_ASSERT(collation.collation);
   /* 
     Note: the following check is repeated in 
     subquery_types_allow_materialization():
   */
   if (too_big_for_varchar())
-    field= new Field_blob(max_length, maybe_null, name,
-                          collation.collation, TRUE);
+    field= new (mem_root)
+      Field_blob(max_length, maybe_null, name,
+                 collation.collation, TRUE);
   /* Item_type_holder holds the exact type, do not change it */
   else if (max_length > 0 &&
       (type() != Item::TYPE_HOLDER || field_type() != MYSQL_TYPE_STRING))
-    field= new Field_varstring(max_length, maybe_null, name, table->s,
-                               collation.collation);
+    field= new (mem_root)
+      Field_varstring(max_length, maybe_null, name, table->s,
+                      collation.collation);
   else
-    field= new Field_string(max_length, maybe_null, name,
-                            collation.collation);
+    field= new (mem_root)
+      Field_string(max_length, maybe_null, name, collation.collation);
   if (field)
     field->init(table);
   return field;
@@ -5755,63 +5784,74 @@ Field *Item::tmp_table_field_from_field_type(TABLE *table, bool fixed_length)
   */
   uchar *null_ptr= maybe_null ? (uchar*) "" : 0;
   Field *field;
+  MEM_ROOT *mem_root= table->in_use->mem_root;
 
   switch (field_type()) {
   case MYSQL_TYPE_DECIMAL:
   case MYSQL_TYPE_NEWDECIMAL:
-    field= Field_new_decimal::create_from_item(this);
+    field= Field_new_decimal::create_from_item(mem_root, this);
     break;
   case MYSQL_TYPE_TINY:
-    field= new Field_tiny((uchar*) 0, max_length, null_ptr, 0, Field::NONE,
-			  name, 0, unsigned_flag);
+    field= new (mem_root)
+      Field_tiny((uchar*) 0, max_length, null_ptr, 0, Field::NONE,
+                 name, 0, unsigned_flag);
     break;
   case MYSQL_TYPE_SHORT:
-    field= new Field_short((uchar*) 0, max_length, null_ptr, 0, Field::NONE,
-			   name, 0, unsigned_flag);
+    field= new (mem_root)
+      Field_short((uchar*) 0, max_length, null_ptr, 0, Field::NONE,
+                  name, 0, unsigned_flag);
     break;
   case MYSQL_TYPE_LONG:
-    field= new Field_long((uchar*) 0, max_length, null_ptr, 0, Field::NONE,
-			  name, 0, unsigned_flag);
+    field= new (mem_root)
+      Field_long((uchar*) 0, max_length, null_ptr, 0, Field::NONE,
+                 name, 0, unsigned_flag);
     break;
 #ifdef HAVE_LONG_LONG
   case MYSQL_TYPE_LONGLONG:
-    field= new Field_longlong((uchar*) 0, max_length, null_ptr, 0, Field::NONE,
-			      name, 0, unsigned_flag);
+    field= new (mem_root)
+      Field_longlong((uchar*) 0, max_length, null_ptr, 0, Field::NONE,
+                     name, 0, unsigned_flag);
     break;
 #endif
   case MYSQL_TYPE_FLOAT:
-    field= new Field_float((uchar*) 0, max_length, null_ptr, 0, Field::NONE,
-			   name, decimals, 0, unsigned_flag);
+    field= new (mem_root)
+      Field_float((uchar*) 0, max_length, null_ptr, 0, Field::NONE,
+                  name, decimals, 0, unsigned_flag);
     break;
   case MYSQL_TYPE_DOUBLE:
-    field= new Field_double((uchar*) 0, max_length, null_ptr, 0, Field::NONE,
-			    name, decimals, 0, unsigned_flag);
+    field= new (mem_root)
+      Field_double((uchar*) 0, max_length, null_ptr, 0, Field::NONE,
+                   name, decimals, 0, unsigned_flag);
     break;
   case MYSQL_TYPE_INT24:
-    field= new Field_medium((uchar*) 0, max_length, null_ptr, 0, Field::NONE,
-			    name, 0, unsigned_flag);
+    field= new (mem_root)
+      Field_medium((uchar*) 0, max_length, null_ptr, 0, Field::NONE,
+                   name, 0, unsigned_flag);
     break;
   case MYSQL_TYPE_NEWDATE:
   case MYSQL_TYPE_DATE:
-    field= new Field_newdate(0, null_ptr, 0, Field::NONE, name);
+    field= new (mem_root)
+      Field_newdate(0, null_ptr, 0, Field::NONE, name);
     break;
   case MYSQL_TYPE_TIME:
-    field= new_Field_time(0, null_ptr, 0, Field::NONE, name, decimals);
+    field= new_Field_time(mem_root, 0, null_ptr, 0, Field::NONE, name,
+                          decimals);
     break;
   case MYSQL_TYPE_TIMESTAMP:
-    field= new_Field_timestamp(0, null_ptr, 0,
+    field= new_Field_timestamp(mem_root, 0, null_ptr, 0,
                                Field::NONE, name, 0, decimals);
     break;
   case MYSQL_TYPE_DATETIME:
-    field= new_Field_datetime(0, null_ptr, 0, Field::NONE, name, decimals);
+    field= new_Field_datetime(mem_root, 0, null_ptr, 0, Field::NONE, name,
+                              decimals);
     break;
   case MYSQL_TYPE_YEAR:
-    field= new Field_year((uchar*) 0, max_length, null_ptr, 0, Field::NONE,
-			  name);
+    field= new (mem_root)
+      Field_year((uchar*) 0, max_length, null_ptr, 0, Field::NONE, name);
     break;
   case MYSQL_TYPE_BIT:
-    field= new Field_bit_as_char(NULL, max_length, null_ptr, 0,
-                                 Field::NONE, name);
+    field= new (mem_root)
+      Field_bit_as_char(NULL, max_length, null_ptr, 0, Field::NONE, name);
     break;
   default:
     /* This case should never be chosen */
@@ -5821,8 +5861,8 @@ Field *Item::tmp_table_field_from_field_type(TABLE *table, bool fixed_length)
   case MYSQL_TYPE_STRING:
     if (fixed_length && !too_big_for_varchar())
     {
-      field= new Field_string(max_length, maybe_null, name,
-                              collation.collation);
+      field= new (mem_root)
+        Field_string(max_length, maybe_null, name, collation.collation);
       break;
     }
     /* Fall through to make_string_field() */
@@ -5836,15 +5876,16 @@ Field *Item::tmp_table_field_from_field_type(TABLE *table, bool fixed_length)
   case MYSQL_TYPE_LONG_BLOB:
   case MYSQL_TYPE_BLOB:
     if (this->type() == Item::TYPE_HOLDER)
-      field= new Field_blob(max_length, maybe_null, name, collation.collation,
-                            1);
+      field= new (mem_root)
+        Field_blob(max_length, maybe_null, name, collation.collation, 1);
     else
-      field= new Field_blob(max_length, maybe_null, name, collation.collation);
+      field= new (mem_root)
+        Field_blob(max_length, maybe_null, name, collation.collation);
     break;					// Blob handled outside of case
 #ifdef HAVE_SPATIAL
   case MYSQL_TYPE_GEOMETRY:
-    field= new Field_geom(max_length, maybe_null,
-                          name, table->s, get_geometry_type());
+    field= new (mem_root)
+      Field_geom(max_length, maybe_null, name, table->s, get_geometry_type());
 #endif /* HAVE_SPATIAL */
   }
   if (field)
@@ -6263,10 +6304,11 @@ inline uint char_val(char X)
 }
 
 
-void Item_hex_constant::hex_string_init(const char *str, uint str_length)
+void Item_hex_constant::hex_string_init(THD *thd, const char *str,
+                                        uint str_length)
 {
   max_length=(str_length+1)/2;
-  char *ptr=(char*) sql_alloc(max_length+1);
+  char *ptr=(char*) thd->alloc(max_length+1);
   if (!ptr)
   {
     str_value.set("", 0, &my_charset_bin);
@@ -6359,12 +6401,12 @@ Item_bin_string::Item_bin_string(THD *thd, const char *str, uint str_length):
   Item_hex_hybrid(thd)
 {
   const char *end= str + str_length - 1;
+  char *ptr;
   uchar bits= 0;
   uint power= 1;
 
   max_length= (str_length + 7) >> 3;
-  char *ptr= (char*) sql_alloc(max_length + 1);
-  if (!ptr)
+  if (!(ptr= (char*) thd->alloc(max_length + 1)))
     return;
   str_value.set(ptr, max_length, &my_charset_bin);
 
@@ -6719,9 +6761,10 @@ Item *Item_field::update_value_transformer(THD *thd, uchar *select_arg)
     Item_ref *ref;
 
     ref_pointer_array[el]= (Item*)this;
-    all_fields->push_front((Item*)this);
-    ref= new (thd->mem_root) Item_ref(thd, &select->context, ref_pointer_array + el,
-                      table_name, field_name);
+    all_fields->push_front((Item*)this, thd->mem_root);
+    ref= new (thd->mem_root)
+      Item_ref(thd, &select->context, ref_pointer_array + el,
+               table_name, field_name);
     return ref;
   }
   return this;
@@ -6750,7 +6793,7 @@ Item_ref::Item_ref(THD *thd, Name_resolution_context *context_arg,
   /*
     This constructor used to create some internals references over fixed items
   */
-  if (ref && *ref && (*ref)->fixed)
+  if ((set_properties_only= (ref && *ref && (*ref)->fixed)))
     set_properties();
 }
 
@@ -6794,7 +6837,7 @@ Item_ref::Item_ref(THD *thd, TABLE_LIST *view_arg, Item **item,
   /*
     This constructor is used to create some internal references over fixed items
   */
-  if (ref && *ref && (*ref)->fixed)
+  if ((set_properties_only= (ref && *ref && (*ref)->fixed)))
     set_properties();
 }
 
@@ -6869,7 +6912,11 @@ bool Item_ref::fix_fields(THD *thd, Item **reference)
   DBUG_ASSERT(fixed == 0);
   SELECT_LEX *current_sel= thd->lex->current_select;
 
-  if (!ref || ref == not_found_item)
+  if (set_properties_only)
+  {
+    /* do nothing */
+  }
+  else if (!ref || ref == not_found_item)
   {
     DBUG_ASSERT(reference_trough_name != 0);
     if (!(ref= resolve_ref_in_select_and_group(thd, this,
@@ -7018,7 +7065,7 @@ bool Item_ref::fix_fields(THD *thd, Item **reference)
           goto error;
         thd->change_item_tree(reference, fld);
         mark_as_dependent(thd, last_checked_context->select_lex,
-                          thd->lex->current_select, fld, fld);
+                          current_sel, fld, fld);
         /*
           A reference is resolved to a nest level that's outer or the same as
           the nest level of the enclosing set function : adjust the value of
@@ -7153,7 +7200,7 @@ void Item_ref::cleanup()
 
 Item* Item_ref::transform(THD *thd, Item_transformer transformer, uchar *arg)
 {
-  DBUG_ASSERT(!current_thd->stmt_arena->is_stmt_prepare());
+  DBUG_ASSERT(!thd->stmt_arena->is_stmt_prepare());
   DBUG_ASSERT((*ref) != NULL);
 
   /* Transform the object we are referencing. */
@@ -8124,43 +8171,6 @@ Item_equal *Item_direct_view_ref::find_item_equal(COND_EQUAL *cond_equal)
 
 
 /**
-  Check whether a reference to field item can be substituted for an equal item
-
-  @details
-  The function checks whether a substitution of a reference to field item for
-  an equal item is valid.
-
-  @param arg   *arg != NULL <-> the reference is in the context
-               where substitution for an equal item is valid
-
-  @note
-    See also the note for Item_field::subst_argument_checker
-
-  @retval
-    TRUE   substitution is valid
-  @retval
-    FALSE  otherwise
-*/
-bool Item_direct_view_ref::subst_argument_checker(uchar **arg)
-{
-  bool res= FALSE;
-  if (*arg)
-  { 
-    Item *item= real_item();
-    if (item->type() == FIELD_ITEM &&
-        (*arg == (uchar *) Item::ANY_SUBST || 
-         result_type() != STRING_RESULT ||
-         (((Item_field *) item)->field->flags & BINARY_FLAG)))
-      res= TRUE;
-  }
-  /* Block any substitution into the wrapped object */
-  if (*arg)
-    *arg= NULL; 
-  return res; 
-}
-
-
-/**
   Set a pointer to the multiple equality the view field reference belongs to
   (if any).
 
@@ -8180,7 +8190,7 @@ bool Item_direct_view_ref::subst_argument_checker(uchar **arg)
     of the compile method.
 
   @note 
-    The function calls Item_field::equal_fields_propagator for the field item
+    The function calls Item_field::propagate_equal_fields() for the field item
     this->real_item() to do the job. Then it takes the pointer to equal_item
     from this field item and assigns it to this->item_equal.
 
@@ -8189,12 +8199,14 @@ bool Item_direct_view_ref::subst_argument_checker(uchar **arg)
     - pointer to the field item, otherwise.
 */
 
-Item *Item_direct_view_ref::equal_fields_propagator(THD *thd, uchar *arg)
+Item *Item_direct_view_ref::propagate_equal_fields(THD *thd,
+                                                   const Context &ctx,
+                                                   COND_EQUAL *cond)
 {
   Item *field_item= real_item();
   if (field_item->type() != FIELD_ITEM)
     return this;
-  Item *item= field_item->equal_fields_propagator(thd, arg);
+  Item *item= field_item->propagate_equal_fields(thd, ctx, cond);
   set_item_equal(field_item->get_item_equal());
   field_item->set_item_equal(NULL);
   if (item != field_item)
@@ -8281,9 +8293,10 @@ bool Item_default_value::fix_fields(THD *thd, Item **items)
     my_error(ER_NO_DEFAULT_FOR_FIELD, MYF(0), field_arg->field->field_name);
     goto error;
   }
-  if (!(def_field= (Field*) sql_alloc(field_arg->field->size_of())))
+  if (!(def_field= (Field*) thd->alloc(field_arg->field->size_of())))
     goto error;
-  memcpy((void *)def_field, (void *)field_arg->field, field_arg->field->size_of());
+  memcpy((void *)def_field, (void *)field_arg->field,
+         field_arg->field->size_of());
   def_field->move_field_offset((my_ptrdiff_t)
                                (def_field->table->s->default_values -
                                 def_field->table->record[0]));
@@ -8423,10 +8436,11 @@ bool Item_insert_value::fix_fields(THD *thd, Item **items)
 
   if (field_arg->field->table->insert_values)
   {
-    Field *def_field= (Field*) sql_alloc(field_arg->field->size_of());
+    Field *def_field= (Field*) thd->alloc(field_arg->field->size_of());
     if (!def_field)
       return TRUE;
-    memcpy((void *)def_field, (void *)field_arg->field, field_arg->field->size_of());
+    memcpy((void *)def_field, (void *)field_arg->field,
+           field_arg->field->size_of());
     def_field->move_field_offset((my_ptrdiff_t)
                                  (def_field->table->insert_values -
                                   def_field->table->record[0]));
@@ -8634,7 +8648,7 @@ void resolve_const_item(THD *thd, Item **ref, Item *comp_item)
     return;                                     // Can't be better
 
   Item *new_item= NULL;
-  Item_result res_type=item_cmp_type(comp_item->cmp_type(), item->cmp_type());
+  Item_result res_type= item_cmp_type(comp_item, item);
   char *name=item->name;			// Alloced by sql_alloc
   MEM_ROOT *mem_root= thd->mem_root;
 
@@ -9303,10 +9317,9 @@ int Item_cache_str::save_in_field(Field *field, bool no_conversions)
 }
 
 
-bool Item_cache_row::allocate(uint num)
+bool Item_cache_row::allocate(THD *thd, uint num)
 {
   item_count= num;
-  THD *thd= current_thd;
   return (!(values= 
 	    (Item_cache **) thd->calloc(sizeof(Item_cache *)*item_count)));
 }
@@ -9315,7 +9328,7 @@ bool Item_cache_row::allocate(uint num)
 bool Item_cache_row::setup(THD *thd, Item *item)
 {
   example= item;
-  if (!values && allocate(item->cols()))
+  if (!values && allocate(thd, item->cols()))
     return 1;
   for (uint i= 0; i < item_count; i++)
   {

@@ -334,10 +334,7 @@ CREATE TABLE t1 (a char(2) not null );
 INSERT INTO t1 VALUES (4),(7),(1);
 set @optimizer_switch_save= @@optimizer_switch;
 set optimizer_switch='materialization=off';
-CREATE TABLE tv (e char(2) not null ) engine=mysql;
-Warnings:
-Warning	1286	Unknown storage engine 'mysql'
-Warning	1266	Using storage engine MyISAM for table 'tv'
+CREATE TABLE tv (e char(2) not null );
 INSERT INTO tv VALUES (1);
 CREATE ALGORITHM=MERGE VIEW v_merge AS SELECT * FROM tv;
 CREATE ALGORITHM=MERGE VIEW vm AS SELECT * FROM tv;
@@ -360,6 +357,19 @@ Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` left join (`test`.`tv`)
 set optimizer_switch=@optimizer_switch_save;
 drop view  v_merge, vm;
 drop table t1,tv;
+#
+# MDEV-4017 - GET_LOCK() with negative timeouts has strange behavior
+#
+SELECT GET_LOCK('ul1', NULL);
+GET_LOCK('ul1', NULL)
+NULL
+Warnings:
+Warning	1411	Incorrect timeout value: 'NULL' for function get_lock
+SELECT GET_LOCK('ul1', -1);
+GET_LOCK('ul1', -1)
+NULL
+Warnings:
+Warning	1411	Incorrect timeout value: '-1' for function get_lock
 #
 # GET_LOCK, RELEASE_LOCK, IS_USED_LOCK functions test
 #
