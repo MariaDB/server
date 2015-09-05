@@ -110,7 +110,7 @@
 #include <poll.h>
 #endif
 
-#include <my_sdnotify.h>
+#include <my_systemd.h>
 
 #ifdef HAVE_SYSTEMD
 #include <sys/un.h>

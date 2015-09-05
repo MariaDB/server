@@ -50,7 +50,7 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include <io.h>
 #endif
 
-#include <my_sdnotify.h>
+#include <my_systemd.h>
 
 /** @file ha_innodb.cc */
 
