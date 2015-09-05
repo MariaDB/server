@@ -161,7 +161,6 @@ IF(UNIX)
       SET(LIBWRAP "wrap")
     ENDIF()
   ENDIF()
-
 ENDIF()
 
 #
