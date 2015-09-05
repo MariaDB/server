@@ -1,5 +1,9 @@
 --source include/have_innodb.inc
-
+# embedded does not support restart
+-- source include/not_embedded.inc
+-- source include/not_valgrind.inc
+# Avoid CrashReporter popup on Mac
+-- source include/not_crashrep.inc
 #
 # MDEV-8750: Server crashes in page_cur_is_after_last on altering table using a wrong encryption key
 #
