@@ -6526,7 +6526,7 @@ void handle_connections_sockets()
   systemd_n = sd_listen_fds(1);
   if (systemd_n < 0)
   {
-    my_error(ER_SYSTEMD_LISTEN_FDS, MYF(0), 0, -systemd_n);
+    my_error(ER_SYSTEMD_LISTEN_FDS, MYF(0), strerror(-systemd_n));
   }
   else
   if (systemd_n > 0)
