@@ -9,7 +9,7 @@
 
 #define sd_listen_fds(X) (0)
 
-#define sd_notify(X, Y, Z)
+#define sd_notify(X, Y)
 #define sd_notifyf(E, F, ...)
 
 #endif
