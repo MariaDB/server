@@ -7570,7 +7570,6 @@ struct my_option my_long_options[]=
 #endif
 
   /* The following options exist in 5.6 but not in 10.0 */
-  MYSQL_TO_BE_IMPLEMENTED_OPTION("default-tmp-storage-engine"),
   MYSQL_COMPATIBILITY_OPTION("log-raw"),
   MYSQL_COMPATIBILITY_OPTION("log-bin-use-v1-row-events"),
   MYSQL_TO_BE_IMPLEMENTED_OPTION("default-authentication-plugin"),
