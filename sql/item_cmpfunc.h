@@ -729,13 +729,7 @@ public:
   }
   bool eq(const Item *item, bool binary_cmp) const;
   CHARSET_INFO *compare_collation() const { return cmp_collation.collation; }
-  Item* propagate_equal_fields(THD *thd, const Context &ctx, COND_EQUAL *cond)
-  {
-    Item_args::propagate_equal_fields(thd,
-                                      Context(ANY_SUBST, compare_collation()),
-                                      cond);
-    return this;
-  }
+  Item* propagate_equal_fields(THD *, const Context &, COND_EQUAL *) = 0;
 };
 
 
@@ -762,6 +756,14 @@ public:
                       uint *and_level, table_map usable_tables,
                       SARGABLE_PARAM **sargables);
   SEL_TREE *get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr);
+  Item* propagate_equal_fields(THD *thd, const Context &ctx, COND_EQUAL *cond)
+  {
+    Item_args::propagate_equal_fields(thd,
+                                      Context(ANY_SUBST,
+                                              compare_collation()),
+                                      cond);
+    return this;
+  }
 };
 
 
@@ -1331,6 +1333,7 @@ class Item_func_case :public Item_func_hybrid_field_type
   cmp_item *cmp_items[6]; /* For all result types */
   cmp_item *case_item;
   Item **arg_buffer;
+  uint m_found_types;
 public:
   Item_func_case(THD *thd, List<Item> &list, Item *first_expr_arg,
                  Item *else_expr_arg);
@@ -1350,6 +1353,7 @@ public:
   void cleanup();
   void agg_str_lengths(Item *arg);
   void agg_num_lengths(Item *arg);
+  Item* propagate_equal_fields(THD *thd, const Context &ctx, COND_EQUAL *cond);
 };
 
 /*
@@ -1423,9 +1427,12 @@ public:
       won't be able to check compatibility between
       Item_equal->compare_collation() and this->compare_collation().
     */
-    return arg_types_compatible ?
-           Item_func_opt_neg::propagate_equal_fields(thd, ctx, cond) :
-           this;
+    if (arg_types_compatible)
+      Item_args::propagate_equal_fields(thd,
+                                        Context(ANY_SUBST,
+                                                compare_collation()),
+                                        cond);
+    return this;
   }
   virtual void print(String *str, enum_query_type query_type);
   enum Functype functype() const { return IN_FUNC; }

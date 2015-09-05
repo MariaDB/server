@@ -193,3 +193,75 @@ insert t1 values ('00:00:00'),('00:01:00');
 select case t1.f1 when '00:00:00' then 1 end from t1;
 drop table t1;
 
+--echo #
+--echo # Start of 10.1 test
+--echo #
+
+--echo #
+--echo # MDEV-8752 Wrong result for SELECT..WHERE CASE enum_field WHEN 1 THEN 1 ELSE 0 END AND a='5'
+--echo #
+CREATE TABLE t1 (a ENUM('5','6') CHARACTER SET BINARY);
+INSERT INTO t1 VALUES ('5'),('6');
+SELECT * FROM t1 WHERE a='5';
+SELECT * FROM t1 WHERE a=1;
+SELECT * FROM t1 WHERE CASE a WHEN 1 THEN 1 ELSE 0 END;
+SELECT * FROM t1 WHERE CASE a WHEN 1 THEN 1 ELSE 0 END AND a='5';
+--echo # Multiple comparison types in CASE, not Ok to propagate
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE CASE a WHEN 1 THEN 1 ELSE 0 END AND a='5';
+DROP TABLE t1;
+
+CREATE TABLE t1 (a ENUM('a','b','100'));
+INSERT INTO t1 VALUES ('a'),('b'),('100');
+SELECT * FROM t1 WHERE a='a';
+SELECT * FROM t1 WHERE CASE a WHEN 'a' THEN 1 ELSE 0 END;
+SELECT * FROM t1 WHERE CASE a WHEN 'a' THEN 1 ELSE 0 END AND a='a';
+--echo # String comparison in CASE and in the equality, ok to propagate
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE CASE a WHEN 'a' THEN 1 ELSE 0 END AND a='a';
+
+SELECT * FROM t1 WHERE a=3;
+SELECT * FROM t1 WHERE CASE a WHEN 3 THEN 1 ELSE 0 END;
+SELECT * FROM t1 WHERE CASE a WHEN 3 THEN 1 ELSE 0 END AND a=3;
+--echo # Integer comparison in CASE and in the equality, not ok to propagate
+--echo # ENUM does not support this type of propagation yet.
+--echo # This can change in the future. See MDEV-8748.
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE CASE a WHEN 3 THEN 1 ELSE 0 END AND a=3;
+
+SELECT * FROM t1 WHERE a=3;
+SELECT * FROM t1 WHERE CASE a WHEN '100' THEN 1 ELSE 0 END;
+SELECT * FROM t1 WHERE CASE a WHEN '100' THEN 1 ELSE 0 END AND a=3;
+--echo # String comparison in CASE, integer comparison in the equality, not Ok to propagate
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE CASE a WHEN '100' THEN 1 ELSE 0 END AND a=3;
+
+SELECT * FROM t1 WHERE a='100';
+SELECT * FROM t1 WHERE CASE a WHEN 3 THEN 1 ELSE 0 END;
+SELECT * FROM t1 WHERE CASE a WHEN 3 THEN 1 ELSE 0 END AND a='100';
+--echo # Integer comparison in CASE, string comparison in the equality, not Ok to propagate
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE CASE a WHEN 3 THEN 1 ELSE 0 END AND a='100';
+
+SELECT * FROM t1 WHERE a='100';
+SELECT * FROM t1 WHERE CASE a WHEN 3 THEN 1 WHEN '100' THEN 1 ELSE 0 END;
+SELECT * FROM t1 WHERE CASE a WHEN 3 THEN 1 WHEN '100' THEN 1 ELSE 0 END AND a='100';
+--echo # Multiple type comparison in CASE, string comparison in the equality, not Ok to propagate
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE CASE a WHEN 3 THEN 1 WHEN '100' THEN 1 ELSE 0 END AND a='100';
+
+SELECT * FROM t1 WHERE a=3;
+SELECT * FROM t1 WHERE CASE a WHEN 3 THEN 1 WHEN '100' THEN 1 ELSE 0 END;
+SELECT * FROM t1 WHERE CASE a WHEN 3 THEN 1 WHEN '100' THEN 1 ELSE 0 END AND a=3;
+--echo # Multiple type comparison in CASE, integer comparison in the equality, not Ok to propagate
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE CASE a WHEN 3 THEN 1 WHEN '100' THEN 1 ELSE 0 END AND a=3;
+
+DROP TABLE t1;
+--echo #
+--echo # End of MDEV-8752
+--echo #
+
+--echo #
+--echo # End of 10.1 test
+--echo #

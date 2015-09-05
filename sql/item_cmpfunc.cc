@@ -2779,7 +2779,7 @@ Item_func_nullif::is_null()
 Item_func_case::Item_func_case(THD *thd, List<Item> &list,
                                Item *first_expr_arg, Item *else_expr_arg):
   Item_func_hybrid_field_type(thd), first_expr_num(-1), else_expr_num(-1),
-  left_cmp_type(INT_RESULT), case_item(0)
+  left_cmp_type(INT_RESULT), case_item(0), m_found_types(0)
 {
   ncases= list.elements;
   if (first_expr_arg)
@@ -3010,9 +3010,9 @@ void Item_func_case::fix_length_and_dec()
 {
   Item **agg= arg_buffer;
   uint nagg;
-  uint found_types= 0;
   THD *thd= current_thd;
 
+  m_found_types= 0;
   if (else_expr_num == -1 || args[else_expr_num]->maybe_null)
     maybe_null= 1;
 
@@ -3079,14 +3079,14 @@ void Item_func_case::fix_length_and_dec()
     for (nagg= 0; nagg < ncases/2 ; nagg++)
       agg[nagg+1]= args[nagg*2];
     nagg++;
-    if (!(found_types= collect_cmp_types(agg, nagg)))
+    if (!(m_found_types= collect_cmp_types(agg, nagg)))
       return;
 
     Item *date_arg= 0;
-    if (found_types & (1U << TIME_RESULT))
+    if (m_found_types & (1U << TIME_RESULT))
       date_arg= find_date_time_item(args, arg_count, 0);
 
-    if (found_types & (1U << STRING_RESULT))
+    if (m_found_types & (1U << STRING_RESULT))
     {
       /*
         If we'll do string comparison, we also need to aggregate
@@ -3127,7 +3127,7 @@ void Item_func_case::fix_length_and_dec()
 
     for (i= 0; i <= (uint)TIME_RESULT; i++)
     {
-      if (found_types & (1U << i) && !cmp_items[i])
+      if (m_found_types & (1U << i) && !cmp_items[i])
       {
         DBUG_ASSERT((Item_result)i != ROW_RESULT);
 
@@ -3138,6 +3138,18 @@ void Item_func_case::fix_length_and_dec()
       }
     }
     /*
+      If only one type was found and it matches args[0]->cmp_type(),
+      set args[0]->cmp_context to this type. This is needed to make sure that
+      equal field propagation for args[0] works correctly, according to the
+      type found.
+      Otherwise, in case of multiple types or in case of a single type that
+      differs from args[0]->cmp_type(), it's Okey to keep args[0]->cmp_context
+      equal to IMPOSSIBLE_RESULT, as propagation for args[0] won't be
+      performed anyway.
+    */
+    if (m_found_types == (1UL << left_cmp_type))
+      args[0]->cmp_context= left_cmp_type;
+    /*
       Set cmp_context of all WHEN arguments. This prevents
       Item_field::propagate_equal_fields() from transforming a
       zerofill argument into a string constant. Such a change would
@@ -3146,6 +3158,60 @@ void Item_func_case::fix_length_and_dec()
     for (i= 0; i < ncases; i+= 2)
       args[i]->cmp_context= item_cmp_type(left_cmp_type, args[i]);
   }
+}
+
+
+Item* Item_func_case::propagate_equal_fields(THD *thd, const Context &ctx, COND_EQUAL *cond)
+{
+  if (first_expr_num == -1)
+  {
+    // None of the arguments are in a comparison context
+    Item_args::propagate_equal_fields(thd, IDENTITY_SUBST, cond);
+    return this;
+  }
+
+  for (uint i= 0; i < arg_count; i++)
+  {
+    /*
+      Even "i" values cover items that are in a comparison context:
+        CASE x0 WHEN x1 .. WHEN x2 .. WHEN x3 ..
+      Odd "i" values cover items that are not in comparison:
+        CASE ... THEN y1 ... THEN y2 ... THEN y3 ... ELSE y4 END
+    */
+    Item *new_item= 0;
+    if ((int) i == first_expr_num) // Then CASE (the switch) argument
+    {
+      /*
+        Cannot replace the CASE (the switch) argument if
+        there are multiple comparison types were found.
+      */
+      if (m_found_types == (1UL << left_cmp_type))
+        new_item= args[i]->propagate_equal_fields(thd,
+                                                  Context(
+                                                    ANY_SUBST,
+                                                    cmp_collation.collation),
+                                                  cond);
+    }
+    else if ((i % 2) == 0) // WHEN arguments
+    {
+      /*
+        These arguments are in comparison.
+        Allow invariants of the same value during propagation.
+      */
+      new_item= args[i]->propagate_equal_fields(thd,
+                                                Context(
+                                                  ANY_SUBST,
+                                                  cmp_collation.collation),
+                                                cond);
+    }
+    else // THEN and ELSE arguments (they are not in comparison)
+    {
+      new_item= args[i]->propagate_equal_fields(thd, IDENTITY_SUBST, cond);
+    }
+    if (new_item && new_item != args[i])
+      thd->change_item_tree(&args[i], new_item);
+  }
+  return this;
 }
 
 
