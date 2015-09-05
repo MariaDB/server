@@ -257,9 +257,9 @@ public:
   bool set(ulonglong num, CHARSET_INFO *cs) { return set_int((longlong)num, true, cs); }
   bool set_real(double num,uint decimals, CHARSET_INFO *cs);
 
-  /* Move handling of buffer from some other object to String */
-  void reassociate(char *ptr_arg, uint32 length_arg, uint32 alloced_length_arg,
-                   CHARSET_INFO *cs)
+  /* Take over handling of buffer from some other object */
+  void reset(char *ptr_arg, uint32 length_arg, uint32 alloced_length_arg,
+             CHARSET_INFO *cs)
   { 
     free();
     Ptr= ptr_arg;
@@ -267,6 +267,15 @@ public:
     Alloced_length= alloced_length_arg;
     str_charset= cs;
     alloced= ptr_arg != 0;
+  }
+
+  /* Forget about the buffer, let some other object handle it */
+  char *release()
+  {
+    char *old= Ptr;
+    Ptr=0; str_length= Alloced_length= extra_alloc= 0;
+    alloced= thread_specific= 0;
+    return old;
   }
 
   /*
@@ -457,6 +466,10 @@ public:
         return true;
     }
     return false;
+  }
+  bool append_hex(const uchar *src, uint32 srclen)
+  {
+    return append_hex((const char*)src, srclen);
   }
   bool fill(uint32 max_length,char fill);
   void strip_sp();

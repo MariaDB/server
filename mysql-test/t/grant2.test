@@ -5,6 +5,8 @@
 --source include/count_sessions.inc
 
 
+set GLOBAL sql_mode="";
+set LOCAL sql_mode="";
 SET NAMES binary;
 
 #
@@ -1029,5 +1031,6 @@ DROP USER mysqltest_u4@localhost;
 DROP USER mysqltest_u5@localhost;
 
 
+set GLOBAL sql_mode=default;
 # Wait till we reached the initial number of concurrent sessions
 --source include/wait_until_count_sessions.inc

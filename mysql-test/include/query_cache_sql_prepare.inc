@@ -20,6 +20,8 @@
 --source include/have_query_cache.inc
 # embedded can't make more than one connection, which this test needs
 -- source include/not_embedded.inc
+set GLOBAL query_cache_type=ON;
+set LOCAL query_cache_type=ON;
 
 --echo ---- establish connection con1 (root) ----
 connect (con1,localhost,root,,test,$MASTER_MYPORT,);
@@ -528,3 +530,4 @@ drop table t1;
 
 set @@global.query_cache_size=@initial_query_cache_size;
 flush status; # reset Qcache status variables for next tests
+set GLOBAL query_cache_type=default;

@@ -4,6 +4,8 @@
 
 -- source include/not_encrypted.inc
 
+call mtr.add_suppression("InnoDB: Database page corruption on disk or a failed.*");
+
 # Don't test under valgrind, memory leaks will occur
 source include/not_valgrind.inc;
 # Avoid CrashReporter popup on Mac

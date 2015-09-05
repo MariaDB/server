@@ -6,6 +6,7 @@ create table t (s1 int) engine=innodb;
 set @@autocommit=0;
 start transaction;
 insert into t values (1);
+create user x@y;
 grant select on t to x@y;
 rollback;
 show grants for x@y;

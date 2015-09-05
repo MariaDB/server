@@ -5,6 +5,8 @@
 -- source include/have_log_bin.inc
 -- source include/have_innodb.inc
 
+set SQL_MODE="";
+
 disable_query_log;
 call mtr.add_suppression("Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT");
 enable_query_log;

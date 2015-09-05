@@ -2,6 +2,9 @@ show grants;
 Grants for root@localhost
 GRANT ALL PRIVILEGES ON *.* TO 'root'@'localhost' WITH GRANT OPTION
 GRANT PROXY ON ''@'%' TO 'root'@'localhost' WITH GRANT OPTION
+create user 'pfs_user_1'@localhost;
+create user 'pfs_user_2'@localhost;
+create user 'pfs_user_3'@localhost;
 grant ALL on *.* to 'pfs_user_1'@localhost with GRANT OPTION;
 grant ALL on performance_schema.* to 'pfs_user_2'@localhost
 with GRANT OPTION;

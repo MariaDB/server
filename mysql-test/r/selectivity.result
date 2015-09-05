@@ -1298,10 +1298,10 @@ Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t2`.`c` A
 select * from t1, t2, t1 as t3
 where t1.b=t2.c and t2.d=t3.a and t3.b<5 and t1.a < 2000;
 a	b	c	d	a	b
-1495	89366	89366	28296	28296	3
-961	24512	24512	85239	85239	4
 1063	89366	89366	28296	28296	3
+1495	89366	89366	28296	28296	3
 221	56120	56120	28296	28296	3
+961	24512	24512	85239	85239	4
 set optimizer_use_condition_selectivity=3;
 explain extended
 select * from t1, t2, t1 as t3
@@ -1315,10 +1315,10 @@ Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t2`.`c` A
 select * from t1, t2, t1 as t3
 where t1.b=t2.c and t2.d=t3.a and t3.b<5 and t1.a < 2000;
 a	b	c	d	a	b
-961	24512	24512	85239	85239	4
-1495	89366	89366	28296	28296	3
 1063	89366	89366	28296	28296	3
+1495	89366	89366	28296	28296	3
 221	56120	56120	28296	28296	3
+961	24512	24512	85239	85239	4
 set optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;
 drop table t1,t2;
 set histogram_type=@save_histogram_type;
@@ -1412,16 +1412,10 @@ drop table t0,t1,t2;
 #
 # Bug mdev-7316: a conjunct in WHERE with selectivity == 0
 #
-CREATE TABLE t1 (a varchar(16), b int, PRIMARY KEY(a), KEY(b)) ENGINE=INNODB;
-Warnings:
-Warning	1286	Unknown storage engine 'INNODB'
-Warning	1266	Using storage engine MyISAM for table 't1'
+CREATE TABLE t1 (a varchar(16), b int, PRIMARY KEY(a), KEY(b));
 INSERT INTO t1 VALUES
 ('USAChinese',10), ('USAEnglish',20), ('USAFrench',30);
-CREATE TABLE t2 (i int) ENGINE=INNODB;
-Warnings:
-Warning	1286	Unknown storage engine 'INNODB'
-Warning	1266	Using storage engine MyISAM for table 't2'
+CREATE TABLE t2 (i int);
 INSERT INTO t2 VALUES
 (1),(2),(3),(4),(5),(6),(7),(8),(9),(10),(1),(2),(3),(4);
 ANALYZE TABLE t1, t2;

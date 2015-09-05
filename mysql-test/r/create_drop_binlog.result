@@ -187,11 +187,11 @@ DROP ROLE r1;
 CREATE ROLE IF NOT EXISTS r1;
 CREATE ROLE IF NOT EXISTS r1;
 Warnings:
-Note	1974	Can't create role 'r1'; it already exists
+Note	1975	Can't create role 'r1'; it already exists
 DROP ROLE IF EXISTS r1;
 DROP ROLE IF EXISTS r1;
 Warnings:
-Note	1975	Can't drop role 'r1'; it doesn't exist
+Note	1976	Can't drop role 'r1'; it doesn't exist
 SHOW BINLOG EVENTS;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 #	#	Format_desc	1	#	VER
@@ -218,11 +218,11 @@ DROP USER u1@localhost;
 CREATE USER IF NOT EXISTS u1@localhost;
 CREATE USER IF NOT EXISTS u1@localhost;
 Warnings:
-Note	1972	Can't create user 'u1'@'localhost'; it already exists
+Note	1973	Can't create user 'u1'@'localhost'; it already exists
 DROP USER IF EXISTS u1@localhost;
 DROP USER IF EXISTS u1@localhost;
 Warnings:
-Note	1973	Can't drop user 'u1'@'localhost'; it doesn't exist
+Note	1974	Can't drop user 'u1'@'localhost'; it doesn't exist
 SHOW BINLOG EVENTS;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 #	#	Format_desc	1	#	VER
@@ -336,12 +336,12 @@ RESET MASTER;
 RESET MASTER;
 SHOW MASTER STATUS;
 File	Position	Binlog_Do_DB	Binlog_Ignore_DB
-master-bin.000001	313		
+master-bin.000001	<pos>		
 RESET MASTER TO 100;
 SHOW MASTER STATUS;
 File	Position	Binlog_Do_DB	Binlog_Ignore_DB
-master-bin.000100	313		
+master-bin.000100	<pos>		
 RESET MASTER;
 SHOW MASTER STATUS;
 File	Position	Binlog_Do_DB	Binlog_Ignore_DB
-master-bin.000001	313		
+master-bin.000001	<pos>		

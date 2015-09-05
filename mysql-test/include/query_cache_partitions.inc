@@ -4,6 +4,8 @@
 #     $engine_type       -- storage engine to be tested
 # have to be set before sourcing this script.
 
+SET global query_cache_type=ON;
+SET local query_cache_type=ON;
 eval SET SESSION STORAGE_ENGINE = $engine_type;
 
 # Initialise
@@ -124,3 +126,4 @@ show status like "Qcache_hits";
 drop table t1;
 
 set @@global.query_cache_size = @save_query_cache_size;
+SET global query_cache_type=default;

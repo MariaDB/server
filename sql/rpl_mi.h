@@ -218,7 +218,7 @@ class Master_info : public Slave_reporting_capability
     Initialized to novalue, then set to the queried from master
     @@global.binlog_checksum and deactivated once FD has been received.
   */
-  uint8 checksum_alg_before_fd;
+  enum enum_binlog_checksum_alg checksum_alg_before_fd;
   uint connect_retry;
 #ifndef DBUG_OFF
   int events_till_disconnect;

@@ -37,7 +37,7 @@ select digest_text, count_star
 from performance_schema.events_statements_summary_by_digest
 where digest_text like "%in_%_digest%";
 digest_text	count_star
-SELECT ? AS in_master_digest 	1
+SELECT ? AS `in_master_digest` 	1
 insert into test.marker values (2);
 **** On Slave ****
 select * from test.marker;
@@ -64,7 +64,7 @@ select digest_text, count_star
 from performance_schema.events_statements_summary_by_digest
 where digest_text like "%in_%_digest%";
 digest_text	count_star
-SELECT ? AS in_slave_digest 	1
+SELECT ? AS `in_slave_digest` 	1
 **** On Master ****
 delete from performance_schema.setup_objects
 where object_schema='master';

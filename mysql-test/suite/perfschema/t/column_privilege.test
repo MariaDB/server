@@ -7,6 +7,7 @@
 
 show grants;
 
+create user 'pfs_user_5'@localhost;
 grant usage on *.* to 'pfs_user_5'@localhost with GRANT OPTION;
 
 # Test per column privileges on performance_schema

@@ -66,10 +66,13 @@
 --source ../include/wait_for_pfs_thread_count.inc
 
 --disable_query_log
-
+create user user1@localhost;
 grant ALL on *.* to user1@localhost;
+create user user2@localhost;
 grant ALL on *.* to user2@localhost;
+create user user3@localhost;
 grant ALL on *.* to user3@localhost;
+create user user4@localhost;
 grant ALL on *.* to user4@localhost;
 
 flush privileges;

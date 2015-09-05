@@ -1,3 +1,4 @@
+SET global secure_auth=0;
 drop table if exists t1,t2;
 show tables;
 Tables_in_mysql
@@ -143,6 +144,7 @@ drop table t1;
 # -- Bug#33507: Event scheduler creates more threads than max_connections
 # -- which results in user lockout.
 
+CREATE USER mysqltest_u1@localhost;
 GRANT USAGE ON *.* TO mysqltest_u1@localhost;
 
 SET GLOBAL max_connections = 3;
@@ -313,3 +315,4 @@ test
 test
 test
 drop procedure p1;
+SET global secure_auth=default;

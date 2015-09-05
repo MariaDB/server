@@ -336,10 +336,11 @@ char* Parser::read_and_decrypt_file(const char *secret)
 
     bytes_to_key(buffer + OpenSSL_prefix_len, secret, key, iv);
     uint32 d_size;
-    if (my_aes_decrypt_cbc(buffer + OpenSSL_prefix_len + OpenSSL_salt_len,
-                           file_size - OpenSSL_prefix_len - OpenSSL_salt_len,
-                           decrypted, &d_size, key, OpenSSL_key_len,
-                           iv, OpenSSL_iv_len, 0))
+    if (my_aes_crypt(MY_AES_CBC, ENCRYPTION_FLAG_DECRYPT,
+                     buffer + OpenSSL_prefix_len + OpenSSL_salt_len,
+                     file_size - OpenSSL_prefix_len - OpenSSL_salt_len,
+                     decrypted, &d_size, key, OpenSSL_key_len,
+                     iv, OpenSSL_iv_len))
 
     {
       my_printf_error(EE_READ, "Cannot decrypt %s. Wrong key?", MYF(ME_NOREFRESH), filename);

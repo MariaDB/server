@@ -58,7 +58,7 @@ IF(UNIX)
   ENDFOREACH()
   IF(INSTALL_SUPPORTFILESDIR)
     INSTALL(FILES magic DESTINATION ${inst_location} COMPONENT SupportFiles)
-    INSTALL(DIRECTORY RHEL4-SElinux/ DESTINATION ${inst_location}/SELinux/RHEL4 COMPONENT SupportFiles)
+    INSTALL(DIRECTORY policy DESTINATION ${inst_location}/policy COMPONENT SupportFiles)
   ENDIF()
 
   CONFIGURE_FILE(mariadb.pc.in ${CMAKE_CURRENT_BINARY_DIR}/mariadb.pc @ONLY)

@@ -1,3 +1,4 @@
+set sql_mode="";
 Run mysql_upgrade once
 Phase 1/6: Checking and upgrading mysql database
 Processing databases
@@ -457,4 +458,5 @@ even_longer_user_name_number_3_to_test_the_grantor_and_definer_field_length@loca
 even_longer_user_name_number_3_to_test_the_grantor_and_definer_field_length@localhost
 DROP USER very_long_user_name_number_1, very_long_user_name_number_2, even_longer_user_name_number_3_to_test_the_grantor_and_definer_field_length@localhost;
 DROP PROCEDURE test.pr;
+set sql_mode=default;
 End of tests

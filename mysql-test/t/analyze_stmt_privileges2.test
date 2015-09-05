@@ -24,6 +24,8 @@
 --source include/count_sessions.inc
 
 --enable_connect_log
+set GLOBAL sql_mode="";
+set LOCAL sql_mode="";
 
 CREATE DATABASE privtest_db;
 
@@ -5395,6 +5397,7 @@ DROP USER 'privtest'@localhost;
 USE test;
 DROP DATABASE privtest_db;
 
+set GLOBAL sql_mode=default;
 --source include/wait_until_count_sessions.inc 
 
 

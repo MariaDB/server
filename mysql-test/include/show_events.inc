@@ -15,7 +15,19 @@
 --let $statement=show BINLOG events
 if ($is_relay_log)
 {
-  --let $statement=show relaylog events
+  if ($master_name)
+  {
+    let _master_name='$master_name';
+  }
+  if (!$master_name)
+  {
+    let _master_name=`select @@default_master_connection`;
+    if ($_master_name)
+    {
+      let _master_name='$_master_name';
+    }
+  }
+  --let $statement=show relaylog $_master_name events
 }
 
 if ($binlog_file)
@@ -25,7 +37,7 @@ if ($binlog_file)
   {
     if ($is_relay_log)
     {
-      --let $_binlog_file= query_get_value(SHOW SLAVE STATUS, Relay_Log_File, 1)
+      --let $_binlog_file= query_get_value(SHOW SLAVE $_master_name STATUS, Relay_Log_File, 1)
     }
     if (!$is_relay_log)
     {

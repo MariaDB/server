@@ -49,6 +49,7 @@ connection master;
 create table test.t1(a int);
 create table test.t4(a int);
 
+set sql_mode="";
 # Simple user that should not replicate
 GRANT SELECT ON test.t1 TO mysqltest1@localhost;
 
@@ -87,7 +88,7 @@ show grants for mysqltest6@localhost;
 flush privileges;
 show grants for mysqltest5@somehost;
 
-
+set sql_mode="";
 sync_slave_with_master;
 
 --echo **** Checking grants on slave ****

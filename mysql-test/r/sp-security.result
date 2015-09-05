@@ -1,4 +1,5 @@
 use test;
+create user user1@localhost;
 grant usage on *.* to user1@localhost;
 flush privileges;
 drop table if exists t1;
@@ -31,10 +32,13 @@ root@localhost	1
 select db();
 db()
 test
+create user user1@'%';
 grant execute on procedure db1_secret.stamp to user1@'%';
 grant execute on function db1_secret.db to user1@'%';
+set sql_mode='';
 grant execute on procedure db1_secret.stamp to ''@'%';
 grant execute on function db1_secret.db to ''@'%';
+set sql_mode=default;
 call db1_secret.stamp(2);
 select db1_secret.db();
 db1_secret.db()
@@ -103,6 +107,7 @@ create table t2 (s1 int);
 insert into t2 values (0);
 grant usage on db2.* to user1@localhost;
 grant select on db2.* to user1@localhost;
+create user user2@localhost;
 grant usage on db2.* to user2@localhost;
 grant select,insert,update,delete,create routine on db2.* to user2@localhost;
 grant create routine on db2.* to user1@localhost;
@@ -156,8 +161,11 @@ delete from mysql.procs_priv where user='user1' or user='user2';
 delete from mysql.procs_priv where user='' and host='%';
 delete from mysql.db where user='user2';
 flush privileges;
+create user usera@localhost;
 grant usage on *.* to usera@localhost;
+create user userb@localhost;
 grant usage on *.* to userb@localhost;
+create user userc@localhost;
 grant usage on *.* to userc@localhost;
 create database sptest;
 create table t1 ( u varchar(64), i int );
@@ -220,9 +228,11 @@ delete from mysql.tables_priv where user='usera';
 flush privileges;
 drop table t1;
 drop function if exists bug_9503;
+drop user if exists user1@localhost;
 create database mysqltest//
 use mysqltest//
 create table t1 (s1 int)//
+create user user1@localhost//
 grant select on t1 to user1@localhost//
 create function bug_9503 () returns int sql security invoker begin declare v int;
 select min(s1) into v from t1; return v; end//
@@ -266,6 +276,7 @@ create procedure mysqltest_1.p1()
 begin
 select 1 from dual;
 end//
+create user mysqltest_1@localhost;
 grant usage on *.* to mysqltest_1@localhost;
 call mysqltest_1.p1();
 ERROR 42000: execute command denied to user 'mysqltest_1'@'localhost' for routine 'mysqltest_1.p1'
@@ -366,19 +377,19 @@ Note	1449	The user specified as a definer ('a @ b @ c'@'localhost') does not exi
 USE mysqltest;
 SHOW CREATE PROCEDURE wl2897_p1;
 Procedure	sql_mode	Create Procedure	character_set_client	collation_connection	Database Collation
-wl2897_p1		CREATE DEFINER=`mysqltest_2`@`localhost` PROCEDURE `wl2897_p1`()
+wl2897_p1	NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`mysqltest_2`@`localhost` PROCEDURE `wl2897_p1`()
 SELECT 1	latin1	latin1_swedish_ci	latin1_swedish_ci
 SHOW CREATE PROCEDURE wl2897_p3;
 Procedure	sql_mode	Create Procedure	character_set_client	collation_connection	Database Collation
-wl2897_p3		CREATE DEFINER=`a @ b @ c`@`localhost` PROCEDURE `wl2897_p3`()
+wl2897_p3	NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`a @ b @ c`@`localhost` PROCEDURE `wl2897_p3`()
 SELECT 3	latin1	latin1_swedish_ci	latin1_swedish_ci
 SHOW CREATE FUNCTION wl2897_f1;
 Function	sql_mode	Create Function	character_set_client	collation_connection	Database Collation
-wl2897_f1		CREATE DEFINER=`mysqltest_2`@`localhost` FUNCTION `wl2897_f1`() RETURNS int(11)
+wl2897_f1	NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`mysqltest_2`@`localhost` FUNCTION `wl2897_f1`() RETURNS int(11)
 RETURN 1	latin1	latin1_swedish_ci	latin1_swedish_ci
 SHOW CREATE FUNCTION wl2897_f3;
 Function	sql_mode	Create Function	character_set_client	collation_connection	Database Collation
-wl2897_f3		CREATE DEFINER=`a @ b @ c`@`localhost` FUNCTION `wl2897_f3`() RETURNS int(11)
+wl2897_f3	NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`a @ b @ c`@`localhost` FUNCTION `wl2897_f3`() RETURNS int(11)
 RETURN 3	latin1	latin1_swedish_ci	latin1_swedish_ci
 DROP USER mysqltest_1@localhost;
 DROP USER mysqltest_2@localhost;
@@ -444,7 +455,7 @@ SELECT a;
 END //
 SHOW CREATE PROCEDURE test.sp19857;
 Procedure	sql_mode	Create Procedure	character_set_client	collation_connection	Database Collation
-sp19857		CREATE DEFINER=`user19857`@`localhost` PROCEDURE `sp19857`()
+sp19857	NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`user19857`@`localhost` PROCEDURE `sp19857`()
     DETERMINISTIC
 BEGIN
 DECLARE a INT;
@@ -612,7 +623,7 @@ GRANT SELECT ON mysql.proc TO user2@localhost;
 # This should work
 SHOW CREATE PROCEDURE db1.p1;
 Procedure	sql_mode	Create Procedure	character_set_client	collation_connection	Database Collation
-p1		CREATE DEFINER=`root`@`localhost` PROCEDURE `p1`()
+p1	NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` PROCEDURE `p1`()
 SELECT 1	latin1	latin1_swedish_ci	latin1_swedish_ci
 # Connection default
 DROP USER user2@localhost;

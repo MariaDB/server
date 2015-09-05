@@ -1,6 +1,7 @@
 #
 # Bug#51770: UNINSTALL PLUGIN requires no privileges
 #
+CREATE USER bug51770@localhost;
 GRANT INSERT ON mysql.plugin TO bug51770@localhost;
 INSTALL PLUGIN example SONAME 'ha_example.so';
 UNINSTALL PLUGIN example;

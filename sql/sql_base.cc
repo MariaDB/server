@@ -3439,10 +3439,11 @@ request_backoff_action(enum_open_table_action action_arg,
     * We met a broken table that needs repair, or a table that
       is not present on this MySQL server and needs re-discovery.
       To perform the action, we need an exclusive metadata lock on
-      the table. Acquiring an X lock while holding other shared
-      locks is very deadlock-prone. If this is a multi- statement
-      transaction that holds metadata locks for completed
-      statements, we don't do it, and report an error instead.
+      the table. Acquiring X lock while holding other shared
+      locks can easily lead to deadlocks. We rely on MDL deadlock
+      detector to discover them. If this is a multi-statement
+      transaction that holds metadata locks for completed statements,
+      we should keep these locks after discovery/repair.
       The action type in this case is OT_DISCOVER or OT_REPAIR.
     * Our attempt to acquire an MDL lock lead to a deadlock,
       detected by the MDL deadlock detector. The current
@@ -3483,7 +3484,7 @@ request_backoff_action(enum_open_table_action action_arg,
       keep tables open between statements and a livelock
       is not possible.
   */
-  if (action_arg != OT_REOPEN_TABLES && m_has_locks)
+  if (action_arg == OT_BACKOFF_AND_RETRY && m_has_locks)
   {
     my_error(ER_LOCK_DEADLOCK, MYF(0));
     m_thd->mark_transaction_to_rollback(true);
@@ -3512,6 +3513,32 @@ request_backoff_action(enum_open_table_action action_arg,
 
 
 /**
+  An error handler to mark transaction to rollback on DEADLOCK error
+  during DISCOVER / REPAIR.
+*/
+class MDL_deadlock_discovery_repair_handler : public Internal_error_handler
+{
+public:
+  virtual bool handle_condition(THD *thd,
+                                  uint sql_errno,
+                                  const char* sqlstate,
+                                  Sql_condition::enum_warning_level level,
+                                  const char* msg,
+                                  Sql_condition ** cond_hdl)
+  {
+    if (sql_errno == ER_LOCK_DEADLOCK)
+    {
+      thd->mark_transaction_to_rollback(true);
+    }
+    /*
+      We have marked this transaction to rollback. Return false to allow
+      error to be reported or handled by other handlers.
+    */
+    return false;
+  }
+};
+
+/**
    Recover from failed attempt of open table by performing requested action.
 
    @pre This function should be called only with "action" != OT_NO_ACTION
@@ -3525,6 +3552,12 @@ bool
 Open_table_context::recover_from_failed_open()
 {
   bool result= FALSE;
+  MDL_deadlock_discovery_repair_handler handler;
+  /*
+    Install error handler to mark transaction to rollback on DEADLOCK error.
+  */
+  m_thd->push_internal_handler(&handler);
+
   /* Execute the action. */
   switch (m_action)
   {
@@ -3561,7 +3594,12 @@ Open_table_context::recover_from_failed_open()
             result= FALSE;
         }
 
-        m_thd->mdl_context.release_transactional_locks();
+        /*
+          Rollback to start of the current statement to release exclusive lock
+          on table which was discovered but preserve locks from previous statements
+          in current transaction.
+        */
+        m_thd->mdl_context.rollback_to_savepoint(start_of_statement_svp());
         break;
       }
     case OT_REPAIR:
@@ -3575,12 +3613,18 @@ Open_table_context::recover_from_failed_open()
                          m_failed_table->table_name, FALSE);
 
         result= auto_repair_table(m_thd, m_failed_table);
-        m_thd->mdl_context.release_transactional_locks();
+        /*
+          Rollback to start of the current statement to release exclusive lock
+          on table which was discovered but preserve locks from previous statements
+          in current transaction.
+        */
+        m_thd->mdl_context.rollback_to_savepoint(start_of_statement_svp());
         break;
       }
     default:
       DBUG_ASSERT(0);
   }
+  m_thd->pop_internal_handler();
   /*
     Reset the pointers to conflicting MDL request and the
     TABLE_LIST element, set when we need auto-discovery or repair,
@@ -6611,6 +6655,7 @@ find_field_in_tables(THD *thd, Item_ident *item,
 
   if (item->cached_table)
   {
+    DBUG_PRINT("info", ("using cached table"));
     /*
       This shortcut is used by prepared statements. We assume that
       TABLE_LIST *first_table is not changed during query execution (which
@@ -7362,14 +7407,6 @@ mark_common_columns(THD *thd, TABLE_LIST *table_ref_1, TABLE_LIST *table_ref_2,
     (found_using_fields < length(join_using_fields)).
   */
   result= FALSE;
-
-  /*
-    Save the lists made during natural join matching (because
-    the matching done only once but we need the list in case
-    of prepared statements).
-  */
-  table_ref_1->persistent_used_items= table_ref_1->used_items;
-  table_ref_2->persistent_used_items= table_ref_2->used_items;
 
 err:
   if (arena)
@@ -8418,11 +8455,6 @@ insert_fields(THD *thd, Name_resolution_context *context, const char *db_name,
         }
       }
 #endif
-      /*
-         field_iterator.create_item() builds used_items which we
-         have to save because changes made once and they are persistent
-      */
-      tables->persistent_used_items= tables->used_items;
 
       if ((field= field_iterator.field()))
       {

@@ -39,7 +39,7 @@ COUNT(*)
 984
 show variables like 'join_buffer_size';
 Variable_name	Value
-join_buffer_size	131072
+join_buffer_size	262144
 set join_cache_level=1;
 show variables like 'join_cache_level';
 Variable_name	Value
@@ -774,7 +774,7 @@ set join_cache_level=default;
 set join_buffer_size=default;
 show variables like 'join_buffer_size';
 Variable_name	Value
-join_buffer_size	131072
+join_buffer_size	262144
 show variables like 'join_cache_level';
 Variable_name	Value
 join_cache_level	2
@@ -808,7 +808,7 @@ INDEX (Percentage)
 );
 show variables like 'join_buffer_size';
 Variable_name	Value
-join_buffer_size	131072
+join_buffer_size	262144
 set join_cache_level=3;
 show variables like 'join_cache_level';
 Variable_name	Value
@@ -1008,7 +1008,7 @@ Russian Federation	NULL
 Vietnam	NULL
 show variables like 'join_buffer_size';
 Variable_name	Value
-join_buffer_size	131072
+join_buffer_size	262144
 set join_cache_level=4;
 show variables like 'join_cache_level';
 Variable_name	Value
@@ -1267,7 +1267,7 @@ Czech Republic	10278100	NULL	NULL
 DROP INDEX City_Name ON City;
 show variables like 'join_buffer_size';
 Variable_name	Value
-join_buffer_size	131072
+join_buffer_size	262144
 set join_cache_level=5;
 show variables like 'join_cache_level';
 Variable_name	Value
@@ -2688,7 +2688,7 @@ set join_cache_level=default;
 set join_buffer_size=default;
 show variables like 'join_buffer_size';
 Variable_name	Value
-join_buffer_size	131072
+join_buffer_size	262144
 show variables like 'join_cache_level';
 Variable_name	Value
 join_cache_level	2
@@ -5918,7 +5918,7 @@ select @@join_buffer_space_limit;
 8192
 select @@join_buffer_size;
 @@join_buffer_size
-131072
+262144
 explain select count(*) from t1, t1 t2 where t1.a=t2.a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	11	

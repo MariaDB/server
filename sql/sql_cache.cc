@@ -1295,14 +1295,6 @@ ulong Query_cache::resize(ulong query_cache_size_arg)
 			query_cache_size_arg));
   DBUG_ASSERT(initialized);
 
-  if (global_system_variables.query_cache_type == 0)
-  {
-    DBUG_ASSERT(query_cache_size_arg == 0);
-    if (query_cache_size_arg != 0)
-      my_error(ER_QUERY_CACHE_IS_DISABLED, MYF(0));
-    DBUG_RETURN(0);
-  }
-
   lock_and_suspend();
 
   /*
@@ -1340,7 +1332,7 @@ ulong Query_cache::resize(ulong query_cache_size_arg)
     m_cache_status is internal query cache switch so switching it on/off
     will not be reflected on global_system_variables.query_cache_type
   */
-  if (new_query_cache_size)
+  if (new_query_cache_size && global_system_variables.query_cache_type != 0)
   {
     DBUG_EXECUTE("check_querycache",check_integrity(1););
     m_cache_status= OK;                         // size > 0 => enable cache

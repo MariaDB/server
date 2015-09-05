@@ -625,5 +625,22 @@ innobase_convert_to_filename_charset(
 	const char*     from,   /* in: identifier to convert */
 	ulint           len);   /* in: length of 'to', in bytes */
 
-
+/********************************************************************//**
+Helper function to push warnings from InnoDB internals to SQL-layer. */
+UNIV_INTERN
+void
+ib_push_warning(
+	trx_t*		trx,	/*!< in: trx */
+	ulint		error,	/*!< in: error code to push as warning */
+	const char	*format,/*!< in: warning message */
+	...);
+/********************************************************************//**
+Helper function to push warnings from InnoDB internals to SQL-layer. */
+UNIV_INTERN
+void
+ib_push_warning(
+	void*		ithd,	/*!< in: thd */
+	ulint		error,	/*!< in: error code to push as warning */
+	const char	*format,/*!< in: warning message */
+	...);
 #endif /* HA_INNODB_PROTOTYPES_H */

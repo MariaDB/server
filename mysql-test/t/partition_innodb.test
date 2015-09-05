@@ -478,6 +478,7 @@ drop table t1;
 #
 # Bug 20397: Partitions: Crash when using non-existing engine
 #
+SET SQL_MODE="";
 create table t1 (a int)
 engine = x
 partition by key (a);
@@ -492,6 +493,7 @@ partition by list (a)
 alter table t1 engine = x;
 show create table t1;
 drop table t1;
+SET SQL_MODE=default;
 
 # BUG#26117: index_merge sort-union over partitioned table crashes
 

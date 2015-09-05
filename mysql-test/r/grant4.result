@@ -1,4 +1,6 @@
 drop database if exists mysqltest_db1;
+set GLOBAL sql_mode="";
+set LOCAL sql_mode="";
 create database mysqltest_db1;
 use mysqltest_db1;
 create table t_column_priv_only (a int, b int);
@@ -212,3 +214,4 @@ create user foo3 identified via mysql_old_password using '00';
 ERROR HY000: Password hash should be a 16-digit hexadecimal number
 create user foo4 identified via mysql_old_password using '11111111111111111111111111111111111111111';
 ERROR HY000: Password hash should be a 16-digit hexadecimal number
+set GLOBAL sql_mode=default;

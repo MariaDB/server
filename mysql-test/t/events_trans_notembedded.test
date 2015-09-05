@@ -13,6 +13,7 @@ use events_test;
 #
 # Privilege checks
 #
+create user mysqltest_user1@localhost;
 grant create, insert, select, delete on mysqltest_db2.*
   to mysqltest_user1@localhost;
 create database mysqltest_db2;

@@ -4,6 +4,8 @@
 # Can't test with embedded server that doesn't support grants
 -- source include/not_embedded.inc
 
+set sql_mode="";
+
 call mtr.add_suppression("Column count of mysql.event is wrong. Expected .*, found .*\. The table is probably corrupted");
 
 --disable_warnings

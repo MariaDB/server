@@ -1,5 +1,6 @@
 set @start_read_only= @@global.read_only;
 DROP TABLE IF EXISTS t1,t2,t3;
+create user test@localhost;
 grant CREATE, SELECT, DROP on *.* to test@localhost;
 connect (con1,localhost,test,,test);
 connection default;
@@ -139,6 +140,7 @@ delete from mysql.db where User like 'mysqltest_%';
 delete from mysql.tables_priv where User like 'mysqltest_%';
 delete from mysql.columns_priv where User like 'mysqltest_%';
 flush privileges;
+create user `mysqltest_u1`@`%`;
 grant all on mysqltest_db2.* to `mysqltest_u1`@`%`;
 create database mysqltest_db1;
 grant all on mysqltest_db1.* to `mysqltest_u1`@`%`;

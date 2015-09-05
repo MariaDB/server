@@ -3,6 +3,7 @@
 # Trigger Tests
 # (test case numbering refer to requirement document TP v1.1)
 #======================================================================
+set GLOBAL sql_mode="";
 
 USE test;
 --source suite/funcs_1/include/tb3.inc
@@ -622,3 +623,6 @@ let $message= Testcase 3.5.7.17 (see Testcase 3.5.1.1);
 	drop user test_super@localhost;
 
 DROP TABLE test.tb3;
+
+
+set GLOBAL sql_mode=default;

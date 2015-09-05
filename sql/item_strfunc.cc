@@ -402,16 +402,16 @@ String *Item_aes_crypt::val_str(String *str)
   if (sptr && user_key) // we need both arguments to be not NULL
   {
     null_value=0;
-    aes_length=my_aes_get_size(sptr->length()); // Calculate result length
+    aes_length=my_aes_get_size(MY_AES_ECB, sptr->length());
 
     if (!str_value.alloc(aes_length))		// Ensure that memory is free
     {
       uchar rkey[AES_KEY_LENGTH / 8];
       create_key(user_key, rkey);
 
-      if (!crypt((uchar*)sptr->ptr(), sptr->length(),
+      if (!my_aes_crypt(MY_AES_ECB, what, (uchar*)sptr->ptr(), sptr->length(),
                  (uchar*)str_value.ptr(), &aes_length,
-                 rkey, AES_KEY_LENGTH / 8, 0, 0, 0))
+                 rkey, AES_KEY_LENGTH / 8, 0, 0))
       {
         str_value.length((uint) aes_length);
         return &str_value;
@@ -424,16 +424,16 @@ String *Item_aes_crypt::val_str(String *str)
 
 void Item_func_aes_encrypt::fix_length_and_dec()
 {
-  max_length=my_aes_get_size(args[0]->max_length);
-  crypt= my_aes_encrypt_ecb;
+  max_length=my_aes_get_size(MY_AES_ECB, args[0]->max_length);
+  what= ENCRYPTION_FLAG_ENCRYPT;
 }
 
 
 void Item_func_aes_decrypt::fix_length_and_dec()
 {
-   max_length=args[0]->max_length;
-   maybe_null= 1;
-   crypt= my_aes_decrypt_ecb;
+  max_length=args[0]->max_length;
+  maybe_null= 1;
+  what= ENCRYPTION_FLAG_DECRYPT;
 }
 
 
@@ -4583,8 +4583,7 @@ String *Item_func_dyncol_create::val_str(String *str)
       char *ptr;
       size_t length, alloc_length;
       dynstr_reassociate(&col, &ptr, &length, &alloc_length);
-      str_value.reassociate(ptr, (uint32) length, (uint32) alloc_length,
-                            &my_charset_bin);
+      str_value.reset(ptr, length, alloc_length, &my_charset_bin);
       res= &str_value;
       null_value= FALSE;
     }
@@ -4676,8 +4675,7 @@ String *Item_func_dyncol_json::val_str(String *str)
     char *ptr;
     size_t length, alloc_length;
     dynstr_reassociate(&json, &ptr, &length, &alloc_length);
-    str->reassociate(ptr, (uint32) length, (uint32) alloc_length,
-                     &my_charset_utf8_general_ci);
+    str->reset(ptr, length, alloc_length, &my_charset_utf8_general_ci);
     null_value= FALSE;
   }
   return str;
@@ -4725,8 +4723,7 @@ String *Item_func_dyncol_add::val_str(String *str)
     char *ptr;
     size_t length, alloc_length;
     dynstr_reassociate(&col, &ptr, &length, &alloc_length);
-    str->reassociate(ptr, (uint32) length, (uint32) alloc_length,
-                     &my_charset_bin);
+    str->reset(ptr, length, alloc_length, &my_charset_bin);
     null_value= FALSE;
   }
 

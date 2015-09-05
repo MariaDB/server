@@ -6,6 +6,8 @@
 # Save the initial number of concurrent sessions
 --source include/count_sessions.inc
 
+set local sql_mode="";
+set global sql_mode="";
 
 --disable_warnings
 drop table if exists t1;
@@ -263,6 +265,7 @@ disconnect con1;
 connection default;
 DROP USER bug42158@localhost;
 
+set global sql_mode=default;
 --echo End of 5.1 tests
 
 # Wait till we reached the initial number of concurrent sessions

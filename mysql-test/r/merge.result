@@ -2270,7 +2270,7 @@ CREATE TABLE t3(a int) ENGINE = MERGE UNION(t1, t2);
 CREATE TRIGGER tr1 AFTER INSERT ON t3 FOR EACH ROW CALL foo();
 SHOW CREATE TRIGGER tr1;
 Trigger	sql_mode	SQL Original Statement	character_set_client	collation_connection	Database Collation
-tr1		CREATE DEFINER=`root`@`localhost` TRIGGER tr1 AFTER INSERT ON t3 FOR EACH ROW CALL foo()	latin1	latin1_swedish_ci	latin1_swedish_ci
+tr1	NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` TRIGGER tr1 AFTER INSERT ON t3 FOR EACH ROW CALL foo()	latin1	latin1_swedish_ci	latin1_swedish_ci
 DROP TRIGGER tr1;
 DROP TABLE t1, t2, t3;
 #
@@ -2545,11 +2545,14 @@ DROP TABLE t1;
 # Test merge table with too many merge children.
 #
 drop table if exists t_parent;
-set @save_table_definition_cache=@@global.table_definition_cache;
+set @save_table_open_cache=@@global.table_open_cache;
 #
-# Set @@global.table_definition_cache to minimum
+# Set @@global.table_open_cache to minimum
 #
-set @@global.table_definition_cache=400;
+set @@global.table_open_cache=400;
+select @@table_open_cache;
+@@table_open_cache
+400
 set @a=null;
 #
 # Create 400 merge children
@@ -2573,7 +2576,7 @@ deallocate prepare stmt;
 # Cleanup
 #
 drop table t_parent;
-set @@global.table_definition_cache=@save_table_definition_cache;
+set @@global.table_open_cache=@save_table_open_cache;
 DROP DATABASE IF EXISTS mysql_test1;
 CREATE DATABASE mysql_test1;
 CREATE TABLE t1 ... DATA DIRECTORY=... INDEX DIRECTORY=...

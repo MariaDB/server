@@ -3,6 +3,7 @@
 --source include/have_debug_sync.inc
 --source include/long_test.inc
 
+set global query_cache_type= ON;
 #
 # Bug #30887 Server crashes on SET GLOBAL query_cache_size=0
 #

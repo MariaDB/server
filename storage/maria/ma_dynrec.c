@@ -250,8 +250,7 @@ my_bool _ma_write_blob_record(MARIA_HA *info, const uchar *record)
 	  MARIA_DYN_DELETE_BLOCK_HEADER+1);
   reclength= (info->s->base.pack_reclength +
 	      _ma_calc_total_blob_length(info,record)+ extra);
-  if (!(rec_buff=(uchar*) my_safe_alloca(reclength,
-                                         MARIA_MAX_RECORD_ON_STACK)))
+  if (!(rec_buff=(uchar*) my_safe_alloca(reclength)))
   {
     my_errno= HA_ERR_OUT_OF_MEM; /* purecov: inspected */
     return(1);
@@ -265,7 +264,7 @@ my_bool _ma_write_blob_record(MARIA_HA *info, const uchar *record)
   error= write_dynamic_record(info,
                               rec_buff+ALIGN_SIZE(MARIA_MAX_DYN_BLOCK_HEADER),
                               reclength2);
-  my_safe_afree(rec_buff, reclength, MARIA_MAX_RECORD_ON_STACK);
+  my_safe_afree(rec_buff, reclength);
   return(error != 0);
 }
 
@@ -289,8 +288,7 @@ my_bool _ma_update_blob_record(MARIA_HA *info, MARIA_RECORD_POS pos,
     return 1;
   }
 #endif
-  if (!(rec_buff=(uchar*) my_safe_alloca(reclength,
-                                         MARIA_MAX_RECORD_ON_STACK)))
+  if (!(rec_buff=(uchar*) my_safe_alloca(reclength)))
   {
     my_errno= HA_ERR_OUT_OF_MEM; /* purecov: inspected */
     return(1);
@@ -300,7 +298,7 @@ my_bool _ma_update_blob_record(MARIA_HA *info, MARIA_RECORD_POS pos,
   error=update_dynamic_record(info,pos,
 			      rec_buff+ALIGN_SIZE(MARIA_MAX_DYN_BLOCK_HEADER),
 			      reclength);
-  my_safe_afree(rec_buff, reclength, MARIA_MAX_RECORD_ON_STACK);
+  my_safe_afree(rec_buff, reclength);
   return(error != 0);
 }
 
@@ -1555,8 +1553,7 @@ my_bool _ma_cmp_dynamic_unique(MARIA_HA *info, MARIA_UNIQUEDEF *def,
   my_bool error;
   DBUG_ENTER("_ma_cmp_dynamic_unique");
 
-  if (!(old_record= my_safe_alloca(info->s->base.reclength,
-                                   MARIA_MAX_RECORD_ON_STACK)))
+  if (!(old_record= my_safe_alloca(info->s->base.reclength)))
     DBUG_RETURN(1);
 
   /* Don't let the compare destroy blobs that may be in use */
@@ -1577,8 +1574,7 @@ my_bool _ma_cmp_dynamic_unique(MARIA_HA *info, MARIA_UNIQUEDEF *def,
     info->rec_buff=      old_rec_buff;
     info->rec_buff_size= old_rec_buff_size;
   }
-  my_safe_afree(old_record, info->s->base.reclength,
-                MARIA_MAX_RECORD_ON_STACK);
+  my_safe_afree(old_record, info->s->base.reclength);
   DBUG_RETURN(error);
 }
 
@@ -1613,8 +1609,7 @@ my_bool _ma_cmp_dynamic_record(register MARIA_HA *info,
     {
       buffer_length= (info->s->base.pack_reclength +
                       _ma_calc_total_blob_length(info,record));
-      if (!(buffer=(uchar*) my_safe_alloca(buffer_length,
-                                           MARIA_MAX_RECORD_ON_STACK)))
+      if (!(buffer=(uchar*) my_safe_alloca(buffer_length)))
 	DBUG_RETURN(1);
     }
     reclength= _ma_rec_pack(info,buffer,record);
@@ -1666,7 +1661,7 @@ my_bool _ma_cmp_dynamic_record(register MARIA_HA *info,
   error= 0;
 err:
   if (buffer != info->rec_buff)
-    my_safe_afree(buffer, buffer_length, MARIA_MAX_RECORD_ON_STACK);
+    my_safe_afree(buffer, buffer_length);
   DBUG_PRINT("exit", ("result: %d", error));
   DBUG_RETURN(error);
 }

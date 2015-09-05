@@ -9,6 +9,7 @@ drop database if exists mysqltest;
 # Bug 10838
 # Insert causes warnings for no default values and corrupts tables
 #
+set sql_mode="";
 CREATE TABLE t1 (a varchar(30) binary NOT NULL DEFAULT ' ',
                  b varchar(1) binary NOT NULL DEFAULT ' ',
 		 c varchar(4) binary NOT NULL DEFAULT '0000',
@@ -39,6 +40,7 @@ CREATE TABLE t1 (a varchar(30) binary NOT NULL DEFAULT ' ',
 		 b1 tinyblob NULL)
 ENGINE=InnoDB DEFAULT CHARACTER SET = latin1 COLLATE latin1_bin;
 --enable_warnings
+set sql_mode=default;
 
 INSERT into t1 (b) values ('1');
 SHOW WARNINGS;

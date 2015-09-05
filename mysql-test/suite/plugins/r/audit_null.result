@@ -1,5 +1,6 @@
 set @old_global_general_log=@@global.general_log;
 set global general_log=OFF;
+create user testuser@localhost;
 grant select on *.* to testuser@localhost;
 install plugin audit_null soname 'adt_null';
 select 1;

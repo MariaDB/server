@@ -26,6 +26,7 @@ grant insert,select on mysqltest1.t1 to role2;
 grant event,execute,trigger on mysqltest1.* to role2;
 
 # create a non-priv user and a priv role granted to him
+create user foo@localhost;
 grant create view on mysqltest1.* to foo@localhost;
 create role role4;
 grant select on mysqltest1.t1 to role4;
@@ -99,6 +100,7 @@ show create view test.v5;
 --error ER_NO_SUCH_USER
 select * from test.v5;
 
+create user role4;
 grant select on mysqltest1.t1 to role4;
 show create view test.v5;
 --error ER_NO_SUCH_USER

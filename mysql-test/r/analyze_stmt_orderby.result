@@ -422,7 +422,7 @@ ANALYZE
             "r_filtered": 100
           },
           "buffer_type": "flat",
-          "buffer_size": "128Kb",
+          "buffer_size": "256Kb",
           "join_type": "BNL",
           "attached_condition": "(t3.a = t0.a)",
           "r_filtered": 10
@@ -491,7 +491,7 @@ ANALYZE
                 "r_filtered": 100
               },
               "buffer_type": "flat",
-              "buffer_size": "128Kb",
+              "buffer_size": "256Kb",
               "join_type": "BNL",
               "attached_condition": "(t5.a = t6.a)",
               "r_filtered": 21.429
@@ -528,7 +528,7 @@ EXPLAIN
             "filtered": 100
           },
           "buffer_type": "flat",
-          "buffer_size": "128Kb",
+          "buffer_size": "256Kb",
           "join_type": "BNL",
           "attached_condition": "(t5.a = t6.a)"
         }

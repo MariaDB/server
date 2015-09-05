@@ -1,10 +1,10 @@
 /*****************************************************************************
 
-Copyright (c) 2000, 2015, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2000, 2015, Oracle and/or its affiliates.
+Copyright (c) 2013, 2015, MariaDB Corporation.
 Copyright (c) 2008, 2009 Google Inc.
 Copyright (c) 2009, Percona Inc.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2015, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -607,7 +607,8 @@ ib_cb_t innodb_api_cb[] = {
 	(ib_cb_t) ib_get_idx_field_name,
 	(ib_cb_t) ib_trx_get_start_time,
 	(ib_cb_t) ib_cfg_bk_commit_interval,
-	(ib_cb_t) ib_cursor_stmt_begin
+	(ib_cb_t) ib_cursor_stmt_begin,
+	(ib_cb_t) ib_trx_read_only
 };
 
 
@@ -2005,6 +2006,7 @@ convert_error_code_to_mysql(
 
 	case DB_TABLESPACE_DELETED:
 	case DB_TABLE_NOT_FOUND:
+	case DB_ENCRYPTED_DECRYPT_FAILED:
 		return(HA_ERR_NO_SUCH_TABLE);
 
 	case DB_TABLESPACE_NOT_FOUND:
@@ -2636,6 +2638,7 @@ check_trx_exists(
 
 	if (trx == NULL) {
 		trx = innobase_trx_allocate(thd);
+		thd_set_ha_data(thd, innodb_hton_ptr, trx);
 	} else if (UNIV_UNLIKELY(trx->magic_n != TRX_MAGIC_N)) {
 		mem_analyze_corruption(trx);
 		ut_error;
@@ -6041,7 +6044,14 @@ table_opened:
 
 	innobase_copy_frm_flags_from_table_share(ib_table, table->s);
 
-	dict_stats_init(ib_table);
+	ib_table->thd = (void*)thd;
+
+	/* No point to init any statistics if tablespace is still encrypted. */
+	if (!ib_table->is_encrypted) {
+		dict_stats_init(ib_table);
+	} else {
+		ib_table->stat_initialized = 1;
+	}
 
 	MONITOR_INC(MONITOR_TABLE_OPEN);
 
@@ -6070,6 +6080,11 @@ table_opened:
 		file, best to play it safe. */
 
 		no_tablespace = true;
+	} else if (ib_table->is_encrypted) {
+		/* This means that tablespace was found but we could not
+		decrypt encrypted page. */
+		no_tablespace = true;
+		ib_table->ibd_file_missing = true;
 	} else {
 		no_tablespace = false;
 	}
@@ -6077,6 +6092,33 @@ table_opened:
 	if (!thd_tablespace_op(thd) && no_tablespace) {
 		free_share(share);
 		my_errno = ENOENT;
+
+		/* If table has no talespace but it has crypt data, check
+		is tablespace made unaccessible because encryption service
+		or used key_id is not available. */
+		if (ib_table) {
+			fil_space_crypt_t* crypt_data = ib_table->crypt_data;
+			if ((crypt_data && crypt_data->encryption == FIL_SPACE_ENCRYPTION_ON) ||
+				(srv_encrypt_tables &&
+					crypt_data && crypt_data->encryption == FIL_SPACE_ENCRYPTION_DEFAULT)) {
+
+				if (!encryption_key_id_exists(crypt_data->key_id)) {
+					push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+						HA_ERR_NO_SUCH_TABLE,
+						"Table %s is encrypted but encryption service or"
+						" used key_id %u is not available. "
+						" Can't continue reading table.",
+						ib_table->name, crypt_data->key_id);
+				}
+			} else if (ib_table->is_encrypted) {
+				push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+					HA_ERR_NO_SUCH_TABLE,
+					"Table %s is encrypted but encryption service or"
+					" used key_id is not available. "
+					" Can't continue reading table.",
+					ib_table->name);
+			}
+		}
 
 		dict_table_close(ib_table, FALSE, FALSE);
 
@@ -8209,10 +8251,11 @@ no_commit:
 			;
 		} else if (src_table == prebuilt->table) {
 #ifdef WITH_WSREP
-			if (wsrep_on(user_thd) && wsrep_load_data_splitting &&
+			if (wsrep_on(user_thd)                              &&
+			    wsrep_load_data_splitting                       &&
 			    sql_command == SQLCOM_LOAD                      &&
-			    !thd_test_options(
-					      user_thd, OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN))
+			    !thd_test_options(user_thd,
+			                      OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN))
 			{
 				switch (wsrep_run_wsrep_commit(user_thd, 1))
 				{
@@ -8240,10 +8283,11 @@ no_commit:
 			prebuilt->sql_stat_start = TRUE;
 		} else {
 #ifdef WITH_WSREP
-			if (wsrep_on(user_thd) && wsrep_load_data_splitting &&
+			if (wsrep_on(user_thd)                              &&
+			    wsrep_load_data_splitting                       &&
 			    sql_command == SQLCOM_LOAD                      &&
-			    !thd_test_options(
-					      user_thd, OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN))
+			    !thd_test_options(user_thd,
+			                      OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN))
 			{
 				switch (wsrep_run_wsrep_commit(user_thd, 1))
 				{
@@ -8474,14 +8518,15 @@ report_error:
 						   user_thd);
 
 #ifdef WITH_WSREP
-	if (!error_result && wsrep_thd_exec_mode(user_thd) == LOCAL_STATE &&
-	    wsrep_on(user_thd) && !wsrep_consistency_check(user_thd) &&
-	    (sql_command != SQLCOM_LOAD || 
-	     thd_binlog_format(user_thd) == BINLOG_FORMAT_ROW)) {
-
-		if (wsrep_append_keys(user_thd, false, record, NULL)) {
- 			DBUG_PRINT("wsrep", ("row key failed"));
- 			error_result = HA_ERR_INTERNAL_ERROR;
+	if (!error_result                                &&
+	    wsrep_thd_exec_mode(user_thd) == LOCAL_STATE &&
+	    wsrep_on(user_thd)                           &&
+	    !wsrep_consistency_check(user_thd))
+	{
+		if (wsrep_append_keys(user_thd, false, record, NULL))
+		{
+			DBUG_PRINT("wsrep", ("row key failed"));
+			error_result = HA_ERR_INTERNAL_ERROR;
 			goto wsrep_error;
 		}
 	}
@@ -13135,6 +13180,13 @@ ha_innobase::estimate_rows_upper_bound()
 
 	prebuilt->trx->op_info = "";
 
+        /* Set num_rows less than MERGEBUFF to simulate the case where we do
+        not have enough space to merge the externally sorted file blocks. */
+        DBUG_EXECUTE_IF("set_num_rows_lt_MERGEBUFF",
+                        estimate = 2;
+                        DBUG_SET("-d,set_num_rows_lt_MERGEBUFF");
+                       );
+
 	DBUG_RETURN((ha_rows) estimate);
 }
 
@@ -13400,7 +13452,6 @@ ha_innobase::info_low(
 	dict_table_t*	ib_table;
 	ha_rows		rec_per_key;
 	ib_uint64_t	n_rows;
-	char		path[FN_REFLEN];
 	os_file_stat_t	stat_info;
 
 	DBUG_ENTER("info");
@@ -13457,6 +13508,7 @@ ha_innobase::info_low(
 			prebuilt->trx->op_info =
 				"returning various info to MySQL";
 		}
+
 	}
 
 	if (flag & HA_STATUS_VARIABLE) {
@@ -13588,6 +13640,7 @@ ha_innobase::info_low(
 
 	if (flag & HA_STATUS_CONST) {
 		ulong	i;
+		char	path[FN_REFLEN];
 		/* Verify the number of index in InnoDB and MySQL
 		matches up. If prebuilt->clust_index_was_generated
 		holds, InnoDB defines GEN_CLUST_INDEX internally */
@@ -21342,4 +21395,60 @@ static void innodb_remember_check_sysvar_funcs()
 	/* remember build-in sysvar check functions */
 	ut_ad((MYSQL_SYSVAR_NAME(checksum_algorithm).flags & 0x1FF) == PLUGIN_VAR_ENUM);
 	check_sysvar_enum = MYSQL_SYSVAR_NAME(checksum_algorithm).check;
+}
+
+/********************************************************************//**
+Helper function to push warnings from InnoDB internals to SQL-layer. */
+UNIV_INTERN
+void
+ib_push_warning(
+	trx_t*		trx,	/*!< in: trx */
+	ulint		error,	/*!< in: error code to push as warning */
+	const char	*format,/*!< in: warning message */
+	...)
+{
+	va_list args;
+	THD *thd = (THD *)trx->mysql_thd;
+	char *buf;
+#define MAX_BUF_SIZE 4*1024
+
+	va_start(args, format);
+	buf = (char *)my_malloc(MAX_BUF_SIZE, MYF(MY_WME));
+	vsprintf(buf,format, args);
+
+	push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+		convert_error_code_to_mysql((dberr_t)error, 0, thd),
+		buf);
+	my_free(buf);
+	va_end(args);
+}
+
+/********************************************************************//**
+Helper function to push warnings from InnoDB internals to SQL-layer. */
+UNIV_INTERN
+void
+ib_push_warning(
+	void*		ithd,	/*!< in: thd */
+	ulint		error,	/*!< in: error code to push as warning */
+	const char	*format,/*!< in: warning message */
+	...)
+{
+	va_list args;
+	THD *thd = (THD *)ithd;
+	char *buf;
+#define MAX_BUF_SIZE 4*1024
+
+	if (ithd == NULL) {
+		thd = current_thd;
+	}
+
+	va_start(args, format);
+	buf = (char *)my_malloc(MAX_BUF_SIZE, MYF(MY_WME));
+	vsprintf(buf,format, args);
+
+	push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+		convert_error_code_to_mysql((dberr_t)error, 0, thd),
+		buf);
+	my_free(buf);
+	va_end(args);
 }

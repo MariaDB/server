@@ -79,6 +79,7 @@ DROP TABLE t1;
 --echo # MAX_STATEMENT_TIME account resource
 --echo
 
+set statement sql_mode="" for
 GRANT USAGE ON *.* TO user1@localhost WITH MAX_STATEMENT_TIME 1.005;
 
 --echo # con1

@@ -1,3 +1,5 @@
+set local sql_mode="";
+set global sql_mode="";
 SET DEBUG_SYNC = 'RESET';
 DROP TABLE IF EXISTS t1, t2, t3;
 DROP FUNCTION IF EXISTS MY_KILL;
@@ -322,3 +324,4 @@ SLEEP(1000)
 DROP USER u1@localhost;
 SET DEBUG_SYNC = 'RESET';
 DROP FUNCTION MY_KILL;
+set global sql_mode=default;

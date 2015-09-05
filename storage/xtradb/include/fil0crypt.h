@@ -381,6 +381,17 @@ fil_crypt_set_encrypt_tables(
 /*=========================*/
 	uint val);      /*!< in: New srv_encrypt_tables setting */
 
+/******************************************************************
+Calculate post encryption checksum
+@return page checksum or BUF_NO_CHECKSUM_MAGIC
+not needed. */
+UNIV_INTERN
+ulint
+fil_crypt_calculate_checksum(
+/*=========================*/
+	ulint	zip_size,	/*!< in: zip_size or 0 */
+	byte*	dst_frame);	/*!< in: page where to calculate */
+
 #ifndef UNIV_NONINL
 #include "fil0crypt.ic"
 #endif

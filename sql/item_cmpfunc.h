@@ -442,6 +442,11 @@ public:
     Item_args::propagate_equal_fields(thd, ANY_SUBST, cond);
     return this;
   }
+  void fix_length_and_dec()
+  {
+    Item_bool_func::fix_length_and_dec();
+    args[0]->cmp_context= args[1]->cmp_context= INT_RESULT;
+  }
 };
 
 class Item_func_not :public Item_bool_func

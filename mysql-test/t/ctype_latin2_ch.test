@@ -144,6 +144,7 @@ SELECT * FROM t1 GROUP BY s1;
 SELECT * FROM t1 ORDER BY s1;
 DROP TABLE t1;
 
+set sql_mode="";
 --disable_warnings
 CREATE TABLE t1 ENGINE=INNODB AS SELECT repeat('a', 5) AS s1 LIMIT 0;
 --enable_warnings
@@ -182,6 +183,7 @@ SELECT * FROM t1 ORDER BY s1;
 DROP TABLE t1;
 
 SET NAMES latin2;
+
 
 #
 # Bug#37854 Test fails/aborts for collate latin2_czech_cs used with SET and ENUM datatypes

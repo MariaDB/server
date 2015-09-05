@@ -1,3 +1,5 @@
+set GLOBAL query_cache_type=ON;
+set LOCAL query_cache_type=ON;
 ---- establish connection con1 (root) ----
 ---- switch to connection default ----
 set @initial_query_cache_size = @@global.query_cache_size;
@@ -572,3 +574,4 @@ deallocate prepare stmt;
 drop table t1;
 set @@global.query_cache_size=@initial_query_cache_size;
 flush status;
+set GLOBAL query_cache_type=default;

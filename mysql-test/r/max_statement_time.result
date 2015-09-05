@@ -52,6 +52,7 @@ DROP TABLE t1;
 
 # MAX_STATEMENT_TIME account resource
 
+set statement sql_mode="" for
 GRANT USAGE ON *.* TO user1@localhost WITH MAX_STATEMENT_TIME 1.005;
 # con1
 SELECT @@max_statement_time;
@@ -114,7 +115,7 @@ UPDATE t1 SET a = 2;
 ERROR 70100: Query execution was interrupted (max_statement_time exceeded)
 SHOW WARNINGS;
 Level	Code	Message
-Error	1968	Query execution was interrupted (max_statement_time exceeded)
+Error	1969	Query execution was interrupted (max_statement_time exceeded)
 ROLLBACK;
 DROP TABLE t1;
 

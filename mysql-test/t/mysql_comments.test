@@ -10,6 +10,8 @@
 #                                                                      #
 ########################################################################
 
+set global sql_mode="";
+
 #
 # Bug #11230: Keeping comments when storing stored procedures
 #
@@ -34,4 +36,6 @@ drop trigger if exists t1_bi;
 --echo "Pass 2 : --enable-comments"
 --exec $MYSQL --enable-comments test 2>&1 < "./t/mysql_comments.sql"
 
+
+set global sql_mode=default;
 --echo End of 5.0 tests

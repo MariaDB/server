@@ -1,3 +1,4 @@
+set global sql_mode="";
 drop table if exists t1;
 drop function if exists foofct;
 drop procedure if exists empty;
@@ -59,4 +60,5 @@ Trigger	sql_mode	SQL Original Statement	character_set_client	collation_connectio
 t1_bi		CREATE DEFINER=`root`@`localhost` trigger t1_bi before insert on t1\nfor each row\nbegin\n# comment 1a\n-- comment 1b\n/*\n   comment 1c\n*/\n  -- declare some variables here\n  declare b int;\n  declare c float;\n\n  -- do more stuff here\n  -- commented nicely and so on\n\n  -- famous last words ...\n  set NEW.data := 12;\nend	latin1	latin1_swedish_ci	latin1_swedish_ci
 id	data
 trig	12
+set global sql_mode=default;
 End of 5.0 tests

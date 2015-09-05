@@ -420,7 +420,8 @@ dict_mem_table_col_rename_low(
 			dict_index_t* new_index = dict_foreign_find_index(
 				foreign->foreign_table, NULL,
 				foreign->foreign_col_names,
-				foreign->n_fields, NULL, true, false);
+				foreign->n_fields, NULL, true, false,
+				NULL, NULL, NULL);
 			/* There must be an equivalent index in this case. */
 			ut_ad(new_index != NULL);
 

@@ -108,7 +108,7 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #define thd_get_trx_isolation(X) ((enum_tx_isolation)thd_tx_isolation(X))
 
 #ifdef MYSQL_DYNAMIC_PLUGIN
-#define tc_size 400
+#define tc_size 2000
 #define tdc_size 400
 #endif
 
@@ -1747,6 +1747,7 @@ convert_error_code_to_mysql(
 
 	case DB_TABLESPACE_DELETED:
 	case DB_TABLE_NOT_FOUND:
+	case DB_ENCRYPTED_DECRYPT_FAILED:
 		return(HA_ERR_NO_SUCH_TABLE);
 
 	case DB_TABLESPACE_NOT_FOUND:
@@ -2365,6 +2366,7 @@ check_trx_exists(
 
 	if (trx == NULL) {
 		trx = innobase_trx_allocate(thd);
+		thd_set_ha_data(thd, innodb_hton_ptr, trx);
 	} else if (UNIV_UNLIKELY(trx->magic_n != TRX_MAGIC_N)) {
 		mem_analyze_corruption(trx);
 		ut_error;
@@ -5591,7 +5593,14 @@ table_opened:
 
 	innobase_copy_frm_flags_from_table_share(ib_table, table->s);
 
-	dict_stats_init(ib_table);
+	ib_table->thd = (void*)thd;
+
+	/* No point to init any statistics if tablespace is still encrypted. */
+	if (!ib_table->is_encrypted) {
+		dict_stats_init(ib_table);
+	} else {
+		ib_table->stat_initialized = 1;
+	}
 
 	MONITOR_INC(MONITOR_TABLE_OPEN);
 
@@ -5620,6 +5629,11 @@ table_opened:
 		file, best to play it safe. */
 
 		no_tablespace = true;
+	} else if (ib_table->is_encrypted) {
+		/* This means that tablespace was found but we could not
+		decrypt encrypted page. */
+		no_tablespace = true;
+		ib_table->ibd_file_missing = true;
 	} else {
 		no_tablespace = false;
 	}
@@ -5627,6 +5641,33 @@ table_opened:
 	if (!thd_tablespace_op(thd) && no_tablespace) {
 		free_share(share);
 		my_errno = ENOENT;
+
+		/* If table has no talespace but it has crypt data, check
+		is tablespace made unaccessible because encryption service
+		or used key_id is not available. */
+		if (ib_table) {
+			fil_space_crypt_t* crypt_data = ib_table->crypt_data;
+			if ((crypt_data && crypt_data->encryption == FIL_SPACE_ENCRYPTION_ON) ||
+				(srv_encrypt_tables &&
+					crypt_data && crypt_data->encryption == FIL_SPACE_ENCRYPTION_DEFAULT)) {
+
+				if (!encryption_key_id_exists(crypt_data->key_id)) {
+					push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+						HA_ERR_NO_SUCH_TABLE,
+						"Table %s is encrypted but encryption service or"
+						" used key_id %u is not available. "
+						" Can't continue reading table.",
+						ib_table->name, crypt_data->key_id);
+				}
+			} else if (ib_table->is_encrypted) {
+				push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+					HA_ERR_NO_SUCH_TABLE,
+					"Table %s is encrypted but encryption service or"
+					" used key_id is not available. "
+					" Can't continue reading table.",
+					ib_table->name);
+			}
+		}
 
 		dict_table_close(ib_table, FALSE, FALSE);
 
@@ -7755,10 +7796,11 @@ no_commit:
 			;
 		} else if (src_table == prebuilt->table) {
 #ifdef WITH_WSREP
-			if (wsrep_on(user_thd) && wsrep_load_data_splitting &&
+			if (wsrep_on(user_thd)                              &&
+			    wsrep_load_data_splitting                       &&
 			    sql_command == SQLCOM_LOAD                      &&
-			    !thd_test_options(
-					      user_thd, OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN))
+			    !thd_test_options(user_thd,
+			                      OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN))
 			{
 				switch (wsrep_run_wsrep_commit(user_thd, 1))
 				{
@@ -7786,10 +7828,11 @@ no_commit:
 			prebuilt->sql_stat_start = TRUE;
 		} else {
 #ifdef WITH_WSREP
-			if (wsrep_on(user_thd) && wsrep_load_data_splitting &&
+			if (wsrep_on(user_thd)                              &&
+			    wsrep_load_data_splitting                       &&
 			    sql_command == SQLCOM_LOAD                      &&
-			    !thd_test_options(
-					      user_thd, OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN))
+			    !thd_test_options(user_thd,
+			                      OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN))
 			{
 				switch (wsrep_run_wsrep_commit(user_thd, 1))
 				{
@@ -8011,14 +8054,15 @@ report_error:
 						   user_thd);
 
 #ifdef WITH_WSREP
-	if (!error_result && wsrep_thd_exec_mode(user_thd) == LOCAL_STATE &&
-	    wsrep_on(user_thd) && !wsrep_consistency_check(user_thd) &&
-	    (sql_command != SQLCOM_LOAD || 
-	     thd_binlog_format(user_thd) == BINLOG_FORMAT_ROW)) {
-
-		if (wsrep_append_keys(user_thd, false, record, NULL)) {
- 			DBUG_PRINT("wsrep", ("row key failed"));
- 			error_result = HA_ERR_INTERNAL_ERROR;
+	if (!error_result                                &&
+	    wsrep_thd_exec_mode(user_thd) == LOCAL_STATE &&
+	    wsrep_on(user_thd)                           &&
+	    !wsrep_consistency_check(user_thd))
+	{
+		if (wsrep_append_keys(user_thd, false, record, NULL))
+		{
+			DBUG_PRINT("wsrep", ("row key failed"));
+			error_result = HA_ERR_INTERNAL_ERROR;
 			goto wsrep_error;
 		}
 	}
@@ -10052,6 +10096,27 @@ wsrep_append_key(
 	DBUG_RETURN(0);
 }
 
+static bool
+referenced_by_foreign_key2(dict_table_t* table,
+                           dict_index_t* index) {
+        ut_ad(table != NULL);
+        ut_ad(index != NULL);
+
+        const dict_foreign_set* fks = &table->referenced_set;
+        for (dict_foreign_set::const_iterator it = fks->begin();
+             it != fks->end();
+             ++it)
+        {
+                dict_foreign_t* foreign = *it;
+                if (foreign->referenced_index != index) {
+                        continue;
+                }
+                ut_ad(table == foreign->referenced_table);
+                return true;
+        }
+        return false;
+}
+
 int
 ha_innobase::wsrep_append_keys(
 /*==================*/
@@ -10131,7 +10196,7 @@ ha_innobase::wsrep_append_keys(
 			/* !hasPK == table with no PK, must append all non-unique keys */
 			if (!hasPK || key_info->flags & HA_NOSAME ||
 			    ((tab &&
-			      dict_table_get_referenced_constraint(tab, idx)) ||
+			      referenced_by_foreign_key2(tab, idx)) ||
 			     (!tab && referenced_by_foreign_key()))) {
 
 				len = wsrep_store_key_val_for_row(
@@ -10346,13 +10411,23 @@ create_table_def(
 
 	/* MySQL does the name length check. But we do additional check
 	on the name length here */
-	if (strlen(table_name) > MAX_FULL_NAME_LEN) {
+	const size_t	table_name_len = strlen(table_name);
+	if (table_name_len > MAX_FULL_NAME_LEN) {
 		push_warning_printf(
 			thd, Sql_condition::WARN_LEVEL_WARN,
 			ER_TABLE_NAME,
 			"InnoDB: Table Name or Database Name is too long");
 
 		DBUG_RETURN(ER_TABLE_NAME);
+	}
+
+	if (table_name[table_name_len - 1] == '/') {
+		push_warning_printf(
+			thd, Sql_condition::WARN_LEVEL_WARN,
+			ER_TABLE_NAME,
+			"InnoDB: Table name is empty");
+
+		DBUG_RETURN(ER_WRONG_TABLE_NAME);
 	}
 
 	n_cols = form->s->fields;
@@ -20130,4 +20205,60 @@ static void innodb_remember_check_sysvar_funcs()
 	/* remember build-in sysvar check functions */
 	ut_ad((MYSQL_SYSVAR_NAME(checksum_algorithm).flags & 0x1FF) == PLUGIN_VAR_ENUM);
 	check_sysvar_enum = MYSQL_SYSVAR_NAME(checksum_algorithm).check;
+}
+
+/********************************************************************//**
+Helper function to push warnings from InnoDB internals to SQL-layer. */
+UNIV_INTERN
+void
+ib_push_warning(
+	trx_t*		trx,	/*!< in: trx */
+	ulint		error,	/*!< in: error code to push as warning */
+	const char	*format,/*!< in: warning message */
+	...)
+{
+	va_list args;
+	THD *thd = (THD *)trx->mysql_thd;
+	char *buf;
+#define MAX_BUF_SIZE 4*1024
+
+	va_start(args, format);
+	buf = (char *)my_malloc(MAX_BUF_SIZE, MYF(MY_WME));
+	vsprintf(buf,format, args);
+
+	push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+		convert_error_code_to_mysql((dberr_t)error, 0, thd),
+		buf);
+	my_free(buf);
+	va_end(args);
+}
+
+/********************************************************************//**
+Helper function to push warnings from InnoDB internals to SQL-layer. */
+UNIV_INTERN
+void
+ib_push_warning(
+	void*		ithd,	/*!< in: thd */
+	ulint		error,	/*!< in: error code to push as warning */
+	const char	*format,/*!< in: warning message */
+	...)
+{
+	va_list args;
+	THD *thd = (THD *)ithd;
+	char *buf;
+#define MAX_BUF_SIZE 4*1024
+
+	if (ithd == NULL) {
+		thd = current_thd;
+	}
+
+	va_start(args, format);
+	buf = (char *)my_malloc(MAX_BUF_SIZE, MYF(MY_WME));
+	vsprintf(buf,format, args);
+
+	push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+		convert_error_code_to_mysql((dberr_t)error, 0, thd),
+		buf);
+	my_free(buf);
+	va_end(args);
 }

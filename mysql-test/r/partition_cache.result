@@ -1,3 +1,5 @@
+SET global query_cache_type=ON;
+SET local query_cache_type=ON;
 SET SESSION STORAGE_ENGINE = InnoDB;
 drop table if exists t1,t2,t3;
 set @save_query_cache_size = @@global.query_cache_size;
@@ -203,3 +205,4 @@ Variable_name	Value
 Qcache_hits	1
 set @@global.query_cache_size = @save_query_cache_size;
 drop table t2;
+SET global query_cache_type=default;

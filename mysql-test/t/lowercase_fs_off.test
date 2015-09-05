@@ -5,6 +5,8 @@
 -- source include/have_case_sensitive_file_system.inc
 -- source include/not_embedded.inc
 
+set GLOBAL sql_mode="";
+set LOCAL sql_mode="";
 connect (master,localhost,root,,);
 connection master;
 create database d1;
@@ -102,3 +104,5 @@ CREATE TRIGGER t1_bi BEFORE INSERT ON t1 FOR EACH ROW SET new.a= 1;
 RENAME TABLE t1 TO T1;
 ALTER TABLE T1 RENAME t1;
 DROP TABLE t1;
+
+set GLOBAL sql_mode=default;

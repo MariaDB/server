@@ -226,6 +226,7 @@ SELECT * FROM information_schema.processlist;
 --echo   connection default (user=root)
 --echo ####################################################################################
 connection default;
+create user ''@'localhost';
 GRANT PROCESS ON *.* TO ''@'localhost';
 --real_sleep 0.3
 

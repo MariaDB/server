@@ -214,7 +214,9 @@ CAST(RAND(2) * 1000 AS UNSIGNED)	CAST(RAND(?) * 1000 AS UNSIGNED)
 122	122
 645	645
 DROP TABLE t1;
+set sql_mode="";
 create table t1 (a varchar(90), ts datetime not null, index (a)) engine=innodb default charset=utf8;
+set sql_mode=default;
 insert into t1 values ('http://www.foo.com/', now());
 select a from t1 where a='http://www.foo.com/' order by abs(timediff(ts, 0));
 a

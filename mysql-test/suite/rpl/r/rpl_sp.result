@@ -1,5 +1,7 @@
 include/master-slave.inc
 [connection master]
+set local sql_mode='';
+set global sql_mode='';
 drop database if exists mysqltest1;
 create database mysqltest1;
 use mysqltest1;
@@ -1311,3 +1313,4 @@ drop table t1;
 drop procedure p1;
 # End of 5.5 tests.
 include/rpl_end.inc
+set global sql_mode=default;

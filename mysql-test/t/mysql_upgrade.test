@@ -2,6 +2,8 @@
 -- source include/have_working_dns.inc
 -- source include/have_innodb.inc
 
+set sql_mode="";
+
 #
 # Basic test that we can run mysql_upgrde and that it finds the
 # expected binaries it uses.
@@ -15,7 +17,6 @@ file_exists $MYSQLD_DATADIR/mysql_upgrade_info;
 
 --echo Run it again - should say already completed
 --replace_result $MYSQL_SERVER_VERSION VERSION
---error 1
 --exec $MYSQL_UPGRADE 2>&1
 
 # It should have created a file in the MySQL Servers datadir
@@ -159,4 +160,5 @@ SELECT grantor FROM mysql.tables_priv WHERE db = 'mysql' AND table_name = 'user'
 DROP USER very_long_user_name_number_1, very_long_user_name_number_2, even_longer_user_name_number_3_to_test_the_grantor_and_definer_field_length@localhost;
 DROP PROCEDURE test.pr;
 
+set sql_mode=default;
 --echo End of tests

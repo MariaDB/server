@@ -2,6 +2,11 @@
 drop table if exists t1;
 --enable_warnings
 
+
+set global max_allowed_packet=1048576;
+connect (conn1,localhost,root,,);
+connection conn1;
+
 set names latin1;
 
 #
@@ -111,3 +116,6 @@ drop table t1;
 SELECT HEX(WEIGHT_STRING('ab' AS CHAR(1000000000000000000))); 
 SELECT HEX(WEIGHT_STRING('ab' AS BINARY(1000000000000000000))); 
 
+disconnect conn1;
+connection default;
+set global max_allowed_packet=default;

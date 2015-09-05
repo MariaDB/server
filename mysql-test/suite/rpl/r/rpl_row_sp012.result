@@ -3,6 +3,7 @@ include/master-slave.inc
 DROP PROCEDURE IF EXISTS test.p1;
 DROP PROCEDURE IF EXISTS test.p2;
 DROP PROCEDURE IF EXISTS test.p3;
+create user user1@localhost;
 grant usage on *.* to user1@localhost;
 flush privileges;
 SELECT CURRENT_USER();
@@ -17,6 +18,7 @@ CREATE PROCEDURE test.p3 () SQL SECURITY INVOKER CALL test.p1();
 GRANT EXECUTE ON PROCEDURE p1 TO user1@localhost;
 GRANT EXECUTE ON PROCEDURE p2 TO user1@localhost;
 GRANT EXECUTE ON PROCEDURE p3 TO user1@localhost;
+set sql_mode=default;
 
 <********  Master user1 p3 & p2 calls *******>
 ----------------------------------------------
