@@ -6656,7 +6656,9 @@ void handle_connections_sockets()
     setup_fds(unix_sock, AF_UNIX);
     socket_flags=fcntl(mysql_socket_getfd(unix_sock), F_GETFL, 0);
 #endif
+#ifdef HAVE_SYSTEMD
   }
+#endif /* HAVE_SYSTEMD */
 
   /* here we active a extra port, even if socket activation was is used because the
      extra port wasn't activated using socket activation */
@@ -6671,6 +6673,7 @@ void handle_connections_sockets()
     extra_ip_flags = fcntl(mysql_socket_getfd(extra_ip_sock), F_GETFL, 0);
   }
 
+#ifdef HAVE_SYSTEMD
 #ifdef HAVE_POLL
   if (systemd_listen_cnt == 0 && systemd_n>0)
   {
@@ -6685,6 +6688,7 @@ void handle_connections_sockets()
 #ifdef HAVE_POLL
   }
 #endif /* HAVE_POLL */
+#endif /* HAVE_SYSTEMD */
 
   DBUG_PRINT("general",("Waiting for connections."));
   MAYBE_BROKEN_SYSCALL;
