@@ -539,3 +539,37 @@ where coalesce(message,0) <> 0;
 drop table t1,t2;
 
 set optimizer_switch=@save_derived_optimizer_switch;
+
+--echo #
+--echo # Start of 10.1 tests
+--echo #
+
+--echo #
+--echo # MDEV-8747 Wrong result for SELECT..WHERE derived_table_column='a' AND derived_table_column<>_latin1'A' COLLATE latin1_bin
+--echo #
+CREATE TABLE t1 (a VARCHAR(10));
+INSERT INTO t1 VALUES ('a'),('A');
+SELECT * FROM t1 WHERE a='a' AND a <> _latin1'A' COLLATE latin1_bin;
+SELECT * FROM (SELECT * FROM t1) AS table1 WHERE a='a' AND a <> _latin1'A' COLLATE latin1_bin;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a ENUM('5','6'));
+INSERT INTO t1 VALUES ('5'),('6');
+SELECT * FROM (SELECT * FROM t1) AS table1 WHERE a='5';
+SELECT * FROM (SELECT * FROM t1) AS table1 WHERE a=1;
+SELECT * FROM (SELECT * FROM t1) AS table1 WHERE a='5' AND a=1;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-8749 Wrong result for SELECT..WHERE derived_table_enum_column='number' AND derived_table_enum_column OP number2
+--echo #
+CREATE TABLE t1 (a ENUM('5','6'));
+INSERT INTO t1 VALUES ('5'),('6');
+SELECT * FROM (SELECT * FROM t1) AS table1 WHERE a='5';
+SELECT * FROM (SELECT * FROM t1) AS table1 WHERE a=1;
+SELECT * FROM (SELECT * FROM t1) AS table1 WHERE a='5' AND a=1;
+DROP TABLE t1;
+
+--echo #
+--echo # End of 10.1 tests
+--echo #

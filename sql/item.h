@@ -693,7 +693,6 @@ public:
   bool with_subselect;                  /* If this item is a subselect or some
                                            of its arguments is or contains a
                                            subselect */
-  Item_result cmp_context;              /* Comparison context */
   // alloc & destruct is done as start of select using sql_alloc
   Item(THD *thd);
   /*
@@ -1434,8 +1433,6 @@ public:
     Comparison functions pass their attributes to propagate_equal_fields().
     For exmple, for string comparison, the collation of the comparison
     operation is important inside propagate_equal_fields().
-    TODO: We should move Item::cmp_context to from Item to Item::Context
-    eventually.
   */
   class Context
   {
@@ -1445,18 +1442,44 @@ public:
       - SUBST_IDENTITY (strict binary equality).
     */
     Subst_constraint m_subst_constraint;
+    Item_result m_compare_type;
     /*
       Collation of the comparison operation.
       Important only when SUBST_ANY.
     */
     CHARSET_INFO *m_compare_collation;
   public:
-    Context(Subst_constraint subst, CHARSET_INFO *cs)
-      :m_subst_constraint(subst), m_compare_collation(cs) { }
-    Context(Subst_constraint subst)
-      :m_subst_constraint(subst), m_compare_collation(&my_charset_bin) { }
+    Context(Subst_constraint subst, Item_result type, CHARSET_INFO *cs)
+      :m_subst_constraint(subst),
+       m_compare_type(type),
+       m_compare_collation(cs) { }
     Subst_constraint subst_constraint() const { return m_subst_constraint; }
+    Item_result compare_type() const { return m_compare_type; }
     CHARSET_INFO *compare_collation() const { return m_compare_collation; }
+    /**
+      Check whether this and the given comparison type are compatible.
+      Used by the equality propagation. See Item_field::propagate_equal_fields()
+
+      @return
+        TRUE  if the context is the same
+        FALSE otherwise.
+    */
+    inline bool has_compatible_context(Item_result other) const
+    {
+      return m_compare_type == IMPOSSIBLE_RESULT ||
+             m_compare_type == other;
+    }
+  };
+  class Context_identity: public Context
+  { // Use this to request only exact value, no invariants.
+  public:
+     Context_identity()
+      :Context(IDENTITY_SUBST, IMPOSSIBLE_RESULT, &my_charset_bin) { }
+  };
+  class Context_boolean: public Context
+  { // Use this when an item is [a part of] a boolean expression
+  public:
+    Context_boolean() :Context(ANY_SUBST, INT_RESULT, &my_charset_bin) { }
   };
 
   virtual Item* propagate_equal_fields(THD*, const Context &, COND_EQUAL *)
@@ -1619,18 +1642,6 @@ public:
   virtual Settable_routine_parameter *get_settable_routine_parameter()
   {
     return 0;
-  }
-  /**
-    Check whether this and the given item has compatible comparison context.
-    Used by the equality propagation. See Item_field::propagate_equal_fields()
-
-    @return
-      TRUE  if the context is the same
-      FALSE otherwise.
-  */
-  inline bool has_compatible_context(Item *item) const
-  {
-    return cmp_context == IMPOSSIBLE_RESULT || item->cmp_context == cmp_context;
   }
   /**
     Test whether an expression is expensive to compute. Used during

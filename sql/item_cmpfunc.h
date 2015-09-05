@@ -47,6 +47,7 @@ typedef int (*Item_field_cmpfunc)(Item *f1, Item *f2, void *arg);
 class Arg_comparator: public Sql_alloc
 {
   Item **a, **b;
+  Item_result m_compare_type;
   arg_cmp_func func;
   Item_func_or_sum *owner;
   bool set_null;                   // TRUE <=> set owner->null_value
@@ -68,9 +69,11 @@ public:
   /* Allow owner function to use string buffers. */
   String value1, value2;
 
-  Arg_comparator():  set_null(TRUE), comparators(0), thd(0),
+  Arg_comparator(): m_compare_type(IMPOSSIBLE_RESULT),
+    set_null(TRUE), comparators(0), thd(0),
     a_cache(0), b_cache(0) {};
-  Arg_comparator(Item **a1, Item **a2): a(a1), b(a2),  set_null(TRUE),
+  Arg_comparator(Item **a1, Item **a2): a(a1), b(a2),
+    m_compare_type(IMPOSSIBLE_RESULT), set_null(TRUE),
     comparators(0), thd(0), a_cache(0), b_cache(0) {};
 
 private:
@@ -78,22 +81,15 @@ private:
 			  Item **a1, Item **a2,
 			  Item_result type);
 public:
+  void set_compare_type(Item_result type)
+  {
+    m_compare_type= type;
+  }
   inline int set_cmp_func(Item_func_or_sum *owner_arg,
 			  Item **a1, Item **a2, bool set_null_arg)
   {
     set_null= set_null_arg;
     return set_cmp_func(owner_arg, a1, a2, item_cmp_type(*a1, *a2));
-  }
-  int set_cmp_func_and_arg_cmp_context(Item_func_or_sum *owner_arg,
-                                       Item **a1, Item **a2,
-                                       bool set_null_arg)
-  {
-    set_null= set_null_arg;
-    Item_result type= item_cmp_type(*a1, *a2);
-    int rc= set_cmp_func(owner_arg, a1, a2, type);
-    if (!rc)
-      (*a1)->cmp_context= (*a2)->cmp_context= type;
-    return rc;
   }
   inline int compare() { return (this->*func)(); }
 
@@ -128,6 +124,7 @@ public:
     return (owner->type() == Item::FUNC_ITEM &&
            ((Item_func*)owner)->functype() == Item_func::EQUAL_FUNC);
   }
+  Item_result compare_type() const { return m_compare_type; }
   void cleanup()
   {
     delete [] comparators;
@@ -367,6 +364,20 @@ public:
   COND *remove_eq_conds(THD *thd, Item::cond_result *cond_value,
                         bool top_level);
   bool count_sargable_conds(uchar *arg);
+  /*
+    Specifies which result type the function uses to compare its arguments.
+    This method is used in equal field propagation.
+  */
+  virtual Item_result compare_type() const
+  {
+    /*
+      Have STRING_RESULT by default, which means the function compares
+      val_str() results of the arguments. This is suitable for Item_func_like
+      and for Item_func_spatial_rel.
+      Note, Item_bool_rowready_func2 overrides this default behaviour.
+    */
+    return STRING_RESULT;
+  }
 };
 
 class Item_bool_rowready_func2 :public Item_bool_func2
@@ -388,7 +399,9 @@ public:
   Item* propagate_equal_fields(THD *thd, const Context &ctx, COND_EQUAL *cond)
   {
     Item_args::propagate_equal_fields(thd,
-                                      Context(ANY_SUBST, compare_collation()),
+                                      Context(ANY_SUBST,
+                                              cmp.compare_type(),
+                                              compare_collation()),
                                       cond);
     return this;
   }
@@ -397,16 +410,9 @@ public:
   {
     return cmp.set_cmp_func(this, tmp_arg, tmp_arg + 1, true);
   }
-  bool set_cmp_func_and_arg_cmp_context()
-  {
-    if (set_cmp_func())
-      return true;
-    tmp_arg[0]->cmp_context= tmp_arg[1]->cmp_context=
-      item_cmp_type(tmp_arg[0], tmp_arg[1]);
-    return false;
-  }
   CHARSET_INFO *compare_collation() const
   { return cmp.cmp_collation.collation; }
+  Item_result compare_type() const { return cmp.compare_type(); }
   Arg_comparator *get_comparator() { return &cmp; }
   void cleanup()
   {
@@ -439,13 +445,8 @@ public:
   Item *neg_transformer(THD *thd);
   Item* propagate_equal_fields(THD *thd, const Context &ctx, COND_EQUAL *cond)
   {
-    Item_args::propagate_equal_fields(thd, ANY_SUBST, cond);
+    Item_args::propagate_equal_fields(thd, Context_boolean(), cond);
     return this;
-  }
-  void fix_length_and_dec()
-  {
-    Item_bool_func::fix_length_and_dec();
-    args[0]->cmp_context= args[1]->cmp_context= INT_RESULT;
   }
 };
 
@@ -760,6 +761,7 @@ public:
   {
     Item_args::propagate_equal_fields(thd,
                                       Context(ANY_SUBST,
+                                              m_compare_type,
                                               compare_collation()),
                                       cond);
     return this;
@@ -933,6 +935,15 @@ public:
 
   table_map not_null_tables() const { return 0; }
   bool is_null();
+  Item* propagate_equal_fields(THD *thd, const Context &ctx, COND_EQUAL *cond)
+  {
+    Item_args::propagate_equal_fields(thd,
+                                      Context(ANY_SUBST,
+                                              cmp.compare_type(),
+                                              cmp.cmp_collation.collation),
+                                      cond);
+    return this;
+  }
 };
 
 
@@ -1420,16 +1431,16 @@ public:
   Item* propagate_equal_fields(THD *thd, const Context &ctx, COND_EQUAL *cond)
   {
     /*
-      In case when arg_types_compatible is false,
-      fix_length_and_dec() leaves args[0]->cmp_context equal to
-      IMPOSSIBLE_CONTEXT. In this case it's not safe to replace the field to an
-      equal constant, because Item_field::can_be_substituted_to_equal_item()
-      won't be able to check compatibility between
-      Item_equal->compare_collation() and this->compare_collation().
+      TODO: enable propagation of the args[i>0] arguments even if
+      !arg_types_compatible. See MDEV-8755.
+      Note, we pass ANY_SUBST, this makes sure that non of the args
+      will be replaced to a zero-filled Item_string.
+      Such a change would require rebuilding of cmp_items.
     */
     if (arg_types_compatible)
       Item_args::propagate_equal_fields(thd,
                                         Context(ANY_SUBST,
+                                                m_compare_type,
                                                 compare_collation()),
                                         cond);
     return this;
@@ -1691,7 +1702,8 @@ public:
     if ((flags & MY_CS_NOPAD) && !(flags & MY_CS_NON1TO1))
       Item_args::propagate_equal_fields(thd,
                                         Context(ANY_SUBST,
-                                        compare_collation()),
+                                                STRING_RESULT,
+                                                compare_collation()),
                                         cond);
     return this;
   }
@@ -1700,7 +1712,6 @@ public:
   void fix_length_and_dec()
   {
     max_length= 1;
-    args[0]->cmp_context= args[1]->cmp_context= STRING_RESULT;
     agg_arg_charsets_for_comparison(cmp_collation, args, 2);
   }
   void cleanup();
@@ -2091,6 +2102,7 @@ public:
   bool walk(Item_processor processor, bool walk_subquery, uchar *arg);
   Item *transform(THD *thd, Item_transformer transformer, uchar *arg);
   virtual void print(String *str, enum_query_type query_type);
+  Item_result compare_type() const { return cmp.compare_type(); }
   CHARSET_INFO *compare_collation() const;
 
   void set_context_field(Item_field *ctx_field) { context_field= ctx_field; }

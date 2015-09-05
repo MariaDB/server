@@ -4318,13 +4318,23 @@ INSERT INTO t1 VALUES
 
 CREATE VIEW v1 AS SELECT * FROM t1;
 
+--echo # t1 and v1 should return the same result set
 SELECT * FROM v1 WHERE a > 'JJ' OR a <> 0 AND a = 'VV'; 
+SELECT * FROM t1 WHERE a > 'JJ' OR a <> 0 AND a = 'VV';
+--echo # t1 and v1 should propagate constants in the same way
 EXPLAIN EXTENDED
 SELECT * FROM v1 WHERE a > 'JJ' OR a <> 0 AND a = 'VV'; 
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE a > 'JJ' OR a <> 0 AND a = 'VV';
 
+--echo # t1 and v1 should return the same result set
 SELECT * FROM v1 WHERE a > 'JJ' OR a AND a = 'VV'; 
+SELECT * FROM t1 WHERE a > 'JJ' OR a AND a = 'VV';
+--echo # t1 and v1 should propagate constants in the same way
 EXPLAIN EXTENDED
 SELECT * FROM v1 WHERE a > 'JJ' OR a AND a = 'VV'; 
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE a > 'JJ' OR a AND a = 'VV';
 
 DROP VIEW v1;
 DROP TABLE t1;
@@ -5450,3 +5460,49 @@ drop view v3;
 --echo # -- End of 10.0 tests.
 --echo # -----------------------------------------------------------------
 SET optimizer_switch=@save_optimizer_switch;
+
+--echo #
+--echo # Start of 10.1 tests
+--echo #
+
+--echo #
+--echo # MDEV-8747 Wrong result for SELECT..WHERE derived_table_column='a' AND derived_table_column<>_latin1'A' COLLATE latin1_bin
+--echo #
+CREATE TABLE t1 (a varchar(10) character set cp1251 collate cp1251_ukrainian_ci, KEY (a)) ;
+INSERT INTO t1 VALUES ('DD'), ('ZZ'), ('ZZ'), ('KK'), ('FF'), ('HH'),('MM'),('`1');
+CREATE VIEW v1 AS SELECT * FROM t1;
+SELECT * FROM t1 WHERE a <> 0 AND a = ' 1';
+SELECT * FROM v1 WHERE a <> 0 AND a = ' 1';
+DROP VIEW v1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a ENUM('5','6'));
+INSERT INTO t1 VALUES ('5'),('6');
+CREATE VIEW v1 AS SELECT * FROM t1;
+SELECT * FROM t1 WHERE a='5' AND a<2;
+SELECT * FROM v1 WHERE a='5' AND a<2;
+DROP VIEW v1;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-8749 Wrong result for SELECT..WHERE derived_table_enum_column='number' AND derived_table_enum_column OP number2
+--echo #
+CREATE TABLE t1 (a varchar(10) character set cp1251 collate cp1251_ukrainian_ci, KEY (a));
+INSERT INTO t1 VALUES ('DD'), ('ZZ'), ('ZZ'), ('KK'), ('FF'), ('HH'),('MM'),('`1');
+CREATE VIEW v1 AS SELECT * FROM t1;
+SELECT * FROM t1 WHERE a <> 0 AND a = ' 1';
+SELECT * FROM v1 WHERE a <> 0 AND a = ' 1';
+DROP VIEW v1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a ENUM('5','6'));
+INSERT INTO t1 VALUES ('5'),('6');
+CREATE VIEW v1 AS SELECT * FROM t1;
+SELECT * FROM t1 WHERE a='5' AND a<2;
+SELECT * FROM v1 WHERE a='5' AND a<2;
+DROP VIEW v1;
+DROP TABLE t1;
+
+--echo #
+--echo # End of 10.1 tests
+--echo #
