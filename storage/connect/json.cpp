@@ -63,7 +63,7 @@ PJSON ParseJson(PGLOBAL g, char *s, int len, int pretty, bool *comma)
     switch (s[i]) {
       case '[':
         if (jsp) {
-					if (pretty < 3) {
+					if (pretty && pretty < 3) {
 						strcpy(g->Message, "More than one item in file");
 						goto err;
 					} else
@@ -75,7 +75,7 @@ PJSON ParseJson(PGLOBAL g, char *s, int len, int pretty, bool *comma)
         break;
       case '{':
         if (jsp) {
-					if (pretty < 3) {
+					if (pretty && pretty < 3) {
 						strcpy(g->Message, "More than one item in file");
 						goto err;
 					} else
@@ -336,7 +336,6 @@ PJVAL ParseValue(PGLOBAL g, int& i, STRG& src)
 
     }; // endswitch s[i]
 
-  jvp->Size = 1;
   return jvp;
 
 err:
@@ -973,6 +972,7 @@ void JOBJECT::DeleteKey(PSZ key)
 	for (jp = First; jp; jp = jp->Next)
 		if (!strcmp(jp->Key, key)) {
 			*pjp = jp->Next;
+			Size--;
 			break;
 		} else
 			pjp = &jp->Next;
@@ -1246,9 +1246,9 @@ void JVALUE::SetFloat(PGLOBAL g, double f)
 /***********************************************************************/
 /* Set the Value's value as the given string.                          */
 /***********************************************************************/
-void JVALUE::SetString(PGLOBAL g, PSZ s)
+void JVALUE::SetString(PGLOBAL g, PSZ s, short c)
 {
-  Value = AllocateValue(g, s, TYPE_STRING);
+  Value = AllocateValue(g, s, TYPE_STRING, c);
 } // end of SetString
 
 /***********************************************************************/

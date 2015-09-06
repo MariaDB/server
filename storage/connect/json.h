@@ -155,7 +155,8 @@ class JSON : public BLOCK {
   virtual PJAR   GetArray(void) {return NULL;}
 	virtual PJVAL  GetValue(int i) {X return NULL;}
   virtual PVAL   GetValue(void) {X return NULL;}
-  virtual PJSON  GetJson(void) {X return NULL;}
+	virtual PJSON  GetJsp(void) { X return NULL; }
+	virtual PJSON  GetJson(void) { X return NULL; }
   virtual PJPR   GetFirst(void) {X return NULL;}
   virtual int    GetInteger(void) {X return 0;}
   virtual double GetFloat() {X return 0.0;}
@@ -165,7 +166,7 @@ class JSON : public BLOCK {
   virtual void   SetValue(PGLOBAL g, PJVAL jvp, PSZ key) {X}
   virtual void   SetValue(PVAL valp) {X}
   virtual void   SetValue(PJSON jsp) {X}
-  virtual void   SetString(PGLOBAL g, PSZ s) {X}
+  virtual void   SetString(PGLOBAL g, PSZ s, short c) {X}
   virtual void   SetInteger(PGLOBAL g, int n) {X}
   virtual void   SetFloat(PGLOBAL g, double f) {X}
 	virtual void   DeleteKey(char *k) {X}
@@ -258,15 +259,16 @@ class JVALUE : public JSON {
   virtual PJOB   GetObject(void);
   virtual PJAR   GetArray(void);
   virtual PVAL   GetValue(void) {return Value;}
-  virtual PJSON  GetJson(void) {return (Jsp ? Jsp : this);}
-  virtual int    GetInteger(void);
+  virtual PJSON  GetJsp(void) {return Jsp;}
+	virtual PJSON  GetJson(void) { return (Jsp ? Jsp : this); }
+	virtual int    GetInteger(void);
 	virtual long long GetBigint(void);
 	virtual double GetFloat(void);
   virtual PSZ    GetString(void);
   virtual PSZ    GetText(PGLOBAL g, PSZ text);
   virtual void   SetValue(PVAL valp) {Value = valp;}
   virtual void   SetValue(PJSON jsp) {Jsp = jsp;}
-  virtual void   SetString(PGLOBAL g, PSZ s);
+  virtual void   SetString(PGLOBAL g, PSZ s, short c = 0);
   virtual void   SetInteger(PGLOBAL g, int n);
 	virtual void   SetBigint(PGLOBAL g, longlong ll);
 	virtual void   SetFloat(PGLOBAL g, double f);

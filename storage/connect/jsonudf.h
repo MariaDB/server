@@ -1,10 +1,10 @@
-/*************** tabjson H Declares Source Code File (.H) **************/
-/*  Name: jsonudf.h   Version 1.1                                      */
-/*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          2015         */
-/*                                                                     */
-/*  This file contains the JSON UDF function and classe declares.      */
-/***********************************************************************/
+/******************** tabjson H Declares Source Code File (.H) *******************/
+/*  Name: jsonudf.h   Version 1.1                                                */
+/*                                                                               */
+/*  (C) Copyright to the author Olivier BERTRAND          2015                   */
+/*                                                                               */
+/*  This file contains the JSON UDF function and class declares.                 */
+/*********************************************************************************/
 #include "global.h"
 #include "plgdbsem.h"
 #include "block.h"
@@ -15,9 +15,9 @@
 #define UDF_EXEC_ARGS \
   UDF_INIT*, UDF_ARGS*, char*, unsigned long*, char*, char*
 
-/***********************************************************************/
-/*  The JSON tree node. Can be an Object or an Array.           	  	 */
-/***********************************************************************/
+/*********************************************************************************/
+/*  The JSON tree node. Can be an Object or an Array.                     	  	 */
+/*********************************************************************************/
 typedef struct _jnode {
 	PSZ   Key;                    // The key used for object
 	OPVAL Op;                     // Operator used for this node
@@ -28,8 +28,9 @@ typedef struct _jnode {
 	int   Nx;                     // Next to read row number
 } JNODE, *PJNODE;
 
-typedef class JSNX *PJSNX;
+typedef class JSNX     *PJSNX;
 typedef class JOUTPATH *PJTP;
+typedef class JOUTALL  *PJTA;
 
 extern "C" {
 	DllExport my_bool Json_Value_init(UDF_INIT*, UDF_ARGS*, char*);
@@ -84,34 +85,51 @@ extern "C" {
 	DllExport void Json_Object_Grp_clear(UDF_INIT *, char *, char *);
 	DllExport void Json_Object_Grp_deinit(UDF_INIT*);
 
-	DllExport my_bool Json_Get_String_init(UDF_INIT*, UDF_ARGS*, char*);
-	DllExport char *Json_Get_String(UDF_EXEC_ARGS);
-	DllExport void Json_Get_String_deinit(UDF_INIT*);
+	DllExport my_bool JsonGetString_init(UDF_INIT*, UDF_ARGS*, char*);
+	DllExport char *JsonGetString(UDF_EXEC_ARGS);
+	DllExport void JsonGetString_deinit(UDF_INIT*);
 
-	DllExport my_bool Json_Get_Int_init(UDF_INIT*, UDF_ARGS*, char*);
-	DllExport long long Json_Get_Int(UDF_INIT*, UDF_ARGS*, char*, char*);
-	DllExport void Json_Get_Int_deinit(UDF_INIT*);
+	DllExport my_bool JsonGetInt_init(UDF_INIT*, UDF_ARGS*, char*);
+	DllExport long long JsonGetInt(UDF_INIT*, UDF_ARGS*, char*, char*);
+	DllExport void JsonGetInt_deinit(UDF_INIT*);
 
-	DllExport my_bool Json_Get_Real_init(UDF_INIT*, UDF_ARGS*, char*);
-	DllExport double Json_Get_Real(UDF_INIT*, UDF_ARGS*, char*, char*);
-	DllExport void Json_Get_Real_deinit(UDF_INIT*);
+	DllExport my_bool JsonGetReal_init(UDF_INIT*, UDF_ARGS*, char*);
+	DllExport double JsonGetReal(UDF_INIT*, UDF_ARGS*, char*, char*);
+	DllExport void JsonGetReal_deinit(UDF_INIT*);
 
-	DllExport my_bool Json_Locate_init(UDF_INIT*, UDF_ARGS*, char*);
-	DllExport char *Json_Locate(UDF_EXEC_ARGS);
-	DllExport void Json_Locate_deinit(UDF_INIT*);
+	DllExport my_bool JsonLocate_init(UDF_INIT*, UDF_ARGS*, char*);
+	DllExport char *JsonLocate(UDF_EXEC_ARGS);
+	DllExport void JsonLocate_deinit(UDF_INIT*);
+
+	DllExport my_bool Json_Locate_All_init(UDF_INIT*, UDF_ARGS*, char*);
+	DllExport char *Json_Locate_All(UDF_EXEC_ARGS);
+	DllExport void Json_Locate_All_deinit(UDF_INIT*);
 
 	DllExport my_bool Json_File_init(UDF_INIT*, UDF_ARGS*, char*);
 	DllExport char *Json_File(UDF_EXEC_ARGS);
 	DllExport void Json_File_deinit(UDF_INIT*);
 
-	DllExport my_bool Json_Make_File_init(UDF_INIT*, UDF_ARGS*, char*);
-	DllExport char *Json_Make_File(UDF_EXEC_ARGS);
-	DllExport void Json_Make_File_deinit(UDF_INIT*);
+	DllExport my_bool JsonMakeFile_init(UDF_INIT*, UDF_ARGS*, char*);
+	DllExport char *JsonMakeFile(UDF_EXEC_ARGS);
+	DllExport void JsonMakeFile_deinit(UDF_INIT*);
+
+	DllExport my_bool Bson_Array_init(UDF_INIT*, UDF_ARGS*, char*);
+	DllExport char *Bson_Array(UDF_EXEC_ARGS);
+	DllExport void Bson_Array_deinit(UDF_INIT*);
 } // extern "C"
 
-/***********************************************************************/
-/*  Class JSNX: JSON access method.                                    */
-/***********************************************************************/
+/*********************************************************************************/
+/*  Structure JPN. Used to make the locate path.                                 */
+/*********************************************************************************/
+typedef struct _jpn {
+	enum JTYP Type;
+	PSZ       Key;
+	int       N;
+} JPN, *PJPN;
+
+/*********************************************************************************/
+/*  Class JSNX: JSON access method.                                              */
+/*********************************************************************************/
 class JSNX : public BLOCK {
 public:
 	// Constructors
@@ -126,11 +144,10 @@ public:
 	my_bool ParseJpath(PGLOBAL g);
 	void    ReadValue(PGLOBAL g);
 	PJVAL   GetJson(PGLOBAL g);
-	char   *Locate(PGLOBAL g, PJSON jsp, char *what, 
-	               enum Item_result type, unsigned long len);
+	char   *Locate(PGLOBAL g, PJSON jsp, PJVAL jvp, int k = 1);
+	char   *LocateAll(PGLOBAL g, PJSON jsp, PJVAL jvp, int mx = 10);
 
 protected:
-	my_bool CheckExpand(PGLOBAL g, int i, PSZ nm, my_bool b);
 	my_bool SetArrayOptions(PGLOBAL g, char *p, int i, PSZ nm);
 	PVAL    GetColumnValue(PGLOBAL g, PJSON row, int i);
 	PJVAL   GetValue(PGLOBAL g, PJSON row, int i);
@@ -138,42 +155,37 @@ protected:
 	PVAL    CalculateArray(PGLOBAL g, PJAR arp, int n);
 	PVAL    MakeJson(PGLOBAL g, PJSON jsp);
 	void    SetJsonValue(PGLOBAL g, PVAL vp, PJVAL val, int n);
-//PJSON   GetRow(PGLOBAL g);
 	my_bool LocateArray(PJAR jarp);
 	my_bool LocateObject(PJOB jobp);
 	my_bool LocateValue(PJVAL jvp);
+	my_bool LocateArrayAll(PJAR jarp);
+	my_bool LocateObjectAll(PJOB jobp);
+	my_bool LocateValueAll(PJVAL jvp);
+	my_bool CompareTree(PJSON jp1, PJSON jp2);
+	my_bool AddPath(void);
 
 	// Default constructor not to be used
 	JSNX(void) {}
 
 	// Members
-	PJSON   Row;
-	PVAL    Value;
-	PVAL    MulVal;               // To value used by multiple column
-	PJTP    Jp;
-	JNODE  *Nodes;                // The intermediate objects
-	char   *Jpath;                // The json path
-	int     Buf_Type;
-	int     Long;
-	int     Prec;
-	int     Nod;                  // The number of intermediate objects
-	int     Xnod;                 // Index of multiple values
-	int     B;										// Index base
-	my_bool Xpd;                  // True for expandable column
-	my_bool Parsed;               // True when parsed
+	PJSON    Row;
+	PJVAL    Jvalp;
+	PJPN     Jpnp;
+	JOUTSTR *Jp;
+	JNODE   *Nodes;               // The intermediate objects
+	PVAL     Value;
+	PVAL     MulVal;              // To value used by multiple column
+	char    *Jpath;               // The json path
+	int      Buf_Type;
+	int      Long;
+	int      Prec;
+	int      Nod;                 // The number of intermediate objects
+	int      Xnod;                // Index of multiple values
+	int      K;										// Kth item to locate
+	int      I;										// Index of JPN
+	int      Imax;								// Max number of JPN's
+	int      B;										// Index base
+	my_bool  Xpd;                 // True for expandable column
+	my_bool  Parsed;              // True when parsed
+	my_bool  Found;								// Item found by locate
 }; // end of class JSNX
-
-/***********************************************************************/
-/* Class JOUTPATH. Used to make the locate path.                       */
-/***********************************************************************/
-class JOUTPATH : public JOUTSTR {
-public:
-	JOUTPATH(PGLOBAL g, char *w, enum Item_result type, unsigned long len)
-		: JOUTSTR(g) {What = w; Type = type; Len = len; Found = false;}
-
-	// Members
-	enum Item_result Type;
-	unsigned long    Len;
-	char            *What;
-	my_bool          Found;
-}; // end of class JOUTPATH

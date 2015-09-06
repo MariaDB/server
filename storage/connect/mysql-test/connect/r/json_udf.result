@@ -20,14 +20,14 @@ Array
 [56,3.141600,"foo",null,"One more"]
 SELECT Json_Array_Add(Json_Value('one value'),'One more');
 Json_Array_Add(Json_Value('one value'),'One more')
-"one value"
+NULL
 Warnings:
 Warning	1105	First argument is not an array
 SELECT Json_Array_Add('one value','One more');
 ERROR HY000: Can't initialize function 'Json_Array_Add'; Json_Array_Add first argument must be a json item
 SELECT Json_Array_Add('one value' json_,'One more');
 Json_Array_Add('one value' json_,'One more')
-one value
+NULL
 Warnings:
 Warning	1105	Unexpected character 'o' near one value
 Warning	1105	First argument is not an array
@@ -147,7 +147,7 @@ Json_Object(DEPARTMENT, TITLE, Json_Array_Grp(Json_Object(SERIALNO, NAME, SALARY
 {"DEPARTMENT":"2452","TITLE":"SCIENTIST","EMPLOYES":[{"SERIALNO":"34567","NAME":"BIGHEAD","SALARY":8000.000000},{"SERIALNO":"36666","NAME":"BIGHORN","SALARY":11000.000000}]}
 {"DEPARTMENT":"2452","TITLE":"SECRETARY","EMPLOYES":[{"SERIALNO":"11111","NAME":"CHERRY","SALARY":4500.000000}]}
 SELECT Json_Object_Grp(SALARY) FROM t1;
-ERROR HY000: Can't initialize function 'Json_Object_Grp'; Json_Array_Grp can only accept 2 arguments
+ERROR HY000: Can't initialize function 'Json_Object_Grp'; Json_Object_Grp can only accept 2 arguments
 SELECT Json_Object_Grp(SALARY, NAME) FROM t1;
 Json_Object_Grp(SALARY, NAME)
 {"BANCROFT":9600.000000,"SMITH":9000.000000,"MERCHANT":8700.000000,"FUNNIGUY":8500.000000,"BUGHAPPY":8500.000000,"BIGHEAD":8000.000000,"SHRINKY":7500.000000,"WALTER":7400.000000,"FODDERMAN":7000.000000,"TONGHO":6800.000000,"SHORTSIGHT":5500.000000,"MESSIFUL":5000.500000,"HONEY":4900.000000,"GOOSEPEN":4700.000000,"CHERRY":4500.000000,"MONAPENNY":3800.000000,"KITTY":3000.450000,"PLUMHEAD":2800.000000,"STRONG":23000.000000,"BULLOZER":14800.000000,"WERTHER":14500.000000,"QUINN":14000.000000,"ORELLY":13400.000000,"BIGHORN":11000.000000,"BROWNY":10500.000000,"WHEELFOR":10030.000000,"MARTIN":10000.000000}
