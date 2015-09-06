@@ -69,11 +69,11 @@ public:
   /* Allow owner function to use string buffers. */
   String value1, value2;
 
-  Arg_comparator(): m_compare_type(IMPOSSIBLE_RESULT),
+  Arg_comparator(): m_compare_type(STRING_RESULT),
     set_null(TRUE), comparators(0), thd(0),
     a_cache(0), b_cache(0) {};
   Arg_comparator(Item **a1, Item **a2): a(a1), b(a2),
-    m_compare_type(IMPOSSIBLE_RESULT), set_null(TRUE),
+    m_compare_type(STRING_RESULT), set_null(TRUE),
     comparators(0), thd(0), a_cache(0), b_cache(0) {};
 
 private:

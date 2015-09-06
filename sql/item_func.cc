@@ -545,7 +545,6 @@ Field *Item_func::tmp_table_field(TABLE *table)
     break;
   case ROW_RESULT:
   case TIME_RESULT:
-  case IMPOSSIBLE_RESULT:
     // This case should never be chosen
     DBUG_ASSERT(0);
     field= 0;
@@ -859,7 +858,6 @@ void Item_func_num1::fix_length_and_dec()
     max_length= args[0]->max_length;
     break;
   case ROW_RESULT:
-  case IMPOSSIBLE_RESULT:
     DBUG_ASSERT(0);
   }
   DBUG_PRINT("info", ("Type: %s",
@@ -920,7 +918,6 @@ String *Item_func_hybrid_result_type::val_str(String *str)
     return str_op(&str_value);
   case TIME_RESULT:
   case ROW_RESULT:
-  case IMPOSSIBLE_RESULT:
     DBUG_ASSERT(0);
   }
   return str;
@@ -969,7 +966,6 @@ double Item_func_hybrid_result_type::val_real()
   }
   case TIME_RESULT:
   case ROW_RESULT:
-  case IMPOSSIBLE_RESULT:
     DBUG_ASSERT(0);
   }
   return 0.0;
@@ -1018,7 +1014,6 @@ longlong Item_func_hybrid_result_type::val_int()
   }
   case TIME_RESULT:
   case ROW_RESULT:
-  case IMPOSSIBLE_RESULT:
     DBUG_ASSERT(0);
   }
   return 0;
@@ -1070,7 +1065,6 @@ my_decimal *Item_func_hybrid_result_type::val_decimal(my_decimal *decimal_value)
   }  
   case ROW_RESULT:
   case TIME_RESULT:
-  case IMPOSSIBLE_RESULT:
     DBUG_ASSERT(0);
   }
   return val;
@@ -1124,7 +1118,6 @@ bool Item_func_hybrid_result_type::get_date(MYSQL_TIME *ltime,
   }
   case ROW_RESULT:
   case TIME_RESULT:
-  case IMPOSSIBLE_RESULT:
     DBUG_ASSERT(0);
   }
 
@@ -1876,7 +1869,6 @@ void Item_func_div::fix_length_and_dec()
   case STRING_RESULT:
   case ROW_RESULT:
   case TIME_RESULT:
-  case IMPOSSIBLE_RESULT:
     DBUG_ASSERT(0);
   }
   maybe_null= 1; // devision by zero
@@ -2452,7 +2444,6 @@ void Item_func_int_val::fix_length_and_dec()
     }
     break;
   case ROW_RESULT:
-  case IMPOSSIBLE_RESULT:
     DBUG_ASSERT(0);
   }
   DBUG_PRINT("info", ("Type: %s",
@@ -2634,7 +2625,6 @@ void Item_func_round::fix_length_and_dec()
   }
   case ROW_RESULT:
   case TIME_RESULT:
-  case IMPOSSIBLE_RESULT:
     DBUG_ASSERT(0); /* This result type isn't handled */
   }
 }
@@ -3016,7 +3006,6 @@ String *Item_func_min_max::val_str(String *str)
   }
   case ROW_RESULT:
   case TIME_RESULT:
-  case IMPOSSIBLE_RESULT:
     DBUG_ASSERT(0);                // This case should never be chosen
     return 0;
   }
@@ -3614,7 +3603,6 @@ udf_handler::fix_fields(THD *thd, Item_func_or_sum *func,
           break;
         case ROW_RESULT:
         case TIME_RESULT:
-        case IMPOSSIBLE_RESULT:
           DBUG_ASSERT(0);          // This case should never be chosen
           break;
         }
@@ -3693,7 +3681,6 @@ bool udf_handler::get_arguments()
       break;
     case ROW_RESULT:
     case TIME_RESULT:
-    case IMPOSSIBLE_RESULT:
       DBUG_ASSERT(0);              // This case should never be chosen
       break;
     }
@@ -4530,7 +4517,6 @@ longlong Item_func_benchmark::val_int()
       break;
     case ROW_RESULT:
     case TIME_RESULT:
-    case IMPOSSIBLE_RESULT:
       DBUG_ASSERT(0);              // This case should never be chosen
       return 0;
     }
@@ -4969,7 +4955,6 @@ double user_var_entry::val_real(bool *null_value)
     return my_atof(value);                      // This is null terminated
   case ROW_RESULT:
   case TIME_RESULT:
-  case IMPOSSIBLE_RESULT:
     DBUG_ASSERT(0);				// Impossible
     break;
   }
@@ -5002,7 +4987,6 @@ longlong user_var_entry::val_int(bool *null_value) const
   }
   case ROW_RESULT:
   case TIME_RESULT:
-  case IMPOSSIBLE_RESULT:
     DBUG_ASSERT(0);				// Impossible
     break;
   }
@@ -5037,7 +5021,6 @@ String *user_var_entry::val_str(bool *null_value, String *str,
     break;
   case ROW_RESULT:
   case TIME_RESULT:
-  case IMPOSSIBLE_RESULT:
     DBUG_ASSERT(0);				// Impossible
     break;
   }
@@ -5066,7 +5049,6 @@ my_decimal *user_var_entry::val_decimal(bool *null_value, my_decimal *val)
     break;
   case ROW_RESULT:
   case TIME_RESULT:
-  case IMPOSSIBLE_RESULT:
     DBUG_ASSERT(0);				// Impossible
     break;
   }
@@ -5125,7 +5107,6 @@ Item_func_set_user_var::check(bool use_result_field)
   }
   case ROW_RESULT:
   case TIME_RESULT:
-  case IMPOSSIBLE_RESULT:
     DBUG_ASSERT(0);                // This case should never be chosen
     break;
   }
@@ -5160,7 +5141,6 @@ void Item_func_set_user_var::save_item_result(Item *item)
     break;
   case ROW_RESULT:
   case TIME_RESULT:
-  case IMPOSSIBLE_RESULT:
     DBUG_ASSERT(0);                // This case should never be chosen
     break;
   }
@@ -5228,7 +5208,6 @@ Item_func_set_user_var::update()
   }
   case ROW_RESULT:
   case TIME_RESULT:
-  case IMPOSSIBLE_RESULT:
     DBUG_ASSERT(0);                // This case should never be chosen
     break;
   }
@@ -5684,7 +5663,6 @@ void Item_func_get_user_var::fix_length_and_dec()
       break;
     case ROW_RESULT:                            // Keep compiler happy
     case TIME_RESULT:
-    case IMPOSSIBLE_RESULT:
       DBUG_ASSERT(0);                // This case should never be chosen
       break;
     }

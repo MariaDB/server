@@ -612,9 +612,6 @@ int Arg_comparator::set_compare_func(Item_func_or_sum *item, Item_result type)
     }
     break;
   }
-  case IMPOSSIBLE_RESULT:
-    DBUG_ASSERT(0);
-    break;
   }
   return 0;
 }
@@ -2358,7 +2355,6 @@ longlong Item_func_between::val_int()
     break;
   }
   case ROW_RESULT:
-  case IMPOSSIBLE_RESULT:
     DBUG_ASSERT(0);
     null_value= 1;
     return 0;
@@ -2417,7 +2413,6 @@ Item_func_case_abbreviation2::fix_length_and_dec2(Item **args)
     break;
   case ROW_RESULT:
   case TIME_RESULT:
-  case IMPOSSIBLE_RESULT:
     DBUG_ASSERT(0);
   }
   fix_char_length(char_length);
@@ -3375,7 +3370,6 @@ void Item_func_coalesce::fix_length_and_dec()
     break;
   case ROW_RESULT:
   case TIME_RESULT:
-  case IMPOSSIBLE_RESULT:
     DBUG_ASSERT(0);
   }
 }
@@ -3739,9 +3733,6 @@ cmp_item* cmp_item::get_comparator(Item_result type, Item *warn_item,
   case TIME_RESULT:
     DBUG_ASSERT(warn_item);
     return new cmp_item_datetime(warn_item);
-  case IMPOSSIBLE_RESULT:
-    DBUG_ASSERT(0);
-    break;
   }
   return 0; // to satisfy compiler :)
 }
@@ -4163,9 +4154,6 @@ void Item_func_in::fix_length_and_dec()
     case TIME_RESULT:
       date_arg= find_date_time_item(args, arg_count, 0);
       array= new (thd->mem_root) in_datetime(date_arg, arg_count - 1);
-      break;
-    case IMPOSSIBLE_RESULT:
-      DBUG_ASSERT(0);
       break;
     }
     if (array && !(thd->is_fatal_error))		// If not EOM

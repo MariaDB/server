@@ -97,7 +97,6 @@ bool Item::val_bool()
     return val_real() != 0.0;
   case ROW_RESULT:
   case TIME_RESULT:
-  case IMPOSSIBLE_RESULT:
     DBUG_ASSERT(0);
     return 0;                                   // Wrong (but safe)
   }
@@ -543,7 +542,6 @@ void Item::print_value(String *str)
       break;
     case ROW_RESULT:
     case TIME_RESULT:
-    case IMPOSSIBLE_RESULT:
       DBUG_ASSERT(0);
     }
   }
@@ -634,7 +632,7 @@ Item_result Item::cmp_type() const
                            return TIME_RESULT;
   };
   DBUG_ASSERT(0);
-  return IMPOSSIBLE_RESULT;
+  return STRING_RESULT;
 }
 
 /**
@@ -2596,7 +2594,6 @@ bool Item_field::val_bool_result()
     return result_field->val_real() != 0.0;
   case ROW_RESULT:
   case TIME_RESULT:
-  case IMPOSSIBLE_RESULT:
     DBUG_ASSERT(0);
     return 0;                                   // Shut up compiler
   }
@@ -3396,7 +3393,6 @@ bool Item_param::set_from_user_var(THD *thd, const user_var_entry *entry)
     }
     case ROW_RESULT:
     case TIME_RESULT:
-    case IMPOSSIBLE_RESULT:
       DBUG_ASSERT(0);
       set_null();
     }
@@ -4015,7 +4011,6 @@ Item_copy *Item_copy::create(THD *thd, Item *item)
       return new (mem_root) Item_copy_decimal(thd, item);
     case TIME_RESULT:
     case ROW_RESULT:
-  case IMPOSSIBLE_RESULT:
       DBUG_ASSERT (0);
   }
   /* should not happen */
@@ -5369,13 +5364,27 @@ Item_equal *Item_field::find_item_equal(COND_EQUAL *cond_equal)
 bool Item_field::can_be_substituted_to_equal_item(const Context &ctx,
                                                   const Item_equal *item_equal)
 {
-  if (ctx.compare_type() == STRING_RESULT &&
-      ctx.compare_collation() != item_equal->compare_collation())
-    return false;
-  return ctx.subst_constraint() == ANY_SUBST ||
-         field->cmp_type() != STRING_RESULT ||
-         ((field->charset()->state & MY_CS_BINSORT) &&
-          (field->charset()->state & MY_CS_NOPAD));
+  switch (ctx.subst_constraint()) {
+  case ANY_SUBST:
+    /*
+      Disable const propagation for items used in different comparison contexts.
+      This must be done because, for example, Item_hex_string->val_int() is not
+      the same as (Item_hex_string->val_str() in BINARY column)->val_int().
+      We cannot simply disable the replacement in a particular context (
+      e.g. <bin_col> = <int_col> AND <bin_col> = <hex_string>) since
+      Items don't know the context they are in and there are functions like
+      IF (<hex_string>, 'yes', 'no').
+    */
+    return
+      ctx.compare_type() == item_equal->compare_type() &&
+      (ctx.compare_type() != STRING_RESULT ||
+       ctx.compare_collation() == item_equal->compare_collation());
+  case IDENTITY_SUBST:
+    return field->cmp_type() != STRING_RESULT ||
+           ((field->charset()->state & MY_CS_BINSORT) &&
+            (field->charset()->state & MY_CS_NOPAD));
+  }
+  return false;
 }
 
 
@@ -5442,17 +5451,7 @@ Item *Item_field::propagate_equal_fields(THD *thd,
   Item *item= 0;
   if (item_equal)
   {
-    /*
-      Disable const propagation for items used in different comparison contexts.
-      This must be done because, for example, Item_hex_string->val_int() is not
-      the same as (Item_hex_string->val_str() in BINARY column)->val_int().
-      We cannot simply disable the replacement in a particular context (
-      e.g. <bin_col> = <int_col> AND <bin_col> = <hex_string>) since
-      Items don't know the context they are in and there are functions like
-      IF (<hex_string>, 'yes', 'no').
-    */
-    if (!can_be_substituted_to_equal_item(ctx, item_equal) ||
-        !ctx.has_compatible_context(item_equal->compare_type()))
+    if (!can_be_substituted_to_equal_item(ctx, item_equal))
     {
       item_equal= NULL;
       return this;
@@ -5463,11 +5462,13 @@ Item *Item_field::propagate_equal_fields(THD *thd,
     item= this;
   else if (field && (field->flags & ZEROFILL_FLAG) && IS_NUM(field->type()))
   {
-    DBUG_ASSERT(ctx.compare_type() != STRING_RESULT);
-    if (item && (ctx.subst_constraint() == IDENTITY_SUBST))
+    if (ctx.subst_constraint() == IDENTITY_SUBST)
       convert_zerofill_number_to_string(thd, &item, (Field_num *)field);
     else
+    {
+      DBUG_ASSERT(ctx.compare_type() != STRING_RESULT);
       item= this;
+    }
   }
   return item;
 }
@@ -5599,7 +5600,6 @@ enum_field_types Item::field_type() const
   case REAL_RESULT:    return MYSQL_TYPE_DOUBLE;
   case ROW_RESULT:
   case TIME_RESULT:
-  case IMPOSSIBLE_RESULT:
     DBUG_ASSERT(0);
     return MYSQL_TYPE_VARCHAR;
   }
@@ -7384,7 +7384,6 @@ bool Item_ref::val_bool_result()
       return result_field->val_real() != 0.0;
     case ROW_RESULT:
     case TIME_RESULT:
-    case IMPOSSIBLE_RESULT:
       DBUG_ASSERT(0);
     }
   }
@@ -8748,9 +8747,6 @@ void resolve_const_item(THD *thd, Item **ref, Item *comp_item)
                (Item*) new (mem_root) Item_decimal(thd, name, result, length, decimals));
     break;
   }
-  case IMPOSSIBLE_RESULT:
-    DBUG_ASSERT(0);
-    break;
   }
   if (new_item)
     thd->change_item_tree(ref, new_item);
@@ -8902,9 +8898,6 @@ Item_cache* Item_cache::get_cache(THD *thd, const Item *item,
     return new (mem_root) Item_cache_row(thd);
   case TIME_RESULT:
     return new (mem_root) Item_cache_temporal(thd, item->field_type());
-  case IMPOSSIBLE_RESULT:
-    DBUG_ASSERT(0);
-    break;
   }
   return 0;                                     // Impossible
 }
@@ -9538,7 +9531,6 @@ enum_field_types Item_type_holder::get_real_type(Item *item)
         return MYSQL_TYPE_NEWDECIMAL;
       case ROW_RESULT:
       case TIME_RESULT:
-      case IMPOSSIBLE_RESULT:
         DBUG_ASSERT(0);
         return MYSQL_TYPE_VAR_STRING;
       }

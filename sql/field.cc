@@ -8616,7 +8616,6 @@ bool Field_enum::can_optimize_keypart_ref(const Item_bool_func *cond,
     return true;
   case STRING_RESULT:
     return charset() == cond->compare_collation();
-  case IMPOSSIBLE_RESULT:
   case ROW_RESULT:
     DBUG_ASSERT(0);
     break;

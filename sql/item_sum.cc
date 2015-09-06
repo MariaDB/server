@@ -526,7 +526,6 @@ Field *Item_sum::create_tmp_field(bool group, TABLE *table,
     break;
   case ROW_RESULT:
   case TIME_RESULT:
-  case IMPOSSIBLE_RESULT:
     // This case should never be choosen
     DBUG_ASSERT(0);
     return 0;
@@ -1202,7 +1201,6 @@ Item_sum_hybrid::fix_fields(THD *thd, Item **ref)
     break;
   case ROW_RESULT:
   case TIME_RESULT:
-  case IMPOSSIBLE_RESULT:
     DBUG_ASSERT(0);
   };
   setup_hybrid(thd, args[0], NULL);
@@ -1380,7 +1378,6 @@ void Item_sum_sum::fix_length_and_dec()
     break;
   }
   case ROW_RESULT:
-  case IMPOSSIBLE_RESULT:
     DBUG_ASSERT(0);
   }
   DBUG_PRINT("info", ("Type: %s (%d, %d)",
@@ -1871,7 +1868,6 @@ void Item_sum_variance::fix_length_and_dec()
   }
   case ROW_RESULT:
   case TIME_RESULT:
-  case IMPOSSIBLE_RESULT:
     DBUG_ASSERT(0);
   }
   DBUG_PRINT("info", ("Type: REAL_RESULT (%d, %d)", max_length, (int)decimals));
@@ -2314,7 +2310,6 @@ void Item_sum_hybrid::reset_field()
   }
   case ROW_RESULT:
   case TIME_RESULT:
-  case IMPOSSIBLE_RESULT:
     DBUG_ASSERT(0);
   }
 }

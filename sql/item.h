@@ -1438,14 +1438,18 @@ public:
   {
     /*
       Which type of propagation is allowed:
-      - SUBST_ANY (loose equality, according to the collation), or
-      - SUBST_IDENTITY (strict binary equality).
+      - ANY_SUBST (loose equality, according to the collation), or
+      - IDENTITY_SUBST (strict binary equality).
     */
     Subst_constraint m_subst_constraint;
+    /*
+      Comparison type.
+      Impostant only when ANY_SUBSTS.
+    */
     Item_result m_compare_type;
     /*
       Collation of the comparison operation.
-      Important only when SUBST_ANY.
+      Important only when ANY_SUBST.
     */
     CHARSET_INFO *m_compare_collation;
   public:
@@ -1454,27 +1458,22 @@ public:
        m_compare_type(type),
        m_compare_collation(cs) { }
     Subst_constraint subst_constraint() const { return m_subst_constraint; }
-    Item_result compare_type() const { return m_compare_type; }
-    CHARSET_INFO *compare_collation() const { return m_compare_collation; }
-    /**
-      Check whether this and the given comparison type are compatible.
-      Used by the equality propagation. See Item_field::propagate_equal_fields()
-
-      @return
-        TRUE  if the context is the same
-        FALSE otherwise.
-    */
-    inline bool has_compatible_context(Item_result other) const
+    Item_result compare_type() const
     {
-      return m_compare_type == IMPOSSIBLE_RESULT ||
-             m_compare_type == other;
+      DBUG_ASSERT(m_subst_constraint == ANY_SUBST);
+      return m_compare_type;
+    }
+    CHARSET_INFO *compare_collation() const
+    {
+      DBUG_ASSERT(m_subst_constraint == ANY_SUBST);
+      return m_compare_collation;
     }
   };
   class Context_identity: public Context
   { // Use this to request only exact value, no invariants.
   public:
      Context_identity()
-      :Context(IDENTITY_SUBST, IMPOSSIBLE_RESULT, &my_charset_bin) { }
+      :Context(IDENTITY_SUBST, STRING_RESULT, &my_charset_bin) { }
   };
   class Context_boolean: public Context
   { // Use this when an item is [a part of] a boolean expression
