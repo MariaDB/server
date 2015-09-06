@@ -1261,6 +1261,61 @@ bool Field::test_if_equality_guarantees_uniqueness(const Item *item) const
 }
 
 
+/**
+  Check whether a field item can be substituted for an equal item
+
+  @details
+  The function checks whether a substitution of a field item for
+  an equal item is valid.
+
+  @param arg   *arg != NULL <-> the field is in the context
+               where substitution for an equal item is valid
+
+  @note
+    The following statement is not always true:
+  @n
+    x=y => F(x)=F(x/y).
+  @n
+    This means substitution of an item for an equal item not always
+    yields an equavalent condition. Here's an example:
+    @code
+    'a'='a '
+    (LENGTH('a')=1) != (LENGTH('a ')=2)
+  @endcode
+    Such a substitution is surely valid if either the substituted
+    field is not of a STRING type or if it is an argument of
+    a comparison predicate.
+
+  @retval
+    TRUE   substitution is valid
+  @retval
+    FALSE  otherwise
+*/
+
+bool Field::can_be_substituted_to_equal_item(const Context &ctx,
+                                             const Item_equal *item_equal)
+{
+  DBUG_ASSERT(item_equal->compare_type() != STRING_RESULT);
+  DBUG_ASSERT(cmp_type() != STRING_RESULT);
+  switch (ctx.subst_constraint()) {
+  case ANY_SUBST:
+    /*
+      Disable const propagation for items used in different comparison contexts.
+      This must be done because, for example, Item_hex_string->val_int() is not
+      the same as (Item_hex_string->val_str() in BINARY column)->val_int().
+      We cannot simply disable the replacement in a particular context (
+      e.g. <bin_col> = <int_col> AND <bin_col> = <hex_string>) since
+      Items don't know the context they are in and there are functions like
+      IF (<hex_string>, 'yes', 'no').
+    */
+    return ctx.compare_type() == item_equal->compare_type();
+  case IDENTITY_SUBST:
+    return true;
+  }
+  return false;
+}
+
+
 /*
   This handles all numeric and BIT data types.
 */ 
@@ -1303,7 +1358,7 @@ Field_num::Field_num(uchar *ptr_arg,uint32 len_arg, uchar *null_ptr_arg,
 }
 
 
-void Field_num::prepend_zeros(String *value)
+void Field_num::prepend_zeros(String *value) const
 {
   int diff;
   if ((diff= (int) (field_length - value->length())) > 0)
@@ -1316,6 +1371,36 @@ void Field_num::prepend_zeros(String *value)
     (void) value->c_ptr_quick();		// Avoid warnings in purify
   }
 }
+
+
+/**
+  Convert a numeric value to a zero-filled string
+
+  @param[in]  thd    current thread
+  @param[in]  item   the item to convert
+
+  This function converts a numeric value to a string. In this conversion
+  the zero-fill flag of the field is taken into account.
+  This is required so the resulting string value can be used instead of
+  the field reference when propagating equalities.
+*/
+
+Item *Field_num::convert_zerofill_number_to_string(THD *thd, Item *item) const
+{
+  char buff[MAX_FIELD_WIDTH],*pos;
+  String tmp(buff,sizeof(buff),Field_num::charset()), *res;
+
+  res= item->val_str(&tmp);
+  if (item->is_null())
+    return new (thd->mem_root) Item_null(thd);
+  else
+  {
+    prepend_zeros(res);
+    pos= (char *) sql_strmake (res->ptr(), res->length());
+    return new (thd->mem_root) Item_string(thd, pos, res->length(), Field_num::charset());
+  }
+}
+
 
 /**
   Test if given number is a int.
@@ -1881,6 +1966,23 @@ bool Field_str::test_if_equality_guarantees_uniqueness(const Item *item) const
   */
   DTCollation tmp(field_charset, field_derivation, repertoire());
   return !tmp.aggregate(item->collation) && tmp.collation == field_charset;
+}
+
+
+bool Field_str::can_be_substituted_to_equal_item(const Context &ctx,
+                                                  const Item_equal *item_equal)
+{
+  DBUG_ASSERT(item_equal->compare_type() == STRING_RESULT);
+  switch (ctx.subst_constraint()) {
+  case ANY_SUBST:
+    return ctx.compare_type() == item_equal->compare_type() &&
+          (ctx.compare_type() != STRING_RESULT ||
+           ctx.compare_collation() == item_equal->compare_collation());
+  case IDENTITY_SUBST:
+    return ((charset()->state & MY_CS_BINSORT) &&
+            (charset()->state & MY_CS_NOPAD));
+  }
+  return false;
 }
 
 

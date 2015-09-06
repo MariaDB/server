@@ -5331,93 +5331,6 @@ Item_equal *Item_field::find_item_equal(COND_EQUAL *cond_equal)
 
 
 /**
-  Check whether a field item can be substituted for an equal item
-
-  @details
-  The function checks whether a substitution of a field item for
-  an equal item is valid.
-
-  @param arg   *arg != NULL <-> the field is in the context
-               where substitution for an equal item is valid
-
-  @note
-    The following statement is not always true:
-  @n
-    x=y => F(x)=F(x/y).
-  @n
-    This means substitution of an item for an equal item not always
-    yields an equavalent condition. Here's an example:
-    @code
-    'a'='a '
-    (LENGTH('a')=1) != (LENGTH('a ')=2)
-  @endcode
-    Such a substitution is surely valid if either the substituted
-    field is not of a STRING type or if it is an argument of
-    a comparison predicate.
-
-  @retval
-    TRUE   substitution is valid
-  @retval
-    FALSE  otherwise
-*/
-
-bool Item_field::can_be_substituted_to_equal_item(const Context &ctx,
-                                                  const Item_equal *item_equal)
-{
-  switch (ctx.subst_constraint()) {
-  case ANY_SUBST:
-    /*
-      Disable const propagation for items used in different comparison contexts.
-      This must be done because, for example, Item_hex_string->val_int() is not
-      the same as (Item_hex_string->val_str() in BINARY column)->val_int().
-      We cannot simply disable the replacement in a particular context (
-      e.g. <bin_col> = <int_col> AND <bin_col> = <hex_string>) since
-      Items don't know the context they are in and there are functions like
-      IF (<hex_string>, 'yes', 'no').
-    */
-    return
-      ctx.compare_type() == item_equal->compare_type() &&
-      (ctx.compare_type() != STRING_RESULT ||
-       ctx.compare_collation() == item_equal->compare_collation());
-  case IDENTITY_SUBST:
-    return field->cmp_type() != STRING_RESULT ||
-           ((field->charset()->state & MY_CS_BINSORT) &&
-            (field->charset()->state & MY_CS_NOPAD));
-  }
-  return false;
-}
-
-
-/**
-  Convert a numeric value to a zero-filled string
-
-  @param[in,out]  item   the item to operate on
-  @param          field  The field that this value is equated to
-
-  This function converts a numeric value to a string. In this conversion
-  the zero-fill flag of the field is taken into account.
-  This is required so the resulting string value can be used instead of
-  the field reference when propagating equalities.
-*/
-
-static void convert_zerofill_number_to_string(THD *thd, Item **item, Field_num *field)
-{
-  char buff[MAX_FIELD_WIDTH],*pos;
-  String tmp(buff,sizeof(buff), field->charset()), *res;
-
-  res= (*item)->val_str(&tmp);
-  if ((*item)->is_null())
-    *item= new (thd->mem_root) Item_null(thd);
-  else
-  {
-    field->prepend_zeros(res);
-    pos= (char *) sql_strmake (res->ptr(), res->length());
-    *item= new (thd->mem_root) Item_string(thd, pos, res->length(), field->charset());
-  }
-}
-
-
-/**
   Set a pointer to the multiple equality the field reference belongs to
   (if any).
 
@@ -5445,32 +5358,34 @@ Item *Item_field::propagate_equal_fields(THD *thd,
                                          const Context &ctx,
                                          COND_EQUAL *arg)
 {
-  if (no_const_subst)
+  if (no_const_subst || !(item_equal= find_item_equal(arg)))
     return this;
-  item_equal= find_item_equal(arg);
-  Item *item= 0;
-  if (item_equal)
+  if (!field->can_be_substituted_to_equal_item(ctx, item_equal))
   {
-    if (!can_be_substituted_to_equal_item(ctx, item_equal))
-    {
-      item_equal= NULL;
-      return this;
-    }
-    item= item_equal->get_const();
+    item_equal= NULL;
+    return this;
   }
-  if (!item)
-    item= this;
-  else if (field && (field->flags & ZEROFILL_FLAG) && IS_NUM(field->type()))
+  Item *item= item_equal->get_const();
+  return item ? field->get_equal_const_item(thd, ctx, this, item) : this;
+}
+
+
+Item *Field_num::get_equal_const_item(THD *thd, const Context &ctx,
+                                  Item_field *field_item,
+                                  Item *const_item)
+{
+  DBUG_ASSERT(const_item->const_item());
+  if ((flags & ZEROFILL_FLAG) && IS_NUM(type()))
   {
     if (ctx.subst_constraint() == IDENTITY_SUBST)
-      convert_zerofill_number_to_string(thd, &item, (Field_num *)field);
+      return convert_zerofill_number_to_string(thd, const_item);
     else
     {
       DBUG_ASSERT(ctx.compare_type() != STRING_RESULT);
-      item= this;
+      return field_item;
     }
   }
-  return item;
+  return const_item;
 }
 
 

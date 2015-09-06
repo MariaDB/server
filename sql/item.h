@@ -602,7 +602,7 @@ public:
 };
 
 
-class Item: public Type_std_attributes
+class Item: public Value_source, public Type_std_attributes
 {
   Item(const Item &);			/* Prevent use of these */
   void operator=(Item &);
@@ -1416,70 +1416,6 @@ public:
   {
     return FALSE;
   }
-
-  /*
-    The enumeration Subst_constraint is currently used only in implementations
-    of the virtual function subst_argument_checker.
-  */ 
-  enum Subst_constraint 
-  { 
-    ANY_SUBST,           /* Any substitution for a field is allowed  */ 
-    IDENTITY_SUBST       /* Substitution for a field is allowed if any two
-                            different values of the field type are not equal */
-  };
-
-  /*
-    Item context attributes.
-    Comparison functions pass their attributes to propagate_equal_fields().
-    For exmple, for string comparison, the collation of the comparison
-    operation is important inside propagate_equal_fields().
-  */
-  class Context
-  {
-    /*
-      Which type of propagation is allowed:
-      - ANY_SUBST (loose equality, according to the collation), or
-      - IDENTITY_SUBST (strict binary equality).
-    */
-    Subst_constraint m_subst_constraint;
-    /*
-      Comparison type.
-      Impostant only when ANY_SUBSTS.
-    */
-    Item_result m_compare_type;
-    /*
-      Collation of the comparison operation.
-      Important only when ANY_SUBST.
-    */
-    CHARSET_INFO *m_compare_collation;
-  public:
-    Context(Subst_constraint subst, Item_result type, CHARSET_INFO *cs)
-      :m_subst_constraint(subst),
-       m_compare_type(type),
-       m_compare_collation(cs) { }
-    Subst_constraint subst_constraint() const { return m_subst_constraint; }
-    Item_result compare_type() const
-    {
-      DBUG_ASSERT(m_subst_constraint == ANY_SUBST);
-      return m_compare_type;
-    }
-    CHARSET_INFO *compare_collation() const
-    {
-      DBUG_ASSERT(m_subst_constraint == ANY_SUBST);
-      return m_compare_collation;
-    }
-  };
-  class Context_identity: public Context
-  { // Use this to request only exact value, no invariants.
-  public:
-     Context_identity()
-      :Context(IDENTITY_SUBST, STRING_RESULT, &my_charset_bin) { }
-  };
-  class Context_boolean: public Context
-  { // Use this when an item is [a part of] a boolean expression
-  public:
-    Context_boolean() :Context(ANY_SUBST, INT_RESULT, &my_charset_bin) { }
-  };
 
   virtual Item* propagate_equal_fields(THD*, const Context &, COND_EQUAL *)
   {
@@ -2312,8 +2248,6 @@ public:
 
 class Item_field :public Item_ident
 {
-  bool can_be_substituted_to_equal_item(const Context &ctx,
-                                        const Item_equal *item);
 protected:
   void set_field(Field *field);
 public:
