@@ -73,7 +73,7 @@ addons:
 # ensure these match GCC_VERSION
       - gcc-4.8
       - g++-4.8
-      - clang-3.7
+      - clang-3.8
 #      - binutils - distro not new enough
       - libjemalloc-dev
       - hardening-wrapper
@@ -123,7 +123,7 @@ before_install:
 #
   - gem install coveralls-lcov
   - if [ ${CC} == "clang" ]; then
-      export CC=/usr/bin/clang-3.7 CXX=/usr/bin/clang++-3.7;
+      export CC=/usr/bin/clang-3.8 CXX=/usr/bin/clang++-3.8;
       C=clang;
     else
       export CC=/usr/bin/gcc-${GCC_VERSION} CXX=/usr/bin/g++-${GCC_VERSION} ;
