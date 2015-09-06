@@ -27,8 +27,6 @@ env:
   global:
 #   - ENV vars to be kept private i.e. set in travis settings: https://travis-ci.org/MariaDB/server/settings/env_vars
 #   UPLOADSERVER - user@host where to upload test values/repos
-#   COVERALLS_REPO_TOKEN from https://coveralls.io/r/MariaDB/server - right side
-#   COVERITY_SCAN_TOKEN - https://scan.coverity.com/travis_ci
 #
 #   - BUILD_TYPE=Debug
 #   - BUILD_TYPE=RelWithDebInfo
@@ -45,7 +43,7 @@ addons:
 #    # GitHub project metadata
 #    project:
 #      - name: MariaDB/server
-#      - version: 10.0
+#      - version: 5.5
 #      - description: MariaDB Server
 #
 #    # Where email notification of build analysis results will be sent
@@ -138,7 +136,7 @@ before_script:
   - if [ ! -d "$HOME/binutils/bin" ]; then
        wget http://ftp.gnu.org/gnu/binutils/binutils-2.25.tar.bz2 -O - | tar -jxf -;
        cd binutils-2.25;
-       ./configure --prefix=${HOME}/binutils;
+       ./configure --prefix=${HOME}/binutils || cat config.log;
        make -j 4;
        make install;
     fi
