@@ -5366,7 +5366,32 @@ Item *Item_field::propagate_equal_fields(THD *thd,
     return this;
   }
   Item *item= item_equal->get_const();
-  return item ? field->get_equal_const_item(thd, ctx, this, item) : this;
+  if (!item)
+  {
+    /*
+      The found Item_equal is Okey, but it does not have a constant
+      item yet. Keep this->item_equal point to the found Item_equal.
+    */
+    return this;
+  }
+  if (!(item= field->get_equal_const_item(thd, ctx, this, item)))
+  {
+    /*
+      Could not do safe conversion from the original constant item
+      to a field-compatible constant item.
+      For example, we tried to optimize:
+        WHERE date_column=' garbage ' AND LENGTH(date_column)=8;
+      to
+        WHERE date_column=' garbage ' AND LENGTH(DATE'XXXX-YY-ZZ');
+      but failed to create a valid DATE literal from the given string literal.
+
+      Do not do constant propagation in such cases and unlink
+      "this" from the found Item_equal (as this equality not usefull).
+    */
+    item_equal= NULL;
+    return this;
+  }
+  return item;
 }
 
 

@@ -5515,6 +5515,32 @@ bool Field_temporal::can_optimize_group_min_max(const Item_bool_func *cond,
 }
 
 
+Item *Field_temporal::get_equal_const_item_datetime(THD *thd, const Context &ctx,
+                                          Item_field *field_item,
+                                          Item *const_item)
+{
+  switch (ctx.subst_constraint()) {
+  case IDENTITY_SUBST:
+    if ((const_item->field_type() != MYSQL_TYPE_DATETIME &&
+         const_item->field_type() != MYSQL_TYPE_TIMESTAMP) ||
+        const_item->decimals != decimals())
+    {
+      MYSQL_TIME ltime;
+      if (const_item->field_type() == MYSQL_TYPE_TIME ?
+          const_item->get_date_with_conversion(&ltime, 0) :
+          const_item->get_date(&ltime, 0))
+        return NULL;
+      return new (thd->mem_root) Item_datetime_literal(thd, &ltime,
+                                                       decimals());
+    }
+    break;
+  case ANY_SUBST:
+    break;
+  }
+  return const_item;
+}
+
+
 /****************************************************************************
 ** time type
 ** In string context: HH:MM:SS
@@ -5806,6 +5832,29 @@ int Field_time::store_decimal(const my_decimal *d)
 
   return store_TIME_with_warning(&ltime, &str, was_cut, have_smth_to_conv);
 }
+
+
+Item *Field_time::get_equal_const_item(THD *thd, const Context &ctx,
+                                       Item_field *field_item,
+                                       Item *const_item)
+{
+  switch (ctx.subst_constraint()) {
+  case IDENTITY_SUBST:
+    if (const_item->field_type() != MYSQL_TYPE_TIME ||
+        const_item->decimals != decimals())
+    {
+      MYSQL_TIME ltime;
+      if (const_item->get_date(&ltime, TIME_TIME_ONLY))
+        return NULL;
+      return new (thd->mem_root) Item_time_literal(thd, &ltime, decimals());
+    }
+    break;
+  case ANY_SUBST:
+    break;
+  }
+  return const_item;
+}
+
 
 uint32 Field_time_hires::pack_length() const
 {
@@ -6236,6 +6285,29 @@ void Field_newdate::sort_string(uchar *to,uint length __attribute__((unused)))
 void Field_newdate::sql_type(String &res) const
 {
   res.set_ascii(STRING_WITH_LEN("date"));
+}
+
+
+Item *Field_newdate::get_equal_const_item(THD *thd, const Context &ctx,
+                                          Item_field *field_item,
+                                          Item *const_item)
+{
+  switch (ctx.subst_constraint()) {
+  case IDENTITY_SUBST:
+    if (const_item->field_type() != MYSQL_TYPE_DATE)
+    {
+      MYSQL_TIME ltime;
+      if (const_item->field_type() == MYSQL_TYPE_TIME ?
+          const_item->get_date_with_conversion(&ltime, 0) :
+          const_item->get_date(&ltime, 0))
+        return NULL;
+      return new (thd->mem_root) Item_date_literal(thd, &ltime);
+    }
+    break;
+  case ANY_SUBST:
+    break;
+  }
+  return const_item;
 }
 
 

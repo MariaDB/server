@@ -1788,6 +1788,10 @@ public:
 
 
 class Field_temporal: public Field {
+protected:
+  Item *get_equal_const_item_datetime(THD *thd, const Context &ctx,
+                                      Item_field *field_item,
+                                      Item *const_item);
 public:
   Field_temporal(uchar *ptr_arg,uint32 len_arg, uchar *null_ptr_arg,
                  uchar null_bit_arg, utype unireg_check_arg,
@@ -1933,6 +1937,11 @@ public:
     return unpack_int32(to, from, from_end);
   }
   bool validate_value_in_record(THD *thd, const uchar *record) const;
+  Item *get_equal_const_item(THD *thd, const Context &ctx,
+                             Item_field *field_item, Item *const_item)
+  {
+    return get_equal_const_item_datetime(thd, ctx, field_item, const_item);
+  }
   uint size_of() const { return sizeof(*this); }
 };
 
@@ -2121,6 +2130,8 @@ public:
   bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
   { return Field_newdate::get_TIME(ltime, ptr, fuzzydate); }
   uint size_of() const { return sizeof(*this); }
+  Item *get_equal_const_item(THD *thd, const Context &ctx,
+                             Item_field *field_item, Item *const_item);
 };
 
 
@@ -2164,6 +2175,8 @@ public:
   Field *new_key_field(MEM_ROOT *root, TABLE *new_table,
                        uchar *new_ptr, uint32 length,
                        uchar *new_null_ptr, uint new_null_bit);
+  Item *get_equal_const_item(THD *thd, const Context &ctx,
+                             Item_field *field_item, Item *const_item);
 };
 
 
@@ -2321,6 +2334,11 @@ public:
                       uint param_data __attribute__((unused)))
   {
     return unpack_int64(to, from, from_end);
+  }
+  Item *get_equal_const_item(THD *thd, const Context &ctx,
+                             Item_field *field_item, Item *const_item)
+  {
+    return get_equal_const_item_datetime(thd, ctx, field_item, const_item);
   }
   uint size_of() const { return sizeof(*this); }
 };
