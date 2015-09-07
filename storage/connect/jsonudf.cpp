@@ -56,14 +56,26 @@ JSNX::JSNX(PGLOBAL g, PJSON row, int type, int len, int prec)
 /*********************************************************************************/
 /*  SetJpath: set and parse the json path.                                       */
 /*********************************************************************************/
-my_bool JSNX::SetJpath(PGLOBAL g, char *path)
+my_bool JSNX::SetJpath(PGLOBAL g, char *path, my_bool jb)
 {
 	// Check Value was allocated
 	if (!Value)
 		return true;
 
 	Value->SetNullable(true);
-	Jpath = path;
+
+	if (jb) {																						 
+		// Path must return a Json item
+		size_t n = strlen(path);
+
+		if (!n || path[n - 1] != '*') {
+			Jpath = (char*)PlugSubAlloc(g, NULL, n + 3);
+			strcat(strcpy(Jpath, path), (n) ? ":*" : "*");
+		} else
+			Jpath = path;
+
+	} else
+		Jpath = path;
 
 	// Parse the json path
 	return ParseJpath(g);
@@ -780,7 +792,8 @@ typedef struct BSON *PBSON;
 /*********************************************************************************/
 struct BSON {
 	char    Msg[140];
-	void   *Memp;
+	char   *Filename;
+	int     Pretty;
 	ulong   Reslen;
 	my_bool Changed;
 	PJSON   Jsp;
@@ -795,7 +808,8 @@ static PBSON BsonAlloc(PGLOBAL g, ulong len, PJSON jsp)
 
 	strcpy(bsp->Msg, "Binary Json");
 	bsp->Msg[139] = 0;
-	bsp->Memp = g->Sarea;
+	bsp->Filename = NULL;
+	bsp->Pretty = 2;
 	bsp->Reslen = len;
 	bsp->Changed = false;
 	bsp->Jsp = jsp;
@@ -825,13 +839,10 @@ inline void JsonMemSave(PGLOBAL g)
 /*********************************************************************************/
 /*  Program for freeing the memory pools.                           */
 /*********************************************************************************/
-inline void JsonMemFree(PGLOBAL g)
+inline void JsonFreeMem(PGLOBAL g)
 {
-	if (g->Alchecked)
-		g->Sarea = NULL;
-
 	PlugExit(g);
-} /* end of JsonMemFree */
+} /* end of JsonFreeMem */
 
 /*********************************************************************************/
 /*  Allocate and initialise the memory area.                                     */
@@ -846,13 +857,9 @@ static my_bool JsonInit(UDF_INIT *initid, UDF_ARGS *args,
     strcpy(message, "Allocation error");
     return true;
   } else if (g->Sarea_Size == 0) {
-		if (memlen) {
-			strcpy(message, g->Message);
-			PlugExit(g);
-			return true;
-		} else
-			assert(IsJson(args, 0) == 3);
-
+		strcpy(message, g->Message);
+		PlugExit(g);
+		return true;
   } // endif g
 
 	g->Mrr = (args->arg_count && args->args[0]) ? 1 : 0;
@@ -909,14 +916,23 @@ static char *MakeResult(PGLOBAL g, UDF_ARGS *args, PJSON top, int n = 2)
 			PUSH_WARNING(msg);
 
 		str = NULL;
-	} else {
-		if (!(str = Serialize(g, top, NULL, 0)))
+	} else if (IsJson(args, 0) == 3) {
+		PBSON bsp = (PBSON)args->args[0];
+
+		if (bsp->Filename) {
+			// Make the change in the json file
+			char *msg;
+
+			if ((msg = Serialize(g, top, bsp->Filename, bsp->Pretty)))
+				PUSH_WARNING(msg);
+
+			str = bsp->Filename;
+		} else if (!(str = Serialize(g, top, NULL, 0)))
 			PUSH_WARNING(g->Message);
 
-		if (IsJson(args, 0) == 3)
-			((PBSON)args->args[0])->Changed = 1;
-
-	} // endif IsJson
+		bsp->Changed = 1;
+	} else if (!(str = Serialize(g, top, NULL, 0)))
+			PUSH_WARNING(g->Message);
 
 	return str;
 } // end of MakeResult
@@ -1025,11 +1041,8 @@ static my_bool CalcLen(UDF_ARGS *args, my_bool obj,
 
     } // endfor i
 
-	if (IsJson(args, 0) == 3) {
-		memlen = 0L;          // We'll use arg memory
-		return false;
-	}	else   // Calculate the amount of memory needed
-	  memlen = MEMFIX + sizeof(JOUTSTR) + reslen;
+	// Calculate the amount of memory needed
+	memlen = MEMFIX + sizeof(JOUTSTR) + reslen;
 
   for (i = 0; i < args->arg_count; i++) {
 		n = IsJson(args, i);
@@ -1089,18 +1102,6 @@ static my_bool CheckMemory(PGLOBAL g, UDF_INIT *initid, UDF_ARGS *args,
 	                         uint n, my_bool obj, my_bool mod = false)
 {
 	unsigned long rl, ml;
-
-	if (IsJson(args, 0) == 3) {
-		if (!g->Sarea) {
-			PPOOLHEADER p = (PPOOLHEADER)((PBSON)args->args[0])->Memp;
-
-			g->Sarea = p;
-			g->Sarea_Size = p->To_Free + p->FreeBlk;
-			g->Alchecked = 1;
-		} // endif Sarea
-
-		return false;
-	}	// endif IsJson
 
 	n = MY_MIN(n, args->arg_count);
 
@@ -1338,7 +1339,7 @@ char *Json_Value(UDF_INIT *initid, UDF_ARGS *args, char *result,
 
 void Json_Value_deinit(UDF_INIT* initid)
 {
-  JsonMemFree((PGLOBAL)initid->ptr);
+  JsonFreeMem((PGLOBAL)initid->ptr);
 } // end of Json_Value_deinit
 
 /*********************************************************************************/
@@ -1384,7 +1385,7 @@ char *Json_Array(UDF_INIT *initid, UDF_ARGS *args, char *result,
 
 void Json_Array_deinit(UDF_INIT* initid)
 {
-  JsonMemFree((PGLOBAL)initid->ptr);
+  JsonFreeMem((PGLOBAL)initid->ptr);
 } // end of Json_Array_deinit
 
 /*********************************************************************************/
@@ -1451,7 +1452,7 @@ char *Json_Array_Add_Values(UDF_INIT *initid, UDF_ARGS *args, char *result,
 
 void Json_Array_Add_Values_deinit(UDF_INIT* initid)
 {
-	JsonMemFree((PGLOBAL)initid->ptr);
+	JsonFreeMem((PGLOBAL)initid->ptr);
 } // end of Json_Array_Add_Values_deinit
 
 /*********************************************************************************/
@@ -1533,7 +1534,7 @@ char *Json_Array_Add(UDF_INIT *initid, UDF_ARGS *args, char *result,
 
 void Json_Array_Add_deinit(UDF_INIT* initid)
 {
-  JsonMemFree((PGLOBAL)initid->ptr);
+  JsonFreeMem((PGLOBAL)initid->ptr);
 } // end of Json_Array_Add_deinit
 
 /*********************************************************************************/
@@ -1606,7 +1607,7 @@ char *Json_Array_Delete(UDF_INIT *initid, UDF_ARGS *args, char *result,
 
 void Json_Array_Delete_deinit(UDF_INIT* initid)
 {
-  JsonMemFree((PGLOBAL)initid->ptr);
+  JsonFreeMem((PGLOBAL)initid->ptr);
 } // end of Json_Array_Delete_deinit
 
 /*********************************************************************************/
@@ -1650,7 +1651,7 @@ char *Json_Object(UDF_INIT *initid, UDF_ARGS *args, char *result,
 
 void Json_Object_deinit(UDF_INIT* initid)
 {
-  JsonMemFree((PGLOBAL)initid->ptr);
+  JsonFreeMem((PGLOBAL)initid->ptr);
 } // end of Json_Object_deinit
 
 /*********************************************************************************/
@@ -1697,7 +1698,7 @@ char *Json_Object_Nonull(UDF_INIT *initid, UDF_ARGS *args, char *result,
 
 void Json_Object_Nonull_deinit(UDF_INIT* initid)
 {
-  JsonMemFree((PGLOBAL)initid->ptr);
+  JsonFreeMem((PGLOBAL)initid->ptr);
 } // end of Json_Object_nonull_deinit
 
 /*********************************************************************************/
@@ -1766,7 +1767,7 @@ char *Json_Object_Add(UDF_INIT *initid, UDF_ARGS *args, char *result,
 
 void Json_Object_Add_deinit(UDF_INIT* initid)
 {
-	JsonMemFree((PGLOBAL)initid->ptr);
+	JsonFreeMem((PGLOBAL)initid->ptr);
 } // end of Json_Object_Add_deinit
 
 /*********************************************************************************/
@@ -1838,7 +1839,7 @@ char *Json_Object_Delete(UDF_INIT *initid, UDF_ARGS *args, char *result,
 
 void Json_Object_Delete_deinit(UDF_INIT* initid)
 {
-	JsonMemFree((PGLOBAL)initid->ptr);
+	JsonFreeMem((PGLOBAL)initid->ptr);
 } // end of Json_Object_Delete_deinit
 
 /*********************************************************************************/
@@ -1904,7 +1905,7 @@ char *Json_Object_List(UDF_INIT *initid, UDF_ARGS *args, char *result,
 
 void Json_Object_List_deinit(UDF_INIT* initid)
 {
-	JsonMemFree((PGLOBAL)initid->ptr);
+	JsonFreeMem((PGLOBAL)initid->ptr);
 } // end of Json_Object_List_deinit
 
 /*********************************************************************************/
@@ -1977,7 +1978,7 @@ void Json_Array_Grp_clear(UDF_INIT *initid, char*, char*)
 
 void Json_Array_Grp_deinit(UDF_INIT* initid)
 {
-  JsonMemFree((PGLOBAL)initid->ptr);
+  JsonFreeMem((PGLOBAL)initid->ptr);
 } // end of Json_Array_Grp_deinit
 
 /*********************************************************************************/
@@ -2048,25 +2049,25 @@ void Json_Object_Grp_clear(UDF_INIT *initid, char*, char*)
 
 void Json_Object_Grp_deinit(UDF_INIT* initid)
 {
-  JsonMemFree((PGLOBAL)initid->ptr);
+  JsonFreeMem((PGLOBAL)initid->ptr);
 } // end of Json_Object_Grp_deinit
 
 /*********************************************************************************/
-/*  Get a string value from a Json item.                                         */
+/*  Get a Json item from a Json document.                                        */
 /*********************************************************************************/
-my_bool JsonGetString_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
+my_bool Json_Get_Item_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 {
 	unsigned long reslen, memlen;
 	int n = IsJson(args, 0);
 
 	if (args->arg_count < 2) {
-		strcpy(message, "JsonGetString must have at least 2 arguments");
+		strcpy(message, "Json_Get_Item must have at least 2 arguments");
 		return true;
 	} else if (!n && args->arg_type[0] != STRING_RESULT) {
-		strcpy(message, "JsonGetString first argument must be a json item");
+		strcpy(message, "Json_Get_Item first argument must be a json item");
 		return true;
   } else if (args->arg_type[1] != STRING_RESULT) {
-		strcpy(message, "Second argument is not a (jpath) string");
+		strcpy(message, "Second argument is not a string (jpath)");
 		return true;
 	} else
 		CalcLen(args, false, reslen, memlen);
@@ -2083,9 +2084,9 @@ my_bool JsonGetString_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 		memlen += args->lengths[0] * 3;
 
 	return JsonInit(initid, args, message, true, reslen, memlen);
-} // end of JsonGetString_init
+} // end of Json_Get_Item_init
 
-char *JsonGetString(UDF_INIT *initid, UDF_ARGS *args, char *result,
+char *Json_Get_Item(UDF_INIT *initid, UDF_ARGS *args, char *result,
 	             unsigned long *res_length, char *is_null, char *)
 {
 	char   *str = NULL;
@@ -2127,7 +2128,7 @@ char *JsonGetString(UDF_INIT *initid, UDF_ARGS *args, char *result,
 		path = MakePSZ(g, args, 1);
 		jsx = new(g)JSNX(g, jsp, TYPE_STRING, initid->max_length);
 
-		if (jsx->SetJpath(g, path)) {
+		if (jsx->SetJpath(g, path, true)) {
 			PUSH_WARNING(g->Message);
 			*is_null = 1;
 			return NULL;
@@ -2152,11 +2153,119 @@ char *JsonGetString(UDF_INIT *initid, UDF_ARGS *args, char *result,
 		*res_length = strlen(str);
 
 	return str;
+} // end of Json_Get_Item
+
+void Json_Get_Item_deinit(UDF_INIT* initid)
+{
+	JsonFreeMem((PGLOBAL)initid->ptr);
+} // end of Json_Get_Item_deinit
+
+/*********************************************************************************/
+/*  Get a string value from a Json item.                                         */
+/*********************************************************************************/
+my_bool JsonGetString_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
+{
+	unsigned long reslen, memlen;
+	int n = IsJson(args, 0);
+
+	if (args->arg_count < 2) {
+		strcpy(message, "JsonGetString must have at least 2 arguments");
+		return true;
+	} else if (!n && args->arg_type[0] != STRING_RESULT) {
+		strcpy(message, "JsonGetString first argument must be a json item");
+		return true;
+	} else if (args->arg_type[1] != STRING_RESULT) {
+		strcpy(message, "Second argument is not a string (jpath)");
+		return true;
+	} else
+		CalcLen(args, false, reslen, memlen);
+
+	if (n == 2) {
+		char fn[_MAX_PATH];
+		long fl;
+
+		memcpy(fn, args->args[0], args->lengths[0]);
+		fn[args->lengths[0]] = 0;
+		fl = GetFileLength(fn);
+		memlen += fl * 3;
+	} else if (n != 3)
+		memlen += args->lengths[0] * 3;
+
+	return JsonInit(initid, args, message, true, reslen, memlen);
+} // end of JsonGetString_init
+
+char *JsonGetString(UDF_INIT *initid, UDF_ARGS *args, char *result,
+	unsigned long *res_length, char *is_null, char *)
+{
+	char   *str = NULL;
+	PGLOBAL g = (PGLOBAL)initid->ptr;
+
+	if (g->N) {
+		str = (char*)g->Xchk;
+		goto fin;
+	} else if (initid->const_item)
+		g->N = 1;
+
+	if (!CheckMemory(g, initid, args, 1, false)) {
+		char *p, *path;
+		PJSON jsp;
+		PJSNX jsx;
+		PJVAL jvp;
+
+		if (!g->Xchk) {
+			jvp = MakeValue(g, args, 0);
+
+			if ((p = jvp->GetString())) {
+				if (!(jsp = ParseJson(g, p, strlen(p)))) {
+					PUSH_WARNING(g->Message);
+
+					return NULL;
+				} // endif jsp
+
+			} else
+				jsp = jvp->GetJson();
+
+			if (g->Mrr) {			 // First argument is a constant
+				g->Xchk = jsp;
+				JsonMemSave(g);
+			} // endif Mrr
+
+		} else
+			jsp = (PJSON)g->Xchk;
+
+		path = MakePSZ(g, args, 1);
+		jsx = new(g)JSNX(g, jsp, TYPE_STRING, initid->max_length);
+
+		if (jsx->SetJpath(g, path)) {
+			PUSH_WARNING(g->Message);
+			*is_null = 1;
+			return NULL;
+		}	// endif SetJpath
+
+		jsx->ReadValue(g);
+
+		if (!jsx->GetValue()->IsNull())
+			str = jsx->GetValue()->GetCharValue();
+
+		if (initid->const_item)
+			// Keep result of constant function
+			g->Xchk = str;
+
+	} // endif CheckMemory
+
+fin:
+	if (!str) {
+		*is_null = 1;
+		*res_length = 0;
+	} else
+		*res_length = strlen(str);
+
+	return str;
 } // end of JsonGetString
 
 void JsonGetString_deinit(UDF_INIT* initid)
 {
-	JsonMemFree((PGLOBAL)initid->ptr);
+	JsonFreeMem((PGLOBAL)initid->ptr);
 } // end of JsonGetString_deinit
 
 /*********************************************************************************/
@@ -2264,7 +2373,7 @@ long long JsonGetInt(UDF_INIT *initid, UDF_ARGS *args,
 
 void JsonGetInt_deinit(UDF_INIT* initid)
 {
-	JsonMemFree((PGLOBAL)initid->ptr);
+	JsonFreeMem((PGLOBAL)initid->ptr);
 } // end of JsonGetInt_deinit
 
 /*********************************************************************************/
@@ -2380,7 +2489,7 @@ double JsonGetReal(UDF_INIT *initid, UDF_ARGS *args,
 
 void JsonGetReal_deinit(UDF_INIT* initid)
 {
-	JsonMemFree((PGLOBAL)initid->ptr);
+	JsonFreeMem((PGLOBAL)initid->ptr);
 } // end of JsonGetReal_deinit
 
 /*********************************************************************************/
@@ -2507,7 +2616,7 @@ char *JsonLocate(UDF_INIT *initid, UDF_ARGS *args, char *result,
 
 void Json_Locate_deinit(UDF_INIT* initid)
 {
-	JsonMemFree((PGLOBAL)initid->ptr);
+	JsonFreeMem((PGLOBAL)initid->ptr);
 } // end of JsonLocate_deinit
 
 /*********************************************************************************/
@@ -2636,7 +2745,7 @@ char *Json_Locate_All(UDF_INIT *initid, UDF_ARGS *args, char *result,
 
 void Json_Locate_All_deinit(UDF_INIT* initid)
 {
-	JsonMemFree((PGLOBAL)initid->ptr);
+	JsonFreeMem((PGLOBAL)initid->ptr);
 } // end of Json_Locate_All_deinit
 
 /*********************************************************************************/
@@ -2779,13 +2888,13 @@ fin:
 
 void Json_File_deinit(UDF_INIT* initid)
 {
-	JsonMemFree((PGLOBAL)initid->ptr);
+	JsonFreeMem((PGLOBAL)initid->ptr);
 } // end of Json_File_deinit
 
 /*********************************************************************************/
 /*  Make a json file from a json item.                                           */
 /*********************************************************************************/
-my_bool JsonMakeFile_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
+my_bool Jfile_Make_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 {
 	unsigned long reslen, memlen, more = 1024;
 
@@ -2805,9 +2914,9 @@ my_bool JsonMakeFile_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 
 	CalcLen(args, false, reslen, memlen);
 	return JsonInit(initid, args, message, true, reslen, memlen);
-} // end of JsonMakeFile_init
+} // end of Jfile_Make_init
 
-char *JsonMakeFile(UDF_INIT *initid, UDF_ARGS *args, char *result,
+char *Jfile_Make(UDF_INIT *initid, UDF_ARGS *args, char *result,
 	unsigned long *res_length, char *is_null, char *)
 {
 	char   *str, *fn, *msg;
@@ -2854,12 +2963,12 @@ char *JsonMakeFile(UDF_INIT *initid, UDF_ARGS *args, char *result,
 		*res_length = strlen(str);
 
 	return str;
-} // end of JsonMakeFile
+} // end of Jfile_Make
 
-void JsonMakeFile_deinit(UDF_INIT* initid)
+void Jfile_Make_deinit(UDF_INIT* initid)
 {
-	JsonMemFree((PGLOBAL)initid->ptr);
-} // end of JsonMakeFile_deinit
+	JsonFreeMem((PGLOBAL)initid->ptr);
+} // end of Jfile_Make_deinit
 
 /*********************************************************************************/
 /*  Make and return a binary Json array containing all the parameters.           */
@@ -2869,7 +2978,6 @@ my_bool Bson_Array_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 	unsigned long reslen, memlen;
 
 	CalcLen(args, false, reslen, memlen);
-	memlen *= 2;          // TODO: Make this adjustable
 	return JsonInit(initid, args, message, false, reslen, memlen);
 } // end of Bson_Array_init
 
@@ -2904,5 +3012,181 @@ char *Bson_Array(UDF_INIT *initid, UDF_ARGS *args, char *result,
 
 void Bson_Array_deinit(UDF_INIT* initid)
 {
-	JsonMemFree((PGLOBAL)initid->ptr);
+	JsonFreeMem((PGLOBAL)initid->ptr);
 } // end of Bson_Array_deinit
+
+/*********************************************************************************/
+/*  Make a Json Oject containing all the parameters.                             */
+/*********************************************************************************/
+my_bool Bson_Object_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
+{
+	unsigned long reslen, memlen;
+
+	CalcLen(args, true, reslen, memlen);
+	return JsonInit(initid, args, message, false, reslen, memlen);
+} // end of Bson_Object_init
+
+char *Bson_Object(UDF_INIT *initid, UDF_ARGS *args, char *result,
+	unsigned long *res_length, char *, char *)
+{
+	PGLOBAL g = (PGLOBAL)initid->ptr;
+	PBSON   bsp = (PBSON)g->Xchk;
+
+	if (!bsp || bsp->Changed) {
+		if (!CheckMemory(g, initid, args, args->arg_count, true)) {
+			PJOB objp = new(g)JOBJECT;
+
+			for (uint i = 0; i < args->arg_count; i++)
+				objp->SetValue(g, MakeValue(g, args, i), MakeKey(g, args, i));
+
+			bsp = BsonAlloc(g, initid->max_length, objp);
+			strcat(bsp->Msg, " object");
+		} else {
+			bsp = BsonAlloc(g, initid->max_length, NULL);
+			strncpy(bsp->Msg, g->Message, 139);
+		} // endif CheckMemory
+
+		// Keep result of constant function
+		g->Xchk = (initid->const_item) ? bsp : NULL;
+	} // endif bsp
+
+	*res_length = sizeof(BSON);
+	return (char*)bsp;
+} // end of Bson_Object
+
+void Bson_Object_deinit(UDF_INIT* initid)
+{
+	JsonFreeMem((PGLOBAL)initid->ptr);
+} // end of Bson_Object_deinit
+
+/*********************************************************************************/
+/*  Returns a json file as a json item.                                          */
+/*********************************************************************************/
+my_bool Bson_File_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
+{
+	unsigned long reslen, memlen, fl, more = 1024;
+
+	if (args->arg_count < 1 || args->arg_count > 3) {
+		strcpy(message, "Bson_File only accepts 1 to 3 arguments");
+		return true;
+	} else if (args->arg_type[0] != STRING_RESULT || !args->args[0]) {
+		strcpy(message, "Bson_File first argument must be a constant string (file name)");
+		return true;
+	} else if (args->arg_count > 1 && args->arg_type[1] != INT_RESULT) {
+		strcpy(message, "Second argument is not an integer (pretty)");
+		return true;
+	} else if (args->arg_count > 2) {
+		if (args->arg_type[2] != INT_RESULT) {
+			strcpy(message, "Third argument is not an integer (memory)");
+			return true;
+		} else
+			more += (ulong)*(longlong*)args->args[2];
+
+	} // endifs
+
+	initid->maybe_null = 1;
+	CalcLen(args, false, reslen, memlen);
+	fl = GetFileLength(args->args[0]);
+	more += fl * M;
+	memlen += more;
+	return JsonInit(initid, args, message, false, reslen, memlen);
+} // end of Bson_File_init
+
+char *Bson_File(UDF_INIT *initid, UDF_ARGS *args, char *result,
+	unsigned long *res_length, char *is_null, char *error)
+{
+	char   *fn, *memory;
+	int     len, pretty;
+	HANDLE  hFile;
+	MEMMAP  mm;
+	PJSON   jsp;
+	PGLOBAL g = (PGLOBAL)initid->ptr;
+	PBSON   bsp = (PBSON)g->Xchk;
+
+	if (bsp && !bsp->Changed)
+		goto fin;
+
+	PlugSubSet(g, g->Sarea, g->Sarea_Size);
+	g->Xchk = NULL;
+	fn = MakePSZ(g, args, 0);
+	pretty = (args->arg_count > 1) ? (int)*(longlong*)args->args[1] : 3;
+
+	/*******************************************************************************/
+	/*  Create the mapping file object.                                            */
+	/*******************************************************************************/
+	hFile = CreateFileMap(g, fn, &mm, MODE_READ, false);
+
+	if (hFile == INVALID_HANDLE_VALUE) {
+		DWORD rc = GetLastError();
+
+		if (!(*g->Message))
+			sprintf(g->Message, MSG(OPEN_MODE_ERROR), "map", (int)rc, fn);
+
+		PUSH_WARNING(g->Message);
+		if (g->Mrr) *error = 1;
+		*is_null = 1;
+		return NULL;
+	} // endif hFile
+
+	/*******************************************************************************/
+	/*  Get the file size (assuming file is smaller than 4 GB)                     */
+	/*******************************************************************************/
+	len = mm.lenL;
+	memory = (char *)mm.memory;
+
+	if (!len) {              // Empty or deleted file
+		CloseFileHandle(hFile);
+		*is_null = 1;
+		return NULL;
+	} // endif len
+
+	if (!memory) {
+		CloseFileHandle(hFile);
+		sprintf(g->Message, MSG(MAP_VIEW_ERROR), fn, GetLastError());
+		PUSH_WARNING(g->Message);
+		*is_null = 1;
+		if (g->Mrr) *error = 1;
+		return NULL;
+	} // endif Memory
+
+	CloseFileHandle(hFile);                    // Not used anymore
+	hFile = INVALID_HANDLE_VALUE;              // For Fblock
+
+	/*********************************************************************************/
+	/*  Parse the json file and allocate its tree structure.                         */
+	/*********************************************************************************/
+	g->Message[0] = 0;
+
+	if (!(jsp = ParseJson(g, memory, len, pretty))) {
+		PUSH_WARNING(g->Message);
+		if (g->Mrr) *error = 1;
+	}	// endif jsp
+
+	CloseMemMap(memory, len);
+
+	if (jsp) {
+		bsp = BsonAlloc(g, len, jsp);
+		strcat(bsp->Msg, " file");
+		bsp->Filename = fn;
+		bsp->Pretty = pretty;
+	} else
+		bsp = NULL;
+
+	if (initid->const_item)
+		// Keep result of constant function
+		g->Xchk = bsp;
+
+fin:
+	if (!bsp) {
+		*res_length = 0;
+		*is_null = 1;
+	} else
+		*res_length = sizeof(BSON);
+
+	return (char*)bsp;
+} // end of Bson_File
+
+void Bson_File_deinit(UDF_INIT* initid)
+{
+	JsonFreeMem((PGLOBAL)initid->ptr);
+} // end of Bson_File_deinit

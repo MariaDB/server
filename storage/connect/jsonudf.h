@@ -85,6 +85,10 @@ extern "C" {
 	DllExport void Json_Object_Grp_clear(UDF_INIT *, char *, char *);
 	DllExport void Json_Object_Grp_deinit(UDF_INIT*);
 
+	DllExport my_bool Json_Get_Item_init(UDF_INIT*, UDF_ARGS*, char*);
+	DllExport char *Json_Get_Item(UDF_EXEC_ARGS);
+	DllExport void Json_Get_Item_deinit(UDF_INIT*);
+
 	DllExport my_bool JsonGetString_init(UDF_INIT*, UDF_ARGS*, char*);
 	DllExport char *JsonGetString(UDF_EXEC_ARGS);
 	DllExport void JsonGetString_deinit(UDF_INIT*);
@@ -109,13 +113,21 @@ extern "C" {
 	DllExport char *Json_File(UDF_EXEC_ARGS);
 	DllExport void Json_File_deinit(UDF_INIT*);
 
-	DllExport my_bool JsonMakeFile_init(UDF_INIT*, UDF_ARGS*, char*);
-	DllExport char *JsonMakeFile(UDF_EXEC_ARGS);
-	DllExport void JsonMakeFile_deinit(UDF_INIT*);
+	DllExport my_bool Jfile_Make_init(UDF_INIT*, UDF_ARGS*, char*);
+	DllExport char *Jfile_Make(UDF_EXEC_ARGS);
+	DllExport void Jfile_Make_deinit(UDF_INIT*);
 
 	DllExport my_bool Bson_Array_init(UDF_INIT*, UDF_ARGS*, char*);
 	DllExport char *Bson_Array(UDF_EXEC_ARGS);
 	DllExport void Bson_Array_deinit(UDF_INIT*);
+
+	DllExport my_bool Bson_Object_init(UDF_INIT*, UDF_ARGS*, char*);
+	DllExport char *Bson_Object(UDF_EXEC_ARGS);
+	DllExport void Bson_Object_deinit(UDF_INIT*);
+
+	DllExport my_bool Bson_File_init(UDF_INIT*, UDF_ARGS*, char*);
+	DllExport char *Bson_File(UDF_EXEC_ARGS);
+	DllExport void Bson_File_deinit(UDF_INIT*);
 } // extern "C"
 
 /*********************************************************************************/
@@ -140,7 +152,7 @@ public:
 	PVAL    GetValue(void) {return Value;}
 
 	// Methods
-	my_bool SetJpath(PGLOBAL g, char *path);
+	my_bool SetJpath(PGLOBAL g, char *path, my_bool jb = false);
 	my_bool ParseJpath(PGLOBAL g);
 	void    ReadValue(PGLOBAL g);
 	PJVAL   GetJson(PGLOBAL g);
