@@ -357,3 +357,34 @@ DROP TABLE t1;
 --echo #
 --echo # End of 10.0 tests
 --echo #
+
+--echo #
+--echo # Start of 10.1 tests
+--echo #
+
+--echo #
+--echo # MDEV-8729 Wrong result for SELECT..WHERE HEX(enum_column)='61' AND enum_column='a '
+--echo #
+CREATE TABLE t1 (a ENUM('a','A') CHARACTER SET latin1 COLLATE latin1_bin);
+INSERT INTO t1 VALUES ('a'),('A');
+SELECT * FROM t1 WHERE a='a ';
+SELECT * FROM t1 WHERE HEX(a)='61';
+SELECT * FROM t1 WHERE HEX(a)='61' AND a='a ';
+--echo # Can't propagate the equality into HEX(a), because binary collations still ignore trailing spaces
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE HEX(a)='61' AND a='a ';
+DROP TABLE t1;
+
+CREATE TABLE t1 (a ENUM('a','a ') CHARACTER SET BINARY);
+INSERT INTO t1 VALUES ('a'),('a ');
+SELECT * FROM t1 WHERE a='a ';
+SELECT * FROM t1 WHERE HEX(a)='61';
+SELECT * FROM t1 WHERE HEX(a)='61' AND a='a';
+SELECT * FROM t1 WHERE HEX(a)='61' AND a='a ';
+--echo # Ok to propagate the equality into HEX(a), because "CHARACTER SET BINARY" does not ignore trailing spaces
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE HEX(a)='61' AND a='a';
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE HEX(a)='61' AND a='a ';
+DROP TABLE t1;
+
+--echo #
+--echo # End of 10.1 tests
+--echo #

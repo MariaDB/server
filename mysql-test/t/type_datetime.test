@@ -650,5 +650,11 @@ SET old_mode=DEFAULT;
 SET sql_mode=DEFAULT;
 
 --echo #
+--echo # MDEV-8699 Wrong result for SELECT..WHERE HEX(date_column)!='323030312D30312D3031' AND date_column='2001-01-01x'
+--echo #
+--let $TYPE= DATETIME
+--source include/equal_fields_propagation_datetime.inc
+
+--echo #
 --echo # End of 10.1 tests
 --echo #

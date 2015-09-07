@@ -12,6 +12,8 @@ call mtr.add_suppression("InnoDB: However key management plugin or used key_id 1
 call mtr.add_suppression("InnoDB: Marking tablespace as missing. You may drop this table or install correct key management plugin and key file.");
 call mtr.add_suppression(".*InnoDB: Cannot open table test/.* from the internal data dictionary of InnoDB though the .frm file for the table exists. See .* for how you can resolve the problem.");
 call mtr.add_suppression("InnoDB: .ibd file is missing for table test/.*");
+# Suppression for builds where file_key_management plugin is linked statically
+call mtr.add_suppression("Couldn't load plugins from 'file_key_management*");
 
 --exec echo "wait" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
 --shutdown_server

@@ -348,7 +348,7 @@ public:
       are never equal is allowed in the arguments of a function.
       This is overruled for the direct arguments of comparison functions.
     */
-    Item_args::propagate_equal_fields(thd, IDENTITY_SUBST, cond);
+    Item_args::propagate_equal_fields(thd, Context_identity(), cond);
     return this;
   }
 

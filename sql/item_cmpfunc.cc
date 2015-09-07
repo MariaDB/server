@@ -482,9 +482,8 @@ void Item_func::convert_const_compared_to_int_field(THD *thd)
     {
       Item_field *field_item= (Item_field*) (args[field]->real_item());
       if ((field_item->field_type() ==  MYSQL_TYPE_LONGLONG ||
-           field_item->field_type() ==  MYSQL_TYPE_YEAR) &&
-          convert_const_to_int(thd, field_item, &args[!field]))
-        args[0]->cmp_context= args[1]->cmp_context= INT_RESULT;
+           field_item->field_type() ==  MYSQL_TYPE_YEAR))
+        convert_const_to_int(thd, field_item, &args[!field]);
     }
   }
 }
@@ -498,8 +497,6 @@ bool Item_func::setup_args_and_comparator(THD *thd, Arg_comparator *cmp)
       args[1]->cmp_type() == STRING_RESULT &&
       agg_arg_charsets_for_comparison(cmp->cmp_collation, args, 2))
       return true;
-
-  args[0]->cmp_context= args[1]->cmp_context= item_cmp_type(args[0], args[1]);
 
   //  Convert constants when compared to int/year field
   DBUG_ASSERT(functype() != LIKE_FUNC);
@@ -551,10 +548,8 @@ int Arg_comparator::set_compare_func(Item_func_or_sum *item, Item_result type)
 	my_error(ER_OPERAND_COLUMNS, MYF(0), (*a)->element_index(i)->cols());
 	return 1;
       }
-      if (comparators[i].set_cmp_func_and_arg_cmp_context(owner,
-                                                          (*a)->addr(i),
-                                                          (*b)->addr(i),
-                                                          set_null))
+      if (comparators[i].set_cmp_func(owner, (*a)->addr(i),
+                                             (*b)->addr(i), set_null))
         return 1;
     }
     break;
@@ -617,9 +612,6 @@ int Arg_comparator::set_compare_func(Item_func_or_sum *item, Item_result type)
     }
     break;
   }
-  case IMPOSSIBLE_RESULT:
-    DBUG_ASSERT(0);
-    break;
   }
   return 0;
 }
@@ -736,6 +728,7 @@ int Arg_comparator::set_cmp_func(Item_func_or_sum *owner_arg,
   set_null= set_null && owner_arg;
   a= a1;
   b= a2;
+  m_compare_type= type;
 
   if (type == STRING_RESULT &&
       (*a)->result_type() == STRING_RESULT &&
@@ -2199,8 +2192,7 @@ void Item_func_between::fix_length_and_dec()
     return;
   if (agg_cmp_type(&m_compare_type, args, 3))
     return;
-  args[0]->cmp_context= args[1]->cmp_context= args[2]->cmp_context=
-    m_compare_type;
+
   if (m_compare_type == STRING_RESULT &&
       agg_arg_charsets_for_comparison(cmp_collation, args, 3))
    return;
@@ -2363,7 +2355,6 @@ longlong Item_func_between::val_int()
     break;
   }
   case ROW_RESULT:
-  case IMPOSSIBLE_RESULT:
     DBUG_ASSERT(0);
     null_value= 1;
     return 0;
@@ -2422,7 +2413,6 @@ Item_func_case_abbreviation2::fix_length_and_dec2(Item **args)
     break;
   case ROW_RESULT:
   case TIME_RESULT:
-  case IMPOSSIBLE_RESULT:
     DBUG_ASSERT(0);
   }
   fix_char_length(char_length);
@@ -2779,7 +2769,7 @@ Item_func_nullif::is_null()
 Item_func_case::Item_func_case(THD *thd, List<Item> &list,
                                Item *first_expr_arg, Item *else_expr_arg):
   Item_func_hybrid_field_type(thd), first_expr_num(-1), else_expr_num(-1),
-  left_cmp_type(INT_RESULT), case_item(0)
+  left_cmp_type(INT_RESULT), case_item(0), m_found_types(0)
 {
   ncases= list.elements;
   if (first_expr_arg)
@@ -3010,9 +3000,9 @@ void Item_func_case::fix_length_and_dec()
 {
   Item **agg= arg_buffer;
   uint nagg;
-  uint found_types= 0;
   THD *thd= current_thd;
 
+  m_found_types= 0;
   if (else_expr_num == -1 || args[else_expr_num]->maybe_null)
     maybe_null= 1;
 
@@ -3079,14 +3069,14 @@ void Item_func_case::fix_length_and_dec()
     for (nagg= 0; nagg < ncases/2 ; nagg++)
       agg[nagg+1]= args[nagg*2];
     nagg++;
-    if (!(found_types= collect_cmp_types(agg, nagg)))
+    if (!(m_found_types= collect_cmp_types(agg, nagg)))
       return;
 
     Item *date_arg= 0;
-    if (found_types & (1U << TIME_RESULT))
+    if (m_found_types & (1U << TIME_RESULT))
       date_arg= find_date_time_item(args, arg_count, 0);
 
-    if (found_types & (1U << STRING_RESULT))
+    if (m_found_types & (1U << STRING_RESULT))
     {
       /*
         If we'll do string comparison, we also need to aggregate
@@ -3127,7 +3117,7 @@ void Item_func_case::fix_length_and_dec()
 
     for (i= 0; i <= (uint)TIME_RESULT; i++)
     {
-      if (found_types & (1U << i) && !cmp_items[i])
+      if (m_found_types & (1U << i) && !cmp_items[i])
       {
         DBUG_ASSERT((Item_result)i != ROW_RESULT);
 
@@ -3137,15 +3127,90 @@ void Item_func_case::fix_length_and_dec()
           return;
       }
     }
-    /*
-      Set cmp_context of all WHEN arguments. This prevents
-      Item_field::propagate_equal_fields() from transforming a
-      zerofill argument into a string constant. Such a change would
-      require rebuilding cmp_items.
-    */
-    for (i= 0; i < ncases; i+= 2)
-      args[i]->cmp_context= item_cmp_type(left_cmp_type, args[i]);
   }
+}
+
+
+Item* Item_func_case::propagate_equal_fields(THD *thd, const Context &ctx, COND_EQUAL *cond)
+{
+  if (first_expr_num == -1)
+  {
+    // None of the arguments are in a comparison context
+    Item_args::propagate_equal_fields(thd, Context_identity(), cond);
+    return this;
+  }
+
+  for (uint i= 0; i < arg_count; i++)
+  {
+    /*
+      Even "i" values cover items that are in a comparison context:
+        CASE x0 WHEN x1 .. WHEN x2 .. WHEN x3 ..
+      Odd "i" values cover items that are not in comparison:
+        CASE ... THEN y1 ... THEN y2 ... THEN y3 ... ELSE y4 END
+    */
+    Item *new_item= 0;
+    if ((int) i == first_expr_num) // Then CASE (the switch) argument
+    {
+      /*
+        Cannot replace the CASE (the switch) argument if
+        there are multiple comparison types were found, or found a single
+        comparison type that is not equal to args[0]->cmp_type().
+
+        - Example: multiple comparison types, can't propagate:
+            WHERE CASE str_column
+                  WHEN 'string' THEN TRUE
+                  WHEN 1 THEN TRUE
+                  ELSE FALSE END;
+
+        - Example: a single incompatible comparison type, can't propagate:
+            WHERE CASE str_column
+                  WHEN DATE'2001-01-01' THEN TRUE
+                  ELSE FALSE END;
+
+        - Example: a single incompatible comparison type, can't propagate:
+            WHERE CASE str_column
+                  WHEN 1 THEN TRUE
+                  ELSE FALSE END;
+
+        - Example: a single compatible comparison type, ok to propagate:
+            WHERE CASE str_column
+                  WHEN 'str1' THEN TRUE
+                  WHEN 'str2' THEN TRUE
+                  ELSE FALSE END;
+      */
+      if (m_found_types == (1UL << left_cmp_type))
+        new_item= args[i]->propagate_equal_fields(thd,
+                                                  Context(
+                                                    ANY_SUBST,
+                                                    left_cmp_type,
+                                                    cmp_collation.collation),
+                                                  cond);
+    }
+    else if ((i % 2) == 0) // WHEN arguments
+    {
+      /*
+        These arguments are in comparison.
+        Allow invariants of the same value during propagation.
+        Note, as we pass ANY_SUBST, none of the WHEN arguments will be
+        replaced to zero-filled constants (only IDENTITY_SUBST allows this).
+        Such a change for WHEN arguments would require rebuilding cmp_items.
+      */
+      Item_result tmp_cmp_type= item_cmp_type(args[first_expr_num], args[i]);
+      new_item= args[i]->propagate_equal_fields(thd,
+                                                Context(
+                                                  ANY_SUBST,
+                                                  tmp_cmp_type,
+                                                  cmp_collation.collation),
+                                                cond);
+    }
+    else // THEN and ELSE arguments (they are not in comparison)
+    {
+      new_item= args[i]->propagate_equal_fields(thd, Context_identity(), cond);
+    }
+    if (new_item && new_item != args[i])
+      thd->change_item_tree(&args[i], new_item);
+  }
+  return this;
 }
 
 
@@ -3305,7 +3370,6 @@ void Item_func_coalesce::fix_length_and_dec()
     break;
   case ROW_RESULT:
   case TIME_RESULT:
-  case IMPOSSIBLE_RESULT:
     DBUG_ASSERT(0);
   }
 }
@@ -3669,9 +3733,6 @@ cmp_item* cmp_item::get_comparator(Item_result type, Item *warn_item,
   case TIME_RESULT:
     DBUG_ASSERT(warn_item);
     return new cmp_item_datetime(warn_item);
-  case IMPOSSIBLE_RESULT:
-    DBUG_ASSERT(0);
-    break;
   }
   return 0; // to satisfy compiler :)
 }
@@ -4000,7 +4061,6 @@ void Item_func_in::fix_length_and_dec()
     if (m_compare_type == STRING_RESULT &&
         agg_arg_charsets_for_comparison(cmp_collation, args, arg_count))
       return;
-    args[0]->cmp_context= m_compare_type;
     arg_types_compatible= TRUE;
 
     if (m_compare_type == ROW_RESULT)
@@ -4095,9 +4155,6 @@ void Item_func_in::fix_length_and_dec()
       date_arg= find_date_time_item(args, arg_count, 0);
       array= new (thd->mem_root) in_datetime(date_arg, arg_count - 1);
       break;
-    case IMPOSSIBLE_RESULT:
-      DBUG_ASSERT(0);
-      break;
     }
     if (array && !(thd->is_fatal_error))		// If not EOM
     {
@@ -4131,16 +4188,6 @@ void Item_func_in::fix_length_and_dec()
           return;
       }
     }
-  }
-  /*
-    Set cmp_context of all arguments. This prevents
-    Item_field::propagate_equal_fields() from transforming a zerofill integer
-    argument into a string constant. Such a change would require rebuilding
-    cmp_itmes.
-   */
-  for (arg= args + 1, arg_end= args + arg_count; arg != arg_end ; arg++)
-  {
-    arg[0]->cmp_context= item_cmp_type(left_cmp_type, arg[0]);
   }
   max_length= 1;
 }
@@ -4609,7 +4656,7 @@ Item *Item_cond::propagate_equal_fields(THD *thd,
       is not important at this point. Item_func derivants will create and
       pass their own context to the arguments.
     */
-    Item *new_item= item->propagate_equal_fields(thd, ANY_SUBST, cond);
+    Item *new_item= item->propagate_equal_fields(thd, Context_boolean(), cond);
     if (new_item && new_item != item)
       thd->change_item_tree(li.ref(), new_item);
   }
@@ -5810,6 +5857,7 @@ Item_equal::Item_equal(THD *thd, Item *f1, Item *f2, bool with_const_item):
   equal_items.push_back(f1, thd->mem_root);
   equal_items.push_back(f2, thd->mem_root);
   compare_as_dates= with_const_item && f2->cmp_type() == TIME_RESULT;
+  cmp.set_compare_type(item_cmp_type(f1, f2));
   upper_levels= NULL;
 }
 
@@ -5839,6 +5887,7 @@ Item_equal::Item_equal(THD *thd, Item_equal *item_equal):
   }
   with_const= item_equal->with_const;
   compare_as_dates= item_equal->compare_as_dates;
+  cmp.set_compare_type(item_equal->cmp.compare_type());
   cond_false= item_equal->cond_false;
   upper_levels= item_equal->upper_levels;
 }

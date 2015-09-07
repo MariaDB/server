@@ -41,12 +41,84 @@ class Column_statistics;
 class Column_statistics_collected;
 class Item_func;
 class Item_bool_func;
+class Item_equal;
 
 enum enum_check_fields
 {
   CHECK_FIELD_IGNORE,
   CHECK_FIELD_WARN,
   CHECK_FIELD_ERROR_FOR_NULL
+};
+
+
+/*
+  Common declarations for Field and Item
+*/
+class Value_source
+{
+public:
+  /*
+    The enumeration Subst_constraint is currently used only in implementations
+    of the virtual function subst_argument_checker.
+  */
+  enum Subst_constraint
+  {
+    ANY_SUBST,           /* Any substitution for a field is allowed  */
+    IDENTITY_SUBST       /* Substitution for a field is allowed if any two
+                            different values of the field type are not equal */
+  };
+  /*
+    Item context attributes.
+    Comparison functions pass their attributes to propagate_equal_fields().
+    For exmple, for string comparison, the collation of the comparison
+    operation is important inside propagate_equal_fields().
+  */
+  class Context
+  {
+    /*
+      Which type of propagation is allowed:
+      - ANY_SUBST (loose equality, according to the collation), or
+      - IDENTITY_SUBST (strict binary equality).
+    */
+    Subst_constraint m_subst_constraint;
+    /*
+      Comparison type.
+      Impostant only when ANY_SUBSTS.
+    */
+    Item_result m_compare_type;
+    /*
+      Collation of the comparison operation.
+      Important only when ANY_SUBST.
+    */
+    CHARSET_INFO *m_compare_collation;
+  public:
+    Context(Subst_constraint subst, Item_result type, CHARSET_INFO *cs)
+      :m_subst_constraint(subst),
+       m_compare_type(type),
+       m_compare_collation(cs) { }
+    Subst_constraint subst_constraint() const { return m_subst_constraint; }
+    Item_result compare_type() const
+    {
+      DBUG_ASSERT(m_subst_constraint == ANY_SUBST);
+      return m_compare_type;
+    }
+    CHARSET_INFO *compare_collation() const
+    {
+      DBUG_ASSERT(m_subst_constraint == ANY_SUBST);
+      return m_compare_collation;
+    }
+  };
+  class Context_identity: public Context
+  { // Use this to request only exact value, no invariants.
+  public:
+     Context_identity()
+      :Context(IDENTITY_SUBST, STRING_RESULT, &my_charset_bin) { }
+  };
+  class Context_boolean: public Context
+  { // Use this when an item is [a part of] a boolean expression
+  public:
+    Context_boolean() :Context(ANY_SUBST, INT_RESULT, &my_charset_bin) { }
+  };
 };
 
 
@@ -60,6 +132,7 @@ enum Derivation
   DERIVATION_NONE= 1,
   DERIVATION_EXPLICIT= 0
 };
+
 
 #define STORAGE_TYPE_MASK 7
 #define COLUMN_FORMAT_MASK 7
@@ -287,7 +360,7 @@ public:
   }
 };
 
-class Field
+class Field: public Value_source
 {
   Field(const Item &);				/* Prevent use of these */
   void operator=(Field &);
@@ -1027,6 +1100,13 @@ public:
   */
   virtual bool test_if_equality_guarantees_uniqueness(const Item *const_item)
                                                       const;
+  virtual bool can_be_substituted_to_equal_item(const Context &ctx,
+                                        const Item_equal *item);
+  virtual Item *get_equal_const_item(THD *thd, const Context &ctx,
+                                     Item_field *field_item, Item *const_item)
+  {
+    return const_item;
+  }
   virtual bool can_optimize_keypart_ref(const Item_bool_func *cond,
                                         const Item *item) const;
   virtual bool can_optimize_hash_join(const Item_bool_func *cond,
@@ -1126,6 +1206,11 @@ protected:
 
 
 class Field_num :public Field {
+protected:
+  Item *convert_zerofill_number_to_string(THD *thd, Item *item) const;
+  Item *get_equal_zerofill_const_item(THD *thd, const Context &ctx,
+                                      Item_field *field_item,
+                                      Item *const_item);
 public:
   const uint8 dec;
   bool zerofill,unsigned_flag;	// Purify cannot handle bit fields
@@ -1137,7 +1222,14 @@ public:
   enum Derivation derivation(void) const { return DERIVATION_NUMERIC; }
   uint repertoire(void) const { return MY_REPERTOIRE_NUMERIC; }
   CHARSET_INFO *charset(void) const { return &my_charset_numeric; }
-  void prepend_zeros(String *value);
+  void prepend_zeros(String *value) const;
+  Item *get_equal_const_item(THD *thd, const Context &ctx,
+                             Item_field *field_item, Item *const_item)
+  {
+    return (flags & ZEROFILL_FLAG) ?
+           get_equal_zerofill_const_item(thd, ctx, field_item, const_item) :
+           const_item;
+  }
   void add_zerofill_and_unsigned(String &res) const;
   friend class Create_field;
   void make_field(Send_field *);
@@ -1172,6 +1264,8 @@ protected:
   CHARSET_INFO *field_charset;
   enum Derivation field_derivation;
 public:
+  bool can_be_substituted_to_equal_item(const Context &ctx,
+                                        const Item_equal *item_equal);
   Field_str(uchar *ptr_arg,uint32 len_arg, uchar *null_ptr_arg,
 	    uchar null_bit_arg, utype unireg_check_arg,
 	    const char *field_name_arg, CHARSET_INFO *charset);
@@ -1269,6 +1363,8 @@ public:
   my_decimal *val_decimal(my_decimal *);
   uint32 max_display_length() { return field_length; }
   uint size_of() const { return sizeof(*this); }
+  Item *get_equal_const_item(THD *thd, const Context &ctx,
+                             Item_field *field_item, Item *const_item);
 };
 
 
@@ -1354,6 +1450,8 @@ public:
   uint is_equal(Create_field *new_field);
   virtual const uchar *unpack(uchar* to, const uchar *from, const uchar *from_end, uint param_data);
   static Field *create_from_item(MEM_ROOT *root, Item *);
+  Item *get_equal_const_item(THD *thd, const Context &ctx,
+                             Item_field *field_item, Item *const_item);
 };
 
 
@@ -1690,6 +1788,10 @@ public:
 
 
 class Field_temporal: public Field {
+protected:
+  Item *get_equal_const_item_datetime(THD *thd, const Context &ctx,
+                                      Item_field *field_item,
+                                      Item *const_item);
 public:
   Field_temporal(uchar *ptr_arg,uint32 len_arg, uchar *null_ptr_arg,
                  uchar null_bit_arg, utype unireg_check_arg,
@@ -1835,6 +1937,11 @@ public:
     return unpack_int32(to, from, from_end);
   }
   bool validate_value_in_record(THD *thd, const uchar *record) const;
+  Item *get_equal_const_item(THD *thd, const Context &ctx,
+                             Item_field *field_item, Item *const_item)
+  {
+    return get_equal_const_item_datetime(thd, ctx, field_item, const_item);
+  }
   uint size_of() const { return sizeof(*this); }
 };
 
@@ -2023,6 +2130,8 @@ public:
   bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
   { return Field_newdate::get_TIME(ltime, ptr, fuzzydate); }
   uint size_of() const { return sizeof(*this); }
+  Item *get_equal_const_item(THD *thd, const Context &ctx,
+                             Item_field *field_item, Item *const_item);
 };
 
 
@@ -2066,6 +2175,8 @@ public:
   Field *new_key_field(MEM_ROOT *root, TABLE *new_table,
                        uchar *new_ptr, uint32 length,
                        uchar *new_null_ptr, uint new_null_bit);
+  Item *get_equal_const_item(THD *thd, const Context &ctx,
+                             Item_field *field_item, Item *const_item);
 };
 
 
@@ -2223,6 +2334,11 @@ public:
                       uint param_data __attribute__((unused)))
   {
     return unpack_int64(to, from, from_end);
+  }
+  Item *get_equal_const_item(THD *thd, const Context &ctx,
+                             Item_field *field_item, Item *const_item)
+  {
+    return get_equal_const_item_datetime(thd, ctx, field_item, const_item);
   }
   uint size_of() const { return sizeof(*this); }
 };

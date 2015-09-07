@@ -12762,7 +12762,7 @@ static bool check_row_equality(THD *thd, Item *left_row, Item_row *right_row,
     {
       Item_func_eq *eq_item;
       if (!(eq_item= new (thd->mem_root) Item_func_eq(thd, left_item, right_item)) ||
-          eq_item->set_cmp_func_and_arg_cmp_context())
+          eq_item->set_cmp_func())
         return FALSE;
       eq_item->quick_fix_field();
       eq_list->push_back(eq_item, thd->mem_root);
@@ -13096,7 +13096,7 @@ COND *Item_func::build_equal_items(THD *thd, COND_EQUAL *inherited,
     as soon the field is not of a string type or the field reference is
     an argument of a comparison predicate. 
   */ 
-  COND *cond= propagate_equal_fields(thd, ANY_SUBST, inherited);
+  COND *cond= propagate_equal_fields(thd, Context_boolean(), inherited);
   cond->update_used_tables();
   DBUG_ASSERT(cond == this);
   DBUG_ASSERT(!cond_equal_ref || !cond_equal_ref[0]);
@@ -13875,9 +13875,9 @@ can_change_cond_ref_to_const(Item_bool_func2 *target,
 {
   if (!target_expr->eq(source_expr,0) ||
        target_value == source_const ||
-       target_expr->cmp_context != source_expr->cmp_context)
+       target->compare_type() != source->compare_type())
     return false;
-  if (target_expr->cmp_context == STRING_RESULT)
+  if (target->compare_type() == STRING_RESULT)
   {
     /*
       In this example:
@@ -14921,7 +14921,8 @@ void propagate_new_equalities(THD *thd, Item *cond,
   }
   else
   {
-    cond= cond->propagate_equal_fields(thd, Item::ANY_SUBST, inherited);
+    cond= cond->propagate_equal_fields(thd,
+                                       Item::Context_boolean(), inherited);
     cond->update_used_tables();
   }          
 } 

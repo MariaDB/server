@@ -393,3 +393,152 @@ SET timestamp=DEFAULT;
 #
 # End of 10.0 tests
 #
+#
+# Start of 10.1 tests
+#
+#
+# MDEV-8699 Wrong result for SELECT..WHERE HEX(date_column)!='323030312D30312D3031' AND date_column='2001-01-01x'
+#
+# Trailing garbage in string literals
+CREATE TABLE t1 (a TIME);
+INSERT INTO t1 VALUES ('00:00:00'),('00:00:01');
+SELECT * FROM t1 WHERE LENGTH(a)=8;
+a
+00:00:00
+00:00:01
+SELECT * FROM t1 WHERE LENGTH(a)=8 AND a='00:00:00x';
+a
+00:00:00
+Warnings:
+Warning	1292	Truncated incorrect time value: '00:00:00x'
+Warning	1292	Truncated incorrect time value: '00:00:00x'
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE LENGTH(a)=8 AND a='00:00:00x';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+Warnings:
+Warning	1292	Truncated incorrect time value: '00:00:00x'
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where (`test`.`t1`.`a` = '00:00:00x')
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE LENGTH(a)=30+RAND() AND a='00:00:00x';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+Warnings:
+Warning	1292	Truncated incorrect time value: '00:00:00x'
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where ((`test`.`t1`.`a` = '00:00:00x') and (<cache>(length(TIME'00:00:00')) = (30 + rand())))
+DROP TABLE t1;
+# Trailing fractional digits in string literals
+CREATE TABLE t1 (a TIME);
+INSERT INTO t1 VALUES ('00:00:00'),('00:00:01');
+SELECT * FROM t1 WHERE LENGTH(a)=8;
+a
+00:00:00
+00:00:01
+SELECT * FROM t1 WHERE LENGTH(a)=8 AND a='00:00:00.000000';
+a
+00:00:00
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE LENGTH(a)=8 AND a='00:00:00.000000';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where (`test`.`t1`.`a` = '00:00:00.000000')
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE LENGTH(a)=30+RAND() AND a='00:00:00.000000';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where ((`test`.`t1`.`a` = '00:00:00.000000') and (<cache>(length(TIME'00:00:00')) = (30 + rand())))
+DROP TABLE t1;
+# Trailing fractional digits in temporal literals
+CREATE TABLE t1 (a TIME);
+INSERT INTO t1 VALUES ('00:00:00'),('00:00:01');
+SELECT * FROM t1 WHERE LENGTH(a)=8;
+a
+00:00:00
+00:00:01
+SELECT * FROM t1 WHERE LENGTH(a)=8 AND a=TIME'00:00:00.000000';
+a
+00:00:00
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE LENGTH(a)=8 AND a=TIME'00:00:00.000000';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where (`test`.`t1`.`a` = TIME'00:00:00.000000')
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE LENGTH(a)=30+RAND() AND a=TIME'00:00:00.000000';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where ((`test`.`t1`.`a` = TIME'00:00:00.000000') and (<cache>(length(TIME'00:00:00')) = (30 + rand())))
+DROP TABLE t1;
+# Trailing fractional digits in temporal literals, same precision
+CREATE TABLE t1 (a TIME(6));
+INSERT INTO t1 VALUES ('00:00:00'),('00:00:01');
+SELECT * FROM t1 WHERE LENGTH(a)=8;
+a
+SELECT * FROM t1 WHERE LENGTH(a)=8 AND a=TIME'00:00:00.000000';
+a
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE LENGTH(a)=8 AND a=TIME'00:00:00.000000';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where 0
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE LENGTH(a)=30+RAND() AND a=TIME'00:00:00.000000';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where ((`test`.`t1`.`a` = TIME'00:00:00.000000') and (<cache>(length(TIME'00:00:00.000000')) = (30 + rand())))
+DROP TABLE t1;
+# Leading spaces in string literals
+CREATE TABLE t1 (a TIME);
+INSERT INTO t1 VALUES ('00:00:00'),('00:00:01');
+SELECT * FROM t1 WHERE LENGTH(a)=8;
+a
+00:00:00
+00:00:01
+SELECT * FROM t1 WHERE LENGTH(a)=8 AND a=' 00:00:00';
+a
+00:00:00
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE LENGTH(a)=8 AND a=' 00:00:00';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where (`test`.`t1`.`a` = ' 00:00:00')
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE LENGTH(a)=30+RAND() AND a=' 00:00:00';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where ((`test`.`t1`.`a` = ' 00:00:00') and (<cache>(length(TIME'00:00:00')) = (30 + rand())))
+DROP TABLE t1;
+# Numeric format in string literals
+CREATE TABLE t1 (a TIME);
+INSERT INTO t1 VALUES ('00:00:00'),('00:00:01');
+SELECT * FROM t1 WHERE LENGTH(a)=8;
+a
+00:00:00
+00:00:01
+SELECT * FROM t1 WHERE LENGTH(a)=8 AND a='000000';
+a
+00:00:00
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE LENGTH(a)=8 AND a='000000';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where (`test`.`t1`.`a` = '000000')
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE LENGTH(a)=30+RAND() AND a='000000';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where ((`test`.`t1`.`a` = '000000') and (<cache>(length(TIME'00:00:00')) = (30 + rand())))
+DROP TABLE t1;
+#
+# End of 10.1 tests
+#

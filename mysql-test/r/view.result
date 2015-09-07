@@ -4430,36 +4430,58 @@ CREATE TABLE t1 (a varchar(10), KEY (a)) ;
 INSERT INTO t1 VALUES
 ('DD'), ('ZZ'), ('ZZ'), ('KK'), ('FF'), ('HH'),('MM');
 CREATE VIEW v1 AS SELECT * FROM t1;
+# t1 and v1 should return the same result set
 SELECT * FROM v1 WHERE a > 'JJ' OR a <> 0 AND a = 'VV';
 a
 KK
 MM
 ZZ
 ZZ
-Warnings:
-Warning	1292	Truncated incorrect DOUBLE value: 'VV'
+SELECT * FROM t1 WHERE a > 'JJ' OR a <> 0 AND a = 'VV';
+a
+KK
+MM
+ZZ
+ZZ
+# t1 and v1 should propagate constants in the same way
 EXPLAIN EXTENDED
 SELECT * FROM v1 WHERE a > 'JJ' OR a <> 0 AND a = 'VV';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	range	a	a	13	NULL	4	100.00	Using where; Using index
 Warnings:
-Warning	1292	Truncated incorrect DOUBLE value: 'VV'
-Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where (`test`.`t1`.`a` > 'JJ')
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where ((`test`.`t1`.`a` > 'JJ') or ((`test`.`t1`.`a` = 'VV') and (`test`.`t1`.`a` <> 0)))
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE a > 'JJ' OR a <> 0 AND a = 'VV';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range	a	a	13	NULL	4	100.00	Using where; Using index
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where ((`test`.`t1`.`a` > 'JJ') or ((`test`.`t1`.`a` = 'VV') and (`test`.`t1`.`a` <> 0)))
+# t1 and v1 should return the same result set
 SELECT * FROM v1 WHERE a > 'JJ' OR a AND a = 'VV';
 a
 KK
 MM
 ZZ
 ZZ
-Warnings:
-Warning	1292	Truncated incorrect DOUBLE value: 'VV'
+SELECT * FROM t1 WHERE a > 'JJ' OR a AND a = 'VV';
+a
+KK
+MM
+ZZ
+ZZ
+# t1 and v1 should propagate constants in the same way
 EXPLAIN EXTENDED
 SELECT * FROM v1 WHERE a > 'JJ' OR a AND a = 'VV';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	range	a	a	13	NULL	4	100.00	Using where; Using index
 Warnings:
-Warning	1292	Truncated incorrect DOUBLE value: 'VV'
-Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where (`test`.`t1`.`a` > 'JJ')
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where ((`test`.`t1`.`a` > 'JJ') or ((`test`.`t1`.`a` = 'VV') and (`test`.`t1`.`a` <> 0)))
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE a > 'JJ' OR a AND a = 'VV';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range	a	a	13	NULL	4	100.00	Using where; Using index
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where ((`test`.`t1`.`a` > 'JJ') or ((`test`.`t1`.`a` = 'VV') and (`test`.`t1`.`a` <> 0)))
 DROP VIEW v1;
 DROP TABLE t1;
 #
@@ -5571,3 +5593,66 @@ drop view v3;
 # -- End of 10.0 tests.
 # -----------------------------------------------------------------
 SET optimizer_switch=@save_optimizer_switch;
+#
+# Start of 10.1 tests
+#
+#
+# MDEV-8747 Wrong result for SELECT..WHERE derived_table_column='a' AND derived_table_column<>_latin1'A' COLLATE latin1_bin
+#
+CREATE TABLE t1 (a varchar(10) character set cp1251 collate cp1251_ukrainian_ci, KEY (a)) ;
+INSERT INTO t1 VALUES ('DD'), ('ZZ'), ('ZZ'), ('KK'), ('FF'), ('HH'),('MM'),('`1');
+CREATE VIEW v1 AS SELECT * FROM t1;
+SELECT * FROM t1 WHERE a <> 0 AND a = ' 1';
+a
+SELECT * FROM v1 WHERE a <> 0 AND a = ' 1';
+a
+DROP VIEW v1;
+DROP TABLE t1;
+CREATE TABLE t1 (a ENUM('5','6'));
+INSERT INTO t1 VALUES ('5'),('6');
+CREATE VIEW v1 AS SELECT * FROM t1;
+SELECT * FROM t1 WHERE a='5' AND a<2;
+a
+5
+SELECT * FROM v1 WHERE a='5' AND a<2;
+a
+5
+DROP VIEW v1;
+DROP TABLE t1;
+#
+# MDEV-8749 Wrong result for SELECT..WHERE derived_table_enum_column='number' AND derived_table_enum_column OP number2
+#
+CREATE TABLE t1 (a varchar(10) character set cp1251 collate cp1251_ukrainian_ci, KEY (a));
+INSERT INTO t1 VALUES ('DD'), ('ZZ'), ('ZZ'), ('KK'), ('FF'), ('HH'),('MM'),('`1');
+CREATE VIEW v1 AS SELECT * FROM t1;
+SELECT * FROM t1 WHERE a <> 0 AND a = ' 1';
+a
+SELECT * FROM v1 WHERE a <> 0 AND a = ' 1';
+a
+DROP VIEW v1;
+DROP TABLE t1;
+CREATE TABLE t1 (a ENUM('5','6'));
+INSERT INTO t1 VALUES ('5'),('6');
+CREATE VIEW v1 AS SELECT * FROM t1;
+SELECT * FROM t1 WHERE a='5' AND a<2;
+a
+5
+SELECT * FROM v1 WHERE a='5' AND a<2;
+a
+5
+DROP VIEW v1;
+DROP TABLE t1;
+#
+# MDEV-8742 Wrong result for SELECT..WHERE view_latin1_swedish_ci_field='a' COLLATE latin1_bin
+#
+CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET latin1);
+INSERT INTO t1 VALUES ('a'),('A');
+CREATE VIEW v1 AS SELECT * FROM t1 WHERE a='a';
+SELECT * FROM v1 WHERE a=_latin1'a' COLLATE latin1_bin;
+a
+a
+DROP VIEW v1;
+DROP TABLE t1;
+#
+# End of 10.1 tests
+#
