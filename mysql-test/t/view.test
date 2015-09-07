@@ -5504,5 +5504,16 @@ DROP VIEW v1;
 DROP TABLE t1;
 
 --echo #
+--echo # MDEV-8742 Wrong result for SELECT..WHERE view_latin1_swedish_ci_field='a' COLLATE latin1_bin
+--echo #
+CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET latin1);
+INSERT INTO t1 VALUES ('a'),('A');
+CREATE VIEW v1 AS SELECT * FROM t1 WHERE a='a';
+SELECT * FROM v1 WHERE a=_latin1'a' COLLATE latin1_bin;
+DROP VIEW v1;
+DROP TABLE t1;
+
+
+--echo #
 --echo # End of 10.1 tests
 --echo #
