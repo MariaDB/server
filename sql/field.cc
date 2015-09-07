@@ -1402,6 +1402,25 @@ Item *Field_num::convert_zerofill_number_to_string(THD *thd, Item *item) const
 }
 
 
+Item *Field_num::get_equal_const_item(THD *thd, const Context &ctx,
+                                      Item_field *field_item,
+                                      Item *const_item)
+{
+  DBUG_ASSERT(const_item->const_item());
+  if ((flags & ZEROFILL_FLAG) && IS_NUM(type()))
+  {
+    if (ctx.subst_constraint() == IDENTITY_SUBST)
+      return convert_zerofill_number_to_string(thd, const_item);
+    else
+    {
+      DBUG_ASSERT(ctx.compare_type() != STRING_RESULT);
+      return field_item;
+    }
+  }
+  return const_item;
+}
+
+
 /**
   Test if given number is a int.
 

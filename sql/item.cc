@@ -5370,25 +5370,6 @@ Item *Item_field::propagate_equal_fields(THD *thd,
 }
 
 
-Item *Field_num::get_equal_const_item(THD *thd, const Context &ctx,
-                                  Item_field *field_item,
-                                  Item *const_item)
-{
-  DBUG_ASSERT(const_item->const_item());
-  if ((flags & ZEROFILL_FLAG) && IS_NUM(type()))
-  {
-    if (ctx.subst_constraint() == IDENTITY_SUBST)
-      return convert_zerofill_number_to_string(thd, const_item);
-    else
-    {
-      DBUG_ASSERT(ctx.compare_type() != STRING_RESULT);
-      return field_item;
-    }
-  }
-  return const_item;
-}
-
-
 /**
   Mark the item to not be part of substitution if it's not a binary item.
 
