@@ -365,13 +365,6 @@ class Field: public Value_source
   Field(const Item &);				/* Prevent use of these */
   void operator=(Field &);
 public:
-  virtual bool can_be_substituted_to_equal_item(const Context &ctx,
-                                        const Item_equal *item);
-  virtual Item *get_equal_const_item(THD *thd, const Context &ctx,
-                                     Item_field *field_item, Item *const_item)
-  {
-    return const_item;
-  }
   static void *operator new(size_t size, MEM_ROOT *mem_root) throw ()
   { return alloc_root(mem_root, size); }
   static void *operator new(size_t size) throw ()
@@ -1107,6 +1100,13 @@ public:
   */
   virtual bool test_if_equality_guarantees_uniqueness(const Item *const_item)
                                                       const;
+  virtual bool can_be_substituted_to_equal_item(const Context &ctx,
+                                        const Item_equal *item);
+  virtual Item *get_equal_const_item(THD *thd, const Context &ctx,
+                                     Item_field *field_item, Item *const_item)
+  {
+    return const_item;
+  }
   virtual bool can_optimize_keypart_ref(const Item_bool_func *cond,
                                         const Item *item) const;
   virtual bool can_optimize_hash_join(const Item_bool_func *cond,
@@ -1208,9 +1208,10 @@ protected:
 class Field_num :public Field {
 protected:
   Item *convert_zerofill_number_to_string(THD *thd, Item *item) const;
+  Item *get_equal_zerofill_const_item(THD *thd, const Context &ctx,
+                                      Item_field *field_item,
+                                      Item *const_item);
 public:
-  Item *get_equal_const_item(THD *thd, const Context &ctx,
-                             Item_field *field_item, Item *const_item);
   const uint8 dec;
   bool zerofill,unsigned_flag;	// Purify cannot handle bit fields
   Field_num(uchar *ptr_arg,uint32 len_arg, uchar *null_ptr_arg,
@@ -1222,6 +1223,13 @@ public:
   uint repertoire(void) const { return MY_REPERTOIRE_NUMERIC; }
   CHARSET_INFO *charset(void) const { return &my_charset_numeric; }
   void prepend_zeros(String *value) const;
+  Item *get_equal_const_item(THD *thd, const Context &ctx,
+                             Item_field *field_item, Item *const_item)
+  {
+    return (flags & ZEROFILL_FLAG) ?
+           get_equal_zerofill_const_item(thd, ctx, field_item, const_item) :
+           const_item;
+  }
   void add_zerofill_and_unsigned(String &res) const;
   friend class Create_field;
   void make_field(Send_field *);
@@ -1440,6 +1448,8 @@ public:
   uint is_equal(Create_field *new_field);
   virtual const uchar *unpack(uchar* to, const uchar *from, const uchar *from_end, uint param_data);
   static Field *create_from_item(MEM_ROOT *root, Item *);
+  Item *get_equal_const_item(THD *thd, const Context &ctx,
+                             Item_field *field_item, Item *const_item);
 };
 
 

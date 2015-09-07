@@ -1402,22 +1402,19 @@ Item *Field_num::convert_zerofill_number_to_string(THD *thd, Item *item) const
 }
 
 
-Item *Field_num::get_equal_const_item(THD *thd, const Context &ctx,
-                                      Item_field *field_item,
-                                      Item *const_item)
+Item *Field_num::get_equal_zerofill_const_item(THD *thd, const Context &ctx,
+                                               Item_field *field_item,
+                                               Item *const_item)
 {
-  DBUG_ASSERT(const_item->const_item());
-  if ((flags & ZEROFILL_FLAG) && IS_NUM(type()))
-  {
-    if (ctx.subst_constraint() == IDENTITY_SUBST)
-      return convert_zerofill_number_to_string(thd, const_item);
-    else
-    {
-      DBUG_ASSERT(ctx.compare_type() != STRING_RESULT);
-      return field_item;
-    }
+  switch (ctx.subst_constraint()) {
+  case IDENTITY_SUBST:
+    return convert_zerofill_number_to_string(thd, const_item);
+  case ANY_SUBST:
+    break;
   }
-  return const_item;
+  DBUG_ASSERT(const_item->const_item());
+  DBUG_ASSERT(ctx.compare_type() != STRING_RESULT);
+  return field_item;
 }
 
 
@@ -3292,6 +3289,38 @@ Field_new_decimal::unpack(uchar* to, const uchar *from, const uchar *from_end,
   }
   return from+len;
 }
+
+
+Item *Field_new_decimal::get_equal_const_item(THD *thd, const Context &ctx,
+                                              Item_field *field_item,
+                                              Item *const_item)
+{
+  if (flags & ZEROFILL_FLAG)
+    return Field_num::get_equal_zerofill_const_item(thd, ctx,
+                                                    field_item, const_item);
+  switch (ctx.subst_constraint()) {
+  case IDENTITY_SUBST:
+    if (const_item->field_type() != MYSQL_TYPE_NEWDECIMAL ||
+        const_item->decimal_scale() != decimals())
+    {
+      my_decimal *val, val_buffer, val_buffer2;
+      if (!(val= const_item->val_decimal(&val_buffer)))
+      {
+        DBUG_ASSERT(0);
+        return const_item;
+      }
+      /* Truncate or extend the decimal value to the scale of the field */
+      my_decimal_round(E_DEC_FATAL_ERROR, val, decimals(), true, &val_buffer2);
+      return new (thd->mem_root) Item_decimal(thd, field_name, &val_buffer2,
+                                              decimals(), field_length);
+    }
+    break;
+  case ANY_SUBST:
+    break;
+  }
+  return const_item;
+}
+
 
 int Field_num::store_time_dec(MYSQL_TIME *ltime, uint dec_arg)
 {
