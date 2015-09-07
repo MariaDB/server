@@ -4639,6 +4639,28 @@ bool Field_real::get_date(MYSQL_TIME *ltime,ulonglong fuzzydate)
 }
 
 
+Item *Field_real::get_equal_const_item(THD *thd, const Context &ctx,
+                                       Item_field *field_item,
+                                       Item *const_item)
+{
+  if (flags & ZEROFILL_FLAG)
+    return Field_num::get_equal_zerofill_const_item(thd, ctx,
+                                                    field_item, const_item);
+  switch (ctx.subst_constraint()) {
+  case IDENTITY_SUBST:
+    if (const_item->decimal_scale() != Field_real::decimals())
+    {
+      double val= const_item->val_real();
+      return new (thd->mem_root) Item_float(thd, val, Field_real::decimals());
+    }
+    break;
+  case ANY_SUBST:
+    break;
+  }
+  return const_item;
+}
+
+
 String *Field_double::val_str(String *val_buffer,
 			      String *val_ptr __attribute__((unused)))
 {

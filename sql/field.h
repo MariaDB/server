@@ -1363,6 +1363,8 @@ public:
   my_decimal *val_decimal(my_decimal *);
   uint32 max_display_length() { return field_length; }
   uint size_of() const { return sizeof(*this); }
+  Item *get_equal_const_item(THD *thd, const Context &ctx,
+                             Item_field *field_item, Item *const_item);
 };
 
 
