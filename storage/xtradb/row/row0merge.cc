@@ -2139,7 +2139,7 @@ wait_again:
 					 of->fd, &of->offset,		\
 					 mrec##N, offsets##N,		\
 					 crypt_data,			\
-					 &crypt_block[2 * srv_sort_buf_size], \
+			crypt_block ? &crypt_block[2 * srv_sort_buf_size] : NULL , \
 					 space);			\
 		if (UNIV_UNLIKELY(!b2 || ++of->n_rec > file->n_rec)) {	\
 			goto corrupt;					\
@@ -2149,7 +2149,7 @@ wait_again:
 					  file->fd, foffs##N,		\
 					  &mrec##N, offsets##N,		\
 					  crypt_data,			\
-					  &crypt_block[N * srv_sort_buf_size], \
+			crypt_block ? &crypt_block[N * srv_sort_buf_size] : NULL, \
 					  space);			\
 									\
 		if (UNIV_UNLIKELY(!b##N)) {				\
@@ -2163,7 +2163,7 @@ wait_again:
 /*************************************************************//**
 Merge two blocks of records on disk and write a bigger block.
 @return	DB_SUCCESS or error code */
-static __attribute__((nonnull, warn_unused_result))
+static __attribute__((nonnull(1,2,3,4,5,6), warn_unused_result))
 dberr_t
 row_merge_blocks(
 /*=============*/
@@ -2212,9 +2212,9 @@ row_merge_blocks(
 	file in two halves, which can be merged on the following pass. */
 
 	if (!row_merge_read(file->fd, *foffs0, &block[0],
-			crypt_data, &crypt_block[0], space)
+			crypt_data, crypt_block ? &crypt_block[0] : NULL, space)
 		|| !row_merge_read(file->fd, *foffs1, &block[srv_sort_buf_size],
-			crypt_data, &crypt_block[srv_sort_buf_size], space)) {
+			crypt_data, crypt_block ? &crypt_block[srv_sort_buf_size] : NULL, space)) {
 corrupt:
 		mem_heap_free(heap);
 		return(DB_CORRUPTION);
@@ -2227,13 +2227,13 @@ corrupt:
 	b0 = row_merge_read_rec(
 		&block[0], &buf[0], b0, dup->index,
 		file->fd, foffs0, &mrec0, offsets0,
-		crypt_data, &crypt_block[0], space);
+		crypt_data, crypt_block ? &crypt_block[0] : NULL, space);
 
 	b1 = row_merge_read_rec(
 		&block[srv_sort_buf_size],
 		&buf[srv_sort_buf_size], b1, dup->index,
 		file->fd, foffs1, &mrec1, offsets1,
-		crypt_data, &crypt_block[srv_sort_buf_size], space);
+		crypt_data, crypt_block ? &crypt_block[srv_sort_buf_size] : NULL, space);
 
 	if (UNIV_UNLIKELY(!b0 && mrec0)
 	    || UNIV_UNLIKELY(!b1 && mrec1)) {
@@ -2279,7 +2279,7 @@ done1:
 
 	b2 = row_merge_write_eof(&block[2 * srv_sort_buf_size],
 		b2, of->fd, &of->offset,
-		crypt_data, &crypt_block[2 * srv_sort_buf_size], space);
+		crypt_data, crypt_block ? &crypt_block[2 * srv_sort_buf_size] : NULL, space);
 
 	return(b2 ? DB_SUCCESS : DB_CORRUPTION);
 }
@@ -2287,7 +2287,7 @@ done1:
 /*************************************************************//**
 Copy a block of index entries.
 @return	TRUE on success, FALSE on failure */
-static __attribute__((nonnull, warn_unused_result))
+static __attribute__((nonnull(1,2,3,4,5), warn_unused_result))
 ibool
 row_merge_blocks_copy(
 /*==================*/
@@ -2326,7 +2326,7 @@ row_merge_blocks_copy(
 	file in two halves, which can be merged on the following pass. */
 
 	if (!row_merge_read(file->fd, *foffs0, &block[0],
-			    crypt_data, &crypt_block[0], space)) {
+			    crypt_data, crypt_block ? &crypt_block[0] : NULL, space)) {
 corrupt:
 		mem_heap_free(heap);
 		return(FALSE);
@@ -2338,7 +2338,7 @@ corrupt:
 
 	b0 = row_merge_read_rec(&block[0], &buf[0], b0, index,
 				file->fd, foffs0, &mrec0, offsets0,
-				crypt_data, &crypt_block[0], space);
+				crypt_data, crypt_block ? &crypt_block[0] : NULL, space);
 
 	if (UNIV_UNLIKELY(!b0 && mrec0)) {
 
@@ -2361,14 +2361,15 @@ done0:
 
 	return(row_merge_write_eof(&block[2 * srv_sort_buf_size],
 				   b2, of->fd, &of->offset,
-				   crypt_data, &crypt_block[2 * srv_sort_buf_size], space)
+				   crypt_data,
+				   crypt_block ? &crypt_block[2 * srv_sort_buf_size] : NULL, space)
 	       != NULL);
 }
 
 /*************************************************************//**
 Merge disk files.
 @return	DB_SUCCESS or error code */
-static __attribute__((nonnull))
+static __attribute__((nonnull(1,2,3,4,5,6,7)))
 dberr_t
 row_merge(
 /*======*/
@@ -2656,7 +2657,7 @@ row_merge_copy_blobs(
 Read sorted file containing index data tuples and insert these data
 tuples to the index
 @return	DB_SUCCESS or error number */
-static __attribute__((nonnull, warn_unused_result))
+static __attribute__((nonnull(2,3,5), warn_unused_result))
 dberr_t
 row_merge_insert_index_tuples(
 /*==========================*/

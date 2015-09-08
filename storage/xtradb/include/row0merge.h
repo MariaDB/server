@@ -457,5 +457,5 @@ row_merge_read_rec(
 	fil_space_crypt_t*	crypt_data,/*!< in: table crypt data */
 	row_merge_block_t*	crypt_block, /*!< in: crypt buf or NULL */
 	ulint			space)	   /*!< in: space id */
-	__attribute__((nonnull, warn_unused_result));
+	__attribute__((nonnull(1,2,3,4,6,7,8), warn_unused_result));
 #endif /* row0merge.h */
