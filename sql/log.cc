@@ -3469,8 +3469,13 @@ bool MYSQL_BIN_LOG::open(const char *log_name,
       if (encrypt_binlog)
       {
         uint key_version= encryption_key_get_latest_version(ENCRYPTION_KEY_SYSTEM_DATA);
-        if (key_version != ENCRYPTION_KEY_VERSION_INVALID &&
-            key_version != ENCRYPTION_KEY_NOT_ENCRYPTED)
+        if (key_version == ENCRYPTION_KEY_VERSION_INVALID)
+        {
+          sql_print_error("Failed to enable encryption of binary logs");
+          goto err;
+        }
+
+        if (key_version != ENCRYPTION_KEY_NOT_ENCRYPTED)
         {
           if (my_random_bytes(crypto.nonce, sizeof(crypto.nonce)))
             goto err;

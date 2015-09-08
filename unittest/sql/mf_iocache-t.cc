@@ -21,7 +21,7 @@
 #define KEY_SIZE (128/8)
 
 my_bool encrypt_tmp_files;
-void init_io_cache_encryption();
+int init_io_cache_encryption();
 
 uint encryption_key_get_latest_version_func(uint)
 {
@@ -79,7 +79,11 @@ struct encryption_service_st encryption_handler=
   encryption_encrypted_length_func
 };
 
-void sql_print_information(const char *format, ...) 
+void sql_print_information(const char *format, ...)
+{
+}
+
+void sql_print_error(const char *format, ...)
 {
 }
 

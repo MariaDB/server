@@ -230,7 +230,7 @@ static int my_b_encr_write(IO_CACHE *info, const uchar *Buffer, size_t Count)
 
   Note that encrypt_tmp_files variable is read-only.
 */
-void init_io_cache_encryption()
+int init_io_cache_encryption()
 {
   if (encrypt_tmp_files)
   {
@@ -241,20 +241,23 @@ void init_io_cache_encryption()
       keyid= ENCRYPTION_KEY_SYSTEM_DATA;
       keyver= encryption_key_get_latest_version(keyid);
     }
-  }
-  else
-    keyver= ENCRYPTION_KEY_VERSION_INVALID;
+    if (keyver == ENCRYPTION_KEY_VERSION_INVALID)
+    {
+      sql_print_error("Failed to enable encryption of temporary files");
+      return 1;
+    }
 
-  if (keyver != ENCRYPTION_KEY_VERSION_INVALID)
-  {
-    sql_print_information("Using encryption key id %d for temporary files", keyid);
-    _my_b_encr_read= my_b_encr_read;
-    _my_b_encr_write= my_b_encr_write;
+    if (keyver != ENCRYPTION_KEY_NOT_ENCRYPTED)
+    {
+      sql_print_information("Using encryption key id %d for temporary files", keyid);
+      _my_b_encr_read= my_b_encr_read;
+      _my_b_encr_write= my_b_encr_write;
+      return 0;
+    }
   }
-  else
-  {
-    _my_b_encr_read= 0;
-    _my_b_encr_write= 0;
-  }
+
+  _my_b_encr_read= 0;
+  _my_b_encr_write= 0;
+  return 0;
 }
 
