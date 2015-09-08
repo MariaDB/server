@@ -5213,12 +5213,12 @@ static Sys_var_mybool Sys_encrypt_tmp_files(
        "encrypt_tmp_files",
        "Encrypt temporary files (created for filesort, binary log cache, etc)",
        READ_ONLY GLOBAL_VAR(encrypt_tmp_files),
-       CMD_LINE(OPT_ARG), DEFAULT(TRUE));
+       CMD_LINE(OPT_ARG), DEFAULT(FALSE));
 
 static Sys_var_mybool Sys_binlog_encryption(
        "encrypt_binlog", "Encrypt binary logs (including relay logs)",
        READ_ONLY GLOBAL_VAR(encrypt_binlog), CMD_LINE(OPT_ARG),
-       DEFAULT(TRUE));
+       DEFAULT(FALSE));
 
 static const char *binlog_row_image_names[]= {"MINIMAL", "NOBLOB", "FULL", NullS};
 static Sys_var_enum Sys_binlog_row_image(

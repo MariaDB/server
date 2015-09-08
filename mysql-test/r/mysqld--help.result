@@ -178,13 +178,11 @@ The following options may be given as the first argument:
  Precision of the result of '/' operator will be increased
  on that value
  --encrypt-binlog    Encrypt binary logs (including relay logs)
- (Defaults to on; use --skip-encrypt-binlog to disable.)
  --encrypt-tmp-disk-tables 
  Encrypt temporary on-disk tables (created as part of
  query execution)
  --encrypt-tmp-files Encrypt temporary files (created for filesort, binary log
  cache, etc)
- (Defaults to on; use --skip-encrypt-tmp-files to disable.)
  --enforce-storage-engine=name 
  Force the use of a storage engine for new tables
  --event-scheduler[=name] 
@@ -1174,9 +1172,9 @@ delayed-insert-limit 100
 delayed-insert-timeout 300
 delayed-queue-size 1000
 div-precision-increment 4
-encrypt-binlog TRUE
+encrypt-binlog FALSE
 encrypt-tmp-disk-tables FALSE
-encrypt-tmp-files TRUE
+encrypt-tmp-files FALSE
 enforce-storage-engine (No default value)
 event-scheduler OFF
 expensive-subquery-limit 100
