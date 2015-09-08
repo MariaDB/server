@@ -395,7 +395,7 @@ row_merge_sort(
 	fil_space_crypt_t*	crypt_data,/*!< in: table crypt data */
 	row_merge_block_t*	crypt_block, /*!< in: crypt buf or NULL */
 	ulint			space)	   /*!< in: space id */
-	__attribute__((nonnull));
+	__attribute__((nonnull(1,2,3,4,5)));
 /*********************************************************************//**
 Allocate a sort buffer.
 @return own: sort buffer */
