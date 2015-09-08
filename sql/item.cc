@@ -136,6 +136,48 @@ bool Item::get_date_with_conversion(MYSQL_TIME *ltime, ulonglong fuzzydate)
 }
 
 
+/**
+  Get date/time/datetime.
+  If DATETIME or DATE result is returned, it's converted to TIME.
+*/
+bool Item::get_time_with_conversion(THD *thd, MYSQL_TIME *ltime,
+                                    ulonglong fuzzydate)
+{
+  if (get_date(ltime, fuzzydate))
+    return true;
+  if (ltime->time_type != MYSQL_TIMESTAMP_TIME)
+  {
+    MYSQL_TIME ltime2;
+    if ((thd->variables.old_behavior & OLD_MODE_ZERO_DATE_TIME_CAST) &&
+        (ltime->year || ltime->day || ltime->month))
+    {
+      /*
+        Old mode conversion from DATETIME with non-zero YYYYMMDD part
+        to TIME works very inconsistently. Possible variants:
+        - truncate the YYYYMMDD part
+        - add (MM*33+DD)*24 to hours
+        - add (MM*31+DD)*24 to hours
+        Let's return NULL here, to disallow equal field propagation.
+        Note, If we start to use this method in more pieces of the code other
+        than eqial field propagation, we should probably return
+        NULL only if some flag in fuzzydate is set.
+      */
+      return (null_value= true);
+    }
+    if (datetime_to_time_with_warn(thd, ltime, &ltime2, TIME_SECOND_PART_DIGITS))
+    {
+      /*
+        Time difference between CURRENT_DATE and ltime
+        did not fit into the supported TIME range
+      */
+      return (null_value= true);
+    }
+    *ltime= ltime2;
+  }
+  return false;
+}
+
+
 /*
   For the items which don't have its own fast val_str_ascii()
   implementation we provide a generic slower version,

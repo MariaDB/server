@@ -3309,7 +3309,11 @@ Item *Field_new_decimal::get_equal_const_item(THD *thd, const Context &ctx,
         DBUG_ASSERT(0);
         return const_item;
       }
-      /* Truncate or extend the decimal value to the scale of the field */
+      /*
+        Truncate or extend the decimal value to the scale of the field.
+        See comments about truncation in the same place in
+        Field_time::get_equal_const_item().
+      */
       my_decimal_round(E_DEC_FATAL_ERROR, val, decimals(), true, &val_buffer2);
       return new (thd->mem_root) Item_decimal(thd, field_name, &val_buffer2,
                                               decimals(), field_length);
@@ -5530,6 +5534,10 @@ Item *Field_temporal::get_equal_const_item_datetime(THD *thd, const Context &ctx
           const_item->get_date_with_conversion(&ltime, 0) :
           const_item->get_date(&ltime, 0))
         return NULL;
+      /*
+        See comments about truncation in the same place in
+        Field_time::get_equal_const_item().
+      */
       return new (thd->mem_root) Item_datetime_literal(thd, &ltime,
                                                        decimals());
     }
@@ -5844,8 +5852,22 @@ Item *Field_time::get_equal_const_item(THD *thd, const Context &ctx,
         const_item->decimals != decimals())
     {
       MYSQL_TIME ltime;
-      if (const_item->get_date(&ltime, TIME_TIME_ONLY))
+      if (const_item->get_time_with_conversion(thd, &ltime, TIME_TIME_ONLY))
         return NULL;
+      /*
+        Note, the value returned in "ltime" can have more fractional
+        digits that decimals(). The Item_time_literal constructor will
+        truncate these digits. We could disallow propagation is such
+        cases, but it's still useful (and safe) to optimize:
+          WHERE time0_column='00:00:00.123' AND LENGTH(a)=12
+        to
+          WHERE time0_column='00:00:00.123' AND LENGTH(TIME'00:00:00')=12
+        and then to
+          WHERE FALSE
+        The original WHERE would do the full table scan (in case of no keys).
+        The optimized WHERE will return with "Impossible WHERE", without
+        having to do the full table scan.
+      */
       return new (thd->mem_root) Item_time_literal(thd, &ltime, decimals());
     }
     break;
