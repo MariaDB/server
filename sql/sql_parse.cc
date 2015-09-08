@@ -271,9 +271,6 @@ void init_update_queries(void)
 
   server_command_flags[COM_STATISTICS]= CF_SKIP_QUERY_ID | CF_SKIP_QUESTIONS | CF_SKIP_WSREP_CHECK;
   server_command_flags[COM_PING]=       CF_SKIP_QUERY_ID | CF_SKIP_QUESTIONS | CF_SKIP_WSREP_CHECK;
-  server_command_flags[COM_STMT_PREPARE]= CF_SKIP_QUESTIONS;
-  server_command_flags[COM_STMT_CLOSE]=   CF_SKIP_QUESTIONS | CF_SKIP_WSREP_CHECK;
-  server_command_flags[COM_STMT_RESET]=   CF_SKIP_QUESTIONS | CF_SKIP_WSREP_CHECK;
 
   server_command_flags[COM_QUIT]= CF_SKIP_WSREP_CHECK;
   server_command_flags[COM_PROCESS_INFO]= CF_SKIP_WSREP_CHECK;
@@ -284,11 +281,16 @@ void init_update_queries(void)
   server_command_flags[COM_END]= CF_SKIP_WSREP_CHECK;
 
   /*
-    COM_QUERY and COM_SET_OPTION are allowed to pass the early COM_xxx filter,
-    they're checked later in mysql_execute_command().
+    COM_QUERY, COM_SET_OPTION and COM_STMT_XXX are allowed to pass the early
+    COM_xxx filter, they're checked later in mysql_execute_command().
   */
   server_command_flags[COM_QUERY]= CF_SKIP_WSREP_CHECK;
   server_command_flags[COM_SET_OPTION]= CF_SKIP_WSREP_CHECK;
+  server_command_flags[COM_STMT_PREPARE]= CF_SKIP_QUESTIONS | CF_SKIP_WSREP_CHECK;
+  server_command_flags[COM_STMT_CLOSE]= CF_SKIP_QUESTIONS | CF_SKIP_WSREP_CHECK;
+  server_command_flags[COM_STMT_RESET]= CF_SKIP_QUESTIONS | CF_SKIP_WSREP_CHECK;
+  server_command_flags[COM_STMT_EXECUTE]= CF_SKIP_WSREP_CHECK;
+  server_command_flags[COM_STMT_SEND_LONG_DATA]= CF_SKIP_WSREP_CHECK;
 
   /* Initialize the sql command flags array. */
   memset(sql_command_flags, 0, sizeof(sql_command_flags));
@@ -886,9 +888,9 @@ void cleanup_items(Item *item)
 
 #ifndef EMBEDDED_LIBRARY
 
+#ifdef WITH_WSREP
 static bool wsrep_node_is_ready(THD *thd)
 {
-#ifdef WITH_WSREP
   if (thd->variables.wsrep_on && !thd->wsrep_applier && !wsrep_ready)
   {
     my_message(ER_UNKNOWN_COM_ERROR,
@@ -896,9 +898,9 @@ static bool wsrep_node_is_ready(THD *thd)
                MYF(0));
     return false;
   }
-#endif
   return true;
 }
+#endif
 
 /**
   Read one command from connection and execute it (query or simple command).
@@ -1081,14 +1083,25 @@ bool do_command(THD *thd)
                      vio_description(net->vio), command,
                      command_name[command].str));
 
-  /* bail out if DB snapshot has not been installed. */
+#ifdef WITH_WSREP
+  /*
+    Bail out if DB snapshot has not been installed.
+  */
   if (!(server_command_flags[command] & CF_SKIP_WSREP_CHECK) &&
       !wsrep_node_is_ready(thd))
   {
     thd->protocol->end_statement();
+
+    /* Performance Schema Interface instrumentation end. */
+    MYSQL_END_STATEMENT(thd->m_statement_psi, thd->get_stmt_da());
+    thd->m_statement_psi= NULL;
+    thd->m_digest= NULL;
+
     return_value= FALSE;
     goto out;
   }
+#endif
+
   /* Restore read timeout value */
   my_net_set_read_timeout(net, thd->variables.net_read_timeout);
 
@@ -2637,13 +2650,13 @@ mysql_execute_command(THD *thd)
     }
 
     /*
-      Bail out if DB snapshot has not been installed. We however,
-      allow SET and SHOW queries.
+      Bail out if DB snapshot has not been installed. We however, allow SET,
+      SHOW and SELECT queries (only if wsrep_dirty_reads is set).
     */
-    if (lex->sql_command != SQLCOM_SET_OPTION &&
+    if (lex->sql_command != SQLCOM_SET_OPTION  &&
         !wsrep_is_show_query(lex->sql_command) &&
-        !(thd->variables.wsrep_dirty_reads &&
-          lex->sql_command == SQLCOM_SELECT) &&
+        !(thd->variables.wsrep_dirty_reads     &&
+          lex->sql_command == SQLCOM_SELECT)   &&
         !wsrep_node_is_ready(thd))
       goto error;
   }

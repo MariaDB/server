@@ -4698,8 +4698,12 @@ restart:
     if (!tbl)
       continue;
 
-    if (WSREP_ON && sqlcom_can_generate_row_events(thd) &&
-        wsrep_replicate_myisam && tables && tbl->file->ht == myisam_hton &&
+    if (WSREP_ON                               &&
+        wsrep_replicate_myisam                 &&
+        tables                                 &&
+        tbl->file->ht == myisam_hton           &&
+        sqlcom_can_generate_row_events(thd)    &&
+        thd->get_command() != COM_STMT_PREPARE &&
         tables->lock_type >= TL_WRITE_ALLOW_WRITE)
     {
       WSREP_TO_ISOLATION_BEGIN(NULL, NULL, tables);
