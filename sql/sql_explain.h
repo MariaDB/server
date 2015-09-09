@@ -209,6 +209,7 @@ public:
   Explain_select(MEM_ROOT *root, bool is_analyze) : 
   Explain_basic_join(root),
     message(NULL),
+    having(NULL), having_value(Item::COND_UNDEF),
     using_temporary(false), using_filesort(false),
     time_tracker(is_analyze),
     ops_tracker(is_analyze)
@@ -231,7 +232,11 @@ public:
 
   /* Expensive constant condition */
   Item *exec_const_cond;
-  
+
+  /* HAVING condition */
+  COND *having;
+  Item::cond_result having_value;
+
   /* Global join attributes. In tabular form, they are printed on the first row */
   bool using_temporary;
   bool using_filesort;

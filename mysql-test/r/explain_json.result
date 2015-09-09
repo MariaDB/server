@@ -799,6 +799,7 @@ EXPLAIN
       {
         "query_block": {
           "select_id": 2,
+          "having_condition": "trigcond(<is_not_null_test>(t1.a))",
           "full-scan-on-null_key": {
             "table": {
               "table_name": "t1",
@@ -1110,3 +1111,86 @@ EXPLAIN
   }
 }
 DROP TABLE t1;
+#
+# MDEV-7970: EXPLAIN FORMAT=JSON does not print HAVING
+#
+create table t0(a int);
+insert into t0 values (0),(1),(2),(3);
+create table t1(a int);
+insert into t1 select A.a + B.a* 10 + C.a * 100 from t0 A, t0 B, t0 C;
+create table t2 (
+a int, 
+b int, 
+key (a)
+);
+insert into t2 select A.a*1000 + B.a, A.a*1000 + B.a from t0 A, t1 B;
+# normal HAVING
+explain format=json select a, max(b) as TOP from t2 group by a having TOP > a;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "having_condition": "(TOP > t2.a)",
+    "filesort": {
+      "temporary_table": {
+        "function": "buffer",
+        "table": {
+          "table_name": "t2",
+          "access_type": "ALL",
+          "rows": 256,
+          "filtered": 100
+        }
+      }
+    }
+  }
+}
+# HAVING is always TRUE (not printed)
+explain format=json select a, max(b) as TOP from t2 group by a having 1<>2;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "filesort": {
+      "temporary_table": {
+        "function": "buffer",
+        "table": {
+          "table_name": "t2",
+          "access_type": "ALL",
+          "rows": 256,
+          "filtered": 100
+        }
+      }
+    }
+  }
+}
+# HAVING is always FALSE (intercepted by message)
+explain format=json select a, max(b) as TOP from t2 group by a having 1=2;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "message": "Impossible HAVING"
+    }
+  }
+}
+# HAVING is absent
+explain format=json select a, max(b) as TOP from t2 group by a;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "filesort": {
+      "temporary_table": {
+        "function": "buffer",
+        "table": {
+          "table_name": "t2",
+          "access_type": "ALL",
+          "rows": 256,
+          "filtered": 100
+        }
+      }
+    }
+  }
+}
+drop table t0, t1, t2;

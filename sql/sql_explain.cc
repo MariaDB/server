@@ -862,7 +862,20 @@ void Explain_select::print_explain_json(Explain_query *query,
       writer->add_member("const_condition");
       write_item(writer, exec_const_cond);
     }
-     
+    /* we do not print HAVING which always evaluates to TRUE */
+    if (having || (having_value == Item::COND_FALSE))
+    {
+      writer->add_member("having_condition");
+      if (likely(having))
+        write_item(writer, having);
+      else
+      {
+        /* Normally we should not go this branch, left just for safety */
+        DBUG_ASSERT(having_value == Item::COND_FALSE);
+        writer->add_str("0");
+      }
+    }
+
     Filesort_tracker *first_table_sort= NULL;
     bool first_table_sort_used= false;
     int started_objects= 0;

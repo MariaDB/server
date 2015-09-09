@@ -24197,6 +24197,11 @@ int JOIN::save_explain_data_intern(Explain_query *output, bool need_tmp_table,
       xpl_sel->using_filesort= true;
 
     xpl_sel->exec_const_cond= exec_const_cond;
+    if (tmp_having)
+      xpl_sel->having= tmp_having;
+    else
+      xpl_sel->having= having;
+    xpl_sel->having_value= having_value;
 
     JOIN_TAB* const first_top_tab= join->first_breadth_first_optimization_tab();
     JOIN_TAB* prev_bush_root_tab= NULL;
