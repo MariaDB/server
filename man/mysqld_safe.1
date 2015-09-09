@@ -1,13 +1,6 @@
 '\" t
-.\"     Title: \fBmysqld_safe\fR
-.\"    Author: [FIXME: author] [see http://docbook.sf.net/el/author]
-.\" Generator: DocBook XSL Stylesheets v1.75.2 <http://docbook.sf.net/>
-.\"      Date: 04/06/2010
-.\"    Manual: MySQL Database System
-.\"    Source: MySQL 5.1
-.\"  Language: English
 .\"
-.TH "\FBMYSQLD_SAFE\FR" "1" "04/06/2010" "MySQL 5\&.1" "MySQL Database System"
+.TH "\FBMYSQLD_SAFE\FR" "1" "04/08/2015" "MariaDB 10\&.0" "MariaDB Database System"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -31,34 +24,10 @@ mysqld_safe \- MySQL server startup script
 \fBmysqld_safe\fR
 is the recommended way to start a
 \fBmysqld\fR
-server on Unix and NetWare\&.
+server on Unix\&.
 \fBmysqld_safe\fR
-adds some safety features such as restarting the server when an error occurs and logging runtime information to an error log file\&. Descriptions of error logging and NetWare\-specific behaviors are given later in this section\&.
-.if n \{\
+adds some safety features such as restarting the server when an error occurs and logging runtime information to an error log file\&. Descriptions of error logging is given later in this section\&.
 .sp
-.\}
-.RS 4
-.it 1 an-trap
-.nr an-no-space-flag 1
-.nr an-break-flag 1
-.br
-.ps +1
-\fBNote\fR
-.ps -1
-.br
-.PP
-In MySQL 5\&.1\&.20 (only), the default error logging behavior with
-\fBmysqld_safe\fR
-is to write errors to
-syslog
-on systems that support the
-\fBlogger\fR
-program\&. This differs from the default behavior of writing an error log file for other versions\&.
-.PP
-\fBIn 5\&.1\&.20, logging to \fR\fBsyslog\fR\fB may fail to operate correctly in some cases; if so, use \fR\fB\fB\-\-skip\-syslog\fR\fR\fB to use the default log file or \fR\fB\fB\-\-log\-error=\fR\fB\fIfile_name\fR\fR\fR\fB to specify a log file name explicitly\&.\fR
-.sp .5v
-.RE
-.PP
 \fBmysqld_safe\fR
 tries to start an executable named
 \fBmysqld\fR\&. To override the default behavior and specify explicitly the name of the server you want to run, specify a
@@ -75,8 +44,7 @@ should look for the server\&.
 Many of the options to
 \fBmysqld_safe\fR
 are the same as the options to
-\fBmysqld\fR\&. See
-Section\ \&5.1.2, \(lqServer Command Options\(rq\&.
+\fBmysqld\fR\&.
 .PP
 Options unknown to
 \fBmysqld_safe\fR
@@ -84,8 +52,7 @@ are passed to
 \fBmysqld\fR
 if they are specified on the command line, but ignored if they are specified in the
 [mysqld_safe] or [mariadb_safe]
-groups of an option file\&. See
-Section\ \&4.2.3.3, \(lqUsing Option Files\(rq\&.
+groups of an option file\&.
 .PP
 \fBmysqld_safe\fR
 reads all options from the
@@ -117,11 +84,10 @@ also reads
 [safe_mysqld]
 sections, although you should rename such sections to
 [mysqld_safe]
-in MySQL 5\&.1 installations\&.
+in current installations\&.
 .PP
 \fBmysqld_safe\fR
-supports the options in the following list\&. It also reads option files and supports the options for processing them described at
-Section\ \&4.2.3.3.1, \(lqCommand-Line Options that Affect Option-File Handling\(rq\&.
+supports the options in the following list\&. It also reads option files and supports the options for processing them.
 .sp
 .RS 4
 .ie n \{\
@@ -150,7 +116,7 @@ Display a help message and exit\&.
 .\" basedir option: mysqld_safe
 \fB\-\-basedir=\fR\fB\fIpath\fR\fR
 .sp
-The path to the MySQL installation directory\&.
+The path to the MariaDB installation directory\&.
 .RE
 .sp
 .RS 4
@@ -263,7 +229,7 @@ Section\ \&5.2.2, \(lqThe Error Log\(rq\&.
 .sp
 The name of the server program (in the
 ledir
-directory) that you want to start\&. This option is needed if you use the MySQL binary distribution but have the data directory outside of the binary distribution\&. If
+directory) that you want to start\&. This option is needed if you use the MariaDB binary distribution but have the data directory outside of the binary distribution\&. If
 \fBmysqld_safe\fR
 cannot find the server, use the
 \fB\-\-ledir\fR
@@ -444,7 +410,7 @@ on systems that support the
 program\&.
 \-\-skip\-syslog
 suppresses the use of
-syslog; messages are written to an error log file\&. These options were added in MySQL 5\&.1\&.20\&.
+syslog; messages are written to an error log file\&.
 .RE
 .sp
 .RS 4
@@ -808,7 +774,7 @@ file in the data directory\&.
 .SH "COPYRIGHT"
 .br
 .PP
-Copyright 2007-2008 MySQL AB, 2008-2010 Sun Microsystems, Inc.
+Copyright 2007-2008 MySQL AB, 2008-2010 Sun Microsystems, Inc., 2010-2015 MariaDB Foundation
 .PP
 This documentation is free software; you can redistribute it and/or modify it only under the terms of the GNU General Public License as published by the Free Software Foundation; version 2 of the License.
 .PP
@@ -817,8 +783,6 @@ This documentation is distributed in the hope that it will be useful, but WITHOU
 You should have received a copy of the GNU General Public License along with the program; if not, write to the Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA or see http://www.gnu.org/licenses/.
 .sp
 .SH "SEE ALSO"
-For more information, please refer to the MySQL Reference Manual,
-which may already be installed locally and which is also available
-online at http://dev.mysql.com/doc/.
+For more information, please refer to the MariaDB Knowledge Base, available online at https://mariadb.com/kb/
 .SH AUTHOR
-Sun Microsystems, Inc. (http://www.mysql.com/).
+MariaDB Foundation (http://www.mariadb.org/).
