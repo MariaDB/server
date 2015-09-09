@@ -5416,7 +5416,7 @@ Item *Item_field::propagate_equal_fields(THD *thd,
     */
     return this;
   }
-  if (!(item= field->get_equal_const_item(thd, ctx, this, item)))
+  if (!(item= field->get_equal_const_item(thd, ctx, item)))
   {
     /*
       Could not do safe conversion from the original constant item

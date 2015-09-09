@@ -1403,7 +1403,6 @@ Item *Field_num::convert_zerofill_number_to_string(THD *thd, Item *item) const
 
 
 Item *Field_num::get_equal_zerofill_const_item(THD *thd, const Context &ctx,
-                                               Item_field *field_item,
                                                Item *const_item)
 {
   switch (ctx.subst_constraint()) {
@@ -1414,7 +1413,7 @@ Item *Field_num::get_equal_zerofill_const_item(THD *thd, const Context &ctx,
   }
   DBUG_ASSERT(const_item->const_item());
   DBUG_ASSERT(ctx.compare_type() != STRING_RESULT);
-  return field_item;
+  return const_item;
 }
 
 
@@ -3292,12 +3291,10 @@ Field_new_decimal::unpack(uchar* to, const uchar *from, const uchar *from_end,
 
 
 Item *Field_new_decimal::get_equal_const_item(THD *thd, const Context &ctx,
-                                              Item_field *field_item,
                                               Item *const_item)
 {
   if (flags & ZEROFILL_FLAG)
-    return Field_num::get_equal_zerofill_const_item(thd, ctx,
-                                                    field_item, const_item);
+    return Field_num::get_equal_zerofill_const_item(thd, ctx, const_item);
   switch (ctx.subst_constraint()) {
   case IDENTITY_SUBST:
     if (const_item->field_type() != MYSQL_TYPE_NEWDECIMAL ||
@@ -4644,12 +4641,10 @@ bool Field_real::get_date(MYSQL_TIME *ltime,ulonglong fuzzydate)
 
 
 Item *Field_real::get_equal_const_item(THD *thd, const Context &ctx,
-                                       Item_field *field_item,
                                        Item *const_item)
 {
   if (flags & ZEROFILL_FLAG)
-    return Field_num::get_equal_zerofill_const_item(thd, ctx,
-                                                    field_item, const_item);
+    return Field_num::get_equal_zerofill_const_item(thd, ctx, const_item);
   switch (ctx.subst_constraint()) {
   case IDENTITY_SUBST:
     if (const_item->decimal_scale() != Field_real::decimals())
@@ -5519,9 +5514,9 @@ bool Field_temporal::can_optimize_group_min_max(const Item_bool_func *cond,
 }
 
 
-Item *Field_temporal::get_equal_const_item_datetime(THD *thd, const Context &ctx,
-                                          Item_field *field_item,
-                                          Item *const_item)
+Item *Field_temporal::get_equal_const_item_datetime(THD *thd,
+                                                    const Context &ctx,
+                                                    Item *const_item)
 {
   switch (ctx.subst_constraint()) {
   case IDENTITY_SUBST:
@@ -5843,7 +5838,6 @@ int Field_time::store_decimal(const my_decimal *d)
 
 
 Item *Field_time::get_equal_const_item(THD *thd, const Context &ctx,
-                                       Item_field *field_item,
                                        Item *const_item)
 {
   switch (ctx.subst_constraint()) {
@@ -6311,7 +6305,6 @@ void Field_newdate::sql_type(String &res) const
 
 
 Item *Field_newdate::get_equal_const_item(THD *thd, const Context &ctx,
-                                          Item_field *field_item,
                                           Item *const_item)
 {
   switch (ctx.subst_constraint()) {

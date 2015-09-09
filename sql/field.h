@@ -1103,7 +1103,7 @@ public:
   virtual bool can_be_substituted_to_equal_item(const Context &ctx,
                                         const Item_equal *item);
   virtual Item *get_equal_const_item(THD *thd, const Context &ctx,
-                                     Item_field *field_item, Item *const_item)
+                                     Item *const_item)
   {
     return const_item;
   }
@@ -1209,7 +1209,6 @@ class Field_num :public Field {
 protected:
   Item *convert_zerofill_number_to_string(THD *thd, Item *item) const;
   Item *get_equal_zerofill_const_item(THD *thd, const Context &ctx,
-                                      Item_field *field_item,
                                       Item *const_item);
 public:
   const uint8 dec;
@@ -1223,11 +1222,10 @@ public:
   uint repertoire(void) const { return MY_REPERTOIRE_NUMERIC; }
   CHARSET_INFO *charset(void) const { return &my_charset_numeric; }
   void prepend_zeros(String *value) const;
-  Item *get_equal_const_item(THD *thd, const Context &ctx,
-                             Item_field *field_item, Item *const_item)
+  Item *get_equal_const_item(THD *thd, const Context &ctx, Item *const_item)
   {
     return (flags & ZEROFILL_FLAG) ?
-           get_equal_zerofill_const_item(thd, ctx, field_item, const_item) :
+           get_equal_zerofill_const_item(thd, ctx, const_item) :
            const_item;
   }
   void add_zerofill_and_unsigned(String &res) const;
@@ -1363,8 +1361,7 @@ public:
   my_decimal *val_decimal(my_decimal *);
   uint32 max_display_length() { return field_length; }
   uint size_of() const { return sizeof(*this); }
-  Item *get_equal_const_item(THD *thd, const Context &ctx,
-                             Item_field *field_item, Item *const_item);
+  Item *get_equal_const_item(THD *thd, const Context &ctx, Item *const_item);
 };
 
 
@@ -1450,8 +1447,7 @@ public:
   uint is_equal(Create_field *new_field);
   virtual const uchar *unpack(uchar* to, const uchar *from, const uchar *from_end, uint param_data);
   static Field *create_from_item(MEM_ROOT *root, Item *);
-  Item *get_equal_const_item(THD *thd, const Context &ctx,
-                             Item_field *field_item, Item *const_item);
+  Item *get_equal_const_item(THD *thd, const Context &ctx, Item *const_item);
 };
 
 
@@ -1790,7 +1786,6 @@ public:
 class Field_temporal: public Field {
 protected:
   Item *get_equal_const_item_datetime(THD *thd, const Context &ctx,
-                                      Item_field *field_item,
                                       Item *const_item);
 public:
   Field_temporal(uchar *ptr_arg,uint32 len_arg, uchar *null_ptr_arg,
@@ -1937,10 +1932,9 @@ public:
     return unpack_int32(to, from, from_end);
   }
   bool validate_value_in_record(THD *thd, const uchar *record) const;
-  Item *get_equal_const_item(THD *thd, const Context &ctx,
-                             Item_field *field_item, Item *const_item)
+  Item *get_equal_const_item(THD *thd, const Context &ctx, Item *const_item)
   {
-    return get_equal_const_item_datetime(thd, ctx, field_item, const_item);
+    return get_equal_const_item_datetime(thd, ctx, const_item);
   }
   uint size_of() const { return sizeof(*this); }
 };
@@ -2130,8 +2124,7 @@ public:
   bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
   { return Field_newdate::get_TIME(ltime, ptr, fuzzydate); }
   uint size_of() const { return sizeof(*this); }
-  Item *get_equal_const_item(THD *thd, const Context &ctx,
-                             Item_field *field_item, Item *const_item);
+  Item *get_equal_const_item(THD *thd, const Context &ctx, Item *const_item);
 };
 
 
@@ -2175,8 +2168,7 @@ public:
   Field *new_key_field(MEM_ROOT *root, TABLE *new_table,
                        uchar *new_ptr, uint32 length,
                        uchar *new_null_ptr, uint new_null_bit);
-  Item *get_equal_const_item(THD *thd, const Context &ctx,
-                             Item_field *field_item, Item *const_item);
+  Item *get_equal_const_item(THD *thd, const Context &ctx, Item *const_item);
 };
 
 
@@ -2335,10 +2327,9 @@ public:
   {
     return unpack_int64(to, from, from_end);
   }
-  Item *get_equal_const_item(THD *thd, const Context &ctx,
-                             Item_field *field_item, Item *const_item)
+  Item *get_equal_const_item(THD *thd, const Context &ctx, Item *const_item)
   {
-    return get_equal_const_item_datetime(thd, ctx, field_item, const_item);
+    return get_equal_const_item_datetime(thd, ctx, const_item);
   }
   uint size_of() const { return sizeof(*this); }
 };
