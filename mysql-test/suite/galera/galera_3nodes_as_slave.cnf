@@ -60,9 +60,9 @@ wsrep_provider_options='base_port=@mysqld.4.#galera_port;evs.install_timeout = P
 wsrep_causal_reads=ON
 wsrep_sync_wait = 7
 
-wsrep_node_address=192.168.95.128
-wsrep_sst_receive_address=192.168.95.128:@mysqld.4.#sst_port
-wsrep_node_incoming_address=192.168.95.128:@mysqld.4.port
+wsrep_node_address=127.0.0.1
+wsrep_sst_receive_address=127.0.0.2:@mysqld.4.#sst_port
+wsrep_node_incoming_address=127.0.0.1:@mysqld.4.port
 
 # Required for Galera
 innodb_autoinc_lock_mode=2
