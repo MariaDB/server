@@ -5301,7 +5301,6 @@ f1
 Warnings:
 Warning	1292	Incorrect datetime value: 'zz'
 Warning	1292	Incorrect datetime value: 'aa'
-Warning	1292	Incorrect datetime value: 'zz'
 SELECT * FROM v1 HAVING f1 = 'zz' AND f1 <= 'aa' ;
 f1
 0000-00-00

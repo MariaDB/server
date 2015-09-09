@@ -5841,7 +5841,30 @@ Item *Field_time::get_equal_const_item(THD *thd, const Context &ctx,
                                        Item *const_item)
 {
   switch (ctx.subst_constraint()) {
-  case IDENTITY_SUBST:
+  case ANY_SUBST:
+    if (const_item->field_type() != MYSQL_TYPE_TIME)
+    {
+      MYSQL_TIME ltime;
+      // Get the value of const_item with conversion from DATETIME to TIME
+      if (const_item->get_time_with_conversion(thd, &ltime, TIME_TIME_ONLY))
+        return NULL;
+      /*
+        Replace a DATE/DATETIME constant to a TIME constant:
+          WHERE LENGTH(time_column)=8
+            AND time_column=TIMESTAMP'2015-08-30 10:20:30';
+        to:
+          WHERE LENGTH(time_column)=10
+            AND time_column=TIME'10:20:30'
+
+        (assuming CURRENT_DATE is '2015-08-30'
+      */
+      return new (thd->mem_root) Item_time_literal(thd, &ltime,
+                                                   ltime.second_part ?
+                                                   TIME_SECOND_PART_DIGITS :
+                                                   0);
+    }
+    break;
+   case IDENTITY_SUBST:
     if (const_item->field_type() != MYSQL_TYPE_TIME ||
         const_item->decimals != decimals())
     {
@@ -5864,8 +5887,6 @@ Item *Field_time::get_equal_const_item(THD *thd, const Context &ctx,
       */
       return new (thd->mem_root) Item_time_literal(thd, &ltime, decimals());
     }
-    break;
-  case ANY_SUBST:
     break;
   }
   return const_item;
@@ -6308,6 +6329,35 @@ Item *Field_newdate::get_equal_const_item(THD *thd, const Context &ctx,
                                           Item *const_item)
 {
   switch (ctx.subst_constraint()) {
+  case ANY_SUBST:
+    if (!is_temporal_type_with_date(const_item->field_type()))
+    {
+      MYSQL_TIME ltime;
+      // Get the value of const_item with conversion from TIME to DATETIME
+      if (const_item->get_date_with_conversion(&ltime,
+                                        TIME_FUZZY_DATES | TIME_INVALID_DATES))
+        return NULL;
+      /*
+        Replace the constant to a DATE or DATETIME constant.
+        Example:
+          WHERE LENGTH(date_column)=10
+            AND date_column=TIME'10:20:30';
+        to:
+          WHERE LENGTH(date_column)=10
+            AND date_column=TIMESTAMP'2015-08-30 10:20:30'
+
+        (assuming CURRENT_DATE is '2015-08-30'
+      */
+      if (non_zero_hhmmssuu(&ltime))
+        return new (thd->mem_root)
+          Item_datetime_literal_for_invalid_dates(thd, &ltime,
+                                                  ltime.second_part ?
+                                                  TIME_SECOND_PART_DIGITS : 0);
+      datetime_to_date(&ltime);
+      return new (thd->mem_root)
+        Item_date_literal_for_invalid_dates(thd, &ltime);
+    }
+    break;
   case IDENTITY_SUBST:
     if (const_item->field_type() != MYSQL_TYPE_DATE)
     {
@@ -6316,10 +6366,9 @@ Item *Field_newdate::get_equal_const_item(THD *thd, const Context &ctx,
           const_item->get_date_with_conversion(&ltime, 0) :
           const_item->get_date(&ltime, 0))
         return NULL;
+      datetime_to_date(&ltime);
       return new (thd->mem_root) Item_date_literal(thd, &ltime);
     }
-    break;
-  case ANY_SUBST:
     break;
   }
   return const_item;

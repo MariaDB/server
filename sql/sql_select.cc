@@ -12522,7 +12522,8 @@ finish:
     FALSE   otherwise
 */
 
-static bool check_simple_equality(THD *thd, Item *left_item, Item *right_item,
+static bool check_simple_equality(THD *thd, const Item::Context &ctx,
+                                  Item *left_item, Item *right_item,
                                   COND_EQUAL *cond_equal)
 {
   Item *orig_left_item= left_item;
@@ -12686,6 +12687,11 @@ static bool check_simple_equality(THD *thd, Item *left_item, Item *right_item,
         cond_equal->current_level.push_back(item_equal, thd->mem_root);
         item_equal->set_context_field(field_item);
       }
+      Item *const_item2= field_item->field->get_equal_const_item(thd, ctx,
+                                                                 const_item);
+      if (!const_item2)
+        return false;
+
       if (item_equal)
       {
         /* 
@@ -12693,11 +12699,11 @@ static bool check_simple_equality(THD *thd, Item *left_item, Item *right_item,
           already contains a constant and its value is  not equal to
           the value of const_item.
         */
-        item_equal->add_const(thd, const_item, orig_field_item);
+        item_equal->add_const(thd, const_item2, orig_field_item);
       }
       else
       {
-        item_equal= new (thd->mem_root) Item_equal(thd, const_item,
+        item_equal= new (thd->mem_root) Item_equal(thd, const_item2,
                                                    orig_field_item, TRUE);
         item_equal->set_context_field(field_item);
         cond_equal->current_level.push_back(item_equal, thd->mem_root);
@@ -12735,7 +12741,8 @@ static bool check_simple_equality(THD *thd, Item *left_item, Item *right_item,
     FALSE   otherwise
 */
  
-static bool check_row_equality(THD *thd, Item *left_row, Item_row *right_row,
+static bool check_row_equality(THD *thd, const Arg_comparator *comparators,
+                               Item *left_row, Item_row *right_row,
                                COND_EQUAL *cond_equal, List<Item>* eq_list)
 { 
   uint n= left_row->cols();
@@ -12747,14 +12754,20 @@ static bool check_row_equality(THD *thd, Item *left_row, Item_row *right_row,
     if (left_item->type() == Item::ROW_ITEM &&
         right_item->type() == Item::ROW_ITEM)
     {
-      is_converted= check_row_equality(thd, 
+      is_converted= check_row_equality(thd,
+                                       comparators[i].subcomparators(),
                                        (Item_row *) left_item,
                                        (Item_row *) right_item,
 			               cond_equal, eq_list);
     }
     else
     { 
-      is_converted= check_simple_equality(thd, left_item, right_item,
+      const Arg_comparator *tmp= &comparators[i];
+      is_converted= check_simple_equality(thd,
+                                          Item::Context(Item::ANY_SUBST,
+                                                        tmp->compare_type(),
+                                                 tmp->cmp_collation.collation),
+                                          left_item, right_item,
                                           cond_equal);
     }  
  
@@ -12812,11 +12825,16 @@ bool Item_func_eq::check_equality(THD *thd, COND_EQUAL *cond_equal,
       right_item->type() == Item::ROW_ITEM)
   {
     return check_row_equality(thd,
+                              cmp.subcomparators(),
                               (Item_row *) left_item,
                               (Item_row *) right_item,
                               cond_equal, eq_list);
   }
-  return check_simple_equality(thd, left_item, right_item, cond_equal);
+  return check_simple_equality(thd,
+                               Context(ANY_SUBST,
+                                       compare_type(),
+                                       compare_collation()),
+                               left_item, right_item, cond_equal);
 }
 
                           

@@ -3385,6 +3385,62 @@ public:
 };
 
 
+/**
+  An error-safe counterpart for Item_date_literal
+*/
+class Item_date_literal_for_invalid_dates: public Item_date_literal
+{
+  /**
+    During equal field propagation we can replace non-temporal constants
+    found in equalities to their native temporal equivalents:
+      WHERE date_column='2001-01-01'      ... ->
+      WHERE date_column=DATE'2001-01-01'  ...
+
+    This is done to make the eqial field propagation code handle mixtures of
+    different temporal types in the same expressions easier (MDEV-8706), e.g.
+      WHERE LENGTH(date_column)=10 AND date_column=TIME'00:00:00'
+
+    Item_date_literal_for_invalid_dates::get_date()
+    (unlike the regular Item_date_literal::get_date())
+    does not check the result for NO_ZERO_IN_DATE and NO_ZER_DATE,
+    always returns success (false), and does not produce error/warning messages.
+
+    We need these _for_invalid_dates classes to be able to rewrite:
+      SELECT * FROM t1 WHERE date_column='0000-00-00' ...
+    to:
+      SELECT * FROM t1 WHERE date_column=DATE'0000-00-00' ...
+
+    to avoid returning NULL value instead of '0000-00-00' even
+    in sql_mode=TRADITIONAL.
+  */
+public:
+  Item_date_literal_for_invalid_dates(THD *thd, MYSQL_TIME *ltime)
+   :Item_date_literal(thd, ltime) { }
+  bool get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date)
+  {
+    *ltime= cached_time;
+    return (null_value= false);
+  }
+};
+
+
+/**
+  An error-safe counterpart for Item_datetime_literal
+  (see Item_date_literal_for_invalid_dates for comments)
+*/
+class Item_datetime_literal_for_invalid_dates: public Item_datetime_literal
+{
+public:
+  Item_datetime_literal_for_invalid_dates(THD *thd,
+                                          MYSQL_TIME *ltime, uint dec_arg)
+   :Item_datetime_literal(thd, ltime, dec_arg) { }
+  bool get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date)
+  {
+    *ltime= cached_time;
+    return (null_value= false);
+  }
+};
+
 
 /**
   Array of items, e.g. function or aggerate function arguments.

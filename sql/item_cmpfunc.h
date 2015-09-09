@@ -125,6 +125,7 @@ public:
            ((Item_func*)owner)->functype() == Item_func::EQUAL_FUNC);
   }
   Item_result compare_type() const { return m_compare_type; }
+  Arg_comparator *subcomparators() const { return comparators; }
   void cleanup()
   {
     delete [] comparators;
