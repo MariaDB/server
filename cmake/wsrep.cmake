@@ -22,8 +22,8 @@ SET(WSREP_PATCH_VERSION "12")
 
 # MariaDB addition: Revision number of the last revision merged from
 # codership branch visible in @@visible_comment.
-# Branch : codership-mysql/5.5
-SET(WSREP_PATCH_REVNO "4026")  # Should be updated on every merge.
+# Branch : https://github.com/codership/mysql-wsrep/tree/5.5
+SET(WSREP_PATCH_REVNO "4f81026") # Should be updated on every merge.
 
 # MariaDB: Obtain patch revision number:
 # Update WSREP_PATCH_REVNO if WSREP_REV environment variable is set.
