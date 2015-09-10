@@ -899,7 +899,7 @@ void Item_subselect::update_used_tables()
 
 void Item_subselect::print(String *str, enum_query_type query_type)
 {
-  if (query_type == QT_EXPLAIN)
+  if (query_type & QT_ITEM_SUBSELECT_ID_ONLY)
   {
     str->append("(subquery#");
     if (unit && unit->first_select())

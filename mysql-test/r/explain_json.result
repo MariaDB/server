@@ -1070,3 +1070,23 @@ EXPLAIN
   }
 }
 drop table t1;
+#
+# MDEV-8786 Wrong result for SELECT FORMAT=JSON * FROM t1 WHERE a=_latin1 0xDF
+#
+CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET latin1);
+INSERT INTO t1 VALUES ('a'),('b');
+EXPLAIN FORMAT=JSON SELECT * FROM t1 WHERE a=_latin1 0xDF;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t1",
+      "access_type": "ALL",
+      "rows": 2,
+      "filtered": 100,
+      "attached_condition": "(t1.a = _latin1'\xDF')"
+    }
+  }
+}
+DROP TABLE t1;

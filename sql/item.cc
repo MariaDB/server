@@ -2495,8 +2495,8 @@ void Item_ident::print(String *str, enum_query_type query_type)
       When printing EXPLAIN, don't print database name when it's the same as
       current database.
     */
-    bool skip_db= (query_type & QT_EXPLAIN) && thd->db && 
-                  !strcmp(thd->db, db_name);
+    bool skip_db= (query_type & QT_ITEM_IDENT_SKIP_CURRENT_DATABASE) &&
+                   thd->db && !strcmp(thd->db, db_name);
     if (!skip_db && 
         !(cached_table && cached_table->belong_to_view &&
           cached_table->belong_to_view->compact_view_format))
@@ -7601,7 +7601,7 @@ void Item_cache_wrapper::init_on_demand()
 
 void Item_cache_wrapper::print(String *str, enum_query_type query_type)
 {
-  if (query_type == QT_EXPLAIN)
+  if (query_type & QT_ITEM_CACHE_WRAPPER_SKIP_DETAILS)
   {
     /* Don't print the cache in EXPLAIN EXTENDED */
     orig_item->print(str, query_type);

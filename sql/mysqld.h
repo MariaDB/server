@@ -647,10 +647,26 @@ enum enum_query_type
   QT_WITHOUT_INTRODUCERS= (1 << 1),
   /// view internal representation (like QT_ORDINARY except ORDER BY clause)
   QT_VIEW_INTERNAL= (1 << 2),
-  /// This value means focus on readability, not on ability to parse back, etc.
-  QT_EXPLAIN= (1 << 4)
-};
+  /// If identifiers should not include database names for the current database
+  QT_ITEM_IDENT_SKIP_CURRENT_DATABASE= (1 << 3),
+  /// If Item_cache_wrapper should not print <expr_cache>
+  QT_ITEM_CACHE_WRAPPER_SKIP_DETAILS= (1 << 4),
+  /// If Item_subselect should print as just "(subquery#1)"
+  /// rather than display the subquery body
+  QT_ITEM_SUBSELECT_ID_ONLY= (1 << 5),
 
+  /// This value means focus on readability, not on ability to parse back, etc.
+  QT_EXPLAIN=           QT_TO_SYSTEM_CHARSET |
+                        QT_ITEM_IDENT_SKIP_CURRENT_DATABASE |
+                        QT_ITEM_CACHE_WRAPPER_SKIP_DETAILS |
+                        QT_ITEM_SUBSELECT_ID_ONLY,
+
+  /// This is used for EXPLAIN EXTENDED extra warnings
+  /// Be more detailed than QT_EXPLAIN.
+  /// Perhaps we should eventually include QT_ITEM_IDENT_SKIP_CURRENT_DATABASE
+  /// here, as it would give better readable results
+  QT_EXPLAIN_EXTENDED=  QT_TO_SYSTEM_CHARSET
+};
 
 
 /* query_id */

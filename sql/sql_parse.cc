@@ -5812,7 +5812,7 @@ static bool execute_sqlcom_select(THD *thd, TABLE_LIST *all_tables)
               The warnings system requires input in utf8, @see
               mysqld_show_warnings().
             */
-            lex->unit.print(&str, QT_TO_SYSTEM_CHARSET);
+            lex->unit.print(&str, QT_EXPLAIN_EXTENDED);
             push_warning(thd, Sql_condition::WARN_LEVEL_NOTE,
                          ER_YES, str.c_ptr_safe());
           }

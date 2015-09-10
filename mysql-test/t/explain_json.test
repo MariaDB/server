@@ -279,3 +279,10 @@ explain format=json select count(distinct a1,a2,b,c) from t1 where (a2 >= 'b') a
 drop table t1;
 
 
+--echo #
+--echo # MDEV-8786 Wrong result for SELECT FORMAT=JSON * FROM t1 WHERE a=_latin1 0xDF
+--echo #
+CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET latin1);
+INSERT INTO t1 VALUES ('a'),('b');
+EXPLAIN FORMAT=JSON SELECT * FROM t1 WHERE a=_latin1 0xDF;
+DROP TABLE t1;
