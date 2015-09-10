@@ -6683,6 +6683,18 @@ bool Item_field::send(Protocol *protocol, String *buffer)
 }
 
 
+Item* Item::propagate_equal_fields_and_change_item_tree(THD *thd,
+                                                        const Context &ctx,
+                                                        COND_EQUAL *cond,
+                                                        Item **place)
+{
+  Item *item= propagate_equal_fields(thd, ctx, cond);
+  if (item && item != this)
+    thd->change_item_tree(place, item);
+  return item;
+}
+
+
 void Item_field::update_null_value() 
 { 
   /* 

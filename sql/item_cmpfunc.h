@@ -907,18 +907,26 @@ class Item_func_nullif :public Item_func_hybrid_field_type
 {
   Arg_comparator cmp;
   /*
-    Remember the first argument in case it will be substituted by either of:
-    - convert_const_compared_to_int_field()
+    NULLIF(a,b) is a short for:
+      CASE WHEN a=b THEN NULL ELSE a END
+
+    The left "a" is for comparison purposes.
+    The right "a" is for return value purposes.
+    These are two different "a" and they can be replaced to different items.
+
+    The left "a" is in a comparison and can be replaced by:
+    - Item_func::convert_const_compared_to_int_field()
     - agg_item_set_converter() in set_cmp_func()
-    - cache_converted_constant() in set_cmp_func()
-    The original item will be stored in m_arg0_copy, to return result.
-    The substituted item will be stored in args[0], for comparison purposes.
+    - Arg_comparator::cache_converted_constant() in set_cmp_func()
+
+    Both "a"s are subject to equal fields propagation and can be replaced by:
+    - Item_field::propagate_equal_fields(ANY_SUBST) for the left "a"
+    - Item_field::propagate_equal_fields(IDENTITY_SUBST) for the right "a"
   */
-  Item *m_args0_copy;
 public:
+  // Put "a" to args[0] for comparison and to args[2] for the returned value.
   Item_func_nullif(THD *thd, Item *a, Item *b):
-    Item_func_hybrid_field_type(thd, a, b),
-     m_args0_copy(a)
+    Item_func_hybrid_field_type(thd, a, b, a)
   {}
   bool date_op(MYSQL_TIME *ltime, uint fuzzydate);
   double real_op();
@@ -926,18 +934,21 @@ public:
   String *str_op(String *str);
   my_decimal *decimal_op(my_decimal *);
   void fix_length_and_dec();
-  uint decimal_precision() const { return m_args0_copy->decimal_precision(); }
+  uint decimal_precision() const { return args[2]->decimal_precision(); }
   const char *func_name() const { return "nullif"; }
   void print(String *str, enum_query_type query_type);
   table_map not_null_tables() const { return 0; }
   bool is_null();
   Item* propagate_equal_fields(THD *thd, const Context &ctx, COND_EQUAL *cond)
   {
-    Item_args::propagate_equal_fields(thd,
-                                      Context(ANY_SUBST,
-                                              cmp.compare_type(),
-                                              cmp.cmp_collation.collation),
-                                      cond);
+    Context cmpctx(ANY_SUBST, cmp.compare_type(), cmp.cmp_collation.collation);
+    args[0]->propagate_equal_fields_and_change_item_tree(thd, cmpctx,
+                                                         cond, &args[0]);
+    args[1]->propagate_equal_fields_and_change_item_tree(thd, cmpctx,
+                                                         cond, &args[1]);
+    args[2]->propagate_equal_fields_and_change_item_tree(thd,
+                                                         Context_identity(),
+                                                         cond, &args[2]);
     return this;
   }
 };

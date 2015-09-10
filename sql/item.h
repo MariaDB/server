@@ -1455,6 +1455,11 @@ public:
     return this;
   };
 
+  Item* propagate_equal_fields_and_change_item_tree(THD *thd,
+                                                    const Context &ctx,
+                                                    COND_EQUAL *cond,
+                                                    Item **place);
+
   /*
     @brief
     Processor used to check acceptability of an item in the defining

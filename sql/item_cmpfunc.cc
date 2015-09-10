@@ -473,7 +473,7 @@ static bool convert_const_to_int(THD *thd, Item_field *field_item,
 */
 void Item_func::convert_const_compared_to_int_field(THD *thd)
 {
-  DBUG_ASSERT(arg_count == 2);
+  DBUG_ASSERT(arg_count >= 2); // Item_func_nullif has arg_count == 3
   if (!thd->lex->is_ps_or_view_context_analysis())
   {
     int field;
@@ -491,7 +491,7 @@ void Item_func::convert_const_compared_to_int_field(THD *thd)
 
 bool Item_func::setup_args_and_comparator(THD *thd, Arg_comparator *cmp)
 {
-  DBUG_ASSERT(arg_count == 2);
+  DBUG_ASSERT(arg_count >= 2); // Item_func_nullif has arg_count == 3
 
   if (args[0]->cmp_type() == STRING_RESULT &&
       args[1]->cmp_type() == STRING_RESULT &&
@@ -502,7 +502,7 @@ bool Item_func::setup_args_and_comparator(THD *thd, Arg_comparator *cmp)
   DBUG_ASSERT(functype() != LIKE_FUNC);
   convert_const_compared_to_int_field(thd);
 
-  return cmp->set_cmp_func(this, tmp_arg, tmp_arg + 1, true);
+  return cmp->set_cmp_func(this, &args[0], &args[1], true);
 }
 
 
@@ -2663,15 +2663,15 @@ bool Item_func_if::date_op(MYSQL_TIME *ltime, uint fuzzydate)
 void
 Item_func_nullif::fix_length_and_dec()
 {
-  if (!m_args0_copy)					// Only false if EOM
+  if (!args[2])					// Only false if EOM
     return;
 
-  cached_result_type= m_args0_copy->result_type();
-  cached_field_type= m_args0_copy->field_type();
-  collation.set(m_args0_copy->collation);
-  decimals= m_args0_copy->decimals;
-  unsigned_flag= m_args0_copy->unsigned_flag;
-  fix_char_length(m_args0_copy->max_char_length());
+  cached_result_type= args[2]->result_type();
+  cached_field_type= args[2]->field_type();
+  collation.set(args[2]->collation);
+  decimals= args[2]->decimals;
+  unsigned_flag= args[2]->unsigned_flag;
+  fix_char_length(args[2]->max_char_length());
   maybe_null=1;
   setup_args_and_comparator(current_thd, &cmp);
 }
@@ -2683,16 +2683,16 @@ void Item_func_nullif::print(String *str, enum_query_type query_type)
     NULLIF(a,b) is implemented according to the SQL standard as a short for
     CASE WHEN a=b THEN NULL ELSE a END
 
-    The constructor of Item_func_nullif sets args[0] and m_args0_copy to the
+    The constructor of Item_func_nullif sets args[0] and args[2] to the
     same item "a", and sets args[1] to "b".
 
     If "this" is a part of a WHERE or ON condition, then:
     - the left "a" is a subject to equal field propagation with ANY_SUBST.
     - the right "a" is a subject to equal field propagation with IDENTITY_SUBST.
-    Therefore, after equal field propagation args[0] and m_args0_copy can point
+    Therefore, after equal field propagation args[0] and args[2] can point
     to different items.
   */
-  if (!(query_type & QT_ITEM_FUNC_NULLIF_TO_CASE) || args[0] == m_args0_copy)
+  if (!(query_type & QT_ITEM_FUNC_NULLIF_TO_CASE) || args[0] == args[2])
   {
     /*
       If no QT_ITEM_FUNC_NULLIF_TO_CASE is requested,
@@ -2701,7 +2701,7 @@ void Item_func_nullif::print(String *str, enum_query_type query_type)
         SHOW CREATE {VIEW|FUNCTION|PROCEDURE}
 
       The original representation is possible only if
-      args[0] and m_args0_copy still point to the same Item.
+      args[0] and args[2] still point to the same Item.
 
       The caller must pass call print() with QT_ITEM_FUNC_NULLIF_TO_CASE
       if an expression has undergone some optimization
@@ -2713,10 +2713,10 @@ void Item_func_nullif::print(String *str, enum_query_type query_type)
       Note, the EXPLAIN EXTENDED and EXPLAIN FORMAT=JSON routines
       do pass QT_ITEM_FUNC_NULLIF_TO_CASE to print().
     */
-    DBUG_ASSERT(args[0] == m_args0_copy);
+    DBUG_ASSERT(args[0] == args[2]);
     str->append(func_name());
     str->append('(');
-    m_args0_copy->print(str, query_type);
+    args[2]->print(str, query_type);
     str->append(',');
     args[1]->print(str, query_type);
     str->append(')');
@@ -2724,7 +2724,7 @@ void Item_func_nullif::print(String *str, enum_query_type query_type)
   else
   {
     /*
-      args[0] and m_args0_copy are different items.
+      args[0] and args[2] are different items.
       This is possible after WHERE optimization (equal fields propagation etc),
       e.g. in EXPLAIN EXTENDED or EXPLAIN FORMAT=JSON.
       As it's not possible to print as a function with 2 arguments any more,
@@ -2735,7 +2735,7 @@ void Item_func_nullif::print(String *str, enum_query_type query_type)
     str->append(STRING_WITH_LEN(" = "));
     args[1]->print(str, query_type);
     str->append(STRING_WITH_LEN(" then NULL else "));
-    m_args0_copy->print(str, query_type);
+    args[2]->print(str, query_type);
     str->append(STRING_WITH_LEN(" end)"));
   }
 }
@@ -2761,8 +2761,8 @@ Item_func_nullif::real_op()
     null_value=1;
     return 0.0;
   }
-  value= m_args0_copy->val_real();
-  null_value=m_args0_copy->null_value;
+  value= args[2]->val_real();
+  null_value= args[2]->null_value;
   return value;
 }
 
@@ -2776,8 +2776,8 @@ Item_func_nullif::int_op()
     null_value=1;
     return 0;
   }
-  value=m_args0_copy->val_int();
-  null_value=m_args0_copy->null_value;
+  value= args[2]->val_int();
+  null_value= args[2]->null_value;
   return value;
 }
 
@@ -2791,8 +2791,8 @@ Item_func_nullif::str_op(String *str)
     null_value=1;
     return 0;
   }
-  res=m_args0_copy->val_str(str);
-  null_value=m_args0_copy->null_value;
+  res= args[2]->val_str(str);
+  null_value= args[2]->null_value;
   return res;
 }
 
@@ -2807,8 +2807,8 @@ Item_func_nullif::decimal_op(my_decimal * decimal_value)
     null_value=1;
     return 0;
   }
-  res= m_args0_copy->val_decimal(decimal_value);
-  null_value= m_args0_copy->null_value;
+  res= args[2]->val_decimal(decimal_value);
+  null_value= args[2]->null_value;
   return res;
 }
 
@@ -2819,14 +2819,14 @@ Item_func_nullif::date_op(MYSQL_TIME *ltime, uint fuzzydate)
   DBUG_ASSERT(fixed == 1);
   if (!cmp.compare())
     return (null_value= true);
-  return (null_value= m_args0_copy->get_date(ltime, fuzzydate));
+  return (null_value= args[2]->get_date(ltime, fuzzydate));
 }
 
 
 bool
 Item_func_nullif::is_null()
 {
-  return (null_value= (!cmp.compare() ? 1 : m_args0_copy->null_value)); 
+  return (null_value= (!cmp.compare() ? 1 : args[2]->null_value));
 }
 
 
