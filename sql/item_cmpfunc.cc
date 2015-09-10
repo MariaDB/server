@@ -2677,6 +2677,70 @@ Item_func_nullif::fix_length_and_dec()
 }
 
 
+void Item_func_nullif::print(String *str, enum_query_type query_type)
+{
+  /*
+    NULLIF(a,b) is implemented according to the SQL standard as a short for
+    CASE WHEN a=b THEN NULL ELSE a END
+
+    The constructor of Item_func_nullif sets args[0] and m_args0_copy to the
+    same item "a", and sets args[1] to "b".
+
+    If "this" is a part of a WHERE or ON condition, then:
+    - the left "a" is a subject to equal field propagation with ANY_SUBST.
+    - the right "a" is a subject to equal field propagation with IDENTITY_SUBST.
+    Therefore, after equal field propagation args[0] and m_args0_copy can point
+    to different items.
+  */
+  if (!(query_type & QT_ITEM_FUNC_NULLIF_TO_CASE) || args[0] == m_args0_copy)
+  {
+    /*
+      If no QT_ITEM_FUNC_NULLIF_TO_CASE is requested,
+      that means we want the original NULLIF() representation,
+      e.g. when we are in:
+        SHOW CREATE {VIEW|FUNCTION|PROCEDURE}
+
+      The original representation is possible only if
+      args[0] and m_args0_copy still point to the same Item.
+
+      The caller must pass call print() with QT_ITEM_FUNC_NULLIF_TO_CASE
+      if an expression has undergone some optimization
+      (e.g. equal field propagation done in optimize_cond()) already and
+      NULLIF() potentially has two different representations of "a":
+      - one "a" for comparison
+      - another "a" for the returned value!
+
+      Note, the EXPLAIN EXTENDED and EXPLAIN FORMAT=JSON routines
+      do pass QT_ITEM_FUNC_NULLIF_TO_CASE to print().
+    */
+    DBUG_ASSERT(args[0] == m_args0_copy);
+    str->append(func_name());
+    str->append('(');
+    m_args0_copy->print(str, query_type);
+    str->append(',');
+    args[1]->print(str, query_type);
+    str->append(')');
+  }
+  else
+  {
+    /*
+      args[0] and m_args0_copy are different items.
+      This is possible after WHERE optimization (equal fields propagation etc),
+      e.g. in EXPLAIN EXTENDED or EXPLAIN FORMAT=JSON.
+      As it's not possible to print as a function with 2 arguments any more,
+      do it in the CASE style.
+    */
+    str->append(STRING_WITH_LEN("(case when "));
+    args[0]->print(str, query_type);
+    str->append(STRING_WITH_LEN(" = "));
+    args[1]->print(str, query_type);
+    str->append(STRING_WITH_LEN(" then NULL else "));
+    m_args0_copy->print(str, query_type);
+    str->append(STRING_WITH_LEN(" end)"));
+  }
+}
+
+
 /**
   @note
   Note that we have to evaluate the first argument twice as the compare

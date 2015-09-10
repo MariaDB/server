@@ -1090,3 +1090,23 @@ EXPLAIN
   }
 }
 DROP TABLE t1;
+#
+# MDEV-8785 Wrong results for EXPLAIN EXTENDED...WHERE NULLIF(latin1_col, _utf8'a' COLLATE utf8_bin) IS NOT NULL
+#
+CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET latin1);
+INSERT INTO t1 VALUES ('a'),('A');
+EXPLAIN FORMAT=JSON SELECT * FROM t1 WHERE NULLIF(a,_utf8'a' COLLATE utf8_bin);
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t1",
+      "access_type": "ALL",
+      "rows": 2,
+      "filtered": 100,
+      "attached_condition": "(case when convert(t1.a using utf8) = <cache>((_utf8'a' collate utf8_bin)) then NULL else t1.a end)"
+    }
+  }
+}
+DROP TABLE t1;

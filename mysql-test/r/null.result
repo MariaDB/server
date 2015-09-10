@@ -1390,5 +1390,24 @@ Warning	1292	Incorrect datetime value: '1'
 Warning	1292	Incorrect datetime value: '1'
 DROP TABLE t1;
 #
+# MDEV-8785 Wrong results for EXPLAIN EXTENDED...WHERE NULLIF(latin1_col, _utf8'a' COLLATE utf8_bin) IS NOT NULL
+#
+CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET latin1);
+INSERT INTO t1 VALUES ('a'),('A');
+SELECT a, NULLIF(a,_utf8'a' COLLATE utf8_bin) IS NULL FROM t1;
+a	NULLIF(a,_utf8'a' COLLATE utf8_bin) IS NULL
+a	1
+A	0
+SELECT CHARSET(NULLIF(a,_utf8'a' COLLATE utf8_bin)) FROM t1;
+CHARSET(NULLIF(a,_utf8'a' COLLATE utf8_bin))
+latin1
+latin1
+EXPLAIN EXTENDED SELECT NULLIF(a,_utf8'a' COLLATE utf8_bin) IS NULL AS expr FROM t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	
+Warnings:
+Note	1003	select isnull((case when convert(`test`.`t1`.`a` using utf8) = (_utf8'a' collate utf8_bin) then NULL else `test`.`t1`.`a` end)) AS `expr` from `test`.`t1`
+DROP TABLE t1;
+#
 # End of 10.1 tests
 #

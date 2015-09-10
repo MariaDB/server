@@ -928,12 +928,7 @@ public:
   void fix_length_and_dec();
   uint decimal_precision() const { return m_args0_copy->decimal_precision(); }
   const char *func_name() const { return "nullif"; }
-
-  virtual inline void print(String *str, enum_query_type query_type)
-  {
-    Item_func::print(str, query_type);
-  }
-
+  void print(String *str, enum_query_type query_type);
   table_map not_null_tables() const { return 0; }
   bool is_null();
   Item* propagate_equal_fields(THD *thd, const Context &ctx, COND_EQUAL *cond)
