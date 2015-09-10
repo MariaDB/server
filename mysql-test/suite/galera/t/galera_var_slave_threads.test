@@ -68,3 +68,17 @@ SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system use
 
 DROP TABLE t1;
 DROP TABLE t2;
+
+--echo #
+--echo # lp:1372840 - Changing wsrep_slave_threads causes future connections to hang
+--echo #
+
+--connection node_1
+CREATE TABLE t1 (i INT AUTO_INCREMENT PRIMARY KEY) ENGINE=INNODB;
+
+--connection node_2
+SET GLOBAL wsrep_slave_threads = 4;
+SET GLOBAL wsrep_slave_threads = 1;
+DROP TABLE t1;
+
+--echo # End of tests
