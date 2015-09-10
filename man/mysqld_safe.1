@@ -15,7 +15,7 @@
 .\" tools: mysqld_safe
 .\" scripts
 .SH "NAME"
-mysqld_safe \- MySQL server startup script
+mysqld_safe \- MariaDB server startup script
 .SH "SYNOPSIS"
 .HP \w'\fBmysqld_safe\ \fR\fB\fIoptions\fR\fR\ 'u
 \fBmysqld_safe \fR\fB\fIoptions\fR\fR
@@ -145,6 +145,21 @@ should be able to create\&. The option value is passed to
 .sp -1
 .IP \(bu 2.3
 .\}
+.\" mysqld_safe: crash-script option
+.\" crash-script option: mysqld_safe
+\fB\-\-crash\-script=\fR\fB\fIfile\fR\fR
+.sp
+Script to call in the event of mysqld crashing\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
 .\" mysqld_safe: datadir option
 .\" datadir option: mysqld_safe
 \fB\-\-datadir=\fR\fB\fIpath\fR\fR
@@ -190,6 +205,21 @@ The name of an option file to be read instead of the usual option files\&. This 
 .sp -1
 .IP \(bu 2.3
 .\}
+.\" mysqld_safe: flush-caches option
+.\" flush-caches option: mysqld_safe
+\fB\-\-flush\-caches\fR
+.sp
+Flush and purge buffers/caches before starting the server\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
 .\" mysqld_safe: ledir option
 .\" ledir option: mysqld_safe
 \fB\-\-ledir=\fR\fB\fIpath\fR\fR
@@ -211,8 +241,22 @@ cannot find the server, use this option to indicate the path name to the directo
 .\" log-error option: mysqld_safe
 \fB\-\-log\-error=\fR\fB\fIfile_name\fR\fR
 .sp
-Write the error log to the given file\&. See
-Section\ \&5.2.2, \(lqThe Error Log\(rq\&.
+Write the error log to the given file\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysqld_safe: malloc-lib option
+.\" malloc-lib option: mysqld_safe
+\fB\-\-malloc\-lib=\fR\fB\fIlib\fR\fR
+.sp
+Preload shared library lib if available\&.
 .RE
 .sp
 .RS 4
@@ -294,11 +338,56 @@ program to set the server\'s scheduling priority to the given value\&.
 .sp -1
 .IP \(bu 2.3
 .\}
+.\" mysqld_safe: no-auto-restart option
+.\" no-auto-restart option: mysqld_safe
+\fB\-\-no\-auto\-restart\fR
+.sp
+Exit after starting mysqld\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
 .\" mysqld_safe: no-defaults option
 .\" no-defaults option: mysqld_safe
 \fB\-\-no\-defaults\fR
 .sp
 Do not read any option files\&. This must be the first option on the command line if it is used\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysqld_safe: no-watch option
+.\" no-watch option: mysqld_safe
+\fB\-\-no\-auto\-restart\fR
+.sp
+Exit after starting mysqld\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysqld_safe: numa-interleave option
+.\" numa-interleave option: mysqld_safe
+\fB\-\-numa\-interleave\fR
+.sp
+Run mysqld with its memory interleaved on all NUMA nodes\&.
 .RE
 .sp
 .RS 4
@@ -336,6 +425,21 @@ for this to work properly!
 \fB\-\-pid\-file=\fR\fB\fIfile_name\fR\fR
 .sp
 The path name of the process ID file\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysqld_safe: plugin-dir option
+.\" plugin-dir option: mysqld_safe
+\fB\-\-plugin\-dir=\fIdir_name\fR
+.sp
+Directory for client-side plugins\&.
 .RE
 .sp
 .RS 4
@@ -437,7 +541,7 @@ mysqld, respectively\&. To specify a suffix for the tag, use
 \fB\-\-syslog\-tag=\fR\fB\fItag\fR\fR, which modifies the tags to be
 mysqld_safe\-\fItag\fR
 and
-mysqld\-\fItag\fR\&. This option was added in MySQL 5\&.1\&.21\&.
+mysqld\-\fItag\fR\&.
 .RE
 .sp
 .RS 4
@@ -475,7 +579,7 @@ server as the user having the name
 \fIuser_name\fR
 or the numeric user ID
 \fIuser_id\fR\&. (\(lqUser\(rq
-in this context refers to a system login account, not a MySQL user listed in the grant tables\&.)
+in this context refers to a system login account, not a MariaDB user listed in the grant tables\&.)
 .RE
 .PP
 If you execute
@@ -510,8 +614,7 @@ mysql> \fBmysqld_safe \-\-defaults\-file=\fR\fB\fIfile_name\fR\fR\fB \-\-port=\f
 .PP
 The
 \fBmysqld_safe\fR
-script is written so that it normally can start a server that was installed from either a source or a binary distribution of MySQL, even though these types of distributions typically install the server in slightly different locations\&. (See
-Section\ \&2.1.5, \(lqInstallation Layouts\(rq\&.)
+script is written so that it normally can start a server that was installed from either a source or a binary distribution of MariaDB, even though these types of distributions typically install the server in slightly different locations\&.
 \fBmysqld_safe\fR
 expects one of the following conditions to be true:
 .sp
@@ -537,7 +640,7 @@ and
 var
 directories\&. This condition should be met if you execute
 \fBmysqld_safe\fR
-from your MySQL installation directory (for example,
+from your MariaDB installation directory (for example,
 /usr/local/mysql
 for a binary distribution)\&.
 .RE
@@ -555,14 +658,14 @@ If the server and databases cannot be found relative to the working directory,
 attempts to locate them by absolute path names\&. Typical locations are
 /usr/local/libexec
 and
-/usr/local/var\&. The actual locations are determined from the values configured into the distribution at the time it was built\&. They should be correct if MySQL is installed in the location specified at configuration time\&.
+/usr/local/var\&. The actual locations are determined from the values configured into the distribution at the time it was built\&. They should be correct if MariaDB is installed in the location specified at configuration time\&.
 .RE
 .PP
 Because
 \fBmysqld_safe\fR
-tries to find the server and databases relative to its own working directory, you can install a binary distribution of MySQL anywhere, as long as you run
+tries to find the server and databases relative to its own working directory, you can install a binary distribution of MariaDB anywhere, as long as you run
 \fBmysqld_safe\fR
-from the MySQL installation directory:
+from the MariaDB installation directory:
 .sp
 .if n \{\
 .RS 4
@@ -577,7 +680,7 @@ shell> \fBbin/mysqld_safe &\fR
 .PP
 If
 \fBmysqld_safe\fR
-fails, even when invoked from the MySQL installation directory, you can specify the
+fails, even when invoked from the MariaDB installation directory, you can specify the
 \fB\-\-ledir\fR
 and
 \fB\-\-datadir\fR
@@ -592,7 +695,7 @@ arranges for error (and notice) messages from itself and from
 \fBmysqld\fR
 to go to the same destination\&.
 .PP
-As of MySQL 5\&.1\&.20, there are several
+There are several
 \fBmysqld_safe\fR
 options for controlling the destination of these messages:
 .sp
@@ -652,9 +755,6 @@ If none of these options is given, the default is
 .ps -1
 .br
 .PP
-In MySQL 5\&.1\&.20
-\fIonly\fR, the default is
-\fB\-\-syslog\fR\&. This differs from logging behavior for other versions of MySQL, for which the default is to write messages to the default error log file\&.
 .sp .5v
 .RE
 .PP
@@ -673,10 +773,6 @@ or the error log file) and
 stdout\&. Errors go to the logging destination and
 stderr\&.
 .PP
-Before MySQL 5\&.1\&.20, error logging is controlled only with the
-\fB\-\-log\-error\fR
-option\&. If it is given, messages go to the named error file\&. Otherwise, messages go to the default error file\&.
-.PP
 Normally, you should not edit the
 \fBmysqld_safe\fR
 script\&. Instead, configure
@@ -689,7 +785,7 @@ option file\&. In rare cases, it might be necessary to edit
 \fBmysqld_safe\fR
 to get it to start the server properly\&. However, if you do this, your modified version of
 \fBmysqld_safe\fR
-might be overwritten if you upgrade MySQL in the future, so you should make a copy of your edited version that you can reinstall\&.
+might be overwritten if you upgrade MariaDB in the future, so you should make a copy of your edited version that you can reinstall\&.
 .PP
 On NetWare,
 \fBmysqld_safe\fR
@@ -727,7 +823,7 @@ tables\&.
 .sp -1
 .IP "  3." 4.2
 .\}
-Provides a screen presence for the MySQL server\&.
+Provides a screen presence for the MariaDB server\&.
 .RE
 .sp
 .RS 4
