@@ -3297,6 +3297,8 @@ int apply_event_and_update_pos(Log_event* ev, THD* thd,
       WSREP_DEBUG("SQL apply failed, res %d conflict state: %d",
                   exec_res, thd->wsrep_conflict_state);
       rli->abort_slave= 1;
+      rli->report(ERROR_LEVEL, ER_UNKNOWN_COM_ERROR, rgi->gtid_info(),
+                  "Node has dropped from cluster");
     }
 #endif
 
