@@ -32,8 +32,8 @@ wsrep_check_programs rsync
 
 cleanup_joiner()
 {
-    wsrep_log_info "Joiner cleanup."
     local PID=$(cat "$RSYNC_PID" 2>/dev/null || echo 0)
+    wsrep_log_info "Joiner cleanup. rsync PID: $PID"
     [ "0" != "$PID" ] && kill $PID && sleep 0.5 && kill -9 $PID >/dev/null 2>&1 \
     || :
     rm -rf "$RSYNC_CONF"
