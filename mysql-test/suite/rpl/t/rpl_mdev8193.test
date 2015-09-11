@@ -38,10 +38,10 @@ eval start slave until master_log_file='$master_file', master_log_pos=$master_po
 
 --source include/wait_show_condition.inc
 
-if (`select COUNT(*) <> 11 from t1`) 
+if (`select COUNT(*) > 11 from t1`) 
 {
-	SELECT * FROM t1;
 	query_vertical show slave status;
+	SELECT * FROM t1;
 	die "Wrong number of rows in the table";
 }
 
