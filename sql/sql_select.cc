@@ -12699,7 +12699,7 @@ static bool check_simple_equality(THD *thd, const Item::Context &ctx,
           already contains a constant and its value is  not equal to
           the value of const_item.
         */
-        item_equal->add_const(thd, const_item2, orig_field_item);
+        item_equal->add_const(thd, const_item2);
       }
       else
       {

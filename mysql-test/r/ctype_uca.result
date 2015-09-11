@@ -13709,5 +13709,22 @@ SELECT '10' COLLATE utf8_general_ci XOR '20' COLLATE utf8_unicode_ci;
 '10' COLLATE utf8_general_ci XOR '20' COLLATE utf8_unicode_ci
 0
 #
+# MDEV-8705 Wrong result for SELECT..WHERE latin1_bin_column='a' AND latin1_bin_column='A'
+#
+SET NAMES utf8 COLLATE utf8_german2_ci;
+CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET utf8 COLLATE utf8_bin);
+INSERT INTO t1 VALUES ('a'),('A');
+SELECT * FROM t1 WHERE a='a';
+a
+a
+SELECT * FROM t1 WHERE a=_utf8'a';
+a
+a
+SELECT * FROM t1 WHERE a='a' AND a=_utf8'a';
+a
+a
+DROP TABLE t1;
+SET NAMES utf8;
+#
 # End of MariaDB-10.1 tests
 #

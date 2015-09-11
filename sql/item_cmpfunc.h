@@ -2053,12 +2053,6 @@ class Item_equal: public Item_bool_func
   */
   bool cond_true;
   /* 
-    compare_as_dates=TRUE <-> constants equal to fields from equal_items
-    must be compared as datetimes and not as strings.
-    compare_as_dates can be TRUE only if with_const=TRUE 
-  */
-  bool compare_as_dates;
-  /* 
     The comparator used to compare constants equal to fields from equal_items
     as datetimes. The comparator is used only if compare_as_dates=TRUE
   */
@@ -2080,7 +2074,7 @@ public:
   Item_equal(THD *thd, Item_equal *item_equal);
   /* Currently the const item is always the first in the list of equal items */
   inline Item* get_const() { return with_const ? equal_items.head() : NULL; }
-  void add_const(THD *thd, Item *c, Item *f = NULL);
+  void add_const(THD *thd, Item *c);
   /** Add a non-constant item to the multiple equality */
   void add(Item *f, MEM_ROOT *root) { equal_items.push_back(f, root); }
   bool contains(Field *field);
@@ -2110,7 +2104,8 @@ public:
   Item *transform(THD *thd, Item_transformer transformer, uchar *arg);
   virtual void print(String *str, enum_query_type query_type);
   Item_result compare_type() const { return cmp.compare_type(); }
-  CHARSET_INFO *compare_collation() const;
+  CHARSET_INFO *compare_collation() const
+  { return cmp.cmp_collation.collation; }
 
   void set_context_field(Item_field *ctx_field) { context_field= ctx_field; }
   void set_link_equal_fields(bool flag) { link_equal_fields= flag; }

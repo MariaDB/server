@@ -349,6 +349,19 @@ SELECT * FROM t1 WHERE a='a' AND LENGTH(a)=2;
 EXPLAIN EXTENDED SELECT * FROM t1 WHERE a='a' AND LENGTH(a)=2;
 DROP TABLE t1;
 
+--echo #
+--echo # MDEV-8712 Wrong result for SELECT..WHERE latin1_bin_column=_latin1'a' AND latin1_bin_column='A'
+--echo #
+SET NAMES latin1;
+CREATE TABLE t1 (a VARCHAR(20) COLLATE latin1_bin);
+INSERT INTO t1 VALUES ('a'),('b');
+SELECT * FROM t1 WHERE a='A';
+SELECT * FROM t1 WHERE a='A' AND a=_latin1'a';
+SELECT * FROM t1 WHERE a=_latin1'a' AND a='A';
+SELECT * FROM t1 WHERE a=_latin1'A';
+SELECT * FROM t1 WHERE a=_latin1'A' AND a=_latin1'a';
+SELECT * FROM t1 WHERE a=_latin1'a' AND a=_latin1'A';
+DROP TABLE t1;
 
 --echo #
 --echo # End of 10.1 tests

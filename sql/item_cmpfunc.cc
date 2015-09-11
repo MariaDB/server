@@ -5920,7 +5920,7 @@ Item_equal::Item_equal(THD *thd, Item *f1, Item *f2, bool with_const_item):
   with_const= with_const_item;
   equal_items.push_back(f1, thd->mem_root);
   equal_items.push_back(f2, thd->mem_root);
-  compare_as_dates= with_const_item && f2->cmp_type() == TIME_RESULT;
+  cmp.cmp_collation.set(f2->collation);
   cmp.set_compare_type(item_cmp_type(f1, f2));
   upper_levels= NULL;
 }
@@ -5950,7 +5950,7 @@ Item_equal::Item_equal(THD *thd, Item_equal *item_equal):
     equal_items.push_back(item, thd->mem_root);
   }
   with_const= item_equal->with_const;
-  compare_as_dates= item_equal->compare_as_dates;
+  cmp.cmp_collation.set(item_equal->cmp.cmp_collation);
   cmp.set_compare_type(item_equal->cmp.compare_type());
   cond_false= item_equal->cond_false;
   upper_levels= item_equal->upper_levels;
@@ -5971,41 +5971,85 @@ Item_equal::Item_equal(THD *thd, Item_equal *item_equal):
   the list. Otherwise the value of c is compared with the value of the
   constant item from equal_items. If they are not equal cond_false is set
   to TRUE. This serves as an indicator that this Item_equal is always FALSE.
-  The optional parameter f is used to adjust the flag compare_as_dates.
 */
 
-void Item_equal::add_const(THD *thd, Item *c, Item *f)
+void Item_equal::add_const(THD *thd, Item *c)
 {
   if (cond_false)
     return;
   if (!with_const)
   {
     with_const= TRUE;
-    if (f)
-      compare_as_dates= f->cmp_type() == TIME_RESULT;
     equal_items.push_front(c, thd->mem_root);
     return;
   }
   Item *const_item= get_const();
-  if (compare_as_dates)
-  {
-    cmp.set_datetime_cmp_func(this, &c, &const_item);
-    cond_false= cmp.compare();
-  }
-  else
-  {
-    Item_func_eq *func= new (thd->mem_root) Item_func_eq(thd, c, const_item);
-    if (func->set_cmp_func())
+  switch (cmp.compare_type()) {
+  case TIME_RESULT:
     {
-      /*
-        Setting a comparison function fails when trying to compare
-        incompatible charsets. Charset compatibility is checked earlier,
-        except for constant subqueries where we may do it here.
-      */
-      return;
+      cmp.set_datetime_cmp_func(this, &c, &const_item);
+      cond_false= cmp.compare();
+      break;
     }
-    func->quick_fix_field();
-    cond_false= !func->val_int();
+  case STRING_RESULT:
+    {
+      String *str1, *str2;
+      /*
+        Suppose we have an expression (with a string type field) like this:
+          WHERE field=const1 AND field=const2 ...
+
+        For all pairs field=constXXX we know that:
+
+        - Item_func_eq::fix_length_and_dec() performed collation and character
+        set aggregation and added character set converters when needed.
+        Note, the case like:
+          WHERE field=const1 COLLATE latin1_bin AND field=const2
+        is not handled here, because the field would be replaced to
+        Item_func_set_collation, which cannot get into Item_equal.
+        So all constXXX that are handled by Item_equal
+        already have compatible character sets with "field".
+
+        - Also, Field_str::test_if_equality_guarantees_uniqueness() guarantees
+        that the comparison collation of all equalities handled by Item_equal
+        match the the collation of the field.
+
+        Therefore, at Item_equal::add_const() time all constants constXXX
+        should be directly comparable to each other without an additional
+        character set conversion.
+        It's safe to do val_str() for "const_item" and "c" and compare
+        them according to the collation of the *field*.
+
+        So in a script like this:
+          CREATE TABLE t1 (a VARCHAR(10) COLLATE xxx);
+          INSERT INTO t1 VALUES ('a'),('A');
+          SELECT * FROM t1 WHERE a='a' AND a='A';
+        Item_equal::add_const() effectively rewrites the condition to:
+          SELECT * FROM t1 WHERE a='a' AND 'a' COLLATE xxx='A';
+        and then to:
+          SELECT * FROM t1 WHERE a='a'; // if the two constants were equal
+                                        // e.g. in case of latin1_swedish_ci
+        or to:
+          SELECT * FROM t1 WHERE FALSE; // if the two constants were not equal
+                                        // e.g. in case of latin1_bin
+
+        Note, both "const_item" and "c" can return NULL, e.g.:
+          SELECT * FROM t1 WHERE a=NULL    AND a='const';
+          SELECT * FROM t1 WHERE a='const' AND a=NULL;
+          SELECT * FROM t1 WHERE a='const' AND a=(SELECT MAX(a) FROM t2)
+      */
+      cond_false= !(str1= const_item->val_str(&cmp.value1)) ||
+                  !(str2= c->val_str(&cmp.value2)) ||
+                  !str1->eq(str2, compare_collation());
+      break;
+    }
+  default:
+    {
+      Item_func_eq *func= new (thd->mem_root) Item_func_eq(thd, c, const_item);
+      if (func->set_cmp_func())
+        return;
+      func->quick_fix_field();
+      cond_false= !func->val_int();
+    }
   }
   if (with_const && equal_items.elements == 1)
     cond_true= TRUE;
@@ -6479,14 +6523,6 @@ void Item_equal::print(String *str, enum_query_type query_type)
     item->print(str, query_type);
   }
   str->append(')');
-}
-
-
-CHARSET_INFO *Item_equal::compare_collation() const
-{ 
-  Item_equal_fields_iterator it(*((Item_equal*) this));
-  Item *item= it++;
-  return item->collation.collation;
 }
 
 
