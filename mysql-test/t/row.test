@@ -285,3 +285,21 @@ SELECT i FROM t1 WHERE ROW(1,2) = (SELECT 1,3 FROM DUAL WHERE 1 = 0);
 DROP TABLE t1;
 
 --echo End of 5.1 tests
+
+--echo #
+--echo # Start of 10.1 tests
+--echo #
+
+--echo #
+--echo # MDEV-8709 Row equality elements do not get propagated
+--echo #
+CREATE TABLE t1 (a INT, b INT);
+INSERT INTO t1 VALUES (10,10),(20,20);
+# Checking that the a>=10 part gets optimized away in both scalar and row notations
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=10 AND b=10 AND a>=10;
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE (a,b)=(10,10) AND a>=10;
+DROP TABLE t1;
+
+--echo #
+--echo # End of 10.1 tests
+--echo #
