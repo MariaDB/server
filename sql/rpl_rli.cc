@@ -996,7 +996,6 @@ void Relay_log_info::inc_group_relay_log_pos(ulonglong log_pos,
       if (cmp < 0)
       {
         strcpy(group_master_log_name, rgi->future_event_master_log_name);
-        notify_group_master_log_name_update();
         group_master_log_pos= log_pos;
       }
       else if (group_master_log_pos < log_pos)
@@ -1218,7 +1217,8 @@ bool Relay_log_info::is_until_satisfied(THD *thd, Log_event *ev)
     if (ev && ev->server_id == (uint32) global_system_variables.server_id &&
         !replicate_same_server_id)
       DBUG_RETURN(FALSE);
-    log_name= group_master_log_name;
+    log_name= (opt_slave_parallel_threads > 0 ?
+               future_event_master_log_name : group_master_log_name);
     log_pos= ((!ev)? group_master_log_pos :
               (get_flag(IN_TRANSACTION) || !ev->log_pos) ?
               group_master_log_pos : ev->log_pos - ev->data_written);

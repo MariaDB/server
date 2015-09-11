@@ -95,7 +95,6 @@ handle_queued_pos_update(THD *thd, rpl_parallel_thread::queued_event *qev)
   if (cmp < 0)
   {
     strcpy(rli->group_master_log_name, qev->future_event_master_log_name);
-    rli->notify_group_master_log_name_update();
     rli->group_master_log_pos= qev->future_event_master_log_pos;
   }
   else if (cmp == 0
@@ -2065,6 +2064,7 @@ rpl_parallel::do_event(rpl_group_info *serial_rgi, Log_event *ev,
     {
       memcpy(rli->future_event_master_log_name,
              rev->new_log_ident, rev->ident_len+1);
+      rli->notify_group_master_log_name_update();
     }
   }
 
