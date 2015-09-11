@@ -12,5 +12,17 @@ EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=2010 AND a>=2010;
 DROP TABLE t1;
 
 --echo #
+--echo # MDEV-8369 Unexpected impossible WHERE for a condition on a ZEROFILL field
+--echo #
+CREATE TABLE t1 (a INT ZEROFILL);
+INSERT INTO t1 VALUES (128),(129);
+SELECT * FROM t1 WHERE a=128;
+SELECT * FROM t1 WHERE hex(a)='80';
+SELECT * FROM t1 WHERE a=128 AND hex(a)='80';
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE a=128 AND hex(a)='80';
+DROP TABLE t1;
+
+--echo #
 --echo # End of 10.1 tests
 --echo #

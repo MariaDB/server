@@ -4535,3 +4535,30 @@ set global max_allowed_packet=default;
 #
 # End of 5.6 tests
 #
+#
+# Start of 10.1 tests
+#
+#
+# MDEV-8369 Unexpected impossible WHERE for a condition on a ZEROFILL field
+#
+CREATE TABLE t1 (a BIGINT(20) ZEROFILL);
+INSERT INTO t1 VALUES (18446744073709551615),(0);
+SELECT * FROM t1 WHERE a=18446744073709551615;
+a
+18446744073709551615
+SELECT * FROM t1 WHERE FORMAT(a,0)='18,446,744,073,709,551,615';
+a
+18446744073709551615
+SELECT * FROM t1 WHERE a=18446744073709551615 AND FORMAT(a,0)='18,446,744,073,709,551,615';
+a
+18446744073709551615
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE a=18446744073709551615 AND FORMAT(a,0)='18,446,744,073,709,551,615';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where ((`test`.`t1`.`a` = 18446744073709551615) and (format(`test`.`t1`.`a`,0) = '18,446,744,073,709,551,615'))
+DROP TABLE t1;
+#
+# End of 10.1 tests
+#

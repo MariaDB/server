@@ -1373,41 +1373,12 @@ void Field_num::prepend_zeros(String *value) const
 }
 
 
-/**
-  Convert a numeric value to a zero-filled string
-
-  @param[in]  thd    current thread
-  @param[in]  item   the item to convert
-
-  This function converts a numeric value to a string. In this conversion
-  the zero-fill flag of the field is taken into account.
-  This is required so the resulting string value can be used instead of
-  the field reference when propagating equalities.
-*/
-
-Item *Field_num::convert_zerofill_number_to_string(THD *thd, Item *item) const
-{
-  char buff[MAX_FIELD_WIDTH],*pos;
-  String tmp(buff,sizeof(buff),Field_num::charset()), *res;
-
-  res= item->val_str(&tmp);
-  if (item->is_null())
-    return new (thd->mem_root) Item_null(thd);
-  else
-  {
-    prepend_zeros(res);
-    pos= (char *) sql_strmake (res->ptr(), res->length());
-    return new (thd->mem_root) Item_string(thd, pos, res->length(), Field_num::charset());
-  }
-}
-
-
 Item *Field_num::get_equal_zerofill_const_item(THD *thd, const Context &ctx,
                                                Item *const_item)
 {
   switch (ctx.subst_constraint()) {
   case IDENTITY_SUBST:
-    return convert_zerofill_number_to_string(thd, const_item);
+    return NULL; // Not safe to propagate if not in comparison. See MDEV-8369.
   case ANY_SUBST:
     break;
   }

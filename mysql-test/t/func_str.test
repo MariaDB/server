@@ -1750,3 +1750,24 @@ set global max_allowed_packet=default;
 --echo #
 --echo # End of 5.6 tests
 --echo #
+
+--echo #
+--echo # Start of 10.1 tests
+--echo #
+
+--echo #
+--echo # MDEV-8369 Unexpected impossible WHERE for a condition on a ZEROFILL field
+--echo #
+CREATE TABLE t1 (a BIGINT(20) ZEROFILL);
+INSERT INTO t1 VALUES (18446744073709551615),(0);
+SELECT * FROM t1 WHERE a=18446744073709551615;
+SELECT * FROM t1 WHERE FORMAT(a,0)='18,446,744,073,709,551,615';
+SELECT * FROM t1 WHERE a=18446744073709551615 AND FORMAT(a,0)='18,446,744,073,709,551,615';
+# This should not propagate the equality into FORMAT()
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE a=18446744073709551615 AND FORMAT(a,0)='18,446,744,073,709,551,615';
+DROP TABLE t1;
+
+--echo #
+--echo # End of 10.1 tests
+--echo #

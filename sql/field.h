@@ -1207,7 +1207,7 @@ protected:
 
 class Field_num :public Field {
 protected:
-  Item *convert_zerofill_number_to_string(THD *thd, Item *item) const;
+  void prepend_zeros(String *value) const;
   Item *get_equal_zerofill_const_item(THD *thd, const Context &ctx,
                                       Item *const_item);
 public:
@@ -1221,7 +1221,6 @@ public:
   enum Derivation derivation(void) const { return DERIVATION_NUMERIC; }
   uint repertoire(void) const { return MY_REPERTOIRE_NUMERIC; }
   CHARSET_INFO *charset(void) const { return &my_charset_numeric; }
-  void prepend_zeros(String *value) const;
   Item *get_equal_const_item(THD *thd, const Context &ctx, Item *const_item)
   {
     return (flags & ZEROFILL_FLAG) ?
