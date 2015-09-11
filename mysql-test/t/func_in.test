@@ -606,3 +606,16 @@ EXECUTE s;
 DROP TABLE t1;
 
 --echo # End of 5.3 tests
+
+--echo #
+--echo # MDEV-8755 Equal field propagation is not performed any longer for the IN list when multiple comparison types
+--echo #
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1),(2);
+--echo # Ok to propagate equalities into the left IN argument in case of a single comparison type
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=1 AND a IN (1,2,3);
+--echo # Ok to propagate equalities into IN () list, even if multiple comparison types
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=1 AND 1 IN (1,a,'3');
+--echo # Not Ok to propagate equalities into the left IN argument in case of multiple comparison types
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=1 AND a IN (1,2,'3');
+DROP TABLE t1;

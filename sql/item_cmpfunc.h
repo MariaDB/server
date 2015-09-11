@@ -1438,18 +1438,18 @@ public:
   Item* propagate_equal_fields(THD *thd, const Context &ctx, COND_EQUAL *cond)
   {
     /*
-      TODO: enable propagation of the args[i>0] arguments even if
-      !arg_types_compatible. See MDEV-8755.
       Note, we pass ANY_SUBST, this makes sure that non of the args
       will be replaced to a zero-filled Item_string.
       Such a change would require rebuilding of cmp_items.
     */
-    if (arg_types_compatible)
-      Item_args::propagate_equal_fields(thd,
-                                        Context(ANY_SUBST,
-                                                m_compare_type,
-                                                compare_collation()),
-                                        cond);
+    Context cmpctx(ANY_SUBST, m_compare_type,
+                   Item_func_in::compare_collation());
+    for (uint i= 0; i < arg_count; i++)
+    {
+      if (arg_types_compatible || i > 0)
+        args[i]->propagate_equal_fields_and_change_item_tree(thd, cmpctx,
+                                                             cond, &args[i]);
+    }
     return this;
   }
   virtual void print(String *str, enum_query_type query_type);
