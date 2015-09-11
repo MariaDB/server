@@ -993,7 +993,6 @@ void Relay_log_info::inc_group_relay_log_pos(ulonglong log_pos,
       if (cmp < 0)
       {
         strcpy(group_master_log_name, rgi->future_event_master_log_name);
-        notify_group_master_log_name_update();
         group_master_log_pos= log_pos;
       }
       else if (group_master_log_pos < log_pos)
@@ -1209,7 +1208,8 @@ bool Relay_log_info::is_until_satisfied(my_off_t master_beg_pos)
 
   if (until_condition == UNTIL_MASTER_POS)
   {
-    log_name= group_master_log_name;
+    log_name= (mi->using_parallel() ?
+               future_event_master_log_name : group_master_log_name);
     log_pos= master_beg_pos;
   }
   else
