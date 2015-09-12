@@ -161,4 +161,27 @@ DROP USER very_long_user_name_number_1, very_long_user_name_number_2, even_longe
 DROP PROCEDURE test.pr;
 
 set sql_mode=default;
+
+#
+# Enforce storage engine option should not effect mysql_upgrade
+#
+--echo # Droping the previously created mysql_upgrade_info file..
+--remove_file $MYSQLD_DATADIR/mysql_upgrade_info
+
+create table test.t1(a int) engine=MyISAM;
+--echo # Trying to enforce InnoDB for all tables
+SET GLOBAL enforce_storage_engine=InnoDB;
+
+--replace_result $MYSQLTEST_VARDIR var
+--exec $MYSQL_UPGRADE --force 2>&1
+
+--echo # Should return 2
+SELECT count(*) FROM information_schema.tables where ENGINE="InnoDB";
+SHOW CREATE TABLE test.t1;
+DROP TABLE test.t1;
+# mysql_upgrade must have created mysql_upgrade_info file,
+# so the following command should never fail.
+--remove_file $MYSQLD_DATADIR/mysql_upgrade_info
+SET GLOBAL enforce_storage_engine=NULL;
+
 --echo End of tests
