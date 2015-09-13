@@ -3348,6 +3348,7 @@ public:
   }
   enum_field_types field_type() const { return MYSQL_TYPE_DATE; }
   void print(String *str, enum_query_type query_type);
+  Item *clone_item(THD *thd);
   bool get_date(MYSQL_TIME *res, ulonglong fuzzy_date);
 };
 
@@ -3366,6 +3367,7 @@ public:
   }
   enum_field_types field_type() const { return MYSQL_TYPE_TIME; }
   void print(String *str, enum_query_type query_type);
+  Item *clone_item(THD *thd);
   bool get_date(MYSQL_TIME *res, ulonglong fuzzy_date);
 };
 
@@ -3386,6 +3388,7 @@ public:
   }
   enum_field_types field_type() const { return MYSQL_TYPE_DATETIME; }
   void print(String *str, enum_query_type query_type);
+  Item *clone_item(THD *thd);
   bool get_date(MYSQL_TIME *res, ulonglong fuzzy_date);
 };
 

@@ -577,5 +577,13 @@ DROP TABLE t1;
 SET timestamp=DEFAULT;
 
 --echo #
+--echo # MDEV-8795 Equal expression propagation does not work for temporal literals
+--echo #
+CREATE TABLE t1 (a TIME);
+INSERT INTO t1 VALUES ('00:00:01'),('00:00:02');
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE COALESCE(a)=TIME'00:00:01' AND COALESCE(a)>=TIME'00:00:01';
+DROP TABLE t1;
+
+--echo #
 --echo # End of 10.1 tests
 --echo #

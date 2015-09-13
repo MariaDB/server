@@ -6430,6 +6430,12 @@ void Item_date_literal::print(String *str, enum_query_type query_type)
 }
 
 
+Item *Item_date_literal::clone_item(THD *thd)
+{
+  return new (thd->mem_root) Item_date_literal(thd, &cached_time);
+}
+
+
 bool Item_date_literal::get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date)
 {
   DBUG_ASSERT(fixed);
@@ -6450,6 +6456,12 @@ void Item_datetime_literal::print(String *str, enum_query_type query_type)
 }
 
 
+Item *Item_datetime_literal::clone_item(THD *thd)
+{
+  return new (thd->mem_root) Item_datetime_literal(thd, &cached_time, decimals);
+}
+
+
 bool Item_datetime_literal::get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date)
 {
   DBUG_ASSERT(fixed);
@@ -6467,6 +6479,12 @@ void Item_time_literal::print(String *str, enum_query_type query_type)
   my_time_to_str(&cached_time, buf, decimals);
   str->append(buf);
   str->append('\'');
+}
+
+
+Item *Item_time_literal::clone_item(THD *thd)
+{
+  return new (thd->mem_root) Item_time_literal(thd, &cached_time, decimals);
 }
 
 

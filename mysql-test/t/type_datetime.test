@@ -656,5 +656,13 @@ SET sql_mode=DEFAULT;
 --source include/equal_fields_propagation_datetime.inc
 
 --echo #
+--echo # MDEV-8795 Equal expression propagation does not work for temporal literals
+--echo #
+CREATE TABLE t1 (a DATETIME);
+INSERT INTO t1 VALUES ('2001-01-01 00:00:00'),('2001-01-02 00:00:00');
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE COALESCE(a)=TIMESTAMP'2001-01-01 00:00:00' AND COALESCE(a)>=TIMESTAMP'2001-01-01 00:00:00';
+DROP TABLE t1;
+
+--echo #
 --echo # End of 10.1 tests
 --echo #
