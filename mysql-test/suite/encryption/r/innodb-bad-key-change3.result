@@ -1,0 +1,44 @@
+call mtr.add_suppression("InnoDB: Table .* tablespace is set as discarded");
+SET GLOBAL innodb_file_format = `Barracuda`;
+SET GLOBAL innodb_file_per_table = ON;
+set global innodb_compression_algorithm = 1;
+CREATE TABLE t1 (pk INT PRIMARY KEY, f VARCHAR(255)) ENGINE=InnoDB PAGE_COMPRESSED=1 ENCRYPTED=YES ENCRYPTION_KEY_ID=4;
+SHOW WARNINGS;
+Level	Code	Message
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `pk` int(11) NOT NULL,
+  `f` varchar(255) DEFAULT NULL,
+  PRIMARY KEY (`pk`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 `PAGE_COMPRESSED`=1 `ENCRYPTED`=YES `ENCRYPTION_KEY_ID`=4
+INSERT INTO t1 VALUES (1,'foobar'),(2,'barfoo');
+FLUSH TABLE t1 FOR EXPORT;
+# List before copying files
+t1.cfg
+t1.frm
+t1.ibd
+UNLOCK TABLES;
+# Tablespaces should be still encrypted
+# t1 yes on expecting NOT FOUND
+NOT FOUND /foobar/ in t1.ibd
+ALTER TABLE t1 DISCARD TABLESPACE;
+SET GLOBAL innodb_file_format = `Barracuda`;
+SET GLOBAL innodb_file_per_table = ON;
+# List after t1 DISCARD
+t1.frm
+ALTER TABLE t1 IMPORT TABLESPACE;
+ERROR HY000: Got error 192 'Table encrypted but decryption failed. This could be because correct encryption management plugin is not loaded, used encryption key is not available or encryption method does not match.' from InnoDB
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `pk` int(11) NOT NULL,
+  `f` varchar(255) DEFAULT NULL,
+  PRIMARY KEY (`pk`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 `PAGE_COMPRESSED`=1 `ENCRYPTED`=YES `ENCRYPTION_KEY_ID`=4
+SELECT * FROM t1;
+ERROR HY000: Tablespace has been discarded for table 't1'
+# Tablespaces should be still encrypted
+# t1 yes on expecting NOT FOUND
+NOT FOUND /foobar/ in t1.ibd
+DROP TABLE t1;

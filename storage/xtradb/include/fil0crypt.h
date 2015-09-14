@@ -211,7 +211,10 @@ fil_space_decrypt(
 	fil_space_crypt_t*	crypt_data,	/*!< in: crypt data */
 	byte*			tmp_frame,	/*!< in: temporary buffer */
 	ulint			page_size,	/*!< in: page size */
-	byte*			src_frame);	/*!< in:out: page buffer */
+	byte*			src_frame,	/*!< in:out: page buffer */
+	dberr_t*		err);		/*!< in: out: DB_SUCCESS or
+						error code */
+
 
 /*********************************************************************
 Encrypt buffer page

@@ -714,11 +714,15 @@ fil_space_decrypt(
 	fil_space_crypt_t*	crypt_data,	/*!< in: crypt data */
 	byte*			tmp_frame,	/*!< in: temporary buffer */
 	ulint			page_size,	/*!< in: page size */
-	byte*			src_frame)	/*!< in:out: page buffer */
+	byte*			src_frame,	/*!< in: out: page buffer */
+	dberr_t*		err)		/*!< in: out: DB_SUCCESS or
+						error code */
 {
 	ulint page_type = mach_read_from_2(src_frame+FIL_PAGE_TYPE);
 	uint key_version = mach_read_from_4(src_frame + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION);
 	bool page_compressed = (page_type == FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED);
+
+	*err = DB_SUCCESS;
 
 	if (key_version == ENCRYPTION_KEY_NOT_ENCRYPTED) {
 		return false;
@@ -756,6 +760,12 @@ fil_space_decrypt(
 					   space, offset, lsn);
 
 	if (! ((rc == MY_AES_OK) && ((ulint) dstlen == srclen))) {
+
+		if (rc == -1) {
+			*err = DB_DECRYPTION_FAILED;
+			return false;
+		}
+
 		ib_logf(IB_LOG_LEVEL_FATAL,
 			"Unable to decrypt data-block "
 			" src: %p srclen: %ld buf: %p buflen: %d."
@@ -797,11 +807,14 @@ fil_space_decrypt(
 	ulint		page_size,	/*!< in: page size */
 	byte*		src_frame)	/*!< in/out: page buffer */
 {
+	dberr_t err = DB_SUCCESS;
+
 	bool encrypted = fil_space_decrypt(
 				fil_space_get_crypt_data(space),
 				tmp_frame,
 				page_size,
-				src_frame);
+				src_frame,
+				&err);
 
 	if (encrypted) {
 		/* Copy the decrypted page back to page buffer, not

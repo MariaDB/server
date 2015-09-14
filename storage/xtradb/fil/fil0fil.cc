@@ -6482,6 +6482,7 @@ fil_iterate(
 		if ((iter.crypt_data != NULL && iter.crypt_data->encryption == FIL_SPACE_ENCRYPTION_ON) ||
 				(srv_encrypt_tables &&
 					iter.crypt_data && iter.crypt_data->encryption == FIL_SPACE_ENCRYPTION_DEFAULT)) {
+
 			encrypted = true;
 			readptr = iter.crypt_io_buffer;
 			writeptr = iter.crypt_io_buffer;
@@ -6501,6 +6502,7 @@ fil_iterate(
 
 		for (ulint i = 0; i < n_pages_read; ++i) {
 			ulint size = iter.page_size;
+			dberr_t	err = DB_SUCCESS;
 
 			/* If tablespace is encrypted, we need to decrypt
 			the page. */
@@ -6509,10 +6511,14 @@ fil_iterate(
 							iter.crypt_data,
 							io_buffer + i * size, //dst
 							iter.page_size,
-							readptr + i * size); // src
+							readptr + i * size, // src
+							&err); // src
+
+				if (err != DB_SUCCESS) {
+					return(err);
+				}
 
 				if (decrypted) {
-					/* write back unencrypted page */
 					updated = true;
 				} else {
 					/* TODO: remove unnecessary memcpy's */
@@ -6522,7 +6528,6 @@ fil_iterate(
 
 			buf_block_set_file_page(block, space_id, page_no++);
 
-			dberr_t	err;
 
 			if ((err = callback(page_off, block)) != DB_SUCCESS) {
 
