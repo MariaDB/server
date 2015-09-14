@@ -624,7 +624,7 @@ handle_new_error:
 	case DB_INTERRUPTED:
 	case DB_DICT_CHANGED:
 	case DB_TABLE_NOT_FOUND:
-	case DB_ENCRYPTED_DECRYPT_FAILED:
+	case DB_DECRYPTION_FAILED:
 		if (savept) {
 			/* Roll back the latest, possibly incomplete insertion
 			or update */
@@ -1318,12 +1318,12 @@ row_insert_for_mysql(
 
 		return(DB_TABLESPACE_NOT_FOUND);
 	} else if (prebuilt->table->is_encrypted) {
-		ib_push_warning(trx, DB_ENCRYPTED_DECRYPT_FAILED,
+		ib_push_warning(trx, DB_DECRYPTION_FAILED,
 			"Table %s in tablespace %lu encrypted."
 			"However key management plugin or used key_id is not found or"
 			" used encryption algorithm or method does not match.",
 			prebuilt->table->name, prebuilt->table->space);
-		return(DB_ENCRYPTED_DECRYPT_FAILED);
+		return(DB_DECRYPTION_FAILED);
 	} else if (prebuilt->magic_n != ROW_PREBUILT_ALLOCATED) {
 		fprintf(stderr,
 			"InnoDB: Error: trying to free a corrupt\n"
@@ -1719,7 +1719,7 @@ row_update_for_mysql(
 			prebuilt->table->name);
 		return(DB_ERROR);
 	} else if (prebuilt->table->is_encrypted) {
-		ib_push_warning(trx, DB_ENCRYPTED_DECRYPT_FAILED,
+		ib_push_warning(trx, DB_DECRYPTION_FAILED,
 			"Table %s in tablespace %lu encrypted."
 			"However key management plugin or used key_id is not found or"
 			" used encryption algorithm or method does not match.",
@@ -3139,6 +3139,8 @@ row_discard_tablespace_for_mysql(
 
 	if (table == 0) {
 		err = DB_TABLE_NOT_FOUND;
+	} else if (table->is_encrypted) {
+		err = DB_DECRYPTION_FAILED;
 	} else if (table->space == TRX_SYS_SPACE) {
 		char	table_name[MAX_FULL_NAME_LEN + 1];
 
@@ -3357,6 +3359,8 @@ row_truncate_table_for_mysql(
 
 	if (dict_table_is_discarded(table)) {
 		return(DB_TABLESPACE_DELETED);
+	} else if (table->is_encrypted) {
+		return(DB_DECRYPTION_FAILED);
 	} else if (table->ibd_file_missing) {
 		return(DB_TABLESPACE_NOT_FOUND);
 	}
@@ -3935,7 +3939,7 @@ row_drop_table_for_mysql(
 	}
 
 	/* If table is encrypted and table page encryption failed
-	mark this table read only. */
+	return error. */
 	if (table->is_encrypted) {
 
 		if (table->can_be_evicted) {
@@ -3943,7 +3947,7 @@ row_drop_table_for_mysql(
 		}
 
 		dict_table_close(table, TRUE, FALSE);
-		err = DB_READ_ONLY;
+		err = DB_DECRYPTION_FAILED;
 		goto funct_exit;
 	}
 

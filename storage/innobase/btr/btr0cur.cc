@@ -614,9 +614,9 @@ retry_page_get:
 		file, line, mtr, &err);
 
 	if (err != DB_SUCCESS) {
-		if (err == DB_ENCRYPTED_DECRYPT_FAILED) {
+		if (err == DB_DECRYPTION_FAILED) {
 			ib_push_warning((void *)NULL,
-				DB_ENCRYPTED_DECRYPT_FAILED,
+				DB_DECRYPTION_FAILED,
 				"Table %s is encrypted but encryption service or"
 				" used key_id is not available. "
 				" Can't continue reading table.",
@@ -917,9 +917,9 @@ btr_cur_open_at_index_side_func(
 					 RW_NO_LATCH, NULL, BUF_GET,
 					 file, line, mtr, &err);
 		if (err != DB_SUCCESS) {
-			if (err == DB_ENCRYPTED_DECRYPT_FAILED) {
+			if (err == DB_DECRYPTION_FAILED) {
 				ib_push_warning((void *)NULL,
-					DB_ENCRYPTED_DECRYPT_FAILED,
+					DB_DECRYPTION_FAILED,
 					"Table %s is encrypted but encryption service or"
 					" used key_id is not available. "
 					" Can't continue reading table.",
@@ -1074,9 +1074,9 @@ btr_cur_open_at_rnd_pos_func(
 					 file, line, mtr, &err);
 
 		if (err != DB_SUCCESS) {
-			if (err == DB_ENCRYPTED_DECRYPT_FAILED) {
+			if (err == DB_DECRYPTION_FAILED) {
 				ib_push_warning((void *)NULL,
-					DB_ENCRYPTED_DECRYPT_FAILED,
+					DB_DECRYPTION_FAILED,
 					"Table %s is encrypted but encryption service or"
 					" used key_id is not available. "
 					" Can't continue reading table.",
@@ -3630,9 +3630,9 @@ btr_estimate_n_rows_in_range_on_level(
 					 __FILE__, __LINE__, &mtr, &err);
 
 		if (err != DB_SUCCESS) {
-			if (err == DB_ENCRYPTED_DECRYPT_FAILED) {
+			if (err == DB_DECRYPTION_FAILED) {
 				ib_push_warning((void *)NULL,
-					DB_ENCRYPTED_DECRYPT_FAILED,
+					DB_DECRYPTION_FAILED,
 					"Table %s is encrypted but encryption service or"
 					" used key_id is not available. "
 					" Can't continue reading table.",

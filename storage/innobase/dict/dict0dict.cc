@@ -1151,8 +1151,28 @@ dict_table_open_on_name(
 
 	if (table != NULL) {
 
-		/* If table is corrupted, return NULL */
+		/* If table is encrypted return table */
 		if (ignore_err == DICT_ERR_IGNORE_NONE
+			&& table->is_encrypted) {
+			/* Make life easy for drop table. */
+			if (table->can_be_evicted) {
+				dict_table_move_from_lru_to_non_lru(table);
+			}
+
+			if (table->can_be_evicted) {
+				dict_move_to_mru(table);
+			}
+
+			++table->n_ref_count;
+
+			if (!dict_locked) {
+				mutex_exit(&dict_sys->mutex);
+			}
+
+			return (table);
+		}
+		/* If table is corrupted, return NULL */
+		else if (ignore_err == DICT_ERR_IGNORE_NONE
 		    && table->corrupted) {
 
 			/* Make life easy for drop table. */

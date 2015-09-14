@@ -44,11 +44,13 @@ EOF
 --enable_reconnect
 --source include/wait_until_connected_again.inc
 
---error 0,ER_NO_SUCH_TABLE_IN_ENGINE
+--error ER_GET_ERRMSG
 select * from t1;
---error 0,ER_NO_SUCH_TABLE_IN_ENGINE
+show warnings;
+--error ER_GET_ERRMSG
 alter table t1 discard tablespace;
---error ER_NO_SUCH_TABLE_IN_ENGINE
+show warnings;
+--error ER_GET_ERRMSG
 alter table t1 engine=InnoDB;
 show warnings;
 

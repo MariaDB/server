@@ -740,7 +740,7 @@ btr_root_block_get(
 		index->table->is_encrypted = TRUE;
 		index->table->corrupted = FALSE;
 
-		ib_push_warning(index->table->thd, DB_ENCRYPTED_DECRYPT_FAILED,
+		ib_push_warning(index->table->thd, DB_DECRYPTION_FAILED,
 			"Table %s in tablespace %lu is encrypted but encryption service or"
 			" used key_id is not available. "
 			" Can't continue reading table.",

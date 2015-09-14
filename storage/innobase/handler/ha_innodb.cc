@@ -1747,8 +1747,10 @@ convert_error_code_to_mysql(
 
 	case DB_TABLESPACE_DELETED:
 	case DB_TABLE_NOT_FOUND:
-	case DB_ENCRYPTED_DECRYPT_FAILED:
 		return(HA_ERR_NO_SUCH_TABLE);
+
+	case DB_DECRYPTION_FAILED:
+		return(HA_ERR_DECRYPTION_FAILED);
 
 	case DB_TABLESPACE_NOT_FOUND:
 		return(HA_ERR_NO_SUCH_TABLE);
@@ -5641,6 +5643,7 @@ table_opened:
 	if (!thd_tablespace_op(thd) && no_tablespace) {
 		free_share(share);
 		my_errno = ENOENT;
+		int ret_err = HA_ERR_NO_SUCH_TABLE;
 
 		/* If table has no talespace but it has crypt data, check
 		is tablespace made unaccessible because encryption service
@@ -5653,25 +5656,27 @@ table_opened:
 
 				if (!encryption_key_id_exists(crypt_data->key_id)) {
 					push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-						HA_ERR_NO_SUCH_TABLE,
+						HA_ERR_DECRYPTION_FAILED,
 						"Table %s is encrypted but encryption service or"
 						" used key_id %u is not available. "
 						" Can't continue reading table.",
 						ib_table->name, crypt_data->key_id);
+					ret_err = HA_ERR_DECRYPTION_FAILED;
 				}
 			} else if (ib_table->is_encrypted) {
 				push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-					HA_ERR_NO_SUCH_TABLE,
+					HA_ERR_DECRYPTION_FAILED,
 					"Table %s is encrypted but encryption service or"
 					" used key_id is not available. "
 					" Can't continue reading table.",
 					ib_table->name);
+				ret_err = HA_ERR_DECRYPTION_FAILED;
 			}
 		}
 
 		dict_table_close(ib_table, FALSE, FALSE);
 
-		DBUG_RETURN(HA_ERR_NO_SUCH_TABLE);
+		DBUG_RETURN(ret_err);
 	}
 
 	prebuilt = row_create_prebuilt(ib_table, table->s->stored_rec_length);
@@ -15517,8 +15522,13 @@ ha_innobase::get_error_message(
 {
 	trx_t*	trx = check_trx_exists(ha_thd());
 
-	buf->copy(trx->detailed_error, (uint) strlen(trx->detailed_error),
-		system_charset_info);
+	if (error == HA_ERR_DECRYPTION_FAILED) {
+		const char *msg = "Table encrypted but decryption failed. This could be because correct encryption management plugin is not loaded, used encryption key is not available or encryption method does not match.";
+		buf->copy(msg, (uint)strlen(msg), system_charset_info);
+	} else {
+		buf->copy(trx->detailed_error, (uint) strlen(trx->detailed_error),
+			system_charset_info);
+	}
 
 	return(FALSE);
 }
