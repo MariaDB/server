@@ -3,8 +3,8 @@
 # when MySQL's binlog is in effect rather than the Galera 'dummy' implementation.
 #
 
---source include/have_binlog_format_row.inc
 --source include/galera_cluster.inc
+--source include/have_innodb.inc
 
 CREATE TABLE t1 (f1 INT PRIMARY KEY) ENGINE=InnoDB;
 

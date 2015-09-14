@@ -17,6 +17,9 @@ server-id=1
 #ist_port=@OPT.port
 #sst_port=@OPT.port
 
+log-bin
+log-slave-updates
+
 innodb-autoinc-lock-mode=2
 default-storage-engine=innodb
 wsrep-provider=@ENV.WSREP_PROVIDER
@@ -35,6 +38,9 @@ server-id=2
 #galera_port=@OPT.port
 #ist_port=@OPT.port
 #sst_port=@OPT.port
+
+log-bin
+log-slave-updates
 
 innodb-autoinc-lock-mode=2
 default-storage-engine=innodb

@@ -42,6 +42,7 @@ push @::global_suppressions,
      qr|WSREP: Ignoring possible split-brain (allowed by configuration) from view:.*|,
      qr(WSREP: Could not find peer:),
      qr(WSREP: Protocol violation. JOIN message sender .*),
+     qr(WSREP: JOIN message from member [0-9]* in non-primary configuration. Ignored.),
    );
 
 

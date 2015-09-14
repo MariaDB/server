@@ -26,7 +26,7 @@ COUNT(*) = 1
 ALTER TABLE t1 ADD COLUMN f2 INTEGER;
 ALTER TABLE t1 DROP COLUMN f1;
 EXECUTE st1;
-ERROR HY000: Incorrect integer value: 'abc' for column 'f2' at row 1
+ERROR 22007: Incorrect integer value: 'abc' for column 'f2' at row 1
 DROP TABLE t1;
 DROP TABLE t2;
 DROP TABLE t3;

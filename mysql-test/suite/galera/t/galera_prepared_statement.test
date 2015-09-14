@@ -6,6 +6,7 @@
 #
 
 --source include/galera_cluster.inc
+--source include/have_innodb.inc
 
 CREATE TABLE t1 (f1 CHAR(5)) ENGINE=InnoDB;
 CREATE TABLE t2 (f1 CHAR(5)) ENGINE=InnoDB;
