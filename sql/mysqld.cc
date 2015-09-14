@@ -3049,7 +3049,7 @@ bool one_thread_per_connection_end(THD *thd, bool put_in_cache)
   set_current_thd(0);
 
 #ifdef WITH_WSREP
-  if (put_in_cache && cache_thread() && !wsrep_applier)
+  if (!wsrep_applier && put_in_cache && cache_thread())
 #else
   if (put_in_cache && cache_thread())
 #endif /* WITH_WSREP */
