@@ -2,7 +2,7 @@
 
 Copyright (c) 1994, 2013, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2014, SkySQL Ab. All Rights Reserved.
+Copyright (c) 2014, 2015, MariaDB Corporation. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -800,9 +800,9 @@ btr_index_rec_validate(
 	__attribute__((nonnull, warn_unused_result));
 /**************************************************************//**
 Checks the consistency of an index tree.
-@return	TRUE if ok */
+@return	DB_SUCCESS if ok, error code if not */
 UNIV_INTERN
-bool
+dberr_t
 btr_validate_index(
 /*===============*/
 	dict_index_t*	index,			/*!< in: index */

@@ -5159,18 +5159,20 @@ node_ptr_fails:
 
 /**************************************************************//**
 Checks the consistency of an index tree.
-@return	TRUE if ok */
+@return	DB_SUCCESS if ok, error code if not */
 UNIV_INTERN
-bool
+dberr_t
 btr_validate_index(
 /*===============*/
 	dict_index_t*	index,	/*!< in: index */
 	const trx_t*	trx)	/*!< in: transaction or NULL */
 {
+	dberr_t err = DB_SUCCESS;
+
 	/* Full Text index are implemented by auxiliary tables,
 	not the B-tree */
 	if (dict_index_is_online_ddl(index) || (index->type & DICT_FTS)) {
-		return(true);
+		return(err);
 	}
 
 	mtr_t		mtr;
@@ -5179,13 +5181,18 @@ btr_validate_index(
 
 	mtr_x_lock(dict_index_get_lock(index), &mtr);
 
-	bool	ok = true;
 	page_t*	root = btr_root_get(index, &mtr);
+
+	if (root == NULL && index->table->is_encrypted) {
+		err = DB_DECRYPTION_FAILED;
+		mtr_commit(&mtr);
+		return err;
+	}
 
 	SRV_CORRUPT_TABLE_CHECK(root,
 	{
 		mtr_commit(&mtr);
-		return(FALSE);
+		return(DB_CORRUPTION);
 	});
 
 	ulint	n = btr_page_get_level(root, &mtr);
@@ -5193,14 +5200,14 @@ btr_validate_index(
 	for (ulint i = 0; i <= n; ++i) {
 
 		if (!btr_validate_level(index, trx, n - i)) {
-			ok = false;
+			err = DB_CORRUPTION;
 			break;
 		}
 	}
 
 	mtr_commit(&mtr);
 
-	return(ok);
+	return(err);
 }
 
 /**************************************************************//**

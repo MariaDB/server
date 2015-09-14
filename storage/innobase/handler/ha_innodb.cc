@@ -13512,7 +13512,7 @@ ha_innobase::check(
 				server_mutex,
                                 srv_fatal_semaphore_wait_threshold,
 				SRV_SEMAPHORE_WAIT_EXTENSION);
-			bool valid = btr_validate_index(index, prebuilt->trx);
+			dberr_t err = btr_validate_index(index, prebuilt->trx);
 
 			/* Restore the fatal lock wait timeout after
 			CHECK TABLE. */
@@ -13521,19 +13521,33 @@ ha_innobase::check(
                                 srv_fatal_semaphore_wait_threshold,
 				SRV_SEMAPHORE_WAIT_EXTENSION);
 
-			if (!valid) {
+			if (err != DB_SUCCESS) {
 				is_ok = false;
 
 				innobase_format_name(
 					index_name, sizeof index_name,
 					index->name, TRUE);
-				push_warning_printf(
-					thd,
-					Sql_condition::WARN_LEVEL_WARN,
-					ER_NOT_KEYFILE,
-					"InnoDB: The B-tree of"
-					" index %s is corrupted.",
-					index_name);
+
+				if (err == DB_DECRYPTION_FAILED) {
+					push_warning_printf(
+						thd,
+						Sql_condition::WARN_LEVEL_WARN,
+						ER_NO_SUCH_TABLE,
+						"Table %s is encrypted but encryption service or"
+						" used key_id is not available. "
+						" Can't continue checking table.",
+
+						index->table->name);
+				} else {
+					push_warning_printf(
+						thd,
+						Sql_condition::WARN_LEVEL_WARN,
+						ER_NOT_KEYFILE,
+						"InnoDB: The B-tree of"
+						" index %s is corrupted.",
+						index_name);
+				}
+
 				continue;
 			}
 		}
