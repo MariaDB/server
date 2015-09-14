@@ -904,7 +904,7 @@ The following options may be given as the first argument:
  --show-slave-auth-info 
  Show user and password in SHOW SLAVE HOSTS on this
  master.
- --skip-bdb          Deprecated option; Exist only for compatiblity with old
+ --skip-bdb          Deprecated option; Exist only for compatibility with old
  my.cnf files
  --skip-grant-tables Start without grant tables. This gives all users FULL
  ACCESS to all tables.
