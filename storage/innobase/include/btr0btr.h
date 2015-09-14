@@ -273,7 +273,7 @@ btr_block_get_func(
 @return the block descriptor */
 #  define btr_block_get(space,zip_size,page_no,mode,index,mtr)	\
 	btr_block_get_func(space,zip_size,page_no,mode,		\
-			   __FILE__,__LINE__,(dict_index_t*)index,mtr)
+			   __FILE__,__LINE__,index,mtr)
 # else /* UNIV_SYNC_DEBUG */
 /** Gets a buffer page and declares its latching order level.
 @param space	tablespace identifier
@@ -285,7 +285,7 @@ btr_block_get_func(
 @return the block descriptor */
 #  define btr_block_get(space,zip_size,page_no,mode,idx,mtr)		\
 		btr_block_get_func(space,zip_size,page_no,mode, \
-			__FILE__,__LINE__,(dict_index_t*)idx,mtr)
+			__FILE__,__LINE__,idx,mtr)
 # endif /* UNIV_SYNC_DEBUG */
 /** Gets a buffer page and declares its latching order level.
 @param space	tablespace identifier
@@ -297,7 +297,7 @@ btr_block_get_func(
 @return the uncompressed page frame */
 # define btr_page_get(space,zip_size,page_no,mode,idx,mtr)		\
 	buf_block_get_frame(btr_block_get(space,zip_size,page_no, \
-			mode,(dict_index_t*)idx,mtr))
+			mode,idx,mtr))
 #endif /* !UNIV_HOTBACKUP */
 /**************************************************************//**
 Gets the index id field of a page.
@@ -825,7 +825,7 @@ Removes a page from the level list of pages.
 @param index	in: index tree
 @param mtr	in/out: mini-transaction */
 # define btr_level_list_remove(space,zip_size,page,index,mtr)		\
-	btr_level_list_remove_func(space,zip_size,page,mtr)
+	btr_level_list_remove_func(space,zip_size,page,index,mtr)
 #endif /* UNIV_SYNC_DEBUG */
 
 /*************************************************************//**
@@ -838,11 +838,8 @@ btr_level_list_remove_func(
 	ulint			zip_size,/*!< in: compressed page size in bytes
 					or 0 for uncompressed pages */
 	page_t*			page,	/*!< in/out: page to remove */
-#ifdef UNIV_SYNC_DEBUG
-	const dict_index_t*	index,	/*!< in: index tree */
-#endif /* UNIV_SYNC_DEBUG */
-	mtr_t*			mtr)	/*!< in/out: mini-transaction */
-	__attribute__((nonnull));
+	dict_index_t*		index,	/*!< in: index tree */
+	mtr_t*			mtr);	/*!< in/out: mini-transaction */
 
 /*************************************************************//**
 If page is the only on its level, this function moves its records to the

@@ -734,7 +734,7 @@ btr_root_block_get(
 	zip_size = dict_table_zip_size(index->table);
 	root_page_no = dict_index_get_page(index);
 
-	block = btr_block_get(space, zip_size, root_page_no, mode, index, mtr);
+	block = btr_block_get(space, zip_size, root_page_no, mode, (dict_index_t*)index, mtr);
 
 	if (!block) {
 		index->table->is_encrypted = TRUE;
@@ -876,7 +876,7 @@ btr_root_adjust_on_import(
 			return(DB_CORRUPTION););
 
 	block = btr_block_get(
-		space_id, zip_size, root_page_no, RW_X_LATCH, index, &mtr);
+		space_id, zip_size, root_page_no, RW_X_LATCH, (dict_index_t*)index, &mtr);
 
 	page = buf_block_get_frame(block);
 	page_zip = buf_block_get_page_zip(block);
@@ -3500,9 +3500,7 @@ btr_level_list_remove_func(
 	ulint			zip_size,/*!< in: compressed page size in bytes
 					or 0 for uncompressed pages */
 	page_t*			page,	/*!< in/out: page to remove */
-#ifdef UNIV_SYNC_DEBUG
-	const dict_index_t*	index,	/*!< in: index tree */
-#endif /* UNIV_SYNC_DEBUG */
+	dict_index_t*		index,	/*!< in: index tree */
 	mtr_t*			mtr)	/*!< in/out: mini-transaction */
 {
 	ulint	prev_page_no;
