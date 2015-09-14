@@ -262,10 +262,8 @@ btr_block_get_func(
 	ulint		mode,		/*!< in: latch mode */
 	const char*	file,		/*!< in: file name */
 	ulint		line,		/*!< in: line where called */
-# ifdef UNIV_SYNC_DEBUG
-	const dict_index_t*	index,	/*!< in: index tree, may be NULL
+	dict_index_t*	index,		/*!< in: index tree, may be NULL
 					if it is not an insert buffer tree */
-# endif /* UNIV_SYNC_DEBUG */
 	mtr_t*		mtr);		/*!< in/out: mini-transaction */
 # ifdef UNIV_SYNC_DEBUG
 /** Gets a buffer page and declares its latching order level.
@@ -278,7 +276,7 @@ btr_block_get_func(
 @return the block descriptor */
 #  define btr_block_get(space,zip_size,page_no,mode,index,mtr)	\
 	btr_block_get_func(space,zip_size,page_no,mode,		\
-			   __FILE__,__LINE__,index,mtr)
+			   __FILE__,__LINE__,(dict_index_t*)index,mtr)
 # else /* UNIV_SYNC_DEBUG */
 /** Gets a buffer page and declares its latching order level.
 @param space	tablespace identifier
@@ -289,7 +287,8 @@ btr_block_get_func(
 @param mtr	mini-transaction handle
 @return the block descriptor */
 #  define btr_block_get(space,zip_size,page_no,mode,idx,mtr)		\
-	btr_block_get_func(space,zip_size,page_no,mode,__FILE__,__LINE__,mtr)
+		btr_block_get_func(space,zip_size,page_no,mode, \
+			__FILE__,__LINE__,(dict_index_t*)idx,mtr)
 # endif /* UNIV_SYNC_DEBUG */
 /** Gets a buffer page and declares its latching order level.
 @param space	tablespace identifier
@@ -300,7 +299,8 @@ btr_block_get_func(
 @param mtr	mini-transaction handle
 @return the uncompressed page frame */
 # define btr_page_get(space,zip_size,page_no,mode,idx,mtr)		\
-	buf_block_get_frame(btr_block_get(space,zip_size,page_no,mode,idx,mtr))
+	buf_block_get_frame(btr_block_get(space,zip_size,page_no, \
+			mode,(dict_index_t*)idx,mtr))
 #endif /* !UNIV_HOTBACKUP */
 /**************************************************************//**
 Gets the index id field of a page.

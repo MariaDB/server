@@ -12676,21 +12676,29 @@ ha_innobase::defragment_table(
 	const char*	index_name,	/*!< in: index name */
 	bool		async)		/*!< in: whether to wait until finish */
 {
-	char    norm_name[FN_REFLEN];
-	dict_table_t* table;
-	dict_index_t* index;
+	char		norm_name[FN_REFLEN];
+	dict_table_t*	table = NULL;
+	dict_index_t*	index = NULL;
 	ibool		one_index = (index_name != 0);
 	int		ret = 0;
+	dberr_t		err = DB_SUCCESS;
+
 	if (!srv_defragment) {
 		return ER_FEATURE_DISABLED;
 	}
+
 	normalize_table_name(norm_name, name);
+
 	table = dict_table_open_on_name(norm_name, FALSE,
 		FALSE, DICT_ERR_IGNORE_NONE);
+
 	for (index = dict_table_get_first_index(table); index;
 	     index = dict_table_get_next_index(index)) {
-		if (one_index && strcasecmp(index_name, index->name) != 0)
+
+		if (one_index && strcasecmp(index_name, index->name) != 0) {
 			continue;
+		}
+
 		if (btr_defragment_find_index(index)) {
 			// We borrow this error code. When the same index is
 			// already in the defragmentation queue, issue another
@@ -12705,7 +12713,23 @@ ha_innobase::defragment_table(
 			ret = ER_SP_ALREADY_EXISTS;
 			break;
 		}
-		os_event_t event = btr_defragment_add_index(index, async);
+
+		os_event_t event = btr_defragment_add_index(index, async, &err);
+
+		if (err != DB_SUCCESS) {
+			push_warning_printf(
+				current_thd,
+				Sql_condition::WARN_LEVEL_WARN,
+				ER_NO_SUCH_TABLE,
+				"Table %s is encrypted but encryption service or"
+				" used key_id is not available. "
+				" Can't continue checking table.",
+				index->table->name);
+
+			ret = convert_error_code_to_mysql(err, 0, current_thd);
+			break;
+		}
+
 		if (!async && event) {
 			while(os_event_wait_time(event, 1000000)) {
 				if (thd_killed(current_thd)) {
@@ -12716,18 +12740,23 @@ ha_innobase::defragment_table(
 			}
 			os_event_free(event);
 		}
+
 		if (ret) {
 			break;
 		}
+
 		if (one_index) {
 			one_index = FALSE;
 			break;
 		}
 	}
+
 	dict_table_close(table, FALSE, FALSE);
+
 	if (ret == 0 && one_index) {
 		ret = ER_NO_SUCH_INDEX;
 	}
+
 	return ret;
 }
 
@@ -14065,7 +14094,6 @@ ha_innobase::check(
 						"Table %s is encrypted but encryption service or"
 						" used key_id is not available. "
 						" Can't continue checking table.",
-
 						index->table->name);
 				} else {
 					push_warning_printf(
