@@ -18,32 +18,30 @@ ERROR HY000: Can't initialize function 'Json_Array_Add'; Json_Array_Add must hav
 SELECT Json_Array_Add(Json_Array(56,3.1416,'foo',NULL),'One more') Array;
 Array
 [56,3.141600,"foo",null,"One more"]
-SELECT Json_Array_Add(Json_Value('one value'),'One more');
-Json_Array_Add(Json_Value('one value'),'One more')
-NULL
-Warnings:
-Warning	1105	First argument is not an array
+SELECT Json_Array_Add(JsonValue('one value'),'One more');
+ERROR HY000: Can't initialize function 'Json_Array_Add'; Json_Array_Add first argument must be a json item
 SELECT Json_Array_Add('one value','One more');
 ERROR HY000: Can't initialize function 'Json_Array_Add'; Json_Array_Add first argument must be a json item
 SELECT Json_Array_Add('one value' json_,'One more');
 Json_Array_Add('one value' json_,'One more')
 NULL
 Warnings:
-Warning	1105	Unexpected character 'o' near one value
+Warning	1105	Error 2 opening one value
+Warning	1105	Void JSON object
 Warning	1105	First argument is not an array
-SELECT Json_Value(56,3.1416,'foo',NULL);
-ERROR HY000: Can't initialize function 'Json_Value'; Json_Value cannot accept more than 1 argument
-SELECT Json_Value(3.1416);
-Json_Value(3.1416)
+SELECT JsonValue(56,3.1416,'foo',NULL);
+ERROR HY000: Can't initialize function 'JsonValue'; JsonValue cannot accept more than 1 argument
+SELECT JsonValue(3.1416);
+JsonValue(3.1416)
 3.141600
-SELECT Json_Value('foo');
-Json_Value('foo')
+SELECT JsonValue('foo');
+JsonValue('foo')
 "foo"
-SELECT Json_Value(NULL);
-Json_Value(NULL)
+SELECT JsonValue(NULL);
+JsonValue(NULL)
 null
-SELECT Json_Value();
-Json_Value()
+SELECT JsonValue();
+JsonValue()
 null
 SELECT Json_Object();
 Json_Object()
@@ -165,6 +163,6 @@ DROP FUNCTION Json_Array;
 DROP FUNCTION Json_Array_Add;
 DROP FUNCTION Json_Object;
 DROP FUNCTION Json_Object_Nonull;
-DROP FUNCTION Json_Value;
+DROP FUNCTION JsonValue;
 DROP FUNCTION Json_Array_Grp;
 DROP FUNCTION Json_Object_Grp;

@@ -169,9 +169,9 @@
 #define JSONMAX      10             // JSON Default max grp size
 
 extern "C" {
-       char  version[]= "Version 1.04.0001 June 29, 2015";
+       char version[]= "Version 1.04.0003 September 15, 2015";
 #if defined(__WIN__)
-       char  compver[]= "Version 1.04.0001 " __DATE__ " "  __TIME__;
+       char compver[]= "Version 1.04.0003 " __DATE__ " "  __TIME__;
        char slash= '\\';
 #else   // !__WIN__
        char slash= '/';
@@ -2544,12 +2544,10 @@ PFIL ha_connect::CondFilter(PGLOBAL g, Item *cond)
         if (!i && (ismul))
           return NULL;
 
-        if ((res= pval->val_str(&tmp)) == NULL)
-          return NULL;                      // To be clarified
-
-        switch (args[i]->real_type()) {
+				switch (args[i]->real_type()) {
           case COND::STRING_ITEM:
-            pp->Value= PlugSubAllocStr(g, NULL, res->ptr(), res->length());
+						res= pval->val_str(&tmp);
+						pp->Value= PlugSubAllocStr(g, NULL, res->ptr(), res->length());
             pp->Type= (pp->Value) ? TYPE_STRING : TYPE_ERROR;
             break;
           case COND::INT_ITEM:
@@ -2578,8 +2576,8 @@ PFIL ha_connect::CondFilter(PGLOBAL g, Item *cond)
             return NULL;
           } // endswitch type
 
-        if (trace)
-          htrc("Value=%.*s\n", res->length(), res->ptr());
+				if (trace)
+          htrc("Value type=%hd\n", pp->Type);
 
         // Append the value to the argument list
         if (pprec)
@@ -6722,7 +6720,7 @@ maria_declare_plugin(connect)
   0x0104,                                       /* version number (1.04) */
   NULL,                                         /* status variables */
   connect_system_variables,                     /* system variables */
-  "1.04.0001",                                  /* string version */
+  "1.04.0003",                                  /* string version */
   MariaDB_PLUGIN_MATURITY_BETA                  /* maturity */
 }
 maria_declare_plugin_end;

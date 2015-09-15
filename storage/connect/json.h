@@ -162,7 +162,8 @@ class JSON : public BLOCK {
   virtual double GetFloat() {X return 0.0;}
   virtual PSZ    GetString() {X return NULL;}
   virtual PSZ    GetText(PGLOBAL g, PSZ text) {X return NULL;}
-  virtual bool   SetValue(PGLOBAL g, PJVAL jvp, int i) {X return true;}
+	virtual bool   Merge(PGLOBAL g, PJSON jsp) { X return true; }
+	virtual bool   SetValue(PGLOBAL g, PJVAL jvp, int i) { X return true; }
   virtual void   SetValue(PGLOBAL g, PJVAL jvp, PSZ key) {X}
   virtual void   SetValue(PVAL valp) {X}
   virtual void   SetValue(PJSON jsp) {X}
@@ -197,7 +198,8 @@ class JOBJECT : public JSON {
   virtual PJVAL GetValue(const char* key);
 	virtual PJAR  GetKeyList(PGLOBAL g);
 	virtual PSZ   GetText(PGLOBAL g, PSZ text);
-  virtual void  SetValue(PGLOBAL g, PJVAL jvp, PSZ key);
+	virtual bool  Merge(PGLOBAL g, PJSON jsp);
+	virtual void  SetValue(PGLOBAL g, PJVAL jvp, PSZ key);
 	virtual void  DeleteKey(char *k);
 	virtual bool  IsNull(void);
 
@@ -222,7 +224,8 @@ class JARRAY : public JSON {
   virtual PJVAL AddValue(PGLOBAL g, PJVAL jvp = NULL, int *x = NULL);
   virtual void  InitArray(PGLOBAL g);
   virtual PJVAL GetValue(int i);
-  virtual bool  SetValue(PGLOBAL g, PJVAL jvp, int i);
+	virtual bool  Merge(PGLOBAL g, PJSON jsp);
+	virtual bool  SetValue(PGLOBAL g, PJVAL jvp, int i);
   virtual bool  DeleteValue(int n);
   virtual bool  IsNull(void);
 

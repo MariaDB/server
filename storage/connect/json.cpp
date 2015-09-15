@@ -943,11 +943,29 @@ PSZ JOBJECT::GetText(PGLOBAL g, PSZ text)
 } // end of GetValue;
 
 /***********************************************************************/
+/* Merge two objects.                                                  */
+/***********************************************************************/
+bool JOBJECT::Merge(PGLOBAL g, PJSON jsp)
+{
+	if (jsp->GetType() != TYPE_JOB) {
+		strcpy(g->Message, "Second argument is not an object");
+		return true;
+	}	// endif Type
+
+	PJOB jobp = (PJOB)jsp;
+
+	for (PJPR jpp = jobp->First; jpp; jpp = jpp->Next)
+		SetValue(g, jpp->GetVal(), jpp->GetKey());
+
+	return false;
+} // end of Marge;
+
+/***********************************************************************/
 /* Set or add a value corresponding to the given key.                  */
 /***********************************************************************/
 void JOBJECT::SetValue(PGLOBAL g, PJVAL jvp, PSZ key)
 {
-  PJPR jp;
+	PJPR jp;
 
   for (jp = First; jp; jp = jp->Next)
     if (!strcmp(jp->Key, key)) {
@@ -1062,6 +1080,25 @@ PJVAL JARRAY::AddValue(PGLOBAL g, PJVAL jvp, int *x)
 
   return jvp;
 } // end of AddValue
+
+/***********************************************************************/
+/* Merge two arrays.                                                   */
+/***********************************************************************/
+bool JARRAY::Merge(PGLOBAL g, PJSON jsp)
+{
+	if (jsp->GetType() != TYPE_JAR) {
+		strcpy(g->Message, "Second argument is not an array");
+		return true;
+	}	// endif Type
+
+	PJAR arp = (PJAR)jsp;
+
+	for (int i = 0; i < jsp->size(); i++)
+		AddValue(g, arp->GetValue(i));
+
+	InitArray(g);
+	return false;
+} // end of Merge
 
 /***********************************************************************/
 /* Set the nth Value of the Array Value list.                          */

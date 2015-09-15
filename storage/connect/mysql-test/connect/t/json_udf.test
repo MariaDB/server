@@ -15,16 +15,17 @@ SELECT Json_Array(56,3.1416,'My name is "Foo"',NULL);
 --error ER_CANT_INITIALIZE_UDF
 SELECT Json_Array_Add(Json_Array(56,3.1416,'foo',NULL)) Array;
 SELECT Json_Array_Add(Json_Array(56,3.1416,'foo',NULL),'One more') Array;
-SELECT Json_Array_Add(Json_Value('one value'),'One more');
+--error ER_CANT_INITIALIZE_UDF
+SELECT Json_Array_Add(JsonValue('one value'),'One more');
 --error ER_CANT_INITIALIZE_UDF
 SELECT Json_Array_Add('one value','One more');
 SELECT Json_Array_Add('one value' json_,'One more');
 --error ER_CANT_INITIALIZE_UDF
-SELECT Json_Value(56,3.1416,'foo',NULL);
-SELECT Json_Value(3.1416);
-SELECT Json_Value('foo');
-SELECT Json_Value(NULL);
-SELECT Json_Value();
+SELECT JsonValue(56,3.1416,'foo',NULL);
+SELECT JsonValue(3.1416);
+SELECT JsonValue('foo');
+SELECT JsonValue(NULL);
+SELECT JsonValue();
 SELECT Json_Object();
 SELECT Json_Object(Json_Array(56,3.1416,'foo'),NULL);
 SELECT Json_Array(Json_Array(56,3.1416,'foo'),NULL);
@@ -82,7 +83,7 @@ DROP FUNCTION Json_Array;
 DROP FUNCTION Json_Array_Add;
 DROP FUNCTION Json_Object;
 DROP FUNCTION Json_Object_Nonull;
-DROP FUNCTION Json_Value;
+DROP FUNCTION JsonValue;
 DROP FUNCTION Json_Array_Grp;
 DROP FUNCTION Json_Object_Grp;
 
