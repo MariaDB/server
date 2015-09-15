@@ -1671,13 +1671,22 @@ btr_cur_pessimistic_insert(
 				btr_cur_get_page_zip(cursor),
 				thr_get_trx(thr)->id, mtr);
 		}
-		if (!page_rec_is_infimum(btr_cur_get_rec(cursor))
-		    || btr_page_get_prev(
-			buf_block_get_frame(
-				btr_cur_get_block(cursor)), mtr)
-		       == FIL_NULL) {
+
+		if (!page_rec_is_infimum(btr_cur_get_rec(cursor))) {
 			/* split and inserted need to call
 			lock_update_insert() always. */
+			inherit = TRUE;
+		}
+
+		buf_block_t* block = btr_cur_get_block(cursor);
+		buf_frame_t* frame = NULL;
+
+		if (block) {
+			frame = buf_block_get_frame(block);
+		}
+		/* split and inserted need to call
+		lock_update_insert() always. */
+		if (frame &&  btr_page_get_prev(frame, mtr) == FIL_NULL) {
 			inherit = TRUE;
 		}
 	}

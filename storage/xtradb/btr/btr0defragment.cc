@@ -220,8 +220,12 @@ btr_defragment_add_index(
 
 	mtr_start(&mtr);
 	// Load index rood page.
-	page_t* page = btr_page_get(space, zip_size, page_no,
-				    RW_NO_LATCH, index, &mtr);
+	buf_block_t* block = btr_block_get(space, zip_size, page_no, RW_NO_LATCH, index, &mtr);
+	page_t* page = NULL;
+
+	if (block) {
+		page = buf_block_get_frame(block);
+	}
 
 	if (page == NULL && index->table->is_encrypted) {
 		mtr_commit(&mtr);

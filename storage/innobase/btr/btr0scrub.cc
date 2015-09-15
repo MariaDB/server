@@ -750,9 +750,13 @@ btr_scrub_page(
 	mtr_t* mtr)               /*!< in: mtr */
 {
 	/* recheck if page needs scrubbing (knowing allocation status) */
-	int needs_scrubbing = btr_page_needs_scrubbing(
-		scrub_data, block, allocated);
-	if (needs_scrubbing != BTR_SCRUB_PAGE) {
+	int needs_scrubbing = BTR_SCRUB_SKIP_PAGE_AND_CLOSE_TABLE;
+
+	if (block) {
+		btr_page_needs_scrubbing(scrub_data, block, allocated);
+	}
+
+	if (!block || needs_scrubbing != BTR_SCRUB_PAGE) {
 		mtr_commit(mtr);
 		return needs_scrubbing;
 	}
@@ -784,7 +788,12 @@ btr_scrub_page(
 		return BTR_SCRUB_SKIP_PAGE_AND_CLOSE_TABLE;
 	}
 
-	if (btr_page_get_index_id(buf_block_get_frame(block)) !=
+	buf_frame_t* frame = NULL;
+
+	if (block) {
+		frame = buf_block_get_frame(block);
+	}
+	if (!frame || btr_page_get_index_id(frame) !=
 	    scrub_data->current_index->id) {
 		/* page has been reallocated to new index */
 		mtr_commit(mtr);
