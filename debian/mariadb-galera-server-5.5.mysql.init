@@ -179,8 +179,15 @@ case "${1:-''}" in
 	fi
   	;;
 
+  'bootstrap')
+	# Bootstrap the cluster, start the first node
+	# that initiates the cluster
+	log_daemon_msg "Bootstrapping the cluster" "mysqld"
+	$SELF start "${@:2}" --wsrep-new-cluster
+	;;
+
   *)
-	echo "Usage: $SELF start|stop|restart|reload|force-reload|status"
+	echo "Usage: $SELF start|stop|restart|reload|force-reload|status|bootstrap"
 	exit 1
 	;;
 esac
