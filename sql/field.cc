@@ -10434,16 +10434,14 @@ Create_field::Create_field(THD *thd, Field *old_field, Field *orig_field)
     if (!default_now)                           // Give a constant default
     {
       /* Get the value from default_values */
-      my_ptrdiff_t diff= orig_field->table->default_values_offset();
-      orig_field->move_field_offset(diff);	// Points now at default_values
-      if (!orig_field->is_real_null())
+      const uchar *dv= orig_field->table->s->default_values;
+      if (!orig_field->is_null_in_record(dv))
       {
         StringBuffer<MAX_FIELD_WIDTH> tmp(charset);
-        String *res= orig_field->val_str(&tmp);
+        String *res= orig_field->val_str(&tmp, orig_field->ptr_in_record(dv));
         char *pos= (char*) sql_strmake(res->ptr(), res->length());
         def= new (thd->mem_root) Item_string(thd, pos, res->length(), charset);
       }
-      orig_field->move_field_offset(-diff);	// Back to record[0]
     }
   }
 }

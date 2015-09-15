@@ -16571,20 +16571,17 @@ create_tmp_table(THD *thd, TMP_TABLE_PARAM *param, List<Item> &fields,
          inherit the default value that is defined for the field referred
          by the Item_field object from which 'field' has been created.
       */
-      my_ptrdiff_t diff;
-      Field *orig_field= default_field[i];
+      const Field *orig_field= default_field[i];
       /* Get the value from default_values */
-      diff= (my_ptrdiff_t) (orig_field->table->s->default_values-
-                            orig_field->table->record[0]);
-      orig_field->move_field_offset(diff);      // Points now at default_values
-      if (orig_field->is_real_null())
+      if (orig_field->is_null_in_record(orig_field->table->s->default_values))
         field->set_null();
       else
       {
         field->set_notnull();
-        memcpy(field->ptr, orig_field->ptr, field->pack_length());
+        memcpy(field->ptr,
+               orig_field->ptr_in_record(orig_field->table->s->default_values),
+               field->pack_length());
       }
-      orig_field->move_field_offset(-diff);     // Back to record[0]
     } 
 
     if (from_field[i])
