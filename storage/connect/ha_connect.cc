@@ -2486,9 +2486,10 @@ PFIL ha_connect::CondFilter(PGLOBAL g, Item *cond)
         if (!i && (ismul))
           return NULL;
 
-        switch (args[i]->real_type()) {
+				switch (args[i]->real_type()) {
           case COND::STRING_ITEM:
-            pp->Value= PlugSubAllocStr(g, NULL, res->ptr(), res->length());
+						res= pval->val_str(&tmp);
+						pp->Value= PlugSubAllocStr(g, NULL, res->ptr(), res->length());
             pp->Type= (pp->Value) ? TYPE_STRING : TYPE_ERROR;
             break;
           case COND::INT_ITEM:
@@ -2517,12 +2518,8 @@ PFIL ha_connect::CondFilter(PGLOBAL g, Item *cond)
             return NULL;
           } // endswitch type
 
-				// This was moved because cannot be done for FUNC_ITEM
-				if ((res= pval->val_str(&tmp)) == NULL)
-					return NULL;                      // To be clarified
-
 				if (trace)
-          htrc("Value=%.*s\n", res->length(), res->ptr());
+          htrc("Value type=%hd\n", pp->Type);
 
         // Append the value to the argument list
         if (pprec)
