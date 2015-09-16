@@ -5293,6 +5293,9 @@ static int init_server_components()
   if (default_tmp_storage_engine && !*default_tmp_storage_engine)
     default_tmp_storage_engine= NULL;
 
+  if (enforced_storage_engine && !*enforced_storage_engine)
+    enforced_storage_engine= NULL;
+
   if (init_default_storage_engine(default_tmp_storage_engine, tmp_table_plugin))
     unireg_abort(1);
 
