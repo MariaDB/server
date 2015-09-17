@@ -175,6 +175,8 @@ b''	0+b''
 select x'', 0+x'';
 x''	0+x''
 	0
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: ''
 select 0x;
 ERROR 42S22: Unknown column '0x' in 'field list'
 select 0b;

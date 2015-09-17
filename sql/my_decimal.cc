@@ -239,9 +239,9 @@ int my_decimal2binary(uint mask, const my_decimal *d, uchar *bin, int prec,
 */
 
 int str2my_decimal(uint mask, const char *from, uint length,
-                   CHARSET_INFO *charset, my_decimal *decimal_value)
+                   CHARSET_INFO *charset, my_decimal *decimal_value,
+                   const char **end_ptr)
 {
-  char *end, *from_end;
   int err;
   char buff[STRING_BUFFER_USUAL_SIZE];
   String tmp(buff, sizeof(buff), &my_charset_bin);
@@ -253,20 +253,11 @@ int str2my_decimal(uint mask, const char *from, uint length,
     length=  tmp.length();
     charset= &my_charset_bin;
   }
-  from_end= end= (char*) from+length;
+  char *end= (char*) from + length;
   err= string2decimal((char *)from, (decimal_t*) decimal_value, &end);
-  if (end != from_end && !err)
-  {
-    /* Give warning if there is something other than end space */
-    for ( ; end < from_end; end++)
-    {
-      if (!my_isspace(&my_charset_latin1, *end))
-      {
-        err= E_DEC_TRUNCATED;
-        break;
-      }
-    }
-  }
+  if (charset->mbminlen > 1)
+    end= (char *) from + charset->mbminlen * (size_t) (end - buff);
+  *end_ptr= end;
   check_result_and_overflow(mask, err, decimal_value);
   return err;
 }

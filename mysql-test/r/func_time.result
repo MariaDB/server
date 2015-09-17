@@ -1714,6 +1714,7 @@ min(timestampadd(month, 1>'', from_days('%Z')))
 NULL
 Warnings:
 Warning	1292	Truncated incorrect INTEGER value: '%Z'
+Warning	1292	Truncated incorrect DOUBLE value: ''
 Warning	1292	Incorrect datetime value: '0000-00-00'
 create table t1(a time);
 insert into t1 values ('00:00:00'),('00:01:00');

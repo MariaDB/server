@@ -476,8 +476,13 @@ CREATE TABLE t1(f1 LONGTEXT) engine=myisam;
 INSERT INTO t1 VALUES ('a');
 SELECT 1 FROM (SELECT ROUND(f1) AS a FROM t1) AS s WHERE a LIKE 'a';
 1
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: 'a'
 SELECT 1 FROM (SELECT ROUND(f1, f1) AS a FROM t1) AS s WHERE a LIKE 'a';
 1
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: 'a'
+Warning	1292	Truncated incorrect INTEGER value: 'a'
 DROP TABLE t1;
 End of 5.0 tests
 SELECT 1e308 + 1e308;

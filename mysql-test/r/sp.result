@@ -7102,7 +7102,7 @@ CAST('10 ' as UNSIGNED INTEGER)
 1
 Warnings:
 Warning	1265	Data truncated for column 'a' at row 1
-Warning	1292	Truncated incorrect INTEGER value: '10 '
+Note	1292	Truncated incorrect INTEGER value: '10 '
 DROP PROCEDURE p1;
 DROP PROCEDURE IF EXISTS p1;
 DROP PROCEDURE IF EXISTS p2;
@@ -7128,7 +7128,7 @@ CAST('10 ' as UNSIGNED INTEGER)
 2
 2
 Warnings:
-Warning	1292	Truncated incorrect INTEGER value: '10 '
+Note	1292	Truncated incorrect INTEGER value: '10 '
 DROP PROCEDURE p1;
 DROP PROCEDURE p2;
 DROP PROCEDURE p3;

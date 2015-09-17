@@ -5081,13 +5081,15 @@ my_decimal *Item_dyncol_get::val_decimal(my_decimal *decimal_value)
     break;
   case DYN_COL_STRING:
   {
+    const char *end;
     int rc;
     rc= str2my_decimal(0, val.x.string.value.str, val.x.string.value.length,
-                       val.x.string.charset, decimal_value);
+                       val.x.string.charset, decimal_value, &end);
     char buff[80];
     strmake(buff, val.x.string.value.str, MY_MIN(sizeof(buff)-1,
                                             val.x.string.value.length));
-    if (rc != E_DEC_OK)
+    if (rc != E_DEC_OK ||
+        end != val.x.string.value.str + val.x.string.value.length)
     {
       THD *thd= current_thd;
       push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,

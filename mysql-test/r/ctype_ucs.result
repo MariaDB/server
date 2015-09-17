@@ -5340,7 +5340,7 @@ Warning	1292	Truncated incorrect INTEGER value: ''
 CREATE TABLE t1 (a DECIMAL(2,0));
 SET sql_mode='strict_all_tables';
 INSERT INTO t1 VALUES (CONVERT('9e99999999' USING ucs2));
-ERROR 22007: Incorrect decimal value: '9e99999999' for column 'a' at row 1
+ERROR 22003: Out of range value for column 'a' at row 1
 SET sql_mode=DEFAULT;
 INSERT INTO t1 VALUES (CONVERT('aaa' USING ucs2));
 Warnings:

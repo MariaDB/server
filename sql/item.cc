@@ -317,18 +317,8 @@ my_decimal *Item::val_decimal_from_string(my_decimal *decimal_value)
   if (!(res= val_str(&str_value)))
     return 0;
 
-  if (str2my_decimal(E_DEC_FATAL_ERROR & ~E_DEC_BAD_NUM,
-                     res->ptr(), res->length(), res->charset(),
-                     decimal_value) & E_DEC_BAD_NUM)
-  {
-    THD *thd= current_thd;
-    ErrConvString err(res);
-    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-                        ER_TRUNCATED_WRONG_VALUE,
-                        ER_THD(thd, ER_TRUNCATED_WRONG_VALUE), "DECIMAL",
-                        err.ptr());
-  }
-  return decimal_value;
+  return decimal_from_string_with_check(decimal_value,
+                                        res->charset(), res->ptr(), res->end());
 }
 
 
@@ -3028,33 +3018,6 @@ void Item_string::print(String *str, enum_query_type query_type)
 }
 
 
-double 
-double_from_string_with_check(CHARSET_INFO *cs, const char *cptr,
-                              const char *end)
-{
-  int error;
-  char *end_of_num= (char*) end;
-  double tmp;
-
-  tmp= my_strntod(cs, (char*) cptr, end - cptr, &end_of_num, &error);
-  if (error || (end != end_of_num &&
-                !check_if_only_end_space(cs, end_of_num, end)))
-  {
-    THD *thd= current_thd;
-    ErrConvString err(cptr, end - cptr, cs);
-    /*
-      We can use err.ptr() here as ErrConvString is guranteed to put an
-      end \0 here.
-    */
-    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-                        ER_TRUNCATED_WRONG_VALUE,
-                        ER_THD(thd, ER_TRUNCATED_WRONG_VALUE), "DOUBLE",
-                        err.ptr());
-  }
-  return tmp;
-}
-
-
 double Item_string::val_real()
 {
   DBUG_ASSERT(fixed == 1);
@@ -3062,34 +3025,6 @@ double Item_string::val_real()
                                        str_value.ptr(), 
                                        str_value.ptr() +
                                        str_value.length());
-}
-
-
-longlong 
-longlong_from_string_with_check(CHARSET_INFO *cs, const char *cptr,
-                                const char *end)
-{
-  int err;
-  longlong tmp;
-  char *end_of_num= (char*) end;
-  THD *thd= current_thd;
-
-  tmp= (*(cs->cset->strtoll10))(cs, cptr, &end_of_num, &err);
-  /*
-    TODO: Give error if we wanted a signed integer and we got an unsigned
-    one
-  */
-  if (!thd->no_errors &&
-      (err > 0 ||
-       (end != end_of_num && !check_if_only_end_space(cs, end_of_num, end))))
-  {
-    ErrConvString err_str(cptr, end - cptr, cs);
-    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-                        ER_TRUNCATED_WRONG_VALUE,
-                        ER_THD(thd, ER_TRUNCATED_WRONG_VALUE), "INTEGER",
-                        err_str.ptr());
-  }
-  return tmp;
 }
 
 

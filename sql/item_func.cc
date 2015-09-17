@@ -1137,11 +1137,8 @@ void Item_func_signed::print(String *str, enum_query_type query_type)
 
 longlong Item_func_signed::val_int_from_str(int *error)
 {
-  char buff[MAX_FIELD_WIDTH], *end, *start;
-  uint32 length;
+  char buff[MAX_FIELD_WIDTH];
   String tmp(buff,sizeof(buff), &my_charset_bin), *res;
-  longlong value;
-  CHARSET_INFO *cs;
 
   /*
     For a string result, we must first get the string and then convert it
@@ -1155,22 +1152,10 @@ longlong Item_func_signed::val_int_from_str(int *error)
     return 0;
   }
   null_value= 0;
-  start= (char *)res->ptr();
-  length= res->length();
-  cs= res->charset();
-
-  end= start + length;
-  value= cs->cset->strtoll10(cs, start, &end, error);
-  if (*error > 0 || end != start+ length)
-  {
-    THD *thd= current_thd;
-    ErrConvString err(res);
-    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-                        ER_TRUNCATED_WRONG_VALUE,
-                        ER_THD(thd, ER_TRUNCATED_WRONG_VALUE), "INTEGER",
-                        err.ptr());
-  }
-  return value;
+  Converter_strtoll10_with_warn cnv(NULL, Warn_filter_all(),
+                                    res->charset(), res->ptr(), res->length());
+  *error= cnv.error();
+  return cnv.result();
 }
 
 

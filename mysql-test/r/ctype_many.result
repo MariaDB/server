@@ -1694,6 +1694,7 @@ DO CONVERT(CAST(SUBSTRING_INDEX(FORMAT(1,'1111'), FORMAT('','Zpq'),1)
 AS BINARY(0)) USING utf8);
 Warnings:
 Warning	1292	Truncated incorrect INTEGER value: 'Zpq'
+Warning	1292	Truncated incorrect DOUBLE value: ''
 Warning	1292	Truncated incorrect BINARY(0) value: '1.'
 #
 # End of 5.1 tests
