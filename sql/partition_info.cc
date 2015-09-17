@@ -77,6 +77,41 @@ partition_info *partition_info::get_clone()
       part_clone->subpartitions.push_back(subpart_clone);
     }
     clone->partitions.push_back(part_clone);
+    part_clone->list_val_list.empty();
+    List_iterator<part_elem_value> list_val_it(part->list_val_list);
+    part_elem_value *new_val_arr=
+      (part_elem_value *)sql_alloc(sizeof(part_elem_value) *
+                                   part->list_val_list.elements);
+    if (!new_val_arr)
+    {
+      mem_alloc_error(sizeof(part_elem_value) * part->list_val_list.elements);
+      DBUG_RETURN(NULL);
+    }
+    p_column_list_val *new_colval_arr=
+      (p_column_list_val*)sql_alloc(sizeof(p_column_list_val) *
+                                    num_columns *
+                                    part->list_val_list.elements);
+    if (!new_colval_arr)
+    {
+      mem_alloc_error(sizeof(p_column_list_val) * num_columns *
+                      part->list_val_list.elements);
+      DBUG_RETURN(NULL);
+    }
+    part_elem_value *val;
+    while ((val= list_val_it++))
+    {
+      part_elem_value *new_val= new_val_arr++;
+      memcpy(new_val, val, sizeof(part_elem_value));
+      if (!val->null_value)
+      {
+        p_column_list_val *new_colval= new_colval_arr;
+        new_colval_arr+= num_columns;
+        memcpy(new_colval, val->col_val_array,
+               sizeof(p_column_list_val) * num_columns);
+        new_val->col_val_array= new_colval;
+      }
+      part_clone->list_val_list.push_back(new_val);
+    }
   }
   DBUG_RETURN(clone);
 }
