@@ -4,6 +4,7 @@
 -- source include/not_valgrind.inc
 # Avoid CrashReporter popup on Mac
 -- source include/not_crashrep.inc
+-- source filekeys_plugin_exists.inc
 #
 # MDEV-8769: Server crash at file btr0btr.ic line 122 when defragmenting encrypted table using incorrect keys
 #

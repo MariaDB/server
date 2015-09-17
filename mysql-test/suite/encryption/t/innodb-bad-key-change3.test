@@ -4,7 +4,7 @@
 -- source include/not_valgrind.inc
 # Avoid CrashReporter popup on Mac
 -- source include/not_crashrep.inc
-
+-- source filekeys_plugin_exists.inc
 #
 # MDEV-8772: Assertion failure in file ha_innodb.cc line 20027 when importing page compressed and encrypted tablespace using incorrect keys
 #
