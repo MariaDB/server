@@ -243,21 +243,21 @@ int str2my_decimal(uint mask, const char *from, uint length,
                    const char **end_ptr)
 {
   int err;
-  char buff[STRING_BUFFER_USUAL_SIZE];
-  String tmp(buff, sizeof(buff), &my_charset_bin);
   if (charset->mbminlen > 1)
   {
+    StringBuffer<STRING_BUFFER_USUAL_SIZE> tmp;
     uint dummy_errors;
     tmp.copy(from, length, charset, &my_charset_latin1, &dummy_errors);
-    from= tmp.ptr();
-    length=  tmp.length();
-    charset= &my_charset_bin;
+    char *end= (char*) tmp.end();
+    err= string2decimal(tmp.ptr(), (decimal_t*) decimal_value, &end);
+    *end_ptr= from + charset->mbminlen * (size_t) (end - tmp.ptr());
   }
-  char *end= (char*) from + length;
-  err= string2decimal((char *)from, (decimal_t*) decimal_value, &end);
-  if (charset->mbminlen > 1)
-    end= (char *) from + charset->mbminlen * (size_t) (end - buff);
-  *end_ptr= end;
+  else
+  {
+    char *end= (char*) from + length;
+    err= string2decimal(from, (decimal_t*) decimal_value, &end);
+    *end_ptr= end;
+  }
   check_result_and_overflow(mask, err, decimal_value);
   return err;
 }
