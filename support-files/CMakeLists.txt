@@ -76,7 +76,23 @@ IF(UNIX)
   INSTALL(PROGRAMS ${CMAKE_CURRENT_BINARY_DIR}/mysql.server
     DESTINATION ${inst_location} COMPONENT SupportFiles)
 
+  IF(SYSTEMD_SYSTEM_UNITDIR)
+    CONFIGURE_FILE(mariadb@.service.in ${CMAKE_CURRENT_BINARY_DIR}/mariadb@.service @ONLY)
+    # @ in directory name broken between CMake version 2.8.12.2 and 3.3
+    # http://public.kitware.com/Bug/view.php?id=14782
+    INSTALL(FILES
+      ${CMAKE_CURRENT_SOURCE_DIR}/mariadb-bootstrap.conf
+      DESTINATION "${SYSTEMD_SYSTEM_UNITDIR}/mariadb@bootstrap.service.d" COMPONENT Server
+    )
+    INSTALL(FILES
+      ${CMAKE_CURRENT_BINARY_DIR}/mariadb@.service
+      ${CMAKE_CURRENT_SOURCE_DIR}/mariadb.service
+      DESTINATION ${SYSTEMD_SYSTEM_UNITDIR} COMPONENT Server
+    )
+  ENDIF()
+
   IF (INSTALL_SYSCONFDIR)
+
     INSTALL(FILES ${CMAKE_CURRENT_BINARY_DIR}/mysql-log-rotate DESTINATION ${INSTALL_SYSCONFDIR}/logrotate.d
             RENAME mysql COMPONENT SupportFiles)
     INSTALL(PROGRAMS ${CMAKE_CURRENT_BINARY_DIR}/mysql.server

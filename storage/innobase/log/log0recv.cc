@@ -30,6 +30,8 @@ Created 9/20/1997 Heikki Tuuri
 #include <stdio.h>                              // Solaris/x86 header file bug
 
 #include <vector>
+#include <my_systemd.h>
+
 #include "log0recv.h"
 
 #ifdef UNIV_NONINL
@@ -1801,6 +1803,7 @@ recv_apply_hashed_log_recs(
 	recv_addr_t* recv_addr;
 	ulint	i;
 	ibool	has_printed	= FALSE;
+	ulong progress;
 	mtr_t	mtr;
 	dberr_t err = DB_SUCCESS;
 loop:
@@ -1871,14 +1874,15 @@ loop:
 			}
 		}
 
+		progress=(ulong) (i * 100) / hash_get_n_cells(recv_sys->addr_hash);
 		if (has_printed
-		    && (i * 100) / hash_get_n_cells(recv_sys->addr_hash)
-		    != ((i + 1) * 100)
-		    / hash_get_n_cells(recv_sys->addr_hash)) {
+		    && progress  != ((i + 1) * 100)
+                        / hash_get_n_cells(recv_sys->addr_hash)) {
 
-			fprintf(stderr, "%lu ", (ulong)
-				((i * 100)
-				 / hash_get_n_cells(recv_sys->addr_hash)));
+			fprintf(stderr, "%lu ", progress);
+			sd_notifyf(0, "STATUS=Applying batch of log records for Innodb: "
+                    "Progress %lu", progress);
+
 		}
 	}
 
@@ -1940,6 +1944,7 @@ loop:
 
 	if (has_printed) {
 		fprintf(stderr, "InnoDB: Apply batch completed\n");
+		sd_notify(0, "STATUS=InnoDB: Apply batch completed");
 	}
 
 	mutex_exit(&(recv_sys->mutex));
@@ -2089,8 +2094,11 @@ skip_this_recv_addr:
 			fprintf(stderr, "%lu ",
 				(ulong) ((100 * i) / n_hash_cells));
 			fflush(stderr);
+			sd_notifyf(0, "STATUS=Applying batch of log records for backup Innodb: "
+                    "Progress %lu", (ulong) (100 * i) / n_hash_cells);
 		}
 	}
+	sd_notify(0, "STATUS=InnoDB: Apply batch for backup completed");
 
 	recv_sys_empty_hash();
 }

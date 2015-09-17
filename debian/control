@@ -23,6 +23,7 @@ Build-Depends: bison,
                zlib1g-dev (>= 1:1.1.3-5~),
                ${MAYBE_LIBCRACK}
                libjemalloc-dev (>= 3.0.0~) [linux-any]
+               libsystemd-daemon-dev | libsystemd-dev, dh-systemd
 Standards-Version: 3.8.2
 Homepage: http://mariadb.org/
 Vcs-Git: https://github.com/MariaDB/server.git

@@ -180,6 +180,12 @@ install: build
 	install -m 0644 $(builddir)/Docs/INFO_SRC $(TMP)/usr/share/doc/mariadb-server-10.1/INFO_SRC
 	install -m 0644 $(builddir)/Docs/INFO_BIN $(TMP)/usr/share/doc/mariadb-server-10.1/INFO_BIN
 
+	# systemd helpers
+	install -m 0755 scripts/mariadb-service-convert $(TMP)/usr/bin/
+	install -d $(TMP)/etc/systemd/system/mariadb@bootstrap.service.d/
+	install -m 0644 $(BUILDDIR)/support-files/mariadb-bootstrap.conf \
+                        $(TMP)/etc/systemd/system/mariadb@bootstrap.service.d/wsrep-new-cluster.conf
+
 	# mariadb-test
 	mv $(TMP)/usr/mysql-test	$(TMP)/usr/share/mysql
 
@@ -215,7 +221,10 @@ binary-indep: build install
 	dh_installexamples -i
 	dh_installmenu -i
 	dh_installlogrotate -i
+	dh_systemd_enable -i support-files/mariadb.service
+	dh_systemd_enable --no-enable support-files/mariadb@.service
 	dh_installinit -i
+	dh_systemd_start -i --restart-after-upgrade mariadb.service
 	dh_installcron -i 
 	dh_installman -i
 	dh_installinfo -i

@@ -110,6 +110,8 @@
 #include <poll.h>
 #endif
 
+#include <my_systemd.h>
+
 #define mysqld_charset &my_charset_latin1
 
 /* We have HAVE_valgrind below as this speeds up the shutdown of MySQL */
@@ -1890,6 +1892,8 @@ static void __cdecl kill_server(int sig_ptr)
     sql_print_information(ER_DEFAULT(ER_NORMAL_SHUTDOWN),my_progname);
   else
     sql_print_error(ER_DEFAULT(ER_GOT_SIGNAL),my_progname,sig); /* purecov: inspected */
+
+  sd_notify(0, "STOPPING=1");
 
 #ifdef HAVE_SMEM
   /*
@@ -6543,6 +6547,11 @@ void handle_connections_sockets()
   socket_flags=fcntl(mysql_socket_getfd(unix_sock), F_GETFL, 0);
 #endif
 
+#ifdef HAVE_SYSTEMD
+  sd_notify(0, "READY=1\n"
+            "STATUS=Taking your SQL requests now...");
+#endif
+
   DBUG_PRINT("general",("Waiting for connections."));
   MAYBE_BROKEN_SYSCALL;
   while (!abort_loop)
@@ -6757,6 +6766,7 @@ void handle_connections_sockets()
     create_new_thread(thd);
     set_current_thd(0);
   }
+  sd_notify(0, "STOPPING=1");
   DBUG_VOID_RETURN;
 }
 

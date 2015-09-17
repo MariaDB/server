@@ -48,6 +48,8 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include <io.h>
 #endif
 
+#include <my_systemd.h>
+
 /** @file ha_innodb.cc */
 
 /* Include necessary InnoDB headers */
@@ -20112,9 +20114,11 @@ ib_logf(
 		break;
 	case IB_LOG_LEVEL_ERROR:
 		sql_print_error("InnoDB: %s", str);
+		sd_notifyf(0, "STATUS=InnoDB: Error: %s", str);
 		break;
 	case IB_LOG_LEVEL_FATAL:
 		sql_print_error("InnoDB: %s", str);
+		sd_notifyf(0, "STATUS=InnoDB: Fatal: %s", str);
 		break;
 	}
 
