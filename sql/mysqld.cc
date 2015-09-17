@@ -4507,11 +4507,6 @@ will be ignored as the --log-bin option is not defined.");
                      // to know mysqld_port now - lp:1071882
 #endif /* !EMBEDDED_LIBRARY */
 
-        /*
-          Plugin initialization (plugin_init()) hasn't happened yet, set
-          maria_hton to 0.
-        */
-        maria_hton= 0;
         wsrep_init_startup(true);
       }
     }
@@ -4592,6 +4587,29 @@ a file name for --log-bin-index option", opt_binlog_index_name);
     unireg_abort(1);
   }
   plugins_are_initialized= TRUE;  /* Don't separate from init function */
+
+#ifdef WITH_WSREP
+  /* Wait for wsrep threads to get created. */
+  if (wsrep_creating_startup_threads == 1) {
+    mysql_mutex_lock(&LOCK_thread_count);
+    while (wsrep_running_threads < 2)
+    {
+      mysql_cond_wait(&COND_thread_count, &LOCK_thread_count);
+    }
+
+    /* Now is the time to initialize threads for queries. */
+    THD *tmp;
+    I_List_iterator<THD> it(threads);
+    while ((tmp= it++))
+    {
+      if (tmp->wsrep_applier == true)
+      {
+        tmp->init_for_queries();
+      }
+    }
+    mysql_mutex_unlock(&LOCK_thread_count);
+  }
+#endif
 
   have_csv= plugin_status(STRING_WITH_LEN("csv"),
                           MYSQL_STORAGE_ENGINE_PLUGIN);
@@ -4825,16 +4843,11 @@ pthread_handler_t start_wsrep_THD(void *arg)
   THD *thd;
   wsrep_thd_processor_fun processor= (wsrep_thd_processor_fun)arg;
 
-  if (my_thread_init())
+  if (my_thread_init() || (!(thd= new THD(true))))
   {
-    WSREP_ERROR("Could not initialize thread");
-    return(NULL);
+    goto error;
   }
 
-  if (!(thd= new THD(true)))
-  {
-    return(NULL);
-  }
   mysql_mutex_lock(&LOCK_thread_count);
   thd->thread_id=thread_id++;
 
@@ -4859,13 +4872,13 @@ pthread_handler_t start_wsrep_THD(void *arg)
 
   mysql_thread_set_psi_id(thd->thread_id);
   thd->thr_create_utime=  microsecond_interval_timer();
+
   if (MYSQL_CALLBACK_ELSE(thread_scheduler, init_new_connection_thread, (), 0))
   {
     close_connection(thd, ER_OUT_OF_RESOURCES);
     statistic_increment(aborted_connects,&LOCK_status);
     MYSQL_CALLBACK(thread_scheduler, end_thread, (thd, 0));
-
-    return(NULL);
+    goto error;
   }
 
 // </5.1.17>
@@ -4888,8 +4901,7 @@ pthread_handler_t start_wsrep_THD(void *arg)
     statistic_increment(aborted_connects,&LOCK_status);
     MYSQL_CALLBACK(thread_scheduler, end_thread, (thd, 0));
     delete thd;
-
-    return(NULL);
+    goto error;
   }
 
   thd->system_thread= SYSTEM_THREAD_SLAVE_SQL;
@@ -4899,12 +4911,21 @@ pthread_handler_t start_wsrep_THD(void *arg)
   //thd->version= refresh_version;
   thd->proc_info= 0;
   thd->command= COM_SLEEP;
-  thd->set_time();
-  thd->init_for_queries();
+
+  if (plugins_are_initialized)
+  {
+    thd->init_for_queries();
+  }
 
   mysql_mutex_lock(&LOCK_thread_count);
   wsrep_running_threads++;
   mysql_cond_broadcast(&COND_thread_count);
+
+  if (wsrep_running_threads > 2)
+  {
+    wsrep_creating_startup_threads= 0;
+  }
+
   mysql_mutex_unlock(&LOCK_thread_count);
 
   processor(thd);
@@ -4942,6 +4963,15 @@ pthread_handler_t start_wsrep_THD(void *arg)
     mysql_mutex_unlock(&LOCK_thread_count);
   }
   return(NULL);
+
+error:
+  WSREP_ERROR("Failed to create/initialize system thread");
+
+  /* Abort if its the first applier/rollbacker thread. */
+  if (wsrep_creating_startup_threads < 2)
+    unireg_abort(1);
+  else
+    return NULL;
 }
 
 /**/
