@@ -5125,11 +5125,6 @@ static int init_server_components()
       {
         set_ports(); // this is also called in network_init() later but we need
                      // to know mysqld_port now - lp:1071882
-        /*
-          Plugin initialization (plugin_init()) hasn't happened yet, set
-          maria_hton to 0.
-        */
-        maria_hton= 0;
         wsrep_init_startup(true);
       }
     }
@@ -5203,6 +5198,29 @@ static int init_server_components()
     unireg_abort(1);
   }
   plugins_are_initialized= TRUE;  /* Don't separate from init function */
+
+#ifdef WITH_WSREP
+  /* Wait for wsrep threads to get created. */
+  if (wsrep_creating_startup_threads == 1) {
+    mysql_mutex_lock(&LOCK_thread_count);
+    while (wsrep_running_threads < 2)
+    {
+      mysql_cond_wait(&COND_thread_count, &LOCK_thread_count);
+    }
+
+    /* Now is the time to initialize threads for queries. */
+    THD *tmp;
+    I_List_iterator<THD> it(threads);
+    while ((tmp= it++))
+    {
+      if (tmp->wsrep_applier == true)
+      {
+        tmp->init_for_queries();
+      }
+    }
+    mysql_mutex_unlock(&LOCK_thread_count);
+  }
+#endif
 
   /* we do want to exit if there are any other unknown options */
   if (remaining_argc > 1)
@@ -5411,7 +5429,6 @@ static void create_shutdown_thread()
 }
 
 #endif /* EMBEDDED_LIBRARY */
-
 
 #if (defined(_WIN32) || defined(HAVE_SMEM)) && !defined(EMBEDDED_LIBRARY)
 static void handle_connections_methods()
