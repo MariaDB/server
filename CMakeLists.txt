@@ -151,6 +151,7 @@ INCLUDE(pcre)
 INCLUDE(ctest)
 INCLUDE(plugin)
 INCLUDE(install_macros)
+INCLUDE(systemd)
 INCLUDE(mysql_add_executable)
 
 # Handle options
@@ -327,6 +328,8 @@ SET(MALLOC_LIBRARY "system")
 CHECK_JEMALLOC()
 
 CHECK_PCRE()
+
+CHECK_SYSTEMD()
 
 IF(CMAKE_CROSSCOMPILING)
   SET(IMPORT_EXECUTABLES "IMPORTFILE-NOTFOUND" CACHE FILEPATH "Path to import_executables.cmake from a native build")

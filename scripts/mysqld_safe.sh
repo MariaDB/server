@@ -21,6 +21,7 @@ mysqld_ld_library_path=
 flush_caches=0
 numa_interleave=0
 wsrep_on=0
+simulate=0
 
 # Initial logging status: error log is not open, and not using syslog
 logging=init
@@ -81,6 +82,7 @@ Usage: $0 [OPTIONS]
   --malloc-lib=LIB           Preload shared library LIB if available
   --mysqld=FILE              Use the specified file as mysqld
   --mysqld-version=VERSION   Use "mysqld-VERSION" as mysqld
+  --simulate                 Simulate the start to detect errors but don't start
   --nice=NICE                Set the scheduling priority of mysqld
   --no-auto-restart          Exit after starting mysqld
   --nowatch                  Exit after starting mysqld
@@ -131,12 +133,13 @@ my_which ()
 }
 
 log_generic () {
+  [ $simulate -eq 1 ] && return
   priority="$1"
   shift
 
   msg="`date +'%y%m%d %H:%M:%S'` mysqld_safe $*"
   echo "$msg"
-  case $logging in
+  case $mysqld_safe_logging in
     init) ;;  # Just echo the message, don't save it anywhere
     file) echo "$msg" >> "$err_log" ;;
     syslog) logger -t "$syslog_tag_mysqld_safe" -p "$priority" "$*" ;;
@@ -318,6 +321,7 @@ parse_arguments() {
           MYSQLD="mysqld"
         fi
         ;;
+      --simulate) simulate=1 ;;
       --nice=*) niceness="$val" ;;
       --nowatch|--no[-_]watch|--no[-_]auto[-_]restart) nowatch=1 ;;
       --open[-_]files[-_]limit=*) open_files="$val" ;;
@@ -862,7 +866,7 @@ fi
 #
 # If there exists an old pid file, check if the daemon is already running
 # Note: The switches to 'ps' may depend on your operating system
-if test -f "$pid_file"
+if test -f "$pid_file" && [ $simulate -eq 0 ]
 then
   PID=`cat "$pid_file"`
   if @CHECK_PID@
@@ -937,7 +941,9 @@ fi
 #  ulimit -n 256 > /dev/null 2>&1		# Fix for BSD and FreeBSD systems
 #fi
 
+
 cmd="`mysqld_ld_preload_text`$NOHUP_NICENESS"
+[ $simulate -eq 0 ] && cmd=''
 
 #
 # Set mysqld's memory interleave policy.
@@ -957,7 +963,7 @@ then
   fi
 
   # Launch mysqld with numactl.
-  cmd="$cmd numactl --interleave=all"
+  [ $simulate -eq 0 ] && cmd="$cmd numactl --interleave=all"
 elif test $numa_interleave -eq 1
 then
   log_error "--numa-interleave is not supported on this platform"
@@ -971,6 +977,7 @@ do
 done
 cmd="$cmd $args"
 # Avoid 'nohup: ignoring input' warning
+[ $simulate -eq 0 ] && cmd='true'
 test -n "$NOHUP_NICENESS" && cmd="$cmd < /dev/null"
 
 log_notice "Starting $MYSQLD daemon with databases from $DATADIR"
@@ -987,6 +994,7 @@ max_wsrep_restarts=0
 
 while true
 do
+
   rm -f "$pid_file"	# Some extra safety
 
   start_time=`date +%M%S`
