@@ -1,0 +1,32 @@
+#
+# Bug #53742: UPDATEs have no effect after applying patch for bug 36569
+#
+CREATE TABLE t1 (
+pk INT NOT NULL AUTO_INCREMENT,
+c1_idx CHAR(1) DEFAULT 'y',
+c2 INT,
+PRIMARY KEY (pk),
+INDEX c1_idx (c1_idx)
+) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (), (), (), ();
+SELECT * FROM t1 WHERE c1_idx = 'y' ORDER BY pk DESC LIMIT 2;
+pk	c1_idx	c2
+4	y	NULL
+3	y	NULL
+UPDATE t1 SET c2 = 0 WHERE c1_idx = 'y' ORDER BY pk DESC LIMIT 2;
+SELECT * FROM t1 WHERE c1_idx = 'y' ORDER BY pk DESC LIMIT 2;
+pk	c1_idx	c2
+4	y	0
+3	y	0
+SELECT * FROM t1 WHERE c1_idx = 'y' ORDER BY pk DESC;
+pk	c1_idx	c2
+4	y	0
+3	y	0
+2	y	NULL
+1	y	NULL
+DELETE FROM t1 WHERE c1_idx = 'y' ORDER BY pk DESC LIMIT 2;
+SELECT * FROM t1 WHERE c1_idx = 'y' ORDER BY pk DESC;
+pk	c1_idx	c2
+2	y	NULL
+1	y	NULL
+DROP TABLE t1;

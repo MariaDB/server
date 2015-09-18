@@ -100,3 +100,29 @@ select hex(f2), hex(f3) from t1;
 drop table t1;
 
 --echo End of 5.0 tests
+
+--echo #
+--echo # Start of 10.0 tests
+--echo #
+
+--echo #
+--echo # MDEV-8472 BINARY, VARBINARY and BLOB return different warnings on CAST to DECIMAL
+--echo #
+SET NAMES utf8;
+CREATE TABLE t1 (a BINARY(30));
+INSERT INTO t1 VALUES ('1äÖüß@µ*$');
+SELECT CAST(a AS DECIMAL) FROM t1;
+DROP TABLE t1;
+CREATE TABLE t1 (a VARBINARY(30));
+INSERT INTO t1 VALUES ('1äÖüß@µ*$');
+SELECT CAST(a AS DECIMAL) FROM t1;
+DROP TABLE t1;
+CREATE TABLE t1 (a BLOB);
+INSERT INTO t1 VALUES ('1äÖüß@µ*$');
+SELECT CAST(a AS DECIMAL) FROM t1;
+DROP TABLE t1;
+
+--echo #
+--echo # End of 10.0 tests
+--echo #
+

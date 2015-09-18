@@ -443,13 +443,13 @@ DROP TABLE t1;
 --echo #            when ICP is on"
 --echo #
 
-CREATE TABLE t1 (pk INTEGER PRIMARY KEY, i INTEGER NOT NULL) ENGINE=InnoDB;
+CREATE TABLE t1 (pk INTEGER PRIMARY KEY, i INTEGER NOT NULL);
 
 INSERT INTO t1 VALUES (11,0);
 INSERT INTO t1 VALUES (12,5);
 INSERT INTO t1 VALUES (15,0);
 
-CREATE TABLE t2 (pk INTEGER PRIMARY KEY, i INTEGER NOT NULL) ENGINE=InnoDB;
+CREATE TABLE t2 (pk INTEGER PRIMARY KEY, i INTEGER NOT NULL);
 
 INSERT INTO t2 VALUES (11,1);
 INSERT INTO t2 VALUES (12,2);
@@ -638,6 +638,16 @@ SELECT t1.d1, t2.pk, t2.i1 FROM t1 STRAIGHT_JOIN t2 ON t2.i1
   WHERE t2.pk <> t1.d1 AND t2.pk = 4;
 SELECT t1.d1, t2.pk, t2.i1 FROM t1 STRAIGHT_JOIN t2 ON t2.i1
   WHERE t2.pk <> t1.d1 AND t2.pk = 4;
+
+# MDEV-8189 field<>const and const<>field are not symmetric
+# Do the same EXPLAIN and SELECT
+# with "t1.d1 <> t2.pk" instead of "t2.pk <> t1.d1"
+
+EXPLAIN
+SELECT t1.d1, t2.pk, t2.i1 FROM t1 STRAIGHT_JOIN t2 ON t2.i1
+  WHERE t1.d1 <> t2.pk AND t2.pk = 4;
+SELECT t1.d1, t2.pk, t2.i1 FROM t1 STRAIGHT_JOIN t2 ON t2.i1
+  WHERE t1.d1 <> t2.pk AND t2.pk = 4;
 
 DROP TABLE t1, t2;
 

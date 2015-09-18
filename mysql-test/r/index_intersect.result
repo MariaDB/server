@@ -1013,10 +1013,7 @@ f4 varchar(32),
 f5 int,
 PRIMARY KEY (f1),
 KEY (f4)
-) ENGINE=InnoDB;
-Warnings:
-Warning	1286	Unknown storage engine 'InnoDB'
-Warning	1266	Using storage engine MyISAM for table 't1'
+);
 INSERT INTO t1 VALUES 
 (5,'H',1), (9,'g',0), (527,'i',0), (528,'y',1), (529,'S',6),
 (530,'m',7), (531,'b',2), (532,'N',1), (533,'V',NULL), (534,'l',1),

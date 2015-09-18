@@ -70,9 +70,9 @@ LEX_USER *create_default_definer(THD *thd, bool role);
 LEX_USER *create_definer(THD *thd, LEX_STRING *user_name, LEX_STRING *host_name);
 LEX_USER *get_current_user(THD *thd, LEX_USER *user, bool lock=true);
 bool sp_process_definer(THD *thd);
-bool check_string_byte_length(LEX_STRING *str, const char *err_msg,
+bool check_string_byte_length(LEX_STRING *str, uint err_msg,
                               uint max_byte_length);
-bool check_string_char_length(LEX_STRING *str, const char *err_msg,
+bool check_string_char_length(LEX_STRING *str, uint err_msg,
                               uint max_char_length, CHARSET_INFO *cs,
                               bool no_error);
 CHARSET_INFO* merge_charset_and_collation(CHARSET_INFO *cs, CHARSET_INFO *cl);
@@ -108,7 +108,7 @@ bool append_file_to_dir(THD *thd, const char **filename_ptr,
 void execute_init_command(THD *thd, LEX_STRING *init_command,
                           mysql_rwlock_t *var_lock);
 bool add_to_list(THD *thd, SQL_I_List<ORDER> &list, Item *group, bool asc);
-void add_join_on(TABLE_LIST *b,Item *expr);
+void add_join_on(THD *thd, TABLE_LIST *b, Item *expr);
 void add_join_natural(TABLE_LIST *a,TABLE_LIST *b,List<String> *using_fields,
                       SELECT_LEX *lex);
 bool add_proc_to_list(THD *thd, Item *item);
@@ -118,7 +118,7 @@ bool push_new_name_resolution_context(THD *thd,
 void store_position_for_column(const char *name);
 void init_update_queries(void);
 bool check_simple_select();
-Item *normalize_cond(Item *cond);
+Item *normalize_cond(THD *thd, Item *cond);
 Item *negate_expression(THD *thd, Item *expr);
 bool check_stack_overrun(THD *thd, long margin, uchar *dummy);
 

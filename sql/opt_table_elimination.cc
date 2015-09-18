@@ -529,12 +529,13 @@ bool check_func_dependency(JOIN *join,
                            TABLE_LIST *oj_tbl,
                            Item* cond);
 static 
-void build_eq_mods_for_cond(Dep_analysis_context *dac, 
+void build_eq_mods_for_cond(THD *thd, Dep_analysis_context *dac,
                             Dep_module_expr **eq_mod, uint *and_level, 
                             Item *cond);
 static 
 void check_equality(Dep_analysis_context *dac, Dep_module_expr **eq_mod, 
-                    uint and_level, Item_func *cond, Item *left, Item *right);
+                    uint and_level, Item_bool_func *cond,
+                    Item *left, Item *right);
 static 
 Dep_module_expr *merge_eq_mods(Dep_module_expr *start, 
                                  Dep_module_expr *new_fields, 
@@ -846,7 +847,7 @@ bool check_func_dependency(JOIN *join,
       Dep_value_field objects for the used fields.
   */
   uint and_level=0;
-  build_eq_mods_for_cond(&dac, &last_eq_mod, &and_level, cond);
+  build_eq_mods_for_cond(join->thd, &dac, &last_eq_mod, &and_level, cond);
   if (!(dac.n_equality_mods= last_eq_mod - dac.equality_mods))
     return FALSE;  /* No useful conditions */
 
@@ -1017,6 +1018,7 @@ public:
 bool Dep_analysis_context::setup_equality_modules_deps(List<Dep_module> 
                                                        *bound_modules)
 {
+  THD *thd= current_thd;
   DBUG_ENTER("setup_equality_modules_deps");
  
   /*
@@ -1041,7 +1043,7 @@ bool Dep_analysis_context::setup_equality_modules_deps(List<Dep_module>
   }
  
   void *buf;
-  if (!(buf= current_thd->alloc(bitmap_buffer_size(offset))) ||
+  if (!(buf= thd->alloc(bitmap_buffer_size(offset))) ||
       my_bitmap_init(&expr_deps, (my_bitmap_map*)buf, offset, FALSE))
   {
     DBUG_RETURN(TRUE); /* purecov: inspected */
@@ -1083,7 +1085,7 @@ bool Dep_analysis_context::setup_equality_modules_deps(List<Dep_module>
     }
 
     if (!eq_mod->unbound_args)
-      bound_modules->push_back(eq_mod);
+      bound_modules->push_back(eq_mod, thd->mem_root);
   }
 
   DBUG_RETURN(FALSE);
@@ -1149,7 +1151,7 @@ int compare_field_values(Dep_value_field *a, Dep_value_field *b, void *unused)
 */
 
 static 
-void build_eq_mods_for_cond(Dep_analysis_context *ctx, 
+void build_eq_mods_for_cond(THD *thd, Dep_analysis_context *ctx,
                             Dep_module_expr **eq_mod,
                             uint *and_level, Item *cond)
 {
@@ -1163,7 +1165,7 @@ void build_eq_mods_for_cond(Dep_analysis_context *ctx,
     {
       Item *item;
       while ((item=li++))
-        build_eq_mods_for_cond(ctx, eq_mod, and_level, item);
+        build_eq_mods_for_cond(thd, ctx, eq_mod, and_level, item);
 
       for (Dep_module_expr *mod_exp= ctx->equality_mods + orig_offset;
            mod_exp != *eq_mod ; mod_exp++)
@@ -1175,12 +1177,12 @@ void build_eq_mods_for_cond(Dep_analysis_context *ctx,
     {
       Item *item;
       (*and_level)++;
-      build_eq_mods_for_cond(ctx, eq_mod, and_level, li++);
+      build_eq_mods_for_cond(thd, ctx, eq_mod, and_level, li++);
       while ((item=li++))
       {
         Dep_module_expr *start_key_fields= *eq_mod;
         (*and_level)++;
-        build_eq_mods_for_cond(ctx, eq_mod, and_level, item);
+        build_eq_mods_for_cond(thd, ctx, eq_mod, and_level, item);
         *eq_mod= merge_eq_mods(ctx->equality_mods + orig_offset, 
                                start_key_fields, *eq_mod,
                                ++(*and_level));
@@ -1199,27 +1201,30 @@ void build_eq_mods_for_cond(Dep_analysis_context *ctx,
   case Item_func::BETWEEN:
   {
     Item *fld;
-    if (!((Item_func_between*)cond)->negated &&
+    Item_func_between *func= (Item_func_between *) cond_func;
+    if (!func->negated &&
         (fld= args[0]->real_item())->type() == Item::FIELD_ITEM &&
         args[1]->eq(args[2], ((Item_field*)fld)->field->binary()))
     {
-      check_equality(ctx, eq_mod, *and_level, cond_func, args[0], args[1]);
-      check_equality(ctx, eq_mod, *and_level, cond_func, args[1], args[0]);
+      check_equality(ctx, eq_mod, *and_level, func, args[0], args[1]);
+      check_equality(ctx, eq_mod, *and_level, func, args[1], args[0]);
     }
     break;
   }
   case Item_func::EQ_FUNC:
   case Item_func::EQUAL_FUNC:
   {
-    check_equality(ctx, eq_mod, *and_level, cond_func, args[0], args[1]);
-    check_equality(ctx, eq_mod, *and_level, cond_func, args[1], args[0]);
+    Item_bool_rowready_func2 *func= (Item_bool_rowready_func2*) cond_func;
+    check_equality(ctx, eq_mod, *and_level, func, args[0], args[1]);
+    check_equality(ctx, eq_mod, *and_level, func, args[1], args[0]);
     break;
   }
   case Item_func::ISNULL_FUNC:
   {
-    Item *tmp=new Item_null;
+    Item *tmp=new (thd->mem_root) Item_null(thd);
     if (tmp)
-      check_equality(ctx, eq_mod, *and_level, cond_func, args[0], tmp);
+      check_equality(ctx, eq_mod, *and_level,
+                     (Item_func_isnull*) cond_func, args[0], tmp);
     break;
   }
   case Item_func::MULT_EQUAL_FUNC:
@@ -1251,7 +1256,7 @@ void build_eq_mods_for_cond(Dep_analysis_context *ctx,
       {
         Dep_value_field *field_val;
         if ((field_val= ctx->get_field_value(equal_field)))
-          fvl->push_back(field_val);
+          fvl->push_back(field_val, thd->mem_root);
       }
       else
       {
@@ -1479,7 +1484,8 @@ Dep_module_expr *merge_eq_mods(Dep_module_expr *start,
 
 static 
 void check_equality(Dep_analysis_context *ctx, Dep_module_expr **eq_mod,
-                    uint and_level, Item_func *cond, Item *left, Item *right)
+                    uint and_level, Item_bool_func *cond,
+                    Item *left, Item *right)
 {
   if ((left->used_tables() & ctx->usable_tables) &&
       !(right->used_tables() & RAND_TABLE_BIT) &&

@@ -440,9 +440,11 @@ drop table t1;
 #
 # Bug #14583 Bug on query using a LIKE on indexed field with ucs2_bin collation
 #
+set sql_mode="";
 --disable_warnings
 create table t1(f1 varchar(5) CHARACTER SET ucs2 COLLATE ucs2_bin NOT NULL) engine=InnoDB;
 --enable_warnings
+set sql_mode=default;
 insert into t1 values('a');
 create index t1f1 on t1(f1);
 select f1 from t1 where f1 like 'a%';
@@ -880,7 +882,7 @@ DO CAST(CONVERT('' USING ucs2) AS UNSIGNED);
 CREATE TABLE t1 (a DECIMAL(2,0));
 
 SET sql_mode='strict_all_tables';
---error ER_TRUNCATED_WRONG_VALUE_FOR_FIELD
+--error ER_WARN_DATA_OUT_OF_RANGE
 INSERT INTO t1 VALUES (CONVERT('9e99999999' USING ucs2));
 SET sql_mode=DEFAULT;
 

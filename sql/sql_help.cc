@@ -93,7 +93,7 @@ static bool init_fields(THD *thd, TABLE_LIST *tables,
   for (; count-- ; find_fields++)
   {
     /* We have to use 'new' here as field will be re_linked on free */
-    Item_field *field= new Item_field(context,
+    Item_field *field= new (thd->mem_root) Item_field(thd, context,
                                       "mysql", find_fields->table_name,
                                       find_fields->field_name);
     if (!(find_fields->field= find_field_in_tables(thd, field, tables, NULL,
@@ -151,10 +151,10 @@ void memorize_variant_topic(THD *thd, TABLE *topics, int count,
   else
   {
     if (count == 1)
-      names->push_back(name);
+      names->push_back(name, thd->mem_root);
     String *new_name= new (thd->mem_root) String;
     get_field(mem_root,find_fields[help_topic_name].field,new_name);
-    names->push_back(new_name);
+    names->push_back(new_name, thd->mem_root);
   }
   DBUG_VOID_RETURN;
 }
@@ -297,7 +297,7 @@ int get_topics_for_keyword(THD *thd, TABLE *topics, TABLE *relations,
        find_type(primary_key_name, &relations->s->keynames,
                  FIND_TYPE_NO_PREFIX) - 1) < 0)
   {
-    my_message(ER_CORRUPT_HELP_DB, ER(ER_CORRUPT_HELP_DB), MYF(0));
+    my_message(ER_CORRUPT_HELP_DB, ER_THD(thd, ER_CORRUPT_HELP_DB), MYF(0));
     DBUG_RETURN(-1);
   }
   rtopic_id= find_fields[help_relation_help_topic_id].field;
@@ -308,7 +308,7 @@ int get_topics_for_keyword(THD *thd, TABLE *topics, TABLE *relations,
   {
     if (topics->file->inited)
       topics->file->ha_index_end();
-    my_message(ER_CORRUPT_HELP_DB, ER(ER_CORRUPT_HELP_DB), MYF(0));
+    my_message(ER_CORRUPT_HELP_DB, ER_THD(thd, ER_CORRUPT_HELP_DB), MYF(0));
     DBUG_RETURN(-1);
   }
 
@@ -380,7 +380,7 @@ int search_categories(THD *thd, TABLE *categories,
     get_field(thd->mem_root,pfname,lname);
     if (++count == 1 && res_id)
       *res_id= (int16) pcat_id->val_int();
-    names->push_back(lname);
+    names->push_back(lname, thd->mem_root);
   }
   end_read_record(&read_record_info);
 
@@ -415,7 +415,7 @@ void get_all_items_for_category(THD *thd, TABLE *items, Field *pfname,
       continue;
     String *name= new (thd->mem_root) String();
     get_field(thd->mem_root,pfname,name);
-    res->push_back(name);
+    res->push_back(name, thd->mem_root);
   }
   end_read_record(&read_record_info);
 
@@ -449,11 +449,17 @@ void get_all_items_for_category(THD *thd, TABLE *items, Field *pfname,
 
 int send_answer_1(Protocol *protocol, String *s1, String *s2, String *s3)
 {
+  THD *thd= protocol->thd;
+  MEM_ROOT *mem_root= thd->mem_root;
   DBUG_ENTER("send_answer_1");
+
   List<Item> field_list;
-  field_list.push_back(new Item_empty_string("name",64));
-  field_list.push_back(new Item_empty_string("description",1000));
-  field_list.push_back(new Item_empty_string("example",1000));
+  field_list.push_back(new (mem_root) Item_empty_string(thd, "name", 64),
+                       mem_root);
+  field_list.push_back(new (mem_root) Item_empty_string(thd, "description", 1000),
+                       mem_root);
+  field_list.push_back(new (mem_root) Item_empty_string(thd, "example", 1000),
+                       mem_root);
 
   if (protocol->send_result_set_metadata(&field_list,
                             Protocol::SEND_NUM_ROWS | Protocol::SEND_EOF))
@@ -492,13 +498,22 @@ int send_answer_1(Protocol *protocol, String *s1, String *s2, String *s3)
 
 int send_header_2(Protocol *protocol, bool for_category)
 {
+  THD *thd= protocol->thd;
+  MEM_ROOT *mem_root= thd->mem_root;
   DBUG_ENTER("send_header_2");
   List<Item> field_list;
   if (for_category)
-    field_list.push_back(new Item_empty_string("source_category_name",64));
-  field_list.push_back(new Item_empty_string("name",64));
-  field_list.push_back(new Item_empty_string("is_it_category",1));
-  DBUG_RETURN(protocol->send_result_set_metadata(&field_list, Protocol::SEND_NUM_ROWS |
+    field_list.push_back(new (mem_root)
+                         Item_empty_string(thd, "source_category_name", 64),
+                         mem_root);
+  field_list.push_back(new (mem_root)
+                       Item_empty_string(thd, "name", 64),
+                       mem_root);
+  field_list.push_back(new (mem_root)
+                       Item_empty_string(thd, "is_it_category", 1),
+                       mem_root);
+  DBUG_RETURN(protocol->send_result_set_metadata(&field_list,
+                                                 Protocol::SEND_NUM_ROWS |
                                                  Protocol::SEND_EOF));
 }
 
@@ -625,10 +640,15 @@ SQL_SELECT *prepare_select_for_name(THD *thd, const char *mask, uint mlen,
 				    TABLE_LIST *tables, TABLE *table,
 				    Field *pfname, int *error)
 {
-  Item *cond= new Item_func_like(new Item_field(pfname),
-				 new Item_string(mask,mlen,pfname->charset()),
-				 new Item_string_ascii("\\"),
-                                 FALSE);
+  MEM_ROOT *mem_root= thd->mem_root;
+  Item *cond= new (mem_root)
+    Item_func_like(thd,
+                   new (mem_root)
+                   Item_field(thd, pfname),
+                   new (mem_root) Item_string(thd, mask, mlen,
+                                              pfname->charset()),
+                   new (mem_root) Item_string_ascii(thd, "\\"),
+                   FALSE);
   if (thd->is_fatal_error)
     return 0;					// OOM
   return prepare_simple_select(thd, cond, table, error);
@@ -763,11 +783,17 @@ bool mysqld_help(THD *thd, const char *mask)
     {
       Field *topic_cat_id= used_fields[help_topic_help_category_id].field;
       Item *cond_topic_by_cat=
-	new Item_func_equal(new Item_field(topic_cat_id),
-			    new Item_int((int32)category_id));
+        new (mem_root)
+        Item_func_equal(thd,
+                        new (mem_root)
+                        Item_field(thd, topic_cat_id),
+                        new (mem_root)
+                        Item_int(thd, (int32) category_id));
       Item *cond_cat_by_cat=
-	new Item_func_equal(new Item_field(cat_cat_id),
-			    new Item_int((int32)category_id));
+        new (mem_root)
+        Item_func_equal(thd,
+                        new (mem_root) Item_field(thd, cat_cat_id),
+                        new (mem_root) Item_int(thd, (int32) category_id));
       if (!(select= prepare_simple_select(thd, cond_topic_by_cat,
                                           tables[0].table, &error)))
         goto error;

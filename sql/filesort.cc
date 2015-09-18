@@ -1,5 +1,5 @@
-/* Copyright (c) 2000, 2014, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2014, Monty Program Ab.
+/* Copyright (c) 2000, 2015, Oracle and/or its affiliates.
+   Copyright (c) 2009, 2015, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -50,7 +50,7 @@ if (my_b_write((file),(uchar*) (from),param->ref_length)) \
 
 static uchar *read_buffpek_from_file(IO_CACHE *buffer_file, uint count,
                                      uchar *buf);
-static ha_rows find_all_keys(Sort_param *param,SQL_SELECT *select,
+static ha_rows find_all_keys(THD *thd, Sort_param *param, SQL_SELECT *select,
                              Filesort_info *fs_info,
                              IO_CACHE *buffer_file,
                              IO_CACHE *tempfile,
@@ -294,7 +294,7 @@ ha_rows filesort(THD *thd, TABLE *table, SORT_FIELD *sortorder, uint s_length,
 
   param.sort_form= table;
   param.end=(param.local_sortorder=sortorder)+s_length;
-  num_rows= find_all_keys(&param, select,
+  num_rows= find_all_keys(thd, &param, select,
                           &table_sort,
                           &buffpek_pointers,
                           &tempfile, 
@@ -371,7 +371,6 @@ ha_rows filesort(THD *thd, TABLE *table, SORT_FIELD *sortorder, uint s_length,
 
   err:
   my_free(param.tmp_buffer);
-  tracker->report_merge_passes_at_end(thd->query_plan_fsort_passes);
   if (!subselect || !subselect->is_uncacheable())
   {
     table_sort.free_sort_buffer();
@@ -393,6 +392,7 @@ ha_rows filesort(THD *thd, TABLE *table, SORT_FIELD *sortorder, uint s_length,
       outfile->end_of_file=save_pos;
     }
   }
+  tracker->report_merge_passes_at_end(thd->query_plan_fsort_passes);
   if (error)
   {
     int kill_errno= thd->killed_errno();
@@ -409,7 +409,7 @@ ha_rows filesort(THD *thd, TABLE *table, SORT_FIELD *sortorder, uint s_length,
                     "%s: %s",
                     MYF(0),
                     ER_THD(thd, ER_FILSORT_ABORT),
-                    kill_errno ? ER(kill_errno) :
+                    kill_errno ? ER_THD(thd, kill_errno) :
                     thd->killed == ABORT_QUERY ? "" :
                     thd->get_stmt_da()->message());
 
@@ -447,10 +447,11 @@ ha_rows filesort(THD *thd, TABLE *table, SORT_FIELD *sortorder, uint s_length,
 void filesort_free_buffers(TABLE *table, bool full)
 {
   DBUG_ENTER("filesort_free_buffers");
+
   my_free(table->sort.record_pointers);
   table->sort.record_pointers= NULL;
 
-  if (full)
+  if (unlikely(full))
   {
     table->sort.free_sort_buffer();
     my_free(table->sort.buffpek);
@@ -458,10 +459,14 @@ void filesort_free_buffers(TABLE *table, bool full)
     table->sort.buffpek_len= 0;
   }
 
-  my_free(table->sort.addon_buf);
-  my_free(table->sort.addon_field);
-  table->sort.addon_buf= NULL;
-  table->sort.addon_field= NULL;
+  /* addon_buf is only allocated if addon_field is set */
+  if (unlikely(table->sort.addon_field))
+  {
+    my_free(table->sort.addon_field);
+    my_free(table->sort.addon_buf);
+    table->sort.addon_buf= NULL;
+    table->sort.addon_field= NULL;
+  }
   DBUG_VOID_RETURN;
 }
 
@@ -667,7 +672,7 @@ static void dbug_print_record(TABLE *table, bool print_rowid)
     HA_POS_ERROR on error.
 */
 
-static ha_rows find_all_keys(Sort_param *param, SQL_SELECT *select,
+static ha_rows find_all_keys(THD *thd, Sort_param *param, SQL_SELECT *select,
                              Filesort_info *fs_info,
 			     IO_CACHE *buffpek_pointers,
                              IO_CACHE *tempfile,
@@ -679,7 +684,6 @@ static ha_rows find_all_keys(Sort_param *param, SQL_SELECT *select,
   uchar *ref_pos,*next_pos,ref_buff[MAX_REFLENGTH];
   my_off_t record;
   TABLE *sort_form;
-  THD *thd= current_thd;
   handler *file;
   MY_BITMAP *save_read_set, *save_write_set, *save_vcol_set;
   

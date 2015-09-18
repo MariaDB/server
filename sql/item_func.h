@@ -60,54 +60,50 @@ public:
                   SUSERVAR_FUNC, GUSERVAR_FUNC, COLLATE_FUNC,
                   EXTRACT_FUNC, CHAR_TYPECAST_FUNC, FUNC_SP, UDF_FUNC,
                   NEG_FUNC, GSYSVAR_FUNC, DYNCOL_FUNC };
-  enum optimize_type { OPTIMIZE_NONE,OPTIMIZE_KEY,OPTIMIZE_OP, OPTIMIZE_NULL,
-                       OPTIMIZE_EQUAL };
   enum Type type() const { return FUNC_ITEM; }
   virtual enum Functype functype() const   { return UNKNOWN_FUNC; }
-  Item_func(void):
-    Item_func_or_sum(), allowed_arg_cols(1)
+  Item_func(THD *thd): Item_func_or_sum(thd), allowed_arg_cols(1)
   {
     with_sum_func= 0;
     with_field= 0;
   }
-  Item_func(Item *a):
-    Item_func_or_sum(a), allowed_arg_cols(1)
+  Item_func(THD *thd, Item *a): Item_func_or_sum(thd, a), allowed_arg_cols(1)
   {
     with_sum_func= a->with_sum_func;
     with_field= a->with_field;
   }
-  Item_func(Item *a,Item *b):
-    Item_func_or_sum(a, b), allowed_arg_cols(1)
+  Item_func(THD *thd, Item *a, Item *b):
+    Item_func_or_sum(thd, a, b), allowed_arg_cols(1)
   {
     with_sum_func= a->with_sum_func || b->with_sum_func;
     with_field= a->with_field || b->with_field;
   }
-  Item_func(Item *a,Item *b,Item *c):
-    Item_func_or_sum(a, b, c), allowed_arg_cols(1)
+  Item_func(THD *thd, Item *a, Item *b, Item *c):
+    Item_func_or_sum(thd, a, b, c), allowed_arg_cols(1)
   {
     with_sum_func= a->with_sum_func || b->with_sum_func || c->with_sum_func;
     with_field= a->with_field || b->with_field || c->with_field;
   }
-  Item_func(Item *a,Item *b,Item *c,Item *d):
-    Item_func_or_sum(a, b, c, d), allowed_arg_cols(1)
+  Item_func(THD *thd, Item *a, Item *b, Item *c, Item *d):
+    Item_func_or_sum(thd, a, b, c, d), allowed_arg_cols(1)
   {
     with_sum_func= a->with_sum_func || b->with_sum_func ||
                    c->with_sum_func || d->with_sum_func;
     with_field= a->with_field || b->with_field ||
                 c->with_field || d->with_field;
   }
-  Item_func(Item *a,Item *b,Item *c,Item *d,Item* e):
-    Item_func_or_sum(a, b, c, d, e), allowed_arg_cols(1)
+  Item_func(THD *thd, Item *a, Item *b, Item *c, Item *d, Item* e):
+    Item_func_or_sum(thd, a, b, c, d, e), allowed_arg_cols(1)
   {
     with_sum_func= a->with_sum_func || b->with_sum_func ||
                    c->with_sum_func || d->with_sum_func || e->with_sum_func;
     with_field= a->with_field || b->with_field ||
                 c->with_field || d->with_field || e->with_field;
   }
-  Item_func(List<Item> &list)
-    :Item_func_or_sum(list), allowed_arg_cols(1)
+  Item_func(THD *thd, List<Item> &list):
+    Item_func_or_sum(thd, list), allowed_arg_cols(1)
   {
-    set_arguments(list);
+    set_arguments(thd, list);
   }
   // Constructor used for Item_cond_and/or (see Item comment)
   Item_func(THD *thd, Item_func *item)
@@ -136,18 +132,17 @@ public:
                           COND_EQUAL **cond_equal_ref);
   SEL_TREE *get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr);
   bool eq(const Item *item, bool binary_cmp) const;
-  virtual optimize_type select_optimize() const { return OPTIMIZE_NONE; }
-  virtual bool have_rev_func() const { return 0; }
   virtual Item *key_item() const { return args[0]; }
   virtual bool const_item() const { return const_item_cache; }
-  void set_arguments(List<Item> &list)
+  void set_arguments(THD *thd, List<Item> &list)
   {
     allowed_arg_cols= 1;
-    Item_args::set_arguments(list);
+    Item_args::set_arguments(thd, list);
     sync_with_sum_func_and_with_field(list);
     list.empty();                                     // Fields are used
   }
-  void split_sum_func(THD *thd, Item **ref_pointer_array, List<Item> &fields);
+  void split_sum_func(THD *thd, Item **ref_pointer_array, List<Item> &fields,
+                      uint flags);
   virtual void print(String *str, enum_query_type query_type);
   void print_op(String *str, enum_query_type query_type);
   void print_args(String *str, uint from, enum_query_type query_type);
@@ -236,8 +231,8 @@ public:
                                                                items, nitems,
                                                                item_sep);
   }
-  Item *transform(Item_transformer transformer, uchar *arg);
-  Item* compile(Item_analyzer analyzer, uchar **arg_p,
+  Item *transform(THD *thd, Item_transformer transformer, uchar *arg);
+  Item* compile(THD *thd, Item_analyzer analyzer, uchar **arg_p,
                 Item_transformer transformer, uchar *arg_t);
   void traverse_cond(Cond_traverser traverser,
                      void * arg, traverse_order order);
@@ -346,19 +341,15 @@ public:
     return FALSE;
   }
 
-  /*
-    By default only substitution for a field whose two different values
-    are never equal is allowed in the arguments of a function.
-    This is overruled for the direct arguments of comparison functions.
-  */ 
-  bool subst_argument_checker(uchar **arg) 
-  { 
-    if (*arg)
-    {
-      *arg= (uchar *) Item::IDENTITY_SUBST;
-      return TRUE;
-    }
-    return FALSE;
+  Item* propagate_equal_fields(THD *thd, const Context &ctx, COND_EQUAL *cond)
+  {
+    /*
+      By default only substitution for a field whose two different values
+      are never equal is allowed in the arguments of a function.
+      This is overruled for the direct arguments of comparison functions.
+    */
+    Item_args::propagate_equal_fields(thd, Context_identity(), cond);
+    return this;
   }
 
   /*
@@ -409,10 +400,13 @@ public:
 class Item_real_func :public Item_func
 {
 public:
-  Item_real_func() :Item_func() { collation.set_numeric(); }
-  Item_real_func(Item *a) :Item_func(a) { collation.set_numeric(); }
-  Item_real_func(Item *a,Item *b) :Item_func(a,b) { collation.set_numeric(); }
-  Item_real_func(List<Item> &list) :Item_func(list) { collation.set_numeric(); }
+  Item_real_func(THD *thd): Item_func(thd) { collation.set_numeric(); }
+  Item_real_func(THD *thd, Item *a): Item_func(thd, a)
+  { collation.set_numeric(); }
+  Item_real_func(THD *thd, Item *a, Item *b): Item_func(thd, a, b)
+  { collation.set_numeric(); }
+  Item_real_func(THD *thd, List<Item> &list): Item_func(thd, list)
+  { collation.set_numeric(); }
   String *val_str(String*str);
   my_decimal *val_decimal(my_decimal *decimal_value);
   longlong val_int()
@@ -429,18 +423,20 @@ protected:
   Item_result cached_result_type;
 
 public:
-  Item_func_hybrid_result_type() :Item_func(), cached_result_type(REAL_RESULT)
+  Item_func_hybrid_result_type(THD *thd):
+    Item_func(thd), cached_result_type(REAL_RESULT)
   { collation.set_numeric(); }
-  Item_func_hybrid_result_type(Item *a) :Item_func(a), cached_result_type(REAL_RESULT)
+  Item_func_hybrid_result_type(THD *thd, Item *a):
+    Item_func(thd, a), cached_result_type(REAL_RESULT)
   { collation.set_numeric(); }
-  Item_func_hybrid_result_type(Item *a,Item *b)
-    :Item_func(a,b), cached_result_type(REAL_RESULT)
+  Item_func_hybrid_result_type(THD *thd, Item *a, Item *b):
+    Item_func(thd, a, b), cached_result_type(REAL_RESULT)
   { collation.set_numeric(); }
-  Item_func_hybrid_result_type(Item *a,Item *b,Item *c)
-    :Item_func(a,b,c), cached_result_type(REAL_RESULT)
+  Item_func_hybrid_result_type(THD *thd, Item *a, Item *b, Item *c):
+    Item_func(thd, a, b, c), cached_result_type(REAL_RESULT)
   { collation.set_numeric(); }
-  Item_func_hybrid_result_type(List<Item> &list)
-    :Item_func(list), cached_result_type(REAL_RESULT)
+  Item_func_hybrid_result_type(THD *thd, List<Item> &list):
+    Item_func(thd, list), cached_result_type(REAL_RESULT)
   { collation.set_numeric(); }
 
   enum Item_result result_type () const { return cached_result_type; }
@@ -503,18 +499,19 @@ class Item_func_hybrid_field_type :public Item_func_hybrid_result_type
 protected:
   enum_field_types cached_field_type;
 public:
-  Item_func_hybrid_field_type()
-    :Item_func_hybrid_result_type(), cached_field_type(MYSQL_TYPE_DOUBLE)
+  Item_func_hybrid_field_type(THD *thd):
+    Item_func_hybrid_result_type(thd), cached_field_type(MYSQL_TYPE_DOUBLE)
   {}
-  Item_func_hybrid_field_type(Item *a, Item *b)
-    :Item_func_hybrid_result_type(a, b), cached_field_type(MYSQL_TYPE_DOUBLE)
-  {}
-  Item_func_hybrid_field_type(Item *a, Item *b, Item *c)
-    :Item_func_hybrid_result_type(a, b, c),
+  Item_func_hybrid_field_type(THD *thd, Item *a, Item *b):
+    Item_func_hybrid_result_type(thd, a, b),
     cached_field_type(MYSQL_TYPE_DOUBLE)
   {}
-  Item_func_hybrid_field_type(List<Item> &list)
-    :Item_func_hybrid_result_type(list),
+  Item_func_hybrid_field_type(THD *thd, Item *a, Item *b, Item *c):
+    Item_func_hybrid_result_type(thd, a, b, c),
+    cached_field_type(MYSQL_TYPE_DOUBLE)
+  {}
+  Item_func_hybrid_field_type(THD *thd, List<Item> &list):
+    Item_func_hybrid_result_type(thd, list),
     cached_field_type(MYSQL_TYPE_DOUBLE)
   {}
   enum_field_types field_type() const { return cached_field_type; }
@@ -534,18 +531,18 @@ protected:
   }
 
 public:
-  Item_func_numhybrid() :Item_func_hybrid_result_type()
+  Item_func_numhybrid(THD *thd): Item_func_hybrid_result_type(thd)
   { }
-  Item_func_numhybrid(Item *a) :Item_func_hybrid_result_type(a)
+  Item_func_numhybrid(THD *thd, Item *a): Item_func_hybrid_result_type(thd, a)
   { }
-  Item_func_numhybrid(Item *a,Item *b)
-    :Item_func_hybrid_result_type(a,b)
+  Item_func_numhybrid(THD *thd, Item *a, Item *b):
+    Item_func_hybrid_result_type(thd, a, b)
   { }
-  Item_func_numhybrid(Item *a,Item *b,Item *c)
-    :Item_func_hybrid_result_type(a,b,c)
+  Item_func_numhybrid(THD *thd, Item *a, Item *b, Item *c):
+    Item_func_hybrid_result_type(thd, a, b, c)
   { }
-  Item_func_numhybrid(List<Item> &list)
-    :Item_func_hybrid_result_type(list)
+  Item_func_numhybrid(THD *thd, List<Item> &list):
+    Item_func_hybrid_result_type(thd, list)
   { }
   String *str_op(String *str) { DBUG_ASSERT(0); return 0; }
   bool date_op(MYSQL_TIME *ltime, uint fuzzydate) { DBUG_ASSERT(0); return true; }
@@ -556,8 +553,8 @@ public:
 class Item_func_num1: public Item_func_numhybrid
 {
 public:
-  Item_func_num1(Item *a) :Item_func_numhybrid(a) {}
-  Item_func_num1(Item *a, Item *b) :Item_func_numhybrid(a, b) {}
+  Item_func_num1(THD *thd, Item *a): Item_func_numhybrid(thd, a) {}
+  Item_func_num1(THD *thd, Item *a, Item *b): Item_func_numhybrid(thd, a, b) {}
   void fix_length_and_dec();
 };
 
@@ -566,7 +563,7 @@ public:
 class Item_num_op :public Item_func_numhybrid
 {
  public:
-  Item_num_op(Item *a,Item *b) :Item_func_numhybrid(a, b) {}
+  Item_num_op(THD *thd, Item *a, Item *b): Item_func_numhybrid(thd, a, b) {}
   virtual void result_precision()= 0;
 
   virtual inline void print(String *str, enum_query_type query_type)
@@ -580,28 +577,26 @@ class Item_num_op :public Item_func_numhybrid
 
 class Item_int_func :public Item_func
 {
-protected:
-  bool sargable;
 public:
-  Item_int_func() :Item_func()
-  { collation.set_numeric(); fix_char_length(21); sargable= false; }
-  Item_int_func(Item *a) :Item_func(a)
-  { collation.set_numeric(); fix_char_length(21); sargable= false; }
-  Item_int_func(Item *a,Item *b) :Item_func(a,b)
-  { collation.set_numeric(); fix_char_length(21); sargable= false; }
-  Item_int_func(Item *a,Item *b,Item *c) :Item_func(a,b,c)
-  { collation.set_numeric(); fix_char_length(21); sargable= false; }
-  Item_int_func(Item *a,Item *b,Item *c, Item *d) :Item_func(a,b,c,d)
-  { collation.set_numeric(); fix_char_length(21); sargable= false; }
-  Item_int_func(List<Item> &list) :Item_func(list)
-  { collation.set_numeric(); fix_char_length(21); sargable= false; }
+  Item_int_func(THD *thd): Item_func(thd)
+  { collation.set_numeric(); fix_char_length(21); }
+  Item_int_func(THD *thd, Item *a): Item_func(thd, a)
+  { collation.set_numeric(); fix_char_length(21); }
+  Item_int_func(THD *thd, Item *a, Item *b): Item_func(thd, a, b)
+  { collation.set_numeric(); fix_char_length(21); }
+  Item_int_func(THD *thd, Item *a, Item *b, Item *c): Item_func(thd, a, b, c)
+  { collation.set_numeric(); fix_char_length(21); }
+  Item_int_func(THD *thd, Item *a, Item *b, Item *c, Item *d):
+    Item_func(thd, a, b, c, d)
+  { collation.set_numeric(); fix_char_length(21); }
+  Item_int_func(THD *thd, List<Item> &list): Item_func(thd, list)
+  { collation.set_numeric(); fix_char_length(21); }
   Item_int_func(THD *thd, Item_int_func *item) :Item_func(thd, item)
-  { collation.set_numeric(); sargable= false; }
+  { collation.set_numeric(); }
   double val_real();
   String *val_str(String*str);
   enum Item_result result_type () const { return INT_RESULT; }
   void fix_length_and_dec() {}
-  bool count_sargable_conds(uchar *arg);
 };
 
 
@@ -610,7 +605,7 @@ class Item_func_connection_id :public Item_int_func
   longlong value;
 
 public:
-  Item_func_connection_id() {}
+  Item_func_connection_id(THD *thd): Item_int_func(thd) {}
   const char *func_name() const { return "connection_id"; }
   void fix_length_and_dec();
   bool fix_fields(THD *thd, Item **ref);
@@ -622,7 +617,7 @@ public:
 class Item_func_signed :public Item_int_func
 {
 public:
-  Item_func_signed(Item *a) :Item_int_func(a)
+  Item_func_signed(THD *thd, Item *a): Item_int_func(thd, a)
   {
     unsigned_flag= 0;
   }
@@ -642,7 +637,7 @@ public:
 class Item_func_unsigned :public Item_func_signed
 {
 public:
-  Item_func_unsigned(Item *a) :Item_func_signed(a)
+  Item_func_unsigned(THD *thd, Item *a): Item_func_signed(thd, a)
   {
     unsigned_flag= 1;
   }
@@ -656,7 +651,7 @@ class Item_decimal_typecast :public Item_func
 {
   my_decimal decimal_value;
 public:
-  Item_decimal_typecast(Item *a, int len, int dec) :Item_func(a)
+  Item_decimal_typecast(THD *thd, Item *a, int len, int dec): Item_func(thd, a)
   {
     decimals= (uint8) dec;
     collation.set_numeric();
@@ -678,7 +673,8 @@ public:
 class Item_double_typecast :public Item_real_func
 {
 public:
-  Item_double_typecast(Item *a, int len, int dec) :Item_real_func(a)
+  Item_double_typecast(THD *thd, Item *a, int len, int dec):
+    Item_real_func(thd, a)
   {
     decimals=   (uint8)  dec;
     max_length= (uint32) len;
@@ -695,7 +691,7 @@ public:
 class Item_func_additive_op :public Item_num_op
 {
 public:
-  Item_func_additive_op(Item *a,Item *b) :Item_num_op(a,b) {}
+  Item_func_additive_op(THD *thd, Item *a, Item *b): Item_num_op(thd, a, b) {}
   void result_precision();
   bool check_partition_func_processor(uchar *int_arg) {return FALSE;}
   bool check_vcol_func_processor(uchar *int_arg) { return FALSE;}
@@ -705,7 +701,8 @@ public:
 class Item_func_plus :public Item_func_additive_op
 {
 public:
-  Item_func_plus(Item *a,Item *b) :Item_func_additive_op(a,b) {}
+  Item_func_plus(THD *thd, Item *a, Item *b):
+    Item_func_additive_op(thd, a, b) {}
   const char *func_name() const { return "+"; }
   longlong int_op();
   double real_op();
@@ -715,7 +712,8 @@ public:
 class Item_func_minus :public Item_func_additive_op
 {
 public:
-  Item_func_minus(Item *a,Item *b) :Item_func_additive_op(a,b) {}
+  Item_func_minus(THD *thd, Item *a, Item *b):
+    Item_func_additive_op(thd, a, b) {}
   const char *func_name() const { return "-"; }
   longlong int_op();
   double real_op();
@@ -727,7 +725,8 @@ public:
 class Item_func_mul :public Item_num_op
 {
 public:
-  Item_func_mul(Item *a,Item *b) :Item_num_op(a,b) {}
+  Item_func_mul(THD *thd, Item *a, Item *b):
+    Item_num_op(thd, a, b) {}
   const char *func_name() const { return "*"; }
   longlong int_op();
   double real_op();
@@ -742,7 +741,7 @@ class Item_func_div :public Item_num_op
 {
 public:
   uint prec_increment;
-  Item_func_div(Item *a,Item *b) :Item_num_op(a,b) {}
+  Item_func_div(THD *thd, Item *a, Item *b): Item_num_op(thd, a, b) {}
   longlong int_op() { DBUG_ASSERT(0); return 0; }
   double real_op();
   my_decimal *decimal_op(my_decimal *);
@@ -755,7 +754,7 @@ public:
 class Item_func_int_div :public Item_int_func
 {
 public:
-  Item_func_int_div(Item *a,Item *b) :Item_int_func(a,b)
+  Item_func_int_div(THD *thd, Item *a, Item *b): Item_int_func(thd, a, b)
   {}
   longlong val_int();
   const char *func_name() const { return "DIV"; }
@@ -774,7 +773,7 @@ public:
 class Item_func_mod :public Item_num_op
 {
 public:
-  Item_func_mod(Item *a,Item *b) :Item_num_op(a,b) {}
+  Item_func_mod(THD *thd, Item *a, Item *b): Item_num_op(thd, a, b) {}
   longlong int_op();
   double real_op();
   my_decimal *decimal_op(my_decimal *);
@@ -789,7 +788,7 @@ public:
 class Item_func_neg :public Item_func_num1
 {
 public:
-  Item_func_neg(Item *a) :Item_func_num1(a) {}
+  Item_func_neg(THD *thd, Item *a): Item_func_num1(thd, a) {}
   double real_op();
   longlong int_op();
   my_decimal *decimal_op(my_decimal *);
@@ -805,7 +804,7 @@ public:
 class Item_func_abs :public Item_func_num1
 {
 public:
-  Item_func_abs(Item *a) :Item_func_num1(a) {}
+  Item_func_abs(THD *thd, Item *a): Item_func_num1(thd, a) {}
   double real_op();
   longlong int_op();
   my_decimal *decimal_op(my_decimal *);
@@ -820,8 +819,8 @@ public:
 class Item_dec_func :public Item_real_func
 {
  public:
-  Item_dec_func(Item *a) :Item_real_func(a) {}
-  Item_dec_func(Item *a,Item *b) :Item_real_func(a,b) {}
+  Item_dec_func(THD *thd, Item *a): Item_real_func(thd, a) {}
+  Item_dec_func(THD *thd, Item *a, Item *b): Item_real_func(thd, a, b) {}
   void fix_length_and_dec()
   {
     decimals=NOT_FIXED_DEC; max_length=float_length(decimals);
@@ -832,7 +831,7 @@ class Item_dec_func :public Item_real_func
 class Item_func_exp :public Item_dec_func
 {
 public:
-  Item_func_exp(Item *a) :Item_dec_func(a) {}
+  Item_func_exp(THD *thd, Item *a): Item_dec_func(thd, a) {}
   double val_real();
   const char *func_name() const { return "exp"; }
 };
@@ -841,7 +840,7 @@ public:
 class Item_func_ln :public Item_dec_func
 {
 public:
-  Item_func_ln(Item *a) :Item_dec_func(a) {}
+  Item_func_ln(THD *thd, Item *a): Item_dec_func(thd, a) {}
   double val_real();
   const char *func_name() const { return "ln"; }
 };
@@ -850,8 +849,8 @@ public:
 class Item_func_log :public Item_dec_func
 {
 public:
-  Item_func_log(Item *a) :Item_dec_func(a) {}
-  Item_func_log(Item *a,Item *b) :Item_dec_func(a,b) {}
+  Item_func_log(THD *thd, Item *a): Item_dec_func(thd, a) {}
+  Item_func_log(THD *thd, Item *a, Item *b): Item_dec_func(thd, a, b) {}
   double val_real();
   const char *func_name() const { return "log"; }
 };
@@ -860,7 +859,7 @@ public:
 class Item_func_log2 :public Item_dec_func
 {
 public:
-  Item_func_log2(Item *a) :Item_dec_func(a) {}
+  Item_func_log2(THD *thd, Item *a): Item_dec_func(thd, a) {}
   double val_real();
   const char *func_name() const { return "log2"; }
 };
@@ -869,7 +868,7 @@ public:
 class Item_func_log10 :public Item_dec_func
 {
 public:
-  Item_func_log10(Item *a) :Item_dec_func(a) {}
+  Item_func_log10(THD *thd, Item *a): Item_dec_func(thd, a) {}
   double val_real();
   const char *func_name() const { return "log10"; }
 };
@@ -878,7 +877,7 @@ public:
 class Item_func_sqrt :public Item_dec_func
 {
 public:
-  Item_func_sqrt(Item *a) :Item_dec_func(a) {}
+  Item_func_sqrt(THD *thd, Item *a): Item_dec_func(thd, a) {}
   double val_real();
   const char *func_name() const { return "sqrt"; }
 };
@@ -887,7 +886,7 @@ public:
 class Item_func_pow :public Item_dec_func
 {
 public:
-  Item_func_pow(Item *a,Item *b) :Item_dec_func(a,b) {}
+  Item_func_pow(THD *thd, Item *a, Item *b): Item_dec_func(thd, a, b) {}
   double val_real();
   const char *func_name() const { return "pow"; }
 };
@@ -896,7 +895,7 @@ public:
 class Item_func_acos :public Item_dec_func
 {
 public:
-  Item_func_acos(Item *a) :Item_dec_func(a) {}
+  Item_func_acos(THD *thd, Item *a): Item_dec_func(thd, a) {}
   double val_real();
   const char *func_name() const { return "acos"; }
 };
@@ -904,7 +903,7 @@ public:
 class Item_func_asin :public Item_dec_func
 {
 public:
-  Item_func_asin(Item *a) :Item_dec_func(a) {}
+  Item_func_asin(THD *thd, Item *a): Item_dec_func(thd, a) {}
   double val_real();
   const char *func_name() const { return "asin"; }
 };
@@ -912,8 +911,8 @@ public:
 class Item_func_atan :public Item_dec_func
 {
 public:
-  Item_func_atan(Item *a) :Item_dec_func(a) {}
-  Item_func_atan(Item *a,Item *b) :Item_dec_func(a,b) {}
+  Item_func_atan(THD *thd, Item *a): Item_dec_func(thd, a) {}
+  Item_func_atan(THD *thd, Item *a, Item *b): Item_dec_func(thd, a, b) {}
   double val_real();
   const char *func_name() const { return "atan"; }
 };
@@ -921,7 +920,7 @@ public:
 class Item_func_cos :public Item_dec_func
 {
 public:
-  Item_func_cos(Item *a) :Item_dec_func(a) {}
+  Item_func_cos(THD *thd, Item *a): Item_dec_func(thd, a) {}
   double val_real();
   const char *func_name() const { return "cos"; }
 };
@@ -929,7 +928,7 @@ public:
 class Item_func_sin :public Item_dec_func
 {
 public:
-  Item_func_sin(Item *a) :Item_dec_func(a) {}
+  Item_func_sin(THD *thd, Item *a): Item_dec_func(thd, a) {}
   double val_real();
   const char *func_name() const { return "sin"; }
 };
@@ -937,7 +936,7 @@ public:
 class Item_func_tan :public Item_dec_func
 {
 public:
-  Item_func_tan(Item *a) :Item_dec_func(a) {}
+  Item_func_tan(THD *thd, Item *a): Item_dec_func(thd, a) {}
   double val_real();
   const char *func_name() const { return "tan"; }
 };
@@ -945,7 +944,7 @@ public:
 class Item_func_cot :public Item_dec_func
 {
 public:
-  Item_func_cot(Item *a) :Item_dec_func(a) {}
+  Item_func_cot(THD *thd, Item *a): Item_dec_func(thd, a) {}
   double val_real();
   const char *func_name() const { return "cot"; }
 };
@@ -953,7 +952,7 @@ public:
 class Item_func_integer :public Item_int_func
 {
 public:
-  inline Item_func_integer(Item *a) :Item_int_func(a) {}
+  inline Item_func_integer(THD *thd, Item *a): Item_int_func(thd, a) {}
   void fix_length_and_dec();
 };
 
@@ -961,7 +960,7 @@ public:
 class Item_func_int_val :public Item_func_num1
 {
 public:
-  Item_func_int_val(Item *a) :Item_func_num1(a) {}
+  Item_func_int_val(THD *thd, Item *a): Item_func_num1(thd, a) {}
   void fix_length_and_dec();
 };
 
@@ -969,7 +968,7 @@ public:
 class Item_func_ceiling :public Item_func_int_val
 {
 public:
-  Item_func_ceiling(Item *a) :Item_func_int_val(a) {}
+  Item_func_ceiling(THD *thd, Item *a): Item_func_int_val(thd, a) {}
   const char *func_name() const { return "ceiling"; }
   longlong int_op();
   double real_op();
@@ -982,7 +981,7 @@ public:
 class Item_func_floor :public Item_func_int_val
 {
 public:
-  Item_func_floor(Item *a) :Item_func_int_val(a) {}
+  Item_func_floor(THD *thd, Item *a): Item_func_int_val(thd, a) {}
   const char *func_name() const { return "floor"; }
   longlong int_op();
   double real_op();
@@ -997,8 +996,8 @@ class Item_func_round :public Item_func_num1
 {
   bool truncate;
 public:
-  Item_func_round(Item *a, Item *b, bool trunc_arg)
-    :Item_func_num1(a,b), truncate(trunc_arg) {}
+  Item_func_round(THD *thd, Item *a, Item *b, bool trunc_arg)
+    :Item_func_num1(thd, a, b), truncate(trunc_arg) {}
   const char *func_name() const { return truncate ? "truncate" : "round"; }
   double real_op();
   longlong int_op();
@@ -1012,8 +1011,9 @@ class Item_func_rand :public Item_real_func
   struct my_rnd_struct *rand;
   bool first_eval; // TRUE if val_real() is called 1st time
 public:
-  Item_func_rand(Item *a) :Item_real_func(a), rand(0), first_eval(TRUE) {}
-  Item_func_rand()	  :Item_real_func() {}
+  Item_func_rand(THD *thd, Item *a):
+    Item_real_func(thd, a), rand(0), first_eval(TRUE) {}
+  Item_func_rand(THD *thd): Item_real_func(thd) {}
   double val_real();
   const char *func_name() const { return "rand"; }
   bool const_item() const { return 0; }
@@ -1032,7 +1032,7 @@ private:
 class Item_func_sign :public Item_int_func
 {
 public:
-  Item_func_sign(Item *a) :Item_int_func(a) {}
+  Item_func_sign(THD *thd, Item *a): Item_int_func(thd, a) {}
   const char *func_name() const { return "sign"; }
   longlong val_int();
 };
@@ -1043,8 +1043,9 @@ class Item_func_units :public Item_real_func
   char *name;
   double mul,add;
 public:
-  Item_func_units(char *name_arg,Item *a,double mul_arg,double add_arg)
-    :Item_real_func(a),name(name_arg),mul(mul_arg),add(add_arg) {}
+  Item_func_units(THD *thd, char *name_arg, Item *a, double mul_arg,
+                  double add_arg):
+    Item_real_func(thd, a), name(name_arg), mul(mul_arg), add(add_arg) {}
   double val_real();
   const char *func_name() const { return name; }
   void fix_length_and_dec()
@@ -1063,8 +1064,9 @@ class Item_func_min_max :public Item_func
 protected:
   enum_field_types cached_field_type;
 public:
-  Item_func_min_max(List<Item> &list,int cmp_sign_arg) :Item_func(list),
-    cmp_type(INT_RESULT), cmp_sign(cmp_sign_arg), compare_as_dates(0) {}
+  Item_func_min_max(THD *thd, List<Item> &list, int cmp_sign_arg):
+    Item_func(thd, list), cmp_type(INT_RESULT), cmp_sign(cmp_sign_arg),
+    compare_as_dates(0) {}
   double val_real();
   longlong val_int();
   String *val_str(String *);
@@ -1078,14 +1080,14 @@ public:
 class Item_func_min :public Item_func_min_max
 {
 public:
-  Item_func_min(List<Item> &list) :Item_func_min_max(list,1) {}
+  Item_func_min(THD *thd, List<Item> &list): Item_func_min_max(thd, list, 1) {}
   const char *func_name() const { return "least"; }
 };
 
 class Item_func_max :public Item_func_min_max
 {
 public:
-  Item_func_max(List<Item> &list) :Item_func_min_max(list,-1) {}
+  Item_func_max(THD *thd, List<Item> &list): Item_func_min_max(thd, list, -1) {}
   const char *func_name() const { return "greatest"; }
 };
 
@@ -1098,7 +1100,7 @@ public:
 class Item_func_rollup_const :public Item_func
 {
 public:
-  Item_func_rollup_const(Item *a) :Item_func(a)
+  Item_func_rollup_const(THD *thd, Item *a): Item_func(thd, a)
   {
     name= a->name;
     name_length= a->name_length;
@@ -1125,7 +1127,7 @@ class Item_func_length :public Item_int_func
 {
   String value;
 public:
-  Item_func_length(Item *a) :Item_int_func(a) {}
+  Item_func_length(THD *thd, Item *a): Item_int_func(thd, a) {}
   longlong val_int();
   const char *func_name() const { return "length"; }
   void fix_length_and_dec() { max_length=10; }
@@ -1134,7 +1136,7 @@ public:
 class Item_func_bit_length :public Item_func_length
 {
 public:
-  Item_func_bit_length(Item *a) :Item_func_length(a) {}
+  Item_func_bit_length(THD *thd, Item *a): Item_func_length(thd, a) {}
   longlong val_int()
     { DBUG_ASSERT(fixed == 1); return Item_func_length::val_int()*8; }
   const char *func_name() const { return "bit_length"; }
@@ -1144,7 +1146,7 @@ class Item_func_char_length :public Item_int_func
 {
   String value;
 public:
-  Item_func_char_length(Item *a) :Item_int_func(a) {}
+  Item_func_char_length(THD *thd, Item *a): Item_int_func(thd, a) {}
   longlong val_int();
   const char *func_name() const { return "char_length"; }
   void fix_length_and_dec() { max_length=10; }
@@ -1153,11 +1155,14 @@ public:
 class Item_func_coercibility :public Item_int_func
 {
 public:
-  Item_func_coercibility(Item *a) :Item_int_func(a) {}
+  Item_func_coercibility(THD *thd, Item *a): Item_int_func(thd, a) {}
   longlong val_int();
   const char *func_name() const { return "coercibility"; }
   void fix_length_and_dec() { max_length=10; maybe_null= 0; }
   table_map not_null_tables() const { return 0; }
+  Item* propagate_equal_fields(THD *thd, const Context &ctx, COND_EQUAL *cond)
+  { return this; }
+  bool const_item() const { return true; }
 };
 
 class Item_func_locate :public Item_int_func
@@ -1165,8 +1170,8 @@ class Item_func_locate :public Item_int_func
   String value1,value2;
   DTCollation cmp_collation;
 public:
-  Item_func_locate(Item *a,Item *b) :Item_int_func(a,b) {}
-  Item_func_locate(Item *a,Item *b,Item *c) :Item_int_func(a,b,c) {}
+  Item_func_locate(THD *thd, Item *a, Item *b): Item_int_func(thd, a, b) {}
+  Item_func_locate(THD *thd, Item *a, Item *b, Item *c): Item_int_func(thd, a, b, c) {}
   const char *func_name() const { return "locate"; }
   longlong val_int();
   void fix_length_and_dec();
@@ -1180,7 +1185,7 @@ class Item_func_field :public Item_int_func
   Item_result cmp_type;
   DTCollation cmp_collation;
 public:
-  Item_func_field(List<Item> &list) :Item_int_func(list) {}
+  Item_func_field(THD *thd, List<Item> &list): Item_int_func(thd, list) {}
   longlong val_int();
   const char *func_name() const { return "field"; }
   void fix_length_and_dec();
@@ -1191,7 +1196,7 @@ class Item_func_ascii :public Item_int_func
 {
   String value;
 public:
-  Item_func_ascii(Item *a) :Item_int_func(a) {}
+  Item_func_ascii(THD *thd, Item *a): Item_int_func(thd, a) {}
   longlong val_int();
   const char *func_name() const { return "ascii"; }
   void fix_length_and_dec() { max_length=3; }
@@ -1201,7 +1206,7 @@ class Item_func_ord :public Item_int_func
 {
   String value;
 public:
-  Item_func_ord(Item *a) :Item_int_func(a) {}
+  Item_func_ord(THD *thd, Item *a): Item_int_func(thd, a) {}
   longlong val_int();
   const char *func_name() const { return "ord"; }
 };
@@ -1213,7 +1218,8 @@ class Item_func_find_in_set :public Item_int_func
   ulonglong enum_bit;
   DTCollation cmp_collation;
 public:
-  Item_func_find_in_set(Item *a,Item *b) :Item_int_func(a,b),enum_value(0) {}
+  Item_func_find_in_set(THD *thd, Item *a, Item *b):
+    Item_int_func(thd, a, b), enum_value(0) {}
   longlong val_int();
   const char *func_name() const { return "find_in_set"; }
   void fix_length_and_dec();
@@ -1224,8 +1230,8 @@ public:
 class Item_func_bit: public Item_int_func
 {
 public:
-  Item_func_bit(Item *a, Item *b) :Item_int_func(a, b) {}
-  Item_func_bit(Item *a) :Item_int_func(a) {}
+  Item_func_bit(THD *thd, Item *a, Item *b): Item_int_func(thd, a, b) {}
+  Item_func_bit(THD *thd, Item *a): Item_int_func(thd, a) {}
   void fix_length_and_dec() { unsigned_flag= 1; }
 
   virtual inline void print(String *str, enum_query_type query_type)
@@ -1237,7 +1243,7 @@ public:
 class Item_func_bit_or :public Item_func_bit
 {
 public:
-  Item_func_bit_or(Item *a, Item *b) :Item_func_bit(a, b) {}
+  Item_func_bit_or(THD *thd, Item *a, Item *b): Item_func_bit(thd, a, b) {}
   longlong val_int();
   const char *func_name() const { return "|"; }
 };
@@ -1245,7 +1251,7 @@ public:
 class Item_func_bit_and :public Item_func_bit
 {
 public:
-  Item_func_bit_and(Item *a, Item *b) :Item_func_bit(a, b) {}
+  Item_func_bit_and(THD *thd, Item *a, Item *b): Item_func_bit(thd, a, b) {}
   longlong val_int();
   const char *func_name() const { return "&"; }
 };
@@ -1253,7 +1259,7 @@ public:
 class Item_func_bit_count :public Item_int_func
 {
 public:
-  Item_func_bit_count(Item *a) :Item_int_func(a) {}
+  Item_func_bit_count(THD *thd, Item *a): Item_int_func(thd, a) {}
   longlong val_int();
   const char *func_name() const { return "bit_count"; }
   void fix_length_and_dec() { max_length=2; }
@@ -1262,7 +1268,7 @@ public:
 class Item_func_shift_left :public Item_func_bit
 {
 public:
-  Item_func_shift_left(Item *a, Item *b) :Item_func_bit(a, b) {}
+  Item_func_shift_left(THD *thd, Item *a, Item *b): Item_func_bit(thd, a, b) {}
   longlong val_int();
   const char *func_name() const { return "<<"; }
 };
@@ -1270,7 +1276,7 @@ public:
 class Item_func_shift_right :public Item_func_bit
 {
 public:
-  Item_func_shift_right(Item *a, Item *b) :Item_func_bit(a, b) {}
+  Item_func_shift_right(THD *thd, Item *a, Item *b): Item_func_bit(thd, a, b) {}
   longlong val_int();
   const char *func_name() const { return ">>"; }
 };
@@ -1278,7 +1284,7 @@ public:
 class Item_func_bit_neg :public Item_func_bit
 {
 public:
-  Item_func_bit_neg(Item *a) :Item_func_bit(a) {}
+  Item_func_bit_neg(THD *thd, Item *a): Item_func_bit(thd, a) {}
   longlong val_int();
   const char *func_name() const { return "~"; }
 
@@ -1292,8 +1298,8 @@ public:
 class Item_func_last_insert_id :public Item_int_func
 {
 public:
-  Item_func_last_insert_id() :Item_int_func() {}
-  Item_func_last_insert_id(Item *a) :Item_int_func(a) {}
+  Item_func_last_insert_id(THD *thd): Item_int_func(thd) {}
+  Item_func_last_insert_id(THD *thd, Item *a): Item_int_func(thd, a) {}
   longlong val_int();
   const char *func_name() const { return "last_insert_id"; }
   void fix_length_and_dec()
@@ -1314,8 +1320,8 @@ public:
 class Item_func_benchmark :public Item_int_func
 {
 public:
-  Item_func_benchmark(Item *count_expr, Item *expr)
-    :Item_int_func(count_expr, expr)
+  Item_func_benchmark(THD *thd, Item *count_expr, Item *expr):
+    Item_int_func(thd, count_expr, expr)
   {}
   longlong val_int();
   const char *func_name() const { return "benchmark"; }
@@ -1334,7 +1340,7 @@ void item_func_sleep_free(void);
 class Item_func_sleep :public Item_int_func
 {
 public:
-  Item_func_sleep(Item *a) :Item_int_func(a) {}
+  Item_func_sleep(THD *thd, Item *a): Item_int_func(thd, a) {}
   bool const_item() const { return 0; }
   const char *func_name() const { return "sleep"; }
   table_map used_tables() const
@@ -1360,10 +1366,10 @@ protected:
   bool is_expensive_processor(uchar *arg) { return TRUE; }
 
 public:
-  Item_udf_func(udf_func *udf_arg)
-    :Item_func(), udf(udf_arg) {}
-  Item_udf_func(udf_func *udf_arg, List<Item> &list)
-    :Item_func(list), udf(udf_arg) {}
+  Item_udf_func(THD *thd, udf_func *udf_arg):
+    Item_func(thd), udf(udf_arg) {}
+  Item_udf_func(THD *thd, udf_func *udf_arg, List<Item> &list):
+    Item_func(thd, list), udf(udf_arg) {}
   const char *func_name() const { return udf.name(); }
   enum Functype functype() const   { return UDF_FUNC; }
   bool fix_fields(THD *thd, Item **ref)
@@ -1436,11 +1442,11 @@ public:
 class Item_func_udf_float :public Item_udf_func
 {
  public:
-  Item_func_udf_float(udf_func *udf_arg)
-    :Item_udf_func(udf_arg) {}
-  Item_func_udf_float(udf_func *udf_arg,
-                      List<Item> &list)
-    :Item_udf_func(udf_arg, list) {}
+  Item_func_udf_float(THD *thd, udf_func *udf_arg):
+    Item_udf_func(thd, udf_arg) {}
+  Item_func_udf_float(THD *thd, udf_func *udf_arg,
+                      List<Item> &list):
+    Item_udf_func(thd, udf_arg, list) {}
   longlong val_int()
   {
     DBUG_ASSERT(fixed == 1);
@@ -1463,11 +1469,11 @@ class Item_func_udf_float :public Item_udf_func
 class Item_func_udf_int :public Item_udf_func
 {
 public:
-  Item_func_udf_int(udf_func *udf_arg)
-    :Item_udf_func(udf_arg) {}
-  Item_func_udf_int(udf_func *udf_arg,
-                    List<Item> &list)
-    :Item_udf_func(udf_arg, list) {}
+  Item_func_udf_int(THD *thd, udf_func *udf_arg):
+    Item_udf_func(thd, udf_arg) {}
+  Item_func_udf_int(THD *thd, udf_func *udf_arg,
+                    List<Item> &list):
+    Item_udf_func(thd, udf_arg, list) {}
   longlong val_int();
   double val_real() { return (double) Item_func_udf_int::val_int(); }
   String *val_str(String *str);
@@ -1479,10 +1485,10 @@ public:
 class Item_func_udf_decimal :public Item_udf_func
 {
 public:
-  Item_func_udf_decimal(udf_func *udf_arg)
-    :Item_udf_func(udf_arg) {}
-  Item_func_udf_decimal(udf_func *udf_arg, List<Item> &list)
-    :Item_udf_func(udf_arg, list) {}
+  Item_func_udf_decimal(THD *thd, udf_func *udf_arg):
+    Item_udf_func(thd, udf_arg) {}
+  Item_func_udf_decimal(THD *thd, udf_func *udf_arg, List<Item> &list):
+    Item_udf_func(thd, udf_arg, list) {}
   longlong val_int();
   double val_real();
   my_decimal *val_decimal(my_decimal *);
@@ -1495,10 +1501,10 @@ public:
 class Item_func_udf_str :public Item_udf_func
 {
 public:
-  Item_func_udf_str(udf_func *udf_arg)
-    :Item_udf_func(udf_arg) {}
-  Item_func_udf_str(udf_func *udf_arg, List<Item> &list)
-    :Item_udf_func(udf_arg, list) {}
+  Item_func_udf_str(THD *thd, udf_func *udf_arg):
+    Item_udf_func(thd, udf_arg) {}
+  Item_func_udf_str(THD *thd, udf_func *udf_arg, List<Item> &list):
+    Item_udf_func(thd, udf_arg, list) {}
   String *val_str(String *);
   double val_real()
   {
@@ -1533,10 +1539,10 @@ public:
 class Item_func_udf_float :public Item_real_func
 {
  public:
-  Item_func_udf_float(udf_func *udf_arg)
-    :Item_real_func() {}
-  Item_func_udf_float(udf_func *udf_arg, List<Item> &list)
-    :Item_real_func(list) {}
+  Item_func_udf_float(THD *thd, udf_func *udf_arg):
+    Item_real_func(thd) {}
+  Item_func_udf_float(THD *thd, udf_func *udf_arg, List<Item> &list):
+    Item_real_func(thd, list) {}
   double val_real() { DBUG_ASSERT(fixed == 1); return 0.0; }
 };
 
@@ -1544,10 +1550,10 @@ class Item_func_udf_float :public Item_real_func
 class Item_func_udf_int :public Item_int_func
 {
 public:
-  Item_func_udf_int(udf_func *udf_arg)
-    :Item_int_func() {}
-  Item_func_udf_int(udf_func *udf_arg, List<Item> &list)
-    :Item_int_func(list) {}
+  Item_func_udf_int(THD *thd, udf_func *udf_arg):
+    Item_int_func(thd) {}
+  Item_func_udf_int(THD *thd, udf_func *udf_arg, List<Item> &list):
+    Item_int_func(thd, list) {}
   longlong val_int() { DBUG_ASSERT(fixed == 1); return 0; }
 };
 
@@ -1555,10 +1561,10 @@ public:
 class Item_func_udf_decimal :public Item_int_func
 {
 public:
-  Item_func_udf_decimal(udf_func *udf_arg)
-    :Item_int_func() {}
-  Item_func_udf_decimal(udf_func *udf_arg, List<Item> &list)
-    :Item_int_func(list) {}
+  Item_func_udf_decimal(THD *thd, udf_func *udf_arg):
+    Item_int_func(thd) {}
+  Item_func_udf_decimal(THD *thd, udf_func *udf_arg, List<Item> &list):
+    Item_int_func(thd, list) {}
   my_decimal *val_decimal(my_decimal *) { DBUG_ASSERT(fixed == 1); return 0; }
 };
 
@@ -1566,10 +1572,10 @@ public:
 class Item_func_udf_str :public Item_func
 {
 public:
-  Item_func_udf_str(udf_func *udf_arg)
-    :Item_func() {}
-  Item_func_udf_str(udf_func *udf_arg, List<Item> &list)
-    :Item_func(list) {}
+  Item_func_udf_str(THD *thd, udf_func *udf_arg):
+    Item_func(thd) {}
+  Item_func_udf_str(THD *thd, udf_func *udf_arg, List<Item> &list):
+    Item_func(thd, list) {}
   String *val_str(String *)
     { DBUG_ASSERT(fixed == 1); null_value=1; return 0; }
   double val_real() { DBUG_ASSERT(fixed == 1); null_value= 1; return 0.0; }
@@ -1587,7 +1593,7 @@ class Item_func_get_lock :public Item_int_func
 {
   String value;
  public:
-  Item_func_get_lock(Item *a,Item *b) :Item_int_func(a,b) {}
+  Item_func_get_lock(THD *thd, Item *a, Item *b) :Item_int_func(thd, a, b) {}
   longlong val_int();
   const char *func_name() const { return "get_lock"; }
   void fix_length_and_dec() { max_length=1; maybe_null=1;}
@@ -1607,7 +1613,7 @@ class Item_func_release_lock :public Item_int_func
 {
   String value;
 public:
-  Item_func_release_lock(Item *a) :Item_int_func(a) {}
+  Item_func_release_lock(THD *thd, Item *a): Item_int_func(thd, a) {}
   longlong val_int();
   const char *func_name() const { return "release_lock"; }
   void fix_length_and_dec() { max_length= 1; maybe_null= 1;}
@@ -1629,9 +1635,11 @@ class Item_master_pos_wait :public Item_int_func
 {
   String value;
 public:
-  Item_master_pos_wait(Item *a,Item *b) :Item_int_func(a,b) {}
-  Item_master_pos_wait(Item *a,Item *b,Item *c) :Item_int_func(a,b,c) {}
-  Item_master_pos_wait(Item *a,Item *b, Item *c, Item *d) :Item_int_func(a,b,c,d) {}
+  Item_master_pos_wait(THD *thd, Item *a, Item *b): Item_int_func(thd, a, b) {}
+  Item_master_pos_wait(THD *thd, Item *a, Item *b, Item *c):
+    Item_int_func(thd, a, b, c) {}
+  Item_master_pos_wait(THD *thd, Item *a, Item *b, Item *c, Item *d):
+    Item_int_func(thd, a, b, c, d) {}
   longlong val_int();
   const char *func_name() const { return "master_pos_wait"; }
   void fix_length_and_dec() { max_length=21; maybe_null=1;}
@@ -1646,8 +1654,8 @@ class Item_master_gtid_wait :public Item_int_func
 {
   String value;
 public:
-  Item_master_gtid_wait(Item *a) :Item_int_func(a) {}
-  Item_master_gtid_wait(Item *a,Item *b) :Item_int_func(a,b) {}
+  Item_master_gtid_wait(THD *thd, Item *a): Item_int_func(thd, a) {}
+  Item_master_gtid_wait(THD *thd, Item *a, Item *b): Item_int_func(thd, a, b) {}
   longlong val_int();
   const char *func_name() const { return "master_gtid_wait"; }
   void fix_length_and_dec() { max_length=10+1+10+1+20+1; maybe_null=0;}
@@ -1691,9 +1699,9 @@ class Item_func_set_user_var :public Item_func
 
 public:
   LEX_STRING name; // keep it public
-  Item_func_set_user_var(LEX_STRING a,Item *b)
-    :Item_func(b), cached_result_type(INT_RESULT),
-     entry(NULL), entry_thread_id(0), name(a)
+  Item_func_set_user_var(THD *thd, LEX_STRING a, Item *b):
+    Item_func(thd, b), cached_result_type(INT_RESULT),
+    entry(NULL), entry_thread_id(0), name(a)
   {}
   Item_func_set_user_var(THD *thd, Item_func_set_user_var *item)
     :Item_func(thd, item), cached_result_type(item->cached_result_type),
@@ -1758,8 +1766,8 @@ class Item_func_get_user_var :public Item_func,
 
 public:
   LEX_STRING name; // keep it public
-  Item_func_get_user_var(LEX_STRING a):
-    Item_func(), m_cached_result_type(STRING_RESULT), name(a) {}
+  Item_func_get_user_var(THD *thd, LEX_STRING a):
+    Item_func(thd), m_cached_result_type(STRING_RESULT), name(a) {}
   enum Functype functype() const { return GUSERVAR_FUNC; }
   LEX_STRING get_name() { return name; }
   double val_real();
@@ -1804,7 +1812,7 @@ class Item_user_var_as_out_param :public Item
   LEX_STRING name;
   user_var_entry *entry;
 public:
-  Item_user_var_as_out_param(LEX_STRING a) : name(a)
+  Item_user_var_as_out_param(THD *thd, LEX_STRING a): Item(thd), name(a)
   { set_name(a.str, 0, system_charset_info); }
   /* We should return something different from FIELD_ITEM here */
   enum Type type() const { return STRING_ITEM;}
@@ -1839,7 +1847,8 @@ class Item_func_get_system_var :public Item_func
   uchar cache_present;
 
 public:
-  Item_func_get_system_var(sys_var *var_arg, enum_var_type var_type_arg,
+  Item_func_get_system_var(THD *thd, sys_var *var_arg,
+                           enum_var_type var_type_arg,
                            LEX_STRING *component_arg, const char *name_arg,
                            size_t name_len_arg);
   enum Functype functype() const { return GSYSVAR_FUNC; }
@@ -1888,8 +1897,9 @@ public:
   String value;              // value of concat_ws
   String search_value;       // key_item()'s value converted to cmp_collation
 
-  Item_func_match(List<Item> &a, uint b): Item_real_func(a), key(0), flags(b),
-       join_key(0), ft_handler(0), table(0), master(0), concat_ws(0) { }
+  Item_func_match(THD *thd, List<Item> &a, uint b):
+    Item_real_func(thd, a), key(0), flags(b), join_key(0), ft_handler(0),
+    table(0), master(0), concat_ws(0) { }
   void cleanup()
   {
     DBUG_ENTER("Item_func_match::cleanup");
@@ -1913,7 +1923,7 @@ public:
   virtual void print(String *str, enum_query_type query_type);
 
   bool fix_index();
-  void init_search(bool no_order);
+  void init_search(THD *thd, bool no_order);
   bool check_vcol_func_processor(uchar *int_arg) 
   {
     /* TODO: consider adding in support for the MATCH-based virtual columns */
@@ -1960,7 +1970,7 @@ private:
 class Item_func_bit_xor : public Item_func_bit
 {
 public:
-  Item_func_bit_xor(Item *a, Item *b) :Item_func_bit(a, b) {}
+  Item_func_bit_xor(THD *thd, Item *a, Item *b): Item_func_bit(thd, a, b) {}
   longlong val_int();
   const char *func_name() const { return "^"; }
 };
@@ -1969,7 +1979,7 @@ class Item_func_is_free_lock :public Item_int_func
 {
   String value;
 public:
-  Item_func_is_free_lock(Item *a) :Item_int_func(a) {}
+  Item_func_is_free_lock(THD *thd, Item *a): Item_int_func(thd, a) {}
   longlong val_int();
   const char *func_name() const { return "is_free_lock"; }
   void fix_length_and_dec() { decimals=0; max_length=1; maybe_null=1;}
@@ -1983,7 +1993,7 @@ class Item_func_is_used_lock :public Item_int_func
 {
   String value;
 public:
-  Item_func_is_used_lock(Item *a) :Item_int_func(a) {}
+  Item_func_is_used_lock(THD *thd, Item *a): Item_int_func(thd, a) {}
   longlong val_int();
   const char *func_name() const { return "is_used_lock"; }
   void fix_length_and_dec() { decimals=0; max_length=10; maybe_null=1;}
@@ -2006,7 +2016,7 @@ enum Cast_target
 class Item_func_row_count :public Item_int_func
 {
 public:
-  Item_func_row_count() :Item_int_func() {}
+  Item_func_row_count(THD *thd): Item_int_func(thd) {}
   longlong val_int();
   const char *func_name() const { return "row_count"; }
   void fix_length_and_dec() { decimals= 0; maybe_null=0; }
@@ -2051,9 +2061,9 @@ protected:
   
 public:
 
-  Item_func_sp(Name_resolution_context *context_arg, sp_name *name);
+  Item_func_sp(THD *thd, Name_resolution_context *context_arg, sp_name *name);
 
-  Item_func_sp(Name_resolution_context *context_arg,
+  Item_func_sp(THD *thd, Name_resolution_context *context_arg,
                sp_name *name, List<Item> &list);
 
   virtual ~Item_func_sp()
@@ -2147,7 +2157,7 @@ public:
 class Item_func_found_rows :public Item_int_func
 {
 public:
-  Item_func_found_rows() :Item_int_func() {}
+  Item_func_found_rows(THD *thd): Item_int_func(thd) {}
   longlong val_int();
   const char *func_name() const { return "found_rows"; }
   void fix_length_and_dec() { decimals= 0; maybe_null=0; }
@@ -2163,7 +2173,7 @@ void uuid_short_init();
 class Item_func_uuid_short :public Item_int_func
 {
 public:
-  Item_func_uuid_short() :Item_int_func() {}
+  Item_func_uuid_short(THD *thd): Item_int_func(thd) {}
   const char *func_name() const { return "uuid_short"; }
   longlong val_int();
   void fix_length_and_dec()
@@ -2180,7 +2190,7 @@ class Item_func_last_value :public Item_func
 protected:
   Item *last_value;
 public:
-  Item_func_last_value(List<Item> &list) :Item_func(list) {}
+  Item_func_last_value(THD *thd, List<Item> &list): Item_func(thd, list) {}
   double val_real();
   longlong val_int();
   String *val_str(String *);

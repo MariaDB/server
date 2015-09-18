@@ -3,6 +3,8 @@
 SET @global_query_cache_limit = @@global.query_cache_limit;
 SET @global_query_cache_size = @@global.query_cache_size;
 SET @global_query_cache_type = @@global.query_cache_type;
+SET GLOBAL query_cache_type= ON;
+SET LOCAL query_cache_type= ON;
 ** warnings **
 DROP TABLE IF EXISTS t;
 ** creating table **

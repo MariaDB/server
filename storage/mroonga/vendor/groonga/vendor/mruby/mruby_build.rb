@@ -28,7 +28,6 @@ end
 
 FileUtils.touch(timestamp_file)
 
-FileUtils.cp("#{mruby_build_dir}/host/src/y.tab.c", "parse.c")
 FileUtils.cp("#{mruby_build_dir}/host/mrblib/mrblib.c", "./")
 
 File.open("mrbgems_init.c", "w") do |mrbgems_init|
@@ -36,6 +35,11 @@ File.open("mrbgems_init.c", "w") do |mrbgems_init|
     mrbgems_init.puts(File.read(gem_init))
   end
 end
+
+mruby_compiler_dir = "#{mruby_build_dir}/host/mrbgems/mruby-compiler"
+FileUtils.mkdir_p("mruby-compiler/core/")
+FileUtils.cp("#{mruby_compiler_dir}/core/y.tab.c",
+             "mruby-compiler/core/parse.c")
 
 mruby_onig_regexp_dir = "#{mruby_build_dir}/mrbgems/mruby-onig-regexp"
 FileUtils.mkdir_p("mruby-onig-regexp/")

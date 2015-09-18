@@ -1,5 +1,7 @@
 include/master-slave.inc
 [connection master]
+set global sql_mode="";
+set local sql_mode="";
 DROP DATABASE IF EXISTS mysqltest1;
 CREATE DATABASE mysqltest1;
 CREATE USER tester IDENTIFIED BY 'test';
@@ -33,3 +35,5 @@ REVOKE ALL ON mysqltest1.* FROM ''@'localhost%';
 DROP USER tester@'%';
 DROP USER ''@'localhost%';
 include/rpl_end.inc
+set global sql_mode=default;
+set local sql_mode=default;

@@ -1,0 +1,43 @@
+#
+# Test that a LOCK TABLE on the slave will cause the applier thread to block, so no subsequent updates
+# are replicated on the slave until UNLOCK TABLE is issued.
+#
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+--let $wsrep_sync_wait_orig = `SELECT @@wsrep_sync_wait`
+
+CREATE TABLE t1 (id INT PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE t2 (id INT PRIMARY KEY) ENGINE=InnoDB;
+
+--connection node_2
+LOCK TABLE t1 READ;
+
+--connection node_1
+INSERT INTO t1 VALUES (1);
+INSERT INTO t2 VALUES (1);
+
+# We use a separate connection here so that we can SELECT from both tables
+# without running into "table t2 was not locked" error.
+
+--let $galera_connection_name = node_2a
+--let $galera_server_number = 2
+--source include/galera_connect.inc
+--connection node_2a
+SET SESSION wsrep_sync_wait=0;
+SELECT COUNT(*) = 0 FROM t1;
+SELECT COUNT(*) = 0 FROM t2;
+
+--connection node_2
+UNLOCK TABLES;
+
+--disable_query_log
+--eval SET SESSION wsrep_sync_wait=$wsrep_sync_wait_orig;
+--enable_query_log
+
+SELECT COUNT(*) = 1 FROM t1;
+SELECT COUNT(*) = 1 FROM t2;
+
+DROP TABLE t1;
+DROP TABLE t2;

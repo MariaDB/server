@@ -3,6 +3,7 @@
 #
 
 --source include/not_embedded.inc
+--source include/binlog_start_pos.inc
 --let $rpl_server_count= 0
 
 --connect (slave,127.0.0.1,root,,,$SERVER_MYPORT_3)
@@ -136,8 +137,11 @@ let $field= Slave_IO_State;
 let $condition= = 'Waiting for master to send event';
 --source include/wait_show_condition.inc
 
-
---replace_result $SERVER_MYPORT_1 MYPORT_1 $SERVER_MYPORT_2 MYPORT_2
+let read_master_log_pos=`select $binlog_start_pos + 65`;
+let relay_log_pos=`select 2*$binlog_start_pos + 105`;
+let relay_log_space1=`select 3*$binlog_start_pos + 144`;
+let relay_log_space2=`select 3*$binlog_start_pos + 163`;
+--replace_result $SERVER_MYPORT_1 MYPORT_1 $SERVER_MYPORT_2 MYPORT_2 $read_master_log_pos <read_master_log_pos> $relay_log_pos <relay_log_pos> $relay_log_space1 <relay_log_space1> $relay_log_space2 <relay_log_space2>
 show all slaves status;
 
 # Restart the slave server
@@ -160,7 +164,10 @@ let $condition= = 'Waiting for master to send event';
 --source include/wait_show_condition.inc
 
 
---replace_result $SERVER_MYPORT_1 MYPORT_1 $SERVER_MYPORT_2 MYPORT_2
+let relay_log_pos=`select 2*$binlog_start_pos + 40`;
+let relay_log_space1=`select 3*$binlog_start_pos + 79`;
+let relay_log_space2=`select 3*$binlog_start_pos + 98`;
+--replace_result $SERVER_MYPORT_1 MYPORT_1 $SERVER_MYPORT_2 MYPORT_2 $read_master_log_pos <read_master_log_pos> $relay_log_pos <relay_log_pos> $relay_log_space1 <relay_log_space1> $relay_log_space2 <relay_log_space2>
 show all slaves status;
 
 # Check the files

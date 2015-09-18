@@ -5,6 +5,7 @@ MESSAGE(STATUS "Configuring OQGraph")
 FIND_PACKAGE(Boost 1.40.0)
 IF(NOT Boost_FOUND)
   MESSAGE(STATUS "Boost not found. OQGraph will not be compiled")
+  SET(OQGRAPH_OK 0 CACHE INTERNAL "")
   RETURN()
 ENDIF()
 INCLUDE_DIRECTORIES(BEFORE ${Boost_INCLUDE_DIRS})
@@ -12,6 +13,7 @@ INCLUDE_DIRECTORIES(BEFORE ${Boost_INCLUDE_DIRS})
 FIND_PACKAGE(Judy)
 IF(NOT Judy_FOUND)
   MESSAGE(STATUS "Judy not found. OQGraph will not be compiled")
+  SET(OQGRAPH_OK 0 CACHE INTERNAL "")
   RETURN()
 ENDIF()
 INCLUDE_DIRECTORIES(${Judy_INCLUDE_DIR})
@@ -19,12 +21,13 @@ INCLUDE_DIRECTORIES(${Judy_INCLUDE_DIR})
 IF(MSVC)
 #  # lp:756966 OQGRAPH on Win64 does not compile
 #  IF (CMAKE_SIZEOF_VOID_P EQUAL 8)
-#    SET(BOOST_OK 0)
+#    SET(OQGRAPH_OK 0 CACHE INTERNAL "")
 #  ELSE()
-    SET(BOOST_OK 1)
+    SET(OQGRAPH_OK 1 CACHE INTERNAL "")
 #  ENDIF()
 ELSE()
 # See if that works. On old gcc it'll fail because of -fno-rtti
+SET(CMAKE_REQUIRED_INCLUDES "${Boost_INCLUDE_DIRS}")
 CHECK_CXX_SOURCE_COMPILES(
 "
 #define BOOST_NO_RTTI 1
@@ -32,10 +35,10 @@ CHECK_CXX_SOURCE_COMPILES(
 #include <boost/config.hpp>
 #include <boost/property_map/property_map.hpp>
 int main() { return 0; }
-" BOOST_OK)
+" OQGRAPH_OK)
 ENDIF()
 
-IF(BOOST_OK)
+IF(OQGRAPH_OK)
   ADD_DEFINITIONS(-DHAVE_OQGRAPH)
   IF(MSVC)
     SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /EHsc" PARENT_SCOPE)
@@ -49,7 +52,6 @@ IF(BOOST_OK)
   ENDIF(MSVC)
 
   ADD_DEFINITIONS(-DBOOST_NO_RTTI=1 -DBOOST_NO_TYPEID=1 -DBOOST_DISABLE_ASSERTS=1)
-  MESSAGE(STATUS "OQGraph OK")
   MYSQL_ADD_PLUGIN(oqgraph ha_oqgraph.cc graphcore.cc graphcore-graph.cc
                    oqgraph_shim.cc oqgraph_thunk.cc oqgraph_judy.cc
                    STORAGE_ENGINE
@@ -57,9 +59,11 @@ IF(BOOST_OK)
                    RECOMPILE_FOR_EMBEDDED
                    COMPONENT oqgraph-engine
                    LINK_LIBRARIES ${Judy_LIBRARIES})
-ELSE(BOOST_OK)
+ELSE(OQGRAPH_OK)
   MESSAGE(STATUS "Requisites for OQGraph not met. OQGraph will not be compiled")
-ENDIF(BOOST_OK)
+ENDIF(OQGRAPH_OK)
 ENDFUNCTION()
 
-CHECK_OQGRAPH()
+IF(NOT DEFINED OQGRAPH_OK)
+  CHECK_OQGRAPH()
+ENDIF()

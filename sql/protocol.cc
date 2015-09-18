@@ -868,7 +868,7 @@ bool Protocol::send_result_set_metadata(List<Item> *list, uint flags)
   DBUG_RETURN(prepare_for_send(list->elements));
 
 err:
-  my_message(ER_OUT_OF_RESOURCES, ER(ER_OUT_OF_RESOURCES),
+  my_message(ER_OUT_OF_RESOURCES, ER_THD(thd, ER_OUT_OF_RESOURCES),
              MYF(0));	/* purecov: inspected */
   DBUG_RETURN(1);				/* purecov: inspected */
 }
@@ -1248,7 +1248,7 @@ bool Protocol_text::send_out_parameters(List<Item_param> *sp_params)
       continue; // It's an IN-parameter.
 
     Item_func_set_user_var *suv=
-      new Item_func_set_user_var(*user_var_name, item_param);
+      new (thd->mem_root) Item_func_set_user_var(thd, *user_var_name, item_param);
     /*
       Item_func_set_user_var is not fixed after construction, call
       fix_fields().
@@ -1520,7 +1520,7 @@ bool Protocol_binary::send_out_parameters(List<Item_param> *sp_params)
       if (!item_param->get_out_param_info())
         continue; // It's an IN-parameter.
 
-      if (out_param_lst.push_back(item_param))
+      if (out_param_lst.push_back(item_param, thd->mem_root))
         return TRUE;
     }
   }

@@ -52,27 +52,27 @@ i	f1
 mysqld-relay-bin-master1.000001
 mysqld-relay-bin-master1.000002
 mysqld-relay-bin-master1.index
-show relaylog events;
+include/show_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
-mysqld-relay-bin-master1.000001	4	Format_desc	3	248	Server version
-mysqld-relay-bin-master1.000001	248	Rotate	3	306	mysqld-relay-bin-master1.000002;pos=4
-show relaylog events in 'mysqld-relay-bin-master1.000002';
+mysqld-relay-bin-master1.000001	#	Format_desc	#	#	SERVER_VERSION, BINLOG_VERSION
+mysqld-relay-bin-master1.000001	#	Rotate	#	#	mysqld-relay-bin-master1.000002;pos=4
+include/show_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
-mysqld-relay-bin-master1.000002	4	Format_desc	3	248	Server version
-mysqld-relay-bin-master1.000002	248	Rotate	1	0	master-bin.000001;pos=4
-mysqld-relay-bin-master1.000002	292	Format_desc	1	248	Server version
-mysqld-relay-bin-master1.000002	536	Gtid_list	1	273	[]
-mysqld-relay-bin-master1.000002	561	Binlog_checkpoint	1	313	master-bin.000001
-mysqld-relay-bin-master1.000002	601	Gtid	1	351	GTID 0-1-1
-mysqld-relay-bin-master1.000002	639	Query	1	440	drop database if exists db1
-mysqld-relay-bin-master1.000002	728	Gtid	1	478	GTID 0-1-2
-mysqld-relay-bin-master1.000002	766	Query	1	559	create database db1
-mysqld-relay-bin-master1.000002	847	Gtid	1	597	GTID 0-1-3
-mysqld-relay-bin-master1.000002	885	Query	1	750	use `db1`; create table t1 (i int auto_increment, f1 varchar(16), primary key pk (i,f1)) engine=MyISAM
-mysqld-relay-bin-master1.000002	1038	Gtid	1	788	BEGIN GTID 0-1-4
-mysqld-relay-bin-master1.000002	1076	Intvar	1	816	INSERT_ID=1
-mysqld-relay-bin-master1.000002	1104	Query	1	920	use `db1`; insert into t1 (f1) values ('one'),('two')
-mysqld-relay-bin-master1.000002	1208	Query	1	988	COMMIT
+mysqld-relay-bin-master1.000002	#	Format_desc	#	#	SERVER_VERSION, BINLOG_VERSION
+mysqld-relay-bin-master1.000002	#	Rotate	#	#	master-bin.000001;pos=POS
+mysqld-relay-bin-master1.000002	#	Format_desc	#	#	SERVER_VERSION, BINLOG_VERSION
+mysqld-relay-bin-master1.000002	#	Gtid_list	#	#	[]
+mysqld-relay-bin-master1.000002	#	Binlog_checkpoint	#	#	master-bin.000001
+mysqld-relay-bin-master1.000002	#	Gtid	#	#	GTID #-#-#
+mysqld-relay-bin-master1.000002	#	Query	#	#	drop database if exists db1
+mysqld-relay-bin-master1.000002	#	Gtid	#	#	GTID #-#-#
+mysqld-relay-bin-master1.000002	#	Query	#	#	create database db1
+mysqld-relay-bin-master1.000002	#	Gtid	#	#	GTID #-#-#
+mysqld-relay-bin-master1.000002	#	Query	#	#	use `db1`; create table t1 (i int auto_increment, f1 varchar(16), primary key pk (i,f1)) engine=MyISAM
+mysqld-relay-bin-master1.000002	#	Gtid	#	#	BEGIN GTID #-#-#
+mysqld-relay-bin-master1.000002	#	Intvar	#	#	INSERT_ID=1
+mysqld-relay-bin-master1.000002	#	Query	#	#	use `db1`; insert into t1 (f1) values ('one'),('two')
+mysqld-relay-bin-master1.000002	#	Query	#	#	COMMIT
 change master 'master1' to
 master_port=MYPORT_2,
 master_host='127.0.0.1',
@@ -138,7 +138,7 @@ flush logs;
 purge binary logs to 'master-bin.000002';
 show binary logs;
 Log_name	File_size
-master-bin.000002	367
+master-bin.000002	filesize
 insert into t1 (f1) values ('four');
 create table db1.t3 (f1 int) engine=InnoDB;
 #
@@ -167,27 +167,27 @@ i	f1
 2	two
 3	three
 4	four
-show relaylog events;
+include/show_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
-mysqld-relay-bin.000001	4	Format_desc	3	248	Server version
-mysqld-relay-bin.000001	248	Rotate	3	298	mysqld-relay-bin.000002;pos=4
-show relaylog events in 'mysqld-relay-bin.000002';
+mysqld-relay-bin.000001	#	Format_desc	#	#	SERVER_VERSION, BINLOG_VERSION
+mysqld-relay-bin.000001	#	Rotate	#	#	mysqld-relay-bin.000002;pos=4
+include/show_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
-mysqld-relay-bin.000002	4	Format_desc	3	248	Server version
-mysqld-relay-bin.000002	248	Rotate	2	0	master-bin.000001;pos=4
-mysqld-relay-bin.000002	292	Format_desc	2	248	Server version
-mysqld-relay-bin.000002	536	Gtid_list	2	273	[]
-mysqld-relay-bin.000002	561	Binlog_checkpoint	2	313	master-bin.000001
-mysqld-relay-bin.000002	601	Gtid	2	351	GTID 0-2-1
-mysqld-relay-bin.000002	639	Query	2	440	drop database if exists db2
-mysqld-relay-bin.000002	728	Gtid	2	478	GTID 0-2-2
-mysqld-relay-bin.000002	766	Query	2	559	create database db2
-mysqld-relay-bin.000002	847	Gtid	2	597	GTID 0-2-3
-mysqld-relay-bin.000002	885	Query	2	732	use `db2`; create table t1 (pk int auto_increment primary key, f1 int) engine=InnoDB
-mysqld-relay-bin.000002	1020	Gtid	2	770	BEGIN GTID 0-2-4
-mysqld-relay-bin.000002	1058	Intvar	2	798	INSERT_ID=1
-mysqld-relay-bin.000002	1086	Query	2	894	use `db2`; insert into t1 (f1) values (1),(2)
-mysqld-relay-bin.000002	1182	Xid	2	921	COMMIT /* xid=<num> */
+mysqld-relay-bin.000002	#	Format_desc	#	#	SERVER_VERSION, BINLOG_VERSION
+mysqld-relay-bin.000002	#	Rotate	#	#	master-bin.000001;pos=POS
+mysqld-relay-bin.000002	#	Format_desc	#	#	SERVER_VERSION, BINLOG_VERSION
+mysqld-relay-bin.000002	#	Gtid_list	#	#	[]
+mysqld-relay-bin.000002	#	Binlog_checkpoint	#	#	master-bin.000001
+mysqld-relay-bin.000002	#	Gtid	#	#	GTID #-#-#
+mysqld-relay-bin.000002	#	Query	#	#	drop database if exists db2
+mysqld-relay-bin.000002	#	Gtid	#	#	GTID #-#-#
+mysqld-relay-bin.000002	#	Query	#	#	create database db2
+mysqld-relay-bin.000002	#	Gtid	#	#	GTID #-#-#
+mysqld-relay-bin.000002	#	Query	#	#	use `db2`; create table t1 (pk int auto_increment primary key, f1 int) engine=InnoDB
+mysqld-relay-bin.000002	#	Gtid	#	#	BEGIN GTID #-#-#
+mysqld-relay-bin.000002	#	Intvar	#	#	INSERT_ID=1
+mysqld-relay-bin.000002	#	Query	#	#	use `db2`; insert into t1 (f1) values (1),(2)
+mysqld-relay-bin.000002	#	Xid	#	#	COMMIT /* XID */
 stop slave io_thread;
 show status like 'Slave_running';
 Variable_name	Value

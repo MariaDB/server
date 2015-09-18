@@ -322,3 +322,29 @@ drop table t1;
 create table t1 (a int, b int as (b is null) virtual);
 ERROR HY000: A computed column cannot be based on a computed column
 # end of 5.3 tests
+#
+# Start of 10.1 tests
+#
+#
+# MDEV-8441 Bad SHOW CREATE TABLE output for a table with a virtual column
+#
+CREATE TABLE t1 (a DATETIME, b TIMESTAMP AS (TIMESTAMP(a)));
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` datetime DEFAULT NULL,
+  `b` timestamp AS (TIMESTAMP(a)) VIRTUAL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 (a DATETIME, b TIMESTAMP AS (TIMESTAMP(a)),c TIMESTAMP);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` datetime DEFAULT NULL,
+  `b` timestamp AS (TIMESTAMP(a)) VIRTUAL,
+  `c` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00'
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+#
+# End of 10.1 tests
+#

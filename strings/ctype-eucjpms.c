@@ -194,12 +194,30 @@ static const uchar sort_order_eucjpms[]=
 
 
 #define MY_FUNCTION_NAME(x)   my_ ## x ## _eucjpms
+#define IS_MB1_CHAR(x)        ((uchar) (x) < 0x80)
 #define IS_MB2_JIS(x,y)       (iseucjpms(x)     && iseucjpms(y))
 #define IS_MB2_KATA(x,y)      (iseucjpms_ss2(x) && iskata(y))
 #define IS_MB2_CHAR(x,y)      (IS_MB2_KATA(x,y) || IS_MB2_JIS(x,y))
 #define IS_MB3_CHAR(x,y,z)    (iseucjpms_ss3(x) && IS_MB2_JIS(y,z))
 #define DEFINE_ASIAN_ROUTINES
 #include "ctype-mb.ic"
+
+#define MY_FUNCTION_NAME(x)  my_ ## x ## _eucjpms_japanese_ci
+#define WEIGHT_ILSEQ(x)      (0xFF0000 + (uchar) (x))
+#define WEIGHT_MB1(x)        ((int) sort_order_eucjpms[(uchar) (x)])
+#define WEIGHT_MB2(x,y)      ((((uint) (uchar)(x)) << 16) | \
+                             (((uint) (uchar) (y)) <<  8))
+#define WEIGHT_MB3(x,y,z)    (WEIGHT_MB2(x,y) | ((uint) (uchar) z))
+#include "strcoll.ic"
+
+
+#define MY_FUNCTION_NAME(x)  my_ ## x ## _eucjpms_bin
+#define WEIGHT_ILSEQ(x)      (0xFF0000 + (uchar) (x))
+#define WEIGHT_MB1(x)        ((int) (uchar) (x))
+#define WEIGHT_MB2(x,y)      ((((uint) (uchar)(x)) << 16) | \
+                             (((uint) (uchar) (y)) <<  8))
+#define WEIGHT_MB3(x,y,z)    (WEIGHT_MB2(x,y) | ((uint) (uchar) z))
+#include "strcoll.ic"
 
 
 static uint ismbchar_eucjpms(CHARSET_INFO *cs __attribute__((unused)),
@@ -67467,11 +67485,11 @@ size_t my_numcells_eucjpms(CHARSET_INFO *cs __attribute__((unused)),
 }
 
 
-static MY_COLLATION_HANDLER my_collation_ci_handler =
+static MY_COLLATION_HANDLER my_collation_eucjpms_japanese_ci_handler =
 {
     NULL,		/* init */
-    my_strnncoll_simple,/* strnncoll    */
-    my_strnncollsp_simple,
+    my_strnncoll_eucjpms_japanese_ci,
+    my_strnncollsp_eucjpms_japanese_ci,
     my_strnxfrm_mb,	/* strnxfrm     */
     my_strnxfrmlen_simple,
     my_like_range_mb,   /* like_range   */
@@ -67481,6 +67499,23 @@ static MY_COLLATION_HANDLER my_collation_ci_handler =
     my_hash_sort_simple,
     my_propagate_simple
 };
+
+
+static MY_COLLATION_HANDLER my_collation_eucjpms_bin_handler =
+{
+    NULL,		/* init */
+    my_strnncoll_eucjpms_bin,
+    my_strnncollsp_eucjpms_bin,
+    my_strnxfrm_mb,
+    my_strnxfrmlen_simple,
+    my_like_range_mb,
+    my_wildcmp_mb_bin,
+    my_strcasecmp_mb_bin,
+    my_instr_mb,
+    my_hash_sort_mb_bin,
+    my_propagate_simple
+};
+
 
 static MY_CHARSET_HANDLER my_charset_handler=
 {
@@ -67514,6 +67549,7 @@ static MY_CHARSET_HANDLER my_charset_handler=
     my_charlen_eucjpms,
     my_well_formed_char_length_eucjpms,
     my_copy_fix_mb,
+    my_native_to_mb_eucjpms,
 };
 
 
@@ -67547,7 +67583,7 @@ struct charset_info_st my_charset_eucjpms_japanese_ci=
     0,                  /* escape_with_backslash_is_dangerous */
     1,                  /* levels_for_order   */
     &my_charset_handler,
-    &my_collation_ci_handler
+    &my_collation_eucjpms_japanese_ci_handler
 };
 
 
@@ -67580,7 +67616,7 @@ struct charset_info_st my_charset_eucjpms_bin=
     0,                  /* escape_with_backslash_is_dangerous */
     1,                  /* levels_for_order   */
     &my_charset_handler,
-    &my_collation_mb_bin_handler
+    &my_collation_eucjpms_bin_handler
 };
 
 

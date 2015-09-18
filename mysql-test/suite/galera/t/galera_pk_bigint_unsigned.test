@@ -1,0 +1,45 @@
+#
+# PK that is a BIGINT UNSIGNED
+#
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+CREATE TABLE t1 (f1 BIGINT UNSIGNED PRIMARY KEY, f2 VARCHAR(5)) ENGINE=InnoDB;
+
+INSERT INTO t1 VALUES
+	(18446744073709551615, 'max')
+;
+
+--connection node_2
+SELECT f1 = 18446744073709551615 FROM t1;
+
+UPDATE t1 SET f2 = CONCAT(f2, '_');
+
+--connection node_1
+SELECT f1 = 18446744073709551615 FROM t1;
+
+#
+# Deadlock
+#
+
+--connection node_1
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+UPDATE t1 SET f2 = 'foo' WHERE f1 = 18446744073709551615;
+
+--connection node_2
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+UPDATE t1 SET f2 = 'bar' WHERE f1 = 18446744073709551615;
+
+--connection node_1
+COMMIT;
+SET AUTOCOMMIT=ON;
+
+--connection node_2
+--error ER_LOCK_DEADLOCK
+COMMIT;
+SET AUTOCOMMIT=ON;
+
+DROP TABLE t1;

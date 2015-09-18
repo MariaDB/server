@@ -3,6 +3,7 @@
 
 # Test of grants when lower_case_table_names is on
 use mysql;
+set sql_mode="";
 
 # mixed-case database name for testing
 create database MYSQLtest;

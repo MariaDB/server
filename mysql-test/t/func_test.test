@@ -194,3 +194,32 @@ EXPLAIN EXTENDED SELECT NOT NOT strcmp('a','b');
 --echo #
 --echo # End of 10.0 tests
 --echo #
+
+--echo #
+--echo # Start of 10.1 tests
+--echo #
+
+--echo #
+--echo # MDEV-8167 XOR returns bad results for an indexed column
+--echo #
+CREATE TABLE t1 (
+  id INTEGER UNSIGNED NOT NULL AUTO_INCREMENT,
+   k INTEGER UNSIGNED DEFAULT '0' NOT NULL,
+   c CHAR(120) DEFAULT '' NOT NULL,
+   pad CHAR(60) DEFAULT '' NOT NULL,
+   PRIMARY KEY (id)
+) ENGINE=MyISAM;
+INSERT INTO t1 (k, c, pad) VALUES (10, 'a', 'xxx');
+INSERT INTO t1 (k, c, pad) VALUES (11, 'a', 'xxx');
+INSERT INTO t1 (k, c, pad) VALUES (12, 'a', 'xxx');
+INSERT INTO t1 (k, c, pad) VALUES (13, 'a', 'xxx');
+INSERT INTO t1 (k, c, pad) VALUES (14, 'a', 'xxx');
+INSERT INTO t1 (k, c, pad) VALUES (15, 'a', 'xxx');
+INSERT INTO t1 (k, c, pad) VALUES (16, 'a', 'xxx');
+SELECT * FROM t1 WHERE id XOR 0;
+SELECT * FROM t1 IGNORE KEY(PRIMARY) WHERE id XOR 0;
+DROP TABLE t1;
+
+--echo #
+--echo # End of 10.1 tests
+--echo #

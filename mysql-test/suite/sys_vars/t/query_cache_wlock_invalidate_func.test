@@ -49,6 +49,11 @@ SET @start_session_value = @@SESSION.query_cache_wlock_invalidate;
 
 SET @old_cache_size = @@GLOBAL.query_cache_size;
 SET @old_cache_type = @@GLOBAL.query_cache_type;
+SET GLOBAL query_cache_type= ON;
+SET LOCAL query_cache_type= ON;
+connection con1;
+SET LOCAL query_cache_type= ON;
+connection con0;
 
 #
 # Creating test table

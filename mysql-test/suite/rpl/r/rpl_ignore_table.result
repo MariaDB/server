@@ -17,6 +17,7 @@ DROP TABLE t4;
 **** Adding GRANTS on master ****
 create table test.t1(a int);
 create table test.t4(a int);
+set sql_mode="";
 GRANT SELECT ON test.t1 TO mysqltest1@localhost;
 GRANT INSERT ON test.t4 TO mysqltest2@localhost;
 GRANT select, update, insert, references on t1
@@ -65,6 +66,7 @@ flush privileges;
 show grants for mysqltest5@somehost;
 Grants for mysqltest5@somehost
 GRANT USAGE ON *.* TO 'mysqltest5'@'somehost'
+set sql_mode="";
 **** Checking grants on slave ****
 show grants for mysqltest2@localhost;
 Grants for mysqltest2@localhost

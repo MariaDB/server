@@ -877,18 +877,18 @@ void make_truncated_value_warning(THD *thd,
   }
   if (field_name)
     cs->cset->snprintf(cs, warn_buff, sizeof(warn_buff),
-                       ER(ER_TRUNCATED_WRONG_VALUE_FOR_FIELD),
+                       ER_THD(thd, ER_TRUNCATED_WRONG_VALUE_FOR_FIELD),
                        type_str, sval->ptr(), field_name,
                        (ulong) thd->get_stmt_da()->current_row_for_warning());
   else
   {
     if (time_type > MYSQL_TIMESTAMP_ERROR)
       cs->cset->snprintf(cs, warn_buff, sizeof(warn_buff),
-                         ER(ER_TRUNCATED_WRONG_VALUE),
+                         ER_THD(thd, ER_TRUNCATED_WRONG_VALUE),
                          type_str, sval->ptr());
     else
       cs->cset->snprintf(cs, warn_buff, sizeof(warn_buff),
-                         ER(ER_WRONG_VALUE), type_str, sval->ptr());
+                         ER_THD(thd, ER_WRONG_VALUE), type_str, sval->ptr());
   }
   push_warning(thd, level,
                ER_TRUNCATED_WRONG_VALUE, warn_buff);
@@ -1011,11 +1011,14 @@ bool date_add_interval(MYSQL_TIME *ltime, interval_type int_type,
     return 0;                                   // Ok
 
 invalid_date:
-  push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
-                      ER_DATETIME_FUNCTION_OVERFLOW,
-                      ER(ER_DATETIME_FUNCTION_OVERFLOW),
-                      ltime->time_type == MYSQL_TIMESTAMP_TIME ?
-                      "time" : "datetime");
+  {
+    THD *thd= current_thd;
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                        ER_DATETIME_FUNCTION_OVERFLOW,
+                        ER_THD(thd, ER_DATETIME_FUNCTION_OVERFLOW),
+                        ltime->time_type == MYSQL_TIMESTAMP_TIME ?
+                        "time" : "datetime");
+  }
 null_date:
   return 1;
 }
@@ -1094,6 +1097,35 @@ calc_time_diff(const MYSQL_TIME *l_time1, const MYSQL_TIME *l_time2,
   *seconds_out= microseconds/1000000L;
   *microseconds_out= (long) (microseconds%1000000L);
   return neg;
+}
+
+
+bool calc_time_diff(const MYSQL_TIME *l_time1, const MYSQL_TIME *l_time2,
+                    int l_sign, MYSQL_TIME *l_time3, ulonglong fuzzydate)
+{
+  longlong seconds;
+  long microseconds;
+  bzero((char *) l_time3, sizeof(*l_time3));
+  l_time3->neg= calc_time_diff(l_time1, l_time2, l_sign,
+			       &seconds, &microseconds);
+  /*
+    For MYSQL_TIMESTAMP_TIME only:
+      If first argument was negative and diff between arguments
+      is non-zero we need to swap sign to get proper result.
+  */
+  if (l_time1->neg && (seconds || microseconds))
+    l_time3->neg= 1 - l_time3->neg;         // Swap sign of result
+
+  /*
+    seconds is longlong, when casted to long it may become a small number
+    even if the original seconds value was too large and invalid.
+    as a workaround we limit seconds by a large invalid long number
+    ("invalid" means > TIME_MAX_SECOND)
+  */
+  set_if_smaller(seconds, INT_MAX32);
+  calc_time_from_sec(l_time3, (long) seconds, microseconds);
+  return ((fuzzydate & TIME_NO_ZERO_DATE) && (seconds == 0) &&
+          (microseconds == 0));
 }
 
 
@@ -1337,4 +1369,24 @@ time_to_datetime_with_warn(THD *thd,
     return true;
   }
   return false;
+}
+
+
+bool datetime_to_time_with_warn(THD *thd, const MYSQL_TIME *dt,
+                                MYSQL_TIME *tm, uint dec)
+{
+  if (thd->variables.old_behavior & OLD_MODE_ZERO_DATE_TIME_CAST)
+  {
+    *tm= *dt;
+    datetime_to_time(tm);
+    return false;
+  }
+  else /* new mode */
+  {
+    MYSQL_TIME current_date;
+    set_current_date(thd, &current_date);
+    calc_time_diff(dt, &current_date, 1, tm, 0);
+  }
+  int warnings= 0;
+  return check_time_range(tm, dec, &warnings);
 }

@@ -331,3 +331,22 @@ CREATE TABLE t2 (a BINARY(1));
 SELECT * FROM t2 WHERE a=(SELECT a FROM t1) AND a=_LATIN1'x';
 DROP TABLE t2;
 DROP TABLE t1;
+
+
+--echo #
+--echo # Start of 10.1 tests
+--echo #
+
+--echo #
+--echo # MDEV-8362 dash '-' is not recognized in charset armscii8 on select where query
+--echo #
+CREATE TABLE t1 (a VARCHAR(64) CHARACTER SET armscii8);
+INSERT INTO t1 VALUES ('abc-def');
+SELECT * FROM t1 WHERE a='abc-def';
+SELECT * FROM t1 WHERE a LIKE 'abc%';
+DROP TABLE t1;
+SELECT HEX(CONVERT(_utf8 0x2728292C2D2E USING armscii8));
+
+--echo #
+--echo # End of 10.1 tests
+--echo #

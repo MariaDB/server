@@ -1,4 +1,4 @@
-/* Copyright 2010 Codership Oy <http://www.codership.com>
+/* Copyright 2010-2015 Codership Oy <http://www.codership.com>
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -150,7 +150,35 @@ process::process (const char* cmd, const char* type)
         goto cleanup_pipe;
     }
 
-    err_ = posix_spawnattr_setflags (&attr, POSIX_SPAWN_SETSIGDEF |
+    /* make sure that no signlas are masked in child process */
+    sigset_t sigmask_empty; sigemptyset(&sigmask_empty);
+    err_ = posix_spawnattr_setsigmask(&attr, &sigmask_empty);
+    if (err_)
+    {
+        WSREP_ERROR ("posix_spawnattr_setsigmask() failed: %d (%s)",
+                     err_, strerror(err_));
+        goto cleanup_attr;
+    }
+
+    /* make sure the following signals are not ignored in child process */
+    sigset_t default_signals; sigemptyset(&default_signals);
+    sigaddset(&default_signals, SIGHUP);
+    sigaddset(&default_signals, SIGINT);
+    sigaddset(&default_signals, SIGQUIT);
+    sigaddset(&default_signals, SIGPIPE);
+    sigaddset(&default_signals, SIGTERM);
+    sigaddset(&default_signals, SIGCHLD);
+    err_ = posix_spawnattr_setsigdefault(&attr, &default_signals);
+    if (err_)
+    {
+        WSREP_ERROR ("posix_spawnattr_setsigdefault() failed: %d (%s)",
+                     err_, strerror(err_));
+        goto cleanup_attr;
+    }
+
+    err_ = posix_spawnattr_setflags (&attr, POSIX_SPAWN_SETSIGDEF  |
+                                            POSIX_SPAWN_SETSIGMASK |
+            /* start a new process group */ POSIX_SPAWN_SETPGROUP  |
                                             POSIX_SPAWN_USEVFORK);
     if (err_)
     {
@@ -324,7 +352,7 @@ thd::~thd ()
 } // namespace wsp
 
 /* Returns INADDR_NONE, INADDR_ANY, INADDR_LOOPBACK or something else */
-unsigned int wsrep_check_ip (const char* const addr)
+unsigned int wsrep_check_ip (const char* const addr, bool *is_ipv6)
 {
   unsigned int ret = INADDR_NONE;
   struct addrinfo *res, hints;
@@ -333,6 +361,8 @@ unsigned int wsrep_check_ip (const char* const addr)
   hints.ai_flags= AI_PASSIVE/*|AI_ADDRCONFIG*/;
   hints.ai_socktype= SOCK_STREAM;
   hints.ai_family= AF_UNSPEC;
+
+  *is_ipv6= false;
 
   int gai_ret = getaddrinfo(addr, NULL, &hints, &res);
   if (0 == gai_ret)
@@ -351,6 +381,8 @@ unsigned int wsrep_check_ip (const char* const addr)
         ret= INADDR_LOOPBACK;
       else
         ret= 0xdeadbeef;
+
+      *is_ipv6= true;
     }
     freeaddrinfo (res);
   }
@@ -359,10 +391,6 @@ unsigned int wsrep_check_ip (const char* const addr)
                  addr, gai_ret, gai_strerror(gai_ret));
   }
 
-  // uint8_t* b= (uint8_t*)&ret;
-  // fprintf (stderr, "########## wsrep_check_ip returning: %hhu.%hhu.%hhu.%hhu\n",
-  //          b[0], b[1], b[2], b[3]);
-
   return ret;
 }
 
@@ -370,44 +398,47 @@ extern char* my_bind_addr_str;
 
 size_t wsrep_guess_ip (char* buf, size_t buf_len)
 {
-  size_t ip_len = 0;
+  size_t ret= 0;
 
+  // Attempt 1: Try to get the IP from bind-address.
   if (my_bind_addr_str && my_bind_addr_str[0] != '\0')
   {
-    unsigned int const ip_type= wsrep_check_ip(my_bind_addr_str);
+    bool unused;
+    unsigned int const ip_type= wsrep_check_ip(my_bind_addr_str, &unused);
 
     if (INADDR_NONE == ip_type) {
       WSREP_ERROR("Networking not configured, cannot receive state "
                   "transfer.");
-      return 0;
-    }
-
-    if (INADDR_ANY != ip_type) {
+      ret= 0;
+    } else if (INADDR_ANY != ip_type) {
       strncpy (buf, my_bind_addr_str, buf_len);
-      return strlen(buf);
+      ret= strlen(buf);
     }
+    goto done;
   }
 
-  // mysqld binds to all interfaces - try IP from wsrep_node_address
+  // Attempt 2: mysqld binds to all interfaces, try IP from wsrep_node_address.
   if (wsrep_node_address && wsrep_node_address[0] != '\0') {
-    const char* const colon_ptr = strchr(wsrep_node_address, ':');
-
-    if (colon_ptr)
-      ip_len = colon_ptr - wsrep_node_address;
-    else
-      ip_len = strlen(wsrep_node_address);
-
-    if (ip_len >= buf_len) {
-      WSREP_WARN("default_ip(): buffer too short: %zu <= %zd", buf_len, ip_len);
-      return 0;
+    wsp::Address addr(wsrep_node_address);
+    if (!addr.is_valid())
+    {
+      WSREP_WARN("Could not parse wsrep_node_address : %s",
+                 wsrep_node_address);
+      ret= 0;
+      goto done;
     }
 
-    memcpy (buf, wsrep_node_address, ip_len);
-    buf[ip_len] = '\0';
-    return ip_len;
+    /* Safety check: Buffer length should be sufficiently large. */
+    DBUG_ASSERT(buf_len >= addr.get_address_len());
+
+    memcpy(buf, addr.get_address(), addr.get_address_len());
+    ret= addr.get_address_len();
+    goto done;
   }
 
   /*
+    Attempt 3: Try to get the IP from the list of available interfaces.
+
     getifaddrs() is avaiable at least on Linux since glib 2.3, FreeBSD,
     MAC OSX, OpenSolaris, Solaris.
 
@@ -416,80 +447,42 @@ size_t wsrep_guess_ip (char* buf, size_t buf_len)
   */
 #if HAVE_GETIFADDRS
   struct ifaddrs *ifaddr, *ifa;
+  int family;
+
   if (getifaddrs(&ifaddr) == 0)
   {
     for (ifa= ifaddr; ifa != NULL; ifa = ifa->ifa_next)
     {
-      if (!ifa->ifa_addr || ifa->ifa_addr->sa_family != AF_INET) // TODO AF_INET6
+      if (!ifa->ifa_addr)
+        continue;
+
+      family= ifa->ifa_addr->sa_family;
+
+      if ((family != AF_INET) && (family != AF_INET6))
         continue;
 
       // Skip loopback interfaces (like lo:127.0.0.1)
       if (ifa->ifa_flags & IFF_LOOPBACK)
         continue;
 
+      /*
+        Get IP address from the socket address. The resulting address may have
+        zone ID appended for IPv6 addresses (<address>%<zone-id>).
+      */
       if (vio_getnameinfo(ifa->ifa_addr, buf, buf_len, NULL, 0, NI_NUMERICHOST))
         continue;
 
       freeifaddrs(ifaddr);
-      return strlen(buf);
+
+      ret= strlen(buf);
+      goto done;
     }
     freeifaddrs(ifaddr);
   }
 #endif /* HAVE_GETIFADDRS */
 
-  return 0;
+done:
+  WSREP_DEBUG("wsrep_guess_ip() : %s", (ret > 0) ? buf : "????");
+  return ret;
 }
 
-/*
- * WSREPXid
- */
-
-#define WSREP_XID_PREFIX "WSREPXid"
-#define WSREP_XID_PREFIX_LEN MYSQL_XID_PREFIX_LEN
-#define WSREP_XID_UUID_OFFSET 8
-#define WSREP_XID_SEQNO_OFFSET (WSREP_XID_UUID_OFFSET + sizeof(wsrep_uuid_t))
-#define WSREP_XID_GTRID_LEN (WSREP_XID_SEQNO_OFFSET + sizeof(wsrep_seqno_t))
-
-void wsrep_xid_init(XID* xid, const wsrep_uuid_t* uuid, wsrep_seqno_t seqno)
-{
-  xid->formatID= 1;
-  xid->gtrid_length= WSREP_XID_GTRID_LEN;
-  xid->bqual_length= 0;
-  memset(xid->data, 0, sizeof(xid->data));
-  memcpy(xid->data, WSREP_XID_PREFIX, WSREP_XID_PREFIX_LEN);
-  memcpy(xid->data + WSREP_XID_UUID_OFFSET, uuid, sizeof(wsrep_uuid_t));
-  memcpy(xid->data + WSREP_XID_SEQNO_OFFSET, &seqno, sizeof(wsrep_seqno_t));
-}
-
-const wsrep_uuid_t* wsrep_xid_uuid(const XID* xid)
-{
-  if (wsrep_is_wsrep_xid(xid))
-    return reinterpret_cast<const wsrep_uuid_t*>(xid->data
-                                                 + WSREP_XID_UUID_OFFSET);
-  else
-    return &WSREP_UUID_UNDEFINED;
-}
-
-wsrep_seqno_t wsrep_xid_seqno(const XID* xid)
-{
-
-  if (wsrep_is_wsrep_xid(xid))
-  {
-    wsrep_seqno_t seqno;
-    memcpy(&seqno, xid->data + WSREP_XID_SEQNO_OFFSET, sizeof(wsrep_seqno_t));
-    return seqno;
-  }
-  else
-  {
-    return WSREP_SEQNO_UNDEFINED;
-  }
-}
-
-extern
-int wsrep_is_wsrep_xid(const XID* xid)
-{
-  return (xid->formatID      == 1                   &&
-          xid->gtrid_length  == WSREP_XID_GTRID_LEN &&
-          xid->bqual_length  == 0                   &&
-          !memcmp(xid->data, WSREP_XID_PREFIX, WSREP_XID_PREFIX_LEN));
-}

@@ -99,25 +99,28 @@ static COND* make_cond(THD *thd, TABLE_LIST *tables, LEX_STRING *filter)
   nrc.init();
   nrc.resolve_in_table_list_only(tables);
 
-  res= new Item_cond_or();
+  res= new (thd->mem_root) Item_cond_or(thd);
   if (!res)
     return OOM;
 
   for (; filter->str; filter++)
   {
-    Item_field  *fld= new Item_field(&nrc, db, table, field);
-    Item_string *pattern= new Item_string(filter->str, filter->length, cs);
-    Item_string *escape= new Item_string("\\", 1, cs);
+    Item_field  *fld= new (thd->mem_root) Item_field(thd, &nrc, db, table,
+                                                     field);
+    Item_string *pattern= new (thd->mem_root) Item_string(thd, filter->str,
+                                                          filter->length, cs);
+    Item_string *escape= new (thd->mem_root) Item_string(thd, "\\", 1, cs);
 
     if (!fld || !pattern || !escape)
       return OOM;
 
-    Item_func_like *like= new Item_func_like(fld, pattern, escape, 0);
+    Item_func_like *like= new (thd->mem_root) Item_func_like(thd, fld, pattern,
+                                                             escape, 0);
 
     if (!like)
       return OOM;
 
-    res->add(like);
+    res->add(like, thd->mem_root);
   }
 
   if (res->fix_fields(thd, (Item**)&res))

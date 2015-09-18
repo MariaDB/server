@@ -27,8 +27,8 @@ case "${distribution}" in
   debian)
     component=main
     run cat <<EOF > /etc/apt/sources.list.d/groonga.list
-deb http://packages.groonga.org/debian/ wheezy main
-deb-src http://packages.groonga.org/debian/ wheezy main
+deb http://packages.groonga.org/debian/ ${code_name} main
+deb-src http://packages.groonga.org/debian/ ${code_name} main
 EOF
     if ! grep --quiet security /etc/apt/sources.list; then
       run cat <<EOF > /etc/apt/sources.list.d/security.list
@@ -75,4 +75,4 @@ run cd -
 package_initial=$(echo "${PACKAGE}" | sed -e 's/\(.\).*/\1/')
 pool_dir="/vagrant/repositories/${distribution}/pool/${code_name}/${component}/${package_initial}/${PACKAGE}"
 run mkdir -p "${pool_dir}/"
-run cp *.tar.gz *.diff.gz *.dsc *.deb "${pool_dir}/"
+run cp *.tar.* *.diff.gz *.dsc *.deb "${pool_dir}/"

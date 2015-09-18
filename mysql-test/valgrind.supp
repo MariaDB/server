@@ -127,6 +127,15 @@
 }
 
 {
+   pthread memalign memory loss3
+   Memcheck:Leak
+   fun:memalign
+   fun:tls_get_addr_tail
+   ...
+   fun:*ha_finalize_handlerton*
+}
+
+{
    pthread pthread_key_create
    Memcheck:Leak
    fun:malloc
@@ -420,7 +429,7 @@
    Memcheck:Leak
    fun:memalign
    ...
-   fun:call_init
+   fun:call_init*
    fun:_dl_init
 }
 

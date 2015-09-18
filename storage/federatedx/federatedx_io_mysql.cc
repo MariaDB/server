@@ -30,6 +30,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define MYSQL_SERVER 1
 #include <my_global.h>
 #include "sql_priv.h"
+#include <mysqld_error.h>
 
 #include "ha_federatedx.h"
 

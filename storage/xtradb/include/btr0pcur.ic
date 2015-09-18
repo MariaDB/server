@@ -447,7 +447,7 @@ btr_pcur_open_low(
 Opens an persistent cursor to an index tree without initializing the
 cursor. */
 UNIV_INLINE
-void
+dberr_t
 btr_pcur_open_with_no_init_func(
 /*============================*/
 	dict_index_t*	index,	/*!< in: index */
@@ -472,6 +472,7 @@ btr_pcur_open_with_no_init_func(
 	mtr_t*		mtr)	/*!< in: mtr */
 {
 	btr_cur_t*	btr_cursor;
+	dberr_t		err = DB_SUCCESS;
 
 	cursor->latch_mode = latch_mode;
 	cursor->search_mode = mode;
@@ -480,20 +481,21 @@ btr_pcur_open_with_no_init_func(
 
 	btr_cursor = btr_pcur_get_btr_cur(cursor);
 
-	btr_cur_search_to_nth_level(index, 0, tuple, mode, latch_mode,
-				    btr_cursor, has_search_latch,
-				    file, line, mtr);
+	err = btr_cur_search_to_nth_level(index, 0, tuple, mode, latch_mode,
+				    	  btr_cursor, has_search_latch,
+				    	  file, line, mtr);
 	cursor->pos_state = BTR_PCUR_IS_POSITIONED;
 
 	cursor->old_stored = BTR_PCUR_OLD_NOT_STORED;
 
 	cursor->trx_if_known = NULL;
+	return err;
 }
 
 /*****************************************************************//**
 Opens a persistent cursor at either end of an index. */
 UNIV_INLINE
-void
+dberr_t
 btr_pcur_open_at_index_side(
 /*========================*/
 	bool		from_left,	/*!< in: true if open to the low end,
@@ -506,6 +508,8 @@ btr_pcur_open_at_index_side(
 					(0=leaf) */
 	mtr_t*		mtr)		/*!< in/out: mini-transaction */
 {
+	dberr_t		err = DB_SUCCESS;
+
 	pcur->latch_mode = BTR_LATCH_MODE_WITHOUT_FLAGS(latch_mode);
 
 	pcur->search_mode = from_left ? PAGE_CUR_G : PAGE_CUR_L;
@@ -514,13 +518,15 @@ btr_pcur_open_at_index_side(
 		btr_pcur_init(pcur);
 	}
 
-	btr_cur_open_at_index_side(from_left, index, latch_mode,
-				   btr_pcur_get_btr_cur(pcur), level, mtr);
+	err = btr_cur_open_at_index_side(from_left, index, latch_mode,
+				   	 btr_pcur_get_btr_cur(pcur), level, mtr);
 	pcur->pos_state = BTR_PCUR_IS_POSITIONED;
 
 	pcur->old_stored = BTR_PCUR_OLD_NOT_STORED;
 
 	pcur->trx_if_known = NULL;
+
+	return (err);
 }
 
 /**********************************************************************//**

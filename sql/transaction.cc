@@ -657,7 +657,7 @@ bool trans_rollback_to_savepoint(THD *thd, LEX_STRING name)
            !thd->slave_thread)
     push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
                  ER_WARNING_NOT_COMPLETE_ROLLBACK,
-                 ER(ER_WARNING_NOT_COMPLETE_ROLLBACK));
+                 ER_THD(thd, ER_WARNING_NOT_COMPLETE_ROLLBACK));
 
   thd->transaction.savepoints= sv;
 

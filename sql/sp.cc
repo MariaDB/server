@@ -317,7 +317,7 @@ Stored_routine_creation_ctx::load_from_db(THD *thd,
     push_warning_printf(thd,
                         Sql_condition::WARN_LEVEL_WARN,
                         ER_SR_INVALID_CREATION_CTX,
-                        ER(ER_SR_INVALID_CREATION_CTX),
+                        ER_THD(thd, ER_SR_INVALID_CREATION_CTX),
                         (const char *) db_name,
                         (const char *) sr_name);
   }
@@ -1063,10 +1063,11 @@ sp_create_routine(THD *thd, stored_procedure_type type, sp_head *sp)
       else if (lex->create_info.if_not_exists())
       {
         push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
-                              ER_SP_ALREADY_EXISTS, ER(ER_SP_ALREADY_EXISTS),
-                              type == TYPE_ENUM_FUNCTION ?
-                               "FUNCTION" : "PROCEDURE",
-                              lex->spname->m_name.str);
+                            ER_SP_ALREADY_EXISTS,
+                            ER_THD(thd, ER_SP_ALREADY_EXISTS),
+                            type == TYPE_ENUM_FUNCTION ?
+                            "FUNCTION" : "PROCEDURE",
+                            lex->spname->m_name.str);
 
         ret= SP_OK;
 
@@ -1193,7 +1194,7 @@ sp_create_routine(THD *thd, stored_procedure_type type, sp_head *sp)
 	    access == SP_MODIFIES_SQL_DATA)
 	{
 	  my_message(ER_BINLOG_UNSAFE_ROUTINE,
-		     ER(ER_BINLOG_UNSAFE_ROUTINE), MYF(0));
+		     ER_THD(thd, ER_BINLOG_UNSAFE_ROUTINE), MYF(0));
 	  ret= SP_INTERNAL_ERROR;
 	  goto done;
 	}
@@ -1201,7 +1202,7 @@ sp_create_routine(THD *thd, stored_procedure_type type, sp_head *sp)
       if (!(thd->security_ctx->master_access & SUPER_ACL))
       {
 	my_message(ER_BINLOG_CREATE_ROUTINE_NEED_SUPER,
-		   ER(ER_BINLOG_CREATE_ROUTINE_NEED_SUPER), MYF(0));
+		   ER_THD(thd, ER_BINLOG_CREATE_ROUTINE_NEED_SUPER), MYF(0));
 	ret= SP_INTERNAL_ERROR;
 	goto done;
       }
@@ -1401,7 +1402,7 @@ sp_update_routine(THD *thd, stored_procedure_type type, sp_name *name,
       if (!is_deterministic)
       {
         my_message(ER_BINLOG_UNSAFE_ROUTINE,
-                   ER(ER_BINLOG_UNSAFE_ROUTINE), MYF(0));
+                   ER_THD(thd, ER_BINLOG_UNSAFE_ROUTINE), MYF(0));
         ret= SP_INTERNAL_ERROR;
         goto err;
       }
@@ -1796,7 +1797,8 @@ sp_find_routine(THD *thd, stored_procedure_type type, sp_name *name,
 
   @param thd Thread handler
   @param routines List of needles in the hay stack
-  @param any Any of the needles are good enough
+  @param is_proc  Indicates whether routines in the list are procedures
+                  or functions.
 
   @return
     @retval FALSE Found.
@@ -1804,7 +1806,7 @@ sp_find_routine(THD *thd, stored_procedure_type type, sp_name *name,
 */
 
 bool
-sp_exist_routines(THD *thd, TABLE_LIST *routines, bool any)
+sp_exist_routines(THD *thd, TABLE_LIST *routines, bool is_proc)
 {
   TABLE_LIST *routine;
   bool sp_object_found;
@@ -1820,17 +1822,14 @@ sp_exist_routines(THD *thd, TABLE_LIST *routines, bool any)
     lex_name.str= thd->strmake(routine->table_name, lex_name.length);
     name= new sp_name(lex_db, lex_name, true);
     name->init_qname(thd);
-    sp_object_found= sp_find_routine(thd, TYPE_ENUM_PROCEDURE, name,
-                                     &thd->sp_proc_cache, FALSE) != NULL ||
-                     sp_find_routine(thd, TYPE_ENUM_FUNCTION, name,
-                                     &thd->sp_func_cache, FALSE) != NULL;
+    sp_object_found= is_proc ? sp_find_routine(thd, TYPE_ENUM_PROCEDURE,
+                                               name, &thd->sp_proc_cache,
+                                               FALSE) != NULL :
+                               sp_find_routine(thd, TYPE_ENUM_FUNCTION,
+                                               name, &thd->sp_func_cache,
+                                               FALSE) != NULL;
     thd->get_stmt_da()->clear_warning_info(thd->query_id);
-    if (sp_object_found)
-    {
-      if (any)
-        break;
-    }
-    else if (!any)
+    if (! sp_object_found)
     {
       my_error(ER_SP_DOES_NOT_EXIST, MYF(0), "FUNCTION or PROCEDURE",
                routine->table_name);

@@ -2752,7 +2752,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
-  `s1` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_myanmar_ci NOT NULL DEFAULT '',
+  `s1` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_myanmar_ci NOT NULL,
   PRIMARY KEY (`id`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 INSERT INTO t1 (s1) VALUES

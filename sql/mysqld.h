@@ -81,6 +81,7 @@ void close_connection(THD *thd, uint sql_errno= 0);
 void handle_connection_in_main_thread(THD *thd);
 void create_thread_to_handle_connection(THD *thd);
 void delete_running_thd(THD *thd);
+void signal_thd_deleted();
 void unlink_thd(THD *thd);
 bool one_thread_per_connection_end(THD *thd, bool put_in_cache);
 void flush_thread_cache();
@@ -254,6 +255,7 @@ extern ulong connection_errors_internal;
 extern ulong connection_errors_max_connection;
 extern ulong connection_errors_peer_addr;
 extern ulong log_warnings;
+extern my_bool encrypt_binlog;
 extern my_bool encrypt_tmp_disk_tables, encrypt_tmp_files;
 extern ulong encryption_algorithm;
 extern const char *encryption_algorithm_names[];
@@ -566,7 +568,7 @@ extern mysql_cond_t COND_thread_count;
 extern mysql_cond_t COND_manager;
 extern mysql_cond_t COND_slave_init;
 extern int32 thread_running;
-extern int32 thread_count;
+extern int32 thread_count, service_thread_count;
 
 extern char *opt_ssl_ca, *opt_ssl_capath, *opt_ssl_cert, *opt_ssl_cipher,
   *opt_ssl_key, *opt_ssl_crl, *opt_ssl_crlpath;
@@ -645,10 +647,35 @@ enum enum_query_type
   QT_WITHOUT_INTRODUCERS= (1 << 1),
   /// view internal representation (like QT_ORDINARY except ORDER BY clause)
   QT_VIEW_INTERNAL= (1 << 2),
-  /// This value means focus on readability, not on ability to parse back, etc.
-  QT_EXPLAIN= (1 << 4)
-};
+  /// If identifiers should not include database names for the current database
+  QT_ITEM_IDENT_SKIP_CURRENT_DATABASE= (1 << 3),
+  /// If Item_cache_wrapper should not print <expr_cache>
+  QT_ITEM_CACHE_WRAPPER_SKIP_DETAILS= (1 << 4),
+  /// If Item_subselect should print as just "(subquery#1)"
+  /// rather than display the subquery body
+  QT_ITEM_SUBSELECT_ID_ONLY= (1 << 5),
+  /// If NULLIF(a,b) should print itself as
+  /// CASE WHEN a_for_comparison=b THEN NULL ELSE a_for_return_value END
+  /// when "a" was replaced to two different items
+  /// (e.g. by equal fields propagation in optimize_cond()).
+  /// The default behaviour is to print as NULLIF(a_for_return, b)
+  /// which should be Ok for SHOW CREATE {VIEW|PROCEDURE|FUNCTION}
+  /// as they are not affected by WHERE optimization.
+  QT_ITEM_FUNC_NULLIF_TO_CASE= (1 <<6),
 
+  /// This value means focus on readability, not on ability to parse back, etc.
+  QT_EXPLAIN=           QT_TO_SYSTEM_CHARSET |
+                        QT_ITEM_FUNC_NULLIF_TO_CASE |
+                        QT_ITEM_IDENT_SKIP_CURRENT_DATABASE |
+                        QT_ITEM_CACHE_WRAPPER_SKIP_DETAILS |
+                        QT_ITEM_SUBSELECT_ID_ONLY,
+
+  /// This is used for EXPLAIN EXTENDED extra warnings
+  /// Be more detailed than QT_EXPLAIN.
+  /// Perhaps we should eventually include QT_ITEM_IDENT_SKIP_CURRENT_DATABASE
+  /// here, as it would give better readable results
+  QT_EXPLAIN_EXTENDED=  QT_TO_SYSTEM_CHARSET | QT_ITEM_FUNC_NULLIF_TO_CASE
+};
 
 
 /* query_id */

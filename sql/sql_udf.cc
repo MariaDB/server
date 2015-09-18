@@ -90,10 +90,11 @@ static char *init_syms(udf_func *tmp, char *nm)
   */
   if (!tmp->func_init && !tmp->func_deinit && tmp->type != UDFTYPE_AGGREGATE)
   {
+    THD *thd= current_thd;
     if (!opt_allow_suspicious_udfs)
       return nm;
-    if (current_thd->variables.log_warnings)
-      sql_print_warning(ER(ER_CANT_FIND_DL_ENTRY), nm);
+    if (thd->variables.log_warnings)
+      sql_print_warning(ER_THD(thd, ER_CANT_FIND_DL_ENTRY), nm);
   }
   return 0;
 }
@@ -207,7 +208,7 @@ void udf_init()
       On windows we must check both FN_LIBCHAR and '/'.
     */
     if (check_valid_path(dl_name, strlen(dl_name)) ||
-        check_string_char_length(&name, "", NAME_CHAR_LEN,
+        check_string_char_length(&name, 0, NAME_CHAR_LEN,
                                  system_charset_info, 1))
     {
       sql_print_error("Invalid row in mysql.func table for function '%.64s'",
@@ -232,7 +233,8 @@ void udf_init()
       if (!(dl= dlopen(dlpath, RTLD_NOW)))
       {
 	/* Print warning to log */
-        sql_print_error(ER(ER_CANT_OPEN_LIBRARY), tmp->dl, errno, dlerror());
+        sql_print_error(ER_THD(new_thd, ER_CANT_OPEN_LIBRARY),
+                        tmp->dl, errno, dlerror());
 	/* Keep the udf in the hash so that we can remove it later */
 	continue;
       }
@@ -243,7 +245,7 @@ void udf_init()
       char buf[SAFE_NAME_LEN+16], *missing;
       if ((missing= init_syms(tmp, buf)))
       {
-        sql_print_error(ER(ER_CANT_FIND_DL_ENTRY), missing);
+        sql_print_error(ER_THD(new_thd, ER_CANT_FIND_DL_ENTRY), missing);
         del_udf(tmp);
         if (new_dl)
           dlclose(dl);
@@ -481,7 +483,8 @@ int mysql_create_function(THD *thd,udf_func *udf)
                udf->name.str,
                "UDFs are unavailable with the --skip-grant-tables option");
     else
-      my_message(ER_OUT_OF_RESOURCES, ER(ER_OUT_OF_RESOURCES), MYF(0));
+      my_message(ER_OUT_OF_RESOURCES, ER_THD(thd, ER_OUT_OF_RESOURCES),
+                 MYF(0));
     DBUG_RETURN(1);
   }
 
@@ -492,10 +495,10 @@ int mysql_create_function(THD *thd,udf_func *udf)
   */
   if (check_valid_path(udf->dl, strlen(udf->dl)))
   {
-    my_message(ER_UDF_NO_PATHS, ER(ER_UDF_NO_PATHS), MYF(0));
+    my_message(ER_UDF_NO_PATHS, ER_THD(thd, ER_UDF_NO_PATHS), MYF(0));
     DBUG_RETURN(1);
   }
-  if (check_string_char_length(&udf->name, "", NAME_CHAR_LEN,
+  if (check_string_char_length(&udf->name, 0, NAME_CHAR_LEN,
                                system_charset_info, 1))
   {
     my_error(ER_TOO_LONG_IDENT, MYF(0), udf->name.str);
@@ -519,7 +522,7 @@ int mysql_create_function(THD *thd,udf_func *udf)
     else if (thd->lex->create_info.if_not_exists())
     {
       push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE, ER_UDF_EXISTS,
-                          ER(ER_UDF_EXISTS), udf->name.str);
+                          ER_THD(thd, ER_UDF_EXISTS), udf->name.str);
 
       goto done;
     }
@@ -615,7 +618,8 @@ int mysql_drop_function(THD *thd,const LEX_STRING *udf_name)
     if (opt_noacl)
       my_error(ER_FUNCTION_NOT_DEFINED, MYF(0), udf_name->str);
     else
-      my_message(ER_OUT_OF_RESOURCES, ER(ER_OUT_OF_RESOURCES), MYF(0));
+      my_message(ER_OUT_OF_RESOURCES, ER_THD(thd, ER_OUT_OF_RESOURCES),
+                 MYF(0));
     DBUG_RETURN(1);
   }
 
@@ -631,7 +635,8 @@ int mysql_drop_function(THD *thd,const LEX_STRING *udf_name)
     if (thd->lex->check_exists)
     {
       push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
-                          ER_FUNCTION_NOT_DEFINED, ER(ER_FUNCTION_NOT_DEFINED),
+                          ER_FUNCTION_NOT_DEFINED,
+                          ER_THD(thd, ER_FUNCTION_NOT_DEFINED),
                           udf_name->str);
       goto done;
     }

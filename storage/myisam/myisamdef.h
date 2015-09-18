@@ -394,7 +394,7 @@ struct st_myisam_info
 #define PACK_TYPE_SELECTED      1       /* Bits in field->pack_type */
 #define PACK_TYPE_SPACE_FIELDS  2
 #define PACK_TYPE_ZERO_FILL     4
-#define MI_FOUND_WRONG_KEY 32738        /* Impossible value from ha_key_cmp */
+#define MI_FOUND_WRONG_KEY 0x7FFFFFFF   /* Impossible value from ha_key_cmp */
 
 #define MI_MAX_KEY_BLOCK_SIZE   (MI_MAX_KEY_BLOCK_LENGTH/MI_MIN_KEY_BLOCK_LENGTH)
 #define MI_BLOCK_SIZE(key_length,data_pointer,key_pointer,block_size) (((((key_length)+(data_pointer)+(key_pointer))*4+(key_pointer)+2)/(block_size)+1)*(block_size))

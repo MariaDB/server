@@ -1275,6 +1275,7 @@ public:
   void mark_columns_needed_for_update(void);
   void mark_columns_needed_for_delete(void);
   void mark_columns_needed_for_insert(void);
+  void mark_columns_per_binlog_row_image(void);
   bool mark_virtual_col(Field *field);
   void mark_virtual_columns_for_write(bool insert_fl);
   void mark_default_fields_for_write();
@@ -1378,6 +1379,8 @@ public:
   void prepare_triggers_for_insert_stmt_or_event();
   bool prepare_triggers_for_delete_stmt_or_event();
   bool prepare_triggers_for_update_stmt_or_event();
+
+  bool validate_default_values_of_unset_fields(THD *thd) const;
 };
 
 
@@ -1533,6 +1536,8 @@ class IS_table_read_plan;
 #define DT_PHASES_MATERIALIZE (DT_COMMON | DT_MATERIALIZE)
 
 #define VIEW_ALGORITHM_UNDEFINED 0
+/* Special value for ALTER VIEW: inherit original algorithm. */
+#define VIEW_ALGORITHM_INHERIT   DTYPE_VIEW
 #define VIEW_ALGORITHM_MERGE    (DTYPE_VIEW | DTYPE_MERGE)
 #define VIEW_ALGORITHM_TMPTABLE (DTYPE_VIEW | DTYPE_MATERIALIZE)
 

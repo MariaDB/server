@@ -33,6 +33,7 @@
 #define DEFINE_WELL_FORMED_LEN
 #define DEFINE_WELL_FORMED_CHAR_LENGTH
 #define DEFINE_CHARLEN
+#define DEFINE_NATIVE_TO_MB_VARLEN
 #endif
 
 
@@ -256,3 +257,68 @@ MY_FUNCTION_NAME(well_formed_char_length)(CHARSET_INFO *cs __attribute__((unused
   return nchars0 - nchars;
 }
 #endif /* DEFINE_WELL_FORMED_CHAR_LENGTH_USING_CHARLEN */
+
+
+#ifdef DEFINE_NATIVE_TO_MB_VARLEN
+/*
+  Write a native 2-byte character.
+  If the full character does not fit, only the first byte is written.
+*/
+static inline int
+my_native_to_mb_fixed2(my_wc_t wc, uchar *s, uchar *e)
+{
+  /* The caller must insure there is a space for at least one byte */
+  DBUG_ASSERT(s < e);
+  s[0]= wc >> 8;
+  if (s + 2 > e)
+    return MY_CS_TOOSMALL2;
+  s[1]= wc & 0xFF;
+  return 2;
+}
+
+
+/*
+  Write a native 3-byte character.
+  If the full character does not fit, only the leading bytes are written.
+*/
+static inline int
+my_native_to_mb_fixed3(my_wc_t wc, uchar *s, uchar *e)
+{
+  /* The caller must insure there is a space for at least one byte */
+  DBUG_ASSERT(s < e);
+  s[0]= wc >> 16;
+  if (s + 2 > e)
+    return MY_CS_TOOSMALL2;
+  s[1]= (wc >> 8) & 0xFF;
+  if (s + 3 > e)
+    return MY_CS_TOOSMALL3;
+  s[2]= wc & 0xFF;
+  return 3;
+}
+
+
+/*
+  Write a native 1-byte or 2-byte or 3-byte character.
+*/
+
+static int
+MY_FUNCTION_NAME(native_to_mb)(CHARSET_INFO *cs __attribute__((unused)),
+                               my_wc_t wc, uchar *s, uchar *e)
+{
+  if (s >= e)
+    return MY_CS_TOOSMALL;
+  if ((int) wc <= 0xFF)
+  {
+    s[0]= (uchar) wc;
+    return 1;
+  }
+#ifdef IS_MB3_HEAD
+  if (wc > 0xFFFF)
+    return my_native_to_mb_fixed3(wc, s, e);
+#endif
+  return my_native_to_mb_fixed2(wc, s, e);
+}
+#endif /* DEFINE_NATIVE_TO_MB_VARLEN */
+
+
+#undef MY_FUNCTION_NAME

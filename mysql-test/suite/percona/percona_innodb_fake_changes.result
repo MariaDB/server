@@ -45,7 +45,7 @@ BEGIN;
 CREATE TABLE t2 (a INT) ENGINE=InnoDB;
 ERROR HY000: Can't create table `test`.`t2` (errno: 131 "Command not supported by database")
 DROP TABLE t1;
-ERROR 42S02: Unknown table 'test.t1'
+ERROR HY000: Storage engine InnoDB of the table `test`.`t1` doesn't have this option
 TRUNCATE TABLE t1;
 ERROR HY000: Got error 131 "Command not supported by database" during COMMIT
 ALTER TABLE t1 ENGINE=MyISAM;

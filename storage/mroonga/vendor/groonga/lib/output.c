@@ -1,5 +1,5 @@
 /* -*- c-basic-offset: 2 -*- */
-/* Copyright(C) 2009-2014 Brazil
+/* Copyright(C) 2009-2015 Brazil
 
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -20,6 +20,7 @@
 #include <string.h>
 #include "grn_str.h"
 #include "grn_db.h"
+#include "grn_expr_code.h"
 #include "grn_util.h"
 #include "grn_output.h"
 
@@ -1134,57 +1135,6 @@ count_n_elements_in_expression(grn_ctx *ctx, grn_obj *expression)
   return n_elements;
 }
 
-static inline int
-count_used_n_codes(grn_ctx *ctx, grn_expr_code *start, grn_expr_code *target)
-{
-  int n_codes;
-  int i, n_args;
-  grn_bool have_proc_push_code = GRN_FALSE;
-  grn_expr_code *sub_code;
-
-  if (start == target) {
-    return 0;
-  }
-
-  n_args = target->nargs;
-  if (target->op == GRN_OP_CALL) {
-    if (!target->value) {
-      have_proc_push_code = GRN_TRUE;
-    }
-  } else {
-    if (target->value) {
-      n_args--;
-      if (n_args == 0) {
-        return 1;
-      }
-    }
-  }
-
-  n_codes = 1;
-  sub_code = target - 1;
-  for (i = 0; i < n_args; i++) {
-    int sub_n_codes;
-    sub_n_codes = count_used_n_codes(ctx, start, sub_code);
-    n_codes += sub_n_codes;
-    sub_code -= sub_n_codes;
-    if (sub_code < start) {
-      /* TODO: report error */
-      return 0;
-    }
-  }
-
-  if (have_proc_push_code) {
-    n_codes++;
-    sub_code--;
-    if (sub_code < start) {
-      /* TODO: report error */
-      return 0;
-    }
-  }
-
-  return n_codes;
-}
-
 static grn_bool
 is_score_accessor(grn_ctx *ctx, grn_obj *obj)
 {
@@ -1305,10 +1255,10 @@ grn_output_table_columns_by_expression(grn_ctx *ctx, grn_obj *outbuf,
 
     have_comma = GRN_TRUE;
     if (is_first_comma) {
-      int n_used_codes;
+      unsigned int n_used_codes;
       int code_end_offset;
 
-      n_used_codes = count_used_n_codes(ctx, expr->codes, code - 1);
+      n_used_codes = grn_expr_code_n_used_codes(ctx, expr->codes, code - 1);
       code_end_offset = code - expr->codes - n_used_codes;
 
       grn_output_table_column_by_expression(ctx, outbuf, output_type,
@@ -1417,13 +1367,13 @@ grn_output_table_records_by_expression(grn_ctx *ctx, grn_obj *outbuf,
         have_comma = GRN_TRUE;
         if (is_first_comma) {
           int second_code_offset;
-          int second_code_n_used_code;
+          unsigned int second_code_n_used_codes;
           second_code_offset = code - expr->codes - 1;
-          second_code_n_used_code =
-            count_used_n_codes(ctx,
-                               expr->codes,
-                               expr->codes + second_code_offset);
-          expr->codes_curr = second_code_offset - second_code_n_used_code + 1;
+          second_code_n_used_codes =
+            grn_expr_code_n_used_codes(ctx,
+                                       expr->codes,
+                                       expr->codes + second_code_offset);
+          expr->codes_curr = second_code_offset - second_code_n_used_codes + 1;
           grn_output_table_record_by_expression(ctx, outbuf, output_type,
                                                 format->expression);
           code_start_offset = expr->codes_curr;

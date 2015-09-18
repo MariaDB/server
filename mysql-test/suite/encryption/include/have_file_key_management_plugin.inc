@@ -1,4 +1,4 @@
-if (!$FILE_KEY_MANAGEMENT_SO)
+if (`SELECT COUNT(*)=0 FROM INFORMATION_SCHEMA.PLUGINS WHERE PLUGIN_NAME = 'file_key_management' AND PLUGIN_STATUS='ACTIVE'`)
 {
-  --skip Needs file_key_management
+  --skip Test requires file_key_management plugin
 }

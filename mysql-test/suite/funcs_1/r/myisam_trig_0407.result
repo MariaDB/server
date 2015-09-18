@@ -1,4 +1,5 @@
 SET @@session.sql_mode = 'NO_ENGINE_SUBSTITUTION';
+set GLOBAL sql_mode="";
 USE test;
 drop table if exists tb3;
 create table tb3 (
@@ -469,3 +470,4 @@ drop user test_general@localhost;
 drop user test_general;
 drop user test_super@localhost;
 DROP TABLE test.tb3;
+set GLOBAL sql_mode=default;

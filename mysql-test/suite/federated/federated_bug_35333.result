@@ -29,7 +29,7 @@ Warnings:
 Warning	1017	Can't find file: './test/t1.MYI' (errno: 2 "No such file or directory")
 DROP TABLE t1;
 Warnings:
-Warning	2	Can't find file: './test/t1.MYI' (errno: 2 "No such file or directory")
+Warning	1017	Can't find file: './test/t1.MYI' (errno: 2 "No such file or directory")
 #
 # Cleanup
 #

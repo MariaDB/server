@@ -4,7 +4,7 @@ if ($binlog_start)
 }
 if (!$binlog_start)
 {
-  --let $_binlog_start=248
+  --let $_binlog_start=249
 }
 if ($binlog_file)
 {

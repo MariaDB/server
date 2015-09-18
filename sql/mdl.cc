@@ -336,6 +336,7 @@ public:
     virtual bool needs_notification(const MDL_ticket *ticket) const = 0;
     virtual bool conflicting_locks(const MDL_ticket *ticket) const = 0;
     virtual bitmap_t hog_lock_types_bitmap() const = 0;
+    virtual ~MDL_lock_strategy() {}
   };
 
 
@@ -1062,6 +1063,13 @@ MDL_wait::timed_wait(MDL_context_owner *owner, struct timespec *abs_timeout,
   while (!m_wait_status && !owner->is_killed() &&
          wait_result != ETIMEDOUT && wait_result != ETIME)
   {
+#ifdef WITH_WSREP
+    if (wsrep_thd_is_BF(owner->get_thd(), true))
+    {
+      wait_result= mysql_cond_wait(&m_COND_wait_status, &m_LOCK_wait_status);
+    }
+    else
+#endif
     wait_result= mysql_cond_timedwait(&m_COND_wait_status, &m_LOCK_wait_status,
                                       abs_timeout);
   }
@@ -1147,12 +1155,15 @@ void MDL_lock::Ticket_list::add_ticket(MDL_ticket *ticket)
         WSREP_DEBUG("MDL add_ticket inserted before: %lu %s",
                     thd_get_thread_id(waiting->get_ctx()->get_thd()),
                     wsrep_thd_query(waiting->get_ctx()->get_thd()));
+        /* Insert the ticket before the first non-BF waiting thd. */
         m_list.insert_after(prev, ticket);
         added= true;
       }
       prev= waiting;
     }
-    if (!added)   m_list.push_back(ticket);
+
+    /* Otherwise, insert the ticket at the back of the waiting list. */
+    if (!added) m_list.push_back(ticket);
 
     while ((granted= itg++))
     {
@@ -1972,13 +1983,9 @@ MDL_context::acquire_lock(MDL_request *mdl_request, double lock_wait_timeout)
 {
   MDL_lock *lock;
   MDL_ticket *ticket;
-  struct timespec abs_timeout;
   MDL_wait::enum_wait_status wait_status;
   DBUG_ENTER("MDL_context::acquire_lock");
   DBUG_PRINT("enter", ("lock_type: %d", mdl_request->type));
-
-  /* Do some work outside the critical section. */
-  set_timespec(abs_timeout, lock_wait_timeout);
 
   if (try_acquire_lock_impl(mdl_request, &ticket))
     DBUG_RETURN(TRUE);
@@ -2028,7 +2035,8 @@ MDL_context::acquire_lock(MDL_request *mdl_request, double lock_wait_timeout)
 
   find_deadlock();
 
-  struct timespec abs_shortwait;
+  struct timespec abs_timeout, abs_shortwait;
+  set_timespec(abs_timeout, lock_wait_timeout);
   set_timespec(abs_shortwait, 1);
   wait_status= MDL_wait::EMPTY;
 

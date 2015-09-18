@@ -6,6 +6,10 @@
 drop table if exists t1,t2;
 --enable_warnings
 
+set global max_allowed_packet=1048576;
+connect (conn1,localhost,root,,);
+connection conn1;
+
 let $mysqld_datadir= `select @@datadir`;
 
 set names latin1;
@@ -105,6 +109,7 @@ select aes_decrypt(NULL,"a");
 select aes_decrypt("a",NULL);
 select aes_decrypt("a","a");
 select aes_decrypt(aes_encrypt("","a"),"a");
+select aes_decrypt("", "a");
 select repeat('monty',5),concat('*',space(5),'*');
 select reverse('abc'),reverse('abcd');
 select rpad('a',4,'1'),rpad('a',4,'12'),rpad('abcd',3,'12'), rpad(11, 10 , 22), rpad("ab", 10, 22);
@@ -1561,7 +1566,7 @@ round(
   )
 );
 
---connection default
+--connection conn1
 SET @@global.max_allowed_packet:= @tmp_max;
 --disconnect newconn
 #
@@ -1738,7 +1743,31 @@ EXECUTE stmt;
 SET NAMES latin2;
 EXECUTE stmt;
 
+disconnect conn1;
+connection default;
+set global max_allowed_packet=default;
 
 --echo #
 --echo # End of 5.6 tests
+--echo #
+
+--echo #
+--echo # Start of 10.1 tests
+--echo #
+
+--echo #
+--echo # MDEV-8369 Unexpected impossible WHERE for a condition on a ZEROFILL field
+--echo #
+CREATE TABLE t1 (a BIGINT(20) ZEROFILL);
+INSERT INTO t1 VALUES (18446744073709551615),(0);
+SELECT * FROM t1 WHERE a=18446744073709551615;
+SELECT * FROM t1 WHERE FORMAT(a,0)='18,446,744,073,709,551,615';
+SELECT * FROM t1 WHERE a=18446744073709551615 AND FORMAT(a,0)='18,446,744,073,709,551,615';
+# This should not propagate the equality into FORMAT()
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE a=18446744073709551615 AND FORMAT(a,0)='18,446,744,073,709,551,615';
+DROP TABLE t1;
+
+--echo #
+--echo # End of 10.1 tests
 --echo #

@@ -1,0 +1,52 @@
+#
+# DELETE LIMIT should not cause any issues with row-based Galera replication
+# regardless of the order in which the rows were deleted
+#
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+#
+# With a PK
+#
+
+--connection node_1
+CREATE TABLE ten (f1 INTEGER) Engine=InnoDB;
+INSERT INTO ten VALUES (1),(2),(3),(4),(5),(6),(7),(8),(9),(10);
+
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) Engine=InnoDB;
+INSERT INTO t1 SELECT f1 FROM ten ORDER BY RAND();
+
+--connection node_2
+DELETE FROM t1 ORDER BY RAND() LIMIT 5;
+--let $sum_remaining = `SELECT SUM(f1) FROM t1`
+--let $max_remaining = `SELECT MAX(f1) FROM t1`
+
+--connection node_1
+--disable_query_log
+--eval SELECT (SELECT SUM(f1) FROM t1) = $sum_remaining AS sum_matches;
+--eval SELECT f1 = $max_remaining AS max_matches FROM t1 WHERE f1 = $max_remaining;
+--enable_query_log
+
+DROP TABLE t1;
+
+#
+# Without a PK
+#
+
+CREATE TABLE t2 (f1 INTEGER) Engine=InnoDB;
+INSERT INTO t2 SELECT f1 FROM ten ORDER BY RAND();
+
+--connection node_2
+DELETE FROM t2 ORDER BY RAND() LIMIT 5;
+--let $sum_remaining = `SELECT SUM(f1) FROM t2`
+--let $max_remaining = `SELECT MAX(f1) FROM t2`
+
+--connection node_1
+--disable_query_log
+--eval SELECT (SELECT SUM(f1) FROM t2) = $sum_remaining AS sum_matches;
+--eval SELECT f1 = $max_remaining AS max_matches FROM t2 WHERE f1 = $max_remaining;
+--enable_query_log
+
+DROP TABLE t2;
+DROP TABLE ten;

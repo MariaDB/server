@@ -430,7 +430,7 @@ bool load_db_opt(THD *thd, const char *path, Schema_specification_st *create)
               get_charset_by_name(pos+1, MYF(0))))
         {
           sql_print_error("Error while loading database options: '%s':",path);
-          sql_print_error(ER(ER_UNKNOWN_CHARACTER_SET),pos+1);
+          sql_print_error(ER_THD(thd, ER_UNKNOWN_CHARACTER_SET),pos+1);
           create->default_table_charset= default_charset_info;
         }
       }
@@ -440,7 +440,7 @@ bool load_db_opt(THD *thd, const char *path, Schema_specification_st *create)
                                                            MYF(0))))
         {
           sql_print_error("Error while loading database options: '%s':",path);
-          sql_print_error(ER(ER_UNKNOWN_COLLATION),pos+1);
+          sql_print_error(ER_THD(thd, ER_UNKNOWN_COLLATION),pos+1);
           create->default_table_charset= default_charset_info;
         }
       }
@@ -624,7 +624,8 @@ mysql_create_db_internal(THD *thd, char *db,
   else if (options.if_not_exists())
   {
     push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
-                      ER_DB_CREATE_EXISTS, ER(ER_DB_CREATE_EXISTS), db);
+                        ER_DB_CREATE_EXISTS, ER_THD(thd, ER_DB_CREATE_EXISTS),
+                        db);
     affected_rows= 0;
     goto not_silent;
   }
@@ -852,7 +853,8 @@ mysql_rm_db_internal(THD *thd,char *db, bool if_exists, bool silent)
     else
     {
       push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
-			  ER_DB_DROP_EXISTS, ER(ER_DB_DROP_EXISTS), db);
+			  ER_DB_DROP_EXISTS, ER_THD(thd, ER_DB_DROP_EXISTS),
+                          db);
       error= false;
       goto update_binlog;
     }
@@ -1460,7 +1462,7 @@ bool mysql_change_db(THD *thd, const LEX_STRING *new_db_name, bool force_switch)
     }
     else
     {
-      my_message(ER_NO_DB_ERROR, ER(ER_NO_DB_ERROR), MYF(0));
+      my_message(ER_NO_DB_ERROR, ER_THD(thd, ER_NO_DB_ERROR), MYF(0));
 
       DBUG_RETURN(TRUE);
     }
@@ -1535,7 +1537,7 @@ bool mysql_change_db(THD *thd, const LEX_STRING *new_db_name, bool force_switch)
              sctx->priv_user,
              sctx->priv_host,
              new_db_file_name.str);
-    general_log_print(thd, COM_INIT_DB, ER(ER_DBACCESS_DENIED_ERROR),
+    general_log_print(thd, COM_INIT_DB, ER_THD(thd, ER_DBACCESS_DENIED_ERROR),
                       sctx->priv_user, sctx->priv_host, new_db_file_name.str);
     my_free(new_db_file_name.str);
     DBUG_RETURN(TRUE);
@@ -1551,7 +1553,7 @@ bool mysql_change_db(THD *thd, const LEX_STRING *new_db_name, bool force_switch)
       /* Throw a warning and free new_db_file_name. */
 
       push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
-                          ER_BAD_DB_ERROR, ER(ER_BAD_DB_ERROR),
+                          ER_BAD_DB_ERROR, ER_THD(thd, ER_BAD_DB_ERROR),
                           new_db_file_name.str);
 
       my_free(new_db_file_name.str);
@@ -1719,7 +1721,7 @@ bool mysql_upgrade_db(THD *thd, LEX_STRING *old_db)
 
       table_str.length= filename_to_tablename(file->name,
                                               tname, sizeof(tname)-1);
-      table_str.str= (char*) sql_memdup(tname, table_str.length + 1);
+      table_str.str= (char*) thd->memdup(tname, table_str.length + 1);
       Table_ident *old_ident= new Table_ident(thd, *old_db, table_str, 0);
       Table_ident *new_ident= new Table_ident(thd, new_db, table_str, 0);
       if (!old_ident || !new_ident ||

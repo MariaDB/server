@@ -210,7 +210,7 @@ original non-instrumented functions */
 #  endif /* UNIV_SYNC_DEBUG */
 # else /* UNIV_DEBUG */
 #  define mutex_create(K, M, level)				\
-	mutex_create_func((M), __FILE__, __LINE__)
+	mutex_create_func((M), #M, __FILE__, __LINE__)
 # endif	/* UNIV_DEBUG */
 
 # define mutex_enter(M)	mutex_enter_func((M), __FILE__, __LINE__)

@@ -41,26 +41,29 @@
 
 int decimal_operation_results(int result, const char *value, const char *type)
 {
+  /* Avoid calling current_thd on default path */
+  if (likely(result == E_DEC_OK))
+    return(result);
+  
+  THD *thd= current_thd;
   switch (result) {
-  case E_DEC_OK:
-    break;
   case E_DEC_TRUNCATED:
-    push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
-			ER_DATA_TRUNCATED, ER(ER_DATA_TRUNCATED),
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+			ER_DATA_TRUNCATED, ER_THD(thd, ER_DATA_TRUNCATED),
 			value, type);
     break;
   case E_DEC_OVERFLOW:
-    push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
-                        ER_DATA_OVERFLOW, ER(ER_DATA_OVERFLOW),
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                        ER_DATA_OVERFLOW, ER_THD(thd, ER_DATA_OVERFLOW),
 			value, type);
     break;
   case E_DEC_DIV_ZERO:
-    push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
-			ER_DIVISION_BY_ZERO, ER(ER_DIVISION_BY_ZERO));
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+			ER_DIVISION_BY_ZERO, ER_THD(thd, ER_DIVISION_BY_ZERO));
     break;
   case E_DEC_BAD_NUM:
-    push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
-			ER_BAD_DATA, ER(ER_BAD_DATA),
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+			ER_BAD_DATA, ER_THD(thd, ER_BAD_DATA),
 			value, type);
     break;
   case E_DEC_OOM:
@@ -236,33 +239,24 @@ int my_decimal2binary(uint mask, const my_decimal *d, uchar *bin, int prec,
 */
 
 int str2my_decimal(uint mask, const char *from, uint length,
-                   CHARSET_INFO *charset, my_decimal *decimal_value)
+                   CHARSET_INFO *charset, my_decimal *decimal_value,
+                   const char **end_ptr)
 {
-  char *end, *from_end;
   int err;
-  char buff[STRING_BUFFER_USUAL_SIZE];
-  String tmp(buff, sizeof(buff), &my_charset_bin);
   if (charset->mbminlen > 1)
   {
+    StringBuffer<STRING_BUFFER_USUAL_SIZE> tmp;
     uint dummy_errors;
     tmp.copy(from, length, charset, &my_charset_latin1, &dummy_errors);
-    from= tmp.ptr();
-    length=  tmp.length();
-    charset= &my_charset_bin;
+    char *end= (char*) tmp.end();
+    err= string2decimal(tmp.ptr(), (decimal_t*) decimal_value, &end);
+    *end_ptr= from + charset->mbminlen * (size_t) (end - tmp.ptr());
   }
-  from_end= end= (char*) from+length;
-  err= string2decimal((char *)from, (decimal_t*) decimal_value, &end);
-  if (end != from_end && !err)
+  else
   {
-    /* Give warning if there is something other than end space */
-    for ( ; end < from_end; end++)
-    {
-      if (!my_isspace(&my_charset_latin1, *end))
-      {
-        err= E_DEC_TRUNCATED;
-        break;
-      }
-    }
+    char *end= (char*) from + length;
+    err= string2decimal(from, (decimal_t*) decimal_value, &end);
+    *end_ptr= end;
   }
   check_result_and_overflow(mask, err, decimal_value);
   return err;

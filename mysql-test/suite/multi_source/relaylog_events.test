@@ -31,10 +31,11 @@ create table t1 (i int) engine=MyISAM;
 --let $datadir = `SELECT @@datadir`
 --list_files $datadir mysqld-relay-bin-master1.*
 
---replace_regex /Server ver:.*/Server version/
-show relaylog events in 'mysqld-relay-bin-master1.000002';
---replace_regex /Server ver:.*/Server version/
-show relaylog events;
+let binlog_start=4;
+let binlog_file= mysqld-relay-bin-master1.000002;
+source include/show_relaylog_events.inc;
+let binlog_file=;
+source include/show_relaylog_events.inc;
 
 --connection master1
 drop table t1;

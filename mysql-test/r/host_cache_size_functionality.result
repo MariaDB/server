@@ -6,7 +6,7 @@ echo '##'
 ####################################################################
 SELECT COUNT(@@GLOBAL.Host_Cache_Size)
 1 Expected
-set @Default_host_cache_size=128;
+set @Default_host_cache_size=279;
 select @@global.Host_Cache_Size=@Default_host_cache_size;
 @@global.Host_Cache_Size=@Default_host_cache_size
 1

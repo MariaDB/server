@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2013, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2015. MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -105,21 +106,22 @@ ulint
 buf_read_page_low(
 /*==============*/
 	dberr_t*	err,	/*!< out: DB_SUCCESS or DB_TABLESPACE_DELETED if we are
-			trying to read from a non-existent tablespace, or a
-			tablespace which is just now being dropped */
-	bool	sync,	/*!< in: true if synchronous aio is desired */
-	ulint	mode,	/*!< in: BUF_READ_IBUF_PAGES_ONLY, ...,
-			ORed to OS_AIO_SIMULATED_WAKE_LATER (see below
-			at read-ahead functions) */
-	ulint	space,	/*!< in: space id */
-	ulint	zip_size,/*!< in: compressed page size, or 0 */
-	ibool	unzip,	/*!< in: TRUE=request uncompressed page */
-	ib_int64_t tablespace_version, /*!< in: if the space memory object has
-			this timestamp different from what we are giving here,
-			treat the tablespace as dropped; this is a timestamp we
-			use to stop dangling page reads from a tablespace
-			which we have DISCARDed + IMPORTed back */
-	ulint	offset)	/*!< in: page number */
+				trying to read from a non-existent tablespace, or a
+				tablespace which is just now being dropped */
+	bool		sync,	/*!< in: true if synchronous aio is desired */
+	ulint		mode,	/*!< in: BUF_READ_IBUF_PAGES_ONLY, ...,
+				ORed to OS_AIO_SIMULATED_WAKE_LATER (see below
+				at read-ahead functions) */
+	ulint		space,	/*!< in: space id */
+	ulint		zip_size,/*!< in: compressed page size, or 0 */
+	ibool		unzip,	/*!< in: TRUE=request uncompressed page */
+	ib_int64_t 	tablespace_version, /*!< in: if the space memory object has
+					    this timestamp different from what we are giving here,
+					    treat the tablespace as dropped; this is a timestamp we
+					    use to stop dangling page reads from a tablespace
+					    which we have DISCARDed + IMPORTed back */
+	ulint		offset,	/*!< in: page number */
+	buf_page_t** 	rbpage) /*!< out: page */
 {
 	buf_page_t*	bpage;
 	ulint		wake_later;
@@ -214,8 +216,15 @@ buf_read_page_low(
 		/* The i/o is already completed when we arrive from
 		fil_read */
 		if (!buf_page_io_complete(bpage)) {
+			if (rbpage) {
+				*rbpage = bpage;
+			}
 			return(0);
 		}
+	}
+
+	if (rbpage) {
+		*rbpage = bpage;
 	}
 
 	return(1);
@@ -348,7 +357,7 @@ read_ahead:
 				&err, false,
 				ibuf_mode | OS_AIO_SIMULATED_WAKE_LATER,
 				space, zip_size, FALSE,
-				tablespace_version, i);
+				tablespace_version, i, NULL);
 			if (err == DB_TABLESPACE_DELETED) {
 				ut_print_timestamp(stderr);
 				fprintf(stderr,
@@ -398,7 +407,8 @@ buf_read_page(
 /*==========*/
 	ulint	space,	/*!< in: space id */
 	ulint	zip_size,/*!< in: compressed page size in bytes, or 0 */
-	ulint	offset)	/*!< in: page number */
+	ulint	offset,	/*!< in: page number */
+	buf_page_t** bpage)	/*!< out: page */
 {
 	ib_int64_t	tablespace_version;
 	ulint		count;
@@ -411,7 +421,7 @@ buf_read_page(
 
 	count = buf_read_page_low(&err, true, BUF_READ_ANY_PAGE, space,
 				  zip_size, FALSE,
-				  tablespace_version, offset);
+				  tablespace_version, offset, bpage);
 	srv_stats.buf_pool_reads.add(count);
 	if (err == DB_TABLESPACE_DELETED) {
 		ut_print_timestamp(stderr);
@@ -459,7 +469,7 @@ buf_read_page_async(
 				  | OS_AIO_SIMULATED_WAKE_LATER
 				  | BUF_READ_IGNORE_NONEXISTENT_PAGES,
 				  space, zip_size, FALSE,
-				  tablespace_version, offset);
+				  tablespace_version, offset, NULL);
 	srv_stats.buf_pool_reads.add(count);
 
 	/* We do not increment number of I/O operations used for LRU policy
@@ -718,7 +728,7 @@ buf_read_ahead_linear(
 			count += buf_read_page_low(
 				&err, false,
 				ibuf_mode,
-				space, zip_size, FALSE, tablespace_version, i);
+				space, zip_size, FALSE, tablespace_version, i, NULL);
 			if (err == DB_TABLESPACE_DELETED) {
 				ut_print_timestamp(stderr);
 				fprintf(stderr,
@@ -808,7 +818,7 @@ buf_read_ibuf_merge_pages(
 		buf_read_page_low(&err, sync && (i + 1 == n_stored),
 				  BUF_READ_ANY_PAGE, space_ids[i],
 				  zip_size, TRUE, space_versions[i],
-				  page_nos[i]);
+				  page_nos[i], NULL);
 
 		if (UNIV_UNLIKELY(err == DB_TABLESPACE_DELETED)) {
 tablespace_deleted:
@@ -903,12 +913,12 @@ buf_read_recv_pages(
 		if ((i + 1 == n_stored) && sync) {
 			buf_read_page_low(&err, true, BUF_READ_ANY_PAGE, space,
 					  zip_size, TRUE, tablespace_version,
-					  page_nos[i]);
+					  page_nos[i], NULL);
 		} else {
 			buf_read_page_low(&err, false, BUF_READ_ANY_PAGE
 					  | OS_AIO_SIMULATED_WAKE_LATER,
 					  space, zip_size, TRUE,
-					  tablespace_version, page_nos[i]);
+					  tablespace_version, page_nos[i], NULL);
 		}
 	}
 

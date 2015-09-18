@@ -77,10 +77,10 @@ if (!$mysql_errname)
     --sorted_result
     SELECT a,b FROM t2;
 
-    --let $error_codes = ER_ROW_IS_REFERENCED
+    --let $error_codes = ER_ROW_IS_REFERENCED_2
     DROP TABLE t1;
     --source check_errors.inc
-    if ($mysql_errname != ER_ROW_IS_REFERENCED)
+    if ($mysql_errname != ER_ROW_IS_REFERENCED_2)
     {
       --let $functionality = Foreign keys
       --source unexpected_result.inc

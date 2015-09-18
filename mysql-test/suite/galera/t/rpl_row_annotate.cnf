@@ -1,0 +1,6 @@
+!include ../galera_2nodes.cnf
+
+[mysqld]
+log-bin
+log-slave-updates
+binlog-annotate-row-events=ON

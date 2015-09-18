@@ -84,9 +84,10 @@ class Explain_query;
 class Explain_node : public Sql_alloc
 {
 public:
-  Explain_node(MEM_ROOT *root) : 
-     connection_type(EXPLAIN_NODE_OTHER),
-     children(root)
+  Explain_node(MEM_ROOT *root) :
+    cache_tracker(NULL),
+    connection_type(EXPLAIN_NODE_OTHER),
+    children(root)
   {}
   /* A type specifying what kind of node this is */
   enum explain_node_type 
@@ -106,9 +107,13 @@ public:
     EXPLAIN_NODE_NON_MERGED_SJ /* aka JTBM semi-join */
   };
 
-
   virtual enum explain_node_type get_type()= 0;
   virtual int get_select_id()= 0;
+
+  /**
+    expression cache statistics
+  */
+  Expression_cache_tracker* cache_tracker;
 
   /*
     How this node is connected to its parent.
@@ -135,6 +140,7 @@ public:
                                  uint8 explain_flags, bool is_analyze);
   void print_explain_json_for_children(Explain_query *query,
                                        Json_writer *writer, bool is_analyze);
+  bool print_explain_json_cache(Json_writer *writer, bool is_analyze);
   virtual ~Explain_node(){}
 };
 
@@ -171,7 +177,8 @@ public:
 
   void print_explain_json_interns(Explain_query *query, Json_writer *writer,
                                   bool is_analyze, 
-                                  Filesort_tracker *first_table_sort);
+                                  Filesort_tracker *first_table_sort,
+                                  bool first_table_sort_used);
 
   /* A flat array of Explain structs for tables. */
   Explain_table_access** join_tabs;
@@ -203,7 +210,8 @@ public:
   Explain_basic_join(root),
     message(NULL),
     using_temporary(false), using_filesort(false),
-    time_tracker(is_analyze)
+    time_tracker(is_analyze),
+    ops_tracker(is_analyze)
   {}
 
   /*
@@ -220,7 +228,7 @@ public:
     members have no info 
   */
   const char *message;
-  
+
   /* Expensive constant condition */
   Item *exec_const_cond;
   
@@ -704,7 +712,9 @@ public:
                     uint select_id, const char *select_type,
                     bool using_temporary, bool using_filesort);
   void print_explain_json(Explain_query *query, Json_writer *writer,
-                          bool is_analyze, Filesort_tracker *fs_tracker);
+                          bool is_analyze, 
+                          Filesort_tracker *fs_tracker,
+                          bool first_table_sort_used);
 
 private:
   void append_tag_name(String *str, enum explain_extra_tag tag);
@@ -720,6 +730,8 @@ private:
   
   This is similar to Explain_table_access, except that it is more restrictive.
   Also, it can have UPDATE operation options, but currently there aren't any.
+
+  Explain_delete inherits from this.
 */
 
 class Explain_update : public Explain_node

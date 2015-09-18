@@ -1,4 +1,6 @@
 create database db1;
+create user user_1@localhost;
+create user USER_1@localhost;
 GRANT CREATE ON db1.* to user_1@localhost;
 GRANT SELECT ON db1.* to USER_1@localhost;
 CREATE TABLE t1(f1 int);

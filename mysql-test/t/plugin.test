@@ -1,12 +1,12 @@
 --source include/not_windows_embedded.inc
 --source include/have_example_plugin.inc
 
+--error ER_UNKNOWN_STORAGE_ENGINE
 CREATE TABLE t1(a int) ENGINE=EXAMPLE;
-DROP TABLE t1;
 
 INSTALL PLUGIN example SONAME 'ha_example';
 --replace_regex /\.dll/.so/
---error 1125
+--error ER_PLUGIN_INSTALLED
 INSTALL PLUGIN EXAMPLE SONAME 'ha_example';
 
 UNINSTALL PLUGIN example;
@@ -252,3 +252,16 @@ select plugin_name from information_schema.plugins where plugin_library like 'ha
 uninstall soname 'ha_example';
 select plugin_name from information_schema.plugins where plugin_library like 'ha_example%';
 
+
+--echo #
+--echo # MDEV-5309 - RENAME TABLE does not check for existence of the table's
+--echo #             engine
+--echo #
+INSTALL PLUGIN example SONAME 'ha_example';
+CREATE TABLE t1(a INT) ENGINE=EXAMPLE;
+SELECT * FROM t1;
+FLUSH TABLES;
+UNINSTALL PLUGIN example;
+--error ER_NO_SUCH_TABLE
+RENAME TABLE t1 TO t2;
+DROP TABLE t1;

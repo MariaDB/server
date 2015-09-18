@@ -1,3 +1,4 @@
+create user foo@localhost;
 grant create user on *.* to foo@localhost;
 create user current_user;
 ERROR HY000: Operation CREATE USER failed for CURRENT_USER

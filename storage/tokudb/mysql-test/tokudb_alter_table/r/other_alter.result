@@ -58,7 +58,7 @@ foo	CREATE TABLE `foo` (
   `b` varchar(20) DEFAULT NULL,
   `c` int(11) DEFAULT NULL,
   `d` int(11) DEFAULT NULL,
-  `e` int(11) NOT NULL DEFAULT '0',
+  `e` int(11) NOT NULL,
   PRIMARY KEY (`e`),
   UNIQUE KEY `c` (`c`),
   KEY `d` (`d`),

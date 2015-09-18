@@ -48,8 +48,8 @@ public:
   { /* never called */ }
   static void operator delete[](void *ptr, size_t size) { TRASH(ptr, size); }
 #ifdef HAVE_valgrind
-  bool dummy;
-  inline Sql_alloc() :dummy(0) {}
+  bool dummy_for_valgrind;
+  inline Sql_alloc() :dummy_for_valgrind(0) {}
   inline ~Sql_alloc() {}
 #else
   inline Sql_alloc() {}

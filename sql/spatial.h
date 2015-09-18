@@ -71,7 +71,11 @@ struct MBR
   MBR(const st_point_2d &min, const st_point_2d &max)
     :xmin(min.x), ymin(min.y), xmax(max.x), ymax(max.y)
   {}
- 
+
+  MBR(const MBR &mbr1, const MBR &mbr2)
+    :xmin(mbr1.xmin), ymin(mbr1.ymin), xmax(mbr1.xmax), ymax(mbr1.ymax)
+  { add_mbr(&mbr2); }
+
   inline void add_xy(double x, double y)
   {
     /* Not using "else" for proper one point MBR calculation */

@@ -7109,6 +7109,9 @@ ER_SLAVE_SKIP_NOT_IN_GTID
 	eng "When using GTID, @@sql_slave_skip_counter can not be used. Instead, setting @@gtid_slave_pos explicitly can be used to skip to after a given GTID position."
 ER_TABLE_DEFINITION_TOO_BIG
         eng "The definition for table %`s is too big"
+ER_PLUGIN_INSTALLED
+        eng "Plugin '%-.192s' already installed"
+        rus "Плагин '%-.192s' уже установлен"
 ER_STATEMENT_TIMEOUT 70100
         eng "Query execution was interrupted (max_statement_time exceeded)"
 ER_SUBQUERIES_NOT_SUPPORTED 42000
@@ -7127,3 +7130,9 @@ ER_ROLE_DROP_EXISTS
         eng "Can't drop role '%-.64s'; it doesn't exist"
 ER_CANNOT_CONVERT_CHARACTER
         eng "Cannot convert '%s' character 0x%-.64s to '%s'"
+ER_INVALID_DEFAULT_VALUE_FOR_FIELD  22007
+        eng "Incorrect default value '%-.128s' for column '%.192s'"
+ER_KILL_QUERY_DENIED_ERROR
+        eng "You are not owner of query %lu"
+        ger "Sie sind nicht Eigentümer von Abfrage %lu"
+        rus "Вы не являетесь владельцем запроса %lu"

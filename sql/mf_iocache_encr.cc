@@ -95,9 +95,10 @@ static int my_b_encr_read(IO_CACHE *info, uchar *Buffer, size_t Count)
     elength= wlength - (ebuffer - wbuffer);
     set_iv(iv, pos_in_file, crypt_data->inbuf_counter);
 
-    if (encryption_decrypt(ebuffer, elength, info->buffer, &length,
-                           crypt_data->key, sizeof(crypt_data->key),
-                           iv, sizeof(iv), 0, keyid, keyver))
+    if (encryption_crypt(ebuffer, elength, info->buffer, &length,
+                         crypt_data->key, sizeof(crypt_data->key),
+                         iv, sizeof(iv), ENCRYPTION_FLAG_DECRYPT,
+                         keyid, keyver))
     {
       my_errno= 1;
       DBUG_RETURN(info->error= -1);
@@ -175,9 +176,10 @@ static int my_b_encr_write(IO_CACHE *info, const uchar *Buffer, size_t Count)
     crypt_data->inbuf_counter= crypt_data->counter;
     set_iv(iv, info->pos_in_file, crypt_data->inbuf_counter);
 
-    if (encryption_encrypt(Buffer, length, ebuffer, &elength,
-                           crypt_data->key, sizeof(crypt_data->key),
-                           iv, sizeof(iv), 0, keyid, keyver))
+    if (encryption_crypt(Buffer, length, ebuffer, &elength,
+                         crypt_data->key, sizeof(crypt_data->key),
+                         iv, sizeof(iv), ENCRYPTION_FLAG_ENCRYPT,
+                         keyid, keyver))
     {
       my_errno= 1;
       DBUG_RETURN(info->error= -1);
@@ -191,7 +193,7 @@ static int my_b_encr_write(IO_CACHE *info, const uchar *Buffer, size_t Count)
         buffer_length bytes should *always* produce block_length bytes
       */
       DBUG_ASSERT(crypt_data->block_length == 0 || crypt_data->block_length == wlength);
-      DBUG_ASSERT(elength <= my_aes_get_size(length));
+      DBUG_ASSERT(elength <= encryption_encrypted_length(length, keyid, keyver));
       crypt_data->block_length= wlength;
     }
     else
@@ -228,7 +230,7 @@ static int my_b_encr_write(IO_CACHE *info, const uchar *Buffer, size_t Count)
 
   Note that encrypt_tmp_files variable is read-only.
 */
-void init_io_cache_encryption()
+int init_io_cache_encryption()
 {
   if (encrypt_tmp_files)
   {
@@ -239,20 +241,23 @@ void init_io_cache_encryption()
       keyid= ENCRYPTION_KEY_SYSTEM_DATA;
       keyver= encryption_key_get_latest_version(keyid);
     }
-  }
-  else
-    keyver= ENCRYPTION_KEY_VERSION_INVALID;
+    if (keyver == ENCRYPTION_KEY_VERSION_INVALID)
+    {
+      sql_print_error("Failed to enable encryption of temporary files");
+      return 1;
+    }
 
-  if (keyver != ENCRYPTION_KEY_VERSION_INVALID)
-  {
-    sql_print_information("Using encryption key id %d for temporary files", keyid);
-    _my_b_encr_read= my_b_encr_read;
-    _my_b_encr_write= my_b_encr_write;
+    if (keyver != ENCRYPTION_KEY_NOT_ENCRYPTED)
+    {
+      sql_print_information("Using encryption key id %d for temporary files", keyid);
+      _my_b_encr_read= my_b_encr_read;
+      _my_b_encr_write= my_b_encr_write;
+      return 0;
+    }
   }
-  else
-  {
-    _my_b_encr_read= 0;
-    _my_b_encr_write= 0;
-  }
+
+  _my_b_encr_read= 0;
+  _my_b_encr_write= 0;
+  return 0;
 }
 

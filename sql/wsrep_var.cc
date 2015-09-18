@@ -1,4 +1,4 @@
-/* Copyright 2008 Codership Oy <http://www.codership.com>
+/* Copyright 2008-2015 Codership Oy <http://www.codership.com>
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -21,6 +21,7 @@
 #include <sql_acl.h>
 #include "wsrep_priv.h"
 #include "wsrep_thd.h"
+#include "wsrep_xid.h"
 #include <my_dir.h>
 #include <cstdio>
 #include <cstdlib>
@@ -33,7 +34,6 @@ const  char* wsrep_node_name        = 0;
 const  char* wsrep_node_address     = 0;
 const  char* wsrep_node_incoming_address = 0;
 const  char* wsrep_start_position   = 0;
-ulong  wsrep_OSU_method_options;
 
 int wsrep_init_vars()
 {
@@ -128,29 +128,30 @@ err:
   return 1;
 }
 
-void wsrep_set_local_position (const char* value)
+static
+void wsrep_set_local_position(const char* const value, bool const sst)
 {
-  size_t value_len  = strlen (value);
-  size_t uuid_len   = wsrep_uuid_scan (value, value_len, &local_uuid);
+  size_t const value_len = strlen(value);
+  wsrep_uuid_t uuid;
+  size_t const uuid_len = wsrep_uuid_scan(value, value_len, &uuid);
+  wsrep_seqno_t const seqno = strtoll(value + uuid_len + 1, NULL, 10);
 
-  local_seqno = strtoll (value + uuid_len + 1, NULL, 10);
-
-  XID xid;
-  wsrep_xid_init(&xid, &local_uuid, local_seqno);
-  wsrep_set_SE_checkpoint(&xid);
-  WSREP_INFO ("wsrep_start_position var submitted: '%s'", wsrep_start_position);
+  if (sst) {
+    wsrep_sst_received (wsrep, uuid, seqno, NULL, 0);
+  } else {
+    // initialization
+    local_uuid = uuid;
+    local_seqno = seqno;
+  }
 }
 
 bool wsrep_start_position_update (sys_var *self, THD* thd, enum_var_type type)
 {
+  WSREP_INFO ("wsrep_start_position var submitted: '%s'",
+              wsrep_start_position);
   // since this value passed wsrep_start_position_check, don't check anything
   // here
-  wsrep_set_local_position (wsrep_start_position);
-
-  if (wsrep) {
-    wsrep_sst_received (wsrep, &local_uuid, local_seqno, NULL, 0);
-  }
-
+  wsrep_set_local_position (wsrep_start_position, true);
   return 0;
 }
 
@@ -163,7 +164,7 @@ void wsrep_start_position_init (const char* val)
     return;
   }
 
-  wsrep_set_local_position (val);
+  wsrep_set_local_position (val, false);
 }
 
 static bool refresh_provider_options()
@@ -200,7 +201,7 @@ static int wsrep_provider_verify (const char* provider_str)
     return 1;
 
   /* check that provider file exists */
-  bzero(&f_stat, sizeof(MY_STAT));
+  memset(&f_stat, 0, sizeof(MY_STAT));
   if (!my_stat(path, &f_stat, MYF(0)))
   {
     return 1;
@@ -295,7 +296,11 @@ bool wsrep_provider_options_check(sys_var *self, THD* thd, set_var* var)
 
 bool wsrep_provider_options_update(sys_var *self, THD* thd, enum_var_type type)
 {
-  DBUG_ASSERT(wsrep != NULL);
+  if (wsrep == NULL)
+  {
+    my_message(ER_WRONG_ARGUMENTS, "WSREP (galera) not started", MYF(0));
+    return true;
+  }
 
   wsrep_status_t ret= wsrep->options_set(wsrep, wsrep_provider_options);
   if (ret != WSREP_OK)
@@ -497,7 +502,11 @@ bool wsrep_desync_check (sys_var *self, THD* thd, set_var* var)
 
 bool wsrep_desync_update (sys_var *self, THD* thd, enum_var_type type)
 {
-  DBUG_ASSERT(wsrep != NULL);
+  if (wsrep == NULL)
+  {
+    my_message(ER_WRONG_ARGUMENTS, "WSREP (galera) not started", MYF(0));
+    return true;
+  }
 
   wsrep_status_t ret(WSREP_WARNING);
   if (wsrep_desync) {
@@ -552,33 +561,36 @@ int wsrep_show_status (THD *thd, SHOW_VAR *var, char *buff,
     *v++= wsrep_status_vars[i];
 
   DBUG_ASSERT(i < maxi);
-  DBUG_ASSERT(wsrep != NULL);
 
-  wsrep_stats_var* stats= wsrep->stats_get(wsrep);
-  for (wsrep_stats_var *sv= stats; i < maxi && sv && sv->name; i++, sv++, v++)
+  if (wsrep != NULL)
   {
-    v->name = thd->strdup(sv->name);
-    switch (sv->type) {
-    case WSREP_VAR_INT64:
-      v->value = (char*)thd->memdup(&sv->value._int64, sizeof(longlong));
-      v->type  = SHOW_LONGLONG;
-      break;
-    case WSREP_VAR_STRING:
-      v->value = thd->strdup(sv->value._string);
-      v->type  = SHOW_CHAR;
-      break;
-    case WSREP_VAR_DOUBLE:
-      v->value = (char*)thd->memdup(&sv->value._double, sizeof(double));
-      v->type  = SHOW_DOUBLE;
-      break;
+    wsrep_stats_var* stats= wsrep->stats_get(wsrep);
+    for (wsrep_stats_var *sv= stats;
+         i < maxi && sv && sv->name; i++,
+           sv++, v++)
+    {
+      v->name = thd->strdup(sv->name);
+      switch (sv->type) {
+      case WSREP_VAR_INT64:
+        v->value = (char*)thd->memdup(&sv->value._int64, sizeof(longlong));
+        v->type  = SHOW_LONGLONG;
+        break;
+      case WSREP_VAR_STRING:
+        v->value = thd->strdup(sv->value._string);
+        v->type  = SHOW_CHAR;
+        break;
+      case WSREP_VAR_DOUBLE:
+        v->value = (char*)thd->memdup(&sv->value._double, sizeof(double));
+        v->type  = SHOW_DOUBLE;
+        break;
+      }
     }
-    DBUG_ASSERT(i < maxi);
+    wsrep->stats_free(wsrep, stats);
   }
-  wsrep->stats_free(wsrep, stats);
 
   my_qsort(buff, i, sizeof(*v), show_var_cmp);
 
-  v->name= 0; // terminator
+  v->name= 0;                                   // terminator
   return 0;
 }
 

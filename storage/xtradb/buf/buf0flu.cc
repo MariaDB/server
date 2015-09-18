@@ -1,8 +1,8 @@
 /*****************************************************************************
 
-Copyright (c) 1995, 2013, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2014, SkySQL Ab. All Rights Reserved.
-Copyright (c) 2013, 2014, Fusion-io. All Rights Reserved.
+Copyright (c) 1995, 2013, Oracle and/or its affiliates
+Copyright (c) 2013, 2015, SkySQL Ab
+Copyright (c) 2013, 2014, Fusion-io
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -932,11 +932,11 @@ buf_flush_write_block_low(
 	case BUF_BLOCK_ZIP_DIRTY:
 		frame = bpage->zip.data;
 
-		ut_a(page_zip_verify_checksum(frame, zip_size));
-
 		mach_write_to_8(frame + FIL_PAGE_LSN,
 				bpage->newest_modification);
 		memset(frame + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION, 0, 8);
+
+		ut_a(page_zip_verify_checksum(frame, zip_size));
 		break;
 	case BUF_BLOCK_FILE_PAGE:
 		frame = bpage->zip.data;

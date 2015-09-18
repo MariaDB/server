@@ -96,7 +96,7 @@ enum enum_sql_command {
 
   /*
     When a command is added here, be sure it's also added in mysqld.cc
-    in "struct show_var_st status_vars[]= {" ...
+    in "struct show_var_st com_status_vars[]= {" ...
   */
   /* This should be the last !!! */
   SQLCOM_END

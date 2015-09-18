@@ -163,9 +163,11 @@ static const uchar sort_order_gb2312[]=
 
 #define isgb2312head(c) (0xa1<=(uchar)(c) && (uchar)(c)<=0xf7)
 #define isgb2312tail(c) (0xa1<=(uchar)(c) && (uchar)(c)<=0xfe)
+#define gb2312code(c,d) (((uchar)(c) <<8) | (uchar)(d))
 
 
 #define MY_FUNCTION_NAME(x)   my_ ## x ## _gb2312
+#define IS_MB1_CHAR(x)        ((uchar) (x) < 0x80)
 #define IS_MB2_CHAR(x,y)      (isgb2312head(x) && isgb2312tail(y))
 #define DEFINE_ASIAN_ROUTINES
 #include "ctype-mb.ic"
@@ -6341,11 +6343,23 @@ my_mb_wc_gb2312(CHARSET_INFO *cs  __attribute__((unused)),
 }
 
 
-static MY_COLLATION_HANDLER my_collation_ci_handler =
+#define MY_FUNCTION_NAME(x)   my_ ## x ## _gb2312_chinese_ci
+#define WEIGHT_MB1(x)        (sort_order_gb2312[(uchar) (x)])
+#define WEIGHT_MB2(x,y)      (gb2312code(x, y))
+#include "strcoll.ic"
+
+
+#define MY_FUNCTION_NAME(x)   my_ ## x ## _gb2312_bin
+#define WEIGHT_MB1(x)        ((uchar) (x))
+#define WEIGHT_MB2(x,y)      (gb2312code(x, y))
+#include "strcoll.ic"
+
+
+static MY_COLLATION_HANDLER my_collation_handler_gb2312_chinese_ci=
 {
-  NULL,			/* init */
-  my_strnncoll_simple,  /* strnncoll  */
-  my_strnncollsp_simple,
+  NULL,                 /* init */
+  my_strnncoll_gb2312_chinese_ci,
+  my_strnncollsp_gb2312_chinese_ci,
   my_strnxfrm_mb,       /* strnxfrm   */
   my_strnxfrmlen_simple,
   my_like_range_mb,     /* like_range */
@@ -6355,6 +6369,24 @@ static MY_COLLATION_HANDLER my_collation_ci_handler =
   my_hash_sort_simple,
   my_propagate_simple
 };
+
+
+static MY_COLLATION_HANDLER my_collation_handler_gb2312_bin=
+{
+  NULL,	                /* init */
+  my_strnncoll_gb2312_bin,
+  my_strnncollsp_gb2312_bin,
+  my_strnxfrm_mb,
+  my_strnxfrmlen_simple,
+  my_like_range_mb,
+  my_wildcmp_mb_bin,
+  my_strcasecmp_mb_bin,
+  my_instr_mb,
+  my_hash_sort_mb_bin,
+  my_propagate_simple
+};
+
+
 
 static MY_CHARSET_HANDLER my_charset_handler=
 {
@@ -6388,6 +6420,7 @@ static MY_CHARSET_HANDLER my_charset_handler=
   my_charlen_gb2312,
   my_well_formed_char_length_gb2312,
   my_copy_fix_mb,
+  my_native_to_mb_gb2312,
 };
 
 
@@ -6420,8 +6453,9 @@ struct charset_info_st my_charset_gb2312_chinese_ci=
     0,                  /* escape_with_backslash_is_dangerous */
     1,                  /* levels_for_order   */
     &my_charset_handler,
-    &my_collation_ci_handler
+    &my_collation_handler_gb2312_chinese_ci
 };
+
 
 struct charset_info_st my_charset_gb2312_bin=
 {
@@ -6452,7 +6486,7 @@ struct charset_info_st my_charset_gb2312_bin=
     0,                  /* escape_with_backslash_is_dangerous */
     1,                  /* levels_for_order   */
     &my_charset_handler,
-    &my_collation_mb_bin_handler
+    &my_collation_handler_gb2312_bin
 };
 
 #endif

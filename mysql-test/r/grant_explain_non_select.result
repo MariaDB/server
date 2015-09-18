@@ -1,3 +1,5 @@
+set GLOBAL sql_mode="";
+set LOCAL sql_mode="";
 CREATE DATABASE privtest_db;
 CREATE TABLE privtest_db.t1 (a INT);
 CREATE TABLE privtest_db.t2 (a INT);
@@ -176,3 +178,5 @@ DELETE FROM v1 USING v1, t2 WHERE v1.a = t2.a;
 DROP USER 'privtest'@localhost;
 USE test;
 DROP DATABASE privtest_db;
+set GLOBAL sql_mode=default;
+set LOCAL sql_mode=default;

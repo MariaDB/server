@@ -1303,7 +1303,28 @@ create_fromuni(struct charset_info_st *cs,
       if (wc >= idx[i].uidx.from && wc <= idx[i].uidx.to && wc)
       {
         int ofs= wc - idx[i].uidx.from;
-        tab[ofs]= ch;
+        if (!tab[ofs] || tab[ofs] > 0x7F) /* Prefer ASCII*/
+        {
+          /*
+            Some character sets can have double encoding. For example,
+            in ARMSCII8, the following characters are encoded twice:
+
+            Encoding#1 Encoding#2 Unicode Character Name
+            ---------- ---------- ------- --------------
+            0x27       0xFF       U+0027  APOSTROPHE
+            0x28       0xA5       U+0028  LEFT PARENTHESIS
+            0x29       0xA4       U+0029  RIGHT PARENTHESIS
+            0x2C       0xAB       U+002C  COMMA
+            0x2D       0xAC       U+002D  HYPHEN-MINUS
+            0x2E       0xA9       U+002E  FULL STOP
+
+            That is, both 0x27 and 0xFF convert to Unicode U+0027.
+            When converting back from Unicode to ARMSCII,
+            we prefer the ASCII range, that is we want U+0027
+            to convert to 0x27 rather than to 0xFF.
+          */
+          tab[ofs]= ch;
+        }
       }
     }
   }
@@ -1598,7 +1619,10 @@ exp:    /* [ E [ <sign> ] <unsigned integer> ] */
       if ((negative_exp= (*str == '-')) || *str=='+')
       {
         if (++str == end)
+        {
+          str-= 2; /* 'e-' or 'e+' not followed by digits */
           goto ret_sign;
+        }
       }
       for (exponent= 0 ;
            str < end && (ch= (uchar) (*str - '0')) < 10;
@@ -1608,6 +1632,8 @@ exp:    /* [ E [ <sign> ] <unsigned integer> ] */
       }
       shift+= negative_exp ? -exponent : exponent;
     }
+    else
+      str--; /* 'e' not followed by digits */
   }
   
   if (shift == 0) /* No shift, check addon digit */
@@ -1929,6 +1955,7 @@ MY_CHARSET_HANDLER my_charset_8bit_handler=
     my_charlen_8bit,
     my_well_formed_char_length_8bit,
     my_copy_8bit,
+    my_wc_mb_bin, /* native_to_mb */
 };
 
 MY_COLLATION_HANDLER my_collation_8bit_simple_ci_handler =

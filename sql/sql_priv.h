@@ -51,9 +51,9 @@
     compile_time_assert(MYSQL_VERSION_ID < VerHi * 10000 + VerLo * 100);    \
     if (((THD *) Thd) != NULL)                                              \
       push_warning_printf(((THD *) Thd), Sql_condition::WARN_LEVEL_WARN,    \
-                        ER_WARN_DEPRECATED_SYNTAX,                          \
-                        ER(ER_WARN_DEPRECATED_SYNTAX),                      \
-                        (Old), (New));                                      \
+                         ER_WARN_DEPRECATED_SYNTAX,                          \
+                         ER_THD(((THD *) Thd), ER_WARN_DEPRECATED_SYNTAX), \
+                         (Old), (New));                                      \
     else                                                                    \
       sql_print_warning("The syntax '%s' is deprecated and will be removed " \
                         "in a future release. Please use %s instead.",      \
@@ -77,11 +77,12 @@
 
 #define WARN_DEPRECATED_NO_REPLACEMENT(Thd,Old)                             \
   do {                                                                      \
-    if (((THD *) Thd) != NULL)                                              \
-      push_warning_printf(((THD *) Thd), Sql_condition::WARN_LEVEL_WARN,    \
-                        ER_WARN_DEPRECATED_SYNTAX_NO_REPLACEMENT,           \
-                        ER(ER_WARN_DEPRECATED_SYNTAX_NO_REPLACEMENT),       \
-                        (Old));                                             \
+    THD *thd_= ((THD*) Thd);                                                \
+    if (thd_ != NULL)                                                       \
+      push_warning_printf(thd_, Sql_condition::WARN_LEVEL_WARN,             \
+                         ER_WARN_DEPRECATED_SYNTAX_NO_REPLACEMENT,          \
+                         ER_THD(thd_, ER_WARN_DEPRECATED_SYNTAX_NO_REPLACEMENT), \
+                         (Old));                                            \
     else                                                                    \
       sql_print_warning("'%s' is deprecated and will be removed "           \
                         "in a future release.", (Old));                     \

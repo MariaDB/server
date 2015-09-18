@@ -623,6 +623,8 @@ handle_new_error:
 	case DB_FTS_INVALID_DOCID:
 	case DB_INTERRUPTED:
 	case DB_DICT_CHANGED:
+	case DB_TABLE_NOT_FOUND:
+	case DB_DECRYPTION_FAILED:
 		if (savept) {
 			/* Roll back the latest, possibly incomplete insertion
 			or update */
@@ -1315,7 +1317,13 @@ row_insert_for_mysql(
 			prebuilt->table->name);
 
 		return(DB_TABLESPACE_NOT_FOUND);
-
+	} else if (prebuilt->table->is_encrypted) {
+		ib_push_warning(trx, DB_DECRYPTION_FAILED,
+			"Table %s in tablespace %lu encrypted."
+			"However key management plugin or used key_id is not found or"
+			" used encryption algorithm or method does not match.",
+			prebuilt->table->name, prebuilt->table->space);
+		return(DB_DECRYPTION_FAILED);
 	} else if (prebuilt->magic_n != ROW_PREBUILT_ALLOCATED) {
 		fprintf(stderr,
 			"InnoDB: Error: trying to free a corrupt\n"
@@ -1327,18 +1335,14 @@ row_insert_for_mysql(
 		mem_analyze_corruption(prebuilt);
 
 		ut_error;
-	} else if (srv_created_new_raw || srv_force_recovery) {
-		fputs("InnoDB: A new raw disk partition was initialized or\n"
-		      "InnoDB: innodb_force_recovery is on: we do not allow\n"
+	} else if (srv_force_recovery) {
+		fputs("InnoDB: innodb_force_recovery is on: we do not allow\n"
 		      "InnoDB: database modifications by the user. Shut down\n"
 		      "InnoDB: mysqld and edit my.cnf so that"
-		      " newraw is replaced\n"
-		      "InnoDB: with raw, and innodb_force_... is removed.\n",
+		      "InnoDB: innodb_force_... is removed.\n",
 		      stderr);
-		if(srv_force_recovery) {
-			return(DB_READ_ONLY);
-		}
-		return(DB_ERROR);
+
+		return(DB_READ_ONLY);
 	}
 
 	trx->op_info = "inserting";
@@ -1714,6 +1718,13 @@ row_update_for_mysql(
 			"InnoDB: how you can resolve the problem.\n",
 			prebuilt->table->name);
 		return(DB_ERROR);
+	} else if (prebuilt->table->is_encrypted) {
+		ib_push_warning(trx, DB_DECRYPTION_FAILED,
+			"Table %s in tablespace %lu encrypted."
+			"However key management plugin or used key_id is not found or"
+			" used encryption algorithm or method does not match.",
+			prebuilt->table->name, prebuilt->table->space);
+		return (DB_TABLE_NOT_FOUND);
 	}
 
 	if (UNIV_UNLIKELY(prebuilt->magic_n != ROW_PREBUILT_ALLOCATED)) {
@@ -1729,18 +1740,14 @@ row_update_for_mysql(
 		ut_error;
 	}
 
-	if (UNIV_UNLIKELY(srv_created_new_raw || srv_force_recovery)) {
-		fputs("InnoDB: A new raw disk partition was initialized or\n"
-		      "InnoDB: innodb_force_recovery is on: we do not allow\n"
+	if (UNIV_UNLIKELY(srv_force_recovery)) {
+		fputs("InnoDB: innodb_force_recovery is on: we do not allow\n"
 		      "InnoDB: database modifications by the user. Shut down\n"
-		      "InnoDB: mysqld and edit my.cnf so that newraw"
-		      " is replaced\n"
-		      "InnoDB: with raw, and innodb_force_... is removed.\n",
+		      "InnoDB: mysqld and edit my.cnf so that"
+		      "InnoDB: innodb_force_... is removed.\n",
 		      stderr);
-		if(srv_force_recovery) {
-			return(DB_READ_ONLY);
-		}
-		return(DB_ERROR);
+
+		return(DB_READ_ONLY);
 	}
 
 	DEBUG_SYNC_C("innodb_row_update_for_mysql_begin");
@@ -2219,7 +2226,9 @@ row_create_table_for_mysql(
 				(will be freed, or on DB_SUCCESS
 				added to the data dictionary cache) */
 	trx_t*		trx,	/*!< in/out: transaction */
-	bool		commit)	/*!< in: if true, commit the transaction */
+	bool		commit,	/*!< in: if true, commit the transaction */
+	fil_encryption_t mode,	/*!< in: encryption mode */
+	ulint		key_id)	/*!< in: encryption key_id */
 {
 	tab_node_t*	node;
 	mem_heap_t*	heap;
@@ -2239,22 +2248,6 @@ row_create_table_for_mysql(
 		goto err_exit;
 	);
 
-	if (srv_created_new_raw) {
-		fputs("InnoDB: A new raw disk partition was initialized:\n"
-		      "InnoDB: we do not allow database modifications"
-		      " by the user.\n"
-		      "InnoDB: Shut down mysqld and edit my.cnf so that newraw"
-		      " is replaced with raw.\n", stderr);
-err_exit:
-		dict_mem_table_free(table);
-
-		if (commit) {
-			trx_commit_for_mysql(trx);
-		}
-
-		return(DB_ERROR);
-	}
-
 	trx->op_info = "creating table";
 
 	if (row_mysql_is_system_table(table->name)) {
@@ -2265,7 +2258,19 @@ err_exit:
 			"InnoDB: MySQL system tables must be"
 			" of the MyISAM type!\n",
 			table->name);
-		goto err_exit;
+
+#ifndef DBUG_OFF
+err_exit:
+#endif /* !DBUG_OFF */
+		dict_mem_table_free(table);
+
+		if (commit) {
+			trx_commit_for_mysql(trx);
+		}
+
+		trx->op_info = "";
+
+		return(DB_ERROR);
 	}
 
 	trx_start_if_not_started_xa(trx);
@@ -2336,7 +2341,7 @@ err_exit:
 		ut_ad(strstr(table->name, "/FTS_") != NULL);
 	}
 
-	node = tab_create_graph_create(table, heap, commit);
+	node = tab_create_graph_create(table, heap, commit, mode, key_id);
 
 	thr = pars_complete_graph_for_exec(node, trx, heap);
 
@@ -3134,6 +3139,8 @@ row_discard_tablespace_for_mysql(
 
 	if (table == 0) {
 		err = DB_TABLE_NOT_FOUND;
+	} else if (table->is_encrypted) {
+		err = DB_DECRYPTION_FAILED;
 	} else if (table->space == TRX_SYS_SPACE) {
 		char	table_name[MAX_FULL_NAME_LEN + 1];
 
@@ -3350,18 +3357,10 @@ row_truncate_table_for_mysql(
 
 	ut_ad(table);
 
-	if (srv_created_new_raw) {
-		fputs("InnoDB: A new raw disk partition was initialized:\n"
-		      "InnoDB: we do not allow database modifications"
-		      " by the user.\n"
-		      "InnoDB: Shut down mysqld and edit my.cnf so that newraw"
-		      " is replaced with raw.\n", stderr);
-
-		return(DB_ERROR);
-	}
-
 	if (dict_table_is_discarded(table)) {
 		return(DB_TABLESPACE_DELETED);
+	} else if (table->is_encrypted) {
+		return(DB_DECRYPTION_FAILED);
 	} else if (table->ibd_file_missing) {
 		return(DB_TABLESPACE_NOT_FOUND);
 	}
@@ -3483,10 +3482,19 @@ row_truncate_table_for_mysql(
 
 	if (table->space && !DICT_TF2_FLAG_IS_SET(table, DICT_TF2_TEMPORARY)) {
 		/* Discard and create the single-table tablespace. */
+		fil_space_crypt_t* crypt_data;
 		ulint	space	= table->space;
 		ulint	flags	= fil_space_get_flags(space);
+		ulint	key_id  = FIL_DEFAULT_ENCRYPTION_KEY;
+		fil_encryption_t mode = FIL_SPACE_ENCRYPTION_DEFAULT;
 
 		dict_get_and_save_data_dir_path(table, true);
+		crypt_data = fil_space_get_crypt_data(space);
+
+		if (crypt_data) {
+			key_id = crypt_data->key_id;
+			mode = crypt_data->encryption;
+		}
 
 		if (flags != ULINT_UNDEFINED
 		    && fil_discard_tablespace(space) == DB_SUCCESS) {
@@ -3505,7 +3513,8 @@ row_truncate_table_for_mysql(
 				    space, table->name,
 				    table->data_dir_path,
 				    flags, table->flags2,
-				    FIL_IBD_FILE_INITIAL_SIZE)
+				    FIL_IBD_FILE_INITIAL_SIZE,
+				    mode, key_id)
 			    != DB_SUCCESS) {
 				dict_table_x_unlock_indexes(table);
 
@@ -3839,16 +3848,6 @@ row_drop_table_for_mysql(
 
 	ut_a(name != NULL);
 
-	if (srv_created_new_raw) {
-		fputs("InnoDB: A new raw disk partition was initialized:\n"
-		      "InnoDB: we do not allow database modifications"
-		      " by the user.\n"
-		      "InnoDB: Shut down mysqld and edit my.cnf so that newraw"
-		      " is replaced with raw.\n", stderr);
-
-		DBUG_RETURN(DB_ERROR);
-	}
-
 	/* The table name is prefixed with the database name and a '/'.
 	Certain table names starting with 'innodb_' have their special
 	meaning regardless of the database name.  Thus, we need to
@@ -3936,6 +3935,19 @@ row_drop_table_for_mysql(
 		      "InnoDB: You can look for further help from\n"
 		      "InnoDB: " REFMAN "innodb-troubleshooting.html\n",
 		      stderr);
+		goto funct_exit;
+	}
+
+	/* If table is encrypted and table page encryption failed
+	return error. */
+	if (table->is_encrypted) {
+
+		if (table->can_be_evicted) {
+			dict_table_move_from_lru_to_non_lru(table);
+		}
+
+		dict_table_close(table, TRUE, FALSE);
+		err = DB_DECRYPTION_FAILED;
 		goto funct_exit;
 	}
 
@@ -4866,19 +4878,16 @@ row_rename_table_for_mysql(
 	ut_a(new_name != NULL);
 	ut_ad(trx->state == TRX_STATE_ACTIVE);
 
-	if (srv_created_new_raw || srv_force_recovery) {
-		fputs("InnoDB: A new raw disk partition was initialized or\n"
-		      "InnoDB: innodb_force_recovery is on: we do not allow\n"
+	if (srv_force_recovery) {
+		fputs("InnoDB: innodb_force_recovery is on: we do not allow\n"
 		      "InnoDB: database modifications by the user. Shut down\n"
-		      "InnoDB: mysqld and edit my.cnf so that newraw"
-		      " is replaced\n"
-		      "InnoDB: with raw, and innodb_force_... is removed.\n",
+		      "InnoDB: mysqld and edit my.cnf so that"
+		      "InnoDB: innodb_force_... is removed.\n",
 		      stderr);
-		if(srv_force_recovery) {
-			err = DB_READ_ONLY;
-		}
 
+		err = DB_READ_ONLY;
 		goto funct_exit;
+
 	} else if (row_mysql_is_system_table(new_name)) {
 
 		fprintf(stderr,

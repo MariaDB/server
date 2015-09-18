@@ -534,6 +534,16 @@ SELECT DATE_ADD(a, INTERVAL 10 SECOND) FROM t1;
 DROP TABLE t1;
 
 
+let type=TIMESTAMP;
+let defval='0000-00-00 00:00:00';
+--source include/type_temporal_zero_default.inc
+
+--echo #
+--echo # MDEV-8699 Wrong result for SELECT..WHERE HEX(date_column)!='323030312D30312D3031' AND date_column='2001-01-01x'
+--echo #
+--let $TYPE=TIMESTAMP
+--source include/equal_fields_propagation_datetime.inc
+
 --echo #
 --echo # End of 10.1 tests
 --echo #

@@ -36,17 +36,17 @@ c1	c2	c3
 3	30	sa si su se so
 4	40	ta ti tu te to
 5	50	aa ii uu ee oo
-select * from t1 where match(c3) against("su");
+select * from t1 where match(c3) against("su") order by c1;
 c1	c2	c3
 3	30	sa si su se so
-select * from t1 where match(c3) against("ii");
+select * from t1 where match(c3) against("ii") order by c1;
 c1	c2	c3
 1	10	aa ii uu ee oo
 5	50	aa ii uu ee oo
-select * from t1 where match(c3) against("+su" in boolean mode);
+select * from t1 where match(c3) against("+su" in boolean mode) order by c1;
 c1	c2	c3
 3	30	sa si su se so
-select * from t1 where match(c3) against("+ii" in boolean mode);
+select * from t1 where match(c3) against("+ii" in boolean mode) order by c1;
 c1	c2	c3
 1	10	aa ii uu ee oo
 5	50	aa ii uu ee oo
@@ -61,10 +61,10 @@ c1	c2	c3
 1	明日の富士山の天気について	あああああああ
 2	いいいいい	明日の富士山の天気は分かりません
 3	dummy	dummy
-select * from t1 where match(c2) against("富士山");
+select * from t1 where match(c2) against("富士山") order by c1;
 c1	c2	c3
 1	明日の富士山の天気について	あああああああ
-select * from t1 where match(c3) against("富士山");
+select * from t1 where match(c3) against("富士山") order by c1;
 c1	c2	c3
 2	いいいいい	明日の富士山の天気は分かりません
 drop table t1;
@@ -124,14 +124,14 @@ c1	c2	match(c2) against("ii")
 3	aa ii ii ii oo	524289
 select c1,c2,match(c2) against("ii") from t1 where match(c2) against("ii");
 c1	c2	match(c2) against("ii")
-1	aa ii uu ee oo	174763
 3	aa ii ii ii oo	524289
 5	ta ti ii ii to	349526
+1	aa ii uu ee oo	174763
 select c1,c2,match(c2) against("ii") from t1 where match(c2) against("ii");
 c1	c2	match(c2) against("ii")
-1	aa ii uu ee oo	174763
 3	aa ii ii ii oo	524289
 5	ta ti ii ii to	349526
+1	aa ii uu ee oo	174763
 drop table t1,t2;
 create table t1 (c1 int primary key, c2 int, c3 text, fulltext index ft(c3)) COMMENT = 'engine "myisam"';
 insert into t1 values(1,10,"aa ii uu ee oo");
@@ -152,7 +152,7 @@ c1	c2	c3
 6	20	ka ki ku ke ko
 7	20	aa ii uu ee oo
 8	20	ka ki ku ke ko
-select *,match(c3) against("uu") from t1 where match(c3) against("uu");
+select *,match(c3) against("uu") from t1 where match(c3) against("uu") order by c1;
 c1	c2	c3	match(c3) against("uu")
 1	10	aa ii uu ee oo	131073
 3	10	aa ii uu ee oo	131073

@@ -126,6 +126,7 @@ Field	Type	Null	Key	Default	Extra
 a	char(1)	NO			
 b	enum('¤¢','¤¤')	YES		NULL	
 DROP TABLE t1;
+set sql_mode="";
 CREATE TABLE t1
 (
 a INTEGER NOT NULL,
@@ -133,6 +134,7 @@ b VARCHAR(50) NOT NULL DEFAULT '',
 PRIMARY KEY  (a),
 KEY b (b(10))
 ) ENGINE=InnoDB CHARACTER SET 'ujis' COLLATE 'ujis_japanese_ci';
+set sql_mode=default;
 INSERT INTO t1 (a, b) VALUES (0, 'aaabbbcccddd');
 INSERT INTO t1 (a, b) VALUES (1, 'eeefffggghhh');
 INSERT INTO t1 (a, b) VALUES (2, 'iiijjjkkkl');
@@ -2329,9 +2331,21 @@ CREATE TABLE t1 AS
 SELECT 10 AS a, REPEAT('a',20) AS b, REPEAT('a',8) AS c, REPEAT('a',8) AS d;
 ALTER TABLE t1 ADD PRIMARY KEY(a), ADD KEY(b);
 INSERT INTO t1 (a, b) VALUES (1, repeat(0xF1F2,5));
+Warnings:
+Warning	1364	Field 'c' doesn't have a default value
+Warning	1364	Field 'd' doesn't have a default value
 INSERT INTO t1 (a, b) VALUES (2, repeat(0xF1F2,10));
+Warnings:
+Warning	1364	Field 'c' doesn't have a default value
+Warning	1364	Field 'd' doesn't have a default value
 INSERT INTO t1 (a, b) VALUES (3, repeat(0xF1F2,11));
+Warnings:
+Warning	1364	Field 'c' doesn't have a default value
+Warning	1364	Field 'd' doesn't have a default value
 INSERT INTO t1 (a, b) VALUES (4, repeat(0xF1F2,12));
+Warnings:
+Warning	1364	Field 'c' doesn't have a default value
+Warning	1364	Field 'd' doesn't have a default value
 SELECT hex(concat(repeat(0xF1F2, 10), '%'));
 hex(concat(repeat(0xF1F2, 10), '%'))
 F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F225
@@ -2464,9 +2478,21 @@ CREATE TABLE t1 AS
 SELECT 10 AS a, REPEAT('a',20) AS b, REPEAT('a',8) AS c, REPEAT('a',8) AS d;
 ALTER TABLE t1 ADD PRIMARY KEY(a), ADD KEY(b);
 INSERT INTO t1 (a, b) VALUES (1, repeat(0xF1F2,5));
+Warnings:
+Warning	1364	Field 'c' doesn't have a default value
+Warning	1364	Field 'd' doesn't have a default value
 INSERT INTO t1 (a, b) VALUES (2, repeat(0xF1F2,10));
+Warnings:
+Warning	1364	Field 'c' doesn't have a default value
+Warning	1364	Field 'd' doesn't have a default value
 INSERT INTO t1 (a, b) VALUES (3, repeat(0xF1F2,11));
+Warnings:
+Warning	1364	Field 'c' doesn't have a default value
+Warning	1364	Field 'd' doesn't have a default value
 INSERT INTO t1 (a, b) VALUES (4, repeat(0xF1F2,12));
+Warnings:
+Warning	1364	Field 'c' doesn't have a default value
+Warning	1364	Field 'd' doesn't have a default value
 SELECT hex(concat(repeat(0xF1F2, 10), '%'));
 hex(concat(repeat(0xF1F2, 10), '%'))
 F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F225
@@ -2481,12 +2507,12 @@ select hex(convert(_ujis 0xA5FE41 using ucs2));
 hex(convert(_ujis 0xA5FE41 using ucs2))
 003F0041
 Warnings:
-Warning	1976	Cannot convert 'ujis' character 0xA5FE to 'ucs2'
+Warning	1977	Cannot convert 'ujis' character 0xA5FE to 'ucs2'
 select hex(convert(_ujis 0x8FABF841 using ucs2));
 hex(convert(_ujis 0x8FABF841 using ucs2))
 003F0041
 Warnings:
-Warning	1976	Cannot convert 'ujis' character 0x8FABF8 to 'ucs2'
+Warning	1977	Cannot convert 'ujis' character 0x8FABF8 to 'ucs2'
 DROP TABLE IF EXISTS t1, t2;
 DROP PROCEDURE IF EXISTS sp1;
 set names ujis;
@@ -2545,21 +2571,27 @@ DROP TABLE t1;
 CREATE TABLE t1 AS SELECT 'XXXXXX' AS code, ' ' AS a LIMIT 0;
 INSERT INTO t1 (code) SELECT concat('8E', head) FROM head
 WHERE (head BETWEEN 'A1' AND 'DF') ORDER BY head;
+Warnings:
+Warning	1364	Field 'a' doesn't have a default value
 INSERT INTO t1 (code) SELECT concat(head, tail)
 FROM head, tail
 WHERE (head BETWEEN '80' AND 'FF') AND (head NOT BETWEEN '8E' AND '8F')
 AND   (tail BETWEEN '20' AND 'FF')
 ORDER BY head, tail;
+Warnings:
+Warning	1364	Field 'a' doesn't have a default value
 INSERT INTO t1 (code) SELECT concat('8F', head, tail)
 FROM head, tail
 WHERE (head BETWEEN '80' AND 'FF') AND (tail BETWEEN '80' AND 'FF')
 ORDER BY head, tail;
+Warnings:
+Warning	1364	Field 'a' doesn't have a default value
 DROP TEMPORARY TABLE head, tail;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `code` varchar(6) CHARACTER SET ujis NOT NULL DEFAULT '',
-  `a` varchar(1) CHARACTER SET ujis NOT NULL DEFAULT ''
+  `code` varchar(6) CHARACTER SET ujis NOT NULL,
+  `a` varchar(1) CHARACTER SET ujis NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 UPDATE t1 SET a=unhex(code) ORDER BY code;
 Warnings:
@@ -3051,70 +3083,70 @@ HEX(LOWER(CAST(a AS CHAR CHARACTER SET utf8))) ORDER BY code;
 code	a
 8FAABC	Ä¢
 Warnings:
-Warning	1976	Cannot convert 'ujis' character 0xA2AF to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2AF to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2B0 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2B0 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2B1 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2B1 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2B2 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2B2 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2B3 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2B3 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2B4 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2B4 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2B5 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2B5 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2B6 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2B6 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2B7 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2B7 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2B8 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2B8 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2B9 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2B9 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2C2 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2C2 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2C3 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2C3 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2C4 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2C4 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2C5 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2C5 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2C6 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2C6 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2C7 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2C7 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2C8 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2C8 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2C9 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2C9 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2D1 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2D1 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2D2 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2D2 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2D3 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2D3 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2D4 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2D4 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2D5 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2D5 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2D6 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2D6 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2D7 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2D7 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2D8 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2D8 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2D9 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2D9 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2DA to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2DA to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2DB to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2DB to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2EB to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2EB to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2EC to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2EC to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2AF to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2AF to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2B0 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2B0 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2B1 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2B1 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2B2 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2B2 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2B3 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2B3 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2B4 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2B4 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2B5 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2B5 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2B6 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2B6 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2B7 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2B7 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2B8 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2B8 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2B9 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2B9 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2C2 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2C2 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2C3 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2C3 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2C4 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2C4 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2C5 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2C5 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2C6 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2C6 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2C7 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2C7 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2C8 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2C8 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2C9 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2C9 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2D1 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2D1 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2D2 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2D2 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2D3 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2D3 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2D4 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2D4 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2D5 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2D5 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2D6 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2D6 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2D7 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2D7 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2D8 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2D8 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2D9 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2D9 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2DA to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2DA to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2DB to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2DB to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2EB to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2EB to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2EC to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2EC to 'utf8'
 SELECT * FROM t1
 WHERE HEX(CAST(UPPER(a) AS CHAR CHARACTER SET utf8)) <>
 HEX(UPPER(CAST(a AS CHAR CHARACTER SET utf8))) ORDER BY code;
@@ -3122,70 +3154,70 @@ code	a
 8FA9C3	Ã°
 8FABB9	Çµ
 Warnings:
-Warning	1976	Cannot convert 'ujis' character 0xA2AF to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2AF to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2B0 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2B0 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2B1 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2B1 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2B2 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2B2 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2B3 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2B3 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2B4 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2B4 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2B5 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2B5 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2B6 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2B6 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2B7 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2B7 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2B8 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2B8 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2B9 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2B9 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2C2 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2C2 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2C3 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2C3 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2C4 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2C4 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2C5 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2C5 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2C6 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2C6 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2C7 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2C7 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2C8 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2C8 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2C9 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2C9 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2D1 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2D1 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2D2 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2D2 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2D3 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2D3 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2D4 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2D4 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2D5 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2D5 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2D6 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2D6 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2D7 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2D7 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2D8 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2D8 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2D9 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2D9 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2DA to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2DA to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2DB to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2DB to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2EB to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2EB to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2EC to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2EC to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2AF to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2AF to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2B0 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2B0 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2B1 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2B1 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2B2 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2B2 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2B3 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2B3 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2B4 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2B4 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2B5 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2B5 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2B6 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2B6 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2B7 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2B7 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2B8 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2B8 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2B9 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2B9 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2C2 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2C2 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2C3 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2C3 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2C4 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2C4 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2C5 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2C5 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2C6 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2C6 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2C7 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2C7 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2C8 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2C8 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2C9 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2C9 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2D1 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2D1 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2D2 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2D2 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2D3 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2D3 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2D4 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2D4 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2D5 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2D5 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2D6 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2D6 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2D7 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2D7 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2D8 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2D8 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2D9 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2D9 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2DA to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2DA to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2DB to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2DB to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2EB to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2EB to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2EC to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2EC to 'utf8'
 #
 # WL#3090 Japanese Character Set adjustments
 # Test sjis->Unicode conversion
@@ -18083,70 +18115,70 @@ FEFC	EE8EA9
 FEFD	EE8EAA
 FEFE	EE8EAB
 Warnings:
-Warning	1976	Cannot convert 'ujis' character 0xA2AF to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2B0 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2B1 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2B2 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2B3 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2B4 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2B5 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2B6 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2B7 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2B8 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2B9 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2C2 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2C3 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2C4 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2C5 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2C6 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2C7 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2C8 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2C9 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2D1 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2D2 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2D3 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2D4 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2D5 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2D6 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2D7 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2D8 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2D9 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2DA to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2DB to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2EB to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2EC to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2ED to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2EE to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2EF to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2F0 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2F1 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2FA to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2FB to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2FC to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA2FD to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA3A1 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA3A2 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA3A3 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA3A4 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA3A5 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA3A6 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA3A7 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA3A8 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA3A9 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA3AA to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA3AB to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA3AC to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA3AD to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA3AE to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA3AF to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA3BA to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA3BB to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA3BC to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA3BD to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA3BE to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA3BF to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA3C0 to 'utf8'
-Warning	1976	Cannot convert 'ujis' character 0xA3DB to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2AF to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2B0 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2B1 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2B2 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2B3 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2B4 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2B5 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2B6 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2B7 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2B8 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2B9 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2C2 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2C3 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2C4 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2C5 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2C6 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2C7 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2C8 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2C9 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2D1 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2D2 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2D3 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2D4 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2D5 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2D6 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2D7 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2D8 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2D9 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2DA to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2DB to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2EB to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2EC to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2ED to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2EE to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2EF to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2F0 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2F1 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2FA to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2FB to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2FC to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA2FD to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA3A1 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA3A2 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA3A3 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA3A4 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA3A5 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA3A6 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA3A7 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA3A8 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA3A9 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA3AA to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA3AB to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA3AC to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA3AD to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA3AE to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA3AF to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA3BA to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA3BB to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA3BC to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA3BD to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA3BE to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA3BF to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA3C0 to 'utf8'
+Warning	1977	Cannot convert 'ujis' character 0xA3DB to 'utf8'
 DROP TABLE t1;
 #
 # WL#3090 Japanese Character Set adjustments
@@ -25266,7 +25298,7 @@ CREATE TABLE t1 AS SELECT 'a' AS a;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` varchar(1) CHARACTER SET ujis NOT NULL DEFAULT ''
+  `a` varchar(1) CHARACTER SET ujis NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 CREATE TABLE t2 AS SELECT WEIGHT_STRING(a) AS ws FROM t1;
 SHOW CREATE TABLE t2;
@@ -25286,7 +25318,7 @@ CREATE TABLE t1 AS SELECT REPEAT('a',5) AS a;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` varchar(5) CHARACTER SET ujis NOT NULL DEFAULT ''
+  `a` varchar(5) CHARACTER SET ujis NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 CREATE TABLE t2 AS SELECT WEIGHT_STRING(a) AS ws FROM t1;
 SHOW CREATE TABLE t2;
@@ -25699,7 +25731,7 @@ CREATE TABLE t1 AS SELECT 'a' AS a;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` varchar(1) CHARACTER SET ujis COLLATE ujis_bin NOT NULL DEFAULT ''
+  `a` varchar(1) CHARACTER SET ujis COLLATE ujis_bin NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 CREATE TABLE t2 AS SELECT WEIGHT_STRING(a) AS ws FROM t1;
 SHOW CREATE TABLE t2;
@@ -25719,7 +25751,7 @@ CREATE TABLE t1 AS SELECT REPEAT('a',5) AS a;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` varchar(5) CHARACTER SET ujis COLLATE ujis_bin NOT NULL DEFAULT ''
+  `a` varchar(5) CHARACTER SET ujis COLLATE ujis_bin NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 CREATE TABLE t2 AS SELECT WEIGHT_STRING(a) AS ws FROM t1;
 SHOW CREATE TABLE t2;
@@ -26143,4 +26175,46 @@ SELECT _ujis 0x8EA0;
 ERROR HY000: Invalid ujis character string: '8EA0'
 #
 # End of 10.0 tests
+#
+#
+# Start of 10.1 tests
+#
+#
+# MDEV-8215 Asian MB3 charsets: compare broken bytes as "greater than any non-broken character"
+#
+CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET ujis, KEY(a));
+INSERT INTO t1 VALUES ('a'),(0x7F);
+INSERT INTO t1 VALUES (0x8EA1),(0x8EDF);
+INSERT INTO t1 VALUES (0x8FA1A1),(0x8FFEFE);
+INSERT INTO t1 VALUES (0xA1A1),(0xDEDE),(0xDFDF),(0xE0E0),(0xFEFE);
+SELECT HEX(a) FROM t1 ORDER BY a;
+HEX(a)
+61
+7F
+8EA1
+8EDF
+8FA1A1
+8FFEFE
+A1A1
+DEDE
+DFDF
+E0E0
+FEFE
+ALTER TABLE t1 MODIFY a VARCHAR(10) CHARACTER SET ujis COLLATE ujis_bin;
+SELECT HEX(a) FROM t1 ORDER BY a;
+HEX(a)
+61
+7F
+8EA1
+8EDF
+8FA1A1
+8FFEFE
+A1A1
+DEDE
+DFDF
+E0E0
+FEFE
+DROP TABLE t1;
+#
+# End of 10.1 tests
 #

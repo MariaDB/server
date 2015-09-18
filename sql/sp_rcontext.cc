@@ -137,7 +137,7 @@ bool sp_rcontext::init_var_items(THD *thd)
 
   for (uint idx = 0; idx < num_vars; ++idx)
   {
-    if (!(m_var_items[idx]= new Item_field(m_var_table->field[idx])))
+    if (!(m_var_items[idx]= new (thd->mem_root) Item_field(thd, m_var_table->field[idx])))
       return true;
   }
 
@@ -387,7 +387,7 @@ Item_cache *sp_rcontext::create_case_expr_holder(THD *thd,
 
   thd->set_n_backup_active_arena(thd->spcont->callers_arena, &current_arena);
 
-  holder= Item_cache::get_cache(item);
+  holder= Item_cache::get_cache(thd, item);
 
   thd->restore_active_arena(thd->spcont->callers_arena, &current_arena);
 
@@ -451,7 +451,8 @@ int sp_cursor::open(THD *thd)
 {
   if (server_side_cursor)
   {
-    my_message(ER_SP_CURSOR_ALREADY_OPEN, ER(ER_SP_CURSOR_ALREADY_OPEN),
+    my_message(ER_SP_CURSOR_ALREADY_OPEN,
+               ER_THD(thd, ER_SP_CURSOR_ALREADY_OPEN),
                MYF(0));
     return -1;
   }
@@ -465,7 +466,8 @@ int sp_cursor::close(THD *thd)
 {
   if (! server_side_cursor)
   {
-    my_message(ER_SP_CURSOR_NOT_OPEN, ER(ER_SP_CURSOR_NOT_OPEN), MYF(0));
+    my_message(ER_SP_CURSOR_NOT_OPEN, ER_THD(thd, ER_SP_CURSOR_NOT_OPEN),
+               MYF(0));
     return -1;
   }
   destroy();
@@ -484,20 +486,21 @@ int sp_cursor::fetch(THD *thd, List<sp_variable> *vars)
 {
   if (! server_side_cursor)
   {
-    my_message(ER_SP_CURSOR_NOT_OPEN, ER(ER_SP_CURSOR_NOT_OPEN), MYF(0));
+    my_message(ER_SP_CURSOR_NOT_OPEN, ER_THD(thd, ER_SP_CURSOR_NOT_OPEN),
+               MYF(0));
     return -1;
   }
   if (vars->elements != result.get_field_count())
   {
     my_message(ER_SP_WRONG_NO_OF_FETCH_ARGS,
-               ER(ER_SP_WRONG_NO_OF_FETCH_ARGS), MYF(0));
+               ER_THD(thd, ER_SP_WRONG_NO_OF_FETCH_ARGS), MYF(0));
     return -1;
   }
 
   DBUG_EXECUTE_IF("bug23032_emit_warning",
                   push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
                                ER_UNKNOWN_ERROR,
-                               ER(ER_UNKNOWN_ERROR)););
+                               ER_THD(thd, ER_UNKNOWN_ERROR)););
 
   result.set_spvar_list(vars);
 
@@ -511,7 +514,7 @@ int sp_cursor::fetch(THD *thd, List<sp_variable> *vars)
   */
   if (! server_side_cursor->is_open())
   {
-    my_message(ER_SP_FETCH_NO_DATA, ER(ER_SP_FETCH_NO_DATA), MYF(0));
+    my_message(ER_SP_FETCH_NO_DATA, ER_THD(thd, ER_SP_FETCH_NO_DATA), MYF(0));
     return -1;
   }
 

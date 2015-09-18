@@ -143,7 +143,7 @@ ANALYZE
         "attached_condition": "(tbl2.b < 60)"
       },
       "buffer_type": "flat",
-      "buffer_size": "128Kb",
+      "buffer_size": "256Kb",
       "join_type": "BNL",
       "r_filtered": 100
     }
@@ -181,7 +181,7 @@ ANALYZE
         "attached_condition": "(tbl2.b < 60)"
       },
       "buffer_type": "flat",
-      "buffer_size": "128Kb",
+      "buffer_size": "256Kb",
       "join_type": "BNL",
       "attached_condition": "(tbl1.c > tbl2.c)",
       "r_filtered": 15.833

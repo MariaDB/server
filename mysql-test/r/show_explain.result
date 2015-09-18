@@ -782,6 +782,7 @@ drop table t1,t3,t4;
 #
 # ----------  SHOW EXPLAIN and permissions -----------------
 #
+create user test2@localhost;
 grant ALL on test.* to test2@localhost;
 grant super on *.* to test2@localhost;
 #

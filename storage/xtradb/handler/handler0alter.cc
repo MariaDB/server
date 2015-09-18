@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2005, 2014, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2014, SkySQL Ab. All Rights Reserved.
+Copyright (c) 2013, 2015, MariaDB Corporation. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -397,6 +397,35 @@ ha_innobase::check_if_supported_inplace_alter(
 		if ((col->prtype & DATA_UNSIGNED) != unsigned_flag) {
 
 			DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
+		}
+	}
+
+	/* If we have column that has changed from NULL -> NOT NULL
+	and column default has changed we need to do additional
+	check. */
+	if ((ha_alter_info->handler_flags
+			& Alter_inplace_info::ALTER_COLUMN_NOT_NULLABLE) &&
+	    (ha_alter_info->handler_flags
+		    & Alter_inplace_info::ALTER_COLUMN_DEFAULT)) {
+		Alter_info *alter_info = ha_alter_info->alter_info;
+		List_iterator<Create_field> def_it(alter_info->create_list);
+		Create_field *def;
+		while ((def=def_it++)) {
+
+			/* If this is first column definition whose SQL type
+			is TIMESTAMP and it is defined as NOT NULL and
+			it has either constant default or function default
+			we must use "Copy" method. */
+			if (is_timestamp_type(def->sql_type)) {
+				if ((def->flags & NOT_NULL_FLAG) != 0 && // NOT NULL
+					(def->def != NULL || // constant default ?
+					 def->unireg_check != Field::NONE)) { // function default
+					ha_alter_info->unsupported_reason = innobase_get_err_msg(
+						ER_ALTER_OPERATION_NOT_SUPPORTED_REASON_NOT_NULL);
+					DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
+				}
+				break;
+			}
 		}
 	}
 
@@ -824,7 +853,7 @@ innobase_find_fk_index(
 		if (!(index->type & DICT_FTS)
 		    && dict_foreign_qualify_index(
 			    table, col_names, columns, n_cols,
-			    index, NULL, true, 0)) {
+			    index, NULL, true, 0, NULL, NULL, NULL)) {
 			for (ulint i = 0; i < n_drop_index; i++) {
 				if (index == drop_index[i]) {
 					/* Skip to-be-dropped indexes. */
@@ -1014,7 +1043,7 @@ innobase_get_foreign_key_info(
 						referenced_table, 0,
 						referenced_column_names,
 						i, index,
-						TRUE, FALSE);
+						TRUE, FALSE, NULL, NULL, NULL);
 
 				DBUG_EXECUTE_IF(
 					"innodb_test_no_reference_idx",
@@ -2803,6 +2832,7 @@ prepare_inplace_alter_table_dict(
 	to rebuild the table with a temporary name. */
 
 	if (new_clustered) {
+		fil_space_crypt_t* crypt_data;
 		const char*	new_table_name
 			= dict_mem_create_temporary_tablename(
 				ctx->heap,
@@ -2810,6 +2840,15 @@ prepare_inplace_alter_table_dict(
 				ctx->new_table->id);
 		ulint		n_cols;
 		dtuple_t*	add_cols;
+		ulint		key_id = FIL_DEFAULT_ENCRYPTION_KEY;
+		fil_encryption_t mode = FIL_SPACE_ENCRYPTION_DEFAULT;
+
+		crypt_data = fil_space_get_crypt_data(ctx->prebuilt->table->space);
+
+		if (crypt_data) {
+			key_id = crypt_data->key_id;
+			mode = crypt_data->encryption;
+		}
 
 		if (innobase_check_foreigns(
 			    ha_alter_info, altered_table, old_table,
@@ -2841,7 +2880,7 @@ prepare_inplace_alter_table_dict(
 
 		/* The initial space id 0 may be overridden later. */
 		ctx->new_table = dict_mem_table_create(
-			new_table_name, 0, n_cols, flags, flags2, false);
+			new_table_name, 0, n_cols, flags, flags2);
 		/* The rebuilt indexed_table will use the renamed
 		column names. */
 		ctx->col_names = NULL;
@@ -2941,7 +2980,7 @@ prepare_inplace_alter_table_dict(
 		}
 
 		error = row_create_table_for_mysql(
-			ctx->new_table, ctx->trx, false);
+			ctx->new_table, ctx->trx, false, mode, key_id);
 
 		switch (error) {
 			dict_table_t*	temp_table;
@@ -3331,7 +3370,7 @@ innobase_check_foreign_key_index(
 		    foreign->referenced_col_names,
 		    foreign->n_fields, index,
 		    /*check_charsets=*/TRUE,
-		    /*check_null=*/FALSE)
+		    /*check_null=*/FALSE, NULL, NULL, NULL)
 	    && !innobase_find_equiv_index(
 		    foreign->referenced_col_names,
 		    foreign->n_fields,
@@ -3359,7 +3398,7 @@ innobase_check_foreign_key_index(
 		    foreign->foreign_col_names,
 		    foreign->n_fields, index,
 		    /*check_charsets=*/TRUE,
-		    /*check_null=*/FALSE)
+		    /*check_null=*/FALSE, NULL,NULL, NULL)
 	    && !innobase_find_equiv_index(
 		    foreign->foreign_col_names,
 		    foreign->n_fields,
@@ -4129,6 +4168,13 @@ oom:
 			 : ha_alter_info->key_info_buffer[
 				 prebuilt->trx->error_key_num].name);
 		break;
+	case DB_DECRYPTION_FAILED: {
+		String str;
+		const char* engine= table_type();
+		get_error_message(HA_ERR_DECRYPTION_FAILED, &str);
+		my_error(ER_GET_ERRMSG, MYF(0), HA_ERR_DECRYPTION_FAILED, str.c_ptr(), engine);
+		break;
+	}
 	default:
 		my_error_innodb(error,
 				table_share->table_name.str,
@@ -4828,7 +4874,8 @@ innobase_update_foreign_try(
 				fk->n_fields, fk->referenced_index, TRUE,
 				fk->type
 				& (DICT_FOREIGN_ON_DELETE_SET_NULL
-				   | DICT_FOREIGN_ON_UPDATE_SET_NULL));
+					| DICT_FOREIGN_ON_UPDATE_SET_NULL),
+				NULL, NULL, NULL);
 			if (!fk->foreign_index) {
 				my_error(ER_FK_INCORRECT_OPTION,
 					 MYF(0), table_name, fk->id);
@@ -4840,7 +4887,7 @@ innobase_update_foreign_try(
 		names, while the columns in ctx->old_table have not
 		been renamed yet. */
 		error = dict_create_add_foreign_to_dictionary(
-			ctx->old_table->name, fk, trx);
+			(dict_table_t*)ctx->old_table, ctx->old_table->name, fk, trx);
 
 		DBUG_EXECUTE_IF(
 			"innodb_test_cannot_add_fk_system",

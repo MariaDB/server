@@ -780,7 +780,8 @@ public:
   List<TABLE_LIST> leaf_tables;
   List<TABLE_LIST> leaf_tables_exec;
   List<TABLE_LIST> leaf_tables_prep;
-  bool is_prep_leaf_list_saved;
+  enum leaf_list_state {UNINIT, READY, SAVED};
+  enum leaf_list_state prep_leaf_list_state;
   uint insert_tables;
   st_select_lex *merged_into; /* select which this select is merged into */
                               /* (not 0 only for views/derived tables)   */
@@ -800,7 +801,7 @@ public:
     list during split_sum_func
   */
   uint select_n_having_items;
-  uint cond_count;    /* number of arguments of and/or/xor in where/having/on */
+  uint cond_count;    /* number of sargable Items in where/having/on          */
   uint between_count; /* number of between predicates in where/having/on      */
   uint max_equal_elems; /* maximal number of elements in multiple equalities  */   
   /*
@@ -869,8 +870,6 @@ public:
   bool no_wrap_view_item;
   /* exclude this select from check of unique_table() */
   bool exclude_from_table_unique_test;
-  /* List of fields that aren't under an aggregate function */
-  List<Item_field> non_agg_fields;
   /* index in the select list of the expression currently being fixed */
   int cur_pos_in_select_list;
 
@@ -925,7 +924,7 @@ public:
 
   bool add_item_to_list(THD *thd, Item *item);
   bool add_group_to_list(THD *thd, Item *item, bool asc);
-  bool add_ftfunc_to_list(Item_func_match *func);
+  bool add_ftfunc_to_list(THD *thd, Item_func_match *func);
   bool add_order_to_list(THD *thd, Item *item, bool asc);
   bool add_gorder_to_list(THD *thd, Item *item, bool asc);
   TABLE_LIST* add_table_to_list(THD *thd, Table_ident *table,
@@ -2372,6 +2371,10 @@ public:
     deleting_all_rows= true;
     scanned_rows= rows_arg;
   }
+  void cancel_delete_all_rows()
+  {
+    deleting_all_rows= false;
+  }
 
   Explain_delete* save_explain_delete_data(MEM_ROOT *mem_root, THD *thd);
 };
@@ -2484,6 +2487,7 @@ public:
   USER_RESOURCES mqh;
   LEX_RESET_SLAVE reset_slave_info;
   ulonglong type;
+  ulong next_binlog_file_number;
   /* The following is used by KILL */
   killed_state kill_signal;
   killed_type  kill_type;
@@ -2863,21 +2867,21 @@ public:
     return false;
   }
   // Add a key as a part of CREATE TABLE or ALTER TABLE
-  bool add_key(Key::Keytype type, const LEX_STRING &name,
+  bool add_key(Key::Keytype key_type, const LEX_STRING &key_name,
                ha_key_alg algorithm, DDL_options_st ddl)
   {
     if (check_add_key(ddl) ||
-        !(last_key= new Key(type, name, algorithm, false, ddl)))
+        !(last_key= new Key(key_type, key_name, algorithm, false, ddl)))
       return true;
     alter_info.key_list.push_back(last_key);
     return false;
   }
   // Add a key for a CREATE INDEX statement
-  bool add_create_index(Key::Keytype type, const LEX_STRING &name,
+  bool add_create_index(Key::Keytype key_type, const LEX_STRING &key_name,
                         ha_key_alg algorithm, DDL_options_st ddl)
   {
     if (check_create_options(ddl) ||
-       !(last_key= new Key(type, name, algorithm, false, ddl)))
+       !(last_key= new Key(key_type, key_name, algorithm, false, ddl)))
       return true;
     alter_info.key_list.push_back(last_key);
     return false;

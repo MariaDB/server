@@ -32,22 +32,20 @@ ssize_t wsrep_sst_prepare   (void** msg);
 wsrep_cb_status wsrep_sst_donate_cb (void* app_ctx,
                                      void* recv_ctx,
                                      const void* msg, size_t msg_len,
-                                     const wsrep_gtid_t* current_id,
+                                     const wsrep_gtid_t* state_id,
                                      const char* state, size_t state_len,
                                      bool bypass);
-extern unsigned int wsrep_check_ip (const char* addr);
-extern size_t wsrep_guess_ip (char* buf, size_t buf_len);
-extern size_t wsrep_guess_address(char* buf, size_t buf_len);
 
 extern wsrep_uuid_t  local_uuid;
 extern wsrep_seqno_t local_seqno;
 
 // a helper function
-extern void wsrep_sst_received(wsrep_t*, const wsrep_uuid_t*, wsrep_seqno_t,
-                               const void*, size_t);
+void wsrep_sst_received(wsrep_t*, const wsrep_uuid_t&, wsrep_seqno_t,
+                        const void*, size_t);
 /*! SST thread signals init thread about sst completion */
-extern void wsrep_sst_complete(const wsrep_uuid_t*, wsrep_seqno_t, bool);
+void wsrep_sst_complete(const wsrep_uuid_t*, wsrep_seqno_t, bool);
 
 void wsrep_notify_status (wsrep_member_status_t new_status,
                           const wsrep_view_info_t* view = 0);
+
 #endif /* WSREP_PRIV_H */

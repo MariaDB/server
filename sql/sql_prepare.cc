@@ -1542,7 +1542,7 @@ static int mysql_test_select(Prepared_statement *stmt,
     List<Item> fields(lex->select_lex.item_list);
 
     /* Change columns if a procedure like analyse() */
-    if (unit->last_procedure && unit->last_procedure->change_columns(fields))
+    if (unit->last_procedure && unit->last_procedure->change_columns(thd, fields))
       goto error;
 
     /*
@@ -1897,14 +1897,17 @@ static bool mysql_test_multiupdate(Prepared_statement *stmt,
 static bool mysql_test_multidelete(Prepared_statement *stmt,
                                   TABLE_LIST *tables)
 {
-  stmt->thd->lex->current_select= &stmt->thd->lex->select_lex;
-  if (add_item_to_list(stmt->thd, new Item_null()))
+  THD *thd= stmt->thd;
+
+  thd->lex->current_select= &thd->lex->select_lex;
+  if (add_item_to_list(thd, new (thd->mem_root)
+                       Item_null(thd)))
   {
     my_error(ER_OUTOFMEMORY, MYF(ME_FATALERROR), 0);
     goto error;
   }
 
-  if (multi_delete_precheck(stmt->thd, tables) ||
+  if (multi_delete_precheck(thd, tables) ||
       select_like_stmt_test_with_open(stmt, tables,
                                       &mysql_multi_delete_prepare,
                                       OPTION_SETUP_TABLES_DONE))
@@ -2144,7 +2147,7 @@ static bool check_prepared_statement(Prepared_statement *stmt)
   case SQLCOM_CREATE_VIEW:
     if (lex->create_view_mode == VIEW_ALTER)
     {
-      my_message(ER_UNSUPPORTED_PS, ER(ER_UNSUPPORTED_PS), MYF(0));
+      my_message(ER_UNSUPPORTED_PS, ER_THD(thd, ER_UNSUPPORTED_PS), MYF(0));
       goto error;
     }
     res= mysql_test_create_view(stmt);
@@ -2227,7 +2230,7 @@ static bool check_prepared_statement(Prepared_statement *stmt)
     if (!(sql_command_flags[sql_command] & CF_STATUS_COMMAND))
     {
       /* All other statements are not supported yet. */
-      my_message(ER_UNSUPPORTED_PS, ER(ER_UNSUPPORTED_PS), MYF(0));
+      my_message(ER_UNSUPPORTED_PS, ER_THD(thd, ER_UNSUPPORTED_PS), MYF(0));
       goto error;
     }
     break;
@@ -2253,7 +2256,8 @@ static bool init_param_array(Prepared_statement *stmt)
     if (stmt->param_count > (uint) UINT_MAX16)
     {
       /* Error code to be defined in 5.0 */
-      my_message(ER_PS_MANY_PARAM, ER(ER_PS_MANY_PARAM), MYF(0));
+      my_message(ER_PS_MANY_PARAM, ER_THD(stmt->thd, ER_PS_MANY_PARAM),
+                 MYF(0));
       return TRUE;
     }
     Item_param **to;
@@ -2999,7 +3003,7 @@ void mysql_stmt_get_longdata(THD *thd, char *packet, ulong packet_length)
     /* Error will be sent in execute call */
     stmt->state= Query_arena::STMT_ERROR;
     stmt->last_errno= ER_WRONG_ARGUMENTS;
-    sprintf(stmt->last_error, ER(ER_WRONG_ARGUMENTS),
+    sprintf(stmt->last_error, ER_THD(thd, ER_WRONG_ARGUMENTS),
             "mysqld_stmt_send_long_data");
     DBUG_VOID_RETURN;
   }
@@ -3368,7 +3372,7 @@ bool Prepared_statement::prepare(const char *packet, uint packet_len)
     DBUG_RETURN(TRUE);
 
   /*
-    alloc_query() uses thd->memroot && thd->query, so we should call
+    alloc_query() uses thd->mem_root && thd->query, so we should call
     both of backup_statement() and backup_query_arena() here.
   */
   thd->set_n_backup_statement(this, &stmt_backup);

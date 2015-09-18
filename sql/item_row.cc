@@ -101,11 +101,12 @@ void Item_row::cleanup()
 
 
 void Item_row::split_sum_func(THD *thd, Item **ref_pointer_array,
-                              List<Item> &fields)
+                              List<Item> &fields, uint flags)
 {
   Item **arg, **arg_end;
   for (arg= args, arg_end= args + arg_count; arg != arg_end ; arg++)
-    (*arg)->split_sum_func2(thd, ref_pointer_array, fields, arg, TRUE);
+    (*arg)->split_sum_func2(thd, ref_pointer_array, fields, arg,
+                            flags | SPLIT_SUM_SKIP_REGISTERED);
 }
 
 
@@ -145,13 +146,13 @@ void Item_row::print(String *str, enum_query_type query_type)
 }
 
 
-Item *Item_row::transform(Item_transformer transformer, uchar *arg)
+Item *Item_row::transform(THD *thd, Item_transformer transformer, uchar *arg)
 {
-  DBUG_ASSERT(!current_thd->stmt_arena->is_stmt_prepare());
+  DBUG_ASSERT(!thd->stmt_arena->is_stmt_prepare());
 
-  if (transform_args(transformer, arg))
+  if (transform_args(thd, transformer, arg))
     return 0;
-  return (this->*transformer)(arg);
+  return (this->*transformer)(thd, arg);
 }
 
 void Item_row::bring_value()

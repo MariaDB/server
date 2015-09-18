@@ -1,5 +1,5 @@
 /* -*- c-basic-offset: 2 -*- */
-/* Copyright(C) 2011 Brazil
+/* Copyright(C) 2011-2015 Brazil
 
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -45,6 +45,8 @@ class GRN_DAT_API File {
   UInt64 size() const;
 
   void swap(File *rhs);
+
+  void flush();
 
  private:
   FileImpl *impl_;

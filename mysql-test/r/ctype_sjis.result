@@ -193,9 +193,21 @@ CREATE TABLE t1 AS
 SELECT 10 AS a, REPEAT('a',20) AS b, REPEAT('a',8) AS c, REPEAT('a',8) AS d;
 ALTER TABLE t1 ADD PRIMARY KEY(a), ADD KEY(b);
 INSERT INTO t1 (a, b) VALUES (1, repeat(0xF1F2,5));
+Warnings:
+Warning	1364	Field 'c' doesn't have a default value
+Warning	1364	Field 'd' doesn't have a default value
 INSERT INTO t1 (a, b) VALUES (2, repeat(0xF1F2,10));
+Warnings:
+Warning	1364	Field 'c' doesn't have a default value
+Warning	1364	Field 'd' doesn't have a default value
 INSERT INTO t1 (a, b) VALUES (3, repeat(0xF1F2,11));
+Warnings:
+Warning	1364	Field 'c' doesn't have a default value
+Warning	1364	Field 'd' doesn't have a default value
 INSERT INTO t1 (a, b) VALUES (4, repeat(0xF1F2,12));
+Warnings:
+Warning	1364	Field 'c' doesn't have a default value
+Warning	1364	Field 'd' doesn't have a default value
 SELECT hex(concat(repeat(0xF1F2, 10), '%'));
 hex(concat(repeat(0xF1F2, 10), '%'))
 F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F225
@@ -218,8 +230,8 @@ STR_TO_DATE(CAST(_utf8'2001รท01รท01' AS CHAR),CAST(_utf8'%Yรท%mรท%d' AS CHAR))
 CREATE TABLE t1 AS SELECT REPEAT(' ', 64) AS subject, REPEAT(' ',64) AS pattern LIMIT 0;
 SHOW COLUMNS FROM t1;
 Field	Type	Null	Key	Default	Extra
-subject	varchar(64)	NO			
-pattern	varchar(64)	NO			
+subject	varchar(64)	NO		NULL	
+pattern	varchar(64)	NO		NULL	
 INSERT INTO t1 VALUES (_utf8'2001รท01รท01',_utf8'%Yรท%mรท%d');
 SELECT HEX(subject),HEX(pattern),STR_TO_DATE(subject, pattern) FROM t1;
 HEX(subject)	HEX(pattern)	STR_TO_DATE(subject, pattern)
@@ -347,9 +359,21 @@ CREATE TABLE t1 AS
 SELECT 10 AS a, REPEAT('a',20) AS b, REPEAT('a',8) AS c, REPEAT('a',8) AS d;
 ALTER TABLE t1 ADD PRIMARY KEY(a), ADD KEY(b);
 INSERT INTO t1 (a, b) VALUES (1, repeat(0xF1F2,5));
+Warnings:
+Warning	1364	Field 'c' doesn't have a default value
+Warning	1364	Field 'd' doesn't have a default value
 INSERT INTO t1 (a, b) VALUES (2, repeat(0xF1F2,10));
+Warnings:
+Warning	1364	Field 'c' doesn't have a default value
+Warning	1364	Field 'd' doesn't have a default value
 INSERT INTO t1 (a, b) VALUES (3, repeat(0xF1F2,11));
+Warnings:
+Warning	1364	Field 'c' doesn't have a default value
+Warning	1364	Field 'd' doesn't have a default value
 INSERT INTO t1 (a, b) VALUES (4, repeat(0xF1F2,12));
+Warnings:
+Warning	1364	Field 'c' doesn't have a default value
+Warning	1364	Field 'd' doesn't have a default value
 SELECT hex(concat(repeat(0xF1F2, 10), '%'));
 hex(concat(repeat(0xF1F2, 10), '%'))
 F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F225
@@ -401,12 +425,14 @@ WHERE (head BETWEEN '80' AND 'FF') AND (head NOT BETWEEN 'A1' AND 'DF')
 AND   (tail BETWEEN '20' AND 'FF')
 ORDER BY head, tail;
 INSERT t1 (code) SELECT head FROM head WHERE (head BETWEEN 'A1' AND 'DF');
+Warnings:
+Warning	1364	Field 'a' doesn't have a default value
 DROP TEMPORARY TABLE head, tail;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `code` varchar(8) DEFAULT NULL,
-  `a` varchar(1) CHARACTER SET sjis NOT NULL DEFAULT ''
+  `a` varchar(1) CHARACTER SET sjis NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 UPDATE t1 SET a=unhex(code) ORDER BY code;
 Warnings:
@@ -660,139 +686,139 @@ HEX(LOWER(CAST(a AS CHAR CHARACTER SET utf8))) ORDER BY code;
 code	a
 81F0	โซ
 Warnings:
-Warning	1976	Cannot convert 'sjis' character 0x81AD to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81AD to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81AE to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81AE to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81AF to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81AF to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81B0 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81B0 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81B1 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81B1 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81B2 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81B2 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81B3 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81B3 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81B4 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81B4 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81B5 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81B5 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81B6 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81B6 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81B7 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81B7 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81C0 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81C0 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81C1 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81C1 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81C2 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81C2 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81C3 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81C3 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81C4 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81C4 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81C5 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81C5 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81C6 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81C6 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81C7 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81C7 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81CF to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81CF to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81D0 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81D0 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81D1 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81D1 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81D2 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81D2 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81D3 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81D3 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81D4 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81D4 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81D5 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81D5 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81D6 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81D6 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81D7 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81D7 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81D8 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81D8 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81D9 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81D9 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81E9 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81E9 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81EA to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81EA to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81AD to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81AD to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81AE to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81AE to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81AF to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81AF to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81B0 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81B0 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81B1 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81B1 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81B2 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81B2 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81B3 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81B3 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81B4 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81B4 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81B5 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81B5 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81B6 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81B6 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81B7 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81B7 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81C0 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81C0 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81C1 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81C1 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81C2 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81C2 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81C3 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81C3 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81C4 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81C4 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81C5 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81C5 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81C6 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81C6 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81C7 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81C7 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81CF to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81CF to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81D0 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81D0 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81D1 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81D1 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81D2 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81D2 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81D3 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81D3 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81D4 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81D4 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81D5 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81D5 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81D6 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81D6 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81D7 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81D7 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81D8 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81D8 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81D9 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81D9 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81E9 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81E9 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81EA to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81EA to 'utf8'
 SELECT * FROM t1
 WHERE HEX(CAST(UPPER(a) AS CHAR CHARACTER SET utf8)) <>
 HEX(UPPER(CAST(a AS CHAR CHARACTER SET utf8))) ORDER BY code;
 code	a
 Warnings:
-Warning	1976	Cannot convert 'sjis' character 0x81AD to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81AD to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81AE to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81AE to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81AF to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81AF to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81B0 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81B0 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81B1 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81B1 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81B2 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81B2 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81B3 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81B3 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81B4 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81B4 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81B5 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81B5 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81B6 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81B6 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81B7 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81B7 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81C0 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81C0 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81C1 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81C1 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81C2 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81C2 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81C3 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81C3 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81C4 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81C4 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81C5 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81C5 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81C6 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81C6 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81C7 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81C7 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81CF to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81CF to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81D0 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81D0 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81D1 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81D1 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81D2 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81D2 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81D3 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81D3 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81D4 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81D4 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81D5 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81D5 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81D6 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81D6 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81D7 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81D7 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81D8 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81D8 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81D9 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81D9 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81E9 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81E9 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81EA to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81EA to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81AD to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81AD to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81AE to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81AE to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81AF to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81AF to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81B0 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81B0 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81B1 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81B1 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81B2 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81B2 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81B3 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81B3 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81B4 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81B4 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81B5 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81B5 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81B6 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81B6 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81B7 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81B7 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81C0 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81C0 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81C1 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81C1 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81C2 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81C2 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81C3 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81C3 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81C4 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81C4 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81C5 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81C5 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81C6 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81C6 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81C7 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81C7 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81CF to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81CF to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81D0 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81D0 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81D1 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81D1 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81D2 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81D2 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81D3 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81D3 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81D4 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81D4 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81D5 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81D5 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81D6 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81D6 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81D7 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81D7 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81D8 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81D8 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81D9 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81D9 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81E9 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81E9 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81EA to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81EA to 'utf8'
 #
 # WL#3090 Japanese Character Set adjustments
 # Test sjis->Unicode conversion
@@ -7743,70 +7769,70 @@ EAA2	E791A4
 EAA3	E5879C
 EAA4	E78699
 Warnings:
-Warning	1976	Cannot convert 'sjis' character 0x81AD to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81AE to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81AF to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81B0 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81B1 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81B2 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81B3 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81B4 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81B5 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81B6 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81B7 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81C0 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81C1 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81C2 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81C3 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81C4 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81C5 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81C6 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81C7 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81CF to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81D0 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81D1 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81D2 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81D3 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81D4 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81D5 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81D6 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81D7 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81D8 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81D9 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81E9 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81EA to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81EB to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81EC to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81ED to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81EE to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81EF to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81F8 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81F9 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81FA to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x81FB to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x8240 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x8241 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x8242 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x8243 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x8244 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x8245 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x8246 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x8247 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x8248 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x8249 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x824A to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x824B to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x824C to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x824D to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x824E to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x8259 to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x825A to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x825B to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x825C to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x825D to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x825E to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x825F to 'utf8'
-Warning	1976	Cannot convert 'sjis' character 0x827A to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81AD to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81AE to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81AF to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81B0 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81B1 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81B2 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81B3 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81B4 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81B5 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81B6 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81B7 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81C0 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81C1 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81C2 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81C3 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81C4 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81C5 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81C6 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81C7 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81CF to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81D0 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81D1 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81D2 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81D3 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81D4 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81D5 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81D6 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81D7 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81D8 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81D9 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81E9 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81EA to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81EB to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81EC to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81ED to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81EE to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81EF to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81F8 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81F9 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81FA to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81FB to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x8240 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x8241 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x8242 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x8243 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x8244 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x8245 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x8246 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x8247 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x8248 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x8249 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x824A to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x824B to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x824C to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x824D to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x824E to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x8259 to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x825A to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x825B to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x825C to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x825D to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x825E to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x825F to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x827A to 'utf8'
 DROP TABLE t1;
 #
 # WL#3090 Japanese Character Set adjustments
@@ -14926,7 +14952,7 @@ CREATE TABLE t1 AS SELECT 'a' AS a;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` varchar(1) CHARACTER SET sjis NOT NULL DEFAULT ''
+  `a` varchar(1) CHARACTER SET sjis NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 CREATE TABLE t2 AS SELECT WEIGHT_STRING(a) AS ws FROM t1;
 SHOW CREATE TABLE t2;
@@ -14946,7 +14972,7 @@ CREATE TABLE t1 AS SELECT REPEAT('a',5) AS a;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` varchar(5) CHARACTER SET sjis NOT NULL DEFAULT ''
+  `a` varchar(5) CHARACTER SET sjis NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 CREATE TABLE t2 AS SELECT WEIGHT_STRING(a) AS ws FROM t1;
 SHOW CREATE TABLE t2;
@@ -15185,7 +15211,7 @@ CREATE TABLE t1 AS SELECT 'a' AS a;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` varchar(1) CHARACTER SET sjis COLLATE sjis_bin NOT NULL DEFAULT ''
+  `a` varchar(1) CHARACTER SET sjis COLLATE sjis_bin NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 CREATE TABLE t2 AS SELECT WEIGHT_STRING(a) AS ws FROM t1;
 SHOW CREATE TABLE t2;
@@ -15205,7 +15231,7 @@ CREATE TABLE t1 AS SELECT REPEAT('a',5) AS a;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` varchar(5) CHARACTER SET sjis COLLATE sjis_bin NOT NULL DEFAULT ''
+  `a` varchar(5) CHARACTER SET sjis COLLATE sjis_bin NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 CREATE TABLE t2 AS SELECT WEIGHT_STRING(a) AS ws FROM t1;
 SHOW CREATE TABLE t2;
@@ -18548,7 +18574,7 @@ CREATE TABLE t1 AS SELECT REPEAT(' ',10) AS a LIMIT 0;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` varchar(10) CHARACTER SET sjis NOT NULL DEFAULT ''
+  `a` varchar(10) CHARACTER SET sjis NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 INSERT INTO t1 VALUES ('เ\'),('เ\t');
 INSERT INTO t1 VALUES ('\\เ\'),('\\เ\t'),('\\เ\t\t');
@@ -18587,7 +18613,7 @@ CREATE TABLE t1 AS SELECT REPEAT(' ', 10) AS a LIMIT 0;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` varchar(10) CHARACTER SET sjis NOT NULL DEFAULT ''
+  `a` varchar(10) CHARACTER SET sjis NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 INSERT INTO t1 VALUES (BINARY('เ\')),(BINARY('เ\t'));
 INSERT INTO t1 VALUES (BINARY('\\เ\')),(BINARY('\\เ\t')),(BINARY('\\เ\t\t'));
@@ -18626,7 +18652,7 @@ CREATE TABLE t1 AS SELECT REPEAT(' ', 10) AS a LIMIT 0;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` varchar(10) CHARACTER SET sjis NOT NULL DEFAULT ''
+  `a` varchar(10) CHARACTER SET sjis NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 INSERT INTO t1 VALUES (_BINARY'เ\'),(_BINARY'เ\t');
 INSERT INTO t1 VALUES (_BINARY'\\เ\'),(_BINARY'\\เ\t'),(_BINARY'\\เ\t\t');
@@ -18672,7 +18698,7 @@ CREATE TABLE t1 AS SELECT REPEAT(' ', 10) AS a LIMIT 0;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` varchar(10) CHARACTER SET sjis NOT NULL DEFAULT ''
+  `a` varchar(10) CHARACTER SET sjis NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 INSERT INTO t1 VALUES ('เ\['),('\เ\[');
 SELECT HEX(a) FROM t1;
@@ -18692,7 +18718,7 @@ CREATE TABLE t1 AS SELECT REPEAT(' ', 10) AS a LIMIT 0;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` varbinary(10) NOT NULL DEFAULT ''
+  `a` varbinary(10) NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 INSERT INTO t1 VALUES ('เ\['),('\เ\[');
 SELECT HEX(a) FROM t1;

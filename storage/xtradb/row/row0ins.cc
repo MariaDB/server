@@ -2350,7 +2350,7 @@ row_ins_clust_index_entry_low(
 {
 	btr_cur_t	cursor;
 	ulint*		offsets		= NULL;
-	dberr_t		err;
+	dberr_t		err		= DB_SUCCESS;
 	big_rec_t*	big_rec		= NULL;
 	mtr_t		mtr;
 	mem_heap_t*	offsets_heap	= NULL;
@@ -2380,8 +2380,15 @@ row_ins_clust_index_entry_low(
 	the function will return in both low_match and up_match of the
 	cursor sensible values */
 
-	btr_cur_search_to_nth_level(index, 0, entry, PAGE_CUR_LE, mode,
+	err = btr_cur_search_to_nth_level(index, 0, entry, PAGE_CUR_LE, mode,
 				    &cursor, 0, __FILE__, __LINE__, &mtr);
+
+	if (err != DB_SUCCESS) {
+		index->table->is_encrypted = true;
+		index->table->ibd_file_missing = true;
+		mtr_commit(&mtr);
+		goto func_exit;
+	}
 
 #ifdef UNIV_DEBUG
 	{
@@ -2696,9 +2703,22 @@ row_ins_sec_index_entry_low(
 		search_mode |= BTR_IGNORE_SEC_UNIQUE;
 	}
 
-	btr_cur_search_to_nth_level(index, 0, entry, PAGE_CUR_LE,
-				    search_mode,
-				    &cursor, 0, __FILE__, __LINE__, &mtr);
+	err = btr_cur_search_to_nth_level(index, 0, entry, PAGE_CUR_LE,
+					  search_mode,
+					  &cursor, 0, __FILE__, __LINE__, &mtr);
+
+	if (err != DB_SUCCESS) {
+		if (err == DB_DECRYPTION_FAILED) {
+			ib_push_warning(trx->mysql_thd,
+				DB_DECRYPTION_FAILED,
+				"Table %s is encrypted but encryption service or"
+				" used key_id is not available. "
+				" Can't continue reading table.",
+				index->table->name);
+			index->table->is_encrypted = true;
+		}
+		goto func_exit;
+	}
 
 	if (cursor.flag == BTR_CUR_INSERT_TO_IBUF) {
 		/* The insert was buffered during the search: we are done */
@@ -2764,6 +2784,8 @@ row_ins_sec_index_entry_low(
 			    &mtr, trx, index, check, search_mode)) {
 			goto func_exit;
 		}
+
+		DEBUG_SYNC_C("row_ins_sec_index_entry_dup_locks_created");
 
 		/* We did not find a duplicate and we have now
 		locked with s-locks the necessary records to

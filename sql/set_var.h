@@ -55,14 +55,14 @@ int mysql_del_sys_var_chain(sys_var *chain);
   optionally it can be assigned to, optionally it can have a command-line
   counterpart with the same name.
 */
-class sys_var
+class sys_var: protected Value_source // for double_from_string_with_check
 {
 public:
   sys_var *next;
   LEX_CSTRING name;
   enum flag_enum { GLOBAL, SESSION, ONLY_SESSION, SCOPE_MASK=1023,
                    READONLY=1024, ALLOCATED=2048, PARSE_EARLY=4096,
-                   NO_SET_STATEMENT=8192};
+                   NO_SET_STATEMENT=8192, AUTO_SET=16384};
   enum { NO_GETOPT=-1, GETOPT_ONLY_HELP=-2 };
   enum where { CONFIG, AUTO, SQL, COMPILE_TIME, ENV };
 
@@ -285,23 +285,8 @@ public:
   } save_result;
   LEX_STRING base; /**< for structured variables, like keycache_name.variable_name */
 
-  set_var(enum_var_type type_arg, sys_var *var_arg,
-          const LEX_STRING *base_name_arg, Item *value_arg)
-    :var(var_arg), type(type_arg), base(*base_name_arg)
-  {
-    /*
-      If the set value is a field, change it to a string to allow things like
-      SET table_type=MYISAM;
-    */
-    if (value_arg && value_arg->type() == Item::FIELD_ITEM)
-    {
-      Item_field *item= (Item_field*) value_arg;
-      if (!(value=new Item_string_sys(item->field_name))) // names are utf8
-        value=value_arg;                        /* Give error message later */
-    }
-    else
-      value=value_arg;
-  }
+  set_var(THD *thd, enum_var_type type_arg, sys_var *var_arg,
+          const LEX_STRING *base_name_arg, Item *value_arg);
   virtual bool is_system() { return 1; }
   int check(THD *thd);
   int update(THD *thd);
@@ -404,10 +389,17 @@ int sql_set_variables(THD *thd, List<set_var_base> *var_list, bool free);
 #define SYSVAR_AUTOSIZE(VAR,VAL)                        \
   do {                                                  \
     VAR= (VAL);                                         \
-    mark_sys_var_value_origin(&VAR, sys_var::AUTO);     \
+    set_sys_var_value_origin(&VAR, sys_var::AUTO);      \
   } while(0)
 
-void mark_sys_var_value_origin(void *ptr, enum sys_var::where here);
+void set_sys_var_value_origin(void *ptr, enum sys_var::where here);
+
+enum sys_var::where get_sys_var_value_origin(void *ptr);
+inline bool IS_SYSVAR_AUTOSIZE(void *ptr)
+{
+  enum sys_var::where res= get_sys_var_value_origin(ptr);
+  return (res == sys_var::AUTO || res == sys_var::COMPILE_TIME);
+}
 
 bool fix_delay_key_write(sys_var *self, THD *thd, enum_var_type type);
 

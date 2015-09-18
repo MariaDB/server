@@ -826,7 +826,7 @@ bool lock_schema_name(THD *thd, const char *db)
   if (thd->locked_tables_mode)
   {
     my_message(ER_LOCK_OR_ACTIVE_TRANSACTION,
-               ER(ER_LOCK_OR_ACTIVE_TRANSACTION), MYF(0));
+               ER_THD(thd, ER_LOCK_OR_ACTIVE_TRANSACTION), MYF(0));
     return TRUE;
   }
 
@@ -882,7 +882,7 @@ bool lock_object_name(THD *thd, MDL_key::enum_mdl_namespace mdl_type,
   if (thd->locked_tables_mode)
   {
     my_message(ER_LOCK_OR_ACTIVE_TRANSACTION,
-               ER(ER_LOCK_OR_ACTIVE_TRANSACTION), MYF(0));
+               ER_THD(thd, ER_LOCK_OR_ACTIVE_TRANSACTION), MYF(0));
     return TRUE;
   }
 

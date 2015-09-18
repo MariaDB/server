@@ -342,6 +342,7 @@ bool st_select_lex_unit::prepare(THD *thd_arg, select_result *sel_result,
   bool is_union_select;
   bool instantiate_tmp_table= false;
   DBUG_ENTER("st_select_lex_unit::prepare");
+  DBUG_ASSERT(thd == thd_arg && thd == current_thd);
 
   describe= MY_TEST(additional_options & SELECT_DESCRIBE);
 
@@ -484,7 +485,8 @@ bool st_select_lex_unit::prepare(THD *thd_arg, select_result *sel_result,
       while ((item_tmp= it++))
       {
 	/* Error's in 'new' will be detected after loop */
-	types.push_back(new Item_type_holder(thd_arg, item_tmp));
+	types.push_back(new (thd_arg->mem_root)
+                        Item_type_holder(thd_arg, item_tmp));
       }
 
       if (thd_arg->is_fatal_error)
@@ -495,7 +497,7 @@ bool st_select_lex_unit::prepare(THD *thd_arg, select_result *sel_result,
       if (types.elements != sl->item_list.elements)
       {
 	my_message(ER_WRONG_NUMBER_OF_COLUMNS_IN_SELECT,
-		   ER(ER_WRONG_NUMBER_OF_COLUMNS_IN_SELECT),MYF(0));
+		   ER_THD(thd, ER_WRONG_NUMBER_OF_COLUMNS_IN_SELECT),MYF(0));
 	goto err;
       }
       List_iterator_fast<Item> it(sl->item_list);
@@ -886,7 +888,7 @@ bool st_select_lex_unit::exec()
         */
         push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                             ER_QUERY_EXCEEDED_ROWS_EXAMINED_LIMIT,
-                            ER(ER_QUERY_EXCEEDED_ROWS_EXAMINED_LIMIT),
+                            ER_THD(thd, ER_QUERY_EXCEEDED_ROWS_EXAMINED_LIMIT),
                             thd->accessed_rows_and_keys,
                             thd->lex->limit_rows_examined->val_uint());
         thd->reset_killed();
@@ -985,7 +987,7 @@ bool st_select_lex_unit::exec()
         }
         else
         {
-          join->examined_rows= 0;
+          join->join_examined_rows= 0;
           saved_error= join->reinit();
           join->exec();
         }
@@ -1176,7 +1178,6 @@ bool st_select_lex::cleanup()
   {
     error= (bool) ((uint) error | (uint) lex_unit->cleanup());
   }
-  non_agg_fields.empty();
   inner_refs_list.empty();
   exclude_from_table_unique_test= FALSE;
   DBUG_RETURN(error);
@@ -1187,6 +1188,7 @@ void st_select_lex::cleanup_all_joins(bool full)
 {
   SELECT_LEX_UNIT *unit;
   SELECT_LEX *sl;
+  DBUG_ENTER("st_select_lex::cleanup_all_joins");
 
   if (join)
     join->cleanup(full);
@@ -1194,6 +1196,7 @@ void st_select_lex::cleanup_all_joins(bool full)
   for (unit= first_inner_unit(); unit; unit= unit->next_unit())
     for (sl= unit->first_select(); sl; sl= sl->next_select())
       sl->cleanup_all_joins(full);
+  DBUG_VOID_RETURN;
 }
 
 

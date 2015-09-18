@@ -74,6 +74,36 @@
 # define S_IWUSR 0200
 #endif /* S_IWUSR */
 
+static grn_bool grn_ii_cursor_set_min_enable = GRN_FALSE;
+static double grn_ii_select_too_many_index_match_ratio = -1;
+
+void
+grn_ii_init_from_env(void)
+{
+  {
+    char grn_ii_cursor_set_min_enable_env[GRN_ENV_BUFFER_SIZE];
+    grn_getenv("GRN_II_CURSOR_SET_MIN_ENABLE",
+               grn_ii_cursor_set_min_enable_env,
+               GRN_ENV_BUFFER_SIZE);
+    if (grn_ii_cursor_set_min_enable_env[0]) {
+      grn_ii_cursor_set_min_enable = GRN_TRUE;
+    } else {
+      grn_ii_cursor_set_min_enable = GRN_FALSE;
+    }
+  }
+
+  {
+    char grn_ii_select_too_many_index_match_ratio_env[GRN_ENV_BUFFER_SIZE];
+    grn_getenv("GRN_II_SELECT_TOO_MANY_INDEX_MATCH_RATIO",
+               grn_ii_select_too_many_index_match_ratio_env,
+               GRN_ENV_BUFFER_SIZE);
+    if (grn_ii_select_too_many_index_match_ratio_env[0]) {
+      grn_ii_select_too_many_index_match_ratio =
+        atof(grn_ii_select_too_many_index_match_ratio_env);
+    }
+  }
+}
+
 /* segment */
 
 inline static uint32_t
@@ -3492,6 +3522,7 @@ _grn_ii_create(grn_ctx *ctx, grn_ii *ii, const char *path, grn_obj *lexicon, uin
   }
   if (!chunk) {
     grn_io_close(ctx, seg);
+    grn_io_remove(ctx, path);
     return NULL;
   }
   header = grn_io_header(seg);
@@ -3686,6 +3717,19 @@ grn_ii_expire(grn_ctx *ctx, grn_ii *ii)
   grn_io_expire(ctx, ii->seg, 128, 1000000);
   */
   grn_io_expire(ctx, ii->chunk, 0, 1000000);
+}
+
+grn_rc
+grn_ii_flush(grn_ctx *ctx, grn_ii *ii)
+{
+  grn_rc rc;
+
+  rc = grn_io_flush(ctx, ii->seg);
+  if (rc == GRN_SUCCESS) {
+    rc = grn_io_flush(ctx, ii->chunk);
+  }
+
+  return rc;
 }
 
 #define BIT11_01(x) ((x >> 1) & 0x7ff)
@@ -4023,6 +4067,7 @@ grn_ii_cursor_open(grn_ctx *ctx, grn_ii *ii, grn_id tid,
   uint32_t pos, *a;
   if (!(a = array_at(ctx, ii, tid))) { return NULL; }
   for (;;) {
+    c = NULL;
     if (!(pos = a[0])) { goto exit; }
     if (!(c = GRN_MALLOC(sizeof(grn_ii_cursor)))) { goto exit; }
     memset(c, 0, sizeof(grn_ii_cursor));
@@ -4112,16 +4157,11 @@ exit :
 static inline void
 grn_ii_cursor_set_min(grn_ctx *ctx, grn_ii_cursor *c, grn_id min)
 {
-  char grn_ii_cursor_set_min_enable_env[GRN_ENV_BUFFER_SIZE];
-
   if (c->min >= min) {
     return;
   }
 
-  grn_getenv("GRN_II_CURSOR_SET_MIN_ENABLE",
-             grn_ii_cursor_set_min_enable_env,
-             GRN_ENV_BUFFER_SIZE);
-  if (grn_ii_cursor_set_min_enable_env[0]) {
+  if (grn_ii_cursor_set_min_enable) {
     c->min = min;
     if (c->buf && c->pc.rid < c->min && c->curr_chunk < c->nchunks) {
       uint32_t i, skip_chunk = 0;
@@ -6019,6 +6059,77 @@ grn_ii_term_extract(grn_ctx *ctx, grn_ii *ii, const char *string,
   return rc;
 }
 
+static grn_rc
+grn_ii_select_regexp(grn_ctx *ctx, grn_ii *ii,
+                     const char *string, unsigned int string_len,
+                     grn_hash *s, grn_operator op, grn_select_optarg *optarg)
+{
+  grn_rc rc;
+  grn_obj parsed_string;
+  grn_bool escaping = GRN_FALSE;
+  int nth_char = 0;
+  const char *current = string;
+  const char *string_end = string + string_len;
+
+  GRN_TEXT_INIT(&parsed_string, 0);
+  while (current < string_end) {
+    const char *target;
+    int char_len;
+
+    char_len = grn_charlen(ctx, current, string_end);
+    if (char_len == 0) {
+      ERR(GRN_INVALID_ARGUMENT,
+          "[ii][select][regexp] invalid encoding character: <%.*s|%#x|>",
+          (int)(current - string), string,
+          *current);
+      return ctx->rc;
+    }
+    target = current;
+    current += char_len;
+
+    if (escaping) {
+      escaping = GRN_FALSE;
+      if (char_len == 1) {
+        switch (*target) {
+        case 'A' :
+          if (nth_char == 0) {
+            target = GRN_TOKENIZER_BEGIN_MARK_UTF8;
+            char_len = GRN_TOKENIZER_BEGIN_MARK_UTF8_LEN;
+          }
+          break;
+        case 'z' :
+          if (current == string_end) {
+            target = GRN_TOKENIZER_END_MARK_UTF8;
+            char_len = GRN_TOKENIZER_END_MARK_UTF8_LEN;
+          }
+          break;
+        default :
+          break;
+        }
+      }
+    } else {
+      if (char_len == 1 && *target == '\\') {
+        escaping = GRN_TRUE;
+        continue;
+      }
+    }
+
+    GRN_TEXT_PUT(ctx, &parsed_string, target, char_len);
+    nth_char++;
+  }
+
+  if (optarg) {
+    optarg->mode = GRN_OP_MATCH;
+  }
+
+  rc = grn_ii_select(ctx, ii,
+                     GRN_TEXT_VALUE(&parsed_string),
+                     GRN_TEXT_LEN(&parsed_string),
+                     s, op, optarg);
+
+  return rc;
+}
+
 #ifdef GRN_II_SELECT_ENABLE_SEQUENTIAL_SEARCH
 static grn_bool
 grn_ii_select_sequential_search_should_use(grn_ctx *ctx,
@@ -6156,16 +6267,6 @@ grn_ii_select_sequential_search(grn_ctx *ctx,
   grn_bool processed = GRN_TRUE;
 
   {
-    /* Disabled by default. */
-    double too_many_index_match_ratio = -1;
-    char too_many_index_match_ratio_env[GRN_ENV_BUFFER_SIZE];
-    grn_getenv("GRN_II_SELECT_TOO_MANY_INDEX_MATCH_RATIO",
-               too_many_index_match_ratio_env,
-               GRN_ENV_BUFFER_SIZE);
-    if (too_many_index_match_ratio_env[0]) {
-      too_many_index_match_ratio = atof(too_many_index_match_ratio_env);
-    }
-
     if (!grn_ii_select_sequential_search_should_use(ctx,
                                                     ii,
                                                     raw_query,
@@ -6176,7 +6277,7 @@ grn_ii_select_sequential_search(grn_ctx *ctx,
                                                     optarg,
                                                     token_infos,
                                                     n_token_infos,
-                                                    too_many_index_match_ratio)) {
+                                                    grn_ii_select_too_many_index_match_ratio)) {
       return GRN_FALSE;
     }
   }
@@ -6258,6 +6359,9 @@ grn_ii_select(grn_ctx *ctx, grn_ii *ii, const char *string, unsigned int string_
   }
   if (mode == GRN_OP_TERM_EXTRACT) {
     return grn_ii_term_extract(ctx, ii, string, string_len, s, op, optarg);
+  }
+  if (mode == GRN_OP_REGEXP) {
+    return grn_ii_select_regexp(ctx, ii, string, string_len, s, op, optarg);
   }
   /* todo : support subrec
   rep = (s->record_unit == grn_rec_position || s->subrec_unit == grn_rec_position);
@@ -7906,6 +8010,20 @@ grn_ii_buffer_parse(grn_ctx *ctx, grn_ii_buffer *ii_buffer,
         case GRN_BULK :
           grn_ii_buffer_tokenize(ctx, ii_buffer, rid, sid, 0,
                                  GRN_TEXT_VALUE(&rv), GRN_TEXT_LEN(&rv));
+          break;
+        case GRN_UVECTOR :
+          {
+            unsigned int i, size;
+            unsigned int element_size;
+
+            size = grn_uvector_size(ctx, &rv);
+            element_size = grn_uvector_element_size(ctx, &rv);
+            for (i = 0; i < size; i++) {
+              grn_ii_buffer_tokenize(ctx, ii_buffer, rid, sid, 0,
+                                     GRN_BULK_HEAD(&rv) + (element_size * i),
+                                     element_size);
+            }
+          }
           break;
         case GRN_VECTOR :
           if (rv.u.v.body) {

@@ -43,6 +43,7 @@ SELECT @@global.wsrep_cluster_address;
 
 --echo
 --echo # restore the initial value
+--error 0,ER_WRONG_VALUE_FOR_VAR
 SET @@global.wsrep_cluster_address = @wsrep_cluster_address_global_saved;
 
 --echo # End of test

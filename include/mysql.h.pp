@@ -1,7 +1,5 @@
 typedef char my_bool;
 typedef int my_socket;
-#include "mysql_version.h"
-#include "mysql_com.h"
 enum enum_server_command
 {
   COM_SLEEP, COM_QUIT, COM_INIT_DB, COM_QUERY, COM_FIELD_LIST,
@@ -31,7 +29,7 @@ typedef struct st_net {
   my_bool thread_specific_malloc;
   my_bool compress;
   my_bool unused3;
-  unsigned char *unused;
+  void *thd;
   unsigned int last_errno;
   unsigned char error;
   my_bool unused4;
@@ -83,7 +81,7 @@ enum enum_mysql_set_option
   MYSQL_OPTION_MULTI_STATEMENTS_ON,
   MYSQL_OPTION_MULTI_STATEMENTS_OFF
 };
-my_bool my_net_init(NET *net, Vio* vio, unsigned int my_flags);
+my_bool my_net_init(NET *net, Vio* vio, void *thd, unsigned int my_flags);
 void my_net_local_init(NET *net);
 void net_end(NET *net);
 void net_clear(NET *net, my_bool clear_buffer);
@@ -102,7 +100,7 @@ struct my_rnd_struct;
 enum Item_result
 {
   STRING_RESULT=0, REAL_RESULT, INT_RESULT, ROW_RESULT, DECIMAL_RESULT,
-  TIME_RESULT,IMPOSSIBLE_RESULT
+  TIME_RESULT
 };
 typedef struct st_udf_args
 {
@@ -143,7 +141,6 @@ void get_tty_password_buff(const char *opt_message, char *to, size_t length);
 const char *mysql_errno_to_sqlstate(unsigned int mysql_errno);
 my_bool my_thread_init(void);
 void my_thread_end(void);
-#include "mysql_time.h"
 typedef long my_time_t;
 enum enum_mysql_timestamp_type
 {
@@ -157,7 +154,6 @@ typedef struct st_mysql_time
   my_bool neg;
   enum enum_mysql_timestamp_type time_type;
 } MYSQL_TIME;
-#include "my_list.h"
 typedef struct st_list {
   struct st_list *prev,*next;
   void *data;
@@ -199,8 +195,6 @@ typedef struct st_mysql_field {
 typedef char **MYSQL_ROW;
 typedef unsigned int MYSQL_FIELD_OFFSET;
 typedef unsigned long long my_ulonglong;
-#include "typelib.h"
-#include "my_alloc.h"
 typedef struct st_used_mem
 {
   struct st_used_mem *next;
@@ -244,7 +238,6 @@ typedef struct st_mysql_rows {
   unsigned long length;
 } MYSQL_ROWS;
 typedef MYSQL_ROWS *MYSQL_ROW_OFFSET;
-#include "my_alloc.h"
 typedef struct embedded_query_result EMBEDDED_QUERY_RESULT;
 typedef struct st_mysql_data {
   MYSQL_ROWS *data;

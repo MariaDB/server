@@ -1092,7 +1092,6 @@ static my_bool CalcLen(UDF_ARGS *args, my_bool obj,
         break;
       case TIME_RESULT:
       case ROW_RESULT:
-      case IMPOSSIBLE_RESULT:
       default:
         // What should we do here ?
         break;
@@ -1143,7 +1142,6 @@ static my_bool CalcLen(UDF_ARGS *args, my_bool obj,
         break;
       case TIME_RESULT:
       case ROW_RESULT:
-      case IMPOSSIBLE_RESULT:
       default:
         // What should we do here ?
         break;
@@ -1350,7 +1348,6 @@ static PJVAL MakeValue(PGLOBAL g, UDF_ARGS *args, uint i)
       break;
     case TIME_RESULT:
     case ROW_RESULT:
-    case IMPOSSIBLE_RESULT:
     default:
       break;
     } // endswitch arg_type
@@ -1375,7 +1372,7 @@ my_bool JsonValue_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 } // end of JsonValue_init
 
 char *JsonValue(UDF_INIT *initid, UDF_ARGS *args, char *result, 
-                 unsigned long *res_length, char *, char *)
+                unsigned long *res_length, char *, char *)
 {
   char   *str;
   PGLOBAL g = (PGLOBAL)initid->ptr;

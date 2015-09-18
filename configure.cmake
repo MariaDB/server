@@ -52,7 +52,7 @@ IF(NOT SYSTEM_TYPE)
   ENDIF()
 ENDIF()
 
-IF(CMAKE_COMPILER_IS_GNUCXX)
+IF(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
   # MySQL "canonical" GCC flags. At least -fno-rtti flag affects
   # ABI and cannot be simply removed. 
   SET(CMAKE_CXX_FLAGS 
@@ -175,7 +175,6 @@ CHECK_INCLUDE_FILES (alloca.h HAVE_ALLOCA_H)
 CHECK_INCLUDE_FILES (aio.h HAVE_AIO_H)
 CHECK_INCLUDE_FILES (arpa/inet.h HAVE_ARPA_INET_H)
 CHECK_INCLUDE_FILES (crypt.h HAVE_CRYPT_H)
-CHECK_INCLUDE_FILE_CXX (cxxabi.h HAVE_CXXABI_H)
 CHECK_INCLUDE_FILES (dirent.h HAVE_DIRENT_H)
 CHECK_INCLUDE_FILES (dlfcn.h HAVE_DLFCN_H)
 CHECK_INCLUDE_FILES (execinfo.h HAVE_EXECINFO_H)
@@ -229,6 +228,7 @@ CHECK_INCLUDE_FILES ("sys/types.h;sys/shm.h" HAVE_SYS_SHM_H)
 CHECK_INCLUDE_FILES (sys/socket.h HAVE_SYS_SOCKET_H)
 CHECK_INCLUDE_FILES (sys/stat.h HAVE_SYS_STAT_H)
 CHECK_INCLUDE_FILES (sys/stream.h HAVE_SYS_STREAM_H)
+CHECK_INCLUDE_FILES (sys/syscall.h HAVE_SYS_SYSCALL_H)
 CHECK_INCLUDE_FILES (sys/termcap.h HAVE_SYS_TERMCAP_H)
 CHECK_INCLUDE_FILES ("curses.h;term.h" HAVE_TERM_H)
 CHECK_INCLUDE_FILES (asm/termbits.h HAVE_ASM_TERMBITS_H)
@@ -275,8 +275,8 @@ ENDIF()
 FIND_PACKAGE (Threads)
 
 FUNCTION(MY_CHECK_PTHREAD_ONCE_INIT)
-  CHECK_C_COMPILER_FLAG("-Werror" HAVE_WERROR_FLAG)
-  IF(NOT HAVE_WERROR_FLAG)
+  MY_CHECK_C_COMPILER_FLAG("-Werror")
+  IF(NOT HAVE_C__Werror)
     RETURN()
   ENDIF()
   SET(CMAKE_REQUIRED_FLAGS "${CMAKE_REQUIRED_FLAGS} -Werror")
@@ -320,6 +320,7 @@ ENDIF()
 #
 # Tests for functions
 #
+CHECK_FUNCTION_EXISTS (accept4 HAVE_ACCEPT4)
 CHECK_FUNCTION_EXISTS (access HAVE_ACCESS)
 #CHECK_FUNCTION_EXISTS (aiowait HAVE_AIOWAIT)
 CHECK_FUNCTION_EXISTS (aio_read HAVE_AIO_READ)
@@ -880,7 +881,7 @@ ENDIF(NOT HAVE_POSIX_SIGNALS)
 # Assume regular sprintf
 SET(SPRINTFS_RETURNS_INT 1)
 
-IF(CMAKE_COMPILER_IS_GNUCXX AND HAVE_CXXABI_H)
+IF(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
 CHECK_CXX_SOURCE_COMPILES("
  #include <cxxabi.h>
  int main(int argc, char **argv) 
@@ -952,7 +953,6 @@ SET(SIGNAL_WITH_VIO_CLOSE 1)
 MARK_AS_ADVANCED(NO_ALARM)
 
 
-IF(CMAKE_COMPILER_IS_GNUCXX)
 IF(WITH_ATOMIC_OPS STREQUAL "up")
   SET(MY_ATOMIC_MODE_DUMMY 1 CACHE BOOL "Assume single-CPU mode, no concurrency")
 ELSEIF(WITH_ATOMIC_OPS STREQUAL "smp")
@@ -981,9 +981,16 @@ ELSEIF(NOT WITH_ATOMIC_OPS)
     return 0;
   }"
   HAVE_GCC_ATOMIC_BUILTINS)
+  CHECK_CXX_SOURCE_COMPILES("
+  int main()
+  {
+    long long int var= 1;
+    long long int *ptr= &var;
+    return (int)__atomic_load_n(ptr, __ATOMIC_SEQ_CST);
+  }"
+  HAVE_GCC_C11_ATOMICS)
 ELSE()
   MESSAGE(FATAL_ERROR "${WITH_ATOMIC_OPS} is not a valid value for WITH_ATOMIC_OPS!")
-ENDIF()
 ENDIF()
 
 SET(WITH_ATOMIC_OPS "${WITH_ATOMIC_OPS}" CACHE STRING "Implement atomic operations using atomic CPU instructions for multi-processor (smp) or uniprocessor (up) configuration. By default gcc built-in sync functions are used, if available and 'smp' configuration otherwise.")

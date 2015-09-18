@@ -148,7 +148,7 @@ static bool check_fields(THD *thd, List<Item> &items)
       we make temporary copy of Item_field, to avoid influence of changing
       result_field on Item_ref which refer on this field
     */
-    thd->change_item_tree(it.ref(), new Item_field(thd, field));
+    thd->change_item_tree(it.ref(), new (thd->mem_root) Item_field(thd, field));
   }
   return FALSE;
 }
@@ -447,7 +447,7 @@ int mysql_update(THD *thd,
     if (safe_update && !using_limit)
     {
       my_message(ER_UPDATE_WITHOUT_KEY_IN_SAFE_MODE,
-		 ER(ER_UPDATE_WITHOUT_KEY_IN_SAFE_MODE), MYF(0));
+		 ER_THD(thd, ER_UPDATE_WITHOUT_KEY_IN_SAFE_MODE), MYF(0));
       goto err;
     }
   }
@@ -1017,7 +1017,7 @@ int mysql_update(THD *thd,
   if (error < 0 && !thd->lex->analyze_stmt)
   {
     char buff[MYSQL_ERRMSG_SIZE];
-    my_snprintf(buff, sizeof(buff), ER(ER_UPDATE_INFO), (ulong) found,
+    my_snprintf(buff, sizeof(buff), ER_THD(thd, ER_UPDATE_INFO), (ulong) found,
                 (ulong) updated,
                 (ulong) thd->get_stmt_da()->current_statement_warn_count());
     my_ok(thd, (thd->client_capabilities & CLIENT_FOUND_ROWS) ? found : updated,
@@ -1186,7 +1186,7 @@ bool unsafe_key_update(List<TABLE_LIST> leaves, table_map tables_for_update)
 
   while ((tl= it++))
   {
-    if (tl->table->map & tables_for_update)
+    if (!tl->is_jtbm() && (tl->table->map & tables_for_update))
     {
       TABLE *table1= tl->table;
       bool primkey_clustered= (table1->file->primary_key_is_clustered() &&
@@ -1203,6 +1203,8 @@ bool unsafe_key_update(List<TABLE_LIST> leaves, table_map tables_for_update)
       it2.rewind();
       while ((tl2= it2++))
       {
+        if (tl2->is_jtbm())
+          continue;
         /*
           Look at "next" tables only since all previous tables have
           already been checked
@@ -1434,6 +1436,9 @@ int mysql_multi_update_prepare(THD *thd)
   {
     TABLE *table= tl->table;
 
+    if (tl->is_jtbm())
+      continue;
+
     /* if table will be updated then check that it is unique */
     if (table->map & tables_for_update)
     {
@@ -1482,6 +1487,8 @@ int mysql_multi_update_prepare(THD *thd)
   for (tl= table_list; tl; tl= tl->next_local)
   {
     bool not_used= false;
+    if (tl->is_jtbm())
+      continue;
     if (multi_update_check_table_access(thd, tl, tables_for_update, &not_used))
       DBUG_RETURN(TRUE);
   }
@@ -1489,6 +1496,8 @@ int mysql_multi_update_prepare(THD *thd)
   /* check single table update for view compound from several tables */
   for (tl= table_list; tl; tl= tl->next_local)
   {
+    if (tl->is_jtbm())
+      continue;
     if (tl->is_merged_derived())
     {
       TABLE_LIST *for_update= 0;
@@ -1518,6 +1527,8 @@ int mysql_multi_update_prepare(THD *thd)
   ti.rewind();
   while ((tl= ti++))
   {
+    if (tl->is_jtbm())
+      continue;
     TABLE *table= tl->table;
     TABLE_LIST *tlist;
     if (!(tlist= tl->top_table())->derived)
@@ -1650,7 +1661,7 @@ int multi_update::prepare(List<Item> &not_used_values,
 
   if (!tables_to_update)
   {
-    my_message(ER_NO_TABLES_USED, ER(ER_NO_TABLES_USED), MYF(0));
+    my_message(ER_NO_TABLES_USED, ER_THD(thd, ER_NO_TABLES_USED), MYF(0));
     DBUG_RETURN(1);
   }
 
@@ -1661,6 +1672,9 @@ int multi_update::prepare(List<Item> &not_used_values,
   */
   while ((table_ref= ti++))
   {
+    if (table_ref->is_jtbm())
+      continue;
+
     TABLE *table= table_ref->table;
     if (tables_to_update & table->map)
     {
@@ -1680,6 +1694,9 @@ int multi_update::prepare(List<Item> &not_used_values,
   ti.rewind();
   while ((table_ref= ti++))
   {
+    if (table_ref->is_jtbm())
+      continue;
+
     TABLE *table= table_ref->table;
     if (tables_to_update & table->map)
     {
@@ -1710,6 +1727,8 @@ int multi_update::prepare(List<Item> &not_used_values,
   while ((table_ref= ti++))
   {
     /* TODO: add support of view of join support */
+    if (table_ref->is_jtbm())
+      continue;
     TABLE *table=table_ref->table;
     leaf_table_count++;
     if (tables_to_update & table->map)
@@ -1755,8 +1774,8 @@ int multi_update::prepare(List<Item> &not_used_values,
   {
     Item *value= value_it++;
     uint offset= item->field->table->pos_in_table_list->shared;
-    fields_for_table[offset]->push_back(item);
-    values_for_table[offset]->push_back(value);
+    fields_for_table[offset]->push_back(item, thd->mem_root);
+    values_for_table[offset]->push_back(value, thd->mem_root);
   }
   if (thd->is_fatal_error)
     DBUG_RETURN(1);
@@ -1978,11 +1997,11 @@ loop_end:
         table to be updated was created by mysql 4.1. Deny this.
       */
       field->can_alter_field_type= 0;
-      Item_field *ifield= new Item_field((Field *) field);
+      Item_field *ifield= new (thd->mem_root) Item_field(join->thd, (Field *) field);
       if (!ifield)
          DBUG_RETURN(1);
       ifield->maybe_null= 0;
-      if (temp_fields.push_back(ifield))
+      if (temp_fields.push_back(ifield, thd->mem_root))
         DBUG_RETURN(1);
     } while ((tbl= tbl_it++));
 
@@ -2549,7 +2568,7 @@ bool multi_update::send_eof()
   {
     id= thd->arg_of_last_insert_id_function ?
     thd->first_successful_insert_id_in_prev_stmt : 0;
-    my_snprintf(buff, sizeof(buff), ER(ER_UPDATE_INFO),
+    my_snprintf(buff, sizeof(buff), ER_THD(thd, ER_UPDATE_INFO),
                 (ulong) found, (ulong) updated, (ulong) thd->cuted_fields);
     ::my_ok(thd, (thd->client_capabilities & CLIENT_FOUND_ROWS) ? found : updated,
             id, buff);

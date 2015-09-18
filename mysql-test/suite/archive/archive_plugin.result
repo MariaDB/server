@@ -1,11 +1,8 @@
 CREATE TABLE t1(a int) ENGINE=ARCHIVE;
-Warnings:
-Warning	1286	Unknown storage engine 'ARCHIVE'
-Warning	1266	Using storage engine MyISAM for table 't1'
-DROP TABLE t1;
+ERROR 42000: Unknown storage engine 'ARCHIVE'
 INSTALL PLUGIN archive SONAME 'ha_archive.so';
 INSTALL PLUGIN ARCHIVE SONAME 'ha_archive.so';
-ERROR HY000: Function 'ARCHIVE' already exists
+ERROR HY000: Plugin 'ARCHIVE' already installed
 UNINSTALL PLUGIN archive;
 INSTALL PLUGIN archive SONAME 'ha_archive.so';
 CREATE TABLE t1(a int) ENGINE=ARCHIVE;

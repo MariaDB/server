@@ -1703,6 +1703,64 @@ include/stop_slave.inc
 SET GLOBAL debug_dbug= @old_debg;
 SET GLOBAL max_relay_log_size= @old_max;
 include/start_slave.inc
+*** MDEV-8302: Duplicate key with parallel replication ***
+include/stop_slave.inc
+/* Inject a small sleep which makes the race easier to hit. */
+SET @old_dbug=@@GLOBAL.debug_dbug;
+SET GLOBAL debug_dbug="+d,inject_mdev8302";
+INSERT INTO t7 VALUES (100,1), (101,2), (102,3), (103,4), (104,5);
+SET @old_dbug= @@SESSION.debug_dbug;
+SET @commit_id= 20000;
+SET SESSION debug_dbug="+d,binlog_force_commit_id";
+SET SESSION debug_dbug=@old_dbug;
+SELECT * FROM t7 ORDER BY a;
+a	b
+1	1
+2	2
+3	86
+4	4
+5	5
+100	5
+101	1
+102	2
+103	3
+104	4
+include/save_master_gtid.inc
+include/start_slave.inc
+include/sync_with_master_gtid.inc
+SELECT * FROM t7 ORDER BY a;
+a	b
+1	1
+2	2
+3	86
+4	4
+5	5
+100	5
+101	1
+102	2
+103	3
+104	4
+include/stop_slave.inc
+SET GLOBAL debug_dbug=@old_dbug;
+include/start_slave.inc
+*** MDEV-8725: Assertion on ROLLBACK statement in the binary log ***
+BEGIN;
+INSERT INTO t2 VALUES (2000);
+INSERT INTO t1 VALUES (2000);
+INSERT INTO t2 VALUES (2001);
+ROLLBACK;
+SELECT * FROM t1 WHERE a>=2000 ORDER BY a;
+a
+2000
+SELECT * FROM t2 WHERE a>=2000 ORDER BY a;
+a
+include/save_master_gtid.inc
+include/sync_with_master_gtid.inc
+SELECT * FROM t1 WHERE a>=2000 ORDER BY a;
+a
+2000
+SELECT * FROM t2 WHERE a>=2000 ORDER BY a;
+a
 include/stop_slave.inc
 SET GLOBAL slave_parallel_threads=@old_parallel_threads;
 include/start_slave.inc

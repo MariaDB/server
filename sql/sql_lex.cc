@@ -540,6 +540,7 @@ void lex_start(THD *thd)
   lex->in_sum_func= NULL;
 
   lex->used_tables= 0;
+  lex->only_view= FALSE;
   lex->reset_slave_info.all= false;
   lex->limit_rows_examined= 0;
   lex->limit_rows_examined_cnt= ULONGLONG_MAX;
@@ -1898,7 +1899,7 @@ void st_select_lex::init_query()
   exclude_from_table_unique_test= no_wrap_view_item= FALSE;
   nest_level= 0;
   link_next= 0;
-  is_prep_leaf_list_saved= FALSE;
+  prep_leaf_list_state= UNINIT;
   have_merged_subqueries= FALSE;
   bzero((char*) expr_cache_may_be_used, sizeof(expr_cache_may_be_used));
   m_non_agg_field_used= false;
@@ -1933,7 +1934,6 @@ void st_select_lex::init_select()
   with_sum_func= 0;
   is_correlated= 0;
   cur_pos_in_select_list= UNDEF_POS;
-  non_agg_fields.empty();
   cond_value= having_value= Item::COND_UNDEF;
   inner_refs_list.empty();
   insert_tables= 0;
@@ -1941,6 +1941,7 @@ void st_select_lex::init_select()
   m_non_agg_field_used= false;
   m_agg_func_used= false;
   name_visibility_map= 0;
+  join= 0;
 }
 
 /*
@@ -2333,9 +2334,9 @@ bool st_select_lex::add_group_to_list(THD *thd, Item *item, bool asc)
 }
 
 
-bool st_select_lex::add_ftfunc_to_list(Item_func_match *func)
+bool st_select_lex::add_ftfunc_to_list(THD *thd, Item_func_match *func)
 {
-  return !func || ftfunc_list->push_back(func); // end of memory?
+  return !func || ftfunc_list->push_back(func, thd->mem_root); // end of memory?
 }
 
 
@@ -3458,7 +3459,7 @@ void st_select_lex::alloc_index_hints (THD *thd)
 */
 bool st_select_lex::add_index_hint (THD *thd, char *str, uint length)
 {
-  return index_hints->push_front (new (thd->mem_root) 
+  return index_hints->push_front(new (thd->mem_root) 
                                  Index_hint(current_index_hint_type,
                                             current_index_hint_clause,
                                             str, length), thd->mem_root);
@@ -3504,6 +3505,8 @@ bool st_select_lex::optimize_unflattened_subqueries(bool const_only)
 
       bool empty_union_result= true;
       bool is_correlated_unit= false;
+      bool first= true;
+      bool union_plan_saved= false;
       /*
         If the subquery is a UNION, optimize all the subqueries in the UNION. If
         there is no UNION, then the loop will execute once for the subquery.
@@ -3511,6 +3514,17 @@ bool st_select_lex::optimize_unflattened_subqueries(bool const_only)
       for (SELECT_LEX *sl= un->first_select(); sl; sl= sl->next_select())
       {
         JOIN *inner_join= sl->join;
+        if (first)
+          first= false;
+        else
+        {
+          if (!union_plan_saved)
+          {
+            union_plan_saved= true;
+            if (un->save_union_explain(un->thd->lex->explain))
+              return true; /* Failure */
+          }
+        }
         if (!inner_join)
           continue;
         SELECT_LEX *save_select= un->thd->lex->current_select;
@@ -3786,7 +3800,7 @@ bool SELECT_LEX::merge_subquery(THD *thd, TABLE_LIST *derived,
     Item_in_subselect *in_subq;
     while ((in_subq= li++))
     {
-      sj_subselects.push_back(in_subq);
+      sj_subselects.push_back(in_subq, thd->mem_root);
       if (in_subq->emb_on_expr_nest == NO_JOIN_NEST)
          in_subq->emb_on_expr_nest= derived;
     }
@@ -4179,12 +4193,22 @@ bool st_select_lex::save_prep_leaf_tables(THD *thd)
 {
   List_iterator_fast<TABLE_LIST> li(leaf_tables);
   TABLE_LIST *table;
+
+  /*
+    Check that the SELECT_LEX was really prepared and so tables are setup.
+
+    It can be subquery in SET clause of UPDATE which was not prepared yet, so
+    its tables are not yet setup and ready for storing.
+  */
+  if (prep_leaf_list_state != READY)
+    return FALSE;
+
   while ((table= li++))
   {
     if (leaf_tables_prep.push_back(table))
       return TRUE;
   }
-  is_prep_leaf_list_saved= TRUE;
+  prep_leaf_list_state= SAVED;
   for (SELECT_LEX_UNIT *u= first_inner_unit(); u; u= u->next_unit())
   {
     for (SELECT_LEX *sl= u->first_select(); sl; sl= sl->next_select())
@@ -4354,9 +4378,14 @@ void LEX::restore_set_statement_var()
 int st_select_lex_unit::save_union_explain(Explain_query *output)
 {
   SELECT_LEX *first= first_select();
+
+  if (output->get_union(first->select_number))
+    return 0; /* Already added */
+    
   Explain_union *eu= 
     new (output->mem_root) Explain_union(output->mem_root, 
                                          thd->lex->analyze_stmt);
+
 
   if (derived)
     eu->connection_type= Explain_node::EXPLAIN_NODE_DERIVED;

@@ -82,6 +82,12 @@ public:
     shape_polygon= 2,
     shape_hole= 3
   };
+  enum count_result
+  {
+    result_false= 0,
+    result_true= 1,
+    result_unknown= 2
+  };
   Gcalc_function() : n_shapes(0) {}
   gcalc_shape_info add_new_shape(uint32 shape_id, shape_type shape_kind);
   /*
@@ -116,6 +122,8 @@ public:
   int get_b_state(gcalc_shape_info shape) { return b_states[shape]; }
   int count()
     { return count_internal(function_buffer.ptr(), 0, 0); }
+  int count_last()
+    { return count_internal(function_buffer.ptr(), 1, 0); }
   void clear_i_states();
   void clear_b_states();
   void reset();

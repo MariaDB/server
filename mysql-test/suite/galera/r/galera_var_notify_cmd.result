@@ -1,0 +1,10 @@
+SELECT COUNT(DISTINCT uuid) = 2 FROM mtr_wsrep_notify.membership;
+COUNT(DISTINCT uuid) = 2
+1
+SELECT MAX(size) = 2 FROM mtr_wsrep_notify.status;
+MAX(size) = 2
+1
+SELECT COUNT(DISTINCT idx) = 2 FROM mtr_wsrep_notify.status;
+COUNT(DISTINCT idx) = 2
+1
+DROP SCHEMA mtr_wsrep_notify;

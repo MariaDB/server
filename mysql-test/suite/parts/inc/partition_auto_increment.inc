@@ -3,6 +3,9 @@
 # auto_increment test
 # used variables: $engine
 #
+--disable_query_log
+set sql_mode="";
+--enable_query_log
 
 -- disable_warnings
 DROP TABLE IF EXISTS t1;

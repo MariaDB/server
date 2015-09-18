@@ -1,3 +1,4 @@
+set global max_allowed_packet=1048576;
 select @test_compress_string:='string for test compress function aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa ';
 @test_compress_string:='string for test compress function aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa '
 string for test compress function aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa 
@@ -72,6 +73,9 @@ set @@global.max_allowed_packet=1048576*100;
 select compress(repeat('aaaaaaaaaa', IF(XXX, 10, 10000000))) is null;
 compress(repeat('aaaaaaaaaa', IF(XXX, 10, 10000000))) is null
 0
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: XXX
+Warning	1292	Truncated incorrect DOUBLE value: XXX
 set @@global.max_allowed_packet=default;
 create table t1(a blob);
 insert into t1 values(NULL), (compress('a'));
@@ -152,6 +156,7 @@ UNCOMPRESS(CAST(0 AS BINARY(5)))
 NULL
 Warnings:
 Warning	1259	ZLIB: Input data corrupted
+set global max_allowed_packet=default;
 #
 # End of 5.5 tests
 #

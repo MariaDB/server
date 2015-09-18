@@ -4112,7 +4112,7 @@ insert into diaries values(4094, "2022-09-28");
 insert into diaries values(4095, "2022-09-29");
 commit;
 set autocommit=1;
-select * from diaries where match(title) against("2022-09-0");
+select * from diaries where match(title) against("2022-09-0") order by id;
 id	title
 3824	2022-01-01
 3825	2022-01-02

@@ -87,6 +87,7 @@ DROP TABLE t1;
 #
 # Bug #6345 Unexpected behaviour with partial indices
 #
+set sql_mode="";
 --disable_warnings
 CREATE TABLE t1
 (
@@ -96,6 +97,7 @@ CREATE TABLE t1
   KEY b (b(10))
 ) ENGINE=InnoDB CHARACTER SET 'ujis' COLLATE 'ujis_japanese_ci';
 --enable_warnings
+set sql_mode=default;
 INSERT INTO t1 (a, b) VALUES (0, 'aaabbbcccddd');
 INSERT INTO t1 (a, b) VALUES (1, 'eeefffggghhh');
 INSERT INTO t1 (a, b) VALUES (2, 'iiijjjkkkl');
@@ -1368,4 +1370,29 @@ SELECT _ujis 0x8EA0;
 
 --echo #
 --echo # End of 10.0 tests
+--echo #
+
+
+--echo #
+--echo # Start of 10.1 tests
+--echo #
+
+--echo #
+--echo # MDEV-8215 Asian MB3 charsets: compare broken bytes as "greater than any non-broken character"
+--echo #
+CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET ujis, KEY(a));
+# [x00-x7F]               # ASCII/JIS-Roman
+# [x8E][xA1-xDF]          # half-width katakana
+# [x8F][xA1-xFE][xA1-xFE] # JIS X 0212-1990
+# [xA1-xFE][xA1-xFE]      # JIS X 0208:1997
+INSERT INTO t1 VALUES ('a'),(0x7F);
+INSERT INTO t1 VALUES (0x8EA1),(0x8EDF);
+INSERT INTO t1 VALUES (0x8FA1A1),(0x8FFEFE);
+INSERT INTO t1 VALUES (0xA1A1),(0xDEDE),(0xDFDF),(0xE0E0),(0xFEFE);
+SELECT HEX(a) FROM t1 ORDER BY a;
+ALTER TABLE t1 MODIFY a VARCHAR(10) CHARACTER SET ujis COLLATE ujis_bin;
+SELECT HEX(a) FROM t1 ORDER BY a;DROP TABLE t1;
+
+--echo #
+--echo # End of 10.1 tests
 --echo #

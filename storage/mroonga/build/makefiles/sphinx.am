@@ -106,7 +106,7 @@ help:
 	@echo "  doctest   to run all doctests embedded in the documentation (if enabled)"
 
 man: man-build-stamp
-html: html-build-stamp
+html: html-recursive html-build-stamp
 dirhtml: dirhtml-build-stamp
 pickle: pickle-build-stamp
 json: json-build-stamp

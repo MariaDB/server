@@ -8,6 +8,7 @@ if (!$ADT_NULL_SO) {
 set @old_global_general_log=@@global.general_log;
 set global general_log=OFF;
 
+create user testuser@localhost;
 grant select on *.* to testuser@localhost;
 
 --disable_ps_protocol

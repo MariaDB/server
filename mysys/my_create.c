@@ -43,7 +43,7 @@ File my_create(const char *FileName, int CreateFlags, int access_flags,
 #if defined(_WIN32)
   fd= my_win_open(FileName, access_flags | O_CREAT);
 #else
-  fd= open((char *) FileName, access_flags | O_CREAT,
+  fd= open((char *) FileName, access_flags | O_CREAT | O_CLOEXEC,
 	    CreateFlags ? CreateFlags : my_umask);
 #endif
 

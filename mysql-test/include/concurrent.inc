@@ -26,6 +26,7 @@
 #
 
 connection default;
+SET SQL_MODE="";
 #
 # Show prerequisites for this test.
 #
@@ -670,3 +671,4 @@ connection default;
 drop table t1;
 drop user mysqltest@localhost;
 
+SET SQL_MODE=default;

@@ -201,8 +201,10 @@ static const uchar sort_order_euc_kr[]=
                               iseuc_kr_tail2(c) || \
                               iseuc_kr_tail3(c))
 
+#define euckrcode(c,d)        (((uchar)(c) <<8) | (uchar)(d))
 
 #define MY_FUNCTION_NAME(x)   my_ ## x ## _euckr
+#define IS_MB1_CHAR(x)        ((uchar) (x) < 0x80)
 #define IS_MB2_CHAR(x,y)      (iseuc_kr_head(x) && iseuc_kr_tail(y))
 #define DEFINE_ASIAN_ROUTINES
 #include "ctype-mb.ic"
@@ -9938,20 +9940,49 @@ my_mb_wc_euc_kr(CHARSET_INFO *cs __attribute__((unused)),
 }
 
 
-static MY_COLLATION_HANDLER my_collation_ci_handler =
+#define MY_FUNCTION_NAME(x)   my_ ## x ## _euckr_korean_ci
+#define WEIGHT_MB1(x)        (sort_order_euc_kr[(uchar) (x)])
+#define WEIGHT_MB2(x,y)      (euckrcode(x, y))
+#include "strcoll.ic"
+
+
+#define MY_FUNCTION_NAME(x)   my_ ## x ## _euckr_bin
+#define WEIGHT_MB1(x)        ((uchar) (x))
+#define WEIGHT_MB2(x,y)      (euckrcode(x, y))
+#include "strcoll.ic"
+
+
+static MY_COLLATION_HANDLER my_collation_handler_euckr_korean_ci=
 {
-  NULL,			/* init */
-  my_strnncoll_simple,  /* strnncoll  */
-  my_strnncollsp_simple,
-  my_strnxfrm_mb,	/* strnxfrm   */
+  NULL,                 /* init */
+  my_strnncoll_euckr_korean_ci,
+  my_strnncollsp_euckr_korean_ci,
+  my_strnxfrm_mb,
   my_strnxfrmlen_simple,
-  my_like_range_mb,     /* like_range */
-  my_wildcmp_mb,	/* wildcmp    */
+  my_like_range_mb,
+  my_wildcmp_mb,
   my_strcasecmp_mb,
   my_instr_mb,
   my_hash_sort_simple,
   my_propagate_simple
 };
+
+
+static MY_COLLATION_HANDLER my_collation_handler_euckr_bin=
+{
+  NULL,                 /* init */
+  my_strnncoll_euckr_bin,
+  my_strnncollsp_euckr_bin,
+  my_strnxfrm_mb,
+  my_strnxfrmlen_simple,
+  my_like_range_mb,
+  my_wildcmp_mb_bin,
+  my_strcasecmp_mb_bin,
+  my_instr_mb,
+  my_hash_sort_mb_bin,
+  my_propagate_simple
+};
+
 
 static MY_CHARSET_HANDLER my_charset_handler=
 {
@@ -9985,6 +10016,7 @@ static MY_CHARSET_HANDLER my_charset_handler=
   my_charlen_euckr,
   my_well_formed_char_length_euckr,
   my_copy_fix_mb,
+  my_native_to_mb_euckr,
 };
 
 
@@ -10017,7 +10049,7 @@ struct charset_info_st my_charset_euckr_korean_ci=
     0,                  /* escape_with_backslash_is_dangerous */
     1,                  /* levels_for_order   */
     &my_charset_handler,
-    &my_collation_ci_handler
+    &my_collation_handler_euckr_korean_ci
 };
 
 
@@ -10050,7 +10082,7 @@ struct charset_info_st my_charset_euckr_bin=
     0,                  /* escape_with_backslash_is_dangerous */
     1,                  /* levels_for_order   */
     &my_charset_handler,
-    &my_collation_mb_bin_handler
+    &my_collation_handler_euckr_bin
 };
 
 #endif

@@ -10,7 +10,7 @@
 
 --source include/not_embedded.inc
 --source include/have_debug.inc
---source include/have_ipv6.inc
+--source include/check_ipv6.inc
 --source include/have_perfschema.inc
 
 # Enforce a clean state
@@ -21,6 +21,7 @@ select @@global.max_connect_errors into @saved_max_connect_errors;
 
 set global max_connect_errors = 3;
 
+create user 'root'@'santa.claus.ipv6.example.com';
 grant select on test.* to 'root'@'santa.claus.ipv6.example.com';
 
 create user 'quota'@'santa.claus.ipv6.example.com';

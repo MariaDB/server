@@ -3779,5 +3779,111 @@ id	MIN(a)	MAX(a)
 4	2001-01-04	2001-01-04
 DROP TABLE t1;
 #
+# MDEV-8229 GROUP_MIN_MAX is erroneously applied for BETWEEN in some cases
+#
+SET NAMES latin1;
+CREATE TABLE t1 (id INT NOT NULL, a VARCHAR(20)) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1,'2001-01-01');
+INSERT INTO t1 VALUES (1,'2001-01-02');
+INSERT INTO t1 VALUES (1,'2001-01-03');
+INSERT INTO t1 VALUES (1,' 2001-01-04');
+INSERT INTO t1 VALUES (2,'2001-01-01');
+INSERT INTO t1 VALUES (2,'2001-01-02');
+INSERT INTO t1 VALUES (2,'2001-01-03');
+INSERT INTO t1 VALUES (2,' 2001-01-04');
+INSERT INTO t1 VALUES (3,'2001-01-01');
+INSERT INTO t1 VALUES (3,'2001-01-02');
+INSERT INTO t1 VALUES (3,'2001-01-03');
+INSERT INTO t1 VALUES (3,' 2001-01-04');
+INSERT INTO t1 VALUES (4,'2001-01-01');
+INSERT INTO t1 VALUES (4,'2001-01-02');
+INSERT INTO t1 VALUES (4,'2001-01-03');
+INSERT INTO t1 VALUES (4,' 2001-01-04');
+SELECT id,MIN(a),MAX(a) FROM t1 WHERE a BETWEEN     ' 2001-01-04' AND    '2001-01-05' GROUP BY id;
+id	MIN(a)	MAX(a)
+1	 2001-01-04	2001-01-03
+2	 2001-01-04	2001-01-03
+3	 2001-01-04	2001-01-03
+4	 2001-01-04	2001-01-03
+SELECT id,MIN(a),MAX(a) FROM t1 WHERE a BETWEEN     '2001-01-04' AND     '2001-01-05' GROUP BY id;
+id	MIN(a)	MAX(a)
+SELECT id,MIN(a),MAX(a) FROM t1 WHERE a BETWEEN DATE'2001-01-04' AND DATE'2001-01-05' GROUP BY id;
+id	MIN(a)	MAX(a)
+1	 2001-01-04	 2001-01-04
+2	 2001-01-04	 2001-01-04
+3	 2001-01-04	 2001-01-04
+4	 2001-01-04	 2001-01-04
+SELECT id,MIN(a),MAX(a) FROM t1 WHERE a BETWEEN DATE'2001-01-04' AND     '2001-01-05' GROUP BY id;
+id	MIN(a)	MAX(a)
+1	 2001-01-04	 2001-01-04
+2	 2001-01-04	 2001-01-04
+3	 2001-01-04	 2001-01-04
+4	 2001-01-04	 2001-01-04
+SELECT id,MIN(a),MAX(a) FROM t1 WHERE a BETWEEN     '2001-01-04' AND DATE'2001-01-05' GROUP BY id;
+id	MIN(a)	MAX(a)
+1	 2001-01-04	 2001-01-04
+2	 2001-01-04	 2001-01-04
+3	 2001-01-04	 2001-01-04
+4	 2001-01-04	 2001-01-04
+ALTER TABLE t1 ADD KEY(id,a);
+SELECT id,MIN(a),MAX(a) FROM t1 WHERE a BETWEEN     ' 2001-01-04' AND    '2001-01-05' GROUP BY id;
+id	MIN(a)	MAX(a)
+1	 2001-01-04	2001-01-03
+2	 2001-01-04	2001-01-03
+3	 2001-01-04	2001-01-03
+4	 2001-01-04	2001-01-03
+SELECT id,MIN(a),MAX(a) FROM t1 WHERE a BETWEEN     '2001-01-04' AND     '2001-01-05' GROUP BY id;
+id	MIN(a)	MAX(a)
+SELECT id,MIN(a),MAX(a) FROM t1 WHERE a BETWEEN DATE'2001-01-04' AND DATE'2001-01-05' GROUP BY id;
+id	MIN(a)	MAX(a)
+1	 2001-01-04	 2001-01-04
+2	 2001-01-04	 2001-01-04
+3	 2001-01-04	 2001-01-04
+4	 2001-01-04	 2001-01-04
+SELECT id,MIN(a),MAX(a) FROM t1 WHERE a BETWEEN DATE'2001-01-04' AND     '2001-01-05' GROUP BY id;
+id	MIN(a)	MAX(a)
+1	 2001-01-04	 2001-01-04
+2	 2001-01-04	 2001-01-04
+3	 2001-01-04	 2001-01-04
+4	 2001-01-04	 2001-01-04
+SELECT id,MIN(a),MAX(a) FROM t1 WHERE a BETWEEN     '2001-01-04' AND DATE'2001-01-05' GROUP BY id;
+id	MIN(a)	MAX(a)
+1	 2001-01-04	 2001-01-04
+2	 2001-01-04	 2001-01-04
+3	 2001-01-04	 2001-01-04
+4	 2001-01-04	 2001-01-04
+EXPLAIN SELECT id,MIN(a),MAX(a) FROM t1 WHERE a BETWEEN     ' 2001-01-04' AND    '2001-01-05' GROUP BY id;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	NULL	id	27	NULL	9	Using where; Using index for group-by
+EXPLAIN SELECT id,MIN(a),MAX(a) FROM t1 WHERE a BETWEEN     '2001-01-04' AND     '2001-01-05' GROUP BY id;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	NULL	id	27	NULL	9	Using where; Using index for group-by
+EXPLAIN SELECT id,MIN(a),MAX(a) FROM t1 WHERE a BETWEEN DATE'2001-01-04' AND DATE'2001-01-05' GROUP BY id;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index	NULL	id	27	NULL	16	Using where; Using index
+EXPLAIN SELECT id,MIN(a),MAX(a) FROM t1 WHERE a BETWEEN DATE'2001-01-04' AND     '2001-01-05' GROUP BY id;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index	NULL	id	27	NULL	16	Using where; Using index
+EXPLAIN SELECT id,MIN(a),MAX(a) FROM t1 WHERE a BETWEEN     '2001-01-04' AND DATE'2001-01-05' GROUP BY id;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index	NULL	id	27	NULL	16	Using where; Using index
+DROP TABLE t1;
+#
+# MIN() optimization didn't work correctly with BETWEEN when using too
+# long strings.
+#
+create table t1 (a varchar(10), key (a)) engine=myisam;
+insert into t1 values("bar"),("Cafe");
+explain select min(a) from t1 where a between "a" and "Cafe2";
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Select tables optimized away
+explain select min(a) from t1 where a between "a" and "Cafeeeeeeeeeeeeeeeeeeeeeeeeee";
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index	a	a	13	NULL	2	Using where; Using index
+explain select min(a) from t1 where a between "abbbbbbbbbbbbbbbbbbbb" and "Cafe2";
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index	a	a	13	NULL	2	Using where; Using index
+drop table t1;
+#
 # End of 10.1 tests
 #

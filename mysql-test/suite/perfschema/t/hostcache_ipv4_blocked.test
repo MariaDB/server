@@ -20,6 +20,7 @@ select @@global.max_connect_errors into @saved_max_connect_errors;
 
 set global max_connect_errors = 3;
 
+create user 'root'@'santa.claus.ipv4.example.com';
 grant select on test.* to 'root'@'santa.claus.ipv4.example.com';
 
 create user 'quota'@'santa.claus.ipv4.example.com';

@@ -39,8 +39,9 @@ C_MODE_START
 #define GET_DOUBLE    14
 #define GET_FLAGSET   15
 
-#define GET_ASK_ADDR	 128
-#define GET_TYPE_MASK	 127
+#define GET_ASK_ADDR     128
+#define GET_AUTO          64
+#define GET_TYPE_MASK     63
 
 /**
   Enumeration of the my_option::arg_type attributes.
@@ -100,6 +101,7 @@ typedef void *(*my_getopt_value)(const char *, uint, const struct my_option *,
 
 
 extern char *disabled_my_option;
+extern char *autoset_my_option;
 extern my_bool my_getopt_print_errors;
 extern my_bool my_getopt_skip_unknown;
 extern my_bool my_getopt_prefix_matching;

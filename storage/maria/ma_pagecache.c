@@ -833,17 +833,23 @@ ulong init_pagecache(PAGECACHE *pagecache, size_t use_mem,
         Allocate memory for blocks, hash_links and hash entries;
         For each block 2 hash links are allocated
       */
-      if (my_multi_malloc(MYF(MY_ZEROFILL),
-                          &pagecache->block_root, blocks * sizeof(PAGECACHE_BLOCK_LINK),
-                          &pagecache->hash_root,
-                          sizeof(PAGECACHE_HASH_LINK*) * pagecache->hash_entries,
-                          &pagecache->hash_link_root,
-                          hash_links * sizeof(PAGECACHE_HASH_LINK),
-                          &pagecache->changed_blocks,
-                          sizeof(PAGECACHE_BLOCK_LINK*) * changed_blocks_hash_size,
-                          &pagecache->file_blocks,
-                          sizeof(PAGECACHE_BLOCK_LINK*) * changed_blocks_hash_size,
-                          NullS))
+      if (my_multi_malloc_large(MYF(MY_ZEROFILL),
+                                &pagecache->block_root,
+                                (ulonglong) (blocks *
+                                             sizeof(PAGECACHE_BLOCK_LINK)),
+                                &pagecache->hash_root,
+                                (ulonglong) (sizeof(PAGECACHE_HASH_LINK*) *
+                                             pagecache->hash_entries),
+                                &pagecache->hash_link_root,
+                                (ulonglong) (hash_links *
+                                             sizeof(PAGECACHE_HASH_LINK)),
+                                &pagecache->changed_blocks,
+                                (ulonglong) (sizeof(PAGECACHE_BLOCK_LINK*) *
+                                             changed_blocks_hash_size),
+                                &pagecache->file_blocks,
+                                (ulonglong) (sizeof(PAGECACHE_BLOCK_LINK*) *
+                                             changed_blocks_hash_size),
+                                NullS))
         break;
       my_large_free(pagecache->block_mem);
       pagecache->block_mem= 0;

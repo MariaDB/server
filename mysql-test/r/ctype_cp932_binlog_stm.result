@@ -94,7 +94,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `code` varchar(8) DEFAULT NULL,
-  `a` varchar(1) CHARACTER SET cp932 NOT NULL DEFAULT ''
+  `a` varchar(1) CHARACTER SET cp932 NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 UPDATE t1 SET a=unhex(code) ORDER BY code;
 Warnings:
@@ -387,139 +387,139 @@ HEX(LOWER(CAST(a AS CHAR CHARACTER SET utf8))) ORDER BY code;
 code	a
 81F0	â„«
 Warnings:
-Warning	1976	Cannot convert 'cp932' character 0x81AD to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81AD to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81AE to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81AE to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81AF to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81AF to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81B0 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81B0 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81B1 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81B1 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81B2 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81B2 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81B3 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81B3 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81B4 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81B4 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81B5 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81B5 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81B6 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81B6 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81B7 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81B7 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81C0 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81C0 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81C1 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81C1 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81C2 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81C2 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81C3 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81C3 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81C4 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81C4 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81C5 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81C5 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81C6 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81C6 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81C7 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81C7 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81CF to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81CF to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81D0 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81D0 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81D1 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81D1 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81D2 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81D2 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81D3 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81D3 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81D4 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81D4 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81D5 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81D5 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81D6 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81D6 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81D7 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81D7 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81D8 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81D8 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81D9 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81D9 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81E9 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81E9 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81EA to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81EA to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81AD to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81AD to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81AE to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81AE to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81AF to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81AF to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81B0 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81B0 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81B1 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81B1 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81B2 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81B2 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81B3 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81B3 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81B4 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81B4 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81B5 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81B5 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81B6 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81B6 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81B7 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81B7 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81C0 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81C0 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81C1 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81C1 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81C2 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81C2 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81C3 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81C3 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81C4 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81C4 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81C5 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81C5 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81C6 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81C6 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81C7 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81C7 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81CF to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81CF to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81D0 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81D0 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81D1 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81D1 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81D2 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81D2 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81D3 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81D3 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81D4 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81D4 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81D5 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81D5 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81D6 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81D6 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81D7 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81D7 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81D8 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81D8 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81D9 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81D9 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81E9 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81E9 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81EA to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81EA to 'utf8'
 SELECT * FROM t1
 WHERE HEX(CAST(UPPER(a) AS CHAR CHARACTER SET utf8)) <>
 HEX(UPPER(CAST(a AS CHAR CHARACTER SET utf8))) ORDER BY code;
 code	a
 Warnings:
-Warning	1976	Cannot convert 'cp932' character 0x81AD to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81AD to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81AE to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81AE to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81AF to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81AF to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81B0 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81B0 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81B1 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81B1 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81B2 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81B2 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81B3 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81B3 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81B4 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81B4 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81B5 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81B5 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81B6 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81B6 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81B7 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81B7 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81C0 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81C0 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81C1 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81C1 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81C2 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81C2 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81C3 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81C3 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81C4 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81C4 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81C5 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81C5 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81C6 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81C6 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81C7 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81C7 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81CF to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81CF to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81D0 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81D0 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81D1 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81D1 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81D2 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81D2 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81D3 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81D3 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81D4 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81D4 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81D5 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81D5 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81D6 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81D6 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81D7 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81D7 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81D8 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81D8 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81D9 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81D9 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81E9 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81E9 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81EA to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81EA to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81AD to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81AD to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81AE to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81AE to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81AF to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81AF to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81B0 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81B0 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81B1 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81B1 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81B2 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81B2 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81B3 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81B3 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81B4 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81B4 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81B5 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81B5 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81B6 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81B6 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81B7 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81B7 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81C0 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81C0 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81C1 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81C1 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81C2 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81C2 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81C3 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81C3 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81C4 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81C4 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81C5 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81C5 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81C6 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81C6 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81C7 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81C7 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81CF to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81CF to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81D0 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81D0 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81D1 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81D1 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81D2 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81D2 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81D3 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81D3 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81D4 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81D4 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81D5 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81D5 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81D6 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81D6 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81D7 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81D7 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81D8 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81D8 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81D9 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81D9 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81E9 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81E9 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81EA to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81EA to 'utf8'
 #
 # WL#3090 Japanese Character Set adjustments
 # Test cp932->Unicode conversion
@@ -10195,70 +10195,70 @@ FC49	EFA8AD
 FC4A	E9B899
 FC4B	E9BB91
 Warnings:
-Warning	1976	Cannot convert 'cp932' character 0x81AD to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81AE to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81AF to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81B0 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81B1 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81B2 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81B3 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81B4 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81B5 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81B6 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81B7 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81C0 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81C1 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81C2 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81C3 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81C4 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81C5 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81C6 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81C7 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81CF to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81D0 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81D1 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81D2 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81D3 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81D4 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81D5 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81D6 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81D7 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81D8 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81D9 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81E9 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81EA to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81EB to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81EC to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81ED to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81EE to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81EF to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81F8 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81F9 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81FA to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x81FB to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x8240 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x8241 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x8242 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x8243 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x8244 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x8245 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x8246 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x8247 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x8248 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x8249 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x824A to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x824B to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x824C to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x824D to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x824E to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x8259 to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x825A to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x825B to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x825C to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x825D to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x825E to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x825F to 'utf8'
-Warning	1976	Cannot convert 'cp932' character 0x827A to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81AD to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81AE to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81AF to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81B0 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81B1 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81B2 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81B3 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81B4 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81B5 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81B6 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81B7 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81C0 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81C1 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81C2 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81C3 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81C4 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81C5 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81C6 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81C7 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81CF to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81D0 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81D1 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81D2 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81D3 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81D4 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81D5 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81D6 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81D7 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81D8 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81D9 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81E9 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81EA to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81EB to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81EC to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81ED to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81EE to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81EF to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81F8 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81F9 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81FA to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x81FB to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x8240 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x8241 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x8242 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x8243 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x8244 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x8245 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x8246 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x8247 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x8248 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x8249 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x824A to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x824B to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x824C to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x824D to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x824E to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x8259 to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x825A to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x825B to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x825C to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x825D to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x825E to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x825F to 'utf8'
+Warning	1977	Cannot convert 'cp932' character 0x827A to 'utf8'
 DROP TABLE t1;
 #
 # WL#3090 Japanese Character Set adjustments
@@ -19742,7 +19742,7 @@ CREATE TABLE t1 AS SELECT 'a' AS a;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` varchar(1) CHARACTER SET cp932 NOT NULL DEFAULT ''
+  `a` varchar(1) CHARACTER SET cp932 NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 CREATE TABLE t2 AS SELECT WEIGHT_STRING(a) AS ws FROM t1;
 SHOW CREATE TABLE t2;
@@ -19762,7 +19762,7 @@ CREATE TABLE t1 AS SELECT REPEAT('a',5) AS a;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` varchar(5) CHARACTER SET cp932 NOT NULL DEFAULT ''
+  `a` varchar(5) CHARACTER SET cp932 NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 CREATE TABLE t2 AS SELECT WEIGHT_STRING(a) AS ws FROM t1;
 SHOW CREATE TABLE t2;
@@ -20001,7 +20001,7 @@ CREATE TABLE t1 AS SELECT 'a' AS a;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` varchar(1) CHARACTER SET cp932 COLLATE cp932_bin NOT NULL DEFAULT ''
+  `a` varchar(1) CHARACTER SET cp932 COLLATE cp932_bin NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 CREATE TABLE t2 AS SELECT WEIGHT_STRING(a) AS ws FROM t1;
 SHOW CREATE TABLE t2;
@@ -20021,7 +20021,7 @@ CREATE TABLE t1 AS SELECT REPEAT('a',5) AS a;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` varchar(5) CHARACTER SET cp932 COLLATE cp932_bin NOT NULL DEFAULT ''
+  `a` varchar(5) CHARACTER SET cp932 COLLATE cp932_bin NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 CREATE TABLE t2 AS SELECT WEIGHT_STRING(a) AS ws FROM t1;
 SHOW CREATE TABLE t2;
@@ -20300,7 +20300,7 @@ CREATE TABLE t1 AS SELECT REPEAT(' ',10) AS a LIMIT 0;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` varchar(10) CHARACTER SET cp932 NOT NULL DEFAULT ''
+  `a` varchar(10) CHARACTER SET cp932 NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 INSERT INTO t1 VALUES ('à\'),('à\t');
 INSERT INTO t1 VALUES ('\\à\'),('\\à\t'),('\\à\t\t');
@@ -20339,7 +20339,7 @@ CREATE TABLE t1 AS SELECT REPEAT(' ', 10) AS a LIMIT 0;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` varchar(10) CHARACTER SET cp932 NOT NULL DEFAULT ''
+  `a` varchar(10) CHARACTER SET cp932 NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 INSERT INTO t1 VALUES (BINARY('à\')),(BINARY('à\t'));
 INSERT INTO t1 VALUES (BINARY('\\à\')),(BINARY('\\à\t')),(BINARY('\\à\t\t'));
@@ -20378,7 +20378,7 @@ CREATE TABLE t1 AS SELECT REPEAT(' ', 10) AS a LIMIT 0;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` varchar(10) CHARACTER SET cp932 NOT NULL DEFAULT ''
+  `a` varchar(10) CHARACTER SET cp932 NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 INSERT INTO t1 VALUES (_BINARY'à\'),(_BINARY'à\t');
 INSERT INTO t1 VALUES (_BINARY'\\à\'),(_BINARY'\\à\t'),(_BINARY'\\à\t\t');
@@ -20424,7 +20424,7 @@ CREATE TABLE t1 AS SELECT REPEAT(' ', 10) AS a LIMIT 0;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` varchar(10) CHARACTER SET cp932 NOT NULL DEFAULT ''
+  `a` varchar(10) CHARACTER SET cp932 NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 INSERT INTO t1 VALUES ('à\['),('\à\[');
 SELECT HEX(a) FROM t1;
@@ -20444,7 +20444,7 @@ CREATE TABLE t1 AS SELECT REPEAT(' ', 10) AS a LIMIT 0;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` varbinary(10) NOT NULL DEFAULT ''
+  `a` varbinary(10) NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 INSERT INTO t1 VALUES ('à\['),('\à\[');
 SELECT HEX(a) FROM t1;

@@ -11,8 +11,8 @@ SELECT @max_row DIV 4 INTO @max_row_div4;
 SET @max_int_4 = 2147483647;
 DROP TABLE IF EXISTS t0_template;
 CREATE TABLE t0_template (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000) ,
@@ -27,8 +27,8 @@ file_list      VARBINARY(10000),
 PRIMARY KEY (state)
 ) ENGINE = MEMORY;
 DROP TABLE IF EXISTS t0_aux;
-CREATE TABLE t0_aux ( f_int1 INTEGER,
-f_int2 INTEGER,
+CREATE TABLE t0_aux ( f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000) )
@@ -48,8 +48,8 @@ DROP TABLE IF EXISTS t1;
 #               PARTITION BY HASH/KEY/LIST/RANGE
 #------------------------------------------------------------------------
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000),
@@ -58,8 +58,8 @@ PRIMARY KEY (f_int2)
 PARTITION BY HASH(f_int1) PARTITIONS 2;
 ERROR HY000: A PRIMARY KEY must include all columns in the table's partitioning function
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000),
@@ -68,8 +68,8 @@ PRIMARY KEY (f_int2)
 PARTITION BY HASH(f_int1 + f_int2) PARTITIONS 2;
 ERROR HY000: A PRIMARY KEY must include all columns in the table's partitioning function
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000),
@@ -78,8 +78,8 @@ PRIMARY KEY (f_int2)
 PARTITION BY KEY(f_int1) PARTITIONS 2;
 ERROR HY000: A PRIMARY KEY must include all columns in the table's partitioning function
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000),
@@ -88,8 +88,8 @@ PRIMARY KEY (f_int2)
 PARTITION BY KEY(f_int1,f_int2) PARTITIONS 2;
 ERROR HY000: A PRIMARY KEY must include all columns in the table's partitioning function
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000),
@@ -99,8 +99,8 @@ PARTITION BY LIST(f_int1)
 (PARTITION part1 VALUES IN (1));
 ERROR HY000: A PRIMARY KEY must include all columns in the table's partitioning function
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000),
@@ -110,8 +110,8 @@ PARTITION BY LIST(f_int1 + f_int2)
 (PARTITION part1 VALUES IN (1));
 ERROR HY000: A PRIMARY KEY must include all columns in the table's partitioning function
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000),
@@ -121,8 +121,8 @@ PARTITION BY RANGE(f_int1)
 (PARTITION part1 VALUES LESS THAN (1));
 ERROR HY000: A PRIMARY KEY must include all columns in the table's partitioning function
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000),
@@ -140,8 +140,8 @@ ERROR HY000: A PRIMARY KEY must include all columns in the table's partitioning 
 #      Variant 2) two columns in partitioning function
 #------------------------------------------------------------------------
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000),
@@ -150,8 +150,8 @@ UNIQUE INDEX (f_int2)
 PARTITION BY HASH(f_int1) PARTITIONS 2;
 ERROR HY000: A UNIQUE INDEX must include all columns in the table's partitioning function
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000),
@@ -160,8 +160,8 @@ PRIMARY KEY(f_int1,f_int2), UNIQUE INDEX (f_int2)
 PARTITION BY HASH(f_int1) PARTITIONS 2;
 ERROR HY000: A UNIQUE INDEX must include all columns in the table's partitioning function
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000),
@@ -170,8 +170,8 @@ UNIQUE INDEX (f_int2)
 PARTITION BY HASH(f_int1 + f_int2) PARTITIONS 2;
 ERROR HY000: A UNIQUE INDEX must include all columns in the table's partitioning function
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000),
@@ -180,8 +180,8 @@ PRIMARY KEY(f_int1,f_int2), UNIQUE INDEX (f_int2)
 PARTITION BY HASH(f_int1 + f_int2) PARTITIONS 2;
 ERROR HY000: A UNIQUE INDEX must include all columns in the table's partitioning function
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000),
@@ -190,8 +190,8 @@ UNIQUE INDEX (f_int2)
 PARTITION BY KEY(f_int1) PARTITIONS 2;
 ERROR HY000: A UNIQUE INDEX must include all columns in the table's partitioning function
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000),
@@ -200,8 +200,8 @@ PRIMARY KEY(f_int1,f_int2), UNIQUE INDEX (f_int2)
 PARTITION BY KEY(f_int1) PARTITIONS 2;
 ERROR HY000: A UNIQUE INDEX must include all columns in the table's partitioning function
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000),
@@ -210,8 +210,8 @@ UNIQUE INDEX (f_int2)
 PARTITION BY KEY(f_int1,f_int2) PARTITIONS 2;
 ERROR HY000: A UNIQUE INDEX must include all columns in the table's partitioning function
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000),
@@ -220,8 +220,8 @@ PRIMARY KEY(f_int1,f_int2), UNIQUE INDEX (f_int2)
 PARTITION BY KEY(f_int1,f_int2) PARTITIONS 2;
 ERROR HY000: A UNIQUE INDEX must include all columns in the table's partitioning function
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000),
@@ -234,8 +234,8 @@ PARTITION part1 VALUES IN (1),
 PARTITION part2 VALUES IN (2));
 ERROR HY000: A UNIQUE INDEX must include all columns in the table's partitioning function
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000),
@@ -248,8 +248,8 @@ PARTITION part1 VALUES IN (1),
 PARTITION part2 VALUES IN (2));
 ERROR HY000: A UNIQUE INDEX must include all columns in the table's partitioning function
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000),
@@ -262,8 +262,8 @@ PARTITION part1 VALUES IN (1),
 PARTITION part2 VALUES IN (2));
 ERROR HY000: A UNIQUE INDEX must include all columns in the table's partitioning function
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000),
@@ -276,8 +276,8 @@ PARTITION part1 VALUES IN (1),
 PARTITION part2 VALUES IN (2));
 ERROR HY000: A UNIQUE INDEX must include all columns in the table's partitioning function
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000),
@@ -288,8 +288,8 @@ PARTITION BY RANGE(f_int1)
 PARTITION part2 VALUES LESS THAN (2147483646));
 ERROR HY000: A UNIQUE INDEX must include all columns in the table's partitioning function
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000),
@@ -300,8 +300,8 @@ PARTITION BY RANGE(f_int1)
 PARTITION part2 VALUES LESS THAN (2147483646));
 ERROR HY000: A UNIQUE INDEX must include all columns in the table's partitioning function
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000),
@@ -312,8 +312,8 @@ PARTITION BY RANGE(f_int1 + f_int2)
 PARTITION part2 VALUES LESS THAN (2147483646));
 ERROR HY000: A UNIQUE INDEX must include all columns in the table's partitioning function
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000),
@@ -328,8 +328,8 @@ ERROR HY000: A UNIQUE INDEX must include all columns in the table's partitioning
 #               PARTITION BY RANGE/LIST -- SUBPARTITION BY HASH/KEY
 #------------------------------------------------------------------------
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000),
@@ -340,8 +340,8 @@ PARTITION BY RANGE(f_int2) SUBPARTITION BY HASH(f_int1)
 (SUBPARTITION subpart1));
 ERROR HY000: A PRIMARY KEY must include all columns in the table's partitioning function
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000),
@@ -352,8 +352,8 @@ PARTITION BY RANGE(f_int2) SUBPARTITION BY KEY(f_int1)
 (SUBPARTITION subpart1));
 ERROR HY000: A PRIMARY KEY must include all columns in the table's partitioning function
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000),
@@ -364,8 +364,8 @@ PARTITION BY LIST(f_int2) SUBPARTITION BY HASH(f_int1)
 (SUBPARTITION subpart1));
 ERROR HY000: A PRIMARY KEY must include all columns in the table's partitioning function
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000),
@@ -382,8 +382,8 @@ ERROR HY000: A PRIMARY KEY must include all columns in the table's partitioning 
 #      Variant b) With correct additional PRIMARY KEY        
 #------------------------------------------------------------------------
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000),
@@ -395,8 +395,8 @@ SUBPARTITION BY HASH(f_int1) SUBPARTITIONS 3
 PARTITION part2 VALUES LESS THAN (2147483646));
 ERROR HY000: A UNIQUE INDEX must include all columns in the table's partitioning function
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000),
@@ -408,8 +408,8 @@ SUBPARTITION BY HASH(f_int1) SUBPARTITIONS 3
 PARTITION part2 VALUES LESS THAN (2147483646));
 ERROR HY000: A UNIQUE INDEX must include all columns in the table's partitioning function
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000),
@@ -421,8 +421,8 @@ SUBPARTITION BY KEY(f_int1) SUBPARTITIONS 3
 PARTITION part2 VALUES LESS THAN (2147483646));
 ERROR HY000: A UNIQUE INDEX must include all columns in the table's partitioning function
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000),
@@ -434,8 +434,8 @@ SUBPARTITION BY KEY(f_int1) SUBPARTITIONS 3
 PARTITION part2 VALUES LESS THAN (2147483646));
 ERROR HY000: A UNIQUE INDEX must include all columns in the table's partitioning function
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000),
@@ -449,8 +449,8 @@ PARTITION part1 VALUES IN (1),
 PARTITION part2 VALUES IN (2));
 ERROR HY000: A UNIQUE INDEX must include all columns in the table's partitioning function
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000),
@@ -464,8 +464,8 @@ PARTITION part1 VALUES IN (1),
 PARTITION part2 VALUES IN (2));
 ERROR HY000: A UNIQUE INDEX must include all columns in the table's partitioning function
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000),
@@ -479,8 +479,8 @@ PARTITION part1 VALUES IN (1),
 PARTITION part2 VALUES IN (2));
 ERROR HY000: A UNIQUE INDEX must include all columns in the table's partitioning function
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000),
@@ -502,8 +502,8 @@ ERROR HY000: A UNIQUE INDEX must include all columns in the table's partitioning
 #------------------------------------------------------------------------
 DROP TABLE IF EXISTS t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -517,8 +517,8 @@ ERROR HY000: It is only possible to mix RANGE/LIST partitioning with HASH/KEY pa
 #      later releases.
 #------------------------------------------------------------------------
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000),
@@ -539,8 +539,8 @@ ERROR 42000: Wrong number of subpartitions defined, mismatch with previous setti
 #  3.1 The constants in VALUES IN clauses must differ
 #------------------------------------------------------------------------
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -569,8 +569,8 @@ ERROR HY000: VALUES LESS THAN value must be strictly increasing for each partiti
 #  3.3 LIST partitions must be defined with VALUES IN
 #------------------------------------------------------------------------
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -584,8 +584,8 @@ ERROR HY000: Only RANGE PARTITIONING can use VALUES LESS THAN in partition defin
 #  3.4 RANGE partitions must be defined with VALUES LESS THAN
 #------------------------------------------------------------------------
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -601,8 +601,8 @@ ERROR HY000: Only LIST PARTITIONING can use VALUES IN in partition definition
 #  3.5.1 NULL in RANGE partitioning clause
 #  3.5.1.1 VALUE LESS THAN (NULL) is not allowed
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -613,8 +613,8 @@ PARTITION part2 VALUES LESS THAN (1000));
 ERROR HY000: Not allowed to use NULL value in VALUES LESS THAN
 #  3.5.1.2 VALUE LESS THAN (NULL) is not allowed
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -626,8 +626,8 @@ ERROR HY000: Not allowed to use NULL value in VALUES LESS THAN
 #  3.5.2 NULL in LIST partitioning clause
 #  3.5.2.1 VALUE IN (NULL)
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -639,8 +639,8 @@ PARTITION part3 VALUES IN (1));
 DROP TABLE t1;
 #  3.5.2.2 VALUE IN (NULL)
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -652,8 +652,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -673,8 +673,8 @@ t1.par
 DROP TABLE t1;
 #  3.5.3 Reveal that IN (...NULL) is not mapped to IN(0)
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -687,8 +687,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -720,8 +720,8 @@ DROP TABLE IF EXISTS t1;
 #------------------------------------------------------------------------
 # 4.1.1 no partition number, no named partitions
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -731,8 +731,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -748,8 +748,8 @@ t1.par
 DROP TABLE t1;
 # 4.1.2 no partition number, named partitions
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -759,8 +759,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -780,31 +780,31 @@ t1.par
 DROP TABLE t1;
 # 4.1.3 variations on no partition/subpartition number, named partitions,
 #       different subpartitions are/are not named
-CREATE TABLE t1 (  f_int1 INTEGER,
-f_int2 INTEGER,
+CREATE TABLE t1 (  f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000) )
 PARTITION BY RANGE(f_int1) SUBPARTITION BY HASH(f_int1) (PARTITION part1 VALUES LESS THAN (10), PARTITION part2 VALUES LESS THAN (20), PARTITION part3 VALUES LESS THAN (2147483646)) ;
 DROP TABLE t1;
-CREATE TABLE t1 (  f_int1 INTEGER,
-f_int2 INTEGER,
+CREATE TABLE t1 (  f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000) )
 PARTITION BY RANGE(f_int1) SUBPARTITION BY HASH(f_int1) (PARTITION part1 VALUES LESS THAN (10), PARTITION part2 VALUES LESS THAN (20), PARTITION part3 VALUES LESS THAN (2147483646)
 (SUBPARTITION subpart31 , SUBPARTITION subpart32 )) ;
 ERROR 42000: Wrong number of subpartitions defined, mismatch with previous setting near 'SUBPARTITION subpart31 , SUBPARTITION subpart32 ))' at line 7
-CREATE TABLE t1 (  f_int1 INTEGER,
-f_int2 INTEGER,
+CREATE TABLE t1 (  f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000) )
 PARTITION BY RANGE(f_int1) SUBPARTITION BY HASH(f_int1) (PARTITION part1 VALUES LESS THAN (10), PARTITION part2 VALUES LESS THAN (20)
 (SUBPARTITION subpart21 , SUBPARTITION subpart22 ), PARTITION part3 VALUES LESS THAN (2147483646)) ;
 ERROR 42000: Wrong number of subpartitions defined, mismatch with previous setting near 'SUBPARTITION subpart21 , SUBPARTITION subpart22 ), PARTITION part3 VALUES LESS T' at line 7
-CREATE TABLE t1 (  f_int1 INTEGER,
-f_int2 INTEGER,
+CREATE TABLE t1 (  f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000) )
@@ -812,16 +812,16 @@ PARTITION BY RANGE(f_int1) SUBPARTITION BY HASH(f_int1) (PARTITION part1 VALUES 
 (SUBPARTITION subpart21 , SUBPARTITION subpart22 ), PARTITION part3 VALUES LESS THAN (2147483646)
 (SUBPARTITION subpart31 , SUBPARTITION subpart32 )) ;
 ERROR 42000: Wrong number of subpartitions defined, mismatch with previous setting near 'SUBPARTITION subpart21 , SUBPARTITION subpart22 ), PARTITION part3 VALUES LESS T' at line 7
-CREATE TABLE t1 (  f_int1 INTEGER,
-f_int2 INTEGER,
+CREATE TABLE t1 (  f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000) )
 PARTITION BY RANGE(f_int1) SUBPARTITION BY HASH(f_int1) (PARTITION part1 VALUES LESS THAN (10)
 (SUBPARTITION subpart11 , SUBPARTITION subpart12 ), PARTITION part2 VALUES LESS THAN (20), PARTITION part3 VALUES LESS THAN (2147483646)) ;
 ERROR 42000: Wrong number of subpartitions defined, mismatch with previous setting near ' PARTITION part3 VALUES LESS THAN (2147483646))' at line 7
-CREATE TABLE t1 (  f_int1 INTEGER,
-f_int2 INTEGER,
+CREATE TABLE t1 (  f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000) )
@@ -830,8 +830,8 @@ PARTITION BY RANGE(f_int1) SUBPARTITION BY HASH(f_int1) (PARTITION part1 VALUES 
 (SUBPARTITION subpart31 , SUBPARTITION subpart32 )) ;
 ERROR 42000: Wrong number of subpartitions defined, mismatch with previous setting near ' PARTITION part3 VALUES LESS THAN (2147483646)
 (SUBPARTITION subpart31 , SUBPART' at line 7
-CREATE TABLE t1 (  f_int1 INTEGER,
-f_int2 INTEGER,
+CREATE TABLE t1 (  f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000) )
@@ -839,8 +839,8 @@ PARTITION BY RANGE(f_int1) SUBPARTITION BY HASH(f_int1) (PARTITION part1 VALUES 
 (SUBPARTITION subpart11 , SUBPARTITION subpart12 ), PARTITION part2 VALUES LESS THAN (20)
 (SUBPARTITION subpart21 , SUBPARTITION subpart22 ), PARTITION part3 VALUES LESS THAN (2147483646)) ;
 ERROR 42000: Wrong number of subpartitions defined, mismatch with previous setting near ')' at line 8
-CREATE TABLE t1 (  f_int1 INTEGER,
-f_int2 INTEGER,
+CREATE TABLE t1 (  f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000) )
@@ -852,8 +852,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -893,8 +893,8 @@ DROP TABLE t1;
 DROP TABLE IF EXISTS t1;
 # 4.2.1 partition/subpartition numbers INTEGER notation
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -904,8 +904,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -923,8 +923,8 @@ t1.par
 
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -937,8 +937,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -963,8 +963,8 @@ t1.par
 
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -974,8 +974,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -991,8 +991,8 @@ t1.par
 
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -1005,8 +1005,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -1027,8 +1027,8 @@ t1.par
 
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -1036,8 +1036,8 @@ f_charbig VARCHAR(1000)
 PARTITION BY HASH(f_int1) PARTITIONS 0;
 ERROR HY000: Number of partitions = 0 is not an allowed value
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -1048,8 +1048,8 @@ SUBPARTITIONS 0
 PARTITION part2 VALUES LESS THAN (2147483646));
 ERROR HY000: Number of subpartitions = 0 is not an allowed value
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -1057,8 +1057,8 @@ f_charbig VARCHAR(1000)
 PARTITION BY HASH(f_int1) PARTITIONS -1;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '-1' at line 8
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -1071,8 +1071,8 @@ ERROR 42000: You have an error in your SQL syntax; check the manual that corresp
 (PARTITION part1 VALUES LESS THAN (10),
 PARTITION part2 VALUES LESS THAN (214' at line 9
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -1080,8 +1080,8 @@ f_charbig VARCHAR(1000)
 PARTITION BY HASH(f_int1) PARTITIONS 1000000;
 ERROR HY000: Too many partitions (including subpartitions) were defined
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -1093,8 +1093,8 @@ PARTITION part2 VALUES LESS THAN (2147483646));
 ERROR HY000: Too many partitions (including subpartitions) were defined
 # 4.2.2 partition/subpartition numbers DECIMAL notation
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -1102,8 +1102,8 @@ f_charbig VARCHAR(1000)
 PARTITION BY HASH(f_int1) PARTITIONS 2.0;
 ERROR 42000: Only integers allowed as number here near '2.0' at line 8
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -1116,8 +1116,8 @@ ERROR 42000: Only integers allowed as number here near '2.0
 (PARTITION part1 VALUES LESS THAN (10),
 PARTITION part2 VALUES LESS THAN (21' at line 9
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -1125,8 +1125,8 @@ f_charbig VARCHAR(1000)
 PARTITION BY HASH(f_int1) PARTITIONS -2.0;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '-2.0' at line 8
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -1139,8 +1139,8 @@ ERROR 42000: You have an error in your SQL syntax; check the manual that corresp
 (PARTITION part1 VALUES LESS THAN (10),
 PARTITION part2 VALUES LESS THAN (2' at line 9
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -1148,8 +1148,8 @@ f_charbig VARCHAR(1000)
 PARTITION BY HASH(f_int1) PARTITIONS 0.0;
 ERROR 42000: Only integers allowed as number here near '0.0' at line 8
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -1162,8 +1162,8 @@ ERROR 42000: Only integers allowed as number here near '0.0
 (PARTITION part1 VALUES LESS THAN (10),
 PARTITION part2 VALUES LESS THAN (21' at line 9
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -1171,8 +1171,8 @@ f_charbig VARCHAR(1000)
 PARTITION BY HASH(f_int1) PARTITIONS 1.6;
 ERROR 42000: Only integers allowed as number here near '1.6' at line 8
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -1185,8 +1185,8 @@ ERROR 42000: Only integers allowed as number here near '1.6
 (PARTITION part1 VALUES LESS THAN (10),
 PARTITION part2 VALUES LESS THAN (21' at line 9
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -1194,8 +1194,8 @@ f_charbig VARCHAR(1000)
 PARTITION BY HASH(f_int1) PARTITIONS 999999999999999999999999999999.999999999999999999999999999999;
 ERROR 42000: Only integers allowed as number here near '999999999999999999999999999999.999999999999999999999999999999' at line 8
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -1207,8 +1207,8 @@ PARTITION part2 VALUES LESS THAN (2147483646));
 ERROR 42000: Only integers allowed as number here near '999999999999999999999999999999.999999999999999999999999999999
 (PARTITION part1 V' at line 9
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -1216,8 +1216,8 @@ f_charbig VARCHAR(1000)
 PARTITION BY HASH(f_int1) PARTITIONS 0.000000000000000000000000000001;
 ERROR 42000: Only integers allowed as number here near '0.000000000000000000000000000001' at line 8
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -1231,8 +1231,8 @@ ERROR 42000: Only integers allowed as number here near '0.0000000000000000000000
 PARTITI' at line 9
 # 4.2.3 partition/subpartition numbers FLOAT notation
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -1240,8 +1240,8 @@ f_charbig VARCHAR(1000)
 PARTITION BY HASH(f_int1) PARTITIONS 2.0E+0;
 ERROR 42000: Only integers allowed as number here near '2.0E+0' at line 8
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -1254,8 +1254,8 @@ ERROR 42000: Only integers allowed as number here near '2.0E+0
 (PARTITION part1 VALUES LESS THAN (10),
 PARTITION part2 VALUES LESS THAN ' at line 9
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -1263,8 +1263,8 @@ f_charbig VARCHAR(1000)
 PARTITION BY HASH(f_int1) PARTITIONS 0.2E+1;
 ERROR 42000: Only integers allowed as number here near '0.2E+1' at line 8
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -1277,8 +1277,8 @@ ERROR 42000: Only integers allowed as number here near '0.2E+1
 (PARTITION part1 VALUES LESS THAN (10),
 PARTITION part2 VALUES LESS THAN ' at line 9
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -1286,8 +1286,8 @@ f_charbig VARCHAR(1000)
 PARTITION BY HASH(f_int1) PARTITIONS -2.0E+0;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '-2.0E+0' at line 8
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -1300,8 +1300,8 @@ ERROR 42000: You have an error in your SQL syntax; check the manual that corresp
 (PARTITION part1 VALUES LESS THAN (10),
 PARTITION part2 VALUES LESS THAN' at line 9
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -1309,8 +1309,8 @@ f_charbig VARCHAR(1000)
 PARTITION BY HASH(f_int1) PARTITIONS 0.16E+1;
 ERROR 42000: Only integers allowed as number here near '0.16E+1' at line 8
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -1323,8 +1323,8 @@ ERROR 42000: Only integers allowed as number here near '0.16E+1
 (PARTITION part1 VALUES LESS THAN (10),
 PARTITION part2 VALUES LESS THAN' at line 9
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -1332,8 +1332,8 @@ f_charbig VARCHAR(1000)
 PARTITION BY HASH(f_int1) PARTITIONS 0.0E+300;
 ERROR 42000: Only integers allowed as number here near '0.0E+300' at line 8
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -1346,8 +1346,8 @@ ERROR 42000: Only integers allowed as number here near '0.0E+300
 (PARTITION part1 VALUES LESS THAN (10),
 PARTITION part2 VALUES LESS THA' at line 9
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -1355,8 +1355,8 @@ f_charbig VARCHAR(1000)
 PARTITION BY HASH(f_int1) PARTITIONS 1E+300;
 ERROR 42000: Only integers allowed as number here near '1E+300' at line 8
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -1369,8 +1369,8 @@ ERROR 42000: Only integers allowed as number here near '1E+300
 (PARTITION part1 VALUES LESS THAN (10),
 PARTITION part2 VALUES LESS THAN ' at line 9
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -1378,8 +1378,8 @@ f_charbig VARCHAR(1000)
 PARTITION BY HASH(f_int1) PARTITIONS 1E-300;
 ERROR 42000: Only integers allowed as number here near '1E-300' at line 8
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -1393,8 +1393,8 @@ ERROR 42000: Only integers allowed as number here near '1E-300
 PARTITION part2 VALUES LESS THAN ' at line 9
 # 4.2.4 partition/subpartition numbers STRING notation
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -1402,8 +1402,8 @@ f_charbig VARCHAR(1000)
 PARTITION BY HASH(f_int1) PARTITIONS '2';
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ''2'' at line 8
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -1416,8 +1416,8 @@ ERROR 42000: You have an error in your SQL syntax; check the manual that corresp
 (PARTITION part1 VALUES LESS THAN (10),
 PARTITION part2 VALUES LESS THAN (21' at line 9
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -1425,8 +1425,8 @@ f_charbig VARCHAR(1000)
 PARTITION BY HASH(f_int1) PARTITIONS '2.0';
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ''2.0'' at line 8
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -1439,8 +1439,8 @@ ERROR 42000: You have an error in your SQL syntax; check the manual that corresp
 (PARTITION part1 VALUES LESS THAN (10),
 PARTITION part2 VALUES LESS THAN (' at line 9
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -1448,8 +1448,8 @@ f_charbig VARCHAR(1000)
 PARTITION BY HASH(f_int1) PARTITIONS '0.2E+1';
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ''0.2E+1'' at line 8
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -1462,8 +1462,8 @@ ERROR 42000: You have an error in your SQL syntax; check the manual that corresp
 (PARTITION part1 VALUES LESS THAN (10),
 PARTITION part2 VALUES LESS THA' at line 9
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -1471,8 +1471,8 @@ f_charbig VARCHAR(1000)
 PARTITION BY HASH(f_int1) PARTITIONS '2A';
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ''2A'' at line 8
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -1485,8 +1485,8 @@ ERROR 42000: You have an error in your SQL syntax; check the manual that corresp
 (PARTITION part1 VALUES LESS THAN (10),
 PARTITION part2 VALUES LESS THAN (2' at line 9
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -1494,8 +1494,8 @@ f_charbig VARCHAR(1000)
 PARTITION BY HASH(f_int1) PARTITIONS 'A2';
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ''A2'' at line 8
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -1508,8 +1508,8 @@ ERROR 42000: You have an error in your SQL syntax; check the manual that corresp
 (PARTITION part1 VALUES LESS THAN (10),
 PARTITION part2 VALUES LESS THAN (2' at line 9
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -1517,8 +1517,8 @@ f_charbig VARCHAR(1000)
 PARTITION BY HASH(f_int1) PARTITIONS '';
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '''' at line 8
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -1531,8 +1531,8 @@ ERROR 42000: You have an error in your SQL syntax; check the manual that corresp
 (PARTITION part1 VALUES LESS THAN (10),
 PARTITION part2 VALUES LESS THAN (214' at line 9
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -1540,8 +1540,8 @@ f_charbig VARCHAR(1000)
 PARTITION BY HASH(f_int1) PARTITIONS 'GARBAGE';
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ''GARBAGE'' at line 8
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -1555,8 +1555,8 @@ ERROR 42000: You have an error in your SQL syntax; check the manual that corresp
 PARTITION part2 VALUES LESS TH' at line 9
 # 4.2.5 partition/subpartition numbers other notations
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -1564,8 +1564,8 @@ f_charbig VARCHAR(1000)
 PARTITION BY HASH(f_int1) PARTITIONS 2A;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '2A' at line 8
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -1578,8 +1578,8 @@ ERROR 42000: You have an error in your SQL syntax; check the manual that corresp
 (PARTITION part1 VALUES LESS THAN (10),
 PARTITION part2 VALUES LESS THAN (214' at line 9
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -1587,8 +1587,8 @@ f_charbig VARCHAR(1000)
 PARTITION BY HASH(f_int1) PARTITIONS A2;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'A2' at line 8
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -1601,8 +1601,8 @@ ERROR 42000: You have an error in your SQL syntax; check the manual that corresp
 (PARTITION part1 VALUES LESS THAN (10),
 PARTITION part2 VALUES LESS THAN (214' at line 9
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -1610,8 +1610,8 @@ f_charbig VARCHAR(1000)
 PARTITION BY HASH(f_int1) PARTITIONS GARBAGE;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'GARBAGE' at line 8
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -1624,8 +1624,8 @@ ERROR 42000: You have an error in your SQL syntax; check the manual that corresp
 (PARTITION part1 VALUES LESS THAN (10),
 PARTITION part2 VALUES LESS THAN' at line 9
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -1633,8 +1633,8 @@ f_charbig VARCHAR(1000)
 PARTITION BY HASH(f_int1) PARTITIONS "2";
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '"2"' at line 8
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -1647,8 +1647,8 @@ ERROR 42000: You have an error in your SQL syntax; check the manual that corresp
 (PARTITION part1 VALUES LESS THAN (10),
 PARTITION part2 VALUES LESS THAN (21' at line 9
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -1656,8 +1656,8 @@ f_charbig VARCHAR(1000)
 PARTITION BY HASH(f_int1) PARTITIONS "2A";
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '"2A"' at line 8
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -1670,8 +1670,8 @@ ERROR 42000: You have an error in your SQL syntax; check the manual that corresp
 (PARTITION part1 VALUES LESS THAN (10),
 PARTITION part2 VALUES LESS THAN (2' at line 9
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -1679,8 +1679,8 @@ f_charbig VARCHAR(1000)
 PARTITION BY HASH(f_int1) PARTITIONS "A2";
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '"A2"' at line 8
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -1693,8 +1693,8 @@ ERROR 42000: You have an error in your SQL syntax; check the manual that corresp
 (PARTITION part1 VALUES LESS THAN (10),
 PARTITION part2 VALUES LESS THAN (2' at line 9
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -1702,8 +1702,8 @@ f_charbig VARCHAR(1000)
 PARTITION BY HASH(f_int1) PARTITIONS "GARBAGE";
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '"GARBAGE"' at line 8
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -1718,8 +1718,8 @@ PARTITION part2 VALUES LESS TH' at line 9
 # 4.2.6 (negative) partition/subpartition numbers per @variables
 SET @aux = 5;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -1727,8 +1727,8 @@ f_charbig VARCHAR(1000)
 PARTITION BY HASH(f_int1) PARTITIONS @aux;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '@aux' at line 8
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -1746,8 +1746,8 @@ PARTITION part2 VALUES LESS THA' at line 9
 # 4.3.1 (positive) number of partition/subpartition
 #                         = number of named partition/subpartition
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -1757,8 +1757,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -1777,8 +1777,8 @@ t1.par
 
 DROP TABLE t1;
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -1794,8 +1794,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT NULL,
-  `f_int2` int(11) DEFAULT NULL,
+  `f_int1` int(11) DEFAULT '0',
+  `f_int2` int(11) DEFAULT '0',
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -1828,8 +1828,8 @@ DROP TABLE t1;
 # 4.3.3 (negative) number of partitions/subpartitions
 #                         > number of named partitions/subpartitions
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -1837,8 +1837,8 @@ f_charbig VARCHAR(1000)
 PARTITION BY HASH(f_int1) PARTITIONS 2 ( PARTITION part1 ) ;
 ERROR 42000: Wrong number of partitions defined, mismatch with previous setting near ')' at line 8
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -1854,8 +1854,8 @@ ERROR 42000: Wrong number of subpartitions defined, mismatch with previous setti
 PARTITION part2 VALUES LESS THAN (2147483646)
 (SUBPARTITION subpart21, SUBPAR' at line 11
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -1873,8 +1873,8 @@ ERROR 42000: Wrong number of subpartitions defined, mismatch with previous setti
 PARTITION part3 VALUES LESS THAN (2147483646)
 (SUBPARTITION subpart31, SUBPAR' at line 13
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -1890,8 +1890,8 @@ ERROR 42000: Wrong number of subpartitions defined, mismatch with previous setti
 )' at line 13
 # 4.3.4 (negative) number of partitions < number of named partitions
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -1899,8 +1899,8 @@ f_charbig VARCHAR(1000)
 PARTITION BY HASH(f_int1) PARTITIONS 1 ( PARTITION part1, PARTITION part2 ) ;
 ERROR 42000: Wrong number of partitions defined, mismatch with previous setting near ')' at line 8
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -1916,8 +1916,8 @@ ERROR 42000: Wrong number of subpartitions defined, mismatch with previous setti
 PARTITION part2 VALUES LESS THAN (2147483646)
 (SUBPARTITION subpart21, SUBPAR' at line 11
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -1935,8 +1935,8 @@ ERROR 42000: Wrong number of subpartitions defined, mismatch with previous setti
 PARTITION part2 VALUES LESS THAN (2000)
 (SUBPARTITION subpart21              ' at line 11
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -1962,8 +1962,8 @@ DROP TABLE IF EXISTS t1;
 #------------------------------------------------------------------------
 #  5.1.1 duplicate partition name
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)
@@ -1972,8 +1972,8 @@ PARTITION BY HASH(f_int1) (PARTITION part1, PARTITION part1);
 ERROR HY000: Duplicate partition name part1
 #  5.1.2 duplicate subpartition name
 CREATE TABLE t1 (
-f_int1 INTEGER,
-f_int2 INTEGER,
+f_int1 INTEGER DEFAULT 0,
+f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000)

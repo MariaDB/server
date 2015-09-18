@@ -84,7 +84,7 @@ CREATE TABLE t3 (a INT, KEY (a), FOREIGN KEY(a) REFERENCES db1.t2(b))
   engine=innodb;
 RESET MASTER;
 
---error ER_ROW_IS_REFERENCED
+--error ER_ROW_IS_REFERENCED_2
 DROP DATABASE db1;                      # Fails because of the fk
 SHOW TABLES FROM db1;                   # t1 was dropped, t2 remains
 --source include/show_binlog_events.inc # Check that the binlog drops t1

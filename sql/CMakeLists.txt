@@ -28,6 +28,7 @@ IF(WITH_WSREP AND NOT EMBEDDED_LIBRARY)
     wsrep_binlog.cc
     wsrep_applier.cc
     wsrep_thd.cc
+    wsrep_xid.cc
   )
   SET(WSREP_LIB wsrep)
 ELSE()
@@ -82,7 +83,7 @@ SET (SQL_SOURCE
                filesort_utils.cc
                filesort.cc gstream.cc sha2.cc
                signal_handler.cc
-               handler.cc hash_filo.h sql_plugin_services.h
+               handler.cc hash_filo.h
                hostname.cc init.cc item.cc item_buff.cc item_cmpfunc.cc 
                item_create.cc item_func.cc item_geofunc.cc item_row.cc 
                item_strfunc.cc item_subselect.cc item_sum.cc item_timefunc.cc 

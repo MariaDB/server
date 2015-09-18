@@ -1,5 +1,5 @@
 /* -*- c-basic-offset: 2 -*- */
-/* Copyright(C) 2011-2014 Brazil
+/* Copyright(C) 2011-2015 Brazil
 
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -78,6 +78,8 @@ GRN_API grn_rc grn_dat_clear_status_flags(grn_ctx *ctx, grn_dat *dat);
   with a file.
  */
 GRN_API grn_rc grn_dat_repair(grn_ctx *ctx, grn_dat *dat);
+
+GRN_API grn_rc grn_dat_flush(grn_ctx *ctx, grn_dat *dat);
 
 #ifdef __cplusplus
 }

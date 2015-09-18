@@ -2283,7 +2283,7 @@ bool ha_cassandra::mrr_start_read()
     rowkey_converter->mariadb_to_cassandra(&cass_key, &cass_key_len);
 
     // Primitive buffer control
-    if (se->add_lookup_key(cass_key, cass_key_len) >
+    if ((ulong) se->add_lookup_key(cass_key, cass_key_len) >
         THDVAR(table->in_use, multiget_batch_size))
       break;
   }

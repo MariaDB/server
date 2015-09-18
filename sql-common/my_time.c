@@ -1314,16 +1314,8 @@ int number_to_time(my_bool neg, ulonglong nr, ulong sec_part,
                    MYSQL_TIME *ltime, int *was_cut)
 {
   if (nr > 9999999 && nr < 99991231235959ULL && neg == 0)
-  {
-    if (number_to_datetime(nr, sec_part, ltime,
-                           TIME_INVALID_DATES, was_cut) < 0)
-      return -1;
-
-    ltime->year= ltime->month= ltime->day= 0;
-    ltime->time_type= MYSQL_TIMESTAMP_TIME;
-    *was_cut= MYSQL_TIME_NOTE_TRUNCATED;
-    return 0;
-  }
+    return number_to_datetime(nr, sec_part, ltime,
+                              TIME_INVALID_DATES, was_cut) < 0 ? -1 : 0;
 
   *was_cut= 0;
   ltime->year= ltime->month= ltime->day= 0;

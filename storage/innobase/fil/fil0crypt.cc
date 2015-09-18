@@ -222,6 +222,7 @@ fil_space_create_crypt_data(
 	my_random_bytes(crypt_data->iv, sizeof(crypt_data->iv));
 	crypt_data->encryption = encrypt_mode;
 	crypt_data->key_id = key_id;
+	crypt_data->inited = true;
 	return crypt_data;
 }
 
@@ -243,13 +244,11 @@ fil_space_merge_crypt_data(
 	ut_a(dst->type == CRYPT_SCHEME_UNENCRYPTED ||
 	     dst->type == CRYPT_SCHEME_1);
 
-	/* no support for changing iv (yet?) */
-	ut_a(memcmp(src->iv, dst->iv, sizeof(src->iv)) == 0);
-
 	dst->encryption = src->encryption;
 	dst->type = src->type;
 	dst->min_key_version = src->min_key_version;
 	dst->keyserver_requests += src->keyserver_requests;
+	dst->inited = src->inited;
 
 	mutex_exit(&dst->mutex);
 }
@@ -271,6 +270,7 @@ fil_space_read_crypt_data(
 	}
 
 	if (memcmp(page + offset, CRYPT_MAGIC, MAGIC_SZ) != 0) {
+#ifdef UNIV_DEBUG
 		ib_logf(IB_LOG_LEVEL_WARN,
 			"Found potentially bogus bytes on "
 			"page 0 offset %lu for space %lu : "
@@ -283,7 +283,8 @@ fil_space_read_crypt_data(
 			page[offset + 3],
 			page[offset + 4],
 			page[offset + 5]);
-		/* Create data is not stored. */
+#endif
+		/* Crypt data is not stored. */
 		return NULL;
 	}
 
@@ -345,6 +346,7 @@ fil_space_read_crypt_data(
 	mutex_create(fil_crypt_data_mutex_key,
 		     &crypt_data->mutex, SYNC_NO_ORDER_CHECK);
 	crypt_data->locker = crypt_data_scheme_locker;
+	crypt_data->inited = true;
 	memcpy(crypt_data->iv, page + offset + MAGIC_SZ + 2, iv_length);
 
 	return crypt_data;
@@ -359,7 +361,14 @@ fil_space_destroy_crypt_data(
 	fil_space_crypt_t **crypt_data)	/*!< out: crypt data */
 {
 	if (crypt_data != NULL && (*crypt_data) != NULL) {
+		/* Make sure that this thread owns the crypt_data
+		and make it unawailable, this does not fully
+		avoid the race between drop table and crypt thread */
+		mutex_enter(&(*crypt_data)->mutex);
+		(*crypt_data)->inited = false;
+		mutex_exit(&(*crypt_data)->mutex);
 		mutex_free(& (*crypt_data)->mutex);
+		memset(*crypt_data, 0, sizeof(fil_space_crypt_t));
 		free(*crypt_data);
 		(*crypt_data) = NULL;
 	}
@@ -543,46 +552,22 @@ fil_space_clear_crypt_data(
 }
 
 /******************************************************************
-Encrypt a page */
+Encrypt a buffer */
 UNIV_INTERN
-void
-fil_space_encrypt(
-/*==============*/
+byte*
+fil_encrypt_buf(
+/*============*/
+	fil_space_crypt_t* crypt_data,	/*!< in: crypt data */
 	ulint		space,		/*!< in: Space id */
 	ulint		offset,		/*!< in: Page offset */
 	lsn_t		lsn,		/*!< in: lsn */
-	const byte*	src_frame,	/*!< in: Source page to be encrypted */
+	byte*		src_frame,	/*!< in: Source page to be encrypted */
 	ulint		zip_size,	/*!< in: compressed size if
-					row_format compressed */
+					row format compressed */
 	byte*		dst_frame)	/*!< in: outbut buffer */
 {
-	fil_space_crypt_t* crypt_data = NULL;
 	ulint page_size = (zip_size) ? zip_size : UNIV_PAGE_SIZE;
-	uint key_version;
-
-	ulint orig_page_type = mach_read_from_2(src_frame+FIL_PAGE_TYPE);
-
-	if (orig_page_type==FIL_PAGE_TYPE_FSP_HDR
-		|| orig_page_type==FIL_PAGE_TYPE_XDES) {
-		/* File space header or extent descriptor do not need to be
-		encrypted. */
-		//TODO: is this really needed ?
-		memcpy(dst_frame, src_frame, page_size);
-		return;
-	}
-
-	/* Get crypt data from file space */
-	crypt_data = fil_space_get_crypt_data(space);
-
-	if (crypt_data == NULL) {
-		//TODO: Is this really needed ?
-		memcpy(dst_frame, src_frame, page_size);
-		return;
-	}
-
-	ut_ad(crypt_data->encryption != FIL_SPACE_ENCRYPTION_OFF);
-
-	key_version = fil_crypt_get_latest_key_version(crypt_data);
+	uint key_version = fil_crypt_get_latest_key_version(crypt_data);
 
 	if (key_version == ENCRYPTION_KEY_VERSION_INVALID) {
 		ib_logf(IB_LOG_LEVEL_FATAL,
@@ -591,20 +576,30 @@ fil_space_encrypt(
 		ut_error;
 	}
 
+	ulint orig_page_type = mach_read_from_2(src_frame+FIL_PAGE_TYPE);
 	ibool page_compressed = (orig_page_type == FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED);
+	ulint header_len = FIL_PAGE_DATA;
+
+	if (page_compressed) {
+		header_len += (FIL_PAGE_COMPRESSED_SIZE + FIL_PAGE_COMPRESSION_METHOD_SIZE);
+	}
 
 	/* FIL page header is not encrypted */
-	memcpy(dst_frame, src_frame, FIL_PAGE_DATA);
+	memcpy(dst_frame, src_frame, header_len);
 
 	/* Store key version */
 	mach_write_to_4(dst_frame + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION, key_version);
 
 	/* Calculate the start offset in a page */
-	ulint unencrypted_bytes = FIL_PAGE_DATA + FIL_PAGE_DATA_END;
+	ulint unencrypted_bytes = header_len + FIL_PAGE_DATA_END;
 	ulint srclen = page_size - unencrypted_bytes;
-	const byte* src = src_frame + FIL_PAGE_DATA;
-	byte* dst = dst_frame + FIL_PAGE_DATA;
+	const byte* src = src_frame + header_len;
+	byte* dst = dst_frame + header_len;
 	uint32 dstlen = 0;
+
+	if (page_compressed) {
+		srclen = mach_read_from_2(src_frame + FIL_PAGE_DATA);
+	}
 
 	int rc = encryption_scheme_encrypt(src, srclen, dst, &dstlen,
 					   crypt_data, key_version,
@@ -633,36 +628,54 @@ fil_space_encrypt(
 
 	/* handle post encryption checksum */
 	ib_uint32_t checksum = 0;
-	srv_checksum_algorithm_t algorithm =
-			static_cast<srv_checksum_algorithm_t>(srv_checksum_algorithm);
 
-	if (zip_size == 0) {
-		switch (algorithm) {
-		case SRV_CHECKSUM_ALGORITHM_CRC32:
-		case SRV_CHECKSUM_ALGORITHM_STRICT_CRC32:
-			checksum = buf_calc_page_crc32(dst_frame);
-			break;
-		case SRV_CHECKSUM_ALGORITHM_INNODB:
-		case SRV_CHECKSUM_ALGORITHM_STRICT_INNODB:
-			checksum = (ib_uint32_t) buf_calc_page_new_checksum(
-				dst_frame);
-			break;
-		case SRV_CHECKSUM_ALGORITHM_NONE:
-		case SRV_CHECKSUM_ALGORITHM_STRICT_NONE:
-			checksum = BUF_NO_CHECKSUM_MAGIC;
-			break;
-			/* no default so the compiler will emit a warning
-			* if new enum is added and not handled here */
-		}
-	} else {
-		checksum = page_zip_calc_checksum(dst_frame, zip_size,
-				                          algorithm);
-	}
+	checksum = fil_crypt_calculate_checksum(zip_size, dst_frame);
 
 	// store the post-encryption checksum after the key-version
 	mach_write_to_4(dst_frame + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION + 4, checksum);
 
 	srv_stats.pages_encrypted.inc();
+
+	return dst_frame;
+}
+
+/******************************************************************
+Encrypt a page */
+UNIV_INTERN
+byte*
+fil_space_encrypt(
+/*==============*/
+	ulint		space,		/*!< in: Space id */
+	ulint		offset,		/*!< in: Page offset */
+	lsn_t		lsn,		/*!< in: lsn */
+	byte*		src_frame,	/*!< in: Source page to be encrypted */
+	ulint		zip_size,	/*!< in: compressed size if
+					row_format compressed */
+	byte*		dst_frame)	/*!< in: outbut buffer */
+{
+	fil_space_crypt_t* crypt_data = NULL;
+
+	ulint orig_page_type = mach_read_from_2(src_frame+FIL_PAGE_TYPE);
+
+	if (orig_page_type==FIL_PAGE_TYPE_FSP_HDR
+		|| orig_page_type==FIL_PAGE_TYPE_XDES) {
+		/* File space header or extent descriptor do not need to be
+		encrypted. */
+		return src_frame;
+	}
+
+	/* Get crypt data from file space */
+	crypt_data = fil_space_get_crypt_data(space);
+
+	if (crypt_data == NULL) {
+		return src_frame;
+	}
+
+	ut_ad(crypt_data->encryption != FIL_SPACE_ENCRYPTION_OFF);
+
+	byte* tmp = fil_encrypt_buf(crypt_data, space, offset, lsn, src_frame, zip_size, dst_frame);
+
+	return tmp;
 }
 
 /*********************************************************************
@@ -693,24 +706,26 @@ fil_space_check_encryption_read(
 
 /******************************************************************
 Decrypt a page
-@return true if page was encrypted */
+@return true if page decrypted, false if not.*/
 UNIV_INTERN
 bool
 fil_space_decrypt(
 /*==============*/
 	fil_space_crypt_t*	crypt_data,	/*!< in: crypt data */
-	const byte*		src_frame,	/*!< in: input buffer */
+	byte*			tmp_frame,	/*!< in: temporary buffer */
 	ulint			page_size,	/*!< in: page size */
-	byte*			dst_frame)	/*!< out: output buffer */
+	byte*			src_frame,	/*!< in: out: page buffer */
+	dberr_t*		err)		/*!< in: out: DB_SUCCESS or
+						error code */
 {
 	ulint page_type = mach_read_from_2(src_frame+FIL_PAGE_TYPE);
 	uint key_version = mach_read_from_4(src_frame + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION);
 	bool page_compressed = (page_type == FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED);
 
+	*err = DB_SUCCESS;
+
 	if (key_version == ENCRYPTION_KEY_NOT_ENCRYPTED) {
-		//TODO: is this really needed ?
-		memcpy(dst_frame, src_frame, page_size);
-		return false; /* page not decrypted */
+		return false;
 	}
 
 	ut_ad(crypt_data->encryption != FIL_SPACE_ENCRYPTION_OFF);
@@ -721,21 +736,36 @@ fil_space_decrypt(
 	ulint offset = mach_read_from_4(
 		src_frame + FIL_PAGE_OFFSET);
 	ib_uint64_t lsn = mach_read_from_8(src_frame + FIL_PAGE_LSN);
+	ulint header_len = FIL_PAGE_DATA;
+
+	if (page_compressed) {
+		header_len += (FIL_PAGE_COMPRESSED_SIZE + FIL_PAGE_COMPRESSION_METHOD_SIZE);
+	}
 
 	/* Copy FIL page header, it is not encrypted */
-	memcpy(dst_frame, src_frame, FIL_PAGE_DATA);
+	memcpy(tmp_frame, src_frame, header_len);
 
 	/* Calculate the offset where decryption starts */
-	const byte* src = src_frame + FIL_PAGE_DATA;
-	byte* dst = dst_frame + FIL_PAGE_DATA;
+	const byte* src = src_frame + header_len;
+	byte* dst = tmp_frame + header_len;
 	uint32 dstlen = 0;
-	ulint srclen = page_size - (FIL_PAGE_DATA + FIL_PAGE_DATA_END);
+	ulint srclen = page_size - (header_len + FIL_PAGE_DATA_END);
+
+	if (page_compressed) {
+		srclen = mach_read_from_2(src_frame + FIL_PAGE_DATA);
+	}
 
 	int rc = encryption_scheme_decrypt(src, srclen, dst, &dstlen,
 					   crypt_data, key_version,
 					   space, offset, lsn);
 
 	if (! ((rc == MY_AES_OK) && ((ulint) dstlen == srclen))) {
+
+		if (rc == -1) {
+			*err = DB_DECRYPTION_FAILED;
+			return false;
+		}
+
 		ib_logf(IB_LOG_LEVEL_FATAL,
 			"Unable to decrypt data-block "
 			" src: %p srclen: %ld buf: %p buflen: %d."
@@ -751,12 +781,12 @@ fil_space_decrypt(
 	to sector boundary is written. */
 	if (!page_compressed) {
 		/* Copy FIL trailer */
-		memcpy(dst_frame + page_size - FIL_PAGE_DATA_END,
+		memcpy(tmp_frame + page_size - FIL_PAGE_DATA_END,
 		       src_frame + page_size - FIL_PAGE_DATA_END,
 		       FIL_PAGE_DATA_END);
 
 		// clear key-version & crypt-checksum from dst
-		memset(dst_frame + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION, 0, 8);
+		memset(tmp_frame + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION, 0, 8);
 	}
 
 	srv_stats.pages_decrypted.inc();
@@ -765,18 +795,75 @@ fil_space_decrypt(
 }
 
 /******************************************************************
-Decrypt a page */
+Decrypt a page
+@return encrypted page, or original not encrypted page if encryption is
+not needed. */
 UNIV_INTERN
-void
+byte*
 fil_space_decrypt(
 /*==============*/
 	ulint		space,		/*!< in: Fil space id */
-	const byte*	src_frame,	/*!< in: input buffer */
+	byte*		tmp_frame,	/*!< in: temporary buffer */
 	ulint		page_size,	/*!< in: page size */
-	byte*		dst_frame)	/*!< out: output buffer */
+	byte*		src_frame)	/*!< in/out: page buffer */
 {
-	fil_space_decrypt(fil_space_get_crypt_data(space),
-			  src_frame, page_size, dst_frame);
+	dberr_t err = DB_SUCCESS;
+
+	bool encrypted = fil_space_decrypt(
+				fil_space_get_crypt_data(space),
+				tmp_frame,
+				page_size,
+				src_frame,
+				&err);
+
+	if (encrypted) {
+		/* Copy the decrypted page back to page buffer, not
+		really any other options. */
+		memcpy(src_frame, tmp_frame, page_size);
+	}
+
+	return src_frame;
+}
+
+/******************************************************************
+Calculate post encryption checksum
+@return page checksum or BUF_NO_CHECKSUM_MAGIC
+not needed. */
+UNIV_INTERN
+ulint
+fil_crypt_calculate_checksum(
+/*=========================*/
+	ulint	zip_size,	/*!< in: zip_size or 0 */
+	byte*	dst_frame)	/*!< in: page where to calculate */
+{
+	ib_uint32_t checksum = 0;
+	srv_checksum_algorithm_t algorithm =
+			static_cast<srv_checksum_algorithm_t>(srv_checksum_algorithm);
+
+	if (zip_size == 0) {
+		switch (algorithm) {
+		case SRV_CHECKSUM_ALGORITHM_CRC32:
+		case SRV_CHECKSUM_ALGORITHM_STRICT_CRC32:
+			checksum = buf_calc_page_crc32(dst_frame);
+			break;
+		case SRV_CHECKSUM_ALGORITHM_INNODB:
+		case SRV_CHECKSUM_ALGORITHM_STRICT_INNODB:
+			checksum = (ib_uint32_t) buf_calc_page_new_checksum(
+				dst_frame);
+			break;
+		case SRV_CHECKSUM_ALGORITHM_NONE:
+		case SRV_CHECKSUM_ALGORITHM_STRICT_NONE:
+			checksum = BUF_NO_CHECKSUM_MAGIC;
+			break;
+			/* no default so the compiler will emit a warning
+			* if new enum is added and not handled here */
+		}
+	} else {
+		checksum = page_zip_calc_checksum(dst_frame, zip_size,
+				                          algorithm);
+	}
+
+	return checksum;
 }
 
 /*********************************************************************
@@ -1018,7 +1105,7 @@ fil_crypt_start_encrypting_space(
 	do
 	{
 		if (fil_crypt_is_closing(space) ||
-			fil_space_found_by_id(space)) {
+			fil_space_found_by_id(space) == NULL) {
 			break;
 		}
 
@@ -2016,7 +2103,7 @@ fil_crypt_complete_rotate_space(
 	fil_space_crypt_t *crypt_data = fil_space_get_crypt_data(space);
 
 	/* Space might already be dropped */
-	if (crypt_data) {
+	if (crypt_data != NULL && crypt_data->inited) {
 		mutex_enter(&crypt_data->mutex);
 
 		/**
@@ -2208,7 +2295,7 @@ fil_crypt_set_thread_cnt(
 			os_thread_id_t rotation_thread_id;
 			os_thread_create(fil_crypt_thread, NULL, &rotation_thread_id);
 			ib_logf(IB_LOG_LEVEL_INFO,
-				"Creating #%d thread id %lu total threads %u\n",
+				"Creating #%d thread id %lu total threads %u.",
 				i+1, os_thread_pf(rotation_thread_id), new_cnt);
 		}
 	} else if (new_cnt < srv_n_fil_crypt_threads) {
@@ -2269,11 +2356,11 @@ fil_crypt_threads_init()
 	fil_crypt_threads_event = os_event_create();
 	mutex_create(fil_crypt_threads_mutex_key,
 		     &fil_crypt_threads_mutex, SYNC_NO_ORDER_CHECK);
-	fil_crypt_threads_inited = true;
 
 	uint cnt = srv_n_fil_crypt_threads;
 	srv_n_fil_crypt_threads = 0;
 	fil_crypt_set_thread_cnt(cnt);
+	fil_crypt_threads_inited = true;
 }
 
 /*********************************************************************
@@ -2341,7 +2428,7 @@ fil_space_crypt_close_tablespace(
 
 	fil_space_crypt_t* crypt_data = fil_space_get_crypt_data(space);
 
-	if (crypt_data == NULL) {
+	if (crypt_data == NULL || !crypt_data->inited) {
 		mutex_exit(&fil_crypt_threads_mutex);
 		return;
 	}

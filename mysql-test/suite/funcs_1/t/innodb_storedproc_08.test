@@ -4,6 +4,7 @@
 --source include/have_innodb.inc
 
 # 2. Set $engine_type
+set sql_mode="";
 let $engine_type= innodb;
 
 --source suite/funcs_1/storedproc/storedproc_08.inc

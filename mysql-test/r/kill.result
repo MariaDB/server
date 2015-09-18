@@ -1,3 +1,5 @@
+set local sql_mode="";
+set global sql_mode="";
 SET DEBUG_SYNC = 'RESET';
 DROP TABLE IF EXISTS t1, t2, t3;
 DROP FUNCTION IF EXISTS MY_KILL;
@@ -308,5 +310,18 @@ SLEEP(1000)
 1
 KILL QUERY ID 0;
 ERROR HY000: Unknown query id: 0
+#
+# MDEV-5096 - Wrong error message on attempt to kill somebody else's
+#             query ID
+#
+CREATE USER u1@localhost;
+SELECT SLEEP(1000);
+KILL QUERY ID ID;
+ERROR HY000: You are not owner of query ID
+KILL QUERY ID @id;
+SLEEP(1000)
+1
+DROP USER u1@localhost;
 SET DEBUG_SYNC = 'RESET';
 DROP FUNCTION MY_KILL;
+set global sql_mode=default;

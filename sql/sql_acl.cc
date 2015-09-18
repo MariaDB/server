@@ -1219,7 +1219,7 @@ static bool acl_load(THD *thd, TABLE_LIST *tables)
         char *end = strnmov(tmp_name, host.db, sizeof(tmp_name));
         if (end >= tmp_name + sizeof(tmp_name))
         {
-          sql_print_warning(ER(ER_WRONG_DB_NAME), host.db);
+          sql_print_warning(ER_THD(thd, ER_WRONG_DB_NAME), host.db);
           continue;
         }
         my_casedn_str(files_charset_info, host.db);
@@ -1556,7 +1556,7 @@ static bool acl_load(THD *thd, TABLE_LIST *tables)
       char *end = strnmov(tmp_name, db.db, sizeof(tmp_name));
       if (end >= tmp_name + sizeof(tmp_name))
       {
-        sql_print_warning(ER(ER_WRONG_DB_NAME), db.db);
+        sql_print_warning(ER_THD(thd, ER_WRONG_DB_NAME), db.db);
         continue;
       }
       my_casedn_str(files_charset_info, db.db);
@@ -2695,7 +2695,8 @@ static int check_alter_user(THD *thd, const char *host, const char *user)
   if (IF_WSREP((!WSREP(thd) || !thd->wsrep_applier), 1) &&
       !thd->slave_thread && !thd->security_ctx->priv_user[0])
   {
-    my_message(ER_PASSWORD_ANONYMOUS_USER, ER(ER_PASSWORD_ANONYMOUS_USER),
+    my_message(ER_PASSWORD_ANONYMOUS_USER,
+               ER_THD(thd, ER_PASSWORD_ANONYMOUS_USER),
                MYF(0));
     goto end;
   }
@@ -2801,7 +2802,8 @@ bool change_password(THD *thd, LEX_USER *user)
   if (!(acl_user= find_user_exact(user->host.str, user->user.str)))
   {
     mysql_mutex_unlock(&acl_cache->lock);
-    my_message(ER_PASSWORD_NO_MATCH, ER(ER_PASSWORD_NO_MATCH), MYF(0));
+    my_message(ER_PASSWORD_NO_MATCH,
+               ER_THD(thd, ER_PASSWORD_NO_MATCH), MYF(0));
     goto end;
   }
 
@@ -2816,7 +2818,8 @@ bool change_password(THD *thd, LEX_USER *user)
   }
   else
     push_warning(thd, Sql_condition::WARN_LEVEL_NOTE,
-                 ER_SET_PASSWORD_AUTH_PLUGIN, ER(ER_SET_PASSWORD_AUTH_PLUGIN));
+                 ER_SET_PASSWORD_AUTH_PLUGIN,
+                 ER_THD(thd, ER_SET_PASSWORD_AUTH_PLUGIN));
 
   if (update_user_table(thd, tables[USER_TABLE].table,
                         safe_str(acl_user->host.hostname),
@@ -2925,7 +2928,8 @@ int acl_set_default_role(THD *thd, const char *host, const char *user,
   if (!(acl_user= find_user_exact(host, user)))
   {
     mysql_mutex_unlock(&acl_cache->lock);
-    my_message(ER_PASSWORD_NO_MATCH, ER(ER_PASSWORD_NO_MATCH), MYF(0));
+    my_message(ER_PASSWORD_NO_MATCH, ER_THD(thd, ER_PASSWORD_NO_MATCH),
+               MYF(0));
     goto end;
   }
 
@@ -2961,7 +2965,8 @@ int acl_set_default_role(THD *thd, const char *host, const char *user,
                                          HA_READ_KEY_EXACT))
   {
     mysql_mutex_unlock(&acl_cache->lock);
-    my_message(ER_PASSWORD_NO_MATCH, ER(ER_PASSWORD_NO_MATCH), MYF(0));
+    my_message(ER_PASSWORD_NO_MATCH, ER_THD(thd, ER_PASSWORD_NO_MATCH),
+               MYF(0));
     goto end;
   }
   store_record(table, record[1]);
@@ -3291,7 +3296,7 @@ static bool update_user_table(THD *thd, TABLE *table,
                                          (uchar *) user_key, HA_WHOLE_KEY,
                                          HA_READ_KEY_EXACT))
   {
-    my_message(ER_PASSWORD_NO_MATCH, ER(ER_PASSWORD_NO_MATCH),
+    my_message(ER_PASSWORD_NO_MATCH, ER_THD(thd, ER_PASSWORD_NO_MATCH),
                MYF(0));	/* purecov: deadcode */
     DBUG_RETURN(1);				/* purecov: deadcode */
   }
@@ -3652,7 +3657,8 @@ static int replace_db_table(TABLE *table, const char *db,
     /* The user could be a role, check if the user is registered as a role */
     if (!combo.host.length && !find_acl_role(combo.user.str))
     {
-      my_message(ER_PASSWORD_NO_MATCH, ER(ER_PASSWORD_NO_MATCH), MYF(0));
+      my_message(ER_PASSWORD_NO_MATCH, ER_THD(table->in_use,
+                                              ER_PASSWORD_NO_MATCH), MYF(0));
       DBUG_RETURN(-1);
     }
   }
@@ -3919,7 +3925,8 @@ replace_proxies_priv_table(THD *thd, TABLE *table, const LEX_USER *user,
   /* Check if there is such a user in user table in memory? */
   if (!find_user_wild(user->host.str,user->user.str))
   {
-    my_message(ER_PASSWORD_NO_MATCH, ER(ER_PASSWORD_NO_MATCH), MYF(0));
+    my_message(ER_PASSWORD_NO_MATCH,
+               ER_THD(thd, ER_PASSWORD_NO_MATCH), MYF(0));
     DBUG_RETURN(-1);
   }
 
@@ -4584,7 +4591,7 @@ static int replace_table_table(THD *thd, GRANT_TABLE *grant_table,
   {
     if (!combo.host.length && !find_acl_role(combo.user.str))
     {
-      my_message(ER_PASSWORD_NO_MATCH, ER(ER_PASSWORD_NO_MATCH),
+      my_message(ER_PASSWORD_NO_MATCH, ER_THD(thd, ER_PASSWORD_NO_MATCH),
                  MYF(0)); /* purecov: deadcode */
       DBUG_RETURN(-1);                            /* purecov: deadcode */
     }
@@ -5744,7 +5751,8 @@ int mysql_table_grant(THD *thd, TABLE_LIST *table_list,
 
   if (rights & ~TABLE_ACLS)
   {
-    my_message(ER_ILLEGAL_GRANT_FOR_TABLE, ER(ER_ILLEGAL_GRANT_FOR_TABLE),
+    my_message(ER_ILLEGAL_GRANT_FOR_TABLE,
+               ER_THD(thd, ER_ILLEGAL_GRANT_FOR_TABLE),
                MYF(0));
     DBUG_RETURN(TRUE);
   }
@@ -5989,7 +5997,8 @@ bool mysql_routine_grant(THD *thd, TABLE_LIST *table_list, bool is_proc,
 
   if (rights & ~PROC_ACLS)
   {
-    my_message(ER_ILLEGAL_GRANT_FOR_TABLE, ER(ER_ILLEGAL_GRANT_FOR_TABLE),
+    my_message(ER_ILLEGAL_GRANT_FOR_TABLE,
+               ER_THD(thd, ER_ILLEGAL_GRANT_FOR_TABLE),
                MYF(0));
     DBUG_RETURN(TRUE);
   }
@@ -7160,7 +7169,7 @@ bool check_column_grant_in_table_ref(THD *thd, TABLE_LIST * table_ref,
         return FALSE;
       }
       table_ref->belong_to_view->allowed_show= FALSE;
-      my_message(ER_VIEW_NO_EXPLAIN, ER(ER_VIEW_NO_EXPLAIN), MYF(0));
+      my_message(ER_VIEW_NO_EXPLAIN, ER_THD(thd, ER_VIEW_NO_EXPLAIN), MYF(0));
       return TRUE;
     }
   }
@@ -7779,7 +7788,7 @@ bool mysql_show_grants(THD *thd, LEX_USER *lex_user)
   }
   DBUG_ASSERT(rolename || username);
 
-  Item_string *field=new Item_string_ascii("", 0);
+  Item_string *field=new (thd->mem_root) Item_string_ascii(thd, "", 0);
   List<Item> field_list;
   field->name=buff;
   field->max_length=1024;
@@ -7787,9 +7796,10 @@ bool mysql_show_grants(THD *thd, LEX_USER *lex_user)
     strxmov(buff,"Grants for ",rolename, NullS);
   else
     strxmov(buff,"Grants for ",username,"@",hostname, NullS);
-  field_list.push_back(field);
+  field_list.push_back(field, thd->mem_root);
   if (protocol->send_result_set_metadata(&field_list,
-                                         Protocol::SEND_NUM_ROWS | Protocol::SEND_EOF))
+                                         Protocol::SEND_NUM_ROWS |
+                                         Protocol::SEND_EOF))
   {
     mysql_mutex_unlock(&acl_cache->lock);
     mysql_rwlock_unlock(&LOCK_grant);
@@ -8565,7 +8575,7 @@ static int handle_roles_mappings_table(TABLE *table, bool drop,
 
   int error;
   int result= 0;
-  THD *thd= current_thd;
+  THD *thd= table->in_use;
   const char *host, *user, *role;
   Field *host_field= table->field[0];
   Field *user_field= table->field[1];
@@ -8658,7 +8668,7 @@ static int handle_roles_mappings_table(TABLE *table, bool drop,
     < 0         Error.
 */
 
-static int handle_grant_table(TABLE_LIST *tables,
+static int handle_grant_table(THD *thd, TABLE_LIST *tables,
                               enum enum_acl_tables table_no, bool drop,
                               LEX_USER *user_from, LEX_USER *user_to)
 {
@@ -8675,7 +8685,6 @@ static int handle_grant_table(TABLE_LIST *tables,
   uchar user_key[MAX_KEY_LENGTH];
   uint key_prefix_length;
   DBUG_ENTER("handle_grant_table");
-  THD *thd= current_thd;
 
   if (table_no == ROLES_MAPPING_TABLE)
   {
@@ -9179,7 +9188,7 @@ static int handle_grant_struct(enum enum_acl_lists struct_no, bool drop,
     < 0         Error.
 */
 
-static int handle_grant_data(TABLE_LIST *tables, bool drop,
+static int handle_grant_data(THD *thd, TABLE_LIST *tables, bool drop,
                              LEX_USER *user_from, LEX_USER *user_to)
 {
   int result= 0;
@@ -9202,7 +9211,8 @@ static int handle_grant_data(TABLE_LIST *tables, bool drop,
   }
 
   /* Handle db table. */
-  if ((found= handle_grant_table(tables, DB_TABLE, drop, user_from, user_to)) < 0)
+  if ((found= handle_grant_table(thd, tables, DB_TABLE, drop, user_from,
+                                 user_to)) < 0)
   {
     /* Handle of table failed, don't touch the in-memory array. */
     result= -1;
@@ -9222,7 +9232,8 @@ static int handle_grant_data(TABLE_LIST *tables, bool drop,
   }
 
   /* Handle stored routines table. */
-  if ((found= handle_grant_table(tables, PROCS_PRIV_TABLE, drop, user_from, user_to)) < 0)
+  if ((found= handle_grant_table(thd, tables, PROCS_PRIV_TABLE, drop,
+                                 user_from, user_to)) < 0)
   {
     /* Handle of table failed, don't touch in-memory array. */
     result= -1;
@@ -9250,7 +9261,8 @@ static int handle_grant_data(TABLE_LIST *tables, bool drop,
   }
 
   /* Handle tables table. */
-  if ((found= handle_grant_table(tables, TABLES_PRIV_TABLE, drop, user_from, user_to)) < 0)
+  if ((found= handle_grant_table(thd, tables, TABLES_PRIV_TABLE, drop,
+                                 user_from, user_to)) < 0)
   {
     /* Handle of table failed, don't touch columns and in-memory array. */
     result= -1;
@@ -9266,7 +9278,8 @@ static int handle_grant_data(TABLE_LIST *tables, bool drop,
     }
 
     /* Handle columns table. */
-    if ((found= handle_grant_table(tables, COLUMNS_PRIV_TABLE, drop, user_from, user_to)) < 0)
+    if ((found= handle_grant_table(thd, tables, COLUMNS_PRIV_TABLE, drop,
+                                   user_from, user_to)) < 0)
     {
       /* Handle of table failed, don't touch the in-memory array. */
       result= -1;
@@ -9285,7 +9298,8 @@ static int handle_grant_data(TABLE_LIST *tables, bool drop,
   /* Handle proxies_priv table. */
   if (tables[PROXIES_PRIV_TABLE].table)
   {
-    if ((found= handle_grant_table(tables, PROXIES_PRIV_TABLE, drop, user_from, user_to)) < 0)
+    if ((found= handle_grant_table(thd, tables, PROXIES_PRIV_TABLE, drop,
+                                   user_from, user_to)) < 0)
     {
       /* Handle of table failed, don't touch the in-memory array. */
       result= -1;
@@ -9304,7 +9318,8 @@ static int handle_grant_data(TABLE_LIST *tables, bool drop,
   /* Handle roles_mapping table. */
   if (tables[ROLES_MAPPING_TABLE].table)
   {
-    if ((found= handle_grant_table(tables, ROLES_MAPPING_TABLE, drop, user_from, user_to)) < 0)
+    if ((found= handle_grant_table(thd, tables, ROLES_MAPPING_TABLE, drop,
+                                   user_from, user_to)) < 0)
     {
       /* Handle of table failed, don't touch the in-memory array. */
       result= -1;
@@ -9321,7 +9336,8 @@ static int handle_grant_data(TABLE_LIST *tables, bool drop,
   }
 
   /* Handle user table. */
-  if ((found= handle_grant_table(tables, USER_TABLE, drop, user_from, user_to)) < 0)
+  if ((found= handle_grant_table(thd, tables, USER_TABLE, drop, user_from,
+                                 user_to)) < 0)
   {
     /* Handle of table failed, don't touch the in-memory array. */
     result= -1;
@@ -9415,12 +9431,12 @@ bool mysql_create_user(THD *thd, List <LEX_USER> &list, bool handle_as_role)
       Search all in-memory structures and grant tables
       for a mention of the new user/role name.
     */
-    if (handle_grant_data(tables, 0, user_name, NULL))
+    if (handle_grant_data(thd, tables, 0, user_name, NULL))
     {
       if (thd->lex->create_info.or_replace())
       {
         // Drop the existing user
-        if (handle_grant_data(tables, 1, user_name, NULL) <= 0)
+        if (handle_grant_data(thd, tables, 1, user_name, NULL) <= 0)
         {
           // DROP failed
           append_user(thd, &wrong_users, user_name);
@@ -9434,11 +9450,13 @@ bool mysql_create_user(THD *thd, List <LEX_USER> &list, bool handle_as_role)
         binlog= true;
         if (handle_as_role)
           push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
-                              ER_ROLE_CREATE_EXISTS, ER(ER_ROLE_CREATE_EXISTS),
+                              ER_ROLE_CREATE_EXISTS,
+                              ER_THD(thd, ER_ROLE_CREATE_EXISTS),
                               user_name->user.str);
         else
           push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
-                              ER_USER_CREATE_EXISTS, ER(ER_USER_CREATE_EXISTS),
+                              ER_USER_CREATE_EXISTS,
+                              ER_THD(thd, ER_USER_CREATE_EXISTS),
                               user_name->user.str, user_name->host.str);
         continue;
       }
@@ -9561,7 +9579,7 @@ bool mysql_drop_user(THD *thd, List <LEX_USER> &list, bool handle_as_role)
       continue;
     }
 
-    if ((rc= handle_grant_data(tables, 1, user_name, NULL)) > 0)
+    if ((rc= handle_grant_data(thd, tables, 1, user_name, NULL)) > 0)
     {
       // The user or role was successfully deleted
       binlog= true;
@@ -9573,11 +9591,13 @@ bool mysql_drop_user(THD *thd, List <LEX_USER> &list, bool handle_as_role)
       // "DROP USER IF EXISTS user1" for a non-existing user or role
       if (handle_as_role)
         push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
-                            ER_ROLE_DROP_EXISTS, ER(ER_ROLE_DROP_EXISTS),
+                            ER_ROLE_DROP_EXISTS,
+                            ER_THD(thd, ER_ROLE_DROP_EXISTS),
                             user_name->user.str);
       else
         push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
-                            ER_USER_DROP_EXISTS, ER(ER_USER_DROP_EXISTS),
+                            ER_USER_DROP_EXISTS,
+                            ER_THD(thd, ER_USER_DROP_EXISTS),
                             user_name->user.str, user_name->host.str);
       binlog= true;
       continue;
@@ -9672,8 +9692,8 @@ bool mysql_rename_user(THD *thd, List <LEX_USER> &list)
       Search all in-memory structures and grant tables
       for a mention of the new user name.
     */
-    if (handle_grant_data(tables, 0, user_to, NULL) ||
-        handle_grant_data(tables, 0, user_from, user_to) <= 0)
+    if (handle_grant_data(thd, tables, 0, user_to, NULL) ||
+        handle_grant_data(thd, tables, 0, user_from, user_to) <= 0)
     {
       /* NOTE TODO renaming roles is not yet implemented */
       append_user(thd, &wrong_users, user_from);
@@ -9928,8 +9948,8 @@ bool mysql_revoke_all(THD *thd,  List <LEX_USER> &list)
   mysql_mutex_unlock(&acl_cache->lock);
 
   if (result)
-    my_message(ER_REVOKE_GRANTS, ER(ER_REVOKE_GRANTS), MYF(0));
-
+    my_message(ER_REVOKE_GRANTS, ER_THD(thd, ER_REVOKE_GRANTS), MYF(0));
+  
   result= result |
     write_bin_log(thd, FALSE, thd->query(), thd->query_length());
 
@@ -10145,7 +10165,7 @@ bool sp_grant_privileges(THD *thd, const char *sp_db, const char *sp_name,
     combo->auth= au->auth_string;
   }
 
-  if (user_list.push_back(combo))
+  if (user_list.push_back(combo, thd->mem_root))
     DBUG_RETURN(TRUE);
 
   thd->lex->ssl_type= SSL_TYPE_NOT_SPECIFIED;
@@ -10383,11 +10403,14 @@ static int show_column_grants(THD *thd, SHOW_VAR *var, char *buff,
   var->type= SHOW_ULONG;
   var->value= buff;
   *(ulong *)buff= 0;
-  mysql_rwlock_rdlock(&LOCK_grant);
-  mysql_mutex_lock(&acl_cache->lock);
-  my_hash_iterate(&column_priv_hash, count_column_grants, buff);
-  mysql_mutex_unlock(&acl_cache->lock);
-  mysql_rwlock_unlock(&LOCK_grant);
+  if (initialized)
+  {
+    mysql_rwlock_rdlock(&LOCK_grant);
+    mysql_mutex_lock(&acl_cache->lock);
+    my_hash_iterate(&column_priv_hash, count_column_grants, buff);
+    mysql_mutex_unlock(&acl_cache->lock);
+    mysql_rwlock_unlock(&LOCK_grant);
+  }
   return 0;
 }
 
@@ -11159,12 +11182,12 @@ static void login_failed_error(THD *thd)
   my_error(access_denied_error_code(thd->password), MYF(0),
            thd->main_security_ctx.user,
            thd->main_security_ctx.host_or_ip,
-           thd->password ? ER(ER_YES) : ER(ER_NO));
+           thd->password ? ER_THD(thd, ER_YES) : ER_THD(thd, ER_NO));
   general_log_print(thd, COM_CONNECT,
-                    ER(access_denied_error_code(thd->password)),
+                    ER_THD(thd, access_denied_error_code(thd->password)),
                     thd->main_security_ctx.user,
                     thd->main_security_ctx.host_or_ip,
-                    thd->password ? ER(ER_YES) : ER(ER_NO));
+                    thd->password ? ER_THD(thd, ER_YES) : ER_THD(thd, ER_NO));
   status_var_increment(thd->status_var.access_denied_errors);
   /*
     Log access denied messages to the error log when log-warnings = 2
@@ -11173,10 +11196,10 @@ static void login_failed_error(THD *thd)
   */
   if (global_system_variables.log_warnings > 1)
   {
-    sql_print_warning(ER(access_denied_error_code(thd->password)),
+    sql_print_warning(ER_THD(thd, access_denied_error_code(thd->password)),
                       thd->main_security_ctx.user,
                       thd->main_security_ctx.host_or_ip,
-                      thd->password ? ER(ER_YES) : ER(ER_NO));
+                      thd->password ? ER_THD(thd, ER_YES) : ER_THD(thd, ER_NO));
   }
 }
 
@@ -11317,14 +11340,16 @@ static bool secure_auth(THD *thd)
     my_error(ER_SERVER_IS_IN_SECURE_AUTH_MODE, MYF(0),
              thd->security_ctx->user,
              thd->security_ctx->host_or_ip);
-    general_log_print(thd, COM_CONNECT, ER(ER_SERVER_IS_IN_SECURE_AUTH_MODE),
+    general_log_print(thd, COM_CONNECT,
+                      ER_THD(thd, ER_SERVER_IS_IN_SECURE_AUTH_MODE),
                       thd->security_ctx->user,
                       thd->security_ctx->host_or_ip);
   }
   else
   {
     my_error(ER_NOT_SUPPORTED_AUTH_MODE, MYF(0));
-    general_log_print(thd, COM_CONNECT, ER(ER_NOT_SUPPORTED_AUTH_MODE));
+    general_log_print(thd, COM_CONNECT,
+                      ER_THD(thd, ER_NOT_SUPPORTED_AUTH_MODE));
   }
   return 1;
 }
@@ -11396,7 +11421,8 @@ static bool send_plugin_request_packet(MPVIO_EXT *mpvio,
   if (switch_from_short_to_long_scramble)
   {
     my_error(ER_NOT_SUPPORTED_AUTH_MODE, MYF(0));
-    general_log_print(mpvio->thd, COM_CONNECT, ER(ER_NOT_SUPPORTED_AUTH_MODE));
+    general_log_print(mpvio->thd, COM_CONNECT,
+                      ER_THD(mpvio->thd, ER_NOT_SUPPORTED_AUTH_MODE));
     DBUG_RETURN (1);
   }
 
@@ -11473,7 +11499,8 @@ static bool find_mpvio_user(MPVIO_EXT *mpvio)
     DBUG_ASSERT(my_strcasecmp(system_charset_info, mpvio->acl_user->plugin.str,
                               old_password_plugin_name.str));
     my_error(ER_NOT_SUPPORTED_AUTH_MODE, MYF(0));
-    general_log_print(mpvio->thd, COM_CONNECT, ER(ER_NOT_SUPPORTED_AUTH_MODE));
+    general_log_print(mpvio->thd, COM_CONNECT,
+                      ER_THD(mpvio->thd, ER_NOT_SUPPORTED_AUTH_MODE));
     DBUG_RETURN (1);
   }
 
@@ -11547,7 +11574,8 @@ static bool parse_com_change_user_packet(MPVIO_EXT *mpvio, uint packet_length)
 
   if (passwd >= end)
   {
-    my_message(ER_UNKNOWN_COM_ERROR, ER(ER_UNKNOWN_COM_ERROR), MYF(0));
+    my_message(ER_UNKNOWN_COM_ERROR, ER_THD(thd, ER_UNKNOWN_COM_ERROR),
+               MYF(0));
     DBUG_RETURN (1);
   }
 
@@ -11571,7 +11599,8 @@ static bool parse_com_change_user_packet(MPVIO_EXT *mpvio, uint packet_length)
   */
   if (db >= end)
   {
-    my_message(ER_UNKNOWN_COM_ERROR, ER(ER_UNKNOWN_COM_ERROR), MYF(0));
+    my_message(ER_UNKNOWN_COM_ERROR, ER_THD(thd, ER_UNKNOWN_COM_ERROR),
+               MYF(0));
     DBUG_RETURN (1);
   }
 
@@ -11629,7 +11658,8 @@ static bool parse_com_change_user_packet(MPVIO_EXT *mpvio, uint packet_length)
   {
     if (next_field >= end)
     {
-      my_message(ER_UNKNOWN_COM_ERROR, ER(ER_UNKNOWN_COM_ERROR), MYF(0));
+      my_message(ER_UNKNOWN_COM_ERROR, ER_THD(thd, ER_UNKNOWN_COM_ERROR),
+                 MYF(0));
       DBUG_RETURN(1);
     }
     client_plugin= fix_plugin_ptr(next_field);
@@ -11653,11 +11683,12 @@ static bool parse_com_change_user_packet(MPVIO_EXT *mpvio, uint packet_length)
     }
   }
 
-  if ((mpvio->thd->client_capabilities & CLIENT_CONNECT_ATTRS) &&
+  if ((thd->client_capabilities & CLIENT_CONNECT_ATTRS) &&
       read_client_connect_attrs(&next_field, end,
-                                mpvio->thd->charset()))
+                                thd->charset()))
   {
-    my_message(ER_UNKNOWN_COM_ERROR, ER(ER_UNKNOWN_COM_ERROR), MYF(0));
+    my_message(ER_UNKNOWN_COM_ERROR, ER_THD(thd, ER_UNKNOWN_COM_ERROR),
+               MYF(0));
     DBUG_RETURN(packet_error);
   }
 

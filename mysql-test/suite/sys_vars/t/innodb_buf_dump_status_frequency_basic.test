@@ -1,0 +1,39 @@
+--source include/have_innodb.inc
+--source include/load_sysvars.inc
+
+SET @start_innodb_buf_dump_status_frequency = @@global.innodb_buf_dump_status_frequency;
+SELECT @start_innodb_buf_dump_status_frequency;
+
+SELECT COUNT(@@global.innodb_buf_dump_status_frequency);
+
+# test valid value
+SET @@global.innodb_buf_dump_status_frequency = 20;
+SELECT @@global.innodb_buf_dump_status_frequency;
+
+# test valid min
+SET @@global.innodb_buf_dump_status_frequency = 0;
+SELECT @@global.innodb_buf_dump_status_frequency;
+
+# test valid max
+SET @@global.innodb_buf_dump_status_frequency = 100;
+SELECT @@global.innodb_buf_dump_status_frequency;
+
+# test invalid value < min
+SET @@global.innodb_buf_dump_status_frequency = -1;
+SELECT @@global.innodb_buf_dump_status_frequency;
+
+# test invalid value > max
+SET @@global.innodb_buf_dump_status_frequency = 101;
+SELECT @@global.innodb_buf_dump_status_frequency;
+
+# test wrong type
+--Error ER_WRONG_TYPE_FOR_VAR
+SET @@global.innodb_buf_dump_status_frequency = 10.5;
+SELECT @@global.innodb_buf_dump_status_frequency;
+
+--Error ER_WRONG_TYPE_FOR_VAR
+SET @@global.innodb_buf_dump_status_frequency = "abc";
+SELECT @@global.innodb_buf_dump_status_frequency;
+
+SET @@global.innodb_buf_dump_status_frequency = @start_innodb_buf_dump_status_frequency;
+

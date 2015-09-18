@@ -1,0 +1,122 @@
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+#
+# Multi-row INSERT with a PK
+#
+
+--connection node_1
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1),(2);
+
+--connection node_2
+INSERT INTO t1 VALUES (3),(4);
+
+--connection node_1
+SELECT COUNT(*) = 4 FROM t1;
+
+--connection node_2
+SELECT COUNT(*) = 4 FROM t1;
+
+DROP TABLE t1;
+
+#
+# Multi-row INSERT without a PK
+#
+
+--connection node_2
+CREATE TABLE t1 (f1 INTEGER, KEY (f1)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1),(1);
+
+--connection node_1
+INSERT INTO t1 VALUES (2),(2);
+
+--connection node_2
+SELECT COUNT(*) = 4 FROM t1;
+
+--connection node_1
+SELECT COUNT(*) = 4 FROM t1;
+
+DROP TABLE t1;
+
+#
+# Error in the middle of a multi-row INSERT
+#
+
+--connection node_1
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
+
+--error ER_DUP_ENTRY
+INSERT INTO t1 VALUES (1), (2), (3), (4), (5), (6), (7), (8), (9), (1);
+
+SELECT COUNT(*) = 0 FROM t1;
+
+--connection node_2
+SELECT COUNT(*) = 0 FROM t1;
+
+DROP TABLE t1;
+
+#
+# Deadlock
+#
+
+--connection node_1
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
+
+SET AUTOCOMMIT = OFF;
+START TRANSACTION;
+INSERT INTO t1 VALUES (1), (2);
+
+--connection node_2
+SET AUTOCOMMIT = OFF;
+START TRANSACTION;
+INSERT INTO t1 VALUES (2), (1);
+
+--connection node_1
+COMMIT;
+
+--connection node_2
+--error ER_LOCK_DEADLOCK
+COMMIT;
+
+# Workaround for mysql-wsrep#39 Transaction receives deadlock error twice in row
+--error 0,ER_LOCK_DEADLOCK
+ROLLBACK;
+
+--error ER_DUP_ENTRY
+INSERT INTO t1 VALUES (1), (2);
+
+DROP TABLE t1;
+
+#
+# Rollback
+#
+
+--connection node_1
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
+
+START TRANSACTION;
+INSERT INTO t1 VALUES (1), (2);
+
+--connection node_2
+START TRANSACTION;
+INSERT INTO t1 VALUES (2), (1);
+
+--connection node_1
+ROLLBACK;
+
+--connection node_2
+COMMIT;
+SELECT COUNT(*) = 2 FROM t1;
+
+--connection node_1
+SELECT COUNT(*) = 2 FROM t1;
+
+DROP TABLE t1;
+
+
+
+
+
+
+

@@ -128,7 +128,7 @@ This is temp. table
 show create table v1;
 Table	Create Table
 v1	CREATE TEMPORARY TABLE `v1` (
-  `A` varchar(19) NOT NULL DEFAULT ''
+  `A` varchar(19) NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 show create view v1;
 View	Create View	character_set_client	collation_connection
@@ -291,3 +291,20 @@ test.t1	repair	status	OK
 test.t2	repair	status	OK
 test.t3	repair	status	OK
 DROP TABLES t1, t2, t3;
+create temporary temporary table t1 (a int);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'temporary table t1 (a int)' at line 1
+flush status;
+create table t1 (a int);
+create temporary table t2 (a int);
+create temporary table t3 (a int);
+drop table t1;
+drop table t2;
+drop temporary table t3;
+show status like 'com_create%table';
+Variable_name	Value
+Com_create_table	1
+Com_create_temporary_table	2
+show status like 'com_drop%table';
+Variable_name	Value
+Com_drop_table	2
+Com_drop_temporary_table	1

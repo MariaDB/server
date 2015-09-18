@@ -16,6 +16,10 @@
   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 */
 
+#ifdef GRN_EMBEDDED
+#  define GRN_PLUGIN_FUNCTION_TAG ruby_load
+#endif
+
 #include "ruby_plugin.h"
 
 static grn_obj *

@@ -566,7 +566,31 @@ insert into t1 (accountId,balance) values
 update t1 set balance=(select sum(balance) from (SELECT balance FROM t1 where accountId like 'dealer%') AS copied) where accountId = 'OPERATOR';
 set optimizer_switch=@save_derived_optimizer_switch_bug;
 drop table t1;
-set optimizer_switch=@save_derived_optimizer_switch;
+#
+# MDEV-6219:Server crashes in Bitmap<64u>::merge
+# (this=0x180, map2=...) on 2nd execution of PS with INSERT .. SELECT,
+# derived_merge
+#
+CREATE TABLE t1 (a VARCHAR(8)) ENGINE=MyISAM;
+INSERT INTO t1 VALUES ('foo'),('bar');
+create procedure p1()
+INSERT INTO t1 SELECT * FROM ( 
+SELECT * FROM t1
+) AS sq
+WHERE sq.a IN ( SELECT 'baz' FROM DUAL );
+call p1();
+call p1();
+drop procedure p1;
+PREPARE stmt FROM "
+  INSERT INTO t1 SELECT * FROM ( 
+    SELECT * FROM t1
+  ) AS sq
+  WHERE sq.a IN ( SELECT 'baz' FROM DUAL ) 
+";
+EXECUTE stmt;
+EXECUTE stmt;
+deallocate prepare stmt;
+drop table t1;
 #
 # MDEV-6892: WHERE does not apply
 #
@@ -579,3 +603,49 @@ select x.id, message from (select id from t1) x left join
 where coalesce(message,0) <> 0;
 id	message
 drop table t1,t2;
+set optimizer_switch=@save_derived_optimizer_switch;
+#
+# Start of 10.1 tests
+#
+#
+# MDEV-8747 Wrong result for SELECT..WHERE derived_table_column='a' AND derived_table_column<>_latin1'A' COLLATE latin1_bin
+#
+CREATE TABLE t1 (a VARCHAR(10));
+INSERT INTO t1 VALUES ('a'),('A');
+SELECT * FROM t1 WHERE a='a' AND a <> _latin1'A' COLLATE latin1_bin;
+a
+a
+SELECT * FROM (SELECT * FROM t1) AS table1 WHERE a='a' AND a <> _latin1'A' COLLATE latin1_bin;
+a
+a
+DROP TABLE t1;
+CREATE TABLE t1 (a ENUM('5','6'));
+INSERT INTO t1 VALUES ('5'),('6');
+SELECT * FROM (SELECT * FROM t1) AS table1 WHERE a='5';
+a
+5
+SELECT * FROM (SELECT * FROM t1) AS table1 WHERE a=1;
+a
+5
+SELECT * FROM (SELECT * FROM t1) AS table1 WHERE a='5' AND a=1;
+a
+5
+DROP TABLE t1;
+#
+# MDEV-8749 Wrong result for SELECT..WHERE derived_table_enum_column='number' AND derived_table_enum_column OP number2
+#
+CREATE TABLE t1 (a ENUM('5','6'));
+INSERT INTO t1 VALUES ('5'),('6');
+SELECT * FROM (SELECT * FROM t1) AS table1 WHERE a='5';
+a
+5
+SELECT * FROM (SELECT * FROM t1) AS table1 WHERE a=1;
+a
+5
+SELECT * FROM (SELECT * FROM t1) AS table1 WHERE a='5' AND a=1;
+a
+5
+DROP TABLE t1;
+#
+# End of 10.1 tests
+#

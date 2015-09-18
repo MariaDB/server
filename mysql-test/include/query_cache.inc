@@ -15,6 +15,8 @@
 #               main code went into include/query_cache.inc
 #
 
+SET global query_cache_type=ON;
+SET local query_cache_type=ON;
 eval SET SESSION STORAGE_ENGINE = $engine_type;
 
 # Initialise
@@ -193,3 +195,5 @@ disconnect connection1;
 connection default;
 set @@global.query_cache_size = @save_query_cache_size;
 drop table t2;
+
+SET global query_cache_type=default;

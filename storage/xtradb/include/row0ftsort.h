@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2010, 2012, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2015, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -71,6 +72,7 @@ struct fts_psort_common_t {
 						store Doc ID during sort, if
 						Doc ID will not be big enough
 						to use 8 bytes value */
+	fil_space_crypt_t*	crypt_data;	/*!< crypt data or NULL */
 };
 
 struct fts_psort_t {
@@ -82,6 +84,10 @@ struct fts_psort_t {
 	row_merge_block_t*	merge_block[FTS_NUM_AUX_INDEX];
 						/*!< buffer to write to file */
 	row_merge_block_t*	block_alloc[FTS_NUM_AUX_INDEX];
+						/*!< buffer to allocated */
+	row_merge_block_t*	crypt_block[FTS_NUM_AUX_INDEX];
+						/*!< buffer to crypt data */
+	row_merge_block_t*	crypt_alloc[FTS_NUM_AUX_INDEX];
 						/*!< buffer to allocated */
 	ulint			child_status;	/*!< child thread status */
 	ulint			state;		/*!< parent thread state */

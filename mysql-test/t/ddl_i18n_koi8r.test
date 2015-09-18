@@ -24,6 +24,8 @@
 #   - restore object;
 # 
 
+set sql_mode="";
+
 ###########################################################################
 #
 # NOTE: this file contains text in UTF8 and KOI8-R encodings.

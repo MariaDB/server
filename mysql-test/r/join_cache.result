@@ -39,7 +39,7 @@ COUNT(*)
 984
 show variables like 'join_buffer_size';
 Variable_name	Value
-join_buffer_size	131072
+join_buffer_size	262144
 set join_cache_level=1;
 show variables like 'join_cache_level';
 Variable_name	Value
@@ -774,7 +774,7 @@ set join_cache_level=default;
 set join_buffer_size=default;
 show variables like 'join_buffer_size';
 Variable_name	Value
-join_buffer_size	131072
+join_buffer_size	262144
 show variables like 'join_cache_level';
 Variable_name	Value
 join_cache_level	2
@@ -808,7 +808,7 @@ INDEX (Percentage)
 );
 show variables like 'join_buffer_size';
 Variable_name	Value
-join_buffer_size	131072
+join_buffer_size	262144
 set join_cache_level=3;
 show variables like 'join_cache_level';
 Variable_name	Value
@@ -1008,7 +1008,7 @@ Russian Federation	NULL
 Vietnam	NULL
 show variables like 'join_buffer_size';
 Variable_name	Value
-join_buffer_size	131072
+join_buffer_size	262144
 set join_cache_level=4;
 show variables like 'join_cache_level';
 Variable_name	Value
@@ -1267,7 +1267,7 @@ Czech Republic	10278100	NULL	NULL
 DROP INDEX City_Name ON City;
 show variables like 'join_buffer_size';
 Variable_name	Value
-join_buffer_size	131072
+join_buffer_size	262144
 set join_cache_level=5;
 show variables like 'join_cache_level';
 Variable_name	Value
@@ -2688,7 +2688,7 @@ set join_cache_level=default;
 set join_buffer_size=default;
 show variables like 'join_buffer_size';
 Variable_name	Value
-join_buffer_size	131072
+join_buffer_size	262144
 show variables like 'join_cache_level';
 Variable_name	Value
 join_cache_level	2
@@ -4321,6 +4321,23 @@ h
 n
 v
 p
+EXPLAIN
+SELECT t2.v FROM t1, t2, t3
+WHERE t2.v <> t3.v AND t3.pk = t2.i AND t1.v = t3.v AND t1.pk*2<100
+GROUP BY t2.v ORDER BY t1.pk,t2.v;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	index	idx1	idx2	7	NULL	20	Using index; Using temporary; Using filesort
+1	SIMPLE	t3	eq_ref	PRIMARY,idx2	PRIMARY	4	test.t2.i	1	Using where
+1	SIMPLE	t1	ref	idx2	idx2	3	test.t3.v	5	Using where
+SELECT t2.v FROM t1, t2, t3
+WHERE t2.v <> t3.v AND t3.pk = t2.i AND t1.v = t3.v AND t1.pk*2<100
+GROUP BY t2.v ORDER BY t1.pk,t2.v;
+v
+b
+h
+n
+v
+p
 SET SESSION join_cache_level=6;
 EXPLAIN
 SELECT t2.v FROM t1, t2, t3 
@@ -4339,6 +4356,23 @@ h
 n
 v
 p
+EXPLAIN
+SELECT t2.v FROM t1, t2, t3
+WHERE t2.v <> t3.v AND t3.pk = t2.i AND t1.v = t3.v AND t1.pk*2<100
+GROUP BY t2.v ORDER BY t1.pk,t2.v;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	index	idx1	idx2	7	NULL	20	Using index; Using temporary; Using filesort
+1	SIMPLE	t3	eq_ref	PRIMARY,idx2	PRIMARY	4	test.t2.i	1	Using where; Using join buffer (flat, BKA join); Key-ordered Rowid-ordered scan
+1	SIMPLE	t1	ref	idx2	idx2	3	test.t3.v	5	Using where; Using join buffer (incremental, BKA join); Key-ordered Rowid-ordered scan
+SELECT t2.v FROM t1, t2, t3
+WHERE t2.v <> t3.v AND t3.pk = t2.i AND t1.v = t3.v AND t1.pk*2<100
+GROUP BY t2.v ORDER BY t1.pk,t2.v;
+v
+b
+h
+n
+v
+p
 SET SESSION join_cache_level=4;
 EXPLAIN
 SELECT t2.v FROM t1, t2, t3 
@@ -4350,6 +4384,23 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	hash_ALL	idx2	#hash#idx2	3	test.t3.v	44	Using where; Using join buffer (incremental, BNLH join)
 SELECT t2.v FROM t1, t2, t3
 WHERE t3.v <> t2.v AND t3.pk = t2.i AND t1.v = t3.v AND t1.pk*2<100 
+GROUP BY t2.v ORDER BY t1.pk,t2.v;
+v
+b
+h
+n
+v
+p
+EXPLAIN
+SELECT t2.v FROM t1, t2, t3
+WHERE t2.v <> t3.v AND t3.pk = t2.i AND t1.v = t3.v AND t1.pk*2<100
+GROUP BY t2.v ORDER BY t1.pk,t2.v;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	index	idx1	idx2	7	NULL	20	Using index; Using temporary; Using filesort
+1	SIMPLE	t3	hash_ALL	PRIMARY,idx2	#hash#PRIMARY	4	test.t2.i	20	Using where; Using join buffer (flat, BNLH join)
+1	SIMPLE	t1	hash_ALL	idx2	#hash#idx2	3	test.t3.v	44	Using where; Using join buffer (incremental, BNLH join)
+SELECT t2.v FROM t1, t2, t3
+WHERE t2.v <> t3.v AND t3.pk = t2.i AND t1.v = t3.v AND t1.pk*2<100
 GROUP BY t2.v ORDER BY t1.pk,t2.v;
 v
 b
@@ -5867,7 +5918,7 @@ select @@join_buffer_space_limit;
 8192
 select @@join_buffer_size;
 @@join_buffer_size
-131072
+262144
 explain select count(*) from t1, t1 t2 where t1.a=t2.a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	11	

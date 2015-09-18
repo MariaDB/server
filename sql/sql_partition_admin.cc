@@ -531,6 +531,24 @@ bool Sql_cmd_alter_table_exchange_partition::
                   &alter_prelocking_strategy))
     DBUG_RETURN(true);
 
+#ifdef WITH_WSREP
+  if (WSREP_ON)
+  {
+    /* Forward declaration */
+    TABLE *find_temporary_table(THD *thd, const TABLE_LIST *tl);
+
+    if ((!thd->is_current_stmt_binlog_format_row() ||
+         /* TODO: Do we really need to check for temp tables in this case? */
+         !find_temporary_table(thd, table_list)) &&
+        wsrep_to_isolation_begin(thd, table_list->db, table_list->table_name,
+                                 NULL))
+    {
+      WSREP_WARN("ALTER TABLE EXCHANGE PARTITION isolation failure");
+      DBUG_RETURN(TRUE);
+    }
+  }
+#endif /* WITH_WSREP */
+
   part_table= table_list->table;
   swap_table= swap_table_list->table;
 
@@ -767,6 +785,7 @@ bool Sql_cmd_alter_table_truncate_partition::execute(THD *thd)
 #ifdef WITH_WSREP
   if (WSREP_ON)
   {
+    /* Forward declaration */
     TABLE *find_temporary_table(THD *thd, const TABLE_LIST *tl);
 
     if ((!thd->is_current_stmt_binlog_format_row() ||
@@ -775,7 +794,7 @@ bool Sql_cmd_alter_table_truncate_partition::execute(THD *thd)
           thd, first_table->db, first_table->table_name, NULL)
        )
     {
-      WSREP_WARN("ALTER TABLE isolation failure");
+      WSREP_WARN("ALTER TABLE TRUNCATE PARTITION isolation failure");
       DBUG_RETURN(TRUE);
     }
   }
@@ -805,7 +824,7 @@ bool Sql_cmd_alter_table_truncate_partition::execute(THD *thd)
                                   String(partition_name, system_charset_info);
     if (!str_partition_name)
       DBUG_RETURN(true);
-    partition_names_list.push_back(str_partition_name);
+    partition_names_list.push_back(str_partition_name, thd->mem_root);
   }
   first_table->partition_names= &partition_names_list;
   if (first_table->table->part_info->set_partition_bitmaps(first_table))
@@ -837,9 +856,16 @@ bool Sql_cmd_alter_table_truncate_partition::execute(THD *thd)
     log. The exception is a unimplemented truncate method or failure
     before any call to handler::truncate() is done.
     Also, it is logged in statement format, regardless of the binlog format.
+
+    Since we've changed data within the table, we also have to invalidate
+    the query cache for it.
   */
-  if (error != HA_ERR_WRONG_COMMAND && binlog_stmt)
-    error|= write_bin_log(thd, !error, thd->query(), thd->query_length());
+  if (error != HA_ERR_WRONG_COMMAND)
+  {
+    query_cache_invalidate3(thd, first_table, FALSE);
+    if (binlog_stmt)
+      error|= write_bin_log(thd, !error, thd->query(), thd->query_length());
+  }
 
   /*
     A locked table ticket was upgraded to a exclusive lock. After the

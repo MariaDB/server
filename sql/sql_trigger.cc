@@ -159,7 +159,7 @@ Trigger_creation_ctx::create(THD *thd,
     push_warning_printf(thd,
                         Sql_condition::WARN_LEVEL_WARN,
                         ER_TRG_INVALID_CREATION_CTX,
-                        ER(ER_TRG_INVALID_CREATION_CTX),
+                        ER_THD(thd, ER_TRG_INVALID_CREATION_CTX),
                         (const char *) db_name,
                         (const char *) table_name);
   }
@@ -340,11 +340,11 @@ public:
         m_trigger_name= &thd->lex->spname->m_name;
       if (m_trigger_name)
         my_snprintf(m_message, sizeof(m_message),
-                    ER(ER_ERROR_IN_TRIGGER_BODY),
+                    ER_THD(thd, ER_ERROR_IN_TRIGGER_BODY),
                     m_trigger_name->str, message);
       else
         my_snprintf(m_message, sizeof(m_message),
-                    ER(ER_ERROR_IN_UNKNOWN_TRIGGER_BODY), message);
+                    ER_THD(thd, ER_ERROR_IN_UNKNOWN_TRIGGER_BODY), message);
       return true;
     }
     return false;
@@ -801,7 +801,8 @@ bool Table_triggers_list::create_trigger(THD *thd, TABLE_LIST *tables,
     else if (lex->create_info.if_not_exists())
     {
       push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
-                          ER_TRG_ALREADY_EXISTS, ER(ER_TRG_ALREADY_EXISTS),
+                          ER_TRG_ALREADY_EXISTS,
+                          ER_THD(thd, ER_TRG_ALREADY_EXISTS),
                           trigname_buff);
       LEX_STRING trg_definer_tmp;
       build_trig_stmt_query(thd, tables, stmt_query,
@@ -1042,7 +1043,8 @@ bool Table_triggers_list::drop_trigger(THD *thd, TABLE_LIST *tables,
     }
   }
 
-  my_message(ER_TRG_DOES_NOT_EXIST, ER(ER_TRG_DOES_NOT_EXIST), MYF(0));
+  my_message(ER_TRG_DOES_NOT_EXIST, ER_THD(thd, ER_TRG_DOES_NOT_EXIST),
+             MYF(0));
   return 1;
 }
 
@@ -1086,8 +1088,8 @@ bool Table_triggers_list::prepare_record1_accessors(TABLE *table)
       QQ: it is supposed that it is ok to use this function for field
       cloning...
     */
-    if (!(*old_fld= (*fld)->new_field(&table->mem_root, table,
-                                      table == (*fld)->table)))
+    if (!(*old_fld= (*fld)->make_new_field(&table->mem_root, table,
+                                           table == (*fld)->table)))
       return 1;
     (*old_fld)->move_field_offset((my_ptrdiff_t)(table->record[1] -
                                                  table->record[0]));
@@ -1275,7 +1277,7 @@ bool Table_triggers_list::check_n_load(THD *thd, const char *db,
 
         push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                             ER_TRG_NO_CREATION_CTX,
-                            ER(ER_TRG_NO_CREATION_CTX),
+                            ER_THD(thd, ER_TRG_NO_CREATION_CTX),
                             (const char*) db,
                             (const char*) table_name);
 
@@ -1458,7 +1460,8 @@ bool Table_triggers_list::check_n_load(THD *thd, const char *db,
           */
 
           push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-                              ER_TRG_NO_DEFINER, ER(ER_TRG_NO_DEFINER),
+                              ER_TRG_NO_DEFINER,
+                              ER_THD(thd, ER_TRG_NO_DEFINER),
                               (const char*) db,
                               (const char*) sp->m_name.str);
 
@@ -1732,7 +1735,7 @@ bool add_table_for_trigger(THD *thd,
       push_warning_printf(thd,
                           Sql_condition::WARN_LEVEL_NOTE,
                           ER_TRG_DOES_NOT_EXIST,
-                          ER(ER_TRG_DOES_NOT_EXIST));
+                          ER_THD(thd, ER_TRG_DOES_NOT_EXIST));
 
       *table= NULL;
 
@@ -2327,13 +2330,14 @@ process_unknown_string(const char *&unknown_key, uchar* base,
       unknown_key[INVALID_SQL_MODES_LENGTH] == '=' &&
       !memcmp(unknown_key, STRING_WITH_LEN("sql_modes")))
   {
+    THD *thd= current_thd;
     const char *ptr= unknown_key + INVALID_SQL_MODES_LENGTH + 1;
 
     DBUG_PRINT("info", ("sql_modes affected by BUG#14090 detected"));
-    push_warning_printf(current_thd,
+    push_warning_printf(thd,
                         Sql_condition::WARN_LEVEL_NOTE,
                         ER_OLD_FILE_FORMAT,
-                        ER(ER_OLD_FILE_FORMAT),
+                        ER_THD(thd, ER_OLD_FILE_FORMAT),
                         (char *)path, "TRIGGER");
     if (get_file_options_ulllist(ptr, end, unknown_key, base,
                                  &sql_modes_parameters, mem_root))
@@ -2368,13 +2372,14 @@ process_unknown_string(const char *&unknown_key, uchar* base,
       unknown_key[INVALID_TRIGGER_TABLE_LENGTH] == '=' &&
       !memcmp(unknown_key, STRING_WITH_LEN("trigger_table")))
   {
+    THD *thd= current_thd;
     const char *ptr= unknown_key + INVALID_TRIGGER_TABLE_LENGTH + 1;
 
     DBUG_PRINT("info", ("trigger_table affected by BUG#15921 detected"));
-    push_warning_printf(current_thd,
+    push_warning_printf(thd,
                         Sql_condition::WARN_LEVEL_NOTE,
                         ER_OLD_FILE_FORMAT,
-                        ER(ER_OLD_FILE_FORMAT),
+                        ER_THD(thd, ER_OLD_FILE_FORMAT),
                         (char *)path, "TRIGGER");
 
     if (!(ptr= parse_escaped_string(ptr, end, mem_root, trigger_table_value)))

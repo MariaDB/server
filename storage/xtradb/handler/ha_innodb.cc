@@ -1,10 +1,10 @@
 /*****************************************************************************
 
-Copyright (c) 2000, 2014, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2000, 2015, Oracle and/or its affiliates.
+Copyright (c) 2013, 2015, MariaDB Corporation.
 Copyright (c) 2008, 2009 Google Inc.
 Copyright (c) 2009, Percona Inc.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2015, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -108,7 +108,6 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include "page0zip.h"
 #include "fil0pagecompress.h"
 
-
 #define thd_get_trx_isolation(X) ((enum_tx_isolation)thd_tx_isolation(X))
 
 #ifdef MYSQL_DYNAMIC_PLUGIN
@@ -130,10 +129,8 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #ifdef WITH_WSREP
 #include "dict0priv.h"
 #include "../storage/innobase/include/ut0byte.h"
-#include <wsrep_mysqld.h>
 #include <mysql/service_md5.h>
 
-extern my_bool wsrep_certify_nonPK;
 class  binlog_trx_data;
 extern handlerton *binlog_hton;
 
@@ -157,6 +154,7 @@ wsrep_fake_trx_id(handlerton* hton, THD *thd);
 static int innobase_wsrep_set_checkpoint(handlerton* hton, const XID* xid);
 static int innobase_wsrep_get_checkpoint(handlerton* hton, XID* xid);
 #endif /* WITH_WSREP */
+
 /** to protect innobase_open_files */
 static mysql_mutex_t innobase_share_mutex;
 /** to force correct commit order in binlog */
@@ -609,7 +607,8 @@ ib_cb_t innodb_api_cb[] = {
 	(ib_cb_t) ib_get_idx_field_name,
 	(ib_cb_t) ib_trx_get_start_time,
 	(ib_cb_t) ib_cfg_bk_commit_interval,
-	(ib_cb_t) ib_cursor_stmt_begin
+	(ib_cb_t) ib_cursor_stmt_begin,
+	(ib_cb_t) ib_trx_read_only
 };
 
 
@@ -2009,6 +2008,9 @@ convert_error_code_to_mysql(
 	case DB_TABLE_NOT_FOUND:
 		return(HA_ERR_NO_SUCH_TABLE);
 
+	case DB_DECRYPTION_FAILED:
+		return(HA_ERR_DECRYPTION_FAILED);
+
 	case DB_TABLESPACE_NOT_FOUND:
 		return(HA_ERR_NO_SUCH_TABLE);
 
@@ -2638,6 +2640,7 @@ check_trx_exists(
 
 	if (trx == NULL) {
 		trx = innobase_trx_allocate(thd);
+		thd_set_ha_data(thd, innodb_hton_ptr, trx);
 	} else if (UNIV_UNLIKELY(trx->magic_n != TRX_MAGIC_N)) {
 		mem_analyze_corruption(trx);
 		ut_error;
@@ -3354,19 +3357,6 @@ trx_is_strict(
 	trx_t*	trx)	/*!< in: transaction */
 {
 	return(trx && trx->mysql_thd && THDVAR(trx->mysql_thd, strict_mode));
-}
-
-/**********************************************************************//**
-Determines if the current MySQL thread is running in strict mode.
-If thd==NULL, THDVAR returns the global value of innodb-strict-mode.
-@return	TRUE if strict */
-UNIV_INLINE
-ibool
-thd_is_strict(
-/*==========*/
-	THD*	thd)	/*!< in: MySQL thread descriptor */
-{
-	return(THDVAR(thd, strict_mode));
 }
 
 /**************************************************************//**
@@ -4240,7 +4230,6 @@ innobase_flush_logs(
 Synchronously read and parse the redo log up to the last
 checkpoint to write the changed page bitmap.
 @return 0 to indicate success.  Current implementation cannot fail. */
-static
 my_bool
 innobase_flush_changed_page_bitmaps()
 /*=================================*/
@@ -5114,9 +5103,9 @@ innobase_kill_connection(
 		trx_mutex_enter(trx);
 
 		/* Cancel a pending lock request. */
-		if (trx->lock.wait_lock)
+		if (trx->lock.wait_lock) {
 			lock_cancel_waiting_and_release(trx->lock.wait_lock);
-
+		}
 		trx_mutex_exit(trx);
 		if (!owner || owner != cur) {
 			lock_mutex_exit();
@@ -6057,7 +6046,14 @@ table_opened:
 
 	innobase_copy_frm_flags_from_table_share(ib_table, table->s);
 
-	dict_stats_init(ib_table);
+	ib_table->thd = (void*)thd;
+
+	/* No point to init any statistics if tablespace is still encrypted. */
+	if (!ib_table->is_encrypted) {
+		dict_stats_init(ib_table);
+	} else {
+		ib_table->stat_initialized = 1;
+	}
 
 	MONITOR_INC(MONITOR_TABLE_OPEN);
 
@@ -6086,6 +6082,11 @@ table_opened:
 		file, best to play it safe. */
 
 		no_tablespace = true;
+	} else if (ib_table->is_encrypted) {
+		/* This means that tablespace was found but we could not
+		decrypt encrypted page. */
+		no_tablespace = true;
+		ib_table->ibd_file_missing = true;
 	} else {
 		no_tablespace = false;
 	}
@@ -6093,10 +6094,40 @@ table_opened:
 	if (!thd_tablespace_op(thd) && no_tablespace) {
 		free_share(share);
 		my_errno = ENOENT;
+		int ret_err = HA_ERR_NO_SUCH_TABLE;
+
+		/* If table has no talespace but it has crypt data, check
+		is tablespace made unaccessible because encryption service
+		or used key_id is not available. */
+		if (ib_table) {
+			fil_space_crypt_t* crypt_data = ib_table->crypt_data;
+			if ((crypt_data && crypt_data->encryption == FIL_SPACE_ENCRYPTION_ON) ||
+				(srv_encrypt_tables &&
+					crypt_data && crypt_data->encryption == FIL_SPACE_ENCRYPTION_DEFAULT)) {
+
+				if (!encryption_key_id_exists(crypt_data->key_id)) {
+					push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+						HA_ERR_DECRYPTION_FAILED,
+						"Table %s is encrypted but encryption service or"
+						" used key_id %u is not available. "
+						" Can't continue reading table.",
+						ib_table->name, crypt_data->key_id);
+					ret_err = HA_ERR_DECRYPTION_FAILED;
+				}
+			} else if (ib_table->is_encrypted) {
+				push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+					HA_ERR_DECRYPTION_FAILED,
+					"Table %s is encrypted but encryption service or"
+					" used key_id is not available. "
+					" Can't continue reading table.",
+					ib_table->name);
+				ret_err = HA_ERR_DECRYPTION_FAILED;
+			}
+		}
 
 		dict_table_close(ib_table, FALSE, FALSE);
 
-		DBUG_RETURN(HA_ERR_NO_SUCH_TABLE);
+		DBUG_RETURN(ret_err);
 	}
 
 	prebuilt = row_create_prebuilt(ib_table, table->s->stored_rec_length);
@@ -6964,10 +6995,10 @@ innobase_read_from_2_little_endian(
 	return((uint) ((ulint)(buf[0]) + 256 * ((ulint)(buf[1]))));
 }
 
+#ifdef WITH_WSREP
 /*******************************************************************//**
 Stores a key value for a row to a buffer.
 @return	key value length as stored in buff */
-#ifdef WITH_WSREP
 UNIV_INTERN
 uint
 wsrep_store_key_val_for_row(
@@ -8137,11 +8168,11 @@ ha_innobase::write_row(
 	dberr_t		error;
 	int		error_result= 0;
 	ibool		auto_inc_used= FALSE;
-	ulint		sql_command;
-	trx_t*		trx = thd_to_trx(user_thd);
 #ifdef WITH_WSREP
 	ibool           auto_inc_inserted= FALSE; /* if NULL was inserted */
 #endif
+	ulint		sql_command;
+	trx_t*		trx = thd_to_trx(user_thd);
 
 	DBUG_ENTER("ha_innobase::write_row");
 
@@ -8179,7 +8210,9 @@ ha_innobase::write_row(
 	     || sql_command == SQLCOM_CREATE_INDEX
 #ifdef WITH_WSREP
 	     || (wsrep_on(user_thd) && wsrep_load_data_splitting &&
-		 sql_command == SQLCOM_LOAD)
+		 sql_command == SQLCOM_LOAD                      &&
+		 !thd_test_options(
+			user_thd, OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN))
 #endif /* WITH_WSREP */
 	     || sql_command == SQLCOM_DROP_INDEX)
 	    && num_write_row >= 10000) {
@@ -8223,15 +8256,20 @@ no_commit:
 			;
 		} else if (src_table == prebuilt->table) {
 #ifdef WITH_WSREP
-			if (wsrep_on(user_thd)) {
+			if (wsrep_on(user_thd)                              &&
+			    wsrep_load_data_splitting                       &&
+			    sql_command == SQLCOM_LOAD                      &&
+			    !thd_test_options(user_thd,
+			                      OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN))
+			{
 				switch (wsrep_run_wsrep_commit(user_thd, 1))
 				{
 				case WSREP_TRX_OK:
-					break;
+				  break;
 				case WSREP_TRX_SIZE_EXCEEDED:
 				case WSREP_TRX_CERT_FAIL:
 				case WSREP_TRX_ERROR:
-					DBUG_RETURN(1);
+				  DBUG_RETURN(1);
 				}
 
 				if (binlog_hton->commit(binlog_hton, user_thd, 1))
@@ -8250,15 +8288,20 @@ no_commit:
 			prebuilt->sql_stat_start = TRUE;
 		} else {
 #ifdef WITH_WSREP
-			if (wsrep_on(user_thd)) {
+			if (wsrep_on(user_thd)                              &&
+			    wsrep_load_data_splitting                       &&
+			    sql_command == SQLCOM_LOAD                      &&
+			    !thd_test_options(user_thd,
+			                      OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN))
+			{
 				switch (wsrep_run_wsrep_commit(user_thd, 1))
 				{
 				case WSREP_TRX_OK:
-					break;
+				  break;
 				case WSREP_TRX_SIZE_EXCEEDED:
 				case WSREP_TRX_CERT_FAIL:
 				case WSREP_TRX_ERROR:
-					DBUG_RETURN(1);
+				  DBUG_RETURN(1);
 				}
 
 				if (binlog_hton->commit(binlog_hton, user_thd, 1))
@@ -8480,14 +8523,15 @@ report_error:
 						   user_thd);
 
 #ifdef WITH_WSREP
-	if (!error_result && wsrep_thd_exec_mode(user_thd) == LOCAL_STATE &&
-	    wsrep_on(user_thd) && !wsrep_consistency_check(user_thd) &&
-	    (sql_command != SQLCOM_LOAD || 
-	     thd_binlog_format(user_thd) == BINLOG_FORMAT_ROW)) {
-
-		if (wsrep_append_keys(user_thd, false, record, NULL)) {
- 			DBUG_PRINT("wsrep", ("row key failed"));
- 			error_result = HA_ERR_INTERNAL_ERROR;
+	if (!error_result                                &&
+	    wsrep_thd_exec_mode(user_thd) == LOCAL_STATE &&
+	    wsrep_on(user_thd)                           &&
+	    !wsrep_consistency_check(user_thd))
+	{
+		if (wsrep_append_keys(user_thd, false, record, NULL))
+		{
+			DBUG_PRINT("wsrep", ("row key failed"));
+			error_result = HA_ERR_INTERNAL_ERROR;
 			goto wsrep_error;
 		}
 	}
@@ -8696,7 +8740,8 @@ calc_row_difference(
 				}
 			}
 		}
-		innodb_idx++;
+		if (field->stored_in_db)
+			innodb_idx++;
 	}
 
 	/* If the update changes a column with an FTS index on it, we
@@ -9091,12 +9136,13 @@ ha_innobase::delete_row(
 	innobase_active_small();
 
 #ifdef WITH_WSREP
-	if (error == DB_SUCCESS && wsrep_thd_exec_mode(user_thd) == LOCAL_STATE &&
-            wsrep_on(user_thd)) {
+	if (error == DB_SUCCESS                          &&
+	    wsrep_thd_exec_mode(user_thd) == LOCAL_STATE &&
+	    wsrep_on(user_thd)) {
 
 		if (wsrep_append_keys(user_thd, false, record, NULL)) {
 			DBUG_PRINT("wsrep", ("delete fail"));
-			error = DB_ERROR;
+			error = (dberr_t) HA_ERR_INTERNAL_ERROR;
 			goto wsrep_error;
 		}
 	}
@@ -9722,6 +9768,11 @@ ha_innobase::general_fetch(
 	int	error;
 
 	DBUG_ENTER("general_fetch");
+
+	/* If transaction is not startted do not continue, instead return a error code. */
+	if(!(prebuilt->sql_stat_start || (prebuilt->trx && prebuilt->trx->state == 1))) {
+		DBUG_RETURN(HA_ERR_END_OF_FILE);
+	}
 
 	if (UNIV_UNLIKELY(srv_pass_corrupt_table <= 1 && share
 			  && share->ib_table && share->ib_table->is_corrupt)) {
@@ -10489,6 +10540,7 @@ wsrep_append_foreign_key(
 			    wsrep_thd_query(thd) : "void");
 		return DB_ERROR;
 	}
+	wsrep_t *wsrep= get_wsrep();
 	rcode = (int)wsrep->append_key(
 		wsrep,
 		wsrep_ws_handle(thd, trx),
@@ -10545,6 +10597,7 @@ wsrep_append_key(
 		DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
 	}
 
+	wsrep_t *wsrep= get_wsrep();
 	int rcode = (int)wsrep->append_key(
 			       wsrep,
 			       wsrep_ws_handle(thd, trx),
@@ -10561,9 +10614,6 @@ wsrep_append_key(
 	}
 	DBUG_RETURN(0);
 }
-
-extern void compute_md5_hash(char *digest, const char *buf, int len);
-#define MD5_HASH compute_md5_hash
 
 int
 ha_innobase::wsrep_append_keys(
@@ -10832,7 +10882,9 @@ create_table_def(
 					is a zero length-string */
 	const char*	remote_path,	/*!< in: Remote path or zero length-string */
 	ulint		flags,		/*!< in: table flags */
-	ulint		flags2)		/*!< in: table flags2 */
+	ulint		flags2,		/*!< in: table flags2 */
+	fil_encryption_t mode,		/*!< in: encryption mode */
+	ulint		key_id)		/*!< in: encryption key_id */
 {
 	THD*		thd = trx->mysql_thd;
 	dict_table_t*	table;
@@ -10890,18 +10942,18 @@ create_table_def(
 		/* Adjust for the FTS hidden field */
 		if (!has_doc_id_col) {
 			table = dict_mem_table_create(table_name, 0, s_cols + 1,
-						      flags, flags2, false);
+						      flags, flags2);
 
 			/* Set the hidden doc_id column. */
 			table->fts->doc_col = s_cols;
 		} else {
 			table = dict_mem_table_create(table_name, 0, s_cols,
-						      flags, flags2, false);
+						      flags, flags2);
 			table->fts->doc_col = doc_id_col;
 		}
 	} else {
 		table = dict_mem_table_create(table_name, 0, s_cols,
-					      flags, flags2, false);
+					      flags, flags2);
 	}
 
 	if (flags2 & DICT_TF2_TEMPORARY) {
@@ -11013,7 +11065,7 @@ err_col:
 		fts_add_doc_id_column(table, heap);
 	}
 
-	err = row_create_table_for_mysql(table, trx, false);
+	err = row_create_table_for_mysql(table, trx, false, mode, key_id);
 
 	mem_heap_free(heap);
 
@@ -11923,12 +11975,12 @@ ha_innobase::check_table_options(
 
 	if (encrypt == FIL_SPACE_ENCRYPTION_ON ||
             (encrypt == FIL_SPACE_ENCRYPTION_DEFAULT && srv_encrypt_tables)) {
-		if (!encryption_key_id_exists(options->encryption_key_id)) {
+		if (!encryption_key_id_exists((unsigned int)options->encryption_key_id)) {
 			push_warning_printf(
 				thd, Sql_condition::WARN_LEVEL_WARN,
 				HA_WRONG_CREATE_OPTION,
-				"InnoDB: ENCRYPTION_KEY_ID %lu not available",
-				options->encryption_key_id
+				"InnoDB: ENCRYPTION_KEY_ID %u not available",
+				(uint)options->encryption_key_id
 			);
 			return "ENCRYPTION_KEY_ID";
 
@@ -11995,14 +12047,14 @@ ha_innobase::create(
 	/* Cache table options */
 	ha_table_option_struct *options= form->s->option_struct;
 	fil_encryption_t encrypt = (fil_encryption_t)options->encryption;
-	ulint key_id = options->encryption_key_id;
+	uint		key_id = (uint)options->encryption_key_id;
 
 	DBUG_ENTER("ha_innobase::create");
 
 	DBUG_ASSERT(thd != NULL);
 	DBUG_ASSERT(create_info != NULL);
 
-	if (form->s->fields > REC_MAX_N_USER_FIELDS) {
+	if (form->s->stored_fields > REC_MAX_N_USER_FIELDS) {
 		DBUG_RETURN(HA_ERR_TOO_MANY_FIELDS);
 	} else if (srv_read_only_mode) {
 		DBUG_RETURN(HA_ERR_TABLE_READONLY);
@@ -12094,7 +12146,7 @@ ha_innobase::create(
 	row_mysql_lock_data_dictionary(trx);
 
 	error = create_table_def(trx, form, norm_name, temp_path,
-				 remote_path, flags, flags2);
+			remote_path, flags, flags2, encrypt, key_id);
 	if (error) {
 		goto cleanup;
 	}
@@ -12253,48 +12305,6 @@ ha_innobase::create(
 		norm_name, FALSE, FALSE, DICT_ERR_IGNORE_NONE);
 
 	DBUG_ASSERT(innobase_table != 0);
-
-	/* If user has requested that table should be encrypted or table
-	should remain as unencrypted store crypt data */
-	if (encrypt != FIL_SPACE_ENCRYPTION_DEFAULT) {
-		ulint maxsize=0;
-		ulint zip_size = fil_space_get_zip_size(innobase_table->space);
-		fil_space_crypt_t* old_crypt_data = fil_space_get_crypt_data(innobase_table->space);
-		fil_space_crypt_t* crypt_data;
-
-		crypt_data = fil_space_create_crypt_data(encrypt, key_id);
-		crypt_data->page0_offset = fsp_header_get_crypt_offset(zip_size, &maxsize);
-		crypt_data->encryption = encrypt;
-
-		/* If there is old crypt data, copy IV */
-		if (old_crypt_data) {
-			memcpy(crypt_data->iv, old_crypt_data->iv, sizeof(crypt_data->iv));
-		}
-
-		mtr_t mtr;
-		mtr_start(&mtr);
-		/* Get page 0*/
-		ulint offset = 0;
-		buf_block_t* block = buf_page_get_gen(innobase_table->space,
-						      zip_size,
-						      offset,
-						      RW_X_LATCH,
-						      NULL,
-						      BUF_GET,
-						      __FILE__, __LINE__,
-						      &mtr);
-
-		/* Set up new crypt data */
-		crypt_data = fil_space_set_crypt_data(innobase_table->space, crypt_data);
-
-		/* Compute location to store crypt data */
-		byte* frame = buf_block_get_frame(block);
-
-		/* Write crypt data to page 0 */
-		fil_space_write_crypt_data(innobase_table->space, frame, crypt_data->page0_offset, maxsize, &mtr);
-
-		mtr_commit(&mtr);
-	}
 
 	innobase_copy_frm_flags_from_create_info(innobase_table, create_info);
 
@@ -12460,6 +12470,8 @@ ha_innobase::discard_or_import_tablespace(
 			     | HA_STATUS_CONST
 			     | HA_STATUS_VARIABLE
 			     | HA_STATUS_AUTO);
+
+			fil_crypt_set_encrypt_tables(srv_encrypt_tables);
 		}
 	}
 
@@ -12664,21 +12676,29 @@ ha_innobase::defragment_table(
 	const char*	index_name,	/*!< in: index name */
 	bool		async)		/*!< in: whether to wait until finish */
 {
-	char    norm_name[FN_REFLEN];
-	dict_table_t* table;
-	dict_index_t* index;
+	char		norm_name[FN_REFLEN];
+	dict_table_t*	table = NULL;
+	dict_index_t*	index = NULL;
 	ibool		one_index = (index_name != 0);
 	int		ret = 0;
+	dberr_t		err = DB_SUCCESS;
+
 	if (!srv_defragment) {
 		return ER_FEATURE_DISABLED;
 	}
+
 	normalize_table_name(norm_name, name);
+
 	table = dict_table_open_on_name(norm_name, FALSE,
 		FALSE, DICT_ERR_IGNORE_NONE);
+
 	for (index = dict_table_get_first_index(table); index;
 	     index = dict_table_get_next_index(index)) {
-		if (one_index && strcasecmp(index_name, index->name) != 0)
+
+		if (one_index && strcasecmp(index_name, index->name) != 0) {
 			continue;
+		}
+
 		if (btr_defragment_find_index(index)) {
 			// We borrow this error code. When the same index is
 			// already in the defragmentation queue, issue another
@@ -12693,7 +12713,23 @@ ha_innobase::defragment_table(
 			ret = ER_SP_ALREADY_EXISTS;
 			break;
 		}
-		os_event_t event = btr_defragment_add_index(index, async);
+
+		os_event_t event = btr_defragment_add_index(index, async, &err);
+
+		if (err != DB_SUCCESS) {
+			push_warning_printf(
+				current_thd,
+				Sql_condition::WARN_LEVEL_WARN,
+				ER_NO_SUCH_TABLE,
+				"Table %s is encrypted but encryption service or"
+				" used key_id is not available. "
+				" Can't continue checking table.",
+				index->table->name);
+
+			ret = convert_error_code_to_mysql(err, 0, current_thd);
+			break;
+		}
+
 		if (!async && event) {
 			while(os_event_wait_time(event, 1000000)) {
 				if (thd_killed(current_thd)) {
@@ -12704,18 +12740,23 @@ ha_innobase::defragment_table(
 			}
 			os_event_free(event);
 		}
+
 		if (ret) {
 			break;
 		}
+
 		if (one_index) {
 			one_index = FALSE;
 			break;
 		}
 	}
+
 	dict_table_close(table, FALSE, FALSE);
+
 	if (ret == 0 && one_index) {
 		ret = ER_NO_SUCH_INDEX;
 	}
+
 	return ret;
 }
 
@@ -13175,6 +13216,13 @@ ha_innobase::estimate_rows_upper_bound()
 
 	prebuilt->trx->op_info = "";
 
+        /* Set num_rows less than MERGEBUFF to simulate the case where we do
+        not have enough space to merge the externally sorted file blocks. */
+        DBUG_EXECUTE_IF("set_num_rows_lt_MERGEBUFF",
+                        estimate = 2;
+                        DBUG_SET("-d,set_num_rows_lt_MERGEBUFF");
+                       );
+
 	DBUG_RETURN((ha_rows) estimate);
 }
 
@@ -13440,7 +13488,6 @@ ha_innobase::info_low(
 	dict_table_t*	ib_table;
 	ha_rows		rec_per_key;
 	ib_uint64_t	n_rows;
-	char		path[FN_REFLEN];
 	os_file_stat_t	stat_info;
 
 	DBUG_ENTER("info");
@@ -13498,17 +13545,6 @@ ha_innobase::info_low(
 				"returning various info to MySQL";
 		}
 
-		my_snprintf(path, sizeof(path), "%s/%s%s",
-			    mysql_data_home, ib_table->name, reg_ext);
-
-		unpack_filename(path,path);
-
-		/* Note that we do not know the access time of the table,
-		nor the CHECK TABLE time, nor the UPDATE or INSERT time. */
-
-		if (os_file_get_status(path, &stat_info, false) == DB_SUCCESS) {
-			stats.create_time = (ulong) stat_info.ctime;
-		}
 	}
 
 	if (flag & HA_STATUS_VARIABLE) {
@@ -13640,6 +13676,7 @@ ha_innobase::info_low(
 
 	if (flag & HA_STATUS_CONST) {
 		ulong	i;
+		char	path[FN_REFLEN];
 		/* Verify the number of index in InnoDB and MySQL
 		matches up. If prebuilt->clust_index_was_generated
 		holds, InnoDB defines GEN_CLUST_INDEX internally */
@@ -13793,6 +13830,20 @@ ha_innobase::info_low(
 
 		if (!(flag & HA_STATUS_NO_LOCK)) {
 			dict_table_stats_unlock(ib_table, RW_S_LATCH);
+		}
+
+		my_snprintf(path, sizeof(path), "%s/%s%s",
+			    mysql_data_home,
+			    table->s->normalized_path.str,
+			    reg_ext);
+
+		unpack_filename(path,path);
+
+		/* Note that we do not know the access time of the table,
+		nor the CHECK TABLE time, nor the UPDATE or INSERT time. */
+
+		if (os_file_get_status(path, &stat_info, false) == DB_SUCCESS) {
+			stats.create_time = (ulong) stat_info.ctime;
 		}
 	}
 
@@ -14019,7 +14070,7 @@ ha_innobase::check(
 				server_mutex,
                                 srv_fatal_semaphore_wait_threshold,
 				SRV_SEMAPHORE_WAIT_EXTENSION);
-			bool valid = btr_validate_index(index, prebuilt->trx);
+			dberr_t err = btr_validate_index(index, prebuilt->trx);
 
 			/* Restore the fatal lock wait timeout after
 			CHECK TABLE. */
@@ -14028,19 +14079,32 @@ ha_innobase::check(
                                 srv_fatal_semaphore_wait_threshold,
 				SRV_SEMAPHORE_WAIT_EXTENSION);
 
-			if (!valid) {
+			if (err != DB_SUCCESS) {
 				is_ok = false;
 
 				innobase_format_name(
 					index_name, sizeof index_name,
 					index->name, TRUE);
-				push_warning_printf(
-					thd,
-					Sql_condition::WARN_LEVEL_WARN,
-					ER_NOT_KEYFILE,
-					"InnoDB: The B-tree of"
-					" index %s is corrupted.",
-					index_name);
+
+				if (err == DB_DECRYPTION_FAILED) {
+					push_warning_printf(
+						thd,
+						Sql_condition::WARN_LEVEL_WARN,
+						ER_NO_SUCH_TABLE,
+						"Table %s is encrypted but encryption service or"
+						" used key_id is not available. "
+						" Can't continue checking table.",
+						index->table->name);
+				} else {
+					push_warning_printf(
+						thd,
+						Sql_condition::WARN_LEVEL_WARN,
+						ER_NOT_KEYFILE,
+						"InnoDB: The B-tree of"
+						" index %s is corrupted.",
+						index_name);
+				}
+
 				continue;
 			}
 		}
@@ -14838,8 +14902,8 @@ ha_innobase::external_lock(
 		DBUG_EXECUTE_IF("no_innodb_binlog_errors", skip = true;);
 		if (!skip) {
 #ifdef WITH_WSREP
-			if (!wsrep_on(thd)
-			    || wsrep_thd_exec_mode(thd) == LOCAL_STATE) {
+			if (!wsrep_on(thd) || wsrep_thd_exec_mode(thd) == LOCAL_STATE)
+			{
 #endif /* WITH_WSREP */
 				my_error(ER_BINLOG_STMT_MODE_AND_ROW_ENGINE, MYF(0),
 					" InnoDB is limited to row-logging when "
@@ -15960,7 +16024,7 @@ ha_innobase::get_auto_increment(
 		if (prebuilt->autoinc_increment > increment) {
 
 			WSREP_DEBUG("autoinc decrease: %llu -> %llu\n"
-				    "THD: %ld, current: %llu, autoinc: %llu", 
+				    "THD: %ld, current: %llu, autoinc: %llu",
 				    prebuilt->autoinc_increment,
 				    increment,
 				    thd_get_thread_id(ha_thd()),
@@ -16054,8 +16118,13 @@ ha_innobase::get_error_message(
 {
 	trx_t*	trx = check_trx_exists(ha_thd());
 
-	buf->copy(trx->detailed_error, (uint) strlen(trx->detailed_error),
-		system_charset_info);
+	if (error == HA_ERR_DECRYPTION_FAILED) {
+		const char *msg = "Table encrypted but decryption failed. This could be because correct encryption management plugin is not loaded, used encryption key is not available or encryption method does not match.";
+		buf->copy(msg, (uint)strlen(msg), system_charset_info);
+	} else {
+		buf->copy(trx->detailed_error, (uint) strlen(trx->detailed_error),
+			system_charset_info);
+	}
 
 	return(FALSE);
 }
@@ -18829,7 +18898,7 @@ innodb_encrypt_tables_update(
 	const void*                     save)   /*!< in: immediate result
 						from check function */
 {
-	fil_crypt_set_encrypt_tables(*static_cast<const uint*>(save));
+	fil_crypt_set_encrypt_tables(*static_cast<const ulong*>(save));
 }
 
 static SHOW_VAR innodb_status_variables_export[]= {
@@ -18939,6 +19008,7 @@ wsrep_innobase_kill_one_trx(void * const bf_thd_ptr,
 			wsrep_abort_slave_trx(bf_seqno,
 					      wsrep_thd_trx_seqno(thd));
 		} else {
+			wsrep_t *wsrep= get_wsrep();
 			rcode = wsrep->abort_pre_commit(
 				wsrep, bf_seqno,
 				(wsrep_trx_id_t)victim_trx->id
@@ -19009,9 +19079,6 @@ wsrep_innobase_kill_one_trx(void * const bf_thd_ptr,
 		break;
 	case QUERY_IDLE:
 	{
-		bool skip_abort= false;
-		wsrep_aborting_thd_t abortees;
-
 		WSREP_DEBUG("kill IDLE for %lu", victim_trx->id);
 
 		if (wsrep_thd_exec_mode(thd) == REPL_RECV) {
@@ -19025,35 +19092,22 @@ wsrep_innobase_kill_one_trx(void * const bf_thd_ptr,
                 /* This will lock thd from proceeding after net_read() */
 		wsrep_thd_set_conflict_state(thd, ABORTING);
 
-		mysql_mutex_lock(&LOCK_wsrep_rollback);
+		wsrep_lock_rollback();
 
-		abortees = wsrep_aborting_thd;
-		while (abortees && !skip_abort) {
-			/* check if we have a kill message for this already */
-			if (abortees->aborting_thd == thd) {
-				skip_abort = true;
-				WSREP_WARN("duplicate thd aborter %lu",
-					  thd_get_thread_id(thd));
-			}
-			abortees = abortees->next;
-		}
-		if (!skip_abort) {
-			wsrep_aborting_thd_t aborting = (wsrep_aborting_thd_t)
-				my_malloc(sizeof(struct wsrep_aborting_thd),
-					  MYF(0));
-			aborting->aborting_thd  = thd;
-			aborting->next          = wsrep_aborting_thd;
-			wsrep_aborting_thd      = aborting;
+		if (wsrep_aborting_thd_contains(thd)) {
+			WSREP_WARN("duplicate thd aborter %lu",
+			           thd_get_thread_id(thd));
+		} else {
+			wsrep_aborting_thd_enqueue(thd);
 			DBUG_PRINT("wsrep",("enqueuing trx abort for %lu",
-                                             thd_get_thread_id(thd)));
+			                    thd_get_thread_id(thd)));
 			WSREP_DEBUG("enqueuing trx abort for (%lu)",
-				    thd_get_thread_id(thd));
+			            thd_get_thread_id(thd));
 		}
 
 		DBUG_PRINT("wsrep",("signalling wsrep rollbacker"));
 		WSREP_DEBUG("signaling aborter");
-		mysql_cond_signal(&COND_wsrep_rollback);
-		mysql_mutex_unlock(&LOCK_wsrep_rollback);
+		wsrep_unlock_rollback();
 		wsrep_thd_UNLOCK(thd);
 
 		break;
@@ -19067,6 +19121,7 @@ wsrep_innobase_kill_one_trx(void * const bf_thd_ptr,
 
 	DBUG_RETURN(0);
 }
+
 static int
 wsrep_abort_transaction(handlerton* hton, THD *bf_thd, THD *victim_thd,
 			my_bool signal)
@@ -19074,7 +19129,7 @@ wsrep_abort_transaction(handlerton* hton, THD *bf_thd, THD *victim_thd,
 	DBUG_ENTER("wsrep_innobase_abort_thd");
 	trx_t* victim_trx = thd_to_trx(victim_thd);
 	trx_t* bf_trx     = (bf_thd) ? thd_to_trx(bf_thd) : NULL;
-	WSREP_DEBUG("abort transaction: BF: %s victim: %s", 
+	WSREP_DEBUG("abort transaction: BF: %s victim: %s",
 		    wsrep_thd_query(bf_thd),
 		    wsrep_thd_query(victim_thd));
 
@@ -20151,6 +20206,14 @@ static MYSQL_SYSVAR_BOOL(disable_background_merge,
   NULL, NULL, FALSE);
 #endif /* UNIV_DEBUG || UNIV_IBUF_DEBUG */
 
+static MYSQL_SYSVAR_ULONG(buf_dump_status_frequency, srv_buf_dump_status_frequency,
+  PLUGIN_VAR_RQCMDARG,
+  "A number between [0, 100] that tells how oftern buffer pool dump status "
+  "in percentages should be printed. E.g. 10 means that buffer pool dump "
+  "status is printed when every 10% of number of buffer pool pages are "
+  "dumped. Default is 0 (only start and end status is printed).",
+  NULL, NULL, 0, 0, 100, 0);
+
 #ifdef WITH_INNODB_DISALLOW_WRITES
 /*******************************************************
  *    innobase_disallow_writes variable definition     *
@@ -20728,6 +20791,7 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(debug_force_scrubbing),
 #endif
   MYSQL_SYSVAR(instrument_semaphores),
+  MYSQL_SYSVAR(buf_dump_status_frequency),
   NULL
 };
 
@@ -20782,7 +20846,8 @@ i_s_innodb_changed_pages,
 i_s_innodb_mutexes,
 i_s_innodb_sys_semaphore_waits,
 i_s_innodb_tablespaces_encryption,
-i_s_innodb_tablespaces_scrubbing
+i_s_innodb_tablespaces_scrubbing,
+i_s_innodb_changed_page_bitmaps
 maria_declare_plugin_end;
 
 /** @brief Initialize the default value of innodb_commit_concurrency.
@@ -21366,7 +21431,7 @@ innodb_encrypt_tables_validate(
 	if (check_sysvar_enum(thd, var, save, value))
 		return 1;
 
-	long encrypt_tables = *(long*)save;
+	ulong encrypt_tables = *(ulong*)save;
 
 	if (encrypt_tables
 	    && !encryption_key_id_exists(FIL_DEFAULT_ENCRYPTION_KEY)) {
@@ -21384,4 +21449,60 @@ static void innodb_remember_check_sysvar_funcs()
 	/* remember build-in sysvar check functions */
 	ut_ad((MYSQL_SYSVAR_NAME(checksum_algorithm).flags & 0x1FF) == PLUGIN_VAR_ENUM);
 	check_sysvar_enum = MYSQL_SYSVAR_NAME(checksum_algorithm).check;
+}
+
+/********************************************************************//**
+Helper function to push warnings from InnoDB internals to SQL-layer. */
+UNIV_INTERN
+void
+ib_push_warning(
+	trx_t*		trx,	/*!< in: trx */
+	ulint		error,	/*!< in: error code to push as warning */
+	const char	*format,/*!< in: warning message */
+	...)
+{
+	va_list args;
+	THD *thd = (THD *)trx->mysql_thd;
+	char *buf;
+#define MAX_BUF_SIZE 4*1024
+
+	va_start(args, format);
+	buf = (char *)my_malloc(MAX_BUF_SIZE, MYF(MY_WME));
+	vsprintf(buf,format, args);
+
+	push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+		convert_error_code_to_mysql((dberr_t)error, 0, thd),
+		buf);
+	my_free(buf);
+	va_end(args);
+}
+
+/********************************************************************//**
+Helper function to push warnings from InnoDB internals to SQL-layer. */
+UNIV_INTERN
+void
+ib_push_warning(
+	void*		ithd,	/*!< in: thd */
+	ulint		error,	/*!< in: error code to push as warning */
+	const char	*format,/*!< in: warning message */
+	...)
+{
+	va_list args;
+	THD *thd = (THD *)ithd;
+	char *buf;
+#define MAX_BUF_SIZE 4*1024
+
+	if (ithd == NULL) {
+		thd = current_thd;
+	}
+
+	va_start(args, format);
+	buf = (char *)my_malloc(MAX_BUF_SIZE, MYF(MY_WME));
+	vsprintf(buf,format, args);
+
+	push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+		convert_error_code_to_mysql((dberr_t)error, 0, thd),
+		buf);
+	my_free(buf);
+	va_end(args);
 }

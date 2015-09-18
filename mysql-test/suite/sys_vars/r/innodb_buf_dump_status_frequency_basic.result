@@ -1,0 +1,42 @@
+SET @start_innodb_buf_dump_status_frequency = @@global.innodb_buf_dump_status_frequency;
+SELECT @start_innodb_buf_dump_status_frequency;
+@start_innodb_buf_dump_status_frequency
+0
+SELECT COUNT(@@global.innodb_buf_dump_status_frequency);
+COUNT(@@global.innodb_buf_dump_status_frequency)
+1
+SET @@global.innodb_buf_dump_status_frequency = 20;
+SELECT @@global.innodb_buf_dump_status_frequency;
+@@global.innodb_buf_dump_status_frequency
+20
+SET @@global.innodb_buf_dump_status_frequency = 0;
+SELECT @@global.innodb_buf_dump_status_frequency;
+@@global.innodb_buf_dump_status_frequency
+0
+SET @@global.innodb_buf_dump_status_frequency = 100;
+SELECT @@global.innodb_buf_dump_status_frequency;
+@@global.innodb_buf_dump_status_frequency
+100
+SET @@global.innodb_buf_dump_status_frequency = -1;
+Warnings:
+Warning	1292	Truncated incorrect innodb_buf_dump_status_frequency value: '-1'
+SELECT @@global.innodb_buf_dump_status_frequency;
+@@global.innodb_buf_dump_status_frequency
+0
+SET @@global.innodb_buf_dump_status_frequency = 101;
+Warnings:
+Warning	1292	Truncated incorrect innodb_buf_dump_status_frequency value: '101'
+SELECT @@global.innodb_buf_dump_status_frequency;
+@@global.innodb_buf_dump_status_frequency
+100
+SET @@global.innodb_buf_dump_status_frequency = 10.5;
+ERROR 42000: Incorrect argument type to variable 'innodb_buf_dump_status_frequency'
+SELECT @@global.innodb_buf_dump_status_frequency;
+@@global.innodb_buf_dump_status_frequency
+100
+SET @@global.innodb_buf_dump_status_frequency = "abc";
+ERROR 42000: Incorrect argument type to variable 'innodb_buf_dump_status_frequency'
+SELECT @@global.innodb_buf_dump_status_frequency;
+@@global.innodb_buf_dump_status_frequency
+100
+SET @@global.innodb_buf_dump_status_frequency = @start_innodb_buf_dump_status_frequency;

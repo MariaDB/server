@@ -38,7 +38,7 @@ int mysql_alter_tablespace(THD *thd, st_alter_tablespace *ts_info)
     if (ts_info->storage_engine != 0)
       push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                           ER_WARN_USING_OTHER_HANDLER,
-                          ER(ER_WARN_USING_OTHER_HANDLER),
+                          ER_THD(thd, ER_WARN_USING_OTHER_HANDLER),
                           hton_name(hton)->str,
                           ts_info->tablespace_name ? ts_info->tablespace_name
                                                 : ts_info->logfile_group_name);
@@ -68,7 +68,7 @@ int mysql_alter_tablespace(THD *thd, st_alter_tablespace *ts_info)
   {
     push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                         ER_ILLEGAL_HA_CREATE_OPTION,
-                        ER(ER_ILLEGAL_HA_CREATE_OPTION),
+                        ER_THD(thd, ER_ILLEGAL_HA_CREATE_OPTION),
                         hton_name(hton)->str,
                         "TABLESPACE or LOGFILE GROUP");
   }

@@ -1,3 +1,5 @@
+set global sql_mode="";
+set local sql_mode="";
 # FTWRL takes two global metadata locks -- a global shared
 # metadata lock and the commit blocker lock.
 # The first lock prevents DDL from taking place.
@@ -1667,3 +1669,4 @@ drop database `#mysql50#mysqltest-2`;
 drop database mysqltest1;
 drop temporary tables t1_temp, t2_temp;
 drop tables t1_base, t2_base, t3_trans;
+set global sql_mode=default;

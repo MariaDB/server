@@ -728,7 +728,6 @@ void my_timer_init(MY_TIMER_INFO *mti)
       mti->cycles.frequency= mti->microseconds.frequency;
     else
     {
-      ulonglong time1, time2;
       time1= my_timer_init_frequency(mti);
       /* Repeat once in case there was an interruption. */
       time2= my_timer_init_frequency(mti);
@@ -750,8 +749,7 @@ void my_timer_init(MY_TIMER_INFO *mti)
   &&  mti->microseconds.routine
   &&  mti->cycles.routine)
   {
-    int i;
-    ulonglong time1, time2, time3, time4;
+    ulonglong time3, time4;
     time1= my_timer_cycles();
     time2= my_timer_milliseconds();
     time3= time2; /* Avoids a Microsoft/IBM compiler warning */
@@ -776,8 +774,7 @@ void my_timer_init(MY_TIMER_INFO *mti)
   &&  mti->microseconds.routine
   &&  mti->cycles.routine)
   {
-    int i;
-    ulonglong time1, time2, time3, time4;
+    ulonglong time3, time4;
     time1= my_timer_cycles();
     time2= my_timer_ticks();
     time3= time2; /* Avoids a Microsoft/IBM compiler warning */

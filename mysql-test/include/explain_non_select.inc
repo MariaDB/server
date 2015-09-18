@@ -771,7 +771,7 @@ DROP TABLE t1,t2;
 
 --echo #74
 
-CREATE TABLE t1(a INT PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE t1(a INT PRIMARY KEY);
 INSERT INTO t1 VALUES (1), (2), (3), (4), (5);
 
 --echo # used key is modified & Using temporary

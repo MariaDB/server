@@ -1,0 +1,150 @@
+# Last Modified: Fri Mar  1 18:55:47 2013
+# Based on usr.sbin.mysqld packaged in mysql-server in Ubuntu.
+# This AppArmor profile has been copied under BSD License from
+# Percona XtraDB Cluster, along with some additions.
+
+#include <tunables/global>
+
+/usr/sbin/mysqld flags=(complain) {
+  #include <abstractions/base>
+  #include <abstractions/mysql>
+  #include <abstractions/nameservice>
+  #include <abstractions/user-tmp>
+  #include <abstractions/winbind>
+
+  capability chown,
+  capability dac_override,
+  capability setgid,
+  capability setuid,
+  capability sys_rawio,
+  capability sys_resource,
+
+  network tcp,
+
+  /bin/dash rcx,
+  /dev/dm-0 r,
+  /etc/gai.conf r,
+  /etc/group r,
+  /etc/hosts.allow r,
+  /etc/hosts.deny r,
+  /etc/ld.so.cache r,
+  /etc/mtab r,
+  /etc/my.cnf r,
+  /etc/mysql/*.cnf r,
+  /etc/mysql/*.pem r,
+  /etc/mysql/conf.d/ r,
+  /etc/mysql/conf.d/* r,
+  /etc/nsswitch.conf r,
+  /etc/passwd r,
+  /etc/services r,
+  /run/mysqld/mysqld.pid w,
+  /run/mysqld/mysqld.sock w,
+  /sys/devices/system/cpu/ r,
+  owner /tmp/** lk,
+  /tmp/** rw,
+  /usr/lib/mysql/plugin/ r,
+  /usr/lib/mysql/plugin/*.so* mr,
+  /usr/sbin/mysqld mr,
+  /usr/share/mysql/** r,
+  /var/lib/mysql/ r,
+  /var/lib/mysql/** rwk,
+  /var/log/mysql.err rw,
+  /var/log/mysql.log rw,
+  /var/log/mysql/ r,
+  /var/log/mysql/* rw,
+  /var/run/mysqld/mysqld.pid w,
+  /var/run/mysqld/mysqld.sock w,
+
+
+  profile /bin/dash flags=(complain) {
+    #include <abstractions/base>
+    #include <abstractions/bash>
+    #include <abstractions/mysql>
+    #include <abstractions/nameservice>
+    #include <abstractions/perl>
+
+
+
+    /bin/cat rix,
+    /bin/dash rix,
+    /bin/date rix,
+    /bin/grep rix,
+    /bin/nc.openbsd rix,
+    /bin/netstat rix,
+    /bin/ps rix,
+    /bin/rm rix,
+    /bin/sed rix,
+    /bin/sleep rix,
+    /bin/tar rix,
+    /bin/which rix,
+    /dev/tty rw,
+    /etc/ld.so.cache r,
+    /etc/my.cnf r,
+    /proc/ r,
+    /proc/*/cmdline r,
+    /proc/*/fd/ r,
+    /proc/*/net/dev r,
+    /proc/*/net/if_inet6 r,
+    /proc/*/net/tcp r,
+    /proc/*/net/tcp6 r,
+    /proc/*/stat r,
+    /proc/*/status r,
+    /proc/sys/kernel/pid_max r,
+    /proc/tty/drivers r,
+    /proc/uptime r,
+    /proc/version r,
+    /sbin/ifconfig rix,
+    /sys/devices/system/cpu/ r,
+    /tmp/** rw,
+    /usr/bin/cut rix,
+    /usr/bin/dirname rix,
+    /usr/bin/gawk rix,
+    /usr/bin/innobackupex rix,
+    /usr/bin/mysql rix,
+    /usr/bin/perl rix,
+    /usr/bin/seq rix,
+    /usr/bin/wsrep_sst* rix,
+    /usr/bin/wsrep_sst_common r,
+    /usr/bin/xtrabackup* rix,
+    /var/lib/mysql/ r,
+    /var/lib/mysql/** rw,
+    /var/lib/mysql/*.log w,
+    /var/lib/mysql/*.err w,
+
+# MariaDB additions
+    ptrace peer=@{profile_name},
+
+    /bin/hostname rix,
+    /bin/ip rix,
+    /bin/mktemp rix,
+    /bin/ss rix,
+    /bin/sync rix,
+    /bin/touch rix,
+    /bin/uname rix,
+    /etc/mysql/*.cnf r,
+    /etc/mysql/conf.d/ r,
+    /etc/mysql/conf.d/* r,
+    /proc/*/attr/current r,
+    /proc/*/fdinfo/* r,
+    /proc/*/net/* r,
+    /proc/locks r,
+    /proc/sys/net/ipv4/ip_local_port_range r,
+    /run/mysqld/mysqld.sock rw,
+    /sbin/ip rix,
+    /usr/bin/basename rix,
+    /usr/bin/du rix,
+    /usr/bin/find rix,
+    /usr/bin/lsof rix,
+    /usr/bin/my_print_defaults rix,
+    /usr/bin/mysqldump rix,
+    /usr/bin/pv rix,
+    /usr/bin/rsync rix,
+    /usr/bin/socat rix,
+    /usr/bin/tail rix,
+    /usr/bin/timeout rix,
+    /usr/bin/xargs rix,
+    /usr/bin/xbstream rix,
+  }
+  # Site-specific additions and overrides. See local/README for details.
+  #include <local/usr.sbin.mysqld>
+}

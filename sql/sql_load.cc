@@ -99,7 +99,7 @@ public:
   /* load xml */
   List<XML_TAG> taglist;
   int read_value(int delim, String *val);
-  int read_xml();
+  int read_xml(THD *thd);
   int clear_level(int level);
 
   my_off_t file_length() { return cache.end_of_file; }
@@ -200,7 +200,8 @@ int mysql_load(THD *thd,sql_exchange *ex,TABLE_LIST *table_list,
 
   if (escaped->length() > 1 || enclosed->length() > 1)
   {
-    my_message(ER_WRONG_FIELD_TERMINATORS,ER(ER_WRONG_FIELD_TERMINATORS),
+    my_message(ER_WRONG_FIELD_TERMINATORS,
+               ER_THD(thd, ER_WRONG_FIELD_TERMINATORS),
 	       MYF(0));
     DBUG_RETURN(TRUE);
   }
@@ -212,7 +213,7 @@ int mysql_load(THD *thd,sql_exchange *ex,TABLE_LIST *table_list,
   {
     push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
                  WARN_NON_ASCII_SEPARATOR_NOT_IMPLEMENTED,
-                 ER(WARN_NON_ASCII_SEPARATOR_NOT_IMPLEMENTED));
+                 ER_THD(thd, WARN_NON_ASCII_SEPARATOR_NOT_IMPLEMENTED));
   } 
 
   if (open_and_lock_tables(thd, table_list, TRUE, 0))
@@ -269,7 +270,7 @@ int mysql_load(THD *thd,sql_exchange *ex,TABLE_LIST *table_list,
       Item *item;
       if (!(item= field_iterator.create_item(thd)))
         DBUG_RETURN(TRUE);
-      fields_vars.push_back(item->real_item());
+      fields_vars.push_back(item->real_item(), thd->mem_root);
     }
     bitmap_set_all(table->write_set);
     /*
@@ -298,6 +299,18 @@ int mysql_load(THD *thd,sql_exchange *ex,TABLE_LIST *table_list,
   table->prepare_triggers_for_insert_stmt_or_event();
   table->mark_columns_needed_for_insert();
 
+  if (table->vfield)
+  {
+    for (Field **vfield_ptr= table->vfield; *vfield_ptr; vfield_ptr++)
+    {
+      if ((*vfield_ptr)->stored_in_db)
+      {
+        thd->lex->unit.insert_table_with_stored_vcol= table;
+        break;
+      }
+    }
+  }
+
   uint tot_length=0;
   bool use_blobs= 0, use_vars= 0;
   List_iterator_fast<Item> it(fields_vars);
@@ -323,7 +336,8 @@ int mysql_load(THD *thd,sql_exchange *ex,TABLE_LIST *table_list,
   }
   if (use_blobs && !ex->line_term->length() && !field_term->length())
   {
-    my_message(ER_BLOBS_AND_NO_TERMINATED,ER(ER_BLOBS_AND_NO_TERMINATED),
+    my_message(ER_BLOBS_AND_NO_TERMINATED,
+               ER_THD(thd, ER_BLOBS_AND_NO_TERMINATED),
 	       MYF(0));
     DBUG_RETURN(TRUE);
   }
@@ -477,7 +491,12 @@ int mysql_load(THD *thd,sql_exchange *ex,TABLE_LIST *table_list,
     thd->abort_on_warning= !ignore && thd->is_strict_mode();
 
     thd_progress_init(thd, 2);
-    if (ex->filetype == FILETYPE_XML) /* load xml */
+    if (table_list->table->validate_default_values_of_unset_fields(thd))
+    {
+      read_info.error= true;
+      error= 1;
+    }
+    else if (ex->filetype == FILETYPE_XML) /* load xml */
       error= read_xml_field(thd, info, table_list, fields_vars,
                             set_fields, set_values, read_info,
                             *(ex->line_term), skip_lines, ignore);
@@ -567,7 +586,8 @@ int mysql_load(THD *thd,sql_exchange *ex,TABLE_LIST *table_list,
     error= -1;				// Error on read
     goto err;
   }
-  sprintf(name, ER(ER_LOAD_INFO), (ulong) info.records, (ulong) info.deleted,
+  sprintf(name, ER_THD(thd, ER_LOAD_INFO),
+          (ulong) info.records, (ulong) info.deleted,
 	  (ulong) (info.records - info.copied),
           (long) thd->get_stmt_da()->current_statement_warn_count());
 
@@ -813,7 +833,7 @@ read_fixed_length(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
         thd->cuted_fields++;			/* Not enough fields */
         push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                             ER_WARN_TOO_FEW_RECORDS,
-                            ER(ER_WARN_TOO_FEW_RECORDS),
+                            ER_THD(thd, ER_WARN_TOO_FEW_RECORDS),
                             thd->get_stmt_da()->current_row_for_warning());
         /*
           Timestamp fields that are NOT NULL are autoupdated if there is no
@@ -843,7 +863,7 @@ read_fixed_length(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
       thd->cuted_fields++;			/* To long row */
       push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                           ER_WARN_TOO_MANY_RECORDS,
-                          ER(ER_WARN_TOO_MANY_RECORDS),
+                          ER_THD(thd, ER_WARN_TOO_MANY_RECORDS),
                           thd->get_stmt_da()->current_row_for_warning());
     }
 
@@ -879,7 +899,7 @@ read_fixed_length(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
       thd->cuted_fields++;			/* To long row */
       push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                           ER_WARN_TOO_MANY_RECORDS,
-                          ER(ER_WARN_TOO_MANY_RECORDS),
+                          ER_THD(thd, ER_WARN_TOO_MANY_RECORDS),
                           thd->get_stmt_da()->current_row_for_warning());
     }
     thd->get_stmt_da()->inc_current_row_for_warning();
@@ -1056,7 +1076,7 @@ read_sep_field(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
           thd->cuted_fields++;
           push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                               ER_WARN_TOO_FEW_RECORDS,
-                              ER(ER_WARN_TOO_FEW_RECORDS),
+                              ER_THD(thd, ER_WARN_TOO_FEW_RECORDS),
                               thd->get_stmt_da()->current_row_for_warning());
         }
         else if (item->type() == Item::STRING_ITEM)
@@ -1102,7 +1122,8 @@ read_sep_field(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
     {
       thd->cuted_fields++;			/* To long row */
       push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-                          ER_WARN_TOO_MANY_RECORDS, ER(ER_WARN_TOO_MANY_RECORDS),
+                          ER_WARN_TOO_MANY_RECORDS,
+                          ER_THD(thd, ER_WARN_TOO_MANY_RECORDS),
                           thd->get_stmt_da()->current_row_for_warning());
       if (thd->killed)
         DBUG_RETURN(1);
@@ -1142,7 +1163,7 @@ read_xml_field(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
     }
     
     // read row tag and save values into tag list
-    if (read_info.read_xml())
+    if (read_info.read_xml(thd))
       break;
     
     List_iterator_fast<XML_TAG> xmlit(read_info.taglist);
@@ -1243,7 +1264,7 @@ read_xml_field(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
           thd->cuted_fields++;
           push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                               ER_WARN_TOO_FEW_RECORDS,
-                              ER(ER_WARN_TOO_FEW_RECORDS),
+                              ER_THD(thd, ER_WARN_TOO_FEW_RECORDS),
                               thd->get_stmt_da()->current_row_for_warning());
         }
         else
@@ -1866,7 +1887,7 @@ int READ_INFO::read_value(int delim, String *val)
   tags and attributes are stored in taglist
   when tag set in ROWS IDENTIFIED BY is closed, we are ready and return
 */
-int READ_INFO::read_xml()
+int READ_INFO::read_xml(THD *thd)
 {
   DBUG_ENTER("READ_INFO::read_xml");
   int chr, chr2, chr3;
@@ -1964,11 +1985,13 @@ int READ_INFO::read_xml()
         goto found_eof;
       
       /* save value to list */
-      if(tag.length() > 0 && value.length() > 0)
+      if (tag.length() > 0 && value.length() > 0)
       {
         DBUG_PRINT("read_xml", ("lev:%i tag:%s val:%s",
                                 level,tag.c_ptr_safe(), value.c_ptr_safe()));
-        taglist.push_front( new XML_TAG(level, tag, value));
+        XML_TAG *tmp= new XML_TAG(level, tag, value);
+        if (!tmp || taglist.push_front(tmp, thd->mem_root))
+          DBUG_RETURN(1);                       // End of memory
       }
       tag.length(0);
       value.length(0);
@@ -2028,13 +2051,15 @@ int READ_INFO::read_xml()
       }
       
       chr= read_value(delim, &value);
-      if(attribute.length() > 0 && value.length() > 0)
+      if (attribute.length() > 0 && value.length() > 0)
       {
         DBUG_PRINT("read_xml", ("lev:%i att:%s val:%s\n",
                                 level + 1,
                                 attribute.c_ptr_safe(),
                                 value.c_ptr_safe()));
-        taglist.push_front(new XML_TAG(level + 1, attribute, value));
+        XML_TAG *tmp= new XML_TAG(level + 1, attribute, value);
+        if (!tmp || taglist.push_front(tmp, thd->mem_root))
+          DBUG_RETURN(1);                       // End of memory
       }
       attribute.length(0);
       value.length(0);

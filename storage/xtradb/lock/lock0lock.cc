@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1996, 2014, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1996, 2015, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2014, 2015, MariaDB Corporation
 
 This program is free software; you can redistribute it and/or modify it under
@@ -387,8 +387,10 @@ because there is no parallel deadlock check. This stack is protected by
 the lock_sys_t::mutex. */
 static lock_stack_t*	lock_stack;
 
+#ifdef UNIV_DEBUG
 /** The count of the types of locks. */
 static const ulint	lock_types = UT_ARR_SIZE(lock_compatibility_matrix);
+#endif /* UNIV_DEBUG */
 
 #ifdef UNIV_PFS_MUTEX
 /* Key to register mutex with performance schema */
@@ -1065,12 +1067,13 @@ lock_rec_has_to_wait(
 #ifdef WITH_WSREP
 		/* if BF thread is locking and has conflict with another BF
 		   thread, we need to look at trx ordering and lock types */
-		if (for_locking                                    &&
-		    wsrep_thd_is_BF(trx->mysql_thd, FALSE)         &&
+		if (wsrep_thd_is_BF(trx->mysql_thd, FALSE)         &&
 		    wsrep_thd_is_BF(lock2->trx->mysql_thd, TRUE)) {
 
 			if (wsrep_debug) {
-				fprintf(stderr, "\n BF-BF lock conflict \n");
+				fprintf(stderr,
+					"BF-BF lock conflict, locking: %lu\n",
+					for_locking);
 				lock_rec_print(stderr, lock2);
 			}
 
@@ -1079,16 +1082,21 @@ lock_rec_has_to_wait(
 			    (type_mode & LOCK_MODE_MASK) == LOCK_X        &&
 			    (lock2->type_mode & LOCK_MODE_MASK) == LOCK_X)
 			{
-				/* exclusive lock conflicts are not accepted */
-				fprintf(stderr, "BF-BF X lock conflict,"
-					"type_mode: %lu supremum: %lu\n",
-					type_mode, lock_is_on_supremum);
-				fprintf(stderr, "conflicts states: my %d locked %d\n",
-					wsrep_thd_conflict_state(trx->mysql_thd, FALSE),
-					wsrep_thd_conflict_state(lock2->trx->mysql_thd, FALSE) );
-				lock_rec_print(stderr, lock2);
-				return FALSE;
-				//abort();
+				if (for_locking || wsrep_debug) {
+					/* exclusive lock conflicts are not
+					   accepted */
+					fprintf(stderr,
+						"BF-BF X lock conflict,"
+						"mode: %lu supremum: %lu\n",
+						type_mode, lock_is_on_supremum);
+					fprintf(stderr,
+						"conflicts states: my %d locked %d\n",
+						wsrep_thd_conflict_state(trx->mysql_thd, FALSE), 
+						wsrep_thd_conflict_state(lock2->trx->mysql_thd, FALSE) );
+					lock_rec_print(stderr, lock2);
+					if (for_locking) return FALSE;
+					//abort();
+				}
 			} else {
 				/* if lock2->index->n_uniq <=
 				   lock2->index->n_user_defined_cols
@@ -3019,7 +3027,8 @@ lock_rec_inherit_to_gap(
 		    && !((srv_locks_unsafe_for_binlog
 			  || lock->trx->isolation_level
 			  <= TRX_ISO_READ_COMMITTED)
-			 && lock_get_mode(lock) == LOCK_X)) {
+			 && lock_get_mode(lock) ==
+			 (lock->trx->duplicates ? LOCK_S : LOCK_X))) {
 
 			lock_rec_add_to_queue(
 				LOCK_REC | LOCK_GAP | lock_get_mode(lock),

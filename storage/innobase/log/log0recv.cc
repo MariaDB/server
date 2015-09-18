@@ -2,7 +2,7 @@
 
 Copyright (c) 1997, 2015, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, SkySQL Ab. All Rights Reserved.
+Copyright (c) 2013, 2015, MariaDB Corporation. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -35,6 +35,8 @@ Created 9/20/1997 Heikki Tuuri
 #ifdef UNIV_NONINL
 #include "log0recv.ic"
 #endif
+
+#include "log0crypt.h"
 
 #include "mem0mem.h"
 #include "buf0buf.h"
@@ -805,7 +807,10 @@ recv_find_max_checkpoint(
 				buf + LOG_CHECKPOINT_OFFSET_HIGH32)) << 32;
 			checkpoint_no = mach_read_from_8(
 				buf + LOG_CHECKPOINT_NO);
-			log_crypt_read_checkpoint_buf(buf);
+
+			if (!log_crypt_read_checkpoint_buf(buf)) {
+				return DB_ERROR;
+			}
 
 #ifdef UNIV_DEBUG
 			if (log_debug_writes) {
@@ -2701,8 +2706,9 @@ recv_scan_log_recs(
 	lsn_t*		contiguous_lsn,	/*!< in/out: it is known that all log
 					groups contain contiguous log data up
 					to this lsn */
-	lsn_t*		group_scanned_lsn)/*!< out: scanning succeeded up to
+	lsn_t*		group_scanned_lsn,/*!< out: scanning succeeded up to
 					this lsn */
+	dberr_t*	err)		/*!< out: error code or DB_SUCCESS */
 {
 	const byte*	log_block;
 	ulint		no;
@@ -2721,6 +2727,7 @@ recv_scan_log_recs(
 	log_block = buf;
 	scanned_lsn = start_lsn;
 	more_data = FALSE;
+	*err = DB_SUCCESS;
 
 	do {
 		no = log_block_get_hdr_no(log_block);
@@ -2732,6 +2739,7 @@ recv_scan_log_recs(
 		*/
 		if (no != log_block_convert_lsn_to_no(scanned_lsn)
 		    || !log_block_checksum_is_ok_or_old_format(log_block)) {
+			log_crypt_err_t log_crypt_err;
 
 			if (no == log_block_convert_lsn_to_no(scanned_lsn)
 			    && !log_block_checksum_is_ok_or_old_format(
@@ -2752,6 +2760,14 @@ recv_scan_log_recs(
 			/* Garbage or an incompletely written log block */
 
 			finished = TRUE;
+
+			if (log_crypt_block_maybe_encrypted(log_block,
+					&log_crypt_err)) {
+				/* Log block maybe encrypted */
+				log_crypt_print_error(log_crypt_err);
+				*err = DB_ERROR;
+				return (TRUE);
+			}
 
 			/* Crash if we encounter a garbage log block */
 			if (!srv_force_recovery) {
@@ -2941,14 +2957,16 @@ recv_group_scan_log_recs(
 	lsn_t*		contiguous_lsn,	/*!< in/out: it is known that all log
 					groups contain contiguous log data up
 					to this lsn */
-	lsn_t*		group_scanned_lsn)/*!< out: scanning succeeded up to
+	lsn_t*		group_scanned_lsn,/*!< out: scanning succeeded up to
 					this lsn */
+	dberr_t*	err)		/*!< out: error code or DB_SUCCESS */
 {
 	ibool	finished;
 	lsn_t	start_lsn;
 	lsn_t	end_lsn;
 
 	finished = FALSE;
+	*err = DB_SUCCESS;
 
 	start_lsn = *contiguous_lsn;
 
@@ -2963,7 +2981,13 @@ recv_group_scan_log_recs(
 			- (recv_n_pool_free_frames * srv_buf_pool_instances))
 			* UNIV_PAGE_SIZE,
 			TRUE, log_sys->buf, RECV_SCAN_SIZE,
-			start_lsn, contiguous_lsn, group_scanned_lsn);
+			start_lsn, contiguous_lsn, group_scanned_lsn,
+			err);
+
+		if (*err != DB_SUCCESS) {
+			break;
+		}
+
 		start_lsn = end_lsn;
 	}
 
@@ -3171,6 +3195,7 @@ recv_recovery_from_checkpoint_start_func(
 		up_to_date_group = max_cp_group;
 	} else {
 		ulint	capacity;
+		dberr_t err;
 
 		/* Try to recover the remaining part from logs: first from
 		the logs of the archived group */
@@ -3190,8 +3215,9 @@ recv_recovery_from_checkpoint_start_func(
 		}
 
 		recv_group_scan_log_recs(group, &contiguous_lsn,
-					 &group_scanned_lsn);
-		if (recv_sys->scanned_lsn < checkpoint_lsn) {
+			&group_scanned_lsn, &err);
+
+		if (err != DB_SUCCESS || recv_sys->scanned_lsn < checkpoint_lsn) {
 
 			mutex_exit(&(log_sys->mutex));
 
@@ -3223,9 +3249,15 @@ recv_recovery_from_checkpoint_start_func(
 #ifdef UNIV_LOG_ARCHIVE
 		lsn_t	old_scanned_lsn	= recv_sys->scanned_lsn;
 #endif /* UNIV_LOG_ARCHIVE */
+		dberr_t err;
 
 		recv_group_scan_log_recs(group, &contiguous_lsn,
-					 &group_scanned_lsn);
+			&group_scanned_lsn, &err);
+
+		if (err != DB_SUCCESS) {
+			return (err);
+		}
+
 		group->scanned_lsn = group_scanned_lsn;
 
 #ifdef UNIV_LOG_ARCHIVE
@@ -3704,6 +3736,7 @@ log_group_recover_from_archive_file(
 	os_offset_t	file_size;
 	int		input_char;
 	char		name[10000];
+	dberr_t		err;
 
 	ut_a(0);
 
@@ -3848,7 +3881,11 @@ ask_again:
 			(buf_pool_get_n_pages()
 			- (recv_n_pool_free_frames * srv_buf_pool_instances))
 			* UNIV_PAGE_SIZE, TRUE, buf, len, start_lsn,
-			&dummy_lsn, &scanned_lsn);
+			&dummy_lsn, &scanned_lsn, &err);
+
+		if (err != DB_SUCCESS) {
+			return (FALSE);
+		}
 
 		if (scanned_lsn == file_end_lsn) {
 

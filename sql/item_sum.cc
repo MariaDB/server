@@ -1,5 +1,5 @@
-/* Copyright (c) 2000, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2014, SkySQL Ab.
+/* Copyright (c) 2000, 2015, Oracle and/or its affiliates.
+   Copyright (c) 2008, 2015, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -76,7 +76,7 @@ bool Item_sum::init_sum_func_check(THD *thd)
   }
   if (!(thd->lex->allow_sum_func & curr_sel->name_visibility_map))
   {
-    my_message(ER_INVALID_GROUP_FUNC_USE, ER(ER_INVALID_GROUP_FUNC_USE),
+    my_message(ER_INVALID_GROUP_FUNC_USE, ER_THD(thd, ER_INVALID_GROUP_FUNC_USE),
                MYF(0));
     return TRUE;
   }
@@ -200,7 +200,8 @@ bool Item_sum::check_sum_func(THD *thd, Item **ref)
     invalid= aggr_level <= max_sum_func_level;
   if (invalid)  
   {
-    my_message(ER_INVALID_GROUP_FUNC_USE, ER(ER_INVALID_GROUP_FUNC_USE),
+    my_message(ER_INVALID_GROUP_FUNC_USE,
+               ER_THD(thd, ER_INVALID_GROUP_FUNC_USE),
                MYF(0));
     return TRUE;
   }
@@ -271,7 +272,7 @@ bool Item_sum::check_sum_func(THD *thd, Item **ref)
             Let upper function decide whether this field is a non
             aggregated one.
           */
-          in_sum_func->outer_fields.push_back(field);
+          in_sum_func->outer_fields.push_back(field, thd->mem_root);
         }
         else
           sel->set_non_agg_field_used(true);
@@ -281,7 +282,7 @@ bool Item_sum::check_sum_func(THD *thd, Item **ref)
           !sel->group_list.elements)
       {
         my_message(ER_MIX_OF_GROUP_FUNC_AND_FIELDS,
-                   ER(ER_MIX_OF_GROUP_FUNC_AND_FIELDS), MYF(0));
+                   ER_THD(thd, ER_MIX_OF_GROUP_FUNC_AND_FIELDS), MYF(0));
         return TRUE;
       }
     }
@@ -400,10 +401,10 @@ bool Item_sum::collect_outer_ref_processor(uchar *param)
 }
 
 
-Item_sum::Item_sum(List<Item> &list) :Item_func_or_sum(list),
+Item_sum::Item_sum(THD *thd, List<Item> &list): Item_func_or_sum(thd, list),
   forced_const(FALSE)
 {
-  if (!(orig_args= (Item **) sql_alloc(sizeof(Item *) * arg_count)))
+  if (!(orig_args= (Item **) thd->alloc(sizeof(Item *) * arg_count)))
   {
     args= NULL;
   }
@@ -489,7 +490,7 @@ Item *Item_sum::get_tmp_table_item(THD *thd)
 	if (arg->type() == Item::FIELD_ITEM)
 	  ((Item_field*) arg)->field= result_field_tmp++;
 	else
-	  sum_item->args[i]= new Item_field(result_field_tmp++);
+	  sum_item->args[i]= new (thd->mem_root) Item_field(thd, result_field_tmp++);
       }
     }
   }
@@ -501,27 +502,30 @@ Field *Item_sum::create_tmp_field(bool group, TABLE *table,
                                   uint convert_blob_length)
 {
   Field *UNINIT_VAR(field);
+  MEM_ROOT *mem_root= table->in_use->mem_root;
+
   switch (result_type()) {
   case REAL_RESULT:
-    field= new Field_double(max_length, maybe_null, name, decimals, TRUE);
+    field= new (mem_root)
+      Field_double(max_length, maybe_null, name, decimals, TRUE);
     break;
   case INT_RESULT:
-    field= new Field_longlong(max_length, maybe_null, name, unsigned_flag);
+    field= new (mem_root)
+      Field_longlong(max_length, maybe_null, name, unsigned_flag);
     break;
   case STRING_RESULT:
     if (max_length/collation.collation->mbmaxlen <= 255 ||
         convert_blob_length > Field_varstring::MAX_SIZE ||
         !convert_blob_length)
       return make_string_field(table);
-    field= new Field_varstring(convert_blob_length, maybe_null,
-                               name, table->s, collation.collation);
+    field= new (mem_root) Field_varstring(convert_blob_length, maybe_null,
+                                          name, table->s, collation.collation);
     break;
   case DECIMAL_RESULT:
-    field= Field_new_decimal::create_from_item(this);
+    field= Field_new_decimal::create_from_item(mem_root, this);
     break;
   case ROW_RESULT:
   case TIME_RESULT:
-  case IMPOSSIBLE_RESULT:
     // This case should never be choosen
     DBUG_ASSERT(0);
     return 0;
@@ -609,6 +613,10 @@ void Item_sum::cleanup()
   forced_const= FALSE; 
 }
 
+Item *Item_sum::result_item(THD *thd, Field *field)
+{
+  return new (thd->mem_root) Item_field(thd, field);
+}
 
 /**
   Compare keys consisting of single field that cannot be compared as binary.
@@ -772,7 +780,7 @@ bool Aggregator_distinct::setup(THD *thd)
     for (uint i=0; i < item_sum->get_arg_count() ; i++)
     {
       Item *item=item_sum->get_arg(i);
-      if (list.push_back(item))
+      if (list.push_back(item, thd->mem_root))
         return TRUE;                              // End of memory
       if (item->const_item() && item->is_null())
         always_null= true;
@@ -893,7 +901,7 @@ bool Aggregator_distinct::setup(THD *thd)
       PS/SP. Hence all further allocations are performed in the runtime
       mem_root.
     */
-    if (field_list.push_back(&field_def))
+    if (field_list.push_back(&field_def, thd->mem_root))
       DBUG_RETURN(TRUE);
 
     item_sum->null_value= item_sum->maybe_null= 1;
@@ -1193,10 +1201,9 @@ Item_sum_hybrid::fix_fields(THD *thd, Item **ref)
     break;
   case ROW_RESULT:
   case TIME_RESULT:
-  case IMPOSSIBLE_RESULT:
     DBUG_ASSERT(0);
   };
-  setup_hybrid(args[0], NULL);
+  setup_hybrid(thd, args[0], NULL);
   /* MIN/MAX can return NULL for empty set indepedent of the used column */
   maybe_null= 1;
   unsigned_flag=item->unsigned_flag;
@@ -1235,18 +1242,18 @@ Item_sum_hybrid::fix_fields(THD *thd, Item **ref)
     and Item_sum_min::add() to use different values!
 */
 
-void Item_sum_hybrid::setup_hybrid(Item *item, Item *value_arg)
+void Item_sum_hybrid::setup_hybrid(THD *thd, Item *item, Item *value_arg)
 {
-  if (!(value= Item_cache::get_cache(item, item->cmp_type())))
+  if (!(value= Item_cache::get_cache(thd, item, item->cmp_type())))
     return;
-  value->setup(item);
+  value->setup(thd, item);
   value->store(value_arg);
   /* Don't cache value, as it will change */
   if (!item->const_item())
     value->set_used_tables(RAND_TABLE_BIT);
-  if (!(arg_cache= Item_cache::get_cache(item, item->cmp_type())))
+  if (!(arg_cache= Item_cache::get_cache(thd, item, item->cmp_type())))
     return;
-  arg_cache->setup(item);
+  arg_cache->setup(thd, item);
   /* Don't cache value, as it will change */
   if (!item->const_item())
     arg_cache->set_used_tables(RAND_TABLE_BIT);
@@ -1261,33 +1268,37 @@ Field *Item_sum_hybrid::create_tmp_field(bool group, TABLE *table,
 					 uint convert_blob_length)
 {
   Field *field;
+  MEM_ROOT *mem_root;
+
   if (args[0]->type() == Item::FIELD_ITEM)
   {
     field= ((Item_field*) args[0])->field;
     
-    if ((field= create_tmp_field_from_field(current_thd, field, name, table,
+    if ((field= create_tmp_field_from_field(table->in_use, field, name, table,
 					    NULL, convert_blob_length)))
       field->flags&= ~NOT_NULL_FLAG;
     return field;
   }
+
   /*
     DATE/TIME fields have STRING_RESULT result types.
     In order to preserve field type, it's needed to handle DATE/TIME
     fields creations separately.
   */
+  mem_root= table->in_use->mem_root;
   switch (args[0]->field_type()) {
   case MYSQL_TYPE_DATE:
-    field= new Field_newdate(0, maybe_null ? (uchar*)"" : 0, 0, Field::NONE,
-                             name);
+    field= new (mem_root)
+      Field_newdate(0, maybe_null ? (uchar*)"" : 0, 0, Field::NONE, name);
     break;
   case MYSQL_TYPE_TIME:
-    field= new_Field_time(0, maybe_null ? (uchar*)"" : 0, 0, Field::NONE,
-                          name, decimals);
+    field= new_Field_time(mem_root, 0, maybe_null ? (uchar*)"" : 0, 0,
+                          Field::NONE, name, decimals);
     break;
   case MYSQL_TYPE_TIMESTAMP:
   case MYSQL_TYPE_DATETIME:
-    field= new_Field_datetime(0, maybe_null ? (uchar*)"" : 0, 0, Field::NONE,
-                              name, decimals);
+    field= new_Field_datetime(mem_root, 0, maybe_null ? (uchar*)"" : 0, 0,
+                              Field::NONE, name, decimals);
     break;
   default:
     return Item_sum::create_tmp_field(group, table, convert_blob_length);
@@ -1367,7 +1378,6 @@ void Item_sum_sum::fix_length_and_dec()
     break;
   }
   case ROW_RESULT:
-  case IMPOSSIBLE_RESULT:
     DBUG_ASSERT(0);
   }
   DBUG_PRINT("info", ("Type: %s (%d, %d)",
@@ -1652,6 +1662,8 @@ Field *Item_sum_avg::create_tmp_field(bool group, TABLE *table,
                                       uint convert_blob_len)
 {
   Field *field;
+  MEM_ROOT *mem_root= table->in_use->mem_root;
+
   if (group)
   {
     /*
@@ -1659,14 +1671,16 @@ Field *Item_sum_avg::create_tmp_field(bool group, TABLE *table,
       The easiest way is to do this is to store both value in a string
       and unpack on access.
     */
-    field= new Field_string(((hybrid_type == DECIMAL_RESULT) ?
-                             dec_bin_size : sizeof(double)) + sizeof(longlong),
-                            0, name, &my_charset_bin);
+    field= new (mem_root)
+      Field_string(((hybrid_type == DECIMAL_RESULT) ?
+                    dec_bin_size : sizeof(double)) + sizeof(longlong),
+                   0, name, &my_charset_bin);
   }
   else if (hybrid_type == DECIMAL_RESULT)
-    field= Field_new_decimal::create_from_item(this);
+    field= Field_new_decimal::create_from_item(mem_root, this);
   else
-    field= new Field_double(max_length, maybe_null, name, decimals, TRUE);
+    field= new (mem_root) Field_double(max_length, maybe_null, name, decimals,
+                                       TRUE);
   if (field)
     field->init(table);
   return field;
@@ -1755,6 +1769,12 @@ double Item_sum_std::val_real()
 Item *Item_sum_std::copy_or_same(THD* thd)
 {
   return new (thd->mem_root) Item_sum_std(thd, this);
+}
+
+
+Item *Item_sum_std::result_item(THD *thd, Field *field)
+{
+  return new (thd->mem_root) Item_std_field(thd, this);
 }
 
 
@@ -1848,7 +1868,6 @@ void Item_sum_variance::fix_length_and_dec()
   }
   case ROW_RESULT:
   case TIME_RESULT:
-  case IMPOSSIBLE_RESULT:
     DBUG_ASSERT(0);
   }
   DBUG_PRINT("info", ("Type: REAL_RESULT (%d, %d)", max_length, (int)decimals));
@@ -1988,6 +2007,11 @@ void Item_sum_variance::update_field()
 }
 
 
+Item *Item_sum_variance::result_item(THD *thd, Field *field)
+{
+  return new (thd->mem_root) Item_variance_field(thd, this);
+}
+
 /* min & max */
 
 void Item_sum_hybrid::clear()
@@ -2087,7 +2111,7 @@ void Item_sum_hybrid::restore_to_before_no_rows_in_result()
 Item *Item_sum_min::copy_or_same(THD* thd)
 {
   Item_sum_min *item= new (thd->mem_root) Item_sum_min(thd, this);
-  item->setup_hybrid(args[0], value);
+  item->setup_hybrid(thd, args[0], value);
   return item;
 }
 
@@ -2110,7 +2134,7 @@ bool Item_sum_min::add()
 Item *Item_sum_max::copy_or_same(THD* thd)
 {
   Item_sum_max *item= new (thd->mem_root) Item_sum_max(thd, this);
-  item->setup_hybrid(args[0], value);
+  item->setup_hybrid(thd, args[0], value);
   return item;
 }
 
@@ -2286,7 +2310,6 @@ void Item_sum_hybrid::reset_field()
   }
   case ROW_RESULT:
   case TIME_RESULT:
-  case IMPOSSIBLE_RESULT:
     DBUG_ASSERT(0);
   }
 }
@@ -2476,6 +2499,12 @@ void Item_sum_avg::update_field()
 }
 
 
+Item *Item_sum_avg::result_item(THD *thd, Field *field)
+{
+  return new (thd->mem_root) Item_avg_field(thd, hybrid_type, this);
+}
+
+
 void Item_sum_hybrid::update_field()
 {
   switch (hybrid_type) {
@@ -2590,7 +2619,9 @@ Item_sum_hybrid::min_max_update_decimal_field()
 }
 
 
-Item_avg_field::Item_avg_field(Item_result res_type, Item_sum_avg *item)
+Item_avg_field::Item_avg_field(THD *thd, Item_result res_type,
+                               Item_sum_avg *item):
+  Item_result_field(thd)
 {
   name=item->name;
   decimals=item->decimals;
@@ -2663,8 +2694,8 @@ String *Item_avg_field::val_str(String *str)
 }
 
 
-Item_std_field::Item_std_field(Item_sum_std *item)
-  : Item_variance_field(item)
+Item_std_field::Item_std_field(THD *thd, Item_sum_std *item):
+  Item_variance_field(thd, item)
 {
 }
 
@@ -2702,7 +2733,8 @@ my_decimal *Item_std_field::val_decimal(my_decimal *dec_buf)
 }
 
 
-Item_variance_field::Item_variance_field(Item_sum_variance *item)
+Item_variance_field::Item_variance_field(THD *thd, Item_sum_variance *item):
+  Item_result_field(thd)
 {
   name=item->name;
   decimals=item->decimals;
@@ -3112,6 +3144,7 @@ int dump_leaf_key(void* key_arg, element_count count __attribute__((unused)),
     CHARSET_INFO *cs= item->collation.collation;
     const char *ptr= result->ptr();
     uint add_length;
+    THD *thd= current_thd;
     /*
       It's ok to use item->result.length() as the fourth argument
       as this is never used to limit the length of the data.
@@ -3124,8 +3157,9 @@ int dump_leaf_key(void* key_arg, element_count count __attribute__((unused)),
                                           &well_formed_error);
     result->length(old_length + add_length);
     item->warning_for_row= TRUE;
-    push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
-                        ER_CUT_VALUE_GROUP_CONCAT, ER(ER_CUT_VALUE_GROUP_CONCAT),
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                        ER_CUT_VALUE_GROUP_CONCAT,
+                        ER_THD(thd, ER_CUT_VALUE_GROUP_CONCAT),
                         item->row_count);
 
     return 1;
@@ -3144,11 +3178,11 @@ int dump_leaf_key(void* key_arg, element_count count __attribute__((unused)),
 */
 
 Item_func_group_concat::
-Item_func_group_concat(Name_resolution_context *context_arg,
+Item_func_group_concat(THD *thd, Name_resolution_context *context_arg,
                        bool distinct_arg, List<Item> *select_list,
                        const SQL_I_List<ORDER> &order_list,
                        String *separator_arg)
-  :tmp_table_param(0), separator(separator_arg), tree(0),
+  :Item_sum(thd), tmp_table_param(0), separator(separator_arg), tree(0),
    unique_filter(NULL), table(0),
    order(0), context(context_arg),
    arg_count_order(order_list.elements),
@@ -3170,8 +3204,8 @@ Item_func_group_concat(Name_resolution_context *context_arg,
            (for possible order items in temporary tables)
     order - arg_count_order
   */
-  if (!(args= (Item**) sql_alloc(sizeof(Item*) * arg_count * 2 +
-                                 sizeof(ORDER*)*arg_count_order)))
+  if (!(args= (Item**) thd->alloc(sizeof(Item*) * arg_count * 2 +
+                                  sizeof(ORDER*)*arg_count_order)))
     return;
 
   order= (ORDER**)(args + arg_count);
@@ -3280,12 +3314,24 @@ void Item_func_group_concat::cleanup()
     }
     DBUG_ASSERT(tree == 0);
   }
-
+  /*
+    As the ORDER structures pointed to by the elements of the
+    'order' array may be modified in find_order_in_list() called
+    from Item_func_group_concat::setup() to point to runtime
+    created objects, we need to reset them back to the original
+    arguments of the function.
+  */
+  ORDER **order_ptr= order;
+  for (uint i= 0; i < arg_count_order; i++)
+  {
+    (*order_ptr)->item= &args[arg_count_field + i];
+    order_ptr++;
+  }
   DBUG_VOID_RETURN;
 }
 
 
-Field *Item_func_group_concat::make_string_field(TABLE *table)
+Field *Item_func_group_concat::make_string_field(TABLE *table_arg)
 {
   Field *field;
   DBUG_ASSERT(collation.collation);
@@ -3294,10 +3340,11 @@ Field *Item_func_group_concat::make_string_field(TABLE *table)
                           maybe_null, name, collation.collation, TRUE);
   else
     field= new Field_varstring(max_length,
-                               maybe_null, name, table->s, collation.collation);
+                               maybe_null, name, table_arg->s,
+                               collation.collation);
 
   if (field)
-    field->init(table);
+    field->init(table_arg);
   return field;
 }
 
@@ -3465,7 +3512,7 @@ bool Item_func_group_concat::setup(THD *thd)
   for (uint i= 0; i < arg_count_field; i++)
   {
     Item *item= args[i];
-    if (list.push_back(item))
+    if (list.push_back(item, thd->mem_root))
       DBUG_RETURN(TRUE);
     if (item->const_item())
     {
@@ -3484,9 +3531,17 @@ bool Item_func_group_concat::setup(THD *thd)
     "all_fields". The resulting field list is used as input to create
     tmp table columns.
   */
-  if (arg_count_order &&
-      setup_order(thd, args, context->table_list, list, all_fields, *order))
-    DBUG_RETURN(TRUE);
+  if (arg_count_order)
+  {
+    uint n_elems= arg_count_order + all_fields.elements;
+    ref_pointer_array= static_cast<Item**>(thd->alloc(sizeof(Item*) * n_elems));
+    if (!ref_pointer_array)
+      DBUG_RETURN(TRUE);
+    memcpy(ref_pointer_array, args, arg_count * sizeof(Item*));
+    if (setup_order(thd, ref_pointer_array, context->table_list, list,
+                    all_fields, *order))
+      DBUG_RETURN(TRUE);
+  }
 
   count_field_types(select_lex, tmp_table_param, all_fields, 0);
   tmp_table_param->force_copy_fields= force_copy_fields;

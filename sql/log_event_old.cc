@@ -1753,7 +1753,7 @@ Old_rows_log_event::do_update_pos(rpl_group_info *rgi)
 
 
 #ifndef MYSQL_CLIENT
-bool Old_rows_log_event::write_data_header(IO_CACHE *file)
+bool Old_rows_log_event::write_data_header()
 {
   uchar buf[ROWS_HEADER_LEN];	// No need to init the buffer
 
@@ -1765,15 +1765,15 @@ bool Old_rows_log_event::write_data_header(IO_CACHE *file)
                   {
                     int4store(buf + 0, m_table_id);
                     int2store(buf + 4, m_flags);
-                    return (my_b_safe_write(file, buf, 6));
+                    return write_data(buf, 6);
                   });
   int6store(buf + RW_MAPID_OFFSET, (ulonglong)m_table_id);
   int2store(buf + RW_FLAGS_OFFSET, m_flags);
-  return (my_b_safe_write(file, buf, ROWS_HEADER_LEN));
+  return write_data(buf, ROWS_HEADER_LEN);
 }
 
 
-bool Old_rows_log_event::write_data_body(IO_CACHE*file)
+bool Old_rows_log_event::write_data_body()
 {
   /*
      Note that this should be the number of *bits*, not the number of
@@ -1790,13 +1790,12 @@ bool Old_rows_log_event::write_data_body(IO_CACHE*file)
   DBUG_ASSERT(static_cast<size_t>(sbuf_end - sbuf) <= sizeof(sbuf));
 
   DBUG_DUMP("m_width", sbuf, (size_t) (sbuf_end - sbuf));
-  res= res || my_b_safe_write(file, sbuf, (size_t) (sbuf_end - sbuf));
+  res= res || write_data(sbuf, (size_t) (sbuf_end - sbuf));
 
   DBUG_DUMP("m_cols", (uchar*) m_cols.bitmap, no_bytes_in_map(&m_cols));
-  res= res || my_b_safe_write(file, (uchar*) m_cols.bitmap,
-                              no_bytes_in_map(&m_cols));
+  res= res || write_data((uchar*)m_cols.bitmap, no_bytes_in_map(&m_cols));
   DBUG_DUMP("rows", m_rows_buf, data_size);
-  res= res || my_b_safe_write(file, m_rows_buf, (size_t) data_size);
+  res= res || write_data(m_rows_buf, (size_t) data_size);
 
   return res;
 

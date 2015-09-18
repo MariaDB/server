@@ -186,6 +186,7 @@ static const uchar sort_order_sjis[]=
 
 #define MY_FUNCTION_NAME(x)   my_ ## x ## _sjis
 #define IS_8BIT_CHAR(x)       issjiskata(x)
+#define IS_MB1_CHAR(x)        ((uchar) (x) < 0x80 || issjiskata(x))
 #define IS_MB2_CHAR(x,y)      (issjishead(x) && issjistail(y))
 #define DEFINE_ASIAN_ROUTINES
 #include "ctype-mb.ic"
@@ -1086,90 +1087,6 @@ static MY_UNICASE_INFO my_caseinfo_sjis=
   0xFFFF,
   my_caseinfo_pages_sjis
 };
-
-
-static int my_strnncoll_sjis_internal(CHARSET_INFO *cs,
-				      const uchar **a_res, size_t a_length,
-				      const uchar **b_res, size_t b_length)
-{
-  const uchar *a= *a_res, *b= *b_res;
-  const uchar *a_end= a + a_length;
-  const uchar *b_end= b + b_length;
-  while (a < a_end && b < b_end)
-  {
-    if (ismbchar_sjis(cs,(char*) a, (char*) a_end) &&
-	ismbchar_sjis(cs,(char*) b, (char*) b_end))
-    {
-      uint a_char= sjiscode(*a, *(a+1));
-      uint b_char= sjiscode(*b, *(b+1));
-      if (a_char != b_char)
-	return (int) a_char - (int) b_char;
-      a += 2;
-      b += 2;
-    } else
-    {
-      if (sort_order_sjis[(uchar)*a] != sort_order_sjis[(uchar)*b])
-	return sort_order_sjis[(uchar)*a] - sort_order_sjis[(uchar)*b];
-      a++;
-      b++;
-    }
-  }
-  *a_res= a;
-  *b_res= b;
-  return 0;
-}
-
-
-static int my_strnncoll_sjis(CHARSET_INFO *cs __attribute__((unused)),
-                             const uchar *a, size_t a_length, 
-                             const uchar *b, size_t b_length,
-                             my_bool b_is_prefix)
-{
-  int res= my_strnncoll_sjis_internal(cs, &a, a_length, &b, b_length);
-  if (b_is_prefix && a_length > b_length)
-    a_length= b_length;
-  return res ? res : (int) (a_length - b_length);
-}
-
-
-static int my_strnncollsp_sjis(CHARSET_INFO *cs __attribute__((unused)),
-			       const uchar *a, size_t a_length, 
-			       const uchar *b, size_t b_length,
-                               my_bool diff_if_only_endspace_difference)
-{
-  const uchar *a_end= a + a_length, *b_end= b + b_length;
-  int res= my_strnncoll_sjis_internal(cs, &a, a_length, &b, b_length);
-
-#ifndef VARCHAR_WITH_DIFF_ENDSPACE_ARE_DIFFERENT_FOR_UNIQUE
-  diff_if_only_endspace_difference= 0;
-#endif
-
-  if (!res && (a != a_end || b != b_end))
-  {
-    int swap= 1;
-    if (diff_if_only_endspace_difference)
-      res= 1;                                   /* Assume 'a' is bigger */
-    /*
-      Check the next not space character of the longer key. If it's < ' ',
-      then it's smaller than the other key.
-    */
-    if (a == a_end)
-    {
-      /* put shorter key in a */
-      a_end= b_end;
-      a= b;
-      swap= -1;				/* swap sign of result */
-      res= -res;
-    }
-    for (; a < a_end ; a++)
-    {
-      if (*a != ' ')
-	return (*a < ' ') ? -swap : swap;
-    }
-  }
-  return res;
-}
-
 
 
 /* SJIS->Unicode conversion table */
@@ -34099,18 +34016,55 @@ size_t my_numcells_sjis(CHARSET_INFO *cs __attribute__((unused)),
 }
 
 
-static MY_COLLATION_HANDLER my_collation_ci_handler =
+/*
+  sjis_chinese_ci and sjis_bin sort character blocks in this order:
+  1. [00..7F]                - 7BIT characters (ASCII)
+  2. [81..9F][40..7E,80..FC] - MB2 characters, part1
+  3. [A1..DF]                - 8BIT characters (Kana)
+  4. [E0..FC][40..7E,80..FC] - MB2 characters, part2
+*/
+#define MY_FUNCTION_NAME(x)   my_ ## x ## _sjis_japanese_ci
+#define WEIGHT_PAD_SPACE     (256 * (int) ' ')
+#define WEIGHT_MB1(x)        (256 * (int) sort_order_sjis[(uchar) (x)])
+#define WEIGHT_MB2(x,y)      (sjiscode(x, y))
+#include "strcoll.ic"
+
+
+#define MY_FUNCTION_NAME(x)   my_ ## x ## _sjis_bin
+#define WEIGHT_PAD_SPACE     (256 * (int) ' ')
+#define WEIGHT_MB1(x)        (256 * (int) (uchar) (x))
+#define WEIGHT_MB2(x,y)      (sjiscode(x, y))
+#include "strcoll.ic"
+
+
+static MY_COLLATION_HANDLER my_collation_handler_sjis_japanese_ci=
 {
-  NULL,			/* init */
-  my_strnncoll_sjis,
-  my_strnncollsp_sjis,
+  NULL,                 /* init */
+  my_strnncoll_sjis_japanese_ci,
+  my_strnncollsp_sjis_japanese_ci,
   my_strnxfrm_mb,
   my_strnxfrmlen_simple,
   my_like_range_mb,
-  my_wildcmp_mb,	/* wildcmp  */
+  my_wildcmp_mb,
   my_strcasecmp_8bit,
   my_instr_mb,
   my_hash_sort_simple,
+  my_propagate_simple
+};
+
+
+static MY_COLLATION_HANDLER my_collation_handler_sjis_bin=
+{
+  NULL,                 /* init */
+  my_strnncoll_sjis_bin,
+  my_strnncollsp_sjis_bin,
+  my_strnxfrm_mb,
+  my_strnxfrmlen_simple,
+  my_like_range_mb,
+  my_wildcmp_mb_bin,
+  my_strcasecmp_mb_bin,
+  my_instr_mb,
+  my_hash_sort_mb_bin,
   my_propagate_simple
 };
 
@@ -34147,6 +34101,7 @@ static MY_CHARSET_HANDLER my_charset_handler=
   my_charlen_sjis,
   my_well_formed_char_length_sjis,
   my_copy_fix_mb,
+  my_native_to_mb_sjis,
 };
 
 
@@ -34179,7 +34134,7 @@ struct charset_info_st my_charset_sjis_japanese_ci=
     1,                  /* escape_with_backslash_is_dangerous */
     1,                  /* levels_for_order   */
     &my_charset_handler,
-    &my_collation_ci_handler
+    &my_collation_handler_sjis_japanese_ci
 };
 
 struct charset_info_st my_charset_sjis_bin=
@@ -34211,7 +34166,7 @@ struct charset_info_st my_charset_sjis_bin=
     1,                  /* escape_with_backslash_is_dangerous */
     1,                  /* levels_for_order   */
     &my_charset_handler,
-    &my_collation_mb_bin_handler
+    &my_collation_handler_sjis_bin
 };
 
 #endif

@@ -319,3 +319,22 @@ INSERT INTO t3 VALUES (101), (102), (103);
 REPAIR TABLE t1, t2, t3;
 
 DROP TABLES t1, t2, t3;
+
+#
+# CREATE TEMPORARY TEMPORARY TABLE
+#
+--error ER_PARSE_ERROR
+create temporary temporary table t1 (a int);
+
+#
+# MDEV-7832 Add status variables to track CREATE TEMPORARY TABLE and DROP TEMPORARY TABLE
+#
+flush status;
+create table t1 (a int);
+create temporary table t2 (a int);
+create temporary table t3 (a int);
+drop table t1;
+drop table t2;
+drop temporary table t3;
+show status like 'com_create%table';
+show status like 'com_drop%table';

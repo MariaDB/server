@@ -514,7 +514,6 @@ extern my_bool			srv_stats_sample_traditional;
 
 extern ibool	srv_use_doublewrite_buf;
 extern ulong	srv_doublewrite_batch_size;
-extern ulong	srv_checksum_algorithm;
 
 extern ulong	srv_log_arch_expire_sec;
 
@@ -705,6 +704,9 @@ extern ulong	srv_fatal_semaphore_wait_threshold;
 
 /** Enable semaphore request instrumentation */
 extern my_bool srv_instrument_semaphores;
+
+/** Buffer pool dump status frequence in percentages */
+extern ulong srv_buf_dump_status_frequency;
 
 # ifdef UNIV_PFS_THREAD
 /* Keys to register InnoDB threads with performance schema */

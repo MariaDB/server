@@ -1,5 +1,5 @@
 /* -*- c-basic-offset: 2 -*- */
-/* Copyright(C) 2011 Brazil
+/* Copyright(C) 2011-2015 Brazil
 
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -61,6 +61,12 @@ void File::swap(File *rhs) {
   FileImpl * const temp = impl_;
   impl_ = rhs->impl_;
   rhs->impl_ = temp;
+}
+
+void File::flush() {
+  if (impl_) {
+    impl_->flush();
+  }
 }
 
 }  // namespace dat

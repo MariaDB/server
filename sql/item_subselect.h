@@ -128,7 +128,7 @@ public:
   enum subs_type {UNKNOWN_SUBS, SINGLEROW_SUBS,
 		  EXISTS_SUBS, IN_SUBS, ALL_SUBS, ANY_SUBS};
 
-  Item_subselect();
+  Item_subselect(THD *thd);
 
   virtual subs_type substype() { return UNKNOWN_SUBS; }
   bool is_in_predicate()
@@ -244,7 +244,10 @@ public:
   bool limit_index_condition_pushdown_processor(uchar *opt_arg) 
   {
     return TRUE;
-   }
+  }
+
+  void init_expr_cache_tracker(THD *thd);
+
 
   friend class select_result_interceptor;
   friend class Item_in_optimizer;
@@ -266,7 +269,7 @@ protected:
   Item_cache *value, **row;
 public:
   Item_singlerow_subselect(THD *thd_arg, st_select_lex *select_lex);
-  Item_singlerow_subselect() :Item_subselect(), value(0), row (0)
+  Item_singlerow_subselect(THD *thd_arg): Item_subselect(thd_arg), value(0), row (0)
   {}
 
   void cleanup();
@@ -308,7 +311,7 @@ public:
   */
   st_select_lex* invalidate_and_restore_select_lex();
 
-  Item* expr_cache_insert_transformer(uchar *thd_arg);
+  Item* expr_cache_insert_transformer(THD *thd, uchar *unused);
 
   friend class select_singlerow_subselect;
 };
@@ -361,8 +364,8 @@ public:
   bool exists_transformed;
 
   Item_exists_subselect(THD *thd_arg, st_select_lex *select_lex);
-  Item_exists_subselect()
-    :Item_subselect(), upper_not(NULL),abort_on_null(0),
+  Item_exists_subselect(THD *thd_arg):
+    Item_subselect(thd_arg), upper_not(NULL), abort_on_null(0),
     emb_on_expr_nest(NULL), optimizer(0), exists_transformed(0)
   {}
 
@@ -388,7 +391,7 @@ public:
   inline bool is_top_level_item() { return abort_on_null; }
   bool exists2in_processor(uchar *opt_arg);
 
-  Item* expr_cache_insert_transformer(uchar *thd_arg);
+  Item* expr_cache_insert_transformer(THD *thd, uchar *unused);
 
   void mark_as_condition_AND_part(TABLE_LIST *embedding)
   {
@@ -567,8 +570,8 @@ public:
   Item_func_not_all *upper_item; // point on NOT/NOP before ALL/SOME subquery
 
   Item_in_subselect(THD *thd_arg, Item * left_expr, st_select_lex *select_lex);
-  Item_in_subselect()
-    :Item_exists_subselect(), left_expr_cache(0), first_execution(TRUE),
+  Item_in_subselect(THD *thd_arg):
+    Item_exists_subselect(thd_arg), left_expr_cache(0), first_execution(TRUE),
     in_strategy(SUBS_NOT_TRANSFORMED),
     pushed_cond_guards(NULL), func(NULL), is_jtbm_merged(FALSE),
     is_jtbm_const_tab(FALSE), upper_item(0) {}
@@ -1036,9 +1039,9 @@ public:
   Name_resolution_context *semi_join_conds_context;
 
 
-  subselect_hash_sj_engine(THD *thd, Item_subselect *in_predicate,
+  subselect_hash_sj_engine(THD *thd_arg, Item_subselect *in_predicate,
                            subselect_single_select_engine *old_engine)
-    : subselect_engine(thd, in_predicate, NULL), 
+    : subselect_engine(thd_arg, in_predicate, NULL), 
       tmp_table(NULL), is_materialized(FALSE), materialize_engine(old_engine),
       materialize_join(NULL),  semi_join_conds(NULL), lookup_engine(NULL),
       count_partial_match_columns(0), count_null_only_columns(0),

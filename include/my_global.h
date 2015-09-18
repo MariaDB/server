@@ -477,6 +477,13 @@ extern "C" int madvise(void *addr, size_t len, int behav);
 #define UNINIT_VAR(x) x
 #endif
 
+/* This is only to be used when reseting variables in a class constructor */
+#if defined(_lint) || defined(FORCE_INIT_OF_VARS)
+#define LINT_INIT(x) x= 0
+#else
+#define LINT_INIT(x)
+#endif
+
 #if !defined(HAVE_UINT)
 #undef HAVE_UINT
 #define HAVE_UINT
@@ -593,6 +600,12 @@ typedef SOCKET_SIZE_TYPE size_socket;
 #endif
 #ifndef O_NOFOLLOW
 #define O_NOFOLLOW      0
+#endif
+#ifndef O_CLOEXEC
+#define O_CLOEXEC       0
+#endif
+#ifndef SOCK_CLOEXEC
+#define SOCK_CLOEXEC    0
 #endif
 
 /* additional file share flags for win32 */

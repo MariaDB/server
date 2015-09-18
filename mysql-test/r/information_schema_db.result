@@ -1,3 +1,5 @@
+set local sql_mode="";
+set global sql_mode="";
 drop table if exists t1,t2;
 drop view if exists v1,v2;
 drop function if exists f1;
@@ -216,3 +218,4 @@ show create view testdb_1.v1;
 ERROR 42000: SELECT command denied to user 'mysqltest_1'@'localhost' for table 'v1'
 drop user mysqltest_1@localhost;
 drop database testdb_1;
+set global sql_mode=default;

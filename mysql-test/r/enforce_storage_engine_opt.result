@@ -1,3 +1,4 @@
+SET SQL_MODE="";
 create table t1 (c1 int primary key auto_increment, c2 varchar(10)) engine=memory;
 Warnings:
 Note	1266	Using storage engine MyISAM for table 't1'

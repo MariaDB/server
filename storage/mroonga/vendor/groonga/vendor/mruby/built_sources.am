@@ -1,7 +1,7 @@
 BUILT_SOURCES =						\
-	parse.c						\
 	mrblib.c					\
 	mrbgems_init.c					\
+	mruby-compiler/core/parse.c			\
 	mruby-onig-regexp/src/mruby_onig_regexp.c	\
 	mruby-env/src/env.c				\
 	mruby-io/include/mruby/ext/io.h			\

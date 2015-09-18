@@ -28,14 +28,14 @@
 #include <sys/stat.h>
 
 #ifdef HAVE_SYS_WAIT_H
-#include <sys/wait.h>
+# include <sys/wait.h>
 #endif /* HAVE_SYS_WAIT_H */
 #ifdef HAVE_SYS_SOCKET_H
-#include <sys/socket.h>
+# include <sys/socket.h>
 #endif /* HAVE_SYS_SOCKET_H */
-#ifdef HAVE_NETINET_IN_H
-#include <netinet/in.h>
-#endif /* HAVE_NETINET_IN_H */
+#ifndef WIN32
+# include <netinet/in.h>
+#endif /* WIN32 */
 
 #include <grn_str.h>
 #include <grn_com.h>
@@ -3061,6 +3061,8 @@ main(int argc, char **argv)
   if (outtype && !strcmp(outtype, "tsv")) {
     grntest_outtype = OUT_TSV;
   }
+
+  grn_default_logger_set_path(GRN_LOG_PATH);
 
   grn_init();
   CRITICAL_SECTION_INIT(grntest_cs);

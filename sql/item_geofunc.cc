@@ -38,6 +38,7 @@
 #include "set_var.h"
 #ifdef HAVE_SPATIAL
 #include <m_ctype.h>
+#include "opt_range.h"
 
 
 Field *Item_geometry_func::tmp_table_field(TABLE *t_arg)
@@ -908,10 +909,11 @@ String *Item_func_spatial_collection::val_str(String *str)
   }
   if (str->length() > current_thd->variables.max_allowed_packet)
   {
-    push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
+    THD *thd= current_thd;
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
 			ER_WARN_ALLOWED_PACKET_OVERFLOWED,
-			ER(ER_WARN_ALLOWED_PACKET_OVERFLOWED),
-			func_name(), current_thd->variables.max_allowed_packet);
+			ER_THD(thd, ER_WARN_ALLOWED_PACKET_OVERFLOWED),
+			func_name(), thd->variables.max_allowed_packet);
     goto err;
   }
 
@@ -927,6 +929,78 @@ err:
 /*
   Functions for spatial relations
 */
+
+static SEL_ARG sel_arg_impossible(SEL_ARG::IMPOSSIBLE);
+
+SEL_ARG *
+Item_func_spatial_rel::get_mm_leaf(RANGE_OPT_PARAM *param,
+                                   Field *field, KEY_PART *key_part,
+                                   Item_func::Functype type, Item *value)
+{
+  DBUG_ENTER("Item_func_spatial_rel::get_mm_leaf");
+  if (key_part->image_type != Field::itMBR)
+    DBUG_RETURN(0);
+  if (value->cmp_type() != STRING_RESULT)
+    DBUG_RETURN(&sel_arg_impossible);
+
+  if (param->using_real_indexes &&
+      !field->optimize_range(param->real_keynr[key_part->key],
+                             key_part->part))
+   DBUG_RETURN(0);
+
+  if (value->save_in_field_no_warnings(field, 1))
+    DBUG_RETURN(&sel_arg_impossible);            // Bad GEOMETRY value
+
+  DBUG_ASSERT(!field->real_maybe_null()); // SPATIAL keys do not support NULL
+
+  uchar *str= (uchar*) alloc_root(param->mem_root, key_part->store_length + 1);
+  if (!str)
+    DBUG_RETURN(0);                              // out of memory
+  field->get_key_image(str, key_part->length, key_part->image_type);
+  SEL_ARG *tree;
+  if (!(tree= new (param->mem_root) SEL_ARG(field, str, str)))
+    DBUG_RETURN(0);                              // out of memory
+
+  switch (type) {
+  case SP_EQUALS_FUNC:
+    tree->min_flag= GEOM_FLAG | HA_READ_MBR_EQUAL;// NEAR_MIN;//512;
+    tree->max_flag= NO_MAX_RANGE;
+    break;
+  case SP_DISJOINT_FUNC:
+    tree->min_flag= GEOM_FLAG | HA_READ_MBR_DISJOINT;// NEAR_MIN;//512;
+    tree->max_flag= NO_MAX_RANGE;
+    break;
+  case SP_INTERSECTS_FUNC:
+    tree->min_flag= GEOM_FLAG | HA_READ_MBR_INTERSECT;// NEAR_MIN;//512;
+    tree->max_flag= NO_MAX_RANGE;
+    break;
+  case SP_TOUCHES_FUNC:
+    tree->min_flag= GEOM_FLAG | HA_READ_MBR_INTERSECT;// NEAR_MIN;//512;
+    tree->max_flag= NO_MAX_RANGE;
+    break;
+  case SP_CROSSES_FUNC:
+    tree->min_flag= GEOM_FLAG | HA_READ_MBR_INTERSECT;// NEAR_MIN;//512;
+    tree->max_flag= NO_MAX_RANGE;
+    break;
+  case SP_WITHIN_FUNC:
+    tree->min_flag= GEOM_FLAG | HA_READ_MBR_WITHIN;// NEAR_MIN;//512;
+    tree->max_flag= NO_MAX_RANGE;
+    break;
+  case SP_CONTAINS_FUNC:
+    tree->min_flag= GEOM_FLAG | HA_READ_MBR_CONTAIN;// NEAR_MIN;//512;
+    tree->max_flag= NO_MAX_RANGE;
+    break;
+  case SP_OVERLAPS_FUNC:
+    tree->min_flag= GEOM_FLAG | HA_READ_MBR_INTERSECT;// NEAR_MIN;//512;
+    tree->max_flag= NO_MAX_RANGE;
+    break;
+  default:
+    DBUG_ASSERT(0);
+    break;
+  }
+  DBUG_RETURN(tree);
+}
+
 
 const char *Item_func_spatial_mbr_rel::func_name() const 
 { 
@@ -1018,8 +1092,6 @@ const char *Item_func_spatial_precise_rel::func_name() const
       return "st_crosses";
     case SP_OVERLAPS_FUNC:
       return "st_overlaps";
-    case SP_RELATE_FUNC:
-      return "st_relate";
     default:
       DBUG_ASSERT(0);  // Should never happened
       return "sp_unknown"; 
@@ -1080,7 +1152,7 @@ static int setup_relate_func(Geometry *g1, Geometry *g2,
     const char *mask)
 {
   int do_store_shapes=1;
-  uint shape_a, shape_b;
+  uint UNINIT_VAR(shape_a), UNINIT_VAR(shape_b);
   uint n_operands= 0;
   int last_shape_pos;
 
@@ -1104,8 +1176,10 @@ static int setup_relate_func(Geometry *g1, Geometry *g2,
         cur_op|= Gcalc_function::v_find_t;
         break;
       case 'F':
-        cur_op|= (Gcalc_function::op_not | Gcalc_function::v_find_t);
+        cur_op|= (Gcalc_function::op_not | Gcalc_function::v_find_f);
         break;
+      default:
+        return 1;
     };
     ++n_operands;
     if (func->reserve_op_buffer(3))
@@ -1140,94 +1214,139 @@ static int setup_relate_func(Geometry *g1, Geometry *g2,
 
 #define GIS_ZERO 0.00000000001
 
+class Geometry_ptr_with_buffer_and_mbr
+{
+public:
+  Geometry *geom;
+  Geometry_buffer buffer;
+  MBR mbr;
+  bool construct(Item *item, String *tmp_value)
+  {
+    const char *c_end;
+    String *res= item->val_str(tmp_value);
+    return
+      item->null_value ||
+      !(geom= Geometry::construct(&buffer, res->ptr(), res->length())) ||
+      geom->get_mbr(&mbr, &c_end) || !mbr.valid();
+  }
+  int store_shapes(Gcalc_shape_transporter *trn) const
+  { return geom->store_shapes(trn); }
+};
+
+
+longlong Item_func_spatial_relate::val_int()
+{
+  DBUG_ENTER("Item_func_spatial_relate::val_int");
+  DBUG_ASSERT(fixed == 1);
+  Geometry_ptr_with_buffer_and_mbr g1, g2;
+  int result= 0;
+
+  if ((null_value= (g1.construct(args[0], &tmp_value1) ||
+                    g2.construct(args[1], &tmp_value2) ||
+                    func.reserve_op_buffer(1))))
+    DBUG_RETURN(0);
+
+  MBR umbr(g1.mbr, g2.mbr);
+  collector.set_extent(umbr.xmin, umbr.xmax, umbr.ymin, umbr.ymax);
+  g1.mbr.buffer(1e-5);
+  Gcalc_operation_transporter trn(&func, &collector);
+
+  String *matrix= args[2]->val_str(&tmp_matrix);
+  if ((null_value= args[2]->null_value || matrix->length() != 9 ||
+                   setup_relate_func(g1.geom, g2.geom,
+                                     &trn, &func, matrix->ptr())))
+    goto exit;
+
+  collector.prepare_operation();
+  scan_it.init(&collector);
+  scan_it.killed= (int *) &(current_thd->killed);
+  if (!func.alloc_states())
+    result= func.check_function(scan_it);
+
+exit:
+  collector.reset();
+  func.reset();
+  scan_it.reset();
+  DBUG_RETURN(result);
+}
+
+
 longlong Item_func_spatial_precise_rel::val_int()
 {
   DBUG_ENTER("Item_func_spatial_precise_rel::val_int");
   DBUG_ASSERT(fixed == 1);
-  String *res1;
-  String *res2;
-  String *res3;
-  Geometry_buffer buffer1, buffer2;
-  Geometry *g1, *g2;
+  Geometry_ptr_with_buffer_and_mbr g1, g2;
   int result= 0;
-  int mask= 0;
   uint shape_a, shape_b;
-  MBR umbr, mbr1, mbr2;
-  const char *c_end;
 
-  res1= args[0]->val_str(&tmp_value1);
-  res2= args[1]->val_str(&tmp_value2);
-  Gcalc_operation_transporter trn(&func, &collector);
-
-  if (func.reserve_op_buffer(1))
+  if ((null_value= (g1.construct(args[0], &tmp_value1) ||
+                    g2.construct(args[1], &tmp_value2) ||
+                    func.reserve_op_buffer(1))))
     DBUG_RETURN(0);
 
-  if ((null_value=
-       (args[0]->null_value || args[1]->null_value ||
-	!(g1= Geometry::construct(&buffer1, res1->ptr(), res1->length())) ||
-	!(g2= Geometry::construct(&buffer2, res2->ptr(), res2->length())) ||
-        g1->get_mbr(&mbr1, &c_end) || !mbr1.valid() ||
-        g2->get_mbr(&mbr2, &c_end) || !mbr2.valid())))
-    goto exit;
+  Gcalc_operation_transporter trn(&func, &collector);
 
-  umbr= mbr1;
-  umbr.add_mbr(&mbr2);
+  MBR umbr(g1.mbr, g2.mbr);
   collector.set_extent(umbr.xmin, umbr.xmax, umbr.ymin, umbr.ymax);
 
-  mbr1.buffer(1e-5);
+  g1.mbr.buffer(1e-5);
 
   switch (spatial_rel) {
     case SP_CONTAINS_FUNC:
-      if (!mbr1.contains(&mbr2))
+      if (!g1.mbr.contains(&g2.mbr))
         goto exit;
-      mask= 1;
-      func.add_operation(Gcalc_function::op_difference, 2);
+      func.add_operation(Gcalc_function::v_find_f |
+                         Gcalc_function::op_not |
+                         Gcalc_function::op_difference, 2);
       /* Mind the g2 goes first. */
-      null_value= g2->store_shapes(&trn) || g1->store_shapes(&trn);
+      null_value= g2.store_shapes(&trn) || g1.store_shapes(&trn);
       break;
     case SP_WITHIN_FUNC:
-      mbr2.buffer(2e-5);
-      if (!mbr1.within(&mbr2))
+      g2.mbr.buffer(2e-5);
+      if (!g1.mbr.within(&g2.mbr))
         goto exit;
-      mask= 1;
-      func.add_operation(Gcalc_function::op_difference, 2);
-      null_value= g1->store_shapes(&trn) || g2->store_shapes(&trn);
+      func.add_operation(Gcalc_function::v_find_f |
+                         Gcalc_function::op_not |
+                         Gcalc_function::op_difference, 2);
+      null_value= g1.store_shapes(&trn) || g2.store_shapes(&trn);
       break;
     case SP_EQUALS_FUNC:
-      if (!mbr1.contains(&mbr2))
+      if (!g1.mbr.contains(&g2.mbr))
         goto exit;
-      mask= 1;
-      func.add_operation(Gcalc_function::op_symdifference, 2);
-      null_value= g1->store_shapes(&trn) || g2->store_shapes(&trn);
+      func.add_operation(Gcalc_function::v_find_f |
+                         Gcalc_function::op_not |
+                         Gcalc_function::op_symdifference, 2);
+      null_value= g1.store_shapes(&trn) || g2.store_shapes(&trn);
       break;
     case SP_DISJOINT_FUNC:
-      mask= 1;
-      func.add_operation(Gcalc_function::op_intersection, 2);
-      null_value= g1->store_shapes(&trn) || g2->store_shapes(&trn);
+      func.add_operation(Gcalc_function::v_find_f |
+                         Gcalc_function::op_not |
+                         Gcalc_function::op_intersection, 2);
+      null_value= g1.store_shapes(&trn) || g2.store_shapes(&trn);
       break;
     case SP_INTERSECTS_FUNC:
-      if (!mbr1.intersects(&mbr2))
+      if (!g1.mbr.intersects(&g2.mbr))
         goto exit;
-      func.add_operation(Gcalc_function::op_intersection, 2);
-      null_value= g1->store_shapes(&trn) || g2->store_shapes(&trn);
+      func.add_operation(Gcalc_function::v_find_t |
+                         Gcalc_function::op_intersection, 2);
+      null_value= g1.store_shapes(&trn) || g2.store_shapes(&trn);
       break;
     case SP_OVERLAPS_FUNC:
     case SP_CROSSES_FUNC:
       func.add_operation(Gcalc_function::op_intersection, 2);
-      if (func.reserve_op_buffer(1))
+      if (func.reserve_op_buffer(3))
         break;
       func.add_operation(Gcalc_function::v_find_t |
                          Gcalc_function::op_intersection, 2);
       shape_a= func.get_next_expression_pos();
-      if ((null_value= g1->store_shapes(&trn)))
+      if ((null_value= g1.store_shapes(&trn)))
         break;
       shape_b= func.get_next_expression_pos();
-      if ((null_value= g2->store_shapes(&trn)))
+      if ((null_value= g2.store_shapes(&trn)))
         break;
       if (func.reserve_op_buffer(7))
         break;
-      func.add_operation(Gcalc_function::v_find_t |
-                         Gcalc_function::op_intersection, 2);
+      func.add_operation(Gcalc_function::op_intersection, 2);
       func.add_operation(Gcalc_function::v_find_t |
                          Gcalc_function::op_difference, 2);
       func.repeat_expression(shape_a);
@@ -1238,7 +1357,7 @@ longlong Item_func_spatial_precise_rel::val_int()
       func.repeat_expression(shape_a);
       break;
     case SP_TOUCHES_FUNC:
-      if (func.reserve_op_buffer(2))
+      if (func.reserve_op_buffer(5))
         break;
       func.add_operation(Gcalc_function::op_intersection, 2);
       func.add_operation(Gcalc_function::v_find_f |
@@ -1246,25 +1365,16 @@ longlong Item_func_spatial_precise_rel::val_int()
                          Gcalc_function::op_intersection, 2);
       func.add_operation(Gcalc_function::op_internals, 1);
       shape_a= func.get_next_expression_pos();
-      if ((null_value= g1->store_shapes(&trn)))
+      if ((null_value= g1.store_shapes(&trn)))
         break;
       func.add_operation(Gcalc_function::op_internals, 1);
       shape_b= func.get_next_expression_pos();
-      if ((null_value= g2->store_shapes(&trn)))
+      if ((null_value= g2.store_shapes(&trn)))
         break;
       func.add_operation(Gcalc_function::v_find_t |
                          Gcalc_function::op_intersection, 2);
-      func.add_operation(Gcalc_function::op_border, 1);
       func.repeat_expression(shape_a);
-      func.add_operation(Gcalc_function::op_border, 1);
       func.repeat_expression(shape_b);
-      break;
-    case SP_RELATE_FUNC:
-      res3= args[2]->val_str(&tmp_matrix);
-      if ((null_value= args[2]->null_value))
-        break;
-      null_value= (res3->length() != 9) ||
-        setup_relate_func(g1, g2, &trn, &func, res3->ptr());
       break;
     default:
       DBUG_ASSERT(FALSE);
@@ -1281,7 +1391,7 @@ longlong Item_func_spatial_precise_rel::val_int()
   if (func.alloc_states())
     goto exit;
 
-  result= func.check_function(scan_it) ^ mask;
+  result= func.check_function(scan_it);
 
 exit:
   collector.reset();
@@ -1300,34 +1410,25 @@ String *Item_func_spatial_operation::val_str(String *str_value)
 {
   DBUG_ENTER("Item_func_spatial_operation::val_str");
   DBUG_ASSERT(fixed == 1);
-  String *res1= args[0]->val_str(&tmp_value1);
-  String *res2= args[1]->val_str(&tmp_value2);
-  Geometry_buffer buffer1, buffer2;
-  Geometry *g1, *g2;
+  Geometry_ptr_with_buffer_and_mbr g1, g2;
   uint32 srid= 0;
   Gcalc_operation_transporter trn(&func, &collector);
-  MBR mbr1, mbr2;
-  const char *c_end;
 
   if (func.reserve_op_buffer(1))
     DBUG_RETURN(0);
   func.add_operation(spatial_op, 2);
 
-  if ((null_value=
-       (args[0]->null_value || args[1]->null_value ||
-	!(g1= Geometry::construct(&buffer1, res1->ptr(), res1->length())) ||
-	!(g2= Geometry::construct(&buffer2, res2->ptr(), res2->length())) ||
-        g1->get_mbr(&mbr1, &c_end) || !mbr1.valid() ||
-        g2->get_mbr(&mbr2, &c_end) || !mbr2.valid())))
+  if ((null_value= (g1.construct(args[0], &tmp_value1) ||
+                    g2.construct(args[1], &tmp_value2))))
   {
     str_value= 0;
     goto exit;
   }
 
-  mbr1.add_mbr(&mbr2);
-  collector.set_extent(mbr1.xmin, mbr1.xmax, mbr1.ymin, mbr1.ymax);
+  g1.mbr.add_mbr(&g2.mbr);
+  collector.set_extent(g1.mbr.xmin, g1.mbr.xmax, g1.mbr.ymin, g1.mbr.ymax);
   
-  if ((null_value= g1->store_shapes(&trn) || g2->store_shapes(&trn)))
+  if ((null_value= g1.store_shapes(&trn) || g2.store_shapes(&trn)))
   {
     str_value= 0;
     goto exit;
@@ -1350,7 +1451,7 @@ String *Item_func_spatial_operation::val_str(String *str_value)
   str_value->length(0);
   str_value->q_append(srid);
 
-  if (!Geometry::create_from_opresult(&buffer1, str_value, res_receiver))
+  if (!Geometry::create_from_opresult(&g1.buffer, str_value, res_receiver))
     goto exit;
 
 exit:
@@ -1857,10 +1958,14 @@ longlong Item_func_issimple::val_int()
   DBUG_ENTER("Item_func_issimple::val_int");
   DBUG_ASSERT(fixed == 1);
   
-  if ((null_value= (args[0]->null_value ||
-          !(g= Geometry::construct(&buffer, swkb->ptr(), swkb->length())) ||
-          g->get_mbr(&mbr, &c_end))))
-    DBUG_RETURN(0);
+  null_value= 0;
+  if ((args[0]->null_value ||
+       !(g= Geometry::construct(&buffer, swkb->ptr(), swkb->length())) ||
+       g->get_mbr(&mbr, &c_end)))
+  {
+    /* We got NULL as an argument. Have to return -1 */
+    DBUG_RETURN(-1);
+  }
 
   collector.set_extent(mbr.xmin, mbr.xmax, mbr.ymin, mbr.ymax);
 
@@ -1921,11 +2026,15 @@ longlong Item_func_isclosed::val_int()
   Geometry *geom;
   int isclosed= 0;				// In case of error
 
-  null_value= (!swkb || 
-	       args[0]->null_value ||
-	       !(geom=
-		 Geometry::construct(&buffer, swkb->ptr(), swkb->length())) ||
-	       geom->is_closed(&isclosed));
+  null_value= 0;
+  if (!swkb || 
+      args[0]->null_value ||
+      !(geom= Geometry::construct(&buffer, swkb->ptr(), swkb->length())) ||
+      geom->is_closed(&isclosed))
+  {
+    /* IsClosed(NULL) should return -1 */
+    return -1;
+  }
 
   return (longlong) isclosed;
 }
@@ -1941,11 +2050,15 @@ longlong Item_func_isring::val_int()
   Geometry *geom;
   int isclosed= 0;				// In case of error
 
-  null_value= (!swkb || 
-	       args[0]->null_value ||
-	       !(geom=
-		 Geometry::construct(&buffer, swkb->ptr(), swkb->length())) ||
-	       geom->is_closed(&isclosed));
+  null_value= 0;
+  if (!swkb || 
+      args[0]->null_value ||
+      !(geom= Geometry::construct(&buffer, swkb->ptr(), swkb->length())) ||
+      geom->is_closed(&isclosed))
+  {
+    /* IsRing(NULL) should return -1 */
+    return -1;
+  }
 
   if (!isclosed)
     return 0;
@@ -2281,11 +2394,10 @@ String *Item_func_pointonsurface::val_str(String *str)
   Geometry *g;
   MBR mbr;
   const char *c_end;
-  double px, py, x0, y0;
+  double UNINIT_VAR(px), UNINIT_VAR(py), x0, y0;
   String *result= 0;
   const Gcalc_scan_iterator::point *pprev= NULL;
   uint32 srid;
-
 
   null_value= 1;
   if ((args[0]->null_value ||

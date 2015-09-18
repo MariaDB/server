@@ -2277,6 +2277,11 @@ static void test_ps_query_cache()
                           "(2, 'hh', 'hh'), (1, 'ii', 'ii'), (2, 'ii', 'ii')");
   myquery(rc);
 
+  rc= mysql_query(lmysql, "set global query_cache_type=ON");
+  myquery(rc);
+  rc= mysql_query(lmysql, "set local query_cache_type=ON");
+  myquery(rc);
+
   for (iteration= TEST_QCACHE_ON; iteration <= TEST_QCACHE_ON_OFF; iteration++)
   {
 
@@ -2426,7 +2431,9 @@ static void test_ps_query_cache()
   if (lmysql != mysql)
     mysql_close(lmysql);
 
-  rc= mysql_query(mysql, "set global query_cache_size=0");
+  rc= mysql_query(mysql, "set global query_cache_size=default");
+  myquery(rc);
+  rc= mysql_query(mysql, "set global query_cache_type=default");
   myquery(rc);
 }
 
@@ -13167,6 +13174,10 @@ static void test_open_cursor_prepared_statement_query_cache()
     return;
   }
 
+  rc= mysql_query(mysql, "set global query_cache_type=ON");
+  myquery(rc);
+  rc= mysql_query(mysql, "set local query_cache_type=ON");
+  myquery(rc);
   rc= mysql_query(mysql, "set global query_cache_size=1000000");
   myquery(rc);
 
@@ -13189,7 +13200,9 @@ static void test_open_cursor_prepared_statement_query_cache()
   check_execute(stmt, rc);
   mysql_stmt_close(stmt);
 
-  rc= mysql_query(mysql, "set global query_cache_size=1000000");
+  rc= mysql_query(mysql, "set global query_cache_type=default");
+  myquery(rc);
+  rc= mysql_query(mysql, "set global query_cache_size=default");
   myquery(rc);
 }
 
@@ -17959,6 +17972,8 @@ static void test_bug36326()
   myquery(rc);
   rc= mysql_query(mysql, "SET GLOBAL query_cache_type = 1");
   myquery(rc);
+  rc= mysql_query(mysql, "SET LOCAL query_cache_type = 1");
+  myquery(rc);
   rc= mysql_query(mysql, "SET GLOBAL query_cache_size = 1048576");
   myquery(rc);
   DIE_UNLESS(!(mysql->server_status & SERVER_STATUS_IN_TRANS));
@@ -17982,7 +17997,8 @@ static void test_bug36326()
   DIE_UNLESS(rc == 1);
   rc= mysql_query(mysql, "DROP TABLE t1");
   myquery(rc);
-  rc= mysql_query(mysql, "SET GLOBAL query_cache_size = 0");
+  rc= mysql_query(mysql, "SET GLOBAL query_cache_size = default");
+  rc= mysql_query(mysql, "SET GLOBAL query_cache_type = default");
   myquery(rc);
 
   DBUG_VOID_RETURN;

@@ -23,6 +23,7 @@
 #include "sql_select.h"
 #include "my_json_writer.h"
 #include "opt_range.h"
+#include "sql_expression_cache.h"
 
 const char * STR_DELETING_ALL_ROWS= "Deleting all rows";
 const char * STR_IMPOSSIBLE_WHERE= "Impossible WHERE";
@@ -203,7 +204,8 @@ int Explain_query::print_explain(select_result_sink *output,
 }
 
 
-void Explain_query::print_explain_json(select_result_sink *output, bool is_analyze)
+void Explain_query::print_explain_json(select_result_sink *output,
+                                       bool is_analyze)
 {
   Json_writer writer;
   writer.start_object();
@@ -226,7 +228,9 @@ void Explain_query::print_explain_json(select_result_sink *output, bool is_analy
   CHARSET_INFO *cs= system_charset_info;
   List<Item> item_list;
   String *buf= &writer.output;
-  item_list.push_back(new Item_string(buf->ptr(), buf->length(), cs));
+  item_list.push_back(new (thd->mem_root)
+                      Item_string(thd, buf->ptr(), buf->length(), cs),
+                      thd->mem_root);
   output->send_data(item_list);
 }
 
@@ -256,19 +260,22 @@ bool Explain_query::print_explain_str(THD *thd, String *out_str,
 }
 
 
-static void push_str(List<Item> *item_list, const char *str)
+static void push_str(THD *thd, List<Item> *item_list, const char *str)
 {
-  item_list->push_back(new Item_string_sys(str));
+  item_list->push_back(new (thd->mem_root) Item_string_sys(thd, str),
+                       thd->mem_root);
 }
 
 
-static void push_string(List<Item> *item_list, String *str)
+static void push_string(THD *thd, List<Item> *item_list, String *str)
 {
-  item_list->push_back(new Item_string_sys(str->ptr(), str->length()));
+  item_list->push_back(new (thd->mem_root)
+                       Item_string_sys(thd, str->ptr(), str->length()),
+                       thd->mem_root);
 }
 
-static void push_string_list(List<Item> *item_list, String_list &lines, 
-                             String *buf)
+static void push_string_list(THD *thd, List<Item> *item_list,
+                             String_list &lines, String *buf)
 {
   List_iterator_fast<char> it(lines);
   char *line;
@@ -282,7 +289,7 @@ static void push_string_list(List<Item> *item_list, String_list &lines,
 
     buf->append(line);
   }
-  push_string(item_list, buf);
+  push_string(thd, item_list, buf);
 }
 
 
@@ -315,79 +322,89 @@ int print_explain_row(select_result_sink *result,
                       double r_filtered,
                       const char *extra)
 {
-  Item *item_null= new Item_null();
+  THD *thd= result->thd;
+  MEM_ROOT *mem_root= thd->mem_root;
+  Item *item_null= new (mem_root) Item_null(thd);
   List<Item> item_list;
   Item *item;
 
-  item_list.push_back(new Item_int((int32) select_number));
-  item_list.push_back(new Item_string_sys(select_type));
-  item_list.push_back(new Item_string_sys(table_name));
+  item_list.push_back(new (mem_root) Item_int(thd, (int32) select_number),
+                      mem_root);
+  item_list.push_back(new (mem_root) Item_string_sys(thd, select_type),
+                      mem_root);
+  item_list.push_back(new (mem_root) Item_string_sys(thd, table_name),
+                      mem_root);
   if (options & DESCRIBE_PARTITIONS)
   {
     if (partitions)
     {
-      item_list.push_back(new Item_string_sys(partitions));
+      item_list.push_back(new (mem_root) Item_string_sys(thd, partitions),
+                          mem_root);
     }
     else
-      item_list.push_back(item_null);
+      item_list.push_back(item_null, mem_root);
   }
   
   const char *jtype_str= join_type_str[jtype];
-  item_list.push_back(new Item_string_sys(jtype_str));
+  item_list.push_back(new (mem_root) Item_string_sys(thd, jtype_str),
+                      mem_root);
   
   /* 'possible_keys' */
   if (possible_keys && !possible_keys->is_empty())
   {
     StringBuffer<64> possible_keys_buf;
-    push_string_list(&item_list, *possible_keys, &possible_keys_buf);
+    push_string_list(thd, &item_list, *possible_keys, &possible_keys_buf);
   }
   else
-    item_list.push_back(item_null);
+    item_list.push_back(item_null, mem_root);
   
   /* 'index */
-  item= index ? new Item_string_sys(index) : item_null;
-  item_list.push_back(item);
+  item= index ? new (mem_root) Item_string_sys(thd, index) : item_null;
+  item_list.push_back(item, mem_root);
   
   /* 'key_len */
-  item= key_len ? new Item_string_sys(key_len) : item_null;
-  item_list.push_back(item);
+  item= key_len ? new (mem_root) Item_string_sys(thd, key_len) : item_null;
+  item_list.push_back(item, mem_root);
   
   /* 'ref' */
-  item= ref ? new Item_string_sys(ref) : item_null;
-  item_list.push_back(item);
+  item= ref ? new (mem_root) Item_string_sys(thd, ref) : item_null;
+  item_list.push_back(item, mem_root);
 
   /* 'rows' */
   if (rows)
   {
-    item_list.push_back(new Item_int(*rows, 
-                                     MY_INT64_NUM_DECIMAL_DIGITS));
+    item_list.push_back(new (mem_root)
+                        Item_int(thd, *rows, MY_INT64_NUM_DECIMAL_DIGITS),
+                        mem_root);
   }
   else
-    item_list.push_back(item_null);
+    item_list.push_back(item_null, mem_root);
   
   /* 'r_rows' */
   if (is_analyze)
   {
     if (r_rows)
-      item_list.push_back(new Item_float(*r_rows, 2));
+      item_list.push_back(new (mem_root) Item_float(thd, *r_rows, 2),
+                          mem_root);
     else
-      item_list.push_back(item_null);
+      item_list.push_back(item_null, mem_root);
   }
 
   /* 'filtered' */
   const double filtered=100.0;
   if (options & DESCRIBE_EXTENDED || is_analyze)
-    item_list.push_back(new Item_float(filtered, 2));
+    item_list.push_back(new (mem_root) Item_float(thd, filtered, 2), mem_root);
   
   /* 'r_filtered' */
   if (is_analyze)
-    item_list.push_back(new Item_float(r_filtered, 2));
+    item_list.push_back(new (mem_root) Item_float(thd, r_filtered, 2),
+                        mem_root);
   
   /* 'Extra' */
   if (extra)
-    item_list.push_back(new Item_string_sys(extra));
+    item_list.push_back(new (mem_root) Item_string_sys(thd, extra), mem_root);
   else
-    item_list.push_back(item_null);
+    item_list.push_back(item_null, mem_root);
 
   if (result->send_data(item_list))
     return 1;
@@ -430,7 +447,8 @@ int Explain_union::print_explain(Explain_query *query,
                                  uint8 explain_flags, 
                                  bool is_analyze)
 {
-  //CHARSET_INFO *cs= system_charset_info;
+  THD *thd= output->thd;
+  MEM_ROOT *mem_root= thd->mem_root;
   char table_name_buffer[SAFE_NAME_LEN];
 
   /* print all UNION children, in order */
@@ -445,54 +463,56 @@ int Explain_union::print_explain(Explain_query *query,
 
   /* Print a line with "UNION RESULT" */
   List<Item> item_list;
-  Item *item_null= new Item_null();
+  Item *item_null= new (mem_root) Item_null(thd);
 
   /* `id` column */
-  item_list.push_back(item_null);
+  item_list.push_back(item_null, mem_root);
 
   /* `select_type` column */
-  push_str(&item_list, fake_select_type);
+  push_str(thd, &item_list, fake_select_type);
 
   /* `table` column: something like "<union1,2>" */
   uint len= make_union_table_name(table_name_buffer);
-  item_list.push_back(new Item_string_sys(table_name_buffer, len));
+  item_list.push_back(new (mem_root)
+                      Item_string_sys(thd, table_name_buffer, len),
+                      mem_root);
   
   /* `partitions` column */
   if (explain_flags & DESCRIBE_PARTITIONS)
-    item_list.push_back(item_null);
+    item_list.push_back(item_null, mem_root);
 
   /* `type` column */
-  push_str(&item_list, join_type_str[JT_ALL]);
+  push_str(thd, &item_list, join_type_str[JT_ALL]);
 
   /* `possible_keys` column */
-  item_list.push_back(item_null);
+  item_list.push_back(item_null, mem_root);
 
   /* `key` */
-  item_list.push_back(item_null);
+  item_list.push_back(item_null, mem_root);
 
   /* `key_len` */
-  item_list.push_back(item_null);
+  item_list.push_back(item_null, mem_root);
 
   /* `ref` */
-  item_list.push_back(item_null);
+  item_list.push_back(item_null, mem_root);
  
   /* `rows` */
-  item_list.push_back(item_null);
+  item_list.push_back(item_null, mem_root);
   
   /* `r_rows` */
   if (is_analyze)
   {
     double avg_rows= fake_select_lex_tracker.get_avg_rows();
-    item_list.push_back(new Item_float(avg_rows, 2));
+    item_list.push_back(new (mem_root) Item_float(thd, avg_rows, 2), mem_root);
   }
 
   /* `filtered` */
   if (explain_flags & DESCRIBE_EXTENDED || is_analyze)
-    item_list.push_back(item_null);
+    item_list.push_back(item_null, mem_root);
 
   /* `r_filtered` */
   if (is_analyze)
-    item_list.push_back(item_null);
+    item_list.push_back(item_null, mem_root);
 
   /* `Extra` */
   StringBuffer<256> extra_buf;
@@ -500,7 +520,10 @@ int Explain_union::print_explain(Explain_query *query,
   {
     extra_buf.append(STRING_WITH_LEN("Using filesort"));
   }
-  item_list.push_back(new Item_string_sys(extra_buf.ptr(), extra_buf.length()));
+  item_list.push_back(new (mem_root)
+                      Item_string_sys(thd, extra_buf.ptr(),
+                                      extra_buf.length()),
+                      mem_root);
 
   //output->unit.offset_limit_cnt= 0; 
   if (output->send_data(item_list))
@@ -520,6 +543,8 @@ void Explain_union::print_explain_json(Explain_query *query,
   Json_writer_nesting_guard guard(writer);
   char table_name_buffer[SAFE_NAME_LEN];
   
+  bool started_object= print_explain_json_cache(writer, is_analyze);
+
   writer->add_member("query_block").start_object();
   writer->add_member("union_result").start_object();
   // using_temporary_table
@@ -560,6 +585,9 @@ void Explain_union::print_explain_json(Explain_query *query,
 
   writer->end_object(); // union_result
   writer->end_object(); // query_block
+
+  if (started_object)
+    writer->end_object();
 }
 
 
@@ -640,6 +668,35 @@ void Explain_node::print_explain_json_for_children(Explain_query *query,
 }
 
 
+bool Explain_node::print_explain_json_cache(Json_writer *writer,
+                                            bool is_analyze)
+{
+  if (cache_tracker)
+  {
+    cache_tracker->fetch_current_stats();
+    writer->add_member("expression_cache").start_object();
+    if (cache_tracker->state != Expression_cache_tracker::OK)
+    {
+      writer->add_member("state").
+        add_str(Expression_cache_tracker::state_str[cache_tracker->state]);
+    }
+
+    if (is_analyze)
+    {
+      longlong cache_reads= cache_tracker->hit + cache_tracker->miss;
+      writer->add_member("r_loops").add_ll(cache_reads);
+      if (cache_reads != 0) 
+      {
+        double hit_ratio= double(cache_tracker->hit) / cache_reads * 100.0;
+        writer->add_member("r_hit_ratio").add_double(hit_ratio);
+      }
+    }
+    return true;
+  }
+  return false;
+}
+
+
 void Explain_select::replace_table(uint idx, Explain_table_access *new_tab)
 {
   delete join_tabs[idx];
@@ -661,38 +718,72 @@ int Explain_select::print_explain(Explain_query *query,
                                   select_result_sink *output,
                                   uint8 explain_flags, bool is_analyze)
 {
+  THD *thd= output->thd;
+  MEM_ROOT *mem_root= thd->mem_root;
+
   if (message)
   {
     List<Item> item_list;
-    Item *item_null= new Item_null();
+    Item *item_null= new (mem_root) Item_null(thd);
 
-    item_list.push_back(new Item_int((int32) select_id));
-    item_list.push_back(new Item_string_sys(select_type));
+    item_list.push_back(new (mem_root) Item_int(thd, (int32) select_id),
+                        mem_root);
+    item_list.push_back(new (mem_root) Item_string_sys(thd, select_type),
+                        mem_root);
     for (uint i=0 ; i < 7; i++)
-      item_list.push_back(item_null);
+      item_list.push_back(item_null, mem_root);
     if (explain_flags & DESCRIBE_PARTITIONS)
-      item_list.push_back(item_null);
+      item_list.push_back(item_null, mem_root);
 
     /* filtered */
     if (is_analyze || explain_flags & DESCRIBE_EXTENDED)
-      item_list.push_back(item_null);
+      item_list.push_back(item_null, mem_root);
     
     if (is_analyze)
     {
       /* r_rows, r_filtered */
-      item_list.push_back(item_null);
-      item_list.push_back(item_null);
+      item_list.push_back(item_null, mem_root);
+      item_list.push_back(item_null, mem_root);
     }
 
-    item_list.push_back(new Item_string_sys(message));
+    item_list.push_back(new (mem_root) Item_string_sys(thd, message),
+                        mem_root);
 
     if (output->send_data(item_list))
       return 1;
   }
   else
   {
-    bool using_tmp= using_temporary;
-    bool using_fs= using_filesort;
+    bool using_tmp;
+    bool using_fs;
+
+    if (is_analyze)
+    {
+      /* 
+        Get the data about "Using temporary; Using filesort" from execution
+        tracking system.
+      */
+      using_tmp= false;
+      using_fs= false;
+      Sort_and_group_tracker::Iterator iter(&ops_tracker);
+      enum_qep_action action;
+      Filesort_tracker *dummy;
+
+      while ((action= iter.get_next(&dummy)) != EXPL_ACTION_EOF)
+      {
+        if (action == EXPL_ACTION_FILESORT)
+          using_fs= true;
+        else if (action == EXPL_ACTION_TEMPTABLE)
+          using_tmp= true;
+      }
+    }
+    else
+    {
+      /* Use imprecise "estimates" we got with the query plan */
+      using_tmp= using_temporary;
+      using_fs= using_filesort;
+    }
+
     for (uint i=0; i< n_join_tabs; i++)
     {
       join_tabs[i]->print_explain(output, explain_flags, is_analyze, select_id,
@@ -740,6 +831,8 @@ void Explain_select::print_explain_json(Explain_query *query,
                                         Json_writer *writer, bool is_analyze)
 {
   Json_writer_nesting_guard guard(writer);
+  
+  bool started_cache= print_explain_json_cache(writer, is_analyze);
 
   if (message)
   {
@@ -757,12 +850,13 @@ void Explain_select::print_explain_json(Explain_query *query,
   {
     writer->add_member("query_block").start_object();
     writer->add_member("select_id").add_ll(select_id);
-     
+
     if (is_analyze && time_tracker.get_loops())
     {
       writer->add_member("r_loops").add_ll(time_tracker.get_loops());
       writer->add_member("r_total_time_ms").add_double(time_tracker.get_time_ms());
     }
+
     if (exec_const_cond)
     {
       writer->add_member("const_condition");
@@ -770,47 +864,62 @@ void Explain_select::print_explain_json(Explain_query *query,
     }
      
     Filesort_tracker *first_table_sort= NULL;
+    bool first_table_sort_used= false;
     int started_objects= 0;
 
     if (is_analyze)
     {
       /* ANALYZE has collected this part of query plan independently */
-      for (int i= ops_tracker.n_actions-1; i >= 0; i--)
+      if (ops_tracker.had_varied_executions())
       {
-        if (ops_tracker.qep_actions[i] == EXPL_ACTION_FILESORT)
+        writer->add_member("varied-sort-and-tmp").start_object();
+        started_objects++;
+      }
+      else
+      {
+        Sort_and_group_tracker::Iterator iter(&ops_tracker);
+        enum_qep_action action;
+        Filesort_tracker *fs_tracker;
+
+        while ((action= iter.get_next(&fs_tracker)) != EXPL_ACTION_EOF)
         {
-          if (i == 0)
+          if (action == EXPL_ACTION_FILESORT)
           {
-            /* filesort operation was the first in the pipeline */
-            first_table_sort= &ops_tracker.filesort_tracker[0];
-            break;
+            if (iter.is_last_element())
+            {
+              first_table_sort= fs_tracker;
+              break;
+            }
+            writer->add_member("filesort").start_object();
+            started_objects++;
+            fs_tracker->print_json_members(writer);
           }
-          writer->add_member("filesort").start_object();
-          started_objects++;
-        }
-        else if (ops_tracker.qep_actions[i] == EXPL_ACTION_TEMPTABLE)
-        {
-          writer->add_member("temporary_table").start_object();
-          started_objects++;
-          /*
-          if (tmp == EXPL_TMP_TABLE_BUFFER)
-            func= "buffer";
-          else if (tmp == EXPL_TMP_TABLE_GROUP)
-            func= "group-by";
+          else if (action == EXPL_ACTION_TEMPTABLE)
+          {
+            writer->add_member("temporary_table").start_object();
+            started_objects++;
+            /*
+            if (tmp == EXPL_TMP_TABLE_BUFFER)
+              func= "buffer";
+            else if (tmp == EXPL_TMP_TABLE_GROUP)
+              func= "group-by";
+            else
+              func= "distinct";
+            writer->add_member("function").add_str(func);
+           */
+          }
+          else if (action == EXPL_ACTION_REMOVE_DUPS)
+          {
+            writer->add_member("duplicate_removal").start_object();
+            started_objects++;
+          }
           else
-            func= "distinct";
-          writer->add_member("function").add_str(func);
-         */
+            DBUG_ASSERT(0);
         }
-        else if (ops_tracker.qep_actions[i] == EXPL_ACTION_REMOVE_DUPS)
-        {
-          writer->add_member("duplicate_removal").start_object();
-          started_objects++;
-        }
-        else
-          DBUG_ASSERT(0);
       }
 
+      if (first_table_sort)
+        first_table_sort_used= true;
     }
     else
     {
@@ -828,13 +937,15 @@ void Explain_select::print_explain_json(Explain_query *query,
       }
       else
       {
+        fprintf(stderr, "Weird!\n");
         if (using_filesort)
-          first_table_sort= &ops_tracker.filesort_tracker[0];
+          first_table_sort_used= true;
       }
     }
-      
+    
     Explain_basic_join::print_explain_json_interns(query, writer, is_analyze,
-                                                   first_table_sort);
+                                                   first_table_sort,
+                                                   first_table_sort_used);
 
     for (;started_objects; started_objects--)
       writer->end_object();
@@ -842,6 +953,8 @@ void Explain_select::print_explain_json(Explain_query *query,
     writer->end_object();
   }
 
+  if (started_cache)
+    writer->end_object();
 }
 
 
@@ -852,7 +965,7 @@ void Explain_basic_join::print_explain_json(Explain_query *query,
   writer->add_member("query_block").start_object();
   writer->add_member("select_id").add_ll(select_id);
   
-  print_explain_json_interns(query, writer, is_analyze, NULL);
+  print_explain_json_interns(query, writer, is_analyze, NULL, false);
 
   writer->end_object();
 }
@@ -862,7 +975,8 @@ void Explain_basic_join::
 print_explain_json_interns(Explain_query *query, 
                            Json_writer *writer, 
                            bool is_analyze,
-                           Filesort_tracker *first_table_sort)
+                           Filesort_tracker *first_table_sort,
+                           bool first_table_sort_used)
 {
   Json_writer_nesting_guard guard(writer);
   for (uint i=0; i< n_join_tabs; i++)
@@ -871,7 +985,11 @@ print_explain_json_interns(Explain_query *query,
       writer->add_member("duplicates_removal").start_object();
 
     join_tabs[i]->print_explain_json(query, writer, is_analyze,
-                                     (i==0)? first_table_sort : NULL);
+                                     first_table_sort,
+                                     first_table_sort_used);
+
+    first_table_sort= NULL;
+    first_table_sort_used= false;
 
     if (join_tabs[i]->end_dups_weedout)
       writer->end_object();
@@ -1016,58 +1134,60 @@ int Explain_table_access::print_explain(select_result_sink *output, uint8 explai
                                         uint select_id, const char *select_type,
                                         bool using_temporary, bool using_filesort)
 {
-  //CHARSET_INFO *cs= system_charset_info;
+  THD *thd= output->thd;
+  MEM_ROOT *mem_root= thd->mem_root;
 
   List<Item> item_list;
-  Item *item_null= new Item_null();
+  Item *item_null= new (mem_root) Item_null(thd);
   
   /* `id` column */
-  item_list.push_back(new Item_int((int32) select_id));
+  item_list.push_back(new (mem_root) Item_int(thd, (int32) select_id),
+                      mem_root);
 
   /* `select_type` column */
-  push_str(&item_list, select_type);
+  push_str(thd, &item_list, select_type);
 
   /* `table` column */
-  push_string(&item_list, &table_name);
+  push_string(thd, &item_list, &table_name);
   
   /* `partitions` column */
   if (explain_flags & DESCRIBE_PARTITIONS)
   {
     if (used_partitions_set)
     {
-      push_string(&item_list, &used_partitions);
+      push_string(thd, &item_list, &used_partitions);
     }
     else
-      item_list.push_back(item_null); 
+      item_list.push_back(item_null, mem_root);
   }
 
   /* `type` column */
-  push_str(&item_list, join_type_str[type]);
+  push_str(thd, &item_list, join_type_str[type]);
 
   /* `possible_keys` column */
   StringBuffer<64> possible_keys_buf;
   if (possible_keys.is_empty())
-    item_list.push_back(item_null); 
+    item_list.push_back(item_null, mem_root);
   else
-    push_string_list(&item_list, possible_keys, &possible_keys_buf);
+    push_string_list(thd, &item_list, possible_keys, &possible_keys_buf);
 
   /* `key` */
   StringBuffer<64> key_str;
   fill_key_str(&key_str, false);
   
   if (key_str.length() > 0)
-    push_string(&item_list, &key_str);
+    push_string(thd, &item_list, &key_str);
   else
-    item_list.push_back(item_null); 
+    item_list.push_back(item_null, mem_root);
 
   /* `key_len` */
   StringBuffer<64> key_len_str;
   fill_key_len_str(&key_len_str);
 
   if (key_len_str.length() > 0)
-    push_string(&item_list, &key_len_str);
+    push_string(thd, &item_list, &key_len_str);
   else
-    item_list.push_back(item_null);
+    item_list.push_back(item_null, mem_root);
 
   /* `ref` */
   StringBuffer<64> ref_list_buf;
@@ -1076,34 +1196,37 @@ int Explain_table_access::print_explain(select_result_sink *output, uint8 explai
     if (type == JT_FT)
     {
       /* Traditionally, EXPLAIN lines with type=fulltext have ref='' */
-      push_str(&item_list, "");
+      push_str(thd, &item_list, "");
     }
     else
-      item_list.push_back(item_null);
+      item_list.push_back(item_null, mem_root);
   }
   else
-    push_string_list(&item_list, ref_list, &ref_list_buf);
+    push_string_list(thd, &item_list, ref_list, &ref_list_buf);
  
   /* `rows` */
   if (rows_set)
   {
-    item_list.push_back(new Item_int((longlong) (ulonglong) rows, 
-                         MY_INT64_NUM_DECIMAL_DIGITS));
+    item_list.push_back(new (mem_root)
+                        Item_int(thd, (longlong) (ulonglong) rows,
+                                 MY_INT64_NUM_DECIMAL_DIGITS),
+                        mem_root);
   }
   else
-    item_list.push_back(item_null);
+    item_list.push_back(item_null, mem_root);
 
   /* `r_rows` */
   if (is_analyze)
   {
     if (!tracker.has_scans())
     {
-      item_list.push_back(item_null);
+      item_list.push_back(item_null, mem_root);
     }
     else
     {
       double avg_rows= tracker.get_avg_rows();
-      item_list.push_back(new Item_float(avg_rows, 2));
+      item_list.push_back(new (mem_root) Item_float(thd, avg_rows, 2),
+                          mem_root);
     }
   }
 
@@ -1112,10 +1235,11 @@ int Explain_table_access::print_explain(select_result_sink *output, uint8 explai
   {
     if (filtered_set)
     {
-      item_list.push_back(new Item_float(filtered, 2));
+      item_list.push_back(new (mem_root) Item_float(thd, filtered, 2),
+                          mem_root);
     }
     else
-      item_list.push_back(item_null);
+      item_list.push_back(item_null, mem_root);
   }
 
   /* `r_filtered` */
@@ -1123,14 +1247,16 @@ int Explain_table_access::print_explain(select_result_sink *output, uint8 explai
   {
     if (!tracker.has_scans())
     {
-      item_list.push_back(item_null);
+      item_list.push_back(item_null, mem_root);
     }
     else
     {
       double r_filtered= tracker.get_filtered_after_where();
       if (bka_type.is_using_jbuf())
         r_filtered *= jbuf_tracker.get_filtered_after_where();
-      item_list.push_back(new Item_float(r_filtered*100.0, 2));
+      item_list.push_back(new (mem_root)
+                          Item_float(thd, r_filtered * 100.0, 2),
+                          mem_root);
     }
   }
 
@@ -1164,7 +1290,10 @@ int Explain_table_access::print_explain(select_result_sink *output, uint8 explai
     extra_buf.append(STRING_WITH_LEN("Using filesort"));
   }
 
-  item_list.push_back(new Item_string_sys(extra_buf.ptr(), extra_buf.length()));
+  item_list.push_back(new (mem_root)
+                      Item_string_sys(thd, extra_buf.ptr(),
+                                      extra_buf.length()),
+                      mem_root);
 
   if (output->send_data(item_list))
     return 1;
@@ -1314,11 +1443,12 @@ void add_json_keyset(Json_writer *writer, const char *elem_name,
 void Explain_table_access::print_explain_json(Explain_query *query,
                                               Json_writer *writer,
                                               bool is_analyze,
-                                              Filesort_tracker *fs_tracker)
+                                              Filesort_tracker *fs_tracker,
+                                              bool first_table_sort_used)
 {
   Json_writer_nesting_guard guard(writer);
   
-  if (fs_tracker)
+  if (first_table_sort_used)
   {
     /* filesort was invoked on this join tab before doing the join with the rest */
     writer->add_member("read_sorted_file").start_object();
@@ -1346,7 +1476,7 @@ void Explain_table_access::print_explain_json(Explain_query *query,
     }
     writer->add_member("filesort").start_object();
     if (is_analyze)
-      fs_tracker->print_json(writer);
+      fs_tracker->print_json_members(writer);
   }
 
   if (bka_type.is_using_jbuf())
@@ -1537,7 +1667,7 @@ void Explain_table_access::print_explain_json(Explain_query *query,
     writer->end_object();
   }
 
-  if (fs_tracker)
+  if (first_table_sort_used)
   {
     writer->end_object(); // filesort
     writer->end_object(); // read_sorted_file
@@ -1976,7 +2106,7 @@ void Explain_update::print_explain_json(Explain_query *query,
   {
     writer->add_member("filesort").start_object();
     if (is_analyze)
-      filesort_tracker->print_json(writer);
+      filesort_tracker->print_json_members(writer);
     doing_buffering= true;
   }
 

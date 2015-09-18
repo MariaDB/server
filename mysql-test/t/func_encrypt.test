@@ -103,3 +103,21 @@ insert into t1 values (-15818,'requirement\'s');
 select encrypt(f1,f2) as a from t1,(select encrypt(f1,f2) as b from t1) a;
 --enable_result_log
 drop table t1;
+
+--echo #
+--echo # Start of 10.1 tests
+--echo #
+
+--echo #
+--echo # MDEV-8369 Unexpected impossible WHERE for a condition on a ZEROFILL field
+--echo #
+CREATE TABLE t1 (a INT(6) ZEROFILL);
+INSERT INTO t1 VALUES (1),(2);
+# This should not propagate a=1 into DES_ENCRYPT
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE a=1 AND DES_ENCRYPT('test',a)=_latin1 'abc' COLLATE latin1_bin;
+DROP TABLE t1;
+
+--echo #
+--echo # End of 10.1 tests
+--echo #

@@ -1,3 +1,5 @@
+set global sql_mode="";
+set local sql_mode="";
 DROP TABLE IF EXISTS t0,t1,t2,t3,t4,t5;
 DROP VIEW IF EXISTS v1;
 show variables where variable_name like "skip_show_database";
@@ -488,7 +490,7 @@ Note	1831	Duplicate index 'key_2' defined on the table 'test.t1'. This is deprec
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` int(11) NOT NULL DEFAULT '0',
+  `a` int(11) NOT NULL,
   PRIMARY KEY (`a`),
   UNIQUE KEY `constraint_1` (`a`),
   UNIQUE KEY `key_1` (`a`),
@@ -1633,9 +1635,7 @@ drop table if exists t1;drop table if exists t1;
 drop table if exists t1;drop table if exists t1;
 drop table if exists t1;drop table if exists t1;
 drop table if exists t1;drop table if exists t1;
-drop table if exists t1;drop table if exists
-Warnings:
-Warning	1265	Data truncated for column 'VARIABLE_VALUE' at row 1
+drop table if exists t1;drop table if exists t1;
 select * from information_schema.global_variables where variable_name like 'init%' order by variable_name;
 VARIABLE_NAME	VARIABLE_VALUE
 INIT_CONNECT	drop table if exists t1;drop table if exists t1;
@@ -1658,11 +1658,9 @@ drop table if exists t1;drop table if exists t1;
 drop table if exists t1;drop table if exists t1;
 drop table if exists t1;drop table if exists t1;
 drop table if exists t1;drop table if exists t1;
-drop table if exists t1;drop table if exists
+drop table if exists t1;drop table if exists t1;
 INIT_FILE	
 INIT_SLAVE	
-Warnings:
-Warning	1265	Data truncated for column 'VARIABLE_VALUE' at row #
 set global init_connect="";
 create table t0 select * from information_schema.global_status where VARIABLE_NAME='COM_SELECT';
 SELECT 1;
@@ -2070,3 +2068,4 @@ Variable_name	Value
 Opened_tables	3
 drop database mysqltest;
 drop database db1;
+set global sql_mode=default;

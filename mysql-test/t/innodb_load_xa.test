@@ -20,3 +20,6 @@ commit;
 show status like 'Handler_prepare';
 drop table t1;
 uninstall plugin innodb;
+
+--source include/restart_mysqld.inc
+

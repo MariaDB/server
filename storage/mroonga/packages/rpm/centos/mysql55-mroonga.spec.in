@@ -163,6 +163,12 @@ fi
 %doc mysql-mroonga-doc/*
 
 %changelog
+* Mon Jun 29 2015 Masafumi Yokoyama <myokoym@gmail.com> - 5.04-1
+- new upstream release.
+
+* Fri May 29 2015 HAYASHI Kentaro <hayashi@clear-code.com> - 5.03-1
+- new upstream release.
+
 * Wed Apr 29 2015 HAYASHI Kentaro <hayashi@clear-code.com> - 5.02-1
 - new upstream release.
 

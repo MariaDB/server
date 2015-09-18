@@ -13,13 +13,11 @@ SELECT @@global.wsrep_desync;
 SELECT @@session.wsrep_desync;
 ERROR HY000: Variable 'wsrep_desync' is a GLOBAL variable
 SET @@global.wsrep_desync=OFF;
-Warnings:
-Warning	1231	'wsrep_desync' is already OFF.
 SELECT @@global.wsrep_desync;
 @@global.wsrep_desync
 0
 SET @@global.wsrep_desync=ON;
-ERROR HY000: Operation 'desync' failed for SET @@global.wsrep_desync=ON
+Got one of the listed errors
 SELECT @@global.wsrep_desync;
 @@global.wsrep_desync
 1
@@ -30,7 +28,7 @@ SELECT @@global.wsrep_desync;
 @@global.wsrep_desync
 0
 SET @@global.wsrep_desync=ON;
-ERROR HY000: Operation 'desync' failed for SET @@global.wsrep_desync=ON
+Got one of the listed errors
 SELECT @@global.wsrep_desync;
 @@global.wsrep_desync
 1
@@ -47,6 +45,4 @@ ERROR 42000: Variable 'wsrep_desync' can't be set to the value of 'junk'
 
 # restore the initial value
 SET @@global.wsrep_desync = @wsrep_desync_global_saved;
-Warnings:
-Warning	1231	'wsrep_desync' is already OFF.
 # End of test

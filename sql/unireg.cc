@@ -501,7 +501,7 @@ static bool pack_header(THD *thd, uchar *forminfo,
 
   if (create_fields.elements > MAX_FIELDS)
   {
-    my_message(ER_TOO_MANY_FIELDS, ER(ER_TOO_MANY_FIELDS), MYF(0));
+    my_message(ER_TOO_MANY_FIELDS, ER_THD(thd, ER_TOO_MANY_FIELDS), MYF(0));
     DBUG_RETURN(1);
   }
 
@@ -583,14 +583,14 @@ static bool pack_header(THD *thd, uchar *forminfo,
           The HEX representation is created from this copy.
         */
         field->save_interval= field->interval;
-        field->interval= (TYPELIB*) sql_alloc(sizeof(TYPELIB));
+        field->interval= (TYPELIB*) thd->alloc(sizeof(TYPELIB));
         *field->interval= *field->save_interval; 
         field->interval->type_names= 
-          (const char **) sql_alloc(sizeof(char*) * 
-				    (field->interval->count+1));
+          (const char **) thd->alloc(sizeof(char*) * 
+                                     (field->interval->count+1));
         field->interval->type_names[field->interval->count]= 0;
         field->interval->type_lengths=
-          (uint *) sql_alloc(sizeof(uint) * field->interval->count);
+          (uint *) thd->alloc(sizeof(uint) * field->interval->count);
  
         for (uint pos= 0; pos < field->interval->count; pos++)
         {
@@ -600,8 +600,8 @@ static bool pack_header(THD *thd, uchar *forminfo,
           length= field->save_interval->type_lengths[pos];
           hex_length= length * 2;
           field->interval->type_lengths[pos]= hex_length;
-          field->interval->type_names[pos]= dst= (char*) sql_alloc(hex_length +
-                                                                   1);
+          field->interval->type_names[pos]= dst=
+            (char*) thd->alloc(hex_length + 1);
           octet2hex(dst, src, length);
         }
       }
@@ -631,7 +631,7 @@ static bool pack_header(THD *thd, uchar *forminfo,
       n_length+int_length+com_length+vcol_info_length > 65535L || 
       int_count > 255)
   {
-    my_message(ER_TOO_MANY_FIELDS, ER(ER_TOO_MANY_FIELDS), MYF(0));
+    my_message(ER_TOO_MANY_FIELDS, ER_THD(thd, ER_TOO_MANY_FIELDS), MYF(0));
     DBUG_RETURN(1);
   }
 
@@ -825,9 +825,11 @@ static bool pack_fields(uchar *buff, List<Create_field> &create_fields,
             }
           }
 
-          if(!sep)    /* disaster, enum uses all characters, none left as separator */
+          if (!sep)
           {
-            my_message(ER_WRONG_FIELD_TERMINATORS,ER(ER_WRONG_FIELD_TERMINATORS),
+            /* disaster, enum uses all characters, none left as separator */
+            my_message(ER_WRONG_FIELD_TERMINATORS,
+                       ER(ER_WRONG_FIELD_TERMINATORS),
                        MYF(0));
             DBUG_RETURN(1);
           }
@@ -922,7 +924,7 @@ static bool make_empty_rec(THD *thd, uchar *buff, uint table_options,
     /*
       regfield don't have to be deleted as it's allocated with sql_alloc()
     */
-    Field *regfield= make_field(&share,
+    Field *regfield= make_field(&share, thd->mem_root,
                                 buff+field->offset + data_offset,
                                 field->length,
                                 null_pos + null_count / 8,
@@ -974,9 +976,11 @@ static bool make_empty_rec(THD *thd, uchar *buff, uint table_options,
       regfield->store((longlong) 1, TRUE);
     }
     else if (type == Field::YES)		// Old unireg type
-      regfield->store(ER(ER_YES),(uint) strlen(ER(ER_YES)),system_charset_info);
+      regfield->store(ER_THD(thd, ER_YES),(uint) strlen(ER_THD(thd, ER_YES)),
+                      system_charset_info);
     else if (type == Field::NO)			// Old unireg type
-      regfield->store(ER(ER_NO), (uint) strlen(ER(ER_NO)),system_charset_info);
+      regfield->store(ER_THD(thd, ER_NO), (uint) strlen(ER_THD(thd, ER_NO)),
+                      system_charset_info);
     else
       regfield->reset();
   }

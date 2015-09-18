@@ -1694,6 +1694,7 @@ DO CONVERT(CAST(SUBSTRING_INDEX(FORMAT(1,'1111'), FORMAT('','Zpq'),1)
 AS BINARY(0)) USING utf8);
 Warnings:
 Warning	1292	Truncated incorrect INTEGER value: 'Zpq'
+Warning	1292	Truncated incorrect DOUBLE value: ''
 Warning	1292	Truncated incorrect BINARY(0) value: '1.'
 #
 # End of 5.1 tests
@@ -1787,3 +1788,24 @@ SELECT * FROM t2 WHERE a=(SELECT a FROM t1) AND a=_LATIN1'x';
 ERROR 21000: Subquery returns more than 1 row
 DROP TABLE t2;
 DROP TABLE t1;
+#
+# Start of 10.1 tests
+#
+#
+# MDEV-8362 dash '-' is not recognized in charset armscii8 on select where query
+#
+CREATE TABLE t1 (a VARCHAR(64) CHARACTER SET armscii8);
+INSERT INTO t1 VALUES ('abc-def');
+SELECT * FROM t1 WHERE a='abc-def';
+a
+abc-def
+SELECT * FROM t1 WHERE a LIKE 'abc%';
+a
+abc-def
+DROP TABLE t1;
+SELECT HEX(CONVERT(_utf8 0x2728292C2D2E USING armscii8));
+HEX(CONVERT(_utf8 0x2728292C2D2E USING armscii8))
+2728292C2D2E
+#
+# End of 10.1 tests
+#

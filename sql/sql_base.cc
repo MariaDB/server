@@ -1100,7 +1100,7 @@ void close_thread_table(THD *thd, TABLE **table_ptr)
     critical section.
   */
   if (table->file != NULL)
-    table->file->unbind_psi();
+    MYSQL_UNBIND_TABLE(table->file);
 
   tc_release_table(table);
   DBUG_VOID_RETURN;
@@ -1635,8 +1635,8 @@ use_temporary_table(THD *thd, TABLE *table, TABLE **out_table)
         thread to another, we need to let the performance schema know that,
         for aggregates per thread to work properly.
       */
-      table->file->unbind_psi();
-      table->file->rebind_psi();
+      MYSQL_UNBIND_TABLE(table->file);
+      MYSQL_REBIND_TABLE(table->file);
     }
 #endif
   }
@@ -2530,7 +2530,7 @@ retry_share:
   if (table)
   {
     DBUG_ASSERT(table->file != NULL);
-    table->file->rebind_psi();
+    MYSQL_REBIND_TABLE(table->file);
   }
   else
   {
@@ -3439,10 +3439,11 @@ request_backoff_action(enum_open_table_action action_arg,
     * We met a broken table that needs repair, or a table that
       is not present on this MySQL server and needs re-discovery.
       To perform the action, we need an exclusive metadata lock on
-      the table. Acquiring an X lock while holding other shared
-      locks is very deadlock-prone. If this is a multi- statement
-      transaction that holds metadata locks for completed
-      statements, we don't do it, and report an error instead.
+      the table. Acquiring X lock while holding other shared
+      locks can easily lead to deadlocks. We rely on MDL deadlock
+      detector to discover them. If this is a multi-statement
+      transaction that holds metadata locks for completed statements,
+      we should keep these locks after discovery/repair.
       The action type in this case is OT_DISCOVER or OT_REPAIR.
     * Our attempt to acquire an MDL lock lead to a deadlock,
       detected by the MDL deadlock detector. The current
@@ -3483,7 +3484,7 @@ request_backoff_action(enum_open_table_action action_arg,
       keep tables open between statements and a livelock
       is not possible.
   */
-  if (action_arg != OT_REOPEN_TABLES && m_has_locks)
+  if (action_arg == OT_BACKOFF_AND_RETRY && m_has_locks)
   {
     my_error(ER_LOCK_DEADLOCK, MYF(0));
     m_thd->mark_transaction_to_rollback(true);
@@ -3512,6 +3513,32 @@ request_backoff_action(enum_open_table_action action_arg,
 
 
 /**
+  An error handler to mark transaction to rollback on DEADLOCK error
+  during DISCOVER / REPAIR.
+*/
+class MDL_deadlock_discovery_repair_handler : public Internal_error_handler
+{
+public:
+  virtual bool handle_condition(THD *thd,
+                                  uint sql_errno,
+                                  const char* sqlstate,
+                                  Sql_condition::enum_warning_level level,
+                                  const char* msg,
+                                  Sql_condition ** cond_hdl)
+  {
+    if (sql_errno == ER_LOCK_DEADLOCK)
+    {
+      thd->mark_transaction_to_rollback(true);
+    }
+    /*
+      We have marked this transaction to rollback. Return false to allow
+      error to be reported or handled by other handlers.
+    */
+    return false;
+  }
+};
+
+/**
    Recover from failed attempt of open table by performing requested action.
 
    @pre This function should be called only with "action" != OT_NO_ACTION
@@ -3525,6 +3552,12 @@ bool
 Open_table_context::recover_from_failed_open()
 {
   bool result= FALSE;
+  MDL_deadlock_discovery_repair_handler handler;
+  /*
+    Install error handler to mark transaction to rollback on DEADLOCK error.
+  */
+  m_thd->push_internal_handler(&handler);
+
   /* Execute the action. */
   switch (m_action)
   {
@@ -3561,7 +3594,12 @@ Open_table_context::recover_from_failed_open()
             result= FALSE;
         }
 
-        m_thd->mdl_context.release_transactional_locks();
+        /*
+          Rollback to start of the current statement to release exclusive lock
+          on table which was discovered but preserve locks from previous statements
+          in current transaction.
+        */
+        m_thd->mdl_context.rollback_to_savepoint(start_of_statement_svp());
         break;
       }
     case OT_REPAIR:
@@ -3575,12 +3613,18 @@ Open_table_context::recover_from_failed_open()
                          m_failed_table->table_name, FALSE);
 
         result= auto_repair_table(m_thd, m_failed_table);
-        m_thd->mdl_context.release_transactional_locks();
+        /*
+          Rollback to start of the current statement to release exclusive lock
+          on table which was discovered but preserve locks from previous statements
+          in current transaction.
+        */
+        m_thd->mdl_context.rollback_to_savepoint(start_of_statement_svp());
         break;
       }
     default:
       DBUG_ASSERT(0);
   }
+  m_thd->pop_internal_handler();
   /*
     Reset the pointers to conflicting MDL request and the
     TABLE_LIST element, set when we need auto-discovery or repair,
@@ -4297,7 +4341,8 @@ lock_table_names(THD *thd, const DDL_options_st &options,
       if (options.if_not_exists())
       {
         push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
-                            ER_TABLE_EXISTS_ERROR, ER(ER_TABLE_EXISTS_ERROR),
+                            ER_TABLE_EXISTS_ERROR,
+                            ER_THD(thd, ER_TABLE_EXISTS_ERROR),
                             tables_start->table_name);
       }
       else
@@ -4653,8 +4698,12 @@ restart:
     if (!tbl)
       continue;
 
-    if (WSREP_ON && sqlcom_can_generate_row_events(thd) &&
-        wsrep_replicate_myisam && tables && tbl->file->ht == myisam_hton &&
+    if (WSREP_ON                               &&
+        wsrep_replicate_myisam                 &&
+        tables                                 &&
+        tbl->file->ht == myisam_hton           &&
+        sqlcom_can_generate_row_events(thd)    &&
+        thd->get_command() != COM_STMT_PREPARE &&
         tables->lock_type >= TL_WRITE_ALLOW_WRITE)
     {
       WSREP_TO_ISOLATION_BEGIN(NULL, NULL, tables);
@@ -6610,6 +6659,7 @@ find_field_in_tables(THD *thd, Item_ident *item,
 
   if (item->cached_table)
   {
+    DBUG_PRINT("info", ("using cached table"));
     /*
       This shortcut is used by prepared statements. We assume that
       TABLE_LIST *first_table is not changed during query execution (which
@@ -7303,7 +7353,7 @@ mark_common_columns(THD *thd, TABLE_LIST *table_ref_1, TABLE_LIST *table_ref_2,
           set_new_item_local_context(thd, item_ident_2, nj_col_2->table_ref))
         goto err;
 
-      if (!(eq_cond= new Item_func_eq(item_ident_1, item_ident_2)))
+      if (!(eq_cond= new (thd->mem_root) Item_func_eq(thd, item_ident_1, item_ident_2)))
         goto err;                               /* Out of memory. */
 
       if (field_1 && field_1->vcol_info)
@@ -7316,8 +7366,8 @@ mark_common_columns(THD *thd, TABLE_LIST *table_ref_1, TABLE_LIST *table_ref_2,
         fix_fields() is applied to all ON conditions in setup_conds()
         so we don't do it here.
       */
-      add_join_on((table_ref_1->outer_join & JOIN_TYPE_RIGHT ?
-                   table_ref_1 : table_ref_2),
+      add_join_on(thd, (table_ref_1->outer_join & JOIN_TYPE_RIGHT ?
+                        table_ref_1 : table_ref_2),
                   eq_cond);
 
       nj_col_1->is_common= nj_col_2->is_common= TRUE;
@@ -7361,14 +7411,6 @@ mark_common_columns(THD *thd, TABLE_LIST *table_ref_1, TABLE_LIST *table_ref_2,
     (found_using_fields < length(join_using_fields)).
   */
   result= FALSE;
-
-  /*
-    Save the lists made during natural join matching (because
-    the matching done only once but we need the list in case
-    of prepared statements).
-  */
-  table_ref_1->persistent_used_items= table_ref_1->used_items;
-  table_ref_2->persistent_used_items= table_ref_2->used_items;
 
 err:
   if (arena)
@@ -7441,12 +7483,12 @@ store_natural_using_join_columns(THD *thd, TABLE_LIST *natural_using_join,
     nj_col_1= it_1.get_natural_column_ref();
     if (nj_col_1->is_common)
     {
-      natural_using_join->join_columns->push_back(nj_col_1);
+      natural_using_join->join_columns->push_back(nj_col_1, thd->mem_root);
       /* Reset the common columns for the next call to mark_common_columns. */
       nj_col_1->is_common= FALSE;
     }
     else
-      non_join_columns->push_back(nj_col_1);
+      non_join_columns->push_back(nj_col_1, thd->mem_root);
   }
 
   /*
@@ -7486,7 +7528,7 @@ store_natural_using_join_columns(THD *thd, TABLE_LIST *natural_using_join,
   {
     nj_col_2= it_2.get_natural_column_ref();
     if (!nj_col_2->is_common)
-      non_join_columns->push_back(nj_col_2);
+      non_join_columns->push_back(nj_col_2, thd->mem_root);
     else
     {
       /* Reset the common columns for the next call to mark_common_columns. */
@@ -7650,7 +7692,7 @@ store_top_level_join_columns(THD *thd, TABLE_LIST *table_ref,
     /* Add a TRUE condition to outer joins that have no common columns. */
     if (table_ref_2->outer_join &&
         !table_ref_1->on_expr && !table_ref_2->on_expr)
-      table_ref_2->on_expr= new Item_int((longlong) 1,1);   /* Always true. */
+      table_ref_2->on_expr= new (thd->mem_root) Item_int(thd, (longlong) 1, 1); // Always true.
 
     /* Change this table reference to become a leaf for name resolution. */
     if (left_neighbor)
@@ -7815,7 +7857,7 @@ int setup_wild(THD *thd, TABLE_LIST *tables, List<Item> &fields,
 
           Item_int do not need fix_fields() because it is basic constant.
         */
-        it.replace(new Item_int("Not_used", (longlong) 1,
+        it.replace(new (thd->mem_root) Item_int(thd, "Not_used", (longlong) 1,
                                 MY_INT64_NUM_DECIMAL_DIGITS));
       }
       else if (insert_fields(thd, ((Item_field*) item)->context,
@@ -7935,7 +7977,8 @@ bool setup_fields(THD *thd, Item **ref_pointer_array,
       *(ref++)= item;
     if (item->with_sum_func && item->type() != Item::SUM_FUNC_ITEM &&
 	sum_func_list)
-      item->split_sum_func(thd, ref_pointer_array, *sum_func_list);
+      item->split_sum_func(thd, ref_pointer_array, *sum_func_list,
+                           SPLIT_SUM_SELECT);
     thd->lex->used_tables|= item->used_tables();
     thd->lex->current_select->cur_pos_in_select_list++;
   }
@@ -8042,16 +8085,17 @@ bool setup_tables(THD *thd, Name_resolution_context *context,
   if (select_lex->first_cond_optimization)
   {
     leaves.empty();
-    if (!select_lex->is_prep_leaf_list_saved)
+    if (select_lex->prep_leaf_list_state != SELECT_LEX::SAVED)
     {
       make_leaves_list(thd, leaves, tables, full_table_list, first_select_table);
+      select_lex->prep_leaf_list_state= SELECT_LEX::READY;
       select_lex->leaf_tables_exec.empty();
     }
     else
     {
       List_iterator_fast <TABLE_LIST> ti(select_lex->leaf_tables_prep);
       while ((table_list= ti++))
-        leaves.push_back(table_list);
+        leaves.push_back(table_list, thd->mem_root);
     }
       
     while ((table_list= ti++))
@@ -8415,11 +8459,6 @@ insert_fields(THD *thd, Name_resolution_context *context, const char *db_name,
         }
       }
 #endif
-      /*
-         field_iterator.create_item() builds used_items which we
-         have to save because changes made once and they are persistent
-      */
-      tables->persistent_used_items= tables->used_items;
 
       if ((field= field_iterator.field()))
       {
@@ -8507,7 +8546,7 @@ void wrap_ident(THD *thd, Item **conds)
   DBUG_ASSERT((*conds)->type() == Item::FIELD_ITEM || (*conds)->type() == Item::REF_ITEM);
   Query_arena *arena, backup;
   arena= thd->activate_stmt_arena_if_needed(&backup);
-  if ((wrapper= new Item_direct_ref_to_ident((Item_ident *)(*conds))))
+  if ((wrapper= new (thd->mem_root) Item_direct_ref_to_ident(thd, (Item_ident *) (*conds))))
     (*conds)= (Item*) wrapper;
   if (arena)
     thd->restore_active_arena(arena, &backup);
@@ -8711,7 +8750,7 @@ err_no_arena:
 */
 
 bool
-fill_record(THD * thd, TABLE *table_arg, List<Item> &fields, List<Item> &values,
+fill_record(THD *thd, TABLE *table_arg, List<Item> &fields, List<Item> &values,
             bool ignore_errors)
 {
   List_iterator_fast<Item> f(fields),v(values);
@@ -8765,13 +8804,13 @@ fill_record(THD * thd, TABLE *table_arg, List<Item> &fields, List<Item> &values,
     {
       push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                           ER_WARNING_NON_DEFAULT_VALUE_FOR_VIRTUAL_COLUMN,
-                          ER(ER_WARNING_NON_DEFAULT_VALUE_FOR_VIRTUAL_COLUMN),
+                          ER_THD(thd, ER_WARNING_NON_DEFAULT_VALUE_FOR_VIRTUAL_COLUMN),
                           rfield->field_name, table->s->table_name.str);
     }
     if ((!rfield->vcol_info || rfield->stored_in_db) && 
         (value->save_in_field(rfield, 0)) < 0 && !ignore_errors)
     {
-      my_message(ER_UNKNOWN_ERROR, ER(ER_UNKNOWN_ERROR), MYF(0));
+      my_message(ER_UNKNOWN_ERROR, ER_THD(thd, ER_UNKNOWN_ERROR), MYF(0));
       goto err;
     }
     rfield->set_explicit_default(value);
@@ -8917,7 +8956,7 @@ fill_record(THD *thd, TABLE *table, Field **ptr, List<Item> &values,
     {
       push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                           ER_WARNING_NON_DEFAULT_VALUE_FOR_VIRTUAL_COLUMN,
-                          ER(ER_WARNING_NON_DEFAULT_VALUE_FOR_VIRTUAL_COLUMN),
+                          ER_THD(thd, ER_WARNING_NON_DEFAULT_VALUE_FOR_VIRTUAL_COLUMN),
                           field->field_name, table->s->table_name.str);
     }
 
@@ -9173,7 +9212,7 @@ int init_ftfuncs(THD *thd, SELECT_LEX *select_lex, bool no_order)
     DBUG_PRINT("info",("Performing FULLTEXT search"));
 
     while ((ifm=li++))
-      ifm->init_search(no_order);
+      ifm->init_search(thd, no_order);
   }
   return 0;
 }

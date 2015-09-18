@@ -1168,7 +1168,7 @@ loop:
 			dberr_t	err = fil_open_single_table_tablespace(
 				read_page_0, srv_read_only_mode ? false : true,
 				space_id, dict_tf_to_fsp_flags(flags),
-				name, filepath);
+				name, filepath, NULL);
 
 			if (err != DB_SUCCESS) {
 				ib_logf(IB_LOG_LEVEL_ERROR,
@@ -2182,8 +2182,7 @@ err_len:
 
 	/* See if the tablespace is available. */
 	*table = dict_mem_table_create(
-		name, space, n_cols & ~DICT_N_COLS_COMPACT, flags, flags2,
-		false);
+		name, space, n_cols & ~DICT_N_COLS_COMPACT, flags, flags2);
 
 	field = rec_get_nth_field_old(rec, DICT_FLD__SYS_TABLES__ID, &len);
 	ut_ad(len == 8); /* this was checked earlier */
@@ -2414,7 +2413,7 @@ err_exit:
 			err = fil_open_single_table_tablespace(
 				true, false, table->space,
 				dict_tf_to_fsp_flags(table->flags),
-				name, filepath);
+				name, filepath, table);
 
 			if (err != DB_SUCCESS) {
 				/* We failed to find a sensible

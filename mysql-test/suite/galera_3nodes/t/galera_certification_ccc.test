@@ -1,0 +1,60 @@
+#
+# Test that a cluster configuration change during a transaction does not cause a failure
+#
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+--let $galera_connection_name = node_3
+--let $galera_server_number = 3
+--source include/galera_connect.inc
+
+# Save original auto_increment_offset values.
+--connection node_1
+let $auto_increment_offset_node_1 = `SELECT @@global.auto_increment_offset`;
+--connection node_2
+let $auto_increment_offset_node_2 = `SELECT @@global.auto_increment_offset`;
+--connection node_3
+let $auto_increment_offset_node_3 = `SELECT @@global.auto_increment_offset`;
+
+--connection node_1
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
+
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+INSERT INTO t1 VALUES (1);
+SELECT VARIABLE_VALUE = 3 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+
+--connection node_3
+--let $wsrep_cluster_address_orig = `SELECT @@wsrep_cluster_address`
+SET GLOBAL wsrep_cluster_address = '';
+--sleep 5
+
+--connection node_1
+INSERT INTO t1 VALUES (2);
+SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+COMMIT;
+
+--connection node_2
+SELECT COUNT(*) = 2 FROM t1;
+
+--connection node_3
+--disable_query_log
+--eval SET GLOBAL wsrep_cluster_address = '$wsrep_cluster_address_orig';
+--enable_query_log
+--sleep 5
+--source include/wait_until_ready.inc
+
+--connection node_1
+DROP TABLE t1;
+
+# Restore original auto_increment_offset values.
+--disable_query_log
+--connection node_1
+--eval SET @@global.auto_increment_offset = $auto_increment_offset_node_1;
+--connection node_2
+--eval SET @@global.auto_increment_offset = $auto_increment_offset_node_2;
+--connection node_3
+--eval SET @@global.auto_increment_offset = $auto_increment_offset_node_3;
+--enable_query_log
+

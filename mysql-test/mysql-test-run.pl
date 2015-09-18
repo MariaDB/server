@@ -2579,15 +2579,18 @@ sub setup_vardir() {
   {
     $plugindir="$opt_vardir/plugins";
     mkpath($plugindir);
-    if (IS_WINDOWS && !$opt_embedded_server)
+    if (IS_WINDOWS)
     {
-      for (<$bindir/storage/*$opt_vs_config/*.dll>,
-           <$bindir/plugin/*$opt_vs_config/*.dll>,
-           <$bindir/sql$opt_vs_config/*.dll>)
+      if (!$opt_embedded_server)
       {
-        my $pname=basename($_);
-        copy rel2abs($_), "$plugindir/$pname";
-        set_plugin_var($pname);
+        for (<$bindir/storage/*$opt_vs_config/*.dll>,
+             <$bindir/plugin/*$opt_vs_config/*.dll>,
+             <$bindir/sql$opt_vs_config/*.dll>)
+        {
+          my $pname=basename($_);
+          copy rel2abs($_), "$plugindir/$pname";
+          set_plugin_var($pname);
+        }
       }
     }
     else
@@ -3338,7 +3341,7 @@ sub do_before_run_mysqltest($)
     my $resdir= dirname($resfile);
     # we'll use a separate extension for generated result files
     # to be able to distinguish them from manually created
-    # version-controlled results, and to ignore them in bzr.
+    # version-controlled results, and to ignore them in git.
     my $dest = "$base_file$suites.result~";
     my @cmd = ($exe_patch, qw/--binary -r - -f -s -o/,
                $dest, $base_result, $resfile);
@@ -4374,6 +4377,7 @@ sub extract_warning_lines ($$) {
      qr/InnoDB: Redo log crypto: Can't initialize to key version -1u/,
      qr/InnoDB: Dumping buffer pool.*/,
      qr/InnoDB: Buffer pool.*/,
+     qr/InnoDB: Warning: Writer thread is waiting this semaphore/,
      qr/Slave: Unknown table 't1' .* 1051/,
      qr/Slave SQL:.*(Internal MariaDB error code: [[:digit:]]+|Query:.*)/,
      qr/slave SQL thread aborted/,
@@ -4429,6 +4433,22 @@ sub extract_warning_lines ($$) {
      qr|InnoDB: Setting thread \d+ nice to \d+ failed, current nice \d+, errno 13|, # setpriority() fails under valgrind
      qr|Failed to setup SSL|,
      qr|SSL error: Failed to set ciphers to use|,
+     qr/Plugin 'InnoDB' will be forced to shutdown/,
+     qr|Could not increase number of max_open_files to more than|,
+     qr/InnoDB: Error table encrypted but encryption service not available.*/,
+     qr/InnoDB: Could not find a valid tablespace file for*/,
+     qr/InnoDB: Tablespace open failed for*/,
+     qr/InnoDB: Failed to find tablespace for table*/,
+     qr/InnoDB: Space */,
+     qr|InnoDB: You may have to recover from a backup|,
+     qr|InnoDB: It is also possible that your operatingsystem has corrupted its own file cache|,
+     qr|InnoDB: and rebooting your computer removes the error|,
+     qr|InnoDB: If the corrupt page is an index page you can also try to|,
+     qr|nnoDB: fix the corruption by dumping, dropping, and reimporting|,
+     qr|InnoDB: the corrupt table. You can use CHECK|,
+     qr|InnoDB: TABLE to scan your table for corruption|,
+     qr/InnoDB: See also */
+
     );
 
   my $matched_lines= [];
@@ -5471,6 +5491,12 @@ sub start_mysqltest ($) {
     mtr_add_arg($args, "--max-connections=%d", $opt_max_connections);
   }
 
+  if ( $opt_valgrind )
+  {
+    # Longer timeouts when running with valgrind
+    mtr_add_arg($args, "--wait-longer-for-timeouts");
+  }
+
   if ( $opt_embedded_server )
   {
 
@@ -6028,6 +6054,8 @@ Options to control what test suites or cases to run
   skip-test-list=FILE   Skip the tests listed in FILE. Each line in the file
                         is an entry and should be formatted as: 
                         <TESTNAME> : <COMMENT>
+  force-restart         Always restart servers between tests. This makes it
+                        easier to see from which test warnings may come from.
 
 Options that specify ports
 
@@ -6145,7 +6173,6 @@ Misc options
                         servers to exit before finishing the process
   fast                  Run as fast as possible, dont't wait for servers
                         to shutdown etc.
-  force-restart         Always restart servers between tests
   parallel=N            Run tests in N parallel threads (default 1)
                         Use parallel=auto for auto-setting of N
   repeat=N              Run each test N number of times

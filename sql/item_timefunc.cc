@@ -426,7 +426,8 @@ static bool extract_date_time(DATE_TIME_FORMAT *format,
     {
       if (!my_isspace(&my_charset_latin1,*val))
       {
-	make_truncated_value_warning(current_thd, Sql_condition::WARN_LEVEL_WARN,
+	make_truncated_value_warning(current_thd,
+                                     Sql_condition::WARN_LEVEL_WARN,
                                      val_begin, length,
 				     cached_timestamp_type, NullS);
 	break;
@@ -437,10 +438,12 @@ static bool extract_date_time(DATE_TIME_FORMAT *format,
 
 err:
   {
+    THD *thd= current_thd;
     char buff[128];
     strmake(buff, val_begin, MY_MIN(length, sizeof(buff)-1));
-    push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
-                        ER_WRONG_VALUE_FOR_TYPE, ER(ER_WRONG_VALUE_FOR_TYPE),
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                        ER_WRONG_VALUE_FOR_TYPE,
+                        ER_THD(thd, ER_WRONG_VALUE_FOR_TYPE),
                         date_time_type, buff, "str_to_date");
   }
   DBUG_RETURN(1);
@@ -1299,10 +1302,11 @@ bool get_interval_value(Item *args,interval_type int_type, INTERVAL *interval)
     interval->neg= my_decimal2seconds(val, &second, &second_part);
     if (second == LONGLONG_MAX)
     {
+      THD *thd= current_thd;
       ErrConvDecimal err(val);
-      push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
+      push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                           ER_TRUNCATED_WRONG_VALUE,
-                          ER(ER_TRUNCATED_WRONG_VALUE), "DECIMAL",
+                          ER_THD(thd, ER_TRUNCATED_WRONG_VALUE), "DECIMAL",
                           err.ptr());
       return true;
     }
@@ -2361,14 +2365,15 @@ void Item_char_typecast::check_truncation_with_warn(String *src, uint dstlen)
 {
   if (dstlen < src->length())
   {
+    THD *thd= current_thd;
     char char_type[40];
+    ErrConvString err(src);
     my_snprintf(char_type, sizeof(char_type), "%s(%lu)",
                 cast_cs == &my_charset_bin ? "BINARY" : "CHAR",
                 (ulong) cast_length);
-    ErrConvString err(src);
-    push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                         ER_TRUNCATED_WRONG_VALUE,
-                        ER(ER_TRUNCATED_WRONG_VALUE), char_type,
+                        ER_THD(thd, ER_TRUNCATED_WRONG_VALUE), char_type,
                         err.ptr());
   }
 }
@@ -2404,13 +2409,15 @@ uint Item_char_typecast::adjusted_length_with_warn(uint length)
 {
   if (length <= current_thd->variables.max_allowed_packet)
     return length;
-  push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
+
+  THD *thd= current_thd;
+  push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                       ER_WARN_ALLOWED_PACKET_OVERFLOWED,
-                      ER(ER_WARN_ALLOWED_PACKET_OVERFLOWED),
+                      ER_THD(thd, ER_WARN_ALLOWED_PACKET_OVERFLOWED),
                       cast_cs == &my_charset_bin ?
                       "cast_as_binary" : func_name(),
-                      current_thd->variables.max_allowed_packet);
-  return current_thd->variables.max_allowed_packet;
+                      thd->variables.max_allowed_packet);
+  return thd->variables.max_allowed_packet;
 }
 
 
@@ -2749,8 +2756,6 @@ void Item_func_add_time::print(String *str, enum_query_type query_type)
 bool Item_func_timediff::get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date)
 {
   DBUG_ASSERT(fixed == 1);
-  longlong seconds;
-  long microseconds;
   int l_sign= 1;
   MYSQL_TIME l_time1,l_time2,l_time3;
   ErrConvTime str(&l_time3);
@@ -2767,31 +2772,7 @@ bool Item_func_timediff::get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date)
   if (l_time1.neg != l_time2.neg)
     l_sign= -l_sign;
 
-  bzero((char *)&l_time3, sizeof(l_time3));
-  
-  l_time3.neg= calc_time_diff(&l_time1, &l_time2, l_sign,
-			      &seconds, &microseconds);
-
-  /*
-    For MYSQL_TIMESTAMP_TIME only:
-      If first argument was negative and diff between arguments
-      is non-zero we need to swap sign to get proper result.
-  */
-  if (l_time1.neg && (seconds || microseconds))
-    l_time3.neg= 1-l_time3.neg;         // Swap sign of result
-
-  /*
-    seconds is longlong, when casted to long it may become a small number
-    even if the original seconds value was too large and invalid.
-    as a workaround we limit seconds by a large invalid long number
-    ("invalid" means > TIME_MAX_SECOND)
-  */
-  set_if_smaller(seconds, INT_MAX32);
-
-  calc_time_from_sec(&l_time3, (long) seconds, microseconds);
-
-  if ((fuzzy_date & TIME_NO_ZERO_DATE) && (seconds == 0) &&
-      (microseconds == 0))
+  if (calc_time_diff(&l_time1, &l_time2, l_sign, &l_time3, fuzzy_date))
     return (null_value= 1);
 
   *ltime= l_time3;

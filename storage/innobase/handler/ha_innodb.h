@@ -60,18 +60,18 @@ struct row_prebuilt_t;
 /** Engine specific table options are defined using this struct */
 struct ha_table_option_struct
 {
-	bool  page_compressed;		/*!< Table is using page compression
-					if this option is true. */
-	int   page_compression_level;	/*!< Table page compression level
-					or UNIV_UNSPECIFIED. */
-	uint  atomic_writes;		/*!< Use atomic writes for this
-					table if this options is ON or
-					in DEFAULT if
-					srv_use_atomic_writes=1.
-					Atomic writes are not used if
-					value OFF.*/
-	uint  encryption;     		/*!< DEFAULT, ON, OFF */
-	int   encryption_key_id;     	/*!< encryption key id*/
+	bool		page_compressed;	/*!< Table is using page compression
+						if this option is true. */
+	ulonglong	page_compression_level;	/*!< Table page compression level
+						0-9. */
+	uint		atomic_writes;		/*!< Use atomic writes for this
+						table if this options is ON or
+						in DEFAULT if
+						srv_use_atomic_writes=1.
+						Atomic writes are not used if
+						value OFF.*/
+	uint		encryption;		/*!<  DEFAULT, ON, OFF */
+	ulonglong	encryption_key_id;	/*!< encryption key id  */
 };
 
 

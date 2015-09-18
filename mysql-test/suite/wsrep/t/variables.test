@@ -29,7 +29,7 @@ CALL mtr.add_suppression("WSREP: Could not open saved state file for reading.*")
 
 --disable_query_log
 eval SET GLOBAL wsrep_provider= '$WSREP_PROVIDER';
---let $galera_version=25.3.5
+--let $galera_version=3.9
 source include/check_galera_version.inc;
 --enable_query_log
 

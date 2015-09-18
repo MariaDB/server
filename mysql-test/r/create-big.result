@@ -9,7 +9,7 @@ ERROR 42S01: Table 't1' already exists
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `i` int(1) NOT NULL DEFAULT '0'
+  `i` int(1) NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop table t1;
 set debug_sync='create_table_select_before_create SIGNAL parked WAIT_FOR go';
@@ -21,7 +21,7 @@ ERROR 42S01: Table 't1' already exists
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `i` int(1) NOT NULL DEFAULT '0'
+  `i` int(1) NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop table t1;
 create table t3 (j char(5));
@@ -34,7 +34,7 @@ ERROR 42S01: Table 't1' already exists
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `i` int(1) NOT NULL DEFAULT '0'
+  `i` int(1) NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop table t1;
 set debug_sync='create_table_select_before_create SIGNAL parked WAIT_FOR go';
@@ -46,7 +46,7 @@ ERROR 42S01: Table 't1' already exists
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `i` int(1) NOT NULL DEFAULT '0'
+  `i` int(1) NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop table t1;
 set debug_sync='create_table_select_before_create SIGNAL parked WAIT_FOR go';
@@ -58,7 +58,7 @@ ERROR 42S01: Table 't1' already exists
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `i` int(1) NOT NULL DEFAULT '0'
+  `i` int(1) NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop table t1;
 set debug_sync='create_table_select_before_create SIGNAL parked WAIT_FOR go';
@@ -70,7 +70,7 @@ ERROR 42S01: Table 't1' already exists
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `i` int(1) NOT NULL DEFAULT '0'
+  `i` int(1) NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop table t1,t3;
 set debug_sync='create_table_select_before_open SIGNAL parked WAIT_FOR go';

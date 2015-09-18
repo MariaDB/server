@@ -101,8 +101,8 @@ RPAD(_utf16 X'0420',10,_utf16 X'0421') r;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `l` varchar(10) CHARACTER SET utf16 NOT NULL DEFAULT '',
-  `r` varchar(10) CHARACTER SET utf16 NOT NULL DEFAULT ''
+  `l` varchar(10) CHARACTER SET utf16 NOT NULL,
+  `r` varchar(10) CHARACTER SET utf16 NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 select hex(l), hex(r) from t1;
 hex(l)	hex(r)
@@ -755,7 +755,7 @@ CREATE TABLE t1 AS SELECT REPEAT('a',1) AS a LIMIT 0;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` varchar(1) CHARACTER SET utf16 COLLATE utf16_bin NOT NULL DEFAULT ''
+  `a` varchar(1) CHARACTER SET utf16 COLLATE utf16_bin NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 INSERT INTO t1 VALUES (_utf8mb4 0xEFBE9D),(_utf8mb4 0xF0908E84);
 INSERT INTO t1 VALUES (_utf8mb4 0xCE85),(_utf8mb4 0xF4808080);
@@ -1254,6 +1254,8 @@ insert into t1 values ('-1234.1e2xxxx');
 Warnings:
 Warning	1265	Data truncated for column 'a' at row 1
 insert into t1 values ('-1234.1e2    ');
+Warnings:
+Note	1265	Data truncated for column 'a' at row 1
 select * from t1;
 a
 -123410
@@ -1262,6 +1264,8 @@ a
 drop table t1;
 create table t1 (a int);
 insert into t1 values ('1 ');
+Warnings:
+Note	1265	Data truncated for column 'a' at row 1
 insert into t1 values ('1 x');
 Warnings:
 Warning	1265	Data truncated for column 'a' at row 1
@@ -1415,7 +1419,7 @@ CREATE TABLE t1 AS SELECT REPEAT('a', 64) AS a LIMIT 0;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` varchar(64) CHARACTER SET utf16 NOT NULL DEFAULT ''
+  `a` varchar(64) CHARACTER SET utf16 NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 INSERT INTO t1 VALUES ('');
 SELECT CHARSET(CONCAT(a,'2001-01-08 00:00:00' - INTERVAL 7 DAY)) FROM t1;
@@ -1464,7 +1468,7 @@ CREATE TABLE t1 AS SELECT repeat('a',2) as s1 LIMIT 0;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `s1` varchar(2) CHARACTER SET utf16 NOT NULL DEFAULT ''
+  `s1` varchar(2) CHARACTER SET utf16 NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 INSERT INTO t1 VALUES ('ab'),('AE'),('ab'),('AE');
 SELECT * FROM t1 ORDER BY s1;
@@ -1549,7 +1553,7 @@ SELECT space(date_add(101, INTERVAL CHAR('1' USING utf16) hour_second));
 space(date_add(101, INTERVAL CHAR('1' USING utf16) hour_second))
 NULL
 Warnings:
-Warning	1301	Result of space() was larger than max_allowed_packet (1048576) - truncated
+Warning	1301	Result of space() was larger than max_allowed_packet (4194304) - truncated
 #
 # Bug#11750518 41090: ORDER BY TRUNCATES GROUP_CONCAT RESULT
 #
@@ -1596,7 +1600,7 @@ CREATE TABLE t1 AS SELECT 'a' AS a;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` varchar(1) CHARACTER SET utf16 NOT NULL DEFAULT ''
+  `a` varchar(1) CHARACTER SET utf16 NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 CREATE TABLE t2 AS SELECT WEIGHT_STRING(a) AS ws FROM t1;
 SHOW CREATE TABLE t2;
@@ -1616,7 +1620,7 @@ CREATE TABLE t1 AS SELECT REPEAT('a',5) AS a;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` varchar(5) CHARACTER SET utf16 NOT NULL DEFAULT ''
+  `a` varchar(5) CHARACTER SET utf16 NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 CREATE TABLE t2 AS SELECT WEIGHT_STRING(a) AS ws FROM t1;
 SHOW CREATE TABLE t2;
@@ -1846,7 +1850,7 @@ CREATE TABLE t1 AS SELECT 'a' AS a;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` varchar(1) CHARACTER SET utf16 COLLATE utf16_bin NOT NULL DEFAULT ''
+  `a` varchar(1) CHARACTER SET utf16 COLLATE utf16_bin NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 CREATE TABLE t2 AS SELECT WEIGHT_STRING(a) AS ws FROM t1;
 SHOW CREATE TABLE t2;
@@ -1866,7 +1870,7 @@ CREATE TABLE t1 AS SELECT REPEAT('a',5) AS a;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` varchar(5) CHARACTER SET utf16 COLLATE utf16_bin NOT NULL DEFAULT ''
+  `a` varchar(5) CHARACTER SET utf16 COLLATE utf16_bin NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 CREATE TABLE t2 AS SELECT WEIGHT_STRING(a) AS ws FROM t1;
 SHOW CREATE TABLE t2;
@@ -2126,4 +2130,65 @@ aÿ
 DEALLOCATE PREPARE stmt;
 #
 # End of 10.0 tests
+#
+#
+# Start of 10.1 tests
+#
+#
+# MDEV-8417 utf8mb4: compare broken bytes as "greater than any non-broken character"
+#
+CREATE TABLE t1 (
+id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+a VARCHAR(10) CHARACTER SET utf16, KEY(a,id)
+);
+INSERT INTO t1 (a) VALUES (_utf8mb4 0x61);
+INSERT INTO t1 (a) VALUES (_utf8mb4 0xC280),(_utf8mb4 0xDFBF);
+INSERT INTO t1 (a) VALUES (_utf8mb4 0xE0A080),(_utf8mb4 0xEFBFBF);
+INSERT INTO t1 (a) VALUES (_utf8mb4 0xF0908080),(_utf8mb4 0xF48FBFBF);
+SELECT id,HEX(a) FROM t1 ORDER BY a,id;
+id	HEX(a)
+1	0061
+2	0080
+3	07FF
+4	0800
+6	D800DC00
+7	DBFFDFFF
+5	FFFF
+SELECT id,HEX(a) FROM t1 ORDER BY a DESC,id DESC;
+id	HEX(a)
+5	FFFF
+7	DBFFDFFF
+6	D800DC00
+4	0800
+3	07FF
+2	0080
+1	0061
+SELECT COUNT(DISTINCT a) FROM t1;
+COUNT(DISTINCT a)
+6
+ALTER TABLE t1 MODIFY a VARCHAR(10) CHARACTER SET utf16 COLLATE utf16_bin;
+SELECT id,HEX(a) FROM t1 ORDER BY a;
+id	HEX(a)
+1	0061
+2	0080
+3	07FF
+4	0800
+5	FFFF
+6	D800DC00
+7	DBFFDFFF
+SELECT id,HEX(a) FROM t1 ORDER BY a DESC,id DESC;
+id	HEX(a)
+7	DBFFDFFF
+6	D800DC00
+5	FFFF
+4	0800
+3	07FF
+2	0080
+1	0061
+SELECT COUNT(DISTINCT a) FROM t1;
+COUNT(DISTINCT a)
+7
+DROP TABLE t1;
+#
+# End of 10.1 tests
 #

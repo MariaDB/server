@@ -230,19 +230,29 @@ bool show_slave_hosts(THD* thd)
 {
   List<Item> field_list;
   Protocol *protocol= thd->protocol;
+  MEM_ROOT *mem_root= thd->mem_root;
   DBUG_ENTER("show_slave_hosts");
 
-  field_list.push_back(new Item_return_int("Server_id", 10,
-					   MYSQL_TYPE_LONG));
-  field_list.push_back(new Item_empty_string("Host", 20));
+  field_list.push_back(new (mem_root)
+                       Item_return_int(thd, "Server_id", 10,
+                                       MYSQL_TYPE_LONG),
+                       thd->mem_root);
+  field_list.push_back(new (mem_root)
+                       Item_empty_string(thd, "Host", 20),
+                       thd->mem_root);
   if (opt_show_slave_auth_info)
   {
-    field_list.push_back(new Item_empty_string("User",20));
-    field_list.push_back(new Item_empty_string("Password",20));
+    field_list.push_back(new (mem_root) Item_empty_string(thd, "User", 20),
+                         thd->mem_root);
+    field_list.push_back(new (mem_root) Item_empty_string(thd, "Password", 20),
+                         thd->mem_root);
   }
-  field_list.push_back(new Item_return_int("Port", 7, MYSQL_TYPE_LONG));
-  field_list.push_back(new Item_return_int("Master_id", 10,
-					   MYSQL_TYPE_LONG));
+  field_list.push_back(new (mem_root)
+                       Item_return_int(thd, "Port", 7, MYSQL_TYPE_LONG),
+                       thd->mem_root);
+  field_list.push_back(new (mem_root)
+                       Item_return_int(thd, "Master_id", 10, MYSQL_TYPE_LONG),
+                       thd->mem_root);
 
   if (protocol->send_result_set_metadata(&field_list,
                             Protocol::SEND_NUM_ROWS | Protocol::SEND_EOF))

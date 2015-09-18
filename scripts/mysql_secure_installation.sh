@@ -25,6 +25,9 @@ echo_n=
 echo_c=
 basedir=
 bindir=
+defaults_file=
+defaults_extra_file=
+no_defaults=
 
 parse_arg()
 {
@@ -47,8 +50,9 @@ parse_arguments()
   do
     case "$arg" in
       --basedir=*) basedir=`parse_arg "$arg"` ;;
-      --no-defaults|--defaults-file=*|--defaults-extra-file=*)
-        defaults="$arg" ;;
+      --defaults-file=*) defaults_file="$arg" ;;
+      --defaults-extra-file=*) defaults_extra_file="$arg" ;;
+      --no-defaults) no_defaults="$arg" ;;
       *)
         if test -n "$pick_args"
         then
@@ -167,7 +171,7 @@ fi
 
 # Now we can get arguments from the group [client] and [client-server]
 # in the my.cfg file, then re-run to merge with command line arguments.
-parse_arguments `$print_defaults $defaults client client-server client-mariadb`
+parse_arguments `$print_defaults $defaults_file $defaults_extra_file $no_defaults client client-server client-mariadb`
 parse_arguments PICK-ARGS-FROM-ARGV "$@"
 
 # Configure paths to support files
@@ -204,7 +208,7 @@ prepare() {
 do_query() {
     echo "$1" >$command
     #sed 's,^,> ,' < $command  # Debugging
-    $mysql_command --defaults-file=$config <$command
+    $mysql_command --defaults-file=$config $defaults_extra_file $no_defaults $args <$command
     return $?
 }
 
@@ -228,6 +232,10 @@ basic_single_escape () {
     echo "$1" | sed 's/\(['"'"'\]\)/\\\1/g'
 }
 
+#
+# create a simple my.cnf file to be able to pass the root password to the mysql
+# client without putting it on the command line
+#
 make_config() {
     echo "# mysql_secure_installation config file" >$config
     echo "[mysql]" >>$config
@@ -235,6 +243,12 @@ make_config() {
     esc_pass=`basic_single_escape "$rootpass"`
     echo "password='$esc_pass'" >>$config
     #sed 's,^,> ,' < $config  # Debugging
+
+    if test -n "$defaults_file"
+    then
+        dfile=`parse_arg "$defaults_file"`
+        cat "$dfile" >>$config
+    fi
 }
 
 get_root_password() {

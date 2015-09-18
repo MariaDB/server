@@ -92,7 +92,7 @@ fi
 WSREP_LOG_DIR=${WSREP_LOG_DIR:-""}
 # if WSREP_LOG_DIR env. variable is not set, try to get it from my.cnf
 if [ -z "$WSREP_LOG_DIR" ]; then
-    WSREP_LOG_DIR=$($my_print_defaults --mysqld \
+    WSREP_LOG_DIR=$($MY_PRINT_DEFAULTS --mysqld \
                     | grep -- '--innodb[-_]log[-_]group[-_]home[-_]dir=' \
                     | cut -b 29- )
 fi

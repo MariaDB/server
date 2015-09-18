@@ -86,6 +86,9 @@ log_block_get_start_lsn(
 	return start_lsn;
 }
 
+/*********************************************************************//**
+Get crypt info from checkpoint.
+@return a crypt info or NULL if not present. */
 static
 const crypt_info_t*
 get_crypt_info(
@@ -107,6 +110,9 @@ get_crypt_info(
 	return NULL;
 }
 
+/*********************************************************************//**
+Get crypt info from log block
+@return a crypt info or NULL if not present. */
 static
 const crypt_info_t*
 get_crypt_info(
@@ -125,15 +131,16 @@ log_blocks_crypt(
 	const byte* block,	/*!< in: blocks before encrypt/decrypt*/
 	ulint size,		/*!< in: size of block */
 	byte* dst_block,	/*!< out: blocks after encrypt/decrypt */
-	bool is_encrypt)	/*!< in: encrypt or decrypt*/
+	int what)		/*!< in: encrypt or decrypt*/
 {
 	byte *log_block = (byte*)block;
 	Crypt_result rc = MY_AES_OK;
 	uint dst_len;
 	byte aes_ctr_counter[MY_AES_BLOCK_SIZE];
+	byte is_encrypt= what == ENCRYPTION_FLAG_ENCRYPT;
 	lsn_t lsn = is_encrypt ? log_sys->lsn : srv_start_lsn;
 
-	const int src_len = OS_FILE_LOG_BLOCK_SIZE - LOG_BLOCK_HDR_SIZE;
+	const uint src_len = OS_FILE_LOG_BLOCK_SIZE - LOG_BLOCK_HDR_SIZE;
 	for (ulint i = 0; i < size ; i += OS_FILE_LOG_BLOCK_SIZE) {
 		ulint log_block_no = log_block_get_hdr_no(log_block);
 		lsn_t log_block_start_lsn = log_block_get_start_lsn(
@@ -168,21 +175,13 @@ log_blocks_crypt(
 		bzero(aes_ctr_counter + 15, 1);
 
 		int rc;
-		if (is_encrypt) {
-			rc = encryption_encrypt(log_block + LOG_BLOCK_HDR_SIZE, src_len,
-						dst_block + LOG_BLOCK_HDR_SIZE, &dst_len,
-						(unsigned char*)(info->crypt_key), 16,
-						aes_ctr_counter, MY_AES_BLOCK_SIZE, 1,
-						LOG_DEFAULT_ENCRYPTION_KEY,
-						info->key_version);
-		} else {
-			rc = encryption_decrypt(log_block + LOG_BLOCK_HDR_SIZE, src_len,
-						dst_block + LOG_BLOCK_HDR_SIZE, &dst_len,
-						(unsigned char*)(info->crypt_key), 16,
-						aes_ctr_counter, MY_AES_BLOCK_SIZE, 1,
-						LOG_DEFAULT_ENCRYPTION_KEY,
-						info->key_version);
-		}
+		rc = encryption_crypt(log_block + LOG_BLOCK_HDR_SIZE, src_len,
+					dst_block + LOG_BLOCK_HDR_SIZE, &dst_len,
+					(unsigned char*)(info->crypt_key), 16,
+					aes_ctr_counter, MY_AES_BLOCK_SIZE,
+					what | ENCRYPTION_FLAG_NOPAD,
+					LOG_DEFAULT_ENCRYPTION_KEY,
+					info->key_version);
 
 		ut_a(rc == MY_AES_OK);
 		ut_a(dst_len == src_len);
@@ -195,9 +194,10 @@ next:
 }
 
 /*********************************************************************//**
-Generate crypt key from crypt msg. */
+Generate crypt key from crypt msg.
+@return true if successfull, false if not. */
 static
-void
+bool
 init_crypt_key(
 /*===========*/
 	crypt_info_t* info)		/*< in/out: crypt info */
@@ -206,7 +206,7 @@ init_crypt_key(
 		memset(info->crypt_key, 0, sizeof(info->crypt_key));
 		memset(info->crypt_msg, 0, sizeof(info->crypt_msg));
 		memset(info->crypt_nonce, 0, sizeof(info->crypt_nonce));
-		return;
+		return true;
 	}
 
 	byte mysqld_key[MY_AES_BLOCK_SIZE] = {0};
@@ -216,42 +216,59 @@ init_crypt_key(
 	{
 		ib_logf(IB_LOG_LEVEL_ERROR,
 			"Redo log crypto: getting mysqld crypto key "
-			"from key version failed.");
-		ut_error;
+			"from key version failed. Reason could be that requested"
+			" key_version %u is not found or required encryption "
+			" key management is not found.", info->key_version);
+		return false;
 	}
 
 	uint dst_len;
-	int rc= my_aes_encrypt_ecb(info->crypt_msg, sizeof(info->crypt_msg), //src, srclen
-                        info->crypt_key, &dst_len, //dst, &dstlen
-                        (unsigned char*)&mysqld_key, sizeof(mysqld_key),
-                        NULL, 0, 1);
+	int rc= my_aes_crypt(MY_AES_ECB, ENCRYPTION_FLAG_NOPAD|ENCRYPTION_FLAG_ENCRYPT,
+                             info->crypt_msg, sizeof(info->crypt_msg), //src, srclen
+                             info->crypt_key, &dst_len, //dst, &dstlen
+                             (unsigned char*)&mysqld_key, sizeof(mysqld_key),
+                             NULL, 0);
 
 	if (rc != MY_AES_OK || dst_len != MY_AES_BLOCK_SIZE) {
 		fprintf(stderr,
 			"\nInnodb redo log crypto: getting redo log crypto key "
 			"failed.\n");
-		ut_error;
+		return false;
 	}
+
+	return true;
 }
 
-static bool mysort(const crypt_info_t& i,
-		   const crypt_info_t& j)
+/*********************************************************************//**
+Compare function for checkpoint numbers
+@return true if first checkpoint is larger than second one */
+static
+bool
+mysort(const crypt_info_t& i,
+       const crypt_info_t& j)
 {
 	return i.checkpoint_no > j.checkpoint_no;
 }
 
+/*********************************************************************//**
+Add crypt info to set if it is not already present
+@return true if successfull, false if not- */
 static
-bool add_crypt_info(crypt_info_t* info)
+bool
+add_crypt_info(crypt_info_t* info)
 {
 	/* so that no one is searching array while we modify it */
 	ut_ad(mutex_own(&(log_sys->mutex)));
 
 	if (get_crypt_info(info->checkpoint_no) != NULL) {
 		// already present...
+		return true;
+	}
+
+	if (!init_crypt_key(info)) {
 		return false;
 	}
 
-	init_crypt_key(info);
 	crypt_info.push_back(*info);
 
 	/* a log block only stores 4-bytes of checkpoint no */
@@ -273,7 +290,7 @@ log_blocks_encrypt(
 	const ulint size,		/*!< in: size of blocks, must be multiple of a log block */
 	byte* dst_block)		/*!< out: blocks after encryption */
 {
-	return log_blocks_crypt(block, size, dst_block, true);
+	return log_blocks_crypt(block, size, dst_block, ENCRYPTION_FLAG_ENCRYPT);
 }
 
 /*********************************************************************//**
@@ -324,7 +341,7 @@ Encrypt one or more log block before it is flushed to disk */
 UNIV_INTERN
 void
 log_encrypt_before_write(
-/*===========================*/
+/*=====================*/
 	ib_uint64_t next_checkpoint_no,	/*!< in: log group to be flushed */
 	byte* block,			/*!< in/out: pointer to a log block */
 	const ulint size)		/*!< in: size of log blocks */
@@ -343,7 +360,7 @@ log_encrypt_before_write(
 	byte* dst_frame = (byte*)malloc(size);
 
 	//encrypt log blocks content
-	Crypt_result result = log_blocks_crypt(block, size, dst_frame, true);
+	Crypt_result result = log_blocks_crypt(block, size, dst_frame, ENCRYPTION_FLAG_ENCRYPT);
 
 	if (result == MY_AES_OK) {
 		ut_ad(block[0] == dst_frame[0]);
@@ -361,7 +378,7 @@ Decrypt a specified log segment after they are read from a log file to a buffer.
 */
 void
 log_decrypt_after_read(
-/*==========================*/
+/*===================*/
 	byte* frame,	        /*!< in/out: log segment */
 	const ulint size)	/*!< in: log segment size */
 {
@@ -369,7 +386,7 @@ log_decrypt_after_read(
 	byte* dst_frame = (byte*)malloc(size);
 
 	// decrypt log blocks content
-	Crypt_result result = log_blocks_crypt(frame, size, dst_frame, false);
+	Crypt_result result = log_blocks_crypt(frame, size, dst_frame, ENCRYPTION_FLAG_DECRYPT);
 
 	if (result == MY_AES_OK) {
 		memcpy(frame, dst_frame, size);
@@ -450,7 +467,7 @@ Read the crypto (version, msg and iv) info, which has been used for
 log blocks with lsn <= this checkpoint's lsn, from a log header's
 checkpoint buf. */
 UNIV_INTERN
-void
+bool
 log_crypt_read_checkpoint_buf(
 /*===========================*/
 	const byte*	buf) {			/*!< in: checkpoint buffer */
@@ -459,7 +476,7 @@ log_crypt_read_checkpoint_buf(
 
 	byte scheme = buf[0];
 	if (scheme != redo_log_purpose_byte) {
-		return;
+		return true;
 	}
 	buf++;
 	size_t n = buf[0];
@@ -471,7 +488,10 @@ log_crypt_read_checkpoint_buf(
 		info.key_version = mach_read_from_4(buf + 4);
 		memcpy(info.crypt_msg, buf + 8, MY_AES_BLOCK_SIZE);
 		memcpy(info.crypt_nonce, buf + 24, MY_AES_BLOCK_SIZE);
-		add_crypt_info(&info);
+
+		if (!add_crypt_info(&info)) {
+			return false;
+		}
 		buf += LOG_CRYPT_ENTRY_SIZE;
 	}
 
@@ -485,5 +505,77 @@ log_crypt_read_checkpoint_buf(
 	}
 	fprintf(stderr, "\n");
 #endif
+	return true;
 }
 
+/********************************************************
+Check is the checkpoint information encrypted. This check
+is based on fact has log group crypt info and based
+on this crypt info was the key version different from
+unencrypted key version. There is no realible way to
+distinguish encrypted log block from corrupted log block,
+but if log block corruption is found this function is
+used to find out if log block is maybe encrypted but
+encryption key, key management plugin or encryption
+algorithm does not match.
+@return TRUE, if log block may be encrypted */
+UNIV_INTERN
+ibool
+log_crypt_block_maybe_encrypted(
+/*============================*/
+	const byte* 		log_block,	/*!< in: log block */
+	log_crypt_err_t* 	err_info)	/*!< out: error info */
+{
+	ibool maybe_encrypted = FALSE;
+	const crypt_info_t* crypt_info;
+
+	*err_info = LOG_UNENCRYPTED;
+	crypt_info = get_crypt_info(log_block);
+
+	if (crypt_info &&
+	    crypt_info->key_version != UNENCRYPTED_KEY_VER) {
+		byte mysqld_key[MY_AES_BLOCK_SIZE] = {0};
+		uint keylen= sizeof(mysqld_key);
+
+		/* Log block contains crypt info and based on key
+		version block could be encrypted. */
+		*err_info = LOG_DECRYPT_MAYBE_FAILED;
+		maybe_encrypted = TRUE;
+
+		if (encryption_key_get(LOG_DEFAULT_ENCRYPTION_KEY,
+				       crypt_info->key_version, mysqld_key, &keylen)) {
+			*err_info = LOG_CRYPT_KEY_NOT_FOUND;
+		}
+	}
+
+	return (maybe_encrypted);
+}
+
+/********************************************************
+Print crypt error message to error log */
+UNIV_INTERN
+void
+log_crypt_print_error(
+/*==================*/
+	log_crypt_err_t 	err_info) 	/*!< out: error info */
+{
+	switch(err_info) {
+	case LOG_CRYPT_KEY_NOT_FOUND:
+		ib_logf(IB_LOG_LEVEL_ERROR,
+			"Redo log crypto: getting mysqld crypto key "
+			"from key version failed. Reason could be that "
+			"requested key version is not found or required "
+			"encryption key management plugin is not found.");
+		break;
+	case LOG_DECRYPT_MAYBE_FAILED:
+		ib_logf(IB_LOG_LEVEL_ERROR,
+			"Redo log crypto: failed to decrypt log block. "
+			"Reason could be that requested key version is "
+			"not found, required encryption key management "
+			"plugin is not found or configured encryption "
+			"algorithm and/or method does not match.");
+		break;
+	default:
+		ut_error; /* Real bug */
+	}
+}

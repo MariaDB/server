@@ -61,6 +61,15 @@ ERROR HY000: Function or expression is not allowed for column 'b'
 # BENCHMARK()
 create table t1 (a varchar(1024), b varchar(1024) as (benchmark(a,3)));
 ERROR HY000: Function or expression is not allowed for column 'b'
+# CHARSET()
+create table t1 (a varchar(64), b varchar(64) as (charset(a)));
+ERROR HY000: Constant expression in computed column function is not allowed
+# COERCIBILITY()
+create table t1 (a varchar(64), b int as (coercibility(a)));
+ERROR HY000: Constant expression in computed column function is not allowed
+# COLLATION()
+create table t1 (a varchar(64), b varchar(64) as (collation(a)));
+ERROR HY000: Constant expression in computed column function is not allowed
 # CONNECTION_ID()
 create table t1 (a int as (connection_id()));
 ERROR HY000: Function or expression is not allowed for column 'a'

@@ -25,7 +25,7 @@ n
 3
 4
 include/check_slave_param.inc [Exec_Master_Log_Pos]
-start slave until master_log_file='master-no-such-bin.000001', master_log_pos=MASTER_LOG_POS;
+start slave until master_log_file='master-no-such-bin.000001', master_log_pos=291;
 include/wait_for_slave_io_to_start.inc
 include/wait_for_slave_sql_to_stop.inc
 select * from t1;
@@ -52,18 +52,18 @@ include/wait_for_slave_io_to_start.inc
 include/wait_for_slave_sql_to_stop.inc
 include/check_slave_param.inc [Exec_Master_Log_Pos]
 ==== Test various error conditions ====
-start slave until master_log_file='master-bin', master_log_pos=MASTER_LOG_POS;
+start slave until master_log_file='master-bin', master_log_pos=561;
 ERROR HY000: Incorrect parameter or combination of parameters for START SLAVE UNTIL
-start slave until master_log_file='master-bin.000001', master_log_pos=MASTER_LOG_POS, relay_log_pos=RELAY_LOG_POS;
+start slave until master_log_file='master-bin.000001', master_log_pos=561, relay_log_pos=12;
 ERROR HY000: Incorrect parameter or combination of parameters for START SLAVE UNTIL
 start slave until master_log_file='master-bin.000001';
 ERROR HY000: Incorrect parameter or combination of parameters for START SLAVE UNTIL
 start slave until relay_log_file='slave-relay-bin.000002';
 ERROR HY000: Incorrect parameter or combination of parameters for START SLAVE UNTIL
-start slave until relay_log_file='slave-relay-bin.000002', master_log_pos=MASTER_LOG_POS;
+start slave until relay_log_file='slave-relay-bin.000002', master_log_pos=561;
 ERROR HY000: Incorrect parameter or combination of parameters for START SLAVE UNTIL
 start slave sql_thread;
-start slave until master_log_file='master-bin.000001', master_log_pos=MASTER_LOG_POS;
+start slave until master_log_file='master-bin.000001', master_log_pos=776;
 Warnings:
 Note	1254	Slave is already running
 include/stop_slave.inc

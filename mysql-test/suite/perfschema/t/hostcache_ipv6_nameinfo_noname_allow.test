@@ -8,7 +8,7 @@
 
 --source include/not_embedded.inc
 --source include/have_debug.inc
---source include/have_ipv6.inc
+--source include/check_ipv6.inc
 --source include/have_perfschema.inc
 
 # [Warning] IP address '2001:db8::6:6' could not be resolved:
@@ -19,6 +19,7 @@ call mtr.add_suppression("2001:db8::6:6");
 --source ../include/wait_for_pfs_thread_count.inc
 --source ../include/hostcache_set_state.inc
 
+create user 'root'@'2001:db8::6:6';
 grant select on test.* to 'root'@'2001:db8::6:6';
 
 connect (con1,"::1",root,,test,$MASTER_MYPORT,);

@@ -47,6 +47,7 @@
 #include "valblk.h"
 #include "tabmul.h"
 #include "ha_connect.h"
+#include "mycat.h"
 
 #if !defined(__WIN__)
 extern handlerton *connect_hton;

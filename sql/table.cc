@@ -150,7 +150,7 @@ View_creation_ctx * View_creation_ctx::create(THD *thd,
   {
     push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
                         ER_VIEW_NO_CREATION_CTX,
-                        ER(ER_VIEW_NO_CREATION_CTX),
+                        ER_THD(thd, ER_VIEW_NO_CREATION_CTX),
                         (const char *) view->db,
                         (const char *) view->table_name);
 
@@ -184,7 +184,7 @@ View_creation_ctx * View_creation_ctx::create(THD *thd,
 
     push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
                         ER_VIEW_INVALID_CREATION_CTX,
-                        ER(ER_VIEW_INVALID_CREATION_CTX),
+                        ER_THD(thd, ER_VIEW_INVALID_CREATION_CTX),
                         (const char *) view->db,
                         (const char *) view->table_name);
   }
@@ -1657,7 +1657,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
 #endif
 
     *field_ptr= reg_field=
-      make_field(share, record+recpos,
+      make_field(share, &share->mem_root, record+recpos,
 		 (uint32) field_length,
 		 null_pos, null_bit_pos,
 		 pack_flag,
@@ -2740,8 +2740,8 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
             We are using only a prefix of the column as a key:
             Create a new field for the key part that matches the index
           */
-          field= key_part->field=field->new_field(&outparam->mem_root,
-                                                  outparam, 0);
+          field= key_part->field=field->make_new_field(&outparam->mem_root,
+                                                       outparam, 0);
           field->field_length= key_part->length;
         }
       }
@@ -3694,13 +3694,14 @@ Table_check_intact::check(TABLE *table, const TABLE_FIELD_DEF *table_def)
 
   if (table->s->fields != table_def->count)
   {
+    THD *thd= current_thd;
     DBUG_PRINT("info", ("Column count has changed, checking the definition"));
 
     /* previous MySQL version */
     if (MYSQL_VERSION_ID > table->s->mysql_version)
     {
       report_error(ER_COL_COUNT_DOESNT_MATCH_PLEASE_UPDATE,
-                   ER(ER_COL_COUNT_DOESNT_MATCH_PLEASE_UPDATE),
+                   ER_THD(thd, ER_COL_COUNT_DOESNT_MATCH_PLEASE_UPDATE),
                    table->alias.c_ptr(), table_def->count, table->s->fields,
                    static_cast<int>(table->s->mysql_version),
                    MYSQL_VERSION_ID);
@@ -3709,7 +3710,7 @@ Table_check_intact::check(TABLE *table, const TABLE_FIELD_DEF *table_def)
     else if (MYSQL_VERSION_ID == table->s->mysql_version)
     {
       report_error(ER_COL_COUNT_DOESNT_MATCH_CORRUPTED_V2,
-                   ER(ER_COL_COUNT_DOESNT_MATCH_CORRUPTED_V2),
+                   ER_THD(thd, ER_COL_COUNT_DOESNT_MATCH_CORRUPTED_V2),
                    table->s->db.str, table->s->table_name.str,
                    table_def->count, table->s->fields);
       DBUG_RETURN(TRUE);
@@ -4141,7 +4142,7 @@ bool TABLE::fill_item_list(List<Item> *item_list) const
   */
   for (Field **ptr= field; *ptr; ptr++)
   {
-    Item_field *item= new Item_field(*ptr);
+    Item_field *item= new (in_use->mem_root) Item_field(in_use, *ptr);
     if (!item || item_list->push_back(item))
       return TRUE;
   }
@@ -4389,7 +4390,7 @@ bool TABLE_LIST::prep_where(THD *thd, Item **conds,
             this expression will not be moved to WHERE condition (i.e. will
             be clean correctly for PS/SP)
           */
-          tbl->on_expr= and_conds(tbl->on_expr,
+          tbl->on_expr= and_conds(thd, tbl->on_expr,
                                   where->copy_andor_structure(thd));
           break;
         }
@@ -4399,7 +4400,7 @@ bool TABLE_LIST::prep_where(THD *thd, Item **conds,
         if (*conds && !(*conds)->fixed)
           res= (*conds)->fix_fields(thd, conds);
         if (!res)
-          *conds= and_conds(*conds, where->copy_andor_structure(thd));
+          *conds= and_conds(thd, *conds, where->copy_andor_structure(thd));
         if (*conds && !(*conds)->fixed && !res)
           res= (*conds)->fix_fields(thd, conds);
       }
@@ -4471,7 +4472,7 @@ merge_on_conds(THD *thd, TABLE_LIST *table, bool is_cascaded)
   {
     if (tbl->view && !is_cascaded)
       continue;
-    cond= and_conds(cond, merge_on_conds(thd, tbl, is_cascaded));
+    cond= and_conds(thd, cond, merge_on_conds(thd, tbl, is_cascaded));
   }
   DBUG_RETURN(cond);
 }
@@ -4531,10 +4532,10 @@ bool TABLE_LIST::prep_check_option(THD *thd, uint8 check_opt_type)
       for (TABLE_LIST *tbl= merge_underlying_list; tbl; tbl= tbl->next_local)
       {
         if (tbl->check_option)
-          check_option= and_conds(check_option, tbl->check_option);
+          check_option= and_conds(thd, check_option, tbl->check_option);
       }
     }
-    check_option= and_conds(check_option,
+    check_option= and_conds(thd, check_option,
                             merge_on_conds(thd, this, is_cascaded));
 
     if (arena)
@@ -4680,7 +4681,8 @@ int TABLE_LIST::view_check_option(THD *thd, bool ignore_failure)
     if (ignore_failure)
     {
       push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-                          ER_VIEW_CHECK_FAILED, ER(ER_VIEW_CHECK_FAILED),
+                          ER_VIEW_CHECK_FAILED,
+                          ER_THD(thd, ER_VIEW_CHECK_FAILED),
                           main_view->view_db.str, main_view->view_name.str);
       return(VIEW_CHECK_SKIP);
     }
@@ -4976,7 +4978,7 @@ bool TABLE_LIST::prepare_view_security_context(THD *thd)
       {
         push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE, 
                             ER_NO_SUCH_USER, 
-                            ER(ER_NO_SUCH_USER),
+                            ER_THD(thd, ER_NO_SUCH_USER),
                             definer.user.str, definer.host.str);
       }
       else
@@ -4996,7 +4998,8 @@ bool TABLE_LIST::prepare_view_security_context(THD *thd)
             my_error(ER_ACCESS_DENIED_ERROR, MYF(0),
                      thd->security_ctx->priv_user,
                      thd->security_ctx->priv_host,
-                     (thd->password ?  ER(ER_YES) : ER(ER_NO)));
+                     (thd->password ?  ER_THD(thd, ER_YES) :
+                      ER_THD(thd, ER_NO)));
         }
         DBUG_RETURN(TRUE);
       }
@@ -5294,11 +5297,11 @@ Item *Field_iterator_table::create_item(THD *thd)
 {
   SELECT_LEX *select= thd->lex->current_select;
 
-  Item_field *item= new Item_field(thd, &select->context, *ptr);
+  Item_field *item= new (thd->mem_root) Item_field(thd, &select->context, *ptr);
   if (item && thd->variables.sql_mode & MODE_ONLY_FULL_GROUP_BY &&
       !thd->lex->in_sum_func && select->cur_pos_in_select_list != UNDEF_POS)
   {
-    select->non_agg_fields.push_back(item);
+    select->join->non_agg_fields.push_back(item);
     item->marker= select->cur_pos_in_select_list;
     select->set_non_agg_field_used(true);
   }
@@ -5351,9 +5354,10 @@ Item *create_view_field(THD *thd, TABLE_LIST *view, Item **field_ref,
   {
     DBUG_RETURN(field);
   }
-  Item *item= new Item_direct_view_ref(&view->view->select_lex.context,
-                                       field_ref, view->alias,
-                                       name, view);
+  Item *item= (new (thd->mem_root)
+               Item_direct_view_ref(thd, &view->view->select_lex.context,
+                                    field_ref, view->alias,
+                                    name, view));
   /*
     Force creation of nullable item for the result tmp table for outer joined
     views/derived tables.
@@ -5361,7 +5365,13 @@ Item *create_view_field(THD *thd, TABLE_LIST *view, Item **field_ref,
   if (view->table && view->table->maybe_null)
     item->maybe_null= TRUE;
   /* Save item in case we will need to fall back to materialization. */
-  view->used_items.push_front(item);
+  view->used_items.push_front(item, thd->mem_root);
+  /*
+    If we create this reference on persistent memory then it should be
+    present in persistent list
+  */
+  if (thd->mem_root == thd->stmt_arena->mem_root)
+    view->persistent_used_items.push_front(item, thd->mem_root);
   DBUG_RETURN(item);
 }
 
@@ -5556,7 +5566,7 @@ Field_iterator_table_ref::get_or_create_column_ref(THD *thd, TABLE_LIST *parent_
     /* The field belongs to a stored table. */
     Field *tmp_field= table_field_it.field();
     Item_field *tmp_item=
-      new Item_field(thd, &thd->lex->current_select->context, tmp_field);
+      new (thd->mem_root) Item_field(thd, &thd->lex->current_select->context, tmp_field);
     if (!tmp_item)
       return NULL;
     nj_col= new Natural_join_column(tmp_item, table_ref);
@@ -5826,6 +5836,8 @@ void TABLE::mark_auto_increment_column()
 
 void TABLE::mark_columns_needed_for_delete()
 {
+  mark_columns_per_binlog_row_image();
+
   if (triggers)
     triggers->mark_fields_used(TRG_EVENT_DELETE);
   if (file->ha_table_flags() & HA_REQUIRES_KEY_COLUMNS_FOR_DELETE)
@@ -5877,6 +5889,9 @@ void TABLE::mark_columns_needed_for_delete()
 void TABLE::mark_columns_needed_for_update()
 {
   DBUG_ENTER("mark_columns_needed_for_update");
+
+  mark_columns_per_binlog_row_image();
+
   if (triggers)
     triggers->mark_fields_used(TRG_EVENT_UPDATE);
   if (file->ha_table_flags() & HA_REQUIRES_KEY_COLUMNS_FOR_DELETE)
@@ -5921,6 +5936,8 @@ void TABLE::mark_columns_needed_for_update()
 
 void TABLE::mark_columns_needed_for_insert()
 {
+  mark_columns_per_binlog_row_image();
+
   if (triggers)
   {
     /*
@@ -5938,6 +5955,101 @@ void TABLE::mark_columns_needed_for_insert()
   mark_virtual_columns_for_write(TRUE);
 }
 
+/*
+  Mark columns according the binlog row image option.
+
+  When logging in RBR, the user can select whether to
+  log partial or full rows, depending on the table
+  definition, and the value of binlog_row_image.
+
+  Semantics of the binlog_row_image are the following
+  (PKE - primary key equivalent, ie, PK fields if PK
+  exists, all fields otherwise):
+
+  binlog_row_image= MINIMAL
+    - This marks the PKE fields in the read_set
+    - This marks all fields where a value was specified
+      in the write_set
+
+  binlog_row_image= NOBLOB
+    - This marks PKE + all non-blob fields in the read_set
+    - This marks all fields where a value was specified
+      and all non-blob fields in the write_set
+
+  binlog_row_image= FULL
+    - all columns in the read_set
+    - all columns in the write_set
+
+  This marking is done without resetting the original
+  bitmaps. This means that we will strip extra fields in
+  the read_set at binlogging time (for those cases that
+  we only want to log a PK and we needed other fields for
+  execution).
+*/
+void TABLE::mark_columns_per_binlog_row_image()
+{
+  DBUG_ENTER("mark_columns_per_binlog_row_image");
+  DBUG_ASSERT(read_set->bitmap);
+  DBUG_ASSERT(write_set->bitmap);
+
+  THD *thd= current_thd;
+
+  /**
+    If in RBR we may need to mark some extra columns,
+    depending on the binlog-row-image command line argument.
+   */
+  if ((WSREP_EMULATE_BINLOG(thd) || mysql_bin_log.is_open()) &&
+      in_use &&
+      in_use->is_current_stmt_binlog_format_row() &&
+      !ha_check_storage_engine_flag(s->db_type(), HTON_NO_BINLOG_ROW_OPT))
+  {
+    /* if there is no PK, then mark all columns for the BI. */
+    if (s->primary_key >= MAX_KEY)
+      bitmap_set_all(read_set);
+
+    switch (thd->variables.binlog_row_image)
+    {
+      case BINLOG_ROW_IMAGE_FULL:
+        if (s->primary_key < MAX_KEY)
+          bitmap_set_all(read_set);
+        bitmap_set_all(write_set);
+        break;
+      case BINLOG_ROW_IMAGE_NOBLOB:
+        /* for every field that is not set, mark it unless it is a blob */
+        for (Field **ptr=field ; *ptr ; ptr++)
+        {
+          Field *my_field= *ptr;
+          /*
+            bypass blob fields. These can be set or not set, we don't care.
+            Later, at binlogging time, if we don't need them in the before
+            image, we will discard them.
+
+            If set in the AI, then the blob is really needed, there is
+            nothing we can do about it.
+           */
+          if ((s->primary_key < MAX_KEY) &&
+              ((my_field->flags & PRI_KEY_FLAG) ||
+              (my_field->type() != MYSQL_TYPE_BLOB)))
+            bitmap_set_bit(read_set, my_field->field_index);
+
+          if (my_field->type() != MYSQL_TYPE_BLOB)
+            bitmap_set_bit(write_set, my_field->field_index);
+        }
+        break;
+      case BINLOG_ROW_IMAGE_MINIMAL:
+        /* mark the primary key if available in the read_set */
+        if (s->primary_key < MAX_KEY)
+          mark_columns_used_by_index_no_reset(s->primary_key, read_set);
+        break;
+
+      default:
+        DBUG_ASSERT(FALSE);
+    }
+    file->column_bitmaps_signal();
+  }
+
+  DBUG_VOID_RETURN;
+}
 
 /*
    @brief Mark a column as virtual used by the query
@@ -6896,6 +7008,48 @@ bool TABLE::prepare_triggers_for_update_stmt_or_event()
   return FALSE;
 }
 
+
+/**
+  Validates default value of fields which are not specified in
+  the column list of INSERT/LOAD statement.
+
+  @Note s->default_values should be properly populated
+        before calling this function.
+
+  @param thd              thread context
+  @param record           the record to check values in
+
+  @return
+    @retval false Success.
+    @retval true  Failure.
+*/
+
+bool TABLE::validate_default_values_of_unset_fields(THD *thd) const
+{
+  DBUG_ENTER("TABLE::validate_default_values_of_unset_fields");
+  for (Field **fld= field; *fld; fld++)
+  {
+    if (!bitmap_is_set(write_set, (*fld)->field_index) &&
+        !((*fld)->flags & NO_DEFAULT_VALUE_FLAG))
+    {
+      if (!(*fld)->is_null_in_record(s->default_values) &&
+          (*fld)->validate_value_in_record_with_warn(thd, s->default_values) &&
+          thd->is_error())
+      {
+        /*
+          We're here if:
+          - validate_value_in_record_with_warn() failed and
+            strict mode converted WARN to ERROR
+          - or the connection was killed, or closed unexpectedly
+        */
+        DBUG_RETURN(true);
+      }
+    }
+  }
+  DBUG_RETURN(false);
+}
+
+
 /*
   @brief Reset const_table flag
 
@@ -6938,6 +7092,7 @@ bool TABLE_LIST::handle_derived(LEX *lex, uint phases)
 {
   SELECT_LEX_UNIT *unit;
   DBUG_ENTER("handle_derived");
+  DBUG_PRINT("enter", ("phases: 0x%x", phases));
   if ((unit= get_unit()))
   {
     for (SELECT_LEX *sl= unit->first_select(); sl; sl= sl->next_select())
@@ -7181,7 +7336,7 @@ bool TABLE_LIST::change_refs_to_fields()
     DBUG_ASSERT(!field_it.end_of_fields());
     if (!materialized_items[idx])
     {
-      materialized_items[idx]= new Item_field(table->field[idx]);
+      materialized_items[idx]= new (thd->mem_root) Item_field(thd, table->field[idx]);
       if (!materialized_items[idx])
         return TRUE;
     }

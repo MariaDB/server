@@ -2970,16 +2970,16 @@ Create_udf_func::create(THD *thd, udf_func *udf, List<Item> *item_list)
     if (udf->type == UDFTYPE_FUNCTION)
     {
       if (arg_count)
-        func= new (thd->mem_root) Item_func_udf_str(udf, *item_list);
+        func= new (thd->mem_root) Item_func_udf_str(thd, udf, *item_list);
       else
-        func= new (thd->mem_root) Item_func_udf_str(udf);
+        func= new (thd->mem_root) Item_func_udf_str(thd, udf);
     }
     else
     {
       if (arg_count)
-        func= new (thd->mem_root) Item_sum_udf_str(udf, *item_list);
+        func= new (thd->mem_root) Item_sum_udf_str(thd, udf, *item_list);
       else
-        func= new (thd->mem_root) Item_sum_udf_str(udf);
+        func= new (thd->mem_root) Item_sum_udf_str(thd, udf);
     }
     break;
   }
@@ -2988,16 +2988,16 @@ Create_udf_func::create(THD *thd, udf_func *udf, List<Item> *item_list)
     if (udf->type == UDFTYPE_FUNCTION)
     {
       if (arg_count)
-        func= new (thd->mem_root) Item_func_udf_float(udf, *item_list);
+        func= new (thd->mem_root) Item_func_udf_float(thd, udf, *item_list);
       else
-        func= new (thd->mem_root) Item_func_udf_float(udf);
+        func= new (thd->mem_root) Item_func_udf_float(thd, udf);
     }
     else
     {
       if (arg_count)
-        func= new (thd->mem_root) Item_sum_udf_float(udf, *item_list);
+        func= new (thd->mem_root) Item_sum_udf_float(thd, udf, *item_list);
       else
-        func= new (thd->mem_root) Item_sum_udf_float(udf);
+        func= new (thd->mem_root) Item_sum_udf_float(thd, udf);
     }
     break;
   }
@@ -3006,16 +3006,16 @@ Create_udf_func::create(THD *thd, udf_func *udf, List<Item> *item_list)
     if (udf->type == UDFTYPE_FUNCTION)
     {
       if (arg_count)
-        func= new (thd->mem_root) Item_func_udf_int(udf, *item_list);
+        func= new (thd->mem_root) Item_func_udf_int(thd, udf, *item_list);
       else
-        func= new (thd->mem_root) Item_func_udf_int(udf);
+        func= new (thd->mem_root) Item_func_udf_int(thd, udf);
     }
     else
     {
       if (arg_count)
-        func= new (thd->mem_root) Item_sum_udf_int(udf, *item_list);
+        func= new (thd->mem_root) Item_sum_udf_int(thd, udf, *item_list);
       else
-        func= new (thd->mem_root) Item_sum_udf_int(udf);
+        func= new (thd->mem_root) Item_sum_udf_int(thd, udf);
     }
     break;
   }
@@ -3024,16 +3024,16 @@ Create_udf_func::create(THD *thd, udf_func *udf, List<Item> *item_list)
     if (udf->type == UDFTYPE_FUNCTION)
     {
       if (arg_count)
-        func= new (thd->mem_root) Item_func_udf_decimal(udf, *item_list);
+        func= new (thd->mem_root) Item_func_udf_decimal(thd, udf, *item_list);
       else
-        func= new (thd->mem_root) Item_func_udf_decimal(udf);
+        func= new (thd->mem_root) Item_func_udf_decimal(thd, udf);
     }
     else
     {
       if (arg_count)
-        func= new (thd->mem_root) Item_sum_udf_decimal(udf, *item_list);
+        func= new (thd->mem_root) Item_sum_udf_decimal(thd, udf, *item_list);
       else
-        func= new (thd->mem_root) Item_sum_udf_decimal(udf);
+        func= new (thd->mem_root) Item_sum_udf_decimal(thd, udf);
     }
     break;
   }
@@ -3082,10 +3082,10 @@ Create_sp_func::create_with_db(THD *thd, LEX_STRING db, LEX_STRING name,
   sp_add_used_routine(lex, thd, qname, TYPE_ENUM_FUNCTION);
 
   if (arg_count > 0)
-    func= new (thd->mem_root) Item_func_sp(lex->current_context(), qname,
+    func= new (thd->mem_root) Item_func_sp(thd, lex->current_context(), qname,
                                            *item_list);
   else
-    func= new (thd->mem_root) Item_func_sp(lex->current_context(), qname);
+    func= new (thd->mem_root) Item_func_sp(thd, lex->current_context(), qname);
 
   lex->safe_to_cache_query= 0;
   return func;
@@ -3212,7 +3212,7 @@ Create_func_abs Create_func_abs::s_singleton;
 Item*
 Create_func_abs::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_abs(arg1);
+  return new (thd->mem_root) Item_func_abs(thd, arg1);
 }
 
 
@@ -3221,7 +3221,7 @@ Create_func_acos Create_func_acos::s_singleton;
 Item*
 Create_func_acos::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_acos(arg1);
+  return new (thd->mem_root) Item_func_acos(thd, arg1);
 }
 
 
@@ -3230,7 +3230,7 @@ Create_func_addtime Create_func_addtime::s_singleton;
 Item*
 Create_func_addtime::create_2_arg(THD *thd, Item *arg1, Item *arg2)
 {
-  return new (thd->mem_root) Item_func_add_time(arg1, arg2, 0, 0);
+  return new (thd->mem_root) Item_func_add_time(thd, arg1, arg2, 0, 0);
 }
 
 
@@ -3239,7 +3239,7 @@ Create_func_aes_encrypt Create_func_aes_encrypt::s_singleton;
 Item*
 Create_func_aes_encrypt::create_2_arg(THD *thd, Item *arg1, Item *arg2)
 {
-  return new (thd->mem_root) Item_func_aes_encrypt(arg1, arg2);
+  return new (thd->mem_root) Item_func_aes_encrypt(thd, arg1, arg2);
 }
 
 
@@ -3248,7 +3248,7 @@ Create_func_aes_decrypt Create_func_aes_decrypt::s_singleton;
 Item*
 Create_func_aes_decrypt::create_2_arg(THD *thd, Item *arg1, Item *arg2)
 {
-  return new (thd->mem_root) Item_func_aes_decrypt(arg1, arg2);
+  return new (thd->mem_root) Item_func_aes_decrypt(thd, arg1, arg2);
 }
 
 
@@ -3258,7 +3258,7 @@ Create_func_area Create_func_area::s_singleton;
 Item*
 Create_func_area::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_area(arg1);
+  return new (thd->mem_root) Item_func_area(thd, arg1);
 }
 #endif
 
@@ -3269,7 +3269,7 @@ Create_func_as_wkb Create_func_as_wkb::s_singleton;
 Item*
 Create_func_as_wkb::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_as_wkb(arg1);
+  return new (thd->mem_root) Item_func_as_wkb(thd, arg1);
 }
 #endif
 
@@ -3280,7 +3280,7 @@ Create_func_as_wkt Create_func_as_wkt::s_singleton;
 Item*
 Create_func_as_wkt::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_as_wkt(arg1);
+  return new (thd->mem_root) Item_func_as_wkt(thd, arg1);
 }
 #endif
 
@@ -3290,7 +3290,7 @@ Create_func_asin Create_func_asin::s_singleton;
 Item*
 Create_func_asin::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_asin(arg1);
+  return new (thd->mem_root) Item_func_asin(thd, arg1);
 }
 
 
@@ -3310,14 +3310,14 @@ Create_func_atan::create_native(THD *thd, LEX_STRING name,
   case 1:
   {
     Item *param_1= item_list->pop();
-    func= new (thd->mem_root) Item_func_atan(param_1);
+    func= new (thd->mem_root) Item_func_atan(thd, param_1);
     break;
   }
   case 2:
   {
     Item *param_1= item_list->pop();
     Item *param_2= item_list->pop();
-    func= new (thd->mem_root) Item_func_atan(param_1, param_2);
+    func= new (thd->mem_root) Item_func_atan(thd, param_1, param_2);
     break;
   }
   default:
@@ -3337,7 +3337,7 @@ Item*
 Create_func_benchmark::create_2_arg(THD *thd, Item *arg1, Item *arg2)
 {
   thd->lex->uncacheable(UNCACHEABLE_SIDEEFFECT);
-  return new (thd->mem_root) Item_func_benchmark(arg1, arg2);
+  return new (thd->mem_root) Item_func_benchmark(thd, arg1, arg2);
 }
 
 
@@ -3346,9 +3346,9 @@ Create_func_bin Create_func_bin::s_singleton;
 Item*
 Create_func_bin::create_1_arg(THD *thd, Item *arg1)
 {
-  Item *i10= new (thd->mem_root) Item_int((int32) 10,2);
-  Item *i2= new (thd->mem_root) Item_int((int32) 2,1);
-  return new (thd->mem_root) Item_func_conv(arg1, i10, i2);
+  Item *i10= new (thd->mem_root) Item_int(thd, (int32) 10,2);
+  Item *i2= new (thd->mem_root) Item_int(thd, (int32) 2,1);
+  return new (thd->mem_root) Item_func_conv(thd, arg1, i10, i2);
 }
 
 
@@ -3365,7 +3365,7 @@ Create_func_binlog_gtid_pos::create_2_arg(THD *thd, Item *arg1, Item *arg2)
     return NULL;
   }
   thd->lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_SYSTEM_FUNCTION);
-  return new (thd->mem_root) Item_func_binlog_gtid_pos(arg1, arg2);
+  return new (thd->mem_root) Item_func_binlog_gtid_pos(thd, arg1, arg2);
 }
 
 
@@ -3374,7 +3374,7 @@ Create_func_bit_count Create_func_bit_count::s_singleton;
 Item*
 Create_func_bit_count::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_bit_count(arg1);
+  return new (thd->mem_root) Item_func_bit_count(thd, arg1);
 }
 
 
@@ -3383,7 +3383,7 @@ Create_func_bit_length Create_func_bit_length::s_singleton;
 Item*
 Create_func_bit_length::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_bit_length(arg1);
+  return new (thd->mem_root) Item_func_bit_length(thd, arg1);
 }
 
 
@@ -3392,7 +3392,7 @@ Create_func_ceiling Create_func_ceiling::s_singleton;
 Item*
 Create_func_ceiling::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_ceiling(arg1);
+  return new (thd->mem_root) Item_func_ceiling(thd, arg1);
 }
 
 
@@ -3402,7 +3402,7 @@ Create_func_centroid Create_func_centroid::s_singleton;
 Item*
 Create_func_centroid::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_centroid(arg1);
+  return new (thd->mem_root) Item_func_centroid(thd, arg1);
 }
 
 
@@ -3411,7 +3411,7 @@ Create_func_convexhull Create_func_convexhull::s_singleton;
 Item*
 Create_func_convexhull::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_convexhull(arg1);
+  return new (thd->mem_root) Item_func_convexhull(thd, arg1);
 }
 
 
@@ -3420,7 +3420,7 @@ Create_func_pointonsurface Create_func_pointonsurface::s_singleton;
 Item*
 Create_func_pointonsurface::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_pointonsurface(arg1);
+  return new (thd->mem_root) Item_func_pointonsurface(thd, arg1);
 }
 #endif /*HAVE_SPATIAL*/
 
@@ -3430,7 +3430,7 @@ Create_func_char_length Create_func_char_length::s_singleton;
 Item*
 Create_func_char_length::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_char_length(arg1);
+  return new (thd->mem_root) Item_func_char_length(thd, arg1);
 }
 
 
@@ -3439,7 +3439,7 @@ Create_func_coercibility Create_func_coercibility::s_singleton;
 Item*
 Create_func_coercibility::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_coercibility(arg1);
+  return new (thd->mem_root) Item_func_coercibility(thd, arg1);
 }
 
 
@@ -3448,7 +3448,7 @@ Create_func_dyncol_check Create_func_dyncol_check::s_singleton;
 Item*
 Create_func_dyncol_check::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_dyncol_check(arg1);
+  return new (thd->mem_root) Item_func_dyncol_check(thd, arg1);
 }
 
 Create_func_dyncol_exists Create_func_dyncol_exists::s_singleton;
@@ -3456,7 +3456,7 @@ Create_func_dyncol_exists Create_func_dyncol_exists::s_singleton;
 Item*
 Create_func_dyncol_exists::create_2_arg(THD *thd, Item *arg1, Item *arg2)
 {
-  return new (thd->mem_root) Item_func_dyncol_exists(arg1, arg2);
+  return new (thd->mem_root) Item_func_dyncol_exists(thd, arg1, arg2);
 }
 
 Create_func_dyncol_list Create_func_dyncol_list::s_singleton;
@@ -3464,7 +3464,7 @@ Create_func_dyncol_list Create_func_dyncol_list::s_singleton;
 Item*
 Create_func_dyncol_list::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_dyncol_list(arg1);
+  return new (thd->mem_root) Item_func_dyncol_list(thd, arg1);
 }
 
 Create_func_dyncol_json Create_func_dyncol_json::s_singleton;
@@ -3472,7 +3472,7 @@ Create_func_dyncol_json Create_func_dyncol_json::s_singleton;
 Item*
 Create_func_dyncol_json::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_dyncol_json(arg1);
+  return new (thd->mem_root) Item_func_dyncol_json(thd, arg1);
 }
 
 Create_func_concat Create_func_concat::s_singleton;
@@ -3492,7 +3492,7 @@ Create_func_concat::create_native(THD *thd, LEX_STRING name,
     return NULL;
   }
 
-  return new (thd->mem_root) Item_func_concat(*item_list);
+  return new (thd->mem_root) Item_func_concat(thd, *item_list);
 }
 
 Create_func_decode_histogram Create_func_decode_histogram::s_singleton;
@@ -3500,7 +3500,7 @@ Create_func_decode_histogram Create_func_decode_histogram::s_singleton;
 Item *
 Create_func_decode_histogram::create_2_arg(THD *thd, Item *arg1, Item *arg2)
 {
-  return new (thd->mem_root) Item_func_decode_histogram(arg1, arg2);
+  return new (thd->mem_root) Item_func_decode_histogram(thd, arg1, arg2);
 }
 
 Create_func_concat_ws Create_func_concat_ws::s_singleton;
@@ -3521,7 +3521,7 @@ Create_func_concat_ws::create_native(THD *thd, LEX_STRING name,
     return NULL;
   }
 
-  return new (thd->mem_root) Item_func_concat_ws(*item_list);
+  return new (thd->mem_root) Item_func_concat_ws(thd, *item_list);
 }
 
 
@@ -3530,7 +3530,7 @@ Create_func_compress Create_func_compress::s_singleton;
 Item*
 Create_func_compress::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_compress(arg1);
+  return new (thd->mem_root) Item_func_compress(thd, arg1);
 }
 
 
@@ -3540,7 +3540,7 @@ Item*
 Create_func_connection_id::create_builder(THD *thd)
 {
   thd->lex->safe_to_cache_query= 0;
-  return new (thd->mem_root) Item_func_connection_id();
+  return new (thd->mem_root) Item_func_connection_id(thd);
 }
 
 
@@ -3550,7 +3550,7 @@ Create_func_mbr_contains Create_func_mbr_contains::s_singleton;
 Item*
 Create_func_mbr_contains::create_2_arg(THD *thd, Item *arg1, Item *arg2)
 {
-  return new (thd->mem_root) Item_func_spatial_mbr_rel(arg1, arg2,
+  return new (thd->mem_root) Item_func_spatial_mbr_rel(thd, arg1, arg2,
       Item_func::SP_CONTAINS_FUNC);
 }
 
@@ -3560,7 +3560,7 @@ Create_func_contains Create_func_contains::s_singleton;
 Item*
 Create_func_contains::create_2_arg(THD *thd, Item *arg1, Item *arg2)
 {
-  return new (thd->mem_root) Item_func_spatial_precise_rel(arg1, arg2,
+  return new (thd->mem_root) Item_func_spatial_precise_rel(thd, arg1, arg2,
                                                   Item_func::SP_CONTAINS_FUNC);
 }
 #endif
@@ -3571,7 +3571,7 @@ Create_func_conv Create_func_conv::s_singleton;
 Item*
 Create_func_conv::create_3_arg(THD *thd, Item *arg1, Item *arg2, Item *arg3)
 {
-  return new (thd->mem_root) Item_func_conv(arg1, arg2, arg3);
+  return new (thd->mem_root) Item_func_conv(thd, arg1, arg2, arg3);
 }
 
 
@@ -3580,7 +3580,7 @@ Create_func_convert_tz Create_func_convert_tz::s_singleton;
 Item*
 Create_func_convert_tz::create_3_arg(THD *thd, Item *arg1, Item *arg2, Item *arg3)
 {
-  return new (thd->mem_root) Item_func_convert_tz(arg1, arg2, arg3);
+  return new (thd->mem_root) Item_func_convert_tz(thd, arg1, arg2, arg3);
 }
 
 
@@ -3589,7 +3589,7 @@ Create_func_cos Create_func_cos::s_singleton;
 Item*
 Create_func_cos::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_cos(arg1);
+  return new (thd->mem_root) Item_func_cos(thd, arg1);
 }
 
 
@@ -3598,7 +3598,7 @@ Create_func_cot Create_func_cot::s_singleton;
 Item*
 Create_func_cot::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_cot(arg1);
+  return new (thd->mem_root) Item_func_cot(thd, arg1);
 }
 
 
@@ -3607,7 +3607,7 @@ Create_func_crc32 Create_func_crc32::s_singleton;
 Item*
 Create_func_crc32::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_crc32(arg1);
+  return new (thd->mem_root) Item_func_crc32(thd, arg1);
 }
 
 
@@ -3617,7 +3617,7 @@ Create_func_crosses Create_func_crosses::s_singleton;
 Item*
 Create_func_crosses::create_2_arg(THD *thd, Item *arg1, Item *arg2)
 {
-  return new (thd->mem_root) Item_func_spatial_precise_rel(arg1, arg2,
+  return new (thd->mem_root) Item_func_spatial_precise_rel(thd, arg1, arg2,
                                                    Item_func::SP_CROSSES_FUNC);
 }
 #endif
@@ -3628,7 +3628,7 @@ Create_func_date_format Create_func_date_format::s_singleton;
 Item*
 Create_func_date_format::create_2_arg(THD *thd, Item *arg1, Item *arg2)
 {
-  return new (thd->mem_root) Item_func_date_format(arg1, arg2, 0);
+  return new (thd->mem_root) Item_func_date_format(thd, arg1, arg2, 0);
 }
 
 
@@ -3637,10 +3637,10 @@ Create_func_datediff Create_func_datediff::s_singleton;
 Item*
 Create_func_datediff::create_2_arg(THD *thd, Item *arg1, Item *arg2)
 {
-  Item *i1= new (thd->mem_root) Item_func_to_days(arg1);
-  Item *i2= new (thd->mem_root) Item_func_to_days(arg2);
+  Item *i1= new (thd->mem_root) Item_func_to_days(thd, arg1);
+  Item *i2= new (thd->mem_root) Item_func_to_days(thd, arg2);
 
-  return new (thd->mem_root) Item_func_minus(i1, i2);
+  return new (thd->mem_root) Item_func_minus(thd, i1, i2);
 }
 
 
@@ -3649,7 +3649,7 @@ Create_func_dayname Create_func_dayname::s_singleton;
 Item*
 Create_func_dayname::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_dayname(arg1);
+  return new (thd->mem_root) Item_func_dayname(thd, arg1);
 }
 
 
@@ -3658,7 +3658,7 @@ Create_func_dayofmonth Create_func_dayofmonth::s_singleton;
 Item*
 Create_func_dayofmonth::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_dayofmonth(arg1);
+  return new (thd->mem_root) Item_func_dayofmonth(thd, arg1);
 }
 
 
@@ -3667,7 +3667,7 @@ Create_func_dayofweek Create_func_dayofweek::s_singleton;
 Item*
 Create_func_dayofweek::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_weekday(arg1, 1);
+  return new (thd->mem_root) Item_func_weekday(thd, arg1, 1);
 }
 
 
@@ -3676,7 +3676,7 @@ Create_func_dayofyear Create_func_dayofyear::s_singleton;
 Item*
 Create_func_dayofyear::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_dayofyear(arg1);
+  return new (thd->mem_root) Item_func_dayofyear(thd, arg1);
 }
 
 
@@ -3685,7 +3685,7 @@ Create_func_decode Create_func_decode::s_singleton;
 Item*
 Create_func_decode::create_2_arg(THD *thd, Item *arg1, Item *arg2)
 {
-  return new (thd->mem_root) Item_func_decode(arg1, arg2);
+  return new (thd->mem_root) Item_func_decode(thd, arg1, arg2);
 }
 
 
@@ -3694,7 +3694,7 @@ Create_func_degrees Create_func_degrees::s_singleton;
 Item*
 Create_func_degrees::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_units((char*) "degrees", arg1,
+  return new (thd->mem_root) Item_func_units(thd, (char*) "degrees", arg1,
                                              180/M_PI, 0.0);
 }
 
@@ -3715,14 +3715,14 @@ Create_func_des_decrypt::create_native(THD *thd, LEX_STRING name,
   case 1:
   {
     Item *param_1= item_list->pop();
-    func= new (thd->mem_root) Item_func_des_decrypt(param_1);
+    func= new (thd->mem_root) Item_func_des_decrypt(thd, param_1);
     break;
   }
   case 2:
   {
     Item *param_1= item_list->pop();
     Item *param_2= item_list->pop();
-    func= new (thd->mem_root) Item_func_des_decrypt(param_1, param_2);
+    func= new (thd->mem_root) Item_func_des_decrypt(thd, param_1, param_2);
     break;
   }
   default:
@@ -3752,14 +3752,14 @@ Create_func_des_encrypt::create_native(THD *thd, LEX_STRING name,
   case 1:
   {
     Item *param_1= item_list->pop();
-    func= new (thd->mem_root) Item_func_des_encrypt(param_1);
+    func= new (thd->mem_root) Item_func_des_encrypt(thd, param_1);
     break;
   }
   case 2:
   {
     Item *param_1= item_list->pop();
     Item *param_2= item_list->pop();
-    func= new (thd->mem_root) Item_func_des_encrypt(param_1, param_2);
+    func= new (thd->mem_root) Item_func_des_encrypt(thd, param_1, param_2);
     break;
   }
   default:
@@ -3779,7 +3779,7 @@ Create_func_dimension Create_func_dimension::s_singleton;
 Item*
 Create_func_dimension::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_dimension(arg1);
+  return new (thd->mem_root) Item_func_dimension(thd, arg1);
 }
 #endif
 
@@ -3790,7 +3790,7 @@ Create_func_mbr_disjoint Create_func_mbr_disjoint::s_singleton;
 Item*
 Create_func_mbr_disjoint::create_2_arg(THD *thd, Item *arg1, Item *arg2)
 {
-  return new (thd->mem_root) Item_func_spatial_mbr_rel(arg1, arg2,
+  return new (thd->mem_root) Item_func_spatial_mbr_rel(thd, arg1, arg2,
       Item_func::SP_DISJOINT_FUNC);
 }
 
@@ -3800,7 +3800,7 @@ Create_func_disjoint Create_func_disjoint::s_singleton;
 Item*
 Create_func_disjoint::create_2_arg(THD *thd, Item *arg1, Item *arg2)
 {
-  return new (thd->mem_root) Item_func_spatial_precise_rel(arg1, arg2,
+  return new (thd->mem_root) Item_func_spatial_precise_rel(thd, arg1, arg2,
                                                   Item_func::SP_DISJOINT_FUNC);
 }
 
@@ -3810,7 +3810,7 @@ Create_func_distance Create_func_distance::s_singleton;
 Item*
 Create_func_distance::create_2_arg(THD *thd, Item *arg1, Item *arg2)
 {
-  return new (thd->mem_root) Item_func_distance(arg1, arg2);
+  return new (thd->mem_root) Item_func_distance(thd, arg1, arg2);
 }
 #endif
 
@@ -3832,7 +3832,7 @@ Create_func_elt::create_native(THD *thd, LEX_STRING name,
     return NULL;
   }
 
-  return new (thd->mem_root) Item_func_elt(*item_list);
+  return new (thd->mem_root) Item_func_elt(thd, *item_list);
 }
 
 
@@ -3841,7 +3841,7 @@ Create_func_encode Create_func_encode::s_singleton;
 Item*
 Create_func_encode::create_2_arg(THD *thd, Item *arg1, Item *arg2)
 {
-  return new (thd->mem_root) Item_func_encode(arg1, arg2);
+  return new (thd->mem_root) Item_func_encode(thd, arg1, arg2);
 }
 
 
@@ -3861,7 +3861,7 @@ Create_func_encrypt::create_native(THD *thd, LEX_STRING name,
   case 1:
   {
     Item *param_1= item_list->pop();
-    func= new (thd->mem_root) Item_func_encrypt(param_1);
+    func= new (thd->mem_root) Item_func_encrypt(thd, param_1);
     thd->lex->uncacheable(UNCACHEABLE_RAND);
     break;
   }
@@ -3869,7 +3869,7 @@ Create_func_encrypt::create_native(THD *thd, LEX_STRING name,
   {
     Item *param_1= item_list->pop();
     Item *param_2= item_list->pop();
-    func= new (thd->mem_root) Item_func_encrypt(param_1, param_2);
+    func= new (thd->mem_root) Item_func_encrypt(thd, param_1, param_2);
     break;
   }
   default:
@@ -3889,7 +3889,7 @@ Create_func_endpoint Create_func_endpoint::s_singleton;
 Item*
 Create_func_endpoint::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_spatial_decomp(arg1,
+  return new (thd->mem_root) Item_func_spatial_decomp(thd, arg1,
                                                       Item_func::SP_ENDPOINT);
 }
 #endif
@@ -3901,7 +3901,7 @@ Create_func_envelope Create_func_envelope::s_singleton;
 Item*
 Create_func_envelope::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_envelope(arg1);
+  return new (thd->mem_root) Item_func_envelope(thd, arg1);
 }
 
 
@@ -3910,7 +3910,7 @@ Create_func_boundary Create_func_boundary::s_singleton;
 Item*
 Create_func_boundary::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_boundary(arg1);
+  return new (thd->mem_root) Item_func_boundary(thd, arg1);
 }
 #endif
 
@@ -3921,7 +3921,7 @@ Create_func_mbr_equals Create_func_mbr_equals::s_singleton;
 Item*
 Create_func_mbr_equals::create_2_arg(THD *thd, Item *arg1, Item *arg2)
 {
-  return new (thd->mem_root) Item_func_spatial_mbr_rel(arg1, arg2,
+  return new (thd->mem_root) Item_func_spatial_mbr_rel(thd, arg1, arg2,
       Item_func::SP_EQUALS_FUNC);
 }
 
@@ -3931,7 +3931,7 @@ Create_func_equals Create_func_equals::s_singleton;
 Item*
 Create_func_equals::create_2_arg(THD *thd, Item *arg1, Item *arg2)
 {
-  return new (thd->mem_root) Item_func_spatial_precise_rel(arg1, arg2,
+  return new (thd->mem_root) Item_func_spatial_precise_rel(thd, arg1, arg2,
                                                     Item_func::SP_EQUALS_FUNC);
 }
 #endif
@@ -3942,7 +3942,7 @@ Create_func_exp Create_func_exp::s_singleton;
 Item*
 Create_func_exp::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_exp(arg1);
+  return new (thd->mem_root) Item_func_exp(thd, arg1);
 }
 
 
@@ -3964,7 +3964,7 @@ Create_func_export_set::create_native(THD *thd, LEX_STRING name,
     Item *param_1= item_list->pop();
     Item *param_2= item_list->pop();
     Item *param_3= item_list->pop();
-    func= new (thd->mem_root) Item_func_export_set(param_1, param_2, param_3);
+    func= new (thd->mem_root) Item_func_export_set(thd, param_1, param_2, param_3);
     break;
   }
   case 4:
@@ -3973,7 +3973,7 @@ Create_func_export_set::create_native(THD *thd, LEX_STRING name,
     Item *param_2= item_list->pop();
     Item *param_3= item_list->pop();
     Item *param_4= item_list->pop();
-    func= new (thd->mem_root) Item_func_export_set(param_1, param_2, param_3,
+    func= new (thd->mem_root) Item_func_export_set(thd, param_1, param_2, param_3,
                                                    param_4);
     break;
   }
@@ -3984,7 +3984,7 @@ Create_func_export_set::create_native(THD *thd, LEX_STRING name,
     Item *param_3= item_list->pop();
     Item *param_4= item_list->pop();
     Item *param_5= item_list->pop();
-    func= new (thd->mem_root) Item_func_export_set(param_1, param_2, param_3,
+    func= new (thd->mem_root) Item_func_export_set(thd, param_1, param_2, param_3,
                                                    param_4, param_5);
     break;
   }
@@ -4005,7 +4005,7 @@ Create_func_exteriorring Create_func_exteriorring::s_singleton;
 Item*
 Create_func_exteriorring::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_spatial_decomp(arg1,
+  return new (thd->mem_root) Item_func_spatial_decomp(thd, arg1,
                                                       Item_func::SP_EXTERIORRING);
 }
 #endif
@@ -4028,7 +4028,7 @@ Create_func_field::create_native(THD *thd, LEX_STRING name,
     return NULL;
   }
 
-  return new (thd->mem_root) Item_func_field(*item_list);
+  return new (thd->mem_root) Item_func_field(thd, *item_list);
 }
 
 
@@ -4037,7 +4037,7 @@ Create_func_find_in_set Create_func_find_in_set::s_singleton;
 Item*
 Create_func_find_in_set::create_2_arg(THD *thd, Item *arg1, Item *arg2)
 {
-  return new (thd->mem_root) Item_func_find_in_set(arg1, arg2);
+  return new (thd->mem_root) Item_func_find_in_set(thd, arg1, arg2);
 }
 
 
@@ -4046,7 +4046,7 @@ Create_func_floor Create_func_floor::s_singleton;
 Item*
 Create_func_floor::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_floor(arg1);
+  return new (thd->mem_root) Item_func_floor(thd, arg1);
 }
 
 
@@ -4064,7 +4064,7 @@ Create_func_format::create_native(THD *thd, LEX_STRING name,
   {
     Item *param_1= item_list->pop();
     Item *param_2= item_list->pop();
-    func= new (thd->mem_root) Item_func_format(param_1, param_2);
+    func= new (thd->mem_root) Item_func_format(thd, param_1, param_2);
     break;
   }
   case 3:
@@ -4072,7 +4072,7 @@ Create_func_format::create_native(THD *thd, LEX_STRING name,
     Item *param_1= item_list->pop();
     Item *param_2= item_list->pop();
     Item *param_3= item_list->pop();
-    func= new (thd->mem_root) Item_func_format(param_1, param_2, param_3);
+    func= new (thd->mem_root) Item_func_format(thd, param_1, param_2, param_3);
     break;
   }
   default:
@@ -4090,7 +4090,7 @@ Create_func_from_base64 Create_func_from_base64::s_singleton;
 Item *
 Create_func_from_base64::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_from_base64(arg1);
+  return new (thd->mem_root) Item_func_from_base64(thd, arg1);
 }
 
 
@@ -4102,7 +4102,7 @@ Create_func_found_rows::create_builder(THD *thd)
   DBUG_ENTER("Create_func_found_rows::create");
   thd->lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_SYSTEM_FUNCTION);
   thd->lex->safe_to_cache_query= 0;
-  DBUG_RETURN(new (thd->mem_root) Item_func_found_rows());
+  DBUG_RETURN(new (thd->mem_root) Item_func_found_rows(thd));
 }
 
 
@@ -4111,7 +4111,7 @@ Create_func_from_days Create_func_from_days::s_singleton;
 Item*
 Create_func_from_days::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_from_days(arg1);
+  return new (thd->mem_root) Item_func_from_days(thd, arg1);
 }
 
 
@@ -4131,15 +4131,15 @@ Create_func_from_unixtime::create_native(THD *thd, LEX_STRING name,
   case 1:
   {
     Item *param_1= item_list->pop();
-    func= new (thd->mem_root) Item_func_from_unixtime(param_1);
+    func= new (thd->mem_root) Item_func_from_unixtime(thd, param_1);
     break;
   }
   case 2:
   {
     Item *param_1= item_list->pop();
     Item *param_2= item_list->pop();
-    Item *ut= new (thd->mem_root) Item_func_from_unixtime(param_1);
-    func= new (thd->mem_root) Item_func_date_format(ut, param_2, 0);
+    Item *ut= new (thd->mem_root) Item_func_from_unixtime(thd, param_1);
+    func= new (thd->mem_root) Item_func_date_format(thd, ut, param_2, 0);
     break;
   }
   default:
@@ -4170,7 +4170,7 @@ Create_func_geometry_from_text::create_native(THD *thd, LEX_STRING name,
   case 1:
   {
     Item *param_1= item_list->pop();
-    func= new (thd->mem_root) Item_func_geometry_from_text(param_1);
+    func= new (thd->mem_root) Item_func_geometry_from_text(thd, param_1);
     thd->lex->uncacheable(UNCACHEABLE_RAND);
     break;
   }
@@ -4178,7 +4178,7 @@ Create_func_geometry_from_text::create_native(THD *thd, LEX_STRING name,
   {
     Item *param_1= item_list->pop();
     Item *param_2= item_list->pop();
-    func= new (thd->mem_root) Item_func_geometry_from_text(param_1, param_2);
+    func= new (thd->mem_root) Item_func_geometry_from_text(thd, param_1, param_2);
     break;
   }
   default:
@@ -4210,7 +4210,7 @@ Create_func_geometry_from_wkb::create_native(THD *thd, LEX_STRING name,
   case 1:
   {
     Item *param_1= item_list->pop();
-    func= new (thd->mem_root) Item_func_geometry_from_wkb(param_1);
+    func= new (thd->mem_root) Item_func_geometry_from_wkb(thd, param_1);
     thd->lex->uncacheable(UNCACHEABLE_RAND);
     break;
   }
@@ -4218,7 +4218,7 @@ Create_func_geometry_from_wkb::create_native(THD *thd, LEX_STRING name,
   {
     Item *param_1= item_list->pop();
     Item *param_2= item_list->pop();
-    func= new (thd->mem_root) Item_func_geometry_from_wkb(param_1, param_2);
+    func= new (thd->mem_root) Item_func_geometry_from_wkb(thd, param_1, param_2);
     break;
   }
   default:
@@ -4239,7 +4239,7 @@ Create_func_geometry_type Create_func_geometry_type::s_singleton;
 Item*
 Create_func_geometry_type::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_geometry_type(arg1);
+  return new (thd->mem_root) Item_func_geometry_type(thd, arg1);
 }
 #endif
 
@@ -4250,7 +4250,7 @@ Create_func_geometryn Create_func_geometryn::s_singleton;
 Item*
 Create_func_geometryn::create_2_arg(THD *thd, Item *arg1, Item *arg2)
 {
-  return new (thd->mem_root) Item_func_spatial_decomp_n(arg1, arg2,
+  return new (thd->mem_root) Item_func_spatial_decomp_n(thd, arg1, arg2,
                                                         Item_func::SP_GEOMETRYN);
 }
 #endif
@@ -4263,7 +4263,7 @@ Create_func_get_lock::create_2_arg(THD *thd, Item *arg1, Item *arg2)
 {
   thd->lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_SYSTEM_FUNCTION);
   thd->lex->uncacheable(UNCACHEABLE_SIDEEFFECT);
-  return new (thd->mem_root) Item_func_get_lock(arg1, arg2);
+  return new (thd->mem_root) Item_func_get_lock(thd, arg1, arg2);
 }
 
 
@@ -4273,7 +4273,7 @@ Create_func_gis_debug Create_func_gis_debug::s_singleton;
 Item*
 Create_func_gis_debug::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_gis_debug(arg1);
+  return new (thd->mem_root) Item_func_gis_debug(thd, arg1);
 }
 #endif
 
@@ -4284,7 +4284,7 @@ Create_func_glength Create_func_glength::s_singleton;
 Item*
 Create_func_glength::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_glength(arg1);
+  return new (thd->mem_root) Item_func_glength(thd, arg1);
 }
 #endif
 
@@ -4306,7 +4306,7 @@ Create_func_greatest::create_native(THD *thd, LEX_STRING name,
     return NULL;
   }
 
-  return new (thd->mem_root) Item_func_max(*item_list);
+  return new (thd->mem_root) Item_func_max(thd, *item_list);
 }
 
 
@@ -4315,7 +4315,7 @@ Create_func_hex Create_func_hex::s_singleton;
 Item*
 Create_func_hex::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_hex(arg1);
+  return new (thd->mem_root) Item_func_hex(thd, arg1);
 }
 
 
@@ -4324,7 +4324,7 @@ Create_func_ifnull Create_func_ifnull::s_singleton;
 Item*
 Create_func_ifnull::create_2_arg(THD *thd, Item *arg1, Item *arg2)
 {
-  return new (thd->mem_root) Item_func_ifnull(arg1, arg2);
+  return new (thd->mem_root) Item_func_ifnull(thd, arg1, arg2);
 }
 
 
@@ -4333,7 +4333,7 @@ Create_func_inet_ntoa Create_func_inet_ntoa::s_singleton;
 Item*
 Create_func_inet_ntoa::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_inet_ntoa(arg1);
+  return new (thd->mem_root) Item_func_inet_ntoa(thd, arg1);
 }
 
 
@@ -4342,7 +4342,7 @@ Create_func_inet6_aton Create_func_inet6_aton::s_singleton;
 Item*
 Create_func_inet6_aton::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_inet6_aton(arg1);
+  return new (thd->mem_root) Item_func_inet6_aton(thd, arg1);
 }
 
 
@@ -4351,7 +4351,7 @@ Create_func_inet6_ntoa Create_func_inet6_ntoa::s_singleton;
 Item*
 Create_func_inet6_ntoa::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_inet6_ntoa(arg1);
+  return new (thd->mem_root) Item_func_inet6_ntoa(thd, arg1);
 }
 
 
@@ -4360,7 +4360,7 @@ Create_func_inet_aton Create_func_inet_aton::s_singleton;
 Item*
 Create_func_inet_aton::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_inet_aton(arg1);
+  return new (thd->mem_root) Item_func_inet_aton(thd, arg1);
 }
 
 
@@ -4369,7 +4369,7 @@ Create_func_is_ipv4 Create_func_is_ipv4::s_singleton;
 Item*
 Create_func_is_ipv4::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_is_ipv4(arg1);
+  return new (thd->mem_root) Item_func_is_ipv4(thd, arg1);
 }
 
 
@@ -4378,7 +4378,7 @@ Create_func_is_ipv6 Create_func_is_ipv6::s_singleton;
 Item*
 Create_func_is_ipv6::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_is_ipv6(arg1);
+  return new (thd->mem_root) Item_func_is_ipv6(thd, arg1);
 }
 
 
@@ -4387,7 +4387,7 @@ Create_func_is_ipv4_compat Create_func_is_ipv4_compat::s_singleton;
 Item*
 Create_func_is_ipv4_compat::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_is_ipv4_compat(arg1);
+  return new (thd->mem_root) Item_func_is_ipv4_compat(thd, arg1);
 }
 
 
@@ -4396,7 +4396,7 @@ Create_func_is_ipv4_mapped Create_func_is_ipv4_mapped::s_singleton;
 Item*
 Create_func_is_ipv4_mapped::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_is_ipv4_mapped(arg1);
+  return new (thd->mem_root) Item_func_is_ipv4_mapped(thd, arg1);
 }
 
 
@@ -4405,7 +4405,7 @@ Create_func_instr Create_func_instr::s_singleton;
 Item*
 Create_func_instr::create_2_arg(THD *thd, Item *arg1, Item *arg2)
 {
-  return new (thd->mem_root) Item_func_locate(arg1, arg2);
+  return new (thd->mem_root) Item_func_locate(thd, arg1, arg2);
 }
 
 
@@ -4415,7 +4415,7 @@ Create_func_interiorringn Create_func_interiorringn::s_singleton;
 Item*
 Create_func_interiorringn::create_2_arg(THD *thd, Item *arg1, Item *arg2)
 {
-  return new (thd->mem_root) Item_func_spatial_decomp_n(arg1, arg2,
+  return new (thd->mem_root) Item_func_spatial_decomp_n(thd, arg1, arg2,
                                                         Item_func::SP_INTERIORRINGN);
 }
 #endif
@@ -4427,7 +4427,7 @@ Create_func_relate Create_func_relate::s_singleton;
 Item*
 Create_func_relate::create_3_arg(THD *thd, Item *arg1, Item *arg2, Item *matrix)
 {
-  return new (thd->mem_root) Item_func_spatial_precise_rel(arg1, arg2, matrix);
+  return new (thd->mem_root) Item_func_spatial_relate(thd, arg1, arg2, matrix);
 }
 
 
@@ -4436,7 +4436,7 @@ Create_func_mbr_intersects Create_func_mbr_intersects::s_singleton;
 Item*
 Create_func_mbr_intersects::create_2_arg(THD *thd, Item *arg1, Item *arg2)
 {
-  return new (thd->mem_root) Item_func_spatial_mbr_rel(arg1, arg2,
+  return new (thd->mem_root) Item_func_spatial_mbr_rel(thd, arg1, arg2,
       Item_func::SP_INTERSECTS_FUNC);
 }
 
@@ -4446,7 +4446,7 @@ Create_func_intersects Create_func_intersects::s_singleton;
 Item*
 Create_func_intersects::create_2_arg(THD *thd, Item *arg1, Item *arg2)
 {
-  return new (thd->mem_root) Item_func_spatial_precise_rel(arg1, arg2,
+  return new (thd->mem_root) Item_func_spatial_precise_rel(thd, arg1, arg2,
                                                 Item_func::SP_INTERSECTS_FUNC);
 }
 
@@ -4456,7 +4456,7 @@ Create_func_intersection Create_func_intersection::s_singleton;
 Item*
 Create_func_intersection::create_2_arg(THD *thd, Item *arg1, Item *arg2)
 {
-  return new (thd->mem_root) Item_func_spatial_operation(arg1, arg2,
+  return new (thd->mem_root) Item_func_spatial_operation(thd, arg1, arg2,
                                Gcalc_function::op_intersection);
 }
 
@@ -4466,7 +4466,7 @@ Create_func_difference Create_func_difference::s_singleton;
 Item*
 Create_func_difference::create_2_arg(THD *thd, Item *arg1, Item *arg2)
 {
-  return new (thd->mem_root) Item_func_spatial_operation(arg1, arg2,
+  return new (thd->mem_root) Item_func_spatial_operation(thd, arg1, arg2,
                                Gcalc_function::op_difference);
 }
 
@@ -4476,7 +4476,7 @@ Create_func_union Create_func_union::s_singleton;
 Item*
 Create_func_union::create_2_arg(THD *thd, Item *arg1, Item *arg2)
 {
-  return new (thd->mem_root) Item_func_spatial_operation(arg1, arg2,
+  return new (thd->mem_root) Item_func_spatial_operation(thd, arg1, arg2,
                                Gcalc_function::op_union);
 }
 
@@ -4486,7 +4486,7 @@ Create_func_symdifference Create_func_symdifference::s_singleton;
 Item*
 Create_func_symdifference::create_2_arg(THD *thd, Item *arg1, Item *arg2)
 {
-  return new (thd->mem_root) Item_func_spatial_operation(arg1, arg2,
+  return new (thd->mem_root) Item_func_spatial_operation(thd, arg1, arg2,
                                Gcalc_function::op_symdifference);
 }
 
@@ -4496,7 +4496,7 @@ Create_func_buffer Create_func_buffer::s_singleton;
 Item*
 Create_func_buffer::create_2_arg(THD *thd, Item *arg1, Item *arg2)
 {
-  return new (thd->mem_root) Item_func_buffer(arg1, arg2);
+  return new (thd->mem_root) Item_func_buffer(thd, arg1, arg2);
 }
 #endif /*HAVE_SPATAI*/
 
@@ -4508,7 +4508,7 @@ Create_func_is_free_lock::create_1_arg(THD *thd, Item *arg1)
 {
   thd->lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_SYSTEM_FUNCTION);
   thd->lex->uncacheable(UNCACHEABLE_SIDEEFFECT);
-  return new (thd->mem_root) Item_func_is_free_lock(arg1);
+  return new (thd->mem_root) Item_func_is_free_lock(thd, arg1);
 }
 
 
@@ -4519,7 +4519,7 @@ Create_func_is_used_lock::create_1_arg(THD *thd, Item *arg1)
 {
   thd->lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_SYSTEM_FUNCTION);
   thd->lex->uncacheable(UNCACHEABLE_SIDEEFFECT);
-  return new (thd->mem_root) Item_func_is_used_lock(arg1);
+  return new (thd->mem_root) Item_func_is_used_lock(thd, arg1);
 }
 
 
@@ -4529,7 +4529,7 @@ Create_func_isclosed Create_func_isclosed::s_singleton;
 Item*
 Create_func_isclosed::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_isclosed(arg1);
+  return new (thd->mem_root) Item_func_isclosed(thd, arg1);
 }
 
 
@@ -4538,7 +4538,7 @@ Create_func_isring Create_func_isring::s_singleton;
 Item*
 Create_func_isring::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_isring(arg1);
+  return new (thd->mem_root) Item_func_isring(thd, arg1);
 }
 
 
@@ -4547,7 +4547,7 @@ Create_func_isempty Create_func_isempty::s_singleton;
 Item*
 Create_func_isempty::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_isempty(arg1);
+  return new (thd->mem_root) Item_func_isempty(thd, arg1);
 }
 #endif /*HAVE_SPATIAL*/
 
@@ -4557,7 +4557,7 @@ Create_func_isnull Create_func_isnull::s_singleton;
 Item*
 Create_func_isnull::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_isnull(arg1);
+  return new (thd->mem_root) Item_func_isnull(thd, arg1);
 }
 
 
@@ -4567,7 +4567,7 @@ Create_func_issimple Create_func_issimple::s_singleton;
 Item*
 Create_func_issimple::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_issimple(arg1);
+  return new (thd->mem_root) Item_func_issimple(thd, arg1);
 }
 #endif
 
@@ -4577,7 +4577,7 @@ Create_func_last_day Create_func_last_day::s_singleton;
 Item*
 Create_func_last_day::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_last_day(arg1);
+  return new (thd->mem_root) Item_func_last_day(thd, arg1);
 }
 
 
@@ -4596,14 +4596,14 @@ Create_func_last_insert_id::create_native(THD *thd, LEX_STRING name,
   switch (arg_count) {
   case 0:
   {
-    func= new (thd->mem_root) Item_func_last_insert_id();
+    func= new (thd->mem_root) Item_func_last_insert_id(thd);
     thd->lex->safe_to_cache_query= 0;
     break;
   }
   case 1:
   {
     Item *param_1= item_list->pop();
-    func= new (thd->mem_root) Item_func_last_insert_id(param_1);
+    func= new (thd->mem_root) Item_func_last_insert_id(thd, param_1);
     thd->lex->safe_to_cache_query= 0;
     break;
   }
@@ -4623,7 +4623,7 @@ Create_func_lcase Create_func_lcase::s_singleton;
 Item*
 Create_func_lcase::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_lcase(arg1);
+  return new (thd->mem_root) Item_func_lcase(thd, arg1);
 }
 
 
@@ -4644,7 +4644,7 @@ Create_func_least::create_native(THD *thd, LEX_STRING name,
     return NULL;
   }
 
-  return new (thd->mem_root) Item_func_min(*item_list);
+  return new (thd->mem_root) Item_func_min(thd, *item_list);
 }
 
 
@@ -4653,7 +4653,7 @@ Create_func_length Create_func_length::s_singleton;
 Item*
 Create_func_length::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_length(arg1);
+  return new (thd->mem_root) Item_func_length(thd, arg1);
 }
 
 
@@ -4663,7 +4663,7 @@ Create_func_like_range_min Create_func_like_range_min::s_singleton;
 Item*
 Create_func_like_range_min::create_2_arg(THD *thd, Item *arg1, Item *arg2)
 {
-  return new (thd->mem_root) Item_func_like_range_min(arg1, arg2);
+  return new (thd->mem_root) Item_func_like_range_min(thd, arg1, arg2);
 }
 
 
@@ -4672,7 +4672,7 @@ Create_func_like_range_max Create_func_like_range_max::s_singleton;
 Item*
 Create_func_like_range_max::create_2_arg(THD *thd, Item *arg1, Item *arg2)
 {
-  return new (thd->mem_root) Item_func_like_range_max(arg1, arg2);
+  return new (thd->mem_root) Item_func_like_range_max(thd, arg1, arg2);
 }
 #endif
 
@@ -4682,7 +4682,7 @@ Create_func_ln Create_func_ln::s_singleton;
 Item*
 Create_func_ln::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_ln(arg1);
+  return new (thd->mem_root) Item_func_ln(thd, arg1);
 }
 
 
@@ -4694,7 +4694,7 @@ Create_func_load_file::create_1_arg(THD *thd, Item *arg1)
   DBUG_ENTER("Create_func_load_file::create");
   thd->lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_SYSTEM_FUNCTION);
   thd->lex->uncacheable(UNCACHEABLE_SIDEEFFECT);
-  DBUG_RETURN(new (thd->mem_root) Item_load_file(arg1));
+  DBUG_RETURN(new (thd->mem_root) Item_load_file(thd, arg1));
 }
 
 
@@ -4716,7 +4716,7 @@ Create_func_locate::create_native(THD *thd, LEX_STRING name,
     Item *param_1= item_list->pop();
     Item *param_2= item_list->pop();
     /* Yes, parameters in that order : 2, 1 */
-    func= new (thd->mem_root) Item_func_locate(param_2, param_1);
+    func= new (thd->mem_root) Item_func_locate(thd, param_2, param_1);
     break;
   }
   case 3:
@@ -4725,7 +4725,7 @@ Create_func_locate::create_native(THD *thd, LEX_STRING name,
     Item *param_2= item_list->pop();
     Item *param_3= item_list->pop();
     /* Yes, parameters in that order : 2, 1, 3 */
-    func= new (thd->mem_root) Item_func_locate(param_2, param_1, param_3);
+    func= new (thd->mem_root) Item_func_locate(thd, param_2, param_1, param_3);
     break;
   }
   default:
@@ -4755,14 +4755,14 @@ Create_func_log::create_native(THD *thd, LEX_STRING name,
   case 1:
   {
     Item *param_1= item_list->pop();
-    func= new (thd->mem_root) Item_func_log(param_1);
+    func= new (thd->mem_root) Item_func_log(thd, param_1);
     break;
   }
   case 2:
   {
     Item *param_1= item_list->pop();
     Item *param_2= item_list->pop();
-    func= new (thd->mem_root) Item_func_log(param_1, param_2);
+    func= new (thd->mem_root) Item_func_log(thd, param_1, param_2);
     break;
   }
   default:
@@ -4781,7 +4781,7 @@ Create_func_log10 Create_func_log10::s_singleton;
 Item*
 Create_func_log10::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_log10(arg1);
+  return new (thd->mem_root) Item_func_log10(thd, arg1);
 }
 
 
@@ -4790,7 +4790,7 @@ Create_func_log2 Create_func_log2::s_singleton;
 Item*
 Create_func_log2::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_log2(arg1);
+  return new (thd->mem_root) Item_func_log2(thd, arg1);
 }
 
 
@@ -4799,7 +4799,7 @@ Create_func_lpad Create_func_lpad::s_singleton;
 Item*
 Create_func_lpad::create_3_arg(THD *thd, Item *arg1, Item *arg2, Item *arg3)
 {
-  return new (thd->mem_root) Item_func_lpad(arg1, arg2, arg3);
+  return new (thd->mem_root) Item_func_lpad(thd, arg1, arg2, arg3);
 }
 
 
@@ -4808,7 +4808,7 @@ Create_func_ltrim Create_func_ltrim::s_singleton;
 Item*
 Create_func_ltrim::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_ltrim(arg1);
+  return new (thd->mem_root) Item_func_ltrim(thd, arg1);
 }
 
 
@@ -4817,7 +4817,7 @@ Create_func_makedate Create_func_makedate::s_singleton;
 Item*
 Create_func_makedate::create_2_arg(THD *thd, Item *arg1, Item *arg2)
 {
-  return new (thd->mem_root) Item_func_makedate(arg1, arg2);
+  return new (thd->mem_root) Item_func_makedate(thd, arg1, arg2);
 }
 
 
@@ -4826,7 +4826,7 @@ Create_func_maketime Create_func_maketime::s_singleton;
 Item*
 Create_func_maketime::create_3_arg(THD *thd, Item *arg1, Item *arg2, Item *arg3)
 {
-  return new (thd->mem_root) Item_func_maketime(arg1, arg2, arg3);
+  return new (thd->mem_root) Item_func_maketime(thd, arg1, arg2, arg3);
 }
 
 
@@ -4847,7 +4847,7 @@ Create_func_make_set::create_native(THD *thd, LEX_STRING name,
     return NULL;
   }
 
-  return new (thd->mem_root) Item_func_make_set(*item_list);
+  return new (thd->mem_root) Item_func_make_set(thd, *item_list);
 }
 
 
@@ -4879,20 +4879,20 @@ Create_func_master_pos_wait::create_native(THD *thd, LEX_STRING name,
   switch (arg_count) {
   case 2:
   {
-    func= new (thd->mem_root) Item_master_pos_wait(param_1, param_2);
+    func= new (thd->mem_root) Item_master_pos_wait(thd, param_1, param_2);
     break;
   }
   case 3:
   {
     Item *param_3= item_list->pop();
-    func= new (thd->mem_root) Item_master_pos_wait(param_1, param_2, param_3);
+    func= new (thd->mem_root) Item_master_pos_wait(thd, param_1, param_2, param_3);
     break;
   }
   case 4:
   {
     Item *param_3= item_list->pop();
     Item *param_4= item_list->pop();
-    func= new (thd->mem_root) Item_master_pos_wait(param_1, param_2, param_3,
+    func= new (thd->mem_root) Item_master_pos_wait(thd, param_1, param_2, param_3,
                                                    param_4);
     break;
   }
@@ -4928,13 +4928,13 @@ Create_func_master_gtid_wait::create_native(THD *thd, LEX_STRING name,
   switch (arg_count) {
   case 1:
   {
-    func= new (thd->mem_root) Item_master_gtid_wait(param_1);
+    func= new (thd->mem_root) Item_master_gtid_wait(thd, param_1);
     break;
   }
   case 2:
   {
     Item *param_2= item_list->pop();
-    func= new (thd->mem_root) Item_master_gtid_wait(param_1, param_2);
+    func= new (thd->mem_root) Item_master_gtid_wait(thd, param_1, param_2);
     break;
   }
   }
@@ -4948,7 +4948,7 @@ Create_func_md5 Create_func_md5::s_singleton;
 Item*
 Create_func_md5::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_md5(arg1);
+  return new (thd->mem_root) Item_func_md5(thd, arg1);
 }
 
 
@@ -4957,7 +4957,7 @@ Create_func_monthname Create_func_monthname::s_singleton;
 Item*
 Create_func_monthname::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_monthname(arg1);
+  return new (thd->mem_root) Item_func_monthname(thd, arg1);
 }
 
 
@@ -4966,7 +4966,7 @@ Create_func_name_const Create_func_name_const::s_singleton;
 Item*
 Create_func_name_const::create_2_arg(THD *thd, Item *arg1, Item *arg2)
 {
-  return new (thd->mem_root) Item_name_const(arg1, arg2);
+  return new (thd->mem_root) Item_name_const(thd, arg1, arg2);
 }
 
 
@@ -4975,7 +4975,7 @@ Create_func_nullif Create_func_nullif::s_singleton;
 Item*
 Create_func_nullif::create_2_arg(THD *thd, Item *arg1, Item *arg2)
 {
-  return new (thd->mem_root) Item_func_nullif(arg1, arg2);
+  return new (thd->mem_root) Item_func_nullif(thd, arg1, arg2);
 }
 
 
@@ -4985,7 +4985,7 @@ Create_func_numgeometries Create_func_numgeometries::s_singleton;
 Item*
 Create_func_numgeometries::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_numgeometries(arg1);
+  return new (thd->mem_root) Item_func_numgeometries(thd, arg1);
 }
 #endif
 
@@ -4996,7 +4996,7 @@ Create_func_numinteriorring Create_func_numinteriorring::s_singleton;
 Item*
 Create_func_numinteriorring::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_numinteriorring(arg1);
+  return new (thd->mem_root) Item_func_numinteriorring(thd, arg1);
 }
 #endif
 
@@ -5007,7 +5007,7 @@ Create_func_numpoints Create_func_numpoints::s_singleton;
 Item*
 Create_func_numpoints::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_numpoints(arg1);
+  return new (thd->mem_root) Item_func_numpoints(thd, arg1);
 }
 #endif
 
@@ -5017,9 +5017,9 @@ Create_func_oct Create_func_oct::s_singleton;
 Item*
 Create_func_oct::create_1_arg(THD *thd, Item *arg1)
 {
-  Item *i10= new (thd->mem_root) Item_int((int32) 10,2);
-  Item *i8= new (thd->mem_root) Item_int((int32) 8,1);
-  return new (thd->mem_root) Item_func_conv(arg1, i10, i8);
+  Item *i10= new (thd->mem_root) Item_int(thd, (int32) 10,2);
+  Item *i8= new (thd->mem_root) Item_int(thd, (int32) 8,1);
+  return new (thd->mem_root) Item_func_conv(thd, arg1, i10, i8);
 }
 
 
@@ -5028,7 +5028,7 @@ Create_func_ord Create_func_ord::s_singleton;
 Item*
 Create_func_ord::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_ord(arg1);
+  return new (thd->mem_root) Item_func_ord(thd, arg1);
 }
 
 
@@ -5038,7 +5038,7 @@ Create_func_mbr_overlaps Create_func_mbr_overlaps::s_singleton;
 Item*
 Create_func_mbr_overlaps::create_2_arg(THD *thd, Item *arg1, Item *arg2)
 {
-  return new (thd->mem_root) Item_func_spatial_mbr_rel(arg1, arg2,
+  return new (thd->mem_root) Item_func_spatial_mbr_rel(thd, arg1, arg2,
       Item_func::SP_OVERLAPS_FUNC);
 }
 
@@ -5048,7 +5048,7 @@ Create_func_overlaps Create_func_overlaps::s_singleton;
 Item*
 Create_func_overlaps::create_2_arg(THD *thd, Item *arg1, Item *arg2)
 {
-  return new (thd->mem_root) Item_func_spatial_precise_rel(arg1, arg2,
+  return new (thd->mem_root) Item_func_spatial_precise_rel(thd, arg1, arg2,
                                                   Item_func::SP_OVERLAPS_FUNC);
 }
 #endif
@@ -5059,7 +5059,7 @@ Create_func_period_add Create_func_period_add::s_singleton;
 Item*
 Create_func_period_add::create_2_arg(THD *thd, Item *arg1, Item *arg2)
 {
-  return new (thd->mem_root) Item_func_period_add(arg1, arg2);
+  return new (thd->mem_root) Item_func_period_add(thd, arg1, arg2);
 }
 
 
@@ -5068,7 +5068,7 @@ Create_func_period_diff Create_func_period_diff::s_singleton;
 Item*
 Create_func_period_diff::create_2_arg(THD *thd, Item *arg1, Item *arg2)
 {
-  return new (thd->mem_root) Item_func_period_diff(arg1, arg2);
+  return new (thd->mem_root) Item_func_period_diff(thd, arg1, arg2);
 }
 
 
@@ -5077,7 +5077,7 @@ Create_func_pi Create_func_pi::s_singleton;
 Item*
 Create_func_pi::create_builder(THD *thd)
 {
-  return new (thd->mem_root) Item_static_float_func("pi()", M_PI, 6, 8);
+  return new (thd->mem_root) Item_static_float_func(thd, "pi()", M_PI, 6, 8);
 }
 
 
@@ -5087,7 +5087,7 @@ Create_func_pointn Create_func_pointn::s_singleton;
 Item*
 Create_func_pointn::create_2_arg(THD *thd, Item *arg1, Item *arg2)
 {
-  return new (thd->mem_root) Item_func_spatial_decomp_n(arg1, arg2,
+  return new (thd->mem_root) Item_func_spatial_decomp_n(thd, arg1, arg2,
                                                         Item_func::SP_POINTN);
 }
 #endif
@@ -5098,7 +5098,7 @@ Create_func_pow Create_func_pow::s_singleton;
 Item*
 Create_func_pow::create_2_arg(THD *thd, Item *arg1, Item *arg2)
 {
-  return new (thd->mem_root) Item_func_pow(arg1, arg2);
+  return new (thd->mem_root) Item_func_pow(thd, arg1, arg2);
 }
 
 
@@ -5107,7 +5107,7 @@ Create_func_quote Create_func_quote::s_singleton;
 Item*
 Create_func_quote::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_quote(arg1);
+  return new (thd->mem_root) Item_func_quote(thd, arg1);
 }
 
 
@@ -5116,7 +5116,7 @@ Create_func_regexp_instr Create_func_regexp_instr::s_singleton;
 Item*
 Create_func_regexp_instr::create_2_arg(THD *thd, Item *arg1, Item *arg2)
 {
-  return new (thd->mem_root) Item_func_regexp_instr(arg1, arg2);
+  return new (thd->mem_root) Item_func_regexp_instr(thd, arg1, arg2);
 }
 
 
@@ -5125,7 +5125,7 @@ Create_func_regexp_replace Create_func_regexp_replace::s_singleton;
 Item*
 Create_func_regexp_replace::create_3_arg(THD *thd, Item *arg1, Item *arg2, Item *arg3)
 {
-  return new (thd->mem_root) Item_func_regexp_replace(arg1, arg2, arg3);
+  return new (thd->mem_root) Item_func_regexp_replace(thd, arg1, arg2, arg3);
 }
 
 
@@ -5134,7 +5134,7 @@ Create_func_regexp_substr Create_func_regexp_substr::s_singleton;
 Item*
 Create_func_regexp_substr::create_2_arg(THD *thd, Item *arg1, Item *arg2)
 {
-  return new (thd->mem_root) Item_func_regexp_substr(arg1, arg2);
+  return new (thd->mem_root) Item_func_regexp_substr(thd, arg1, arg2);
 }
 
 
@@ -5143,7 +5143,7 @@ Create_func_radians Create_func_radians::s_singleton;
 Item*
 Create_func_radians::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_units((char*) "radians", arg1,
+  return new (thd->mem_root) Item_func_units(thd, (char*) "radians", arg1,
                                              M_PI/180, 0.0);
 }
 
@@ -5176,14 +5176,14 @@ Create_func_rand::create_native(THD *thd, LEX_STRING name,
   switch (arg_count) {
   case 0:
   {
-    func= new (thd->mem_root) Item_func_rand();
+    func= new (thd->mem_root) Item_func_rand(thd);
     thd->lex->uncacheable(UNCACHEABLE_RAND);
     break;
   }
   case 1:
   {
     Item *param_1= item_list->pop();
-    func= new (thd->mem_root) Item_func_rand(param_1);
+    func= new (thd->mem_root) Item_func_rand(thd, param_1);
     thd->lex->uncacheable(UNCACHEABLE_RAND);
     break;
   }
@@ -5205,7 +5205,7 @@ Create_func_release_lock::create_1_arg(THD *thd, Item *arg1)
 {
   thd->lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_SYSTEM_FUNCTION);
   thd->lex->uncacheable(UNCACHEABLE_SIDEEFFECT);
-  return new (thd->mem_root) Item_func_release_lock(arg1);
+  return new (thd->mem_root) Item_func_release_lock(thd, arg1);
 }
 
 
@@ -5214,7 +5214,7 @@ Create_func_reverse Create_func_reverse::s_singleton;
 Item*
 Create_func_reverse::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_reverse(arg1);
+  return new (thd->mem_root) Item_func_reverse(thd, arg1);
 }
 
 
@@ -5234,15 +5234,15 @@ Create_func_round::create_native(THD *thd, LEX_STRING name,
   case 1:
   {
     Item *param_1= item_list->pop();
-    Item *i0 = new (thd->mem_root) Item_int((char*)"0", 0, 1);
-    func= new (thd->mem_root) Item_func_round(param_1, i0, 0);
+    Item *i0= new (thd->mem_root) Item_int(thd, (char*)"0", 0, 1);
+    func= new (thd->mem_root) Item_func_round(thd, param_1, i0, 0);
     break;
   }
   case 2:
   {
     Item *param_1= item_list->pop();
     Item *param_2= item_list->pop();
-    func= new (thd->mem_root) Item_func_round(param_1, param_2, 0);
+    func= new (thd->mem_root) Item_func_round(thd, param_1, param_2, 0);
     break;
   }
   default:
@@ -5261,7 +5261,7 @@ Create_func_rpad Create_func_rpad::s_singleton;
 Item*
 Create_func_rpad::create_3_arg(THD *thd, Item *arg1, Item *arg2, Item *arg3)
 {
-  return new (thd->mem_root) Item_func_rpad(arg1, arg2, arg3);
+  return new (thd->mem_root) Item_func_rpad(thd, arg1, arg2, arg3);
 }
 
 
@@ -5270,7 +5270,7 @@ Create_func_rtrim Create_func_rtrim::s_singleton;
 Item*
 Create_func_rtrim::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_rtrim(arg1);
+  return new (thd->mem_root) Item_func_rtrim(thd, arg1);
 }
 
 
@@ -5279,7 +5279,7 @@ Create_func_sec_to_time Create_func_sec_to_time::s_singleton;
 Item*
 Create_func_sec_to_time::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_sec_to_time(arg1);
+  return new (thd->mem_root) Item_func_sec_to_time(thd, arg1);
 }
 
 
@@ -5288,7 +5288,7 @@ Create_func_sha Create_func_sha::s_singleton;
 Item*
 Create_func_sha::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_sha(arg1);
+  return new (thd->mem_root) Item_func_sha(thd, arg1);
 }
 
 
@@ -5297,7 +5297,7 @@ Create_func_sha2 Create_func_sha2::s_singleton;
 Item*
 Create_func_sha2::create_2_arg(THD *thd, Item *arg1, Item *arg2)
 {
-  return new (thd->mem_root) Item_func_sha2(arg1, arg2);
+  return new (thd->mem_root) Item_func_sha2(thd, arg1, arg2);
 }
 
 
@@ -5306,7 +5306,7 @@ Create_func_sign Create_func_sign::s_singleton;
 Item*
 Create_func_sign::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_sign(arg1);
+  return new (thd->mem_root) Item_func_sign(thd, arg1);
 }
 
 
@@ -5315,7 +5315,7 @@ Create_func_sin Create_func_sin::s_singleton;
 Item*
 Create_func_sin::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_sin(arg1);
+  return new (thd->mem_root) Item_func_sin(thd, arg1);
 }
 
 
@@ -5326,7 +5326,7 @@ Create_func_sleep::create_1_arg(THD *thd, Item *arg1)
 {
   thd->lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_SYSTEM_FUNCTION);
   thd->lex->uncacheable(UNCACHEABLE_SIDEEFFECT);
-  return new (thd->mem_root) Item_func_sleep(arg1);
+  return new (thd->mem_root) Item_func_sleep(thd, arg1);
 }
 
 
@@ -5335,7 +5335,7 @@ Create_func_soundex Create_func_soundex::s_singleton;
 Item*
 Create_func_soundex::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_soundex(arg1);
+  return new (thd->mem_root) Item_func_soundex(thd, arg1);
 }
 
 
@@ -5344,7 +5344,7 @@ Create_func_space Create_func_space::s_singleton;
 Item*
 Create_func_space::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_space(arg1);
+  return new (thd->mem_root) Item_func_space(thd, arg1);
 }
 
 
@@ -5353,7 +5353,7 @@ Create_func_sqrt Create_func_sqrt::s_singleton;
 Item*
 Create_func_sqrt::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_sqrt(arg1);
+  return new (thd->mem_root) Item_func_sqrt(thd, arg1);
 }
 
 
@@ -5363,7 +5363,7 @@ Create_func_srid Create_func_srid::s_singleton;
 Item*
 Create_func_srid::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_srid(arg1);
+  return new (thd->mem_root) Item_func_srid(thd, arg1);
 }
 #endif
 
@@ -5374,7 +5374,7 @@ Create_func_startpoint Create_func_startpoint::s_singleton;
 Item*
 Create_func_startpoint::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_spatial_decomp(arg1,
+  return new (thd->mem_root) Item_func_spatial_decomp(thd, arg1,
                                                       Item_func::SP_STARTPOINT);
 }
 #endif
@@ -5385,7 +5385,7 @@ Create_func_str_to_date Create_func_str_to_date::s_singleton;
 Item*
 Create_func_str_to_date::create_2_arg(THD *thd, Item *arg1, Item *arg2)
 {
-  return new (thd->mem_root) Item_func_str_to_date(arg1, arg2);
+  return new (thd->mem_root) Item_func_str_to_date(thd, arg1, arg2);
 }
 
 
@@ -5394,7 +5394,7 @@ Create_func_strcmp Create_func_strcmp::s_singleton;
 Item*
 Create_func_strcmp::create_2_arg(THD *thd, Item *arg1, Item *arg2)
 {
-  return new (thd->mem_root) Item_func_strcmp(arg1, arg2);
+  return new (thd->mem_root) Item_func_strcmp(thd, arg1, arg2);
 }
 
 
@@ -5403,7 +5403,7 @@ Create_func_substr_index Create_func_substr_index::s_singleton;
 Item*
 Create_func_substr_index::create_3_arg(THD *thd, Item *arg1, Item *arg2, Item *arg3)
 {
-  return new (thd->mem_root) Item_func_substr_index(arg1, arg2, arg3);
+  return new (thd->mem_root) Item_func_substr_index(thd, arg1, arg2, arg3);
 }
 
 
@@ -5412,7 +5412,7 @@ Create_func_subtime Create_func_subtime::s_singleton;
 Item*
 Create_func_subtime::create_2_arg(THD *thd, Item *arg1, Item *arg2)
 {
-  return new (thd->mem_root) Item_func_add_time(arg1, arg2, 0, 1);
+  return new (thd->mem_root) Item_func_add_time(thd, arg1, arg2, 0, 1);
 }
 
 
@@ -5421,7 +5421,7 @@ Create_func_tan Create_func_tan::s_singleton;
 Item*
 Create_func_tan::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_tan(arg1);
+  return new (thd->mem_root) Item_func_tan(thd, arg1);
 }
 
 
@@ -5430,7 +5430,7 @@ Create_func_time_format Create_func_time_format::s_singleton;
 Item*
 Create_func_time_format::create_2_arg(THD *thd, Item *arg1, Item *arg2)
 {
-  return new (thd->mem_root) Item_func_date_format(arg1, arg2, 1);
+  return new (thd->mem_root) Item_func_date_format(thd, arg1, arg2, 1);
 }
 
 
@@ -5439,7 +5439,7 @@ Create_func_time_to_sec Create_func_time_to_sec::s_singleton;
 Item*
 Create_func_time_to_sec::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_time_to_sec(arg1);
+  return new (thd->mem_root) Item_func_time_to_sec(thd, arg1);
 }
 
 
@@ -5448,7 +5448,7 @@ Create_func_timediff Create_func_timediff::s_singleton;
 Item*
 Create_func_timediff::create_2_arg(THD *thd, Item *arg1, Item *arg2)
 {
-  return new (thd->mem_root) Item_func_timediff(arg1, arg2);
+  return new (thd->mem_root) Item_func_timediff(thd, arg1, arg2);
 }
 
 
@@ -5457,7 +5457,7 @@ Create_func_to_base64 Create_func_to_base64::s_singleton;
 Item*
 Create_func_to_base64::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_to_base64(arg1);
+  return new (thd->mem_root) Item_func_to_base64(thd, arg1);
 }
 
 
@@ -5466,7 +5466,7 @@ Create_func_to_days Create_func_to_days::s_singleton;
 Item*
 Create_func_to_days::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_to_days(arg1);
+  return new (thd->mem_root) Item_func_to_days(thd, arg1);
 }
 
 
@@ -5475,7 +5475,7 @@ Create_func_to_seconds Create_func_to_seconds::s_singleton;
 Item*
 Create_func_to_seconds::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_to_seconds(arg1);
+  return new (thd->mem_root) Item_func_to_seconds(thd, arg1);
 }
 
 
@@ -5485,7 +5485,7 @@ Create_func_touches Create_func_touches::s_singleton;
 Item*
 Create_func_touches::create_2_arg(THD *thd, Item *arg1, Item *arg2)
 {
-  return new (thd->mem_root) Item_func_spatial_precise_rel(arg1, arg2,
+  return new (thd->mem_root) Item_func_spatial_precise_rel(thd, arg1, arg2,
                                                    Item_func::SP_TOUCHES_FUNC);
 }
 #endif
@@ -5496,7 +5496,7 @@ Create_func_ucase Create_func_ucase::s_singleton;
 Item*
 Create_func_ucase::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_ucase(arg1);
+  return new (thd->mem_root) Item_func_ucase(thd, arg1);
 }
 
 
@@ -5505,7 +5505,7 @@ Create_func_uncompress Create_func_uncompress::s_singleton;
 Item*
 Create_func_uncompress::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_uncompress(arg1);
+  return new (thd->mem_root) Item_func_uncompress(thd, arg1);
 }
 
 
@@ -5514,7 +5514,7 @@ Create_func_uncompressed_length Create_func_uncompressed_length::s_singleton;
 Item*
 Create_func_uncompressed_length::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_uncompressed_length(arg1);
+  return new (thd->mem_root) Item_func_uncompressed_length(thd, arg1);
 }
 
 
@@ -5523,7 +5523,7 @@ Create_func_unhex Create_func_unhex::s_singleton;
 Item*
 Create_func_unhex::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_unhex(arg1);
+  return new (thd->mem_root) Item_func_unhex(thd, arg1);
 }
 
 
@@ -5542,14 +5542,14 @@ Create_func_unix_timestamp::create_native(THD *thd, LEX_STRING name,
   switch (arg_count) {
   case 0:
   {
-    func= new (thd->mem_root) Item_func_unix_timestamp();
+    func= new (thd->mem_root) Item_func_unix_timestamp(thd);
     thd->lex->safe_to_cache_query= 0;
     break;
   }
   case 1:
   {
     Item *param_1= item_list->pop();
-    func= new (thd->mem_root) Item_func_unix_timestamp(param_1);
+    func= new (thd->mem_root) Item_func_unix_timestamp(thd, param_1);
     break;
   }
   default:
@@ -5571,7 +5571,7 @@ Create_func_uuid::create_builder(THD *thd)
   DBUG_ENTER("Create_func_uuid::create");
   thd->lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_SYSTEM_FUNCTION);
   thd->lex->safe_to_cache_query= 0;
-  DBUG_RETURN(new (thd->mem_root) Item_func_uuid());
+  DBUG_RETURN(new (thd->mem_root) Item_func_uuid(thd));
 }
 
 
@@ -5583,7 +5583,7 @@ Create_func_uuid_short::create_builder(THD *thd)
   DBUG_ENTER("Create_func_uuid_short::create");
   thd->lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_SYSTEM_FUNCTION);
   thd->lex->safe_to_cache_query= 0;
-  DBUG_RETURN(new (thd->mem_root) Item_func_uuid_short());
+  DBUG_RETURN(new (thd->mem_root) Item_func_uuid_short(thd));
 }
 
 
@@ -5593,7 +5593,7 @@ Item*
 Create_func_version::create_builder(THD *thd)
 {
   thd->lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_SYSTEM_FUNCTION);
-  return new (thd->mem_root) Item_static_string_func("version()",
+  return new (thd->mem_root) Item_static_string_func(thd, "version()",
                                                      server_version,
                                                      (uint) strlen(server_version),
                                                      system_charset_info,
@@ -5606,7 +5606,7 @@ Create_func_weekday Create_func_weekday::s_singleton;
 Item*
 Create_func_weekday::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_weekday(arg1, 0);
+  return new (thd->mem_root) Item_func_weekday(thd, arg1, 0);
 }
 
 
@@ -5615,8 +5615,8 @@ Create_func_weekofyear Create_func_weekofyear::s_singleton;
 Item*
 Create_func_weekofyear::create_1_arg(THD *thd, Item *arg1)
 {
-  Item *i1= new (thd->mem_root) Item_int((char*) "0", 3, 1);
-  return new (thd->mem_root) Item_func_week(arg1, i1);
+  Item *i1= new (thd->mem_root) Item_int(thd, (char*) "0", 3, 1);
+  return new (thd->mem_root) Item_func_week(thd, arg1, i1);
 }
 
 
@@ -5626,7 +5626,7 @@ Create_func_mbr_within Create_func_mbr_within::s_singleton;
 Item*
 Create_func_mbr_within::create_2_arg(THD *thd, Item *arg1, Item *arg2)
 {
-  return new (thd->mem_root) Item_func_spatial_mbr_rel(arg1, arg2,
+  return new (thd->mem_root) Item_func_spatial_mbr_rel(thd, arg1, arg2,
       Item_func::SP_WITHIN_FUNC);
 }
 
@@ -5636,7 +5636,7 @@ Create_func_within Create_func_within::s_singleton;
 Item*
 Create_func_within::create_2_arg(THD *thd, Item *arg1, Item *arg2)
 {
-  return new (thd->mem_root) Item_func_spatial_precise_rel(arg1, arg2,
+  return new (thd->mem_root) Item_func_spatial_precise_rel(thd, arg1, arg2,
                                                     Item_func::SP_WITHIN_FUNC);
 }
 #endif
@@ -5648,7 +5648,7 @@ Create_func_x Create_func_x::s_singleton;
 Item*
 Create_func_x::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_x(arg1);
+  return new (thd->mem_root) Item_func_x(thd, arg1);
 }
 #endif
 
@@ -5658,7 +5658,7 @@ Create_func_xml_extractvalue Create_func_xml_extractvalue::s_singleton;
 Item*
 Create_func_xml_extractvalue::create_2_arg(THD *thd, Item *arg1, Item *arg2)
 {
-  return new (thd->mem_root) Item_func_xml_extractvalue(arg1, arg2);
+  return new (thd->mem_root) Item_func_xml_extractvalue(thd, arg1, arg2);
 }
 
 
@@ -5667,7 +5667,7 @@ Create_func_xml_update Create_func_xml_update::s_singleton;
 Item*
 Create_func_xml_update::create_3_arg(THD *thd, Item *arg1, Item *arg2, Item *arg3)
 {
-  return new (thd->mem_root) Item_func_xml_update(arg1, arg2, arg3);
+  return new (thd->mem_root) Item_func_xml_update(thd, arg1, arg2, arg3);
 }
 
 
@@ -5677,7 +5677,7 @@ Create_func_y Create_func_y::s_singleton;
 Item*
 Create_func_y::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_y(arg1);
+  return new (thd->mem_root) Item_func_y(thd, arg1);
 }
 #endif
 
@@ -5698,15 +5698,15 @@ Create_func_year_week::create_native(THD *thd, LEX_STRING name,
   case 1:
   {
     Item *param_1= item_list->pop();
-    Item *i0= new (thd->mem_root) Item_int((char*) "0", 0, 1);
-    func= new (thd->mem_root) Item_func_yearweek(param_1, i0);
+    Item *i0= new (thd->mem_root) Item_int(thd, (char*) "0", 0, 1);
+    func= new (thd->mem_root) Item_func_yearweek(thd, param_1, i0);
     break;
   }
   case 2:
   {
     Item *param_1= item_list->pop();
     Item *param_2= item_list->pop();
-    func= new (thd->mem_root) Item_func_yearweek(param_1, param_2);
+    func= new (thd->mem_root) Item_func_yearweek(thd, param_1, param_2);
     break;
   }
   default:
@@ -6165,16 +6165,16 @@ create_func_cast(THD *thd, Item *a, Cast_target cast_type,
 
   switch (cast_type) {
   case ITEM_CAST_BINARY:
-    res= new (thd->mem_root) Item_func_binary(a);
+    res= new (thd->mem_root) Item_func_binary(thd, a);
     break;
   case ITEM_CAST_SIGNED_INT:
-    res= new (thd->mem_root) Item_func_signed(a);
+    res= new (thd->mem_root) Item_func_signed(thd, a);
     break;
   case ITEM_CAST_UNSIGNED_INT:
-    res= new (thd->mem_root) Item_func_unsigned(a);
+    res= new (thd->mem_root) Item_func_unsigned(thd, a);
     break;
   case ITEM_CAST_DATE:
-    res= new (thd->mem_root) Item_date_typecast(a);
+    res= new (thd->mem_root) Item_date_typecast(thd, a);
     break;
   case ITEM_CAST_TIME:
     if (decimals > MAX_DATETIME_PRECISION)
@@ -6183,7 +6183,7 @@ create_func_cast(THD *thd, Item *a, Cast_target cast_type,
                             MAX_DATETIME_PRECISION);
       return 0;
     }
-    res= new (thd->mem_root) Item_time_typecast(a, (uint) decimals);
+    res= new (thd->mem_root) Item_time_typecast(thd, a, (uint) decimals);
     break;
   case ITEM_CAST_DATETIME:
     if (decimals > MAX_DATETIME_PRECISION)
@@ -6192,7 +6192,7 @@ create_func_cast(THD *thd, Item *a, Cast_target cast_type,
                             MAX_DATETIME_PRECISION);
       return 0;
     }
-    res= new (thd->mem_root) Item_datetime_typecast(a, (uint) decimals);
+    res= new (thd->mem_root) Item_datetime_typecast(thd, a, (uint) decimals);
     break;
   case ITEM_CAST_DECIMAL:
   {
@@ -6202,7 +6202,7 @@ create_func_cast(THD *thd, Item *a, Cast_target cast_type,
                              DECIMAL_MAX_PRECISION, DECIMAL_MAX_SCALE,
                              a))
       return NULL;
-    res= new (thd->mem_root) Item_decimal_typecast(a, len, dec);
+    res= new (thd->mem_root) Item_decimal_typecast(thd, a, len, dec);
     break;
   }
   case ITEM_CAST_DOUBLE:
@@ -6219,7 +6219,7 @@ create_func_cast(THD *thd, Item *a, Cast_target cast_type,
                                   DECIMAL_MAX_PRECISION, NOT_FIXED_DEC-1,
                                   a))
       return NULL;
-    res= new (thd->mem_root) Item_double_typecast(a, (uint) length,
+    res= new (thd->mem_root) Item_double_typecast(thd, a, (uint) length,
                                                   (uint) decimals);
     break;
   }
@@ -6239,7 +6239,7 @@ create_func_cast(THD *thd, Item *a, Cast_target cast_type,
       }
       len= (int) length;
     }
-    res= new (thd->mem_root) Item_char_typecast(a, len, real_cs);
+    res= new (thd->mem_root) Item_char_typecast(thd, a, len, real_cs);
     break;
   }
   default:
@@ -6287,20 +6287,20 @@ Item *create_temporal_literal(THD *thd,
   case MYSQL_TYPE_NEWDATE:
     if (!str_to_datetime(cs, str, length, &ltime, flags, &status) &&
         ltime.time_type == MYSQL_TIMESTAMP_DATE && !status.warnings)
-      item= new (thd->mem_root) Item_date_literal(&ltime);
+      item= new (thd->mem_root) Item_date_literal(thd, &ltime);
     break;
   case MYSQL_TYPE_DATETIME:
     if (!str_to_datetime(cs, str, length, &ltime, flags, &status) &&
         ltime.time_type == MYSQL_TIMESTAMP_DATETIME &&
         !have_important_literal_warnings(&status))
-      item= new (thd->mem_root) Item_datetime_literal(&ltime,
+      item= new (thd->mem_root) Item_datetime_literal(thd, &ltime,
                                                       status.precision);
     break;
   case MYSQL_TYPE_TIME:
     if (!str_to_time(cs, str, length, &ltime, 0, &status) &&
         ltime.time_type == MYSQL_TIMESTAMP_TIME &&
         !have_important_literal_warnings(&status))
-      item= new (thd->mem_root) Item_time_literal(&ltime,
+      item= new (thd->mem_root) Item_time_literal(thd, &ltime,
                                                   status.precision);
     break;
   default:
@@ -6312,7 +6312,7 @@ Item *create_temporal_literal(THD *thd,
     if (status.warnings) // e.g. a note on nanosecond truncation
     {
       ErrConvString err(str, length, cs);
-      make_truncated_value_warning(current_thd,
+      make_truncated_value_warning(thd,
                                    Sql_condition::time_warn_level(status.warnings),
                                    &err, ltime.time_type, 0);
     }
@@ -6349,8 +6349,8 @@ static List<Item> *create_func_dyncol_prepare(THD *thd,
   for (uint i= 0; (def= li++) ;)
   {
     dfs[0][i++]= *def;
-    args->push_back(def->key);
-    args->push_back(def->value);
+    args->push_back(def->key, thd->mem_root);
+    args->push_back(def->value, thd->mem_root);
   }
   return args;
 }
@@ -6362,7 +6362,7 @@ Item *create_func_dyncol_create(THD *thd, List<DYNCALL_CREATE_DEF> &list)
   if (!(args= create_func_dyncol_prepare(thd, &dfs, list)))
     return NULL;
 
-  return new (thd->mem_root) Item_func_dyncol_create(*args, dfs);
+  return new (thd->mem_root) Item_func_dyncol_create(thd, *args, dfs);
 }
 
 Item *create_func_dyncol_add(THD *thd, Item *str,
@@ -6374,9 +6374,9 @@ Item *create_func_dyncol_add(THD *thd, Item *str,
   if (!(args= create_func_dyncol_prepare(thd, &dfs, list)))
     return NULL;
 
-  args->push_back(str);
+  args->push_back(str, thd->mem_root);
 
-  return new (thd->mem_root) Item_func_dyncol_add(*args, dfs);
+  return new (thd->mem_root) Item_func_dyncol_add(thd, *args, dfs);
 }
 
 
@@ -6397,15 +6397,15 @@ Item *create_func_dyncol_delete(THD *thd, Item *str, List<Item> &nums)
   for (uint i= 0; (key= it++); i++)
   {
     dfs[i].key= key;
-    dfs[i].value= new Item_null();
+    dfs[i].value= new (thd->mem_root) Item_null(thd);
     dfs[i].type= DYN_COL_INT;
-    args->push_back(dfs[i].key);
-    args->push_back(dfs[i].value);
+    args->push_back(dfs[i].key, thd->mem_root);
+    args->push_back(dfs[i].value, thd->mem_root);
   }
 
-  args->push_back(str);
+  args->push_back(str, thd->mem_root);
 
-  return new (thd->mem_root) Item_func_dyncol_add(*args, dfs);
+  return new (thd->mem_root) Item_func_dyncol_add(thd, *args, dfs);
 }
 
 
@@ -6416,7 +6416,7 @@ Item *create_func_dyncol_get(THD *thd,  Item *str, Item *num,
 {
   Item *res;
 
-  if (!(res= new (thd->mem_root) Item_dyncol_get(str, num)))
+  if (!(res= new (thd->mem_root) Item_dyncol_get(thd, str, num)))
     return res;                                 // Return NULL
   return create_func_cast(thd, res, cast_type, c_len, c_dec, cs);
 }

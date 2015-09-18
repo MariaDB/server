@@ -25,6 +25,8 @@
   the answer back to the server. No encryption is involved,
   the answers are sent in clear text.
 */
+#define _GNU_SOURCE 1 /* for RTLD_DEFAULT */
+
 #include <my_global.h>
 #include <mysql/client_plugin.h>
 #include <mysql.h>

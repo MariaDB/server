@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2012, 2013, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2015, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -3620,10 +3621,13 @@ row_import_for_mysql(
 		innobase_format_name(
 			table_name, sizeof(table_name), table->name, FALSE);
 
-		ib_errf(trx->mysql_thd, IB_LOG_LEVEL_ERROR,
-			ER_INTERNAL_ERROR,
-			"Cannot reset LSNs in table '%s' : %s",
-			table_name, ut_strerr(err));
+		if (err != DB_DECRYPTION_FAILED) {
+
+			ib_errf(trx->mysql_thd, IB_LOG_LEVEL_ERROR,
+				ER_INTERNAL_ERROR,
+				"Cannot reset LSNs in table '%s' : %s",
+				table_name, ut_strerr(err));
+		}
 
 		return(row_import_cleanup(prebuilt, trx, err));
 	}
@@ -3651,7 +3655,7 @@ row_import_for_mysql(
 	err = fil_open_single_table_tablespace(
 		true, true, table->space,
 		dict_tf_to_fsp_flags(table->flags),
-		table->name, filepath);
+		table->name, filepath, table);
 
 	DBUG_EXECUTE_IF("ib_import_open_tablespace_failure",
 			err = DB_TABLESPACE_NOT_FOUND;);

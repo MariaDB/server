@@ -178,7 +178,7 @@ st_touches(geomfromtext('point(1 1)'), geomfromtext('point(1 1)'))
 0
 select st_touches(geomfromtext('polygon((0 0, 2 2, 0 4, 0 0))'), geomfromtext('point(1 1)'));
 st_touches(geomfromtext('polygon((0 0, 2 2, 0 4, 0 0))'), geomfromtext('point(1 1)'))
-0
+1
 select st_touches(geomfromtext('polygon((0 0, 2 2, 0 4, 0 0))'), geomfromtext('point(1 0)'));
 st_touches(geomfromtext('polygon((0 0, 2 2, 0 4, 0 0))'), geomfromtext('point(1 0)'))
 0
@@ -187,7 +187,7 @@ st_touches(geomfromtext('polygon((0 0, 2 2, 0 4, 0 0))'), geomfromtext('point(1 
 0
 select st_touches(geomfromtext('polygon((0 0, 2 2, 0 4, 0 0))'), geomfromtext('polygon((1 1.2, 1 0, 2 0, 1 1.2))'));
 st_touches(geomfromtext('polygon((0 0, 2 2, 0 4, 0 0))'), geomfromtext('polygon((1 1.2, 1 0, 2 0, 1 1.2))'))
-1
+0
 select st_touches(geomfromtext('polygon((0 0, 2 2, 0 4, 0 0))'), geomfromtext('polygon((1 1, 1 0, 2 0, 1 1))'));
 st_touches(geomfromtext('polygon((0 0, 2 2, 0 4, 0 0))'), geomfromtext('polygon((1 1, 1 0, 2 0, 1 1))'))
 1
@@ -437,7 +437,7 @@ ST_WITHIN( POLYGONFROMTEXT(' POLYGON( (0 5, 3 5, 3 4, 2 0 , 1 0, 2 4 , 0 4, 0 5)
 0
 SELECT ST_WITHIN( POINTFROMTEXT(' POINT(1 2 ) ') , MULTIPOLYGONFROMTEXT(' MULTIPOLYGON( ( (0 5, 3 5, 3 0, 0 0, 0 5), ( 1 1 , 2 1 , 2 4, 1 4, 1 1 ) ) ) '));
 ST_WITHIN( POINTFROMTEXT(' POINT(1 2 ) ') , MULTIPOLYGONFROMTEXT(' MULTIPOLYGON( ( (0 5, 3 5, 3 0, 0 0, 0 5), ( 1 1 , 2 1 , 2 4, 1 4, 1 1 ) ) ) '))
-0
+1
 select ST_ASTEXT(envelope(ST_GEOMCOLLFROMTEXT('GEOMETRYCOLLECTION EMPTY')));
 ST_ASTEXT(envelope(ST_GEOMCOLLFROMTEXT('GEOMETRYCOLLECTION EMPTY')))
 GEOMETRYCOLLECTION EMPTY
@@ -477,6 +477,15 @@ ST_NUMPOINTS(ST_EXTERIORRING(ST_BUFFER( POLYGONFROMTEXT( 'POLYGON( ( 0.0 -3.0,
 select astext(buffer(st_linestringfromwkb(linestring(point(-1,1), point(-1,-2))),-1));
 astext(buffer(st_linestringfromwkb(linestring(point(-1,1), point(-1,-2))),-1))
 GEOMETRYCOLLECTION EMPTY
+select ST_Touches(ST_LineFromText('LINESTRING(0 0,5 5)'),ST_PointFromText('POINT(0 0)'));
+ST_Touches(ST_LineFromText('LINESTRING(0 0,5 5)'),ST_PointFromText('POINT(0 0)'))
+1
+select ST_Touches(ST_PolygonFromText('POLYGON((0 0,0 5,5 5,5 0,0 0))'),ST_PointFromText('POINT(0 0)'));
+ST_Touches(ST_PolygonFromText('POLYGON((0 0,0 5,5 5,5 0,0 0))'),ST_PointFromText('POINT(0 0)'))
+1
+select ST_Touches(ST_PointFromText('POINT(0 0)'),ST_PointFromText('POINT(0 0)'));
+ST_Touches(ST_PointFromText('POINT(0 0)'),ST_PointFromText('POINT(0 0)'))
+0
 DROP TABLE IF EXISTS p1;
 CREATE PROCEDURE p1(dist DOUBLE, geom TEXT)
 BEGIN
@@ -745,6 +754,8 @@ POLYGON
 # Bug#13358363 - ASSERTION: N > 0 && N < SINUSES_CALCULATED*2+1 | GET_N_SINCOS/ADD_EDGE_BUFFER
 #
 DO ST_BUFFER(ST_GEOMCOLLFROMTEXT('linestring(1 1,2 2)'),'');
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: ''
 SELECT ST_WITHIN(
 LINESTRINGFROMTEXT(' LINESTRING(3 8,9 2,3 8,3 3,7 6,4 7,4 7,8 1) '),
 ST_BUFFER(MULTIPOLYGONFROMTEXT(' MULTIPOLYGON(((3 5,2 5,2 4,3 4,3 5)),((2 2,2 8,8 8,8 2,2 2),(4 4,4 6,6 6,6 4,4 4)),((0 5,3 5,3 2,1 2,1 1,3 1,3 0,0 0,0 3,2 3,2 4,0 4,0 5))) '),

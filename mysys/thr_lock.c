@@ -345,15 +345,14 @@ static void check_locks(THR_LOCK *lock, const char *where,
 		    "Warning at '%s': Write lock %d waiting while no exclusive read locks\n",where,(int) lock->write_wait.data->type);
             DBUG_PRINT("warning", ("Warning at '%s': Write lock %d waiting while no exclusive read locks",where,(int) lock->write_wait.data->type));
 	  }
-	}	      
+        }
       }
       else
       {
         /* We have at least one write lock */
         if (lock->write.data->type == TL_WRITE_CONCURRENT_INSERT)
         {
-          THR_LOCK_DATA *data;
-          uint count= 0;
+          count= 0;
           for (data=lock->write.data->next;
                data && count < MAX_LOCKS;
                data=data->next)
@@ -386,7 +385,6 @@ static void check_locks(THR_LOCK *lock, const char *where,
 	}
 	if (lock->read.data)
 	{
-          THR_LOCK_DATA *data;
           for (data=lock->read.data ; data ; data=data->next)
           {
             if (!thr_lock_owner_equal(lock->write.data->owner,
@@ -1851,7 +1849,7 @@ static void *test_thread(void *arg)
   thread_count--;
   mysql_cond_signal(&COND_thread_count); /* Tell main we are ready */
   mysql_mutex_unlock(&LOCK_thread_count);
-  free((uchar*) arg);
+  my_thread_end();
   return 0;
 }
 
@@ -1860,7 +1858,7 @@ int main(int argc __attribute__((unused)),char **argv __attribute__((unused)))
 {
   pthread_t tid;
   pthread_attr_t thr_attr;
-  int *param,error;
+  int param[array_elements(lock_counts)], error;
   uint i;
   MY_INIT(argv[0]);
   if (argc > 1 && argv[1][0] == '-' && argv[1][1] == '#')
@@ -1916,8 +1914,7 @@ int main(int argc __attribute__((unused)),char **argv __attribute__((unused)))
 #endif
   for (i=0 ; i < array_elements(lock_counts) ; i++)
   {
-    param=(int*) malloc(sizeof(int));
-    *param=i;
+    param[i]= i;
 
     if ((error= mysql_mutex_lock(&LOCK_thread_count)))
     {
@@ -1927,7 +1924,7 @@ int main(int argc __attribute__((unused)),char **argv __attribute__((unused)))
     }
     if ((error= mysql_thread_create(0,
                                     &tid, &thr_attr, test_thread,
-                                    (void*) param)))
+                                    (void*) &param[i])))
     {
       fprintf(stderr, "Got error: %d from mysql_thread_create (errno: %d)\n",
               error, errno);
@@ -1956,6 +1953,9 @@ int main(int argc __attribute__((unused)),char **argv __attribute__((unused)))
   else
 #endif
     printf("Test succeeded\n");
+  mysql_cond_destroy(&COND_thread_count);
+  mysql_mutex_destroy(&LOCK_thread_count);
+  my_end(MY_CHECK_ERROR);
   return 0;
 }
 

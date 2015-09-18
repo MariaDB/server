@@ -46,12 +46,22 @@ drop table t1;
 create table t1 (pk int primary key, apk int unique, data int) engine=aria;
 insert into t1 values (1, 1, 1), (4, 4, 4), (6, 6, 6);
 load data concurrent infile '../../std_data/loaddata5.dat' replace into table t1 fields terminated by '' enclosed by '' ignore 1 lines (pk, apk);
+Warnings:
+Note	1265	Data truncated for column 'pk' at row 1
+Note	1265	Data truncated for column 'apk' at row 1
+Note	1265	Data truncated for column 'pk' at row 2
+Note	1265	Data truncated for column 'apk' at row 2
 select * from t1 order by pk;
 pk	apk	data
 1	1	1
 3	4	NULL
 5	6	NULL
 load data infile '../../std_data/loaddata5.dat' replace into table t1 fields terminated by '' enclosed by '' ignore 1 lines (pk, apk);
+Warnings:
+Note	1265	Data truncated for column 'pk' at row 1
+Note	1265	Data truncated for column 'apk' at row 1
+Note	1265	Data truncated for column 'pk' at row 2
+Note	1265	Data truncated for column 'apk' at row 2
 select * from t1 order by pk;
 pk	apk	data
 1	1	1

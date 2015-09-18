@@ -17,10 +17,10 @@
 #ifndef LOG_H
 #define LOG_H
 
-#include "unireg.h"                    // REQUIRED: for other includes
 #include "handler.h"                            /* my_xid */
 #include "wsrep.h"
 #include "wsrep_mysqld.h"
+#include "rpl_constants.h"
 
 class Relay_log_info;
 
@@ -313,19 +313,22 @@ public:
 #endif
             const char *log_name,
             enum_log_type log_type,
-            const char *new_name,
+            const char *new_name, ulong next_file_number,
             enum cache_type io_cache_type_arg);
   bool init_and_set_log_file_name(const char *log_name,
                                   const char *new_name,
+                                  ulong next_log_number,
                                   enum_log_type log_type_arg,
                                   enum cache_type io_cache_type_arg);
   void init(enum_log_type log_type_arg,
             enum cache_type io_cache_type_arg);
   void close(uint exiting);
   inline bool is_open() { return log_state != LOG_CLOSED; }
-  const char *generate_name(const char *log_name, const char *suffix,
+  const char *generate_name(const char *log_name,
+                            const char *suffix,
                             bool strip_ext, char *buff);
-  int generate_new_name(char *new_name, const char *log_name);
+  int generate_new_name(char *new_name, const char *log_name,
+                        ulong next_log_number);
  protected:
   /* LOCK_log is inited by init_pthread_objects() */
   mysql_mutex_t LOCK_log;
@@ -366,7 +369,7 @@ public:
                 key_file_slow_log,
 #endif
                 generate_name(log_name, "-slow.log", 0, buf),
-                LOG_NORMAL, 0, WRITE_CACHE);
+                LOG_NORMAL, 0, 0, WRITE_CACHE);
   }
   bool open_query_log(const char *log_name)
   {
@@ -376,7 +379,7 @@ public:
                 key_file_query_log,
 #endif
                 generate_name(log_name, ".log", 0, buf),
-                LOG_NORMAL, 0, WRITE_CACHE);
+                LOG_NORMAL, 0, 0, WRITE_CACHE);
   }
 
 private:
@@ -524,6 +527,9 @@ class MYSQL_BIN_LOG: public TC_LOG, private MYSQL_LOG
   ulonglong group_commit_trigger_count, group_commit_trigger_timeout;
   ulonglong group_commit_trigger_lock_wait;
 
+  /* binlog encryption data */
+  struct Binlog_crypt_data crypto;
+
   /* pointer to the sync period variable, for binlog this will be
      sync_binlog_period, for relay log this will be
      sync_relay_log_period
@@ -588,7 +594,7 @@ public:
   /* This is relay log */
   bool is_relay_log;
   ulong signal_cnt;  // update of the counter is checked by heartbeat
-  uint8 checksum_alg_reset; // to contain a new value when binlog is rotated
+  enum enum_binlog_checksum_alg checksum_alg_reset; // to contain a new value when binlog is rotated
   /*
     Holds the last seen in Relay-Log FD's checksum alg value.
     The initial value comes from the slave's local FD that heads
@@ -622,7 +628,7 @@ public:
     (A)    - checksum algorithm descriptor value
     FD.(A) - the value of (A) in FD
   */
-  uint8 relay_log_checksum_alg;
+  enum enum_binlog_checksum_alg relay_log_checksum_alg;
   /*
     These describe the log's format. This is used only for relay logs.
     _for_exec is used by the SQL thread, _for_queue by the I/O thread. It's
@@ -707,6 +713,7 @@ public:
   bool open(const char *log_name,
             enum_log_type log_type,
             const char *new_name,
+            ulong next_log_number,
 	    enum cache_type io_cache_type_arg,
 	    ulong max_size,
             bool null_created,
@@ -733,11 +740,10 @@ public:
   void stop_union_events(THD *thd);
   bool is_query_in_union(THD *thd, query_id_t query_id_param);
 
-  /*
-    v stands for vector
-    invoked as appendv(buf1,len1,buf2,len2,...,bufn,lenn,0)
-  */
-  bool appendv(const char* buf,uint len,...);
+  bool write_event(Log_event *ev, IO_CACHE *file);
+  bool write_event(Log_event *ev) { return write_event(ev, &log_file); }
+
+  bool write_event_buffer(uchar* buf,uint len);
   bool append(Log_event* ev);
   bool append_no_lock(Log_event* ev);
 
@@ -780,7 +786,8 @@ public:
   int purge_index_entry(THD *thd, ulonglong *decrease_log_space,
                         bool need_mutex);
   bool reset_logs(THD* thd, bool create_new_log,
-                  rpl_gtid *init_state, uint32 init_state_len);
+                  rpl_gtid *init_state, uint32 init_state_len,
+                  ulong next_log_number);
   void close(uint exiting);
   void clear_inuse_flag_when_closing(File file);
 
@@ -1058,8 +1065,7 @@ int vprint_msg_to_log(enum loglevel level, const char *format, va_list args);
 void sql_print_error(const char *format, ...);
 void sql_print_warning(const char *format, ...);
 void sql_print_information(const char *format, ...);
-typedef void (*sql_print_message_func)(const char *format, ...)
-  ATTRIBUTE_FORMAT_FPTR(printf, 1, 2);
+typedef void (*sql_print_message_func)(const char *format, ...);
 extern sql_print_message_func sql_print_message_handlers[];
 
 int error_log_print(enum loglevel level, const char *format,
@@ -1087,6 +1093,8 @@ void binlog_reset_cache(THD *thd);
 extern MYSQL_PLUGIN_IMPORT MYSQL_BIN_LOG mysql_bin_log;
 extern LOGGER logger;
 
+extern const char *log_bin_index;
+extern const char *log_bin_basename;
 
 /**
   Turns a relative log binary log path into a full path, based on the

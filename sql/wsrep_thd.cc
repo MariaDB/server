@@ -122,10 +122,13 @@ static rpl_group_info* wsrep_relay_group_init(const char* log_fname)
   */
   rli->mi = new Master_info(&connection_name, false);
 
-  rli->sql_driver_thd= current_thd;
-
   struct rpl_group_info *rgi= new rpl_group_info(rli);
-  rgi->thd= current_thd;
+  rgi->thd= rli->sql_driver_thd= current_thd;
+
+  if ((rgi->deferred_events_collecting= rli->mi->rpl_filter->is_on()))
+  {
+    rgi->deferred_events= new Deferred_log_events(rli);
+  }
 
   return rgi;
 }
@@ -173,6 +176,8 @@ static void wsrep_return_from_bf_mode(THD *thd, struct wsrep_thd_shadow* shadow)
   delete thd->system_thread_info.rpl_sql_info;
   delete thd->wsrep_rgi->rli->mi;
   delete thd->wsrep_rgi->rli;
+
+  thd->wsrep_rgi->cleanup_after_session();
   delete thd->wsrep_rgi;
   thd->wsrep_rgi = NULL;
 }
@@ -567,10 +572,21 @@ int wsrep_abort_thd(void *bf_thd_ptr, void *victim_thd_ptr, my_bool signal)
   DBUG_ENTER("wsrep_abort_thd");
 
   if ( (WSREP(bf_thd) ||
-         ( (WSREP_ON || wsrep_OSU_method_options == WSREP_OSU_RSU) &&
-           bf_thd->wsrep_exec_mode == TOTAL_ORDER) )               &&
+         ( (WSREP_ON || bf_thd->variables.wsrep_OSU_method == WSREP_OSU_RSU) &&
+           bf_thd->wsrep_exec_mode == TOTAL_ORDER) )                         &&
        victim_thd)
   {
+    if ((victim_thd->wsrep_conflict_state == MUST_ABORT) ||
+        (victim_thd->wsrep_conflict_state == ABORTED) ||
+        (victim_thd->wsrep_conflict_state == ABORTING))
+    {
+      WSREP_DEBUG("wsrep_abort_thd called by %llu with victim %llu already "
+                  "aborted. Ignoring.",
+                  (bf_thd) ? (long long)bf_thd->real_id : 0,
+                  (long long)victim_thd->real_id);
+      DBUG_RETURN(1);
+    }
+
     WSREP_DEBUG("wsrep_abort_thd, by: %llu, victim: %llu", (bf_thd) ?
                 (long long)bf_thd->real_id : 0, (long long)victim_thd->real_id);
     ha_abort_transaction(bf_thd, victim_thd, signal);

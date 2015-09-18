@@ -219,6 +219,7 @@ delimiter ;|
 drop procedure if exists bug15298_1;
 drop procedure if exists bug15298_2;
 --enable_warnings
+create user 'mysqltest_1'@'localhost';
 grant all privileges on test.* to 'mysqltest_1'@'localhost';
 create procedure 15298_1 () sql security definer show grants for current_user;
 create procedure 15298_2 () sql security definer show grants;
@@ -486,6 +487,5 @@ drop user foo1@localhost;
 #
 
 set @@global.concurrent_insert= @old_concurrent_insert;
-
 # Wait till all disconnects are completed
 --source include/wait_until_count_sessions.inc

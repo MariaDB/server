@@ -2,6 +2,11 @@
 drop table if exists t1;
 --enable_warnings
 
+
+set global max_allowed_packet=1048576;
+connect (conn1,localhost,root,,);
+connection conn1;
+
 set names latin1;
 
 #
@@ -111,3 +116,34 @@ drop table t1;
 SELECT HEX(WEIGHT_STRING('ab' AS CHAR(1000000000000000000))); 
 SELECT HEX(WEIGHT_STRING('ab' AS BINARY(1000000000000000000))); 
 
+disconnect conn1;
+connection default;
+set global max_allowed_packet=default;
+
+--echo #
+--echo # Start of 10.1 tests
+--echo #
+
+--echo #
+--echo # MDEV-8369 Unexpected impossible WHERE for a condition on a ZEROFILL field
+--echo #
+CREATE TABLE t1 (a INT(6) ZEROFILL);
+INSERT INTO t1 VALUES (1),(2);
+SELECT * FROM t1 WHERE a=1;
+SELECT * FROM t1 WHERE WEIGHT_STRING(a) IS NULL;
+SELECT * FROM t1 WHERE a=1 AND WEIGHT_STRING(a) IS NULL;
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE a=1 AND WEIGHT_STRING(a) IS NULL;
+ALTER TABLE t1 MODIFY a DOUBLE ZEROFILL;
+SELECT * FROM t1 WHERE a=1 AND WEIGHT_STRING(a) IS NULL;
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE a=1 AND WEIGHT_STRING(a) IS NULL;
+ALTER TABLE t1 MODIFY a DECIMAL(10,1) ZEROFILL;
+SELECT * FROM t1 WHERE a=1 AND WEIGHT_STRING(a) IS NULL;
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE a=1 AND WEIGHT_STRING(a) IS NULL;
+DROP TABLE t1;
+
+--echo #
+--echo # End of 10.1 tests
+--echo #

@@ -487,11 +487,11 @@ protected:
 
   void destroy();
 
-  void insert(Query_cache_tls *query_cache_tls,
+  void insert(THD *thd, Query_cache_tls *query_cache_tls,
               const char *packet,
               ulong length,
               unsigned pkt_nr);
-  my_bool insert_table(uint key_len, const char *key,
+  my_bool insert_table(THD *thd, uint key_len, const char *key,
 		       Query_cache_block_table *node,
 		       uint32 db_length, uint8 suffix_length_arg,
                        uint8 cache_type,
@@ -500,7 +500,7 @@ protected:
                        my_bool hash);
 
   void end_of_result(THD *thd);
-  void abort(Query_cache_tls *query_cache_tls);
+  void abort(THD *thd, Query_cache_tls *query_cache_tls);
 
   /*
     The following functions are only used when debugging
@@ -558,7 +558,7 @@ struct Query_cache_query_flags
 #define QUERY_CACHE_FLAGS_SIZE sizeof(Query_cache_query_flags)
 #define QUERY_CACHE_DB_LENGTH_SIZE 2
 #include "sql_cache.h"
-#define query_cache_abort(A) query_cache.abort(A)
+#define query_cache_abort(A,B) query_cache.abort(A,B)
 #define query_cache_end_of_result(A) query_cache.end_of_result(A)
 #define query_cache_store_query(A, B) query_cache.store_query(A, B)
 #define query_cache_destroy() query_cache.destroy()
@@ -590,7 +590,7 @@ struct Query_cache_query_flags
 #define query_cache_send_result_to_client(A, B, C) 0
 #define query_cache_invalidate_by_MyISAM_filename_ref NULL
 
-#define query_cache_abort(A)              do { } while(0)
+#define query_cache_abort(A,B)            do { } while(0)
 #define query_cache_end_of_result(A)      do { } while(0)
 #define query_cache_maybe_disabled(T) 1
 #define query_cache_is_cacheable_query(L) 0

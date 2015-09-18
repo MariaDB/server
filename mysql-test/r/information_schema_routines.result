@@ -1,3 +1,5 @@
+set sql_mode="";
+set sql_mode="";
 # ========== routines.1 ==========
 USE INFORMATION_SCHEMA;
 SHOW CREATE TABLE INFORMATION_SCHEMA.ROUTINES;

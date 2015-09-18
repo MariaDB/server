@@ -89,14 +89,14 @@ static inline bool test_if_sum_overflows_ull(ulonglong arg1, ulonglong arg2)
 }
 
 
-void Item_args::set_arguments(List<Item> &list)
+void Item_args::set_arguments(THD *thd, List<Item> &list)
 {
   arg_count= list.elements;
   if (arg_count <= 2)
   {
     args= tmp_arg;
   }
-  else if (!(args= (Item**) sql_alloc(sizeof(Item*) * arg_count)))
+  else if (!(args= (Item**) thd->alloc(sizeof(Item*) * arg_count)))
   {
     arg_count= 0;
     return;
@@ -319,11 +319,11 @@ void Item_func::traverse_cond(Cond_traverser traverser,
 }
 
 
-bool Item_args::transform_args(Item_transformer transformer, uchar *arg)
+bool Item_args::transform_args(THD *thd, Item_transformer transformer, uchar *arg)
 {
   for (uint i= 0; i < arg_count; i++)
   {
-    Item *new_item= args[i]->transform(transformer, arg);
+    Item *new_item= args[i]->transform(thd, transformer, arg);
     if (!new_item)
       return true;
     /*
@@ -333,7 +333,7 @@ bool Item_args::transform_args(Item_transformer transformer, uchar *arg)
       change records at each execution.
     */
     if (args[i] != new_item)
-      current_thd->change_item_tree(&args[i], new_item);
+      thd->change_item_tree(&args[i], new_item);
   }
   return false;
 }
@@ -356,12 +356,12 @@ bool Item_args::transform_args(Item_transformer transformer, uchar *arg)
     Item returned as the result of transformation of the root node
 */
 
-Item *Item_func::transform(Item_transformer transformer, uchar *argument)
+Item *Item_func::transform(THD *thd, Item_transformer transformer, uchar *argument)
 {
-  DBUG_ASSERT(!current_thd->stmt_arena->is_stmt_prepare());
-  if (transform_args(transformer, argument))
+  DBUG_ASSERT(!thd->stmt_arena->is_stmt_prepare());
+  if (transform_args(thd, transformer, argument))
     return 0;
-  return (this->*transformer)(argument);
+  return (this->*transformer)(thd, argument);
 }
 
 
@@ -391,7 +391,7 @@ Item *Item_func::transform(Item_transformer transformer, uchar *argument)
     Item returned as the result of transformation of the root node
 */
 
-Item *Item_func::compile(Item_analyzer analyzer, uchar **arg_p,
+Item *Item_func::compile(THD *thd, Item_analyzer analyzer, uchar **arg_p,
                          Item_transformer transformer, uchar *arg_t)
 {
   if (!(this->*analyzer)(arg_p))
@@ -406,24 +406,38 @@ Item *Item_func::compile(Item_analyzer analyzer, uchar **arg_p,
         to analyze any argument of the condition formula.
       */
       uchar *arg_v= *arg_p;
-      Item *new_item= (*arg)->compile(analyzer, &arg_v, transformer, arg_t);
+      Item *new_item= (*arg)->compile(thd, analyzer, &arg_v, transformer,
+                                      arg_t);
       if (new_item && *arg != new_item)
-        current_thd->change_item_tree(arg, new_item);
+        thd->change_item_tree(arg, new_item);
     }
   }
-  return (this->*transformer)(arg_t);
+  return (this->*transformer)(thd, arg_t);
 }
+
+
+void Item_args::propagate_equal_fields(THD *thd,
+                                       const Item::Context &ctx,
+                                       COND_EQUAL *cond)
+{
+  uint i;
+  for (i= 0; i < arg_count; i++)
+    args[i]->propagate_equal_fields_and_change_item_tree(thd, ctx, cond,
+                                                         &args[i]);
+}
+
 
 /**
   See comments in Item_cond::split_sum_func()
 */
 
 void Item_func::split_sum_func(THD *thd, Item **ref_pointer_array,
-                               List<Item> &fields)
+                               List<Item> &fields, uint flags)
 {
   Item **arg, **arg_end;
   for (arg= args, arg_end= args+arg_count; arg != arg_end ; arg++)
-    (*arg)->split_sum_func2(thd, ref_pointer_array, fields, arg, TRUE);
+    (*arg)->split_sum_func2(thd, ref_pointer_array, fields, arg,
+                            flags | SPLIT_SUM_SKIP_REGISTERED);
 }
 
 
@@ -479,7 +493,11 @@ bool Item_func::eq(const Item *item, bool binary_cmp) const
   /* Assume we don't have rtti */
   if (this == item)
     return 1;
-  if (item->type() != FUNC_ITEM)
+  /*
+    Ensure that we are comparing two functions and that the function
+    is deterministic.
+  */
+  if (item->type() != FUNC_ITEM || (used_tables() & RAND_TABLE_BIT))
     return 0;
   Item_func *item_func=(Item_func*) item;
   Item_func::Functype func_type;
@@ -500,27 +518,30 @@ bool Item_func::eq(const Item *item, bool binary_cmp) const
 Field *Item_func::tmp_table_field(TABLE *table)
 {
   Field *field= NULL;
+  MEM_ROOT *mem_root= table->in_use->mem_root;
 
   switch (result_type()) {
   case INT_RESULT:
     if (max_char_length() > MY_INT32_NUM_DECIMAL_DIGITS)
-      field= new Field_longlong(max_char_length(), maybe_null, name,
-                                unsigned_flag);
+      field= new (mem_root)
+        Field_longlong(max_char_length(), maybe_null, name,
+                       unsigned_flag);
     else
-      field= new Field_long(max_char_length(), maybe_null, name,
-                            unsigned_flag);
+      field= new (mem_root)
+        Field_long(max_char_length(), maybe_null, name,
+                   unsigned_flag);
     break;
   case REAL_RESULT:
-    field= new Field_double(max_char_length(), maybe_null, name, decimals);
+    field= new (mem_root)
+      Field_double(max_char_length(), maybe_null, name, decimals);
     break;
   case STRING_RESULT:
     return make_string_field(table);
   case DECIMAL_RESULT:
-    field= Field_new_decimal::create_from_item(this);
+    field= Field_new_decimal::create_from_item(mem_root, this);
     break;
   case ROW_RESULT:
   case TIME_RESULT:
-  case IMPOSSIBLE_RESULT:
     // This case should never be chosen
     DBUG_ASSERT(0);
     field= 0;
@@ -692,12 +713,12 @@ void Item_func::count_real_length()
 
   @retval            False on success, true on error.
 */
-bool Item_func::count_string_result_length(enum_field_types field_type,
+bool Item_func::count_string_result_length(enum_field_types field_type_arg,
                                            Item **items, uint nitems)
 {
   if (agg_arg_charsets(collation, items, nitems, MY_COLL_ALLOW_CONV, 1))
     return true;
-  if (is_temporal_type(field_type))
+  if (is_temporal_type(field_type_arg))
     count_datetime_length(items, nitems);
   else
   {
@@ -713,7 +734,7 @@ void Item_func::signal_divide_by_null()
   THD *thd= current_thd;
   if (thd->variables.sql_mode & MODE_ERROR_FOR_DIVISION_BY_ZERO)
     push_warning(thd, Sql_condition::WARN_LEVEL_WARN, ER_DIVISION_BY_ZERO,
-                 ER(ER_DIVISION_BY_ZERO));
+                 ER_THD(thd, ER_DIVISION_BY_ZERO));
   null_value= 1;
 }
 
@@ -721,7 +742,7 @@ void Item_func::signal_divide_by_null()
 Item *Item_func::get_tmp_table_item(THD *thd)
 {
   if (!with_sum_func && !const_item())
-    return new Item_field(result_field);
+    return new (thd->mem_root) Item_field(thd, result_field);
   return copy_or_same(thd);
 }
 
@@ -730,16 +751,6 @@ double Item_int_func::val_real()
   DBUG_ASSERT(fixed == 1);
 
   return unsigned_flag ? (double) ((ulonglong) val_int()) : (double) val_int();
-}
-
-bool Item_int_func::count_sargable_conds(uchar *arg)
-{
-  if (sargable)
-  {
-    SELECT_LEX *sel= (SELECT_LEX *) arg;
-    sel->cond_count++;
-  }
-  return 0;
 }
 
 
@@ -844,7 +855,6 @@ void Item_func_num1::fix_length_and_dec()
     max_length= args[0]->max_length;
     break;
   case ROW_RESULT:
-  case IMPOSSIBLE_RESULT:
     DBUG_ASSERT(0);
   }
   DBUG_PRINT("info", ("Type: %s",
@@ -905,7 +915,6 @@ String *Item_func_hybrid_result_type::val_str(String *str)
     return str_op(&str_value);
   case TIME_RESULT:
   case ROW_RESULT:
-  case IMPOSSIBLE_RESULT:
     DBUG_ASSERT(0);
   }
   return str;
@@ -954,7 +963,6 @@ double Item_func_hybrid_result_type::val_real()
   }
   case TIME_RESULT:
   case ROW_RESULT:
-  case IMPOSSIBLE_RESULT:
     DBUG_ASSERT(0);
   }
   return 0.0;
@@ -1003,7 +1011,6 @@ longlong Item_func_hybrid_result_type::val_int()
   }
   case TIME_RESULT:
   case ROW_RESULT:
-  case IMPOSSIBLE_RESULT:
     DBUG_ASSERT(0);
   }
   return 0;
@@ -1055,7 +1062,6 @@ my_decimal *Item_func_hybrid_result_type::val_decimal(my_decimal *decimal_value)
   }  
   case ROW_RESULT:
   case TIME_RESULT:
-  case IMPOSSIBLE_RESULT:
     DBUG_ASSERT(0);
   }
   return val;
@@ -1109,7 +1115,6 @@ bool Item_func_hybrid_result_type::get_date(MYSQL_TIME *ltime,
   }
   case ROW_RESULT:
   case TIME_RESULT:
-  case IMPOSSIBLE_RESULT:
     DBUG_ASSERT(0);
   }
 
@@ -1132,11 +1137,8 @@ void Item_func_signed::print(String *str, enum_query_type query_type)
 
 longlong Item_func_signed::val_int_from_str(int *error)
 {
-  char buff[MAX_FIELD_WIDTH], *end, *start;
-  uint32 length;
+  char buff[MAX_FIELD_WIDTH];
   String tmp(buff,sizeof(buff), &my_charset_bin), *res;
-  longlong value;
-  CHARSET_INFO *cs;
 
   /*
     For a string result, we must first get the string and then convert it
@@ -1150,21 +1152,10 @@ longlong Item_func_signed::val_int_from_str(int *error)
     return 0;
   }
   null_value= 0;
-  start= (char *)res->ptr();
-  length= res->length();
-  cs= res->charset();
-
-  end= start + length;
-  value= cs->cset->strtoll10(cs, start, &end, error);
-  if (*error > 0 || end != start+ length)
-  {
-    ErrConvString err(res);
-    push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
-                        ER_TRUNCATED_WRONG_VALUE,
-                        ER(ER_TRUNCATED_WRONG_VALUE), "INTEGER",
-                        err.ptr());
-  }
-  return value;
+  Converter_strtoll10_with_warn cnv(NULL, Warn_filter_all(),
+                                    res->charset(), res->ptr(), res->length());
+  *error= cnv.error();
+  return cnv.result();
 }
 
 
@@ -1320,9 +1311,10 @@ my_decimal *Item_decimal_typecast::val_decimal(my_decimal *dec)
   return dec;
 
 err:
-  push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
+  THD *thd= current_thd;
+  push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                       ER_WARN_DATA_OUT_OF_RANGE,
-                      ER(ER_WARN_DATA_OUT_OF_RANGE),
+                      ER_THD(thd, ER_WARN_DATA_OUT_OF_RANGE),
                       name, 1L);
   return dec;
 }
@@ -1361,10 +1353,11 @@ double Item_double_typecast::val_real()
 
   if ((error= truncate_double(&tmp, max_length, decimals, 0, DBL_MAX)))
   {
-    push_warning_printf(current_thd,
+    THD *thd= current_thd;
+    push_warning_printf(thd,
                         Sql_condition::WARN_LEVEL_WARN,
                         ER_WARN_DATA_OUT_OF_RANGE,
-                        ER(ER_WARN_DATA_OUT_OF_RANGE),
+                        ER_THD(thd, ER_WARN_DATA_OUT_OF_RANGE),
                         name, 1);
     if (error < 0)
     {
@@ -1858,7 +1851,6 @@ void Item_func_div::fix_length_and_dec()
   case STRING_RESULT:
   case ROW_RESULT:
   case TIME_RESULT:
-  case IMPOSSIBLE_RESULT:
     DBUG_ASSERT(0);
   }
   maybe_null= 1; // devision by zero
@@ -2434,7 +2426,6 @@ void Item_func_int_val::fix_length_and_dec()
     }
     break;
   case ROW_RESULT:
-  case IMPOSSIBLE_RESULT:
     DBUG_ASSERT(0);
   }
   DBUG_PRINT("info", ("Type: %s",
@@ -2616,7 +2607,6 @@ void Item_func_round::fix_length_and_dec()
   }
   case ROW_RESULT:
   case TIME_RESULT:
-  case IMPOSSIBLE_RESULT:
     DBUG_ASSERT(0); /* This result type isn't handled */
   }
 }
@@ -2920,9 +2910,7 @@ bool Item_func_min_max::get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date)
 
   for (uint i=0; i < arg_count ; i++)
   {
-    Item **arg= args + i;
-    bool is_null;
-    longlong res= get_datetime_value(thd, &arg, 0, compare_as_dates, &is_null);
+    longlong res= args[i]->val_temporal_packed(compare_as_dates);
 
     /* Check if we need to stop (because of error or KILL) and stop the loop */
     if (thd->is_error() || args[i]->null_value)
@@ -2997,7 +2985,6 @@ String *Item_func_min_max::val_str(String *str)
   }
   case ROW_RESULT:
   case TIME_RESULT:
-  case IMPOSSIBLE_RESULT:
     DBUG_ASSERT(0);                // This case should never be chosen
     return 0;
   }
@@ -3486,7 +3473,7 @@ udf_handler::fix_fields(THD *thd, Item_func_or_sum *func,
   if ((f_args.arg_count=arg_count))
   {
     if (!(f_args.arg_type= (Item_result*)
-	  sql_alloc(f_args.arg_count*sizeof(Item_result))))
+	  thd->alloc(f_args.arg_count*sizeof(Item_result))))
 
     {
       free_udf(u_d);
@@ -3528,13 +3515,14 @@ udf_handler::fix_fields(THD *thd, Item_func_or_sum *func,
     }
     //TODO: why all following memory is not allocated with 1 call of sql_alloc?
     if (!(buffers=new String[arg_count]) ||
-	!(f_args.args= (char**) sql_alloc(arg_count * sizeof(char *))) ||
-	!(f_args.lengths= (ulong*) sql_alloc(arg_count * sizeof(long))) ||
-	!(f_args.maybe_null= (char*) sql_alloc(arg_count * sizeof(char))) ||
-	!(num_buffer= (char*) sql_alloc(arg_count *
+	!(f_args.args= (char**) thd->alloc(arg_count * sizeof(char *))) ||
+	!(f_args.lengths= (ulong*) thd->alloc(arg_count * sizeof(long))) ||
+	!(f_args.maybe_null= (char*) thd->alloc(arg_count * sizeof(char))) ||
+	!(num_buffer= (char*) thd->alloc(arg_count *
 					ALIGN_SIZE(sizeof(double)))) ||
-	!(f_args.attributes= (char**) sql_alloc(arg_count * sizeof(char *))) ||
-	!(f_args.attribute_lengths= (ulong*) sql_alloc(arg_count *
+	!(f_args.attributes= (char**) thd->alloc(arg_count *
+                                                 sizeof(char *))) ||
+	!(f_args.attribute_lengths= (ulong*) thd->alloc(arg_count *
 						       sizeof(long))))
     {
       free_udf(u_d);
@@ -3594,7 +3582,6 @@ udf_handler::fix_fields(THD *thd, Item_func_or_sum *func,
           break;
         case ROW_RESULT:
         case TIME_RESULT:
-        case IMPOSSIBLE_RESULT:
           DBUG_ASSERT(0);          // This case should never be chosen
           break;
         }
@@ -3623,7 +3610,7 @@ udf_handler::fix_fields(THD *thd, Item_func_or_sum *func,
   if (error)
   {
     my_error(ER_CANT_INITIALIZE_UDF, MYF(0),
-             u_d->name.str, ER(ER_UNKNOWN_ERROR));
+             u_d->name.str, ER_THD(thd, ER_UNKNOWN_ERROR));
     DBUG_RETURN(TRUE);
   }
   DBUG_RETURN(FALSE);
@@ -3673,7 +3660,6 @@ bool udf_handler::get_arguments()
       break;
     case ROW_RESULT:
     case TIME_RESULT:
-    case IMPOSSIBLE_RESULT:
       DBUG_ASSERT(0);              // This case should never be chosen
       break;
     }
@@ -4260,6 +4246,21 @@ longlong Item_func_get_lock::val_int()
     DBUG_RETURN(1);
   }
 
+  if (args[1]->null_value ||
+      (!args[1]->unsigned_flag && ((longlong) timeout < 0)))
+  {
+    char buf[22];
+    if (args[1]->null_value)
+      strmov(buf, "NULL");
+    else
+      llstr(((longlong) timeout), buf);
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                        ER_WRONG_VALUE_FOR_TYPE, ER(ER_WRONG_VALUE_FOR_TYPE),
+                        "timeout", buf, "get_lock");
+    null_value= 1;
+    DBUG_RETURN(0);
+  }
+
   if (!ull_name_ok(res))
     DBUG_RETURN(0);
   DBUG_PRINT("enter", ("lock: %.*s", res->length(), res->ptr()));
@@ -4455,7 +4456,7 @@ longlong Item_func_benchmark::val_int()
   char buff[MAX_FIELD_WIDTH];
   String tmp(buff,sizeof(buff), &my_charset_bin);
   my_decimal tmp_decimal;
-  THD *thd=current_thd;
+  THD *thd= current_thd;
   ulonglong loop_count;
 
   loop_count= (ulonglong) args[0]->val_int();
@@ -4467,8 +4468,9 @@ longlong Item_func_benchmark::val_int()
     {
       char buff[22];
       llstr(((longlong) loop_count), buff);
-      push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
-                          ER_WRONG_VALUE_FOR_TYPE, ER(ER_WRONG_VALUE_FOR_TYPE),
+      push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                          ER_WRONG_VALUE_FOR_TYPE,
+                          ER_THD(thd, ER_WRONG_VALUE_FOR_TYPE),
                           "count", buff, "benchmark");
     }
 
@@ -4494,7 +4496,6 @@ longlong Item_func_benchmark::val_int()
       break;
     case ROW_RESULT:
     case TIME_RESULT:
-    case IMPOSSIBLE_RESULT:
       DBUG_ASSERT(0);              // This case should never be chosen
       return 0;
     }
@@ -4933,7 +4934,6 @@ double user_var_entry::val_real(bool *null_value)
     return my_atof(value);                      // This is null terminated
   case ROW_RESULT:
   case TIME_RESULT:
-  case IMPOSSIBLE_RESULT:
     DBUG_ASSERT(0);				// Impossible
     break;
   }
@@ -4966,7 +4966,6 @@ longlong user_var_entry::val_int(bool *null_value) const
   }
   case ROW_RESULT:
   case TIME_RESULT:
-  case IMPOSSIBLE_RESULT:
     DBUG_ASSERT(0);				// Impossible
     break;
   }
@@ -5001,7 +5000,6 @@ String *user_var_entry::val_str(bool *null_value, String *str,
     break;
   case ROW_RESULT:
   case TIME_RESULT:
-  case IMPOSSIBLE_RESULT:
     DBUG_ASSERT(0);				// Impossible
     break;
   }
@@ -5030,7 +5028,6 @@ my_decimal *user_var_entry::val_decimal(bool *null_value, my_decimal *val)
     break;
   case ROW_RESULT:
   case TIME_RESULT:
-  case IMPOSSIBLE_RESULT:
     DBUG_ASSERT(0);				// Impossible
     break;
   }
@@ -5089,7 +5086,6 @@ Item_func_set_user_var::check(bool use_result_field)
   }
   case ROW_RESULT:
   case TIME_RESULT:
-  case IMPOSSIBLE_RESULT:
     DBUG_ASSERT(0);                // This case should never be chosen
     break;
   }
@@ -5124,7 +5120,6 @@ void Item_func_set_user_var::save_item_result(Item *item)
     break;
   case ROW_RESULT:
   case TIME_RESULT:
-  case IMPOSSIBLE_RESULT:
     DBUG_ASSERT(0);                // This case should never be chosen
     break;
   }
@@ -5192,7 +5187,6 @@ Item_func_set_user_var::update()
   }
   case ROW_RESULT:
   case TIME_RESULT:
-  case IMPOSSIBLE_RESULT:
     DBUG_ASSERT(0);                // This case should never be chosen
     break;
   }
@@ -5533,8 +5527,11 @@ get_var_with_binlog(THD *thd, enum_sql_command sql_command,
     LEX *sav_lex= thd->lex, lex_tmp;
     thd->lex= &lex_tmp;
     lex_start(thd);
-    tmp_var_list.push_back(new set_var_user(new Item_func_set_user_var(name,
-                                                                       new Item_null())));
+    tmp_var_list.push_back(new (thd->mem_root)
+                           set_var_user(new (thd->mem_root)
+                                        Item_func_set_user_var(thd, name,
+                                                               new (thd->mem_root) Item_null(thd))),
+                           thd->mem_root);
     /* Create the variable */
     if (sql_set_variables(thd, &tmp_var_list, false))
     {
@@ -5645,7 +5642,6 @@ void Item_func_get_user_var::fix_length_and_dec()
       break;
     case ROW_RESULT:                            // Keep compiler happy
     case TIME_RESULT:
-    case IMPOSSIBLE_RESULT:
       DBUG_ASSERT(0);                // This case should never be chosen
       break;
     }
@@ -5698,7 +5694,7 @@ bool Item_func_get_user_var::eq(const Item *item, bool binary_cmp) const
 bool Item_func_get_user_var::set_value(THD *thd,
                                        sp_rcontext * /*ctx*/, Item **it)
 {
-  Item_func_set_user_var *suv= new Item_func_set_user_var(get_name(), *it);
+  Item_func_set_user_var *suv= new (thd->mem_root) Item_func_set_user_var(thd, get_name(), *it);
   /*
     Item_func_set_user_var is not fixed after construction, call
     fix_fields().
@@ -5779,11 +5775,11 @@ void Item_user_var_as_out_param::print_for_load(THD *thd, String *str)
 
 
 Item_func_get_system_var::
-Item_func_get_system_var(sys_var *var_arg, enum_var_type var_type_arg,
+Item_func_get_system_var(THD *thd, sys_var *var_arg, enum_var_type var_type_arg,
                        LEX_STRING *component_arg, const char *name_arg,
-                       size_t name_len_arg)
-  :var(var_arg), var_type(var_type_arg), orig_var_type(var_type_arg),
-  component(*component_arg), cache_present(0)
+                       size_t name_len_arg):
+  Item_func(thd), var(var_arg), var_type(var_type_arg),
+  orig_var_type(var_type_arg), component(*component_arg), cache_present(0)
 {
   /* set_name() will allocate the name */
   set_name(name_arg, (uint) name_len_arg, system_charset_info);
@@ -6095,7 +6091,7 @@ void Item_func_get_system_var::cleanup()
 }
 
 
-void Item_func_match::init_search(bool no_order)
+void Item_func_match::init_search(THD *thd, bool no_order)
 {
   DBUG_ENTER("Item_func_match::init_search");
 
@@ -6113,10 +6109,12 @@ void Item_func_match::init_search(bool no_order)
   if (key == NO_SUCH_KEY)
   {
     List<Item> fields;
-    fields.push_back(new Item_string(" ", 1, cmp_collation.collation));
+    fields.push_back(new (thd->mem_root)
+                     Item_string(thd, " ", 1, cmp_collation.collation),
+                     thd->mem_root);
     for (uint i= 1; i < arg_count; i++)
       fields.push_back(args[i]);
-    concat_ws= new Item_func_concat_ws(fields);
+    concat_ws= new (thd->mem_root) Item_func_concat_ws(thd, fields);
     /*
       Above function used only to get value and do not need fix_fields for it:
       Item_string - basic constant
@@ -6129,7 +6127,7 @@ void Item_func_match::init_search(bool no_order)
   if (master)
   {
     join_key= master->join_key= join_key | master->join_key;
-    master->init_search(no_order);
+    master->init_search(thd, no_order);
     ft_handler= master->ft_handler;
     join_key= master->join_key;
     DBUG_VOID_RETURN;
@@ -6464,7 +6462,7 @@ Item *get_system_var(THD *thd, enum_var_type var_type, LEX_STRING name,
 
   set_if_smaller(component_name->length, MAX_SYS_VAR_LENGTH);
 
-  return new Item_func_get_system_var(var, var_type, component_name,
+  return new (thd->mem_root) Item_func_get_system_var(thd, var, var_type, component_name,
                                       NULL, 0);
 }
 
@@ -6480,23 +6478,25 @@ longlong Item_func_row_count::val_int()
 
 
 
-Item_func_sp::Item_func_sp(Name_resolution_context *context_arg, sp_name *name)
-  :Item_func(), context(context_arg), m_name(name), m_sp(NULL), sp_result_field(NULL)
+Item_func_sp::Item_func_sp(THD *thd, Name_resolution_context *context_arg,
+                           sp_name *name):
+  Item_func(thd), context(context_arg), m_name(name), m_sp(NULL), sp_result_field(NULL)
 {
   maybe_null= 1;
-  m_name->init_qname(current_thd);
-  dummy_table= (TABLE*) sql_calloc(sizeof(TABLE)+ sizeof(TABLE_SHARE));
+  m_name->init_qname(thd);
+  dummy_table= (TABLE*) thd->calloc(sizeof(TABLE)+ sizeof(TABLE_SHARE));
   dummy_table->s= (TABLE_SHARE*) (dummy_table+1);
 }
 
 
-Item_func_sp::Item_func_sp(Name_resolution_context *context_arg,
-                           sp_name *name, List<Item> &list)
-  :Item_func(list), context(context_arg), m_name(name), m_sp(NULL),sp_result_field(NULL)
+Item_func_sp::Item_func_sp(THD *thd, Name_resolution_context *context_arg,
+                           sp_name *name_arg, List<Item> &list):
+  Item_func(thd, list), context(context_arg), m_name(name_arg), m_sp(NULL),
+  sp_result_field(NULL)
 {
   maybe_null= 1;
-  m_name->init_qname(current_thd);
-  dummy_table= (TABLE*) sql_calloc(sizeof(TABLE)+ sizeof(TABLE_SHARE));
+  m_name->init_qname(thd);
+  dummy_table= (TABLE*) thd->calloc(sizeof(TABLE)+ sizeof(TABLE_SHARE));
   dummy_table->s= (TABLE_SHARE*) (dummy_table+1);
 }
 
@@ -6608,7 +6608,7 @@ Item_func_sp::init_result_field(THD *thd)
   if (sp_result_field->pack_length() > sizeof(result_buf))
   {
     void *tmp;
-    if (!(tmp= sql_alloc(sp_result_field->pack_length())))
+    if (!(tmp= thd->alloc(sp_result_field->pack_length())))
       DBUG_RETURN(TRUE);
     sp_result_field->move_field((uchar*) tmp);
   }

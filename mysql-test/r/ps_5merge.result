@@ -92,7 +92,7 @@ test_sequence
 prepare stmt1 from ' select * from t9 order by c1 ' ;
 execute stmt1;
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def	test	t9	t9	c1	c1	1	4	1	N	49155	0	63
+def	test	t9	t9	c1	c1	1	4	1	N	53251	0	63
 def	test	t9	t9	c2	c2	2	6	1	Y	32768	0	63
 def	test	t9	t9	c3	c3	9	9	1	Y	32768	0	63
 def	test	t9	t9	c4	c4	3	11	1	Y	32768	0	63
@@ -1695,21 +1695,21 @@ NULL                        as const12, @arg12 as param12,
 show create table t5 ;
 Table	Create Table
 t5	CREATE TABLE `t5` (
-  `const01` int(1) NOT NULL DEFAULT '0',
+  `const01` int(1) NOT NULL,
   `param01` bigint(20) DEFAULT NULL,
-  `const02` decimal(2,1) NOT NULL DEFAULT '0.0',
+  `const02` decimal(2,1) NOT NULL,
   `param02` decimal(65,30) DEFAULT NULL,
-  `const03` double NOT NULL DEFAULT '0',
+  `const03` double NOT NULL,
   `param03` double DEFAULT NULL,
-  `const04` varchar(3) NOT NULL DEFAULT '',
+  `const04` varchar(3) NOT NULL,
   `param04` longtext,
-  `const05` varbinary(3) NOT NULL DEFAULT '',
+  `const05` varbinary(3) NOT NULL,
   `param05` longblob,
-  `const06` varchar(10) NOT NULL DEFAULT '',
+  `const06` varchar(10) NOT NULL,
   `param06` longtext,
   `const07` date DEFAULT NULL,
   `param07` longtext,
-  `const08` varchar(19) NOT NULL DEFAULT '',
+  `const08` varchar(19) NOT NULL,
   `param08` longtext,
   `const09` datetime DEFAULT NULL,
   `param09` longtext,
@@ -1725,21 +1725,21 @@ t5	CREATE TABLE `t5` (
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 select * from t5 ;
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def	test	t5	t5	const01	const01	3	1	1	N	32769	0	63
+def	test	t5	t5	const01	const01	3	1	1	N	36865	0	63
 def	test	t5	t5	param01	param01	8	20	1	Y	32768	0	63
-def	test	t5	t5	const02	const02	246	4	3	N	32769	1	63
+def	test	t5	t5	const02	const02	246	4	3	N	36865	1	63
 def	test	t5	t5	param02	param02	246	67	32	Y	32768	30	63
-def	test	t5	t5	const03	const03	5	17	1	N	32769	31	63
+def	test	t5	t5	const03	const03	5	17	1	N	36865	31	63
 def	test	t5	t5	param03	param03	5	23	1	Y	32768	31	63
-def	test	t5	t5	const04	const04	253	3	3	N	1	0	8
+def	test	t5	t5	const04	const04	253	3	3	N	4097	0	8
 def	test	t5	t5	param04	param04	252	4294967295	3	Y	16	0	8
-def	test	t5	t5	const05	const05	253	3	3	N	129	0	63
+def	test	t5	t5	const05	const05	253	3	3	N	4225	0	63
 def	test	t5	t5	param05	param05	252	4294967295	3	Y	144	0	63
-def	test	t5	t5	const06	const06	253	10	10	N	1	0	8
+def	test	t5	t5	const06	const06	253	10	10	N	4097	0	8
 def	test	t5	t5	param06	param06	252	4294967295	10	Y	16	0	8
 def	test	t5	t5	const07	const07	10	10	10	Y	128	0	63
 def	test	t5	t5	param07	param07	252	4294967295	10	Y	16	0	8
-def	test	t5	t5	const08	const08	253	19	19	N	1	0	8
+def	test	t5	t5	const08	const08	253	19	19	N	4097	0	8
 def	test	t5	t5	param08	param08	252	4294967295	19	Y	16	0	8
 def	test	t5	t5	const09	const09	12	19	19	Y	128	0	63
 def	test	t5	t5	param09	param09	252	4294967295	19	Y	16	0	8
@@ -3446,7 +3446,7 @@ test_sequence
 prepare stmt1 from ' select * from t9 order by c1 ' ;
 execute stmt1;
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def	test	t9	t9	c1	c1	1	4	1	N	49155	0	63
+def	test	t9	t9	c1	c1	1	4	1	N	53251	0	63
 def	test	t9	t9	c2	c2	2	6	1	Y	32768	0	63
 def	test	t9	t9	c3	c3	9	9	1	Y	32768	0	63
 def	test	t9	t9	c4	c4	3	11	1	Y	32768	0	63
@@ -5049,21 +5049,21 @@ NULL                        as const12, @arg12 as param12,
 show create table t5 ;
 Table	Create Table
 t5	CREATE TABLE `t5` (
-  `const01` int(1) NOT NULL DEFAULT '0',
+  `const01` int(1) NOT NULL,
   `param01` bigint(20) DEFAULT NULL,
-  `const02` decimal(2,1) NOT NULL DEFAULT '0.0',
+  `const02` decimal(2,1) NOT NULL,
   `param02` decimal(65,30) DEFAULT NULL,
-  `const03` double NOT NULL DEFAULT '0',
+  `const03` double NOT NULL,
   `param03` double DEFAULT NULL,
-  `const04` varchar(3) NOT NULL DEFAULT '',
+  `const04` varchar(3) NOT NULL,
   `param04` longtext,
-  `const05` varbinary(3) NOT NULL DEFAULT '',
+  `const05` varbinary(3) NOT NULL,
   `param05` longblob,
-  `const06` varchar(10) NOT NULL DEFAULT '',
+  `const06` varchar(10) NOT NULL,
   `param06` longtext,
   `const07` date DEFAULT NULL,
   `param07` longtext,
-  `const08` varchar(19) NOT NULL DEFAULT '',
+  `const08` varchar(19) NOT NULL,
   `param08` longtext,
   `const09` datetime DEFAULT NULL,
   `param09` longtext,
@@ -5079,21 +5079,21 @@ t5	CREATE TABLE `t5` (
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 select * from t5 ;
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def	test	t5	t5	const01	const01	3	1	1	N	32769	0	63
+def	test	t5	t5	const01	const01	3	1	1	N	36865	0	63
 def	test	t5	t5	param01	param01	8	20	1	Y	32768	0	63
-def	test	t5	t5	const02	const02	246	4	3	N	32769	1	63
+def	test	t5	t5	const02	const02	246	4	3	N	36865	1	63
 def	test	t5	t5	param02	param02	246	67	32	Y	32768	30	63
-def	test	t5	t5	const03	const03	5	17	1	N	32769	31	63
+def	test	t5	t5	const03	const03	5	17	1	N	36865	31	63
 def	test	t5	t5	param03	param03	5	23	1	Y	32768	31	63
-def	test	t5	t5	const04	const04	253	3	3	N	1	0	8
+def	test	t5	t5	const04	const04	253	3	3	N	4097	0	8
 def	test	t5	t5	param04	param04	252	4294967295	3	Y	16	0	8
-def	test	t5	t5	const05	const05	253	3	3	N	129	0	63
+def	test	t5	t5	const05	const05	253	3	3	N	4225	0	63
 def	test	t5	t5	param05	param05	252	4294967295	3	Y	144	0	63
-def	test	t5	t5	const06	const06	253	10	10	N	1	0	8
+def	test	t5	t5	const06	const06	253	10	10	N	4097	0	8
 def	test	t5	t5	param06	param06	252	4294967295	10	Y	16	0	8
 def	test	t5	t5	const07	const07	10	10	10	Y	128	0	63
 def	test	t5	t5	param07	param07	252	4294967295	10	Y	16	0	8
-def	test	t5	t5	const08	const08	253	19	19	N	1	0	8
+def	test	t5	t5	const08	const08	253	19	19	N	4097	0	8
 def	test	t5	t5	param08	param08	252	4294967295	19	Y	16	0	8
 def	test	t5	t5	const09	const09	12	19	19	Y	128	0	63
 def	test	t5	t5	param09	param09	252	4294967295	19	Y	16	0	8

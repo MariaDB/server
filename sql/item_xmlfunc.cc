@@ -99,6 +99,7 @@ typedef struct my_xpath_function_names_st
 /* XPath query parser */
 typedef struct my_xpath_st
 {
+  THD *thd;
   int debug;
   MY_XPATH_LEX query;    /* Whole query                               */
   MY_XPATH_LEX lasttok;  /* last scanned token                        */
@@ -166,13 +167,14 @@ protected:
 public:
   String *pxml;
   String context_cache;
-  Item_nodeset_func(String *pxml_arg) :Item_str_func(), pxml(pxml_arg) {}
-  Item_nodeset_func(Item *a, String *pxml_arg) 
-    :Item_str_func(a), pxml(pxml_arg) {}
-  Item_nodeset_func(Item *a, Item *b, String *pxml_arg) 
-    :Item_str_func(a, b), pxml(pxml_arg) {}
-  Item_nodeset_func(Item *a, Item *b, Item *c, String *pxml_arg) 
-    :Item_str_func(a,b,c), pxml(pxml_arg) {}
+  Item_nodeset_func(THD *thd, String *pxml_arg):
+    Item_str_func(thd), pxml(pxml_arg) {}
+  Item_nodeset_func(THD *thd, Item *a, String *pxml_arg):
+    Item_str_func(thd, a), pxml(pxml_arg) {}
+  Item_nodeset_func(THD *thd, Item *a, Item *b, String *pxml_arg):
+    Item_str_func(thd, a, b), pxml(pxml_arg) {}
+  Item_nodeset_func(THD *thd, Item *a, Item *b, Item *c, String *pxml_arg):
+    Item_str_func(thd, a, b, c), pxml(pxml_arg) {}
   void prepare_nodes()
   {
     nodebeg= (MY_XML_NODE*) pxml->ptr();
@@ -244,7 +246,8 @@ public:
 class Item_nodeset_func_rootelement :public Item_nodeset_func
 {
 public:
-  Item_nodeset_func_rootelement(String *pxml): Item_nodeset_func(pxml) {}
+  Item_nodeset_func_rootelement(THD *thd, String *pxml):
+    Item_nodeset_func(thd, pxml) {}
   const char *func_name() const { return "xpath_rootelement"; }
   String *val_nodeset(String *nodeset);
 };
@@ -254,8 +257,8 @@ public:
 class Item_nodeset_func_union :public Item_nodeset_func
 {
 public:
-  Item_nodeset_func_union(Item *a, Item *b, String *pxml)
-    :Item_nodeset_func(a, b, pxml) {}
+  Item_nodeset_func_union(THD *thd, Item *a, Item *b, String *pxml):
+    Item_nodeset_func(thd, a, b, pxml) {}
   const char *func_name() const { return "xpath_union"; }
   String *val_nodeset(String *nodeset);
 };
@@ -267,9 +270,9 @@ class Item_nodeset_func_axisbyname :public Item_nodeset_func
   const char *node_name;
   uint node_namelen;
 public:
-  Item_nodeset_func_axisbyname(Item *a, const char *n_arg, uint l_arg,
-                               String *pxml): 
-    Item_nodeset_func(a, pxml), node_name(n_arg), node_namelen(l_arg) { }
+  Item_nodeset_func_axisbyname(THD *thd, Item *a, const char *n_arg, uint l_arg,
+                               String *pxml):
+    Item_nodeset_func(thd, a, pxml), node_name(n_arg), node_namelen(l_arg) { }
   const char *func_name() const { return "xpath_axisbyname"; }
   bool validname(MY_XML_NODE *n)
   {
@@ -285,9 +288,9 @@ public:
 class Item_nodeset_func_selfbyname: public Item_nodeset_func_axisbyname
 {
 public:
-  Item_nodeset_func_selfbyname(Item *a, const char *n_arg, uint l_arg,
-                                String *pxml): 
-    Item_nodeset_func_axisbyname(a, n_arg, l_arg, pxml) {}
+  Item_nodeset_func_selfbyname(THD *thd, Item *a, const char *n_arg, uint l_arg,
+                               String *pxml):
+    Item_nodeset_func_axisbyname(thd, a, n_arg, l_arg, pxml) {}
   const char *func_name() const { return "xpath_selfbyname"; }
   String *val_nodeset(String *nodeset);
 };
@@ -297,9 +300,9 @@ public:
 class Item_nodeset_func_childbyname: public Item_nodeset_func_axisbyname
 {
 public:
-  Item_nodeset_func_childbyname(Item *a, const char *n_arg, uint l_arg,
+  Item_nodeset_func_childbyname(THD *thd, Item *a, const char *n_arg, uint l_arg,
                                 String *pxml): 
-    Item_nodeset_func_axisbyname(a, n_arg, l_arg, pxml) {}
+    Item_nodeset_func_axisbyname(thd, a, n_arg, l_arg, pxml) {}
   const char *func_name() const { return "xpath_childbyname"; }
   String *val_nodeset(String *nodeset);
 };
@@ -310,9 +313,9 @@ class Item_nodeset_func_descendantbyname: public Item_nodeset_func_axisbyname
 {
   bool need_self;
 public:
-  Item_nodeset_func_descendantbyname(Item *a, const char *n_arg, uint l_arg,
-                                     String *pxml, bool need_self_arg): 
-    Item_nodeset_func_axisbyname(a, n_arg, l_arg, pxml), 
+  Item_nodeset_func_descendantbyname(THD *thd, Item *a, const char *n_arg, uint l_arg,
+                                     String *pxml, bool need_self_arg):
+    Item_nodeset_func_axisbyname(thd, a, n_arg, l_arg, pxml),
       need_self(need_self_arg) {}
   const char *func_name() const { return "xpath_descendantbyname"; }
   String *val_nodeset(String *nodeset);
@@ -324,9 +327,9 @@ class Item_nodeset_func_ancestorbyname: public Item_nodeset_func_axisbyname
 {
   bool need_self;
 public:
-  Item_nodeset_func_ancestorbyname(Item *a, const char *n_arg, uint l_arg,
-                                   String *pxml, bool need_self_arg): 
-    Item_nodeset_func_axisbyname(a, n_arg, l_arg, pxml),
+  Item_nodeset_func_ancestorbyname(THD *thd, Item *a, const char *n_arg, uint l_arg,
+                                   String *pxml, bool need_self_arg):
+    Item_nodeset_func_axisbyname(thd, a, n_arg, l_arg, pxml),
       need_self(need_self_arg) {}
   const char *func_name() const { return "xpath_ancestorbyname"; }
   String *val_nodeset(String *nodeset);
@@ -337,9 +340,9 @@ public:
 class Item_nodeset_func_parentbyname: public Item_nodeset_func_axisbyname
 {
 public:
-  Item_nodeset_func_parentbyname(Item *a, const char *n_arg, uint l_arg,
-                                 String *pxml): 
-    Item_nodeset_func_axisbyname(a, n_arg, l_arg, pxml) {}
+  Item_nodeset_func_parentbyname(THD *thd, Item *a, const char *n_arg, uint l_arg,
+                                 String *pxml):
+    Item_nodeset_func_axisbyname(thd, a, n_arg, l_arg, pxml) {}
   const char *func_name() const { return "xpath_parentbyname"; }
   String *val_nodeset(String *nodeset);
 };
@@ -349,9 +352,9 @@ public:
 class Item_nodeset_func_attributebyname: public Item_nodeset_func_axisbyname
 {
 public:
-  Item_nodeset_func_attributebyname(Item *a, const char *n_arg, uint l_arg,
-                                    String *pxml): 
-    Item_nodeset_func_axisbyname(a, n_arg, l_arg, pxml) {}
+  Item_nodeset_func_attributebyname(THD *thd, Item *a, const char *n_arg,
+                                    uint l_arg, String *pxml):
+    Item_nodeset_func_axisbyname(thd, a, n_arg, l_arg, pxml) {}
   const char *func_name() const { return "xpath_attributebyname"; }
   String *val_nodeset(String *nodeset);
 };
@@ -365,8 +368,8 @@ public:
 class Item_nodeset_func_predicate :public Item_nodeset_func
 {
 public:
-  Item_nodeset_func_predicate(Item *a, Item *b, String *pxml):
-    Item_nodeset_func(a, b, pxml) {}
+  Item_nodeset_func_predicate(THD *thd, Item *a, Item *b, String *pxml):
+    Item_nodeset_func(thd, a, b, pxml) {}
   const char *func_name() const { return "xpath_predicate"; }
   String *val_nodeset(String *nodeset);
 };
@@ -376,8 +379,8 @@ public:
 class Item_nodeset_func_elementbyindex :public Item_nodeset_func
 {
 public:
-  Item_nodeset_func_elementbyindex(Item *a, Item *b, String *pxml): 
-    Item_nodeset_func(a, b, pxml) { }
+  Item_nodeset_func_elementbyindex(THD *thd, Item *a, Item *b, String *pxml):
+    Item_nodeset_func(thd, a, b, pxml) { }
   const char *func_name() const { return "xpath_elementbyindex"; }
   String *val_nodeset(String *nodeset);
 };
@@ -390,7 +393,7 @@ public:
 class Item_bool :public Item_int
 {
 public:
-  Item_bool(int32 i): Item_int(i) {}
+  Item_bool(THD *thd, int32 i): Item_int(thd, i) {}
   const char *func_name() const { return "xpath_bool"; }
   bool is_bool_type() { return true; }
 };
@@ -407,8 +410,8 @@ class Item_xpath_cast_bool :public Item_bool_func
   String *pxml;
   String tmp_value;
 public:
-  Item_xpath_cast_bool(Item *a, String *pxml_arg)
-    :Item_bool_func(a), pxml(pxml_arg) {}
+  Item_xpath_cast_bool(THD *thd, Item *a, String *pxml_arg):
+    Item_bool_func(thd, a), pxml(pxml_arg) {}
   const char *func_name() const { return "xpath_cast_bool"; }
   longlong val_int()
   {
@@ -428,7 +431,7 @@ public:
 class Item_xpath_cast_number :public Item_real_func
 {
 public:
-  Item_xpath_cast_number(Item *a): Item_real_func(a) {}
+  Item_xpath_cast_number(THD *thd, Item *a): Item_real_func(thd, a) {}
   const char *func_name() const { return "xpath_cast_number"; }
   virtual double val_real() { return args[0]->val_real(); }
 };
@@ -441,8 +444,8 @@ class Item_nodeset_context_cache :public Item_nodeset_func
 {
 public:
   String *string_cache;
-  Item_nodeset_context_cache(String *str_arg, String *pxml):
-    Item_nodeset_func(pxml), string_cache(str_arg) { }
+  Item_nodeset_context_cache(THD *thd, String *str_arg, String *pxml):
+    Item_nodeset_func(thd, pxml), string_cache(str_arg) { }
   String *val_nodeset(String *res)
   { return string_cache; }
   void fix_length_and_dec() { max_length= MAX_BLOB_WIDTH; }
@@ -454,8 +457,8 @@ class Item_func_xpath_position :public Item_int_func
   String *pxml;
   String tmp_value;
 public:
-  Item_func_xpath_position(Item *a, String *p)
-    :Item_int_func(a), pxml(p) {}
+  Item_func_xpath_position(THD *thd, Item *a, String *p):
+    Item_int_func(thd, a), pxml(p) {}
   const char *func_name() const { return "xpath_position"; }
   void fix_length_and_dec() { max_length=10; }
   longlong val_int()
@@ -473,8 +476,8 @@ class Item_func_xpath_count :public Item_int_func
   String *pxml;
   String tmp_value;
 public:
-  Item_func_xpath_count(Item *a, String *p)
-    :Item_int_func(a), pxml(p) {}
+  Item_func_xpath_count(THD *thd, Item *a, String *p):
+    Item_int_func(thd, a), pxml(p) {}
   const char *func_name() const { return "xpath_count"; }
   void fix_length_and_dec() { max_length=10; }
   longlong val_int()
@@ -494,8 +497,8 @@ class Item_func_xpath_sum :public Item_real_func
   String *pxml;
   String tmp_value;
 public:
-  Item_func_xpath_sum(Item *a, String *p)
-    :Item_real_func(a), pxml(p) {}
+  Item_func_xpath_sum(THD *thd, Item *a, String *p):
+    Item_real_func(thd, a), pxml(p) {}
 
   const char *func_name() const { return "xpath_sum"; }
   double val_real()
@@ -538,8 +541,9 @@ public:
 class Item_string_xml_non_const: public Item_string
 {
 public:
-  Item_string_xml_non_const(const char *str, uint length, CHARSET_INFO *cs)
-    :Item_string(str, length, cs)
+  Item_string_xml_non_const(THD *thd, const char *str, uint length,
+                            CHARSET_INFO *cs):
+    Item_string(thd, str, length, cs)
   { }
   bool const_item() const { return false ; }
   bool basic_const_item() const { return false; }
@@ -547,7 +551,7 @@ public:
   {
     str_value.set(str, length, cs);
   }
-  Item *safe_charset_converter(CHARSET_INFO *tocs)
+  Item *safe_charset_converter(THD *thd, CHARSET_INFO *tocs)
   {
     /*
       Item_string::safe_charset_converter() does not accept non-constants.
@@ -563,8 +567,9 @@ class Item_nodeset_to_const_comparator :public Item_bool_func
   String *pxml;
   String tmp_nodeset;
 public:
-  Item_nodeset_to_const_comparator(Item *nodeset, Item *cmpfunc, String *p) 
-    :Item_bool_func(nodeset,cmpfunc), pxml(p) {}
+  Item_nodeset_to_const_comparator(THD *thd, Item *nodeset, Item *cmpfunc,
+                                   String *p):
+    Item_bool_func(thd, nodeset, cmpfunc), pxml(p) {}
   enum Type type() const { return XPATH_NODESET_CMP; };
   const char *func_name() const { return "xpath_nodeset_to_const_comparator"; }
   bool check_vcol_func_processor(uchar *int_arg) 
@@ -835,7 +840,8 @@ String *Item_nodeset_func_elementbyindex::val_nodeset(String *nodeset)
 static Item* nodeset2bool(MY_XPATH *xpath, Item *item)
 {
   if (item->type() == Item::XPATH_NODESET)
-    return new Item_xpath_cast_bool(item, xpath->pxml);
+    return new (xpath->thd->mem_root)
+      Item_xpath_cast_bool(xpath->thd, item, xpath->pxml);
   return item;
 }
 
@@ -905,16 +911,17 @@ static Item* nodeset2bool(MY_XPATH *xpath, Item *item)
   RETURN
     The newly created item.
 */
-static Item *eq_func(int oper, Item *a, Item *b)
+static Item *eq_func(THD *thd, int oper, Item *a, Item *b)
 {
+  MEM_ROOT *mem_root= thd->mem_root;
   switch (oper)
   {
-    case '=': return new Item_func_eq(a, b);
-    case '!': return new Item_func_ne(a, b);
-    case MY_XPATH_LEX_GE: return new Item_func_ge(a, b);
-    case MY_XPATH_LEX_LE: return new Item_func_le(a, b);
-    case MY_XPATH_LEX_GREATER: return new Item_func_gt(a, b);
-    case MY_XPATH_LEX_LESS: return new Item_func_lt(a, b);
+    case '=': return new (mem_root) Item_func_eq(thd, a, b);
+    case '!': return new (mem_root) Item_func_ne(thd, a, b);
+    case MY_XPATH_LEX_GE: return new (mem_root) Item_func_ge(thd, a, b);
+    case MY_XPATH_LEX_LE: return new (mem_root) Item_func_le(thd, a, b);
+    case MY_XPATH_LEX_GREATER: return new (mem_root) Item_func_gt(thd, a, b);
+    case MY_XPATH_LEX_LESS: return new (mem_root) Item_func_lt(thd, a, b);
   }
   return 0;
 }
@@ -932,16 +939,17 @@ static Item *eq_func(int oper, Item *a, Item *b)
   RETURN
     The newly created item.
 */
-static Item *eq_func_reverse(int oper, Item *a, Item *b)
+static Item *eq_func_reverse(THD *thd, int oper, Item *a, Item *b)
 {
+  MEM_ROOT *mem_root= thd->mem_root;
   switch (oper)
   {
-    case '=': return new Item_func_eq(a, b);
-    case '!': return new Item_func_ne(a, b);
-    case MY_XPATH_LEX_GE: return new Item_func_le(a, b);
-    case MY_XPATH_LEX_LE: return new Item_func_ge(a, b);
-    case MY_XPATH_LEX_GREATER: return new Item_func_lt(a, b);
-    case MY_XPATH_LEX_LESS: return new Item_func_gt(a, b);
+    case '=': return new (mem_root) Item_func_eq(thd, a, b);
+    case '!': return new (mem_root) Item_func_ne(thd, a, b);
+    case MY_XPATH_LEX_GE: return new (mem_root) Item_func_le(thd, a, b);
+    case MY_XPATH_LEX_LE: return new (mem_root) Item_func_ge(thd, a, b);
+    case MY_XPATH_LEX_GREATER: return new (mem_root) Item_func_lt(thd, a, b);
+    case MY_XPATH_LEX_LESS: return new (mem_root) Item_func_gt(thd, a, b);
   }
   return 0;
 }
@@ -964,7 +972,7 @@ static Item *create_comparator(MY_XPATH *xpath,
   if (a->type() != Item::XPATH_NODESET &&
       b->type() != Item::XPATH_NODESET)
   {
-    return eq_func(oper, a, b); // two scalar arguments
+    return eq_func(xpath->thd, oper, a, b); // two scalar arguments
   }
   else if (a->type() == Item::XPATH_NODESET &&
            b->type() == Item::XPATH_NODESET)
@@ -987,22 +995,25 @@ static Item *create_comparator(MY_XPATH *xpath,
      in a loop through all of the nodes in the node set.
     */
 
-    Item_string *fake= new Item_string_xml_non_const("", 0, xpath->cs);
+    THD *thd= xpath->thd;
+    Item_string *fake= (new (thd->mem_root)
+                        Item_string_xml_non_const(thd, "", 0, xpath->cs));
     Item_nodeset_func *nodeset;
     Item *scalar, *comp;
     if (a->type() == Item::XPATH_NODESET)
     {
       nodeset= (Item_nodeset_func*) a;
       scalar= b;
-      comp= eq_func(oper, (Item*)fake, scalar);
+      comp= eq_func(thd, oper, (Item*)fake, scalar);
     }
     else
     {
       nodeset= (Item_nodeset_func*) b;
       scalar= a;
-      comp= eq_func_reverse(oper, fake, scalar);
+      comp= eq_func_reverse(thd, oper, fake, scalar);
     }
-    return new Item_nodeset_to_const_comparator(nodeset, comp, xpath->pxml);
+    return (new (thd->mem_root)
+            Item_nodeset_to_const_comparator(thd, nodeset, comp, xpath->pxml));
   }
 }
 
@@ -1019,6 +1030,9 @@ static Item *create_comparator(MY_XPATH *xpath,
 static Item* nametestfunc(MY_XPATH *xpath,
                           int type, Item *arg, const char *beg, uint len)
 {
+  THD *thd= xpath->thd;
+  MEM_ROOT *mem_root= thd->mem_root;
+
   DBUG_ASSERT(arg != 0);
   DBUG_ASSERT(arg->type() == Item::XPATH_NODESET);
   DBUG_ASSERT(beg != 0);
@@ -1028,28 +1042,36 @@ static Item* nametestfunc(MY_XPATH *xpath,
   switch (type)
   {
   case MY_XPATH_AXIS_ANCESTOR:
-    res= new Item_nodeset_func_ancestorbyname(arg, beg, len, xpath->pxml, 0);
+    res= new (mem_root) Item_nodeset_func_ancestorbyname(thd, arg, beg, len,
+                                              xpath->pxml, 0);
     break;
   case MY_XPATH_AXIS_ANCESTOR_OR_SELF:
-    res= new Item_nodeset_func_ancestorbyname(arg, beg, len, xpath->pxml, 1);
+    res= new (mem_root) Item_nodeset_func_ancestorbyname(thd, arg, beg, len,
+                                              xpath->pxml, 1);
     break;
   case MY_XPATH_AXIS_PARENT:
-    res= new Item_nodeset_func_parentbyname(arg, beg, len, xpath->pxml);
+    res= new (mem_root) Item_nodeset_func_parentbyname(thd, arg, beg, len,
+                                            xpath->pxml);
     break;
   case MY_XPATH_AXIS_DESCENDANT:
-    res= new Item_nodeset_func_descendantbyname(arg, beg, len, xpath->pxml, 0);
+    res= new (mem_root) Item_nodeset_func_descendantbyname(thd, arg, beg, len,
+                                                xpath->pxml, 0);
     break;
   case MY_XPATH_AXIS_DESCENDANT_OR_SELF:
-    res= new Item_nodeset_func_descendantbyname(arg, beg, len, xpath->pxml, 1);
+    res= new (mem_root) Item_nodeset_func_descendantbyname(thd, arg, beg, len,
+                                                xpath->pxml, 1);
     break;
   case MY_XPATH_AXIS_ATTRIBUTE:
-    res= new Item_nodeset_func_attributebyname(arg, beg, len, xpath->pxml);
+    res= new (mem_root) Item_nodeset_func_attributebyname(thd, arg, beg, len,
+                                               xpath->pxml);
     break;
   case MY_XPATH_AXIS_SELF:
-    res= new Item_nodeset_func_selfbyname(arg, beg, len, xpath->pxml);
+    res= new (mem_root) Item_nodeset_func_selfbyname(thd, arg, beg, len,
+                                          xpath->pxml);
     break;
   default:
-    res= new Item_nodeset_func_childbyname(arg, beg, len, xpath->pxml);
+    res= new (mem_root) Item_nodeset_func_childbyname(thd, arg, beg, len,
+                                           xpath->pxml);
   }
   return res;
 }
@@ -1157,101 +1179,117 @@ my_xpath_keyword(MY_XPATH *x,
 */
 
 static Item *create_func_true(MY_XPATH *xpath, Item **args, uint nargs)
-{ 
-  return new Item_bool(1);
+{
+  return new (xpath->thd->mem_root) Item_bool(xpath->thd, 1);
 }
 
 
 static Item *create_func_false(MY_XPATH *xpath, Item **args, uint nargs)
-{ 
-  return new Item_bool(0);
+{
+  return new (xpath->thd->mem_root) Item_bool(xpath->thd, 0);
 }
 
 
 static Item *create_func_not(MY_XPATH *xpath, Item **args, uint nargs)
-{ 
-  return new Item_func_not(nodeset2bool(xpath, args[0]));
+{
+  return new (xpath->thd->mem_root)
+    Item_func_not(xpath->thd, nodeset2bool(xpath, args[0]));
 }
 
 
 static Item *create_func_ceiling(MY_XPATH *xpath, Item **args, uint nargs)
 {
-  return new Item_func_ceiling(args[0]);
+  return new (xpath->thd->mem_root) Item_func_ceiling(xpath->thd, args[0]);
 }
 
 
 static Item *create_func_floor(MY_XPATH *xpath, Item **args, uint nargs)
 {
-  return new Item_func_floor(args[0]);
+  return new (xpath->thd->mem_root) Item_func_floor(xpath->thd, args[0]);
 }
 
 
 static Item *create_func_bool(MY_XPATH *xpath, Item **args, uint nargs)
 {
-  return new Item_xpath_cast_bool(args[0], xpath->pxml);
+  return new (xpath->thd->mem_root)
+    Item_xpath_cast_bool(xpath->thd, args[0], xpath->pxml);
 }
 
 
 static Item *create_func_number(MY_XPATH *xpath, Item **args, uint nargs)
 {
-  return new Item_xpath_cast_number(args[0]);
+  return new (xpath->thd->mem_root)
+    Item_xpath_cast_number(xpath->thd, args[0]);
 }
 
 
-static Item *create_func_string_length(MY_XPATH *xpath, Item **args, uint nargs)
+static Item *create_func_string_length(MY_XPATH *xpath, Item **args,
+                                       uint nargs)
 {
   Item *arg= nargs ? args[0] : xpath->context;
-  return arg ? new Item_func_char_length(arg) : 0;
+  return arg ? new (xpath->thd->mem_root)
+    Item_func_char_length(xpath->thd, arg) : 0;
 }
 
 
 static Item *create_func_round(MY_XPATH *xpath, Item **args, uint nargs)
 {
-  return new Item_func_round(args[0], new Item_int((char*)"0",0,1),0);
+  return new (xpath->thd->mem_root)
+    Item_func_round(xpath->thd, args[0],
+                    new (xpath->thd->mem_root)
+                    Item_int(xpath->thd, (char *) "0", 0, 1), 0);
 }
 
 
 static Item *create_func_last(MY_XPATH *xpath, Item **args, uint nargs)
 {
-  return xpath->context ? 
-         new Item_func_xpath_count(xpath->context, xpath->pxml) : NULL;
+  return (xpath->context ?
+          new (xpath->thd->mem_root)
+          Item_func_xpath_count(xpath->thd, xpath->context, xpath->pxml) :
+          NULL);
 }
 
 
 static Item *create_func_position(MY_XPATH *xpath, Item **args, uint nargs)
 {
-  return xpath->context ? 
-         new Item_func_xpath_position(xpath->context, xpath->pxml) : NULL;
+  return (xpath->context ?
+          new (xpath->thd->mem_root)
+          Item_func_xpath_position(xpath->thd, xpath->context, xpath->pxml) :
+          NULL);
 }
 
 
 static Item *create_func_contains(MY_XPATH *xpath, Item **args, uint nargs)
 {
-  return new Item_xpath_cast_bool(new Item_func_locate(args[0], args[1]),
-                                  xpath->pxml);
+  return (new (xpath->thd->mem_root)
+          Item_xpath_cast_bool(xpath->thd,
+                               new (xpath->thd->mem_root)
+                               Item_func_locate(xpath->thd, args[0], args[1]),
+                               xpath->pxml));
 }
 
 
 static Item *create_func_concat(MY_XPATH *xpath, Item **args, uint nargs)
-{ 
-  return new Item_func_concat(args[0], args[1]); 
+{
+  return new (xpath->thd->mem_root)
+    Item_func_concat(xpath->thd, args[0], args[1]);
 }
 
 
 static Item *create_func_substr(MY_XPATH *xpath, Item **args, uint nargs)
 {
+  THD *thd= xpath->thd;
   if (nargs == 2)
-    return new Item_func_substr(args[0], args[1]);
-  else
-    return new Item_func_substr(args[0], args[1], args[2]);
+    return new (thd->mem_root) Item_func_substr(thd, args[0], args[1]);
+  return new (thd->mem_root) Item_func_substr(thd, args[0], args[1], args[2]);
 }
 
 
 static Item *create_func_count(MY_XPATH *xpath, Item **args, uint nargs)
-{  
+{
   if (args[0]->type() != Item::XPATH_NODESET)
     return 0;
-  return new Item_func_xpath_count(args[0], xpath->pxml);
+  return new (xpath->thd->mem_root) Item_func_xpath_count(xpath->thd, args[0], xpath->pxml);
 }
 
 
@@ -1259,7 +1297,8 @@ static Item *create_func_sum(MY_XPATH *xpath, Item **args, uint nargs)
 {
   if (args[0]->type() != Item::XPATH_NODESET)
     return 0;
-  return new Item_func_xpath_sum(args[0], xpath->pxml);
+  return new (xpath->thd->mem_root)
+    Item_func_xpath_sum(xpath->thd, args[0], xpath->pxml);
 }
 
 
@@ -1632,9 +1671,11 @@ static int my_xpath_parse_AbsoluteLocationPath(MY_XPATH *xpath)
 
   if (my_xpath_parse_term(xpath, MY_XPATH_LEX_SLASH))
   {
-    xpath->context= new Item_nodeset_func_descendantbyname(xpath->context,
-                                                           "*", 1,
-                                                           xpath->pxml, 1);
+    xpath->context= new (xpath->thd->mem_root)
+      Item_nodeset_func_descendantbyname(xpath->thd,
+                                         xpath->context,
+                                         "*", 1,
+                                         xpath->pxml, 1);
     return my_xpath_parse_RelativeLocationPath(xpath);
   }
 
@@ -1673,9 +1714,11 @@ static int my_xpath_parse_RelativeLocationPath(MY_XPATH *xpath)
   while (my_xpath_parse_term(xpath, MY_XPATH_LEX_SLASH))
   {
     if (my_xpath_parse_term(xpath, MY_XPATH_LEX_SLASH))
-      xpath->context= new Item_nodeset_func_descendantbyname(xpath->context,
-                                                             "*", 1,
-                                                             xpath->pxml, 1);
+      xpath->context= new (xpath->thd->mem_root)
+        Item_nodeset_func_descendantbyname(xpath->thd,
+                                           xpath->context,
+                                           "*", 1,
+                                           xpath->pxml, 1);
     if (!my_xpath_parse_Step(xpath))
     {
       xpath->error= 1;
@@ -1713,7 +1756,8 @@ my_xpath_parse_AxisSpecifier_NodeTest_opt_Predicate_list(MY_XPATH *xpath)
     Item *prev_context= xpath->context;
     String *context_cache;
     context_cache= &((Item_nodeset_func*)xpath->context)->context_cache;
-    xpath->context= new Item_nodeset_context_cache(context_cache, xpath->pxml);
+    xpath->context= new (xpath->thd->mem_root)
+      Item_nodeset_context_cache(xpath->thd, context_cache, xpath->pxml);
     xpath->context_cache= context_cache;
 
     if(!my_xpath_parse_PredicateExpr(xpath))
@@ -1732,15 +1776,18 @@ my_xpath_parse_AxisSpecifier_NodeTest_opt_Predicate_list(MY_XPATH *xpath)
 
     if (xpath->item->is_bool_type())
     {
-      xpath->context= new Item_nodeset_func_predicate(prev_context,
-                                                      xpath->item,
-                                                      xpath->pxml);
+      xpath->context= new (xpath->thd->mem_root)
+        Item_nodeset_func_predicate(xpath->thd, prev_context,
+                                    xpath->item,
+                                    xpath->pxml);
     }
     else
     {
-      xpath->context= new Item_nodeset_func_elementbyindex(prev_context,
-                                                           xpath->item,
-                                                           xpath->pxml);
+      xpath->context= new (xpath->thd->mem_root)
+        Item_nodeset_func_elementbyindex(xpath->thd,
+                                         prev_context,
+                                         xpath->item,
+                                         xpath->pxml);
     }
   }
   return 1;
@@ -1748,7 +1795,7 @@ my_xpath_parse_AxisSpecifier_NodeTest_opt_Predicate_list(MY_XPATH *xpath)
 
 
 static int my_xpath_parse_Step(MY_XPATH *xpath)
-{  
+{
   return
     my_xpath_parse_AxisSpecifier_NodeTest_opt_Predicate_list(xpath) ||
     my_xpath_parse_AbbreviatedStep(xpath);
@@ -1862,8 +1909,10 @@ static int my_xpath_parse_AbbreviatedStep(MY_XPATH *xpath)
   if (!my_xpath_parse_term(xpath, MY_XPATH_LEX_DOT))
     return 0;
   if (my_xpath_parse_term(xpath, MY_XPATH_LEX_DOT))
-    xpath->context= new Item_nodeset_func_parentbyname(xpath->context, "*", 1,
-                                                       xpath->pxml);
+    xpath->context= new (xpath->thd->mem_root)
+      Item_nodeset_func_parentbyname(xpath->thd,
+                                     xpath->context, "*",
+                                     1, xpath->pxml);
   return 1;
 }
 
@@ -1892,9 +1941,10 @@ static int my_xpath_parse_PrimaryExpr_literal(MY_XPATH *xpath)
 {
   if (!my_xpath_parse_term(xpath, MY_XPATH_LEX_STRING))
     return 0;
-  xpath->item= new Item_string(xpath->prevtok.beg + 1,
-                               xpath->prevtok.end - xpath->prevtok.beg - 2,
-                               xpath->cs);
+  xpath->item= new (xpath->thd->mem_root)
+    Item_string(xpath->thd, xpath->prevtok.beg + 1,
+                xpath->prevtok.end - xpath->prevtok.beg - 2,
+                xpath->cs);
   return 1;
 }
 static int my_xpath_parse_PrimaryExpr(MY_XPATH *xpath)
@@ -1987,7 +2037,9 @@ static int my_xpath_parse_UnionExpr(MY_XPATH *xpath)
       xpath->error= 1;
       return 0;
     }
-    xpath->item= new Item_nodeset_func_union(prev, xpath->item, xpath->pxml);
+    xpath->item= new (xpath->thd->mem_root)
+      Item_nodeset_func_union(xpath->thd, prev, xpath->item,
+                              xpath->pxml);
   }
   return 1;
 }
@@ -2033,8 +2085,11 @@ my_xpath_parse_FilterExpr_opt_slashes_RelativeLocationPath(MY_XPATH *xpath)
 
   /* treat double slash (//) as /descendant-or-self::node()/ */
   if (my_xpath_parse_term(xpath, MY_XPATH_LEX_SLASH))
-    xpath->context= new Item_nodeset_func_descendantbyname(xpath->context,
-                                                           "*", 1, xpath->pxml, 1);
+    xpath->context= new (xpath->thd->mem_root)
+      Item_nodeset_func_descendantbyname(xpath->thd,
+                                         xpath->context,
+                                         "*", 1,
+                                         xpath->pxml, 1);
   rc= my_xpath_parse_RelativeLocationPath(xpath);
 
   /* push back the context and restore the item */
@@ -2096,8 +2151,9 @@ static int my_xpath_parse_OrExpr(MY_XPATH *xpath)
       xpath->error= 1;
       return 0;
     }
-    xpath->item= new Item_cond_or(nodeset2bool(xpath, prev),
-                                  nodeset2bool(xpath, xpath->item));
+    xpath->item= new (xpath->thd->mem_root)
+      Item_cond_or(xpath->thd, nodeset2bool(xpath, prev),
+                   nodeset2bool(xpath, xpath->item));
   }
   return 1;
 }
@@ -2128,8 +2184,9 @@ static int my_xpath_parse_AndExpr(MY_XPATH *xpath)
       return 0;
     }
 
-    xpath->item= new Item_cond_and(nodeset2bool(xpath,prev), 
-                                   nodeset2bool(xpath,xpath->item));
+    xpath->item= new (xpath->thd->mem_root)
+      Item_cond_and(xpath->thd, nodeset2bool(xpath, prev),
+                    nodeset2bool(xpath, xpath->item));
   }
   return 1;
 }
@@ -2291,6 +2348,8 @@ static int my_xpath_parse_AdditiveExpr(MY_XPATH *xpath)
   {
     int oper= xpath->prevtok.term;
     Item *prev= xpath->item;
+    THD *thd= xpath->thd;
+
     if (!my_xpath_parse_MultiplicativeExpr(xpath))
     {
       xpath->error= 1;
@@ -2298,9 +2357,11 @@ static int my_xpath_parse_AdditiveExpr(MY_XPATH *xpath)
     }
 
     if (oper == MY_XPATH_LEX_PLUS)
-      xpath->item= new Item_func_plus(prev, xpath->item);
+      xpath->item= new (thd->mem_root)
+        Item_func_plus(thd, prev, xpath->item);
     else
-      xpath->item= new Item_func_minus(prev, xpath->item);
+      xpath->item= new (thd->mem_root)
+        Item_func_minus(thd, prev, xpath->item);
   };
   return 1;
 }
@@ -2335,6 +2396,7 @@ static int my_xpath_parse_MultiplicativeExpr(MY_XPATH *xpath)
   if (!my_xpath_parse_UnaryExpr(xpath))
     return 0;
 
+  THD *thd= xpath->thd;
   while (my_xpath_parse_MultiplicativeOperator(xpath))
   {
     int oper= xpath->prevtok.term;
@@ -2347,13 +2409,13 @@ static int my_xpath_parse_MultiplicativeExpr(MY_XPATH *xpath)
     switch (oper)
     {
       case MY_XPATH_LEX_ASTERISK:
-        xpath->item= new Item_func_mul(prev, xpath->item);
+        xpath->item= new (thd->mem_root) Item_func_mul(thd, prev, xpath->item);
         break;
       case MY_XPATH_LEX_DIV:
-        xpath->item= new Item_func_int_div(prev, xpath->item);
+        xpath->item= new (thd->mem_root) Item_func_int_div(thd, prev, xpath->item);
         break;
       case MY_XPATH_LEX_MOD:
-        xpath->item= new Item_func_mod(prev, xpath->item);
+        xpath->item= new (thd->mem_root) Item_func_mod(thd, prev, xpath->item);
         break;
     }
   }
@@ -2378,7 +2440,8 @@ static int my_xpath_parse_UnaryExpr(MY_XPATH *xpath)
     return my_xpath_parse_UnionExpr(xpath);
   if (!my_xpath_parse_UnaryExpr(xpath))
     return 0;
-  xpath->item= new Item_func_neg(xpath->item);
+  xpath->item= new (xpath->thd->mem_root)
+    Item_func_neg(xpath->thd, xpath->item);
   return 1;
 }
 
@@ -2410,18 +2473,21 @@ static int my_xpath_parse_UnaryExpr(MY_XPATH *xpath)
 static int my_xpath_parse_Number(MY_XPATH *xpath)
 {
   const char *beg;
+  THD *thd;
   if (!my_xpath_parse_term(xpath, MY_XPATH_LEX_DIGITS))
     return 0;
   beg= xpath->prevtok.beg;
+  thd= xpath->thd;
   if (!my_xpath_parse_term(xpath, MY_XPATH_LEX_DOT))
   {
-    xpath->item= new Item_int(xpath->prevtok.beg,
+    xpath->item= new (thd->mem_root) Item_int(thd, xpath->prevtok.beg,
                               xpath->prevtok.end - xpath->prevtok.beg);
     return 1;
   }
   my_xpath_parse_term(xpath, MY_XPATH_LEX_DIGITS);
 
-  xpath->item= new Item_float(beg, xpath->prevtok.end - beg);
+  xpath->item= new (thd->mem_root) Item_float(thd, beg,
+                                              xpath->prevtok.end - beg);
   return 1;
 }
 
@@ -2514,6 +2580,7 @@ my_xpath_parse_VariableReference(MY_XPATH *xpath)
   LEX_STRING name;
   int user_var;
   const char *dollar_pos;
+  THD *thd= xpath->thd;
   if (!my_xpath_parse_term(xpath, MY_XPATH_LEX_DOLLAR) ||
       (!(dollar_pos= xpath->prevtok.beg)) ||
       (!((user_var= my_xpath_parse_term(xpath, MY_XPATH_LEX_AT) &&
@@ -2525,17 +2592,19 @@ my_xpath_parse_VariableReference(MY_XPATH *xpath)
   name.str= (char*) xpath->prevtok.beg;
   
   if (user_var)
-    xpath->item= new Item_func_get_user_var(name);
+    xpath->item= new (thd->mem_root) Item_func_get_user_var(thd, name);
   else
   {
     sp_variable *spv;
     sp_pcontext *spc;
     LEX *lex;
-    if ((lex= current_thd->lex) &&
+    if ((lex= thd->lex) &&
         (spc= lex->spcont) &&
         (spv= spc->find_variable(name, false)))
     {
-      Item_splocal *splocal= new Item_splocal(name, spv->offset, spv->type, 0);
+      Item_splocal *splocal= new (thd->mem_root)
+        Item_splocal(thd, name, spv->offset,
+                     spv->type, 0);
 #ifndef DBUG_OFF
       if (splocal)
         splocal->m_sp= lex->sphead;
@@ -2614,11 +2683,12 @@ my_xpath_parse(MY_XPATH *xpath, const char *str, const char *strend)
   my_xpath_lex_init(&xpath->prevtok, str, strend);
   my_xpath_lex_scan(xpath, &xpath->lasttok, str, strend);
 
-  xpath->rootelement= new Item_nodeset_func_rootelement(xpath->pxml);
+  xpath->rootelement= new (xpath->thd->mem_root)
+    Item_nodeset_func_rootelement(xpath->thd,
+                                  xpath->pxml);
 
-  return
-     my_xpath_parse_Expr(xpath) &&
-     my_xpath_parse_term(xpath, MY_XPATH_LEX_EOF);
+  return (my_xpath_parse_Expr(xpath) &&
+          my_xpath_parse_term(xpath, MY_XPATH_LEX_EOF));
 }
 
 
@@ -2662,6 +2732,7 @@ bool Item_xml_str_func::fix_fields(THD *thd, Item **ref)
   if (!(xp= args[1]->val_str(&tmp)))
     return false; // Will return NULL
   my_xpath_init(&xpath);
+  xpath.thd= thd;
   xpath.cs= collation.collation;
   xpath.debug= 0;
   xpath.pxml= xml.parsed();
@@ -2854,14 +2925,15 @@ bool Item_xml_str_func::XML::parse()
   /* Execute XML parser */
   if ((rc= my_xml_parse(&p, m_raw_ptr->ptr(), m_raw_ptr->length())) != MY_XML_OK)
   {
+    THD *thd= current_thd;
     char buf[128];
     my_snprintf(buf, sizeof(buf)-1, "parse error at line %d pos %lu: %s",
                 my_xml_error_lineno(&p) + 1,
                 (ulong) my_xml_error_pos(&p) + 1,
                 my_xml_error_string(&p));
-    push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                         ER_WRONG_VALUE,
-                        ER(ER_WRONG_VALUE), "XML", buf);
+                        ER_THD(thd, ER_WRONG_VALUE), "XML", buf);
     m_raw_ptr= (String *) 0;
   }
   my_xml_parser_free(&p);

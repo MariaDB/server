@@ -47,6 +47,9 @@ my_bool get_wsrep_drupal_282555_workaround()
 my_bool get_wsrep_load_data_splitting()
 { return 0; }
 
+my_bool get_wsrep_recovery()
+{ return 0; }
+
 my_bool get_wsrep_log_conflicts()
 { return 0; }
 

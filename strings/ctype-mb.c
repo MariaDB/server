@@ -811,25 +811,8 @@ my_hash_sort_mb_bin(CHARSET_INFO *cs __attribute__((unused)),
 static void pad_max_char(CHARSET_INFO *cs, char *str, char *end)
 {
   char buf[10];
-  char buflen;
-  
-  if (!(cs->state & MY_CS_UNICODE))
-  {
-    if (cs->max_sort_char <= 255)
-    {
-      bfill(str, end - str, cs->max_sort_char);
-      return;
-    }
-    buf[0]= cs->max_sort_char >> 8;
-    buf[1]= cs->max_sort_char & 0xFF;
-    buflen= 2;
-  }
-  else
-  {
-    buflen= cs->cset->wc_mb(cs, cs->max_sort_char, (uchar*) buf,
-                            (uchar*) buf + sizeof(buf));
-  }
-  
+  char buflen= cs->cset->native_to_mb(cs, cs->max_sort_char, (uchar*) buf,
+                                      (uchar*) buf + sizeof(buf));
   DBUG_ASSERT(buflen > 0);
   do
   {
@@ -1558,22 +1541,6 @@ int my_mb_ctype_mb(CHARSET_INFO *cs, int *ctype,
             my_uni_ctype[wc>>8].pctype;    
   return res;
 }
-
-
-MY_COLLATION_HANDLER my_collation_mb_bin_handler =
-{
-    NULL,		/* init */
-    my_strnncoll_mb_bin,
-    my_strnncollsp_mb_bin,
-    my_strnxfrm_mb,
-    my_strnxfrmlen_simple,
-    my_like_range_mb,
-    my_wildcmp_mb_bin,
-    my_strcasecmp_mb_bin,
-    my_instr_mb,
-    my_hash_sort_mb_bin,
-    my_propagate_simple
-};
 
 
 #endif

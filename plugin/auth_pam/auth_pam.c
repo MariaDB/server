@@ -98,7 +98,8 @@ static int conv(int n, const struct pam_message **msg,
       if (pkt_len < 0)
         return PAM_CONV_ERR;
       /* allocate and copy the reply to the response array */
-      (*resp)[i].resp = strndup((char*)pkt, pkt_len);
+      if (!((*resp)[i].resp= strndup((char*) pkt, pkt_len)))
+        return PAM_CONV_ERR;
       param->ptr = param->buf + 1;
     }
   }

@@ -6,7 +6,7 @@ create table foo (a int, primary key (a)) engine=TokuDB;
 show create table foo;
 Table	Create Table
 foo	CREATE TABLE `foo` (
-  `a` int(11) NOT NULL DEFAULT '0',
+  `a` int(11) NOT NULL,
   PRIMARY KEY (`a`)
 ) ENGINE=TokuDB DEFAULT CHARSET=latin1
 insert into foo values(1);
@@ -18,7 +18,7 @@ create table foo (a int, primary key (a)) engine=TokuDB select * from bar;
 show create table foo;
 Table	Create Table
 foo	CREATE TABLE `foo` (
-  `a` int(11) NOT NULL DEFAULT '0',
+  `a` int(11) NOT NULL,
   PRIMARY KEY (`a`)
 ) ENGINE=TokuDB DEFAULT CHARSET=latin1
 select * from foo;
@@ -43,7 +43,7 @@ create table foo (a int, primary key (a)) engine=TokuDB select * from bar;
 show create table foo;
 Table	Create Table
 foo	CREATE TABLE `foo` (
-  `a` int(11) NOT NULL DEFAULT '0',
+  `a` int(11) NOT NULL,
   PRIMARY KEY (`a`)
 ) ENGINE=TokuDB DEFAULT CHARSET=latin1
 select * from foo;
@@ -65,7 +65,7 @@ create table foo (a int, primary key (a)) engine=TokuDB;
 show create table foo;
 Table	Create Table
 foo	CREATE TABLE `foo` (
-  `a` int(11) NOT NULL DEFAULT '0',
+  `a` int(11) NOT NULL,
   PRIMARY KEY (`a`)
 ) ENGINE=TokuDB DEFAULT CHARSET=latin1
 insert into foo values(1);

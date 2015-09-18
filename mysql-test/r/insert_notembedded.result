@@ -1,3 +1,5 @@
+set local sql_mode="";
+set global sql_mode="";
 drop table if exists t1;
 create table t1 (n int);
 create view  v1 as select * from t1;
@@ -125,3 +127,5 @@ a	b
 unlock tables;
 drop table t1;
 set low_priority_updates=default;
+set local sql_mode=default;
+set global sql_mode=default;

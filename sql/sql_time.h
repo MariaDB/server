@@ -55,6 +55,10 @@ bool time_to_datetime(THD *thd, const MYSQL_TIME *tm, MYSQL_TIME *dt);
 bool time_to_datetime_with_warn(THD *thd,
                                 const MYSQL_TIME *tm, MYSQL_TIME *dt,
                                 ulonglong fuzzydate);
+/*
+  Simply truncate the YYYY-MM-DD part to 0000-00-00
+  and change time_type to MYSQL_TIMESTAMP_TIME
+*/
 inline void datetime_to_time(MYSQL_TIME *ltime)
 {
   DBUG_ASSERT(ltime->time_type == MYSQL_TIMESTAMP_DATE ||
@@ -63,6 +67,39 @@ inline void datetime_to_time(MYSQL_TIME *ltime)
   ltime->year= ltime->month= ltime->day= 0;
   ltime->time_type= MYSQL_TIMESTAMP_TIME;
 }
+
+
+/**
+  Convert DATE/DATETIME to TIME(dec)
+  using CURRENT_DATE in a non-old mode,
+  or using simple truncation in old mode (OLD_MODE_ZERO_DATE_TIME_CAST).
+
+  @param      thd - the thread to get the variables.old_behaviour value from
+  @param      dt  - the DATE of DATETIME value to convert
+  @param[out] tm  - store result here
+  @param      dec - the desired scale. The fractional part of the result
+                    is checked according to this parameter before returning
+                    the conversion result. "dec" is important in the corner
+                    cases near the max/min limits.
+                    If the result is '838:59:59.999999' and the desired scale
+                    is less than 6, an error is returned.
+                    Note, dec is not important in the
+                    OLD_MODE_ZERO_DATE_TIME_CAST old mode.
+
+  - in case of OLD_MODE_ZERO_DATE_TIME_CAST
+    the TIME part is simply truncated and "false" is returned.
+  - otherwise, the result is calculated effectively similar to:
+    TIMEDIFF(dt, CAST(CURRENT_DATE AS DATETIME))
+    If the difference fits into the supported TIME range, "false" is returned,
+    otherwise a warning is issued and "true" is returned.
+
+  @return false - on success
+  @return true  - on error
+*/
+bool datetime_to_time_with_warn(THD *, const MYSQL_TIME *dt,
+                                MYSQL_TIME *tm, uint dec);
+
+
 inline void datetime_to_date(MYSQL_TIME *ltime)
 {
   DBUG_ASSERT(ltime->time_type == MYSQL_TIMESTAMP_DATE ||
@@ -107,6 +144,30 @@ bool date_add_interval(MYSQL_TIME *ltime, interval_type int_type,
                        INTERVAL interval);
 bool calc_time_diff(const MYSQL_TIME *l_time1, const MYSQL_TIME *l_time2,
                     int l_sign, longlong *seconds_out, long *microseconds_out);
+/**
+  Calculate time difference between two MYSQL_TIME values and
+  store the result as an out MYSQL_TIME value in MYSQL_TIMESTAMP_TIME format.
+
+  The result can be outside of the supported TIME range.
+  For example, calc_time_diff('2002-01-01 00:00:00', '2001-01-01 00:00:00')
+  returns '8760:00:00'. So the caller might want to do check_time_range() or
+  adjust_time_range_with_warn() on the result of a calc_time_diff() call.
+
+  @param l_time1       - the minuend (TIME/DATE/DATETIME value)
+  @param l_time2       - the subtrahend TIME/DATE/DATETIME value
+  @param l_sign        -  +1 if absolute values are to be subtracted,
+                          or -1 if absolute values are to be added.
+  @param[out] l_time3  - the result
+  @param fuzzydate     - flags
+
+  @return true         - if TIME_NO_ZERO_DATE was passed in flags and
+                         the result appeared to be '00:00:00.000000'.
+                         This is important when calc_time_diff() is called
+                         when calculating DATE_ADD(TIMEDIFF(...),...)
+  @return false        - otherwise
+*/
+bool calc_time_diff(const MYSQL_TIME *l_time1, const MYSQL_TIME *l_time2,
+                    int lsign, MYSQL_TIME *l_time3, ulonglong fuzzydate);
 int my_time_compare(const MYSQL_TIME *a, const MYSQL_TIME *b);
 void localtime_to_TIME(MYSQL_TIME *to, struct tm *from);
 void calc_time_from_sec(MYSQL_TIME *to, long seconds, long microseconds);
@@ -143,11 +204,22 @@ extern DATE_TIME_FORMAT global_time_format;
 extern KNOWN_DATE_TIME_FORMAT known_date_time_formats[];
 extern LEX_STRING interval_type_to_name[];
 
-
+static inline bool
+non_zero_hhmmssuu(const MYSQL_TIME *ltime)
+{
+  return ltime->hour || ltime->minute || ltime->second || ltime->second_part;
+}
+static inline bool
+non_zero_YYMMDD(const MYSQL_TIME *ltime)
+{
+  return ltime->year || ltime->month || ltime->day;
+}
 static inline bool
 non_zero_date(const MYSQL_TIME *ltime)
 {
-  return ltime->year || ltime->month || ltime->day;
+  return non_zero_YYMMDD(ltime) ||
+         (ltime->time_type == MYSQL_TIMESTAMP_DATETIME &&
+          non_zero_hhmmssuu(ltime));
 }
 static inline bool
 check_date(const MYSQL_TIME *ltime, ulonglong flags, int *was_cut)

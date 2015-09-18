@@ -18,10 +18,18 @@ include_directories(
   ${MRUBY_INCLUDE_DIRS})
 
 read_file_list(${CMAKE_CURRENT_SOURCE_DIR}/sources.am SUGGEST_SOURCES)
-add_library(suggest MODULE ${SUGGEST_SOURCES})
 set_source_files_properties(${SUGGEST_SOURCES}
   PROPERTIES
   COMPILE_FLAGS "${GRN_C_COMPILE_FLAGS}")
-set_target_properties(suggest PROPERTIES PREFIX "")
+if(GRN_EMBED)
+  add_library(suggest STATIC ${SUGGEST_SOURCES})
+  set_target_properties(
+    suggest
+    PROPERTIES
+    POSITION_INDEPENDENT_CODE ON)
+else()
+  add_library(suggest MODULE ${SUGGEST_SOURCES})
+  set_target_properties(suggest PROPERTIES PREFIX "")
+  install(TARGETS suggest DESTINATION "${GRN_RELATIVE_PLUGINS_DIR}/suggest")
+endif()
 target_link_libraries(suggest libgroonga)
-install(TARGETS suggest DESTINATION "${GRN_RELATIVE_PLUGINS_DIR}/suggest")
