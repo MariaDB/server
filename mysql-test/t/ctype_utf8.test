@@ -1834,5 +1834,16 @@ DROP TABLE IF EXISTS t1;
 
 
 --echo #
+--echo # MDEV-8816 Equal field propagation is not applied for WHERE varbinary_column>=_utf8'a' COLLATE utf8_swedish_ci AND varbinary_column='A';
+--echo #
+CREATE TABLE t1 (c VARBINARY(10));
+INSERT INTO t1 VALUES ('a'),('A');
+SELECT * FROM t1 WHERE c>=_utf8'a' COLLATE utf8_general_ci AND c='A';
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE c>=_utf8'a' COLLATE utf8_general_ci AND c='A';
+DROP TABLE t1;
+
+
+--echo #
 --echo # End of 10.1 tests
 --echo #

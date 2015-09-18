@@ -554,32 +554,6 @@ int Arg_comparator::set_compare_func(Item_func_or_sum *item, Item_result type)
     }
     break;
   }
-  case STRING_RESULT:
-  {
-    if (cmp_collation.collation == &my_charset_bin)
-    {
-      /*
-	We are using BLOB/BINARY/VARBINARY, change to compare byte by byte,
-	without removing end space
-      */
-      if (func == &Arg_comparator::compare_string)
-	func= &Arg_comparator::compare_binary_string;
-      else if (func == &Arg_comparator::compare_e_string)
-	func= &Arg_comparator::compare_e_binary_string;
-
-      /*
-        As this is binary compassion, mark all fields that they can't be
-        transformed. Otherwise we would get into trouble with comparisons
-        like:
-        WHERE col= 'j' AND col LIKE BINARY 'j'
-        which would be transformed to:
-        WHERE col= 'j'
-      */
-      (*a)->walk(&Item::set_no_const_sub, FALSE, (uchar*) 0);
-      (*b)->walk(&Item::set_no_const_sub, FALSE, (uchar*) 0);
-    }
-    break;
-  }
   case INT_RESULT:
   {
     if (func == &Arg_comparator::compare_int_signed)
@@ -598,6 +572,7 @@ int Arg_comparator::set_compare_func(Item_func_or_sum *item, Item_result type)
     }
     break;
   }
+  case STRING_RESULT:
   case DECIMAL_RESULT:
     break;
   case REAL_RESULT:
@@ -944,38 +919,6 @@ int Arg_comparator::compare_string()
 
 
 /**
-  Compare strings byte by byte. End spaces are also compared.
-
-  @retval
-    <0  *a < *b
-  @retval
-     0  *b == *b
-  @retval
-    >0  *a > *b
-*/
-
-int Arg_comparator::compare_binary_string()
-{
-  String *res1,*res2;
-  if ((res1= (*a)->val_str(&value1)))
-  {
-    if ((res2= (*b)->val_str(&value2)))
-    {
-      if (set_null)
-        owner->null_value= 0;
-      uint res1_length= res1->length();
-      uint res2_length= res2->length();
-      int cmp= memcmp(res1->ptr(), res2->ptr(), MY_MIN(res1_length,res2_length));
-      return cmp ? cmp : (int) (res1_length - res2_length);
-    }
-  }
-  if (set_null)
-    owner->null_value= 1;
-  return -1;
-}
-
-
-/**
   Compare strings, but take into account that NULL == NULL.
 */
 
@@ -988,17 +931,6 @@ int Arg_comparator::compare_e_string()
   if (!res1 || !res2)
     return MY_TEST(res1 == res2);
   return MY_TEST(sortcmp(res1, res2, cmp_collation.collation) == 0);
-}
-
-
-int Arg_comparator::compare_e_binary_string()
-{
-  String *res1,*res2;
-  res1= (*a)->val_str(&value1);
-  res2= (*b)->val_str(&value2);
-  if (!res1 || !res2)
-    return MY_TEST(res1 == res2);
-  return MY_TEST(stringcmp(res1, res2) == 0);
 }
 
 

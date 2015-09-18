@@ -2140,8 +2140,6 @@ bool agg_item_set_converter(DTCollation &coll, const char *fname,
       res= TRUE;
       break; // we cannot return here, we need to restore "arena".
     }
-    if ((*arg)->type() == Item::FIELD_ITEM)
-      ((Item_field *)(*arg))->no_const_subst= 1;
     /*
       If in statement prepare, then we create a converter for two
       constant items, do it once and then reuse it.
@@ -2226,7 +2224,7 @@ void Item_ident_for_show::make_field(Send_field *tmp_field)
 
 Item_field::Item_field(THD *thd, Field *f)
   :Item_ident(thd, 0, NullS, *f->table_name, f->field_name),
-   item_equal(0), no_const_subst(0),
+   item_equal(0),
    have_privileges(0), any_privileges(0)
 {
   set_field(f);
@@ -2249,7 +2247,7 @@ Item_field::Item_field(THD *thd, Field *f)
 Item_field::Item_field(THD *thd, Name_resolution_context *context_arg,
                        Field *f)
   :Item_ident(thd, context_arg, f->table->s->db.str, *f->table_name, f->field_name),
-   item_equal(0), no_const_subst(0),
+   item_equal(0),
    have_privileges(0), any_privileges(0)
 {
   /*
@@ -2292,7 +2290,7 @@ Item_field::Item_field(THD *thd, Name_resolution_context *context_arg,
                        const char *db_arg,const char *table_name_arg,
                        const char *field_name_arg)
   :Item_ident(thd, context_arg, db_arg, table_name_arg, field_name_arg),
-   field(0), item_equal(0), no_const_subst(0),
+   field(0), item_equal(0),
    have_privileges(0), any_privileges(0)
 {
   SELECT_LEX *select= thd->lex->current_select;
@@ -2310,7 +2308,6 @@ Item_field::Item_field(THD *thd, Item_field *item)
   :Item_ident(thd, item),
    field(item->field),
    item_equal(item->item_equal),
-   no_const_subst(item->no_const_subst),
    have_privileges(item->have_privileges),
    any_privileges(item->any_privileges)
 {
@@ -5335,7 +5332,7 @@ Item *Item_field::propagate_equal_fields(THD *thd,
                                          const Context &ctx,
                                          COND_EQUAL *arg)
 {
-  if (no_const_subst || !(item_equal= find_item_equal(arg)))
+  if (!(item_equal= find_item_equal(arg)))
     return this;
   if (!field->can_be_substituted_to_equal_item(ctx, item_equal))
   {
@@ -5369,20 +5366,6 @@ Item *Item_field::propagate_equal_fields(THD *thd,
     return this;
   }
   return item;
-}
-
-
-/**
-  Mark the item to not be part of substitution if it's not a binary item.
-
-  See comments in Arg_comparator::set_compare_func() for details.
-*/
-
-bool Item_field::set_no_const_sub(uchar *arg)
-{
-  if (field->charset() != &my_charset_bin)
-    no_const_subst=1;
-  return FALSE;
 }
 
 

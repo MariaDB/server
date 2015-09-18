@@ -1520,7 +1520,6 @@ public:
     return trace_unsupported_by_check_vcol_func_processor(full_name());
   }
 
-  virtual bool set_no_const_sub(uchar *arg) { return FALSE; }
   /* arg points to REPLACE_EQUAL_FIELD_ARG object */
   virtual Item *replace_equal_field(THD *thd, uchar *arg) { return this; }
   /*
@@ -2333,7 +2332,6 @@ protected:
 public:
   Field *field;
   Item_equal *item_equal;
-  bool no_const_subst;
   /*
     if any_privileges set to TRUE then here real effective privileges will
     be stored
@@ -2465,7 +2463,6 @@ public:
   void set_item_equal(Item_equal *item_eq) { item_equal= item_eq; }
   Item_equal *find_item_equal(COND_EQUAL *cond_equal);
   Item* propagate_equal_fields(THD *, const Context &, COND_EQUAL *);
-  bool set_no_const_sub(uchar *arg);
   Item *replace_equal_field(THD *thd, uchar *arg);
   inline uint32 max_disp_length() { return field->max_display_length(); }
   Item_field *field_for_view_update() { return this; }

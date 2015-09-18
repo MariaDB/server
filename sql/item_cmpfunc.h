@@ -86,7 +86,6 @@ public:
   inline int compare() { return (this->*func)(); }
 
   int compare_string();		 // compare args[0] & args[1]
-  int compare_binary_string();	 // compare args[0] & args[1]
   int compare_real();            // compare args[0] & args[1]
   int compare_decimal();         // compare args[0] & args[1]
   int compare_int_signed();      // compare args[0] & args[1]
@@ -95,7 +94,6 @@ public:
   int compare_int_unsigned();
   int compare_row();             // compare args[0] & args[1]
   int compare_e_string();	 // compare args[0] & args[1]
-  int compare_e_binary_string(); // compare args[0] & args[1]
   int compare_e_real();          // compare args[0] & args[1]
   int compare_e_decimal();       // compare args[0] & args[1]
   int compare_e_int();           // compare args[0] & args[1]
