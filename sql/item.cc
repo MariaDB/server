@@ -8596,7 +8596,8 @@ void resolve_const_item(THD *thd, Item **ref, Item *comp_item)
     bool is_null;
     Item **ref_copy= ref;
     /* the following call creates a constant and puts it in new_item */
-    get_datetime_value(thd, &ref_copy, &new_item, comp_item, &is_null);
+    enum_field_types type= item->field_type_for_temporal_comparison(comp_item);
+    get_datetime_value(thd, &ref_copy, &new_item, type, &is_null);
     if (is_null)
       new_item= new (mem_root) Item_null(thd, name);
     break;
@@ -8936,9 +8937,25 @@ Item_cache_temporal::Item_cache_temporal(THD *thd,
 }
 
 
-longlong Item_cache_temporal::val_temporal_packed()
+longlong Item_cache_temporal::val_datetime_packed()
 {
   DBUG_ASSERT(fixed == 1);
+  if (Item_cache_temporal::field_type() == MYSQL_TYPE_TIME)
+    return Item::val_datetime_packed(); // TIME-to-DATETIME conversion needed
+  if ((!value_cached && !cache_value()) || null_value)
+  {
+    null_value= TRUE;
+    return 0;
+  }
+  return value;
+}
+
+
+longlong Item_cache_temporal::val_time_packed()
+{
+  DBUG_ASSERT(fixed == 1);
+  if (Item_cache_temporal::field_type() != MYSQL_TYPE_TIME)
+    return Item::val_time_packed(); // DATETIME-to-TIME conversion needed
   if ((!value_cached && !cache_value()) || null_value)
   {
     null_value= TRUE;

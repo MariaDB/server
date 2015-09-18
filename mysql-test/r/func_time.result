@@ -1824,8 +1824,6 @@ create table t1 (f1 datetime, key (f1));
 insert into t1 values ('2000-09-12 00:00:00'), ('2007-04-25 05:08:49');
 select * from t1 where f1 > time('-23:00:06');
 f1
-2000-09-12 00:00:00
-2007-04-25 05:08:49
 drop table t1;
 select maketime(20,61,10)+0;
 maketime(20,61,10)+0

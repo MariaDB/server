@@ -1221,6 +1221,48 @@ public:
   */
   bool get_time_with_conversion(THD *thd, MYSQL_TIME *ltime,
                                 ulonglong fuzzydate);
+  // Get a DATE or DATETIME value in numeric packed format for comparison
+  virtual longlong val_datetime_packed()
+  {
+    MYSQL_TIME ltime;
+    uint fuzzydate= TIME_FUZZY_DATES | TIME_INVALID_DATES;
+    return get_date_with_conversion(&ltime, fuzzydate) ? 0 : pack_time(&ltime);
+  }
+  // Get a TIME value in numeric packed format for comparison
+  virtual longlong val_time_packed()
+  {
+    MYSQL_TIME ltime;
+    uint fuzzydate= TIME_FUZZY_DATES | TIME_INVALID_DATES | TIME_TIME_ONLY;
+    return get_date(&ltime, fuzzydate) ? 0 : pack_time(&ltime);
+  }
+  // Get a temporal value in packed DATE/DATETIME or TIME format
+  longlong val_temporal_packed(enum_field_types f_type)
+  {
+    return f_type == MYSQL_TYPE_TIME ? val_time_packed() :
+                                       val_datetime_packed();
+  }
+  enum_field_types field_type_for_temporal_comparison(const Item *other) const
+  {
+    if (cmp_type() == TIME_RESULT)
+    {
+      if (other->cmp_type() == TIME_RESULT)
+        return Field::field_type_merge(field_type(), other->field_type());
+      else
+        return field_type();
+    }
+    else
+    {
+      if (other->cmp_type() == TIME_RESULT)
+        return other->field_type();
+      DBUG_ASSERT(0); // Two non-temporal data types, we should not get to here
+      return MYSQL_TYPE_DATETIME;
+    }
+  }
+  // Get a temporal value to compare to another Item
+  longlong val_temporal_packed(const Item *other)
+  {
+    return val_temporal_packed(field_type_for_temporal_comparison(other));
+  }
   bool get_seconds(ulonglong *sec, ulong *sec_part);
   virtual bool get_date_result(MYSQL_TIME *ltime, ulonglong fuzzydate)
   { return get_date(ltime,fuzzydate); }
@@ -4898,7 +4940,8 @@ public:
   String* val_str(String *str);
   my_decimal *val_decimal(my_decimal *);
   longlong val_int();
-  longlong val_temporal_packed();
+  longlong val_datetime_packed();
+  longlong val_time_packed();
   double val_real();
   bool cache_value();
   bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate);

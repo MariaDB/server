@@ -13932,6 +13932,29 @@ can_change_cond_ref_to_const(Item_bool_func2 *target,
       target->compare_collation() == source->compare_collation() &&
       target_value->collation.collation == source_const->collation.collation;
   }
+  if (target->compare_type() == TIME_RESULT)
+  {
+    if (target_value->cmp_type() != TIME_RESULT)
+    {
+      /*
+        Can't rewrite:
+          WHERE COALESCE(time_column)='00:00:00'
+            AND COALESCE(time_column)=DATE'2015-09-11'
+        to
+          WHERE DATE'2015-09-11'='00:00:00'
+            AND COALESCE(time_column)=DATE'2015-09-11'
+        because the left part will erroneously try to parse '00:00:00'
+        as DATE, not as TIME.
+
+        TODO: It could still be rewritten to:
+          WHERE DATE'2015-09-11'=TIME'00:00:00'
+            AND COALESCE(time_column)=DATE'2015-09-11'
+        i.e. we need to replace both target_expr and target_value
+        at the same time. This is not supported yet.
+      */
+      return false;
+    }
+  }
   return true; // Non-string comparison
 }
 

@@ -2910,10 +2910,7 @@ bool Item_func_min_max::get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date)
 
   for (uint i=0; i < arg_count ; i++)
   {
-    Item **arg= args + i;
-    bool is_null_tmp;
-    longlong res= get_datetime_value(thd, &arg, 0, compare_as_dates,
-                                     &is_null_tmp);
+    longlong res= args[i]->val_temporal_packed(compare_as_dates);
 
     /* Check if we need to stop (because of error or KILL) and stop the loop */
     if (thd->is_error() || args[i]->null_value)
