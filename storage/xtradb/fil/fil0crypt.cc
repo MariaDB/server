@@ -115,17 +115,6 @@ fil_crypt_needs_rotation(
 	uint			latest_key_version,	/*!< in: Latest key version */
 	uint			rotate_key_age);	/*!< in: When to rotate */
 
-/**
-* Magic pattern in start of crypt data on page 0
-*/
-#define MAGIC_SZ 6
-
-static const unsigned char CRYPT_MAGIC[MAGIC_SZ] = {
-	's', 0xE, 0xC, 'R', 'E', 't' };
-
-static const unsigned char EMPTY_PATTERN[MAGIC_SZ] = {
-	0x0, 0x0, 0x0, 0x0, 0x0, 0x0 };
-
 /*********************************************************************
 Init space crypt */
 UNIV_INTERN

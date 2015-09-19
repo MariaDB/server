@@ -96,6 +96,7 @@ fil_page_is_compressed_encrypted(
 	return(mach_read_from_2(buf+FIL_PAGE_TYPE) == FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED);
 }
 
+#ifndef UNIV_INNOCHECKSUM
 /*******************************************************************//**
 Returns the page compression level of the space, or 0 if the space
 is not compressed. The tablespace must be cached in the memory cache.
@@ -140,6 +141,8 @@ fil_space_is_page_compressed(
 	return(flags);
 }
 
+#endif /* UNIV_INNOCHECKSUM */
+
 /****************************************************************//**
 Get the name of the compression algorithm used for page
 compression.
@@ -166,13 +169,19 @@ fil_get_compression_alg_name(
 	case PAGE_LZMA_ALGORITHM:
 		return ("LZMA");
 		break;
-	default:
-		return("UNKNOWN");
-		ut_error;
+	case PAGE_BZIP2_ALGORITHM:
+		return ("BZIP2");
 		break;
+	case PAGE_SNAPPY_ALGORITHM:
+		return ("SNAPPY");
+		break;
+	/* No default to get compiler warning */
 	}
+
+	return ("NULL");
 }
 
+#ifndef UNIV_INNOCHECKSUM
 /*******************************************************************//**
 Returns the atomic writes flag of the space, or false if the space
 is not using atomic writes. The tablespace must be cached in the memory cache.
@@ -209,3 +218,5 @@ fil_page_is_lzo_compressed(
 	       (mach_read_from_2(buf+FIL_PAGE_TYPE) == FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED &&
 			mach_read_from_2(buf+FIL_PAGE_DATA+FIL_PAGE_COMPRESSED_SIZE) == PAGE_LZO_ALGORITHM));
 }
+
+#endif /* UNIV_INNOCHECKSUM */
