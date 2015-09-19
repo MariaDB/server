@@ -76,7 +76,10 @@ IF(UNIX)
   INSTALL(PROGRAMS ${CMAKE_CURRENT_BINARY_DIR}/mysql.server
     DESTINATION ${inst_location} COMPONENT SupportFiles)
 
+  CONFIGURE_FILE(mariadb@.service.in ${CMAKE_CURRENT_BINARY_DIR}/mariadb@.service @ONLY)
+
   IF (INSTALL_SYSCONFDIR)
+
     INSTALL(FILES ${CMAKE_CURRENT_BINARY_DIR}/mysql-log-rotate DESTINATION ${INSTALL_SYSCONFDIR}/logrotate.d
             RENAME mysql COMPONENT SupportFiles)
     INSTALL(PROGRAMS ${CMAKE_CURRENT_BINARY_DIR}/mysql.server

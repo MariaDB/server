@@ -1,6 +1,10 @@
+# Multi instance version of mariadb. For if you run mutiple verions at once.
+# Also used for mariadb@bootstrap to bootstrap Galera.
 #
-# /etc/systemd/system/mariadb.service
+# create config file @INSTALL_SYSCONF2DIR@/my{instancename}.cnf
 #
+# start as systemctl start mariadb@{instancename}.server
+
 # This file is free software; you can redistribute it and/or modify it
 # under the terms of the GNU Lesser General Public License as published by
 # the Free Software Foundation; either version 2.1 of the License, or
@@ -11,11 +15,14 @@
 # Erkan Yanar
 # David Strauss
 # and probably others
+# Inspired from https://gitweb.gentoo.org/repo/gentoo.git/tree/dev-db/mysql-init-scripts/files/mysqld_at.service
 
 [Unit]
 Description=MariaDB database server
 After=network.target
 After=syslog.target
+
+ConditionPathExists=@INSTALL_SYSCONF2DIR@/my%I.cnf
 
 [Install]
 WantedBy=multi-user.target
@@ -47,10 +54,16 @@ User=mysql
 # ExecStartPre=/usr/bin/mysql_install_db
 
 # Start main service
-# EXTRA_ARGS here is for users to set in /etc/systemd/system/mariadb.service.d/MY_SPECIAL.conf
+# EXTRA_ARGS here is for users to set in /etc/systemd/system/mariadb@.service.d/MY_SPECIAL.conf
 # Use the [service] section and Environment="EXTRA_ARGS=...".
 # This isn't a replacement for my.cnf.
-ExecStart=/usr/sbin/mysqld $EXTRA_ARGS
+
+ExecStart=
+ExecStart=/usr/sbin/mysqld $EXTRA_ARGS --defaults-file=@INSTALL_SYSCONF2DIR@/my%I.cnf
+# Alternate: (remove ConditionPathExists above)
+# use [mysqld.INSTANCENAME] as sections in my.cnf
+#
+# ExecStart=/usr/sbin/mysqld $EXTRA_ARGS --defaults-group-suffix=%I
 
 KillMode=process
 KillSignal=SIGTERM
