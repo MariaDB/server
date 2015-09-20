@@ -2334,7 +2334,7 @@ public:
   { TRASH(ptr, size); }
 
   ulong thread_id;
-  ulong os_thread_id;
+  uint32 os_thread_id;
   ulonglong start_time;
   uint   command;
   const char *user,*host,*db,*proc_info,*state_info;

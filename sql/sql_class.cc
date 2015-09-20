@@ -2073,7 +2073,7 @@ bool THD::store_globals()
   */
   mysys_var->id= thread_id;
 #ifdef __NR_gettid
-  os_thread_id= syscall(__NR_gettid);
+  os_thread_id= (uint32)syscall(__NR_gettid);
 #else
   os_thread_id= 0;
 #endif
