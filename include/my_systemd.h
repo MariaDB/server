@@ -2,7 +2,7 @@
 #ifndef MY_SYSTEMD_INCLUDED
 #define MY_SYSTEMD_INCLUDED
 
-#ifdef HAVE_SYSTEMD
+#if defined(HAVE_SYSTEMD) && !defined(EMBEDDED_LIBRARY)
 #include <systemd/sd-daemon.h>
 
 #else

@@ -57,6 +57,8 @@ MACRO(CHECK_SYSTEMD)
         # should be from pkg-config --variable=systemdsystemconfdir systemd
         # Missing CMake macro: http://public.kitware.com/Bug/view.php?id=15634
         SET(SYSTEMD_SYSTEM_CONFDIR /etc/systemd/system)
+        # should be from pkg-config --variable=systemdsystemunitdir systemd
+        SET(SYSTEMD_SYSTEM_UNITDIR /usr/lib/systemd/system/)
         MESSAGE(STATUS "Systemd features enabled")
       ELSE()
         UNSET(LIBSYSTEMD)
