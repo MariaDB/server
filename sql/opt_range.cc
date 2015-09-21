@@ -876,8 +876,8 @@ public:
     Used to store 'current key tuples', in both range analysis and
     partitioning (list) analysis
   */
-  uchar min_key[MAX_KEY_LENGTH+MAX_FIELD_WIDTH],
-    max_key[MAX_KEY_LENGTH+MAX_FIELD_WIDTH];
+  uchar *min_key;
+  uchar *max_key;
 
   /* Number of SEL_ARG objects allocated by SEL_ARG::clone_tree operations */
   uint alloced_sel_args; 
@@ -3066,13 +3066,13 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
       DBUG_RETURN(0);				// Can't use range
     }
     key_parts= param.key_parts;
-    thd->mem_root= &alloc;
 
     /*
       Make an array with description of all key parts of all table keys.
       This is used in get_mm_parts function.
     */
     key_info= head->key_info;
+    uint max_key_len= 0;
     for (idx=0 ; idx < head->s->keys ; idx++, key_info++)
     {
       KEY_PART_INFO *key_part_info;
@@ -3085,6 +3085,7 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
 
       param.key[param.keys]=key_parts;
       key_part_info= key_info->key_part;
+      uint cur_key_len= 0;
       for (uint part= 0 ; part < n_key_parts ; 
            part++, key_parts++, key_part_info++)
      {
@@ -3092,6 +3093,7 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
 	key_parts->part=	 part;
 	key_parts->length=       key_part_info->length;
 	key_parts->store_length= key_part_info->store_length;
+        cur_key_len += key_part_info->store_length;
 	key_parts->field=	 key_part_info->field;
 	key_parts->null_bit=	 key_part_info->null_bit;
         key_parts->image_type =
@@ -3100,10 +3102,21 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
         key_parts->flag=         (uint8) key_part_info->key_part_flag;
       }
       param.real_keynr[param.keys++]=idx;
+      if (cur_key_len > max_key_len)
+        max_key_len= cur_key_len;
     }
     param.key_parts_end=key_parts;
     param.alloced_sel_args= 0;
 
+    if (!(param.min_key= (uchar*)alloc_root(&alloc,max_key_len)) ||
+        !(param.max_key= (uchar*)alloc_root(&alloc,max_key_len)))
+    {
+      thd->no_errors=0;
+      free_root(&alloc,MYF(0));			// Return memory & allocator
+      DBUG_RETURN(0);				// Can't use range
+    }
+
+    thd->mem_root= &alloc;
     /* Calculate cost of full index read for the shortest covering index */
     if (!head->covering_keys.is_clear_all())
     {
@@ -3327,7 +3340,7 @@ bool create_key_parts_for_pseudo_indexes(RANGE_OPT_PARAM *param,
     return TRUE;
 
   param->key_parts= key_part;
-
+  uint max_key_len= 0;
   for (field_ptr= table->field; *field_ptr; field_ptr++)
   {
     if (bitmap_is_set(used_fields, (*field_ptr)->field_index))
@@ -3342,6 +3355,8 @@ bool create_key_parts_for_pseudo_indexes(RANGE_OPT_PARAM *param,
         store_length+= HA_KEY_NULL_LENGTH;
       if (field->real_type() == MYSQL_TYPE_VARCHAR)
         store_length+= HA_KEY_BLOB_LENGTH;
+      if (max_key_len < store_length)
+        max_key_len= store_length;
       key_part->store_length= store_length; 
       key_part->field= field; 
       key_part->image_type= Field::itRAW;
@@ -3350,6 +3365,12 @@ bool create_key_parts_for_pseudo_indexes(RANGE_OPT_PARAM *param,
       keys++;
       key_part++;
     }
+  }
+
+  if (!(param->min_key= (uchar*)alloc_root(param->mem_root, max_key_len)) ||
+      !(param->max_key= (uchar*)alloc_root(param->mem_root, max_key_len)))
+  {
+    return true;
   }
   param->keys= keys;
   param->key_parts_end= key_part;
@@ -4899,12 +4920,15 @@ static bool create_partition_index_description(PART_PRUNE_PARAM *ppar)
   Field **field= (ppar->part_fields)? part_info->part_field_array :
                                            part_info->subpart_field_array;
   bool in_subpart_fields= FALSE;
+  uint max_key_len= 0;
+  uint cur_key_len;
   for (uint part= 0; part < total_parts; part++, key_part++)
   {
     key_part->key=          0;
     key_part->part=	    part;
     key_part->length= (uint16)(*field)->key_length();
     key_part->store_length= (uint16)get_partition_field_store_length(*field);
+    cur_key_len += key_part->store_length;
 
     DBUG_PRINT("info", ("part %u length %u store_length %u", part,
                          key_part->length, key_part->store_length));
@@ -4930,9 +4954,20 @@ static bool create_partition_index_description(PART_PRUNE_PARAM *ppar)
     {
       field= part_info->subpart_field_array;
       in_subpart_fields= TRUE;
+      max_key_len= cur_key_len;
+      cur_key_len= 0;
     }
   }
   range_par->key_parts_end= key_part;
+
+  if (cur_key_len > max_key_len)
+    max_key_len= cur_key_len;
+
+  if (!(range_par->min_key= (uchar*)alloc_root(alloc,max_key_len)) ||
+      !(range_par->max_key= (uchar*)alloc_root(alloc,max_key_len)))
+  {
+    return true;
+  }
 
   DBUG_EXECUTE("info", print_partitioning_index(range_par->key_parts,
                                                 range_par->key_parts_end););
