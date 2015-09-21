@@ -5892,6 +5892,7 @@ buf_page_init_for_backup_restore(
 Reserve unused slot from temporary memory array and allocate necessary
 temporary memory if not yet allocated.
 @return reserved slot */
+UNIV_INTERN
 buf_tmp_buffer_t*
 buf_pool_reserve_tmp_slot(
 /*======================*/

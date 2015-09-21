@@ -6501,17 +6501,24 @@ fil_iterate(
 		bool		decrypted = false;
 
 		for (ulint i = 0; i < n_pages_read; ++i) {
-			ulint size = iter.page_size;
+			ulint 	size = iter.page_size;
 			dberr_t	err = DB_SUCCESS;
+			byte*	src = (readptr + (i * size));
+			byte*	dst = (io_buffer + (i * size));
+
+			ulint page_type = mach_read_from_2(src+FIL_PAGE_TYPE);
+
+			bool page_compressed = (page_type == FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED ||
+				page_type == FIL_PAGE_PAGE_COMPRESSED);
 
 			/* If tablespace is encrypted, we need to decrypt
 			the page. */
 			if (encrypted) {
 				decrypted = fil_space_decrypt(
 							iter.crypt_data,
-							io_buffer + i * size, //dst
+							dst, //dst
 							iter.page_size,
-							readptr + i * size, // src
+							src, // src
 							&err); // src
 
 				if (err != DB_SUCCESS) {
@@ -6522,12 +6529,18 @@ fil_iterate(
 					updated = true;
 				} else {
 					/* TODO: remove unnecessary memcpy's */
-					memcpy(io_buffer + i * size, readptr + i * size, size);
+					memcpy(dst, src, size);
 				}
 			}
 
-			buf_block_set_file_page(block, space_id, page_no++);
+			/* If the original page is page_compressed, we need
+			to decompress page before we can update it. */
+			if (page_compressed) {
+				fil_decompress_page(NULL, dst, size, NULL);
+				updated = true;
+			}
 
+			buf_block_set_file_page(block, space_id, page_no++);
 
 			if ((err = callback(page_off, block)) != DB_SUCCESS) {
 
@@ -6541,12 +6554,28 @@ fil_iterate(
 			buf_block_set_state(block, BUF_BLOCK_NOT_USED);
 			buf_block_set_state(block, BUF_BLOCK_READY_FOR_USE);
 
+			src =  (io_buffer + (i * size));
+
+			if (page_compressed) {
+				ulint len = 0;
+				byte* res = fil_compress_page(space_id,
+					src,
+					NULL,
+					size,
+					fil_space_get_page_compression_level(space_id),
+					fil_space_get_block_size(space_id, offset, size),
+					encrypted,
+					&len,
+					NULL);
+
+				updated = true;
+			}
+
 			/* If tablespace is encrypted, encrypt page before we
 			write it back. Note that we should not encrypt the
 			buffer that is in buffer pool. */
 			if (decrypted && encrypted) {
-				unsigned char *src = io_buffer + (i * size);
-				unsigned char *dst = writeptr + (i * size);
+				unsigned char *dest = (writeptr + (i * size));
 				ulint space = mach_read_from_4(
 					src + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID);
 				ulint offset = mach_read_from_4(src + FIL_PAGE_OFFSET);
@@ -6559,12 +6588,14 @@ fil_iterate(
 							lsn,
 							src,
 							iter.page_size == UNIV_PAGE_SIZE ? 0 : iter.page_size,
-							dst);
+							dest);
 
 				if (tmp == src) {
 					/* TODO: remove unnecessary memcpy's */
-					memcpy(writeptr, src, size);
+					memcpy(dest, src, size);
 				}
+
+				updated = true;
 			}
 
 			page_off += iter.page_size;

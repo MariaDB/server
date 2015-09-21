@@ -21,7 +21,8 @@ this program; if not, write to the Free Software Foundation, Inc.,
 Implementation for helper functions for extracting/storing page
 compression and atomic writes information to file space.
 
-Created 11/12/2013 Jan Lindström jan.lindstrom@skysql.com
+Created 11/12/2013 Jan Lindström jan.lindstrom@mariadb.com
+
 ***********************************************************************/
 
 /********************************************************************//**
@@ -100,7 +101,7 @@ fil_page_is_compressed_encrypted(
 /*******************************************************************//**
 Returns the page compression level of the space, or 0 if the space
 is not compressed. The tablespace must be cached in the memory cache.
-@return	page compression level, ULINT_UNDEFINED if space not found */
+@return	page compression level, 0 if space not found */
 UNIV_INLINE
 ulint
 fil_space_get_page_compression_level(
@@ -116,7 +117,7 @@ fil_space_get_page_compression_level(
 		return(fsp_flags_get_page_compression_level(flags));
 	}
 
-	return(flags);
+	return(0);
 }
 
 /*******************************************************************//**
@@ -138,7 +139,7 @@ fil_space_is_page_compressed(
 		return(fsp_flags_is_page_compressed(flags));
 	}
 
-	return(flags);
+	return(0);
 }
 
 #endif /* UNIV_INNOCHECKSUM */

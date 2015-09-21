@@ -613,6 +613,9 @@ fil_encrypt_buf(
 		memcpy(dst_frame + page_size - FIL_PAGE_DATA_END,
 			src_frame + page_size - FIL_PAGE_DATA_END,
 			FIL_PAGE_DATA_END);
+	} else {
+		/* Clean up rest of buffer */
+		memset(dst_frame+header_len+srclen, 0, page_size - (header_len+srclen));
 	}
 
 	/* handle post encryption checksum */
