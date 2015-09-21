@@ -494,10 +494,13 @@ bool Item_func::setup_args_and_comparator(THD *thd, Arg_comparator *cmp)
   DBUG_ASSERT(arg_count >= 2); // Item_func_nullif has arg_count == 3
 
   if (args[0]->cmp_type() == STRING_RESULT &&
-      args[1]->cmp_type() == STRING_RESULT &&
-      agg_arg_charsets_for_comparison(cmp->cmp_collation, args, 2))
+      args[1]->cmp_type() == STRING_RESULT)
+  {
+    DTCollation tmp;
+    if (agg_arg_charsets_for_comparison(tmp, args, 2))
       return true;
-
+    cmp->m_compare_collation= tmp.collation;
+  }
   //  Convert constants when compared to int/year field
   DBUG_ASSERT(functype() != LIKE_FUNC);
   convert_const_compared_to_int_field(thd);
@@ -528,7 +531,7 @@ int Arg_comparator::set_compare_func(Item_func_or_sum *item, Item_result type)
 
   switch (type) {
   case TIME_RESULT:
-    cmp_collation.collation= &my_charset_numeric;
+    m_compare_collation= &my_charset_numeric;
     break;
   case ROW_RESULT:
   {
@@ -666,17 +669,19 @@ bool get_mysql_time_from_str(THD *thd, String *str, timestamp_type warn_type,
 */
 bool Arg_comparator::agg_arg_charsets_for_comparison()
 {
-  if (cmp_collation.set((*a)->collation, (*b)->collation, MY_COLL_CMP_CONV) ||
-      cmp_collation.derivation == DERIVATION_NONE)
+  DTCollation tmp;
+  if (tmp.set((*a)->collation, (*b)->collation, MY_COLL_CMP_CONV) ||
+      tmp.derivation == DERIVATION_NONE)
   {
     my_coll_agg_error((*a)->collation, (*b)->collation, owner->func_name());
     return true;
   }
-  if (agg_item_set_converter(cmp_collation, owner->func_name(),
+  if (agg_item_set_converter(tmp, owner->func_name(),
                              a, 1, MY_COLL_CMP_CONV, 1) ||
-      agg_item_set_converter(cmp_collation, owner->func_name(),
+      agg_item_set_converter(tmp, owner->func_name(),
                              b, 1, MY_COLL_CMP_CONV, 1))
     return true;
+  m_compare_collation= tmp.collation;
   return false;
 }
 
@@ -909,7 +914,7 @@ int Arg_comparator::compare_string()
     {
       if (set_null)
         owner->null_value= 0;
-      return sortcmp(res1,res2,cmp_collation.collation);
+      return sortcmp(res1, res2, compare_collation());
     }
   }
   if (set_null)
@@ -930,7 +935,7 @@ int Arg_comparator::compare_e_string()
   res2= (*b)->val_str(&value2);
   if (!res1 || !res2)
     return MY_TEST(res1 == res2);
-  return MY_TEST(sortcmp(res1, res2, cmp_collation.collation) == 0);
+  return MY_TEST(sortcmp(res1, res2, compare_collation()) == 0);
 }
 
 

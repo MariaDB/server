@@ -48,6 +48,7 @@ class Arg_comparator: public Sql_alloc
 {
   Item **a, **b;
   Item_result m_compare_type;
+  CHARSET_INFO *m_compare_collation;
   arg_cmp_func func;
   Item_func_or_sum *owner;
   bool set_null;                   // TRUE <=> set owner->null_value
@@ -65,16 +66,18 @@ class Arg_comparator: public Sql_alloc
   int compare_e_temporal(enum_field_types type);
 
 public:
-  DTCollation cmp_collation;
   /* Allow owner function to use string buffers. */
   String value1, value2;
 
   Arg_comparator(): m_compare_type(STRING_RESULT),
+    m_compare_collation(&my_charset_bin),
     set_null(TRUE), comparators(0), thd(0),
     a_cache(0), b_cache(0) {};
   Arg_comparator(Item **a1, Item **a2): a(a1), b(a2),
-    m_compare_type(STRING_RESULT), set_null(TRUE),
-    comparators(0), thd(0), a_cache(0), b_cache(0) {};
+    m_compare_type(STRING_RESULT),
+    m_compare_collation(&my_charset_bin),
+    set_null(TRUE), comparators(0), thd(0),
+    a_cache(0), b_cache(0) {};
 
 public:
   inline int set_cmp_func(Item_func_or_sum *owner_arg,
@@ -115,6 +118,7 @@ public:
            ((Item_func*)owner)->functype() == Item_func::EQUAL_FUNC);
   }
   Item_result compare_type() const { return m_compare_type; }
+  CHARSET_INFO *compare_collation() const { return m_compare_collation; }
   Arg_comparator *subcomparators() const { return comparators; }
   void cleanup()
   {
@@ -401,8 +405,7 @@ public:
   {
     return cmp.set_cmp_func(this, tmp_arg, tmp_arg + 1, true);
   }
-  CHARSET_INFO *compare_collation() const
-  { return cmp.cmp_collation.collation; }
+  CHARSET_INFO *compare_collation() const { return cmp.compare_collation(); }
   Item_result compare_type() const { return cmp.compare_type(); }
   Arg_comparator *get_comparator() { return &cmp; }
   void cleanup()
@@ -931,7 +934,7 @@ public:
   bool is_null();
   Item* propagate_equal_fields(THD *thd, const Context &ctx, COND_EQUAL *cond)
   {
-    Context cmpctx(ANY_SUBST, cmp.compare_type(), cmp.cmp_collation.collation);
+    Context cmpctx(ANY_SUBST, cmp.compare_type(), cmp.compare_collation());
     args[0]->propagate_equal_fields_and_change_item_tree(thd, cmpctx,
                                                          cond, &args[0]);
     args[1]->propagate_equal_fields_and_change_item_tree(thd, cmpctx,

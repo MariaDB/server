@@ -12766,7 +12766,7 @@ static bool check_row_equality(THD *thd, const Arg_comparator *comparators,
       is_converted= check_simple_equality(thd,
                                           Item::Context(Item::ANY_SUBST,
                                                         tmp->compare_type(),
-                                                 tmp->cmp_collation.collation),
+                                                  tmp->compare_collation()),
                                           left_item, right_item,
                                           cond_equal);
     }  
