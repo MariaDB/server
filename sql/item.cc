@@ -3327,7 +3327,7 @@ bool Item_param::set_from_user_var(THD *thd, const user_var_entry *entry)
       break;
     case STRING_RESULT:
     {
-      CHARSET_INFO *fromcs= entry->collation.collation;
+      CHARSET_INFO *fromcs= entry->charset();
       CHARSET_INFO *tocs= thd->variables.collation_connection;
       uint32 dummy_offset;
 

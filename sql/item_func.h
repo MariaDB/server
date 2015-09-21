@@ -1696,7 +1696,7 @@ public:
   my_decimal *val_decimal_result(my_decimal *);
   bool is_null_result();
   bool update_hash(void *ptr, uint length, enum Item_result type,
-  		   CHARSET_INFO *cs, Derivation dv, bool unsigned_arg);
+                   CHARSET_INFO *cs, bool unsigned_arg);
   bool send(Protocol *protocol, String *str_arg);
   void make_field(Send_field *tmp_field);
   bool check(bool use_result_field);

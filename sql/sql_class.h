@@ -4949,6 +4949,7 @@ public:
 // this is needed for user_vars hash
 class user_var_entry
 {
+  CHARSET_INFO *m_charset;
  public:
   user_var_entry() {}                         /* Remove gcc warning */
   LEX_STRING name;
@@ -4962,7 +4963,8 @@ class user_var_entry
   longlong val_int(bool *null_value) const;
   String *val_str(bool *null_value, String *str, uint decimals);
   my_decimal *val_decimal(bool *null_value, my_decimal *result);
-  DTCollation collation;
+  CHARSET_INFO *charset() const { return m_charset; }
+  void set_charset(CHARSET_INFO *cs) { m_charset= cs; }
 };
 
 user_var_entry *get_variable(HASH *hash, LEX_STRING &name,
