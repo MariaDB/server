@@ -5045,7 +5045,7 @@ add_ft_keys(DYNAMIC_ARRAY *keyuse_array,
     Item_func::Functype functype=  func->functype();
     if (functype == Item_func::FT_FUNC)
       cond_func=(Item_func_match *)cond;
-    else if (func->arg_count == 2)
+    else if (func->argument_count() == 2)
     {
       Item *arg0=(Item *)(func->arguments()[0]),
            *arg1=(Item *)(func->arguments()[1]);
@@ -23167,13 +23167,13 @@ void free_underlaid_joins(THD *thd, SELECT_LEX *select)
 static bool change_group_ref(THD *thd, Item_func *expr, ORDER *group_list,
                              bool *changed)
 {
-  if (expr->arg_count)
+  if (expr->argument_count())
   {
     Name_resolution_context *context= &thd->lex->current_select->context;
     Item **arg,**arg_end;
     bool arg_changed= FALSE;
     for (arg= expr->arguments(),
-         arg_end= expr->arguments()+expr->arg_count;
+         arg_end= expr->arguments() + expr->argument_count();
          arg != arg_end; arg++)
     {
       Item *item= *arg;

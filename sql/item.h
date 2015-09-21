@@ -3479,6 +3479,7 @@ class Item_args
 {
 protected:
   Item **args, *tmp_arg[2];
+  uint arg_count;
   void set_arguments(THD *thd, List<Item> &list);
   bool walk_args(Item_processor processor, bool walk_subquery, uchar *arg)
   {
@@ -3492,7 +3493,6 @@ protected:
   bool transform_args(THD *thd, Item_transformer transformer, uchar *arg);
   void propagate_equal_fields(THD *, const Item::Context &, COND_EQUAL *);
 public:
-  uint arg_count;
   Item_args(void)
     :args(NULL), arg_count(0)
   { }

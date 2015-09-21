@@ -1863,7 +1863,7 @@ bool Item_func_opt_neg::eq(const Item *item, bool binary_cmp) const
   if (item->type() != FUNC_ITEM)
     return 0;
   Item_func *item_func=(Item_func*) item;
-  if (arg_count != item_func->arg_count ||
+  if (arg_count != item_func->argument_count() ||
       functype() != item_func->functype())
     return 0;
   if (negated != ((Item_func_opt_neg *) item_func)->negated)
