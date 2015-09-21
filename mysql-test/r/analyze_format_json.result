@@ -487,14 +487,14 @@ ANALYZE
   "query_block": {
     "select_id": 1,
     "r_loops": 1,
-    "r_total_time_ms": "REPLACED",
+    "volatile parameter": "REPLACED",
     "having_condition": "(TOP > a)",
     "filesort": {
       "r_loops": 1,
-      "r_total_time_ms": "REPLACED",
+      "volatile parameter": "REPLACED",
       "r_used_priority_queue": false,
       "r_output_rows": 0,
-      "r_buffer_size": "5Kb",
+      "volatile parameter": "REPLACED",
       "temporary_table": {
         "table": {
           "table_name": "t2",
@@ -502,7 +502,7 @@ ANALYZE
           "r_loops": 1,
           "rows": 256,
           "r_rows": 256,
-          "r_total_time_ms": "REPLACED",
+          "volatile parameter": "REPLACED",
           "filtered": 100,
           "r_filtered": 100
         }
@@ -517,13 +517,13 @@ ANALYZE
   "query_block": {
     "select_id": 1,
     "r_loops": 1,
-    "r_total_time_ms": "REPLACED",
+    "volatile parameter": "REPLACED",
     "filesort": {
       "r_loops": 1,
-      "r_total_time_ms": "REPLACED",
+      "volatile parameter": "REPLACED",
       "r_used_priority_queue": false,
       "r_output_rows": 256,
-      "r_buffer_size": "5Kb",
+      "volatile parameter": "REPLACED",
       "temporary_table": {
         "table": {
           "table_name": "t2",
@@ -531,7 +531,7 @@ ANALYZE
           "r_loops": 1,
           "rows": 256,
           "r_rows": 256,
-          "r_total_time_ms": "REPLACED",
+          "volatile parameter": "REPLACED",
           "filtered": 100,
           "r_filtered": 100
         }
@@ -557,13 +557,13 @@ ANALYZE
   "query_block": {
     "select_id": 1,
     "r_loops": 1,
-    "r_total_time_ms": "REPLACED",
+    "volatile parameter": "REPLACED",
     "filesort": {
       "r_loops": 1,
-      "r_total_time_ms": "REPLACED",
+      "volatile parameter": "REPLACED",
       "r_used_priority_queue": false,
       "r_output_rows": 256,
-      "r_buffer_size": "5Kb",
+      "volatile parameter": "REPLACED",
       "temporary_table": {
         "table": {
           "table_name": "t2",
@@ -571,7 +571,7 @@ ANALYZE
           "r_loops": 1,
           "rows": 256,
           "r_rows": 256,
-          "r_total_time_ms": "REPLACED",
+          "volatile parameter": "REPLACED",
           "filtered": 100,
           "r_filtered": 100
         }
