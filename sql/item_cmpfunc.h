@@ -60,7 +60,6 @@ class Arg_comparator: public Sql_alloc
                                    //   when one of arguments is NULL.
   int set_compare_func(Item_func_or_sum *owner, Item_result type);
   int set_cmp_func(Item_func_or_sum *owner_arg, Item **a1, Item **a2);
-  bool agg_arg_charsets_for_comparison();
 
   int compare_temporal(enum_field_types type);
   int compare_e_temporal(enum_field_types type);

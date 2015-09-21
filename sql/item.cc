@@ -2035,8 +2035,9 @@ void my_coll_agg_error(Item** args, uint count, const char *fname,
 }
 
 
-bool agg_item_collations(DTCollation &c, const char *fname,
-                         Item **av, uint count, uint flags, int item_sep)
+bool Item_func_or_sum::agg_item_collations(DTCollation &c, const char *fname,
+                                           Item **av, uint count,
+                                           uint flags, int item_sep)
 {
   uint i;
   Item **arg;
@@ -2081,16 +2082,10 @@ bool agg_item_collations(DTCollation &c, const char *fname,
 }
 
 
-bool agg_item_collations_for_comparison(DTCollation &c, const char *fname,
-                                        Item **av, uint count, uint flags)
-{
-  return (agg_item_collations(c, fname, av, count,
-                              flags | MY_COLL_DISALLOW_NONE, 1));
-}
-
-
-bool agg_item_set_converter(DTCollation &coll, const char *fname,
-                            Item **args, uint nargs, uint flags, int item_sep)
+bool Item_func_or_sum::agg_item_set_converter(const DTCollation &coll,
+                                              const char *fname,
+                                              Item **args, uint nargs,
+                                              uint flags, int item_sep)
 {
   Item **arg, *safe_args[2]= {NULL, NULL};
 
@@ -2164,46 +2159,6 @@ bool agg_item_set_converter(DTCollation &coll, const char *fname,
   if (arena)
     thd->restore_active_arena(arena, &backup);
   return res;
-}
-
-
-/* 
-  Collect arguments' character sets together.
-  We allow to apply automatic character set conversion in some cases.
-  The conditions when conversion is possible are:
-  - arguments A and B have different charsets
-  - A wins according to coercibility rules
-    (i.e. a column is stronger than a string constant,
-     an explicit COLLATE clause is stronger than a column)
-  - character set of A is either superset for character set of B,
-    or B is a string constant which can be converted into the
-    character set of A without data loss.
-    
-  If all of the above is true, then it's possible to convert
-  B into the character set of A, and then compare according
-  to the collation of A.
-  
-  For functions with more than two arguments:
-
-    collect(A,B,C) ::= collect(collect(A,B),C)
-
-  Since this function calls THD::change_item_tree() on the passed Item **
-  pointers, it is necessary to pass the original Item **'s, not copies.
-  Otherwise their values will not be properly restored (see BUG#20769).
-  If the items are not consecutive (eg. args[2] and args[5]), use the
-  item_sep argument, ie.
-
-    agg_item_charsets(coll, fname, &args[2], 2, flags, 3)
-
-*/
-
-bool agg_item_charsets(DTCollation &coll, const char *fname,
-                       Item **args, uint nargs, uint flags, int item_sep)
-{
-  if (agg_item_collations(coll, fname, args, nargs, flags, item_sep))
-    return TRUE;
-
-  return agg_item_set_converter(coll, fname, args, nargs, flags, item_sep);
 }
 
 

@@ -253,15 +253,6 @@ static uint collect_cmp_types(Item **items, uint nitems, bool skip_nulls= FALSE)
   return found_types;
 }
 
-static void my_coll_agg_error(DTCollation &c1, DTCollation &c2,
-                              const char *fname)
-{
-  my_error(ER_CANT_AGGREGATE_2COLLATIONS, MYF(0),
-           c1.collation->name,c1.derivation_name(),
-           c2.collation->name,c2.derivation_name(),
-           fname);
-}
-
 
 /*
   Test functions
@@ -654,39 +645,6 @@ bool get_mysql_time_from_str(THD *thd, String *str, timestamp_type warn_type,
 
 
 /**
-  Aggregate comparator argument charsets for comparison.
-  One of the arguments ("a" or "b") can be replaced,
-  typically by Item_string or Item_func_conv_charset.
-
-  @return Aggregation result
-  @retval false - if no conversion is needed,
-                  or if one of the arguments was converted
-  @retval true  - on error, if arguments are not comparable.
-
-  TODO: get rid of this method eventually and refactor the calling code.
-  Argument conversion should happen on the Item_func level.
-  Arg_comparator should get comparable arguments.
-*/
-bool Arg_comparator::agg_arg_charsets_for_comparison()
-{
-  DTCollation tmp;
-  if (tmp.set((*a)->collation, (*b)->collation, MY_COLL_CMP_CONV) ||
-      tmp.derivation == DERIVATION_NONE)
-  {
-    my_coll_agg_error((*a)->collation, (*b)->collation, owner->func_name());
-    return true;
-  }
-  if (agg_item_set_converter(tmp, owner->func_name(),
-                             a, 1, MY_COLL_CMP_CONV, 1) ||
-      agg_item_set_converter(tmp, owner->func_name(),
-                             b, 1, MY_COLL_CMP_CONV, 1))
-    return true;
-  m_compare_collation= tmp.collation;
-  return false;
-}
-
-
-/**
   Prepare the comparator (set the comparison function) for comparing
   items *a1 and *a2 in the context of 'type'.
 
@@ -717,7 +675,7 @@ int Arg_comparator::set_cmp_func(Item_func_or_sum *owner_arg,
       We must set cmp_collation here as we may be called from for an automatic
       generated item, like in natural join
     */
-    if (agg_arg_charsets_for_comparison())
+    if (owner->agg_arg_charsets_for_comparison(&m_compare_collation, a, b))
       return 1;
   }
 
