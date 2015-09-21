@@ -4328,7 +4328,7 @@ static bool create_partition_index_description(PART_PRUNE_PARAM *ppar)
                                            part_info->subpart_field_array;
   bool in_subpart_fields= FALSE;
   uint max_key_len= 0;
-  uint cur_key_len;
+  uint cur_key_len= 0;
   for (uint part= 0; part < total_parts; part++, key_part++)
   {
     key_part->key=          0;
