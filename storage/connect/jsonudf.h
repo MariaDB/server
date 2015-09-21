@@ -33,145 +33,145 @@ typedef class JOUTPATH *PJTP;
 typedef class JOUTALL  *PJTA;
 
 extern "C" {
-	DllExport my_bool JsonValue_init(UDF_INIT*, UDF_ARGS*, char*);
-	DllExport char *JsonValue(UDF_EXEC_ARGS);
-	DllExport void JsonValue_deinit(UDF_INIT*);
+	DllExport my_bool jsonvalue_init(UDF_INIT*, UDF_ARGS*, char*);
+	DllExport char *jsonvalue(UDF_EXEC_ARGS);
+	DllExport void jsonvalue_deinit(UDF_INIT*);
 
-	DllExport my_bool Json_Array_init(UDF_INIT*, UDF_ARGS*, char*);
-	DllExport char *Json_Array(UDF_EXEC_ARGS);
-	DllExport void Json_Array_deinit(UDF_INIT*);
+	DllExport my_bool json_array_init(UDF_INIT*, UDF_ARGS*, char*);
+	DllExport char *json_array(UDF_EXEC_ARGS);
+	DllExport void json_array_deinit(UDF_INIT*);
 
-	DllExport my_bool Json_Array_Add_Values_init(UDF_INIT*, UDF_ARGS*, char*);
-	DllExport char *Json_Array_Add_Values(UDF_EXEC_ARGS);
-	DllExport void Json_Array_Add_Values_deinit(UDF_INIT*);
+	DllExport my_bool json_array_add_values_init(UDF_INIT*, UDF_ARGS*, char*);
+	DllExport char *json_array_add_values(UDF_EXEC_ARGS);
+	DllExport void json_array_add_values_deinit(UDF_INIT*);
 
-	DllExport my_bool Json_Array_Add_init(UDF_INIT*, UDF_ARGS*, char*);
-	DllExport char *Json_Array_Add(UDF_EXEC_ARGS);
-	DllExport void Json_Array_Add_deinit(UDF_INIT*);
+	DllExport my_bool json_array_add_init(UDF_INIT*, UDF_ARGS*, char*);
+	DllExport char *json_array_add(UDF_EXEC_ARGS);
+	DllExport void json_array_add_deinit(UDF_INIT*);
 
-	DllExport my_bool Json_Array_Delete_init(UDF_INIT*, UDF_ARGS*, char*);
-	DllExport char *Json_Array_Delete(UDF_EXEC_ARGS);
-	DllExport void Json_Array_Delete_deinit(UDF_INIT*);
+	DllExport my_bool json_array_delete_init(UDF_INIT*, UDF_ARGS*, char*);
+	DllExport char *json_array_delete(UDF_EXEC_ARGS);
+	DllExport void json_array_delete_deinit(UDF_INIT*);
 
-	DllExport my_bool Json_Object_init(UDF_INIT*, UDF_ARGS*, char*);
-	DllExport char *Json_Object(UDF_EXEC_ARGS);
-	DllExport void Json_Object_deinit(UDF_INIT*);
+	DllExport my_bool json_object_init(UDF_INIT*, UDF_ARGS*, char*);
+	DllExport char *json_object(UDF_EXEC_ARGS);
+	DllExport void json_object_deinit(UDF_INIT*);
 
-	DllExport my_bool Json_Object_Nonull_init(UDF_INIT*, UDF_ARGS*, char*);
-	DllExport char *Json_Object_Nonull(UDF_EXEC_ARGS);
-	DllExport void Json_Object_Nonull_deinit(UDF_INIT*);
+	DllExport my_bool json_object_nonull_init(UDF_INIT*, UDF_ARGS*, char*);
+	DllExport char *json_object_nonull(UDF_EXEC_ARGS);
+	DllExport void json_object_nonull_deinit(UDF_INIT*);
 
-	DllExport my_bool Json_Object_Add_init(UDF_INIT*, UDF_ARGS*, char*);
-	DllExport char *Json_Object_Add(UDF_EXEC_ARGS);
-	DllExport void Json_Object_Add_deinit(UDF_INIT*);
+	DllExport my_bool json_object_add_init(UDF_INIT*, UDF_ARGS*, char*);
+	DllExport char *json_object_add(UDF_EXEC_ARGS);
+	DllExport void json_object_add_deinit(UDF_INIT*);
 
-	DllExport my_bool Json_Object_Delete_init(UDF_INIT*, UDF_ARGS*, char*);
-	DllExport char *Json_Object_Delete(UDF_EXEC_ARGS);
-	DllExport void Json_Object_Delete_deinit(UDF_INIT*);
+	DllExport my_bool json_object_delete_init(UDF_INIT*, UDF_ARGS*, char*);
+	DllExport char *json_object_delete(UDF_EXEC_ARGS);
+	DllExport void json_object_delete_deinit(UDF_INIT*);
 
-	DllExport my_bool Json_Object_List_init(UDF_INIT*, UDF_ARGS*, char*);
-	DllExport char *Json_Object_List(UDF_EXEC_ARGS);
-	DllExport void Json_Object_List_deinit(UDF_INIT*);
+	DllExport my_bool json_object_list_init(UDF_INIT*, UDF_ARGS*, char*);
+	DllExport char *json_object_list(UDF_EXEC_ARGS);
+	DllExport void json_object_list_deinit(UDF_INIT*);
 
-	DllExport my_bool Json_Array_Grp_init(UDF_INIT*, UDF_ARGS*, char*);
-	DllExport void Json_Array_Grp_add(UDF_INIT *, UDF_ARGS *, char *, char *);
-	DllExport char *Json_Array_Grp(UDF_EXEC_ARGS);
-	DllExport void Json_Array_Grp_clear(UDF_INIT *, char *, char *);
-	DllExport void Json_Array_Grp_deinit(UDF_INIT*);
+	DllExport my_bool json_array_grp_init(UDF_INIT*, UDF_ARGS*, char*);
+	DllExport void json_array_grp_add(UDF_INIT *, UDF_ARGS *, char *, char *);
+	DllExport char *json_array_grp(UDF_EXEC_ARGS);
+	DllExport void json_array_grp_clear(UDF_INIT *, char *, char *);
+	DllExport void json_array_grp_deinit(UDF_INIT*);
 
-	DllExport my_bool Json_Object_Grp_init(UDF_INIT*, UDF_ARGS*, char*);
-	DllExport void Json_Object_Grp_add(UDF_INIT *, UDF_ARGS *, char *, char *);
-	DllExport char *Json_Object_Grp(UDF_EXEC_ARGS);
-	DllExport void Json_Object_Grp_clear(UDF_INIT *, char *, char *);
-	DllExport void Json_Object_Grp_deinit(UDF_INIT*);
+	DllExport my_bool json_object_grp_init(UDF_INIT*, UDF_ARGS*, char*);
+	DllExport void json_object_grp_add(UDF_INIT *, UDF_ARGS *, char *, char *);
+	DllExport char *json_object_grp(UDF_EXEC_ARGS);
+	DllExport void json_object_grp_clear(UDF_INIT *, char *, char *);
+	DllExport void json_object_grp_deinit(UDF_INIT*);
 
-	DllExport my_bool Json_Get_Item_init(UDF_INIT*, UDF_ARGS*, char*);
-	DllExport char *Json_Get_Item(UDF_EXEC_ARGS);
-	DllExport void Json_Get_Item_deinit(UDF_INIT*);
+	DllExport my_bool json_get_item_init(UDF_INIT*, UDF_ARGS*, char*);
+	DllExport char *json_get_item(UDF_EXEC_ARGS);
+	DllExport void json_get_item_deinit(UDF_INIT*);
 
-	DllExport my_bool Json_Item_Merge_init(UDF_INIT*, UDF_ARGS*, char*);
-	DllExport char *Json_Item_Merge(UDF_EXEC_ARGS);
-	DllExport void Json_Item_Merge_deinit(UDF_INIT*);
+	DllExport my_bool json_item_merge_init(UDF_INIT*, UDF_ARGS*, char*);
+	DllExport char *json_item_merge(UDF_EXEC_ARGS);
+	DllExport void json_item_merge_deinit(UDF_INIT*);
 
-	DllExport my_bool JsonGetString_init(UDF_INIT*, UDF_ARGS*, char*);
-	DllExport char *JsonGetString(UDF_EXEC_ARGS);
-	DllExport void JsonGetString_deinit(UDF_INIT*);
+	DllExport my_bool jsonget_string_init(UDF_INIT*, UDF_ARGS*, char*);
+	DllExport char *jsonget_string(UDF_EXEC_ARGS);
+	DllExport void jsonget_string_deinit(UDF_INIT*);
 
-	DllExport my_bool JsonGetInt_init(UDF_INIT*, UDF_ARGS*, char*);
-	DllExport long long JsonGetInt(UDF_INIT*, UDF_ARGS*, char*, char*);
-	DllExport void JsonGetInt_deinit(UDF_INIT*);
+	DllExport my_bool jsonget_int_init(UDF_INIT*, UDF_ARGS*, char*);
+	DllExport long long jsonget_int(UDF_INIT*, UDF_ARGS*, char*, char*);
+	DllExport void jsonget_int_deinit(UDF_INIT*);
 
-	DllExport my_bool JsonGetReal_init(UDF_INIT*, UDF_ARGS*, char*);
-	DllExport double JsonGetReal(UDF_INIT*, UDF_ARGS*, char*, char*);
-	DllExport void JsonGetReal_deinit(UDF_INIT*);
+	DllExport my_bool jsonget_real_init(UDF_INIT*, UDF_ARGS*, char*);
+	DllExport double jsonget_real(UDF_INIT*, UDF_ARGS*, char*, char*);
+	DllExport void jsonget_real_deinit(UDF_INIT*);
 
-	DllExport my_bool JsonLocate_init(UDF_INIT*, UDF_ARGS*, char*);
-	DllExport char *JsonLocate(UDF_EXEC_ARGS);
-	DllExport void JsonLocate_deinit(UDF_INIT*);
+	DllExport my_bool jsonlocate_init(UDF_INIT*, UDF_ARGS*, char*);
+	DllExport char *jsonlocate(UDF_EXEC_ARGS);
+	DllExport void jsonlocate_deinit(UDF_INIT*);
 
-	DllExport my_bool Json_Locate_All_init(UDF_INIT*, UDF_ARGS*, char*);
-	DllExport char *Json_Locate_All(UDF_EXEC_ARGS);
-	DllExport void Json_Locate_All_deinit(UDF_INIT*);
+	DllExport my_bool json_locate_all_init(UDF_INIT*, UDF_ARGS*, char*);
+	DllExport char *json_locate_all(UDF_EXEC_ARGS);
+	DllExport void json_locate_all_deinit(UDF_INIT*);
 
-	DllExport my_bool Json_File_init(UDF_INIT*, UDF_ARGS*, char*);
-	DllExport char *Json_File(UDF_EXEC_ARGS);
-	DllExport void Json_File_deinit(UDF_INIT*);
+	DllExport my_bool json_file_init(UDF_INIT*, UDF_ARGS*, char*);
+	DllExport char *json_file(UDF_EXEC_ARGS);
+	DllExport void json_file_deinit(UDF_INIT*);
 
-	DllExport my_bool Jfile_Make_init(UDF_INIT*, UDF_ARGS*, char*);
-	DllExport char *Jfile_Make(UDF_EXEC_ARGS);
-	DllExport void Jfile_Make_deinit(UDF_INIT*);
+	DllExport my_bool jfile_make_init(UDF_INIT*, UDF_ARGS*, char*);
+	DllExport char *jfile_make(UDF_EXEC_ARGS);
+	DllExport void jfile_make_deinit(UDF_INIT*);
 
-	DllExport my_bool Jbin_Array_init(UDF_INIT*, UDF_ARGS*, char*);
-	DllExport char *Jbin_Array(UDF_EXEC_ARGS);
-	DllExport void Jbin_Array_deinit(UDF_INIT*);
+	DllExport my_bool jbin_array_init(UDF_INIT*, UDF_ARGS*, char*);
+	DllExport char *jbin_array(UDF_EXEC_ARGS);
+	DllExport void jbin_array_deinit(UDF_INIT*);
 
-	DllExport my_bool Jbin_Array_Add_Values_init(UDF_INIT*, UDF_ARGS*, char*);
-	DllExport char *Jbin_Array_Add_Values(UDF_EXEC_ARGS);
-	DllExport void Jbin_Array_Add_Values_deinit(UDF_INIT*);
+	DllExport my_bool jbin_array_add_values_init(UDF_INIT*, UDF_ARGS*, char*);
+	DllExport char *jbin_array_add_values(UDF_EXEC_ARGS);
+	DllExport void jbin_array_add_values_deinit(UDF_INIT*);
 
-	DllExport my_bool Jbin_Array_Add_init(UDF_INIT*, UDF_ARGS*, char*);
-	DllExport char *Jbin_Array_Add(UDF_EXEC_ARGS);
-	DllExport void Jbin_Array_Add_deinit(UDF_INIT*);
+	DllExport my_bool jbin_array_add_init(UDF_INIT*, UDF_ARGS*, char*);
+	DllExport char *jbin_array_add(UDF_EXEC_ARGS);
+	DllExport void jbin_array_add_deinit(UDF_INIT*);
 
-	DllExport my_bool Jbin_Array_Delete_init(UDF_INIT*, UDF_ARGS*, char*);
-	DllExport char *Jbin_Array_Delete(UDF_EXEC_ARGS);
-	DllExport void Jbin_Array_Delete_deinit(UDF_INIT*);
+	DllExport my_bool jbin_array_delete_init(UDF_INIT*, UDF_ARGS*, char*);
+	DllExport char *jbin_array_delete(UDF_EXEC_ARGS);
+	DllExport void jbin_array_delete_deinit(UDF_INIT*);
 
-	DllExport my_bool Jbin_Object_init(UDF_INIT*, UDF_ARGS*, char*);
-	DllExport char *Jbin_Object(UDF_EXEC_ARGS);
-	DllExport void Jbin_Object_deinit(UDF_INIT*);
+	DllExport my_bool jbin_object_init(UDF_INIT*, UDF_ARGS*, char*);
+	DllExport char *jbin_object(UDF_EXEC_ARGS);
+	DllExport void jbin_object_deinit(UDF_INIT*);
 
-	DllExport my_bool Jbin_Object_Nonull_init(UDF_INIT*, UDF_ARGS*, char*);
-	DllExport char *Jbin_Object_Nonull(UDF_EXEC_ARGS);
-	DllExport void Jbin_Object_Nonull_deinit(UDF_INIT*);
+	DllExport my_bool jbin_object_nonull_init(UDF_INIT*, UDF_ARGS*, char*);
+	DllExport char *jbin_object_nonull(UDF_EXEC_ARGS);
+	DllExport void jbin_object_nonull_deinit(UDF_INIT*);
 
-	DllExport my_bool Jbin_Object_Add_init(UDF_INIT*, UDF_ARGS*, char*);
-	DllExport char *Jbin_Object_Add(UDF_EXEC_ARGS);
-	DllExport void Jbin_Object_Add_deinit(UDF_INIT*);
+	DllExport my_bool jbin_object_add_init(UDF_INIT*, UDF_ARGS*, char*);
+	DllExport char *jbin_object_add(UDF_EXEC_ARGS);
+	DllExport void jbin_object_add_deinit(UDF_INIT*);
 
-	DllExport my_bool Jbin_Object_Delete_init(UDF_INIT*, UDF_ARGS*, char*);
-	DllExport char *Jbin_Object_Delete(UDF_EXEC_ARGS);
-	DllExport void Jbin_Object_Delete_deinit(UDF_INIT*);
+	DllExport my_bool jbin_object_delete_init(UDF_INIT*, UDF_ARGS*, char*);
+	DllExport char *jbin_object_delete(UDF_EXEC_ARGS);
+	DllExport void jbin_object_delete_deinit(UDF_INIT*);
 
-	DllExport my_bool Jbin_Object_List_init(UDF_INIT*, UDF_ARGS*, char*);
-	DllExport char *Jbin_Object_List(UDF_EXEC_ARGS);
-	DllExport void Jbin_Object_List_deinit(UDF_INIT*);
+	DllExport my_bool jbin_object_list_init(UDF_INIT*, UDF_ARGS*, char*);
+	DllExport char *jbin_object_list(UDF_EXEC_ARGS);
+	DllExport void jbin_object_list_deinit(UDF_INIT*);
 
-	DllExport my_bool Jbin_Get_Item_init(UDF_INIT*, UDF_ARGS*, char*);
-	DllExport char *Jbin_Get_Item(UDF_EXEC_ARGS);
-	DllExport void Jbin_Get_Item_deinit(UDF_INIT*);
+	DllExport my_bool jbin_get_item_init(UDF_INIT*, UDF_ARGS*, char*);
+	DllExport char *jbin_get_item(UDF_EXEC_ARGS);
+	DllExport void jbin_get_item_deinit(UDF_INIT*);
 
-	DllExport my_bool Jbin_Item_Merge_init(UDF_INIT*, UDF_ARGS*, char*);
-	DllExport char *Jbin_Item_Merge(UDF_EXEC_ARGS);
-	DllExport void Jbin_Item_Merge_deinit(UDF_INIT*);
+	DllExport my_bool jbin_item_merge_init(UDF_INIT*, UDF_ARGS*, char*);
+	DllExport char *jbin_item_merge(UDF_EXEC_ARGS);
+	DllExport void jbin_item_merge_deinit(UDF_INIT*);
 
-	DllExport my_bool Jbin_File_init(UDF_INIT*, UDF_ARGS*, char*);
-	DllExport char *Jbin_File(UDF_EXEC_ARGS);
-	DllExport void Jbin_File_deinit(UDF_INIT*);
+	DllExport my_bool jbin_file_init(UDF_INIT*, UDF_ARGS*, char*);
+	DllExport char *jbin_file(UDF_EXEC_ARGS);
+	DllExport void jbin_file_deinit(UDF_INIT*);
 
-	DllExport my_bool Json_Serialize_init(UDF_INIT*, UDF_ARGS*, char*);
-	DllExport char *Json_Serialize(UDF_EXEC_ARGS);
-	DllExport void Json_Serialize_deinit(UDF_INIT*);
+	DllExport my_bool json_serialize_init(UDF_INIT*, UDF_ARGS*, char*);
+	DllExport char *json_serialize(UDF_EXEC_ARGS);
+	DllExport void json_serialize_deinit(UDF_INIT*);
 } // extern "C"
 
 /*********************************************************************************/

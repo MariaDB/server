@@ -16,8 +16,12 @@
 #include "jsonudf.h"
 
 #define MEMFIX  4096
+#if defined(connect_EXPORTS)
 #define PUSH_WARNING(M) \
 push_warning(current_thd, Sql_condition::WARN_LEVEL_WARN, 0, M)
+#else
+#define PUSH_WARNING(M) htrc(M)
+#endif
 #define M 7
 
 uint GetJsonGrpSize(void);
@@ -855,7 +859,7 @@ inline void JsonMemSave(PGLOBAL g)
 } /* end of JsonMemSave */
 
 /*********************************************************************************/
-/*  Program for freeing the memory pools.                           */
+/*  Program for freeing the memory pools.                                        */
 /*********************************************************************************/
 inline void JsonFreeMem(PGLOBAL g)
 {
@@ -896,7 +900,7 @@ static my_bool CheckPath(PGLOBAL g, UDF_ARGS *args, PJSON top, PJVAL& jvp, int n
 		if (args->arg_type[i] == STRING_RESULT) {
 			// A path to a subset of the json tree is given
 			char *path = MakePSZ(g, args, i);
-			PJSNX jsx = new(g)JSNX(g, top, TYPE_STRING);
+			PJSNX jsx = new(g) JSNX(g, top, TYPE_STRING);
 
 			if (jsx->SetJpath(g, path))
 				return true;
@@ -1358,20 +1362,20 @@ static PJVAL MakeValue(PGLOBAL g, UDF_ARGS *args, uint i)
 /*********************************************************************************/
 /*  Make a Json value containing the parameter.                                  */
 /*********************************************************************************/
-my_bool JsonValue_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
+my_bool jsonvalue_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 {
   unsigned long reslen, memlen;
 
   if (args->arg_count > 1) {
-    strcpy(message, "JsonValue cannot accept more than 1 argument");
+    strcpy(message, "jsonvalue cannot accept more than 1 argument");
     return true;
   } else
     CalcLen(args, false, reslen, memlen);
 
   return JsonInit(initid, args, message, false, reslen, memlen);
-} // end of JsonValue_init
+} // end of jsonvalue_init
 
-char *JsonValue(UDF_INIT *initid, UDF_ARGS *args, char *result, 
+char *jsonvalue(UDF_INIT *initid, UDF_ARGS *args, char *result, 
                 unsigned long *res_length, char *, char *)
 {
   char   *str;
@@ -1399,20 +1403,20 @@ char *JsonValue(UDF_INIT *initid, UDF_ARGS *args, char *result,
 void JsonValue_deinit(UDF_INIT* initid)
 {
   JsonFreeMem((PGLOBAL)initid->ptr);
-} // end of JsonValue_deinit
+} // end of jsonvalue_deinit
 
 /*********************************************************************************/
 /*  Make a Json array containing all the parameters.                             */
 /*********************************************************************************/
-my_bool Json_Array_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
+my_bool json_array_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 {
   unsigned long reslen, memlen;
 
   CalcLen(args, false, reslen, memlen);
   return JsonInit(initid, args, message, false, reslen, memlen);
-} // end of Json_Array_init
+} // end of json_array_init
 
-char *Json_Array(UDF_INIT *initid, UDF_ARGS *args, char *result, 
+char *json_array(UDF_INIT *initid, UDF_ARGS *args, char *result, 
                  unsigned long *res_length, char *, char *)
 {
   char   *str;
@@ -1440,33 +1444,33 @@ char *Json_Array(UDF_INIT *initid, UDF_ARGS *args, char *result,
 
 	*res_length = strlen(str);
   return str;
-} // end of Json_Array
+} // end of json_array
 
-void Json_Array_deinit(UDF_INIT* initid)
+void json_array_deinit(UDF_INIT* initid)
 {
   JsonFreeMem((PGLOBAL)initid->ptr);
-} // end of Json_Array_deinit
+} // end of json_array_deinit
 
 /*********************************************************************************/
 /*  Add one or several values to a Json array.                                   */
 /*********************************************************************************/
-my_bool Json_Array_Add_Values_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
+my_bool json_array_add_values_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 {
 	unsigned long reslen, memlen;
 
 	if (args->arg_count < 2) {
-		strcpy(message, "Json_Array_Add must have at least 2 arguments");
+		strcpy(message, "json_array_add_values must have at least 2 arguments");
 		return true;
 	} else if (!IsJson(args, 0)) {
-		strcpy(message, "Json_Array_Add first argument must be a json string");
+		strcpy(message, "json_array_add_values first argument must be a json string");
 		return true;
 	} else
 		CalcLen(args, false, reslen, memlen);
 
 	return JsonInit(initid, args, message, true, reslen, memlen);
-} // end of Json_Array_Add_Values_init
+} // end of json_array_add_values_init
 
-char *Json_Array_Add_Values(UDF_INIT *initid, UDF_ARGS *args, char *result,
+char *json_array_add_values(UDF_INIT *initid, UDF_ARGS *args, char *result,
 	unsigned long *res_length, char *is_null, char *)
 {
 	char   *str = NULL;
@@ -1507,33 +1511,33 @@ char *Json_Array_Add_Values(UDF_INIT *initid, UDF_ARGS *args, char *result,
 		*res_length = strlen(str);
 
 	return str;
-} // end of Json_Array_Add_Values
+} // end of json_array_add_values
 
-void Json_Array_Add_Values_deinit(UDF_INIT* initid)
+void json_array_add_values_deinit(UDF_INIT* initid)
 {
 	JsonFreeMem((PGLOBAL)initid->ptr);
-} // end of Json_Array_Add_Values_deinit
+} // end of json_array_add_values_deinit
 
 /*********************************************************************************/
 /*  Add one value to a Json array.                                               */
 /*********************************************************************************/
-my_bool Json_Array_Add_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
+my_bool json_array_add_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 {
   unsigned long reslen, memlen;
 
 	if (args->arg_count < 2) {
-		strcpy(message, "Json_Array_Add must have at least 2 arguments");
+		strcpy(message, "json_array_add must have at least 2 arguments");
     return true;
   } else if (!IsJson(args, 0)) {
-    strcpy(message, "Json_Array_Add first argument must be a json item");
+    strcpy(message, "json_array_add first argument must be a json item");
     return true;
 	} else
     CalcLen(args, false, reslen, memlen, true);
 
 	return JsonInit(initid, args, message, true, reslen, memlen);
-} // end of Json_Array_Add_init
+} // end of json_array_add_init
 
-char *Json_Array_Add(UDF_INIT *initid, UDF_ARGS *args, char *result, 
+char *json_array_add(UDF_INIT *initid, UDF_ARGS *args, char *result, 
                      unsigned long *res_length, char *, char *error)
 {
 	char   *str = NULL;
@@ -1589,36 +1593,36 @@ char *Json_Array_Add(UDF_INIT *initid, UDF_ARGS *args, char *result,
 
 	*res_length = strlen(str);
 	return str;
-} // end of Json_Array_Add
+} // end of json_array_add
 
-void Json_Array_Add_deinit(UDF_INIT* initid)
+void json_array_add_deinit(UDF_INIT* initid)
 {
   JsonFreeMem((PGLOBAL)initid->ptr);
-} // end of Json_Array_Add_deinit
+} // end of json_array_add_deinit
 
 /*********************************************************************************/
 /*  Delete a value from a Json array.                                            */
 /*********************************************************************************/
-my_bool Json_Array_Delete_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
+my_bool json_array_delete_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 {
   unsigned long reslen, memlen;
 
 	if (args->arg_count < 2) {
-    strcpy(message, "Json_Array_Delete must have at lest 2 arguments");
+    strcpy(message, "json_array_delete must have at lest 2 arguments");
     return true;
 	} else if (!IsJson(args, 0)) {
-		strcpy(message, "Json_Array_Delete first argument must be a json item");
+		strcpy(message, "json_array_delete first argument must be a json item");
 		return true;
 	} else if (args->arg_type[1] != INT_RESULT) {
-		strcpy(message, "Json_Array_Delete second argument is not an integer (index)");
+		strcpy(message, "json_array_delete second argument is not an integer (index)");
 		return true;
 	} else
     CalcLen(args, false, reslen, memlen, true);
 
   return JsonInit(initid, args, message, true, reslen, memlen);
-} // end of Json_Array_Delete_init
+} // end of json_array_delete_init
 
-char *Json_Array_Delete(UDF_INIT *initid, UDF_ARGS *args, char *result, 
+char *json_array_delete(UDF_INIT *initid, UDF_ARGS *args, char *result, 
                         unsigned long *res_length, char *, char *error)
 {
 	char   *str = NULL;
@@ -1662,25 +1666,25 @@ char *Json_Array_Delete(UDF_INIT *initid, UDF_ARGS *args, char *result,
 
 	*res_length = (str) ? strlen(str) : 0;
 	return str;
-} // end of Json_Array_Delete
+} // end of json_array_delete
 
-void Json_Array_Delete_deinit(UDF_INIT* initid)
+void json_array_delete_deinit(UDF_INIT* initid)
 {
   JsonFreeMem((PGLOBAL)initid->ptr);
-} // end of Json_Array_Delete_deinit
+} // end of json_array_delete_deinit
 
 /*********************************************************************************/
 /*  Make a Json Oject containing all the parameters.                             */
 /*********************************************************************************/
-my_bool Json_Object_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
+my_bool json_object_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 {
   unsigned long reslen, memlen;
 
   CalcLen(args, true, reslen, memlen);
   return JsonInit(initid, args, message, false, reslen, memlen);
-} // end of Json_Object_init
+} // end of json_object_init
 
-char *Json_Object(UDF_INIT *initid, UDF_ARGS *args, char *result, 
+char *json_object(UDF_INIT *initid, UDF_ARGS *args, char *result, 
                   unsigned long *res_length, char *, char *)
 {
   char   *str = NULL;
@@ -1706,26 +1710,26 @@ char *Json_Object(UDF_INIT *initid, UDF_ARGS *args, char *result,
 
 	*res_length = strlen(str);
   return str;
-} // end of Json_Object
+} // end of json_object
 
-void Json_Object_deinit(UDF_INIT* initid)
+void json_object_deinit(UDF_INIT* initid)
 {
   JsonFreeMem((PGLOBAL)initid->ptr);
-} // end of Json_Object_deinit
+} // end of json_object_deinit
 
 /*********************************************************************************/
 /*  Make a Json Oject containing all not null parameters.                        */
 /*********************************************************************************/
-my_bool Json_Object_Nonull_init(UDF_INIT *initid, UDF_ARGS *args,
+my_bool json_object_nonull_init(UDF_INIT *initid, UDF_ARGS *args,
                                 char *message)
 {
   unsigned long reslen, memlen;
 
   CalcLen(args, true, reslen, memlen);
   return JsonInit(initid, args, message, false, reslen, memlen);
-} // end of Json_Object_Nonull_init
+} // end of json_object_nonull_init
 
-char *Json_Object_Nonull(UDF_INIT *initid, UDF_ARGS *args, char *result, 
+char *json_object_nonull(UDF_INIT *initid, UDF_ARGS *args, char *result, 
                          unsigned long *res_length, char *, char *)
 {
   char   *str;
@@ -1753,33 +1757,33 @@ char *Json_Object_Nonull(UDF_INIT *initid, UDF_ARGS *args, char *result,
 
 	*res_length = strlen(str);
   return str;
-} // end of Json_Object_Nonull
+} // end of json_object_nonull
 
-void Json_Object_Nonull_deinit(UDF_INIT* initid)
+void json_object_nonull_deinit(UDF_INIT* initid)
 {
   JsonFreeMem((PGLOBAL)initid->ptr);
-} // end of Json_Object_nonull_deinit
+} // end of json_object_nonull_deinit
 
 /*********************************************************************************/
 /*  Add or replace a value in a Json Object.                                     */
 /*********************************************************************************/
-my_bool Json_Object_Add_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
+my_bool json_object_add_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 {
 	unsigned long reslen, memlen;
 
 	if (args->arg_count < 2) {
-		strcpy(message, "Json_Object_Add must have at least 2 arguments");
+		strcpy(message, "json_object_add must have at least 2 arguments");
 		return true;
 	} else if (!IsJson(args, 0)) {
-		strcpy(message, "Json_Object_Add first argument must be a json item");
+		strcpy(message, "json_object_add first argument must be a json item");
 		return true;
 	} else
 		CalcLen(args, false, reslen, memlen, true);
 
 	return JsonInit(initid, args, message, true, reslen, memlen);
-} // end of Json_Object_Add_init
+} // end of json_object_add_init
 
-char *Json_Object_Add(UDF_INIT *initid, UDF_ARGS *args, char *result,
+char *json_object_add(UDF_INIT *initid, UDF_ARGS *args, char *result,
 	                    unsigned long *res_length, char *, char *error)
 {
 	char   *key, *str = NULL;
@@ -1822,36 +1826,36 @@ char *Json_Object_Add(UDF_INIT *initid, UDF_ARGS *args, char *result,
 
 	*res_length = strlen(str);
 	return str;
-} // end of Json_Object_Add
+} // end of json_object_add
 
-void Json_Object_Add_deinit(UDF_INIT* initid)
+void json_object_add_deinit(UDF_INIT* initid)
 {
 	JsonFreeMem((PGLOBAL)initid->ptr);
-} // end of Json_Object_Add_deinit
+} // end of json_object_add_deinit
 
 /*********************************************************************************/
 /*  Delete a value from a Json object.                                           */
 /*********************************************************************************/
-my_bool Json_Object_Delete_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
+my_bool json_object_delete_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 {
 	unsigned long reslen, memlen;
 
 	if (args->arg_count < 2) {
-		strcpy(message, "Json_Object_Delete must have 2 or 3 arguments");
+		strcpy(message, "json_object_delete must have 2 or 3 arguments");
 		return true;
 	} else if (!IsJson(args, 0)) {
-		strcpy(message, "Json_Object_Delete first argument must be a json item");
+		strcpy(message, "json_object_delete first argument must be a json item");
 		return true;
 	} else if (args->arg_type[1] != STRING_RESULT) {
-		strcpy(message, "Json_Object_Delete second argument must be a key string");
+		strcpy(message, "json_object_delete second argument must be a key string");
 		return true;
 	} else
 		CalcLen(args, false, reslen, memlen, true);
 
 	return JsonInit(initid, args, message, true, reslen, memlen);
-} // end of Json_Object_Delete_init
+} // end of json_object_delete_init
 
-char *Json_Object_Delete(UDF_INIT *initid, UDF_ARGS *args, char *result,
+char *json_object_delete(UDF_INIT *initid, UDF_ARGS *args, char *result,
 												 unsigned long *res_length, char *, char *error)
 {
 	char   *str = NULL;
@@ -1894,33 +1898,33 @@ char *Json_Object_Delete(UDF_INIT *initid, UDF_ARGS *args, char *result,
 
 	*res_length = strlen(str);
 	return str;
-} // end of Json_Object_Delete
+} // end of json_object_delete
 
-void Json_Object_Delete_deinit(UDF_INIT* initid)
+void json_object_delete_deinit(UDF_INIT* initid)
 {
 	JsonFreeMem((PGLOBAL)initid->ptr);
-} // end of Json_Object_Delete_deinit
+} // end of json_object_delete_deinit
 
 /*********************************************************************************/
 /*  Returns an array of the Json object keys.                                    */
 /*********************************************************************************/
-my_bool Json_Object_List_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
+my_bool json_object_list_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 {
 	unsigned long reslen, memlen;
 
 	if (args->arg_count != 1) {
-		strcpy(message, "Json_Object_List must have 1 arguments");
+		strcpy(message, "json_object_list must have 1 arguments");
 		return true;
 	} else if (!IsJson(args, 0)) {
-		strcpy(message, "Json_Object_List argument must be a json item");
+		strcpy(message, "json_object_list argument must be a json item");
 		return true;
 	} else
 		CalcLen(args, false, reslen, memlen);
 
 	return JsonInit(initid, args, message, true, reslen, memlen);
-} // end of Json_Object_List_init
+} // end of json_object_list_init
 
-char *Json_Object_List(UDF_INIT *initid, UDF_ARGS *args, char *result,
+char *json_object_list(UDF_INIT *initid, UDF_ARGS *args, char *result,
 	unsigned long *res_length, char *is_null, char *error)
 {
 	char   *str = NULL;
@@ -1960,22 +1964,22 @@ char *Json_Object_List(UDF_INIT *initid, UDF_ARGS *args, char *result,
 		*res_length = strlen(str);
 
 	return str;
-} // end of Json_Object_List
+} // end of json_object_list
 
-void Json_Object_List_deinit(UDF_INIT* initid)
+void json_object_list_deinit(UDF_INIT* initid)
 {
 	JsonFreeMem((PGLOBAL)initid->ptr);
-} // end of Json_Object_List_deinit
+} // end of json_object_list_deinit
 
 /*********************************************************************************/
 /*  Make a Json array from values coming from rows.                              */
 /*********************************************************************************/
-my_bool Json_Array_Grp_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
+my_bool json_array_grp_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 {
   unsigned long reslen, memlen, n = GetJsonGrpSize();
 
   if (args->arg_count != 1) {
-    strcpy(message, "Json_Array_Grp can only accept 1 argument");
+    strcpy(message, "json_array_grp can only accept 1 argument");
     return true;
 	} else if (IsJson(args, 0) == 3) {
 		strcpy(message, "Json_Array_Grp does not support Jbin argument");
@@ -1995,9 +1999,9 @@ my_bool Json_Array_Grp_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
   g->Activityp = (PACTIVITY)new(g) JARRAY;
   g->N = (int)n;
   return false;
-} // end of Json_Array_Grp_init
+} // end of json_array_grp_init
 
-void Json_Array_Grp_add(UDF_INIT *initid, UDF_ARGS *args, char*, char*)
+void json_array_grp_add(UDF_INIT *initid, UDF_ARGS *args, char*, char*)
 {
   PGLOBAL g = (PGLOBAL)initid->ptr;
   PJAR    arp = (PJAR)g->Activityp;
@@ -2005,9 +2009,9 @@ void Json_Array_Grp_add(UDF_INIT *initid, UDF_ARGS *args, char*, char*)
   if (g->N-- > 0)
     arp->AddValue(g, MakeValue(g, args, 0));
 
-} // end of Json_Array_Grp_add
+} // end of json_array_grp_add
 
-char *Json_Array_Grp(UDF_INIT *initid, UDF_ARGS *, char *result, 
+char *json_array_grp(UDF_INIT *initid, UDF_ARGS *, char *result, 
                      unsigned long *res_length, char *, char *)
 {
   char   *str;
@@ -2024,34 +2028,34 @@ char *Json_Array_Grp(UDF_INIT *initid, UDF_ARGS *, char *result,
 
   *res_length = strlen(str);
   return str;
-} // end of Json_Array_Grp
+} // end of json_array_grp
 
-void Json_Array_Grp_clear(UDF_INIT *initid, char*, char*)
+void json_array_grp_clear(UDF_INIT *initid, char*, char*)
 {
   PGLOBAL g = (PGLOBAL)initid->ptr;
 
   PlugSubSet(g, g->Sarea, g->Sarea_Size);
   g->Activityp = (PACTIVITY)new(g) JARRAY;
   g->N = GetJsonGrpSize();
-} // end of Json_Array_Grp_clear
+} // end of json_array_grp_clear
 
-void Json_Array_Grp_deinit(UDF_INIT* initid)
+void json_array_grp_deinit(UDF_INIT* initid)
 {
   JsonFreeMem((PGLOBAL)initid->ptr);
-} // end of Json_Array_Grp_deinit
+} // end of json_array_grp_deinit
 
 /*********************************************************************************/
 /*  Make a Json object from values coming from rows.                             */
 /*********************************************************************************/
-my_bool Json_Object_Grp_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
+my_bool json_object_grp_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 {
   unsigned long reslen, memlen, n = GetJsonGrpSize();
 
   if (args->arg_count != 2) {
-    strcpy(message, "Json_Object_Grp can only accept 2 arguments");
+    strcpy(message, "json_object_grp can only accept 2 arguments");
     return true;
 	} else if (IsJson(args, 0) == 3) {
-		strcpy(message, "Json_Object_Grp does not support Jbin arguments");
+		strcpy(message, "json_object_grp does not support Jbin arguments");
 		return true;
 	} else
     CalcLen(args, true, reslen, memlen);
@@ -2068,9 +2072,9 @@ my_bool Json_Object_Grp_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
   g->Activityp = (PACTIVITY)new(g) JOBJECT;
   g->N = (int)n;
   return false;
-} // end of Json_Object_Grp_init
+} // end of json_object_grp_init
 
-void Json_Object_Grp_add(UDF_INIT *initid, UDF_ARGS *args, char*, char*)
+void json_object_grp_add(UDF_INIT *initid, UDF_ARGS *args, char*, char*)
 {
   PGLOBAL g = (PGLOBAL)initid->ptr;
   PJOB    objp = (PJOB)g->Activityp;
@@ -2078,9 +2082,9 @@ void Json_Object_Grp_add(UDF_INIT *initid, UDF_ARGS *args, char*, char*)
   if (g->N-- > 0)
     objp->SetValue(g, MakeValue(g, args, 0), MakePSZ(g, args, 1));
 
-} // end of Json_Object_Grp_add
+} // end of json_object_grp_add
 
-char *Json_Object_Grp(UDF_INIT *initid, UDF_ARGS *, char *result, 
+char *json_object_grp(UDF_INIT *initid, UDF_ARGS *, char *result, 
                       unsigned long *res_length, char *, char *)
 {
   char   *str;
@@ -2095,45 +2099,45 @@ char *Json_Object_Grp(UDF_INIT *initid, UDF_ARGS *, char *result,
 
   *res_length = strlen(str);
   return str;
-} // end of Json_Object_Grp
+} // end of json_object_grp
 
-void Json_Object_Grp_clear(UDF_INIT *initid, char*, char*)
+void json_object_grp_clear(UDF_INIT *initid, char*, char*)
 {
   PGLOBAL g = (PGLOBAL)initid->ptr;
 
   PlugSubSet(g, g->Sarea, g->Sarea_Size);
   g->Activityp = (PACTIVITY)new(g) JOBJECT;
   g->N = GetJsonGrpSize();
-} // end of Json_Object_Grp_clear
+} // end of json_object_grp_clear
 
-void Json_Object_Grp_deinit(UDF_INIT* initid)
+void json_object_grp_deinit(UDF_INIT* initid)
 {
   JsonFreeMem((PGLOBAL)initid->ptr);
-} // end of Json_Object_Grp_deinit
+} // end of json_object_grp_deinit
 
 /*********************************************************************************/
 /*  Merge two arrays or objects.                                                 */
 /*********************************************************************************/
-my_bool Json_Item_Merge_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
+my_bool json_item_merge_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 {
 	unsigned long reslen, memlen;
 
 	if (args->arg_count < 2) {
-		strcpy(message, "Json_Item_Merge must have at least 2 arguments");
+		strcpy(message, "json_item_merge must have at least 2 arguments");
 		return true;
 	} else if (!IsJson(args, 0)) {
-		strcpy(message, "Json_Item_Merge first argument must be a json item");
+		strcpy(message, "json_item_merge first argument must be a json item");
 		return true;
 	} else if (!IsJson(args, 1)) {
-		strcpy(message, "Json_Item_Merge second argument must be a json item");
+		strcpy(message, "json_item_merge second argument must be a json item");
 		return true;
 	} else
 		CalcLen(args, false, reslen, memlen, true);
 
 	return JsonInit(initid, args, message, true, reslen, memlen);
-} // end of Json_Item_Merge_init
+} // end of json_item_merge_init
 
-char *Json_Item_Merge(UDF_INIT *initid, UDF_ARGS *args, char *result,
+char *json_item_merge(UDF_INIT *initid, UDF_ARGS *args, char *result,
 	unsigned long *res_length, char *, char *error)
 {
 	char   *str = NULL;
@@ -2183,26 +2187,26 @@ char *Json_Item_Merge(UDF_INIT *initid, UDF_ARGS *args, char *result,
 
 	*res_length = strlen(str);
 	return str;
-} // end of Json_Item_Merge
+} // end of json_item_merge
 
-void Json_Item_Merge_deinit(UDF_INIT* initid)
+void json_item_merge_deinit(UDF_INIT* initid)
 {
 	JsonFreeMem((PGLOBAL)initid->ptr);
-} // end of Json_Item_Merge_deinit
+} // end of json_item_merge_deinit
 
 /*********************************************************************************/
 /*  Get a Json item from a Json document.                                        */
 /*********************************************************************************/
-my_bool Json_Get_Item_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
+my_bool json_get_item_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 {
 	unsigned long reslen, memlen;
 	int n = IsJson(args, 0);
 
 	if (args->arg_count < 2) {
-		strcpy(message, "Json_Get_Item must have at least 2 arguments");
+		strcpy(message, "json_get_item must have at least 2 arguments");
 		return true;
 	} else if (!n && args->arg_type[0] != STRING_RESULT) {
-		strcpy(message, "Json_Get_Item first argument must be a json item");
+		strcpy(message, "json_get_item first argument must be a json item");
 		return true;
   } else if (args->arg_type[1] != STRING_RESULT) {
 		strcpy(message, "Second argument is not a string (jpath)");
@@ -2222,9 +2226,9 @@ my_bool Json_Get_Item_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 		memlen += args->lengths[0] * 3;
 
 	return JsonInit(initid, args, message, true, reslen, memlen);
-} // end of Json_Get_Item_init
+} // end of json_get_item_init
 
-char *Json_Get_Item(UDF_INIT *initid, UDF_ARGS *args, char *result,
+char *json_get_item(UDF_INIT *initid, UDF_ARGS *args, char *result,
 	             unsigned long *res_length, char *is_null, char *)
 {
 	char   *str = NULL;
@@ -2264,7 +2268,7 @@ char *Json_Get_Item(UDF_INIT *initid, UDF_ARGS *args, char *result,
 			jsp = (PJSON)g->Xchk;
 
 		path = MakePSZ(g, args, 1);
-		jsx = new(g)JSNX(g, jsp, TYPE_STRING, initid->max_length);
+		jsx = new(g) JSNX(g, jsp, TYPE_STRING, initid->max_length);
 
 		if (jsx->SetJpath(g, path, true)) {
 			PUSH_WARNING(g->Message);
@@ -2291,26 +2295,26 @@ char *Json_Get_Item(UDF_INIT *initid, UDF_ARGS *args, char *result,
 		*res_length = strlen(str);
 
 	return str;
-} // end of Json_Get_Item
+} // end of json_get_item
 
-void Json_Get_Item_deinit(UDF_INIT* initid)
+void json_get_item_deinit(UDF_INIT* initid)
 {
 	JsonFreeMem((PGLOBAL)initid->ptr);
-} // end of Json_Get_Item_deinit
+} // end of json_get_item_deinit
 
 /*********************************************************************************/
 /*  Get a string value from a Json item.                                         */
 /*********************************************************************************/
-my_bool JsonGetString_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
+my_bool jsonget_string_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 {
 	unsigned long reslen, memlen;
 	int n = IsJson(args, 0);
 
 	if (args->arg_count < 2) {
-		strcpy(message, "JsonGetString must have at least 2 arguments");
+		strcpy(message, "jsonget_string must have at least 2 arguments");
 		return true;
 	} else if (!n && args->arg_type[0] != STRING_RESULT) {
-		strcpy(message, "JsonGetString first argument must be a json item");
+		strcpy(message, "jsonget_string first argument must be a json item");
 		return true;
 	} else if (args->arg_type[1] != STRING_RESULT) {
 		strcpy(message, "Second argument is not a string (jpath)");
@@ -2330,9 +2334,9 @@ my_bool JsonGetString_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 		memlen += args->lengths[0] * 3;
 
 	return JsonInit(initid, args, message, true, reslen, memlen);
-} // end of JsonGetString_init
+} // end of jsonget_string_init
 
-char *JsonGetString(UDF_INIT *initid, UDF_ARGS *args, char *result,
+char *jsonget_string(UDF_INIT *initid, UDF_ARGS *args, char *result,
 	unsigned long *res_length, char *is_null, char *)
 {
 	char   *str = NULL;
@@ -2372,7 +2376,7 @@ char *JsonGetString(UDF_INIT *initid, UDF_ARGS *args, char *result,
 			jsp = (PJSON)g->Xchk;
 
 		path = MakePSZ(g, args, 1);
-		jsx = new(g)JSNX(g, jsp, TYPE_STRING, initid->max_length);
+		jsx = new(g) JSNX(g, jsp, TYPE_STRING, initid->max_length);
 
 		if (jsx->SetJpath(g, path)) {
 			PUSH_WARNING(g->Message);
@@ -2399,25 +2403,25 @@ fin:
 		*res_length = strlen(str);
 
 	return str;
-} // end of JsonGetString
+} // end of jsonget_string
 
-void JsonGetString_deinit(UDF_INIT* initid)
+void jsonget_string_deinit(UDF_INIT* initid)
 {
 	JsonFreeMem((PGLOBAL)initid->ptr);
-} // end of JsonGetString_deinit
+} // end of jsonget_string_deinit
 
 /*********************************************************************************/
 /*  Get an integer value from a Json item.                                       */
 /*********************************************************************************/
-my_bool JsonGetInt_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
+my_bool jsonget_int_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 {
 	unsigned long reslen, memlen;
 
 	if (args->arg_count != 2) {
-		strcpy(message, "JsonGetInt must have 2 arguments");
+		strcpy(message, "jsonget_int must have 2 arguments");
 		return true;
 	} else if (!IsJson(args, 0) && args->arg_type[0] != STRING_RESULT) {
-		strcpy(message, "JsonGetInt first argument must be a json item");
+		strcpy(message, "jsonget_int first argument must be a json item");
 		return true;
 	} else if (args->arg_type[1] != STRING_RESULT) {
 		strcpy(message, "Second argument is not a (jpath) string");
@@ -2429,9 +2433,9 @@ my_bool JsonGetInt_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 		memlen += 1000;       // TODO: calculate this
 
 	return JsonInit(initid, args, message, true, reslen, memlen);
-} // end of JsonGetInt_init
+} // end of jsonget_int_init
 
-long long JsonGetInt(UDF_INIT *initid, UDF_ARGS *args,
+long long jsonget_int(UDF_INIT *initid, UDF_ARGS *args,
 	                     char *is_null, char *error)
 {
 	PGLOBAL g = (PGLOBAL)initid->ptr;
@@ -2476,7 +2480,7 @@ long long JsonGetInt(UDF_INIT *initid, UDF_ARGS *args,
 			jsp = (PJSON)g->Xchk;
 
 		path = MakePSZ(g, args, 1);
-		jsx = new(g)JSNX(g, jsp, TYPE_BIGINT);
+		jsx = new(g) JSNX(g, jsp, TYPE_BIGINT);
 
 		if (jsx->SetJpath(g, path)) {
 			PUSH_WARNING(g->Message);
@@ -2507,25 +2511,25 @@ long long JsonGetInt(UDF_INIT *initid, UDF_ARGS *args,
 	if (g->Mrr) *error = 1;
 	*is_null = 1;
 	return 0LL;
-} // end of JsonGetInt
+} // end of jsonget_int
 
-void JsonGetInt_deinit(UDF_INIT* initid)
+void jsonget_int_deinit(UDF_INIT* initid)
 {
 	JsonFreeMem((PGLOBAL)initid->ptr);
-} // end of JsonGetInt_deinit
+} // end of jsonget_int_deinit
 
 /*********************************************************************************/
 /*  Get a double value from a Json item.                                         */
 /*********************************************************************************/
-my_bool JsonGetReal_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
+my_bool jsonget_real_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 {
 	unsigned long reslen, memlen;
 
 	if (args->arg_count < 2) {
-		strcpy(message, "JsonGetReal must have at least 2 arguments");
+		strcpy(message, "jsonget_real must have at least 2 arguments");
 		return true;
 	} else if (!IsJson(args, 0) && args->arg_type[0] != STRING_RESULT) {
-		strcpy(message, "JsonGetReal first argument must be a json item");
+		strcpy(message, "jsonget_real first argument must be a json item");
 		return true;
 	} else if (args->arg_type[1] != STRING_RESULT) {
 		strcpy(message, "Second argument is not a (jpath) string");
@@ -2546,9 +2550,9 @@ my_bool JsonGetReal_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 		memlen += 1000;       // TODO: calculate this
 
 	return JsonInit(initid, args, message, true, reslen, memlen);
-} // end of JsonGetReal_init
+} // end of jsonget_real_init
 
-double JsonGetReal(UDF_INIT *initid, UDF_ARGS *args,
+double jsonget_real(UDF_INIT *initid, UDF_ARGS *args,
 	                   char *is_null, char *error)
 {
 	PGLOBAL g = (PGLOBAL)initid->ptr;
@@ -2592,7 +2596,7 @@ double JsonGetReal(UDF_INIT *initid, UDF_ARGS *args,
 			jsp = (PJSON)g->Xchk;
 
 		path = MakePSZ(g, args, 1);
-		jsx = new(g)JSNX(g, jsp, TYPE_DOUBLE);
+		jsx = new(g) JSNX(g, jsp, TYPE_DOUBLE);
 
 		if (jsx->SetJpath(g, path)) {
 			PUSH_WARNING(g->Message);
@@ -2623,25 +2627,25 @@ double JsonGetReal(UDF_INIT *initid, UDF_ARGS *args,
 	if (g->Mrr) *error = 1;
 	*is_null = 1;
 	return 0.0;
-} // end of JsonGetReal
+} // end of jsonget_real
 
-void JsonGetReal_deinit(UDF_INIT* initid)
+void jsonget_real_deinit(UDF_INIT* initid)
 {
 	JsonFreeMem((PGLOBAL)initid->ptr);
-} // end of JsonGetReal_deinit
+} // end of jsonget_real_deinit
 
 /*********************************************************************************/
 /*  Locate a value in a Json tree.                                               */
 /*********************************************************************************/
-my_bool JsonLocate_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
+my_bool jsonlocate_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 {
 	unsigned long reslen, memlen, more = 1000;
 
 	if (args->arg_count < 2) {
-		strcpy(message, "Json_Locate must have at least 2 arguments");
+		strcpy(message, "jsonlocate must have at least 2 arguments");
 		return true;
 	} else if (!IsJson(args, 0) && args->arg_type[0] != STRING_RESULT) {
-		strcpy(message, "Json_Locate first argument must be a json item");
+		strcpy(message, "jsonlocate first argument must be a json item");
 		return true;
 	} else if (args->arg_count > 2 && args->arg_type[2] != INT_RESULT) {
 		strcpy(message, "Third argument is not an integer (rank)");
@@ -2659,9 +2663,9 @@ my_bool JsonLocate_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 		memlen += 1000;       // TODO: calculate this
 
 	return JsonInit(initid, args, message, true, reslen, memlen);
-} // end of JsonLocate_init
+} // end of jsonlocate_init
 
-char *JsonLocate(UDF_INIT *initid, UDF_ARGS *args, char *result,
+char *jsonlocate(UDF_INIT *initid, UDF_ARGS *args, char *result,
 	                unsigned long *res_length, char *is_null, char *error)
 {
 	char   *path = NULL;
@@ -2728,7 +2732,7 @@ char *JsonLocate(UDF_INIT *initid, UDF_ARGS *args, char *result,
 
 		k = (args->arg_count > 2) ? (int)*(long long*)args->args[2] : 1;
 
-		jsx = new(g)JSNX(g, jsp, TYPE_STRING);
+		jsx = new(g) JSNX(g, jsp, TYPE_STRING);
 		path = jsx->Locate(g, jsp, jvp2, k);
 
 		if (initid->const_item)
@@ -2750,25 +2754,25 @@ char *JsonLocate(UDF_INIT *initid, UDF_ARGS *args, char *result,
 	*error = 1;
 	*is_null = 1;
 	return NULL;
-} // end of JsonLocate
+} // end of jsonlocate
 
-void Json_Locate_deinit(UDF_INIT* initid)
+void json_locate_deinit(UDF_INIT* initid)
 {
 	JsonFreeMem((PGLOBAL)initid->ptr);
-} // end of JsonLocate_deinit
+} // end of jsonlocate_deinit
 
 /*********************************************************************************/
 /*  Locate all occurences of a value in a Json tree.                             */
 /*********************************************************************************/
-my_bool Json_Locate_All_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
+my_bool json_locate_all_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 {
 	unsigned long reslen, memlen, more = 1000;
 
 	if (args->arg_count < 2) {
-		strcpy(message, "Json_Locate_All must have at least 2 arguments");
+		strcpy(message, "json_locate_all must have at least 2 arguments");
 		return true;
 	} else if (!IsJson(args, 0) && args->arg_type[0] != STRING_RESULT) {
-		strcpy(message, "Json_Locate_All first argument must be a json item");
+		strcpy(message, "json_locate_all first argument must be a json item");
 		return true;
 	} else if (args->arg_count > 2 && args->arg_type[2] != INT_RESULT) {
 		strcpy(message, "Third argument is not an integer (Depth)");
@@ -2786,9 +2790,9 @@ my_bool Json_Locate_All_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 			memlen += 1000;       // TODO: calculate this
 
 		return JsonInit(initid, args, message, true, reslen, memlen);
-} // end of Json_Locate_All_init
+} // end of json_locate_all_init
 
-char *Json_Locate_All(UDF_INIT *initid, UDF_ARGS *args, char *result,
+char *json_locate_all(UDF_INIT *initid, UDF_ARGS *args, char *result,
 	unsigned long *res_length, char *is_null, char *error)
 {
 	char   *path = NULL;
@@ -2857,7 +2861,7 @@ char *Json_Locate_All(UDF_INIT *initid, UDF_ARGS *args, char *result,
 		if (args->arg_count > 2)
 			mx = (int)*(long long*)args->args[2];
 
-		jsx = new(g)JSNX(g, jsp, TYPE_STRING);
+		jsx = new(g) JSNX(g, jsp, TYPE_STRING);
 		path = jsx->LocateAll(g, jsp, jvp2, mx);
 
 		if (initid->const_item)
@@ -2879,25 +2883,25 @@ char *Json_Locate_All(UDF_INIT *initid, UDF_ARGS *args, char *result,
 	*error = 1;
 	*is_null = 1;
 	return NULL;
-} // end of Json_Locate_All
+} // end of json_locate_all
 
-void Json_Locate_All_deinit(UDF_INIT* initid)
+void json_locate_all_deinit(UDF_INIT* initid)
 {
 	JsonFreeMem((PGLOBAL)initid->ptr);
-} // end of Json_Locate_All_deinit
+} // end of json_locate_all_deinit
 
 /*********************************************************************************/
 /*  Returns a json file as a json string.                                        */
 /*********************************************************************************/
-my_bool Json_File_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
+my_bool json_file_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 {
 	unsigned long reslen, memlen, fl, more = 1024;
 
 	if (args->arg_count < 1 || args->arg_count > 4) {
-		strcpy(message, "Json_File only accepts 1 to 4 arguments");
+		strcpy(message, "json_file only accepts 1 to 4 arguments");
 		return true;
 	} else if (args->arg_type[0] != STRING_RESULT) {
-		strcpy(message, "Json_File first argument must be a (string) file name");
+		strcpy(message, "json_file first argument must be a (string) file name");
 		return true;
 	} else if (args->arg_count > 1 && args->arg_type[1] != INT_RESULT) {
 		strcpy(message, "Second argument is not an integer (check)");
@@ -2926,9 +2930,9 @@ my_bool Json_File_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 
   memlen += more;
 	return JsonInit(initid, args, message, false, reslen, memlen);
-} // end of Json_File_init
+} // end of json_file_init
 
-char *Json_File(UDF_INIT *initid, UDF_ARGS *args, char *result,
+char *json_file(UDF_INIT *initid, UDF_ARGS *args, char *result,
 	unsigned long *res_length, char *is_null, char *error)
 {
 	char   *str, *fn;
@@ -3022,25 +3026,25 @@ fin:
 		*res_length = strlen(str);
 
 	return str;
-} // end of Json_File
+} // end of json_file
 
-void Json_File_deinit(UDF_INIT* initid)
+void json_file_deinit(UDF_INIT* initid)
 {
 	JsonFreeMem((PGLOBAL)initid->ptr);
-} // end of Json_File_deinit
+} // end of json_file_deinit
 
 /*********************************************************************************/
 /*  Make a json file from a json item.                                           */
 /*********************************************************************************/
-my_bool Jfile_Make_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
+my_bool jfile_make_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 {
 	unsigned long reslen, memlen, more = 1024;
 
 	if (args->arg_count < 2 || args->arg_count > 3) {
-		strcpy(message, "JsonMakeFile only accepts 2 or 3 arguments");
+		strcpy(message, "jfile_make only accepts 2 or 3 arguments");
 		return true;
 	} else if (!IsJson(args, 0)) {
-		strcpy(message, "JsonMakeFile first argument must be a json item");
+		strcpy(message, "jfile_make first argument must be a json item");
 		return true;
 	} else if (args->arg_type[1] != STRING_RESULT) {
 		strcpy(message, "Second argument must be a (string) file name");
@@ -3052,9 +3056,9 @@ my_bool Jfile_Make_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 
 	CalcLen(args, false, reslen, memlen);
 	return JsonInit(initid, args, message, true, reslen, memlen);
-} // end of Jfile_Make_init
+} // end of jfile_make_init
 
-char *Jfile_Make(UDF_INIT *initid, UDF_ARGS *args, char *result,
+char *jfile_make(UDF_INIT *initid, UDF_ARGS *args, char *result,
 	unsigned long *res_length, char *is_null, char *)
 {
 	char   *str, *fn, *msg;
@@ -3101,25 +3105,25 @@ char *Jfile_Make(UDF_INIT *initid, UDF_ARGS *args, char *result,
 		*res_length = strlen(str);
 
 	return str;
-} // end of Jfile_Make
+} // end of jfile_make
 
-void Jfile_Make_deinit(UDF_INIT* initid)
+void jfile_make_deinit(UDF_INIT* initid)
 {
 	JsonFreeMem((PGLOBAL)initid->ptr);
-} // end of Jfile_Make_deinit
+} // end of jfile_make_deinit
 
 /*********************************************************************************/
 /*  Make and return a binary Json array containing all the parameters.           */
 /*********************************************************************************/
-my_bool Jbin_Array_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
+my_bool jbin_array_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 {
 	unsigned long reslen, memlen;
 
 	CalcLen(args, false, reslen, memlen);
 	return JsonInit(initid, args, message, false, reslen, memlen);
-} // end of Jbin_Array_init
+} // end of jbin_array_init
 
-char *Jbin_Array(UDF_INIT *initid, UDF_ARGS *args, char *result,
+char *jbin_array(UDF_INIT *initid, UDF_ARGS *args, char *result,
 	unsigned long *res_length, char *, char *)
 {
 	PGLOBAL g = (PGLOBAL)initid->ptr;
@@ -3146,33 +3150,33 @@ char *Jbin_Array(UDF_INIT *initid, UDF_ARGS *args, char *result,
 
 	*res_length = sizeof(BSON);
 	return (char*)bsp;
-} // end of Jbin_Array
+} // end of jbin_array
 
-void Jbin_Array_deinit(UDF_INIT* initid)
+void jbin_array_deinit(UDF_INIT* initid)
 {
 	JsonFreeMem((PGLOBAL)initid->ptr);
-} // end of Jbin_Array_deinit
+} // end of jbin_array_deinit
 
 /*********************************************************************************/
 /*  Add one or several values to a Json array.                                   */
 /*********************************************************************************/
-my_bool Jbin_Array_Add_Values_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
+my_bool jbin_array_add_values_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 {
 	unsigned long reslen, memlen;
 
 	if (args->arg_count < 2) {
-		strcpy(message, "Jbin_Array_Add must have at least 2 arguments");
+		strcpy(message, "jbin_array_add_values must have at least 2 arguments");
 		return true;
 	} else if (IsJson(args, 0) != 1) {
-		strcpy(message, "Jbin_Array_Add first argument must be a json string");
+		strcpy(message, "jbin_array_add_values first argument must be a json string");
 		return true;
 	} else
 		CalcLen(args, false, reslen, memlen);
 
 	return JsonInit(initid, args, message, true, reslen, memlen);
-} // end of Jbin_Array_Add_Values_init
+} // end of jbin_array_add_values_init
 
-char *Jbin_Array_Add_Values(UDF_INIT *initid, UDF_ARGS *args, char *result,
+char *jbin_array_add_values(UDF_INIT *initid, UDF_ARGS *args, char *result,
 	unsigned long *res_length, char *is_null, char *)
 {
 	PGLOBAL g = (PGLOBAL)initid->ptr;
@@ -3206,33 +3210,33 @@ char *Jbin_Array_Add_Values(UDF_INIT *initid, UDF_ARGS *args, char *result,
 
 	*res_length = sizeof(BSON);
 	return (char*)bsp;
-} // end of Jbin_Array_Add_Values
+} // end of jbin_array_add_values
 
-void Jbin_Array_Add_Values_deinit(UDF_INIT* initid)
+void jbin_array_add_values_deinit(UDF_INIT* initid)
 {
 	JsonFreeMem((PGLOBAL)initid->ptr);
-} // end of Jbin_Array_Add_Values_deinit
+} // end of jbin_array_add_values_deinit
 
 /*********************************************************************************/
 /*  Add one value to a Json array.                                               */
 /*********************************************************************************/
-my_bool Jbin_Array_Add_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
+my_bool jbin_array_add_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 {
 	unsigned long reslen, memlen;
 
 	if (args->arg_count < 2) {
-		strcpy(message, "Jbin_Array_Add must have at least 2 arguments");
+		strcpy(message, "jbin_array_add must have at least 2 arguments");
 		return true;
 	} else if (!IsJson(args, 0)) {
-		strcpy(message, "Jbin_Array_Add first argument must be a json item");
+		strcpy(message, "jbin_array_add first argument must be a json item");
 		return true;
 	} else
 		CalcLen(args, false, reslen, memlen, true);
 
 	return JsonInit(initid, args, message, true, reslen, memlen);
-} // end of Jbin_Array_Add_init
+} // end of jbin_array_add_init
 
-char *Jbin_Array_Add(UDF_INIT *initid, UDF_ARGS *args, char *result,
+char *jbin_array_add(UDF_INIT *initid, UDF_ARGS *args, char *result,
 	unsigned long *res_length, char *, char *error)
 {
 	int     n = 2;
@@ -3286,36 +3290,36 @@ char *Jbin_Array_Add(UDF_INIT *initid, UDF_ARGS *args, char *result,
 
 	*res_length = sizeof(BSON);
 	return (char*)bsp;
-} // end of Jbin_Array_Add
+} // end of jbin_array_add
 
-void Jbin_Array_Add_deinit(UDF_INIT* initid)
+void jbin_array_add_deinit(UDF_INIT* initid)
 {
 	JsonFreeMem((PGLOBAL)initid->ptr);
-} // end of Jbin_Array_Add_deinit
+} // end of jbin_array_add_deinit
 
 /*********************************************************************************/
 /*  Delete a value from a Json array.                                            */
 /*********************************************************************************/
-my_bool Jbin_Array_Delete_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
+my_bool jbin_array_delete_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 {
 	unsigned long reslen, memlen;
 
 	if (args->arg_count < 2) {
-		strcpy(message, "Jbin_Array_Delete must have at lest 2 arguments");
+		strcpy(message, "jbin_array_delete must have at lest 2 arguments");
 		return true;
 	} else if (!IsJson(args, 0)) {
-		strcpy(message, "Jbin_Array_Delete first argument must be a json item");
+		strcpy(message, "jbin_array_delete first argument must be a json item");
 		return true;
 	} else if (args->arg_type[1] != INT_RESULT) {
-		strcpy(message, "Jbin_Array_Delete second argument is not an integer (index)");
+		strcpy(message, "jbin_array_delete second argument is not an integer (index)");
 		return true;
 	} else
 		CalcLen(args, false, reslen, memlen, true);
 
 	return JsonInit(initid, args, message, true, reslen, memlen);
-} // end of Jbin_Array_Delete_init
+} // end of jbin_array_delete_init
 
-char *Jbin_Array_Delete(UDF_INIT *initid, UDF_ARGS *args, char *result,
+char *jbin_array_delete(UDF_INIT *initid, UDF_ARGS *args, char *result,
 	unsigned long *res_length, char *, char *error)
 {
 	PJSON   top = NULL;
@@ -3358,25 +3362,25 @@ char *Jbin_Array_Delete(UDF_INIT *initid, UDF_ARGS *args, char *result,
 
 	*res_length = sizeof(BSON);
 	return (char*)bsp;
-} // end of Jbin_Array_Delete
+} // end of jbin_array_delete
 
-void Jbin_Array_Delete_deinit(UDF_INIT* initid)
+void jbin_array_delete_deinit(UDF_INIT* initid)
 {
 	JsonFreeMem((PGLOBAL)initid->ptr);
-} // end of Jbin_Array_Delete_deinit
+} // end of jbin_array_delete_deinit
 
 /*********************************************************************************/
 /*  Make a Json Oject containing all the parameters.                             */
 /*********************************************************************************/
-my_bool Jbin_Object_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
+my_bool jbin_object_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 {
 	unsigned long reslen, memlen;
 
 	CalcLen(args, true, reslen, memlen);
 	return JsonInit(initid, args, message, false, reslen, memlen);
-} // end of Jbin_Object_init
+} // end of jbin_object_init
 
-char *Jbin_Object(UDF_INIT *initid, UDF_ARGS *args, char *result,
+char *jbin_object(UDF_INIT *initid, UDF_ARGS *args, char *result,
 	unsigned long *res_length, char *, char *)
 {
 	PGLOBAL g = (PGLOBAL)initid->ptr;
@@ -3402,25 +3406,25 @@ char *Jbin_Object(UDF_INIT *initid, UDF_ARGS *args, char *result,
 
 	*res_length = sizeof(BSON);
 	return (char*)bsp;
-} // end of Jbin_Object
+} // end of jbin_object
 
-void Jbin_Object_deinit(UDF_INIT* initid)
+void jbin_object_deinit(UDF_INIT* initid)
 {
 	JsonFreeMem((PGLOBAL)initid->ptr);
-} // end of Jbin_Object_deinit
+} // end of jbin_object_deinit
 
 /*********************************************************************************/
 /*  Make a Json Oject containing all not null parameters.                        */
 /*********************************************************************************/
-my_bool Jbin_Object_Nonull_init(UDF_INIT *initid, UDF_ARGS *args,	char *message)
+my_bool jbin_object_nonull_init(UDF_INIT *initid, UDF_ARGS *args,	char *message)
 {
 	unsigned long reslen, memlen;
 
 	CalcLen(args, true, reslen, memlen);
 	return JsonInit(initid, args, message, false, reslen, memlen);
-} // end of Jbin_Object_Nonull_init
+} // end of jbin_object_nonull_init
 
-char *Jbin_Object_Nonull(UDF_INIT *initid, UDF_ARGS *args, char *result,
+char *jbin_object_nonull(UDF_INIT *initid, UDF_ARGS *args, char *result,
 	unsigned long *res_length, char *, char *)
 {
 	PGLOBAL g = (PGLOBAL)initid->ptr;
@@ -3448,33 +3452,33 @@ char *Jbin_Object_Nonull(UDF_INIT *initid, UDF_ARGS *args, char *result,
 
 	*res_length = sizeof(BSON);
 	return (char*)bsp;
-} // end of Jbin_Object_Nonull
+} // end of jbin_object_nonull
 
-void Jbin_Object_Nonull_deinit(UDF_INIT* initid)
+void jbin_object_nonull_deinit(UDF_INIT* initid)
 {
 	JsonFreeMem((PGLOBAL)initid->ptr);
-} // end of Jbin_Object_nonull_deinit
+} // end of jbin_object_nonull_deinit
 
 /*********************************************************************************/
 /*  Add or replace a value in a Json Object.                                     */
 /*********************************************************************************/
-my_bool Jbin_Object_Add_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
+my_bool jbin_object_add_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 {
 	unsigned long reslen, memlen;
 
 	if (args->arg_count < 2) {
-		strcpy(message, "Jbin_Object_Add must have at least 2 arguments");
+		strcpy(message, "jbin_object_add must have at least 2 arguments");
 		return true;
 	} else if (!IsJson(args, 0)) {
-		strcpy(message, "Jbin_Object_Add first argument must be a json item");
+		strcpy(message, "jbin_object_add first argument must be a json item");
 		return true;
 	} else
 		CalcLen(args, false, reslen, memlen, true);
 
 	return JsonInit(initid, args, message, true, reslen, memlen);
-} // end of Jbin_Object_Add_init
+} // end of jbin_object_add_init
 
-char *Jbin_Object_Add(UDF_INIT *initid, UDF_ARGS *args, char *result,
+char *jbin_object_add(UDF_INIT *initid, UDF_ARGS *args, char *result,
 	unsigned long *res_length, char *, char *error)
 {
 	PJSON   top = NULL;
@@ -3518,36 +3522,36 @@ char *Jbin_Object_Add(UDF_INIT *initid, UDF_ARGS *args, char *result,
 
 	*res_length = sizeof(BSON);
 	return (char*)bsp;
-} // end of Jbin_Object_Add
+} // end of jbin_object_add
 
-void Jbin_Object_Add_deinit(UDF_INIT* initid)
+void jbin_object_add_deinit(UDF_INIT* initid)
 {
 	JsonFreeMem((PGLOBAL)initid->ptr);
-} // end of Jbin_Object_Add_deinit
+} // end of jbin_object_add_deinit
 
 /*********************************************************************************/
 /*  Delete a value from a Json object.                                           */
 /*********************************************************************************/
-my_bool Jbin_Object_Delete_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
+my_bool jbin_object_delete_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 {
 	unsigned long reslen, memlen;
 
 	if (args->arg_count < 2) {
-		strcpy(message, "Jbin_Object_Delete must have 2 or 3 arguments");
+		strcpy(message, "jbin_object_delete must have 2 or 3 arguments");
 		return true;
 	} else if (!IsJson(args, 0)) {
-		strcpy(message, "Jbin_Object_Delete first argument must be a json item");
+		strcpy(message, "jbin_object_delete first argument must be a json item");
 		return true;
 	} else if (args->arg_type[1] != STRING_RESULT) {
-		strcpy(message, "Jbin_Object_Delete second argument must be a key string");
+		strcpy(message, "jbin_object_delete second argument must be a key string");
 		return true;
 	} else
 		CalcLen(args, false, reslen, memlen, true);
 
 	return JsonInit(initid, args, message, true, reslen, memlen);
-} // end of Jbin_Object_Delete_init
+} // end of jbin_object_delete_init
 
-char *Jbin_Object_Delete(UDF_INIT *initid, UDF_ARGS *args, char *result,
+char *jbin_object_delete(UDF_INIT *initid, UDF_ARGS *args, char *result,
 	unsigned long *res_length, char *, char *error)
 {
 	PJSON   top = NULL;
@@ -3590,33 +3594,33 @@ char *Jbin_Object_Delete(UDF_INIT *initid, UDF_ARGS *args, char *result,
 
 	*res_length = sizeof(BSON);
 	return (char*)bsp;
-} // end of Jbin_Object_Delete
+} // end of jbin_object_delete
 
-void Jbin_Object_Delete_deinit(UDF_INIT* initid)
+void jbin_object_delete_deinit(UDF_INIT* initid)
 {
 	JsonFreeMem((PGLOBAL)initid->ptr);
-} // end of Jbin_Object_Delete_deinit
+} // end of jbin_object_delete_deinit
 
 /*********************************************************************************/
 /*  Returns an array of the Json object keys.                                    */
 /*********************************************************************************/
-my_bool Jbin_Object_List_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
+my_bool jbin_object_list_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 {
 	unsigned long reslen, memlen;
 
 	if (args->arg_count != 1) {
-		strcpy(message, "Jbin_Object_List must have 1 arguments");
+		strcpy(message, "jbin_object_list must have 1 arguments");
 		return true;
 	} else if (!IsJson(args, 0)) {
-		strcpy(message, "Jbin_Object_List argument must be a json item");
+		strcpy(message, "jbin_object_list argument must be a json item");
 		return true;
 	} else
 		CalcLen(args, false, reslen, memlen);
 
 	return JsonInit(initid, args, message, false, reslen, memlen);
-} // end of Jbin_Object_List_init
+} // end of jbin_object_list_init
 
-char *Jbin_Object_List(UDF_INIT *initid, UDF_ARGS *args, char *result,
+char *jbin_object_list(UDF_INIT *initid, UDF_ARGS *args, char *result,
 	unsigned long *res_length, char *is_null, char *error)
 {
 	PJAR    jarp = NULL;
@@ -3647,26 +3651,26 @@ char *Jbin_Object_List(UDF_INIT *initid, UDF_ARGS *args, char *result,
 
 	*res_length = sizeof(BSON);
 	return (char*)bsp;
-} // end of Jbin_Object_List
+} // end of jbin_object_list
 
-void Jbin_Object_List_deinit(UDF_INIT* initid)
+void jbin_object_list_deinit(UDF_INIT* initid)
 {
 	JsonFreeMem((PGLOBAL)initid->ptr);
-} // end of Jbin_Object_List_deinit
+} // end of jbin_object_list_deinit
 
 /*********************************************************************************/
 /*  Get a Json item from a Json document.                                        */
 /*********************************************************************************/
-my_bool Jbin_Get_Item_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
+my_bool jbin_get_item_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 {
 	unsigned long reslen, memlen;
 	int n = IsJson(args, 0);
 
 	if (args->arg_count < 2) {
-		strcpy(message, "Jbin_Get_Item must have at least 2 arguments");
+		strcpy(message, "jbin_get_item must have at least 2 arguments");
 		return true;
 	} else if (!n && args->arg_type[0] != STRING_RESULT) {
-		strcpy(message, "Jbin_Get_Item first argument must be a json item");
+		strcpy(message, "jbin_get_item first argument must be a json item");
 		return true;
 	} else if (args->arg_type[1] != STRING_RESULT) {
 		strcpy(message, "Second argument is not a string (jpath)");
@@ -3686,9 +3690,9 @@ my_bool Jbin_Get_Item_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 		memlen += args->lengths[0] * 3;
 
 	return JsonInit(initid, args, message, true, reslen, memlen);
-} // end of Jbin_Get_Item_init
+} // end of jbin_get_item_init
 
-char *Jbin_Get_Item(UDF_INIT *initid, UDF_ARGS *args, char *result,
+char *jbin_get_item(UDF_INIT *initid, UDF_ARGS *args, char *result,
 	unsigned long *res_length, char *is_null, char *)
 {
 	PGLOBAL g = (PGLOBAL)initid->ptr;
@@ -3728,7 +3732,7 @@ char *Jbin_Get_Item(UDF_INIT *initid, UDF_ARGS *args, char *result,
 			jsp = (PJSON)g->Xchk;
 
 		path = MakePSZ(g, args, 1);
-		jsx = new(g)JSNX(g, jsp, TYPE_STRING, initid->max_length);
+		jsx = new(g) JSNX(g, jsp, TYPE_STRING, initid->max_length);
 
 		if (jsx->SetJpath(g, path, true)) {
 			PUSH_WARNING(g->Message);
@@ -3758,36 +3762,36 @@ fin:
 		*res_length = sizeof(BSON);
 
 	return (char*)bsp;
-} // end of Jbin_Get_Item
+} // end of jbin_get_item
 
-void Jbin_Get_Item_deinit(UDF_INIT* initid)
+void jbin_get_item_deinit(UDF_INIT* initid)
 {
 	JsonFreeMem((PGLOBAL)initid->ptr);
-} // end of Jbin_Get_Item_deinit
+} // end of jbin_get_item_deinit
 
 /*********************************************************************************/
 /*  Merge two arrays or objects.                                                 */
 /*********************************************************************************/
-my_bool Jbin_Item_Merge_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
+my_bool jbin_item_merge_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 {
 	unsigned long reslen, memlen;
 
 	if (args->arg_count < 2) {
-		strcpy(message, "Jbin_Item_Merge must have at least 2 arguments");
+		strcpy(message, "jbin_item_merge must have at least 2 arguments");
 		return true;
 	} else if (!IsJson(args, 0)) {
-		strcpy(message, "Jbin_Item_Merge first argument must be a json item");
+		strcpy(message, "jbin_item_merge first argument must be a json item");
 		return true;
 	} else if (!IsJson(args, 1)) {
-		strcpy(message, "Jbin_Item_Merge second argument must be a json item");
+		strcpy(message, "jbin_item_merge second argument must be a json item");
 		return true;
 	} else
 		CalcLen(args, false, reslen, memlen, true);
 
 	return JsonInit(initid, args, message, true, reslen, memlen);
-} // end of Jbin_Item_Merge_init
+} // end of jbin_item_merge_init
 
-char *Jbin_Item_Merge(UDF_INIT *initid, UDF_ARGS *args, char *result,
+char *jbin_item_merge(UDF_INIT *initid, UDF_ARGS *args, char *result,
 	unsigned long *res_length, char *, char *error)
 {
 	PJSON   top = NULL;
@@ -3835,25 +3839,25 @@ char *Jbin_Item_Merge(UDF_INIT *initid, UDF_ARGS *args, char *result,
 
 	*res_length = sizeof(BSON);
 	return (char*)bsp;
-} // end of Jbin_Item_Merge
+} // end of jbin_item_merge
 
-void Jbin_Item_Merge_deinit(UDF_INIT* initid)
+void jbin_item_merge_deinit(UDF_INIT* initid)
 {
 	JsonFreeMem((PGLOBAL)initid->ptr);
-} // end of Jbin_Item_Merge_deinit
+} // end of jbin_item_merge_deinit
 
 /*********************************************************************************/
 /*  Returns a json file as a json item.                                          */
 /*********************************************************************************/
-my_bool Jbin_File_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
+my_bool jbin_file_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 {
 	unsigned long reslen, memlen, fl, more = 1024;
 
 	if (args->arg_count < 1 || args->arg_count > 3) {
-		strcpy(message, "Jbin_File only accepts 1 to 3 arguments");
+		strcpy(message, "jbin_file only accepts 1 to 3 arguments");
 		return true;
 	} else if (args->arg_type[0] != STRING_RESULT || !args->args[0]) {
-		strcpy(message, "Jbin_File first argument must be a constant string (file name)");
+		strcpy(message, "jbin_file first argument must be a constant string (file name)");
 		return true;
 	} else if (args->arg_count > 1 && args->arg_type[1] != INT_RESULT) {
 		strcpy(message, "Second argument is not an integer (pretty)");
@@ -3873,9 +3877,9 @@ my_bool Jbin_File_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 	more += fl * M;
 	memlen += more;
 	return JsonInit(initid, args, message, false, reslen, memlen);
-} // end of Jbin_File_init
+} // end of jbin_file_init
 
-char *Jbin_File(UDF_INIT *initid, UDF_ARGS *args, char *result,
+char *jbin_file(UDF_INIT *initid, UDF_ARGS *args, char *result,
 	unsigned long *res_length, char *is_null, char *error)
 {
 	char   *fn, *memory;
@@ -3967,33 +3971,33 @@ fin:
 		*res_length = sizeof(BSON);
 
 	return (char*)bsp;
-} // end of Jbin_File
+} // end of jbin_file
 
-void Jbin_File_deinit(UDF_INIT* initid)
+void jbin_file_deinit(UDF_INIT* initid)
 {
 	JsonFreeMem((PGLOBAL)initid->ptr);
-} // end of Jbin_File_deinit
+} // end of jbin_file_deinit
 
 /*********************************************************************************/
 /*  Serialize a Json document.                .                                  */
 /*********************************************************************************/
-my_bool Json_Serialize_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
+my_bool json_serialize_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 {
 	unsigned long reslen, memlen;
 
 	if (args->arg_count != 1) {
-		strcpy(message, "Json_Serialize must have 1 argument");
+		strcpy(message, "json_serialize must have 1 argument");
 		return true;
 	} else if (IsJson(args, 0) != 3) {
-		strcpy(message, "Json_Serialize argument must be a Jbin tree");
+		strcpy(message, "json_serialize argument must be a Jbin tree");
 		return true;
 	} else
 		CalcLen(args, false, reslen, memlen);
 
 	return JsonInit(initid, args, message, false, reslen, memlen);
-} // end of Json_Serialize_init
+} // end of json_serialize_init
 
-char *Json_Serialize(UDF_INIT *initid, UDF_ARGS *args, char *result,
+char *json_serialize(UDF_INIT *initid, UDF_ARGS *args, char *result,
 	unsigned long *res_length, char *, char *)
 {
 	char   *str;
@@ -4014,9 +4018,9 @@ char *Json_Serialize(UDF_INIT *initid, UDF_ARGS *args, char *result,
 
 	*res_length = strlen(str);
 	return str;
-} // end of Json_Serialize
+} // end of json_serialize
 
-void Json_Serialize_deinit(UDF_INIT* initid)
+void json_serialize_deinit(UDF_INIT* initid)
 {
 	JsonFreeMem((PGLOBAL)initid->ptr);
-} // end of Json_Serialize_deinit
+} // end of json_serialize_deinit
