@@ -2162,16 +2162,6 @@ bool agg_item_set_converter(DTCollation &coll, const char *fname,
 bool agg_item_charsets(DTCollation &c, const char *name,
                        Item **items, uint nitems, uint flags, int item_sep);
 inline bool
-agg_item_charsets_for_string_result(DTCollation &c, const char *name,
-                                    Item **items, uint nitems,
-                                    int item_sep= 1)
-{
-  uint flags= MY_COLL_ALLOW_SUPERSET_CONV |
-              MY_COLL_ALLOW_COERCIBLE_CONV |
-              MY_COLL_ALLOW_NUMERIC_CONV;
-  return agg_item_charsets(c, name, items, nitems, flags, item_sep);
-}
-inline bool
 agg_item_charsets_for_comparison(DTCollation &c, const char *name,
                                  Item **items, uint nitems,
                                  int item_sep= 1)
@@ -3626,6 +3616,39 @@ public:
 */
 class Item_func_or_sum: public Item_result_field, public Item_args
 {
+protected:
+  /*
+    Aggregate arguments for string result, e.g: CONCAT(a,b)
+    - convert to @@character_set_connection if all arguments are numbers
+    - allow DERIVATION_NONE
+  */
+  bool agg_arg_charsets_for_string_result(DTCollation &c,
+                                          Item **items, uint nitems,
+                                          int item_sep= 1)
+  {
+    uint flags= MY_COLL_ALLOW_SUPERSET_CONV |
+                MY_COLL_ALLOW_COERCIBLE_CONV |
+                MY_COLL_ALLOW_NUMERIC_CONV;
+    return agg_item_charsets(c, func_name(), items, nitems, flags, item_sep);
+  }
+  /*
+    Aggregate arguments for string result, when some comparison
+    is involved internally, e.g: REPLACE(a,b,c)
+    - convert to @@character_set_connection if all arguments are numbers
+    - disallow DERIVATION_NONE
+  */
+  bool agg_arg_charsets_for_string_result_with_comparison(DTCollation &c,
+                                                          Item **items,
+                                                          uint nitems,
+                                                          int item_sep= 1)
+  {
+    uint flags= MY_COLL_ALLOW_SUPERSET_CONV |
+                MY_COLL_ALLOW_COERCIBLE_CONV |
+                MY_COLL_ALLOW_NUMERIC_CONV |
+                MY_COLL_DISALLOW_NONE;
+    return agg_item_charsets(c, func_name(), items, nitems, flags, item_sep);
+  }
+
 public:
   Item_func_or_sum(THD *thd): Item_result_field(thd), Item_args() {}
   Item_func_or_sum(THD *thd, Item *a): Item_result_field(thd), Item_args(a) { }

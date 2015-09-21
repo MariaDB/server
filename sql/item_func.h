@@ -193,18 +193,6 @@ public:
     return agg_item_charsets(c, func_name(), items, nitems, flags, item_sep);
   }
   /*
-    Aggregate arguments for string result, e.g: CONCAT(a,b)
-    - convert to @@character_set_connection if all arguments are numbers
-    - allow DERIVATION_NONE
-  */
-  bool agg_arg_charsets_for_string_result(DTCollation &c,
-                                          Item **items, uint nitems,
-                                          int item_sep= 1)
-  {
-    return agg_item_charsets_for_string_result(c, func_name(),
-                                               items, nitems, item_sep);
-  }
-  /*
     Aggregate arguments for comparison, e.g: a=b, a LIKE b, a RLIKE b
     - don't convert to @@character_set_connection if all arguments are numbers
     - don't allow DERIVATION_NONE
@@ -215,21 +203,6 @@ public:
   {
     return agg_item_charsets_for_comparison(c, func_name(),
                                             items, nitems, item_sep);
-  }
-  /*
-    Aggregate arguments for string result, when some comparison
-    is involved internally, e.g: REPLACE(a,b,c)
-    - convert to @@character_set_connection if all arguments are numbers
-    - disallow DERIVATION_NONE
-  */
-  bool agg_arg_charsets_for_string_result_with_comparison(DTCollation &c,
-                                                          Item **items,
-                                                          uint nitems,
-                                                          int item_sep= 1)
-  {
-    return agg_item_charsets_for_string_result_with_comparison(c, func_name(),
-                                                               items, nitems,
-                                                               item_sep);
   }
   Item *transform(THD *thd, Item_transformer transformer, uchar *arg);
   Item* compile(THD *thd, Item_analyzer analyzer, uchar **arg_p,
