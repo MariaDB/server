@@ -2421,6 +2421,8 @@ struct LEX: public Query_tables_list
   /** SELECT of CREATE VIEW statement */
   LEX_STRING create_view_select;
 
+  uint number_of_selects; // valid only for view
+
   /** Start of 'ON table', in trigger statements.  */
   const char* raw_trg_on_table_name_begin;
   /** End of 'ON table', in trigger statements. */
