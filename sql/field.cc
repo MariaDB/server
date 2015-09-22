@@ -10017,13 +10017,22 @@ bool Create_field::check(THD *thd)
 
   /*
     Set NO_DEFAULT_VALUE_FLAG if this field doesn't have a default value and
-    it is NOT NULL, not an AUTO_INCREMENT field and not a TIMESTAMP.
+    it is NOT NULL, not an AUTO_INCREMENT field.
     We need to do this check here and in mysql_create_prepare_table() as
     sp_head::fill_field_definition() calls this function.
   */
-  if (!def && unireg_check == Field::NONE &&
-      (flags & NOT_NULL_FLAG) && !is_timestamp_type(sql_type))
-    flags|= NO_DEFAULT_VALUE_FLAG;
+  if (!def && unireg_check == Field::NONE && (flags & NOT_NULL_FLAG))
+  {
+    /*
+      TIMESTAMP columns get implicit DEFAULT value when
+      explicit_defaults_for_timestamp is not set.
+    */
+    if (opt_explicit_defaults_for_timestamp ||
+        !is_timestamp_type(sql_type))
+    {
+      flags|= NO_DEFAULT_VALUE_FLAG;
+    }
+  }
 
   if (!(flags & BLOB_FLAG) &&
       ((length > max_field_charlength &&

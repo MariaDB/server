@@ -1,4 +1,4 @@
-create table t1 (a timestamp not null, primary key(a)) engine='InnoDB' 
+create table t1 (a timestamp not null DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, primary key(a)) engine='InnoDB' 
 partition by key (a) (
 partition pa1 max_rows=20 min_rows=2,
 partition pa2 max_rows=30 min_rows=3,
@@ -32,7 +32,7 @@ a
 2000-06-15 23:59:00
 2020-12-31 12:10:30
 drop table t1;
-create table t2 (a timestamp not null, primary key(a)) engine='InnoDB' 
+create table t2 (a timestamp not null DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, primary key(a)) engine='InnoDB' 
 partition by key (a) partitions 12;
 show create table t2;
 Table	Create Table
