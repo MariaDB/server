@@ -61,6 +61,16 @@ TODO:
 #define CSN_EXT ".CSN"               // Files used during repair and update
 #define CSM_EXT ".CSM"               // Meta file
 
+struct ha_table_option_struct
+{
+  bool ietf_quotes;
+};
+
+ha_create_table_option csv_table_option_list[]=
+{
+  HA_TOPTION_BOOL("IETF_QUOTES", ietf_quotes, 0),
+  HA_TOPTION_END
+};
 
 static TINA_SHARE *get_share(const char *table_name, TABLE *table);
 static int free_share(TINA_SHARE *share);
@@ -164,6 +174,7 @@ static int tina_init_func(void *p)
   tina_hton->flags= (HTON_CAN_RECREATE | HTON_SUPPORT_LOG_TABLES | 
                      HTON_NO_PARTITION);
   tina_hton->tablefile_extensions= ha_tina_exts;
+  tina_hton->table_options= csv_table_option_list;
   return 0;
 }
 
@@ -513,7 +524,7 @@ int ha_tina::encode_quote(uchar *buf)
   char attribute_buffer[1024];
   String attribute(attribute_buffer, sizeof(attribute_buffer),
                    &my_charset_bin);
-
+  bool ietf_quotes= table_share->option_struct->ietf_quotes;
   my_bitmap_map *org_bitmap= dbug_tmp_use_all_columns(table, table->read_set);
   buffer.length(0);
 
@@ -556,7 +567,7 @@ int ha_tina::encode_quote(uchar *buf)
       {
         if (*ptr == '"')
         {
-          buffer.append('\\');
+          buffer.append(ietf_quotes ? '"' : '\\');
           buffer.append('"');
         }
         else if (*ptr == '\r')
@@ -648,6 +659,7 @@ int ha_tina::find_current_row(uchar *buf)
   my_bitmap_map *org_bitmap;
   int error;
   bool read_all;
+  bool ietf_quotes= table_share->option_struct->ietf_quotes;
   DBUG_ENTER("ha_tina::find_current_row");
 
   free_root(&blobroot, MYF(0));
@@ -681,8 +693,10 @@ int ha_tina::find_current_row(uchar *buf)
                      a) If end of current field is reached, move
                         to next field and jump to step 2.3
                      b) If current character is a \\ handle
-                        \\n, \\r, \\, \\"
-                     c) else append the current character into the buffer
+                        \\n, \\r, \\, and \\" if not in ietf_quotes mode
+                     c) if in ietf_quotes mode and the current character is
+                        a ", handle ""
+                     d) else append the current character into the buffer
                         before checking that EOL has not been reached.
           2.2) If the current character does not begin with a quote
                2.2.1) Until EOL has not been reached
@@ -723,15 +737,25 @@ int ha_tina::find_current_row(uchar *buf)
           curr_offset+= 2;
           break;
         }
-        if (curr_char == '\\' && curr_offset != (end_offset - 1))
+        if (ietf_quotes && curr_char == '"'
+            && file_buff->get_value(curr_offset + 1) == '"')
         {
+          /* Embedded IETF quote */
+          curr_offset++;
+          buffer.append('"');
+        }
+        else if (curr_char == '\\' && curr_offset != (end_offset - 1))
+        {
+          /* A quote followed by something else than a comma, end of line, or
+          (in IETF mode) another quote will be handled as a regular
+          character. */
           curr_offset++;
           curr_char= file_buff->get_value(curr_offset);
           if (curr_char == 'r')
             buffer.append('\r');
           else if (curr_char == 'n' )
             buffer.append('\n');
-          else if (curr_char == '\\' || curr_char == '"')
+          else if (curr_char == '\\' || (!ietf_quotes && curr_char == '"'))
             buffer.append(curr_char);
           else  /* This could only happed with an externally created file */
           {
@@ -1744,6 +1768,10 @@ int ha_tina::reset(void)
 bool ha_tina::check_if_incompatible_data(HA_CREATE_INFO *info_arg,
 					   uint table_changes)
 {
+  if (info_arg->option_struct->ietf_quotes !=
+      table_share->option_struct->ietf_quotes)
+    return COMPATIBLE_DATA_NO;
+
   return COMPATIBLE_DATA_YES;
 }
 

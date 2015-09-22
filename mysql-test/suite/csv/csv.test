@@ -1926,3 +1926,46 @@ move_file $MYSQLD_DATADIR/test/t1.CSV $MYSQLD_DATADIR/test/t2.CSV;
 RENAME TABLE t1 TO t2;
 SELECT * FROM t2;
 DROP TABLE t2;
+
+--echo #
+--echo # MDEV-8664 - plugins.show_all_plugins --embedded fails in buildbot
+--echo #
+CREATE TABLE t1(c1 TEXT NOT NULL, c2 TEXT NOT NULL) ENGINE=CSV IETF_QUOTES=yes;
+
+INSERT INTO t1 VALUES("a\"b,c","d");
+INSERT INTO t1 VALUES("d","a\"b,c");
+INSERT INTO t1 VALUES(",\"a","e");
+INSERT INTO t1 VALUES("e",",\"a");
+INSERT INTO t1 VALUES("\"","f");
+INSERT INTO t1 VALUES("f","\"");
+INSERT INTO t1 VALUES(",","g");
+INSERT INTO t1 VALUES("g",",");
+
+SELECT * FROM t1;
+
+--echo CSV file contents:
+--cat_file $MYSQLD_DATADIR/test/t1.CSV
+
+DROP TABLE t1;
+
+CREATE TABLE t1(c1 TEXT NOT NULL, c2 TEXT NOT NULL) ENGINE=CSV IETF_QUOTES=yes;
+
+--echo Replacing t1.CSV
+--remove_file $MYSQLD_DATADIR/test/t1.CSV
+--write_file $MYSQLD_DATADIR/test/t1.CSV
+a,b
+"a","b"
+"a""b,c","d"
+"d",",""a"
+"a"",",e
+e,""""
+",",f
+EOF
+
+SELECT * FROM t1;
+
+ALTER TABLE t1 IETF_QUOTES=no;
+
+SELECT * FROM t1;
+
+DROP TABLE t1;
