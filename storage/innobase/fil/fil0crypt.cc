@@ -199,7 +199,6 @@ fil_space_create_crypt_data(
 	if (encrypt_mode == FIL_SPACE_ENCRYPTION_OFF ||
 		(!srv_encrypt_tables && encrypt_mode == FIL_SPACE_ENCRYPTION_DEFAULT)) {
 		crypt_data->type = CRYPT_SCHEME_UNENCRYPTED;
-		crypt_data->min_key_version = 0;
 	} else {
 		crypt_data->type = CRYPT_SCHEME_1;
 		crypt_data->min_key_version = encryption_key_get_latest_version(key_id);
@@ -210,8 +209,8 @@ fil_space_create_crypt_data(
 	crypt_data->locker = crypt_data_scheme_locker;
 	my_random_bytes(crypt_data->iv, sizeof(crypt_data->iv));
 	crypt_data->encryption = encrypt_mode;
-	crypt_data->key_id = key_id;
 	crypt_data->inited = true;
+	crypt_data->key_id = key_id;
 	return crypt_data;
 }
 
@@ -964,6 +963,13 @@ fil_crypt_get_key_state(
 		new_state->key_version =
 			encryption_key_get_latest_version(new_state->key_id);
 		new_state->rotate_key_age = srv_fil_crypt_rotate_key_age;
+
+		if (new_state->key_version == ENCRYPTION_KEY_VERSION_INVALID) {
+			ib_logf(IB_LOG_LEVEL_ERROR,
+				"Used key_id %u can't be found from key file.",
+				new_state->key_id);
+		}
+
 		ut_a(new_state->key_version != ENCRYPTION_KEY_VERSION_INVALID);
 		ut_a(new_state->key_version != ENCRYPTION_KEY_NOT_ENCRYPTED);
 	} else {
@@ -1302,6 +1308,11 @@ fil_crypt_space_needs_rotation(
 			break;
 		}
 
+		/* No need to rotate space if encryption is disabled */
+		if (crypt_data->encryption == FIL_SPACE_ENCRYPTION_OFF) {
+			break;
+		}
+
 		if (crypt_data->key_id != key_state->key_id) {
 			key_state->key_id= crypt_data->key_id;
 			fil_crypt_get_key_state(key_state);
@@ -1549,13 +1560,16 @@ fil_crypt_find_space_to_rotate(
 	}
 
 	while (!state->should_shutdown() && state->space != ULINT_UNDEFINED) {
+		fil_space_t* space = fil_space_found_by_id(state->space);
 
-		if (fil_crypt_space_needs_rotation(state, key_state, recheck)) {
-			ut_ad(key_state->key_id);
-			/* init state->min_key_version_found before
-			* starting on a space */
-			state->min_key_version_found = key_state->key_version;
-			return true;
+		if (space) {
+			if (fil_crypt_space_needs_rotation(state, key_state, recheck)) {
+				ut_ad(key_state->key_id);
+				/* init state->min_key_version_found before
+				* starting on a space */
+				state->min_key_version_found = key_state->key_version;
+				return true;
+			}
 		}
 
 		state->space = fil_get_next_space_safe(state->space);

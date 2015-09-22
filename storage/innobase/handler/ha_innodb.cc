@@ -11504,6 +11504,20 @@ ha_innobase::check_table_options(
 		}
 	}
 
+	/* Do not allow creating unencrypted table with nondefault
+	encryption key */
+	if ((encrypt == FIL_SPACE_ENCRYPTION_OFF ||
+	    (encrypt == FIL_SPACE_ENCRYPTION_DEFAULT && !srv_encrypt_tables)) &&
+		options->encryption_key_id != FIL_DEFAULT_ENCRYPTION_KEY) {
+		push_warning_printf(
+			thd, Sql_condition::WARN_LEVEL_WARN,
+			HA_WRONG_CREATE_OPTION,
+			"InnoDB: Incorrect ENCRYPTION_KEY_ID %u when encryption is disabled",
+			(uint)options->encryption_key_id
+		);
+		return "ENCRYPTION_KEY_ID";
+	}
+
 	/* Check atomic writes requirements */
 	if (awrites == ATOMIC_WRITES_ON ||
 		(awrites == ATOMIC_WRITES_DEFAULT && srv_use_atomic_writes)) {
