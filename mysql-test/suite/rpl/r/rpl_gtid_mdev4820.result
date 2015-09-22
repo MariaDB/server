@@ -18,6 +18,7 @@ RESET MASTER;
 SET GLOBAL gtid_slave_pos= 'OLD_GTID_POS';
 include/start_slave.inc
 INSERT INTO t1 VALUES (4);
+include/save_master_gtid.inc
 SET sql_log_bin= 0;
 CALL mtr.add_suppression("The binlog on the master is missing the GTID");
 SET sql_log_bin= 1;
@@ -25,6 +26,7 @@ include/wait_for_slave_io_error.inc [errno=1236]
 STOP SLAVE SQL_THREAD;
 SET GLOBAL gtid_slave_pos= 'OLD_GTID_POS';
 include/start_slave.inc
+include/sync_with_master_gtid.inc
 SELECT * FROM t1 ORDER BY a;
 a
 1
