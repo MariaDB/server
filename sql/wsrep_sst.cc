@@ -458,7 +458,7 @@ static ssize_t sst_prepare_other (const char*  method,
                      mysql_real_data_home,
                      wsrep_defaults_file, (int)getpid());
 
-  if (ret < 0 || ret >= (int)sizeof(cmd_str))
+  if (ret < 0 || ret >= cmd_len)
   {
     WSREP_ERROR("sst_prepare_other(): snprintf() failed: %d", ret);
     return (ret < 0 ? ret : -EMSGSIZE);
@@ -1025,7 +1025,7 @@ static int sst_donate_other (const char*   method,
                      uuid, (long long) seqno,
                      bypass ? " "WSREP_SST_OPT_BYPASS : "");
 
-  if (ret < 0 || ret >= (int) sizeof(cmd_str))
+  if (ret < 0 || ret >= cmd_len)
   {
     WSREP_ERROR("sst_donate_other(): snprintf() failed: %d", ret);
     return (ret < 0 ? ret : -EMSGSIZE);
