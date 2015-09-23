@@ -3353,6 +3353,7 @@ fil_create_new_single_table_tablespace(
 	bool		is_temp = !!(flags2 & DICT_TF2_TEMPORARY);
 	bool		has_data_dir = FSP_FLAGS_HAS_DATA_DIR(flags);
 	ulint		atomic_writes = FSP_FLAGS_GET_ATOMIC_WRITES(flags);
+	fil_space_crypt_t *crypt_data = NULL;
 
 	ut_a(space_id > 0);
 	ut_ad(!srv_read_only_mode);
@@ -3506,8 +3507,15 @@ fil_create_new_single_table_tablespace(
 		}
 	}
 
+	/* Create crypt data if the tablespace is either encrypted or user has
+	requested it to remain unencrypted. */
+	if (mode == FIL_SPACE_ENCRYPTION_ON || mode == FIL_SPACE_ENCRYPTION_OFF ||
+		srv_encrypt_tables) {
+		crypt_data = fil_space_create_crypt_data(mode, key_id);
+	}
+
 	success = fil_space_create(tablename, space_id, flags, FIL_TABLESPACE,
-			fil_space_create_crypt_data(mode, key_id));
+				   crypt_data);
 
 	if (!success || !fil_node_create(path, size, space_id, FALSE)) {
 		err = DB_ERROR;
@@ -6501,7 +6509,7 @@ fil_iterate(
 
 			if (page_compressed) {
 				ulint len = 0;
-				byte* res = fil_compress_page(space_id,
+				fil_compress_page(space_id,
 					src,
 					NULL,
 					size,
