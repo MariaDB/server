@@ -1992,6 +1992,16 @@ my_decimal* Field_num::val_decimal(my_decimal *decimal_value)
 }
 
 
+bool Field_num::get_date(MYSQL_TIME *ltime,ulonglong fuzzydate)
+{
+  ASSERT_COLUMN_MARKED_FOR_READ;
+  longlong nr= val_int();
+  bool neg= !(flags & UNSIGNED_FLAG) && nr < 0;
+  return int_to_datetime_with_warn(neg, neg ? -nr : nr, ltime, fuzzydate,
+                                   field_name);
+}
+
+
 Field_str::Field_str(uchar *ptr_arg,uint32 len_arg, uchar *null_ptr_arg,
                      uchar null_bit_arg, utype unireg_check_arg,
                      const char *field_name_arg, CHARSET_INFO *charset_arg)
@@ -3214,6 +3224,14 @@ String *Field_new_decimal::val_str(String *val_buffer,
                     fixed_precision, dec, '0', val_buffer);
   val_buffer->set_charset(&my_charset_numeric);
   return val_buffer;
+}
+
+
+bool Field_new_decimal::get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
+{
+  my_decimal value;
+  return decimal_to_datetime_with_warn(val_decimal(&value),
+                                       ltime, fuzzydate, field_name);
 }
 
 

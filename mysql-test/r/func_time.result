@@ -1834,25 +1834,14 @@ select last_day(f2) from t1;
 last_day(f2)
 NULL
 NULL
-Warnings:
-Warning	1292	Incorrect datetime value: '0'
-Warning	1292	Incorrect datetime value: '0'
 select last_day(f2) from t1 where last_day(f2) is null;
 last_day(f2)
 NULL
 NULL
-Warnings:
-Warning	1292	Incorrect datetime value: '0'
-Warning	1292	Incorrect datetime value: '0'
-Warning	1292	Incorrect datetime value: '0'
-Warning	1292	Incorrect datetime value: '0'
 select * from t1 order by last_day (f2);
 f2
 0
 0
-Warnings:
-Warning	1292	Incorrect datetime value: '0'
-Warning	1292	Incorrect datetime value: '0'
 drop table t1;
 SET timestamp=unix_timestamp('2001-02-03 10:20:30');
 select convert_tz(timediff('0000-00-00 00:00:00', cast('2008-03-26 07:09:06' as datetime)), 'UTC', 'Europe/Moscow');
@@ -1908,8 +1897,6 @@ insert ignore t1 values ('04:38:11','0000-00-00 00:00:00',0,'0000-00-00 00:00:00
 select least(greatest(f3, f2, f4), f5) from t1;
 least(greatest(f3, f2, f4), f5)
 0000-00-00 00:00:00
-Warnings:
-Warning	1292	Incorrect datetime value: '0'
 drop table t1;
 select day(coalesce(null));
 day(coalesce(null))

@@ -1487,6 +1487,7 @@ public:
   {
     return pos_in_interval_val_real(min, max);
   }
+  bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate);
 };
 
 
@@ -1665,6 +1666,7 @@ public:
   longlong val_int(void);
   my_decimal *val_decimal(my_decimal *);
   String *val_str(String*, String *);
+  bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate);
   int cmp(const uchar *, const uchar *);
   void sort_string(uchar *buff, uint length);
   bool zero_pack() const { return 0; }

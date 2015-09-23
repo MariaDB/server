@@ -2042,33 +2042,19 @@ SELECT t1.* FROM t1 JOIN t2 USING(a);
 a
 10:20:30.000000
 10:20:30.000000
-Warnings:
-Note	1292	Truncated incorrect time value: '102030.0000000000'
-Note	1292	Truncated incorrect time value: '102030.0000000010'
 SELECT t1.* FROM t1 LEFT JOIN t2 USING(a);
 a
 10:20:30.000000
 10:20:30.000000
-Warnings:
-Note	1292	Truncated incorrect time value: '102030.0000000000'
-Note	1292	Truncated incorrect time value: '102030.0000000000'
-Note	1292	Truncated incorrect time value: '102030.0000000010'
 ALTER TABLE t2 ADD PRIMARY KEY(a);
 SELECT t1.* FROM t1 JOIN t2 USING(a);
 a
 10:20:30.000000
 10:20:30.000000
-Warnings:
-Note	1292	Truncated incorrect time value: '102030.0000000000'
-Note	1292	Truncated incorrect time value: '102030.0000000010'
 SELECT t1.* FROM t1 LEFT JOIN t2 USING(a);
 a
 10:20:30.000000
 10:20:30.000000
-Warnings:
-Note	1292	Truncated incorrect time value: '102030.0000000000'
-Note	1292	Truncated incorrect time value: '102030.0000000000'
-Note	1292	Truncated incorrect time value: '102030.0000000010'
 # t2 should NOT be eliminated
 EXPLAIN SELECT t1.* FROM t1 LEFT JOIN t2 USING(a);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
