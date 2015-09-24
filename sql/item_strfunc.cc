@@ -4963,13 +4963,12 @@ longlong Item_dyncol_get::val_int()
     if (end != org_end || error > 0)
     {
       THD *thd= current_thd;
-      char buff[80];
-      strmake(buff, val.x.string.value.str, MY_MIN(sizeof(buff)-1,
-                                              val.x.string.value.length));
       push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                           ER_BAD_DATA,
                           ER_THD(thd, ER_BAD_DATA),
-                          buff,
+                          ErrConvString(val.x.string.value.str,
+                                        val.x.string.value.length,
+                                        val.x.string.charset).ptr(),
                           unsigned_flag ? "UNSIGNED INT" : "INT");
     }
     unsigned_flag= error >= 0;
@@ -5028,13 +5027,13 @@ double Item_dyncol_get::val_real()
         error)
     {
       THD *thd= current_thd;
-      char buff[80];
-      strmake(buff, val.x.string.value.str, MY_MIN(sizeof(buff)-1,
-                                              val.x.string.value.length));
       push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                           ER_BAD_DATA,
                           ER_THD(thd, ER_BAD_DATA),
-                          buff, "DOUBLE");
+                          ErrConvString(val.x.string.value.str,
+                                        val.x.string.value.length,
+                                        val.x.string.charset).ptr(),
+                          "DOUBLE");
     }
     return res;
   }
@@ -5085,9 +5084,6 @@ my_decimal *Item_dyncol_get::val_decimal(my_decimal *decimal_value)
     int rc;
     rc= str2my_decimal(0, val.x.string.value.str, val.x.string.value.length,
                        val.x.string.charset, decimal_value, &end);
-    char buff[80];
-    strmake(buff, val.x.string.value.str, MY_MIN(sizeof(buff)-1,
-                                            val.x.string.value.length));
     if (rc != E_DEC_OK ||
         end != val.x.string.value.str + val.x.string.value.length)
     {
@@ -5095,7 +5091,10 @@ my_decimal *Item_dyncol_get::val_decimal(my_decimal *decimal_value)
       push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                           ER_BAD_DATA,
                           ER_THD(thd, ER_BAD_DATA),
-                          buff, "DECIMAL");
+                          ErrConvString(val.x.string.value.str,
+                                        val.x.string.value.length,
+                                        val.x.string.charset).ptr(),
+                          "DECIMAL");
     }
     break;
   }

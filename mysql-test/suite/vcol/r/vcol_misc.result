@@ -346,5 +346,24 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t1;
 #
+# MDEV-8839 COLUMN_GET() produces warnings with no data
+#
+SET @aaa= COLUMN_CREATE('price', _binary 0xF0F1F2F3F4F5F6F7);
+SELECT COLUMN_GET(@aaa, 'price' AS DECIMAL) aaa;
+aaa
+0
+Warnings:
+Warning	1918	Encountered illegal value '\xF0\xF1\xF2\xF3\xF4\xF5\xF6\xF7' when converting to DECIMAL
+SELECT COLUMN_GET(@aaa, 'price' AS INT) aaa;
+aaa
+0
+Warnings:
+Warning	1918	Encountered illegal value '\xF0\xF1\xF2\xF3\xF4\xF5\xF6\xF7' when converting to INT
+SELECT COLUMN_GET(@aaa, 'price' AS DOUBLE) aaa;
+aaa
+0
+Warnings:
+Warning	1918	Encountered illegal value '\xF0\xF1\xF2\xF3\xF4\xF5\xF6\xF7' when converting to DOUBLE
+#
 # End of 10.1 tests
 #
