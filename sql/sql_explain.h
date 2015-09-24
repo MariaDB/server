@@ -700,7 +700,12 @@ public:
   */
   Item *where_cond;
   Item *cache_cond;
-
+  
+  /*
+    This is either pushed index condition, or BKA's index condition. 
+    (the latter refers to columns of other tables and so can only be checked by
+     BKA code). Examine extra_tags to tell which one it is.
+  */
   Item *pushed_index_cond;
 
   Explain_basic_join *sjm_nest;

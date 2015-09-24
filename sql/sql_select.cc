@@ -23982,7 +23982,10 @@ void JOIN_TAB::save_explain_data(Explain_table_access *eta,
       eta->pushed_index_cond= table->file->pushed_idx_cond;
     }
     else if (cache_idx_cond)
+    {
       eta->push_extra(ET_USING_INDEX_CONDITION_BKA);
+      eta->pushed_index_cond= cache_idx_cond;
+    }
 
     if (quick_type == QUICK_SELECT_I::QS_TYPE_ROR_UNION || 
         quick_type == QUICK_SELECT_I::QS_TYPE_ROR_INTERSECT ||
