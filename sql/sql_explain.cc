@@ -1809,7 +1809,10 @@ void Explain_table_access::append_tag_name(String *str, enum explain_extra_tag t
       str->append(STRING_WITH_LEN(" join"));
       str->append(STRING_WITH_LEN(")"));
       if (bka_type.mrr_type.length())
+      {
+        str->append(STRING_WITH_LEN("; "));
         str->append(bka_type.mrr_type);
+      }
 
       break;
     }
