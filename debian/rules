@@ -183,7 +183,7 @@ install: build
 	# systemd helpers
 	install -m 0755 scripts/mariadb-service-convert $(TMP)/usr/bin/
 	install -d $(TMP)/etc/systemd/system/mariadb@bootstrap.service.d/
-	install -m 0644 $(BUILDDIR)/support-files/mariadb-bootstrap.conf \
+	install -m 0644 support-files/mariadb-bootstrap.conf \
                         $(TMP)/etc/systemd/system/mariadb@bootstrap.service.d/wsrep-new-cluster.conf
 
 	# mariadb-test
