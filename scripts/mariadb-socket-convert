@@ -1,0 +1,179 @@
+#!/bin/bash
+#
+# Used to generate a mariadb.socket file based on the curent mysql/maridb settings
+#
+# This is to assist distro maintainers in migrating to systemd socket activation from
+# a user system with networking settings somewhere in the my.cnf files.
+#
+# Redirect output to user directory like /etc/systemd/system/mariadb.socket.d/migrated-from-my.cnf-settings.conf
+
+
+print_ports()
+{
+  if [ -n "${port}" ]; then
+    echo "ListenStream=${bind}${port}"
+  fi
+  if [ -n "${extraport}" ]; then
+    echo "ListenStream=${bind}${extraport}"
+  fi
+}
+
+bindaddress=
+port=
+extraport=
+backlog=
+maxconnections=
+skip_networking=
+socket=
+default_port=3306
+default_socket=/var/lib/mysql/mysql.sock
+
+coproc mysqldefaults { /usr/bin/my_print_defaults --mysqld ; }
+while read var; do
+  key=${var%%=*}
+  val=${var#*=}
+  case "${key}" in
+    --bind-address)
+      bindaddress=$val
+      ;;
+    --bind_address)
+      bindaddress=$val
+      ;;
+    --port)
+      port=$val
+      ;;
+    --extra[-_]port)
+      extraport=$val
+      ;;
+    --backlog)
+      backlog=$val
+      ;;
+    --max-connections)
+      maxconnections=$val
+      ;;
+    --max_connections)
+      maxconnections=$val
+      ;;
+    --skip-networking)
+      if [ -z "${val}" ]; then
+        skipnetworking=1
+      else
+        skipnetworking=$val
+      fi
+      ;;
+    --skip_networking)
+      if [ -z "${val}" ]; then
+        skipnetworking=1
+      else
+        skipnetworking=$val
+      fi
+      ;;
+    --socket)
+      socket=$val
+      ;;
+  esac
+done < /dev/fd/${mysqldefaults[0]}
+
+echo '[Socket]'
+
+if [ -n "${backlog}" ]; then
+  echo "Backlog=${backlog}"
+elif [ -n "${maxconnections}" ]; then
+  if [ $maxconnections -gt 150 ]; then
+    echo "Backlog=150"
+  else
+    echo "Backlog=${maxconnections}"
+  fi
+fi
+
+if [ -n "${port}" -o \
+     -n "${extraport}" -o \
+    "${skipnetworking}" = '0' -o \
+    -n "${bindaddress}" -o \
+    -n "${socket}" ]; then
+  # we've set unix or inet sockets to non default
+  echo "# reset the ListenStream list to empty"
+  echo "ListenStream="
+  echo
+  coproc mysqld { /usr/sbin/mysqld --verbose --help; }
+  # skip preamble
+  preamble_finished=0
+  while read var; do
+    if [[ $var =~ ^------- ]]; then
+      preamble_finished=1
+    fi
+    [ $preamble_finished ] || continue
+    key=${var%% *}
+    val=${var##* }
+    case "${key}" in
+      socket)
+        default_socket=$val
+        ;;
+      port)
+        default_port=$val
+        ;;
+    esac
+  done < /dev/fd/${mysqld[0]}
+  # if port isn't set it really needs to be to
+  # fill out the details
+  if [ -z "${port}" ]; then
+    port=${default_port}
+  fi
+  # socket has a default value so ensure that is set
+  if [ -z "${socket}" ]; then
+    socket=${default_socket}
+  fi
+else
+  exit 0
+fi
+
+if [ -n "${socket}" ]; then
+  echo "ListenStream=${socket}"
+fi
+
+if [ -n "${skipnetworking}" ]; then
+  [ "${skipnetworking}" = '0' ] &&  exit 0
+fi
+
+if [ -n "${bindaddress}" ]; then
+  if [ "${bindaddress}" = "*" ]; then
+    # old wildcard
+    bind=
+    print_ports
+  elif [[ "${bindaddress}" =~ [0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3} ]]; then
+    # roughly IPv4
+    bind=${bindaddress}:
+    print_ports
+  elif [[ "${bindaddress}" =~ ([0-9a-fA-F]{0,4}::?){1,7}[0-9a-fA-F]{0,4} ]]; then
+    # roughly IPv6
+    bind=[${bindaddress}]:
+    print_ports
+  elif [ -x /usr/bin/host ]; then
+    # hostname
+    # Systemd.sockets don't support it so look it up
+    coproc hosts { host ${bindaddress}; }
+    while read var; do
+      if [[ "${var}"  = *IPv6\ address* ]]; then
+        bind=[${var##* }]:
+        echo "Warning: using IP ${bind} for hostname ${bindaddress} specified in bindaddress" >&2
+        print_ports
+        break
+      else
+        bind=${var##* }:
+        echo "Warning: using IP ${bind} for hostname ${bindaddress} specified in bindaddress" >&2
+        print_ports
+      fi
+    done < /dev/fd/${hosts[0]}
+  else
+    echo "Warning: bindaddress=${bindaddress} was a hostname we couldn't resolve. using all interfaces" >&2
+    bind=
+    print_ports
+  fi
+else
+  bind=''
+  print_ports
+fi
+
+
+exit 0
+

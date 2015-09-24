@@ -1,0 +1,41 @@
+[Unit]
+Description=MySQL/MariaDB Sockets
+
+[Install]
+WantedBy=sockets.target
+Alias=mysql.socket
+Alias=mysqld.socket
+
+[Socket]
+##############################################################################
+## Core requirements
+##
+
+KeepAlive=true
+
+#
+# NonBlocking=true and NoDelay=true (if NonBlocking=true is unavailable) are
+# already set by MariaDB
+
+##############################################################################
+## DISTRIBUTION maintainers
+##
+
+SocketUser=mysql
+SocketMode=777
+
+##############################################################################
+##
+## USERs can override
+##
+## See man systemd.socket.5 for meanings
+##
+## Override by creating a file in /etc/systemd/system/mariadb.socket.d/MY_SPECIAL.conf
+## see man systemd.unit.5
+
+ListenStream=/var/lib/mysql/mysql.sock
+ListenStream=[::1]:3306
+ListenStream=127.0.0.1:3306
+BindToDevice=
+
+Backlog=150
