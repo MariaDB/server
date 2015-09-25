@@ -1278,7 +1278,38 @@ public:
   /*
    Make sure the null_value member has a correct value.
   */
-  virtual void update_null_value () { (void) val_int(); }
+  virtual void update_null_value ()
+  {
+    switch (cmp_type()) {
+    case INT_RESULT:
+      (void) val_int();
+      break;
+    case REAL_RESULT:
+      (void) val_real();
+      break;
+    case DECIMAL_RESULT:
+      {
+        my_decimal tmp;
+        (void) val_decimal(&tmp);
+      }
+      break;
+    case TIME_RESULT:
+      {
+        MYSQL_TIME ltime;
+        (void) get_temporal_with_sql_mode(&ltime);
+      }
+      break;
+    case STRING_RESULT:
+      {
+        StringBuffer<MAX_FIELD_WIDTH> tmp;
+        (void) val_str(&tmp);
+      }
+      break;
+    case ROW_RESULT:
+      DBUG_ASSERT(0);
+      null_value= true;
+    }
+  }
 
   /*
     Inform the item that there will be no distinction between its result
@@ -3231,18 +3262,12 @@ public:
   longlong val_int()
   {
     DBUG_ASSERT(fixed == 1);
-    return longlong_from_string_with_check(str_value.charset(),
-                                           str_value.ptr(),
-                                           str_value.ptr()+
-                                           str_value.length());
+    return longlong_from_string_with_check(&str_value);
   }
   double val_real()
   { 
     DBUG_ASSERT(fixed == 1);
-    return double_from_string_with_check(str_value.charset(),
-                                         str_value.ptr(), 
-                                         str_value.ptr() +
-                                         str_value.length());
+    return double_from_string_with_check(&str_value);
   }
   my_decimal *val_decimal(my_decimal *decimal_value)
   {

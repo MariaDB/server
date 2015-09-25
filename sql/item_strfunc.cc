@@ -116,40 +116,27 @@ bool Item_str_func::fix_fields(THD *thd, Item **ref)
 my_decimal *Item_str_func::val_decimal(my_decimal *decimal_value)
 {
   DBUG_ASSERT(fixed == 1);
-  char buff[64];
-  String *res, tmp(buff,sizeof(buff), &my_charset_bin);
-  res= val_str(&tmp);
-  if (!res)
-    return 0;
-  (void)str2my_decimal(E_DEC_FATAL_ERROR, (char*) res->ptr(),
-                       res->length(), res->charset(), decimal_value);
-  return decimal_value;
+  StringBuffer<64> tmp;
+  String *res= val_str(&tmp);
+  return res ? decimal_from_string_with_check(decimal_value, res) : 0;
 }
 
 
 double Item_str_func::val_real()
 {
   DBUG_ASSERT(fixed == 1);
-  int err_not_used;
-  char *end_not_used, buff[64];
-  String *res, tmp(buff,sizeof(buff), &my_charset_bin);
-  res= val_str(&tmp);
-  return res ? my_strntod(res->charset(), (char*) res->ptr(), res->length(),
-			  &end_not_used, &err_not_used) : 0.0;
+  StringBuffer<64> tmp;
+  String *res= val_str(&tmp);
+  return res ? double_from_string_with_check(res) : 0.0;
 }
 
 
 longlong Item_str_func::val_int()
 {
   DBUG_ASSERT(fixed == 1);
-  int err;
-  char buff[22];
-  String *res, tmp(buff,sizeof(buff), &my_charset_bin);
-  res= val_str(&tmp);
-  return (res ?
-	  my_strntoll(res->charset(), res->ptr(), res->length(), 10, NULL,
-		      &err) :
-	  (longlong) 0);
+  StringBuffer<22> tmp;
+  String *res= val_str(&tmp);
+  return res ? longlong_from_string_with_check(res) : 0;
 }
 
 

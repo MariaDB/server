@@ -317,8 +317,7 @@ my_decimal *Item::val_decimal_from_string(my_decimal *decimal_value)
   if (!(res= val_str(&str_value)))
     return 0;
 
-  return decimal_from_string_with_check(decimal_value,
-                                        res->charset(), res->ptr(), res->end());
+  return decimal_from_string_with_check(decimal_value, res);
 }
 
 
@@ -2955,10 +2954,7 @@ void Item_string::print(String *str, enum_query_type query_type)
 double Item_string::val_real()
 {
   DBUG_ASSERT(fixed == 1);
-  return double_from_string_with_check(str_value.charset(),
-                                       str_value.ptr(), 
-                                       str_value.ptr() +
-                                       str_value.length());
+  return double_from_string_with_check(&str_value);
 }
 
 
@@ -2969,8 +2965,7 @@ double Item_string::val_real()
 longlong Item_string::val_int()
 {
   DBUG_ASSERT(fixed == 1);
-  return longlong_from_string_with_check(str_value.charset(), str_value.ptr(),
-                                         str_value.ptr()+ str_value.length());
+  return longlong_from_string_with_check(&str_value);
 }
 
 
@@ -3408,10 +3403,7 @@ double Item_param::val_real()
   case STRING_VALUE:
   case LONG_DATA_VALUE:
   {
-    int dummy_err;
-    char *end_not_used;
-    return my_strntod(str_value.charset(), (char*) str_value.ptr(),
-                      str_value.length(), &end_not_used, &dummy_err);
+    return double_from_string_with_check(&str_value);
   }
   case TIME_VALUE:
     /*
@@ -3444,9 +3436,7 @@ longlong Item_param::val_int()
   case STRING_VALUE:
   case LONG_DATA_VALUE:
     {
-      int dummy_err;
-      return my_strntoll(str_value.charset(), str_value.ptr(),
-                         str_value.length(), 10, (char**) 0, &dummy_err);
+      return longlong_from_string_with_check(&str_value);
     }
   case TIME_VALUE:
     return (longlong) TIME_to_ulonglong(&value.time);
@@ -3472,8 +3462,7 @@ my_decimal *Item_param::val_decimal(my_decimal *dec)
     return dec;
   case STRING_VALUE:
   case LONG_DATA_VALUE:
-    string2my_decimal(E_DEC_FATAL_ERROR, &str_value, dec);
-    return dec;
+    return decimal_from_string_with_check(dec, &str_value);
   case TIME_VALUE:
   {
     return TIME_to_my_decimal(&value.time, dec);

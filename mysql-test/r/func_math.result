@@ -702,6 +702,9 @@ SELECT floor(log10(format(concat_ws(5445796E25, 5306463, 30837), -358821)))
 as foo;
 foo
 2
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: '53064635.445796e3130837'
+Warning	1292	Truncated incorrect DOUBLE value: '179,769,313,486,231,570,000,000,000,000,000,000,000,000,000,000,000,000,000,000,000,000,000,000,000,000,000,000,000,000,000,000,'
 #
 # Bug #58137 char(0) column cause:
 #            my_gcvt: Assertion `width > 0 && to != ((void *)0)' failed

@@ -912,7 +912,7 @@ bool Aggregator_distinct::setup(THD *thd)
     arg= item_sum->get_arg(0);
     if (arg->const_item())
     {
-      (void) arg->val_int();
+      (void) arg->is_null();
       if (arg->null_value)
         always_null= true;
     }

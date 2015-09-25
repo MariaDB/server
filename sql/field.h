@@ -279,6 +279,23 @@ protected:
                                        cs, cptr, end - cptr, decimal_value);
     return decimal_value;
   }
+
+  longlong longlong_from_string_with_check(const String *str) const
+  {
+    return longlong_from_string_with_check(str->charset(),
+                                           str->ptr(), str->end());
+  }
+  double double_from_string_with_check(const String *str) const
+  {
+    return double_from_string_with_check(str->charset(),
+                                         str->ptr(), str->end());
+  }
+  my_decimal *decimal_from_string_with_check(my_decimal *decimal_value,
+                                             const String *str)
+  {
+    return decimal_from_string_with_check(decimal_value, str->charset(),
+                                          str->ptr(), str->end());
+  }
   // End of String-to-number conversion methods
 
 public:

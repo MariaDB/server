@@ -192,7 +192,9 @@ DROP TEMPORARY TABLE t1;
 # INSERT INTO t1 VALUES(1);
 
 --echo # The rows event will binlogged after 'INSERT INTO t1 VALUES(1)'
+--disable_warnings
 INSERT INTO t1 VALUES(uuid()+0);
+--enable_warnings
 COMMIT;
 
 source include/show_binlog_events.inc;

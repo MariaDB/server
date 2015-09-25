@@ -163,6 +163,8 @@ Saturday	5
 select monthname("1972-03-04"),monthname("1972-03-04")+0;
 monthname("1972-03-04")	monthname("1972-03-04")+0
 March	0
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: 'March'
 select time_format(000000,'%H|%I|%k|%l|%i|%p|%r|%S|%T'),date_format(19980131000000,'%H|%I|%k|%l|%i|%p|%r|%S|%T');
 time_format(000000,'%H|%I|%k|%l|%i|%p|%r|%S|%T')	date_format(19980131000000,'%H|%I|%k|%l|%i|%p|%r|%S|%T')
 00|12|0|12|00|AM|12:00:00 AM|00|00:00:00	00|12|0|12|00|AM|12:00:00 AM|00|00:00:00
@@ -1966,6 +1968,9 @@ SELECT * FROM t1 GROUP BY SEC_TO_TIME(concat(a,'10'))*1;
 a
 2000-02-23
 2005-05-04
+Warnings:
+Warning	1292	Truncated incorrect DECIMAL value: '2005-05-0410'
+Warning	1292	Truncated incorrect DECIMAL value: '2000-02-2310'
 DROP TABLE t1;
 CREATE TABLE t1 (a DATE) ENGINE=MyISAM;
 INSERT INTO t1 VALUES ('2005-05-04'),('2000-02-23');
@@ -2015,22 +2020,37 @@ SELECT * FROM t1 GROUP BY FROM_UNIXTIME(concat(a,'10'))*1;
 a
 2000-02-23
 2005-05-04
+Warnings:
+Warning	1292	Truncated incorrect DECIMAL value: '2005-05-0410'
+Warning	1292	Truncated incorrect DECIMAL value: '2000-02-2310'
 SELECT * FROM t1 GROUP BY (-FROM_UNIXTIME(concat(a,'10')))*1;
 a
 2005-05-04
 2000-02-23
+Warnings:
+Warning	1292	Truncated incorrect DECIMAL value: '2005-05-0410'
+Warning	1292	Truncated incorrect DECIMAL value: '2000-02-2310'
 SELECT * FROM t1 GROUP BY (-FROM_UNIXTIME(concat(a,'10')));
 a
 2005-05-04
 2000-02-23
+Warnings:
+Warning	1292	Truncated incorrect DECIMAL value: '2005-05-0410'
+Warning	1292	Truncated incorrect DECIMAL value: '2000-02-2310'
 SELECT * FROM t1 GROUP BY ABS(FROM_UNIXTIME(concat(a,'10')));
 a
 2000-02-23
 2005-05-04
+Warnings:
+Warning	1292	Truncated incorrect DECIMAL value: '2005-05-0410'
+Warning	1292	Truncated incorrect DECIMAL value: '2000-02-2310'
 SELECT * FROM t1 GROUP BY @a:=(FROM_UNIXTIME(concat(a,'10'))*1);
 a
 2000-02-23
 2005-05-04
+Warnings:
+Warning	1292	Truncated incorrect DECIMAL value: '2005-05-0410'
+Warning	1292	Truncated incorrect DECIMAL value: '2000-02-2310'
 DROP TABLE t1;
 SET TIME_ZONE='+02:00';
 #
@@ -2042,10 +2062,18 @@ SELECT a, FROM_UNIXTIME(CONCAT(a,'10')) AS f1, FROM_UNIXTIME(CONCAT(a,'10'))+0 A
 a	f1	f2
 2005-05-04	1970-01-01 02:33:25	19700101023325.000000
 2000-02-23	1970-01-01 02:33:20	19700101023320.000000
+Warnings:
+Warning	1292	Truncated incorrect DECIMAL value: '2005-05-0410'
+Warning	1292	Truncated incorrect DECIMAL value: '2005-05-0410'
+Warning	1292	Truncated incorrect DECIMAL value: '2000-02-2310'
+Warning	1292	Truncated incorrect DECIMAL value: '2000-02-2310'
 SELECT * FROM t1 GROUP BY FROM_UNIXTIME(CONCAT(a,'10'))+0;
 a
 2000-02-23
 2005-05-04
+Warnings:
+Warning	1292	Truncated incorrect DECIMAL value: '2005-05-0410'
+Warning	1292	Truncated incorrect DECIMAL value: '2000-02-2310'
 DROP TABLE t1;
 CREATE TABLE t1 (a DATE) ENGINE=MyISAM;
 INSERT INTO t1 VALUES ('2005-05-04'),('2000-02-23');
@@ -2053,16 +2081,28 @@ SELECT * FROM t1 GROUP BY FROM_UNIXTIME(concat(a,'10'))/1;
 a
 2000-02-23
 2005-05-04
+Warnings:
+Warning	1292	Truncated incorrect DECIMAL value: '2005-05-0410'
+Warning	1292	Truncated incorrect DECIMAL value: '2000-02-2310'
 DROP TABLE t1;
 CREATE TABLE t1 (a DATE);
 INSERT INTO t1 VALUES ('2005-05-04');
 SELECT CONCAT(FROM_UNIXTIME(CONCAT(a,'10')) MOD FROM_UNIXTIME(CONCAT(a,'10'))) AS f2 FROM t1;
 f2
 0.000000
+Warnings:
+Warning	1292	Truncated incorrect DECIMAL value: '2005-05-0410'
+Warning	1292	Truncated incorrect DECIMAL value: '2005-05-0410'
 SELECT CHAR_LENGTH(CONCAT(FROM_UNIXTIME(CONCAT(a,'10')) MOD FROM_UNIXTIME(CONCAT(a,'10')))) AS f2 FROM t1;
 f2
 8
+Warnings:
+Warning	1292	Truncated incorrect DECIMAL value: '2005-05-0410'
+Warning	1292	Truncated incorrect DECIMAL value: '2005-05-0410'
 CREATE TABLE t2 AS SELECT CONCAT(FROM_UNIXTIME(CONCAT(a,'10')) MOD FROM_UNIXTIME(CONCAT(a,'10'))) AS f2 FROM t1;
+Warnings:
+Warning	1292	Truncated incorrect DECIMAL value: '2005-05-0410'
+Warning	1292	Truncated incorrect DECIMAL value: '2005-05-0410'
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (

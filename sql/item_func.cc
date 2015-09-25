@@ -955,11 +955,8 @@ double Item_func_hybrid_result_type::val_real()
       ltime.time_type= mysql_type_to_time_type(field_type());
       return TIME_to_double(&ltime);
     }
-    char *end_not_used;
-    int err_not_used;
     String *res= str_op(&str_value);
-    return (res ? my_strntod(res->charset(), (char*) res->ptr(), res->length(),
-			     &end_not_used, &err_not_used) : 0.0);
+    return res ? double_from_string_with_check(res) : 0.0;
   }
   case TIME_RESULT:
   case ROW_RESULT:
@@ -1000,14 +997,8 @@ longlong Item_func_hybrid_result_type::val_int()
       ltime.time_type= mysql_type_to_time_type(field_type());
       return TIME_to_ulonglong(&ltime);
     }
-    int err_not_used;
-    String *res;
-    if (!(res= str_op(&str_value)))
-      return 0;
-
-    char *end= (char*) res->ptr() + res->length();
-    CHARSET_INFO *cs= res->charset();
-    return (*(cs->cset->strtoll10))(cs, res->ptr(), &end, &err_not_used);
+    String *res= str_op(&str_value);
+    return res ? longlong_from_string_with_check(res) : 0;
   }
   case TIME_RESULT:
   case ROW_RESULT:
@@ -1052,13 +1043,8 @@ my_decimal *Item_func_hybrid_result_type::val_decimal(my_decimal *decimal_value)
       ltime.time_type= mysql_type_to_time_type(field_type());
       return date2my_decimal(&ltime, decimal_value);
     }
-    String *res;
-    if (!(res= str_op(&str_value)))
-      return NULL;
-
-    str2my_decimal(E_DEC_FATAL_ERROR, (char*) res->ptr(),
-                   res->length(), res->charset(), decimal_value);
-    break;
+    String *res= str_op(&str_value);
+    return res ? decimal_from_string_with_check(decimal_value, res) : 0;
   }  
   case ROW_RESULT:
   case TIME_RESULT:
@@ -5965,10 +5951,7 @@ longlong Item_func_get_system_var::val_int()
     {
       null_value= cached_null_value;
       if (!null_value)
-        cached_llval= longlong_from_string_with_check (cached_strval.charset(),
-                                                       cached_strval.c_ptr(),
-                                                       cached_strval.c_ptr() +
-                                                       cached_strval.length());
+        cached_llval= longlong_from_string_with_check(&cached_strval);
       else
         cached_llval= 0;
       cache_present|= GET_SYS_VAR_CACHE_LONG;
@@ -6043,10 +6026,7 @@ double Item_func_get_system_var::val_real()
     {
       null_value= cached_null_value;
       if (!null_value)
-        cached_dval= double_from_string_with_check (cached_strval.charset(),
-                                                    cached_strval.c_ptr(),
-                                                    cached_strval.c_ptr() +
-                                                    cached_strval.length());
+        cached_dval= double_from_string_with_check(&cached_strval);
       else
         cached_dval= 0;
       cache_present|= GET_SYS_VAR_CACHE_DOUBLE;
