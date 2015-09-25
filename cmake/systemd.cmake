@@ -60,6 +60,8 @@ MACRO(CHECK_SYSTEMD)
         SET(SYSTEMD_SYSTEM_CONFDIR /etc/systemd/system)
         # should be from pkg-config --variable=systemdsystemunitdir systemd
         SET(SYSTEMD_SYSTEM_UNITDIR /usr/lib/systemd/system/)
+        SET(SYSTEMD_SCRIPTS mariadb-service-convert)
+        SET(SYSTEMD_DEB_FILES usr/bin/mariadb-service-convert)
         MESSAGE(STATUS "Systemd features enabled")
       ELSE()
         UNSET(LIBSYSTEMD)
