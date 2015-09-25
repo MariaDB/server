@@ -1578,7 +1578,7 @@ row_merge_read_clustered_index(
 
 		/* Do not continue if table pages are still encrypted */
 		if (old_table->is_encrypted || new_table->is_encrypted) {
-			err = DB_ENCRYPTED_DECRYPT_FAILED;
+			err = DB_DECRYPTION_FAILED;
 			trx->error_key_num = 0;
 			goto func_exit;
 		}
@@ -3981,8 +3981,8 @@ row_merge_build_indexes(
 
 	/* Do not continue if we can't encrypt table pages */
 	if (old_table->is_encrypted || new_table->is_encrypted) {
-		error = DB_ENCRYPTED_DECRYPT_FAILED;
-		ib_push_warning(trx->mysql_thd, DB_ENCRYPTED_DECRYPT_FAILED,
+		error = DB_DECRYPTION_FAILED;
+		ib_push_warning(trx->mysql_thd, DB_DECRYPTION_FAILED,
 			"Table %s is encrypted but encryption service or"
 			" used key_id is not available. "
 			" Can't continue reading table.",

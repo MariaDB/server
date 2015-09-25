@@ -1,1 +1,0 @@
-type_spatial_indexes : MDEV-8675 Different results of GIS functions on NULL vs NOT NULL columns

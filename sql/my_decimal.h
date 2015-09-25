@@ -366,13 +366,23 @@ int str2my_decimal(uint mask, const char *str, my_decimal *d, char **end)
 
 
 int str2my_decimal(uint mask, const char *from, uint length,
-                   CHARSET_INFO *charset, my_decimal *decimal_value);
+                   CHARSET_INFO *charset, my_decimal *decimal_value,
+                   const char **end);
+
+inline int str2my_decimal(uint mask, const char *from, uint length,
+                          CHARSET_INFO *charset, my_decimal *decimal_value)
+{
+  const char *end;
+  return str2my_decimal(mask, from, length, charset, decimal_value, &end);
+}
 
 #if defined(MYSQL_SERVER) || defined(EMBEDDED_LIBRARY)
 inline
 int string2my_decimal(uint mask, const String *str, my_decimal *d)
 {
-  return str2my_decimal(mask, str->ptr(), str->length(), str->charset(), d);
+  const char *end;
+  return str2my_decimal(mask, str->ptr(), str->length(), str->charset(),
+                        d, &end);
 }
 
 

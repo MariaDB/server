@@ -2893,6 +2893,8 @@ NULL
 SELECT ((127.1) not in ((rpad(1.0,2048,1)),(''),(-1.1)));
 ((127.1) not in ((rpad(1.0,2048,1)),(''),(-1.1)))
 1
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: ''
 SELECT ((0xf3) * (rpad(1.0,2048,1)) << (0xcc));
 ((0xf3) * (rpad(1.0,2048,1)) << (0xcc))
 0

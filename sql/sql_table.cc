@@ -4995,7 +4995,9 @@ bool mysql_create_table(THD *thd, TABLE_LIST *create_table,
   else
     create_table_mode= C_ASSISTED_DISCOVERY;
 
-  promote_first_timestamp_column(&alter_info->create_list);
+  if (!opt_explicit_defaults_for_timestamp)
+    promote_first_timestamp_column(&alter_info->create_list);
+
   if (mysql_create_table_no_lock(thd, db, table_name, create_info, alter_info,
                                  &is_trans, create_table_mode) > 0)
   {
@@ -8534,7 +8536,9 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
   }
 
   set_table_default_charset(thd, create_info, alter_ctx.db);
-  promote_first_timestamp_column(&alter_info->create_list);
+
+  if (!opt_explicit_defaults_for_timestamp)
+    promote_first_timestamp_column(&alter_info->create_list);
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   if (fast_alter_partition)
@@ -9818,13 +9822,20 @@ static bool check_engine(THD *thd, const char *db_name,
   DBUG_ENTER("check_engine");
   handlerton **new_engine= &create_info->db_type;
   handlerton *req_engine= *new_engine;
-  handlerton *enf_engine= thd->variables.enforced_table_plugin ?
-    plugin_hton(thd->variables.enforced_table_plugin) : NULL;
+  handlerton *enf_engine= NULL;
   bool no_substitution= thd->variables.sql_mode & MODE_NO_ENGINE_SUBSTITUTION;
   *new_engine= ha_checktype(thd, req_engine, no_substitution);
   DBUG_ASSERT(*new_engine);
   if (!*new_engine)
     DBUG_RETURN(true);
+
+  /* Enforced storage engine should not be used in
+  ALTER TABLE that does not use explicit ENGINE = x to
+  avoid unwanted unrelated changes.*/
+  if (!(thd->lex->sql_command == SQLCOM_ALTER_TABLE &&
+        !(create_info->used_fields & HA_CREATE_USED_ENGINE)))
+    enf_engine= thd->variables.enforced_table_plugin ?
+       plugin_hton(thd->variables.enforced_table_plugin) : NULL;
 
   if (enf_engine && enf_engine != *new_engine)
   {

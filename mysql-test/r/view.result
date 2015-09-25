@@ -1350,8 +1350,11 @@ a	b
 delete from t1;
 load data infile '../../std_data/loaddata3.dat' ignore into table v1 fields terminated by '' enclosed by '' ignore 1 lines;
 Warnings:
+Note	1265	Data truncated for column 'a' at row 1
+Note	1265	Data truncated for column 'a' at row 2
 Warning	1366	Incorrect integer value: 'error      ' for column 'a' at row 3
 Warning	1369	CHECK OPTION failed 'test.v1'
+Note	1265	Data truncated for column 'a' at row 3
 Warning	1366	Incorrect integer value: 'wrong end  ' for column 'a' at row 4
 Warning	1369	CHECK OPTION failed 'test.v1'
 select * from t1 order by a,b;
@@ -5604,8 +5607,12 @@ INSERT INTO t1 VALUES ('DD'), ('ZZ'), ('ZZ'), ('KK'), ('FF'), ('HH'),('MM'),('`1
 CREATE VIEW v1 AS SELECT * FROM t1;
 SELECT * FROM t1 WHERE a <> 0 AND a = ' 1';
 a
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: '`1'
 SELECT * FROM v1 WHERE a <> 0 AND a = ' 1';
 a
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: '`1'
 DROP VIEW v1;
 DROP TABLE t1;
 CREATE TABLE t1 (a ENUM('5','6'));
@@ -5627,8 +5634,12 @@ INSERT INTO t1 VALUES ('DD'), ('ZZ'), ('ZZ'), ('KK'), ('FF'), ('HH'),('MM'),('`1
 CREATE VIEW v1 AS SELECT * FROM t1;
 SELECT * FROM t1 WHERE a <> 0 AND a = ' 1';
 a
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: '`1'
 SELECT * FROM v1 WHERE a <> 0 AND a = ' 1';
 a
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: '`1'
 DROP VIEW v1;
 DROP TABLE t1;
 CREATE TABLE t1 (a ENUM('5','6'));

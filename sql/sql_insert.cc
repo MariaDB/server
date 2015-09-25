@@ -3932,7 +3932,8 @@ static TABLE *create_table_from_items(THD *thd,
   tmp_table.maybe_null= 0;
   tmp_table.in_use= thd;
 
-  promote_first_timestamp_column(&alter_info->create_list);
+  if (!opt_explicit_defaults_for_timestamp)
+    promote_first_timestamp_column(&alter_info->create_list);
 
   while ((item=it++))
   {

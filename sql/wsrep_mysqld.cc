@@ -618,6 +618,7 @@ int wsrep_init()
             wsrep->provider_vendor,  sizeof(provider_vendor) - 1);
   }
 
+  /* Initialize node address */
   char node_addr[512]= { 0, };
   size_t const node_addr_max= sizeof(node_addr) - 1;
   if (!wsrep_node_address || !strcmp(wsrep_node_address, ""))
@@ -635,86 +636,81 @@ int wsrep_init()
     strncpy(node_addr, wsrep_node_address, node_addr_max);
   }
 
+  /* Initialize node's incoming address */
   char inc_addr[512]= { 0, };
   size_t const inc_addr_max= sizeof (inc_addr);
+
+  /*
+    In case wsrep_node_incoming_address is either not set or set to AUTO,
+    we need to use mysqld's my_bind_addr_str:mysqld_port, lastly fallback
+    to wsrep_node_address' value if mysqld's bind-address is not set either.
+  */
   if ((!wsrep_node_incoming_address ||
        !strcmp (wsrep_node_incoming_address, WSREP_NODE_INCOMING_AUTO)))
   {
+    bool is_ipv6= false;
     unsigned int my_bind_ip= INADDR_ANY; // default if not set
+
     if (my_bind_addr_str && strlen(my_bind_addr_str))
     {
-      my_bind_ip= wsrep_check_ip(my_bind_addr_str);
+      my_bind_ip= wsrep_check_ip(my_bind_addr_str, &is_ipv6);
     }
 
     if (INADDR_ANY != my_bind_ip)
     {
+      /*
+        If its a not a valid address, leave inc_addr as empty string. mysqld
+        is not listening for client connections on network interfaces.
+      */
       if (INADDR_NONE != my_bind_ip && INADDR_LOOPBACK != my_bind_ip)
       {
-        snprintf(inc_addr, inc_addr_max, "%s:%u",
-                 my_bind_addr_str, (int)mysqld_port);
-      } // else leave inc_addr an empty string - mysqld is not listening for
-        // client connections on network interfaces.
+        const char *fmt= (is_ipv6) ? "[%s]:%u" : "%s:%u";
+        snprintf(inc_addr, inc_addr_max, fmt, my_bind_addr_str, mysqld_port);
+      }
     }
-    else // mysqld binds to 0.0.0.0, take IP from wsrep_node_address if possible
+    else /* mysqld binds to 0.0.0.0, try taking IP from wsrep_node_address. */
     {
       size_t const node_addr_len= strlen(node_addr);
       if (node_addr_len > 0)
       {
-        const char* const colon= strrchr(node_addr, ':');
-        if (strchr(node_addr, ':') == colon) // 1 or 0 ':'
-        {
-          size_t const ip_len= colon ? colon - node_addr : node_addr_len;
-          if (ip_len + 7 /* :55555\0 */ < inc_addr_max)
-          {
-            memcpy (inc_addr, node_addr, ip_len);
-            snprintf(inc_addr + ip_len, inc_addr_max - ip_len, ":%u",
-                     (int)mysqld_port);
-          }
-          else
-          {
-            WSREP_WARN("Guessing address for incoming client connections: "
-                       "address too long.");
-            inc_addr[0]= '\0';
-          }
-        }
-        else
-        {
-          WSREP_WARN("Guessing address for incoming client connections: "
-                     "too many colons :) .");
-          inc_addr[0]= '\0';
-        }
-      }
+        wsp::Address addr(node_addr);
 
-      if (!strlen(inc_addr))
-      {
+        if (!addr.is_valid())
+        {
+          WSREP_DEBUG("Could not parse node address : %s", node_addr);
           WSREP_WARN("Guessing address for incoming client connections failed. "
                      "Try setting wsrep_node_incoming_address explicitly.");
+          goto done;
+        }
+
+        const char *fmt= (addr.is_ipv6()) ? "[%s]:%u" : "%s:%u";
+        snprintf(inc_addr, inc_addr_max, fmt, addr.get_address(),
+                 (int) mysqld_port);
       }
-    }
-  }
-  else if (!strchr(wsrep_node_incoming_address, ':')) // no port included
-  {
-    if ((int)inc_addr_max <=
-        snprintf(inc_addr, inc_addr_max, "%s:%u",
-                 wsrep_node_incoming_address,(int)mysqld_port))
-    {
-      WSREP_WARN("Guessing address for incoming client connections: "
-                 "address too long.");
-      inc_addr[0]= '\0';
     }
   }
   else
   {
-    size_t const need = strlen (wsrep_node_incoming_address);
-    if (need >= inc_addr_max) {
-      WSREP_WARN("wsrep_node_incoming_address too long: %zu", need);
-      inc_addr[0]= '\0';
+    wsp::Address addr(wsrep_node_incoming_address);
+
+    if (!addr.is_valid())
+    {
+      WSREP_WARN("Could not parse wsrep_node_incoming_address : %s",
+                 wsrep_node_incoming_address);
+      goto done;
     }
-    else {
-      memcpy (inc_addr, wsrep_node_incoming_address, need);
-    }
+
+    /*
+      In case port is not specified in wsrep_node_incoming_address, we use
+      mysqld_port.
+    */
+    int port= (addr.get_port() > 0) ? addr.get_port() : (int) mysqld_port;
+    const char *fmt= (addr.is_ipv6()) ? "[%s]:%u" : "%s:%u";
+
+    snprintf(inc_addr, inc_addr_max, fmt, addr.get_address(), port);
   }
 
+done:
   struct wsrep_init_args wsrep_args;
 
   struct wsrep_gtid const state_id = { local_uuid, local_seqno };

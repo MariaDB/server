@@ -1,0 +1,23 @@
+SET GLOBAL innodb_file_format = `Barracuda`;
+SET GLOBAL innodb_file_per_table = ON;
+set global innodb_compression_algorithm = 1;
+# Create and populate a tables
+CREATE TABLE t1 (a INT AUTO_INCREMENT PRIMARY KEY, b TEXT) ENGINE=InnoDB ENCRYPTED=YES ENCRYPTION_KEY_ID=4;
+CREATE TABLE t2 (a INT AUTO_INCREMENT PRIMARY KEY, b TEXT) ENGINE=InnoDB ROW_FORMAT=COMPRESSED ENCRYPTED=YES ENCRYPTION_KEY_ID=4;
+CREATE TABLE t3 (a INT AUTO_INCREMENT PRIMARY KEY, b TEXT) ENGINE=InnoDB ROW_FORMAT=COMPRESSED ENCRYPTED=NO;
+CREATE TABLE t4 (a INT AUTO_INCREMENT PRIMARY KEY, b TEXT) ENGINE=InnoDB PAGE_COMPRESSED=1;
+CREATE TABLE t5 (a INT AUTO_INCREMENT PRIMARY KEY, b TEXT) ENGINE=InnoDB PAGE_COMPRESSED=1 ENCRYPTED=YES ENCRYPTION_KEY_ID=4;
+# Write file to make mysql-test-run.pl expect the "crash", but don't
+# start it until it's told to
+# We give 30 seconds to do a clean shutdown because we do not want
+# to redo apply the pages of t1.ibd at the time of recovery.
+# We want SQL to initiate the first access to t1.ibd.
+# Wait until disconnected.
+# Run innochecksum on t1
+# Run innochecksum on t2
+# Run innochecksum on t3
+# Run innochecksum on t4
+# Run innochecksum on t4
+# Write file to make mysql-test-run.pl start up the server again
+# Cleanup
+DROP TABLE t1, t2, t3, t4, t5;

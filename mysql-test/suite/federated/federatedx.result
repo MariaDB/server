@@ -1689,6 +1689,11 @@ a	b	c
 19	23	437
 delete from federated.t1;
 load data infile '../../std_data/loaddata5.dat' into table federated.t1 fields terminated by '' enclosed by '' ignore 1 lines (a, b);
+Warnings:
+Note	1265	Data truncated for column 'a' at row 1
+Note	1265	Data truncated for column 'b' at row 1
+Note	1265	Data truncated for column 'a' at row 2
+Note	1265	Data truncated for column 'b' at row 2
 select * from federated.t1 order by a;
 a	b	c
 3	4	12

@@ -2870,12 +2870,15 @@ loop:
 				ib_mutex_t* pmutex = buf_page_get_mutex(bpage);
 				buf_pool_mutex_enter(buf_pool);
 				mutex_enter(pmutex);
+				buf_block_t* block = buf_page_get_block(bpage);
 				buf_page_set_io_fix(bpage, BUF_IO_NONE);
+				buf_block_set_state(block, BUF_BLOCK_NOT_USED);
+				buf_block_set_state(block, BUF_BLOCK_READY_FOR_USE);
 				buf_pool_mutex_exit(buf_pool);
 				mutex_exit(pmutex);
 
 				if (err) {
-					*err = DB_ENCRYPTED_DECRYPT_FAILED;
+					*err = DB_DECRYPTION_FAILED;
 				}
 				return (NULL);
 			}
@@ -2913,12 +2916,15 @@ loop:
 				ib_mutex_t* pmutex = buf_page_get_mutex(bpage);
 				buf_pool_mutex_enter(buf_pool);
 				mutex_enter(pmutex);
+				buf_block_t* block = buf_page_get_block(bpage);
 				buf_page_set_io_fix(bpage, BUF_IO_NONE);
+				buf_block_set_state(block, BUF_BLOCK_NOT_USED);
+				buf_block_set_state(block, BUF_BLOCK_READY_FOR_USE);
 				buf_pool_mutex_exit(buf_pool);
 				mutex_exit(pmutex);
 
 				if (err) {
-					*err = DB_ENCRYPTED_DECRYPT_FAILED;
+					*err = DB_DECRYPTION_FAILED;
 				}
 				return (NULL);
 			}
@@ -4604,7 +4610,7 @@ corrupt:
 						ut_error;
 					}
 
-					ib_push_warning((void *)NULL, DB_ENCRYPTED_DECRYPT_FAILED,
+					ib_push_warning((void *)NULL, DB_DECRYPTION_FAILED,
 						"Table in tablespace %lu encrypted."
 						"However key management plugin or used key_id %lu is not found or"
 						" used encryption algorithm or method does not match."
@@ -5886,6 +5892,7 @@ buf_page_init_for_backup_restore(
 Reserve unused slot from temporary memory array and allocate necessary
 temporary memory if not yet allocated.
 @return reserved slot */
+UNIV_INTERN
 buf_tmp_buffer_t*
 buf_pool_reserve_tmp_slot(
 /*======================*/

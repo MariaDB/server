@@ -115,17 +115,6 @@ fil_crypt_needs_rotation(
 	uint			latest_key_version,	/*!< in: Latest key version */
 	uint			rotate_key_age);	/*!< in: When to rotate */
 
-/**
-* Magic pattern in start of crypt data on page 0
-*/
-#define MAGIC_SZ 6
-
-static const unsigned char CRYPT_MAGIC[MAGIC_SZ] = {
-	's', 0xE, 0xC, 'R', 'E', 't' };
-
-static const unsigned char EMPTY_PATTERN[MAGIC_SZ] = {
-	0x0, 0x0, 0x0, 0x0, 0x0, 0x0 };
-
 /*********************************************************************
 Init space crypt */
 UNIV_INTERN
@@ -210,7 +199,6 @@ fil_space_create_crypt_data(
 	if (encrypt_mode == FIL_SPACE_ENCRYPTION_OFF ||
 		(!srv_encrypt_tables && encrypt_mode == FIL_SPACE_ENCRYPTION_DEFAULT)) {
 		crypt_data->type = CRYPT_SCHEME_UNENCRYPTED;
-		crypt_data->min_key_version = 0;
 	} else {
 		crypt_data->type = CRYPT_SCHEME_1;
 		crypt_data->min_key_version = encryption_key_get_latest_version(key_id);
@@ -221,8 +209,8 @@ fil_space_create_crypt_data(
 	crypt_data->locker = crypt_data_scheme_locker;
 	my_random_bytes(crypt_data->iv, sizeof(crypt_data->iv));
 	crypt_data->encryption = encrypt_mode;
-	crypt_data->key_id = key_id;
 	crypt_data->inited = true;
+	crypt_data->key_id = key_id;
 	return crypt_data;
 }
 
@@ -624,6 +612,9 @@ fil_encrypt_buf(
 		memcpy(dst_frame + page_size - FIL_PAGE_DATA_END,
 			src_frame + page_size - FIL_PAGE_DATA_END,
 			FIL_PAGE_DATA_END);
+	} else {
+		/* Clean up rest of buffer */
+		memset(dst_frame+header_len+srclen, 0, page_size - (header_len+srclen));
 	}
 
 	/* handle post encryption checksum */
@@ -714,11 +705,15 @@ fil_space_decrypt(
 	fil_space_crypt_t*	crypt_data,	/*!< in: crypt data */
 	byte*			tmp_frame,	/*!< in: temporary buffer */
 	ulint			page_size,	/*!< in: page size */
-	byte*			src_frame)	/*!< in:out: page buffer */
+	byte*			src_frame,	/*!< in: out: page buffer */
+	dberr_t*		err)		/*!< in: out: DB_SUCCESS or
+						error code */
 {
 	ulint page_type = mach_read_from_2(src_frame+FIL_PAGE_TYPE);
 	uint key_version = mach_read_from_4(src_frame + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION);
 	bool page_compressed = (page_type == FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED);
+
+	*err = DB_SUCCESS;
 
 	if (key_version == ENCRYPTION_KEY_NOT_ENCRYPTED) {
 		return false;
@@ -756,6 +751,12 @@ fil_space_decrypt(
 					   space, offset, lsn);
 
 	if (! ((rc == MY_AES_OK) && ((ulint) dstlen == srclen))) {
+
+		if (rc == -1) {
+			*err = DB_DECRYPTION_FAILED;
+			return false;
+		}
+
 		ib_logf(IB_LOG_LEVEL_FATAL,
 			"Unable to decrypt data-block "
 			" src: %p srclen: %ld buf: %p buflen: %d."
@@ -797,11 +798,14 @@ fil_space_decrypt(
 	ulint		page_size,	/*!< in: page size */
 	byte*		src_frame)	/*!< in/out: page buffer */
 {
+	dberr_t err = DB_SUCCESS;
+
 	bool encrypted = fil_space_decrypt(
 				fil_space_get_crypt_data(space),
 				tmp_frame,
 				page_size,
-				src_frame);
+				src_frame,
+				&err);
 
 	if (encrypted) {
 		/* Copy the decrypted page back to page buffer, not
@@ -959,6 +963,13 @@ fil_crypt_get_key_state(
 		new_state->key_version =
 			encryption_key_get_latest_version(new_state->key_id);
 		new_state->rotate_key_age = srv_fil_crypt_rotate_key_age;
+
+		if (new_state->key_version == ENCRYPTION_KEY_VERSION_INVALID) {
+			ib_logf(IB_LOG_LEVEL_ERROR,
+				"Used key_id %u can't be found from key file.",
+				new_state->key_id);
+		}
+
 		ut_a(new_state->key_version != ENCRYPTION_KEY_VERSION_INVALID);
 		ut_a(new_state->key_version != ENCRYPTION_KEY_NOT_ENCRYPTED);
 	} else {
@@ -1297,6 +1308,11 @@ fil_crypt_space_needs_rotation(
 			break;
 		}
 
+		/* No need to rotate space if encryption is disabled */
+		if (crypt_data->encryption == FIL_SPACE_ENCRYPTION_OFF) {
+			break;
+		}
+
 		if (crypt_data->key_id != key_state->key_id) {
 			key_state->key_id= crypt_data->key_id;
 			fil_crypt_get_key_state(key_state);
@@ -1544,13 +1560,16 @@ fil_crypt_find_space_to_rotate(
 	}
 
 	while (!state->should_shutdown() && state->space != ULINT_UNDEFINED) {
+		fil_space_t* space = fil_space_found_by_id(state->space);
 
-		if (fil_crypt_space_needs_rotation(state, key_state, recheck)) {
-			ut_ad(key_state->key_id);
-			/* init state->min_key_version_found before
-			* starting on a space */
-			state->min_key_version_found = key_state->key_version;
-			return true;
+		if (space) {
+			if (fil_crypt_space_needs_rotation(state, key_state, recheck)) {
+				ut_ad(key_state->key_id);
+				/* init state->min_key_version_found before
+				* starting on a space */
+				state->min_key_version_found = key_state->key_version;
+				return true;
+			}
 		}
 
 		state->space = fil_get_next_space_safe(state->space);

@@ -3387,6 +3387,7 @@ fil_create_new_single_table_tablespace(
 	bool		is_temp = !!(flags2 & DICT_TF2_TEMPORARY);
 	bool		has_data_dir = FSP_FLAGS_HAS_DATA_DIR(flags);
 	ulint		atomic_writes = FSP_FLAGS_GET_ATOMIC_WRITES(flags);
+	fil_space_crypt_t *crypt_data = NULL;
 
 	ut_a(space_id > 0);
 	ut_ad(!srv_read_only_mode);
@@ -3540,8 +3541,15 @@ fil_create_new_single_table_tablespace(
 		}
 	}
 
+	/* Create crypt data if the tablespace is either encrypted or user has
+	requested it to remain unencrypted. */
+	if (mode == FIL_SPACE_ENCRYPTION_ON || mode == FIL_SPACE_ENCRYPTION_OFF ||
+		srv_encrypt_tables) {
+		crypt_data = fil_space_create_crypt_data(mode, key_id);
+	}
+
 	success = fil_space_create(tablename, space_id, flags, FIL_TABLESPACE,
-			fil_space_create_crypt_data(mode, key_id));
+				   crypt_data);
 
 	if (!success || !fil_node_create(path, size, space_id, FALSE)) {
 		err = DB_ERROR;
@@ -6482,6 +6490,7 @@ fil_iterate(
 		if ((iter.crypt_data != NULL && iter.crypt_data->encryption == FIL_SPACE_ENCRYPTION_ON) ||
 				(srv_encrypt_tables &&
 					iter.crypt_data && iter.crypt_data->encryption == FIL_SPACE_ENCRYPTION_DEFAULT)) {
+
 			encrypted = true;
 			readptr = iter.crypt_io_buffer;
 			writeptr = iter.crypt_io_buffer;
@@ -6500,29 +6509,46 @@ fil_iterate(
 		bool		decrypted = false;
 
 		for (ulint i = 0; i < n_pages_read; ++i) {
-			ulint size = iter.page_size;
+			ulint 	size = iter.page_size;
+			dberr_t	err = DB_SUCCESS;
+			byte*	src = (readptr + (i * size));
+			byte*	dst = (io_buffer + (i * size));
+
+			ulint page_type = mach_read_from_2(src+FIL_PAGE_TYPE);
+
+			bool page_compressed = (page_type == FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED ||
+				page_type == FIL_PAGE_PAGE_COMPRESSED);
 
 			/* If tablespace is encrypted, we need to decrypt
 			the page. */
 			if (encrypted) {
 				decrypted = fil_space_decrypt(
 							iter.crypt_data,
-							io_buffer + i * size, //dst
+							dst, //dst
 							iter.page_size,
-							readptr + i * size); // src
+							src, // src
+							&err); // src
+
+				if (err != DB_SUCCESS) {
+					return(err);
+				}
 
 				if (decrypted) {
-					/* write back unencrypted page */
 					updated = true;
 				} else {
 					/* TODO: remove unnecessary memcpy's */
-					memcpy(io_buffer + i * size, readptr + i * size, size);
+					memcpy(dst, src, size);
 				}
 			}
 
-			buf_block_set_file_page(block, space_id, page_no++);
+			/* If the original page is page_compressed, we need
+			to decompress page before we can update it. */
+			if (page_compressed) {
+				fil_decompress_page(NULL, dst, size, NULL);
+				updated = true;
+			}
 
-			dberr_t	err;
+			buf_block_set_file_page(block, space_id, page_no++);
 
 			if ((err = callback(page_off, block)) != DB_SUCCESS) {
 
@@ -6536,12 +6562,28 @@ fil_iterate(
 			buf_block_set_state(block, BUF_BLOCK_NOT_USED);
 			buf_block_set_state(block, BUF_BLOCK_READY_FOR_USE);
 
+			src =  (io_buffer + (i * size));
+
+			if (page_compressed) {
+				ulint len = 0;
+				fil_compress_page(space_id,
+					src,
+					NULL,
+					size,
+					fil_space_get_page_compression_level(space_id),
+					fil_space_get_block_size(space_id, offset, size),
+					encrypted,
+					&len,
+					NULL);
+
+				updated = true;
+			}
+
 			/* If tablespace is encrypted, encrypt page before we
 			write it back. Note that we should not encrypt the
 			buffer that is in buffer pool. */
 			if (decrypted && encrypted) {
-				unsigned char *src = io_buffer + (i * size);
-				unsigned char *dst = writeptr + (i * size);
+				unsigned char *dest = (writeptr + (i * size));
 				ulint space = mach_read_from_4(
 					src + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID);
 				ulint offset = mach_read_from_4(src + FIL_PAGE_OFFSET);
@@ -6554,12 +6596,14 @@ fil_iterate(
 							lsn,
 							src,
 							iter.page_size == UNIV_PAGE_SIZE ? 0 : iter.page_size,
-							dst);
+							dest);
 
 				if (tmp == src) {
 					/* TODO: remove unnecessary memcpy's */
-					memcpy(writeptr, src, size);
+					memcpy(dest, src, size);
 				}
+
+				updated = true;
 			}
 
 			page_off += iter.page_size;

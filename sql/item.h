@@ -1221,6 +1221,48 @@ public:
   */
   bool get_time_with_conversion(THD *thd, MYSQL_TIME *ltime,
                                 ulonglong fuzzydate);
+  // Get a DATE or DATETIME value in numeric packed format for comparison
+  virtual longlong val_datetime_packed()
+  {
+    MYSQL_TIME ltime;
+    uint fuzzydate= TIME_FUZZY_DATES | TIME_INVALID_DATES;
+    return get_date_with_conversion(&ltime, fuzzydate) ? 0 : pack_time(&ltime);
+  }
+  // Get a TIME value in numeric packed format for comparison
+  virtual longlong val_time_packed()
+  {
+    MYSQL_TIME ltime;
+    uint fuzzydate= TIME_FUZZY_DATES | TIME_INVALID_DATES | TIME_TIME_ONLY;
+    return get_date(&ltime, fuzzydate) ? 0 : pack_time(&ltime);
+  }
+  // Get a temporal value in packed DATE/DATETIME or TIME format
+  longlong val_temporal_packed(enum_field_types f_type)
+  {
+    return f_type == MYSQL_TYPE_TIME ? val_time_packed() :
+                                       val_datetime_packed();
+  }
+  enum_field_types field_type_for_temporal_comparison(const Item *other) const
+  {
+    if (cmp_type() == TIME_RESULT)
+    {
+      if (other->cmp_type() == TIME_RESULT)
+        return Field::field_type_merge(field_type(), other->field_type());
+      else
+        return field_type();
+    }
+    else
+    {
+      if (other->cmp_type() == TIME_RESULT)
+        return other->field_type();
+      DBUG_ASSERT(0); // Two non-temporal data types, we should not get to here
+      return MYSQL_TYPE_DATETIME;
+    }
+  }
+  // Get a temporal value to compare to another Item
+  longlong val_temporal_packed(const Item *other)
+  {
+    return val_temporal_packed(field_type_for_temporal_comparison(other));
+  }
   bool get_seconds(ulonglong *sec, ulong *sec_part);
   virtual bool get_date_result(MYSQL_TIME *ltime, ulonglong fuzzydate)
   { return get_date(ltime,fuzzydate); }
@@ -1478,7 +1520,6 @@ public:
     return trace_unsupported_by_check_vcol_func_processor(full_name());
   }
 
-  virtual bool set_no_const_sub(uchar *arg) { return FALSE; }
   /* arg points to REPLACE_EQUAL_FIELD_ARG object */
   virtual Item *replace_equal_field(THD *thd, uchar *arg) { return this; }
   /*
@@ -2112,48 +2153,6 @@ public:
   }
 };
 
-bool agg_item_collations(DTCollation &c, const char *name,
-                         Item **items, uint nitems, uint flags, int item_sep);
-bool agg_item_collations_for_comparison(DTCollation &c, const char *name,
-                                        Item **items, uint nitems, uint flags);
-bool agg_item_set_converter(DTCollation &coll, const char *fname,
-                            Item **args, uint nargs, uint flags, int item_sep);
-bool agg_item_charsets(DTCollation &c, const char *name,
-                       Item **items, uint nitems, uint flags, int item_sep);
-inline bool
-agg_item_charsets_for_string_result(DTCollation &c, const char *name,
-                                    Item **items, uint nitems,
-                                    int item_sep= 1)
-{
-  uint flags= MY_COLL_ALLOW_SUPERSET_CONV |
-              MY_COLL_ALLOW_COERCIBLE_CONV |
-              MY_COLL_ALLOW_NUMERIC_CONV;
-  return agg_item_charsets(c, name, items, nitems, flags, item_sep);
-}
-inline bool
-agg_item_charsets_for_comparison(DTCollation &c, const char *name,
-                                 Item **items, uint nitems,
-                                 int item_sep= 1)
-{
-  uint flags= MY_COLL_ALLOW_SUPERSET_CONV |
-              MY_COLL_ALLOW_COERCIBLE_CONV |
-              MY_COLL_DISALLOW_NONE;
-  return agg_item_charsets(c, name, items, nitems, flags, item_sep);
-}
-inline bool
-agg_item_charsets_for_string_result_with_comparison(DTCollation &c,
-                                                    const char *name,
-                                                    Item **items, uint nitems,
-                                                    int item_sep= 1)
-{
-  uint flags= MY_COLL_ALLOW_SUPERSET_CONV |
-              MY_COLL_ALLOW_COERCIBLE_CONV |
-              MY_COLL_ALLOW_NUMERIC_CONV |
-              MY_COLL_DISALLOW_NONE;
-  return agg_item_charsets(c, name, items, nitems, flags, item_sep);
-}
-
-
 class Item_num: public Item_basic_constant
 {
 public:
@@ -2291,7 +2290,6 @@ protected:
 public:
   Field *field;
   Item_equal *item_equal;
-  bool no_const_subst;
   /*
     if any_privileges set to TRUE then here real effective privileges will
     be stored
@@ -2423,7 +2421,6 @@ public:
   void set_item_equal(Item_equal *item_eq) { item_equal= item_eq; }
   Item_equal *find_item_equal(COND_EQUAL *cond_equal);
   Item* propagate_equal_fields(THD *, const Context &, COND_EQUAL *);
-  bool set_no_const_sub(uchar *arg);
   Item *replace_equal_field(THD *thd, uchar *arg);
   inline uint32 max_disp_length() { return field->max_display_length(); }
   Item_field *field_for_view_update() { return this; }
@@ -3043,13 +3040,6 @@ public:
 };
 
 
-longlong 
-longlong_from_string_with_check(CHARSET_INFO *cs, const char *cptr,
-                                const char *end);
-double 
-double_from_string_with_check(CHARSET_INFO *cs, const char *cptr,
-                              const char *end);
-
 class Item_static_string_func :public Item_string
 {
   const char *func_name;
@@ -3348,6 +3338,7 @@ public:
   }
   enum_field_types field_type() const { return MYSQL_TYPE_DATE; }
   void print(String *str, enum_query_type query_type);
+  Item *clone_item(THD *thd);
   bool get_date(MYSQL_TIME *res, ulonglong fuzzy_date);
 };
 
@@ -3366,6 +3357,7 @@ public:
   }
   enum_field_types field_type() const { return MYSQL_TYPE_TIME; }
   void print(String *str, enum_query_type query_type);
+  Item *clone_item(THD *thd);
   bool get_date(MYSQL_TIME *res, ulonglong fuzzy_date);
 };
 
@@ -3386,6 +3378,7 @@ public:
   }
   enum_field_types field_type() const { return MYSQL_TYPE_DATETIME; }
   void print(String *str, enum_query_type query_type);
+  Item *clone_item(THD *thd);
   bool get_date(MYSQL_TIME *res, ulonglong fuzzy_date);
 };
 
@@ -3454,6 +3447,7 @@ class Item_args
 {
 protected:
   Item **args, *tmp_arg[2];
+  uint arg_count;
   void set_arguments(THD *thd, List<Item> &list);
   bool walk_args(Item_processor processor, bool walk_subquery, uchar *arg)
   {
@@ -3467,7 +3461,6 @@ protected:
   bool transform_args(THD *thd, Item_transformer transformer, uchar *arg);
   void propagate_equal_fields(THD *, const Item::Context &, COND_EQUAL *);
 public:
-  uint arg_count;
   Item_args(void)
     :args(NULL), arg_count(0)
   { }
@@ -3591,6 +3584,123 @@ public:
 */
 class Item_func_or_sum: public Item_result_field, public Item_args
 {
+  bool agg_item_collations(DTCollation &c, const char *name,
+                           Item **items, uint nitems,
+                           uint flags, int item_sep);
+  bool agg_item_set_converter(const DTCollation &coll, const char *fname,
+                              Item **args, uint nargs,
+                              uint flags, int item_sep);
+protected:
+  /*
+    Collect arguments' character sets together.
+    We allow to apply automatic character set conversion in some cases.
+    The conditions when conversion is possible are:
+    - arguments A and B have different charsets
+    - A wins according to coercibility rules
+      (i.e. a column is stronger than a string constant,
+       an explicit COLLATE clause is stronger than a column)
+    - character set of A is either superset for character set of B,
+      or B is a string constant which can be converted into the
+      character set of A without data loss.
+
+    If all of the above is true, then it's possible to convert
+    B into the character set of A, and then compare according
+    to the collation of A.
+
+    For functions with more than two arguments:
+
+      collect(A,B,C) ::= collect(collect(A,B),C)
+
+    Since this function calls THD::change_item_tree() on the passed Item **
+    pointers, it is necessary to pass the original Item **'s, not copies.
+    Otherwise their values will not be properly restored (see BUG#20769).
+    If the items are not consecutive (eg. args[2] and args[5]), use the
+    item_sep argument, ie.
+
+      agg_item_charsets(coll, fname, &args[2], 2, flags, 3)
+  */
+  bool agg_arg_charsets(DTCollation &c, Item **items, uint nitems,
+                        uint flags, int item_sep)
+  {
+    if (agg_item_collations(c, func_name(), items, nitems, flags, item_sep))
+      return true;
+
+    return agg_item_set_converter(c, func_name(), items, nitems,
+                                  flags, item_sep);
+  }
+  /*
+    Aggregate arguments for string result, e.g: CONCAT(a,b)
+    - convert to @@character_set_connection if all arguments are numbers
+    - allow DERIVATION_NONE
+  */
+  bool agg_arg_charsets_for_string_result(DTCollation &c,
+                                          Item **items, uint nitems,
+                                          int item_sep= 1)
+  {
+    uint flags= MY_COLL_ALLOW_SUPERSET_CONV |
+                MY_COLL_ALLOW_COERCIBLE_CONV |
+                MY_COLL_ALLOW_NUMERIC_CONV;
+    return agg_arg_charsets(c, items, nitems, flags, item_sep);
+  }
+  /*
+    Aggregate arguments for string result, when some comparison
+    is involved internally, e.g: REPLACE(a,b,c)
+    - convert to @@character_set_connection if all arguments are numbers
+    - disallow DERIVATION_NONE
+  */
+  bool agg_arg_charsets_for_string_result_with_comparison(DTCollation &c,
+                                                          Item **items,
+                                                          uint nitems,
+                                                          int item_sep= 1)
+  {
+    uint flags= MY_COLL_ALLOW_SUPERSET_CONV |
+                MY_COLL_ALLOW_COERCIBLE_CONV |
+                MY_COLL_ALLOW_NUMERIC_CONV |
+                MY_COLL_DISALLOW_NONE;
+    return agg_arg_charsets(c, items, nitems, flags, item_sep);
+  }
+
+  /*
+    Aggregate arguments for comparison, e.g: a=b, a LIKE b, a RLIKE b
+    - don't convert to @@character_set_connection if all arguments are numbers
+    - don't allow DERIVATION_NONE
+  */
+  bool agg_arg_charsets_for_comparison(DTCollation &c,
+                                       Item **items, uint nitems,
+                                       int item_sep= 1)
+  {
+    uint flags= MY_COLL_ALLOW_SUPERSET_CONV |
+                MY_COLL_ALLOW_COERCIBLE_CONV |
+                MY_COLL_DISALLOW_NONE;
+    return agg_arg_charsets(c, items, nitems, flags, item_sep);
+  }
+
+
+public:
+  // This method is used by Arg_comparator
+  bool agg_arg_charsets_for_comparison(CHARSET_INFO **cs, Item **a, Item **b)
+  {
+    DTCollation tmp;
+    if (tmp.set((*a)->collation, (*b)->collation, MY_COLL_CMP_CONV) ||
+        tmp.derivation == DERIVATION_NONE)
+    {
+      my_error(ER_CANT_AGGREGATE_2COLLATIONS,MYF(0),
+               (*a)->collation.collation->name,
+               (*a)->collation.derivation_name(),
+               (*b)->collation.collation->name,
+               (*b)->collation.derivation_name(),
+               func_name());
+      return true;
+    }
+    if (agg_item_set_converter(tmp, func_name(),
+                               a, 1, MY_COLL_CMP_CONV, 1) ||
+        agg_item_set_converter(tmp, func_name(),
+                               b, 1, MY_COLL_CMP_CONV, 1))
+      return true;
+    *cs= tmp.collation;
+    return false;
+  }
+
 public:
   Item_func_or_sum(THD *thd): Item_result_field(thd), Item_args() {}
   Item_func_or_sum(THD *thd, Item *a): Item_result_field(thd), Item_args(a) { }
@@ -4902,7 +5012,8 @@ public:
   String* val_str(String *str);
   my_decimal *val_decimal(my_decimal *);
   longlong val_int();
-  longlong val_temporal_packed();
+  longlong val_datetime_packed();
+  longlong val_time_packed();
   double val_real();
   bool cache_value();
   bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate);

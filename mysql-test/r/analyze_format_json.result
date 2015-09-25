@@ -467,3 +467,116 @@ ANALYZE
   }
 }
 drop table t0, t1;
+#
+# MDEV-7970: EXPLAIN FORMAT=JSON does not print HAVING
+#
+create table t0(a int);
+insert into t0 values (0),(1),(2),(3);
+create table t1(a int);
+insert into t1 select A.a + B.a* 10 + C.a * 100 from t0 A, t0 B, t0 C;
+create table t2 (
+a int, 
+b int, 
+key (a)
+);
+insert into t2 select A.a*1000 + B.a, A.a*1000 + B.a from t0 A, t1 B;
+# normal HAVING
+analyze format=json select a, max(b) as TOP from t2 group by a having TOP > a;
+ANALYZE
+{
+  "query_block": {
+    "select_id": 1,
+    "r_loops": 1,
+    "volatile parameter": "REPLACED",
+    "having_condition": "(TOP > a)",
+    "filesort": {
+      "r_loops": 1,
+      "volatile parameter": "REPLACED",
+      "r_used_priority_queue": false,
+      "r_output_rows": 0,
+      "volatile parameter": "REPLACED",
+      "temporary_table": {
+        "table": {
+          "table_name": "t2",
+          "access_type": "ALL",
+          "r_loops": 1,
+          "rows": 256,
+          "r_rows": 256,
+          "volatile parameter": "REPLACED",
+          "filtered": 100,
+          "r_filtered": 100
+        }
+      }
+    }
+  }
+}
+# HAVING is always TRUE (not printed)
+analyze format=json select a, max(b) as TOP from t2 group by a having 1<>2;
+ANALYZE
+{
+  "query_block": {
+    "select_id": 1,
+    "r_loops": 1,
+    "volatile parameter": "REPLACED",
+    "filesort": {
+      "r_loops": 1,
+      "volatile parameter": "REPLACED",
+      "r_used_priority_queue": false,
+      "r_output_rows": 256,
+      "volatile parameter": "REPLACED",
+      "temporary_table": {
+        "table": {
+          "table_name": "t2",
+          "access_type": "ALL",
+          "r_loops": 1,
+          "rows": 256,
+          "r_rows": 256,
+          "volatile parameter": "REPLACED",
+          "filtered": 100,
+          "r_filtered": 100
+        }
+      }
+    }
+  }
+}
+# HAVING is always FALSE (intercepted by message)
+analyze format=json select a, max(b) as TOP from t2 group by a having 1=2;
+ANALYZE
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "message": "Impossible HAVING"
+    }
+  }
+}
+# HAVING is absent
+analyze format=json select a, max(b) as TOP from t2 group by a;
+ANALYZE
+{
+  "query_block": {
+    "select_id": 1,
+    "r_loops": 1,
+    "volatile parameter": "REPLACED",
+    "filesort": {
+      "r_loops": 1,
+      "volatile parameter": "REPLACED",
+      "r_used_priority_queue": false,
+      "r_output_rows": 256,
+      "volatile parameter": "REPLACED",
+      "temporary_table": {
+        "table": {
+          "table_name": "t2",
+          "access_type": "ALL",
+          "r_loops": 1,
+          "rows": 256,
+          "r_rows": 256,
+          "volatile parameter": "REPLACED",
+          "filtered": 100,
+          "r_filtered": 100
+        }
+      }
+    }
+  }
+}
+drop table t0, t1, t2;

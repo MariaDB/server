@@ -2638,7 +2638,7 @@ static bool check_equality_for_exist2in(Item_func *func,
   Item **args;
   if (func->functype() != Item_func::EQ_FUNC)
     return FALSE;
-  DBUG_ASSERT(func->arg_count == 2);
+  DBUG_ASSERT(func->argument_count() == 2);
   args= func->arguments();
   if (args[0]->real_type() == Item::FIELD_ITEM &&
       args[0]->all_used_tables() != OUTER_REF_TABLE_BIT &&

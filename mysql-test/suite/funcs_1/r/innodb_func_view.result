@@ -13,7 +13,7 @@ ALTER TABLE t1_values ADD my_binary_30      BINARY(30);
 ALTER TABLE t1_values ADD my_varbinary_1000 VARBINARY(1000);
 ALTER TABLE t1_values ADD my_datetime       DATETIME;
 ALTER TABLE t1_values ADD my_date           DATE;
-ALTER TABLE t1_values ADD ts_dummy          TIMESTAMP;
+ALTER TABLE t1_values ADD ts_dummy          TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP;
 ALTER TABLE t1_values ADD my_timestamp      TIMESTAMP NOT NULL DEFAULT '2001-01-01 10:20:30';
 ALTER TABLE t1_values ADD my_time           TIME;
 ALTER TABLE t1_values ADD my_year           YEAR;
@@ -2098,8 +2098,9 @@ IS NOT TRUE	<---------1000 characters-------------------------------------------
 IS NOT TRUE	 ---äÖüß@µ*$-- 	4
 IS     TRUE	-1	5
 Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: ''
 Warning	1292	Truncated incorrect DOUBLE value: '<---------1000 characters-------------------------------------------------------------------------------------------------------'
-Warning	1292	Truncated incorrect DOUBLE value: ' ---����@�*$-- '
+Warning	1292	Truncated incorrect DOUBLE value: ' ---\xC3\xA4\xC3\x96\xC3\xBC\xC3\x9F@\xC2\xB5*$-- '
 SHOW CREATE VIEW v1;
 View	Create View	character_set_client	collation_connection
 v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select if(`t1_values`.`my_varbinary_1000`,'IS     TRUE','IS NOT TRUE') AS `IF(my_varbinary_1000, 'IS     TRUE', 'IS NOT TRUE')`,`t1_values`.`my_varbinary_1000` AS `my_varbinary_1000`,`t1_values`.`id` AS `id` from `t1_values`	latin1	latin1_swedish_ci
@@ -2113,8 +2114,9 @@ IS NOT TRUE	<---------1000 characters-------------------------------------------
 IS NOT TRUE	 ---äÖüß@µ*$-- 	4
 IS     TRUE	-1	5
 Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: ''
 Warning	1292	Truncated incorrect DOUBLE value: '<---------1000 characters-------------------------------------------------------------------------------------------------------'
-Warning	1292	Truncated incorrect DOUBLE value: ' ---����@�*$-- '
+Warning	1292	Truncated incorrect DOUBLE value: ' ---\xC3\xA4\xC3\x96\xC3\xBC\xC3\x9F@\xC2\xB5*$-- '
 DROP VIEW v1;
 
 
@@ -2166,8 +2168,9 @@ IS NOT TRUE	<---------1000 characters-------------------------------------------
 IS NOT TRUE	 ---äÖüß@µ*$-- 	4
 IS     TRUE	-1	5
 Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: ''
 Warning	1292	Truncated incorrect DOUBLE value: '<---------1000 characters-------------------------------------------------------------------------------------------------------'
-Warning	1292	Truncated incorrect DOUBLE value: ' ---����@�*$-- '
+Warning	1292	Truncated incorrect DOUBLE value: ' ---äÖüß@µ*$-- '
 SHOW CREATE VIEW v1;
 View	Create View	character_set_client	collation_connection
 v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select if(`t1_values`.`my_varchar_1000`,'IS     TRUE','IS NOT TRUE') AS `IF(my_varchar_1000, 'IS     TRUE', 'IS NOT TRUE')`,`t1_values`.`my_varchar_1000` AS `my_varchar_1000`,`t1_values`.`id` AS `id` from `t1_values`	latin1	latin1_swedish_ci
@@ -2181,8 +2184,9 @@ IS NOT TRUE	<---------1000 characters-------------------------------------------
 IS NOT TRUE	 ---äÖüß@µ*$-- 	4
 IS     TRUE	-1	5
 Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: ''
 Warning	1292	Truncated incorrect DOUBLE value: '<---------1000 characters-------------------------------------------------------------------------------------------------------'
-Warning	1292	Truncated incorrect DOUBLE value: ' ---����@�*$-- '
+Warning	1292	Truncated incorrect DOUBLE value: ' ---äÖüß@µ*$-- '
 DROP VIEW v1;
 
 
@@ -2198,6 +2202,7 @@ IS NOT TRUE	<--------30 characters------->	3
 IS NOT TRUE	 ---äÖüß@µ*$--	4
 IS     TRUE	-1	5
 Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: '                              '
 Warning	1292	Truncated incorrect DOUBLE value: '<--------30 characters------->'
 Warning	1292	Truncated incorrect DOUBLE value: ' ---äÖüß@µ*$--           '
 SHOW CREATE VIEW v1;
@@ -2213,6 +2218,7 @@ IS NOT TRUE	<--------30 characters------->	3
 IS NOT TRUE	 ---äÖüß@µ*$--	4
 IS     TRUE	-1	5
 Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: '                              '
 Warning	1292	Truncated incorrect DOUBLE value: '<--------30 characters------->'
 Warning	1292	Truncated incorrect DOUBLE value: ' ---äÖüß@µ*$--           '
 DROP VIEW v1;
@@ -3737,14 +3743,14 @@ my_bigint, id FROM t1_values
 WHERE select_id = 52 OR select_id IS NULL order by id;
 CAST(my_bigint AS TIME)	my_bigint	id
 NULL	NULL	1
-NULL	-9223372036854775808	2
-NULL	9223372036854775807	3
+-838:59:59	-9223372036854775808	2
+838:59:59	9223372036854775807	3
 00:00:00	0	4
 -00:00:01	-1	5
 00:17:58	1758	24
 Warnings:
-Warning	1292	Truncated incorrect time value: '-9223372036854775808'
-Warning	1292	Truncated incorrect time value: '9223372036854775807'
+Warning	1292	Incorrect time value: '-9223372036854775808' for column 'my_bigint' at row 2
+Warning	1292	Incorrect time value: '9223372036854775807' for column 'my_bigint' at row 3
 SHOW CREATE VIEW v1;
 View	Create View	character_set_client	collation_connection
 v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select cast(`t1_values`.`my_bigint` as time) AS `CAST(my_bigint AS TIME)`,`t1_values`.`my_bigint` AS `my_bigint`,`t1_values`.`id` AS `id` from `t1_values`	latin1	latin1_swedish_ci
@@ -3753,14 +3759,14 @@ WHERE v1.id IN (SELECT id FROM t1_values
 WHERE select_id = 52 OR select_id IS NULL) order by id;
 CAST(my_bigint AS TIME)	my_bigint	id
 NULL	NULL	1
-NULL	-9223372036854775808	2
-NULL	9223372036854775807	3
+-838:59:59	-9223372036854775808	2
+838:59:59	9223372036854775807	3
 00:00:00	0	4
 -00:00:01	-1	5
 00:17:58	1758	24
 Warnings:
-Warning	1292	Truncated incorrect time value: '-9223372036854775808'
-Warning	1292	Truncated incorrect time value: '9223372036854775807'
+Warning	1292	Incorrect time value: '-9223372036854775808' for column 'my_bigint' at row 1
+Warning	1292	Incorrect time value: '9223372036854775807' for column 'my_bigint' at row 1
 DROP VIEW v1;
 
 
@@ -4089,15 +4095,14 @@ CAST(my_bigint AS DATETIME)	my_bigint	id
 NULL	NULL	1
 NULL	-9223372036854775808	2
 NULL	9223372036854775807	3
-NULL	0	4
+0000-00-00 00:00:00	0	4
 NULL	-1	5
 NULL	200506271758	18
 Warnings:
-Warning	1292	Incorrect datetime value: '-9223372036854775808'
-Warning	1292	Incorrect datetime value: '9223372036854775807'
-Warning	1292	Incorrect datetime value: '0'
-Warning	1292	Incorrect datetime value: '-1'
-Warning	1292	Incorrect datetime value: '200506271758'
+Warning	1292	Incorrect datetime value: '-9223372036854775808' for column 'my_bigint' at row 2
+Warning	1292	Incorrect datetime value: '9223372036854775807' for column 'my_bigint' at row 3
+Warning	1292	Incorrect datetime value: '-1' for column 'my_bigint' at row 5
+Warning	1292	Incorrect datetime value: '200506271758' for column 'my_bigint' at row 18
 SHOW CREATE VIEW v1;
 View	Create View	character_set_client	collation_connection
 v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select cast(`t1_values`.`my_bigint` as datetime) AS `CAST(my_bigint AS DATETIME)`,`t1_values`.`my_bigint` AS `my_bigint`,`t1_values`.`id` AS `id` from `t1_values`	latin1	latin1_swedish_ci
@@ -4108,15 +4113,14 @@ CAST(my_bigint AS DATETIME)	my_bigint	id
 NULL	NULL	1
 NULL	-9223372036854775808	2
 NULL	9223372036854775807	3
-NULL	0	4
+0000-00-00 00:00:00	0	4
 NULL	-1	5
 NULL	200506271758	18
 Warnings:
-Warning	1292	Incorrect datetime value: '-9223372036854775808'
-Warning	1292	Incorrect datetime value: '9223372036854775807'
-Warning	1292	Incorrect datetime value: '0'
-Warning	1292	Incorrect datetime value: '-1'
-Warning	1292	Incorrect datetime value: '200506271758'
+Warning	1292	Incorrect datetime value: '-9223372036854775808' for column 'my_bigint' at row 1
+Warning	1292	Incorrect datetime value: '9223372036854775807' for column 'my_bigint' at row 1
+Warning	1292	Incorrect datetime value: '-1' for column 'my_bigint' at row 1
+Warning	1292	Incorrect datetime value: '200506271758' for column 'my_bigint' at row 1
 DROP VIEW v1;
 
 
@@ -4449,14 +4453,13 @@ CAST(my_bigint AS DATE)	my_bigint	id
 NULL	NULL	1
 NULL	-9223372036854775808	2
 NULL	9223372036854775807	3
-NULL	0	4
+0000-00-00	0	4
 NULL	-1	5
 2005-06-27	20050627	12
 Warnings:
-Warning	1292	Incorrect datetime value: '-9223372036854775808'
-Warning	1292	Incorrect datetime value: '9223372036854775807'
-Warning	1292	Incorrect datetime value: '0'
-Warning	1292	Incorrect datetime value: '-1'
+Warning	1292	Incorrect datetime value: '-9223372036854775808' for column 'my_bigint' at row 2
+Warning	1292	Incorrect datetime value: '9223372036854775807' for column 'my_bigint' at row 3
+Warning	1292	Incorrect datetime value: '-1' for column 'my_bigint' at row 5
 SHOW CREATE VIEW v1;
 View	Create View	character_set_client	collation_connection
 v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select cast(`t1_values`.`my_bigint` as date) AS `CAST(my_bigint AS DATE)`,`t1_values`.`my_bigint` AS `my_bigint`,`t1_values`.`id` AS `id` from `t1_values`	latin1	latin1_swedish_ci
@@ -4467,14 +4470,13 @@ CAST(my_bigint AS DATE)	my_bigint	id
 NULL	NULL	1
 NULL	-9223372036854775808	2
 NULL	9223372036854775807	3
-NULL	0	4
+0000-00-00	0	4
 NULL	-1	5
 2005-06-27	20050627	12
 Warnings:
-Warning	1292	Incorrect datetime value: '-9223372036854775808'
-Warning	1292	Incorrect datetime value: '9223372036854775807'
-Warning	1292	Incorrect datetime value: '0'
-Warning	1292	Incorrect datetime value: '-1'
+Warning	1292	Incorrect datetime value: '-9223372036854775808' for column 'my_bigint' at row 1
+Warning	1292	Incorrect datetime value: '9223372036854775807' for column 'my_bigint' at row 1
+Warning	1292	Incorrect datetime value: '-1' for column 'my_bigint' at row 1
 DROP VIEW v1;
 
 

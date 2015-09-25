@@ -265,6 +265,7 @@ def	information_schema	PROCESSLIST	PROGRESS	12	0.000	NO	decimal	NULL	NULL	7	3	NU
 def	information_schema	PROCESSLIST	QUERY_ID	15	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	NULL	bigint(4)			select	
 def	information_schema	PROCESSLIST	STAGE	10	0	NO	tinyint	NULL	NULL	3	0	NULL	NULL	NULL	tinyint(2)			select	
 def	information_schema	PROCESSLIST	STATE	7	NULL	YES	varchar	64	192	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(64)			select	
+def	information_schema	PROCESSLIST	TID	17	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	NULL	bigint(4)			select	
 def	information_schema	PROCESSLIST	TIME	6	0	NO	int	NULL	NULL	10	0	NULL	NULL	NULL	int(7)			select	
 def	information_schema	PROCESSLIST	TIME_MS	9	0.000	NO	decimal	NULL	NULL	22	3	NULL	NULL	NULL	decimal(22,3)			select	
 def	information_schema	PROCESSLIST	USER	2		NO	varchar	128	384	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(128)			select	
@@ -795,6 +796,7 @@ NULL	information_schema	PROCESSLIST	MEMORY_USED	int	NULL	NULL	NULL	NULL	int(7)
 NULL	information_schema	PROCESSLIST	EXAMINED_ROWS	int	NULL	NULL	NULL	NULL	int(7)
 NULL	information_schema	PROCESSLIST	QUERY_ID	bigint	NULL	NULL	NULL	NULL	bigint(4)
 1.0000	information_schema	PROCESSLIST	INFO_BINARY	blob	65535	65535	NULL	NULL	blob
+NULL	information_schema	PROCESSLIST	TID	bigint	NULL	NULL	NULL	NULL	bigint(4)
 3.0000	information_schema	REFERENTIAL_CONSTRAINTS	CONSTRAINT_CATALOG	varchar	512	1536	utf8	utf8_general_ci	varchar(512)
 3.0000	information_schema	REFERENTIAL_CONSTRAINTS	CONSTRAINT_SCHEMA	varchar	64	192	utf8	utf8_general_ci	varchar(64)
 3.0000	information_schema	REFERENTIAL_CONSTRAINTS	CONSTRAINT_NAME	varchar	64	192	utf8	utf8_general_ci	varchar(64)

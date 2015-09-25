@@ -253,15 +253,6 @@ static uint collect_cmp_types(Item **items, uint nitems, bool skip_nulls= FALSE)
   return found_types;
 }
 
-static void my_coll_agg_error(DTCollation &c1, DTCollation &c2,
-                              const char *fname)
-{
-  my_error(ER_CANT_AGGREGATE_2COLLATIONS, MYF(0),
-           c1.collation->name,c1.derivation_name(),
-           c2.collation->name,c2.derivation_name(),
-           fname);
-}
-
 
 /*
   Test functions
@@ -494,10 +485,13 @@ bool Item_func::setup_args_and_comparator(THD *thd, Arg_comparator *cmp)
   DBUG_ASSERT(arg_count >= 2); // Item_func_nullif has arg_count == 3
 
   if (args[0]->cmp_type() == STRING_RESULT &&
-      args[1]->cmp_type() == STRING_RESULT &&
-      agg_arg_charsets_for_comparison(cmp->cmp_collation, args, 2))
+      args[1]->cmp_type() == STRING_RESULT)
+  {
+    DTCollation tmp;
+    if (agg_arg_charsets_for_comparison(tmp, args, 2))
       return true;
-
+    cmp->m_compare_collation= tmp.collation;
+  }
   //  Convert constants when compared to int/year field
   DBUG_ASSERT(functype() != LIKE_FUNC);
   convert_const_compared_to_int_field(thd);
@@ -528,7 +522,7 @@ int Arg_comparator::set_compare_func(Item_func_or_sum *item, Item_result type)
 
   switch (type) {
   case TIME_RESULT:
-    cmp_collation.collation= &my_charset_numeric;
+    m_compare_collation= &my_charset_numeric;
     break;
   case ROW_RESULT:
   {
@@ -554,32 +548,6 @@ int Arg_comparator::set_compare_func(Item_func_or_sum *item, Item_result type)
     }
     break;
   }
-  case STRING_RESULT:
-  {
-    if (cmp_collation.collation == &my_charset_bin)
-    {
-      /*
-	We are using BLOB/BINARY/VARBINARY, change to compare byte by byte,
-	without removing end space
-      */
-      if (func == &Arg_comparator::compare_string)
-	func= &Arg_comparator::compare_binary_string;
-      else if (func == &Arg_comparator::compare_e_string)
-	func= &Arg_comparator::compare_e_binary_string;
-
-      /*
-        As this is binary compassion, mark all fields that they can't be
-        transformed. Otherwise we would get into trouble with comparisons
-        like:
-        WHERE col= 'j' AND col LIKE BINARY 'j'
-        which would be transformed to:
-        WHERE col= 'j'
-      */
-      (*a)->walk(&Item::set_no_const_sub, FALSE, (uchar*) 0);
-      (*b)->walk(&Item::set_no_const_sub, FALSE, (uchar*) 0);
-    }
-    break;
-  }
   case INT_RESULT:
   {
     if (func == &Arg_comparator::compare_int_signed)
@@ -598,6 +566,7 @@ int Arg_comparator::set_compare_func(Item_func_or_sum *item, Item_result type)
     }
     break;
   }
+  case STRING_RESULT:
   case DECIMAL_RESULT:
     break;
   case REAL_RESULT:
@@ -676,37 +645,6 @@ bool get_mysql_time_from_str(THD *thd, String *str, timestamp_type warn_type,
 
 
 /**
-  Aggregate comparator argument charsets for comparison.
-  One of the arguments ("a" or "b") can be replaced,
-  typically by Item_string or Item_func_conv_charset.
-
-  @return Aggregation result
-  @retval false - if no conversion is needed,
-                  or if one of the arguments was converted
-  @retval true  - on error, if arguments are not comparable.
-
-  TODO: get rid of this method eventually and refactor the calling code.
-  Argument conversion should happen on the Item_func level.
-  Arg_comparator should get comparable arguments.
-*/
-bool Arg_comparator::agg_arg_charsets_for_comparison()
-{
-  if (cmp_collation.set((*a)->collation, (*b)->collation, MY_COLL_CMP_CONV) ||
-      cmp_collation.derivation == DERIVATION_NONE)
-  {
-    my_coll_agg_error((*a)->collation, (*b)->collation, owner->func_name());
-    return true;
-  }
-  if (agg_item_set_converter(cmp_collation, owner->func_name(),
-                             a, 1, MY_COLL_CMP_CONV, 1) ||
-      agg_item_set_converter(cmp_collation, owner->func_name(),
-                             b, 1, MY_COLL_CMP_CONV, 1))
-    return true;
-  return false;
-}
-
-
-/**
   Prepare the comparator (set the comparison function) for comparing
   items *a1 and *a2 in the context of 'type'.
 
@@ -720,17 +658,16 @@ bool Arg_comparator::agg_arg_charsets_for_comparison()
 */
 
 int Arg_comparator::set_cmp_func(Item_func_or_sum *owner_arg,
-                                        Item **a1, Item **a2,
-                                        Item_result type)
+                                 Item **a1, Item **a2)
 {
   thd= current_thd;
   owner= owner_arg;
   set_null= set_null && owner_arg;
   a= a1;
   b= a2;
-  m_compare_type= type;
+  m_compare_type= item_cmp_type(*a1, *a2);
 
-  if (type == STRING_RESULT &&
+  if (m_compare_type == STRING_RESULT &&
       (*a)->result_type() == STRING_RESULT &&
       (*b)->result_type() == STRING_RESULT)
   {
@@ -738,17 +675,38 @@ int Arg_comparator::set_cmp_func(Item_func_or_sum *owner_arg,
       We must set cmp_collation here as we may be called from for an automatic
       generated item, like in natural join
     */
-    if (agg_arg_charsets_for_comparison())
+    if (owner->agg_arg_charsets_for_comparison(&m_compare_collation, a, b))
       return 1;
   }
-  if (type == INT_RESULT &&
+
+  if (m_compare_type == TIME_RESULT)
+  {
+    enum_field_types f_type= a[0]->field_type_for_temporal_comparison(b[0]);
+    if (f_type == MYSQL_TYPE_TIME)
+    {
+      func= is_owner_equal_func() ? &Arg_comparator::compare_e_time :
+                                    &Arg_comparator::compare_time;
+    }
+    else
+    {
+      func= is_owner_equal_func() ? &Arg_comparator::compare_e_datetime :
+                                    &Arg_comparator::compare_datetime;
+    }
+    return 0;
+  }
+
+  if (m_compare_type == INT_RESULT &&
       (*a)->field_type() == MYSQL_TYPE_YEAR &&
       (*b)->field_type() == MYSQL_TYPE_YEAR)
-    type= TIME_RESULT;
+  {
+    m_compare_type= TIME_RESULT;
+    func= is_owner_equal_func() ? &Arg_comparator::compare_e_datetime :
+                                  &Arg_comparator::compare_datetime;
+  }
 
-  a= cache_converted_constant(thd, a, &a_cache, type);
-  b= cache_converted_constant(thd, b, &b_cache, type);
-  return set_compare_func(owner_arg, type);
+  a= cache_converted_constant(thd, a, &a_cache, m_compare_type);
+  b= cache_converted_constant(thd, b, &b_cache, m_compare_type);
+  return set_compare_func(owner_arg, m_compare_type);
 }
 
 
@@ -791,18 +749,6 @@ Item** Arg_comparator::cache_converted_constant(THD *thd_arg, Item **value,
 }
 
 
-void Arg_comparator::set_datetime_cmp_func(Item_func_or_sum *owner_arg,
-                                           Item **a1, Item **b1)
-{
-  thd= current_thd;
-  owner= owner_arg;
-  a= a1;
-  b= b1;
-  a_cache= 0;
-  b_cache= 0;
-  func= comparator_matrix[TIME_RESULT][is_owner_equal_func()];
-}
-
 /**
   Retrieves correct DATETIME value from given item.
 
@@ -836,34 +782,11 @@ void Arg_comparator::set_datetime_cmp_func(Item_func_or_sum *owner_arg,
 
 longlong
 get_datetime_value(THD *thd, Item ***item_arg, Item **cache_arg,
-                   Item *warn_item, bool *is_null)
+                   enum_field_types f_type, bool *is_null)
 {
   longlong UNINIT_VAR(value);
   Item *item= **item_arg;
-  enum_field_types f_type= item->cmp_type() == TIME_RESULT ?
-                           item->field_type() : warn_item->field_type();
-
-  if (item->result_type() == INT_RESULT &&
-      item->cmp_type() == TIME_RESULT &&
-      item->type() == Item::CACHE_ITEM)
-  {
-    /* it's our Item_cache_temporal, as created below */
-    DBUG_ASSERT(is_temporal_type(((Item_cache *) item)->field_type()));
-    value= ((Item_cache_temporal*) item)->val_temporal_packed();
-  }
-  else
-  {
-    MYSQL_TIME ltime;
-    uint fuzzydate= TIME_FUZZY_DATES | TIME_INVALID_DATES;
-    if ((item->field_type() == MYSQL_TYPE_TIME &&
-        is_temporal_type_with_date(warn_item->field_type())) ?
-        item->get_date_with_conversion(&ltime, fuzzydate) :
-        item->get_date(&ltime, fuzzydate |
-                               (f_type == MYSQL_TYPE_TIME ? TIME_TIME_ONLY : 0)))
-      value= 0; /* invalid date */
-    else
-      value= pack_time(&ltime);
-  }
+  value= item->val_temporal_packed(f_type);
   if ((*is_null= item->null_value))
     return ~(ulonglong) 0;
   if (cache_arg && item->const_item() &&
@@ -900,7 +823,7 @@ get_datetime_value(THD *thd, Item ***item_arg, Item **cache_arg,
        1   a > b
 */
 
-int Arg_comparator::compare_datetime()
+int Arg_comparator::compare_temporal(enum_field_types type)
 {
   bool a_is_null, b_is_null;
   longlong a_value, b_value;
@@ -909,12 +832,12 @@ int Arg_comparator::compare_datetime()
     owner->null_value= 1;
 
   /* Get DATE/DATETIME/TIME value of the 'a' item. */
-  a_value= get_datetime_value(thd, &a, &a_cache, *b, &a_is_null);
+  a_value= get_datetime_value(thd, &a, &a_cache, type, &a_is_null);
   if (a_is_null)
     return -1;
 
   /* Get DATE/DATETIME/TIME value of the 'b' item. */
-  b_value= get_datetime_value(thd, &b, &b_cache, *a, &b_is_null);
+  b_value= get_datetime_value(thd, &b, &b_cache, type, &b_is_null);
   if (b_is_null)
     return -1;
 
@@ -926,16 +849,16 @@ int Arg_comparator::compare_datetime()
   return a_value < b_value ? -1 : a_value > b_value ? 1 : 0;
 }
 
-int Arg_comparator::compare_e_datetime()
+int Arg_comparator::compare_e_temporal(enum_field_types type)
 {
   bool a_is_null, b_is_null;
   longlong a_value, b_value;
 
   /* Get DATE/DATETIME/TIME value of the 'a' item. */
-  a_value= get_datetime_value(thd, &a, &a_cache, *b, &a_is_null);
+  a_value= get_datetime_value(thd, &a, &a_cache, type, &a_is_null);
 
   /* Get DATE/DATETIME/TIME value of the 'b' item. */
-  b_value= get_datetime_value(thd, &b, &b_cache, *a, &b_is_null);
+  b_value= get_datetime_value(thd, &b, &b_cache, type, &b_is_null);
   return a_is_null || b_is_null ? a_is_null == b_is_null
                                 : a_value == b_value;
 }
@@ -949,39 +872,7 @@ int Arg_comparator::compare_string()
     {
       if (set_null)
         owner->null_value= 0;
-      return sortcmp(res1,res2,cmp_collation.collation);
-    }
-  }
-  if (set_null)
-    owner->null_value= 1;
-  return -1;
-}
-
-
-/**
-  Compare strings byte by byte. End spaces are also compared.
-
-  @retval
-    <0  *a < *b
-  @retval
-     0  *b == *b
-  @retval
-    >0  *a > *b
-*/
-
-int Arg_comparator::compare_binary_string()
-{
-  String *res1,*res2;
-  if ((res1= (*a)->val_str(&value1)))
-  {
-    if ((res2= (*b)->val_str(&value2)))
-    {
-      if (set_null)
-        owner->null_value= 0;
-      uint res1_length= res1->length();
-      uint res2_length= res2->length();
-      int cmp= memcmp(res1->ptr(), res2->ptr(), MY_MIN(res1_length,res2_length));
-      return cmp ? cmp : (int) (res1_length - res2_length);
+      return sortcmp(res1, res2, compare_collation());
     }
   }
   if (set_null)
@@ -1002,18 +893,7 @@ int Arg_comparator::compare_e_string()
   res2= (*b)->val_str(&value2);
   if (!res1 || !res2)
     return MY_TEST(res1 == res2);
-  return MY_TEST(sortcmp(res1, res2, cmp_collation.collation) == 0);
-}
-
-
-int Arg_comparator::compare_e_binary_string()
-{
-  String *res1,*res2;
-  res1= (*a)->val_str(&value1);
-  res2= (*b)->val_str(&value2);
-  if (!res1 || !res2)
-    return MY_TEST(res1 == res2);
-  return MY_TEST(stringcmp(res1, res2) == 0);
+  return MY_TEST(sortcmp(res1, res2, compare_collation()) == 0);
 }
 
 
@@ -1946,7 +1826,7 @@ bool Item_func_opt_neg::eq(const Item *item, bool binary_cmp) const
   if (item->type() != FUNC_ITEM)
     return 0;
   Item_func *item_func=(Item_func*) item;
-  if (arg_count != item_func->arg_count ||
+  if (arg_count != item_func->argument_count() ||
       functype() != item_func->functype())
     return 0;
   if (negated != ((Item_func_opt_neg *) item_func)->negated)
@@ -2238,8 +2118,8 @@ longlong Item_func_between::val_int()
     bool value_is_null, a_is_null, b_is_null;
 
     ptr= &args[0];
-    value= get_datetime_value(thd, &ptr, &cache, compare_as_dates,
-                              &value_is_null);
+    enum_field_types f_type= field_type_for_temporal_comparison(compare_as_dates);
+    value= get_datetime_value(thd, &ptr, &cache, f_type, &value_is_null);
     if (ptr != &args[0])
       thd->change_item_tree(&args[0], *ptr);
 
@@ -2247,12 +2127,12 @@ longlong Item_func_between::val_int()
       return 0;
 
     ptr= &args[1];
-    a= get_datetime_value(thd, &ptr, &cache, compare_as_dates, &a_is_null);
+    a= get_datetime_value(thd, &ptr, &cache, f_type, &a_is_null);
     if (ptr != &args[1])
       thd->change_item_tree(&args[1], *ptr);
 
     ptr= &args[2];
-    b= get_datetime_value(thd, &ptr, &cache, compare_as_dates, &b_is_null);
+    b= get_datetime_value(thd, &ptr, &cache, f_type, &b_is_null);
     if (ptr != &args[2])
       thd->change_item_tree(&args[2], *ptr);
 
@@ -3700,11 +3580,9 @@ Item *in_longlong::create_item(THD *thd)
 
 void in_datetime::set(uint pos,Item *item)
 {
-  Item **tmp_item= &item;
-  bool is_null;
   struct packed_longlong *buff= &((packed_longlong*) base)[pos];
 
-  buff->val= get_datetime_value(thd, &tmp_item, 0, warn_item, &is_null);
+  buff->val= item->val_temporal_packed(warn_item);
   buff->unsigned_flag= 1L;
 }
 
@@ -3712,7 +3590,9 @@ uchar *in_datetime::get_value(Item *item)
 {
   bool is_null;
   Item **tmp_item= lval_cache ? &lval_cache : &item;
-  tmp.val= get_datetime_value(thd, &tmp_item, &lval_cache, warn_item, &is_null);
+  enum_field_types f_type=
+    tmp_item[0]->field_type_for_temporal_comparison(warn_item);
+  tmp.val= get_datetime_value(thd, &tmp_item, &lval_cache, f_type, &is_null);
   if (item->null_value)
     return 0;
   tmp.unsigned_flag= 1L;
@@ -3969,16 +3849,15 @@ void cmp_item_datetime::store_value(Item *item)
 {
   bool is_null;
   Item **tmp_item= lval_cache ? &lval_cache : &item;
-  value= get_datetime_value(thd, &tmp_item, &lval_cache, warn_item, &is_null);
+  enum_field_types f_type=
+    tmp_item[0]->field_type_for_temporal_comparison(warn_item);
+  value= get_datetime_value(thd, &tmp_item, &lval_cache, f_type, &is_null);
 }
 
 
 int cmp_item_datetime::cmp(Item *arg)
 {
-  bool is_null;
-  Item **tmp_item= &arg;
-  return value !=
-    get_datetime_value(thd, &tmp_item, 0, warn_item, &is_null);
+  return value != arg->val_temporal_packed(warn_item);
 }
 
 
@@ -5914,14 +5793,14 @@ Item *Item_bool_rowready_func2::negated_item(THD *thd)
 
 Item_equal::Item_equal(THD *thd, Item *f1, Item *f2, bool with_const_item):
   Item_bool_func(thd), eval_item(0), cond_false(0), cond_true(0),
-  context_field(NULL), link_equal_fields(FALSE)
+  context_field(NULL), link_equal_fields(FALSE),
+  m_compare_type(item_cmp_type(f1, f2)),
+  m_compare_collation(f2->collation.collation)
 {
   const_item_cache= 0;
   with_const= with_const_item;
   equal_items.push_back(f1, thd->mem_root);
   equal_items.push_back(f2, thd->mem_root);
-  cmp.cmp_collation.set(f2->collation);
-  cmp.set_compare_type(item_cmp_type(f1, f2));
   upper_levels= NULL;
 }
 
@@ -5940,7 +5819,9 @@ Item_equal::Item_equal(THD *thd, Item *f1, Item *f2, bool with_const_item):
 
 Item_equal::Item_equal(THD *thd, Item_equal *item_equal):
   Item_bool_func(thd), eval_item(0), cond_false(0), cond_true(0),
-  context_field(NULL), link_equal_fields(FALSE)
+  context_field(NULL), link_equal_fields(FALSE),
+  m_compare_type(item_equal->m_compare_type),
+  m_compare_collation(item_equal->m_compare_collation)
 {
   const_item_cache= 0;
   List_iterator_fast<Item> li(item_equal->equal_items);
@@ -5950,8 +5831,6 @@ Item_equal::Item_equal(THD *thd, Item_equal *item_equal):
     equal_items.push_back(item, thd->mem_root);
   }
   with_const= item_equal->with_const;
-  cmp.cmp_collation.set(item_equal->cmp.cmp_collation);
-  cmp.set_compare_type(item_equal->cmp.compare_type());
   cond_false= item_equal->cond_false;
   upper_levels= item_equal->upper_levels;
 }
@@ -5984,11 +5863,13 @@ void Item_equal::add_const(THD *thd, Item *c)
     return;
   }
   Item *const_item= get_const();
-  switch (cmp.compare_type()) {
+  switch (Item_equal::compare_type()) {
   case TIME_RESULT:
     {
-      cmp.set_datetime_cmp_func(this, &c, &const_item);
-      cond_false= cmp.compare();
+      enum_field_types f_type= context_field->field_type();
+      longlong value0= c->val_temporal_packed(f_type);
+      longlong value1= const_item->val_temporal_packed(f_type);
+      cond_false= c->null_value || const_item->null_value || value0 != value1;
       break;
     }
   case STRING_RESULT:
@@ -6037,8 +5918,8 @@ void Item_equal::add_const(THD *thd, Item *c)
           SELECT * FROM t1 WHERE a='const' AND a=NULL;
           SELECT * FROM t1 WHERE a='const' AND a=(SELECT MAX(a) FROM t2)
       */
-      cond_false= !(str1= const_item->val_str(&cmp.value1)) ||
-                  !(str2= c->val_str(&cmp.value2)) ||
+      cond_false= !(str1= const_item->val_str(&cmp_value1)) ||
+                  !(str2= c->val_str(&cmp_value2)) ||
                   !str1->eq(str2, compare_collation());
       break;
     }

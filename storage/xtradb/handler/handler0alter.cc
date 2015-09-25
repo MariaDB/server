@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2005, 2014, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2014, SkySQL Ab. All Rights Reserved.
+Copyright (c) 2013, 2015, MariaDB Corporation. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -4168,10 +4168,13 @@ oom:
 			 : ha_alter_info->key_info_buffer[
 				 prebuilt->trx->error_key_num].name);
 		break;
-	case DB_ENCRYPTED_DECRYPT_FAILED:
-		my_error(ER_NO_SUCH_TABLE_IN_ENGINE, MYF(0),
-			table_share->db.str, table_share->table_name.str);
+	case DB_DECRYPTION_FAILED: {
+		String str;
+		const char* engine= table_type();
+		get_error_message(HA_ERR_DECRYPTION_FAILED, &str);
+		my_error(ER_GET_ERRMSG, MYF(0), HA_ERR_DECRYPTION_FAILED, str.c_ptr(), engine);
 		break;
+	}
 	default:
 		my_error_innodb(error,
 				table_share->table_name.str,

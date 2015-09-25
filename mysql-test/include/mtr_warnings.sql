@@ -165,6 +165,9 @@ INSERT INTO global_suppressions VALUES
 
  ("The slave I.O thread stops because a fatal error is encountered when it try to get the value of SERVER_ID variable from master."),
 
+ /*It will print a warning if server is run without --explicit_defaults_for_timestamp.*/
+ ("TIMESTAMP with implicit DEFAULT value is deprecated. Please use --explicit_defaults_for_timestamp server option (see documentation for more details)*"),
+
  /* Added 2009-08-XX after fixing Bug #42408 */
 
  ("Although a path was specified for the .* option, log tables are used"),

@@ -438,6 +438,7 @@ my_bool opt_show_slave_auth_info;
 my_bool opt_log_slave_updates= 0;
 my_bool opt_replicate_annotate_row_events= 0;
 my_bool opt_mysql56_temporal_format=0, strict_password_validation= 1;
+my_bool opt_explicit_defaults_for_timestamp= 0;
 char *opt_slave_skip_errors;
 
 /*
@@ -5293,6 +5294,9 @@ static int init_server_components()
   if (default_tmp_storage_engine && !*default_tmp_storage_engine)
     default_tmp_storage_engine= NULL;
 
+  if (enforced_storage_engine && !*enforced_storage_engine)
+    enforced_storage_engine= NULL;
+
   if (init_default_storage_engine(default_tmp_storage_engine, tmp_table_plugin))
     unireg_abort(1);
 
@@ -7580,7 +7584,6 @@ struct my_option my_long_options[]=
   MYSQL_COMPATIBILITY_OPTION("log-bin-use-v1-row-events"),
   MYSQL_TO_BE_IMPLEMENTED_OPTION("default-authentication-plugin"),
   MYSQL_COMPATIBILITY_OPTION("binlog-max-flush-queue-time"),
-  MYSQL_TO_BE_IMPLEMENTED_OPTION("explicit-defaults-for-timestamp"),
   MYSQL_COMPATIBILITY_OPTION("master-info-repository"),
   MYSQL_COMPATIBILITY_OPTION("relay-log-info-repository"),
   MYSQL_SUGGEST_ANALOG_OPTION("binlog-rows-query-log-events", "--binlog-annotate-row-events"),
@@ -9367,6 +9370,16 @@ static int get_options(int *argc_ptr, char ***argv_ptr)
                       global_system_variables.net_buffer_length, 
                       global_system_variables.max_allowed_packet);
   }
+
+  /*
+    TIMESTAMP columns get implicit DEFAULT values when
+    --explicit_defaults_for_timestamp is not set.
+  */
+  if (!opt_help && !opt_explicit_defaults_for_timestamp)
+    sql_print_warning("TIMESTAMP with implicit DEFAULT value is deprecated. "
+                      "Please use --explicit_defaults_for_timestamp server "
+                      "option (see documentation for more details).");
+
 
   if (log_error_file_ptr != disabled_my_option)
     opt_error_log= 1;

@@ -459,4 +459,64 @@ even_longer_user_name_number_3_to_test_the_grantor_and_definer_field_length@loca
 DROP USER very_long_user_name_number_1, very_long_user_name_number_2, even_longer_user_name_number_3_to_test_the_grantor_and_definer_field_length@localhost;
 DROP PROCEDURE test.pr;
 set sql_mode=default;
+# Droping the previously created mysql_upgrade_info file..
+create table test.t1(a int) engine=MyISAM;
+# Trying to enforce InnoDB for all tables
+SET GLOBAL enforce_storage_engine=InnoDB;
+Phase 1/6: Checking and upgrading mysql database
+Processing databases
+mysql
+mysql.column_stats                                 OK
+mysql.columns_priv                                 OK
+mysql.db                                           OK
+mysql.event                                        OK
+mysql.func                                         OK
+mysql.gtid_slave_pos                               OK
+mysql.help_category                                OK
+mysql.help_keyword                                 OK
+mysql.help_relation                                OK
+mysql.help_topic                                   OK
+mysql.host                                         OK
+mysql.index_stats                                  OK
+mysql.innodb_index_stats                           OK
+mysql.innodb_table_stats                           OK
+mysql.plugin                                       OK
+mysql.proc                                         OK
+mysql.procs_priv                                   OK
+mysql.proxies_priv                                 OK
+mysql.roles_mapping                                OK
+mysql.servers                                      OK
+mysql.table_stats                                  OK
+mysql.tables_priv                                  OK
+mysql.time_zone                                    OK
+mysql.time_zone_leap_second                        OK
+mysql.time_zone_name                               OK
+mysql.time_zone_transition                         OK
+mysql.time_zone_transition_type                    OK
+mysql.user                                         OK
+Phase 2/6: Fixing views
+Phase 3/6: Running 'mysql_fix_privilege_tables'
+Phase 4/6: Fixing table and database names
+Phase 5/6: Checking and upgrading tables
+Processing databases
+information_schema
+mtr
+mtr.global_suppressions                            OK
+mtr.test_suppressions                              OK
+performance_schema
+test
+test.t1                                            OK
+Phase 6/6: Running 'FLUSH PRIVILEGES'
+OK
+# Should return 2
+SELECT count(*) FROM information_schema.tables where ENGINE="InnoDB";
+count(*)
+2
+SHOW CREATE TABLE test.t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE test.t1;
+SET GLOBAL enforce_storage_engine=NULL;
 End of tests

@@ -287,7 +287,9 @@ protected:
 public:
   Item_func_spatial_rel(THD *thd, Item *a, Item *b, enum Functype sp_rel):
     Item_bool_func2(thd, a, b), spatial_rel(sp_rel)
-  { }
+  {
+    maybe_null= true;
+  }
   enum Functype functype() const { return spatial_rel; }
   enum Functype rev_functype() const { return spatial_rel; }
   bool is_null() { (void) val_int(); return null_value; }

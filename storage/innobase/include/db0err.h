@@ -133,8 +133,8 @@ enum dberr_t {
 					/*< Too many words in a phrase */
 	DB_TOO_BIG_FOR_REDO,		/* Record length greater than 10%
 					of redo log */
-	DB_ENCRYPTED_DECRYPT_FAILED,	/* Tablespace encrypted and
-					decrypt operaton failed because
+	DB_DECRYPTION_FAILED,		/* Tablespace encrypted and
+					decrypt operation failed because
 					of missing key management plugin,
 					or missing or incorrect key or
 					incorret AES method or algorithm. */

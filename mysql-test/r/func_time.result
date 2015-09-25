@@ -1714,6 +1714,7 @@ min(timestampadd(month, 1>'', from_days('%Z')))
 NULL
 Warnings:
 Warning	1292	Truncated incorrect INTEGER value: '%Z'
+Warning	1292	Truncated incorrect DOUBLE value: ''
 Warning	1292	Incorrect datetime value: '0000-00-00'
 create table t1(a time);
 insert into t1 values ('00:00:00'),('00:01:00');
@@ -1823,8 +1824,6 @@ create table t1 (f1 datetime, key (f1));
 insert into t1 values ('2000-09-12 00:00:00'), ('2007-04-25 05:08:49');
 select * from t1 where f1 > time('-23:00:06');
 f1
-2000-09-12 00:00:00
-2007-04-25 05:08:49
 drop table t1;
 select maketime(20,61,10)+0;
 maketime(20,61,10)+0
@@ -1835,25 +1834,14 @@ select last_day(f2) from t1;
 last_day(f2)
 NULL
 NULL
-Warnings:
-Warning	1292	Incorrect datetime value: '0'
-Warning	1292	Incorrect datetime value: '0'
 select last_day(f2) from t1 where last_day(f2) is null;
 last_day(f2)
 NULL
 NULL
-Warnings:
-Warning	1292	Incorrect datetime value: '0'
-Warning	1292	Incorrect datetime value: '0'
-Warning	1292	Incorrect datetime value: '0'
-Warning	1292	Incorrect datetime value: '0'
 select * from t1 order by last_day (f2);
 f2
 0
 0
-Warnings:
-Warning	1292	Incorrect datetime value: '0'
-Warning	1292	Incorrect datetime value: '0'
 drop table t1;
 SET timestamp=unix_timestamp('2001-02-03 10:20:30');
 select convert_tz(timediff('0000-00-00 00:00:00', cast('2008-03-26 07:09:06' as datetime)), 'UTC', 'Europe/Moscow');
@@ -1909,8 +1897,6 @@ insert ignore t1 values ('04:38:11','0000-00-00 00:00:00',0,'0000-00-00 00:00:00
 select least(greatest(f3, f2, f4), f5) from t1;
 least(greatest(f3, f2, f4), f5)
 0000-00-00 00:00:00
-Warnings:
-Warning	1292	Incorrect datetime value: '0'
 drop table t1;
 select day(coalesce(null));
 day(coalesce(null))

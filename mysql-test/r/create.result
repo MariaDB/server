@@ -494,7 +494,7 @@ a	b	c	d	e	f	g	h	dd
 1	-7	7	2000-01-01	b	2000-01-01 00:00:00	05:04:03	yet another binary data	02:00:00
 2	-2	2	1825-12-14	a	2003-01-01 03:02:01	04:03:02	binary data	02:00:00
 drop table t1, t2;
-create table t1 (a tinyint, b smallint, c mediumint, d int, e bigint, f float(3,2), g double(4,3), h decimal(5,4), i year, j date, k timestamp, l datetime, m enum('a','b'), n set('a','b'), o char(10));
+create table t1 (a tinyint, b smallint, c mediumint, d int, e bigint, f float(3,2), g double(4,3), h decimal(5,4), i year, j date, k timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, l datetime, m enum('a','b'), n set('a','b'), o char(10));
 create table t2 select ifnull(a,a), ifnull(b,b), ifnull(c,c), ifnull(d,d), ifnull(e,e), ifnull(f,f), ifnull(g,g), ifnull(h,h), ifnull(i,i), ifnull(j,j), ifnull(k,k), ifnull(l,l), ifnull(m,m), ifnull(n,n), ifnull(o,o) from t1;
 show create table t2;
 Table	Create Table
@@ -1926,7 +1926,8 @@ t1	CREATE TABLE `t1` (
   `MEMORY_USED` int(7) NOT NULL DEFAULT '0',
   `EXAMINED_ROWS` int(7) NOT NULL DEFAULT '0',
   `QUERY_ID` bigint(4) NOT NULL DEFAULT '0',
-  `INFO_BINARY` blob
+  `INFO_BINARY` blob,
+  `TID` bigint(4) NOT NULL DEFAULT '0'
 )  DEFAULT CHARSET=utf8
 drop table t1;
 create temporary table t1 like information_schema.processlist;
@@ -1948,7 +1949,8 @@ t1	CREATE TEMPORARY TABLE `t1` (
   `MEMORY_USED` int(7) NOT NULL DEFAULT '0',
   `EXAMINED_ROWS` int(7) NOT NULL DEFAULT '0',
   `QUERY_ID` bigint(4) NOT NULL DEFAULT '0',
-  `INFO_BINARY` blob
+  `INFO_BINARY` blob,
+  `TID` bigint(4) NOT NULL DEFAULT '0'
 )  DEFAULT CHARSET=utf8
 drop table t1;
 create table t1 like information_schema.character_sets;
@@ -1970,14 +1972,14 @@ DROP TABLE IF EXISTS t1;
 DROP TABLE IF EXISTS t2;
 DROP TABLE IF EXISTS t3;
 
-CREATE TABLE t1(c1 TIMESTAMP, c2 TIMESTAMP);
+CREATE TABLE t1(c1 TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, c2 TIMESTAMP NOT NULL DEFAULT '0000-00-00 00:00:00');
 
 SET sql_mode = NO_ZERO_DATE;
 
 CREATE TABLE t2(c1 TIMESTAMP, c2 TIMESTAMP DEFAULT 0);
 ERROR 42000: Invalid default value for 'c2'
 
-CREATE TABLE t2(c1 TIMESTAMP, c2 TIMESTAMP);
+CREATE TABLE t2(c1 TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, c2 TIMESTAMP NOT NULL);
 ERROR 42000: Invalid default value for 'c2'
 
 # -- Check that NULL column still can be created.

@@ -748,5 +748,59 @@ Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where ((`test`.`t1`.`a`
 DROP TABLE t1;
 SET timestamp=DEFAULT;
 #
+# MDEV-8795 Equal expression propagation does not work for temporal literals
+#
+CREATE TABLE t1 (a DATE);
+INSERT INTO t1 VALUES ('2001-01-01'),('2001-01-02');
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE COALESCE(a)=DATE'2001-01-01' AND COALESCE(a)>=DATE'2001-01-01';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where (coalesce(`test`.`t1`.`a`) = DATE'2001-01-01')
+DROP TABLE t1;
+#
+# MDEV-8658 DATE(zerofill_column) and DATE(COALESCE(zerofill_column)) return different results
+#
+CREATE TABLE t1 (a INT(6) ZEROFILL, b DECIMAL(6) ZEROFILL, c DOUBLE(6,0) ZEROFILL);
+INSERT INTO t1 VALUES (1,1,1);
+INSERT INTO t1 VALUES (10101,10101,10101);
+SELECT DATE(a), DATE(b), DATE(c) FROM t1;
+DATE(a)	DATE(b)	DATE(c)
+NULL	NULL	NULL
+2001-01-01	2001-01-01	2001-01-01
+Warnings:
+Warning	1292	Incorrect datetime value: '1' for column 'a' at row 1
+Warning	1292	Incorrect datetime value: '1' for column 'b' at row 1
+Warning	1292	Incorrect datetime value: '1' for column 'c' at row 1
+SELECT DATE(COALESCE(a)), DATE(COALESCE(b)), DATE(COALESCE(c)) FROM t1;
+DATE(COALESCE(a))	DATE(COALESCE(b))	DATE(COALESCE(c))
+NULL	NULL	NULL
+2001-01-01	2001-01-01	2001-01-01
+Warnings:
+Warning	1292	Incorrect datetime value: '1'
+Warning	1292	Incorrect datetime value: '1'
+Warning	1292	Incorrect datetime value: '1'
+DROP TABLE t1;
+CREATE TABLE t1 (a INT(6), b DECIMAL(6), c DOUBLE(6,0));
+INSERT INTO t1 VALUES (1,1,1);
+INSERT INTO t1 VALUES (10101,10101,10101);
+SELECT DATE(a), DATE(b), DATE(c) FROM t1;
+DATE(a)	DATE(b)	DATE(c)
+NULL	NULL	NULL
+2001-01-01	2001-01-01	2001-01-01
+Warnings:
+Warning	1292	Incorrect datetime value: '1' for column 'a' at row 1
+Warning	1292	Incorrect datetime value: '1' for column 'b' at row 1
+Warning	1292	Incorrect datetime value: '1' for column 'c' at row 1
+SELECT DATE(COALESCE(a)), DATE(COALESCE(b)), DATE(COALESCE(c)) FROM t1;
+DATE(COALESCE(a))	DATE(COALESCE(b))	DATE(COALESCE(c))
+NULL	NULL	NULL
+2001-01-01	2001-01-01	2001-01-01
+Warnings:
+Warning	1292	Incorrect datetime value: '1'
+Warning	1292	Incorrect datetime value: '1'
+Warning	1292	Incorrect datetime value: '1'
+DROP TABLE t1;
+#
 # End of 10.1 tests
 #

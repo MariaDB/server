@@ -59,7 +59,7 @@ set autocommit=1;
 --let $wait_condition=SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION = 0
 --source include/wait_condition.inc
 
---sleep 5
+--sleep 10
 --let SEARCH_PATTERN=foobar
 --echo # t1 yes on expecting NOT FOUND
 -- let SEARCH_FILE=$t1_IBD
@@ -110,7 +110,7 @@ SHOW CREATE TABLE t5;
 SHOW CREATE TABLE t6;
 SHOW CREATE TABLE t7;
 
---sleep 5
+--sleep 10
 --let SEARCH_PATTERN=foobar
 --echo # t1 yes on expecting NOT FOUND
 -- let SEARCH_FILE=$t1_IBD

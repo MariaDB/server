@@ -2708,9 +2708,9 @@ row_ins_sec_index_entry_low(
 					  &cursor, 0, __FILE__, __LINE__, &mtr);
 
 	if (err != DB_SUCCESS) {
-		if (err == DB_ENCRYPTED_DECRYPT_FAILED) {
+		if (err == DB_DECRYPTION_FAILED) {
 			ib_push_warning(trx->mysql_thd,
-				DB_ENCRYPTED_DECRYPT_FAILED,
+				DB_DECRYPTION_FAILED,
 				"Table %s is encrypted but encryption service or"
 				" used key_id is not available. "
 				" Can't continue reading table.",

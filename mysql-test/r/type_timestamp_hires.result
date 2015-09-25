@@ -50,7 +50,7 @@ a
 2010-12-11 03:04:05.789
 2010-12-11 15:47:11.123
 drop table t1;
-create table t1 (a timestamp(4)) engine=innodb;
+create table t1 (a timestamp(4)NOT NULL DEFAULT CURRENT_TIMESTAMP(4) ON UPDATE CURRENT_TIMESTAMP(4)) engine=innodb;
 insert t1 values ('2010-12-11 01:02:03.456789');
 select * from t1;
 a
@@ -216,7 +216,7 @@ decimal5_f4_timestamp	2010-11-12 11:14:17.7654
 bigint_f5_timestamp	2010-11-12 11:14:17.00000
 varchar_f6_timestamp	2010-11-12 11:14:17.765432
 drop table t1, t2;
-create table t1 (a timestamp(6), b timestamp(6));
+create table t1 (a timestamp(6)NOT NULL DEFAULT '0000-00-00 00:00:00.000000', b timestamp(6)NOT NULL DEFAULT '0000-00-00 00:00:00.000000');
 create procedure foo(x timestamp, y timestamp(4)) insert into t1 values (x, y);
 call foo('2010-02-03 4:5:6.789123', '2010-02-03 4:5:6.789123');
 select * from t1;
@@ -266,7 +266,7 @@ drop table t1, t2;
 SET timestamp=DEFAULT;
 set time_zone='+03:00';
 set timestamp=unix_timestamp('2011-01-01 01:01:01') + 0.123456;
-create table t1 (a timestamp(5));
+create table t1 (a timestamp(5) DEFAULT CURRENT_TIMESTAMP);
 insert t1 values ();
 select * from t1;
 a

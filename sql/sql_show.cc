@@ -2334,6 +2334,7 @@ public:
   { TRASH(ptr, size); }
 
   ulong thread_id;
+  uint32 os_thread_id;
   ulonglong start_time;
   uint   command;
   const char *user,*host,*db,*proc_info,*state_info;
@@ -2435,6 +2436,7 @@ void mysqld_list_processes(THD *thd,const char *user, bool verbose)
       thread_info *thd_info= new (thd->mem_root) thread_info;
 
       thd_info->thread_id=tmp->thread_id;
+      thd_info->os_thread_id=tmp->os_thread_id;
       thd_info->user= thd->strdup(tmp_sctx->user ? tmp_sctx->user :
                                   (tmp->system_thread ?
                                    "system user" : "unauthenticated user"));
@@ -2922,6 +2924,8 @@ int fill_schema_processlist(THD* thd, TABLE_LIST* tables, COND* cond)
                                 tmp->query_length()), &my_charset_bin);
         table->field[15]->set_notnull();
       }
+
+      table->field[16]->store(tmp->os_thread_id);
 
       if (schema_table_store_record(thd, table))
       {
@@ -8738,6 +8742,7 @@ ST_FIELD_INFO processlist_fields_info[]=
   {"QUERY_ID", 4, MYSQL_TYPE_LONGLONG, 0, 0, 0, SKIP_OPEN_TABLE},
   {"INFO_BINARY", PROCESS_LIST_INFO_WIDTH, MYSQL_TYPE_BLOB, 0, 1,
    "Info_binary", SKIP_OPEN_TABLE},
+  {"TID", 4, MYSQL_TYPE_LONGLONG, 0, 0, "Tid", SKIP_OPEN_TABLE},
   {0, 0, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE}
 };
 

@@ -417,7 +417,7 @@ mysqld_bootstrap="${MYSQLD_BOOTSTRAP-$mysqld}"
 mysqld_install_cmd_line()
 {
   "$mysqld_bootstrap" $defaults "$mysqld_opt" --bootstrap \
-  "--basedir=$basedir" "--datadir=$ldata" --log-warnings=0 \
+  "--basedir=$basedir" "--datadir=$ldata" --log-warnings=0 --enforce-storage-engine="" \
   $args --max_allowed_packet=8M \
   --net_buffer_length=16K
 }

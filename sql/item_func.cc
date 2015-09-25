@@ -1137,11 +1137,8 @@ void Item_func_signed::print(String *str, enum_query_type query_type)
 
 longlong Item_func_signed::val_int_from_str(int *error)
 {
-  char buff[MAX_FIELD_WIDTH], *end, *start;
-  uint32 length;
+  char buff[MAX_FIELD_WIDTH];
   String tmp(buff,sizeof(buff), &my_charset_bin), *res;
-  longlong value;
-  CHARSET_INFO *cs;
 
   /*
     For a string result, we must first get the string and then convert it
@@ -1155,22 +1152,10 @@ longlong Item_func_signed::val_int_from_str(int *error)
     return 0;
   }
   null_value= 0;
-  start= (char *)res->ptr();
-  length= res->length();
-  cs= res->charset();
-
-  end= start + length;
-  value= cs->cset->strtoll10(cs, start, &end, error);
-  if (*error > 0 || end != start+ length)
-  {
-    THD *thd= current_thd;
-    ErrConvString err(res);
-    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-                        ER_TRUNCATED_WRONG_VALUE,
-                        ER_THD(thd, ER_TRUNCATED_WRONG_VALUE), "INTEGER",
-                        err.ptr());
-  }
-  return value;
+  Converter_strtoll10_with_warn cnv(NULL, Warn_filter_all(),
+                                    res->charset(), res->ptr(), res->length());
+  *error= cnv.error();
+  return cnv.result();
 }
 
 
@@ -2925,10 +2910,7 @@ bool Item_func_min_max::get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date)
 
   for (uint i=0; i < arg_count ; i++)
   {
-    Item **arg= args + i;
-    bool is_null_tmp;
-    longlong res= get_datetime_value(thd, &arg, 0, compare_as_dates,
-                                     &is_null_tmp);
+    longlong res= args[i]->val_temporal_packed(compare_as_dates);
 
     /* Check if we need to stop (because of error or KILL) and stop the loop */
     if (thd->is_error() || args[i]->null_value)
@@ -4665,7 +4647,7 @@ user_var_entry *get_variable(HASH *hash, LEX_STRING &name,
     entry->value=0;
     entry->length=0;
     entry->update_query_id=0;
-    entry->collation.set(NULL, DERIVATION_IMPLICIT, 0);
+    entry->set_charset(NULL);
     entry->unsigned_flag= 0;
     /*
       If we are here, we were called from a SET or a query which sets a
@@ -4745,11 +4727,10 @@ bool Item_func_set_user_var::fix_fields(THD *thd, Item **ref)
     and the variable has previously been initialized.
   */
   null_item= (args[0]->type() == NULL_ITEM);
-  if (!entry->collation.collation || !null_item)
-    entry->collation.set(args[0]->collation.derivation == DERIVATION_NUMERIC ?
-                         default_charset() : args[0]->collation.collation,
-                         DERIVATION_IMPLICIT);
-  collation.set(entry->collation.collation, DERIVATION_IMPLICIT);
+  if (!entry->charset() || !null_item)
+    entry->set_charset(args[0]->collation.derivation == DERIVATION_NUMERIC ?
+                       default_charset() : args[0]->collation.collation);
+  collation.set(entry->charset(), DERIVATION_IMPLICIT);
   cached_result_type= args[0]->result_type();
   if (thd->lex->current_select)
   {
@@ -4849,7 +4830,7 @@ bool Item_func_set_user_var::register_field_in_bitmap(uchar *arg)
 
 static bool
 update_hash(user_var_entry *entry, bool set_null, void *ptr, uint length,
-            Item_result type, CHARSET_INFO *cs, Derivation dv,
+            Item_result type, CHARSET_INFO *cs,
             bool unsigned_arg)
 {
   if (set_null)
@@ -4900,7 +4881,7 @@ update_hash(user_var_entry *entry, bool set_null, void *ptr, uint length,
     if (type == DECIMAL_RESULT)
       ((my_decimal*)entry->value)->fix_buffer_pointer();
     entry->length= length;
-    entry->collation.set(cs, dv);
+    entry->set_charset(cs);
     entry->unsigned_flag= unsigned_arg;
   }
   entry->type=type;
@@ -4911,7 +4892,7 @@ update_hash(user_var_entry *entry, bool set_null, void *ptr, uint length,
 bool
 Item_func_set_user_var::update_hash(void *ptr, uint length,
                                     Item_result res_type,
-                                    CHARSET_INFO *cs, Derivation dv,
+                                    CHARSET_INFO *cs,
                                     bool unsigned_arg)
 {
   /*
@@ -4921,7 +4902,7 @@ Item_func_set_user_var::update_hash(void *ptr, uint length,
   if ((null_value= args[0]->null_value) && null_item)
     res_type= entry->type;                      // Don't change type of item
   if (::update_hash(entry, (null_value= args[0]->null_value),
-                    ptr, length, res_type, cs, dv, unsigned_arg))
+                    ptr, length, res_type, cs, unsigned_arg))
   {
     null_value= 1;
     return 1;
@@ -5001,19 +4982,19 @@ String *user_var_entry::val_str(bool *null_value, String *str,
 
   switch (type) {
   case REAL_RESULT:
-    str->set_real(*(double*) value, decimals, collation.collation);
+    str->set_real(*(double*) value, decimals, charset());
     break;
   case INT_RESULT:
     if (!unsigned_flag)
-      str->set(*(longlong*) value, collation.collation);
+      str->set(*(longlong*) value, charset());
     else
-      str->set(*(ulonglong*) value, collation.collation);
+      str->set(*(ulonglong*) value, charset());
     break;
   case DECIMAL_RESULT:
-    str_set_decimal((my_decimal *) value, str, collation.collation);
+    str_set_decimal((my_decimal *) value, str, charset());
     break;
   case STRING_RESULT:
-    if (str->copy(value, length, collation.collation))
+    if (str->copy(value, length, charset()))
       str= 0;					// EOM error
     break;
   case ROW_RESULT:
@@ -5042,7 +5023,7 @@ my_decimal *user_var_entry::val_decimal(bool *null_value, my_decimal *val)
     my_decimal2decimal((my_decimal *) value, val);
     break;
   case STRING_RESULT:
-    str2my_decimal(E_DEC_FATAL_ERROR, value, length, collation.collation, val);
+    str2my_decimal(E_DEC_FATAL_ERROR, value, length, charset(), val);
     break;
   case ROW_RESULT:
   case TIME_RESULT:
@@ -5170,37 +5151,33 @@ Item_func_set_user_var::update()
   case REAL_RESULT:
   {
     res= update_hash((void*) &save_result.vreal,sizeof(save_result.vreal),
-		     REAL_RESULT, default_charset(), DERIVATION_IMPLICIT, 0);
+		     REAL_RESULT, default_charset(), 0);
     break;
   }
   case INT_RESULT:
   {
     res= update_hash((void*) &save_result.vint, sizeof(save_result.vint),
-                     INT_RESULT, default_charset(), DERIVATION_IMPLICIT,
-                     unsigned_flag);
+                     INT_RESULT, default_charset(), unsigned_flag);
     break;
   }
   case STRING_RESULT:
   {
     if (!save_result.vstr)					// Null value
-      res= update_hash((void*) 0, 0, STRING_RESULT, &my_charset_bin,
-		       DERIVATION_IMPLICIT, 0);
+      res= update_hash((void*) 0, 0, STRING_RESULT, &my_charset_bin, 0);
     else
       res= update_hash((void*) save_result.vstr->ptr(),
 		       save_result.vstr->length(), STRING_RESULT,
-		       save_result.vstr->charset(),
-		       DERIVATION_IMPLICIT, 0);
+		       save_result.vstr->charset(), 0);
     break;
   }
   case DECIMAL_RESULT:
   {
     if (!save_result.vdec)					// Null value
-      res= update_hash((void*) 0, 0, DECIMAL_RESULT, &my_charset_bin,
-                       DERIVATION_IMPLICIT, 0);
+      res= update_hash((void*) 0, 0, DECIMAL_RESULT, &my_charset_bin, 0);
     else
       res= update_hash((void*) save_result.vdec,
                        sizeof(my_decimal), DECIMAL_RESULT,
-                       default_charset(), DERIVATION_IMPLICIT, 0);
+                       default_charset(), 0);
     break;
   }
   case ROW_RESULT:
@@ -5594,7 +5571,7 @@ get_var_with_binlog(THD *thd, enum_sql_command sql_command,
     ALIGN_SIZE(sizeof(BINLOG_USER_VAR_EVENT));
   user_var_event->user_var_event= var_entry;
   user_var_event->type= var_entry->type;
-  user_var_event->charset_number= var_entry->collation.collation->number;
+  user_var_event->charset_number= var_entry->charset()->number;
   user_var_event->unsigned_flag= var_entry->unsigned_flag;
   if (!var_entry->value)
   {
@@ -5642,7 +5619,7 @@ void Item_func_get_user_var::fix_length_and_dec()
     unsigned_flag= var_entry->unsigned_flag;
     max_length= var_entry->length;
 
-    collation.set(var_entry->collation);
+    collation.set(var_entry->charset(), DERIVATION_IMPLICIT);
     switch (m_cached_result_type) {
     case REAL_RESULT:
       fix_char_length(DBL_DIG + 8);
@@ -5734,9 +5711,9 @@ bool Item_user_var_as_out_param::fix_fields(THD *thd, Item **ref)
     of fields in LOAD DATA INFILE.
     (Since Item_user_var_as_out_param is used only there).
   */
-  entry->collation.set(thd->lex->exchange->cs ? 
-                       thd->lex->exchange->cs :
-                       thd->variables.collation_database);
+  entry->set_charset(thd->lex->exchange->cs ?
+                     thd->lex->exchange->cs :
+                     thd->variables.collation_database);
   entry->update_query_id= thd->query_id;
   return FALSE;
 }
@@ -5744,8 +5721,7 @@ bool Item_user_var_as_out_param::fix_fields(THD *thd, Item **ref)
 
 void Item_user_var_as_out_param::set_null_value(CHARSET_INFO* cs)
 {
-  ::update_hash(entry, TRUE, 0, 0, STRING_RESULT, cs,
-                DERIVATION_IMPLICIT, 0 /* unsigned_arg */);
+  ::update_hash(entry, TRUE, 0, 0, STRING_RESULT, cs, 0 /* unsigned_arg */);
 }
 
 
@@ -5753,7 +5729,7 @@ void Item_user_var_as_out_param::set_value(const char *str, uint length,
                                            CHARSET_INFO* cs)
 {
   ::update_hash(entry, FALSE, (void*)str, length, STRING_RESULT, cs,
-                DERIVATION_IMPLICIT, 0 /* unsigned_arg */);
+                0 /* unsigned_arg */);
 }
 
 

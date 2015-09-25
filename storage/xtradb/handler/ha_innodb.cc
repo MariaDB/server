@@ -2006,8 +2006,10 @@ convert_error_code_to_mysql(
 
 	case DB_TABLESPACE_DELETED:
 	case DB_TABLE_NOT_FOUND:
-	case DB_ENCRYPTED_DECRYPT_FAILED:
 		return(HA_ERR_NO_SUCH_TABLE);
+
+	case DB_DECRYPTION_FAILED:
+		return(HA_ERR_DECRYPTION_FAILED);
 
 	case DB_TABLESPACE_NOT_FOUND:
 		return(HA_ERR_NO_SUCH_TABLE);
@@ -6092,6 +6094,7 @@ table_opened:
 	if (!thd_tablespace_op(thd) && no_tablespace) {
 		free_share(share);
 		my_errno = ENOENT;
+		int ret_err = HA_ERR_NO_SUCH_TABLE;
 
 		/* If table has no talespace but it has crypt data, check
 		is tablespace made unaccessible because encryption service
@@ -6104,25 +6107,27 @@ table_opened:
 
 				if (!encryption_key_id_exists(crypt_data->key_id)) {
 					push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-						HA_ERR_NO_SUCH_TABLE,
+						HA_ERR_DECRYPTION_FAILED,
 						"Table %s is encrypted but encryption service or"
 						" used key_id %u is not available. "
 						" Can't continue reading table.",
 						ib_table->name, crypt_data->key_id);
+					ret_err = HA_ERR_DECRYPTION_FAILED;
 				}
 			} else if (ib_table->is_encrypted) {
 				push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-					HA_ERR_NO_SUCH_TABLE,
+					HA_ERR_DECRYPTION_FAILED,
 					"Table %s is encrypted but encryption service or"
 					" used key_id is not available. "
 					" Can't continue reading table.",
 					ib_table->name);
+				ret_err = HA_ERR_DECRYPTION_FAILED;
 			}
 		}
 
 		dict_table_close(ib_table, FALSE, FALSE);
 
-		DBUG_RETURN(HA_ERR_NO_SUCH_TABLE);
+		DBUG_RETURN(ret_err);
 	}
 
 	prebuilt = row_create_prebuilt(ib_table, table->s->stored_rec_length);
@@ -11968,8 +11973,38 @@ ha_innobase::check_table_options(
 		}
 	}
 
+	/* If encryption is set up make sure that used key_id is found */
 	if (encrypt == FIL_SPACE_ENCRYPTION_ON ||
             (encrypt == FIL_SPACE_ENCRYPTION_DEFAULT && srv_encrypt_tables)) {
+		if (!encryption_key_id_exists((unsigned int)options->encryption_key_id)) {
+			push_warning_printf(
+				thd, Sql_condition::WARN_LEVEL_WARN,
+				HA_WRONG_CREATE_OPTION,
+				"InnoDB: ENCRYPTION_KEY_ID %u not available",
+				(uint)options->encryption_key_id
+			);
+			return "ENCRYPTION_KEY_ID";
+
+		}
+	}
+
+	/* Ignore nondefault key_id if encryption is set off */
+	if (encrypt == FIL_SPACE_ENCRYPTION_OFF &&
+		options->encryption_key_id != THDVAR(thd, default_encryption_key_id)) {
+		push_warning_printf(
+			thd, Sql_condition::WARN_LEVEL_WARN,
+			HA_WRONG_CREATE_OPTION,
+			"InnoDB: Ignored ENCRYPTION_KEY_ID %u when encryption is disabled",
+			(uint)options->encryption_key_id
+		);
+		options->encryption_key_id = FIL_DEFAULT_ENCRYPTION_KEY;
+	}
+
+	/* If default encryption is used make sure that used kay is found
+	from key file. */
+	if (encrypt == FIL_SPACE_ENCRYPTION_DEFAULT &&
+		!srv_encrypt_tables &&
+		options->encryption_key_id != FIL_DEFAULT_ENCRYPTION_KEY) {
 		if (!encryption_key_id_exists((unsigned int)options->encryption_key_id)) {
 			push_warning_printf(
 				thd, Sql_condition::WARN_LEVEL_WARN,
@@ -12671,21 +12706,29 @@ ha_innobase::defragment_table(
 	const char*	index_name,	/*!< in: index name */
 	bool		async)		/*!< in: whether to wait until finish */
 {
-	char    norm_name[FN_REFLEN];
-	dict_table_t* table;
-	dict_index_t* index;
+	char		norm_name[FN_REFLEN];
+	dict_table_t*	table = NULL;
+	dict_index_t*	index = NULL;
 	ibool		one_index = (index_name != 0);
 	int		ret = 0;
+	dberr_t		err = DB_SUCCESS;
+
 	if (!srv_defragment) {
 		return ER_FEATURE_DISABLED;
 	}
+
 	normalize_table_name(norm_name, name);
+
 	table = dict_table_open_on_name(norm_name, FALSE,
 		FALSE, DICT_ERR_IGNORE_NONE);
+
 	for (index = dict_table_get_first_index(table); index;
 	     index = dict_table_get_next_index(index)) {
-		if (one_index && strcasecmp(index_name, index->name) != 0)
+
+		if (one_index && strcasecmp(index_name, index->name) != 0) {
 			continue;
+		}
+
 		if (btr_defragment_find_index(index)) {
 			// We borrow this error code. When the same index is
 			// already in the defragmentation queue, issue another
@@ -12700,7 +12743,23 @@ ha_innobase::defragment_table(
 			ret = ER_SP_ALREADY_EXISTS;
 			break;
 		}
-		os_event_t event = btr_defragment_add_index(index, async);
+
+		os_event_t event = btr_defragment_add_index(index, async, &err);
+
+		if (err != DB_SUCCESS) {
+			push_warning_printf(
+				current_thd,
+				Sql_condition::WARN_LEVEL_WARN,
+				ER_NO_SUCH_TABLE,
+				"Table %s is encrypted but encryption service or"
+				" used key_id is not available. "
+				" Can't continue checking table.",
+				index->table->name);
+
+			ret = convert_error_code_to_mysql(err, 0, current_thd);
+			break;
+		}
+
 		if (!async && event) {
 			while(os_event_wait_time(event, 1000000)) {
 				if (thd_killed(current_thd)) {
@@ -12711,18 +12770,23 @@ ha_innobase::defragment_table(
 			}
 			os_event_free(event);
 		}
+
 		if (ret) {
 			break;
 		}
+
 		if (one_index) {
 			one_index = FALSE;
 			break;
 		}
 	}
+
 	dict_table_close(table, FALSE, FALSE);
+
 	if (ret == 0 && one_index) {
 		ret = ER_NO_SUCH_INDEX;
 	}
+
 	return ret;
 }
 
@@ -14036,7 +14100,7 @@ ha_innobase::check(
 				server_mutex,
                                 srv_fatal_semaphore_wait_threshold,
 				SRV_SEMAPHORE_WAIT_EXTENSION);
-			bool valid = btr_validate_index(index, prebuilt->trx);
+			dberr_t err = btr_validate_index(index, prebuilt->trx);
 
 			/* Restore the fatal lock wait timeout after
 			CHECK TABLE. */
@@ -14045,19 +14109,32 @@ ha_innobase::check(
                                 srv_fatal_semaphore_wait_threshold,
 				SRV_SEMAPHORE_WAIT_EXTENSION);
 
-			if (!valid) {
+			if (err != DB_SUCCESS) {
 				is_ok = false;
 
 				innobase_format_name(
 					index_name, sizeof index_name,
 					index->name, TRUE);
-				push_warning_printf(
-					thd,
-					Sql_condition::WARN_LEVEL_WARN,
-					ER_NOT_KEYFILE,
-					"InnoDB: The B-tree of"
-					" index %s is corrupted.",
-					index_name);
+
+				if (err == DB_DECRYPTION_FAILED) {
+					push_warning_printf(
+						thd,
+						Sql_condition::WARN_LEVEL_WARN,
+						ER_NO_SUCH_TABLE,
+						"Table %s is encrypted but encryption service or"
+						" used key_id is not available. "
+						" Can't continue checking table.",
+						index->table->name);
+				} else {
+					push_warning_printf(
+						thd,
+						Sql_condition::WARN_LEVEL_WARN,
+						ER_NOT_KEYFILE,
+						"InnoDB: The B-tree of"
+						" index %s is corrupted.",
+						index_name);
+				}
+
 				continue;
 			}
 		}
@@ -16071,8 +16148,13 @@ ha_innobase::get_error_message(
 {
 	trx_t*	trx = check_trx_exists(ha_thd());
 
-	buf->copy(trx->detailed_error, (uint) strlen(trx->detailed_error),
-		system_charset_info);
+	if (error == HA_ERR_DECRYPTION_FAILED) {
+		const char *msg = "Table encrypted but decryption failed. This could be because correct encryption management plugin is not loaded, used encryption key is not available or encryption method does not match.";
+		buf->copy(msg, (uint)strlen(msg), system_charset_info);
+	} else {
+		buf->copy(trx->detailed_error, (uint) strlen(trx->detailed_error),
+			system_charset_info);
+	}
 
 	return(FALSE);
 }
