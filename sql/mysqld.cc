@@ -4604,7 +4604,17 @@ a file name for --log-bin-index option", opt_binlog_index_name);
     {
       if (tmp->wsrep_applier == true)
       {
+        /*
+          Set THR_THD to temporally point to this THD to register all the
+          variables that allocates memory for this THD.
+        */
+        THD *current_thd_saved= current_thd;
+        my_pthread_setspecific_ptr(THR_THD, tmp);
+
         tmp->init_for_queries();
+
+        /* Restore current_thd. */
+        my_pthread_setspecific_ptr(THR_THD, current_thd_saved);
       }
     }
     mysql_mutex_unlock(&LOCK_thread_count);
@@ -4912,7 +4922,7 @@ pthread_handler_t start_wsrep_THD(void *arg)
   thd->proc_info= 0;
   thd->command= COM_SLEEP;
 
-  if (plugins_are_initialized)
+  if (wsrep_creating_startup_threads == 0)
   {
     thd->init_for_queries();
   }
