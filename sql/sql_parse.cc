@@ -1199,22 +1199,6 @@ static my_bool deny_updates_if_read_only_option(THD *thd,
 }
 
 #ifdef WITH_WSREP
-static my_bool wsrep_read_only_option(THD *thd, TABLE_LIST *all_tables)
-{
-  int opt_readonly_saved = opt_readonly;
-  ulong flag_saved = (ulong)(thd->security_ctx->master_access & SUPER_ACL);
-
-  opt_readonly = 0;
-  thd->security_ctx->master_access &= ~SUPER_ACL;
-
-  my_bool ret = !deny_updates_if_read_only_option(thd, all_tables);
-
-  opt_readonly = opt_readonly_saved;
-  thd->security_ctx->master_access |= flag_saved;
-
-  return ret;
-}
-
 static void wsrep_copy_query(THD *thd)
 {
   thd->wsrep_retry_command   = thd->get_command();
@@ -1228,6 +1212,7 @@ static void wsrep_copy_query(THD *thd)
   thd->wsrep_retry_query[thd->wsrep_retry_query_len] = '\0';
 }
 #endif /* WITH_WSREP */
+
 /**
   Perform one connection-level (COM_XXXX) command.
 
@@ -6989,8 +6974,7 @@ static void wsrep_mysql_parse(THD *thd, char *rawbuf, uint length,
   bool is_autocommit=
     !thd->in_multi_stmt_transaction_mode()                  &&
     thd->wsrep_conflict_state == NO_CONFLICT                &&
-    !thd->wsrep_applier                                     &&
-    wsrep_read_only_option(thd, thd->lex->query_tables);
+    !thd->wsrep_applier;
 
   do
   {

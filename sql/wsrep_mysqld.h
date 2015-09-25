@@ -107,6 +107,7 @@ extern my_bool     wsrep_restart_slave_activated;
 extern my_bool     wsrep_slave_FK_checks;
 extern my_bool     wsrep_slave_UK_checks;
 extern bool        wsrep_new_cluster;           // bootstrap the cluster ?
+extern my_bool     wsrep_creating_startup_threads;
 
 enum enum_wsrep_OSU_method {
     WSREP_OSU_TOI,

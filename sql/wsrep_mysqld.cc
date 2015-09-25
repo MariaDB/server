@@ -71,6 +71,13 @@ my_bool wsrep_restart_slave_activated  = 0; // node has dropped, and slave
                                             // restart will be needed
 my_bool wsrep_slave_UK_checks          = 0; // slave thread does UK checks
 my_bool wsrep_slave_FK_checks          = 0; // slave thread does FK checks
+
+/*
+  Set during the creation of first wsrep applier and rollback threads.
+  Since these threads are critical, abort if the thread creation fails.
+*/
+my_bool wsrep_creating_startup_threads = 0;
+
 /*
  * End configuration options
  */
@@ -671,6 +678,7 @@ void wsrep_init_startup (bool first)
 
   if (!wsrep_start_replication()) unireg_abort(1);
 
+  wsrep_creating_startup_threads= 1;
   wsrep_create_rollbacker();
   wsrep_create_appliers(1);
 

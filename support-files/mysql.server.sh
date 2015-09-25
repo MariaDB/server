@@ -24,6 +24,14 @@
 # Short-Description: start and stop MySQL
 # Description: MySQL is a very fast and reliable SQL database engine.
 ### END INIT INFO
+
+# Prevent OpenSUSE's init scripts from calling systemd, so that
+# both 'bootstrap' and 'start' are handled entirely within this
+# script
+SYSTEMD_NO_WRAP=1
+
+# Prevent Debian's init scripts from calling systemctl
+_SYSTEMCTL_SKIP_REDIRECT=true
  
 # If you install MySQL on some other places than @prefix@, then you
 # have to do one of the following things for this script to work:
