@@ -5215,7 +5215,17 @@ static int init_server_components()
     {
       if (tmp->wsrep_applier == true)
       {
+        /*
+          Set THR_THD to temporally point to this THD to register all the
+          variables that allocates memory for this THD.
+        */
+        THD *current_thd_saved= current_thd;
+        set_current_thd(tmp);
+
         tmp->init_for_queries();
+
+        /* Restore current_thd. */
+        set_current_thd(current_thd_saved);
       }
     }
     mysql_mutex_unlock(&LOCK_thread_count);
