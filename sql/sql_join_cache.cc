@@ -2620,7 +2620,8 @@ static void add_mrr_explain_info(String *str, uint mrr_mode, handler *file)
                                            sizeof(mrr_str_buf));
   if (len > 0)
   {
-    str->append(STRING_WITH_LEN("; "));
+    if (str->length())
+      str->append(STRING_WITH_LEN("; "));
     str->append(mrr_str_buf, len);
   }
 }

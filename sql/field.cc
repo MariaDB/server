@@ -1055,37 +1055,6 @@ Item_result Field::result_merge_type(enum_field_types field_type)
 *****************************************************************************/
 
 /**
-  Output a warning for erroneous conversion of strings to numerical 
-  values. For use with ER_TRUNCATED_WRONG_VALUE[_FOR_FIELD] 
-  
-  @param thd         THD object
-  @param str         pointer to string that failed to be converted
-  @param length      length of string
-  @param cs          charset for string
-  @param typestr     string describing type converted to
-  @param error       error value to output
-  @param field_name  (for *_FOR_FIELD) name of field
-  @param row_num     (for *_FOR_FIELD) row number
- */
-static void push_numerical_conversion_warning(THD* thd, const char* str, 
-                                              uint length, CHARSET_INFO* cs,
-                                              const char* typestr, int error,
-                                              const char* field_name="UNKNOWN",
-                                              ulong row_num=0)
-{
-  char buf[MY_MAX(MY_MAX(DOUBLE_TO_STRING_CONVERSION_BUFFER_SIZE,
-                         LONGLONG_TO_STRING_CONVERSION_BUFFER_SIZE), 
-                  DECIMAL_TO_STRING_CONVERSION_BUFFER_SIZE)];
-
-  String tmp(buf, sizeof(buf), cs);
-  tmp.copy(str, length, cs);
-  push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-                      error, ER_THD(thd, error), typestr, tmp.c_ptr(),
-                      field_name, row_num);
-}
-
-
-/**
   Check whether a field type can be partially indexed by a key.
 
   This is a static method, rather than a virtual function, because we need
@@ -1389,43 +1358,132 @@ Item *Field_num::get_equal_zerofill_const_item(THD *thd, const Context &ctx,
 
 
 /**
-  Test if given number is a int.
+  Contruct warning parameters using thd->no_errors
+  to determine whether to generate or suppress warnings.
+  We can get here in a query like this:
+    SELECT COUNT(@@basedir);
+  from Item_func_get_system_var::update_null_value().
+*/
+Value_source::Warn_filter::Warn_filter(const THD *thd)
+ :m_want_warning_edom(!thd->no_errors),
+  m_want_note_truncated_spaces(!thd->no_errors)
+{ }
 
-  @todo
-    Make this multi-byte-character safe
 
-  @param str		String to test
+/**
+  Check string-to-number conversion and produce a warning if
+  - could not convert any digits (EDOM-alike error)
+  - found garbage at the end of the string
+  - found trailing spaces (a note)
+  See also Field_num::check_edom_and_truncation() for a similar function.
+
+  @param thd        - the thread
+  @param filter     - which warnings/notes are allowed
+  @param type       - name of the data type (e.g. "INTEGER", "DECIMAL", "DOUBLE")
+  @param cs         - character set of the original string
+  @param str        - the original string
+  @param end        - the end of the string
+
+  Unlike Field_num::check_edom_and_truncation(), this function does not
+  distinguish between EDOM and truncation and reports the same warning for
+  both cases. Perhaps we should eventually print different warnings, to make
+  the explicit CAST work closer to the implicit cast in Field_xxx::store().
+*/
+void
+Value_source::Converter_string_to_number::check_edom_and_truncation(THD *thd,
+                                                       Warn_filter filter,
+                                                       const char *type,
+                                                       CHARSET_INFO *cs,
+                                                       const char *str,
+                                                       size_t length) const
+{
+  DBUG_ASSERT(str <= m_end_of_num);
+  DBUG_ASSERT(m_end_of_num <= str + length);
+  if (m_edom || (m_end_of_num < str + length &&
+                 !check_if_only_end_space(cs, m_end_of_num, str + length)))
+  {
+    // EDOM or important trailing data truncation
+    if (filter.want_warning_edom())
+    {
+      /*
+        We can use err.ptr() here as ErrConvString is guranteed to put an
+        end \0 here.
+      */
+      THD *wthd= thd ? thd : current_thd;
+      push_warning_printf(wthd, Sql_condition::WARN_LEVEL_WARN,
+                          ER_TRUNCATED_WRONG_VALUE,
+                          ER_THD(wthd, ER_TRUNCATED_WRONG_VALUE), type,
+                          ErrConvString(str, length, cs).ptr());
+    }
+  }
+  else if (m_end_of_num < str + length)
+  {
+    // Unimportant trailing data (spaces) truncation
+    if (filter.want_note_truncated_spaces())
+    {
+      THD *wthd= thd ? thd : current_thd;
+      push_warning_printf(wthd, Sql_condition::WARN_LEVEL_NOTE,
+                          ER_TRUNCATED_WRONG_VALUE,
+                          ER_THD(wthd, ER_TRUNCATED_WRONG_VALUE), type,
+                          ErrConvString(str, length, cs).ptr());
+    }
+  }
+}
+
+
+/**
+  Check a string-to-number conversion routine result and generate warnings
+  in case when it:
+  - could not convert any digits
+  - found garbage at the end of the string.
+
+  @param type          Data type name (e.g. "decimal", "integer", "double")
+  @param edom          Indicates that the string-to-number routine retuned
+                       an error code equivalent to EDOM (value out of domain),
+                       i.e. the string fully consisted of garbage and the
+                       conversion routine could not get any digits from it.
+  @param str           The original string
   @param length        Length of 'str'
-  @param int_end	Pointer to char after last used digit
-  @param cs		Character set
+  @param cs            Character set
+  @param end           Pointer to char after last used digit
 
   @note
-    This is called after one has called strntoull10rnd() function.
+    This is called after one has called one of the following functions:
+    - strntoull10rnd()
+    - my_strntod()
+    - str2my_decimal()
 
   @retval
-    0	OK
+    0        OK
   @retval
-    1	error: empty string or wrong integer.
+    1        error: could not scan any digits (EDOM),
+             e.g. empty string, or garbage.
   @retval
-    2   error: garbage at the end of string.
+    2        error: scanned some digits,
+             but then found garbage at the end of the string.
 */
 
-int Field_num::check_int(CHARSET_INFO *cs, const char *str, int length, 
-                         const char *int_end, int error)
+
+int Field_num::check_edom_and_truncation(const char *type, bool edom,
+                                         CHARSET_INFO *cs,
+                                         const char *str, uint length,
+                                         const char *end)
 {
-  /* Test if we get an empty string or wrong integer */
-  if (str == int_end || error == MY_ERRNO_EDOM)
+  /* Test if we get an empty string or garbage */
+  if (edom)
   {
     ErrConvString err(str, length, cs);
-    set_warning_truncated_wrong_value("integer", err.ptr());
+    set_warning_truncated_wrong_value(type, err.ptr());
     return 1;
   }
   /* Test if we have garbage at the end of the given string. */
-  if (test_if_important_data(cs, int_end, str + length))
+  if (test_if_important_data(cs, end, str + length))
   {
     set_warning(WARN_DATA_TRUNCATED, 1);
     return 2;
   }
+  if (end < str + length)
+    set_note(WARN_DATA_TRUNCATED, 1);
   return 0;
 }
 
@@ -1494,6 +1552,24 @@ bool Field_num::get_int(CHARSET_INFO *cs, const char *from, uint len,
 out_of_range:
   set_warning(ER_WARN_DATA_OUT_OF_RANGE, 1);
   return 1;
+}
+
+
+double Field_real::get_double(const char *str, uint length, CHARSET_INFO *cs,
+                              int *error)
+{
+  char *end;
+  double nr= my_strntod(cs,(char*) str, length, &end, error);
+  if (*error)
+  {
+    set_warning(ER_WARN_DATA_OUT_OF_RANGE, 1);
+    *error= 1;
+  }
+  else if (get_thd()->count_cuted_fields &&
+           check_edom_and_truncation("double", str == end,
+                                     cs, str, length, end))
+    *error= 1;
+  return nr;
 }
 
 
@@ -1913,6 +1989,16 @@ my_decimal* Field_num::val_decimal(my_decimal *decimal_value)
   longlong nr= val_int();
   int2my_decimal(E_DEC_FATAL_ERROR, nr, unsigned_flag, decimal_value);
   return decimal_value;
+}
+
+
+bool Field_num::get_date(MYSQL_TIME *ltime,ulonglong fuzzydate)
+{
+  ASSERT_COLUMN_MARKED_FOR_READ;
+  longlong nr= val_int();
+  bool neg= !(flags & UNSIGNED_FLAG) && nr < 0;
+  return int_to_datetime_with_warn(neg, neg ? -nr : nr, ltime, fuzzydate,
+                                   field_name);
 }
 
 
@@ -2962,36 +3048,60 @@ int Field_new_decimal::store(const char *from, uint length,
                              CHARSET_INFO *charset_arg)
 {
   ASSERT_COLUMN_MARKED_FOR_WRITE_OR_COMPUTED;
-  int err;
   my_decimal decimal_value;
+  THD *thd= get_thd();
   DBUG_ENTER("Field_new_decimal::store(char*)");
 
-  if ((err= str2my_decimal(E_DEC_FATAL_ERROR &
-                           ~(E_DEC_OVERFLOW | E_DEC_BAD_NUM),
+  const char *end;
+  int err= str2my_decimal(E_DEC_FATAL_ERROR &
+                          ~(E_DEC_OVERFLOW | E_DEC_BAD_NUM),
                            from, length, charset_arg,
-                           &decimal_value)) &&
-      get_thd()->abort_on_warning)
+                           &decimal_value, &end);
+
+  if (err == E_DEC_OVERFLOW) // Too many digits (>81) in the integer part
   {
-    ErrConvString errmsg(from, length, charset_arg);
-    set_warning_truncated_wrong_value("decimal", errmsg.ptr());
-    DBUG_RETURN(err);
+    set_warning(ER_WARN_DATA_OUT_OF_RANGE, 1);
+    if (!thd->abort_on_warning)
+    {
+      set_value_on_overflow(&decimal_value, decimal_value.sign());
+      store_decimal(&decimal_value);
+    }
+    DBUG_RETURN(1);
   }
 
-  switch (err) {
-  case E_DEC_TRUNCATED:
-    set_note(WARN_DATA_TRUNCATED, 1);
-    break;
-  case E_DEC_OVERFLOW:
-    set_warning(ER_WARN_DATA_OUT_OF_RANGE, 1);
-    set_value_on_overflow(&decimal_value, decimal_value.sign());
-    break;
-  case E_DEC_BAD_NUM:
+  if (thd->count_cuted_fields)
+  {
+    if (check_edom_and_truncation("decimal",
+                                  err && err != E_DEC_TRUNCATED,
+                                  charset_arg, from, length, end))
     {
-      ErrConvString errmsg(from, length, charset_arg);
-      set_warning_truncated_wrong_value("decimal", errmsg.ptr());
-      my_decimal_set_zero(&decimal_value);
-      break;
+      if (!thd->abort_on_warning)
+      {
+        if (err && err != E_DEC_TRUNCATED)
+        {
+          /*
+            If check_decimal() failed because of EDOM-alike error,
+            (e.g. E_DEC_BAD_NUM), we have to initialize decimal_value to zero.
+            Note: if check_decimal() failed because of truncation,
+            decimal_value is alreay properly initialized.
+          */
+          my_decimal_set_zero(&decimal_value);
+          /*
+            TODO: check str2my_decimal() with HF. It seems to do
+            decimal_make_zero() on fatal errors, so my_decimal_set_zero()
+            is probably not needed here.
+          */
+        }
+        store_decimal(&decimal_value);
+      }
+      DBUG_RETURN(1);
     }
+    /*
+      E_DEC_TRUNCATED means minor truncation '1e-1000000000000' -> 0.0
+      A note should be enough.
+    */
+    if (err == E_DEC_TRUNCATED)
+      set_note(WARN_DATA_TRUNCATED, 1);
   }
 
 #ifndef DBUG_OFF
@@ -3000,7 +3110,7 @@ int Field_new_decimal::store(const char *from, uint length,
                        dbug_decimal_as_string(dbug_buff, &decimal_value)));
 #endif
   store_value(&decimal_value);
-  DBUG_RETURN(err);
+  DBUG_RETURN(0);
 }
 
 
@@ -3114,6 +3224,14 @@ String *Field_new_decimal::val_str(String *val_buffer,
                     fixed_precision, dec, '0', val_buffer);
   val_buffer->set_charset(&my_charset_numeric);
   return val_buffer;
+}
+
+
+bool Field_new_decimal::get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
+{
+  my_decimal value;
+  return decimal_to_datetime_with_warn(val_decimal(&value),
+                                       ltime, fuzzydate, field_name);
 }
 
 
@@ -4212,15 +4330,7 @@ void Field_longlong::sql_type(String &res) const
 int Field_float::store(const char *from,uint len,CHARSET_INFO *cs)
 {
   int error;
-  char *end;
-  double nr= my_strntod(cs,(char*) from,len,&end,&error);
-  if (error || (!len || ((uint) (end-from) != len &&
-                         get_thd()->count_cuted_fields)))
-  {
-    set_warning(error ? ER_WARN_DATA_OUT_OF_RANGE : WARN_DATA_TRUNCATED, 1);
-    error= error ? 1 : 2;
-  }
-  Field_float::store(nr);
+  Field_float::store(get_double(from, len, cs, &error));
   return error;
 }
 
@@ -4399,15 +4509,7 @@ void Field_float::sql_type(String &res) const
 int Field_double::store(const char *from,uint len,CHARSET_INFO *cs)
 {
   int error;
-  char *end;
-  double nr= my_strntod(cs,(char*) from, len, &end, &error);
-  if (error || (!len || ((uint) (end-from) != len &&
-                         get_thd()->count_cuted_fields)))
-  {
-    set_warning(error ? ER_WARN_DATA_OUT_OF_RANGE : WARN_DATA_TRUNCATED, 1);
-    error= error ? 1 : 2;
-  }
-  Field_double::store(nr);
+  Field_double::store(get_double(from, len, cs, &error));
   return error;
 }
 
@@ -6853,53 +6955,41 @@ bool Field_longstr::can_optimize_group_min_max(const Item_bool_func *cond,
 }
 
 
+/**
+  This overrides the default behavior of the parent constructor
+  Warn_filter(thd) to suppress notes about trailing spaces in case of CHAR(N),
+  as they are truncated during val_str().
+  We still do want truncation notes in case of BINARY(N),
+  as trailing spaces are not truncated in val_str().
+*/
+Field_string::Warn_filter_string::Warn_filter_string(const THD *thd,
+                                                     const Field_string *field)
+  :Warn_filter(!thd->no_errors,
+               !thd->no_errors &&
+               field->Field_string::charset() == &my_charset_bin)
+{ }
+
+
 double Field_string::val_real(void)
 {
   ASSERT_COLUMN_MARKED_FOR_READ;
-  int error;
-  char *end;
-  CHARSET_INFO *cs= charset();
-  double result;
   THD *thd= get_thd();
-  
-  result=  my_strntod(cs,(char*) ptr,field_length,&end,&error);
-  if (!thd->no_errors &&
-      (error || (field_length != (uint32)(end - (char*) ptr) && 
-                 !check_if_only_end_space(cs, end,
-                                          (char*) ptr + field_length))))
-  {
-    ErrConvString err((char*) ptr, field_length, cs);
-    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-                        ER_TRUNCATED_WRONG_VALUE,
-                        ER_THD(thd, ER_TRUNCATED_WRONG_VALUE), "DOUBLE",
-                        err.ptr());
-  }
-  return result;
+  return Converter_strntod_with_warn(get_thd(),
+                                     Warn_filter_string(thd, this),
+                                     Field_string::charset(),
+                                     (const char *) ptr,
+                                     field_length).result();
 }
 
 
 longlong Field_string::val_int(void)
 {
   ASSERT_COLUMN_MARKED_FOR_READ;
-  int error;
-  char *end;
-  CHARSET_INFO *cs= charset();
-  longlong result;
   THD *thd= get_thd();
-
-  result= my_strntoll(cs, (char*) ptr,field_length,10,&end,&error);
-  if (!thd->no_errors &&
-      (error || (field_length != (uint32)(end - (char*) ptr) && 
-                 !check_if_only_end_space(cs, end,
-                                          (char*) ptr + field_length))))
-  {
-    ErrConvString err((char*) ptr, field_length, cs);
-    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-                        ER_TRUNCATED_WRONG_VALUE, 
-                        ER_THD(thd, ER_TRUNCATED_WRONG_VALUE),
-                        "INTEGER", err.ptr());
-  }
-  return result;
+  return Converter_strntoll_with_warn(thd, Warn_filter_string(thd, this),
+                                      Field_string::charset(),
+                                      (const char *) ptr,
+                                      field_length).result();
 }
 
 
@@ -6922,30 +7012,17 @@ String *Field_string::val_str(String *val_buffer __attribute__((unused)),
 }
 
 
-my_decimal *Field_longstr::val_decimal_from_str(const char *str,
-                                                uint length,
-                                                CHARSET_INFO *cs,
-                                                my_decimal *decimal_value)
-{
-  THD *thd;
-  int err= str2my_decimal(E_DEC_FATAL_ERROR, str, length, cs, decimal_value);
-  if (err && !(thd= get_thd())->no_errors)
-  {
-    ErrConvString errmsg(str, length, cs);
-    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-                        ER_TRUNCATED_WRONG_VALUE, 
-                        ER_THD(thd, ER_TRUNCATED_WRONG_VALUE),
-                        "DECIMAL", errmsg.ptr());
-  }
-  return decimal_value;
-}
-
-
 my_decimal *Field_string::val_decimal(my_decimal *decimal_value)
 {
   ASSERT_COLUMN_MARKED_FOR_READ;
-  return val_decimal_from_str((const char *) ptr, field_length,
-                              Field_string::charset(), decimal_value);
+  THD *thd= get_thd();
+  Converter_str2my_decimal_with_warn(thd,
+                                     Warn_filter_string(thd, this),
+                                     E_DEC_FATAL_ERROR,
+                                     Field_string::charset(),
+                                     (const char *) ptr,
+                                     field_length, decimal_value);
+  return decimal_value;
 }
 
 
@@ -7310,54 +7387,30 @@ int Field_varstring::store(longlong nr, bool unsigned_val)
 double Field_varstring::val_real(void)
 {
   ASSERT_COLUMN_MARKED_FOR_READ;
-  int error;
-  char *end;
-  double result;
-  CHARSET_INFO* cs= charset();
-  
-  uint length= length_bytes == 1 ? (uint) *ptr : uint2korr(ptr);
-  result= my_strntod(cs, (char*)ptr+length_bytes, length, &end, &error);
-  
-  if (!get_thd()->no_errors && 
-       (error || (length != (uint)(end - (char*)ptr+length_bytes) && 
-         !check_if_only_end_space(cs, end, (char*)ptr+length_bytes+length)))) 
-  {
-    push_numerical_conversion_warning(get_thd(), (char*)ptr+length_bytes, 
-                                      length, cs,"DOUBLE", 
-                                      ER_TRUNCATED_WRONG_VALUE);
-  }
-  return result;
+  THD *thd= get_thd();
+  return Converter_strntod_with_warn(thd, Warn_filter(thd),
+                                     Field_varstring::charset(),
+                                     (const char *) get_data(),
+                                     get_length()).result();
 }
 
 
 longlong Field_varstring::val_int(void)
 {
   ASSERT_COLUMN_MARKED_FOR_READ;
-  int error;
-  char *end;
-  CHARSET_INFO *cs= charset();
-  
-  uint length= length_bytes == 1 ? (uint) *ptr : uint2korr(ptr);
-  longlong result= my_strntoll(cs, (char*) ptr+length_bytes, length, 10,
-                     &end, &error);
-		     
-  if (!get_thd()->no_errors && 
-       (error || (length != (uint)(end - (char*)ptr+length_bytes) && 
-         !check_if_only_end_space(cs, end, (char*)ptr+length_bytes+length)))) 
-  {
-    push_numerical_conversion_warning(get_thd(), (char*)ptr+length_bytes, 
-                                      length, cs, "INTEGER", 
-                                      ER_TRUNCATED_WRONG_VALUE);  
-  }
-  return result;
+  THD *thd= get_thd();
+  return Converter_strntoll_with_warn(thd, Warn_filter(thd),
+                                      Field_varstring::charset(),
+                                      (const char *) get_data(),
+                                      get_length()).result();
 }
+
 
 String *Field_varstring::val_str(String *val_buffer __attribute__((unused)),
 				 String *val_ptr)
 {
   ASSERT_COLUMN_MARKED_FOR_READ;
-  uint length=  length_bytes == 1 ? (uint) *ptr : uint2korr(ptr);
-  val_ptr->set((const char*) ptr+length_bytes, length, field_charset);
+  val_ptr->set((const char*) get_data(), get_length(), field_charset);
   return val_ptr;
 }
 
@@ -7365,9 +7418,14 @@ String *Field_varstring::val_str(String *val_buffer __attribute__((unused)),
 my_decimal *Field_varstring::val_decimal(my_decimal *decimal_value)
 {
   ASSERT_COLUMN_MARKED_FOR_READ;
-  uint length= length_bytes == 1 ? (uint) *ptr : uint2korr(ptr);
-  return val_decimal_from_str((const char *) ptr + length_bytes, length,
-                              Field_varstring::charset(), decimal_value);
+  THD *thd= get_thd();
+  Converter_str2my_decimal_with_warn(thd, Warn_filter(thd),
+                                     E_DEC_FATAL_ERROR,
+                                     Field_varstring::charset(),
+                                     (const char *) get_data(),
+                                     get_length(), decimal_value);
+  return decimal_value;
+
 }
 
 
@@ -7821,31 +7879,30 @@ int Field_blob::store(longlong nr, bool unsigned_val)
 double Field_blob::val_real(void)
 {
   ASSERT_COLUMN_MARKED_FOR_READ;
-  int not_used;
-  char *end_not_used, *blob;
-  uint32 length;
-  CHARSET_INFO *cs;
-
+  char *blob;
   memcpy(&blob, ptr+packlength, sizeof(char*));
   if (!blob)
     return 0.0;
-  length= get_length(ptr);
-  cs= charset();
-  return my_strntod(cs, blob, length, &end_not_used, &not_used);
+  THD *thd= get_thd();
+  return  Converter_strntod_with_warn(thd, Warn_filter(thd),
+                                      Field_blob::charset(),
+                                      blob, get_length(ptr)).result();
 }
 
 
 longlong Field_blob::val_int(void)
 {
   ASSERT_COLUMN_MARKED_FOR_READ;
-  int not_used;
   char *blob;
   memcpy(&blob, ptr+packlength, sizeof(char*));
   if (!blob)
     return 0;
-  uint32 length=get_length(ptr);
-  return my_strntoll(charset(),blob,length,10,NULL,&not_used);
+  THD *thd= get_thd();
+  return Converter_strntoll_with_warn(thd, Warn_filter(thd),
+                                      Field_blob::charset(),
+                                      blob, get_length(ptr)).result();
 }
+
 
 String *Field_blob::val_str(String *val_buffer __attribute__((unused)),
 			    String *val_ptr)
@@ -7875,8 +7932,12 @@ my_decimal *Field_blob::val_decimal(my_decimal *decimal_value)
   else
     length= get_length(ptr);
 
-  return val_decimal_from_str(blob, length,
-                              Field_blob::charset(), decimal_value);
+  THD *thd= get_thd();
+  Converter_str2my_decimal_with_warn(thd, Warn_filter(thd),
+                                     E_DEC_FATAL_ERROR,
+                                     Field_blob::charset(),
+                                     blob, length, decimal_value);
+  return decimal_value;
 }
 
 
@@ -9974,13 +10035,22 @@ bool Create_field::check(THD *thd)
 
   /*
     Set NO_DEFAULT_VALUE_FLAG if this field doesn't have a default value and
-    it is NOT NULL, not an AUTO_INCREMENT field and not a TIMESTAMP.
+    it is NOT NULL, not an AUTO_INCREMENT field.
     We need to do this check here and in mysql_create_prepare_table() as
     sp_head::fill_field_definition() calls this function.
   */
-  if (!def && unireg_check == Field::NONE &&
-      (flags & NOT_NULL_FLAG) && !is_timestamp_type(sql_type))
-    flags|= NO_DEFAULT_VALUE_FLAG;
+  if (!def && unireg_check == Field::NONE && (flags & NOT_NULL_FLAG))
+  {
+    /*
+      TIMESTAMP columns get implicit DEFAULT value when
+      explicit_defaults_for_timestamp is not set.
+    */
+    if (opt_explicit_defaults_for_timestamp ||
+        !is_timestamp_type(sql_type))
+    {
+      flags|= NO_DEFAULT_VALUE_FLAG;
+    }
+  }
 
   if (!(flags & BLOB_FLAG) &&
       ((length > max_field_charlength &&
@@ -10434,16 +10504,14 @@ Create_field::Create_field(THD *thd, Field *old_field, Field *orig_field)
     if (!default_now)                           // Give a constant default
     {
       /* Get the value from default_values */
-      my_ptrdiff_t diff= orig_field->table->default_values_offset();
-      orig_field->move_field_offset(diff);	// Points now at default_values
-      if (!orig_field->is_real_null())
+      const uchar *dv= orig_field->table->s->default_values;
+      if (!orig_field->is_null_in_record(dv))
       {
         StringBuffer<MAX_FIELD_WIDTH> tmp(charset);
-        String *res= orig_field->val_str(&tmp);
+        String *res= orig_field->val_str(&tmp, orig_field->ptr_in_record(dv));
         char *pos= (char*) sql_strmake(res->ptr(), res->length());
         def= new (thd->mem_root) Item_string(thd, pos, res->length(), charset);
       }
-      orig_field->move_field_offset(-diff);	// Back to record[0]
     }
   }
 }

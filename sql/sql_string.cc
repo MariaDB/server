@@ -954,6 +954,16 @@ void String::print(String *str) const
   str->append_for_single_quote(Ptr, str_length);
 }
 
+
+void String::print_with_conversion(String *print, CHARSET_INFO *cs) const
+{
+  StringBuffer<256> tmp(cs);
+  uint errors= 0;
+  tmp.copy(this, cs, &errors);
+  tmp.print(print);
+}
+
+
 /*
   Exchange state of this object and argument.
 

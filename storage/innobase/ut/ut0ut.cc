@@ -824,7 +824,7 @@ ut_strerr(
 		return("Too many words in a FTS phrase or proximity search");
 	case DB_TOO_BIG_FOR_REDO:
 		return("BLOB record length is greater than 10%% of redo log");
-	case DB_ENCRYPTED_DECRYPT_FAILED:
+	case DB_DECRYPTION_FAILED:
 		return("Table is encrypted but decrypt failed.");
 
 	/* do not add default: in order to produce a warning if new code

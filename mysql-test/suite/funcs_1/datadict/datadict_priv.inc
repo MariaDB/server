@@ -48,9 +48,9 @@ eval INSERT INTO $table SELECT * FROM test.t_$table;
 eval DROP TABLE test.t_$table;
 
 --error ER_VIEW_NONUPD_CHECK
-eval CREATE VIEW test.v_$table ($columns) AS SELECT * FROM $table WITH CHECK OPTION;
+eval CREATE VIEW test.v_$table ($columns) AS SELECT $columns FROM $table WITH CHECK OPTION;
 
-eval CREATE VIEW test.v_$table ($columns) AS SELECT * FROM $table;
+eval CREATE VIEW test.v_$table ($columns) AS SELECT $columns FROM $table;
 
 # !!! This query returns a wrong error due to a bug in the code of mwl106
 # !!! Uncomment it when the bug is fixed

@@ -40,8 +40,8 @@ ID	NAME	DESCRIPTION	MAX_MONTH_NAME_LENGTH	MAX_DAY_NAME_LENGTH	DECIMAL_POINT	THOU
 37	nb_NO	Norwegian(Bokml) - Norway	9	7	,	.	norwegian
 38	nl_NL	Dutch - The Netherlands	9	9	,		dutch
 39	pl_PL	Polish - Poland	11	12	,		polish
-40	pt_BR	Portugese - Brazil	9	7	,		portuguese
-41	pt_PT	Portugese - Portugal	9	7	,		portuguese
+40	pt_BR	Portuguese - Brazil	9	7	,		portuguese
+41	pt_PT	Portuguese - Portugal	9	7	,		portuguese
 42	ro_RO	Romanian - Romania	10	8	,	.	romanian
 43	ru_RU	Russian - Russia	8	11	,	 	russian
 44	ru_UA	Russian - Ukraine	8	11	,	.	russian
@@ -153,8 +153,8 @@ Id	Name	Description	Error_Message_Language
 37	nb_NO	Norwegian(Bokml) - Norway	norwegian
 38	nl_NL	Dutch - The Netherlands	dutch
 39	pl_PL	Polish - Poland	polish
-40	pt_BR	Portugese - Brazil	portuguese
-41	pt_PT	Portugese - Portugal	portuguese
+40	pt_BR	Portuguese - Brazil	portuguese
+41	pt_PT	Portuguese - Portugal	portuguese
 42	ro_RO	Romanian - Romania	romanian
 43	ru_RU	Russian - Russia	russian
 44	ru_UA	Russian - Ukraine	russian

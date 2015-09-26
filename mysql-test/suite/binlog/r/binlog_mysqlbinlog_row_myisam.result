@@ -50,7 +50,7 @@ c27 DECIMAL ZEROFILL,
 #
 c28 DATE,
 c29 DATETIME,
-c30 TIMESTAMP,
+c30 TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
 c31 TIME,
 c32 YEAR,
 #
@@ -2306,7 +2306,7 @@ c27 DECIMAL ZEROFILL,
 #
 c28 DATE,
 c29 DATETIME,
-c30 TIMESTAMP,
+c30 TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
 c31 TIME,
 c32 YEAR,
 #
@@ -4857,7 +4857,14 @@ LOAD DATA INFILE '../../std_data/loaddata5.dat'
   INTO TABLE t1 FIELDS TERMINATED BY '' ENCLOSED BY '' (c1,c2)
 SET c3 = 'Wow';
 affected rows: 3
-info: Records: 3  Deleted: 0  Skipped: 0  Warnings: 0
+info: Records: 3  Deleted: 0  Skipped: 0  Warnings: 6
+Warnings:
+Note	1265	Data truncated for column 'c1' at row 1
+Note	1265	Data truncated for column 'c2' at row 1
+Note	1265	Data truncated for column 'c1' at row 2
+Note	1265	Data truncated for column 'c2' at row 2
+Note	1265	Data truncated for column 'c1' at row 3
+Note	1265	Data truncated for column 'c2' at row 3
 #
 # Show what we have in the table.
 #

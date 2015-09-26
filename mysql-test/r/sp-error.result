@@ -1758,7 +1758,7 @@ CAST('10 ' as unsigned integer)
 CAST('10 ' as unsigned integer)
 10
 Warnings:
-Warning	1292	Truncated incorrect INTEGER value: '10 '
+Note	1292	Truncated incorrect INTEGER value: '10 '
 DROP PROCEDURE p1;
 DROP PROCEDURE p2;
 
@@ -1767,7 +1767,7 @@ DROP PROCEDURE p2;
 CREATE PROCEDURE p1()
 BEGIN
 DECLARE c INT DEFAULT 0;
-DECLARE CONTINUE HANDLER FOR SQLWARNING SET c = c + 1;
+DECLARE CONTINUE HANDLER FOR SQLSTATE '22007' SET c = c + 1;
 CALL p2();
 CALL p3();
 CALL p4();
@@ -1797,7 +1797,7 @@ END|
 CREATE PROCEDURE P6()
 BEGIN
 DECLARE c INT DEFAULT 0;
-DECLARE CONTINUE HANDLER FOR SQLWARNING SET c = c + 1;
+DECLARE CONTINUE HANDLER FOR SQLSTATE '22007' SET c = c + 1;
 CALL p5();
 SELECT c;
 END|
@@ -1821,7 +1821,7 @@ CALL p6();
 CAST('10 ' as unsigned integer)
 10
 Level	Code	Message
-Warning	1292	Truncated incorrect INTEGER value: '10 '
+Note	1292	Truncated incorrect INTEGER value: '10 '
 c
 1
 DROP PROCEDURE p1;
@@ -1982,9 +1982,9 @@ Level	Code	Message
 Warning	1264	Out of range value for column 'x' at row 1
 Warning	1264	Out of range value for column 'y' at row 1
 Warning	1264	Out of range value for column 'z' at row 1
-Warning	1292	Truncated incorrect INTEGER value: '111111 '
+Note	1292	Truncated incorrect INTEGER value: '111111 '
 Warning	1264	Out of range value for column 'a' at row 1
-Warning	1292	Truncated incorrect INTEGER value: '222222 '
+Note	1292	Truncated incorrect INTEGER value: '222222 '
 Warning	1264	Out of range value for column 'b' at row 1
 Error	1048	Column 'c' cannot be null
 
@@ -2744,14 +2744,14 @@ END|
 
 CALL p6()|
 Level	Code	Message
-Warning	1292	Truncated incorrect INTEGER value: '1 '
-Warning	1292	Truncated incorrect INTEGER value: '1999999  '
+Note	1292	Truncated incorrect INTEGER value: '1 '
+Note	1292	Truncated incorrect INTEGER value: '1999999  '
 Warning	1264	Out of range value for column 'a' at row 1
-Warning	1292	Truncated incorrect INTEGER value: '2 '
-Warning	1292	Truncated incorrect INTEGER value: '2999999  '
+Note	1292	Truncated incorrect INTEGER value: '2 '
+Note	1292	Truncated incorrect INTEGER value: '2999999  '
 Warning	1264	Out of range value for column 'b' at row 1
-Warning	1292	Truncated incorrect INTEGER value: '3 '
-Warning	1292	Truncated incorrect INTEGER value: '3999999  '
+Note	1292	Truncated incorrect INTEGER value: '3 '
+Note	1292	Truncated incorrect INTEGER value: '3999999  '
 Warning	1264	Out of range value for column 'c' at row 1
 Msg
 Handler for 1292

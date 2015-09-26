@@ -5,7 +5,7 @@ let type=timestamp;
 set time_zone='+03:00';
 set timestamp=unix_timestamp('2011-01-01 01:01:01') + 0.123456;
 
-create table t1 (a timestamp(5));
+create table t1 (a timestamp(5) DEFAULT CURRENT_TIMESTAMP);
 #
 # CREATE ... DEFAULT NOW(X)
 #

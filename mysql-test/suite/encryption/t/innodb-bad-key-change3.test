@@ -1,0 +1,114 @@
+--source include/have_innodb.inc
+# embedded does not support restart
+-- source include/not_embedded.inc
+-- source include/not_valgrind.inc
+# Avoid CrashReporter popup on Mac
+-- source include/not_crashrep.inc
+-- source filekeys_plugin_exists.inc
+#
+# MDEV-8772: Assertion failure in file ha_innodb.cc line 20027 when importing page compressed and encrypted tablespace using incorrect keys
+#
+call mtr.add_suppression("InnoDB: Table .* tablespace is set as discarded");
+
+--disable_query_log
+let $innodb_file_format_orig = `SELECT @@innodb_file_format`;
+let $innodb_file_per_table_orig = `SELECT @@innodb_file_per_table`;
+--enable_query_log
+
+--let $MYSQLD_TMPDIR = `SELECT @@tmpdir`
+--let $MYSQLD_DATADIR = `SELECT @@datadir`
+--let SEARCH_RANGE = 10000000
+--let t1_IBD = $MYSQLD_DATADIR/test/t1.ibd
+--exec echo "wait" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+--shutdown_server
+--source include/wait_until_disconnected.inc
+
+--write_file $MYSQLTEST_VARDIR/keys1.txt
+1;770A8A65DA156D24EE2A093277530142
+4;770A8A65DA156D24EE2A093277530143
+EOF
+
+--exec echo "restart:--innodb-encrypt-tables --innodb-stats-persistent --plugin-load-add=file_key_management.so --file-key-management --file-key-management-filename=$MYSQLTEST_VARDIR/keys1.txt" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+--enable_reconnect
+--source include/wait_until_connected_again.inc
+
+SET GLOBAL innodb_file_format = `Barracuda`;
+SET GLOBAL innodb_file_per_table = ON;
+set global innodb_compression_algorithm = 1;
+
+CREATE TABLE t1 (pk INT PRIMARY KEY, f VARCHAR(255)) ENGINE=InnoDB PAGE_COMPRESSED=1 ENCRYPTED=YES ENCRYPTION_KEY_ID=4;
+SHOW WARNINGS;
+SHOW CREATE TABLE t1;
+INSERT INTO t1 VALUES (1,'foobar'),(2,'barfoo');
+FLUSH TABLE t1 FOR EXPORT;
+--echo # List before copying files
+--list_files $MYSQLD_DATADIR/test
+--copy_file $MYSQLD_DATADIR/test/t1.cfg $MYSQLD_TMPDIR/t1.cfg
+--copy_file $MYSQLD_DATADIR/test/t1.ibd $MYSQLD_TMPDIR/t1.ibd
+UNLOCK TABLES;
+
+--sleep 5
+--echo # Tablespaces should be still encrypted
+--let SEARCH_PATTERN=foobar
+--echo # t1 yes on expecting NOT FOUND
+-- let SEARCH_FILE=$t1_IBD
+-- source include/search_pattern_in_file.inc
+
+ALTER TABLE t1 DISCARD TABLESPACE;
+
+--exec echo "wait" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+--shutdown_server
+--source include/wait_until_disconnected.inc
+
+--write_file $MYSQLTEST_VARDIR/keys2.txt
+1;770A8A65DA156D24EE2A093277530142
+4;770A8A65DA156D24EE2A093277530144
+EOF
+
+--exec echo "restart:--innodb-encrypt-tables --innodb-stats-persistent --plugin-load-add=file_key_management.so --file-key-management --file-key-management-filename=$MYSQLTEST_VARDIR/keys2.txt" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+--enable_reconnect
+--source include/wait_until_connected_again.inc
+--source include/restart_mysqld.inc
+
+SET GLOBAL innodb_file_format = `Barracuda`;
+SET GLOBAL innodb_file_per_table = ON;
+--echo # List after t1 DISCARD
+--list_files $MYSQLD_DATADIR/test
+--copy_file $MYSQLD_TMPDIR/t1.cfg $MYSQLD_DATADIR/test/t1.cfg
+--copy_file $MYSQLD_TMPDIR/t1.ibd $MYSQLD_DATADIR/test/t1.ibd
+
+--error ER_GET_ERRMSG
+ALTER TABLE t1 IMPORT TABLESPACE;
+SHOW CREATE TABLE t1;
+--error ER_TABLESPACE_DISCARDED
+SELECT * FROM t1;
+--sleep 5
+--echo # Tablespaces should be still encrypted
+-- let SEARCH_FILE=$t1_IBD
+--let SEARCH_PATTERN=foobar
+--echo # t1 yes on expecting NOT FOUND
+-- let SEARCH_FILE=$t1_IBD
+-- source include/search_pattern_in_file.inc
+
+--exec echo "wait" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+--shutdown_server
+--source include/wait_until_disconnected.inc
+--remove_file $MYSQLTEST_VARDIR/keys1.txt
+--write_file $MYSQLTEST_VARDIR/keys1.txt
+1;770A8A65DA156D24EE2A093277530142
+4;770A8A65DA156D24EE2A093277530143
+EOF
+
+--exec echo "restart:--innodb-encrypt-tables --innodb-stats-persistent --plugin-load-add=file_key_management.so --file-key-management --file-key-management-filename=$MYSQLTEST_VARDIR/keys1.txt" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+--enable_reconnect
+--source include/wait_until_connected_again.inc
+DROP TABLE t1;
+
+# reset system
+--disable_query_log
+EVAL SET GLOBAL innodb_file_per_table = $innodb_file_per_table_orig;
+EVAL SET GLOBAL innodb_file_format = $innodb_file_format_orig;
+--enable_query_log
+
+--remove_file $MYSQLTEST_VARDIR/keys1.txt
+--remove_file $MYSQLTEST_VARDIR/keys2.txt

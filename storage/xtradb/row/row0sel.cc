@@ -3729,7 +3729,7 @@ row_search_for_mysql(
 
 	} else if (prebuilt->table->is_encrypted) {
 
-		return(DB_ENCRYPTED_DECRYPT_FAILED);
+		return(DB_DECRYPTION_FAILED);
 	} else if (!prebuilt->index_usable) {
 
 		return(DB_MISSING_HISTORY);
@@ -4187,9 +4187,9 @@ wait_table_again:
 			pcur, false, 0, &mtr);
 
 		if (err != DB_SUCCESS) {
-			if (err == DB_ENCRYPTED_DECRYPT_FAILED) {
+			if (err == DB_DECRYPTION_FAILED) {
 				ib_push_warning(trx->mysql_thd,
-					DB_ENCRYPTED_DECRYPT_FAILED,
+					DB_DECRYPTION_FAILED,
 					"Table %s is encrypted but encryption service or"
 					" used key_id is not available. "
 					" Can't continue reading table.",
@@ -4215,7 +4215,7 @@ rec_loop:
 	rec = btr_pcur_get_rec(pcur);
 
 	if (!rec) {
-		err = DB_ENCRYPTED_DECRYPT_FAILED;
+		err = DB_DECRYPTION_FAILED;
 		goto lock_wait_or_error;
 	}
 

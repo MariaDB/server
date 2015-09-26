@@ -2094,6 +2094,9 @@ f1	f2	f3	f3
 4	0	0	0
 4	0	0	0
 0	NULL	NULL	NULL
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: 'foo'
+Warning	1292	Truncated incorrect DOUBLE value: 'foo'
 DROP TABLE t1, t2, t3, t4;
 set @tmp803457=@@optimizer_switch;
 #

@@ -740,13 +740,13 @@ btr_root_block_get(
 	zip_size = dict_table_zip_size(index->table);
 	root_page_no = dict_index_get_page(index);
 
-	block = btr_block_get(space, zip_size, root_page_no, mode, index, mtr);
+	block = btr_block_get(space, zip_size, root_page_no, mode, (dict_index_t*)index, mtr);
 
 	if (!block) {
 		index->table->is_encrypted = TRUE;
 		index->table->corrupted = FALSE;
 
-		ib_push_warning(index->table->thd, DB_ENCRYPTED_DECRYPT_FAILED,
+		ib_push_warning(index->table->thd, DB_DECRYPTION_FAILED,
 			"Table %s in tablespace %lu is encrypted but encryption service or"
 			" used key_id is not available. "
 			" Can't continue reading table.",
@@ -896,7 +896,7 @@ btr_root_adjust_on_import(
 			return(DB_CORRUPTION););
 
 	block = btr_block_get(
-		space_id, zip_size, root_page_no, RW_X_LATCH, index, &mtr);
+		space_id, zip_size, root_page_no, RW_X_LATCH, (dict_index_t*)index, &mtr);
 
 	page = buf_block_get_frame(block);
 	page_zip = buf_block_get_page_zip(block);
@@ -3536,9 +3536,7 @@ btr_level_list_remove_func(
 	ulint			zip_size,/*!< in: compressed page size in bytes
 					or 0 for uncompressed pages */
 	page_t*			page,	/*!< in/out: page to remove */
-#ifdef UNIV_SYNC_DEBUG
-	const dict_index_t*	index,	/*!< in: index tree */
-#endif /* UNIV_SYNC_DEBUG */
+	dict_index_t*		index,	/*!< in: index tree */
 	mtr_t*			mtr)	/*!< in/out: mini-transaction */
 {
 	ulint	prev_page_no;
@@ -5159,18 +5157,20 @@ node_ptr_fails:
 
 /**************************************************************//**
 Checks the consistency of an index tree.
-@return	TRUE if ok */
+@return	DB_SUCCESS if ok, error code if not */
 UNIV_INTERN
-bool
+dberr_t
 btr_validate_index(
 /*===============*/
 	dict_index_t*	index,	/*!< in: index */
 	const trx_t*	trx)	/*!< in: transaction or NULL */
 {
+	dberr_t err = DB_SUCCESS;
+
 	/* Full Text index are implemented by auxiliary tables,
 	not the B-tree */
 	if (dict_index_is_online_ddl(index) || (index->type & DICT_FTS)) {
-		return(true);
+		return(err);
 	}
 
 	mtr_t		mtr;
@@ -5179,13 +5179,18 @@ btr_validate_index(
 
 	mtr_x_lock(dict_index_get_lock(index), &mtr);
 
-	bool	ok = true;
 	page_t*	root = btr_root_get(index, &mtr);
+
+	if (root == NULL && index->table->is_encrypted) {
+		err = DB_DECRYPTION_FAILED;
+		mtr_commit(&mtr);
+		return err;
+	}
 
 	SRV_CORRUPT_TABLE_CHECK(root,
 	{
 		mtr_commit(&mtr);
-		return(FALSE);
+		return(DB_CORRUPTION);
 	});
 
 	ulint	n = btr_page_get_level(root, &mtr);
@@ -5193,14 +5198,14 @@ btr_validate_index(
 	for (ulint i = 0; i <= n; ++i) {
 
 		if (!btr_validate_level(index, trx, n - i)) {
-			ok = false;
+			err = DB_CORRUPTION;
 			break;
 		}
 	}
 
 	mtr_commit(&mtr);
 
-	return(ok);
+	return(err);
 }
 
 /**************************************************************//**

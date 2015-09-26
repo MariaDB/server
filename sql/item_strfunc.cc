@@ -116,40 +116,27 @@ bool Item_str_func::fix_fields(THD *thd, Item **ref)
 my_decimal *Item_str_func::val_decimal(my_decimal *decimal_value)
 {
   DBUG_ASSERT(fixed == 1);
-  char buff[64];
-  String *res, tmp(buff,sizeof(buff), &my_charset_bin);
-  res= val_str(&tmp);
-  if (!res)
-    return 0;
-  (void)str2my_decimal(E_DEC_FATAL_ERROR, (char*) res->ptr(),
-                       res->length(), res->charset(), decimal_value);
-  return decimal_value;
+  StringBuffer<64> tmp;
+  String *res= val_str(&tmp);
+  return res ? decimal_from_string_with_check(decimal_value, res) : 0;
 }
 
 
 double Item_str_func::val_real()
 {
   DBUG_ASSERT(fixed == 1);
-  int err_not_used;
-  char *end_not_used, buff[64];
-  String *res, tmp(buff,sizeof(buff), &my_charset_bin);
-  res= val_str(&tmp);
-  return res ? my_strntod(res->charset(), (char*) res->ptr(), res->length(),
-			  &end_not_used, &err_not_used) : 0.0;
+  StringBuffer<64> tmp;
+  String *res= val_str(&tmp);
+  return res ? double_from_string_with_check(res) : 0.0;
 }
 
 
 longlong Item_str_func::val_int()
 {
   DBUG_ASSERT(fixed == 1);
-  int err;
-  char buff[22];
-  String *res, tmp(buff,sizeof(buff), &my_charset_bin);
-  res= val_str(&tmp);
-  return (res ?
-	  my_strntoll(res->charset(), res->ptr(), res->length(), 10, NULL,
-		      &err) :
-	  (longlong) 0);
+  StringBuffer<22> tmp;
+  String *res= val_str(&tmp);
+  return res ? longlong_from_string_with_check(res) : 0;
 }
 
 
@@ -3485,7 +3472,7 @@ bool Item_func_set_collation::eq(const Item *item, bool binary_cmp) const
   if (item->type() != FUNC_ITEM)
     return 0;
   Item_func *item_func=(Item_func*) item;
-  if (arg_count != item_func->arg_count ||
+  if (arg_count != item_func->argument_count() ||
       functype() != item_func->functype())
     return 0;
   Item_func_set_collation *item_func_sc=(Item_func_set_collation*) item;
@@ -4963,13 +4950,12 @@ longlong Item_dyncol_get::val_int()
     if (end != org_end || error > 0)
     {
       THD *thd= current_thd;
-      char buff[80];
-      strmake(buff, val.x.string.value.str, MY_MIN(sizeof(buff)-1,
-                                              val.x.string.value.length));
       push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                           ER_BAD_DATA,
                           ER_THD(thd, ER_BAD_DATA),
-                          buff,
+                          ErrConvString(val.x.string.value.str,
+                                        val.x.string.value.length,
+                                        val.x.string.charset).ptr(),
                           unsigned_flag ? "UNSIGNED INT" : "INT");
     }
     unsigned_flag= error >= 0;
@@ -5028,13 +5014,13 @@ double Item_dyncol_get::val_real()
         error)
     {
       THD *thd= current_thd;
-      char buff[80];
-      strmake(buff, val.x.string.value.str, MY_MIN(sizeof(buff)-1,
-                                              val.x.string.value.length));
       push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                           ER_BAD_DATA,
                           ER_THD(thd, ER_BAD_DATA),
-                          buff, "DOUBLE");
+                          ErrConvString(val.x.string.value.str,
+                                        val.x.string.value.length,
+                                        val.x.string.charset).ptr(),
+                          "DOUBLE");
     }
     return res;
   }
@@ -5081,19 +5067,21 @@ my_decimal *Item_dyncol_get::val_decimal(my_decimal *decimal_value)
     break;
   case DYN_COL_STRING:
   {
+    const char *end;
     int rc;
     rc= str2my_decimal(0, val.x.string.value.str, val.x.string.value.length,
-                       val.x.string.charset, decimal_value);
-    char buff[80];
-    strmake(buff, val.x.string.value.str, MY_MIN(sizeof(buff)-1,
-                                            val.x.string.value.length));
-    if (rc != E_DEC_OK)
+                       val.x.string.charset, decimal_value, &end);
+    if (rc != E_DEC_OK ||
+        end != val.x.string.value.str + val.x.string.value.length)
     {
       THD *thd= current_thd;
       push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                           ER_BAD_DATA,
                           ER_THD(thd, ER_BAD_DATA),
-                          buff, "DECIMAL");
+                          ErrConvString(val.x.string.value.str,
+                                        val.x.string.value.length,
+                                        val.x.string.charset).ptr(),
+                          "DECIMAL");
     }
     break;
   }

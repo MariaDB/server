@@ -2891,7 +2891,7 @@ drop table t1;
 # Bug#13052 mysqldump timestamp reloads broken
 #
 drop table if exists t1;
-create table t1 (`d` timestamp, unique (`d`));
+create table t1 (`d` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, unique (`d`));
 set time_zone='+00:00';
 insert into t1 values ('2003-10-25 22:00:00'),('2003-10-25 23:00:00');
 select * from t1;

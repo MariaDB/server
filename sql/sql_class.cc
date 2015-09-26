@@ -69,6 +69,10 @@
 #include "sql_connect.h"
 #include "my_atomic.h"
 
+#ifdef HAVE_SYS_SYSCALL_H
+#include <sys/syscall.h>
+#endif
+
 /*
   The following is used to initialise Table_ident with a internal
   table name
@@ -867,6 +871,7 @@ THD::THD(bool is_wsrep_applier)
    m_statement_psi(NULL),
    m_idle_psi(NULL),
    thread_id(0),
+   os_thread_id(0),
    global_disable_checkpoint(0),
    failed_com_change_user(0),
    is_fatal_error(0),
@@ -2067,6 +2072,11 @@ bool THD::store_globals()
     This allows us to move THD to different threads if needed.
   */
   mysys_var->id= thread_id;
+#ifdef __NR_gettid
+  os_thread_id= (uint32)syscall(__NR_gettid);
+#else
+  os_thread_id= 0;
+#endif
   real_id= pthread_self();                      // For debugging
   mysys_var->stack_ends_here= thread_stack +    // for consistency, see libevent_thread_proc
                               STACK_DIRECTION * (long)my_thread_stack_size;

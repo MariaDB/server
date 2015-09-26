@@ -614,9 +614,9 @@ retry_page_get:
 		file, line, mtr, &err);
 
 	if (err != DB_SUCCESS) {
-		if (err == DB_ENCRYPTED_DECRYPT_FAILED) {
+		if (err == DB_DECRYPTION_FAILED) {
 			ib_push_warning((void *)NULL,
-				DB_ENCRYPTED_DECRYPT_FAILED,
+				DB_DECRYPTION_FAILED,
 				"Table %s is encrypted but encryption service or"
 				" used key_id is not available. "
 				" Can't continue reading table.",
@@ -917,9 +917,9 @@ btr_cur_open_at_index_side_func(
 					 RW_NO_LATCH, NULL, BUF_GET,
 					 file, line, mtr, &err);
 		if (err != DB_SUCCESS) {
-			if (err == DB_ENCRYPTED_DECRYPT_FAILED) {
+			if (err == DB_DECRYPTION_FAILED) {
 				ib_push_warning((void *)NULL,
-					DB_ENCRYPTED_DECRYPT_FAILED,
+					DB_DECRYPTION_FAILED,
 					"Table %s is encrypted but encryption service or"
 					" used key_id is not available. "
 					" Can't continue reading table.",
@@ -1074,9 +1074,9 @@ btr_cur_open_at_rnd_pos_func(
 					 file, line, mtr, &err);
 
 		if (err != DB_SUCCESS) {
-			if (err == DB_ENCRYPTED_DECRYPT_FAILED) {
+			if (err == DB_DECRYPTION_FAILED) {
 				ib_push_warning((void *)NULL,
-					DB_ENCRYPTED_DECRYPT_FAILED,
+					DB_DECRYPTION_FAILED,
 					"Table %s is encrypted but encryption service or"
 					" used key_id is not available. "
 					" Can't continue reading table.",
@@ -1671,13 +1671,22 @@ btr_cur_pessimistic_insert(
 				btr_cur_get_page_zip(cursor),
 				thr_get_trx(thr)->id, mtr);
 		}
-		if (!page_rec_is_infimum(btr_cur_get_rec(cursor))
-		    || btr_page_get_prev(
-			buf_block_get_frame(
-				btr_cur_get_block(cursor)), mtr)
-		       == FIL_NULL) {
+
+		if (!page_rec_is_infimum(btr_cur_get_rec(cursor))) {
 			/* split and inserted need to call
 			lock_update_insert() always. */
+			inherit = TRUE;
+		}
+
+		buf_block_t* block = btr_cur_get_block(cursor);
+		buf_frame_t* frame = NULL;
+
+		if (block) {
+			frame = buf_block_get_frame(block);
+		}
+		/* split and inserted need to call
+		lock_update_insert() always. */
+		if (frame &&  btr_page_get_prev(frame, mtr) == FIL_NULL) {
 			inherit = TRUE;
 		}
 	}
@@ -3630,9 +3639,9 @@ btr_estimate_n_rows_in_range_on_level(
 					 __FILE__, __LINE__, &mtr, &err);
 
 		if (err != DB_SUCCESS) {
-			if (err == DB_ENCRYPTED_DECRYPT_FAILED) {
+			if (err == DB_DECRYPTION_FAILED) {
 				ib_push_warning((void *)NULL,
-					DB_ENCRYPTED_DECRYPT_FAILED,
+					DB_DECRYPTION_FAILED,
 					"Table %s is encrypted but encryption service or"
 					" used key_id is not available. "
 					" Can't continue reading table.",

@@ -1474,6 +1474,8 @@ INSERT INTO t1 VALUES ('-1234.1e2xxxx');
 Warnings:
 Warning	1265	Data truncated for column 'a' at row 1
 INSERT INTO t1 VALUES ('-1234.1e2    ');
+Warnings:
+Note	1265	Data truncated for column 'a' at row 1
 INSERT INTO t1 VALUES ('123');
 INSERT INTO t1 VALUES ('-124');
 INSERT INTO t1 VALUES ('+125');
@@ -1520,6 +1522,8 @@ DROP TABLE t1;
 #
 CREATE TABLE t1 (a int);
 INSERT INTO t1 VALUES ('1 ');
+Warnings:
+Note	1265	Data truncated for column 'a' at row 1
 INSERT INTO t1 VALUES ('1 x');
 Warnings:
 Warning	1265	Data truncated for column 'a' at row 1

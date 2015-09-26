@@ -150,3 +150,29 @@ analyze format=json (select * from t1 tbl1 where a<5) union (select * from t1 tb
 drop table t0, t1;
 
 
+--echo #
+--echo # MDEV-7970: EXPLAIN FORMAT=JSON does not print HAVING
+--echo #
+create table t0(a int);
+insert into t0 values (0),(1),(2),(3);
+create table t1(a int);
+insert into t1 select A.a + B.a* 10 + C.a * 100 from t0 A, t0 B, t0 C;
+create table t2 (
+  a int, 
+  b int, 
+  key (a)
+);
+insert into t2 select A.a*1000 + B.a, A.a*1000 + B.a from t0 A, t1 B;
+--echo # normal HAVING
+--replace_regex /"(r_total_time_ms|r_buffer_size)": .*?,/"volatile parameter": "REPLACED",/
+analyze format=json select a, max(b) as TOP from t2 group by a having TOP > a;
+--echo # HAVING is always TRUE (not printed)
+--replace_regex /"(r_total_time_ms|r_buffer_size)": .*?,/"volatile parameter": "REPLACED",/
+analyze format=json select a, max(b) as TOP from t2 group by a having 1<>2;
+--echo # HAVING is always FALSE (intercepted by message)
+--replace_regex /"(r_total_time_ms|r_buffer_size)": .*?,/"volatile parameter": "REPLACED",/
+analyze format=json select a, max(b) as TOP from t2 group by a having 1=2;
+--echo # HAVING is absent
+--replace_regex /"(r_total_time_ms|r_buffer_size)": .*?,/"volatile parameter": "REPLACED",/
+analyze format=json select a, max(b) as TOP from t2 group by a;
+drop table t0, t1, t2;

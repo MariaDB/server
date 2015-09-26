@@ -629,8 +629,6 @@ static bool SE_initialized = false;
 
 ssize_t wsrep_sst_prepare (void** msg)
 {
-  const ssize_t ip_max= 256;
-  char ip_buf[ip_max];
   const char* addr_in=  NULL;
   const char* addr_out= NULL;
 
@@ -646,27 +644,34 @@ ssize_t wsrep_sst_prepare (void** msg)
     return ret;
   }
 
-  // Figure out SST address. Common for all SST methods
+  /*
+    Figure out SST receive address. Common for all SST methods.
+  */
+  char ip_buf[256];
+  const ssize_t ip_max= sizeof(ip_buf);
+
+  // Attempt 1: wsrep_sst_receive_address
   if (wsrep_sst_receive_address &&
     strcmp (wsrep_sst_receive_address, WSREP_SST_ADDRESS_AUTO))
   {
     addr_in= wsrep_sst_receive_address;
   }
+
+  //Attempt 2: wsrep_node_address
   else if (wsrep_node_address && strlen(wsrep_node_address))
   {
-    const char* const colon= strchr (wsrep_node_address, ':');
-    if (colon)
+    wsp::Address addr(wsrep_node_address);
+
+    if (!addr.is_valid())
     {
-      ptrdiff_t const len= colon - wsrep_node_address;
-      strncpy (ip_buf, wsrep_node_address, len);
-      ip_buf[len]= '\0';
-      addr_in= ip_buf;
+      WSREP_ERROR("Could not parse wsrep_node_address : %s",
+                  wsrep_node_address);
+      unireg_abort(1);
     }
-    else
-    {
-      addr_in= wsrep_node_address;
-    }
+    memcpy(ip_buf, addr.get_address(), addr.get_address_len());
+    addr_in= ip_buf;
   }
+  // Attempt 3: Try to get the IP from the list of available interfaces.
   else
   {
     ssize_t ret= wsrep_guess_ip (ip_buf, ip_max);
@@ -677,8 +682,7 @@ ssize_t wsrep_sst_prepare (void** msg)
     }
     else
     {
-      WSREP_ERROR("Could not prepare state transfer request: "
-                  "failed to guess address to accept state transfer at. "
+      WSREP_ERROR("Failed to guess address to accept state transfer. "
                   "wsrep_sst_receive_address must be set manually.");
       unireg_abort(1);
     }
@@ -778,8 +782,10 @@ static void sst_reject_queries(my_bool close_conn)
     if (TRUE == close_conn) wsrep_close_client_connections(FALSE);
 }
 
-static int sst_mysqldump_check_addr (const char* user, const char* pswd,
-                                     const char* host, const char* port)
+static int sst_mysqldump_check_addr (const char* user,
+                                     const char* pswd,
+                                     const char* host,
+                                     int port)
 {
   return 0;
 }
@@ -790,25 +796,17 @@ static int sst_donate_mysqldump (const char*         addr,
                                  wsrep_seqno_t       seqno,
                                  bool                bypass)
 {
-  size_t host_len;
-  const char* port = strchr (addr, ':');
+  char host[256];
+  wsp::Address address(addr);
 
-  if (port)
+  if (!address.is_valid())
   {
-    port += 1;
-    host_len = port - addr;
-  }
-  else
-  {
-    port = "";
-    host_len = strlen (addr) + 1;
+    WSREP_ERROR("Could not parse SST address : %s", addr);
+    return 0;
   }
 
-  char *host= (char *) alloca(host_len);
-
-  strncpy (host, addr, host_len - 1);
-  host[host_len - 1] = '\0';
-
+  memcpy(host, address.get_address(), address.get_address_len());
+  int port= address.get_port();
   const char* auth = sst_auth_real;
   const char* pswd = (auth) ? strchr (auth, ':') : NULL;
   size_t user_len;
@@ -843,7 +841,7 @@ static int sst_donate_mysqldump (const char*         addr,
               WSREP_SST_OPT_USER" '%s' "
               WSREP_SST_OPT_PSWD" '%s' "
               WSREP_SST_OPT_HOST" '%s' "
-              WSREP_SST_OPT_PORT" '%s' "
+              WSREP_SST_OPT_PORT" '%d' "
               WSREP_SST_OPT_LPORT" '%u' "
               WSREP_SST_OPT_SOCKET" '%s' "
               " %s "

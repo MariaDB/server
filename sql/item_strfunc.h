@@ -67,6 +67,11 @@ public:
   enum Item_result result_type () const { return STRING_RESULT; }
   void left_right_max_length();
   bool fix_fields(THD *thd, Item **ref);
+  void update_null_value()
+  {
+    StringBuffer<MAX_FIELD_WIDTH> tmp;
+    (void) val_str(&tmp);
+  }
 };
 
 

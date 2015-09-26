@@ -183,7 +183,7 @@ drop table t1,t2;
 #
 
 CREATE TABLE t1 (
- ts TIMESTAMP,
+ ts TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
  tsv TIMESTAMP AS (ADDDATE(ts, INTERVAL 1 DAY)) VIRTUAL
 ) ENGINE=MyISAM;
 
@@ -301,6 +301,15 @@ DROP TABLE t1;
 CREATE TABLE t1 (a DATETIME, b TIMESTAMP AS (TIMESTAMP(a)),c TIMESTAMP);
 SHOW CREATE TABLE t1;
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-8839 COLUMN_GET() produces warnings with no data
+--echo #
+SET @aaa= COLUMN_CREATE('price', _binary 0xF0F1F2F3F4F5F6F7);
+SELECT COLUMN_GET(@aaa, 'price' AS DECIMAL) aaa;
+SELECT COLUMN_GET(@aaa, 'price' AS INT) aaa;
+SELECT COLUMN_GET(@aaa, 'price' AS DOUBLE) aaa;
+
 
 --echo #
 --echo # End of 10.1 tests

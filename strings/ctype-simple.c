@@ -1619,7 +1619,10 @@ exp:    /* [ E [ <sign> ] <unsigned integer> ] */
       if ((negative_exp= (*str == '-')) || *str=='+')
       {
         if (++str == end)
+        {
+          str-= 2; /* 'e-' or 'e+' not followed by digits */
           goto ret_sign;
+        }
       }
       for (exponent= 0 ;
            str < end && (ch= (uchar) (*str - '0')) < 10;
@@ -1629,6 +1632,8 @@ exp:    /* [ E [ <sign> ] <unsigned integer> ] */
       }
       shift+= negative_exp ? -exponent : exponent;
     }
+    else
+      str--; /* 'e' not followed by digits */
   }
   
   if (shift == 0) /* No shift, check addon digit */

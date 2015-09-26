@@ -1161,6 +1161,8 @@ SET NAMES latin1;
 SELECT UPDATEXML(CONVERT('' USING swe7), TRUNCATE('',1), 0);
 UPDATEXML(CONVERT('' USING swe7), TRUNCATE('',1), 0)
 NULL
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: ''
 #
 # Bug#12375190: UPDATEXML CRASHES ON SIMPLE INPUTS
 #
@@ -1182,6 +1184,8 @@ aa bb
 SELECT ExtractValue('<a><b>abc</b><c>2</c><d>1</d></a>','substring(/a/b,..)');
 ExtractValue('<a><b>abc</b><c>2</c><d>1</d></a>','substring(/a/b,..)')
 
+Warnings:
+Warning	1292	Truncated incorrect INTEGER value: ''
 #
 # Bug#62429 XML: ExtractValue, UpdateXML max arg length 127 chars
 #
@@ -1241,6 +1245,8 @@ DROP TABLE t1;
 SELECT ExtractValue('<a><b>abc</b><c>2</c><d>1</d></a>','substring(/a/b,..)') AS e;
 e
 
+Warnings:
+Warning	1292	Truncated incorrect INTEGER value: ''
 SELECT ExtractValue('<a><b>abc</b><c>2</c><d>1</d></a>','substring(/a/b,/a/c)') AS e;
 e
 bc

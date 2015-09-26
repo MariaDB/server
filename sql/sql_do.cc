@@ -32,7 +32,7 @@ bool mysql_do(THD *thd, List<Item> &values)
   if (setup_fields(thd, 0, values, MARK_COLUMNS_NONE, 0, 0))
     DBUG_RETURN(TRUE);
   while ((value = li++))
-    value->val_int();
+    (void) value->is_null();
   free_underlaid_joins(thd, &thd->lex->select_lex);
 
   if (thd->is_error())

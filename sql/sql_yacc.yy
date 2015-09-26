@@ -6359,8 +6359,10 @@ field_type:
             {
               /* 
                 Unlike other types TIMESTAMP fields are NOT NULL by default.
+                Unless --explicit-defaults-for-timestamp is given.
               */
-              Lex->last_field->flags|= NOT_NULL_FLAG;
+              if (!opt_explicit_defaults_for_timestamp)
+                Lex->last_field->flags|= NOT_NULL_FLAG;
               $$= opt_mysql56_temporal_format ? MYSQL_TYPE_TIMESTAMP2
                                               : MYSQL_TYPE_TIMESTAMP;
             }

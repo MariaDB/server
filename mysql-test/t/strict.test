@@ -750,7 +750,7 @@ INSERT INTO t1 VALUES ('-101.55');
 INSERT INTO t1 VALUES ('-1010.55');
 --error 1264
 INSERT INTO t1 VALUES ('-100E+1');
---error 1366
+--error WARN_DATA_TRUNCATED
 INSERT INTO t1 VALUES ('-100E');
 --error 1264
 UPDATE t1 SET col1 =col1 * 50000 WHERE col1 =11;
@@ -764,7 +764,7 @@ INSERT INTO t1 (col1) VALUES ('');
 #--error 1265
 --error 1366
 INSERT INTO t1 (col1) VALUES ('a59b');
---error 1366
+--error WARN_DATA_TRUNCATED
 INSERT INTO t1 (col1) VALUES ('1a');
 INSERT IGNORE INTO t1 (col1) VALUES ('2a');
 INSERT IGNORE INTO t1 values (1/0);
@@ -796,9 +796,9 @@ UPDATE t1 SET col1 =col1 * 5000 WHERE col1 > 0;
 UPDATE t1 SET col2 =col2 / 0 WHERE col2 > 0;
 --error 1365
 UPDATE t1 SET col2= MOD(col2,0) WHERE col2 > 0;
---error 1265
+--error ER_TRUNCATED_WRONG_VALUE_FOR_FIELD
 INSERT INTO t1 (col1) VALUES ('');
---error 1265
+--error ER_TRUNCATED_WRONG_VALUE_FOR_FIELD
 INSERT INTO t1 (col1) VALUES ('a59b');
 --error 1265
 INSERT INTO t1 (col1) VALUES ('1a');
@@ -830,9 +830,9 @@ UPDATE t1 SET col1 =col1 * 5000 WHERE col1 > 0;
 UPDATE t1 SET col2 =col2 / 0 WHERE col2 > 0;
 --error 1365
 UPDATE t1 SET col2= MOD(col2,0) WHERE col2 > 0;
---error 1265
+--error ER_TRUNCATED_WRONG_VALUE_FOR_FIELD
 INSERT INTO t1 (col1) VALUES ('');
---error 1265
+--error ER_TRUNCATED_WRONG_VALUE_FOR_FIELD
 INSERT INTO t1 (col1) VALUES ('a59b');
 --error 1265
 INSERT INTO t1 (col1) VALUES ('1a');
@@ -1132,11 +1132,11 @@ drop table t1;
 #
 
 set @@sql_mode='traditional';
-create table t1(a int, b timestamp);
+create table t1(a int, b timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP);
 alter table t1 add primary key(a);
 show create table t1;
 drop table t1;
-create table t1(a int, b timestamp default 20050102030405);
+create table t1(a int, b timestamp not null default 20050102030405);
 alter table t1 add primary key(a);
 show create table t1;
 drop table t1;

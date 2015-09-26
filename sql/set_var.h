@@ -55,7 +55,7 @@ int mysql_del_sys_var_chain(sys_var *chain);
   optionally it can be assigned to, optionally it can have a command-line
   counterpart with the same name.
 */
-class sys_var
+class sys_var: protected Value_source // for double_from_string_with_check
 {
 public:
   sys_var *next;

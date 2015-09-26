@@ -440,6 +440,7 @@ my_bool opt_show_slave_auth_info;
 my_bool opt_log_slave_updates= 0;
 my_bool opt_replicate_annotate_row_events= 0;
 my_bool opt_mysql56_temporal_format=0, strict_password_validation= 1;
+my_bool opt_explicit_defaults_for_timestamp= 0;
 char *opt_slave_skip_errors;
 
 /*
@@ -5128,11 +5129,6 @@ static int init_server_components()
       {
         set_ports(); // this is also called in network_init() later but we need
                      // to know mysqld_port now - lp:1071882
-        /*
-          Plugin initialization (plugin_init()) hasn't happened yet, set
-          maria_hton to 0.
-        */
-        maria_hton= 0;
         wsrep_init_startup(true);
       }
     }
@@ -5206,6 +5202,39 @@ static int init_server_components()
     unireg_abort(1);
   }
   plugins_are_initialized= TRUE;  /* Don't separate from init function */
+
+#ifdef WITH_WSREP
+  /* Wait for wsrep threads to get created. */
+  if (wsrep_creating_startup_threads == 1) {
+    mysql_mutex_lock(&LOCK_thread_count);
+    while (wsrep_running_threads < 2)
+    {
+      mysql_cond_wait(&COND_thread_count, &LOCK_thread_count);
+    }
+
+    /* Now is the time to initialize threads for queries. */
+    THD *tmp;
+    I_List_iterator<THD> it(threads);
+    while ((tmp= it++))
+    {
+      if (tmp->wsrep_applier == true)
+      {
+        /*
+          Set THR_THD to temporally point to this THD to register all the
+          variables that allocates memory for this THD.
+        */
+        THD *current_thd_saved= current_thd;
+        set_current_thd(tmp);
+
+        tmp->init_for_queries();
+
+        /* Restore current_thd. */
+        set_current_thd(current_thd_saved);
+      }
+    }
+    mysql_mutex_unlock(&LOCK_thread_count);
+  }
+#endif
 
   /* we do want to exit if there are any other unknown options */
   if (remaining_argc > 1)
@@ -5296,6 +5325,9 @@ static int init_server_components()
 
   if (default_tmp_storage_engine && !*default_tmp_storage_engine)
     default_tmp_storage_engine= NULL;
+
+  if (enforced_storage_engine && !*enforced_storage_engine)
+    enforced_storage_engine= NULL;
 
   if (init_default_storage_engine(default_tmp_storage_engine, tmp_table_plugin))
     unireg_abort(1);
@@ -5411,7 +5443,6 @@ static void create_shutdown_thread()
 }
 
 #endif /* EMBEDDED_LIBRARY */
-
 
 #if (defined(_WIN32) || defined(HAVE_SMEM)) && !defined(EMBEDDED_LIBRARY)
 static void handle_connections_methods()
@@ -7471,7 +7502,7 @@ struct my_option my_long_options[]=
    &opt_show_slave_auth_info, &opt_show_slave_auth_info, 0,
    GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"skip-bdb", OPT_DEPRECATED_OPTION,
-   "Deprecated option; Exist only for compatiblity with old my.cnf files",
+   "Deprecated option; Exist only for compatibility with old my.cnf files",
    0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0},
 #ifndef DISABLE_GRANT_OPTIONS
   {"skip-grant-tables", 0,
@@ -7590,7 +7621,6 @@ struct my_option my_long_options[]=
   MYSQL_COMPATIBILITY_OPTION("log-bin-use-v1-row-events"),
   MYSQL_TO_BE_IMPLEMENTED_OPTION("default-authentication-plugin"),
   MYSQL_COMPATIBILITY_OPTION("binlog-max-flush-queue-time"),
-  MYSQL_TO_BE_IMPLEMENTED_OPTION("explicit-defaults-for-timestamp"),
   MYSQL_COMPATIBILITY_OPTION("master-info-repository"),
   MYSQL_COMPATIBILITY_OPTION("relay-log-info-repository"),
   MYSQL_SUGGEST_ANALOG_OPTION("binlog-rows-query-log-events", "--binlog-annotate-row-events"),
@@ -8861,7 +8891,7 @@ mysqld_get_one_option(int optid, const struct my_option *opt, char *argument)
     break;
   case OPT_DEPRECATED_OPTION:
     sql_print_warning("'%s' is deprecated. It does nothing and exists only "
-                      "for compatiblity with old my.cnf files.",
+                      "for compatibility with old my.cnf files.",
                       opt->name);
     break;
   case OPT_MYSQL_COMPATIBILITY:
@@ -9377,6 +9407,16 @@ static int get_options(int *argc_ptr, char ***argv_ptr)
                       global_system_variables.net_buffer_length, 
                       global_system_variables.max_allowed_packet);
   }
+
+  /*
+    TIMESTAMP columns get implicit DEFAULT values when
+    --explicit_defaults_for_timestamp is not set.
+  */
+  if (!opt_help && !opt_explicit_defaults_for_timestamp)
+    sql_print_warning("TIMESTAMP with implicit DEFAULT value is deprecated. "
+                      "Please use --explicit_defaults_for_timestamp server "
+                      "option (see documentation for more details).");
+
 
   if (log_error_file_ptr != disabled_my_option)
     opt_error_log= 1;

@@ -1160,6 +1160,8 @@ Warning	1292	Truncated incorrect DOUBLE value: 'notnumber'
 SELECT * FROM t1, t2 WHERE num=substring(str from 1 for 6);
 str	num
 notnumber	0
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: 'notnum'
 DROP TABLE t1,t2;
 CREATE TABLE t1(
 id int(11) NOT NULL auto_increment,
@@ -1352,6 +1354,8 @@ cast(rtrim('  20.06 ') as decimal(19,2))
 select cast(ltrim('  20.06 ') as decimal(19,2));
 cast(ltrim('  20.06 ') as decimal(19,2))
 20.06
+Warnings:
+Note	1292	Truncated incorrect DECIMAL value: '20.06 '
 select cast(rtrim(ltrim('  20.06 ')) as decimal(19,2));
 cast(rtrim(ltrim('  20.06 ')) as decimal(19,2))
 20.06
@@ -2893,6 +2897,8 @@ NULL
 SELECT ((127.1) not in ((rpad(1.0,2048,1)),(''),(-1.1)));
 ((127.1) not in ((rpad(1.0,2048,1)),(''),(-1.1)))
 1
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: ''
 SELECT ((0xf3) * (rpad(1.0,2048,1)) << (0xcc));
 ((0xf3) * (rpad(1.0,2048,1)) << (0xcc))
 0
@@ -2913,7 +2919,7 @@ format(rpad('111111111.1',
 1111111,
 '999999999999999999999999999999999999999999'),0,'be_BY')
 ;
-DO
+SELECT
 round(
 concat( (
 coalesce( (
@@ -2928,9 +2934,14 @@ sha1('P'),
 )
 )
 )
-);
+) AS r;
+r
+0
 Warnings:
+Warning	1292	Truncated incorrect INTEGER value: '511993d3c99719e38a6779073019dacd7178ddb9'
 Warning	1292	Truncated incorrect DECIMAL value: '[.DC2.]'
+Warning	1292	Truncated incorrect INTEGER value: '511993d3c99719e38a6779073019dacd7178ddb9'
+Warning	1292	Truncated incorrect DOUBLE value: '0.000000000000000000000000000000111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111'
 SET @@global.max_allowed_packet:= @tmp_max;
 SELECT @tmp_max:= @@global.max_allowed_packet;
 @tmp_max:= @@global.max_allowed_packet

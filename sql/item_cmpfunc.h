@@ -48,6 +48,7 @@ class Arg_comparator: public Sql_alloc
 {
   Item **a, **b;
   Item_result m_compare_type;
+  CHARSET_INFO *m_compare_collation;
   arg_cmp_func func;
   Item_func_or_sum *owner;
   bool set_null;                   // TRUE <=> set owner->null_value
@@ -58,43 +59,35 @@ class Arg_comparator: public Sql_alloc
   Item *a_cache, *b_cache;         // Cached values of a and b items
                                    //   when one of arguments is NULL.
   int set_compare_func(Item_func_or_sum *owner, Item_result type);
-  inline int set_compare_func(Item_func_or_sum *owner_arg)
-  {
-    return set_compare_func(owner_arg, item_cmp_type(*a, *b));
-  }
-  bool agg_arg_charsets_for_comparison();
+  int set_cmp_func(Item_func_or_sum *owner_arg, Item **a1, Item **a2);
+
+  int compare_temporal(enum_field_types type);
+  int compare_e_temporal(enum_field_types type);
 
 public:
-  DTCollation cmp_collation;
   /* Allow owner function to use string buffers. */
   String value1, value2;
 
   Arg_comparator(): m_compare_type(STRING_RESULT),
+    m_compare_collation(&my_charset_bin),
     set_null(TRUE), comparators(0), thd(0),
     a_cache(0), b_cache(0) {};
   Arg_comparator(Item **a1, Item **a2): a(a1), b(a2),
-    m_compare_type(STRING_RESULT), set_null(TRUE),
-    comparators(0), thd(0), a_cache(0), b_cache(0) {};
+    m_compare_type(STRING_RESULT),
+    m_compare_collation(&my_charset_bin),
+    set_null(TRUE), comparators(0), thd(0),
+    a_cache(0), b_cache(0) {};
 
-private:
-  int set_cmp_func(Item_func_or_sum *owner_arg,
-			  Item **a1, Item **a2,
-			  Item_result type);
 public:
-  void set_compare_type(Item_result type)
-  {
-    m_compare_type= type;
-  }
   inline int set_cmp_func(Item_func_or_sum *owner_arg,
 			  Item **a1, Item **a2, bool set_null_arg)
   {
     set_null= set_null_arg;
-    return set_cmp_func(owner_arg, a1, a2, item_cmp_type(*a1, *a2));
+    return set_cmp_func(owner_arg, a1, a2);
   }
   inline int compare() { return (this->*func)(); }
 
   int compare_string();		 // compare args[0] & args[1]
-  int compare_binary_string();	 // compare args[0] & args[1]
   int compare_real();            // compare args[0] & args[1]
   int compare_decimal();         // compare args[0] & args[1]
   int compare_int_signed();      // compare args[0] & args[1]
@@ -103,7 +96,6 @@ public:
   int compare_int_unsigned();
   int compare_row();             // compare args[0] & args[1]
   int compare_e_string();	 // compare args[0] & args[1]
-  int compare_e_binary_string(); // compare args[0] & args[1]
   int compare_e_real();          // compare args[0] & args[1]
   int compare_e_decimal();       // compare args[0] & args[1]
   int compare_e_int();           // compare args[0] & args[1]
@@ -111,13 +103,13 @@ public:
   int compare_e_row();           // compare args[0] & args[1]
   int compare_real_fixed();
   int compare_e_real_fixed();
-  int compare_datetime();        // compare args[0] & args[1] as DATETIMEs
-  int compare_e_datetime();
+  int compare_datetime()   { return compare_temporal(MYSQL_TYPE_DATETIME); }
+  int compare_e_datetime() { return compare_e_temporal(MYSQL_TYPE_DATETIME); }
+  int compare_time()       { return compare_temporal(MYSQL_TYPE_TIME); }
+  int compare_e_time()     { return compare_e_temporal(MYSQL_TYPE_TIME); }
 
   Item** cache_converted_constant(THD *thd, Item **value, Item **cache,
                                   Item_result type);
-  void set_datetime_cmp_func(Item_func_or_sum *owner_arg,
-                             Item **a1, Item **b1);
   static arg_cmp_func comparator_matrix [6][2];
   inline bool is_owner_equal_func()
   {
@@ -125,6 +117,7 @@ public:
            ((Item_func*)owner)->functype() == Item_func::EQUAL_FUNC);
   }
   Item_result compare_type() const { return m_compare_type; }
+  CHARSET_INFO *compare_collation() const { return m_compare_collation; }
   Arg_comparator *subcomparators() const { return comparators; }
   void cleanup()
   {
@@ -411,8 +404,7 @@ public:
   {
     return cmp.set_cmp_func(this, tmp_arg, tmp_arg + 1, true);
   }
-  CHARSET_INFO *compare_collation() const
-  { return cmp.cmp_collation.collation; }
+  CHARSET_INFO *compare_collation() const { return cmp.compare_collation(); }
   Item_result compare_type() const { return cmp.compare_type(); }
   Arg_comparator *get_comparator() { return &cmp; }
   void cleanup()
@@ -941,7 +933,7 @@ public:
   bool is_null();
   Item* propagate_equal_fields(THD *thd, const Context &ctx, COND_EQUAL *cond)
   {
-    Context cmpctx(ANY_SUBST, cmp.compare_type(), cmp.cmp_collation.collation);
+    Context cmpctx(ANY_SUBST, cmp.compare_type(), cmp.compare_collation());
     args[0]->propagate_equal_fields_and_change_item_tree(thd, cmpctx,
                                                          cond, &args[0]);
     args[1]->propagate_equal_fields_and_change_item_tree(thd, cmpctx,
@@ -2052,12 +2044,6 @@ class Item_equal: public Item_bool_func
     the equal_items should be ignored.
   */
   bool cond_true;
-  /* 
-    The comparator used to compare constants equal to fields from equal_items
-    as datetimes. The comparator is used only if compare_as_dates=TRUE
-  */
-  Arg_comparator cmp;
- 
   /*
     For Item_equal objects inside an OR clause: one of the fields that were
     used in the original equality.
@@ -2066,6 +2052,9 @@ class Item_equal: public Item_bool_func
 
   bool link_equal_fields;
 
+  Item_result m_compare_type;
+  CHARSET_INFO *m_compare_collation;
+  String cmp_value1, cmp_value2;
 public:
 
   COND_EQUAL *upper_levels;       /* multiple equalities of upper and levels */
@@ -2103,9 +2092,8 @@ public:
   bool walk(Item_processor processor, bool walk_subquery, uchar *arg);
   Item *transform(THD *thd, Item_transformer transformer, uchar *arg);
   virtual void print(String *str, enum_query_type query_type);
-  Item_result compare_type() const { return cmp.compare_type(); }
-  CHARSET_INFO *compare_collation() const
-  { return cmp.cmp_collation.collation; }
+  Item_result compare_type() const { return m_compare_type; }
+  CHARSET_INFO *compare_collation() const { return m_compare_collation; }
 
   void set_context_field(Item_field *ctx_field) { context_field= ctx_field; }
   void set_link_equal_fields(bool flag) { link_equal_fields= flag; }
@@ -2309,7 +2297,7 @@ inline bool is_cond_or(Item *item)
 Item *and_expressions(Item *a, Item *b, Item **org_item);
 
 longlong get_datetime_value(THD *thd, Item ***item_arg, Item **cache_arg,
-                            Item *warn_item, bool *is_null);
+                            enum_field_types f_type, bool *is_null);
 
 
 bool get_mysql_time_from_str(THD *thd, String *str, timestamp_type warn_type,

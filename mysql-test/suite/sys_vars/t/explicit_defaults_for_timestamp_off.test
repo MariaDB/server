@@ -1,0 +1,8 @@
+--disable_query_log
+if (`SELECT @@explicit_defaults_for_timestamp`)
+{
+  Skip Need explicit-defaults-for-timestamp=off;
+}
+--enable_query_log
+
+--source inc/explicit_defaults_for_timestamp.inc

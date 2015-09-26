@@ -22,7 +22,7 @@ DEB_UPSTREAM_VERSION ?= $(shell echo $(DEB_NOEPOCH_VERSION) | sed 's/-[^-]*$$//'
 DEB_UPSTREAM_VERSION_MAJOR_MINOR := $(shell echo $(DEB_UPSTREAM_VERSION) | sed -r -n 's/^([0-9]+\.[0-9]+).*/\1/p')
 
 DISTRIBUTION = $(shell lsb_release -i -s)
-RELEASE = $(shell lsb_release -r -s | sed 's/\..*//' )
+RELEASE = $(shell lsb_release -r -s)
 
 MAKE_J = -j$(shell if [ -f /proc/cpuinfo ] ; then grep -c processor.* /proc/cpuinfo ; else echo 1 ; fi)
 ifeq (${MAKE_J}, -j0)
@@ -66,7 +66,7 @@ endif
 	( test -d $(builddir) || mkdir $(builddir) ) && cd $(builddir) && \
 	sh -c 'PATH=$${MYSQL_BUILD_PATH:-"/usr/local/bin:/usr/bin:/bin"} \
 			CC=$${MYSQL_BUILD_CC:-gcc} \
-			CFLAGS=$${MYSQL_BUILD_CFLAGS:-"-O2 -fno-omit-frame-pointer -g -pipe -Wall -Wno-uninitialized $$(case `lsb_release -sc` in (lenny) echo -DWORKAROUND_GCC_4_3_2_BUG ;; esac)"} \
+			CFLAGS=$${MYSQL_BUILD_CFLAGS:-"-O2 -fno-omit-frame-pointer -g -pipe -Wall -Wno-uninitialized"} \
 			CXX=$${MYSQL_BUILD_CXX:-g++} \
 			CXXFLAGS=$${MYSQL_BUILD_CXXFLAGS:-"-O2 -fno-omit-frame-pointer -g -pipe -Wall -Wno-uninitialized"} \
 		cmake .. \
@@ -74,7 +74,7 @@ endif
 		-DBUILD_CONFIG=mysql_release \
 		-DCOMPILATION_COMMENT="mariadb.org binary distribution" \
 		-DSYSTEM_TYPE="debian-linux-gnu" \
-		-DDEB=debian'
+		-DDEB=ubuntu'
 
 	touch $@
 
@@ -189,18 +189,17 @@ install: build
 	# mariadb-test
 	mv $(TMP)/usr/mysql-test	$(TMP)/usr/share/mysql
 
-	# lintian overrides
-	mkdir -p $(TMP)/usr/share/lintian/overrides/
-	cp debian/mysql-common.lintian-overrides      $(TMP)/usr/share/lintian/overrides/mysql-common
-	cp debian/mariadb-server-10.1.lintian-overrides $(TMP)/usr/share/lintian/overrides/mariadb-server-10.1
-	cp debian/mariadb-client-10.1.lintian-overrides $(TMP)/usr/share/lintian/overrides/mariadb-client-10.1
-
 	# For 5.0 -> 10.1 transition
 	d=$(TMP)/usr/share/mysql-common/internal-use-only/; \
 	mkdir -p $$d; \
 	cp debian/mariadb-server-10.1.mysql.init $$d/_etc_init.d_mysql; \
 	cp debian/mariadb-server-10.1.mysql-server.logrotate $$d/_etc_logrotate.d_mysql-server; \
 	cp debian/additions/debian-start $$d/_etc_mysql_debian-start;
+
+	# install AppArmor profile
+	install -D -m 644 debian/apparmor-profile $(TMP)/etc/apparmor.d/usr.sbin.mysqld
+	# install Apport hook
+	install -D -m 644 debian/mariadb-server-10.1.py $(TMP)/usr/share/apport/package-hooks/source_mariadb-10.1.py
 
 	autorm=debian/autorm-file;                                      \
 	rm -f $$autorm;                                                 \

@@ -187,50 +187,6 @@ public:
     else
       max_length= (uint32) max_result_length;
   }
-  bool agg_arg_charsets(DTCollation &c, Item **items, uint nitems,
-                        uint flags, int item_sep)
-  {
-    return agg_item_charsets(c, func_name(), items, nitems, flags, item_sep);
-  }
-  /*
-    Aggregate arguments for string result, e.g: CONCAT(a,b)
-    - convert to @@character_set_connection if all arguments are numbers
-    - allow DERIVATION_NONE
-  */
-  bool agg_arg_charsets_for_string_result(DTCollation &c,
-                                          Item **items, uint nitems,
-                                          int item_sep= 1)
-  {
-    return agg_item_charsets_for_string_result(c, func_name(),
-                                               items, nitems, item_sep);
-  }
-  /*
-    Aggregate arguments for comparison, e.g: a=b, a LIKE b, a RLIKE b
-    - don't convert to @@character_set_connection if all arguments are numbers
-    - don't allow DERIVATION_NONE
-  */
-  bool agg_arg_charsets_for_comparison(DTCollation &c,
-                                       Item **items, uint nitems,
-                                       int item_sep= 1)
-  {
-    return agg_item_charsets_for_comparison(c, func_name(),
-                                            items, nitems, item_sep);
-  }
-  /*
-    Aggregate arguments for string result, when some comparison
-    is involved internally, e.g: REPLACE(a,b,c)
-    - convert to @@character_set_connection if all arguments are numbers
-    - disallow DERIVATION_NONE
-  */
-  bool agg_arg_charsets_for_string_result_with_comparison(DTCollation &c,
-                                                          Item **items,
-                                                          uint nitems,
-                                                          int item_sep= 1)
-  {
-    return agg_item_charsets_for_string_result_with_comparison(c, func_name(),
-                                                               items, nitems,
-                                                               item_sep);
-  }
   Item *transform(THD *thd, Item_transformer transformer, uchar *arg);
   Item* compile(THD *thd, Item_analyzer analyzer, uchar **arg_p,
                 Item_transformer transformer, uchar *arg_t);
@@ -1723,7 +1679,7 @@ public:
   my_decimal *val_decimal_result(my_decimal *);
   bool is_null_result();
   bool update_hash(void *ptr, uint length, enum Item_result type,
-  		   CHARSET_INFO *cs, Derivation dv, bool unsigned_arg);
+                   CHARSET_INFO *cs, bool unsigned_arg);
   bool send(Protocol *protocol, String *str_arg);
   void make_field(Send_field *tmp_field);
   bool check(bool use_result_field);
