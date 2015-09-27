@@ -756,12 +756,11 @@ JOIN::prepare(Item ***rref_pointer_array,
   }
 
   table_count= select_lex->leaf_tables.elements;
- 
+
   TABLE_LIST *tbl;
   List_iterator_fast<TABLE_LIST> li(select_lex->leaf_tables);
   while ((tbl= li++))
   {
-    //table_count++; /* Count the number of tables in the join. */
     /*
       If the query uses implicit grouping where the select list contains both
       aggregate functions and non-aggregate fields, any non-aggregated field
@@ -805,8 +804,9 @@ JOIN::prepare(Item ***rref_pointer_array,
     thd->lex->allow_sum_func|= (nesting_map)1 << select_lex_arg->nest_level;
     select_lex->having_fix_field= 1;
     /*
-      Wrap alone field in HAVING clause in case it will be outer field of subquery
-      which need persistent pointer on it, but having could be changed by optimizer
+      Wrap alone field in HAVING clause in case it will be outer field
+      of subquery which need persistent pointer on it, but having
+      could be changed by optimizer
     */
     if (having->type() == Item::REF_ITEM &&
         ((Item_ref *)having)->ref_type() == Item_ref::REF)
@@ -1099,8 +1099,8 @@ JOIN::optimize_inner()
     before 'optimize' from upper query 'optimize' to allow semijoin
     conversion happened (which done in the same way.
   */
-  if(select_lex->first_cond_optimization &&
-     conds && conds->walk(&Item::exists2in_processor, 0, (uchar *)thd))
+  if (select_lex->first_cond_optimization &&
+      conds && conds->walk(&Item::exists2in_processor, 0, (uchar *)thd))
     DBUG_RETURN(1);
   /*
 TODO: make view to decide if it is possible to write to WHERE directly or make Semi-Joins able to process ON condition if it is possible
@@ -2536,9 +2536,10 @@ void JOIN::exec_inner()
   }
 
   /*
-    Evaluate all constant expressions with subqueries in the ORDER/GROUP clauses
-    to make sure that all subqueries return a single row. The evaluation itself
-    will trigger an error if that is not the case.
+    Evaluate all constant expressions with subqueries in the
+    ORDER/GROUP clauses to make sure that all subqueries return a
+    single row. The evaluation itself will trigger an error if that is
+    not the case.
   */
   if (exec_const_order_group_cond.elements &&
       !(select_options & SELECT_DESCRIBE))
@@ -2763,7 +2764,6 @@ void JOIN::exec_inner()
 	(curr_join->tmp_all_fields1.elements-
 	 curr_join->tmp_fields_list1.elements);
       
-      
       if (exec_tmp_table2)
 	curr_tmp_table= exec_tmp_table2;
       else
@@ -2878,7 +2878,6 @@ void JOIN::exec_inner()
     if (curr_tmp_table->distinct)
       curr_join->select_distinct=0;		/* Each row is unique */
     
-
     curr_join->join_free();			/* Free quick selects */
 
     if (curr_join->select_distinct && ! curr_join->group_list)
@@ -11880,7 +11879,6 @@ void JOIN::cleanup(bool full)
         }
       }
       cleaned= true;
-
     }
     else
     {
@@ -16071,11 +16069,15 @@ void setup_tmp_table_column_bitmaps(TABLE *table, uchar *bitmaps)
   @param param                a description used as input to create the table
   @param fields               list of items that will be used to define
                               column types of the table (also see NOTES)
-  @param group                TODO document
+  @param group                Create an unique key over all group by fields.
+                              This is used to retrive the row during
+                              end_write_group() and update them.
   @param distinct             should table rows be distinct
   @param save_sum_fields      see NOTES
-  @param select_options
-  @param rows_limit
+  @param select_options       Optiions for how the select is run.
+                              See sql_priv.h for a list of options.
+  @param rows_limit           Maximum number of rows to insert into the
+                              temporary table
   @param table_alias          possible name of the temporary table that can
                               be used for name resolving; can be "".
 */
@@ -16375,9 +16377,9 @@ create_tmp_table(THD *thd, TMP_TABLE_PARAM *param, List<Item> &fields,
                          /*
                            If item->marker == 4 then we force create_tmp_field
                            to create a 64-bit longs for BIT fields because HEAP
-                           tables can't index BIT fields directly. We do the same
-                           for distinct, as we want the distinct index to be
-                           usable in this case too.
+                           tables can't index BIT fields directly. We do the
+                           same for distinct, as we want the distinct index
+                           to be usable in this case too.
                          */
                          item->marker == 4  || param->bit_fields_as_long,
                          force_copy_fields,
@@ -16397,16 +16399,19 @@ create_tmp_table(THD *thd, TMP_TABLE_PARAM *param, List<Item> &fields,
           created temporary table is not to be used for subquery
           materialization.
 
-          The reason is that for subqueries that require materialization as part
-          of their plan, we create the 'external' temporary table needed for IN
-          execution, after the 'internal' temporary table needed for grouping.
-          Since both the external and the internal temporary tables are created
-          for the same list of SELECT fields of the subquery, setting
-          'result_field' for each invocation of create_tmp_table overrides the
-           previous value of 'result_field'.
+          The reason is that for subqueries that require
+          materialization as part of their plan, we create the
+          'external' temporary table needed for IN execution, after
+          the 'internal' temporary table needed for grouping.  Since
+          both the external and the internal temporary tables are
+          created for the same list of SELECT fields of the subquery,
+          setting 'result_field' for each invocation of
+          create_tmp_table overrides the previous value of
+          'result_field'.
 
-          The condition below prevents the creation of the external temp table
-          to override the 'result_field' that was set for the internal temp table.
+          The condition below prevents the creation of the external
+          temp table to override the 'result_field' that was set for
+          the internal temp table.
         */
         if (!agg_item->result_field || !param->materialized_subquery)
           agg_item->result_field= new_field;
@@ -17710,6 +17715,7 @@ Next_select_func setup_end_select_func(JOIN *join)
   @retval
     -1  if error should be sent
 */
+
 static int
 do_select(JOIN *join,List<Item> *fields,TABLE *table,Procedure *procedure)
 {
@@ -17877,12 +17883,14 @@ int rr_sequential_and_unpack(READ_RECORD *info)
 
 
 /*
-  Fill the join buffer with partial records, retrieve all full  matches for them   
+  Fill the join buffer with partial records, retrieve all full matches for
+  them
 
   SYNOPSIS
     sub_select_cache()
-      join     pointer to the structure providing all context info for the query
-      join_tab the first next table of the execution plan to be retrieved
+      join         pointer to the structure providing all context info for the
+                   query
+      join_tab     the first next table of the execution plan to be retrieved
       end_records  true when we need to perform final steps of the retrieval
 
   DESCRIPTION
@@ -21059,8 +21067,9 @@ create_sort_index(THD *thd, JOIN *join, ORDER *order,
   if (join->pre_sort_join_tab)
   {
     /*
-      we've already been in this function, and stashed away the original access 
-      method in join->pre_sort_join_tab, restore it now.
+      we've already been in this function, and stashed away the
+      original access method in join->pre_sort_join_tab, restore it
+      now.
     */
     
     /* First, restore state of the handler */
@@ -22795,11 +22804,11 @@ change_to_use_tmp_fields(THD *thd, Item **ref_pointer_array,
         if (!suv || !new_field)
           DBUG_RETURN(true);                  // Fatal error
         /*
-          We are replacing the argument of Item_func_set_user_var
-          after its value has been read.  The argument's null_value
-          should be set by now, so we must set it explicitly for the
-          replacement argument since the null_value may be read
-          without any preceding call to val_*().
+          We are replacing the argument of Item_func_set_user_var after
+          its value has been read.  The argument's null_value should be
+          set by now, so we must set it explicitly for the replacement
+          argument since the null_value may be read without any
+          preceeding call to val_*().
         */
         new_field->update_null_value();
         List<Item> list;

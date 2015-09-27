@@ -8041,7 +8041,7 @@ void make_leaves_list(THD *thd, List<TABLE_LIST> &list, TABLE_LIST *tables,
     from_clause   Top-level list of table references in the FROM clause
     tables	  Table list (select_lex->table_list)
     leaves        List of join table leaves list (select_lex->leaf_tables)
-    refresh       It is onle refresh for subquery
+    refresh       It is only refresh for subquery
     select_insert It is SELECT ... INSERT command
     full_table_list a parameter to pass to the make_leaves_list function
 
