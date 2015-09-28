@@ -286,6 +286,12 @@ fi
 
 db_stop # in case invoke failes
 
+# dh_systemd_start doesn't emit anything since we still ship /etc/init.d/mysql.
+# Thus MariaDB server is started via init.d script, which in turn redirects to
+# systemctl. If we upgrade from MySQL mysql.service may be masked, which also
+# means init.d script is disabled. Unmask mysql service explicitely.
+deb-systemd-helper unmask mysql.service >/dev/null || true
+
 #DEBHELPER#
 
 exit 0

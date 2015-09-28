@@ -1942,15 +1942,16 @@ loop:
 			}
 		}
 
-		progress=(ulong) (i * 100) / hash_get_n_cells(recv_sys->addr_hash);
+                progress = (ulong) (i * 100)
+                                   / hash_get_n_cells(recv_sys->addr_hash);
 		if (has_printed
-		    && progress  != ((i + 1) * 100)
-                        / hash_get_n_cells(recv_sys->addr_hash)) {
+		    && progress
+		    != ((i + 1) * 100)
+		    / hash_get_n_cells(recv_sys->addr_hash)) {
 
-			fprintf(stderr, "%lu ", progress);
-			sd_notifyf(0, "STATUS=Applying batch of log records for Innodb: "
-                    "Progress %lu", progress);
-
+                        fprintf(stderr, "%lu ", progress);
+                        sd_notifyf(0, "STATUS=Applying batch of log records for"
+                                   " InnoDB: Progress %lu", progress);
 		}
 	}
 
@@ -2164,8 +2165,9 @@ skip_this_recv_addr:
 			fprintf(stderr, "%lu ",
 				(ulong) ((100 * i) / n_hash_cells));
 			fflush(stderr);
-			sd_notifyf(0, "STATUS=Applying batch of log records for backup Innodb: "
-                    "Progress %lu", (ulong) (100 * i) / n_hash_cells);
+			sd_notifyf(0, "STATUS=Applying batch of log records for"
+				   " backup InnoDB: Progress %lu",
+				   (ulong) (100 * i) / n_hash_cells);
 		}
 	}
 	sd_notify(0, "STATUS=InnoDB: Apply batch for backup completed");

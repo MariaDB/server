@@ -32,6 +32,7 @@ Alias=mysqld.service
 Type=notify
 
 # Setting this to true can break replication and the Type=notify settings
+# See also bind-address mysqld option.
 PrivateNetwork=false
 
 ##############################################################################
@@ -39,6 +40,7 @@ PrivateNetwork=false
 ##
 
 User=mysql
+Group=mysql
 
 # Execute pre and post scripts as root, otherwise it does it as User=
 # PermissionsStartOnly=true
@@ -47,10 +49,12 @@ User=mysql
 # ExecStartPre=/usr/bin/mysql_install_db
 
 # Start main service
-# EXTRA_ARGS here is for users to set in /etc/systemd/system/mariadb.service.d/MY_SPECIAL.conf
-# Use the [service] section and Environment="EXTRA_ARGS=...".
+# MYSQLD_OPTS here is for users to set in /etc/systemd/system/mariadb.service.d/MY_SPECIAL.conf
+# Use the [service] section and Environment="MYSQLD_OPTS=...".
 # This isn't a replacement for my.cnf.
-ExecStart=/usr/sbin/mysqld $EXTRA_ARGS
+@SYSTEMD_EXECSTARTPRE@
+ExecStart=/usr/sbin/mysqld $MYSQLD_OPTS
+@SYSTEMD_EXECSTARTPOST@
 
 KillMode=process
 KillSignal=SIGTERM
@@ -58,14 +62,12 @@ KillSignal=SIGTERM
 # Don't want to see an automated SIGKILL ever
 SendSIGKILL=no
 
-# Exit status 1 is a fatal config error. Restarting won't help.
-RestartPreventExitStatus=1
-Restart=on-failure
+# Restart crashed server only, on-failure would also restart, for example, when
+# my.cnf contains unknown option
+Restart=on-abort
 RestartSec=5s
 
-PrivateDevices=true
-
-UMask=077
+UMask=007
 
 ##############################################################################
 ## USERs can override
@@ -78,10 +80,10 @@ UMask=077
 
 # Kernels like killing mysqld when out of memory because its big.
 # Lets temper that preference a little.
-OOMScoreAdjust=-600
+# OOMScoreAdjust=-600
 
 # Explicitly start with high IO priority
-BlockIOWeight=1000
+# BlockIOWeight=1000
 
 # If you don't use the /tmp directory for SELECT ... OUTFILE and
 # LOAD DATA INFILE you can enable PrivateTmp=true for a little more security.
@@ -94,7 +96,7 @@ PrivateTmp=false
 ##
 
 # Number of files limit. previously [mysqld_safe] open-file-limit
-LimitNOFILE=16364
+# LimitNOFILE=16364
 
 # Maximium core size. previously [mysqld_safe] core-file-size
 # LimitCore=
