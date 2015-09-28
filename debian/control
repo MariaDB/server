@@ -21,6 +21,8 @@ Build-Depends: bison,
                po-debconf,
                psmisc,
                zlib1g-dev (>= 1:1.1.3-5~),
+               libsystemd-daemon-dev | libsystemd-dev,
+               dh-systemd,
                ${MAYBE_LIBCRACK}
                libjemalloc-dev (>= 3.0.0~) [linux-any],
                libsystemd-daemon-dev | libsystemd-dev, dh-systemd

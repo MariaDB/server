@@ -6533,10 +6533,8 @@ void handle_connections_sockets()
   socket_flags=fcntl(mysql_socket_getfd(unix_sock), F_GETFL, 0);
 #endif
 
-#ifdef HAVE_SYSTEMD
   sd_notify(0, "READY=1\n"
             "STATUS=Taking your SQL requests now...");
-#endif
 
   DBUG_PRINT("general",("Waiting for connections."));
   MAYBE_BROKEN_SYSCALL;
