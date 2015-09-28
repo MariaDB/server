@@ -133,12 +133,16 @@ Warning	1292	Truncated incorrect DOUBLE value: '1.5b'
 SELECT (SELECT 'b',2,'a') = ROW(1.5,2,'a');
 (SELECT 'b',2,'a') = ROW(1.5,2,'a')
 0
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: 'b'
 SELECT (SELECT 1.5,2,'a') = ROW(1.5,'2','a');
 (SELECT 1.5,2,'a') = ROW(1.5,'2','a')
 1
 SELECT (SELECT 1.5,'c','a') = ROW(1.5,2,'a');
 (SELECT 1.5,'c','a') = ROW(1.5,2,'a')
 0
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: 'c'
 SELECT (SELECT * FROM (SELECT 'test' a,'test' b) a);
 ERROR 21000: Operand should contain 1 column(s)
 SELECT 1 as a,(SELECT a+a) b,(SELECT b);
@@ -4661,6 +4665,8 @@ SELECT 1 FROM t1 WHERE 1 < SOME (SELECT 2.0 FROM t2);
 1
 SELECT 1 FROM t1 WHERE 1 < SOME (SELECT 'a' FROM t2);
 1
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: 'a'
 SELECT 1 FROM t1 WHERE 1 < SOME (SELECT a1 FROM t2);
 1
 1
@@ -5926,6 +5932,8 @@ SELECT 1 FROM t1 WHERE 1 < SOME (SELECT 2.0 FROM t2);
 1
 SELECT 1 FROM t1 WHERE 1 < SOME (SELECT 'a' FROM t2);
 1
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: 'a'
 SELECT 1 FROM t1 WHERE 1 < SOME (SELECT a1 FROM t2);
 1
 1

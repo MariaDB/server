@@ -9118,28 +9118,18 @@ bool Item_cache_str::cache_value()
 double Item_cache_str::val_real()
 {
   DBUG_ASSERT(fixed == 1);
-  int err_not_used;
-  char *end_not_used;
   if (!has_value())
     return 0.0;
-  if (value)
-    return my_strntod(value->charset(), (char*) value->ptr(),
-		      value->length(), &end_not_used, &err_not_used);
-  return (double) 0;
+  return value ? double_from_string_with_check(value) :  0.0;
 }
 
 
 longlong Item_cache_str::val_int()
 {
   DBUG_ASSERT(fixed == 1);
-  int err;
   if (!has_value())
     return 0;
-  if (value)
-    return my_strntoll(value->charset(), value->ptr(),
-		       value->length(), 10, (char**) 0, &err);
-  else
-    return (longlong)0;
+  return value ? longlong_from_string_with_check(value) : 0;
 }
 
 
@@ -9157,11 +9147,7 @@ my_decimal *Item_cache_str::val_decimal(my_decimal *decimal_val)
   DBUG_ASSERT(fixed == 1);
   if (!has_value())
     return NULL;
-  if (value)
-    string2my_decimal(E_DEC_FATAL_ERROR, value, decimal_val);
-  else
-    decimal_val= 0;
-  return decimal_val;
+  return value ? decimal_from_string_with_check(decimal_val, value) : 0;
 }
 
 

@@ -2273,3 +2273,13 @@ t2_id	GROUP_CONCAT(IF (t6.b, t6.f, t5.f) ORDER BY 1)
 EXECUTE stmt;
 t2_id	GROUP_CONCAT(IF (t6.b, t6.f, t5.f) ORDER BY 1)
 DROP TABLE t1,t2,t3,t4,t5,t6;
+#
+# MDEV-8852 Implicit or explicit CAST from MAX(string) to INT,DOUBLE,DECIMAL does not produce warnings
+#
+SELECT MAX('x') << 1, CAST(MAX('x') AS DOUBLE), CAST(MAX('x') AS DECIMAL);
+MAX('x') << 1	CAST(MAX('x') AS DOUBLE)	CAST(MAX('x') AS DECIMAL)
+0	0	0
+Warnings:
+Warning	1292	Truncated incorrect INTEGER value: 'x'
+Warning	1292	Truncated incorrect DOUBLE value: 'x'
+Warning	1292	Truncated incorrect DECIMAL value: 'x'

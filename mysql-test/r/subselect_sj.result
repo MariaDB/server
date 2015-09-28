@@ -2288,8 +2288,14 @@ CREATE TABLE t3 (a int, b int) ;
 PREPARE st1 FROM "SELECT * FROM t2 LEFT JOIN t1 ON t2.a != 0 AND ('j','r') IN ( SELECT b,a FROM t3)";
 EXECUTE st1;
 a	a
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: 'j'
+Warning	1292	Truncated incorrect DOUBLE value: 'r'
 EXECUTE st1;
 a	a
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: 'j'
+Warning	1292	Truncated incorrect DOUBLE value: 'r'
 DROP TABLE t1, t2, t3;
 #
 # BUG#849776: Wrong result with semijoin + "Impossible where"

@@ -1565,3 +1565,8 @@ EXECUTE stmt;
 EXECUTE stmt;
 
 DROP TABLE t1,t2,t3,t4,t5,t6;
+
+--echo #
+--echo # MDEV-8852 Implicit or explicit CAST from MAX(string) to INT,DOUBLE,DECIMAL does not produce warnings
+--echo #
+SELECT MAX('x') << 1, CAST(MAX('x') AS DOUBLE), CAST(MAX('x') AS DECIMAL);

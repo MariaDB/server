@@ -1036,10 +1036,12 @@ SET time_zone=DEFAULT;
 
 SELECT min(timestampadd(month, 1>'', from_days('%Z')));
 
+SET timestamp=UNIX_TIMESTAMP('2001-01-01 00:00:00');
 create table t1(a time);
 insert into t1 values ('00:00:00'),('00:01:00');
 select 1 from t1 where 1 < some (select cast(a as datetime) from t1);
 drop table t1;
+SET timestamp=DEFAULT;
 
 select time('10:10:10') > 10;
 select time('10:10:10') > 1010;
