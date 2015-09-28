@@ -1089,82 +1089,7 @@ recv_parse_or_apply_log_rec_body(
 		break;
 #endif /* UNIV_LOG_LSN_DEBUG */
 	case MLOG_1BYTE: case MLOG_2BYTES: case MLOG_4BYTES: case MLOG_8BYTES:
-#ifdef UNIV_DEBUG
-		if (page && page_type == FIL_PAGE_TYPE_ALLOCATED
-		    && end_ptr >= ptr + 2) {
-			/* It is OK to set FIL_PAGE_TYPE and certain
-			list node fields on an empty page.  Any other
-			write is not OK. */
-
-			/* NOTE: There may be bogus assertion failures for
-			dict_hdr_create(), trx_rseg_header_create(),
-			trx_sys_create_doublewrite_buf(), and
-			trx_sysf_create().
-			These are only called during database creation. */
-			ulint	offs = mach_read_from_2(ptr);
-
-			switch (type) {
-			default:
-				ut_error;
-			case MLOG_2BYTES:
-				/* Note that this can fail when the
-				redo log been written with something
-				older than InnoDB Plugin 1.0.4. */
-				ut_ad(offs == FIL_PAGE_TYPE
-				      || offs == IBUF_TREE_SEG_HEADER
-				      + IBUF_HEADER + FSEG_HDR_OFFSET
-				      || offs == PAGE_BTR_IBUF_FREE_LIST
-				      + PAGE_HEADER + FIL_ADDR_BYTE
-				      || offs == PAGE_BTR_IBUF_FREE_LIST
-				      + PAGE_HEADER + FIL_ADDR_BYTE
-				      + FIL_ADDR_SIZE
-				      || offs == PAGE_BTR_SEG_LEAF
-				      + PAGE_HEADER + FSEG_HDR_OFFSET
-				      || offs == PAGE_BTR_SEG_TOP
-				      + PAGE_HEADER + FSEG_HDR_OFFSET
-				      || offs == PAGE_BTR_IBUF_FREE_LIST_NODE
-				      + PAGE_HEADER + FIL_ADDR_BYTE
-				      + 0 /*FLST_PREV*/
-				      || offs == PAGE_BTR_IBUF_FREE_LIST_NODE
-				      + PAGE_HEADER + FIL_ADDR_BYTE
-				      + FIL_ADDR_SIZE /*FLST_NEXT*/);
-				break;
-			case MLOG_4BYTES:
-				/* Note that this can fail when the
-				redo log been written with something
-				older than InnoDB Plugin 1.0.4. */
-				ut_ad(0
-				      || offs == IBUF_TREE_SEG_HEADER
-				      + IBUF_HEADER + FSEG_HDR_SPACE
-				      || offs == IBUF_TREE_SEG_HEADER
-				      + IBUF_HEADER + FSEG_HDR_PAGE_NO
-				      || offs == PAGE_BTR_IBUF_FREE_LIST
-				      + PAGE_HEADER/* flst_init */
-				      || offs == PAGE_BTR_IBUF_FREE_LIST
-				      + PAGE_HEADER + FIL_ADDR_PAGE
-				      || offs == PAGE_BTR_IBUF_FREE_LIST
-				      + PAGE_HEADER + FIL_ADDR_PAGE
-				      + FIL_ADDR_SIZE
-				      || offs == PAGE_BTR_SEG_LEAF
-				      + PAGE_HEADER + FSEG_HDR_PAGE_NO
-				      || offs == PAGE_BTR_SEG_LEAF
-				      + PAGE_HEADER + FSEG_HDR_SPACE
-				      || offs == PAGE_BTR_SEG_TOP
-				      + PAGE_HEADER + FSEG_HDR_PAGE_NO
-				      || offs == PAGE_BTR_SEG_TOP
-				      + PAGE_HEADER + FSEG_HDR_SPACE
-				      || offs == PAGE_BTR_IBUF_FREE_LIST_NODE
-				      + PAGE_HEADER + FIL_ADDR_PAGE
-				      + 0 /*FLST_PREV*/
-				      || offs == PAGE_BTR_IBUF_FREE_LIST_NODE
-				      + PAGE_HEADER + FIL_ADDR_PAGE
-				      + FIL_ADDR_SIZE /*FLST_NEXT*/
-				      || offs ==
-				      FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID);
-				break;
-			}
-		}
-#endif /* UNIV_DEBUG */
+		/* Note that crypt data can be set to empty page */
 		ptr = mlog_parse_nbytes(type, ptr, end_ptr, page, page_zip);
 		break;
 	case MLOG_REC_INSERT: case MLOG_COMP_REC_INSERT:
@@ -1336,7 +1261,7 @@ recv_parse_or_apply_log_rec_body(
 		ptr = fsp_parse_init_file_page(ptr, end_ptr, block);
 		break;
 	case MLOG_WRITE_STRING:
-		ut_ad(!page || page_type != FIL_PAGE_TYPE_ALLOCATED);
+		/* Allow setting crypt_data also for empty page */
 		ptr = mlog_parse_string(ptr, end_ptr, page, page_zip);
 		break;
 	case MLOG_FILE_RENAME:
