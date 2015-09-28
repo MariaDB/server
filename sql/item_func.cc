@@ -1089,7 +1089,9 @@ bool Item_func_hybrid_result_type::get_date(MYSQL_TIME *ltime,
   case STRING_RESULT:
   {
     if (is_temporal_type(field_type()))
-      return date_op(ltime, fuzzydate);
+      return date_op(ltime,
+                     fuzzydate |
+                     (field_type() == MYSQL_TYPE_TIME ? TIME_TIME_ONLY : 0));
     char buff[40];
     String tmp(buff,sizeof(buff), &my_charset_bin),*res;
     if (!(res= str_op(&tmp)) ||

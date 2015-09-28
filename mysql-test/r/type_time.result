@@ -1206,5 +1206,14 @@ Warning	1292	Incorrect time value: '9000000' for column 'b' at row 4
 Warning	1292	Incorrect time value: '9000000' for column 'c' at row 4
 DROP TABLE t1;
 #
+# MDEV-8862 Wrong field type for MAX(COALESCE(datetime_column))
+#
+CREATE TABLE t1 (a TIME);
+INSERT INTO t1 VALUES ('10:10:10'),('10:20:30');
+SELECT MAX(a), MAX(COALESCE(a)) FROM t1;
+MAX(a)	MAX(COALESCE(a))
+10:20:30	10:20:30
+DROP TABLE t1;
+#
 # End of 10.1 tests
 #
