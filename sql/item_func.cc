@@ -2823,11 +2823,13 @@ double Item_func_units::val_real()
 
 void Item_func_min_max::fix_length_and_dec()
 {
+  uint unsigned_count= 0;
   int max_int_part=0;
   decimals=0;
   max_length=0;
   maybe_null=0;
   thd= current_thd;
+  compare_as_dates= find_date_time_item(args, arg_count, 0);
   cmp_type=args[0]->result_type();
 
   for (uint i=0 ; i < arg_count ; i++)
@@ -2835,14 +2837,34 @@ void Item_func_min_max::fix_length_and_dec()
     set_if_bigger(max_length, args[i]->max_length);
     set_if_bigger(decimals, args[i]->decimals);
     set_if_bigger(max_int_part, args[i]->decimal_int_part());
+    unsigned_count+= args[i]->unsigned_flag;
     if (args[i]->maybe_null)
       maybe_null= 1;
     cmp_type= item_cmp_type(cmp_type,args[i]->result_type());
   }
+  unsigned_flag= unsigned_count == arg_count; // if all args are unsigned
   if (cmp_type == STRING_RESULT)
     agg_arg_charsets_for_string_result_with_comparison(collation,
                                                        args, arg_count);
-  else if ((cmp_type == DECIMAL_RESULT) || (cmp_type == INT_RESULT))
+  else if (cmp_type == INT_RESULT)
+  {
+    collation.set_numeric();
+    fix_char_length(my_decimal_precision_to_length_no_truncation(max_int_part +
+                                                                 decimals,
+                                                                 decimals,
+                                                                 unsigned_flag));
+    if (unsigned_count != 0 && unsigned_count != arg_count)
+    {
+      /*
+        If all args are of INT-alike type, but have different unsigned_flag,
+        then change type to DECIMAL.
+      */
+      cmp_type= DECIMAL_RESULT;
+      cached_field_type= MYSQL_TYPE_NEWDECIMAL;
+      return;
+    }
+  }
+  else if (cmp_type == DECIMAL_RESULT)
   {
     collation.set_numeric();
     fix_char_length(my_decimal_precision_to_length_no_truncation(max_int_part +
@@ -2853,7 +2875,6 @@ void Item_func_min_max::fix_length_and_dec()
   else if (cmp_type == REAL_RESULT)
     fix_char_length(float_length(decimals));
 
-  compare_as_dates= find_date_time_item(args, arg_count, 0);
   if (compare_as_dates)
   {
     cached_field_type= compare_as_dates->field_type();
