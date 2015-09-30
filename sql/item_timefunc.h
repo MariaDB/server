@@ -421,7 +421,7 @@ public:
     set_if_smaller(decimals, TIME_SECOND_PART_DIGITS);
     max_length=17 + (decimals ? decimals + 1 : 0);
     maybe_null= true;
-    cached_result_type= decimals ? DECIMAL_RESULT : INT_RESULT;
+    set_handler_by_result_type(decimals ? DECIMAL_RESULT : INT_RESULT);
   }
   double real_op() { DBUG_ASSERT(0); return 0; }
   String *str_op(String *str) { DBUG_ASSERT(0); return 0; }

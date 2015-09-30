@@ -1,0 +1,63 @@
+--echo #
+--echo # Start of 10.1 tests
+--echo #
+
+--echo #
+--echo # MDEV-8865 Wrong field type or metadata for COALESCE(signed_int_column, unsigned_int_column)
+--echo #
+
+--echo #
+CREATE TABLE t1 (a INT, b INT UNSIGNED);
+INSERT INTO t1 VALUES (1,1);
+INSERT INTO t1 VALUES (-1,1);
+INSERT INTO t1 VALUES (-2147483648,4294967295);
+--source include/func_hybrid_type.inc
+DROP TABLE t1;
+
+--echo #
+CREATE TABLE t1 (a INT, b INT);
+INSERT INTO t1 VALUES (1,1);
+INSERT INTO t1 VALUES (-2147483648,2147483647);
+--source include/func_hybrid_type.inc
+DROP TABLE t1;
+
+--echo #
+CREATE TABLE t1 (a BIGINT, b BIGINT UNSIGNED);
+INSERT INTO t1 VALUES (1,1);
+INSERT INTO t1 VALUES (-9223372036854775808,0xFFFFFFFFFFFFFFFF);
+--source include/func_hybrid_type.inc
+DROP TABLE t1;
+
+--echo #
+CREATE TABLE t1 (a BIGINT, b BIGINT);
+INSERT INTO t1 VALUES (1,1);
+INSERT INTO t1 VALUES (-9223372036854775808,9223372036854775807);
+--source include/func_hybrid_type.inc
+DROP TABLE t1;
+
+# Testing BIT(N) types.
+# Using safe BIT(N) type and value to make sure
+# that "file func_hybrid_type.test" tells "ASCII text".
+
+--echo #
+CREATE TABLE t1 (a INT, b BIT(8));
+INSERT INTO t1 VALUES (-2147483648,0x32);
+--source include/func_hybrid_type.inc
+DROP TABLE t1;
+
+--echo #
+CREATE TABLE t1 (a INT UNSIGNED, b BIT(8));
+INSERT INTO t1 VALUES (4294967295,0x32);
+--source include/func_hybrid_type.inc
+DROP TABLE t1;
+
+--echo #
+CREATE TABLE t1 (a BIT(7), b BIT(8));
+INSERT INTO t1 VALUES (0x32,0x32);
+--source include/func_hybrid_type.inc
+DROP TABLE t1;
+
+
+--echo #
+--echo # End of 10.1 tests
+--echo #

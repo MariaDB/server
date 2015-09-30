@@ -28,6 +28,7 @@
 #include "unireg.h"                    // REQUIRED: for other includes
 #include "thr_malloc.h"                         /* sql_calloc */
 #include "field.h"                              /* Derivation */
+#include "sql_type.h"
 
 C_MODE_START
 #include <ma_dyncol.h>
@@ -602,7 +603,9 @@ public:
 };
 
 
-class Item: public Value_source, public Type_std_attributes
+class Item: public Value_source,
+            public Type_std_attributes,
+            public Type_handler
 {
   Item(const Item &);			/* Prevent use of these */
   void operator=(Item &);
@@ -752,12 +755,12 @@ public:
   virtual bool send(Protocol *protocol, String *str);
   virtual bool eq(const Item *, bool binary_cmp) const;
   /* result_type() of an item specifies how the value should be returned */
-  virtual Item_result result_type() const { return REAL_RESULT; }
+  Item_result result_type() const { return REAL_RESULT; }
   /* ... while cmp_type() specifies how it should be compared */
-  virtual Item_result cmp_type() const;
+  Item_result cmp_type() const;
   virtual Item_result cast_to_int_type() const { return cmp_type(); }
   virtual enum_field_types string_field_type() const;
-  virtual enum_field_types field_type() const;
+  enum_field_types field_type() const;
   virtual enum Type type() const =0;
   /*
     real_type() is the type of base item.  This is same as type() for

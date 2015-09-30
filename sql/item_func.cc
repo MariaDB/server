@@ -800,28 +800,28 @@ void Item_num_op::fix_length_and_dec(void)
   {
     count_real_length();
     max_length= float_length(decimals);
-    cached_result_type= REAL_RESULT;
+    set_handler_by_result_type(REAL_RESULT);
   }
   else if (r0 == DECIMAL_RESULT || r1 == DECIMAL_RESULT ||
            r0 == TIME_RESULT || r1 == TIME_RESULT)
   {
-    cached_result_type= DECIMAL_RESULT;
+    set_handler_by_result_type(DECIMAL_RESULT);
     result_precision();
     fix_decimals();
     if ((r0 == TIME_RESULT || r1 == TIME_RESULT) && decimals == 0)
-      cached_result_type= INT_RESULT;
+      set_handler_by_result_type(INT_RESULT);
   }
   else
   {
     DBUG_ASSERT(r0 == INT_RESULT && r1 == INT_RESULT);
-    cached_result_type=INT_RESULT;
+    set_handler_by_result_type(INT_RESULT);
     result_precision();
     decimals= 0;
   }
   DBUG_PRINT("info", ("Type: %s",
-             (cached_result_type == REAL_RESULT ? "REAL_RESULT" :
-              cached_result_type == DECIMAL_RESULT ? "DECIMAL_RESULT" :
-              cached_result_type == INT_RESULT ? "INT_RESULT" :
+             (result_type() == REAL_RESULT ? "REAL_RESULT" :
+              result_type() == DECIMAL_RESULT ? "DECIMAL_RESULT" :
+              result_type() == INT_RESULT ? "INT_RESULT" :
               "--ILLEGAL!!!--")));
   DBUG_VOID_RETURN;
 }
@@ -837,20 +837,22 @@ void Item_func_num1::fix_length_and_dec()
 {
   DBUG_ENTER("Item_func_num1::fix_length_and_dec");
   DBUG_PRINT("info", ("name %s", func_name()));
-  switch (cached_result_type= args[0]->cast_to_int_type()) {
+  // Note, cast_to_int_type() can return TIME_RESULT
+  switch (args[0]->cast_to_int_type()) {
   case INT_RESULT:
+    set_handler_by_result_type(INT_RESULT);
     max_length= args[0]->max_length;
     unsigned_flag= args[0]->unsigned_flag;
     break;
   case STRING_RESULT:
   case REAL_RESULT:
-    cached_result_type= REAL_RESULT;
+    set_handler_by_result_type(REAL_RESULT);
     decimals= args[0]->decimals; // Preserve NOT_FIXED_DEC
     max_length= float_length(decimals);
     break;
   case TIME_RESULT:
-    cached_result_type= DECIMAL_RESULT;
   case DECIMAL_RESULT:
+    set_handler_by_result_type(DECIMAL_RESULT);
     decimals= args[0]->decimal_scale(); // Do not preserve NOT_FIXED_DEC
     max_length= args[0]->max_length;
     break;
@@ -858,18 +860,18 @@ void Item_func_num1::fix_length_and_dec()
     DBUG_ASSERT(0);
   }
   DBUG_PRINT("info", ("Type: %s",
-                      (cached_result_type == REAL_RESULT ? "REAL_RESULT" :
-                       cached_result_type == DECIMAL_RESULT ? "DECIMAL_RESULT" :
-                       cached_result_type == INT_RESULT ? "INT_RESULT" :
+                      (result_type() == REAL_RESULT ? "REAL_RESULT" :
+                       result_type() == DECIMAL_RESULT ? "DECIMAL_RESULT" :
+                       result_type() == INT_RESULT ? "INT_RESULT" :
                        "--ILLEGAL!!!--")));
   DBUG_VOID_RETURN;
 }
 
 
-String *Item_func_hybrid_result_type::val_str(String *str)
+String *Item_func_hybrid_field_type::val_str(String *str)
 {
   DBUG_ASSERT(fixed == 1);
-  switch (cached_result_type) {
+  switch (Item_func_hybrid_field_type::result_type()) {
   case DECIMAL_RESULT:
   {
     my_decimal decimal_value, *val;
@@ -921,10 +923,10 @@ String *Item_func_hybrid_result_type::val_str(String *str)
 }
 
 
-double Item_func_hybrid_result_type::val_real()
+double Item_func_hybrid_field_type::val_real()
 {
   DBUG_ASSERT(fixed == 1);
-  switch (cached_result_type) {
+  switch (Item_func_hybrid_field_type::result_type()) {
   case DECIMAL_RESULT:
   {
     my_decimal decimal_value, *val;
@@ -966,10 +968,10 @@ double Item_func_hybrid_result_type::val_real()
 }
 
 
-longlong Item_func_hybrid_result_type::val_int()
+longlong Item_func_hybrid_field_type::val_int()
 {
   DBUG_ASSERT(fixed == 1);
-  switch (cached_result_type) {
+  switch (Item_func_hybrid_field_type::result_type()) {
   case DECIMAL_RESULT:
   {
     my_decimal decimal_value, *val;
@@ -1008,11 +1010,11 @@ longlong Item_func_hybrid_result_type::val_int()
 }
 
 
-my_decimal *Item_func_hybrid_result_type::val_decimal(my_decimal *decimal_value)
+my_decimal *Item_func_hybrid_field_type::val_decimal(my_decimal *decimal_value)
 {
   my_decimal *val= decimal_value;
   DBUG_ASSERT(fixed == 1);
-  switch (cached_result_type) {
+  switch (Item_func_hybrid_field_type::result_type()) {
   case DECIMAL_RESULT:
     val= decimal_op(decimal_value);
     break;
@@ -1054,11 +1056,11 @@ my_decimal *Item_func_hybrid_result_type::val_decimal(my_decimal *decimal_value)
 }
 
 
-bool Item_func_hybrid_result_type::get_date(MYSQL_TIME *ltime,
+bool Item_func_hybrid_field_type::get_date(MYSQL_TIME *ltime,
                                             ulonglong fuzzydate)
 {
   DBUG_ASSERT(fixed == 1);
-  switch (cached_result_type) {
+  switch (Item_func_hybrid_field_type::result_type()) {
   case DECIMAL_RESULT:
   {
     my_decimal value, *res;
@@ -1812,7 +1814,7 @@ void Item_func_div::fix_length_and_dec()
   DBUG_ENTER("Item_func_div::fix_length_and_dec");
   prec_increment= current_thd->variables.div_precincrement;
   Item_num_op::fix_length_and_dec();
-  switch (cached_result_type) {
+  switch (Item_func_div::result_type()) {
   case REAL_RESULT:
   {
     decimals=MY_MAX(args[0]->decimals,args[1]->decimals)+prec_increment;
@@ -1828,7 +1830,7 @@ void Item_func_div::fix_length_and_dec()
     break;
   }
   case INT_RESULT:
-    cached_result_type= DECIMAL_RESULT;
+    set_handler_by_result_type(DECIMAL_RESULT);
     DBUG_PRINT("info", ("Type changed: DECIMAL_RESULT"));
     result_precision();
     break;
@@ -2075,7 +2077,7 @@ void Item_func_neg::fix_length_and_dec()
     Use val() to get value as arg_type doesn't mean that item is
     Item_int or Item_float due to existence of Item_param.
   */
-  if (cached_result_type == INT_RESULT && args[0]->const_item())
+  if (Item_func_neg::result_type() == INT_RESULT && args[0]->const_item())
   {
     longlong val= args[0]->val_int();
     if ((ulonglong) val >= (ulonglong) LONGLONG_MIN &&
@@ -2086,7 +2088,7 @@ void Item_func_neg::fix_length_and_dec()
         Ensure that result is converted to DECIMAL, as longlong can't hold
         the negated number
       */
-      cached_result_type= DECIMAL_RESULT;
+      set_handler_by_result_type(DECIMAL_RESULT);
       DBUG_PRINT("info", ("Type changed: DECIMAL_RESULT"));
     }
   }
@@ -2388,11 +2390,12 @@ void Item_func_int_val::fix_length_and_dec()
   set_if_smaller(max_length,tmp);
   decimals= 0;
 
-  switch (cached_result_type= args[0]->cast_to_int_type())
+  // Note, cast_to_int_type() can return TIME_RESULT
+  switch (args[0]->cast_to_int_type())
   {
   case STRING_RESULT:
   case REAL_RESULT:
-    cached_result_type= REAL_RESULT;
+    set_handler_by_result_type(REAL_RESULT);
     max_length= float_length(decimals);
     break;
   case INT_RESULT:
@@ -2405,21 +2408,21 @@ void Item_func_int_val::fix_length_and_dec()
     if ((args[0]->max_length - args[0]->decimals) >=
         (DECIMAL_LONGLONG_DIGITS - 2))
     {
-      cached_result_type= DECIMAL_RESULT;
+      set_handler_by_result_type(DECIMAL_RESULT);
     }
     else
     {
       unsigned_flag= args[0]->unsigned_flag;
-      cached_result_type= INT_RESULT;
+      set_handler_by_result_type(INT_RESULT);
     }
     break;
   case ROW_RESULT:
     DBUG_ASSERT(0);
   }
   DBUG_PRINT("info", ("Type: %s",
-                      (cached_result_type == REAL_RESULT ? "REAL_RESULT" :
-                       cached_result_type == DECIMAL_RESULT ? "DECIMAL_RESULT" :
-                       cached_result_type == INT_RESULT ? "INT_RESULT" :
+                      (result_type() == REAL_RESULT ? "REAL_RESULT" :
+                       result_type() == DECIMAL_RESULT ? "DECIMAL_RESULT" :
+                       result_type() == INT_RESULT ? "INT_RESULT" :
                        "--ILLEGAL!!!--")));
 
   DBUG_VOID_RETURN;
@@ -2534,10 +2537,10 @@ void Item_func_round::fix_length_and_dec()
     if (args[0]->result_type() == DECIMAL_RESULT)
     {
       max_length++;
-      cached_result_type= DECIMAL_RESULT;
+      set_handler_by_result_type(DECIMAL_RESULT);
     }
     else
-      cached_result_type= REAL_RESULT;
+      set_handler_by_result_type(REAL_RESULT);
     return;
   }
 
@@ -2555,14 +2558,14 @@ void Item_func_round::fix_length_and_dec()
   {
     decimals= MY_MIN(decimals_to_set, NOT_FIXED_DEC);
     max_length= float_length(decimals);
-    cached_result_type= REAL_RESULT;
+    set_handler_by_result_type(REAL_RESULT);
     return;
   }
   
   switch (args[0]->result_type()) {
   case REAL_RESULT:
   case STRING_RESULT:
-    cached_result_type= REAL_RESULT;
+    set_handler_by_result_type(REAL_RESULT);
     decimals= MY_MIN(decimals_to_set, NOT_FIXED_DEC);
     max_length= float_length(decimals);
     break;
@@ -2573,14 +2576,14 @@ void Item_func_round::fix_length_and_dec()
                                        !val1_unsigned);
       max_length= args[0]->max_length + length_can_increase;
       /* Here we can keep INT_RESULT */
-      cached_result_type= INT_RESULT;
+      set_handler_by_result_type(INT_RESULT);
       decimals= 0;
       break;
     }
     /* fall through */
   case DECIMAL_RESULT:
   {
-    cached_result_type= DECIMAL_RESULT;
+    set_handler_by_result_type(DECIMAL_RESULT);
     decimals_to_set= MY_MIN(DECIMAL_MAX_SCALE, decimals_to_set);
     int decimals_delta= args[0]->decimals - decimals_to_set;
     int precision= args[0]->decimal_precision();
@@ -2884,7 +2887,7 @@ void Item_func_min_max::fix_length_and_dec()
       set_if_smaller(decimals, TIME_SECOND_PART_DIGITS);
   }
   else
-    cached_field_type= agg_field_type(args, arg_count);
+    cached_field_type= agg_field_type(args, arg_count, false);
 }
 
 

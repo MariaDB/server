@@ -373,29 +373,32 @@ public:
 };
 
 
-class Item_func_hybrid_result_type: public Item_func
+class Item_func_hybrid_field_type: public Item_func,
+                                   public Type_handler_hybrid_field_type
 {
-protected:
-  Item_result cached_result_type;
-
 public:
-  Item_func_hybrid_result_type(THD *thd):
-    Item_func(thd), cached_result_type(REAL_RESULT)
+  Item_func_hybrid_field_type(THD *thd):
+    Item_func(thd)
   { collation.set_numeric(); }
-  Item_func_hybrid_result_type(THD *thd, Item *a):
-    Item_func(thd, a), cached_result_type(REAL_RESULT)
+  Item_func_hybrid_field_type(THD *thd, Item *a):
+    Item_func(thd, a)
   { collation.set_numeric(); }
-  Item_func_hybrid_result_type(THD *thd, Item *a, Item *b):
-    Item_func(thd, a, b), cached_result_type(REAL_RESULT)
+  Item_func_hybrid_field_type(THD *thd, Item *a, Item *b):
+    Item_func(thd, a, b)
   { collation.set_numeric(); }
-  Item_func_hybrid_result_type(THD *thd, Item *a, Item *b, Item *c):
-    Item_func(thd, a, b, c), cached_result_type(REAL_RESULT)
+  Item_func_hybrid_field_type(THD *thd, Item *a, Item *b, Item *c):
+    Item_func(thd, a, b, c)
   { collation.set_numeric(); }
-  Item_func_hybrid_result_type(THD *thd, List<Item> &list):
-    Item_func(thd, list), cached_result_type(REAL_RESULT)
+  Item_func_hybrid_field_type(THD *thd, List<Item> &list):
+    Item_func(thd, list)
   { collation.set_numeric(); }
 
-  enum Item_result result_type () const { return cached_result_type; }
+  enum_field_types field_type() const
+  { return Type_handler_hybrid_field_type::field_type(); }
+  enum Item_result result_type () const
+  { return Type_handler_hybrid_field_type::result_type(); }
+  enum Item_result cmp_type () const
+  { return Type_handler_hybrid_field_type::cmp_type(); }
 
   double val_real();
   longlong val_int();
@@ -449,33 +452,7 @@ public:
 };
 
 
-
-class Item_func_hybrid_field_type :public Item_func_hybrid_result_type
-{
-protected:
-  enum_field_types cached_field_type;
-public:
-  Item_func_hybrid_field_type(THD *thd):
-    Item_func_hybrid_result_type(thd), cached_field_type(MYSQL_TYPE_DOUBLE)
-  {}
-  Item_func_hybrid_field_type(THD *thd, Item *a, Item *b):
-    Item_func_hybrid_result_type(thd, a, b),
-    cached_field_type(MYSQL_TYPE_DOUBLE)
-  {}
-  Item_func_hybrid_field_type(THD *thd, Item *a, Item *b, Item *c):
-    Item_func_hybrid_result_type(thd, a, b, c),
-    cached_field_type(MYSQL_TYPE_DOUBLE)
-  {}
-  Item_func_hybrid_field_type(THD *thd, List<Item> &list):
-    Item_func_hybrid_result_type(thd, list),
-    cached_field_type(MYSQL_TYPE_DOUBLE)
-  {}
-  enum_field_types field_type() const { return cached_field_type; }
-};
-
-
-
-class Item_func_numhybrid: public Item_func_hybrid_result_type
+class Item_func_numhybrid: public Item_func_hybrid_field_type
 {
 protected:
 
@@ -487,18 +464,18 @@ protected:
   }
 
 public:
-  Item_func_numhybrid(THD *thd): Item_func_hybrid_result_type(thd)
+  Item_func_numhybrid(THD *thd): Item_func_hybrid_field_type(thd)
   { }
-  Item_func_numhybrid(THD *thd, Item *a): Item_func_hybrid_result_type(thd, a)
+  Item_func_numhybrid(THD *thd, Item *a): Item_func_hybrid_field_type(thd, a)
   { }
   Item_func_numhybrid(THD *thd, Item *a, Item *b):
-    Item_func_hybrid_result_type(thd, a, b)
+    Item_func_hybrid_field_type(thd, a, b)
   { }
   Item_func_numhybrid(THD *thd, Item *a, Item *b, Item *c):
-    Item_func_hybrid_result_type(thd, a, b, c)
+    Item_func_hybrid_field_type(thd, a, b, c)
   { }
   Item_func_numhybrid(THD *thd, List<Item> &list):
-    Item_func_hybrid_result_type(thd, list)
+    Item_func_hybrid_field_type(thd, list)
   { }
   String *str_op(String *str) { DBUG_ASSERT(0); return 0; }
   bool date_op(MYSQL_TIME *ltime, uint fuzzydate) { DBUG_ASSERT(0); return true; }
@@ -2169,7 +2146,8 @@ public:
 Item *get_system_var(THD *thd, enum_var_type var_type, LEX_STRING name,
                      LEX_STRING component);
 extern bool check_reserved_words(LEX_STRING *name);
-extern enum_field_types agg_field_type(Item **items, uint nitems);
+extern enum_field_types agg_field_type(Item **items, uint nitems,
+                                       bool treat_bit_as_number);
 Item *find_date_time_item(Item **args, uint nargs, uint col);
 double my_double_round(double value, longlong dec, bool dec_unsigned,
                        bool truncate);
