@@ -1027,26 +1027,26 @@ class Item_sum_std :public Item_sum_variance
 // This class is a string or number function depending on num_func
 class Arg_comparator;
 class Item_cache;
-class Item_sum_hybrid :public Item_sum
+class Item_sum_hybrid :public Item_sum, public Type_handler_hybrid_field_type
 {
 protected:
   Item_cache *value, *arg_cache;
   Arg_comparator *cmp;
-  Item_result hybrid_type;
-  enum_field_types hybrid_field_type;
   int cmp_sign;
   bool was_values;  // Set if we have found at least one row (for max/min only)
   bool was_null_value;
 
   public:
   Item_sum_hybrid(THD *thd, Item *item_par,int sign):
-    Item_sum(thd, item_par), value(0), arg_cache(0), cmp(0),
-    hybrid_type(INT_RESULT), hybrid_field_type(MYSQL_TYPE_LONGLONG),
+    Item_sum(thd, item_par),
+    Type_handler_hybrid_field_type(MYSQL_TYPE_LONGLONG),
+    value(0), arg_cache(0), cmp(0),
     cmp_sign(sign), was_values(TRUE)
   { collation.set(&my_charset_bin); }
   Item_sum_hybrid(THD *thd, Item_sum_hybrid *item)
-    :Item_sum(thd, item), value(item->value), arg_cache(0),
-    hybrid_type(item->hybrid_type), hybrid_field_type(item->hybrid_field_type),
+    :Item_sum(thd, item),
+    Type_handler_hybrid_field_type(item),
+    value(item->value), arg_cache(0),
     cmp_sign(item->cmp_sign), was_values(item->was_values)
   { }
   bool fix_fields(THD *, Item **);
@@ -1058,8 +1058,12 @@ protected:
   void reset_field();
   String *val_str(String *);
   bool keep_field_type(void) const { return 1; }
-  enum Item_result result_type () const { return hybrid_type; }
-  enum enum_field_types field_type() const { return hybrid_field_type; }
+  enum Item_result result_type () const
+  { return Type_handler_hybrid_field_type::result_type(); }
+  enum Item_result cmp_type () const
+  { return Type_handler_hybrid_field_type::cmp_type(); }
+  enum enum_field_types field_type() const
+  { return Type_handler_hybrid_field_type::field_type(); }
   void update_field();
   void min_max_update_str_field();
   void min_max_update_real_field();

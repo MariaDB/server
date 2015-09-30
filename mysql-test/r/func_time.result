@@ -1726,7 +1726,7 @@ select 1 from t1 where 1 < some (select cast(a as datetime) from t1);
 1
 1
 Warnings:
-Warning	1292	Truncated incorrect DOUBLE value: '2001-01-01 00:01:00'
+Warning	1292	Incorrect datetime value: '1'
 drop table t1;
 SET timestamp=DEFAULT;
 select time('10:10:10') > 10;

@@ -1190,7 +1190,15 @@ Item_sum_hybrid::fix_fields(THD *thd, Item **ref)
   decimals=item->decimals;
   with_subselect= args[0]->with_subselect;
 
-  switch (hybrid_type= item->result_type()) {
+  Item *item2= item->real_item();
+  if (item2->type() == Item::FIELD_ITEM)
+    set_handler_by_field_type(((Item_field*) item2)->field->type());
+  else if (item->cmp_type() == TIME_RESULT)
+    set_handler_by_field_type(item2->field_type());
+  else
+    set_handler_by_result_type(item2->result_type());
+
+  switch (Item_sum_hybrid::result_type()) {
   case INT_RESULT:
   case DECIMAL_RESULT:
   case STRING_RESULT:
@@ -1210,11 +1218,6 @@ Item_sum_hybrid::fix_fields(THD *thd, Item **ref)
   result_field=0;
   null_value=1;
   fix_length_and_dec();
-  item= item->real_item();
-  if (item->type() == Item::FIELD_ITEM)
-    hybrid_field_type= ((Item_field*) item)->field->type();
-  else
-    hybrid_field_type= Item::field_type();
 
   if (check_sum_func(thd, ref))
     return TRUE;
@@ -2235,7 +2238,7 @@ void Item_sum_num::reset_field()
 
 void Item_sum_hybrid::reset_field()
 {
-  switch(hybrid_type) {
+  switch(Item_sum_hybrid::result_type()) {
   case STRING_RESULT:
   {
     char buff[MAX_FIELD_WIDTH];
@@ -2507,7 +2510,7 @@ Item *Item_sum_avg::result_item(THD *thd, Field *field)
 
 void Item_sum_hybrid::update_field()
 {
-  switch (hybrid_type) {
+  switch (Item_sum_hybrid::result_type()) {
   case STRING_RESULT:
     min_max_update_str_field();
     break;

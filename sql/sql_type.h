@@ -270,6 +270,12 @@ class Type_handler_hybrid_field_type: public Type_handler
   const Type_handler *get_handler_by_field_type(enum_field_types type) const;
 public:
   Type_handler_hybrid_field_type();
+  Type_handler_hybrid_field_type(enum_field_types type)
+    :m_type_handler(get_handler_by_field_type(type))
+  { }
+  Type_handler_hybrid_field_type(const Type_handler_hybrid_field_type *other)
+    :m_type_handler(other->m_type_handler)
+  { }
   enum_field_types field_type() const { return m_type_handler->field_type(); }
   Item_result result_type() const { return m_type_handler->result_type(); }
   Item_result cmp_type() const { return m_type_handler->cmp_type(); }

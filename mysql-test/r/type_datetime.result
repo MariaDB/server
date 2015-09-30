@@ -1096,5 +1096,48 @@ Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where (coalesce(`test`.`t1`.`a`) = TIMESTAMP'2001-01-01 00:00:00')
 DROP TABLE t1;
 #
+# MDEV-8875 Wrong metadata for MAX(CAST(time_column AS DATETIME))
+#
+SET timestamp=UNIX_TIMESTAMP('2015-01-01 00:00:00');
+CREATE TABLE t1 (a TIME);
+INSERT INTO t1 VALUES ('00:00:00'),('00:01:00');
+SELECT MAX(CAST(a AS DATETIME)) FROM t1;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					MAX(CAST(a AS DATETIME))	12	19	19	Y	128	0	63
+MAX(CAST(a AS DATETIME))
+2015-01-01 00:01:00
+CREATE TABLE t2 AS SELECT MAX(CAST(a AS DATETIME)) FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `MAX(CAST(a AS DATETIME))` datetime DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t2;
+DROP TABLE t1;
+SET timestamp=DEFAULT;
+#
+# MDEV-8860 Wrong result for WHERE 2016 < SOME (SELECT CAST(time_column AS DATETIME) FROM t1)
+#
+SET timestamp=UNIX_TIMESTAMP('2015-01-01 00:00:00');
+CREATE TABLE t1 (a TIME);
+INSERT INTO t1 VALUES ('00:00:00'),('00:01:00');
+SELECT 1 FROM t1 WHERE 2016 > SOME (SELECT CAST(a AS DATETIME) FROM t1);
+1
+Warnings:
+Warning	1292	Incorrect datetime value: '2016'
+SELECT * FROM t1 WHERE 2016 > CAST(a AS DATETIME);
+a
+Warnings:
+Warning	1292	Incorrect datetime value: '2016'
+SELECT 1 FROM t1 WHERE 20160101 > SOME (SELECT CAST(a AS DATETIME) FROM t1);
+1
+1
+1
+SELECT * FROM t1 WHERE 20160101 > CAST(a AS DATETIME);
+a
+00:00:00
+00:01:00
+DROP TABLE t1;
+#
 # End of 10.1 tests
 #
