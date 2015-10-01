@@ -2833,7 +2833,8 @@ void Item_func_min_max::fix_length_and_dec()
   maybe_null=0;
   thd= current_thd;
   compare_as_dates= find_date_time_item(args, arg_count, 0);
-  cmp_type=args[0]->result_type();
+  Item_result tmp_cmp_type= args[0]->cmp_type();
+  uint string_type_count= 0;
 
   for (uint i=0 ; i < arg_count ; i++)
   {
@@ -2843,14 +2844,39 @@ void Item_func_min_max::fix_length_and_dec()
     unsigned_count+= args[i]->unsigned_flag;
     if (args[i]->maybe_null)
       maybe_null= 1;
-    cmp_type= item_cmp_type(cmp_type,args[i]->result_type());
+    tmp_cmp_type= item_cmp_type(tmp_cmp_type, args[i]->cmp_type());
+    string_type_count+= args[i]->cmp_type() == STRING_RESULT;
   }
   unsigned_flag= unsigned_count == arg_count; // if all args are unsigned
-  if (cmp_type == STRING_RESULT)
+
+  switch (tmp_cmp_type) {
+  case TIME_RESULT:
+    // At least one temporal argument was found.
+    collation.set_numeric();
+    set_handler_by_field_type(compare_as_dates->field_type());
+    if (mysql_type_to_time_type(Item_func_min_max::field_type()) ==
+        MYSQL_TIMESTAMP_DATE)
+      decimals= 0;
+    else
+      set_if_smaller(decimals, TIME_SECOND_PART_DIGITS);
+    break;
+
+  case STRING_RESULT:
+    /*
+      All arguments are of string-alike types:
+        CHAR, VARCHAR, TEXT, BINARY, VARBINARY, BLOB, SET, ENUM
+      No numeric and no temporal types were found.
+    */
     agg_arg_charsets_for_string_result_with_comparison(collation,
                                                        args, arg_count);
-  else if (cmp_type == INT_RESULT)
-  {
+    set_handler_by_field_type(agg_field_type(args, arg_count, false));
+    break;
+
+  case INT_RESULT:
+    /*
+       All arguments have INT-alike types:
+       TINY, SHORT, LONG, LONGLONG, INT24, YEAR, BIT.
+    */
     collation.set_numeric();
     fix_char_length(my_decimal_precision_to_length_no_truncation(max_int_part +
                                                                  decimals,
@@ -2862,32 +2888,45 @@ void Item_func_min_max::fix_length_and_dec()
         If all args are of INT-alike type, but have different unsigned_flag,
         then change type to DECIMAL.
       */
-      cmp_type= DECIMAL_RESULT;
-      cached_field_type= MYSQL_TYPE_NEWDECIMAL;
-      return;
+      set_handler_by_field_type(MYSQL_TYPE_NEWDECIMAL);
     }
-  }
-  else if (cmp_type == DECIMAL_RESULT)
-  {
+    else
+    {
+      /*
+        There are only INT-alike arguments with equal unsigned_flag.
+        Aggregate types to get the best covering type.
+        Treat BIT as LONGLONG when aggregating to non-BIT types.
+        Possible final type: TINY, SHORT, LONG, LONGLONG, INT24, YEAR, BIT.
+      */
+      set_handler_by_field_type(agg_field_type(args, arg_count, true));
+    }
+    break;
+
+  case DECIMAL_RESULT:
+    // All arguments are of DECIMAL type
     collation.set_numeric();
     fix_char_length(my_decimal_precision_to_length_no_truncation(max_int_part +
                                                                  decimals,
                                                                  decimals,
                                                                  unsigned_flag));
-  }
-  else if (cmp_type == REAL_RESULT)
-    fix_char_length(float_length(decimals));
+    set_handler_by_field_type(MYSQL_TYPE_NEWDECIMAL);
+    break;
 
-  if (compare_as_dates)
-  {
-    cached_field_type= compare_as_dates->field_type();
-    if (mysql_type_to_time_type(cached_field_type) == MYSQL_TIMESTAMP_DATE)
-      decimals= 0;
-    else
-      set_if_smaller(decimals, TIME_SECOND_PART_DIGITS);
+  case ROW_RESULT:
+    DBUG_ASSERT(0);
+    // Pass through
+  case REAL_RESULT:
+    collation.set_numeric();
+    fix_char_length(float_length(decimals));
+    /*
+      Set type to DOUBLE, as Item_func::tmp_table_field() does not
+      distinguish between DOUBLE and FLOAT and always creates Field_double.
+      Perhaps we should eventually change this to use agg_field_type() here,
+      and fix Item_func::tmp_table_field() to create Field_float when possible.
+    */
+    set_handler_by_field_type(MYSQL_TYPE_DOUBLE);
+    break;
   }
-  else
-    cached_field_type= agg_field_type(args, arg_count, false);
 }
 
 
@@ -2964,7 +3003,7 @@ String *Item_func_min_max::val_str(String *str)
   DBUG_ASSERT(fixed == 1);
   if (compare_as_dates)
     return val_string_from_date(str);
-  switch (cmp_type) {
+  switch (Item_func_min_max::result_type()) {
   case INT_RESULT:
     return val_string_from_int(str);
   case DECIMAL_RESULT:
