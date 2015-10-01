@@ -6026,8 +6026,7 @@ buf_page_encrypt_before_write(
 					      zip_size,
 					      dst_frame);
 
-		unsigned key_version =
-			mach_read_from_4(dst_frame + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION);
+		ulint key_version = mach_read_from_4(dst_frame + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION);
 		ut_ad(key_version == 0 || key_version >= bpage->key_version);
 		bpage->key_version = key_version;
 		bpage->real_size = page_size;
