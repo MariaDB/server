@@ -1002,13 +1002,11 @@ class Item_func_min_max :public Item_func,
 {
   String tmp_value;
   int cmp_sign;
-  /* An item used for issuing warnings while string to DATETIME conversion. */
-  Item *compare_as_dates;
   THD *thd;
 public:
   Item_func_min_max(THD *thd, List<Item> &list, int cmp_sign_arg):
-    Item_func(thd, list), cmp_sign(cmp_sign_arg),
-    compare_as_dates(0) {}
+    Item_func(thd, list), cmp_sign(cmp_sign_arg)
+  {}
   double val_real();
   longlong val_int();
   String *val_str(String *);

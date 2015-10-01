@@ -81,6 +81,38 @@ INSERT INTO t1 VALUES (4294967295,2015);
 --source include/func_hybrid_type.inc
 DROP TABLE t1;
 
+--echo #
+SET timestamp=UNIX_TIMESTAMP('2001-01-01 01:02:03');
+CREATE TABLE t1 (a DATE, b TIME);
+INSERT INTO t1 VALUES ('2010-01-01','10:20:30');
+--source include/func_hybrid_type.inc
+DROP TABLE t1;
+SET timestamp=DEFAULT;
+
+--echo #
+SET timestamp=UNIX_TIMESTAMP('2001-01-01 01:02:03');
+CREATE TABLE t1 (a TIMESTAMP, b TIME);
+INSERT INTO t1 VALUES ('2010-01-01 00:00:00','10:20:30');
+--source include/func_hybrid_type.inc
+DROP TABLE t1;
+SET timestamp=DEFAULT;
+
+--echo #
+SET timestamp=UNIX_TIMESTAMP('2001-01-01 01:02:03');
+CREATE TABLE t1 (a DATETIME, b TIME);
+INSERT INTO t1 VALUES ('2010-01-01 00:00:00','10:20:30');
+--source include/func_hybrid_type.inc
+DROP TABLE t1;
+SET timestamp=DEFAULT;
+
+--echo #
+SET timestamp=UNIX_TIMESTAMP('2001-01-01 01:02:03');
+CREATE TABLE t1 (a DATETIME, b DATE);
+INSERT INTO t1 VALUES ('2010-01-01 10:20:30','2001-01-02');
+--source include/func_hybrid_type.inc
+DROP TABLE t1;
+SET timestamp=DEFAULT;
+
 
 --echo #
 --echo # MDEV-8873 Wrong field type or metadata for LEAST(int_column,string_column)
@@ -110,6 +142,28 @@ INSERT INTO t1 (a) VALUES (13836376518955650385) ON DUPLICATE KEY UPDATE a=GREAT
 INSERT INTO t1 (a) VALUES (13836376518955650385) ON DUPLICATE KEY UPDATE a=GREATEST(a,VALUES(a));
 SELECT * FROM t1;
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-5694 GREATEST(date, time) returns a wrong data type
+--echo #
+SET timestamp=UNIX_TIMESTAMP('2010-01-01 01:02:03');
+--disable_ps_protocol
+--enable_metadata
+# Expect DATETIME type (12) in metadata
+SELECT GREATEST(CURRENT_TIME, CURRENT_DATE), COALESCE(CURRENT_TIME, CURRENT_DATE);
+CREATE TABLE t1 (a TIMESTAMP);
+INSERT INTO t1 VALUES ('2010-01-01 10:20:30');
+# Expect TIMESTAMP type (7) in metadata 
+SELECT GREATEST(a,a) FROM t1;
+DROP TABLE t1;
+--disable_metadata
+--enable_ps_protocol
+CREATE TABLE t1 (a TIMESTAMP, b DATETIME);
+CREATE TABLE t2 AS SELECT LEAST(a,a),LEAST(b,b),LEAST(a,b) FROM t1;
+SHOW CREATE TABLE t2;
+DROP TABLE t2;
+DROP TABLE t1;
+SET timestamp=DEFAULT;
 
 --echo #
 --echo # End of 10.1 tests

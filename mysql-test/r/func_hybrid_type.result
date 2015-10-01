@@ -2096,6 +2096,718 @@ t2	CREATE TABLE `t2` (
 DROP TABLE t2;
 DROP TABLE t1;
 #
+SET timestamp=UNIX_TIMESTAMP('2001-01-01 01:02:03');
+CREATE TABLE t1 (a DATE, b TIME);
+INSERT INTO t1 VALUES ('2010-01-01','10:20:30');
+SELECT
+a                                         AS ___________a,
+CASE WHEN a IS NOT NULL THEN a END        AS case_______a,
+CASE WHEN a IS NOT NULL THEN a ELSE a END AS case_____a_a,
+COALESCE(a)                               AS coalesce___a,
+COALESCE(a, a)                            AS coalesce_a_a,
+IF(a IS NULL, a, a)                       AS if_______a_a,
+IFNULL(a, a)                              AS ifnull___a_a,
+LEAST(a, a)                               AS least____a_a,
+GREATEST(a, a)                            AS greatest_a_a,
+b                                         AS ___________b,
+CASE WHEN a IS NOT NULL THEN b END        AS case_______b,
+CASE WHEN a IS NOT NULL THEN b ELSE b END AS case_____b_b,
+COALESCE(b)                               AS coalesce___b,
+COALESCE(b, b)                            AS coalesce_b_b,
+IF(a IS NULL, b, b)                       AS if_______b_b,
+IFNULL(b, b)                              AS ifnull___b_b,
+LEAST(b, b)                               AS least____b_b,
+GREATEST(b, b)                            AS greatest_b_b
+FROM t1;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def	test	t1	t1	a	___________a	10	10	10	Y	128	0	63
+def					case_______a	10	10	10	Y	128	0	63
+def					case_____a_a	10	10	10	Y	128	0	63
+def					coalesce___a	10	10	10	Y	128	0	63
+def					coalesce_a_a	10	10	10	Y	128	0	63
+def					if_______a_a	10	10	10	Y	128	0	63
+def					ifnull___a_a	10	10	10	Y	128	0	63
+def					least____a_a	10	10	10	Y	128	0	63
+def					greatest_a_a	10	10	10	Y	128	0	63
+def	test	t1	t1	b	___________b	11	10	8	Y	128	0	63
+def					case_______b	11	10	8	Y	128	0	63
+def					case_____b_b	11	10	8	Y	128	0	63
+def					coalesce___b	11	10	8	Y	128	0	63
+def					coalesce_b_b	11	10	8	Y	128	0	63
+def					if_______b_b	11	10	8	Y	128	0	63
+def					ifnull___b_b	11	10	8	Y	128	0	63
+def					least____b_b	11	10	8	Y	128	0	63
+def					greatest_b_b	11	10	8	Y	128	0	63
+___________a	2010-01-01
+case_______a	2010-01-01
+case_____a_a	2010-01-01
+coalesce___a	2010-01-01
+coalesce_a_a	2010-01-01
+if_______a_a	2010-01-01
+ifnull___a_a	2010-01-01
+least____a_a	2010-01-01
+greatest_a_a	2010-01-01
+___________b	10:20:30
+case_______b	10:20:30
+case_____b_b	10:20:30
+coalesce___b	10:20:30
+coalesce_b_b	10:20:30
+if_______b_b	10:20:30
+ifnull___b_b	10:20:30
+least____b_b	10:20:30
+greatest_b_b	10:20:30
+SELECT
+CASE WHEN a IS NOT NULL THEN a ELSE b END AS case_____a_b,
+CASE WHEN a IS NOT NULL THEN b ELSE a END AS case_____b_a,
+COALESCE(a, b)                            AS coalesce_a_b,
+COALESCE(b, a)                            AS coalesce_b_a,
+IF(a IS NULL, a, b)                       AS if_______a_b,
+IF(a IS NULL, b, a)                       AS if_______b_a,
+IFNULL(a, b)                              AS ifnull___a_b,
+IFNULL(b, a)                              AS ifnull___b_a,
+LEAST(a, b)                               AS least____a_b,
+LEAST(b, a)                               AS least____b_a,
+GREATEST(a, b)                            AS greatest_a_b,
+GREATEST(b, a)                            AS greatest_b_a
+FROM t1;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					case_____a_b	12	19	19	Y	128	0	63
+def					case_____b_a	12	19	19	Y	128	0	63
+def					coalesce_a_b	12	19	19	Y	128	0	63
+def					coalesce_b_a	12	19	19	Y	128	0	63
+def					if_______a_b	12	10	19	Y	128	0	63
+def					if_______b_a	12	10	19	Y	128	0	63
+def					ifnull___a_b	12	10	19	Y	128	0	63
+def					ifnull___b_a	12	10	19	Y	128	0	63
+def					least____a_b	12	10	19	Y	128	0	63
+def					least____b_a	12	10	19	Y	128	0	63
+def					greatest_a_b	12	10	19	Y	128	0	63
+def					greatest_b_a	12	10	19	Y	128	0	63
+case_____a_b	2010-01-01 00:00:00
+case_____b_a	2001-01-01 10:20:30
+coalesce_a_b	2010-01-01 00:00:00
+coalesce_b_a	2001-01-01 10:20:30
+if_______a_b	2001-01-01 10:20:30
+if_______b_a	2010-01-01 00:00:00
+ifnull___a_b	2010-01-01 00:00:00
+ifnull___b_a	2001-01-01 10:20:30
+least____a_b	2001-01-01 10:20:30
+least____b_a	2001-01-01 10:20:30
+greatest_a_b	2010-01-01 00:00:00
+greatest_b_a	2010-01-01 00:00:00
+CREATE TABLE t2 AS
+SELECT
+a                                         AS ___________a,
+CASE WHEN a IS NOT NULL THEN a END        AS case_______a,
+CASE WHEN a IS NOT NULL THEN a ELSE a END AS case_____a_a,
+COALESCE(a)                               AS coalesce___a,
+COALESCE(a, a)                            AS coalesce_a_a,
+IF(a IS NULL, a, a)                       AS if_______a_a,
+IFNULL(a, a)                              AS ifnull___a_a,
+LEAST(a, a)                               AS least____a_a,
+GREATEST(a, a)                            AS greatest_a_a,
+b                                         AS ___________b,
+CASE WHEN a IS NOT NULL THEN b END        AS case_______b,
+CASE WHEN a IS NOT NULL THEN b ELSE b END AS case_____b_b,
+COALESCE(b)                               AS coalesce___b,
+COALESCE(b, b)                            AS coalesce_b_b,
+IF(a IS NULL, b, b)                       AS if_______b_b,
+IFNULL(b, b)                              AS ifnull___b_b,
+LEAST(b, b)                               AS least____b_b,
+GREATEST(b, b)                            AS greatest_b_b
+FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `___________a` date DEFAULT NULL,
+  `case_______a` date DEFAULT NULL,
+  `case_____a_a` date DEFAULT NULL,
+  `coalesce___a` date DEFAULT NULL,
+  `coalesce_a_a` date DEFAULT NULL,
+  `if_______a_a` date DEFAULT NULL,
+  `ifnull___a_a` date DEFAULT NULL,
+  `least____a_a` date DEFAULT NULL,
+  `greatest_a_a` date DEFAULT NULL,
+  `___________b` time DEFAULT NULL,
+  `case_______b` time DEFAULT NULL,
+  `case_____b_b` time DEFAULT NULL,
+  `coalesce___b` time DEFAULT NULL,
+  `coalesce_b_b` time DEFAULT NULL,
+  `if_______b_b` time DEFAULT NULL,
+  `ifnull___b_b` time DEFAULT NULL,
+  `least____b_b` time DEFAULT NULL,
+  `greatest_b_b` time DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t2;
+CREATE TABLE t2 AS
+SELECT
+CASE WHEN a IS NOT NULL THEN a ELSE b END AS case_____a_b,
+CASE WHEN a IS NOT NULL THEN b ELSE a END AS case_____b_a,
+COALESCE(a, b)                            AS coalesce_a_b,
+COALESCE(b, a)                            AS coalesce_b_a,
+IF(a IS NULL, a, b)                       AS if_______a_b,
+IF(a IS NULL, b, a)                       AS if_______b_a,
+IFNULL(a, b)                              AS ifnull___a_b,
+IFNULL(b, a)                              AS ifnull___b_a,
+LEAST(a, b)                               AS least____a_b,
+LEAST(b, a)                               AS least____b_a,
+GREATEST(a, b)                            AS greatest_a_b,
+GREATEST(b, a)                            AS greatest_b_a
+FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `case_____a_b` datetime DEFAULT NULL,
+  `case_____b_a` datetime DEFAULT NULL,
+  `coalesce_a_b` datetime DEFAULT NULL,
+  `coalesce_b_a` datetime DEFAULT NULL,
+  `if_______a_b` datetime DEFAULT NULL,
+  `if_______b_a` datetime DEFAULT NULL,
+  `ifnull___a_b` datetime DEFAULT NULL,
+  `ifnull___b_a` datetime DEFAULT NULL,
+  `least____a_b` datetime DEFAULT NULL,
+  `least____b_a` datetime DEFAULT NULL,
+  `greatest_a_b` datetime DEFAULT NULL,
+  `greatest_b_a` datetime DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t2;
+DROP TABLE t1;
+SET timestamp=DEFAULT;
+#
+SET timestamp=UNIX_TIMESTAMP('2001-01-01 01:02:03');
+CREATE TABLE t1 (a TIMESTAMP, b TIME);
+INSERT INTO t1 VALUES ('2010-01-01 00:00:00','10:20:30');
+SELECT
+a                                         AS ___________a,
+CASE WHEN a IS NOT NULL THEN a END        AS case_______a,
+CASE WHEN a IS NOT NULL THEN a ELSE a END AS case_____a_a,
+COALESCE(a)                               AS coalesce___a,
+COALESCE(a, a)                            AS coalesce_a_a,
+IF(a IS NULL, a, a)                       AS if_______a_a,
+IFNULL(a, a)                              AS ifnull___a_a,
+LEAST(a, a)                               AS least____a_a,
+GREATEST(a, a)                            AS greatest_a_a,
+b                                         AS ___________b,
+CASE WHEN a IS NOT NULL THEN b END        AS case_______b,
+CASE WHEN a IS NOT NULL THEN b ELSE b END AS case_____b_b,
+COALESCE(b)                               AS coalesce___b,
+COALESCE(b, b)                            AS coalesce_b_b,
+IF(a IS NULL, b, b)                       AS if_______b_b,
+IFNULL(b, b)                              AS ifnull___b_b,
+LEAST(b, b)                               AS least____b_b,
+GREATEST(b, b)                            AS greatest_b_b
+FROM t1;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def	test	t1	t1	a	___________a	7	19	19	N	9377	0	63
+def					case_______a	7	19	19	Y	128	0	63
+def					case_____a_a	7	19	19	N	129	0	63
+def					coalesce___a	7	19	19	N	129	0	63
+def					coalesce_a_a	7	19	19	N	129	0	63
+def					if_______a_a	7	19	19	N	129	0	63
+def					ifnull___a_a	7	19	19	N	129	0	63
+def					least____a_a	7	19	19	N	161	0	63
+def					greatest_a_a	7	19	19	N	161	0	63
+def	test	t1	t1	b	___________b	11	10	8	Y	128	0	63
+def					case_______b	11	10	8	Y	128	0	63
+def					case_____b_b	11	10	8	Y	128	0	63
+def					coalesce___b	11	10	8	Y	128	0	63
+def					coalesce_b_b	11	10	8	Y	128	0	63
+def					if_______b_b	11	10	8	Y	128	0	63
+def					ifnull___b_b	11	10	8	Y	128	0	63
+def					least____b_b	11	10	8	Y	128	0	63
+def					greatest_b_b	11	10	8	Y	128	0	63
+___________a	2010-01-01 00:00:00
+case_______a	2010-01-01 00:00:00
+case_____a_a	2010-01-01 00:00:00
+coalesce___a	2010-01-01 00:00:00
+coalesce_a_a	2010-01-01 00:00:00
+if_______a_a	2010-01-01 00:00:00
+ifnull___a_a	2010-01-01 00:00:00
+least____a_a	2010-01-01 00:00:00
+greatest_a_a	2010-01-01 00:00:00
+___________b	10:20:30
+case_______b	10:20:30
+case_____b_b	10:20:30
+coalesce___b	10:20:30
+coalesce_b_b	10:20:30
+if_______b_b	10:20:30
+ifnull___b_b	10:20:30
+least____b_b	10:20:30
+greatest_b_b	10:20:30
+SELECT
+CASE WHEN a IS NOT NULL THEN a ELSE b END AS case_____a_b,
+CASE WHEN a IS NOT NULL THEN b ELSE a END AS case_____b_a,
+COALESCE(a, b)                            AS coalesce_a_b,
+COALESCE(b, a)                            AS coalesce_b_a,
+IF(a IS NULL, a, b)                       AS if_______a_b,
+IF(a IS NULL, b, a)                       AS if_______b_a,
+IFNULL(a, b)                              AS ifnull___a_b,
+IFNULL(b, a)                              AS ifnull___b_a,
+LEAST(a, b)                               AS least____a_b,
+LEAST(b, a)                               AS least____b_a,
+GREATEST(a, b)                            AS greatest_a_b,
+GREATEST(b, a)                            AS greatest_b_a
+FROM t1;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					case_____a_b	12	19	19	Y	128	0	63
+def					case_____b_a	12	19	19	Y	128	0	63
+def					coalesce_a_b	12	19	19	Y	128	0	63
+def					coalesce_b_a	12	19	19	Y	128	0	63
+def					if_______a_b	12	19	19	Y	128	0	63
+def					if_______b_a	12	19	19	Y	128	0	63
+def					ifnull___a_b	12	19	19	Y	128	0	63
+def					ifnull___b_a	12	19	19	N	129	0	63
+def					least____a_b	12	19	19	Y	128	0	63
+def					least____b_a	12	19	19	Y	128	0	63
+def					greatest_a_b	12	19	19	Y	128	0	63
+def					greatest_b_a	12	19	19	Y	128	0	63
+case_____a_b	2010-01-01 00:00:00
+case_____b_a	2001-01-01 10:20:30
+coalesce_a_b	2010-01-01 00:00:00
+coalesce_b_a	2001-01-01 10:20:30
+if_______a_b	2001-01-01 10:20:30
+if_______b_a	2010-01-01 00:00:00
+ifnull___a_b	2010-01-01 00:00:00
+ifnull___b_a	2001-01-01 10:20:30
+least____a_b	2001-01-01 10:20:30
+least____b_a	2001-01-01 10:20:30
+greatest_a_b	2010-01-01 00:00:00
+greatest_b_a	2010-01-01 00:00:00
+CREATE TABLE t2 AS
+SELECT
+a                                         AS ___________a,
+CASE WHEN a IS NOT NULL THEN a END        AS case_______a,
+CASE WHEN a IS NOT NULL THEN a ELSE a END AS case_____a_a,
+COALESCE(a)                               AS coalesce___a,
+COALESCE(a, a)                            AS coalesce_a_a,
+IF(a IS NULL, a, a)                       AS if_______a_a,
+IFNULL(a, a)                              AS ifnull___a_a,
+LEAST(a, a)                               AS least____a_a,
+GREATEST(a, a)                            AS greatest_a_a,
+b                                         AS ___________b,
+CASE WHEN a IS NOT NULL THEN b END        AS case_______b,
+CASE WHEN a IS NOT NULL THEN b ELSE b END AS case_____b_b,
+COALESCE(b)                               AS coalesce___b,
+COALESCE(b, b)                            AS coalesce_b_b,
+IF(a IS NULL, b, b)                       AS if_______b_b,
+IFNULL(b, b)                              AS ifnull___b_b,
+LEAST(b, b)                               AS least____b_b,
+GREATEST(b, b)                            AS greatest_b_b
+FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `___________a` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `case_______a` timestamp NULL DEFAULT NULL,
+  `case_____a_a` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00',
+  `coalesce___a` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00',
+  `coalesce_a_a` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00',
+  `if_______a_a` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00',
+  `ifnull___a_a` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00',
+  `least____a_a` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00',
+  `greatest_a_a` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00',
+  `___________b` time DEFAULT NULL,
+  `case_______b` time DEFAULT NULL,
+  `case_____b_b` time DEFAULT NULL,
+  `coalesce___b` time DEFAULT NULL,
+  `coalesce_b_b` time DEFAULT NULL,
+  `if_______b_b` time DEFAULT NULL,
+  `ifnull___b_b` time DEFAULT NULL,
+  `least____b_b` time DEFAULT NULL,
+  `greatest_b_b` time DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t2;
+CREATE TABLE t2 AS
+SELECT
+CASE WHEN a IS NOT NULL THEN a ELSE b END AS case_____a_b,
+CASE WHEN a IS NOT NULL THEN b ELSE a END AS case_____b_a,
+COALESCE(a, b)                            AS coalesce_a_b,
+COALESCE(b, a)                            AS coalesce_b_a,
+IF(a IS NULL, a, b)                       AS if_______a_b,
+IF(a IS NULL, b, a)                       AS if_______b_a,
+IFNULL(a, b)                              AS ifnull___a_b,
+IFNULL(b, a)                              AS ifnull___b_a,
+LEAST(a, b)                               AS least____a_b,
+LEAST(b, a)                               AS least____b_a,
+GREATEST(a, b)                            AS greatest_a_b,
+GREATEST(b, a)                            AS greatest_b_a
+FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `case_____a_b` datetime DEFAULT NULL,
+  `case_____b_a` datetime DEFAULT NULL,
+  `coalesce_a_b` datetime DEFAULT NULL,
+  `coalesce_b_a` datetime DEFAULT NULL,
+  `if_______a_b` datetime DEFAULT NULL,
+  `if_______b_a` datetime DEFAULT NULL,
+  `ifnull___a_b` datetime DEFAULT NULL,
+  `ifnull___b_a` datetime NOT NULL,
+  `least____a_b` datetime DEFAULT NULL,
+  `least____b_a` datetime DEFAULT NULL,
+  `greatest_a_b` datetime DEFAULT NULL,
+  `greatest_b_a` datetime DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t2;
+DROP TABLE t1;
+SET timestamp=DEFAULT;
+#
+SET timestamp=UNIX_TIMESTAMP('2001-01-01 01:02:03');
+CREATE TABLE t1 (a DATETIME, b TIME);
+INSERT INTO t1 VALUES ('2010-01-01 00:00:00','10:20:30');
+SELECT
+a                                         AS ___________a,
+CASE WHEN a IS NOT NULL THEN a END        AS case_______a,
+CASE WHEN a IS NOT NULL THEN a ELSE a END AS case_____a_a,
+COALESCE(a)                               AS coalesce___a,
+COALESCE(a, a)                            AS coalesce_a_a,
+IF(a IS NULL, a, a)                       AS if_______a_a,
+IFNULL(a, a)                              AS ifnull___a_a,
+LEAST(a, a)                               AS least____a_a,
+GREATEST(a, a)                            AS greatest_a_a,
+b                                         AS ___________b,
+CASE WHEN a IS NOT NULL THEN b END        AS case_______b,
+CASE WHEN a IS NOT NULL THEN b ELSE b END AS case_____b_b,
+COALESCE(b)                               AS coalesce___b,
+COALESCE(b, b)                            AS coalesce_b_b,
+IF(a IS NULL, b, b)                       AS if_______b_b,
+IFNULL(b, b)                              AS ifnull___b_b,
+LEAST(b, b)                               AS least____b_b,
+GREATEST(b, b)                            AS greatest_b_b
+FROM t1;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def	test	t1	t1	a	___________a	12	19	19	Y	128	0	63
+def					case_______a	12	19	19	Y	128	0	63
+def					case_____a_a	12	19	19	Y	128	0	63
+def					coalesce___a	12	19	19	Y	128	0	63
+def					coalesce_a_a	12	19	19	Y	128	0	63
+def					if_______a_a	12	19	19	Y	128	0	63
+def					ifnull___a_a	12	19	19	Y	128	0	63
+def					least____a_a	12	19	19	Y	128	0	63
+def					greatest_a_a	12	19	19	Y	128	0	63
+def	test	t1	t1	b	___________b	11	10	8	Y	128	0	63
+def					case_______b	11	10	8	Y	128	0	63
+def					case_____b_b	11	10	8	Y	128	0	63
+def					coalesce___b	11	10	8	Y	128	0	63
+def					coalesce_b_b	11	10	8	Y	128	0	63
+def					if_______b_b	11	10	8	Y	128	0	63
+def					ifnull___b_b	11	10	8	Y	128	0	63
+def					least____b_b	11	10	8	Y	128	0	63
+def					greatest_b_b	11	10	8	Y	128	0	63
+___________a	2010-01-01 00:00:00
+case_______a	2010-01-01 00:00:00
+case_____a_a	2010-01-01 00:00:00
+coalesce___a	2010-01-01 00:00:00
+coalesce_a_a	2010-01-01 00:00:00
+if_______a_a	2010-01-01 00:00:00
+ifnull___a_a	2010-01-01 00:00:00
+least____a_a	2010-01-01 00:00:00
+greatest_a_a	2010-01-01 00:00:00
+___________b	10:20:30
+case_______b	10:20:30
+case_____b_b	10:20:30
+coalesce___b	10:20:30
+coalesce_b_b	10:20:30
+if_______b_b	10:20:30
+ifnull___b_b	10:20:30
+least____b_b	10:20:30
+greatest_b_b	10:20:30
+SELECT
+CASE WHEN a IS NOT NULL THEN a ELSE b END AS case_____a_b,
+CASE WHEN a IS NOT NULL THEN b ELSE a END AS case_____b_a,
+COALESCE(a, b)                            AS coalesce_a_b,
+COALESCE(b, a)                            AS coalesce_b_a,
+IF(a IS NULL, a, b)                       AS if_______a_b,
+IF(a IS NULL, b, a)                       AS if_______b_a,
+IFNULL(a, b)                              AS ifnull___a_b,
+IFNULL(b, a)                              AS ifnull___b_a,
+LEAST(a, b)                               AS least____a_b,
+LEAST(b, a)                               AS least____b_a,
+GREATEST(a, b)                            AS greatest_a_b,
+GREATEST(b, a)                            AS greatest_b_a
+FROM t1;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					case_____a_b	12	19	19	Y	128	0	63
+def					case_____b_a	12	19	19	Y	128	0	63
+def					coalesce_a_b	12	19	19	Y	128	0	63
+def					coalesce_b_a	12	19	19	Y	128	0	63
+def					if_______a_b	12	19	19	Y	128	0	63
+def					if_______b_a	12	19	19	Y	128	0	63
+def					ifnull___a_b	12	19	19	Y	128	0	63
+def					ifnull___b_a	12	19	19	Y	128	0	63
+def					least____a_b	12	19	19	Y	128	0	63
+def					least____b_a	12	19	19	Y	128	0	63
+def					greatest_a_b	12	19	19	Y	128	0	63
+def					greatest_b_a	12	19	19	Y	128	0	63
+case_____a_b	2010-01-01 00:00:00
+case_____b_a	2001-01-01 10:20:30
+coalesce_a_b	2010-01-01 00:00:00
+coalesce_b_a	2001-01-01 10:20:30
+if_______a_b	2001-01-01 10:20:30
+if_______b_a	2010-01-01 00:00:00
+ifnull___a_b	2010-01-01 00:00:00
+ifnull___b_a	2001-01-01 10:20:30
+least____a_b	2001-01-01 10:20:30
+least____b_a	2001-01-01 10:20:30
+greatest_a_b	2010-01-01 00:00:00
+greatest_b_a	2010-01-01 00:00:00
+CREATE TABLE t2 AS
+SELECT
+a                                         AS ___________a,
+CASE WHEN a IS NOT NULL THEN a END        AS case_______a,
+CASE WHEN a IS NOT NULL THEN a ELSE a END AS case_____a_a,
+COALESCE(a)                               AS coalesce___a,
+COALESCE(a, a)                            AS coalesce_a_a,
+IF(a IS NULL, a, a)                       AS if_______a_a,
+IFNULL(a, a)                              AS ifnull___a_a,
+LEAST(a, a)                               AS least____a_a,
+GREATEST(a, a)                            AS greatest_a_a,
+b                                         AS ___________b,
+CASE WHEN a IS NOT NULL THEN b END        AS case_______b,
+CASE WHEN a IS NOT NULL THEN b ELSE b END AS case_____b_b,
+COALESCE(b)                               AS coalesce___b,
+COALESCE(b, b)                            AS coalesce_b_b,
+IF(a IS NULL, b, b)                       AS if_______b_b,
+IFNULL(b, b)                              AS ifnull___b_b,
+LEAST(b, b)                               AS least____b_b,
+GREATEST(b, b)                            AS greatest_b_b
+FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `___________a` datetime DEFAULT NULL,
+  `case_______a` datetime DEFAULT NULL,
+  `case_____a_a` datetime DEFAULT NULL,
+  `coalesce___a` datetime DEFAULT NULL,
+  `coalesce_a_a` datetime DEFAULT NULL,
+  `if_______a_a` datetime DEFAULT NULL,
+  `ifnull___a_a` datetime DEFAULT NULL,
+  `least____a_a` datetime DEFAULT NULL,
+  `greatest_a_a` datetime DEFAULT NULL,
+  `___________b` time DEFAULT NULL,
+  `case_______b` time DEFAULT NULL,
+  `case_____b_b` time DEFAULT NULL,
+  `coalesce___b` time DEFAULT NULL,
+  `coalesce_b_b` time DEFAULT NULL,
+  `if_______b_b` time DEFAULT NULL,
+  `ifnull___b_b` time DEFAULT NULL,
+  `least____b_b` time DEFAULT NULL,
+  `greatest_b_b` time DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t2;
+CREATE TABLE t2 AS
+SELECT
+CASE WHEN a IS NOT NULL THEN a ELSE b END AS case_____a_b,
+CASE WHEN a IS NOT NULL THEN b ELSE a END AS case_____b_a,
+COALESCE(a, b)                            AS coalesce_a_b,
+COALESCE(b, a)                            AS coalesce_b_a,
+IF(a IS NULL, a, b)                       AS if_______a_b,
+IF(a IS NULL, b, a)                       AS if_______b_a,
+IFNULL(a, b)                              AS ifnull___a_b,
+IFNULL(b, a)                              AS ifnull___b_a,
+LEAST(a, b)                               AS least____a_b,
+LEAST(b, a)                               AS least____b_a,
+GREATEST(a, b)                            AS greatest_a_b,
+GREATEST(b, a)                            AS greatest_b_a
+FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `case_____a_b` datetime DEFAULT NULL,
+  `case_____b_a` datetime DEFAULT NULL,
+  `coalesce_a_b` datetime DEFAULT NULL,
+  `coalesce_b_a` datetime DEFAULT NULL,
+  `if_______a_b` datetime DEFAULT NULL,
+  `if_______b_a` datetime DEFAULT NULL,
+  `ifnull___a_b` datetime DEFAULT NULL,
+  `ifnull___b_a` datetime DEFAULT NULL,
+  `least____a_b` datetime DEFAULT NULL,
+  `least____b_a` datetime DEFAULT NULL,
+  `greatest_a_b` datetime DEFAULT NULL,
+  `greatest_b_a` datetime DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t2;
+DROP TABLE t1;
+SET timestamp=DEFAULT;
+#
+SET timestamp=UNIX_TIMESTAMP('2001-01-01 01:02:03');
+CREATE TABLE t1 (a DATETIME, b DATE);
+INSERT INTO t1 VALUES ('2010-01-01 10:20:30','2001-01-02');
+SELECT
+a                                         AS ___________a,
+CASE WHEN a IS NOT NULL THEN a END        AS case_______a,
+CASE WHEN a IS NOT NULL THEN a ELSE a END AS case_____a_a,
+COALESCE(a)                               AS coalesce___a,
+COALESCE(a, a)                            AS coalesce_a_a,
+IF(a IS NULL, a, a)                       AS if_______a_a,
+IFNULL(a, a)                              AS ifnull___a_a,
+LEAST(a, a)                               AS least____a_a,
+GREATEST(a, a)                            AS greatest_a_a,
+b                                         AS ___________b,
+CASE WHEN a IS NOT NULL THEN b END        AS case_______b,
+CASE WHEN a IS NOT NULL THEN b ELSE b END AS case_____b_b,
+COALESCE(b)                               AS coalesce___b,
+COALESCE(b, b)                            AS coalesce_b_b,
+IF(a IS NULL, b, b)                       AS if_______b_b,
+IFNULL(b, b)                              AS ifnull___b_b,
+LEAST(b, b)                               AS least____b_b,
+GREATEST(b, b)                            AS greatest_b_b
+FROM t1;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def	test	t1	t1	a	___________a	12	19	19	Y	128	0	63
+def					case_______a	12	19	19	Y	128	0	63
+def					case_____a_a	12	19	19	Y	128	0	63
+def					coalesce___a	12	19	19	Y	128	0	63
+def					coalesce_a_a	12	19	19	Y	128	0	63
+def					if_______a_a	12	19	19	Y	128	0	63
+def					ifnull___a_a	12	19	19	Y	128	0	63
+def					least____a_a	12	19	19	Y	128	0	63
+def					greatest_a_a	12	19	19	Y	128	0	63
+def	test	t1	t1	b	___________b	10	10	10	Y	128	0	63
+def					case_______b	10	10	10	Y	128	0	63
+def					case_____b_b	10	10	10	Y	128	0	63
+def					coalesce___b	10	10	10	Y	128	0	63
+def					coalesce_b_b	10	10	10	Y	128	0	63
+def					if_______b_b	10	10	10	Y	128	0	63
+def					ifnull___b_b	10	10	10	Y	128	0	63
+def					least____b_b	10	10	10	Y	128	0	63
+def					greatest_b_b	10	10	10	Y	128	0	63
+___________a	2010-01-01 10:20:30
+case_______a	2010-01-01 10:20:30
+case_____a_a	2010-01-01 10:20:30
+coalesce___a	2010-01-01 10:20:30
+coalesce_a_a	2010-01-01 10:20:30
+if_______a_a	2010-01-01 10:20:30
+ifnull___a_a	2010-01-01 10:20:30
+least____a_a	2010-01-01 10:20:30
+greatest_a_a	2010-01-01 10:20:30
+___________b	2001-01-02
+case_______b	2001-01-02
+case_____b_b	2001-01-02
+coalesce___b	2001-01-02
+coalesce_b_b	2001-01-02
+if_______b_b	2001-01-02
+ifnull___b_b	2001-01-02
+least____b_b	2001-01-02
+greatest_b_b	2001-01-02
+SELECT
+CASE WHEN a IS NOT NULL THEN a ELSE b END AS case_____a_b,
+CASE WHEN a IS NOT NULL THEN b ELSE a END AS case_____b_a,
+COALESCE(a, b)                            AS coalesce_a_b,
+COALESCE(b, a)                            AS coalesce_b_a,
+IF(a IS NULL, a, b)                       AS if_______a_b,
+IF(a IS NULL, b, a)                       AS if_______b_a,
+IFNULL(a, b)                              AS ifnull___a_b,
+IFNULL(b, a)                              AS ifnull___b_a,
+LEAST(a, b)                               AS least____a_b,
+LEAST(b, a)                               AS least____b_a,
+GREATEST(a, b)                            AS greatest_a_b,
+GREATEST(b, a)                            AS greatest_b_a
+FROM t1;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					case_____a_b	12	19	19	Y	128	0	63
+def					case_____b_a	12	19	19	Y	128	0	63
+def					coalesce_a_b	12	19	19	Y	128	0	63
+def					coalesce_b_a	12	19	19	Y	128	0	63
+def					if_______a_b	12	19	19	Y	128	0	63
+def					if_______b_a	12	19	19	Y	128	0	63
+def					ifnull___a_b	12	19	19	Y	128	0	63
+def					ifnull___b_a	12	19	19	Y	128	0	63
+def					least____a_b	12	19	19	Y	128	0	63
+def					least____b_a	12	19	19	Y	128	0	63
+def					greatest_a_b	12	19	19	Y	128	0	63
+def					greatest_b_a	12	19	19	Y	128	0	63
+case_____a_b	2010-01-01 10:20:30
+case_____b_a	2001-01-02 00:00:00
+coalesce_a_b	2010-01-01 10:20:30
+coalesce_b_a	2001-01-02 00:00:00
+if_______a_b	2001-01-02 00:00:00
+if_______b_a	2010-01-01 10:20:30
+ifnull___a_b	2010-01-01 10:20:30
+ifnull___b_a	2001-01-02 00:00:00
+least____a_b	2001-01-02 00:00:00
+least____b_a	2001-01-02 00:00:00
+greatest_a_b	2010-01-01 10:20:30
+greatest_b_a	2010-01-01 10:20:30
+CREATE TABLE t2 AS
+SELECT
+a                                         AS ___________a,
+CASE WHEN a IS NOT NULL THEN a END        AS case_______a,
+CASE WHEN a IS NOT NULL THEN a ELSE a END AS case_____a_a,
+COALESCE(a)                               AS coalesce___a,
+COALESCE(a, a)                            AS coalesce_a_a,
+IF(a IS NULL, a, a)                       AS if_______a_a,
+IFNULL(a, a)                              AS ifnull___a_a,
+LEAST(a, a)                               AS least____a_a,
+GREATEST(a, a)                            AS greatest_a_a,
+b                                         AS ___________b,
+CASE WHEN a IS NOT NULL THEN b END        AS case_______b,
+CASE WHEN a IS NOT NULL THEN b ELSE b END AS case_____b_b,
+COALESCE(b)                               AS coalesce___b,
+COALESCE(b, b)                            AS coalesce_b_b,
+IF(a IS NULL, b, b)                       AS if_______b_b,
+IFNULL(b, b)                              AS ifnull___b_b,
+LEAST(b, b)                               AS least____b_b,
+GREATEST(b, b)                            AS greatest_b_b
+FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `___________a` datetime DEFAULT NULL,
+  `case_______a` datetime DEFAULT NULL,
+  `case_____a_a` datetime DEFAULT NULL,
+  `coalesce___a` datetime DEFAULT NULL,
+  `coalesce_a_a` datetime DEFAULT NULL,
+  `if_______a_a` datetime DEFAULT NULL,
+  `ifnull___a_a` datetime DEFAULT NULL,
+  `least____a_a` datetime DEFAULT NULL,
+  `greatest_a_a` datetime DEFAULT NULL,
+  `___________b` date DEFAULT NULL,
+  `case_______b` date DEFAULT NULL,
+  `case_____b_b` date DEFAULT NULL,
+  `coalesce___b` date DEFAULT NULL,
+  `coalesce_b_b` date DEFAULT NULL,
+  `if_______b_b` date DEFAULT NULL,
+  `ifnull___b_b` date DEFAULT NULL,
+  `least____b_b` date DEFAULT NULL,
+  `greatest_b_b` date DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t2;
+CREATE TABLE t2 AS
+SELECT
+CASE WHEN a IS NOT NULL THEN a ELSE b END AS case_____a_b,
+CASE WHEN a IS NOT NULL THEN b ELSE a END AS case_____b_a,
+COALESCE(a, b)                            AS coalesce_a_b,
+COALESCE(b, a)                            AS coalesce_b_a,
+IF(a IS NULL, a, b)                       AS if_______a_b,
+IF(a IS NULL, b, a)                       AS if_______b_a,
+IFNULL(a, b)                              AS ifnull___a_b,
+IFNULL(b, a)                              AS ifnull___b_a,
+LEAST(a, b)                               AS least____a_b,
+LEAST(b, a)                               AS least____b_a,
+GREATEST(a, b)                            AS greatest_a_b,
+GREATEST(b, a)                            AS greatest_b_a
+FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `case_____a_b` datetime DEFAULT NULL,
+  `case_____b_a` datetime DEFAULT NULL,
+  `coalesce_a_b` datetime DEFAULT NULL,
+  `coalesce_b_a` datetime DEFAULT NULL,
+  `if_______a_b` datetime DEFAULT NULL,
+  `if_______b_a` datetime DEFAULT NULL,
+  `ifnull___a_b` datetime DEFAULT NULL,
+  `ifnull___b_a` datetime DEFAULT NULL,
+  `least____a_b` datetime DEFAULT NULL,
+  `least____b_a` datetime DEFAULT NULL,
+  `greatest_a_b` datetime DEFAULT NULL,
+  `greatest_b_a` datetime DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t2;
+DROP TABLE t1;
+SET timestamp=DEFAULT;
+#
 # MDEV-8873 Wrong field type or metadata for LEAST(int_column,string_column)
 #
 CREATE TABLE t1 (a INT, b VARCHAR(10));
@@ -2316,6 +3028,36 @@ SELECT * FROM t1;
 a
 13836376518955650385
 DROP TABLE t1;
+#
+# MDEV-5694 GREATEST(date, time) returns a wrong data type
+#
+SET timestamp=UNIX_TIMESTAMP('2010-01-01 01:02:03');
+SELECT GREATEST(CURRENT_TIME, CURRENT_DATE), COALESCE(CURRENT_TIME, CURRENT_DATE);
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					GREATEST(CURRENT_TIME, CURRENT_DATE)	12	10	19	N	129	0	63
+def					COALESCE(CURRENT_TIME, CURRENT_DATE)	12	19	19	N	129	0	63
+GREATEST(CURRENT_TIME, CURRENT_DATE)	COALESCE(CURRENT_TIME, CURRENT_DATE)
+2010-01-01 01:02:03	2010-01-01 01:02:03
+CREATE TABLE t1 (a TIMESTAMP);
+INSERT INTO t1 VALUES ('2010-01-01 10:20:30');
+SELECT GREATEST(a,a) FROM t1;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					GREATEST(a,a)	7	19	19	N	161	0	63
+GREATEST(a,a)
+2010-01-01 10:20:30
+DROP TABLE t1;
+CREATE TABLE t1 (a TIMESTAMP, b DATETIME);
+CREATE TABLE t2 AS SELECT LEAST(a,a),LEAST(b,b),LEAST(a,b) FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `LEAST(a,a)` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00',
+  `LEAST(b,b)` datetime DEFAULT NULL,
+  `LEAST(a,b)` datetime DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t2;
+DROP TABLE t1;
+SET timestamp=DEFAULT;
 #
 # End of 10.1 tests
 #

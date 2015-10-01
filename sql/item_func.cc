@@ -2832,9 +2832,10 @@ void Item_func_min_max::fix_length_and_dec()
   max_length=0;
   maybe_null=0;
   thd= current_thd;
-  compare_as_dates= find_date_time_item(args, arg_count, 0);
   Item_result tmp_cmp_type= args[0]->cmp_type();
   uint string_type_count= 0;
+  uint temporal_type_count= 0;
+  enum_field_types temporal_field_type= MYSQL_TYPE_DATETIME;
 
   for (uint i=0 ; i < arg_count ; i++)
   {
@@ -2846,6 +2847,15 @@ void Item_func_min_max::fix_length_and_dec()
       maybe_null= 1;
     tmp_cmp_type= item_cmp_type(tmp_cmp_type, args[i]->cmp_type());
     string_type_count+= args[i]->cmp_type() == STRING_RESULT;
+    if (args[i]->cmp_type() == TIME_RESULT)
+    {
+      if (!temporal_type_count)
+        temporal_field_type= args[i]->field_type();
+      else
+        temporal_field_type= Field::field_type_merge(temporal_field_type,
+                                                     args[i]->field_type());
+      temporal_type_count++;
+    }
   }
   unsigned_flag= unsigned_count == arg_count; // if all args are unsigned
 
@@ -2853,12 +2863,11 @@ void Item_func_min_max::fix_length_and_dec()
   case TIME_RESULT:
     // At least one temporal argument was found.
     collation.set_numeric();
-    set_handler_by_field_type(compare_as_dates->field_type());
-    if (mysql_type_to_time_type(Item_func_min_max::field_type()) ==
-        MYSQL_TIMESTAMP_DATE)
-      decimals= 0;
-    else
+    set_handler_by_field_type(temporal_field_type);
+    if (is_temporal_type_with_time(temporal_field_type))
       set_if_smaller(decimals, TIME_SECOND_PART_DIGITS);
+    else
+      decimals= 0;
     break;
 
   case STRING_RESULT:
@@ -2956,12 +2965,12 @@ bool Item_func_min_max::get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date)
     for example, SELECT MONTH(GREATEST("2011-11-21", "2010-10-09"))
 
   */
-  if (!compare_as_dates)
+  if (Item_func_min_max::cmp_type() != TIME_RESULT)
     return Item_func::get_date(ltime, fuzzy_date);
 
   for (uint i=0; i < arg_count ; i++)
   {
-    longlong res= args[i]->val_temporal_packed(compare_as_dates);
+    longlong res= args[i]->val_temporal_packed(Item_func_min_max::field_type());
 
     /* Check if we need to stop (because of error or KILL) and stop the loop */
     if (thd->is_error() || args[i]->null_value)
@@ -2974,12 +2983,12 @@ bool Item_func_min_max::get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date)
   }
   unpack_time(min_max, ltime);
 
-  if (compare_as_dates->field_type() == MYSQL_TYPE_DATE)
+  if (Item_func_min_max::field_type() == MYSQL_TYPE_DATE)
   {
     ltime->time_type= MYSQL_TIMESTAMP_DATE;
     ltime->hour= ltime->minute= ltime->second= ltime->second_part= 0;
   }
-  else if (compare_as_dates->field_type() == MYSQL_TYPE_TIME)
+  else if (Item_func_min_max::field_type() == MYSQL_TYPE_TIME)
   {
     ltime->time_type= MYSQL_TIMESTAMP_TIME;
     ltime->hour+= (ltime->month * 32 + ltime->day) * 24;
@@ -3001,7 +3010,7 @@ bool Item_func_min_max::get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date)
 String *Item_func_min_max::val_str(String *str)
 {
   DBUG_ASSERT(fixed == 1);
-  if (compare_as_dates)
+  if (Item_func_min_max::cmp_type() == TIME_RESULT)
     return val_string_from_date(str);
   switch (Item_func_min_max::result_type()) {
   case INT_RESULT:
@@ -3047,7 +3056,7 @@ double Item_func_min_max::val_real()
 {
   DBUG_ASSERT(fixed == 1);
   double value=0.0;
-  if (compare_as_dates)
+  if (Item_func_min_max::cmp_type() == TIME_RESULT)
   {
     MYSQL_TIME ltime;
     if (get_date(&ltime, 0))
@@ -3076,7 +3085,7 @@ longlong Item_func_min_max::val_int()
 {
   DBUG_ASSERT(fixed == 1);
   longlong value=0;
-  if (compare_as_dates)
+  if (Item_func_min_max::cmp_type() == TIME_RESULT)
   {
     MYSQL_TIME ltime;
     if (get_date(&ltime, 0))
@@ -3106,7 +3115,7 @@ my_decimal *Item_func_min_max::val_decimal(my_decimal *dec)
   DBUG_ASSERT(fixed == 1);
   my_decimal tmp_buf, *tmp, *UNINIT_VAR(res);
 
-  if (compare_as_dates)
+  if (Item_func_min_max::cmp_type() == TIME_RESULT)
   {
     MYSQL_TIME ltime;
     if (get_date(&ltime, 0))
