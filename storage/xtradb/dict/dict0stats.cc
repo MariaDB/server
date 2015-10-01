@@ -962,6 +962,11 @@ dict_stats_update_transient(
 			continue;
 		}
 
+		/* Do not continue if table decryption has failed. */
+		if (index->table->is_encrypted) {
+			break;
+		}
+
 		dict_stats_update_transient_for_index(index);
 
 		sum_of_index_sizes += index->stat_index_size;
