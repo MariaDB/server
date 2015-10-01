@@ -701,8 +701,8 @@ extern void my_thread_end(void);
 extern const char *my_thread_name(void);
 extern my_thread_id my_thread_dbug_id(void);
 extern int pthread_dummy(int);
-extern void my_mutex_init();
-extern void my_mutex_end();
+extern void my_mutex_init(void);
+extern void my_mutex_end(void);
 
 /* All thread specific variables are in the following struct */
 
@@ -745,8 +745,8 @@ struct st_my_thread_var
 };
 
 extern struct st_my_thread_var *_my_thread_var(void) __attribute__ ((const));
-extern void **my_thread_var_dbug();
-extern safe_mutex_t **my_thread_var_mutex_in_use();
+extern void **my_thread_var_dbug(void);
+extern safe_mutex_t **my_thread_var_mutex_in_use(void);
 extern uint my_thread_end_wait_time;
 extern my_bool safe_mutex_deadlock_detector;
 #define my_thread_var (_my_thread_var())
