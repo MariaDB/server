@@ -2584,7 +2584,7 @@ all_done:
 		and be ignored when the operation is unsupported. */
 		fallocate(index->online_log->fd,
 			  FALLOC_FL_PUNCH_HOLE | FALLOC_FL_KEEP_SIZE,
-			  ofs, srv_buf_size);
+			  ofs, srv_sort_buf_size);
 #endif /* FALLOC_FL_PUNCH_HOLE */
 
 		next_mrec = index->online_log->head.block;
@@ -3412,7 +3412,7 @@ all_done:
 		and be ignored when the operation is unsupported. */
 		fallocate(index->online_log->fd,
 			  FALLOC_FL_PUNCH_HOLE | FALLOC_FL_KEEP_SIZE,
-			  ofs, srv_buf_size);
+			  ofs, srv_sort_buf_size);
 #endif /* FALLOC_FL_PUNCH_HOLE */
 
 		next_mrec = index->online_log->head.block;
