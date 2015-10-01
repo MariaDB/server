@@ -2888,6 +2888,15 @@ int fill_schema_processlist(THD* thd, TABLE_LIST* tables, COND* cond)
         table->field[7]->set_notnull();
       }
 
+      /* INFO_BINARY */
+      if (tmp->query())
+      {
+        table->field[15]->store(tmp->query(),
+                                MY_MIN(PROCESS_LIST_INFO_WIDTH,
+                                tmp->query_length()), &my_charset_bin);
+        table->field[15]->set_notnull();
+      }
+
       /*
         Progress report. We need to do this under a lock to ensure that all
         is from the same stage.
@@ -2915,15 +2924,6 @@ int fill_schema_processlist(THD* thd, TABLE_LIST* tables, COND* cond)
 
       /* QUERY_ID */
       table->field[14]->store(tmp->query_id, TRUE);
-
-      /* INFO_BINARY */
-      if (tmp->query())
-      {
-        table->field[15]->store(tmp->query(),
-                                MY_MIN(PROCESS_LIST_INFO_WIDTH,
-                                tmp->query_length()), &my_charset_bin);
-        table->field[15]->set_notnull();
-      }
 
       table->field[16]->store(tmp->os_thread_id);
 
