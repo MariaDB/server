@@ -118,9 +118,6 @@ public:
   /* End scanning */
   virtual int end_scan()=0;
 
-  /* Information for optimizer (used by EXPLAIN) */
-  virtual int info(uint flag, ha_statistics *stats)= 0;
-
   /* Function that calls the above scan functions */
   int execute(JOIN *join);
 

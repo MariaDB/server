@@ -377,7 +377,6 @@ public:
   int init_scan() { first_row= 1 ; return 0; }
   int next_row();
   int end_scan()  { return 0; }
-  int info(uint flag, ha_statistics *stats);
 };
 
 static group_by_handler *
@@ -448,14 +447,6 @@ bool ha_seq_group_by_handler::init(TABLE *temporary_table, Item *having_arg,
   return group_by_handler::init(temporary_table, having_arg, order_by_arg);
 }
 
-
-int ha_seq_group_by_handler::info(uint flag, ha_statistics *stats)
-{
-  bzero(stats, sizeof(*stats));
-  /* We only return one records for a SUM(*) without a group by */
-  stats->records= 1;
-  return 0;
-}
 
 int ha_seq_group_by_handler::next_row()
 {
