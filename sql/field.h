@@ -1199,16 +1199,6 @@ public:
   { return binary() ? &my_charset_bin : charset(); }
   virtual CHARSET_INFO *sort_charset(void) const { return charset(); }
   virtual bool has_charset(void) const { return FALSE; }
-  /*
-    match_collation_to_optimize_range() is to distinguish in
-    range optimizer (see opt_range.cc) between real string types:
-      CHAR, VARCHAR, TEXT
-    and the other string-alike types with result_type() == STRING_RESULT:
-      DATE, TIME, DATETIME, TIMESTAMP
-    We need it to decide whether to test if collation of the operation
-    matches collation of the field (needed only for real string types).
-  */
-  virtual bool match_collation_to_optimize_range() const { return false; }
   virtual void set_charset(CHARSET_INFO *charset_arg) { }
   virtual enum Derivation derivation(void) const
   { return DERIVATION_IMPLICIT; }
@@ -1359,6 +1349,15 @@ public:
   }
   virtual bool can_optimize_group_min_max(const Item_bool_func *cond,
                                           const Item *const_item) const;
+  /**
+    Test if Field can use range optimizer for a standard comparison operation:
+      <=, <, =, <=>, >, >=
+    Note, this method does not cover spatial operations.
+  */
+  virtual bool can_optimize_range(const Item_bool_func *cond,
+                                  const Item *item,
+                                  bool is_eq_func) const;
+
   bool can_optimize_outer_join_table_elimination(const Item_bool_func *cond,
                                                  const Item *item) const
   {
@@ -1583,13 +1582,15 @@ public:
 
   int store_decimal(const my_decimal *d);
   uint32 max_data_length() const;
-  bool match_collation_to_optimize_range() const { return true; }
   bool can_optimize_keypart_ref(const Item_bool_func *cond,
                                 const Item *item) const;
   bool can_optimize_hash_join(const Item_bool_func *cond,
                               const Item *item) const;
   bool can_optimize_group_min_max(const Item_bool_func *cond,
                                   const Item *const_item) const;
+  bool can_optimize_range(const Item_bool_func *cond,
+                          const Item *item,
+                          bool is_eq_func) const;
 };
 
 /* base class for float and double and decimal (old one) */
@@ -2082,6 +2083,12 @@ public:
                                 const Item *item) const;
   bool can_optimize_group_min_max(const Item_bool_func *cond,
                                   const Item *const_item) const;
+  bool can_optimize_range(const Item_bool_func *cond,
+                                  const Item *item,
+                                  bool is_eq_func) const
+  {
+    return true;
+  }
 };
 
 
@@ -3101,7 +3108,9 @@ public:
   { geom_type= geom_type_arg; srid= 0; }
   enum ha_base_keytype key_type() const { return HA_KEYTYPE_VARBINARY2; }
   enum_field_types type() const { return MYSQL_TYPE_GEOMETRY; }
-  bool match_collation_to_optimize_range() const { return false; }
+  bool can_optimize_range(const Item_bool_func *cond,
+                                  const Item *item,
+                                  bool is_eq_func) const;
   void sql_type(String &str) const;
   int  store(const char *to, uint length, CHARSET_INFO *charset);
   int  store(double nr);

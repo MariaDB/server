@@ -7849,28 +7849,6 @@ Item_bool_func::get_mm_leaf(RANGE_OPT_PARAM *param,
   if (key_part->image_type != Field::itRAW)
     DBUG_RETURN(0);   // e.g. SPATIAL index
 
-  /*
-    1. Usually we can't use an index if the column collation
-       differ from the operation collation.
-
-    2. However, we can reuse a case insensitive index for
-       the binary searches:
-
-       WHERE latin1_swedish_ci_column = 'a' COLLATE lati1_bin;
-
-       WHERE latin1_swedish_ci_colimn = BINARY 'a '
-
-  */
-  if (field->result_type() == STRING_RESULT &&
-      field->match_collation_to_optimize_range() &&
-      value->result_type() == STRING_RESULT &&
-      field->charset() != compare_collation() &&
-      !((type == EQUAL_FUNC || type == EQ_FUNC) &&
-        compare_collation()->state & MY_CS_BINSORT))
-    goto end;
-  if (value->cmp_type() == TIME_RESULT && field->cmp_type() != TIME_RESULT)
-    goto end;
-
   if (param->using_real_indexes &&
       !field->optimize_range(param->real_keynr[key_part->key],
                              key_part->part) &&
@@ -7878,12 +7856,10 @@ Item_bool_func::get_mm_leaf(RANGE_OPT_PARAM *param,
       type != EQUAL_FUNC)
     goto end;                                   // Can't optimize this
 
-  /*
-    We can't always use indexes when comparing a string index to a number
-    cmp_type() is checked to allow compare of dates to numbers
-  */
-  if (field->cmp_type() == STRING_RESULT && value->cmp_type() != STRING_RESULT)
+  if (!field->can_optimize_range(this, value,
+                                 type == EQUAL_FUNC || type == EQ_FUNC))
     goto end;
+
   err= value->save_in_field_no_warnings(field, 1);
   if (err == 2 && field->cmp_type() == STRING_RESULT)
   {

@@ -1309,6 +1309,19 @@ bool Field::can_optimize_group_min_max(const Item_bool_func *cond,
 }
 
 
+/*
+  This covers all numeric types, ENUM, SET, BIT
+*/
+bool Field::can_optimize_range(const Item_bool_func *cond,
+                               const Item *item,
+                               bool is_eq_func) const
+{
+  DBUG_ASSERT(cmp_type() != TIME_RESULT);   // Handled in Field_temporal
+  DBUG_ASSERT(cmp_type() != STRING_RESULT); // Handled in Field_longstr
+  return item->cmp_type() != TIME_RESULT;
+}
+
+
 /**
   Numeric fields base class constructor.
 */
@@ -6955,6 +6968,16 @@ bool Field_longstr::can_optimize_group_min_max(const Item_bool_func *cond,
 }
 
 
+bool Field_longstr::can_optimize_range(const Item_bool_func *cond,
+                                       const Item *item,
+                                       bool is_eq_func) const
+{
+  return is_eq_func ?
+         cmp_to_string_with_stricter_collation(cond, item) :
+         cmp_to_string_with_same_collation(cond, item);
+}
+
+
 /**
   This overrides the default behavior of the parent constructor
   Warn_filter(thd) to suppress notes about trailing spaces in case of CHAR(N),
@@ -8459,6 +8482,14 @@ Field::geometry_type Field_geom::geometry_type_merge(geometry_type a,
   if (a == b)
     return a;
   return Field::GEOM_GEOMETRY;
+}
+
+
+bool Field_geom::can_optimize_range(const Item_bool_func *cond,
+                                    const Item *item,
+                                    bool is_eq_func) const
+{
+  return item->cmp_type() == STRING_RESULT;
 }
 
 #endif /*HAVE_SPATIAL*/
