@@ -950,6 +950,7 @@ struct handler_iterator {
 
 class handler;
 class group_by_handler;
+struct Query;
 typedef class st_select_lex SELECT_LEX;
 typedef struct st_order ORDER;
 
@@ -1267,10 +1268,7 @@ struct handlerton
     The server guaranteeds that all tables in the list belong to this
     storage engine.
   */
-  group_by_handler *(*create_group_by)(THD *thd, List<Item> *fields,
-                                       TABLE_LIST *table_list, ORDER *group_by,
-                                       ORDER *order_by, Item *where,
-                                       Item *having);
+  group_by_handler *(*create_group_by)(THD *thd, Query *query);
 
    /*********************************************************************
      Table discovery API.

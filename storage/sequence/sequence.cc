@@ -375,19 +375,17 @@ public:
 };
 
 static group_by_handler *
-create_group_by_handler(THD *thd, List<Item> *fields, TABLE_LIST *table_list,
-                        ORDER *group_by, ORDER *order_by, Item *where,
-                        Item *having)
+create_group_by_handler(THD *thd, Query *query)
 {
   ha_seq_group_by_handler *handler;
   Item *item;
-  List_iterator_fast<Item> it(*fields);
+  List_iterator_fast<Item> it(*query->select);
 
   /* check that only one table is used in FROM clause and no sub queries */
-  if (table_list->next_local != 0)
+  if (query->from->next_local != 0)
     return 0;
   /* check that there is no where clause and no group_by */
-  if (where != 0 || group_by != 0)
+  if (query->where != 0 || query->group_by != 0)
     return 0;
 
   /*
@@ -417,7 +415,7 @@ create_group_by_handler(THD *thd, List<Item> *fields, TABLE_LIST *table_list,
       Check that we are using the sequence table (the only table in the FROM
       clause) and not an outer table.
     */
-    if (field->table != table_list->table)
+    if (field->table != query->from->table)
       return 0;
     /* Check that we are using a SUM() on the primary key */
     if (strcmp(field->field_name, "seq"))
@@ -425,7 +423,7 @@ create_group_by_handler(THD *thd, List<Item> *fields, TABLE_LIST *table_list,
   }
 
   /* Create handler and return it */
-  handler= new ha_seq_group_by_handler(thd, fields, table_list);
+  handler= new ha_seq_group_by_handler(thd, query->select, query->from);
   return handler;
 }
 

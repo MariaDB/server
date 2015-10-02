@@ -30,13 +30,44 @@
   SELECT a, (select sum(*) from t2 where t1.a=t2.a) from t2;
 */
 
+/**
+  The structure describing various parts of the query
+
+  The engine is supposed to take out parts that it can do internally.
+  For example, if the engine can return results sorted according to
+  the specified order_by clause, it sets Query::order_by=NULL before
+  returning.
+
+  At the moment the engine must take group_by (or return an error), and
+  optionally can take distinct, where, order_by, and having.
+
+  The engine should not modify the select list. It is the extended SELECT
+  clause (extended, because it has more items than the original
+  user-specified SELECT clause) and it contains all aggregate functions,
+  used in the query.
+*/
+struct Query
+{
+  List<Item> *select;
+  bool        distinct;
+  TABLE_LIST *from;
+  Item       *where;
+  ORDER      *group_by;
+  ORDER      *order_by;
+  Item       *having;
+  // LIMIT
+};
+
 class group_by_handler
 {
 public:
   THD *thd;
   handlerton *ht;
 
-  /* Temporary table where all results should be stored in record[0] */
+  /*
+    Temporary table where all results should be stored in record[0]
+    The table has a field for every item from the Query::select list.
+  */
   TABLE *table;
 
   group_by_handler(THD *thd_arg, handlerton *ht_arg)
@@ -66,19 +97,6 @@ public:
     table= temporary_table;
     return init(having_arg, order_by_arg);
   }
-
-  /*
-    Bits of things the storage engine can do for this query.
-    Should be initialized on object creation.
-    Result data is sorted by the storage engine according to order_by (if it
-    exists) else according to the group_by.  If this is not specified,
-    MariaDB will store the result set into the temporary table and sort the
-    result.
-  */
-  #define GROUP_BY_ORDER_BY 1
-  /* The storage engine can handle DISTINCT */
-  #define GROUP_BY_DISTINCT 2
-  virtual uint flags() { return 0; }
 
   /*
     Functions to scan data. All these returns 0 if ok, error code in case

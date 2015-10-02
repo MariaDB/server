@@ -1916,31 +1916,26 @@ JOIN::optimize_inner()
     if (ht && ht->create_group_by)
     {
       /* Check if the storage engine can intercept the query */
-      group_by_handler *gbh= ht->create_group_by(thd, &all_fields,
-                               tables_list, group_list, order, conds, having);
+      Query query= {&all_fields, select_distinct, tables_list, conds,
+                    group_list, order ? order : group_list, having};
+      group_by_handler *gbh= ht->create_group_by(thd, &query);
       if (gbh)
       {
         pushdown_query= new (thd->mem_root) Pushdown_query(select_lex, gbh);
-        uint handler_flags= gbh->flags();
         int err;
 
         /*
           We must store rows in the tmp table if we need to do an ORDER BY
           or DISTINCT and the storage handler can't handle it.
         */
-        need_tmp= ((!(handler_flags & GROUP_BY_ORDER_BY) &&
-                    (order || group_list)) ||
-                   (!(handler_flags & GROUP_BY_DISTINCT) && select_distinct));
+        need_tmp= query.order_by || query.group_by || query.distinct;
         tmp_table_param.hidden_field_count= (all_fields.elements -
                                              fields_list.elements);
         if (!(exec_tmp_table1=
               create_tmp_table(thd, &tmp_table_param, all_fields, 0,
-                               handler_flags & GROUP_BY_DISTINCT ?
-                               0 : select_distinct, 1,
+                               query.distinct, 1,
                                select_options, HA_POS_ERROR, "",
-                               !need_tmp,
-                               (!order ||
-                                (handler_flags & GROUP_BY_ORDER_BY)))))
+                               !need_tmp, query.order_by || query.group_by)))
           DBUG_RETURN(1);
 
         /*
@@ -1966,15 +1961,10 @@ JOIN::optimize_inner()
         pushdown_query->store_data_in_temp_table= need_tmp;
         pushdown_query->having= having;
         /*
-          If no ORDER BY clause was specified explicitly, we should sort things
-          according to the group_by
-        */
-        if (!order)
-          order= group_list;
-        /*
           Group by and having is calculated by the group_by handler.
           Reset the group by and having
         */
+        DBUG_ASSERT(query.group_by == NULL);
         group= 0; group_list= 0;
         having= tmp_having= 0;
         /*
@@ -1982,8 +1972,7 @@ JOIN::optimize_inner()
           over all fields in the temporary table
         */
         select_distinct= 0;
-        if (handler_flags & GROUP_BY_ORDER_BY)
-          order= 0;
+        order= query.order_by;
         tmp_table_param.field_count+= tmp_table_param.sum_func_count;
         tmp_table_param.sum_func_count= 0;
 
